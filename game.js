@@ -2120,10 +2120,14 @@ const Coop = {
       return;
     }
     if (data.type === 'state' && this.isHost) {
-      // Client skickar sin position — uppdatera deras player-data
+      // Client skickar sin position — sätt target för interpolation
       const p = this.players.get(fromId);
       if (p) {
-        p.x = data.x; p.y = data.y; p.hp = data.hp;
+        // Init x/y om saknas (första gången)
+        if (p.x === undefined) p.x = data.x;
+        if (p.y === undefined) p.y = data.y;
+        p.targetX = data.x; p.targetY = data.y;
+        p.hp = data.hp;
         p.weaponId = data.weaponId; p.aimAngle = data.aimAngle;
         p.shotting = data.shotting;
       }
@@ -2247,6 +2251,24 @@ const Coop = {
       persist();
       return;
     }
+    if (data.type === 'shot') {
+      // Annan spelare sköt — spawna visuella projektiler (ingen skada)
+      if (Array.isArray(data.bs)) {
+        for (const s of data.bs) {
+          state.bullets.push({
+            x: s.x, y: s.y, vx: s.vx, vy: s.vy,
+            dmg: 0, life: s.l || 1.6, r: s.r || 4,
+            color: s.c || '#fff', hostile: false,
+            _visualOnly: true,
+          });
+        }
+      }
+      // Host: relayera till andra klienter så alla ser
+      if (this.isHost) {
+        this._sendBroadcast({ type: 'shot', bs: data.bs });
+      }
+      return;
+    }
     if (data.type === 'gold_share' && !this.isHost) {
       // Host meddelar att en fiende dödades — alla får samma gold
       const g = data.g || 0;
@@ -2293,8 +2315,8 @@ const Coop = {
     if (!this.active || this.inLobby || !state.player) return;
     const now = performance.now();
     if (this.isHost) {
-      // Snapshot 7Hz (~143ms) — lightweight position-only
-      if (now - this._lastBroadcast < 140) return;
+      // Snapshot 20Hz (50ms) — lightweight position-only
+      if (now - this._lastBroadcast < 50) return;
       this._lastBroadcast = now;
       // Var 600ms: full broadcast (statiska fields), annars bara positions
       const fullBroadcast = (now - this._lastFullBroadcast) > 600;
@@ -2359,8 +2381,8 @@ const Coop = {
       }
       this.broadcast(pkt);
     } else {
-      // Client skickar position bara 5Hz
-      if (now - this._lastBroadcast < 200) return;
+      // Client skickar position 20Hz för flyt
+      if (now - this._lastBroadcast < 50) return;
       this._lastBroadcast = now;
       // Om vi är döda, frys position till dödsplatsen (inte spec-kameran)
       const _dead = state.player.spectating;
@@ -2384,6 +2406,11 @@ const Coop = {
   },
   sendPickupToPartner(peerId, kind) {
     this._sendTo(peerId, { type: 'pickup_to_you', kind });
+  },
+  // Skicka skott till alla andra spelare så de ser dina projektiler
+  broadcastShots(shots) {
+    if (!this.active || !shots || !shots.length) return;
+    this._sendBroadcast({ type: 'shot', bs: shots });
   },
 };
 function getCoopMultiplier() {
@@ -3135,6 +3162,7 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
   const cheatUlt = isCheatActive('ultimate');
   const speedBonus = (cheatPen ? 1.5 : 1) * (cheatUlt ? 1.5 : 1);
   const ultDmgMul = cheatUlt ? 10 : 1;
+  const _coopShots = Coop.active ? [] : null;
   for (let i = 0; i < pellets; i++) {
     const spread = (Math.random() - 0.5) * 2 * (w.spread || 0);
     const ang = p.aimAngle + spread;
@@ -3166,7 +3194,16 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
       cheatPen,
       cheatUlt,
     });
+    if (_coopShots) {
+      const _bul = state.bullets[state.bullets.length - 1];
+      _coopShots.push({
+        x: Math.round(_bul.x), y: Math.round(_bul.y),
+        vx: Math.round(_bul.vx), vy: Math.round(_bul.vy),
+        c: _bul.color, r: _bul.r, l: _bul.life,
+      });
+    }
   }
+  if (_coopShots && _coopShots.length) Coop.broadcastShots(_coopShots);
   spawnParticles(p.x + Math.cos(p.aimAngle)*p.r, p.y + Math.sin(p.aimAngle)*p.r, w.color, 4, 90);
 }
 
@@ -5742,6 +5779,8 @@ function updateBullets(dt) {
         if (b.gasOnHit) dropGasCloud(b.x, b.y, 70, 4, 6);
         b.dead = true;
       }
+    } else if (b._visualOnly) {
+      // Visuell-only bullet (från coop-partner) — ingen skada, bara flyger
     } else {
       let hit = false;
       if (!b.hitIds) b.hitIds = new Set();
@@ -11827,6 +11866,15 @@ function runFrame(dt, now) {
       const isCoopClient = Coop.active && !Coop.isHost;
 
       if (!isCoopClient) {
+        // Host: interpolera partner-positioner mjukt mot deras targets
+        if (Coop.active && Coop.isHost) {
+          const lerpFactor = Math.min(1, dt * 12);
+          for (const [, partner] of Coop.players) {
+            if (partner.targetX === undefined) continue;
+            partner.x += (partner.targetX - partner.x) * lerpFactor;
+            partner.y += (partner.targetY - partner.y) * lerpFactor;
+          }
+        }
         // HOST eller single-player kör all AI/spawn
         if (state.waveActive && state.enemiesToSpawn > 0) {
           state.spawnTimer -= dt;
