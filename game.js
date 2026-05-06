@@ -2012,17 +2012,20 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
 // Vapenmeny-knapp — pausar spelet och öppnar fullskärms-vapenmeny
 document.getElementById('btn-weapon-menu').addEventListener('click', openWeaponMenu);
 
-// EMOTE-knapp + picker
+// EMOTE-knapp + picker (lazy-build första gången knappen trycks så EMOTES finns då)
 const emotePickerEl = document.getElementById('emote-picker');
+let _emotePickerBuilt = false;
 function buildEmotePicker() {
-  if (!emotePickerEl) return;
+  if (!emotePickerEl || _emotePickerBuilt) return;
+  if (typeof EMOTES === 'undefined') return; // EMOTES inte definierat än
+  _emotePickerBuilt = true;
   emotePickerEl.innerHTML = '';
   for (const em of EMOTES) {
     const btn = document.createElement('button');
     btn.style.cssText = 'background:rgba(255,255,255,0.08);border:1px solid rgba(170,58,255,0.4);border-radius:8px;width:46px;height:46px;font-size:22px;cursor:pointer;padding:0;';
     btn.textContent = em.emoji;
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
       if (state.player) applyEmote(state.player, em.id);
       Coop.broadcastEmote(em.id);
       emotePickerEl.classList.add('hidden');
@@ -2031,17 +2034,17 @@ function buildEmotePicker() {
     emotePickerEl.appendChild(btn);
   }
 }
-buildEmotePicker();
 const _btnEmote = document.getElementById('btn-emote');
 if (_btnEmote) {
   _btnEmote.addEventListener('click', (e) => {
     e.stopPropagation();
+    buildEmotePicker(); // bygg picker första gången om inte byggd
     emotePickerEl.classList.toggle('hidden');
     Audio.uiClick();
   });
   // Stäng picker om man klickar någon annanstans
   document.addEventListener('click', (e) => {
-    if (!emotePickerEl.classList.contains('hidden') &&
+    if (emotePickerEl && !emotePickerEl.classList.contains('hidden') &&
         !emotePickerEl.contains(e.target) &&
         e.target !== _btnEmote) {
       emotePickerEl.classList.add('hidden');
