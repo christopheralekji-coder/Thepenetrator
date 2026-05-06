@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v57';
+const CACHE = 'penetrator-v60';
 const ASSETS = [
   './',
   './index.html',

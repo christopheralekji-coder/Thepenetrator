@@ -3583,18 +3583,20 @@ function renderHostControls() {
     });
     lobbyModeButtonsEl.appendChild(b);
   }
-  // Convoy-toggle (lägger till konvoj-stages efter story)
-  if (Coop.config.mode === 'story') {
-    const convoyBtn = document.createElement('button');
-    convoyBtn.textContent = '🚚 +KONVOJ' + (Coop.config.includeConvoy ? ' ✓' : '');
-    convoyBtn.style.cssText = 'background:' + (Coop.config.includeConvoy ? '#aa3aff' : '#444') + ';margin-left:8px;';
-    convoyBtn.title = 'Lägg till 2 truck-konvoj stages efter story → 11 banor totalt';
-    convoyBtn.addEventListener('click', () => {
-      Coop.updateConfig({ includeConvoy: !Coop.config.includeConvoy });
-      renderHostControls();
-    });
-    lobbyModeButtonsEl.appendChild(convoyBtn);
-  }
+  // Convoy-toggle (visas ALLTID, men markerar tydligt om Story-mode krävs)
+  const convoyBtn = document.createElement('button');
+  const inStory = Coop.config.mode === 'story';
+  const isOn = !!Coop.config.includeConvoy;
+  convoyBtn.textContent = '🚚 LÄGG TILL KONVOJ' + (isOn ? ' ✓' : '');
+  convoyBtn.style.cssText = 'background:' + (isOn ? '#aa3aff' : (inStory ? '#444' : '#222')) + ';margin-top:6px;width:100%;font-size:12px;padding:6px 10px;color:' + (inStory ? '#fff' : '#666') + ';';
+  convoyBtn.title = inStory ? 'Lägg till truck-konvoj efter story → 11 banor totalt' : 'Endast i Story-mode';
+  if (!inStory) convoyBtn.disabled = true;
+  convoyBtn.addEventListener('click', () => {
+    if (!inStory) { showToast('Bara i Story-mode'); return; }
+    Coop.updateConfig({ includeConvoy: !Coop.config.includeConvoy });
+    renderHostControls();
+  });
+  lobbyModeButtonsEl.appendChild(convoyBtn);
   // Cheats (endast unlocked)
   lobbyCheatButtonsEl.innerHTML = '';
   let anyUnlocked = false;
@@ -5975,24 +5977,30 @@ function actuallyStartGame() {
   if (coopInitEl) coopInitEl.classList.remove('hidden');
   if (coopLobbyEl) coopLobbyEl.classList.add('hidden');
   document.body.classList.remove('menu-mode');
-  // Coop: fresh-start varje run (ingen pengar/vapen carry-over, alla börjar med knuckles)
-  if (Coop.active && !state._coopSnapshot) {
-    state._coopSnapshot = {
-      gold: save.gold,
-      owned: [...(save.owned || ['fists'])],
-      weaponId: save.weaponId,
-      equipped: save.equipped,
-      upgrades: { ...(save.upgrades || {}) },
-      perks: [...(save.perks || [])],
-      activeCompanion: save.companions ? save.companions.active : null,
-    };
+  // Coop: fresh-start varje run (ingen pengar/vapen/perks/upgrades carry-over)
+  if (Coop.active) {
+    // Snapshot bara FÖRSTA gången (om vi inte redan har en sparad)
+    if (!state._coopSnapshot) {
+      state._coopSnapshot = {
+        gold: save.gold,
+        owned: [...(save.owned || ['fists'])],
+        weaponId: save.weaponId,
+        equipped: save.equipped,
+        upgrades: { ...(save.upgrades || {}) },
+        perks: [...(save.perks || [])],
+        activeCompanion: save.companions ? save.companions.active : null,
+      };
+    }
+    // Reset varje coop-run (både första gången och återupprepade gånger)
     save.gold = 0;
     save.owned = ['fists'];
     save.weaponId = 'fists';
     save.equipped = 'fists';
-    for (const k in save.upgrades) save.upgrades[k] = 0;
+    if (save.upgrades) {
+      for (const k of Object.keys(save.upgrades)) save.upgrades[k] = 0;
+    }
     save.perks = [];
-    if (save.companions) save.companions.active = null; // ingen companion i coop heller
+    if (save.companions) save.companions.active = null;
   }
   state.mode = 'playing';
   state.player = makePlayer();
@@ -13159,30 +13167,15 @@ function drawModeTimer() {
   const start = mode === 'survive' ? state.surviveStart : state.speedrunStart;
   if (!start) return;
   const elapsed = (performance.now() - start) / 1000;
-  let display, color = '#ffd54a';
+  // För survive: kolla när tiden tar slut (men ingen visuell timer)
   if (mode === 'survive') {
     const remaining = Math.max(0, 300 - elapsed);
     if (remaining <= 0 && state.mode === 'playing') {
-      // Survive complete!
       onWaveComplete();
       state.surviveStart = null;
-      return;
     }
-    const m = Math.floor(remaining / 60), s = Math.floor(remaining % 60);
-    display = `${m}:${s.toString().padStart(2,'0')}`;
-    if (remaining < 30) color = '#ff5a3a';
-  } else {
-    const m = Math.floor(elapsed / 60), s = Math.floor(elapsed % 60), ms = Math.floor((elapsed % 1) * 100);
-    display = `${m}:${s.toString().padStart(2,'0')}.${ms.toString().padStart(2,'0')}`;
   }
-  ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,0.7)';
-  ctx.fillRect(viewW/2 - 60, 50, 120, 28);
-  ctx.fillStyle = color;
-  ctx.font = 'bold 18px monospace';
-  ctx.textAlign = 'center';
-  ctx.fillText(display, viewW/2, 70);
-  ctx.restore();
+  // Visuell timer borttagen (användarens önskemål)
 }
 
 function drawCheatBanner() {
