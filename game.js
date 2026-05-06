@@ -413,22 +413,34 @@ function updateTruck(dt, now) {
     if (Math.abs(dxt) > maxX) p.x = t.x + Math.sign(dxt) * maxX;
     if (Math.abs(dyt) > maxY) p.y = t.y + Math.sign(dyt) * maxY;
   }
-  // Markera turrets occupied (för rendering)
-  for (const tr of t.turrets) {
-    tr.occupiedBy = (p && p._mountedTurretId === tr.id) ? 'host' : null;
-  }
-  // Coop partners — auto-occupy om de står nära en turret
+  // Markera vilka turrets som är claim:ade (host + partners) + lås positions
   if (Coop.active && Coop.isHost) {
+    // Reset alla claims för host-spelaren först (kommer sätts om i blocket ovan)
+    for (const tr of t.turrets) {
+      if (tr.occupiedBy === 'host' && (!p || p._mountedTurretId !== tr.id)) tr.occupiedBy = null;
+    }
+    // Sätt host-claim om mountad
+    if (p && p._mountedTurretId) {
+      const tr = t.turrets.find(x => x.id === p._mountedTurretId);
+      if (tr) tr.occupiedBy = 'host';
+    }
+    // Lås partner-positioner till deras turret (bara om partner._mountedTurretId via mount_req)
     for (const [pid, partner] of Coop.players) {
-      if (!partner || partner.hp <= 0) continue;
-      for (const tr of t.turrets) {
-        const tx = t.x + tr.offsetX;
-        const ty = t.y + tr.offsetY;
-        if (Math.hypot(partner.x - tx, partner.y - ty) < 20) {
-          if (!tr.occupiedBy) tr.occupiedBy = pid;
-          break;
+      if (!partner) continue;
+      if (partner._mountedTurretId) {
+        const tr = t.turrets.find(x => x.id === partner._mountedTurretId);
+        if (tr) {
+          partner.x = t.x + tr.offsetX;
+          partner.y = t.y + tr.offsetY;
+          partner.targetX = partner.x; partner.targetY = partner.y;
+          tr.occupiedBy = pid;
         }
       }
+    }
+  } else if (!Coop.active) {
+    // Single-player: bara host
+    for (const tr of t.turrets) {
+      tr.occupiedBy = (p && p._mountedTurretId === tr.id) ? 'host' : null;
     }
   }
   // Truck tar skada från fiender som rör vid den
@@ -3311,8 +3323,6 @@ const Coop = {
   tick() {
     if (!this.active || this.inLobby || !state.player) return;
     const now = performance.now();
-    // Flusha skott-kö först (eget paket)
-    this.flushShots();
     // Adaptiv rate: om servern inte hänger med (buffer fylls upp), sakta ner
     const buffered = this.ws ? this.ws.bufferedAmount : 0;
     const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 65);
@@ -3320,6 +3330,8 @@ const Coop = {
       // Snapshot 15Hz (eller långsammare om bufferten är full)
       if (now - this._lastBroadcast < adaptiveDelay) return;
       this._lastBroadcast = now;
+      // Flusha skott-kö (samma rate som broadcast = 15Hz max)
+      this.flushShots();
       // Var 600ms: full broadcast (statiska fields), annars bara positions
       const fullBroadcast = (now - this._lastFullBroadcast) > 600;
       if (fullBroadcast) this._lastFullBroadcast = now;
@@ -3346,6 +3358,9 @@ const Coop = {
       const cullDist = 1400;
       const allPlayerPos = allPlayers.map(p => ({ x: p.x, y: p.y }));
       const enemies = [];
+      // Delta-tracking: hoppa över enemies som inte rört sig sen senaste broadcast
+      if (!this._lastSentEnemy) this._lastSentEnemy = {};
+      const newSent = {};
       for (let i = 0; i < state.enemies.length; i++) {
         const e = state.enemies[i];
         if (e.dead) continue;
@@ -3354,23 +3369,26 @@ const Coop = {
         for (const pp of allPlayerPos) {
           if (Math.abs(e.x - pp.x) < cullDist && Math.abs(e.y - pp.y) < cullDist) { visible = true; break; }
         }
-        if (!visible && !e.isBoss) continue;
+        if (!visible && !e.isBoss && !e.isMiniBoss) continue;
+        const ex = Math.round(e.x), ey = Math.round(e.y), eh = Math.round(e.hp);
+        newSent[i] = { x: ex, y: ey, hp: eh };
+        // Delta: skippa om position+hp är samma som senaste send (men alltid skicka full broadcast)
+        const last = this._lastSentEnemy[i];
+        if (!fullBroadcast && last && last.x === ex && last.y === ey && last.hp === eh) {
+          continue; // ingen ändring — sparar bandbredd
+        }
         if (fullBroadcast) {
-          // Full data
           enemies.push({
-            i, x: Math.round(e.x), y: Math.round(e.y),
-            hp: Math.round(e.hp), mh: Math.round(e.maxHp),
+            i, x: ex, y: ey,
+            hp: eh, mh: Math.round(e.maxHp),
             t: e.type, b: e.isBoss ? 1 : 0, mb: e.isMiniBoss ? 1 : 0, bk: e.bossKey,
             r: e.r, c: e.color, n: e.name, p: e.phase,
           });
         } else {
-          // Lightweight — bara position + hp
-          enemies.push({
-            i, x: Math.round(e.x), y: Math.round(e.y),
-            hp: Math.round(e.hp),
-          });
+          enemies.push({ i, x: ex, y: ey, hp: eh });
         }
       }
+      this._lastSentEnemy = newSent;
       // Hostile bullets — bara de som är synliga för någon spelare (sparar bandbredd)
       const visDist = 1000;
       const hostileBullets = state.bullets.filter(b => {
@@ -3413,6 +3431,8 @@ const Coop = {
       // Client skickar position 15Hz (eller saktare om bufferten är full)
       if (now - this._lastBroadcast < adaptiveDelay) return;
       this._lastBroadcast = now;
+      // Flusha skott-kö samma rate
+      this.flushShots();
       // Om vi är döda, frys position till dödsplatsen (inte spec-kameran)
       const _dead = state.player.spectating;
       const _cx = _dead && state.deadBody ? state.deadBody.x : state.player.x;
@@ -4871,9 +4891,12 @@ const eventNames = {
 // ============================================================
 function getQualityMul() {
   const q = save.quality || 'medium';
-  if (q === 'low') return 0.4;
-  if (q === 'high') return 1.4;
-  return 1.0;
+  let base = 1.0;
+  if (q === 'low') base = 0.4;
+  else if (q === 'high') base = 1.4;
+  // Coop = ännu lägre kvalitet (mer enemies + nätverk = behöver CPU för andra saker)
+  if (Coop && Coop.active && Coop.players && Coop.players.size > 0) base *= 0.6;
+  return base;
 }
 function spawnParticles(x, y, color, count, speed) {
   const adjusted = Math.max(1, Math.round(count * getQualityMul()));
@@ -5674,17 +5697,10 @@ if (tabCompanions) tabCompanions.addEventListener('click', () => setShopTab('com
 function renderShopCompanions() {
   if (!shopCompanionsEl) return;
   ensureCompanions();
-  // Återanvänd befintlig render-logik
-  const oldGrid = companionsGridEl;
   const tmpGrid = document.createElement('div');
   tmpGrid.style.cssText = 'display:flex;flex-direction:column;gap:12px;';
-  // Kopiera renderCompanions logik in i shopCompanionsEl
   shopCompanionsEl.innerHTML = '';
   shopCompanionsEl.appendChild(tmpGrid);
-  // Hijack: peka companionsGridEl temp till tmpGrid, kör render, peka tillbaka
-  window._origCompGrid = companionsGridEl;
-  Object.defineProperty(window, '__compGridProxy', { get: () => tmpGrid, configurable: true });
-  // Enklare: skriv om innerHTML här direkt
   const goldDisp = save.gold;
   for (const c of COMPANIONS) {
     const owned = save.companions.owned.includes(c.id);
@@ -6561,14 +6577,16 @@ function updateHUD() {
   const p = state.player;
   // Turret-override: visa truck-vapen istället för spelarens
   const wid = p._turretWeapon || p.weaponId;
-  const w = W_BY_ID[wid];
+  // Special: 'repair' har inget riktigt vapen
+  const isRepair = wid === 'repair';
+  const w = isRepair ? { name: 'Reparera' } : (W_BY_ID[wid] || W_BY_ID[p.weaponId] || W_BY_ID['fists']);
   hpFill.style.width = Math.max(0, p.hp / p.maxHp * 100) + '%';
   hpText.textContent = `${Math.ceil(p.hp)}/${p.maxHp}`;
   if (killCountEl) killCountEl.textContent = state.killsThisRun || 0;
   const lvl = getLevel(state.wave);
   waveInfo.textContent = `${state.wave}/${getStageCount()} · ${lvl.name}`;
   goldInfo.textContent = `💰 ${save.gold}`;
-  weaponName.textContent = (p._turretWeapon ? '🛡️ ' : '') + w.name;
+  weaponName.textContent = (p._turretWeapon ? (isRepair ? '🔧 ' : '🛡️ ') : '') + w.name;
   let ammoText;
   if (w.type === 'melee') ammoText = '∞';
   else if (p.reloading) ammoText = '...';
