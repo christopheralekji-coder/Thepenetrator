@@ -999,6 +999,7 @@ body.ios .overlay { padding-top: env(safe-area-inset-top, 24px); padding-bottom:
 /* Compact mode för små skärmar (telefoner portrait/iPhone SE) */
 @media (max-width: 480px) {
   #joystick { width: 100px; height: 100px; bottom: 16px; left: 16px; }
+  #btn-emote { left: 130px !important; bottom: 36px !important; width: 42px !important; height: 42px !important; font-size: 18px !important; }
   #joystick-knob { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
   .action-btn { width: 58px; height: 58px; font-size: 18px; }
   .action-btn.fire { width: 84px; height: 84px; font-size: 26px; }

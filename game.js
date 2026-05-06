@@ -3174,9 +3174,12 @@ const Coop = {
     const now = performance.now();
     // Flusha skott-kö först (eget paket)
     this.flushShots();
+    // Adaptiv rate: om servern inte hänger med (buffer fylls upp), sakta ner
+    const buffered = this.ws ? this.ws.bufferedAmount : 0;
+    const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 65);
     if (this.isHost) {
-      // Snapshot 15Hz (~67ms) — bra balans mellan flyt och bandbredd
-      if (now - this._lastBroadcast < 65) return;
+      // Snapshot 15Hz (eller långsammare om bufferten är full)
+      if (now - this._lastBroadcast < adaptiveDelay) return;
       this._lastBroadcast = now;
       // Var 600ms: full broadcast (statiska fields), annars bara positions
       const fullBroadcast = (now - this._lastFullBroadcast) > 600;
@@ -3229,8 +3232,15 @@ const Coop = {
           });
         }
       }
-      // Hostile bullets — alltid broadcast (klienten behöver se dem)
-      const hostileBullets = state.bullets.filter(b => b.hostile && !b.dead).map(b => ({
+      // Hostile bullets — bara de som är synliga för någon spelare (sparar bandbredd)
+      const visDist = 1000;
+      const hostileBullets = state.bullets.filter(b => {
+        if (!b.hostile || b.dead) return false;
+        for (const pp of allPlayerPos) {
+          if (Math.abs(b.x - pp.x) < visDist && Math.abs(b.y - pp.y) < visDist) return true;
+        }
+        return false;
+      }).map(b => ({
         x: Math.round(b.x), y: Math.round(b.y),
         vx: Math.round(b.vx), vy: Math.round(b.vy),
         c: b.color, r: b.r,
@@ -3251,8 +3261,8 @@ const Coop = {
       }
       this.broadcast(pkt);
     } else {
-      // Client skickar position 15Hz för flyt
-      if (now - this._lastBroadcast < 65) return;
+      // Client skickar position 15Hz (eller saktare om bufferten är full)
+      if (now - this._lastBroadcast < adaptiveDelay) return;
       this._lastBroadcast = now;
       // Om vi är döda, frys position till dödsplatsen (inte spec-kameran)
       const _dead = state.player.spectating;
@@ -3930,20 +3940,26 @@ if (installDismissBtn) {
 // Auto-quality detection — mät FPS första 5 sekunderna
 let _fpsFrames = 0, _fpsStart = 0, _fpsAdjusted = false;
 function autoAdjustQuality(now) {
-  if (_fpsAdjusted || !state.player) return;
+  if (!state.player) return;
   if (!_fpsStart) _fpsStart = now;
   _fpsFrames++;
   if (now - _fpsStart > 5000) {
     const fps = _fpsFrames * 1000 / (now - _fpsStart);
-    if (fps < 30 && save.quality !== 'low') {
+    if (fps < 25 && save.quality !== 'low') {
       save.quality = 'low';
       persist();
-      showToast('Grafikkvalitet sänkt till LÅG (' + Math.round(fps) + ' fps)');
-    } else if (fps < 50 && save.quality === 'high') {
+      showToast('🐢 Kvalitet sänkt → LÅG (' + Math.round(fps) + ' fps)');
+    } else if (fps < 45 && save.quality === 'high') {
+      save.quality = 'medium';
+      persist();
+      showToast('Kvalitet sänkt → MEDIUM (' + Math.round(fps) + ' fps)');
+    } else if (fps > 55 && save.quality === 'low') {
       save.quality = 'medium';
       persist();
     }
-    _fpsAdjusted = true;
+    // Reset för nästa mätning (löpande, inte engångs)
+    _fpsStart = now;
+    _fpsFrames = 0;
   }
 }
 

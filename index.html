@@ -37,10 +37,10 @@
     <div id="joystick-knob"></div>
   </div>
   <div id="action-buttons">
-    <button id="btn-emote" class="action-btn" aria-label="Emote">😀</button>
     <button id="btn-weapon-menu" class="action-btn" aria-label="Öppna vapenmeny">⚔</button>
     <button id="btn-fire" class="action-btn fire" aria-label="Skjut">🔫</button>
   </div>
+  <button id="btn-emote" aria-label="Emote" style="position:absolute;bottom:50px;left:185px;width:48px;height:48px;border-radius:50%;background:rgba(170,58,255,0.7);border:2px solid rgba(255,255,255,0.4);color:#fff;font-size:22px;cursor:pointer;pointer-events:auto;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,0.4);">😀</button>
   <div id="ammo-display"><span id="ammo-display-text">∞</span></div>
 </div>
 
@@ -49,7 +49,7 @@
   <!-- Knappar fylls i av JS -->
 </div>
 
-<div id="emote-picker" class="hidden" style="position:fixed;bottom:120px;right:20px;background:rgba(20,20,30,0.95);border:2px solid #aa3aff;border-radius:12px;padding:12px;display:grid;grid-template-columns:repeat(4,46px);gap:6px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,0.5);">
+<div id="emote-picker" class="hidden" style="position:fixed;bottom:120px;left:30px;background:rgba(20,20,30,0.95);border:2px solid #aa3aff;border-radius:12px;padding:12px;display:grid;grid-template-columns:repeat(4,46px);gap:6px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,0.5);">
   <!-- Emote-knappar fylls i av JS -->
 </div>
 
