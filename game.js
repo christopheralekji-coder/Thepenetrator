@@ -264,6 +264,40 @@ function updateDrone(dt, now) {
     }
   }
 }
+// Rita emote-bubbla ovanför en spelare/partner
+function drawEmoteBubble(em, x, y, r) {
+  const now = performance.now();
+  if (!em || !em.until || now > em.until) return;
+  const t = em.until - now;
+  const alpha = t > 500 ? 1 : t / 500;
+  const pop = t > 3000 ? (1 - (t - 3000) / 500) : 1;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  // Bubbla
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.strokeStyle = '#aa3aff';
+  ctx.lineWidth = 2;
+  const bw = 50 * pop, bh = 36 * pop;
+  ctx.beginPath();
+  if (ctx.roundRect) ctx.roundRect(x - bw/2, y - r - 50, bw, bh, 8);
+  else ctx.rect(x - bw/2, y - r - 50, bw, bh);
+  ctx.fill(); ctx.stroke();
+  // Stjärt (pekar ner mot spelaren)
+  ctx.beginPath();
+  ctx.moveTo(x - 5, y - r - 50 + bh);
+  ctx.lineTo(x, y - r - 50 + bh + 8);
+  ctx.lineTo(x + 5, y - r - 50 + bh);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  ctx.fill();
+  // Emoji
+  ctx.font = 'bold ' + Math.round(20 * pop) + 'px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#000';
+  ctx.fillText(em.emoji, x, y - r - 32);
+  ctx.restore();
+}
+
 function drawCoopPartner() {
   if (!Coop.active || Coop.inLobby) return;
   const now = performance.now();
@@ -696,53 +730,100 @@ const COSTUMES = [
   { id: 'cyberpunk',  name: 'Cyberpunk',       desc: 'Neon-detaljer', skin: '#e8b888', shirt: '#1a1a2a', bandana: '#aa3aff', accent: '#3acaff', unlock: () => save.cheatsUnlocked >= 1 },
   { id: 'demon',      name: 'Demon-form',      desc: 'NG+++ låst', skin: '#a07060', shirt: '#3a0a14', bandana: '#7a1818', accent: '#ff1a1a', unlock: () => getNGPLevel() >= 3 },
 ];
-// WARDROBE — mix & match (5 kategorier)
+// WARDROBE — mix & match (5 kategorier, många alternativ)
 const WARDROBE = {
   skin: [
-    { id: 'pale',  name: 'Blek',     color: '#f0d4b0' },
-    { id: 'fair',  name: 'Ljus',     color: '#e8c898' },
-    { id: 'tan',   name: 'Solbränd', color: '#d4a574' },
-    { id: 'olive', name: 'Oliv',     color: '#c08858' },
-    { id: 'brown', name: 'Brun',     color: '#9a6840' },
-    { id: 'dark',  name: 'Mörk',     color: '#6a4828' },
-    { id: 'green', name: 'Alien',    color: '#5aff8a' },
+    { id: 'porcelain', name: 'Porslin', color: '#f8e0c8' },
+    { id: 'pale',  name: 'Blek',         color: '#f0d4b0' },
+    { id: 'fair',  name: 'Ljus',         color: '#e8c898' },
+    { id: 'peach', name: 'Persika',      color: '#e0b888' },
+    { id: 'tan',   name: 'Solbränd',     color: '#d4a574' },
+    { id: 'olive', name: 'Oliv',         color: '#c08858' },
+    { id: 'caramel', name: 'Karamell',   color: '#b08858' },
+    { id: 'brown', name: 'Brun',         color: '#9a6840' },
+    { id: 'cocoa', name: 'Kakao',        color: '#7a4828' },
+    { id: 'dark',  name: 'Mörk',         color: '#6a4828' },
+    { id: 'ebony', name: 'Ebenholts',    color: '#3e2818' },
+    { id: 'pink',  name: 'Anime-rosa',   color: '#ffc8c0' },
+    { id: 'green', name: 'Alien-grön',   color: '#5aff8a' },
+    { id: 'blue',  name: 'Smurf',        color: '#5a8aff' },
+    { id: 'gray',  name: 'Zombie',       color: '#8aa088' },
+    { id: 'red',   name: 'Demon-röd',    color: '#aa3a3a' },
+    { id: 'gold',  name: 'Gud-guld',     color: '#ffd54a' },
+    { id: 'silver',name: 'Robot-silver', color: '#c8c8d0' },
   ],
   hair: [
-    { id: 'bald',     name: 'Skallig',     style: 'bald',     color: '#000' },
-    { id: 'shortDark',name: 'Kort Svart',  style: 'short',    color: '#1a0a08' },
-    { id: 'shortBlonde', name: 'Kort Blond', style: 'short',  color: '#d4b478' },
-    { id: 'mohawk',   name: 'Mohawk',      style: 'mohawk',   color: '#0a0a0a' },
-    { id: 'longBrown',name: 'Långt Brunt', style: 'long',     color: '#3a1a0a' },
-    { id: 'ponytail', name: 'Hästsvans',   style: 'ponytail', color: '#1a0a08' },
-    { id: 'mullet',   name: 'Mullet',      style: 'mullet',   color: '#5a2a0a' },
-    { id: 'whiteLong',name: 'Vitt Långt',  style: 'long',     color: '#e0e0e0' },
-    { id: 'redMohawk',name: 'Röd Mohawk',  style: 'mohawk',   color: '#ff3a3a' },
+    { id: 'bald',         name: 'Skallig',     style: 'bald',     color: '#000' },
+    { id: 'shortDark',    name: 'Kort Svart',  style: 'short',    color: '#1a0a08' },
+    { id: 'shortBlonde',  name: 'Kort Blond',  style: 'short',    color: '#d4b478' },
+    { id: 'shortRed',     name: 'Kort Röd',    style: 'short',    color: '#aa3a3a' },
+    { id: 'shortGray',    name: 'Kort Grå',    style: 'short',    color: '#8a8a8a' },
+    { id: 'mohawkBlack',  name: 'Mohawk Svart',style: 'mohawk',   color: '#0a0a0a' },
+    { id: 'mohawkRed',    name: 'Mohawk Röd',  style: 'mohawk',   color: '#ff3a3a' },
+    { id: 'mohawkBlue',   name: 'Mohawk Blå',  style: 'mohawk',   color: '#3acaff' },
+    { id: 'mohawkPink',   name: 'Mohawk Rosa', style: 'mohawk',   color: '#ff5aca' },
+    { id: 'mohawkGreen',  name: 'Mohawk Grön', style: 'mohawk',   color: '#5aff5a' },
+    { id: 'longBrown',    name: 'Långt Brunt', style: 'long',     color: '#3a1a0a' },
+    { id: 'longBlack',    name: 'Långt Svart', style: 'long',     color: '#0a0a0a' },
+    { id: 'longBlonde',   name: 'Långt Blont', style: 'long',     color: '#e8c878' },
+    { id: 'whiteLong',    name: 'Vitt Långt',  style: 'long',     color: '#f0f0f0' },
+    { id: 'longPurple',   name: 'Långt Lila',  style: 'long',     color: '#aa3aff' },
+    { id: 'ponytail',     name: 'Hästsvans',   style: 'ponytail', color: '#1a0a08' },
+    { id: 'ponyBlonde',   name: 'Hästsvans Blond', style: 'ponytail', color: '#e8c878' },
+    { id: 'ponyPink',     name: 'Hästsvans Rosa', style: 'ponytail', color: '#ff5aca' },
+    { id: 'mullet',       name: 'Mullet',      style: 'mullet',   color: '#5a2a0a' },
+    { id: 'mulletBlonde', name: 'Mullet Blond',style: 'mullet',   color: '#d4b478' },
+    { id: 'mulletGreen',  name: 'Mullet Grön', style: 'mullet',   color: '#5aff5a' },
   ],
   shirt: [
-    { id: 'black',  name: 'Svart',     color: '#222' },
-    { id: 'green',  name: 'Tactical',  color: '#1a3a1a' },
-    { id: 'red',    name: 'Röd',       color: '#aa2222' },
-    { id: 'blue',   name: 'Marin',     color: '#2244aa' },
-    { id: 'urban',  name: 'Urban',     color: '#5a4a2a' },
-    { id: 'cyber',  name: 'Cyber',     color: '#1a1a2a' },
-    { id: 'gold',   name: 'Guld',      color: '#aa8a3a' },
+    { id: 'black',     name: 'Svart',      color: '#222' },
+    { id: 'white',     name: 'Vit',        color: '#cccccc' },
+    { id: 'tactical',  name: 'Tactical',   color: '#1a3a1a' },
+    { id: 'red',       name: 'Röd',        color: '#aa2222' },
+    { id: 'crimson',   name: 'Crimson',    color: '#7a1a1a' },
+    { id: 'blue',      name: 'Marin',      color: '#2244aa' },
+    { id: 'sky',       name: 'Skyblue',    color: '#3acaff' },
+    { id: 'urban',     name: 'Urban',      color: '#5a4a2a' },
+    { id: 'cyber',     name: 'Cyber',      color: '#1a1a2a' },
+    { id: 'gold',      name: 'Guld',       color: '#aa8a3a' },
+    { id: 'pink',      name: 'Rosa',       color: '#ff5aca' },
+    { id: 'purple',    name: 'Lila',       color: '#5a2aaa' },
+    { id: 'green',     name: 'Neon-Grön',  color: '#3aff5a' },
+    { id: 'orange',    name: 'Orange',     color: '#ff8a3a' },
+    { id: 'silver',    name: 'Silver',     color: '#a0a0b0' },
+    { id: 'desert',    name: 'Öken',       color: '#c0a060' },
+    { id: 'navy',      name: 'Mörk Blå',   color: '#1a2a4a' },
   ],
   pants: [
-    { id: 'khaki',  name: 'Khaki',    color: '#3a3528' },
-    { id: 'black',  name: 'Svarta',   color: '#1a1a1a' },
-    { id: 'jeans',  name: 'Jeans',    color: '#2a3a5a' },
-    { id: 'olive',  name: 'Oliv',     color: '#3a4a2a' },
-    { id: 'urban',  name: 'Urban',    color: '#3a3a3a' },
-    { id: 'red',    name: 'Bordeaux', color: '#5a1a1a' },
+    { id: 'khaki',   name: 'Khaki',     color: '#3a3528' },
+    { id: 'black',   name: 'Svarta',    color: '#1a1a1a' },
+    { id: 'jeans',   name: 'Jeans',     color: '#2a3a5a' },
+    { id: 'olive',   name: 'Oliv',      color: '#3a4a2a' },
+    { id: 'urban',   name: 'Urban',     color: '#3a3a3a' },
+    { id: 'red',     name: 'Bordeaux',  color: '#5a1a1a' },
+    { id: 'white',   name: 'Vita',      color: '#bbbbbb' },
+    { id: 'desert',  name: 'Desert',    color: '#7a6a4a' },
+    { id: 'cargo',   name: 'Cargo',     color: '#4a4a3a' },
+    { id: 'tactical',name: 'Tactical',  color: '#2a3a2a' },
+    { id: 'gold',    name: 'Guld',      color: '#aa8a3a' },
+    { id: 'cyber',   name: 'Cyber-blå', color: '#1a3a5a' },
+    { id: 'purple',  name: 'Lila',      color: '#3a1a4a' },
   ],
   bandana: [
-    { id: 'none',   name: 'Ingen',  color: null },
-    { id: 'black',  name: 'Svart',  color: '#0a0a0a' },
-    { id: 'red',    name: 'Röd',    color: '#aa1818' },
-    { id: 'green',  name: 'Camo',   color: '#3a4a26' },
-    { id: 'pink',   name: 'Rosa',   color: '#ff5aca' },
-    { id: 'cyan',   name: 'Cyan',   color: '#3acaff' },
-    { id: 'gold',   name: 'Guld',   color: '#ffd54a' },
+    { id: 'none',    name: 'Ingen',  color: null },
+    { id: 'black',   name: 'Svart',  color: '#0a0a0a' },
+    { id: 'red',     name: 'Röd',    color: '#aa1818' },
+    { id: 'crimson', name: 'Crimson',color: '#5a0a0a' },
+    { id: 'green',   name: 'Camo',   color: '#3a4a26' },
+    { id: 'navy',    name: 'Marin',  color: '#1a2a4a' },
+    { id: 'pink',    name: 'Rosa',   color: '#ff5aca' },
+    { id: 'cyan',    name: 'Cyan',   color: '#3acaff' },
+    { id: 'gold',    name: 'Guld',   color: '#ffd54a' },
+    { id: 'white',   name: 'Vit',    color: '#eeeeee' },
+    { id: 'purple',  name: 'Lila',   color: '#aa3aff' },
+    { id: 'orange',  name: 'Orange', color: '#ff8a3a' },
+    { id: 'green2',  name: 'Neon',   color: '#3aff5a' },
+    { id: 'rainbow', name: 'Regnbåge',color: '#ff5aff' },
   ],
 };
 function ensureWardrobe() {
@@ -1931,6 +2012,43 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
 // Vapenmeny-knapp — pausar spelet och öppnar fullskärms-vapenmeny
 document.getElementById('btn-weapon-menu').addEventListener('click', openWeaponMenu);
 
+// EMOTE-knapp + picker
+const emotePickerEl = document.getElementById('emote-picker');
+function buildEmotePicker() {
+  if (!emotePickerEl) return;
+  emotePickerEl.innerHTML = '';
+  for (const em of EMOTES) {
+    const btn = document.createElement('button');
+    btn.style.cssText = 'background:rgba(255,255,255,0.08);border:1px solid rgba(170,58,255,0.4);border-radius:8px;width:46px;height:46px;font-size:22px;cursor:pointer;padding:0;';
+    btn.textContent = em.emoji;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (state.player) applyEmote(state.player, em.id);
+      Coop.broadcastEmote(em.id);
+      emotePickerEl.classList.add('hidden');
+      Audio.uiClick();
+    });
+    emotePickerEl.appendChild(btn);
+  }
+}
+buildEmotePicker();
+const _btnEmote = document.getElementById('btn-emote');
+if (_btnEmote) {
+  _btnEmote.addEventListener('click', (e) => {
+    e.stopPropagation();
+    emotePickerEl.classList.toggle('hidden');
+    Audio.uiClick();
+  });
+  // Stäng picker om man klickar någon annanstans
+  document.addEventListener('click', (e) => {
+    if (!emotePickerEl.classList.contains('hidden') &&
+        !emotePickerEl.contains(e.target) &&
+        e.target !== _btnEmote) {
+      emotePickerEl.classList.add('hidden');
+    }
+  });
+}
+
 const weaponMenuScreen = document.getElementById('weapon-menu-screen');
 const weaponMenuGrid = document.getElementById('weapon-menu-grid');
 let prevModeBeforeWeaponMenu = 'playing';
@@ -2393,7 +2511,7 @@ const Coop = {
           let cached = cache[e.i];
           if (data.full || !cached) {
             cached = {
-              type: e.t, isBoss: !!e.b, bossKey: e.bk, r: e.r,
+              type: e.t, isBoss: !!e.b, isMiniBoss: !!e.mb, bossKey: e.bk, r: e.r,
               color: e.c, name: e.n, maxHp: e.mh,
               walkPhase: cached ? cached.walkPhase : Math.random() * Math.PI*2,
               walkAccum: cached ? cached.walkAccum : 0,
@@ -2491,6 +2609,11 @@ const Coop = {
       const w = W_BY_ID[data.weaponId];
       showToast('🔫 ' + (w ? w.name : data.weaponId));
       persist();
+      return;
+    }
+    if (data.type === 'emote') {
+      const partner = this.players.get(fromId);
+      if (partner) applyEmote(partner, data.e);
       return;
     }
     if (data.type === 'shot') {
@@ -2623,7 +2746,7 @@ const Coop = {
           enemies.push({
             i, x: Math.round(e.x), y: Math.round(e.y),
             hp: Math.round(e.hp), mh: Math.round(e.maxHp),
-            t: e.type, b: e.isBoss ? 1 : 0, bk: e.bossKey,
+            t: e.type, b: e.isBoss ? 1 : 0, mb: e.isMiniBoss ? 1 : 0, bk: e.bossKey,
             r: e.r, c: e.color, n: e.name, p: e.phase,
           });
         } else {
@@ -2641,8 +2764,9 @@ const Coop = {
         c: b.color, r: b.r,
       }));
       const pkt = { type: 'world', players: allPlayers, enemies, hb: hostileBullets, full: fullBroadcast ? 1 : 0 };
+      // Pickups broadcastas varje tick (instant disappear när någon plockar)
+      pkt.pickups = (state.pickups || []).map(p => ({ x: Math.round(p.x), y: Math.round(p.y), t: p.type }));
       if (fullBroadcast) {
-        pkt.pickups = (state.pickups || []).map(p => ({ x: Math.round(p.x), y: Math.round(p.y), t: p.type }));
         pkt.gs = {
           w: state.wave, cz: state.currentZone, zs: state.zoneState,
           bss: state.bossSequenceStep, bd: state.bossDefeated ? 1 : 0,
@@ -2691,7 +2815,34 @@ const Coop = {
     if (!this.active || !shots || !shots.length) return;
     this._sendBroadcast({ type: 'shot', bs: shots });
   },
+  // Skicka emote till alla
+  broadcastEmote(emoteId) {
+    if (!this.active) return;
+    this._sendBroadcast({ type: 'emote', e: emoteId });
+  },
 };
+
+// EMOTES
+const EMOTES = [
+  { id: 'wave',   emoji: '👋', text: 'Hej!' },
+  { id: 'laugh',  emoji: '😂', text: 'HAHA!' },
+  { id: 'cheer',  emoji: '🎉', text: 'YES!' },
+  { id: 'thumbs', emoji: '👍', text: 'GG' },
+  { id: 'sad',    emoji: '😢', text: 'nej..' },
+  { id: 'angry',  emoji: '😡', text: 'GRR!' },
+  { id: 'sus',    emoji: '🤨', text: 'sus' },
+  { id: 'dead',   emoji: '💀', text: 'DÖD!' },
+  { id: 'heart',  emoji: '❤️', text: '<3' },
+  { id: 'mock',   emoji: '🤡', text: 'CLOWN' },
+  { id: 'hello',  emoji: '🙏', text: 'tack' },
+  { id: 'flex',   emoji: '💪', text: 'BÄST!' },
+];
+function getEmoteById(id) { return EMOTES.find(e => e.id === id); }
+function applyEmote(player, emoteId) {
+  const e = getEmoteById(emoteId);
+  if (!e) return;
+  player.emote = { emoji: e.emoji, text: e.text, until: performance.now() + 3500 };
+}
 function getCoopMultiplier() {
   return Coop.active ? Coop.playerCount() : 1;
 }
@@ -3729,6 +3880,16 @@ function killEnemy(e) {
   state.totalKills = (state.totalKills || 0) + 1;
   save.stats.totalKills++;
   if (killCountEl) killCountEl.textContent = state.killsThisRun;
+  // Mini-boss firande
+  if (e.isMiniBoss) {
+    showToast('💥 ' + (e.name || 'MINI-BOSS') + ' NEDLAGD!');
+    triggerShake(12, 0.5);
+    spawnParticles(e.x, e.y, '#ffae3a', 30, 280);
+    // Bonus pickup
+    spawnPickup(e.x - 25, e.y, 'hp');
+    spawnPickup(e.x + 25, e.y, 'ammo');
+    spawnPickup(e.x, e.y + 25, 'temp_dmg');
+  }
   // Vapen-XP — det vapen som var equippat när fienden dog
   if (p && p.weaponId) {
     addWeaponXp(p.weaponId, e.isBoss ? 50 : (e.gold > 12 ? 3 : 1));
@@ -11519,19 +11680,22 @@ function drawRobot(e, flash, now, phase) {
 }
 
 function drawHpBar(e, x, y) {
-  if (e.hp < e.maxHp || e.isBoss) {
-    const w = e.isBoss ? 80 : 28;
-    const h = e.isBoss ? 6 : 4;
+  if (e.hp < e.maxHp || e.isBoss || e.isMiniBoss) {
+    const w = e.isBoss ? 80 : (e.isMiniBoss ? 60 : 28);
+    const h = e.isBoss ? 6 : (e.isMiniBoss ? 5 : 4);
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
     ctx.fillRect(x - w/2, y - e.r - 12, w, h);
-    ctx.fillStyle = '#ff5a5a';
+    ctx.fillStyle = e.isMiniBoss ? '#ff8a3a' : '#ff5a5a';
     ctx.fillRect(x - w/2, y - e.r - 12, w * (e.hp / e.maxHp), h);
   }
-  if (e.isBoss) {
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 11px sans-serif';
+  if (e.isBoss || e.isMiniBoss) {
+    ctx.fillStyle = e.isMiniBoss ? '#ffae3a' : '#fff';
+    ctx.font = 'bold ' + (e.isMiniBoss ? 10 : 11) + 'px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(e.name, x, y - e.r - 18);
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+    const prefix = e.isMiniBoss ? '⚠ ' : '';
+    ctx.fillText(prefix + (e.name || '???'), x, y - e.r - 18);
+    ctx.shadowBlur = 0;
   }
 }
 
@@ -11939,6 +12103,21 @@ function render() {
   drawDeadBody();
   if (!state.player || !state.player.spectating) drawPlayer();
   drawCoopPartner();
+  // Emotes ovanpå allt
+  if (state.player && state.player.emote) {
+    const px = state.player.x - state.camera.x;
+    const py = state.player.y - state.camera.y;
+    drawEmoteBubble(state.player.emote, px, py, state.player.r || 14);
+  }
+  if (Coop.active) {
+    for (const [, partner] of Coop.players) {
+      if (partner.emote && partner.x !== undefined) {
+        const px = partner.x - state.camera.x;
+        const py = partner.y - state.camera.y;
+        drawEmoteBubble(partner.emote, px, py, 14);
+      }
+    }
+  }
   drawDrone();
   // Bullets
   for (const b of state.bullets) drawBullet(b);

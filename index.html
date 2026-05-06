@@ -37,10 +37,15 @@
     <div id="joystick-knob"></div>
   </div>
   <div id="action-buttons">
+    <button id="btn-emote" class="action-btn" aria-label="Emote">😀</button>
     <button id="btn-weapon-menu" class="action-btn" aria-label="Öppna vapenmeny">⚔</button>
     <button id="btn-fire" class="action-btn fire" aria-label="Skjut">🔫</button>
   </div>
   <div id="ammo-display"><span id="ammo-display-text">∞</span></div>
+</div>
+
+<div id="emote-picker" class="hidden" style="position:fixed;bottom:120px;right:20px;background:rgba(20,20,30,0.95);border:2px solid #aa3aff;border-radius:12px;padding:12px;display:grid;grid-template-columns:repeat(4,46px);gap:6px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,0.5);">
+  <!-- Emote-knappar fylls i av JS -->
 </div>
 
 
@@ -285,7 +290,7 @@
 <div id="wardrobe-screen" class="overlay hidden">
   <h2>🪄 GARDEROB</h2>
   <p class="menu-sub" style="margin-bottom:12px;">Mixa & matcha din egna look</p>
-  <canvas id="wardrobe-preview" width="160" height="180" style="background:rgba(0,0,0,0.3);border-radius:8px;margin-bottom:8px;"></canvas>
+  <canvas id="wardrobe-preview" width="220" height="240" style="background:rgba(0,0,0,0.3);border-radius:8px;margin-bottom:8px;max-width:80vw;"></canvas>
   <div id="wardrobe-tabs" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;justify-content:center;"></div>
   <div id="wardrobe-options" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:520px;margin-bottom:14px;"></div>
   <button id="btn-wardrobe-close" class="big-btn">TILLBAKA</button>
