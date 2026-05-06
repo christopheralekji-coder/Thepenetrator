@@ -254,6 +254,54 @@ const TRUCK_TURRETS = [
   { id: 't_railgun', offsetX:   0, offsetY:   0, weaponId: 'railgun',  icon: '🌟', label: 'Railgun (förar-plats)' },
 ];
 
+// Bygg turret-väljare UI (visas bara i konvoj-mode)
+const truckTurretBarEl = document.getElementById('truck-turret-bar');
+function buildTruckTurretBar() {
+  if (!truckTurretBarEl) return;
+  truckTurretBarEl.innerHTML = '';
+  for (const tr of TRUCK_TURRETS) {
+    const btn = document.createElement('button');
+    btn.style.cssText = 'background:rgba(40,40,50,0.95);border:1px solid rgba(170,58,255,0.5);border-radius:8px;width:46px;height:46px;font-size:18px;cursor:pointer;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;';
+    btn.dataset.turretId = tr.id;
+    btn.innerHTML = `<div>${tr.icon}</div><div style="font-size:7px;opacity:0.6;">${tr.label.split(' ')[0]}</div>`;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (!state.player) return;
+      // Om redan mounted på den här turreten — släpp
+      if (state.player._mountedTurretId === tr.id) {
+        state.player._mountedTurretId = null;
+      } else {
+        state.player._mountedTurretId = tr.id;
+      }
+      Audio.uiClick();
+      renderTruckTurretBar();
+    });
+    truckTurretBarEl.appendChild(btn);
+  }
+  // Leave-knapp
+  const leaveBtn = document.createElement('button');
+  leaveBtn.style.cssText = 'background:rgba(80,30,30,0.95);border:1px solid rgba(255,90,90,0.5);border-radius:8px;width:46px;height:46px;font-size:14px;cursor:pointer;padding:0;color:#fff;font-weight:bold;';
+  leaveBtn.textContent = '✕';
+  leaveBtn.title = 'Lämna turret';
+  leaveBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (state.player) state.player._mountedTurretId = null;
+    Audio.uiClick();
+    renderTruckTurretBar();
+  });
+  truckTurretBarEl.appendChild(leaveBtn);
+}
+function renderTruckTurretBar() {
+  if (!truckTurretBarEl) return;
+  // Markera aktiv
+  for (const btn of truckTurretBarEl.querySelectorAll('button')) {
+    const isActive = state.player && btn.dataset.turretId === state.player._mountedTurretId;
+    btn.style.background = isActive ? 'rgba(170,58,255,0.9)' : 'rgba(40,40,50,0.95)';
+    btn.style.borderColor = isActive ? '#fff' : 'rgba(170,58,255,0.5)';
+  }
+}
+buildTruckTurretBar();
+
 function setupTruck(stage) {
   state.truck = {
     x: stage.spawnPos.x + 300,
@@ -292,33 +340,51 @@ function updateTruck(dt, now) {
   t.x += (dx/d) * t.speed * speedMul * dt;
   t.y += (dy/d) * t.speed * speedMul * dt;
   t.wheelPhase += dt * 8;
-  // Kolla vilka spelare som står på turrets
-  const allPlayers = [];
-  if (state.player) allPlayers.push({ ref: state.player, peerId: null });
-  if (Coop.active && Coop.isHost) {
-    for (const [pid, partner] of Coop.players) allPlayers.push({ ref: partner, peerId: pid });
+  // MOUNT-system: lokal spelare som är "fastlåst" på en turret
+  const p = state.player;
+  if (p && p._mountedTurretId) {
+    const tr = t.turrets.find(x => x.id === p._mountedTurretId);
+    if (tr) {
+      // Lås position till turret
+      p.x = t.x + tr.offsetX;
+      p.y = t.y + tr.offsetY;
+      // Vapen = turret-vapen
+      p._turretWeapon = tr.weaponId;
+      p._turretId = tr.id;
+      tr.occupiedBy = 'host';
+    } else {
+      // Turret existerar inte — släpp
+      p._mountedTurretId = null;
+      p._turretWeapon = null;
+    }
+  } else if (p) {
+    // Inte mountad — clear turret-vapen
+    p._turretWeapon = null;
+    p._turretId = null;
+    // Håll spelare PÅ trucken (tvingad position)
+    const dxt = p.x - t.x;
+    const dyt = p.y - t.y;
+    const maxX = t.w/2 - 12, maxY = t.h/2 - 12;
+    if (Math.abs(dxt) > maxX) p.x = t.x + Math.sign(dxt) * maxX;
+    if (Math.abs(dyt) > maxY) p.y = t.y + Math.sign(dyt) * maxY;
   }
+  // Markera turrets occupied (för rendering)
   for (const tr of t.turrets) {
-    const tx = t.x + tr.offsetX;
-    const ty = t.y + tr.offsetY;
-    let nearest = null, bestD = 25;
-    for (const ap of allPlayers) {
-      const pd = Math.hypot(ap.ref.x - tx, ap.ref.y - ty);
-      if (pd < bestD) { bestD = pd; nearest = ap; }
-    }
-    tr.occupiedBy = nearest ? (nearest.peerId || 'host') : null;
-    // Lokal spelare står på turret? Override deras vapen
-    if (nearest && nearest.ref === state.player) {
-      state.player._turretWeapon = tr.weaponId;
-      state.player._turretId = tr.id;
-    }
+    tr.occupiedBy = (p && p._mountedTurretId === tr.id) ? 'host' : null;
   }
-  // Om INGEN turret, ta bort override
-  let onAnyTurret = false;
-  for (const tr of t.turrets) if (tr.occupiedBy === 'host' && state.player) { onAnyTurret = true; break; }
-  if (!onAnyTurret && state.player) {
-    state.player._turretWeapon = null;
-    state.player._turretId = null;
+  // Coop partners — auto-occupy om de står nära en turret
+  if (Coop.active && Coop.isHost) {
+    for (const [pid, partner] of Coop.players) {
+      if (!partner || partner.hp <= 0) continue;
+      for (const tr of t.turrets) {
+        const tx = t.x + tr.offsetX;
+        const ty = t.y + tr.offsetY;
+        if (Math.hypot(partner.x - tx, partner.y - ty) < 20) {
+          if (!tr.occupiedBy) tr.occupiedBy = pid;
+          break;
+        }
+      }
+    }
   }
   // Truck tar skada från fiender som rör vid den
   for (const e of state.enemies) {
@@ -3106,9 +3172,11 @@ const Coop = {
   tick() {
     if (!this.active || this.inLobby || !state.player) return;
     const now = performance.now();
+    // Flusha skott-kö först (eget paket)
+    this.flushShots();
     if (this.isHost) {
-      // Snapshot 20Hz (50ms) — lightweight position-only
-      if (now - this._lastBroadcast < 50) return;
+      // Snapshot 15Hz (~67ms) — bra balans mellan flyt och bandbredd
+      if (now - this._lastBroadcast < 65) return;
       this._lastBroadcast = now;
       // Var 600ms: full broadcast (statiska fields), annars bara positions
       const fullBroadcast = (now - this._lastFullBroadcast) > 600;
@@ -3168,8 +3236,12 @@ const Coop = {
         c: b.color, r: b.r,
       }));
       const pkt = { type: 'world', players: allPlayers, enemies, hb: hostileBullets, full: fullBroadcast ? 1 : 0 };
-      // Pickups broadcastas varje tick (instant disappear när någon plockar)
-      pkt.pickups = (state.pickups || []).map(p => ({ x: Math.round(p.x), y: Math.round(p.y), t: p.type }));
+      // Pickups: broadcasta bara om antalet/typer ändrats (sparar bandbredd massiv)
+      const pickupsHash = (state.pickups || []).length + ':' + (state.pickups || []).map(p => Math.round(p.x) + ',' + Math.round(p.y) + ',' + p.type).join('|');
+      if (pickupsHash !== this._lastPickupsHash || fullBroadcast) {
+        this._lastPickupsHash = pickupsHash;
+        pkt.pickups = (state.pickups || []).map(p => ({ x: Math.round(p.x), y: Math.round(p.y), t: p.type }));
+      }
       if (fullBroadcast) {
         pkt.gs = {
           w: state.wave, cz: state.currentZone, zs: state.zoneState,
@@ -3179,8 +3251,8 @@ const Coop = {
       }
       this.broadcast(pkt);
     } else {
-      // Client skickar position 20Hz för flyt
-      if (now - this._lastBroadcast < 50) return;
+      // Client skickar position 15Hz för flyt
+      if (now - this._lastBroadcast < 65) return;
       this._lastBroadcast = now;
       // Om vi är döda, frys position till dödsplatsen (inte spec-kameran)
       const _dead = state.player.spectating;
@@ -3215,9 +3287,18 @@ const Coop = {
     this._sendTo(peerId, { type: 'pickup_to_you', kind });
   },
   // Skicka skott till alla andra spelare så de ser dina projektiler
+  // Batcher i en kö som flush:as i tick() istället för per-skott (sparar bandbredd)
+  _shotQueue: [],
   broadcastShots(shots) {
     if (!this.active || !shots || !shots.length) return;
-    this._sendBroadcast({ type: 'shot', bs: shots });
+    for (const s of shots) this._shotQueue.push(s);
+    // Hård cap så minigun-spam inte fryser nätet
+    if (this._shotQueue.length > 50) this._shotQueue.length = 50;
+  },
+  flushShots() {
+    if (!this._shotQueue.length) return;
+    this._sendBroadcast({ type: 'shot', bs: this._shotQueue.slice() });
+    this._shotQueue.length = 0;
   },
   // Skicka emote till alla
   broadcastEmote(emoteId) {
@@ -4852,8 +4933,13 @@ function loadStage(n) {
   state._coopGameOverFired = false;
   state.miniBossSpawned = false;
   // Truck-mode setup
-  if (stage.isTruckMode) setupTruck(stage);
-  else state.truck = null;
+  if (stage.isTruckMode) {
+    setupTruck(stage);
+    if (truckTurretBarEl) truckTurretBarEl.classList.remove('hidden');
+  } else {
+    state.truck = null;
+    if (truckTurretBarEl) truckTurretBarEl.classList.add('hidden');
+  }
   // Coop: clear enemy interpolation cache (gammal stage) + visual-only bullets
   if (state._enemyCache) state._enemyCache = {};
   if (Coop.active) state.bullets = (state.bullets || []).filter(b => !b._visualOnly);
@@ -6225,6 +6311,12 @@ function updatePlayer(dt, now) {
 
   // rörelse
   let mx = input.moveX, my = input.moveY;
+  // Mountad på turret — joystick siktar bara, ingen rörelse
+  if (p._mountedTurretId) {
+    if (input.keys.has('w') || input.keys.has('s') || input.keys.has('a') || input.keys.has('d')) {
+      // ignorera tangentbord också
+    }
+  }
   if (input.keys.has('w')) my -= 1;
   if (input.keys.has('s')) my += 1;
   if (input.keys.has('a')) mx -= 1;
@@ -6240,7 +6332,7 @@ function updatePlayer(dt, now) {
       x: p.x, y: p.y, vx: 0, vy: 0, life: 0.3, color: 'rgba(255,213,74,0.4)',
       r: p.r, isBloodPool: true,
     });
-  } else {
+  } else if (!p._mountedTurretId) {
     // Adrenalin-perk: snabbare vid <30% HP
     const adrenalineSpeed = (hasPerk('adrenalin') && p.hp < p.maxHp * 0.3) ? 1.35 : 1;
     p.x += mx * p.speed * adrenalineSpeed * dt;
