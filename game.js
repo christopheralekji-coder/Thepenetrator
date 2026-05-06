@@ -257,50 +257,161 @@ function updateDrone(dt, now) {
 }
 function drawCoopPartner() {
   if (!Coop.active || Coop.inLobby) return;
+  const now = performance.now();
   for (const [pid, p] of Coop.players) {
     if (p.x === undefined) continue;
     const x = p.x - state.camera.x;
     const y = p.y - state.camera.y;
+    // Detect movement för walk-animation
+    if (p._prevX === undefined) { p._prevX = p.x; p._prevY = p.y; p._walkPhase = 0; }
+    const moved = Math.hypot(p.x - p._prevX, p.y - p._prevY);
+    p._walkPhase = (p._walkPhase || 0) + (moved > 0.5 ? 0.22 : 0.04);
+    p._prevX = p.x; p._prevY = p.y;
+
     // Off-screen check (rita pil mot dem istället)
-    if (x < -30 || x > viewW + 30 || y < -30 || y > viewH + 30) {
+    if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) {
       drawOffscreenPartner(p, x, y);
       continue;
     }
     const color = PLAYER_COLORS[p.colorIdx % PLAYER_COLORS.length];
-    // Skugga
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.beginPath(); ctx.ellipse(x + 2, y + 16, 16, 5, 0, 0, Math.PI*2); ctx.fill();
-    // Färg-aura
-    ctx.fillStyle = color + '33';
-    ctx.beginPath(); ctx.arc(x, y, 22, 0, Math.PI*2); ctx.fill();
-    // Kropp
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = darken(color, 0.7);
-    ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI*2); ctx.fill();
-    // Vapen i aim-riktning
-    if (p.aimAngle !== undefined) {
+    const isDead = p.hp !== undefined && p.hp <= 0;
+
+    // Om död — rita liggande kropp + revive-indikator
+    if (isDead) {
       ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(p.aimAngle);
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(8, -2, 16, 4);
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.beginPath(); ctx.ellipse(x + 4, y + 8, 22, 8, 0, 0, Math.PI*2); ctx.fill();
+      // Liggande kropp (oval)
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.ellipse(x, y, 18, 11, 0.3, 0, Math.PI*2); ctx.fill();
+      // Blod
+      ctx.fillStyle = 'rgba(120,0,0,0.5)';
+      ctx.beginPath(); ctx.ellipse(x - 2, y + 3, 14, 6, 0.3, 0, Math.PI*2); ctx.fill();
+      // Revive-indikator (synkat med dead player's reviveTimer)
+      if (p.reviveTimer && p.reviveTimer > 0) {
+        const frac = Math.min(1, p.reviveTimer / 5);
+        ctx.strokeStyle = '#5aff5a';
+        ctx.lineWidth = 3;
+        ctx.shadowColor = '#5aff5a'; ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.arc(x, y, 28, -Math.PI/2, -Math.PI/2 + frac * Math.PI*2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#5aff5a';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(Math.ceil(5 - p.reviveTimer) + 's', x, y - 36);
+      } else {
+        ctx.fillStyle = '#ff5a5a';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+        ctx.fillText('💀 ' + p.name, x, y - 16);
+        ctx.shadowBlur = 0;
+      }
       ctx.restore();
+      continue;
     }
+
+    // Levande — rita karaktär likt drawPlayer (förenklad)
+    const r = 14;
+    const phase = p._walkPhase;
+    const moving = moved > 0.5;
+    const bob = moving ? Math.abs(Math.sin(phase)) * 1.6 : Math.sin(phase) * 0.4;
+
+    // Skugga (mjuk oval)
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.ellipse(x + 2, y + r * 1.1, r * 1.3, r * 0.45, 0, 0, Math.PI*2); ctx.fill();
+
+    // Färg-aura under
+    ctx.fillStyle = color + '22';
+    ctx.beginPath(); ctx.arc(x, y, r * 1.6, 0, Math.PI*2); ctx.fill();
+
+    ctx.save();
+    ctx.translate(x, y + bob);
+    ctx.rotate(p.aimAngle || 0);
+
+    const skin = '#d4a574';
+    const skinDark = '#a07a52';
+    const vest = color;
+    const vestDark = darken(color, 0.7);
+    const pants = '#3a3528';
+    const boot = '#1a1208';
+
+    // BEN (alternerar)
+    const legSwing = Math.sin(phase);
+    const lLegX = -r * 0.85 - legSwing * r * 0.2;
+    const rLegX = -r * 0.85 + legSwing * r * 0.2;
+    ctx.fillStyle = pants;
+    ctx.fillRect(lLegX, -r * 0.55, r * 0.35, r * 0.4);
+    ctx.fillStyle = boot;
+    ctx.fillRect(lLegX, -r * 0.5, r * 0.35, r * 0.18);
+    ctx.fillStyle = pants;
+    ctx.fillRect(rLegX, r * 0.15, r * 0.35, r * 0.4);
+    ctx.fillStyle = boot;
+    ctx.fillRect(rLegX, r * 0.32, r * 0.35, r * 0.18);
+
+    // VÄST (kropp)
+    ctx.fillStyle = vest;
+    ctx.beginPath(); ctx.ellipse(0, 0, r * 0.95, r * 1.3, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = vestDark;
+    ctx.beginPath(); ctx.ellipse(-r * 0.3, 0, r * 0.4, r * 1.15, 0, 0, Math.PI*2); ctx.fill();
+    // Stitching
+    ctx.strokeStyle = '#0a0a08';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 1.0); ctx.lineTo(0, r * 1.0);
+    ctx.stroke();
+
+    // AXLAR
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.ellipse(r * 0.05, -r * 1.0, r * 0.42, r * 0.36, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(r * 0.05, r * 1.0, r * 0.42, r * 0.36, 0, 0, Math.PI*2); ctx.fill();
+
+    // ARMAR
+    ctx.beginPath(); ctx.ellipse(r * 0.55, -r * 0.85, r * 0.30, r * 0.28, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(r * 0.55, r * 0.85, r * 0.30, r * 0.28, 0, 0, Math.PI*2); ctx.fill();
+
+    // HUVUD
+    ctx.fillStyle = skin;
+    ctx.beginPath(); ctx.arc(r * 0.2, 0, r * 0.55, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = skinDark;
+    ctx.beginPath(); ctx.arc(r * 0.05, 0, r * 0.32, 0, Math.PI*2); ctx.fill();
+
+    // BANDANA i partnerns färg
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.ellipse(r * 0.18, 0, r * 0.60, r * 0.32, 0, 0, Math.PI*2); ctx.fill();
+
+    // ÖGON
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath(); ctx.arc(r * 0.50, -r * 0.18, 1.8, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(r * 0.50, r * 0.18, 1.8, 0, Math.PI*2); ctx.fill();
+
+    // VAPEN — enkelt, baserat på weaponId
+    const w = p.weaponId ? W_BY_ID[p.weaponId] : null;
+    const wColor = w && w.color ? w.color : '#1a1a1a';
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(r * 0.6, -r * 0.18, r * 1.4, r * 0.22);
+    ctx.fillStyle = wColor;
+    ctx.fillRect(r * 0.6, -r * 0.10, r * 0.6, r * 0.10);
+
+    ctx.restore();
+
     // Namn-tag
     ctx.fillStyle = color;
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
     ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
-    ctx.fillText(p.name, x, y - 22);
+    ctx.fillText(p.name, x, y - 28);
     ctx.shadowBlur = 0;
     // HP-bar
     if (p.hp !== undefined) {
-      const hp = Math.max(0, p.hp / 100);
+      const hpFrac = Math.max(0, p.hp / 100);
       ctx.fillStyle = '#5a0a0a';
-      ctx.fillRect(x - 18, y - 18, 36, 4);
+      ctx.fillRect(x - 18, y - 24, 36, 4);
       ctx.fillStyle = color;
-      ctx.fillRect(x - 18, y - 18, 36 * hp, 4);
+      ctx.fillRect(x - 18, y - 24, 36 * hpFrac, 4);
     }
   }
 }
@@ -2130,6 +2241,7 @@ const Coop = {
         p.hp = data.hp;
         p.weaponId = data.weaponId; p.aimAngle = data.aimAngle;
         p.shotting = data.shotting;
+        p.reviveTimer = data.revT || 0;
       }
       return;
     }
@@ -2143,6 +2255,8 @@ const Coop = {
           // Interpolation: behåll x/y, sätt target
           cur.targetX = p.x; cur.targetY = p.y;
           cur.hp = p.hp; cur.aimAngle = p.a;
+          if (p.w) cur.weaponId = p.w;
+          cur.reviveTimer = p.rT || 0;
         }
       }
       if (data.enemies) {
@@ -2253,6 +2367,7 @@ const Coop = {
     }
     if (data.type === 'shot') {
       // Annan spelare sköt — spawna visuella projektiler (ingen skada)
+      // Server-relay broadcastar redan till alla utom avsändaren, ingen re-broadcast behövs
       if (Array.isArray(data.bs)) {
         for (const s of data.bs) {
           state.bullets.push({
@@ -2263,22 +2378,24 @@ const Coop = {
           });
         }
       }
-      // Host: relayera till andra klienter så alla ser
-      if (this.isHost) {
-        this._sendBroadcast({ type: 'shot', bs: data.bs });
-      }
       return;
     }
     if (data.type === 'gold_share' && !this.isHost) {
-      // Host meddelar att en fiende dödades — alla får samma gold
+      // Host meddelar att en fiende dödades — alla får gold + kill-credit (achievements)
       const g = data.g || 0;
       if (g > 0) {
         save.gold += g;
         state.goldThisRun = (state.goldThisRun || 0) + g;
         save.stats.totalGold = (save.stats.totalGold || 0) + g;
         if (g >= 10) Audio.goldPickup();
-        updateHUD();
       }
+      // Stats för achievement-progression
+      state.killsThisWave = (state.killsThisWave || 0) + 1;
+      state.killsThisRun = (state.killsThisRun || 0) + 1;
+      save.stats.totalKills = (save.stats.totalKills || 0) + 1;
+      if (data.boss) save.stats.bossKills = (save.stats.bossKills || 0) + 1;
+      try { Achievements.check(); } catch(e) {}
+      updateHUD();
       return;
     }
     if (data.type === 'event' && !this.isHost) {
@@ -2326,14 +2443,19 @@ const Coop = {
       const _hostX = _hostDead && state.deadBody ? state.deadBody.x : state.player.x;
       const _hostY = _hostDead && state.deadBody ? state.deadBody.y : state.player.y;
       const _hostHp = _hostDead ? 0 : state.player.hp;
+      const _hostRevT = _hostDead && state.deadBody ? state.deadBody.reviveTimer : 0;
       const allPlayers = [{ id: this.myId, n: this.myName || 'P1', c: 0,
         x: Math.round(_hostX), y: Math.round(_hostY),
         hp: Math.round(_hostHp),
-        a: Math.round(state.player.aimAngle * 100) / 100 }];
+        a: Math.round(state.player.aimAngle * 100) / 100,
+        w: state.player.weaponId,
+        rT: _hostRevT }];
       for (const [pid, p] of this.players) {
         allPlayers.push({ id: pid, n: p.name, c: p.colorIdx,
           x: Math.round(p.x), y: Math.round(p.y), hp: Math.round(p.hp),
-          a: Math.round((p.aimAngle || 0) * 100) / 100 });
+          a: Math.round((p.aimAngle || 0) * 100) / 100,
+          w: p.weaponId,
+          rT: p.reviveTimer || 0 });
       }
       // Fiender — bara live + nära någon spelare (cull)
       const cullDist = 1400;
@@ -2388,12 +2510,14 @@ const Coop = {
       const _dead = state.player.spectating;
       const _cx = _dead && state.deadBody ? state.deadBody.x : state.player.x;
       const _cy = _dead && state.deadBody ? state.deadBody.y : state.player.y;
+      const _revT = _dead && state.deadBody ? state.deadBody.reviveTimer : 0;
       this.sendToHost({ type: 'state',
         x: Math.round(_cx), y: Math.round(_cy),
         hp: _dead ? 0 : Math.round(state.player.hp),
         weaponId: state.player.weaponId,
         aimAngle: Math.round(state.player.aimAngle * 100) / 100,
-        shotting: _dead ? false : input.firing });
+        shotting: _dead ? false : input.firing,
+        revT: _revT });
     }
   },
   damageEnemyOnHost(enemyIdx, dmg, isCrit) {
@@ -3769,6 +3893,10 @@ function loadStage(n) {
   state.bossDefeated = false;
   state._stageClearShown = false;
   state._waveCompleting = false;
+  state._coopGameOverFired = false;
+  // Coop: clear enemy interpolation cache (gammal stage) + visual-only bullets
+  if (state._enemyCache) state._enemyCache = {};
+  if (Coop.active) state.bullets = (state.bullets || []).filter(b => !b._visualOnly);
 
   // Uppdatera världsdimensioner per stage
   WORLD.w = stage.worldW;
