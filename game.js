@@ -234,6 +234,341 @@ function spawnPickup(x, y, type) {
   if (!state.pickups) state.pickups = [];
   state.pickups.push({ x, y, type, life: 25, vx: 0, vy: 0, magnetized: false });
 }
+// ============================================================
+// COMPANION update + draw
+// ============================================================
+// ============================================================
+// TRUCK CONVOY MODE
+// ============================================================
+// Truck = stort fordon som rör sig framåt. Spelare står på det och försvarar.
+// Truck har 7 turret-positions med olika vapen. När en spelare står på en turret,
+// får de det vapnet automatiskt (deras egna vapen återgår när de kliver av).
+
+const TRUCK_TURRETS = [
+  { id: 't_rocket',  offsetX: -90, offsetY: -32, weaponId: 'rocket',   icon: '🚀', label: 'Raketgevär' },
+  { id: 't_minigun', offsetX:  60, offsetY: -32, weaponId: 'minigun',  icon: '🔫', label: 'Minigun' },
+  { id: 't_sniper',  offsetX: -90, offsetY:   0, weaponId: 'sniper',   icon: '🎯', label: 'Prickskyttegevär' },
+  { id: 't_flame',   offsetX:  60, offsetY:   0, weaponId: 'flame',    icon: '🔥', label: 'Eldkastare' },
+  { id: 't_plasma',  offsetX: -90, offsetY:  32, weaponId: 'plasma',   icon: '⚡', label: 'Plasma-gevär' },
+  { id: 't_grenade', offsetX:  60, offsetY:  32, weaponId: 'grenade',  icon: '💣', label: 'Granatkastare' },
+  { id: 't_railgun', offsetX:   0, offsetY:   0, weaponId: 'railgun',  icon: '🌟', label: 'Railgun (förar-plats)' },
+];
+
+function setupTruck(stage) {
+  state.truck = {
+    x: stage.spawnPos.x + 300,
+    y: stage.spawnPos.y,
+    w: 220, h: 90,
+    hp: 1500, maxHp: 1500,
+    speed: 50, // px/s framåt
+    alive: true,
+    angle: 0, // riktning (mot goal)
+    turrets: TRUCK_TURRETS.map(t => ({ ...t, occupiedBy: null, lastShot: 0 })),
+    wheelPhase: 0,
+  };
+  // Spelare börjar PÅ trucken
+  if (state.player) {
+    state.player.x = state.truck.x;
+    state.player.y = state.truck.y - 8;
+  }
+}
+
+function isTruckMode() {
+  const stage = getStage(state.wave);
+  return !!(stage && stage.isTruckMode);
+}
+
+function updateTruck(dt, now) {
+  const t = state.truck;
+  if (!t || !t.alive) return;
+  const stage = getStage(state.wave);
+  // Beräkna riktning mot goal
+  const dx = stage.goalPos.x - t.x;
+  const dy = stage.goalPos.y - t.y;
+  const d = Math.hypot(dx, dy) || 1;
+  t.angle = Math.atan2(dy, dx);
+  // Bromsa när nästan framme
+  const speedMul = d < 200 ? 0.3 : 1;
+  t.x += (dx/d) * t.speed * speedMul * dt;
+  t.y += (dy/d) * t.speed * speedMul * dt;
+  t.wheelPhase += dt * 8;
+  // Kolla vilka spelare som står på turrets
+  const allPlayers = [];
+  if (state.player) allPlayers.push({ ref: state.player, peerId: null });
+  if (Coop.active && Coop.isHost) {
+    for (const [pid, partner] of Coop.players) allPlayers.push({ ref: partner, peerId: pid });
+  }
+  for (const tr of t.turrets) {
+    const tx = t.x + tr.offsetX;
+    const ty = t.y + tr.offsetY;
+    let nearest = null, bestD = 25;
+    for (const ap of allPlayers) {
+      const pd = Math.hypot(ap.ref.x - tx, ap.ref.y - ty);
+      if (pd < bestD) { bestD = pd; nearest = ap; }
+    }
+    tr.occupiedBy = nearest ? (nearest.peerId || 'host') : null;
+    // Lokal spelare står på turret? Override deras vapen
+    if (nearest && nearest.ref === state.player) {
+      state.player._turretWeapon = tr.weaponId;
+      state.player._turretId = tr.id;
+    }
+  }
+  // Om INGEN turret, ta bort override
+  let onAnyTurret = false;
+  for (const tr of t.turrets) if (tr.occupiedBy === 'host' && state.player) { onAnyTurret = true; break; }
+  if (!onAnyTurret && state.player) {
+    state.player._turretWeapon = null;
+    state.player._turretId = null;
+  }
+  // Truck tar skada från fiender som rör vid den
+  for (const e of state.enemies) {
+    if (e.dead) continue;
+    const ed = Math.hypot(e.x - t.x, e.y - t.y);
+    if (ed < (t.w/2) + e.r) {
+      if (e.dmg > 0 && (!t._lastHit || now - t._lastHit > 300)) {
+        t._lastHit = now;
+        t.hp = Math.max(0, t.hp - e.dmg);
+        triggerShake(4, 0.15);
+        if (t.hp <= 0) {
+          t.alive = false;
+          explode(t.x, t.y, 200, 0, true);
+          triggerShake(20, 0.8);
+          endGame(false);
+        }
+      }
+    }
+  }
+}
+
+function drawTruck() {
+  const t = state.truck;
+  if (!t) return;
+  const x = t.x - state.camera.x;
+  const y = t.y - state.camera.y;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(t.angle);
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(-t.w/2 + 4, -t.h/2 + 6, t.w, t.h);
+  // Lastbils-platform
+  ctx.fillStyle = '#3a3a44';
+  ctx.fillRect(-t.w/2, -t.h/2, t.w, t.h);
+  // Paneler/raster
+  ctx.fillStyle = '#5a5a64';
+  ctx.fillRect(-t.w/2, -t.h/2, t.w, 4);
+  ctx.fillRect(-t.w/2, t.h/2 - 4, t.w, 4);
+  // Ramar runt
+  ctx.strokeStyle = '#1a1a22'; ctx.lineWidth = 2;
+  ctx.strokeRect(-t.w/2, -t.h/2, t.w, t.h);
+  // Hjul (4 st)
+  ctx.fillStyle = '#1a1a1a';
+  for (const wpos of [-t.w/2 + 30, -t.w/2 + 80, t.w/2 - 80, t.w/2 - 30]) {
+    ctx.fillRect(wpos - 8, -t.h/2 - 6, 16, 8);
+    ctx.fillRect(wpos - 8,  t.h/2 - 2, 16, 8);
+  }
+  // Ratt-platsen (förare framåt)
+  ctx.fillStyle = '#2a2a34';
+  ctx.fillRect(t.w/2 - 40, -t.h/2 + 4, 36, t.h - 8);
+  ctx.fillStyle = '#3acaff';
+  ctx.fillRect(t.w/2 - 30, -10, 16, 20);
+  // Pansar-detalj
+  ctx.fillStyle = '#7a7a84';
+  ctx.fillRect(-t.w/2 + 6, -t.h/2 + 8, 30, t.h - 16);
+  // Turrets
+  for (const tr of t.turrets) {
+    const tx = tr.offsetX, ty = tr.offsetY;
+    ctx.fillStyle = tr.occupiedBy ? '#aa3aff' : '#222';
+    ctx.beginPath(); ctx.arc(tx, ty, 14, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = tr.occupiedBy ? '#fff' : '#666'; ctx.lineWidth = 2;
+    ctx.stroke();
+    // Ikon
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(tr.icon, tx, ty + 5);
+  }
+  ctx.restore();
+  // HP-bar ovanför trucken
+  const hpW = 200, hpH = 8;
+  const hpX = x - hpW/2, hpY = y - t.h/2 - 30;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(hpX - 2, hpY - 2, hpW + 4, hpH + 4);
+  ctx.fillStyle = t.hp / t.maxHp > 0.3 ? '#5aff5a' : '#ff5a5a';
+  ctx.fillRect(hpX, hpY, hpW * (t.hp / t.maxHp), hpH);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+  ctx.fillText('🚚 TRUCK ' + Math.ceil(t.hp) + '/' + t.maxHp, x, hpY - 6);
+  ctx.shadowBlur = 0;
+}
+
+function spawnCompanion() {
+  if (!save.companions || !save.companions.active) { state.companion = null; return; }
+  const id = save.companions.active;
+  const comp = getCompanionById(id);
+  if (!comp) { state.companion = null; return; }
+  const lvl = save.companions.level[id] || 0;
+  const stats = companionStats(comp, lvl);
+  const p = state.player;
+  state.companion = {
+    id, comp, lvl,
+    x: p ? p.x + 30 : 1000, y: p ? p.y + 30 : 1000,
+    hp: stats.hp, maxHp: stats.hp, dmg: stats.dmg, speed: stats.speed,
+    range: stats.range, cooldown: stats.cooldown,
+    lastAct: 0, target: null, alive: true,
+    angle: 0, walkPhase: 0,
+  };
+}
+function updateCompanion(dt, now) {
+  const c = state.companion;
+  if (!c || !c.alive || !state.player) return;
+  const p = state.player;
+  // Följ spelaren — håll avstånd 50-90px
+  const dx = p.x - c.x, dy = p.y - c.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const ideal = 60;
+  if (d > ideal + 30) {
+    c.x += (dx/d) * c.speed * dt;
+    c.y += (dy/d) * c.speed * dt;
+    c.walkPhase += dt * 8;
+  }
+  // Hitta närmsta fiende
+  let target = null, bestD = c.range;
+  for (const e of state.enemies) {
+    if (e.dead) continue;
+    const ed = Math.hypot(e.x - c.x, e.y - c.y);
+    if (ed < bestD) { bestD = ed; target = e; }
+  }
+  c.target = target;
+  if (target) {
+    c.angle = Math.atan2(target.y - c.y, target.x - c.x);
+  }
+  // Specialhandling per companion-typ
+  if (c.id === 'metaldog' && target && bestD < 50 && now - c.lastAct > c.cooldown * 1000) {
+    c.lastAct = now;
+    // bett — staggra + skada
+    target.staggerUntil = now + 600;
+    damageEnemy(target, c.dmg, false);
+    spawnParticles(target.x, target.y, '#ffae3a', 6, 120);
+    Audio.kill && Audio.kill();
+  } else if (c.id === 'drone' && target && now - c.lastAct > c.cooldown * 1000) {
+    c.lastAct = now;
+    // Skjut laser-skott
+    const ang = c.angle;
+    state.bullets.push({
+      x: c.x, y: c.y, vx: Math.cos(ang) * 800, vy: Math.sin(ang) * 800,
+      dmg: c.dmg, life: 0.8, r: 3, color: '#3acaff', hostile: false,
+      style: 'plasma', _companion: true,
+    });
+  } else if (c.id === 'spacemonkey' && target && now - c.lastAct > c.cooldown * 1000) {
+    c.lastAct = now;
+    // Plasma-bomb mot target
+    state.bullets.push({
+      x: c.x, y: c.y, vx: Math.cos(c.angle) * 380, vy: Math.sin(c.angle) * 380,
+      dmg: c.dmg, life: 1.6, r: 6, color: '#aa3aff', hostile: false,
+      style: 'plasma', _companion: true, explosive: 80,
+    });
+  }
+}
+function drawCompanion() {
+  const c = state.companion;
+  if (!c || !c.alive) return;
+  const x = c.x - state.camera.x;
+  const y = c.y - state.camera.y;
+  ctx.save();
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(x + 2, y + 12, 12, 4, 0, 0, Math.PI*2); ctx.fill();
+  if (c.id === 'metaldog') {
+    // Robothund — kropp + ben + huvud
+    ctx.translate(x, y);
+    ctx.rotate(c.angle);
+    // ben (alternerar)
+    const legSwing = Math.sin(c.walkPhase);
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(-8, -6 - legSwing*1.5, 3, 5);
+    ctx.fillRect(-8,  3 + legSwing*1.5, 3, 5);
+    ctx.fillRect(6, -6 + legSwing*1.5, 3, 5);
+    ctx.fillRect(6,  3 - legSwing*1.5, 3, 5);
+    // kropp (silver-grå metall)
+    ctx.fillStyle = c.comp.color;
+    ctx.fillRect(-9, -5, 18, 10);
+    ctx.fillStyle = '#5a5a5a';
+    ctx.fillRect(-9, -5, 18, 3);
+    // huvud
+    ctx.fillStyle = c.comp.color;
+    ctx.fillRect(7, -4, 8, 8);
+    // röda ögon
+    ctx.fillStyle = c.comp.accent;
+    ctx.shadowColor = c.comp.accent; ctx.shadowBlur = 4;
+    ctx.fillRect(11, -3, 2, 2);
+    ctx.fillRect(11,  1, 2, 2);
+    ctx.shadowBlur = 0;
+    // svans
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(-14, -3); ctx.stroke();
+  } else if (c.id === 'drone') {
+    const t = performance.now() / 200;
+    const hover = Math.sin(t) * 2;
+    ctx.translate(x, y + hover);
+    ctx.rotate(c.angle * 0.3);
+    // skiva
+    ctx.fillStyle = c.comp.color;
+    ctx.shadowColor = c.comp.color; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.ellipse(0, 0, 10, 4, 0, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // mitt-led
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI*2); ctx.fill();
+    // 4 propellrar
+    const pt = performance.now() / 30;
+    ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2 + pt;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * 6, Math.sin(a) * 6);
+      ctx.lineTo(Math.cos(a) * 11, Math.sin(a) * 11);
+      ctx.stroke();
+    }
+  } else if (c.id === 'spacemonkey') {
+    ctx.translate(x, y);
+    // hopp-animation
+    const bounce = Math.abs(Math.sin(c.walkPhase)) * -3;
+    ctx.translate(0, bounce);
+    // kropp (brun apa)
+    ctx.fillStyle = c.comp.color;
+    ctx.beginPath(); ctx.arc(0, 2, 8, 0, Math.PI*2); ctx.fill();
+    // huvud
+    ctx.beginPath(); ctx.arc(0, -6, 6, 0, Math.PI*2); ctx.fill();
+    // ansikte (lila glow)
+    ctx.fillStyle = '#f4d4a4';
+    ctx.beginPath(); ctx.arc(0, -5, 4, 0, Math.PI*2); ctx.fill();
+    // ögon
+    ctx.fillStyle = c.comp.accent;
+    ctx.shadowColor = c.comp.accent; ctx.shadowBlur = 4;
+    ctx.beginPath(); ctx.arc(-1.5, -6, 1, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(1.5, -6, 1, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // armar (sträcker mot target)
+    ctx.fillStyle = c.comp.color;
+    ctx.fillRect(-9, 0, 4, 5);
+    ctx.fillRect( 5, 0, 4, 5);
+    // hjälm/space-glas
+    ctx.strokeStyle = c.comp.accent; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(0, -6, 7, 0, Math.PI*2); ctx.stroke();
+  }
+  ctx.restore();
+  // namn-tag
+  ctx.fillStyle = c.comp.accent;
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+  ctx.fillText(c.comp.icon, x, y - 16);
+  ctx.shadowBlur = 0;
+}
+
 function updateDrone(dt, now) {
   if (!state.drone || !state.drone.alive || !state.player) return;
   const d = state.drone;
@@ -997,6 +1332,71 @@ function upgradePrice(u, level) {
 }
 
 // ============================================================
+// COMPANIONS — 3 stridskamrater, 100 levels each
+// ============================================================
+const COMPANIONS = [
+  {
+    id: 'metaldog',
+    name: 'Metal Attack Dog',
+    icon: '🐕‍🦺',
+    desc: 'Robothund. Springer och biter — staggrar fiender vid bett.',
+    basePrice: 1500,
+    baseHp: 80, baseDmg: 12, baseSpeed: 240, baseRange: 32,
+    color: '#7a8a9a', accent: '#ffae3a',
+    special: 'Bett: stagga fiende 0.6s + bonus dmg',
+    cooldown: 1.2,
+  },
+  {
+    id: 'drone',
+    name: 'Stridsdrönare',
+    icon: '🛸',
+    desc: 'Flyger runt dig och skjuter automatiskt mot ranged-hot.',
+    basePrice: 2200,
+    baseHp: 50, baseDmg: 14, baseSpeed: 320, baseRange: 360,
+    color: '#3acaff', accent: '#ffffff',
+    special: 'Skjuter laser var 0.7s mot närmsta fiende',
+    cooldown: 0.7,
+  },
+  {
+    id: 'spacemonkey',
+    name: 'Space Monkey',
+    icon: '🐵',
+    desc: 'Slänger plasma-bomber. Aoe-damage var 4:e sekund.',
+    basePrice: 2800,
+    baseHp: 100, baseDmg: 22, baseSpeed: 180, baseRange: 280,
+    color: '#aa6a3a', accent: '#aa3aff',
+    special: 'Plasma-bomb: 60 AOE-skada i 80px radius',
+    cooldown: 4.0,
+  },
+];
+const MAX_COMPANION_LEVEL = 100;
+function companionUpgradePrice(level) {
+  // 100 + level * 30 — ~165k för att maxa allt
+  return Math.round(100 + level * 30);
+}
+function companionStats(comp, level) {
+  const lvlMul = 1 + level * 0.012; // +1.2% per level → +120% vid max
+  const cdMul = Math.max(0.4, 1 - level * 0.005); // -50% cooldown vid max
+  return {
+    hp: Math.round(comp.baseHp * lvlMul),
+    dmg: Math.round(comp.baseDmg * lvlMul),
+    speed: Math.round(comp.baseSpeed * (1 + level * 0.005)),
+    range: Math.round(comp.baseRange * (1 + level * 0.003)),
+    cooldown: comp.cooldown * cdMul,
+  };
+}
+function ensureCompanions() {
+  if (!save.companions) save.companions = {};
+  if (!save.companions.owned) save.companions.owned = [];
+  if (!save.companions.level) save.companions.level = {};
+  for (const c of COMPANIONS) {
+    if (typeof save.companions.level[c.id] !== 'number') save.companions.level[c.id] = 0;
+  }
+  if (save.companions.active === undefined) save.companions.active = null;
+}
+function getCompanionById(id) { return COMPANIONS.find(c => c.id === id); }
+
+// ============================================================
 // ACHIEVEMENTS — 20 prestationer
 // ============================================================
 const ACHIEVEMENTS = [
@@ -1196,9 +1596,9 @@ function toggleCheat(id) {
 // ============================================================
 // GAME MODES + DIFFICULTY
 // ============================================================
-const GAME_MODES = ['story', 'endless', 'bossrush', 'daily', 'sandbox', 'speedrun', 'survive'];
+const GAME_MODES = ['story', 'endless', 'bossrush', 'daily', 'sandbox', 'speedrun', 'survive', 'truck'];
 const DIFFICULTIES = ['casual', 'veteran', 'hardcore', 'insane'];
-const MODE_LABELS = { story: 'STORY', endless: 'ENDLESS', bossrush: 'BOSS RUSH', daily: 'DAILY', sandbox: 'SANDBOX', speedrun: 'SPEEDRUN', survive: 'SURVIVE 5M', newgameplus: 'NG+' };
+const MODE_LABELS = { story: 'STORY', endless: 'ENDLESS', bossrush: 'BOSS RUSH', daily: 'DAILY', sandbox: 'SANDBOX', speedrun: 'SPEEDRUN', survive: 'SURVIVE 5M', truck: '🚚 KONVOJ', newgameplus: 'NG+' };
 const DIFF_LABELS = { casual: 'CASUAL', veteran: 'VETERAN', hardcore: 'HARDCORE', insane: '💀 INSANE' };
 const DIFF_MULTIPLIERS = {
   casual:   { enemyHp: 0.7, enemyDmg: 0.7, gold: 1.2, shopPrice: 0.85 },
@@ -1228,6 +1628,7 @@ ensureCheats();
 ensureStats();
 ensureMastery();
 ensureWardrobe();
+ensureCompanions();
 
 // ============================================================
 // AUDIO — procedurellt genererade ljud via Web Audio API
@@ -3257,6 +3658,83 @@ if (_btnWardrobeClose) _btnWardrobeClose.addEventListener('click', () => {
   wardrobeScreen.classList.add('hidden'); Audio.uiClick();
 });
 
+// COMPANIONS-skärm
+const companionsScreen = document.getElementById('companions-screen');
+const companionsGridEl = document.getElementById('companions-grid');
+function renderCompanions() {
+  ensureCompanions();
+  if (!companionsGridEl) return;
+  companionsGridEl.innerHTML = '';
+  for (const c of COMPANIONS) {
+    const owned = save.companions.owned.includes(c.id);
+    const lvl = save.companions.level[c.id] || 0;
+    const isActive = save.companions.active === c.id;
+    const stats = companionStats(c, lvl);
+    const upgPrice = lvl < MAX_COMPANION_LEVEL ? companionUpgradePrice(lvl) : null;
+    const card = document.createElement('div');
+    card.style.cssText = 'background:rgba(20,20,30,0.7);border:2px solid ' + (isActive ? '#aa3aff' : 'rgba(170,58,255,0.2)') + ';border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;';
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:36px;">${c.icon}</div>
+        <div style="flex:1;">
+          <div style="font-weight:bold;color:#ffd54a;font-size:15px;">${c.name}</div>
+          <div style="font-size:11px;color:#bbb;">${c.desc}</div>
+          <div style="font-size:11px;color:#aa3aff;margin-top:3px;">⚡ ${c.special}</div>
+        </div>
+      </div>
+      ${owned ? `
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#ddd;">
+          <span>LVL ${lvl}/${MAX_COMPANION_LEVEL}</span>
+          <span>HP ${stats.hp} · DMG ${stats.dmg}</span>
+        </div>
+        <div style="background:rgba(0,0,0,0.4);border-radius:4px;height:6px;overflow:hidden;">
+          <div style="background:linear-gradient(90deg,#aa3aff,#ff5aca);width:${(lvl/MAX_COMPANION_LEVEL)*100}%;height:100%;"></div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="small-btn" data-act="toggle" style="flex:1;background:${isActive ? '#aa3aff' : '#444'};">${isActive ? '✓ AKTIV' : 'AKTIVERA'}</button>
+          ${upgPrice ? `<button class="small-btn" data-act="upgrade" style="flex:1;background:${save.gold >= upgPrice ? '#3a8a3a' : '#444'};">UPGRADE 💰${upgPrice}</button>` : `<div style="flex:1;text-align:center;color:#ffd54a;font-weight:bold;">⭐ MAXAD</div>`}
+        </div>
+      ` : `
+        <button class="big-btn" data-act="buy" style="width:100%;background:${save.gold >= c.basePrice ? '#3a8a3a' : '#444'};">KÖP — 💰 ${c.basePrice}</button>
+      `}
+    `;
+    // Event handlers
+    const buyBtn = card.querySelector('[data-act="buy"]');
+    if (buyBtn) buyBtn.addEventListener('click', () => {
+      if (save.gold < c.basePrice) { showToast('Inte nog gold!'); return; }
+      save.gold -= c.basePrice;
+      save.companions.owned.push(c.id);
+      if (!save.companions.active) save.companions.active = c.id;
+      persist(); Audio.purchase(); renderCompanions();
+    });
+    const upgBtn = card.querySelector('[data-act="upgrade"]');
+    if (upgBtn) upgBtn.addEventListener('click', () => {
+      if (save.gold < upgPrice) { showToast('Inte nog gold!'); return; }
+      save.gold -= upgPrice;
+      save.companions.level[c.id] = lvl + 1;
+      persist(); Audio.purchase(); renderCompanions();
+    });
+    const togBtn = card.querySelector('[data-act="toggle"]');
+    if (togBtn) togBtn.addEventListener('click', () => {
+      save.companions.active = isActive ? null : c.id;
+      persist(); Audio.uiClick(); renderCompanions();
+    });
+    companionsGridEl.appendChild(card);
+  }
+}
+function openCompanions() {
+  if (!companionsScreen) return;
+  companionsScreen.classList.remove('hidden');
+  Audio.uiClick();
+  renderCompanions();
+}
+const _btnComp = document.getElementById('btn-companions');
+if (_btnComp) _btnComp.addEventListener('click', openCompanions);
+const _btnCompClose = document.getElementById('btn-companions-close');
+if (_btnCompClose) _btnCompClose.addEventListener('click', () => {
+  companionsScreen.classList.add('hidden'); Audio.uiClick();
+});
+
 document.getElementById('btn-cheats').addEventListener('click', openCheats);
 document.getElementById('btn-cheats-close').addEventListener('click', () => {
   cheatsScreen.classList.add('hidden'); Audio.uiClick();
@@ -3614,7 +4092,9 @@ function startReload() {
 
 function tryShoot(now) {
   const p = state.player;
-  const w = W_BY_ID[p.weaponId];
+  // Truck-turret override: använd turretens vapen istället för spelarens
+  const activeWeaponId = p._turretWeapon || p.weaponId;
+  const w = W_BY_ID[activeWeaponId];
   // Stark-melee perk
   const meleeMul = (w.type === 'melee' && hasPerk('fastmelee')) ? 0.70 : 1;
   if (now - p.lastShot < w.rate * meleeMul) return;
@@ -3662,12 +4142,14 @@ function tryShoot(now) {
   }
 
   // gun
-  if (p.reloading) return;
+  // Turret-vapen = oändlig ammo (infinite mounted ammo)
+  const isTurret = !!p._turretWeapon;
+  if (!isTurret && p.reloading) return;
   const dailyMod = state.dailyModifier ? state.dailyModifier.id : null;
   const ammoCost = w.ammoCost || 1;
   // Penetrera/Ultimate = ingen reload
   const noReloadCheat = isCheatActive('penetrera') || isCheatActive('ultimate');
-  if (dailyMod !== 'no_reload' && !noReloadCheat) {
+  if (!isTurret && dailyMod !== 'no_reload' && !noReloadCheat) {
     if (p.ammo < ammoCost) { startReload(); return; }
     p.ammo -= ammoCost;
   }
@@ -4369,6 +4851,9 @@ function loadStage(n) {
   state._waveCompleting = false;
   state._coopGameOverFired = false;
   state.miniBossSpawned = false;
+  // Truck-mode setup
+  if (stage.isTruckMode) setupTruck(stage);
+  else state.truck = null;
   // Coop: clear enemy interpolation cache (gammal stage) + visual-only bullets
   if (state._enemyCache) state._enemyCache = {};
   if (Coop.active) state.bullets = (state.bullets || []).filter(b => !b._visualOnly);
@@ -5172,6 +5657,8 @@ function actuallyStartGame() {
   } else if (mode === 'survive') {
     state.customStages = buildSurviveStages();
     state.surviveStart = performance.now();
+  } else if (mode === 'truck') {
+    state.customStages = buildTruckStages();
   }
   // Tutorial första gången
   if (!save.tutorialDone) {
@@ -5193,6 +5680,7 @@ function actuallyStartGame() {
   state.hostDeaths = 0;
   state.hostRevives = 0;
   state.runStartTime = performance.now();
+  spawnCompanion();
   // Reset coop partner stats
   if (Coop.active) {
     for (const [, partner] of Coop.players) {
@@ -5400,6 +5888,38 @@ const ENDLESS_MODIFIERS = [
   { id: 'tank',  label: 'TANK', hpMul: 1.7, sub: 'Tunga fiender' },
   { id: 'ninja', label: 'SHADOW', poolOverride: ['ninja','runner'], sub: 'Ninjor överallt' },
 ];
+
+function buildTruckStages() {
+  // En lång konvoj-bana: lastbil rör sig framåt, fiender attackerar från sidor
+  return [{
+    id: 1, name: 'KONVOJ — DEL 1', kind: 'truck',
+    worldW: 8000, worldH: 1400,
+    spawnPos: { x: 400, y: 700 },
+    goalPos:  { x: 7600, y: 700 }, goalRadius: 100,
+    bossKey: 'avrattare',
+    isTruckMode: true,
+    zones: [
+      { count: 30, pool: ['runner', 'soldier', 'dog'] },
+      { count: 40, pool: ['soldier', 'shooter', 'brute', 'bomber', 'sniper'], event: null },
+    ],
+    bgColor: '#2a2520', accentColor: '#1a1510', edgeColor: '#3a3020',
+    fog: 0.04, sub: 'Truck-konvojen rör sig framåt — försvara vapnen!',
+  },
+  {
+    id: 2, name: 'KONVOJ — BOSS', kind: 'truck',
+    worldW: 8000, worldH: 1400,
+    spawnPos: { x: 400, y: 700 },
+    goalPos:  { x: 7600, y: 700 }, goalRadius: 100,
+    bossKey: 'gravgravaren',
+    isTruckMode: true,
+    zones: [
+      { count: 25, pool: ['soldier', 'shooter', 'ninja', 'brute'] },
+      { count: 35, pool: ['robot', 'soldier', 'shooter', 'sniper', 'bomber'] },
+    ],
+    bgColor: '#3a1414', accentColor: '#1a0808', edgeColor: '#7a1818',
+    fog: 0.10, sub: 'Slutsträckan — Mourad väntar med boss-truck',
+  }];
+}
 
 function buildEndlessStages() {
   const kinds = ['forest','perimeter','lobby','hangar','depot','cargo','bunker'];
@@ -5664,14 +6184,16 @@ const ammoDisplayEl = document.getElementById('ammo-display-text');
 function updateHUD() {
   if (!state.player) return;
   const p = state.player;
-  const w = W_BY_ID[p.weaponId];
+  // Turret-override: visa truck-vapen istället för spelarens
+  const wid = p._turretWeapon || p.weaponId;
+  const w = W_BY_ID[wid];
   hpFill.style.width = Math.max(0, p.hp / p.maxHp * 100) + '%';
   hpText.textContent = `${Math.ceil(p.hp)}/${p.maxHp}`;
   if (killCountEl) killCountEl.textContent = state.killsThisRun || 0;
   const lvl = getLevel(state.wave);
   waveInfo.textContent = `${state.wave}/${getStageCount()} · ${lvl.name}`;
   goldInfo.textContent = `💰 ${save.gold}`;
-  weaponName.textContent = w.name;
+  weaponName.textContent = (p._turretWeapon ? '🛡️ ' : '') + w.name;
   let ammoText;
   if (w.type === 'melee') ammoText = '∞';
   else if (p.reloading) ammoText = '...';
@@ -12122,6 +12644,8 @@ function render() {
     }
   }
   drawDrone();
+  drawCompanion();
+  if (state.truck) drawTruck();
   // Bullets
   for (const b of state.bullets) drawBullet(b);
   // Top layer: damage-numbers + crit-text + chatter + explosions
@@ -12784,6 +13308,8 @@ function runFrame(dt, now) {
       }
       updateBullets(dt);
       updateDrone(dt, now);
+      updateCompanion(dt, now);
+      if (state.truck) updateTruck(dt, now);
       updateDeathState(dt);
       checkCoopAllDead();
       Coop.tick();
