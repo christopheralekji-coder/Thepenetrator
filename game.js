@@ -5977,6 +5977,8 @@ const ENDLESS_MODIFIERS = [
 
 function buildTruckStages() {
   // En lång konvoj-bana: lastbil rör sig framåt, fiender attackerar från sidor
+  // Massa fiender — skalar med antal spelare i coop
+  const playerScale = Coop.active ? Coop.playerCount() : 1;
   return [{
     id: 1, name: 'KONVOJ — DEL 1', kind: 'truck',
     worldW: 8000, worldH: 1400,
@@ -5985,8 +5987,8 @@ function buildTruckStages() {
     bossKey: 'avrattare',
     isTruckMode: true,
     zones: [
-      { count: 30, pool: ['runner', 'soldier', 'dog'] },
-      { count: 40, pool: ['soldier', 'shooter', 'brute', 'bomber', 'sniper'], event: null },
+      { count: Math.round(60 * playerScale), pool: ['runner', 'soldier', 'dog', 'bomber'] },
+      { count: Math.round(80 * playerScale), pool: ['soldier', 'shooter', 'brute', 'bomber', 'sniper', 'ninja'] },
     ],
     bgColor: '#2a2520', accentColor: '#1a1510', edgeColor: '#3a3020',
     fog: 0.04, sub: 'Truck-konvojen rör sig framåt — försvara vapnen!',
@@ -5999,8 +6001,8 @@ function buildTruckStages() {
     bossKey: 'gravgravaren',
     isTruckMode: true,
     zones: [
-      { count: 25, pool: ['soldier', 'shooter', 'ninja', 'brute'] },
-      { count: 35, pool: ['robot', 'soldier', 'shooter', 'sniper', 'bomber'] },
+      { count: Math.round(70 * playerScale), pool: ['soldier', 'shooter', 'ninja', 'brute', 'bomber'] },
+      { count: Math.round(100 * playerScale), pool: ['robot', 'soldier', 'shooter', 'sniper', 'bomber', 'swarmer', 'brute'] },
     ],
     bgColor: '#3a1414', accentColor: '#1a0808', edgeColor: '#7a1818',
     fog: 0.10, sub: 'Slutsträckan — Mourad väntar med boss-truck',
@@ -6395,11 +6397,12 @@ function updatePlayer(dt, now) {
 }
 
 function updateEnemies(dt, now) {
-  // Hård cap mot för mycket fiender på en gång
-  if (state.enemies.length > 80) {
+  // Hård cap mot för mycket fiender på en gång (truck-mode: högre cap för intensitet)
+  const cap = state.truck ? 120 : 80;
+  if (state.enemies.length > cap) {
     // Behåll bossen om den finns + 80 senaste
     const boss = state.enemies.find(e => e.isBoss);
-    state.enemies = state.enemies.slice(-80);
+    state.enemies = state.enemies.slice(-cap);
     if (boss && !state.enemies.includes(boss)) state.enemies.push(boss);
   }
   // Time-stop fryser allting (men flash-effekt)
@@ -13373,7 +13376,11 @@ function runFrame(dt, now) {
           if (state.spawnTimer <= 0) {
             spawnEnemyAtEdge();
             state.enemiesToSpawn--;
-            state.spawnTimer = 0.4 + Math.random() * 0.4;
+            // Truck-mode: 4× snabbare spawn (intensivt försvar)
+            const isTruck = state.truck && state.truck.alive;
+            const baseTimer = isTruck ? 0.10 : 0.40;
+            const variance = isTruck ? 0.10 : 0.40;
+            state.spawnTimer = baseTimer + Math.random() * variance;
           }
         }
         updateEnemies(dt, now);
