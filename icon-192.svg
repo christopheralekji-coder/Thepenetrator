@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#3a0a14"/>
+      <stop offset="100%" stop-color="#0a0508"/>
+    </radialGradient>
+  </defs>
+  <rect width="192" height="192" fill="url(#bg)"/>
+  <!-- röd uniform-figur -->
+  <rect x="56" y="60" width="80" height="100" fill="#7a1010" rx="4"/>
+  <!-- ansikte -->
+  <circle cx="96" cy="64" r="28" fill="#a07050"/>
+  <!-- basker -->
+  <path d="M 70 50 L 130 48 L 124 70 L 76 70 Z" fill="#0a0a0a"/>
+  <rect x="118" y="54" width="6" height="6" fill="#ffd54a"/>
+  <!-- medaljer (gold) -->
+  <rect x="76" y="84" width="6" height="10" fill="#ffd54a"/>
+  <rect x="86" y="84" width="6" height="10" fill="#ffd54a"/>
+  <rect x="96" y="84" width="6" height="10" fill="#ffd54a"/>
+  <rect x="106" y="84" width="6" height="10" fill="#ffd54a"/>
+  <!-- gevär (vänster + höger) -->
+  <rect x="40" y="116" width="32" height="6" fill="#1a1a1a"/>
+  <rect x="120" y="116" width="32" height="6" fill="#1a1a1a"/>
+  <!-- röd glow runt ögon -->
+  <circle cx="86" cy="60" r="3" fill="#ff1a1a"/>
+  <circle cx="106" cy="60" r="3" fill="#ff1a1a"/>
+</svg>

@@ -1,0 +1,16 @@
+{
+  "name": "penetrator-coop-server",
+  "version": "1.0.0",
+  "description": "Co-op WebSocket relay server for The Penetrator",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

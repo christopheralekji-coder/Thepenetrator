@@ -1,0 +1,11848 @@
+'use strict';
+
+// === GLOBAL ERROR HANDLER (tyst, bara console.error) ===
+let _gameErrors = [];
+window.addEventListener('error', (e) => {
+  _gameErrors.push({ msg: e.message, file: e.filename, line: e.lineno, time: performance.now() });
+  if (_gameErrors.length > 10) _gameErrors.shift();
+  console.error('Game error:', e.message, 'at', (e.filename || '?') + ':' + e.lineno);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('Unhandled rejection:', e.reason);
+});
+
+// ============================================================
+// CONFIG
+// ============================================================
+// VÄRLDEN: dimensioner uppdateras per stage vid loadStage()
+const WORLD = { w: 1800, h: 2400 };
+
+// STAGES: varje stage har 3 zoner. Zon 1 spawnar fiender från intro-pool,
+// när alla döda triggas mid-event (stage.event), zon 2 spawnar ny våg,
+// när alla döda spawnar bossen i zon 3. Vissa stages har 2 bossar i sekvens.
+const STAGES = [
+  {
+    id: 1, name: 'SKOGEN', kind: 'forest',
+    worldW: 2000, worldH: 2800,
+    spawnPos: { x: 1000, y: 2640 },
+    goalPos:  { x: 1000, y: 200 },  goalRadius: 100,
+    bossKey: 'likvakare',
+    zones: [
+      { count: 8,  pool: ['grunt', 'runner'] },
+      { count: 10, pool: ['grunt', 'dog', 'runner'], event: 'release_dogs' },
+    ],
+    bgColor: '#2a3a1c', accentColor: '#1a2510', edgeColor: '#1a2010',
+    fog: 0.0, sub: 'Något ohyggligt vaktar grindporten',
+  },
+  {
+    id: 2, name: 'PERIMETERN', kind: 'perimeter',
+    worldW: 2200, worldH: 2400,
+    spawnPos: { x: 1100, y: 2240 },
+    goalPos:  { x: 1100, y: 200 }, goalRadius: 100,
+    bossKey: 'benkrossare',
+    zones: [
+      { count: 8,  pool: ['grunt', 'soldier', 'dog'] },
+      { count: 12, pool: ['soldier', 'shooter', 'brute', 'bomber'], event: 'alarm' },
+    ],
+    bgColor: '#3a3024', accentColor: '#241c14', edgeColor: '#5a4628',
+    fog: 0.04, sub: 'Larmet går — Mourads Benkrossare väntar',
+  },
+  {
+    id: 3, name: 'LOBBYN', kind: 'lobby',
+    worldW: 1700, worldH: 2400,
+    spawnPos: { x: 850, y: 2240 },
+    goalPos:  { x: 850, y: 200 }, goalRadius: 90,
+    bossKey: 'strypare',
+    zones: [
+      { count: 9,  pool: ['grunt', 'soldier'] },
+      { count: 12, pool: ['ninja', 'soldier'], event: 'open_doors' },
+    ],
+    bgColor: '#23232c', accentColor: '#15151c', edgeColor: '#3a3a4a',
+    fog: 0.08, sub: 'Strypare i skuggorna',
+  },
+  {
+    id: 4, name: 'BARACK-GÅRDEN', kind: 'barracks',
+    worldW: 1800, worldH: 1800,
+    spawnPos: { x: 900, y: 1620 },
+    goalPos:  { x: 900, y: 700 },  goalRadius: 0,
+    isBoss: true, bossKey: 'avrattare',
+    zones: [
+      { count: 8,  pool: ['grunt', 'soldier'] },
+      { count: 10, pool: ['brute', 'soldier'], event: 'barracks_open' },
+    ],
+    bgColor: '#3a3528', accentColor: '#1c180e', edgeColor: '#7a5a30',
+    fog: 0.05, sub: 'Mourads Avrättare väntar i mitten',
+  },
+  {
+    id: 5, name: 'HANGAREN', kind: 'hangar',
+    worldW: 2600, worldH: 2000,
+    spawnPos: { x: 200, y: 1000 },
+    goalPos:  { x: 2400, y: 1000 }, goalRadius: 100,
+    bossKey: 'kottkvarn',
+    zones: [
+      { count: 9,  pool: ['soldier', 'shooter'] },
+      { count: 12, pool: ['brute', 'robot', 'shooter', 'sniper'], event: 'fuel_blast' },
+    ],
+    bgColor: '#2a2a32', accentColor: '#15151c', edgeColor: '#5a5a64',
+    fog: 0.05, sub: 'Något kybernetiskt sliter sig fritt',
+  },
+  {
+    id: 6, name: 'AMMO-DEPÅN', kind: 'depot',
+    worldW: 2000, worldH: 2000,
+    spawnPos: { x: 1000, y: 1820 },
+    goalPos:  { x: 1000, y: 200 }, goalRadius: 90,
+    bossKey: 'askmakare',
+    zones: [
+      { count: 10, pool: ['soldier', 'shooter'] },
+      { count: 12, pool: ['brute', 'ninja', 'shooter', 'healer', 'summoner'], event: 'barrel_chain' },
+    ],
+    bgColor: '#262630', accentColor: '#10101a', edgeColor: '#4a4a5a',
+    fog: 0.10, sub: 'Askmakaren landar med jetpack',
+  },
+  {
+    id: 7, name: 'LASTHANGAREN', kind: 'cargo',
+    worldW: 1900, worldH: 1900,
+    spawnPos: { x: 950, y: 1700 },
+    goalPos:  { x: 950, y: 700 },  goalRadius: 0,
+    isBoss: true, bossKey: 'lungrivare',
+    zones: [
+      { count: 8,  pool: ['soldier', 'shooter'] },
+      { count: 10, pool: ['ninja', 'brute', 'shooter'], event: 'crane_drop' },
+    ],
+    bgColor: '#23232c', accentColor: '#10101a', edgeColor: '#4a4a5a',
+    fog: 0.10, sub: 'Lungrivaren — undvik giftmolnen',
+  },
+  {
+    id: 8, name: 'BUNKER-TUNNLAR', kind: 'bunker',
+    worldW: 1500, worldH: 2800,
+    spawnPos: { x: 750, y: 2640 },
+    goalPos:  { x: 750, y: 200 }, goalRadius: 80,
+    bossKey: 'skallsprackare',
+    zones: [
+      { count: 10, pool: ['soldier', 'ninja'] },
+      { count: 14, pool: ['swordsman', 'robot', 'ninja', 'swarmer', 'sniper'], event: 'lights_flicker' },
+    ],
+    bgColor: '#1a1a22', accentColor: '#08080d', edgeColor: '#3a3a44',
+    fog: 0.18, sub: 'Skallspräckaren blockerar tunneln',
+  },
+  {
+    id: 9, name: 'KOMMANDO-CELLEN', kind: 'command',
+    worldW: 1800, worldH: 1800,
+    spawnPos: { x: 900, y: 1620 },
+    goalPos:  { x: 900, y: 700 },  goalRadius: 0,
+    isBoss: true, bossKey: 'sjalaatare', bossKey2: 'gravgravaren',
+    zones: [
+      { count: 8,  pool: ['soldier', 'ninja'] },
+      { count: 10, pool: ['robot', 'brute', 'ninja'], event: 'jimmy_screens' },
+    ],
+    bgColor: '#1a1014', accentColor: '#0a0508', edgeColor: '#7a1818',
+    fog: 0.22, sub: 'Två faser. Inget förlåtande.',
+  },
+];
+// Bakåtkompatibilitet med gammal kod
+const LEVELS = STAGES;
+function getLevel(w) {
+  if (state && state.customStages) return state.customStages[w - 1] || state.customStages[0];
+  return STAGES[Math.max(0, Math.min(STAGES.length - 1, w - 1))];
+}
+function getStage(w) { return getLevel(w); }
+function getStageCount() {
+  return state.customStages ? state.customStages.length : STAGES.length;
+}
+
+// ============================================================
+// BOSS CONFIGS — 10 unika bossar (stage 9 har 2 i sekvens)
+// ai-typer: caster, tank_charger, cloaker, brute_charger, plasma,
+//           jetpack, gas_sniper, shielder, avatar, final
+// ============================================================
+const BOSS_CONFIGS = {
+  likvakare: {
+    name: 'Jimmys Likvakare', subtitle: 'Rebellprästen i skogen',
+    hp: 380, speed: 90, dmg: 20, r: 26,
+    color: '#3a2a44', accent: '#7a5aaa', glow: '#aaff5a',
+    ai: 'caster', gold: 220,
+  },
+  benkrossare: {
+    name: 'Mourads Benkrossare', subtitle: 'Bepansrad legoknekt',
+    hp: 520, speed: 70, dmg: 30, r: 30,
+    color: '#7a4030', accent: '#3a1810', glow: '#ff5a30',
+    ai: 'tank_charger', gold: 280,
+  },
+  strypare: {
+    name: 'Jimmys Strypare', subtitle: 'Cyber-mördare i lobbyn',
+    hp: 480, speed: 170, dmg: 18, r: 20,
+    color: '#1a1a22', accent: '#ff3a44', glow: '#ff3a44',
+    ai: 'cloaker', gold: 320,
+  },
+  avrattare: {
+    name: 'Mourads Avrättare', subtitle: 'GENERALEN — pansrad krossare',
+    hp: 900, speed: 100, dmg: 32, r: 32,
+    color: '#3a2418', accent: '#ff6a30', glow: '#ff8a30',
+    ai: 'brute_charger', gold: 450,
+  },
+  kottkvarn: {
+    name: 'Jimmys Köttkvarn', subtitle: 'Kybernetisk experiment-vapen',
+    hp: 720, speed: 100, dmg: 24, r: 28,
+    color: '#3a3a48', accent: '#3acaff', glow: '#3acaff',
+    ai: 'plasma', gold: 380,
+  },
+  askmakare: {
+    name: 'Mourads Askmakare', subtitle: 'Pyromaniker med jetpack',
+    hp: 800, speed: 140, dmg: 26, r: 26,
+    color: '#3a1a14', accent: '#ff8a30', glow: '#ff5a14',
+    ai: 'jetpack', gold: 420,
+  },
+  lungrivare: {
+    name: 'Jimmys Lungrivare', subtitle: 'SKUGGAN — gasmask och gift',
+    hp: 980, speed: 130, dmg: 24, r: 22,
+    color: '#2a3a30', accent: '#9aff5a', glow: '#9aff5a',
+    ai: 'gas_sniper', gold: 500,
+  },
+  skallsprackare: {
+    name: 'Mourads Skallspräckare', subtitle: 'Riot-shield, magnum, oöm',
+    hp: 820, speed: 85, dmg: 28, r: 28,
+    color: '#3a3a44', accent: '#dcdcdc', glow: '#ff3a3a',
+    ai: 'shielder', gold: 460,
+  },
+  sjalaatare: {
+    name: 'Jimmys Själaätare', subtitle: 'Avataren — dödar kropp och själ',
+    hp: 1200, speed: 110, dmg: 30, r: 30,
+    color: '#1a0a14', accent: '#aa3aff', glow: '#aa3aff',
+    ai: 'avatar', gold: 700,
+  },
+  gravgravaren: {
+    name: 'Mourad, Gravgrävaren', subtitle: 'Det riktiga slutet',
+    hp: 2200, speed: 130, dmg: 38, r: 34,
+    color: '#3a0a14', accent: '#ffd54a', glow: '#ff1a1a',
+    ai: 'final', gold: 1500,
+  },
+};
+function getBossConfig(key) { return BOSS_CONFIGS[key]; }
+
+// Per-stage layout (genereras vid loadStage)
+// Pickups (HP-pack, ammo-pack, gold)
+function spawnPickup(x, y, type) {
+  if (!state.pickups) state.pickups = [];
+  state.pickups.push({ x, y, type, life: 25, vx: 0, vy: 0, magnetized: false });
+}
+function updateDrone(dt, now) {
+  if (!state.drone || !state.drone.alive || !state.player) return;
+  const d = state.drone;
+  const p = state.player;
+  // Cirkulera runt spelaren
+  d.angle += dt * 1.5;
+  const orbitR = 50;
+  const tx = p.x + Math.cos(d.angle) * orbitR;
+  const ty = p.y + Math.sin(d.angle) * orbitR;
+  d.x += (tx - d.x) * 8 * dt;
+  d.y += (ty - d.y) * 8 * dt;
+  // Skjut närmsta fiende
+  if (now - d.lastShot > 600) {
+    let target = null, bestD = 380;
+    for (const e of state.enemies) {
+      if (e.dead) continue;
+      const dst = Math.hypot(e.x - d.x, e.y - d.y);
+      if (dst < bestD) { bestD = dst; target = e; }
+    }
+    if (target) {
+      d.lastShot = now;
+      const ang = Math.atan2(target.y - d.y, target.x - d.x);
+      state.bullets.push({
+        x: d.x, y: d.y, vx: Math.cos(ang)*700, vy: Math.sin(ang)*700,
+        dmg: 18, life: 1.2, r: 3, color: '#3acaff', hostile: false,
+        style: 'drone',
+      });
+    }
+  }
+}
+function drawCoopPartner() {
+  if (!Coop.active || Coop.inLobby) return;
+  for (const [pid, p] of Coop.players) {
+    if (p.x === undefined) continue;
+    const x = p.x - state.camera.x;
+    const y = p.y - state.camera.y;
+    // Off-screen check (rita pil mot dem istället)
+    if (x < -30 || x > viewW + 30 || y < -30 || y > viewH + 30) {
+      drawOffscreenPartner(p, x, y);
+      continue;
+    }
+    const color = PLAYER_COLORS[p.colorIdx % PLAYER_COLORS.length];
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.ellipse(x + 2, y + 16, 16, 5, 0, 0, Math.PI*2); ctx.fill();
+    // Färg-aura
+    ctx.fillStyle = color + '33';
+    ctx.beginPath(); ctx.arc(x, y, 22, 0, Math.PI*2); ctx.fill();
+    // Kropp
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(x, y, 13, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = darken(color, 0.7);
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI*2); ctx.fill();
+    // Vapen i aim-riktning
+    if (p.aimAngle !== undefined) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(p.aimAngle);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(8, -2, 16, 4);
+      ctx.restore();
+    }
+    // Namn-tag
+    ctx.fillStyle = color;
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    ctx.fillText(p.name, x, y - 22);
+    ctx.shadowBlur = 0;
+    // HP-bar
+    if (p.hp !== undefined) {
+      const hp = Math.max(0, p.hp / 100);
+      ctx.fillStyle = '#5a0a0a';
+      ctx.fillRect(x - 18, y - 18, 36, 4);
+      ctx.fillStyle = color;
+      ctx.fillRect(x - 18, y - 18, 36 * hp, 4);
+    }
+  }
+}
+
+function drawOffscreenPartner(p, sx, sy) {
+  // Pil mot off-screen partner
+  const cx = viewW/2, cy = viewH/2;
+  const dx = sx - cx, dy = sy - cy;
+  const ang = Math.atan2(dy, dx);
+  const margin = 40;
+  const halfW = viewW/2 - margin, halfH = viewH/2 - margin;
+  let px, py;
+  if (Math.abs(Math.tan(ang)) * halfW < halfH) {
+    px = Math.cos(ang) > 0 ? cx + halfW : cx - halfW;
+    py = cy + (px - cx) * Math.tan(ang);
+  } else {
+    py = Math.sin(ang) > 0 ? cy + halfH : cy - halfH;
+    px = cx + (py - cy) / Math.tan(ang);
+  }
+  const color = PLAYER_COLORS[p.colorIdx % PLAYER_COLORS.length];
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(ang);
+  ctx.fillStyle = color;
+  ctx.shadowColor = color; ctx.shadowBlur = 6;
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.lineTo(-12, -8); ctx.lineTo(-12, 8);
+  ctx.closePath(); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#000';
+  ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText(p.name, -6, 3);
+  ctx.restore();
+}
+
+function drawDrone() {
+  if (!state.drone || !state.drone.alive) return;
+  const d = state.drone;
+  const x = d.x - state.camera.x, y = d.y - state.camera.y;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(d.angle * 2);
+  // Drone body
+  ctx.fillStyle = '#1a1a22';
+  ctx.fillRect(-8, -8, 16, 16);
+  ctx.fillStyle = '#3acaff';
+  ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 6;
+  ctx.beginPath(); ctx.arc(0, 0, 3, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Propellers
+  ctx.fillStyle = '#3a3a44';
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI/2 + d.angle * 8;
+    ctx.fillRect(Math.cos(a)*8 - 1, Math.sin(a)*8 - 1, 6, 2);
+  }
+  ctx.restore();
+}
+
+function updatePickups(dt) {
+  if (!state.pickups || !state.player) return;
+  const p = state.player;
+  // Lista över alla spelare som kan grabba pickups
+  const players = [{ ref: p, isLocal: true, pid: null }];
+  if (Coop.active && Coop.isHost) {
+    for (const [pid, partner] of Coop.players) {
+      if (partner.hp > 0) players.push({ ref: partner, isLocal: false, pid });
+    }
+  }
+  for (const pk of state.pickups) {
+    pk.life -= dt;
+    if (pk.life <= 0) { pk.dead = true; continue; }
+    // Hitta närmsta spelare till denna pickup
+    let nearest = null, nearestD = Infinity;
+    for (const pl of players) {
+      const dd = Math.hypot(pl.ref.x - pk.x, pl.ref.y - pk.y);
+      if (dd < nearestD) { nearestD = dd; nearest = pl; }
+    }
+    if (!nearest) continue;
+    const dx = nearest.ref.x - pk.x, dy = nearest.ref.y - pk.y;
+    const d = nearestD;
+    // Magnet mot närmsta spelare
+    if (d < 110) pk.magnetized = true;
+    if (pk.magnetized && d > 0) {
+      const speed = Math.min(420, 200 + (1 - d/110) * 300);
+      pk.x += (dx/d) * speed * dt;
+      pk.y += (dy/d) * speed * dt;
+    }
+    if (d < (nearest.ref.r || 14) + 10) {
+      pk.dead = true;
+      Audio.goldPickup();
+      // Om partner picked it up, skicka event
+      if (!nearest.isLocal && nearest.pid) {
+        Coop.sendPickupToPartner(nearest.pid, pk.type);
+        continue;
+      }
+      if (pk.type === 'hp') {
+        p.hp = Math.min(p.maxHp, p.hp + 30);
+        showFloatingText(pk.x, pk.y, '+30 HP', '#5aff5a');
+      } else if (pk.type === 'ammo') {
+        const w = W_BY_ID[p.weaponId];
+        if (w.mag) {
+          p.ammo = effectiveMag(p.weaponId);
+          p.reloading = false;
+          showFloatingText(pk.x, pk.y, 'AMMO!', '#ffae3a');
+        }
+      } else if (pk.type === 'gold') {
+        const bonus = 25 + Math.floor(Math.random() * 25);
+        save.gold += bonus;
+        state.goldThisRun += bonus;
+        showFloatingText(pk.x, pk.y, '+' + bonus, '#ffd54a');
+      } else if (pk.type === 'temp_dmg') {
+        p.tempDmgUntil = performance.now() + 8000;
+        showFloatingText(pk.x, pk.y, '×2 DMG 8s', '#ff5a3a');
+      }
+    }
+  }
+  state.pickups = state.pickups.filter(p => !p.dead);
+}
+function showFloatingText(x, y, text, color) {
+  state.particles.push({
+    x, y, vx: 0, vy: -80, life: 1.0, r: 0,
+    color, isDamageNumber: true, text, size: 13,
+  });
+}
+function drawPickups() {
+  if (!state.pickups) return;
+  const cx = state.camera.x, cy = state.camera.y;
+  const t = performance.now();
+  for (const pk of state.pickups) {
+    const x = pk.x - cx, y = pk.y - cy + Math.sin(t/200 + pk.x) * 2;
+    // glow
+    const colors = { hp: '#5aff5a', ammo: '#ffae3a', gold: '#ffd54a', temp_dmg: '#ff5a3a' };
+    const col = colors[pk.type] || '#fff';
+    ctx.fillStyle = col + '55';
+    ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2); ctx.fill();
+    // ikon
+    if (pk.type === 'hp') {
+      ctx.fillStyle = '#5aff5a';
+      ctx.fillRect(x - 5, y - 2, 10, 4);
+      ctx.fillRect(x - 2, y - 5, 4, 10);
+    } else if (pk.type === 'ammo') {
+      ctx.fillStyle = '#ffae3a';
+      ctx.fillRect(x - 4, y - 6, 8, 12);
+      ctx.fillStyle = '#3a2a08';
+      ctx.fillRect(x - 3, y - 5, 6, 3);
+    } else if (pk.type === 'gold') {
+      ctx.fillStyle = '#ffd54a';
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#a07a18';
+      ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('$', x, y + 3);
+    } else if (pk.type === 'temp_dmg') {
+      ctx.fillStyle = '#ff5a3a';
+      ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('⚡', x, y + 5);
+    }
+    // life-blink när < 5s kvar
+    if (pk.life < 5 && Math.sin(t/100) > 0) {
+      ctx.strokeStyle = col; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2); ctx.stroke();
+    }
+  }
+}
+
+const stageState = {
+  buildings: [],   // kollisions-objekt: { x, y, w, h, kind, ...detaljer }
+  decorations: [], // icke-kollisions visuella element: { x, y, kind, ...details }
+  hazards: [],     // ex. explosiva fat (kan triggas)
+};
+const SAVE_KEY = 'penetrator_save_v1';
+// Migrera gammal save-nyckel om den finns
+(function migrateOldSave() {
+  try {
+    const old = localStorage.getItem('jimmy_mourad_save_v1');
+    if (old && !localStorage.getItem(SAVE_KEY)) {
+      localStorage.setItem(SAVE_KEY, old);
+    }
+  } catch (e) {}
+})();
+
+// ============================================================
+// VAPEN
+// Varje vapen: id, name, type ('melee'|'gun'), price, dmg, rate (ms),
+// range/speed, mag, reload, spread, pellets, explosive, color
+// ============================================================
+const WEAPONS = [
+  { id: 'fists',     name: 'Knytnävar',         type: 'melee', price: 0,    dmg: 8,   rate: 380, range: 36,  color: '#dab27a' },
+  { id: 'knuckles',  name: 'Mässingsknogar',    type: 'melee', price: 60,   dmg: 16,  rate: 320, range: 38,  color: '#c0a060' },
+  { id: 'bat',       name: 'Påk',               type: 'melee', price: 120,  dmg: 28,  rate: 520, range: 50,  color: '#7a4a20' },
+  { id: 'knife',     name: 'Kniv',              type: 'melee', price: 100,  dmg: 22,  rate: 240, range: 38,  color: '#bcc8d0' },
+  { id: 'machete',   name: 'Machete',           type: 'melee', price: 200,  dmg: 38,  rate: 500, range: 56,  color: '#9aa8b0' },
+  { id: 'katana',    name: 'Katana',            type: 'melee', price: 350,  dmg: 60,  rate: 460, range: 64,  color: '#e6e6f0' },
+  { id: 'pistol',    name: 'Pistol',            type: 'gun',   price: 220,  dmg: 18,  rate: 340, speed: 700, mag: 12, reload: 1100, spread: 0.04, color: '#ffd14a' },
+  { id: 'revolver',  name: 'Revolver',          type: 'gun',   price: 380,  dmg: 38,  rate: 580, speed: 750, mag: 6,  reload: 1500, spread: 0.03, color: '#ffae3a' },
+  { id: 'shotgun',   name: 'Hagelgevär',        type: 'gun',   price: 500,  dmg: 14,  rate: 760, speed: 650, mag: 6,  reload: 1900, spread: 0.32, pellets: 6, color: '#ff6b3d' },
+  { id: 'smg',       name: 'Kpist',             type: 'gun',   price: 650,  dmg: 13,  rate: 95,  speed: 720, mag: 30, reload: 1500, spread: 0.10, color: '#88ccff' },
+  { id: 'rifle',     name: 'Automatkarbin',     type: 'gun',   price: 900,  dmg: 24,  rate: 130, speed: 820, mag: 30, reload: 1800, spread: 0.05, color: '#5fd95f' },
+  { id: 'sniper',    name: 'Prickskyttegevär',  type: 'gun',   price: 1200, dmg: 100, rate: 1300,speed: 1400,mag: 5,  reload: 2400, spread: 0.0,  pierce: true, color: '#bb88ff' },
+  { id: 'grenade',   name: 'Granatkastare',     type: 'gun',   price: 1500, dmg: 70,  rate: 950, speed: 480, mag: 6,  reload: 2400, spread: 0.04, explosive: 90,  color: '#9aff5a' },
+  { id: 'rocket',    name: 'Raketgevär',        type: 'gun',   price: 2000, dmg: 130, rate: 1500,speed: 520, mag: 4,  reload: 3000, spread: 0.02, explosive: 130, color: '#ff3c3c' },
+  { id: 'minigun',   name: 'Minigun',           type: 'gun',   price: 3500, dmg: 22,  rate: 55,  speed: 900, mag: 100,reload: 3500, spread: 0.14, color: '#3cf0ff' },
+  // === 15 NYA VAPEN ===
+  // Melee
+  { id: 'tonfa',     name: 'Tonfa',             type: 'melee', price: 80,   dmg: 14,  rate: 220, range: 36, color: '#444444', style: 'club_short' },
+  { id: 'axe',       name: 'Yxa',               type: 'melee', price: 280,  dmg: 50,  rate: 580, range: 48, color: '#9a7a5a', style: 'axe' },
+  { id: 'sledge',    name: 'Slägga',            type: 'melee', price: 420,  dmg: 85,  rate: 780, range: 50, color: '#6a6a6a', style: 'sledge' },
+  { id: 'spear',     name: 'Spjut',             type: 'melee', price: 320,  dmg: 42,  rate: 460, range: 80, color: '#bcbccc', style: 'spear' },
+  { id: 'whip',      name: 'Kedjepiska',        type: 'melee', price: 550,  dmg: 30,  rate: 380, range: 92, color: '#5a4a30', style: 'whip' },
+  { id: 'lightsaber',name: 'Laser-svärd',       type: 'melee', price: 1900, dmg: 95,  rate: 350, range: 72, color: '#3aff5a', style: 'lightsaber' },
+  // Kasta/lätt ranged
+  { id: 'shuriken',  name: 'Kaststjärnor',      type: 'gun',   price: 220,  dmg: 12,  rate: 140, speed: 620, mag: 20, reload: 1100, spread: 0.06, color: '#cccccc', style: 'thrown' },
+  { id: 'throwknife',name: 'Kastkniv',          type: 'gun',   price: 350,  dmg: 30,  rate: 300, speed: 720, mag: 10, reload: 1300, spread: 0.04, color: '#aaaacc', style: 'thrown' },
+  { id: 'crossbow',  name: 'Armborst',          type: 'gun',   price: 700,  dmg: 80,  rate: 900, speed: 950, mag: 4,  reload: 1700, spread: 0.0,  color: '#7a5a3a', style: 'crossbow', pierce: true },
+  { id: 'bow',       name: 'Compoundbåge',      type: 'gun',   price: 600,  dmg: 55,  rate: 540, speed: 920, mag: 1,  reload: 700,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true },
+  // Energi/special
+  { id: 'flame',     name: 'Eldkastare',        type: 'gun',   price: 1300, dmg: 9,   rate: 50,  speed: 380, mag: 80, reload: 2400, spread: 0.18, color: '#ff7a2a', style: 'flame', burn: 4 },
+  { id: 'plasma',    name: 'Plasma-gevär',      type: 'gun',   price: 2200, dmg: 85,  rate: 300, speed: 950, mag: 12, reload: 2200, spread: 0.0,  color: '#3acaff', style: 'plasma' },
+  { id: 'tesla',     name: 'Tesla-pistol',      type: 'gun',   price: 1800, dmg: 35,  rate: 220, speed: 1100,mag: 12, reload: 1800, spread: 0.0,  color: '#ffeb3b', style: 'tesla', chain: 3 },
+  { id: 'frost',     name: 'Frostkanon',        type: 'gun',   price: 1600, dmg: 24,  rate: 200, speed: 700, mag: 16, reload: 1900, spread: 0.04, color: '#9af2ff', style: 'frost', slow: 1.6 },
+  { id: 'sonic',     name: 'Sonic-kanon',       type: 'gun',   price: 1400, dmg: 32,  rate: 340, speed: 600, mag: 8,  reload: 1700, spread: 0.05, color: '#ff5ac4', style: 'sonic', knockback: 240 },
+  // === 8 NYA VAPEN ===
+  { id: 'boxgloves', name: 'Boxhandskar',       type: 'melee', price: 50,   dmg: 12,  rate: 280, range: 38, color: '#aa3030', style: 'boxgloves' },
+  { id: 'sickle',    name: 'Sickel',            type: 'melee', price: 280,  dmg: 38,  rate: 380, range: 60, color: '#9a9aa0', style: 'sickle' },
+  { id: 'mace',      name: 'Stridsklubba',      type: 'melee', price: 480,  dmg: 70,  rate: 700, range: 52, color: '#5a4a3a', style: 'mace', knockback: 180 },
+  { id: 'glaive',    name: 'Glaiv',             type: 'melee', price: 700,  dmg: 50,  rate: 500, range: 75, color: '#dcdcdc', style: 'glaive' },
+  { id: 'energysword',name: 'Energi-svärd',     type: 'melee', price: 1200, dmg: 95,  rate: 340, range: 76, color: '#ff8a3a', style: 'energysword', pierce: true },
+  { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 380,  dmg: 14,  rate: 580, speed: 720, mag: 24, reload: 1500, spread: 0.05, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 3 },
+  { id: 'railgun',   name: 'Railgun',           type: 'gun',   price: 2500, dmg: 140, rate: 1700,speed: 2000,mag: 2,  reload: 3000, spread: 0.0,  pierce: true, color: '#ffffff', style: 'railgun' },
+  { id: 'blackhole', name: 'Svartphål-pistol',  type: 'gun',   price: 2800, dmg: 50,  rate: 1200,speed: 480, mag: 4,  reload: 2400, spread: 0.0,  color: '#aa3aff', style: 'blackhole', pullRadius: 180 },
+  // === 5 KREATIVA VAPEN ===
+  { id: 'boomerang',  name: 'Boomerang',         type: 'gun',   price: 600,  dmg: 35,  rate: 800, speed: 600, mag: 2, reload: 1500, spread: 0.0, color: '#9a6a30', style: 'boomerang', pierce: true, returns: true },
+  { id: 'drone',      name: 'Drone-pistol',      type: 'gun',   price: 1500, dmg: 28,  rate: 600, speed: 700, mag: 4, reload: 2200, spread: 0.0, color: '#3acaff', style: 'drone', summonsDrone: true },
+  { id: 'timestop',   name: 'Tids-pistol',       type: 'gun',   price: 2200, dmg: 60,  rate: 900, speed: 1100,mag: 3, reload: 2500, spread: 0.0, color: '#9aff5a', style: 'timestop', timeStopMs: 800 },
+  { id: 'whip',       name: 'Drag-piska',        type: 'gun',   price: 800,  dmg: 25,  rate: 500, speed: 800, mag: 6, reload: 1700, spread: 0.0, color: '#5a4030', style: 'pullwhip', pullsEnemy: true },
+  { id: 'mindcontrol',name: 'Tank-strålen',      type: 'gun',   price: 3000, dmg: 0,   rate: 2000,speed: 600, mag: 2, reload: 4000, spread: 0.0, color: '#ff5aff', style: 'mindctrl', mindControlMs: 5000 },
+];
+const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
+
+// Vapen-kategori (för shop-filter)
+function weaponCategory(w) {
+  const specials = ['flame', 'plasma', 'tesla', 'frost', 'sonic', 'lightsaber', 'energysword', 'railgun', 'blackhole'];
+  if (specials.includes(w.id)) return 'special';
+  return w.type === 'melee' ? 'melee' : 'gun';
+}
+
+// ============================================================
+// SAVE / LOAD
+// ============================================================
+function loadSave() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return defaultSave();
+    const s = JSON.parse(raw);
+    if (!s || typeof s !== 'object') return defaultSave();
+    if (!Array.isArray(s.owned) || !s.owned.includes('fists')) s.owned = ['fists'];
+    if (!Array.isArray(s.perks)) s.perks = [];
+    if (!Array.isArray(s.achievements)) s.achievements = [];
+    if (typeof s.gold !== 'number' || s.gold < 0) s.gold = 0;
+    if (!s.upgrades || typeof s.upgrades !== 'object') s.upgrades = {};
+    if (s.audio && typeof s.audio !== 'object') s.audio = {};
+    if (s.feedback && typeof s.feedback !== 'object') s.feedback = {};
+    return s;
+  } catch (e) {
+    console.warn('Save corrupt, återställer:', e);
+    return defaultSave();
+  }
+}
+// COSTUMES
+const COSTUMES = [
+  { id: 'classic',    name: 'Classic',         desc: 'Bandana + svart tee', skin: '#d8a878', shirt: '#222', bandana: '#0a0a0a', accent: '#aa1818', unlock: () => true },
+  { id: 'tactical',   name: 'Tactical',        desc: 'Full kevlar', skin: '#d8a878', shirt: '#1a3a1a', bandana: '#3a4a26', accent: '#3a3a3a', unlock: () => save.stats && save.stats.wins >= 1 },
+  { id: 'vintage',    name: 'Vintage Soldier', desc: '70-tals uniform', skin: '#d8a878', shirt: '#5a4a2a', bandana: '#3a2a18', accent: '#2a1a08', unlock: () => save.stats && save.stats.totalKills >= 500 },
+  { id: 'cyberpunk',  name: 'Cyberpunk',       desc: 'Neon-detaljer', skin: '#e8b888', shirt: '#1a1a2a', bandana: '#aa3aff', accent: '#3acaff', unlock: () => save.cheatsUnlocked >= 1 },
+  { id: 'demon',      name: 'Demon-form',      desc: 'NG+++ låst', skin: '#a07060', shirt: '#3a0a14', bandana: '#7a1818', accent: '#ff1a1a', unlock: () => getNGPLevel() >= 3 },
+];
+function getCurrentCostume() {
+  return COSTUMES.find(c => c.id === (save.costume || 'classic')) || COSTUMES[0];
+}
+
+function ensureMastery() {
+  if (!save.weaponMastery) save.weaponMastery = {};
+  if (!save.weaponLevels) save.weaponLevels = {};
+  if (typeof save.playerXp !== 'number') save.playerXp = 0;
+  if (typeof save.playerLevel !== 'number') save.playerLevel = 1;
+}
+
+// PER-VAPEN UPPGRADERINGAR (5 nivåer per vapen)
+const WEAPON_UPGRADE_MAX = 5;
+function getWeaponLevel(weaponId) {
+  return (save.weaponLevels && save.weaponLevels[weaponId]) || 0;
+}
+function weaponUpgradePrice(weaponId) {
+  const level = getWeaponLevel(weaponId);
+  if (level >= WEAPON_UPGRADE_MAX) return null;
+  const w = W_BY_ID[weaponId];
+  if (!w) return null;
+  // Pris baseras på vapnets baspris + nivå
+  const base = Math.max(50, Math.round((w.price || 100) * 0.4));
+  return Math.round(base * Math.pow(1.7, level));
+}
+function weaponLevelDmgBonus(weaponId) {
+  return 1 + getWeaponLevel(weaponId) * 0.12; // +12% dmg per nivå
+}
+function weaponLevelRateBonus(weaponId) {
+  return 1 - getWeaponLevel(weaponId) * 0.05; // 5% snabbare per nivå
+}
+function upgradeWeapon(weaponId) {
+  const cur = getWeaponLevel(weaponId);
+  if (cur >= WEAPON_UPGRADE_MAX) return false;
+  const price = weaponUpgradePrice(weaponId);
+  if (price === null || save.gold < price) return false;
+  save.gold -= price;
+  save.weaponLevels[weaponId] = cur + 1;
+  persist();
+  Audio.purchase();
+  return true;
+}
+
+function getMasteryLevel(weaponId) {
+  const xp = (save.weaponMastery && save.weaponMastery[weaponId]) || 0;
+  if (xp >= 500) return 5;
+  if (xp >= 250) return 4;
+  if (xp >= 100) return 3;
+  if (xp >= 40) return 2;
+  if (xp >= 10) return 1;
+  return 0;
+}
+function masteryDmgBonus(weaponId) { return 1 + getMasteryLevel(weaponId) * 0.06; }
+function masteryRateBonus(weaponId) { return 1 - getMasteryLevel(weaponId) * 0.04; }
+
+function addWeaponXp(weaponId, amount) {
+  if (!save.weaponMastery) save.weaponMastery = {};
+  const before = getMasteryLevel(weaponId);
+  save.weaponMastery[weaponId] = (save.weaponMastery[weaponId] || 0) + amount * (hasPerk('masterful') ? 1.25 : 1);
+  const after = getMasteryLevel(weaponId);
+  if (after > before) {
+    showAchievementPopup({ icon: '⭐', name: W_BY_ID[weaponId].name + ' nivå ' + after });
+    Audio.achievement();
+  }
+  // Player XP
+  save.playerXp = (save.playerXp || 0) + amount;
+  const nextLevelXp = save.playerLevel * 100;
+  if (save.playerXp >= nextLevelXp) {
+    save.playerXp -= nextLevelXp;
+    save.playerLevel = (save.playerLevel || 1) + 1;
+    showAchievementPopup({ icon: '🎖️', name: 'Level up: ' + save.playerLevel });
+    Audio.achievement();
+  }
+}
+
+function defaultSave() { return {
+  gold: 0,
+  owned: ['fists'],
+  wave: 1,
+  equipped: 'fists',
+  highWave: 1,
+  upgrades: { hp: 0, speed: 0, dmg: 0, ammo: 0, crit: 0, regen: 0, reload: 0, expl: 0, mrange: 0, gold: 0, kb: 0, bspeed: 0 },
+  perks: [],
+}; }
+function ensureUpgrades() {
+  if (!save.upgrades) save.upgrades = {};
+  for (const k of ['hp','speed','dmg','ammo','crit','regen','reload','expl','mrange','gold','kb','bspeed']) {
+    if (typeof save.upgrades[k] !== 'number') save.upgrades[k] = 0;
+  }
+}
+
+// Definition av spelar-uppgraderingar
+const UPGRADES = [
+  { id: 'hp',     name: 'Max HP',          icon: '❤️', perLevel: 25,   basePrice: 80,  desc: '+25 max HP per nivå' },
+  { id: 'speed',  name: 'Hastighet',       icon: '⚡', perLevel: 18,   basePrice: 100, desc: '+18 hastighet per nivå' },
+  { id: 'dmg',    name: 'Skade-bonus',     icon: '💪', perLevel: 0.10, basePrice: 150, desc: '+10% skada per nivå' },
+  { id: 'ammo',   name: 'Ammo-kapacitet',  icon: '🔫', perLevel: 0.20, basePrice: 120, desc: '+20% magasin per nivå' },
+  { id: 'crit',   name: 'Krit-chans',      icon: '🎯', perLevel: 0.05, basePrice: 180, desc: '+5% chans för 2× skada' },
+  { id: 'regen',  name: 'HP-regen',        icon: '🩹', perLevel: 0.6,  basePrice: 200, desc: '+0.6 HP/sek per nivå' },
+  // === 6 NYA UPPGRADERINGAR ===
+  { id: 'reload', name: 'Reload-fart',     icon: '⏱️', perLevel: 0.15, basePrice: 140, desc: '-15% reload-tid per nivå' },
+  { id: 'expl',   name: 'Sprängradie',     icon: '💥', perLevel: 0.18, basePrice: 220, desc: '+18% explosionsradie per nivå' },
+  { id: 'mrange', name: 'Melee-räckvidd',  icon: '⚔️', perLevel: 0.12, basePrice: 130, desc: '+12% melee-räckvidd per nivå' },
+  { id: 'gold',   name: 'Lucky Find',      icon: '💎', perLevel: 0.18, basePrice: 200, desc: '+18% gold per dödad fiende' },
+  { id: 'kb',     name: 'Knockback',       icon: '🦵', perLevel: 0.25, basePrice: 110, desc: '+25% knockback per nivå' },
+  { id: 'bspeed', name: 'Skotthastighet',  icon: '🏹', perLevel: 0.10, basePrice: 160, desc: '+10% kulhastighet per nivå' },
+];
+const MAX_UPGRADE_LEVEL = 5;
+function upgradePrice(u, level) {
+  return Math.round(u.basePrice * Math.pow(1.6, level));
+}
+
+// ============================================================
+// ACHIEVEMENTS — 20 prestationer
+// ============================================================
+const ACHIEVEMENTS = [
+  { id: 'firstblood',  icon: '🩸', name: 'Första blodet',     desc: 'Döda din första fiende' },
+  { id: 'kill10',      icon: '💀', name: 'Slaktare',          desc: 'Döda 10 fiender' },
+  { id: 'kill100',     icon: '⚰️', name: 'Mass-mördare',      desc: 'Döda 100 fiender totalt' },
+  { id: 'kill1000',    icon: '☠️', name: 'Krigshjälte',       desc: 'Döda 1000 fiender totalt' },
+  { id: 'firstboss',   icon: '👑', name: 'Boss-jägare',       desc: 'Döda din första boss' },
+  { id: 'allbosses',   icon: '🏆', name: 'Slutet på Mourad',  desc: 'Klara alla 9 stages' },
+  { id: 'streak10',    icon: '🔥', name: '10 i rad',          desc: '10 kills på rad utan att ta skada... men just streak räcker' },
+  { id: 'streak20',    icon: '⚡', name: 'GODLIKE',            desc: 'Killstreak på 20' },
+  { id: 'rich',        icon: '💰', name: 'Förmögen',          desc: 'Samla 5000 gold totalt' },
+  { id: 'allweapons',  icon: '🔫', name: 'Vapen-samlare',     desc: 'Äg alla 38 vapen' },
+  { id: 'maxedup',     icon: '⭐', name: 'Maxxad',            desc: 'Maxa en uppgradering till nivå 5' },
+  { id: 'allperks',    icon: '✨', name: 'Allting',           desc: 'Köp alla 10 perks' },
+  { id: 'pacifist',    icon: '👊', name: 'Pacifist',          desc: 'Klara stage 1 endast med knytnävar' },
+  { id: 'noheal',      icon: '💪', name: 'Outhärdlig',        desc: 'Klara en stage utan att HP-regenererar' },
+  { id: 'speedrun',    icon: '🏃', name: 'Speedrun',          desc: 'Klara en stage på under 60 sekunder' },
+  { id: 'oneshot',     icon: '🎯', name: 'En-shot',           desc: 'Döda Generalen med ett skott' },
+  { id: 'noshop',      icon: '💸', name: 'Sparsam',           desc: 'Klara stage 5 utan att köpa något i shoppen' },
+  { id: 'crit100',     icon: '💥', name: 'Kritisk träff',     desc: 'Få 100 krits totalt' },
+  { id: 'explosion50', icon: '💣', name: 'Pyroman',           desc: 'Spräng 50 fiender med explosioner' },
+  { id: 'survive',     icon: '🛡️', name: 'Andra chansen',    desc: 'Använd revive-perk' },
+];
+
+const Achievements = {
+  unlock(id) {
+    if (!save.achievements) save.achievements = [];
+    if (save.achievements.includes(id)) return;
+    save.achievements.push(id);
+    persist();
+    const ach = ACHIEVEMENTS.find(a => a.id === id);
+    if (ach) showAchievementPopup(ach);
+  },
+  has(id) { return save.achievements && save.achievements.includes(id); },
+  check() {
+    const stats = save.stats || {};
+    if ((stats.totalKills || 0) >= 1) this.unlock('firstblood');
+    if ((stats.totalKills || 0) >= 10) this.unlock('kill10');
+    if ((stats.totalKills || 0) >= 100) this.unlock('kill100');
+    if ((stats.totalKills || 0) >= 1000) this.unlock('kill1000');
+    if ((stats.bossKills || 0) >= 1) this.unlock('firstboss');
+    if ((stats.totalGold || 0) >= 5000) this.unlock('rich');
+    if (save.owned && save.owned.length >= WEAPONS.length) this.unlock('allweapons');
+    if (save.upgrades && Object.values(save.upgrades).some(v => v >= MAX_UPGRADE_LEVEL)) this.unlock('maxedup');
+    if (save.perks && save.perks.length >= PERKS.length) this.unlock('allperks');
+    if ((stats.totalCrits || 0) >= 100) this.unlock('crit100');
+    if ((stats.explKills || 0) >= 50) this.unlock('explosion50');
+  },
+};
+function ensureStats() {
+  if (!save.stats) save.stats = {};
+  for (const k of ['totalKills','bossKills','totalGold','totalCrits','explKills','runs','playtime','wins']) {
+    if (typeof save.stats[k] !== 'number') save.stats[k] = 0;
+  }
+}
+
+// Skapa achievement-popup dynamiskt
+let achPopupEl = null;
+let achPopupTimer = null;
+function createAchPopup() {
+  if (achPopupEl) return achPopupEl;
+  const el = document.createElement('div');
+  el.id = 'ach-popup-dyn';
+  el.style.cssText = 'position:fixed;top:60px;right:-380px;max-width:320px;background:#1a0a08;color:#fff;border:2px solid #ffd54a;border-left:6px solid #ffd54a;border-radius:8px;padding:10px 14px;z-index:10000;transition:right 0.4s cubic-bezier(0.34,1.56,0.64,1);display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,0.7),0 0 12px rgba(255,213,74,0.4);cursor:pointer;font-family:-apple-system,sans-serif;';
+  el.innerHTML = `
+    <div class="ach-icon" style="font-size:30px;flex:0 0 auto;line-height:1;">🏆</div>
+    <div style="flex:1;min-width:0;text-align:left;">
+      <div class="ach-title" style="font-weight:800;font-size:10px;letter-spacing:2px;color:#ffd54a;text-transform:uppercase;margin-bottom:2px;">PRESTATION</div>
+      <div class="ach-name" style="font-size:14px;font-weight:700;color:#fff;line-height:1.2;word-wrap:break-word;">—</div>
+    </div>
+  `;
+  el.addEventListener('click', () => {
+    el.style.right = '-380px';
+    if (achPopupTimer) clearTimeout(achPopupTimer);
+  });
+  document.body.appendChild(el);
+  achPopupEl = el;
+  return el;
+}
+function showAchievementPopup(ach) {
+  const el = createAchPopup();
+  if (!el) return;
+  const iconEl = el.querySelector('.ach-icon');
+  const nameEl = el.querySelector('.ach-name');
+  if (iconEl) iconEl.textContent = ach.icon || '🏆';
+  if (nameEl) nameEl.textContent = ach.name || '';
+  // Slide in
+  el.style.right = '12px';
+  try { Audio.achievement(); } catch(e) {}
+  if (achPopupTimer) clearTimeout(achPopupTimer);
+  achPopupTimer = setTimeout(() => {
+    el.style.right = '-380px';
+  }, 2200);
+}
+
+// PERKS — passiva förmågor man köper en gång
+const PERKS = [
+  { id: 'adrenalin',  icon: '🔥', name: 'Adrenalin',       price: 350,  desc: 'Vid <30% HP rör du dig 35% snabbare och skadar 20% mer.' },
+  { id: 'vampire',    icon: '🩸', name: 'Vampyrism',       price: 500,  desc: 'Återställ 4 HP per dödad fiende.' },
+  { id: 'ricochet',   icon: '🎱', name: 'Studsskott',      price: 600,  desc: 'Skott studsar en gång på väggar och fortsätter.' },
+  { id: 'goldbonus',  icon: '💰', name: 'Mynt-bonus',      price: 400,  desc: '+30% gold från alla källor (staplar med Lucky Find).' },
+  { id: 'revive',     icon: '🛡️', name: 'Andra chans',     price: 1200, desc: 'Vid första döden per RUN återupplivas du med 50% HP.' },
+  { id: 'blastsafe',  icon: '🦺', name: 'Sprängskydd',     price: 450,  desc: '−50% skada från explosioner och eldspår.' },
+  { id: 'headshot',   icon: '🎯', name: 'Headshot',        price: 700,  desc: '20% chans att skott ger 3× skada (oberoende av Krit).' },
+  { id: 'fastmelee',  icon: '⚡', name: 'Stark-melee',     price: 380,  desc: '+30% melee-attackfrekvens.' },
+  { id: 'firespread', icon: '🔥', name: 'Kraftbrand',      price: 800,  desc: 'Brinnande fiender sprider eld till närmsta fiende.' },
+  { id: 'stealth',    icon: '👤', name: 'Tystgångare',     price: 550,  desc: 'Fiender upptäcker dig 40% senare. Första skottet ger +50% skada.' },
+  // === 10 NYA PERKS ===
+  { id: 'timerewind', icon: '⏪', name: 'Time-rewind',     price: 1500, desc: 'Vid kritisk HP, spola tillbaka 3 sek. En gång per stage.' },
+  { id: 'glasscannon',icon: '💥', name: 'Glas-kanon',      price: 600,  desc: '+100% skada men halverat HP.' },
+  { id: 'phantombody',icon: '👻', name: 'Spektral kropp',  price: 700,  desc: '30% chans att skott missar dig.' },
+  { id: 'klone',      icon: '👯', name: 'Klone',           price: 900,  desc: 'En skugga följer dig och skjuter likadant 50% av tiden.' },
+  { id: 'goldwindow', icon: '✨', name: 'Gold-fönster',    price: 600,  desc: 'Vid stage-clear, 5 sek där alla droppar guld.' },
+  { id: 'reflexes',   icon: '🥋', name: 'Reflexer',         price: 800,  desc: 'Bullets vid 50px räckvidd kan blockas med melee.' },
+  { id: 'magnetism',  icon: '🧲', name: 'Magnet-mästare',  price: 350,  desc: 'Pickup-magnet 3× räckvidd. Mer guld i drops.' },
+  { id: 'masterful',  icon: '🎓', name: 'Lärling',         price: 700,  desc: '+25% XP till alla vapen-mastery.' },
+  { id: 'berserker',  icon: '🪓', name: 'Berserker',       price: 850,  desc: 'Melee-combo cap höjs till 20 (från 10).' },
+  { id: 'lastlaugh',  icon: '😈', name: 'Sista skrattet',  price: 1100, desc: 'Vid din död: explosion 200dmg i 250px radius.' },
+];
+
+function ensurePerks() {
+  if (!save.perks) save.perks = [];
+  rebuildPerkSet();
+}
+let _perkSet = new Set();
+function rebuildPerkSet() {
+  _perkSet = new Set(save.perks || []);
+}
+function hasPerk(id) {
+  return _perkSet.has(id);
+}
+
+// ============================================================
+// CHEATS — 4 cheats unlocked per game-win
+// ============================================================
+const CHEATS = [
+  {
+    id: 'jappa',
+    name: 'JappaJamlo',
+    icon: '💰',
+    desc: 'GOLD-RUSCH: +5 000 gold direkt + permanent +50% gold. Mynt regnar.',
+    color: '#ffd54a',
+  },
+  {
+    id: 'chozza',
+    name: 'ChözzaJamlo',
+    icon: '⚡',
+    desc: 'CRIT-MODE: 100% kritchans på allt. Varje skott blixtrar gult.',
+    color: '#ffeb3b',
+  },
+  {
+    id: 'penetrera',
+    name: 'PenetreraJamlo',
+    icon: '🎯',
+    desc: 'PENETRATION: Alla kulor pierce + ingen reload + 50% snabbare skott.',
+    color: '#ff5a3a',
+  },
+  {
+    id: 'ultimate',
+    name: 'Ultimatejamlochözningen',
+    icon: '👑',
+    desc: 'GUD-MODE: Odödlig + 10× dmg + allt unlocked + screen-explosions per kill.',
+    color: '#aa3aff',
+  },
+];
+
+function ensureCheats() {
+  if (!save.cheatsUnlocked) save.cheatsUnlocked = 0;
+  if (!save.cheatsActive) save.cheatsActive = {};
+}
+function isCheatUnlocked(id) {
+  const idx = CHEATS.findIndex(c => c.id === id);
+  return save.cheatsUnlocked > idx;
+}
+function isCheatActive(id) {
+  return save.cheatsActive && save.cheatsActive[id] === true;
+}
+function toggleCheat(id) {
+  save.cheatsActive = save.cheatsActive || {};
+  save.cheatsActive[id] = !save.cheatsActive[id];
+  // Ultimate unlockar everything direkt vid aktivering
+  if (id === 'ultimate' && save.cheatsActive[id]) {
+    for (const w of WEAPONS) if (!save.owned.includes(w.id)) save.owned.push(w.id);
+    for (const p of PERKS) if (!save.perks.includes(p.id)) save.perks.push(p.id);
+    rebuildPerkSet();
+    for (const u of UPGRADES) save.upgrades[u.id] = MAX_UPGRADE_LEVEL;
+    save.gold += 99999;
+  }
+  if (id === 'jappa' && save.cheatsActive[id]) {
+    save.gold += 5000;
+  }
+  persist();
+  if (state.player) applyUpgradesToPlayer();
+}
+
+// ============================================================
+// GAME MODES + DIFFICULTY
+// ============================================================
+const GAME_MODES = ['story', 'endless', 'bossrush', 'daily', 'sandbox', 'speedrun', 'survive'];
+const DIFFICULTIES = ['casual', 'veteran', 'hardcore'];
+const MODE_LABELS = { story: 'STORY', endless: 'ENDLESS', bossrush: 'BOSS RUSH', daily: 'DAILY', sandbox: 'SANDBOX', speedrun: 'SPEEDRUN', survive: 'SURVIVE 5M', newgameplus: 'NG+' };
+const DIFF_LABELS = { casual: 'CASUAL', veteran: 'VETERAN', hardcore: 'HARDCORE' };
+const DIFF_MULTIPLIERS = {
+  casual:   { enemyHp: 0.7, enemyDmg: 0.7, gold: 1.2, shopPrice: 0.85 },
+  veteran:  { enemyHp: 1.0, enemyDmg: 1.0, gold: 1.0, shopPrice: 1.0 },
+  hardcore: { enemyHp: 1.3, enemyDmg: 1.3, gold: 1.0, shopPrice: 1.15 },
+};
+function getMode() { return save.mode || 'story'; }
+function getDifficulty() { return save.difficulty || 'veteran'; }
+function getDiffMul() { return DIFF_MULTIPLIERS[getDifficulty()] || DIFF_MULTIPLIERS.veteran; }
+function getNGPLevel() { return save.ngpLevel || 0; }
+function isNewGamePlus() { return getNGPLevel() > 0; }
+function getNGPMul() {
+  const lvl = getNGPLevel();
+  return 1 + lvl * 0.5; // NG+: 1.5×, NG++: 2×, NG+++: 2.5×
+}
+function persist() { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }
+
+let save = loadSave();
+ensureUpgrades();
+ensurePerks();
+ensureCheats();
+ensureStats();
+ensureMastery();
+
+// ============================================================
+// AUDIO — procedurellt genererade ljud via Web Audio API
+// ============================================================
+const Audio = {
+  ctx: null,
+  master: null,
+  sfxGain: null,
+  musicGain: null,
+  enabled: true,
+  sfxVol: 0.5,
+  musicVol: 0.3,
+  lastPlayed: {},
+  init() {
+    if (this.ctx) return;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 1.0;
+      this.master.connect(this.ctx.destination);
+      this.sfxGain = this.ctx.createGain();
+      this.sfxGain.gain.value = this.sfxVol;
+      this.sfxGain.connect(this.master);
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.gain.value = this.musicVol;
+      this.musicGain.connect(this.master);
+    } catch (e) { this.enabled = false; }
+  },
+  setSfxVol(v) { this.sfxVol = v; if (this.sfxGain) this.sfxGain.gain.value = v; },
+  setMusicVol(v) { this.musicVol = v; if (this.musicGain) this.musicGain.gain.value = v; },
+  // Throttle: max 1 av samma ljud per X ms
+  _throttle(name, ms) {
+    const now = performance.now();
+    if (this.lastPlayed[name] && now - this.lastPlayed[name] < ms) return false;
+    this.lastPlayed[name] = now;
+    return true;
+  },
+  _activeNodes: 0,
+  // Bygg en ton med envelope
+  _tone(freq, dur, type = 'sine', vol = 0.5, attack = 0.005, decay = 0.05, freqEnd = null) {
+    if (!this.enabled || !this.ctx) return;
+    if (this._activeNodes > 60) return; // hård cap mot audio-overload
+    this._activeNodes++;
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t);
+    if (freqEnd !== null) osc.frequency.exponentialRampToValueAtTime(Math.max(1, freqEnd), t + dur);
+    gain.gain.setValueAtTime(0, t);
+    gain.gain.linearRampToValueAtTime(vol, t + attack);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + attack + decay + dur);
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(t);
+    const stopT = t + attack + decay + dur + 0.05;
+    osc.stop(stopT);
+    osc.onended = () => { this._activeNodes = Math.max(0, this._activeNodes - 1); };
+  },
+  // Brus med envelope (för explosioner, hagelgevär)
+  _noise(dur, vol = 0.5, filter = null) {
+    if (!this.enabled || !this.ctx) return;
+    const t = this.ctx.currentTime;
+    const bufSize = this.ctx.sampleRate * dur;
+    const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(vol, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    if (filter) {
+      const f = this.ctx.createBiquadFilter();
+      f.type = filter.type || 'lowpass';
+      f.frequency.value = filter.freq || 1000;
+      f.Q.value = filter.Q || 1;
+      src.connect(f); f.connect(gain);
+    } else {
+      src.connect(gain);
+    }
+    gain.connect(this.sfxGain);
+    src.start(t);
+  },
+  // SFX-funktioner
+  shootGun() {
+    if (!this._throttle('shootGun', 30)) return;
+    this._tone(800, 0.05, 'square', 0.3, 0.001, 0.04, 200);
+    this._noise(0.06, 0.15, { type: 'lowpass', freq: 2000 });
+  },
+  shootMelee() {
+    if (!this._throttle('shootMelee', 50)) return;
+    this._tone(420, 0.08, 'sawtooth', 0.18, 0.005, 0.08, 180);
+  },
+  shootHeavy() {
+    if (!this._throttle('shootHeavy', 80)) return;
+    this._tone(120, 0.15, 'sawtooth', 0.4, 0.002, 0.1, 60);
+    this._noise(0.18, 0.25, { type: 'lowpass', freq: 600 });
+  },
+  shootEnergy() {
+    if (!this._throttle('shootEnergy', 40)) return;
+    this._tone(1200, 0.08, 'sine', 0.25, 0.001, 0.06, 600);
+    this._tone(2400, 0.05, 'sine', 0.15, 0.001, 0.04, 1200);
+  },
+  hit() {
+    if (!this._throttle('hit', 30)) return;
+    this._tone(180, 0.05, 'square', 0.15, 0.002, 0.03, 80);
+  },
+  hitCrit() {
+    this._tone(440, 0.1, 'square', 0.3, 0.002, 0.08, 880);
+    this._tone(220, 0.08, 'sawtooth', 0.2, 0.002, 0.06, 110);
+  },
+  kill() {
+    if (!this._throttle('kill', 40)) return;
+    this._tone(200, 0.08, 'sawtooth', 0.2, 0.002, 0.06, 100);
+    this._noise(0.08, 0.1, { type: 'lowpass', freq: 800 });
+  },
+  explosion() {
+    if (!this._throttle('explosion', 80)) return;
+    this._tone(60, 0.4, 'sawtooth', 0.5, 0.002, 0.3, 30);
+    this._noise(0.5, 0.4, { type: 'lowpass', freq: 400 });
+  },
+  footstep() {
+    if (!this._throttle('footstep', 200)) return;
+    this._noise(0.04, 0.08, { type: 'lowpass', freq: 200 });
+  },
+  bossSpawn() {
+    this._tone(80, 0.6, 'sawtooth', 0.5, 0.05, 0.5, 40);
+    this._tone(160, 0.6, 'sawtooth', 0.3, 0.05, 0.5, 80);
+    this._noise(0.8, 0.3, { type: 'lowpass', freq: 200 });
+  },
+  bossPhase() {
+    this._tone(110, 0.3, 'square', 0.4, 0.005, 0.25, 55);
+    this._tone(440, 0.2, 'sawtooth', 0.2, 0.005, 0.18, 220);
+  },
+  bossDeath() {
+    this._tone(80, 1.2, 'sawtooth', 0.5, 0.05, 1.0, 30);
+    this._noise(1.5, 0.4, { type: 'lowpass', freq: 300 });
+    setTimeout(() => this._tone(440, 0.5, 'sine', 0.3, 0.05, 0.4, 880), 400);
+  },
+  goldPickup() {
+    if (!this._throttle('goldPickup', 30)) return;
+    this._tone(880, 0.08, 'sine', 0.15, 0.001, 0.06);
+    this._tone(1320, 0.06, 'sine', 0.1, 0.001, 0.05);
+  },
+  reloadStart() {
+    this._tone(600, 0.04, 'square', 0.2, 0.001, 0.03);
+  },
+  reloadDone() {
+    this._tone(800, 0.05, 'square', 0.25, 0.001, 0.04, 1000);
+    this._tone(1200, 0.04, 'square', 0.15, 0.001, 0.03);
+  },
+  uiClick() {
+    this._tone(800, 0.03, 'square', 0.15, 0.001, 0.025);
+  },
+  uiHover() {
+    this._tone(1000, 0.02, 'sine', 0.05, 0.001, 0.015);
+  },
+  shopOpen() {
+    this._tone(440, 0.15, 'sine', 0.2, 0.005, 0.12, 880);
+  },
+  purchase() {
+    this._tone(660, 0.1, 'sine', 0.2, 0.001, 0.08, 990);
+    this._tone(990, 0.1, 'sine', 0.15, 0.001, 0.08, 1320);
+  },
+  playerHurt() {
+    if (!this._throttle('playerHurt', 200)) return;
+    this._tone(180, 0.15, 'sawtooth', 0.35, 0.002, 0.12, 90);
+    this._noise(0.1, 0.2, { type: 'lowpass', freq: 500 });
+  },
+  heartbeat() {
+    if (!this._throttle('heartbeat', 600)) return;
+    this._tone(60, 0.08, 'sine', 0.5, 0.005, 0.06);
+    setTimeout(() => this._tone(60, 0.06, 'sine', 0.4, 0.005, 0.05), 120);
+  },
+  revive() {
+    this._tone(440, 0.2, 'sine', 0.3, 0.005, 0.18, 880);
+    this._tone(660, 0.25, 'sine', 0.25, 0.005, 0.22, 1320);
+    this._tone(880, 0.3, 'sine', 0.2, 0.005, 0.28, 1760);
+  },
+  gameOver() {
+    this._tone(440, 0.5, 'sawtooth', 0.4, 0.05, 0.4, 110);
+    setTimeout(() => this._tone(220, 0.6, 'sawtooth', 0.4, 0.05, 0.5, 55), 400);
+    setTimeout(() => this._tone(110, 0.8, 'sawtooth', 0.4, 0.05, 0.7, 40), 900);
+  },
+  victory() {
+    const notes = [523, 659, 784, 1046];
+    notes.forEach((n, i) => {
+      setTimeout(() => this._tone(n, 0.2, 'sine', 0.3, 0.005, 0.15), i * 120);
+    });
+  },
+  stageStart() {
+    this._tone(330, 0.15, 'sine', 0.2, 0.005, 0.12, 660);
+  },
+  zoneClear() {
+    this._tone(440, 0.1, 'sine', 0.2, 0.005, 0.08, 660);
+    setTimeout(() => this._tone(660, 0.12, 'sine', 0.2, 0.005, 0.10, 880), 120);
+  },
+  alarm() {
+    if (!this._throttle('alarm', 800)) return;
+    this._tone(660, 0.2, 'sawtooth', 0.3, 0.005, 0.18, 440);
+    setTimeout(() => this._tone(440, 0.2, 'sawtooth', 0.3, 0.005, 0.18, 660), 200);
+  },
+  achievement() {
+    this._tone(523, 0.15, 'sine', 0.25, 0.005, 0.12);
+    setTimeout(() => this._tone(784, 0.15, 'sine', 0.25, 0.005, 0.12), 120);
+    setTimeout(() => this._tone(1046, 0.25, 'sine', 0.3, 0.005, 0.20), 240);
+  },
+};
+// ============================================================
+// MUSIC — procedurell ambient + drum + boss-mode
+// ============================================================
+const Music = {
+  active: null, // { drone, sub, kick, gain, theme, intensity }
+  intensity: 'calm', // calm | active | boss
+  themes: {
+    forest:  { root: 110, fifth: 165, mode: 'minor', drumRate: 0.7 },
+    perimeter: { root: 130, fifth: 195, mode: 'minor', drumRate: 0.8 },
+    lobby:   { root: 120, fifth: 180, mode: 'minor', drumRate: 0.6 },
+    barracks: { root: 110, fifth: 165, mode: 'minor', drumRate: 1.0 },
+    hangar:  { root: 90,  fifth: 135, mode: 'minor', drumRate: 1.0 },
+    depot:   { root: 100, fifth: 150, mode: 'minor', drumRate: 1.2 },
+    cargo:   { root: 110, fifth: 165, mode: 'minor', drumRate: 1.0 },
+    bunker:  { root: 80,  fifth: 120, mode: 'minor', drumRate: 0.8 },
+    command: { root: 73,  fifth: 110, mode: 'phrygian', drumRate: 1.4 },
+  },
+  startStage(stageKind) {
+    this.stop();
+    if (!Audio.ctx) return;
+    const theme = this.themes[stageKind] || this.themes.forest;
+    const t = Audio.ctx.currentTime;
+    const gain = Audio.ctx.createGain();
+    gain.gain.value = 0;
+    gain.gain.linearRampToValueAtTime(0.5, t + 1.5);
+    gain.connect(Audio.musicGain);
+    // Sub-bass drone
+    const sub = Audio.ctx.createOscillator();
+    sub.type = 'sine';
+    sub.frequency.value = theme.root / 2;
+    const subG = Audio.ctx.createGain();
+    subG.gain.value = 0.6;
+    sub.connect(subG); subG.connect(gain);
+    sub.start(t);
+    // Mellan-drone (tonik) med svag detuning
+    const drone = Audio.ctx.createOscillator();
+    drone.type = 'triangle';
+    drone.frequency.value = theme.root;
+    const droneG = Audio.ctx.createGain();
+    droneG.gain.value = 0.3;
+    drone.connect(droneG); droneG.connect(gain);
+    drone.start(t);
+    // LFO för droneG (subtil andning)
+    const lfo = Audio.ctx.createOscillator();
+    lfo.frequency.value = 0.08;
+    const lfoG = Audio.ctx.createGain();
+    lfoG.gain.value = 0.15;
+    lfo.connect(lfoG); lfoG.connect(droneG.gain);
+    lfo.start(t);
+    // Filter på drone (mörker)
+    this.active = { sub, drone, lfo, gain, theme, intensity: 'calm', drumTimer: 0, fifthOsc: null };
+  },
+  stop() {
+    if (!this.active) return;
+    if (!Audio.ctx) { this.active = null; return; }
+    const a = this.active;
+    this.active = null;
+    a.gain.gain.linearRampToValueAtTime(0, Audio.ctx.currentTime + 0.5);
+    setTimeout(() => {
+      try { a.sub.stop(); a.drone.stop(); a.lfo.stop(); if (a.fifthOsc) a.fifthOsc.stop(); } catch (e) {}
+    }, 700);
+  },
+  setIntensity(level) {
+    if (!this.active || this.active.intensity === level) return;
+    if (!Audio.ctx) return;
+    this.active.intensity = level;
+    const t = Audio.ctx.currentTime;
+    if (level === 'boss' && !this.active.fifthOsc) {
+      // Lägg till kvint för spänning
+      const fifth = Audio.ctx.createOscillator();
+      fifth.type = 'sawtooth';
+      fifth.frequency.value = this.active.theme.fifth;
+      const fG = Audio.ctx.createGain();
+      fG.gain.setValueAtTime(0, t);
+      fG.gain.linearRampToValueAtTime(0.18, t + 0.8);
+      fifth.connect(fG); fG.connect(this.active.gain);
+      fifth.start(t);
+      this.active.fifthOsc = fifth;
+      this.active.gain.gain.linearRampToValueAtTime(0.65, t + 0.8);
+    } else if (level === 'active') {
+      this.active.gain.gain.linearRampToValueAtTime(0.5, t + 0.8);
+    } else if (level === 'calm') {
+      this.active.gain.gain.linearRampToValueAtTime(0.4, t + 1.0);
+    }
+  },
+  tick(dt) {
+    if (!this.active || !Audio.ctx) return;
+    this.active.drumTimer -= dt;
+    if (this.active.drumTimer <= 0) {
+      const rate = this.active.theme.drumRate * (this.active.intensity === 'boss' ? 0.5 : 1);
+      this.active.drumTimer = rate;
+      // Kick (lowpass-filter på brus)
+      const t = Audio.ctx.currentTime;
+      const buf = Audio.ctx.createBuffer(1, Audio.ctx.sampleRate * 0.15, Audio.ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
+      const src = Audio.ctx.createBufferSource();
+      src.buffer = buf;
+      const f = Audio.ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 80;
+      f.Q.value = 1;
+      const g = Audio.ctx.createGain();
+      g.gain.setValueAtTime(0.4, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+      src.connect(f); f.connect(g); g.connect(this.active.gain);
+      src.start(t);
+    }
+  },
+};
+
+// Init audio vid första interaktion (browsers kräver user-gesture)
+function initAudioOnGesture() {
+  Audio.init();
+  if (Audio.ctx && Audio.ctx.state === 'suspended') Audio.ctx.resume();
+}
+// Trigga vid första gestur, men resume varje gång ifall iOS pausat
+window.addEventListener('click', initAudioOnGesture);
+window.addEventListener('touchstart', initAudioOnGesture);
+window.addEventListener('keydown', initAudioOnGesture);
+// Resume audio vid visibility-change (iOS pausar bakgrund)
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && Audio.ctx && Audio.ctx.state === 'suspended') {
+    Audio.ctx.resume();
+  }
+});
+
+// Ladda volym-inställningar från save
+if (save.audio) {
+  if (typeof save.audio.sfx === 'number') Audio.sfxVol = save.audio.sfx;
+  if (typeof save.audio.music === 'number') Audio.musicVol = save.audio.music;
+}
+
+// ============================================================
+// ASSETS (boss-bilder)
+// Lägg PNG-filer i assets/ med dessa exakta filnamn.
+// Saknas filen, ritas bossen som canvas-primitives som fallback.
+// ============================================================
+const IMAGES = {};
+function loadImage(key, src) {
+  const img = new Image();
+  img.onload = () => { IMAGES[key].ready = true; };
+  img.onerror = () => { IMAGES[key].failed = true; };
+  img.src = src;
+  IMAGES[key] = { img, ready: false, failed: false };
+}
+loadImage('boss_general', 'assets/boss_general.png');
+loadImage('boss_skuggan', 'assets/boss_skuggan.png');
+loadImage('boss_jimmy',   'assets/boss_jimmy.png');
+
+// ============================================================
+// FEEDBACK (screen-shake, hit-stop, vibration)
+// ============================================================
+const Feedback = {
+  shake: { mag: 0, dur: 0, t: 0 },
+  hitStopUntil: 0,
+  shakeEnabled: true,
+  vibrateEnabled: true,
+};
+function triggerShake(magnitude, duration) {
+  if (!Feedback.shakeEnabled) return;
+  if (magnitude > Feedback.shake.mag) {
+    Feedback.shake.mag = magnitude;
+    Feedback.shake.dur = duration;
+    Feedback.shake.t = duration;
+  }
+}
+function triggerHitStop(ms) {
+  Feedback.hitStopUntil = Math.max(Feedback.hitStopUntil, performance.now() + ms);
+}
+function triggerVibrate(ms) {
+  if (!Feedback.vibrateEnabled) return;
+  if (navigator.vibrate) navigator.vibrate(ms);
+}
+function getShakeOffset() {
+  if (Feedback.shake.t <= 0) return { x: 0, y: 0 };
+  const intensity = (Feedback.shake.t / Feedback.shake.dur) * Feedback.shake.mag;
+  return {
+    x: (Math.random() - 0.5) * intensity * 2,
+    y: (Math.random() - 0.5) * intensity * 2,
+  };
+}
+function updateShake(dt) {
+  if (Feedback.shake.t > 0) {
+    Feedback.shake.t -= dt;
+    if (Feedback.shake.t <= 0) Feedback.shake.mag = 0;
+  }
+}
+// Ladda från save
+if (save.feedback) {
+  if (typeof save.feedback.shake === 'boolean') Feedback.shakeEnabled = save.feedback.shake;
+  if (typeof save.feedback.vibrate === 'boolean') Feedback.vibrateEnabled = save.feedback.vibrate;
+}
+
+// ============================================================
+// CANVAS / RESIZE
+// ============================================================
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+let DPR = Math.min(window.devicePixelRatio || 1, 2);
+let viewW = 0, viewH = 0;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  // Använd visualViewport om tillgänglig (mer korrekt på mobile med dynamic island)
+  const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
+  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  viewW = vw;
+  viewH = vh;
+  canvas.width = Math.floor(viewW * DPR);
+  canvas.height = Math.floor(viewH * DPR);
+  canvas.style.width = viewW + 'px';
+  canvas.style.height = viewH + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+window.addEventListener('orientationchange', () => setTimeout(resize, 100));
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', resize);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  mode: 'menu', // menu | playing | shop | gameover | victory
+  player: null,
+  enemies: [],
+  bullets: [],
+  pickups: [],
+  particles: [],
+  camera: { x: 0, y: 0 },
+  wave: 1,
+  spawnTimer: 0,
+  enemiesToSpawn: 0,
+  waveActive: false,
+  bossAlive: false,
+  killsThisWave: 0,
+  goldThisRun: 0,
+  runStartTime: 0,
+};
+
+// ============================================================
+// ENTITIES
+// ============================================================
+function tryDash() {
+  const p = state.player;
+  if (!p || p.dashUntil > 0 || p.dashCdAt > performance.now() - 800) return;
+  const mx = input.moveX || (input.keys.has('w') ? 0 : 0) + (input.keys.has('s') ? 0 : 0);
+  const my = input.moveY;
+  let dx = input.moveX, dy = input.moveY;
+  if (input.keys.has('w')) dy -= 1;
+  if (input.keys.has('s')) dy += 1;
+  if (input.keys.has('a')) dx -= 1;
+  if (input.keys.has('d')) dx += 1;
+  const m = Math.hypot(dx, dy);
+  if (m < 0.1) { dx = Math.cos(p.aimAngle); dy = Math.sin(p.aimAngle); }
+  else { dx /= m; dy /= m; }
+  p.dashDir = { x: dx, y: dy };
+  p.dashUntil = performance.now() + 220;
+  p.dashCdAt = performance.now();
+  p.invuln = Math.max(p.invuln, 0.25); // i-frames
+  Audio._tone(900, 0.08, 'sine', 0.2, 0.001, 0.06, 1500);
+  triggerVibrate(20);
+}
+
+function makePlayer() {
+  const u = save.upgrades;
+  const dailyMod = state.dailyModifier ? state.dailyModifier.id : null;
+  let baseMaxHp = 100;
+  if (dailyMod === 'reduced_hp') baseMaxHp = 70;
+  if (dailyMod === 'glass_cannon') baseMaxHp = 1;
+  if (hasPerk('glasscannon')) baseMaxHp = 50;
+  const maxHp = baseMaxHp + u.hp * 25;
+  const speed = 230 + u.speed * 18;
+  const w = W_BY_ID[save.equipped];
+  const magBonus = 1 + u.ammo * 0.20;
+  const initAmmo = w.mag ? Math.floor(w.mag * magBonus) : 0;
+  return {
+    x: STAGES[0].spawnPos.x, y: STAGES[0].spawnPos.y,
+    r: 14,
+    speed: speed,
+    hp: maxHp, maxHp: maxHp,
+    aimAngle: 0,
+    weaponId: save.equipped,
+    lastShot: 0,
+    ammo: initAmmo,
+    reloading: false,
+    reloadStart: 0,
+    invuln: 0,
+    flashUntil: 0,
+    dmgMul: (1 + u.dmg * 0.10) * (dailyMod === 'reduced_hp' ? 1.3 : (dailyMod === 'glass_cannon' ? 3.0 : 1)) * (hasPerk('glasscannon') ? 2.0 : 1),
+    critChance: u.crit * 0.05,
+    regenPerSec: u.regen * 0.6,
+    reloadMul: 1 - u.reload * 0.15,
+    explMul: 1 + u.expl * 0.18,
+    mrangeMul: 1 + u.mrange * 0.12,
+    goldMul: (1 + u.gold * 0.18 + (hasPerk('goldbonus') ? 0.30 : 0)) * (dailyMod === 'double_gold' ? 2 : 1) * (isCheatActive('jappa') ? 1.5 : 1) * (isCheatActive('ultimate') ? 3 : 1),
+    kbMul: 1 + u.kb * 0.25,
+    bspeedMul: 1 + u.bspeed * 0.10,
+    reviveAvailable: hasPerk('revive'),
+    firstShotBonus: hasPerk('stealth'),
+    dashUntil: 0,
+    dashDir: { x: 0, y: 0 },
+    dashCdAt: 0,
+    meleeCombo: 0,
+    meleeComboTimer: 0,
+  };
+}
+
+function makeEnemy(type, x, y) {
+  const base = {
+    x, y, r: 12,
+    vx: 0, vy: 0,
+    type,
+    hp: 20, maxHp: 20,
+    speed: 90,
+    dmg: 10,
+    contactCd: 0,
+    color: '#c44',
+    accent: '#000',
+    gold: 5,
+    lastShot: 0,
+    flashUntil: 0,
+    isBoss: false,
+    facing: 0,
+    walkPhase: Math.random() * Math.PI * 2,
+  };
+  // grunt = standard soldat (default)
+  if (type === 'grunt')    { base.color = '#5a6a3a'; base.accent = '#1a1a1a'; }
+  if (type === 'runner')   { base.r = 10; base.hp = 14; base.maxHp = 14; base.speed = 170; base.dmg = 8;  base.color = '#3a2a1a'; base.accent = '#000'; base.gold = 8; }
+  if (type === 'brute')    { base.r = 19; base.hp = 70; base.maxHp = 70; base.speed = 70;  base.dmg = 18; base.color = '#5a2828'; base.accent = '#3a1010'; base.gold = 14; }
+  if (type === 'shooter')  { base.r = 12; base.hp = 22; base.maxHp = 22; base.speed = 75;  base.dmg = 0;  base.color = '#3a3a5a'; base.accent = '#1a1a2a'; base.gold = 12; base.shootRange = 360; base.shootRate = 1400; base.bulletSpeed = 360; base.bulletDmg = 9; }
+  // nya typer
+  if (type === 'ninja')    { base.r = 10; base.hp = 18; base.maxHp = 18; base.speed = 200; base.dmg = 14; base.color = '#1a1a1a'; base.accent = '#7a1a1a'; base.gold = 11; base.dashCd = 0; }
+  if (type === 'swordsman'){ base.r = 13; base.hp = 35; base.maxHp = 35; base.speed = 100; base.dmg = 16; base.color = '#3a3a1a'; base.accent = '#bcbcbc'; base.gold = 13; }
+  if (type === 'soldier')  { base.r = 12; base.hp = 28; base.maxHp = 28; base.speed = 90;  base.dmg = 0;  base.color = '#4a5a2a'; base.accent = '#1a1a1a'; base.gold = 14; base.shootRange = 280; base.shootRate = 1100; base.bulletSpeed = 480; base.bulletDmg = 11; }
+  if (type === 'robot')    { base.r = 16; base.hp = 90; base.maxHp = 90; base.speed = 65;  base.dmg = 22; base.color = '#5a5a64'; base.accent = '#ff3a3a'; base.gold = 22; }
+  if (type === 'dog')      { base.r = 9;  base.hp = 12; base.maxHp = 12; base.speed = 230; base.dmg = 10; base.color = '#2a1810'; base.accent = '#1a0a08'; base.gold = 6; }
+  // === 5 NYA FIENDETYPER ===
+  if (type === 'healer')   { base.r = 11; base.hp = 26; base.maxHp = 26; base.speed = 80;  base.dmg = 0; base.color = '#3a5a2a'; base.accent = '#9aff5a'; base.gold = 20; base.healAt = 0; }
+  if (type === 'summoner') { base.r = 12; base.hp = 32; base.maxHp = 32; base.speed = 70;  base.dmg = 0; base.color = '#3a1a44'; base.accent = '#aa3aff'; base.gold = 25; base.summonAt = 0; }
+  if (type === 'bomber')   { base.r = 10; base.hp = 18; base.maxHp = 18; base.speed = 200; base.dmg = 50; base.color = '#7a2a1a'; base.accent = '#ff3a14'; base.gold = 14; base.fuse = 0; }
+  if (type === 'sniper')   { base.r = 11; base.hp = 22; base.maxHp = 22; base.speed = 60;  base.dmg = 0; base.color = '#1a2a18'; base.accent = '#ff3a3a'; base.gold = 22; base.shootRange = 700; base.shootRate = 2200; base.bulletSpeed = 900; base.bulletDmg = 35; base.aimAt = 0; }
+  if (type === 'swarmer')  { base.r = 7;  base.hp = 6;  base.maxHp = 6;  base.speed = 260; base.dmg = 6; base.color = '#5a3a1a'; base.accent = '#ff8a3a'; base.gold = 3; }
+  return base;
+}
+
+function makeBoss(bossKey, spawnX, spawnY) {
+  const cfg = getBossConfig(bossKey);
+  if (!cfg) return null;
+  const coopMul = getCoopMultiplier();
+  const scaledHp = Math.round(cfg.hp * coopMul);
+  return {
+    x: spawnX, y: spawnY, r: cfg.r, vx: 0, vy: 0,
+    type: 'boss_' + bossKey, bossKey: bossKey, ai: cfg.ai,
+    hp: scaledHp, maxHp: scaledHp,
+    speed: cfg.speed, dmg: cfg.dmg, contactCd: 0,
+    color: cfg.color, accent: cfg.accent, glow: cfg.glow,
+    gold: cfg.gold, isBoss: true, name: cfg.name, subtitle: cfg.subtitle,
+    phase: 1, lastAttack: 0, lastSpread: 0,
+    chargeUntil: 0, chargeDir: { x: 0, y: 0 },
+    dashUntil: 0, dashDir: { x: 0, y: 0 },
+    flashUntil: 0, walkAccum: 0,
+    cloakUntil: 0, jetpackUntil: 0, shieldDir: 0, chargeCdAt: 0,
+    bulletSpeed: 620, bulletDmg: Math.round(cfg.dmg * 0.55),
+    shootRange: 520, shootRate: 1200,
+  };
+}
+
+// ============================================================
+// INPUT
+// ============================================================
+const input = {
+  moveX: 0, moveY: 0,
+  firing: false,
+  keys: new Set(),
+  mouse: { x: 0, y: 0, down: false },
+};
+
+// KONAMI-CODE detection
+let konamiBuffer = [];
+const KONAMI = ['arrowup','arrowup','arrowdown','arrowdown','arrowleft','arrowright','arrowleft','arrowright','b','a'];
+function checkKonami(key) {
+  konamiBuffer.push(key);
+  if (konamiBuffer.length > KONAMI.length) konamiBuffer.shift();
+  if (konamiBuffer.length === KONAMI.length && konamiBuffer.every((k, i) => k === KONAMI[i])) {
+    konamiBuffer = [];
+    if (state.mode === 'menu') {
+      // Lås upp alla cheats + skin
+      save.cheatsUnlocked = CHEATS.length;
+      // Bonus: hidden Penetrator-mode
+      save.gold += 99999;
+      for (const w of WEAPONS) if (!save.owned.includes(w.id)) save.owned.push(w.id);
+      persist();
+      showAchievementPopup({ icon: '🎮', name: 'KONAMI-KODEN AKTIVERAD!' });
+      Audio.victory();
+    }
+  }
+}
+
+window.addEventListener('keydown', e => {
+  input.keys.add(e.key.toLowerCase());
+  const k = e.key.toLowerCase();
+  checkKonami(k);
+  if (k === 'q') switchWeapon(-1);
+  if (k === 'e') switchWeapon(1);
+  if (k === 'r') startReload();
+  if (k === 'tab' || e.key === 'Tab') {
+    e.preventDefault();
+    if (state.mode === 'playing') openWeaponMenu();
+    else if (state.mode === 'weaponmenu') closeWeaponMenu();
+  }
+  if ((k === ' ' || k === 'shift') && state.mode === 'playing') {
+    e.preventDefault();
+    tryDash();
+  }
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    if (state.mode === 'playing') openPause();
+    else if (state.mode === 'pause') closePause();
+    else if (state.mode === 'weaponmenu') closeWeaponMenu();
+  }
+  if (k === 'm' && state.mode === 'playing') {
+    save.minimapHidden = !save.minimapHidden;
+    persist();
+  }
+});
+window.addEventListener('keyup', e => input.keys.delete(e.key.toLowerCase()));
+
+canvas.addEventListener('mousemove', e => {
+  const r = canvas.getBoundingClientRect();
+  input.mouse.x = e.clientX - r.left;
+  input.mouse.y = e.clientY - r.top;
+});
+function checkMinimapZoomClick(mx, my) {
+  if (state.mode !== 'playing') return false;
+  const z = state._minimapZoomBtn;
+  if (z && mx >= z.x && mx <= z.x + z.w && my >= z.y && my <= z.y + z.h) {
+    state.minimapBig = !state.minimapBig;
+    Audio.uiClick();
+    return true;
+  }
+  return false;
+}
+
+canvas.addEventListener('mousedown', (e) => {
+  const r = canvas.getBoundingClientRect();
+  const mx = e.clientX - r.left, my = e.clientY - r.top;
+  if (checkMinimapZoomClick(mx, my)) return;
+  if (storyDialogActive) {
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const b = storyDialogActive.btn;
+    if (b && mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
+      closeStoryDialog(); Audio.uiClick();
+    }
+    return;
+  }
+  input.mouse.down = true;
+});
+canvas.addEventListener('mouseup',   () => input.mouse.down = false);
+
+// Joystick
+const joy = document.getElementById('joystick');
+const joyKnob = document.getElementById('joystick-knob');
+let joyTouchId = null;
+let joyCenter = { x: 0, y: 0 };
+const JOY_RADIUS = 50;
+
+function joyStart(e) {
+  e.preventDefault();
+  const t = e.changedTouches ? e.changedTouches[0] : e;
+  joyTouchId = e.changedTouches ? t.identifier : 'mouse';
+  const r = joy.getBoundingClientRect();
+  joyCenter = { x: r.left + r.width/2, y: r.top + r.height/2 };
+  joyMove(e);
+}
+function joyMove(e) {
+  if (joyTouchId === null) return;
+  let pt = null;
+  if (e.changedTouches) {
+    for (const t of e.changedTouches) if (t.identifier === joyTouchId) { pt = t; break; }
+    if (!pt) return;
+  } else { pt = e; }
+  let dx = pt.clientX - joyCenter.x;
+  let dy = pt.clientY - joyCenter.y;
+  const d = Math.hypot(dx, dy);
+  // Clamp för knob-visning, men input fortsätter vid full styrka
+  let knobX = dx, knobY = dy;
+  if (d > JOY_RADIUS) {
+    knobX = dx / d * JOY_RADIUS;
+    knobY = dy / d * JOY_RADIUS;
+  }
+  joyKnob.style.transform = `translate(${knobX}px, ${knobY}px)`;
+  // Input: full direction även om utanför cirkeln (clampa magnitude till 1)
+  if (d > JOY_RADIUS) {
+    input.moveX = dx / d;
+    input.moveY = dy / d;
+  } else {
+    input.moveX = dx / JOY_RADIUS;
+    input.moveY = dy / JOY_RADIUS;
+  }
+}
+function joyEnd(e) {
+  if (e.changedTouches) {
+    let found = false;
+    for (const t of e.changedTouches) if (t.identifier === joyTouchId) found = true;
+    if (!found) return;
+  }
+  joyTouchId = null;
+  joyKnob.style.transform = 'translate(0,0)';
+  input.moveX = 0; input.moveY = 0;
+}
+joy.addEventListener('touchstart', joyStart, { passive: false });
+joy.addEventListener('touchmove',  joyMove,  { passive: false });
+joy.addEventListener('touchend',   joyEnd);
+joy.addEventListener('touchcancel',joyEnd);
+joy.addEventListener('mousedown', joyStart);
+window.addEventListener('mousemove', e => { if (joyTouchId === 'mouse') joyMove(e); });
+window.addEventListener('mouseup',   e => { if (joyTouchId === 'mouse') joyEnd({ changedTouches: null }); });
+
+// Fire button — fungerar som vanlig knapp ELLER joystick (toggle i settings)
+const fireBtn = document.getElementById('btn-fire');
+let fireJoyTouchId = null;
+let fireJoyCenter = { x: 0, y: 0 };
+const FIRE_JOY_RADIUS = 50;
+input.aimX = 0; input.aimY = 0; input.fireJoyActive = false;
+
+function fireDown(e) {
+  e.preventDefault();
+  input.firing = true;
+  if (save.firejoy) {
+    const t = e.changedTouches ? e.changedTouches[0] : e;
+    fireJoyTouchId = e.changedTouches ? t.identifier : 'mouse';
+    const r = fireBtn.getBoundingClientRect();
+    fireJoyCenter = { x: r.left + r.width/2, y: r.top + r.height/2 };
+    input.fireJoyActive = true;
+    fireMove(e);
+  }
+}
+function fireMove(e) {
+  if (!save.firejoy || fireJoyTouchId === null) return;
+  let pt = null;
+  if (e.changedTouches) {
+    for (const t of e.changedTouches) if (t.identifier === fireJoyTouchId) { pt = t; break; }
+    if (!pt) return;
+  } else { pt = e; }
+  const dx = pt.clientX - fireJoyCenter.x;
+  const dy = pt.clientY - fireJoyCenter.y;
+  const d = Math.hypot(dx, dy);
+  if (d > 4) {
+    input.aimX = dx / d;
+    input.aimY = dy / d;
+  }
+}
+function fireUp(e) {
+  if (e) e.preventDefault();
+  input.firing = false;
+  fireJoyTouchId = null;
+  input.fireJoyActive = false;
+}
+fireBtn.addEventListener('touchstart', fireDown, { passive: false });
+fireBtn.addEventListener('touchmove',  fireMove, { passive: false });
+fireBtn.addEventListener('touchend',   fireUp);
+fireBtn.addEventListener('touchcancel',fireUp);
+fireBtn.addEventListener('mousedown',  fireDown);
+window.addEventListener('mousemove',   (e) => { if (fireJoyTouchId === 'mouse') fireMove(e); });
+window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') fireUp(e); });
+
+// Vapenmeny-knapp — pausar spelet och öppnar fullskärms-vapenmeny
+document.getElementById('btn-weapon-menu').addEventListener('click', openWeaponMenu);
+
+const weaponMenuScreen = document.getElementById('weapon-menu-screen');
+const weaponMenuGrid = document.getElementById('weapon-menu-grid');
+let prevModeBeforeWeaponMenu = 'playing';
+
+function openWeaponMenu() {
+  if (state.mode !== 'playing') return;
+  prevModeBeforeWeaponMenu = state.mode;
+  state.mode = 'weaponmenu';
+  weaponMenuScreen.classList.remove('hidden');
+  // släpp pågående input
+  input.firing = false;
+  if (typeof joyEnd === 'function') joyEnd({ changedTouches: null });
+  renderWeaponMenu();
+}
+
+function closeWeaponMenu() {
+  weaponMenuScreen.classList.add('hidden');
+  state.mode = prevModeBeforeWeaponMenu === 'weaponmenu' ? 'playing' : prevModeBeforeWeaponMenu;
+}
+
+document.getElementById('btn-weapon-close').addEventListener('click', closeWeaponMenu);
+
+// SHOP från vapenmenyn — öppnar shoppen mid-game
+const btnWeaponShop = document.getElementById('btn-weapon-shop');
+if (btnWeaponShop) {
+  btnWeaponShop.addEventListener('click', () => {
+    weaponMenuScreen.classList.add('hidden');
+    state.shopFromMidGame = true;
+    Audio.uiClick();
+    openShop();
+  });
+}
+
+// ============================================================
+// PAUSMENY + INSTÄLLNINGAR
+// ============================================================
+const pauseScreen = document.getElementById('pause-screen');
+const settingsScreen = document.getElementById('settings-screen');
+
+function openPause() {
+  if (state.mode !== 'playing') return;
+  state.modeBeforePause = state.mode;
+  state.mode = 'pause';
+  pauseScreen.classList.remove('hidden');
+  Audio.uiClick();
+  input.firing = false;
+}
+function closePause() {
+  pauseScreen.classList.add('hidden');
+  state.mode = 'playing';
+  Audio.uiClick();
+}
+document.getElementById('btn-resume').addEventListener('click', closePause);
+document.getElementById('btn-pause-settings').addEventListener('click', () => {
+  pauseScreen.classList.add('hidden');
+  openSettings('pause');
+});
+document.getElementById('btn-pause-quit').addEventListener('click', () => {
+  pauseScreen.classList.add('hidden');
+  state.mode = 'menu';
+  document.body.classList.add('menu-mode');
+  menuScreen.classList.remove('hidden');
+  Music.stop();
+  Audio.uiClick();
+});
+
+let settingsReturnTo = 'menu';
+function openSettings(returnTo) {
+  settingsReturnTo = returnTo || 'menu';
+  settingsScreen.classList.remove('hidden');
+  // Sync UI med Audio + Feedback
+  document.getElementById('set-sfx').value = Math.round(Audio.sfxVol * 100);
+  document.getElementById('set-sfx-val').textContent = Math.round(Audio.sfxVol * 100) + '%';
+  document.getElementById('set-music').value = Math.round(Audio.musicVol * 100);
+  document.getElementById('set-music-val').textContent = Math.round(Audio.musicVol * 100) + '%';
+  document.getElementById('set-shake').checked = Feedback.shakeEnabled;
+  document.getElementById('set-vibrate').checked = Feedback.vibrateEnabled;
+  document.getElementById('set-colorblind').checked = save.colorblind || false;
+  document.getElementById('set-quality').value = save.quality || 'medium';
+}
+function closeSettings() {
+  settingsScreen.classList.add('hidden');
+  if (settingsReturnTo === 'pause') {
+    pauseScreen.classList.remove('hidden');
+  }
+  Audio.uiClick();
+}
+document.getElementById('btn-settings-close').addEventListener('click', closeSettings);
+
+document.getElementById('btn-tut-close').addEventListener('click', () => {
+  document.getElementById('tutorial-overlay').classList.add('hidden');
+  save.tutorialDone = true;
+  persist();
+  Audio.uiClick();
+});
+
+// Stats screen
+const statsScreen = document.getElementById('stats-screen');
+const statsContent = document.getElementById('stats-content');
+function openStats() {
+  statsScreen.classList.remove('hidden');
+  Audio.uiClick();
+  const s = save.stats || {};
+  const playMin = Math.floor((s.playtime || 0) / 60);
+  const playSec = (s.playtime || 0) % 60;
+  const ownedW = (save.owned || []).length;
+  const ownedP = (save.perks || []).length;
+  const achs = (save.achievements || []).length;
+  statsContent.innerHTML = `
+    <div class="stats-row"><span class="label">Total speltid</span><span class="val">${playMin}m ${playSec}s</span></div>
+    <div class="stats-row"><span class="label">Antal runs</span><span class="val">${s.runs || 0}</span></div>
+    <div class="stats-row"><span class="label">Vinster</span><span class="val">${s.wins || 0}</span></div>
+    <div class="stats-row"><span class="label">Total kills</span><span class="val">${s.totalKills || 0}</span></div>
+    <div class="stats-row"><span class="label">Bossar dödade</span><span class="val">${s.bossKills || 0}</span></div>
+    <div class="stats-row"><span class="label">Total krits</span><span class="val">${s.totalCrits || 0}</span></div>
+    <div class="stats-row"><span class="label">Spräng-kills</span><span class="val">${s.explKills || 0}</span></div>
+    <div class="stats-row"><span class="label">Total gold tjänat</span><span class="val">💰 ${s.totalGold || 0}</span></div>
+    <div class="stats-row"><span class="label">Nuvarande gold</span><span class="val">💰 ${save.gold || 0}</span></div>
+    <div class="stats-row"><span class="label">Vapen ägda</span><span class="val">${ownedW}/${WEAPONS.length}</span></div>
+    <div class="stats-row"><span class="label">Perks ägda</span><span class="val">${ownedP}/${PERKS.length}</span></div>
+    <div class="stats-row"><span class="label">Prestationer</span><span class="val">${achs}/${ACHIEVEMENTS.length}</span></div>
+    <div class="stats-row"><span class="label">Högsta wave</span><span class="val">${save.highWave || 1}</span></div>
+  `;
+}
+document.getElementById('btn-stats').addEventListener('click', openStats);
+document.getElementById('btn-stats-close').addEventListener('click', () => {
+  statsScreen.classList.add('hidden'); Audio.uiClick();
+});
+
+// Achievements screen
+const achScreen = document.getElementById('ach-screen');
+const achGrid = document.getElementById('ach-grid');
+const achProgress = document.getElementById('ach-progress');
+function openAchievements() {
+  achScreen.classList.remove('hidden');
+  Audio.uiClick();
+  const unlocked = (save.achievements || []).length;
+  const total = ACHIEVEMENTS.length;
+  const pct = Math.round(unlocked / total * 100);
+  achProgress.innerHTML = `
+    ${unlocked} / ${total} prestationer låsta upp
+    <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
+  `;
+  achGrid.innerHTML = '';
+  for (const a of ACHIEVEMENTS) {
+    const has = Achievements.has(a.id);
+    const card = document.createElement('div');
+    card.className = 'ach-card ' + (has ? 'unlocked' : 'locked');
+    card.innerHTML = `
+      <div class="ach-icon">${has ? a.icon : '🔒'}</div>
+      <div class="ach-info">
+        <div class="ach-info-name">${a.name}</div>
+        <div class="ach-info-desc">${has ? a.desc : '???'}</div>
+      </div>
+    `;
+    achGrid.appendChild(card);
+  }
+}
+document.getElementById('btn-achievements').addEventListener('click', openAchievements);
+document.getElementById('btn-ach-close').addEventListener('click', () => {
+  achScreen.classList.add('hidden'); Audio.uiClick();
+});
+
+// Settings från huvudmeny
+document.getElementById('btn-menu-settings').addEventListener('click', () => openSettings('menu'));
+
+// SHOP från huvudmenyn (inte mid-game)
+const btnShopMenu = document.getElementById('btn-shop-menu');
+if (btnShopMenu) {
+  btnShopMenu.addEventListener('click', () => {
+    state.shopFromMidGame = true; // hindrar shop från att advancera
+    state.player = state.player || makePlayer();
+    Audio.uiClick();
+    openShop();
+  });
+}
+
+// CHEATS-skärm
+const cheatsScreen = document.getElementById('cheats-screen');
+const cheatsGrid = document.getElementById('cheats-grid');
+const cheatsProgress = document.getElementById('cheats-progress');
+function openCheats() {
+  cheatsScreen.classList.remove('hidden');
+  Audio.uiClick();
+  const unlocked = save.cheatsUnlocked || 0;
+  cheatsProgress.textContent = unlocked >= CHEATS.length
+    ? '✨ ALLA CHEATS UPPLÅSTA ✨'
+    : `${unlocked}/${CHEATS.length} upplåsta · vinster: ${save.stats?.wins || 0}`;
+  cheatsGrid.innerHTML = '';
+  for (const c of CHEATS) {
+    const ul = isCheatUnlocked(c.id);
+    const ac = isCheatActive(c.id);
+    const card = document.createElement('div');
+    card.className = 'cheat-card ' + (ul ? (ac ? 'unlocked active' : 'unlocked') : 'locked');
+    const winsNeeded = CHEATS.findIndex(ch => ch.id === c.id) + 1;
+    card.innerHTML = `
+      <div class="cheat-icon">${ul ? c.icon : '🔒'}</div>
+      <div class="cheat-info">
+        <div class="cheat-name">${ul ? c.name : '???'}</div>
+        <div class="cheat-desc">${ul ? c.desc : `Klara Story-mode ${winsNeeded} gång${winsNeeded > 1 ? 'er' : ''} för att låsa upp`}</div>
+      </div>
+      <div class="cheat-toggle">${ul ? (ac ? 'AV' : 'PÅ') : '🔒'}</div>
+    `;
+    if (ul) {
+      card.addEventListener('click', () => {
+        toggleCheat(c.id);
+        Audio.purchase();
+        if (c.id === 'ultimate' && save.cheatsActive[c.id]) {
+          document.body.classList.add('ultimate-active');
+        }
+        if (c.id === 'ultimate' && !save.cheatsActive[c.id]) {
+          document.body.classList.remove('ultimate-active');
+        }
+        openCheats(); // re-render
+      });
+    }
+    cheatsGrid.appendChild(card);
+  }
+}
+// CO-OP via WebSocket-server (eller PeerJS som fallback)
+// Sätt server-URL till din Render.com-deploy efter att den är uppe
+const COOP_SERVER_URL = (typeof window !== 'undefined' && window.COOP_SERVER_URL) ||
+  'wss://thepenetrator.onrender.com';
+const PLAYER_COLORS = ['#3aff5a', '#3acaff', '#aa3aff', '#ff5a3a', '#ffd54a', '#ff5aca', '#5aff8a', '#cc5aff'];
+const Coop = {
+  peer: null,
+  isHost: false,
+  active: false,        // är vi i en co-op-session?
+  inLobby: false,
+  conns: new Map(),     // peerId → DataConnection (host: alla klienter; client: bara host)
+  players: new Map(),   // peerId → { x, y, hp, weaponId, aimAngle, name, colorIdx }
+  myId: null,           // egen peer-id
+  myColorIdx: 0,
+  myName: 'P1',
+  hostId: null,
+  PEER_PREFIX: 'penetrator_',
+  MAX_PLAYERS: 8,
+  onLobbyChange: null,
+  onConfigChange: null,
+  config: { difficulty: 'veteran', mode: 'story', cheats: {} },
+  randomCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let s = ''; for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random()*chars.length)];
+    return s;
+  },
+  playerCount() { return 1 + this.players.size; },
+  ws: null,
+  _onCodeCb: null, _onConnectCb: null, _onErrorCb: null, _onPlayerJoinCb: null,
+  _connectWS(asHost, joinCode, onConnect, onError) {
+    try {
+      this.ws = new WebSocket(COOP_SERVER_URL);
+    } catch (e) { onError('Kan ej ansluta'); return; }
+    this.active = true;
+    this.inLobby = true;
+    this.isHost = asHost;
+    this.ws.onopen = () => {
+      if (asHost) this.ws.send(JSON.stringify({ type: 'host' }));
+      else this.ws.send(JSON.stringify({ type: 'join', code: joinCode }));
+    };
+    this.ws.onmessage = (ev) => {
+      let msg; try { msg = JSON.parse(ev.data); } catch(e){ return; }
+      this._handleServerMsg(msg, onConnect, onError);
+    };
+    this.ws.onerror = (e) => { console.warn('WS error', e); if (onError) onError('Server-fel'); };
+    this.ws.onclose = () => { this.disconnect(); };
+  },
+  _handleServerMsg(msg, onConnect, onError) {
+    if (msg.type === 'hosted') {
+      this.myId = msg.peerId;
+      this.myColorIdx = 0;
+      if (this._onCodeCb) this._onCodeCb(msg.code);
+    } else if (msg.type === 'joined') {
+      this.myId = msg.peerId;
+      this.hostId = msg.hostId;
+      if (onConnect) onConnect();
+    } else if (msg.type === 'peer_joined') {
+      // Host får meddelande att en peer joinade
+      const colorIdx = this.players.size + 1;
+      this.players.set(msg.peerId, { x: 900, y: 900, hp: 100, weaponId: 'fists', aimAngle: 0, name: 'P' + (colorIdx + 1), colorIdx });
+      // Skicka welcome direkt
+      this._sendTo(msg.peerId, { type: 'welcome', colorIdx, players: this.serializeLobby() });
+      this.broadcastLobby();
+      if (this._onPlayerJoinCb) this._onPlayerJoinCb(this.players.size + 1);
+    } else if (msg.type === 'peer_left') {
+      this.players.delete(msg.peerId);
+      this.broadcastLobby();
+      if (this._onPlayerJoinCb) this._onPlayerJoinCb(this.players.size + 1);
+    } else if (msg.type === 'host_left') {
+      alert('Host lämnade rummet.');
+      this.disconnect();
+    } else if (msg.type === 'relay') {
+      this.onData(msg.from, msg.data);
+    } else if (msg.type === 'error') {
+      if (onError) onError(msg.error);
+    }
+  },
+  _sendTo(targetId, data) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.ws.send(JSON.stringify({ type: 'relay', to: targetId, data }));
+  },
+  _sendBroadcast(data) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    this.ws.send(JSON.stringify({ type: 'relay', data }));
+  },
+  host(onCode, onPlayerJoin, onError) {
+    this._onCodeCb = onCode;
+    this._onPlayerJoinCb = onPlayerJoin;
+    this._connectWS(true, null, null, onError);
+  },
+  join(code, onConnect, onError) {
+    this._connectWS(false, code, onConnect, onError);
+  },
+  serializeLobby() {
+    const arr = [{ peerId: this.myId, name: (this.myName || 'P1') + ' (HOST)', colorIdx: 0, isHost: true }];
+    for (const [pid, p] of this.players) arr.push({ peerId: pid, name: p.name, colorIdx: p.colorIdx, isHost: false });
+    return arr;
+  },
+  updateName(name) {
+    name = (name || '').trim().slice(0, 14) || 'Player';
+    this.myName = name;
+    if (this.isHost) {
+      this.broadcastLobby();
+      if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
+    } else {
+      this.sendToHost({ type: 'rename', name });
+    }
+  },
+  kickPlayer(peerId) {
+    if (!this.isHost) return;
+    const c = this.conns.get(peerId);
+    if (c) {
+      try { c.send({ type: 'kicked' }); } catch(e) {}
+      try { c.close(); } catch(e) {}
+    }
+    this.conns.delete(peerId);
+    this.players.delete(peerId);
+    this.broadcastLobby();
+    if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
+  },
+  updateConfig(partial) {
+    if (!this.isHost) return;
+    Object.assign(this.config, partial);
+    this.broadcast({ type: 'config', config: this.config });
+    if (this.onConfigChange) this.onConfigChange(this.config);
+  },
+  applyConfigToSave() {
+    // Tillämpa lobby-config till save inför game-start
+    save.difficulty = this.config.difficulty;
+    save.mode = this.config.mode;
+    // Cheats för just denna run (apply utan permanent save)
+    save.cheatsActive = save.cheatsActive || {};
+    for (const cid in this.config.cheats) {
+      if (this.config.cheats[cid]) save.cheatsActive[cid] = true;
+    }
+  },
+  broadcastLobby() {
+    if (!this.isHost) return;
+    const lobby = this.serializeLobby();
+    this._sendBroadcast({ type: 'lobby', players: lobby });
+    if (this.onLobbyChange) this.onLobbyChange(lobby);
+  },
+  broadcast(data, except) {
+    this._sendBroadcast(data);
+  },
+  sendToHost(data) {
+    if (this.isHost) return;
+    this._sendTo(this.hostId, data);
+  },
+  onData(fromId, data) {
+    if (data.type === 'reject') {
+      alert(data.reason || 'Avvisad');
+      this.disconnect();
+      return;
+    }
+    if (data.type === 'welcome' && !this.isHost) {
+      this.myColorIdx = data.colorIdx;
+      // Initial lobby
+      this.players.clear();
+      for (const p of data.players) {
+        if (p.peerId !== this.myId) this.players.set(p.peerId, { x: 900, y: 900, hp: 100, name: p.name, colorIdx: p.colorIdx });
+      }
+      if (this.onLobbyChange) this.onLobbyChange(data.players);
+      return;
+    }
+    if (data.type === 'lobby' && !this.isHost) {
+      // Uppdatera spelar-lista
+      this.players.clear();
+      for (const p of data.players) {
+        if (p.peerId !== this.myId) this.players.set(p.peerId, { x: 900, y: 900, hp: 100, name: p.name, colorIdx: p.colorIdx });
+      }
+      if (this.onLobbyChange) this.onLobbyChange(data.players);
+      return;
+    }
+    if (data.type === 'kicked') {
+      alert('Du har blivit utkastad från rummet.');
+      this.disconnect();
+      coopScreen.classList.add('hidden');
+      coopInitEl.classList.remove('hidden');
+      coopLobbyEl.classList.add('hidden');
+      return;
+    }
+    if (data.type === 'rename' && this.isHost) {
+      const p = this.players.get(fromId);
+      if (p) p.name = (data.name || '').slice(0, 14) || p.name;
+      this.broadcastLobby();
+      if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
+      return;
+    }
+    if (data.type === 'config' && !this.isHost) {
+      this.config = data.config;
+      if (this.onConfigChange) this.onConfigChange(this.config);
+      return;
+    }
+    if (data.type === 'start') {
+      this.inLobby = false;
+      if (!this.isHost) {
+        this.applyConfigToSave();
+        actuallyStartGame();
+      }
+      return;
+    }
+    if (data.type === 'state' && this.isHost) {
+      // Client skickar sin position — uppdatera deras player-data
+      const p = this.players.get(fromId);
+      if (p) {
+        p.x = data.x; p.y = data.y; p.hp = data.hp;
+        p.weaponId = data.weaponId; p.aimAngle = data.aimAngle;
+        p.shotting = data.shotting;
+      }
+      return;
+    }
+    if (data.type === 'world' && !this.isHost) {
+      // Klient: hantera komprimerade data
+      if (data.players) {
+        for (const p of data.players) {
+          if (p.id === this.myId) continue;
+          let cur = this.players.get(p.id);
+          if (!cur) { cur = { name: p.n, colorIdx: p.c, x: p.x, y: p.y }; this.players.set(p.id, cur); }
+          // Interpolation: behåll x/y, sätt target
+          cur.targetX = p.x; cur.targetY = p.y;
+          cur.hp = p.hp; cur.aimAngle = p.a;
+        }
+      }
+      if (data.enemies) {
+        // Cache statisk data + interpolation-targets
+        if (!state._enemyCache) state._enemyCache = {};
+        const cache = state._enemyCache;
+        // Bygg ny lista. Behåll x/y från förra frame, sätt targetX/Y till nya.
+        const oldByIdx = new Map();
+        for (const e of state.enemies) if (e._i !== undefined) oldByIdx.set(e._i, e);
+        const newEnemies = [];
+        for (const e of data.enemies) {
+          let cached = cache[e.i];
+          if (data.full || !cached) {
+            cached = {
+              type: e.t, isBoss: !!e.b, bossKey: e.bk, r: e.r,
+              color: e.c, name: e.n, maxHp: e.mh,
+              walkPhase: cached ? cached.walkPhase : Math.random() * Math.PI*2,
+              walkAccum: cached ? cached.walkAccum : 0,
+            };
+            cache[e.i] = cached;
+          }
+          const old = oldByIdx.get(e.i);
+          newEnemies.push({
+            ...cached,
+            _i: e.i,
+            // Behåll nuvarande visuell-position, sätt target till mottagen
+            x: old ? old.x : e.x,
+            y: old ? old.y : e.y,
+            targetX: e.x, targetY: e.y,
+            hp: e.hp,
+            phase: e.p !== undefined ? e.p : (cached.phase || 1),
+            dead: false,
+            flashUntil: old ? old.flashUntil : 0,
+          });
+        }
+        if (data.full) {
+          const liveIndices = new Set(data.enemies.map(e => e.i));
+          for (const i in cache) if (!liveIndices.has(parseInt(i))) delete cache[i];
+        }
+        state.enemies = newEnemies;
+      }
+      // Hostile bullets från host (visuella + lokal collision-check)
+      if (data.hb) {
+        // Behåll klientens egna bullets, ersätt bara hostile
+        const ownBullets = state.bullets.filter(b => !b.hostile);
+        const hostileFromHost = data.hb.map(b => ({
+          x: b.x, y: b.y, vx: b.vx, vy: b.vy,
+          dmg: 0, // skada hanteras av host via damage_to_you
+          life: 2, r: b.r, color: b.c, hostile: true, _fromHost: true,
+        }));
+        state.bullets = ownBullets.concat(hostileFromHost);
+      }
+      if (data.pickups) {
+        state.pickups = data.pickups.map(p => ({ x: p.x, y: p.y, type: p.t, life: 25, vx:0, vy:0, magnetized: false }));
+      }
+      if (data.gs) {
+        state.wave = data.gs.w;
+        state.currentZone = data.gs.cz;
+        state.zoneState = data.gs.zs;
+        state.bossSequenceStep = data.gs.bss;
+        state.bossDefeated = !!data.gs.bd;
+      }
+      if (data.db) state.deadBody = data.db;
+      return;
+    }
+    if (data.type === 'enemy_damage' && this.isHost) {
+      const e = state.enemies[data.i];
+      if (e && !e.dead) damageEnemy(e, data.dmg, data.crit);
+      return;
+    }
+    if (data.type === 'damage_to_you' && !this.isHost) {
+      // Host meddelar att vi tagit skada
+      if (state.player) damagePlayer(data.dmg);
+      return;
+    }
+    if (data.type === 'pickup_to_you' && !this.isHost) {
+      // Host meddelar att vi plockat upp pickup
+      const p = state.player;
+      if (!p) return;
+      Audio.goldPickup();
+      if (data.kind === 'hp') {
+        p.hp = Math.min(p.maxHp, p.hp + 30);
+        showFloatingText(p.x, p.y, '+30 HP', '#5aff5a');
+      } else if (data.kind === 'ammo') {
+        const w = W_BY_ID[p.weaponId];
+        if (w.mag) { p.ammo = effectiveMag(p.weaponId); p.reloading = false; }
+        showFloatingText(p.x, p.y, 'AMMO!', '#ffae3a');
+      } else if (data.kind === 'gold') {
+        const bonus = 25 + Math.floor(Math.random() * 25);
+        save.gold += bonus;
+        showFloatingText(p.x, p.y, '+' + bonus, '#ffd54a');
+      } else if (data.kind === 'temp_dmg') {
+        p.tempDmgUntil = performance.now() + 8000;
+        showFloatingText(p.x, p.y, '×2 DMG 8s', '#ff5a3a');
+      }
+      updateHUD();
+      return;
+    }
+    if (data.type === 'weapon_pickup' && !this.isHost) {
+      // Host meddelar att vi plockat upp ett vapen
+      if (data.weaponId && !save.owned.includes(data.weaponId)) save.owned.push(data.weaponId);
+      if (data.weaponId) equip(data.weaponId);
+      Audio.purchase();
+      const w = W_BY_ID[data.weaponId];
+      showToast('🔫 ' + (w ? w.name : data.weaponId));
+      persist();
+      return;
+    }
+    if (data.type === 'event' && !this.isHost) {
+      if (data.event === 'stage_complete') {
+        // Klient: stäng stage-clear-overlay om visad, kör onWaveComplete
+        const sc = document.getElementById('stage-clear-overlay');
+        if (sc) sc.classList.add('hidden');
+        state._stageClearShown = false;
+        onWaveComplete();
+      }
+      return;
+    }
+  },
+  disconnect() {
+    this.active = false; this.inLobby = false;
+    if (this.ws) {
+      try { this.ws.close(); } catch(e) {}
+    }
+    this.conns.clear();
+    this.players.clear();
+    this.ws = null; this.hostId = null;
+  },
+  startGame() {
+    if (!this.isHost) return;
+    this.inLobby = false;
+    this.broadcast({ type: 'start' });
+  },
+  _lastBroadcast: 0,
+  _lastFullBroadcast: 0,
+  tick() {
+    if (!this.active || this.inLobby || !state.player) return;
+    const now = performance.now();
+    if (this.isHost) {
+      // Snapshot 7Hz (~143ms) — lightweight position-only
+      if (now - this._lastBroadcast < 140) return;
+      this._lastBroadcast = now;
+      // Var 600ms: full broadcast (statiska fields), annars bara positions
+      const fullBroadcast = (now - this._lastFullBroadcast) > 600;
+      if (fullBroadcast) this._lastFullBroadcast = now;
+      // Spelare (lätt)
+      const allPlayers = [{ id: this.myId, n: this.myName || 'P1', c: 0,
+        x: Math.round(state.player.x), y: Math.round(state.player.y),
+        hp: Math.round(state.player.hp),
+        a: Math.round(state.player.aimAngle * 100) / 100 }];
+      for (const [pid, p] of this.players) {
+        allPlayers.push({ id: pid, n: p.name, c: p.colorIdx,
+          x: Math.round(p.x), y: Math.round(p.y), hp: Math.round(p.hp),
+          a: Math.round((p.aimAngle || 0) * 100) / 100 });
+      }
+      // Fiender — bara live + nära någon spelare (cull)
+      const cullDist = 1400;
+      const allPlayerPos = allPlayers.map(p => ({ x: p.x, y: p.y }));
+      const enemies = [];
+      for (let i = 0; i < state.enemies.length; i++) {
+        const e = state.enemies[i];
+        if (e.dead) continue;
+        // Kolla om någon spelare är nära nog
+        let visible = false;
+        for (const pp of allPlayerPos) {
+          if (Math.abs(e.x - pp.x) < cullDist && Math.abs(e.y - pp.y) < cullDist) { visible = true; break; }
+        }
+        if (!visible && !e.isBoss) continue;
+        if (fullBroadcast) {
+          // Full data
+          enemies.push({
+            i, x: Math.round(e.x), y: Math.round(e.y),
+            hp: Math.round(e.hp), mh: Math.round(e.maxHp),
+            t: e.type, b: e.isBoss ? 1 : 0, bk: e.bossKey,
+            r: e.r, c: e.color, n: e.name, p: e.phase,
+          });
+        } else {
+          // Lightweight — bara position + hp
+          enemies.push({
+            i, x: Math.round(e.x), y: Math.round(e.y),
+            hp: Math.round(e.hp),
+          });
+        }
+      }
+      // Hostile bullets — alltid broadcast (klienten behöver se dem)
+      const hostileBullets = state.bullets.filter(b => b.hostile && !b.dead).map(b => ({
+        x: Math.round(b.x), y: Math.round(b.y),
+        vx: Math.round(b.vx), vy: Math.round(b.vy),
+        c: b.color, r: b.r,
+      }));
+      const pkt = { type: 'world', players: allPlayers, enemies, hb: hostileBullets, full: fullBroadcast ? 1 : 0 };
+      if (fullBroadcast) {
+        pkt.pickups = (state.pickups || []).map(p => ({ x: Math.round(p.x), y: Math.round(p.y), t: p.type }));
+        pkt.gs = {
+          w: state.wave, cz: state.currentZone, zs: state.zoneState,
+          bss: state.bossSequenceStep, bd: state.bossDefeated ? 1 : 0,
+        };
+        if (state.deadBody) pkt.db = state.deadBody;
+      }
+      this.broadcast(pkt);
+    } else {
+      // Client skickar position bara 5Hz
+      if (now - this._lastBroadcast < 200) return;
+      this._lastBroadcast = now;
+      this.sendToHost({ type: 'state',
+        x: Math.round(state.player.x), y: Math.round(state.player.y),
+        hp: Math.round(state.player.hp),
+        weaponId: state.player.weaponId,
+        aimAngle: Math.round(state.player.aimAngle * 100) / 100,
+        shotting: input.firing });
+    }
+  },
+  damageEnemyOnHost(enemyIdx, dmg, isCrit) {
+    if (this.isHost) return;
+    this.sendToHost({ type: 'enemy_damage', i: enemyIdx, dmg, crit: isCrit });
+  },
+  // Skicka damage till specifik partner via deras peerId
+  sendDamageToPartner(peerId, dmg) {
+    this._sendTo(peerId, { type: 'damage_to_you', dmg });
+  },
+  sendPickupToPartner(peerId, kind) {
+    this._sendTo(peerId, { type: 'pickup_to_you', kind });
+  },
+};
+function getCoopMultiplier() {
+  return Coop.active ? Coop.playerCount() : 1;
+}
+const coopScreen = document.getElementById('coop-screen');
+const coopStatus = document.getElementById('coop-status');
+function openCoop() {
+  coopScreen.classList.remove('hidden');
+  Audio.uiClick();
+  coopStatus.textContent = '';
+}
+document.getElementById('btn-coop').addEventListener('click', openCoop);
+document.getElementById('btn-coop-close').addEventListener('click', () => {
+  coopScreen.classList.add('hidden');
+  Coop.disconnect();
+});
+const coopInitEl = document.getElementById('coop-init');
+const coopLobbyEl = document.getElementById('coop-lobby');
+const coopCodeDisplay = document.getElementById('coop-code-display');
+const coopPlayerList = document.getElementById('coop-player-list');
+const coopDifficultyInfo = document.getElementById('coop-difficulty-info');
+const btnCoopStart = document.getElementById('btn-coop-start');
+const coopWaiting = document.getElementById('coop-waiting');
+
+const hostControlsEl = document.getElementById('host-controls');
+const lobbyDiffButtonsEl = document.getElementById('lobby-diff-buttons');
+const lobbyModeButtonsEl = document.getElementById('lobby-mode-buttons');
+const lobbyCheatButtonsEl = document.getElementById('lobby-cheat-buttons');
+const coopNameInput = document.getElementById('coop-name-input');
+
+function showLobby(code, isHost) {
+  coopInitEl.classList.add('hidden');
+  coopLobbyEl.classList.remove('hidden');
+  coopCodeDisplay.textContent = code || '----';
+  // Pre-fyll namn-fält
+  coopNameInput.value = Coop.myName || (isHost ? 'P1' : 'Player');
+  if (isHost) {
+    btnCoopStart.classList.remove('hidden');
+    coopWaiting.classList.add('hidden');
+    hostControlsEl.classList.remove('hidden');
+    Coop.config.difficulty = save.difficulty || 'veteran';
+    Coop.config.mode = save.mode || 'story';
+    Coop.config.cheats = {};
+    renderHostControls();
+  } else {
+    btnCoopStart.classList.add('hidden');
+    coopWaiting.classList.remove('hidden');
+    hostControlsEl.classList.add('hidden');
+  }
+}
+
+function renderHostControls() {
+  // Difficulty
+  lobbyDiffButtonsEl.innerHTML = '';
+  for (const d of DIFFICULTIES) {
+    const b = document.createElement('button');
+    b.textContent = DIFF_LABELS[d];
+    if (Coop.config.difficulty === d) b.classList.add('active');
+    b.addEventListener('click', () => {
+      Coop.updateConfig({ difficulty: d });
+      renderHostControls();
+      renderScalingInfo();
+    });
+    lobbyDiffButtonsEl.appendChild(b);
+  }
+  // Mode
+  lobbyModeButtonsEl.innerHTML = '';
+  for (const m of ['story', 'endless', 'bossrush', 'survive']) {
+    const b = document.createElement('button');
+    b.textContent = MODE_LABELS[m];
+    if (Coop.config.mode === m) b.classList.add('active');
+    b.addEventListener('click', () => {
+      Coop.updateConfig({ mode: m });
+      renderHostControls();
+    });
+    lobbyModeButtonsEl.appendChild(b);
+  }
+  // Cheats (endast unlocked)
+  lobbyCheatButtonsEl.innerHTML = '';
+  let anyUnlocked = false;
+  for (const c of CHEATS) {
+    if (!isCheatUnlocked(c.id)) continue;
+    anyUnlocked = true;
+    const b = document.createElement('button');
+    b.className = 'cheat-btn';
+    b.textContent = c.icon + ' ' + c.name.split(' ')[0];
+    if (Coop.config.cheats[c.id]) b.classList.add('active');
+    b.addEventListener('click', () => {
+      const newCheats = { ...Coop.config.cheats };
+      newCheats[c.id] = !newCheats[c.id];
+      Coop.updateConfig({ cheats: newCheats });
+      renderHostControls();
+    });
+    lobbyCheatButtonsEl.appendChild(b);
+  }
+  if (!anyUnlocked) {
+    lobbyCheatButtonsEl.innerHTML = '<span style="font-size:11px;color:#666;">Inga cheats upplåsta än — klara story-mode för att låsa upp.</span>';
+  }
+}
+
+function renderLobbyPlayers(players) {
+  coopPlayerList.innerHTML = '';
+  for (const p of players) {
+    const row = document.createElement('div');
+    row.className = 'player-row';
+    const color = PLAYER_COLORS[p.colorIdx % PLAYER_COLORS.length];
+    row.style.borderLeftColor = color;
+    const youTag = p.peerId === Coop.myId ? ' (DU)' : '';
+    row.innerHTML = `
+      <div style="width:12px;height:12px;background:${color};border-radius:50%;flex:0 0 auto;"></div>
+      <span class="pname">${p.name}${youTag}</span>
+    `;
+    // Kick-knapp för host (men inte mot sig själv)
+    if (Coop.isHost && !p.isHost) {
+      const btn = document.createElement('button');
+      btn.className = 'kick-btn';
+      btn.textContent = '✕ KICK';
+      btn.addEventListener('click', () => {
+        if (confirm('Kicka ' + p.name + '?')) Coop.kickPlayer(p.peerId);
+      });
+      row.appendChild(btn);
+    }
+    coopPlayerList.appendChild(row);
+  }
+  renderScalingInfo();
+}
+
+function renderScalingInfo() {
+  const count = 1 + Coop.players.size;
+  const diff = (DIFF_MULTIPLIERS[Coop.config.difficulty || 'veteran'] || DIFF_MULTIPLIERS.veteran).enemyHp;
+  const totalScale = (count * diff).toFixed(1);
+  coopDifficultyInfo.textContent = `${count}× spelare × ${diff}× ${(Coop.config.difficulty || 'veteran').toUpperCase()} = ${totalScale}× svårighet`;
+}
+
+Coop.onLobbyChange = renderLobbyPlayers;
+Coop.onConfigChange = (cfg) => {
+  // Klient får ny config — rendera om om vi visar lobby
+  if (!Coop.isHost && !coopLobbyEl.classList.contains('hidden')) {
+    coopDifficultyInfo.textContent = 'Svårighet: ' + (cfg.difficulty || 'veteran').toUpperCase() + ' · Läge: ' + (MODE_LABELS[cfg.mode] || cfg.mode);
+  }
+  renderScalingInfo();
+};
+
+// Namn-input
+coopNameInput.addEventListener('input', (e) => {
+  Coop.updateName(e.target.value);
+});
+
+// Cheat-kod-input (lobby)
+const lobbyCheatInput = document.getElementById('lobby-cheat-input');
+const btnCheatRedeem = document.getElementById('btn-cheat-redeem');
+function tryRedeemCheatCode(input) {
+  const code = (input || '').trim().toLowerCase();
+  if (!code) return false;
+  for (const c of CHEATS) {
+    if (c.name.toLowerCase() === code || c.id.toLowerCase() === code) {
+      // Aktivera för denna run
+      Coop.config.cheats = Coop.config.cheats || {};
+      Coop.config.cheats[c.id] = true;
+      // Lås även upp permanent
+      const idx = CHEATS.findIndex(ch => ch.id === c.id);
+      if ((save.cheatsUnlocked || 0) <= idx) {
+        save.cheatsUnlocked = idx + 1;
+        persist();
+      }
+      if (Coop.isHost) Coop.updateConfig({ cheats: Coop.config.cheats });
+      Audio.purchase();
+      showAchievementPopup({ icon: c.icon, name: 'CHEAT AKTIVERAD: ' + c.name });
+      return true;
+    }
+  }
+  return false;
+}
+if (btnCheatRedeem) {
+  btnCheatRedeem.addEventListener('click', () => {
+    const v = lobbyCheatInput.value;
+    if (tryRedeemCheatCode(v)) {
+      lobbyCheatInput.value = '';
+      lobbyCheatInput.style.borderColor = '#5aff5a';
+      setTimeout(() => lobbyCheatInput.style.borderColor = '', 1000);
+      if (typeof renderHostControls === 'function' && Coop.isHost) renderHostControls();
+    } else {
+      lobbyCheatInput.style.borderColor = '#ff3a3a';
+      setTimeout(() => lobbyCheatInput.style.borderColor = '', 1000);
+    }
+  });
+}
+
+document.getElementById('btn-coop-host').addEventListener('click', () => {
+  coopStatus.textContent = 'Startar rum...';
+  Coop.host(
+    (code) => { showLobby(code, true); coopStatus.textContent = ''; renderLobbyPlayers(Coop.serializeLobby()); },
+    () => {},
+    (err) => { coopStatus.style.color = '#ff5a3a'; coopStatus.textContent = err + '. Försök igen.'; }
+  );
+});
+document.getElementById('btn-coop-join').addEventListener('click', () => {
+  const code = document.getElementById('coop-code-input').value.trim().toUpperCase();
+  if (code.length !== 4) { coopStatus.textContent = 'Skriv 4-bokstavskod'; return; }
+  coopStatus.textContent = 'Ansluter till ' + code + '...';
+  Coop.join(code,
+    () => { showLobby(code, false); coopStatus.textContent = ''; },
+    (err) => { coopStatus.style.color = '#ff5a3a'; coopStatus.textContent = err; }
+  );
+});
+btnCoopStart.addEventListener('click', () => {
+  Coop.applyConfigToSave();
+  Coop.startGame();
+  coopScreen.classList.add('hidden');
+  coopInitEl.classList.remove('hidden');
+  coopLobbyEl.classList.add('hidden');
+  actuallyStartGame();
+});
+
+// COSTUMES-skärm
+const costumesScreen = document.getElementById('costumes-screen');
+const costumesGrid = document.getElementById('costumes-grid');
+function openCostumes() {
+  costumesScreen.classList.remove('hidden');
+  Audio.uiClick();
+  costumesGrid.innerHTML = '';
+  for (const c of COSTUMES) {
+    const unlocked = c.unlock();
+    const equipped = save.costume === c.id || (!save.costume && c.id === 'classic');
+    const card = document.createElement('div');
+    card.className = 'cheat-card ' + (unlocked ? (equipped ? 'unlocked active' : 'unlocked') : 'locked');
+    card.innerHTML = `
+      <div class="cheat-icon" style="background:${c.shirt};border:2px solid ${c.accent};border-radius:50%;width:46px;height:46px;display:flex;align-items:center;justify-content:center;">
+        <div style="width:22px;height:22px;background:${c.skin};border-radius:50%;border:2px solid ${c.bandana};"></div>
+      </div>
+      <div class="cheat-info">
+        <div class="cheat-name">${unlocked ? c.name : '???'}</div>
+        <div class="cheat-desc">${unlocked ? c.desc : 'Låst'}</div>
+      </div>
+      <div class="cheat-toggle">${equipped ? 'PÅ' : (unlocked ? 'BYT' : '🔒')}</div>
+    `;
+    if (unlocked) {
+      card.addEventListener('click', () => {
+        save.costume = c.id;
+        persist();
+        Audio.uiClick();
+        openCostumes();
+      });
+    }
+    costumesGrid.appendChild(card);
+  }
+}
+document.getElementById('btn-costumes').addEventListener('click', openCostumes);
+document.getElementById('btn-costumes-close').addEventListener('click', () => {
+  costumesScreen.classList.add('hidden'); Audio.uiClick();
+});
+
+document.getElementById('btn-cheats').addEventListener('click', openCheats);
+document.getElementById('btn-cheats-close').addEventListener('click', () => {
+  cheatsScreen.classList.add('hidden'); Audio.uiClick();
+});
+
+// Apply ultimate-aura on load
+if (isCheatActive('ultimate')) document.body.classList.add('ultimate-active');
+
+// Apply colorblind from save
+if (save.colorblind) document.body.classList.add('colorblind');
+// Starta i menu-mode (göm HUD/touch-controls)
+document.body.classList.add('menu-mode');
+
+// === MOBILE-DETECTION & FIXES ===
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isAndroid = /Android/.test(navigator.userAgent);
+const isMobile = isIOS || isAndroid || ('ontouchstart' in window && window.innerWidth < 1024);
+if (isIOS) document.body.classList.add('ios');
+if (isAndroid) document.body.classList.add('android');
+if (isMobile) document.body.classList.add('mobile');
+// Disable vibration on iOS (saknas)
+if (isIOS) Feedback.vibrateEnabled = false;
+
+// Fullscreen — robust med multipla fallbacks
+function isFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+}
+function isStandalonePWA() {
+  return window.matchMedia('(display-mode: standalone)').matches ||
+         window.matchMedia('(display-mode: fullscreen)').matches ||
+         window.navigator.standalone === true;
+}
+async function requestFullscreen() {
+  // Försök på flera element
+  const candidates = [document.documentElement, document.body, document.getElementById('game')];
+  for (const el of candidates) {
+    if (!el) continue;
+    const r = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (r) {
+      try {
+        const result = r.call(el);
+        if (result && result.then) await result;
+        return true;
+      } catch(e) { /* tyst fail */ }
+    }
+  }
+  return false; // tyst fail — inga alerts
+}
+function exitFullscreen() {
+  const r = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen;
+  if (r) try { r.call(document); } catch(e) {}
+}
+const btnFullscreen = document.getElementById('btn-fullscreen');
+if (btnFullscreen) {
+  btnFullscreen.addEventListener('click', async () => {
+    Audio.uiClick();
+    if (isFullscreen()) exitFullscreen();
+    else await requestFullscreen();
+  });
+}
+// F-tangent som fallback
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'f' || e.key === 'F') {
+    if (state.mode === 'menu' || state.mode === 'pause') {
+      if (isFullscreen()) exitFullscreen();
+      else requestFullscreen();
+    }
+  }
+});
+
+// Auto-fullscreen vid SPELA på mobil
+const oldBtnStart = document.getElementById('btn-start');
+if (oldBtnStart && isMobile) {
+  oldBtnStart.addEventListener('click', () => {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) requestFullscreen();
+    // Auto-lock orientation till landscape om möjligt
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(() => {});
+    }
+  });
+}
+
+// PWA install-prompt
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const banner = document.getElementById('install-banner');
+  if (banner && !save.installDismissed && !window.matchMedia('(display-mode: standalone)').matches) {
+    banner.classList.remove('hidden');
+  }
+});
+const installBtn = document.getElementById('btn-install');
+const installDismissBtn = document.getElementById('btn-install-dismiss');
+if (installBtn) {
+  installBtn.addEventListener('click', async () => {
+    if (deferredInstallPrompt) {
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      document.getElementById('install-banner').classList.add('hidden');
+    }
+  });
+}
+if (installDismissBtn) {
+  installDismissBtn.addEventListener('click', () => {
+    save.installDismissed = true; persist();
+    document.getElementById('install-banner').classList.add('hidden');
+  });
+}
+
+// Auto-quality detection — mät FPS första 5 sekunderna
+let _fpsFrames = 0, _fpsStart = 0, _fpsAdjusted = false;
+function autoAdjustQuality(now) {
+  if (_fpsAdjusted || !state.player) return;
+  if (!_fpsStart) _fpsStart = now;
+  _fpsFrames++;
+  if (now - _fpsStart > 5000) {
+    const fps = _fpsFrames * 1000 / (now - _fpsStart);
+    if (fps < 30 && save.quality !== 'low') {
+      save.quality = 'low';
+      persist();
+      showToast('Grafikkvalitet sänkt till LÅG (' + Math.round(fps) + ' fps)');
+    } else if (fps < 50 && save.quality === 'high') {
+      save.quality = 'medium';
+      persist();
+    }
+    _fpsAdjusted = true;
+  }
+}
+
+// Battery-saver — sänk kvalitet vid <20% batteri
+if (navigator.getBattery) {
+  navigator.getBattery().then(b => {
+    function checkBattery() {
+      if (b.level < 0.2 && !b.charging && save.quality !== 'low') {
+        save.quality = 'low'; persist();
+        showToast('Låg batteri — kvalitet sänkt');
+      }
+    }
+    checkBattery();
+    b.addEventListener('levelchange', checkBattery);
+  }).catch(() => {});
+}
+
+// Pausa spel vid background (mobile-friendly)
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && state.mode === 'playing') {
+    openPause();
+  }
+});
+
+// Förhindra context-menu vid long-press (mobile)
+window.addEventListener('contextmenu', e => e.preventDefault());
+
+// Mode / Difficulty knappar
+const btnMode = document.getElementById('btn-mode');
+const btnDifficulty = document.getElementById('btn-difficulty');
+function refreshModeButtons() {
+  let modeLabel = MODE_LABELS[getMode()] || 'STORY';
+  const lvl = getNGPLevel();
+  if (lvl === 1) modeLabel += ' (NG+)';
+  else if (lvl === 2) modeLabel += ' (NG++)';
+  else if (lvl >= 3) modeLabel += ' (NG' + '+'.repeat(lvl) + ')';
+  btnMode.textContent = 'LÄGE: ' + modeLabel;
+  btnDifficulty.textContent = 'SVÅRIGHET: ' + (DIFF_LABELS[getDifficulty()] || 'VETERAN');
+}
+btnMode.addEventListener('click', () => {
+  const cur = getMode();
+  let idx = GAME_MODES.indexOf(cur);
+  const hasWins = save.stats && save.stats.wins > 0;
+  // Cykla till nästa upplåsta läge (skippa locked)
+  for (let tries = 0; tries < GAME_MODES.length; tries++) {
+    idx = (idx + 1) % GAME_MODES.length;
+    const candidate = GAME_MODES[idx];
+    if ((candidate === 'endless' || candidate === 'bossrush') && !hasWins) continue;
+    save.mode = candidate;
+    break;
+  }
+  persist();
+  refreshModeButtons();
+  Audio.uiClick();
+});
+btnDifficulty.addEventListener('click', () => {
+  const cur = getDifficulty();
+  const idx = DIFFICULTIES.indexOf(cur);
+  save.difficulty = DIFFICULTIES[(idx + 1) % DIFFICULTIES.length];
+  persist();
+  refreshModeButtons();
+  Audio.uiClick();
+});
+refreshModeButtons();
+
+document.getElementById('set-sfx').addEventListener('input', (e) => {
+  const v = parseInt(e.target.value) / 100;
+  Audio.setSfxVol(v);
+  document.getElementById('set-sfx-val').textContent = e.target.value + '%';
+  save.audio = save.audio || {}; save.audio.sfx = v; persist();
+});
+document.getElementById('set-music').addEventListener('input', (e) => {
+  const v = parseInt(e.target.value) / 100;
+  Audio.setMusicVol(v);
+  document.getElementById('set-music-val').textContent = e.target.value + '%';
+  save.audio = save.audio || {}; save.audio.music = v; persist();
+});
+document.getElementById('set-shake').addEventListener('change', (e) => {
+  Feedback.shakeEnabled = e.target.checked;
+  save.feedback = save.feedback || {}; save.feedback.shake = e.target.checked; persist();
+});
+document.getElementById('set-vibrate').addEventListener('change', (e) => {
+  Feedback.vibrateEnabled = e.target.checked;
+  save.feedback = save.feedback || {}; save.feedback.vibrate = e.target.checked; persist();
+});
+document.getElementById('set-colorblind').addEventListener('change', (e) => {
+  save.colorblind = e.target.checked; persist();
+  document.body.classList.toggle('colorblind', e.target.checked);
+});
+document.getElementById('set-quality').addEventListener('change', (e) => {
+  save.quality = e.target.value; persist();
+});
+document.getElementById('set-skipdialog').addEventListener('change', (e) => {
+  save.skipDialog = e.target.checked; persist();
+});
+document.getElementById('set-hidemap').addEventListener('change', (e) => {
+  save.minimapHidden = e.target.checked; persist();
+});
+document.getElementById('set-tut-replay').addEventListener('click', () => {
+  save.tutorialDone = false; persist();
+  alert('Tutorial visas vid nästa spelstart.');
+});
+const _setAutoaim = document.getElementById('set-autoaim');
+if (_setAutoaim) {
+  _setAutoaim.addEventListener('change', (e) => {
+    save.autoaim = e.target.checked; persist();
+  });
+}
+const _setFirejoy = document.getElementById('set-firejoy');
+if (_setFirejoy) {
+  _setFirejoy.addEventListener('change', (e) => {
+    save.firejoy = e.target.checked; persist();
+  });
+}
+
+// Vapen → emoji för fire-knapp
+const WEAPON_ICONS = {
+  fists: '👊', knuckles: '👊', boxgloves: '🥊', tonfa: '🥢',
+  bat: '🏏', sledge: '🔨', mace: '⚒️', baton: '🥢',
+  knife: '🔪', throwknife: '🔪', sickle: '🪓',
+  axe: '🪓', machete: '⚔️', katana: '⚔️', glaive: '⚔️', spear: '🔱',
+  whip: '🪢', shuriken: '⭐',
+  lightsaber: '✨', energysword: '✨',
+  pistol: '🔫', revolver: '🔫', shotgun: '🔫',
+  burstpistol: '🔫', smg: '🔫', rifle: '🔫', sniper: '🎯',
+  bow: '🏹', crossbow: '🏹',
+  grenade: '💣', rocket: '🚀',
+  minigun: '⚡', flame: '🔥', plasma: '☄️',
+  tesla: '⚡', frost: '❄️', sonic: '📢',
+  railgun: '⚡', blackhole: '🌀',
+  drone: '🤖', timestop: '⏱️', boomerang: '🪃', mindcontrol: '🧠',
+  pullwhip: '🪢',
+};
+function getWeaponIcon(id) { return WEAPON_ICONS[id] || '🔫'; }
+
+function updateFireButtonIcon() {
+  if (!fireBtn || !state.player) return;
+  fireBtn.textContent = getWeaponIcon(state.player.weaponId);
+}
+
+function renderWeaponMenu() {
+  weaponMenuGrid.innerHTML = '';
+  // bara ägda vapen, sorterade efter typ + pris
+  const owned = WEAPONS.filter(w => save.owned.includes(w.id));
+  owned.sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'melee' ? -1 : 1;
+    return a.price - b.price;
+  });
+  for (const w of owned) {
+    const cat = weaponCategory(w);
+    const equipped = save.equipped === w.id;
+    const div = document.createElement('div');
+    div.className = 'wmenu-item' + (equipped ? ' equipped' : '');
+    let stats = '';
+    // stat-bars (skala 0-1 baserat på typiska max-värden)
+    const dmgMax = w.type === 'melee' ? 100 : 200;
+    const dmg = Math.min(1, w.dmg * (w.pellets || 1) / dmgMax);
+    const rateMax = 1500;
+    const fireRate = Math.min(1, (60000 / w.rate) / 12); // shots per sec normaliserad
+    const rangeOrSpeed = w.type === 'melee' ? Math.min(1, (w.range || 40) / 100) : Math.min(1, (w.speed || 800) / 1500);
+    stats = `
+      <div class="stat-bar"><span class="label">Skada</span><div class="bar"><div class="bar-fill" style="width:${dmg*100}%"></div></div></div>
+      <div class="stat-bar"><span class="label">Snabbhet</span><div class="bar"><div class="bar-fill" style="width:${fireRate*100}%"></div></div></div>
+      <div class="stat-bar"><span class="label">${w.type === 'melee' ? 'Räckv' : 'Hast'}</span><div class="bar"><div class="bar-fill" style="width:${rangeOrSpeed*100}%"></div></div></div>
+    `;
+    const tags = [];
+    if (w.pierce) tags.push('🎯');
+    if (w.explosive) tags.push('💥');
+    if (w.burn) tags.push('🔥');
+    if (w.chain) tags.push('⚡');
+    if (w.slow) tags.push('❄');
+    if (w.knockback) tags.push('💢');
+    div.innerHTML = `
+      ${equipped ? '<div class="equipped-badge">✓</div>' : ''}
+      <div class="wname">${w.name}</div>
+      <span class="wtype ${cat}">${cat.toUpperCase()}</span>
+      ${stats}
+      ${tags.length ? '<div style="margin-top:6px;font-size:14px;letter-spacing:3px;">'+tags.join(' ')+'</div>' : ''}
+    `;
+    div.addEventListener('click', () => {
+      equip(w.id);
+      renderWeaponMenu();
+    });
+    weaponMenuGrid.appendChild(div);
+  }
+}
+
+// ============================================================
+// VAPEN-LOGIK
+// ============================================================
+function equip(id) {
+  if (!save.owned.includes(id)) return;
+  save.equipped = id;
+  if (state.player) {
+    state.player.weaponId = id;
+    const magBonus = 1 + (save.upgrades.ammo || 0) * 0.20;
+    const baseMag = W_BY_ID[id].mag || 0;
+    state.player.ammo = Math.floor(baseMag * magBonus);
+    state.player.reloading = false;
+  }
+  if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+  updateHUD();
+}
+function effectiveMag(weaponId) {
+  const baseMag = W_BY_ID[weaponId].mag || 0;
+  const magBonus = 1 + (save.upgrades.ammo || 0) * 0.20;
+  return Math.floor(baseMag * magBonus);
+}
+
+function switchWeapon(dir) {
+  const owned = save.owned;
+  if (owned.length <= 1) return;
+  const i = owned.indexOf(save.equipped);
+  const next = owned[(i + dir + owned.length) % owned.length];
+  equip(next);
+}
+
+function startReload() {
+  const p = state.player; if (!p) return;
+  const w = W_BY_ID[p.weaponId];
+  if (w.type !== 'gun' || p.reloading) return;
+  if (p.ammo === effectiveMag(p.weaponId)) return;
+  p.reloading = true;
+  p.reloadStart = performance.now();
+  Audio.reloadStart();
+}
+
+function tryShoot(now) {
+  const p = state.player;
+  const w = W_BY_ID[p.weaponId];
+  // Stark-melee perk
+  const meleeMul = (w.type === 'melee' && hasPerk('fastmelee')) ? 0.70 : 1;
+  if (now - p.lastShot < w.rate * meleeMul) return;
+
+  // Adrenalin perk
+  const adrenaline = hasPerk('adrenalin') && p.hp < p.maxHp * 0.3;
+  const tempDmg = (p.tempDmgUntil && performance.now() < p.tempDmgUntil) ? 2 : 1;
+  const adrenalineDmg = (adrenaline ? 1.20 : 1) * tempDmg;
+  // Tystgångare första-skott bonus
+  const stealthBonus = (p.firstShotBonus && (p.shotsThisStage || 0) === 0) ? 1.5 : 1;
+  if (p.firstShotBonus) p.shotsThisStage = (p.shotsThisStage || 0) + 1;
+
+  if (w.type === 'melee') {
+    p.lastShot = now;
+    Audio.shootMelee();
+    if (state.weaponsUsedThisStage) state.weaponsUsedThisStage.add(w.id);
+    const ang = p.aimAngle;
+    const reach = w.range * (p.mrangeMul || 1);
+    for (const e of state.enemies) {
+      const dx = e.x - p.x, dy = e.y - p.y;
+      const d = Math.hypot(dx, dy);
+      if (d > reach + e.r) continue;
+      const a = Math.atan2(dy, dx);
+      let diff = Math.abs(((a - ang + Math.PI*3) % (Math.PI*2)) - Math.PI);
+      if (diff < 0.9) {
+        const isCrit = isCheatActive('chozza') ? true : Math.random() < (p.critChance || 0);
+        const isHead = hasPerk('headshot') && Math.random() < 0.15;
+        const ultMul = isCheatActive('ultimate') ? 10 : 1;
+        p.meleeComboTimer = 1.0;
+        const comboCap = hasPerk('berserker') ? 20 : 10;
+        p.meleeCombo = Math.min(comboCap, (p.meleeCombo || 0) + 1);
+        const comboMul = 1 + p.meleeCombo * 0.08;
+        const wLevelMul = weaponLevelDmgBonus(w.id);
+        const dmg = w.dmg * (p.dmgMul || 1) * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 2.5 : 1) * ultMul * comboMul * wLevelMul;
+        damageEnemy(e, dmg, isCrit || isHead);
+        // melee knockback
+        if (p.kbMul && p.kbMul > 1 && d > 0) {
+          e.x += (dx/d) * 8 * (p.kbMul - 1);
+          e.y += (dy/d) * 8 * (p.kbMul - 1);
+        }
+      }
+    }
+    spawnSlash(p.x, p.y, ang, reach, w.color);
+    return;
+  }
+
+  // gun
+  if (p.reloading) return;
+  const dailyMod = state.dailyModifier ? state.dailyModifier.id : null;
+  const ammoCost = w.ammoCost || 1;
+  // Penetrera/Ultimate = ingen reload
+  const noReloadCheat = isCheatActive('penetrera') || isCheatActive('ultimate');
+  if (dailyMod !== 'no_reload' && !noReloadCheat) {
+    if (p.ammo < ammoCost) { startReload(); return; }
+    p.ammo -= ammoCost;
+  }
+  p.lastShot = now;
+  // SFX per vapenkategori
+  if (w.explosive || w.id === 'rocket' || w.id === 'sledge') Audio.shootHeavy();
+  else if (w.style === 'plasma' || w.style === 'tesla' || w.style === 'frost' || w.style === 'flame' || w.style === 'sonic' || w.id === 'railgun' || w.id === 'blackhole') Audio.shootEnergy();
+  else Audio.shootGun();
+  state.weaponUsage = state.weaponUsage || {};
+  state.weaponUsage[w.id] = (state.weaponUsage[w.id] || 0) + 1;
+  if (state.weaponsUsedThisStage) state.weaponsUsedThisStage.add(w.id);
+  const pellets = w.pellets || 1;
+  const burstCount = w.burstCount || 1;
+  const burstDelay = w.burstDelay || 0;
+  for (let burst = 0; burst < burstCount; burst++) {
+    setTimeout(() => spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus), burst * burstDelay);
+  }
+  if (p.ammo <= 0) startReload();
+  updateHUD();
+}
+
+function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
+  if (state.mode !== 'playing') return;
+  // Drone-pistol summonar drone (max 1)
+  if (w.summonsDrone && (!state.drone || state.drone.dead)) {
+    state.drone = {
+      x: p.x + 30, y: p.y, vx: 0, vy: 0,
+      angle: 0, lastShot: 0, alive: true,
+    };
+  }
+  // Time-stop pistol fryser fiender
+  if (w.timeStopMs) {
+    state.timeStopUntil = performance.now() + w.timeStopMs;
+  }
+  // Mind-control: skjut första närmsta fiende = blir alierad
+  if (w.style === 'mindctrl') {
+    let target = null, bestD = 999;
+    for (const e of state.enemies) {
+      if (e.dead || e.isBoss || e.mindControlled) continue;
+      const d = Math.hypot(e.x - p.x, e.y - p.y);
+      if (d < bestD) { bestD = d; target = e; }
+    }
+    if (target) {
+      target.mindControlled = true;
+      target.mindControlUntil = performance.now() + w.mindControlMs;
+      target.color = '#ff5aff';
+    }
+    return;
+  }
+  // Shell ejection (för pistols/rifles, inte melee/explosiva)
+  if (w.type === 'gun' && !['rocket','grenade','flame','minigun','railgun','blackhole','plasma'].includes(w.id)) {
+    const ejAng = p.aimAngle + Math.PI/2 + (Math.random() - 0.5) * 0.5;
+    const ejSpeed = 80 + Math.random() * 60;
+    state.particles.push({
+      x: p.x + Math.cos(p.aimAngle) * 4,
+      y: p.y + Math.sin(p.aimAngle) * 4,
+      vx: Math.cos(ejAng) * ejSpeed,
+      vy: Math.sin(ejAng) * ejSpeed - 30,
+      life: 0.6, color: '#dca838', r: 1.5,
+    });
+  }
+  // Cheat-multipliers
+  const cheatChozza = isCheatActive('chozza');
+  const cheatPen = isCheatActive('penetrera');
+  const cheatUlt = isCheatActive('ultimate');
+  const speedBonus = (cheatPen ? 1.5 : 1) * (cheatUlt ? 1.5 : 1);
+  const ultDmgMul = cheatUlt ? 10 : 1;
+  for (let i = 0; i < pellets; i++) {
+    const spread = (Math.random() - 0.5) * 2 * (w.spread || 0);
+    const ang = p.aimAngle + spread;
+    const speed = w.speed * (p.bspeedMul || 1) * speedBonus;
+    const isCrit = cheatChozza ? true : Math.random() < (p.critChance || 0);
+    const isHead = hasPerk('headshot') && Math.random() < 0.15;
+    state.bullets.push({
+      x: p.x + Math.cos(ang)*p.r, y: p.y + Math.sin(ang)*p.r,
+      vx: Math.cos(ang)*speed, vy: Math.sin(ang)*speed,
+      dmg: w.dmg * (p.dmgMul || 1) * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 2.5 : 1) * ultDmgMul * weaponLevelDmgBonus(w.id),
+      life: w.style === 'flame' ? 0.5 : (w.style === 'boomerang' ? 2.5 : 1.6),
+      r: isCrit ? 5 : (w.style === 'flame' ? 6 : 4),
+      color: (isCrit || isHead || cheatChozza) ? '#ffeb3b' : w.color,
+      hostile: false,
+      pierce: cheatPen || cheatUlt || !!w.pierce,
+      explosive: (w.explosive || 0) * (p.explMul || 1),
+      crit: isCrit || isHead,
+      style: w.style,
+      burn: w.burn || 0,
+      chain: w.chain || 0,
+      slow: w.slow || 0,
+      knockback: (w.knockback || 0) * (p.kbMul || 1),
+      pullRadius: w.pullRadius || 0,
+      pullsEnemy: w.pullsEnemy || false,
+      returns: w.returns || false,
+      returnTimer: 0,
+      origin: { x: p.x, y: p.y },
+      bounced: false,
+      cheatPen,
+      cheatUlt,
+    });
+  }
+  spawnParticles(p.x + Math.cos(p.aimAngle)*p.r, p.y + Math.sin(p.aimAngle)*p.r, w.color, 4, 90);
+}
+
+function damageEnemy(e, dmg, isCrit) {
+  // Boss weak point — om träff i framsida (mot spelaren) inom 40% av radien = +200% dmg
+  if (e.isBoss && state.player) {
+    const dx = state.player.x - e.x, dy = state.player.y - e.y;
+    const ang = Math.atan2(dy, dx);
+    const facingDiff = Math.abs(((ang - (e.facing || 0) + Math.PI*3) % (Math.PI*2)) - Math.PI);
+    if (facingDiff < 0.4) {
+      dmg *= 3;
+      isCrit = true;
+      // weak point particles
+      state.particles.push({
+        x: e.x + Math.cos(ang) * e.r * 0.6,
+        y: e.y + Math.sin(ang) * e.r * 0.6,
+        vx: 0, vy: 0, life: 0.4, color: '#ff5a3a', r: 12, isExplosion: true,
+      });
+    }
+  }
+  e.hp -= dmg;
+  e.flashUntil = performance.now() + 80;
+  // Stagger — stora träffar staggar fienden 0.5s
+  if (dmg > 50 && !e.isBoss) {
+    e.staggerUntil = performance.now() + 500;
+  }
+  // Track max single-shot damage for 'oneshot' achievement
+  if (e.isBoss && dmg > (state.maxBossDmgThisStage || 0)) {
+    state.maxBossDmgThisStage = dmg;
+  }
+  if (isCrit) {
+    Audio.hitCrit();
+    state.critsThisRun = (state.critsThisRun || 0) + 1;
+    save.stats.totalCrits = (save.stats.totalCrits || 0) + 1;
+  } else Audio.hit();
+  if (isCrit) {
+    triggerHitStop(40);
+    triggerShake(3, 0.1);
+    state.particles.push({
+      x: e.x, y: e.y - e.r - 10, vx: 0, vy: -40,
+      life: 0.7, color: '#ffeb3b', r: 0, isCritText: true, text: 'CRIT!',
+    });
+  }
+  // Damage number (flytande över fienden)
+  spawnDamageNumber(e.x, e.y - e.r, Math.round(dmg), isCrit);
+  if (e.hp <= 0) killEnemy(e);
+}
+
+function maybeChatter(e, lines) {
+  const now = performance.now();
+  if (e.lastChatter && now - e.lastChatter < 2000) return;
+  e.lastChatter = now;
+  const text = lines[Math.floor(Math.random() * lines.length)];
+  state.particles.push({
+    x: e.x, y: e.y - e.r - 6, vx: 0, vy: -25,
+    life: 1.0, r: 0,
+    color: '#ffd54a',
+    isChatter: true, text, size: 11,
+  });
+}
+
+function spawnDamageNumber(x, y, dmg, isCrit) {
+  // Maxa 5 samtidiga damage numbers — släng äldsta
+  const existing = state.particles.filter(p => p.isDamageNumber);
+  if (existing.length >= 5) {
+    existing[0].life = 0;
+  }
+  state.particles.push({
+    x: x + (Math.random() - 0.5) * 12, y, vx: (Math.random() - 0.5) * 30, vy: -60,
+    life: 0.8, r: 0,
+    color: isCrit ? '#ffeb3b' : '#fff',
+    isDamageNumber: true,
+    text: isCrit ? dmg + '!' : '' + dmg,
+    size: isCrit ? 18 : 13,
+  });
+}
+
+function killEnemy(e) {
+  e.dead = true;
+  const p = state.player;
+  const goldMul = p ? (p.goldMul || 1) : 1;
+  const goldGained = Math.round(e.gold * goldMul);
+  state.goldThisRun += goldGained;
+  save.gold += goldGained;
+  state.killsThisWave++;
+  state.killsThisRun = (state.killsThisRun || 0) + 1;
+  state.totalKills = (state.totalKills || 0) + 1;
+  save.stats.totalKills++;
+  // Vapen-XP — det vapen som var equippat när fienden dog
+  if (p && p.weaponId) {
+    addWeaponXp(p.weaponId, e.isBoss ? 50 : (e.gold > 12 ? 3 : 1));
+  }
+  save.stats.totalGold = (save.stats.totalGold || 0) + goldGained;
+  if (e.isBoss) save.stats.bossKills++;
+  Achievements.check();
+  spawnParticles(e.x, e.y, e.color, 10, 140);
+  Audio.kill();
+  if (e.gold >= 10) Audio.goldPickup();
+  // Ultimate cheat: massive explosion at kill
+  if (isCheatActive('ultimate')) {
+    explode(e.x, e.y, 200, 100, true);
+    triggerShake(15, 0.3);
+  }
+  // Gold-attraction-trail (3 mynt-partiklar flyger uppåt)
+  if (goldGained > 0 && getQualityMul() > 0.5) {
+    for (let i = 0; i < 3; i++) {
+      state.particles.push({
+        x: e.x + (Math.random()-0.5)*10,
+        y: e.y + (Math.random()-0.5)*10,
+        vx: (Math.random()-0.5) * 80,
+        vy: -120 - Math.random() * 60,
+        life: 0.7,
+        color: '#ffd54a', r: 2.5,
+        isGoldCoin: true,
+      });
+    }
+  }
+  // Killstreak — räknar kills inom 3s av varandra
+  const now = performance.now();
+  if (!state.killstreak || now - state.lastKillTime > 3000) state.killstreak = 0;
+  state.killstreak++;
+  state.lastKillTime = now;
+  if (state.killstreak >= 3) showKillstreakBanner(state.killstreak);
+  if (state.killstreak >= 10) Achievements.unlock('streak10');
+  if (state.killstreak >= 20) Achievements.unlock('streak20');
+  // Blod-puddel som death-animation
+  state.particles.push({
+    x: e.x, y: e.y, vx: 0, vy: 0, life: 3.5, color: 'rgba(80,0,0,0.7)',
+    r: e.r * 0.9, isBloodPool: true,
+  });
+  // Vampyrism perk
+  if (p && hasPerk('vampire')) {
+    p.hp = Math.min(p.maxHp, p.hp + 4);
+  }
+  // Drop-chans (mer från större fiender)
+  const dropChance = e.isBoss ? 1.0 : (e.gold > 15 ? 0.18 : 0.08);
+  if (Math.random() < dropChance) {
+    const r = Math.random();
+    let type;
+    if (e.isBoss) {
+      // Boss droppar alltid temp_dmg + extra
+      spawnPickup(e.x - 20, e.y, 'temp_dmg');
+      spawnPickup(e.x + 20, e.y, 'hp');
+      spawnPickup(e.x, e.y + 20, 'ammo');
+    } else if (p && p.hp / p.maxHp < 0.5 && r < 0.4) {
+      type = 'hp';
+    } else if (r < 0.3 && p && p.weaponId !== 'fists') {
+      type = 'ammo';
+    } else if (r < 0.7) {
+      type = 'gold';
+    } else {
+      type = 'temp_dmg';
+    }
+    if (type) spawnPickup(e.x, e.y, type);
+  }
+  // Kraftbrand — sprid burn till närmsta fiende
+  if (hasPerk('firespread') && e.burnUntil && performance.now() < e.burnUntil) {
+    let best = null, bestD = 220;
+    for (const other of state.enemies) {
+      if (other === e || other.dead) continue;
+      const d = Math.hypot(other.x - e.x, other.y - e.y);
+      if (d < bestD) { bestD = d; best = other; }
+    }
+    if (best) {
+      best.burnUntil = performance.now() + 2200;
+      best.burnDps = Math.max(best.burnDps || 0, e.burnDps || 4);
+      // visuell flame-spridning
+      state.particles.push({
+        x: e.x, y: e.y, vx: 0, vy: 0, life: 0.25, color: '#ff8a30', r: 0,
+        isLightning: true, x2: best.x, y2: best.y,
+      });
+    }
+  }
+  if (e.isBoss) {
+    state.bossAlive = false;
+    spawnParticles(e.x, e.y, '#ffeb3b', 30, 220);
+    Audio.bossDeath();
+    Music.setIntensity('active'); // tysta boss-spänning
+    triggerShake(25, 1.2);
+    triggerHitStop(150); // dramatisk paus
+    // Slow-mo + zoom på boss-död
+    state.bossDeathCinematic = {
+      x: e.x, y: e.y, startTime: performance.now(), duration: 1500, name: e.name,
+    };
+    // Multipla shockwaves
+    state.particles.push({ x: e.x, y: e.y, vx:0, vy:0, life: 0.6, color: '#ffeb3b', r: e.r * 4, isExplosion: true });
+    setTimeout(() => state.particles && state.particles.push({ x: e.x, y: e.y, vx:0, vy:0, life: 0.5, color: '#fff', r: e.r * 6, isExplosion: true }), 200);
+    setTimeout(() => state.particles && state.particles.push({ x: e.x, y: e.y, vx:0, vy:0, life: 0.4, color: '#ff5a3a', r: e.r * 8, isExplosion: true }), 400);
+    // Andra bossen i sekvens?
+    const stage = getStage(state.wave);
+    if (stage.bossKey2 && state.bossSequenceStep === 1) {
+      setTimeout(() => spawnSecondBoss(stage), 1200);
+    } else {
+      state.bossDefeated = true;
+      console.log('[GAME] Boss dead — väntar på att alla minions är döda');
+    }
+  }
+  updateHUD();
+}
+
+// ============================================================
+// STAGE EVENTS
+// ============================================================
+function triggerStageEvent(stage, eventType) {
+  const p = state.player;
+  showToast(eventNames[eventType] || '!');
+  if (eventType === 'release_dogs') {
+    // 4 hundar spawnar från sidorna
+    for (let i = 0; i < 4; i++) {
+      const side = i < 2 ? 60 : stage.worldW - 60;
+      const y = 400 + i * 200;
+      const e = makeEnemy('dog', side, y);
+      state.enemies.push(e);
+    }
+  }
+  if (eventType === 'alarm') {
+    state.alarmUntil = performance.now() + 4000;
+    // 3 förstärkningar spawnar nära portalen
+    for (let i = 0; i < 3; i++) {
+      const e = makeEnemy('shooter', stage.goalPos.x + (i-1)*60, stage.goalPos.y + 200);
+      state.enemies.push(e);
+    }
+  }
+  if (eventType === 'open_doors') {
+    // Ninjor spawnar genom korridor-dörrar
+    state.alarmUntil = performance.now() + 2500;
+    for (let i = 0; i < 4; i++) {
+      const x = i % 2 === 0 ? 250 : stage.worldW - 250;
+      const y = 600 + i * 300;
+      const e = makeEnemy('ninja', x, y);
+      state.enemies.push(e);
+    }
+  }
+  if (eventType === 'barracks_open') {
+    // Vakter ut ur barackerna (4 hörn)
+    const corners = [
+      { x: 240, y: 220 }, { x: stage.worldW - 240, y: 220 },
+      { x: 240, y: stage.worldH - 220 }, { x: stage.worldW - 240, y: stage.worldH - 220 },
+    ];
+    for (const c of corners) {
+      state.enemies.push(makeEnemy('brute', c.x, c.y));
+    }
+  }
+  if (eventType === 'fuel_blast') {
+    // Bränsletruck exploderar — eldspår på golvet
+    const cx = stage.worldW * 0.6, cy = stage.worldH / 2;
+    explode(cx, cy, 140, 0, true); // visuell
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI * 2;
+      state.flameTrails.push({
+        x: cx + Math.cos(a) * 60, y: cy + Math.sin(a) * 60,
+        r: 50, life: 6, dps: 18,
+      });
+    }
+    state.alarmUntil = performance.now() + 1500;
+  }
+  if (eventType === 'barrel_chain') {
+    // Kedjereaktion av exploderande fat
+    let delay = 0;
+    for (const d of stageState.decorations) {
+      if (d.kind === 'fuel_drum' && Math.random() < 0.4) {
+        const dx = d.x, dy = d.y;
+        setTimeout(() => {
+          if (state.mode !== 'playing') return;
+          explode(dx, dy, 90, 25, true);
+        }, delay);
+        delay += 180;
+      }
+    }
+  }
+  if (eventType === 'crane_drop') {
+    // Container faller från kran — krockar med golv vid slutet
+    const cx = stage.worldW / 2 + 200, cy = stage.worldH * 0.4;
+    state.craneDropAnim = { x: cx, y: cy, startTime: performance.now(), duration: 1400 };
+    setTimeout(() => {
+      if (state.mode !== 'playing') return;
+      explode(cx, cy, 140, 0, true);
+      // Ny cover spawnas
+      stageState.buildings.push({ x: cx - 50, y: cy - 30, w: 100, h: 60, kind: 'container' });
+    }, 1400);
+  }
+  if (eventType === 'lights_flicker') {
+    state.lightsFlickerUntil = performance.now() + 5000;
+    // 4 fiender spawnar i mörkret
+    for (let i = 0; i < 4; i++) {
+      const e = makeEnemy('ninja', 200 + Math.random()*(stage.worldW-400), 300 + Math.random()*(stage.worldH-600));
+      state.enemies.push(e);
+    }
+  }
+  if (eventType === 'jimmy_screens') {
+    // Alla skärmar visar Jimmys ansikte
+    state.jimmyScreensUntil = performance.now() + 8000;
+    state.alarmUntil = performance.now() + 3000;
+  }
+}
+const eventNames = {
+  release_dogs: 'HUNDARNA SLÄPPS!',
+  alarm: '⚠ LARMET GÅR ⚠',
+  open_doors: 'NINJOR I KORRIDOREN!',
+  barracks_open: 'BARACKERNA TÖMS!',
+  fuel_blast: '💥 BRÄNSLETRUCK!',
+  barrel_chain: '💥 KEDJEREAKTION!',
+  crane_drop: '⚠ KRANEN SLÄPPER!',
+  lights_flicker: '⚡ LJUSEN SLOCKNAR',
+  jimmy_screens: 'JIMMY SER DIG',
+};
+
+// ============================================================
+// PARTIKLAR / FX
+// ============================================================
+function getQualityMul() {
+  const q = save.quality || 'medium';
+  if (q === 'low') return 0.4;
+  if (q === 'high') return 1.4;
+  return 1.0;
+}
+function spawnParticles(x, y, color, count, speed) {
+  const adjusted = Math.max(1, Math.round(count * getQualityMul()));
+  for (let i = 0; i < adjusted; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = speed * (0.4 + Math.random() * 0.8);
+    state.particles.push({
+      x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
+      life: 0.4 + Math.random()*0.4, color,
+      r: 2 + Math.random()*2,
+    });
+  }
+}
+function spawnSlash(x, y, ang, reach, color) {
+  state.particles.push({
+    x, y, vx:0, vy:0, life: 0.18, color,
+    r: reach, isSlash: true, ang,
+  });
+}
+function explode(x, y, radius, dmg, friendly) {
+  spawnParticles(x, y, '#ffb84a', 24, 280);
+  state.particles.push({ x, y, vx:0, vy:0, life: 0.35, color: '#ffb84a', r: radius, isExplosion: true });
+  Audio.explosion();
+  triggerShake(12, 0.4);
+  if (friendly) {
+    for (const e of state.enemies) {
+      const d = Math.hypot(e.x - x, e.y - y);
+      if (d <= radius + e.r) {
+        const falloff = 1 - d / (radius + e.r);
+        damageEnemy(e, dmg * Math.max(0.3, falloff));
+      }
+    }
+  } else {
+    const p = state.player;
+    const d = Math.hypot(p.x - x, p.y - y);
+    if (d <= radius + p.r) {
+      const falloff = 1 - d / (radius + p.r);
+      // Sprängskydd-perk halverar
+      const safeMul = hasPerk('blastsafe') ? 0.5 : 1;
+      damagePlayer(dmg * Math.max(0.3, falloff) * safeMul);
+    }
+  }
+}
+
+function damagePlayer(amount) {
+  const p = state.player;
+  if (p.invuln > 0) return;
+  // Ultimate cheat = odödlig
+  if (isCheatActive('ultimate')) return;
+  // Spectator-mode (redan död) — ta inte mer skada
+  if (p.spectating) return;
+  p.hp -= amount;
+  p.flashUntil = performance.now() + 120;
+  p.invuln = 0.3;
+  Audio.playerHurt();
+  triggerShake(8, 0.3);
+  triggerVibrate(40);
+  if (p.hp <= 0) {
+    // Andra chans perk
+    if (p.reviveAvailable) {
+      p.reviveAvailable = false;
+      p.hp = p.maxHp * 0.5;
+      p.invuln = 2.5;
+      Audio.revive();
+      Achievements.unlock('survive');
+      p.flashUntil = performance.now() + 600;
+      // visuell revive-effekt
+      state.particles.push({
+        x: p.x, y: p.y, vx:0, vy:0, life: 0.7, color: '#aa5aff', r: 100, isExplosion: true,
+      });
+      showToast('ANDRA CHANS!');
+      updateHUD();
+      return;
+    }
+    // Last-laugh perk: explosion vid död
+    if (hasPerk('lastlaugh')) {
+      explode(p.x, p.y, 250, 200, true);
+      triggerShake(20, 0.6);
+    }
+    p.hp = 0;
+    enterDeathState();
+  }
+  updateHUD();
+}
+
+// DÖD-SYSTEM
+function enterDeathState() {
+  const p = state.player;
+  if (!p) return;
+  // Skapa kropp på dödsplatsen
+  state.deadBody = {
+    x: p.x, y: p.y, reviveTimer: 0, revivedBy: null,
+    color: getCurrentCostume().shirt || '#222',
+  };
+  p.spectating = true;
+  p.specTarget = null; // välj live-player att speca
+  showToast('💀 DU DOG');
+  // I coop: vänta på revive eller stage-clear
+  if (Coop.active && Coop.players.size > 0) {
+    // hitta första live partner att speca
+    for (const [pid, partner] of Coop.players) {
+      if (partner.hp > 0) { p.specTarget = pid; break; }
+    }
+  } else {
+    // Single-player: hoppa till nästa stage efter 3s
+    setTimeout(() => {
+      if (!state.player || !state.player.spectating) return;
+      state.bossDefeated = true; // tvinga stage-complete
+      state.deadBody = null;
+      state.player.spectating = false;
+      state.player.hp = state.player.maxHp * 0.3; // återvänd med 30% HP
+      showToast('REZ — NÄSTA STAGE');
+    }, 3000);
+  }
+}
+
+function updateDeathState(dt) {
+  if (!state.deadBody || !state.player) return;
+  const body = state.deadBody;
+  const p = state.player;
+  // Update spec-camera följer specTarget i coop
+  if (p.spectating && p.specTarget && Coop.players.has(p.specTarget)) {
+    const target = Coop.players.get(p.specTarget);
+    p.x += (target.x - p.x) * 0.1;
+    p.y += (target.y - p.y) * 0.1;
+  }
+  // Coop: kolla om någon partner står på kroppen i 5 sek
+  if (Coop.active) {
+    let anyReviving = false;
+    for (const [pid, partner] of Coop.players) {
+      if (partner.hp <= 0) continue;
+      const d = Math.hypot(partner.x - body.x, partner.y - body.y);
+      if (d < 50) {
+        anyReviving = true;
+        body.reviveTimer += dt;
+        body.revivedBy = pid;
+        if (body.reviveTimer >= 5) {
+          // Återuppliv!
+          p.x = body.x; p.y = body.y;
+          p.hp = p.maxHp * 0.5;
+          p.spectating = false;
+          p.specTarget = null;
+          p.invuln = 2;
+          state.deadBody = null;
+          Audio.revive();
+          showToast('💚 ÅTERUPPLIVAD');
+          spawnParticles(p.x, p.y, '#5aff5a', 30, 220);
+        }
+        break;
+      }
+    }
+    if (!anyReviving) body.reviveTimer = Math.max(0, body.reviveTimer - dt);
+  }
+}
+
+function drawDeadBody() {
+  if (!state.deadBody) return;
+  const body = state.deadBody;
+  const x = body.x - state.camera.x;
+  const y = body.y - state.camera.y;
+  const t = performance.now();
+  // Liggande kropp
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.beginPath(); ctx.ellipse(x + 4, y + 8, 22, 8, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = body.color;
+  ctx.beginPath(); ctx.ellipse(x, y, 18, 11, 0.3, 0, Math.PI*2); ctx.fill();
+  // Blod
+  ctx.fillStyle = 'rgba(120,0,0,0.5)';
+  ctx.beginPath(); ctx.ellipse(x - 2, y + 3, 14, 6, 0.3, 0, Math.PI*2); ctx.fill();
+  // Revive-indikator
+  if (body.reviveTimer > 0) {
+    const frac = body.reviveTimer / 5;
+    ctx.strokeStyle = '#5aff5a';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#5aff5a'; ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(x, y, 28, -Math.PI/2, -Math.PI/2 + frac * Math.PI*2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#5aff5a';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('REVIVING ' + Math.ceil(5 - body.reviveTimer) + 's', x, y - 36);
+  } else {
+    // Spec-info
+    ctx.fillStyle = '#ff5a3a';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    ctx.fillText('💀 DÖD', x, y - 20);
+    if (Coop.active && Coop.playerCount() > 1) {
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillText('Stå nära 5s för revive', x, y - 36);
+    }
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+}
+
+// ============================================================
+// SPAWNING / NIVÅER
+// ============================================================
+function startWave(n) {
+  loadStage(n);
+}
+
+function loadStage(n) {
+  const stage = getStage(n);
+  if (!stage) { endGame(true); return; }
+  state.wave = n;
+  state.killsThisWave = 0;
+  state.bossAlive = false;
+  state.enemies = [];
+  state.bullets = [];
+  state.pickups = [];
+  state.particles = [];
+  state.gasClouds = [];
+  state.flameTrails = [];
+
+  // Zon-system
+  state.currentZone = 0;
+  state.zoneState = 'spawning';
+  state.eventTriggered = false;
+  state.bossSequenceStep = 0;
+  state.bossDefeated = false;
+  state._stageClearShown = false;
+  state._waveCompleting = false;
+
+  // Uppdatera världsdimensioner per stage
+  WORLD.w = stage.worldW;
+  WORLD.h = stage.worldH;
+
+  // Generera per-stage layout
+  buildStageLayout(stage);
+
+  // Teleportera spelaren till stage-spawn
+  if (state.player) {
+    state.player.x = stage.spawnPos.x;
+    state.player.y = stage.spawnPos.y;
+    state.player.invuln = 1.0;
+    state.player.shotsThisStage = 0;
+    // Andra chans återställs INTE per stage längre — bara per RUN (i startGame)
+  }
+  state.camera.x = state.player.x - viewW/2;
+  state.camera.y = state.player.y - viewH/2;
+
+  state.fadeIn = { startTime: performance.now(), duration: 500 };
+  state.bossIntro = null;
+
+  // Tracking-flags för achievements
+  state.stageStartTime = performance.now();
+  state.shopBoughtThisStage = 0;
+  state.regenedThisStage = 0;
+  state.weaponsUsedThisStage = new Set();
+  state.maxBossDmgThisStage = 0;
+  state.killstreak = 0;
+  killstreakBanner = { text: '', timer: 0, count: 0 };
+  // Sandbox: spawna 5 dummies som re-spawnar
+  if (stage.sandbox) {
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI * 2;
+      const e = makeEnemy('grunt', stage.spawnPos.x + Math.cos(a) * 250, stage.spawnPos.y + Math.sin(a) * 250);
+      e.hp = 99999; e.maxHp = 99999; e.dmg = 0; e.speed = 0;
+      e.dummy = true;
+      state.enemies.push(e);
+    }
+  }
+  // Starta första zonen
+  startZone(stage, 0);
+  state.waveActive = true;
+  showToast(`STAGE ${n} — ${stage.name}`);
+  Audio.stageStart();
+  // Starta stage-musik
+  Music.startStage(stage.kind);
+  Music.setIntensity('active');
+  // Story-dialog innan stage (story-mode)
+  showStoryDialog(n);
+  updateHUD();
+}
+
+function startZone(stage, zoneIdx) {
+  const zones = stage.zones || [{ count: 8, pool: ['grunt'] }];
+  if (zoneIdx >= zones.length) {
+    // Klart med alla zoner — spawna boss
+    spawnBoss(stage);
+    return;
+  }
+  const z = zones[zoneIdx];
+  state.currentZone = zoneIdx;
+  state.zoneState = 'spawning';
+  state.enemiesToSpawn = z.count;
+  state.spawnTimer = 0.5;
+  state.eventTriggered = false;
+  state.activeZonePool = z.pool;
+}
+
+function spawnBoss(stage) {
+  state.zoneState = 'boss';
+  const boss = makeBoss(stage.bossKey, stage.goalPos.x, stage.goalPos.y);
+  if (boss) {
+    state.enemies.push(boss);
+    state.bossAlive = true;
+    state.bossSequenceStep = 1;
+    state.bossIntro = { startTime: performance.now(), duration: 2400, name: boss.name, sub: boss.subtitle, entrance: getBossEntrance(boss.bossKey) };
+    boss.entranceUntil = performance.now() + 2400;
+    Audio.bossSpawn();
+    triggerShake(12, 1.0);
+    Music.setIntensity('boss');
+  }
+}
+
+function getBossEntrance(key) {
+  const entrances = {
+    likvakare: 'fade_in',
+    benkrossare: 'stomp',
+    strypare: 'cloak_drop',
+    avrattare: 'stomp',
+    kottkvarn: 'pod_break',
+    askmakare: 'jetpack_drop',
+    lungrivare: 'gas_emerge',
+    skallsprackare: 'shield_slam',
+    sjalaatare: 'teleport_purple',
+    gravgravaren: 'final_descent',
+  };
+  return entrances[key] || 'fade_in';
+}
+
+function spawnSecondBoss(stage) {
+  if (!stage.bossKey2) return;
+  const boss = makeBoss(stage.bossKey2, stage.goalPos.x, stage.goalPos.y);
+  if (boss) {
+    state.enemies.push(boss);
+    state.bossAlive = true;
+    state.bossSequenceStep = 2;
+    state.bossIntro = { startTime: performance.now(), duration: 2200, name: boss.name, sub: boss.subtitle };
+    Audio.bossSpawn();
+    triggerShake(12, 1.0);
+    Music.setIntensity('boss');
+  }
+}
+
+function spawnEnemyAtEdge() {
+  const player = state.player;
+  const stage = getStage(state.wave);
+  const pool = state.activeZonePool || stage.enemyPool || ['grunt'];
+  const type = pool[Math.floor(Math.random() * pool.length)];
+
+  // spawn-pos: någonstans inom stage-bounds, helst närmare goal än player,
+  // ej inuti byggnad, ej för nära player
+  let x = 0, y = 0, ok = false;
+  for (let tries = 0; tries < 14 && !ok; tries++) {
+    // bias mot goal-sidan
+    const t = 0.15 + Math.random() * 0.7;
+    x = stage.spawnPos.x + (stage.goalPos.x - stage.spawnPos.x) * (1 - t)
+      + (Math.random() - 0.5) * stage.worldW * 0.6;
+    y = stage.spawnPos.y + (stage.goalPos.y - stage.spawnPos.y) * (1 - t)
+      + (Math.random() - 0.5) * stage.worldH * 0.4;
+    x = Math.max(40, Math.min(stage.worldW - 40, x));
+    y = Math.max(40, Math.min(stage.worldH - 40, y));
+    const distFromPlayer = Math.hypot(x - player.x, y - player.y);
+    if (distFromPlayer < 320) continue;
+    if (isInsideAnyBuilding(x, y, 18)) continue;
+    ok = true;
+  }
+  if (!ok) return; // skip om vi inte hittar plats
+
+  const e = makeEnemy(type, x, y);
+  const scale = 1 + (state.wave - 1) * 0.10;
+  const diff = getDiffMul();
+  const ngpMul = getNGPMul();
+  // Daily modifier
+  const dailyMod = state.dailyModifier ? state.dailyModifier.id : null;
+  const dailyHpMul = dailyMod === 'reduced_hp' ? 0.85 : 1;
+  const dailySpeedMul = dailyMod === 'fast_enemies' ? 1.5 : 1;
+  // Endless-modifier
+  const stageObj = getStage(state.wave);
+  const endlessMod = stageObj && stageObj.endlessMod;
+  const endlessHpMul = endlessMod && endlessMod.hpMul ? endlessMod.hpMul : 1;
+  const endlessSpeedMul = endlessMod && endlessMod.speedMul ? endlessMod.speedMul : 1;
+  const coopMul = getCoopMultiplier();
+  e.hp = Math.round(e.hp * scale * diff.enemyHp * ngpMul * dailyHpMul * endlessHpMul * coopMul);
+  e.maxHp = e.hp;
+  e.dmg = Math.round(e.dmg * scale * diff.enemyDmg * ngpMul * (1 + (coopMul - 1) * 0.5));
+  e.speed = Math.round(e.speed * dailySpeedMul * endlessSpeedMul);
+  e._origSpeed = e.speed;
+  if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * diff.enemyDmg * ngpMul);
+  state.enemies.push(e);
+}
+
+function isStageComplete() {
+  if (!state.waveActive) return false;
+  if (!state.bossDefeated) return false;
+  // Alla minions måste också vara döda
+  if (state.enemies.length > 0) return false;
+  const stage = getStage(state.wave);
+  if (stage.bossKey2 && state.bossSequenceStep < 2) return false;
+  return true;
+}
+
+function updateZoneProgression(stage) {
+  // FAIL-SAFE: Om boss aldrig spawnat och alla zoner är klara → tvinga spawn efter 3s
+  if (stage && stage.bossKey && state.bossSequenceStep === 0) {
+    const zones = stage.zones || [];
+    const lastZoneDone = state.currentZone >= zones.length - 1;
+    const noEnemies = state.enemies.length === 0 && state.enemiesToSpawn <= 0;
+    if (lastZoneDone && noEnemies) {
+      state._bossFailsafeTimer = (state._bossFailsafeTimer || 0) + 1/60;
+      if (state._bossFailsafeTimer > 3) {
+        state._bossFailsafeTimer = 0;
+        spawnBoss(stage);
+        return;
+      }
+    } else {
+      state._bossFailsafeTimer = 0;
+    }
+  }
+  if (state.zoneState === 'spawning' && state.enemiesToSpawn <= 0) {
+    state.zoneState = 'clearing';
+  }
+  if (state.zoneState === 'clearing' && state.enemies.length === 0) {
+    // Zon clear — kör event om finns, annars nästa zon
+    const zones = stage.zones || [];
+    const z = zones[state.currentZone];
+    if (z && z.event && !state.eventTriggered) {
+      state.eventTriggered = true;
+      triggerStageEvent(stage, z.event);
+      state.zoneState = 'event';
+      state.eventTimer = 1.2; // kort paus innan nästa zon
+    } else {
+      // Nästa zon
+      const next = state.currentZone + 1;
+      if (next < zones.length) {
+        startZone(stage, next);
+      } else if (state.bossSequenceStep === 0) {
+        // Alla vanliga zoner klara — spawna boss
+        spawnBoss(stage);
+      }
+    }
+  }
+  if (state.zoneState === 'event') {
+    state.eventTimer -= 1/60;
+    if (state.eventTimer <= 0) {
+      const next = state.currentZone + 1;
+      if (next < (stage.zones || []).length) {
+        startZone(stage, next);
+      } else if (state.bossSequenceStep === 0) {
+        spawnBoss(stage);
+      }
+    }
+  }
+}
+
+function onWaveComplete() {
+  if (state._waveCompleting) return;
+  state._waveCompleting = true;
+  state.waveActive = false;
+  save.wave = Math.max(save.wave, state.wave + 1);
+  save.highWave = Math.max(save.highWave || 1, state.wave);
+  Audio.zoneClear();
+  console.log('[GAME] Stage ' + state.wave + ' complete');
+  // I coop: host broadcastar event till klienter
+  if (Coop.active && Coop.isHost) {
+    Coop.broadcast({ type: 'event', event: 'stage_complete' });
+  }
+  // Boss rush: extra gold per boss
+  if (getMode() === 'bossrush') {
+    const bonus = state.wave * 100;
+    save.gold += bonus;
+    state.goldThisRun += bonus;
+    showToast('+' + bonus + ' GOLD');
+  }
+  // Achievements: stage-baserade
+  const stageTime = (performance.now() - (state.stageStartTime || 0)) / 1000;
+  const stage = getStage(state.wave);
+  if (stageTime < 60) Achievements.unlock('speedrun');
+  if (state.wave === 1 && state.weaponsUsedThisStage && state.weaponsUsedThisStage.size === 1 && state.weaponsUsedThisStage.has('fists')) {
+    Achievements.unlock('pacifist');
+  }
+  if ((state.regenedThisStage || 0) < 1) Achievements.unlock('noheal');
+  if (state.wave === 5 && (state.shopBoughtThisStage || 0) === 0 && getMode() === 'story') {
+    Achievements.unlock('noshop');
+  }
+  // oneshot Generalen (stage 4 boss)
+  if (state.wave === 4 && state.maxBossDmgThisStage >= 900) {
+    Achievements.unlock('oneshot');
+  }
+  persist();
+  // Stage rank baserat på tid + HP-kvar
+  if (state.player) {
+    const stageTime = (performance.now() - (state.stageStartTime || 0)) / 1000;
+    const hpFrac = state.player.hp / state.player.maxHp;
+    let rank = 'C', rankColor = '#888';
+    if (stageTime < 60 && hpFrac > 0.8) { rank = 'S'; rankColor = '#ffd54a'; }
+    else if (stageTime < 90 && hpFrac > 0.6) { rank = 'A'; rankColor = '#5aff5a'; }
+    else if (stageTime < 120 && hpFrac > 0.4) { rank = 'B'; rankColor = '#5acaff'; }
+    state.lastRank = { rank, rankColor };
+    showAchievementPopup({ icon: rank, name: 'Stage rank: ' + rank });
+  }
+  if (state.wave >= getStageCount()) {
+    // Story-mode vinst — höj NG+ nivå
+    if (getMode() === 'story') {
+      save.ngpLevel = (save.ngpLevel || 0) + 1;
+    }
+    state._waveCompleting = false;
+    endGame(true);
+  } else {
+    setTimeout(() => {
+      try {
+        state._waveCompleting = false;
+        openShop();
+      } catch (e) {
+        console.error('[GAME] openShop error:', e);
+        // Force-fix: hoppa direkt till nästa stage
+        startWave(state.wave + 1);
+      }
+    }, 700);
+  }
+}
+
+// Visa STAGE CLEAR-overlay med manuell FORTSÄTT-knapp
+function showStageClearOverlay() {
+  console.log('[GAME] showStageClearOverlay called');
+  state._stageClearShown = true;
+  try {
+    const overlay = document.getElementById('stage-clear-overlay');
+    if (!overlay) {
+      console.error('[GAME] stage-clear-overlay element MISSING');
+      // Fallback: gå direkt vidare
+      onWaveComplete();
+      return;
+    }
+    // Räkna stats — alla med try-catch så ett fel inte stoppar resten
+    const elapsed = (performance.now() - (state.stageStartTime || 0)) / 1000;
+    const min = Math.floor(elapsed / 60), sec = Math.floor(elapsed % 60);
+    const stage = getStage(state.wave);
+    const setText = (id, txt) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    };
+    setText('sc-subtitle', (stage ? stage.name : '') + ' — ' + state.wave + '/' + getStageCount());
+    setText('sc-time', `${min}:${sec.toString().padStart(2,'0')}`);
+    setText('sc-kills', state.killsThisWave || 0);
+    const rank = state.lastRank ? state.lastRank.rank : (elapsed < 60 ? 'S' : elapsed < 90 ? 'A' : elapsed < 120 ? 'B' : 'C');
+    setText('sc-rank', rank);
+    setText('sc-gold', '💰 ' + (save.gold || 0));
+    const btn = document.getElementById('btn-stage-continue');
+    const wait = document.getElementById('sc-waiting');
+    if (Coop.active && !Coop.isHost) {
+      if (btn) btn.classList.add('hidden');
+      if (wait) wait.classList.remove('hidden');
+    } else {
+      if (btn) btn.classList.remove('hidden');
+      if (wait) wait.classList.add('hidden');
+    }
+    overlay.classList.remove('hidden');
+    try { Audio.victory(); } catch(e) {}
+    console.log('[GAME] Stage clear overlay visible');
+  } catch (e) {
+    console.error('[GAME] showStageClearOverlay error:', e);
+    // Fallback om något går fel: hoppa direkt
+    onWaveComplete();
+  }
+}
+
+document.getElementById('btn-stage-continue').addEventListener('click', () => {
+  Audio.uiClick();
+  document.getElementById('stage-clear-overlay').classList.add('hidden');
+  state._stageClearShown = false;
+  // I coop som host, broadcasta till klienter
+  if (Coop.active && Coop.isHost) {
+    Coop.broadcast({ type: 'event', event: 'stage_complete' });
+  }
+  onWaveComplete();
+});
+
+// ============================================================
+// SHOP
+// ============================================================
+const shopScreen = document.getElementById('shop-screen');
+const shopItems = document.getElementById('shop-items');
+const shopGoldEl = document.getElementById('shop-gold-amount');
+
+function openShop() {
+  state.mode = 'shop';
+  shopScreen.classList.remove('hidden');
+  setShopTab('weapons');
+  renderShop();
+}
+function closeShop() {
+  shopScreen.classList.add('hidden');
+  state.mode = 'playing';
+  if (state.shopFromMidGame) {
+    // Mid-game shop: bara resume, inga advance
+    state.shopFromMidGame = false;
+    return;
+  }
+  // Mellan-stage shop: heala + nästa wave
+  state.player.hp = state.player.maxHp;
+  state.player.ammo = W_BY_ID[state.player.weaponId].mag || 0;
+  state.player.reloading = false;
+  startWave(state.wave + 1);
+}
+
+let shopWeaponCat = 'all';
+function renderShop() {
+  shopGoldEl.textContent = save.gold;
+  shopItems.innerHTML = '';
+  // Sortera vapen efter pris (billigast först), ägda först bland samma pris
+  const sortedWeapons = [...WEAPONS].sort((a, b) => {
+    const aOwned = save.owned.includes(a.id) ? 0 : 1;
+    const bOwned = save.owned.includes(b.id) ? 0 : 1;
+    if (aOwned !== bOwned) return aOwned - bOwned;
+    return (a.price || 0) - (b.price || 0);
+  });
+  for (const w of sortedWeapons) {
+    const cat = weaponCategory(w);
+    if (shopWeaponCat !== 'all' && cat !== shopWeaponCat) continue;
+    const owned = save.owned.includes(w.id);
+    const equipped = save.equipped === w.id;
+    const div = document.createElement('div');
+    div.className = 'shop-item' + (equipped ? ' equipped' : (owned ? ' owned' : ''));
+    let stats = '';
+    if (w.type === 'melee') {
+      stats = `<div class="stat-row"><span>DMG</span><span>${w.dmg}</span></div>
+               <div class="stat-row"><span>RATE</span><span>${(60000/w.rate).toFixed(1)}/s</span></div>
+               <div class="stat-row"><span>RÄCKV</span><span>${w.range}</span></div>`;
+    } else {
+      const dps = (w.dmg * (w.pellets || 1) * (60000 / w.rate)).toFixed(0);
+      stats = `<div class="stat-row"><span>DMG</span><span>${w.dmg}${w.pellets?'×'+w.pellets:''}</span></div>
+               <div class="stat-row"><span>MAG</span><span>${w.mag}</span></div>
+               <div class="stat-row"><span>RATE</span><span>${(60000/w.rate).toFixed(1)}/s</span></div>`;
+    }
+    const tags = [];
+    if (w.pierce) tags.push('🎯 Pierce');
+    if (w.explosive) tags.push('💥 Expl');
+    if (w.burn) tags.push('🔥 Burn');
+    if (w.chain) tags.push('⚡ Chain');
+    if (w.slow) tags.push('❄ Slow');
+    if (w.knockback) tags.push('💢 KB');
+    const lvl = getWeaponLevel(w.id);
+    const lvlPrice = weaponUpgradePrice(w.id);
+    const lvlPips = '<div style="display:flex;gap:2px;margin-top:4px;">' +
+      Array.from({length: WEAPON_UPGRADE_MAX}, (_, i) =>
+        `<div style="width:14px;height:5px;background:${i < lvl ? '#ffd54a' : '#333'};border-radius:1px;"></div>`
+      ).join('') + '</div>';
+    div.innerHTML = `
+      ${equipped ? '<div class="equipped-badge">✓</div>' : ''}
+      <div class="name">${w.name}</div>
+      <span class="wtype ${cat}">${cat.toUpperCase()}</span>
+      <div class="stats">${stats}${tags.length ? '<div style="margin-top:4px;font-size:10px;opacity:0.7;">'+tags.join(' · ')+'</div>' : ''}</div>
+      ${owned ? `<div style="font-size:10px;opacity:0.7;margin-top:4px;">Nivå ${lvl}/${WEAPON_UPGRADE_MAX} (+${lvl*12}% dmg)</div>${lvlPips}` : ''}
+      <div class="price">${owned ? (equipped ? '✓ UTRUSTAD' : 'BÄR') : '💰 ' + w.price}</div>
+      ${owned && lvlPrice !== null ? `<button class="weapon-upgrade-btn" style="width:100%;margin-top:6px;padding:6px 4px;background:linear-gradient(135deg,#3a2a10,#1a1408);color:#ffd54a;border:1px solid #ffd54a;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;">⬆ UPPGRADERA · 💰 ${lvlPrice}</button>` : ''}
+      ${owned && lvlPrice === null ? `<div style="text-align:center;margin-top:6px;color:#5aff5a;font-size:10px;font-weight:700;">⭐ MAX NIVÅ</div>` : ''}
+    `;
+    const upgBtn = div.querySelector('.weapon-upgrade-btn');
+    if (upgBtn) {
+      upgBtn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        if (upgradeWeapon(w.id)) {
+          renderShop();
+        } else {
+          flashShopItem(upgBtn);
+        }
+      });
+    }
+    div.addEventListener('click', () => {
+      if (owned) { equip(w.id); renderShop(); return; }
+      if (save.gold < w.price) { flashShopItem(div); return; }
+      save.gold -= w.price;
+      save.owned.push(w.id);
+      equip(w.id);
+      state.shopBoughtThisStage = (state.shopBoughtThisStage || 0) + 1;
+      Audio.purchase();
+      persist();
+      renderShop();
+    });
+    shopItems.appendChild(div);
+  }
+}
+
+// Kategori-filter
+const shopCategoriesEl = document.getElementById('shop-weapon-categories');
+if (shopCategoriesEl) {
+  shopCategoriesEl.querySelectorAll('.cat-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      shopWeaponCat = btn.dataset.cat;
+      shopCategoriesEl.querySelectorAll('.cat-btn').forEach(b => b.classList.toggle('active', b === btn));
+      renderShop();
+    });
+  });
+}
+function flashShopItem(el) {
+  el.style.background = '#3a1a1a';
+  setTimeout(() => el.style.background = '', 200);
+}
+
+document.getElementById('btn-continue').addEventListener('click', closeShop);
+
+// Shop tabs
+const tabWeapons = document.getElementById('tab-weapons');
+const tabUpgrades = document.getElementById('tab-upgrades');
+const tabPerks = document.getElementById('tab-perks');
+const shopUpgradesEl = document.getElementById('shop-upgrades');
+const shopPerksEl = document.getElementById('shop-perks');
+let shopActiveTab = 'weapons';
+
+function setShopTab(tab) {
+  shopActiveTab = tab;
+  tabWeapons.classList.toggle('active', tab === 'weapons');
+  tabUpgrades.classList.toggle('active', tab === 'upgrades');
+  tabPerks.classList.toggle('active', tab === 'perks');
+  shopItems.style.display = tab === 'weapons' ? '' : 'none';
+  shopCategoriesEl.style.display = tab === 'weapons' ? '' : 'none';
+  shopUpgradesEl.classList.toggle('hidden', tab !== 'upgrades');
+  shopPerksEl.classList.toggle('hidden', tab !== 'perks');
+  if (tab === 'upgrades') renderUpgrades();
+  if (tab === 'perks') renderPerks();
+}
+tabWeapons.addEventListener('click', () => setShopTab('weapons'));
+tabUpgrades.addEventListener('click', () => setShopTab('upgrades'));
+tabPerks.addEventListener('click', () => setShopTab('perks'));
+
+function renderPerks() {
+  shopPerksEl.innerHTML = '';
+  for (const p of PERKS) {
+    const owned = hasPerk(p.id);
+    const div = document.createElement('div');
+    div.className = 'perk-item' + (owned ? ' owned' : '');
+    div.innerHTML = `
+      <div class="icon">${p.icon}</div>
+      <div class="pname">${p.name}</div>
+      <div class="pdesc">${p.desc}</div>
+      <div class="pprice">${owned ? '✓ ÄGD' : '💰 ' + p.price}</div>
+    `;
+    if (!owned) {
+      div.addEventListener('click', () => {
+        if (save.gold < p.price) { flashShopItem(div); return; }
+        save.gold -= p.price;
+        save.perks.push(p.id);
+        rebuildPerkSet();
+        Audio.purchase();
+        applyUpgradesToPlayer();
+        state.shopBoughtThisStage = (state.shopBoughtThisStage || 0) + 1;
+        persist();
+        renderPerks();
+        shopGoldEl.textContent = save.gold;
+      });
+    }
+    shopPerksEl.appendChild(div);
+  }
+}
+
+function renderUpgrades() {
+  shopUpgradesEl.innerHTML = '';
+  for (const u of UPGRADES) {
+    const lvl = save.upgrades[u.id] || 0;
+    const maxed = lvl >= MAX_UPGRADE_LEVEL;
+    const price = upgradePrice(u, lvl);
+    const div = document.createElement('div');
+    div.className = 'upgrade-item' + (maxed ? ' maxed' : '');
+    let pipHtml = '<div class="upgrade-pips">';
+    for (let i = 0; i < MAX_UPGRADE_LEVEL; i++) {
+      pipHtml += `<div class="upgrade-pip${i < lvl ? ' filled' : ''}"></div>`;
+    }
+    pipHtml += '</div>';
+    div.innerHTML = `
+      <div class="name">${u.icon} ${u.name}</div>
+      ${pipHtml}
+      <div class="desc">${u.desc}</div>
+      <div class="price">${maxed ? '✓ MAX' : '💰 ' + price}</div>
+    `;
+    if (!maxed) {
+      div.addEventListener('click', () => {
+        if (save.gold < price) { flashShopItem(div); return; }
+        save.gold -= price;
+        save.upgrades[u.id] = lvl + 1;
+        // applicera direkt på spelaren
+        applyUpgradesToPlayer();
+        persist();
+        renderUpgrades();
+        shopGoldEl.textContent = save.gold;
+      });
+    }
+    shopUpgradesEl.appendChild(div);
+  }
+}
+
+function applyUpgradesToPlayer() {
+  const p = state.player;
+  if (!p) return;
+  const u = save.upgrades;
+  const newMax = 100 + u.hp * 25;
+  const hpRatio = p.hp / p.maxHp;
+  p.maxHp = newMax;
+  p.hp = Math.min(newMax, Math.round(newMax * hpRatio));
+  p.speed = 230 + u.speed * 18;
+  p.dmgMul = 1 + u.dmg * 0.10;
+  p.critChance = u.crit * 0.05;
+  p.regenPerSec = u.regen * 0.6;
+  p.reloadMul = 1 - u.reload * 0.15;
+  p.explMul = 1 + u.expl * 0.18;
+  p.mrangeMul = 1 + u.mrange * 0.12;
+  p.goldMul = 1 + u.gold * 0.18 + (hasPerk('goldbonus') ? 0.30 : 0);
+  p.kbMul = 1 + u.kb * 0.25;
+  p.bspeedMul = 1 + u.bspeed * 0.10;
+  p.reviveAvailable = hasPerk('revive');
+}
+
+// ============================================================
+// MENU / GAMEOVER
+// ============================================================
+const menuScreen = document.getElementById('menu-screen');
+const gameoverScreen = document.getElementById('gameover-screen');
+const endTitle = document.getElementById('end-title');
+const endStats = document.getElementById('end-stats');
+
+document.getElementById('btn-start').addEventListener('click', startGame);
+function resetSavePrompt() {
+  const choice = prompt('SKRIV: "RESET" för att radera all progression\n         "EXPORT" för att kopiera spar-data\n         "IMPORT" för att klistra in spar-data');
+  if (!choice) return;
+  if (choice.toUpperCase() === 'RESET') {
+    save = defaultSave();
+    rebuildPerkSet();
+    persist();
+    alert('Progression återställd.');
+  } else if (choice.toUpperCase() === 'EXPORT') {
+    const code = btoa(JSON.stringify(save));
+    if (navigator.clipboard) navigator.clipboard.writeText(code);
+    prompt('Spara denna kod (kopiera):', code);
+  } else if (choice.toUpperCase() === 'IMPORT') {
+    const code = prompt('Klistra in spar-kod:');
+    if (!code) return;
+    try {
+      const parsed = JSON.parse(atob(code.trim()));
+      if (parsed && typeof parsed === 'object') {
+        save = parsed;
+        ensureUpgrades(); ensurePerks(); ensureStats();
+        rebuildPerkSet();
+        persist();
+        alert('Spar-data importerad!');
+      }
+    } catch (e) { alert('Ogiltig kod.'); }
+  }
+}
+const _setReset = document.getElementById('set-reset');
+if (_setReset) _setReset.addEventListener('click', resetSavePrompt);
+document.getElementById('btn-retry').addEventListener('click', () => {
+  gameoverScreen.classList.add('hidden');
+  startGame();
+});
+document.getElementById('btn-menu').addEventListener('click', () => {
+  gameoverScreen.classList.add('hidden');
+  menuScreen.classList.remove('hidden');
+  document.body.classList.add('menu-mode');
+  state.mode = 'menu';
+  refreshModeButtons();
+});
+
+function startGame() {
+  menuScreen.classList.add('hidden');
+  gameoverScreen.classList.add('hidden');
+  document.body.classList.remove('menu-mode');
+  // Visa intro-cutscene första gången (eller om man trycker R-flagga)
+  if (!save.introWatched && getMode() === 'story' && !Coop.active) {
+    save.introWatched = true; persist();
+    runIntroCutscene(() => actuallyStartGame());
+    return;
+  }
+  actuallyStartGame();
+}
+
+// INTRO CUTSCENE
+const INTRO_FRAMES = [
+  { t: 0,    text: 'STOCKHOLM, 2026' },
+  { t: 1500, text: 'En man i skuggan tittar på nyheterna...' },
+  { t: 3000, text: 'En militär ledare har förrått sitt folk.' },
+  { t: 4500, text: 'Han heter Jimmy Mourad.' },
+  { t: 6500, text: 'The Penetrator har fått nog.' },
+  { t: 8500, text: 'Han tar fram bandanan.' },
+  { t: 10000, text: 'Han laddar pistolen.' },
+  { t: 11500, text: 'Det här slutar idag.' },
+  { t: 13500, text: '' },
+];
+function runIntroCutscene(onDone) {
+  state.mode = 'intro';
+  const startTime = performance.now();
+  const totalDur = 14000;
+  function intoFrame() {
+    const elapsed = performance.now() - startTime;
+    if (elapsed > totalDur) {
+      state.mode = 'menu'; // wird actuallyStartGame som ändrar
+      onDone();
+      return;
+    }
+    // Find current frame
+    let cur = INTRO_FRAMES[0];
+    for (const f of INTRO_FRAMES) if (f.t <= elapsed) cur = f;
+    // render
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, viewW, viewH);
+    // The Penetrator silhuett (bli större)
+    const t = elapsed / totalDur;
+    const cx = viewW/2, cy = viewH/2 - 50;
+    ctx.fillStyle = '#1a1a1a';
+    const size = 40 + t * 80;
+    // Kropp
+    ctx.fillRect(cx - size*0.3, cy, size*0.6, size*1.2);
+    // Huvud
+    ctx.beginPath(); ctx.arc(cx, cy - size*0.3, size*0.3, 0, Math.PI*2); ctx.fill();
+    // Bandana (röd när nära slutet)
+    if (elapsed > 8000) {
+      ctx.fillStyle = '#aa1818';
+      ctx.fillRect(cx - size*0.3, cy - size*0.3, size*0.6, size*0.1);
+    }
+    // Pistol (sista 3 sek)
+    if (elapsed > 10000) {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(cx + size*0.3, cy + size*0.2, size*0.4, size*0.1);
+    }
+    // Text
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = 'italic 22px serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 6;
+    ctx.fillText(cur.text, viewW/2, viewH * 0.85);
+    // Skip-tip
+    ctx.fillStyle = '#666';
+    ctx.font = '12px sans-serif';
+    ctx.fillText('Tryck för att skippa', viewW/2, viewH - 14);
+    ctx.shadowBlur = 0;
+    requestAnimationFrame(intoFrame);
+  }
+  intoFrame();
+  // Skip via klick/tap
+  const skip = () => {
+    state.mode = 'menu';
+    canvas.removeEventListener('click', skip);
+    canvas.removeEventListener('touchstart', skip);
+    onDone();
+  };
+  canvas.addEventListener('click', skip, { once: true });
+  canvas.addEventListener('touchstart', skip, { once: true });
+  setTimeout(() => {
+    canvas.removeEventListener('click', skip);
+    canvas.removeEventListener('touchstart', skip);
+  }, totalDur + 100);
+}
+
+function actuallyStartGame() {
+  // Göm ALLA overlays så vi faktiskt ser spelet
+  menuScreen.classList.add('hidden');
+  gameoverScreen.classList.add('hidden');
+  if (coopScreen) coopScreen.classList.add('hidden');
+  if (coopInitEl) coopInitEl.classList.remove('hidden');
+  if (coopLobbyEl) coopLobbyEl.classList.add('hidden');
+  document.body.classList.remove('menu-mode');
+  state.mode = 'playing';
+  state.player = makePlayer();
+  if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+  // Setup custom stages for game mode
+  state.customStages = null;
+  const mode = getMode();
+  if (mode === 'bossrush') {
+    state.customStages = buildBossRushStages();
+  } else if (mode === 'endless') {
+    state.customStages = buildEndlessStages();
+  } else if (mode === 'daily') {
+    state.customStages = buildDailyStages();
+  } else if (mode === 'sandbox') {
+    state.customStages = buildSandboxStages();
+    // Ge alla vapen + perks i sandbox
+    for (const w of WEAPONS) if (!save.owned.includes(w.id)) { save.owned.push(w.id); save._sandboxAdded = true; }
+  } else if (mode === 'speedrun') {
+    state.customStages = STAGES; // samma som story men trackar tid
+    state.speedrunStart = performance.now();
+  } else if (mode === 'survive') {
+    state.customStages = buildSurviveStages();
+    state.surviveStart = performance.now();
+  }
+  // Tutorial första gången
+  if (!save.tutorialDone) {
+    document.getElementById('tutorial-overlay').classList.remove('hidden');
+  }
+  state.enemies = [];
+  state.bullets = [];
+  state.pickups = [];
+  state.particles = [];
+  state.goldThisRun = 0;
+  state.killsThisRun = 0;
+  state.critsThisRun = 0;
+  state.headshotsThisRun = 0;
+  state.weaponUsage = {};
+  state.killstreak = 0;
+  state.runStartTime = performance.now();
+  startWave(1);
+  updateHUD();
+}
+
+// Story-dialog mellan stages
+const STORY_DIALOG = [
+  null, // ingen dialog innan stage 1
+  // Innan stage 1
+  { speaker: '???', text: 'Du har nått skogsbrynet. Mourads bas ligger bortom grindporten. Inga prisoners.' },
+  // Innan stage 2
+  { speaker: 'RADIO', text: 'Perimeter försvarat av Mourads "Benkrossare". Han krossade min bror med bara händerna. Ge igen.' },
+  // Innan stage 3
+  { speaker: 'THE PENETRATOR', text: 'Lobbyn — där hans tjänstemän gömmer sig. Stryparen är ute efter mig nu.' },
+  // Innan stage 4
+  { speaker: 'INTERCEPT', text: '"Generalen" är hans högra hand. Mourads avrättare av civila. Stoppa honom.' },
+  // Innan stage 5
+  { speaker: 'THE PENETRATOR', text: 'Hangaren är full av experiment-vapen. Köttkvarnen är en av dem. Människa? Maskin? Inget längre.' },
+  // Innan stage 6
+  { speaker: 'RADIO', text: 'Ammodepån vaktas av Askmakaren. Han brände ner hela byn med sin jetpack. Nu är det din tur.' },
+  // Innan stage 7
+  { speaker: 'THE PENETRATOR', text: 'Lasthangaren. Skuggan här gasar civila som om de vore råttor. Ge inga andetag tillbaka.' },
+  // Innan stage 8
+  { speaker: 'INTERCEPT', text: 'Bunker-tunnlarna. Major Zharek har sin riot-shield. Var snabb, var smart.' },
+  // Innan stage 9
+  { speaker: 'THE PENETRATOR', text: 'Det är dags. Jimmy Mourad har visat sitt rätta jag — en demon i mans skepnad. Slutet börjar nu.' },
+];
+
+let storyDialogActive = null;
+function showStoryDialog(stageNum) {
+  if (getMode() !== 'story') return false;
+  if (save.skipDialog) return false;
+  const dialog = STORY_DIALOG[stageNum];
+  if (!dialog) return false;
+  storyDialogActive = { ...dialog, stage: stageNum, opened: performance.now() };
+  state.dialogActive = true;
+  return true;
+}
+function closeStoryDialog() {
+  storyDialogActive = null;
+  state.dialogActive = false;
+}
+function drawStoryDialog() {
+  if (!storyDialogActive) return;
+  const elapsed = performance.now() - storyDialogActive.opened;
+  const fadeIn = Math.min(1, elapsed / 300);
+  // Bakgrund
+  ctx.fillStyle = `rgba(0,0,0,${0.85 * fadeIn})`;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // Beräkna text-wrappning för proportionerlig storlek
+  const isSmall = viewW < 600;
+  const boxW = Math.min(isSmall ? viewW - 24 : 600, viewW - 24);
+  const sidePad = 20;
+  const textLeft = isSmall ? sidePad : 80; // utrymme för avatar på desktop
+  const maxTextW = boxW - textLeft - sidePad;
+  const fontSize = isSmall ? 13 : 14;
+  ctx.font = fontSize + 'px sans-serif';
+  // Wrap text till array av rader
+  const words = storyDialogActive.text.split(' ');
+  const lines = [];
+  let line = '';
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxTextW) {
+      if (line) lines.push(line);
+      line = w;
+    } else { line = test; }
+  }
+  if (line) lines.push(line);
+  // Beräkna höjd baserat på antal rader
+  const lineHeight = fontSize + 8;
+  const headerH = isSmall ? 28 : 38;
+  const btnH = 36;
+  const textH = lines.length * lineHeight;
+  const boxH = headerH + textH + btnH + 32; // proportionell
+  const bx = (viewW - boxW) / 2;
+  const by = Math.max(20, viewH - boxH - 60);
+  // Box
+  ctx.fillStyle = 'rgba(20,20,30,0.96)';
+  ctx.fillRect(bx, by, boxW, boxH);
+  ctx.strokeStyle = '#ffd54a';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(bx, by, boxW, boxH);
+  // Avatar (bara på desktop)
+  if (!isSmall) drawDialogAvatar(storyDialogActive.speaker, bx + 30, by + 50);
+  // Speaker
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'bold ' + (isSmall ? 13 : 15) + 'px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(storyDialogActive.speaker, bx + textLeft, by + (isSmall ? 18 : 24));
+  // Linje
+  ctx.fillStyle = '#3a3a3a';
+  ctx.fillRect(bx + textLeft, by + headerH - 6, boxW - textLeft - sidePad, 1);
+  // Text
+  ctx.fillStyle = '#fff';
+  ctx.font = fontSize + 'px sans-serif';
+  let yy = by + headerH + lineHeight - 4;
+  for (const lineTxt of lines) {
+    ctx.fillText(lineTxt, bx + textLeft, yy);
+    yy += lineHeight;
+  }
+  // Continue-knapp (anpassad till boxen)
+  const btnW = isSmall ? boxW - 40 : 180;
+  const btnX = bx + boxW - btnW - 20;
+  const btnY = by + boxH - btnH - 12;
+  ctx.fillStyle = '#7a1818';
+  ctx.fillRect(btnX, btnY, btnW, btnH);
+  ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 2;
+  ctx.strokeRect(btnX, btnY, btnW, btnH);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold ' + (isSmall ? 13 : 14) + 'px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('FORTSÄTT →', btnX + btnW/2, btnY + btnH/2 + 5);
+  storyDialogActive.btn = { x: btnX, y: btnY, w: btnW, h: btnH };
+}
+
+function drawDialogAvatar(speaker, x, y) {
+  // Liten porträtt (40x40)
+  if (speaker === 'THE PENETRATOR') {
+    // Spelaren-look
+    ctx.fillStyle = '#d8a878';
+    ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath(); ctx.ellipse(x, y - 8, 18, 10, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#aa1818';
+    ctx.fillRect(x - 18, y - 8, 36, 4);
+    ctx.fillStyle = '#1a0a08';
+    ctx.beginPath(); ctx.arc(x, y + 8, 6, 0, Math.PI*2); ctx.fill();
+  } else if (speaker === 'RADIO') {
+    // Radio-ikon
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x - 16, y - 10, 32, 22);
+    ctx.fillStyle = '#5aff5a';
+    ctx.fillRect(x - 12, y - 6, 24, 6);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x - 8, y + 2, 4, 4);
+    ctx.fillRect(x + 4, y + 2, 4, 4);
+    ctx.strokeStyle = '#aaa'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x + 14, y - 12); ctx.lineTo(x + 18, y - 18); ctx.stroke();
+  } else if (speaker === 'INTERCEPT') {
+    // Skärm/kommunikation
+    ctx.fillStyle = '#0a1a2a';
+    ctx.fillRect(x - 18, y - 14, 36, 28);
+    ctx.strokeStyle = '#5acaff'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - 18, y - 14, 36, 28);
+    ctx.fillStyle = '#5acaff';
+    ctx.fillRect(x - 14, y - 8, 28, 2);
+    ctx.fillRect(x - 14, y - 2, 22, 2);
+    ctx.fillRect(x - 14, y + 4, 26, 2);
+  } else {
+    // Generic ?-figure
+    ctx.fillStyle = '#1a0a14';
+    ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#aa3aff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('?', x, y + 8);
+  }
+}
+
+// === GAME MODE STAGE-BYGGARE ===
+function buildBossRushStages() {
+  const bossKeys = ['likvakare','benkrossare','strypare','avrattare','kottkvarn','askmakare','lungrivare','skallsprackare','sjalaatare','gravgravaren'];
+  const stageBgs = [
+    { bg: '#2a3a1c', edge: '#1a2010', kind: 'forest' },
+    { bg: '#3a3024', edge: '#5a4628', kind: 'perimeter' },
+    { bg: '#23232c', edge: '#3a3a4a', kind: 'lobby' },
+    { bg: '#3a3528', edge: '#7a5a30', kind: 'barracks' },
+    { bg: '#2a2a32', edge: '#5a5a64', kind: 'hangar' },
+    { bg: '#262630', edge: '#4a4a5a', kind: 'depot' },
+    { bg: '#23232c', edge: '#4a4a5a', kind: 'cargo' },
+    { bg: '#1a1a22', edge: '#3a3a44', kind: 'bunker' },
+    { bg: '#1a1014', edge: '#7a1818', kind: 'command' },
+    { bg: '#3a0a14', edge: '#ff1a1a', kind: 'command' },
+  ];
+  return bossKeys.map((bk, i) => ({
+    id: i + 1,
+    name: 'BOSS ' + (i + 1) + ' / ' + bossKeys.length,
+    kind: stageBgs[i].kind,
+    worldW: 1600, worldH: 1600,
+    spawnPos: { x: 800, y: 1450 },
+    goalPos:  { x: 800, y: 600 },
+    isBoss: true, bossKey: bk,
+    zones: [], // boss direkt
+    bgColor: stageBgs[i].bg,
+    accentColor: '#10101a',
+    edgeColor: stageBgs[i].edge,
+    fog: 0.05,
+    sub: BOSS_CONFIGS[bk] ? BOSS_CONFIGS[bk].subtitle : '',
+    bossRushReward: i + 1, // ökat reward per boss
+  }));
+}
+const ENDLESS_MODIFIERS = [
+  { id: 'horde', label: 'HORDEN', count: 1.5, sub: 'Dubbla fiender!' },
+  { id: 'elite', label: 'ELIT', poolOverride: ['brute','soldier','swordsman'], sub: 'Endast elit-fiender' },
+  { id: 'fog',   label: 'DIMMA', fog: 0.35, sub: 'Tjock dimma' },
+  { id: 'speed', label: 'BLITZ', speedMul: 1.4, sub: 'Snabba fiender' },
+  { id: 'tank',  label: 'TANK', hpMul: 1.7, sub: 'Tunga fiender' },
+  { id: 'ninja', label: 'SHADOW', poolOverride: ['ninja','runner'], sub: 'Ninjor överallt' },
+];
+
+function buildEndlessStages() {
+  const kinds = ['forest','perimeter','lobby','hangar','depot','cargo','bunker'];
+  const stages = [];
+  for (let i = 0; i < 999; i++) {
+    const baseKind = kinds[i % kinds.length];
+    const baseStage = STAGES.find(s => s.kind === baseKind) || STAGES[0];
+    const cnt = 8 + Math.floor(i * 1.5);
+    // Var 5:e wave: boss + modifier
+    const isBossWave = i % 5 === 4;
+    // Var 3:e wave: random endless-modifier
+    let mod = null;
+    if (i > 0 && i % 3 === 0) {
+      mod = ENDLESS_MODIFIERS[i % ENDLESS_MODIFIERS.length];
+    }
+    let pool = baseStage.zones[0]?.pool || ['grunt'];
+    let pool2 = baseStage.zones[1]?.pool || pool;
+    if (mod && mod.poolOverride) { pool = mod.poolOverride; pool2 = mod.poolOverride; }
+    const finalCnt = mod && mod.count ? Math.ceil(cnt * mod.count) : cnt;
+    stages.push({
+      ...baseStage,
+      id: i + 1,
+      name: 'ENDLESS ' + (i + 1) + (mod ? ' · ' + mod.label : ''),
+      isBoss: isBossWave,
+      bossKey: isBossWave ? Object.keys(BOSS_CONFIGS)[i % 10] : undefined,
+      zones: isBossWave ? [{ count: Math.ceil(finalCnt/2), pool }] : [
+        { count: Math.ceil(finalCnt/2), pool },
+        { count: finalCnt, pool: pool2 },
+      ],
+      fog: (mod && mod.fog) || baseStage.fog,
+      endlessMod: mod,
+      sub: mod ? '⚠ ' + mod.sub : 'Wave ' + (i+1),
+    });
+  }
+  return stages;
+}
+function buildSandboxStages() {
+  // En enda öppen arena med fasta dummies
+  return [{
+    id: 1, name: 'SANDBOX', kind: 'barracks',
+    worldW: 1800, worldH: 1800,
+    spawnPos: { x: 900, y: 900 },
+    goalPos:  { x: 900, y: 900 },
+    isBoss: false,
+    zones: [{ count: 0, pool: [], event: null }, { count: 0, pool: [], event: null }],
+    bgColor: '#3a3528', accentColor: '#1c180e', edgeColor: '#7a5a30',
+    fog: 0.0, sub: 'Testa vapen mot dummies',
+    sandbox: true,
+  }];
+}
+
+function buildSurviveStages() {
+  // En arena, oändliga vågor i 5 min
+  return [{
+    id: 1, name: 'SURVIVE 5 MIN', kind: 'cargo',
+    worldW: 1800, worldH: 1800,
+    spawnPos: { x: 900, y: 900 },
+    goalPos:  { x: 900, y: 900 },
+    isBoss: false,
+    zones: [{ count: 999, pool: ['grunt','runner','soldier','brute','shooter','ninja','dog','swarmer','bomber','sniper'] }],
+    bgColor: '#23232c', accentColor: '#10101a', edgeColor: '#4a4a5a',
+    fog: 0.05, sub: 'Överlev tills timern går ut',
+    survive: true,
+  }];
+}
+
+function buildDailyStages() {
+  const today = new Date();
+  const seed = today.getFullYear() * 10000 + (today.getMonth()+1) * 100 + today.getDate();
+  let s = seed;
+  const rand = () => { s = (s * 1664525 + 1013904223) | 0; return ((s >>> 0) / 0xFFFFFFFF); };
+  // EN modifier per dag (samma över alla stages)
+  const dayMod = DAILY_MODIFIERS[Math.floor(rand() * DAILY_MODIFIERS.length)];
+  state.dailyModifier = dayMod;
+  return STAGES.map((stage, i) => ({
+    ...stage,
+    sub: '☀ DAILY · ' + dayMod.label + ' · ' + stage.sub,
+    dailyModifier: dayMod.id,
+  }));
+}
+
+const DAILY_MODIFIERS = [
+  { id: 'fast_enemies', label: 'SVÄRMEN', desc: 'Fiender +50% snabbhet' },
+  { id: 'double_gold',  label: 'GULDRUSCH', desc: '2× gold från allt' },
+  { id: 'reduced_hp',   label: 'KÖTTET', desc: '-30% HP men +30% dmg' },
+  { id: 'bonus_drops',  label: 'EFTERSÖKNING', desc: '2× dog tags i stages' },
+  { id: 'no_reload',    label: 'OÄNDLIG ELD', desc: 'Ingen reload behövs' },
+  { id: 'glass_cannon', label: 'GLAS-KANON', desc: '×3 dmg, 1 HP-träff = död' },
+];
+
+function getEndingType() {
+  // Multiple endings baserat på run-stats
+  const time = (performance.now() - state.runStartTime) / 1000;
+  const noShop = (state.shopBoughtThisStage || 0) === 0 && save.gold > 1000;
+  const allCheats = save.cheatsActive && Object.values(save.cheatsActive).filter(v => v).length >= 3;
+  const fastTime = time < 600;
+  const lowKills = (state.killsThisRun || 0) < 50;
+  if (allCheats) return { title: 'ULTIMAT GUDOMLIG SLUT', color: '#aa3aff', desc: 'Du har överskridit allt mänskligt. Mourad är bara ett minne.' };
+  if (lowKills) return { title: 'PACIFIST-SLUT', color: '#3acaff', desc: 'Få fiender, fast Mourad föll. Du visade nåd där det inte fanns.' };
+  if (fastTime) return { title: 'SPEEDRUN-SLUT', color: '#ffd54a', desc: 'Mindre än 10 minuter. Mourads regim föll snabbare än hans gradband.' };
+  if (noShop) return { title: 'SVÄRMENS HJÄLTE-SLUT', color: '#5aff5a', desc: 'Inga köp. Bara dig och dina nävar. Mourad såg ditt riktiga jag.' };
+  return { title: 'STANDARD-SLUT', color: '#4caf50', desc: 'Mourad är död. Gatorna är dina igen.' };
+}
+
+function endGame(victory) {
+  state.mode = victory ? 'victory' : 'gameover';
+  let ending = null;
+  if (victory && getMode() === 'story') {
+    ending = getEndingType();
+    endTitle.textContent = ending.title;
+    endTitle.style.color = ending.color;
+  } else {
+    endTitle.textContent = victory ? 'SEGER!' : 'GAME OVER';
+    endTitle.style.color = victory ? '#4caf50' : '#ff5a5a';
+  }
+  Music.stop();
+  if (victory) {
+    Audio.victory();
+    save.stats.wins = (save.stats.wins || 0) + 1;
+    Achievements.unlock('allbosses');
+    // Lås upp nästa cheat (max 4)
+    const newUnlocks = save.cheatsUnlocked || 0;
+    if (newUnlocks < CHEATS.length && getMode() === 'story') {
+      save.cheatsUnlocked = newUnlocks + 1;
+      const cheat = CHEATS[newUnlocks];
+      setTimeout(() => {
+        Audio.achievement();
+        showAchievementPopup({
+          icon: cheat.icon,
+          name: 'CHEAT UPPLÅST: ' + cheat.name,
+        });
+      }, 1500);
+    }
+  } else {
+    Audio.gameOver();
+  }
+  save.stats.runs = (save.stats.runs || 0) + 1;
+  // Detaljerad stats
+  const playTime = Math.round((performance.now() - state.runStartTime) / 1000);
+  const minutes = Math.floor(playTime / 60);
+  const seconds = playTime % 60;
+  endStats.innerHTML = `
+    <div style="text-align:left;display:inline-block;line-height:1.7;">
+      Stage: <b>${state.wave}/${LEVELS.length}</b> · ${getLevel(state.wave).name}<br>
+      Tid: <b>${minutes}:${seconds.toString().padStart(2,'0')}</b><br>
+      Kills denna runda: <b>${state.killsThisRun || 0}</b><br>
+      Mynt insamlade: <b>💰 ${state.goldThisRun}</b><br>
+      Headshots: <b>${state.headshotsThisRun || 0}</b> · Krits: <b>${state.critsThisRun || 0}</b><br>
+      Mest använt vapen: <b>${getMostUsedWeapon()}</b><br>
+      Total mynt: <b>💰 ${save.gold}</b>
+    </div>
+  `;
+  gameoverScreen.classList.remove('hidden');
+  persist();
+}
+
+function getMostUsedWeapon() {
+  if (!state.weaponUsage) return '—';
+  let best = null, bestC = 0;
+  for (const [id, c] of Object.entries(state.weaponUsage)) {
+    if (c > bestC) { best = id; bestC = c; }
+  }
+  return best ? (W_BY_ID[best]?.name || '—') : '—';
+}
+
+// Toast
+let toastTimer = 0;
+let toastText = '';
+function showToast(text) { toastText = text; toastTimer = 2.0; }
+
+// Killstreak banner (visas i sidan av skärmen, inte i mitten)
+let killstreakBanner = { text: '', timer: 0, count: 0 };
+function showKillstreakBanner(count) {
+  let text;
+  if (count >= 20) text = 'GODLIKE!';
+  else if (count >= 15) text = 'UNSTOPPABLE!';
+  else if (count >= 10) text = 'RAMPAGE!';
+  else if (count >= 7) text = 'KILLING SPREE!';
+  else if (count >= 5) text = 'STREAK!';
+  else if (count >= 3) text = `${count} KILLS`;
+  else return;
+  killstreakBanner = { text: text, timer: 1.5, count };
+  if (count === 5) Audio.achievement();
+  if (count === 10) { Audio.achievement(); triggerShake(4, 0.15); }
+}
+function drawKillstreak() {
+  if (killstreakBanner.timer <= 0) return;
+  const t = Math.min(1, killstreakBanner.timer / 1.5);
+  ctx.save();
+  ctx.globalAlpha = t;
+  // Position right side
+  const x = viewW - 30;
+  const y = viewH * 0.4;
+  // Streak number
+  ctx.fillStyle = '#ff5a3a';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 4;
+  ctx.font = 'bold 38px sans-serif';
+  ctx.textAlign = 'right';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 8;
+  ctx.strokeText('×' + killstreakBanner.count, x, y);
+  ctx.fillText('×' + killstreakBanner.count, x, y);
+  // Banner text below
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'bold 16px sans-serif';
+  ctx.strokeText(killstreakBanner.text, x, y + 24);
+  ctx.fillText(killstreakBanner.text, x, y + 24);
+  ctx.restore();
+}
+
+// ============================================================
+// HUD
+// ============================================================
+const hpFill = document.getElementById('hp-fill');
+const hpText = document.getElementById('hp-text');
+const waveInfo = document.getElementById('wave-info');
+const goldInfo = document.getElementById('gold-info');
+const weaponName = document.getElementById('weapon-name');
+const ammoInfo = document.getElementById('ammo-info');
+
+const ammoDisplayEl = document.getElementById('ammo-display-text');
+function updateHUD() {
+  if (!state.player) return;
+  const p = state.player;
+  const w = W_BY_ID[p.weaponId];
+  hpFill.style.width = Math.max(0, p.hp / p.maxHp * 100) + '%';
+  hpText.textContent = `${Math.ceil(p.hp)}/${p.maxHp}`;
+  const lvl = getLevel(state.wave);
+  waveInfo.textContent = `${state.wave}/${getStageCount()} · ${lvl.name}`;
+  goldInfo.textContent = `💰 ${save.gold}`;
+  weaponName.textContent = w.name;
+  let ammoText;
+  if (w.type === 'melee') ammoText = '∞';
+  else if (p.reloading) ammoText = '...';
+  else ammoText = `${p.ammo}/${effectiveMag(p.weaponId)}`;
+  ammoInfo.textContent = ammoText;
+  if (ammoDisplayEl) ammoDisplayEl.textContent = ammoText;
+}
+
+// In-game settings-knapp (i HUD bredvid gold)
+const btnIngameSettings = document.getElementById('btn-ingame-settings');
+if (btnIngameSettings) {
+  btnIngameSettings.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (state.mode === 'playing') {
+      openPause();
+      pauseScreen.classList.add('hidden');
+      openSettings('pause');
+    }
+  });
+}
+
+// ============================================================
+// UPDATE
+// ============================================================
+function updatePlayer(dt, now) {
+  const p = state.player;
+
+  // rörelse
+  let mx = input.moveX, my = input.moveY;
+  if (input.keys.has('w')) my -= 1;
+  if (input.keys.has('s')) my += 1;
+  if (input.keys.has('a')) mx -= 1;
+  if (input.keys.has('d')) mx += 1;
+  const m = Math.hypot(mx, my);
+  if (m > 1) { mx /= m; my /= m; }
+  // Dash override
+  if (p.dashUntil > now) {
+    p.x += p.dashDir.x * 700 * dt;
+    p.y += p.dashDir.y * 700 * dt;
+    // dash-trail particle
+    state.particles.push({
+      x: p.x, y: p.y, vx: 0, vy: 0, life: 0.3, color: 'rgba(255,213,74,0.4)',
+      r: p.r, isBloodPool: true,
+    });
+  } else {
+    // Adrenalin-perk: snabbare vid <30% HP
+    const adrenalineSpeed = (hasPerk('adrenalin') && p.hp < p.maxHp * 0.3) ? 1.35 : 1;
+    p.x += mx * p.speed * adrenalineSpeed * dt;
+    p.y += my * p.speed * adrenalineSpeed * dt;
+  }
+  p.x = Math.max(p.r, Math.min(WORLD.w - p.r, p.x));
+  p.y = Math.max(p.r, Math.min(WORLD.h - p.r, p.y));
+  resolveBuildingCollision(p);
+
+  // sikta: prio fire-joystick, sen mus, sen rörelse, sen auto-aim
+  if (input.fireJoyActive && save.firejoy) {
+    p.aimAngle = Math.atan2(input.aimY, input.aimX);
+  } else if (input.mouse.down && (window.innerWidth >= 900)) {
+    const wx = input.mouse.x + state.camera.x;
+    const wy = input.mouse.y + state.camera.y;
+    p.aimAngle = Math.atan2(wy - p.y, wx - p.x);
+  } else if (m > 0.1) {
+    // sikta i rörelseriktning som default
+    p.aimAngle = Math.atan2(my, mx);
+  }
+  // auto-aim mot närmsta fiende vid skjutning (om aktiverat och INTE i fire-joy-mode)
+  const autoAimEnabled = save.autoaim !== false; // default på
+  if (input.firing && autoAimEnabled && !(input.fireJoyActive && save.firejoy)) {
+    let best = null, bestD = Infinity;
+    for (const e of state.enemies) {
+      if (e.dead) continue;
+      const d = Math.hypot(e.x - p.x, e.y - p.y);
+      if (d < bestD) { bestD = d; best = e; }
+    }
+    if (best) p.aimAngle = Math.atan2(best.y - p.y, best.x - p.x);
+  }
+
+  // reload (med reload-fart-uppgradering)
+  if (p.reloading) {
+    const w = W_BY_ID[p.weaponId];
+    if (now - p.reloadStart >= w.reload * (p.reloadMul || 1)) {
+      p.ammo = effectiveMag(p.weaponId);
+      p.reloading = false;
+      Audio.reloadDone();
+      updateHUD();
+    }
+  }
+
+  // HP-regen
+  if (p.regenPerSec > 0 && p.hp > 0 && p.hp < p.maxHp) {
+    p.hp = Math.min(p.maxHp, p.hp + p.regenPerSec * dt);
+    state.regenedThisStage = (state.regenedThisStage || 0) + p.regenPerSec * dt;
+  }
+
+  // skjuta
+  if (input.firing || input.keys.has(' ') || input.mouse.down) tryShoot(now);
+
+  // invuln decay
+  if (p.invuln > 0) p.invuln -= dt;
+  // melee combo timeout
+  if (p.meleeComboTimer > 0) {
+    p.meleeComboTimer -= dt;
+    if (p.meleeComboTimer <= 0) p.meleeCombo = 0;
+  }
+}
+
+function updateEnemies(dt, now) {
+  const p = state.player;
+  // Hård cap mot för mycket fiender på en gång
+  if (state.enemies.length > 80) {
+    // Behåll bossen om den finns + 80 senaste
+    const boss = state.enemies.find(e => e.isBoss);
+    state.enemies = state.enemies.slice(-80);
+    if (boss && !state.enemies.includes(boss)) state.enemies.push(boss);
+  }
+  // Time-stop fryser allting (men flash-effekt)
+  if (state.timeStopUntil && now < state.timeStopUntil) {
+    return; // hoppa över all enemy-update
+  }
+  for (const e of state.enemies) {
+    if (e.dead) continue;
+    // Mind-controlled: byt sida (dödar andra fiender)
+    if (e.mindControlled && now < e.mindControlUntil) {
+      let target = null, bestD = 600;
+      for (const o of state.enemies) {
+        if (o === e || o.dead || o.mindControlled) continue;
+        const d = Math.hypot(o.x - e.x, o.y - e.y);
+        if (d < bestD) { bestD = d; target = o; }
+      }
+      if (target) {
+        const dx2 = target.x - e.x, dy2 = target.y - e.y;
+        const d2 = Math.hypot(dx2, dy2) || 1;
+        e.x += (dx2/d2) * e.speed * dt;
+        e.y += (dy2/d2) * e.speed * dt;
+        if (d2 < e.r + target.r + 4 && (!e.contactCd || e.contactCd <= 0)) {
+          target.hp -= 25;
+          e.contactCd = 0.6;
+          if (target.hp <= 0) killEnemy(target);
+        }
+      }
+      continue;
+    }
+    if (e.mindControlled && now >= e.mindControlUntil) {
+      e.mindControlled = false;
+    }
+    if (e.contactCd > 0) e.contactCd -= dt;
+
+    // status-effekter: burn (DoT) + slow (speed-skala)
+    let speedMul = 1;
+    if (e.burnUntil && now < e.burnUntil) {
+      e.hp -= (e.burnDps || 0) * dt;
+      if (Math.random() < 0.4) {
+        state.particles.push({
+          x: e.x + (Math.random()-0.5)*e.r, y: e.y - e.r * 0.5,
+          vx: (Math.random()-0.5)*30, vy: -40 - Math.random()*20,
+          life: 0.4, color: '#ff8a3a', r: 2 + Math.random()*2,
+        });
+      }
+      if (e.hp <= 0) { killEnemy(e); continue; }
+    } else { e.burnUntil = 0; }
+    if (e.slowUntil && now < e.slowUntil) {
+      speedMul = e.slowFactor || 0.6;
+    } else { e.slowUntil = 0; e.slowFactor = 1; }
+    if (e._origSpeed === undefined) e._origSpeed = e.speed;
+    e.speed = e._origSpeed * speedMul;
+
+    if (e.isBoss) {
+      updateBoss(e, dt, now);
+    } else if (e.type === 'healer') {
+      // Står bakom andra, helar närmsta dåliga
+      let target = null, bestNeed = 0;
+      for (const o of state.enemies) {
+        if (o === e || o.dead || o.isBoss) continue;
+        const need = (1 - o.hp/o.maxHp);
+        if (need > 0.3 && need > bestNeed && Math.hypot(o.x - e.x, o.y - e.y) < 200) {
+          target = o; bestNeed = need;
+        }
+      }
+      if (target) {
+        const dx2 = target.x - e.x, dy2 = target.y - e.y;
+        const d2 = Math.hypot(dx2, dy2);
+        if (d2 > 80) { e.x += (dx2/d2) * e.speed * dt; e.y += (dy2/d2) * e.speed * dt; }
+        if (now - e.healAt > 1500) {
+          e.healAt = now;
+          target.hp = Math.min(target.maxHp, target.hp + 8);
+          state.particles.push({ x: target.x, y: target.y, vx:0, vy:0, life: 0.3, color: '#9aff5a', r: target.r * 1.5, isExplosion: true });
+        }
+      } else {
+        // ingen att hela — backa från spelaren
+        const dx = p.x - e.x, dy = p.y - e.y;
+        const d = Math.hypot(dx, dy) || 1;
+        e.x -= (dx/d) * e.speed * dt;
+        e.y -= (dy/d) * e.speed * dt;
+      }
+    } else if (e.type === 'summoner') {
+      // Håller avstånd, summoner runners
+      const dx = p.x - e.x, dy = p.y - e.y;
+      const d = Math.hypot(dx, dy) || 1;
+      if (d < 320) { e.x -= (dx/d) * e.speed * dt; e.y -= (dy/d) * e.speed * dt; }
+      if (now - e.summonAt > 4500) {
+        e.summonAt = now;
+        for (let i = 0; i < 2; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const sx = e.x + Math.cos(a) * 30, sy = e.y + Math.sin(a) * 30;
+          const r = makeEnemy('runner', sx, sy);
+          state.enemies.push(r);
+        }
+        state.particles.push({ x: e.x, y: e.y, vx:0, vy:0, life: 0.5, color: '#aa3aff', r: 60, isExplosion: true });
+      }
+    } else if (e.type === 'bomber') {
+      const dx = p.x - e.x, dy = p.y - e.y;
+      const d = Math.hypot(dx, dy) || 1;
+      e.x += (dx/d) * e.speed * dt;
+      e.y += (dy/d) * e.speed * dt;
+      // Fuse triggers vid 60px
+      if (d < 60) e.fuse = (e.fuse || 0) + dt;
+      if (e.fuse > 0.6) {
+        explode(e.x, e.y, 100, e.dmg, false);
+        e.dead = true; killEnemy(e);
+      }
+      // visuell tick
+      if (d < 100 && Math.sin(now/60) > 0) {
+        e.flashUntil = now + 30;
+      }
+    } else if (e.type === 'sniper') {
+      const dx = p.x - e.x, dy = p.y - e.y;
+      const d = Math.hypot(dx, dy) || 1;
+      if (d < 500) { e.x -= (dx/d) * e.speed * dt; e.y -= (dy/d) * e.speed * dt; }
+      // Aim-up first (laser-sight tells)
+      if (d < e.shootRange && !e.aiming && now - e.lastShot > e.shootRate) {
+        e.aiming = true; e.aimAt = now;
+      }
+      if (e.aiming && now - e.aimAt > 800) {
+        // Skjut
+        e.aiming = false;
+        e.lastShot = now;
+        const ang = Math.atan2(dy, dx);
+        state.bullets.push({
+          x: e.x, y: e.y, vx: Math.cos(ang) * e.bulletSpeed, vy: Math.sin(ang) * e.bulletSpeed,
+          dmg: e.bulletDmg, life: 1.5, r: 5, color: '#ff3a3a', hostile: true,
+        });
+      }
+    } else if (e.type === 'swarmer') {
+      // Snabba små, kommer i grupp, väggdumma
+      const dx = p.x - e.x, dy = p.y - e.y;
+      const d = Math.hypot(dx, dy) || 1;
+      e.x += (dx/d) * e.speed * dt;
+      e.y += (dy/d) * e.speed * dt;
+    } else if (e.type === 'shooter' || e.type === 'soldier') {
+      // RANGED-AI: håll avstånd, skjut, sök cover
+      const dx = p.x - e.x, dy = p.y - e.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const hpFrac = e.hp / e.maxHp;
+      // Retreat vid <30% HP — backa längre
+      const ideal = hpFrac < 0.3 ? 420 : 280;
+      // Sök cover var ~3:e sek
+      if (!e.coverCheckUntil || now > e.coverCheckUntil) {
+        e.coverCheckUntil = now + 2500 + Math.random()*2000;
+        let bestCover = null, bestD = 240;
+        for (const b of stageState.buildings) {
+          if (!['cargo_crate','sandbag_pile','wall_concrete','container','barack','vehicle','truck'].includes(b.kind)) continue;
+          const cx2 = b.x + b.w/2, cy2 = b.y + b.h/2;
+          const d2 = Math.hypot(cx2 - e.x, cy2 - e.y);
+          if (d2 < bestD) { bestD = d2; bestCover = { x: cx2, y: cy2 }; }
+        }
+        e.targetCover = bestCover;
+        if (bestCover && Math.random() < 0.3) maybeChatter(e, ['TAR COVER!','UNDER ELD!']);
+      }
+      let mvx = 0, mvy = 0;
+      // Sök cover om långt borta från det och inte redan nära
+      if (e.targetCover && hpFrac < 0.6) {
+        const dx2 = e.targetCover.x - e.x, dy2 = e.targetCover.y - e.y;
+        const d2 = Math.hypot(dx2, dy2);
+        if (d2 > 30) { mvx = dx2/d2; mvy = dy2/d2; }
+      } else {
+        if (d > ideal + 30) { mvx = dx/d; mvy = dy/d; }
+        else if (d < ideal - 30) { mvx = -dx/d; mvy = -dy/d; }
+        // Sidledes-rörelse (strafe) för att inte stå still
+        const strafeT = Math.sin(now/800 + (e.walkPhase || 0));
+        mvx += -dy/d * strafeT * 0.4;
+        mvy += dx/d * strafeT * 0.4;
+      }
+      e.x += mvx * e.speed * dt; e.y += mvy * e.speed * dt;
+      if (d <= e.shootRange && now - e.lastShot >= e.shootRate) {
+        e.lastShot = now;
+        const ang = Math.atan2(dy, dx);
+        state.bullets.push({
+          x: e.x, y: e.y, vx: Math.cos(ang)*e.bulletSpeed, vy: Math.sin(ang)*e.bulletSpeed,
+          dmg: e.bulletDmg, life: 2, r: 4, color: e.type === 'soldier' ? '#ffae3a' : '#a070ff', hostile: true,
+        });
+        if (Math.random() < 0.04) maybeChatter(e, ['ÄT SKIT!','SE UPP!','SKJUTER!','AAH!']);
+      }
+    } else {
+      // melee fiender: gå mot spelaren (om inte staggad)
+      const staggerActive = e.staggerUntil && now < e.staggerUntil;
+      if (!staggerActive) {
+        const dx = p.x - e.x, dy = p.y - e.y;
+        const d = Math.hypot(dx, dy) || 1;
+        e.x += (dx/d) * e.speed * dt;
+        e.y += (dy/d) * e.speed * dt;
+      }
+      // chatter (sällan)
+      if (Math.random() < 0.0015) {
+        if (e.type === 'ninja') maybeChatter(e, ['SHHH...','TYST DÖD','📿']);
+        else if (e.type === 'brute') maybeChatter(e, ['KROSSA!','RAAGGH!','DÖ!']);
+        else if (e.type === 'dog') maybeChatter(e, ['GRRRR','VOFF!','WROAARR']);
+        else maybeChatter(e, ['STANNA!','HALT!','FÖR MOURAD!']);
+      }
+    }
+
+    // enemy-enemy separation (lätt)
+    for (const other of state.enemies) {
+      if (other === e || other.dead) continue;
+      const dx = e.x - other.x, dy = e.y - other.y;
+      const d = Math.hypot(dx, dy);
+      const min = e.r + other.r;
+      if (d > 0 && d < min) {
+        const push = (min - d) * 0.5;
+        e.x += (dx/d) * push;
+        e.y += (dy/d) * push;
+      }
+    }
+
+    // byggnad-kollision
+    resolveBuildingCollision(e);
+
+    // KONTAKT med NÄRMSTA spelare (host eller partner i coop)
+    if (e.contactCd <= 0 && e.dmg > 0) {
+      // hitta närmsta spelare
+      let nearestPlayer = p, nearestPid = null, nearestD = Math.hypot(p.x - e.x, p.y - e.y);
+      if (Coop.active && Coop.isHost) {
+        for (const [pid, partner] of Coop.players) {
+          if (partner.hp <= 0) continue;
+          const dd = Math.hypot(partner.x - e.x, partner.y - e.y);
+          if (dd < nearestD) { nearestD = dd; nearestPlayer = partner; nearestPid = pid; }
+        }
+      }
+      if (nearestD < (nearestPlayer.r || 14) + e.r) {
+        if (nearestPid) {
+          Coop.sendDamageToPartner(nearestPid, e.dmg);
+          nearestPlayer.hp = Math.max(0, (nearestPlayer.hp || 100) - e.dmg);
+        } else {
+          damagePlayer(e.dmg);
+        }
+        e.contactCd = 0.6;
+      }
+    }
+  }
+  state.enemies = state.enemies.filter(e => !e.dead);
+}
+
+function updateBoss(b, dt, now) {
+  const p = state.player;
+  const dx = p.x - b.x, dy = p.y - b.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const hpFrac = b.hp / b.maxHp;
+  const ndx = dx/d, ndy = dy/d;
+  // Stuck-detection: om boss står still > 1.5s, teleportera lite mot spelaren
+  if (b.lastPos === undefined) b.lastPos = { x: b.x, y: b.y, t: now };
+  const moved = Math.hypot(b.x - b.lastPos.x, b.y - b.lastPos.y);
+  if (moved > 5) { b.lastPos = { x: b.x, y: b.y, t: now }; }
+  else if (now - b.lastPos.t > 1500) {
+    b.x += ndx * 30; b.y += ndy * 30;
+    b.lastPos = { x: b.x, y: b.y, t: now };
+  }
+
+  // Dispatcher per AI-typ
+  switch (b.ai) {
+    case 'caster':         aiCaster(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'tank_charger':   aiTankCharger(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'cloaker':        aiCloaker(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'brute_charger':  aiBruteCharger(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'plasma':         aiPlasma(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'jetpack':        aiJetpack(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'gas_sniper':     aiGasSniper(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'shielder':       aiShielder(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'avatar':         aiAvatar(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'final':          aiFinal(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    default:               aiBruteCharger(b, p, ndx, ndy, d, hpFrac, dt, now);
+  }
+
+  b.x = Math.max(b.r, Math.min(WORLD.w - b.r, b.x));
+  b.y = Math.max(b.r, Math.min(WORLD.h - b.r, b.y));
+
+  if (d < p.r + b.r && b.contactCd <= 0) {
+    damagePlayer(b.dmg);
+    b.contactCd = 0.5;
+  }
+}
+
+// AI helpers
+function bossShoot(b, dx, dy, count, spread, color, speedMul = 1, life = 2.0) {
+  const baseAng = Math.atan2(dy, dx);
+  for (let i = 0; i < count; i++) {
+    const a = baseAng + (i - (count-1)/2) * spread;
+    state.bullets.push({
+      x: b.x, y: b.y, vx: Math.cos(a)*b.bulletSpeed*speedMul, vy: Math.sin(a)*b.bulletSpeed*speedMul,
+      dmg: b.bulletDmg, life, r: 5, color, hostile: true,
+    });
+  }
+}
+function dropGasCloud(x, y, r, life, dps) {
+  state.gasClouds.push({ x, y, r, life, maxLife: life, dps, born: performance.now() });
+}
+
+// 1) CASTER (Likvakare) — håller avstånd, kastar giftbomber, summonar
+function aiCaster(b, p, ndx, ndy, d, hpFrac, dt, now) {
+  const ideal = 280;
+  if (d > ideal + 50) { b.x += ndx * b.speed * dt; b.y += ndy * b.speed * dt; }
+  else if (d < ideal - 30) { b.x -= ndx * b.speed * dt; b.y -= ndy * b.speed * dt; }
+  if (now - b.lastAttack > 1600) {
+    b.lastAttack = now;
+    // Lobba 3 giftbomber mot spelaren
+    for (let i = -1; i <= 1; i++) {
+      const a = Math.atan2(p.y - b.y, p.x - b.x) + i * 0.20;
+      state.bullets.push({
+        x: b.x, y: b.y, vx: Math.cos(a)*420, vy: Math.sin(a)*420,
+        dmg: b.bulletDmg, life: 1.6, r: 7, color: b.glow, hostile: true,
+        gasOnHit: true,
+      });
+    }
+  }
+  // Fas 2: summona runners
+  if (hpFrac < 0.5 && now - b.lastSpread > 5000) {
+    b.lastSpread = now;
+    for (let i = 0; i < 2; i++) {
+      const a = Math.random()*Math.PI*2;
+      state.enemies.push(makeEnemy('runner', b.x + Math.cos(a)*60, b.y + Math.sin(a)*60));
+    }
+  }
+}
+
+// 2) TANK_CHARGER (Benkrossare) — långsam, slår hårt, charge
+function aiTankCharger(b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.chargeUntil && now < b.chargeUntil) {
+    b.x += b.chargeDir.x * 360 * dt;
+    b.y += b.chargeDir.y * 360 * dt;
+  } else {
+    if (b.chargeUntil) b.chargeUntil = 0;
+    b.x += ndx * b.speed * dt;
+    b.y += ndy * b.speed * dt;
+    if (now - b.lastAttack > (hpFrac < 0.5 ? 2800 : 4200)) {
+      b.lastAttack = now;
+      b.chargeUntil = now + 900;
+      b.chargeDir = { x: ndx, y: ndy };
+    }
+  }
+}
+
+// 3) CLOAKER (Strypare) — blir osynlig, repositionerar, skjuter SMG-burst
+function aiCloaker(b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.cloakUntil && now < b.cloakUntil) {
+    // osynlig, snabb teleporter mot bakom spelaren
+    return;
+  }
+  if (b.cloakUntil && now >= b.cloakUntil) {
+    // Pop ur cloak vid en sida om spelaren
+    const a = Math.atan2(p.y - b.y, p.x - b.x) + Math.PI + (Math.random()-0.5)*0.8;
+    b.x = p.x + Math.cos(a) * 180;
+    b.y = p.y + Math.sin(a) * 180;
+    b.cloakUntil = 0;
+    b.lastAttack = now;
+  }
+  if (d > 250) { b.x += ndx * b.speed * dt; b.y += ndy * b.speed * dt; }
+  else if (d < 150) { b.x -= ndx * b.speed * dt; b.y -= ndy * b.speed * dt; }
+  // SMG burst
+  if (now - b.lastAttack > 1200) {
+    b.lastAttack = now;
+    for (let i = 0; i < 5; i++) {
+      setTimeout(() => {
+        if (b.dead) return;
+        bossShoot(b, p.x - b.x, p.y - b.y, 1, 0.06, '#ff3a44', 0.95, 1.4);
+      }, i * 80);
+    }
+  }
+  // Cloak vid <60% var 6:e sek
+  if (hpFrac < 0.6 && now - b.lastSpread > 6000) {
+    b.lastSpread = now;
+    b.cloakUntil = now + 1500;
+  }
+}
+
+// 4) BRUTE_CHARGER (Avrättaren) — stort, charger ofta, spread vid <33%
+function aiBruteCharger(b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.chargeUntil && now < b.chargeUntil) {
+    b.x += b.chargeDir.x * 420 * dt;
+    b.y += b.chargeDir.y * 420 * dt;
+    return;
+  }
+  if (b.chargeUntil) b.chargeUntil = 0;
+  b.x += ndx * b.speed * dt;
+  b.y += ndy * b.speed * dt;
+  const cd = hpFrac < 0.33 ? 2000 : (hpFrac < 0.66 ? 3000 : 4000);
+  if (now - b.lastAttack > cd) {
+    b.lastAttack = now;
+    b.chargeUntil = now + 850;
+    b.chargeDir = { x: ndx, y: ndy };
+  }
+  // Spread shotgun vid <50%
+  if (hpFrac < 0.5 && now - b.lastSpread > 2500) {
+    b.lastSpread = now;
+    bossShoot(b, p.x - b.x, p.y - b.y, 5, 0.20, '#ff8a30', 0.9, 1.6);
+  }
+}
+
+// 5) PLASMA (Köttkvarn) — håller medel-avstånd, plasma-skott + dash
+function aiPlasma(b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.dashUntil && now < b.dashUntil) {
+    b.x += b.dashDir.x * 500 * dt;
+    b.y += b.dashDir.y * 500 * dt;
+    return;
+  }
+  if (b.dashUntil) b.dashUntil = 0;
+  const ideal = 320;
+  if (d > ideal + 40) { b.x += ndx * b.speed * dt; b.y += ndy * b.speed * dt; }
+  else if (d < ideal - 40) { b.x -= ndx * b.speed * dt; b.y -= ndy * b.speed * dt; }
+  if (now - b.lastAttack > 900) {
+    b.lastAttack = now;
+    bossShoot(b, p.x - b.x, p.y - b.y, 1, 0, b.glow, 1.1, 2.4);
+  }
+  if (hpFrac < 0.5 && now - b.lastSpread > 3500) {
+    b.lastSpread = now;
+    b.dashUntil = now + 600;
+    const a = Math.atan2(p.y - b.y, p.x - b.x) + (Math.random() < 0.5 ? Math.PI/2 : -Math.PI/2);
+    b.dashDir = { x: Math.cos(a), y: Math.sin(a) };
+  }
+}
+
+// 6) JETPACK (Askmakare) — flyger, droppar bomber, eldspår
+function aiJetpack(b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.jetpackUntil && now < b.jetpackUntil) {
+    // flyger snabbt mot spelarens position
+    b.x += ndx * b.speed * 1.6 * dt;
+    b.y += ndy * b.speed * 1.6 * dt;
+    if (Math.random() < 0.4) {
+      state.flameTrails.push({ x: b.x, y: b.y, r: 30, life: 2.5, dps: 12 });
+    }
+    return;
+  }
+  if (b.jetpackUntil && now >= b.jetpackUntil) b.jetpackUntil = 0;
+  // markläge: skjuter
+  if (d > 260) { b.x += ndx * b.speed * 0.7 * dt; b.y += ndy * b.speed * 0.7 * dt; }
+  if (now - b.lastAttack > 1300) {
+    b.lastAttack = now;
+    bossShoot(b, p.x - b.x, p.y - b.y, 3, 0.15, '#ff5a14', 1.0, 1.8);
+  }
+  // Jetpack-burst var 5:e sek
+  if (now - b.lastSpread > 5000) {
+    b.lastSpread = now;
+    b.jetpackUntil = now + 1200;
+  }
+}
+
+// 7) GAS_SNIPER (Lungrivare) — droppar gasmoln, sniper-skott, dash
+function aiGasSniper(b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.dashUntil && now < b.dashUntil) {
+    b.x += b.dashDir.x * 480 * dt;
+    b.y += b.dashDir.y * 480 * dt;
+    return;
+  }
+  if (b.dashUntil) b.dashUntil = 0;
+  const ideal = hpFrac < 0.5 ? 240 : 380;
+  if (d > ideal + 40) { b.x += ndx * b.speed * dt; b.y += ndy * b.speed * dt; }
+  else if (d < ideal - 40) { b.x -= ndx * b.speed * dt; b.y -= ndy * b.speed * dt; }
+  // sniper-burst (3 shots)
+  if (d <= 600 && now - b.lastAttack > (hpFrac < 0.5 ? 1100 : 1600)) {
+    b.lastAttack = now;
+    for (let i = -1; i <= 1; i++) {
+      const a = Math.atan2(p.y - b.y, p.x - b.x) + i * 0.07;
+      state.bullets.push({
+        x: b.x, y: b.y, vx: Math.cos(a)*720, vy: Math.sin(a)*720,
+        dmg: b.bulletDmg, life: 2.4, r: 5, color: b.glow, hostile: true,
+      });
+    }
+  }
+  // gasmoln var 4:e sek
+  if (now - b.lastSpread > 4000) {
+    b.lastSpread = now;
+    dropGasCloud(b.x, b.y, 90, 5, 8);
+    b.dashUntil = now + 400;
+    const a = Math.atan2(p.y - b.y, p.x - b.x) + Math.PI;
+    b.dashDir = { x: Math.cos(a), y: Math.sin(a) };
+  }
+}
+
+// 8) SHIELDER (Skallspräckare) — riot-shield blockar skott framifrån
+function aiShielder(b, p, ndx, ndy, d, hpFrac, dt, now) {
+  // Riktning av sköld = mot spelaren
+  b.shieldDir = Math.atan2(p.y - b.y, p.x - b.x);
+  b.x += ndx * b.speed * dt;
+  b.y += ndy * b.speed * dt;
+  // Magnum shots när nära
+  if (d < 380 && now - b.lastAttack > 1400) {
+    b.lastAttack = now;
+    bossShoot(b, p.x - b.x, p.y - b.y, 1, 0, '#ffd54a', 1.3, 2.0);
+  }
+  // Sköld-bash vid <40%
+  if (hpFrac < 0.4 && now - b.lastSpread > 4000 && !b.chargeUntil) {
+    b.lastSpread = now;
+    b.chargeUntil = now + 700;
+    b.chargeDir = { x: ndx, y: ndy };
+  }
+  if (b.chargeUntil && now < b.chargeUntil) {
+    b.x += b.chargeDir.x * 380 * dt;
+    b.y += b.chargeDir.y * 380 * dt;
+  } else if (b.chargeUntil) b.chargeUntil = 0;
+}
+
+// 9) AVATAR (Själaätare) — fas 1: lila orb-skott, summonar skuggor, teleport
+function aiAvatar(b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.cloakUntil && now < b.cloakUntil) return; // teleporterar
+  if (b.cloakUntil && now >= b.cloakUntil) {
+    // Pop in nära spelaren
+    const a = Math.random() * Math.PI * 2;
+    b.x = p.x + Math.cos(a) * 250;
+    b.y = p.y + Math.sin(a) * 250;
+    b.cloakUntil = 0;
+    bossShoot(b, p.x - b.x, p.y - b.y, 8, Math.PI/4, b.glow, 0.85, 2.5);
+  }
+  const ideal = 300;
+  if (d > ideal + 50) { b.x += ndx * b.speed * 0.6 * dt; b.y += ndy * b.speed * 0.6 * dt; }
+  // ring av orbs
+  if (now - b.lastAttack > 1800) {
+    b.lastAttack = now;
+    bossShoot(b, p.x - b.x, p.y - b.y, 12, Math.PI*2/12, b.glow, 0.7, 3.0);
+  }
+  // summona ninja vid <60%
+  if (hpFrac < 0.6 && now - b.lastSpread > 6000) {
+    b.lastSpread = now;
+    for (let i = 0; i < 3; i++) {
+      const a = i * Math.PI * 2 / 3;
+      state.enemies.push(makeEnemy('ninja', b.x + Math.cos(a)*70, b.y + Math.sin(a)*70));
+    }
+  }
+  // teleport vid <33%
+  if (hpFrac < 0.33 && !b.cloakUntil && now > b.lastAttack + 700 && Math.random() < 0.01) {
+    b.cloakUntil = now + 800;
+  }
+}
+
+// 10) FINAL (Mourad Gravgrävaren) — 3 faser, allt
+function aiFinal(b, p, ndx, ndy, d, hpFrac, dt, now) {
+  const phase = hpFrac < 0.33 ? 3 : (hpFrac < 0.66 ? 2 : 1);
+  if (phase !== b.phase) {
+    b.phase = phase;
+    // Vid fas-skift: spread shockwave + heal liten
+    bossShoot(b, 1, 0, 16, Math.PI*2/16, b.glow, 1.0, 2.5);
+    state.particles.push({ x: b.x, y: b.y, vx:0, vy:0, life: 0.5, color: b.glow, r: 100, isExplosion: true });
+  }
+  if (b.chargeUntil && now < b.chargeUntil) {
+    b.x += b.chargeDir.x * 480 * dt;
+    b.y += b.chargeDir.y * 480 * dt;
+    return;
+  }
+  if (b.chargeUntil) b.chargeUntil = 0;
+  // Rörelse
+  const speedMul = phase === 3 ? 1.3 : (phase === 2 ? 1.0 : 0.7);
+  b.x += ndx * b.speed * speedMul * dt;
+  b.y += ndy * b.speed * speedMul * dt;
+  // Spread-skott
+  if (now - b.lastSpread >= (phase === 3 ? 800 : 1100)) {
+    b.lastSpread = now;
+    const shots = phase === 3 ? 9 : (phase === 2 ? 7 : 5);
+    bossShoot(b, p.x - b.x, p.y - b.y, shots, 0.16, '#ff1a1a', 1.0, 2.2);
+  }
+  // Summon vid fas 2+
+  if (phase >= 2 && now - b.lastAttack >= 5000) {
+    b.lastAttack = now;
+    for (let i = 0; i < (phase === 3 ? 4 : 3); i++) {
+      const a = Math.random()*Math.PI*2;
+      state.enemies.push(makeEnemy('runner', b.x + Math.cos(a)*90, b.y + Math.sin(a)*90));
+    }
+  }
+  // Charge vid fas 3
+  if (phase === 3 && now - b.chargeCdAt > 3000) {
+    b.chargeCdAt = now;
+    b.chargeUntil = now + 700;
+    b.chargeDir = { x: ndx, y: ndy };
+  }
+}
+
+function applyBulletEffects(target, b) {
+  const now = performance.now();
+  if (b.burn) {
+    target.burnUntil = Math.max(target.burnUntil || 0, now + 2000);
+    target.burnDps = Math.max(target.burnDps || 0, b.burn);
+  }
+  if (b.slow) {
+    target.slowUntil = Math.max(target.slowUntil || 0, now + 1500);
+    target.slowFactor = Math.min(target.slowFactor || 1, 1 / b.slow);
+  }
+  if (b.knockback) {
+    const a = Math.atan2(target.y - b.y, target.x - b.x);
+    target.x += Math.cos(a) * 18;
+    target.y += Math.sin(a) * 18;
+  }
+  if (b.chain && b.chain > 0) {
+    // hitta upp till `chain` närmsta andra fiender inom 220px
+    const seen = new Set([target]);
+    let last = target;
+    let hops = b.chain;
+    while (hops > 0) {
+      let best = null, bestD = 220;
+      for (const e of state.enemies) {
+        if (e.dead || seen.has(e)) continue;
+        const d = Math.hypot(e.x - last.x, e.y - last.y);
+        if (d < bestD) { bestD = d; best = e; }
+      }
+      if (!best) break;
+      // visuell zigzag-blixt
+      state.particles.push({
+        x: last.x, y: last.y, vx: 0, vy: 0, life: 0.18, color: '#ffeb3b', r: 0,
+        isLightning: true, x2: best.x, y2: best.y,
+      });
+      damageEnemy(best, b.dmg * 0.7, false);
+      seen.add(best);
+      last = best;
+      hops--;
+    }
+  }
+}
+
+function updateBullets(dt) {
+  const p = state.player;
+  // Hård cap mot infinite-skott (t.ex. cheats + minigun)
+  if (state.bullets.length > 300) {
+    state.bullets.splice(0, state.bullets.length - 300);
+  }
+  for (const b of state.bullets) {
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+    b.life -= dt;
+    // Svartphål: dra fiender mot bullet-positionen
+    if (b.pullRadius && !b.hostile) {
+      for (const e of state.enemies) {
+        if (e.dead || e.isBoss) continue;
+        const dx = b.x - e.x, dy = b.y - e.y;
+        const d = Math.hypot(dx, dy) || 1;
+        if (d < b.pullRadius) {
+          const force = (1 - d / b.pullRadius) * 200 * dt;
+          e.x += (dx/d) * force;
+          e.y += (dy/d) * force;
+        }
+      }
+    }
+    // Boomerang: returnerar efter 0.7s
+    if (b.returns && !b.hostile) {
+      b.returnTimer += dt;
+      if (b.returnTimer > 0.7 && state.player) {
+        const dxp = state.player.x - b.x, dyp = state.player.y - b.y;
+        const dp = Math.hypot(dxp, dyp) || 1;
+        const speed = Math.hypot(b.vx, b.vy);
+        b.vx = (dxp/dp) * speed;
+        b.vy = (dyp/dp) * speed;
+        if (dp < 25) { b.dead = true; b.hitIds = null; }
+      }
+    }
+    // Pull-whip: drar fiende vid träff
+    if (b.pullsEnemy && !b.hostile) {
+      for (const e of state.enemies) {
+        if (e.dead || e.isBoss) continue;
+        const d = Math.hypot(e.x - b.x, e.y - b.y);
+        if (d < e.r + b.r + 8 && state.player) {
+          const dxp = state.player.x - e.x, dyp = state.player.y - e.y;
+          const dp = Math.hypot(dxp, dyp) || 1;
+          e.x += (dxp/dp) * 80;
+          e.y += (dyp/dp) * 80;
+        }
+      }
+    }
+    // Studsskott-perk: studsa en gång på världs-kanten
+    if (!b.hostile && hasPerk('ricochet') && !b.bounced) {
+      let bounced = false;
+      if (b.x < 0) { b.vx = Math.abs(b.vx); b.x = 1; bounced = true; }
+      if (b.x > WORLD.w) { b.vx = -Math.abs(b.vx); b.x = WORLD.w - 1; bounced = true; }
+      if (b.y < 0) { b.vy = Math.abs(b.vy); b.y = 1; bounced = true; }
+      if (b.y > WORLD.h) { b.vy = -Math.abs(b.vy); b.y = WORLD.h - 1; bounced = true; }
+      if (bounced) { b.bounced = true; b.life = Math.max(b.life, 0.6); continue; }
+    }
+    if (b.life <= 0 || b.x < 0 || b.y < 0 || b.x > WORLD.w || b.y > WORLD.h) {
+      if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
+      if (b.gasOnHit) dropGasCloud(b.x, b.y, 70, 4, 6);
+      b.dead = true;
+      continue;
+    }
+    if (b.hostile) {
+      // Träffa närmsta spelare (host eller partner)
+      let nearest = null, nearestPid = null, nearestD = Infinity;
+      const distP = Math.hypot(p.x - b.x, p.y - b.y);
+      if (distP < nearestD) { nearestD = distP; nearest = p; }
+      if (Coop.active && Coop.isHost) {
+        for (const [pid, partner] of Coop.players) {
+          if (partner.hp <= 0) continue;
+          const dd = Math.hypot(partner.x - b.x, partner.y - b.y);
+          if (dd < nearestD) { nearestD = dd; nearest = partner; nearestPid = pid; }
+        }
+      }
+      if (nearest && nearestD < (nearest.r || 14) + b.r) {
+        if (nearestPid) {
+          Coop.sendDamageToPartner(nearestPid, b.dmg);
+          nearest.hp = Math.max(0, (nearest.hp || 100) - b.dmg);
+        } else {
+          damagePlayer(b.dmg);
+        }
+        if (b.gasOnHit) dropGasCloud(b.x, b.y, 70, 4, 6);
+        b.dead = true;
+      }
+    } else {
+      let hit = false;
+      if (!b.hitIds) b.hitIds = new Set();
+      const isCoopClient = Coop.active && !Coop.isHost;
+      // Träff på fuel_drum eller fire_barrel = explosion (host kör bara)
+      if (!isCoopClient) {
+        for (const dec of stageState.decorations) {
+          if (dec.exploded) continue;
+          if (dec.kind === 'fuel_drum' || dec.kind === 'fire_barrel') {
+            const dx = dec.x - b.x, dy = dec.y - b.y;
+            if (Math.hypot(dx, dy) < 14) {
+              dec.exploded = true; dec.kind = 'explosion_mark';
+              explode(dec.x, dec.y, 90, 30, true);
+              b.dead = true;
+            }
+          }
+        }
+        if (b.dead) continue;
+      }
+      for (let i = 0; i < state.enemies.length; i++) {
+        const e = state.enemies[i];
+        if (e.dead || b.hitIds.has(e)) continue;
+        const d = Math.hypot(e.x - b.x, e.y - b.y);
+        if (d < e.r + b.r) {
+          if (b.explosive && !isCoopClient) {
+            explode(b.x, b.y, b.explosive, b.dmg, true);
+            hit = true; break;
+          }
+          if (isCoopClient) {
+            // Klient: skicka damage-event till host istället
+            Coop.damageEnemyOnHost(i, b.dmg, b.crit);
+            // Visuell-feedback lokalt (flash)
+            e.flashUntil = performance.now() + 80;
+            spawnDamageNumber(e.x, e.y - e.r, Math.round(b.dmg), b.crit);
+          } else {
+            applyBulletEffects(e, b);
+            damageEnemy(e, b.dmg, b.crit);
+          }
+          b.hitIds.add(e);
+          if (!b.pierce) { hit = true; break; }
+        }
+      }
+      if (hit) b.dead = true;
+    }
+  }
+  state.bullets = state.bullets.filter(b => !b.dead);
+}
+
+function updateStageAmbient(dt) {
+  if (!state.player || state.zoneState !== 'spawning' && state.zoneState !== 'clearing') return;
+  const stage = getStage(state.wave);
+  if (!stage) return;
+  state.ambientTimer = (state.ambientTimer || 0) - dt;
+  if (state.ambientTimer > 0) return;
+  // Per-stage ambient (chans varje 8-15 sek)
+  state.ambientTimer = 8 + Math.random() * 7;
+  switch (stage.kind) {
+    case 'forest':
+      // löv-vind-partiklar
+      for (let i = 0; i < 8; i++) {
+        state.particles.push({
+          x: state.player.x + (Math.random()-0.5)*viewW,
+          y: state.player.y + (Math.random()-0.5)*viewH,
+          vx: 80 + Math.random()*40, vy: 20 + Math.random()*20,
+          life: 1.5, color: 'rgba(120,160,80,0.6)', r: 2 + Math.random()*2,
+        });
+      }
+      break;
+    case 'depot':
+      // 30% chans att en fat-fat brinner spontant
+      if (Math.random() < 0.4) {
+        const dec = stageState.decorations.filter(d => d.kind === 'fuel_drum');
+        if (dec.length) {
+          const d = dec[Math.floor(Math.random() * dec.length)];
+          if (Math.hypot(d.x - state.player.x, d.y - state.player.y) > 200) {
+            explode(d.x, d.y, 70, 15, true);
+          }
+        }
+      }
+      break;
+    case 'bunker':
+      // lampor blinkar slumpmässigt
+      state.lightsFlickerUntil = performance.now() + 1500;
+      break;
+    case 'command':
+      // Jimmy-skärmar tänds på
+      state.jimmyScreensUntil = performance.now() + 2500;
+      break;
+    case 'hangar':
+      // distant aircraft sound (subtle)
+      Audio.shootHeavy && Audio._tone && Audio._tone(60, 0.8, 'sine', 0.08, 0.1, 0.7, 40);
+      break;
+  }
+}
+
+function updateHazards(dt) {
+  const p = state.player;
+  // Gasmoln — DoT när spelaren står i
+  if (state.gasClouds) {
+    for (const g of state.gasClouds) {
+      g.life -= dt;
+      if (g.life <= 0) { g.dead = true; continue; }
+      const d = Math.hypot(p.x - g.x, p.y - g.y);
+      if (d < g.r + p.r) damagePlayer(g.dps * dt);
+      // partiklar för synlighet
+      if (Math.random() < 0.3) {
+        const a = Math.random()*Math.PI*2;
+        const rr = Math.random()*g.r;
+        state.particles.push({
+          x: g.x + Math.cos(a)*rr, y: g.y + Math.sin(a)*rr,
+          vx: 0, vy: -10, life: 0.6, r: 4 + Math.random()*3,
+          color: 'rgba(154,255,90,0.45)',
+        });
+      }
+    }
+    state.gasClouds = state.gasClouds.filter(g => !g.dead);
+  }
+  // Eldspår — DoT
+  if (state.flameTrails) {
+    for (const f of state.flameTrails) {
+      f.life -= dt;
+      if (f.life <= 0) { f.dead = true; continue; }
+      const d = Math.hypot(p.x - f.x, p.y - f.y);
+      if (d < f.r + p.r) damagePlayer(f.dps * dt);
+      if (Math.random() < 0.4) {
+        state.particles.push({
+          x: f.x + (Math.random()-0.5)*f.r, y: f.y + (Math.random()-0.5)*f.r,
+          vx: 0, vy: -30, life: 0.4, r: 3 + Math.random()*3,
+          color: `rgba(255,${130+Math.random()*60|0},40,0.7)`,
+        });
+      }
+    }
+    state.flameTrails = state.flameTrails.filter(f => !f.dead);
+  }
+}
+
+// Particle pool — återanvänder döda particles istället för GC
+const _particlePool = [];
+function getParticleFromPool() {
+  return _particlePool.pop() || {};
+}
+function recycleParticle(p) {
+  if (_particlePool.length < 200) {
+    for (const k in p) delete p[k];
+    _particlePool.push(p);
+  }
+}
+
+function updateParticles(dt) {
+  for (const p of state.particles) {
+    if (!p.isSlash && !p.isExplosion && !p.isFootprint && !p.isLightning && !p.isCritText && !p.isDamageNumber) {
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.vx *= 0.92; p.vy *= 0.92;
+    } else if (p.isCritText) {
+      p.y += p.vy * dt;
+    } else if (p.isDamageNumber || p.isChatter) {
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.isDamageNumber) p.vy += 60 * dt;
+    }
+    p.life -= dt;
+  }
+  // Cap totala partiklar (släng äldsta vid över 250)
+  if (state.particles.length > 250) {
+    const removed = state.particles.splice(0, state.particles.length - 250);
+    for (const p of removed) recycleParticle(p);
+  }
+  // Filter dead particles + recycle them
+  const alive = [];
+  for (const p of state.particles) {
+    if (p.life > 0) alive.push(p);
+    else recycleParticle(p);
+  }
+  state.particles = alive;
+}
+
+function updateCamera() {
+  state.camera.x = state.player.x - viewW / 2;
+  state.camera.y = state.player.y - viewH / 2;
+  state.camera.x = Math.max(0, Math.min(WORLD.w - viewW, state.camera.x));
+  state.camera.y = Math.max(0, Math.min(WORLD.h - viewH, state.camera.y));
+  // shake-offset
+  const shake = getShakeOffset();
+  state.camera.x += shake.x;
+  state.camera.y += shake.y;
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+// ============================================================
+// MILITÄRBAS-MILJÖER (per wave)
+// ============================================================
+const THEMES = [
+  { name: 'Yttre staket-zon',  ground: '#3a2e1e', grid: '#241a0e', edge: '#7a4a20', props: ['sandbag','fence','barrel'],     density: 0.55, fog: 0 },
+  { name: 'Barack-gården',     ground: '#3a352a', grid: '#241f15', edge: '#7a5a30', props: ['sandbag','crate','barrel'],     density: 0.7,  fog: 0 },
+  { name: 'Lasthangar',        ground: '#2c2c34', grid: '#161620', edge: '#5a5a6a', props: ['crate','pipe','barrel','vehicle_track'], density: 0.8, fog: 0.05 },
+  { name: 'Inre depå',         ground: '#262630', grid: '#10101a', edge: '#4a4a5a', props: ['pipe','crate','lamp','vehicle_track'],   density: 0.9, fog: 0.08 },
+  { name: 'Bunkergångar',      ground: '#1c1c22', grid: '#0a0a10', edge: '#3a3a44', props: ['pipe','lamp','warning_stripe','crate'],  density: 1.0, fog: 0.12 },
+  { name: 'Kommando-kärnan',   ground: '#1a1014', grid: '#0a0508', edge: '#7a1818', props: ['warning_stripe','barricade','lamp','pipe'], density: 1.2, fog: 0.18 },
+];
+function getThemeForWave(w) {
+  return THEMES[getLevel(w).theme] || THEMES[0];
+}
+
+// Väg-system: huvud-axlar genom basen, plus en cirkel vid mitten (boss-arena)
+const ROAD_W = 90;
+function isOnRoad(px, py) {
+  // central söder-nord-korridor
+  if (Math.abs(px - WORLD.w/2) < ROAD_W * 0.5) return true;
+  // tvärgator vid level-gränser
+  for (const lvl of LEVELS) {
+    if (Math.abs(py - lvl.startY) < 60) return true;
+    if (Math.abs(py - lvl.goalY) < 60) return true;
+  }
+  return false;
+}
+// Per-stage layout-byggare. Alla genererar deterministiskt (samma seed → samma karta).
+function rngFor(stage, salt) {
+  let s = ((stage.id * 9341) ^ (salt | 0)) | 0;
+  return () => { s = (s * 1664525 + 1013904223) | 0; return ((s >>> 0) / 0xFFFFFFFF); };
+}
+
+function buildStageLayout(stage) {
+  stageState.buildings = [];
+  stageState.decorations = [];
+  stageState.hazards = [];
+  stageState.collectibles = [];
+  const layouts = {
+    forest:    layoutForest,
+    perimeter: layoutPerimeter,
+    lobby:     layoutLobby,
+    barracks:  layoutBarracks,
+    hangar:    layoutHangar,
+    depot:     layoutDepot,
+    cargo:     layoutCargo,
+    bunker:    layoutBunker,
+    command:   layoutCommand,
+  };
+  const fn = layouts[stage.kind] || layoutForest;
+  fn(stage);
+  // Lägg till 5 dog tags på slump-positioner (deterministiskt per stage)
+  if (getMode() === 'story') {
+    const r = rngFor(stage, 100);
+    for (let i = 0; i < 5; i++) {
+      let placed = false;
+      for (let tries = 0; tries < 30 && !placed; tries++) {
+        const x = 100 + r() * (stage.worldW - 200);
+        const y = 200 + r() * (stage.worldH - 400);
+        // håll dem 80px från spawn/goal
+        if (Math.hypot(x - stage.spawnPos.x, y - stage.spawnPos.y) < 200) continue;
+        if (Math.hypot(x - stage.goalPos.x, y - stage.goalPos.y) < 200) continue;
+        // inte i byggnad
+        if (isInsideAnyBuilding(x, y, 14)) continue;
+        stageState.collectibles.push({ x, y, kind: 'dog_tag', id: `s${stage.id}_${i}`, picked: false });
+        placed = true;
+      }
+    }
+  }
+}
+
+function updateCollectibles() {
+  if (!state.player || !stageState.collectibles) return;
+  // Lista över alla spelare som kan plocka upp
+  const players = [{ ref: state.player, isLocal: true, pid: null }];
+  if (Coop.active && Coop.isHost) {
+    for (const [pid, partner] of Coop.players) {
+      if (partner.hp > 0) players.push({ ref: partner, isLocal: false, pid });
+    }
+  }
+  for (const c of stageState.collectibles) {
+    if (c.picked) continue;
+    // Hitta närmsta spelare
+    let closest = null, closestD = Infinity;
+    for (const pl of players) {
+      const dd = Math.hypot(c.x - pl.ref.x, c.y - pl.ref.y);
+      if (dd < closestD) { closestD = dd; closest = pl; }
+    }
+    if (!closest) continue;
+    const d = closestD;
+    if (d < (closest.ref.r || 14) + 14) {
+      c.picked = true;
+      if (c.kind === 'weapon_pickup') {
+        if (!closest.isLocal && closest.pid) {
+          Coop._sendTo(closest.pid, { type: 'weapon_pickup', weaponId: c.weaponId });
+          continue;
+        }
+        if (!save.owned.includes(c.weaponId)) save.owned.push(c.weaponId);
+        equip(c.weaponId);
+        Audio.purchase();
+        const w = W_BY_ID[c.weaponId];
+        showToast('🔫 ' + (w ? w.name : c.weaponId));
+        persist();
+      } else {
+        // Default: dog tag
+        Audio.goldPickup();
+        Audio.achievement();
+        save.collectibles = save.collectibles || {};
+        save.collectibles[c.id] = true;
+        persist();
+        showToast('🪖 DOG TAG');
+        save.gold += 50;
+        state.goldThisRun += 50;
+      }
+    }
+  }
+}
+function drawCollectibles() {
+  if (!stageState.collectibles) return;
+  const cx = state.camera.x, cy = state.camera.y;
+  const t = performance.now();
+  for (const c of stageState.collectibles) {
+    if (c.picked) continue;
+    if (c.kind !== 'weapon_pickup' && save.collectibles && save.collectibles[c.id]) { c.picked = true; continue; }
+    const x = c.x - cx, y = c.y - cy + Math.sin(t/300) * 3;
+    if (c.kind === 'weapon_pickup') {
+      // PISTOL-PICKUP — gul glow + pistol-ikon på marken
+      // Pulserande glöd
+      const pulse = 0.6 + Math.sin(t/200) * 0.3;
+      ctx.fillStyle = `rgba(255,174,58,${0.25 * pulse})`;
+      ctx.beginPath(); ctx.arc(x, y, 22 * pulse, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = `rgba(255,213,74,${0.4 * pulse})`;
+      ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2); ctx.fill();
+      // skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath(); ctx.ellipse(x + 2, y + 9, 12, 4, 0, 0, Math.PI*2); ctx.fill();
+      // PISTOL-form (top-down)
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(Math.sin(t/500) * 0.15);
+      // grepp
+      ctx.fillStyle = '#3a2a1a';
+      ctx.fillRect(-3, -2, 6, 10);
+      // slide/pipa
+      ctx.fillStyle = '#4a4a4a';
+      ctx.fillRect(-4, -8, 14, 6);
+      ctx.fillStyle = '#6a6a6a';
+      ctx.fillRect(-4, -8, 14, 2);
+      // mynning
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(8, -7, 2, 4);
+      // trigger
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(-1, -1, 2, 3);
+      ctx.restore();
+      // "TA UPP" prompt om nära
+      if (state.player) {
+        const dp = Math.hypot(c.x - state.player.x, c.y - state.player.y);
+        if (dp < 80) {
+          ctx.fillStyle = '#ffd54a';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+          ctx.fillText('PISTOL', x, y - 20);
+          ctx.shadowBlur = 0;
+        }
+      }
+      continue;
+    }
+    // Dog tag (default)
+    ctx.fillStyle = 'rgba(255,213,74,0.3)';
+    ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#888';
+    ctx.fillRect(x - 4, y - 8, 8, 14);
+    ctx.fillStyle = '#dcdcdc';
+    ctx.fillRect(x - 3, y - 7, 6, 12);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x - 2, y - 4, 4, 1);
+    ctx.fillRect(x - 2, y - 1, 4, 1);
+    ctx.fillRect(x - 2, y + 2, 4, 1);
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x - 6, y - 9); ctx.lineTo(x + 6, y - 9); ctx.stroke();
+  }
+}
+
+// Helper: kontrollera att en pos inte ligger för nära spawn/goal eller en redan placerad byggnad
+function placementOk(stage, x, y, minDistFromPath) {
+  if (Math.hypot(x - stage.spawnPos.x, y - stage.spawnPos.y) < 130) return false;
+  if (Math.hypot(x - stage.goalPos.x,  y - stage.goalPos.y)  < 130) return false;
+  // håll en fri korridor mellan spawn och goal (rak linje)
+  if (minDistFromPath !== 0) {
+    const sx = stage.spawnPos.x, sy = stage.spawnPos.y;
+    const gx = stage.goalPos.x,  gy = stage.goalPos.y;
+    const dx = gx - sx, dy = gy - sy;
+    const L2 = dx*dx + dy*dy;
+    const t = Math.max(0, Math.min(1, ((x - sx) * dx + (y - sy) * dy) / L2));
+    const px = sx + t * dx, py = sy + t * dy;
+    const distToPath = Math.hypot(x - px, y - py);
+    if (distToPath < (minDistFromPath || 70)) return false;
+  }
+  return true;
+}
+
+// Stage 1 — SKOGEN: helikopter-vrak setpiece, läger-rester, vakttorn-vrak, skyltar
+function layoutForest(stage) {
+  const r = rngFor(stage, 1);
+  const W = stage.worldW, H = stage.worldH;
+  // 3 pistoler att loota — placerade längs vägen för att hjälpa nybörjaren
+  if (!stageState.collectibles) stageState.collectibles = [];
+  const pistolSpots = [
+    { x: W * 0.30, y: H * 0.70 },  // nära spawn (vänster)
+    { x: W * 0.65, y: H * 0.45 },  // mitten
+    { x: W * 0.50, y: H * 0.25 },  // nära goal (norr)
+  ];
+  for (let i = 0; i < pistolSpots.length; i++) {
+    stageState.collectibles.push({
+      x: pistolSpots[i].x, y: pistolSpots[i].y,
+      kind: 'weapon_pickup', weaponId: 'pistol',
+      id: `pistol_s1_${i}`, picked: false,
+    });
+  }
+  // SETPIECE: helikopter-vrak halv-begravd i mitten
+  const hx = W * 0.55, hy = H * 0.55;
+  stageState.buildings.push({ x: hx - 90, y: hy - 60, w: 180, h: 120, kind: 'heli_wreck', seed: 42 });
+  // SETPIECE: vakttorn-vrak (collapsed) bortre vänster
+  stageState.buildings.push({ x: 200, y: H * 0.30, w: 90, h: 130, kind: 'tower_wreck' });
+  // SETPIECE: läger med tält och lägereld nära spawn
+  const cmpX = W * 0.30, cmpY = H * 0.78;
+  stageState.buildings.push({ x: cmpX - 40, y: cmpY - 30, w: 80, h: 60, kind: 'tent' });
+  stageState.buildings.push({ x: cmpX + 80, y: cmpY - 25, w: 70, h: 50, kind: 'tent' });
+  stageState.decorations.push({ x: cmpX + 30, y: cmpY + 50, kind: 'campfire' });
+  stageState.decorations.push({ x: cmpX - 20, y: cmpY + 60, kind: 'log' });
+  stageState.decorations.push({ x: cmpX + 80, y: cmpY + 60, kind: 'log' });
+  // SETPIECE: övergiven jeep
+  stageState.buildings.push({ x: W * 0.65, y: H * 0.30, w: 76, h: 44, kind: 'vehicle_rust' });
+
+  // Träd som hinder + dekoration
+  const N = 90;
+  for (let i = 0; i < N; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 12 && !placed; tries++) {
+      const x = 50 + r() * (W - 100);
+      const y = 50 + r() * (H - 100);
+      if (!placementOk(stage, x, y, 80)) continue;
+      let ok = true;
+      for (const b of stageState.buildings) {
+        if (Math.hypot((b.cx || b.x + b.w/2) - x, (b.cy || b.y + b.h/2) - y) < 70) { ok = false; break; }
+      }
+      if (!ok) continue;
+      const size = 0.85 + r() * 0.55;
+      const collR = 14 * size;
+      stageState.buildings.push({
+        x: x - collR, y: y - collR, w: collR * 2, h: collR * 2,
+        kind: 'tree', cx: x, cy: y, size, seed: (r() * 1e9) | 0,
+      });
+      placed = true;
+    }
+  }
+  // Buskar
+  for (let i = 0; i < 50; i++) {
+    const x = 30 + r() * (W - 60);
+    const y = 30 + r() * (H - 60);
+    stageState.decorations.push({ x, y, kind: 'bush', size: 0.6 + r() * 0.6 });
+  }
+  // Stenar
+  for (let i = 0; i < 18; i++) {
+    const x = 40 + r() * (W - 80);
+    const y = 40 + r() * (H - 80);
+    stageState.decorations.push({ x, y, kind: 'rock', size: 0.6 + r() * 0.5 });
+  }
+  // Skelett-rester (atmosfär)
+  for (let i = 0; i < 4; i++) {
+    stageState.decorations.push({ x: 100 + r() * (W - 200), y: 200 + r() * (H - 400), kind: 'bones' });
+  }
+  // Grindport norr vid goal
+  const gx = stage.goalPos.x, gy = stage.goalPos.y;
+  stageState.decorations.push({ x: gx, y: gy + 30, kind: 'gate' });
+  stageState.buildings.push({ x: gx - 220, y: gy - 30, w: 130, h: 60, kind: 'wall_concrete' });
+  stageState.buildings.push({ x: gx + 90,  y: gy - 30, w: 130, h: 60, kind: 'wall_concrete' });
+  // SKYLTAR
+  stageState.decorations.push({ x: W * 0.50, y: H * 0.85, kind: 'wood_sign', text: 'BAS 2 KM →' });
+  stageState.decorations.push({ x: W * 0.30, y: H * 0.50, kind: 'wood_sign', text: 'RESTRICTED' });
+  stageState.decorations.push({ x: gx - 320, y: gy + 80, kind: 'wood_sign', text: 'TURN BACK', warning: true });
+  stageState.decorations.push({ x: gx + 240, y: gy + 80, kind: 'wood_sign', text: 'KEEP OUT' });
+  // Trasiga staketsegment
+  stageState.buildings.push({ x: W * 0.20, y: H * 0.42, w: 140, h: 8, kind: 'fence_seg_broken' });
+  stageState.buildings.push({ x: W * 0.70, y: H * 0.65, w: 8, h: 120, kind: 'fence_seg_broken' });
+}
+
+// Stage 2 — PERIMETERN: vägbom-portal som setpiece, asfalt, fordon, vakttorn med sweeping spotlights
+function layoutPerimeter(stage) {
+  const r = rngFor(stage, 2);
+  const W = stage.worldW, H = stage.worldH;
+  // SETPIECE: stor portal vid goal med vakthus + bom
+  stageState.buildings.push({ x: stage.goalPos.x - 200, y: stage.goalPos.y + 60, w: 80, h: 70, kind: 'guardpost' });
+  stageState.buildings.push({ x: stage.goalPos.x + 120, y: stage.goalPos.y + 60, w: 80, h: 70, kind: 'guardpost' });
+  stageState.decorations.push({ x: stage.goalPos.x, y: stage.goalPos.y + 80, kind: 'gate_arm' });
+  stageState.decorations.push({ x: stage.goalPos.x, y: stage.goalPos.y + 30, kind: 'big_base_sign', text: 'BASE GAMMA' });
+  // Huvudbyggnad bakom goal
+  stageState.buildings.push({ x: stage.goalPos.x - 280, y: stage.goalPos.y - 140, w: 560, h: 140, kind: 'hq_facade' });
+  // 4 vakttorn med svängande spotlights
+  const towers = [
+    { x: 200, y: H * 0.62 }, { x: W - 200, y: H * 0.62 },
+    { x: 200, y: H * 0.30 }, { x: W - 200, y: H * 0.30 },
+  ];
+  for (let i = 0; i < towers.length; i++) {
+    const t = towers[i];
+    stageState.buildings.push({ x: t.x - 32, y: t.y - 32, w: 64, h: 64, kind: 'watchtower' });
+    stageState.decorations.push({ x: t.x, y: t.y, kind: 'spotlight_sweep', phase: i * 1.3 });
+  }
+  // Vägbom mid-stage (zon-gräns)
+  stageState.buildings.push({ x: W * 0.5 - 8, y: H * 0.55, w: 16, h: 50, kind: 'fence_seg' });
+  stageState.decorations.push({ x: W * 0.5, y: H * 0.55, kind: 'gate_arm_small' });
+  // Stängselsegment
+  for (let i = 0; i < 12; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 14 && !placed; tries++) {
+      const x = 80 + r() * (W - 160);
+      const y = 220 + r() * (H - 440);
+      if (!placementOk(stage, x, y, 110)) continue;
+      let ok = true;
+      for (const b of stageState.buildings) {
+        if (Math.abs(b.x + b.w/2 - x) < 90 && Math.abs(b.y + b.h/2 - y) < 90) { ok = false; break; }
+      }
+      if (!ok) continue;
+      const orient = (r() < 0.5) ? 'h' : 'v';
+      const len = 90 + r() * 70;
+      if (orient === 'h') stageState.buildings.push({ x: x - len/2, y: y - 6, w: len, h: 12, kind: 'fence_seg' });
+      else                stageState.buildings.push({ x: x - 6, y: y - len/2, w: 12, h: len, kind: 'fence_seg' });
+      placed = true;
+    }
+  }
+  // Parkerade fordon (jeep + transport)
+  for (let i = 0; i < 7; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 12 && !placed; tries++) {
+      const x = 100 + r() * (W - 200);
+      const y = 200 + r() * (H - 400);
+      if (!placementOk(stage, x, y, 130)) continue;
+      let ok = true;
+      for (const b of stageState.buildings) {
+        if (Math.abs(b.x + b.w/2 - x) < 100 && Math.abs(b.y + b.h/2 - y) < 80) { ok = false; break; }
+      }
+      if (!ok) continue;
+      const horiz = (r() < 0.5);
+      const big = r() < 0.3;
+      stageState.buildings.push(horiz
+        ? { x: x - (big?60:38), y: y - 22, w: big?120:76, h: 44, kind: big ? 'truck' : 'vehicle' }
+        : { x: x - 22, y: y - (big?60:38), w: 44, h: big?120:76, kind: big ? 'truck' : 'vehicle' });
+      placed = true;
+    }
+  }
+  // Sandsäcksbarrikader
+  for (let i = 0; i < 10; i++) {
+    const x = 60 + r() * (W - 120);
+    const y = 200 + r() * (H - 400);
+    if (placementOk(stage, x, y, 70)) {
+      stageState.decorations.push({ x, y, kind: 'sandbag_pile' });
+    }
+  }
+  // Vägkoner
+  for (let i = 0; i < 14; i++) {
+    const x = 60 + r() * (W - 120);
+    const y = 200 + r() * (H - 400);
+    if (placementOk(stage, x, y, 50)) {
+      stageState.decorations.push({ x, y, kind: 'traffic_cone' });
+    }
+  }
+  // SKYLTAR
+  stageState.decorations.push({ x: W * 0.5, y: H * 0.78, kind: 'metal_sign', text: 'STOP', red: true });
+  stageState.decorations.push({ x: W * 0.30, y: H * 0.50, kind: 'metal_sign', text: 'AUTHORIZED PERSONNEL ONLY' });
+  stageState.decorations.push({ x: W * 0.70, y: H * 0.50, kind: 'metal_sign', text: 'NO TRESPASSING' });
+  stageState.decorations.push({ x: W * 0.20, y: H * 0.85, kind: 'metal_sign', text: 'SECTOR A-1' });
+  stageState.decorations.push({ x: W * 0.80, y: H * 0.85, kind: 'metal_sign', text: 'SECTOR A-2' });
+  stageState.decorations.push({ x: W * 0.5, y: H * 0.35, kind: 'metal_sign', text: '⚠ MILITARY ZONE', red: true });
+  // Oljefläckar och däckspår
+  for (let i = 0; i < 6; i++) {
+    stageState.decorations.push({ x: W*0.5 + (r()-0.5)*220, y: 200 + r()*(H-400), kind: 'oil_stain' });
+  }
+}
+// Stage 3 — LOBBYN: receptionen som setpiece, korridor med dörrar, anslagstavla, växter
+function layoutLobby(stage) {
+  const r = rngFor(stage, 3);
+  const W = stage.worldW, H = stage.worldH;
+  // Centrala receptionen (setpiece)
+  stageState.buildings.push({ x: W/2 - 150, y: H/2 - 70, w: 300, h: 130, kind: 'reception' });
+  // Inomhusväggar
+  const wT = 22;
+  stageState.buildings.push({ x: 220, y: 280, w: wT, h: 480, kind: 'wall_indoor' });
+  stageState.buildings.push({ x: W - 220 - wT, y: 280, w: wT, h: 480, kind: 'wall_indoor' });
+  stageState.buildings.push({ x: 220, y: H - 760, w: wT, h: 480, kind: 'wall_indoor' });
+  stageState.buildings.push({ x: W - 220 - wT, y: H - 760, w: wT, h: 480, kind: 'wall_indoor' });
+  stageState.buildings.push({ x: 220, y: 280, w: 280, h: wT, kind: 'wall_indoor' });
+  stageState.buildings.push({ x: W - 500, y: 280, w: 280, h: wT, kind: 'wall_indoor' });
+  // Vaktstationer
+  stageState.buildings.push({ x: 80, y: H - 460, w: 110, h: 80, kind: 'guardpost_indoor' });
+  stageState.buildings.push({ x: W - 190, y: H - 460, w: 110, h: 80, kind: 'guardpost_indoor' });
+  // Skrivbord
+  for (let i = 0; i < 14; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 12 && !placed; tries++) {
+      const x = 130 + r() * (W - 260);
+      const y = 260 + r() * (H - 520);
+      if (!placementOk(stage, x, y, 90)) continue;
+      let ok = true;
+      for (const b of stageState.buildings) {
+        if (Math.abs(b.x + b.w/2 - x) < 70 && Math.abs(b.y + b.h/2 - y) < 70) { ok = false; break; }
+      }
+      if (!ok) continue;
+      stageState.buildings.push({ x: x - 22, y: y - 14, w: 44, h: 28, kind: 'office_desk' });
+      placed = true;
+    }
+  }
+  // Stolar
+  for (let i = 0; i < 16; i++) {
+    const x = 130 + r() * (W - 260);
+    const y = 260 + r() * (H - 520);
+    if (placementOk(stage, x, y, 70)) {
+      stageState.decorations.push({ x, y, kind: 'office_chair' });
+    }
+  }
+  // Krukväxter
+  for (let i = 0; i < 6; i++) {
+    const x = 100 + r() * (W - 200);
+    const y = 240 + r() * (H - 480);
+    if (placementOk(stage, x, y, 70)) {
+      stageState.decorations.push({ x, y, kind: 'plant' });
+    }
+  }
+  // Kaffekoppar och papper
+  for (let i = 0; i < 10; i++) {
+    const x = 130 + r() * (W - 260);
+    const y = 260 + r() * (H - 520);
+    stageState.decorations.push({ x, y, kind: r() < 0.5 ? 'coffee_cup' : 'paper_pile' });
+  }
+  // Anslagstavla
+  stageState.decorations.push({ x: W*0.15, y: H*0.50, kind: 'notice_board' });
+  stageState.decorations.push({ x: W*0.85, y: H*0.50, kind: 'notice_board' });
+  // Tak-lampor
+  for (let i = 0; i < 10; i++) {
+    stageState.decorations.push({
+      x: 200 + r() * (W - 400),
+      y: 200 + r() * (H - 400),
+      kind: 'ceiling_lamp',
+    });
+  }
+  // DÖRRSKYLTAR
+  stageState.decorations.push({ x: W*0.18, y: 280 + 30, kind: 'door_label', text: 'BRIEFING ROOM' });
+  stageState.decorations.push({ x: W*0.82, y: 280 + 30, kind: 'door_label', text: 'OFFICER MESS' });
+  stageState.decorations.push({ x: W*0.18, y: H - 760 + 30, kind: 'door_label', text: 'ARCHIVE 02' });
+  stageState.decorations.push({ x: W*0.82, y: H - 760 + 30, kind: 'door_label', text: 'COMMS' });
+  stageState.decorations.push({ x: W/2, y: H/2 - 90, kind: 'metal_sign', text: 'RECEPTION', red: false });
+  stageState.decorations.push({ x: W/2, y: H * 0.18, kind: 'door_label', text: 'INNER ZONE →' });
+}
+// Stage 4 — BARACK-GÅRDEN: 6 baracker med dörrlabels, flagga, bål-fat, tvättlina
+function layoutBarracks(stage) {
+  const W = stage.worldW, H = stage.worldH;
+  // 4 hörnbaracker med labels
+  const labels = ['BARRACKS A', 'BARRACKS B', 'BARRACKS C', 'BARRACKS D'];
+  const corners = [
+    { x: 80,      y: 80,      label: 'A' },
+    { x: W - 400, y: 80,      label: 'B' },
+    { x: 80,      y: H - 300, label: 'C' },
+    { x: W - 400, y: H - 300, label: 'D' },
+  ];
+  for (let i = 0; i < 4; i++) {
+    const c = corners[i];
+    stageState.buildings.push({ x: c.x, y: c.y, w: 320, h: 220, kind: 'barack', label: labels[i] });
+    // dörrskylt vid mitten av baracken
+    stageState.decorations.push({ x: c.x + 160, y: c.y + 232, kind: 'door_label', text: labels[i] });
+  }
+  // Smala baracker i mitten av sidorna
+  stageState.buildings.push({ x: W/2 - 130, y: 80,      w: 260, h: 110, kind: 'barack', label: 'COMMAND' });
+  stageState.buildings.push({ x: W/2 - 130, y: H - 190, w: 260, h: 110, kind: 'barack', label: 'STORAGE' });
+  // Flagga + flaggstång i mitten
+  stageState.decorations.push({ x: W/2, y: H/2 - 200, kind: 'flagpole' });
+  // Tvättlinor mellan baracker
+  stageState.decorations.push({ x: W * 0.32, y: H * 0.55, kind: 'laundry_line' });
+  stageState.decorations.push({ x: W * 0.68, y: H * 0.55, kind: 'laundry_line' });
+  // Cover-objekt i arenan
+  const r = rngFor(stage, 4);
+  for (let i = 0; i < 10; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 14 && !placed; tries++) {
+      const x = 200 + r() * (W - 400);
+      const y = 320 + r() * (H - 640);
+      if (Math.hypot(x - stage.goalPos.x, y - stage.goalPos.y) < 240) continue;
+      let ok = true;
+      for (const b of stageState.buildings) {
+        if (x < b.x + b.w + 60 && x + 60 > b.x && y < b.y + b.h + 60 && y + 60 > b.y) { ok = false; break; }
+      }
+      if (!ok) continue;
+      stageState.decorations.push({ x, y, kind: r() < 0.5 ? 'sandbag_pile' : 'crate_outdoor' });
+      placed = true;
+    }
+  }
+  // central markör — bål-fat
+  stageState.decorations.push({ x: stage.goalPos.x - 110, y: stage.goalPos.y + 120, kind: 'fire_barrel' });
+  stageState.decorations.push({ x: stage.goalPos.x + 110, y: stage.goalPos.y + 120, kind: 'fire_barrel' });
+  // Asfaltsprickor
+  for (let i = 0; i < 6; i++) {
+    stageState.decorations.push({
+      x: 200 + r() * (W - 400),
+      y: 200 + r() * (H - 400),
+      kind: 'asphalt_crack',
+    });
+  }
+  // SKYLTAR
+  stageState.decorations.push({ x: stage.spawnPos.x, y: stage.spawnPos.y - 60, kind: 'metal_sign', text: 'PARADE GROUND' });
+  stageState.decorations.push({ x: W*0.5, y: 280, kind: 'metal_sign', text: 'OFFICERS ONLY', red: true });
+}
+// Stage 5 — HANGAREN: stora plan som setpiece, bränsletruck, verktygsvagnar, taklikedjor
+function layoutHangar(stage) {
+  const W = stage.worldW, H = stage.worldH;
+  const r = rngFor(stage, 5);
+  // Hangar-väggar
+  stageState.buildings.push({ x: 0, y: 0, w: W, h: 70, kind: 'hangar_wall' });
+  stageState.buildings.push({ x: 0, y: H - 70, w: W, h: 70, kind: 'hangar_wall' });
+  // SETPIECE: stort flygplan i mitten
+  stageState.buildings.push({ x: W/2 - 240, y: H/2 - 90, w: 480, h: 180, kind: 'aircraft', code: 'A-7 FORTUNA' });
+  // Mindre flygplan
+  stageState.buildings.push({ x: 380, y: 250, w: 280, h: 100, kind: 'aircraft_small' });
+  stageState.buildings.push({ x: W - 660, y: H - 350, w: 280, h: 100, kind: 'aircraft_small' });
+  // SETPIECE: bränsletruck (event-target)
+  stageState.buildings.push({ x: W * 0.6 - 60, y: H/2 - 25, w: 120, h: 50, kind: 'fuel_truck' });
+  // Verktygsvagnar
+  for (let i = 0; i < 4; i++) {
+    const x = 200 + i * 140;
+    const y = H * 0.18;
+    stageState.buildings.push({ x: x - 20, y: y - 12, w: 40, h: 24, kind: 'tool_cart' });
+  }
+  // Lastlådor
+  for (let i = 0; i < 14; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 14 && !placed; tries++) {
+      const x = 200 + r() * (W - 400);
+      const y = 180 + r() * (H - 360);
+      if (!placementOk(stage, x, y, 110)) continue;
+      let ok = true;
+      for (const b of stageState.buildings) {
+        if (x < b.x + b.w + 50 && x + 60 > b.x && y < b.y + b.h + 50 && y + 60 > b.y) { ok = false; break; }
+      }
+      if (!ok) continue;
+      const sz = 50 + Math.floor(r() * 24);
+      stageState.buildings.push({ x: x - sz/2, y: y - sz/2, w: sz, h: sz, kind: 'cargo_crate' });
+      placed = true;
+    }
+  }
+  // Tak-lampor + kedjor i tak
+  for (let i = 0; i < 16; i++) {
+    stageState.decorations.push({ x: 100 + r() * (W - 200), y: 100 + r() * (H - 200), kind: 'ceiling_lamp' });
+  }
+  for (let i = 0; i < 6; i++) {
+    stageState.decorations.push({ x: 200 + i*(W-400)/6, y: 110, kind: 'chain_hook' });
+  }
+  // Bränslefat
+  for (let i = 0; i < 8; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 10 && !placed; tries++) {
+      const x = 200 + r() * (W - 400);
+      const y = 150 + r() * (H - 300);
+      if (!placementOk(stage, x, y, 90)) continue;
+      stageState.decorations.push({ x, y, kind: 'fuel_drum' });
+      placed = true;
+    }
+  }
+  // GULA GOLVMARKERINGAR: helikopter-H
+  stageState.decorations.push({ x: stage.goalPos.x, y: H/2, kind: 'helipad_h' });
+  // DO NOT CROSS-band
+  stageState.decorations.push({ x: W*0.32, y: H/2, kind: 'do_not_cross_h', length: 200 });
+  stageState.decorations.push({ x: W*0.72, y: H/2, kind: 'do_not_cross_h', length: 200 });
+  // SKYLTAR
+  stageState.decorations.push({ x: stage.spawnPos.x + 60, y: H/2, kind: 'metal_sign', text: 'HANGAR 03' });
+  stageState.decorations.push({ x: W*0.5, y: 110, kind: 'big_overhead_sign', text: 'AIRCRAFT MAINTENANCE — RESTRICTED' });
+  stageState.decorations.push({ x: W*0.4, y: H/2 + 120, kind: 'metal_sign', text: 'FUEL DEPOT', red: true });
+  stageState.decorations.push({ x: W*0.5, y: H - 120, kind: 'metal_sign', text: '⚠ AVIATION FUEL', red: true });
+}
+// Stage 6 — AMMO-DEPÅN: hyllor med koder, gabblar, kran-skena, mängder explosiva fat, varningar
+function layoutDepot(stage) {
+  const W = stage.worldW, H = stage.worldH;
+  const r = rngFor(stage, 6);
+  // Hyllor med koder
+  const codes = ['A-12', 'B-7', 'C-3', 'D-9', 'E-4', 'F-2'];
+  const shelves = [
+    { x: 200,        y: 300,         w: 90,  h: 360 },
+    { x: W - 290,    y: 300,         w: 90,  h: 360 },
+    { x: 200,        y: H - 660,     w: 90,  h: 360 },
+    { x: W - 290,    y: H - 660,     w: 90,  h: 360 },
+    { x: W/2 - 220,  y: 720,         w: 440, h: 70 },
+    { x: W/2 - 220,  y: H - 790,     w: 440, h: 70 },
+  ];
+  for (let i = 0; i < shelves.length; i++) {
+    const s = shelves[i];
+    stageState.buildings.push({ ...s, kind: 'ammo_shelf', code: codes[i] });
+    stageState.decorations.push({ x: s.x + s.w/2, y: s.y - 18, kind: 'metal_sign', text: 'SHELF ' + codes[i], red: false });
+  }
+  // EUR-pallar
+  for (let i = 0; i < 8; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 12 && !placed; tries++) {
+      const x = 130 + r() * (W - 260);
+      const y = 200 + r() * (H - 400);
+      if (!placementOk(stage, x, y, 100)) continue;
+      let ok = true;
+      for (const b of stageState.buildings) {
+        if (x < b.x + b.w + 40 && x + 40 > b.x && y < b.y + b.h + 40 && y + 40 > b.y) { ok = false; break; }
+      }
+      if (!ok) continue;
+      stageState.buildings.push({ x: x - 28, y: y - 18, w: 56, h: 36, kind: 'pallet' });
+      placed = true;
+    }
+  }
+  // Cargo crates
+  for (let i = 0; i < 8; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 12 && !placed; tries++) {
+      const x = 130 + r() * (W - 260);
+      const y = 200 + r() * (H - 400);
+      if (!placementOk(stage, x, y, 100)) continue;
+      let ok = true;
+      for (const b of stageState.buildings) {
+        if (x < b.x + b.w + 50 && x + 50 > b.x && y < b.y + b.h + 50 && y + 50 > b.y) { ok = false; break; }
+      }
+      if (!ok) continue;
+      const sz = 46 + Math.floor(r() * 16);
+      stageState.buildings.push({ x: x - sz/2, y: y - sz/2, w: sz, h: sz, kind: 'cargo_crate' });
+      placed = true;
+    }
+  }
+  // Explosiva fat
+  for (let i = 0; i < 36; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 10 && !placed; tries++) {
+      const x = 100 + r() * (W - 200);
+      const y = 180 + r() * (H - 360);
+      if (!placementOk(stage, x, y, 70)) continue;
+      stageState.decorations.push({ x, y, kind: 'fuel_drum' });
+      placed = true;
+    }
+  }
+  // Kran-skena i taket (visuell)
+  stageState.decorations.push({ x: W/2, y: H/2, kind: 'crane_track', length: W * 0.6 });
+  // Tak-lampor
+  for (let i = 0; i < 12; i++) {
+    stageState.decorations.push({ x: 150 + r() * (W - 300), y: 100 + r() * (H - 200), kind: 'ceiling_lamp' });
+  }
+  // STORA RÖDA SKYLTAR
+  stageState.decorations.push({ x: stage.spawnPos.x, y: stage.spawnPos.y - 100, kind: 'big_warning_sign', text: 'EXPLOSIVES' });
+  stageState.decorations.push({ x: W/2, y: H * 0.18, kind: 'big_warning_sign', text: 'NO SMOKING' });
+  stageState.decorations.push({ x: W * 0.18, y: H/2, kind: 'big_warning_sign', text: 'CLEARANCE 3' });
+  stageState.decorations.push({ x: W * 0.82, y: H/2, kind: 'big_warning_sign', text: 'KEEP CLEAR' });
+  stageState.decorations.push({ x: W/2, y: H * 0.85, kind: 'metal_sign', text: 'AMMO DEPOT — DEPÅ 7', red: true });
+  // Gula säkerhetsstreck
+  for (let i = 0; i < 6; i++) {
+    stageState.decorations.push({ x: 150 + r() * (W - 300), y: 200 + r() * (H - 400), kind: 'warning_stripe' });
+  }
+}
+// Stage 7 — LASTHANGAREN: containers med koder, kran med hängande container (event), gaffeltruck
+function layoutCargo(stage) {
+  const W = stage.worldW, H = stage.worldH;
+  const r = rngFor(stage, 7);
+  // Containers staplade i hörnen med olika cargo-koder
+  const cargoCodes = ['CARGO 4-A', 'CARGO 7-B', 'CARGO 2-D', 'CARGO 9-C'];
+  for (let i = 0; i < 3; i++) {
+    stageState.buildings.push({ x: 60 + i * 100, y: 100, w: 90, h: 220, kind: 'container', cargoCode: cargoCodes[0] });
+    stageState.buildings.push({ x: W - 70 - 90 - i * 100, y: 100, w: 90, h: 220, kind: 'container', cargoCode: cargoCodes[1] });
+    stageState.buildings.push({ x: 60 + i * 100, y: H - 320, w: 90, h: 220, kind: 'container', cargoCode: cargoCodes[2] });
+    stageState.buildings.push({ x: W - 70 - 90 - i * 100, y: H - 320, w: 90, h: 220, kind: 'container', cargoCode: cargoCodes[3] });
+  }
+  // SETPIECE: stor kran-skena ovanför arenan
+  stageState.decorations.push({ x: W/2, y: H * 0.35, kind: 'crane_big', length: W * 0.5 });
+  // Hängande container över arenan
+  stageState.decorations.push({ x: W/2 + 200, y: H * 0.40, kind: 'hanging_container' });
+  // Gaffeltruck
+  stageState.buildings.push({ x: W * 0.25 - 22, y: H * 0.70 - 18, w: 44, h: 36, kind: 'forklift' });
+  // Lastsäckar
+  for (let i = 0; i < 6; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 12 && !placed; tries++) {
+      const x = 200 + r() * (W - 400);
+      const y = 350 + r() * (H - 700);
+      if (!placementOk(stage, x, y, 100)) continue;
+      let ok = true;
+      for (const b of stageState.buildings) {
+        if (x < b.x + b.w + 40 && x + 40 > b.x && y < b.y + b.h + 40 && y + 40 > b.y) { ok = false; break; }
+      }
+      if (!ok) continue;
+      stageState.decorations.push({ x, y, kind: 'cargo_sack' });
+      placed = true;
+    }
+  }
+  // Cover-cargo i arenan
+  for (let i = 0; i < 10; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 14 && !placed; tries++) {
+      const x = 250 + r() * (W - 500);
+      const y = 380 + r() * (H - 760);
+      if (Math.hypot(x - stage.goalPos.x, y - stage.goalPos.y) < 240) continue;
+      let ok = true;
+      for (const b of stageState.buildings) {
+        if (x < b.x + b.w + 50 && x + 50 > b.x && y < b.y + b.h + 50 && y + 50 > b.y) { ok = false; break; }
+      }
+      if (!ok) continue;
+      const sz = 56 + Math.floor(r() * 18);
+      stageState.buildings.push({ x: x - sz/2, y: y - sz/2, w: sz, h: sz, kind: 'cargo_crate' });
+      placed = true;
+    }
+  }
+  // Tak-lampor
+  for (let i = 0; i < 12; i++) {
+    stageState.decorations.push({ x: 200 + r() * (W - 400), y: 150 + r() * (H - 300), kind: 'ceiling_lamp' });
+  }
+  // Lastrampor
+  stageState.decorations.push({ x: 100, y: H * 0.50, kind: 'loading_dock' });
+  stageState.decorations.push({ x: W - 100, y: H * 0.50, kind: 'loading_dock' });
+  // SKYLTAR
+  stageState.decorations.push({ x: stage.goalPos.x, y: stage.goalPos.y + 130, kind: 'big_warning_sign', text: '⚠ DROP ZONE' });
+  stageState.decorations.push({ x: W * 0.18, y: H/2, kind: 'metal_sign', text: 'BAY 1' });
+  stageState.decorations.push({ x: W * 0.82, y: H/2, kind: 'metal_sign', text: 'BAY 2' });
+  stageState.decorations.push({ x: W/2, y: H * 0.18, kind: 'big_overhead_sign', text: 'CARGO TERMINAL' });
+}
+// Stage 8 — BUNKER-TUNNLAR: zigzag, ventilation, kablar, sektionsskyltar, blod, en kropp
+function layoutBunker(stage) {
+  const W = stage.worldW, H = stage.worldH;
+  const r = rngFor(stage, 8);
+  // Yttre tjocka väggar
+  stageState.buildings.push({ x: 0,       y: 0, w: 70, h: H, kind: 'bunker_wall' });
+  stageState.buildings.push({ x: W - 70,  y: 0, w: 70, h: H, kind: 'bunker_wall' });
+  // Zigzag-segment med sektionsskyltar
+  const segs = [
+    { y: H * 0.78, side: 'left',  len: W * 0.6, code: 'B-12' },
+    { y: H * 0.65, side: 'right', len: W * 0.6, code: 'B-11' },
+    { y: H * 0.52, side: 'left',  len: W * 0.55, code: 'B-10' },
+    { y: H * 0.40, side: 'right', len: W * 0.5, code: 'A-04' },
+    { y: H * 0.28, side: 'left',  len: W * 0.5, code: 'A-03' },
+    { y: H * 0.16, side: 'right', len: W * 0.45, code: 'A-02' },
+  ];
+  const wT = 30;
+  for (const s of segs) {
+    const x = s.side === 'left' ? 70 : W - 70 - s.len;
+    stageState.buildings.push({ x, y: s.y, w: s.len, h: wT, kind: 'bunker_wall' });
+    // Sektionsskylt vid muren
+    const sx = s.side === 'left' ? x + s.len + 30 : x - 30;
+    stageState.decorations.push({ x: sx, y: s.y + 14, kind: 'section_plate', text: 'KORRIDOR ' + s.code });
+  }
+  // Ventilationsfläktar i taket
+  for (let i = 0; i < 5; i++) {
+    stageState.decorations.push({ x: 130 + r() * (W - 260), y: 200 + i * (H/5), kind: 'vent_fan' });
+  }
+  // Pipes i taket
+  for (let i = 0; i < 12; i++) {
+    stageState.decorations.push({
+      x: 100 + r() * (W - 200),
+      y: 100 + r() * (H - 200),
+      kind: 'pipe_h',
+    });
+  }
+  // Kablar längs väggar (vänster + höger)
+  for (let i = 0; i < 8; i++) {
+    stageState.decorations.push({ x: 80, y: 200 + i * (H-400)/8, kind: 'cable_run' });
+    stageState.decorations.push({ x: W - 80, y: 200 + i * (H-400)/8, kind: 'cable_run' });
+  }
+  // Nödljus
+  for (let i = 0; i < 10; i++) {
+    stageState.decorations.push({
+      x: 90 + r() * (W - 180),
+      y: 200 + r() * (H - 400),
+      kind: 'emergency_light',
+    });
+  }
+  // Blod på golvet
+  for (let i = 0; i < 6; i++) {
+    stageState.decorations.push({
+      x: 130 + r() * (W - 260),
+      y: 200 + r() * (H - 400),
+      kind: 'blood_stain',
+    });
+  }
+  // En död kropp
+  stageState.decorations.push({ x: W * 0.45, y: H * 0.71, kind: 'dead_body' });
+  // Varningstejp
+  for (let i = 0; i < 6; i++) {
+    const x = 130 + r() * (W - 260);
+    const y = 200 + r() * (H - 400);
+    if (placementOk(stage, x, y, 70)) {
+      stageState.decorations.push({ x, y, kind: 'warning_stripe' });
+    }
+  }
+  // SKYLTAR
+  stageState.decorations.push({ x: stage.spawnPos.x, y: stage.spawnPos.y - 50, kind: 'metal_sign', text: 'TUNNEL ENTRANCE', red: false });
+  stageState.decorations.push({ x: W/2, y: H * 0.10, kind: 'big_warning_sign', text: '⚠ COMMAND →' });
+}
+// Stage 9 — KOMMANDO-CELLEN: skärm-vägg, hologram-projektor, server-skåp, tactical maps, ALERT-skyltar
+function layoutCommand(stage) {
+  const W = stage.worldW, H = stage.worldH;
+  const r = rngFor(stage, 9);
+  // SKÄRM-VÄGG längs sidoväggarna
+  for (let i = 0; i < 5; i++) {
+    stageState.buildings.push({ x: 70,        y: 160 + i * 220, w: 90, h: 180, kind: 'monitor_rack' });
+    stageState.buildings.push({ x: W - 160,   y: 160 + i * 220, w: 90, h: 180, kind: 'monitor_rack' });
+  }
+  // Server-skåp bakom monitor-racks (norr)
+  for (let i = 0; i < 4; i++) {
+    stageState.buildings.push({ x: 230 + i * 90, y: 80, w: 70, h: 120, kind: 'server_rack' });
+    stageState.buildings.push({ x: W - 300 - i * 90, y: 80, w: 70, h: 120, kind: 'server_rack' });
+  }
+  // Terminaler i hörnen
+  stageState.buildings.push({ x: 220, y: 240, w: 140, h: 80, kind: 'terminal_desk' });
+  stageState.buildings.push({ x: W - 360, y: 240, w: 140, h: 80, kind: 'terminal_desk' });
+  stageState.buildings.push({ x: 220, y: H - 320, w: 140, h: 80, kind: 'terminal_desk' });
+  stageState.buildings.push({ x: W - 360, y: H - 320, w: 140, h: 80, kind: 'terminal_desk' });
+  // SETPIECE: stor central hologram-projektor över boss-arenan
+  stageState.decorations.push({ x: stage.goalPos.x, y: stage.goalPos.y, kind: 'big_hologram' });
+  // Tactical maps på väggar
+  stageState.decorations.push({ x: W * 0.18, y: H * 0.18, kind: 'tactical_map' });
+  stageState.decorations.push({ x: W * 0.82, y: H * 0.18, kind: 'tactical_map' });
+  // Hologram (mindre)
+  stageState.decorations.push({ x: stage.goalPos.x - 240, y: stage.goalPos.y - 240, kind: 'hologram' });
+  stageState.decorations.push({ x: stage.goalPos.x + 240, y: stage.goalPos.y - 240, kind: 'hologram' });
+  // Cargo crates som cover
+  for (let i = 0; i < 6; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 12 && !placed; tries++) {
+      const x = 350 + r() * (W - 700);
+      const y = 400 + r() * (H - 800);
+      if (Math.hypot(x - stage.goalPos.x, y - stage.goalPos.y) < 240) continue;
+      let ok = true;
+      for (const b of stageState.buildings) {
+        if (x < b.x + b.w + 50 && x + 50 > b.x && y < b.y + b.h + 50 && y + 50 > b.y) { ok = false; break; }
+      }
+      if (!ok) continue;
+      stageState.buildings.push({ x: x - 30, y: y - 30, w: 60, h: 60, kind: 'cargo_crate' });
+      placed = true;
+    }
+  }
+  // Status-skärmar
+  for (let i = 0; i < 6; i++) {
+    stageState.decorations.push({
+      x: 200 + r() * (W - 400),
+      y: 100 + r() * (H - 200),
+      kind: 'status_screen',
+    });
+  }
+  // ALERT-skyltar (blinkande)
+  stageState.decorations.push({ x: W*0.30, y: H*0.10, kind: 'alert_blinker' });
+  stageState.decorations.push({ x: W*0.70, y: H*0.10, kind: 'alert_blinker' });
+  // SKYLTAR
+  stageState.decorations.push({ x: W/2, y: H * 0.15, kind: 'big_overhead_sign', text: 'COMMAND CENTER' });
+  stageState.decorations.push({ x: stage.goalPos.x, y: stage.goalPos.y + 200, kind: 'big_warning_sign', text: '⚠ DEFCON 1' });
+  stageState.decorations.push({ x: W * 0.18, y: H/2, kind: 'metal_sign', text: 'AUTH-LVL Ω', red: true });
+  stageState.decorations.push({ x: W * 0.82, y: H/2, kind: 'metal_sign', text: 'OVERSIGHT', red: true });
+}
+
+function layoutGenericPlaceholder(stage) {
+  // Tillfälligt: enkla baracker tills stage får sin egen layout
+  const r = rngFor(stage, 99);
+  for (let i = 0; i < 6; i++) {
+    let placed = false;
+    for (let tries = 0; tries < 12 && !placed; tries++) {
+      const w = 200 + r() * 200;
+      const h = 160 + r() * 200;
+      const x = 60 + r() * (stage.worldW - w - 120);
+      const y = 60 + r() * (stage.worldH - h - 120);
+      if (!placementOk(stage, x + w/2, y + h/2, 130)) continue;
+      let ok = true;
+      for (const b of stageState.buildings) {
+        if (x < b.x + b.w + 60 && x + w + 60 > b.x &&
+            y < b.y + b.h + 60 && y + h + 60 > b.y) { ok = false; break; }
+      }
+      if (!ok) continue;
+      stageState.buildings.push({ x, y, w, h, kind: 'barack' });
+      placed = true;
+    }
+  }
+}
+
+function buildingsActive() { return true; }
+function isInsideAnyBuilding(x, y, r=0) {
+  for (const b of stageState.buildings) {
+    // träd har cirkulär kollision (cx,cy)
+    if (b.kind === 'tree') {
+      const dx = x - (b.cx || (b.x + b.w/2));
+      const dy = y - (b.cy || (b.y + b.h/2));
+      const cr = b.w/2;
+      if (dx*dx + dy*dy < (cr + r) * (cr + r)) return true;
+      continue;
+    }
+    if (x + r > b.x && x - r < b.x + b.w && y + r > b.y && y - r < b.y + b.h) return true;
+  }
+  return false;
+}
+function resolveBuildingCollision(entity) {
+  for (const b of stageState.buildings) {
+    if (b.kind === 'tree') {
+      const cx = b.cx || (b.x + b.w/2);
+      const cy = b.cy || (b.y + b.h/2);
+      const cr = b.w/2;
+      const dx = entity.x - cx, dy = entity.y - cy;
+      const d2 = dx*dx + dy*dy;
+      const minD = cr + entity.r;
+      if (d2 < minD * minD) {
+        const d = Math.sqrt(d2) || 0.001;
+        const push = minD - d;
+        entity.x += (dx / d) * push;
+        entity.y += (dy / d) * push;
+      }
+      continue;
+    }
+    const cx = Math.max(b.x, Math.min(entity.x, b.x + b.w));
+    const cy = Math.max(b.y, Math.min(entity.y, b.y + b.h));
+    const dx = entity.x - cx;
+    const dy = entity.y - cy;
+    const d2 = dx*dx + dy*dy;
+    if (d2 < entity.r * entity.r) {
+      const d = Math.sqrt(d2) || 0.001;
+      const overlap = entity.r - d;
+      entity.x += (dx / d) * overlap;
+      entity.y += (dy / d) * overlap;
+    }
+  }
+}
+
+function drawBuildings(cx, cy) {
+  for (const b of stageState.buildings) {
+    // Off-screen culling
+    if (b.x + b.w < cx - 50 || b.x > cx + viewW + 50 || b.y + b.h < cy - 50 || b.y > cy + viewH + 50) continue;
+    drawBuildingItem(b, cx, cy);
+  }
+  // dekorationer ovanpå (ej kollision)
+  for (const d of stageState.decorations) {
+    if (d.x < cx - 100 || d.x > cx + viewW + 100 || d.y < cy - 100 || d.y > cy + viewH + 100) continue;
+    drawDecorationItem(d, cx, cy);
+  }
+}
+
+function drawBuildingItem(b, cx, cy) {
+  const x = b.x - cx, y = b.y - cy;
+  if (b.kind === 'tree') {
+    drawTree(b.cx - cx, b.cy - cy, b.size || 1, b.seed || 0);
+    return;
+  }
+  if (b.kind === 'wall_concrete') {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(x + 5, y + 5, b.w, b.h);
+    // huvudvägg med gradient
+    const grad = ctx.createLinearGradient(x, y, x, y + b.h);
+    grad.addColorStop(0, '#7a7a7e');
+    grad.addColorStop(0.3, '#5a5a5e');
+    grad.addColorStop(1, '#3a3a3e');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y, b.w, b.h);
+    // betong-textur (slumpade fläckar)
+    ctx.fillStyle = '#4a4a4e';
+    for (let i = 0; i < (b.w * b.h) / 200; i++) {
+      const dx = (Math.sin(b.x * 0.3 + i * 7.1) + 1) * 0.5 * b.w;
+      const dy = (Math.cos(b.y * 0.3 + i * 5.7) + 1) * 0.5 * b.h;
+      ctx.fillRect(x + dx, y + dy, 2, 2);
+    }
+    // ljusare topplinje
+    ctx.fillStyle = '#8e8e94';
+    ctx.fillRect(x + 2, y + 2, b.w - 4, 4);
+    // skuggad nedre kant
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x + 2, y + b.h - 4, b.w - 4, 2);
+    ctx.strokeStyle = '#1a1a1e'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    return;
+  }
+  if (b.kind === 'watchtower') {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(x + 5, y + 6, b.w, b.h);
+    ctx.fillStyle = '#3a2c18';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.strokeStyle = '#1a1208'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // tak
+    ctx.fillStyle = '#5a4628';
+    ctx.fillRect(x - 5, y - 8, b.w + 10, 12);
+    // varningslampa (blink)
+    const blink = (Math.sin(performance.now() / 250) > 0) ? '#ff3a3a' : '#5a1a1a';
+    ctx.fillStyle = blink;
+    ctx.beginPath(); ctx.arc(x + b.w/2, y + b.h/2, 6, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x + 6, y + 6, b.w - 12, 8);
+    return;
+  }
+  if (b.kind === 'fence_seg') {
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, b.w, b.h);
+    ctx.strokeStyle = '#666'; ctx.lineWidth = 1;
+    if (b.w > b.h) {
+      for (let i = 0; i < b.w; i += 6) {
+        ctx.beginPath();
+        ctx.moveTo(x + i, y); ctx.lineTo(x + i + 6, y + b.h);
+        ctx.stroke();
+      }
+    } else {
+      for (let i = 0; i < b.h; i += 6) {
+        ctx.beginPath();
+        ctx.moveTo(x, y + i); ctx.lineTo(x + b.w, y + i + 6);
+        ctx.stroke();
+      }
+    }
+    return;
+  }
+  if (b.kind === 'vehicle') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 4, y + 5, b.w, b.h);
+    ctx.fillStyle = '#2a3a26';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.fillStyle = '#3a4a36';
+    ctx.fillRect(x + 6, y + 6, b.w - 12, b.h - 12);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // hjul
+    ctx.fillStyle = '#0a0a0a';
+    if (b.w > b.h) {
+      ctx.fillRect(x - 3, y + 4, 6, 10);
+      ctx.fillRect(x + b.w - 3, y + 4, 6, 10);
+      ctx.fillRect(x - 3, y + b.h - 14, 6, 10);
+      ctx.fillRect(x + b.w - 3, y + b.h - 14, 6, 10);
+    } else {
+      ctx.fillRect(x + 4, y - 3, 10, 6);
+      ctx.fillRect(x + b.w - 14, y - 3, 10, 6);
+      ctx.fillRect(x + 4, y + b.h - 3, 10, 6);
+      ctx.fillRect(x + b.w - 14, y + b.h - 3, 10, 6);
+    }
+    return;
+  }
+  if (b.kind === 'guardpost') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 3, y + 4, b.w, b.h);
+    ctx.fillStyle = '#5a4a30';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // fönster
+    ctx.fillStyle = '#a8c8a8';
+    ctx.fillRect(x + 6, y + 6, b.w - 12, 14);
+    return;
+  }
+  if (b.kind === 'hangar_wall') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 4, y + 4, b.w, b.h);
+    ctx.fillStyle = '#3a3a44';
+    ctx.fillRect(x, y, b.w, b.h);
+    // räfflad metall
+    ctx.strokeStyle = '#5a5a64';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < b.w; i += 16) {
+      ctx.beginPath();
+      ctx.moveTo(x + i, y); ctx.lineTo(x + i, y + b.h);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = '#1a1a1f'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    return;
+  }
+  if (b.kind === 'aircraft' || b.kind === 'aircraft_small') {
+    const isSmall = b.kind === 'aircraft_small';
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 6, y + 6, b.w, b.h);
+    // huvudkropp
+    ctx.fillStyle = '#5a6a72';
+    ctx.beginPath();
+    ctx.ellipse(x + b.w/2, y + b.h/2, b.w/2, b.h/3, 0, 0, Math.PI*2);
+    ctx.fill();
+    // vingar (horisontella)
+    ctx.fillRect(x + b.w * 0.30, y, b.w * 0.40, b.h);
+    // näsa
+    ctx.fillStyle = '#7a8a92';
+    ctx.beginPath();
+    ctx.moveTo(x + b.w - 4, y + b.h/2);
+    ctx.lineTo(x + b.w * 0.85, y + b.h * 0.3);
+    ctx.lineTo(x + b.w * 0.85, y + b.h * 0.7);
+    ctx.closePath(); ctx.fill();
+    // cockpit
+    ctx.fillStyle = '#1a2a3a';
+    ctx.beginPath();
+    ctx.ellipse(x + b.w * 0.75, y + b.h/2, b.w * 0.08, b.h * 0.18, 0, 0, Math.PI*2);
+    ctx.fill();
+    // kantljus
+    ctx.fillStyle = '#3aafff';
+    ctx.fillRect(x + 4, y + b.h/2 - 2, 6, 4);
+    ctx.fillStyle = '#ff3a3a';
+    ctx.fillRect(x + b.w - 10, y + b.h/2 - 2, 6, 4);
+    if (!isSmall) {
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('A-7', x + b.w/2, y + b.h/2 + 4);
+    }
+    return;
+  }
+  if (b.kind === 'ammo_shelf') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 4, y + 4, b.w, b.h);
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // hyllplan
+    ctx.strokeStyle = '#5a5a5a';
+    ctx.lineWidth = 1;
+    if (b.h > b.w) {
+      for (let i = 30; i < b.h; i += 36) {
+        ctx.beginPath(); ctx.moveTo(x + 2, y + i); ctx.lineTo(x + b.w - 2, y + i); ctx.stroke();
+        // ammo lådor
+        ctx.fillStyle = '#5a4a30';
+        ctx.fillRect(x + 8, y + i - 22, b.w - 16, 18);
+        ctx.fillStyle = '#ffd54a';
+        ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('AMMO', x + b.w/2, y + i - 9);
+      }
+    } else {
+      for (let i = 30; i < b.w; i += 36) {
+        ctx.beginPath(); ctx.moveTo(x + i, y + 2); ctx.lineTo(x + i, y + b.h - 2); ctx.stroke();
+        ctx.fillStyle = '#5a4a30';
+        ctx.fillRect(x + i - 22, y + 8, 18, b.h - 16);
+      }
+    }
+    return;
+  }
+  if (b.kind === 'monitor_rack') {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(x + 4, y + 4, b.w, b.h);
+    ctx.fillStyle = '#1a1a22';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.strokeStyle = '#0a0a10'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // skärmar i rader
+    const rows = 4;
+    const sH = (b.h - 12) / rows;
+    for (let i = 0; i < rows; i++) {
+      const sy = y + 6 + i * sH;
+      ctx.fillStyle = '#0a3050';
+      ctx.fillRect(x + 8, sy, b.w - 16, sH - 4);
+      // skärmtext (slumpmässig grön/blå)
+      const t = performance.now() / 100;
+      const flicker = Math.sin(t + i * 0.7) > 0;
+      ctx.fillStyle = flicker ? '#3aff5a' : '#3aafff';
+      ctx.fillRect(x + 10, sy + 2, (b.w - 20) * (0.5 + Math.sin(t * 0.3 + i) * 0.3), 2);
+      ctx.fillRect(x + 10, sy + 6, (b.w - 20) * (0.7 + Math.sin(t * 0.5 + i) * 0.2), 2);
+      ctx.fillRect(x + 10, sy + 10, (b.w - 20) * (0.4 + Math.sin(t * 0.7 + i) * 0.3), 2);
+    }
+    return;
+  }
+  if (b.kind === 'terminal_desk') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 4, y + 4, b.w, b.h);
+    ctx.fillStyle = '#2a2c34';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.strokeStyle = '#0a0a10'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // skärm
+    ctx.fillStyle = '#0a1a2a';
+    ctx.fillRect(x + 8, y + 8, b.w - 16, b.h - 28);
+    ctx.fillStyle = '#3aafff';
+    const t = performance.now() / 200;
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(x + 14, y + 14 + i * 6, (b.w - 28) * (0.5 + Math.sin(t + i) * 0.3), 3);
+    }
+    // tangentbord
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x + 10, y + b.h - 14, b.w - 20, 8);
+    return;
+  }
+  if (b.kind === 'bunker_wall') {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(x + 4, y + 4, b.w, b.h);
+    ctx.fillStyle = '#2a2a30';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.fillStyle = '#3a3a44';
+    // räfflad metall (riktning beror på orientering)
+    if (b.w > b.h) {
+      for (let i = 0; i < b.w; i += 12) ctx.fillRect(x + i, y, 6, b.h);
+    } else {
+      for (let i = 0; i < b.h; i += 12) ctx.fillRect(x, y + i, b.w, 6);
+    }
+    ctx.strokeStyle = '#0a0a0d'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // nitar i hörnen
+    ctx.fillStyle = '#5a5a60';
+    ctx.beginPath(); ctx.arc(x + 6, y + 6, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + b.w - 6, y + 6, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 6, y + b.h - 6, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + b.w - 6, y + b.h - 6, 2, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (b.kind === 'container') {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(x + 6, y + 6, b.w, b.h);
+    // välj färg per container baserat på pos
+    const colors = ['#3a5a7a', '#7a3a3a', '#3a7a3a', '#7a5a3a'];
+    const color = colors[((b.x + b.y) | 0) % colors.length];
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, b.w, b.h);
+    // räfflad metall
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 1;
+    if (b.h > b.w) {
+      for (let i = 8; i < b.h; i += 14) {
+        ctx.beginPath(); ctx.moveTo(x, y + i); ctx.lineTo(x + b.w, y + i); ctx.stroke();
+      }
+    } else {
+      for (let i = 8; i < b.w; i += 14) {
+        ctx.beginPath(); ctx.moveTo(x + i, y); ctx.lineTo(x + i, y + b.h); ctx.stroke();
+      }
+    }
+    ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // markeringar
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('CARGO', x + 4, y + 14);
+    return;
+  }
+  if (b.kind === 'cargo_crate') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 3, y + 3, b.w, b.h);
+    ctx.fillStyle = '#7a5a30';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.fillStyle = '#5a4022';
+    ctx.fillRect(x + 4, y + 4, b.w - 8, b.h - 8);
+    ctx.strokeStyle = '#3a2412'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // diagonal markering
+    ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x + 6, y + b.h/2); ctx.lineTo(x + b.w - 6, y + b.h/2);
+    ctx.stroke();
+    return;
+  }
+  if (b.kind === 'wall_indoor') {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x + 3, y + 3, b.w, b.h);
+    ctx.fillStyle = '#c0c0c4';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.fillStyle = '#9a9aa0';
+    ctx.fillRect(x, y + b.h - 4, b.w, 4);
+    ctx.strokeStyle = '#5a5a60'; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, b.w, b.h);
+    return;
+  }
+  if (b.kind === 'reception') {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(x + 4, y + 4, b.w, b.h);
+    ctx.fillStyle = '#3a2c1c';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.fillStyle = '#5a4630';
+    ctx.fillRect(x, y, b.w, 16);
+    ctx.strokeStyle = '#1a1208'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // skärmar
+    ctx.fillStyle = '#1a3050';
+    for (let i = 0; i < 3; i++) ctx.fillRect(x + 30 + i * 60, y + 26, 40, 28);
+    ctx.fillStyle = '#3aafff';
+    for (let i = 0; i < 3; i++) ctx.fillRect(x + 32 + i * 60, y + 28, 36, 24);
+    return;
+  }
+  if (b.kind === 'guardpost_indoor') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 3, y + 3, b.w, b.h);
+    ctx.fillStyle = '#3a4452';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // monitor-rad
+    ctx.fillStyle = '#0a1a2a';
+    for (let i = 0; i < 2; i++) ctx.fillRect(x + 10 + i * 50, y + 14, 40, 24);
+    ctx.fillStyle = '#5aff5a';
+    for (let i = 0; i < 2; i++) ctx.fillRect(x + 12 + i * 50, y + 16, 36, 20);
+    return;
+  }
+  if (b.kind === 'office_desk') {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x + 2, y + 2, b.w, b.h);
+    ctx.fillStyle = '#5a3a20';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.strokeStyle = '#3a2412'; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // dator-skärm
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x + b.w/2 - 8, y + 4, 16, 12);
+    ctx.fillStyle = '#3aafff';
+    ctx.fillRect(x + b.w/2 - 7, y + 5, 14, 10);
+    return;
+  }
+  if (b.kind === 'hq_facade') {
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(x + 6, y + 6, b.w, b.h);
+    ctx.fillStyle = '#3a3530';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.fillStyle = '#5a5048';
+    ctx.fillRect(x, y, b.w, 14); // tak
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // entrédörr
+    ctx.fillStyle = '#1a1208';
+    ctx.fillRect(x + b.w/2 - 22, y + b.h - 36, 44, 36);
+    // fönsterrad
+    ctx.fillStyle = '#8aa8c8';
+    for (let i = 0; i < 6; i++) {
+      ctx.fillRect(x + 24 + i * 70, y + 30, 38, 22);
+    }
+    return;
+  }
+  if (b.kind === 'heli_wreck') {
+    // RIKTIG TOP-DOWN UH-60 BLACK HAWK
+    const cx = x + b.w/2, cy = y + b.h/2;
+    const seed = b.seed || 42;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(-0.18);
+
+    // BRÄNDA MÄRKEN PÅ MARKEN under helikoptern
+    ctx.fillStyle = 'rgba(20,10,5,0.6)';
+    ctx.beginPath(); ctx.ellipse(8, 8, b.w*0.65, b.h*0.55, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.ellipse(0, 0, b.w*0.55, b.h*0.45, 0, 0, Math.PI*2); ctx.fill();
+
+    // TAIL BOOM (smal stjärt-utskott bakåt)
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(-b.w*0.85, -b.h*0.10, b.w*0.55, b.h*0.20);
+    // tail-fin
+    ctx.fillStyle = '#2a2a2a';
+    ctx.beginPath();
+    ctx.moveTo(-b.w*0.95, -b.h*0.08);
+    ctx.lineTo(-b.w*1.05, -b.h*0.25);
+    ctx.lineTo(-b.w*0.85, -b.h*0.10);
+    ctx.fill();
+    // tail-rotor (bruten — bara stub)
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-b.w*0.95, 0); ctx.lineTo(-b.w*1.05, b.h*0.20);
+    ctx.stroke();
+
+    // HUVUDKROPP (oval, ovanifrån)
+    const grad = ctx.createLinearGradient(0, -b.h*0.4, 0, b.h*0.4);
+    grad.addColorStop(0, '#5a5a5a');
+    grad.addColorStop(0.5, '#3a3a3a');
+    grad.addColorStop(1, '#2a2a2a');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(-b.w*0.40, -b.h*0.45);
+    ctx.lineTo(b.w*0.40, -b.h*0.40);
+    ctx.lineTo(b.w*0.50, -b.h*0.20);
+    ctx.lineTo(b.w*0.50, b.h*0.20);
+    ctx.lineTo(b.w*0.40, b.h*0.40);
+    ctx.lineTo(-b.w*0.40, b.h*0.45);
+    ctx.lineTo(-b.w*0.45, 0);
+    ctx.closePath(); ctx.fill();
+    // panel-linjer
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-b.w*0.30, -b.h*0.45); ctx.lineTo(-b.w*0.30, b.h*0.45);
+    ctx.moveTo(0, -b.h*0.45); ctx.lineTo(0, b.h*0.45);
+    ctx.moveTo(b.w*0.20, -b.h*0.45); ctx.lineTo(b.w*0.20, b.h*0.45);
+    ctx.stroke();
+    // skadorr-hål
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath(); ctx.arc(-b.w*0.10, b.h*0.10, 8, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.w*0.30, -b.h*0.20, 5, 0, Math.PI*2); ctx.fill();
+
+    // SIDODÖRR (öppen, syns insidan)
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(-b.w*0.15, -b.h*0.55, b.w*0.30, b.h*0.10);
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(-b.w*0.10, -b.h*0.50, b.w*0.20, b.h*0.05);
+
+    // COCKPIT (fram, krossad)
+    ctx.fillStyle = '#1a3a4a';
+    ctx.beginPath();
+    ctx.moveTo(b.w*0.40, -b.h*0.20);
+    ctx.lineTo(b.w*0.55, -b.h*0.10);
+    ctx.lineTo(b.w*0.55, b.h*0.10);
+    ctx.lineTo(b.w*0.40, b.h*0.20);
+    ctx.closePath(); ctx.fill();
+    // cockpit-sprickor
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1; ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(b.w*0.42, -b.h*0.18); ctx.lineTo(b.w*0.52, b.h*0.05);
+    ctx.moveTo(b.w*0.50, -b.h*0.10); ctx.lineTo(b.w*0.45, b.h*0.15);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // ROTOR-NAV (centralt ovanpå)
+    ctx.fillStyle = '#5a5a5a';
+    ctx.beginPath(); ctx.arc(0, 0, 14, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(0, 0, 8, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#7a7a7a';
+    ctx.beginPath(); ctx.arc(0, 0, 4, 0, Math.PI*2); ctx.fill();
+
+    // 4 ROTORBLAD (3 kvar, 1 brutet)
+    ctx.fillStyle = '#1a1a1a';
+    // blad 1 — heltland
+    ctx.save(); ctx.rotate(0.3);
+    ctx.fillRect(-b.w*0.55, -3, b.w*1.1, 6);
+    ctx.restore();
+    // blad 2 — heltland
+    ctx.save(); ctx.rotate(0.3 + Math.PI/2);
+    ctx.fillRect(-b.w*0.55, -3, b.w*1.1, 6);
+    ctx.restore();
+    // blad 3 — heltland
+    ctx.save(); ctx.rotate(0.3 + Math.PI);
+    ctx.fillRect(-b.w*0.40, -3, b.w*0.7, 6);
+    ctx.restore();
+    // blad 4 — brutet (stub) + skild bit liggande på marken
+    ctx.save(); ctx.rotate(0.3 + 3*Math.PI/2);
+    ctx.fillRect(-3, -3, b.w*0.25, 6);
+    ctx.restore();
+    // brutet rotorblad ligger på marken bredvid
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(b.w*0.10, b.h*0.50, b.w*0.55, 5);
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(b.w*0.10, b.h*0.51, b.w*0.55, 1);
+
+    // LANDNINGSSTÄLL (skidor) — synliga från sidan
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(-b.w*0.30, -b.h*0.55, b.w*0.55, 4);
+    ctx.fillRect(-b.w*0.30,  b.h*0.51, b.w*0.55, 4);
+    // stöd-stänger (kort)
+    ctx.fillRect(-b.w*0.20, -b.h*0.50, 2, b.h*0.10);
+    ctx.fillRect(b.w*0.10, -b.h*0.50, 2, b.h*0.10);
+    ctx.fillRect(-b.w*0.20,  b.h*0.40, 2, b.h*0.10);
+    ctx.fillRect(b.w*0.10,  b.h*0.40, 2, b.h*0.10);
+
+    // OLJESPILL nedanför
+    ctx.fillStyle = 'rgba(20,8,0,0.7)';
+    ctx.beginPath(); ctx.ellipse(b.w*0.10, b.h*0.65, b.w*0.20, b.h*0.08, 0.2, 0, Math.PI*2); ctx.fill();
+
+    // MILITÄR-DEKAL — svart stjärna i vit cirkel
+    ctx.fillStyle = '#dcdcdc';
+    ctx.beginPath(); ctx.arc(-b.w*0.05, 0, 11, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = i / 5 * Math.PI*2 - Math.PI/2;
+      const x1 = -b.w*0.05 + Math.cos(a) * 9;
+      const y1 = Math.sin(a) * 9;
+      if (i === 0) ctx.moveTo(x1, y1); else ctx.lineTo(x1, y1);
+      const a2 = a + Math.PI/5;
+      ctx.lineTo(-b.w*0.05 + Math.cos(a2) * 4, Math.sin(a2) * 4);
+    }
+    ctx.closePath(); ctx.fill();
+
+    // SERIENUMMER
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 8px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('UH-60M', b.w*0.20, b.h*0.05);
+    ctx.font = '6px monospace';
+    ctx.fillText('87-2641', b.w*0.20, b.h*0.13);
+
+    // BRINNANDE PUNKTER (animerade flammor)
+    const t = performance.now();
+    for (let i = 0; i < 3; i++) {
+      const ix = -b.w*0.10 + i * b.w*0.20;
+      const iy = b.h*0.10 + Math.sin(seed + i) * b.h*0.15;
+      const flicker = 0.7 + Math.sin(t/100 + i) * 0.3;
+      const fgrad = ctx.createRadialGradient(ix, iy, 2, ix, iy, 14 * flicker);
+      fgrad.addColorStop(0, `rgba(255,200,80,${0.85*flicker})`);
+      fgrad.addColorStop(0.5, `rgba(255,100,40,${0.6*flicker})`);
+      fgrad.addColorStop(1, 'rgba(180,30,10,0)');
+      ctx.fillStyle = fgrad;
+      ctx.fillRect(ix - 14, iy - 14, 28, 28);
+    }
+    ctx.restore();
+
+    // RÖKPELARE som rinner uppåt (utanför rotation)
+    const t2 = performance.now();
+    for (let i = 0; i < 4; i++) {
+      const sx = cx + (i - 1.5) * 8;
+      const phase = t2/600 + i * 0.7;
+      const sy = cy - 10 - ((phase * 30) % 80);
+      const alpha = 0.4 - ((phase * 30) % 80) / 200;
+      ctx.fillStyle = `rgba(60,60,60,${Math.max(0, alpha)})`;
+      ctx.beginPath(); ctx.arc(sx, sy, 6 + (phase * 2) % 6, 0, Math.PI*2); ctx.fill();
+    }
+    return;
+  }
+  if (b.kind === 'tower_wreck') {
+    // KOLLAPSAD VAKTTORN — träbjälkar utstickande, plattform tappad
+    const cx = x + b.w/2, cy = y + b.h/2;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(0.35);
+    // skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(-b.w*0.4 + 5, -b.h*0.5 + 5, b.w*0.8, b.h);
+    // huvudkonstruktion
+    ctx.fillStyle = '#3a2c18';
+    ctx.fillRect(-b.w*0.4, -b.h*0.5, b.w*0.8, b.h);
+    // räfflad textur
+    ctx.fillStyle = '#2a1c10';
+    for (let i = 0; i < b.h; i += 8) {
+      ctx.fillRect(-b.w*0.4, -b.h*0.5 + i, b.w*0.8, 1);
+    }
+    ctx.strokeStyle = '#1a1208'; ctx.lineWidth = 2;
+    ctx.strokeRect(-b.w*0.4, -b.h*0.5, b.w*0.8, b.h);
+    // utstickande träbjälkar (brutna)
+    ctx.fillStyle = '#5a3a20';
+    ctx.fillRect(-b.w*0.5, -b.h*0.4, 6, 30);
+    ctx.fillRect(-b.w*0.4, -b.h*0.5, 30, 6);
+    ctx.fillRect(b.w*0.4 - 30, b.h*0.4, 30, 6);
+    ctx.fillRect(b.w*0.4, b.h*0.3, 6, 30);
+    // splittror
+    ctx.fillStyle = '#3a2410';
+    for (let i = 0; i < 5; i++) {
+      const sx = (Math.random()-0.5) * b.w;
+      const sy = (Math.random()-0.5) * b.h*1.2;
+      ctx.fillRect(sx, sy, 4 + Math.random()*4, 2);
+    }
+    // brutet tak (taklutande)
+    ctx.fillStyle = '#5a4628';
+    ctx.beginPath();
+    ctx.moveTo(-b.w*0.5, -b.h*0.5);
+    ctx.lineTo(-b.w*0.2, -b.h*0.7);
+    ctx.lineTo(b.w*0.5, -b.h*0.5);
+    ctx.lineTo(-b.w*0.5, -b.h*0.5);
+    ctx.fill();
+    // brusten varningslampa
+    ctx.fillStyle = '#5a1a1a';
+    ctx.beginPath(); ctx.arc(-b.w*0.1, -b.h*0.55, 4, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#3a0a0a'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-b.w*0.13, -b.h*0.58); ctx.lineTo(-b.w*0.07, -b.h*0.52);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  if (b.kind === 'tent') {
+    // skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(x + b.w/2 + 4, y + b.h + 4, b.w*0.5, 6, 0, 0, Math.PI*2); ctx.fill();
+    // bottom tarp
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(x, y + b.h*0.85, b.w, 6);
+    // huvudtält (kepsel-form, halvtransparent)
+    ctx.fillStyle = '#5a4a32';
+    ctx.beginPath();
+    ctx.moveTo(x + b.w/2, y);
+    ctx.lineTo(x + b.w, y + b.h);
+    ctx.lineTo(x, y + b.h);
+    ctx.closePath(); ctx.fill();
+    // skuggad sida
+    ctx.fillStyle = '#3a2a1a';
+    ctx.beginPath();
+    ctx.moveTo(x + b.w/2, y);
+    ctx.lineTo(x + b.w/2, y + b.h);
+    ctx.lineTo(x, y + b.h);
+    ctx.closePath(); ctx.fill();
+    // canvas-veck (vertikala linjer)
+    ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = 1;
+    for (let i = 1; i < 4; i++) {
+      const t = i/4;
+      ctx.beginPath();
+      ctx.moveTo(x + b.w/2, y);
+      ctx.lineTo(x + b.w * t, y + b.h);
+      ctx.stroke();
+    }
+    // taklinje
+    ctx.fillStyle = '#1a1208';
+    ctx.fillRect(x + b.w/2 - 1, y, 2, b.h);
+    // ÖPPNING (V-form)
+    ctx.fillStyle = '#0a0a08';
+    ctx.beginPath();
+    ctx.moveTo(x + b.w*0.42, y + b.h*0.40);
+    ctx.lineTo(x + b.w*0.58, y + b.h*0.40);
+    ctx.lineTo(x + b.w*0.55, y + b.h);
+    ctx.lineTo(x + b.w*0.45, y + b.h);
+    ctx.fill();
+    // dörrflikar (ihoprullad till sida)
+    ctx.fillStyle = '#3a2a1a';
+    ctx.beginPath();
+    ctx.moveTo(x + b.w*0.42, y + b.h*0.40);
+    ctx.lineTo(x + b.w*0.34, y + b.h*0.55);
+    ctx.lineTo(x + b.w*0.40, y + b.h*0.85);
+    ctx.lineTo(x + b.w*0.45, y + b.h);
+    ctx.fill();
+    // pinnar (stake-pegs)
+    ctx.fillStyle = '#1a1208';
+    ctx.fillRect(x - 2, y + b.h, 4, 4);
+    ctx.fillRect(x + b.w - 2, y + b.h, 4, 4);
+    return;
+  }
+  if (b.kind === 'vehicle_rust') {
+    // RIKTIG TOPDOWN-JEEP rostig
+    // skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 4, y + 5, b.w, b.h);
+    // huvudkropp
+    ctx.fillStyle = '#5a3a20';
+    ctx.fillRect(x, y, b.w, b.h);
+    // takprofil ljusare
+    ctx.fillStyle = '#7a4a28';
+    ctx.fillRect(x + 4, y + 4, b.w - 8, b.h - 8);
+    // motorhuv
+    ctx.fillStyle = '#3a2410';
+    ctx.fillRect(x + b.w*0.65, y + 4, b.w*0.32, b.h - 8);
+    // motor-luftintag
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x + b.w*0.85, y + b.h*0.40, b.w*0.10, b.h*0.20);
+    // vindruta (krossad — rutigt)
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x + b.w*0.55, y + b.h*0.15, b.w*0.10, b.h*0.70);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 0.5; ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    for (let i = 0; i < 4; i++) {
+      ctx.moveTo(x + b.w*0.55, y + b.h*0.15 + i * b.h*0.20);
+      ctx.lineTo(x + b.w*0.65, y + b.h*0.85 - i * b.h*0.20);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    // sidor (passenger compartments)
+    ctx.fillStyle = '#3a2410';
+    ctx.fillRect(x + b.w*0.05, y + b.h*0.10, b.w*0.05, b.h*0.30);
+    ctx.fillRect(x + b.w*0.05, y + b.h*0.60, b.w*0.05, b.h*0.30);
+    // taklucka
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x + b.w*0.20, y + b.h*0.30, b.w*0.30, b.h*0.40);
+    ctx.strokeStyle = '#7a2a14'; ctx.lineWidth = 1;
+    ctx.strokeRect(x + b.w*0.20, y + b.h*0.30, b.w*0.30, b.h*0.40);
+    // däck
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(x - 3, y + b.h*0.10, 5, b.h*0.20);
+    ctx.fillRect(x + b.w - 2, y + b.h*0.10, 5, b.h*0.20);
+    ctx.fillRect(x - 3, y + b.h*0.70, 5, b.h*0.20);
+    ctx.fillRect(x + b.w - 2, y + b.h*0.70, 5, b.h*0.20);
+    // ROST-fläckar (skiktade)
+    ctx.fillStyle = '#7a2a14';
+    for (let i = 0; i < 8; i++) {
+      const rx = x + 6 + Math.random()*(b.w - 12);
+      const ry = y + 6 + Math.random()*(b.h - 12);
+      ctx.beginPath();
+      ctx.arc(rx, ry, 2 + Math.random()*3, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#5a1a08';
+    for (let i = 0; i < 5; i++) {
+      const rx = x + 6 + Math.random()*(b.w - 12);
+      const ry = y + 6 + Math.random()*(b.h - 12);
+      ctx.beginPath();
+      ctx.arc(rx, ry, 1 + Math.random()*2, 0, Math.PI*2);
+      ctx.fill();
+    }
+    // bilskenor / front grill
+    ctx.fillStyle = '#1a1a1a';
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(x + b.w - 2, y + b.h*0.30 + i * b.h*0.10, 3, b.h*0.06);
+    }
+    // strålkastare (släckta)
+    ctx.fillStyle = '#5a5a5a';
+    ctx.beginPath(); ctx.arc(x + b.w - 4, y + b.h*0.20, 4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + b.w - 4, y + b.h*0.80, 4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1a08';
+    ctx.beginPath(); ctx.arc(x + b.w - 4, y + b.h*0.20, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + b.w - 4, y + b.h*0.80, 2, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, b.w, b.h);
+    return;
+  }
+  if (b.kind === 'fence_seg_broken') {
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2;
+    if (b.w > b.h) {
+      // horisontellt brutet staket
+      for (let i = 0; i < b.w; i += 20) {
+        ctx.beginPath();
+        ctx.moveTo(x + i, y - 4 + Math.random()*8);
+        ctx.lineTo(x + i, y + b.h + Math.random()*6);
+        ctx.stroke();
+      }
+    } else {
+      for (let i = 0; i < b.h; i += 20) {
+        ctx.beginPath();
+        ctx.moveTo(x - 4 + Math.random()*8, y + i);
+        ctx.lineTo(x + b.w + Math.random()*6, y + i);
+        ctx.stroke();
+      }
+    }
+    return;
+  }
+  if (b.kind === 'truck') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 5, y + 5, b.w, b.h);
+    ctx.fillStyle = '#3a4a26';
+    ctx.fillRect(x, y, b.w, b.h);
+    // hytt
+    if (b.w > b.h) {
+      ctx.fillStyle = '#2a3a18';
+      ctx.fillRect(x, y, b.w*0.35, b.h);
+      ctx.fillStyle = '#1a2a1a';
+      ctx.fillRect(x + 4, y + 4, b.w*0.30, b.h*0.3);
+    } else {
+      ctx.fillStyle = '#2a3a18';
+      ctx.fillRect(x, y, b.w, b.h*0.35);
+      ctx.fillStyle = '#1a2a1a';
+      ctx.fillRect(x + 4, y + 4, b.w*0.4, b.h*0.30);
+    }
+    // hjul
+    ctx.fillStyle = '#0a0a0a';
+    if (b.w > b.h) {
+      ctx.fillRect(x - 3, y + 4, 6, 12);
+      ctx.fillRect(x + b.w*0.4, y - 4, 12, 6);
+      ctx.fillRect(x + b.w - 16, y - 4, 12, 6);
+      ctx.fillRect(x + b.w*0.4, y + b.h - 2, 12, 6);
+      ctx.fillRect(x + b.w - 16, y + b.h - 2, 12, 6);
+    } else {
+      ctx.fillRect(x + 4, y - 3, 12, 6);
+      ctx.fillRect(x + b.w - 16, y - 3, 12, 6);
+      ctx.fillRect(x + 4, y + b.h*0.4, 6, 12);
+      ctx.fillRect(x + b.w - 10, y + b.h*0.4, 6, 12);
+    }
+    ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, b.w, b.h);
+    return;
+  }
+  if (b.kind === 'fuel_truck') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 5, y + 5, b.w, b.h);
+    // hytt
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x, y, b.w*0.25, b.h);
+    // tank (rund cylinder)
+    ctx.fillStyle = '#7a3a20';
+    ctx.fillRect(x + b.w*0.25, y, b.w*0.75, b.h);
+    ctx.fillStyle = '#9a4a30';
+    ctx.fillRect(x + b.w*0.25, y, b.w*0.75, 6);
+    // FUEL-text
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('FUEL', x + b.w*0.65, y + b.h*0.55);
+    // hjul
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(x + 4, y - 3, 10, 6);
+    ctx.fillRect(x + b.w*0.5, y - 3, 12, 6);
+    ctx.fillRect(x + b.w - 16, y - 3, 12, 6);
+    ctx.fillRect(x + 4, y + b.h - 3, 10, 6);
+    ctx.fillRect(x + b.w*0.5, y + b.h - 3, 12, 6);
+    ctx.fillRect(x + b.w - 16, y + b.h - 3, 12, 6);
+    ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, b.w, b.h);
+    return;
+  }
+  if (b.kind === 'tool_cart') {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x + 3, y + 3, b.w, b.h);
+    ctx.fillStyle = '#5a3a20';
+    ctx.fillRect(x, y, b.w, b.h);
+    // verktyg ovanpå
+    ctx.fillStyle = '#9a9aa0';
+    ctx.fillRect(x + 4, y + 4, 10, 4);
+    ctx.fillRect(x + 18, y + 6, 14, 3);
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillRect(x + 4, y + 12, 8, 6);
+    return;
+  }
+  if (b.kind === 'pallet') {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x + 3, y + 3, b.w, b.h);
+    ctx.fillStyle = '#7a5230';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.fillStyle = '#5a3818';
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(x, y + i * (b.h/4), b.w, 2);
+    }
+    // ammolåda ovanpå
+    ctx.fillStyle = '#3a3a18';
+    ctx.fillRect(x + 6, y - 14, b.w - 12, 14);
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('AMMO', x + b.w/2, y - 4);
+    return;
+  }
+  if (b.kind === 'forklift') {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x + 3, y + 3, b.w, b.h);
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x, y - 8, 6, b.h + 8);
+    // gafflar
+    ctx.fillStyle = '#5a5a5a';
+    ctx.fillRect(x + b.w, y + 6, 12, 4);
+    ctx.fillRect(x + b.w, y + b.h - 10, 12, 4);
+    ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, b.w, b.h);
+    return;
+  }
+  if (b.kind === 'server_rack') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x + 3, y + 3, b.w, b.h);
+    ctx.fillStyle = '#1a1a22';
+    ctx.fillRect(x, y, b.w, b.h);
+    ctx.strokeStyle = '#0a0a14'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, b.w, b.h);
+    // server-units
+    const t = performance.now();
+    for (let i = 0; i < 6; i++) {
+      ctx.fillStyle = '#2a2a32';
+      ctx.fillRect(x + 4, y + 6 + i * 18, b.w - 8, 14);
+      // blinkande LEDs
+      const ledOn = Math.sin(t/300 + i) > 0;
+      ctx.fillStyle = ledOn ? '#3aff5a' : '#1a3a1a';
+      ctx.fillRect(x + 8, y + 10 + i * 18, 3, 3);
+      ctx.fillStyle = '#3aafff';
+      ctx.fillRect(x + 14, y + 10 + i * 18, 3, 3);
+    }
+    return;
+  }
+
+  // standard barack/hangar — RIKTIGT MILITÄR DESIGN
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(x + 6, y + 6, b.w, b.h);
+  // takfärg-gradient
+  const baseColor = b.kind === 'hangar' ? '#3a3a44' : '#4a3a26';
+  const lightColor = b.kind === 'hangar' ? '#5a5a64' : '#6a4a36';
+  const shadowColor = b.kind === 'hangar' ? '#1a1a22' : '#2a1a08';
+  const grad = ctx.createLinearGradient(x, y, x, y + b.h);
+  grad.addColorStop(0, lightColor);
+  grad.addColorStop(0.4, baseColor);
+  grad.addColorStop(1, shadowColor);
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, b.w, b.h);
+  if (b.kind === 'hangar') {
+    // räfflad metall (vågrät panel)
+    ctx.fillStyle = '#5a5a64';
+    for (let i = 0; i < b.w; i += 22) ctx.fillRect(x + i, y, 11, b.h);
+    // panel-skuggor
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    for (let i = 0; i < b.w; i += 22) ctx.fillRect(x + i + 11, y, 1, b.h);
+    // takbjälkar
+    ctx.fillStyle = '#3a3a44';
+    for (let i = 0; i < b.h; i += 60) {
+      ctx.fillRect(x, y + i, b.w, 3);
+    }
+  } else {
+    // barack — trälådor
+    ctx.fillStyle = '#3a2a18';
+    for (let i = 0; i < b.h; i += 18) ctx.fillRect(x, y + i, b.w, 1);
+    // tak-ribb (riktig taktyp)
+    ctx.fillStyle = '#2a1a08';
+    ctx.fillRect(x, y + b.h*0.15, b.w, 3);
+    ctx.fillRect(x, y + b.h*0.50, b.w, 3);
+    ctx.fillRect(x, y + b.h*0.85, b.w, 3);
+    // skorsten (vid topp-höger)
+    if (b.w > 100) {
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x + b.w*0.75, y + 4, 12, 18);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x + b.w*0.76, y + 5, 10, 6);
+    }
+    // små fönster på sidan
+    if (b.w > 200) {
+      const winY = y + b.h*0.30;
+      ctx.fillStyle = '#1a1a1a';
+      for (let i = 0; i < 3; i++) {
+        const wx = x + b.w*0.20 + i * b.w*0.30;
+        ctx.fillRect(wx, winY, 22, 12);
+        ctx.fillStyle = '#a8c8d8';
+        ctx.fillRect(wx + 1, winY + 1, 20, 10);
+        ctx.fillStyle = '#5a7a8a';
+        ctx.fillRect(wx + 11, winY + 1, 1, 10);
+        ctx.fillStyle = '#1a1a1a';
+      }
+    }
+  }
+  ctx.strokeStyle = '#1a1208'; ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, b.w, b.h);
+  // Barack-label på taket (gulmålad bricka)
+  if (b.kind === 'barack' && b.label) {
+    ctx.fillStyle = '#1a1208';
+    ctx.fillRect(x + b.w/2 - 38, y + 8, 76, 18);
+    ctx.strokeStyle = '#7a5a30'; ctx.lineWidth = 1;
+    ctx.strokeRect(x + b.w/2 - 38, y + 8, 76, 18);
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(b.label, x + b.w/2, y + 21);
+  }
+}
+
+function drawDecorationItem(d, cx, cy) {
+  const x = d.x - cx, y = d.y - cy;
+  if (d.kind === 'bush') {
+    const sz = d.size;
+    // skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(x + 3, y + 6, 16 * sz, 5, 0, 0, Math.PI*2); ctx.fill();
+    // mörkgrön bas
+    ctx.fillStyle = '#1f3a14';
+    ctx.beginPath(); ctx.arc(x - 5, y + 1, 10 * sz, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 5, y - 1, 9 * sz, 0, Math.PI*2); ctx.fill();
+    // mellangrön
+    ctx.fillStyle = '#3a5a2a';
+    ctx.beginPath(); ctx.arc(x - 3, y - 2, 8 * sz, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 4, y - 4, 7 * sz, 0, Math.PI*2); ctx.fill();
+    // ljusare topp
+    ctx.fillStyle = '#5a7a3a';
+    ctx.beginPath(); ctx.arc(x, y - 3, 5 * sz, 0, Math.PI*2); ctx.fill();
+    // små löv-detaljer
+    ctx.fillStyle = '#7a9a4a';
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI/2 + 0.3;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a) * 6 * sz, y + Math.sin(a) * 5 * sz, 1.5 * sz, 0, Math.PI*2);
+      ctx.fill();
+    }
+    return;
+  }
+  if (d.kind === 'rock') {
+    const sz = d.size;
+    // skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath(); ctx.ellipse(x + 4, y + 6, 14 * sz, 5, 0, 0, Math.PI*2); ctx.fill();
+    // basklippan (mörk)
+    ctx.fillStyle = '#3a3a35';
+    ctx.beginPath();
+    ctx.moveTo(x - 14 * sz, y + 6);
+    ctx.lineTo(x - 12 * sz, y - 4);
+    ctx.lineTo(x - 6 * sz, y - 9);
+    ctx.lineTo(x + 6 * sz, y - 8);
+    ctx.lineTo(x + 13 * sz, y - 1);
+    ctx.lineTo(x + 11 * sz, y + 7);
+    ctx.lineTo(x - 6 * sz, y + 8);
+    ctx.closePath(); ctx.fill();
+    // mellanyta
+    ctx.fillStyle = '#5a5a52';
+    ctx.beginPath();
+    ctx.moveTo(x - 12 * sz, y);
+    ctx.lineTo(x - 8 * sz, y - 7);
+    ctx.lineTo(x + 4 * sz, y - 7);
+    ctx.lineTo(x + 11 * sz, y - 1);
+    ctx.lineTo(x + 6 * sz, y + 4);
+    ctx.lineTo(x - 6 * sz, y + 4);
+    ctx.closePath(); ctx.fill();
+    // ljusare topp (highlight)
+    ctx.fillStyle = '#8a8a82';
+    ctx.beginPath();
+    ctx.moveTo(x - 8 * sz, y - 4);
+    ctx.lineTo(x - 4 * sz, y - 7);
+    ctx.lineTo(x + 4 * sz, y - 6);
+    ctx.lineTo(x + 2 * sz, y - 2);
+    ctx.lineTo(x - 4 * sz, y - 1);
+    ctx.closePath(); ctx.fill();
+    // små sprickor
+    ctx.strokeStyle = '#1a1a18'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - 4 * sz, y - 3); ctx.lineTo(x + 2 * sz, y + 2);
+    ctx.moveTo(x + 4 * sz, y - 4); ctx.lineTo(x + 7 * sz, y - 1);
+    ctx.stroke();
+    // mossa-fläckar (gröna)
+    ctx.fillStyle = 'rgba(80,140,60,0.6)';
+    ctx.beginPath(); ctx.arc(x - 8 * sz, y + 4, 2 * sz, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 8 * sz, y + 5, 2 * sz, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'spotlight') {
+    const grad = ctx.createRadialGradient(x, y, 4, x, y, 70);
+    grad.addColorStop(0, 'rgba(255, 240, 180, 0.55)');
+    grad.addColorStop(1, 'rgba(255, 240, 180, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - 70, y - 70, 140, 140);
+    ctx.fillStyle = '#fff5b8';
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'gate_arm') {
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x - 100, y - 5, 200, 10);
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 5; i++) ctx.fillRect(x - 100 + i * 40, y - 5, 20, 10);
+    return;
+  }
+  if (d.kind === 'sandbag_pile') {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x - 22 + 3, y + 3, 46, 18);
+    ctx.fillStyle = '#7a6240';
+    ctx.fillRect(x - 22, y - 6, 46, 22);
+    ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      ctx.strokeRect(x - 22 + i * 16, y - 6, 16, 22);
+    }
+    return;
+  }
+  if (d.kind === 'hologram') {
+    const t = performance.now();
+    const pulse = 0.6 + Math.sin(t / 200) * 0.3;
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    // glowing cylinder
+    const grad = ctx.createRadialGradient(x, y, 4, x, y, 60);
+    grad.addColorStop(0, 'rgba(60, 200, 255, 0.7)');
+    grad.addColorStop(0.6, 'rgba(60, 200, 255, 0.2)');
+    grad.addColorStop(1, 'rgba(60, 200, 255, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - 60, y - 60, 120, 120);
+    // cirkel-lager
+    ctx.strokeStyle = '#3acaff'; ctx.lineWidth = 2;
+    for (let i = 0; i < 3; i++) {
+      const r = 10 + i * 8 + Math.sin(t / 150 + i) * 3;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.stroke();
+    }
+    ctx.restore();
+    // bas
+    ctx.fillStyle = '#1a2a34';
+    ctx.beginPath(); ctx.ellipse(x, y + 14, 14, 5, 0, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'status_screen') {
+    ctx.fillStyle = '#0a0a10';
+    ctx.fillRect(x - 22, y - 14, 44, 28);
+    ctx.strokeStyle = '#3a3a44'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - 22, y - 14, 44, 28);
+    const t = performance.now() / 200;
+    const colors = ['#3aff5a', '#ffd54a', '#ff3a3a', '#3aafff'];
+    const col = colors[Math.floor(t / 5) % colors.length];
+    ctx.fillStyle = col;
+    ctx.fillRect(x - 18, y - 10, 36 * (0.4 + Math.sin(t) * 0.3), 4);
+    ctx.fillRect(x - 18, y - 4,  36 * (0.5 + Math.sin(t + 1) * 0.3), 4);
+    ctx.fillRect(x - 18, y + 2,  36 * (0.6 + Math.sin(t + 2) * 0.3), 4);
+    return;
+  }
+  if (d.kind === 'pipe_h') {
+    ctx.fillStyle = '#2a2a30';
+    ctx.fillRect(x - 40, y - 8, 80, 16);
+    ctx.fillStyle = '#5a5a60';
+    ctx.fillRect(x - 40, y - 8, 80, 4);
+    ctx.strokeStyle = '#1a1a1f'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - 40, y - 8, 80, 16);
+    // led joints
+    ctx.fillStyle = '#3a3a44';
+    ctx.fillRect(x - 4, y - 10, 8, 20);
+    return;
+  }
+  if (d.kind === 'emergency_light') {
+    const t = performance.now();
+    const blink = Math.sin(t / 250) > 0;
+    const col = blink ? '#ff3a3a' : '#5a1010';
+    const grad = ctx.createRadialGradient(x, y, 2, x, y, blink ? 28 : 14);
+    grad.addColorStop(0, blink ? 'rgba(255,80,80,0.7)' : 'rgba(120,30,30,0.4)');
+    grad.addColorStop(1, 'rgba(255,30,30,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - 28, y - 28, 56, 56);
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x - 7, y - 5, 14, 10);
+    ctx.fillStyle = col;
+    ctx.fillRect(x - 5, y - 3, 10, 6);
+    return;
+  }
+  if (d.kind === 'warning_sign') {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x - 36, y - 8, 72, 16);
+    ctx.fillStyle = '#ffd54a';
+    for (let i = 0; i < 4; i++) ctx.fillRect(x - 36 + i * 18, y - 8, 9, 16);
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('FARA', x, y + 3);
+    return;
+  }
+  if (d.kind === 'fuel_drum') {
+    // röd cylindrisk fat (icke-koll men markerar fara)
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.ellipse(x + 3, y + 4, 12, 5, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#7a1a1a';
+    ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#c0c0c0'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, 12, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI*2); ctx.stroke();
+    // varningsmärke
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('!', x, y + 3);
+    return;
+  }
+  if (d.kind === 'fire_barrel') {
+    // brinnande fat med flammor
+    const t = performance.now();
+    const flicker = 0.85 + Math.sin(t/80) * 0.15;
+    // skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.beginPath(); ctx.ellipse(x + 3, y + 6, 18, 6, 0, 0, Math.PI*2); ctx.fill();
+    // fat
+    ctx.fillStyle = '#3a2418';
+    ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#5a3a20'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI*2); ctx.stroke();
+    // flamma
+    const grad = ctx.createRadialGradient(x, y - 4, 4, x, y - 4, 36 * flicker);
+    grad.addColorStop(0, `rgba(255, 220, 100, ${0.85 * flicker})`);
+    grad.addColorStop(0.4, `rgba(255, 130, 30, ${0.65 * flicker})`);
+    grad.addColorStop(1, 'rgba(180, 30, 10, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - 36, y - 36, 72, 60);
+    return;
+  }
+  if (d.kind === 'office_chair') {
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.arc(x + 2, y + 4, 11, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#3a3a44';
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'ceiling_lamp') {
+    const grad = ctx.createRadialGradient(x, y, 4, x, y, 50);
+    grad.addColorStop(0, 'rgba(255, 245, 200, 0.5)');
+    grad.addColorStop(1, 'rgba(255, 245, 200, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - 50, y - 50, 100, 100);
+    ctx.fillStyle = '#fff5b8';
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI*2); ctx.stroke();
+    return;
+  }
+  if (d.kind === 'gate') {
+    // grindport: två stolpar + en bom
+    ctx.fillStyle = '#5e5e3a';
+    ctx.fillRect(x - 90, y - 90, 18, 110);
+    ctx.fillRect(x + 72, y - 90, 18, 110);
+    ctx.fillStyle = '#7a7a48';
+    ctx.fillRect(x - 90, y - 90, 18, 8);
+    ctx.fillRect(x + 72, y - 90, 18, 8);
+    ctx.fillStyle = '#3a2c1a';
+    ctx.fillRect(x - 72, y - 70, 144, 28);
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('BAS', x, y - 50);
+    return;
+  }
+  if (d.kind === 'campfire') {
+    const t = performance.now();
+    const flicker = 0.85 + Math.sin(t/80) * 0.15;
+    // ved
+    ctx.fillStyle = '#3a2210';
+    ctx.fillRect(x - 14, y - 4, 28, 8);
+    ctx.fillRect(x - 4, y - 14, 8, 28);
+    // glöd
+    ctx.fillStyle = '#ff8a30';
+    ctx.beginPath(); ctx.arc(x, y, 8 * flicker, 0, Math.PI*2); ctx.fill();
+    const grad = ctx.createRadialGradient(x, y - 8, 4, x, y - 8, 32 * flicker);
+    grad.addColorStop(0, `rgba(255,200,80,${0.7 * flicker})`);
+    grad.addColorStop(0.5, `rgba(255,100,40,${0.5 * flicker})`);
+    grad.addColorStop(1, 'rgba(180,30,10,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - 32, y - 32, 64, 50);
+    return;
+  }
+  if (d.kind === 'log') {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x - 24, y + 4, 48, 6);
+    ctx.fillStyle = '#5a3a20';
+    ctx.fillRect(x - 24, y - 4, 48, 10);
+    ctx.fillStyle = '#7a4a28';
+    ctx.beginPath(); ctx.arc(x - 24, y + 1, 5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 24, y + 1, 5, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'bones') {
+    ctx.fillStyle = '#dcdcc8';
+    // skalle
+    ctx.beginPath(); ctx.arc(x - 6, y, 7, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x - 9, y - 2, 2, 2);
+    ctx.fillRect(x - 5, y - 2, 2, 2);
+    // ben
+    ctx.fillStyle = '#dcdcc8';
+    ctx.fillRect(x + 2, y - 2, 16, 4);
+    ctx.beginPath(); ctx.arc(x + 18, y, 3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 2, y, 3, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'wood_sign') {
+    // träskylt på pinne
+    ctx.fillStyle = '#3a2410';
+    ctx.fillRect(x - 1, y, 2, 18);
+    const txt = d.text || '';
+    const w = Math.max(60, txt.length * 6 + 12);
+    ctx.fillStyle = d.warning ? '#7a2a14' : '#5a3a20';
+    ctx.fillRect(x - w/2, y - 18, w, 18);
+    ctx.strokeStyle = '#1a1208'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - w/2, y - 18, w, 18);
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(txt, x, y - 6);
+    return;
+  }
+  if (d.kind === 'metal_sign') {
+    const txt = d.text || '';
+    const w = Math.max(70, txt.length * 6 + 14);
+    // stolpe
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x - 1, y, 2, 22);
+    // skylt
+    ctx.fillStyle = d.red ? '#7a1a1a' : '#1a3a1a';
+    ctx.fillRect(x - w/2, y - 16, w, 16);
+    ctx.strokeStyle = d.red ? '#ff3a3a' : '#dcdcdc'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - w/2, y - 16, w, 16);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(txt, x, y - 5);
+    return;
+  }
+  if (d.kind === 'big_warning_sign') {
+    const txt = d.text || 'WARNING';
+    const w = Math.max(120, txt.length * 9 + 20);
+    // randig kant (gul/svart)
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x - w/2 - 6, y - 26, w + 12, 36);
+    ctx.fillStyle = '#ffd54a';
+    for (let i = 0; i < (w + 12) / 12; i++) {
+      ctx.fillRect(x - w/2 - 6 + i * 12, y - 26, 6, 6);
+      ctx.fillRect(x - w/2 - 6 + i * 12, y + 4, 6, 6);
+    }
+    // röd inre yta
+    ctx.fillStyle = '#7a1a1a';
+    ctx.fillRect(x - w/2, y - 18, w, 22);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 2;
+    ctx.fillText(txt, x, y - 3);
+    ctx.shadowBlur = 0;
+    return;
+  }
+  if (d.kind === 'big_overhead_sign') {
+    const txt = d.text || '';
+    const w = Math.max(160, txt.length * 8 + 30);
+    // upphäng-kedjor
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x - w/2 + 20, y - 14); ctx.lineTo(x - w/2 + 20, y - 30); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + w/2 - 20, y - 14); ctx.lineTo(x + w/2 - 20, y - 30); ctx.stroke();
+    // skylt
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x - w/2, y - 14, w, 28);
+    ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 2;
+    ctx.strokeRect(x - w/2, y - 14, w, 28);
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = 'bold 13px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(txt, x, y + 3);
+    return;
+  }
+  if (d.kind === 'big_base_sign') {
+    const txt = d.text || 'BASE';
+    // stora stolpar
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x - 90, y - 60, 8, 80);
+    ctx.fillRect(x + 82, y - 60, 8, 80);
+    // skylt
+    ctx.fillStyle = '#1a1208';
+    ctx.fillRect(x - 90, y - 60, 180, 30);
+    ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 2;
+    ctx.strokeRect(x - 90, y - 60, 180, 30);
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(txt, x, y - 40);
+    return;
+  }
+  if (d.kind === 'door_label') {
+    const txt = d.text || '';
+    const w = Math.max(80, txt.length * 6 + 16);
+    ctx.fillStyle = '#1a1a22';
+    ctx.fillRect(x - w/2, y - 9, w, 18);
+    ctx.strokeStyle = '#5a5a64'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - w/2, y - 9, w, 18);
+    ctx.fillStyle = '#9aff5a';
+    ctx.font = 'bold 9px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(txt, x, y + 3);
+    return;
+  }
+  if (d.kind === 'spotlight_sweep') {
+    const t = performance.now() / 1000 + (d.phase || 0);
+    const ang = t * 0.6;
+    // koner som svänger
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    const grad = ctx.createLinearGradient(0, 0, 200, 0);
+    grad.addColorStop(0, 'rgba(255, 240, 180, 0.55)');
+    grad.addColorStop(1, 'rgba(255, 240, 180, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(200, -30); ctx.lineTo(200, 30); ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    // lampa
+    ctx.fillStyle = '#fff5b8';
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'gate_arm_small') {
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x - 60, y - 4, 120, 8);
+    ctx.fillStyle = '#fff';
+    for (let i = 0; i < 4; i++) ctx.fillRect(x - 60 + i*30, y - 4, 15, 8);
+    return;
+  }
+  if (d.kind === 'traffic_cone') {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.ellipse(x + 2, y + 6, 8, 3, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ff7a3a';
+    ctx.beginPath();
+    ctx.moveTo(x, y - 10); ctx.lineTo(x - 7, y + 6); ctx.lineTo(x + 7, y + 6);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x - 5, y, 10, 2);
+    return;
+  }
+  if (d.kind === 'oil_stain') {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.beginPath(); ctx.ellipse(x, y, 22, 12, Math.random(), 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(20,10,0,0.7)';
+    ctx.beginPath(); ctx.ellipse(x + 3, y - 2, 12, 6, Math.random(), 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'plant') {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.ellipse(x + 2, y + 8, 10, 4, 0, 0, Math.PI*2); ctx.fill();
+    // kruka
+    ctx.fillStyle = '#5a3a20';
+    ctx.fillRect(x - 8, y, 16, 8);
+    // löv
+    ctx.fillStyle = '#3a6a2a';
+    ctx.beginPath(); ctx.arc(x - 4, y - 3, 6, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 4, y - 5, 6, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y - 8, 7, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'coffee_cup') {
+    ctx.fillStyle = '#dcdcdc';
+    ctx.fillRect(x - 4, y - 3, 8, 6);
+    ctx.fillStyle = '#3a1f0a';
+    ctx.fillRect(x - 3, y - 2, 6, 2);
+    ctx.strokeStyle = '#aaa'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - 4, y - 3, 8, 6);
+    return;
+  }
+  if (d.kind === 'paper_pile') {
+    ctx.fillStyle = '#f0f0e0';
+    ctx.fillRect(x - 5, y - 3, 10, 6);
+    ctx.fillRect(x - 4, y - 4, 10, 6);
+    ctx.strokeStyle = '#aaa'; ctx.lineWidth = 0.5;
+    ctx.strokeRect(x - 4, y - 4, 10, 6);
+    return;
+  }
+  if (d.kind === 'notice_board') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x - 22 + 2, y - 14 + 2, 44, 28);
+    ctx.fillStyle = '#5a3a20';
+    ctx.fillRect(x - 22, y - 14, 44, 28);
+    ctx.strokeStyle = '#1a1208'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - 22, y - 14, 44, 28);
+    // pappers-lappar
+    ctx.fillStyle = '#fffae0';
+    ctx.fillRect(x - 18, y - 10, 12, 9);
+    ctx.fillStyle = '#e0eaff';
+    ctx.fillRect(x - 4, y - 11, 12, 9);
+    ctx.fillStyle = '#ffe0e0';
+    ctx.fillRect(x + 6, y - 6, 10, 9);
+    ctx.fillStyle = '#fffae0';
+    ctx.fillRect(x - 14, y + 1, 14, 9);
+    return;
+  }
+  if (d.kind === 'flagpole') {
+    // skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x - 1 + 2, y, 4, 60);
+    // stång
+    ctx.fillStyle = '#dcdcdc';
+    ctx.fillRect(x - 1, y - 80, 2, 80);
+    // flagga
+    const wave = Math.sin(performance.now()/300) * 4;
+    ctx.fillStyle = '#7a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(x + 1, y - 80);
+    ctx.lineTo(x + 36 + wave, y - 75);
+    ctx.lineTo(x + 36 + wave, y - 55);
+    ctx.lineTo(x + 1, y - 50);
+    ctx.closePath(); ctx.fill();
+    // svart krona
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(x + 14, y - 70, 8, 6);
+    return;
+  }
+  if (d.kind === 'laundry_line') {
+    // lina mellan två punkter
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - 60, y); ctx.lineTo(x + 60, y);
+    ctx.stroke();
+    // hängande uniformer
+    ctx.fillStyle = '#3a4a26';
+    ctx.fillRect(x - 50, y, 14, 22);
+    ctx.fillStyle = '#3a3a26';
+    ctx.fillRect(x - 24, y, 12, 18);
+    ctx.fillStyle = '#5a4a2a';
+    ctx.fillRect(x + 4, y, 14, 24);
+    ctx.fillStyle = '#3a4a26';
+    ctx.fillRect(x + 30, y, 12, 18);
+    return;
+  }
+  if (d.kind === 'crate_outdoor') {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x - 14 + 2, y - 14 + 2, 28, 28);
+    ctx.fillStyle = '#5a3e22';
+    ctx.fillRect(x - 14, y - 14, 28, 28);
+    ctx.strokeStyle = '#2a1a08'; ctx.lineWidth = 2;
+    ctx.strokeRect(x - 14, y - 14, 28, 28);
+    return;
+  }
+  if (d.kind === 'asphalt_crack') {
+    ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x - 18, y - 4);
+    ctx.lineTo(x - 6, y + 2);
+    ctx.lineTo(x + 4, y - 6);
+    ctx.lineTo(x + 16, y + 4);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x - 6, y + 2); ctx.lineTo(x - 2, y + 14);
+    ctx.stroke();
+    return;
+  }
+  if (d.kind === 'helipad_h') {
+    // stor gul cirkel med "H"
+    ctx.fillStyle = 'rgba(255,213,74,0.20)';
+    ctx.beginPath(); ctx.arc(x, y, 90, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(x, y, 80, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = 'bold 64px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('H', x, y + 22);
+    return;
+  }
+  if (d.kind === 'do_not_cross_h') {
+    const len = d.length || 200;
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x - len/2, y - 5, len, 10);
+    ctx.fillStyle = '#ffd54a';
+    for (let i = 0; i < len/16; i++) ctx.fillRect(x - len/2 + i*16, y - 5, 8, 10);
+    ctx.fillStyle = '#000';
+    ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('DO NOT CROSS', x, y + 3);
+    return;
+  }
+  if (d.kind === 'chain_hook') {
+    // kedja från taket
+    ctx.strokeStyle = '#5a5a64'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      ctx.moveTo(x, y - 30 + i*8);
+      ctx.lineTo(x, y - 30 + i*8 + 6);
+    }
+    ctx.stroke();
+    // krok
+    ctx.beginPath();
+    ctx.arc(x, y, 5, Math.PI*0.2, Math.PI*1.4);
+    ctx.stroke();
+    return;
+  }
+  if (d.kind === 'crane_track') {
+    const len = d.length || 400;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(x - len/2, y - 4, len, 8);
+    ctx.fillStyle = '#3a3a44';
+    ctx.fillRect(x - len/2, y - 4, len, 8);
+    ctx.strokeStyle = '#1a1a22'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - len/2, y - 4, len, 8);
+    // stöd-pelare
+    ctx.fillStyle = '#5a5a64';
+    ctx.fillRect(x - len/2, y - 14, 8, 20);
+    ctx.fillRect(x + len/2 - 8, y - 14, 8, 20);
+    return;
+  }
+  if (d.kind === 'crane_big') {
+    const len = d.length || 500;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x - len/2, y - 6, len, 12);
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillRect(x - len/2, y - 6, len, 12);
+    // ramverk
+    ctx.strokeStyle = '#1a1208'; ctx.lineWidth = 1;
+    for (let i = 0; i < len; i += 20) {
+      ctx.beginPath();
+      ctx.moveTo(x - len/2 + i, y - 6); ctx.lineTo(x - len/2 + i + 10, y + 6);
+      ctx.stroke();
+    }
+    ctx.strokeRect(x - len/2, y - 6, len, 12);
+    // pelare
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x - len/2 - 12, y - 30, 12, 50);
+    ctx.fillRect(x + len/2, y - 30, 12, 50);
+    return;
+  }
+  if (d.kind === 'hanging_container') {
+    // kedja
+    ctx.strokeStyle = '#5a5a5a'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 30, y - 60); ctx.lineTo(x - 30, y - 25);
+    ctx.moveTo(x + 30, y - 60); ctx.lineTo(x + 30, y - 25);
+    ctx.stroke();
+    // container
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(x - 50 + 5, y - 25 + 5, 100, 50);
+    ctx.fillStyle = '#7a3a3a';
+    ctx.fillRect(x - 50, y - 25, 100, 50);
+    ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 2;
+    ctx.strokeRect(x - 50, y - 25, 100, 50);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 9px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('CARGO 7-X', x, y - 5);
+    return;
+  }
+  if (d.kind === 'cargo_sack') {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.ellipse(x + 3, y + 14, 18, 6, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#7a6240';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 18, 12, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x - 14, y - 4); ctx.lineTo(x + 14, y + 4); ctx.stroke();
+    return;
+  }
+  if (d.kind === 'loading_dock') {
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x - 40, y - 30, 80, 60);
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2;
+    ctx.strokeRect(x - 40, y - 30, 80, 60);
+    // gul ramp-kant
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillRect(x - 40, y + 20, 80, 6);
+    ctx.fillStyle = '#000';
+    for (let i = 0; i < 8; i++) ctx.fillRect(x - 40 + i*10, y + 20, 5, 6);
+    return;
+  }
+  if (d.kind === 'vent_fan') {
+    const t = performance.now();
+    const ang = t / 200;
+    ctx.fillStyle = '#1a1a22';
+    ctx.fillRect(x - 18, y - 18, 36, 36);
+    ctx.strokeStyle = '#3a3a44'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - 18, y - 18, 36, 36);
+    // fläkt-blad
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    ctx.fillStyle = '#5a5a64';
+    for (let i = 0; i < 4; i++) {
+      ctx.rotate(Math.PI/2);
+      ctx.beginPath();
+      ctx.moveTo(0, 0); ctx.lineTo(14, -3); ctx.lineTo(14, 3);
+      ctx.fill();
+    }
+    ctx.restore();
+    ctx.fillStyle = '#3a3a44';
+    ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'cable_run') {
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 20);
+    ctx.bezierCurveTo(x - 6, y - 8, x + 6, y + 4, x, y + 18);
+    ctx.stroke();
+    // junction box
+    ctx.fillStyle = '#3a3a44';
+    ctx.fillRect(x - 5, y - 4, 10, 8);
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillRect(x - 2, y - 1, 2, 2);
+    return;
+  }
+  if (d.kind === 'blood_stain') {
+    ctx.fillStyle = 'rgba(80,0,0,0.7)';
+    ctx.beginPath(); ctx.ellipse(x, y, 14, 8, Math.random(), 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(120,0,0,0.6)';
+    ctx.beginPath(); ctx.ellipse(x + 4, y - 3, 6, 3, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x - 6, y + 4, 4, 2, 0, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'dead_body') {
+    ctx.fillStyle = 'rgba(80,0,0,0.6)';
+    ctx.beginPath(); ctx.ellipse(x, y, 22, 14, 0.3, 0, Math.PI*2); ctx.fill();
+    // uniform
+    ctx.fillStyle = '#3a4a26';
+    ctx.beginPath(); ctx.ellipse(x, y, 14, 8, 0.3, 0, Math.PI*2); ctx.fill();
+    // huvud
+    ctx.fillStyle = '#a07050';
+    ctx.beginPath(); ctx.arc(x + 14, y - 3, 5, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'section_plate') {
+    const txt = d.text || '';
+    const w = Math.max(80, txt.length * 5 + 14);
+    ctx.fillStyle = '#1a1a22';
+    ctx.fillRect(x - w/2, y - 9, w, 18);
+    ctx.strokeStyle = '#5a5a5a'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - w/2, y - 9, w, 18);
+    ctx.fillStyle = '#dcdcdc';
+    ctx.font = 'bold 8px monospace'; ctx.textAlign = 'center';
+    ctx.fillText(txt, x, y + 3);
+    return;
+  }
+  if (d.kind === 'alert_blinker') {
+    const t = performance.now();
+    const blink = Math.sin(t/200) > 0;
+    const grad = ctx.createRadialGradient(x, y, 2, x, y, blink ? 30 : 12);
+    grad.addColorStop(0, blink ? 'rgba(255,30,30,0.85)' : 'rgba(120,30,30,0.4)');
+    grad.addColorStop(1, 'rgba(255,30,30,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - 30, y - 30, 60, 60);
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x - 12, y - 6, 24, 12);
+    ctx.fillStyle = blink ? '#ff3a3a' : '#5a1010';
+    ctx.fillRect(x - 10, y - 4, 20, 8);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText('ALERT', x, y + 1);
+    return;
+  }
+  if (d.kind === 'tactical_map') {
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillRect(x - 40, y - 28, 80, 56);
+    ctx.strokeStyle = '#3a3a44'; ctx.lineWidth = 2;
+    ctx.strokeRect(x - 40, y - 28, 80, 56);
+    // karta-konturer
+    ctx.strokeStyle = '#3aff5a'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - 30, y - 14); ctx.lineTo(x - 10, y - 18);
+    ctx.lineTo(x, y - 8); ctx.lineTo(x + 14, y - 16);
+    ctx.lineTo(x + 28, y - 4); ctx.lineTo(x + 24, y + 14);
+    ctx.lineTo(x - 28, y + 18); ctx.closePath();
+    ctx.stroke();
+    // röda markörer
+    ctx.fillStyle = '#ff3a3a';
+    ctx.fillRect(x - 8, y - 6, 3, 3);
+    ctx.fillRect(x + 6, y + 4, 3, 3);
+    return;
+  }
+  if (d.kind === 'big_hologram') {
+    const t = performance.now();
+    const pulse = 0.7 + Math.sin(t/250) * 0.2;
+    ctx.save();
+    // golvringen
+    ctx.fillStyle = '#1a0a14';
+    ctx.beginPath(); ctx.ellipse(x, y, 70, 22, 0, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#aa3aff'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(x, y, 70, 22, 0, 0, Math.PI*2); ctx.stroke();
+    // hologram-kupol
+    ctx.globalAlpha = pulse;
+    const grad = ctx.createRadialGradient(x, y - 30, 5, x, y - 30, 90);
+    grad.addColorStop(0, 'rgba(180,80,255,0.6)');
+    grad.addColorStop(0.5, 'rgba(180,80,255,0.25)');
+    grad.addColorStop(1, 'rgba(180,80,255,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - 90, y - 120, 180, 130);
+    // ringar
+    ctx.strokeStyle = '#aa3aff'; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 4; i++) {
+      const r = 14 + i * 14 + Math.sin(t/200 + i) * 4;
+      ctx.beginPath(); ctx.arc(x, y - 30, r, 0, Math.PI*2); ctx.stroke();
+    }
+    // jord-form
+    ctx.fillStyle = 'rgba(180,80,255,0.6)';
+    ctx.beginPath(); ctx.arc(x, y - 50, 16, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x - 16, y - 50); ctx.lineTo(x + 16, y - 50);
+    ctx.moveTo(x, y - 66); ctx.lineTo(x, y - 34);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+}
+
+function drawTree(x, y, size, seed) {
+  // skugga större
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.ellipse(x + 6, y + 10, 24 * size, 9 * size, 0, 0, Math.PI*2); ctx.fill();
+  // stam (synlig genom lövverk)
+  ctx.fillStyle = '#2a1808';
+  ctx.fillRect(x - 5, y + 4, 10, 12 * size);
+  ctx.fillStyle = '#3a2210';
+  ctx.fillRect(x - 4, y + 4, 4, 12 * size);
+  // bark-textur
+  ctx.strokeStyle = '#1a0e04'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x - 3, y + 5); ctx.lineTo(x - 3, y + 14 * size);
+  ctx.moveTo(x + 1, y + 5); ctx.lineTo(x + 1, y + 14 * size);
+  ctx.stroke();
+  // 5 lager av lövverk för djup
+  const layers = [
+    { dx:-10, dy: 1,  r: 17 * size, c: '#162810' },
+    { dx:  8, dy: -4, r: 15 * size, c: '#1f3a14' },
+    { dx: -4, dy: -7, r: 14 * size, c: '#2a4a1c' },
+    { dx:  3, dy:  4, r: 18 * size, c: '#3a5a2a' },
+    { dx: -2, dy: -10, r: 11 * size, c: '#4a6a36' },
+    { dx:  4, dy: -8, r: 9 * size, c: '#5a7a40' },
+  ];
+  for (const L of layers) {
+    ctx.fillStyle = L.c;
+    ctx.beginPath(); ctx.arc(x + L.dx, y + L.dy, L.r, 0, Math.PI*2); ctx.fill();
+  }
+  // mindre löv-blobs på kanten för organisk look
+  const leafR = 16 * size;
+  const baseAng = (seed * 0.001) % (Math.PI*2);
+  for (let i = 0; i < 8; i++) {
+    const a = baseAng + i * Math.PI/4;
+    const lx = x + Math.cos(a) * leafR * 0.85;
+    const ly = y + Math.sin(a) * leafR * 0.7 - 3;
+    ctx.fillStyle = i % 2 === 0 ? '#2a4a1c' : '#3a5a2a';
+    ctx.beginPath(); ctx.arc(lx, ly, 4 * size, 0, Math.PI*2); ctx.fill();
+  }
+  // höjdljus (sol uppe från vänster)
+  ctx.fillStyle = 'rgba(255,255,180,0.22)';
+  ctx.beginPath(); ctx.arc(x - 6, y - 9, 7 * size, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,200,0.4)';
+  ctx.beginPath(); ctx.arc(x - 7, y - 10, 3 * size, 0, Math.PI*2); ctx.fill();
+}
+
+function drawRoads(cx, cy) {
+  const roadColor = '#1a1a1f';
+  const lineColor = '#a8a020';
+  // central söder-nord-väg (huvudkorridoren)
+  ctx.fillStyle = roadColor;
+  ctx.fillRect(WORLD.w/2 - ROAD_W/2 - cx, 0 - cy, ROAD_W, WORLD.h);
+  // tvärgator vid level-gränser (kontroller-checkpoints)
+  for (const lvl of LEVELS) {
+    ctx.fillRect(0 - cx, lvl.goalY - 50 - cy, WORLD.w, 100);
+  }
+  // gul mittlinje på huvudvägen
+  ctx.strokeStyle = lineColor;
+  ctx.lineWidth = 3;
+  ctx.setLineDash([28, 22]);
+  ctx.beginPath();
+  ctx.moveTo(WORLD.w/2 - cx, 0 - cy);
+  ctx.lineTo(WORLD.w/2 - cx, WORLD.h - cy);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // checkpoint-skylt vid varje goal (sektionsnamn)
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  for (const lvl of LEVELS) {
+    const sy = lvl.goalY - cy;
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(WORLD.w/2 - 110 - cx, sy - 24, 220, 18);
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillText(lvl.name, WORLD.w/2 - cx, sy - 11);
+  }
+}
+
+// Goal-zon: rita pulserande markör vid stage.goalPos när sektionen är clearad
+function drawGoalZone(cx, cy) {
+  const stage = getStage(state.wave);
+  if (!stage || stage.isBoss) return;
+  if (state.enemiesToSpawn > 0 || state.enemies.length > 0) return;
+  const t = performance.now();
+  const pulse = 1 + Math.sin(t/280) * 0.15;
+  const gx = stage.goalPos.x - cx;
+  const gy = stage.goalPos.y - cy;
+  const R = stage.goalRadius || 80;
+  ctx.save();
+  // glow pool
+  const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, R * 1.6);
+  grad.addColorStop(0, 'rgba(255, 235, 60, 0.45)');
+  grad.addColorStop(1, 'rgba(255, 235, 60, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(gx - R * 1.6, gy - R * 1.6, R * 3.2, R * 3.2);
+  // ring
+  ctx.strokeStyle = '#ffeb3b';
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(gx, gy, R * pulse, 0, Math.PI*2); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,235,60,0.5)';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(gx, gy, R * (1 + pulse * 0.4), 0, Math.PI*2); ctx.stroke();
+  // pil + text
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+  ctx.fillText('UTGÅNG', gx, gy - R - 12);
+  ctx.fillStyle = '#ffeb3b';
+  ctx.font = 'bold 32px sans-serif';
+  // pulserande pil
+  const arrowOff = Math.sin(t/200) * 4;
+  ctx.fillText('▲', gx, gy + 12 + arrowOff);
+  ctx.restore();
+}
+function hashCell(x, y, w) {
+  let h = (x * 374761393 + y * 668265263 + w * 982451653) | 0;
+  h = (h ^ (h >>> 13)) | 0;
+  h = (h * 1274126177) | 0;
+  return Math.abs(h);
+}
+function drawProp(x, y, type, seed) {
+  switch (type) {
+    case 'sandbag':
+      ctx.fillStyle = '#6e5e3a';
+      ctx.fillRect(x - 26, y - 11, 52, 22);
+      ctx.fillStyle = '#3e3220';
+      ctx.fillRect(x - 26, y - 11, 52, 22); // border-fill subtle
+      ctx.fillStyle = '#7e6a44';
+      ctx.fillRect(x - 24, y - 9, 22, 18);
+      ctx.fillRect(x + 2, y - 9, 22, 18);
+      ctx.strokeStyle = '#2a2010'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(x - 26, y - 11, 52, 22);
+      break;
+    case 'crate':
+      ctx.fillStyle = '#5a3e22';
+      ctx.fillRect(x - 19, y - 19, 38, 38);
+      ctx.strokeStyle = '#2c1a0a'; ctx.lineWidth = 2;
+      ctx.strokeRect(x - 19, y - 19, 38, 38);
+      ctx.beginPath();
+      ctx.moveTo(x - 19, y); ctx.lineTo(x + 19, y);
+      ctx.moveTo(x, y - 19); ctx.lineTo(x, y + 19);
+      ctx.stroke();
+      break;
+    case 'barrel':
+      ctx.fillStyle = '#2c2c2c';
+      ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#5a5a5a'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI*2); ctx.stroke();
+      ctx.fillStyle = '#0a0a0a';
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
+      break;
+    case 'fence':
+      ctx.strokeStyle = '#646464'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (let i = -2; i <= 2; i++) { ctx.moveTo(x + i * 14, y - 18); ctx.lineTo(x + i * 14, y + 18); }
+      ctx.moveTo(x - 30, y - 8); ctx.lineTo(x + 30, y - 8);
+      ctx.moveTo(x - 30, y + 8); ctx.lineTo(x + 30, y + 8);
+      ctx.stroke();
+      break;
+    case 'pipe':
+      ctx.fillStyle = '#3e3e44';
+      ctx.fillRect(x - 36, y - 7, 72, 14);
+      ctx.fillStyle = '#5e5e64';
+      ctx.fillRect(x - 36, y - 7, 72, 4);
+      ctx.strokeStyle = '#1e1e22'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(x - 36, y - 7, 72, 14);
+      ctx.beginPath();
+      ctx.moveTo(x - 14, y - 7); ctx.lineTo(x - 14, y + 7);
+      ctx.moveTo(x + 14, y - 7); ctx.lineTo(x + 14, y + 7);
+      ctx.stroke();
+      break;
+    case 'lamp':
+      ctx.save();
+      const grad = ctx.createRadialGradient(x, y, 4, x, y, 60);
+      grad.addColorStop(0, 'rgba(255,235,150,0.55)');
+      grad.addColorStop(1, 'rgba(255,235,150,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x - 60, y - 60, 120, 120);
+      ctx.restore();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath(); ctx.arc(x, y, 7, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#fff5a0';
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI*2); ctx.fill();
+      break;
+    case 'vehicle_track':
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 7;
+      ctx.beginPath();
+      const ang = (seed % 4) * Math.PI / 4;
+      const dx = Math.cos(ang) * 50, dy = Math.sin(ang) * 50;
+      const px = -Math.sin(ang) * 9, py = Math.cos(ang) * 9;
+      ctx.moveTo(x - dx + px, y - dy + py); ctx.lineTo(x + dx + px, y + dy + py);
+      ctx.moveTo(x - dx - px, y - dy - py); ctx.lineTo(x + dx - px, y + dy - py);
+      ctx.stroke();
+      break;
+    case 'warning_stripe':
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x - 32, y - 7, 64, 14);
+      ctx.fillStyle = '#ffd54a';
+      for (let i = 0; i < 4; i++) ctx.fillRect(x - 32 + i * 16, y - 7, 8, 14);
+      break;
+    case 'barricade':
+      ctx.fillStyle = '#3a2e26';
+      ctx.fillRect(x - 24, y - 14, 48, 28);
+      ctx.strokeStyle = '#5a3a30'; ctx.lineWidth = 2;
+      ctx.strokeRect(x - 24, y - 14, 48, 28);
+      ctx.beginPath();
+      ctx.moveTo(x - 24, y - 14); ctx.lineTo(x + 24, y + 14);
+      ctx.moveTo(x + 24, y - 14); ctx.lineTo(x - 24, y + 14);
+      ctx.stroke();
+      break;
+  }
+}
+
+function drawEnvironment() {
+  const cx = state.camera.x, cy = state.camera.y;
+  const stage = getStage(state.wave);
+
+  // Per-terrain golv
+  drawStageTerrain(stage, cx, cy);
+  // Byggnader + dekorationer
+  drawBuildings(cx, cy);
+
+  // världsgräns
+  ctx.strokeStyle = stage.edgeColor || '#3a3a44';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(-cx, -cy, WORLD.w, WORLD.h);
+  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 6]);
+  ctx.strokeRect(-cx + 8, -cy + 8, WORLD.w - 16, WORLD.h - 16);
+  ctx.setLineDash([]);
+
+  // atmosfär (dimma ju djupare in i basen)
+  if (stage.fog > 0) {
+    ctx.fillStyle = `rgba(0,0,0,${stage.fog})`;
+    ctx.fillRect(0, 0, viewW, viewH);
+  }
+
+  // vinjettering vid kanterna (subtil polish)
+  const grad = ctx.createRadialGradient(viewW/2, viewH/2, Math.min(viewW, viewH) * 0.4,
+                                        viewW/2, viewH/2, Math.max(viewW, viewH) * 0.7);
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.45)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
+}
+
+function drawStageTerrain(stage, cx, cy) {
+  // golvfärg
+  ctx.fillStyle = stage.bgColor || '#2a2a30';
+  ctx.fillRect(0, 0, viewW, viewH);
+
+  if (stage.kind === 'forest') {
+    drawForestGround(stage, cx, cy);
+    return;
+  }
+  if (stage.kind === 'perimeter') {
+    drawPerimeterGround(stage, cx, cy);
+    return;
+  }
+  if (stage.kind === 'lobby') {
+    drawLobbyGround(stage, cx, cy);
+    return;
+  }
+  if (stage.kind === 'hangar' || stage.kind === 'cargo' || stage.kind === 'barracks') {
+    drawConcreteGround(stage, cx, cy);
+    return;
+  }
+  if (stage.kind === 'depot') {
+    drawDepotGround(stage, cx, cy);
+    return;
+  }
+  if (stage.kind === 'bunker') {
+    drawBunkerGround(stage, cx, cy);
+    return;
+  }
+  if (stage.kind === 'command') {
+    drawCommandGround(stage, cx, cy);
+    return;
+  }
+  // generisk grid (placeholder för andra stages tills de byggs ut)
+  const grid = 80;
+  ctx.strokeStyle = stage.accentColor || '#10101a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  const startX = Math.floor(cx / grid) * grid;
+  const startY = Math.floor(cy / grid) * grid;
+  for (let x = startX; x < cx + viewW + grid; x += grid) {
+    ctx.moveTo(x - cx, 0); ctx.lineTo(x - cx, viewH);
+  }
+  for (let y = startY; y < cy + viewH + grid; y += grid) {
+    ctx.moveTo(0, y - cy); ctx.lineTo(viewW, y - cy);
+  }
+  ctx.stroke();
+}
+
+function drawPerimeterGround(stage, cx, cy) {
+  // grus-bas
+  ctx.fillStyle = stage.bgColor;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // gruspartiklar för struktur
+  const cell = 80;
+  const sCX = Math.floor(cx / cell) - 1;
+  const sCY = Math.floor(cy / cell) - 1;
+  const eCX = Math.floor((cx + viewW) / cell) + 1;
+  const eCY = Math.floor((cy + viewH) / cell) + 1;
+  for (let X = sCX; X <= eCX; X++) {
+    for (let Y = sCY; Y <= eCY; Y++) {
+      const seed = hashCell(X, Y, 2);
+      const t = (seed % 1000) / 1000;
+      const px = (X + 0.5) * cell + ((seed >> 4) % 30) - 15;
+      const py = (Y + 0.5) * cell + ((seed >> 11) % 30) - 15;
+      if (t < 0.18) {
+        ctx.fillStyle = '#5a4a30';
+        ctx.beginPath(); ctx.arc(px - cx, py - cy, 4 + (seed % 3), 0, Math.PI*2); ctx.fill();
+      } else if (t < 0.30) {
+        ctx.fillStyle = '#241c12';
+        ctx.beginPath(); ctx.arc(px - cx, py - cy, 3 + (seed % 2), 0, Math.PI*2); ctx.fill();
+      }
+    }
+  }
+  // huvudväg söder→norr (asfalt)
+  const sx = stage.spawnPos.x - cx, sy = stage.spawnPos.y - cy;
+  const gx = stage.goalPos.x - cx, gy = stage.goalPos.y - cy;
+  ctx.strokeStyle = '#1c1c20';
+  ctx.lineWidth = 110;
+  ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(gx, gy); ctx.stroke();
+  // mittlinje (gul)
+  ctx.strokeStyle = '#a8a020';
+  ctx.lineWidth = 3;
+  ctx.setLineDash([28, 22]);
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(gx, gy); ctx.stroke();
+  ctx.setLineDash([]);
+  // sidolinjer (vita)
+  ctx.strokeStyle = '#dcdcdc';
+  ctx.lineWidth = 2;
+  for (const off of [-50, 50]) {
+    ctx.beginPath();
+    ctx.moveTo(sx + off, sy); ctx.lineTo(gx + off, gy);
+    ctx.stroke();
+  }
+}
+
+function drawConcreteGround(stage, cx, cy) {
+  ctx.fillStyle = stage.bgColor;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // stora betonggolvplattor
+  const plate = 200;
+  ctx.strokeStyle = stage.accentColor || '#10101a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  const sCX = Math.floor(cx / plate) - 1;
+  const sCY = Math.floor(cy / plate) - 1;
+  const eCX = Math.floor((cx + viewW) / plate) + 1;
+  const eCY = Math.floor((cy + viewH) / plate) + 1;
+  for (let X = sCX; X <= eCX; X++) {
+    ctx.moveTo(X * plate - cx, 0); ctx.lineTo(X * plate - cx, viewH);
+  }
+  for (let Y = sCY; Y <= eCY; Y++) {
+    ctx.moveTo(0, Y * plate - cy); ctx.lineTo(viewW, Y * plate - cy);
+  }
+  ctx.stroke();
+  // oljefläckar
+  for (let X = sCX; X <= eCX; X++) {
+    for (let Y = sCY; Y <= eCY; Y++) {
+      const seed = hashCell(X, Y, 5);
+      const t = (seed % 1000) / 1000;
+      if (t < 0.06) {
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        const px = (X + 0.5) * plate + ((seed >> 4) % 80) - 40;
+        const py = (Y + 0.5) * plate + ((seed >> 11) % 80) - 40;
+        ctx.beginPath();
+        ctx.ellipse(px - cx, py - cy, 14 + (seed % 8), 8, 0, 0, Math.PI*2);
+        ctx.fill();
+      }
+    }
+  }
+  // gula varningsstreck längs goal-väg
+  if (!stage.isBoss) {
+    ctx.strokeStyle = '#a8a020';
+    ctx.lineWidth = 4;
+    ctx.setLineDash([24, 18]);
+    ctx.beginPath();
+    ctx.moveTo(stage.spawnPos.x - cx, stage.spawnPos.y - cy);
+    ctx.lineTo(stage.goalPos.x - cx, stage.goalPos.y - cy);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
+function drawDepotGround(stage, cx, cy) {
+  drawConcreteGround(stage, cx, cy);
+  // röd-svart fara-gradient i mitten
+  ctx.save();
+  ctx.globalAlpha = 0.05;
+  const grad = ctx.createRadialGradient(stage.worldW/2 - cx, stage.worldH/2 - cy, 0,
+                                         stage.worldW/2 - cx, stage.worldH/2 - cy, 400);
+  grad.addColorStop(0, '#ff3a3a');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
+  ctx.restore();
+}
+
+function drawBunkerGround(stage, cx, cy) {
+  ctx.fillStyle = stage.bgColor;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // smalt rutnät av plåtgolv
+  const plate = 60;
+  ctx.strokeStyle = '#0a0a10';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  const sCX = Math.floor(cx / plate) - 1;
+  const sCY = Math.floor(cy / plate) - 1;
+  const eCX = Math.floor((cx + viewW) / plate) + 1;
+  const eCY = Math.floor((cy + viewH) / plate) + 1;
+  for (let X = sCX; X <= eCX; X++) {
+    ctx.moveTo(X * plate - cx, 0); ctx.lineTo(X * plate - cx, viewH);
+  }
+  for (let Y = sCY; Y <= eCY; Y++) {
+    ctx.moveTo(0, Y * plate - cy); ctx.lineTo(viewW, Y * plate - cy);
+  }
+  ctx.stroke();
+  // röda nödljus-glow vid kanterna
+  ctx.save();
+  const t = performance.now();
+  ctx.globalAlpha = 0.3 + Math.sin(t/600) * 0.1;
+  const grad = ctx.createLinearGradient(0, 0, 0, viewH);
+  grad.addColorStop(0, 'rgba(180, 30, 30, 0.4)');
+  grad.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+  grad.addColorStop(1, 'rgba(180, 30, 30, 0.4)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
+  ctx.restore();
+}
+
+function drawCommandGround(stage, cx, cy) {
+  ctx.fillStyle = stage.bgColor;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // mörkröd glow centralt
+  const grad = ctx.createRadialGradient(stage.worldW/2 - cx, stage.worldH/2 - cy, 50,
+                                         stage.worldW/2 - cx, stage.worldH/2 - cy, 600);
+  grad.addColorStop(0, 'rgba(180, 20, 30, 0.5)');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // pentagram/runor i golvet
+  ctx.save();
+  ctx.translate(stage.worldW/2 - cx, stage.worldH/2 - cy);
+  ctx.strokeStyle = '#ff3a3a';
+  ctx.lineWidth = 3;
+  ctx.globalAlpha = 0.5 + Math.sin(performance.now() / 700) * 0.15;
+  ctx.beginPath();
+  ctx.arc(0, 0, 280, 0, Math.PI*2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, 220, 0, Math.PI*2);
+  ctx.stroke();
+  // koncentriska linjer
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4;
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a) * 220, Math.sin(a) * 220);
+    ctx.lineTo(Math.cos(a) * 280, Math.sin(a) * 280);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawLobbyGround(stage, cx, cy) {
+  ctx.fillStyle = stage.bgColor;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // kakelmönster: rutnät av fyrkanter med olika nyans
+  const tile = 60;
+  const sCX = Math.floor(cx / tile) - 1;
+  const sCY = Math.floor(cy / tile) - 1;
+  const eCX = Math.floor((cx + viewW) / tile) + 1;
+  const eCY = Math.floor((cy + viewH) / tile) + 1;
+  for (let X = sCX; X <= eCX; X++) {
+    for (let Y = sCY; Y <= eCY; Y++) {
+      if ((X + Y) % 2 === 0) {
+        ctx.fillStyle = '#2c2c36';
+        ctx.fillRect(X * tile - cx, Y * tile - cy, tile, tile);
+      }
+    }
+  }
+  // tunna fogar
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let X = sCX; X <= eCX; X++) {
+    ctx.moveTo(X * tile - cx, 0); ctx.lineTo(X * tile - cx, viewH);
+  }
+  for (let Y = sCY; Y <= eCY; Y++) {
+    ctx.moveTo(0, Y * tile - cy); ctx.lineTo(viewW, Y * tile - cy);
+  }
+  ctx.stroke();
+  // diagonal logga-mönster i mitten av kartan
+  const cxx = stage.worldW/2 - cx, cyy = stage.worldH/2 - cy;
+  ctx.save();
+  ctx.globalAlpha = 0.07;
+  ctx.fillStyle = '#ffd54a';
+  ctx.translate(cxx, cyy);
+  ctx.font = 'bold 80px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('★', 0, 24);
+  ctx.restore();
+}
+
+function drawForestGround(stage, cx, cy) {
+  // Bas: mörkgrön
+  ctx.fillStyle = stage.bgColor;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // Procedurella jord/gräs-fläckar för struktur
+  const cell = 90;
+  const sCX = Math.floor(cx / cell) - 1;
+  const sCY = Math.floor(cy / cell) - 1;
+  const eCX = Math.floor((cx + viewW) / cell) + 1;
+  const eCY = Math.floor((cy + viewH) / cell) + 1;
+  for (let X = sCX; X <= eCX; X++) {
+    for (let Y = sCY; Y <= eCY; Y++) {
+      const seed = hashCell(X, Y, 1);
+      const t = (seed % 1000) / 1000;
+      const px = (X + 0.5) * cell + ((seed >> 4) % 40) - 20;
+      const py = (Y + 0.5) * cell + ((seed >> 11) % 40) - 20;
+      if (t < 0.18) {
+        // grästuva
+        ctx.fillStyle = '#4a6a2a';
+        ctx.beginPath(); ctx.arc(px - cx, py - cy, 5 + (seed % 3), 0, Math.PI*2); ctx.fill();
+      } else if (t < 0.30) {
+        // jord-fläck
+        ctx.fillStyle = '#3a2a18';
+        ctx.beginPath(); ctx.arc(px - cx, py - cy, 8 + (seed % 5), 0, Math.PI*2); ctx.fill();
+      }
+    }
+  }
+  // Slingrande stig från spawn till goal (mörkare jord)
+  ctx.strokeStyle = '#3a2c18';
+  ctx.lineWidth = 50;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  const sx = stage.spawnPos.x - cx, sy = stage.spawnPos.y - cy;
+  const gx = stage.goalPos.x - cx, gy = stage.goalPos.y - cy;
+  const mx = (sx + gx) / 2 + 80;
+  const my = (sy + gy) / 2;
+  ctx.moveTo(sx, sy);
+  ctx.quadraticCurveTo(mx, my, gx, gy);
+  ctx.stroke();
+  // Stig-mittlinje
+  ctx.strokeStyle = '#5a4228';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([10, 14]);
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.quadraticCurveTo(mx, my, gx, gy);
+  ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+function drawPlayer() {
+  const p = state.player;
+  const x = p.x - state.camera.x;
+  const y = p.y - state.camera.y;
+  const now = performance.now();
+  const flash = p.flashUntil > now;
+
+  // movement-detection
+  const moving = Math.abs(input.moveX) + Math.abs(input.moveY) > 0.1
+    || input.keys.has('w') || input.keys.has('a') || input.keys.has('s') || input.keys.has('d');
+
+  // walk-cycle
+  if (p.walkPhase === undefined) p.walkPhase = 0;
+  p.walkPhase += moving ? 0.22 : 0.04;
+  const phase = p.walkPhase;
+  const bob = moving ? Math.abs(Math.sin(phase)) * 1.6 : Math.sin(phase) * 0.4;
+
+  // recoil
+  const w = W_BY_ID[p.weaponId];
+  const sinceShot = now - p.lastShot;
+  let recoil = 0;
+  if (sinceShot < 110) {
+    if (w.type === 'gun') recoil = (w.id === 'rocket' || w.id === 'grenade' ? 7 : 3.5) * (1 - sinceShot / 110);
+    else recoil = -2 * (1 - sinceShot / 110);
+  }
+
+  // FOTSPÅR vid varje fotsteg
+  if (moving && p.lastFootstep === undefined) p.lastFootstep = phase;
+  if (moving && Math.abs(phase - (p.lastFootstep || 0)) > Math.PI) {
+    p.lastFootstep = phase;
+    state.particles.push({
+      x: p.x - Math.cos(p.aimAngle) * 4, y: p.y - Math.sin(p.aimAngle) * 4 + 6,
+      vx: 0, vy: 0, life: 0.8, color: 'rgba(0,0,0,0.4)', r: 4,
+      isFootprint: true, ang: p.aimAngle,
+    });
+  }
+
+  // skugga (mjuk, oval)
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.beginPath(); ctx.ellipse(x + 2, y + p.r * 1.1, p.r * 1.3, p.r * 0.45, 0, 0, Math.PI*2); ctx.fill();
+
+  ctx.save();
+  ctx.translate(x, y + bob);
+  ctx.rotate(p.aimAngle);
+  ctx.translate(-recoil, 0);
+
+  const cos = getCurrentCostume();
+  const skin = cos.skin;
+  const skinDark = '#a07a52';
+  const vest = cos.shirt;
+  const vestDark = darken(cos.shirt, 0.7);
+  const pants = '#3a3528';
+  const boot = '#1a1208';
+
+  // BEN — ses bakom kroppen, alternerar
+  const legSwing = Math.sin(phase);
+  const lLegX = -p.r * 0.85 - legSwing * p.r * 0.2;
+  const rLegX = -p.r * 0.85 + legSwing * p.r * 0.2;
+  // vänster ben (övre ben + stövel)
+  ctx.fillStyle = flash ? '#fff' : pants;
+  ctx.fillRect(lLegX, -p.r * 0.55, p.r * 0.35, p.r * 0.4);
+  ctx.fillStyle = flash ? '#fff' : boot;
+  ctx.fillRect(lLegX, -p.r * 0.5, p.r * 0.35, p.r * 0.18);
+  // höger ben
+  ctx.fillStyle = flash ? '#fff' : pants;
+  ctx.fillRect(rLegX, p.r * 0.15, p.r * 0.35, p.r * 0.4);
+  ctx.fillStyle = flash ? '#fff' : boot;
+  ctx.fillRect(rLegX, p.r * 0.32, p.r * 0.35, p.r * 0.18);
+
+  // TAKTISK VÄST (kropp)
+  ctx.fillStyle = flash ? '#fff' : vest;
+  ctx.beginPath(); ctx.ellipse(0, 0, p.r * 0.95, p.r * 1.3, 0, 0, Math.PI*2); ctx.fill();
+  // väst-shading (mörkare på sidan)
+  ctx.fillStyle = flash ? '#fff' : vestDark;
+  ctx.beginPath(); ctx.ellipse(-p.r * 0.3, 0, p.r * 0.4, p.r * 1.15, 0, 0, Math.PI*2); ctx.fill();
+  // ammo-pouches på bröstet
+  ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+  ctx.fillRect(-p.r * 0.05, -p.r * 0.65, p.r * 0.30, p.r * 0.30);
+  ctx.fillRect(-p.r * 0.05,  p.r * 0.35, p.r * 0.30, p.r * 0.30);
+  // pouch-spännen
+  ctx.fillStyle = flash ? '#fff' : '#5a4a30';
+  ctx.fillRect(p.r * 0.04, -p.r * 0.55, p.r * 0.20, 2);
+  ctx.fillRect(p.r * 0.04,  p.r * 0.45, p.r * 0.20, 2);
+  // mid-line stitching
+  ctx.strokeStyle = flash ? '#fff' : '#0a0a08';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(p.r * 0.0, -p.r * 1.0); ctx.lineTo(p.r * 0.0, p.r * 1.0);
+  ctx.stroke();
+
+  // AXLAR (deltoider) — bredare, syns från ovan
+  ctx.fillStyle = flash ? '#fff' : skin;
+  ctx.beginPath(); ctx.ellipse(p.r * 0.05, -p.r * 1.0, p.r * 0.42, p.r * 0.36, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(p.r * 0.05,  p.r * 1.0, p.r * 0.42, p.r * 0.36, 0, 0, Math.PI*2); ctx.fill();
+  // axel-shadow
+  ctx.fillStyle = flash ? '#fff' : skinDark;
+  ctx.beginPath(); ctx.ellipse(-p.r * 0.20, -p.r * 1.05, p.r * 0.20, p.r * 0.20, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-p.r * 0.20,  p.r * 1.05, p.r * 0.20, p.r * 0.20, 0, 0, Math.PI*2); ctx.fill();
+
+  // BICEP-ARMAR (stora, fram-arm)
+  ctx.fillStyle = flash ? '#fff' : skin;
+  ctx.beginPath(); ctx.ellipse(p.r * 0.55, -p.r * 0.85, p.r * 0.30, p.r * 0.28, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(p.r * 0.55,  p.r * 0.85, p.r * 0.30, p.r * 0.28, 0, 0, Math.PI*2); ctx.fill();
+  // bicep-shadow (mörk under)
+  ctx.fillStyle = flash ? '#fff' : skinDark;
+  ctx.beginPath(); ctx.ellipse(p.r * 0.45, -p.r * 0.95, p.r * 0.18, p.r * 0.10, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(p.r * 0.45,  p.r * 0.95, p.r * 0.18, p.r * 0.10, 0, 0, Math.PI*2); ctx.fill();
+
+  // HALS
+  ctx.fillStyle = flash ? '#fff' : skinDark;
+  ctx.fillRect(p.r * 0.0, -p.r * 0.20, p.r * 0.35, p.r * 0.40);
+
+  // HUVUD (rundare, ovanifrån-perspektiv)
+  ctx.fillStyle = flash ? '#fff' : skin;
+  ctx.beginPath(); ctx.arc(p.r * 0.2, 0, p.r * 0.55, 0, Math.PI*2); ctx.fill();
+  // huvud-skugga (vänster sida)
+  ctx.fillStyle = flash ? '#fff' : skinDark;
+  ctx.beginPath(); ctx.arc(p.r * 0.05, 0, p.r * 0.32, 0, Math.PI*2); ctx.fill();
+
+  // BANDANA (per costume)
+  ctx.fillStyle = flash ? '#fff' : cos.bandana;
+  ctx.beginPath(); ctx.ellipse(p.r * 0.18, 0, p.r * 0.60, p.r * 0.32, 0, 0, Math.PI*2); ctx.fill();
+  // accent-remsa
+  ctx.fillStyle = flash ? '#fff' : cos.accent;
+  ctx.fillRect(-p.r * 0.10, -p.r * 0.32, p.r * 0.10, p.r * 0.64);
+  // bandana-svans bakåt (vajar lite)
+  const tailWave = Math.sin(now/200) * p.r * 0.10;
+  ctx.fillStyle = flash ? '#fff' : cos.bandana;
+  ctx.beginPath();
+  ctx.moveTo(-p.r * 0.45, -p.r * 0.22);
+  ctx.lineTo(-p.r * 1.30, -p.r * 0.50 + tailWave);
+  ctx.lineTo(-p.r * 1.20, -p.r * 0.05 + tailWave);
+  ctx.lineTo(-p.r * 1.30,  p.r * 0.45 + tailWave);
+  ctx.lineTo(-p.r * 0.45,  p.r * 0.22);
+  ctx.closePath();
+  ctx.fill();
+  // bandana-knut bakom huvudet
+  ctx.fillStyle = flash ? '#fff' : cos.bandana;
+  ctx.beginPath(); ctx.arc(-p.r * 0.40, 0, p.r * 0.10, 0, Math.PI*2); ctx.fill();
+
+  // ÖGON (små svarta från ovan)
+  ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+  ctx.beginPath(); ctx.arc(p.r * 0.50, -p.r * 0.18, 1.8, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(p.r * 0.50,  p.r * 0.18, 1.8, 0, Math.PI*2); ctx.fill();
+
+  // SKÄGG (tjockare, syns från ovan)
+  ctx.fillStyle = flash ? '#fff' : '#1a0a08';
+  ctx.beginPath(); ctx.ellipse(p.r * 0.62, 0, p.r * 0.24, p.r * 0.28, 0, 0, Math.PI*2); ctx.fill();
+
+  // vapen
+  drawPlayerWeapon(p, w, flash, now);
+
+  ctx.restore();
+}
+
+// Per-vapen visuella detaljer (alla i player-rotation där +x = framåt-aim)
+function drawPlayerWeapon(p, w, flash, now) {
+  const sinceShot = now - p.lastShot;
+  const slashAnim = (w.type === 'melee' && sinceShot < 240) ? (1 - sinceShot/240) : 0;
+
+  if (w.type === 'melee') {
+    // Olika melee-vapen
+    if (w.id === 'fists' || w.id === 'knuckles') {
+      // knogar: stora hudfärgade nävar
+      const fistColor = w.id === 'knuckles' ? '#c8a040' : '#d2a07a';
+      const reach = 6 + slashAnim * 12;
+      ctx.fillStyle = flash ? '#fff' : fistColor;
+      ctx.beginPath(); ctx.arc(p.r * 1.2 + reach, -p.r * 0.5, 6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.r * 1.2 + reach, p.r * 0.5, 6, 0, Math.PI*2); ctx.fill();
+    } else if (w.id === 'bat') {
+      // basebollträ: brun stång
+      const swing = slashAnim * 1.2;
+      ctx.save(); ctx.rotate(-0.6 + swing);
+      ctx.strokeStyle = flash ? '#fff' : '#7a4a20';
+      ctx.lineWidth = 7; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.2, 0);
+      ctx.stroke();
+      ctx.restore();
+    } else if (w.id === 'knife') {
+      const stab = slashAnim * 8;
+      ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 0.9 + stab, -3);
+      ctx.lineTo(p.r * 1.7 + stab, 0);
+      ctx.lineTo(p.r * 0.9 + stab, 3);
+      ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#5a3a20';
+      ctx.fillRect(p.r * 0.6 + stab, -2, 4, 4);
+    } else if (w.id === 'machete' || w.id === 'katana') {
+      // svärd: rotera blade beroende av slash
+      const swing = slashAnim * 1.4;
+      ctx.save();
+      ctx.rotate(-0.7 + swing);
+      ctx.strokeStyle = flash ? '#fff' : (w.id === 'katana' ? '#e6e6f0' : '#9aa8b0');
+      ctx.lineWidth = 4; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.4, 0);
+      ctx.stroke();
+      ctx.fillStyle = flash ? '#fff' : '#3a2a1a';
+      ctx.beginPath(); ctx.arc(p.r * 0.7, 0, 4, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+    } else if (w.style === 'club_short') {
+      // tonfa
+      const swing = slashAnim * 1.0;
+      ctx.save(); ctx.rotate(-0.4 + swing);
+      ctx.strokeStyle = flash ? '#fff' : w.color;
+      ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(p.r * 0.6, 0); ctx.lineTo(p.r * 1.7, 0); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(p.r * 0.9, -3); ctx.lineTo(p.r * 0.9, 6); ctx.stroke();
+      ctx.restore();
+    } else if (w.style === 'axe') {
+      const swing = slashAnim * 1.3;
+      ctx.save(); ctx.rotate(-0.7 + swing);
+      ctx.strokeStyle = flash ? '#fff' : '#7a5a3a';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.0, 0); ctx.stroke();
+      // yxblad
+      ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.85, -8); ctx.lineTo(p.r * 2.4, -2);
+      ctx.lineTo(p.r * 2.4, 2); ctx.lineTo(p.r * 1.85, 8);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    } else if (w.style === 'sledge') {
+      const swing = slashAnim * 1.5;
+      ctx.save(); ctx.rotate(-0.8 + swing);
+      ctx.strokeStyle = flash ? '#fff' : '#3a3a3a';
+      ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.1, 0); ctx.stroke();
+      ctx.fillStyle = flash ? '#fff' : '#888';
+      ctx.fillRect(p.r * 1.95, -10, 14, 20);
+      ctx.restore();
+    } else if (w.style === 'spear') {
+      const stab = slashAnim * 14;
+      ctx.strokeStyle = flash ? '#fff' : '#bcbccc';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(p.r * 0.6 + stab, 0); ctx.lineTo(p.r * 3.0 + stab, 0); ctx.stroke();
+      ctx.fillStyle = flash ? '#fff' : '#ccd';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 3.0 + stab, -5); ctx.lineTo(p.r * 3.5 + stab, 0);
+      ctx.lineTo(p.r * 3.0 + stab, 5);
+      ctx.closePath(); ctx.fill();
+    } else if (w.style === 'whip') {
+      const wave = Math.sin(now/40) * 6;
+      ctx.strokeStyle = flash ? '#fff' : w.color;
+      ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 0.7, 0);
+      ctx.quadraticCurveTo(p.r * 2.0, wave, p.r * 3.5, wave * 0.5);
+      ctx.stroke();
+    } else if (w.style === 'lightsaber') {
+      const swing = slashAnim * 1.4;
+      ctx.save(); ctx.rotate(-0.5 + swing);
+      ctx.shadowColor = w.color;
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = flash ? '#fff' : w.color;
+      ctx.lineWidth = 6; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.6, 0); ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.6, 0); ctx.stroke();
+      ctx.restore();
+    } else if (w.style === 'boxgloves') {
+      // dubbelnävar med taggar
+      const reach = 6 + slashAnim * 14;
+      ctx.fillStyle = flash ? '#fff' : w.color;
+      ctx.beginPath(); ctx.arc(p.r * 1.2 + reach, -p.r * 0.5, 8, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.r * 1.2 + reach, p.r * 0.5, 8, 0, Math.PI*2); ctx.fill();
+      // taggar
+      ctx.fillStyle = flash ? '#fff' : '#dcdcdc';
+      for (let i = 0; i < 3; i++) {
+        const a = i * 0.6 - 0.6;
+        ctx.fillRect(p.r * 1.2 + reach + Math.cos(a) * 8 - 1, -p.r * 0.5 + Math.sin(a) * 8 - 2, 2, 4);
+        ctx.fillRect(p.r * 1.2 + reach + Math.cos(a) * 8 - 1,  p.r * 0.5 + Math.sin(a) * 8 - 2, 2, 4);
+      }
+    } else if (w.style === 'sickle') {
+      const swing = slashAnim * 1.2;
+      ctx.save(); ctx.rotate(-0.5 + swing);
+      // skaft
+      ctx.strokeStyle = flash ? '#fff' : '#3a2a1a';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 1.7, 0); ctx.stroke();
+      // krökt blad
+      ctx.strokeStyle = flash ? '#fff' : '#9a9aa0';
+      ctx.lineWidth = 4; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(p.r * 1.7, -p.r * 0.5, p.r * 0.55, Math.PI*0.2, Math.PI*1.2); ctx.stroke();
+      ctx.restore();
+    } else if (w.style === 'mace') {
+      const swing = slashAnim * 1.6;
+      ctx.save(); ctx.rotate(-0.8 + swing);
+      ctx.strokeStyle = flash ? '#fff' : '#3a2a1a';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 1.9, 0); ctx.stroke();
+      // klubban (rundad med taggar)
+      ctx.fillStyle = flash ? '#fff' : '#5a4a3a';
+      ctx.beginPath(); ctx.arc(p.r * 2.1, 0, 12, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      for (let i = 0; i < 6; i++) {
+        const a = i / 6 * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(p.r * 2.1 + Math.cos(a) * 10, Math.sin(a) * 10);
+        ctx.lineTo(p.r * 2.1 + Math.cos(a) * 16, Math.sin(a) * 16);
+        ctx.lineTo(p.r * 2.1 + Math.cos(a + 0.2) * 12, Math.sin(a + 0.2) * 12);
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    } else if (w.style === 'glaive') {
+      const stab = slashAnim * 16;
+      ctx.strokeStyle = flash ? '#fff' : '#3a2a1a';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(p.r * 0.6 + stab, 0); ctx.lineTo(p.r * 2.8 + stab, 0); ctx.stroke();
+      // brett blad
+      ctx.fillStyle = flash ? '#fff' : '#dcdcdc';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 2.8 + stab, -8); ctx.lineTo(p.r * 3.6 + stab, -3);
+      ctx.lineTo(p.r * 3.7 + stab, 0); ctx.lineTo(p.r * 3.6 + stab, 3);
+      ctx.lineTo(p.r * 2.8 + stab, 8);
+      ctx.closePath(); ctx.fill();
+      // egg-detalj
+      ctx.strokeStyle = flash ? '#fff' : '#888';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(p.r * 2.9 + stab, -4); ctx.lineTo(p.r * 3.5 + stab, 0); ctx.stroke();
+    } else if (w.style === 'energysword') {
+      const swing = slashAnim * 1.4;
+      ctx.save(); ctx.rotate(-0.6 + swing);
+      ctx.shadowColor = w.color;
+      ctx.shadowBlur = 14;
+      // glow-blade
+      ctx.strokeStyle = flash ? '#fff' : w.color;
+      ctx.lineWidth = 7; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.7, 0); ctx.stroke();
+      ctx.shadowBlur = 0;
+      // vit kärna
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.7, 0); ctx.stroke();
+      // grepp
+      ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+      ctx.fillRect(p.r * 0.4, -3, p.r * 0.30, 6);
+      ctx.restore();
+    }
+    return;
+  }
+
+  // Skjutvapen — alla riktade framåt (positiv x), olika storlek/färg/rekyl
+  const muzzleFlash = sinceShot < 70;
+  ctx.strokeStyle = flash ? '#fff' : w.color;
+  ctx.lineCap = 'round';
+  let len = 22, thick = 4;
+  if (w.id === 'pistol' || w.id === 'revolver') { len = 16; thick = 3.5; }
+  if (w.id === 'shotgun') { len = 22; thick = 5; }
+  if (w.id === 'smg') { len = 18; thick = 3.5; }
+  if (w.id === 'rifle') { len = 26; thick = 4; }
+  if (w.id === 'sniper') { len = 32; thick = 3; }
+  if (w.id === 'grenade') { len = 18; thick = 6; }
+  if (w.id === 'rocket') { len = 24; thick = 7; }
+  if (w.id === 'minigun') { len = 26; thick = 6; }
+
+  ctx.lineWidth = thick;
+  ctx.beginPath();
+  ctx.moveTo(p.r, 0);
+  ctx.lineTo(p.r + len, 0);
+  ctx.stroke();
+
+  // detalj per vapen
+  if (w.id === 'shotgun') {
+    // dubbla pipor
+    ctx.strokeStyle = flash ? '#fff' : darken(w.color, 0.6);
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(p.r, -2); ctx.lineTo(p.r + len, -2);
+    ctx.moveTo(p.r,  2); ctx.lineTo(p.r + len,  2);
+    ctx.stroke();
+  }
+  if (w.id === 'minigun') {
+    // roterande pipor
+    const rot = (now / 30) % (Math.PI * 2);
+    for (let i = 0; i < 3; i++) {
+      const a = rot + i * (Math.PI * 2 / 3);
+      const oy = Math.sin(a) * 4;
+      ctx.strokeStyle = flash ? '#fff' : darken(w.color, 0.7);
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(p.r + 2, oy); ctx.lineTo(p.r + len, oy);
+      ctx.stroke();
+    }
+  }
+  if (w.id === 'sniper') {
+    // sikte ovanpå
+    ctx.fillStyle = flash ? '#fff' : '#222';
+    ctx.fillRect(p.r + 8, -5, 8, 3);
+  }
+  if (w.id === 'rocket' || w.id === 'grenade') {
+    // tjock pipa-ände
+    ctx.fillStyle = flash ? '#fff' : darken(w.color, 0.5);
+    ctx.beginPath(); ctx.arc(p.r + len, 0, thick * 0.7, 0, Math.PI*2); ctx.fill();
+  }
+  // Stilar för nya skjutvapen — ritas extra ovanpå standard-pipa
+  if (w.style === 'thrown') {
+    // små handhållna projektiler i handen
+    ctx.fillStyle = flash ? '#fff' : w.color;
+    ctx.beginPath(); ctx.arc(p.r + 14, 0, 3, 0, Math.PI*2); ctx.fill();
+  }
+  if (w.style === 'crossbow') {
+    // armborst-bow
+    ctx.strokeStyle = flash ? '#fff' : darken(w.color, 0.6);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(p.r + 6, 0, 8, -Math.PI/2 - 0.3, -Math.PI/2 + 0.3);
+    ctx.arc(p.r + 6, 0,  8, Math.PI/2 - 0.3,  Math.PI/2 + 0.3);
+    ctx.stroke();
+  }
+  if (w.style === 'bow') {
+    // longbow-form med sträng
+    ctx.strokeStyle = flash ? '#fff' : '#3a8a3a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(p.r + 10, 0, 14, -Math.PI/2 - 0.4, -Math.PI/2 + 0.4);
+    ctx.arc(p.r + 10, 0, 14,  Math.PI/2 - 0.4,  Math.PI/2 + 0.4);
+    ctx.stroke();
+    ctx.strokeStyle = '#aaa'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 10 + Math.cos(-Math.PI/2 + 0.4)*14, Math.sin(-Math.PI/2 + 0.4)*14);
+    ctx.lineTo(p.r + 10 + Math.cos( Math.PI/2 - 0.4)*14, Math.sin( Math.PI/2 - 0.4)*14);
+    ctx.stroke();
+  }
+  if (w.style === 'flame' && muzzleFlash) {
+    // utblåst eldkon
+    ctx.fillStyle = `rgba(255, 140, 40, ${0.8 * (1 - sinceShot/70)})`;
+    ctx.beginPath();
+    ctx.moveTo(p.r + len, -8);
+    ctx.lineTo(p.r + len + 24, 0);
+    ctx.lineTo(p.r + len, 8);
+    ctx.closePath();
+    ctx.fill();
+  }
+  if (w.style === 'plasma') {
+    ctx.shadowColor = w.color;
+    ctx.shadowBlur = 8;
+    ctx.fillStyle = w.color;
+    ctx.beginPath(); ctx.arc(p.r + len + 2, 0, 4, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  if (w.style === 'tesla') {
+    ctx.fillStyle = '#ffeb3b';
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(p.r + 6 + i * 6, -1, 4, 2);
+    }
+  }
+  if (w.style === 'frost') {
+    // is-kristaller
+    ctx.fillStyle = '#ccf6ff';
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(p.r + 8 + i * 5, -3 + (i%2)*6, 3, 3);
+    }
+  }
+  if (w.style === 'sonic') {
+    if (muzzleFlash) {
+      ctx.strokeStyle = `rgba(255, 90, 196, ${1 - sinceShot/70})`;
+      ctx.lineWidth = 2;
+      for (let i = 1; i <= 3; i++) {
+        ctx.beginPath();
+        ctx.arc(p.r + len + 4, 0, i * 6, -0.6, 0.6);
+        ctx.stroke();
+      }
+    }
+  }
+  if (w.style === 'burst') {
+    // 3 mindre cylindrar (3-shot burst)
+    ctx.strokeStyle = flash ? '#fff' : darken(w.color, 0.5);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(p.r, -3); ctx.lineTo(p.r + len, -3);
+    ctx.moveTo(p.r,  3); ctx.lineTo(p.r + len,  3);
+    ctx.stroke();
+  }
+  if (w.style === 'railgun') {
+    // räls-coils
+    ctx.fillStyle = flash ? '#fff' : '#5a5acf';
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(p.r + 4 + i*8, -7, 4, 14);
+    }
+    // glow när nyligen sköt
+    if (muzzleFlash) {
+      ctx.shadowColor = '#fff'; ctx.shadowBlur = 14;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(p.r + len, 0); ctx.lineTo(p.r + len + 60, 0);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  }
+  if (w.style === 'blackhole') {
+    // tjock pipa med svärtad mynning
+    ctx.fillStyle = flash ? '#fff' : '#1a0a1a';
+    ctx.beginPath(); ctx.arc(p.r + len, 0, 7, 0, Math.PI*2); ctx.fill();
+    // pulserande lila punkt
+    const pulse = 0.6 + Math.sin(now/150) * 0.4;
+    ctx.fillStyle = `rgba(170,58,255,${pulse})`;
+    ctx.shadowColor = '#aa3aff'; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(p.r + len, 0, 4 * pulse, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // muzzle flash
+  if (muzzleFlash) {
+    const a = sinceShot / 70;
+    ctx.fillStyle = `rgba(255, 220, 100, ${1 - a})`;
+    ctx.beginPath();
+    ctx.arc(p.r + len + 4, 0, 6 + (1 - a) * 6, 0, Math.PI*2);
+    ctx.fill();
+  }
+}
+
+function darken(hex, factor) {
+  const c = hex.replace('#','');
+  const r = (parseInt(c.slice(0,2),16) * factor) | 0;
+  const g = (parseInt(c.slice(2,4),16) * factor) | 0;
+  const b = (parseInt(c.slice(4,6),16) * factor) | 0;
+  return `rgb(${r},${g},${b})`;
+}
+
+function drawBossSoldier(e, x, y, flash) {
+  const now = performance.now();
+
+  if (e.lastX === undefined) { e.lastX = e.x; e.lastY = e.y; e.smoothSpeed = 0; }
+  const instSpeed = Math.hypot(e.x - e.lastX, e.y - e.lastY);
+  e.smoothSpeed = e.smoothSpeed * 0.82 + instSpeed * 0.18;
+  e.lastX = e.x; e.lastY = e.y;
+
+  const targetFacing = Math.atan2(state.player.y - e.y, state.player.x - e.x);
+  if (e.facing === undefined) e.facing = targetFacing;
+  let dAng = targetFacing - e.facing;
+  while (dAng > Math.PI)  dAng -= Math.PI * 2;
+  while (dAng < -Math.PI) dAng += Math.PI * 2;
+  e.facing += dAng * 0.08;
+
+  const moving = e.smoothSpeed > 0.3;
+  if (e.walkAccum === undefined) e.walkAccum = 0;
+  e.walkAccum += (moving ? e.smoothSpeed * 0.18 : 0.012);
+  const phase = e.walkAccum;
+  const bob = (moving ? 4 : 1.0) * Math.sin(phase);
+
+  // Cloak — semi-transparent när osynlig
+  if (e.cloakUntil && now < e.cloakUntil) {
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+  }
+
+  // skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath();
+  ctx.ellipse(x + 4, y + e.r * 1.4, e.r * 1.2, e.r * 0.45, 0, 0, Math.PI*2);
+  ctx.fill();
+
+  // glow-aura runt bossen (pulserande)
+  if (e.glow) {
+    const pulse = 0.85 + Math.sin(now/350) * 0.15;
+    const grad = ctx.createRadialGradient(x, y + bob, e.r * 0.5, x, y + bob, e.r * 2.4 * pulse);
+    grad.addColorStop(0, hexA(e.glow, 0.40));
+    grad.addColorStop(0.6, hexA(e.glow, 0.15));
+    grad.addColorStop(1, hexA(e.glow, 0));
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - e.r * 2.6, y + bob - e.r * 2.6, e.r * 5.2, e.r * 5.2);
+  }
+
+  ctx.save();
+  ctx.translate(x, y + bob);
+  ctx.rotate(e.facing);
+  // Boss-specifik teckning
+  const drawFn = BOSS_DRAW[e.bossKey] || drawBossDefault;
+  drawFn(e, flash, now, phase, moving);
+  ctx.restore();
+
+  // charge laddar upp glow
+  if (e.chargeUntil && now < e.chargeUntil) {
+    ctx.strokeStyle = hexA(e.glow || '#ff5a30', 0.9);
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(x, y + bob, e.r * 1.4 + Math.sin(now/60)*4, 0, Math.PI*2);
+    ctx.stroke();
+  }
+
+  if (e.cloakUntil && now < e.cloakUntil) ctx.restore();
+}
+
+function hexA(hex, a) {
+  const c = hex.replace('#', '');
+  const r = parseInt(c.slice(0,2),16);
+  const g = parseInt(c.slice(2,4),16);
+  const b = parseInt(c.slice(4,6),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+const BOSS_DRAW = {};
+
+// Hjälp: rita en stor militär kropp som bas (kropp + huvud), sen specialiseringar ovanpå
+function drawBossDefault(e, flash, now, phase, moving) {
+  const r = e.r;
+  ctx.fillStyle = flash ? '#fff' : e.color;
+  ctx.beginPath(); ctx.ellipse(0, 0, r * 1.0, r * 1.4, 0, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
+  ctx.beginPath(); ctx.arc(r * 0.3, 0, r * 0.55, 0, Math.PI*2); ctx.fill();
+}
+
+// 1) JIMMYS LIKVAKARE — rebellpräst, kåpa, stav med skalle, giftflaskor
+BOSS_DRAW.likvakare = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  // kåpan
+  ctx.fillStyle = flash ? '#fff' : '#2a1a30';
+  ctx.beginPath();
+  ctx.moveTo(-r*1.2, -r*1.4); ctx.lineTo(r*0.6, -r*1.0);
+  ctx.lineTo(r*0.7, r*1.0); ctx.lineTo(-r*1.2, r*1.4);
+  ctx.closePath(); ctx.fill();
+  // huva (lutad framåt)
+  ctx.fillStyle = flash ? '#fff' : '#1a0a20';
+  ctx.beginPath(); ctx.ellipse(r*0.05, 0, r*0.65, r*0.55, 0, 0, Math.PI*2); ctx.fill();
+  // ansikte i skugga
+  ctx.fillStyle = flash ? '#fff' : '#0a0508';
+  ctx.beginPath(); ctx.ellipse(r*0.25, 0, r*0.32, r*0.30, 0, 0, Math.PI*2); ctx.fill();
+  // glödande gröna ögon
+  ctx.fillStyle = flash ? '#fff' : '#aaff5a';
+  ctx.shadowColor = '#aaff5a'; ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.arc(r*0.32, -r*0.10, 2.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r*0.32,  r*0.10, 2.2, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // staven (framför)
+  ctx.strokeStyle = flash ? '#fff' : '#3a2a18';
+  ctx.lineWidth = 4; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(r*0.4, -r*0.3); ctx.lineTo(r*1.5, -r*1.4); ctx.stroke();
+  // skalle på staven
+  ctx.fillStyle = '#9aff5a';
+  ctx.shadowColor = '#9aff5a'; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.arc(r*1.55, -r*1.5, 7, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#000';
+  ctx.fillRect(r*1.50, -r*1.52, 2, 2);
+  ctx.fillRect(r*1.58, -r*1.52, 2, 2);
+  // bandolier med flaskor
+  ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-r*0.5, -r*0.8); ctx.lineTo(r*0.4, r*0.9); ctx.stroke();
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = '#9aff5a';
+    ctx.fillRect(-r*0.3 + i*r*0.25, r*0.2 + i*r*0.15, 4, 8);
+  }
+};
+
+// 2) MOURADS BENKROSSARE — bepansrad legoknekt, taggig pansar, tvåhandssvärd
+BOSS_DRAW.benkrossare = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  // bepansrad kropp
+  ctx.fillStyle = flash ? '#fff' : e.color;
+  ctx.fillRect(-r*0.95, -r*1.1, r*1.9, r*2.2);
+  // pansar-plates
+  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.65);
+  ctx.fillRect(-r*0.95, -r*0.4, r*1.9, r*0.5);
+  ctx.fillRect(-r*0.95, r*0.4, r*1.9, r*0.4);
+  // taggar på axlar
+  ctx.fillStyle = flash ? '#fff' : '#3a1810';
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-r*0.7 + i*r*0.4, -r*1.1);
+    ctx.lineTo(-r*0.55 + i*r*0.4, -r*1.5);
+    ctx.lineTo(-r*0.4 + i*r*0.4, -r*1.1);
+    ctx.fill();
+  }
+  // huvud (skalligt + ärr)
+  ctx.fillStyle = flash ? '#fff' : '#a07050';
+  ctx.beginPath(); ctx.arc(r*0.3, 0, r*0.5, 0, Math.PI*2); ctx.fill();
+  // ärr över ansiktet
+  ctx.strokeStyle = '#5a1010'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(r*0.05, -r*0.25); ctx.lineTo(r*0.55, r*0.25); ctx.stroke();
+  // ögon
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(r*0.20, -r*0.10, 4, 4);
+  ctx.fillRect(r*0.40, -r*0.10, 4, 4);
+  // tvåhandssvärd
+  ctx.strokeStyle = flash ? '#fff' : '#6a3018';
+  ctx.lineWidth = 5;
+  ctx.beginPath(); ctx.moveTo(r*0.7, 0); ctx.lineTo(r*1.1, 0); ctx.stroke();
+  ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
+  ctx.beginPath();
+  ctx.moveTo(r*1.1, -r*0.20); ctx.lineTo(r*2.6, -r*0.05);
+  ctx.lineTo(r*2.7, 0); ctx.lineTo(r*2.6, r*0.05); ctx.lineTo(r*1.1, r*0.20);
+  ctx.closePath(); ctx.fill();
+  // taggar längs svärdet
+  ctx.fillStyle = '#7a2a18';
+  for (let i = 0; i < 5; i++) {
+    ctx.fillRect(r*1.3 + i*r*0.25, -r*0.18, 3, 3);
+  }
+};
+
+// 3) JIMMYS STRYPARE — cyber, läder, strypsnara, dubbla SMG, röda visir
+BOSS_DRAW.strypare = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  // smal kropp i läder
+  ctx.fillStyle = flash ? '#fff' : '#1a1a22';
+  ctx.beginPath(); ctx.ellipse(0, 0, r*0.85, r*1.25, 0, 0, Math.PI*2); ctx.fill();
+  // bröstplatta (cyber-rutnät)
+  ctx.strokeStyle = '#3a3a44'; ctx.lineWidth = 1;
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath(); ctx.moveTo(-r*0.6, i*r*0.3); ctx.lineTo(r*0.4, i*r*0.3); ctx.stroke();
+  }
+  // huvud
+  ctx.fillStyle = flash ? '#fff' : '#0a0a14';
+  ctx.beginPath(); ctx.arc(r*0.25, 0, r*0.5, 0, Math.PI*2); ctx.fill();
+  // visir (röd glödande remsa)
+  ctx.fillStyle = '#ff3a44';
+  ctx.shadowColor = '#ff3a44'; ctx.shadowBlur = 10;
+  ctx.fillRect(r*0.05, -r*0.10, r*0.5, r*0.12);
+  ctx.shadowBlur = 0;
+  // dubbla SMG
+  for (const off of [-r*0.7, r*0.7]) {
+    ctx.fillStyle = flash ? '#fff' : '#3a3a44';
+    ctx.fillRect(r*0.3, off - 3, r*0.8, 6);
+    ctx.fillStyle = '#ff3a44';
+    ctx.fillRect(r*1.0, off - 1, 4, 2);
+  }
+  // strypsnara hänger
+  ctx.strokeStyle = '#5a3a2a'; ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-r*0.5, -r*0.3);
+  ctx.quadraticCurveTo(-r*1.0, r*0.3, -r*0.7, r*0.9);
+  ctx.stroke();
+};
+
+// 4) MOURADS AVRÄTTARE (GENERAL) — massiv, lava-glödande pansar, stridsyxa
+BOSS_DRAW.avrattare = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  // massiv kropp
+  ctx.fillStyle = flash ? '#fff' : e.color;
+  ctx.fillRect(-r*1.1, -r*1.2, r*2.2, r*2.4);
+  // lava-sprickor (orange glow)
+  ctx.fillStyle = flash ? '#fff' : '#ff6a30';
+  ctx.shadowColor = '#ff6a30'; ctx.shadowBlur = 8;
+  ctx.fillRect(-r*0.5, -r*0.8, r*0.05, r*1.6);
+  ctx.fillRect(r*0.2, -r*0.6, r*0.05, r*1.2);
+  ctx.fillRect(-r*0.9, -r*0.2, r*1.8, r*0.05);
+  ctx.shadowBlur = 0;
+  // axlar/bröstplatta (mörkare)
+  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
+  ctx.fillRect(-r*1.3, -r*1.2, r*2.6, r*0.4);
+  // huvud (gasmask-stil)
+  ctx.fillStyle = flash ? '#fff' : '#1a1208';
+  ctx.beginPath(); ctx.arc(r*0.25, 0, r*0.55, 0, Math.PI*2); ctx.fill();
+  // röda glödande ögon
+  ctx.fillStyle = '#ff8a30';
+  ctx.shadowColor = '#ff8a30'; ctx.shadowBlur = 10;
+  ctx.fillRect(r*0.10, -r*0.18, 6, 4);
+  ctx.fillRect(r*0.40, -r*0.18, 6, 4);
+  ctx.shadowBlur = 0;
+  // andningsventil (mun)
+  ctx.fillStyle = '#3a1a08';
+  ctx.fillRect(r*0.20, r*0.10, r*0.30, r*0.12);
+  // GIGANTISK STRIDSYXA
+  ctx.strokeStyle = flash ? '#fff' : '#3a1a0a';
+  ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.moveTo(r*0.8, 0); ctx.lineTo(r*1.4, 0); ctx.stroke();
+  ctx.fillStyle = flash ? '#fff' : '#7a3a2a';
+  ctx.beginPath();
+  ctx.moveTo(r*1.4, -r*0.7); ctx.lineTo(r*2.4, -r*0.5);
+  ctx.lineTo(r*2.5, r*0.5); ctx.lineTo(r*1.4, r*0.7);
+  ctx.closePath(); ctx.fill();
+  // glödande egg
+  ctx.fillStyle = '#ff8a30';
+  ctx.shadowColor = '#ff5a14'; ctx.shadowBlur = 10;
+  ctx.fillRect(r*2.4, -r*0.5, 4, r*1.0);
+  ctx.shadowBlur = 0;
+};
+
+// 5) JIMMYS KÖTTKVARN — cyber-monster, plasma-arm, kablar, glödande core
+BOSS_DRAW.kottkvarn = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  // grov kybernetisk kropp
+  ctx.fillStyle = flash ? '#fff' : e.color;
+  ctx.fillRect(-r*1.0, -r*1.2, r*2.0, r*2.4);
+  // metalliska plates
+  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
+  for (let i = 0; i < 4; i++) {
+    ctx.fillRect(-r*0.95, -r*1.15 + i*r*0.6, r*1.9, r*0.05);
+  }
+  // glow-core i bröstet
+  ctx.fillStyle = '#3acaff';
+  ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 14;
+  ctx.beginPath(); ctx.arc(0, 0, r*0.3 + Math.sin(now/200)*2, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // huvud (kybernetiskt, halv-mänskligt)
+  ctx.fillStyle = flash ? '#fff' : '#a07050';
+  ctx.beginPath(); ctx.arc(r*0.3, -r*0.1, r*0.45, 0, Math.PI*2); ctx.fill();
+  // metallplatta över halva ansiktet
+  ctx.fillStyle = flash ? '#fff' : '#3a3a48';
+  ctx.beginPath();
+  ctx.moveTo(r*0.3, -r*0.5); ctx.lineTo(r*0.7, -r*0.3); ctx.lineTo(r*0.7, r*0.1);
+  ctx.lineTo(r*0.3, r*0.3); ctx.closePath(); ctx.fill();
+  // röd robot-eye
+  ctx.fillStyle = '#ff3a3a';
+  ctx.shadowColor = '#ff3a3a'; ctx.shadowBlur = 8;
+  ctx.fillRect(r*0.5, -r*0.18, 6, 4);
+  ctx.shadowBlur = 0;
+  // PLASMA-ARM (höger sida, stor)
+  ctx.fillStyle = flash ? '#fff' : '#2a3a48';
+  ctx.fillRect(r*0.6, r*0.6, r*1.4, r*0.5);
+  // plasma-mynning glödande
+  ctx.fillStyle = '#3acaff';
+  ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.arc(r*2.0, r*0.85, 6, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // kablar som hänger
+  ctx.strokeStyle = '#3acaff'; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-r*0.5 + i*r*0.3, r*0.2);
+    ctx.quadraticCurveTo(-r*0.3 + i*r*0.3, r*1.0, -r*0.6 + i*r*0.3, r*1.4);
+    ctx.stroke();
+  }
+};
+
+// 6) MOURADS ASKMAKARE — pyro-officer, vingad jetpack, eldyxa
+BOSS_DRAW.askmakare = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  // jetpack (bakom, vingad)
+  ctx.fillStyle = flash ? '#fff' : '#3a1a14';
+  ctx.beginPath();
+  ctx.moveTo(-r*0.6, -r*1.2); ctx.lineTo(-r*1.6, -r*0.4);
+  ctx.lineTo(-r*1.4, r*0.4); ctx.lineTo(-r*0.5, r*0.5);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-r*0.6, r*1.2); ctx.lineTo(-r*1.6, r*0.4);
+  ctx.lineTo(-r*1.4, -r*0.4); ctx.lineTo(-r*0.5, -r*0.5);
+  ctx.closePath(); ctx.fill();
+  // jet-flammor (när jetpack aktiv)
+  if (e.jetpackUntil && now < e.jetpackUntil) {
+    const len = r * (1.4 + Math.random() * 0.4);
+    ctx.fillStyle = `rgba(255,140,40,${0.7 + Math.random()*0.3})`;
+    ctx.beginPath();
+    ctx.moveTo(-r*1.6, -r*0.3); ctx.lineTo(-r*1.6 - len, -r*0.5);
+    ctx.lineTo(-r*1.6 - len, r*0.5); ctx.lineTo(-r*1.6, r*0.3);
+    ctx.closePath(); ctx.fill();
+  }
+  // kropp
+  ctx.fillStyle = flash ? '#fff' : e.color;
+  ctx.fillRect(-r*0.7, -r*1.0, r*1.5, r*2.0);
+  // brand-mönster (orange triangel)
+  ctx.fillStyle = flash ? '#fff' : '#ff8a30';
+  ctx.beginPath();
+  ctx.moveTo(0, -r*0.8); ctx.lineTo(-r*0.3, r*0.4); ctx.lineTo(r*0.3, r*0.4);
+  ctx.closePath(); ctx.fill();
+  // huvud (gasmask)
+  ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+  ctx.beginPath(); ctx.arc(r*0.2, 0, r*0.45, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#ff5a14';
+  ctx.shadowColor = '#ff5a14'; ctx.shadowBlur = 8;
+  ctx.fillRect(r*0.0, -r*0.10, 4, 4);
+  ctx.fillRect(r*0.30, -r*0.10, 4, 4);
+  ctx.shadowBlur = 0;
+  // eldyxa
+  ctx.strokeStyle = flash ? '#fff' : '#3a1a08';
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(r*0.7, 0); ctx.lineTo(r*1.6, 0); ctx.stroke();
+  ctx.fillStyle = flash ? '#fff' : '#5a2a14';
+  ctx.beginPath();
+  ctx.moveTo(r*1.6, -r*0.5); ctx.lineTo(r*2.2, -r*0.3);
+  ctx.lineTo(r*2.2, r*0.3); ctx.lineTo(r*1.6, r*0.5);
+  ctx.closePath(); ctx.fill();
+  // eldsken på eggen
+  ctx.fillStyle = '#ff5a14';
+  ctx.shadowColor = '#ff5a14'; ctx.shadowBlur = 10;
+  ctx.fillRect(r*2.15, -r*0.3, 3, r*0.6);
+  ctx.shadowBlur = 0;
+};
+
+// 7) JIMMYS LUNGRIVARE (SKUGGAN) — gasmask, ghillie, bandolier, sniper
+BOSS_DRAW.lungrivare = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  // ghillie suit (taggig kant)
+  ctx.fillStyle = flash ? '#fff' : '#1a2a18';
+  for (let i = 0; i < 16; i++) {
+    const a = i / 16 * Math.PI * 2;
+    const len = r * (0.9 + Math.random() * 0.4);
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.0, a - 0.2, a + 0.2);
+    ctx.lineTo(Math.cos(a) * len, Math.sin(a) * len);
+    ctx.fill();
+  }
+  // grön kropp under
+  ctx.fillStyle = flash ? '#fff' : e.color;
+  ctx.beginPath(); ctx.ellipse(0, 0, r * 0.8, r * 1.1, 0, 0, Math.PI*2); ctx.fill();
+  // gasmask huvud
+  ctx.fillStyle = flash ? '#fff' : '#1a2a14';
+  ctx.beginPath(); ctx.arc(r*0.25, 0, r*0.5, 0, Math.PI*2); ctx.fill();
+  // gasmask-glas (rund)
+  ctx.fillStyle = flash ? '#fff' : '#9aff5a';
+  ctx.shadowColor = '#9aff5a'; ctx.shadowBlur = 6;
+  ctx.beginPath(); ctx.arc(r*0.20, -r*0.15, 5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r*0.20, r*0.15, 5, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // andningsfilter
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(r*0.45, -r*0.10, r*0.20, r*0.20);
+  // bandolier
+  ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(-r*0.6, -r*0.8); ctx.lineTo(r*0.5, r*0.8); ctx.stroke();
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = '#9aff5a';
+    ctx.fillRect(-r*0.4 + i*r*0.22, -r*0.55 + i*r*0.30, 4, 8);
+  }
+  // sniper-gevär
+  ctx.strokeStyle = flash ? '#fff' : '#1a2010';
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(r*0.4, 0); ctx.lineTo(r*1.8, 0); ctx.stroke();
+  ctx.fillStyle = flash ? '#fff' : '#3a2a14';
+  ctx.fillRect(r*0.5, -r*0.10, r*0.5, r*0.05);
+  // sikte
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(r*0.9, -r*0.18, 6, 4);
+};
+
+// 8) MOURADS SKALLSPRÄCKARE — riot-shield framifrån, magnum
+BOSS_DRAW.skallsprackare = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  // kropp
+  ctx.fillStyle = flash ? '#fff' : e.color;
+  ctx.fillRect(-r*0.9, -r*1.1, r*1.8, r*2.2);
+  // svart taktisk pansar
+  ctx.fillStyle = flash ? '#fff' : '#1a1a22';
+  ctx.fillRect(-r*0.9, -r*0.5, r*1.8, r*0.4);
+  // huvud (gas-style med ögonlapp)
+  ctx.fillStyle = flash ? '#fff' : '#a07050';
+  ctx.beginPath(); ctx.arc(r*0.25, 0, r*0.45, 0, Math.PI*2); ctx.fill();
+  // ögonlapp
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(r*0.0, -r*0.20, r*0.30, r*0.10);
+  // friska ögat
+  ctx.fillStyle = '#ff3a3a';
+  ctx.fillRect(r*0.40, -r*0.10, 4, 4);
+  // skägg
+  ctx.fillStyle = '#3a2a1a';
+  ctx.beginPath(); ctx.arc(r*0.35, r*0.18, r*0.25, 0, Math.PI*2); ctx.fill();
+  // riot-shield (stor, framåt)
+  ctx.fillStyle = flash ? '#fff' : '#dcdcdc';
+  ctx.beginPath();
+  ctx.moveTo(r*0.7, -r*1.4); ctx.lineTo(r*1.4, -r*1.3);
+  ctx.lineTo(r*1.5, r*1.3); ctx.lineTo(r*0.7, r*1.4);
+  ctx.closePath(); ctx.fill();
+  // shield-glas
+  ctx.fillStyle = 'rgba(60,200,255,0.3)';
+  ctx.fillRect(r*0.85, -r*0.8, r*0.4, r*0.6);
+  // shield-text "POLIS" / kryss
+  ctx.strokeStyle = '#ff3a3a'; ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(r*1.0, -r*0.3); ctx.lineTo(r*1.2, r*0.3);
+  ctx.moveTo(r*1.2, -r*0.3); ctx.lineTo(r*1.0, r*0.3);
+  ctx.stroke();
+  // magnum bakom skölden
+  ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+  ctx.fillRect(r*0.5, r*0.0, r*0.5, r*0.15);
+};
+
+// 9) JIMMYS SJÄLAÄTARE (avatar) — krona av ben, flytande mörker, lila magi
+BOSS_DRAW.sjalaatare = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  // svart slöja som sveper
+  const swirl = Math.sin(now/300) * 0.1;
+  ctx.fillStyle = flash ? '#fff' : '#0a0510';
+  ctx.beginPath();
+  ctx.moveTo(-r*1.2 + swirl*r, -r*0.5); ctx.lineTo(r*0.6, -r*1.0);
+  ctx.lineTo(r*0.6, r*1.0); ctx.lineTo(-r*1.2 - swirl*r, r*0.5);
+  ctx.closePath(); ctx.fill();
+  // gulddetaljer på kåpan
+  ctx.strokeStyle = '#aa3aff'; ctx.lineWidth = 2;
+  ctx.shadowColor = '#aa3aff'; ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.moveTo(-r*1.0, -r*0.3); ctx.lineTo(r*0.5, -r*0.7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-r*1.0, r*0.3); ctx.lineTo(r*0.5, r*0.7); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // skalle-ansikte
+  ctx.fillStyle = flash ? '#fff' : '#dcdcdc';
+  ctx.beginPath(); ctx.arc(r*0.2, 0, r*0.5, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#0a0510';
+  // ögon-håligheter
+  ctx.beginPath(); ctx.arc(r*0.10, -r*0.15, r*0.13, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r*0.10, r*0.15, r*0.13, 0, Math.PI*2); ctx.fill();
+  // glödande ögon i hålen
+  ctx.fillStyle = '#aa3aff';
+  ctx.shadowColor = '#aa3aff'; ctx.shadowBlur = 14;
+  ctx.beginPath(); ctx.arc(r*0.10, -r*0.15, 3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r*0.10, r*0.15, 3, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // näshålighet + tänder
+  ctx.fillStyle = '#0a0510';
+  ctx.fillRect(r*0.25, -0.04*r, r*0.07, r*0.08);
+  for (let i = 0; i < 5; i++) {
+    ctx.fillRect(r*0.30 + i*r*0.06, r*0.20, 2, 4);
+  }
+  // krona av ben
+  for (let i = -2; i <= 2; i++) {
+    ctx.fillStyle = '#dcdcdc';
+    ctx.beginPath();
+    ctx.moveTo(r*0.0 + i*r*0.15, -r*0.5);
+    ctx.lineTo(r*0.05 + i*r*0.15, -r*0.85);
+    ctx.lineTo(r*0.10 + i*r*0.15, -r*0.5);
+    ctx.fill();
+  }
+  // svävande orb i höger hand
+  const orbY = Math.sin(now/250) * 4;
+  ctx.fillStyle = '#aa3aff';
+  ctx.shadowColor = '#aa3aff'; ctx.shadowBlur = 16;
+  ctx.beginPath(); ctx.arc(r*1.4, r*0.2 + orbY, 10, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // runor runt orbet
+  ctx.strokeStyle = '#aa3aff'; ctx.lineWidth = 1.5;
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2 + now/700;
+    ctx.beginPath();
+    ctx.arc(r*1.4, r*0.2 + orbY, 16, a, a + 0.4);
+    ctx.stroke();
+  }
+};
+
+// 10) MOURAD GRAVGRÄVAREN — slutboss, militär elite + demonisk aura
+BOSS_DRAW.gravgravaren = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  const ph = e.phase || 1;
+  // demonisk aura som växer per fas
+  if (ph >= 2) {
+    const auraSize = (ph === 3 ? r*2.0 : r*1.5);
+    const grad = ctx.createRadialGradient(0, 0, r*0.5, 0, 0, auraSize);
+    grad.addColorStop(0, 'rgba(255,30,30,0.4)');
+    grad.addColorStop(1, 'rgba(255,30,30,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(-auraSize, -auraSize, auraSize*2, auraSize*2);
+  }
+  // röd uniform med ärr (mer söndersliten i fas 3)
+  ctx.fillStyle = flash ? '#fff' : (ph === 3 ? '#3a0a0a' : '#5a0a0a');
+  ctx.fillRect(-r*1.0, -r*1.2, r*2.0, r*2.4);
+  // gulddetaljer (knappar, gradband)
+  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath(); ctx.arc(0, i*r*0.45, 3, 0, Math.PI*2); ctx.fill();
+  }
+  // gradband över axeln
+  ctx.fillStyle = '#ffd54a';
+  ctx.beginPath();
+  ctx.moveTo(-r*1.0, -r*1.0); ctx.lineTo(r*0.4, -r*1.2);
+  ctx.lineTo(r*0.5, -r*0.7); ctx.lineTo(-r*0.9, -r*0.5);
+  ctx.closePath(); ctx.fill();
+  // medaljer på bröstet
+  for (let i = 0; i < 3; i++) {
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillRect(-r*0.4 + i*r*0.15, -r*0.4, 8, 12);
+    ctx.fillStyle = '#7a2a18';
+    ctx.fillRect(-r*0.4 + i*r*0.15, -r*0.5, 8, 5);
+  }
+  // huvud
+  ctx.fillStyle = flash ? '#fff' : '#a07050';
+  ctx.beginPath(); ctx.arc(r*0.25, 0, r*0.5, 0, Math.PI*2); ctx.fill();
+  // basker (svart, lutad)
+  ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+  ctx.beginPath();
+  ctx.moveTo(r*0.0, -r*0.55); ctx.lineTo(r*0.8, -r*0.45);
+  ctx.lineTo(r*0.7, -r*0.20); ctx.lineTo(-r*0.05, -r*0.30);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#ffd54a';
+  ctx.fillRect(r*0.55, -r*0.35, 5, 5);
+  // ärr över ansiktet (tydligare i fas 3)
+  ctx.strokeStyle = '#5a1010'; ctx.lineWidth = ph === 3 ? 3 : 2;
+  ctx.beginPath(); ctx.moveTo(r*0.10, -r*0.20); ctx.lineTo(r*0.55, r*0.25); ctx.stroke();
+  // ögon (glödande röda i fas 3)
+  if (ph === 3) {
+    ctx.fillStyle = '#ff1a1a';
+    ctx.shadowColor = '#ff1a1a'; ctx.shadowBlur = 10;
+    ctx.fillRect(r*0.20, -r*0.10, 5, 4);
+    ctx.fillRect(r*0.40, -r*0.10, 5, 4);
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(r*0.22, -r*0.10, 4, 3);
+    ctx.fillRect(r*0.42, -r*0.10, 4, 3);
+  }
+  // skägg
+  ctx.fillStyle = '#1a1a1a';
+  ctx.beginPath(); ctx.arc(r*0.35, r*0.22, r*0.20, 0, Math.PI*2); ctx.fill();
+  // dubbla pistoler (en på vardera sida)
+  for (const off of [-r*0.85, r*0.85]) {
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(r*0.4, off - 4, r*0.7, 8);
+    // mynningseld
+    if (now - e.lastSpread < 100) {
+      ctx.fillStyle = `rgba(255,200,80,${0.8 - (now - e.lastSpread)/120})`;
+      ctx.beginPath(); ctx.arc(r*1.1, off, 8, 0, Math.PI*2); ctx.fill();
+    }
+  }
+  // svarta vingar i fas 3
+  if (ph === 3) {
+    ctx.fillStyle = '#1a0a14';
+    ctx.beginPath();
+    ctx.moveTo(-r*0.5, -r*1.0); ctx.lineTo(-r*1.6, -r*0.8);
+    ctx.lineTo(-r*1.8, 0); ctx.lineTo(-r*1.4, r*0.2);
+    ctx.lineTo(-r*0.5, -r*0.5);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-r*0.5, r*1.0); ctx.lineTo(-r*1.6, r*0.8);
+    ctx.lineTo(-r*1.8, 0); ctx.lineTo(-r*1.4, -r*0.2);
+    ctx.lineTo(-r*0.5, r*0.5);
+    ctx.closePath(); ctx.fill();
+  }
+};
+
+function drawEnemy(e) {
+  const x = e.x - state.camera.x;
+  const y = e.y - state.camera.y;
+  // Off-screen culling
+  const margin = e.r * 3;
+  if (x < -margin || x > viewW + margin || y < -margin || y > viewH + margin) return;
+  const flash = e.flashUntil > performance.now();
+  const now = performance.now();
+
+  if (e.isBoss) {
+    drawBossSoldier(e, x, y, flash);
+    drawHpBar(e, x, y);
+    return;
+  }
+
+  const p = state.player;
+  if (p) e.facing = Math.atan2(p.y - e.y, p.x - e.x);
+  // walk-cycle
+  if (e.walkAccum === undefined) e.walkAccum = e.walkPhase || 0;
+  const moving = !e.contactCd || e.contactCd < 0.3;
+  e.walkAccum += moving ? 0.18 : 0.04;
+  const phase = e.walkAccum;
+  const bob = Math.abs(Math.sin(phase)) * 1.4;
+
+  // skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath(); ctx.ellipse(x + 2, y + e.r * 0.9, e.r * 1.2, e.r * 0.40, 0, 0, Math.PI*2); ctx.fill();
+
+  ctx.save();
+  ctx.translate(x, y + bob);
+  ctx.rotate(e.facing);
+
+  if (e.type === 'dog') drawDog(e, flash, phase);
+  else if (e.type === 'robot') drawRobot(e, flash, now, phase);
+  else drawHumanEnemy(e, flash, now, phase);
+
+  ctx.restore();
+  drawHpBar(e, x, y);
+}
+
+// Hjälpare: rita ben + stövlar med walk-cycle
+function drawLegs(e, phase, flash, pantsColor, bootColor) {
+  const swing = Math.sin(phase);
+  const lY = -e.r * 0.85;
+  const rY = e.r * 0.50;
+  const lOff = -swing * e.r * 0.18;
+  const rOff = swing * e.r * 0.18;
+  ctx.fillStyle = flash ? '#fff' : pantsColor;
+  ctx.fillRect(-e.r * 0.85 + lOff, lY, e.r * 0.32, e.r * 0.35);
+  ctx.fillRect(-e.r * 0.85 + rOff, rY, e.r * 0.32, e.r * 0.35);
+  ctx.fillStyle = flash ? '#fff' : bootColor;
+  ctx.fillRect(-e.r * 0.85 + lOff, lY + e.r * 0.20, e.r * 0.32, e.r * 0.16);
+  ctx.fillRect(-e.r * 0.85 + rOff, rY + e.r * 0.20, e.r * 0.32, e.r * 0.16);
+}
+
+function drawHumanEnemy(e, flash, now, phase) {
+  const skin = '#c89870';
+  const skinDark = '#8a6242';
+
+  if (e.type === 'healer') {
+    drawLegs(e, phase, flash, '#1a3a1a', '#0a0a08');
+    ctx.fillStyle = flash ? '#fff' : e.color;
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.85, e.r * 1.1, 0, 0, Math.PI*2); ctx.fill();
+    // grönt kors
+    ctx.fillStyle = flash ? '#fff' : '#9aff5a';
+    ctx.fillRect(-e.r*0.4, -e.r*0.05, e.r*0.8, e.r*0.10);
+    ctx.fillRect(-e.r*0.05, -e.r*0.4, e.r*0.10, e.r*0.8);
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.arc(e.r*0.20, 0, e.r*0.42, 0, Math.PI*2); ctx.fill();
+    // glow ring (helar effekt)
+    ctx.strokeStyle = '#9aff5a'; ctx.lineWidth = 1;
+    ctx.shadowColor = '#9aff5a'; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.arc(0, 0, e.r * 1.4, 0, Math.PI*2); ctx.stroke();
+    ctx.shadowBlur = 0;
+    return;
+  }
+  if (e.type === 'summoner') {
+    drawLegs(e, phase, flash, '#1a0a25', '#0a0510');
+    ctx.fillStyle = flash ? '#fff' : e.color;
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.95, e.r * 1.15, 0, 0, Math.PI*2); ctx.fill();
+    // huva
+    ctx.fillStyle = flash ? '#fff' : '#0a0510';
+    ctx.beginPath(); ctx.arc(e.r*0.20, 0, e.r*0.55, 0, Math.PI*2); ctx.fill();
+    // lila glödande ögon
+    ctx.fillStyle = '#aa3aff';
+    ctx.shadowColor = '#aa3aff'; ctx.shadowBlur = 6;
+    ctx.fillRect(e.r*0.30, -e.r*0.10, 3, 3);
+    ctx.fillRect(e.r*0.30,  e.r*0.10, 3, 3);
+    ctx.shadowBlur = 0;
+    // svävande orb
+    const orbY = Math.sin(now/200) * 4;
+    ctx.fillStyle = '#aa3aff';
+    ctx.shadowColor = '#aa3aff'; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(e.r*0.9, e.r*0.1 + orbY, 5, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    return;
+  }
+  if (e.type === 'bomber') {
+    drawLegs(e, phase, flash, '#3a1a14', '#1a0a08');
+    // röd kropp med blinkande ljus
+    const tickRed = (e.fuse > 0.1 && Math.sin(now/40) > 0) ? '#ff3a14' : e.color;
+    ctx.fillStyle = flash ? '#fff' : tickRed;
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.85, e.r * 1.05, 0, 0, Math.PI*2); ctx.fill();
+    // bomb-väst
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(-e.r*0.4, -e.r*0.5, e.r*0.7, e.r*1.0);
+    // bomber-ljus (blink)
+    if (Math.sin(now/100) > 0) {
+      ctx.fillStyle = '#ff3a14';
+      ctx.shadowColor = '#ff3a14'; ctx.shadowBlur = 8;
+      ctx.fillRect(-e.r*0.05, -e.r*0.10, 4, 4);
+      ctx.shadowBlur = 0;
+    }
+    // huvud
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.arc(e.r*0.20, 0, e.r*0.42, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (e.type === 'sniper') {
+    drawLegs(e, phase, flash, '#0a1a08', '#000');
+    ctx.fillStyle = flash ? '#fff' : e.color;
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.75, e.r * 1.0, 0, 0, Math.PI*2); ctx.fill();
+    // ghillie-suit fragments
+    ctx.fillStyle = '#3a4a26';
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * e.r * 0.7, Math.sin(a) * e.r * 0.85, 3, 0, Math.PI*2);
+      ctx.fill();
+    }
+    // lång sniper
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(e.r*0.4, -e.r*0.06, e.r*1.4, e.r*0.12);
+    // laser-sight när siktar
+    if (e.aiming) {
+      ctx.strokeStyle = '#ff3a3a';
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = '#ff3a3a'; ctx.shadowBlur = 4;
+      ctx.beginPath();
+      ctx.moveTo(e.r * 1.4, 0);
+      ctx.lineTo(e.r * 14, 0);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    return;
+  }
+  if (e.type === 'swarmer') {
+    drawLegs(e, phase, flash, '#3a2a18', '#1a0a08');
+    ctx.fillStyle = flash ? '#fff' : e.color;
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.85, e.r * 0.95, 0, 0, Math.PI*2); ctx.fill();
+    // små glödande ögon
+    ctx.fillStyle = '#ff8a3a';
+    ctx.shadowColor = '#ff8a3a'; ctx.shadowBlur = 4;
+    ctx.fillRect(e.r*0.30, -e.r*0.15, 2, 2);
+    ctx.fillRect(e.r*0.30,  e.r*0.15, 2, 2);
+    ctx.shadowBlur = 0;
+    // klor
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(e.r*0.7, -e.r*0.2); ctx.lineTo(e.r*1.2, -e.r*0.3);
+    ctx.moveTo(e.r*0.7,  e.r*0.2); ctx.lineTo(e.r*1.2,  e.r*0.3);
+    ctx.stroke();
+    return;
+  }
+
+  if (e.type === 'grunt') {
+    // Standardsoldat — grön kamouflage, kevlar-väst, M4
+    drawLegs(e, phase, flash, '#3a4426', '#1a1208');
+    // bål (kamouflage med fläckar)
+    ctx.fillStyle = flash ? '#fff' : '#4a5a30';
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.85, e.r * 1.05, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#3a4626';
+    // kamouflage-fläckar
+    ctx.beginPath(); ctx.arc(-e.r*0.30, -e.r*0.40, e.r*0.20, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.r*0.20, e.r*0.30, e.r*0.18, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-e.r*0.10, e.r*0.50, e.r*0.15, 0, Math.PI*2); ctx.fill();
+    // kevlar-väst (mörkgrön)
+    ctx.fillStyle = flash ? '#fff' : '#1a2418';
+    ctx.fillRect(-e.r*0.30, -e.r*0.55, e.r*0.55, e.r*1.10);
+    // ammo-pouches
+    ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+    ctx.fillRect(-e.r*0.20, -e.r*0.45, e.r*0.20, e.r*0.20);
+    ctx.fillRect(-e.r*0.20,  e.r*0.25, e.r*0.20, e.r*0.20);
+    // axlar
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.ellipse(e.r*0.0, -e.r*0.95, e.r*0.30, e.r*0.28, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(e.r*0.0,  e.r*0.95, e.r*0.30, e.r*0.28, 0, 0, Math.PI*2); ctx.fill();
+    // huvud
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.arc(e.r*0.20, 0, e.r*0.45, 0, Math.PI*2); ctx.fill();
+    // taktisk hjälm
+    ctx.fillStyle = flash ? '#fff' : '#2a3418';
+    ctx.beginPath(); ctx.ellipse(e.r*0.18, 0, e.r*0.55, e.r*0.45, 0, 0, Math.PI*2); ctx.fill();
+    // hjälm-band
+    ctx.strokeStyle = flash ? '#fff' : '#1a1a1a'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-e.r*0.10, -e.r*0.40); ctx.lineTo(-e.r*0.10, e.r*0.40); ctx.stroke();
+    // M4-gevär framåt
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(e.r*0.5, -e.r*0.10, e.r*0.95, e.r*0.18);
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(e.r*0.5, -e.r*0.05, e.r*0.30, e.r*0.10);
+    // sikte
+    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.fillRect(e.r*0.85, -e.r*0.16, e.r*0.10, 4);
+  }
+  else if (e.type === 'runner') {
+    // Lätt spanare — khaki/sand, mössa, machete
+    drawLegs(e, phase, flash, '#5a4a30', '#1a1208');
+    // bål (lätt linne)
+    ctx.fillStyle = flash ? '#fff' : '#5a4a30';
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.75, e.r * 0.95, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#3a2a1a';
+    ctx.beginPath(); ctx.ellipse(-e.r*0.30, 0, e.r*0.30, e.r*0.85, 0, 0, Math.PI*2); ctx.fill();
+    // axlar (sniglare)
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.arc(0, -e.r*0.85, e.r*0.22, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0,  e.r*0.85, e.r*0.22, 0, Math.PI*2); ctx.fill();
+    // armar med machete
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.arc(e.r*0.50, -e.r*0.50, e.r*0.20, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.r*0.55,  e.r*0.50, e.r*0.20, 0, Math.PI*2); ctx.fill();
+    // huvud
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.arc(e.r*0.20, 0, e.r*0.42, 0, Math.PI*2); ctx.fill();
+    // mössa med bandskärm
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath(); ctx.ellipse(e.r*0.18, 0, e.r*0.50, e.r*0.40, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(e.r*0.50, -e.r*0.18, e.r*0.20, e.r*0.36);
+    // ögon
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(e.r*0.40, -e.r*0.12, 2, 2);
+    ctx.fillRect(e.r*0.40,  e.r*0.10, 2, 2);
+    // machete
+    ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
+    ctx.beginPath();
+    ctx.moveTo(e.r*0.70, -e.r*0.50); ctx.lineTo(e.r*1.50, -e.r*0.40);
+    ctx.lineTo(e.r*1.55, -e.r*0.55); ctx.lineTo(e.r*0.70, -e.r*0.65);
+    ctx.closePath(); ctx.fill();
+  }
+  else if (e.type === 'brute') {
+    // Tung — full body armor, riot-hjälm, hagelgevär
+    drawLegs(e, phase, flash, '#3a1a1a', '#0a0a08');
+    // bål (mörkröd pansar)
+    ctx.fillStyle = flash ? '#fff' : '#5a2828';
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r * 1.05, e.r * 1.20, 0, 0, Math.PI*2); ctx.fill();
+    // pansar-plates (horisontella)
+    ctx.fillStyle = flash ? '#fff' : '#3a1818';
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(-e.r*0.95, -e.r*0.4 + i*e.r*0.4, e.r*1.9, e.r*0.05);
+    }
+    // ammo-band runt bål
+    ctx.fillStyle = flash ? '#fff' : '#1a1208';
+    ctx.fillRect(-e.r*1.0, -e.r*0.10, e.r*2.0, e.r*0.20);
+    for (let i = 0; i < 5; i++) {
+      ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+      ctx.fillRect(-e.r*0.90 + i*e.r*0.35, -e.r*0.05, 4, 8);
+    }
+    // breda axlar (skuldra-pansar)
+    ctx.fillStyle = flash ? '#fff' : '#3a1818';
+    ctx.beginPath(); ctx.ellipse(0, -e.r*1.05, e.r*0.45, e.r*0.40, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0,  e.r*1.05, e.r*0.45, e.r*0.40, 0, 0, Math.PI*2); ctx.fill();
+    // riot-hjälm (mörk, helmask)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath(); ctx.arc(e.r*0.20, 0, e.r*0.55, 0, Math.PI*2); ctx.fill();
+    // visir (rött glas)
+    ctx.fillStyle = flash ? '#fff' : '#7a1a1a';
+    ctx.fillRect(e.r*0.30, -e.r*0.30, e.r*0.30, e.r*0.60);
+    ctx.fillStyle = flash ? '#fff' : '#ff3a3a';
+    ctx.fillRect(e.r*0.32, -e.r*0.25, e.r*0.26, e.r*0.10);
+    // hagelgevär (kort + tjockt)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(e.r*0.7, -e.r*0.15, e.r*0.85, e.r*0.30);
+    ctx.fillStyle = flash ? '#fff' : '#3a2a1a';
+    ctx.fillRect(e.r*0.7, -e.r*0.12, e.r*0.30, e.r*0.24);
+    // dubbla pipor
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(e.r*1.20, -e.r*0.08, e.r*0.35, 4);
+    ctx.fillRect(e.r*1.20,  e.r*0.04, e.r*0.35, 4);
+  }
+  else if (e.type === 'shooter') {
+    // Prickskytt — kamouflage med löv, sniper med kikare
+    drawLegs(e, phase, flash, '#2a3a1a', '#0a0808');
+    // bål
+    ctx.fillStyle = flash ? '#fff' : '#3a3a5a';
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.80, e.r * 1.0, 0, 0, Math.PI*2); ctx.fill();
+    // löv-detaljer (ghillie suit hint)
+    ctx.fillStyle = flash ? '#fff' : '#3a4a26';
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(Math.cos(a) * e.r * 0.7, Math.sin(a) * e.r * 0.85, 3, 0, Math.PI*2);
+      ctx.fill();
+    }
+    // axlar
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.arc(0, -e.r*0.85, e.r*0.25, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0,  e.r*0.85, e.r*0.25, 0, Math.PI*2); ctx.fill();
+    // huvud
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.arc(e.r*0.20, 0, e.r*0.45, 0, Math.PI*2); ctx.fill();
+    // huva (mörk)
+    ctx.fillStyle = flash ? '#fff' : '#1a2410';
+    ctx.beginPath(); ctx.arc(e.r*0.10, 0, e.r*0.55, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(e.r*0.40, -e.r*0.20, e.r*0.30, e.r*0.40);
+    // sniper-gevär (lång)
+    ctx.fillStyle = flash ? '#fff' : '#2a1a08';
+    ctx.fillRect(e.r*0.6, -e.r*0.06, e.r*1.4, e.r*0.12);
+    // kikare ovan
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(e.r*1.0, -e.r*0.20, e.r*0.30, e.r*0.10);
+    // bipod
+    ctx.strokeStyle = flash ? '#fff' : '#3a3a3a'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(e.r*1.4, -e.r*0.06); ctx.lineTo(e.r*1.5, -e.r*0.20);
+    ctx.moveTo(e.r*1.4,  e.r*0.06); ctx.lineTo(e.r*1.5,  e.r*0.20);
+    ctx.stroke();
+  }
+  else if (e.type === 'soldier') {
+    // Assault — full taktisk kit, M4 med rödsikte, knäskydd
+    drawLegs(e, phase, flash, '#3a4a1a', '#1a1208');
+    // knäskydd (svarta)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(-e.r*0.55, -e.r*0.50, e.r*0.10, e.r*0.10);
+    ctx.fillRect(-e.r*0.55,  e.r*0.40, e.r*0.10, e.r*0.10);
+    // bål (mörk grön kamo)
+    ctx.fillStyle = flash ? '#fff' : '#4a5a2a';
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.90, e.r * 1.10, 0, 0, Math.PI*2); ctx.fill();
+    // taktisk plate carrier (mörkare)
+    ctx.fillStyle = flash ? '#fff' : '#1a2010';
+    ctx.fillRect(-e.r*0.40, -e.r*0.65, e.r*0.65, e.r*1.30);
+    // 4 ammo-pouches
+    for (let i = 0; i < 2; i++) {
+      ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+      ctx.fillRect(-e.r*0.30 + i*e.r*0.30, -e.r*0.50, e.r*0.22, e.r*0.20);
+      ctx.fillRect(-e.r*0.30 + i*e.r*0.30,  e.r*0.30, e.r*0.22, e.r*0.20);
+    }
+    // axlar
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.ellipse(0, -e.r*0.95, e.r*0.30, e.r*0.28, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0,  e.r*0.95, e.r*0.30, e.r*0.28, 0, 0, Math.PI*2); ctx.fill();
+    // huvud
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.arc(e.r*0.20, 0, e.r*0.45, 0, Math.PI*2); ctx.fill();
+    // taktisk hjälm med headset
+    ctx.fillStyle = flash ? '#fff' : '#2a3418';
+    ctx.beginPath(); ctx.ellipse(e.r*0.18, 0, e.r*0.55, e.r*0.50, 0, 0, Math.PI*2); ctx.fill();
+    // headset över örat
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath(); ctx.arc(e.r*0.10, -e.r*0.35, e.r*0.10, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.r*0.10,  e.r*0.35, e.r*0.10, 0, Math.PI*2); ctx.fill();
+    // M4 med rödsikte
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(e.r*0.5, -e.r*0.10, e.r*1.0, e.r*0.18);
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(e.r*0.5, -e.r*0.05, e.r*0.30, e.r*0.10);
+    // rödsikte
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(e.r*0.85, -e.r*0.20, e.r*0.10, e.r*0.10);
+    ctx.fillStyle = '#ff3a3a';
+    ctx.fillRect(e.r*0.87, -e.r*0.15, 4, 4);
+    // taktisk grepp
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(e.r*1.05, e.r*0.06, e.r*0.10, e.r*0.20);
+  }
+  else if (e.type === 'ninja') {
+    // Stealth — svart med röd kant, katana på ryggen
+    drawLegs(e, phase, flash, '#0a0a0a', '#000000');
+    // bål (smal)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.65, e.r * 0.95, 0, 0, Math.PI*2); ctx.fill();
+    // röd skärp
+    ctx.fillStyle = flash ? '#fff' : '#aa1818';
+    ctx.fillRect(-e.r*0.5, -e.r*0.05, e.r*1.0, e.r*0.10);
+    // svarta armar
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.beginPath(); ctx.arc(e.r*0.40, -e.r*0.55, e.r*0.18, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(e.r*0.40,  e.r*0.55, e.r*0.18, 0, Math.PI*2); ctx.fill();
+    // huva (svart hood)
+    ctx.fillStyle = flash ? '#fff' : '#000000';
+    ctx.beginPath(); ctx.arc(e.r*0.15, 0, e.r*0.50, 0, Math.PI*2); ctx.fill();
+    // röd panna
+    ctx.fillStyle = flash ? '#fff' : '#aa1818';
+    ctx.fillRect(-e.r*0.10, -e.r*0.05, e.r*0.55, e.r*0.10);
+    // ögon-glipa (röda glödande ögon)
+    ctx.fillStyle = '#ff3a3a';
+    ctx.shadowColor = '#ff3a3a'; ctx.shadowBlur = 4;
+    ctx.fillRect(e.r*0.40, -e.r*0.18, 4, 3);
+    ctx.fillRect(e.r*0.40,  e.r*0.15, 4, 3);
+    ctx.shadowBlur = 0;
+    // katana på ryggen (lutad)
+    ctx.strokeStyle = flash ? '#fff' : '#bcc8d0'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-e.r*0.30, -e.r*0.30); ctx.lineTo(-e.r*1.10, e.r*0.40);
+    ctx.stroke();
+    // handtag på katana
+    ctx.fillStyle = flash ? '#fff' : '#000';
+    ctx.fillRect(-e.r*1.10, e.r*0.40, 4, 6);
+    // dolk i hand
+    ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
+    ctx.fillRect(e.r*0.6, -e.r*0.04, e.r*0.30, e.r*0.08);
+  }
+  else if (e.type === 'swordsman') {
+    // Taktisk samurai — kevlar + traditionella ärmar, två katanas
+    drawLegs(e, phase, flash, '#3a3a1a', '#1a1208');
+    // bål
+    ctx.fillStyle = flash ? '#fff' : '#3a3a1a';
+    ctx.beginPath(); ctx.ellipse(0, 0, e.r * 0.85, e.r * 1.10, 0, 0, Math.PI*2); ctx.fill();
+    // pansar-plates (vertikala)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a08';
+    ctx.fillRect(-e.r*0.30, -e.r*0.6, e.r*0.10, e.r*1.20);
+    ctx.fillRect(-e.r*0.10, -e.r*0.6, e.r*0.10, e.r*1.20);
+    ctx.fillRect( e.r*0.10, -e.r*0.6, e.r*0.10, e.r*1.20);
+    // röd skärp
+    ctx.fillStyle = flash ? '#fff' : '#aa1818';
+    ctx.fillRect(-e.r*0.4, e.r*0.10, e.r*0.85, e.r*0.10);
+    // axlar (breda samurai-style)
+    ctx.fillStyle = flash ? '#fff' : '#5a3a1a';
+    ctx.beginPath(); ctx.ellipse(0, -e.r*1.0, e.r*0.45, e.r*0.35, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0,  e.r*1.0, e.r*0.45, e.r*0.35, 0, 0, Math.PI*2); ctx.fill();
+    // huvud
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.arc(e.r*0.20, 0, e.r*0.45, 0, Math.PI*2); ctx.fill();
+    // röd hachimaki
+    ctx.fillStyle = flash ? '#fff' : '#aa1818';
+    ctx.beginPath(); ctx.ellipse(e.r*0.10, 0, e.r*0.50, e.r*0.18, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 6px sans-serif'; ctx.textAlign = 'center';
+    ctx.save(); ctx.rotate(-Math.PI/2);
+    ctx.fillText('力', 0, e.r*0.18);
+    ctx.restore();
+    // skägg
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath(); ctx.arc(e.r*0.40, 0, e.r*0.18, 0, Math.PI*2); ctx.fill();
+    // ÖGON
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(e.r*0.40, -e.r*0.12, 3, 2);
+    ctx.fillRect(e.r*0.40,  e.r*0.10, 3, 2);
+    // dubbla katanas (en i varje hand, fram)
+    ctx.fillStyle = flash ? '#fff' : '#2a1a08';
+    ctx.fillRect(e.r*0.60, -e.r*0.55, e.r*0.20, 4);
+    ctx.fillStyle = flash ? '#fff' : '#e6e6f0';
+    ctx.fillRect(e.r*0.80, -e.r*0.55, e.r*0.85, 3);
+    ctx.fillStyle = flash ? '#fff' : '#2a1a08';
+    ctx.fillRect(e.r*0.60,  e.r*0.50, e.r*0.20, 4);
+    ctx.fillStyle = flash ? '#fff' : '#e6e6f0';
+    ctx.fillRect(e.r*0.80,  e.r*0.51, e.r*0.85, 3);
+  }
+}
+
+function drawDog(e, flash, phase) {
+  const swing = Math.sin(phase * 1.2);
+  const tailWag = Math.sin(phase * 1.5) * 0.4;
+
+  // ben (4 st, alternerar)
+  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.5);
+  // främre ben
+  ctx.fillRect(e.r * 0.55 + swing*3, -e.r * 0.85, e.r * 0.18, e.r * 0.3);
+  ctx.fillRect(e.r * 0.55 - swing*3,  e.r * 0.55, e.r * 0.18, e.r * 0.3);
+  // bakre ben
+  ctx.fillRect(-e.r * 0.95 - swing*3, -e.r * 0.85, e.r * 0.20, e.r * 0.3);
+  ctx.fillRect(-e.r * 0.95 + swing*3,  e.r * 0.55, e.r * 0.20, e.r * 0.3);
+
+  // muskulös avlång body
+  ctx.fillStyle = flash ? '#fff' : e.color;
+  ctx.beginPath(); ctx.ellipse(0, 0, e.r * 1.4, e.r * 0.75, 0, 0, Math.PI*2); ctx.fill();
+  // body shading (mörk under-/baksida)
+  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
+  ctx.beginPath(); ctx.ellipse(-e.r*0.3, 0, e.r * 1.0, e.r * 0.55, 0, 0, Math.PI*2); ctx.fill();
+  // ryggrad-strimma (ljusare)
+  ctx.fillStyle = flash ? '#fff' : darken(e.color, 1.2);
+  ctx.fillRect(-e.r*1.2, -3, e.r*2.2, 1);
+
+  // huvud (framåt, kantigt doberman-look)
+  ctx.fillStyle = flash ? '#fff' : e.color;
+  ctx.beginPath(); ctx.ellipse(e.r * 1.1, 0, e.r * 0.55, e.r * 0.50, 0, 0, Math.PI*2); ctx.fill();
+  // kindbenen (framträdande)
+  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.7);
+  ctx.beginPath(); ctx.arc(e.r * 1.20, -e.r * 0.30, e.r * 0.20, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(e.r * 1.20,  e.r * 0.30, e.r * 0.20, 0, Math.PI*2); ctx.fill();
+  // nos (mörk)
+  ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+  ctx.beginPath(); ctx.arc(e.r * 1.55, 0, e.r * 0.18, 0, Math.PI*2); ctx.fill();
+  // näsa-tryne
+  ctx.fillStyle = flash ? '#fff' : '#000';
+  ctx.beginPath(); ctx.arc(e.r * 1.65, 0, 3, 0, Math.PI*2); ctx.fill();
+  // munnen öppen, tänder synliga (gomvisning)
+  ctx.fillStyle = flash ? '#fff' : '#5a0a0a';
+  ctx.beginPath();
+  ctx.moveTo(e.r * 1.40, -e.r * 0.15);
+  ctx.lineTo(e.r * 1.65, -e.r * 0.05);
+  ctx.lineTo(e.r * 1.65,  e.r * 0.05);
+  ctx.lineTo(e.r * 1.40,  e.r * 0.15);
+  ctx.closePath(); ctx.fill();
+  // tänder
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(e.r * 1.50, -e.r * 0.10, 2, 4);
+  ctx.fillRect(e.r * 1.55, -e.r * 0.04, 2, 3);
+  ctx.fillRect(e.r * 1.55,  e.r * 0.01, 2, 3);
+  ctx.fillRect(e.r * 1.50,  e.r * 0.06, 2, 4);
+
+  // öron (spetsiga, doberman-cropped)
+  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
+  ctx.beginPath();
+  ctx.moveTo(e.r * 0.95, -e.r * 0.40);
+  ctx.lineTo(e.r * 0.95 + 4, -e.r * 0.85);
+  ctx.lineTo(e.r * 1.05, -e.r * 0.30);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(e.r * 0.95,  e.r * 0.40);
+  ctx.lineTo(e.r * 0.95 + 4,  e.r * 0.85);
+  ctx.lineTo(e.r * 1.05,  e.r * 0.30);
+  ctx.fill();
+
+  // GLÖDANDE RÖDA ÖGON
+  ctx.fillStyle = '#ff3a3a';
+  ctx.shadowColor = '#ff3a3a'; ctx.shadowBlur = 6;
+  ctx.beginPath(); ctx.arc(e.r * 1.15, -e.r * 0.20, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(e.r * 1.15,  e.r * 0.20, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // TAKTISK HALSBAND med taggar
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(e.r * 0.60, 0, e.r * 0.18, e.r * 0.55, 0, 0, Math.PI*2);
+  ctx.fill();
+  // taggar på halsbandet
+  ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+  for (let i = 0; i < 6; i++) {
+    const a = i / 6 * Math.PI - Math.PI/2;
+    const tx = e.r * 0.60 + Math.cos(a) * e.r * 0.18;
+    const ty = Math.sin(a) * e.r * 0.55;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(tx + Math.cos(a) * 6, ty + Math.sin(a) * 6);
+    ctx.lineTo(tx - Math.sin(a) * 2, ty + Math.cos(a) * 2);
+    ctx.fill();
+  }
+
+  // svans (taggad doberman docked)
+  ctx.save();
+  ctx.translate(-e.r * 1.30, 0);
+  ctx.rotate(tailWag);
+  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
+  ctx.fillRect(0, -3, e.r * 0.30, 6);
+  ctx.restore();
+}
+
+function drawRobot(e, flash, now, phase) {
+  const swing = Math.sin(phase);
+  // BEN — bipedala metallben
+  ctx.fillStyle = flash ? '#fff' : '#3a3a44';
+  ctx.fillRect(-e.r*0.95 + swing*3, -e.r*0.65, e.r*0.30, e.r*0.40);
+  ctx.fillRect(-e.r*0.95 - swing*3,  e.r*0.25, e.r*0.30, e.r*0.40);
+  // fot-plate
+  ctx.fillStyle = flash ? '#fff' : '#1a1a22';
+  ctx.fillRect(-e.r*0.95 + swing*3, -e.r*0.30, e.r*0.30, e.r*0.10);
+  ctx.fillRect(-e.r*0.95 - swing*3,  e.r*0.55, e.r*0.30, e.r*0.10);
+  // led-glow på knäet
+  ctx.fillStyle = '#3acaff';
+  ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 4;
+  ctx.fillRect(-e.r*0.85 + swing*3, -e.r*0.30, 4, 3);
+  ctx.fillRect(-e.r*0.85 - swing*3,  e.r*0.50, 4, 3);
+  ctx.shadowBlur = 0;
+
+  // HUVUDKROPP (hexagonal mecha-look)
+  ctx.fillStyle = flash ? '#fff' : e.color;
+  ctx.beginPath();
+  ctx.moveTo(-e.r*0.6, -e.r*0.95); ctx.lineTo(e.r*0.95, -e.r*0.85);
+  ctx.lineTo(e.r*1.05, 0); ctx.lineTo(e.r*0.95, e.r*0.85);
+  ctx.lineTo(-e.r*0.6, e.r*0.95); ctx.lineTo(-e.r*0.95, 0);
+  ctx.closePath(); ctx.fill();
+
+  // panel-linjer
+  ctx.strokeStyle = flash ? '#fff' : darken(e.color, 0.5);
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-e.r*0.6, 0); ctx.lineTo(e.r*0.95, 0);
+  ctx.moveTo(e.r*0.40, -e.r*0.85); ctx.lineTo(e.r*0.40, e.r*0.85);
+  ctx.stroke();
+
+  // CENTRAL BLÅ ENERGY-CORE
+  const corePulse = 0.85 + Math.sin(now/200) * 0.15;
+  ctx.fillStyle = '#3acaff';
+  ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.arc(-e.r*0.10, 0, e.r*0.18 * corePulse, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-e.r*0.10, 0, e.r*0.06, 0, Math.PI*2); ctx.fill();
+
+  // axlar
+  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
+  ctx.beginPath(); ctx.arc(0, -e.r*0.95, e.r*0.30, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(0,  e.r*0.95, e.r*0.30, 0, Math.PI*2); ctx.fill();
+
+  // VÄNSTER ARM — vapen-mounted
+  ctx.fillStyle = flash ? '#fff' : '#5a5a64';
+  ctx.fillRect(e.r*0.7, e.r*0.65, e.r*0.95, e.r*0.40);
+  // mynning
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.fillRect(e.r*1.55, e.r*0.75, 6, e.r*0.20);
+  // glow när nyligen sköt (från lastShot)
+  if (now - (e.lastShot || 0) < 200) {
+    ctx.fillStyle = `rgba(255,200,80,${0.8 - (now - (e.lastShot || 0))/250})`;
+    ctx.beginPath(); ctx.arc(e.r*1.65, e.r*0.85, 8, 0, Math.PI*2); ctx.fill();
+  }
+  // HÖGER ARM — klo
+  ctx.fillStyle = flash ? '#fff' : '#5a5a64';
+  ctx.fillRect(e.r*0.7, -e.r*1.05, e.r*0.55, e.r*0.40);
+  // klo
+  ctx.fillStyle = flash ? '#fff' : '#3a3a44';
+  ctx.beginPath();
+  ctx.moveTo(e.r*1.25, -e.r*1.0); ctx.lineTo(e.r*1.50, -e.r*1.10);
+  ctx.lineTo(e.r*1.50, -e.r*0.85); ctx.lineTo(e.r*1.25, -e.r*0.65);
+  ctx.fill();
+
+  // HUVUD/SCANNER (centralt fram)
+  ctx.fillStyle = flash ? '#fff' : '#1a1a22';
+  ctx.beginPath(); ctx.ellipse(e.r*0.55, 0, e.r*0.30, e.r*0.30, 0, 0, Math.PI*2); ctx.fill();
+  // cyclops scanner-öga
+  const scanX = Math.sin(now/300) * e.r * 0.10;
+  ctx.fillStyle = '#ff3a3a';
+  ctx.shadowColor = '#ff3a3a'; ctx.shadowBlur = 10;
+  ctx.fillRect(e.r*0.45 + scanX, -e.r*0.06, e.r*0.20, e.r*0.12);
+  ctx.shadowBlur = 0;
+
+  // ANTENN med röd blinkare
+  ctx.strokeStyle = flash ? '#fff' : '#3a3a44';
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(-e.r*0.4, -e.r*0.85); ctx.lineTo(-e.r*0.6, -e.r*1.30); ctx.stroke();
+  const blink = Math.sin(now/200) > 0;
+  ctx.fillStyle = blink ? '#ff3a3a' : '#5a1010';
+  if (blink) { ctx.shadowColor = '#ff3a3a'; ctx.shadowBlur = 8; }
+  ctx.beginPath(); ctx.arc(-e.r*0.6, -e.r*1.30, 3, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // hydraulkablar
+  ctx.strokeStyle = flash ? '#fff' : '#1a1a22';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-e.r*0.6, -e.r*0.7); ctx.lineTo(-e.r*0.4, -e.r*0.4);
+  ctx.moveTo(-e.r*0.6,  e.r*0.7); ctx.lineTo(-e.r*0.4,  e.r*0.4);
+  ctx.stroke();
+}
+
+function drawHpBar(e, x, y) {
+  if (e.hp < e.maxHp || e.isBoss) {
+    const w = e.isBoss ? 80 : 28;
+    const h = e.isBoss ? 6 : 4;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(x - w/2, y - e.r - 12, w, h);
+    ctx.fillStyle = '#ff5a5a';
+    ctx.fillRect(x - w/2, y - e.r - 12, w * (e.hp / e.maxHp), h);
+  }
+  if (e.isBoss) {
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(e.name, x, y - e.r - 18);
+  }
+}
+
+function drawBullet(b) {
+  const x = b.x - state.camera.x;
+  const y = b.y - state.camera.y;
+  // stil-baserad rendering för specialvapen
+  if (b.style === 'flame') {
+    ctx.fillStyle = `rgba(255, ${120 + Math.random()*80}, 40, ${b.life * 1.4})`;
+    ctx.beginPath(); ctx.arc(x, y, b.r + Math.random()*2, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (b.style === 'plasma') {
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = b.color;
+    ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    return;
+  }
+  if (b.style === 'tesla') {
+    ctx.fillStyle = '#ffeb3b';
+    ctx.shadowColor = '#ffeb3b'; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    return;
+  }
+  if (b.style === 'frost') {
+    // diamantformad is
+    ctx.fillStyle = b.color;
+    ctx.beginPath();
+    ctx.moveTo(x, y - b.r * 1.4); ctx.lineTo(x + b.r, y);
+    ctx.lineTo(x, y + b.r * 1.4); ctx.lineTo(x - b.r, y);
+    ctx.closePath(); ctx.fill();
+    return;
+  }
+  if (b.style === 'sonic') {
+    ctx.strokeStyle = b.color;
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.6, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = b.color;
+    ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (b.style === 'railgun') {
+    // ljust spår
+    ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 16;
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // svans (lång)
+    ctx.strokeStyle = 'rgba(180,180,255,0.7)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x - b.vx * 0.04, y - b.vy * 0.04);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    return;
+  }
+  if (b.style === 'blackhole') {
+    // svart kärna med lila ring
+    ctx.fillStyle = '#aa3aff';
+    ctx.shadowColor = '#aa3aff'; ctx.shadowBlur = 16;
+    ctx.beginPath(); ctx.arc(x, y, b.r * 2, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#000000';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.4, 0, Math.PI*2); ctx.fill();
+    // virvel
+    const t = performance.now() / 100;
+    ctx.strokeStyle = '#aa3aff'; ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) {
+      const a = i * Math.PI*2/3 + t;
+      ctx.beginPath();
+      ctx.arc(x, y, b.r * 1.8, a, a + 0.5);
+      ctx.stroke();
+    }
+    return;
+  }
+  // standard
+  ctx.fillStyle = b.color;
+  ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI*2); ctx.fill();
+  if (!b.hostile) {
+    ctx.strokeStyle = b.color;
+    ctx.globalAlpha = 0.4;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - b.vx * 0.02, y - b.vy * 0.02);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawParticle(p) {
+  const x = p.x - state.camera.x;
+  const y = p.y - state.camera.y;
+  if (p.isSlash) {
+    ctx.strokeStyle = p.color;
+    ctx.globalAlpha = p.life * 5;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(x, y, p.r, p.ang - 0.7, p.ang + 0.7);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    return;
+  }
+  if (p.isExplosion) {
+    ctx.fillStyle = p.color;
+    ctx.globalAlpha = p.life * 2;
+    ctx.beginPath();
+    ctx.arc(x, y, p.r * (1 - p.life * 1.5), 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    return;
+  }
+  if (p.isFootprint) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(p.ang);
+    ctx.globalAlpha = Math.max(0, p.life * 0.65);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, p.r * 1.4, p.r * 0.6, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (p.isLightning) {
+    const x2 = p.x2 - state.camera.x;
+    const y2 = p.y2 - state.camera.y;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, p.life * 4);
+    ctx.strokeStyle = '#ffeb3b';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#ffeb3b'; ctx.shadowBlur = 8;
+    // zigzag
+    const segs = 6;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let i = 1; i < segs; i++) {
+      const t = i / segs;
+      const mx = x + (x2 - x) * t + (Math.random() - 0.5) * 14;
+      const my = y + (y2 - y) * t + (Math.random() - 0.5) * 14;
+      ctx.lineTo(mx, my);
+    }
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  if (p.isCritText) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, p.life * 2);
+    ctx.fillStyle = '#ffeb3b';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 3;
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.strokeText(p.text, x, y);
+    ctx.fillText(p.text, x, y);
+    ctx.restore();
+    return;
+  }
+  if (p.isDamageNumber) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, p.life * 1.4);
+    ctx.fillStyle = p.color;
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 3;
+    ctx.font = `bold ${p.size}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.strokeText(p.text, x, y);
+    ctx.fillText(p.text, x, y);
+    ctx.restore();
+    return;
+  }
+  if (p.isChatter) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, p.life * 1.2);
+    // bubbla
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    const w = p.text.length * 6 + 12;
+    ctx.fillRect(x - w/2, y - 12, w, 16);
+    ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - w/2, y - 12, w, 16);
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = `bold ${p.size}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(p.text, x, y);
+    ctx.restore();
+    return;
+  }
+  if (p.isBloodPool) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(0.7, p.life / 3.5 * 0.7);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.ellipse(x, y, p.r, p.r * 0.45, 0, 0, Math.PI*2);
+    ctx.fill();
+    // mörkare kärna
+    ctx.fillStyle = 'rgba(60,0,0,0.5)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, p.r * 0.6, p.r * 0.28, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (p.isGoldCoin) {
+    ctx.save();
+    ctx.fillStyle = '#ffd54a';
+    ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 4;
+    ctx.beginPath(); ctx.arc(x, y, p.r, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // glimmer
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(x - 1, y - 1, 1, 1);
+    ctx.restore();
+    return;
+  }
+  ctx.fillStyle = p.color;
+  ctx.globalAlpha = Math.max(0, p.life * 2);
+  ctx.beginPath(); ctx.arc(x, y, p.r, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
+}
+
+function drawToast() {
+  if (toastTimer <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(1, toastTimer);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 36px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#000';
+  ctx.shadowBlur = 8;
+  ctx.fillText(toastText, viewW/2, viewH/2 - 80);
+  ctx.restore();
+}
+
+function render() {
+  ctx.clearRect(0, 0, viewW, viewH);
+  if (state.mode === 'menu' || !state.player) return;
+
+  drawEnvironment();
+  drawHazards();
+  drawCollectibles();
+  drawPickups();
+  drawGoalZone(state.camera.x, state.camera.y);
+  // Bottom layer: footprints + blood pools (below enemies)
+  for (const p of state.particles) if (p.isFootprint || p.isBloodPool) drawParticle(p);
+  // Mid layer: vanliga partiklar
+  for (const p of state.particles) if (!p.isExplosion && !p.isFootprint && !p.isBloodPool && !p.isDamageNumber && !p.isCritText && !p.isChatter) drawParticle(p);
+  // Entities
+  for (const e of state.enemies) drawEnemy(e);
+  drawDeadBody();
+  if (!state.player || !state.player.spectating) drawPlayer();
+  drawCoopPartner();
+  drawDrone();
+  // Bullets
+  for (const b of state.bullets) drawBullet(b);
+  // Top layer: damage-numbers + crit-text + chatter + explosions
+  for (const p of state.particles) if (p.isDamageNumber || p.isCritText || p.isChatter) drawParticle(p);
+  for (const p of state.particles) if (p.isExplosion) drawParticle(p);
+  drawCraneDrop();
+  drawOffScreenGoalArrow();
+  drawReloadRing();
+  drawMiniMap();
+  drawAlarmOverlay();
+  drawJimmyScreensOverlay();
+  drawLightsFlicker();
+  drawStageMechanic();
+  drawBossDeathCinematic();
+  drawNGPTint();
+  drawModeTimer();
+  drawBossHpTop();
+  drawDamageIndicators();
+  drawCheatBanner();
+  drawLowHpVignette();
+  drawToast();
+  drawKillstreak();
+  drawBossIntro();
+  drawFadeOverlay();
+  drawStoryDialog();
+}
+
+function drawBossDeathCinematic() {
+  const c = state.bossDeathCinematic;
+  if (!c) return;
+  const elapsed = performance.now() - c.startTime;
+  if (elapsed >= c.duration) { state.bossDeathCinematic = null; return; }
+  const t = elapsed / c.duration;
+  // Vit flash som fadar
+  const flashAlpha = Math.max(0, 1 - t * 1.5);
+  ctx.fillStyle = `rgba(255,255,255,${flashAlpha * 0.5})`;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // "BESEGRAD!" text
+  if (t > 0.2) {
+    ctx.save();
+    const textT = (t - 0.2) / 0.8;
+    ctx.globalAlpha = Math.min(1, textT * 3) * (1 - Math.max(0, textT - 0.7) * 3);
+    ctx.fillStyle = '#ffd54a';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 8;
+    const big = Math.min(viewW * 0.10, 56) * (1 + textT * 0.3);
+    ctx.font = `bold ${big}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText('BESEGRAD!', viewW/2, viewH/2);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.fillText(c.name, viewW/2, viewH/2 + 36);
+    ctx.restore();
+  }
+}
+
+function drawBossHpTop() {
+  const boss = state.enemies && state.enemies.find(e => e.isBoss);
+  if (!boss) return;
+  // Bara visa när intro är klar
+  if (state.bossIntro && performance.now() < state.bossIntro.startTime + state.bossIntro.duration * 0.6) return;
+  const w = Math.min(viewW * 0.7, 480);
+  const h = 22;
+  const x = (viewW - w) / 2;
+  const y = 50;
+  // Bakgrund
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
+  ctx.fillStyle = '#1a0510';
+  ctx.fillRect(x, y, w, h);
+  // HP-fill
+  const frac = boss.hp / boss.maxHp;
+  const grad = ctx.createLinearGradient(x, y, x + w, y);
+  grad.addColorStop(0, '#7a1818');
+  grad.addColorStop(0.5, '#ff3a3a');
+  grad.addColorStop(1, '#ff5a5a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w * frac, h);
+  // Border
+  ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+  // Boss-name
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+  ctx.fillText(boss.name, viewW/2, y + 16);
+  ctx.shadowBlur = 0;
+  // Phase indicator
+  if (boss.phase >= 2) {
+    ctx.fillStyle = '#ff5a3a';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText('FAS ' + boss.phase, x + w - 8, y - 8);
+  }
+}
+
+function drawDamageIndicators() {
+  if (!state.player) return;
+  const p = state.player;
+  // Pekar mot fiender utanför skärm som är hot (skytt eller boss)
+  for (const e of state.enemies) {
+    if (e.dead) continue;
+    if (!e.isBoss && e.type !== 'shooter' && e.type !== 'soldier' && e.type !== 'sniper') continue;
+    const sx = e.x - state.camera.x;
+    const sy = e.y - state.camera.y;
+    if (sx > 0 && sx < viewW && sy > 0 && sy < viewH) continue; // synlig
+    const dx = e.x - p.x, dy = e.y - p.y;
+    const ang = Math.atan2(dy, dx);
+    const cx = viewW/2, cy = viewH/2;
+    const margin = 40;
+    let px, py;
+    // klipper till skärmkant
+    const halfW = viewW/2 - margin, halfH = viewH/2 - margin;
+    const tan = Math.abs(Math.tan(ang));
+    if (halfH * tan > halfW) { // träffar vänster/höger
+      px = Math.cos(ang) > 0 ? cx + halfW : cx - halfW;
+      py = cy + (px - cx) * Math.tan(ang);
+    } else {
+      py = Math.sin(ang) > 0 ? cy + halfH : cy - halfH;
+      px = cx + (py - cy) / Math.tan(ang);
+    }
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(ang);
+    ctx.fillStyle = e.isBoss ? '#ff1a1a' : 'rgba(255,90,58,0.85)';
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(-14, -8); ctx.lineTo(-14, 8);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+}
+
+function drawModeTimer() {
+  const mode = getMode();
+  if (mode !== 'survive' && mode !== 'speedrun') return;
+  const start = mode === 'survive' ? state.surviveStart : state.speedrunStart;
+  if (!start) return;
+  const elapsed = (performance.now() - start) / 1000;
+  let display, color = '#ffd54a';
+  if (mode === 'survive') {
+    const remaining = Math.max(0, 300 - elapsed);
+    if (remaining <= 0 && state.mode === 'playing') {
+      // Survive complete!
+      onWaveComplete();
+      state.surviveStart = null;
+      return;
+    }
+    const m = Math.floor(remaining / 60), s = Math.floor(remaining % 60);
+    display = `${m}:${s.toString().padStart(2,'0')}`;
+    if (remaining < 30) color = '#ff5a3a';
+  } else {
+    const m = Math.floor(elapsed / 60), s = Math.floor(elapsed % 60), ms = Math.floor((elapsed % 1) * 100);
+    display = `${m}:${s.toString().padStart(2,'0')}.${ms.toString().padStart(2,'0')}`;
+  }
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(viewW/2 - 60, 50, 120, 28);
+  ctx.fillStyle = color;
+  ctx.font = 'bold 18px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(display, viewW/2, 70);
+  ctx.restore();
+}
+
+function drawCheatBanner() {
+  const active = CHEATS.filter(c => isCheatActive(c.id));
+  if (active.length === 0) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(viewW/2 - 90, 4, 180, 22);
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🔓 CHEATS: ' + active.map(c => c.icon).join(' '), viewW/2, 19);
+  ctx.restore();
+}
+
+function drawNGPTint() {
+  const lvl = getNGPLevel();
+  if (lvl <= 0) return;
+  const intensity = Math.min(0.18, lvl * 0.06);
+  ctx.fillStyle = `rgba(180,0,0,${intensity})`;
+  ctx.fillRect(0, 0, viewW, viewH);
+}
+
+function drawStageMechanic() {
+  const stage = getStage(state.wave);
+  if (!stage || !state.player) return;
+  // Skog: regn (sämre sikt)
+  if (stage.kind === 'forest') {
+    const t = performance.now();
+    // regn-droppar
+    ctx.strokeStyle = 'rgba(180,200,255,0.35)';
+    ctx.lineWidth = 1;
+    const dropCount = Math.floor(getQualityMul() * 30);
+    for (let i = 0; i < dropCount; i++) {
+      const seed = (i * 47 + Math.floor(t/40)) % 1000;
+      const x = (seed * 7) % viewW;
+      const y = ((seed * 13 + Math.floor(t/8)) % (viewH + 100));
+      ctx.beginPath();
+      ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 12);
+      ctx.stroke();
+    }
+    // mörk vignette
+    const grad = ctx.createRadialGradient(viewW/2, viewH/2, viewW * 0.15, viewW/2, viewH/2, viewW * 0.6);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(1, 'rgba(0,0,30,0.3)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, viewW, viewH);
+  }
+  // Bunker: mörk vignette runt spelaren (ficklampa-effekt)
+  if (stage.kind === 'bunker') {
+    const px = state.player.x - state.camera.x;
+    const py = state.player.y - state.camera.y;
+    const grad = ctx.createRadialGradient(px, py, 80, px, py, 280);
+    grad.addColorStop(0, 'rgba(0,0,0,0)');
+    grad.addColorStop(0.7, 'rgba(0,0,0,0.5)');
+    grad.addColorStop(1, 'rgba(0,0,0,0.85)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, viewW, viewH);
+    // svag ficklampa-strål framåt
+    ctx.save();
+    ctx.translate(px, py);
+    ctx.rotate(state.player.aimAngle);
+    const lgrad = ctx.createLinearGradient(0, 0, 250, 0);
+    lgrad.addColorStop(0, 'rgba(255,240,180,0.15)');
+    lgrad.addColorStop(1, 'rgba(255,240,180,0)');
+    ctx.fillStyle = lgrad;
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(280, -60); ctx.lineTo(280, 60);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  // Command: glitch-overlay periodvis
+  if (stage.kind === 'command') {
+    const t = performance.now();
+    if (Math.sin(t/700) > 0.92) {
+      // glitch — random horizontal shift
+      const shiftY = (Math.random() * viewH) | 0;
+      const shiftH = 5 + Math.random() * 20;
+      ctx.fillStyle = 'rgba(170,58,255,0.18)';
+      ctx.fillRect(0, shiftY, viewW, shiftH);
+    }
+  }
+  // Fog (depot/cargo m.fl.) appliceras redan via stage.fog i drawEnvironment
+}
+
+function drawHazards() {
+  const cx = state.camera.x, cy = state.camera.y;
+  if (state.gasClouds) {
+    for (const g of state.gasClouds) {
+      const lifeFrac = g.life / g.maxLife;
+      const alpha = Math.min(0.6, lifeFrac * 0.7);
+      const grad = ctx.createRadialGradient(g.x - cx, g.y - cy, 0, g.x - cx, g.y - cy, g.r);
+      grad.addColorStop(0, `rgba(120,255,90,${alpha})`);
+      grad.addColorStop(0.7, `rgba(80,200,60,${alpha*0.6})`);
+      grad.addColorStop(1, 'rgba(80,200,60,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(g.x - cx - g.r, g.y - cy - g.r, g.r*2, g.r*2);
+    }
+  }
+  if (state.flameTrails) {
+    for (const f of state.flameTrails) {
+      const lifeFrac = Math.min(1, f.life / 2.5);
+      const grad = ctx.createRadialGradient(f.x - cx, f.y - cy, 0, f.x - cx, f.y - cy, f.r);
+      grad.addColorStop(0, `rgba(255,160,40,${lifeFrac*0.7})`);
+      grad.addColorStop(0.5, `rgba(255,80,20,${lifeFrac*0.4})`);
+      grad.addColorStop(1, 'rgba(255,40,10,0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(f.x - cx - f.r, f.y - cy - f.r, f.r*2, f.r*2);
+    }
+  }
+}
+
+function drawAlarmOverlay() {
+  const now = performance.now();
+  if (!state.alarmUntil || now > state.alarmUntil) return;
+  const blink = Math.sin(now / 80) > 0;
+  if (!blink) return;
+  ctx.fillStyle = 'rgba(255,30,30,0.18)';
+  ctx.fillRect(0, 0, viewW, viewH);
+  // röd ram
+  ctx.strokeStyle = 'rgba(255,30,30,0.6)';
+  ctx.lineWidth = 12;
+  ctx.strokeRect(0, 0, viewW, viewH);
+}
+
+function drawJimmyScreensOverlay() {
+  const now = performance.now();
+  if (!state.jimmyScreensUntil || now > state.jimmyScreensUntil) return;
+  // glitchy purple overlay
+  if (Math.random() < 0.04) {
+    ctx.fillStyle = 'rgba(180,30,200,0.08)';
+    ctx.fillRect(0, Math.random()*viewH, viewW, 20);
+  }
+}
+
+function drawLightsFlicker() {
+  const now = performance.now();
+  if (!state.lightsFlickerUntil || now > state.lightsFlickerUntil) return;
+  const flicker = Math.sin(now / 60) > 0.3 ? 0.85 : 0.3;
+  if (flicker < 0.5) {
+    ctx.fillStyle = `rgba(0,0,0,${1 - flicker})`;
+    ctx.fillRect(0, 0, viewW, viewH);
+  }
+}
+
+function drawMiniMap() {
+  if (!state.player) return;
+  if (save.minimapHidden) return;
+  const stage = getStage(state.wave);
+  if (!stage) return;
+  const size = state.minimapBig ? Math.min(viewW * 0.5, 280) : 110;
+  const margin = 12;
+  const x0 = viewW - size - margin;
+  const y0 = 60;
+  // Spara hit-area så canvas-click kan toggla zoom
+  state._minimapHitbox = { x: x0, y: y0, w: size, h: size };
+  const scale = Math.min(size / stage.worldW, size / stage.worldH);
+  const w = stage.worldW * scale;
+  const h = stage.worldH * scale;
+  const ox = x0 + (size - w) / 2;
+  const oy = y0 + (size - h) / 2;
+  // ram
+  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  ctx.fillRect(x0, y0, size, size);
+  ctx.strokeStyle = 'rgba(255,213,74,0.5)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x0, y0, size, size);
+  // världsgräns
+  ctx.fillStyle = 'rgba(40,40,50,0.5)';
+  ctx.fillRect(ox, oy, w, h);
+  // byggnader
+  ctx.fillStyle = 'rgba(120,120,130,0.6)';
+  for (const b of stageState.buildings) {
+    if (b.kind === 'tree' || b.kind === 'fence_seg' || b.kind === 'fence_seg_broken') continue;
+    ctx.fillRect(ox + b.x * scale, oy + b.y * scale, Math.max(1, b.w * scale), Math.max(1, b.h * scale));
+  }
+  // mål-zon
+  if (!stage.isBoss) {
+    ctx.strokeStyle = '#ffd54a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(ox + stage.goalPos.x * scale, oy + stage.goalPos.y * scale, 4, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  // fiender (röda prickar)
+  for (const e of state.enemies) {
+    ctx.fillStyle = e.isBoss ? '#ff1a1a' : '#ff5a5a';
+    ctx.beginPath();
+    ctx.arc(ox + e.x * scale, oy + e.y * scale, e.isBoss ? 3 : 1.5, 0, Math.PI*2);
+    ctx.fill();
+    if (e.isBoss) {
+      ctx.shadowColor = '#ff1a1a'; ctx.shadowBlur = 6;
+      ctx.beginPath(); ctx.arc(ox + e.x * scale, oy + e.y * scale, 3, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+  // collectibles (gul)
+  if (stageState.collectibles) {
+    for (const c of stageState.collectibles) {
+      if (c.picked) continue;
+      ctx.fillStyle = '#ffd54a';
+      ctx.fillRect(ox + c.x * scale - 1, oy + c.y * scale - 1, 3, 3);
+    }
+  }
+  // spelare (grön)
+  const px = ox + state.player.x * scale;
+  const py = oy + state.player.y * scale;
+  ctx.fillStyle = '#3aff5a';
+  ctx.shadowColor = '#3aff5a'; ctx.shadowBlur = 6;
+  ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // facing-pil
+  ctx.strokeStyle = '#3aff5a'; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(px, py);
+  ctx.lineTo(px + Math.cos(state.player.aimAngle) * 6, py + Math.sin(state.player.aimAngle) * 6);
+  ctx.stroke();
+  // titel
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(stage.name, x0 + 4, y0 - 2);
+  // Förstoringsglas-knapp i hörnet av minimap
+  const btnSize = 22;
+  const btnX = x0 + size - btnSize - 2;
+  const btnY = y0 + 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(btnX, btnY, btnSize, btnSize);
+  ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 1;
+  ctx.strokeRect(btnX, btnY, btnSize, btnSize);
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(state.minimapBig ? '⊟' : '🔍', btnX + btnSize/2, btnY + btnSize/2 + 4);
+  state._minimapZoomBtn = { x: btnX, y: btnY, w: btnSize, h: btnSize };
+}
+
+function drawReloadRing() {
+  const p = state.player;
+  if (!p || !p.reloading) return;
+  const w = W_BY_ID[p.weaponId];
+  const reloadDur = w.reload * (p.reloadMul || 1);
+  const elapsed = performance.now() - p.reloadStart;
+  const frac = Math.min(1, elapsed / reloadDur);
+  // Stapel TILL VÄNSTER om fire-knappen, längst nere
+  const isDesktop = window.innerWidth >= 900;
+  const isSmall = viewW < 480;
+  const fireSize = isSmall ? 84 : (isDesktop ? 100 : 108);
+  const fireRight = isDesktop ? 30 : 20;
+  const fireBottom = isDesktop ? 40 : 30;
+  // Stapel-position: vänster om fire-knappen
+  const barW = isSmall ? 80 : 120;
+  const barH = isSmall ? 8 : 10;
+  const x = viewW - fireRight - fireSize - 16 - barW;
+  const y = viewH - fireBottom - fireSize/2 - barH/2;
+  ctx.save();
+  // Bakgrund
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(x - 2, y - 2, barW + 4, barH + 4);
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x, y, barW, barH);
+  // Progress
+  const grad = ctx.createLinearGradient(x, y, x + barW, y);
+  grad.addColorStop(0, '#7a5a10');
+  grad.addColorStop(1, '#ffd54a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, barW * frac, barH);
+  // Border
+  ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 1;
+  ctx.strokeRect(x, y, barW, barH);
+  // RELOAD-text
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+  ctx.fillText('RELOAD', x + barW/2, y - 4);
+  ctx.restore();
+}
+
+function drawLowHpVignette() {
+  if (!state.player) return;
+  const hpFrac = state.player.hp / state.player.maxHp;
+  if (hpFrac >= 0.3) return;
+  const t = performance.now();
+  const pulse = 0.5 + Math.sin(t/200) * 0.3;
+  const intensity = (1 - hpFrac / 0.3) * pulse;
+  const grad = ctx.createRadialGradient(viewW/2, viewH/2, viewW * 0.3, viewW/2, viewH/2, viewW * 0.7);
+  grad.addColorStop(0, 'rgba(180, 0, 0, 0)');
+  grad.addColorStop(1, `rgba(180, 0, 0, ${0.55 * intensity})`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
+}
+
+function drawCraneDrop() {
+  if (!state.craneDropAnim) return;
+  const a = state.craneDropAnim;
+  const elapsed = performance.now() - a.startTime;
+  if (elapsed > a.duration) { state.craneDropAnim = null; return; }
+  const t = elapsed / a.duration;
+  const cx = state.camera.x, cy = state.camera.y;
+  // container faller från top till position
+  const startY = a.y - 600;
+  const curY = startY + (a.y - startY) * t * t;
+  ctx.fillStyle = '#7a3a3a';
+  ctx.fillRect(a.x - 50 - cx, curY - 30 - cy, 100, 60);
+  ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 2;
+  ctx.strokeRect(a.x - 50 - cx, curY - 30 - cy, 100, 60);
+  // varning-skugga på golvet
+  const shadowAlpha = 0.5 - t*0.3;
+  ctx.fillStyle = `rgba(0,0,0,${shadowAlpha})`;
+  ctx.beginPath(); ctx.ellipse(a.x - cx, a.y - cy + 20, 60 - t*20, 18 - t*8, 0, 0, Math.PI*2); ctx.fill();
+}
+
+function drawOffScreenGoalArrow() {
+  const stage = getStage(state.wave);
+  if (!stage || stage.isBoss) return;
+  if (state.enemiesToSpawn > 0 || state.enemies.length > 0) return;
+  const cx = state.camera.x, cy = state.camera.y;
+  const gx = stage.goalPos.x - cx, gy = stage.goalPos.y - cy;
+  // utanför skärmen?
+  if (gx > 0 && gx < viewW && gy > 0 && gy < viewH) return;
+  const screenCx = viewW/2, screenCy = viewH/2;
+  const dx = gx - screenCx, dy = gy - screenCy;
+  const ang = Math.atan2(dy, dx);
+  const padding = 70;
+  // beräkna klippt position på skärm-rektangelns kant
+  const cosA = Math.cos(ang), sinA = Math.sin(ang);
+  let tX = Infinity, tY = Infinity;
+  if (cosA > 0) tX = (viewW - padding - screenCx) / cosA;
+  else if (cosA < 0) tX = (-padding - (-screenCx + viewW - viewW)) / cosA; // = (-padding + screenCx) / cosA negative
+  if (cosA < 0) tX = (padding - screenCx) / cosA;
+  if (sinA > 0) tY = (viewH - padding - screenCy) / sinA;
+  else if (sinA < 0) tY = (padding - screenCy) / sinA;
+  const t = Math.min(tX, tY);
+  const px = screenCx + cosA * t;
+  const py = screenCy + sinA * t;
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(ang);
+  ctx.fillStyle = '#ffeb3b';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.moveTo(22, 0);
+  ctx.lineTo(0, -14);
+  ctx.lineTo(0, 14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowBlur = 0;
+  ctx.fillText('UTGÅNG', 8, 4);
+  ctx.restore();
+}
+
+function drawFadeOverlay() {
+  if (!state.fadeIn) return;
+  const elapsed = performance.now() - state.fadeIn.startTime;
+  if (elapsed >= state.fadeIn.duration) { state.fadeIn = null; return; }
+  const alpha = 1 - elapsed / state.fadeIn.duration;
+  ctx.fillStyle = `rgba(0,0,0,${alpha})`;
+  ctx.fillRect(0, 0, viewW, viewH);
+}
+
+function drawBossIntro() {
+  if (!state.bossIntro) return;
+  const elapsed = performance.now() - state.bossIntro.startTime;
+  const dur = state.bossIntro.duration;
+  if (elapsed >= dur) { state.bossIntro = null; return; }
+  const t = elapsed / dur;
+  let alpha;
+  if (t < 0.2) alpha = t / 0.2;
+  else if (t < 0.7) alpha = 1;
+  else alpha = (1 - t) / 0.3;
+  alpha = Math.max(0, Math.min(1, alpha));
+  ctx.fillStyle = `rgba(0,0,0,${0.7 * alpha})`;
+  ctx.fillRect(0, 0, viewW, viewH);
+  const name = state.bossIntro.name || '???';
+  const sub = state.bossIntro.sub || '';
+  const isSmall = viewW < 600;
+  // Mät text för proportionell box
+  const big = Math.min(viewW * 0.075, isSmall ? 28 : 42);
+  ctx.font = `bold ${big}px sans-serif`;
+  const nameW = ctx.measureText(name.toUpperCase()).width;
+  ctx.font = 'italic ' + (isSmall ? 12 : 14) + 'px sans-serif';
+  const subW = ctx.measureText(sub).width;
+  const contentW = Math.max(nameW, subW, 200) + 60;
+  const boxW = Math.min(contentW, viewW - 20);
+  const boxH = isSmall ? 110 : 140;
+  const bx = (viewW - boxW) / 2;
+  const by = (viewH - boxH) / 2;
+  // röd spotlight
+  const grad = ctx.createRadialGradient(viewW/2, viewH/2, 50, viewW/2, viewH/2, viewW * 0.4);
+  grad.addColorStop(0, `rgba(180, 20, 30, ${0.45 * alpha})`);
+  grad.addColorStop(1, 'rgba(180, 20, 30, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // Box-bakgrund (proportionell)
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(20,5,10,0.85)';
+  ctx.fillRect(bx, by, boxW, boxH);
+  ctx.strokeStyle = '#ff3a3a';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(bx, by, boxW, boxH);
+  // streck över skärmen (subtil)
+  ctx.fillStyle = `rgba(180,20,30,${0.5 * alpha})`;
+  ctx.fillRect(0, by - 4, viewW, 2);
+  ctx.fillRect(0, by + boxH + 2, viewW, 2);
+  // BOSS-tag
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold ' + (isSmall ? 11 : 14) + 'px sans-serif';
+  ctx.fillText('BOSS', viewW/2, by + (isSmall ? 22 : 28));
+  // namn
+  ctx.fillStyle = '#ff4848';
+  ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 16;
+  ctx.font = `bold ${big}px sans-serif`;
+  const scale = 0.85 + 0.15 * Math.min(1, t * 4);
+  ctx.save();
+  ctx.translate(viewW/2, by + boxH/2 + (isSmall ? 4 : 8));
+  ctx.scale(scale, scale);
+  ctx.fillText(name.toUpperCase(), 0, 0);
+  ctx.restore();
+  ctx.shadowBlur = 0;
+  // sub
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'italic ' + (isSmall ? 12 : 14) + 'px sans-serif';
+  ctx.fillText(sub, viewW/2, by + boxH - (isSmall ? 14 : 18));
+  ctx.restore();
+}
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+let lastTime = performance.now();
+function loop(now) {
+  const dt = Math.min(0.05, (now - lastTime) / 1000);
+  lastTime = now;
+  try { runFrame(dt, now); } catch (e) {
+    console.error('Frame error:', (e && e.message) || e);
+  }
+  requestAnimationFrame(loop);
+}
+function runFrame(dt, now) {
+
+  if (state.mode === 'playing') {
+    const introActive = state.bossIntro &&
+      performance.now() < state.bossIntro.startTime + state.bossIntro.duration;
+    const hitStopActive = performance.now() < Feedback.hitStopUntil;
+    const dialogActive = state.dialogActive;
+    if (!introActive && !hitStopActive && !dialogActive) {
+      updatePlayer(dt, now);
+
+      const isCoopClient = Coop.active && !Coop.isHost;
+
+      if (!isCoopClient) {
+        // HOST eller single-player kör all AI/spawn
+        if (state.waveActive && state.enemiesToSpawn > 0) {
+          state.spawnTimer -= dt;
+          if (state.spawnTimer <= 0) {
+            spawnEnemyAtEdge();
+            state.enemiesToSpawn--;
+            state.spawnTimer = 0.4 + Math.random() * 0.4;
+          }
+        }
+        updateEnemies(dt, now);
+        updateHazards(dt);
+        updateStageAmbient(dt);
+        updateCollectibles();
+        updatePickups(dt);
+      } else {
+        // KLIENT: kör interpolation mot host's positions (smooth)
+        const lerpFactor = Math.min(1, dt * 12); // 12 = lerp speed (högre = snabbare följer)
+        for (const e of state.enemies) {
+          if (e.targetX === undefined) continue;
+          e.x += (e.targetX - e.x) * lerpFactor;
+          e.y += (e.targetY - e.y) * lerpFactor;
+          // Walk-cycle ändå animerad lokalt
+          if (e.walkAccum !== undefined) e.walkAccum += dt * 5;
+        }
+        // Coop-partners interpolation också
+        for (const [, p] of Coop.players) {
+          if (p.targetX === undefined) { p.targetX = p.x; p.targetY = p.y; }
+          p.x += (p.targetX - p.x) * lerpFactor;
+          p.y += (p.targetY - p.y) * lerpFactor;
+        }
+      }
+      updateBullets(dt);
+      updateDrone(dt, now);
+      updateDeathState(dt);
+      Coop.tick();
+    }
+    updateParticles(dt);
+    updateShake(dt);
+    updateCamera();
+    Music.tick(dt);
+    autoAdjustQuality(now);
+
+    if (toastTimer > 0) toastTimer -= dt;
+    if (killstreakBanner.timer > 0) killstreakBanner.timer -= dt;
+    // Heartbeat vid låg HP
+    if (state.player && state.player.hp > 0 && state.player.hp / state.player.maxHp < 0.30) {
+      Audio.heartbeat();
+    }
+
+    // Zon-progression
+    const stage = getStage(state.wave);
+    updateZoneProgression(stage);
+
+    // Visa Stage Clear-overlay när stage är HELT klar (boss + alla minions döda)
+    if (isStageComplete() && state.mode === 'playing' && !state._stageClearShown) {
+      showStageClearOverlay();
+    }
+  }
+
+  render();
+}
+
+requestAnimationFrame(loop);
+
+// Förhindra default touch-scroll på canvas + dismiss dialog (endast på knapp)
+canvas.addEventListener('touchstart', e => {
+  if (e.touches[0]) {
+    const r = canvas.getBoundingClientRect();
+    const tx = e.touches[0].clientX - r.left;
+    const ty = e.touches[0].clientY - r.top;
+    if (checkMinimapZoomClick(tx, ty)) { e.preventDefault(); return; }
+  }
+  if (storyDialogActive && e.touches[0]) {
+    const r = canvas.getBoundingClientRect();
+    const tx = e.touches[0].clientX - r.left, ty = e.touches[0].clientY - r.top;
+    const b = storyDialogActive.btn;
+    if (b && tx >= b.x && tx <= b.x + b.w && ty >= b.y && ty <= b.y + b.h) {
+      closeStoryDialog(); Audio.uiClick();
+    }
+  }
+  e.preventDefault();
+}, { passive: false });
+canvas.addEventListener('touchmove',  e => e.preventDefault(), { passive: false });
+
+// Init HUD med default
+updateHUD();

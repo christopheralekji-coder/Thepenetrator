@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#3a0a14"/>
+      <stop offset="100%" stop-color="#0a0508"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect x="150" y="160" width="212" height="266" fill="#7a1010" rx="10"/>
+  <circle cx="256" cy="172" r="74" fill="#a07050"/>
+  <path d="M 188 134 L 346 130 L 332 188 L 200 188 Z" fill="#0a0a0a"/>
+  <rect x="316" y="146" width="16" height="16" fill="#ffd54a"/>
+  <rect x="200" y="222" width="16" height="26" fill="#ffd54a"/>
+  <rect x="226" y="222" width="16" height="26" fill="#ffd54a"/>
+  <rect x="252" y="222" width="16" height="26" fill="#ffd54a"/>
+  <rect x="278" y="222" width="16" height="26" fill="#ffd54a"/>
+  <rect x="304" y="222" width="16" height="26" fill="#ffd54a"/>
+  <rect x="106" y="308" width="86" height="16" fill="#1a1a1a"/>
+  <rect x="320" y="308" width="86" height="16" fill="#1a1a1a"/>
+  <circle cx="226" cy="160" r="8" fill="#ff1a1a"/>
+  <circle cx="282" cy="160" r="8" fill="#ff1a1a"/>
+  <text x="256" y="490" font-size="44" font-family="sans-serif" font-weight="bold" fill="#ffd54a" text-anchor="middle">MOURAD</text>
+</svg>

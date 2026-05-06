@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0508">
+<title>The Penetrator</title>
+<link rel="stylesheet" href="style.css">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/svg+xml" href="icon-192.svg">
+<link rel="apple-touch-icon" href="icon-192.svg">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="hud-row top">
+    <div id="hp-bar"><div id="hp-fill"></div><span id="hp-text">100/100</span></div>
+    <div id="wave-info">Wave 1</div>
+    <div class="hud-right-group">
+      <div id="gold-info">💰 0</div>
+      <button id="btn-ingame-settings" class="hud-btn" aria-label="Inställningar">⚙</button>
+    </div>
+  </div>
+  <div class="hud-row weapon">
+    <div id="weapon-name">Knytnävar</div>
+    <div id="ammo-info">∞</div>
+  </div>
+</div>
+
+<div id="touch-controls">
+  <div id="joystick" role="button" aria-label="Rörelse-joystick">
+    <div id="joystick-knob"></div>
+  </div>
+  <div id="action-buttons">
+    <button id="btn-weapon-menu" class="action-btn" aria-label="Öppna vapenmeny">⚔</button>
+    <button id="btn-fire" class="action-btn fire" aria-label="Skjut">🔫</button>
+  </div>
+  <div id="ammo-display"><span id="ammo-display-text">∞</span></div>
+</div>
+
+
+<div id="weapon-menu-screen" class="overlay hidden">
+  <div class="menu-header">
+    <h2>VAPEN</h2>
+    <p class="menu-sub">Tryck för att utrusta</p>
+  </div>
+  <div id="weapon-menu-grid"></div>
+  <div style="display:flex;gap:8px;width:100%;max-width:600px;">
+    <button id="btn-weapon-shop" class="big-btn" style="flex:1;background:linear-gradient(135deg,#3a2a10,#1a1408);border:2px solid #ffd54a;color:#ffd54a;">🛒 SHOP</button>
+    <button id="btn-weapon-close" class="big-btn" style="flex:1;">FORTSÄTT</button>
+  </div>
+</div>
+
+<div id="pause-screen" class="overlay hidden">
+  <h2>PAUSAT</h2>
+  <button id="btn-resume" class="big-btn">ÅTERUPPTA</button>
+  <button id="btn-pause-settings" class="big-btn">INSTÄLLNINGAR</button>
+  <button id="btn-pause-quit" class="small-btn">AVSLUTA TILL MENY</button>
+</div>
+
+<div id="tutorial-overlay" class="hidden">
+  <div id="tut-1" class="tut-bubble right" style="bottom: 100px; left: 180px;">
+    <div style="color:#ffd54a;font-size:11px;margin-bottom:4px;">RÖRELSE</div>
+    Joystick = rör dig<br>WASD = på desktop
+  </div>
+  <div id="tut-2" class="tut-bubble left" style="bottom: 130px; right: 150px;">
+    <div style="color:#ffd54a;font-size:11px;margin-bottom:4px;">SKJUT</div>
+    Tryck för att skjuta<br>Auto-aim mot fiende
+  </div>
+  <div id="tut-3" class="tut-bubble left" style="bottom: 30px; right: 150px;">
+    <div style="color:#ffd54a;font-size:11px;margin-bottom:4px;">VAPEN</div>
+    Öppnar vapenmeny<br>Tab på desktop
+  </div>
+  <div id="tut-4" class="tut-bubble top" style="top: 180px; right: 14px;">
+    <div style="color:#ffd54a;font-size:11px;margin-bottom:4px;">MINIKARTA</div>
+    Visar fiender + mål<br>M-tangenten gömmer
+  </div>
+  <div id="tut-5" class="tut-bubble top" style="top: 60px; left: 14px;">
+    <div style="color:#ffd54a;font-size:11px;margin-bottom:4px;">DESKTOP</div>
+    R = ladda om · Esc = paus<br>Q/E = byt vapen
+  </div>
+  <button id="btn-tut-close" class="big-btn" style="position:absolute;bottom:50%;left:50%;transform:translate(-50%,50%);pointer-events:auto;">FATTAT</button>
+</div>
+
+<div id="stage-clear-overlay" class="hidden">
+  <div class="sc-content">
+    <div class="sc-trophy">🏆</div>
+    <div class="sc-title">STAGE KLAR!</div>
+    <div class="sc-subtitle" id="sc-subtitle"></div>
+    <div class="sc-stats">
+      <div class="sc-stat"><span>Tid</span><b id="sc-time">0:00</b></div>
+      <div class="sc-stat"><span>Kills</span><b id="sc-kills">0</b></div>
+      <div class="sc-stat"><span>Rank</span><b id="sc-rank">—</b></div>
+      <div class="sc-stat"><span>Gold</span><b id="sc-gold">💰 0</b></div>
+    </div>
+    <button id="btn-stage-continue" class="big-btn">FORTSÄTT TILL NÄSTA STAGE →</button>
+    <div id="sc-waiting" class="hidden" style="color:#5aff5a;font-size:13px;margin-top:8px;">Väntar på att host fortsätter...</div>
+  </div>
+</div>
+
+<div id="orientation-warning">
+  <div class="ow-content">
+    <div class="ow-icon">📱↻</div>
+    <div class="ow-text">Vänd telefonen i landskapsläge<br>för bästa upplevelse</div>
+  </div>
+</div>
+
+<div id="install-banner" class="hidden">
+  <span>📲 Installera The Penetrator som app?</span>
+  <button id="btn-install">INSTALLERA</button>
+  <button id="btn-install-dismiss">×</button>
+</div>
+
+<!-- ach-popup skapas dynamiskt i JS för att undvika cache-problem -->
+  <div class="ach-icon">🏆</div>
+  <div>
+    <div class="ach-title">PRESTATION!</div>
+    <div class="ach-name">Första blodet</div>
+  </div>
+</div>
+
+<div id="settings-screen" class="overlay hidden">
+  <h2>INSTÄLLNINGAR</h2>
+  <div class="settings-list">
+    <div class="setting-row">
+      <label>SFX-volym</label>
+      <input id="set-sfx" type="range" min="0" max="100" value="50">
+      <span id="set-sfx-val">50%</span>
+    </div>
+    <div class="setting-row">
+      <label>Musikvolym</label>
+      <input id="set-music" type="range" min="0" max="100" value="30">
+      <span id="set-music-val">30%</span>
+    </div>
+    <div class="setting-row toggle">
+      <label>Screen-shake</label>
+      <input id="set-shake" type="checkbox" checked>
+    </div>
+    <div class="setting-row toggle">
+      <label>Vibration (mobil)</label>
+      <input id="set-vibrate" type="checkbox" checked>
+    </div>
+    <div class="setting-row toggle">
+      <label>Colorblind-läge</label>
+      <input id="set-colorblind" type="checkbox">
+    </div>
+    <div class="setting-row">
+      <label>Grafikkvalitet</label>
+      <select id="set-quality">
+        <option value="high">Hög</option>
+        <option value="medium" selected>Medium</option>
+        <option value="low">Låg</option>
+      </select>
+    </div>
+    <div class="setting-row toggle">
+      <label>Skippa story-dialog</label>
+      <input id="set-skipdialog" type="checkbox">
+    </div>
+    <div class="setting-row toggle">
+      <label>Göm minimap</label>
+      <input id="set-hidemap" type="checkbox">
+    </div>
+    <div class="setting-row toggle">
+      <label>Auto-aim (mobile)</label>
+      <input id="set-autoaim" type="checkbox" checked>
+    </div>
+    <div class="setting-row toggle">
+      <label>Skjut-joystick</label>
+      <input id="set-firejoy" type="checkbox">
+    </div>
+    <div class="setting-row">
+      <label>Tutorial</label>
+      <button id="set-tut-replay" class="medium-btn" style="flex:1;">VISA IGEN</button>
+    </div>
+    <div class="setting-row">
+      <label>Spar-data</label>
+      <button id="set-reset" class="medium-btn" style="flex:1;background:#5a1a1a;border-color:#7a1818;color:#ff8a8a;">⚠ ÅTERSTÄLL / EXPORT / IMPORT</button>
+    </div>
+  </div>
+  <button id="btn-settings-close" class="big-btn">STÄNG</button>
+</div>
+
+<div id="menu-screen" class="overlay">
+  <h1>THE PENETRATOR</h1>
+  <p class="subtitle">Jakten på Jimmy Mourad</p>
+  <button id="btn-start" class="big-btn">SPELA</button>
+  <button id="btn-coop" class="medium-btn">👥 CO-OP MULTIPLAYER</button>
+  <div class="menu-row">
+    <button id="btn-mode" class="medium-btn">LÄGE: STORY</button>
+    <button id="btn-difficulty" class="medium-btn">SVÅRIGHET: VETERAN</button>
+  </div>
+  <div class="menu-row">
+    <button id="btn-shop-menu" class="medium-btn">🛒 SHOP</button>
+    <button id="btn-stats" class="medium-btn">📊 STATISTIK</button>
+    <button id="btn-achievements" class="medium-btn">🏆 PRESTATIONER</button>
+    <button id="btn-cheats" class="medium-btn">🔓 CHEATS</button>
+    <button id="btn-costumes" class="medium-btn">👕 OUTFITS</button>
+    <button id="btn-menu-settings" class="medium-btn">⚙ INSTÄLLNINGAR</button>
+  </div>
+  <button id="btn-fullscreen" class="small-btn" style="position:absolute;top:12px;right:12px;">⛶ HELSKÄRM</button>
+  <p id="version-tag" style="position:absolute;bottom:8px;right:12px;font-size:10px;opacity:0.4;">v2.2</p>
+</div>
+
+<div id="stats-screen" class="overlay hidden">
+  <h2>STATISTIK</h2>
+  <div id="stats-content"></div>
+  <button id="btn-stats-close" class="big-btn">TILLBAKA</button>
+</div>
+
+<div id="ach-screen" class="overlay hidden">
+  <h2>PRESTATIONER</h2>
+  <div id="ach-progress"></div>
+  <div id="ach-grid"></div>
+  <button id="btn-ach-close" class="big-btn">TILLBAKA</button>
+</div>
+
+<div id="coop-screen" class="overlay hidden">
+  <h2>👥 CO-OP (max 8 spelare)</h2>
+  <p class="menu-sub" style="margin-bottom:20px;">Svårighet skalas upp per spelare</p>
+  <div id="coop-init" class="coop-options">
+    <button id="btn-coop-host" class="big-btn">SKAPA RUM</button>
+    <div style="margin:14px 0;color:#888;">eller</div>
+    <input id="coop-code-input" placeholder="ABCD" maxlength="4" style="font-size:24px;text-align:center;letter-spacing:8px;text-transform:uppercase;padding:8px 12px;width:160px;background:#1a1a22;border:2px solid #ffd54a;border-radius:6px;color:#fff;font-weight:700;">
+    <br>
+    <button id="btn-coop-join" class="big-btn">JOINA RUM</button>
+  </div>
+  <div id="coop-lobby" class="coop-options hidden">
+    <div id="coop-code-display" style="font-size:36px;letter-spacing:14px;color:#ffd54a;margin-bottom:8px;font-weight:900;"></div>
+    <div style="font-size:13px;color:#888;margin-bottom:14px;">Dela koden med dina vänner</div>
+
+    <div class="lobby-section">
+      <label class="lobby-label">DITT NAMN</label>
+      <input id="coop-name-input" maxlength="14" placeholder="Skriv namn..." class="lobby-input">
+    </div>
+
+    <div class="lobby-section">
+      <label class="lobby-label">SPELARE</label>
+      <div id="coop-player-list"></div>
+    </div>
+
+    <div class="lobby-section">
+      <label class="lobby-label">CHEAT-KOD</label>
+      <div style="display:flex;gap:6px;">
+        <input id="lobby-cheat-input" placeholder="JappaJamlo..." class="lobby-input" style="flex:1;">
+        <button id="btn-cheat-redeem" class="medium-btn" style="min-width:0;">AKTIVERA</button>
+      </div>
+    </div>
+
+    <div id="host-controls" class="hidden">
+      <div class="lobby-section">
+        <label class="lobby-label">SVÅRIGHET</label>
+        <div id="lobby-diff-buttons" class="lobby-button-row"></div>
+      </div>
+      <div class="lobby-section">
+        <label class="lobby-label">LÄGE</label>
+        <div id="lobby-mode-buttons" class="lobby-button-row"></div>
+      </div>
+      <div class="lobby-section">
+        <label class="lobby-label">CHEATS (för detta game)</label>
+        <div id="lobby-cheat-buttons" class="lobby-button-row"></div>
+      </div>
+    </div>
+
+    <div id="coop-difficulty-info" style="margin:10px 0;color:#ff8a3a;font-weight:700;font-size:12px;"></div>
+    <button id="btn-coop-start" class="big-btn hidden">STARTA SPELET</button>
+    <div id="coop-waiting" class="hidden" style="color:#5aff5a;font-size:13px;">Väntar på att host startar...</div>
+  </div>
+  <div id="coop-status" style="margin-top:20px;font-size:14px;color:#ffd54a;min-height:30px;"></div>
+  <button id="btn-coop-close" class="small-btn">AVBRYT</button>
+</div>
+
+<div id="costumes-screen" class="overlay hidden">
+  <h2>👕 OUTFITS</h2>
+  <p class="menu-sub" style="margin-bottom:20px;">Välj din look</p>
+  <div id="costumes-grid"></div>
+  <button id="btn-costumes-close" class="big-btn">TILLBAKA</button>
+</div>
+
+<div id="cheats-screen" class="overlay hidden">
+  <h2>🔓 CHEAT CODES</h2>
+  <p class="menu-sub" style="margin-bottom:20px;">Lås upp en ny cheat varje gång du klarar Story-mode</p>
+  <div id="cheats-progress"></div>
+  <div id="cheats-grid"></div>
+  <button id="btn-cheats-close" class="big-btn">TILLBAKA</button>
+</div>
+
+<div id="shop-screen" class="overlay hidden">
+  <div class="menu-header">
+    <h2>SHOP</h2>
+    <div id="shop-gold">💰 <span id="shop-gold-amount">0</span></div>
+  </div>
+  <div class="shop-tabs">
+    <button id="tab-weapons" class="shop-tab active">VAPEN</button>
+    <button id="tab-upgrades" class="shop-tab">UPPGRADERINGAR</button>
+    <button id="tab-perks" class="shop-tab">PERKS</button>
+  </div>
+  <div id="shop-weapon-categories" class="weapon-categories">
+    <button class="cat-btn active" data-cat="all">ALLA</button>
+    <button class="cat-btn" data-cat="melee">MELEE</button>
+    <button class="cat-btn" data-cat="gun">SKJUT</button>
+    <button class="cat-btn" data-cat="special">SPECIAL</button>
+  </div>
+  <div id="shop-items"></div>
+  <div id="shop-upgrades" class="hidden"></div>
+  <div id="shop-perks" class="hidden"></div>
+  <button id="btn-continue" class="big-btn">FORTSÄTT →</button>
+</div>
+
+<div id="gameover-screen" class="overlay hidden">
+  <h2 id="end-title">GAME OVER</h2>
+  <p id="end-stats"></p>
+  <button id="btn-retry" class="big-btn">FÖRSÖK IGEN</button>
+  <button id="btn-menu" class="small-btn">Meny</button>
+</div>
+
+<script src="game.js"></script>
+<script>
+  // Registrera service worker för offline-stöd, tvinga uppdatering
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').then(reg => {
+        reg.update();
+        // Lyssna på SW-uppdateringar och reload när ny aktiv
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', () => {
+            if (nw.state === 'activated' && navigator.serviceWorker.controller) {
+              location.reload();
+            }
+          });
+        });
+      }).catch(() => {});
+    });
+  }
+</script>
+</body>
+</html>
