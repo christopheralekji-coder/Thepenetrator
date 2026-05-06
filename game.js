@@ -2247,6 +2247,18 @@ const Coop = {
       persist();
       return;
     }
+    if (data.type === 'gold_share' && !this.isHost) {
+      // Host meddelar att en fiende dödades — alla får samma gold
+      const g = data.g || 0;
+      if (g > 0) {
+        save.gold += g;
+        state.goldThisRun = (state.goldThisRun || 0) + g;
+        save.stats.totalGold = (save.stats.totalGold || 0) + g;
+        if (g >= 10) Audio.goldPickup();
+        updateHUD();
+      }
+      return;
+    }
     if (data.type === 'event' && !this.isHost) {
       if (data.event === 'stage_complete') {
         // Klient: stäng stage-clear-overlay om visad, kör onWaveComplete
@@ -2254,6 +2266,9 @@ const Coop = {
         if (sc) sc.classList.add('hidden');
         state._stageClearShown = false;
         onWaveComplete();
+      } else if (data.event === 'game_over') {
+        // Host meddelar: alla är döda — game over
+        if (state.mode === 'playing') endGame(false);
       }
       return;
     }
@@ -2284,10 +2299,14 @@ const Coop = {
       // Var 600ms: full broadcast (statiska fields), annars bara positions
       const fullBroadcast = (now - this._lastFullBroadcast) > 600;
       if (fullBroadcast) this._lastFullBroadcast = now;
-      // Spelare (lätt)
+      // Spelare (lätt) — om host är död, frys position till deadBody (inte spec-kameran)
+      const _hostDead = state.player.spectating;
+      const _hostX = _hostDead && state.deadBody ? state.deadBody.x : state.player.x;
+      const _hostY = _hostDead && state.deadBody ? state.deadBody.y : state.player.y;
+      const _hostHp = _hostDead ? 0 : state.player.hp;
       const allPlayers = [{ id: this.myId, n: this.myName || 'P1', c: 0,
-        x: Math.round(state.player.x), y: Math.round(state.player.y),
-        hp: Math.round(state.player.hp),
+        x: Math.round(_hostX), y: Math.round(_hostY),
+        hp: Math.round(_hostHp),
         a: Math.round(state.player.aimAngle * 100) / 100 }];
       for (const [pid, p] of this.players) {
         allPlayers.push({ id: pid, n: p.name, c: p.colorIdx,
@@ -2343,12 +2362,16 @@ const Coop = {
       // Client skickar position bara 5Hz
       if (now - this._lastBroadcast < 200) return;
       this._lastBroadcast = now;
+      // Om vi är döda, frys position till dödsplatsen (inte spec-kameran)
+      const _dead = state.player.spectating;
+      const _cx = _dead && state.deadBody ? state.deadBody.x : state.player.x;
+      const _cy = _dead && state.deadBody ? state.deadBody.y : state.player.y;
       this.sendToHost({ type: 'state',
-        x: Math.round(state.player.x), y: Math.round(state.player.y),
-        hp: Math.round(state.player.hp),
+        x: Math.round(_cx), y: Math.round(_cy),
+        hp: _dead ? 0 : Math.round(state.player.hp),
         weaponId: state.player.weaponId,
         aimAngle: Math.round(state.player.aimAngle * 100) / 100,
-        shotting: input.firing });
+        shotting: _dead ? false : input.firing });
     }
   },
   damageEnemyOnHost(enemyIdx, dmg, isCrit) {
@@ -2365,6 +2388,26 @@ const Coop = {
 };
 function getCoopMultiplier() {
   return Coop.active ? Coop.playerCount() : 1;
+}
+
+// Hitta närmsta levande spelare (host eller coop-partner) för enemy-AI
+function getNearestAlivePlayer(x, y) {
+  let best = null, bestD = Infinity;
+  const sp = state.player;
+  if (sp && sp.hp > 0 && !sp.spectating) {
+    bestD = Math.hypot(sp.x - x, sp.y - y);
+    best = { ref: sp, peerId: null };
+  }
+  if (Coop.active && Coop.isHost) {
+    for (const [pid, partner] of Coop.players) {
+      if (!partner || partner.hp <= 0) continue;
+      const d = Math.hypot(partner.x - x, partner.y - y);
+      if (d < bestD) { bestD = d; best = { ref: partner, peerId: pid }; }
+    }
+  }
+  // Fallback: ingen levande, returnera state.player så ingenting kraschar
+  if (!best) best = { ref: state.player, peerId: null };
+  return best;
 }
 const coopScreen = document.getElementById('coop-screen');
 const coopStatus = document.getElementById('coop-status');
@@ -3208,6 +3251,10 @@ function killEnemy(e) {
   const goldGained = Math.round(e.gold * goldMul);
   state.goldThisRun += goldGained;
   save.gold += goldGained;
+  // Coop: dela gold till alla partners
+  if (Coop.active && Coop.isHost && goldGained > 0) {
+    Coop.broadcast({ type: 'gold_share', g: goldGained, boss: !!e.isBoss });
+  }
   state.killsThisWave++;
   state.killsThisRun = (state.killsThisRun || 0) + 1;
   state.totalKills = (state.totalKills || 0) + 1;
@@ -3536,9 +3583,8 @@ function enterDeathState() {
   p.spectating = true;
   p.specTarget = null; // välj live-player att speca
   showToast('💀 DU DOG');
-  // I coop: vänta på revive eller stage-clear
-  if (Coop.active && Coop.players.size > 0) {
-    // hitta första live partner att speca
+  // I coop: vänta på revive eller all-dead game-over (checkCoopAllDead sköter)
+  if (Coop.active) {
     for (const [pid, partner] of Coop.players) {
       if (partner.hp > 0) { p.specTarget = pid; break; }
     }
@@ -3553,6 +3599,24 @@ function enterDeathState() {
       showToast('REZ — NÄSTA STAGE');
     }, 3000);
   }
+}
+
+// Coop: Game over om alla spelare är döda (host kontrollerar)
+function checkCoopAllDead() {
+  if (!Coop.active || !Coop.isHost) return;
+  if (state._coopGameOverFired) return;
+  if (state.mode !== 'playing') return;
+  const hostDead = !state.player || state.player.hp <= 0 || state.player.spectating;
+  if (!hostDead) return;
+  let anyAlive = false;
+  for (const [, partner] of Coop.players) {
+    if (partner && partner.hp > 0) { anyAlive = true; break; }
+  }
+  if (anyAlive) return;
+  // ALLA är döda — game over
+  state._coopGameOverFired = true;
+  Coop.broadcast({ type: 'event', event: 'game_over' });
+  endGame(false);
 }
 
 function updateDeathState(dt) {
@@ -4435,6 +4499,7 @@ function actuallyStartGame() {
   state.headshotsThisRun = 0;
   state.weaponUsage = {};
   state.killstreak = 0;
+  state._coopGameOverFired = false;
   state.runStartTime = performance.now();
   startWave(1);
   updateHUD();
@@ -4894,6 +4959,8 @@ if (btnIngameSettings) {
 // ============================================================
 function updatePlayer(dt, now) {
   const p = state.player;
+  // Spectating (död) — gör inget. updateDeathState sköter spec-kameran.
+  if (p.spectating) return;
 
   // rörelse
   let mx = input.moveX, my = input.moveY;
@@ -4975,7 +5042,6 @@ function updatePlayer(dt, now) {
 }
 
 function updateEnemies(dt, now) {
-  const p = state.player;
   // Hård cap mot för mycket fiender på en gång
   if (state.enemies.length > 80) {
     // Behåll bossen om den finns + 80 senaste
@@ -4989,6 +5055,9 @@ function updateEnemies(dt, now) {
   }
   for (const e of state.enemies) {
     if (e.dead) continue;
+    // Per-enemy target: närmsta levande spelare (inkl coop partners)
+    const _ti = getNearestAlivePlayer(e.x, e.y);
+    const p = _ti.ref;
     // Mind-controlled: byt sida (dödar andra fiender)
     if (e.mindControlled && now < e.mindControlUntil) {
       let target = null, bestD = 600;
@@ -5194,21 +5263,13 @@ function updateEnemies(dt, now) {
     // byggnad-kollision
     resolveBuildingCollision(e);
 
-    // KONTAKT med NÄRMSTA spelare (host eller partner i coop)
+    // KONTAKT med NÄRMSTA spelare (p är redan närmsta levande)
     if (e.contactCd <= 0 && e.dmg > 0) {
-      // hitta närmsta spelare
-      let nearestPlayer = p, nearestPid = null, nearestD = Math.hypot(p.x - e.x, p.y - e.y);
-      if (Coop.active && Coop.isHost) {
-        for (const [pid, partner] of Coop.players) {
-          if (partner.hp <= 0) continue;
-          const dd = Math.hypot(partner.x - e.x, partner.y - e.y);
-          if (dd < nearestD) { nearestD = dd; nearestPlayer = partner; nearestPid = pid; }
-        }
-      }
-      if (nearestD < (nearestPlayer.r || 14) + e.r) {
-        if (nearestPid) {
-          Coop.sendDamageToPartner(nearestPid, e.dmg);
-          nearestPlayer.hp = Math.max(0, (nearestPlayer.hp || 100) - e.dmg);
+      const dist = Math.hypot(p.x - e.x, p.y - e.y);
+      if (dist < (p.r || 14) + e.r) {
+        if (_ti.peerId) {
+          Coop.sendDamageToPartner(_ti.peerId, e.dmg);
+          p.hp = Math.max(0, (p.hp || 100) - e.dmg);
         } else {
           damagePlayer(e.dmg);
         }
@@ -5220,7 +5281,8 @@ function updateEnemies(dt, now) {
 }
 
 function updateBoss(b, dt, now) {
-  const p = state.player;
+  const _bti = getNearestAlivePlayer(b.x, b.y);
+  const p = _bti.ref;
   const dx = p.x - b.x, dy = p.y - b.y;
   const d = Math.hypot(dx, dy) || 1;
   const hpFrac = b.hp / b.maxHp;
@@ -5252,8 +5314,13 @@ function updateBoss(b, dt, now) {
   b.x = Math.max(b.r, Math.min(WORLD.w - b.r, b.x));
   b.y = Math.max(b.r, Math.min(WORLD.h - b.r, b.y));
 
-  if (d < p.r + b.r && b.contactCd <= 0) {
-    damagePlayer(b.dmg);
+  if (d < (p.r || 14) + b.r && b.contactCd <= 0) {
+    if (_bti.peerId) {
+      Coop.sendDamageToPartner(_bti.peerId, b.dmg);
+      p.hp = Math.max(0, (p.hp || 100) - b.dmg);
+    } else {
+      damagePlayer(b.dmg);
+    }
     b.contactCd = 0.5;
   }
 }
@@ -11794,6 +11861,7 @@ function runFrame(dt, now) {
       updateBullets(dt);
       updateDrone(dt, now);
       updateDeathState(dt);
+      checkCoopAllDead();
       Coop.tick();
     }
     updateParticles(dt);
