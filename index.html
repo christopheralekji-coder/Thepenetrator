@@ -19,6 +19,7 @@
 <div id="hud">
   <div class="hud-row top">
     <div id="hp-bar"><div id="hp-fill"></div><span id="hp-text">100/100</span></div>
+    <div id="kill-counter">💀 <span id="kill-count">0</span></div>
     <div id="wave-info">Wave 1</div>
     <div class="hud-right-group">
       <div id="gold-info">💰 0</div>
@@ -199,6 +200,7 @@
     <button id="btn-achievements" class="medium-btn">🏆 PRESTATIONER</button>
     <button id="btn-cheats" class="medium-btn">🔓 CHEATS</button>
     <button id="btn-costumes" class="medium-btn">👕 OUTFITS</button>
+    <button id="btn-wardrobe" class="medium-btn">🪄 GARDEROB</button>
     <button id="btn-menu-settings" class="medium-btn">⚙ INSTÄLLNINGAR</button>
   </div>
   <button id="btn-fullscreen" class="small-btn" style="position:absolute;top:12px;right:12px;">⛶ HELSKÄRM</button>
@@ -278,6 +280,15 @@
   <p class="menu-sub" style="margin-bottom:20px;">Välj din look</p>
   <div id="costumes-grid"></div>
   <button id="btn-costumes-close" class="big-btn">TILLBAKA</button>
+</div>
+
+<div id="wardrobe-screen" class="overlay hidden">
+  <h2>🪄 GARDEROB</h2>
+  <p class="menu-sub" style="margin-bottom:12px;">Mixa & matcha din egna look</p>
+  <canvas id="wardrobe-preview" width="160" height="180" style="background:rgba(0,0,0,0.3);border-radius:8px;margin-bottom:8px;"></canvas>
+  <div id="wardrobe-tabs" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;justify-content:center;"></div>
+  <div id="wardrobe-options" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:520px;margin-bottom:14px;"></div>
+  <button id="btn-wardrobe-close" class="big-btn">TILLBAKA</button>
 </div>
 
 <div id="cheats-screen" class="overlay hidden">

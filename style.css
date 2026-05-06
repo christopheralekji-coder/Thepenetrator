@@ -203,7 +203,7 @@ html, body {
   inset: 0;
   background: linear-gradient(180deg, rgba(255,255,255,0.2) 0%, transparent 50%);
 }
-#hp-text, #wave-info, #gold-info, #weapon-name, #ammo-info {
+#hp-text, #wave-info, #gold-info, #weapon-name, #ammo-info, #kill-counter {
   position: relative;
   font-size: 13px;
   font-weight: 600;
@@ -212,6 +212,7 @@ html, body {
 #hp-text { display: block; text-align: center; line-height: 18px; }
 #wave-info { padding: 6px 12px; background: linear-gradient(135deg, rgba(0,0,0,0.7), rgba(20,10,10,0.7)); border: 1px solid rgba(255,213,74,0.25); border-radius: 6px; }
 #gold-info { padding: 6px 12px; background: linear-gradient(135deg, rgba(40,30,5,0.8), rgba(20,15,3,0.8)); border: 1px solid rgba(255,213,74,0.4); border-radius: 6px; color: #ffd54a; }
+#kill-counter { padding: 6px 10px; background: linear-gradient(135deg, rgba(40,5,5,0.8), rgba(20,3,3,0.8)); border: 1px solid rgba(255,90,90,0.4); border-radius: 6px; color: #ff8a8a; }
 #weapon-name { padding: 6px 12px; background: linear-gradient(135deg, rgba(30,20,30,0.8), rgba(20,12,20,0.8)); border: 1px solid rgba(170,90,255,0.25); border-radius: 6px; }
 #ammo-info { padding: 6px 12px; background: linear-gradient(135deg, rgba(30,30,40,0.8), rgba(15,15,20,0.8)); border: 1px solid rgba(60,200,255,0.2); border-radius: 6px; }
 

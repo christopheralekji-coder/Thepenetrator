@@ -27,6 +27,7 @@ const STAGES = [
     spawnPos: { x: 1000, y: 2640 },
     goalPos:  { x: 1000, y: 200 },  goalRadius: 100,
     bossKey: 'likvakare',
+    miniBoss: { type: 'brute', name: 'Skogsjätten', hpMul: 5, dmgMul: 1.6, scale: 1.5, gold: 80 },
     zones: [
       { count: 8,  pool: ['grunt', 'runner'] },
       { count: 10, pool: ['grunt', 'dog', 'runner'], event: 'release_dogs' },
@@ -40,6 +41,7 @@ const STAGES = [
     spawnPos: { x: 1100, y: 2240 },
     goalPos:  { x: 1100, y: 200 }, goalRadius: 100,
     bossKey: 'benkrossare',
+    miniBoss: { type: 'soldier', name: 'Sergeant Krass', hpMul: 5, dmgMul: 1.5, scale: 1.4, gold: 100 },
     zones: [
       { count: 8,  pool: ['grunt', 'soldier', 'dog'] },
       { count: 12, pool: ['soldier', 'shooter', 'brute', 'bomber'], event: 'alarm' },
@@ -53,6 +55,7 @@ const STAGES = [
     spawnPos: { x: 850, y: 2240 },
     goalPos:  { x: 850, y: 200 }, goalRadius: 90,
     bossKey: 'strypare',
+    miniBoss: { type: 'ninja', name: 'Skuggdansaren', hpMul: 4, dmgMul: 1.5, scale: 1.3, gold: 110 },
     zones: [
       { count: 9,  pool: ['grunt', 'soldier'] },
       { count: 12, pool: ['ninja', 'soldier'], event: 'open_doors' },
@@ -66,6 +69,7 @@ const STAGES = [
     spawnPos: { x: 900, y: 1620 },
     goalPos:  { x: 900, y: 700 },  goalRadius: 0,
     isBoss: true, bossKey: 'avrattare',
+    miniBoss: { type: 'brute', name: 'Korpral Köttkrok', hpMul: 6, dmgMul: 1.7, scale: 1.5, gold: 130 },
     zones: [
       { count: 8,  pool: ['grunt', 'soldier'] },
       { count: 10, pool: ['brute', 'soldier'], event: 'barracks_open' },
@@ -79,6 +83,7 @@ const STAGES = [
     spawnPos: { x: 200, y: 1000 },
     goalPos:  { x: 2400, y: 1000 }, goalRadius: 100,
     bossKey: 'kottkvarn',
+    miniBoss: { type: 'robot', name: 'Prototyp X-19', hpMul: 5, dmgMul: 1.6, scale: 1.4, gold: 150 },
     zones: [
       { count: 9,  pool: ['soldier', 'shooter'] },
       { count: 12, pool: ['brute', 'robot', 'shooter', 'sniper'], event: 'fuel_blast' },
@@ -92,6 +97,7 @@ const STAGES = [
     spawnPos: { x: 1000, y: 1820 },
     goalPos:  { x: 1000, y: 200 }, goalRadius: 90,
     bossKey: 'askmakare',
+    miniBoss: { type: 'summoner', name: 'Hög-rituallisten', hpMul: 5, dmgMul: 1.4, scale: 1.4, gold: 160 },
     zones: [
       { count: 10, pool: ['soldier', 'shooter'] },
       { count: 12, pool: ['brute', 'ninja', 'shooter', 'healer', 'summoner'], event: 'barrel_chain' },
@@ -105,6 +111,7 @@ const STAGES = [
     spawnPos: { x: 950, y: 1700 },
     goalPos:  { x: 950, y: 700 },  goalRadius: 0,
     isBoss: true, bossKey: 'lungrivare',
+    miniBoss: { type: 'sniper', name: 'Tysta Doktorn', hpMul: 4, dmgMul: 1.8, scale: 1.3, gold: 180 },
     zones: [
       { count: 8,  pool: ['soldier', 'shooter'] },
       { count: 10, pool: ['ninja', 'brute', 'shooter'], event: 'crane_drop' },
@@ -118,6 +125,7 @@ const STAGES = [
     spawnPos: { x: 750, y: 2640 },
     goalPos:  { x: 750, y: 200 }, goalRadius: 80,
     bossKey: 'skallsprackare',
+    miniBoss: { type: 'swordsman', name: 'Bunker-mästaren', hpMul: 6, dmgMul: 1.6, scale: 1.5, gold: 200 },
     zones: [
       { count: 10, pool: ['soldier', 'ninja'] },
       { count: 14, pool: ['swordsman', 'robot', 'ninja', 'swarmer', 'sniper'], event: 'lights_flicker' },
@@ -131,6 +139,7 @@ const STAGES = [
     spawnPos: { x: 900, y: 1620 },
     goalPos:  { x: 900, y: 700 },  goalRadius: 0,
     isBoss: true, bossKey: 'sjalaatare', bossKey2: 'gravgravaren',
+    miniBoss: { type: 'robot', name: 'Mourads Mardröm', hpMul: 7, dmgMul: 1.8, scale: 1.6, gold: 250 },
     zones: [
       { count: 8,  pool: ['soldier', 'ninja'] },
       { count: 10, pool: ['robot', 'brute', 'ninja'], event: 'jimmy_screens' },
@@ -158,61 +167,61 @@ function getStageCount() {
 const BOSS_CONFIGS = {
   likvakare: {
     name: 'Jimmys Likvakare', subtitle: 'Rebellprästen i skogen',
-    hp: 380, speed: 90, dmg: 20, r: 26,
+    hp: 580, speed: 110, dmg: 28, r: 26,
     color: '#3a2a44', accent: '#7a5aaa', glow: '#aaff5a',
     ai: 'caster', gold: 220,
   },
   benkrossare: {
     name: 'Mourads Benkrossare', subtitle: 'Bepansrad legoknekt',
-    hp: 520, speed: 70, dmg: 30, r: 30,
+    hp: 780, speed: 90, dmg: 42, r: 30,
     color: '#7a4030', accent: '#3a1810', glow: '#ff5a30',
     ai: 'tank_charger', gold: 280,
   },
   strypare: {
     name: 'Jimmys Strypare', subtitle: 'Cyber-mördare i lobbyn',
-    hp: 480, speed: 170, dmg: 18, r: 20,
+    hp: 720, speed: 200, dmg: 26, r: 20,
     color: '#1a1a22', accent: '#ff3a44', glow: '#ff3a44',
     ai: 'cloaker', gold: 320,
   },
   avrattare: {
     name: 'Mourads Avrättare', subtitle: 'GENERALEN — pansrad krossare',
-    hp: 900, speed: 100, dmg: 32, r: 32,
+    hp: 1350, speed: 120, dmg: 45, r: 32,
     color: '#3a2418', accent: '#ff6a30', glow: '#ff8a30',
     ai: 'brute_charger', gold: 450,
   },
   kottkvarn: {
     name: 'Jimmys Köttkvarn', subtitle: 'Kybernetisk experiment-vapen',
-    hp: 720, speed: 100, dmg: 24, r: 28,
+    hp: 1080, speed: 120, dmg: 34, r: 28,
     color: '#3a3a48', accent: '#3acaff', glow: '#3acaff',
     ai: 'plasma', gold: 380,
   },
   askmakare: {
     name: 'Mourads Askmakare', subtitle: 'Pyromaniker med jetpack',
-    hp: 800, speed: 140, dmg: 26, r: 26,
+    hp: 1200, speed: 165, dmg: 36, r: 26,
     color: '#3a1a14', accent: '#ff8a30', glow: '#ff5a14',
     ai: 'jetpack', gold: 420,
   },
   lungrivare: {
     name: 'Jimmys Lungrivare', subtitle: 'SKUGGAN — gasmask och gift',
-    hp: 980, speed: 130, dmg: 24, r: 22,
+    hp: 1450, speed: 150, dmg: 34, r: 22,
     color: '#2a3a30', accent: '#9aff5a', glow: '#9aff5a',
     ai: 'gas_sniper', gold: 500,
   },
   skallsprackare: {
     name: 'Mourads Skallspräckare', subtitle: 'Riot-shield, magnum, oöm',
-    hp: 820, speed: 85, dmg: 28, r: 28,
+    hp: 1230, speed: 105, dmg: 40, r: 28,
     color: '#3a3a44', accent: '#dcdcdc', glow: '#ff3a3a',
     ai: 'shielder', gold: 460,
   },
   sjalaatare: {
     name: 'Jimmys Själaätare', subtitle: 'Avataren — dödar kropp och själ',
-    hp: 1200, speed: 110, dmg: 30, r: 30,
+    hp: 1800, speed: 130, dmg: 42, r: 30,
     color: '#1a0a14', accent: '#aa3aff', glow: '#aa3aff',
     ai: 'avatar', gold: 700,
   },
   gravgravaren: {
     name: 'Mourad, Gravgrävaren', subtitle: 'Det riktiga slutet',
-    hp: 2200, speed: 130, dmg: 38, r: 34,
+    hp: 3300, speed: 155, dmg: 55, r: 34,
     color: '#3a0a14', accent: '#ffd54a', glow: '#ff1a1a',
     ai: 'final', gold: 1500,
   },
@@ -610,8 +619,8 @@ const WEAPONS = [
   { id: 'smg',       name: 'Kpist',             type: 'gun',   price: 650,  dmg: 13,  rate: 95,  speed: 720, mag: 30, reload: 1500, spread: 0.10, color: '#88ccff' },
   { id: 'rifle',     name: 'Automatkarbin',     type: 'gun',   price: 900,  dmg: 24,  rate: 130, speed: 820, mag: 30, reload: 1800, spread: 0.05, color: '#5fd95f' },
   { id: 'sniper',    name: 'Prickskyttegevär',  type: 'gun',   price: 1200, dmg: 100, rate: 1300,speed: 1400,mag: 5,  reload: 2400, spread: 0.0,  pierce: true, color: '#bb88ff' },
-  { id: 'grenade',   name: 'Granatkastare',     type: 'gun',   price: 1500, dmg: 70,  rate: 950, speed: 480, mag: 6,  reload: 2400, spread: 0.04, explosive: 90,  color: '#9aff5a' },
-  { id: 'rocket',    name: 'Raketgevär',        type: 'gun',   price: 2000, dmg: 130, rate: 1500,speed: 520, mag: 4,  reload: 3000, spread: 0.02, explosive: 130, color: '#ff3c3c' },
+  { id: 'grenade',   name: 'Granatkastare',     type: 'gun',   price: 1500, dmg: 70,  rate: 950, speed: 480, mag: 6,  reload: 2400, spread: 0.04, explosive: 90,  color: '#9aff5a', style: 'grenade' },
+  { id: 'rocket',    name: 'Raketgevär',        type: 'gun',   price: 2000, dmg: 130, rate: 1500,speed: 520, mag: 4,  reload: 3000, spread: 0.02, explosive: 130, color: '#ff3c3c', style: 'rocket' },
   { id: 'minigun',   name: 'Minigun',           type: 'gun',   price: 3500, dmg: 22,  rate: 55,  speed: 900, mag: 100,reload: 3500, spread: 0.14, color: '#3cf0ff' },
   // === 15 NYA VAPEN ===
   // Melee
@@ -687,7 +696,114 @@ const COSTUMES = [
   { id: 'cyberpunk',  name: 'Cyberpunk',       desc: 'Neon-detaljer', skin: '#e8b888', shirt: '#1a1a2a', bandana: '#aa3aff', accent: '#3acaff', unlock: () => save.cheatsUnlocked >= 1 },
   { id: 'demon',      name: 'Demon-form',      desc: 'NG+++ låst', skin: '#a07060', shirt: '#3a0a14', bandana: '#7a1818', accent: '#ff1a1a', unlock: () => getNGPLevel() >= 3 },
 ];
+// WARDROBE — mix & match (5 kategorier)
+const WARDROBE = {
+  skin: [
+    { id: 'pale',  name: 'Blek',     color: '#f0d4b0' },
+    { id: 'fair',  name: 'Ljus',     color: '#e8c898' },
+    { id: 'tan',   name: 'Solbränd', color: '#d4a574' },
+    { id: 'olive', name: 'Oliv',     color: '#c08858' },
+    { id: 'brown', name: 'Brun',     color: '#9a6840' },
+    { id: 'dark',  name: 'Mörk',     color: '#6a4828' },
+    { id: 'green', name: 'Alien',    color: '#5aff8a' },
+  ],
+  hair: [
+    { id: 'bald',     name: 'Skallig',     style: 'bald',     color: '#000' },
+    { id: 'shortDark',name: 'Kort Svart',  style: 'short',    color: '#1a0a08' },
+    { id: 'shortBlonde', name: 'Kort Blond', style: 'short',  color: '#d4b478' },
+    { id: 'mohawk',   name: 'Mohawk',      style: 'mohawk',   color: '#0a0a0a' },
+    { id: 'longBrown',name: 'Långt Brunt', style: 'long',     color: '#3a1a0a' },
+    { id: 'ponytail', name: 'Hästsvans',   style: 'ponytail', color: '#1a0a08' },
+    { id: 'mullet',   name: 'Mullet',      style: 'mullet',   color: '#5a2a0a' },
+    { id: 'whiteLong',name: 'Vitt Långt',  style: 'long',     color: '#e0e0e0' },
+    { id: 'redMohawk',name: 'Röd Mohawk',  style: 'mohawk',   color: '#ff3a3a' },
+  ],
+  shirt: [
+    { id: 'black',  name: 'Svart',     color: '#222' },
+    { id: 'green',  name: 'Tactical',  color: '#1a3a1a' },
+    { id: 'red',    name: 'Röd',       color: '#aa2222' },
+    { id: 'blue',   name: 'Marin',     color: '#2244aa' },
+    { id: 'urban',  name: 'Urban',     color: '#5a4a2a' },
+    { id: 'cyber',  name: 'Cyber',     color: '#1a1a2a' },
+    { id: 'gold',   name: 'Guld',      color: '#aa8a3a' },
+  ],
+  pants: [
+    { id: 'khaki',  name: 'Khaki',    color: '#3a3528' },
+    { id: 'black',  name: 'Svarta',   color: '#1a1a1a' },
+    { id: 'jeans',  name: 'Jeans',    color: '#2a3a5a' },
+    { id: 'olive',  name: 'Oliv',     color: '#3a4a2a' },
+    { id: 'urban',  name: 'Urban',    color: '#3a3a3a' },
+    { id: 'red',    name: 'Bordeaux', color: '#5a1a1a' },
+  ],
+  bandana: [
+    { id: 'none',   name: 'Ingen',  color: null },
+    { id: 'black',  name: 'Svart',  color: '#0a0a0a' },
+    { id: 'red',    name: 'Röd',    color: '#aa1818' },
+    { id: 'green',  name: 'Camo',   color: '#3a4a26' },
+    { id: 'pink',   name: 'Rosa',   color: '#ff5aca' },
+    { id: 'cyan',   name: 'Cyan',   color: '#3acaff' },
+    { id: 'gold',   name: 'Guld',   color: '#ffd54a' },
+  ],
+};
+function ensureWardrobe() {
+  if (!save.wardrobe) save.wardrobe = {};
+  const w = save.wardrobe;
+  if (!w.skin)    w.skin = 'tan';
+  if (!w.hair)    w.hair = 'shortDark';
+  if (!w.shirt)   w.shirt = 'black';
+  if (!w.pants)   w.pants = 'khaki';
+  if (!w.bandana) w.bandana = 'black';
+}
+function getWardrobeOpt(cat, id) {
+  return WARDROBE[cat].find(o => o.id === id) || WARDROBE[cat][0];
+}
+// Rita hår-frisyr på spelarens huvud (i karaktärens roterade frame)
+function drawHair(ctx2, r, style, color, flash) {
+  if (style === 'bald') return;
+  ctx2.fillStyle = flash ? '#fff' : color;
+  if (style === 'short') {
+    // Kort hår täcker övre delen
+    ctx2.beginPath(); ctx2.ellipse(r * 0.10, 0, r * 0.55, r * 0.50, 0, 0, Math.PI*2); ctx2.fill();
+  } else if (style === 'mohawk') {
+    // Smal stripe i mitten
+    ctx2.fillRect(-r * 0.05, -r * 0.10, r * 0.65, r * 0.20);
+    ctx2.beginPath(); ctx2.ellipse(r * 0.30, 0, r * 0.35, r * 0.13, 0, 0, Math.PI*2); ctx2.fill();
+  } else if (style === 'long') {
+    // Långt hår bakåt
+    ctx2.beginPath(); ctx2.ellipse(-r * 0.30, 0, r * 0.65, r * 0.55, 0, 0, Math.PI*2); ctx2.fill();
+    ctx2.beginPath(); ctx2.ellipse(r * 0.10, 0, r * 0.50, r * 0.50, 0, 0, Math.PI*2); ctx2.fill();
+  } else if (style === 'ponytail') {
+    // Kort topp + svans bakåt
+    ctx2.beginPath(); ctx2.ellipse(r * 0.05, 0, r * 0.50, r * 0.45, 0, 0, Math.PI*2); ctx2.fill();
+    ctx2.beginPath(); ctx2.ellipse(-r * 0.55, 0, r * 0.18, r * 0.30, 0, 0, Math.PI*2); ctx2.fill();
+  } else if (style === 'mullet') {
+    // Kort framme + lång bak
+    ctx2.beginPath(); ctx2.ellipse(r * 0.10, 0, r * 0.50, r * 0.45, 0, 0, Math.PI*2); ctx2.fill();
+    ctx2.beginPath(); ctx2.ellipse(-r * 0.45, 0, r * 0.45, r * 0.40, 0, 0, Math.PI*2); ctx2.fill();
+  }
+}
+
 function getCurrentCostume() {
+  // Wardrobe = primär källa nu
+  if (save.wardrobe) {
+    ensureWardrobe();
+    const w = save.wardrobe;
+    const skinO = getWardrobeOpt('skin', w.skin);
+    const hairO = getWardrobeOpt('hair', w.hair);
+    const shirtO = getWardrobeOpt('shirt', w.shirt);
+    const pantsO = getWardrobeOpt('pants', w.pants);
+    const bandanaO = getWardrobeOpt('bandana', w.bandana);
+    return {
+      id: 'custom', name: 'Custom',
+      skin: skinO.color,
+      shirt: shirtO.color,
+      bandana: bandanaO.color, // null = ingen
+      accent: '#aa1818',
+      pants: pantsO.color,
+      hairStyle: hairO.style,
+      hairColor: hairO.color,
+    };
+  }
   return COSTUMES.find(c => c.id === (save.costume || 'classic')) || COSTUMES[0];
 }
 
@@ -1000,13 +1116,14 @@ function toggleCheat(id) {
 // GAME MODES + DIFFICULTY
 // ============================================================
 const GAME_MODES = ['story', 'endless', 'bossrush', 'daily', 'sandbox', 'speedrun', 'survive'];
-const DIFFICULTIES = ['casual', 'veteran', 'hardcore'];
+const DIFFICULTIES = ['casual', 'veteran', 'hardcore', 'insane'];
 const MODE_LABELS = { story: 'STORY', endless: 'ENDLESS', bossrush: 'BOSS RUSH', daily: 'DAILY', sandbox: 'SANDBOX', speedrun: 'SPEEDRUN', survive: 'SURVIVE 5M', newgameplus: 'NG+' };
-const DIFF_LABELS = { casual: 'CASUAL', veteran: 'VETERAN', hardcore: 'HARDCORE' };
+const DIFF_LABELS = { casual: 'CASUAL', veteran: 'VETERAN', hardcore: 'HARDCORE', insane: '💀 INSANE' };
 const DIFF_MULTIPLIERS = {
   casual:   { enemyHp: 0.7, enemyDmg: 0.7, gold: 1.2, shopPrice: 0.85 },
   veteran:  { enemyHp: 1.0, enemyDmg: 1.0, gold: 1.0, shopPrice: 1.0 },
   hardcore: { enemyHp: 1.3, enemyDmg: 1.3, gold: 1.0, shopPrice: 1.15 },
+  insane:   { enemyHp: 2.5, enemyDmg: 2.0, gold: 1.5, shopPrice: 1.5 },
 };
 function getMode() { return save.mode || 'story'; }
 function getDifficulty() { return save.difficulty || 'veteran'; }
@@ -1017,7 +1134,11 @@ function getNGPMul() {
   const lvl = getNGPLevel();
   return 1 + lvl * 0.5; // NG+: 1.5×, NG++: 2×, NG+++: 2.5×
 }
-function persist() { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); }
+function persist() {
+  // Coop-run pågår: spara INTE ändringar (fresh-start varje gång)
+  if (typeof state !== 'undefined' && state && state._coopSnapshot) return;
+  localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+}
 
 let save = loadSave();
 ensureUpgrades();
@@ -1025,6 +1146,7 @@ ensurePerks();
 ensureCheats();
 ensureStats();
 ensureMastery();
+ensureWardrobe();
 
 // ============================================================
 // AUDIO — procedurellt genererade ljud via Web Audio API
@@ -2324,7 +2446,13 @@ const Coop = {
     }
     if (data.type === 'enemy_damage' && this.isHost) {
       const e = state.enemies[data.i];
-      if (e && !e.dead) damageEnemy(e, data.dmg, data.crit);
+      if (e && !e.dead) {
+        e.lastDamagerPid = fromId;
+        // Tracking för leaderboard
+        const pt = this.players.get(fromId);
+        if (pt) pt.dmgDealt = (pt.dmgDealt || 0) + data.dmg;
+        damageEnemy(e, data.dmg, data.crit);
+      }
       return;
     }
     if (data.type === 'damage_to_you' && !this.isHost) {
@@ -2408,6 +2536,26 @@ const Coop = {
       } else if (data.event === 'game_over') {
         // Host meddelar: alla är döda — game over
         if (state.mode === 'playing') endGame(false);
+      } else if (data.event === 'coop_board') {
+        // Host skickade leaderboard — visa den på klientens game-over
+        if (data.rows && endStats) {
+          const trophies = ['🥇','🥈','🥉','🎖','🎖','🎖','🎖','🎖'];
+          const board = `<div style="margin-top:14px;padding:10px;background:rgba(170,58,255,0.1);border:1px solid rgba(170,58,255,0.3);border-radius:8px;">
+            <div style="font-weight:bold;color:#aa3aff;margin-bottom:6px;">🏆 CO-OP LEADERBOARD</div>
+            ${data.rows.map((r, i) => {
+              const isWorst = i === data.rows.length - 1 && data.rows.length > 1;
+              const tease = isWorst ? ' <span style="color:#ff5a5a;font-size:11px;">(💀 SÄMST)</span>' : '';
+              const isMe = r.name && r.name.startsWith(Coop.myName);
+              return `<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;${isMe ? 'color:#ffd54a;' : ''}">
+                <span>${trophies[i] || '·'} ${r.name}${tease}</span>
+                <span><b>${r.kills}</b> kills · 💀 ${r.deaths}${r.bossKills > 0 ? ' · 👑' + r.bossKills : ''}</span>
+              </div>`;
+            }).join('')}
+          </div>`;
+          // Append till befintlig endStats
+          const cur = endStats.innerHTML;
+          if (!cur.includes('CO-OP LEADERBOARD')) endStats.innerHTML = cur + board;
+        }
       }
       return;
     }
@@ -2527,6 +2675,13 @@ const Coop = {
   // Skicka damage till specifik partner via deras peerId
   sendDamageToPartner(peerId, dmg) {
     this._sendTo(peerId, { type: 'damage_to_you', dmg });
+    // Tracka deaths för leaderboard
+    const pt = this.players.get(peerId);
+    if (pt) {
+      const wasDead = pt.hp <= 0;
+      const willBeDead = (pt.hp - dmg) <= 0;
+      if (!wasDead && willBeDead) pt.deaths = (pt.deaths || 0) + 1;
+    }
   },
   sendPickupToPartner(peerId, kind) {
     this._sendTo(peerId, { type: 'pickup_to_you', kind });
@@ -2806,6 +2961,146 @@ function openCostumes() {
 document.getElementById('btn-costumes').addEventListener('click', openCostumes);
 document.getElementById('btn-costumes-close').addEventListener('click', () => {
   costumesScreen.classList.add('hidden'); Audio.uiClick();
+});
+
+// WARDROBE-skärm
+const wardrobeScreen = document.getElementById('wardrobe-screen');
+const wardrobeTabsEl = document.getElementById('wardrobe-tabs');
+const wardrobeOptsEl = document.getElementById('wardrobe-options');
+const wardrobePreview = document.getElementById('wardrobe-preview');
+const WARDROBE_CAT_LABELS = { skin: '🧑 Hud', hair: '💇 Hår', shirt: '👕 Väst', pants: '👖 Byxor', bandana: '🪢 Bandana' };
+let _wardrobeCurrentTab = 'skin';
+function drawWardrobePreview() {
+  if (!wardrobePreview) return;
+  const c = wardrobePreview.getContext('2d');
+  c.clearRect(0, 0, wardrobePreview.width, wardrobePreview.height);
+  ensureWardrobe();
+  const w = save.wardrobe;
+  const skin = getWardrobeOpt('skin', w.skin).color;
+  const skinDark = darken(skin, 0.7);
+  const hairOpt = getWardrobeOpt('hair', w.hair);
+  const shirtC = getWardrobeOpt('shirt', w.shirt).color;
+  const shirtDark = darken(shirtC, 0.7);
+  const pantsC = getWardrobeOpt('pants', w.pants).color;
+  const bandanaC = getWardrobeOpt('bandana', w.bandana).color;
+  const cx = wardrobePreview.width / 2, cy = wardrobePreview.height / 2 + 20;
+  // Skugga
+  c.fillStyle = 'rgba(0,0,0,0.4)';
+  c.beginPath(); c.ellipse(cx, cy + 50, 30, 8, 0, 0, Math.PI*2); c.fill();
+  // Byxor
+  c.fillStyle = pantsC;
+  c.fillRect(cx - 18, cy + 18, 36, 30);
+  c.fillStyle = '#1a1208';
+  c.fillRect(cx - 18, cy + 44, 36, 8);
+  // Väst (kropp)
+  c.fillStyle = shirtC;
+  c.beginPath(); c.ellipse(cx, cy, 26, 36, 0, 0, Math.PI*2); c.fill();
+  c.fillStyle = shirtDark;
+  c.beginPath(); c.ellipse(cx - 8, cy, 14, 32, 0, 0, Math.PI*2); c.fill();
+  // Axlar (skin)
+  c.fillStyle = skin;
+  c.beginPath(); c.ellipse(cx - 22, cy - 8, 12, 10, 0, 0, Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx + 22, cy - 8, 12, 10, 0, 0, Math.PI*2); c.fill();
+  // Hals
+  c.fillStyle = skinDark;
+  c.fillRect(cx - 5, cy - 24, 10, 12);
+  // Huvud
+  c.fillStyle = skin;
+  c.beginPath(); c.arc(cx, cy - 32, 18, 0, Math.PI*2); c.fill();
+  // Hår
+  if (hairOpt.style !== 'bald') {
+    c.save();
+    c.translate(cx, cy - 32);
+    c.rotate(-Math.PI/2);
+    drawHair(c, 18, hairOpt.style, hairOpt.color, false);
+    c.restore();
+  }
+  // Bandana
+  if (bandanaC) {
+    c.fillStyle = bandanaC;
+    c.beginPath(); c.ellipse(cx, cy - 36, 20, 8, 0, 0, Math.PI*2); c.fill();
+  }
+  // Ögon
+  c.fillStyle = '#0a0a0a';
+  c.beginPath(); c.arc(cx - 5, cy - 30, 1.6, 0, Math.PI*2); c.fill();
+  c.beginPath(); c.arc(cx + 5, cy - 30, 1.6, 0, Math.PI*2); c.fill();
+}
+function renderWardrobeTabs() {
+  wardrobeTabsEl.innerHTML = '';
+  for (const cat of ['skin','hair','shirt','pants','bandana']) {
+    const btn = document.createElement('button');
+    btn.className = 'small-btn';
+    btn.textContent = WARDROBE_CAT_LABELS[cat];
+    btn.style.padding = '6px 10px';
+    btn.style.fontSize = '12px';
+    if (cat === _wardrobeCurrentTab) {
+      btn.style.background = '#aa3aff';
+      btn.style.color = '#fff';
+    }
+    btn.addEventListener('click', () => {
+      _wardrobeCurrentTab = cat;
+      Audio.uiClick();
+      renderWardrobeTabs();
+      renderWardrobeOptions();
+    });
+    wardrobeTabsEl.appendChild(btn);
+  }
+}
+function renderWardrobeOptions() {
+  ensureWardrobe();
+  wardrobeOptsEl.innerHTML = '';
+  const cat = _wardrobeCurrentTab;
+  const current = save.wardrobe[cat];
+  for (const opt of WARDROBE[cat]) {
+    const card = document.createElement('div');
+    card.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.05);min-width:70px;border:2px solid ' + (opt.id === current ? '#aa3aff' : 'transparent');
+    // Swatch
+    const swatch = document.createElement('div');
+    if (cat === 'hair') {
+      swatch.style.cssText = 'width:32px;height:32px;border-radius:50%;background:#d4a574;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;';
+      const hairCanvas = document.createElement('canvas');
+      hairCanvas.width = 32; hairCanvas.height = 32;
+      hairCanvas.style.cssText = 'position:absolute;top:0;left:0;';
+      const hc = hairCanvas.getContext('2d');
+      hc.translate(16, 16);
+      hc.rotate(-Math.PI/2);
+      drawHair(hc, 14, opt.style, opt.color, false);
+      swatch.appendChild(hairCanvas);
+    } else if (cat === 'bandana' && !opt.color) {
+      swatch.style.cssText = 'width:32px;height:32px;border-radius:50%;background:#3a3a3a;border:2px dashed #888;display:flex;align-items:center;justify-content:center;font-size:14px;color:#888;';
+      swatch.textContent = '✕';
+    } else {
+      swatch.style.cssText = 'width:32px;height:32px;border-radius:50%;background:' + opt.color + ';border:2px solid rgba(255,255,255,0.2);';
+    }
+    card.appendChild(swatch);
+    const name = document.createElement('div');
+    name.style.cssText = 'font-size:10px;color:#ddd;text-align:center;';
+    name.textContent = opt.name;
+    card.appendChild(name);
+    card.addEventListener('click', () => {
+      save.wardrobe[cat] = opt.id;
+      persist();
+      Audio.uiClick();
+      renderWardrobeOptions();
+      drawWardrobePreview();
+    });
+    wardrobeOptsEl.appendChild(card);
+  }
+}
+function openWardrobe() {
+  ensureWardrobe();
+  wardrobeScreen.classList.remove('hidden');
+  Audio.uiClick();
+  _wardrobeCurrentTab = 'skin';
+  renderWardrobeTabs();
+  renderWardrobeOptions();
+  drawWardrobePreview();
+}
+const _btnWardrobe = document.getElementById('btn-wardrobe');
+if (_btnWardrobe) _btnWardrobe.addEventListener('click', openWardrobe);
+const _btnWardrobeClose = document.getElementById('btn-wardrobe-close');
+if (_btnWardrobeClose) _btnWardrobeClose.addEventListener('click', () => {
+  wardrobeScreen.classList.add('hidden'); Audio.uiClick();
 });
 
 document.getElementById('btn-cheats').addEventListener('click', openCheats);
@@ -3416,10 +3711,24 @@ function killEnemy(e) {
   if (Coop.active && Coop.isHost && goldGained > 0) {
     Coop.broadcast({ type: 'gold_share', g: goldGained, boss: !!e.isBoss });
   }
+  // Coop kill-attribution (för leaderboard)
+  if (Coop.active && Coop.isHost) {
+    const pid = e.lastDamagerPid;
+    if (pid && Coop.players.has(pid)) {
+      const pt = Coop.players.get(pid);
+      pt.kills = (pt.kills || 0) + 1;
+      if (e.isBoss) pt.bossKills = (pt.bossKills || 0) + 1;
+      pt.gold = (pt.gold || 0) + goldGained;
+    } else {
+      state.hostKills = (state.hostKills || 0) + 1;
+      if (e.isBoss) state.hostBossKills = (state.hostBossKills || 0) + 1;
+    }
+  }
   state.killsThisWave++;
   state.killsThisRun = (state.killsThisRun || 0) + 1;
   state.totalKills = (state.totalKills || 0) + 1;
   save.stats.totalKills++;
+  if (killCountEl) killCountEl.textContent = state.killsThisRun;
   // Vapen-XP — det vapen som var equippat när fienden dog
   if (p && p.weaponId) {
     addWeaponXp(p.weaponId, e.isBoss ? 50 : (e.gold > 12 ? 3 : 1));
@@ -3727,6 +4036,7 @@ function damagePlayer(amount) {
       triggerShake(20, 0.6);
     }
     p.hp = 0;
+    state.hostDeaths = (state.hostDeaths || 0) + 1;
     enterDeathState();
   }
   updateHUD();
@@ -3894,6 +4204,7 @@ function loadStage(n) {
   state._stageClearShown = false;
   state._waveCompleting = false;
   state._coopGameOverFired = false;
+  state.miniBossSpawned = false;
   // Coop: clear enemy interpolation cache (gammal stage) + visual-only bullets
   if (state._enemyCache) state._enemyCache = {};
   if (Coop.active) state.bullets = (state.bullets || []).filter(b => !b._visualOnly);
@@ -4069,6 +4380,33 @@ function isStageComplete() {
   return true;
 }
 
+function spawnMiniBoss(stage) {
+  const m = stage.miniBoss;
+  if (!m) return;
+  // Spawn-pos: mitten av spelplan, lite ovanför player
+  const sx = stage.worldW / 2 + (Math.random() - 0.5) * 200;
+  const sy = stage.worldH / 2 + (Math.random() - 0.5) * 200;
+  const e = makeEnemy(m.type || 'brute', sx, sy);
+  const scale = 1 + (state.wave - 1) * 0.10;
+  const diff = getDiffMul();
+  const ngpMul = getNGPMul();
+  const coopMul = getCoopMultiplier();
+  e.hp = Math.round(e.hp * (m.hpMul || 4) * scale * diff.enemyHp * ngpMul * coopMul);
+  e.maxHp = e.hp;
+  e.dmg = Math.round(e.dmg * (m.dmgMul || 1.5) * scale * diff.enemyDmg * ngpMul);
+  if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * (m.dmgMul || 1.5));
+  e.r = Math.round(e.r * (m.scale || 1.4));
+  e.speed = Math.round(e.speed * 1.1);
+  e._origSpeed = e.speed;
+  e.gold = m.gold || 100;
+  e.isMiniBoss = true;
+  e.name = m.name || 'Mini-boss';
+  state.enemies.push(e);
+  showToast('⚠ MINI-BOSS: ' + e.name);
+  Audio.bossSpawn && Audio.bossSpawn();
+  triggerShake(8, 0.4);
+}
+
 function updateZoneProgression(stage) {
   // FAIL-SAFE: Om boss aldrig spawnat och alla zoner är klara → tvinga spawn efter 3s
   if (stage && stage.bossKey && state.bossSequenceStep === 0) {
@@ -4090,6 +4428,12 @@ function updateZoneProgression(stage) {
     state.zoneState = 'clearing';
   }
   if (state.zoneState === 'clearing' && state.enemies.length === 0) {
+    // Mini-boss spawnar efter första zonen rensats
+    if (state.currentZone === 0 && stage.miniBoss && !state.miniBossSpawned) {
+      state.miniBossSpawned = true;
+      spawnMiniBoss(stage);
+      return;
+    }
     // Zon clear — kör event om finns, annars nästa zon
     const zones = stage.zones || [];
     const z = zones[state.currentZone];
@@ -4627,6 +4971,21 @@ function actuallyStartGame() {
   if (coopInitEl) coopInitEl.classList.remove('hidden');
   if (coopLobbyEl) coopLobbyEl.classList.add('hidden');
   document.body.classList.remove('menu-mode');
+  // Coop: fresh-start varje run (ingen pengar/vapen carry-over, alla börjar med knuckles)
+  if (Coop.active && !state._coopSnapshot) {
+    state._coopSnapshot = {
+      gold: save.gold,
+      owned: [...(save.owned || ['fists'])],
+      weaponId: save.weaponId,
+      upgrades: { ...(save.upgrades || {}) },
+      perks: [...(save.perks || [])],
+    };
+    save.gold = 0;
+    save.owned = ['fists'];
+    save.weaponId = 'fists';
+    for (const k in save.upgrades) save.upgrades[k] = 0;
+    save.perks = [];
+  }
   state.mode = 'playing';
   state.player = makePlayer();
   if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
@@ -4665,7 +5024,17 @@ function actuallyStartGame() {
   state.weaponUsage = {};
   state.killstreak = 0;
   state._coopGameOverFired = false;
+  state.hostKills = 0;
+  state.hostBossKills = 0;
+  state.hostDeaths = 0;
+  state.hostRevives = 0;
   state.runStartTime = performance.now();
+  // Reset coop partner stats
+  if (Coop.active) {
+    for (const [, partner] of Coop.players) {
+      partner.kills = 0; partner.bossKills = 0; partner.dmgDealt = 0; partner.deaths = 0; partner.revives = 0; partner.gold = 0;
+    }
+  }
   startWave(1);
   updateHUD();
 }
@@ -5008,6 +5377,34 @@ function endGame(victory) {
   const playTime = Math.round((performance.now() - state.runStartTime) / 1000);
   const minutes = Math.floor(playTime / 60);
   const seconds = playTime % 60;
+  // Coop leaderboard om tillämpligt
+  let coopBoard = '';
+  if (Coop.active) {
+    const rows = [];
+    rows.push({ name: (Coop.myName || 'Host') + (Coop.isHost ? ' 👑' : ''), kills: state.hostKills || 0, bossKills: state.hostBossKills || 0, deaths: state.hostDeaths || 0, isMe: true });
+    if (Coop.isHost) {
+      for (const [, p] of Coop.players) {
+        rows.push({ name: p.name || 'Player', kills: p.kills || 0, bossKills: p.bossKills || 0, deaths: p.deaths || 0, isMe: false });
+      }
+    }
+    rows.sort((a, b) => b.kills - a.kills);
+    const trophies = ['🥇','🥈','🥉','🎖','🎖','🎖','🎖','🎖'];
+    coopBoard = `<div style="margin-top:14px;padding:10px;background:rgba(170,58,255,0.1);border:1px solid rgba(170,58,255,0.3);border-radius:8px;">
+      <div style="font-weight:bold;color:#aa3aff;margin-bottom:6px;">🏆 CO-OP LEADERBOARD</div>
+      ${rows.map((r, i) => {
+        const isWorst = i === rows.length - 1 && rows.length > 1;
+        const tease = isWorst ? ' <span style="color:#ff5a5a;font-size:11px;">(💀 SÄMST)</span>' : '';
+        return `<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;${r.isMe ? 'color:#ffd54a;' : ''}">
+          <span>${trophies[i] || '·'} ${r.name}${tease}</span>
+          <span><b>${r.kills}</b> kills · 💀 ${r.deaths}${r.bossKills > 0 ? ' · 👑' + r.bossKills : ''}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+    // Host broadcastar leaderboarden så klienter ser samma siffror
+    if (Coop.isHost) {
+      Coop.broadcast({ type: 'event', event: 'coop_board', rows });
+    }
+  }
   endStats.innerHTML = `
     <div style="text-align:left;display:inline-block;line-height:1.7;">
       Stage: <b>${state.wave}/${LEVELS.length}</b> · ${getLevel(state.wave).name}<br>
@@ -5017,8 +5414,19 @@ function endGame(victory) {
       Headshots: <b>${state.headshotsThisRun || 0}</b> · Krits: <b>${state.critsThisRun || 0}</b><br>
       Mest använt vapen: <b>${getMostUsedWeapon()}</b><br>
       Total mynt: <b>💰 ${save.gold}</b>
+      ${coopBoard}
     </div>
   `;
+  // Coop: återställ original save (ingen carry-over från coop)
+  if (state._coopSnapshot) {
+    const snap = state._coopSnapshot;
+    save.gold = snap.gold;
+    save.owned = snap.owned;
+    save.weaponId = snap.weaponId;
+    save.upgrades = snap.upgrades;
+    save.perks = snap.perks;
+    state._coopSnapshot = null;
+  }
   gameoverScreen.classList.remove('hidden');
   persist();
 }
@@ -5086,6 +5494,7 @@ const waveInfo = document.getElementById('wave-info');
 const goldInfo = document.getElementById('gold-info');
 const weaponName = document.getElementById('weapon-name');
 const ammoInfo = document.getElementById('ammo-info');
+const killCountEl = document.getElementById('kill-count');
 
 const ammoDisplayEl = document.getElementById('ammo-display-text');
 function updateHUD() {
@@ -5094,6 +5503,7 @@ function updateHUD() {
   const w = W_BY_ID[p.weaponId];
   hpFill.style.width = Math.max(0, p.hp / p.maxHp * 100) + '%';
   hpText.textContent = `${Math.ceil(p.hp)}/${p.maxHp}`;
+  if (killCountEl) killCountEl.textContent = state.killsThisRun || 0;
   const lvl = getLevel(state.wave);
   waveInfo.textContent = `${state.wave}/${getStageCount()} · ${lvl.name}`;
   goldInfo.textContent = `💰 ${save.gold}`;
@@ -5945,6 +6355,7 @@ function updateBullets(dt) {
             spawnDamageNumber(e.x, e.y - e.r, Math.round(b.dmg), b.crit);
           } else {
             applyBulletEffects(e, b);
+            e.lastDamagerPid = null; // host = null
             damageEnemy(e, b.dmg, b.crit);
           }
           b.hitIds.add(e);
@@ -9393,10 +9804,10 @@ function drawPlayer() {
 
   const cos = getCurrentCostume();
   const skin = cos.skin;
-  const skinDark = '#a07a52';
+  const skinDark = darken(cos.skin, 0.7);
   const vest = cos.shirt;
   const vestDark = darken(cos.shirt, 0.7);
-  const pants = '#3a3528';
+  const pants = cos.pants || '#3a3528';
   const boot = '#1a1208';
 
   // BEN — ses bakom kroppen, alternerar
@@ -9464,26 +9875,32 @@ function drawPlayer() {
   ctx.fillStyle = flash ? '#fff' : skinDark;
   ctx.beginPath(); ctx.arc(p.r * 0.05, 0, p.r * 0.32, 0, Math.PI*2); ctx.fill();
 
-  // BANDANA (per costume)
-  ctx.fillStyle = flash ? '#fff' : cos.bandana;
-  ctx.beginPath(); ctx.ellipse(p.r * 0.18, 0, p.r * 0.60, p.r * 0.32, 0, 0, Math.PI*2); ctx.fill();
-  // accent-remsa
-  ctx.fillStyle = flash ? '#fff' : cos.accent;
-  ctx.fillRect(-p.r * 0.10, -p.r * 0.32, p.r * 0.10, p.r * 0.64);
-  // bandana-svans bakåt (vajar lite)
-  const tailWave = Math.sin(now/200) * p.r * 0.10;
-  ctx.fillStyle = flash ? '#fff' : cos.bandana;
-  ctx.beginPath();
-  ctx.moveTo(-p.r * 0.45, -p.r * 0.22);
-  ctx.lineTo(-p.r * 1.30, -p.r * 0.50 + tailWave);
-  ctx.lineTo(-p.r * 1.20, -p.r * 0.05 + tailWave);
-  ctx.lineTo(-p.r * 1.30,  p.r * 0.45 + tailWave);
-  ctx.lineTo(-p.r * 0.45,  p.r * 0.22);
-  ctx.closePath();
-  ctx.fill();
-  // bandana-knut bakom huvudet
-  ctx.fillStyle = flash ? '#fff' : cos.bandana;
-  ctx.beginPath(); ctx.arc(-p.r * 0.40, 0, p.r * 0.10, 0, Math.PI*2); ctx.fill();
+  // HÅR (under bandana om båda finns)
+  if (cos.hairStyle && cos.hairStyle !== 'bald') {
+    drawHair(ctx, p.r, cos.hairStyle, cos.hairColor || '#1a0a08', flash);
+  }
+  // BANDANA (om vald — null = ingen)
+  if (cos.bandana) {
+    ctx.fillStyle = flash ? '#fff' : cos.bandana;
+    ctx.beginPath(); ctx.ellipse(p.r * 0.18, 0, p.r * 0.60, p.r * 0.32, 0, 0, Math.PI*2); ctx.fill();
+    // accent-remsa
+    ctx.fillStyle = flash ? '#fff' : cos.accent;
+    ctx.fillRect(-p.r * 0.10, -p.r * 0.32, p.r * 0.10, p.r * 0.64);
+    // bandana-svans bakåt (vajar lite)
+    const tailWave = Math.sin(now/200) * p.r * 0.10;
+    ctx.fillStyle = flash ? '#fff' : cos.bandana;
+    ctx.beginPath();
+    ctx.moveTo(-p.r * 0.45, -p.r * 0.22);
+    ctx.lineTo(-p.r * 1.30, -p.r * 0.50 + tailWave);
+    ctx.lineTo(-p.r * 1.20, -p.r * 0.05 + tailWave);
+    ctx.lineTo(-p.r * 1.30,  p.r * 0.45 + tailWave);
+    ctx.lineTo(-p.r * 0.45,  p.r * 0.22);
+    ctx.closePath();
+    ctx.fill();
+    // bandana-knut bakom huvudet
+    ctx.fillStyle = flash ? '#fff' : cos.bandana;
+    ctx.beginPath(); ctx.arc(-p.r * 0.40, 0, p.r * 0.10, 0, Math.PI*2); ctx.fill();
+  }
 
   // ÖGON (små svarta från ovan)
   ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
@@ -11193,6 +11610,155 @@ function drawBullet(b) {
       ctx.arc(x, y, b.r * 1.8, a, a + 0.5);
       ctx.stroke();
     }
+    return;
+  }
+  if (b.style === 'thrown') {
+    // Roterande kaststjärna
+    const rot = (performance.now() / 50);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.fillStyle = b.color || '#cccccc';
+    for (let i = 0; i < 4; i++) {
+      ctx.save();
+      ctx.rotate(i * Math.PI / 2);
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(b.r * 0.6, b.r * 0.6);
+      ctx.lineTo(b.r * 2.2, 0);
+      ctx.lineTo(b.r * 0.6, -b.r * 0.6);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.fillStyle = '#444';
+    ctx.beginPath(); ctx.arc(0, 0, b.r * 0.4, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (b.style === 'crossbow' || b.style === 'bow') {
+    // Pil med spets + fjäder
+    const ang = Math.atan2(b.vy, b.vx);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    const len = b.r * 4;
+    ctx.fillStyle = '#7a5a3a';
+    ctx.fillRect(-len * 0.5, -1, len, 2);
+    ctx.fillStyle = '#cccccc';
+    ctx.beginPath();
+    ctx.moveTo(len * 0.5 + 6, 0);
+    ctx.lineTo(len * 0.5, -3);
+    ctx.lineTo(len * 0.5, 3);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = b.style === 'bow' ? '#5a3a3a' : '#3a3a3a';
+    ctx.beginPath();
+    ctx.moveTo(-len * 0.5, -3);
+    ctx.lineTo(-len * 0.5 - 5, 0);
+    ctx.lineTo(-len * 0.5, 3);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (b.style === 'boomerang') {
+    const rot = performance.now() / 80;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.strokeStyle = b.color || '#9a6a30';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-b.r * 1.5, b.r * 0.2);
+    ctx.lineTo(0, -b.r * 0.8);
+    ctx.lineTo(b.r * 1.5, b.r * 0.2);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  if (b.style === 'rocket') {
+    const ang = Math.atan2(b.vy, b.vx);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    // flamma bak
+    ctx.fillStyle = `rgba(255,${100 + Math.random() * 120},20,0.9)`;
+    ctx.beginPath();
+    ctx.moveTo(-b.r * 1.6, -b.r * 0.5);
+    ctx.lineTo(-b.r * 3 - Math.random() * 4, 0);
+    ctx.lineTo(-b.r * 1.6, b.r * 0.5);
+    ctx.closePath(); ctx.fill();
+    // kropp
+    ctx.fillStyle = '#999';
+    ctx.fillRect(-b.r * 1.6, -b.r * 0.5, b.r * 2.5, b.r);
+    // spets
+    ctx.fillStyle = '#ff3a3a';
+    ctx.beginPath();
+    ctx.moveTo(b.r * 0.9, -b.r * 0.5);
+    ctx.lineTo(b.r * 2.2, 0);
+    ctx.lineTo(b.r * 0.9, b.r * 0.5);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (b.style === 'grenade') {
+    const rot = performance.now() / 200;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    ctx.fillStyle = '#3a4a2a';
+    ctx.beginPath(); ctx.arc(0, 0, b.r * 1.3, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#222';
+    ctx.fillRect(-1.5, -b.r * 1.6, 3, b.r * 0.5);
+    ctx.strokeStyle = '#888'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-b.r, -b.r * 0.5); ctx.lineTo(b.r, b.r * 0.5);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  if (b.style === 'drone') {
+    ctx.fillStyle = b.color || '#3acaff';
+    ctx.shadowColor = b.color || '#3acaff'; ctx.shadowBlur = 6;
+    ctx.fillRect(x - b.r, y - b.r * 0.6, b.r * 2, b.r * 1.2);
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.4, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    return;
+  }
+  if (b.style === 'timestop') {
+    ctx.fillStyle = b.color || '#9aff5a';
+    ctx.shadowColor = b.color || '#9aff5a'; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.4, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    const t = performance.now() / 100;
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(t) * b.r, y + Math.sin(t) * b.r);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(t * 12) * b.r * 0.7, y + Math.sin(t * 12) * b.r * 0.7);
+    ctx.stroke();
+    return;
+  }
+  if (b.style === 'pullwhip') {
+    const ang = Math.atan2(b.vy, b.vx);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    // kedjelänk
+    ctx.fillStyle = '#5a4030';
+    ctx.fillRect(-b.r, -b.r * 0.4, b.r * 1.4, b.r * 0.8);
+    // hak
+    ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(b.r * 0.4, 0);
+    ctx.lineTo(b.r * 1.6, -b.r * 0.6);
+    ctx.lineTo(b.r * 1.0, -b.r * 1.3);
+    ctx.stroke();
+    ctx.restore();
     return;
   }
   // standard
