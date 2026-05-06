@@ -249,10 +249,44 @@ const TRUCK_TURRETS = [
   { id: 't_minigun', offsetX:  60, offsetY: -32, weaponId: 'minigun',  icon: '🔫', label: 'Minigun' },
   { id: 't_sniper',  offsetX: -90, offsetY:   0, weaponId: 'sniper',   icon: '🎯', label: 'Prickskyttegevär' },
   { id: 't_flame',   offsetX:  60, offsetY:   0, weaponId: 'flame',    icon: '🔥', label: 'Eldkastare' },
-  { id: 't_plasma',  offsetX: -90, offsetY:  32, weaponId: 'plasma',   icon: '⚡', label: 'Plasma-gevär' },
+  { id: 't_repair',  offsetX: -90, offsetY:  32, weaponId: 'repair',   icon: '🔧', label: 'REPARERA — spamma för att laga trucken' },
   { id: 't_grenade', offsetX:  60, offsetY:  32, weaponId: 'grenade',  icon: '💣', label: 'Granatkastare' },
   { id: 't_railgun', offsetX:   0, offsetY:   0, weaponId: 'railgun',  icon: '🌟', label: 'Railgun (förar-plats)' },
 ];
+
+// Försök claima en turret (host-validerad)
+function tryMountTurret(turretId) {
+  if (!state.truck) return;
+  const tr = state.truck.turrets.find(x => x.id === turretId);
+  if (!tr) return;
+  // Toggle dismount om redan på samma
+  if (state.player._mountedTurretId === turretId) {
+    state.player._mountedTurretId = null;
+    if (Coop.active && Coop.isHost) tr.occupiedBy = null;
+    if (Coop.active && !Coop.isHost) Coop.sendToHost({ type: 'mount_req', tid: null });
+    return;
+  }
+  // Kolla om turret är tagen av någon annan
+  const myId = Coop.active ? (Coop.isHost ? 'host' : Coop.myId) : null;
+  if (Coop.active && tr.occupiedBy && tr.occupiedBy !== myId) {
+    showToast('Upptagen av annan spelare!');
+    Audio.uiClick();
+    return;
+  }
+  if (Coop.active && Coop.isHost) {
+    // Frigör tidigare turret
+    for (const t of state.truck.turrets) if (t.occupiedBy === 'host') t.occupiedBy = null;
+    tr.occupiedBy = 'host';
+    state.player._mountedTurretId = turretId;
+  } else if (Coop.active && !Coop.isHost) {
+    // Klient: skicka request, vänta på host's bekräftelse
+    Coop.sendToHost({ type: 'mount_req', tid: turretId });
+    state.player._mountedTurretId = turretId; // optimistic
+  } else {
+    // Single-player
+    state.player._mountedTurretId = turretId;
+  }
+}
 
 // Bygg turret-väljare UI (visas bara i konvoj-mode)
 const truckTurretBarEl = document.getElementById('truck-turret-bar');
@@ -267,12 +301,7 @@ function buildTruckTurretBar() {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       if (!state.player) return;
-      // Om redan mounted på den här turreten — släpp
-      if (state.player._mountedTurretId === tr.id) {
-        state.player._mountedTurretId = null;
-      } else {
-        state.player._mountedTurretId = tr.id;
-      }
+      tryMountTurret(tr.id);
       Audio.uiClick();
       renderTruckTurretBar();
     });
@@ -285,7 +314,8 @@ function buildTruckTurretBar() {
   leaveBtn.title = 'Lämna turret';
   leaveBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    if (state.player) state.player._mountedTurretId = null;
+    if (!state.player) return;
+    if (state.player._mountedTurretId) tryMountTurret(state.player._mountedTurretId);
     Audio.uiClick();
     renderTruckTurretBar();
   });
@@ -293,11 +323,26 @@ function buildTruckTurretBar() {
 }
 function renderTruckTurretBar() {
   if (!truckTurretBarEl) return;
-  // Markera aktiv
+  const myId = Coop.active ? (Coop.isHost ? 'host' : Coop.myId) : null;
   for (const btn of truckTurretBarEl.querySelectorAll('button')) {
-    const isActive = state.player && btn.dataset.turretId === state.player._mountedTurretId;
-    btn.style.background = isActive ? 'rgba(170,58,255,0.9)' : 'rgba(40,40,50,0.95)';
-    btn.style.borderColor = isActive ? '#fff' : 'rgba(170,58,255,0.5)';
+    const tid = btn.dataset.turretId;
+    if (!tid) continue;
+    const tr = state.truck ? state.truck.turrets.find(t => t.id === tid) : null;
+    const isMine = state.player && tid === state.player._mountedTurretId;
+    const isTaken = tr && tr.occupiedBy && tr.occupiedBy !== myId && tr.occupiedBy !== 'host';
+    if (isMine) {
+      btn.style.background = 'rgba(170,58,255,0.9)';
+      btn.style.borderColor = '#fff';
+      btn.style.opacity = '1';
+    } else if (isTaken) {
+      btn.style.background = 'rgba(80,80,80,0.5)';
+      btn.style.borderColor = '#666';
+      btn.style.opacity = '0.5';
+    } else {
+      btn.style.background = 'rgba(40,40,50,0.95)';
+      btn.style.borderColor = 'rgba(170,58,255,0.5)';
+      btn.style.opacity = '1';
+    }
   }
 }
 buildTruckTurretBar();
@@ -936,10 +981,11 @@ function updatePickups(dt) {
     if (!nearest) continue;
     const dx = nearest.ref.x - pk.x, dy = nearest.ref.y - pk.y;
     const d = nearestD;
-    // Magnet mot närmsta spelare
-    if (d < 110) pk.magnetized = true;
+    // Magnet mot närmsta spelare. MagnetJamlo-cheat = oändlig räckvidd
+    const magnetRange = isCheatActive('magnet') ? 99999 : 110;
+    if (d < magnetRange) pk.magnetized = true;
     if (pk.magnetized && d > 0) {
-      const speed = Math.min(420, 200 + (1 - d/110) * 300);
+      const speed = Math.min(600, 200 + (1 - d/magnetRange) * 300);
       pk.x += (dx/d) * speed * dt;
       pk.y += (dy/d) * speed * dt;
     }
@@ -1628,6 +1674,41 @@ const CHEATS = [
     desc: 'GUD-MODE: Odödlig + 10× dmg + allt unlocked + screen-explosions per kill.',
     color: '#aa3aff',
   },
+  {
+    id: 'speedrun',
+    name: 'BlixtJamlo',
+    icon: '⚡',
+    desc: 'SPEED-MODE: Spelaren rör sig 2× snabbare + dash på no-cooldown.',
+    color: '#3acaff',
+  },
+  {
+    id: 'bigboi',
+    name: 'KingaJamlo',
+    icon: '👹',
+    desc: 'BIG-MODE: Du blir 1.5× större men har 3× HP och 2× knockback.',
+    color: '#ff8a3a',
+  },
+  {
+    id: 'magnet',
+    name: 'MagnetJamlo',
+    icon: '🧲',
+    desc: 'MAGNET: Allt gold, ammo & HP-pickups dras till dig från hela kartan.',
+    color: '#5aff8a',
+  },
+  {
+    id: 'tornado',
+    name: 'TornadoJamlo',
+    icon: '🌪️',
+    desc: 'PROJEKTIL-VIRVEL: Alla skott studsar mellan fiender (3 hopp). Skottfria zoner finns inte.',
+    color: '#9affff',
+  },
+  {
+    id: 'apocalypse',
+    name: 'ApokalypsJamlo',
+    icon: '☄️',
+    desc: 'APOKALYPS: Var 8:e sek faller en meteor från himlen där du står. 200 AOE-skada.',
+    color: '#ff3a3a',
+  },
 ];
 
 function ensureCheats() {
@@ -2179,14 +2260,17 @@ function makePlayer() {
   if (dailyMod === 'reduced_hp') baseMaxHp = 70;
   if (dailyMod === 'glass_cannon') baseMaxHp = 1;
   if (hasPerk('glasscannon')) baseMaxHp = 50;
-  const maxHp = baseMaxHp + u.hp * 25;
+  // Cheat: KingaJamlo (bigboi) → 3× HP
+  const bigBoiHp = isCheatActive('bigboi') ? 3 : 1;
+  const maxHp = (baseMaxHp + u.hp * 25) * bigBoiHp;
   const speed = 230 + u.speed * 18;
   const w = W_BY_ID[save.equipped];
   const magBonus = 1 + u.ammo * 0.20;
   const initAmmo = w.mag ? Math.floor(w.mag * magBonus) : 0;
   return {
     x: STAGES[0].spawnPos.x, y: STAGES[0].spawnPos.y,
-    r: 14,
+    r: isCheatActive('bigboi') ? 21 : 14, // KingaJamlo = 1.5× större
+    kbMul: (isCheatActive('bigboi') ? 2 : 1),
     speed: speed,
     hp: maxHp, maxHp: maxHp,
     aimAngle: 0,
@@ -2758,7 +2842,7 @@ const Coop = {
   MAX_PLAYERS: 8,
   onLobbyChange: null,
   onConfigChange: null,
-  config: { difficulty: 'veteran', mode: 'story', cheats: {} },
+  config: { difficulty: 'veteran', mode: 'story', cheats: {}, includeConvoy: false },
   randomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let s = ''; for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random()*chars.length)];
@@ -3030,6 +3114,61 @@ const Coop = {
         state.bossDefeated = !!data.gs.bd;
       }
       if (data.db) state.deadBody = data.db;
+      // Truck-state från host
+      if (data.tk) {
+        if (!state.truck) {
+          // Skapa lokalt truck-objekt med samma turret-config
+          state.truck = {
+            x: data.tk.x, y: data.tk.y, w: 220, h: 90,
+            hp: data.tk.hp, maxHp: data.tk.mh,
+            angle: data.tk.a, alive: !!data.tk.al,
+            turrets: TRUCK_TURRETS.map(t => ({ ...t, occupiedBy: null, lastShot: 0 })),
+            wheelPhase: 0,
+          };
+          if (truckTurretBarEl) truckTurretBarEl.classList.remove('hidden');
+        }
+        // Uppdatera positions/hp/angle (interpolera mjukt)
+        state.truck.targetX = data.tk.x; state.truck.targetY = data.tk.y;
+        if (state.truck.x === undefined) { state.truck.x = data.tk.x; state.truck.y = data.tk.y; }
+        state.truck.hp = data.tk.hp; state.truck.maxHp = data.tk.mh;
+        state.truck.angle = data.tk.a;
+        state.truck.alive = !!data.tk.al;
+        // Turret-occupation
+        if (data.tk.oc) {
+          for (let i = 0; i < state.truck.turrets.length && i < data.tk.oc.length; i++) {
+            state.truck.turrets[i].occupiedBy = data.tk.oc[i] || null;
+          }
+        }
+        renderTruckTurretBar();
+      }
+      return;
+    }
+    if (data.type === 'mount_req' && this.isHost) {
+      // Klient vill mounta en turret — host validerar
+      if (!state.truck) return;
+      const tid = data.tid;
+      // Frigör klientens tidigare turret
+      for (const t of state.truck.turrets) if (t.occupiedBy === fromId) t.occupiedBy = null;
+      const partner = this.players.get(fromId);
+      if (partner) partner._mountedTurretId = null;
+      // null = bara dismount
+      if (!tid) return;
+      const tr = state.truck.turrets.find(x => x.id === tid);
+      if (!tr) return;
+      if (tr.occupiedBy && tr.occupiedBy !== fromId) {
+        // upptagen — neka
+        this._sendTo(fromId, { type: 'mount_reject', tid });
+        return;
+      }
+      tr.occupiedBy = fromId;
+      if (partner) partner._mountedTurretId = tid;
+      return;
+    }
+    if (data.type === 'mount_reject' && !this.isHost) {
+      // Host nekade — släpp lokalt
+      if (state.player) state.player._mountedTurretId = null;
+      showToast('Upptagen!');
+      renderTruckTurretBar();
       return;
     }
     if (data.type === 'enemy_damage' && this.isHost) {
@@ -3259,6 +3398,16 @@ const Coop = {
         };
         if (state.deadBody) pkt.db = state.deadBody;
       }
+      // Truck-state (om convoy-mode)
+      if (state.truck) {
+        pkt.tk = {
+          x: Math.round(state.truck.x), y: Math.round(state.truck.y),
+          hp: Math.round(state.truck.hp), mh: state.truck.maxHp,
+          a: Math.round(state.truck.angle * 100) / 100,
+          al: state.truck.alive ? 1 : 0,
+          oc: state.truck.turrets.map(t => t.occupiedBy || ''),
+        };
+      }
       this.broadcast(pkt);
     } else {
       // Client skickar position 15Hz (eller saktare om bufferten är full)
@@ -3424,7 +3573,7 @@ function renderHostControls() {
   }
   // Mode
   lobbyModeButtonsEl.innerHTML = '';
-  for (const m of ['story', 'endless', 'bossrush', 'survive']) {
+  for (const m of ['story', 'endless', 'bossrush', 'survive', 'truck']) {
     const b = document.createElement('button');
     b.textContent = MODE_LABELS[m];
     if (Coop.config.mode === m) b.classList.add('active');
@@ -3433,6 +3582,18 @@ function renderHostControls() {
       renderHostControls();
     });
     lobbyModeButtonsEl.appendChild(b);
+  }
+  // Convoy-toggle (lägger till konvoj-stages efter story)
+  if (Coop.config.mode === 'story') {
+    const convoyBtn = document.createElement('button');
+    convoyBtn.textContent = '🚚 +KONVOJ' + (Coop.config.includeConvoy ? ' ✓' : '');
+    convoyBtn.style.cssText = 'background:' + (Coop.config.includeConvoy ? '#aa3aff' : '#444') + ';margin-left:8px;';
+    convoyBtn.title = 'Lägg till 2 truck-konvoj stages efter story → 11 banor totalt';
+    convoyBtn.addEventListener('click', () => {
+      Coop.updateConfig({ includeConvoy: !Coop.config.includeConvoy });
+      renderHostControls();
+    });
+    lobbyModeButtonsEl.appendChild(convoyBtn);
   }
   // Cheats (endast unlocked)
   lobbyCheatButtonsEl.innerHTML = '';
@@ -4191,6 +4352,18 @@ function tryShoot(now) {
   const p = state.player;
   // Truck-turret override: använd turretens vapen istället för spelarens
   const activeWeaponId = p._turretWeapon || p.weaponId;
+  // SPECIAL: repair-turret laga trucken istället för att skjuta
+  if (activeWeaponId === 'repair') {
+    if (!state.truck || !state.truck.alive) return;
+    if (now - p.lastShot < 250) return; // 4× per sekund max
+    p.lastShot = now;
+    const heal = 8;
+    state.truck.hp = Math.min(state.truck.maxHp, state.truck.hp + heal);
+    spawnParticles(state.truck.x, state.truck.y, '#5aff5a', 4, 100);
+    showFloatingText(state.truck.x, state.truck.y - 40, '+' + heal, '#5aff5a');
+    Audio.purchase && Audio.purchase();
+    return;
+  }
   const w = W_BY_ID[activeWeaponId];
   // Stark-melee perk
   const meleeMul = (w.type === 'melee' && hasPerk('fastmelee')) ? 0.70 : 1;
@@ -4750,6 +4923,8 @@ function damagePlayer(amount) {
   if (isCheatActive('ultimate')) return;
   // Spectator-mode (redan död) — ta inte mer skada
   if (p.spectating) return;
+  // Mountad på turret = osårbar (bara trucken tar skada)
+  if (p._mountedTurretId) return;
   p.hp -= amount;
   p.flashUntil = performance.now() + 120;
   p.invuln = 0.3;
@@ -5472,21 +5647,99 @@ const shopUpgradesEl = document.getElementById('shop-upgrades');
 const shopPerksEl = document.getElementById('shop-perks');
 let shopActiveTab = 'weapons';
 
+const tabCompanions = document.getElementById('tab-companions');
+const shopCompanionsEl = document.getElementById('shop-companions');
 function setShopTab(tab) {
   shopActiveTab = tab;
   tabWeapons.classList.toggle('active', tab === 'weapons');
   tabUpgrades.classList.toggle('active', tab === 'upgrades');
   tabPerks.classList.toggle('active', tab === 'perks');
+  if (tabCompanions) tabCompanions.classList.toggle('active', tab === 'companions');
   shopItems.style.display = tab === 'weapons' ? '' : 'none';
   shopCategoriesEl.style.display = tab === 'weapons' ? '' : 'none';
   shopUpgradesEl.classList.toggle('hidden', tab !== 'upgrades');
   shopPerksEl.classList.toggle('hidden', tab !== 'perks');
+  if (shopCompanionsEl) shopCompanionsEl.classList.toggle('hidden', tab !== 'companions');
   if (tab === 'upgrades') renderUpgrades();
   if (tab === 'perks') renderPerks();
+  if (tab === 'companions') renderShopCompanions();
 }
 tabWeapons.addEventListener('click', () => setShopTab('weapons'));
 tabUpgrades.addEventListener('click', () => setShopTab('upgrades'));
 tabPerks.addEventListener('click', () => setShopTab('perks'));
+if (tabCompanions) tabCompanions.addEventListener('click', () => setShopTab('companions'));
+
+function renderShopCompanions() {
+  if (!shopCompanionsEl) return;
+  ensureCompanions();
+  // Återanvänd befintlig render-logik
+  const oldGrid = companionsGridEl;
+  const tmpGrid = document.createElement('div');
+  tmpGrid.style.cssText = 'display:flex;flex-direction:column;gap:12px;';
+  // Kopiera renderCompanions logik in i shopCompanionsEl
+  shopCompanionsEl.innerHTML = '';
+  shopCompanionsEl.appendChild(tmpGrid);
+  // Hijack: peka companionsGridEl temp till tmpGrid, kör render, peka tillbaka
+  window._origCompGrid = companionsGridEl;
+  Object.defineProperty(window, '__compGridProxy', { get: () => tmpGrid, configurable: true });
+  // Enklare: skriv om innerHTML här direkt
+  const goldDisp = save.gold;
+  for (const c of COMPANIONS) {
+    const owned = save.companions.owned.includes(c.id);
+    const lvl = save.companions.level[c.id] || 0;
+    const isActive = save.companions.active === c.id;
+    const stats = companionStats(c, lvl);
+    const upgPrice = lvl < MAX_COMPANION_LEVEL ? companionUpgradePrice(lvl) : null;
+    const card = document.createElement('div');
+    card.style.cssText = 'background:rgba(20,20,30,0.7);border:2px solid ' + (isActive ? '#aa3aff' : 'rgba(170,58,255,0.2)') + ';border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;';
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="font-size:36px;">${c.icon}</div>
+        <div style="flex:1;">
+          <div style="font-weight:bold;color:#ffd54a;font-size:15px;">${c.name}</div>
+          <div style="font-size:11px;color:#bbb;">${c.desc}</div>
+          <div style="font-size:11px;color:#aa3aff;margin-top:3px;">⚡ ${c.special}</div>
+        </div>
+      </div>
+      ${owned ? `
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:#ddd;">
+          <span>LVL ${lvl}/${MAX_COMPANION_LEVEL}</span>
+          <span>HP ${stats.hp} · DMG ${stats.dmg}</span>
+        </div>
+        <div style="background:rgba(0,0,0,0.4);border-radius:4px;height:6px;overflow:hidden;">
+          <div style="background:linear-gradient(90deg,#aa3aff,#ff5aca);width:${(lvl/MAX_COMPANION_LEVEL)*100}%;height:100%;"></div>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="small-btn" data-act="toggle" style="flex:1;background:${isActive ? '#aa3aff' : '#444'};">${isActive ? '✓ AKTIV' : 'AKTIVERA'}</button>
+          ${upgPrice ? `<button class="small-btn" data-act="upgrade" style="flex:1;background:${goldDisp >= upgPrice ? '#3a8a3a' : '#444'};">UPGRADE 💰${upgPrice}</button>` : `<div style="flex:1;text-align:center;color:#ffd54a;font-weight:bold;">⭐ MAXAD</div>`}
+        </div>
+      ` : `
+        <button class="big-btn" data-act="buy" style="width:100%;background:${goldDisp >= c.basePrice ? '#3a8a3a' : '#444'};">KÖP — 💰 ${c.basePrice}</button>
+      `}
+    `;
+    const buyBtn = card.querySelector('[data-act="buy"]');
+    if (buyBtn) buyBtn.addEventListener('click', () => {
+      if (save.gold < c.basePrice) { showToast('Inte nog gold!'); return; }
+      save.gold -= c.basePrice;
+      save.companions.owned.push(c.id);
+      if (!save.companions.active) save.companions.active = c.id;
+      persist(); Audio.purchase(); renderShopCompanions(); if (shopGoldEl) shopGoldEl.textContent = save.gold;
+    });
+    const upgBtn = card.querySelector('[data-act="upgrade"]');
+    if (upgBtn) upgBtn.addEventListener('click', () => {
+      if (save.gold < upgPrice) { showToast('Inte nog gold!'); return; }
+      save.gold -= upgPrice;
+      save.companions.level[c.id] = lvl + 1;
+      persist(); Audio.purchase(); renderShopCompanions(); if (shopGoldEl) shopGoldEl.textContent = save.gold;
+    });
+    const togBtn = card.querySelector('[data-act="toggle"]');
+    if (togBtn) togBtn.addEventListener('click', () => {
+      save.companions.active = isActive ? null : c.id;
+      persist(); Audio.uiClick(); renderShopCompanions();
+    });
+    tmpGrid.appendChild(card);
+  }
+}
 
 function renderPerks() {
   shopPerksEl.innerHTML = '';
@@ -5728,14 +5981,18 @@ function actuallyStartGame() {
       gold: save.gold,
       owned: [...(save.owned || ['fists'])],
       weaponId: save.weaponId,
+      equipped: save.equipped,
       upgrades: { ...(save.upgrades || {}) },
       perks: [...(save.perks || [])],
+      activeCompanion: save.companions ? save.companions.active : null,
     };
     save.gold = 0;
     save.owned = ['fists'];
     save.weaponId = 'fists';
+    save.equipped = 'fists';
     for (const k in save.upgrades) save.upgrades[k] = 0;
     save.perks = [];
+    if (save.companions) save.companions.active = null; // ingen companion i coop heller
   }
   state.mode = 'playing';
   state.player = makePlayer();
@@ -5761,6 +6018,10 @@ function actuallyStartGame() {
     state.surviveStart = performance.now();
   } else if (mode === 'truck') {
     state.customStages = buildTruckStages();
+  }
+  // Coop story + convoy-tillägg = story-stages + truck-stages (11 totalt)
+  if (Coop.active && Coop.config && Coop.config.includeConvoy && mode === 'story') {
+    state.customStages = [...STAGES, ...buildTruckStages()];
   }
   // Tutorial första gången
   if (!save.tutorialDone) {
@@ -6211,8 +6472,10 @@ function endGame(victory) {
     save.gold = snap.gold;
     save.owned = snap.owned;
     save.weaponId = snap.weaponId;
+    if (snap.equipped) save.equipped = snap.equipped;
     save.upgrades = snap.upgrades;
     save.perks = snap.perks;
+    if (save.companions && snap.activeCompanion !== undefined) save.companions.active = snap.activeCompanion;
     state._coopSnapshot = null;
   }
   gameoverScreen.classList.remove('hidden');
@@ -6353,8 +6616,9 @@ function updatePlayer(dt, now) {
   } else if (!p._mountedTurretId) {
     // Adrenalin-perk: snabbare vid <30% HP
     const adrenalineSpeed = (hasPerk('adrenalin') && p.hp < p.maxHp * 0.3) ? 1.35 : 1;
-    p.x += mx * p.speed * adrenalineSpeed * dt;
-    p.y += my * p.speed * adrenalineSpeed * dt;
+    const cheatSpeed = isCheatActive('speedrun') ? 2 : 1;
+    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * dt;
+    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * dt;
   }
   p.x = Math.max(p.r, Math.min(WORLD.w - p.r, p.x));
   p.y = Math.max(p.r, Math.min(WORLD.h - p.r, p.y));
@@ -13420,6 +13684,20 @@ function runFrame(dt, now) {
           p.x += (p.targetX - p.x) * lerpFactor;
           p.y += (p.targetY - p.y) * lerpFactor;
         }
+        // Truck interpolation (klient)
+        if (state.truck && state.truck.targetX !== undefined) {
+          state.truck.x += (state.truck.targetX - state.truck.x) * lerpFactor;
+          state.truck.y += (state.truck.targetY - state.truck.y) * lerpFactor;
+          state.truck.wheelPhase = (state.truck.wheelPhase || 0) + dt * 8;
+          // Om klient är mountad — lås position
+          if (state.player && state.player._mountedTurretId) {
+            const tr = state.truck.turrets.find(x => x.id === state.player._mountedTurretId);
+            if (tr) {
+              state.player.x = state.truck.x + tr.offsetX;
+              state.player.y = state.truck.y + tr.offsetY;
+            }
+          }
+        }
       }
       updateBullets(dt);
       updateDrone(dt, now);
@@ -13427,6 +13705,24 @@ function runFrame(dt, now) {
       if (state.truck) updateTruck(dt, now);
       updateDeathState(dt);
       checkCoopAllDead();
+      // ApokalypsJamlo cheat — meteor var 8:e sekund
+      if (state.player && isCheatActive('apocalypse')) {
+        state._apocalypseTimer = (state._apocalypseTimer || 0) + dt;
+        if (state._apocalypseTimer > 8) {
+          state._apocalypseTimer = 0;
+          const mx = state.player.x, my = state.player.y;
+          // Meteor faller från ovan med fördröjning
+          state.particles.push({
+            x: mx, y: my - 600, vx: 0, vy: 1500,
+            life: 0.4, color: '#ff3a3a', r: 12, isExplosion: true,
+          });
+          setTimeout(() => {
+            explode(mx, my, 200, 80, true);
+            triggerShake(15, 0.5);
+            showToast('☄️ METEOR!');
+          }, 350);
+        }
+      }
       Coop.tick();
     }
     updateParticles(dt);
