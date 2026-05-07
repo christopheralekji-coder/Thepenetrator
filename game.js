@@ -3218,7 +3218,11 @@ const Coop = {
     if (msg.type === 'hosted') {
       this.myId = msg.peerId;
       this.myColorIdx = 0;
-      this._startPingLoop();  // börja mäta peers ping så fort vi blir host
+      // Initiera slot-map med host:s egen slot (0). Annars hittar klient-decoder inte
+      // sin egen slot i world-paket → state.player.hp uppdateras aldrig från server.
+      if (!this.slotToPeerId) this.slotToPeerId = new Map();
+      this.slotToPeerId.set(0, this.myId);
+      this._startPingLoop();
       if (this._onCodeCb) this._onCodeCb(msg.code);
     } else if (msg.type === 'joined') {
       this.myId = msg.peerId;
