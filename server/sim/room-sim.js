@@ -122,10 +122,12 @@ function tickSim(sim) {
       if (e.isBoss) checkBossDeath(sim, e);
       // Drop pickup
       dropFromEnemyDeath(sim, e);
-      // Gold-share-event så alla klienter får guld + kill-credit (mirror av game.js)
+      // Gold-share-event så alla klienter får guld + kill-credit. Inkluderar enemy-index
+      // så klient kan ta bort enemy ur state.enemies direkt (annars dröjer 1.5s till nästa full-broadcast).
       if (sim.eventQueue) {
         sim.eventQueue.push({
           type: 'enemy_killed',
+          i: e._idx,
           gold: e.gold || 0,
           killerPid: e.lastDamagerPid || null,
           isBoss: !!e.isBoss,

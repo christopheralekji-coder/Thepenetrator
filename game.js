@@ -3251,6 +3251,16 @@ const Coop = {
       this._simStartedConfirmed = true;
       console.log('[SIM] activated');
       if (typeof showToast === 'function') showToast('🌐 Server-sim AKTIV');
+      // Starta server-ping-loop för RTT-mätning
+      if (this._serverPingInterval) clearInterval(this._serverPingInterval);
+      this._serverPingInterval = setInterval(() => {
+        if (this.ws && this.ws.readyState === 1) {
+          this.ws.send(JSON.stringify({ type: 'server_ping', t: performance.now() }));
+        }
+      }, 2000);
+    } else if (msg.type === 'server_pong') {
+      // RTT-mätning mot server
+      if (msg.t) this._serverRtt = Math.round(performance.now() - msg.t);
     } else if (msg.type === 'sim_stopped') {
       this.serverSimActive = false;
       state.serverSimActive = false;
@@ -3288,8 +3298,12 @@ const Coop = {
         if (typeof showToast === 'function') showToast('⚠ MINI-BOSS: ' + (ev.name || ''));
       }
     } else if (ev.type === 'enemy_killed') {
+      // Ta bort dead enemy ur state.enemies direkt (annars syns "ghost"-enemy 1.5s till nästa full-broadcast)
+      if (typeof ev.i === 'number') {
+        state.enemies = state.enemies.filter(e => e._i !== ev.i);
+        if (state._enemyCache) delete state._enemyCache[ev.i];
+      }
       // Gold-share + kill-credit, samma som existerande gold_share-handler
-      const myKill = ev.killerPid === this.myId;
       if (ev.gold > 0) {
         save.gold += ev.gold;
         state.goldThisRun = (state.goldThisRun || 0) + ev.gold;
@@ -3586,6 +3600,16 @@ const Coop = {
               walkPhase: cached ? cached.walkPhase : Math.random() * Math.PI*2,
               walkAccum: cached ? cached.walkAccum : 0,
             };
+            // För bossar: härleds accent/glow/ai/subtitle från BOSS_CONFIGS (server skickar bara bossKey)
+            if (e.b && e.bk && typeof BOSS_CONFIGS !== 'undefined' && BOSS_CONFIGS[e.bk]) {
+              const cfg = BOSS_CONFIGS[e.bk];
+              cached.accent = cfg.accent;
+              cached.glow = cfg.glow;
+              cached.ai = cfg.ai;
+              cached.subtitle = cfg.subtitle;
+              if (!cached.color) cached.color = cfg.color;
+              if (!cached.name) cached.name = cfg.name;
+            }
             cache[e.i] = cached;
           }
           const existing = existingByIdx.get(e.i);
@@ -3863,6 +3887,7 @@ const Coop = {
     this.serverSimActive = false;
     if (typeof state !== 'undefined') state.serverSimActive = false;
     this._stopPingLoop();
+    if (this._serverPingInterval) { clearInterval(this._serverPingInterval); this._serverPingInterval = null; }
     if (this.ws) {
       try { this.ws.close(); } catch(e) {}
     }
@@ -7390,7 +7415,10 @@ function updateLagIndicator() {
   }
   let worstPing = null;
   let lossPct = null;
-  if (Coop.isHost) {
+  // I serverSim: visa direkt RTT mot server (mest relevant siffra)
+  if (Coop.serverSimActive && Coop._serverRtt != null) {
+    worstPing = Coop._serverRtt;
+  } else if (Coop.isHost) {
     for (const [, p] of Coop.players) {
       if (p.ping != null) worstPing = worstPing == null ? p.ping : Math.max(worstPing, p.ping);
     }
@@ -7400,6 +7428,7 @@ function updateLagIndicator() {
   if (Coop._packetLossPct != null) lossPct = Coop._packetLossPct;
   const c = worstPing == null ? '#888' : (worstPing < 80 ? '#5aff5a' : (worstPing < 150 ? '#ffd54a' : '#ff5a5a'));
   let txt = worstPing == null ? '--' : worstPing + 'ms';
+  if (Coop.serverSimActive) txt = '🌐 ' + txt;
   if (lossPct != null && lossPct > 1) txt += ' · ' + lossPct.toFixed(0) + '% loss';
   _lagIndicatorEl.style.display = 'block';
   _lagIndicatorEl.style.color = c;

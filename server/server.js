@@ -222,6 +222,11 @@ function handleMessage(ws, msg) {
     applyPlayerInput(room.sim, ws.id, msg);
     return;
   }
+  if (msg.type === 'server_ping') {
+    // Echo tillbaka klient-timestamp så de kan beräkna RTT mot servern
+    send(ws, { type: 'server_pong', t: msg.t });
+    return;
+  }
   if (msg.type === 'sim_shoot') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
