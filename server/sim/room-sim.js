@@ -98,11 +98,14 @@ function tickSim(sim) {
     }
   }
 
-  // Skriv tillbaka playerState.hp
+  // Skriv tillbaka playerState.hp + invulnUntil
   for (const p of players) {
     if (p._tookDamageFrom) {
       const ws = sim.room.members.get(p.peerId);
-      if (ws && ws.playerState) ws.playerState.hp = p.hp;
+      if (ws && ws.playerState) {
+        ws.playerState.hp = p.hp;
+        ws.playerState.invulnUntil = p.invulnUntil;
+      }
     }
   }
 
@@ -154,6 +157,7 @@ function buildPlayerList(sim) {
       peerId: pid,
       x: ps.x, y: ps.y,
       hp: ps.hp != null ? ps.hp : 100,
+      invulnUntil: ps.invulnUntil || 0,
       r: 14,
     });
   }

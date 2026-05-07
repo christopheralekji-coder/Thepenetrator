@@ -3534,11 +3534,15 @@ const Coop = {
             if (this.serverSimActive && state.player && p.hp != null) {
               const prevHp = state.player.hp;
               state.player.hp = p.hp;
-              // Trigga damage-feedback om server säger lägre HP
               if (p.hp < prevHp - 1 && !state.player.spectating) {
                 if (typeof triggerShake === 'function') triggerShake(6, 0.3);
                 if (typeof Audio !== 'undefined' && Audio.playerHurt) Audio.playerHurt();
                 state.player.flashUntil = performance.now() + 120;
+              }
+              // Trigga death-state lokalt om server säger hp=0 (annars uppstår klient/server-divergens
+              // där server tror du är död men klient fortsätter spela)
+              if (p.hp <= 0 && !state.player.spectating && typeof enterDeathState === 'function') {
+                enterDeathState();
               }
             }
             continue;

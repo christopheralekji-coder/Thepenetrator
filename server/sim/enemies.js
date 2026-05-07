@@ -248,14 +248,18 @@ function applySeparation(e, allEnemies) {
   }
 }
 
-// Kontaktskada till närmsta spelare
+// Kontaktskada till närmsta spelare. Respekterar player.invulnUntil så multipla enemies
+// inte dödar spelaren på 1 sekund (matchar klient-side damagePlayer's invuln-frames).
 function applyContactDamage(e, p) {
   if (e.contactCd > 0 || e.dmg <= 0) return;
+  const now = Date.now();
+  if (p.invulnUntil && now < p.invulnUntil) return;
   const dx = p.x - e.x, dy = p.y - e.y;
   const rsum = (p.r || 14) + e.r;
   if (dx * dx + dy * dy < rsum * rsum) {
     p.hp = Math.max(0, p.hp - e.dmg);
     p._tookDamageFrom = e;
+    p.invulnUntil = now + 500;  // 500ms invuln efter hit (samma som klient)
     e.contactCd = 0.6;
   }
 }
