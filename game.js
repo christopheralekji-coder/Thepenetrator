@@ -3363,13 +3363,15 @@ const Coop = {
       if (ev.isBoss) save.stats.bossKills = (save.stats.bossKills || 0) + 1;
       if (typeof updateHUD === 'function') updateHUD();
     } else if (ev.type === 'stage_complete') {
-      // Dedup per wave så server's idempotent broadcast inte loopar shop/overlay
-      if (this._stageCompleteHandled === ev.wave) return;
-      this._stageCompleteHandled = ev.wave;
-      // Stäng stage-clear-overlay (om visad lokalt) — annars fastnar partner på den
+      // ALLTID stäng stage-clear-overlay (annars fastnar partner på "väntar på host")
       const sc = document.getElementById('stage-clear-overlay');
       if (sc) sc.classList.add('hidden');
       state._stageClearShown = false;
+      // Säkerställ att waveActive=false så runFrame inte re-visar overlay nästa frame
+      state.waveActive = false;
+      // Dedup för onWaveComplete (shop, save) så det inte körs flera gånger
+      if (this._stageCompleteHandled === ev.wave) return;
+      this._stageCompleteHandled = ev.wave;
       if (typeof onWaveComplete === 'function') onWaveComplete();
     } else if (ev.type === 'stage_event') {
       if (typeof triggerStageEvent === 'function') {
@@ -6929,6 +6931,9 @@ let storyDialogActive = null;
 function showStoryDialog(stageNum) {
   if (getMode() !== 'story') return false;
   if (save.skipDialog) return false;
+  // Skippa dialog i coop/serverSim — den blockerar Coop.tick → server tappar player position
+  // → spelaren fastnar med osynliga enemies. Lägga in story i lobby skulle vara bättre framtida lösning.
+  if (Coop.active) return false;
   const dialog = STORY_DIALOG[stageNum];
   if (!dialog) return false;
   storyDialogActive = { ...dialog, stage: stageNum, opened: performance.now() };
