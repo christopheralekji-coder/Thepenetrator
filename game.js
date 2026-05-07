@@ -8101,7 +8101,7 @@ function updateBullets(dt) {
     } else {
       let hit = false;
       if (!b.hitIds) b.hitIds = new Set();
-      const isCoopClient = Coop.active && !Coop.isHost;
+      const isCoopClient = Coop.active && (!Coop.isHost || Coop.serverSimActive);
       // Träff på fuel_drum eller fire_barrel = explosion (host kör bara)
       if (!isCoopClient) {
         for (const dec of stageState.decorations) {
@@ -14379,8 +14379,6 @@ function runFrame(dt, now) {
         }
         updateEnemies(dt, now);
         updateHazards(dt);
-        updateStageAmbient(dt);
-        updateCollectibles();
         updatePickups(dt);
       } else {
         // KLIENT: kör interpolation mot host's positions (smooth)

@@ -247,6 +247,11 @@ function loadStage(sim, wave) {
   sim.bullets = [];
   if (sim.gasClouds) sim.gasClouds = [];
   if (sim.flameTrails) sim.flameTrails = [];
+  // Initiera alla peers playerState till stage spawn-pos så enemy-spawn + cull blir korrekt
+  // tills första sim_input anländer från klient
+  for (const [, ws] of sim.room.members) {
+    if (!ws.playerState) ws.playerState = { x: stage.spawnPos.x, y: stage.spawnPos.y, hp: 100 };
+  }
   // Starta första zon
   startZone(sim, stage, 0);
   sim.eventQueue.push({ type: 'stage_loaded', wave, stageName: stage.name, stageKind: stage.kind });
