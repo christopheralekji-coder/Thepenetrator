@@ -3254,6 +3254,7 @@ const Coop = {
       this._handleSimEvent(msg.event);
     } else if (msg.type === 'pickup_to_you') {
       // Server-sim pickup-pickup-event (samma som befintlig host-mode)
+      if (typeof _simDiag !== 'undefined') _simDiag.pickupsReceived++;
       this.onData('', msg);
     } else if (msg.type === 'error') {
       if (onError) onError(msg.error);
@@ -3262,6 +3263,11 @@ const Coop = {
   // Sim-event från server (boss_spawned, stage_complete, enemy_killed, etc)
   _handleSimEvent(ev) {
     if (!ev) return;
+    if (typeof _simDiag !== 'undefined') {
+      _simDiag.lastEvent = ev.type;
+      if (ev.type === 'enemy_killed') _simDiag.enemyKilledEvts++;
+      if (ev.type === 'boss_spawned') _simDiag.bossSpawnedEvts++;
+    }
     if (ev.type === 'stage_loaded') {
       console.log('[SIM] stage loaded:', ev.stageName);
     } else if (ev.type === 'boss_spawned') {
@@ -3491,6 +3497,13 @@ const Coop = {
     }
     // World-paket processas av alla NON-host klienter, OCH av host i server-auth mode (server är då auktoritet)
     if (data.type === 'world' && (!this.isHost || this.serverSimActive)) {
+      if (typeof _simDiag !== 'undefined') {
+        _simDiag.worldPktReceived++;
+        if (data.enemies) {
+          _simDiag.lastEnemyCount = data.enemies.length;
+          if (data.enemies.length > 0) _simDiag.lastEnemyHp = data.enemies[0].hp + '/' + (data.enemies[0].mh || '?');
+        }
+      }
       // Packet-loss-mätning: räkna gap mellan seq-nummer över glidande fönster (100 paket)
       if (data.seq != null) {
         if (this._lastSeenSeq != null) {
@@ -3882,6 +3895,7 @@ const Coop = {
         aim: Math.round(state.player.aimAngle * 100) / 100,
         weaponId: state.player.weaponId,
       }));
+      if (typeof _simDiag !== 'undefined') _simDiag.inputsSent++;
       return;
     }
     if (this.isHost) {
@@ -5226,6 +5240,7 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
   if (window._debugServerSim) console.log('[CLIENT] tryShoot serverSimActive=' + Coop.serverSimActive + ' ws=' + (Coop.ws && Coop.ws.readyState));
   if (Coop.serverSimActive && Coop.ws && Coop.ws.readyState === 1) {
     const wepLvlBonus = (typeof weaponLevelDmgBonus === 'function') ? weaponLevelDmgBonus(w.id) : 1;
+    if (typeof _simDiag !== 'undefined') _simDiag.shotsSent++;
     Coop.ws.send(JSON.stringify({
       type: 'sim_shoot',
       weaponId: w.id,
@@ -7296,6 +7311,43 @@ const _lagIndicatorEl = (() => {
   document.body.appendChild(el);
   return el;
 })();
+
+// Server-sim diagnos-overlay — synlig på skärmen vid serverSim aktiv. Skärmbilds-vänlig.
+const _simDiagEl = (() => {
+  const el = document.createElement('div');
+  el.id = 'sim-diag';
+  el.style.cssText = 'position:fixed;top:36px;right:8px;max-width:240px;background:rgba(0,0,0,0.75);color:#5aff5a;padding:6px 10px;border-radius:6px;border:1px solid rgba(170,58,255,0.5);font:700 10px monospace;z-index:1000;display:none;pointer-events:none;line-height:1.4;white-space:pre;';
+  document.body.appendChild(el);
+  return el;
+})();
+const _simDiag = {
+  shotsSent: 0,
+  inputsSent: 0,
+  worldPktReceived: 0,
+  enemyKilledEvts: 0,
+  bossSpawnedEvts: 0,
+  pickupsReceived: 0,
+  lastEnemyCount: 0,
+  lastEnemyHp: '-',
+  lastEvent: '-',
+};
+function updateSimDiag() {
+  if (!Coop.serverSimActive) { _simDiagEl.style.display = 'none'; return; }
+  _simDiagEl.style.display = 'block';
+  _simDiagEl.textContent =
+    'SERVER-SIM DIAG\n' +
+    'sim_input sent: ' + _simDiag.inputsSent + '\n' +
+    'sim_shoot sent: ' + _simDiag.shotsSent + '\n' +
+    'world rcvd:    ' + _simDiag.worldPktReceived + '\n' +
+    'enemies seen:  ' + _simDiag.lastEnemyCount + '\n' +
+    'last hp:       ' + _simDiag.lastEnemyHp + '\n' +
+    'kills evt:     ' + _simDiag.enemyKilledEvts + '\n' +
+    'boss evt:      ' + _simDiag.bossSpawnedEvts + '\n' +
+    'pickup_to_you: ' + _simDiag.pickupsReceived + '\n' +
+    'last event:    ' + _simDiag.lastEvent + '\n' +
+    'wave:          ' + state.wave;
+}
+setInterval(updateSimDiag, 500);
 function updateLagIndicator() {
   if (!Coop.active || Coop.inLobby) {
     _lagIndicatorEl.style.display = 'none';
