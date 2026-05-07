@@ -1,0 +1,408 @@
+// Phase 4: Boss-AI för 10 typer.
+// Speglar updateBoss + ai* funktionerna i game.js:7493-7827.
+// Cloaker-burst (game.js:7616-7621) konverterad från setTimeout till tick-baserad burstQueue.
+'use strict';
+
+const { BOSS_CONFIGS } = require('../../shared/boss-configs');
+const { makeEnemy } = require('./enemies');
+
+// Förenklad world (samma som room-sim.js)
+const WORLD = { w: 4000, h: 3000 };
+
+function makeBoss(bossKey, x, y, coopMul) {
+  const cfg = BOSS_CONFIGS[bossKey];
+  if (!cfg) return null;
+  coopMul = coopMul || 1;
+  const scaledHp = Math.round(cfg.hp * coopMul);
+  return {
+    x, y, r: cfg.r,
+    vx: 0, vy: 0,
+    type: 'boss_' + bossKey, bossKey, ai: cfg.ai,
+    hp: scaledHp, maxHp: scaledHp,
+    speed: cfg.speed, dmg: cfg.dmg, contactCd: 0,
+    color: cfg.color, accent: cfg.accent, glow: cfg.glow,
+    gold: cfg.gold, isBoss: true, isMiniBoss: false,
+    name: cfg.name, subtitle: cfg.subtitle || '',
+    phase: 1, lastAttack: 0, lastSpread: 0,
+    chargeUntil: 0, chargeDir: { x: 0, y: 0 },
+    dashUntil: 0, dashDir: { x: 0, y: 0 },
+    flashUntil: 0, walkAccum: 0,
+    cloakUntil: 0, jetpackUntil: 0, shieldDir: 0, chargeCdAt: 0,
+    bulletSpeed: 620, bulletDmg: Math.round(cfg.dmg * 0.55),
+    shootRange: 520, shootRate: 1200,
+    // Cloaker burst-kö: ersätter setTimeout med tick-baserad scheduling
+    burstQueue: [],
+    // Standard enemy-fields som även bossar har
+    dead: false,
+    burnUntil: 0, burnDps: 0,
+    slowUntil: 0, slowFactor: 1, _origSpeed: cfg.speed,
+    mindControlled: false, mindControlUntil: 0,
+    staggerUntil: 0,
+    lastPos: null,
+    bossbarShown: false,
+    // Pickup-droppar är samma som vanliga enemies, ingen extra logik här
+    bk: bossKey,
+  };
+}
+
+// Helper: skjut bullets från boss
+function bossShoot(sim, b, dx, dy, count, spread, color, speedMul, life) {
+  speedMul = speedMul || 1;
+  life = life || 2.0;
+  const baseAng = Math.atan2(dy, dx);
+  for (let i = 0; i < count; i++) {
+    const a = baseAng + (i - (count - 1) / 2) * spread;
+    sim.bullets.push({
+      x: b.x, y: b.y,
+      vx: Math.cos(a) * b.bulletSpeed * speedMul,
+      vy: Math.sin(a) * b.bulletSpeed * speedMul,
+      dmg: b.bulletDmg, life, r: 5,
+      color, hostile: true,
+    });
+  }
+}
+
+function dropGasCloud(sim, x, y, r, life, dps) {
+  if (!sim.gasClouds) sim.gasClouds = [];
+  sim.gasClouds.push({ x, y, r, life, maxLife: life, dps, born: Date.now() });
+}
+
+function dropFlameTrail(sim, x, y, r, life, dps) {
+  if (!sim.flameTrails) sim.flameTrails = [];
+  sim.flameTrails.push({ x, y, r, life, dps });
+}
+
+// Hitta närmsta levande spelare
+function findNearestPlayer(b, players) {
+  let bestD2 = Infinity, target = null;
+  for (const p of players) {
+    if (p.hp <= 0) continue;
+    const dx = p.x - b.x, dy = p.y - b.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD2) { bestD2 = d2; target = p; }
+  }
+  return target;
+}
+
+// Cloaker burst-kö processor — körs i updateBoss varje tick.
+// Använder `now` från caller (inte Date.now()) så testbar med fake-clock.
+function flushBurstQueue(sim, b, players, now) {
+  if (!b.burstQueue || b.burstQueue.length === 0) return;
+  while (b.burstQueue.length && b.burstQueue[0].firesAt <= now) {
+    b.burstQueue.shift();
+    if (b.dead) return;
+    const target = findNearestPlayer(b, players);
+    if (target) {
+      bossShoot(sim, b, target.x - b.x, target.y - b.y, 1, 0.06, '#ff3a44', 0.95, 1.4);
+    }
+  }
+}
+
+// Stuck-detection — om boss står still > 1.5s, teleportera lite
+function applyStuckDetection(b, ndx, ndy, now) {
+  if (!b.lastPos) { b.lastPos = { x: b.x, y: b.y, t: now }; return; }
+  const dx = b.x - b.lastPos.x, dy = b.y - b.lastPos.y;
+  const moved = Math.sqrt(dx * dx + dy * dy);
+  if (moved > 5) { b.lastPos = { x: b.x, y: b.y, t: now }; }
+  else if (now - b.lastPos.t > 1500) {
+    b.x += ndx * 30; b.y += ndy * 30;
+    b.lastPos = { x: b.x, y: b.y, t: now };
+  }
+}
+
+// 1) CASTER (Likvakare)
+function aiCaster(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
+  const ideal = 280;
+  if (d > ideal + 50) { b.x += ndx * b.speed * dt; b.y += ndy * b.speed * dt; }
+  else if (d < ideal - 30) { b.x -= ndx * b.speed * dt; b.y -= ndy * b.speed * dt; }
+  if (now - b.lastAttack > 1600) {
+    b.lastAttack = now;
+    for (let i = -1; i <= 1; i++) {
+      const a = Math.atan2(p.y - b.y, p.x - b.x) + i * 0.20;
+      sim.bullets.push({
+        x: b.x, y: b.y, vx: Math.cos(a) * 420, vy: Math.sin(a) * 420,
+        dmg: b.bulletDmg, life: 1.6, r: 7, color: b.glow, hostile: true,
+        gasOnHit: true,
+      });
+    }
+  }
+  if (hpFrac < 0.5 && now - b.lastSpread > 5000) {
+    b.lastSpread = now;
+    for (let i = 0; i < 2; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const e = makeEnemy('runner', b.x + Math.cos(a) * 60, b.y + Math.sin(a) * 60);
+      e._idx = sim.nextEnemyIdx++;
+      sim.enemies.push(e);
+    }
+  }
+}
+
+// 2) TANK_CHARGER (Benkrossare)
+function aiTankCharger(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.chargeUntil && now < b.chargeUntil) {
+    b.x += b.chargeDir.x * 360 * dt;
+    b.y += b.chargeDir.y * 360 * dt;
+  } else {
+    if (b.chargeUntil) b.chargeUntil = 0;
+    b.x += ndx * b.speed * dt;
+    b.y += ndy * b.speed * dt;
+    if (now - b.lastAttack > (hpFrac < 0.5 ? 2800 : 4200)) {
+      b.lastAttack = now;
+      b.chargeUntil = now + 900;
+      b.chargeDir = { x: ndx, y: ndy };
+    }
+  }
+}
+
+// 3) CLOAKER (Strypare) — nu med tick-baserad burst-kö
+function aiCloaker(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.cloakUntil && now < b.cloakUntil) return; // osynlig, repositionerar
+  if (b.cloakUntil && now >= b.cloakUntil) {
+    const a = Math.atan2(p.y - b.y, p.x - b.x) + Math.PI + (Math.random() - 0.5) * 0.8;
+    b.x = p.x + Math.cos(a) * 180;
+    b.y = p.y + Math.sin(a) * 180;
+    b.cloakUntil = 0;
+    b.lastAttack = now;
+  }
+  if (d > 250) { b.x += ndx * b.speed * dt; b.y += ndy * b.speed * dt; }
+  else if (d < 150) { b.x -= ndx * b.speed * dt; b.y -= ndy * b.speed * dt; }
+  if (now - b.lastAttack > 1200) {
+    b.lastAttack = now;
+    // Schemalägg 5 burst-shots @ 80ms intervall (ersätter setTimeout)
+    for (let i = 0; i < 5; i++) {
+      b.burstQueue.push({ firesAt: now + i * 80 });
+    }
+  }
+  if (hpFrac < 0.6 && now - b.lastSpread > 6000) {
+    b.lastSpread = now;
+    b.cloakUntil = now + 1500;
+  }
+}
+
+// 4) BRUTE_CHARGER (Avrättaren)
+function aiBruteCharger(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.chargeUntil && now < b.chargeUntil) {
+    b.x += b.chargeDir.x * 420 * dt;
+    b.y += b.chargeDir.y * 420 * dt;
+    return;
+  }
+  if (b.chargeUntil) b.chargeUntil = 0;
+  b.x += ndx * b.speed * dt;
+  b.y += ndy * b.speed * dt;
+  const cd = hpFrac < 0.33 ? 2000 : (hpFrac < 0.66 ? 3000 : 4000);
+  if (now - b.lastAttack > cd) {
+    b.lastAttack = now;
+    b.chargeUntil = now + 850;
+    b.chargeDir = { x: ndx, y: ndy };
+  }
+  if (hpFrac < 0.5 && now - b.lastSpread > 2500) {
+    b.lastSpread = now;
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, 5, 0.20, '#ff8a30', 0.9, 1.6);
+  }
+}
+
+// 5) PLASMA (Köttkvarn)
+function aiPlasma(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.dashUntil && now < b.dashUntil) {
+    b.x += b.dashDir.x * 500 * dt;
+    b.y += b.dashDir.y * 500 * dt;
+    return;
+  }
+  if (b.dashUntil) b.dashUntil = 0;
+  const ideal = 320;
+  if (d > ideal + 40) { b.x += ndx * b.speed * dt; b.y += ndy * b.speed * dt; }
+  else if (d < ideal - 40) { b.x -= ndx * b.speed * dt; b.y -= ndy * b.speed * dt; }
+  if (now - b.lastAttack > 900) {
+    b.lastAttack = now;
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, 1, 0, b.glow, 1.1, 2.4);
+  }
+  if (hpFrac < 0.5 && now - b.lastSpread > 3500) {
+    b.lastSpread = now;
+    b.dashUntil = now + 600;
+    const a = Math.atan2(p.y - b.y, p.x - b.x) + (Math.random() < 0.5 ? Math.PI / 2 : -Math.PI / 2);
+    b.dashDir = { x: Math.cos(a), y: Math.sin(a) };
+  }
+}
+
+// 6) JETPACK (Askmakare)
+function aiJetpack(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.jetpackUntil && now < b.jetpackUntil) {
+    b.x += ndx * b.speed * 1.6 * dt;
+    b.y += ndy * b.speed * 1.6 * dt;
+    if (Math.random() < 0.4) {
+      dropFlameTrail(sim, b.x, b.y, 30, 2.5, 12);
+    }
+    return;
+  }
+  if (b.jetpackUntil && now >= b.jetpackUntil) b.jetpackUntil = 0;
+  if (d > 260) { b.x += ndx * b.speed * 0.7 * dt; b.y += ndy * b.speed * 0.7 * dt; }
+  if (now - b.lastAttack > 1300) {
+    b.lastAttack = now;
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, 3, 0.15, '#ff5a14', 1.0, 1.8);
+  }
+  if (now - b.lastSpread > 5000) {
+    b.lastSpread = now;
+    b.jetpackUntil = now + 1200;
+  }
+}
+
+// 7) GAS_SNIPER (Lungrivare)
+function aiGasSniper(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.dashUntil && now < b.dashUntil) {
+    b.x += b.dashDir.x * 480 * dt;
+    b.y += b.dashDir.y * 480 * dt;
+    return;
+  }
+  if (b.dashUntil) b.dashUntil = 0;
+  const ideal = hpFrac < 0.5 ? 240 : 380;
+  if (d > ideal + 40) { b.x += ndx * b.speed * dt; b.y += ndy * b.speed * dt; }
+  else if (d < ideal - 40) { b.x -= ndx * b.speed * dt; b.y -= ndy * b.speed * dt; }
+  if (d <= 600 && now - b.lastAttack > (hpFrac < 0.5 ? 1100 : 1600)) {
+    b.lastAttack = now;
+    for (let i = -1; i <= 1; i++) {
+      const a = Math.atan2(p.y - b.y, p.x - b.x) + i * 0.07;
+      sim.bullets.push({
+        x: b.x, y: b.y, vx: Math.cos(a) * 720, vy: Math.sin(a) * 720,
+        dmg: b.bulletDmg, life: 2.4, r: 5, color: b.glow, hostile: true,
+      });
+    }
+  }
+  if (now - b.lastSpread > 4000) {
+    b.lastSpread = now;
+    dropGasCloud(sim, b.x, b.y, 90, 5, 8);
+    b.dashUntil = now + 400;
+    const a = Math.atan2(p.y - b.y, p.x - b.x) + Math.PI;
+    b.dashDir = { x: Math.cos(a), y: Math.sin(a) };
+  }
+}
+
+// 8) SHIELDER (Skallspräckare)
+function aiShielder(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
+  b.shieldDir = Math.atan2(p.y - b.y, p.x - b.x);
+  b.x += ndx * b.speed * dt;
+  b.y += ndy * b.speed * dt;
+  if (d < 380 && now - b.lastAttack > 1400) {
+    b.lastAttack = now;
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, 1, 0, '#ffd54a', 1.3, 2.0);
+  }
+  if (hpFrac < 0.4 && now - b.lastSpread > 4000 && !b.chargeUntil) {
+    b.lastSpread = now;
+    b.chargeUntil = now + 700;
+    b.chargeDir = { x: ndx, y: ndy };
+  }
+  if (b.chargeUntil && now < b.chargeUntil) {
+    b.x += b.chargeDir.x * 380 * dt;
+    b.y += b.chargeDir.y * 380 * dt;
+  } else if (b.chargeUntil) b.chargeUntil = 0;
+}
+
+// 9) AVATAR (Själaätare)
+function aiAvatar(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
+  if (b.cloakUntil && now < b.cloakUntil) return;
+  if (b.cloakUntil && now >= b.cloakUntil) {
+    const a = Math.random() * Math.PI * 2;
+    b.x = p.x + Math.cos(a) * 250;
+    b.y = p.y + Math.sin(a) * 250;
+    b.cloakUntil = 0;
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, 8, Math.PI / 4, b.glow, 0.85, 2.5);
+  }
+  const ideal = 300;
+  if (d > ideal + 50) { b.x += ndx * b.speed * 0.6 * dt; b.y += ndy * b.speed * 0.6 * dt; }
+  if (now - b.lastAttack > 1800) {
+    b.lastAttack = now;
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, 12, Math.PI * 2 / 12, b.glow, 0.7, 3.0);
+  }
+  if (hpFrac < 0.6 && now - b.lastSpread > 6000) {
+    b.lastSpread = now;
+    for (let i = 0; i < 3; i++) {
+      const a = i * Math.PI * 2 / 3;
+      const e = makeEnemy('ninja', b.x + Math.cos(a) * 70, b.y + Math.sin(a) * 70);
+      e._idx = sim.nextEnemyIdx++;
+      sim.enemies.push(e);
+    }
+  }
+  if (hpFrac < 0.33 && !b.cloakUntil && now > b.lastAttack + 700 && Math.random() < 0.01) {
+    b.cloakUntil = now + 800;
+  }
+}
+
+// 10) FINAL (Mourad Gravgrävaren) — 3 faser
+function aiFinal(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
+  const phase = hpFrac < 0.33 ? 3 : (hpFrac < 0.66 ? 2 : 1);
+  if (phase !== b.phase) {
+    b.phase = phase;
+    bossShoot(sim, b, 1, 0, 16, Math.PI * 2 / 16, b.glow, 1.0, 2.5);
+  }
+  if (b.chargeUntil && now < b.chargeUntil) {
+    b.x += b.chargeDir.x * 480 * dt;
+    b.y += b.chargeDir.y * 480 * dt;
+    return;
+  }
+  if (b.chargeUntil) b.chargeUntil = 0;
+  const speedMul = phase === 3 ? 1.3 : (phase === 2 ? 1.0 : 0.7);
+  b.x += ndx * b.speed * speedMul * dt;
+  b.y += ndy * b.speed * speedMul * dt;
+  if (now - b.lastSpread >= (phase === 3 ? 800 : 1100)) {
+    b.lastSpread = now;
+    const shots = phase === 3 ? 9 : (phase === 2 ? 7 : 5);
+    bossShoot(sim, b, p.x - b.x, p.y - b.y, shots, 0.16, '#ff1a1a', 1.0, 2.2);
+  }
+  if (phase >= 2 && now - b.lastAttack >= 5000) {
+    b.lastAttack = now;
+    for (let i = 0; i < (phase === 3 ? 4 : 3); i++) {
+      const a = Math.random() * Math.PI * 2;
+      const e = makeEnemy('runner', b.x + Math.cos(a) * 90, b.y + Math.sin(a) * 90);
+      e._idx = sim.nextEnemyIdx++;
+      sim.enemies.push(e);
+    }
+  }
+  if (phase === 3 && now - b.chargeCdAt > 3000) {
+    b.chargeCdAt = now;
+    b.chargeUntil = now + 700;
+    b.chargeDir = { x: ndx, y: ndy };
+  }
+}
+
+// updateBoss dispatcher
+function updateBoss(sim, b, dt, now, players) {
+  const target = findNearestPlayer(b, players);
+  if (!target) return;
+  const dx = target.x - b.x, dy = target.y - b.y;
+  const d = Math.sqrt(dx * dx + dy * dy) || 1;
+  const ndx = dx / d, ndy = dy / d;
+  const hpFrac = b.hp / b.maxHp;
+
+  applyStuckDetection(b, ndx, ndy, now);
+
+  // Flush burst-kö (cloaker)
+  if (b.burstQueue && b.burstQueue.length) flushBurstQueue(sim, b, players, now);
+
+  switch (b.ai) {
+    case 'caster':         aiCaster(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'tank_charger':   aiTankCharger(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'cloaker':        aiCloaker(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'brute_charger':  aiBruteCharger(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'plasma':         aiPlasma(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'jetpack':        aiJetpack(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'gas_sniper':     aiGasSniper(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'shielder':       aiShielder(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'avatar':         aiAvatar(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'final':          aiFinal(sim, b, target, ndx, ndy, d, hpFrac, dt, now); break;
+    default:               aiBruteCharger(sim, b, target, ndx, ndy, d, hpFrac, dt, now);
+  }
+
+  // World bounds
+  b.x = Math.max(b.r, Math.min(WORLD.w - b.r, b.x));
+  b.y = Math.max(b.r, Math.min(WORLD.h - b.r, b.y));
+
+  // Boss contact damage
+  if (b.contactCd > 0) b.contactCd -= dt;
+  const rsum = (target.r || 14) + b.r;
+  if (dx * dx + dy * dy < rsum * rsum && b.contactCd <= 0) {
+    target.hp = Math.max(0, target.hp - b.dmg);
+    target._tookDamageFrom = b;
+    b.contactCd = 0.5;
+  }
+}
+
+module.exports = { makeBoss, updateBoss, bossShoot, dropGasCloud, dropFlameTrail };

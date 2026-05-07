@@ -3153,7 +3153,8 @@ const Coop = {
   MAX_PLAYERS: 8,
   onLobbyChange: null,
   onConfigChange: null,
-  config: { difficulty: 'veteran', mode: 'story', cheats: {}, includeConvoy: false },
+  config: { difficulty: 'veteran', mode: 'story', cheats: {}, includeConvoy: false, serverSim: false },
+  serverSimActive: false,  // sätts till true av sim_started, false av sim_stopped/disconnect
   randomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let s = ''; for (let i = 0; i < 4; i++) s += chars[Math.floor(Math.random()*chars.length)];
@@ -3240,8 +3241,55 @@ const Coop = {
       this.disconnect();
     } else if (msg.type === 'relay') {
       this.onData(msg.from, msg.data);
+    } else if (msg.type === 'sim_started') {
+      this.serverSimActive = true;
+      state.serverSimActive = true;
+      console.log('[SIM] activated');
+      if (typeof showToast === 'function') showToast('🌐 Server-sim AKTIV');
+    } else if (msg.type === 'sim_stopped') {
+      this.serverSimActive = false;
+      state.serverSimActive = false;
+    } else if (msg.type === 'sim_event') {
+      this._handleSimEvent(msg.event);
+    } else if (msg.type === 'pickup_to_you') {
+      // Server-sim pickup-pickup-event (samma som befintlig host-mode)
+      this.onData('', msg);
     } else if (msg.type === 'error') {
       if (onError) onError(msg.error);
+    }
+  },
+  // Sim-event från server (boss_spawned, stage_complete, enemy_killed, etc)
+  _handleSimEvent(ev) {
+    if (!ev) return;
+    if (ev.type === 'stage_loaded') {
+      console.log('[SIM] stage loaded:', ev.stageName);
+    } else if (ev.type === 'boss_spawned') {
+      if (typeof showToast === 'function') showToast('👑 ' + (ev.name || 'BOSS'));
+    } else if (ev.type === 'miniboss_spawned') {
+      if (typeof showToast === 'function') showToast('⚠ MINI-BOSS: ' + (ev.name || ''));
+    } else if (ev.type === 'enemy_killed') {
+      // Gold-share + kill-credit, samma som existerande gold_share-handler
+      const myKill = ev.killerPid === this.myId;
+      if (ev.gold > 0) {
+        save.gold += ev.gold;
+        state.goldThisRun = (state.goldThisRun || 0) + ev.gold;
+        save.stats.totalGold = (save.stats.totalGold || 0) + ev.gold;
+      }
+      state.killsThisWave = (state.killsThisWave || 0) + 1;
+      state.killsThisRun = (state.killsThisRun || 0) + 1;
+      save.stats.totalKills = (save.stats.totalKills || 0) + 1;
+      if (ev.isBoss) save.stats.bossKills = (save.stats.bossKills || 0) + 1;
+      if (typeof updateHUD === 'function') updateHUD();
+    } else if (ev.type === 'stage_complete') {
+      const sc = document.getElementById('stage-clear-overlay');
+      if (sc) sc.classList.add('hidden');
+      state._stageClearShown = false;
+      if (typeof onWaveComplete === 'function') onWaveComplete();
+    } else if (ev.type === 'stage_event') {
+      if (typeof triggerStageEvent === 'function') {
+        const stage = (typeof getStage === 'function') ? getStage(state.wave) : null;
+        if (stage) triggerStageEvent(stage, ev.event);
+      }
     }
   },
   _sendTo(targetId, data) {
@@ -3789,6 +3837,24 @@ const Coop = {
     // Default 33ms → 30Hz tick (höjt från 50/20 för ännu jämnare känsla — bandbredd-budget håller med slot/enum/deflate)
     const buffered = this.ws ? this.ws.bufferedAmount : 0;
     const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 33);
+    // Server-auth mode: ALLA klienter (inkl host) skickar bara position till servern
+    if (this.serverSimActive) {
+      if (now - this._lastBroadcast < adaptiveDelay) return;
+      this._lastBroadcast = now;
+      const _dead = state.player.spectating;
+      const _cx = _dead && state.deadBody ? state.deadBody.x : state.player.x;
+      const _cy = _dead && state.deadBody ? state.deadBody.y : state.player.y;
+      // sim_input: position + hp + vinkel + vapen
+      this.ws.send(JSON.stringify({
+        type: 'sim_input',
+        x: Math.round(_cx),
+        y: Math.round(_cy),
+        hp: _dead ? 0 : Math.round(state.player.hp),
+        aim: Math.round(state.player.aimAngle * 100) / 100,
+        weaponId: state.player.weaponId,
+      }));
+      return;
+    }
     if (this.isHost) {
       // Snapshot ~15Hz (eller långsammare om bufferten är full)
       if (now - this._lastBroadcast < adaptiveDelay) return;
@@ -4191,6 +4257,34 @@ function renderScalingInfo() {
 }
 
 Coop.onLobbyChange = renderLobbyPlayers;
+
+// Server-side sim toggle (host-only)
+const coopServerSimToggle = document.getElementById('coop-server-sim-toggle');
+const coopServerSimRow = document.getElementById('coop-server-sim-row');
+if (coopServerSimToggle) {
+  coopServerSimToggle.addEventListener('change', () => {
+    Coop.config.serverSim = coopServerSimToggle.checked;
+    if (Coop.isHost) Coop.updateConfig({ serverSim: coopServerSimToggle.checked });
+  });
+}
+function updateServerSimToggleVisibility() {
+  if (!coopServerSimRow) return;
+  // Bara host ser toggle; klienter ser status istället
+  if (Coop.isHost) {
+    coopServerSimRow.classList.remove('hidden');
+    if (coopServerSimToggle) coopServerSimToggle.checked = !!Coop.config.serverSim;
+  } else if (Coop.active && Coop.config.serverSim) {
+    coopServerSimRow.classList.remove('hidden');
+    if (coopServerSimToggle) { coopServerSimToggle.checked = true; coopServerSimToggle.disabled = true; }
+  } else {
+    coopServerSimRow.classList.add('hidden');
+  }
+}
+const _origRenderLobbyPlayers = renderLobbyPlayers;
+Coop.onLobbyChange = (players) => {
+  _origRenderLobbyPlayers(players);
+  updateServerSimToggleVisibility();
+};
 Coop.onConfigChange = (cfg) => {
   // Klient får ny config — rendera om om vi visar lobby
   if (!Coop.isHost && !coopLobbyEl.classList.contains('hidden')) {
@@ -4267,6 +4361,16 @@ btnCoopStart.addEventListener('click', () => {
   coopScreen.classList.add('hidden');
   coopInitEl.classList.remove('hidden');
   coopLobbyEl.classList.add('hidden');
+  // Server-auth opt-in: skicka sim_start till servern (host-only)
+  if (Coop.isHost && Coop.config.serverSim && Coop.ws && Coop.ws.readyState === 1) {
+    Coop.ws.send(JSON.stringify({
+      type: 'sim_start',
+      wave: save.wave || 1,
+      difficulty: Coop.config.difficulty || 'veteran',
+      ngpLevel: save.ngpLevel || 0,
+      mode: Coop.config.mode || 'story',
+    }));
+  }
   actuallyStartGame();
 });
 
@@ -5067,6 +5171,27 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
     }
   }
   if (_coopShots && _coopShots.length) Coop.broadcastShots(_coopShots);
+  // Server-auth: skicka sim_shoot så server fires authoritative bullet (skadar enemies)
+  // Klientens lokala bullets är purely visual (för instant feedback) — server gör damage.
+  if (Coop.serverSimActive && Coop.ws && Coop.ws.readyState === 1) {
+    Coop.ws.send(JSON.stringify({
+      type: 'sim_shoot',
+      weaponId: w.id,
+      x: p.x, y: p.y, ang: p.aimAngle,
+      dmgMul: p.dmgMul || 1,
+      bspeedMul: p.bspeedMul || 1,
+      explMul: p.explMul || 1,
+      kbMul: p.kbMul || 1,
+      critChance: p.critChance || 0,
+      adrenalineDmg, stealthBonus,
+      perks: { headshot: hasPerk('headshot') },
+      cheats: {
+        chozza: isCheatActive('chozza'),
+        ultimate: isCheatActive('ultimate'),
+        penetrera: isCheatActive('penetrera'),
+      },
+    }));
+  }
   spawnParticles(p.x + Math.cos(p.aimAngle)*p.r, p.y + Math.sin(p.aimAngle)*p.r, w.color, 4, 90);
 }
 
@@ -14203,7 +14328,8 @@ function runFrame(dt, now) {
     if (!introActive && !hitStopActive && !dialogActive) {
       updatePlayer(dt, now);
 
-      const isCoopClient = Coop.active && !Coop.isHost;
+      // I server-auth mode beter sig host som klient (server kör sim)
+      const isCoopClient = Coop.active && (!Coop.isHost || Coop.serverSimActive);
 
       if (!isCoopClient) {
         // Host: interpolera partner-positioner mjukt mot deras targets

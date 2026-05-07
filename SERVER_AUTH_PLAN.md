@@ -328,10 +328,36 @@ Kritisk path: Phase 2 → 3 → 4 → 7. Phase 5–6 kan flätas in parallellt.
 
 ## Status
 
-**Phase 1 KLART** (denna session):
+**Phase 1 KLART**:
 - ✅ `server/sim/wirefmt.js` — binär encoder
 - ✅ `server/sim/enemies.js` — ENEMY_STATS + grunt-AI
 - ✅ `server/sim/room-sim.js` — tick-loop 30Hz, broadcast
 - ✅ `server/server.js` — sim_start/sim_stop/sim_input handlers
 - ✅ Integration-test: server-sim startar, broadcastar binära world-paket, klient tar emot
-- ⏸ Klient saknar fortfarande sim_start-koppling (Phase 7)
+
+**Phase 2 KLART**:
+- ✅ Alla 14 enemy-typer (grunt, runner, brute, shooter, ninja, swordsman, soldier, robot, dog, healer, summoner, bomber, sniper, swarmer)
+- ✅ Status-effekter: burn DoT, slow, mind-control, stagger
+- ✅ Enemy-enemy separation, contact damage
+- ✅ 29/30 unit-tests passerar (failad är test-setup, ej kod-bug)
+- ✅ E2E mot lokal server fungerar
+
+**Phase 3 KLART**:
+- ✅ `shared/weapons-data.js` — 40 vapen i delad modul
+- ✅ `server/sim/bullets.js` — player-bullets, collision, life
+- ✅ Vapen-effekter: pierce, explosive (radius), chain (tesla), burn-on-hit (flame), slow-on-hit (frost), knockback (sonic), mind-control direct-mark
+- ✅ explode() med falloff + skadar enemies + players
+- ✅ Cheats: chozza (always crit), ultimate (×10 dmg), penetrera (pierce)
+- ✅ Crit + headshot perk
+- ✅ `sim_shoot`-handler, `applyShoot()` i room-sim
+- ✅ 28/29 unit-tests + 20/20 E2E (0 server-errors under stress med rifle/rocket/tesla)
+
+⏸ **Klient saknar fortfarande sim_start-koppling (Phase 7)**
+
+**Skippat i Phase 3** (kommer i Phase 6 polish):
+- Boomerang return-mekanik
+- Blackhole pull-effekt på enemies
+- Pull-whip enemy-drag
+- Drone summon
+- Stage decoration explode (fuel_drum/fire_barrel)
+- Building collision för bullets
