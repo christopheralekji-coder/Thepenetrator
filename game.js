@@ -3244,6 +3244,7 @@ const Coop = {
     } else if (msg.type === 'sim_started') {
       this.serverSimActive = true;
       state.serverSimActive = true;
+      this._simStartedConfirmed = true;
       console.log('[SIM] activated');
       if (typeof showToast === 'function') showToast('🌐 Server-sim AKTIV');
     } else if (msg.type === 'sim_stopped') {
@@ -3264,9 +3265,18 @@ const Coop = {
     if (ev.type === 'stage_loaded') {
       console.log('[SIM] stage loaded:', ev.stageName);
     } else if (ev.type === 'boss_spawned') {
-      if (typeof showToast === 'function') showToast('👑 ' + (ev.name || 'BOSS'));
+      // Dedup: visa bara en toast per unik boss-key
+      const key = 'boss_' + (ev.bossKey || ev.name || '');
+      if (this._lastBossToastKey !== key) {
+        this._lastBossToastKey = key;
+        if (typeof showToast === 'function') showToast('👑 ' + (ev.name || 'BOSS'));
+      }
     } else if (ev.type === 'miniboss_spawned') {
-      if (typeof showToast === 'function') showToast('⚠ MINI-BOSS: ' + (ev.name || ''));
+      const key = 'mini_' + (ev.name || '');
+      if (this._lastBossToastKey !== key) {
+        this._lastBossToastKey = key;
+        if (typeof showToast === 'function') showToast('⚠ MINI-BOSS: ' + (ev.name || ''));
+      }
     } else if (ev.type === 'enemy_killed') {
       // Gold-share + kill-credit, samma som existerande gold_share-handler
       const myKill = ev.killerPid === this.myId;
@@ -4384,10 +4394,13 @@ btnCoopStart.addEventListener('click', () => {
   coopScreen.classList.add('hidden');
   coopInitEl.classList.remove('hidden');
   coopLobbyEl.classList.add('hidden');
+  // Reset eventuell stale serverSimActive från tidigare session
+  Coop.serverSimActive = false;
+  state.serverSimActive = false;
   // KÖR actuallyStartGame FÖRST så state.wave (=1 för story) är satt innan sim_start
   actuallyStartGame();
-  // Server-auth opt-in: skicka sim_start till servern (host-only)
-  // Sätt serverSimActive direkt så host inte kör egen sim under round-trip-vänten.
+  // Server-auth opt-in: skicka sim_start till servern (host-only).
+  // Sätt serverSimActive optimistiskt; om sim_started inte bekräftar inom 5s → fallback till host-mode.
   if (Coop.isHost && Coop.config.serverSim && Coop.ws && Coop.ws.readyState === 1) {
     Coop.ws.send(JSON.stringify({
       type: 'sim_start',
@@ -4398,6 +4411,15 @@ btnCoopStart.addEventListener('click', () => {
     }));
     Coop.serverSimActive = true;
     state.serverSimActive = true;
+    Coop._simStartedConfirmed = false;
+    setTimeout(() => {
+      if (!Coop._simStartedConfirmed && Coop.serverSimActive && Coop.active) {
+        console.warn('[SIM] sim_start timeout — föll tillbaka till host-mode');
+        Coop.serverSimActive = false;
+        state.serverSimActive = false;
+        if (typeof showToast === 'function') showToast('⚠ Server-sim tidsutgång — host-läge');
+      }
+    }, 5000);
   }
 });
 
