@@ -37,7 +37,11 @@ wss.on('connection', (ws) => {
 
   ws.on('pong', () => { ws.isAlive = true; });
 
-  ws.on('message', (raw) => {
+  ws.on('message', (raw, isBinary) => {
+    if (isBinary) {
+      try { handleBinaryMessage(ws, raw); } catch (e) { console.error('bin-error:', e.message); }
+      return;
+    }
     let msg;
     try { msg = JSON.parse(raw.toString()); } catch (e) { return; }
     try { handleMessage(ws, msg); } catch (e) { console.error('msg-error:', e.message); }
@@ -70,6 +74,49 @@ function broadcast(room, obj, exceptId) {
   for (const [id, m] of room.members) {
     if (id === exceptId) continue;
     if (m.readyState === WebSocket.OPEN) try { m.send(data); } catch (e) {}
+  }
+}
+
+function sendBinary(ws, buf) {
+  if (ws.readyState !== WebSocket.OPEN) return;
+  try { ws.send(buf, { binary: true }); } catch (e) {}
+}
+
+function broadcastBinary(room, buf, exceptId) {
+  for (const [id, m] of room.members) {
+    if (id === exceptId) continue;
+    sendBinary(m, buf);
+  }
+}
+
+// Binär message-format (klient → server):
+//   [u8 routeByte][u8 idLen][idBytes...][payload...]
+//   routeByte = 0 → broadcast i rummet (utom avsändaren)
+//   routeByte = 1 → directed till peer med id i idBytes
+// Server → klient binär format:
+//   [u8 fromIdLen][fromIdBytes...][payload...]
+function handleBinaryMessage(ws, raw) {
+  // raw är Buffer på Node
+  if (!ws.roomCode) return;
+  const room = rooms.get(ws.roomCode);
+  if (!room) return;
+  if (raw.length < 2) return;
+  const routeByte = raw[0];
+  const idLen = raw[1];
+  if (raw.length < 2 + idLen) return;
+  const targetId = idLen > 0 ? raw.slice(2, 2 + idLen).toString('utf8') : '';
+  const payload = raw.slice(2 + idLen);
+  // Bygg utgående frame: [fromIdLen][fromIdBytes][payload]
+  const fromIdBytes = Buffer.from(ws.id, 'utf8');
+  const out = Buffer.allocUnsafe(1 + fromIdBytes.length + payload.length);
+  out[0] = fromIdBytes.length;
+  fromIdBytes.copy(out, 1);
+  payload.copy(out, 1 + fromIdBytes.length);
+  if (routeByte === 1 && targetId) {
+    const target = room.members.get(targetId);
+    if (target) sendBinary(target, out);
+  } else {
+    broadcastBinary(room, out, ws.id);
   }
 }
 

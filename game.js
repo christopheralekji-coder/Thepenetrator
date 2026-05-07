@@ -2839,6 +2839,242 @@ function openCheats() {
 const COOP_SERVER_URL = (typeof window !== 'undefined' && window.COOP_SERVER_URL) ||
   'wss://thepenetrator.onrender.com';
 const PLAYER_COLORS = ['#3aff5a', '#3acaff', '#aa3aff', '#ff5a3a', '#ffd54a', '#ff5aca', '#5aff8a', '#cc5aff'];
+
+// ── Binär protokoll för world-paket ──────────────────────────────────────────
+// Spar 3-5× vs JSON. Format: little-endian. Strängar är length-prefixed UTF-8 (max 255 bytes).
+// Allt annat (lobby/event/state/shot/etc) kör fortfarande JSON via _sendTo/_sendBroadcast.
+const WP_MAGIC = 0xA1;
+const WP_FLAG_FULL = 1 << 0;
+const WP_FLAG_PICKUPS = 1 << 1;
+const WP_FLAG_GS = 1 << 2;
+const WP_FLAG_DB = 1 << 3;
+const WP_FLAG_TRUCK = 1 << 4;
+const _wpEncoder = new TextEncoder();
+const _wpDecoder = new TextDecoder();
+function _wpClampI16(v) { v = Math.round(v); return v > 32767 ? 32767 : (v < -32768 ? -32768 : v); }
+function _wpClampU16(v) { v = Math.round(v); return v > 65535 ? 65535 : (v < 0 ? 0 : v); }
+function _wpClampU8(v) { v = Math.round(v); return v > 255 ? 255 : (v < 0 ? 0 : v); }
+
+function encodeWorldBinary(pkt) {
+  // 32KB buffer — typiska paket är < 4KB även med 8 spelare
+  const buf = new ArrayBuffer(32 * 1024);
+  const view = new DataView(buf);
+  const u8 = new Uint8Array(buf);
+  let o = 0;
+  view.setUint8(o++, WP_MAGIC);
+  let flags = 0;
+  if (pkt.full) flags |= WP_FLAG_FULL;
+  if (pkt.pickups) flags |= WP_FLAG_PICKUPS;
+  if (pkt.gs) flags |= WP_FLAG_GS;
+  if (pkt.db) flags |= WP_FLAG_DB;
+  if (pkt.tk) flags |= WP_FLAG_TRUCK;
+  view.setUint8(o++, flags);
+  function writeStr(s) {
+    const bytes = _wpEncoder.encode(s == null ? '' : String(s));
+    const len = Math.min(255, bytes.length);
+    view.setUint8(o++, len);
+    u8.set(bytes.subarray(0, len), o); o += len;
+  }
+  // Players
+  const players = pkt.players || [];
+  view.setUint8(o++, Math.min(255, players.length));
+  for (const p of players) {
+    writeStr(p.id);
+    writeStr(p.n);
+    view.setUint8(o++, _wpClampU8(p.c));
+    view.setInt16(o, _wpClampI16(p.x), true); o += 2;
+    view.setInt16(o, _wpClampI16(p.y), true); o += 2;
+    view.setUint16(o, _wpClampU16(p.hp), true); o += 2;
+    view.setInt16(o, Math.round((p.a || 0) * 1000), true); o += 2;
+    writeStr(p.w);
+    view.setUint8(o++, _wpClampU8(p.rT));
+  }
+  // Enemies
+  const enemies = pkt.enemies || [];
+  view.setUint16(o, enemies.length, true); o += 2;
+  const fullMode = !!pkt.full;
+  for (const e of enemies) {
+    view.setInt16(o, _wpClampI16(e.i), true); o += 2;
+    view.setInt16(o, _wpClampI16(e.x), true); o += 2;
+    view.setInt16(o, _wpClampI16(e.y), true); o += 2;
+    view.setUint16(o, _wpClampU16(e.hp), true); o += 2;
+    if (fullMode) {
+      view.setUint16(o, _wpClampU16(e.mh || 0), true); o += 2;
+      writeStr(e.t);
+      view.setUint8(o++, ((e.b ? 1 : 0) | ((e.mb ? 1 : 0) << 1)));
+      writeStr(e.bk);
+      view.setUint8(o++, _wpClampU8(e.r || 0));
+      writeStr(e.c);
+      writeStr(e.n);
+      view.setUint8(o++, _wpClampU8(e.p || 0));
+    }
+  }
+  // Bullets
+  const hb = pkt.hb || [];
+  view.setUint16(o, hb.length, true); o += 2;
+  for (const b of hb) {
+    view.setInt16(o, _wpClampI16(b.x), true); o += 2;
+    view.setInt16(o, _wpClampI16(b.y), true); o += 2;
+    view.setInt16(o, _wpClampI16(b.vx), true); o += 2;
+    view.setInt16(o, _wpClampI16(b.vy), true); o += 2;
+    writeStr(b.c);
+    view.setUint8(o++, _wpClampU8(b.r || 0));
+  }
+  // Pickups
+  if (flags & WP_FLAG_PICKUPS) {
+    const pks = pkt.pickups || [];
+    view.setUint8(o++, Math.min(255, pks.length));
+    for (const p of pks) {
+      view.setInt16(o, _wpClampI16(p.x), true); o += 2;
+      view.setInt16(o, _wpClampI16(p.y), true); o += 2;
+      writeStr(p.t);
+    }
+  }
+  // Game state
+  if (flags & WP_FLAG_GS) {
+    const gs = pkt.gs;
+    view.setUint8(o++, _wpClampU8(gs.w || 0));
+    writeStr(gs.cz);
+    writeStr(gs.zs);
+    view.setUint8(o++, _wpClampU8(gs.bss || 0));
+    view.setUint8(o++, gs.bd ? 1 : 0);
+  }
+  // Dead body
+  if (flags & WP_FLAG_DB) {
+    const db = pkt.db;
+    view.setInt16(o, _wpClampI16(db.x || 0), true); o += 2;
+    view.setInt16(o, _wpClampI16(db.y || 0), true); o += 2;
+    view.setUint8(o++, _wpClampU8(db.reviveTimer || 0));
+    writeStr(db.revivedBy);
+    writeStr(db.color);
+  }
+  // Truck
+  if (flags & WP_FLAG_TRUCK) {
+    const t = pkt.tk;
+    view.setInt16(o, _wpClampI16(t.x), true); o += 2;
+    view.setInt16(o, _wpClampI16(t.y), true); o += 2;
+    view.setUint16(o, _wpClampU16(t.hp), true); o += 2;
+    view.setUint16(o, _wpClampU16(t.mh), true); o += 2;
+    view.setInt16(o, Math.round((t.a || 0) * 1000), true); o += 2;
+    view.setUint8(o++, t.al ? 1 : 0);
+    const oc = t.oc || [];
+    view.setUint8(o++, Math.min(255, oc.length));
+    for (const id of oc) writeStr(id);
+  }
+  return new Uint8Array(buf, 0, o);
+}
+
+function decodeWorldBinary(buf) {
+  // buf är ArrayBuffer (efter att route-headern strippats av _handleBinaryFromServer)
+  if (buf.byteLength < 2) return null;
+  const view = new DataView(buf);
+  const u8 = new Uint8Array(buf);
+  let o = 0;
+  if (view.getUint8(o++) !== WP_MAGIC) return null;
+  const flags = view.getUint8(o++);
+  function readStr() {
+    const len = view.getUint8(o++);
+    const s = _wpDecoder.decode(u8.subarray(o, o + len));
+    o += len;
+    return s;
+  }
+  const pkt = { type: 'world' };
+  pkt.full = (flags & WP_FLAG_FULL) ? 1 : 0;
+  // Players
+  const numP = view.getUint8(o++);
+  pkt.players = [];
+  for (let i = 0; i < numP; i++) {
+    const id = readStr();
+    const n = readStr();
+    const c = view.getUint8(o++);
+    const x = view.getInt16(o, true); o += 2;
+    const y = view.getInt16(o, true); o += 2;
+    const hp = view.getUint16(o, true); o += 2;
+    const a = view.getInt16(o, true) / 1000; o += 2;
+    const w = readStr();
+    const rT = view.getUint8(o++);
+    pkt.players.push({ id, n, c, x, y, hp, a, w, rT });
+  }
+  // Enemies
+  const numE = view.getUint16(o, true); o += 2;
+  pkt.enemies = [];
+  const fullMode = !!pkt.full;
+  for (let i = 0; i < numE; i++) {
+    const idx = view.getInt16(o, true); o += 2;
+    const x = view.getInt16(o, true); o += 2;
+    const y = view.getInt16(o, true); o += 2;
+    const hp = view.getUint16(o, true); o += 2;
+    const e = { i: idx, x, y, hp };
+    if (fullMode) {
+      e.mh = view.getUint16(o, true); o += 2;
+      e.t = readStr();
+      const bf = view.getUint8(o++);
+      e.b = bf & 1; e.mb = (bf >> 1) & 1;
+      e.bk = readStr();
+      e.r = view.getUint8(o++);
+      e.c = readStr();
+      e.n = readStr();
+      e.p = view.getUint8(o++);
+    }
+    pkt.enemies.push(e);
+  }
+  // Bullets
+  const numB = view.getUint16(o, true); o += 2;
+  pkt.hb = [];
+  for (let i = 0; i < numB; i++) {
+    const x = view.getInt16(o, true); o += 2;
+    const y = view.getInt16(o, true); o += 2;
+    const vx = view.getInt16(o, true); o += 2;
+    const vy = view.getInt16(o, true); o += 2;
+    const c = readStr();
+    const r = view.getUint8(o++);
+    pkt.hb.push({ x, y, vx, vy, c, r });
+  }
+  // Pickups
+  if (flags & WP_FLAG_PICKUPS) {
+    const numPk = view.getUint8(o++);
+    pkt.pickups = [];
+    for (let i = 0; i < numPk; i++) {
+      const x = view.getInt16(o, true); o += 2;
+      const y = view.getInt16(o, true); o += 2;
+      const t = readStr();
+      pkt.pickups.push({ x, y, t });
+    }
+  }
+  // Game state
+  if (flags & WP_FLAG_GS) {
+    const w = view.getUint8(o++);
+    const cz = readStr();
+    const zs = readStr();
+    const bss = view.getUint8(o++);
+    const bd = view.getUint8(o++);
+    pkt.gs = { w, cz, zs, bss, bd };
+  }
+  // Dead body
+  if (flags & WP_FLAG_DB) {
+    const x = view.getInt16(o, true); o += 2;
+    const y = view.getInt16(o, true); o += 2;
+    const reviveTimer = view.getUint8(o++);
+    const revivedBy = readStr() || null;
+    const color = readStr();
+    pkt.db = { x, y, reviveTimer, revivedBy, color };
+  }
+  // Truck
+  if (flags & WP_FLAG_TRUCK) {
+    const x = view.getInt16(o, true); o += 2;
+    const y = view.getInt16(o, true); o += 2;
+    const hp = view.getUint16(o, true); o += 2;
+    const mh = view.getUint16(o, true); o += 2;
+    const a = view.getInt16(o, true) / 1000; o += 2;
+    const al = view.getUint8(o++);
+    const numT = view.getUint8(o++);
+    const oc = [];
+    for (let i = 0; i < numT; i++) oc.push(readStr());
+    pkt.tk = { x, y, hp, mh, a, al, oc };
+  }
+  return pkt;
+}
+
 const Coop = {
   peer: null,
   isHost: false,
@@ -2866,6 +3102,7 @@ const Coop = {
   _connectWS(asHost, joinCode, onConnect, onError) {
     try {
       this.ws = new WebSocket(COOP_SERVER_URL);
+      this.ws.binaryType = 'arraybuffer';
     } catch (e) { onError('Kan ej ansluta'); return; }
     this.active = true;
     this.inLobby = true;
@@ -2875,6 +3112,11 @@ const Coop = {
       else this.ws.send(JSON.stringify({ type: 'join', code: joinCode }));
     };
     this.ws.onmessage = (ev) => {
+      // Binärt frame → world packet
+      if (ev.data instanceof ArrayBuffer) {
+        this._handleBinaryFromServer(ev.data);
+        return;
+      }
       let msg; try { msg = JSON.parse(ev.data); } catch(e){ return; }
       this._handleServerMsg(msg, onConnect, onError);
     };
@@ -2918,6 +3160,38 @@ const Coop = {
   _sendBroadcast(data) {
     if (!this.ws || this.ws.readyState !== 1) return;
     this.ws.send(JSON.stringify({ type: 'relay', data }));
+  },
+  // Binär kanal — bara world-paket använder detta. Frame-format på wire:
+  //   client→server: [u8 routeByte][u8 idLen][idBytes...][payload]
+  //   server→client: [u8 fromIdLen][fromIdBytes...][payload]
+  _sendBinaryTo(targetId, payload) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    const idBytes = _wpEncoder.encode(targetId);
+    const out = new Uint8Array(2 + idBytes.length + payload.length);
+    out[0] = 1; // directed
+    out[1] = idBytes.length;
+    out.set(idBytes, 2);
+    out.set(payload, 2 + idBytes.length);
+    this.ws.send(out);
+  },
+  _sendBinaryBroadcast(payload) {
+    if (!this.ws || this.ws.readyState !== 1) return;
+    const out = new Uint8Array(2 + payload.length);
+    out[0] = 0; // broadcast
+    out[1] = 0; // no target id
+    out.set(payload, 2);
+    this.ws.send(out);
+  },
+  _handleBinaryFromServer(buf) {
+    if (buf.byteLength < 1) return;
+    const view = new DataView(buf);
+    const fromIdLen = view.getUint8(0);
+    if (buf.byteLength < 1 + fromIdLen) return;
+    const fromId = _wpDecoder.decode(new Uint8Array(buf, 1, fromIdLen));
+    const payloadBuf = buf.slice(1 + fromIdLen);
+    const pkt = decodeWorldBinary(payloadBuf);
+    if (!pkt) return;
+    this.onData(fromId, pkt);
   },
   host(onCode, onPlayerJoin, onError) {
     this._onCodeCb = onCode;
@@ -3045,7 +3319,9 @@ const Coop = {
         if (p.y === undefined) p.y = data.y;
         p.targetX = data.x; p.targetY = data.y;
         p.hp = data.hp;
-        p.weaponId = data.weaponId; p.aimAngle = data.aimAngle;
+        p.weaponId = data.weaponId;
+        p.targetAimAngle = data.aimAngle;
+        if (p.aimAngle === undefined) p.aimAngle = data.aimAngle;
         p.shotting = data.shotting;
         p.reviveTimer = data.revT || 0;
       }
@@ -3060,7 +3336,10 @@ const Coop = {
           if (!cur) { cur = { name: p.n, colorIdx: p.c, x: p.x, y: p.y }; this.players.set(p.id, cur); }
           // Interpolation: behåll x/y, sätt target
           cur.targetX = p.x; cur.targetY = p.y;
-          cur.hp = p.hp; cur.aimAngle = p.a;
+          cur.hp = p.hp;
+          // Aim-vinkel: target istället för direkt-set så lerp i render-loopen kan smootha (undviker ryck)
+          cur.targetAimAngle = p.a;
+          if (cur.aimAngle === undefined) cur.aimAngle = p.a;
           if (p.w) cur.weaponId = p.w;
           cur.reviveTimer = p.rT || 0;
         }
@@ -3324,16 +3603,18 @@ const Coop = {
     if (!this.active || this.inLobby || !state.player) return;
     const now = performance.now();
     // Adaptiv rate: om servern inte hänger med (buffer fylls upp), sakta ner
+    // Default 50ms → 20Hz tick (höjt från 65ms/15Hz för jämnare känsla)
     const buffered = this.ws ? this.ws.bufferedAmount : 0;
-    const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 65);
+    const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 50);
     if (this.isHost) {
-      // Snapshot 15Hz (eller långsammare om bufferten är full)
+      // Snapshot ~15Hz (eller långsammare om bufferten är full)
       if (now - this._lastBroadcast < adaptiveDelay) return;
       this._lastBroadcast = now;
       // Flusha skott-kö (samma rate som broadcast = 15Hz max)
       this.flushShots();
-      // Var 600ms: full broadcast (statiska fields), annars bara positions
-      const fullBroadcast = (now - this._lastFullBroadcast) > 600;
+      // Var 1500ms: full broadcast (statiska fields), annars bara deltas.
+      // Långsammare full-rate sparar bandbredd; per-peer delta-cache + late-join force-full täcker resten.
+      const fullBroadcast = (now - this._lastFullBroadcast) > 1500;
       if (fullBroadcast) this._lastFullBroadcast = now;
       // Spelare (lätt) — om host är död, frys position till deadBody (inte spec-kameran)
       const _hostDead = state.player.spectating;
@@ -3354,71 +3635,41 @@ const Coop = {
           w: p.weaponId,
           rT: p.reviveTimer || 0 });
       }
-      // Fiender — bara live + nära någon spelare (cull)
-      const cullDist = 1400;
-      const allPlayerPos = allPlayers.map(p => ({ x: p.x, y: p.y }));
-      const enemies = [];
-      // Delta-tracking: hoppa över enemies som inte rört sig sen senaste broadcast
-      if (!this._lastSentEnemy) this._lastSentEnemy = {};
-      const newSent = {};
+      // Pre-build live entities (snapshot one gång, culling sker per peer)
+      const cullDist = 1100;  // tightre än innan (1400) — viewport är ~700px så detta är fortfarande rejäl margin
+      const visDist = 800;    // bullets — något tightre eftersom de är många
+      const liveEnemies = [];
       for (let i = 0; i < state.enemies.length; i++) {
         const e = state.enemies[i];
         if (e.dead) continue;
-        // Kolla om någon spelare är nära nog
-        let visible = false;
-        for (const pp of allPlayerPos) {
-          if (Math.abs(e.x - pp.x) < cullDist && Math.abs(e.y - pp.y) < cullDist) { visible = true; break; }
-        }
-        if (!visible && !e.isBoss && !e.isMiniBoss) continue;
-        const ex = Math.round(e.x), ey = Math.round(e.y), eh = Math.round(e.hp);
-        newSent[i] = { x: ex, y: ey, hp: eh };
-        // Delta: skippa om position+hp är samma som senaste send (men alltid skicka full broadcast)
-        const last = this._lastSentEnemy[i];
-        if (!fullBroadcast && last && last.x === ex && last.y === ey && last.hp === eh) {
-          continue; // ingen ändring — sparar bandbredd
-        }
-        if (fullBroadcast) {
-          enemies.push({
-            i, x: ex, y: ey,
-            hp: eh, mh: Math.round(e.maxHp),
-            t: e.type, b: e.isBoss ? 1 : 0, mb: e.isMiniBoss ? 1 : 0, bk: e.bossKey,
-            r: e.r, c: e.color, n: e.name, p: e.phase,
-          });
-        } else {
-          enemies.push({ i, x: ex, y: ey, hp: eh });
-        }
+        liveEnemies.push({ i, ex: Math.round(e.x), ey: Math.round(e.y), eh: Math.round(e.hp), ref: e });
       }
-      this._lastSentEnemy = newSent;
-      // Hostile bullets — bara de som är synliga för någon spelare (sparar bandbredd)
-      const visDist = 1000;
-      const hostileBullets = state.bullets.filter(b => {
-        if (!b.hostile || b.dead) return false;
-        for (const pp of allPlayerPos) {
-          if (Math.abs(b.x - pp.x) < visDist && Math.abs(b.y - pp.y) < visDist) return true;
-        }
-        return false;
-      }).map(b => ({
-        x: Math.round(b.x), y: Math.round(b.y),
-        vx: Math.round(b.vx), vy: Math.round(b.vy),
-        c: b.color, r: b.r,
-      }));
-      const pkt = { type: 'world', players: allPlayers, enemies, hb: hostileBullets, full: fullBroadcast ? 1 : 0 };
-      // Pickups: broadcasta bara om antalet/typer ändrats (sparar bandbredd massiv)
+      const liveBullets = [];
+      for (const b of state.bullets) {
+        if (!b.hostile || b.dead) continue;
+        liveBullets.push({
+          x: Math.round(b.x), y: Math.round(b.y),
+          vx: Math.round(b.vx), vy: Math.round(b.vy),
+          c: b.color, r: b.r,
+        });
+      }
+      // Pickups: en gång per tick (samma för alla peers eftersom de inte är många)
       const pickupsHash = (state.pickups || []).length + ':' + (state.pickups || []).map(p => Math.round(p.x) + ',' + Math.round(p.y) + ',' + p.type).join('|');
+      let pickupsField = null;
       if (pickupsHash !== this._lastPickupsHash || fullBroadcast) {
         this._lastPickupsHash = pickupsHash;
-        pkt.pickups = (state.pickups || []).map(p => ({ x: Math.round(p.x), y: Math.round(p.y), t: p.type }));
+        pickupsField = (state.pickups || []).map(p => ({ x: Math.round(p.x), y: Math.round(p.y), t: p.type }));
       }
+      let gsField = null, dbField = null, tkField = null;
       if (fullBroadcast) {
-        pkt.gs = {
+        gsField = {
           w: state.wave, cz: state.currentZone, zs: state.zoneState,
           bss: state.bossSequenceStep, bd: state.bossDefeated ? 1 : 0,
         };
-        if (state.deadBody) pkt.db = state.deadBody;
+        if (state.deadBody) dbField = state.deadBody;
       }
-      // Truck-state (om convoy-mode)
       if (state.truck) {
-        pkt.tk = {
+        tkField = {
           x: Math.round(state.truck.x), y: Math.round(state.truck.y),
           hp: Math.round(state.truck.hp), mh: state.truck.maxHp,
           a: Math.round(state.truck.angle * 100) / 100,
@@ -3426,7 +3677,60 @@ const Coop = {
           oc: state.truck.turrets.map(t => t.occupiedBy || ''),
         };
       }
-      this.broadcast(pkt);
+      // Per-peer delta-cache: peerId → { enemyIdx → {x,y,hp} }
+      if (!this._lastSentEnemyByPeer) this._lastSentEnemyByPeer = new Map();
+      // Bygg och skicka ett skräddarsytt paket per peer (per-peer culling — största vinsten med 8 spelare)
+      for (const [peerId, peer] of this.players) {
+        const px = peer.x !== undefined ? peer.x : 900;
+        const py = peer.y !== undefined ? peer.y : 900;
+        // Enemy-culling + per-peer delta-tracking
+        let lastSent = this._lastSentEnemyByPeer.get(peerId);
+        // Om peer aldrig fått ett paket (just joinad) eller fullBroadcast → forcera full
+        const forceFullForPeer = !lastSent || fullBroadcast;
+        if (!lastSent) lastSent = {};
+        const newSent = {};
+        const enemies = [];
+        for (const le of liveEnemies) {
+          const e = le.ref;
+          const visible = (Math.abs(le.ex - px) < cullDist && Math.abs(le.ey - py) < cullDist) || e.isBoss || e.isMiniBoss;
+          if (!visible) continue;
+          newSent[le.i] = { x: le.ex, y: le.ey, hp: le.eh };
+          const last = lastSent[le.i];
+          if (!forceFullForPeer && last && last.x === le.ex && last.y === le.ey && last.hp === le.eh) continue;
+          if (forceFullForPeer) {
+            enemies.push({
+              i: le.i, x: le.ex, y: le.ey,
+              hp: le.eh, mh: Math.round(e.maxHp),
+              t: e.type, b: e.isBoss ? 1 : 0, mb: e.isMiniBoss ? 1 : 0, bk: e.bossKey,
+              r: e.r, c: e.color, n: e.name, p: e.phase,
+            });
+          } else {
+            enemies.push({ i: le.i, x: le.ex, y: le.ey, hp: le.eh });
+          }
+        }
+        this._lastSentEnemyByPeer.set(peerId, newSent);
+        // Bullet-culling per peer
+        const hb = [];
+        for (const b of liveBullets) {
+          if (Math.abs(b.x - px) < visDist && Math.abs(b.y - py) < visDist) hb.push(b);
+        }
+        const pkt = { players: allPlayers, enemies, hb, full: forceFullForPeer ? 1 : 0 };
+        if (pickupsField) pkt.pickups = pickupsField;
+        if (gsField) pkt.gs = gsField;
+        if (dbField) pkt.db = dbField;
+        if (tkField) pkt.tk = tkField;
+        // Binärt: 3-5× mindre payload än JSON, snabbare encode/decode på telefon
+        const payload = encodeWorldBinary(pkt);
+        this._sendBinaryTo(peerId, payload);
+      }
+      // Cleanup delta-cache för peers som lämnat
+      if (this._lastSentEnemyByPeer.size > this.players.size) {
+        for (const peerId of [...this._lastSentEnemyByPeer.keys()]) {
+          if (!this.players.has(peerId)) this._lastSentEnemyByPeer.delete(peerId);
+        }
+      }
+      // TODO: nästa optimering — byt JSON → binärt (ArrayBuffer) för world-paket. Kräver transport-byte
+      //       på både klient (game.js) och server.js. Förväntad vinst: 3-5× mindre payload.
     } else {
       // Client skickar position 15Hz (eller saktare om bufferten är full)
       if (now - this._lastBroadcast < adaptiveDelay) return;
@@ -13655,10 +13959,18 @@ function runFrame(dt, now) {
         // Host: interpolera partner-positioner mjukt mot deras targets
         if (Coop.active && Coop.isHost) {
           const lerpFactor = Math.min(1, dt * 12);
+          const aimLerp = Math.min(1, dt * 18);
           for (const [, partner] of Coop.players) {
             if (partner.targetX === undefined) continue;
             partner.x += (partner.targetX - partner.x) * lerpFactor;
             partner.y += (partner.targetY - partner.y) * lerpFactor;
+            // Aim-vinkel — kortaste vägen runt cirkeln
+            if (partner.targetAimAngle !== undefined) {
+              let d = partner.targetAimAngle - partner.aimAngle;
+              while (d > Math.PI) d -= Math.PI * 2;
+              while (d < -Math.PI) d += Math.PI * 2;
+              partner.aimAngle += d * aimLerp;
+            }
           }
         }
         // HOST eller single-player kör all AI/spawn
@@ -13690,10 +14002,17 @@ function runFrame(dt, now) {
           if (e.walkAccum !== undefined) e.walkAccum += dt * 5;
         }
         // Coop-partners interpolation också
+        const aimLerp = Math.min(1, dt * 18);
         for (const [, p] of Coop.players) {
           if (p.targetX === undefined) { p.targetX = p.x; p.targetY = p.y; }
           p.x += (p.targetX - p.x) * lerpFactor;
           p.y += (p.targetY - p.y) * lerpFactor;
+          if (p.targetAimAngle !== undefined) {
+            let d = p.targetAimAngle - p.aimAngle;
+            while (d > Math.PI) d -= Math.PI * 2;
+            while (d < -Math.PI) d += Math.PI * 2;
+            p.aimAngle += d * aimLerp;
+          }
         }
         // Truck interpolation (klient)
         if (state.truck && state.truck.targetX !== undefined) {
