@@ -264,7 +264,11 @@ function loadStage(sim, wave) {
   }
   // Starta första zon
   startZone(sim, stage, 0);
+  // 5-sekunders countdown vid varje stage-start så alla peers hinner synka position
+  // och se "FÖRBERED 5..4..3..2..1" innan enemies börjar spawna
+  sim.simReadyAt = Date.now() + 5000;
   sim.eventQueue.push({ type: 'stage_loaded', wave, stageName: stage.name, stageKind: stage.kind });
+  sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
 }
 
 module.exports = {
