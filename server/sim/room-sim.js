@@ -419,11 +419,8 @@ function startSim(sim, opts) {
     if (opts.wave) sim.wave = opts.wave;
   }
   console.log('[SIM]', sim.room.code, 'started (wave=' + sim.wave + ', diff=' + sim.config.difficulty + ')');
-  // Init första stage
+  // Init första stage (loadStage triggar countdown internally)
   loadStage(sim, sim.wave);
-  // 5-sekunders countdown så alla peers hinner ansluta + position-sync, och spelarna ser "STARTAR OM 5...3...2...1"
-  sim.simReadyAt = Date.now() + 5000;
-  sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
   sim.lastTick = Date.now();
   sim.interval = setInterval(() => {
     try { tickSim(sim); } catch (e) { console.error('sim-tick error:', e.message, e.stack); }
