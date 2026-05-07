@@ -3,6 +3,7 @@
 
 const WebSocket = require('ws');
 const http = require('http');
+const { createSim, startSim, stopSim, applyPlayerInput } = require('./sim/room-sim');
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck endpoint så Render håller servern vid liv
@@ -179,6 +180,37 @@ function handleMessage(ws, msg) {
     handleDisconnect(ws);
     return;
   }
+
+  // ── SERVER-AUTHORITATIVE SIM ──────────────────────────────────────────────
+  // Phase 1: opt-in via 'sim_start' från host. Server tar över enemy-AI.
+  // Klienter skickar sin position via 'sim_input'. Server broadcastar world-paket.
+  // Default OFF — gamla host-authoritative kör som tidigare när sim inte är aktiverad.
+  if (msg.type === 'sim_start') {
+    const room = rooms.get(ws.roomCode);
+    if (!room) return;
+    if (room.hostId !== ws.id) return;  // bara host får starta
+    if (!room.sim) room.sim = createSim(room);
+    startSim(room.sim);
+    send(ws, { type: 'sim_started' });
+    // Meddela alla i rummet
+    for (const [, m] of room.members) {
+      if (m !== ws) send(m, { type: 'sim_started' });
+    }
+    return;
+  }
+  if (msg.type === 'sim_stop') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    if (room.hostId !== ws.id) return;
+    stopSim(room.sim);
+    return;
+  }
+  if (msg.type === 'sim_input') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyPlayerInput(room.sim, ws.id, msg);
+    return;
+  }
 }
 
 function handleDisconnect(ws) {
@@ -189,6 +221,7 @@ function handleDisconnect(ws) {
   if (room.hostId === ws.id) {
     // Host lämnade — stäng rummet
     console.log('[ROOM]', room.code, 'closed (host left)');
+    if (room.sim) stopSim(room.sim);
     for (const m of room.members.values()) {
       send(m, { type: 'host_left' });
       try { m.close(); } catch (e) {}
