@@ -3556,13 +3556,14 @@ const Coop = {
         }
       }
       if (data.enemies) {
-        // Cache statisk data + interpolation-targets
+        // MERGE-strategi: delta-paket innehåller bara CHANGED enemies. Replace skulle radera
+        // alla statiska enemies från state.enemies → de "blinkar" varje gång server skickar
+        // ett delta + full broadcast. Vi merge:ar istället: existing → update, new → push,
+        // dead-cleanup endast vid fullbroadcast.
         if (!state._enemyCache) state._enemyCache = {};
         const cache = state._enemyCache;
-        // Bygg ny lista. Behåll x/y från förra frame, sätt targetX/Y till nya.
-        const oldByIdx = new Map();
-        for (const e of state.enemies) if (e._i !== undefined) oldByIdx.set(e._i, e);
-        const newEnemies = [];
+        const existingByIdx = new Map();
+        for (const e of state.enemies) if (e._i !== undefined) existingByIdx.set(e._i, e);
         for (const e of data.enemies) {
           let cached = cache[e.i];
           if (data.full || !cached) {
@@ -3574,25 +3575,41 @@ const Coop = {
             };
             cache[e.i] = cached;
           }
-          const old = oldByIdx.get(e.i);
-          newEnemies.push({
-            ...cached,
-            _i: e.i,
-            // Behåll nuvarande visuell-position, sätt target till mottagen
-            x: old ? old.x : e.x,
-            y: old ? old.y : e.y,
-            targetX: e.x, targetY: e.y,
-            hp: e.hp,
-            phase: e.p !== undefined ? e.p : (cached.phase || 1),
-            dead: false,
-            flashUntil: old ? old.flashUntil : 0,
-          });
+          const existing = existingByIdx.get(e.i);
+          if (existing) {
+            // Uppdatera bara de fält som skickas i deltan; behåll x/y, sätt targetX/Y, uppdatera hp
+            existing.targetX = e.x;
+            existing.targetY = e.y;
+            existing.hp = e.hp;
+            if (e.p !== undefined) existing.phase = e.p;
+            // Vid full broadcast: uppdatera även statiska fields
+            if (data.full) {
+              existing.maxHp = e.mh;
+              existing.type = e.t;
+              existing.color = e.c;
+              existing.name = e.n;
+              existing.r = e.r;
+            }
+          } else {
+            // Ny enemy — lägg till
+            state.enemies.push({
+              ...cached,
+              _i: e.i,
+              x: e.x, y: e.y,
+              targetX: e.x, targetY: e.y,
+              hp: e.hp,
+              phase: e.p !== undefined ? e.p : (cached.phase || 1),
+              dead: false,
+              flashUntil: 0,
+            });
+          }
         }
+        // Vid full broadcast: ta bort enemies som inte längre finns på server
         if (data.full) {
           const liveIndices = new Set(data.enemies.map(e => e.i));
+          state.enemies = state.enemies.filter(e => e._i === undefined || liveIndices.has(e._i));
           for (const i in cache) if (!liveIndices.has(parseInt(i))) delete cache[i];
         }
-        state.enemies = newEnemies;
       }
       // Hostile bullets från host (visuella + lokal collision-check)
       if (data.hb) {
