@@ -15,7 +15,19 @@ const server = http.createServer((req, res) => {
   }
 });
 
-const wss = new WebSocket.Server({ server });
+// perMessageDeflate: transparent gzip-komprimering på frame-nivå.
+// Browsers förhandlar automatiskt. ~30-50% extra på binär världs-paket
+// utöver vår egen binära packning. CPU-kostnad är låg med dessa defaults.
+const wss = new WebSocket.Server({
+  server,
+  perMessageDeflate: {
+    zlibDeflateOptions: { level: 3 },        // 3 = bra balans speed vs ratio (default 6 är dyrare)
+    threshold: 256,                          // skippa kompression för paket < 256 B (overhead lönar sig inte)
+    concurrencyLimit: 10,                    // max samtidiga compress-jobb
+    serverNoContextTakeover: true,           // släpp kompressionskontext mellan paket → mindre minne, lite sämre ratio
+    clientNoContextTakeover: true,
+  },
+});
 const rooms = new Map(); // code → { hostId, members: Map(id → ws) }
 
 function generateCode() {

@@ -2843,7 +2843,7 @@ const PLAYER_COLORS = ['#3aff5a', '#3acaff', '#aa3aff', '#ff5a3a', '#ffd54a', '#
 // ── Binär protokoll för world-paket ──────────────────────────────────────────
 // Spar 3-5× vs JSON. Format: little-endian. Strängar är length-prefixed UTF-8 (max 255 bytes).
 // Allt annat (lobby/event/state/shot/etc) kör fortfarande JSON via _sendTo/_sendBroadcast.
-const WP_MAGIC = 0xA1;
+const WP_MAGIC = 0xA2;  // bumped från 0xA1 efter slot-mapping + enum-interning (inte bakåtkompatibelt)
 const WP_FLAG_FULL = 1 << 0;
 const WP_FLAG_PICKUPS = 1 << 1;
 const WP_FLAG_GS = 1 << 2;
@@ -2855,11 +2855,44 @@ function _wpClampI16(v) { v = Math.round(v); return v > 32767 ? 32767 : (v < -32
 function _wpClampU16(v) { v = Math.round(v); return v > 65535 ? 65535 : (v < 0 ? 0 : v); }
 function _wpClampU8(v) { v = Math.round(v); return v > 255 ? 255 : (v < 0 ? 0 : v); }
 
+// Enum-tabeller: byt sträng → u8 index. 0xFF = "string follows" för okända.
+// MÅSTE matcha mellan host och klient — eftersom båda kör samma game.js är vi alltid i sync.
+const WP_WEAPON_ENUM = [
+  'fists', 'knuckles', 'tonfa', 'bat', 'knife', 'machete', 'katana',
+  'pistol', 'revolver', 'shotgun', 'smg', 'rifle', 'sniper', 'grenade', 'rocket', 'minigun',
+  'axe', 'sledge', 'spear', 'whip', 'lightsaber',
+  'shuriken', 'throwknife', 'crossbow', 'bow',
+  'flame', 'plasma', 'tesla', 'frost', 'sonic',
+  'boxgloves', 'sickle', 'mace', 'glaive', 'energysword',
+  'burstpistol', 'railgun', 'blackhole',
+  'boomerang', 'drone', 'timestop', 'pullwhip',
+  'repair',
+];
+const WP_WEAPON_TO_IDX = new Map(WP_WEAPON_ENUM.map((w, i) => [w, i]));
+const WP_ENEMY_TYPE_ENUM = [
+  'grunt', 'runner', 'brute', 'shooter', 'ninja', 'swordsman', 'soldier', 'robot', 'dog',
+  'healer', 'summoner', 'boss', 'minion',
+];
+const WP_ENEMY_TYPE_TO_IDX = new Map(WP_ENEMY_TYPE_ENUM.map((t, i) => [t, i]));
+// Vanligaste bullet-färgerna (matchar weapon.color + typisk hostile röd)
+const WP_BULLET_COLOR_ENUM = [
+  '#ff5a5a', '#ffd14a', '#ffae3a', '#ff6b3d', '#88ccff', '#5fd95f', '#bb88ff', '#9aff5a',
+  '#ff3c3c', '#3cf0ff', '#cccccc', '#3acaff', '#ff7a2a', '#9af2ff', '#ff5ac4', '#ffffff',
+  '#aa3aff', '#ffeb3b', '#aaaacc', '#7a5a3a', '#3a8a3a', '#ff8a3a', '#dab27a', '#fff',
+];
+const WP_BULLET_COLOR_TO_IDX = new Map(WP_BULLET_COLOR_ENUM.map((c, i) => [c, i]));
+const WP_ENUM_STRING = 0xFF;
+
+// Pooled scratch buffer — återanvänds över alla encode-anrop. Sparar GC-tryck (5 MB/s allokering tidigare).
+const _wpScratchBuf = new ArrayBuffer(32 * 1024);
+const _wpScratchView = new DataView(_wpScratchBuf);
+const _wpScratchU8 = new Uint8Array(_wpScratchBuf);
+
 function encodeWorldBinary(pkt) {
-  // 32KB buffer — typiska paket är < 4KB även med 8 spelare
-  const buf = new ArrayBuffer(32 * 1024);
-  const view = new DataView(buf);
-  const u8 = new Uint8Array(buf);
+  // Återanvänd pool-bufferten — typiska paket är < 4KB även med 8 spelare
+  const buf = _wpScratchBuf;
+  const view = _wpScratchView;
+  const u8 = _wpScratchU8;
   let o = 0;
   view.setUint8(o++, WP_MAGIC);
   let flags = 0;
@@ -2875,18 +2908,31 @@ function encodeWorldBinary(pkt) {
     view.setUint8(o++, len);
     u8.set(bytes.subarray(0, len), o); o += len;
   }
-  // Players
+  function writeWeapon(s) {
+    const idx = WP_WEAPON_TO_IDX.get(s);
+    if (idx !== undefined && idx < WP_ENUM_STRING) { view.setUint8(o++, idx); }
+    else { view.setUint8(o++, WP_ENUM_STRING); writeStr(s); }
+  }
+  function writeEnemyType(s) {
+    const idx = WP_ENEMY_TYPE_TO_IDX.get(s);
+    if (idx !== undefined && idx < WP_ENUM_STRING) { view.setUint8(o++, idx); }
+    else { view.setUint8(o++, WP_ENUM_STRING); writeStr(s); }
+  }
+  function writeBulletColor(s) {
+    const idx = WP_BULLET_COLOR_TO_IDX.get(s);
+    if (idx !== undefined && idx < WP_ENUM_STRING) { view.setUint8(o++, idx); }
+    else { view.setUint8(o++, WP_ENUM_STRING); writeStr(s); }
+  }
+  // Players (slot-mapped: slot=colorIdx, peerId & name finns redan i lobby-tabellen hos klienten)
   const players = pkt.players || [];
   view.setUint8(o++, Math.min(255, players.length));
   for (const p of players) {
-    writeStr(p.id);
-    writeStr(p.n);
-    view.setUint8(o++, _wpClampU8(p.c));
+    view.setUint8(o++, _wpClampU8(p.c));   // slot (0-7)
     view.setInt16(o, _wpClampI16(p.x), true); o += 2;
     view.setInt16(o, _wpClampI16(p.y), true); o += 2;
     view.setUint16(o, _wpClampU16(p.hp), true); o += 2;
     view.setInt16(o, Math.round((p.a || 0) * 1000), true); o += 2;
-    writeStr(p.w);
+    writeWeapon(p.w);
     view.setUint8(o++, _wpClampU8(p.rT));
   }
   // Enemies
@@ -2900,7 +2946,7 @@ function encodeWorldBinary(pkt) {
     view.setUint16(o, _wpClampU16(e.hp), true); o += 2;
     if (fullMode) {
       view.setUint16(o, _wpClampU16(e.mh || 0), true); o += 2;
-      writeStr(e.t);
+      writeEnemyType(e.t);
       view.setUint8(o++, ((e.b ? 1 : 0) | ((e.mb ? 1 : 0) << 1)));
       writeStr(e.bk);
       view.setUint8(o++, _wpClampU8(e.r || 0));
@@ -2917,7 +2963,7 @@ function encodeWorldBinary(pkt) {
     view.setInt16(o, _wpClampI16(b.y), true); o += 2;
     view.setInt16(o, _wpClampI16(b.vx), true); o += 2;
     view.setInt16(o, _wpClampI16(b.vy), true); o += 2;
-    writeStr(b.c);
+    writeBulletColor(b.c);
     view.setUint8(o++, _wpClampU8(b.r || 0));
   }
   // Pickups
@@ -2978,22 +3024,35 @@ function decodeWorldBinary(buf) {
     o += len;
     return s;
   }
+  function readWeapon() {
+    const idx = view.getUint8(o++);
+    if (idx === WP_ENUM_STRING) return readStr();
+    return WP_WEAPON_ENUM[idx] || 'fists';
+  }
+  function readEnemyType() {
+    const idx = view.getUint8(o++);
+    if (idx === WP_ENUM_STRING) return readStr();
+    return WP_ENEMY_TYPE_ENUM[idx] || 'grunt';
+  }
+  function readBulletColor() {
+    const idx = view.getUint8(o++);
+    if (idx === WP_ENUM_STRING) return readStr();
+    return WP_BULLET_COLOR_ENUM[idx] || '#fff';
+  }
   const pkt = { type: 'world' };
   pkt.full = (flags & WP_FLAG_FULL) ? 1 : 0;
-  // Players
+  // Players (slot-mapped — id/name slås upp via slotToPeerId i onData-handlern)
   const numP = view.getUint8(o++);
   pkt.players = [];
   for (let i = 0; i < numP; i++) {
-    const id = readStr();
-    const n = readStr();
     const c = view.getUint8(o++);
     const x = view.getInt16(o, true); o += 2;
     const y = view.getInt16(o, true); o += 2;
     const hp = view.getUint16(o, true); o += 2;
     const a = view.getInt16(o, true) / 1000; o += 2;
-    const w = readStr();
+    const w = readWeapon();
     const rT = view.getUint8(o++);
-    pkt.players.push({ id, n, c, x, y, hp, a, w, rT });
+    pkt.players.push({ c, x, y, hp, a, w, rT });
   }
   // Enemies
   const numE = view.getUint16(o, true); o += 2;
@@ -3007,7 +3066,7 @@ function decodeWorldBinary(buf) {
     const e = { i: idx, x, y, hp };
     if (fullMode) {
       e.mh = view.getUint16(o, true); o += 2;
-      e.t = readStr();
+      e.t = readEnemyType();
       const bf = view.getUint8(o++);
       e.b = bf & 1; e.mb = (bf >> 1) & 1;
       e.bk = readStr();
@@ -3026,7 +3085,7 @@ function decodeWorldBinary(buf) {
     const y = view.getInt16(o, true); o += 2;
     const vx = view.getInt16(o, true); o += 2;
     const vy = view.getInt16(o, true); o += 2;
-    const c = readStr();
+    const c = readBulletColor();
     const r = view.getUint8(o++);
     pkt.hb.push({ x, y, vx, vy, c, r });
   }
@@ -3100,6 +3159,12 @@ const Coop = {
   ws: null,
   _onCodeCb: null, _onConnectCb: null, _onErrorCb: null, _onPlayerJoinCb: null,
   _connectWS(asHost, joinCode, onConnect, onError) {
+    // Spara så auto-reconnect kan återanvända samma argument
+    this._lastJoinCode = joinCode;
+    this._lastAsHost = asHost;
+    this._lastOnConnect = onConnect;
+    this._lastOnError = onError;
+    this._reconnectAttempt = this._reconnectAttempt || 0;
     try {
       this.ws = new WebSocket(COOP_SERVER_URL);
       this.ws.binaryType = 'arraybuffer';
@@ -3107,7 +3172,9 @@ const Coop = {
     this.active = true;
     this.inLobby = true;
     this.isHost = asHost;
+    this._intentionalClose = false;
     this.ws.onopen = () => {
+      this._reconnectAttempt = 0;  // lyckad anslutning återställer räknaren
       if (asHost) this.ws.send(JSON.stringify({ type: 'host' }));
       else this.ws.send(JSON.stringify({ type: 'join', code: joinCode }));
     };
@@ -3121,12 +3188,32 @@ const Coop = {
       this._handleServerMsg(msg, onConnect, onError);
     };
     this.ws.onerror = (e) => { console.warn('WS error', e); if (onError) onError('Server-fel'); };
-    this.ws.onclose = () => { this.disconnect(); };
+    this.ws.onclose = () => {
+      // Auto-reconnect bara för klienter (host kan inte få tillbaka samma rum) och bara
+      // om vi inte stängde själva. Backoff: 1s, 2s, 4s, sen ger vi upp.
+      if (this.active && !this._intentionalClose && !this.isHost && this._lastJoinCode) {
+        const attempt = this._reconnectAttempt || 0;
+        if (attempt < 3) {
+          const delay = 1000 * Math.pow(2, attempt);
+          this._reconnectAttempt = attempt + 1;
+          if (typeof showToast === 'function') showToast('Anslutning bröts — försöker igen om ' + (delay/1000) + 's...');
+          console.log('[Coop] reconnect attempt', this._reconnectAttempt, 'in', delay, 'ms');
+          setTimeout(() => {
+            if (!this.active) return;  // user disconnected manually
+            this._connectWS(this._lastAsHost, this._lastJoinCode, this._lastOnConnect, this._lastOnError);
+          }, delay);
+          return;
+        }
+        if (typeof showToast === 'function') showToast('Kunde inte återansluta — du är frånkopplad.');
+      }
+      this.disconnect();
+    };
   },
   _handleServerMsg(msg, onConnect, onError) {
     if (msg.type === 'hosted') {
       this.myId = msg.peerId;
       this.myColorIdx = 0;
+      this._startPingLoop();  // börja mäta peers ping så fort vi blir host
       if (this._onCodeCb) this._onCodeCb(msg.code);
     } else if (msg.type === 'joined') {
       this.myId = msg.peerId;
@@ -3182,6 +3269,15 @@ const Coop = {
     out.set(payload, 2);
     this.ws.send(out);
   },
+  // Slot-mapping (klient): slot (colorIdx) → peerId-uppslagning, byggs från lobby-paket.
+  // Världs-paketen sparar ~21 byte/spelare/snapshot tack vare detta.
+  _rebuildSlotMap(lobbyPlayers) {
+    if (!this.slotToPeerId) this.slotToPeerId = new Map();
+    this.slotToPeerId.clear();
+    for (const p of lobbyPlayers || []) {
+      this.slotToPeerId.set(p.colorIdx, p.peerId);
+    }
+  },
   _handleBinaryFromServer(buf) {
     if (buf.byteLength < 1) return;
     const view = new DataView(buf);
@@ -3202,8 +3298,10 @@ const Coop = {
     this._connectWS(false, code, onConnect, onError);
   },
   serializeLobby() {
-    const arr = [{ peerId: this.myId, name: (this.myName || 'P1') + ' (HOST)', colorIdx: 0, isHost: true }];
-    for (const [pid, p] of this.players) arr.push({ peerId: pid, name: p.name, colorIdx: p.colorIdx, isHost: false });
+    const arr = [{ peerId: this.myId, name: (this.myName || 'P1') + ' (HOST)', colorIdx: 0, isHost: true, ping: 0 }];
+    for (const [pid, p] of this.players) {
+      arr.push({ peerId: pid, name: p.name, colorIdx: p.colorIdx, isHost: false, ping: p.ping == null ? null : p.ping });
+    }
     return arr;
   },
   updateName(name) {
@@ -3267,6 +3365,7 @@ const Coop = {
       this.myColorIdx = data.colorIdx;
       // Initial lobby
       this.players.clear();
+      this._rebuildSlotMap(data.players);
       for (const p of data.players) {
         if (p.peerId !== this.myId) this.players.set(p.peerId, { x: 900, y: 900, hp: 100, name: p.name, colorIdx: p.colorIdx });
       }
@@ -3276,6 +3375,7 @@ const Coop = {
     if (data.type === 'lobby' && !this.isHost) {
       // Uppdatera spelar-lista
       this.players.clear();
+      this._rebuildSlotMap(data.players);
       for (const p of data.players) {
         if (p.peerId !== this.myId) this.players.set(p.peerId, { x: 900, y: 900, hp: 100, name: p.name, colorIdx: p.colorIdx });
       }
@@ -3331,9 +3431,14 @@ const Coop = {
       // Klient: hantera komprimerade data
       if (data.players) {
         for (const p of data.players) {
-          if (p.id === this.myId) continue;
-          let cur = this.players.get(p.id);
-          if (!cur) { cur = { name: p.n, colorIdx: p.c, x: p.x, y: p.y }; this.players.set(p.id, cur); }
+          // Slot-mapping: p.c är slot (colorIdx), slå upp peerId via lobby-tabell
+          const peerId = this.slotToPeerId ? this.slotToPeerId.get(p.c) : null;
+          if (!peerId || peerId === this.myId) continue;
+          let cur = this.players.get(peerId);
+          if (!cur) {
+            // Lobby-broadcast har inte landat än — skippa tills den gör det
+            continue;
+          }
           // Interpolation: behåll x/y, sätt target
           cur.targetX = p.x; cur.targetY = p.y;
           cur.hp = p.hp;
@@ -3516,6 +3621,21 @@ const Coop = {
       if (partner) applyEmote(partner, data.e);
       return;
     }
+    if (data.type === 'ping' && !this.isHost) {
+      // Klient ekar tillbaka host:s timestamp
+      this._sendTo(fromId, { type: 'pong', t: data.t });
+      return;
+    }
+    if (data.type === 'pong' && this.isHost) {
+      // Host beräknar RTT
+      const now = performance.now();
+      const partner = this.players.get(fromId);
+      if (partner && data.t) {
+        partner.ping = Math.round(now - data.t);
+        partner.lastPongAt = now;
+      }
+      return;
+    }
     if (data.type === 'shot') {
       // Annan spelare sköt — spawna visuella projektiler (ingen skada)
       // Server-relay broadcastar redan till alla utom avsändaren, ingen re-broadcast behövs
@@ -3584,18 +3704,43 @@ const Coop = {
     }
   },
   disconnect() {
+    this._intentionalClose = true;  // hindrar onclose från att auto-reconnecta
     this.active = false; this.inLobby = false;
+    this._stopPingLoop();
     if (this.ws) {
       try { this.ws.close(); } catch(e) {}
     }
     this.conns.clear();
     this.players.clear();
     this.ws = null; this.hostId = null;
+    this._reconnectAttempt = 0;
   },
   startGame() {
     if (!this.isHost) return;
     this.inLobby = false;
     this.broadcast({ type: 'start' });
+    this._startPingLoop();
+  },
+  // Per-peer ping-mätning. Host pingar varje peer var 2s (även i lobby), peer ekar tillbaka,
+  // host beräknar RTT och sparar i this.players.get(peerId).ping. Lobby-rebroadcast
+  // sprider värdet till alla peers så de ser sin egen latens.
+  _startPingLoop() {
+    if (this._pingInterval) clearInterval(this._pingInterval);
+    if (!this.isHost) return;
+    this._pingInterval = setInterval(() => {
+      if (!this.active) return;
+      const t = performance.now();
+      for (const [pid, p] of this.players) {
+        p._pingSentAt = t;
+        this._sendTo(pid, { type: 'ping', t });
+      }
+      // Refresha lobby var 6:e ping-cykel så ping-värden sprids till alla peers
+      this._pingTickCount = (this._pingTickCount || 0) + 1;
+      if (this.inLobby && this._pingTickCount % 3 === 0) this.broadcastLobby();
+    }, 2000);
+  },
+  _stopPingLoop() {
+    if (this._pingInterval) { clearInterval(this._pingInterval); this._pingInterval = null; }
   },
   _lastBroadcast: 0,
   _lastFullBroadcast: 0,
@@ -3952,9 +4097,20 @@ function renderLobbyPlayers(players) {
     const color = PLAYER_COLORS[p.colorIdx % PLAYER_COLORS.length];
     row.style.borderLeftColor = color;
     const youTag = p.peerId === Coop.myId ? ' (DU)' : '';
+    // Ping-färg: grön < 80ms, gul < 150ms, röd över. null = "väntar"
+    let pingHtml = '';
+    if (p.isHost) {
+      pingHtml = '<span style="color:#888;font-size:11px;">HOST</span>';
+    } else if (p.ping == null) {
+      pingHtml = '<span style="color:#888;font-size:11px;">…</span>';
+    } else {
+      const c = p.ping < 80 ? '#5aff5a' : (p.ping < 150 ? '#ffd54a' : '#ff5a5a');
+      pingHtml = `<span style="color:${c};font-size:11px;font-weight:700;">${p.ping}ms</span>`;
+    }
     row.innerHTML = `
       <div style="width:12px;height:12px;background:${color};border-radius:50%;flex:0 0 auto;"></div>
       <span class="pname">${p.name}${youTag}</span>
+      <span style="margin-left:auto;margin-right:8px;">${pingHtml}</span>
     `;
     // Kick-knapp för host (men inte mot sig själv)
     if (Coop.isHost && !p.isHost) {
