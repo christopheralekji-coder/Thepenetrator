@@ -252,14 +252,15 @@ function updateBullets(sim, dt, now) {
       }
       continue;
     }
-    // Player bullet — kolla mot enemies
+    // Player bullet — kolla mot enemies. Lag-kompensation: utöka hit-radie med 8px så klient
+    // som skjuter på snabb enemy (runner/ninja: 200+ px/s = 20-25px lag på 100ms RTT) träffar.
     let hit = false;
     if (!b.hitIds) b.hitIds = new Set();
     for (let j = 0; j < sim.enemies.length; j++) {
       const e = sim.enemies[j];
       if (e.dead || b.hitIds.has(e)) continue;
       const dx = e.x - b.x, dy = e.y - b.y;
-      const rsum = e.r + b.r;
+      const rsum = e.r + b.r + 8;  // +8 lag-kompensation
       if (dx * dx + dy * dy < rsum * rsum) {
         if (b.explosive) {
           explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);

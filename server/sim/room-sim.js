@@ -53,6 +53,16 @@ function tickSim(sim) {
   const dt = Math.min(0.1, (now - sim.lastTick) / 1000);
   sim.lastTick = now;
 
+  // 5s startup-countdown: skicka world-snapshot (för synk) men frys enemy-AI/spawn/damage
+  if (sim.simReadyAt && now < sim.simReadyAt) {
+    broadcastWorld(sim, now);
+    return;
+  }
+  if (sim.simReadyAt && now >= sim.simReadyAt) {
+    sim.simReadyAt = 0;
+    sim.eventQueue.push({ type: 'countdown_end' });
+  }
+
   if (sim.enemies.length > ENEMY_CAP) {
     const boss = sim.enemies.find(e => e.isBoss);
     sim.enemies = sim.enemies.slice(-ENEMY_CAP);
@@ -411,6 +421,9 @@ function startSim(sim, opts) {
   console.log('[SIM]', sim.room.code, 'started (wave=' + sim.wave + ', diff=' + sim.config.difficulty + ')');
   // Init första stage
   loadStage(sim, sim.wave);
+  // 5-sekunders countdown så alla peers hinner ansluta + position-sync, och spelarna ser "STARTAR OM 5...3...2...1"
+  sim.simReadyAt = Date.now() + 5000;
+  sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
   sim.lastTick = Date.now();
   sim.interval = setInterval(() => {
     try { tickSim(sim); } catch (e) { console.error('sim-tick error:', e.message, e.stack); }

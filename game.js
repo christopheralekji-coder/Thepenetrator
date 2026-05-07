@@ -3293,6 +3293,11 @@ const Coop = {
     }
     if (ev.type === 'stage_loaded') {
       console.log('[SIM] stage loaded:', ev.stageName);
+    } else if (ev.type === 'countdown_start') {
+      // 5-sekunders prep-overlay innan stage börjar — alla synkar position
+      state._countdownEndAt = performance.now() + (ev.durationMs || 5000);
+    } else if (ev.type === 'countdown_end') {
+      state._countdownEndAt = null;
     } else if (ev.type === 'boss_spawned') {
       // Dedup: visa bara en toast per unik boss-key
       const key = 'boss_' + (ev.bossKey || ev.name || '');
@@ -13961,6 +13966,34 @@ function render() {
   drawKillstreak();
   drawBossIntro();
   drawFadeOverlay();
+  drawCountdownOverlay();
+}
+
+function drawCountdownOverlay() {
+  if (!state._countdownEndAt) return;
+  const remaining = (state._countdownEndAt - performance.now()) / 1000;
+  if (remaining <= 0) { state._countdownEndAt = null; return; }
+  const num = Math.ceil(remaining);
+  const fade = (num - remaining); // 0 → 1 inom varje sekund
+  ctx.save();
+  // Semi-mörkning
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(0, 0, viewW, viewH);
+  // Stor siffra centrerad
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'bold 140px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#000';
+  ctx.shadowBlur = 12;
+  ctx.globalAlpha = 0.4 + Math.cos(fade * Math.PI) * 0.5 + 0.5;
+  ctx.fillText(num, viewW / 2, viewH / 2);
+  ctx.globalAlpha = 1;
+  // "FÖRBERED!"
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.fillText('FÖRBERED', viewW / 2, viewH / 2 + 90);
+  ctx.restore();
   drawStoryDialog();
 }
 
