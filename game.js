@@ -2843,7 +2843,7 @@ const PLAYER_COLORS = ['#3aff5a', '#3acaff', '#aa3aff', '#ff5a3a', '#ffd54a', '#
 // ── Binär protokoll för world-paket ──────────────────────────────────────────
 // Spar 3-5× vs JSON. Format: little-endian. Strängar är length-prefixed UTF-8 (max 255 bytes).
 // Allt annat (lobby/event/state/shot/etc) kör fortfarande JSON via _sendTo/_sendBroadcast.
-const WP_MAGIC = 0xA2;  // bumped från 0xA1 efter slot-mapping + enum-interning (inte bakåtkompatibelt)
+const WP_MAGIC = 0xA3;  // 0xA1=initial, 0xA2=slot+enum, 0xA3=+seq-nummer för packet-loss-telemetri
 const WP_FLAG_FULL = 1 << 0;
 const WP_FLAG_PICKUPS = 1 << 1;
 const WP_FLAG_GS = 1 << 2;
@@ -2902,6 +2902,8 @@ function encodeWorldBinary(pkt) {
   if (pkt.db) flags |= WP_FLAG_DB;
   if (pkt.tk) flags |= WP_FLAG_TRUCK;
   view.setUint8(o++, flags);
+  // Sequence-nummer (u16, wraps efter 65535) — klient mäter packet loss
+  view.setUint16(o, (pkt.seq || 0) & 0xFFFF, true); o += 2;
   function writeStr(s) {
     const bytes = _wpEncoder.encode(s == null ? '' : String(s));
     const len = Math.min(255, bytes.length);
@@ -3018,6 +3020,7 @@ function decodeWorldBinary(buf) {
   let o = 0;
   if (view.getUint8(o++) !== WP_MAGIC) return null;
   const flags = view.getUint8(o++);
+  const seq = view.getUint16(o, true); o += 2;
   function readStr() {
     const len = view.getUint8(o++);
     const s = _wpDecoder.decode(u8.subarray(o, o + len));
@@ -3041,6 +3044,7 @@ function decodeWorldBinary(buf) {
   }
   const pkt = { type: 'world' };
   pkt.full = (flags & WP_FLAG_FULL) ? 1 : 0;
+  pkt.seq = seq;
   // Players (slot-mapped — id/name slås upp via slotToPeerId i onData-handlern)
   const numP = view.getUint8(o++);
   pkt.players = [];
@@ -3428,6 +3432,22 @@ const Coop = {
       return;
     }
     if (data.type === 'world' && !this.isHost) {
+      // Packet-loss-mätning: räkna gap mellan seq-nummer över glidande fönster (100 paket)
+      if (data.seq != null) {
+        if (this._lastSeenSeq != null) {
+          let expected = (this._lastSeenSeq + 1) & 0xFFFF;
+          let gap = (data.seq - expected) & 0xFFFF;
+          if (gap > 1000) gap = 0;  // wraparound eller server-restart, ignorera
+          this._lossCounter = (this._lossCounter || 0) + gap;
+          this._recvCounter = (this._recvCounter || 0) + 1 + gap;
+          if (this._recvCounter >= 100) {
+            this._packetLossPct = (this._lossCounter / this._recvCounter) * 100;
+            this._lossCounter = 0;
+            this._recvCounter = 0;
+          }
+        }
+        this._lastSeenSeq = data.seq;
+      }
       // Klient: hantera komprimerade data
       if (data.players) {
         for (const p of data.players) {
@@ -3578,6 +3598,18 @@ const Coop = {
       }
       return;
     }
+    if (data.type === 'enemy_damage_batch' && this.isHost) {
+      // Batchade damage-events från klient — sparar JSON/network-overhead
+      const pt = this.players.get(fromId);
+      for (const ev of (data.d || [])) {
+        const e = state.enemies[ev.i];
+        if (!e || e.dead) continue;
+        e.lastDamagerPid = fromId;
+        if (pt) pt.dmgDealt = (pt.dmgDealt || 0) + ev.dmg;
+        damageEnemy(e, ev.dmg, ev.crit);
+      }
+      return;
+    }
     if (data.type === 'damage_to_you' && !this.isHost) {
       // Host meddelar att vi tagit skada
       if (state.player) damagePlayer(data.dmg);
@@ -3633,7 +3665,13 @@ const Coop = {
       if (partner && data.t) {
         partner.ping = Math.round(now - data.t);
         partner.lastPongAt = now;
+        // Skicka tillbaka mätt RTT till klienten så den kan visa sin egen latens
+        this._sendTo(fromId, { type: 'your_ping', ping: partner.ping });
       }
+      return;
+    }
+    if (data.type === 'your_ping' && !this.isHost) {
+      this._lastSeenPing = data.ping;
       return;
     }
     if (data.type === 'shot') {
@@ -3748,9 +3786,9 @@ const Coop = {
     if (!this.active || this.inLobby || !state.player) return;
     const now = performance.now();
     // Adaptiv rate: om servern inte hänger med (buffer fylls upp), sakta ner
-    // Default 50ms → 20Hz tick (höjt från 65ms/15Hz för jämnare känsla)
+    // Default 33ms → 30Hz tick (höjt från 50/20 för ännu jämnare känsla — bandbredd-budget håller med slot/enum/deflate)
     const buffered = this.ws ? this.ws.bufferedAmount : 0;
-    const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 50);
+    const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 33);
     if (this.isHost) {
       // Snapshot ~15Hz (eller långsammare om bufferten är full)
       if (now - this._lastBroadcast < adaptiveDelay) return;
@@ -3824,6 +3862,8 @@ const Coop = {
       }
       // Per-peer delta-cache: peerId → { enemyIdx → {x,y,hp} }
       if (!this._lastSentEnemyByPeer) this._lastSentEnemyByPeer = new Map();
+      // Per-peer seq-nummer för packet-loss-telemetri
+      if (!this._seqByPeer) this._seqByPeer = new Map();
       // Bygg och skicka ett skräddarsytt paket per peer (per-peer culling — största vinsten med 8 spelare)
       for (const [peerId, peer] of this.players) {
         const px = peer.x !== undefined ? peer.x : 900;
@@ -3859,7 +3899,9 @@ const Coop = {
         for (const b of liveBullets) {
           if (Math.abs(b.x - px) < visDist && Math.abs(b.y - py) < visDist) hb.push(b);
         }
-        const pkt = { players: allPlayers, enemies, hb, full: forceFullForPeer ? 1 : 0 };
+        const seq = ((this._seqByPeer.get(peerId) || 0) + 1) & 0xFFFF;
+        this._seqByPeer.set(peerId, seq);
+        const pkt = { players: allPlayers, enemies, hb, full: forceFullForPeer ? 1 : 0, seq };
         if (pickupsField) pkt.pickups = pickupsField;
         if (gsField) pkt.gs = gsField;
         if (dbField) pkt.db = dbField;
@@ -3880,8 +3922,9 @@ const Coop = {
       // Client skickar position 15Hz (eller saktare om bufferten är full)
       if (now - this._lastBroadcast < adaptiveDelay) return;
       this._lastBroadcast = now;
-      // Flusha skott-kö samma rate
+      // Flusha skott-kö och damage-batch samma rate
       this.flushShots();
+      this.flushDamage();
       // Om vi är döda, frys position till dödsplatsen (inte spec-kameran)
       const _dead = state.player.spectating;
       const _cx = _dead && state.deadBody ? state.deadBody.x : state.player.x;
@@ -3896,9 +3939,19 @@ const Coop = {
         revT: _revT });
     }
   },
+  // Aggregera damage-events: kö:as och flushas en gång per network-tick (samma rate som broadcast).
+  // Sparar JSON-overhead när minigun träffar 10 fiender på 33ms.
+  _damageQueue: [],
   damageEnemyOnHost(enemyIdx, dmg, isCrit) {
     if (this.isHost) return;
-    this.sendToHost({ type: 'enemy_damage', i: enemyIdx, dmg, crit: isCrit });
+    this._damageQueue.push({ i: enemyIdx, dmg, crit: isCrit });
+    // Hård cap så vi inte byggern oändligt om något går fel
+    if (this._damageQueue.length > 80) this._damageQueue.length = 80;
+  },
+  flushDamage() {
+    if (!this._damageQueue.length) return;
+    this.sendToHost({ type: 'enemy_damage_batch', d: this._damageQueue.slice() });
+    this._damageQueue.length = 0;
   },
   // Skicka damage till specifik partner via deras peerId
   sendDamageToPartner(peerId, dmg) {
@@ -3962,17 +4015,20 @@ function getCoopMultiplier() {
 
 // Hitta närmsta levande spelare (host eller coop-partner) för enemy-AI
 function getNearestAlivePlayer(x, y) {
-  let best = null, bestD = Infinity;
+  // Squared distance — slipper sqrt på varma enemy-AI-loopen (kallas per fiende per frame)
+  let best = null, bestD2 = Infinity;
   const sp = state.player;
   if (sp && sp.hp > 0 && !sp.spectating) {
-    bestD = Math.hypot(sp.x - x, sp.y - y);
+    const dx = sp.x - x, dy = sp.y - y;
+    bestD2 = dx*dx + dy*dy;
     best = { ref: sp, peerId: null };
   }
   if (Coop.active && Coop.isHost) {
     for (const [pid, partner] of Coop.players) {
       if (!partner || partner.hp <= 0) continue;
-      const d = Math.hypot(partner.x - x, partner.y - y);
-      if (d < bestD) { bestD = d; best = { ref: partner, peerId: pid }; }
+      const dx = partner.x - x, dy = partner.y - y;
+      const d2 = dx*dx + dy*dy;
+      if (d2 < bestD2) { bestD2 = d2; best = { ref: partner, peerId: pid }; }
     }
   }
   // Fallback: ingen levande, returnera state.player så ingenting kraschar
@@ -7055,6 +7111,38 @@ function updateHUD() {
   if (ammoDisplayEl) ammoDisplayEl.textContent = ammoText;
 }
 
+// In-game lag-indikator (visar host:s värsta peer-ping)
+const _lagIndicatorEl = (() => {
+  const el = document.createElement('div');
+  el.id = 'lag-indicator';
+  el.style.cssText = 'position:fixed;top:8px;right:8px;background:rgba(0,0,0,0.55);color:#fff;padding:4px 8px;border-radius:6px;font:700 11px monospace;z-index:1000;display:none;pointer-events:none;letter-spacing:0.5px;';
+  document.body.appendChild(el);
+  return el;
+})();
+function updateLagIndicator() {
+  if (!Coop.active || Coop.inLobby) {
+    _lagIndicatorEl.style.display = 'none';
+    return;
+  }
+  let worstPing = null;
+  let lossPct = null;
+  if (Coop.isHost) {
+    for (const [, p] of Coop.players) {
+      if (p.ping != null) worstPing = worstPing == null ? p.ping : Math.max(worstPing, p.ping);
+    }
+  } else if (Coop._lastSeenPing != null) {
+    worstPing = Coop._lastSeenPing;
+  }
+  if (Coop._packetLossPct != null) lossPct = Coop._packetLossPct;
+  const c = worstPing == null ? '#888' : (worstPing < 80 ? '#5aff5a' : (worstPing < 150 ? '#ffd54a' : '#ff5a5a'));
+  let txt = worstPing == null ? '--' : worstPing + 'ms';
+  if (lossPct != null && lossPct > 1) txt += ' · ' + lossPct.toFixed(0) + '% loss';
+  _lagIndicatorEl.style.display = 'block';
+  _lagIndicatorEl.style.color = c;
+  _lagIndicatorEl.textContent = txt;
+}
+setInterval(updateLagIndicator, 1000);
+
 // In-game settings-knapp (i HUD bredvid gold)
 const btnIngameSettings = document.getElementById('btn-ingame-settings');
 if (btnIngameSettings) {
@@ -7843,18 +7931,22 @@ function updateBullets(dt) {
       continue;
     }
     if (b.hostile) {
-      // Träffa närmsta spelare (host eller partner)
-      let nearest = null, nearestPid = null, nearestD = Infinity;
-      const distP = Math.hypot(p.x - b.x, p.y - b.y);
-      if (distP < nearestD) { nearestD = distP; nearest = p; }
+      // Träffa närmsta spelare (host eller partner) — squared distance, slipper sqrt
+      let nearest = null, nearestPid = null, nearestD2 = Infinity;
+      const dxp = p.x - b.x, dyp = p.y - b.y;
+      const distP2 = dxp*dxp + dyp*dyp;
+      if (distP2 < nearestD2) { nearestD2 = distP2; nearest = p; }
       if (Coop.active && Coop.isHost) {
         for (const [pid, partner] of Coop.players) {
           if (partner.hp <= 0) continue;
-          const dd = Math.hypot(partner.x - b.x, partner.y - b.y);
-          if (dd < nearestD) { nearestD = dd; nearest = partner; nearestPid = pid; }
+          const ddx = partner.x - b.x, ddy = partner.y - b.y;
+          const dd2 = ddx*ddx + ddy*ddy;
+          if (dd2 < nearestD2) { nearestD2 = dd2; nearest = partner; nearestPid = pid; }
         }
       }
-      if (nearest && nearestD < (nearest.r || 14) + b.r) {
+      const hitR = (nearest && nearest.r) ? nearest.r : 14;
+      const hitRsum = hitR + b.r;
+      if (nearest && nearestD2 < hitRsum * hitRsum) {
         if (nearestPid) {
           Coop.sendDamageToPartner(nearestPid, b.dmg);
           nearest.hp = Math.max(0, (nearest.hp || 100) - b.dmg);
@@ -7888,8 +7980,10 @@ function updateBullets(dt) {
       for (let i = 0; i < state.enemies.length; i++) {
         const e = state.enemies[i];
         if (e.dead || b.hitIds.has(e)) continue;
-        const d = Math.hypot(e.x - b.x, e.y - b.y);
-        if (d < e.r + b.r) {
+        // Squared distance — slipper sqrt på den heta collision-loopen (kollisionscheck körs ~5000 ggr/frame med 50 enemies × 100 bullets)
+        const dx = e.x - b.x, dy = e.y - b.y;
+        const rsum = e.r + b.r;
+        if (dx*dx + dy*dy < rsum*rsum) {
           if (b.explosive && !isCoopClient) {
             explode(b.x, b.y, b.explosive, b.dmg, true);
             hit = true; break;
