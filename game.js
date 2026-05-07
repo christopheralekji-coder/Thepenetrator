@@ -3366,6 +3366,10 @@ const Coop = {
       // Dedup per wave så server's idempotent broadcast inte loopar shop/overlay
       if (this._stageCompleteHandled === ev.wave) return;
       this._stageCompleteHandled = ev.wave;
+      // Stäng stage-clear-overlay (om visad lokalt) — annars fastnar partner på den
+      const sc = document.getElementById('stage-clear-overlay');
+      if (sc) sc.classList.add('hidden');
+      state._stageClearShown = false;
       if (typeof onWaveComplete === 'function') onWaveComplete();
     } else if (ev.type === 'stage_event') {
       if (typeof triggerStageEvent === 'function') {
@@ -5979,14 +5983,18 @@ function loadStage(n) {
   // Generera per-stage layout
   buildStageLayout(stage);
 
-  // Teleportera spelaren till stage-spawn
+  // Teleportera spelaren till stage-spawn + återställ död-state (annars fastnar man som spectator efter stage clear)
   if (state.player) {
     state.player.x = stage.spawnPos.x;
     state.player.y = stage.spawnPos.y;
     state.player.invuln = 1.0;
     state.player.shotsThisStage = 0;
-    // Andra chans återställs INTE per stage längre — bara per RUN (i startGame)
+    state.player.spectating = false;
+    state.player.specTarget = null;
+    if (state.player.hp <= 0) state.player.hp = state.player.maxHp;
   }
+  state.deadBody = null;
+  // Andra chans återställs INTE per stage längre — bara per RUN (i startGame)
   state.camera.x = state.player.x - viewW/2;
   state.camera.y = state.player.y - viewH/2;
 
