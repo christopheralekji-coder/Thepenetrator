@@ -3534,6 +3534,11 @@ const Coop = {
             if (this.serverSimActive && state.player && p.hp != null) {
               const prevHp = state.player.hp;
               state.player.hp = p.hp;
+              if (p.hp !== prevHp) {
+                // Uppdatera HUD så HP-baren visar rätt värde direkt (annars händer det bara när
+                // andra saker triggar updateHUD som vid skjut/pickup)
+                if (typeof updateHUD === 'function') updateHUD();
+              }
               if (p.hp < prevHp - 1 && !state.player.spectating) {
                 if (typeof triggerShake === 'function') triggerShake(6, 0.3);
                 if (typeof Audio !== 'undefined' && Audio.playerHurt) Audio.playerHurt();
