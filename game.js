@@ -5223,6 +5223,7 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
   // Server-auth: skicka sim_shoot så server fires authoritative bullet (skadar enemies).
   // Klientens lokala bullets är purely visual (för instant feedback) — server gör damage.
   // VIKTIGT: weaponLevelDmgBonus måste bakas in i dmgMul eftersom server inte har save-data.
+  if (window._debugServerSim) console.log('[CLIENT] tryShoot serverSimActive=' + Coop.serverSimActive + ' ws=' + (Coop.ws && Coop.ws.readyState));
   if (Coop.serverSimActive && Coop.ws && Coop.ws.readyState === 1) {
     const wepLvlBonus = (typeof weaponLevelDmgBonus === 'function') ? weaponLevelDmgBonus(w.id) : 1;
     Coop.ws.send(JSON.stringify({
@@ -14378,6 +14379,10 @@ function runFrame(dt, now) {
     const dialogActive = state.dialogActive;
     if (!introActive && !hitStopActive && !dialogActive) {
       updatePlayer(dt, now);
+
+      // Klient-side: vapen-pickup, dog tags, stage ambient. KÖRS ALLTID — påverkar save-data, inte sim.
+      updateCollectibles();
+      updateStageAmbient(dt);
 
       // I server-auth mode beter sig host som klient (server kör sim)
       const isCoopClient = Coop.active && (!Coop.isHost || Coop.serverSimActive);

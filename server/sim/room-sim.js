@@ -345,7 +345,14 @@ function applyPlayerInput(sim, peerId, input) {
 
 function applyShoot(sim, peerId, msg) {
   const ws = sim.room.members.get(peerId);
-  if (!ws || !ws.playerState) return;
+  if (!ws) return;
+  if (!ws.playerState) {
+    ws.playerState = {
+      x: typeof msg.x === 'number' ? msg.x : 1000,
+      y: typeof msg.y === 'number' ? msg.y : 1000,
+      hp: 100,
+    };
+  }
   const ps = ws.playerState;
   const weaponId = msg.weaponId || ps.weaponId || 'pistol';
   const p = {
@@ -354,6 +361,10 @@ function applyShoot(sim, peerId, msg) {
     aimAngle: typeof msg.ang === 'number' ? msg.ang : (ps.aim || 0),
     r: 14, peerId,
   };
+  // Diagnostik (avstängt i prod via env-var)
+  if (process.env.SIM_DEBUG) {
+    console.log('[SIM]', sim.room.code, 'shoot from', peerId, 'weapon=' + weaponId, 'pos=(' + p.x + ',' + p.y + ')', 'enemies=' + sim.enemies.length, 'bullets=' + sim.bullets.length);
+  }
   const params = {
     dmgMul: msg.dmgMul || 1, bspeedMul: msg.bspeedMul || 1,
     explMul: msg.explMul || 1, kbMul: msg.kbMul || 1,
