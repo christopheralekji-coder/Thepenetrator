@@ -3502,7 +3502,21 @@ const Coop = {
         for (const p of data.players) {
           // Slot-mapping: p.c är slot (colorIdx), slå upp peerId via lobby-tabell
           const peerId = this.slotToPeerId ? this.slotToPeerId.get(p.c) : null;
-          if (!peerId || peerId === this.myId) continue;
+          // Egen slot: i serverSim accepterar vi server-hp som auktoritativt
+          if (peerId === this.myId) {
+            if (this.serverSimActive && state.player && p.hp != null) {
+              const prevHp = state.player.hp;
+              state.player.hp = p.hp;
+              // Trigga damage-feedback om server säger lägre HP
+              if (p.hp < prevHp - 1 && !state.player.spectating) {
+                if (typeof triggerShake === 'function') triggerShake(6, 0.3);
+                if (typeof Audio !== 'undefined' && Audio.playerHurt) Audio.playerHurt();
+                state.player.flashUntil = performance.now() + 120;
+              }
+            }
+            continue;
+          }
+          if (!peerId) continue;
           let cur = this.players.get(peerId);
           if (!cur) {
             // Lobby-broadcast har inte landat än — skippa tills den gör det
@@ -4370,21 +4384,21 @@ btnCoopStart.addEventListener('click', () => {
   coopScreen.classList.add('hidden');
   coopInitEl.classList.remove('hidden');
   coopLobbyEl.classList.add('hidden');
+  // KÖR actuallyStartGame FÖRST så state.wave (=1 för story) är satt innan sim_start
+  actuallyStartGame();
   // Server-auth opt-in: skicka sim_start till servern (host-only)
   // Sätt serverSimActive direkt så host inte kör egen sim under round-trip-vänten.
   if (Coop.isHost && Coop.config.serverSim && Coop.ws && Coop.ws.readyState === 1) {
     Coop.ws.send(JSON.stringify({
       type: 'sim_start',
-      wave: save.wave || 1,
+      wave: state.wave || 1,
       difficulty: Coop.config.difficulty || 'veteran',
       ngpLevel: save.ngpLevel || 0,
       mode: Coop.config.mode || 'story',
     }));
-    // Optimistic — sätt aktiv direkt, sim_started bekräftar senare
     Coop.serverSimActive = true;
     state.serverSimActive = true;
   }
-  actuallyStartGame();
 });
 
 // COSTUMES-skärm
