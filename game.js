@@ -3479,7 +3479,8 @@ const Coop = {
       }
       return;
     }
-    if (data.type === 'world' && !this.isHost) {
+    // World-paket processas av alla NON-host klienter, OCH av host i server-auth mode (server är då auktoritet)
+    if (data.type === 'world' && (!this.isHost || this.serverSimActive)) {
       // Packet-loss-mätning: räkna gap mellan seq-nummer över glidande fönster (100 paket)
       if (data.seq != null) {
         if (this._lastSeenSeq != null) {
@@ -3658,12 +3659,12 @@ const Coop = {
       }
       return;
     }
-    if (data.type === 'damage_to_you' && !this.isHost) {
+    if (data.type === 'damage_to_you' && (!this.isHost || this.serverSimActive)) {
       // Host meddelar att vi tagit skada
       if (state.player) damagePlayer(data.dmg);
       return;
     }
-    if (data.type === 'pickup_to_you' && !this.isHost) {
+    if (data.type === 'pickup_to_you' && (!this.isHost || this.serverSimActive)) {
       // Host meddelar att vi plockat upp pickup
       const p = state.player;
       if (!p) return;
@@ -3792,6 +3793,8 @@ const Coop = {
   disconnect() {
     this._intentionalClose = true;  // hindrar onclose från att auto-reconnecta
     this.active = false; this.inLobby = false;
+    this.serverSimActive = false;
+    if (typeof state !== 'undefined') state.serverSimActive = false;
     this._stopPingLoop();
     if (this.ws) {
       try { this.ws.close(); } catch(e) {}
@@ -3837,14 +3840,16 @@ const Coop = {
     // Default 33ms → 30Hz tick (höjt från 50/20 för ännu jämnare känsla — bandbredd-budget håller med slot/enum/deflate)
     const buffered = this.ws ? this.ws.bufferedAmount : 0;
     const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 33);
-    // Server-auth mode: ALLA klienter (inkl host) skickar bara position till servern
+    // Server-auth mode: ALLA klienter (inkl host) skickar bara position till servern.
+    // Visual shots delas fortfarande peer-to-peer via _sendBroadcast så andra ser dina projektiler.
     if (this.serverSimActive) {
       if (now - this._lastBroadcast < adaptiveDelay) return;
       this._lastBroadcast = now;
+      // Flusha visual-shot-kö så peers ser dina bullets även i server-sim
+      this.flushShots();
       const _dead = state.player.spectating;
       const _cx = _dead && state.deadBody ? state.deadBody.x : state.player.x;
       const _cy = _dead && state.deadBody ? state.deadBody.y : state.player.y;
-      // sim_input: position + hp + vinkel + vapen
       this.ws.send(JSON.stringify({
         type: 'sim_input',
         x: Math.round(_cx),
@@ -4010,6 +4015,8 @@ const Coop = {
   _damageQueue: [],
   damageEnemyOnHost(enemyIdx, dmg, isCrit) {
     if (this.isHost) return;
+    // Server-auth: server är källan till sanning för damage. Skippa onödig peer-trafik.
+    if (this.serverSimActive) return;
     this._damageQueue.push({ i: enemyIdx, dmg, crit: isCrit });
     // Hård cap så vi inte byggern oändligt om något går fel
     if (this._damageQueue.length > 80) this._damageQueue.length = 80;
@@ -4290,6 +4297,8 @@ Coop.onConfigChange = (cfg) => {
   if (!Coop.isHost && !coopLobbyEl.classList.contains('hidden')) {
     coopDifficultyInfo.textContent = 'Svårighet: ' + (cfg.difficulty || 'veteran').toUpperCase() + ' · Läge: ' + (MODE_LABELS[cfg.mode] || cfg.mode);
   }
+  // Server-sim toggle synk till klienter
+  if (typeof updateServerSimToggleVisibility === 'function') updateServerSimToggleVisibility();
   renderScalingInfo();
 };
 
@@ -4362,6 +4371,7 @@ btnCoopStart.addEventListener('click', () => {
   coopInitEl.classList.remove('hidden');
   coopLobbyEl.classList.add('hidden');
   // Server-auth opt-in: skicka sim_start till servern (host-only)
+  // Sätt serverSimActive direkt så host inte kör egen sim under round-trip-vänten.
   if (Coop.isHost && Coop.config.serverSim && Coop.ws && Coop.ws.readyState === 1) {
     Coop.ws.send(JSON.stringify({
       type: 'sim_start',
@@ -4370,6 +4380,9 @@ btnCoopStart.addEventListener('click', () => {
       ngpLevel: save.ngpLevel || 0,
       mode: Coop.config.mode || 'story',
     }));
+    // Optimistic — sätt aktiv direkt, sim_started bekräftar senare
+    Coop.serverSimActive = true;
+    state.serverSimActive = true;
   }
   actuallyStartGame();
 });
@@ -5171,14 +5184,16 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
     }
   }
   if (_coopShots && _coopShots.length) Coop.broadcastShots(_coopShots);
-  // Server-auth: skicka sim_shoot så server fires authoritative bullet (skadar enemies)
+  // Server-auth: skicka sim_shoot så server fires authoritative bullet (skadar enemies).
   // Klientens lokala bullets är purely visual (för instant feedback) — server gör damage.
+  // VIKTIGT: weaponLevelDmgBonus måste bakas in i dmgMul eftersom server inte har save-data.
   if (Coop.serverSimActive && Coop.ws && Coop.ws.readyState === 1) {
+    const wepLvlBonus = (typeof weaponLevelDmgBonus === 'function') ? weaponLevelDmgBonus(w.id) : 1;
     Coop.ws.send(JSON.stringify({
       type: 'sim_shoot',
       weaponId: w.id,
       x: p.x, y: p.y, ang: p.aimAngle,
-      dmgMul: p.dmgMul || 1,
+      dmgMul: (p.dmgMul || 1) * wepLvlBonus,
       bspeedMul: p.bspeedMul || 1,
       explMul: p.explMul || 1,
       kbMul: p.kbMul || 1,
