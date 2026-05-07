@@ -2837,7 +2837,7 @@ function openCheats() {
 // CO-OP via WebSocket-server (eller PeerJS som fallback)
 // Sätt server-URL till din Render.com-deploy efter att den är uppe
 const COOP_SERVER_URL = (typeof window !== 'undefined' && window.COOP_SERVER_URL) ||
-  'wss://thepenetrator.onrender.com';
+  'wss://penetrator-coop-eu.onrender.com';
 const PLAYER_COLORS = ['#3aff5a', '#3acaff', '#aa3aff', '#ff5a3a', '#ffd54a', '#ff5aca', '#5aff8a', '#cc5aff'];
 
 // ── Binär protokoll för world-paket ──────────────────────────────────────────
