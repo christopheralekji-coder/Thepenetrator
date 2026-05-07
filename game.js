@@ -3291,6 +3291,20 @@ const Coop = {
         this._lastBossToastKey = key;
         if (typeof showToast === 'function') showToast('👑 ' + (ev.name || 'BOSS'));
       }
+      // Trigga full boss-intro (canvas-banner + audio + shake) — server kör inte client-side render
+      const entrance = (typeof getBossEntrance === 'function') ? getBossEntrance(ev.bossKey) : 'fade_in';
+      state.bossIntro = {
+        startTime: performance.now(),
+        duration: 2400,
+        name: ev.name || 'BOSS',
+        sub: ev.sub || '',
+        entrance,
+      };
+      state.bossAlive = true;
+      state.bossSequenceStep = state.bossSequenceStep || 1;
+      if (typeof Audio !== 'undefined' && Audio.bossSpawn) Audio.bossSpawn();
+      if (typeof triggerShake === 'function') triggerShake(12, 1.0);
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
     } else if (ev.type === 'miniboss_spawned') {
       const key = 'mini_' + (ev.name || '');
       if (this._lastBossToastKey !== key) {

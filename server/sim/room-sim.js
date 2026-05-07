@@ -231,15 +231,22 @@ function broadcastWorld(sim, now) {
 
   for (const [peerId, ws] of sim.room.members) {
     let lastSent = sim.lastSentEnemyByPeer.get(peerId);
-    const forceFullForPeer = !lastSent || fullBroadcast;
+    let forceFullForPeer = !lastSent || fullBroadcast;
     if (!lastSent) lastSent = {};
+    // Pre-scan: om någon synlig enemy är NY för peeren, forcera full-paket så vi får med
+    // bossKey/isBoss/color/name. Annars syns bossen som "bara skugga" tills nästa full-broadcast.
+    if (!forceFullForPeer) {
+      for (const e of sim.enemies) {
+        if (e.dead) continue;
+        if (!lastSent[e._idx]) { forceFullForPeer = true; break; }
+      }
+    }
     const newSent = {};
     const enemiesPkt = [];
     const px = (ws.playerState && ws.playerState.x) || 1000;
     const py = (ws.playerState && ws.playerState.y) || 1000;
     for (const e of sim.enemies) {
       if (e.dead) continue;
-      // Bossar alltid synliga
       const visible = e.isBoss || e.isMiniBoss ||
                       (Math.abs(e.x - px) < CULL_DIST && Math.abs(e.y - py) < CULL_DIST);
       if (!visible) continue;
