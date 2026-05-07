@@ -3297,9 +3297,9 @@ const Coop = {
       if (ev.isBoss) save.stats.bossKills = (save.stats.bossKills || 0) + 1;
       if (typeof updateHUD === 'function') updateHUD();
     } else if (ev.type === 'stage_complete') {
-      const sc = document.getElementById('stage-clear-overlay');
-      if (sc) sc.classList.add('hidden');
-      state._stageClearShown = false;
+      // Dedup per wave så server's idempotent broadcast inte loopar shop/overlay
+      if (this._stageCompleteHandled === ev.wave) return;
+      this._stageCompleteHandled = ev.wave;
       if (typeof onWaveComplete === 'function') onWaveComplete();
     } else if (ev.type === 'stage_event') {
       if (typeof triggerStageEvent === 'function') {
@@ -3887,11 +3887,12 @@ const Coop = {
       const _dead = state.player.spectating;
       const _cx = _dead && state.deadBody ? state.deadBody.x : state.player.x;
       const _cy = _dead && state.deadBody ? state.deadBody.y : state.player.y;
+      // sim_input: bara position+aim+vapen — INTE hp (server är auktoritet för hp,
+      // skicka det skulle skriva över server-side damage)
       this.ws.send(JSON.stringify({
         type: 'sim_input',
         x: Math.round(_cx),
         y: Math.round(_cy),
-        hp: _dead ? 0 : Math.round(state.player.hp),
         aim: Math.round(state.player.aimAngle * 100) / 100,
         weaponId: state.player.weaponId,
       }));
@@ -6273,6 +6274,10 @@ function closeShop() {
   state.player.hp = state.player.maxHp;
   state.player.ammo = W_BY_ID[state.player.weaponId].mag || 0;
   state.player.reloading = false;
+  // Server-auth: tell server att avancera till nästa stage
+  if (Coop.serverSimActive && Coop.ws && Coop.ws.readyState === 1) {
+    Coop.ws.send(JSON.stringify({ type: 'sim_load_stage', wave: state.wave + 1 }));
+  }
   startWave(state.wave + 1);
 }
 
@@ -14556,8 +14561,11 @@ function runFrame(dt, now) {
       updateZoneProgression(stage);
     }
 
-    // Visa Stage Clear-overlay när stage är HELT klar (boss + alla minions döda)
-    if (isStageComplete() && state.mode === 'playing' && !state._stageClearShown) {
+    // Visa Stage Clear-overlay när stage är HELT klar (boss + alla minions döda).
+    // Server-auth: server's gs.bd sätter state.bossDefeated=true varje tick — dedup per wave.
+    if (isStageComplete() && state.mode === 'playing' && !state._stageClearShown
+        && state._stageClearShownForWave !== state.wave) {
+      state._stageClearShownForWave = state.wave;
       showStageClearOverlay();
     }
   }
