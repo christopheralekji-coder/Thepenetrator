@@ -3232,11 +3232,20 @@ const Coop = {
       // Host får meddelande att en peer joinade
       const colorIdx = this.players.size + 1;
       this.players.set(msg.peerId, { x: 900, y: 900, hp: 100, weaponId: 'fists', aimAngle: 0, name: 'P' + (colorIdx + 1), colorIdx });
+      // Lägg till i slotToPeerId så host hittar partners i world-paket (annars osynliga)
+      if (!this.slotToPeerId) this.slotToPeerId = new Map();
+      this.slotToPeerId.set(colorIdx, msg.peerId);
       // Skicka welcome direkt
       this._sendTo(msg.peerId, { type: 'welcome', colorIdx, players: this.serializeLobby() });
       this.broadcastLobby();
       if (this._onPlayerJoinCb) this._onPlayerJoinCb(this.players.size + 1);
     } else if (msg.type === 'peer_left') {
+      // Ta bort från slotToPeerId
+      if (this.slotToPeerId) {
+        for (const [slot, pid] of this.slotToPeerId) {
+          if (pid === msg.peerId) { this.slotToPeerId.delete(slot); break; }
+        }
+      }
       this.players.delete(msg.peerId);
       this.broadcastLobby();
       if (this._onPlayerJoinCb) this._onPlayerJoinCb(this.players.size + 1);

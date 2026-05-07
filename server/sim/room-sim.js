@@ -152,9 +152,14 @@ function tickSim(sim) {
 }
 
 function buildPlayerList(sim) {
+  const stage = getStage(sim.wave);
+  const defaultX = stage ? stage.spawnPos.x : 1000;
+  const defaultY = stage ? stage.spawnPos.y : 1000;
   const players = [];
   for (const [pid, ws] of sim.room.members) {
-    const ps = ws.playerState || { x: 1000, y: 1000, hp: 100 };
+    // Late-joiner: init till stage spawn-pos så de inte hamnar på (1000,1000) random plats
+    if (!ws.playerState) ws.playerState = { x: defaultX, y: defaultY, hp: 100 };
+    const ps = ws.playerState;
     players.push({
       peerId: pid,
       x: ps.x, y: ps.y,
