@@ -68,7 +68,10 @@ function tickSim(sim) {
     if (sim.spawnTimer <= 0 && sim.enemies.length < ENEMY_CAP) {
       const stage = getStage(sim.wave);
       const players = buildPlayerList(sim);
+      const beforeCount = sim.enemies.length;
       if (stage) spawnEnemyAtEdge(sim, stage, players);
+      const spawned = sim.enemies.length > beforeCount;
+      console.log('[SIM]', sim.room.code, 'spawn-attempt: wave=' + sim.wave + ' zone=' + sim.currentZone + ' toSpawn=' + sim.enemiesToSpawn + ' players=' + players.length + ' spawned=' + spawned + ' total=' + sim.enemies.length);
       sim.enemiesToSpawn--;
       sim.spawnTimer = 0.4 + Math.random() * 0.4;
     }
