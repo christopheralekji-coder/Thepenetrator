@@ -274,10 +274,9 @@ function broadcastWorld(sim, now) {
       seq,
     };
     if (fullBroadcast) {
-      const stage = getStage(sim.wave);
       pkt.gs = {
         w: sim.wave,
-        cz: stage ? stage.kind : 'forest',
+        cz: sim.currentZone,        // BUG-FIX: cz = current zone INDEX (0/1/etc), inte stage.kind. Klient räknar `cz + 1` aritmetiskt.
         zs: sim.zoneState,
         bss: sim.bossSequenceStep,
         bd: sim.bossDefeated ? 1 : 0,

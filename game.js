@@ -14493,9 +14493,11 @@ function runFrame(dt, now) {
       Audio.heartbeat();
     }
 
-    // Zon-progression
-    const stage = getStage(state.wave);
-    updateZoneProgression(stage);
+    // Zon-progression — SKIPPAS i server-auth mode (server är auktoritet)
+    if (!Coop.serverSimActive) {
+      const stage = getStage(state.wave);
+      updateZoneProgression(stage);
+    }
 
     // Visa Stage Clear-overlay när stage är HELT klar (boss + alla minions döda)
     if (isStageComplete() && state.mode === 'playing' && !state._stageClearShown) {
