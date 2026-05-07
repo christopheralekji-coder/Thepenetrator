@@ -242,11 +242,21 @@ function loadStage(sim, wave) {
   sim._waveCompleting = false;
   sim._bossFailsafeTimer = 0;
   sim.activeZonePool = null;
-  // Rensa enemies/bullets från förra stage
+  // Rensa enemies/bullets/dead-bodies från förra stage
   sim.enemies = [];
   sim.bullets = [];
   if (sim.gasClouds) sim.gasClouds = [];
   if (sim.flameTrails) sim.flameTrails = [];
+  if (sim.deadBodies) sim.deadBodies = {};
+  // Återställ alla spelare HP + position
+  for (const [, ws] of sim.room.members) {
+    if (ws.playerState) {
+      ws.playerState.hp = 100;
+      ws.playerState.x = stage.spawnPos.x;
+      ws.playerState.y = stage.spawnPos.y;
+      ws.playerState.invulnUntil = Date.now() + 1500;
+    }
+  }
   // Initiera alla peers playerState till stage spawn-pos så enemy-spawn + cull blir korrekt
   // tills första sim_input anländer från klient
   for (const [, ws] of sim.room.members) {

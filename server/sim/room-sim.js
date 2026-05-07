@@ -98,7 +98,8 @@ function tickSim(sim) {
     }
   }
 
-  // Skriv tillbaka playerState.hp + invulnUntil
+  // Skriv tillbaka playerState.hp + invulnUntil från contact-damage
+  if (!sim.deadBodies) sim.deadBodies = {};
   for (const p of players) {
     if (p._tookDamageFrom) {
       const ws = sim.room.members.get(p.peerId);
@@ -108,6 +109,21 @@ function tickSim(sim) {
       }
     }
   }
+  // Centraliserad death-detektering — täcker alla damage-källor (contact, hostile bullets, hazards, explosion)
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState) continue;
+    if (ws.playerState.hp <= 0 && !sim.deadBodies[pid]) {
+      sim.deadBodies[pid] = {
+        x: ws.playerState.x,
+        y: ws.playerState.y,
+        reviveTimer: 0,
+        revivedBy: null,
+      };
+      sim.eventQueue.push({ type: 'player_died', peerId: pid });
+    }
+  }
+  // Revive-tick: om annan LEVANDE spelare står inom 50px av kroppen i 5s → revive
+  updateRevive(sim, dt);
 
   // Bullet-uppdatering (frozen vid time-stop? Original-kod fryser BARA enemies, ej bullets)
   updateBullets(sim, dt, now);
@@ -149,6 +165,42 @@ function tickSim(sim) {
 
   // Skicka world-snapshots
   broadcastWorld(sim, now);
+}
+
+// Revive-system: levande spelare nära dead body 5s → respawn på platsen med 50% HP
+function updateRevive(sim, dt) {
+  if (!sim.deadBodies) return;
+  for (const peerId of Object.keys(sim.deadBodies)) {
+    const body = sim.deadBodies[peerId];
+    let anyReviving = false;
+    let reviverPid = null;
+    for (const [pid, ws] of sim.room.members) {
+      if (pid === peerId) continue;
+      if (!ws.playerState || ws.playerState.hp <= 0) continue;
+      const dx = ws.playerState.x - body.x;
+      const dy = ws.playerState.y - body.y;
+      if (dx * dx + dy * dy < 50 * 50) {
+        anyReviving = true;
+        reviverPid = pid;
+        body.reviveTimer = (body.reviveTimer || 0) + dt;
+        body.revivedBy = pid;
+        if (body.reviveTimer >= 5) {
+          // Återuppliv!
+          const deadWs = sim.room.members.get(peerId);
+          if (deadWs && deadWs.playerState) {
+            deadWs.playerState.x = body.x;
+            deadWs.playerState.y = body.y;
+            deadWs.playerState.hp = 50;
+            deadWs.playerState.invulnUntil = Date.now() + 2000;
+          }
+          delete sim.deadBodies[peerId];
+          sim.eventQueue.push({ type: 'player_revived', peerId, revivedBy: pid });
+        }
+        break;
+      }
+    }
+    if (!anyReviving) body.reviveTimer = Math.max(0, (body.reviveTimer || 0) - dt);
+  }
 }
 
 function buildPlayerList(sim) {
@@ -302,6 +354,26 @@ function broadcastWorld(sim, now) {
         bss: sim.bossSequenceStep,
         bd: sim.bossDefeated ? 1 : 0,
       };
+    }
+    // Dead body — prioritera egen kropp (om dead), annars första partners. Klient renderar
+    // kroppen + revive-timern. Multi-body stöd: bara en sänds via wireformat (begränsning).
+    if (sim.deadBodies) {
+      let bodyToSend = sim.deadBodies[peerId];  // egen kropp först
+      if (!bodyToSend) {
+        for (const otherPid in sim.deadBodies) {
+          bodyToSend = sim.deadBodies[otherPid];
+          break;
+        }
+      }
+      if (bodyToSend) {
+        pkt.db = {
+          x: bodyToSend.x,
+          y: bodyToSend.y,
+          reviveTimer: bodyToSend.reviveTimer || 0,
+          revivedBy: bodyToSend.revivedBy || null,
+          color: '#222',
+        };
+      }
     }
     // Pickups: skickas i full broadcast eller om något ändrats
     if (sim.pickups && sim.pickups.length > 0) {

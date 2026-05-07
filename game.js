@@ -3320,6 +3320,26 @@ const Coop = {
         this._lastBossToastKey = key;
         if (typeof showToast === 'function') showToast('⚠ MINI-BOSS: ' + (ev.name || ''));
       }
+    } else if (ev.type === 'player_died') {
+      // Spelare dog (kan vara mig eller partner)
+      if (ev.peerId === this.myId && state.player && !state.player.spectating) {
+        if (typeof enterDeathState === 'function') enterDeathState();
+      }
+    } else if (ev.type === 'player_revived') {
+      // Återupplivad — om det är mig, lämna death-state
+      if (ev.peerId === this.myId && state.player) {
+        state.player.spectating = false;
+        state.player.specTarget = null;
+        state.player.invuln = 2;
+        state.deadBody = null;
+        if (typeof Audio !== 'undefined' && Audio.revive) Audio.revive();
+        if (typeof showToast === 'function') showToast('💚 ÅTERUPPLIVAD');
+        if (typeof spawnParticles === 'function') spawnParticles(state.player.x, state.player.y, '#5aff5a', 30, 220);
+        if (typeof updateHUD === 'function') updateHUD();
+      } else {
+        // En partner blev revived
+        if (typeof showToast === 'function') showToast('💚 Partner återupplivad!');
+      }
     } else if (ev.type === 'enemy_killed') {
       // Ta bort dead enemy ur state.enemies direkt (annars syns "ghost"-enemy 1.5s till nästa full-broadcast)
       if (typeof ev.i === 'number') {
