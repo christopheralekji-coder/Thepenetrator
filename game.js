@@ -3258,6 +3258,16 @@ const Coop = {
       this.serverSimActive = true;
       state.serverSimActive = true;
       this._simStartedConfirmed = true;
+      // Rensa stale state från tidigare run så handlers fires fresh
+      this._stageCompleteHandled = null;
+      this._lastBossToastKey = null;
+      this._lastSeenSeq = null;
+      this._lossCounter = 0;
+      this._recvCounter = 0;
+      this._packetLossPct = null;
+      state._stageClearShownForWave = null;
+      state._waveCompleting = false;
+      state._countdownEndAt = null;
       console.log('[SIM] activated');
       if (typeof showToast === 'function') showToast('🌐 Server-sim AKTIV');
       // Starta server-ping-loop för RTT-mätning
