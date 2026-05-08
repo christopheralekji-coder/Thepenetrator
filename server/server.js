@@ -195,6 +195,8 @@ function handleMessage(ws, msg) {
       ngpLevel: msg.ngpLevel,
       mode: msg.mode,
       wave: msg.wave,
+      tdm: msg.tdm,
+      tdmTargetKills: msg.tdmTargetKills,
     });
     send(ws, { type: 'sim_started' });
     // Meddela alla i rummet
