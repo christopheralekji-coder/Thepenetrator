@@ -20,132 +20,172 @@ const WORLD = { w: 1800, h: 2400 };
 // STAGES: varje stage har 3 zoner. Zon 1 spawnar fiender från intro-pool,
 // när alla döda triggas mid-event (stage.event), zon 2 spawnar ny våg,
 // när alla döda spawnar bossen i zon 3. Vissa stages har 2 bossar i sekvens.
+// MINIBOSS-design: per stage 3 minibosses med växande svårighet och olika powers.
+// Mini1 (svag, 1 power), Mini2 (medel, 1 power), Mini3 (stark, 1 power), Final (alla 3 + extra HP).
+// Power-system: använder befintliga AI-keys (caster/tank_charger/cloaker/brute_charger/plasma/
+// jetpack/gas_sniper/shielder/avatar). Final-boss ärver "rotating power" via 'final_combo' AI.
 const STAGES = [
   {
-    id: 1, name: 'SKOGEN', kind: 'forest',
+    id: 1, name: 'DEN FÖRRUTTNADE SKOGEN', kind: 'forest',
     worldW: 2000, worldH: 2800,
     spawnPos: { x: 1000, y: 2640 },
     goalPos:  { x: 1000, y: 200 },  goalRadius: 100,
-    bossKey: 'likvakare',
-    miniBoss: { type: 'brute', name: 'Skogsjätten', hpMul: 5, dmgMul: 1.6, scale: 1.5, gold: 80 },
+    bossKey: 'witheredelder',
+    miniBosses: [
+      { type: 'brute',   name: 'GROVE GRIPPER',   power: 'caster',       hpMul: 4, dmgMul: 1.3, scale: 1.3, gold: 80 },
+      { type: 'brute',   name: 'BARK WARDEN',     power: 'tank_charger', hpMul: 6, dmgMul: 1.5, scale: 1.5, gold: 120 },
+      { type: 'ninja',   name: 'SHADOW STALKER',  power: 'cloaker',      hpMul: 8, dmgMul: 1.7, scale: 1.4, gold: 160 },
+    ],
     zones: [
       { count: 8,  pool: ['grunt', 'runner'] },
       { count: 10, pool: ['grunt', 'dog', 'runner'], event: 'release_dogs' },
     ],
     bgColor: '#2a3a1c', accentColor: '#1a2510', edgeColor: '#1a2010',
-    fog: 0.0, sub: 'Något ohyggligt vaktar grindporten',
+    fog: 0.0, sub: 'Mossan minns dem som vågat passera',
   },
   {
-    id: 2, name: 'PERIMETERN', kind: 'perimeter',
+    id: 2, name: 'JÄRNVALLEN', kind: 'perimeter',
     worldW: 2200, worldH: 2400,
     spawnPos: { x: 1100, y: 2240 },
     goalPos:  { x: 1100, y: 200 }, goalRadius: 100,
-    bossKey: 'benkrossare',
-    miniBoss: { type: 'soldier', name: 'Sergeant Krass', hpMul: 5, dmgMul: 1.5, scale: 1.4, gold: 100 },
+    bossKey: 'ironclad',
+    miniBosses: [
+      { type: 'soldier', name: 'STEEL JAW',       power: 'brute_charger', hpMul: 4, dmgMul: 1.4, scale: 1.3, gold: 100 },
+      { type: 'sniper',  name: 'WIRE-EYE SENTRY', power: 'gas_sniper',   hpMul: 6, dmgMul: 1.6, scale: 1.3, gold: 140 },
+      { type: 'soldier', name: 'BUNKER PRIME',    power: 'shielder',     hpMul: 9, dmgMul: 1.7, scale: 1.6, gold: 180 },
+    ],
     zones: [
       { count: 8,  pool: ['grunt', 'soldier', 'dog'] },
       { count: 12, pool: ['soldier', 'shooter', 'brute', 'bomber'], event: 'alarm' },
     ],
     bgColor: '#3a3024', accentColor: '#241c14', edgeColor: '#5a4628',
-    fog: 0.04, sub: 'Larmet går — Mourads Benkrossare väntar',
+    fog: 0.04, sub: 'Vakttornen är bemannade av lik som inte vill ge sig av',
   },
   {
-    id: 3, name: 'LOBBYN', kind: 'lobby',
+    id: 3, name: 'SPEGELHALLEN', kind: 'lobby',
     worldW: 1700, worldH: 2400,
     spawnPos: { x: 850, y: 2240 },
     goalPos:  { x: 850, y: 200 }, goalRadius: 90,
-    bossKey: 'strypare',
-    miniBoss: { type: 'ninja', name: 'Skuggdansaren', hpMul: 4, dmgMul: 1.5, scale: 1.3, gold: 110 },
+    bossKey: 'mirroredone',
+    miniBosses: [
+      { type: 'ninja',    name: 'GLASS REAPER',   power: 'cloaker', hpMul: 4, dmgMul: 1.4, scale: 1.2, gold: 110 },
+      { type: 'shooter',  name: 'ECHO PRIEST',    power: 'caster',  hpMul: 6, dmgMul: 1.5, scale: 1.3, gold: 150 },
+      { type: 'shooter',  name: 'HOLLOW DANCER',  power: 'plasma',  hpMul: 9, dmgMul: 1.7, scale: 1.4, gold: 200 },
+    ],
     zones: [
       { count: 9,  pool: ['grunt', 'soldier'] },
       { count: 12, pool: ['ninja', 'soldier'], event: 'open_doors' },
     ],
     bgColor: '#23232c', accentColor: '#15151c', edgeColor: '#3a3a4a',
-    fog: 0.08, sub: 'Strypare i skuggorna',
+    fog: 0.08, sub: 'Reflexionerna rör sig inte synkroniserat med dig',
   },
   {
-    id: 4, name: 'BARACK-GÅRDEN', kind: 'barracks',
+    id: 4, name: 'BENBARACKEN', kind: 'barracks',
     worldW: 1800, worldH: 1800,
     spawnPos: { x: 900, y: 1620 },
     goalPos:  { x: 900, y: 700 },  goalRadius: 0,
-    isBoss: true, bossKey: 'avrattare',
-    miniBoss: { type: 'brute', name: 'Korpral Köttkrok', hpMul: 6, dmgMul: 1.7, scale: 1.5, gold: 130 },
+    isBoss: true, bossKey: 'ossarius',
+    miniBosses: [
+      { type: 'brute',   name: 'BONE-CRACK CAPTAIN', power: 'brute_charger', hpMul: 5, dmgMul: 1.5, scale: 1.4, gold: 130 },
+      { type: 'brute',   name: 'COFFIN-MAKER',       power: 'tank_charger',  hpMul: 7, dmgMul: 1.7, scale: 1.5, gold: 170 },
+      { type: 'shooter', name: 'TWITCHING REGIMENT', power: 'avatar',        hpMul: 9, dmgMul: 1.8, scale: 1.5, gold: 220 },
+    ],
     zones: [
       { count: 8,  pool: ['grunt', 'soldier'] },
       { count: 10, pool: ['brute', 'soldier'], event: 'barracks_open' },
     ],
     bgColor: '#3a3528', accentColor: '#1c180e', edgeColor: '#7a5a30',
-    fog: 0.05, sub: 'Mourads Avrättare väntar i mitten',
+    fog: 0.05, sub: 'Skeletten väntar tålmodigt — de har redan dött en gång',
   },
   {
-    id: 5, name: 'HANGAREN', kind: 'hangar',
+    id: 5, name: 'VALV XIII', kind: 'hangar',
     worldW: 2600, worldH: 2000,
     spawnPos: { x: 200, y: 1000 },
     goalPos:  { x: 2400, y: 1000 }, goalRadius: 100,
-    bossKey: 'kottkvarn',
-    miniBoss: { type: 'robot', name: 'Prototyp X-19', hpMul: 5, dmgMul: 1.6, scale: 1.4, gold: 150 },
+    bossKey: 'vanguardatlas',
+    miniBosses: [
+      { type: 'robot',   name: 'PROTOTYPE Z-7',  power: 'plasma',     hpMul: 5, dmgMul: 1.5, scale: 1.3, gold: 150 },
+      { type: 'sniper',  name: 'TURRET-87',      power: 'gas_sniper', hpMul: 7, dmgMul: 1.7, scale: 1.3, gold: 190 },
+      { type: 'robot',   name: 'SKUNKWORKS',     power: 'avatar',     hpMul: 10, dmgMul: 1.8, scale: 1.5, gold: 240 },
+    ],
     zones: [
       { count: 9,  pool: ['soldier', 'shooter'] },
       { count: 12, pool: ['brute', 'robot', 'shooter', 'sniper'], event: 'fuel_blast' },
     ],
     bgColor: '#2a2a32', accentColor: '#15151c', edgeColor: '#5a5a64',
-    fog: 0.05, sub: 'Något kybernetiskt sliter sig fritt',
+    fog: 0.05, sub: 'Experimenten bröt sig fria innan vakterna tog till flykt',
   },
   {
-    id: 6, name: 'AMMO-DEPÅN', kind: 'depot',
+    id: 6, name: 'ASKE-DEPÅN', kind: 'depot',
     worldW: 2000, worldH: 2000,
     spawnPos: { x: 1000, y: 1820 },
     goalPos:  { x: 1000, y: 200 }, goalRadius: 90,
-    bossKey: 'askmakare',
-    miniBoss: { type: 'summoner', name: 'Hög-rituallisten', hpMul: 5, dmgMul: 1.4, scale: 1.4, gold: 160 },
+    bossKey: 'emberoracle',
+    miniBosses: [
+      { type: 'shooter',  name: 'ASH PRIEST',      power: 'caster',  hpMul: 5, dmgMul: 1.5, scale: 1.4, gold: 160 },
+      { type: 'soldier',  name: 'PYRE-CRAWLER',    power: 'jetpack', hpMul: 7, dmgMul: 1.6, scale: 1.4, gold: 210 },
+      { type: 'ninja',    name: 'WICK & EMBER',    power: 'avatar',  hpMul: 10, dmgMul: 1.8, scale: 1.5, gold: 270 },
+    ],
     zones: [
       { count: 10, pool: ['soldier', 'shooter'] },
       { count: 12, pool: ['brute', 'ninja', 'shooter', 'healer', 'summoner'], event: 'barrel_chain' },
     ],
     bgColor: '#262630', accentColor: '#10101a', edgeColor: '#4a4a5a',
-    fog: 0.10, sub: 'Askmakaren landar med jetpack',
+    fog: 0.10, sub: 'Askan här minns ansiktena av sina offer',
   },
   {
-    id: 7, name: 'LASTHANGAREN', kind: 'cargo',
+    id: 7, name: 'BRUTET LASTRUM', kind: 'cargo',
     worldW: 1900, worldH: 1900,
     spawnPos: { x: 950, y: 1700 },
     goalPos:  { x: 950, y: 700 },  goalRadius: 0,
-    isBoss: true, bossKey: 'lungrivare',
-    miniBoss: { type: 'sniper', name: 'Tysta Doktorn', hpMul: 4, dmgMul: 1.8, scale: 1.3, gold: 180 },
+    isBoss: true, bossKey: 'blightsovereign',
+    miniBosses: [
+      { type: 'sniper',   name: 'TOXIC SHADE',       power: 'gas_sniper', hpMul: 4, dmgMul: 1.7, scale: 1.3, gold: 180 },
+      { type: 'ninja',    name: 'DRIFTSPECTRE',      power: 'cloaker',    hpMul: 6, dmgMul: 1.8, scale: 1.3, gold: 230 },
+      { type: 'shooter',  name: 'VENOM ARCHITECT',   power: 'caster',     hpMul: 9, dmgMul: 1.9, scale: 1.4, gold: 290 },
+    ],
     zones: [
       { count: 8,  pool: ['soldier', 'shooter'] },
       { count: 10, pool: ['ninja', 'brute', 'shooter'], event: 'crane_drop' },
     ],
     bgColor: '#23232c', accentColor: '#10101a', edgeColor: '#4a4a5a',
-    fog: 0.10, sub: 'Lungrivaren — undvik giftmolnen',
+    fog: 0.10, sub: 'Containern andas. Något inuti vill ut.',
   },
   {
-    id: 8, name: 'BUNKER-TUNNLAR', kind: 'bunker',
+    id: 8, name: 'DEN SJUNKNA KRYPTAN', kind: 'bunker',
     worldW: 1500, worldH: 2800,
     spawnPos: { x: 750, y: 2640 },
     goalPos:  { x: 750, y: 200 }, goalRadius: 80,
-    bossKey: 'skallsprackare',
-    miniBoss: { type: 'swordsman', name: 'Bunker-mästaren', hpMul: 6, dmgMul: 1.6, scale: 1.5, gold: 200 },
+    bossKey: 'buriedcrown',
+    miniBosses: [
+      { type: 'brute',     name: 'DEEP-CHASER',         power: 'brute_charger', hpMul: 5, dmgMul: 1.6, scale: 1.4, gold: 200 },
+      { type: 'swordsman', name: 'SHATTERED MARSHAL',   power: 'shielder',      hpMul: 7, dmgMul: 1.8, scale: 1.5, gold: 260 },
+      { type: 'shooter',   name: 'SUBSONIC PROPHET',    power: 'plasma',        hpMul: 10, dmgMul: 2.0, scale: 1.6, gold: 320 },
+    ],
     zones: [
       { count: 10, pool: ['soldier', 'ninja'] },
       { count: 14, pool: ['swordsman', 'robot', 'ninja', 'swarmer', 'sniper'], event: 'lights_flicker' },
     ],
     bgColor: '#1a1a22', accentColor: '#08080d', edgeColor: '#3a3a44',
-    fog: 0.18, sub: 'Skallspräckaren blockerar tunneln',
+    fog: 0.18, sub: 'Den begravda kronan kröntes aldrig — kungen blev bortglömd levande',
   },
   {
-    id: 9, name: 'KOMMANDO-CELLEN', kind: 'command',
+    id: 9, name: 'OMEGA-KÄRNAN', kind: 'command',
     worldW: 1800, worldH: 1800,
     spawnPos: { x: 900, y: 1620 },
     goalPos:  { x: 900, y: 700 },  goalRadius: 0,
-    isBoss: true, bossKey: 'sjalaatare', bossKey2: 'gravgravaren',
-    miniBoss: { type: 'robot', name: 'Mourads Mardröm', hpMul: 7, dmgMul: 1.8, scale: 1.6, gold: 250 },
+    isBoss: true, bossKey: 'lastsovereign',
+    miniBosses: [
+      { type: 'robot',   name: 'OMEGA-LOGIC',     power: 'avatar',     hpMul: 6, dmgMul: 1.7, scale: 1.5, gold: 250 },
+      { type: 'shooter', name: 'SOULFIRE WARDEN', power: 'jetpack',    hpMul: 8, dmgMul: 1.9, scale: 1.5, gold: 320 },
+      { type: 'sniper',  name: 'VOID JUDGE',      power: 'gas_sniper', hpMul: 12, dmgMul: 2.1, scale: 1.6, gold: 400 },
+    ],
     zones: [
       { count: 8,  pool: ['soldier', 'ninja'] },
-      { count: 10, pool: ['robot', 'brute', 'ninja'], event: 'jimmy_screens' },
+      { count: 10, pool: ['robot', 'brute', 'ninja'], event: 'core_pulse' },
     ],
     bgColor: '#1a1014', accentColor: '#0a0508', edgeColor: '#7a1818',
-    fog: 0.22, sub: 'Två faser. Inget förlåtande.',
+    fog: 0.22, sub: 'Detta är där all logik bryts ner och blir hunger',
   },
 ];
 // Bakåtkompatibilitet med gammal kod
@@ -164,70 +204,74 @@ function getStageCount() {
 }
 
 // ============================================================
-// BOSS CONFIGS — 10 unika bossar (stage 9 har 2 i sekvens)
-// ai-typer: caster, tank_charger, cloaker, brute_charger, plasma,
-//           jetpack, gas_sniper, shielder, avatar, final
+// BOSS CONFIGS — 9 nya finalbosses (en per stage). Varje har "powerSet"-array
+// med 3 power-keys (samma som sin stages 3 minibosses) — final-AI roterar
+// genom dem för att kombinera krafterna. HP/dmg är distinkt högre än sista
+// minibosses för att kännas som riktig boss.
 // ============================================================
 const BOSS_CONFIGS = {
-  likvakare: {
-    name: 'Jimmys Likvakare', subtitle: 'Rebellprästen i skogen',
-    hp: 580, speed: 110, dmg: 28, r: 26,
-    color: '#3a2a44', accent: '#7a5aaa', glow: '#aaff5a',
-    ai: 'caster', gold: 220,
+  // Stage 1 — Forest. Powers: caster + tank_charger + cloaker
+  witheredelder: {
+    name: 'THE WITHERED ELDER', subtitle: 'Skogens sista röst',
+    hp: 2200, speed: 130, dmg: 38, r: 30,
+    color: '#1a3018', accent: '#aaff5a', glow: '#5aff8a',
+    ai: 'final_combo', powerSet: ['caster', 'tank_charger', 'cloaker'], gold: 350,
   },
-  benkrossare: {
-    name: 'Mourads Benkrossare', subtitle: 'Bepansrad legoknekt',
-    hp: 780, speed: 90, dmg: 42, r: 30,
-    color: '#7a4030', accent: '#3a1810', glow: '#ff5a30',
-    ai: 'tank_charger', gold: 280,
+  // Stage 2 — Perimeter. Powers: brute_charger + gas_sniper + shielder
+  ironclad: {
+    name: 'IRONCLAD HARBINGER', subtitle: 'Pansrad rosthärlighet',
+    hp: 2700, speed: 110, dmg: 44, r: 32,
+    color: '#3a2018', accent: '#ff7a3a', glow: '#ffae5a',
+    ai: 'final_combo', powerSet: ['brute_charger', 'gas_sniper', 'shielder'], gold: 450,
   },
-  strypare: {
-    name: 'Jimmys Strypare', subtitle: 'Cyber-mördare i lobbyn',
-    hp: 720, speed: 200, dmg: 26, r: 20,
-    color: '#1a1a22', accent: '#ff3a44', glow: '#ff3a44',
-    ai: 'cloaker', gold: 320,
+  // Stage 3 — Lobby. Powers: cloaker + caster + plasma
+  mirroredone: {
+    name: 'THE MIRRORED ONE', subtitle: 'Den som ser ditt ansikte i varje glas',
+    hp: 2900, speed: 170, dmg: 36, r: 24,
+    color: '#1a1a30', accent: '#5acaff', glow: '#aa5aff',
+    ai: 'final_combo', powerSet: ['cloaker', 'caster', 'plasma'], gold: 500,
   },
-  avrattare: {
-    name: 'Mourads Avrättare', subtitle: 'GENERALEN — pansrad krossare',
-    hp: 1100, speed: 120, dmg: 45, r: 32,
-    color: '#3a2418', accent: '#ff6a30', glow: '#ff8a30',
-    ai: 'brute_charger', gold: 450,
+  // Stage 4 — Barracks. Powers: brute_charger + tank_charger + avatar
+  ossarius: {
+    name: 'GENERAL OSSARIUS', subtitle: 'Order i benhuset, kaos i ditt huvud',
+    hp: 3400, speed: 130, dmg: 48, r: 34,
+    color: '#3a2a18', accent: '#ffd54a', glow: '#ff7a30',
+    ai: 'final_combo', powerSet: ['brute_charger', 'tank_charger', 'avatar'], gold: 650,
   },
-  kottkvarn: {
-    name: 'Jimmys Köttkvarn', subtitle: 'Kybernetisk experiment-vapen',
-    hp: 1080, speed: 120, dmg: 34, r: 28,
-    color: '#3a3a48', accent: '#3acaff', glow: '#3acaff',
-    ai: 'plasma', gold: 480,
+  // Stage 5 — Hangar. Powers: plasma + gas_sniper + avatar
+  vanguardatlas: {
+    name: 'VANGUARD ATLAS', subtitle: 'Maskinen som glömde att den var en man',
+    hp: 3700, speed: 140, dmg: 44, r: 32,
+    color: '#2a3a44', accent: '#3acaff', glow: '#5affaa',
+    ai: 'final_combo', powerSet: ['plasma', 'gas_sniper', 'avatar'], gold: 750,
   },
-  askmakare: {
-    name: 'Mourads Askmakare', subtitle: 'Pyromaniker med jetpack',
-    hp: 1200, speed: 165, dmg: 36, r: 26,
-    color: '#3a1a14', accent: '#ff8a30', glow: '#ff5a14',
-    ai: 'jetpack', gold: 420,
+  // Stage 6 — Depot. Powers: caster + jetpack + avatar
+  emberoracle: {
+    name: 'THE EMBER ORACLE', subtitle: 'Hon ser askan av allt du älskat',
+    hp: 4000, speed: 175, dmg: 46, r: 28,
+    color: '#3a0a14', accent: '#ff5a30', glow: '#ffae3a',
+    ai: 'final_combo', powerSet: ['caster', 'jetpack', 'avatar'], gold: 850,
   },
-  lungrivare: {
-    name: 'Jimmys Lungrivare', subtitle: 'SKUGGAN — gasmask och gift',
-    hp: 1450, speed: 150, dmg: 34, r: 22,
-    color: '#2a3a30', accent: '#9aff5a', glow: '#9aff5a',
-    ai: 'gas_sniper', gold: 500,
+  // Stage 7 — Cargo. Powers: gas_sniper + cloaker + caster
+  blightsovereign: {
+    name: 'BLIGHT SOVEREIGN', subtitle: 'Härskaren av allt som ruttnar',
+    hp: 4400, speed: 145, dmg: 42, r: 26,
+    color: '#1a3a28', accent: '#9aff5a', glow: '#5affae',
+    ai: 'final_combo', powerSet: ['gas_sniper', 'cloaker', 'caster'], gold: 950,
   },
-  skallsprackare: {
-    name: 'Mourads Skallspräckare', subtitle: 'Riot-shield, magnum, oöm',
-    hp: 1230, speed: 105, dmg: 40, r: 28,
-    color: '#3a3a44', accent: '#dcdcdc', glow: '#ff3a3a',
-    ai: 'shielder', gold: 460,
+  // Stage 8 — Bunker. Powers: brute_charger + shielder + plasma
+  buriedcrown: {
+    name: 'THE BURIED CROWN', subtitle: 'Begravd, men aldrig död',
+    hp: 4900, speed: 115, dmg: 50, r: 32,
+    color: '#1a1a2a', accent: '#ffd54a', glow: '#ff3a3a',
+    ai: 'final_combo', powerSet: ['brute_charger', 'shielder', 'plasma'], gold: 1100,
   },
-  sjalaatare: {
-    name: 'Jimmys Själaätare', subtitle: 'Avataren — dödar kropp och själ',
-    hp: 1800, speed: 130, dmg: 42, r: 30,
-    color: '#1a0a14', accent: '#aa3aff', glow: '#aa3aff',
-    ai: 'avatar', gold: 700,
-  },
-  gravgravaren: {
-    name: 'Mourad, Gravgrävaren', subtitle: 'Det riktiga slutet',
-    hp: 3300, speed: 155, dmg: 55, r: 34,
-    color: '#3a0a14', accent: '#ffd54a', glow: '#ff1a1a',
-    ai: 'final', gold: 1500,
+  // Stage 9 — Command. Powers: avatar + jetpack + gas_sniper
+  lastsovereign: {
+    name: 'THE LAST SOVEREIGN', subtitle: 'Den sista på sin tron — du tar nästa.',
+    hp: 6000, speed: 155, dmg: 58, r: 36,
+    color: '#3a0a14', accent: '#aa3aff', glow: '#ff1a1a',
+    ai: 'final_combo', powerSet: ['avatar', 'jetpack', 'gas_sniper'], gold: 2000,
   },
 };
 function getBossConfig(key) { return BOSS_CONFIGS[key]; }
@@ -2617,6 +2661,8 @@ function makeBoss(bossKey, spawnX, spawnY) {
     cloakUntil: 0, jetpackUntil: 0, shieldDir: 0, chargeCdAt: 0,
     bulletSpeed: 620, bulletDmg: Math.round(cfg.dmg * 0.55),
     shootRange: 520, shootRate: 1200,
+    powerSet: cfg.powerSet || null,        // för final_combo: 3 powers att rotera
+    powerIdx: 0, powerSwapAt: 0,           // current power-index + nästa swap-timestamp
   };
 }
 
@@ -6233,6 +6279,22 @@ function spawnDamageNumber(x, y, dmg, isCrit) {
 
 function killEnemy(e) {
   e.dead = true;
+  // Mini-boss-sekvens: när en dör + fler i listan → spawn nästa direkt
+  if (e.isMiniBoss && !e._miniBossNextSpawned) {
+    e._miniBossNextSpawned = true;
+    const stage = getStage(state.wave);
+    const miniList = stage && (stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []));
+    if (miniList && (state.miniBossesSpawned || 0) < miniList.length) {
+      const nextIdx = state.miniBossesSpawned;
+      state.miniBossesSpawned++;
+      if (nextIdx < miniList.length) {
+        // Liten paus så player hinner andas — 800ms delay
+        setTimeout(() => {
+          if (state.mode === 'playing') spawnMiniBoss(stage, nextIdx);
+        }, 800);
+      }
+    }
+  }
   const p = state.player;
   const goldMul = p ? (p.goldMul || 1) : 1;
   const goldGained = Math.round(e.gold * goldMul);
@@ -6474,8 +6536,8 @@ function triggerStageEvent(stage, eventType) {
       state.enemies.push(e);
     }
   }
-  if (eventType === 'jimmy_screens') {
-    // Alla skärmar visar Jimmys ansikte
+  if (eventType === 'core_pulse' || eventType === 'jimmy_screens') {
+    // Omega-kärnan pulserar — alla skärmar lyser rött, alarm-ljud
     state.jimmyScreensUntil = performance.now() + 8000;
     state.alarmUntil = performance.now() + 3000;
   }
@@ -6489,7 +6551,8 @@ const eventNames = {
   barrel_chain: '💥 KEDJEREAKTION!',
   crane_drop: '⚠ KRANEN SLÄPPER!',
   lights_flicker: '⚡ LJUSEN SLOCKNAR',
-  jimmy_screens: 'JIMMY SER DIG',
+  core_pulse: '⚡ KÄRNAN PULSERAR',
+  jimmy_screens: '⚡ KÄRNAN PULSERAR', // backward-compat
 };
 
 // ============================================================
@@ -6767,6 +6830,7 @@ function loadStage(n) {
   state._waveCompleting = false;
   state._coopGameOverFired = false;
   state.miniBossSpawned = false;
+  state.miniBossesSpawned = 0; // count för 3-mini-sekvens
   // Truck-mode setup
   if (stage.isTruckMode) {
     setupTruck(stage);
@@ -6883,17 +6947,17 @@ function spawnBoss(stage) {
 }
 
 function getBossEntrance(key) {
+  // Nya 9 finals — entrance baserad på första power i powerSet
   const entrances = {
-    likvakare: 'fade_in',
-    benkrossare: 'stomp',
-    strypare: 'cloak_drop',
-    avrattare: 'stomp',
-    kottkvarn: 'pod_break',
-    askmakare: 'jetpack_drop',
-    lungrivare: 'gas_emerge',
-    skallsprackare: 'shield_slam',
-    sjalaatare: 'teleport_purple',
-    gravgravaren: 'final_descent',
+    witheredelder: 'fade_in',
+    ironclad: 'stomp',
+    mirroredone: 'cloak_drop',
+    ossarius: 'stomp',
+    vanguardatlas: 'pod_break',
+    emberoracle: 'jetpack_drop',
+    blightsovereign: 'gas_emerge',
+    buriedcrown: 'shield_slam',
+    lastsovereign: 'final_descent',
   };
   return entrances[key] || 'fade_in';
 }
@@ -6971,14 +7035,20 @@ function isStageComplete() {
   return true;
 }
 
-function spawnMiniBoss(stage) {
-  const m = stage.miniBoss;
+function spawnMiniBoss(stage, idx) {
+  // idx = vilken miniboss i sekvensen (0/1/2). Om miniBosses-array → använd index.
+  // Bakåtkompatibilitet: gamla single miniBoss-fältet stöds fortfarande.
+  let m = null;
+  if (stage.miniBosses && stage.miniBosses.length > 0) {
+    m = stage.miniBosses[Math.min(idx || 0, stage.miniBosses.length - 1)];
+  } else {
+    m = stage.miniBoss;
+  }
   if (!m) return;
   // Spawn-pos: mitten av spelplan, lite ovanför player
   const sx = stage.worldW / 2 + (Math.random() - 0.5) * 200;
   const sy = stage.worldH / 2 + (Math.random() - 0.5) * 200;
   const e = makeEnemy(m.type || 'brute', sx, sy);
-  // Cap @ 4× för att förhindra omöjliga waves i Endless (wave 31+ = 4× scale)
   const scale = Math.min(1 + (state.wave - 1) * 0.10, 4.0);
   const diff = getDiffMul();
   const ngpMul = getNGPMul();
@@ -6992,9 +7062,14 @@ function spawnMiniBoss(stage) {
   e._origSpeed = e.speed;
   e.gold = m.gold || 100;
   e.isMiniBoss = true;
+  e.miniBossIdx = idx || 0;
   e.name = m.name || 'Mini-boss';
+  // Power-tag: minibossen får sin spec-power via flag som AI/render kan läsa.
+  // (Currently informational; faktisk AI-power-implementering sker via boss-AI-keys.)
+  if (m.power) e.miniPower = m.power;
   state.enemies.push(e);
-  showToast('⚠ MINI-BOSS: ' + e.name);
+  const seqLabel = stage.miniBosses ? ` (${(idx || 0) + 1}/${stage.miniBosses.length})` : '';
+  showToast('⚠ MINI-BOSS' + seqLabel + ': ' + e.name);
   Audio.bossSpawn && Audio.bossSpawn();
   triggerShake(8, 0.4);
 }
@@ -7020,10 +7095,20 @@ function updateZoneProgression(stage) {
     state.zoneState = 'clearing';
   }
   if (state.zoneState === 'clearing' && state.enemies.length === 0) {
-    // Mini-boss spawnar efter första zonen rensats
-    if (state.currentZone === 0 && stage.miniBoss && !state.miniBossSpawned) {
-      state.miniBossSpawned = true;
-      spawnMiniBoss(stage);
+    // 3 minibosses i sekvens efter zone 0 — när den första dör → nästa spawnar
+    // (logik i killEnemy). Här triggar vi BARA första miniboss efter zone 0 clear.
+    const miniList = stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []);
+    if (state.currentZone === 0 && miniList.length > 0 &&
+        (state.miniBossesSpawned || 0) < miniList.length &&
+        !state.miniBossSpawned) {
+      state.miniBossSpawned = true; // markerar att första triggrats
+      state.miniBossesSpawned = 1;
+      spawnMiniBoss(stage, 0);
+      return;
+    }
+    // Sequence: vänta på att alla minibosses i listan dödats innan zone-progression
+    if (miniList.length > 0 && (state.miniBossesSpawned || 0) < miniList.length) {
+      // En tidigare miniboss klar men nästa inte spawnad än → vänta tills killEnemy spawnar
       return;
     }
     // Zon clear — kör event om finns, annars nästa zon
@@ -7888,24 +7973,15 @@ function actuallyStartGame() {
 // Story-dialog mellan stages
 const STORY_DIALOG = [
   null, // ingen dialog innan stage 1
-  // Innan stage 1
-  { speaker: '???', text: 'Du har nått skogsbrynet. Mourads bas ligger bortom grindporten. Inga prisoners.' },
-  // Innan stage 2
-  { speaker: 'RADIO', text: 'Perimeter försvarat av Mourads "Benkrossare". Han krossade min bror med bara händerna. Ge igen.' },
-  // Innan stage 3
-  { speaker: 'THE PENETRATOR', text: 'Lobbyn — där hans tjänstemän gömmer sig. Stryparen är ute efter mig nu.' },
-  // Innan stage 4
-  { speaker: 'INTERCEPT', text: '"Generalen" är hans högra hand. Mourads avrättare av civila. Stoppa honom.' },
-  // Innan stage 5
-  { speaker: 'THE PENETRATOR', text: 'Hangaren är full av experiment-vapen. Köttkvarnen är en av dem. Människa? Maskin? Inget längre.' },
-  // Innan stage 6
-  { speaker: 'RADIO', text: 'Ammodepån vaktas av Askmakaren. Han brände ner hela byn med sin jetpack. Nu är det din tur.' },
-  // Innan stage 7
-  { speaker: 'THE PENETRATOR', text: 'Lasthangaren. Skuggan här gasar civila som om de vore råttor. Ge inga andetag tillbaka.' },
-  // Innan stage 8
-  { speaker: 'INTERCEPT', text: 'Bunker-tunnlarna. Major Zharek har sin riot-shield. Var snabb, var smart.' },
-  // Innan stage 9
-  { speaker: 'THE PENETRATOR', text: 'Det är dags. Jimmy Mourad har visat sitt rätta jag — en demon i mans skepnad. Slutet börjar nu.' },
+  { speaker: '???',          text: 'Du har nått den förruttnade skogen. Tre väktare står emellan dig och porten. THE WITHERED ELDER väntar bortom.' },
+  { speaker: 'RADIO',        text: 'Järnvallen är bemannad. STEEL JAW tog tre av oss förra veckan. Sedan dröjde IRONCLAD HARBINGER inte länge.' },
+  { speaker: 'THE PENETRATOR',text:'Spegelhallen — varje glas är en lögn. THE MIRRORED ONE finns på andra sidan av varje reflektion.' },
+  { speaker: 'INTERCEPT',    text: 'Benbaracken är fylld av soldater som redan dött en gång. GENERAL OSSARIUS leder dem.' },
+  { speaker: 'THE PENETRATOR',text:'VANGUARD ATLAS är en maskin med människohjärta. Eller var. Inte längre.' },
+  { speaker: 'RADIO',        text: 'Aske-depån brinner kallt. THE EMBER ORACLE ser dig redan — frågan är om hon bryr sig.' },
+  { speaker: 'THE PENETRATOR',text:'BLIGHT SOVEREIGN regerar över allt som ruttnar. Andas inte djupt här inne.' },
+  { speaker: 'INTERCEPT',    text: 'Den sjunkna kryptan — THE BURIED CROWN väntar. Ingen kröning, ingen flykt.' },
+  { speaker: 'THE PENETRATOR',text:'Slutet är här. THE LAST SOVEREIGN sitter på sin tron. Du tar nästa.' },
 ];
 
 let storyDialogActive = null;
@@ -8047,7 +8123,7 @@ function drawDialogAvatar(speaker, x, y) {
 
 // === GAME MODE STAGE-BYGGARE ===
 function buildBossRushStages() {
-  const bossKeys = ['likvakare','benkrossare','strypare','avrattare','kottkvarn','askmakare','lungrivare','skallsprackare','sjalaatare','gravgravaren'];
+  const bossKeys = ['witheredelder','ironclad','mirroredone','ossarius','vanguardatlas','emberoracle','blightsovereign','buriedcrown','lastsovereign'];
   const stageBgs = [
     { bg: '#2a3a1c', edge: '#1a2010', kind: 'forest' },
     { bg: '#3a3024', edge: '#5a4628', kind: 'perimeter' },
@@ -8096,7 +8172,7 @@ function buildTruckStages() {
     worldW: 8000, worldH: 1400,
     spawnPos: { x: 400, y: 700 },
     goalPos:  { x: 7600, y: 700 }, goalRadius: 100,
-    bossKey: 'avrattare',
+    bossKey: 'ossarius',
     isTruckMode: true,
     zones: [
       { count: Math.round(60 * playerScale), pool: ['runner', 'soldier', 'dog', 'bomber'] },
@@ -8110,7 +8186,7 @@ function buildTruckStages() {
     worldW: 8000, worldH: 1400,
     spawnPos: { x: 400, y: 700 },
     goalPos:  { x: 7600, y: 700 }, goalRadius: 100,
-    bossKey: 'gravgravaren',
+    bossKey: 'lastsovereign',
     isTruckMode: true,
     zones: [
       { count: Math.round(70 * playerScale), pool: ['soldier', 'shooter', 'ninja', 'brute', 'bomber'] },
@@ -9209,6 +9285,7 @@ function updateBoss(b, dt, now) {
     case 'shielder':       aiShielder(b, p, ndx, ndy, d, hpFrac, dt, now); break;
     case 'avatar':         aiAvatar(b, p, ndx, ndy, d, hpFrac, dt, now); break;
     case 'final':          aiFinal(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'final_combo':    aiFinalCombo(b, p, ndx, ndy, d, hpFrac, dt, now); break;
     default:               aiBruteCharger(b, p, ndx, ndy, d, hpFrac, dt, now);
   }
 
@@ -9477,6 +9554,34 @@ function aiAvatar(b, p, ndx, ndy, d, hpFrac, dt, now) {
 }
 
 // 10) FINAL (Mourad Gravgrävaren) — 3 faser, allt
+// FINAL COMBO: roterar genom 3 powers från b.powerSet (var 5 sek). Varje power
+// delegerar till befintlig AI-funktion så uppspelet känns som de 3 minibossar
+// kombinerade. Vid <33% HP kortare swap (3 sek) för crescendo.
+function aiFinalCombo(b, p, ndx, ndy, d, hpFrac, dt, now) {
+  const ps = b.powerSet || ['caster', 'tank_charger', 'cloaker'];
+  const swapInterval = hpFrac < 0.33 ? 3000 : 5000;
+  if (now > b.powerSwapAt) {
+    b.powerSwapAt = now + swapInterval;
+    b.powerIdx = (b.powerIdx + 1) % ps.length;
+    // Visuell signalering vid power-byte
+    state.particles.push({ x: b.x, y: b.y, vx: 0, vy: 0, life: 0.4, color: b.glow, r: 60, isExplosion: true });
+    triggerShake(4, 0.2);
+  }
+  const power = ps[b.powerIdx % ps.length];
+  switch (power) {
+    case 'caster':         aiCaster(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'tank_charger':   aiTankCharger(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'cloaker':        aiCloaker(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'brute_charger':  aiBruteCharger(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'plasma':         aiPlasma(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'jetpack':        aiJetpack(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'gas_sniper':     aiGasSniper(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'shielder':       aiShielder(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    case 'avatar':         aiAvatar(b, p, ndx, ndy, d, hpFrac, dt, now); break;
+    default:               aiBruteCharger(b, p, ndx, ndy, d, hpFrac, dt, now);
+  }
+}
+
 function aiFinal(b, p, ndx, ndy, d, hpFrac, dt, now) {
   const phase = hpFrac < 0.33 ? 3 : (hpFrac < 0.66 ? 2 : 1);
   if (phase !== b.phase) {
@@ -14547,6 +14652,18 @@ BOSS_DRAW.gravgravaren = function(e, flash, now, phase, moving) {
     ctx.closePath(); ctx.fill();
   }
 };
+
+// Alias gamla bossnames till nya så befintliga BOSS_DRAW-funktioner används.
+// Mappingen följer power-tema (caster/tank/cloaker/etc) per stage.
+BOSS_DRAW.witheredelder    = BOSS_DRAW.likvakare;
+BOSS_DRAW.ironclad         = BOSS_DRAW.benkrossare;
+BOSS_DRAW.mirroredone      = BOSS_DRAW.strypare;
+BOSS_DRAW.ossarius         = BOSS_DRAW.avrattare;
+BOSS_DRAW.vanguardatlas    = BOSS_DRAW.kottkvarn;
+BOSS_DRAW.emberoracle      = BOSS_DRAW.askmakare;
+BOSS_DRAW.blightsovereign  = BOSS_DRAW.lungrivare;
+BOSS_DRAW.buriedcrown      = BOSS_DRAW.skallsprackare;
+BOSS_DRAW.lastsovereign    = BOSS_DRAW.gravgravaren;
 
 function drawEnemy(e) {
   const x = e.x - state.camera.x;
