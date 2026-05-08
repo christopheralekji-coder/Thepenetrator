@@ -1137,7 +1137,7 @@ body.colorblind .hostile-bullet { filter: hue-rotate(180deg); }
 
 /* iOS-specifika fixes — env() returnerar fallback HELA värdet, inte adderat. Använd calc(base + env). */
 body.ios #joystick { bottom: calc(30px + env(safe-area-inset-bottom, 0px)); left: calc(30px + env(safe-area-inset-left, 0px)); }
-body.ios #action-buttons { bottom: calc(30px + env(safe-area-inset-bottom, 0px)); right: calc(20px + env(safe-area-inset-right, 0px)); }
+body.ios #action-buttons { bottom: calc(30px + env(safe-area-inset-bottom, 0px)); right: calc(25px + env(safe-area-inset-right, 0px)); }
 /* Behåll horisontella safe-area-insets (Dynamic Island i landscape täcker vänstra kanten) */
 body.ios .overlay {
   padding-top: max(24px, env(safe-area-inset-top, 24px));

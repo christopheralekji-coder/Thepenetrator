@@ -8255,22 +8255,18 @@ function updateHUD() {
   if (fireIconEl) fireIconEl.textContent = wIcon;
 }
 
-// In-game lag-indikator (visar host:s värsta peer-ping). Positioneras dynamiskt
-// — under minimap normalt (top:178 = under 110px minimap), eller under big-minimap
-// (top:350 = under 280px) baserat på state.minimapBig.
+// In-game lag-indikator (MS): under HP-bar, längst in mot vänster.
+// HP-bar är ~22px hög + 8px padding-top = ~30, så top:36 är direkt under den.
 const _lagIndicatorEl = (() => {
   const el = document.createElement('div');
   el.id = 'lag-indicator';
-  // right:12 matchar minimap (#minimap har right:12) så de aligneras vertikalt
-  el.style.cssText = 'position:fixed;top:178px;right:12px;background:rgba(0,0,0,0.55);color:#fff;padding:3px 7px;border-radius:5px;font:700 10px monospace;z-index:6;display:none;pointer-events:none;letter-spacing:0.5px;transition:top 0.2s;';
+  el.style.cssText = 'position:fixed;top:36px;left:max(12px, env(safe-area-inset-left, 12px));background:rgba(0,0,0,0.55);color:#fff;padding:3px 7px;border-radius:5px;font:700 10px monospace;z-index:6;display:none;pointer-events:none;letter-spacing:0.5px;';
   document.body.appendChild(el);
   return el;
 })();
-// Uppdatera indicator-position när minimap-state ändras
+// Behåll function-stub för bakåtkompatibilitet (anropad från updateLagIndicator)
 function syncLagIndicatorPos() {
-  if (!_lagIndicatorEl) return;
-  if (state && state.minimapBig) _lagIndicatorEl.style.top = '350px';
-  else _lagIndicatorEl.style.top = '178px';
+  // No-op nu — MS är fixed under HP-bar (left, top:36) oavsett minimap-state
 }
 
 // Server-sim diagnos-overlay — synlig på skärmen vid serverSim aktiv. Skärmbilds-vänlig.
