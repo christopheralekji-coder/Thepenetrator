@@ -2841,6 +2841,10 @@ if (btnPauseRestart) {
 let settingsReturnTo = 'menu';
 function openSettings(returnTo) {
   settingsReturnTo = returnTo || 'menu';
+  // Göm menu/pause så settings inte hamnar bakom dem (var en bug — settings
+  // var synlig men menu-knappar låg över och blockerade interaction)
+  if (settingsReturnTo === 'menu' && menuScreen) menuScreen.classList.add('hidden');
+  if (settingsReturnTo === 'pause' && pauseScreen) pauseScreen.classList.add('hidden');
   settingsScreen.classList.remove('hidden');
   // Sync UI med Audio + Feedback
   document.getElementById('set-sfx').value = Math.round(Audio.sfxVol * 100);
@@ -2856,6 +2860,8 @@ function closeSettings() {
   settingsScreen.classList.add('hidden');
   if (settingsReturnTo === 'pause') {
     pauseScreen.classList.remove('hidden');
+  } else if (settingsReturnTo === 'menu' && menuScreen) {
+    menuScreen.classList.remove('hidden');
   }
   Audio.uiClick();
 }
@@ -3473,7 +3479,29 @@ const Coop = {
       state.bullets = [];
       state.bossAlive = false;
       state.bossIntro = null;
+      // Sätt TDM-arena som klientens stage så koordinater matchar server (annars
+      // hamnar player utanför sin stage och kameran ligger fel)
+      if (ev.arena) {
+        state.customStages = [{
+          id: 'tdm_arena',
+          name: ev.arena.name || 'TDM ARENA',
+          kind: 'tdm',
+          worldW: ev.arena.worldW,
+          worldH: ev.arena.worldH,
+          spawnPos: { x: Math.floor(ev.arena.worldW * 0.10), y: Math.floor(ev.arena.worldH * 0.50) },
+          goalPos: { x: Math.floor(ev.arena.worldW * 0.90), y: Math.floor(ev.arena.worldH * 0.50) },
+        }];
+        state.wave = 1;
+      }
       const myTeam = this.tdmTeams[this.myId];
+      // Flytta egen spelare till sin spawn-position (server gjorde det redan på sim-sidan)
+      if (state.player && ev.spawns && ev.spawns[myTeam]) {
+        state.player.x = ev.spawns[myTeam].x;
+        state.player.y = ev.spawns[myTeam].y;
+        state.player.hp = state.player.maxHp || 100;
+        state.player.spectating = false;
+        state.player.invuln = 1.5;
+      }
       if (typeof showTdmHud === 'function') showTdmHud(myTeam);
       if (typeof showToast === 'function') showToast(myTeam === 'red' ? '⚔ DU ÄR I RÖDA LAGET' : '⚔ DU ÄR I BLÅA LAGET');
       if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
@@ -3502,6 +3530,26 @@ const Coop = {
       if (ev.victim === this.myId && typeof showTdmRespawnCountdown === 'function') {
         const respawnAt = ev.durationMs ? Date.now() + ev.durationMs : ev.respawnAt;
         showTdmRespawnCountdown(respawnAt);
+      }
+    } else if (ev.type === 'tdm_player_respawned') {
+      // Server respawnade en spelare — om DET är jag, avsluta spectator-mode + flytta player
+      if (ev.peerId === this.myId && state.player) {
+        state.player.spectating = false;
+        state.player.specTarget = null;
+        state.player.x = ev.x;
+        state.player.y = ev.y;
+        state.player.hp = 100;
+        state.player.maxHp = state.player.maxHp || 100;
+        state.player.invuln = 1.5;
+        state.deadBody = null;
+        // Stäng respawn-overlay omedelbart om den fortfarande visas
+        if (typeof _tdmRespawnOverlay !== 'undefined' && _tdmRespawnOverlay) {
+          _tdmRespawnOverlay.classList.add('hidden');
+        }
+        if (typeof _tdmRespawnInterval !== 'undefined' && _tdmRespawnInterval) {
+          clearInterval(_tdmRespawnInterval);
+        }
+        if (typeof showToast === 'function') showToast('🔄 RESPAWN');
       }
     } else if (ev.type === 'tdm_match_end') {
       this.tdmActive = false;
@@ -3569,7 +3617,7 @@ const Coop = {
         state.enemies = state.enemies.filter(e => e._i !== ev.i);
         if (state._enemyCache) delete state._enemyCache[ev.i];
       }
-      // Gold-share + kill-credit, samma som existerande gold_share-handler
+      // Gold-share + kill-credit
       if (ev.gold > 0) {
         save.gold += ev.gold;
         state.goldThisRun = (state.goldThisRun || 0) + ev.gold;
@@ -3579,6 +3627,18 @@ const Coop = {
       state.killsThisRun = (state.killsThisRun || 0) + 1;
       save.stats.totalKills = (save.stats.totalKills || 0) + 1;
       if (ev.isBoss) save.stats.bossKills = (save.stats.bossKills || 0) + 1;
+      // Coop leaderboard-tracking: server skickar killerPid, attribuera till rätt
+      // spelare så coop_board visar rätt kills (var fast på 0 tidigare).
+      if (this.serverSimActive && ev.killerPid) {
+        if (ev.killerPid === this.myId) {
+          state.hostKills = (state.hostKills || 0) + 1;
+          if (ev.isBoss) state.hostBossKills = (state.hostBossKills || 0) + 1;
+        } else if (this.players.has(ev.killerPid)) {
+          const pt = this.players.get(ev.killerPid);
+          pt.kills = (pt.kills || 0) + 1;
+          if (ev.isBoss) pt.bossKills = (pt.bossKills || 0) + 1;
+        }
+      }
       if (typeof updateHUD === 'function') updateHUD();
     } else if (ev.type === 'stage_complete') {
       // ALLTID stäng stage-clear-overlay (annars fastnar partner på "väntar på host")
@@ -6353,6 +6413,15 @@ function loadStage(n) {
   state.fadeIn = { startTime: performance.now(), duration: 500 };
   state.bossIntro = null;
 
+  // 5-sekunders prep-countdown vid varje ny runda (coop-only — annars känns det
+  // för slow i solo). Ger alla tid att spawna/positionera innan enemies kommer.
+  if (Coop.active && Coop.isHost) {
+    state._countdownEndAt = performance.now() + 5000;
+    Coop.broadcast({ type: 'event', event: 'countdown_start', durationMs: 5000 });
+  } else if (Coop.active && !Coop.isHost) {
+    // Klient ska INTE sätta countdownEndAt själv — host event sätter det
+  }
+
   // Tracking-flags för achievements
   state.stageStartTime = performance.now();
   state.shopBoughtThisStage = 0;
@@ -6659,6 +6728,10 @@ function onWaveComplete() {
     state._waveCompleting = false;
     endGame(true);
   } else {
+    // 5s loot-grace efter sista enemy så spelarna hinner ta pickups/dog tags innan
+    // shop öppnar. Visa toast så användaren förstår vad som händer.
+    const lootGraceMs = 5000;
+    if (typeof showToast === 'function') showToast('🎁 LOOT-FÖNSTER 5s');
     setTimeout(() => {
       try {
         state._waveCompleting = false;
@@ -6668,7 +6741,7 @@ function onWaveComplete() {
         // Force-fix: hoppa direkt till nästa stage
         startWave(state.wave + 1);
       }
-    }, 700);
+    }, lootGraceMs);
   }
 }
 
@@ -7977,11 +8050,12 @@ function updateHUD() {
   if (ammoDisplayEl) ammoDisplayEl.textContent = ammoText;
 }
 
-// In-game lag-indikator (visar host:s värsta peer-ping)
+// In-game lag-indikator (visar host:s värsta peer-ping). Positionerad under
+// minimap (minimap @ top:60 size:110 → bottom ~175) så det inte täcker HUD.
 const _lagIndicatorEl = (() => {
   const el = document.createElement('div');
   el.id = 'lag-indicator';
-  el.style.cssText = 'position:fixed;top:8px;right:8px;background:rgba(0,0,0,0.55);color:#fff;padding:4px 8px;border-radius:6px;font:700 11px monospace;z-index:1000;display:none;pointer-events:none;letter-spacing:0.5px;';
+  el.style.cssText = 'position:fixed;top:178px;right:max(14px, env(safe-area-inset-right, 14px));background:rgba(0,0,0,0.55);color:#fff;padding:3px 7px;border-radius:5px;font:700 10px monospace;z-index:6;display:none;pointer-events:none;letter-spacing:0.5px;';
   document.body.appendChild(el);
   return el;
 })();
@@ -8006,7 +8080,8 @@ const _simDiag = {
   lastEvent: '-',
 };
 function updateSimDiag() {
-  if (!Coop.serverSimActive) { _simDiagEl.style.display = 'none'; return; }
+  // Diag-rutan är dold default. Aktivera via window._showSimDiag = true i devtools.
+  if (!Coop.serverSimActive || !window._showSimDiag) { _simDiagEl.style.display = 'none'; return; }
   _simDiagEl.style.display = 'block';
   _simDiagEl.textContent =
     'SERVER-SIM DIAG\n' +
@@ -8915,6 +8990,14 @@ function updateBullets(dt) {
       for (let i = 0; i < state.enemies.length; i++) {
         const e = state.enemies[i];
         if (e.dead || b.hitIds.has(e)) continue;
+        // Anti-cheese: skjut bara enemies på spelarens skärm (boss + miniboss undantagna).
+        // Hindrar att spelaren minigun:ar enemies utanför viewport på avstånd.
+        if (!e.isBoss && !e.isMiniBoss) {
+          const sx = e.x - state.camera.x;
+          const sy = e.y - state.camera.y;
+          const margin = 60;  // generös margin så enemies precis utanför kanten räknas
+          if (sx < -margin || sx > viewW + margin || sy < -margin || sy > viewH + margin) continue;
+        }
         // Squared distance — slipper sqrt på den heta collision-loopen (kollisionscheck körs ~5000 ggr/frame med 50 enemies × 100 bullets)
         const dx = e.x - b.x, dy = e.y - b.y;
         const rsum = e.r + b.r;
@@ -15215,7 +15298,9 @@ function runFrame(dt, now) {
       performance.now() < state.bossIntro.startTime + state.bossIntro.duration;
     const hitStopActive = performance.now() < Feedback.hitStopUntil;
     const dialogActive = state.dialogActive;
-    if (!introActive && !hitStopActive && !dialogActive) {
+    // Countdown-active blockerar enemy-AI/spawn så spelare hinner positionera
+    const countdownActive = state._countdownEndAt && performance.now() < state._countdownEndAt;
+    if (!introActive && !hitStopActive && !dialogActive && !countdownActive) {
       updatePlayer(dt, now);
 
       // Klient-side: vapen-pickup, dog tags, stage ambient. KÖRS ALLTID — påverkar save-data, inte sim.

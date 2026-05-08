@@ -399,11 +399,20 @@ html, body {
   transition: transform 0.08s, box-shadow 0.15s;
 }
 .action-btn.fire {
-  width: 108px; height: 108px;
-  font-size: 36px;
+  width: 84px; height: 84px;
+  font-size: 28px;
   background: radial-gradient(circle at 30% 30%, rgba(255,90,60,0.8), rgba(140,20,20,0.9));
   border-color: rgba(255,80,80,0.7);
   box-shadow: 0 4px 20px rgba(255,30,30,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+  position: relative;
+}
+/* Touch-area utökad utanför visuell knapp via ::before pseudo-element.
+   Spelaren kan sikta längre ner-höger utan att fire-knappen tar upp lika mycket plats. */
+.action-btn.fire::before {
+  content: '';
+  position: absolute;
+  inset: -22px;
+  z-index: -1;
 }
 .action-btn:active {
   transform: scale(0.92);
@@ -444,6 +453,66 @@ html, body {
   pointer-events: none;
 }
 .overlay.hidden { display: none; }
+/* Synlig scrollbar på alla scrollable element så användaren förstår att det går att scrolla.
+   Webkit-vendor prefix för iOS/Safari, standard för Firefox. */
+.overlay,
+#shop-items, #shop-upgrades, #shop-perks, #shop-companions,
+#ach-grid, #cheats-grid, #costumes-grid, #companions-grid, #wardrobe-options,
+#weapon-menu-grid, #stats-content, #coop-player-list,
+#tdm-end-stats, .stats-rows, .scrollable {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,213,74,0.5) rgba(0,0,0,0.2);
+}
+.overlay::-webkit-scrollbar,
+#shop-items::-webkit-scrollbar, #shop-upgrades::-webkit-scrollbar,
+#shop-perks::-webkit-scrollbar, #shop-companions::-webkit-scrollbar,
+#ach-grid::-webkit-scrollbar, #cheats-grid::-webkit-scrollbar,
+#costumes-grid::-webkit-scrollbar, #companions-grid::-webkit-scrollbar,
+#wardrobe-options::-webkit-scrollbar, #weapon-menu-grid::-webkit-scrollbar,
+#stats-content::-webkit-scrollbar, #coop-player-list::-webkit-scrollbar,
+#tdm-end-stats::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.overlay::-webkit-scrollbar-track,
+#shop-items::-webkit-scrollbar-track, #shop-upgrades::-webkit-scrollbar-track,
+#shop-perks::-webkit-scrollbar-track, #shop-companions::-webkit-scrollbar-track,
+#ach-grid::-webkit-scrollbar-track, #cheats-grid::-webkit-scrollbar-track,
+#costumes-grid::-webkit-scrollbar-track, #companions-grid::-webkit-scrollbar-track,
+#wardrobe-options::-webkit-scrollbar-track, #weapon-menu-grid::-webkit-scrollbar-track,
+#stats-content::-webkit-scrollbar-track, #coop-player-list::-webkit-scrollbar-track,
+#tdm-end-stats::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.3);
+  border-radius: 4px;
+}
+.overlay::-webkit-scrollbar-thumb,
+#shop-items::-webkit-scrollbar-thumb, #shop-upgrades::-webkit-scrollbar-thumb,
+#shop-perks::-webkit-scrollbar-thumb, #shop-companions::-webkit-scrollbar-thumb,
+#ach-grid::-webkit-scrollbar-thumb, #cheats-grid::-webkit-scrollbar-thumb,
+#costumes-grid::-webkit-scrollbar-thumb, #companions-grid::-webkit-scrollbar-thumb,
+#wardrobe-options::-webkit-scrollbar-thumb, #weapon-menu-grid::-webkit-scrollbar-thumb,
+#stats-content::-webkit-scrollbar-thumb, #coop-player-list::-webkit-scrollbar-thumb,
+#tdm-end-stats::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(255,213,74,0.7), rgba(170,90,255,0.5));
+  border-radius: 4px;
+  border: 1px solid rgba(0,0,0,0.3);
+}
+.overlay::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, rgba(255,213,74,0.9), rgba(170,90,255,0.7)); }
+/* Fade-gradient på edges av scrollable list som visar att mer content finns nedanför.
+   Använd .scrollable-fade på containrar som ska få fade. */
+.scrollable-fade {
+  position: relative;
+}
+.scrollable-fade::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 24px;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 0%, rgba(8,4,6,0.85) 100%);
+  border-radius: 0 0 8px 8px;
+  z-index: 1;
+}
 /* Sista action-knappen i en overlay (TILLBAKA/STÄNG/FORTSÄTT) ska ALLTID synas
    även när innehåll är längre än viewport. Sticky-bottom håller den i sikte
    medan resten av innehållet scrollar bakom. Fix för avklippta knappar

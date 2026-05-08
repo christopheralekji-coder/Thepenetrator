@@ -335,9 +335,21 @@ function updateBullets(sim, dt, now) {
     // som skjuter på snabb enemy (runner/ninja: 200+ px/s = 20-25px lag på 100ms RTT) träffar.
     let hit = false;
     if (!b.hitIds) b.hitIds = new Set();
+    // Anti-cheese: enemy måste vara nära ägarens spelare (på dennes skärm).
+    // Bossar undantagna. ~viewport-radie för iPhone landscape ≈ 600px.
+    const ownerWsForCheese = b.ownerPid ? sim.room.members.get(b.ownerPid) : null;
+    const ownerPosForCheese = (ownerWsForCheese && ownerWsForCheese.playerState)
+      ? { x: ownerWsForCheese.playerState.x, y: ownerWsForCheese.playerState.y } : null;
     for (let j = 0; j < sim.enemies.length; j++) {
       const e = sim.enemies[j];
       if (e.dead || b.hitIds.has(e)) continue;
+      // Anti-cheese: hoppa enemies utanför ägarens viewport (boss/miniboss undantagna)
+      if (ownerPosForCheese && !e.isBoss && !e.isMiniBoss) {
+        const ddx = e.x - ownerPosForCheese.x;
+        const ddy = e.y - ownerPosForCheese.y;
+        const cheeseRange = 700;  // viewport-half + margin
+        if (ddx * ddx + ddy * ddy > cheeseRange * cheeseRange) continue;
+      }
       const dx = e.x - b.x, dy = e.y - b.y;
       const rsum = e.r + b.r + 8;  // +8 lag-kompensation
       if (dx * dx + dy * dy < rsum * rsum) {

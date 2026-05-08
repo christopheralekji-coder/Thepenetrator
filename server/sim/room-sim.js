@@ -82,13 +82,11 @@ function tickSim(sim) {
   // TDM-mode: skip enemy spawning/AI, but bullets MÅSTE tickas så spelare kan skjuta varandra
   if (sim.tdmActive) {
     const nowMs = Date.now();
-    // Spawn-koordinater proportionella mot stage-bounds (annars hamnar blue utanför kartan
-    // på stages med worldW < 3600). Default-stage = TDM-arena, fallback till generösa värden.
-    const stg = getStage(sim.wave) || { worldW: 4000, worldH: 3000 };
-    const redSpawnX = Math.floor(stg.worldW * 0.10);
-    const blueSpawnX = Math.floor(stg.worldW * 0.90);
-    const spawnY = Math.floor(stg.worldH * 0.50);
-    for (const [, ws] of sim.room.members) {
+    const arena = sim.tdmArena || { worldW: 4000, worldH: 3000 };
+    const redSpawnX = Math.floor(arena.worldW * 0.10);
+    const blueSpawnX = Math.floor(arena.worldW * 0.90);
+    const spawnY = Math.floor(arena.worldH * 0.50);
+    for (const [pid, ws] of sim.room.members) {
       if (ws.tdmRespawnAt && nowMs >= ws.tdmRespawnAt) {
         ws.tdmRespawnAt = 0;
         if (ws.playerState) {
@@ -96,6 +94,13 @@ function tickSim(sim) {
           ws.playerState.y = spawnY;
           ws.playerState.hp = 100;
           ws.playerState.invulnUntil = Date.now() + 1500;
+          // Riktat event så klienten kan reseta spectating-mode + spawna-fx
+          sim.eventQueue.push({
+            type: 'tdm_player_respawned',
+            peerId: pid,
+            x: ws.playerState.x,
+            y: ws.playerState.y,
+          });
         }
       }
     }
@@ -462,13 +467,14 @@ function startSim(sim, opts) {
   }
   console.log('[SIM]', sim.room.code, 'started mode=' + (sim.tdmActive ? 'tdm' : sim.config.mode) + ' diff=' + sim.config.difficulty);
   if (sim.tdmActive) {
-    // PvP-mode: ingen enemy-spawn, ingen wave-progression. Players spawnar på respektive lag-spawn.
+    // PvP-mode: dedikerad TDM-arena (4000×3000 öppet fält). Inget enemy-spawn,
+    // ingen wave-progression. Lagen spawnar på motsatta sidor.
     sim.simReadyAt = Date.now() + 5000;
-    const stg = getStage(sim.wave) || { worldW: 4000, worldH: 3000 };
-    const redSpawnX = Math.floor(stg.worldW * 0.10);
-    const blueSpawnX = Math.floor(stg.worldW * 0.90);
-    const spawnY = Math.floor(stg.worldH * 0.50);
-    // Init team-spawns + bygg roster proportionellt till worldW (annars utanför kartan)
+    sim.tdmArena = { worldW: 4000, worldH: 3000, name: 'ARENA' };
+    const arena = sim.tdmArena;
+    const redSpawnX = Math.floor(arena.worldW * 0.10);   // x=400
+    const blueSpawnX = Math.floor(arena.worldW * 0.90);  // x=3600
+    const spawnY = Math.floor(arena.worldH * 0.50);      // y=1500
     const teams = {};
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
@@ -478,12 +484,21 @@ function startSim(sim, opts) {
       ws.playerState.x = team === 'red' ? redSpawnX : blueSpawnX;
       ws.playerState.y = spawnY;
       ws.playerState.hp = 100;
+      ws.playerState.invulnUntil = Date.now() + 1500;
+      ws.tdmRespawnAt = 0;
       teams[pid] = team;
       sim.tdmKillsByPid[pid] = 0;
       sim.tdmDeathsByPid[pid] = 0;
       i++;
     }
-    sim.eventQueue.push({ type: 'tdm_started', targetKills: sim.tdmTargetKills, teams });
+    // Skicka arena-info till klient så de kan rita rätt map + spawn-positions
+    sim.eventQueue.push({
+      type: 'tdm_started',
+      targetKills: sim.tdmTargetKills,
+      teams,
+      arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },
+      spawns: { red: { x: redSpawnX, y: spawnY }, blue: { x: blueSpawnX, y: spawnY } },
+    });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
   } else {
     loadStage(sim, sim.wave);
