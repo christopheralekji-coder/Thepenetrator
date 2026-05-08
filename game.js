@@ -542,6 +542,7 @@ function spawnCompanion() {
   state.companion = {
     id, comp, lvl,
     x: p ? p.x + 30 : 1000, y: p ? p.y + 30 : 1000,
+    r: 12, // Hitbox för enemy-kontakt och bullet-träff
     hp: stats.hp, maxHp: stats.hp, dmg: stats.dmg, speed: stats.speed,
     range: stats.range, cooldown: stats.cooldown,
     lastAct: 0, target: null, alive: true,
@@ -608,6 +609,19 @@ function drawCompanion() {
   // Skugga
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.beginPath(); ctx.ellipse(x + 2, y + 12, 12, 4, 0, 0, Math.PI*2); ctx.fill();
+  // HP-bar ovanför companion (bara om skadad)
+  if (c.hp < c.maxHp) {
+    const bw = 26, bh = 4;
+    const bx = x - bw / 2, by = y - 22;
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
+    const frac = Math.max(0, c.hp / c.maxHp);
+    ctx.fillStyle = frac > 0.5 ? '#5aff5a' : (frac > 0.25 ? '#ffd54a' : '#ff5a5a');
+    ctx.fillRect(bx, by, bw * frac, bh);
+  }
+  // Damage flash (vit overlay 100ms efter skada)
+  const flashUntil = c.flashUntil || 0;
+  if (performance.now() < flashUntil) ctx.globalCompositeOperation = 'lighter';
   if (c.id === 'metaldog') {
     // Robothund — kropp + ben + huvud
     ctx.translate(x, y);
@@ -1661,6 +1675,14 @@ function companionStats(comp, level) {
     range: Math.round(comp.baseRange * (1 + level * 0.003)),
     cooldown: comp.cooldown * cdMul,
   };
+}
+// Återväckningskostnad: 50% av basePrice (rundat till närmsta 10)
+function companionRevivePrice(comp) {
+  return Math.max(50, Math.round((comp.basePrice * 0.5) / 10) * 10);
+}
+// Är aktiv companion död (in-game)? Används för att visa ÅTERVÄCK-UI.
+function isActiveCompanionDead() {
+  return state.companion && !state.companion.alive && save.companions && save.companions.active === state.companion.id;
 }
 function ensureCompanions() {
   if (!save.companions) save.companions = {};
@@ -5343,13 +5365,15 @@ function renderCompanions() {
     const isActive = save.companions.active === c.id;
     const stats = companionStats(c, lvl);
     const upgPrice = lvl < MAX_COMPANION_LEVEL ? companionUpgradePrice(lvl) : null;
+    const isDead = isActive && state.companion && state.companion.id === c.id && !state.companion.alive;
+    const revivePrice = companionRevivePrice(c);
     const card = document.createElement('div');
-    card.style.cssText = 'background:rgba(20,20,30,0.7);border:2px solid ' + (isActive ? '#aa3aff' : 'rgba(170,58,255,0.2)') + ';border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;';
+    card.style.cssText = 'background:rgba(20,20,30,0.7);border:2px solid ' + (isDead ? '#ff5a5a' : (isActive ? '#aa3aff' : 'rgba(170,58,255,0.2)')) + ';border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;';
     card.innerHTML = `
       <div style="display:flex;align-items:center;gap:12px;">
-        <div style="font-size:36px;">${c.icon}</div>
+        <div style="font-size:36px;${isDead ? 'filter:grayscale(1) brightness(0.5);' : ''}">${c.icon}</div>
         <div style="flex:1;">
-          <div style="font-weight:bold;color:#ffd54a;font-size:15px;">${c.name}</div>
+          <div style="font-weight:bold;color:${isDead ? '#ff5a5a' : '#ffd54a'};font-size:15px;">${c.name}${isDead ? ' 💀' : ''}</div>
           <div style="font-size:11px;color:#bbb;">${c.desc}</div>
           <div style="font-size:11px;color:#aa3aff;margin-top:3px;">⚡ ${c.special}</div>
         </div>
@@ -5363,7 +5387,10 @@ function renderCompanions() {
           <div style="background:linear-gradient(90deg,#aa3aff,#ff5aca);width:${(lvl/MAX_COMPANION_LEVEL)*100}%;height:100%;"></div>
         </div>
         <div style="display:flex;gap:6px;">
-          <button class="small-btn" data-act="toggle" style="flex:1;background:${isActive ? '#aa3aff' : '#444'};">${isActive ? '✓ AKTIV' : 'AKTIVERA'}</button>
+          ${isDead
+            ? `<button class="small-btn" data-act="revive" style="flex:1;background:${save.gold >= revivePrice ? 'linear-gradient(135deg,#ff5a5a,#aa3030)' : '#444'};">⚡ ÅTERVÄCK 💰${revivePrice}</button>`
+            : `<button class="small-btn" data-act="toggle" style="flex:1;background:${isActive ? '#aa3aff' : '#444'};">${isActive ? '✓ AKTIV' : 'AKTIVERA'}</button>`
+          }
           ${upgPrice ? `<button class="small-btn" data-act="upgrade" style="flex:1;background:${save.gold >= upgPrice ? '#3a8a3a' : '#444'};">UPGRADE 💰${upgPrice}</button>` : `<div style="flex:1;text-align:center;color:#ffd54a;font-weight:bold;">⭐ MAXAD</div>`}
         </div>
       ` : `
@@ -5396,6 +5423,15 @@ function renderCompanions() {
       persist(); Audio.uiClick(); renderCompanions();
       // Spawna companion direkt vid köp/toggle. spawnCompanion hanterar null-fallet
       // så det är säkert att kalla även när shoppen är öppen (state.mode='shop').
+      if (typeof spawnCompanion === 'function') spawnCompanion();
+    });
+    // ÅTERVÄCK från menu-companions också
+    const revBtn = card.querySelector('[data-act="revive"]');
+    if (revBtn) revBtn.addEventListener('click', () => {
+      const cost = companionRevivePrice(c);
+      if (save.gold < cost) { showToast('Inte nog gold!'); return; }
+      save.gold -= cost;
+      persist(); Audio.purchase(); renderCompanions();
       if (typeof spawnCompanion === 'function') spawnCompanion();
     });
     companionsGridEl.appendChild(card);
@@ -7287,13 +7323,16 @@ function renderShopCompanions() {
     const isActive = save.companions.active === c.id;
     const stats = companionStats(c, lvl);
     const upgPrice = lvl < MAX_COMPANION_LEVEL ? companionUpgradePrice(lvl) : null;
+    // Är denna companion död in-game (alive=false) och fortfarande aktiv?
+    const isDead = isActive && state.companion && state.companion.id === c.id && !state.companion.alive;
+    const revivePrice = companionRevivePrice(c);
     const card = document.createElement('div');
-    card.style.cssText = 'background:rgba(20,20,30,0.7);border:2px solid ' + (isActive ? '#aa3aff' : 'rgba(170,58,255,0.2)') + ';border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;';
+    card.style.cssText = 'background:rgba(20,20,30,0.7);border:2px solid ' + (isDead ? '#ff5a5a' : (isActive ? '#aa3aff' : 'rgba(170,58,255,0.2)')) + ';border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;';
     card.innerHTML = `
       <div style="display:flex;align-items:center;gap:12px;">
-        <div style="font-size:36px;">${c.icon}</div>
+        <div style="font-size:36px;${isDead ? 'filter:grayscale(1) brightness(0.5);' : ''}">${c.icon}</div>
         <div style="flex:1;">
-          <div style="font-weight:bold;color:#ffd54a;font-size:15px;">${c.name}</div>
+          <div style="font-weight:bold;color:${isDead ? '#ff5a5a' : '#ffd54a'};font-size:15px;">${c.name}${isDead ? ' 💀' : ''}</div>
           <div style="font-size:11px;color:#bbb;">${c.desc}</div>
           <div style="font-size:11px;color:#aa3aff;margin-top:3px;">⚡ ${c.special}</div>
         </div>
@@ -7307,7 +7346,10 @@ function renderShopCompanions() {
           <div style="background:linear-gradient(90deg,#aa3aff,#ff5aca);width:${(lvl/MAX_COMPANION_LEVEL)*100}%;height:100%;"></div>
         </div>
         <div style="display:flex;gap:6px;">
-          <button class="small-btn" data-act="toggle" style="flex:1;background:${isActive ? '#aa3aff' : '#444'};">${isActive ? '✓ AKTIV' : 'AKTIVERA'}</button>
+          ${isDead
+            ? `<button class="small-btn" data-act="revive" style="flex:1;background:${goldDisp >= revivePrice ? 'linear-gradient(135deg,#ff5a5a,#aa3030)' : '#444'};">⚡ ÅTERVÄCK 💰${revivePrice}</button>`
+            : `<button class="small-btn" data-act="toggle" style="flex:1;background:${isActive ? '#aa3aff' : '#444'};">${isActive ? '✓ AKTIV' : 'AKTIVERA'}</button>`
+          }
           ${upgPrice ? `<button class="small-btn" data-act="upgrade" style="flex:1;background:${goldDisp >= upgPrice ? '#3a8a3a' : '#444'};">UPGRADE 💰${upgPrice}</button>` : `<div style="flex:1;text-align:center;color:#ffd54a;font-weight:bold;">⭐ MAXAD</div>`}
         </div>
       ` : `
@@ -7333,6 +7375,19 @@ function renderShopCompanions() {
     if (togBtn) togBtn.addEventListener('click', () => {
       save.companions.active = isActive ? null : c.id;
       persist(); Audio.uiClick(); renderShopCompanions();
+      // Byte sker DIREKT in-game (inte vid restart) — anropa spawnCompanion
+      if (typeof spawnCompanion === 'function') spawnCompanion();
+    });
+    // ÅTERVÄCK-knapp: synas bara när active+ägd+död
+    const reviveBtn = card.querySelector('[data-act="revive"]');
+    if (reviveBtn) reviveBtn.addEventListener('click', () => {
+      const cost = companionRevivePrice(c);
+      if (save.gold < cost) { showToast('Inte nog gold!'); return; }
+      save.gold -= cost;
+      persist(); Audio.purchase(); renderShopCompanions();
+      if (shopGoldEl) shopGoldEl.textContent = save.gold;
+      // Återväck companion direkt
+      if (typeof spawnCompanion === 'function') spawnCompanion();
     });
     tmpGrid.appendChild(card);
   }
@@ -8942,10 +8997,19 @@ function updateEnemies(dt, now) {
     // byggnad-kollision
     resolveBuildingCollision(e);
 
-    // KONTAKT med NÄRMSTA spelare (p är redan närmsta levande)
+    // KONTAKT med NÄRMSTA target (player ELLER companion om den är närmre och alive)
     if (e.contactCd <= 0 && e.dmg > 0) {
-      const dist = Math.hypot(p.x - e.x, p.y - e.y);
-      if (dist < (p.r || 14) + e.r) {
+      const distP = Math.hypot(p.x - e.x, p.y - e.y);
+      const c = state.companion;
+      const distC = (c && c.alive) ? Math.hypot(c.x - e.x, c.y - e.y) : Infinity;
+      // Companion tas som mål om den är inom kontakt-range OCH närmre än player
+      const cR = c ? (c.r || 12) : 0;
+      const inRangeC = c && c.alive && distC < cR + e.r;
+      const inRangeP = distP < (p.r || 14) + e.r;
+      if (inRangeC && (distC < distP || !inRangeP)) {
+        damageCompanion(e.dmg);
+        e.contactCd = 0.6;
+      } else if (inRangeP) {
         if (_ti.peerId) {
           Coop.sendDamageToPartner(_ti.peerId, e.dmg);
           p.hp = Math.max(0, (p.hp || 100) - e.dmg);
@@ -8957,6 +9021,24 @@ function updateEnemies(dt, now) {
     }
   }
   state.enemies = state.enemies.filter(e => !e.dead);
+}
+
+// Skada companion + döda om hp <= 0. Visa toast + audio.
+function damageCompanion(amount) {
+  const c = state.companion;
+  if (!c || !c.alive) return;
+  c.hp -= amount;
+  c.flashUntil = performance.now() + 100;
+  if (c.hp <= 0) {
+    c.alive = false;
+    c.hp = 0;
+    if (typeof spawnParticles === 'function') {
+      spawnParticles(c.x, c.y, '#aa3aff', 16, 200);
+    }
+    Audio.hit && Audio.hit();
+    const cName = c.comp && c.comp.name ? c.comp.name : 'Companion';
+    if (typeof showToast === 'function') showToast(`💀 ${cName} dog! Återväck i shoppen.`);
+  }
 }
 
 function updateBoss(b, dt, now) {
