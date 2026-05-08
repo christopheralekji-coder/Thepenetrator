@@ -151,8 +151,12 @@ const STAGES = [
 // Bakåtkompatibilitet med gammal kod
 const LEVELS = STAGES;
 function getLevel(w) {
-  if (state && state.customStages) return state.customStages[w - 1] || state.customStages[0];
-  return STAGES[Math.max(0, Math.min(STAGES.length - 1, w - 1))];
+  if (state && state.customStages && state.customStages.length > 0) {
+    // Clamp till sista stage istället för silent loop till stage 1
+    const idx = Math.max(0, Math.min(state.customStages.length - 1, (w | 0) - 1));
+    return state.customStages[idx];
+  }
+  return STAGES[Math.max(0, Math.min(STAGES.length - 1, (w | 0) - 1))];
 }
 function getStage(w) { return getLevel(w); }
 function getStageCount() {
@@ -1049,7 +1053,7 @@ function updatePickups(dt) {
         p.hp = Math.min(p.maxHp, p.hp + 30);
         showFloatingText(pk.x, pk.y, '+30 HP', '#5aff5a');
       } else if (pk.type === 'ammo') {
-        const w = W_BY_ID[p.weaponId];
+        const w = getWeapon(p.weaponId);
         if (w.mag) {
           p.ammo = effectiveMag(p.weaponId);
           p.reloading = false;
@@ -1221,6 +1225,12 @@ const WEAPONS = [
     desc: 'Toppvapen: 100 mag, ultra-ROF.' },
 ];
 const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
+
+// Defensiv lookup: returnerar ALLTID ett vapen-objekt. Fallback till fists vid undefined/saknat id.
+// Använd istället för rå W_BY_ID[...] när id kan komma från save-data, network, eller user-input.
+function getWeapon(id) {
+  return W_BY_ID[id] || W_BY_ID.fists;
+}
 
 // Vapen-kategori (för shop-filter)
 function weaponCategory(w) {
@@ -2406,7 +2416,6 @@ function makePlayer() {
   return {
     x: STAGES[0].spawnPos.x, y: STAGES[0].spawnPos.y,
     r: isCheatActive('bigboi') ? 21 : 14, // KingaJamlo = 1.5× större
-    kbMul: (isCheatActive('bigboi') ? 2 : 1),
     speed: speed,
     hp: maxHp, maxHp: maxHp,
     aimAngle: 0,
@@ -2424,7 +2433,8 @@ function makePlayer() {
     explMul: 1 + u.expl * 0.18,
     mrangeMul: 1 + u.mrange * 0.12,
     goldMul: (1 + u.gold * 0.18 + (hasPerk('goldbonus') ? 0.30 : 0)) * (dailyMod === 'double_gold' ? 2 : 1) * (isCheatActive('jappa') ? 1.5 : 1) * (isCheatActive('ultimate') ? 3 : 1),
-    kbMul: 1 + u.kb * 0.25,
+    // BigBoi-cheat ger ×2 knockback ovanpå upgrade-kbMul (var tidigare överskriven av denna rad)
+    kbMul: (1 + u.kb * 0.25) * (isCheatActive('bigboi') ? 2 : 1),
     bspeedMul: 1 + u.bspeed * 0.10,
     reviveAvailable: hasPerk('revive'),
     firstShotBonus: hasPerk('stealth'),
@@ -2533,7 +2543,7 @@ window.addEventListener('keydown', e => {
   checkKonami(k);
   if (k === 'q') switchWeapon(-1);
   if (k === 'e') switchWeapon(1);
-  if (k === 'r') startReload();
+  if (k === 'r' && state.mode === 'playing') startReload();
   if (k === 'tab' || e.key === 'Tab') {
     e.preventDefault();
     if (state.mode === 'playing') openWeaponMenu();
@@ -2583,6 +2593,12 @@ canvas.addEventListener('mousedown', (e) => {
     if (b && mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
       closeStoryDialog(); Audio.uiClick();
     }
+    return;
+  }
+  // Boss-intro tap-to-skip efter 1s (annars ~24s waste i bossrush med 10 bossar)
+  if (state.bossIntro && (performance.now() - state.bossIntro.startTime) > 1000) {
+    state.bossIntro = null;
+    Audio.uiClick && Audio.uiClick();
     return;
   }
   input.mouse.down = true;
@@ -2804,6 +2820,23 @@ document.getElementById('btn-pause-quit').addEventListener('click', () => {
   Music.stop();
   Audio.uiClick();
 });
+const btnPauseRestart = document.getElementById('btn-pause-restart');
+if (btnPauseRestart) {
+  btnPauseRestart.addEventListener('click', () => {
+    if (!confirm('Starta om denna run? All progress för denna run försvinner.')) return;
+    pauseScreen.classList.add('hidden');
+    Audio.uiClick();
+    // Restore sandbox-snapshot om aktivt så vi inte förlorar weapons-overlay
+    if (state._sandboxSnapshot) {
+      save.owned = state._sandboxSnapshot.owned;
+      save.equipped = state._sandboxSnapshot.equipped;
+      save.weaponId = state._sandboxSnapshot.weaponId;
+      state._sandboxSnapshot = null;
+    }
+    // Trigga ny run från start (skippar intro nu)
+    actuallyStartGame();
+  });
+}
 
 let settingsReturnTo = 'menu';
 function openSettings(returnTo) {
@@ -3464,9 +3497,11 @@ const Coop = {
         if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
       }
     } else if (ev.type === 'tdm_player_died') {
-      // Riktat event: bara renderera respawn-countdown om DET är jag som dog
+      // Riktat event: bara renderera respawn-countdown om DET är jag som dog.
+      // ev.durationMs (klient-tid relativ) — fallback till respawnAt för bakåtkomp.
       if (ev.victim === this.myId && typeof showTdmRespawnCountdown === 'function') {
-        showTdmRespawnCountdown(ev.respawnAt);
+        const respawnAt = ev.durationMs ? Date.now() + ev.durationMs : ev.respawnAt;
+        showTdmRespawnCountdown(respawnAt);
       }
     } else if (ev.type === 'tdm_match_end') {
       this.tdmActive = false;
@@ -3976,10 +4011,18 @@ const Coop = {
       return;
     }
     if (data.type === 'enemy_damage_batch' && this.isHost) {
-      // Batchade damage-events från klient — sparar JSON/network-overhead
+      // Batchade damage-events från klient — sparar JSON/network-overhead.
+      // ev.i är host-tilldelat _i (eller fallback array-idx för gamla klienter).
+      // Slå upp via _i först, fall tillbaka till array-idx.
       const pt = this.players.get(fromId);
       for (const ev of (data.d || [])) {
-        const e = state.enemies[ev.i];
+        let e = null;
+        // Sök först via _i (host-tilldelat enemy-id, stabilt över array-mutationer)
+        for (const candidate of state.enemies) {
+          if (candidate._i === ev.i) { e = candidate; break; }
+        }
+        // Fallback: array-idx (gammal klient utan _i)
+        if (!e) e = state.enemies[ev.i];
         if (!e || e.dead) continue;
         e.lastDamagerPid = fromId;
         if (pt) pt.dmgDealt = (pt.dmgDealt || 0) + ev.dmg;
@@ -4001,7 +4044,7 @@ const Coop = {
         p.hp = Math.min(p.maxHp, p.hp + 30);
         showFloatingText(p.x, p.y, '+30 HP', '#5aff5a');
       } else if (data.kind === 'ammo') {
-        const w = W_BY_ID[p.weaponId];
+        const w = getWeapon(p.weaponId);
         if (w.mag) { p.ammo = effectiveMag(p.weaponId); p.reloading = false; }
         showFloatingText(p.x, p.y, 'AMMO!', '#ffae3a');
       } else if (data.kind === 'gold') {
@@ -4020,7 +4063,7 @@ const Coop = {
       if (data.weaponId && !save.owned.includes(data.weaponId)) save.owned.push(data.weaponId);
       if (data.weaponId) equip(data.weaponId);
       Audio.purchase();
-      const w = W_BY_ID[data.weaponId];
+      const w = getWeapon(data.weaponId);
       showToast('🔫 ' + (w ? w.name : data.weaponId));
       persist();
       return;
@@ -5415,7 +5458,7 @@ function equip(id) {
   if (state.player) {
     state.player.weaponId = id;
     const magBonus = 1 + (save.upgrades.ammo || 0) * 0.20;
-    const baseMag = W_BY_ID[id].mag || 0;
+    const baseMag = getWeapon(id).mag || 0;
     state.player.ammo = Math.floor(baseMag * magBonus);
     state.player.reloading = false;
   }
@@ -5423,7 +5466,7 @@ function equip(id) {
   updateHUD();
 }
 function effectiveMag(weaponId) {
-  const baseMag = W_BY_ID[weaponId].mag || 0;
+  const baseMag = getWeapon(weaponId).mag || 0;
   const magBonus = 1 + (save.upgrades.ammo || 0) * 0.20;
   return Math.floor(baseMag * magBonus);
 }
@@ -5438,7 +5481,7 @@ function switchWeapon(dir) {
 
 function startReload() {
   const p = state.player; if (!p) return;
-  const w = W_BY_ID[p.weaponId];
+  const w = getWeapon(p.weaponId);
   if (w.type !== 'gun' || p.reloading) return;
   if (p.ammo === effectiveMag(p.weaponId)) return;
   p.reloading = true;
@@ -5453,16 +5496,16 @@ function tryShoot(now) {
   // SPECIAL: repair-turret laga trucken istället för att skjuta
   if (activeWeaponId === 'repair') {
     if (!state.truck || !state.truck.alive) return;
-    if (now - p.lastShot < 250) return; // 4× per sekund max
+    if (now - p.lastShot < 200) return; // 5× per sekund max
     p.lastShot = now;
-    const heal = 8;
+    const heal = 22;  // 5 × 22 = 110 HP/s — håller jämnt mot ~60-80 dmg/s i tung wave
     state.truck.hp = Math.min(state.truck.maxHp, state.truck.hp + heal);
     spawnParticles(state.truck.x, state.truck.y, '#5aff5a', 4, 100);
     showFloatingText(state.truck.x, state.truck.y - 40, '+' + heal, '#5aff5a');
     Audio.purchase && Audio.purchase();
     return;
   }
-  const w = W_BY_ID[activeWeaponId];
+  const w = getWeapon(activeWeaponId);
   // Stark-melee perk + Glas-kanon fire-rate bonus (15% snabbare alla vapen)
   const meleeMul = (w.type === 'melee' && hasPerk('fastmelee')) ? 0.70 : 1;
   const glasscannonMul = hasPerk('glasscannon') ? 0.85 : 1;
@@ -5533,8 +5576,18 @@ function tryShoot(now) {
   const pellets = w.pellets || 1;
   const burstCount = w.burstCount || 1;
   const burstDelay = w.burstDelay || 0;
+  // Burst-token: setTimeouts kollar att samma vapen fortfarande är equipped + samma run pågår.
+  // Annars kunde delayed shots spawna efter weapon-switch eller player-death med fel weapon-stats.
+  const burstWeaponId = w.id;
+  const burstRunId = state.runStartTime;
   for (let burst = 0; burst < burstCount; burst++) {
-    setTimeout(() => spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus), burst * burstDelay);
+    setTimeout(() => {
+      if (!state.player || state.player.spectating) return;
+      if (state.runStartTime !== burstRunId) return;  // ny run började
+      const curWeapon = state.player._turretWeapon || state.player.weaponId;
+      if (curWeapon !== burstWeaponId) return;        // vapen byttes
+      spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus);
+    }, burst * burstDelay);
   }
   if (p.ammo <= 0) startReload();
   updateHUD();
@@ -6043,7 +6096,7 @@ function explode(x, y, radius, dmg, friendly) {
   }
 }
 
-function damagePlayer(amount) {
+function damagePlayer(amount, source) {
   const p = state.player;
   if (p.invuln > 0) return;
   // Ultimate cheat = odödlig
@@ -6052,6 +6105,8 @@ function damagePlayer(amount) {
   if (p.spectating) return;
   // Mountad på turret = osårbar (bara trucken tar skada)
   if (p._mountedTurretId) return;
+  // Track senaste damage-källa för death-feedback ("du dog från X")
+  if (source) state._lastDamageSource = source;
   p.hp -= amount;
   p.flashUntil = performance.now() + 120;
   p.invuln = 0.3;
@@ -6098,22 +6153,33 @@ function enterDeathState() {
   };
   p.spectating = true;
   p.specTarget = null; // välj live-player att speca
-  showToast('💀 DU DOG');
+  // Visa orsak om vi spårat senaste damage-källan
+  const cause = state._lastDamageSource ? ' — ' + state._lastDamageSource : '';
+  showToast('💀 DU DOG' + cause);
   // I coop: vänta på revive eller all-dead game-over (checkCoopAllDead sköter)
   if (Coop.active) {
     for (const [pid, partner] of Coop.players) {
       if (partner.hp > 0) { p.specTarget = pid; break; }
     }
   } else {
-    // Single-player: hoppa till nästa stage efter 3s
-    setTimeout(() => {
-      if (!state.player || !state.player.spectating) return;
-      state.bossDefeated = true; // tvinga stage-complete
-      state.deadBody = null;
-      state.player.spectating = false;
-      state.player.hp = state.player.maxHp * 0.3; // återvänd med 30% HP
-      showToast('REZ — NÄSTA STAGE');
-    }, 3000);
+    // Single-player: revive-perk ger second chance, annars game over
+    if (p.reviveAvailable && hasPerk('revive')) {
+      p.reviveAvailable = false;
+      setTimeout(() => {
+        if (!state.player || !state.player.spectating) return;
+        state.deadBody = null;
+        state.player.spectating = false;
+        state.player.hp = state.player.maxHp * 0.5;
+        state.player.invuln = 2.0;
+        showToast('💚 REVIVE!');
+      }, 1500);
+    } else {
+      // Riktig solo death — visa game-over efter en kort respit så toast hinner ses
+      setTimeout(() => {
+        if (state.mode !== 'playing') return;
+        endGame(false);
+      }, 1500);
+    }
   }
 }
 
@@ -6529,6 +6595,22 @@ function onWaveComplete() {
   state.waveActive = false;
   save.wave = Math.max(save.wave, state.wave + 1);
   save.highWave = Math.max(save.highWave || 1, state.wave);
+  // Per-mode records — separerade så endless wave 50 inte raderar story stage 9 etc
+  if (!save.records) save.records = { endless: 0, bossrush: 0, speedrun: 0, survive: 0, daily: {} };
+  const m = getMode();
+  if (m === 'endless') save.records.endless = Math.max(save.records.endless || 0, state.wave);
+  else if (m === 'bossrush') save.records.bossrush = Math.max(save.records.bossrush || 0, state.wave);
+  else if (m === 'survive') {
+    const elapsed = state.surviveStart ? Math.round((performance.now() - state.surviveStart) / 1000) : 0;
+    save.records.survive = Math.max(save.records.survive || 0, elapsed);
+  } else if (m === 'speedrun' && state.wave >= STAGES.length) {
+    const elapsed = state.speedrunStart ? Math.round((performance.now() - state.speedrunStart) / 1000) : 0;
+    if (!save.records.speedrun || elapsed < save.records.speedrun) save.records.speedrun = elapsed;
+  } else if (m === 'daily') {
+    const today = new Date();
+    const key = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    save.records.daily[key] = { won: state.wave >= STAGES.length };
+  }
   Audio.zoneClear();
   console.log('[GAME] Stage ' + state.wave + ' complete');
   // I coop: host broadcastar event till klienter
@@ -6669,7 +6751,7 @@ function closeShop() {
   }
   // Mellan-stage shop: heala + nästa wave
   state.player.hp = state.player.maxHp;
-  state.player.ammo = W_BY_ID[state.player.weaponId].mag || 0;
+  state.player.ammo = getWeapon(state.player.weaponId).mag || 0;
   state.player.reloading = false;
   // Server-auth: tell server att avancera till nästa stage
   if (Coop.serverSimActive && Coop.ws && Coop.ws.readyState === 1) {
@@ -7145,8 +7227,15 @@ function actuallyStartGame() {
     state.customStages = buildDailyStages();
   } else if (mode === 'sandbox') {
     state.customStages = buildSandboxStages();
-    // Ge alla vapen + perks i sandbox
-    for (const w of WEAPONS) if (!save.owned.includes(w.id)) { save.owned.push(w.id); save._sandboxAdded = true; }
+    // Sandbox: ge alla vapen TEMPORÄRT (snapshot bara för restore vid slut/quit).
+    // Tidigare bug: vapnen lades permanent i save.owned och persistades.
+    state._sandboxSnapshot = {
+      owned: [...(save.owned || ['fists'])],
+      equipped: save.equipped,
+      weaponId: save.weaponId,
+    };
+    save.owned = [...new Set([...save.owned, ...WEAPONS.map(w => w.id)])];
+    // Persist INTE — lämna sandbox-overlay i memory tills restore
   } else if (mode === 'speedrun') {
     state.customStages = STAGES; // samma som story men trackar tid
     state.speedrunStart = performance.now();
@@ -7639,6 +7728,13 @@ function endGame(victory) {
     if (save.companions && snap.activeCompanion !== undefined) save.companions.active = snap.activeCompanion;
     state._coopSnapshot = null;
   }
+  // Sandbox: återställ owned/equipped (vi gav alla vapen temporärt)
+  if (state._sandboxSnapshot) {
+    save.owned = state._sandboxSnapshot.owned;
+    save.equipped = state._sandboxSnapshot.equipped;
+    save.weaponId = state._sandboxSnapshot.weaponId;
+    state._sandboxSnapshot = null;
+  }
   gameoverScreen.classList.remove('hidden');
   persist();
 }
@@ -8034,7 +8130,7 @@ function updatePlayer(dt, now) {
 
   // reload (med reload-fart-uppgradering)
   if (p.reloading) {
-    const w = W_BY_ID[p.weaponId];
+    const w = getWeapon(p.weaponId);
     if (now - p.reloadStart >= w.reload * (p.reloadMul || 1)) {
       p.ammo = effectiveMag(p.weaponId);
       p.reloading = false;
@@ -8828,8 +8924,11 @@ function updateBullets(dt) {
             hit = true; break;
           }
           if (isCoopClient) {
-            // Klient: skicka damage-event till host istället
-            Coop.damageEnemyOnHost(i, b.dmg, b.crit);
+            // Klient: skicka damage-event till host. ANVÄND e._i (host-tilldelat enemy-id),
+            // inte klient-local array-idx — host's array har annan ordning pga filter/kill.
+            // Fallback till array-idx för bakåtkompatibilitet om _i saknas.
+            const sendIdx = (e._i !== undefined) ? e._i : i;
+            Coop.damageEnemyOnHost(sendIdx, b.dmg, b.crit);
             // Visuell-feedback lokalt (flash)
             e.flashUntil = performance.now() + 80;
             spawnDamageNumber(e.x, e.y - e.r, Math.round(b.dmg), b.crit);
@@ -9041,10 +9140,13 @@ function buildStageLayout(stage) {
   };
   const fn = layouts[stage.kind] || layoutForest;
   fn(stage);
-  // Lägg till 5 dog tags på slump-positioner (deterministiskt per stage)
-  if (getMode() === 'story') {
+  // Lägg till 5 dog tags på slump-positioner (deterministiskt per stage).
+  // Daily-mod 'bonus_drops' = 2× dog tags (10 istället för 5).
+  if (getMode() === 'story' || getMode() === 'daily') {
     const r = rngFor(stage, 100);
-    for (let i = 0; i < 5; i++) {
+    const dailyMod = state.dailyModifier ? state.dailyModifier.id : null;
+    const dogTagCount = dailyMod === 'bonus_drops' ? 10 : 5;
+    for (let i = 0; i < dogTagCount; i++) {
       let placed = false;
       for (let tries = 0; tries < 30 && !placed; tries++) {
         const x = 100 + r() * (stage.worldW - 200);
@@ -14606,19 +14708,61 @@ function drawDamageIndicators() {
 
 function drawModeTimer() {
   const mode = getMode();
-  if (mode !== 'survive' && mode !== 'speedrun') return;
-  const start = mode === 'survive' ? state.surviveStart : state.speedrunStart;
-  if (!start) return;
-  const elapsed = (performance.now() - start) / 1000;
-  // För survive: kolla när tiden tar slut (men ingen visuell timer)
-  if (mode === 'survive') {
-    const remaining = Math.max(0, 300 - elapsed);
-    if (remaining <= 0 && state.mode === 'playing') {
-      onWaveComplete();
-      state.surviveStart = null;
+  if (mode !== 'survive' && mode !== 'speedrun' && mode !== 'daily') return;
+  // Daily-badge: visa modifier persistent när daily aktivt
+  if (mode === 'daily' && state.dailyModifier) {
+    const dm = state.dailyModifier;
+    ctx.save();
+    ctx.fillStyle = 'rgba(170,58,255,0.85)';
+    ctx.fillRect(viewW / 2 - 90, 30, 180, 22);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('🎲 DAILY · ' + (dm.label || dm.id || '').toUpperCase(), viewW / 2, 45);
+    ctx.restore();
+  }
+  if (mode === 'survive' || mode === 'speedrun') {
+    const start = mode === 'survive' ? state.surviveStart : state.speedrunStart;
+    if (!start) return;
+    const elapsed = (performance.now() - start) / 1000;
+    // Survive: kolla när tiden tar slut (5min countdown)
+    if (mode === 'survive') {
+      const remaining = Math.max(0, 300 - elapsed);
+      if (remaining <= 0 && state.mode === 'playing') {
+        onWaveComplete();
+        state.surviveStart = null;
+        return;
+      }
+      const mins = Math.floor(remaining / 60);
+      const secs = Math.floor(remaining % 60);
+      const timeStr = mins + ':' + (secs < 10 ? '0' : '') + secs;
+      ctx.save();
+      // Röd när < 30s
+      const urgent = remaining < 30;
+      ctx.fillStyle = urgent ? 'rgba(255,90,90,0.85)' : 'rgba(0,0,0,0.7)';
+      ctx.fillRect(viewW / 2 - 60, 30, 120, 26);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('⏱ ' + timeStr, viewW / 2, 49);
+      ctx.restore();
+    } else {
+      // Speedrun: räkna upp från start (mm:ss.ms format för precision)
+      const totalMs = Math.floor(elapsed * 1000);
+      const mins = Math.floor(totalMs / 60000);
+      const secs = Math.floor((totalMs % 60000) / 1000);
+      const cs = Math.floor((totalMs % 1000) / 10);
+      const timeStr = mins + ':' + (secs < 10 ? '0' : '') + secs + '.' + (cs < 10 ? '0' : '') + cs;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(viewW / 2 - 70, 30, 140, 26);
+      ctx.fillStyle = '#9aff5a';
+      ctx.font = 'bold 14px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('⏱ ' + timeStr, viewW / 2, 49);
+      ctx.restore();
     }
   }
-  // Visuell timer borttagen (användarens önskemål)
 }
 
 function drawCheatBanner() {

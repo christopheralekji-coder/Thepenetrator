@@ -146,18 +146,30 @@ function applyBulletEffects(b, e, sim) {
 
 // Explode (radius damage) — speglar game.js:5435-5458
 function explode(sim, x, y, radius, dmg, fromPid) {
-  for (const e of sim.enemies) {
-    if (e.dead) continue;
-    const dx = e.x - x, dy = e.y - y;
-    const d2 = dx * dx + dy * dy;
-    if (d2 < radius * radius) {
-      const falloff = 1 - Math.sqrt(d2) / radius;
-      damageEnemy(e, dmg * (0.4 + falloff * 0.6), false, fromPid);
+  // I TDM: en explosion från en spelare ska INTE skada eget lag eller egen
+  // spelare. PvE-skada på enemies skippas också i TDM (inga enemies).
+  const fromWs = fromPid ? sim.room.members.get(fromPid) : null;
+  const fromTeam = fromWs && fromWs.tdmTeam;
+  if (!sim.tdmActive) {
+    for (const e of sim.enemies) {
+      if (e.dead) continue;
+      const dx = e.x - x, dy = e.y - y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < radius * radius) {
+        const falloff = 1 - Math.sqrt(d2) / radius;
+        damageEnemy(e, dmg * (0.4 + falloff * 0.6), false, fromPid);
+      }
     }
   }
   // Skadar även spelare i radie
-  for (const [, ws] of sim.room.members) {
+  for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    if (sim.tdmActive) {
+      if (pid === fromPid) continue;             // egen spelare oskadad
+      if (fromTeam && ws.tdmTeam === fromTeam) continue;  // friendly fire av
+      const invuln = ws.playerState.invulnUntil || 0;
+      if (Date.now() < invuln) continue;          // respawn-invuln skyddar
+    }
     const dx = ws.playerState.x - x, dy = ws.playerState.y - y;
     const d2 = dx * dx + dy * dy;
     if (d2 < radius * radius) {
@@ -288,11 +300,13 @@ function updateBullets(sim, dt, now) {
               redKills: sim.tdmKills.red,
               blueKills: sim.tdmKills.blue,
             });
-            // Riktat event till victim så de kan rendera respawn-countdown
+            // Riktat event till victim så de kan rendera respawn-countdown.
+            // Skickar durationMs istället för respawnAt (server-clock) — annars
+            // räknar klient från sin egen Date.now() vilket driftar.
             sim.eventQueue.push({
               type: 'tdm_player_died',
               victim: pid,
-              respawnAt,
+              durationMs: 3000,
             });
             if (sim.tdmKills[ownerTeam] >= sim.tdmTargetKills) {
               sim.tdmEnded = true;

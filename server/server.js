@@ -256,7 +256,11 @@ function handleDisconnect(ws) {
     const host = room.members.get(room.hostId);
     if (host) send(host, { type: 'peer_left', peerId: ws.id });
     console.log('[ROOM]', room.code, ws.id, 'left (', room.members.size, 'members)');
-    if (room.members.size === 0) rooms.delete(room.code);
+    if (room.members.size === 0) {
+      // Säkerhetsnät: stoppa eventuell sim som lever vidare i ett tomt rum
+      if (room.sim) stopSim(room.sim);
+      rooms.delete(room.code);
+    }
   }
 }
 

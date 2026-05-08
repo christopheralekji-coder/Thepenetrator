@@ -47,7 +47,7 @@
 </div>
 
 <!-- TRUCK turret-väljare (visas bara i konvoj-mode) -->
-<div id="truck-turret-bar" class="hidden" style="position:fixed;top:60px;left:50%;transform:translateX(-50%);background:rgba(20,20,30,0.85);border:2px solid #aa3aff;border-radius:10px;padding:6px 8px;display:flex;gap:5px;z-index:90;box-shadow:0 2px 12px rgba(0,0,0,0.5);">
+<div id="truck-turret-bar" class="hidden" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(20,20,30,0.85);border:2px solid #aa3aff;border-radius:10px;padding:6px 8px;display:flex;gap:5px;z-index:90;box-shadow:0 2px 12px rgba(0,0,0,0.5);max-width:calc(100vw - 220px);flex-wrap:wrap;justify-content:center;">
   <!-- Knappar fylls i av JS -->
 </div>
 
@@ -71,6 +71,7 @@
 <div id="pause-screen" class="overlay hidden">
   <h2>PAUSAT</h2>
   <button id="btn-resume" class="big-btn">ÅTERUPPTA</button>
+  <button id="btn-pause-restart" class="big-btn">STARTA OM RUN</button>
   <button id="btn-pause-settings" class="big-btn">INSTÄLLNINGAR</button>
   <button id="btn-pause-quit" class="small-btn">AVSLUTA TILL MENY</button>
 </div>
