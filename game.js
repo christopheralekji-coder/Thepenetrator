@@ -1499,14 +1499,15 @@ function ensureUpgrades() {
   for (const k of ['hp','speed','dmg','ammo','crit','regen','reload','expl','mrange','gold','kb','bspeed']) {
     if (typeof save.upgrades[k] !== 'number') save.upgrades[k] = 0;
   }
-  // Migration: ta bort vapen som inte längre finns (tonfa, boxgloves, glaive, drone)
-  // från save.owned, och fallback till 'fists' om equipped/weaponId är borttagen
-  if (save.owned) {
-    save.owned = save.owned.filter(id => W_BY_ID[id]);
-  }
-  if (save.equipped && !W_BY_ID[save.equipped]) save.equipped = 'fists';
-  if (save.weaponId && !W_BY_ID[save.weaponId]) save.weaponId = 'fists';
-  if (save.owned && !save.owned.includes('fists')) save.owned.unshift('fists');
+  // Migration: säkerställ valid weapon-state. Hanterar:
+  //  - borttagna vapen (tonfa, boxgloves, glaive, drone)
+  //  - undefined/null equipped/weaponId (gamla save-versioner)
+  //  - tom eller saknad owned-array
+  if (!Array.isArray(save.owned)) save.owned = ['fists'];
+  save.owned = save.owned.filter(id => W_BY_ID[id]);
+  if (!save.owned.includes('fists')) save.owned.unshift('fists');
+  if (!save.equipped || !W_BY_ID[save.equipped]) save.equipped = 'fists';
+  if (!save.weaponId || !W_BY_ID[save.weaponId]) save.weaponId = save.equipped;
 }
 
 // Definition av spelar-uppgraderingar
@@ -2376,6 +2377,8 @@ function makePlayer() {
   const bigBoiHp = isCheatActive('bigboi') ? 3 : 1;
   const maxHp = (baseMaxHp + u.hp * 25) * bigBoiHp;
   const speed = 230 + u.speed * 18;
+  // Defensiv fallback: om save.equipped pekar på saknat vapen (migration-glipa) → fists
+  if (!W_BY_ID[save.equipped]) save.equipped = 'fists';
   const w = W_BY_ID[save.equipped];
   const magBonus = 1 + u.ammo * 0.20;
   const initAmmo = w.mag ? Math.floor(w.mag * magBonus) : 0;
@@ -14329,6 +14332,9 @@ function render() {
   drawBossIntro();
   drawFadeOverlay();
   drawCountdownOverlay();
+  // Story-dialog MÅSTE ritas top-level (inte instängd i drawCountdownOverlay) — solo-mode
+  // har ingen countdown så dialogen försvann tidigare och spelet hängde med dialogActive=true
+  drawStoryDialog();
 }
 
 function drawCountdownOverlay() {
@@ -14356,7 +14362,6 @@ function drawCountdownOverlay() {
   ctx.font = 'bold 18px sans-serif';
   ctx.fillText('FÖRBERED', viewW / 2, viewH / 2 + 90);
   ctx.restore();
-  drawStoryDialog();
 }
 
 function drawBossDeathCinematic() {
