@@ -12851,25 +12851,60 @@ function drawPlayerWeapon(p, w, flash, now) {
       ctx.beginPath(); ctx.arc(p.r * 1.2 + reach, -p.r * 0.5, 6, 0, Math.PI*2); ctx.fill();
       ctx.beginPath(); ctx.arc(p.r * 1.2 + reach, p.r * 0.5, 6, 0, Math.PI*2); ctx.fill();
     } else if (w.id === 'bat') {
-      // basebollträ: brun stång
+      // Basebollträ: brun stång med tape-grepp + nail-detaljer
       const swing = slashAnim * 1.2;
       ctx.save(); ctx.rotate(-0.6 + swing);
+      // Stång (gradient tjocklek smal-tjock)
       ctx.strokeStyle = flash ? '#fff' : '#7a4a20';
-      ctx.lineWidth = 7; ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.2, 0);
-      ctx.stroke();
+      ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 1.7, 0); ctx.stroke();
+      ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.moveTo(p.r * 1.7, 0); ctx.lineTo(p.r * 2.3, 0); ctx.stroke();
+      // Tape-grepp (svart spiral)
+      ctx.strokeStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 5; i++) {
+        const tx = p.r * 0.75 + i * (p.r * 0.15);
+        ctx.beginPath();
+        ctx.moveTo(tx, -3); ctx.lineTo(tx + 2, 3);
+        ctx.stroke();
+      }
+      // Nails sticker ut (3 st i tjocka änden)
+      ctx.strokeStyle = flash ? '#fff' : '#ccc';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 3; i++) {
+        const nx = p.r * 1.85 + i * (p.r * 0.15);
+        ctx.beginPath();
+        ctx.moveTo(nx, -4); ctx.lineTo(nx + 1, -7);
+        ctx.stroke();
+      }
       ctx.restore();
     } else if (w.id === 'knife') {
-      const stab = slashAnim * 8;
+      // Knife: jaggad sågtand-blade + gripp med pommel
+      const stab = slashAnim * 10;
+      // Pommel + grepp
+      ctx.fillStyle = flash ? '#fff' : '#3a2a1a';
+      ctx.beginPath(); ctx.arc(p.r * 0.55 + stab, 0, 3, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#5a3a20';
+      ctx.fillRect(p.r * 0.6 + stab, -2, 5, 4);
+      // Handskydd
+      ctx.fillStyle = flash ? '#fff' : '#888';
+      ctx.fillRect(p.r * 0.85 + stab, -4, 2, 8);
+      // Jaggad blade (sågtand-mönster på undersidan)
       ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
       ctx.beginPath();
       ctx.moveTo(p.r * 0.9 + stab, -3);
-      ctx.lineTo(p.r * 1.7 + stab, 0);
+      ctx.lineTo(p.r * 1.85 + stab, -1);
+      ctx.lineTo(p.r * 1.95 + stab, 0);
+      ctx.lineTo(p.r * 1.85 + stab, 1);
+      // Sågtand-mönster
+      ctx.lineTo(p.r * 1.7 + stab, 1);
+      ctx.lineTo(p.r * 1.6 + stab, 2.5);
+      ctx.lineTo(p.r * 1.45 + stab, 1);
+      ctx.lineTo(p.r * 1.3 + stab, 2.5);
+      ctx.lineTo(p.r * 1.15 + stab, 1);
       ctx.lineTo(p.r * 0.9 + stab, 3);
-      ctx.fill();
-      ctx.fillStyle = flash ? '#fff' : '#5a3a20';
-      ctx.fillRect(p.r * 0.6 + stab, -2, 4, 4);
+      ctx.closePath(); ctx.fill();
     } else if (w.id === 'machete') {
       // Machete: bredbladigt, lite kortare, brett blad (jakt-machete)
       const swing = slashAnim * 1.3;
@@ -13211,10 +13246,16 @@ function drawPlayerWeapon(p, w, flash, now) {
     ctx.fill();
   }
   if (w.style === 'plasma') {
+    // Glödande blå-cyan accent på pipa + ringar längs hela pipan
     ctx.shadowColor = w.color;
-    ctx.shadowBlur = 8;
+    ctx.shadowBlur = 10;
     ctx.fillStyle = w.color;
-    ctx.beginPath(); ctx.arc(p.r + len + 2, 0, 4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.r + len + 2, 0, 5, 0, Math.PI*2); ctx.fill();
+    // Energi-ringar längs pipan
+    for (let i = 1; i <= 3; i++) {
+      ctx.fillStyle = `rgba(58, 202, 255, ${0.5 + Math.sin(now / 100 + i) * 0.3})`;
+      ctx.fillRect(p.r + 4 + i * 5, -3, 2, 6);
+    }
     ctx.shadowBlur = 0;
   }
   if (w.style === 'tesla') {
