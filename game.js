@@ -5512,23 +5512,32 @@ if (_setFirejoy) {
   });
 }
 
-// Vapen → emoji för fire-knapp
+// Vapen → emoji för fire-knapp + HUD. Varje vapen unik så spelaren ser
+// direkt vad som är equipped utan att läsa namnet.
 const WEAPON_ICONS = {
-  fists: '👊', knuckles: '👊', boxgloves: '🥊', tonfa: '🥢',
-  bat: '🏏', sledge: '🔨', mace: '⚒️', baton: '🥢',
-  knife: '🔪', throwknife: '🔪', sickle: '🪓',
-  axe: '🪓', machete: '⚔️', katana: '⚔️', glaive: '⚔️', spear: '🔱',
-  whip: '🪢', shuriken: '⭐',
-  lightsaber: '✨', energysword: '✨',
-  pistol: '🔫', revolver: '🔫', shotgun: '🔫',
-  burstpistol: '🔫', smg: '🔫', rifle: '🔫', sniper: '🎯',
-  bow: '🏹', crossbow: '🏹',
+  // Melee — knytnävar, blade, club, long-reach, energy
+  fists: '👊', knuckles: '🥊',
+  knife: '🔪', throwknife: '🗡️', sickle: '🪓',
+  bat: '🏏', mace: '⚒️', sledge: '🔨',
+  axe: '🪓', machete: '⚔️', katana: '🗡️',
+  spear: '🔱', whip: '⛓', shuriken: '⭐',
+  lightsaber: '🌟', energysword: '✨',
+  // Guns — distinkta typer
+  pistol: '🔫', revolver: '🤠',
+  burstpistol: '💥', shotgun: '🌪',
+  smg: '🔁', rifle: '🪖', minigun: '🌀',
+  bow: '🏹', crossbow: '🎯',
+  sniper: '🔭',
+  // Energy/elemental
+  flame: '🔥', sonic: '📢', frost: '❄️',
+  tesla: '⚡', plasma: '💠',
+  // Special / explosive
   grenade: '💣', rocket: '🚀',
-  minigun: '⚡', flame: '🔥', plasma: '☄️',
-  tesla: '⚡', frost: '❄️', sonic: '📢',
-  railgun: '⚡', blackhole: '🌀',
-  drone: '🤖', timestop: '⏱️', boomerang: '🪃', mindcontrol: '🧠',
-  pullwhip: '🪢',
+  boomerang: '🪃', pullwhip: '🦯',
+  timestop: '⏱', blackhole: '🕳',
+  mindcontrol: '🧠', railgun: '🛤',
+  // Borttagna men hanteras vid migration
+  boxgloves: '🥊', tonfa: '🥢', glaive: '⚔️', drone: '🤖',
 };
 function getWeaponIcon(id) { return WEAPON_ICONS[id] || '🔫'; }
 

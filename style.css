@@ -1650,6 +1650,49 @@ button, .shop-item, .player-row, .pet-card {
   .stat-row { display: flex; justify-content: space-between; }
 }
 
+/* Wardrobe specifik landscape-layout — canvas + tabs + options + TILLBAKA
+   måste rymmas på 393px höjd. Crit-fix: utan denna hamnade options-elementet
+   på top:420 (utanför viewport) med height:0. */
+@media (max-height: 500px) and (orientation: landscape) {
+  #wardrobe-screen {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 12px;
+    padding: 12px !important;
+    align-items: flex-start !important;
+    justify-content: center !important;
+  }
+  #wardrobe-screen > h2 { width: 100%; margin: 0 0 4px 0 !important; font-size: 18px !important; }
+  #wardrobe-screen > .menu-sub { display: none !important; }
+  #wardrobe-preview {
+    width: 130px !important; height: 160px !important;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+  }
+  #wardrobe-tabs {
+    flex-basis: 100% !important;
+    order: 2;
+    margin-bottom: 4px !important;
+  }
+  #wardrobe-options {
+    flex: 1 1 380px !important;
+    order: 3;
+    max-height: 200px !important;
+    min-height: 80px !important;
+    align-content: flex-start !important;
+    /* Padding-bottom så cards syns ovanför sticky TILLBAKA-knappen */
+    padding-bottom: 60px !important;
+  }
+  /* Override sticky-position så TILLBAKA-knappen INTE täcker options-grid.
+     I wardrobe är layout flex-row + wrap → sticky bottom drar knappen över items. */
+  #wardrobe-screen > #btn-wardrobe-close {
+    order: 4;
+    flex-basis: 100%;
+    position: relative !important;
+    bottom: auto !important;
+    margin-top: 4px !important;
+  }
+}
 /* Landskap — viktigt för smartphone som spelas liggande */
 @media (max-height: 500px) and (orientation: landscape) {
   #shop-items { max-height: 50vh; }
