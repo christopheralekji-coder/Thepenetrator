@@ -13073,6 +13073,47 @@ function drawPlayerWeapon(p, w, flash, now) {
     ctx.beginPath(); ctx.arc(p.r + len, 0, 4 * pulse, 0, Math.PI*2); ctx.fill();
     ctx.shadowBlur = 0;
   }
+  if (w.style === 'boomerang') {
+    // L-formad pipa + boomerang-detalj
+    ctx.fillStyle = flash ? '#fff' : '#9a6a30';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 8, -3); ctx.lineTo(p.r + 14, -8);
+    ctx.lineTo(p.r + 18, -4); ctx.lineTo(p.r + 12, 0);
+    ctx.closePath(); ctx.fill();
+  }
+  if (w.style === 'pullwhip') {
+    // Krok med dragspår
+    ctx.strokeStyle = flash ? '#fff' : '#5a4030';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(p.r + len + 2, -2, 4, 0, Math.PI * 1.5);
+    ctx.stroke();
+  }
+  if (w.style === 'timestop') {
+    // Klocka-detalj
+    ctx.strokeStyle = flash ? '#fff' : '#9aff5a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(p.r + 14, 0, 5, 0, Math.PI*2); ctx.stroke();
+    // Visare som tickar
+    const tick = Math.floor(now / 100) % 12;
+    const a = tick / 12 * Math.PI * 2 - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 14, 0);
+    ctx.lineTo(p.r + 14 + Math.cos(a) * 4, Math.sin(a) * 4);
+    ctx.stroke();
+  }
+  if (w.style === 'mindctrl') {
+    // Hjärn-stråle: rosa pulsande punkter
+    const pulse = 0.5 + Math.sin(now / 80) * 0.5;
+    ctx.fillStyle = `rgba(255, 90, 255, ${pulse})`;
+    ctx.shadowColor = '#ff5aff'; ctx.shadowBlur = 10;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.arc(p.r + 8 + i * 6, 0, 2, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
 
   // muzzle flash
   if (muzzleFlash) {
