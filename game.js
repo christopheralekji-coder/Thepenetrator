@@ -1938,6 +1938,24 @@ ensureStats();
 ensureMastery();
 ensureWardrobe();
 ensureCompanions();
+// Crash-recovery: om sandbox-snapshot finns kvar i localStorage från en tidigare
+// session där restore inte hann köras, restore NU innan user kan starta annan mode.
+(function recoverFromSandboxCrash() {
+  try {
+    const raw = localStorage.getItem('penetrator_sandbox_snapshot');
+    if (!raw) return;
+    const snap = JSON.parse(raw);
+    if (snap) {
+      save.owned = snap.owned || save.owned;
+      if (snap.equipped) save.equipped = snap.equipped;
+      if (snap.weaponId) save.weaponId = snap.weaponId;
+      if (typeof snap.gold === 'number') save.gold = snap.gold;
+      localStorage.removeItem('penetrator_sandbox_snapshot');
+      // Persist genom att skriva om save direkt
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {}
+    }
+  } catch (_) {}
+})();
 
 // ============================================================
 // AUDIO — procedurellt genererade ljud via Web Audio API
@@ -2837,6 +2855,8 @@ document.getElementById('btn-pause-quit').addEventListener('click', () => {
   menuScreen.classList.remove('hidden');
   Music.stop();
   Audio.uiClick();
+  // Anti-läck: om kommer från sandbox, restore gold/owned innan tillbaka till menu
+  if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
 });
 const btnPauseRestart = document.getElementById('btn-pause-restart');
 if (btnPauseRestart) {
@@ -2868,6 +2888,7 @@ if (btnPauseRestart) {
         save.weaponId = state._sandboxSnapshot.weaponId;
         if (typeof state._sandboxSnapshot.gold === 'number') save.gold = state._sandboxSnapshot.gold;
         state._sandboxSnapshot = null;
+        try { localStorage.removeItem('penetrator_sandbox_snapshot'); } catch (_) {}
       }
       actuallyStartGame();
     });
@@ -7404,6 +7425,7 @@ document.getElementById('btn-menu').addEventListener('click', () => {
   menuScreen.classList.remove('hidden');
   document.body.classList.add('menu-mode');
   state.mode = 'menu';
+  if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
   refreshModeButtons();
 });
 
@@ -7497,6 +7519,28 @@ function runIntroCutscene(onDone) {
   }, totalDur + 100);
 }
 
+// Sandbox-restore: anropas vid mode-byte / page-init / pre-start för att se till
+// att obegränsat-gold + alla-vapen-buff från sandbox INTE läcker till andra modes.
+// Persistar snapshot till localStorage så tab-crash inte stjäl save.gold.
+function restoreSandboxIfNeeded() {
+  let snap = state && state._sandboxSnapshot;
+  if (!snap) {
+    try {
+      const raw = localStorage.getItem('penetrator_sandbox_snapshot');
+      if (raw) snap = JSON.parse(raw);
+    } catch (_) {}
+  }
+  if (!snap) return false;
+  save.owned = snap.owned || save.owned;
+  if (snap.equipped) save.equipped = snap.equipped;
+  if (snap.weaponId) save.weaponId = snap.weaponId;
+  if (typeof snap.gold === 'number') save.gold = snap.gold;
+  if (state) state._sandboxSnapshot = null;
+  try { localStorage.removeItem('penetrator_sandbox_snapshot'); } catch (_) {}
+  persist();
+  return true;
+}
+
 function actuallyStartGame() {
   // Göm ALLA overlays så vi faktiskt ser spelet
   menuScreen.classList.add('hidden');
@@ -7505,6 +7549,9 @@ function actuallyStartGame() {
   if (coopInitEl) coopInitEl.classList.remove('hidden');
   if (coopLobbyEl) coopLobbyEl.classList.add('hidden');
   document.body.classList.remove('menu-mode');
+  // Anti-läck: om kommer från sandbox till annan mode → restore innan modes
+  // får modifiera save.gold/owned.
+  if (state && state.mode !== 'sandbox') restoreSandboxIfNeeded();
   // Coop: fresh-start varje run (ingen pengar/vapen/perks/upgrades carry-over)
   if (Coop.active) {
     // Snapshot bara FÖRSTA gången (om vi inte redan har en sparad).
@@ -7556,13 +7603,15 @@ function actuallyStartGame() {
   } else if (mode === 'sandbox') {
     state.customStages = buildSandboxStages();
     // Sandbox: ge alla vapen + obegränsat med pengar TEMPORÄRT.
-    // Snapshot bara för restore vid slut/quit. Persistas inte.
+    // Snapshot persistas till localStorage så tab-crash/page-reload inte
+    // läcker 999999 gold + alla-vapen permanent till save (bug fix).
     state._sandboxSnapshot = {
       owned: [...(save.owned || ['fists'])],
       equipped: save.equipped,
       weaponId: save.weaponId,
       gold: save.gold,
     };
+    try { localStorage.setItem('penetrator_sandbox_snapshot', JSON.stringify(state._sandboxSnapshot)); } catch (_) {}
     save.owned = [...new Set([...save.owned, ...WEAPONS.map(w => w.id)])];
     save.gold = 999999;  // Sandbox = obegränsat — köp allt
     if (typeof showToast === 'function') showToast('🏖 SANDBOX — alla vapen + obegränsat gold');
@@ -8074,6 +8123,7 @@ function endGame(victory) {
     save.weaponId = state._sandboxSnapshot.weaponId;
     if (typeof state._sandboxSnapshot.gold === 'number') save.gold = state._sandboxSnapshot.gold;
     state._sandboxSnapshot = null;
+    try { localStorage.removeItem('penetrator_sandbox_snapshot'); } catch (_) {}
   }
   gameoverScreen.classList.remove('hidden');
   persist();
@@ -8406,6 +8456,42 @@ function updateLagIndicator() {
   _lagIndicatorEl.textContent = txt;
 }
 setInterval(updateLagIndicator, 1000);
+
+// Dynamiskt positionera #action-buttons så de är CENTRERADE under minimap.
+// CSS-algebran (right:25 + 84/2 == minimap right:12 + 110/2 == 67) bröt på
+// vissa devices pga safe-area / scrollbar / zoom. Mät verklig minimap-rect och
+// låt action-buttons matcha center-x + sit halvvägs mellan minimap-bottom och
+// skärm-bottom.
+function syncActionButtonsToMinimap() {
+  const mm = document.getElementById('minimap');
+  const ab = document.getElementById('action-buttons');
+  if (!mm || !ab) return;
+  // Endast i playing/pause-mode (annars syns inte minimap)
+  const mmStyle = getComputedStyle(mm);
+  if (mmStyle.display === 'none' || mm.offsetWidth === 0) return;
+  const r = mm.getBoundingClientRect();
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const minimapCenterX = r.left + r.width / 2;
+  const minimapBottom = r.bottom;
+  const abH = ab.offsetHeight || 154; // fallback
+  // Centrera ab horisontellt på minimap-center
+  // ab har width = max(child-widths) = 84 (fire-btn). Använd current width.
+  const abW = ab.offsetWidth || 84;
+  const desiredRight = vw - (minimapCenterX + abW / 2);
+  // Vertikal: halvvägs mellan minimap-bottom och skärm-bottom
+  const space = vh - minimapBottom;
+  const desiredBottom = Math.max(12, (space - abH) / 2);
+  ab.style.right = Math.max(8, desiredRight) + 'px';
+  ab.style.bottom = desiredBottom + 'px';
+  ab.style.left = 'auto';  // override i fall det blivit satt
+  ab.style.top = 'auto';
+}
+window.addEventListener('resize', syncActionButtonsToMinimap);
+window.addEventListener('orientationchange', () => setTimeout(syncActionButtonsToMinimap, 200));
+// Initial + kontinuerlig sync (cheap — bara getBoundingClientRect)
+setInterval(syncActionButtonsToMinimap, 500);
+setTimeout(syncActionButtonsToMinimap, 100);
 
 // In-game settings-knapp (i HUD bredvid gold)
 const btnIngameSettings = document.getElementById('btn-ingame-settings');
