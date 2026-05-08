@@ -4803,6 +4803,14 @@ function openCoop() {
   coopScreen.classList.remove('hidden');
   Audio.uiClick();
   coopStatus.textContent = '';
+  // Pre-warm Render-server (free-tier somnar efter 15 min idle, tar 30-50s att vakna).
+  // Fire-and-forget HTTP GET /health → vaknar server medan user fyller i room-info.
+  // wss://penetrator-coop-eu.onrender.com → https://penetrator-coop-eu.onrender.com/health
+  try {
+    const wsUrl = (typeof COOP_SERVER_URL !== 'undefined') ? COOP_SERVER_URL : 'wss://penetrator-coop-eu.onrender.com';
+    const httpUrl = wsUrl.replace(/^ws/, 'http') + '/health';
+    fetch(httpUrl, { method: 'GET', cache: 'no-store', mode: 'cors' }).catch(() => {});
+  } catch (_) {}
 }
 document.getElementById('btn-coop').addEventListener('click', openCoop);
 document.getElementById('btn-coop-close').addEventListener('click', () => {
@@ -16980,26 +16988,35 @@ function runFrame(dt, now) {
       // I server-auth mode beter sig host som klient (server kör sim)
       let isCoopClient = Coop.active && (!Coop.isHost || Coop.serverSimActive);
 
-      // SAFETY: Om server-sim är på men servern inte spawnar enemies på 10s,
-      // fallback till host-mode så matchen inte fastnar. KRITISKT: kollas FÖRE
-      // isCoopClient-check eftersom coopClient annars hoppar över hela blocket.
+      // SAFETY: Om server-sim är på men servern inte spawnar enemies på 40s,
+      // fallback till host-mode. 40s är medvetet hög så Render free-tier
+      // (sömn efter 15 min, ~30-50s wakeup) hinner vakna utan trigga fallback.
+      // Pre-warm vid openCoop() försöker undvika detta helt.
       if (Coop.active && Coop.isHost && Coop.serverSimActive && state.waveActive &&
           state.enemiesToSpawn > 0 && state.enemies.length === 0 &&
           state.mode === 'playing') {
         const countdownActive = state._countdownEndAt && performance.now() < state._countdownEndAt;
         if (!countdownActive) {
           state._serverSpawnWaitSince = state._serverSpawnWaitSince || performance.now();
-          if (performance.now() - state._serverSpawnWaitSince > 10000) {
-            console.warn('[COOP] Server-sim stum 10s — fallback till host-mode');
+          const waited = performance.now() - state._serverSpawnWaitSince;
+          // Visa "server vaknar"-toast efter 8s så user vet att det laddar
+          if (waited > 8000 && !state._serverWakeToastShown) {
+            state._serverWakeToastShown = true;
+            if (typeof showToast === 'function') showToast('⏳ Servern vaknar... (~30s)');
+          }
+          if (waited > 40000) {
+            console.warn('[COOP] Server-sim stum 40s — fallback till host-mode');
             Coop.serverSimActive = false;
             state.serverSimActive = false;
             state._serverSpawnWaitSince = 0;
-            isCoopClient = false; // kör host-loop denna frame
-            if (typeof showToast === 'function') showToast('⚠ Server-sim stum — host-fallback');
+            state._serverWakeToastShown = false;
+            isCoopClient = false;
+            if (typeof showToast === 'function') showToast('⚠ Server svarar inte — host-fallback');
           }
         }
       } else {
         state._serverSpawnWaitSince = 0;
+        state._serverWakeToastShown = false;
       }
 
       if (!isCoopClient) {
