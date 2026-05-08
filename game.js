@@ -6306,18 +6306,17 @@ function killEnemy(e) {
     if (miniList && (state.miniBossesSpawned || 0) < miniList.length) {
       // Mer minibosses kvar → starta interlude-wave så player får andas + nya enemies
       state._miniInterludeActive = true;
+      state._miniInterludePending = true; // BLOCKAR clearing-flow tills enemies har spawnats
       state._miniInterludeNextIdx = state.miniBossesSpawned;
-      // Capture stage-snapshot vid death-tidpunkt (closure-trygghet)
       const zones = stage.zones || [];
       const pool = (zones[Math.min(state.currentZone || 0, zones.length - 1)] || zones[0] || { pool: ['grunt'] }).pool;
       const count = 5 + Math.floor(Math.random() * 3);
       const sw = stage.worldW, sh = stage.worldH;
       const stageWaveAtSchedule = state.wave;
-      // Lagra timer-id så loadStage/quit kan canceller
       if (state._interludeTimerId) clearTimeout(state._interludeTimerId);
       state._interludeTimerId = setTimeout(() => {
         state._interludeTimerId = null;
-        // Skydda mot mode-byte / wave-byte / interlude-cancel under 600ms-fönstret
+        state._miniInterludePending = false;
         if (state.mode !== 'playing') return;
         if (!state._miniInterludeActive) return;
         if (state.wave !== stageWaveAtSchedule) return;
@@ -6874,6 +6873,7 @@ function loadStage(n) {
   // borttagen pga split-brain mellan flow-paths)
   state.miniBossesSpawned = 0;
   state._miniInterludeActive = false;
+  state._miniInterludePending = false;
   state._miniInterludeNextIdx = 0;
   // Avbryt eventuell pending interlude-timer från föregående stage
   if (state._interludeTimerId) {
@@ -7160,8 +7160,9 @@ function updateZoneProgression(stage) {
   if (state.zoneState === 'spawning' && state.enemiesToSpawn <= 0) {
     state.zoneState = 'clearing';
   }
-  if (state.enemies.length === 0 && state._miniInterludeActive) {
-    // Interlude-wave klar → spawna nästa miniboss (eller fortsätt zone-flow om alla mini klara)
+  // Interlude-clear: kör BARA om timer redan firat (pending=false). Annars
+  // hoppar vi över interlude-enemies och 3 minibosses spawnar i rad.
+  if (state.enemies.length === 0 && state._miniInterludeActive && !state._miniInterludePending) {
     state._miniInterludeActive = false;
     const nextIdx = state._miniInterludeNextIdx || 0;
     const miniList2 = stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []);
@@ -7170,7 +7171,6 @@ function updateZoneProgression(stage) {
       spawnMiniBoss(stage, nextIdx);
       return;
     }
-    // Alla minibosses klara — explicit zone-clearing-state så zone/boss-flow kör
     state.zoneState = 'clearing';
   }
   if (state.zoneState === 'clearing' && state.enemies.length === 0) {
