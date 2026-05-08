@@ -406,13 +406,16 @@ html, body {
   box-shadow: 0 4px 20px rgba(255,30,30,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
   position: relative;
 }
-/* Touch-area utökad utanför visuell knapp via ::before pseudo-element.
-   Spelaren kan sikta längre ner-höger utan att fire-knappen tar upp lika mycket plats. */
+/* Touch-area utökad UTÅT via pseudo-element. INGEN z-index (default = 0 = samma som
+   parent) så det ligger ovanpå canvas men respekterar parent stacking-context.
+   pointer-events:auto säkerställer touch fångas och bubblar till parent button. */
 .action-btn.fire::before {
   content: '';
   position: absolute;
   inset: -22px;
-  z-index: -1;
+  border-radius: 50%;
+  pointer-events: auto;
+  background: transparent;
 }
 .action-btn:active {
   transform: scale(0.92);
@@ -513,20 +516,33 @@ html, body {
   border-radius: 0 0 8px 8px;
   z-index: 1;
 }
-/* Sista action-knappen i en overlay (TILLBAKA/STÄNG/FORTSÄTT) ska ALLTID synas
-   även när innehåll är längre än viewport. Sticky-bottom håller den i sikte
-   medan resten av innehållet scrollar bakom. Fix för avklippta knappar
-   på iPhone landscape (~393px höjd).
-   flex-shrink:0 + min-height: hindrar flex-column från att komprimera knappen. */
-.overlay > .big-btn:last-of-type,
-.overlay > .small-btn:last-of-type {
+/* Sista action-knappen i en overlay (TILLBAKA/STÄNG/FORTSÄTT) ska ALLTID synas.
+   Använder explicit klass .sticky-back-btn istället för :last-of-type — annars
+   påverkades helskärm-knappen (position:absolute inline) felaktigt.
+   Matchar både direkt-barn och nested (t.ex. btn-coop-start inom #coop-lobby).
+   z-index 3 så den ligger över sentinels + scroll-fade. */
+.sticky-back-btn,
+.overlay .sticky-back-btn,
+.overlay > .big-btn.sticky-back-btn,
+.overlay > .small-btn.sticky-back-btn {
   position: sticky;
-  bottom: max(8px, env(safe-area-inset-bottom, 8px));
-  z-index: 2;
+  bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+  z-index: 3;
   margin-top: 12px;
   flex-shrink: 0;
   min-height: 48px;
-  /* Liten skugga så knappen syns ovanpå scrollat content */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+/* Backwards-compat: fortsätt matcha :last-of-type men EXKLUDERA position:absolute
+   inline-style så helskärm-knappen inte distorderas */
+.overlay > .big-btn:last-of-type:not([style*="position:absolute"]),
+.overlay > .small-btn:last-of-type:not([style*="position:absolute"]) {
+  position: sticky;
+  bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+  z-index: 3;
+  margin-top: 12px;
+  flex-shrink: 0;
+  min-height: 48px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
 }
 @keyframes overlayFadeIn {

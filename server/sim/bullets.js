@@ -166,7 +166,10 @@ function explode(sim, x, y, radius, dmg, fromPid) {
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
     if (sim.tdmActive) {
       if (pid === fromPid) continue;             // egen spelare oskadad
-      if (fromTeam && ws.tdmTeam === fromTeam) continue;  // friendly fire av
+      // Late-joiner utan team kan exploitera: fromTeam undefined → friendly-fire OK.
+      // Skip helt om någon part saknar team (säkrare default i tvivelsmål).
+      if (!fromTeam || !ws.tdmTeam) continue;
+      if (ws.tdmTeam === fromTeam) continue;  // friendly fire av
       const invuln = ws.playerState.invulnUntil || 0;
       if (Date.now() < invuln) continue;          // respawn-invuln skyddar
     }
@@ -343,8 +346,9 @@ function updateBullets(sim, dt, now) {
     for (let j = 0; j < sim.enemies.length; j++) {
       const e = sim.enemies[j];
       if (e.dead || b.hitIds.has(e)) continue;
-      // Anti-cheese: hoppa enemies utanför ägarens viewport (boss/miniboss undantagna)
-      if (ownerPosForCheese && !e.isBoss && !e.isMiniBoss) {
+      // Anti-cheese: hoppa enemies utanför ägarens viewport (boss/miniboss + pierce-vapen
+      // som sniper/railgun/crossbow undantagna — long-range är deras identitet).
+      if (ownerPosForCheese && !e.isBoss && !e.isMiniBoss && !b.pierce) {
         const ddx = e.x - ownerPosForCheese.x;
         const ddy = e.y - ownerPosForCheese.y;
         const cheeseRange = 700;  // viewport-half + margin

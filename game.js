@@ -1738,7 +1738,7 @@ const PERKS = [
   { id: 'stealth',    icon: '👤', name: 'Tystgångare',     price: 550,  desc: 'Fiender upptäcker dig 40% senare. Första skottet ger +50% skada.' },
   // === 10 NYA PERKS ===
   { id: 'timerewind', icon: '⏪', name: 'Time-rewind',     price: 1500, desc: 'Vid kritisk HP, spola tillbaka 3 sek. En gång per stage.' },
-  { id: 'glasscannon',icon: '💥', name: 'Glas-kanon',      price: 700,  desc: '+75% skada men halverat HP. Skjuter 15% snabbare.' },
+  { id: 'glasscannon',icon: '💥', name: 'Glas-kanon',      price: 700,  desc: '+60% skada men halverat HP. Skjuter 15% snabbare.' },
   { id: 'phantombody',icon: '👻', name: 'Spektral kropp',  price: 800,  desc: '20% chans att skott missar dig.' },
   { id: 'klone',      icon: '👯', name: 'Klone',           price: 1000, desc: 'En skugga följer dig och skjuter likadant 35% av tiden.' },
   { id: 'goldwindow', icon: '✨', name: 'Gold-fönster',    price: 600,  desc: 'Vid stage-clear, 5 sek där alla droppar guld.' },
@@ -2426,7 +2426,7 @@ function makePlayer() {
     reloadStart: 0,
     invuln: 0,
     flashUntil: 0,
-    dmgMul: (1 + u.dmg * 0.10) * (dailyMod === 'reduced_hp' ? 1.3 : (dailyMod === 'glass_cannon' ? 3.0 : 1)) * (hasPerk('glasscannon') ? 1.75 : 1),
+    dmgMul: (1 + u.dmg * 0.10) * (dailyMod === 'reduced_hp' ? 1.3 : (dailyMod === 'glass_cannon' ? 3.0 : 1)) * (hasPerk('glasscannon') ? 1.6 : 1),
     critChance: u.crit * 0.05,
     regenPerSec: u.regen * 0.6,
     reloadMul: 1 - u.reload * 0.15,
@@ -3538,9 +3538,10 @@ const Coop = {
         state.player.specTarget = null;
         state.player.x = ev.x;
         state.player.y = ev.y;
-        state.player.hp = 100;
-        state.player.maxHp = state.player.maxHp || 100;
+        // Använd maxHp så perks/upgrades respekteras
+        state.player.hp = state.player.maxHp || 100;
         state.player.invuln = 1.5;
+        state.player.flashUntil = 0;
         state.deadBody = null;
         // Stäng respawn-overlay omedelbart om den fortfarande visas
         if (typeof _tdmRespawnOverlay !== 'undefined' && _tdmRespawnOverlay) {
@@ -5558,7 +5559,7 @@ function tryShoot(now) {
     if (!state.truck || !state.truck.alive) return;
     if (now - p.lastShot < 200) return; // 5× per sekund max
     p.lastShot = now;
-    const heal = 22;  // 5 × 22 = 110 HP/s — håller jämnt mot ~60-80 dmg/s i tung wave
+    const heal = 16;  // 5 × 16 = 80 HP/s — balanserat mot tung wave utan att göra trucken oövervinnerlig
     state.truck.hp = Math.min(state.truck.maxHp, state.truck.hp + heal);
     spawnParticles(state.truck.x, state.truck.y, '#5aff5a', 4, 100);
     showFloatingText(state.truck.x, state.truck.y - 40, '+' + heal, '#5aff5a');
@@ -6729,10 +6730,20 @@ function onWaveComplete() {
     endGame(true);
   } else {
     // 5s loot-grace efter sista enemy så spelarna hinner ta pickups/dog tags innan
-    // shop öppnar. Visa toast så användaren förstår vad som händer.
+    // shop öppnar. Använd persistent toast (5s timer) istället för standard 2s
+    // så meddelandet syns hela perioden.
     const lootGraceMs = 5000;
     if (typeof showToast === 'function') showToast('🎁 LOOT-FÖNSTER 5s');
+    // Pinna toast i 5s genom att override toastTimer (showToast sätter 2s annars)
+    if (typeof toastTimer !== 'undefined') {
+      try { /* eslint-disable-next-line */
+        eval('toastTimer = 5.0');
+      } catch (e) {}
+    }
     setTimeout(() => {
+      // Guard: om spelaren dog/lämnade under grace, öppna inte shop (softlock-risk
+      // där shop öppnar ovanpå gameover-skärm).
+      if (state.mode !== 'playing') return;
       try {
         state._waveCompleting = false;
         openShop();
@@ -8990,13 +9001,14 @@ function updateBullets(dt) {
       for (let i = 0; i < state.enemies.length; i++) {
         const e = state.enemies[i];
         if (e.dead || b.hitIds.has(e)) continue;
-        // Anti-cheese: skjut bara enemies på spelarens skärm (boss + miniboss undantagna).
-        // Hindrar att spelaren minigun:ar enemies utanför viewport på avstånd.
-        if (!e.isBoss && !e.isMiniBoss) {
-          const sx = e.x - state.camera.x;
-          const sy = e.y - state.camera.y;
-          const margin = 60;  // generös margin så enemies precis utanför kanten räknas
-          if (sx < -margin || sx > viewW + margin || sy < -margin || sy > viewH + margin) continue;
+        // Anti-cheese: enemies får bara skjutas inom rimligt avstånd från SPELAREN.
+        // Boss/miniboss + pierce-vapen (sniper/railgun/crossbow/bow) undantagna eftersom
+        // long-range är deras identitet. Använd 700px från player (matchar server) så
+        // regeln är konsistent oavsett skärmstorlek (viewport varierar mobile/tablet/desktop).
+        if (!e.isBoss && !e.isMiniBoss && !b.pierce) {
+          const ddx = e.x - p.x, ddy = e.y - p.y;
+          const cheeseRange = 700;
+          if (ddx * ddx + ddy * ddy > cheeseRange * cheeseRange) continue;
         }
         // Squared distance — slipper sqrt på den heta collision-loopen (kollisionscheck körs ~5000 ggr/frame med 50 enemies × 100 bullets)
         const dx = e.x - b.x, dy = e.y - b.y;
@@ -15298,9 +15310,10 @@ function runFrame(dt, now) {
       performance.now() < state.bossIntro.startTime + state.bossIntro.duration;
     const hitStopActive = performance.now() < Feedback.hitStopUntil;
     const dialogActive = state.dialogActive;
-    // Countdown-active blockerar enemy-AI/spawn så spelare hinner positionera
+    // Countdown-active blockerar enemy-AI/spawn men TILLÅTER player movement —
+    // poängen med prep är att spelaren ska kunna positionera (loot, cover, plats).
     const countdownActive = state._countdownEndAt && performance.now() < state._countdownEndAt;
-    if (!introActive && !hitStopActive && !dialogActive && !countdownActive) {
+    if (!introActive && !hitStopActive && !dialogActive) {
       updatePlayer(dt, now);
 
       // Klient-side: vapen-pickup, dog tags, stage ambient. KÖRS ALLTID — påverkar save-data, inte sim.
@@ -15328,8 +15341,8 @@ function runFrame(dt, now) {
             }
           }
         }
-        // HOST eller single-player kör all AI/spawn
-        if (state.waveActive && state.enemiesToSpawn > 0) {
+        // HOST eller single-player kör all AI/spawn — utom under prep-countdown
+        if (state.waveActive && state.enemiesToSpawn > 0 && !countdownActive) {
           state.spawnTimer -= dt;
           if (state.spawnTimer <= 0) {
             spawnEnemyAtEdge();
@@ -15341,7 +15354,8 @@ function runFrame(dt, now) {
             state.spawnTimer = baseTimer + Math.random() * variance;
           }
         }
-        updateEnemies(dt, now);
+        // Enemy AI fryst under countdown så befintliga inte rusar fram
+        if (!countdownActive) updateEnemies(dt, now);
         updateHazards(dt);
         updatePickups(dt);
       } else {
