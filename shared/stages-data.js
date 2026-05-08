@@ -133,6 +133,22 @@ const DIFF_MULTIPLIERS = {
   nightmare:{ enemyHp: 1.8, enemyDmg: 1.6 },
 };
 
+// Helper-funktioner som server (waves.js, enemies.js) använder. Tidigare av misstag
+// borttagna i shared/stages-data omskrivning → server kraschade varje tick med
+// 'getDiffMul is not a function' → inga enemies spawnade någonsin i coop server-sim.
+function getDiffMul(difficulty) {
+  return DIFF_MULTIPLIERS[difficulty] || DIFF_MULTIPLIERS.veteran;
+}
+function getNGPMul(ngpLevel) {
+  const lvl = Math.max(0, Math.min(5, ngpLevel || 0));
+  return 1 + lvl * 0.5; // NG=1.0, NG+=1.5, NG++=2.0, ... NG+++++=3.5
+}
+function getCoopMultiplier(playerCount) {
+  // Skalar enemy-HP per coop-spelare så svårighet håller jämn nivå
+  const n = Math.max(1, playerCount || 1);
+  return 1 + (n - 1) * 0.6; // solo=1.0, 2p=1.6, 3p=2.2, 4p=2.8
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { STAGES, getStage, DIFF_MULTIPLIERS };
+  module.exports = { STAGES, getStage, DIFF_MULTIPLIERS, getDiffMul, getNGPMul, getCoopMultiplier };
 }
