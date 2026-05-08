@@ -1157,9 +1157,11 @@ body.colorblind .hostile-bullet { filter: hue-rotate(180deg); }
 #btn-install { background: #aa5aff; color: #fff; }
 #btn-install-dismiss { background: transparent; color: #aaa; font-size: 18px; padding: 4px 10px; }
 
-/* iOS-specifika fixes — env() returnerar fallback HELA värdet, inte adderat. Använd calc(base + env). */
-body.ios #joystick { bottom: calc(30px + env(safe-area-inset-bottom, 0px)); left: calc(30px + env(safe-area-inset-left, 0px)); }
-body.ios #action-buttons { bottom: calc(22px + env(safe-area-inset-bottom, 0px)); right: calc(25px + env(safe-area-inset-right, 0px)); }
+/* iOS safe-area: använd max() så env() bara används OM den är större än basen.
+   calc(base + env) skapade dubbel-offset på iPhone landscape (Dynamic Island ~50px
+   left + base 30px → joystick 80px från kanten = för långt ute/upp). */
+body.ios #joystick { bottom: max(30px, env(safe-area-inset-bottom, 30px)); left: max(30px, env(safe-area-inset-left, 30px)); }
+body.ios #action-buttons { bottom: max(22px, env(safe-area-inset-bottom, 22px)); right: max(25px, env(safe-area-inset-right, 25px)); }
 /* Behåll horisontella safe-area-insets (Dynamic Island i landscape täcker vänstra kanten) */
 body.ios .overlay {
   padding-top: max(24px, env(safe-area-inset-top, 24px));
