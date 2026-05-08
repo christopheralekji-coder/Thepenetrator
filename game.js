@@ -7064,9 +7064,14 @@ function spawnMiniBoss(stage, idx) {
   e.isMiniBoss = true;
   e.miniBossIdx = idx || 0;
   e.name = m.name || 'Mini-boss';
-  // Power-tag: minibossen får sin spec-power via flag som AI/render kan läsa.
-  // (Currently informational; faktisk AI-power-implementering sker via boss-AI-keys.)
   if (m.power) e.miniPower = m.power;
+  // Stage-tema-färg: använd stage.accentColor som accent + edgeColor som glow
+  // så samma power-rendering ser olika ut per stage (forest=grön, perimeter=orange, etc).
+  e.stageAccent = stage.accentColor || '#7a5aaa';
+  e.stageEdge = stage.edgeColor || '#aaff5a';
+  e.stageBg = stage.bgColor || '#3a2a44';
+  // Index-baserad intensitet (mini1=svag glow, mini3=stark glow)
+  e.miniIntensity = (idx || 0) / 2; // 0, 0.5, 1.0
   state.enemies.push(e);
   const seqLabel = stage.miniBosses ? ` (${(idx || 0) + 1}/${stage.miniBosses.length})` : '';
   showToast('⚠ MINI-BOSS' + seqLabel + ': ' + e.name);
@@ -14665,6 +14670,339 @@ BOSS_DRAW.blightsovereign  = BOSS_DRAW.lungrivare;
 BOSS_DRAW.buriedcrown      = BOSS_DRAW.skallsprackare;
 BOSS_DRAW.lastsovereign    = BOSS_DRAW.gravgravaren;
 
+// MINIBOSS_DRAW — 9 power-baserade unika rendering. Plus per-stage färgtint
+// (e.stageAccent / e.stageEdge) + intensity-glow (e.miniIntensity 0..1) ger
+// varje av 27 minibossar visuellt distinkt look mellan stages.
+const MINIBOSS_DRAW = {
+  // CASTER: hooded sorcerer with floating staff, glowing orb above head
+  caster: function(e, flash, now, phase, moving) {
+    const r = e.r;
+    const accent = flash ? '#fff' : (e.stageAccent || '#7a5aaa');
+    const glow = e.stageEdge || '#aaff5a';
+    const t = now / 600;
+    // Hooded body
+    ctx.fillStyle = flash ? '#fff' : '#1a1020';
+    ctx.beginPath();
+    ctx.moveTo(-r*0.7, r*0.8); ctx.lineTo(-r*0.5, -r*0.4);
+    ctx.lineTo(0, -r*0.85); ctx.lineTo(r*0.5, -r*0.4); ctx.lineTo(r*0.7, r*0.8);
+    ctx.closePath(); ctx.fill();
+    // Hood opening (face void)
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(0, -r*0.45, r*0.30, 0, Math.PI*2); ctx.fill();
+    // Glowing eyes
+    ctx.fillStyle = glow;
+    ctx.shadowColor = glow; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(-r*0.10, -r*0.45, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc( r*0.10, -r*0.45, 2, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Floating orb above head (pulsing)
+    const orbY = -r*1.3 + Math.sin(t) * 4;
+    ctx.fillStyle = accent;
+    ctx.shadowColor = accent; ctx.shadowBlur = 16 * (0.6 + e.miniIntensity * 0.6);
+    ctx.beginPath(); ctx.arc(0, orbY, 5 + e.miniIntensity * 3, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Staff (right hand)
+    ctx.strokeStyle = '#3a2010'; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(r*0.8, r*0.4); ctx.lineTo(r*1.2, -r*0.6); ctx.stroke();
+    ctx.fillStyle = glow;
+    ctx.beginPath(); ctx.arc(r*1.2, -r*0.6, 4, 0, Math.PI*2); ctx.fill();
+  },
+
+  // TANK_CHARGER: heavy plated juggernaut, smoke trail
+  tank_charger: function(e, flash, now, phase, moving) {
+    const r = e.r;
+    const main = flash ? '#fff' : (e.stageBg || '#7a4030');
+    const accent = e.stageAccent || '#3a1810';
+    // Main body (squat, broad)
+    ctx.fillStyle = main;
+    ctx.fillRect(-r*0.85, -r*0.55, r*1.7, r*1.1);
+    // Plate-armor stripes
+    ctx.fillStyle = flash ? '#fff' : accent;
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(-r*0.85, -r*0.55 + i * (r*0.4), r*1.7, 3);
+    }
+    // Helmet (visor)
+    ctx.fillStyle = flash ? '#fff' : '#15101a';
+    ctx.fillRect(-r*0.55, -r*0.95, r*1.1, r*0.45);
+    // Visor slit (red glow)
+    ctx.fillStyle = e.stageEdge || '#ff5a30';
+    ctx.shadowColor = e.stageEdge || '#ff5a30'; ctx.shadowBlur = 6;
+    ctx.fillRect(-r*0.4, -r*0.78, r*0.8, 3);
+    ctx.shadowBlur = 0;
+    // Shoulders (rivets)
+    ctx.fillStyle = flash ? '#fff' : '#5a3a30';
+    ctx.beginPath(); ctx.arc(-r*0.85, -r*0.5, r*0.18, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc( r*0.85, -r*0.5, r*0.18, 0, Math.PI*2); ctx.fill();
+    // Smoke puff bakåt (om moving)
+    if (moving && Math.random() < 0.3) {
+      ctx.fillStyle = `rgba(80,80,80,${0.3 + e.miniIntensity * 0.3})`;
+      ctx.beginPath(); ctx.arc(-r*1.2 + Math.random()*4, 0 + Math.random()*4, 5 + Math.random()*3, 0, Math.PI*2); ctx.fill();
+    }
+  },
+
+  // CLOAKER: ninja with phasing trail (gradient cloak)
+  cloaker: function(e, flash, now, phase, moving) {
+    const r = e.r;
+    const cloak = flash ? '#fff' : '#0a0a14';
+    const accent = e.stageAccent || '#ff3a44';
+    const t = now / 200;
+    // Phasing trail (3 silhouettes behind based on intensity)
+    const trailCount = 1 + Math.round(e.miniIntensity * 2);
+    for (let i = 0; i < trailCount; i++) {
+      ctx.globalAlpha = 0.15 + (i * 0.1);
+      ctx.fillStyle = cloak;
+      ctx.fillRect(-r*0.5 - i*4, -r*0.6, r*1.0, r*1.2);
+    }
+    ctx.globalAlpha = 1;
+    // Body
+    ctx.fillStyle = cloak;
+    ctx.fillRect(-r*0.5, -r*0.6, r*1.0, r*1.2);
+    // Hood + face mask
+    ctx.fillStyle = flash ? '#fff' : '#1a1a20';
+    ctx.beginPath();
+    ctx.moveTo(-r*0.5, -r*0.6); ctx.lineTo(0, -r*0.95); ctx.lineTo(r*0.5, -r*0.6);
+    ctx.closePath(); ctx.fill();
+    // Glowing eye-slit
+    ctx.fillStyle = accent;
+    ctx.shadowColor = accent; ctx.shadowBlur = 8;
+    ctx.fillRect(-r*0.25, -r*0.5, r*0.5, 2);
+    ctx.shadowBlur = 0;
+    // Twin daggers (held forward)
+    ctx.strokeStyle = flash ? '#fff' : '#a0a0b0'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(r*0.5, -r*0.2); ctx.lineTo(r*0.95 + Math.sin(t)*2, -r*0.35); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(r*0.5,  r*0.2); ctx.lineTo(r*0.95 - Math.sin(t)*2,  r*0.35); ctx.stroke();
+  },
+
+  // BRUTE_CHARGER: hulking with horns + chains
+  brute_charger: function(e, flash, now, phase, moving) {
+    const r = e.r;
+    const skin = flash ? '#fff' : (e.stageBg || '#5a3a2a');
+    const accent = e.stageAccent || '#ff7a3a';
+    // Massive body
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r*1.0, r*0.95, 0, 0, Math.PI*2); ctx.fill();
+    // Head bulge (low slung)
+    ctx.beginPath();
+    ctx.arc(0, -r*0.55, r*0.65, 0, Math.PI*2); ctx.fill();
+    // Horns
+    ctx.fillStyle = flash ? '#fff' : '#1a0808';
+    ctx.beginPath();
+    ctx.moveTo(-r*0.5, -r*0.85); ctx.lineTo(-r*0.7 - r*0.3*e.miniIntensity, -r*1.3); ctx.lineTo(-r*0.35, -r*0.75);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo( r*0.5, -r*0.85); ctx.lineTo( r*0.7 + r*0.3*e.miniIntensity, -r*1.3); ctx.lineTo( r*0.35, -r*0.75);
+    ctx.closePath(); ctx.fill();
+    // Glowing eyes
+    ctx.fillStyle = accent;
+    ctx.shadowColor = accent; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.arc(-r*0.18, -r*0.55, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc( r*0.18, -r*0.55, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Chains (decorative)
+    ctx.strokeStyle = '#3a2a20'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = -3; i <= 3; i++) ctx.arc(i*4, r*0.5, 3, 0, Math.PI*2);
+    ctx.stroke();
+  },
+
+  // PLASMA: cyber-armor with glowing core + tubes
+  plasma: function(e, flash, now, phase, moving) {
+    const r = e.r;
+    const main = flash ? '#fff' : '#23232c';
+    const glow = e.stageEdge || '#3acaff';
+    const t = now / 250;
+    // Body
+    ctx.fillStyle = main;
+    ctx.fillRect(-r*0.7, -r*0.6, r*1.4, r*1.2);
+    // Power-tubes på sidan
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillRect(-r*0.85, -r*0.4, r*0.15, r*0.8);
+    ctx.fillRect( r*0.7, -r*0.4, r*0.15, r*0.8);
+    // Tube-glow (animated pulse)
+    const pulse = 0.5 + Math.sin(t) * 0.5;
+    ctx.fillStyle = glow;
+    ctx.shadowColor = glow; ctx.shadowBlur = 10 * pulse;
+    ctx.fillRect(-r*0.82, -r*0.35, r*0.09, r*0.7 * (0.5 + e.miniIntensity * 0.5));
+    ctx.fillRect( r*0.73, -r*0.35, r*0.09, r*0.7 * (0.5 + e.miniIntensity * 0.5));
+    // Central glowing core
+    ctx.beginPath(); ctx.arc(0, 0, r*0.25, 0, Math.PI*2);
+    ctx.fillStyle = glow; ctx.fill();
+    ctx.shadowBlur = 0;
+    // Helmet (rectangular)
+    ctx.fillStyle = '#1a1a22';
+    ctx.fillRect(-r*0.5, -r*0.95, r*1.0, r*0.4);
+    // Visor (cyan slit)
+    ctx.fillStyle = glow;
+    ctx.fillRect(-r*0.4, -r*0.8, r*0.8, 3);
+  },
+
+  // JETPACK: figure with thrusters firing downward
+  jetpack: function(e, flash, now, phase, moving) {
+    const r = e.r;
+    const body = flash ? '#fff' : (e.stageBg || '#3a1a14');
+    const flame = e.stageEdge || '#ff5a14';
+    const t = now / 80;
+    // Backpack (jetpack)
+    ctx.fillStyle = '#1a1014';
+    ctx.fillRect(-r*0.65, -r*0.4, r*0.30, r*0.8);
+    ctx.fillRect( r*0.35, -r*0.4, r*0.30, r*0.8);
+    // Thruster flames
+    const flameLen = (0.6 + Math.sin(t)*0.3) * (1 + e.miniIntensity);
+    for (const xOff of [-r*0.5, r*0.5]) {
+      ctx.fillStyle = flame;
+      ctx.shadowColor = flame; ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.moveTo(xOff - 4, r*0.4);
+      ctx.lineTo(xOff, r*0.4 + r*flameLen);
+      ctx.lineTo(xOff + 4, r*0.4);
+      ctx.closePath(); ctx.fill();
+      // Inner-flame yellow
+      ctx.fillStyle = '#ffeb3b';
+      ctx.beginPath();
+      ctx.moveTo(xOff - 2, r*0.4);
+      ctx.lineTo(xOff, r*0.4 + r*flameLen*0.6);
+      ctx.lineTo(xOff + 2, r*0.4);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    // Body
+    ctx.fillStyle = body;
+    ctx.fillRect(-r*0.4, -r*0.55, r*0.8, r*1.05);
+    // Helmet
+    ctx.fillStyle = '#15080a';
+    ctx.beginPath(); ctx.arc(0, -r*0.65, r*0.35, 0, Math.PI*2); ctx.fill();
+    // Visor
+    ctx.fillStyle = '#ffae3a';
+    ctx.fillRect(-r*0.20, -r*0.65, r*0.4, 3);
+  },
+
+  // GAS_SNIPER: gasmask + big tank on back + scope
+  gas_sniper: function(e, flash, now, phase, moving) {
+    const r = e.r;
+    const body = flash ? '#fff' : (e.stageBg || '#2a3a30');
+    const tankColor = e.stageAccent || '#9aff5a';
+    const t = now / 400;
+    // Gas tank on back
+    ctx.fillStyle = '#1a2a1a';
+    ctx.fillRect(-r*0.85, -r*0.3, r*0.3, r*0.7);
+    // Tank fluid (animated bubble)
+    ctx.fillStyle = tankColor;
+    ctx.shadowColor = tankColor; ctx.shadowBlur = 8;
+    const bubbleY = -r*0.05 + Math.sin(t) * 4;
+    ctx.fillRect(-r*0.83, bubbleY, r*0.26, r*0.4 * (0.6 + e.miniIntensity * 0.5));
+    ctx.shadowBlur = 0;
+    // Body (lean)
+    ctx.fillStyle = body;
+    ctx.fillRect(-r*0.4, -r*0.55, r*0.8, r*1.05);
+    // Gasmask (round face with two filters)
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath(); ctx.arc(0, -r*0.65, r*0.40, 0, Math.PI*2); ctx.fill();
+    // Filter cans (left/right)
+    ctx.fillStyle = '#3a3a3a';
+    ctx.beginPath(); ctx.arc(-r*0.30, -r*0.50, r*0.12, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc( r*0.30, -r*0.50, r*0.12, 0, Math.PI*2); ctx.fill();
+    // Eye-glow lenses
+    ctx.fillStyle = tankColor;
+    ctx.beginPath(); ctx.arc(-r*0.12, -r*0.70, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc( r*0.12, -r*0.70, 2.5, 0, Math.PI*2); ctx.fill();
+    // Sniper rifle (held forward)
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(r*0.4, -r*0.05, r*1.0, 4);
+    // Scope on rifle
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(r*0.7, -r*0.18, r*0.2, 6);
+  },
+
+  // SHIELDER: riot shield + magnum stance
+  shielder: function(e, flash, now, phase, moving) {
+    const r = e.r;
+    const armor = flash ? '#fff' : (e.stageBg || '#3a3a44');
+    const shieldColor = e.stageEdge || '#dcdcdc';
+    // Body (heavy armor)
+    ctx.fillStyle = armor;
+    ctx.fillRect(-r*0.55, -r*0.6, r*1.1, r*1.2);
+    // Helmet
+    ctx.fillStyle = '#1a1a22';
+    ctx.beginPath(); ctx.arc(0, -r*0.7, r*0.4, 0, Math.PI*2); ctx.fill();
+    // Visor (red slit)
+    ctx.fillStyle = '#ff3a3a';
+    ctx.shadowColor = '#ff3a3a'; ctx.shadowBlur = 4;
+    ctx.fillRect(-r*0.25, -r*0.72, r*0.5, 3);
+    ctx.shadowBlur = 0;
+    // SHIELD on left side (the signature)
+    ctx.fillStyle = shieldColor;
+    ctx.fillRect(-r*1.15, -r*0.85, r*0.45, r*1.7);
+    // Shield border + cross emblem
+    ctx.strokeStyle = '#1a1a22'; ctx.lineWidth = 2;
+    ctx.strokeRect(-r*1.15, -r*0.85, r*0.45, r*1.7);
+    ctx.fillStyle = '#ff3a3a';
+    ctx.fillRect(-r*1.0, -r*0.45 + r*0.8 * e.miniIntensity * 0.3, r*0.15, r*0.4);
+    ctx.fillRect(-r*1.05, -r*0.25 + r*0.8 * e.miniIntensity * 0.3, r*0.25, r*0.1);
+    // Magnum (right side)
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(r*0.5, -r*0.1, r*0.6, 7);
+    // Mynningseld (om laddat)
+    if (now - (e.lastSpread || 0) < 100) {
+      ctx.fillStyle = '#ffeb3b';
+      ctx.beginPath(); ctx.arc(r*1.2, -r*0.1 + 3, 5, 0, Math.PI*2); ctx.fill();
+    }
+  },
+
+  // AVATAR: floating dark robe + skull mask + soul-glow
+  avatar: function(e, flash, now, phase, moving) {
+    const r = e.r;
+    const robe = flash ? '#fff' : '#0a0510';
+    const soulGlow = e.stageAccent || '#aa3aff';
+    const t = now / 400;
+    const float = Math.sin(t) * 3;
+    ctx.translate(0, float);
+    // Trailing soul-particles (floats upward)
+    for (let i = 0; i < 3; i++) {
+      const sa = (t + i * 1.5) % 2;
+      ctx.globalAlpha = (1 - sa/2) * (0.4 + e.miniIntensity * 0.3);
+      ctx.fillStyle = soulGlow;
+      ctx.beginPath();
+      ctx.arc((Math.random() - 0.5) * r * 0.8, -r*1.3 - sa * r * 0.3, 2, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // Robe (flowing, wider at bottom)
+    ctx.fillStyle = robe;
+    ctx.beginPath();
+    ctx.moveTo(-r*0.85, r*0.85); ctx.lineTo(-r*0.55, -r*0.4);
+    ctx.lineTo(0, -r*0.85); ctx.lineTo(r*0.55, -r*0.4); ctx.lineTo(r*0.85, r*0.85);
+    ctx.closePath(); ctx.fill();
+    // Robe trim (glow)
+    ctx.strokeStyle = soulGlow; ctx.lineWidth = 2;
+    ctx.shadowColor = soulGlow; ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(-r*0.85, r*0.85); ctx.lineTo(-r*0.55, -r*0.4);
+    ctx.moveTo( r*0.85, r*0.85); ctx.lineTo( r*0.55, -r*0.4);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // Skull mask (white)
+    ctx.fillStyle = '#e0d8d0';
+    ctx.beginPath(); ctx.arc(0, -r*0.55, r*0.32, 0, Math.PI*2); ctx.fill();
+    // Eye sockets (dark + glow)
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(-r*0.12, -r*0.60, 4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc( r*0.12, -r*0.60, 4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = soulGlow;
+    ctx.shadowColor = soulGlow; ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.arc(-r*0.12, -r*0.60, 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc( r*0.12, -r*0.60, 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Crown of glow (intensity-driven)
+    if (e.miniIntensity > 0.4) {
+      ctx.strokeStyle = soulGlow; ctx.lineWidth = 1.5;
+      ctx.shadowColor = soulGlow; ctx.shadowBlur = 12 * e.miniIntensity;
+      ctx.beginPath(); ctx.arc(0, -r*0.55, r*0.5, -Math.PI, 0); ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+  },
+};
+
 function drawEnemy(e) {
   const x = e.x - state.camera.x;
   const y = e.y - state.camera.y;
@@ -14697,12 +15035,37 @@ function drawEnemy(e) {
   ctx.translate(x, y + bob);
   ctx.rotate(e.facing);
 
-  if (e.type === 'dog') drawDog(e, flash, phase);
+  // Mini-bosses använder dedicated power-baserad rendering (9 unika designs)
+  // istället för generic enemy-look. Färgtema styrs av e.stageAccent/edge/bg.
+  if (e.isMiniBoss && e.miniPower && MINIBOSS_DRAW[e.miniPower]) {
+    MINIBOSS_DRAW[e.miniPower](e, flash, now, phase, moving);
+  } else if (e.type === 'dog') drawDog(e, flash, phase);
   else if (e.type === 'robot') drawRobot(e, flash, now, phase);
   else drawHumanEnemy(e, flash, now, phase);
 
   ctx.restore();
   drawHpBar(e, x, y);
+  // Mini-boss extra: visa namn ovanför + glow-ring runt kroppen
+  if (e.isMiniBoss) {
+    const accent = e.stageAccent || '#ffd54a';
+    ctx.save();
+    // Namn-tag
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    ctx.fillText(e.name || 'MINI-BOSS', x, y - e.r - 22);
+    ctx.shadowBlur = 0;
+    // Pulsande ring (intensity-baserad)
+    const pulse = 0.7 + Math.sin(now / 280) * 0.3;
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.5 + e.miniIntensity * 1.5;
+    ctx.globalAlpha = 0.45 * pulse;
+    ctx.beginPath(); ctx.arc(x, y, e.r * (1.15 + 0.05 * Math.sin(now / 350)), 0, Math.PI*2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
 }
 
 // Hjälpare: rita ben + stövlar med walk-cycle
