@@ -2882,6 +2882,16 @@ function openSettings(returnTo) {
   if (settingsReturnTo === 'menu' && menuScreen) menuScreen.classList.add('hidden');
   if (settingsReturnTo === 'pause' && pauseScreen) pauseScreen.classList.add('hidden');
   settingsScreen.classList.remove('hidden');
+  // Begär fullscreen från user-gesture (Chrome/Android/desktop). iOS Safari
+  // saknar requestFullscreen på documentElement — där no-op (PWA är redan standalone).
+  try {
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+    if (req && !document.fullscreenElement && !document.webkitFullscreenElement) {
+      const r = req.call(el);
+      if (r && r.catch) r.catch(() => {});
+    }
+  } catch (_) {}
   // Sync UI med Audio + Feedback
   document.getElementById('set-sfx').value = Math.round(Audio.sfxVol * 100);
   document.getElementById('set-sfx-val').textContent = Math.round(Audio.sfxVol * 100) + '%';
