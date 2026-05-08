@@ -2877,6 +2877,11 @@ document.getElementById('btn-tut-close').addEventListener('click', () => {
   save.tutorialDone = true;
   persist();
   Audio.uiClick();
+  // Re-aktivera menu-mode om vi öppnade tutorial från menyn (annars syns inte
+  // menu-bakgrunden korrekt). Ingen effekt om vi redan är i playing-mode.
+  if (state.mode === 'menu' && !document.body.classList.contains('menu-mode')) {
+    document.body.classList.add('menu-mode');
+  }
 });
 
 // Stats screen
@@ -2952,6 +2957,9 @@ const _btnMenuHelp = document.getElementById('btn-menu-help');
 if (_btnMenuHelp) {
   _btnMenuHelp.addEventListener('click', () => {
     Audio.uiClick();
+    // body.menu-mode #tutorial-overlay { display:none } overrider .hidden borttagning.
+    // Ta bort menu-mode tillfälligt så tutorial syns. FATTAT-knappen återställer.
+    document.body.classList.remove('menu-mode');
     const overlay = document.getElementById('tutorial-overlay');
     if (overlay) overlay.classList.remove('hidden');
   });
@@ -3543,6 +3551,11 @@ const Coop = {
       if (ev.victim === this.myId && typeof showTdmRespawnCountdown === 'function') {
         const respawnAt = ev.durationMs ? Date.now() + ev.durationMs : ev.respawnAt;
         showTdmRespawnCountdown(respawnAt);
+      }
+    } else if (ev.type === 'tdm_team_assigned') {
+      // Late-joiner team-broadcast till befintliga peers (var dead code i klienten)
+      if (this.tdmTeams && ev.peerId && ev.team) {
+        this.tdmTeams[ev.peerId] = ev.team;
       }
     } else if (ev.type === 'tdm_player_respawned') {
       // Server respawnade en spelare — om DET är jag, avsluta spectator-mode + flytta player
@@ -5620,7 +5633,7 @@ function tryShoot(now) {
     if (!state.truck || !state.truck.alive) return;
     if (now - p.lastShot < 200) return; // 5× per sekund max
     p.lastShot = now;
-    const heal = 16;  // 5 × 16 = 80 HP/s — balanserat mot tung wave utan att göra trucken oövervinnerlig
+    const heal = 12;  // 5 × 12 = 60 HP/s — håller trucken vid liv men forcerar trade-offs
     state.truck.hp = Math.min(state.truck.maxHp, state.truck.hp + heal);
     spawnParticles(state.truck.x, state.truck.y, '#5aff5a', 4, 100);
     showFloatingText(state.truck.x, state.truck.y - 40, '+' + heal, '#5aff5a');
@@ -6478,12 +6491,15 @@ function loadStage(n) {
   state.fadeIn = { startTime: performance.now(), duration: 500 };
   state.bossIntro = null;
 
-  // 5-sekunders prep-countdown vid varje ny runda (coop-only). I serverSim-mode
-  // skickar SERVERN sitt eget countdown_start så host ska INTE broadcasta lokalt
-  // (annars dubbelt countdown).
-  if (Coop.active && Coop.isHost && !Coop.serverSimActive) {
+  // 5s prep-countdown vid stage-start så spelaren hinner positionera. Gäller även
+  // solo (var coop-only innan men då fick solo aldrig prep-tid).
+  // Skip i serverSim-mode: server skickar sitt eget countdown_start.
+  if (!Coop.serverSimActive) {
     state._countdownEndAt = performance.now() + 5000;
-    Coop.broadcast({ type: 'event', event: 'countdown_start', durationMs: 5000 });
+    state._countdownLabel = 'FÖRBERED';
+    if (Coop.active && Coop.isHost) {
+      Coop.broadcast({ type: 'event', event: 'countdown_start', durationMs: 5000 });
+    }
   }
 
   // Tracking-flags för achievements
@@ -6793,16 +6809,12 @@ function onWaveComplete() {
     endGame(true);
   } else {
     // 5s loot-grace efter sista enemy så spelarna hinner ta pickups/dog tags innan
-    // shop öppnar. Använd persistent toast (5s timer) istället för standard 2s
-    // så meddelandet syns hela perioden.
+    // shop öppnar. Använd visuell countdown-overlay (samma som prep-countdown)
+    // så spelaren ser exakt hur mycket tid som är kvar.
     const lootGraceMs = 5000;
-    if (typeof showToast === 'function') showToast('🎁 LOOT-FÖNSTER 5s');
-    // Pinna toast i 5s genom att override toastTimer (showToast sätter 2s annars)
-    if (typeof toastTimer !== 'undefined') {
-      try { /* eslint-disable-next-line */
-        eval('toastTimer = 5.0');
-      } catch (e) {}
-    }
+    state._countdownEndAt = performance.now() + lootGraceMs;
+    state._countdownLabel = 'LOOT';
+    if (typeof showToast === 'function') showToast('🎁 LOOT-FÖNSTER', 5);
     setTimeout(() => {
       // Guard: om spelaren dog/lämnade under grace, öppna inte shop (softlock-risk
       // där shop öppnar ovanpå gameover-skärm).
@@ -7901,7 +7913,7 @@ function getMostUsedWeapon() {
 // Toast
 let toastTimer = 0;
 let toastText = '';
-function showToast(text) { toastText = text; toastTimer = 2.0; }
+function showToast(text, sec) { toastText = text; toastTimer = (typeof sec === 'number' && sec > 0) ? sec : 2.0; }
 
 // ============================================================
 // TDM HUD — team-score banner + kill-feed + match-end screen
@@ -8118,7 +8130,8 @@ function updateHUD() {
   const lvl = getLevel(state.wave);
   waveInfo.textContent = `${state.wave}/${getStageCount()} · ${lvl.name}`;
   goldInfo.textContent = `💰 ${save.gold}`;
-  // Per-weapon emoji som visuell identitet i HUD
+  // Per-weapon emoji som visuell identitet i HUD. .hud-row.weapon är hidden
+  // (ammo visas vid fire-button istället) så vi prependar emoji till ammo-display.
   const wIcon = isRepair ? '🔧' : (p._turretWeapon ? '🛡️' : getWeaponIcon(p.weaponId));
   weaponName.textContent = wIcon + ' ' + w.name;
   let ammoText;
@@ -8126,7 +8139,9 @@ function updateHUD() {
   else if (p.reloading) ammoText = '...';
   else ammoText = `${p.ammo}/${effectiveMag(p.weaponId)}`;
   ammoInfo.textContent = ammoText;
-  if (ammoDisplayEl) ammoDisplayEl.textContent = ammoText;
+  // Prepend weapon-emoji till ammo-display (synligt vid fire-button)
+  // eftersom .hud-row.weapon är display:none.
+  if (ammoDisplayEl) ammoDisplayEl.textContent = wIcon + ' ' + ammoText;
 }
 
 // In-game lag-indikator (visar host:s värsta peer-ping). Positioneras dynamiskt
@@ -9079,12 +9094,16 @@ function updateBullets(dt) {
         const e = state.enemies[i];
         if (e.dead || b.hitIds.has(e)) continue;
         // Anti-cheese: enemies får bara skjutas inom rimligt avstånd från SPELAREN.
-        // Boss/miniboss + pierce-vapen (sniper/railgun/crossbow/bow) undantagna eftersom
-        // long-range är deras identitet. Använd 700px från player (matchar server) så
-        // regeln är konsistent oavsett skärmstorlek (viewport varierar mobile/tablet/desktop).
-        if (!e.isBoss && !e.isMiniBoss && !b.pierce) {
+        // Explicit allow-list för LONG-RANGE-vapen — boomerang/energysword/lightsaber
+        // har också pierce:true men ska INTE få long-range exemption.
+        // Companion-bullets undantagna (de kan hamna långt från player).
+        const longRangeIds = ['sniper', 'railgun', 'crossbow', 'bow', 'rifle', 'minigun'];
+        const isLongRange = b.weaponId && longRangeIds.indexOf(b.weaponId) >= 0;
+        if (!e.isBoss && !e.isMiniBoss && !isLongRange && !b._companion) {
           const ddx = e.x - p.x, ddy = e.y - p.y;
-          const cheeseRange = 700;
+          // Phone-clamp: 700px är ~50% past viewport på 852×393. Skala mot half-diag * 1.2.
+          const halfDiag = Math.hypot(viewW, viewH) / 2;
+          const cheeseRange = Math.min(700, Math.max(450, halfDiag * 1.2));
           if (ddx * ddx + ddy * ddy > cheeseRange * cheeseRange) continue;
         }
         // Squared distance — slipper sqrt på den heta collision-loopen (kollisionscheck körs ~5000 ggr/frame med 50 enemies × 100 bullets)

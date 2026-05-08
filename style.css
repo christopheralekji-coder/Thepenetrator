@@ -406,13 +406,13 @@ html, body {
   box-shadow: 0 4px 20px rgba(255,30,30,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
   position: relative;
 }
-/* Touch-area utökad UTÅT via pseudo-element. INGEN z-index (default = 0 = samma som
-   parent) så det ligger ovanpå canvas men respekterar parent stacking-context.
-   pointer-events:auto säkerställer touch fångas och bubblar till parent button. */
+/* Touch-area utökad UTÅT via pseudo-element. Asymmetrisk inset så vi inte överlappar
+   weapon-menu-knappen som ligger OVANFÖR fire i action-buttons-stacken — bara
+   höger/ner/vänster expanderas. */
 .action-btn.fire::before {
   content: '';
   position: absolute;
-  inset: -22px;
+  inset: 0 -22px -22px -22px;
   border-radius: 50%;
   pointer-events: auto;
   background: transparent;
@@ -865,18 +865,9 @@ button { touch-action: manipulation; }
 }
 body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
 
-.lobby-section {
-  margin-bottom: 14px;
-  text-align: left;
-}
-.lobby-label {
-  display: block;
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: #888;
-  margin-bottom: 4px;
-  text-align: left;
-}
+/* OBS: .lobby-section + .lobby-label definieras i polish-blocket vid line ~539.
+   Tidigare definierat här — behåll bara margin-bottom som complement. */
+.lobby-section { margin-bottom: 14px; text-align: left; }
 .lobby-input {
   width: 100%;
   padding: 8px 12px;
@@ -919,15 +910,13 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   color: #aa5aff;
 }
 
+/* OBS: full styling för #coop-player-list .player-row finns i polish-blocket
+   ~line 580 (gradient bg + hover). Här bara basic-layout (display/gap/margin). */
 #coop-player-list .player-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 10px;
-  background: rgba(0,0,0,0.4);
-  border-radius: 5px;
-  margin-bottom: 4px;
-  border-left: 3px solid #ffd54a;
+  margin-bottom: 6px;
 }
 #coop-player-list .player-row .pname {
   flex: 1;
@@ -1472,8 +1461,8 @@ body.ios .overlay {
 .setting-row input[type=range]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 22px;
-  height: 22px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   background: linear-gradient(135deg, #ffd54a, #aa5aff);
   cursor: pointer;

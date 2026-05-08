@@ -346,12 +346,14 @@ function updateBullets(sim, dt, now) {
     for (let j = 0; j < sim.enemies.length; j++) {
       const e = sim.enemies[j];
       if (e.dead || b.hitIds.has(e)) continue;
-      // Anti-cheese: hoppa enemies utanför ägarens viewport (boss/miniboss + pierce-vapen
-      // som sniper/railgun/crossbow undantagna — long-range är deras identitet).
-      if (ownerPosForCheese && !e.isBoss && !e.isMiniBoss && !b.pierce) {
+      // Anti-cheese: explicit long-range allow-list (sniper/railgun/crossbow/bow/rifle/
+      // minigun) — boomerang/lightsaber har också pierce:true men ska inte få exemption.
+      const _longRangeIds = ['sniper', 'railgun', 'crossbow', 'bow', 'rifle', 'minigun'];
+      const _isLong = b.weaponId && _longRangeIds.indexOf(b.weaponId) >= 0;
+      if (ownerPosForCheese && !e.isBoss && !e.isMiniBoss && !_isLong && !b._companion) {
         const ddx = e.x - ownerPosForCheese.x;
         const ddy = e.y - ownerPosForCheese.y;
-        const cheeseRange = 700;  // viewport-half + margin
+        const cheeseRange = 700;
         if (ddx * ddx + ddy * ddy > cheeseRange * cheeseRange) continue;
       }
       const dx = e.x - b.x, dy = e.y - b.y;
