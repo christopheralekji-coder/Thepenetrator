@@ -1486,6 +1486,25 @@ body.ios .overlay {
   color: #ddd;
   letter-spacing: 0.3px;
 }
+/* Reset-knapp: diskret destruktiv, mindre än big-btn */
+.reset-btn {
+  margin-left: auto;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(170,48,48,0.15);
+  border: 1px solid rgba(220,80,80,0.4);
+  color: #ff8a8a;
+  border-radius: 6px;
+  cursor: pointer;
+  letter-spacing: 0.4px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.reset-btn:hover, .reset-btn:active {
+  background: rgba(220,60,60,0.35);
+  border-color: rgba(255,120,120,0.7);
+  color: #fff;
+}
 .setting-row input[type=range] {
   flex: 1;
   cursor: pointer;

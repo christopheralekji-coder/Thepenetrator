@@ -8478,21 +8478,23 @@ setInterval(updateLagIndicator, 1000);
 // låt action-buttons matcha center-x + sit halvvägs mellan minimap-bottom och
 // skärm-bottom.
 function syncActionButtonsToMinimap() {
-  const mm = document.getElementById('minimap');
   const ab = document.getElementById('action-buttons');
-  if (!mm || !ab) return;
-  if (mm.offsetWidth === 0) return; // minimap-rect ej redo (game-mode inte aktiv)
-  const r = mm.getBoundingClientRect();
+  if (!ab) return;
+  // Minimap finns INTE som DOM-element — den ritas direkt på canvas. Använd
+  // state._minimapHitbox som drawMiniMap() sparar (x/y/w/h i viewport-px).
+  const hb = state && state._minimapHitbox;
+  if (!hb) return; // inte renderad än (menu-mode etc.)
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const minimapCenterX = r.left + r.width / 2;
-  const minimapBottom = r.bottom;
+  const minimapCenterX = hb.x + hb.w / 2;
+  const minimapBottom = hb.y + hb.h;
   const abH = ab.offsetHeight || 154;
   const abW = ab.offsetWidth || 84;
+  // Right från viewport-right = vw - (minimap-center-x + ab-bredd/2)
   const desiredRight = Math.max(8, vw - (minimapCenterX + abW / 2));
+  // Vertikalt centrerad mellan minimap-bottom och skärm-bottom
   const space = vh - minimapBottom;
   const desiredBottom = Math.max(12, (space - abH) / 2);
-  // !important via setProperty så CSS-regler (body.ios, @media) inte vinner
   ab.style.setProperty('right', desiredRight + 'px', 'important');
   ab.style.setProperty('bottom', desiredBottom + 'px', 'important');
   ab.style.setProperty('left', 'auto', 'important');

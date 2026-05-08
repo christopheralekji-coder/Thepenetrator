@@ -227,11 +227,10 @@
       <label>Skjut-joystick</label>
       <input id="set-firejoy" type="checkbox">
     </div>
-    <!-- Reset-knapp för progression. Behövs efter sandbox-läck-bug — ger user
-         ett sätt att rensa korrupt 999999-gold + alla-vapen från localStorage. -->
-    <div class="setting-row" style="flex-direction:column;align-items:stretch;gap:8px;">
-      <label style="text-align:left;">Återställ progression</label>
-      <button id="btn-reset-save" class="big-btn" style="background:linear-gradient(135deg,#aa3030,#7a1818);font-size:13px;">🔁 NOLLSTÄLL ALLT</button>
+    <!-- Reset-knapp för progression. Liten + diskret — destruktiv aktion. -->
+    <div class="setting-row">
+      <label>Återställ progression</label>
+      <button id="btn-reset-save" class="reset-btn">Nollställ</button>
     </div>
 
   </div>
