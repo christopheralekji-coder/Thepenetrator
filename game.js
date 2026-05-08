@@ -756,6 +756,39 @@ function drawEmoteBubble(em, x, y, r) {
   ctx.restore();
 }
 
+// TDM: rita pulsande team-ring under varje spelare för friend/foe-identifiering
+function drawTdmTeamRings() {
+  if (!Coop.tdmTeams) return;
+  const pulse = 0.85 + Math.sin(performance.now() / 200) * 0.15;
+  const drawRing = (wx, wy, team, isMe) => {
+    const x = wx - state.camera.x, y = wy - state.camera.y;
+    if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) return;
+    const color = team === 'red' ? '#ff5a5a' : '#5aaaff';
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isMe ? 3 : 2;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12 * pulse;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.arc(x, y + 14, 22, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  };
+  // Min egen ring
+  if (state.player && Coop.tdmTeams[Coop.myId]) {
+    drawRing(state.player.x, state.player.y, Coop.tdmTeams[Coop.myId], true);
+  }
+  // Partners
+  for (const [pid, p] of Coop.players) {
+    if (p.x === undefined) continue;
+    if (p.hp !== undefined && p.hp <= 0) continue;
+    const team = Coop.tdmTeams[pid];
+    if (!team) continue;
+    drawRing(p.x, p.y, team, false);
+  }
+}
+
 function drawCoopPartner() {
   if (!Coop.active || Coop.inLobby) return;
   const now = performance.now();
@@ -1099,56 +1132,90 @@ const SAVE_KEY = 'penetrator_save_v1';
 // Varje vapen: id, name, type ('melee'|'gun'), price, dmg, rate (ms),
 // range/speed, mag, reload, spread, pellets, explosive, color
 // ============================================================
+// WEAPONS — balanserad lista efter cleanup. Borttagna: tonfa/boxgloves (sämre än knuckles),
+// glaive (överdyr), drone-vapen (companions täcker rollen). 'whip' melee (Kedjepiska) behållen,
+// gun-versionen omdöpt 'pullwhip'. Tier-progression: tidiga vapen billiga + svaga, sena dyra + starka.
 const WEAPONS = [
-  { id: 'fists',     name: 'Knytnävar',         type: 'melee', price: 0,    dmg: 8,   rate: 380, range: 36,  color: '#dab27a' },
-  { id: 'knuckles',  name: 'Mässingsknogar',    type: 'melee', price: 60,   dmg: 16,  rate: 320, range: 38,  color: '#c0a060' },
-  { id: 'bat',       name: 'Påk',               type: 'melee', price: 120,  dmg: 28,  rate: 520, range: 50,  color: '#7a4a20' },
-  { id: 'knife',     name: 'Kniv',              type: 'melee', price: 100,  dmg: 22,  rate: 240, range: 38,  color: '#bcc8d0' },
-  { id: 'machete',   name: 'Machete',           type: 'melee', price: 200,  dmg: 38,  rate: 500, range: 56,  color: '#9aa8b0' },
-  { id: 'katana',    name: 'Katana',            type: 'melee', price: 350,  dmg: 60,  rate: 460, range: 64,  color: '#e6e6f0' },
-  { id: 'pistol',    name: 'Pistol',            type: 'gun',   price: 220,  dmg: 18,  rate: 340, speed: 700, mag: 12, reload: 1100, spread: 0.04, color: '#ffd14a' },
-  { id: 'revolver',  name: 'Revolver',          type: 'gun',   price: 380,  dmg: 38,  rate: 580, speed: 750, mag: 6,  reload: 1500, spread: 0.03, color: '#ffae3a' },
-  { id: 'shotgun',   name: 'Hagelgevär',        type: 'gun',   price: 500,  dmg: 14,  rate: 760, speed: 650, mag: 6,  reload: 1900, spread: 0.32, pellets: 6, color: '#ff6b3d' },
-  { id: 'smg',       name: 'Kpist',             type: 'gun',   price: 650,  dmg: 13,  rate: 95,  speed: 720, mag: 30, reload: 1500, spread: 0.10, color: '#88ccff' },
-  { id: 'rifle',     name: 'Automatkarbin',     type: 'gun',   price: 900,  dmg: 24,  rate: 130, speed: 820, mag: 30, reload: 1800, spread: 0.05, color: '#5fd95f' },
-  { id: 'sniper',    name: 'Prickskyttegevär',  type: 'gun',   price: 1200, dmg: 100, rate: 1300,speed: 1400,mag: 5,  reload: 2400, spread: 0.0,  pierce: true, color: '#bb88ff' },
-  { id: 'grenade',   name: 'Granatkastare',     type: 'gun',   price: 1500, dmg: 70,  rate: 950, speed: 480, mag: 6,  reload: 2400, spread: 0.04, explosive: 90,  color: '#9aff5a', style: 'grenade' },
-  { id: 'rocket',    name: 'Raketgevär',        type: 'gun',   price: 2000, dmg: 130, rate: 1500,speed: 520, mag: 4,  reload: 3000, spread: 0.02, explosive: 130, color: '#ff3c3c', style: 'rocket' },
-  { id: 'minigun',   name: 'Minigun',           type: 'gun',   price: 3500, dmg: 22,  rate: 55,  speed: 900, mag: 100,reload: 3500, spread: 0.14, color: '#3cf0ff' },
-  // === 15 NYA VAPEN ===
-  // Melee
-  { id: 'tonfa',     name: 'Tonfa',             type: 'melee', price: 80,   dmg: 14,  rate: 220, range: 36, color: '#444444', style: 'club_short' },
-  { id: 'axe',       name: 'Yxa',               type: 'melee', price: 280,  dmg: 50,  rate: 580, range: 48, color: '#9a7a5a', style: 'axe' },
-  { id: 'sledge',    name: 'Slägga',            type: 'melee', price: 420,  dmg: 85,  rate: 780, range: 50, color: '#6a6a6a', style: 'sledge' },
-  { id: 'spear',     name: 'Spjut',             type: 'melee', price: 320,  dmg: 42,  rate: 460, range: 80, color: '#bcbccc', style: 'spear' },
-  { id: 'whip',      name: 'Kedjepiska',        type: 'melee', price: 550,  dmg: 30,  rate: 380, range: 92, color: '#5a4a30', style: 'whip' },
-  { id: 'lightsaber',name: 'Laser-svärd',       type: 'melee', price: 1900, dmg: 95,  rate: 350, range: 72, color: '#3aff5a', style: 'lightsaber' },
-  // Kasta/lätt ranged
-  { id: 'shuriken',  name: 'Kaststjärnor',      type: 'gun',   price: 220,  dmg: 12,  rate: 140, speed: 620, mag: 20, reload: 1100, spread: 0.06, color: '#cccccc', style: 'thrown' },
-  { id: 'throwknife',name: 'Kastkniv',          type: 'gun',   price: 350,  dmg: 30,  rate: 300, speed: 720, mag: 10, reload: 1300, spread: 0.04, color: '#aaaacc', style: 'thrown' },
-  { id: 'crossbow',  name: 'Armborst',          type: 'gun',   price: 700,  dmg: 80,  rate: 900, speed: 950, mag: 4,  reload: 1700, spread: 0.0,  color: '#7a5a3a', style: 'crossbow', pierce: true },
-  { id: 'bow',       name: 'Compoundbåge',      type: 'gun',   price: 600,  dmg: 55,  rate: 540, speed: 920, mag: 1,  reload: 700,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true },
-  // Energi/special
-  { id: 'flame',     name: 'Eldkastare',        type: 'gun',   price: 1300, dmg: 9,   rate: 50,  speed: 380, mag: 80, reload: 2400, spread: 0.18, color: '#ff7a2a', style: 'flame', burn: 4 },
-  { id: 'plasma',    name: 'Plasma-gevär',      type: 'gun',   price: 2200, dmg: 85,  rate: 300, speed: 950, mag: 12, reload: 2200, spread: 0.0,  color: '#3acaff', style: 'plasma' },
-  { id: 'tesla',     name: 'Tesla-pistol',      type: 'gun',   price: 1800, dmg: 35,  rate: 220, speed: 1100,mag: 12, reload: 1800, spread: 0.0,  color: '#ffeb3b', style: 'tesla', chain: 3 },
-  { id: 'frost',     name: 'Frostkanon',        type: 'gun',   price: 1600, dmg: 24,  rate: 200, speed: 700, mag: 16, reload: 1900, spread: 0.04, color: '#9af2ff', style: 'frost', slow: 1.6 },
-  { id: 'sonic',     name: 'Sonic-kanon',       type: 'gun',   price: 1400, dmg: 32,  rate: 340, speed: 600, mag: 8,  reload: 1700, spread: 0.05, color: '#ff5ac4', style: 'sonic', knockback: 240 },
-  // === 8 NYA VAPEN ===
-  { id: 'boxgloves', name: 'Boxhandskar',       type: 'melee', price: 50,   dmg: 12,  rate: 280, range: 38, color: '#aa3030', style: 'boxgloves' },
-  { id: 'sickle',    name: 'Sickel',            type: 'melee', price: 280,  dmg: 38,  rate: 380, range: 60, color: '#9a9aa0', style: 'sickle' },
-  { id: 'mace',      name: 'Stridsklubba',      type: 'melee', price: 480,  dmg: 70,  rate: 700, range: 52, color: '#5a4a3a', style: 'mace', knockback: 180 },
-  { id: 'glaive',    name: 'Glaiv',             type: 'melee', price: 700,  dmg: 50,  rate: 500, range: 75, color: '#dcdcdc', style: 'glaive' },
-  { id: 'energysword',name: 'Energi-svärd',     type: 'melee', price: 1200, dmg: 95,  rate: 340, range: 76, color: '#ff8a3a', style: 'energysword', pierce: true },
-  { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 380,  dmg: 14,  rate: 580, speed: 720, mag: 24, reload: 1500, spread: 0.05, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 3 },
-  { id: 'railgun',   name: 'Railgun',           type: 'gun',   price: 2500, dmg: 140, rate: 1700,speed: 2000,mag: 2,  reload: 3000, spread: 0.0,  pierce: true, color: '#ffffff', style: 'railgun' },
-  { id: 'blackhole', name: 'Svartphål-pistol',  type: 'gun',   price: 2800, dmg: 50,  rate: 1200,speed: 480, mag: 4,  reload: 2400, spread: 0.0,  color: '#aa3aff', style: 'blackhole', pullRadius: 180 },
-  // === 5 KREATIVA VAPEN ===
-  { id: 'boomerang',  name: 'Boomerang',         type: 'gun',   price: 600,  dmg: 35,  rate: 800, speed: 600, mag: 2, reload: 1500, spread: 0.0, color: '#9a6a30', style: 'boomerang', pierce: true, returns: true },
-  { id: 'drone',      name: 'Drone-pistol',      type: 'gun',   price: 1500, dmg: 28,  rate: 600, speed: 700, mag: 4, reload: 2200, spread: 0.0, color: '#3acaff', style: 'drone', summonsDrone: true },
-  { id: 'timestop',   name: 'Tids-pistol',       type: 'gun',   price: 2200, dmg: 60,  rate: 900, speed: 1100,mag: 3, reload: 2500, spread: 0.0, color: '#9aff5a', style: 'timestop', timeStopMs: 800 },
-  { id: 'whip',       name: 'Drag-piska',        type: 'gun',   price: 800,  dmg: 25,  rate: 500, speed: 800, mag: 6, reload: 1700, spread: 0.0, color: '#5a4030', style: 'pullwhip', pullsEnemy: true },
-  { id: 'mindcontrol',name: 'Tank-strålen',      type: 'gun',   price: 3000, dmg: 0,   rate: 2000,speed: 600, mag: 2, reload: 4000, spread: 0.0, color: '#ff5aff', style: 'mindctrl', mindControlMs: 5000 },
+  // === MELEE — progression 0g → 1900g ===
+  { id: 'fists',      name: 'Knytnävar',        type: 'melee', price: 0,    dmg: 8,   rate: 380, range: 36, color: '#dab27a',
+    desc: 'Bara nävar. Snabba slag, låg skada.' },
+  { id: 'knuckles',   name: 'Mässingsknogar',   type: 'melee', price: 60,   dmg: 16,  rate: 320, range: 38, color: '#c0a060',
+    desc: 'Tyngre än bara nävar. 2× skada.' },
+  { id: 'knife',      name: 'Kniv',             type: 'melee', price: 100,  dmg: 22,  rate: 240, range: 38, color: '#bcc8d0',
+    desc: 'Snabbaste meleen. Hög DPS, kort räckvidd.' },
+  { id: 'bat',        name: 'Påk',              type: 'melee', price: 200,  dmg: 32,  rate: 520, range: 50, color: '#7a4a20',
+    desc: 'Klassisk gatuvapen. Bra räckvidd.' },
+  { id: 'machete',    name: 'Machete',          type: 'melee', price: 320,  dmg: 42,  rate: 500, range: 56, color: '#9aa8b0',
+    desc: 'Bredbladig, sliter genom flera fiender.' },
+  { id: 'sickle',     name: 'Sickel',           type: 'melee', price: 380,  dmg: 44,  rate: 380, range: 62, color: '#9a9aa0', style: 'sickle',
+    desc: 'Snabbare än machete. Längre räckvidd.' },
+  { id: 'spear',      name: 'Spjut',            type: 'melee', price: 480,  dmg: 50,  rate: 460, range: 84, color: '#bcbccc', style: 'spear',
+    desc: 'Längsta räckvidden bland melee.' },
+  { id: 'axe',        name: 'Yxa',              type: 'melee', price: 580,  dmg: 60,  rate: 580, range: 50, color: '#9a7a5a', style: 'axe',
+    desc: 'Tung yxa. Långsamma men dödande hugg.' },
+  { id: 'mace',       name: 'Stridsklubba',     type: 'melee', price: 720,  dmg: 78,  rate: 700, range: 54, color: '#5a4a3a', style: 'mace', knockback: 180,
+    desc: 'Slungar fiender. Stor knockback.' },
+  { id: 'whip',       name: 'Kedjepiska',       type: 'melee', price: 850,  dmg: 38,  rate: 380, range: 96, color: '#5a4a30', style: 'whip',
+    desc: 'Lång räckvidd, snabb. Träffar tidigt.' },
+  { id: 'sledge',     name: 'Slägga',           type: 'melee', price: 1100, dmg: 100, rate: 780, range: 52, color: '#6a6a6a', style: 'sledge',
+    desc: 'Massivt enhandshugg. Långsam men förödande.' },
+  { id: 'katana',     name: 'Katana',           type: 'melee', price: 1300, dmg: 88,  rate: 360, range: 70, color: '#e6e6f0',
+    desc: 'Mästarvapen. Hög DPS, lång räckvidd.' },
+  { id: 'energysword',name: 'Energi-svärd',     type: 'melee', price: 1700, dmg: 120, rate: 340, range: 78, color: '#ff8a3a', style: 'energysword', pierce: true,
+    desc: 'Pierce — träffar genom flera fiender.' },
+  { id: 'lightsaber', name: 'Laser-svärd',      type: 'melee', price: 2400, dmg: 150, rate: 350, range: 78, color: '#3aff5a', style: 'lightsaber', pierce: true,
+    desc: 'Toppvapen. Pierce + maxskada.' },
+  // === GUNS — progression 220g → 3500g ===
+  { id: 'pistol',     name: 'Pistol',           type: 'gun',   price: 220,  dmg: 18,  rate: 340, speed: 700, mag: 12, reload: 1100, spread: 0.04, color: '#ffd14a',
+    desc: 'Pålitligt startvapen. Säker DPS.' },
+  { id: 'shuriken',   name: 'Kaststjärnor',     type: 'gun',   price: 280,  dmg: 14,  rate: 130, speed: 700, mag: 24, reload: 1100, spread: 0.06, color: '#cccccc', style: 'thrown', burn: 2,
+    desc: 'Hög fire-rate + brand. Sätt elden i fiender.' },
+  { id: 'throwknife', name: 'Kastkniv',         type: 'gun',   price: 380,  dmg: 32,  rate: 280, speed: 760, mag: 12, reload: 1300, spread: 0.04, color: '#aaaacc', style: 'thrown',
+    desc: 'Mid-tier kast. Hög träffsäkerhet.' },
+  { id: 'revolver',   name: 'Revolver',         type: 'gun',   price: 420,  dmg: 42,  rate: 580, speed: 760, mag: 6,  reload: 1500, spread: 0.02, color: '#ffae3a',
+    desc: 'Tung kalibervapen. Hög dmg per skott.' },
+  { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 540,  dmg: 16,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 3,
+    desc: 'Tre snabba skott per tryck. Hög burst-dmg.' },
+  { id: 'shotgun',    name: 'Hagelgevär',       type: 'gun',   price: 600,  dmg: 16,  rate: 760, speed: 700, mag: 6,  reload: 1900, spread: 0.32, pellets: 6, color: '#ff6b3d',
+    desc: 'Sex hagel per skott. Förödande på nära håll.' },
+  { id: 'bow',        name: 'Compoundbåge',     type: 'gun',   price: 720,  dmg: 65,  rate: 540, speed: 950, mag: 1,  reload: 700,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true,
+    desc: 'Pierce. Snabb reload. Perfekt aim krävs.' },
+  { id: 'smg',        name: 'Kpist',            type: 'gun',   price: 800,  dmg: 14,  rate: 95,  speed: 740, mag: 30, reload: 1500, spread: 0.10, color: '#88ccff',
+    desc: 'Spray-and-pray. Hög ROF.' },
+  { id: 'crossbow',   name: 'Armborst',         type: 'gun',   price: 900,  dmg: 90,  rate: 900, speed: 950, mag: 4,  reload: 1700, spread: 0.0,  color: '#7a5a3a', style: 'crossbow', pierce: true,
+    desc: 'Pierce + hög dmg. För taktiska spelare.' },
+  { id: 'rifle',      name: 'Automatkarbin',    type: 'gun',   price: 1100, dmg: 26,  rate: 130, speed: 820, mag: 30, reload: 1800, spread: 0.05, color: '#5fd95f',
+    desc: 'All-around assault rifle.' },
+  { id: 'flame',      name: 'Eldkastare',       type: 'gun',   price: 1300, dmg: 11,  rate: 50,  speed: 400, mag: 80, reload: 2400, spread: 0.18, color: '#ff7a2a', style: 'flame', burn: 6,
+    desc: 'Sätter eld på fiender. Hög burn-DoT.' },
+  { id: 'sonic',      name: 'Sonic-kanon',      type: 'gun',   price: 1450, dmg: 38,  rate: 320, speed: 600, mag: 8,  reload: 1700, spread: 0.05, color: '#ff5ac4', style: 'sonic', knockback: 280,
+    desc: 'Knockback — slungar fiender bakåt.' },
+  { id: 'sniper',     name: 'Prickskyttegevär', type: 'gun',   price: 1600, dmg: 130, rate: 1300, speed: 1500, mag: 5, reload: 2400, spread: 0.0, pierce: true, color: '#bb88ff',
+    desc: 'One-shot för svaga fiender. Pierce.' },
+  { id: 'frost',      name: 'Frostkanon',       type: 'gun',   price: 1700, dmg: 28,  rate: 180, speed: 720, mag: 16, reload: 1900, spread: 0.04, color: '#9af2ff', style: 'frost', slow: 1.8,
+    desc: 'Saktar ner fiender betydligt.' },
+  { id: 'tesla',      name: 'Tesla-pistol',     type: 'gun',   price: 1800, dmg: 40,  rate: 200, speed: 1100, mag: 12, reload: 1800, spread: 0.0, color: '#ffeb3b', style: 'tesla', chain: 4,
+    desc: 'Chain lightning — träffar 4 fiender på rad.' },
+  { id: 'grenade',    name: 'Granatkastare',    type: 'gun',   price: 1900, dmg: 80,  rate: 950, speed: 480, mag: 6, reload: 2400, spread: 0.04, explosive: 100, color: '#9aff5a', style: 'grenade',
+    desc: 'Explosionsradius — träffar grupper.' },
+  { id: 'boomerang',  name: 'Boomerang',        type: 'gun',   price: 2000, dmg: 50,  rate: 800, speed: 600, mag: 2, reload: 1500, spread: 0.0, color: '#9a6a30', style: 'boomerang', pierce: true, returns: true,
+    desc: 'Pierce + returnerar! Träffar både ut + in.' },
+  { id: 'plasma',     name: 'Plasma-gevär',     type: 'gun',   price: 2200, dmg: 95,  rate: 280, speed: 950, mag: 12, reload: 2200, spread: 0.0, color: '#3acaff', style: 'plasma',
+    desc: 'High-tech: hög dmg, hög ROF, perfekt aim.' },
+  { id: 'rocket',     name: 'Raketgevär',       type: 'gun',   price: 2400, dmg: 150, rate: 1500, speed: 540, mag: 4, reload: 3000, spread: 0.02, explosive: 140, color: '#ff3c3c', style: 'rocket',
+    desc: 'Stora explosioner. AOE-king.' },
+  { id: 'pullwhip',   name: 'Drag-piska',       type: 'gun',   price: 2600, dmg: 35,  rate: 500, speed: 800, mag: 6, reload: 1700, spread: 0.0, color: '#5a4030', style: 'pullwhip', pullsEnemy: true,
+    desc: 'Drar fiender mot dig — combo med melee.' },
+  { id: 'timestop',   name: 'Tids-pistol',      type: 'gun',   price: 2700, dmg: 70,  rate: 900, speed: 1100, mag: 3, reload: 2500, spread: 0.0, color: '#9aff5a', style: 'timestop', timeStopMs: 1000,
+    desc: 'Fryser tiden 1s. Perfekt för bossar.' },
+  { id: 'blackhole',  name: 'Svartphål-pistol', type: 'gun',   price: 2800, dmg: 60,  rate: 1200, speed: 480, mag: 4, reload: 2400, spread: 0.0, color: '#aa3aff', style: 'blackhole', pullRadius: 200,
+    desc: 'Skapar svart hål — drar in fiender.' },
+  { id: 'mindcontrol',name: 'Tank-strålen',     type: 'gun',   price: 3000, dmg: 0,   rate: 2000, speed: 600, mag: 2, reload: 4000, spread: 0.0, color: '#ff5aff', style: 'mindctrl', mindControlMs: 6000,
+    desc: 'Förvandlar fiende till allierad i 6s.' },
+  { id: 'railgun',    name: 'Railgun',          type: 'gun',   price: 3200, dmg: 200, rate: 1600, speed: 2200, mag: 2, reload: 3000, spread: 0.0, pierce: true, color: '#ffffff', style: 'railgun',
+    desc: 'Maxdmg pierce. Skär genom allt.' },
+  { id: 'minigun',    name: 'Minigun',          type: 'gun',   price: 3500, dmg: 26,  rate: 50,  speed: 920, mag: 100, reload: 3500, spread: 0.14, color: '#3cf0ff',
+    desc: 'Toppvapen: 100 mag, ultra-ROF.' },
 ];
 const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 
@@ -1432,6 +1499,14 @@ function ensureUpgrades() {
   for (const k of ['hp','speed','dmg','ammo','crit','regen','reload','expl','mrange','gold','kb','bspeed']) {
     if (typeof save.upgrades[k] !== 'number') save.upgrades[k] = 0;
   }
+  // Migration: ta bort vapen som inte längre finns (tonfa, boxgloves, glaive, drone)
+  // från save.owned, och fallback till 'fists' om equipped/weaponId är borttagen
+  if (save.owned) {
+    save.owned = save.owned.filter(id => W_BY_ID[id]);
+  }
+  if (save.equipped && !W_BY_ID[save.equipped]) save.equipped = 'fists';
+  if (save.weaponId && !W_BY_ID[save.weaponId]) save.weaponId = 'fists';
+  if (save.owned && !save.owned.includes('fists')) save.owned.unshift('fists');
 }
 
 // Definition av spelar-uppgraderingar
@@ -1631,9 +1706,9 @@ const PERKS = [
   { id: 'stealth',    icon: '👤', name: 'Tystgångare',     price: 550,  desc: 'Fiender upptäcker dig 40% senare. Första skottet ger +50% skada.' },
   // === 10 NYA PERKS ===
   { id: 'timerewind', icon: '⏪', name: 'Time-rewind',     price: 1500, desc: 'Vid kritisk HP, spola tillbaka 3 sek. En gång per stage.' },
-  { id: 'glasscannon',icon: '💥', name: 'Glas-kanon',      price: 600,  desc: '+100% skada men halverat HP.' },
-  { id: 'phantombody',icon: '👻', name: 'Spektral kropp',  price: 700,  desc: '30% chans att skott missar dig.' },
-  { id: 'klone',      icon: '👯', name: 'Klone',           price: 900,  desc: 'En skugga följer dig och skjuter likadant 50% av tiden.' },
+  { id: 'glasscannon',icon: '💥', name: 'Glas-kanon',      price: 700,  desc: '+60% skada men halverat HP.' },
+  { id: 'phantombody',icon: '👻', name: 'Spektral kropp',  price: 800,  desc: '20% chans att skott missar dig.' },
+  { id: 'klone',      icon: '👯', name: 'Klone',           price: 1000, desc: 'En skugga följer dig och skjuter likadant 35% av tiden.' },
   { id: 'goldwindow', icon: '✨', name: 'Gold-fönster',    price: 600,  desc: 'Vid stage-clear, 5 sek där alla droppar guld.' },
   { id: 'reflexes',   icon: '🥋', name: 'Reflexer',         price: 800,  desc: 'Bullets vid 50px räckvidd kan blockas med melee.' },
   { id: 'magnetism',  icon: '🧲', name: 'Magnet-mästare',  price: 350,  desc: 'Pickup-magnet 3× räckvidd. Mer guld i drops.' },
@@ -1775,9 +1850,34 @@ function getNGPMul() {
   return 1 + lvl * 0.5; // NG+: 1.5×, NG++: 2×, NG+++: 2.5×
 }
 function persist() {
+  // Sanitera save.gold mot NaN/Infinity/negativt — annars kan korrupta värden persistera
+  sanitizeGold();
   // Coop-run pågår: spara INTE ändringar (fresh-start varje gång)
   if (typeof state !== 'undefined' && state && state._coopSnapshot) return;
   localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+}
+
+// Defensiv guard mot NaN/Infinity som corruption-källor (visar 9999... i shop)
+function sanitizeGold() {
+  if (!Number.isFinite(save.gold)) save.gold = 0;
+  if (save.gold < 0) save.gold = 0;
+  if (save.gold > 1e9) save.gold = 1e9;  // hard cap så inga 9999...-värden
+  save.gold = Math.floor(save.gold);     // alltid integer
+  if (typeof state !== 'undefined' && state) {
+    if (!Number.isFinite(state.goldThisRun)) state.goldThisRun = 0;
+    if (state.goldThisRun < 0) state.goldThisRun = 0;
+  }
+}
+// Säker gold-addition: ignorerar NaN/Infinity-input. Använd istället för direkt save.gold += x
+function addGold(amount) {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return;
+  if (!Number.isFinite(save.gold)) save.gold = 0;
+  save.gold = Math.floor(Math.max(0, Math.min(1e9, save.gold + n)));
+  if (typeof state !== 'undefined' && state) {
+    if (!Number.isFinite(state.goldThisRun)) state.goldThisRun = 0;
+    if (n > 0) state.goldThisRun = Math.floor(state.goldThisRun + n);
+  }
 }
 
 let save = loadSave();
@@ -2293,7 +2393,7 @@ function makePlayer() {
     reloadStart: 0,
     invuln: 0,
     flashUntil: 0,
-    dmgMul: (1 + u.dmg * 0.10) * (dailyMod === 'reduced_hp' ? 1.3 : (dailyMod === 'glass_cannon' ? 3.0 : 1)) * (hasPerk('glasscannon') ? 2.0 : 1),
+    dmgMul: (1 + u.dmg * 0.10) * (dailyMod === 'reduced_hp' ? 1.3 : (dailyMod === 'glass_cannon' ? 3.0 : 1)) * (hasPerk('glasscannon') ? 1.6 : 1),
     critChance: u.crit * 0.05,
     regenPerSec: u.regen * 0.6,
     reloadMul: 1 - u.reload * 0.15,
@@ -2858,14 +2958,14 @@ function _wpClampU8(v) { v = Math.round(v); return v > 255 ? 255 : (v < 0 ? 0 : 
 // Enum-tabeller: byt sträng → u8 index. 0xFF = "string follows" för okända.
 // MÅSTE matcha mellan host och klient — eftersom båda kör samma game.js är vi alltid i sync.
 const WP_WEAPON_ENUM = [
-  'fists', 'knuckles', 'tonfa', 'bat', 'knife', 'machete', 'katana',
+  'fists', 'knuckles', null, 'bat', 'knife', 'machete', 'katana',
   'pistol', 'revolver', 'shotgun', 'smg', 'rifle', 'sniper', 'grenade', 'rocket', 'minigun',
   'axe', 'sledge', 'spear', 'whip', 'lightsaber',
   'shuriken', 'throwknife', 'crossbow', 'bow',
   'flame', 'plasma', 'tesla', 'frost', 'sonic',
-  'boxgloves', 'sickle', 'mace', 'glaive', 'energysword',
+  null, 'sickle', 'mace', null, 'energysword',
   'burstpistol', 'railgun', 'blackhole',
-  'boomerang', 'drone', 'timestop', 'pullwhip',
+  'boomerang', null, 'timestop', 'pullwhip',
   'repair',
 ];
 const WP_WEAPON_TO_IDX = new Map(WP_WEAPON_ENUM.map((w, i) => [w, i]));
@@ -3301,7 +3401,50 @@ const Coop = {
       if (ev.type === 'enemy_killed') _simDiag.enemyKilledEvts++;
       if (ev.type === 'boss_spawned') _simDiag.bossSpawnedEvts++;
     }
-    if (ev.type === 'stage_loaded') {
+    if (ev.type === 'tdm_started') {
+      // PvP-läge initierat — spara team-roster och visa banner
+      this.tdmActive = true;
+      this.tdmTargetKills = ev.targetKills || 10;
+      this.tdmTeams = ev.teams || {};       // peerId → 'red'|'blue'
+      this.tdmRedKills = 0;
+      this.tdmBlueKills = 0;
+      this.tdmKillFeed = [];
+      state.tdmActive = true;
+      // Rensa eventuella lokalt spawnade enemies från actuallyStartGame's loadStage —
+      // server äger entity-listan i TDM-läge
+      state.enemies = [];
+      state.bullets = [];
+      state.bossAlive = false;
+      state.bossIntro = null;
+      const myTeam = this.tdmTeams[this.myId];
+      if (typeof showTdmHud === 'function') showTdmHud(myTeam);
+      if (typeof showToast === 'function') showToast(myTeam === 'red' ? '⚔ DU ÄR I RÖDA LAGET' : '⚔ DU ÄR I BLÅA LAGET');
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
+    } else if (ev.type === 'tdm_kill') {
+      this.tdmRedKills = ev.redKills || 0;
+      this.tdmBlueKills = ev.blueKills || 0;
+      const killerName = (this.tdmTeams && this.tdmTeams[ev.killer] && ev.killer === this.myId)
+        ? (this.myName || 'Du')
+        : (this.players.get(ev.killer) && this.players.get(ev.killer).name) || (ev.killer === this.myId ? (this.myName || 'Du') : 'Spelare');
+      const victimName = (ev.victim === this.myId)
+        ? (this.myName || 'Du')
+        : (this.players.get(ev.victim) && this.players.get(ev.victim).name) || 'Spelare';
+      if (typeof addTdmKillFeed === 'function') addTdmKillFeed(killerName, ev.killerTeam, victimName, ev.victimTeam);
+      if (typeof updateTdmScore === 'function') updateTdmScore(this.tdmRedKills, this.tdmBlueKills, this.tdmTargetKills);
+      // Audio + shake om jag dog eller fick kill
+      if (ev.victim === this.myId) {
+        if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
+        if (typeof triggerShake === 'function') triggerShake(14, 0.6);
+      } else if (ev.killer === this.myId) {
+        if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+      }
+    } else if (ev.type === 'tdm_match_end') {
+      this.tdmActive = false;
+      state.tdmActive = false;
+      if (typeof showTdmEndScreen === 'function') {
+        showTdmEndScreen(ev.winner, ev.redKills || 0, ev.blueKills || 0, ev.stats || [], this.tdmTeams || {});
+      }
+    } else if (ev.type === 'stage_loaded') {
       console.log('[SIM] stage loaded:', ev.stageName);
     } else if (ev.type === 'countdown_start') {
       // 5-sekunders prep-overlay innan stage börjar — alla synkar position
@@ -3309,26 +3452,26 @@ const Coop = {
     } else if (ev.type === 'countdown_end') {
       state._countdownEndAt = null;
     } else if (ev.type === 'boss_spawned') {
-      // Dedup: visa bara en toast per unik boss-key
+      // Dedup: visa bara en toast + intro per unik boss-key
       const key = 'boss_' + (ev.bossKey || ev.name || '');
       if (this._lastBossToastKey !== key) {
         this._lastBossToastKey = key;
         if (typeof showToast === 'function') showToast('👑 ' + (ev.name || 'BOSS'));
+        // Trigga full boss-intro INSIDE dedup så återupprepade events inte återställer intro
+        const entrance = (typeof getBossEntrance === 'function') ? getBossEntrance(ev.bossKey) : 'fade_in';
+        state.bossIntro = {
+          startTime: performance.now(),
+          duration: 2400,
+          name: ev.name || 'BOSS',
+          sub: ev.sub || '',
+          entrance,
+        };
+        state.bossAlive = true;
+        state.bossSequenceStep = state.bossSequenceStep || 1;
+        if (typeof Audio !== 'undefined' && Audio.bossSpawn) Audio.bossSpawn();
+        if (typeof triggerShake === 'function') triggerShake(12, 1.0);
+        if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
       }
-      // Trigga full boss-intro (canvas-banner + audio + shake) — server kör inte client-side render
-      const entrance = (typeof getBossEntrance === 'function') ? getBossEntrance(ev.bossKey) : 'fade_in';
-      state.bossIntro = {
-        startTime: performance.now(),
-        duration: 2400,
-        name: ev.name || 'BOSS',
-        sub: ev.sub || '',
-        entrance,
-      };
-      state.bossAlive = true;
-      state.bossSequenceStep = state.bossSequenceStep || 1;
-      if (typeof Audio !== 'undefined' && Audio.bossSpawn) Audio.bossSpawn();
-      if (typeof triggerShake === 'function') triggerShake(12, 1.0);
-      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
     } else if (ev.type === 'miniboss_spawned') {
       const key = 'mini_' + (ev.name || '');
       if (this._lastBossToastKey !== key) {
@@ -3922,24 +4065,15 @@ const Coop = {
         // Host meddelar: alla är döda — game over
         if (state.mode === 'playing') endGame(false);
       } else if (data.event === 'coop_board') {
-        // Host skickade leaderboard — visa den på klientens game-over
+        // Host skickade leaderboard — ERSÄTT lokala placeholder (partner hade bara sin egen rad)
         if (data.rows && endStats) {
-          const trophies = ['🥇','🥈','🥉','🎖','🎖','🎖','🎖','🎖'];
-          const board = `<div style="margin-top:14px;padding:10px;background:rgba(170,58,255,0.1);border:1px solid rgba(170,58,255,0.3);border-radius:8px;">
-            <div style="font-weight:bold;color:#aa3aff;margin-bottom:6px;">🏆 CO-OP LEADERBOARD</div>
-            ${data.rows.map((r, i) => {
-              const isWorst = i === data.rows.length - 1 && data.rows.length > 1;
-              const tease = isWorst ? ' <span style="color:#ff5a5a;font-size:11px;">(💀 SÄMST)</span>' : '';
-              const isMe = r.name && r.name.startsWith(Coop.myName);
-              return `<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;${isMe ? 'color:#ffd54a;' : ''}">
-                <span>${trophies[i] || '·'} ${r.name}${tease}</span>
-                <span><b>${r.kills}</b> kills · 💀 ${r.deaths}${r.bossKills > 0 ? ' · 👑' + r.bossKills : ''}</span>
-              </div>`;
-            }).join('')}
-          </div>`;
-          // Append till befintlig endStats
-          const cur = endStats.innerHTML;
-          if (!cur.includes('CO-OP LEADERBOARD')) endStats.innerHTML = cur + board;
+          const board = renderCoopBoardHTML(data.rows);
+          const placeholder = endStats.querySelector('#coop-board-placeholder');
+          if (placeholder) {
+            placeholder.outerHTML = board;
+          } else {
+            endStats.innerHTML = endStats.innerHTML + board;
+          }
         }
       }
       return;
@@ -4445,18 +4579,77 @@ function updateServerSimToggleVisibility() {
     coopServerSimRow.classList.add('hidden');
   }
 }
+
+// TDM toggle (host-only) — kräver server-sim, så aktiverar den automatiskt
+const coopTdmToggle = document.getElementById('coop-tdm-toggle');
+const coopTdmRow = document.getElementById('coop-tdm-row');
+const coopTdmOptions = document.getElementById('coop-tdm-options');
+if (coopTdmToggle) {
+  coopTdmToggle.addEventListener('change', () => {
+    Coop.config.tdm = coopTdmToggle.checked;
+    if (Coop.config.tdm) {
+      // TDM kräver server-sim
+      Coop.config.serverSim = true;
+      if (coopServerSimToggle) coopServerSimToggle.checked = true;
+      Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
+      coopTdmOptions.classList.remove('hidden');
+    } else {
+      coopTdmOptions.classList.add('hidden');
+    }
+    if (Coop.isHost) Coop.updateConfig({
+      tdm: Coop.config.tdm,
+      tdmTargetKills: Coop.config.tdmTargetKills,
+      serverSim: Coop.config.serverSim,
+    });
+    updateTdmToggleVisibility();
+  });
+}
+// Target-kills knappar
+document.querySelectorAll('.tdm-target-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tk = parseInt(btn.dataset.tk, 10);
+    Coop.config.tdmTargetKills = tk;
+    document.querySelectorAll('.tdm-target-btn').forEach(b => b.classList.toggle('active', b === btn));
+    if (Coop.isHost) Coop.updateConfig({ tdmTargetKills: tk });
+  });
+});
+function updateTdmToggleVisibility() {
+  if (!coopTdmRow) return;
+  if (Coop.isHost) {
+    coopTdmRow.classList.remove('hidden');
+    if (coopTdmToggle) coopTdmToggle.checked = !!Coop.config.tdm;
+    if (coopTdmOptions) coopTdmOptions.classList.toggle('hidden', !Coop.config.tdm);
+    // Markera default-knapp
+    const tk = Coop.config.tdmTargetKills || 10;
+    document.querySelectorAll('.tdm-target-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.dataset.tk, 10) === tk);
+    });
+  } else if (Coop.active && Coop.config.tdm) {
+    coopTdmRow.classList.remove('hidden');
+    if (coopTdmToggle) { coopTdmToggle.checked = true; coopTdmToggle.disabled = true; }
+    if (coopTdmOptions) coopTdmOptions.classList.remove('hidden');
+    document.querySelectorAll('.tdm-target-btn').forEach(b => {
+      b.disabled = true;
+      b.classList.toggle('active', parseInt(b.dataset.tk, 10) === (Coop.config.tdmTargetKills || 10));
+    });
+  } else {
+    coopTdmRow.classList.add('hidden');
+  }
+}
 const _origRenderLobbyPlayers = renderLobbyPlayers;
 Coop.onLobbyChange = (players) => {
   _origRenderLobbyPlayers(players);
   updateServerSimToggleVisibility();
+  updateTdmToggleVisibility();
 };
 Coop.onConfigChange = (cfg) => {
   // Klient får ny config — rendera om om vi visar lobby
   if (!Coop.isHost && !coopLobbyEl.classList.contains('hidden')) {
     coopDifficultyInfo.textContent = 'Svårighet: ' + (cfg.difficulty || 'veteran').toUpperCase() + ' · Läge: ' + (MODE_LABELS[cfg.mode] || cfg.mode);
   }
-  // Server-sim toggle synk till klienter
+  // Server-sim + TDM toggle synk till klienter
   if (typeof updateServerSimToggleVisibility === 'function') updateServerSimToggleVisibility();
+  if (typeof updateTdmToggleVisibility === 'function') updateTdmToggleVisibility();
   renderScalingInfo();
 };
 
@@ -4536,13 +4729,18 @@ btnCoopStart.addEventListener('click', () => {
   // Server-auth opt-in: skicka sim_start till servern (host-only).
   // Sätt serverSimActive optimistiskt; om sim_started inte bekräftar inom 5s → fallback till host-mode.
   if (Coop.isHost && Coop.config.serverSim && Coop.ws && Coop.ws.readyState === 1) {
-    Coop.ws.send(JSON.stringify({
+    const payload = {
       type: 'sim_start',
       wave: state.wave || 1,
       difficulty: Coop.config.difficulty || 'veteran',
       ngpLevel: save.ngpLevel || 0,
       mode: Coop.config.mode || 'story',
-    }));
+    };
+    if (Coop.config.tdm) {
+      payload.tdm = true;
+      payload.tdmTargetKills = Coop.config.tdmTargetKills || 10;
+    }
+    Coop.ws.send(JSON.stringify(payload));
     Coop.serverSimActive = true;
     state.serverSimActive = true;
     Coop._simStartedConfirmed = false;
@@ -4783,6 +4981,8 @@ function renderCompanions() {
       save.companions.owned.push(c.id);
       if (!save.companions.active) save.companions.active = c.id;
       persist(); Audio.purchase(); renderCompanions();
+      // Spawna companion direkt så användaren ser den även mid-run
+      if (typeof spawnCompanion === 'function' && state.mode === 'playing') spawnCompanion();
     });
     const upgBtn = card.querySelector('[data-act="upgrade"]');
     if (upgBtn) upgBtn.addEventListener('click', () => {
@@ -4795,6 +4995,7 @@ function renderCompanions() {
     if (togBtn) togBtn.addEventListener('click', () => {
       save.companions.active = isActive ? null : c.id;
       persist(); Audio.uiClick(); renderCompanions();
+      if (typeof spawnCompanion === 'function' && state.mode === 'playing') spawnCompanion();
     });
     companionsGridEl.appendChild(card);
   }
@@ -6406,6 +6607,7 @@ function closeShop() {
 
 let shopWeaponCat = 'all';
 function renderShop() {
+  sanitizeGold();
   shopGoldEl.textContent = save.gold;
   shopItems.innerHTML = '';
   // Sortera vapen efter pris (billigast först), ägda först bland samma pris
@@ -6451,6 +6653,7 @@ function renderShop() {
       <div class="name">${w.name}</div>
       <span class="wtype ${cat}">${cat.toUpperCase()}</span>
       <div class="stats">${stats}${tags.length ? '<div style="margin-top:4px;font-size:10px;opacity:0.7;">'+tags.join(' · ')+'</div>' : ''}</div>
+      ${w.desc ? `<div class="desc" style="font-size:10px;opacity:0.6;margin:4px 0;line-height:1.3;">${w.desc}</div>` : ''}
       ${owned ? `<div style="font-size:10px;opacity:0.7;margin-top:4px;">Nivå ${lvl}/${WEAPON_UPGRADE_MAX} (+${lvl*12}% dmg)</div>${lvlPips}` : ''}
       <div class="price">${owned ? (equipped ? '✓ UTRUSTAD' : 'BÄR') : '💰 ' + w.price}</div>
       ${owned && lvlPrice !== null ? `<button class="weapon-upgrade-btn" style="width:100%;margin-top:6px;padding:6px 4px;background:linear-gradient(135deg,#3a2a10,#1a1408);color:#ffd54a;border:1px solid #ffd54a;border-radius:4px;font-size:10px;font-weight:700;cursor:pointer;">⬆ UPPGRADERA · 💰 ${lvlPrice}</button>` : ''}
@@ -6843,7 +7046,8 @@ function actuallyStartGame() {
         activeCompanion: save.companions ? save.companions.active : null,
       };
     }
-    // Reset varje coop-run (både första gången och återupprepade gånger)
+    // Reset varje coop-run (både första gången och återupprepade gånger).
+    // Companions BEHÅLLS — användaren ska se sin köpta pet även i coop.
     save.gold = 0;
     save.owned = ['fists'];
     save.weaponId = 'fists';
@@ -6852,7 +7056,7 @@ function actuallyStartGame() {
       for (const k of Object.keys(save.upgrades)) save.upgrades[k] = 0;
     }
     save.perks = [];
-    if (save.companions) save.companions.active = null;
+    // save.companions.active behålls — pets ska följa med in i coop
   }
   state.mode = 'playing';
   state.player = makePlayer();
@@ -7252,6 +7456,22 @@ function getEndingType() {
   return { title: 'STANDARD-SLUT', color: '#4caf50', desc: 'Mourad är död. Gatorna är dina igen.' };
 }
 
+function renderCoopBoardHTML(rows) {
+  const trophies = ['🥇','🥈','🥉','🎖','🎖','🎖','🎖','🎖'];
+  return `<div id="coop-board-placeholder" style="margin-top:14px;padding:10px;background:rgba(170,58,255,0.1);border:1px solid rgba(170,58,255,0.3);border-radius:8px;">
+    <div style="font-weight:bold;color:#aa3aff;margin-bottom:6px;">🏆 CO-OP LEADERBOARD</div>
+    ${rows.map((r, i) => {
+      const isMe = r.peerId === Coop.myId;
+      const isWorst = i === rows.length - 1 && rows.length > 1;
+      const tease = isWorst ? ' <span style="color:#ff5a5a;font-size:11px;">(💀 SÄMST)</span>' : '';
+      return `<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;${isMe ? 'color:#ffd54a;' : ''}">
+        <span>${trophies[i] || '·'} ${r.name}${tease}</span>
+        <span><b>${r.kills}</b> kills · 💀 ${r.deaths}${r.bossKills > 0 ? ' · 👑' + r.bossKills : ''}</span>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
 function endGame(victory) {
   state.mode = victory ? 'victory' : 'gameover';
   let ending = null;
@@ -7289,32 +7509,37 @@ function endGame(victory) {
   const playTime = Math.round((performance.now() - state.runStartTime) / 1000);
   const minutes = Math.floor(playTime / 60);
   const seconds = playTime % 60;
-  // Coop leaderboard om tillämpligt
+  // Coop leaderboard om tillämpligt. Host bygger FULLSTÄNDIG board och broadcastar.
+  // Partners visar placeholder tills host's broadcast anländer (ersätter sen).
   let coopBoard = '';
   if (Coop.active) {
-    const rows = [];
-    rows.push({ name: (Coop.myName || 'Host') + (Coop.isHost ? ' 👑' : ''), kills: state.hostKills || 0, bossKills: state.hostBossKills || 0, deaths: state.hostDeaths || 0, isMe: true });
     if (Coop.isHost) {
-      for (const [, p] of Coop.players) {
-        rows.push({ name: p.name || 'Player', kills: p.kills || 0, bossKills: p.bossKills || 0, deaths: p.deaths || 0, isMe: false });
+      const rows = [{
+        name: (Coop.myName || 'Host') + ' 👑',
+        peerId: Coop.myId,
+        kills: state.hostKills || 0,
+        bossKills: state.hostBossKills || 0,
+        deaths: state.hostDeaths || 0,
+      }];
+      for (const [pid, p] of Coop.players) {
+        rows.push({
+          name: p.name || 'Player',
+          peerId: pid,
+          kills: p.kills || 0,
+          bossKills: p.bossKills || 0,
+          deaths: p.deaths || 0,
+        });
       }
-    }
-    rows.sort((a, b) => b.kills - a.kills);
-    const trophies = ['🥇','🥈','🥉','🎖','🎖','🎖','🎖','🎖'];
-    coopBoard = `<div style="margin-top:14px;padding:10px;background:rgba(170,58,255,0.1);border:1px solid rgba(170,58,255,0.3);border-radius:8px;">
-      <div style="font-weight:bold;color:#aa3aff;margin-bottom:6px;">🏆 CO-OP LEADERBOARD</div>
-      ${rows.map((r, i) => {
-        const isWorst = i === rows.length - 1 && rows.length > 1;
-        const tease = isWorst ? ' <span style="color:#ff5a5a;font-size:11px;">(💀 SÄMST)</span>' : '';
-        return `<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;${r.isMe ? 'color:#ffd54a;' : ''}">
-          <span>${trophies[i] || '·'} ${r.name}${tease}</span>
-          <span><b>${r.kills}</b> kills · 💀 ${r.deaths}${r.bossKills > 0 ? ' · 👑' + r.bossKills : ''}</span>
-        </div>`;
-      }).join('')}
-    </div>`;
-    // Host broadcastar leaderboarden så klienter ser samma siffror
-    if (Coop.isHost) {
+      rows.sort((a, b) => b.kills - a.kills);
+      coopBoard = renderCoopBoardHTML(rows);
+      // Broadcasta så alla peers får exakt samma board (annars visar partners bara sin egen rad)
       Coop.broadcast({ type: 'event', event: 'coop_board', rows });
+    } else {
+      // Partner: visa placeholder tills host's coop_board-event anländer
+      coopBoard = '<div id="coop-board-placeholder" style="margin-top:14px;padding:10px;background:rgba(170,58,255,0.1);border:1px solid rgba(170,58,255,0.3);border-radius:8px;">' +
+        '<div style="font-weight:bold;color:#aa3aff;margin-bottom:6px;">🏆 CO-OP LEADERBOARD</div>' +
+        '<div style="font-size:12px;color:#888;text-align:center;padding:8px;">Hämtar leaderboard från host...</div>' +
+        '</div>';
     }
   }
   endStats.innerHTML = `
@@ -7358,6 +7583,95 @@ function getMostUsedWeapon() {
 let toastTimer = 0;
 let toastText = '';
 function showToast(text) { toastText = text; toastTimer = 2.0; }
+
+// ============================================================
+// TDM HUD — team-score banner + kill-feed + match-end screen
+// ============================================================
+const _tdmHud = document.getElementById('tdm-hud');
+const _tdmRedEl = document.getElementById('tdm-red');
+const _tdmBlueEl = document.getElementById('tdm-blue');
+const _tdmTargetEl = document.getElementById('tdm-target');
+const _tdmKillFeedEl = document.getElementById('tdm-killfeed');
+const _tdmEndOverlay = document.getElementById('tdm-end-overlay');
+const _tdmEndTitle = document.getElementById('tdm-end-title');
+const _tdmEndScore = document.getElementById('tdm-end-score');
+const _tdmEndStats = document.getElementById('tdm-end-stats');
+const _btnTdmBack = document.getElementById('btn-tdm-back');
+
+function showTdmHud(myTeam) {
+  if (!_tdmHud) return;
+  _tdmHud.classList.remove('hidden');
+  if (_tdmRedEl) _tdmRedEl.textContent = 'RED 0';
+  if (_tdmBlueEl) _tdmBlueEl.textContent = 'BLUE 0';
+  if (_tdmTargetEl) _tdmTargetEl.textContent = String(Coop.tdmTargetKills || 10);
+  if (_tdmKillFeedEl) _tdmKillFeedEl.innerHTML = '';
+}
+function hideTdmHud() {
+  if (_tdmHud) _tdmHud.classList.add('hidden');
+}
+function updateTdmScore(red, blue, target) {
+  if (_tdmRedEl) _tdmRedEl.textContent = 'RED ' + red;
+  if (_tdmBlueEl) _tdmBlueEl.textContent = 'BLUE ' + blue;
+  if (_tdmTargetEl) _tdmTargetEl.textContent = String(target || 10);
+}
+function addTdmKillFeed(killerName, killerTeam, victimName, victimTeam) {
+  if (!_tdmKillFeedEl) return;
+  const row = document.createElement('div');
+  const kColor = killerTeam === 'red' ? '#ff5a5a' : '#5aaaff';
+  const vColor = victimTeam === 'red' ? '#ff5a5a' : '#5aaaff';
+  row.style.cssText = 'background:rgba(0,0,0,0.65);padding:3px 8px;border-radius:4px;animation:tdmKillFade 4s forwards;';
+  row.innerHTML = `<span style="color:${kColor};font-weight:700;">${escapeHtml(killerName)}</span> <span style="color:#aaa;">→</span> <span style="color:${vColor};font-weight:700;">${escapeHtml(victimName)}</span>`;
+  _tdmKillFeedEl.appendChild(row);
+  // Behåll max 5 rader
+  while (_tdmKillFeedEl.children.length > 5) _tdmKillFeedEl.removeChild(_tdmKillFeedEl.firstChild);
+  // Auto-cleanup efter 4.5s
+  setTimeout(() => { if (row.parentNode) row.parentNode.removeChild(row); }, 4500);
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+function showTdmEndScreen(winner, redKills, blueKills, stats, teams) {
+  if (!_tdmEndOverlay) return;
+  hideTdmHud();
+  _tdmEndOverlay.classList.remove('hidden');
+  if (_tdmEndTitle) {
+    _tdmEndTitle.textContent = winner === 'red' ? 'RED WINS' : 'BLUE WINS';
+    _tdmEndTitle.style.color = winner === 'red' ? '#ff5a5a' : '#5aaaff';
+  }
+  if (_tdmEndScore) _tdmEndScore.textContent = redKills + ' — ' + blueKills;
+  if (_tdmEndStats) {
+    const sortedStats = (stats || []).slice().sort((a, b) => b.kills - a.kills);
+    _tdmEndStats.innerHTML = sortedStats.map(s => {
+      const name = (s.peerId === Coop.myId)
+        ? (Coop.myName || 'Du')
+        : (Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || 'Spelare';
+      const tColor = s.team === 'red' ? '#ff5a5a' : '#5aaaff';
+      const isMe = s.peerId === Coop.myId ? ' (du)' : '';
+      return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+        <span style="color:${tColor};font-weight:700;">${escapeHtml(name)}${isMe}</span>
+        <span style="color:#ddd;"><b>${s.kills}</b> kills · 💀 ${s.deaths}</span>
+      </div>`;
+    }).join('') || '<div style="color:#888;">Inga stats</div>';
+  }
+}
+if (_btnTdmBack) {
+  _btnTdmBack.addEventListener('click', () => {
+    if (_tdmEndOverlay) _tdmEndOverlay.classList.add('hidden');
+    // Bara host får stoppa simmen — klienter låter den vara så host kan starta rematch
+    if (Coop.isHost && Coop.ws && Coop.ws.readyState === 1) {
+      try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (e) {}
+    }
+    state.tdmActive = false;
+    Coop.tdmActive = false;
+    Coop.serverSimActive = false;
+    state.serverSimActive = false;
+    state.mode = 'menu';
+    if (typeof Music !== 'undefined' && Music.stop) Music.stop();
+    document.body.classList.add('menu-mode');
+    if (typeof menuScreen !== 'undefined') menuScreen.classList.remove('hidden');
+    Coop.disconnect();
+  });
+}
 
 // Killstreak banner (visas i sidan av skärmen, inte i mitten)
 let killstreakBanner = { text: '', timer: 0, count: 0 };
@@ -7413,6 +7727,7 @@ const killCountEl = document.getElementById('kill-count');
 const ammoDisplayEl = document.getElementById('ammo-display-text');
 function updateHUD() {
   if (!state.player) return;
+  sanitizeGold();
   const p = state.player;
   // Turret-override: visa truck-vapen istället för spelarens
   const wid = p._turretWeapon || p.weaponId;
@@ -7832,6 +8147,28 @@ function updateEnemies(dt, now) {
         e.x += (dx/d) * push;
         e.y += (dy/d) * push;
       }
+    }
+
+    // SMARTARE AI: stuck-detection. Om fienden inte rört sig nämnvärt på 1s, sidestepa
+    // (alternera vänster/höger) i 0.6s för att gå runt obstacles.
+    if (e._lastPosCheck === undefined) { e._lastPosCheck = now; e._lastCheckX = e.x; e._lastCheckY = e.y; e._sidestepUntil = 0; }
+    if (e._sidestepUntil && now < e._sidestepUntil) {
+      // Pågående sidestep — gå vinkelrätt mot player-direction
+      const pdx = p.x - e.x, pdy = p.y - e.y;
+      const pd = Math.hypot(pdx, pdy) || 1;
+      const sgn = e._sidestepDir || 1;
+      e.x += (-pdy/pd) * sgn * e.speed * dt * 1.1;
+      e.y += (pdx/pd) * sgn * e.speed * dt * 1.1;
+    } else if (now - e._lastPosCheck > 1000) {
+      const moved = Math.hypot(e.x - e._lastCheckX, e.y - e._lastCheckY);
+      if (moved < 30 && !e.staggerUntil) {
+        // Stuck — initiera sidestep åt slumpmässigt håll
+        e._sidestepUntil = now + 600;
+        e._sidestepDir = Math.random() < 0.5 ? -1 : 1;
+      }
+      e._lastPosCheck = now;
+      e._lastCheckX = e.x;
+      e._lastCheckY = e.y;
     }
 
     // byggnad-kollision
@@ -13945,6 +14282,8 @@ function render() {
   // Entities
   for (const e of state.enemies) drawEnemy(e);
   drawDeadBody();
+  // TDM: rita team-ringar UNDER spelarna så de syns på avstånd
+  if (state.tdmActive && Coop.tdmTeams) drawTdmTeamRings();
   if (!state.player || !state.player.spectating) drawPlayer();
   drawCoopPartner();
   // Emotes ovanpå allt

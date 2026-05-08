@@ -24,7 +24,7 @@ function createSim(room) {
     flameTrails: [],
     nextEnemyIdx: 0,
     spawnTimer: 1.5,
-    waveActive: false,  // sätts av loadStage
+    waveActive: false,
     enemiesToSpawn: 0,
     activeZonePool: null,
     currentZone: -1,
@@ -36,7 +36,7 @@ function createSim(room) {
     bossDefeated: false,
     bossSequenceStep: 0,
     wave: 1,
-    eventQueue: [],   // events som skickas i nästa world-broadcast (gs/event-fält)
+    eventQueue: [],
     config: { difficulty: 'veteran', ngpLevel: 0, mode: 'story' },
     timeStopUntil: 0,
     lastTick: Date.now(),
@@ -44,6 +44,13 @@ function createSim(room) {
     seqByPeer: new Map(),
     lastSentEnemyByPeer: new Map(),
     interval: null,
+    // TDM-state (PvP)
+    tdmActive: false,
+    tdmKills: { red: 0, blue: 0 },
+    tdmTargetKills: 10,
+    tdmEnded: false,
+    tdmKillsByPid: {},   // peerId → kills (för leaderboard)
+    tdmDeathsByPid: {},  // peerId → deaths
   };
   return sim;
 }
@@ -72,6 +79,27 @@ function tickSim(sim) {
   // Time-stop fryser enemy-AI och bullets (mirror av game.js:7263)
   const timeStopped = sim.timeStopUntil && now < sim.timeStopUntil;
 
+  // TDM-mode: skip enemy spawning/AI, but bullets MÅSTE tickas så spelare kan skjuta varandra
+  if (sim.tdmActive) {
+    const nowMs = Date.now();
+    for (const [, ws] of sim.room.members) {
+      if (ws.tdmRespawnAt && nowMs >= ws.tdmRespawnAt) {
+        ws.tdmRespawnAt = 0;
+        if (ws.playerState) {
+          ws.playerState.x = ws.tdmTeam === 'red' ? 400 : 3600;
+          ws.playerState.y = 1500;
+          ws.playerState.hp = 100;
+          ws.playerState.invulnUntil = Date.now() + 1500;
+        }
+      }
+    }
+    // Match-end-flagga: stoppa allt när någon nått targetKills
+    if (!sim.tdmEnded) {
+      updateBullets(sim, dt, now);
+    }
+    broadcastWorld(sim, now);
+    return;
+  }
   // Wave-spawn: spawnEnemyAtEdge
   if (sim.waveActive && sim.enemiesToSpawn > 0 && !timeStopped) {
     sim.spawnTimer -= dt;
@@ -417,10 +445,39 @@ function startSim(sim, opts) {
     if (opts.ngpLevel) sim.config.ngpLevel = opts.ngpLevel;
     if (opts.mode) sim.config.mode = opts.mode;
     if (opts.wave) sim.wave = opts.wave;
+    if (opts.tdm) {
+      sim.tdmActive = true;
+      sim.tdmTargetKills = opts.tdmTargetKills || 10;
+      sim.tdmKills = { red: 0, blue: 0 };
+      sim.tdmEnded = false;
+      sim.tdmKillsByPid = {};
+      sim.tdmDeathsByPid = {};
+    }
   }
-  console.log('[SIM]', sim.room.code, 'started (wave=' + sim.wave + ', diff=' + sim.config.difficulty + ')');
-  // Init första stage (loadStage triggar countdown internally)
-  loadStage(sim, sim.wave);
+  console.log('[SIM]', sim.room.code, 'started mode=' + (sim.tdmActive ? 'tdm' : sim.config.mode) + ' diff=' + sim.config.difficulty);
+  if (sim.tdmActive) {
+    // PvP-mode: ingen enemy-spawn, ingen wave-progression. Players spawnar på respektive lag-spawn.
+    sim.simReadyAt = Date.now() + 5000;
+    // Init team-spawns + bygg roster: red @ vänster (x=400), blue @ höger (x=3600)
+    const teams = {};
+    let i = 0;
+    for (const [pid, ws] of sim.room.members) {
+      const team = i % 2 === 0 ? 'red' : 'blue';
+      ws.tdmTeam = team;
+      ws.playerState = ws.playerState || {};
+      ws.playerState.x = team === 'red' ? 400 : 3600;
+      ws.playerState.y = 1500;
+      ws.playerState.hp = 100;
+      teams[pid] = team;
+      sim.tdmKillsByPid[pid] = 0;
+      sim.tdmDeathsByPid[pid] = 0;
+      i++;
+    }
+    sim.eventQueue.push({ type: 'tdm_started', targetKills: sim.tdmTargetKills, teams });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+  } else {
+    loadStage(sim, sim.wave);
+  }
   sim.lastTick = Date.now();
   sim.interval = setInterval(() => {
     try { tickSim(sim); } catch (e) { console.error('sim-tick error:', e.message, e.stack); }

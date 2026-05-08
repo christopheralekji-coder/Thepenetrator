@@ -1115,13 +1115,35 @@ body.ios .overlay { padding-top: env(safe-area-inset-top, 24px); padding-bottom:
 .shop-item .wtype { font-size: 8px !important; padding: 1px 4px !important; }
 
 @media (max-width: 600px) {
-  #shop-items { grid-template-columns: repeat(auto-fill, minmax(105px, 1fr)); gap: 4px; }
-  .shop-item { padding: 6px; font-size: 10px; }
-  .shop-item .name { font-size: 11px !important; }
-  .shop-item .stats { font-size: 9px !important; }
-  #shop-screen .menu-header h2 { font-size: 18px !important; }
-  .shop-tab { padding: 6px 12px !important; font-size: 11px !important; }
-  .cat-btn { padding: 4px 8px !important; font-size: 9px !important; }
+  /* Mobile-optimerad shop — kompakt grid + mindre fonts */
+  #shop-screen { padding: 8px 4px !important; }
+  #shop-items {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px;
+    max-height: 65vh;
+    padding: 4px;
+  }
+  .shop-item { padding: 5px; font-size: 10px; }
+  .shop-item .name { font-size: 10px !important; line-height: 1.1; margin-bottom: 1px !important; }
+  .shop-item .stats { font-size: 8px !important; margin-bottom: 2px !important; }
+  .shop-item .stat-row { font-size: 8px !important; }
+  .shop-item .price { font-size: 10px !important; }
+  .shop-item .wtype { font-size: 7px !important; padding: 1px 3px !important; }
+  .shop-item .desc { font-size: 8px !important; line-height: 1.2; color: #aaa; }
+  #shop-screen .menu-header h2 { font-size: 16px !important; margin: 4px 0 !important; }
+  #shop-gold { font-size: 14px !important; }
+  .shop-tabs { gap: 2px; flex-wrap: wrap; padding: 0 4px; }
+  .shop-tab { padding: 5px 8px !important; font-size: 10px !important; }
+  .weapon-categories { gap: 2px; flex-wrap: wrap; padding: 0 4px; }
+  .cat-btn { padding: 3px 6px !important; font-size: 9px !important; }
+  #shop-upgrades, #shop-perks, #shop-companions { font-size: 11px !important; }
+  #btn-continue { font-size: 14px !important; padding: 10px 16px !important; }
+}
+@media (max-width: 380px) {
+  /* Riktigt små skärmar — tightare */
+  #shop-items { grid-template-columns: repeat(2, 1fr); gap: 3px; }
+  .shop-item { padding: 4px; }
+  .shop-item .desc { display: none; }
 }
 .shop-item:active { background: #2a2a30; transform: scale(0.97); }
 .shop-item.owned {
@@ -1339,3 +1361,105 @@ body.ios .overlay { padding-top: env(safe-area-inset-top, 24px); padding-bottom:
 
 /* Old #ach-popup styling — borttagen, popup skapas dynamiskt i JS nu */
 #ach-popup { display: none !important; }
+
+/* ============================================================
+   MOBILE UI UPGRADE — touch-friendly + readable fonts + spacing
+   ============================================================ */
+@media (max-width: 600px) {
+  /* Touch targets: minst 44px enligt Apple HIG */
+  button, .big-btn, .small-btn, .shop-tab, .cat-btn, .kick-btn, .pet-btn {
+    min-height: 44px;
+  }
+  .big-btn {
+    font-size: 17px !important;
+    padding: 14px 32px !important;
+    letter-spacing: 2px !important;
+    min-width: 200px !important;
+    margin: 6px !important;
+  }
+  .small-btn {
+    font-size: 12px !important;
+    padding: 10px 16px !important;
+    min-width: 100px !important;
+  }
+  /* Menu — tightare för att rymmas på mobilskärm */
+  #menu-screen h1 { font-size: 28px !important; margin: 8px 0 !important; letter-spacing: 4px !important; }
+  #menu-screen .menu-sub { font-size: 13px !important; margin-bottom: 12px !important; }
+  /* Lobby */
+  #coop-screen h2 { font-size: 18px !important; }
+  #coop-code-display { font-size: 28px !important; letter-spacing: 8px !important; }
+  .player-row { padding: 8px !important; font-size: 13px !important; }
+  /* HUD */
+  #hud { font-size: 12px; }
+  #hp-bar-container { height: 16px !important; }
+  #weapon-bar { gap: 4px; padding: 4px; }
+  /* Stage clear */
+  #stage-clear-overlay h1 { font-size: 36px !important; }
+  /* Toast */
+  .toast { font-size: 13px !important; padding: 8px 14px !important; }
+  /* Boss intro */
+  .boss-intro-name { font-size: 28px !important; }
+  /* Dropdowns / inputs */
+  input, select, .lobby-input {
+    min-height: 44px !important;
+    font-size: 16px !important;  /* hindra iOS-zoom */
+  }
+  /* Lite mer kontrast på text */
+  body { font-size: 14px; }
+  p, .menu-sub { color: #ccc !important; }
+}
+
+/* Touch-feedback för riktig "knapp-känsla" */
+button, .shop-item, .player-row, .pet-card {
+  -webkit-tap-highlight-color: rgba(255,213,74,0.18);
+}
+
+/* Utöka touch-area runt små knappar utan att ändra visuellt */
+.kick-btn, .small-btn::before {
+  position: relative;
+}
+.kick-btn::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  z-index: -1;
+}
+
+/* Förhindra dubbeltryck-zoom på ALLT i UI */
+.overlay, .menu-overlay, .shop-tabs, .weapon-categories {
+  touch-action: manipulation;
+}
+
+/* Bättre kontrast för läsbarhet i shop på mobil */
+@media (max-width: 600px) {
+  .shop-item.owned { background: linear-gradient(180deg, #1d3018, #0e1a08) !important; }
+  .shop-item.equipped { background: linear-gradient(180deg, #302510, #1a1408) !important; box-shadow: 0 0 8px rgba(255,213,74,0.4) !important; }
+  .stat-row { display: flex; justify-content: space-between; }
+}
+
+/* Landskap — viktigt för smartphone som spelas liggande */
+@media (max-height: 500px) and (orientation: landscape) {
+  #shop-items { max-height: 50vh; }
+  #menu-screen { padding-top: 8px !important; }
+  .big-btn { padding: 10px 24px !important; margin: 4px !important; }
+}
+
+/* ============================================================
+   TDM (Team Deathmatch) — UI
+   ============================================================ */
+@keyframes tdmKillFade {
+  0% { opacity: 0; transform: translateX(20px); }
+  10% { opacity: 1; transform: translateX(0); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(0); }
+}
+.tdm-target-btn.active {
+  background: linear-gradient(135deg, #ff5a5a, #aa3030) !important;
+  color: #fff !important;
+  border-color: #ff5a5a !important;
+  box-shadow: 0 0 6px rgba(255,90,90,0.5);
+}
+@media (max-width: 600px) {
+  #tdm-score { font-size: 14px !important; padding: 4px 10px !important; }
+  #tdm-killfeed { font-size: 11px !important; max-width: 60vw !important; }
+}

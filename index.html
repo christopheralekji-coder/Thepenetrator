@@ -99,6 +99,23 @@
   <button id="btn-tut-close" class="big-btn" style="position:absolute;bottom:50%;left:50%;transform:translate(-50%,50%);pointer-events:auto;">FATTAT</button>
 </div>
 
+<div id="tdm-hud" class="hidden">
+  <div id="tdm-score" style="position:fixed;top:6px;left:50%;transform:translateX(-50%);display:flex;gap:14px;background:rgba(0,0,0,0.65);border-radius:8px;padding:6px 14px;font-weight:900;font-size:18px;letter-spacing:1px;z-index:50;pointer-events:none;">
+    <span id="tdm-red" style="color:#ff5a5a;">RED 0</span>
+    <span style="color:#666;">·</span>
+    <span id="tdm-blue" style="color:#5aaaff;">BLUE 0</span>
+    <span style="color:#aaa;font-size:13px;font-weight:600;align-self:center;">→ <span id="tdm-target">10</span></span>
+  </div>
+  <div id="tdm-killfeed" style="position:fixed;top:46px;right:8px;display:flex;flex-direction:column;gap:3px;font-size:13px;z-index:50;pointer-events:none;max-width:300px;"></div>
+</div>
+
+<div id="tdm-end-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;">
+  <div id="tdm-end-title" style="font-size:48px;font-weight:900;letter-spacing:6px;margin-bottom:12px;">RED WINS</div>
+  <div id="tdm-end-score" style="font-size:22px;color:#ddd;margin-bottom:18px;">10 — 7</div>
+  <div id="tdm-end-stats" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:14px 18px;min-width:300px;max-width:90vw;margin-bottom:20px;font-size:14px;"></div>
+  <button id="btn-tdm-back" class="big-btn">TILLBAKA TILL LOBBY</button>
+</div>
+
 <div id="stage-clear-overlay" class="hidden">
   <div class="sc-content">
     <div class="sc-trophy">🏆</div>
@@ -288,6 +305,20 @@
         🌐 SERVER-SIDE SIM (BETA)
       </label>
       <div style="font-size:10px;color:#888;margin-top:4px;text-align:center;">Server kör simulationen — host-CPU slutar vara flaskhals</div>
+    </div>
+    <div id="coop-tdm-row" class="hidden" style="margin:8px 0;padding:8px;border:1px solid rgba(255,90,90,0.3);border-radius:8px;background:rgba(255,90,90,0.06);">
+      <label style="display:flex;align-items:center;gap:8px;justify-content:center;color:#ff5a5a;font-size:13px;font-weight:700;cursor:pointer;">
+        <input type="checkbox" id="coop-tdm-toggle" style="width:16px;height:16px;cursor:pointer;">
+        ⚔️ TEAM DEATHMATCH (PvP)
+      </label>
+      <div style="font-size:10px;color:#888;margin-top:4px;text-align:center;">Röda mot blåa — slåss mot varandra istället för fiender</div>
+      <div id="coop-tdm-options" class="hidden" style="margin-top:8px;display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;">
+        <span style="color:#aaa;font-size:11px;">FÖRSTA TILL:</span>
+        <button class="tdm-target-btn small-btn" data-tk="5" style="padding:4px 10px;font-size:11px;">5</button>
+        <button class="tdm-target-btn small-btn" data-tk="10" style="padding:4px 10px;font-size:11px;">10</button>
+        <button class="tdm-target-btn small-btn" data-tk="20" style="padding:4px 10px;font-size:11px;">20</button>
+        <button class="tdm-target-btn small-btn" data-tk="30" style="padding:4px 10px;font-size:11px;">30</button>
+      </div>
     </div>
     <button id="btn-coop-start" class="big-btn hidden">STARTA SPELET</button>
     <div id="coop-waiting" class="hidden" style="color:#5aff5a;font-size:13px;">Väntar på att host startar...</div>

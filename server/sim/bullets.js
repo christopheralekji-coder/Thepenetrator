@@ -252,6 +252,62 @@ function updateBullets(sim, dt, now) {
       }
       continue;
     }
+    // TDM-mode: player-bullet kollar mot ANDRA SPELARE (andra laget) istället för enemies
+    if (sim.tdmActive) {
+      // Kort-circuit: ingen damage efter match-end
+      if (sim.tdmEnded) { continue; }
+      let pvpHit = false;
+      const ownerWs = sim.room.members.get(b.ownerPid);
+      const ownerTeam = ownerWs && ownerWs.tdmTeam;
+      if (!ownerTeam) { continue; }  // late-joiner utan team — skippa
+      for (const [pid, ws] of sim.room.members) {
+        if (pid === b.ownerPid) continue;
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        if (ws.tdmTeam === ownerTeam) continue;  // friendly fire off
+        const invuln = ws.playerState.invulnUntil || 0;
+        if (Date.now() < invuln) continue;       // respawn-invuln skyddar
+        const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
+        const rsum = 14 + b.r + 8;
+        if (dx * dx + dy * dy < rsum * rsum) {
+          ws.playerState.hp = Math.max(0, ws.playerState.hp - b.dmg);
+          if (ws.playerState.hp <= 0) {
+            // Kill — respawn timer + öka team-score + per-pid stats
+            ws.tdmRespawnAt = Date.now() + 3000;
+            sim.tdmKills[ownerTeam] = (sim.tdmKills[ownerTeam] || 0) + 1;
+            sim.tdmKillsByPid[b.ownerPid] = (sim.tdmKillsByPid[b.ownerPid] || 0) + 1;
+            sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
+            sim.eventQueue.push({
+              type: 'tdm_kill',
+              killer: b.ownerPid,
+              victim: pid,
+              killerTeam: ownerTeam,
+              victimTeam: ws.tdmTeam,
+              redKills: sim.tdmKills.red,
+              blueKills: sim.tdmKills.blue,
+            });
+            if (sim.tdmKills[ownerTeam] >= sim.tdmTargetKills) {
+              sim.tdmEnded = true;
+              sim.eventQueue.push({
+                type: 'tdm_match_end',
+                winner: ownerTeam,
+                redKills: sim.tdmKills.red,
+                blueKills: sim.tdmKills.blue,
+                stats: Object.keys(sim.tdmKillsByPid).map(p => ({
+                  peerId: p,
+                  team: sim.room.members.get(p) && sim.room.members.get(p).tdmTeam,
+                  kills: sim.tdmKillsByPid[p] || 0,
+                  deaths: sim.tdmDeathsByPid[p] || 0,
+                })),
+              });
+            }
+          }
+          pvpHit = true;
+          break;
+        }
+      }
+      if (pvpHit) bullets.splice(i, 1);
+      continue;  // skip enemy collision when in TDM
+    }
     // Player bullet — kolla mot enemies. Lag-kompensation: utöka hit-radie med 8px så klient
     // som skjuter på snabb enemy (runner/ninja: 200+ px/s = 20-25px lag på 100ms RTT) träffar.
     let hit = false;

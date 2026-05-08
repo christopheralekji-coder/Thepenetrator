@@ -248,6 +248,31 @@ function applySeparation(e, allEnemies) {
   }
 }
 
+// Stuck-detection: om enemy inte rört sig nämnvärt på 1s, sidestepa för att gå runt obstacles
+function applyStuckSidestep(e, dt, now, target) {
+  if (!target) return;
+  if (e._lastPosCheck === undefined) {
+    e._lastPosCheck = now; e._lastCheckX = e.x; e._lastCheckY = e.y; e._sidestepUntil = 0;
+  }
+  if (e._sidestepUntil && now < e._sidestepUntil) {
+    const pdx = target.x - e.x, pdy = target.y - e.y;
+    const pd = Math.sqrt(pdx * pdx + pdy * pdy) || 1;
+    const sgn = e._sidestepDir || 1;
+    e.x += (-pdy / pd) * sgn * e.speed * dt * 1.1;
+    e.y += (pdx / pd) * sgn * e.speed * dt * 1.1;
+  } else if (now - e._lastPosCheck > 1000) {
+    const dx = e.x - e._lastCheckX, dy = e.y - e._lastCheckY;
+    const moved = Math.sqrt(dx * dx + dy * dy);
+    if (moved < 30 && !e.staggerUntil) {
+      e._sidestepUntil = now + 600;
+      e._sidestepDir = Math.random() < 0.5 ? -1 : 1;
+    }
+    e._lastPosCheck = now;
+    e._lastCheckX = e.x;
+    e._lastCheckY = e.y;
+  }
+}
+
 // Kontaktskada till närmsta spelare. Respekterar player.invulnUntil så multipla enemies
 // inte dödar spelaren på 1 sekund (matchar klient-side damagePlayer's invuln-frames).
 function applyContactDamage(e, p) {
@@ -282,6 +307,8 @@ function updateEnemy(e, dt, now, sim, players) {
   if (!e.isBoss) {
     updateEnemyAI(e, dt, now, sim, target, sim.enemies);
   }
+  // Smartare AI: gå runt obstacles om stuck
+  applyStuckSidestep(e, dt, now, target);
   // Fysik: separation + contact damage
   applySeparation(e, sim.enemies);
   applyContactDamage(e, target);

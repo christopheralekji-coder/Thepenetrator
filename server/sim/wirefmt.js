@@ -10,15 +10,19 @@ const WP_FLAG_DB = 1 << 3;
 const WP_FLAG_TRUCK = 1 << 4;
 const WP_ENUM_STRING = 0xFF;
 
+// VIKTIGT: behåll INDEX för bakåtkompatibilitet — om en klient på gammal kod skickar
+// vapen-id som inte finns längre, fall back till sträng (0xFF prefix). Borttagna:
+// 'tonfa','boxgloves','glaive','drone'. Lägger fortfarande i listan så index-positioner
+// inte ändras (gör om till null så de inte plockas av WEAPON_TO_IDX).
 const WP_WEAPON_ENUM = [
-  'fists', 'knuckles', 'tonfa', 'bat', 'knife', 'machete', 'katana',
+  'fists', 'knuckles', null, 'bat', 'knife', 'machete', 'katana',
   'pistol', 'revolver', 'shotgun', 'smg', 'rifle', 'sniper', 'grenade', 'rocket', 'minigun',
   'axe', 'sledge', 'spear', 'whip', 'lightsaber',
   'shuriken', 'throwknife', 'crossbow', 'bow',
   'flame', 'plasma', 'tesla', 'frost', 'sonic',
-  'boxgloves', 'sickle', 'mace', 'glaive', 'energysword',
+  null, 'sickle', 'mace', null, 'energysword',
   'burstpistol', 'railgun', 'blackhole',
-  'boomerang', 'drone', 'timestop', 'pullwhip',
+  'boomerang', null, 'timestop', 'pullwhip',
   'repair',
 ];
 const WP_WEAPON_TO_IDX = new Map(WP_WEAPON_ENUM.map((w, i) => [w, i]));
