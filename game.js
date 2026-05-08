@@ -2841,19 +2841,36 @@ document.getElementById('btn-pause-quit').addEventListener('click', () => {
 const btnPauseRestart = document.getElementById('btn-pause-restart');
 if (btnPauseRestart) {
   btnPauseRestart.addEventListener('click', () => {
-    if (!confirm('Starta om denna run? All progress för denna run försvinner.')) return;
-    pauseScreen.classList.add('hidden');
+    // Styled confirm-overlay istället för native confirm() (clashar med UI + blockas
+    // av iOS i fullscreen-mode). Bygg dynamisk overlay med JA/NEJ-knappar.
     Audio.uiClick();
-    // Restore sandbox-snapshot om aktivt så vi inte förlorar weapons-overlay
-    if (state._sandboxSnapshot) {
-      save.owned = state._sandboxSnapshot.owned;
-      save.equipped = state._sandboxSnapshot.equipped;
-      save.weaponId = state._sandboxSnapshot.weaponId;
-      if (typeof state._sandboxSnapshot.gold === 'number') save.gold = state._sandboxSnapshot.gold;
-      state._sandboxSnapshot = null;
-    }
-    // Trigga ny run från start (skippar intro nu)
-    actuallyStartGame();
+    const cf = document.createElement('div');
+    cf.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);backdrop-filter:blur(4px);z-index:300;display:flex;align-items:center;justify-content:center;flex-direction:column;padding:20px;';
+    cf.innerHTML = `
+      <div style="background:linear-gradient(180deg,rgba(20,20,30,0.98),rgba(10,5,8,0.98));border:2px solid #ffd54a;border-radius:12px;padding:24px 28px;max-width:420px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.7);">
+        <div style="font-size:32px;margin-bottom:8px;">⚠</div>
+        <h3 style="margin:0 0 8px 0;color:#ffd54a;letter-spacing:1px;">STARTA OM RUN?</h3>
+        <p style="margin:0 0 18px 0;color:#ddd;font-size:13px;line-height:1.5;">All progress för denna run försvinner. Du börjar om från början.</p>
+        <div style="display:flex;gap:10px;justify-content:center;">
+          <button id="cf-yes" class="big-btn" style="background:linear-gradient(135deg,#aa3030,#7a1818);min-width:120px;">JA, STARTA OM</button>
+          <button id="cf-no" class="big-btn" style="background:linear-gradient(135deg,#444,#222);min-width:120px;">AVBRYT</button>
+        </div>
+      </div>`;
+    document.body.appendChild(cf);
+    cf.querySelector('#cf-no').addEventListener('click', () => { document.body.removeChild(cf); Audio.uiClick(); });
+    cf.querySelector('#cf-yes').addEventListener('click', () => {
+      document.body.removeChild(cf);
+      pauseScreen.classList.add('hidden');
+      Audio.uiClick();
+      if (state._sandboxSnapshot) {
+        save.owned = state._sandboxSnapshot.owned;
+        save.equipped = state._sandboxSnapshot.equipped;
+        save.weaponId = state._sandboxSnapshot.weaponId;
+        if (typeof state._sandboxSnapshot.gold === 'number') save.gold = state._sandboxSnapshot.gold;
+        state._sandboxSnapshot = null;
+      }
+      actuallyStartGame();
+    });
   });
 }
 
@@ -5745,7 +5762,7 @@ function tryShoot(now) {
         p.meleeCombo = Math.min(comboCap, (p.meleeCombo || 0) + 1);
         const comboMul = 1 + p.meleeCombo * 0.08;
         const wLevelMul = weaponLevelDmgBonus(w.id);
-        const dmg = w.dmg * (p.dmgMul || 1) * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 2.5 : 1) * ultMul * comboMul * wLevelMul;
+        const dmg = w.dmg * (p.dmgMul || 1) * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 3 : 1) * ultMul * comboMul * wLevelMul;
         damageEnemy(e, dmg, isCrit || isHead);
         // melee knockback
         if (p.kbMul && p.kbMul > 1 && d > 0) {
@@ -5854,7 +5871,7 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
     state.bullets.push({
       x: p.x + Math.cos(ang)*p.r, y: p.y + Math.sin(ang)*p.r,
       vx: Math.cos(ang)*speed, vy: Math.sin(ang)*speed,
-      dmg: w.dmg * (p.dmgMul || 1) * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 2.5 : 1) * ultDmgMul * weaponLevelDmgBonus(w.id),
+      dmg: w.dmg * (p.dmgMul || 1) * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 3 : 1) * ultDmgMul * weaponLevelDmgBonus(w.id),
       life: w.style === 'flame' ? 0.5 : (w.style === 'boomerang' ? 2.5 : 1.6),
       r: isCrit ? 5 : (w.style === 'flame' ? 6 : 4),
       color: (isCrit || isHead || cheatChozza) ? '#ffeb3b' : w.color,
@@ -7418,7 +7435,15 @@ function actuallyStartGame() {
   document.body.classList.remove('menu-mode');
   // Coop: fresh-start varje run (ingen pengar/vapen/perks/upgrades carry-over)
   if (Coop.active) {
-    // Snapshot bara FÖRSTA gången (om vi inte redan har en sparad)
+    // Snapshot bara FÖRSTA gången (om vi inte redan har en sparad).
+    // Persist till localStorage så tab-crash mid-coop inte wipear progression.
+    if (!state._coopSnapshot) {
+      // Försök restore tidigare snapshot från localStorage (tab-crash recovery)
+      try {
+        const stored = localStorage.getItem('penetrator_coop_snapshot');
+        if (stored) state._coopSnapshot = JSON.parse(stored);
+      } catch (e) {}
+    }
     if (!state._coopSnapshot) {
       state._coopSnapshot = {
         gold: save.gold,
@@ -7429,6 +7454,8 @@ function actuallyStartGame() {
         perks: [...(save.perks || [])],
         activeCompanion: save.companions ? save.companions.active : null,
       };
+      // Persist immediately så tab-crash inte wipear
+      try { localStorage.setItem('penetrator_coop_snapshot', JSON.stringify(state._coopSnapshot)); } catch (e) {}
     }
     // Reset varje coop-run (både första gången och återupprepade gånger).
     // Companions BEHÅLLS — användaren ska se sin köpta pet även i coop.
@@ -7481,7 +7508,14 @@ function actuallyStartGame() {
     state.customStages = [...STAGES, ...buildTruckStages()];
   }
   // Tutorial första gången
-  if (!save.tutorialDone) {
+  // Per-mode tutorial: visa tutorial-panel första gången varje mode startas
+  // (samma generic content men ger användaren chans att läsa kontroller igen).
+  if (!save.tutorialModesSeen) save.tutorialModesSeen = {};
+  const _curMode = (typeof getMode === 'function') ? getMode() : 'story';
+  const _shouldShowTut = !save.tutorialDone || !save.tutorialModesSeen[_curMode];
+  if (_shouldShowTut) {
+    save.tutorialModesSeen[_curMode] = true;
+    persist();
     document.getElementById('tutorial-overlay').classList.remove('hidden');
   }
   state.enemies = [];
@@ -7958,6 +7992,8 @@ function endGame(victory) {
     save.perks = snap.perks;
     if (save.companions && snap.activeCompanion !== undefined) save.companions.active = snap.activeCompanion;
     state._coopSnapshot = null;
+    // Rensa localStorage-snapshot — coop-run är slutförd, no recovery needed
+    try { localStorage.removeItem('penetrator_coop_snapshot'); } catch (e) {}
   }
   // Sandbox: återställ owned/equipped/gold (vi gav alla vapen + obegränsat temporärt)
   if (state._sandboxSnapshot) {
@@ -8605,8 +8641,20 @@ function updateEnemies(dt, now) {
       if (!staggerActive) {
         const dx = p.x - e.x, dy = p.y - e.y;
         const d = Math.hypot(dx, dy) || 1;
-        e.x += (dx/d) * e.speed * dt;
-        e.y += (dy/d) * e.speed * dt;
+        // Hund bara aktiv inom 700px (matchar anti-cheese viewport-radius).
+        // Utanför vandrar hunden slumpmässigt istället för att jaga över hela kartan.
+        if (e.type === 'dog' && d > 700) {
+          if (!e._wanderTimer || now > e._wanderTimer) {
+            e._wanderTimer = now + 2000 + Math.random() * 2000;
+            e._wanderX = (Math.random() - 0.5) * 0.3;
+            e._wanderY = (Math.random() - 0.5) * 0.3;
+          }
+          e.x += (e._wanderX || 0) * e.speed * dt;
+          e.y += (e._wanderY || 0) * e.speed * dt;
+        } else {
+          e.x += (dx/d) * e.speed * dt;
+          e.y += (dy/d) * e.speed * dt;
+        }
       }
       // chatter (sällan)
       if (Math.random() < 0.0015) {

@@ -380,7 +380,9 @@ html, body {
 }
 #action-buttons {
   position: absolute;
-  bottom: 30px; right: 8px;
+  /* Centrera under minimap: minimap right:12 width:110 → center-x = right:67.
+     Action-btn fire är 84px → center @ right:67 = right-edge: right:67-42 = right:25 */
+  bottom: 30px; right: 25px;
   display: flex;
   flex-direction: column;
   gap: 12px;

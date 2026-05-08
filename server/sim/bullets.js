@@ -77,7 +77,7 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
       y: p.y + Math.sin(ang) * (p.r || 14),
       vx: Math.cos(ang) * speed,
       vy: Math.sin(ang) * speed,
-      dmg: w.dmg * dmgMul * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 2.5 : 1) * ultDmgMul,
+      dmg: w.dmg * dmgMul * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 3 : 1) * ultDmgMul,
       life: w.id === 'flame' ? 0.5 : (w.id === 'boomerang' ? 2.5 : 1.6),
       r: isCrit ? 5 : (w.id === 'flame' ? 6 : 4),
       color: (isCrit || isHead || cheatChozza) ? '#ffeb3b' : w.color,

@@ -226,8 +226,21 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
     // Stagger (push-back-effekt) — om aktiv, hoppa över rörelse
     const staggerActive = e.staggerUntil && now < e.staggerUntil;
     if (!staggerActive) {
-      e.x += (dx / d) * e.speed * dt;
-      e.y += (dy / d) * e.speed * dt;
+      // Dog: bara aktiv inom viewport-radius (~700px). Utanför står hunden still
+      // istället för att jaga över hela kartan. Andra melee jagar fortfarande.
+      if (e.type === 'dog' && d > 700) {
+        // Hund vandrar lite slumpmässigt utanför viewport (visar att den lever)
+        if (!e._wanderTimer || now > e._wanderTimer) {
+          e._wanderTimer = now + 2000 + Math.random() * 2000;
+          e._wanderX = (Math.random() - 0.5) * 0.3;
+          e._wanderY = (Math.random() - 0.5) * 0.3;
+        }
+        e.x += (e._wanderX || 0) * e.speed * dt;
+        e.y += (e._wanderY || 0) * e.speed * dt;
+      } else {
+        e.x += (dx / d) * e.speed * dt;
+        e.y += (dy / d) * e.speed * dt;
+      }
     }
   }
 }
