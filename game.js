@@ -16978,7 +16978,29 @@ function runFrame(dt, now) {
       updateStageAmbient(dt);
 
       // I server-auth mode beter sig host som klient (server kör sim)
-      const isCoopClient = Coop.active && (!Coop.isHost || Coop.serverSimActive);
+      let isCoopClient = Coop.active && (!Coop.isHost || Coop.serverSimActive);
+
+      // SAFETY: Om server-sim är på men servern inte spawnar enemies på 10s,
+      // fallback till host-mode så matchen inte fastnar. KRITISKT: kollas FÖRE
+      // isCoopClient-check eftersom coopClient annars hoppar över hela blocket.
+      if (Coop.active && Coop.isHost && Coop.serverSimActive && state.waveActive &&
+          state.enemiesToSpawn > 0 && state.enemies.length === 0 &&
+          state.mode === 'playing') {
+        const countdownActive = state._countdownEndAt && performance.now() < state._countdownEndAt;
+        if (!countdownActive) {
+          state._serverSpawnWaitSince = state._serverSpawnWaitSince || performance.now();
+          if (performance.now() - state._serverSpawnWaitSince > 10000) {
+            console.warn('[COOP] Server-sim stum 10s — fallback till host-mode');
+            Coop.serverSimActive = false;
+            state.serverSimActive = false;
+            state._serverSpawnWaitSince = 0;
+            isCoopClient = false; // kör host-loop denna frame
+            if (typeof showToast === 'function') showToast('⚠ Server-sim stum — host-fallback');
+          }
+        }
+      } else {
+        state._serverSpawnWaitSince = 0;
+      }
 
       if (!isCoopClient) {
         // Host: interpolera partner-positioner mjukt mot deras targets
@@ -16999,22 +17021,6 @@ function runFrame(dt, now) {
           }
         }
         // HOST eller single-player kör all AI/spawn — utom under prep-countdown.
-        // SAFETY-NET: I coop server-sim, om server inte spawnat enemies på 10s
-        // efter waveActive (t.ex. server-deploy pågår), fallback till host-spawn så
-        // matchen inte fastnar.
-        if (Coop.active && Coop.serverSimActive && Coop.isHost && state.waveActive &&
-            state.enemiesToSpawn > 0 && state.enemies.length === 0) {
-          state._serverSpawnWaitSince = state._serverSpawnWaitSince || performance.now();
-          if (performance.now() - state._serverSpawnWaitSince > 10000) {
-            console.warn('[COOP] Server-sim spawnar inga enemies på 10s — fallback till host-mode');
-            Coop.serverSimActive = false;
-            state.serverSimActive = false;
-            state._serverSpawnWaitSince = 0;
-            if (typeof showToast === 'function') showToast('⚠ Server-sim stum — host-fallback');
-          }
-        } else {
-          state._serverSpawnWaitSince = 0;
-        }
         if (state.waveActive && state.enemiesToSpawn > 0 && !countdownActive) {
           state.spawnTimer -= dt;
           if (state.spawnTimer <= 0) {
