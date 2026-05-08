@@ -189,7 +189,7 @@ const BOSS_CONFIGS = {
   },
   avrattare: {
     name: 'Mourads Avrättare', subtitle: 'GENERALEN — pansrad krossare',
-    hp: 1350, speed: 120, dmg: 45, r: 32,
+    hp: 1100, speed: 120, dmg: 45, r: 32,
     color: '#3a2418', accent: '#ff6a30', glow: '#ff8a30',
     ai: 'brute_charger', gold: 450,
   },
@@ -1214,7 +1214,7 @@ const WEAPONS = [
     desc: 'Mästarvapen. Hög DPS, lång räckvidd.' },
   { id: 'energysword',name: 'Energi-svärd',     type: 'melee', price: 1700, dmg: 120, rate: 340, range: 78, color: '#ff8a3a', style: 'energysword', pierce: true,
     desc: 'Pierce — träffar genom flera fiender.' },
-  { id: 'lightsaber', name: 'Laser-svärd',      type: 'melee', price: 2400, dmg: 150, rate: 350, range: 78, color: '#3aff5a', style: 'lightsaber', pierce: true,
+  { id: 'lightsaber', name: 'Laser-svärd',      type: 'melee', price: 2400, dmg: 125, rate: 350, range: 78, color: '#3aff5a', style: 'lightsaber', pierce: true,
     desc: 'Toppvapen. Pierce + maxskada.' },
   // === GUNS — progression 220g → 3500g ===
   { id: 'pistol',     name: 'Pistol',           type: 'gun',   price: 220,  dmg: 18,  rate: 340, speed: 700, mag: 12, reload: 1100, spread: 0.04, color: '#ffd14a',
@@ -1225,7 +1225,7 @@ const WEAPONS = [
     desc: 'Mid-tier kast. Hög träffsäkerhet.' },
   { id: 'revolver',   name: 'Revolver',         type: 'gun',   price: 420,  dmg: 42,  rate: 580, speed: 760, mag: 6,  reload: 1500, spread: 0.02, color: '#ffae3a',
     desc: 'Tung kalibervapen. Hög dmg per skott.' },
-  { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 540,  dmg: 16,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 3,
+  { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 540,  dmg: 24,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 3,
     desc: 'Tre snabba skott per tryck. Hög burst-dmg.' },
   { id: 'shotgun',    name: 'Hagelgevär',       type: 'gun',   price: 600,  dmg: 16,  rate: 760, speed: 700, mag: 6,  reload: 1900, spread: 0.32, pellets: 6, color: '#ff6b3d',
     desc: 'Sex hagel per skott. Förödande på nära håll.' },
@@ -1249,7 +1249,7 @@ const WEAPONS = [
     desc: 'Chain lightning — träffar 4 fiender på rad.' },
   { id: 'grenade',    name: 'Granatkastare',    type: 'gun',   price: 1900, dmg: 80,  rate: 950, speed: 480, mag: 6, reload: 2400, spread: 0.04, explosive: 100, color: '#9aff5a', style: 'grenade',
     desc: 'Explosionsradius — träffar grupper.' },
-  { id: 'boomerang',  name: 'Boomerang',        type: 'gun',   price: 2000, dmg: 50,  rate: 800, speed: 600, mag: 2, reload: 1500, spread: 0.0, color: '#9a6a30', style: 'boomerang', pierce: true, returns: true,
+  { id: 'boomerang',  name: 'Boomerang',        type: 'gun',   price: 2000, dmg: 50,  rate: 800, speed: 600, mag: 4, reload: 1500, spread: 0.0, color: '#9a6a30', style: 'boomerang', pierce: true, returns: true,
     desc: 'Pierce + returnerar! Träffar både ut + in.' },
   { id: 'plasma',     name: 'Plasma-gevär',     type: 'gun',   price: 2200, dmg: 95,  rate: 280, speed: 950, mag: 12, reload: 2200, spread: 0.0, color: '#3acaff', style: 'plasma',
     desc: 'High-tech: hög dmg, hög ROF, perfekt aim.' },
@@ -1257,15 +1257,15 @@ const WEAPONS = [
     desc: 'Stora explosioner. AOE-king.' },
   { id: 'pullwhip',   name: 'Drag-piska',       type: 'gun',   price: 2600, dmg: 35,  rate: 500, speed: 800, mag: 6, reload: 1700, spread: 0.0, color: '#5a4030', style: 'pullwhip', pullsEnemy: true,
     desc: 'Drar fiender mot dig — combo med melee.' },
-  { id: 'timestop',   name: 'Tids-pistol',      type: 'gun',   price: 2700, dmg: 70,  rate: 900, speed: 1100, mag: 3, reload: 2500, spread: 0.0, color: '#9aff5a', style: 'timestop', timeStopMs: 1000,
+  { id: 'timestop',   name: 'Tids-pistol',      type: 'gun',   price: 2700, dmg: 100, rate: 900, speed: 1100, mag: 3, reload: 2500, spread: 0.0, color: '#9aff5a', style: 'timestop', timeStopMs: 1000,
     desc: 'Fryser tiden 1s. Perfekt för bossar.' },
-  { id: 'blackhole',  name: 'Svartphål-pistol', type: 'gun',   price: 2800, dmg: 60,  rate: 1200, speed: 480, mag: 4, reload: 2400, spread: 0.0, color: '#aa3aff', style: 'blackhole', pullRadius: 200,
+  { id: 'blackhole',  name: 'Svartphål-pistol', type: 'gun',   price: 2800, dmg: 90,  rate: 1200, speed: 480, mag: 4, reload: 2400, spread: 0.0, color: '#aa3aff', style: 'blackhole', pullRadius: 200,
     desc: 'Skapar svart hål — drar in fiender.' },
-  { id: 'mindcontrol',name: 'Tank-strålen',     type: 'gun',   price: 3000, dmg: 0,   rate: 2000, speed: 600, mag: 2, reload: 4000, spread: 0.0, color: '#ff5aff', style: 'mindctrl', mindControlMs: 6000,
+  { id: 'mindcontrol',name: 'Tank-strålen',     type: 'gun',   price: 2200, dmg: 0,   rate: 2000, speed: 600, mag: 2, reload: 4000, spread: 0.0, color: '#ff5aff', style: 'mindctrl', mindControlMs: 6000,
     desc: 'Förvandlar fiende till allierad i 6s.' },
-  { id: 'railgun',    name: 'Railgun',          type: 'gun',   price: 3200, dmg: 200, rate: 1600, speed: 2200, mag: 2, reload: 3000, spread: 0.0, pierce: true, color: '#ffffff', style: 'railgun',
+  { id: 'railgun',    name: 'Railgun',          type: 'gun',   price: 3200, dmg: 280, rate: 1600, speed: 2200, mag: 3, reload: 3000, spread: 0.0, pierce: true, color: '#ffffff', style: 'railgun',
     desc: 'Maxdmg pierce. Skär genom allt.' },
-  { id: 'minigun',    name: 'Minigun',          type: 'gun',   price: 3500, dmg: 26,  rate: 50,  speed: 920, mag: 100, reload: 3500, spread: 0.14, color: '#3cf0ff',
+  { id: 'minigun',    name: 'Minigun',          type: 'gun',   price: 3500, dmg: 22,  rate: 50,  speed: 920, mag: 100, reload: 3500, spread: 0.14, color: '#3cf0ff',
     desc: 'Toppvapen: 100 mag, ultra-ROF.' },
 ];
 const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
@@ -1632,7 +1632,7 @@ const COMPANIONS = [
     icon: '🐕‍🦺',
     desc: 'Robothund. Springer och biter — staggrar fiender vid bett.',
     basePrice: 1500,
-    baseHp: 80, baseDmg: 12, baseSpeed: 240, baseRange: 32,
+    baseHp: 120, baseDmg: 12, baseSpeed: 240, baseRange: 32,
     color: '#7a8a9a', accent: '#ffae3a',
     special: 'Bett: stagga fiende 0.6s + bonus dmg',
     cooldown: 1.2,
@@ -1643,7 +1643,7 @@ const COMPANIONS = [
     icon: '🛸',
     desc: 'Flyger runt dig och skjuter automatiskt mot ranged-hot.',
     basePrice: 2200,
-    baseHp: 50, baseDmg: 14, baseSpeed: 320, baseRange: 360,
+    baseHp: 90, baseDmg: 14, baseSpeed: 320, baseRange: 360,
     color: '#3acaff', accent: '#ffffff',
     special: 'Skjuter laser var 0.7s mot närmsta fiende',
     cooldown: 0.7,
@@ -1654,7 +1654,7 @@ const COMPANIONS = [
     icon: '🐵',
     desc: 'Slänger plasma-bomber. Aoe-damage var 4:e sekund.',
     basePrice: 2800,
-    baseHp: 100, baseDmg: 22, baseSpeed: 180, baseRange: 280,
+    baseHp: 150, baseDmg: 22, baseSpeed: 180, baseRange: 280,
     color: '#aa6a3a', accent: '#aa3aff',
     special: 'Plasma-bomb: 60 AOE-skada i 80px radius',
     cooldown: 4.0,
@@ -2490,7 +2490,8 @@ function makePlayer() {
   const dailyMod = state.dailyModifier ? state.dailyModifier.id : null;
   let baseMaxHp = 100;
   if (dailyMod === 'reduced_hp') baseMaxHp = 70;
-  if (dailyMod === 'glass_cannon') baseMaxHp = 1;
+  // Glass cannon: 25HP (var 1HP = omöjligt med en touch). Spec håller via dmgMul 3×.
+  if (dailyMod === 'glass_cannon') baseMaxHp = 25;
   if (hasPerk('glasscannon')) baseMaxHp = 50;
   // Cheat: KingaJamlo (bigboi) → 3× HP
   const bigBoiHp = isCheatActive('bigboi') ? 3 : 1;
@@ -2955,16 +2956,7 @@ function openSettings(returnTo) {
   if (settingsReturnTo === 'menu' && menuScreen) menuScreen.classList.add('hidden');
   if (settingsReturnTo === 'pause' && pauseScreen) pauseScreen.classList.add('hidden');
   settingsScreen.classList.remove('hidden');
-  // Begär fullscreen från user-gesture (Chrome/Android/desktop). iOS Safari
-  // saknar requestFullscreen på documentElement — där no-op (PWA är redan standalone).
-  try {
-    const el = document.documentElement;
-    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-    if (req && !document.fullscreenElement && !document.webkitFullscreenElement) {
-      const r = req.call(el);
-      if (r && r.catch) r.catch(() => {});
-    }
-  } catch (_) {}
+  // (requestFullscreen borttagen — bröt action-buttons-sync vid resize-event)
   // Sync UI med Audio + Feedback
   document.getElementById('set-sfx').value = Math.round(Audio.sfxVol * 100);
   document.getElementById('set-sfx-val').textContent = Math.round(Audio.sfxVol * 100) + '%';
@@ -5993,6 +5985,7 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
       explosive: (w.explosive || 0) * (p.explMul || 1),
       crit: isCrit || isHead,
       style: w.style,
+      weaponId: w.id, // Krävs av anti-cheese long-range allow-list (line ~9540)
       burn: w.burn || 0,
       chain: w.chain || 0,
       slow: w.slow || 0,
@@ -6882,7 +6875,8 @@ function spawnEnemyAtEdge() {
   if (!ok) return; // skip om vi inte hittar plats
 
   const e = makeEnemy(type, x, y);
-  const scale = 1 + (state.wave - 1) * 0.10;
+  // Cap @ 4× för att förhindra omöjliga waves i Endless (wave 31+ = 4× scale)
+  const scale = Math.min(1 + (state.wave - 1) * 0.10, 4.0);
   const diff = getDiffMul();
   const ngpMul = getNGPMul();
   // Daily modifier
@@ -6921,7 +6915,8 @@ function spawnMiniBoss(stage) {
   const sx = stage.worldW / 2 + (Math.random() - 0.5) * 200;
   const sy = stage.worldH / 2 + (Math.random() - 0.5) * 200;
   const e = makeEnemy(m.type || 'brute', sx, sy);
-  const scale = 1 + (state.wave - 1) * 0.10;
+  // Cap @ 4× för att förhindra omöjliga waves i Endless (wave 31+ = 4× scale)
+  const scale = Math.min(1 + (state.wave - 1) * 0.10, 4.0);
   const diff = getDiffMul();
   const ngpMul = getNGPMul();
   const coopMul = getCoopMultiplier();
@@ -7170,8 +7165,12 @@ function closeShop() {
     state.shopFromMidGame = false;
     return;
   }
-  // Mellan-stage shop: heala + nästa wave
-  state.player.hp = state.player.maxHp;
+  // Mellan-stage shop: partial heal + nästa wave
+  // Story/speedrun/truck/daily = full heal (linear progression).
+  // Endless/Bossrush/Survive = +60% av maxHp så spelaren måste vara försiktig.
+  const fullHealModes = ['story', 'speedrun', 'truck', 'daily', 'sandbox'];
+  const healFrac = fullHealModes.indexOf(getMode()) >= 0 ? 1.0 : 0.6;
+  state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.player.maxHp * healFrac);
   state.player.ammo = getWeapon(state.player.weaponId).mag || 0;
   state.player.reloading = false;
   // Server-auth: tell server att avancera till nästa stage
@@ -7476,7 +7475,9 @@ function applyUpgradesToPlayer() {
   p.goldMul = 1 + u.gold * 0.18 + (hasPerk('goldbonus') ? 0.30 : 0);
   p.kbMul = 1 + u.kb * 0.25;
   p.bspeedMul = 1 + u.bspeed * 0.10;
-  p.reviveAvailable = hasPerk('revive');
+  // Revive-perk: per RUN, inte per shop-purchase. Sätt bara om reviveUsed inte
+  // redan är truthy (annars resettade varje purchase = obegränsade revives, bug).
+  if (p.reviveAvailable === undefined) p.reviveAvailable = hasPerk('revive');
 }
 
 // ============================================================
@@ -7691,6 +7692,9 @@ function actuallyStartGame() {
   }
   state.mode = 'playing';
   state.player = makePlayer();
+  // Initial revive: sätt EN gång vid run-start. applyUpgradesToPlayer respekterar
+  // sedan p.reviveAvailable (sätter inte tillbaka när redan false från användning).
+  state.player.reviveAvailable = hasPerk('revive');
   if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
   // Setup custom stages for game mode
   state.customStages = null;
@@ -7944,7 +7948,8 @@ function buildBossRushStages() {
   ];
   return bossKeys.map((bk, i) => ({
     id: i + 1,
-    name: 'BOSS ' + (i + 1) + ' / ' + bossKeys.length,
+    // Visa boss-namn (vad spelaren möter) istället för anonymt "BOSS X / 10"
+    name: (BOSS_CONFIGS[bk] && BOSS_CONFIGS[bk].name) || ('BOSS ' + (i + 1)),
     kind: stageBgs[i].kind,
     worldW: 1600, worldH: 1600,
     spawnPos: { x: 800, y: 1450 },
@@ -8193,7 +8198,7 @@ function endGame(victory) {
   }
   endStats.innerHTML = `
     <div style="text-align:left;display:inline-block;line-height:1.7;">
-      Stage: <b>${state.wave}/${LEVELS.length}</b> · ${getLevel(state.wave).name}<br>
+      Stage: <b>${state.wave}/${getStageCount()}</b> · ${getLevel(state.wave).name}<br>
       Tid: <b>${minutes}:${seconds.toString().padStart(2,'0')}</b><br>
       Kills denna runda: <b>${state.killsThisRun || 0}</b><br>
       Mynt insamlade: <b>💰 ${state.goldThisRun}</b><br>
@@ -16070,47 +16075,9 @@ function drawMiniMap() {
   state._minimapZoomBtn = { x: btnX, y: btnY, w: btnSize, h: btnSize };
 }
 
-function drawReloadRing() {
-  const p = state.player;
-  if (!p || !p.reloading) return;
-  const w = W_BY_ID[p.weaponId];
-  const reloadDur = w.reload * (p.reloadMul || 1);
-  const elapsed = performance.now() - p.reloadStart;
-  const frac = Math.min(1, elapsed / reloadDur);
-  // Stapel TILL VÄNSTER om fire-knappen, längst nere
-  const isDesktop = window.innerWidth >= 900;
-  const isSmall = viewW < 480;
-  const fireSize = isSmall ? 84 : (isDesktop ? 100 : 108);
-  const fireRight = isDesktop ? 30 : 20;
-  const fireBottom = isDesktop ? 40 : 30;
-  // Stapel-position: vänster om fire-knappen
-  const barW = isSmall ? 80 : 120;
-  const barH = isSmall ? 8 : 10;
-  const x = viewW - fireRight - fireSize - 16 - barW;
-  const y = viewH - fireBottom - fireSize/2 - barH/2;
-  ctx.save();
-  // Bakgrund
-  ctx.fillStyle = 'rgba(0,0,0,0.7)';
-  ctx.fillRect(x - 2, y - 2, barW + 4, barH + 4);
-  ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(x, y, barW, barH);
-  // Progress
-  const grad = ctx.createLinearGradient(x, y, x + barW, y);
-  grad.addColorStop(0, '#7a5a10');
-  grad.addColorStop(1, '#ffd54a');
-  ctx.fillStyle = grad;
-  ctx.fillRect(x, y, barW * frac, barH);
-  // Border
-  ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 1;
-  ctx.strokeRect(x, y, barW, barH);
-  // RELOAD-text
-  ctx.fillStyle = '#ffd54a';
-  ctx.font = 'bold 9px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
-  ctx.fillText('RELOAD', x + barW/2, y - 4);
-  ctx.restore();
-}
+// Reload-ring renderas via CSS conic-gradient på #btn-fire::after (style.css:447)
+// i vapnets w.color. Canvas-versionen var en duplicate gul stapel — skippad.
+function drawReloadRing() { /* no-op: CSS-version används */ }
 
 function drawLowHpVignette() {
   if (!state.player) return;
