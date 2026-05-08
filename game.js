@@ -730,33 +730,63 @@ function updateDrone(dt, now) {
 function drawEmoteBubble(em, x, y, r) {
   const now = performance.now();
   if (!em || !em.until || now > em.until) return;
+  const totalDur = em.dur || 3500;
   const t = em.until - now;
-  const alpha = t > 500 ? 1 : t / 500;
-  const pop = t > 3000 ? (1 - (t - 3000) / 500) : 1;
+  const elapsed = totalDur - t;
+  // Pop-in: scale från 0.4 till 1 första 200ms (overshoot till 1.15 vid 120ms)
+  let scale;
+  if (elapsed < 120) scale = 0.4 + (elapsed / 120) * 0.75;
+  else if (elapsed < 200) scale = 1.15 - ((elapsed - 120) / 80) * 0.15;
+  else scale = 1;
+  // Fade-out: sista 400ms
+  const alpha = t > 400 ? 1 : Math.max(0, t / 400);
+  // Bobbing: subtil floating effekt
+  const bob = Math.sin(elapsed / 250) * 2;
   ctx.save();
   ctx.globalAlpha = alpha;
-  // Bubbla
-  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  // Position: ovanför player med bob
+  const cx = x;
+  const cy = y - r - 42 + bob;
+  const bw = 56 * scale;
+  const bh = 44 * scale;
+  // Drop-shadow för djup
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 8 * scale;
+  ctx.shadowOffsetY = 2;
+  // Bubbla — gradient bg
+  const grad = ctx.createLinearGradient(cx, cy - bh/2, cx, cy + bh/2);
+  grad.addColorStop(0, 'rgba(255,255,255,0.98)');
+  grad.addColorStop(1, 'rgba(230,225,240,0.95)');
+  ctx.fillStyle = grad;
   ctx.strokeStyle = '#aa3aff';
-  ctx.lineWidth = 2;
-  const bw = 50 * pop, bh = 36 * pop;
+  ctx.lineWidth = 2.5 * scale;
   ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(x - bw/2, y - r - 50, bw, bh, 8);
-  else ctx.rect(x - bw/2, y - r - 50, bw, bh);
-  ctx.fill(); ctx.stroke();
-  // Stjärt (pekar ner mot spelaren)
-  ctx.beginPath();
-  ctx.moveTo(x - 5, y - r - 50 + bh);
-  ctx.lineTo(x, y - r - 50 + bh + 8);
-  ctx.lineTo(x + 5, y - r - 50 + bh);
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(255,255,255,0.95)';
+  if (ctx.roundRect) ctx.roundRect(cx - bw/2, cy - bh/2, bw, bh, 12 * scale);
+  else ctx.rect(cx - bw/2, cy - bh/2, bw, bh);
   ctx.fill();
-  // Emoji
-  ctx.font = 'bold ' + Math.round(20 * pop) + 'px sans-serif';
+  ctx.shadowColor = 'transparent'; // stäng shadow för stroke + tail
+  ctx.stroke();
+  // Stjärt (pekar ner mot spelaren) — fyllning
+  ctx.beginPath();
+  ctx.moveTo(cx - 6 * scale, cy + bh/2 - 1);
+  ctx.lineTo(cx, cy + bh/2 + 9 * scale);
+  ctx.lineTo(cx + 6 * scale, cy + bh/2 - 1);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(245,242,250,0.97)';
+  ctx.fill();
+  // Stjärt-stroke (bara sidorna, inte top)
+  ctx.beginPath();
+  ctx.moveTo(cx - 6 * scale, cy + bh/2);
+  ctx.lineTo(cx, cy + bh/2 + 9 * scale);
+  ctx.lineTo(cx + 6 * scale, cy + bh/2);
+  ctx.strokeStyle = '#aa3aff';
+  ctx.stroke();
+  // Emoji centrerat
+  ctx.font = 'bold ' + Math.round(26 * scale) + 'px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#000';
-  ctx.fillText(em.emoji, x, y - r - 32);
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#1a1020';
+  ctx.fillText(em.emoji, cx, cy + 1);
   ctx.restore();
 }
 
@@ -4609,7 +4639,8 @@ function getEmoteById(id) { return EMOTES.find(e => e.id === id); }
 function applyEmote(player, emoteId) {
   const e = getEmoteById(emoteId);
   if (!e) return;
-  player.emote = { emoji: e.emoji, text: e.text, until: performance.now() + 3500 };
+  const dur = 3500;
+  player.emote = { emoji: e.emoji, text: e.text, until: performance.now() + dur, dur };
 }
 function getCoopMultiplier() {
   return Coop.active ? Coop.playerCount() : 1;
@@ -8506,6 +8537,29 @@ setInterval(syncActionButtonsToMinimap, 300);
 setTimeout(syncActionButtonsToMinimap, 50);
 setTimeout(syncActionButtonsToMinimap, 500);
 setTimeout(syncActionButtonsToMinimap, 1500);
+
+// Positionera emote-knappen direkt höger om joysticken (10px gap) — joystick
+// finns som DOM-element, så getBoundingClientRect funkar.
+function syncEmoteButtonToJoystick() {
+  const joy = document.getElementById('joystick');
+  const emote = document.getElementById('btn-emote');
+  if (!joy || !emote) return;
+  if (joy.offsetWidth === 0) return; // joystick hidden (menu-mode)
+  const r = joy.getBoundingClientRect();
+  const desiredLeft = r.right + 10;
+  const emoteH = emote.offsetHeight || 44;
+  // Vertikalt: centrera mot joystick-mid
+  const desiredTop = r.top + (r.height - emoteH) / 2;
+  emote.style.setProperty('left', desiredLeft + 'px', 'important');
+  emote.style.setProperty('top', desiredTop + 'px', 'important');
+  emote.style.setProperty('bottom', 'auto', 'important');
+  emote.style.setProperty('right', 'auto', 'important');
+}
+window.addEventListener('resize', syncEmoteButtonToJoystick);
+window.addEventListener('orientationchange', () => setTimeout(syncEmoteButtonToJoystick, 200));
+setInterval(syncEmoteButtonToJoystick, 300);
+setTimeout(syncEmoteButtonToJoystick, 50);
+setTimeout(syncEmoteButtonToJoystick, 500);
 
 // In-game settings-knapp (i HUD bredvid gold)
 const btnIngameSettings = document.getElementById('btn-ingame-settings');
