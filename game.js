@@ -32,9 +32,9 @@ const STAGES = [
     goalPos:  { x: 1000, y: 200 },  goalRadius: 100,
     bossKey: 'witheredelder',
     miniBosses: [
-      { type: 'brute',   name: 'GROVE GRIPPER',   power: 'caster',       hpMul: 4, dmgMul: 1.3, scale: 1.3, gold: 80 },
-      { type: 'brute',   name: 'BARK WARDEN',     power: 'tank_charger', hpMul: 6, dmgMul: 1.5, scale: 1.5, gold: 120 },
-      { type: 'ninja',   name: 'SHADOW STALKER',  power: 'cloaker',      hpMul: 8, dmgMul: 1.7, scale: 1.4, gold: 160 },
+      { type: 'brute',   name: 'GROVE GRIPPER',   power: 'caster',       hpMul: 7,  dmgMul: 1.6, scale: 1.3, gold: 120 },
+      { type: 'brute',   name: 'BARK WARDEN',     power: 'tank_charger', hpMul: 10, dmgMul: 1.9, scale: 1.5, gold: 180 },
+      { type: 'ninja',   name: 'SHADOW STALKER',  power: 'cloaker',      hpMul: 14, dmgMul: 2.2, scale: 1.4, gold: 250 },
     ],
     zones: [
       { count: 8,  pool: ['grunt', 'runner'] },
@@ -50,9 +50,9 @@ const STAGES = [
     goalPos:  { x: 1100, y: 200 }, goalRadius: 100,
     bossKey: 'ironclad',
     miniBosses: [
-      { type: 'soldier', name: 'STEEL JAW',       power: 'brute_charger', hpMul: 4, dmgMul: 1.4, scale: 1.3, gold: 100 },
-      { type: 'sniper',  name: 'WIRE-EYE SENTRY', power: 'gas_sniper',   hpMul: 6, dmgMul: 1.6, scale: 1.3, gold: 140 },
-      { type: 'soldier', name: 'BUNKER PRIME',    power: 'shielder',     hpMul: 9, dmgMul: 1.7, scale: 1.6, gold: 180 },
+      { type: 'soldier', name: 'STEEL JAW',       power: 'brute_charger', hpMul: 7,  dmgMul: 1.7, scale: 1.3, gold: 150 },
+      { type: 'sniper',  name: 'WIRE-EYE SENTRY', power: 'gas_sniper',   hpMul: 10, dmgMul: 2.0, scale: 1.3, gold: 220 },
+      { type: 'soldier', name: 'BUNKER PRIME',    power: 'shielder',     hpMul: 14, dmgMul: 2.2, scale: 1.6, gold: 290 },
     ],
     zones: [
       { count: 8,  pool: ['grunt', 'soldier', 'dog'] },
@@ -68,9 +68,9 @@ const STAGES = [
     goalPos:  { x: 850, y: 200 }, goalRadius: 90,
     bossKey: 'mirroredone',
     miniBosses: [
-      { type: 'ninja',    name: 'GLASS REAPER',   power: 'cloaker', hpMul: 4, dmgMul: 1.4, scale: 1.2, gold: 110 },
-      { type: 'shooter',  name: 'ECHO PRIEST',    power: 'caster',  hpMul: 6, dmgMul: 1.5, scale: 1.3, gold: 150 },
-      { type: 'shooter',  name: 'HOLLOW DANCER',  power: 'plasma',  hpMul: 9, dmgMul: 1.7, scale: 1.4, gold: 200 },
+      { type: 'ninja',    name: 'GLASS REAPER',   power: 'cloaker', hpMul: 7,  dmgMul: 1.7, scale: 1.2, gold: 170 },
+      { type: 'shooter',  name: 'ECHO PRIEST',    power: 'caster',  hpMul: 10, dmgMul: 1.9, scale: 1.3, gold: 230 },
+      { type: 'shooter',  name: 'HOLLOW DANCER',  power: 'plasma',  hpMul: 14, dmgMul: 2.2, scale: 1.4, gold: 310 },
     ],
     zones: [
       { count: 9,  pool: ['grunt', 'soldier'] },
@@ -86,9 +86,9 @@ const STAGES = [
     goalPos:  { x: 900, y: 700 },  goalRadius: 0,
     isBoss: true, bossKey: 'ossarius',
     miniBosses: [
-      { type: 'brute',   name: 'BONE-CRACK CAPTAIN', power: 'brute_charger', hpMul: 5, dmgMul: 1.5, scale: 1.4, gold: 130 },
-      { type: 'brute',   name: 'COFFIN-MAKER',       power: 'tank_charger',  hpMul: 7, dmgMul: 1.7, scale: 1.5, gold: 170 },
-      { type: 'shooter', name: 'TWITCHING REGIMENT', power: 'avatar',        hpMul: 9, dmgMul: 1.8, scale: 1.5, gold: 220 },
+      { type: 'brute',   name: 'BONE-CRACK CAPTAIN', power: 'brute_charger', hpMul: 8,  dmgMul: 1.8, scale: 1.4, gold: 200 },
+      { type: 'brute',   name: 'COFFIN-MAKER',       power: 'tank_charger',  hpMul: 11, dmgMul: 2.1, scale: 1.5, gold: 270 },
+      { type: 'shooter', name: 'TWITCHING REGIMENT', power: 'avatar',        hpMul: 15, dmgMul: 2.3, scale: 1.5, gold: 340 },
     ],
     zones: [
       { count: 8,  pool: ['grunt', 'soldier'] },
@@ -104,9 +104,9 @@ const STAGES = [
     goalPos:  { x: 2400, y: 1000 }, goalRadius: 100,
     bossKey: 'vanguardatlas',
     miniBosses: [
-      { type: 'robot',   name: 'PROTOTYPE Z-7',  power: 'plasma',     hpMul: 5, dmgMul: 1.5, scale: 1.3, gold: 150 },
-      { type: 'sniper',  name: 'TURRET-87',      power: 'gas_sniper', hpMul: 7, dmgMul: 1.7, scale: 1.3, gold: 190 },
-      { type: 'robot',   name: 'SKUNKWORKS',     power: 'avatar',     hpMul: 10, dmgMul: 1.8, scale: 1.5, gold: 240 },
+      { type: 'robot',   name: 'PROTOTYPE Z-7',  power: 'plasma',     hpMul: 8,  dmgMul: 1.8, scale: 1.3, gold: 220 },
+      { type: 'sniper',  name: 'TURRET-87',      power: 'gas_sniper', hpMul: 11, dmgMul: 2.1, scale: 1.3, gold: 290 },
+      { type: 'robot',   name: 'SKUNKWORKS',     power: 'avatar',     hpMul: 15, dmgMul: 2.3, scale: 1.5, gold: 370 },
     ],
     zones: [
       { count: 9,  pool: ['soldier', 'shooter'] },
@@ -122,9 +122,9 @@ const STAGES = [
     goalPos:  { x: 1000, y: 200 }, goalRadius: 90,
     bossKey: 'emberoracle',
     miniBosses: [
-      { type: 'shooter',  name: 'ASH PRIEST',      power: 'caster',  hpMul: 5, dmgMul: 1.5, scale: 1.4, gold: 160 },
-      { type: 'soldier',  name: 'PYRE-CRAWLER',    power: 'jetpack', hpMul: 7, dmgMul: 1.6, scale: 1.4, gold: 210 },
-      { type: 'ninja',    name: 'WICK & EMBER',    power: 'avatar',  hpMul: 10, dmgMul: 1.8, scale: 1.5, gold: 270 },
+      { type: 'shooter',  name: 'ASH PRIEST',      power: 'caster',  hpMul: 8,  dmgMul: 1.8, scale: 1.4, gold: 240 },
+      { type: 'soldier',  name: 'PYRE-CRAWLER',    power: 'jetpack', hpMul: 11, dmgMul: 2.0, scale: 1.4, gold: 320 },
+      { type: 'ninja',    name: 'WICK & EMBER',    power: 'avatar',  hpMul: 15, dmgMul: 2.3, scale: 1.5, gold: 400 },
     ],
     zones: [
       { count: 10, pool: ['soldier', 'shooter'] },
@@ -140,9 +140,9 @@ const STAGES = [
     goalPos:  { x: 950, y: 700 },  goalRadius: 0,
     isBoss: true, bossKey: 'blightsovereign',
     miniBosses: [
-      { type: 'sniper',   name: 'TOXIC SHADE',       power: 'gas_sniper', hpMul: 4, dmgMul: 1.7, scale: 1.3, gold: 180 },
-      { type: 'ninja',    name: 'DRIFTSPECTRE',      power: 'cloaker',    hpMul: 6, dmgMul: 1.8, scale: 1.3, gold: 230 },
-      { type: 'shooter',  name: 'VENOM ARCHITECT',   power: 'caster',     hpMul: 9, dmgMul: 1.9, scale: 1.4, gold: 290 },
+      { type: 'sniper',   name: 'TOXIC SHADE',       power: 'gas_sniper', hpMul: 7,  dmgMul: 2.0, scale: 1.3, gold: 270 },
+      { type: 'ninja',    name: 'DRIFTSPECTRE',      power: 'cloaker',    hpMul: 10, dmgMul: 2.2, scale: 1.3, gold: 350 },
+      { type: 'shooter',  name: 'VENOM ARCHITECT',   power: 'caster',     hpMul: 14, dmgMul: 2.4, scale: 1.4, gold: 440 },
     ],
     zones: [
       { count: 8,  pool: ['soldier', 'shooter'] },
@@ -158,9 +158,9 @@ const STAGES = [
     goalPos:  { x: 750, y: 200 }, goalRadius: 80,
     bossKey: 'buriedcrown',
     miniBosses: [
-      { type: 'brute',     name: 'DEEP-CHASER',         power: 'brute_charger', hpMul: 5, dmgMul: 1.6, scale: 1.4, gold: 200 },
-      { type: 'swordsman', name: 'SHATTERED MARSHAL',   power: 'shielder',      hpMul: 7, dmgMul: 1.8, scale: 1.5, gold: 260 },
-      { type: 'shooter',   name: 'SUBSONIC PROPHET',    power: 'plasma',        hpMul: 10, dmgMul: 2.0, scale: 1.6, gold: 320 },
+      { type: 'brute',     name: 'DEEP-CHASER',         power: 'brute_charger', hpMul: 8,  dmgMul: 1.9, scale: 1.4, gold: 300 },
+      { type: 'swordsman', name: 'SHATTERED MARSHAL',   power: 'shielder',      hpMul: 12, dmgMul: 2.2, scale: 1.5, gold: 390 },
+      { type: 'shooter',   name: 'SUBSONIC PROPHET',    power: 'plasma',        hpMul: 16, dmgMul: 2.5, scale: 1.6, gold: 490 },
     ],
     zones: [
       { count: 10, pool: ['soldier', 'ninja'] },
@@ -176,9 +176,9 @@ const STAGES = [
     goalPos:  { x: 900, y: 700 },  goalRadius: 0,
     isBoss: true, bossKey: 'lastsovereign',
     miniBosses: [
-      { type: 'robot',   name: 'OMEGA-LOGIC',     power: 'avatar',     hpMul: 6, dmgMul: 1.7, scale: 1.5, gold: 250 },
-      { type: 'shooter', name: 'SOULFIRE WARDEN', power: 'jetpack',    hpMul: 8, dmgMul: 1.9, scale: 1.5, gold: 320 },
-      { type: 'sniper',  name: 'VOID JUDGE',      power: 'gas_sniper', hpMul: 12, dmgMul: 2.1, scale: 1.6, gold: 400 },
+      { type: 'robot',   name: 'OMEGA-LOGIC',     power: 'avatar',     hpMul: 9,  dmgMul: 2.1, scale: 1.5, gold: 380 },
+      { type: 'shooter', name: 'SOULFIRE WARDEN', power: 'jetpack',    hpMul: 13, dmgMul: 2.4, scale: 1.5, gold: 480 },
+      { type: 'sniper',  name: 'VOID JUDGE',      power: 'gas_sniper', hpMul: 19, dmgMul: 2.7, scale: 1.6, gold: 600 },
     ],
     zones: [
       { count: 8,  pool: ['soldier', 'ninja'] },
@@ -213,65 +213,65 @@ const BOSS_CONFIGS = {
   // Stage 1 — Forest. Powers: caster + tank_charger + cloaker
   witheredelder: {
     name: 'THE WITHERED ELDER', subtitle: 'Skogens sista röst',
-    hp: 2200, speed: 130, dmg: 38, r: 30,
+    hp: 3500, speed: 130, dmg: 48, r: 30,
     color: '#1a3018', accent: '#aaff5a', glow: '#5aff8a',
-    ai: 'final_combo', powerSet: ['caster', 'tank_charger', 'cloaker'], gold: 350,
+    ai: 'final_combo', powerSet: ['caster', 'tank_charger', 'cloaker'], gold: 500,
   },
   // Stage 2 — Perimeter. Powers: brute_charger + gas_sniper + shielder
   ironclad: {
     name: 'IRONCLAD HARBINGER', subtitle: 'Pansrad rosthärlighet',
-    hp: 2700, speed: 110, dmg: 44, r: 32,
+    hp: 4200, speed: 110, dmg: 56, r: 32,
     color: '#3a2018', accent: '#ff7a3a', glow: '#ffae5a',
-    ai: 'final_combo', powerSet: ['brute_charger', 'gas_sniper', 'shielder'], gold: 450,
+    ai: 'final_combo', powerSet: ['brute_charger', 'gas_sniper', 'shielder'], gold: 650,
   },
   // Stage 3 — Lobby. Powers: cloaker + caster + plasma
   mirroredone: {
     name: 'THE MIRRORED ONE', subtitle: 'Den som ser ditt ansikte i varje glas',
-    hp: 2900, speed: 170, dmg: 36, r: 24,
+    hp: 4600, speed: 170, dmg: 46, r: 24,
     color: '#1a1a30', accent: '#5acaff', glow: '#aa5aff',
-    ai: 'final_combo', powerSet: ['cloaker', 'caster', 'plasma'], gold: 500,
+    ai: 'final_combo', powerSet: ['cloaker', 'caster', 'plasma'], gold: 750,
   },
   // Stage 4 — Barracks. Powers: brute_charger + tank_charger + avatar
   ossarius: {
     name: 'GENERAL OSSARIUS', subtitle: 'Order i benhuset, kaos i ditt huvud',
-    hp: 3400, speed: 130, dmg: 48, r: 34,
+    hp: 5400, speed: 130, dmg: 60, r: 34,
     color: '#3a2a18', accent: '#ffd54a', glow: '#ff7a30',
-    ai: 'final_combo', powerSet: ['brute_charger', 'tank_charger', 'avatar'], gold: 650,
+    ai: 'final_combo', powerSet: ['brute_charger', 'tank_charger', 'avatar'], gold: 950,
   },
   // Stage 5 — Hangar. Powers: plasma + gas_sniper + avatar
   vanguardatlas: {
     name: 'VANGUARD ATLAS', subtitle: 'Maskinen som glömde att den var en man',
-    hp: 3700, speed: 140, dmg: 44, r: 32,
+    hp: 5800, speed: 140, dmg: 56, r: 32,
     color: '#2a3a44', accent: '#3acaff', glow: '#5affaa',
-    ai: 'final_combo', powerSet: ['plasma', 'gas_sniper', 'avatar'], gold: 750,
+    ai: 'final_combo', powerSet: ['plasma', 'gas_sniper', 'avatar'], gold: 1100,
   },
   // Stage 6 — Depot. Powers: caster + jetpack + avatar
   emberoracle: {
     name: 'THE EMBER ORACLE', subtitle: 'Hon ser askan av allt du älskat',
-    hp: 4000, speed: 175, dmg: 46, r: 28,
+    hp: 6300, speed: 175, dmg: 58, r: 28,
     color: '#3a0a14', accent: '#ff5a30', glow: '#ffae3a',
-    ai: 'final_combo', powerSet: ['caster', 'jetpack', 'avatar'], gold: 850,
+    ai: 'final_combo', powerSet: ['caster', 'jetpack', 'avatar'], gold: 1300,
   },
   // Stage 7 — Cargo. Powers: gas_sniper + cloaker + caster
   blightsovereign: {
     name: 'BLIGHT SOVEREIGN', subtitle: 'Härskaren av allt som ruttnar',
-    hp: 4400, speed: 145, dmg: 42, r: 26,
+    hp: 6900, speed: 145, dmg: 54, r: 26,
     color: '#1a3a28', accent: '#9aff5a', glow: '#5affae',
-    ai: 'final_combo', powerSet: ['gas_sniper', 'cloaker', 'caster'], gold: 950,
+    ai: 'final_combo', powerSet: ['gas_sniper', 'cloaker', 'caster'], gold: 1500,
   },
   // Stage 8 — Bunker. Powers: brute_charger + shielder + plasma
   buriedcrown: {
     name: 'THE BURIED CROWN', subtitle: 'Begravd, men aldrig död',
-    hp: 4900, speed: 115, dmg: 50, r: 32,
+    hp: 7700, speed: 115, dmg: 64, r: 32,
     color: '#1a1a2a', accent: '#ffd54a', glow: '#ff3a3a',
-    ai: 'final_combo', powerSet: ['brute_charger', 'shielder', 'plasma'], gold: 1100,
+    ai: 'final_combo', powerSet: ['brute_charger', 'shielder', 'plasma'], gold: 1800,
   },
   // Stage 9 — Command. Powers: avatar + jetpack + gas_sniper
   lastsovereign: {
     name: 'THE LAST SOVEREIGN', subtitle: 'Den sista på sin tron — du tar nästa.',
-    hp: 6000, speed: 155, dmg: 58, r: 36,
+    hp: 9500, speed: 155, dmg: 72, r: 36,
     color: '#3a0a14', accent: '#aa3aff', glow: '#ff1a1a',
-    ai: 'final_combo', powerSet: ['avatar', 'jetpack', 'gas_sniper'], gold: 2000,
+    ai: 'final_combo', powerSet: ['avatar', 'jetpack', 'gas_sniper'], gold: 3000,
   },
 };
 function getBossConfig(key) { return BOSS_CONFIGS[key]; }
@@ -6279,20 +6279,36 @@ function spawnDamageNumber(x, y, dmg, isCrit) {
 
 function killEnemy(e) {
   e.dead = true;
-  // Mini-boss-sekvens: när en dör + fler i listan → spawn nästa direkt
+  // Mini-boss-sekvens: när en miniboss dör → spawna en interlude-wave av enemies.
+  // När alla enemies cleared → nästa miniboss spawnar (i updateZoneProgression).
   if (e.isMiniBoss && !e._miniBossNextSpawned) {
     e._miniBossNextSpawned = true;
     const stage = getStage(state.wave);
     const miniList = stage && (stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []));
     if (miniList && (state.miniBossesSpawned || 0) < miniList.length) {
-      const nextIdx = state.miniBossesSpawned;
-      state.miniBossesSpawned++;
-      if (nextIdx < miniList.length) {
-        // Liten paus så player hinner andas — 800ms delay
-        setTimeout(() => {
-          if (state.mode === 'playing') spawnMiniBoss(stage, nextIdx);
-        }, 800);
-      }
+      // Mer minibosses kvar → starta interlude-wave så player får andas + nya enemies
+      state._miniInterludeActive = true;
+      state._miniInterludeNextIdx = state.miniBossesSpawned; // index för nästa
+      // Spawna 5-7 enemies från stage's pool — visuellt en interlude-wave
+      const zones = stage.zones || [];
+      const pool = (zones[Math.min(state.currentZone || 0, zones.length - 1)] || zones[0] || { pool: ['grunt'] }).pool;
+      const count = 5 + Math.floor(Math.random() * 3); // 5-7
+      const sw = stage.worldW, sh = stage.worldH;
+      setTimeout(() => {
+        if (state.mode !== 'playing' || !state._miniInterludeActive) return;
+        for (let i = 0; i < count; i++) {
+          const t = pool[Math.floor(Math.random() * pool.length)];
+          const angle = Math.random() * Math.PI * 2;
+          const dist = 350 + Math.random() * 200;
+          const ex = (state.player ? state.player.x : sw/2) + Math.cos(angle) * dist;
+          const ey = (state.player ? state.player.y : sh/2) + Math.sin(angle) * dist;
+          const ne = makeEnemy(t,
+            Math.max(40, Math.min(sw - 40, ex)),
+            Math.max(40, Math.min(sh - 40, ey)));
+          state.enemies.push(ne);
+        }
+        if (typeof showToast === 'function') showToast('⚠ FÖRSTÄRKNING ANLÄNDER');
+      }, 600);
     }
   }
   const p = state.player;
@@ -6831,6 +6847,8 @@ function loadStage(n) {
   state._coopGameOverFired = false;
   state.miniBossSpawned = false;
   state.miniBossesSpawned = 0; // count för 3-mini-sekvens
+  state._miniInterludeActive = false;
+  state._miniInterludeNextIdx = 0;
   // Truck-mode setup
   if (stage.isTruckMode) {
     setupTruck(stage);
@@ -7073,8 +7091,7 @@ function spawnMiniBoss(stage, idx) {
   // Index-baserad intensitet (mini1=svag glow, mini3=stark glow)
   e.miniIntensity = (idx || 0) / 2; // 0, 0.5, 1.0
   state.enemies.push(e);
-  const seqLabel = stage.miniBosses ? ` (${(idx || 0) + 1}/${stage.miniBosses.length})` : '';
-  showToast('⚠ MINI-BOSS' + seqLabel + ': ' + e.name);
+  showToast('⚠ MINI-BOSS ' + e.name + ' har spawnat');
   Audio.bossSpawn && Audio.bossSpawn();
   triggerShake(8, 0.4);
 }
@@ -7099,21 +7116,30 @@ function updateZoneProgression(stage) {
   if (state.zoneState === 'spawning' && state.enemiesToSpawn <= 0) {
     state.zoneState = 'clearing';
   }
+  if (state.enemies.length === 0 && state._miniInterludeActive) {
+    // Interlude-wave klar → spawna nästa miniboss
+    state._miniInterludeActive = false;
+    const nextIdx = state._miniInterludeNextIdx || 0;
+    const miniList2 = stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []);
+    if (nextIdx < miniList2.length) {
+      state.miniBossesSpawned = nextIdx + 1;
+      spawnMiniBoss(stage, nextIdx);
+      return;
+    }
+  }
   if (state.zoneState === 'clearing' && state.enemies.length === 0) {
-    // 3 minibosses i sekvens efter zone 0 — när den första dör → nästa spawnar
-    // (logik i killEnemy). Här triggar vi BARA första miniboss efter zone 0 clear.
+    // Första minibossen spawnar efter zone 0 clear
     const miniList = stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []);
     if (state.currentZone === 0 && miniList.length > 0 &&
         (state.miniBossesSpawned || 0) < miniList.length &&
         !state.miniBossSpawned) {
-      state.miniBossSpawned = true; // markerar att första triggrats
+      state.miniBossSpawned = true;
       state.miniBossesSpawned = 1;
       spawnMiniBoss(stage, 0);
       return;
     }
-    // Sequence: vänta på att alla minibosses i listan dödats innan zone-progression
+    // Sequence: vänta på att alla minibosses dödats innan zone-progression
     if (miniList.length > 0 && (state.miniBossesSpawned || 0) < miniList.length) {
-      // En tidigare miniboss klar men nästa inte spawnad än → vänta tills killEnemy spawnar
       return;
     }
     // Zon clear — kör event om finns, annars nästa zon
