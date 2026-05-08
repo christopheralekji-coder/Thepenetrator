@@ -16998,7 +16998,23 @@ function runFrame(dt, now) {
             }
           }
         }
-        // HOST eller single-player kör all AI/spawn — utom under prep-countdown
+        // HOST eller single-player kör all AI/spawn — utom under prep-countdown.
+        // SAFETY-NET: I coop server-sim, om server inte spawnat enemies på 10s
+        // efter waveActive (t.ex. server-deploy pågår), fallback till host-spawn så
+        // matchen inte fastnar.
+        if (Coop.active && Coop.serverSimActive && Coop.isHost && state.waveActive &&
+            state.enemiesToSpawn > 0 && state.enemies.length === 0) {
+          state._serverSpawnWaitSince = state._serverSpawnWaitSince || performance.now();
+          if (performance.now() - state._serverSpawnWaitSince > 10000) {
+            console.warn('[COOP] Server-sim spawnar inga enemies på 10s — fallback till host-mode');
+            Coop.serverSimActive = false;
+            state.serverSimActive = false;
+            state._serverSpawnWaitSince = 0;
+            if (typeof showToast === 'function') showToast('⚠ Server-sim stum — host-fallback');
+          }
+        } else {
+          state._serverSpawnWaitSince = 0;
+        }
         if (state.waveActive && state.enemiesToSpawn > 0 && !countdownActive) {
           state.spawnTimer -= dt;
           if (state.spawnTimer <= 0) {
