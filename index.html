@@ -47,7 +47,7 @@
 </div>
 
 <!-- TRUCK turret-väljare (visas bara i konvoj-mode) -->
-<div id="truck-turret-bar" class="hidden" style="position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:rgba(20,20,30,0.85);border:2px solid #aa3aff;border-radius:10px;padding:6px 8px;display:flex;gap:5px;z-index:90;box-shadow:0 2px 12px rgba(0,0,0,0.5);max-width:calc(100vw - 220px);flex-wrap:wrap;justify-content:center;">
+<div id="truck-turret-bar" class="hidden" style="position:fixed;bottom:calc(14px + env(safe-area-inset-bottom, 0px));left:50%;transform:translateX(-50%);background:rgba(20,20,30,0.85);border:2px solid #aa3aff;border-radius:10px;padding:6px 8px;display:flex;gap:5px;z-index:90;box-shadow:0 2px 12px rgba(0,0,0,0.5);max-width:calc(100vw - 220px);flex-wrap:wrap;justify-content:center;">
   <!-- Knappar fylls i av JS -->
 </div>
 
@@ -93,7 +93,7 @@
     <div style="color:#ffd54a;font-size:11px;margin-bottom:4px;">MINIKARTA</div>
     Visar fiender + mål<br>M-tangenten gömmer
   </div>
-  <div id="tut-5" class="tut-bubble top" style="top: 60px; left: 14px;">
+  <div id="tut-5" class="tut-bubble top" style="top: 90px; left: max(14px, env(safe-area-inset-left, 14px));">
     <div style="color:#ffd54a;font-size:11px;margin-bottom:4px;">DESKTOP</div>
     R = ladda om · Esc = paus<br>Q/E = byt vapen
   </div>
@@ -116,7 +116,7 @@
   <div class="label" style="margin-top:4px;font-size:13px;color:#aaa;">respawn</div>
 </div>
 
-<div id="tdm-end-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;">
+<div id="tdm-end-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;padding-bottom:max(20px, env(safe-area-inset-bottom, 20px));padding-left:max(20px, env(safe-area-inset-left, 20px));padding-right:max(20px, env(safe-area-inset-right, 20px));">
   <div id="tdm-end-title" style="font-size:48px;font-weight:900;letter-spacing:6px;margin-bottom:12px;">RED WINS</div>
   <div id="tdm-end-score" style="font-size:22px;color:#ddd;margin-bottom:18px;">10 — 7</div>
   <div id="tdm-end-stats" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:14px 18px;min-width:300px;max-width:90vw;margin-bottom:20px;font-size:14px;"></div>
@@ -237,6 +237,7 @@
     <button id="btn-shop-menu" class="medium-btn">🛒 SHOP</button>
     <button id="btn-costumes" class="medium-btn">👕 OUTFITS</button>
     <button id="btn-wardrobe" class="medium-btn">🪄 GARDEROB</button>
+    <button id="btn-companions" class="medium-btn">🐕 KOMPANJONER</button>
   </div>
   <div class="menu-row">
     <button id="btn-stats" class="medium-btn">📊 STATISTIK</button>
@@ -244,7 +245,7 @@
     <button id="btn-cheats" class="medium-btn">🔓 CHEATS</button>
     <button id="btn-menu-settings" class="medium-btn">⚙ INSTÄLLNINGAR</button>
   </div>
-  <button id="btn-fullscreen" class="small-btn" style="position:absolute;top:12px;right:12px;">⛶ HELSKÄRM</button>
+  <button id="btn-fullscreen" class="small-btn" style="position:absolute;top:max(12px, env(safe-area-inset-top, 12px));right:max(12px, env(safe-area-inset-right, 12px));">⛶ HELSKÄRM</button>
   <p id="version-tag" style="position:absolute;bottom:8px;right:12px;font-size:10px;opacity:0.4;">v2.2</p>
 </div>
 

@@ -40,7 +40,11 @@ html, body {
 #hud {
   position: absolute;
   top: 0; left: 0; right: 0;
+  /* iPhone Dynamic Island i landskap ligger på vänstra kanten — pad alla sidor med safe-area */
   padding: 8px 12px;
+  padding-top: max(8px, env(safe-area-inset-top, 8px));
+  padding-left: max(12px, env(safe-area-inset-left, 12px));
+  padding-right: max(12px, env(safe-area-inset-right, 12px));
   pointer-events: none;
   z-index: 5;
 }
@@ -169,12 +173,12 @@ html, body {
 
 /* HUD inline-knapp (settings till höger om gold) */
 .hud-btn {
-  width: 28px; height: 28px;
+  width: 36px; height: 36px;
   border-radius: 6px;
   background: rgba(20,20,30,0.7);
   border: 1px solid rgba(255,213,74,0.3);
   color: #ffd54a;
-  font-size: 14px;
+  font-size: 16px;
   cursor: pointer;
   pointer-events: auto;
   padding: 0;
@@ -224,7 +228,9 @@ html, body {
   width: 100%;
   max-width: 900px;
   margin-bottom: 16px;
-  padding: 0 12px;
+  /* DI-protection: extra padding på vänster + höger så titel/gold inte täcks i landscape */
+  padding: 0 max(12px, env(safe-area-inset-left, 12px)) 0 max(12px, env(safe-area-inset-left, 12px));
+  padding-right: max(12px, env(safe-area-inset-right, 12px));
 }
 .menu-header h2 {
   margin: 0;
@@ -412,10 +418,13 @@ html, body {
 .overlay {
   position: absolute;
   inset: 0;
+  /* Solid bakgrund så menu/HUD inte syns igenom (var lite för transparent vid 0.96) */
   background:
-    radial-gradient(circle at 30% 20%, rgba(170,40,40,0.15) 0%, transparent 50%),
-    radial-gradient(circle at 70% 80%, rgba(170,90,255,0.1) 0%, transparent 50%),
-    rgba(10, 5, 8, 0.96);
+    radial-gradient(circle at 30% 20%, rgba(170,40,40,0.18) 0%, transparent 50%),
+    radial-gradient(circle at 70% 80%, rgba(170,90,255,0.12) 0%, transparent 50%),
+    rgba(8, 4, 6, 0.99);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -435,6 +444,22 @@ html, body {
   pointer-events: none;
 }
 .overlay.hidden { display: none; }
+/* Sista action-knappen i en overlay (TILLBAKA/STÄNG/FORTSÄTT) ska ALLTID synas
+   även när innehåll är längre än viewport. Sticky-bottom håller den i sikte
+   medan resten av innehållet scrollar bakom. Fix för avklippta knappar
+   på iPhone landscape (~393px höjd).
+   flex-shrink:0 + min-height: hindrar flex-column från att komprimera knappen. */
+.overlay > .big-btn:last-of-type,
+.overlay > .small-btn:last-of-type {
+  position: sticky;
+  bottom: max(8px, env(safe-area-inset-bottom, 8px));
+  z-index: 2;
+  margin-top: 12px;
+  flex-shrink: 0;
+  min-height: 48px;
+  /* Liten skugga så knappen syns ovanpå scrollat content */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
 @keyframes overlayFadeIn {
   from { opacity: 0; backdrop-filter: blur(0px); }
   to { opacity: 1; backdrop-filter: blur(2px); }
@@ -945,6 +970,10 @@ body.colorblind .hostile-bullet { filter: hue-rotate(180deg); }
   background: linear-gradient(135deg, #2a1a44, #4a2a64);
   color: #fff;
   padding: 12px 16px;
+  /* iOS home-indicator: 21px i landskap, 34px i porträtt — pad ner så banner inte täcks */
+  padding-bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 8px));
+  padding-left: max(16px, env(safe-area-inset-left, 16px));
+  padding-right: max(16px, env(safe-area-inset-right, 16px));
   display: flex;
   align-items: center;
   gap: 12px;
@@ -968,10 +997,16 @@ body.colorblind .hostile-bullet { filter: hue-rotate(180deg); }
 #btn-install { background: #aa5aff; color: #fff; }
 #btn-install-dismiss { background: transparent; color: #aaa; font-size: 18px; padding: 4px 10px; }
 
-/* iOS-specifika fixes */
-body.ios #joystick { bottom: env(safe-area-inset-bottom, 30px); }
-body.ios #action-buttons { bottom: env(safe-area-inset-bottom, 30px); }
-body.ios .overlay { padding-top: env(safe-area-inset-top, 24px); padding-bottom: env(safe-area-inset-bottom, 24px); }
+/* iOS-specifika fixes — env() returnerar fallback HELA värdet, inte adderat. Använd calc(base + env). */
+body.ios #joystick { bottom: calc(30px + env(safe-area-inset-bottom, 0px)); left: calc(30px + env(safe-area-inset-left, 0px)); }
+body.ios #action-buttons { bottom: calc(30px + env(safe-area-inset-bottom, 0px)); right: calc(20px + env(safe-area-inset-right, 0px)); }
+/* Behåll horisontella safe-area-insets (Dynamic Island i landscape täcker vänstra kanten) */
+body.ios .overlay {
+  padding-top: max(24px, env(safe-area-inset-top, 24px));
+  padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
+  padding-left: max(16px, env(safe-area-inset-left, 16px));
+  padding-right: max(16px, env(safe-area-inset-right, 16px));
+}
 
 /* Compact mode för medium skärmar (telefoner i landscape) */
 @media (max-width: 900px) {
@@ -1442,6 +1477,44 @@ button, .shop-item, .player-row, .pet-card {
   #shop-items { max-height: 50vh; }
   #menu-screen { padding-top: 8px !important; }
   .big-btn { padding: 10px 24px !important; margin: 4px !important; }
+  /* CRITICAL: I landscape (~393px höjd) klipps TILLBAKA-knappar pga sentinels +
+     long inner grids fyllde overlay. Fix: cap inner grids tightre + flex-start så
+     content rinner uppifrån, knappen blir alltid synlig längst ner. */
+  #ach-grid, #shop-items, #shop-upgrades, #shop-perks,
+  #weapon-menu-grid, #cheats-grid, #costumes-grid,
+  #companions-grid, #wardrobe-options {
+    max-height: 45vh !important;
+    overflow-y: auto;
+  }
+  /* Outfits/Costumes: visa flera cards per rad i landscape istället för 1-1.5 */
+  #costumes-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important;
+    gap: 6px !important;
+    width: 100%;
+    max-width: 720px;
+  }
+  /* Companions: samma multi-col layout */
+  #companions-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)) !important;
+    gap: 6px !important;
+    flex-direction: row !important;
+  }
+  .overlay::before, .overlay::after { flex: 0 1 0 !important; }
+  .overlay {
+    justify-content: flex-start;
+    gap: 6px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 12px)) !important;
+  }
+  /* Settings-screen är högt-form — gör inner content scrollable så STÄNG inte klipps */
+  #settings-screen {
+    justify-content: flex-start;
+  }
+  #settings-screen > div:not(:last-child) {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
 }
 
 /* ============================================================
