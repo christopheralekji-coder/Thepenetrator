@@ -82,6 +82,7 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
       r: isCrit ? 5 : (w.id === 'flame' ? 6 : 4),
       color: (isCrit || isHead || cheatChozza) ? '#ffeb3b' : w.color,
       hostile: false,
+      weaponId: weaponId,
       pierce: cheatPen || cheatUlt || !!w.pierce,
       explosive: (w.explosive || 0) * explMul,
       crit: isCrit || isHead,
@@ -272,7 +273,8 @@ function updateBullets(sim, dt, now) {
           ws.playerState.hp = Math.max(0, ws.playerState.hp - b.dmg);
           if (ws.playerState.hp <= 0) {
             // Kill — respawn timer + öka team-score + per-pid stats
-            ws.tdmRespawnAt = Date.now() + 3000;
+            const respawnAt = Date.now() + 3000;
+            ws.tdmRespawnAt = respawnAt;
             sim.tdmKills[ownerTeam] = (sim.tdmKills[ownerTeam] || 0) + 1;
             sim.tdmKillsByPid[b.ownerPid] = (sim.tdmKillsByPid[b.ownerPid] || 0) + 1;
             sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
@@ -282,8 +284,15 @@ function updateBullets(sim, dt, now) {
               victim: pid,
               killerTeam: ownerTeam,
               victimTeam: ws.tdmTeam,
+              weapon: b.weaponId || null,
               redKills: sim.tdmKills.red,
               blueKills: sim.tdmKills.blue,
+            });
+            // Riktat event till victim så de kan rendera respawn-countdown
+            sim.eventQueue.push({
+              type: 'tdm_player_died',
+              victim: pid,
+              respawnAt,
             });
             if (sim.tdmKills[ownerTeam] >= sim.tdmTargetKills) {
               sim.tdmEnded = true;

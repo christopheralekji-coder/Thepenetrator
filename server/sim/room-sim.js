@@ -82,12 +82,18 @@ function tickSim(sim) {
   // TDM-mode: skip enemy spawning/AI, but bullets MÅSTE tickas så spelare kan skjuta varandra
   if (sim.tdmActive) {
     const nowMs = Date.now();
+    // Spawn-koordinater proportionella mot stage-bounds (annars hamnar blue utanför kartan
+    // på stages med worldW < 3600). Default-stage = TDM-arena, fallback till generösa värden.
+    const stg = getStage(sim.wave) || { worldW: 4000, worldH: 3000 };
+    const redSpawnX = Math.floor(stg.worldW * 0.10);
+    const blueSpawnX = Math.floor(stg.worldW * 0.90);
+    const spawnY = Math.floor(stg.worldH * 0.50);
     for (const [, ws] of sim.room.members) {
       if (ws.tdmRespawnAt && nowMs >= ws.tdmRespawnAt) {
         ws.tdmRespawnAt = 0;
         if (ws.playerState) {
-          ws.playerState.x = ws.tdmTeam === 'red' ? 400 : 3600;
-          ws.playerState.y = 1500;
+          ws.playerState.x = ws.tdmTeam === 'red' ? redSpawnX : blueSpawnX;
+          ws.playerState.y = spawnY;
           ws.playerState.hp = 100;
           ws.playerState.invulnUntil = Date.now() + 1500;
         }
@@ -458,15 +464,19 @@ function startSim(sim, opts) {
   if (sim.tdmActive) {
     // PvP-mode: ingen enemy-spawn, ingen wave-progression. Players spawnar på respektive lag-spawn.
     sim.simReadyAt = Date.now() + 5000;
-    // Init team-spawns + bygg roster: red @ vänster (x=400), blue @ höger (x=3600)
+    const stg = getStage(sim.wave) || { worldW: 4000, worldH: 3000 };
+    const redSpawnX = Math.floor(stg.worldW * 0.10);
+    const blueSpawnX = Math.floor(stg.worldW * 0.90);
+    const spawnY = Math.floor(stg.worldH * 0.50);
+    // Init team-spawns + bygg roster proportionellt till worldW (annars utanför kartan)
     const teams = {};
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
       const team = i % 2 === 0 ? 'red' : 'blue';
       ws.tdmTeam = team;
       ws.playerState = ws.playerState || {};
-      ws.playerState.x = team === 'red' ? 400 : 3600;
-      ws.playerState.y = 1500;
+      ws.playerState.x = team === 'red' ? redSpawnX : blueSpawnX;
+      ws.playerState.y = spawnY;
       ws.playerState.hp = 100;
       teams[pid] = team;
       sim.tdmKillsByPid[pid] = 0;

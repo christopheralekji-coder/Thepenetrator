@@ -1453,6 +1453,11 @@ button, .shop-item, .player-row, .pet-card {
   85% { opacity: 1; }
   100% { opacity: 0; transform: translateX(0); }
 }
+@keyframes tdmEndFlash {
+  0% { opacity: 0; }
+  20% { opacity: 1; }
+  100% { opacity: 0; }
+}
 .tdm-target-btn.active {
   background: linear-gradient(135deg, #ff5a5a, #aa3030) !important;
   color: #fff !important;
@@ -1461,5 +1466,32 @@ button, .shop-item, .player-row, .pet-card {
 }
 @media (max-width: 600px) {
   #tdm-score { font-size: 14px !important; padding: 4px 10px !important; }
-  #tdm-killfeed { font-size: 11px !important; max-width: 60vw !important; }
+  /* Kill-feed: krockar med fire-button + ammo-HUD i mobil-landskap. Flytta till
+     top-center under score-banner istället för right-side. */
+  #tdm-killfeed {
+    font-size: 11px !important;
+    max-width: 60vw !important;
+    top: 38px !important;
+    right: auto !important;
+    left: 50% !important;
+    transform: translateX(-50%);
+    align-items: center;
+  }
 }
+/* TDM respawn-overlay — stor nedtelling när spelaren dödad */
+#tdm-respawn-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  background: rgba(0,0,0,0.6);
+  z-index: 100;
+  pointer-events: none;
+  color: #ff5a5a;
+  font-weight: 900;
+  text-shadow: 0 0 12px rgba(0,0,0,0.8);
+}
+#tdm-respawn-overlay .label { font-size: 16px; letter-spacing: 4px; margin-bottom: 4px; color: #ddd; }
+#tdm-respawn-overlay .num { font-size: 88px; line-height: 1; }

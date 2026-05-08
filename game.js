@@ -770,9 +770,12 @@ function drawTdmTeamRings() {
     ctx.shadowColor = color;
     ctx.shadowBlur = 12 * pulse;
     ctx.globalAlpha = 0.9;
+    // Color-blind safety: röd = solid ring, blå = streckad ring (deuteranope-vänligt)
+    if (team === 'blue') ctx.setLineDash([6, 4]);
     ctx.beginPath();
     ctx.arc(x, y + 14, 22, 0, Math.PI * 2);
     ctx.stroke();
+    ctx.setLineDash([]);
     ctx.restore();
   };
   // Min egen ring
@@ -1503,11 +1506,29 @@ function ensureUpgrades() {
   //  - borttagna vapen (tonfa, boxgloves, glaive, drone)
   //  - undefined/null equipped/weaponId (gamla save-versioner)
   //  - tom eller saknad owned-array
+  const REMOVED_WEAPONS = ['tonfa', 'boxgloves', 'glaive', 'drone'];
   if (!Array.isArray(save.owned)) save.owned = ['fists'];
+  // Räkna borttagna ägda vapen så vi kan visa toast + ev. återbetalning
+  const lostOwned = save.owned.filter(id => REMOVED_WEAPONS.includes(id));
   save.owned = save.owned.filter(id => W_BY_ID[id]);
   if (!save.owned.includes('fists')) save.owned.unshift('fists');
+  const equippedWasRemoved = save.equipped && REMOVED_WEAPONS.includes(save.equipped);
   if (!save.equipped || !W_BY_ID[save.equipped]) save.equipped = 'fists';
   if (!save.weaponId || !W_BY_ID[save.weaponId]) save.weaponId = save.equipped;
+  // Återbetalning + en-gångs notifiering om något togs bort
+  if (lostOwned.length > 0 && !save._weaponRefundNotified) {
+    save.gold = (save.gold || 0) + lostOwned.length * 100;
+    save._weaponRefundNotified = true;
+    // Defer toast tills DOM är redo (showToast kan vara odefinierat vid ensureUpgrades)
+    setTimeout(() => {
+      if (typeof showToast === 'function') {
+        const msg = lostOwned.length === 1
+          ? `Vapnet togs bort. Du fick 100g tillbaka.`
+          : `${lostOwned.length} vapen togs bort. Du fick ${lostOwned.length * 100}g tillbaka.`;
+        showToast(msg + (equippedWasRemoved ? ' Du kör nu med Knytnävar.' : ''));
+      }
+    }, 1500);
+  }
 }
 
 // Definition av spelar-uppgraderingar
@@ -1707,7 +1728,7 @@ const PERKS = [
   { id: 'stealth',    icon: '👤', name: 'Tystgångare',     price: 550,  desc: 'Fiender upptäcker dig 40% senare. Första skottet ger +50% skada.' },
   // === 10 NYA PERKS ===
   { id: 'timerewind', icon: '⏪', name: 'Time-rewind',     price: 1500, desc: 'Vid kritisk HP, spola tillbaka 3 sek. En gång per stage.' },
-  { id: 'glasscannon',icon: '💥', name: 'Glas-kanon',      price: 700,  desc: '+60% skada men halverat HP.' },
+  { id: 'glasscannon',icon: '💥', name: 'Glas-kanon',      price: 700,  desc: '+75% skada men halverat HP. Skjuter 15% snabbare.' },
   { id: 'phantombody',icon: '👻', name: 'Spektral kropp',  price: 800,  desc: '20% chans att skott missar dig.' },
   { id: 'klone',      icon: '👯', name: 'Klone',           price: 1000, desc: 'En skugga följer dig och skjuter likadant 35% av tiden.' },
   { id: 'goldwindow', icon: '✨', name: 'Gold-fönster',    price: 600,  desc: 'Vid stage-clear, 5 sek där alla droppar guld.' },
@@ -2396,7 +2417,7 @@ function makePlayer() {
     reloadStart: 0,
     invuln: 0,
     flashUntil: 0,
-    dmgMul: (1 + u.dmg * 0.10) * (dailyMod === 'reduced_hp' ? 1.3 : (dailyMod === 'glass_cannon' ? 3.0 : 1)) * (hasPerk('glasscannon') ? 1.6 : 1),
+    dmgMul: (1 + u.dmg * 0.10) * (dailyMod === 'reduced_hp' ? 1.3 : (dailyMod === 'glass_cannon' ? 3.0 : 1)) * (hasPerk('glasscannon') ? 1.75 : 1),
     critChance: u.crit * 0.05,
     regenPerSec: u.regen * 0.6,
     reloadMul: 1 - u.reload * 0.15,
@@ -3432,7 +3453,8 @@ const Coop = {
       const victimName = (ev.victim === this.myId)
         ? (this.myName || 'Du')
         : (this.players.get(ev.victim) && this.players.get(ev.victim).name) || 'Spelare';
-      if (typeof addTdmKillFeed === 'function') addTdmKillFeed(killerName, ev.killerTeam, victimName, ev.victimTeam);
+      const weaponName = ev.weapon && W_BY_ID[ev.weapon] ? (W_BY_ID[ev.weapon].name || ev.weapon) : null;
+      if (typeof addTdmKillFeed === 'function') addTdmKillFeed(killerName, ev.killerTeam, victimName, ev.victimTeam, weaponName);
       if (typeof updateTdmScore === 'function') updateTdmScore(this.tdmRedKills, this.tdmBlueKills, this.tdmTargetKills);
       // Audio + shake om jag dog eller fick kill
       if (ev.victim === this.myId) {
@@ -3440,6 +3462,11 @@ const Coop = {
         if (typeof triggerShake === 'function') triggerShake(14, 0.6);
       } else if (ev.killer === this.myId) {
         if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+      }
+    } else if (ev.type === 'tdm_player_died') {
+      // Riktat event: bara renderera respawn-countdown om DET är jag som dog
+      if (ev.victim === this.myId && typeof showTdmRespawnCountdown === 'function') {
+        showTdmRespawnCountdown(ev.respawnAt);
       }
     } else if (ev.type === 'tdm_match_end') {
       this.tdmActive = false;
@@ -4515,28 +4542,40 @@ function renderHostControls() {
 
 function renderLobbyPlayers(players) {
   coopPlayerList.innerHTML = '';
-  for (const p of players) {
+  // TDM: pre-assigna teams i lobbyn (red/blue alternerande efter player-ordning) så
+  // spelarna ser sitt team innan match. Server gör samma assignment vid sim_start.
+  const tdmOn = !!Coop.config.tdm;
+  let redCount = 0, blueCount = 0;
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
     const row = document.createElement('div');
     row.className = 'player-row';
     const color = PLAYER_COLORS[p.colorIdx % PLAYER_COLORS.length];
     row.style.borderLeftColor = color;
     const youTag = p.peerId === Coop.myId ? ' (DU)' : '';
-    // Ping-färg: grön < 80ms, gul < 150ms, röd över. null = "väntar"
+    // Ping-färg
     let pingHtml = '';
-    if (p.isHost) {
-      pingHtml = '<span style="color:#888;font-size:11px;">HOST</span>';
-    } else if (p.ping == null) {
-      pingHtml = '<span style="color:#888;font-size:11px;">…</span>';
-    } else {
+    if (p.isHost) pingHtml = '<span style="color:#888;font-size:11px;">HOST</span>';
+    else if (p.ping == null) pingHtml = '<span style="color:#888;font-size:11px;">…</span>';
+    else {
       const c = p.ping < 80 ? '#5aff5a' : (p.ping < 150 ? '#ffd54a' : '#ff5a5a');
       pingHtml = `<span style="color:${c};font-size:11px;font-weight:700;">${p.ping}ms</span>`;
     }
+    // Team-tilldelning för TDM (i % 2: red=jämn, blue=udda) — speglar server-logik
+    let teamHtml = '';
+    if (tdmOn) {
+      const team = i % 2 === 0 ? 'red' : 'blue';
+      if (team === 'red') redCount++; else blueCount++;
+      const teamColor = team === 'red' ? '#ff5a5a' : '#5aaaff';
+      const teamLabel = team === 'red' ? 'RÖD' : 'BLÅ';
+      teamHtml = `<span style="background:${teamColor};color:#000;font-weight:900;font-size:10px;padding:2px 6px;border-radius:3px;margin-right:6px;">${teamLabel}</span>`;
+    }
     row.innerHTML = `
+      ${teamHtml}
       <div style="width:12px;height:12px;background:${color};border-radius:50%;flex:0 0 auto;"></div>
       <span class="pname">${p.name}${youTag}</span>
       <span style="margin-left:auto;margin-right:8px;">${pingHtml}</span>
     `;
-    // Kick-knapp för host (men inte mot sig själv)
     if (Coop.isHost && !p.isHost) {
       const btn = document.createElement('button');
       btn.className = 'kick-btn';
@@ -4547,6 +4586,20 @@ function renderLobbyPlayers(players) {
       row.appendChild(btn);
     }
     coopPlayerList.appendChild(row);
+  }
+  // TDM-säkerhet: visa team-balance + blockera start vid <2 spelare eller obalans
+  if (tdmOn && Coop.isHost) {
+    const balanceMsg = document.createElement('div');
+    balanceMsg.style.cssText = 'margin-top:8px;font-size:11px;text-align:center;font-weight:700;';
+    let warning = '';
+    if (players.length < 2) warning = ' · ⚠ MINST 2 SPELARE KRÄVS';
+    else if (redCount !== blueCount) warning = ' · ⚠ OJÄMNA LAG';
+    balanceMsg.innerHTML = `<span style="color:#ff5a5a;">RÖD ${redCount}</span> · <span style="color:#5aaaff;">BLÅ ${blueCount}</span><span style="color:#ffd54a;">${warning}</span>`;
+    coopPlayerList.appendChild(balanceMsg);
+    // Disable start om < 2 spelare (ojämna lag tillåts men varnas)
+    if (btnCoopStart) btnCoopStart.disabled = (players.length < 2);
+  } else if (btnCoopStart) {
+    btnCoopStart.disabled = false;
   }
   renderScalingInfo();
 }
@@ -4645,14 +4698,30 @@ Coop.onLobbyChange = (players) => {
   updateServerSimToggleVisibility();
   updateTdmToggleVisibility();
 };
+// Spara tidigare TDM-state så vi kan visa toast bara vid faktisk transition
+let _prevCoopTdmState = false;
 Coop.onConfigChange = (cfg) => {
   // Klient får ny config — rendera om om vi visar lobby
   if (!Coop.isHost && !coopLobbyEl.classList.contains('hidden')) {
     coopDifficultyInfo.textContent = 'Svårighet: ' + (cfg.difficulty || 'veteran').toUpperCase() + ' · Läge: ' + (MODE_LABELS[cfg.mode] || cfg.mode);
   }
+  // TDM-toggle transition-toast — bara för late-joiners (klient, inte host)
+  if (!Coop.isHost) {
+    const newTdm = !!cfg.tdm;
+    if (newTdm && !_prevCoopTdmState && typeof showToast === 'function') {
+      showToast('⚔ Host aktiverade TEAM DEATHMATCH');
+    } else if (!newTdm && _prevCoopTdmState && typeof showToast === 'function') {
+      showToast('Host stängde av TDM');
+    }
+    _prevCoopTdmState = newTdm;
+  }
   // Server-sim + TDM toggle synk till klienter
   if (typeof updateServerSimToggleVisibility === 'function') updateServerSimToggleVisibility();
   if (typeof updateTdmToggleVisibility === 'function') updateTdmToggleVisibility();
+  // Re-rendera lobby-listan så team-färgade chips uppdateras
+  if (typeof renderLobbyPlayers === 'function' && typeof Coop.serializeLobby === 'function') {
+    renderLobbyPlayers(Coop.serializeLobby());
+  }
   renderScalingInfo();
 };
 
@@ -5394,9 +5463,10 @@ function tryShoot(now) {
     return;
   }
   const w = W_BY_ID[activeWeaponId];
-  // Stark-melee perk
+  // Stark-melee perk + Glas-kanon fire-rate bonus (15% snabbare alla vapen)
   const meleeMul = (w.type === 'melee' && hasPerk('fastmelee')) ? 0.70 : 1;
-  if (now - p.lastShot < w.rate * meleeMul) return;
+  const glasscannonMul = hasPerk('glasscannon') ? 0.85 : 1;
+  if (now - p.lastShot < w.rate * meleeMul * glasscannonMul) return;
 
   // Adrenalin perk
   const adrenaline = hasPerk('adrenalin') && p.hp < p.maxHp * 0.3;
@@ -7600,6 +7670,29 @@ const _tdmEndTitle = document.getElementById('tdm-end-title');
 const _tdmEndScore = document.getElementById('tdm-end-score');
 const _tdmEndStats = document.getElementById('tdm-end-stats');
 const _btnTdmBack = document.getElementById('btn-tdm-back');
+const _btnTdmRematch = document.getElementById('btn-tdm-rematch');
+const _tdmRespawnOverlay = document.getElementById('tdm-respawn-overlay');
+const _tdmRespawnNum = document.getElementById('tdm-respawn-num');
+
+// Visar countdown-overlay tills `respawnAt` (server-millis). Stänger sig själv automatiskt.
+let _tdmRespawnInterval = null;
+function showTdmRespawnCountdown(respawnAt) {
+  if (!_tdmRespawnOverlay || !_tdmRespawnNum) return;
+  _tdmRespawnOverlay.classList.remove('hidden');
+  if (_tdmRespawnInterval) clearInterval(_tdmRespawnInterval);
+  const tick = () => {
+    const remaining = Math.max(0, respawnAt - Date.now());
+    if (remaining <= 0) {
+      _tdmRespawnOverlay.classList.add('hidden');
+      clearInterval(_tdmRespawnInterval);
+      _tdmRespawnInterval = null;
+      return;
+    }
+    _tdmRespawnNum.textContent = String(Math.ceil(remaining / 1000));
+  };
+  tick();
+  _tdmRespawnInterval = setInterval(tick, 100);
+}
 
 function showTdmHud(myTeam) {
   if (!_tdmHud) return;
@@ -7617,13 +7710,14 @@ function updateTdmScore(red, blue, target) {
   if (_tdmBlueEl) _tdmBlueEl.textContent = 'BLUE ' + blue;
   if (_tdmTargetEl) _tdmTargetEl.textContent = String(target || 10);
 }
-function addTdmKillFeed(killerName, killerTeam, victimName, victimTeam) {
+function addTdmKillFeed(killerName, killerTeam, victimName, victimTeam, weaponName) {
   if (!_tdmKillFeedEl) return;
   const row = document.createElement('div');
   const kColor = killerTeam === 'red' ? '#ff5a5a' : '#5aaaff';
   const vColor = victimTeam === 'red' ? '#ff5a5a' : '#5aaaff';
   row.style.cssText = 'background:rgba(0,0,0,0.65);padding:3px 8px;border-radius:4px;animation:tdmKillFade 4s forwards;';
-  row.innerHTML = `<span style="color:${kColor};font-weight:700;">${escapeHtml(killerName)}</span> <span style="color:#aaa;">→</span> <span style="color:${vColor};font-weight:700;">${escapeHtml(victimName)}</span>`;
+  const weaponHtml = weaponName ? ` <span style="color:#ffd54a;font-size:11px;">· ${escapeHtml(weaponName)}</span>` : '';
+  row.innerHTML = `<span style="color:${kColor};font-weight:700;">${escapeHtml(killerName)}</span> <span style="color:#aaa;">→</span> <span style="color:${vColor};font-weight:700;">${escapeHtml(victimName)}</span>${weaponHtml}`;
   _tdmKillFeedEl.appendChild(row);
   // Behåll max 5 rader
   while (_tdmKillFeedEl.children.length > 5) _tdmKillFeedEl.removeChild(_tdmKillFeedEl.firstChild);
@@ -7636,7 +7730,17 @@ function escapeHtml(s) {
 function showTdmEndScreen(winner, redKills, blueKills, stats, teams) {
   if (!_tdmEndOverlay) return;
   hideTdmHud();
+  // Vinnar-färg-flash innan overlay slides in (game-feel polish)
+  const winColor = winner === 'red' ? 'rgba(255,90,90,0.4)' : 'rgba(90,170,255,0.4)';
+  const flash = document.createElement('div');
+  flash.style.cssText = `position:fixed;inset:0;background:${winColor};z-index:199;pointer-events:none;animation:tdmEndFlash 1s forwards;`;
+  document.body.appendChild(flash);
+  setTimeout(() => { if (flash.parentNode) flash.parentNode.removeChild(flash); }, 1100);
   _tdmEndOverlay.classList.remove('hidden');
+  // Rematch-knapp: bara host får trycka (de andra ser host väljer-text)
+  if (_btnTdmRematch) {
+    _btnTdmRematch.classList.toggle('hidden', !Coop.isHost);
+  }
   if (_tdmEndTitle) {
     _tdmEndTitle.textContent = winner === 'red' ? 'RED WINS' : 'BLUE WINS';
     _tdmEndTitle.style.color = winner === 'red' ? '#ff5a5a' : '#5aaaff';
@@ -7660,7 +7764,7 @@ function showTdmEndScreen(winner, redKills, blueKills, stats, teams) {
 if (_btnTdmBack) {
   _btnTdmBack.addEventListener('click', () => {
     if (_tdmEndOverlay) _tdmEndOverlay.classList.add('hidden');
-    // Bara host får stoppa simmen — klienter låter den vara så host kan starta rematch
+    // Host stoppar simmen för alla; non-hosts disconnectar bara sig själva
     if (Coop.isHost && Coop.ws && Coop.ws.readyState === 1) {
       try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (e) {}
     }
@@ -7673,6 +7777,31 @@ if (_btnTdmBack) {
     document.body.classList.add('menu-mode');
     if (typeof menuScreen !== 'undefined') menuScreen.classList.remove('hidden');
     Coop.disconnect();
+  });
+}
+if (_btnTdmRematch) {
+  _btnTdmRematch.addEventListener('click', () => {
+    if (!Coop.isHost) return;
+    if (_tdmEndOverlay) _tdmEndOverlay.classList.add('hidden');
+    // Stoppa nuvarande sim + starta ny TDM med samma config (members.size oförändrat)
+    if (Coop.ws && Coop.ws.readyState === 1) {
+      try {
+        Coop.ws.send(JSON.stringify({ type: 'sim_stop' }));
+        // Liten paus så server hinner stoppa innan nytt start (annars race)
+        setTimeout(() => {
+          if (!Coop.ws || Coop.ws.readyState !== 1) return;
+          Coop.ws.send(JSON.stringify({
+            type: 'sim_start',
+            wave: 1,
+            difficulty: Coop.config.difficulty || 'veteran',
+            ngpLevel: 0,
+            mode: Coop.config.mode || 'story',
+            tdm: true,
+            tdmTargetKills: Coop.config.tdmTargetKills || 10,
+          }));
+        }, 400);
+      } catch (e) {}
+    }
   });
 }
 
@@ -8154,24 +8283,30 @@ function updateEnemies(dt, now) {
 
     // SMARTARE AI: stuck-detection. Om fienden inte rört sig nämnvärt på 1s, sidestepa
     // (alternera vänster/höger) i 0.6s för att gå runt obstacles.
-    if (e._lastPosCheck === undefined) { e._lastPosCheck = now; e._lastCheckX = e.x; e._lastCheckY = e.y; e._sidestepUntil = 0; }
-    if (e._sidestepUntil && now < e._sidestepUntil) {
-      // Pågående sidestep — gå vinkelrätt mot player-direction
-      const pdx = p.x - e.x, pdy = p.y - e.y;
-      const pd = Math.hypot(pdx, pdy) || 1;
-      const sgn = e._sidestepDir || 1;
-      e.x += (-pdy/pd) * sgn * e.speed * dt * 1.1;
-      e.y += (pdx/pd) * sgn * e.speed * dt * 1.1;
-    } else if (now - e._lastPosCheck > 1000) {
-      const moved = Math.hypot(e.x - e._lastCheckX, e.y - e._lastCheckY);
-      if (moved < 30 && !e.staggerUntil) {
-        // Stuck — initiera sidestep åt slumpmässigt håll
-        e._sidestepUntil = now + 600;
-        e._sidestepDir = Math.random() < 0.5 ? -1 : 1;
+    // Bossar undantagna — telegraph-windups (charge prep, slam) behöver hålla position.
+    // Stagger initial-check med per-enemy random offset så de inte alla kollar samma sekund
+    // (annars synkad sidestep-dans när spelaren står still).
+    if (!e.isBoss) {
+      if (e._lastPosCheck === undefined) {
+        e._lastPosCheck = now - Math.random() * 1000;
+        e._lastCheckX = e.x; e._lastCheckY = e.y; e._sidestepUntil = 0;
       }
-      e._lastPosCheck = now;
-      e._lastCheckX = e.x;
-      e._lastCheckY = e.y;
+      if (e._sidestepUntil && now < e._sidestepUntil) {
+        const pdx = p.x - e.x, pdy = p.y - e.y;
+        const pd = Math.hypot(pdx, pdy) || 1;
+        const sgn = e._sidestepDir || 1;
+        e.x += (-pdy/pd) * sgn * e.speed * dt * 1.1;
+        e.y += (pdx/pd) * sgn * e.speed * dt * 1.1;
+      } else if (now - e._lastPosCheck > 1000) {
+        const moved = Math.hypot(e.x - e._lastCheckX, e.y - e._lastCheckY);
+        if (moved < 30 && !e.staggerUntil) {
+          e._sidestepUntil = now + 600;
+          e._sidestepDir = Math.random() < 0.5 ? -1 : 1;
+        }
+        e._lastPosCheck = now;
+        e._lastCheckX = e.x;
+        e._lastCheckY = e.y;
+      }
     }
 
     // byggnad-kollision

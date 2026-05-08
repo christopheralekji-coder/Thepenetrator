@@ -248,11 +248,16 @@ function applySeparation(e, allEnemies) {
   }
 }
 
-// Stuck-detection: om enemy inte rört sig nämnvärt på 1s, sidestepa för att gå runt obstacles
+// Stuck-detection: om enemy inte rört sig nämnvärt på 1s, sidestepa för att gå runt obstacles.
+// Bossar undantagna — telegraph-windups (charge prep, slam) behöver hålla position
+// för att vara läsbara. Stagger initial check med per-enemy random offset så alla inte
+// kollar exakt samtidigt (annars synkad sidestep-dans när spelaren står still).
 function applyStuckSidestep(e, dt, now, target) {
   if (!target) return;
+  if (e.isBoss) return;
   if (e._lastPosCheck === undefined) {
-    e._lastPosCheck = now; e._lastCheckX = e.x; e._lastCheckY = e.y; e._sidestepUntil = 0;
+    e._lastPosCheck = now - Math.random() * 1000;
+    e._lastCheckX = e.x; e._lastCheckY = e.y; e._sidestepUntil = 0;
   }
   if (e._sidestepUntil && now < e._sidestepUntil) {
     const pdx = target.x - e.x, pdy = target.y - e.y;
