@@ -9257,6 +9257,7 @@ function buildStageLayout(stage) {
     cargo:     layoutCargo,
     bunker:    layoutBunker,
     command:   layoutCommand,
+    tdm:       layoutTdm,
   };
   const fn = layouts[stage.kind] || layoutForest;
   fn(stage);
@@ -10063,6 +10064,28 @@ function layoutCommand(stage) {
   stageState.decorations.push({ x: stage.goalPos.x, y: stage.goalPos.y + 200, kind: 'big_warning_sign', text: '⚠ DEFCON 1' });
   stageState.decorations.push({ x: W * 0.18, y: H/2, kind: 'metal_sign', text: 'AUTH-LVL Ω', red: true });
   stageState.decorations.push({ x: W * 0.82, y: H/2, kind: 'metal_sign', text: 'OVERSIGHT', red: true });
+}
+
+// TDM-arena: symmetrisk PvP-layout. 6 mirrored crates/rocks som cover, ett centralt
+// kluster, öppna sidor för flank-routes. Inga byggnader så spelarna kan loopa.
+function layoutTdm(stage) {
+  const cy = stage.worldH / 2;
+  const xQuarter = stage.worldW * 0.25;
+  const xMid = stage.worldW * 0.5;
+  // Sidcover (4 st, mirrored vertikalt + horisontellt)
+  const sidePairs = [
+    { dx: xQuarter, dy: cy - 280 },
+    { dx: xQuarter, dy: cy + 280 },
+    { dx: stage.worldW - xQuarter, dy: cy - 280 },
+    { dx: stage.worldW - xQuarter, dy: cy + 280 },
+  ];
+  for (const p of sidePairs) {
+    stageState.decorations.push({ x: p.dx - 30, y: p.dy - 30, w: 60, h: 60, kind: 'crate' });
+  }
+  // Centralt kluster — 3 crates i triangel
+  stageState.decorations.push({ x: xMid - 30, y: cy - 90, w: 60, h: 60, kind: 'crate' });
+  stageState.decorations.push({ x: xMid - 90, y: cy + 30, w: 60, h: 60, kind: 'crate' });
+  stageState.decorations.push({ x: xMid + 30, y: cy + 30, w: 60, h: 60, kind: 'crate' });
 }
 
 function layoutGenericPlaceholder(stage) {

@@ -516,6 +516,56 @@ html, body {
   border-radius: 0 0 8px 8px;
   z-index: 1;
 }
+/* ============================================================
+   BUTTON POLISH — konsistent stil över alla knapptyper
+   ============================================================ */
+.big-btn, .medium-btn, .small-btn {
+  transition: transform 0.08s, box-shadow 0.15s, filter 0.15s;
+  outline: none;
+}
+.big-btn:hover, .medium-btn:hover, .small-btn:hover {
+  filter: brightness(1.12);
+}
+.big-btn:active, .medium-btn:active, .small-btn:active {
+  transform: scale(0.97);
+  filter: brightness(0.92);
+}
+.big-btn:disabled, .medium-btn:disabled, .small-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+/* Lobby + meny rad-styling: konsistent panel-utseende */
+.lobby-section {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: border-color 0.15s;
+}
+.lobby-section:hover { border-color: rgba(255,213,74,0.2); }
+.lobby-label {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: #aaa;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 6px;
+  display: block;
+}
+/* Player-row polish */
+#coop-player-list .player-row {
+  background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+  border: 1px solid rgba(255,255,255,0.08);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 10px 14px;
+  transition: border-color 0.15s, background 0.15s;
+}
+#coop-player-list .player-row:hover {
+  border-color: rgba(255,213,74,0.3);
+  background: linear-gradient(135deg, rgba(255,213,74,0.08), rgba(255,255,255,0.02));
+}
 /* Sista action-knappen i en overlay (TILLBAKA/STÄNG/FORTSÄTT) ska ALLTID synas.
    Använder explicit klass .sticky-back-btn istället för :last-of-type — annars
    påverkades helskärm-knappen (position:absolute inline) felaktigt.
