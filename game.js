@@ -622,15 +622,18 @@ function drawCompanion() {
   // Skugga
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.beginPath(); ctx.ellipse(x + 2, y + 12, 12, 4, 0, 0, Math.PI*2); ctx.fill();
-  // HP-bar ovanför companion (bara om skadad)
-  if (c.hp < c.maxHp) {
-    const bw = 26, bh = 4;
+  // HP-bar ovanför companion — alltid synlig (subtilare när full)
+  {
+    const bw = 28, bh = 4;
     const bx = x - bw / 2, by = y - 22;
+    const frac = Math.max(0, c.hp / c.maxHp);
+    const fullAlpha = frac >= 1 ? 0.5 : 1.0;
+    ctx.globalAlpha = fullAlpha;
     ctx.fillStyle = 'rgba(0,0,0,0.7)';
     ctx.fillRect(bx - 1, by - 1, bw + 2, bh + 2);
-    const frac = Math.max(0, c.hp / c.maxHp);
     ctx.fillStyle = frac > 0.5 ? '#5aff5a' : (frac > 0.25 ? '#ffd54a' : '#ff5a5a');
     ctx.fillRect(bx, by, bw * frac, bh);
+    ctx.globalAlpha = 1;
   }
   // Damage flash (vit overlay 100ms efter skada)
   const flashUntil = c.flashUntil || 0;
@@ -6814,7 +6817,12 @@ function loadStage(n) {
 function startZone(stage, zoneIdx) {
   const zones = stage.zones || [{ count: 8, pool: ['grunt'] }];
   if (zoneIdx >= zones.length) {
-    // Klart med alla zoner — spawna boss
+    // Klart med alla zoner — spawna boss (om inte sandbox/idle)
+    if (stage.sandbox) {
+      // Sandbox: ingen boss, ingen progression — bara idle-state
+      state.zoneState = 'idle';
+      return;
+    }
     spawnBoss(stage);
     return;
   }
@@ -7543,7 +7551,34 @@ const _setReset = document.getElementById('set-reset');
 if (_setReset) _setReset.addEventListener('click', resetSavePrompt);
 document.getElementById('btn-retry').addEventListener('click', () => {
   gameoverScreen.classList.add('hidden');
+  // Coop: om vi var i coop-rum, måste server få sim_start på nytt — annars
+  // tror server att matchen är slut och klient blir stuck. Skicka om host.
+  if (Coop.active && Coop.isHost && Coop.config && Coop.config.serverSim &&
+      Coop.ws && Coop.ws.readyState === 1) {
+    // Reset serverSim-flag innan retry så att actuallyStartGame triggar ny sim_start
+    Coop.serverSimActive = false;
+    state.serverSimActive = false;
+    Coop._simStartedConfirmed = false;
+  }
   startGame();
+  // Efter actuallyStartGame: om host i coop-serverSim, skicka ny sim_start
+  if (Coop.active && Coop.isHost && Coop.config && Coop.config.serverSim &&
+      Coop.ws && Coop.ws.readyState === 1) {
+    const payload = {
+      type: 'sim_start',
+      wave: state.wave || 1,
+      difficulty: Coop.config.difficulty || 'veteran',
+      ngpLevel: save.ngpLevel || 0,
+      mode: Coop.config.mode || 'story',
+    };
+    if (Coop.config.tdm) {
+      payload.tdm = true;
+      payload.tdmTargetKills = Coop.config.tdmTargetKills || 10;
+    }
+    try { Coop.ws.send(JSON.stringify(payload)); } catch (_) {}
+    Coop.serverSimActive = true;
+    state.serverSimActive = true;
+  }
 });
 document.getElementById('btn-menu').addEventListener('click', () => {
   gameoverScreen.classList.add('hidden');
@@ -8812,7 +8847,19 @@ function updateEnemies(dt, now) {
     if (e.dead) continue;
     // Per-enemy target: närmsta levande spelare (inkl coop partners)
     const _ti = getNearestAlivePlayer(e.x, e.y);
-    const p = _ti.ref;
+    let p = _ti.ref;
+    // Companion-aggro: 25% av fiender aktivt targets companion (om alive + finns)
+    // Persistent per-enemy så target inte flippar varje frame.
+    const _comp = state.companion;
+    if (_comp && _comp.alive && p) {
+      if (e._companionAggro === undefined) e._companionAggro = Math.random() < 0.25;
+      if (e._companionAggro) {
+        const distC = Math.hypot(_comp.x - e.x, _comp.y - e.y);
+        const distP = Math.hypot(p.x - e.x, p.y - e.y);
+        // Bara om companion är inom rimligt avstånd jämfört med player
+        if (distC < distP * 1.5) p = _comp;
+      }
+    }
     // Mind-controlled: byt sida (dödar andra fiender)
     if (e.mindControlled && now < e.mindControlUntil) {
       let target = null, bestD = 600;
@@ -9058,26 +9105,32 @@ function updateEnemies(dt, now) {
     // byggnad-kollision
     resolveBuildingCollision(e);
 
-    // KONTAKT med NÄRMSTA target (player ELLER companion om den är närmre och alive)
+    // KONTAKT med target (kan vara player eller companion enligt aggro ovan)
     if (e.contactCd <= 0 && e.dmg > 0) {
-      const distP = Math.hypot(p.x - e.x, p.y - e.y);
       const c = state.companion;
-      const distC = (c && c.alive) ? Math.hypot(c.x - e.x, c.y - e.y) : Infinity;
-      // Companion tas som mål om den är inom kontakt-range OCH närmre än player
-      const cR = c ? (c.r || 12) : 0;
-      const inRangeC = c && c.alive && distC < cR + e.r;
-      const inRangeP = distP < (p.r || 14) + e.r;
-      if (inRangeC && (distC < distP || !inRangeP)) {
-        damageCompanion(e.dmg);
-        e.contactCd = 0.6;
-      } else if (inRangeP) {
-        if (_ti.peerId) {
+      // Använder p (kan vara player eller companion) som primär target
+      const isCompanion = (c && p === c);
+      const distT = Math.hypot(p.x - e.x, p.y - e.y);
+      const tR = isCompanion ? (c.r || 12) : (p.r || 14);
+      if (distT < tR + e.r) {
+        if (isCompanion) {
+          damageCompanion(e.dmg);
+        } else if (_ti.peerId) {
           Coop.sendDamageToPartner(_ti.peerId, e.dmg);
           p.hp = Math.max(0, (p.hp || 100) - e.dmg);
         } else {
           damagePlayer(e.dmg);
         }
         e.contactCd = 0.6;
+      } else {
+        // Sekundär: kolla om OAVSETT target råkar vara nära companion (collateral)
+        if (c && c.alive && !isCompanion) {
+          const distC = Math.hypot(c.x - e.x, c.y - e.y);
+          if (distC < (c.r || 12) + e.r) {
+            damageCompanion(e.dmg);
+            e.contactCd = 0.6;
+          }
+        }
       }
     }
   }
