@@ -381,8 +381,10 @@ html, body {
 #action-buttons {
   position: absolute;
   /* Centrera under minimap: minimap right:12 width:110 → center-x = right:67.
-     Action-btn fire är 84px → center @ right:67 = right-edge: right:67-42 = right:25 */
-  bottom: 30px; right: 25px;
+     Action-btn fire är 84px → center @ right:67 = right-edge: right:67-42 = right:25.
+     Bottom:22 på 393px viewport ger ~jämn distans: minimap-bottom (170) → top (199)
+     = 29, bottom (371) → screen-bottom (393) = 22. Nära balanserat. */
+  bottom: 22px; right: 25px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1137,7 +1139,7 @@ body.colorblind .hostile-bullet { filter: hue-rotate(180deg); }
 
 /* iOS-specifika fixes — env() returnerar fallback HELA värdet, inte adderat. Använd calc(base + env). */
 body.ios #joystick { bottom: calc(30px + env(safe-area-inset-bottom, 0px)); left: calc(30px + env(safe-area-inset-left, 0px)); }
-body.ios #action-buttons { bottom: calc(30px + env(safe-area-inset-bottom, 0px)); right: calc(25px + env(safe-area-inset-right, 0px)); }
+body.ios #action-buttons { bottom: calc(22px + env(safe-area-inset-bottom, 0px)); right: calc(25px + env(safe-area-inset-right, 0px)); }
 /* Behåll horisontella safe-area-insets (Dynamic Island i landscape täcker vänstra kanten) */
 body.ios .overlay {
   padding-top: max(24px, env(safe-area-inset-top, 24px));
@@ -1423,9 +1425,9 @@ body.ios .overlay {
 .perk-item.owned .pprice { color: #aa5aff; }
 
 @media (min-width: 900px) {
-  /* Desktop: gör joystick + knappar mindre påträngande */
+  /* Desktop: gör joystick + knappar mindre påträngande, men håll centrerat under minimap */
   #joystick { bottom: 40px; left: 40px; }
-  #action-buttons { bottom: 40px; right: 30px; }
+  #action-buttons { bottom: 40px; right: 25px; }
 }
 
 /* Settings */
