@@ -5931,6 +5931,68 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
   spawnParticles(p.x + Math.cos(p.aimAngle)*p.r, p.y + Math.sin(p.aimAngle)*p.r, w.color, 4, 90);
 }
 
+// Per-vapen hit-particles vid bullet-träff. Ger varje vapen-typ unik visuell
+// signature på träff (frost = isskärvor, flame = glöd, plasma = energi-burst, etc).
+function spawnHitParticles(x, y, b) {
+  const style = b && b.style;
+  const color = (b && b.color) || '#ffd54a';
+  if (style === 'frost') {
+    // Iskärvor flygande utåt
+    for (let i = 0; i < 5; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 80 + Math.random() * 60;
+      state.particles.push({ x, y, vx: Math.cos(a)*sp, vy: Math.sin(a)*sp, life: 0.5, color: '#ccf6ff', r: 2 });
+    }
+  } else if (style === 'flame') {
+    // Eldgnistor
+    for (let i = 0; i < 4; i++) {
+      const a = Math.random() * Math.PI * 2;
+      state.particles.push({ x, y, vx: Math.cos(a)*60, vy: Math.sin(a)*60 - 30, life: 0.6, color: `rgba(255, ${100+Math.random()*100}, 30, 1)`, r: 2 + Math.random() * 2 });
+    }
+  } else if (style === 'plasma') {
+    // Energi-ring expansion
+    state.particles.push({ x, y, vx: 0, vy: 0, life: 0.3, color, r: 18, isExplosion: true });
+  } else if (style === 'tesla') {
+    // Lightning-sparks
+    for (let i = 0; i < 6; i++) {
+      const a = Math.random() * Math.PI * 2;
+      state.particles.push({ x, y, vx: Math.cos(a)*120, vy: Math.sin(a)*120, life: 0.25, color: '#ffeb3b', r: 1.5 });
+    }
+  } else if (style === 'sonic') {
+    // Sonic-ringar (3 expanderande)
+    for (let i = 0; i < 2; i++) {
+      state.particles.push({ x, y, vx: 0, vy: 0, life: 0.4 - i * 0.1, color: '#ff5ac4', r: 14 + i * 8, isExplosion: true });
+    }
+  } else if (style === 'railgun') {
+    // Vit elektrisk burst
+    state.particles.push({ x, y, vx: 0, vy: 0, life: 0.25, color: '#ffffff', r: 22, isExplosion: true });
+    for (let i = 0; i < 4; i++) {
+      const a = Math.random() * Math.PI * 2;
+      state.particles.push({ x, y, vx: Math.cos(a)*150, vy: Math.sin(a)*150, life: 0.2, color: '#aabbff', r: 2 });
+    }
+  } else if (style === 'blackhole') {
+    // Lila virvel-prickar
+    for (let i = 0; i < 5; i++) {
+      const a = Math.random() * Math.PI * 2;
+      state.particles.push({ x, y, vx: Math.cos(a)*40, vy: Math.sin(a)*40, life: 0.5, color: '#aa3aff', r: 2 });
+    }
+  } else if (style === 'thrown') {
+    // Knife-kast: små metall-stänk
+    for (let i = 0; i < 3; i++) {
+      const a = Math.random() * Math.PI * 2;
+      state.particles.push({ x, y, vx: Math.cos(a)*70, vy: Math.sin(a)*70, life: 0.3, color: '#cccccc', r: 1.5 });
+    }
+  } else if (style === 'rocket' || style === 'grenade') {
+    // Hanteras av explode() — skip particles här
+  } else {
+    // Default: små gula gnistor (pistol/revolver/rifle/smg/shotgun/sniper/burst/minigun/bow/crossbow)
+    for (let i = 0; i < 3; i++) {
+      const a = Math.random() * Math.PI * 2;
+      state.particles.push({ x, y, vx: Math.cos(a)*50, vy: Math.sin(a)*50, life: 0.25, color: color, r: 1.8 });
+    }
+  }
+}
+
 function damageEnemy(e, dmg, isCrit) {
   // Boss weak point — om träff i framsida (mot spelaren) inom 40% av radien = +200% dmg
   if (e.isBoss && state.player) {
@@ -8416,11 +8478,22 @@ function updatePlayer(dt, now) {
   // reload (med reload-fart-uppgradering)
   if (p.reloading) {
     const w = getWeapon(p.weaponId);
-    if (now - p.reloadStart >= w.reload * (p.reloadMul || 1)) {
+    const total = w.reload * (p.reloadMul || 1);
+    const elapsed = now - p.reloadStart;
+    if (elapsed >= total) {
       p.ammo = effectiveMag(p.weaponId);
       p.reloading = false;
       Audio.reloadDone();
       updateHUD();
+      // Rensa reload-ring
+      if (fireBtn) {
+        fireBtn.style.setProperty('--reload-progress', '0');
+      }
+    } else if (fireBtn) {
+      // Visa progress-ring i vapen-färg medan reload pågår
+      const prog = Math.max(0, Math.min(1, elapsed / total));
+      fireBtn.style.setProperty('--reload-progress', prog.toFixed(3));
+      fireBtn.style.setProperty('--reload-color', w.color || '#ffd54a');
     }
   }
 
@@ -9246,6 +9319,8 @@ function updateBullets(dt) {
             applyBulletEffects(e, b);
             e.lastDamagerPid = null; // host = null
             damageEnemy(e, b.dmg, b.crit);
+            // Per-vapen hit-particles (frost/flame/plasma/tesla/etc)
+            spawnHitParticles(e.x, e.y, b);
           }
           b.hitIds.add(e);
           if (!b.pierce) { hit = true; break; }
@@ -13196,6 +13271,48 @@ function drawPlayerWeapon(p, w, flash, now) {
     // Hammer-detalj baktill
     ctx.fillStyle = flash ? '#fff' : darken(w.color, 0.5);
     ctx.fillRect(p.r - 2, -4, 3, 4);
+  }
+  if (w.id === 'rifle') {
+    // Magazine (kurvad under) + sikte ovanpå
+    ctx.fillStyle = flash ? '#fff' : darken(w.color, 0.45);
+    ctx.fillRect(p.r + 8, 2, 6, 7);  // magazine
+    ctx.fillRect(p.r + 12, -5, 6, 2); // sikte
+    // Stock baktill
+    ctx.fillStyle = flash ? '#fff' : '#3d2818';
+    ctx.fillRect(p.r - 4, -2, 5, 4);
+  }
+  if (w.id === 'smg') {
+    // Kort vertikal magazine
+    ctx.fillStyle = flash ? '#fff' : darken(w.color, 0.5);
+    ctx.fillRect(p.r + 6, 2, 4, 6);
+    // Top-rail
+    ctx.strokeStyle = flash ? '#fff' : darken(w.color, 0.3);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 4, -3); ctx.lineTo(p.r + 14, -3);
+    ctx.stroke();
+  }
+  if (w.id === 'grenade') {
+    // Tjock cylinder-pipa med band-detaljer
+    ctx.strokeStyle = flash ? '#fff' : darken(w.color, 0.5);
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) {
+      const x = p.r + 6 + i * 5;
+      ctx.beginPath();
+      ctx.moveTo(x, -3); ctx.lineTo(x, 3);
+      ctx.stroke();
+    }
+  }
+  if (w.id === 'rocket') {
+    // Tjock pipa med fenor på ändan
+    ctx.fillStyle = flash ? '#fff' : darken(w.color, 0.4);
+    ctx.beginPath();
+    ctx.moveTo(p.r + len - 4, -5);
+    ctx.lineTo(p.r + len + 2, -3);
+    ctx.lineTo(p.r + len + 2,  3);
+    ctx.lineTo(p.r + len - 4,  5);
+    ctx.closePath();
+    ctx.fill();
   }
   if (w.id === 'rocket' || w.id === 'grenade') {
     // tjock pipa-ände

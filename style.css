@@ -437,6 +437,26 @@ html, body {
   pointer-events: auto;
   background: transparent;
 }
+/* Reload-progress-ring i vapen-färg. CSS vars sätts från JS:
+   --reload-progress: 0..1 (visar bara om p.reloading)
+   --reload-color: vapnets w.color (t.ex. #ffd54a) */
+.action-btn.fire {
+  --reload-progress: 0;
+  --reload-color: #ffd54a;
+}
+.action-btn.fire::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(var(--reload-color) calc(var(--reload-progress) * 360deg), transparent 0);
+  -webkit-mask: radial-gradient(circle, transparent 50%, #000 52%, #000 58%, transparent 60%);
+          mask: radial-gradient(circle, transparent 50%, #000 52%, #000 58%, transparent 60%);
+  opacity: var(--reload-progress);
+  transition: opacity 0.1s;
+  filter: drop-shadow(0 0 4px var(--reload-color));
+}
 .action-btn:active {
   transform: scale(0.92);
   box-shadow: 0 2px 6px rgba(0,0,0,0.6), inset 0 2px 4px rgba(0,0,0,0.3);
