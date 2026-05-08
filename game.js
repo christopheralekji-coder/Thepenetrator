@@ -1232,6 +1232,8 @@ function getWeapon(id) {
   return W_BY_ID[id] || W_BY_ID.fists;
 }
 
+// WEAPON_ICONS + getWeaponIcon definieras längre ner (line ~5519)
+
 // Vapen-kategori (för shop-filter)
 function weaponCategory(w) {
   const specials = ['flame', 'plasma', 'tesla', 'frost', 'sonic', 'lightsaber', 'energysword', 'railgun', 'blackhole'];
@@ -4985,7 +4987,25 @@ const wardrobeScreen = document.getElementById('wardrobe-screen');
 const wardrobeTabsEl = document.getElementById('wardrobe-tabs');
 const wardrobeOptsEl = document.getElementById('wardrobe-options');
 const wardrobePreview = document.getElementById('wardrobe-preview');
-const WARDROBE_CAT_LABELS = { skin: '🧑 Hud', hair: '💇 Hår', shirt: '👕 Väst', pants: '👖 Byxor', bandana: '🪢 Bandana' };
+const WARDROBE_CAT_LABELS = { preset: '✨ Outfits', skin: '🧑 Hud', hair: '💇 Hår', shirt: '👕 Väst', pants: '👖 Byxor', bandana: '🪢 Bandana' };
+
+// Pre-set outfit-kombinationer — applicerar alla 5 categories i ett klick
+const WARDROBE_PRESETS = [
+  { id: 'classic_hero', name: 'Klassisk Hjälte', wardrobe: { skin: 'tan', hair: 'shortDark', shirt: 'black', pants: 'khaki', bandana: 'red' } },
+  { id: 'urban_ninja', name: 'Urban Ninja', wardrobe: { skin: 'pale', hair: 'longBlack', shirt: 'cyber', pants: 'black', bandana: 'none' } },
+  { id: 'punk_rocker', name: 'Punk Rocker', wardrobe: { skin: 'fair', hair: 'mohawkRed', shirt: 'red', pants: 'black', bandana: 'none' } },
+  { id: 'desert_ranger', name: 'Ökenvandrare', wardrobe: { skin: 'tan', hair: 'shortBlonde', shirt: 'desert', pants: 'desert', bandana: 'tan' } },
+  { id: 'cyber_punk', name: 'Cyberpunk', wardrobe: { skin: 'pink', hair: 'mohawkPink', shirt: 'cyber', pants: 'black', bandana: 'pink' } },
+  { id: 'soldier', name: 'Soldat', wardrobe: { skin: 'olive', hair: 'shortDark', shirt: 'tactical', pants: 'tactical', bandana: 'olive' } },
+  { id: 'demon', name: 'Demon', wardrobe: { skin: 'red', hair: 'mohawkBlack', shirt: 'crimson', pants: 'black', bandana: 'red' } },
+  { id: 'angel', name: 'Ängel', wardrobe: { skin: 'porcelain', hair: 'whiteLong', shirt: 'white', pants: 'white', bandana: 'gold' } },
+  { id: 'biker', name: 'Biker', wardrobe: { skin: 'tan', hair: 'longBrown', shirt: 'black', pants: 'jeans', bandana: 'red' } },
+  { id: 'samurai', name: 'Samurai', wardrobe: { skin: 'fair', hair: 'ponytail', shirt: 'crimson', pants: 'black', bandana: 'red' } },
+  { id: 'vaporwave', name: 'Vaporwave', wardrobe: { skin: 'pink', hair: 'longPurple', shirt: 'pink', pants: 'cyber', bandana: 'pink' } },
+  { id: 'zombie', name: 'Zombie', wardrobe: { skin: 'gray', hair: 'mullet', shirt: 'urban', pants: 'urban', bandana: 'none' } },
+  { id: 'gold_god', name: 'Guld-Gud', wardrobe: { skin: 'gold', hair: 'longBlonde', shirt: 'gold', pants: 'gold', bandana: 'gold' } },
+  { id: 'robot', name: 'Robot', wardrobe: { skin: 'silver', hair: 'bald', shirt: 'silver', pants: 'urban', bandana: 'none' } },
+];
 let _wardrobeCurrentTab = 'skin';
 function drawWardrobePreview() {
   if (!wardrobePreview) return;
@@ -5044,7 +5064,7 @@ function drawWardrobePreview() {
 }
 function renderWardrobeTabs() {
   wardrobeTabsEl.innerHTML = '';
-  for (const cat of ['skin','hair','shirt','pants','bandana']) {
+  for (const cat of ['preset','skin','hair','shirt','pants','bandana']) {
     const btn = document.createElement('button');
     btn.className = 'small-btn';
     btn.textContent = WARDROBE_CAT_LABELS[cat];
@@ -5067,6 +5087,36 @@ function renderWardrobeOptions() {
   ensureWardrobe();
   wardrobeOptsEl.innerHTML = '';
   const cat = _wardrobeCurrentTab;
+  // Preset-tab: rendera outfit-presets (applicerar alla 5 cats vid klick)
+  if (cat === 'preset') {
+    for (const preset of WARDROBE_PRESETS) {
+      const card = document.createElement('div');
+      card.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 12px;border-radius:10px;background:linear-gradient(135deg, rgba(170,90,255,0.15), rgba(255,213,74,0.08));border:2px solid rgba(170,90,255,0.4);min-width:120px;transition:all 0.15s;';
+      card.onmouseenter = () => { card.style.borderColor = '#ffd54a'; card.style.transform = 'scale(1.03)'; };
+      card.onmouseleave = () => { card.style.borderColor = 'rgba(170,90,255,0.4)'; card.style.transform = 'scale(1)'; };
+      // Mini-preview swatch som visar 4 färger
+      const swatch = document.createElement('div');
+      const sk = WARDROBE.skin.find(o => o.id === preset.wardrobe.skin) || WARDROBE.skin[0];
+      const sh = WARDROBE.shirt.find(o => o.id === preset.wardrobe.shirt) || WARDROBE.shirt[0];
+      const ha = WARDROBE.hair.find(o => o.id === preset.wardrobe.hair) || WARDROBE.hair[0];
+      const ba = WARDROBE.bandana.find(o => o.id === preset.wardrobe.bandana) || WARDROBE.bandana[0];
+      swatch.style.cssText = 'display:flex;width:48px;height:48px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,0.2);';
+      swatch.innerHTML = `<div style="flex:1;background:${sk.color};"></div><div style="flex:1;background:${ha.color};"></div><div style="flex:1;background:${sh.color};"></div><div style="flex:1;background:${ba.color || '#222'};"></div>`;
+      card.appendChild(swatch);
+      const name = document.createElement('div');
+      name.style.cssText = 'font-size:11px;font-weight:700;color:#fff;text-align:center;letter-spacing:0.5px;';
+      name.textContent = preset.name;
+      card.appendChild(name);
+      card.addEventListener('click', () => {
+        Object.assign(save.wardrobe, preset.wardrobe);
+        persist();
+        Audio.purchase();
+        drawWardrobePreview();
+      });
+      wardrobeOptsEl.appendChild(card);
+    }
+    return;
+  }
   const current = save.wardrobe[cat];
   for (const opt of WARDROBE[cat]) {
     const card = document.createElement('div');
@@ -8068,7 +8118,9 @@ function updateHUD() {
   const lvl = getLevel(state.wave);
   waveInfo.textContent = `${state.wave}/${getStageCount()} · ${lvl.name}`;
   goldInfo.textContent = `💰 ${save.gold}`;
-  weaponName.textContent = (p._turretWeapon ? (isRepair ? '🔧 ' : '🛡️ ') : '') + w.name;
+  // Per-weapon emoji som visuell identitet i HUD
+  const wIcon = isRepair ? '🔧' : (p._turretWeapon ? '🛡️' : getWeaponIcon(p.weaponId));
+  weaponName.textContent = wIcon + ' ' + w.name;
   let ammoText;
   if (w.type === 'melee') ammoText = '∞';
   else if (p.reloading) ammoText = '...';
