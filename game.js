@@ -1234,6 +1234,20 @@ function getWeapon(id) {
 
 // WEAPON_ICONS + getWeaponIcon definieras längre ner (line ~5519)
 
+// Per-weapon färg-tier för HUD weapon-name (visuell hierarki).
+// Common (gratis) = grå, Uncommon (<400g) = grön, Rare (<1000g) = blå,
+// Epic (<2000g) = lila, Legendary (2000+) = guld.
+function getWeaponTierColor(id) {
+  const w = W_BY_ID[id];
+  if (!w) return '#aaa';
+  const p = w.price || 0;
+  if (p === 0) return '#aaa';
+  if (p < 400) return '#9aff5a';
+  if (p < 1000) return '#3acaff';
+  if (p < 2000) return '#aa3aff';
+  return '#ffd54a';
+}
+
 // Vapen-kategori (för shop-filter)
 function weaponCategory(w) {
   const specials = ['flame', 'plasma', 'tesla', 'frost', 'sonic', 'lightsaber', 'energysword', 'railgun', 'blackhole'];
@@ -5538,10 +5552,14 @@ document.getElementById('set-skipdialog').addEventListener('change', (e) => {
 document.getElementById('set-hidemap').addEventListener('change', (e) => {
   save.minimapHidden = e.target.checked; persist();
 });
-document.getElementById('set-tut-replay').addEventListener('click', () => {
-  save.tutorialDone = false; persist();
-  alert('Tutorial visas vid nästa spelstart.');
-});
+// set-tut-replay borttaget från HTML — guarda så getElementById null-deref inte kraschar
+const _setTutReplay = document.getElementById('set-tut-replay');
+if (_setTutReplay) {
+  _setTutReplay.addEventListener('click', () => {
+    save.tutorialDone = false; persist();
+    alert('Tutorial visas vid nästa spelstart.');
+  });
+}
 const _setAutoaim = document.getElementById('set-autoaim');
 if (_setAutoaim) {
   _setAutoaim.addEventListener('change', (e) => {
@@ -8186,6 +8204,8 @@ function updateHUD() {
   // (ammo visas vid fire-button istället) så vi prependar emoji till ammo-display.
   const wIcon = isRepair ? '🔧' : (p._turretWeapon ? '🛡️' : getWeaponIcon(p.weaponId));
   weaponName.textContent = wIcon + ' ' + w.name;
+  // Tier-färg på weapon-namn (gör det visuellt klart vilken kvalitet vapnet har)
+  if (!isRepair) weaponName.style.color = getWeaponTierColor(p.weaponId);
   let ammoText;
   if (w.type === 'melee') ammoText = '∞';
   else if (p.reloading) ammoText = '...';
@@ -12802,18 +12822,59 @@ function drawPlayerWeapon(p, w, flash, now) {
       ctx.fill();
       ctx.fillStyle = flash ? '#fff' : '#5a3a20';
       ctx.fillRect(p.r * 0.6 + stab, -2, 4, 4);
-    } else if (w.id === 'machete' || w.id === 'katana') {
-      // svärd: rotera blade beroende av slash
-      const swing = slashAnim * 1.4;
+    } else if (w.id === 'machete') {
+      // Machete: bredbladigt, lite kortare, brett blad (jakt-machete)
+      const swing = slashAnim * 1.3;
       ctx.save();
-      ctx.rotate(-0.7 + swing);
-      ctx.strokeStyle = flash ? '#fff' : (w.id === 'katana' ? '#e6e6f0' : '#9aa8b0');
-      ctx.lineWidth = 4; ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.4, 0);
-      ctx.stroke();
+      ctx.rotate(-0.6 + swing);
+      // Skaft (mörkbrun)
       ctx.fillStyle = flash ? '#fff' : '#3a2a1a';
-      ctx.beginPath(); ctx.arc(p.r * 0.7, 0, 4, 0, Math.PI*2); ctx.fill();
+      ctx.fillRect(p.r * 0.5, -2, p.r * 0.4, 4);
+      // Bredt platt blad
+      ctx.fillStyle = flash ? '#fff' : '#9aa8b0';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 0.9, -5);
+      ctx.lineTo(p.r * 2.2, -3);
+      ctx.lineTo(p.r * 2.2, 5);
+      ctx.lineTo(p.r * 0.9, 5);
+      ctx.closePath(); ctx.fill();
+      // Egg-detalj (mörkare linje)
+      ctx.strokeStyle = flash ? '#fff' : '#666';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.r * 0.9, 4); ctx.lineTo(p.r * 2.2, 4);
+      ctx.stroke();
+      ctx.restore();
+    } else if (w.id === 'katana') {
+      // Katana: lång slank elegant blad, vit-silver, distinkt grepp
+      const swing = slashAnim * 1.5;
+      ctx.save();
+      ctx.rotate(-0.8 + swing);
+      // Grepp (svart med band-mönster)
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.fillRect(p.r * 0.4, -2, p.r * 0.5, 4);
+      ctx.strokeStyle = flash ? '#fff' : '#aa3a3a';
+      ctx.lineWidth = 0.8;
+      for (let i = 0; i < 4; i++) {
+        const gx = p.r * 0.4 + i * (p.r * 0.5 / 4);
+        ctx.beginPath(); ctx.moveTo(gx, -2); ctx.lineTo(gx + 1, 2); ctx.stroke();
+      }
+      // Tsuba (handskydd, gyllene)
+      ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+      ctx.beginPath(); ctx.arc(p.r * 0.95, 0, 3.5, 0, Math.PI*2); ctx.fill();
+      // Långt slankt blad (ljust silver med curve)
+      ctx.strokeStyle = flash ? '#fff' : '#e6e6f0';
+      ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.1, -1);
+      ctx.quadraticCurveTo(p.r * 1.8, -3, p.r * 2.7, -1);
+      ctx.stroke();
+      // Glansreflexion
+      ctx.strokeStyle = flash ? '#fff' : 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.3, -2.2); ctx.lineTo(p.r * 2.3, -1.8);
+      ctx.stroke();
       ctx.restore();
     } else if (w.style === 'club_short') {
       // tonfa
@@ -12865,17 +12926,28 @@ function drawPlayerWeapon(p, w, flash, now) {
       ctx.quadraticCurveTo(p.r * 2.0, wave, p.r * 3.5, wave * 0.5);
       ctx.stroke();
     } else if (w.style === 'lightsaber') {
-      const swing = slashAnim * 1.4;
+      // Lightsaber: ELEGANT, smal grön strålglöd, hi-tech grepp
+      const swing = slashAnim * 1.2;
       ctx.save(); ctx.rotate(-0.5 + swing);
+      // Hi-tech grepp (silver med detaljer)
+      ctx.fillStyle = flash ? '#fff' : '#888';
+      ctx.fillRect(p.r * 0.45, -2.5, p.r * 0.45, 5);
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.fillRect(p.r * 0.55, -1, 2, 2);
+      ctx.fillRect(p.r * 0.65, -1, 2, 2);
+      ctx.fillRect(p.r * 0.75, -1, 2, 2);
+      // Pulserande glow-blade — smal och elegant
+      const pulseLS = 0.85 + Math.sin(now / 80) * 0.15;
       ctx.shadowColor = w.color;
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = 18 * pulseLS;
       ctx.strokeStyle = flash ? '#fff' : w.color;
-      ctx.lineWidth = 6; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.6, 0); ctx.stroke();
+      ctx.lineWidth = 5; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(p.r * 0.95, 0); ctx.lineTo(p.r * 2.7, 0); ctx.stroke();
       ctx.shadowBlur = 0;
+      // Vit kärna
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.6, 0); ctx.stroke();
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(p.r * 0.95, 0); ctx.lineTo(p.r * 2.7, 0); ctx.stroke();
       ctx.restore();
     } else if (w.style === 'boxgloves') {
       // dubbelnävar med taggar
@@ -12938,22 +13010,40 @@ function drawPlayerWeapon(p, w, flash, now) {
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(p.r * 2.9 + stab, -4); ctx.lineTo(p.r * 3.5 + stab, 0); ctx.stroke();
     } else if (w.style === 'energysword') {
-      const swing = slashAnim * 1.4;
-      ctx.save(); ctx.rotate(-0.6 + swing);
+      // Energysword: BRUTAL, tjock orange flam-blade, taggig grepp
+      const swing = slashAnim * 1.5;
+      ctx.save(); ctx.rotate(-0.7 + swing);
+      // Tjock röd-svart grepp med taggar
+      ctx.fillStyle = flash ? '#fff' : '#3a1a0a';
+      ctx.fillRect(p.r * 0.4, -4, p.r * 0.4, 8);
+      // Taggar på grepp
+      ctx.fillStyle = flash ? '#fff' : '#aa3a3a';
+      for (let i = 0; i < 3; i++) {
+        const gx = p.r * 0.45 + i * 4;
+        ctx.beginPath();
+        ctx.moveTo(gx, -4); ctx.lineTo(gx + 2, -6); ctx.lineTo(gx + 3, -4);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(gx, 4); ctx.lineTo(gx + 2, 6); ctx.lineTo(gx + 3, 4);
+        ctx.closePath(); ctx.fill();
+      }
+      // Glödande bred orange blade med flickering
+      const flick = 0.7 + Math.random() * 0.3;
       ctx.shadowColor = w.color;
-      ctx.shadowBlur = 14;
-      // glow-blade
+      ctx.shadowBlur = 22 * flick;
       ctx.strokeStyle = flash ? '#fff' : w.color;
-      ctx.lineWidth = 7; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.7, 0); ctx.stroke();
+      ctx.lineWidth = 8; ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.moveTo(p.r * 0.85, 0); ctx.lineTo(p.r * 2.6, 0); ctx.stroke();
       ctx.shadowBlur = 0;
-      // vit kärna
-      ctx.strokeStyle = '#fff';
+      // Vit-gul kärna
+      ctx.strokeStyle = '#fff8aa';
       ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.7, 0); ctx.stroke();
-      // grepp
-      ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
-      ctx.fillRect(p.r * 0.4, -3, p.r * 0.30, 6);
+      ctx.beginPath(); ctx.moveTo(p.r * 0.85, 0); ctx.lineTo(p.r * 2.6, 0); ctx.stroke();
+      // Spets-tag
+      ctx.fillStyle = '#fff8aa';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 2.6, -4); ctx.lineTo(p.r * 2.85, 0); ctx.lineTo(p.r * 2.6, 4);
+      ctx.closePath(); ctx.fill();
       ctx.restore();
     }
     return;
@@ -12964,7 +13054,8 @@ function drawPlayerWeapon(p, w, flash, now) {
   ctx.strokeStyle = flash ? '#fff' : w.color;
   ctx.lineCap = 'round';
   let len = 22, thick = 4;
-  if (w.id === 'pistol' || w.id === 'revolver') { len = 16; thick = 3.5; }
+  if (w.id === 'pistol') { len = 16; thick = 3.5; }
+  if (w.id === 'revolver') { len = 18; thick = 4; }
   if (w.id === 'shotgun') { len = 22; thick = 5; }
   if (w.id === 'smg') { len = 18; thick = 3.5; }
   if (w.id === 'rifle') { len = 26; thick = 4; }
@@ -13006,6 +13097,26 @@ function drawPlayerWeapon(p, w, flash, now) {
     // sikte ovanpå
     ctx.fillStyle = flash ? '#fff' : '#222';
     ctx.fillRect(p.r + 8, -5, 8, 3);
+  }
+  if (w.id === 'revolver') {
+    // Cylinder (cirkel framför grepp) som distinkt revolver-feature
+    ctx.fillStyle = flash ? '#fff' : darken(w.color, 0.6);
+    ctx.beginPath();
+    ctx.arc(p.r + 4, 0, 4.5, 0, Math.PI*2);
+    ctx.fill();
+    // Cylinder-hål
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + (now / 800) % (Math.PI * 2 / 6);
+      ctx.beginPath();
+      ctx.arc(p.r + 4 + Math.cos(a) * 2.2, Math.sin(a) * 2.2, 0.8, 0, Math.PI*2);
+      ctx.fill();
+    }
+  }
+  if (w.id === 'pistol') {
+    // Hammer-detalj baktill
+    ctx.fillStyle = flash ? '#fff' : darken(w.color, 0.5);
+    ctx.fillRect(p.r - 2, -4, 3, 4);
   }
   if (w.id === 'rocket' || w.id === 'grenade') {
     // tjock pipa-ände
@@ -13161,13 +13272,98 @@ function drawPlayerWeapon(p, w, flash, now) {
     ctx.shadowBlur = 0;
   }
 
-  // muzzle flash
+  // Per-vapen muzzle flash — distinct visual per vapen-typ
   if (muzzleFlash) {
     const a = sinceShot / 70;
-    ctx.fillStyle = `rgba(255, 220, 100, ${1 - a})`;
-    ctx.beginPath();
-    ctx.arc(p.r + len + 4, 0, 6 + (1 - a) * 6, 0, Math.PI*2);
-    ctx.fill();
+    const fade = 1 - a;
+    if (w.id === 'shotgun') {
+      // Bred kon — mass-spread
+      ctx.fillStyle = `rgba(255, 180, 80, ${fade * 0.85})`;
+      ctx.beginPath();
+      ctx.moveTo(p.r + len, -2);
+      ctx.lineTo(p.r + len + 18, -10 - fade * 6);
+      ctx.lineTo(p.r + len + 22, 0);
+      ctx.lineTo(p.r + len + 18, 10 + fade * 6);
+      ctx.lineTo(p.r + len, 2);
+      ctx.closePath(); ctx.fill();
+    } else if (w.id === 'sniper') {
+      // Tunn lång ljuslinje
+      ctx.fillStyle = `rgba(220, 180, 255, ${fade})`;
+      ctx.fillRect(p.r + len, -1.5, 28 * fade, 3);
+    } else if (w.id === 'minigun' || w.id === 'smg') {
+      // Snabb-fire glödande prick
+      ctx.fillStyle = `rgba(${w.id === 'minigun' ? '60, 240, 255' : '136, 204, 255'}, ${fade})`;
+      ctx.beginPath();
+      ctx.arc(p.r + len + 3, 0, 4 + fade * 3, 0, Math.PI*2);
+      ctx.fill();
+    } else if (w.id === 'rocket') {
+      // Stor flam-puff bakåt + fram
+      ctx.fillStyle = `rgba(255, 100, 30, ${fade * 0.8})`;
+      ctx.beginPath();
+      ctx.arc(p.r + len + 4, 0, 10 + fade * 6, 0, Math.PI*2);
+      ctx.fill();
+      // Bak-rekyl
+      ctx.fillStyle = `rgba(255, 200, 100, ${fade * 0.5})`;
+      ctx.fillRect(p.r - 4, -3, 8, 6);
+    } else if (w.id === 'grenade') {
+      // Litet poff
+      ctx.fillStyle = `rgba(180, 220, 100, ${fade})`;
+      ctx.beginPath();
+      ctx.arc(p.r + len + 4, 0, 5 + fade * 3, 0, Math.PI*2);
+      ctx.fill();
+    } else if (w.style === 'plasma') {
+      // Blå ring expansion
+      ctx.strokeStyle = `rgba(58, 202, 255, ${fade})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.r + len + 4, 0, 4 + fade * 8, 0, Math.PI*2);
+      ctx.stroke();
+    } else if (w.style === 'tesla') {
+      // Lightning-arc
+      ctx.strokeStyle = `rgba(255, 235, 59, ${fade})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      let lx = p.r + len, ly = 0;
+      for (let i = 0; i < 3; i++) {
+        const nx = lx + 4 + Math.random() * 4;
+        const ny = (Math.random() - 0.5) * 8;
+        ctx.lineTo(nx, ny); lx = nx;
+      }
+      ctx.stroke();
+    } else if (w.style === 'frost') {
+      // Iskristaller-explosion
+      ctx.fillStyle = `rgba(154, 242, 255, ${fade})`;
+      for (let i = 0; i < 4; i++) {
+        const ang = (i / 4) * Math.PI * 2;
+        const dist = 4 + fade * 6;
+        const fx = p.r + len + 4 + Math.cos(ang) * dist;
+        const fy = Math.sin(ang) * dist;
+        ctx.beginPath();
+        ctx.arc(fx, fy, 1.5, 0, Math.PI*2);
+        ctx.fill();
+      }
+    } else if (w.style === 'sonic') {
+      // Pulserande rosa cirklar (3st)
+      ctx.strokeStyle = `rgba(255, 90, 196, ${fade})`;
+      ctx.lineWidth = 1.5;
+      for (let i = 1; i <= 3; i++) {
+        ctx.beginPath();
+        ctx.arc(p.r + len + 4, 0, i * 4 * fade, -0.7, 0.7);
+        ctx.stroke();
+      }
+    } else if (w.style === 'railgun') {
+      // Vit elektrisk laddning
+      ctx.shadowColor = '#fff'; ctx.shadowBlur = 16;
+      ctx.fillStyle = `rgba(255,255,255,${fade})`;
+      ctx.fillRect(p.r + len, -2, 80 * fade, 4);
+      ctx.shadowBlur = 0;
+    } else {
+      // Default: standard gul flash (pistol/revolver/rifle/burst)
+      ctx.fillStyle = `rgba(255, 220, 100, ${fade})`;
+      ctx.beginPath();
+      ctx.arc(p.r + len + 4, 0, 6 + fade * 6, 0, Math.PI*2);
+      ctx.fill();
+    }
   }
 }
 
@@ -14435,24 +14631,55 @@ function drawBullet(b) {
   const y = b.y - state.camera.y;
   // stil-baserad rendering för specialvapen
   if (b.style === 'flame') {
+    // Trail bakåt (3 mindre färg-prickar med fade)
+    for (let i = 1; i <= 3; i++) {
+      const tx = x - (b.vx * 0.012) * i;
+      const ty = y - (b.vy * 0.012) * i;
+      ctx.fillStyle = `rgba(255, ${100 + Math.random()*60}, ${20 + i*10}, ${(b.life * 1.4) * (1 - i * 0.3)})`;
+      ctx.beginPath(); ctx.arc(tx, ty, (b.r * (1 - i * 0.18)) + Math.random(), 0, Math.PI*2); ctx.fill();
+    }
+    // Huvud-flam
     ctx.fillStyle = `rgba(255, ${120 + Math.random()*80}, 40, ${b.life * 1.4})`;
     ctx.beginPath(); ctx.arc(x, y, b.r + Math.random()*2, 0, Math.PI*2); ctx.fill();
     return;
   }
   if (b.style === 'plasma') {
+    // Glow-trail bakåt
+    for (let i = 1; i <= 4; i++) {
+      const tx = x - (b.vx * 0.018) * i;
+      const ty = y - (b.vy * 0.018) * i;
+      ctx.fillStyle = b.color;
+      ctx.globalAlpha = (1 - i * 0.22) * 0.6;
+      ctx.beginPath(); ctx.arc(tx, ty, b.r * (1 - i * 0.15), 0, Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    // Huvud
     ctx.shadowColor = b.color;
-    ctx.shadowBlur = 12;
+    ctx.shadowBlur = 14;
     ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x, y, b.r * 1.4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.5, 0, Math.PI*2); ctx.fill();
     ctx.fillStyle = b.color;
     ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI*2); ctx.fill();
     ctx.shadowBlur = 0;
     return;
   }
   if (b.style === 'tesla') {
+    // Lightning-zigzag trail bakåt
+    ctx.strokeStyle = `rgba(255, 235, 59, 0.6)`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    let lx = x, ly = y;
+    for (let i = 1; i <= 4; i++) {
+      const tx = x - (b.vx * 0.015) * i + (Math.random() - 0.5) * 4;
+      const ty = y - (b.vy * 0.015) * i + (Math.random() - 0.5) * 4;
+      ctx.moveTo(lx, ly); ctx.lineTo(tx, ty);
+      lx = tx; ly = ty;
+    }
+    ctx.stroke();
+    // Huvud
     ctx.fillStyle = '#ffeb3b';
-    ctx.shadowColor = '#ffeb3b'; ctx.shadowBlur = 6;
-    ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI*2); ctx.fill();
+    ctx.shadowColor = '#ffeb3b'; ctx.shadowBlur = 10;
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.2, 0, Math.PI*2); ctx.fill();
     ctx.shadowBlur = 0;
     return;
   }
@@ -14507,8 +14734,25 @@ function drawBullet(b) {
     }
     return;
   }
+  if (b.style === 'thrown' && b.weaponId === 'throwknife') {
+    // Throwknife: knife-shape som flyger med bladet framåt
+    const ang = Math.atan2(b.vy, b.vx);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    // Blad
+    ctx.fillStyle = b.color || '#aaaacc';
+    ctx.beginPath();
+    ctx.moveTo(-b.r * 1.5, -2); ctx.lineTo(b.r * 2, 0); ctx.lineTo(-b.r * 1.5, 2);
+    ctx.closePath(); ctx.fill();
+    // Grepp
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(-b.r * 1.8, -1.5, b.r * 0.8, 3);
+    ctx.restore();
+    return;
+  }
   if (b.style === 'thrown') {
-    // Roterande kaststjärna
+    // Shuriken: 4-armed roterande kaststjärna
     const rot = (performance.now() / 50);
     ctx.save();
     ctx.translate(x, y);

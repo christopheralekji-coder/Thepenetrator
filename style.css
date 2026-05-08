@@ -582,15 +582,16 @@ html, body {
   border-color: rgba(255,213,74,0.3);
   background: linear-gradient(135deg, rgba(255,213,74,0.08), rgba(255,255,255,0.02));
 }
-/* Sista action-knappen i en overlay — FIXED position så den sitter fast permanent
-   längst ner på skärmen oavsett scroll. (Tidigare sticky som följde med scroll —
-   "flöt" för användaren).
+/* Sista action-knappen i en overlay — ABSOLUTE position relativt overlay:s
+   bottom-edge (overlay är inset:0 = viewport, så absolute bottom = viewport-bottom).
+   Använder INTE position:fixed eftersom backdrop-filter på .overlay skapar nytt
+   containing-block → fixed blev relativ till overlay's PADDING-box (med padding-
+   bottom:90 hamnade knappen mitt på skärmen).
    Matchar explicit class .sticky-back-btn (namn behållet för bakåtkompatibilitet). */
-.sticky-back-btn,
-.overlay .sticky-back-btn,
 .overlay > .big-btn.sticky-back-btn,
-.overlay > .small-btn.sticky-back-btn {
-  position: fixed !important;
+.overlay > .small-btn.sticky-back-btn,
+.overlay .sticky-back-btn {
+  position: absolute !important;
   bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 8px)) !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
@@ -600,6 +601,7 @@ html, body {
   min-width: 200px;
   max-width: 90vw;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+  margin-top: 0 !important;
 }
 /* Padda overlays så content inte hamnar bakom fixed-knappen (~70px höjd + safe-area).
    Explicit lista så vi inte beror på :has() (saknas i äldre browsers). */
@@ -608,18 +610,9 @@ html, body {
 #gameover-screen, #weapon-menu, #pause-screen {
   padding-bottom: max(90px, calc(env(safe-area-inset-bottom, 0px) + 80px)) !important;
 }
-/* Backwards-compat: fortsätt matcha :last-of-type men EXKLUDERA position:absolute
-   inline-style så helskärm-knappen inte distorderas */
-.overlay > .big-btn:last-of-type:not([style*="position:absolute"]),
-.overlay > .small-btn:last-of-type:not([style*="position:absolute"]) {
-  position: sticky;
-  bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 8px));
-  z-index: 3;
-  margin-top: 12px;
-  flex-shrink: 0;
-  min-height: 48px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-}
+/* Borttagen: :last-of-type sticky-regel matchade fel knappar (settings STÄNG,
+   weapon-menu FORTSÄTT etc) och positionerade dem felaktigt. Använd ENDAST
+   explicit .sticky-back-btn class för knappar som ska sitta fast nedanför. */
 @keyframes overlayFadeIn {
   from { opacity: 0; backdrop-filter: blur(0px); }
   to { opacity: 1; backdrop-filter: blur(2px); }
@@ -1568,30 +1561,68 @@ body.ios .overlay {
   pointer-events: none;
 }
 
-/* Tutorial */
+/* Tutorial — clean panel istället för floating bubbles */
 #tutorial-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   pointer-events: auto;
   z-index: 11;
-  /* Mörk bakgrund så texterna inte flyter över canvas-spelet */
-  background: rgba(0, 0, 0, 0.78);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
 }
-.tut-bubble {
-  position: absolute;
-  background: rgba(20,20,30,0.96);
+.tut-panel {
+  background: linear-gradient(180deg, rgba(20,20,30,0.98), rgba(10,5,8,0.98));
   border: 2px solid #ffd54a;
+  border-radius: 12px;
+  padding: 20px 24px;
+  max-width: 700px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.7), 0 0 24px rgba(255,213,74,0.25);
+}
+.tut-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.tut-item {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,213,74,0.2);
   border-radius: 8px;
-  padding: 8px 11px;
-  color: #fff;
+  padding: 10px 12px;
+}
+.tut-icon { font-size: 22px; line-height: 1; margin-bottom: 4px; }
+.tut-title {
   font-size: 11px;
-  max-width: 180px;
-  font-weight: 600;
-  pointer-events: auto;
-  line-height: 1.35;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #ffd54a;
+  margin-bottom: 4px;
+}
+.tut-desc {
+  font-size: 11px;
+  color: #ddd;
+  line-height: 1.4;
+}
+.tut-panel #btn-tut-close {
+  display: block;
+  margin: 0 auto;
+  min-width: 200px;
+}
+@media (max-height: 500px) {
+  .tut-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; }
+  .tut-item { padding: 6px 8px; }
+  .tut-icon { font-size: 18px; }
+  .tut-desc { font-size: 10px; }
+  .tut-panel { padding: 12px 14px; }
+  .tut-panel h2 { font-size: 14px !important; margin: 0 0 8px 0 !important; }
 }
 .tut-bubble::after {
   content: '';

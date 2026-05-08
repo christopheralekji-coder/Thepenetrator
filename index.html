@@ -77,27 +77,42 @@
 </div>
 
 <div id="tutorial-overlay" class="hidden">
-  <div id="tut-1" class="tut-bubble right" style="bottom: 100px; left: 180px;">
-    <div style="color:#ffd54a;font-size:11px;margin-bottom:4px;">RÖRELSE</div>
-    Joystick = rör dig<br>WASD = på desktop
+  <div class="tut-panel">
+    <h2 style="text-align:center;margin:0 0 14px 0;color:#ffd54a;letter-spacing:2px;">❓ HJÄLP / TUTORIAL</h2>
+    <div class="tut-grid">
+      <div class="tut-item">
+        <div class="tut-icon">🕹</div>
+        <div class="tut-title">RÖRELSE</div>
+        <div class="tut-desc">Vänster joystick (mobil) eller WASD (desktop)</div>
+      </div>
+      <div class="tut-item">
+        <div class="tut-icon">🔫</div>
+        <div class="tut-title">SKJUT</div>
+        <div class="tut-desc">Höger fire-knapp eller mus-klick. Auto-aim siktar närmsta fiende</div>
+      </div>
+      <div class="tut-item">
+        <div class="tut-icon">⚔️</div>
+        <div class="tut-title">VAPEN</div>
+        <div class="tut-desc">Vapenmeny-knapp ovanför fire (mobil) eller Tab (desktop)</div>
+      </div>
+      <div class="tut-item">
+        <div class="tut-icon">🗺</div>
+        <div class="tut-title">MINIKARTA</div>
+        <div class="tut-desc">Visar fiender + mål. Klicka för att zooma. M-tangenten gömmer</div>
+      </div>
+      <div class="tut-item">
+        <div class="tut-icon">🔄</div>
+        <div class="tut-title">LADDA OM</div>
+        <div class="tut-desc">R-tangent (desktop). Mobil: ladda om vid tomt magasin</div>
+      </div>
+      <div class="tut-item">
+        <div class="tut-icon">⏸</div>
+        <div class="tut-title">PAUS</div>
+        <div class="tut-desc">Esc-tangent (desktop). Mobil: ⚙-knappen i HUD</div>
+      </div>
+    </div>
+    <button id="btn-tut-close" class="big-btn">✓ FATTAT</button>
   </div>
-  <div id="tut-2" class="tut-bubble left" style="bottom: 130px; right: 150px;">
-    <div style="color:#ffd54a;font-size:11px;margin-bottom:4px;">SKJUT</div>
-    Tryck för att skjuta<br>Auto-aim mot fiende
-  </div>
-  <div id="tut-3" class="tut-bubble left" style="bottom: 30px; right: 150px;">
-    <div style="color:#ffd54a;font-size:11px;margin-bottom:4px;">VAPEN</div>
-    Öppnar vapenmeny<br>Tab på desktop
-  </div>
-  <div id="tut-4" class="tut-bubble top" style="top: 180px; right: 14px;">
-    <div style="color:#ffd54a;font-size:11px;margin-bottom:4px;">MINIKARTA</div>
-    Visar fiender + mål<br>M-tangenten gömmer
-  </div>
-  <div id="tut-5" class="tut-bubble top" style="top: 90px; left: max(14px, env(safe-area-inset-left, 14px));">
-    <div style="color:#ffd54a;font-size:11px;margin-bottom:4px;">DESKTOP</div>
-    R = ladda om · Esc = paus<br>Q/E = byt vapen
-  </div>
-  <button id="btn-tut-close" class="big-btn" style="position:absolute;bottom:50%;left:50%;transform:translate(-50%,50%);pointer-events:auto;">FATTAT</button>
 </div>
 
 <div id="tdm-hud" class="hidden">
@@ -212,14 +227,9 @@
       <label>Skjut-joystick</label>
       <input id="set-firejoy" type="checkbox">
     </div>
-    <div class="setting-row">
-      <label>Tutorial</label>
-      <button id="set-tut-replay" class="medium-btn" style="flex:1;">VISA IGEN</button>
-    </div>
-    <div class="setting-row">
-      <label>Spar-data</label>
-      <button id="set-reset" class="medium-btn" style="flex:1;background:#5a1a1a;border-color:#7a1818;color:#ff8a8a;">⚠ ÅTERSTÄLL / EXPORT / IMPORT</button>
-    </div>
+    <!-- Tutorial + Spar-data rows borttagna på användarens önskemål.
+         Tutorial nås via "❓ HJÄLP" i menu. Save-reset/export/import via konsoll. -->
+
   </div>
   <button id="btn-settings-close" class="big-btn">STÄNG</button>
 </div>
@@ -332,7 +342,7 @@
         <button class="tdm-target-btn small-btn" data-tk="30" style="padding:4px 10px;font-size:11px;">30</button>
       </div>
     </div>
-    <button id="btn-coop-start" class="big-btn sticky-back-btn hidden">STARTA SPELET</button>
+    <button id="btn-coop-start" class="big-btn hidden" style="margin-top:14px;">STARTA SPELET</button>
     <div id="coop-waiting" class="hidden" style="color:#5aff5a;font-size:13px;">Väntar på att host startar...</div>
   </div>
   <div id="coop-status" style="margin-top:20px;font-size:14px;color:#ffd54a;min-height:30px;"></div>
