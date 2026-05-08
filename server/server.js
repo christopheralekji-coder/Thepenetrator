@@ -6,11 +6,14 @@ const http = require('http');
 const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage } = require('./sim/room-sim');
 const PORT = process.env.PORT || 8080;
 
-// Healthcheck endpoint så Render håller servern vid liv
+// Healthcheck endpoint så Render håller servern vid liv. Visar build-info
+// så vi kan se om Render kör senaste deploy.
+const SERVER_VERSION = 'v128-coop-fix';
+const SERVER_BUILD_AT = new Date().toISOString();
 const server = http.createServer((req, res) => {
   if (req.url === '/health' || req.url === '/') {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end('Penetrator co-op server v1\nRooms: ' + rooms.size);
+    res.end(`Penetrator co-op server\nVersion: ${SERVER_VERSION}\nBuilt: ${SERVER_BUILD_AT}\nRooms: ${rooms.size}\nUptime: ${Math.round(process.uptime())}s`);
   } else {
     res.writeHead(404); res.end();
   }
