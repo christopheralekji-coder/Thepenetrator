@@ -92,14 +92,20 @@ function spawnSecondBoss(sim, stage) {
   }
 }
 
-function spawnMiniBoss(sim, stage) {
-  const m = stage.miniBoss;
+function spawnMiniBoss(sim, stage, idx) {
+  // Stöder både nya stage.miniBosses[]-array OCH legacy stage.miniBoss
+  let m = null;
+  if (stage.miniBosses && stage.miniBosses.length > 0) {
+    m = stage.miniBosses[Math.min(idx || 0, stage.miniBosses.length - 1)];
+  } else {
+    m = stage.miniBoss;
+  }
   if (!m) return;
   const sx = stage.worldW / 2 + (Math.random() - 0.5) * 200;
   const sy = stage.worldH / 2 + (Math.random() - 0.5) * 200;
   const e = makeEnemy(m.type || 'brute', sx, sy);
   const wave = sim.wave;
-  const scale = 1 + (wave - 1) * 0.10;
+  const scale = Math.min(1 + (wave - 1) * 0.10, 4.0);
   const diff = getDiffMul(sim.config.difficulty);
   const ngpMul = getNGPMul(sim.config.ngpLevel);
   const coopMul = getCoopMultiplier(sim.room.members.size);
@@ -112,10 +118,12 @@ function spawnMiniBoss(sim, stage) {
   e._origSpeed = e.speed;
   e.gold = m.gold || 100;
   e.isMiniBoss = true;
+  e.miniBossIdx = idx || 0;
+  e.miniPower = m.power || null;
   e.name = m.name || 'Mini-boss';
   e._idx = sim.nextEnemyIdx++;
   sim.enemies.push(e);
-  sim.eventQueue.push({ type: 'miniboss_spawned', name: e.name });
+  sim.eventQueue.push({ type: 'miniboss_spawned', name: e.name, power: e.miniPower, idx: e.miniBossIdx });
 }
 
 // spawnEnemyAtEdge — mirror av game.js:5792-5838
@@ -182,11 +190,28 @@ function updateZoneProgression(sim, dt) {
   if (sim.zoneState === 'spawning' && sim.enemiesToSpawn <= 0) {
     sim.zoneState = 'clearing';
   }
+  // Interlude-wave clear → spawn nästa miniboss
+  if (sim.enemies.length === 0 && sim._miniInterludeActive) {
+    sim._miniInterludeActive = false;
+    const nextIdx = sim._miniInterludeNextIdx || 0;
+    const list2 = stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []);
+    if (nextIdx < list2.length) {
+      sim.miniBossesSpawned = nextIdx + 1;
+      spawnMiniBoss(sim, stage, nextIdx);
+      return;
+    }
+    sim.zoneState = 'clearing';
+  }
   if (sim.zoneState === 'clearing' && sim.enemies.length === 0) {
-    // Mini-boss efter zone 0
-    if (sim.currentZone === 0 && stage.miniBoss && !sim.miniBossSpawned) {
-      sim.miniBossSpawned = true;
-      spawnMiniBoss(sim, stage);
+    // Mini-boss-sekvens (3 minibosses + interlude-waves)
+    const miniList = stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []);
+    if (miniList.length > 0 && (sim.miniBossesSpawned || 0) === 0) {
+      sim.miniBossesSpawned = 1;
+      spawnMiniBoss(sim, stage, 0);
+      return;
+    }
+    // Vänta på alla minibosses
+    if (miniList.length > 0 && (sim.miniBossesSpawned || 0) < miniList.length) {
       return;
     }
     const zones = stage.zones || [];
@@ -270,6 +295,9 @@ function loadStage(sim, wave) {
   sim.eventTimer = 0;
   sim.eventTriggered = false;
   sim.miniBossSpawned = false;
+  sim.miniBossesSpawned = 0;
+  sim._miniInterludeActive = false;
+  sim._miniInterludeNextIdx = 0;
   sim._waveCompleting = false;
   sim._bossFailsafeTimer = 0;
   sim.activeZonePool = null;

@@ -1736,9 +1736,12 @@ function companionStats(comp, level) {
     cooldown: comp.cooldown * cdMul,
   };
 }
-// Återväckningskostnad: 50% av basePrice (rundat till närmsta 10)
+// Återväckningskostnad: skalar med wave så stage 1 är överkomligt + stage 9 stings.
+// Formula: basePrice × 0.5 × (0.3 + wave×0.08) → stage 1 = 19% av basePrice, stage 9 = 51%.
 function companionRevivePrice(comp) {
-  return Math.max(50, Math.round((comp.basePrice * 0.5) / 10) * 10);
+  const wave = (state && state.wave) ? state.wave : 1;
+  const stageMul = 0.3 + Math.min(wave, 9) * 0.08; // 0.38 - 1.02
+  return Math.max(50, Math.round((comp.basePrice * 0.5 * stageMul) / 10) * 10);
 }
 // Är aktiv companion död (in-game ELLER persisted från tidigare run)?
 // Används för att visa ÅTERVÄCK-UI även i menu pre-game (state.companion null).
@@ -2646,12 +2649,17 @@ function makeBoss(bossKey, spawnX, spawnY) {
   const cfg = getBossConfig(bossKey);
   if (!cfg) return null;
   const coopMul = getCoopMultiplier();
-  const scaledHp = Math.round(cfg.hp * coopMul);
+  // Scaling: HP × diff.enemyHp × ngpMul × coopMul, dmg × diff.enemyDmg × ngpMul.
+  // Tidigare scalade INTE dmg → glasscannon one-shottades på lägre svårighet redan.
+  const diff = (typeof getDiffMul === 'function') ? getDiffMul() : { enemyHp: 1, enemyDmg: 1 };
+  const ngpMul = (typeof getNGPMul === 'function') ? getNGPMul() : 1;
+  const scaledHp = Math.round(cfg.hp * coopMul * diff.enemyHp * ngpMul);
+  const scaledDmg = Math.round(cfg.dmg * diff.enemyDmg * ngpMul);
   return {
     x: spawnX, y: spawnY, r: cfg.r, vx: 0, vy: 0,
     type: 'boss_' + bossKey, bossKey: bossKey, ai: cfg.ai,
     hp: scaledHp, maxHp: scaledHp,
-    speed: cfg.speed, dmg: cfg.dmg, contactCd: 0,
+    speed: cfg.speed, dmg: scaledDmg, contactCd: 0,
     color: cfg.color, accent: cfg.accent, glow: cfg.glow,
     gold: cfg.gold, isBoss: true, name: cfg.name, subtitle: cfg.subtitle,
     phase: 1, lastAttack: 0, lastSpread: 0,
@@ -2659,10 +2667,12 @@ function makeBoss(bossKey, spawnX, spawnY) {
     dashUntil: 0, dashDir: { x: 0, y: 0 },
     flashUntil: 0, walkAccum: 0,
     cloakUntil: 0, jetpackUntil: 0, shieldDir: 0, chargeCdAt: 0,
-    bulletSpeed: 620, bulletDmg: Math.round(cfg.dmg * 0.55),
+    bulletSpeed: 620, bulletDmg: Math.round(scaledDmg * 0.55),
     shootRange: 520, shootRate: 1200,
     powerSet: cfg.powerSet || null,        // för final_combo: 3 powers att rotera
-    powerIdx: 0, powerSwapAt: 0,           // current power-index + nästa swap-timestamp
+    // powerSwapAt = now + 5000 så första power (index 0) faktiskt visas hela första
+    // intervallet. Tidigare 0 → omedelbar swap till idx 1, idx 0 visades aldrig.
+    powerIdx: 0, powerSwapAt: performance.now() + 5000,
   };
 }
 
@@ -6288,14 +6298,21 @@ function killEnemy(e) {
     if (miniList && (state.miniBossesSpawned || 0) < miniList.length) {
       // Mer minibosses kvar → starta interlude-wave så player får andas + nya enemies
       state._miniInterludeActive = true;
-      state._miniInterludeNextIdx = state.miniBossesSpawned; // index för nästa
-      // Spawna 5-7 enemies från stage's pool — visuellt en interlude-wave
+      state._miniInterludeNextIdx = state.miniBossesSpawned;
+      // Capture stage-snapshot vid death-tidpunkt (closure-trygghet)
       const zones = stage.zones || [];
       const pool = (zones[Math.min(state.currentZone || 0, zones.length - 1)] || zones[0] || { pool: ['grunt'] }).pool;
-      const count = 5 + Math.floor(Math.random() * 3); // 5-7
+      const count = 5 + Math.floor(Math.random() * 3);
       const sw = stage.worldW, sh = stage.worldH;
-      setTimeout(() => {
-        if (state.mode !== 'playing' || !state._miniInterludeActive) return;
+      const stageWaveAtSchedule = state.wave;
+      // Lagra timer-id så loadStage/quit kan canceller
+      if (state._interludeTimerId) clearTimeout(state._interludeTimerId);
+      state._interludeTimerId = setTimeout(() => {
+        state._interludeTimerId = null;
+        // Skydda mot mode-byte / wave-byte / interlude-cancel under 600ms-fönstret
+        if (state.mode !== 'playing') return;
+        if (!state._miniInterludeActive) return;
+        if (state.wave !== stageWaveAtSchedule) return;
         for (let i = 0; i < count; i++) {
           const t = pool[Math.floor(Math.random() * pool.length)];
           const angle = Math.random() * Math.PI * 2;
@@ -6307,7 +6324,7 @@ function killEnemy(e) {
             Math.max(40, Math.min(sh - 40, ey)));
           state.enemies.push(ne);
         }
-        if (typeof showToast === 'function') showToast('⚠ FÖRSTÄRKNING ANLÄNDER');
+        if (count > 0 && typeof showToast === 'function') showToast('⚠ FÖRSTÄRKNING ANLÄNDER');
       }, 600);
     }
   }
@@ -6845,10 +6862,16 @@ function loadStage(n) {
   state._stageClearShown = false;
   state._waveCompleting = false;
   state._coopGameOverFired = false;
+  // Mini-boss state — counter är primary, miniBossSpawned bool kvar för bakåt-kompat
   state.miniBossSpawned = false;
-  state.miniBossesSpawned = 0; // count för 3-mini-sekvens
+  state.miniBossesSpawned = 0;
   state._miniInterludeActive = false;
   state._miniInterludeNextIdx = 0;
+  // Avbryt eventuell pending interlude-timer från föregående stage
+  if (state._interludeTimerId) {
+    clearTimeout(state._interludeTimerId);
+    state._interludeTimerId = null;
+  }
   // Truck-mode setup
   if (stage.isTruckMode) {
     setupTruck(stage);
@@ -7063,9 +7086,19 @@ function spawnMiniBoss(stage, idx) {
     m = stage.miniBoss;
   }
   if (!m) return;
-  // Spawn-pos: mitten av spelplan, lite ovanför player
-  const sx = stage.worldW / 2 + (Math.random() - 0.5) * 200;
-  const sy = stage.worldH / 2 + (Math.random() - 0.5) * 200;
+  // Spawn-pos: 350-500px från player (random angle), så miniboss kommer in i fight
+  // istället för att stå mitt på kartan långt bort. Clampa till stage-bounds.
+  const p = state.player;
+  let sx, sy;
+  if (p) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 350 + Math.random() * 150;
+    sx = Math.max(60, Math.min(stage.worldW - 60, p.x + Math.cos(angle) * dist));
+    sy = Math.max(60, Math.min(stage.worldH - 60, p.y + Math.sin(angle) * dist));
+  } else {
+    sx = stage.worldW / 2 + (Math.random() - 0.5) * 200;
+    sy = stage.worldH / 2 + (Math.random() - 0.5) * 200;
+  }
   const e = makeEnemy(m.type || 'brute', sx, sy);
   const scale = Math.min(1 + (state.wave - 1) * 0.10, 4.0);
   const diff = getDiffMul();
@@ -7117,7 +7150,7 @@ function updateZoneProgression(stage) {
     state.zoneState = 'clearing';
   }
   if (state.enemies.length === 0 && state._miniInterludeActive) {
-    // Interlude-wave klar → spawna nästa miniboss
+    // Interlude-wave klar → spawna nästa miniboss (eller fortsätt zone-flow om alla mini klara)
     state._miniInterludeActive = false;
     const nextIdx = state._miniInterludeNextIdx || 0;
     const miniList2 = stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []);
@@ -7126,14 +7159,15 @@ function updateZoneProgression(stage) {
       spawnMiniBoss(stage, nextIdx);
       return;
     }
+    // Alla minibosses klara — explicit zone-clearing-state så zone/boss-flow kör
+    state.zoneState = 'clearing';
   }
   if (state.zoneState === 'clearing' && state.enemies.length === 0) {
-    // Första minibossen spawnar efter zone 0 clear
+    // Första minibossen: trigga om INGEN miniboss spawnats än (oavsett currentZone)
+    // — currentZone===0-villkoret skapade soft-lock om event-zone bytte zone-index
+    // innan clearing-checken körs.
     const miniList = stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []);
-    if (state.currentZone === 0 && miniList.length > 0 &&
-        (state.miniBossesSpawned || 0) < miniList.length &&
-        !state.miniBossSpawned) {
-      state.miniBossSpawned = true;
+    if (miniList.length > 0 && (state.miniBossesSpawned || 0) === 0) {
       state.miniBossesSpawned = 1;
       spawnMiniBoss(stage, 0);
       return;
@@ -9594,8 +9628,12 @@ function aiFinalCombo(b, p, ndx, ndy, d, hpFrac, dt, now) {
   if (now > b.powerSwapAt) {
     b.powerSwapAt = now + swapInterval;
     b.powerIdx = (b.powerIdx + 1) % ps.length;
-    // Visuell signalering vid power-byte
-    state.particles.push({ x: b.x, y: b.y, vx: 0, vy: 0, life: 0.4, color: b.glow, r: 60, isExplosion: true });
+    // Visuell signalering vid power-byte (alla fields fyllda för partikel-update)
+    state.particles.push({
+      x: b.x, y: b.y, vx: 0, vy: 0,
+      life: 0.4, color: b.glow || '#ffd54a',
+      r: 60, isExplosion: true,
+    });
     triggerShake(4, 0.2);
   }
   const power = ps[b.powerIdx % ps.length];
@@ -15073,18 +15111,20 @@ function drawEnemy(e) {
   drawHpBar(e, x, y);
   // Mini-boss extra: visa namn ovanför + glow-ring runt kroppen
   if (e.isMiniBoss) {
-    const accent = e.stageAccent || '#ffd54a';
+    // Använd stageEdge (ljusare) för ring så den syns mot mörka stage-bgs
+    const ringColor = e.stageEdge || '#ffd54a';
     ctx.save();
-    // Namn-tag
+    // Namn-tag — clamp top-Y så den inte klipps off-screen
+    const tagY = Math.max(20, y - e.r - 22);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
     ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
-    ctx.fillText(e.name || 'MINI-BOSS', x, y - e.r - 22);
+    ctx.fillText(e.name || 'MINI-BOSS', x, tagY);
     ctx.shadowBlur = 0;
     // Pulsande ring (intensity-baserad)
     const pulse = 0.7 + Math.sin(now / 280) * 0.3;
-    ctx.strokeStyle = accent;
+    ctx.strokeStyle = ringColor;
     ctx.lineWidth = 1.5 + e.miniIntensity * 1.5;
     ctx.globalAlpha = 0.45 * pulse;
     ctx.beginPath(); ctx.arc(x, y, e.r * (1.15 + 0.05 * Math.sin(now / 350)), 0, Math.PI*2);

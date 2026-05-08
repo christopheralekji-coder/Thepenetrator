@@ -1,87 +1,123 @@
-// Stage-data — speglar STAGES i game.js:23-150.
-// MÅSTE hållas i sync.
+// Stage-data — speglar STAGES i game.js (måste hållas i sync)
+// Uppdaterad till boss-revamp v119+ med miniBosses-array och nya bossKeys.
 'use strict';
 
 const STAGES = [
-  { id: 1, name: 'SKOGEN', kind: 'forest', worldW: 2000, worldH: 2800,
+  { id: 1, name: 'DEN FÖRRUTTNADE SKOGEN', kind: 'forest', worldW: 2000, worldH: 2800,
     spawnPos: { x: 1000, y: 2640 }, goalPos: { x: 1000, y: 200 }, goalRadius: 100,
-    bossKey: 'likvakare',
-    miniBoss: { type: 'brute', name: 'Skogsjätten', hpMul: 5, dmgMul: 1.6, scale: 1.5, gold: 80 },
+    bossKey: 'witheredelder',
+    miniBosses: [
+      { type: 'brute', name: 'GROVE GRIPPER',  power: 'caster',       hpMul: 7,  dmgMul: 1.6, scale: 1.3, gold: 120 },
+      { type: 'brute', name: 'BARK WARDEN',    power: 'tank_charger', hpMul: 10, dmgMul: 1.9, scale: 1.5, gold: 180 },
+      { type: 'ninja', name: 'SHADOW STALKER', power: 'cloaker',      hpMul: 14, dmgMul: 2.2, scale: 1.4, gold: 250 },
+    ],
     zones: [
       { count: 8,  pool: ['grunt', 'runner'] },
       { count: 10, pool: ['grunt', 'dog', 'runner'], event: 'release_dogs' },
     ],
   },
-  { id: 2, name: 'PERIMETERN', kind: 'perimeter', worldW: 2200, worldH: 2400,
+  { id: 2, name: 'JÄRNVALLEN', kind: 'perimeter', worldW: 2200, worldH: 2400,
     spawnPos: { x: 1100, y: 2240 }, goalPos: { x: 1100, y: 200 }, goalRadius: 100,
-    bossKey: 'benkrossare',
-    miniBoss: { type: 'soldier', name: 'Sergeant Krass', hpMul: 5, dmgMul: 1.5, scale: 1.4, gold: 100 },
+    bossKey: 'ironclad',
+    miniBosses: [
+      { type: 'soldier', name: 'STEEL JAW',       power: 'brute_charger', hpMul: 7,  dmgMul: 1.7, scale: 1.3, gold: 150 },
+      { type: 'sniper',  name: 'WIRE-EYE SENTRY', power: 'gas_sniper',    hpMul: 10, dmgMul: 2.0, scale: 1.3, gold: 220 },
+      { type: 'soldier', name: 'BUNKER PRIME',    power: 'shielder',      hpMul: 14, dmgMul: 2.2, scale: 1.6, gold: 290 },
+    ],
     zones: [
       { count: 8,  pool: ['grunt', 'soldier', 'dog'] },
       { count: 12, pool: ['soldier', 'shooter', 'brute', 'bomber'], event: 'alarm' },
     ],
   },
-  { id: 3, name: 'LOBBYN', kind: 'lobby', worldW: 1700, worldH: 2400,
+  { id: 3, name: 'SPEGELHALLEN', kind: 'lobby', worldW: 1700, worldH: 2400,
     spawnPos: { x: 850, y: 2240 }, goalPos: { x: 850, y: 200 }, goalRadius: 90,
-    bossKey: 'strypare',
-    miniBoss: { type: 'ninja', name: 'Skuggdansaren', hpMul: 4, dmgMul: 1.5, scale: 1.3, gold: 110 },
+    bossKey: 'mirroredone',
+    miniBosses: [
+      { type: 'ninja',   name: 'GLASS REAPER',  power: 'cloaker', hpMul: 7,  dmgMul: 1.7, scale: 1.2, gold: 170 },
+      { type: 'shooter', name: 'ECHO PRIEST',   power: 'caster',  hpMul: 10, dmgMul: 1.9, scale: 1.3, gold: 230 },
+      { type: 'shooter', name: 'HOLLOW DANCER', power: 'plasma',  hpMul: 14, dmgMul: 2.2, scale: 1.4, gold: 310 },
+    ],
     zones: [
       { count: 9,  pool: ['grunt', 'soldier'] },
       { count: 12, pool: ['ninja', 'soldier'], event: 'open_doors' },
     ],
   },
-  { id: 4, name: 'BARACK-GÅRDEN', kind: 'barracks', worldW: 1800, worldH: 1800,
+  { id: 4, name: 'BENBARACKEN', kind: 'barracks', worldW: 1800, worldH: 1800,
     spawnPos: { x: 900, y: 1620 }, goalPos: { x: 900, y: 700 }, goalRadius: 0,
-    isBoss: true, bossKey: 'avrattare',
-    miniBoss: { type: 'brute', name: 'Korpral Köttkrok', hpMul: 6, dmgMul: 1.7, scale: 1.5, gold: 130 },
+    isBoss: true, bossKey: 'ossarius',
+    miniBosses: [
+      { type: 'brute',   name: 'BONE-CRACK CAPTAIN', power: 'brute_charger', hpMul: 8,  dmgMul: 1.8, scale: 1.4, gold: 200 },
+      { type: 'brute',   name: 'COFFIN-MAKER',       power: 'tank_charger',  hpMul: 11, dmgMul: 2.1, scale: 1.5, gold: 270 },
+      { type: 'shooter', name: 'TWITCHING REGIMENT', power: 'avatar',        hpMul: 15, dmgMul: 2.3, scale: 1.5, gold: 340 },
+    ],
     zones: [
       { count: 8,  pool: ['grunt', 'soldier'] },
       { count: 10, pool: ['brute', 'soldier'], event: 'barracks_open' },
     ],
   },
-  { id: 5, name: 'HANGAREN', kind: 'hangar', worldW: 2600, worldH: 2000,
+  { id: 5, name: 'VALV XIII', kind: 'hangar', worldW: 2600, worldH: 2000,
     spawnPos: { x: 200, y: 1000 }, goalPos: { x: 2400, y: 1000 }, goalRadius: 100,
-    bossKey: 'kottkvarn',
-    miniBoss: { type: 'robot', name: 'Prototyp X-19', hpMul: 5, dmgMul: 1.6, scale: 1.4, gold: 150 },
+    bossKey: 'vanguardatlas',
+    miniBosses: [
+      { type: 'robot',  name: 'PROTOTYPE Z-7', power: 'plasma',     hpMul: 8,  dmgMul: 1.8, scale: 1.3, gold: 220 },
+      { type: 'sniper', name: 'TURRET-87',     power: 'gas_sniper', hpMul: 11, dmgMul: 2.1, scale: 1.3, gold: 290 },
+      { type: 'robot',  name: 'SKUNKWORKS',    power: 'avatar',     hpMul: 15, dmgMul: 2.3, scale: 1.5, gold: 370 },
+    ],
     zones: [
       { count: 9,  pool: ['soldier', 'shooter'] },
       { count: 12, pool: ['brute', 'robot', 'shooter', 'sniper'], event: 'fuel_blast' },
     ],
   },
-  { id: 6, name: 'AMMO-DEPÅN', kind: 'depot', worldW: 2000, worldH: 2000,
+  { id: 6, name: 'ASKE-DEPÅN', kind: 'depot', worldW: 2000, worldH: 2000,
     spawnPos: { x: 1000, y: 1820 }, goalPos: { x: 1000, y: 200 }, goalRadius: 90,
-    bossKey: 'askmakare',
-    miniBoss: { type: 'summoner', name: 'Hög-rituallisten', hpMul: 5, dmgMul: 1.4, scale: 1.4, gold: 160 },
+    bossKey: 'emberoracle',
+    miniBosses: [
+      { type: 'shooter', name: 'ASH PRIEST',    power: 'caster',  hpMul: 8,  dmgMul: 1.8, scale: 1.4, gold: 240 },
+      { type: 'soldier', name: 'PYRE-CRAWLER',  power: 'jetpack', hpMul: 11, dmgMul: 2.0, scale: 1.4, gold: 320 },
+      { type: 'ninja',   name: 'WICK & EMBER',  power: 'avatar',  hpMul: 15, dmgMul: 2.3, scale: 1.5, gold: 400 },
+    ],
     zones: [
       { count: 10, pool: ['soldier', 'shooter'] },
       { count: 12, pool: ['brute', 'ninja', 'shooter', 'healer', 'summoner'], event: 'barrel_chain' },
     ],
   },
-  { id: 7, name: 'LASTHANGAREN', kind: 'cargo', worldW: 1900, worldH: 1900,
+  { id: 7, name: 'BRUTET LASTRUM', kind: 'cargo', worldW: 1900, worldH: 1900,
     spawnPos: { x: 950, y: 1700 }, goalPos: { x: 950, y: 700 }, goalRadius: 0,
-    isBoss: true, bossKey: 'lungrivare',
-    miniBoss: { type: 'sniper', name: 'Tysta Doktorn', hpMul: 4, dmgMul: 1.8, scale: 1.3, gold: 180 },
+    isBoss: true, bossKey: 'blightsovereign',
+    miniBosses: [
+      { type: 'sniper',  name: 'TOXIC SHADE',      power: 'gas_sniper', hpMul: 7,  dmgMul: 2.0, scale: 1.3, gold: 270 },
+      { type: 'ninja',   name: 'DRIFTSPECTRE',     power: 'cloaker',    hpMul: 10, dmgMul: 2.2, scale: 1.3, gold: 350 },
+      { type: 'shooter', name: 'VENOM ARCHITECT', power: 'caster',      hpMul: 14, dmgMul: 2.4, scale: 1.4, gold: 440 },
+    ],
     zones: [
       { count: 8,  pool: ['soldier', 'shooter'] },
       { count: 10, pool: ['ninja', 'brute', 'shooter'], event: 'crane_drop' },
     ],
   },
-  { id: 8, name: 'BUNKER-TUNNLAR', kind: 'bunker', worldW: 1500, worldH: 2800,
+  { id: 8, name: 'DEN SJUNKNA KRYPTAN', kind: 'bunker', worldW: 1500, worldH: 2800,
     spawnPos: { x: 750, y: 2640 }, goalPos: { x: 750, y: 200 }, goalRadius: 80,
-    bossKey: 'skallsprackare',
-    miniBoss: { type: 'swordsman', name: 'Bunker-mästaren', hpMul: 6, dmgMul: 1.6, scale: 1.5, gold: 200 },
+    bossKey: 'buriedcrown',
+    miniBosses: [
+      { type: 'brute',     name: 'DEEP-CHASER',       power: 'brute_charger', hpMul: 8,  dmgMul: 1.9, scale: 1.4, gold: 300 },
+      { type: 'swordsman', name: 'SHATTERED MARSHAL', power: 'shielder',      hpMul: 12, dmgMul: 2.2, scale: 1.5, gold: 390 },
+      { type: 'shooter',   name: 'SUBSONIC PROPHET',  power: 'plasma',        hpMul: 16, dmgMul: 2.5, scale: 1.6, gold: 490 },
+    ],
     zones: [
       { count: 10, pool: ['soldier', 'ninja'] },
       { count: 14, pool: ['swordsman', 'robot', 'ninja', 'swarmer', 'sniper'], event: 'lights_flicker' },
     ],
   },
-  { id: 9, name: 'KOMMANDO-CELLEN', kind: 'command', worldW: 1800, worldH: 1800,
+  { id: 9, name: 'OMEGA-KÄRNAN', kind: 'command', worldW: 1800, worldH: 1800,
     spawnPos: { x: 900, y: 1620 }, goalPos: { x: 900, y: 700 }, goalRadius: 0,
-    isBoss: true, bossKey: 'sjalaatare', bossKey2: 'gravgravaren',
-    miniBoss: { type: 'robot', name: 'Mourads Mardröm', hpMul: 7, dmgMul: 1.8, scale: 1.6, gold: 250 },
+    isBoss: true, bossKey: 'lastsovereign',
+    miniBosses: [
+      { type: 'robot',   name: 'OMEGA-LOGIC',     power: 'avatar',     hpMul: 9,  dmgMul: 2.1, scale: 1.5, gold: 380 },
+      { type: 'shooter', name: 'SOULFIRE WARDEN', power: 'jetpack',    hpMul: 13, dmgMul: 2.4, scale: 1.5, gold: 480 },
+      { type: 'sniper',  name: 'VOID JUDGE',      power: 'gas_sniper', hpMul: 19, dmgMul: 2.7, scale: 1.6, gold: 600 },
+    ],
     zones: [
       { count: 8,  pool: ['soldier', 'ninja'] },
-      { count: 10, pool: ['robot', 'brute', 'ninja'], event: 'jimmy_screens' },
+      { count: 10, pool: ['robot', 'brute', 'ninja'], event: 'core_pulse' },
     ],
   },
 ];
@@ -90,7 +126,6 @@ function getStage(wave) {
   return STAGES[Math.min(wave - 1, STAGES.length - 1)];
 }
 
-// Difficulty multipliers — speglar DIFF_MULTIPLIERS i game.js (förenklat)
 const DIFF_MULTIPLIERS = {
   recruit:  { enemyHp: 0.7, enemyDmg: 0.7 },
   veteran:  { enemyHp: 1.0, enemyDmg: 1.0 },
@@ -98,16 +133,6 @@ const DIFF_MULTIPLIERS = {
   nightmare:{ enemyHp: 1.8, enemyDmg: 1.6 },
 };
 
-function getDiffMul(difficulty) {
-  return DIFF_MULTIPLIERS[difficulty] || DIFF_MULTIPLIERS.veteran;
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { STAGES, getStage, DIFF_MULTIPLIERS };
 }
-
-function getCoopMultiplier(playerCount) {
-  return Math.max(1, playerCount || 1);
-}
-
-function getNGPMul(ngpLevel) {
-  return 1 + (ngpLevel || 0) * 0.15;
-}
-
-module.exports = { STAGES, getStage, getDiffMul, getCoopMultiplier, getNGPMul, DIFF_MULTIPLIERS };

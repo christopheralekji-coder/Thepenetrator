@@ -1,18 +1,17 @@
-// Boss-config data — speglar BOSS_CONFIGS i game.js:167-228.
-// MÅSTE hållas i sync vid varje boss-ändring.
+// Boss-config data — speglar BOSS_CONFIGS i game.js (måste hållas i sync).
+// Uppdaterad till boss-revamp v119+: 9 finals med powerSet-array.
 'use strict';
 
 const BOSS_CONFIGS = {
-  likvakare:    { name: 'Jimmys Likvakare', subtitle: 'Rebellprästen i skogen', hp: 580, speed: 110, dmg: 28, r: 26, color: '#3a2a44', accent: '#7a5aaa', glow: '#aaff5a', ai: 'caster', gold: 220 },
-  benkrossare:  { name: 'Mourads Benkrossare', subtitle: 'Bepansrad legoknekt', hp: 780, speed: 90, dmg: 42, r: 30, color: '#7a4030', accent: '#3a1810', glow: '#ff5a30', ai: 'tank_charger', gold: 280 },
-  strypare:     { name: 'Jimmys Strypare', subtitle: 'Cyber-mördare i lobbyn', hp: 720, speed: 200, dmg: 26, r: 20, color: '#1a1a22', accent: '#ff3a44', glow: '#ff3a44', ai: 'cloaker', gold: 320 },
-  avrattare:    { name: 'Mourads Avrättare', subtitle: 'GENERALEN — pansrad krossare', hp: 1350, speed: 120, dmg: 45, r: 32, color: '#3a2418', accent: '#ff6a30', glow: '#ff8a30', ai: 'brute_charger', gold: 450 },
-  kottkvarn:    { name: 'Jimmys Köttkvarn', subtitle: 'Kybernetisk experiment-vapen', hp: 1080, speed: 120, dmg: 34, r: 28, color: '#3a3a48', accent: '#3acaff', glow: '#3acaff', ai: 'plasma', gold: 380 },
-  askmakare:    { name: 'Mourads Askmakare', subtitle: 'Pyromaniker med jetpack', hp: 1200, speed: 165, dmg: 36, r: 26, color: '#3a1a14', accent: '#ff8a30', glow: '#ff5a14', ai: 'jetpack', gold: 420 },
-  lungrivare:   { name: 'Jimmys Lungrivare', subtitle: 'SKUGGAN — gasmask och gift', hp: 1450, speed: 150, dmg: 34, r: 22, color: '#2a3a30', accent: '#9aff5a', glow: '#9aff5a', ai: 'gas_sniper', gold: 500 },
-  skallsprackare: { name: 'Mourads Skallspräckare', subtitle: 'Riot-shield, magnum, oöm', hp: 1230, speed: 105, dmg: 40, r: 28, color: '#3a3a44', accent: '#dcdcdc', glow: '#ff3a3a', ai: 'shielder', gold: 460 },
-  sjalaatare:   { name: 'Jimmys Själaätare', subtitle: 'Avataren — dödar kropp och själ', hp: 1800, speed: 130, dmg: 42, r: 30, color: '#1a0a14', accent: '#aa3aff', glow: '#aa3aff', ai: 'avatar', gold: 700 },
-  gravgravaren: { name: 'Mourad, Gravgrävaren', subtitle: 'Det riktiga slutet', hp: 3300, speed: 155, dmg: 55, r: 34, color: '#3a0a14', accent: '#ffd54a', glow: '#ff1a1a', ai: 'final', gold: 1500 },
+  witheredelder:   { name: 'THE WITHERED ELDER',    subtitle: 'Skogens sista röst',                       hp: 3500, speed: 130, dmg: 48, r: 30, color: '#1a3018', accent: '#aaff5a', glow: '#5aff8a', ai: 'final_combo', powerSet: ['caster','tank_charger','cloaker'],         gold: 500 },
+  ironclad:        { name: 'IRONCLAD HARBINGER',    subtitle: 'Pansrad rosthärlighet',                    hp: 4200, speed: 110, dmg: 56, r: 32, color: '#3a2018', accent: '#ff7a3a', glow: '#ffae5a', ai: 'final_combo', powerSet: ['brute_charger','gas_sniper','shielder'], gold: 650 },
+  mirroredone:     { name: 'THE MIRRORED ONE',      subtitle: 'Den som ser ditt ansikte i varje glas',    hp: 4600, speed: 170, dmg: 46, r: 24, color: '#1a1a30', accent: '#5acaff', glow: '#aa5aff', ai: 'final_combo', powerSet: ['cloaker','caster','plasma'],             gold: 750 },
+  ossarius:        { name: 'GENERAL OSSARIUS',      subtitle: 'Order i benhuset, kaos i ditt huvud',     hp: 5400, speed: 130, dmg: 60, r: 34, color: '#3a2a18', accent: '#ffd54a', glow: '#ff7a30', ai: 'final_combo', powerSet: ['brute_charger','tank_charger','avatar'], gold: 950 },
+  vanguardatlas:   { name: 'VANGUARD ATLAS',        subtitle: 'Maskinen som glömde att den var en man',  hp: 5800, speed: 140, dmg: 56, r: 32, color: '#2a3a44', accent: '#3acaff', glow: '#5affaa', ai: 'final_combo', powerSet: ['plasma','gas_sniper','avatar'],          gold: 1100 },
+  emberoracle:     { name: 'THE EMBER ORACLE',      subtitle: 'Hon ser askan av allt du älskat',          hp: 6300, speed: 175, dmg: 58, r: 28, color: '#3a0a14', accent: '#ff5a30', glow: '#ffae3a', ai: 'final_combo', powerSet: ['caster','jetpack','avatar'],             gold: 1300 },
+  blightsovereign: { name: 'BLIGHT SOVEREIGN',      subtitle: 'Härskaren av allt som ruttnar',           hp: 6900, speed: 145, dmg: 54, r: 26, color: '#1a3a28', accent: '#9aff5a', glow: '#5affae', ai: 'final_combo', powerSet: ['gas_sniper','cloaker','caster'],         gold: 1500 },
+  buriedcrown:     { name: 'THE BURIED CROWN',      subtitle: 'Begravd, men aldrig död',                  hp: 7700, speed: 115, dmg: 64, r: 32, color: '#1a1a2a', accent: '#ffd54a', glow: '#ff3a3a', ai: 'final_combo', powerSet: ['brute_charger','shielder','plasma'],     gold: 1800 },
+  lastsovereign:   { name: 'THE LAST SOVEREIGN',    subtitle: 'Den sista på sin tron — du tar nästa.',    hp: 9500, speed: 155, dmg: 72, r: 36, color: '#3a0a14', accent: '#aa3aff', glow: '#ff1a1a', ai: 'final_combo', powerSet: ['avatar','jetpack','gas_sniper'],         gold: 3000 },
 };
 
 function getBossConfig(key) { return BOSS_CONFIGS[key]; }

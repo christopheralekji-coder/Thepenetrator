@@ -185,10 +185,35 @@ function tickSim(sim) {
     for (const e of sim.enemies) {
       if (!e.dead) continue;
       if (e.isBoss) checkBossDeath(sim, e);
+      // Mini-boss interlude: när miniboss dör + fler i listan → spawn enemies
+      // (server-side spegling av game.js:killEnemy)
+      if (e.isMiniBoss && !e._miniBossNextSpawned) {
+        e._miniBossNextSpawned = true;
+        const stage = require('../../shared/stages-data.js').getStage(sim.wave);
+        const list = stage && (stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []));
+        if (list && (sim.miniBossesSpawned || 0) < list.length) {
+          sim._miniInterludeActive = true;
+          sim._miniInterludeNextIdx = sim.miniBossesSpawned;
+          // Spawn 5-7 interlude-enemies från stage-pool
+          const zones = stage.zones || [];
+          const pool = (zones[Math.min(sim.currentZone || 0, zones.length - 1)] || zones[0] || { pool: ['grunt'] }).pool;
+          const count = 5 + Math.floor(Math.random() * 3);
+          for (let i = 0; i < count; i++) {
+            const t = pool[Math.floor(Math.random() * pool.length)];
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 350 + Math.random() * 200;
+            const cx = e.x + Math.cos(angle) * dist;
+            const cy = e.y + Math.sin(angle) * dist;
+            const ne = require('./enemies.js').makeEnemy(t,
+              Math.max(40, Math.min(stage.worldW - 40, cx)),
+              Math.max(40, Math.min(stage.worldH - 40, cy)));
+            ne._idx = sim.nextEnemyIdx++;
+            sim.enemies.push(ne);
+          }
+        }
+      }
       // Drop pickup
       dropFromEnemyDeath(sim, e);
-      // Gold-share-event så alla klienter får guld + kill-credit. Inkluderar enemy-index
-      // så klient kan ta bort enemy ur state.enemies direkt (annars dröjer 1.5s till nästa full-broadcast).
       if (sim.eventQueue) {
         sim.eventQueue.push({
           type: 'enemy_killed',
@@ -296,9 +321,9 @@ function updateHazards(sim, dt, now, players) {
       const g = sim.gasClouds[i];
       g.life -= dt;
       if (g.life <= 0) { sim.gasClouds.splice(i, 1); continue; }
-      // DoT på spelare
+      // DoT på spelare (skippar companion — annars dubbel-räknat per ws)
       for (const p of players) {
-        if (p.hp <= 0) continue;
+        if (p.hp <= 0 || p._isCompanion) continue;
         const dx = p.x - g.x, dy = p.y - g.y;
         if (dx * dx + dy * dy < g.r * g.r) {
           p.hp = Math.max(0, p.hp - g.dps * dt);
@@ -315,7 +340,7 @@ function updateHazards(sim, dt, now, players) {
       f.life -= dt;
       if (f.life <= 0) { sim.flameTrails.splice(i, 1); continue; }
       for (const p of players) {
-        if (p.hp <= 0) continue;
+        if (p.hp <= 0 || p._isCompanion) continue;
         const dx = p.x - f.x, dy = p.y - f.y;
         if (dx * dx + dy * dy < f.r * f.r) {
           p.hp = Math.max(0, p.hp - f.dps * dt);
@@ -543,21 +568,31 @@ function applyPlayerInput(sim, peerId, input) {
   if (typeof input.hp === 'number') ws.playerState.hp = input.hp;
   if (typeof input.aim === 'number') ws.playerState.aim = input.aim;
   if (input.weaponId) ws.playerState.weaponId = input.weaponId;
-  // Companion-state: klient skickar companion position/hp/alive om aktiv.
-  // Server använder för enemy-aggro + contact-damage.
+  // Companion-state: server är AUKTORITET för hp + alive (klient kan annars skriva
+  // över server-side damage genom att skicka full hp). Klient skickar position +
+  // metadata; server preservar hp/alive om companion redan finns.
   if (input.companion) {
-    ws.companionState = {
-      id: input.companion.id,
-      x: input.companion.x,
-      y: input.companion.y,
-      hp: typeof input.companion.hp === 'number' ? input.companion.hp : 100,
-      maxHp: input.companion.maxHp || 100,
-      alive: input.companion.alive !== false,
-      r: input.companion.r || 12,
-      lastAggroAt: ws.companionState ? ws.companionState.lastAggroAt : 0,
-    };
+    const prev = ws.companionState;
+    if (prev && prev.id === input.companion.id) {
+      // Existing companion: behåll server-auth hp + alive, uppdatera bara pos/r.
+      prev.x = input.companion.x;
+      prev.y = input.companion.y;
+      prev.r = input.companion.r || prev.r;
+      prev.maxHp = input.companion.maxHp || prev.maxHp;
+    } else {
+      // Ny companion (första input eller byte) — initiera från klient.
+      ws.companionState = {
+        id: input.companion.id,
+        x: input.companion.x,
+        y: input.companion.y,
+        hp: typeof input.companion.hp === 'number' ? input.companion.hp : 100,
+        maxHp: input.companion.maxHp || 100,
+        alive: input.companion.alive !== false,
+        r: input.companion.r || 12,
+        lastAggroAt: 0,
+      };
+    }
   } else if (ws.companionState) {
-    // Klient skickar inte companion → user har ingen aktiv
     ws.companionState = null;
   }
 }
