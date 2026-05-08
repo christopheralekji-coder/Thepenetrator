@@ -197,7 +197,7 @@ const BOSS_CONFIGS = {
     name: 'Jimmys Köttkvarn', subtitle: 'Kybernetisk experiment-vapen',
     hp: 1080, speed: 120, dmg: 34, r: 28,
     color: '#3a3a48', accent: '#3acaff', glow: '#3acaff',
-    ai: 'plasma', gold: 380,
+    ai: 'plasma', gold: 480,
   },
   askmakare: {
     name: 'Mourads Askmakare', subtitle: 'Pyromaniker med jetpack',
@@ -356,7 +356,7 @@ function setupTruck(stage) {
     x: stage.spawnPos.x + 300,
     y: stage.spawnPos.y,
     w: 220, h: 90,
-    hp: 1500, maxHp: 1500,
+    hp: 2500, maxHp: 2500,
     speed: 50, // px/s framåt
     alive: true,
     angle: 0, // riktning (mot goal)
@@ -410,12 +410,20 @@ function updateTruck(dt, now) {
     // Inte mountad — clear turret-vapen
     p._turretWeapon = null;
     p._turretId = null;
-    // Håll spelare PÅ trucken (tvingad position)
-    const dxt = p.x - t.x;
-    const dyt = p.y - t.y;
+    // Håll spelare PÅ trucken — rotera diff till truck-local space, clamp, rotera tillbaka.
+    // Tidigare axis-aligned clamp fungerade fel när t.angle != 0 (kollision-shake).
+    const angle = t.angle || 0;
+    const cos = Math.cos(-angle), sin = Math.sin(-angle);
+    const dx = p.x - t.x, dy = p.y - t.y;
+    const lx = dx * cos - dy * sin, ly = dx * sin + dy * cos;
     const maxX = t.w/2 - 12, maxY = t.h/2 - 12;
-    if (Math.abs(dxt) > maxX) p.x = t.x + Math.sign(dxt) * maxX;
-    if (Math.abs(dyt) > maxY) p.y = t.y + Math.sign(dyt) * maxY;
+    const cx = Math.max(-maxX, Math.min(maxX, lx));
+    const cy = Math.max(-maxY, Math.min(maxY, ly));
+    if (cx !== lx || cy !== ly) {
+      const cos2 = Math.cos(angle), sin2 = Math.sin(angle);
+      p.x = t.x + cx * cos2 - cy * sin2;
+      p.y = t.y + cx * sin2 + cy * cos2;
+    }
   }
   // Markera vilka turrets som är claim:ade (host + partners) + lås positions
   if (Coop.active && Coop.isHost) {
@@ -536,6 +544,11 @@ function spawnCompanion() {
   const id = save.companions.active;
   const comp = getCompanionById(id);
   if (!comp) { state.companion = null; return; }
+  // Rensa persisted death-state vid spawn (revive eller new run)
+  if (save.companions.dead && save.companions.dead[id]) {
+    delete save.companions.dead[id];
+    persist();
+  }
   const lvl = save.companions.level[id] || 0;
   const stats = companionStats(comp, lvl);
   const p = state.player;
@@ -1229,7 +1242,7 @@ const WEAPONS = [
     desc: 'Tre snabba skott per tryck. Hög burst-dmg.' },
   { id: 'shotgun',    name: 'Hagelgevär',       type: 'gun',   price: 600,  dmg: 16,  rate: 760, speed: 700, mag: 6,  reload: 1900, spread: 0.32, pellets: 6, color: '#ff6b3d',
     desc: 'Sex hagel per skott. Förödande på nära håll.' },
-  { id: 'bow',        name: 'Compoundbåge',     type: 'gun',   price: 720,  dmg: 65,  rate: 540, speed: 950, mag: 1,  reload: 700,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true,
+  { id: 'bow',        name: 'Compoundbåge',     type: 'gun',   price: 720,  dmg: 90,  rate: 540, speed: 950, mag: 1,  reload: 500,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true,
     desc: 'Pierce. Snabb reload. Perfekt aim krävs.' },
   { id: 'smg',        name: 'Kpist',            type: 'gun',   price: 800,  dmg: 14,  rate: 95,  speed: 740, mag: 30, reload: 1500, spread: 0.10, color: '#88ccff',
     desc: 'Spray-and-pray. Hög ROF.' },
@@ -1608,14 +1621,14 @@ const UPGRADES = [
   { id: 'dmg',    name: 'Skade-bonus',     icon: '💪', perLevel: 0.10, basePrice: 150, desc: '+10% skada per nivå' },
   { id: 'ammo',   name: 'Ammo-kapacitet',  icon: '🔫', perLevel: 0.20, basePrice: 120, desc: '+20% magasin per nivå' },
   { id: 'crit',   name: 'Krit-chans',      icon: '🎯', perLevel: 0.05, basePrice: 180, desc: '+5% chans för 2× skada' },
-  { id: 'regen',  name: 'HP-regen',        icon: '🩹', perLevel: 0.6,  basePrice: 200, desc: '+0.6 HP/sek per nivå' },
+  { id: 'regen',  name: 'HP-regen',        icon: '🩹', perLevel: 0.6,  basePrice: 140, desc: '+0.6 HP/sek per nivå' },
   // === 6 NYA UPPGRADERINGAR ===
   { id: 'reload', name: 'Reload-fart',     icon: '⏱️', perLevel: 0.15, basePrice: 140, desc: '-15% reload-tid per nivå' },
-  { id: 'expl',   name: 'Sprängradie',     icon: '💥', perLevel: 0.18, basePrice: 220, desc: '+18% explosionsradie per nivå' },
+  { id: 'expl',   name: 'Sprängradie',     icon: '💥', perLevel: 0.18, basePrice: 160, desc: '+18% explosionsradie per nivå' },
   { id: 'mrange', name: 'Melee-räckvidd',  icon: '⚔️', perLevel: 0.12, basePrice: 130, desc: '+12% melee-räckvidd per nivå' },
   { id: 'gold',   name: 'Lucky Find',      icon: '💎', perLevel: 0.18, basePrice: 200, desc: '+18% gold per dödad fiende' },
   { id: 'kb',     name: 'Knockback',       icon: '🦵', perLevel: 0.25, basePrice: 110, desc: '+25% knockback per nivå' },
-  { id: 'bspeed', name: 'Skotthastighet',  icon: '🏹', perLevel: 0.10, basePrice: 160, desc: '+10% kulhastighet per nivå' },
+  { id: 'bspeed', name: 'Skotthastighet',  icon: '🏹', perLevel: 0.10, basePrice: 100, desc: '+10% kulhastighet per nivå' },
 ];
 const MAX_UPGRADE_LEVEL = 5;
 function upgradePrice(u, level) {
@@ -1680,9 +1693,18 @@ function companionStats(comp, level) {
 function companionRevivePrice(comp) {
   return Math.max(50, Math.round((comp.basePrice * 0.5) / 10) * 10);
 }
-// Är aktiv companion död (in-game)? Används för att visa ÅTERVÄCK-UI.
+// Är aktiv companion död (in-game ELLER persisted från tidigare run)?
+// Används för att visa ÅTERVÄCK-UI även i menu pre-game (state.companion null).
 function isActiveCompanionDead() {
-  return state.companion && !state.companion.alive && save.companions && save.companions.active === state.companion.id;
+  if (!save.companions || !save.companions.active) return false;
+  if (state.companion && state.companion.id === save.companions.active && !state.companion.alive) return true;
+  if (save.companions.dead && save.companions.dead[save.companions.active]) return true;
+  return false;
+}
+// Specifik companion-id död?
+function isCompanionDead(id) {
+  if (state.companion && state.companion.id === id && !state.companion.alive) return true;
+  return !!(save.companions && save.companions.dead && save.companions.dead[id]);
 }
 function ensureCompanions() {
   if (!save.companions) save.companions = {};
@@ -1802,7 +1824,7 @@ const PERKS = [
   { id: 'goldbonus',  icon: '💰', name: 'Mynt-bonus',      price: 400,  desc: '+30% gold från alla källor (staplar med Lucky Find).' },
   { id: 'revive',     icon: '🛡️', name: 'Andra chans',     price: 1200, desc: 'Vid första döden per RUN återupplivas du med 50% HP.' },
   { id: 'blastsafe',  icon: '🦺', name: 'Sprängskydd',     price: 450,  desc: '−50% skada från explosioner och eldspår.' },
-  { id: 'headshot',   icon: '🎯', name: 'Headshot',        price: 700,  desc: '20% chans att skott ger 3× skada (oberoende av Krit).' },
+  { id: 'headshot',   icon: '🎯', name: 'Headshot',        price: 500,  desc: '20% chans att skott ger 3× skada (oberoende av Krit).' },
   { id: 'fastmelee',  icon: '⚡', name: 'Stark-melee',     price: 380,  desc: '+30% melee-attackfrekvens.' },
   { id: 'firespread', icon: '🔥', name: 'Kraftbrand',      price: 800,  desc: 'Brinnande fiender sprider eld till närmsta fiende.' },
   { id: 'stealth',    icon: '👤', name: 'Tystgångare',     price: 550,  desc: 'Fiender upptäcker dig 40% senare. Första skottet ger +50% skada.' },
@@ -1810,13 +1832,13 @@ const PERKS = [
   { id: 'timerewind', icon: '⏪', name: 'Time-rewind',     price: 1500, desc: 'Vid kritisk HP, spola tillbaka 3 sek. En gång per stage.' },
   { id: 'glasscannon',icon: '💥', name: 'Glas-kanon',      price: 700,  desc: '+60% skada men halverat HP. Skjuter 15% snabbare.' },
   { id: 'phantombody',icon: '👻', name: 'Spektral kropp',  price: 800,  desc: '20% chans att skott missar dig.' },
-  { id: 'klone',      icon: '👯', name: 'Klone',           price: 1000, desc: 'En skugga följer dig och skjuter likadant 35% av tiden.' },
+  { id: 'klone',      icon: '👯', name: 'Klone',           price: 700,  desc: 'En skugga följer dig och skjuter likadant 35% av tiden.' },
   { id: 'goldwindow', icon: '✨', name: 'Gold-fönster',    price: 600,  desc: 'Vid stage-clear, 5 sek där alla droppar guld.' },
-  { id: 'reflexes',   icon: '🥋', name: 'Reflexer',         price: 800,  desc: 'Bullets vid 50px räckvidd kan blockas med melee.' },
+  { id: 'reflexes',   icon: '🥋', name: 'Reflexer',         price: 500,  desc: 'Bullets vid 50px räckvidd kan blockas med melee.' },
   { id: 'magnetism',  icon: '🧲', name: 'Magnet-mästare',  price: 350,  desc: 'Pickup-magnet 3× räckvidd. Mer guld i drops.' },
   { id: 'masterful',  icon: '🎓', name: 'Lärling',         price: 700,  desc: '+25% XP till alla vapen-mastery.' },
   { id: 'berserker',  icon: '🪓', name: 'Berserker',       price: 850,  desc: 'Melee-combo cap höjs till 20 (från 10).' },
-  { id: 'lastlaugh',  icon: '😈', name: 'Sista skrattet',  price: 1100, desc: 'Vid din död: explosion 200dmg i 250px radius.' },
+  { id: 'lastlaugh',  icon: '😈', name: 'Sista skrattet',  price: 700,  desc: 'Vid din död: explosion 200dmg i 250px radius.' },
 ];
 
 function ensurePerks() {
@@ -2908,8 +2930,9 @@ document.getElementById('btn-pause-quit').addEventListener('click', () => {
   menuScreen.classList.remove('hidden');
   Music.stop();
   Audio.uiClick();
-  // Anti-läck: om kommer från sandbox, restore gold/owned innan tillbaka till menu
+  // Anti-läck: restore sandbox + coop-snapshots innan tillbaka till menu
   if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
+  if (typeof restoreCoopIfNeeded === 'function' && Coop.active) restoreCoopIfNeeded();
 });
 const btnPauseRestart = document.getElementById('btn-pause-restart');
 if (btnPauseRestart) {
@@ -5357,7 +5380,7 @@ function renderCompanions() {
     const isActive = save.companions.active === c.id;
     const stats = companionStats(c, lvl);
     const upgPrice = lvl < MAX_COMPANION_LEVEL ? companionUpgradePrice(lvl) : null;
-    const isDead = isActive && state.companion && state.companion.id === c.id && !state.companion.alive;
+    const isDead = isActive && isCompanionDead(c.id);
     const revivePrice = companionRevivePrice(c);
     const card = document.createElement('div');
     card.style.cssText = 'background:rgba(20,20,30,0.7);border:2px solid ' + (isDead ? '#ff5a5a' : (isActive ? '#aa3aff' : 'rgba(170,58,255,0.2)')) + ';border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;';
@@ -7323,7 +7346,7 @@ function renderShopCompanions() {
     const stats = companionStats(c, lvl);
     const upgPrice = lvl < MAX_COMPANION_LEVEL ? companionUpgradePrice(lvl) : null;
     // Är denna companion död in-game (alive=false) och fortfarande aktiv?
-    const isDead = isActive && state.companion && state.companion.id === c.id && !state.companion.alive;
+    const isDead = isActive && isCompanionDead(c.id);
     const revivePrice = companionRevivePrice(c);
     const card = document.createElement('div');
     card.style.cssText = 'background:rgba(20,20,30,0.7);border:2px solid ' + (isDead ? '#ff5a5a' : (isActive ? '#aa3aff' : 'rgba(170,58,255,0.2)')) + ';border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:8px;';
@@ -7621,6 +7644,30 @@ function runIntroCutscene(onDone) {
   }, totalDur + 100);
 }
 
+// Coop-snapshot restore: anropas när user lämnar coop via menyn (utan att vinna/dö),
+// så att gold/perks/upgrades återställs (annars persistar coop-state i save).
+function restoreCoopIfNeeded() {
+  let snap = state && state._coopSnapshot;
+  if (!snap) {
+    try {
+      const raw = localStorage.getItem('penetrator_coop_snapshot');
+      if (raw) snap = JSON.parse(raw);
+    } catch (_) {}
+  }
+  if (!snap) return false;
+  if (typeof snap.gold === 'number') save.gold = snap.gold;
+  if (snap.owned) save.owned = snap.owned;
+  if (snap.weaponId) save.weaponId = snap.weaponId;
+  if (snap.equipped) save.equipped = snap.equipped;
+  if (snap.upgrades) save.upgrades = snap.upgrades;
+  if (snap.perks) save.perks = snap.perks;
+  if (save.companions && snap.activeCompanion !== undefined) save.companions.active = snap.activeCompanion;
+  if (state) state._coopSnapshot = null;
+  try { localStorage.removeItem('penetrator_coop_snapshot'); } catch (_) {}
+  persist();
+  return true;
+}
+
 // Sandbox-restore: anropas vid mode-byte / page-init / pre-start för att se till
 // att obegränsat-gold + alla-vapen-buff från sandbox INTE läcker till andra modes.
 // Persistar snapshot till localStorage så tab-crash inte stjäl save.gold.
@@ -7841,7 +7888,7 @@ function drawStoryDialog() {
   // Beräkna höjd baserat på antal rader
   const lineHeight = fontSize + 8;
   const headerH = isSmall ? 28 : 38;
-  const btnH = 36;
+  const btnH = 44;
   const textH = lines.length * lineHeight;
   const boxH = headerH + textH + btnH + 32; // proportionell
   const bx = (viewW - boxW) / 2;
@@ -8593,7 +8640,12 @@ function syncActionButtonsToMinimap() {
 }
 window.addEventListener('resize', syncActionButtonsToMinimap);
 window.addEventListener('orientationchange', () => setTimeout(syncActionButtonsToMinimap, 200));
-setInterval(syncActionButtonsToMinimap, 300);
+// Throttla i menu-mode (1500ms) vs in-game (300ms) — sparar CPU på mobile.
+function _syncActionButtonsThrottled() {
+  if (document.body.classList.contains('menu-mode')) return; // skip i menu
+  syncActionButtonsToMinimap();
+}
+setInterval(_syncActionButtonsThrottled, 300);
 setTimeout(syncActionButtonsToMinimap, 50);
 setTimeout(syncActionButtonsToMinimap, 500);
 setTimeout(syncActionButtonsToMinimap, 1500);
@@ -8617,7 +8669,11 @@ function syncEmoteButtonToJoystick() {
 }
 window.addEventListener('resize', syncEmoteButtonToJoystick);
 window.addEventListener('orientationchange', () => setTimeout(syncEmoteButtonToJoystick, 200));
-setInterval(syncEmoteButtonToJoystick, 300);
+function _syncEmoteThrottled() {
+  if (document.body.classList.contains('menu-mode')) return;
+  syncEmoteButtonToJoystick();
+}
+setInterval(_syncEmoteThrottled, 300);
 setTimeout(syncEmoteButtonToJoystick, 50);
 setTimeout(syncEmoteButtonToJoystick, 500);
 
@@ -9037,6 +9093,11 @@ function damageCompanion(amount) {
   if (c.hp <= 0) {
     c.alive = false;
     c.hp = 0;
+    // Persist death-state så ÅTERVÄCK kan visas i menu pre-game (state.companion
+    // är null mellan runs men user behöver kunna revive från huvudmenyn också).
+    if (!save.companions.dead) save.companions.dead = {};
+    save.companions.dead[c.id] = true;
+    persist();
     if (typeof spawnParticles === 'function') {
       spawnParticles(c.x, c.y, '#aa3aff', 16, 200);
     }
@@ -15801,10 +15862,18 @@ function drawModeTimer() {
     const elapsed = (performance.now() - start) / 1000;
     // Survive: kolla när tiden tar slut (5min countdown)
     if (mode === 'survive') {
+      // Spawn HP-pickup var 60s nära player (anti-attrition mot DPS-ramping)
+      if (state.player && (!state._lastSurviveHp || elapsed - state._lastSurviveHp >= 60)) {
+        state._lastSurviveHp = elapsed;
+        const a = Math.random() * Math.PI * 2;
+        const dx = Math.cos(a) * 180, dy = Math.sin(a) * 180;
+        spawnPickup(state.player.x + dx, state.player.y + dy, 'hp');
+      }
       const remaining = Math.max(0, 300 - elapsed);
       if (remaining <= 0 && state.mode === 'playing') {
         onWaveComplete();
         state.surviveStart = null;
+        state._lastSurviveHp = 0;
         return;
       }
       const mins = Math.floor(remaining / 60);

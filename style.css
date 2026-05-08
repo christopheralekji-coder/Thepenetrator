@@ -332,8 +332,9 @@ html, body {
 }
 .weapon-categories.hidden { display: none; }
 .cat-btn {
-  padding: 6px 12px;
+  padding: 10px 14px;
   font-size: 11px;
+  min-height: 40px;
   font-weight: 700;
   letter-spacing: 1px;
   background: #1a1a1a;
@@ -341,6 +342,7 @@ html, body {
   border: 1px solid #333;
   border-radius: 4px;
   cursor: pointer;
+  touch-action: manipulation;
 }
 .cat-btn.active {
   background: #3a2a10;
@@ -924,13 +926,15 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   flex-wrap: wrap;
 }
 .lobby-button-row button {
-  padding: 6px 12px;
+  padding: 10px 14px;
   font-size: 11px;
+  min-height: 40px;
   font-weight: 700;
   letter-spacing: 1px;
   background: #1a1a22;
   border: 1px solid #3a3a4a;
   color: #ddd;
+  touch-action: manipulation;
   border-radius: 4px;
   cursor: pointer;
   flex: 1 1 80px;
@@ -990,7 +994,7 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   .lobby-section { margin-bottom: 8px; }
   .lobby-label { font-size: 9px; }
   .lobby-input { padding: 6px 10px; font-size: 13px; }
-  .lobby-button-row button { padding: 5px 8px; font-size: 9px; flex: 1 1 60px; }
+  .lobby-button-row button { padding: 8px 10px; font-size: 10px; flex: 1 1 70px; min-height: 38px; }
   #coop-player-list .player-row { padding: 4px 8px; }
   #coop-player-list .player-row .pname { font-size: 11px; }
   #coop-player-list .player-row .kick-btn { padding: 3px 6px; font-size: 9px; }
@@ -1124,6 +1128,8 @@ body.colorblind .hostile-bullet { filter: hue-rotate(180deg); }
 }
 
 /* PWA install-banner */
+/* Göm install-banner i playing-mode (täcker annars fire-button) — visa bara i menu */
+body:not(.menu-mode) #install-banner { display: none !important; }
 #install-banner {
   position: fixed;
   bottom: 0; left: 0; right: 0;
@@ -1196,9 +1202,11 @@ body.ios .overlay {
 /* Compact mode för små skärmar (telefoner portrait/iPhone SE) */
 @media (max-width: 480px) {
   #joystick { width: 100px; height: 100px; bottom: 16px; left: 16px; }
-  #btn-emote { left: 130px !important; bottom: 36px !important; width: 42px !important; height: 42px !important; font-size: 18px !important; }
+  /* JS sets emote-btn position dynamically; size only here */
+  .emote-btn { width: 44px !important; height: 44px !important; font-size: 18px !important; }
   #joystick-knob { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
-  .action-btn { width: 58px; height: 58px; font-size: 18px; }
+  /* HIG 44×44 touch-target — höj action-btn från 58 till 64 */
+  .action-btn { width: 64px; height: 64px; font-size: 18px; }
   .action-btn.fire { width: 84px; height: 84px; font-size: 26px; }
   .overlay h1 { font-size: 28px !important; letter-spacing: 2px !important; }
   .overlay h2 { font-size: 18px !important; }

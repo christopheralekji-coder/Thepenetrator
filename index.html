@@ -51,7 +51,7 @@
   <!-- Knappar fylls i av JS -->
 </div>
 
-<div id="emote-picker" class="hidden" style="position:fixed;bottom:120px;left:30px;background:rgba(20,20,30,0.95);border:2px solid #aa3aff;border-radius:12px;padding:12px;display:grid;grid-template-columns:repeat(4,46px);gap:6px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,0.5);">
+<div id="emote-picker" class="hidden" style="position:fixed;bottom:120px;left:max(30px, env(safe-area-inset-left, 30px));background:rgba(20,20,30,0.95);border:2px solid #aa3aff;border-radius:12px;padding:12px;display:grid;grid-template-columns:repeat(4,46px);gap:6px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,0.5);">
   <!-- Emote-knappar fylls i av JS -->
 </div>
 
@@ -282,7 +282,7 @@
   <div id="coop-init" class="coop-options">
     <button id="btn-coop-host" class="big-btn" style="margin-bottom: 18px;">SKAPA RUM</button>
     <div style="margin:18px 0;color:#888;font-size:13px;letter-spacing:2px;">— eller —</div>
-    <input id="coop-code-input" placeholder="ABCD" maxlength="4" style="font-size:24px;text-align:center;letter-spacing:8px;text-transform:uppercase;padding:10px 14px;width:180px;background:#1a1a22;border:2px solid #ffd54a;border-radius:6px;color:#fff;font-weight:700;margin-bottom:18px;display:block;margin-left:auto;margin-right:auto;">
+    <input id="coop-code-input" placeholder="ABCD" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" inputmode="text" style="font-size:24px;text-align:center;letter-spacing:8px;text-transform:uppercase;padding:10px 14px;width:180px;background:#1a1a22;border:2px solid #ffd54a;border-radius:6px;color:#fff;font-weight:700;margin-bottom:18px;display:block;margin-left:auto;margin-right:auto;">
     <button id="btn-coop-join" class="big-btn">JOINA RUM</button>
   </div>
   <div id="coop-lobby" class="coop-options hidden">
