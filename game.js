@@ -2934,6 +2934,21 @@ function closeSettings() {
 }
 document.getElementById('btn-settings-close').addEventListener('click', closeSettings);
 
+// Återställ progression — wipear localStorage + reload. Kräver bekräftelse.
+const _btnResetSave = document.getElementById('btn-reset-save');
+if (_btnResetSave) {
+  _btnResetSave.addEventListener('click', () => {
+    Audio.uiClick();
+    if (!confirm('Detta nollställer ALL progression: gold, vapen, perks, upgrades, achievements. Kan inte ångras. Fortsätt?')) return;
+    try {
+      localStorage.removeItem('penetrator_save_v1');
+      localStorage.removeItem('penetrator_sandbox_snapshot');
+      localStorage.removeItem('penetrator_coop_snapshot');
+    } catch (_) {}
+    location.reload();
+  });
+}
+
 document.getElementById('btn-tut-close').addEventListener('click', () => {
   document.getElementById('tutorial-overlay').classList.add('hidden');
   save.tutorialDone = true;
@@ -8466,32 +8481,29 @@ function syncActionButtonsToMinimap() {
   const mm = document.getElementById('minimap');
   const ab = document.getElementById('action-buttons');
   if (!mm || !ab) return;
-  // Endast i playing/pause-mode (annars syns inte minimap)
-  const mmStyle = getComputedStyle(mm);
-  if (mmStyle.display === 'none' || mm.offsetWidth === 0) return;
+  if (mm.offsetWidth === 0) return; // minimap-rect ej redo (game-mode inte aktiv)
   const r = mm.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   const minimapCenterX = r.left + r.width / 2;
   const minimapBottom = r.bottom;
-  const abH = ab.offsetHeight || 154; // fallback
-  // Centrera ab horisontellt på minimap-center
-  // ab har width = max(child-widths) = 84 (fire-btn). Använd current width.
+  const abH = ab.offsetHeight || 154;
   const abW = ab.offsetWidth || 84;
-  const desiredRight = vw - (minimapCenterX + abW / 2);
-  // Vertikal: halvvägs mellan minimap-bottom och skärm-bottom
+  const desiredRight = Math.max(8, vw - (minimapCenterX + abW / 2));
   const space = vh - minimapBottom;
   const desiredBottom = Math.max(12, (space - abH) / 2);
-  ab.style.right = Math.max(8, desiredRight) + 'px';
-  ab.style.bottom = desiredBottom + 'px';
-  ab.style.left = 'auto';  // override i fall det blivit satt
-  ab.style.top = 'auto';
+  // !important via setProperty så CSS-regler (body.ios, @media) inte vinner
+  ab.style.setProperty('right', desiredRight + 'px', 'important');
+  ab.style.setProperty('bottom', desiredBottom + 'px', 'important');
+  ab.style.setProperty('left', 'auto', 'important');
+  ab.style.setProperty('top', 'auto', 'important');
 }
 window.addEventListener('resize', syncActionButtonsToMinimap);
 window.addEventListener('orientationchange', () => setTimeout(syncActionButtonsToMinimap, 200));
-// Initial + kontinuerlig sync (cheap — bara getBoundingClientRect)
-setInterval(syncActionButtonsToMinimap, 500);
-setTimeout(syncActionButtonsToMinimap, 100);
+setInterval(syncActionButtonsToMinimap, 300);
+setTimeout(syncActionButtonsToMinimap, 50);
+setTimeout(syncActionButtonsToMinimap, 500);
+setTimeout(syncActionButtonsToMinimap, 1500);
 
 // In-game settings-knapp (i HUD bredvid gold)
 const btnIngameSettings = document.getElementById('btn-ingame-settings');
