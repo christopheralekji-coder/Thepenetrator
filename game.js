@@ -8383,6 +8383,9 @@ function renderCoopBoardHTML(rows) {
 
 function endGame(victory) {
   state.mode = victory ? 'victory' : 'gameover';
+  // Rensa companion mellan runs så state inte läcker till next-run
+  // (spawnCompanion vid actuallyStartGame återskapar om save.companions.active)
+  state.companion = null;
   let ending = null;
   if (victory && getMode() === 'story') {
     ending = getEndingType();
@@ -15099,8 +15102,9 @@ function drawEnemy(e) {
   ctx.translate(x, y + bob);
   ctx.rotate(e.facing);
 
-  // Mini-bosses använder dedicated power-baserad rendering (9 unika designs)
-  // istället för generic enemy-look. Färgtema styrs av e.stageAccent/edge/bg.
+  // Mini-bosses: dedicated power-baserad rendering (9 unika designs)
+  // Fallback om miniPower saknas/okänd: fortsätt med default-enemy-rendering
+  // (visuell ring + namn-tag visas ändå nedan via isMiniBoss-grenen).
   if (e.isMiniBoss && e.miniPower && MINIBOSS_DRAW[e.miniPower]) {
     MINIBOSS_DRAW[e.miniPower](e, flash, now, phase, moving);
   } else if (e.type === 'dog') drawDog(e, flash, phase);
