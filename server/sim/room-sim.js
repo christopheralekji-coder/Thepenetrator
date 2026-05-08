@@ -267,7 +267,24 @@ function buildPlayerList(sim) {
       hp: ps.hp != null ? ps.hp : 100,
       invulnUntil: ps.invulnUntil || 0,
       r: 14,
+      _wsRef: ws, // refs för companion-aggro-AI + damage-event-routing
     });
+    // Companion som "fake player" så enemy-AI kan target den + ta kontakt-skada.
+    // Markeras med _isCompanion så contact-damage routar till event istället för
+    // direkt p.hp-modifikation.
+    if (ws.companionState && ws.companionState.alive && ws.companionState.hp > 0) {
+      const c = ws.companionState;
+      players.push({
+        peerId: pid,
+        _isCompanion: true,
+        _companionId: c.id,
+        x: c.x, y: c.y,
+        hp: c.hp,
+        invulnUntil: 0,
+        r: c.r || 12,
+        _wsRef: ws,
+      });
+    }
   }
   return players;
 }
@@ -526,6 +543,23 @@ function applyPlayerInput(sim, peerId, input) {
   if (typeof input.hp === 'number') ws.playerState.hp = input.hp;
   if (typeof input.aim === 'number') ws.playerState.aim = input.aim;
   if (input.weaponId) ws.playerState.weaponId = input.weaponId;
+  // Companion-state: klient skickar companion position/hp/alive om aktiv.
+  // Server använder för enemy-aggro + contact-damage.
+  if (input.companion) {
+    ws.companionState = {
+      id: input.companion.id,
+      x: input.companion.x,
+      y: input.companion.y,
+      hp: typeof input.companion.hp === 'number' ? input.companion.hp : 100,
+      maxHp: input.companion.maxHp || 100,
+      alive: input.companion.alive !== false,
+      r: input.companion.r || 12,
+      lastAggroAt: ws.companionState ? ws.companionState.lastAggroAt : 0,
+    };
+  } else if (ws.companionState) {
+    // Klient skickar inte companion → user har ingen aktiv
+    ws.companionState = null;
+  }
 }
 
 function applyShoot(sim, peerId, msg) {

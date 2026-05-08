@@ -3673,6 +3673,25 @@ const Coop = {
       if (typeof showTdmHud === 'function') showTdmHud(myTeam);
       if (typeof showToast === 'function') showToast(myTeam === 'red' ? '⚔ DU ÄR I RÖDA LAGET' : '⚔ DU ÄR I BLÅA LAGET');
       if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
+    } else if (ev.type === 'companion_damaged') {
+      // Server-sim: companion tog skada från enemy. Apply till klient state.
+      if (ev.peerId === this.myId && state.companion && state.companion.alive) {
+        state.companion.hp = ev.hp;
+        state.companion.flashUntil = performance.now() + 100;
+      }
+    } else if (ev.type === 'companion_died') {
+      if (ev.peerId === this.myId && state.companion) {
+        state.companion.alive = false;
+        state.companion.hp = 0;
+        if (!save.companions.dead) save.companions.dead = {};
+        save.companions.dead[ev.companionId] = true;
+        persist();
+        if (typeof spawnParticles === 'function') {
+          spawnParticles(state.companion.x, state.companion.y, '#aa3aff', 16, 200);
+        }
+        const cName = state.companion.comp && state.companion.comp.name ? state.companion.comp.name : 'Companion';
+        if (typeof showToast === 'function') showToast(`💀 ${cName} dog! Återväck i shoppen.`);
+      }
     } else if (ev.type === 'tdm_kill') {
       this.tdmRedKills = ev.redKills || 0;
       this.tdmBlueKills = ev.blueKills || 0;
@@ -4447,15 +4466,28 @@ const Coop = {
       const _dead = state.player.spectating;
       const _cx = _dead && state.deadBody ? state.deadBody.x : state.player.x;
       const _cy = _dead && state.deadBody ? state.deadBody.y : state.player.y;
-      // sim_input: bara position+aim+vapen — INTE hp (server är auktoritet för hp,
-      // skicka det skulle skriva över server-side damage)
-      this.ws.send(JSON.stringify({
+      // sim_input: position+aim+vapen — INTE hp (server auktoritet för hp).
+      // Companion-state inkluderas så server-AI kan target + skada den.
+      const _payload = {
         type: 'sim_input',
         x: Math.round(_cx),
         y: Math.round(_cy),
         aim: Math.round(state.player.aimAngle * 100) / 100,
         weaponId: state.player.weaponId,
-      }));
+      };
+      const _comp = state.companion;
+      if (_comp && _comp.alive) {
+        _payload.companion = {
+          id: _comp.id,
+          x: Math.round(_comp.x),
+          y: Math.round(_comp.y),
+          hp: Math.round(_comp.hp),
+          maxHp: _comp.maxHp,
+          alive: true,
+          r: _comp.r || 12,
+        };
+      }
+      this.ws.send(JSON.stringify(_payload));
       if (typeof _simDiag !== 'undefined') _simDiag.inputsSent++;
       return;
     }
@@ -9032,25 +9064,14 @@ function updateEnemies(dt, now) {
         if (Math.random() < 0.04) maybeChatter(e, ['ÄT SKIT!','SE UPP!','SKJUTER!','AAH!']);
       }
     } else {
-      // melee fiender: gå mot spelaren (om inte staggad)
+      // melee fiender: gå mot spelaren (om inte staggad). Alla enemies (inkl
+      // hund) jagar nu oavsett distance — wander-AI på 700px togs bort på user-feedback.
       const staggerActive = e.staggerUntil && now < e.staggerUntil;
       if (!staggerActive) {
         const dx = p.x - e.x, dy = p.y - e.y;
         const d = Math.hypot(dx, dy) || 1;
-        // Hund bara aktiv inom 700px (matchar anti-cheese viewport-radius).
-        // Utanför vandrar hunden slumpmässigt istället för att jaga över hela kartan.
-        if (e.type === 'dog' && d > 700) {
-          if (!e._wanderTimer || now > e._wanderTimer) {
-            e._wanderTimer = now + 2000 + Math.random() * 2000;
-            e._wanderX = (Math.random() - 0.5) * 0.3;
-            e._wanderY = (Math.random() - 0.5) * 0.3;
-          }
-          e.x += (e._wanderX || 0) * e.speed * dt;
-          e.y += (e._wanderY || 0) * e.speed * dt;
-        } else {
-          e.x += (dx/d) * e.speed * dt;
-          e.y += (dy/d) * e.speed * dt;
-        }
+        e.x += (dx/d) * e.speed * dt;
+        e.y += (dy/d) * e.speed * dt;
       }
       // chatter (sällan)
       if (Math.random() < 0.0015) {

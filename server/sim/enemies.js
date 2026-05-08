@@ -68,16 +68,30 @@ function makeEnemy(type, x, y) {
   return e;
 }
 
-// Hitta närmsta levande spelare (squared distance)
+// Hitta närmsta levande target. För companion-aggro: 25% av enemies (sticky
+// per-enemy via e._companionAggro) preferar companion om finns + alive.
 function findNearestPlayer(e, players) {
-  let bestD2 = Infinity, target = null;
+  // Filter companion-only och player-only
+  let nearestPlayer = null, nearestPlayerD2 = Infinity;
+  let nearestCompanion = null, nearestCompanionD2 = Infinity;
   for (const p of players) {
     if (p.hp <= 0) continue;
     const dx = p.x - e.x, dy = p.y - e.y;
     const d2 = dx * dx + dy * dy;
-    if (d2 < bestD2) { bestD2 = d2; target = p; }
+    if (p._isCompanion) {
+      if (d2 < nearestCompanionD2) { nearestCompanionD2 = d2; nearestCompanion = p; }
+    } else {
+      if (d2 < nearestPlayerD2) { nearestPlayerD2 = d2; nearestPlayer = p; }
+    }
   }
-  return target;
+  // Persistent aggro-flag: 25% av enemies targetar companion om den finns
+  if (nearestCompanion) {
+    if (e._companionAggro === undefined) e._companionAggro = Math.random() < 0.25;
+    if (e._companionAggro && nearestCompanionD2 < nearestPlayerD2 * 2.25) {
+      return nearestCompanion;
+    }
+  }
+  return nearestPlayer || nearestCompanion;
 }
 
 function spawnHostileBullet(sim, e, target) {
@@ -223,24 +237,12 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
     }
   } else {
     // melee: grunt, runner, brute, ninja, swordsman, robot, dog
-    // Stagger (push-back-effekt) — om aktiv, hoppa över rörelse
+    // Stagger (push-back-effekt) — om aktiv, hoppa över rörelse.
+    // Alla enemies (inkl hund) jagar oavsett distance — wander-AI togs bort.
     const staggerActive = e.staggerUntil && now < e.staggerUntil;
     if (!staggerActive) {
-      // Dog: bara aktiv inom viewport-radius (~700px). Utanför står hunden still
-      // istället för att jaga över hela kartan. Andra melee jagar fortfarande.
-      if (e.type === 'dog' && d > 700) {
-        // Hund vandrar lite slumpmässigt utanför viewport (visar att den lever)
-        if (!e._wanderTimer || now > e._wanderTimer) {
-          e._wanderTimer = now + 2000 + Math.random() * 2000;
-          e._wanderX = (Math.random() - 0.5) * 0.3;
-          e._wanderY = (Math.random() - 0.5) * 0.3;
-        }
-        e.x += (e._wanderX || 0) * e.speed * dt;
-        e.y += (e._wanderY || 0) * e.speed * dt;
-      } else {
-        e.x += (dx / d) * e.speed * dt;
-        e.y += (dy / d) * e.speed * dt;
-      }
+      e.x += (dx / d) * e.speed * dt;
+      e.y += (dy / d) * e.speed * dt;
     }
   }
 }
@@ -293,16 +295,42 @@ function applyStuckSidestep(e, dt, now, target) {
 
 // Kontaktskada till närmsta spelare. Respekterar player.invulnUntil så multipla enemies
 // inte dödar spelaren på 1 sekund (matchar klient-side damagePlayer's invuln-frames).
-function applyContactDamage(e, p) {
+function applyContactDamage(e, p, sim) {
   if (e.contactCd > 0 || e.dmg <= 0) return;
   const now = Date.now();
   if (p.invulnUntil && now < p.invulnUntil) return;
   const dx = p.x - e.x, dy = p.y - e.y;
   const rsum = (p.r || 14) + e.r;
   if (dx * dx + dy * dy < rsum * rsum) {
-    p.hp = Math.max(0, p.hp - e.dmg);
-    p._tookDamageFrom = e;
-    p.invulnUntil = now + 500;  // 500ms invuln efter hit (samma som klient)
+    if (p._isCompanion && p._wsRef && p._wsRef.companionState) {
+      // Companion-fallet: uppdatera server-side companion-state + skicka event
+      const c = p._wsRef.companionState;
+      c.hp = Math.max(0, c.hp - e.dmg);
+      if (sim && sim.eventQueue) {
+        sim.eventQueue.push({
+          type: 'companion_damaged',
+          peerId: p.peerId,
+          hp: c.hp,
+          maxHp: c.maxHp,
+          dmg: e.dmg,
+        });
+      }
+      if (c.hp <= 0) {
+        c.alive = false;
+        if (sim && sim.eventQueue) {
+          sim.eventQueue.push({
+            type: 'companion_died',
+            peerId: p.peerId,
+            companionId: c.id,
+          });
+        }
+      }
+      p.hp = c.hp; // för konsistent return-state
+    } else {
+      p.hp = Math.max(0, p.hp - e.dmg);
+      p._tookDamageFrom = e;
+      p.invulnUntil = now + 500;  // 500ms invuln efter hit (samma som klient)
+    }
     e.contactCd = 0.6;
   }
 }
@@ -329,7 +357,7 @@ function updateEnemy(e, dt, now, sim, players) {
   applyStuckSidestep(e, dt, now, target);
   // Fysik: separation + contact damage
   applySeparation(e, sim.enemies);
-  applyContactDamage(e, target);
+  applyContactDamage(e, target, sim);
 }
 
 module.exports = {
