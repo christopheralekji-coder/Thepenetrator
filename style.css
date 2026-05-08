@@ -582,22 +582,28 @@ html, body {
   border-color: rgba(255,213,74,0.3);
   background: linear-gradient(135deg, rgba(255,213,74,0.08), rgba(255,255,255,0.02));
 }
-/* Sista action-knappen — i normal flow med margin-top: auto så den pushas ner
-   till bottom utan att täcka annat content. Tidigare absolute/fixed orsakade
-   overlap med JOINA RUM och annat content. */
-.overlay > .big-btn.sticky-back-btn,
-.overlay > .small-btn.sticky-back-btn,
+/* sticky-back-btn class behållen för bakåtkompat men nu BARA marginal-styling.
+   Knappen är i normal flex-flow inom overlay (centred via sentinels) — varken
+   sticky eller absolute (de orsakade både "flyter"-bug och content-overlap). */
 .overlay .sticky-back-btn {
-  margin-top: auto !important;
-  margin-bottom: max(16px, env(safe-area-inset-bottom, 0px)) !important;
+  margin-top: 14px;
   flex-shrink: 0;
   min-height: 48px;
   min-width: 200px;
-  z-index: 5;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
 }
 /* Tutorial-overlay har egen layout (panel med scroll) */
 #tutorial-overlay { padding-bottom: 20px !important; }
+
+/* Coop-init kompakt i landscape — annars hamnar AVBRYT utanför 393px viewport */
+@media (max-height: 500px) and (orientation: landscape) {
+  #coop-init { padding: 10px 16px !important; }
+  #coop-init .big-btn { margin: 6px auto !important; padding: 8px 24px !important; min-height: 38px !important; font-size: 13px !important; }
+  #coop-init div { margin: 6px 0 !important; }
+  #coop-code-input { padding: 6px 10px !important; font-size: 18px !important; height: 38px !important; }
+  #coop-screen > h2 { margin: 4px 0 !important; font-size: 18px !important; }
+  #coop-screen > .menu-sub { margin-bottom: 6px !important; font-size: 11px !important; }
+  #btn-coop-close { margin-top: 8px !important; padding: 8px 24px !important; min-height: 38px !important; font-size: 12px !important; }
+}
 /* Borttagen: :last-of-type sticky-regel matchade fel knappar (settings STÄNG,
    weapon-menu FORTSÄTT etc) och positionerade dem felaktigt. Använd ENDAST
    explicit .sticky-back-btn class för knappar som ska sitta fast nedanför. */
