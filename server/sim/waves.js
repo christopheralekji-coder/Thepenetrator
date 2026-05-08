@@ -12,6 +12,34 @@ const { makeEnemy } = require('./enemies');
 const { makeBoss } = require('./bosses');
 const { getStage, getDiffMul, getCoopMultiplier, getNGPMul } = require('../../shared/stages-data');
 
+// Server-side spawn för stage-events (release_dogs, alarm, open_doors).
+// Mirror av game.js:triggerStageEvent enemy-spawning. Utan detta blev events
+// bara visuella toast — klient-side spawn av hundar kördes inte i serverSim
+// så de stod stilla där de spawnade.
+function handleServerStageEvent(sim, stage, eventType) {
+  if (eventType === 'release_dogs') {
+    for (let i = 0; i < 4; i++) {
+      const side = i < 2 ? 60 : stage.worldW - 60;
+      const y = 400 + i * 200;
+      const e = makeEnemy('dog', side, y);
+      e._idx = sim.nextEnemyIdx++;
+      sim.enemies.push(e);
+    }
+  } else if (eventType === 'alarm') {
+    for (let i = 0; i < 3; i++) {
+      const e = makeEnemy('shooter', stage.goalPos.x + (i - 1) * 60, stage.goalPos.y + 200);
+      e._idx = sim.nextEnemyIdx++;
+      sim.enemies.push(e);
+    }
+  } else if (eventType === 'open_doors') {
+    for (let i = 0; i < 5; i++) {
+      const e = makeEnemy('ninja', stage.worldW * 0.5 + (i - 2) * 80, 100);
+      e._idx = sim.nextEnemyIdx++;
+      sim.enemies.push(e);
+    }
+  }
+}
+
 function startZone(sim, stage, zoneIdx) {
   const zones = stage.zones || [{ count: 8, pool: ['grunt'] }];
   if (zoneIdx >= zones.length) {
@@ -168,6 +196,9 @@ function updateZoneProgression(sim, dt) {
       sim.eventQueue.push({ type: 'stage_event', event: z.event });
       sim.zoneState = 'event';
       sim.eventTimer = 1.2;
+      // Server-side enemy-spawn för stage-events (annars står hundarna stilla — klient
+      // spawnade lokalt men server visste inget om dem så ingen AI-update kördes).
+      handleServerStageEvent(sim, stage, z.event);
     } else {
       const next = sim.currentZone + 1;
       if (next < zones.length) {

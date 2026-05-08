@@ -244,6 +244,7 @@
     <button id="btn-achievements" class="medium-btn">🏆 PRESTATIONER</button>
     <button id="btn-cheats" class="medium-btn">🔓 CHEATS</button>
     <button id="btn-menu-settings" class="medium-btn">⚙ INSTÄLLNINGAR</button>
+    <button id="btn-menu-help" class="medium-btn">❓ HJÄLP / TUTORIAL</button>
   </div>
   <button id="btn-fullscreen" class="small-btn" style="position:absolute;top:max(12px, env(safe-area-inset-top, 12px));right:max(12px, env(safe-area-inset-right, 12px));">⛶ HELSKÄRM</button>
   <p id="version-tag" style="position:absolute;bottom:8px;right:12px;font-size:10px;opacity:0.4;">v2.2</p>
@@ -396,8 +397,10 @@
 <div id="gameover-screen" class="overlay hidden">
   <h2 id="end-title">GAME OVER</h2>
   <p id="end-stats"></p>
-  <button id="btn-retry" class="big-btn">FÖRSÖK IGEN</button>
-  <button id="btn-menu" class="small-btn">Meny</button>
+  <div class="overlay-actions sticky-back-btn">
+    <button id="btn-retry" class="big-btn">FÖRSÖK IGEN</button>
+    <button id="btn-menu" class="big-btn" style="background:linear-gradient(135deg, #444, #222);border-color:rgba(255,255,255,0.3);">↩ TILL MENY</button>
+  </div>
 </div>
 
 <script src="game.js"></script>

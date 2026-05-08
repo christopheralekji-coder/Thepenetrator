@@ -564,9 +564,12 @@ function applyShoot(sim, peerId, msg) {
 // Ny: host kan köra "next stage" via sim_load_stage-meddelande
 function applyLoadStage(sim, peerId, msg) {
   if (sim.room.hostId !== peerId) return;
-  // Klient kan ha custom-stages längre än 9 (story+convoy = 11). Server måste matcha,
-  // annars divergent state. Begränsa max till 30 för att skydda mot orimliga värden.
-  const wave = Math.max(1, Math.min(30, msg.wave || 1));
+  // Klient skickar maxStages så server vet stage-count. Annars fallback till
+  // generös 30 (säkrare mot orimliga värden men låter custom-modes köra).
+  const maxStages = (typeof msg.maxStages === 'number' && msg.maxStages > 0)
+    ? Math.min(50, msg.maxStages)
+    : 30;
+  const wave = Math.max(1, Math.min(maxStages, msg.wave || 1));
   loadStage(sim, wave);
 }
 

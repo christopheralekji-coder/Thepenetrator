@@ -158,6 +158,38 @@ function handleMessage(ws, msg) {
     const host = room.members.get(room.hostId);
     if (host) send(host, { type: 'peer_joined', peerId: ws.id });
     console.log('[ROOM]', code, ws.id, 'joined (', room.members.size, 'members)');
+    // TDM late-joiner: tilldela team baserat på balans, push tdm_started-event riktat
+    if (room.sim && room.sim.tdmActive) {
+      let red = 0, blue = 0;
+      for (const [, m] of room.members) {
+        if (m.tdmTeam === 'red') red++;
+        else if (m.tdmTeam === 'blue') blue++;
+      }
+      const team = red <= blue ? 'red' : 'blue';
+      ws.tdmTeam = team;
+      const arena = room.sim.tdmArena || { worldW: 4000, worldH: 3000 };
+      const spawnX = team === 'red' ? Math.floor(arena.worldW * 0.10) : Math.floor(arena.worldW * 0.90);
+      const spawnY = Math.floor(arena.worldH * 0.50);
+      ws.playerState = { x: spawnX, y: spawnY, hp: 100, invulnUntil: Date.now() + 1500 };
+      room.sim.tdmKillsByPid[ws.id] = 0;
+      room.sim.tdmDeathsByPid[ws.id] = 0;
+      // Bygg fullständig roster så late-joiner ser alla teams
+      const teams = {};
+      for (const [pid, m] of room.members) if (m.tdmTeam) teams[pid] = m.tdmTeam;
+      // Skicka tdm_started bara till late-joiner (inte broadcast — andra har det redan)
+      send(ws, { type: 'sim_event', event: {
+        type: 'tdm_started',
+        targetKills: room.sim.tdmTargetKills,
+        teams,
+        arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },
+        spawns: { red: { x: Math.floor(arena.worldW * 0.10), y: spawnY }, blue: { x: Math.floor(arena.worldW * 0.90), y: spawnY } },
+      }});
+      // Andra peers får team-uppdatering så deras tdmTeams-roster är komplett
+      for (const [pid, m] of room.members) {
+        if (pid === ws.id) continue;
+        send(m, { type: 'sim_event', event: { type: 'tdm_team_assigned', peerId: ws.id, team } });
+      }
+    }
     return;
   }
 

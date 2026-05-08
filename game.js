@@ -1692,7 +1692,9 @@ function createAchPopup() {
   if (achPopupEl) return achPopupEl;
   const el = document.createElement('div');
   el.id = 'ach-popup-dyn';
-  el.style.cssText = 'position:fixed;top:60px;right:-380px;max-width:320px;background:#1a0a08;color:#fff;border:2px solid #ffd54a;border-left:6px solid #ffd54a;border-radius:8px;padding:10px 14px;z-index:10000;transition:right 0.4s cubic-bezier(0.34,1.56,0.64,1);display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,0.7),0 0 12px rgba(255,213,74,0.4);cursor:pointer;font-family:-apple-system,sans-serif;';
+  // Top-left under HP-bar (var top-right förut, täckte minimap).
+  // Slide-in från VÄNSTER istället för höger.
+  el.style.cssText = 'position:fixed;top:max(58px, calc(env(safe-area-inset-top, 0px) + 50px));left:-380px;max-width:300px;background:#1a0a08;color:#fff;border:2px solid #ffd54a;border-left:6px solid #ffd54a;border-radius:8px;padding:10px 14px;z-index:10000;transition:left 0.4s cubic-bezier(0.34,1.56,0.64,1);display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,0.7),0 0 12px rgba(255,213,74,0.4);cursor:pointer;font-family:-apple-system,sans-serif;';
   el.innerHTML = `
     <div class="ach-icon" style="font-size:30px;flex:0 0 auto;line-height:1;">🏆</div>
     <div style="flex:1;min-width:0;text-align:left;">
@@ -1701,7 +1703,7 @@ function createAchPopup() {
     </div>
   `;
   el.addEventListener('click', () => {
-    el.style.right = '-380px';
+    el.style.left = '-380px';
     if (achPopupTimer) clearTimeout(achPopupTimer);
   });
   document.body.appendChild(el);
@@ -1715,12 +1717,12 @@ function showAchievementPopup(ach) {
   const nameEl = el.querySelector('.ach-name');
   if (iconEl) iconEl.textContent = ach.icon || '🏆';
   if (nameEl) nameEl.textContent = ach.name || '';
-  // Slide in
-  el.style.right = '12px';
+  // Slide in från vänster (top-left under HP-bar — täcker inte minimap som ligger top-right)
+  el.style.left = 'max(8px, env(safe-area-inset-left, 8px))';
   try { Audio.achievement(); } catch(e) {}
   if (achPopupTimer) clearTimeout(achPopupTimer);
   achPopupTimer = setTimeout(() => {
-    el.style.right = '-380px';
+    el.style.left = '-380px';
   }, 2200);
 }
 
@@ -2831,6 +2833,7 @@ if (btnPauseRestart) {
       save.owned = state._sandboxSnapshot.owned;
       save.equipped = state._sandboxSnapshot.equipped;
       save.weaponId = state._sandboxSnapshot.weaponId;
+      if (typeof state._sandboxSnapshot.gold === 'number') save.gold = state._sandboxSnapshot.gold;
       state._sandboxSnapshot = null;
     }
     // Trigga ny run från start (skippar intro nu)
@@ -2943,6 +2946,14 @@ document.getElementById('btn-ach-close').addEventListener('click', () => {
 
 // Settings från huvudmeny
 document.getElementById('btn-menu-settings').addEventListener('click', () => openSettings('menu'));
+const _btnMenuHelp = document.getElementById('btn-menu-help');
+if (_btnMenuHelp) {
+  _btnMenuHelp.addEventListener('click', () => {
+    Audio.uiClick();
+    const overlay = document.getElementById('tutorial-overlay');
+    if (overlay) overlay.classList.remove('hidden');
+  });
+}
 
 // SHOP från huvudmenyn (inte mid-game)
 const btnShopMenu = document.getElementById('btn-shop-menu');
@@ -6001,6 +6012,9 @@ function killEnemy(e) {
 function triggerStageEvent(stage, eventType) {
   const p = state.player;
   showToast(eventNames[eventType] || '!');
+  // I serverSim-mode äger SERVERN entity-listan — skip lokal spawn (annars står
+  // hundarna stilla för server vet inget om dem).
+  if (Coop.serverSimActive) return;
   if (eventType === 'release_dogs') {
     // 4 hundar spawnar från sidorna
     for (let i = 0; i < 4; i++) {
@@ -6414,13 +6428,12 @@ function loadStage(n) {
   state.fadeIn = { startTime: performance.now(), duration: 500 };
   state.bossIntro = null;
 
-  // 5-sekunders prep-countdown vid varje ny runda (coop-only — annars känns det
-  // för slow i solo). Ger alla tid att spawna/positionera innan enemies kommer.
-  if (Coop.active && Coop.isHost) {
+  // 5-sekunders prep-countdown vid varje ny runda (coop-only). I serverSim-mode
+  // skickar SERVERN sitt eget countdown_start så host ska INTE broadcasta lokalt
+  // (annars dubbelt countdown).
+  if (Coop.active && Coop.isHost && !Coop.serverSimActive) {
     state._countdownEndAt = performance.now() + 5000;
     Coop.broadcast({ type: 'event', event: 'countdown_start', durationMs: 5000 });
-  } else if (Coop.active && !Coop.isHost) {
-    // Klient ska INTE sätta countdownEndAt själv — host event sätter det
   }
 
   // Tracking-flags för achievements
@@ -7311,15 +7324,17 @@ function actuallyStartGame() {
     state.customStages = buildDailyStages();
   } else if (mode === 'sandbox') {
     state.customStages = buildSandboxStages();
-    // Sandbox: ge alla vapen TEMPORÄRT (snapshot bara för restore vid slut/quit).
-    // Tidigare bug: vapnen lades permanent i save.owned och persistades.
+    // Sandbox: ge alla vapen + obegränsat med pengar TEMPORÄRT.
+    // Snapshot bara för restore vid slut/quit. Persistas inte.
     state._sandboxSnapshot = {
       owned: [...(save.owned || ['fists'])],
       equipped: save.equipped,
       weaponId: save.weaponId,
+      gold: save.gold,
     };
     save.owned = [...new Set([...save.owned, ...WEAPONS.map(w => w.id)])];
-    // Persist INTE — lämna sandbox-overlay i memory tills restore
+    save.gold = 999999;  // Sandbox = obegränsat — köp allt
+    if (typeof showToast === 'function') showToast('🏖 SANDBOX — alla vapen + obegränsat gold');
   } else if (mode === 'speedrun') {
     state.customStages = STAGES; // samma som story men trackar tid
     state.speedrunStart = performance.now();
@@ -7812,11 +7827,12 @@ function endGame(victory) {
     if (save.companions && snap.activeCompanion !== undefined) save.companions.active = snap.activeCompanion;
     state._coopSnapshot = null;
   }
-  // Sandbox: återställ owned/equipped (vi gav alla vapen temporärt)
+  // Sandbox: återställ owned/equipped/gold (vi gav alla vapen + obegränsat temporärt)
   if (state._sandboxSnapshot) {
     save.owned = state._sandboxSnapshot.owned;
     save.equipped = state._sandboxSnapshot.equipped;
     save.weaponId = state._sandboxSnapshot.weaponId;
+    if (typeof state._sandboxSnapshot.gold === 'number') save.gold = state._sandboxSnapshot.gold;
     state._sandboxSnapshot = null;
   }
   gameoverScreen.classList.remove('hidden');
@@ -8061,15 +8077,23 @@ function updateHUD() {
   if (ammoDisplayEl) ammoDisplayEl.textContent = ammoText;
 }
 
-// In-game lag-indikator (visar host:s värsta peer-ping). Positionerad under
-// minimap (minimap @ top:60 size:110 → bottom ~175) så det inte täcker HUD.
+// In-game lag-indikator (visar host:s värsta peer-ping). Positioneras dynamiskt
+// — under minimap normalt (top:178 = under 110px minimap), eller under big-minimap
+// (top:350 = under 280px) baserat på state.minimapBig.
 const _lagIndicatorEl = (() => {
   const el = document.createElement('div');
   el.id = 'lag-indicator';
-  el.style.cssText = 'position:fixed;top:178px;right:max(14px, env(safe-area-inset-right, 14px));background:rgba(0,0,0,0.55);color:#fff;padding:3px 7px;border-radius:5px;font:700 10px monospace;z-index:6;display:none;pointer-events:none;letter-spacing:0.5px;';
+  // right:12 matchar minimap (#minimap har right:12) så de aligneras vertikalt
+  el.style.cssText = 'position:fixed;top:178px;right:12px;background:rgba(0,0,0,0.55);color:#fff;padding:3px 7px;border-radius:5px;font:700 10px monospace;z-index:6;display:none;pointer-events:none;letter-spacing:0.5px;transition:top 0.2s;';
   document.body.appendChild(el);
   return el;
 })();
+// Uppdatera indicator-position när minimap-state ändras
+function syncLagIndicatorPos() {
+  if (!_lagIndicatorEl) return;
+  if (state && state.minimapBig) _lagIndicatorEl.style.top = '350px';
+  else _lagIndicatorEl.style.top = '178px';
+}
 
 // Server-sim diagnos-overlay — synlig på skärmen vid serverSim aktiv. Skärmbilds-vänlig.
 const _simDiagEl = (() => {
@@ -8113,6 +8137,7 @@ function updateLagIndicator() {
     _lagIndicatorEl.style.display = 'none';
     return;
   }
+  syncLagIndicatorPos();  // Justera position baserat på minimap-storlek
   let worstPing = null;
   let lossPct = null;
   // I serverSim: visa direkt RTT mot server (mest relevant siffra)
