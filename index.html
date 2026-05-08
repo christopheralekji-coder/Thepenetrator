@@ -40,7 +40,7 @@
   </div>
   <div id="action-buttons">
     <button id="btn-weapon-menu" class="action-btn" aria-label="Öppna vapenmeny">⚔</button>
-    <button id="btn-fire" class="action-btn fire" aria-label="Skjut">🔫</button>
+    <button id="btn-fire" class="action-btn fire" aria-label="Skjut"><span class="fire-icon">🔫</span><span id="fire-ammo" class="fire-ammo">∞</span></button>
   </div>
   <button id="btn-emote" aria-label="Emote" style="position:absolute;bottom:60px;left:max(200px, calc(env(safe-area-inset-left, 0px) + 200px));width:44px;height:44px;border-radius:50%;background:rgba(170,58,255,0.7);border:2px solid rgba(255,255,255,0.4);color:#fff;font-size:20px;cursor:pointer;pointer-events:auto;z-index:5;box-shadow:0 2px 8px rgba(0,0,0,0.4);">😀</button>
   <div id="ammo-display"><span id="ammo-display-text">∞</span></div>
@@ -246,7 +246,7 @@
     <button id="btn-menu-settings" class="medium-btn">⚙ INSTÄLLNINGAR</button>
     <button id="btn-menu-help" class="medium-btn">❓ HJÄLP / TUTORIAL</button>
   </div>
-  <button id="btn-fullscreen" class="small-btn" style="position:absolute;top:max(12px, env(safe-area-inset-top, 12px));right:max(12px, env(safe-area-inset-right, 12px));">⛶ HELSKÄRM</button>
+  <button id="btn-fullscreen" class="small-btn" style="display:none;">⛶ HELSKÄRM</button>
   <p id="version-tag" style="position:absolute;bottom:8px;right:12px;font-size:10px;opacity:0.4;">v2.2</p>
 </div>
 
@@ -267,10 +267,9 @@
   <h2>👥 CO-OP (max 8 spelare)</h2>
   <p class="menu-sub" style="margin-bottom:20px;">Svårighet skalas upp per spelare</p>
   <div id="coop-init" class="coop-options">
-    <button id="btn-coop-host" class="big-btn">SKAPA RUM</button>
-    <div style="margin:14px 0;color:#888;">eller</div>
-    <input id="coop-code-input" placeholder="ABCD" maxlength="4" style="font-size:24px;text-align:center;letter-spacing:8px;text-transform:uppercase;padding:8px 12px;width:160px;background:#1a1a22;border:2px solid #ffd54a;border-radius:6px;color:#fff;font-weight:700;">
-    <br>
+    <button id="btn-coop-host" class="big-btn" style="margin-bottom: 18px;">SKAPA RUM</button>
+    <div style="margin:18px 0;color:#888;font-size:13px;letter-spacing:2px;">— eller —</div>
+    <input id="coop-code-input" placeholder="ABCD" maxlength="4" style="font-size:24px;text-align:center;letter-spacing:8px;text-transform:uppercase;padding:10px 14px;width:180px;background:#1a1a22;border:2px solid #ffd54a;border-radius:6px;color:#fff;font-weight:700;margin-bottom:18px;display:block;margin-left:auto;margin-right:auto;">
     <button id="btn-coop-join" class="big-btn">JOINA RUM</button>
   </div>
   <div id="coop-lobby" class="coop-options hidden">
@@ -301,8 +300,12 @@
         <div id="lobby-diff-buttons" class="lobby-button-row"></div>
       </div>
       <div class="lobby-section">
-        <label class="lobby-label">LÄGE</label>
+        <label class="lobby-label">🤝 TEAM PLAY (samarbete mot fiender)</label>
         <div id="lobby-mode-buttons" class="lobby-button-row"></div>
+      </div>
+      <div class="lobby-section">
+        <label class="lobby-label">⚔️ PLAYER VS PLAYER</label>
+        <div id="lobby-pvp-buttons" class="lobby-button-row"></div>
       </div>
       <div class="lobby-section">
         <label class="lobby-label">CHEATS (för detta game)</label>
@@ -311,12 +314,9 @@
     </div>
 
     <div id="coop-difficulty-info" style="margin:10px 0;color:#ff8a3a;font-weight:700;font-size:12px;"></div>
-    <div id="coop-server-sim-row" class="hidden" style="margin:8px 0;">
-      <label style="display:flex;align-items:center;gap:8px;justify-content:center;color:#aa3aff;font-size:12px;font-weight:700;cursor:pointer;">
-        <input type="checkbox" id="coop-server-sim-toggle" style="width:16px;height:16px;cursor:pointer;">
-        🌐 SERVER-SIDE SIM (BETA)
-      </label>
-      <div style="font-size:10px;color:#888;margin-top:4px;text-align:center;">Server kör simulationen — host-CPU slutar vara flaskhals</div>
+    <!-- server-side sim är nu STANDARD när coop aktivt (ingen toggle behövs) -->
+    <div id="coop-server-sim-row" class="hidden">
+      <input type="checkbox" id="coop-server-sim-toggle" checked style="display:none;">
     </div>
     <div id="coop-tdm-row" class="hidden" style="margin:8px 0;padding:8px;border:1px solid rgba(255,90,90,0.3);border-radius:8px;background:rgba(255,90,90,0.06);">
       <label style="display:flex;align-items:center;gap:8px;justify-content:center;color:#ff5a5a;font-size:13px;font-weight:700;cursor:pointer;">
@@ -336,7 +336,7 @@
     <div id="coop-waiting" class="hidden" style="color:#5aff5a;font-size:13px;">Väntar på att host startar...</div>
   </div>
   <div id="coop-status" style="margin-top:20px;font-size:14px;color:#ffd54a;min-height:30px;"></div>
-  <button id="btn-coop-close" class="small-btn">AVBRYT</button>
+  <button id="btn-coop-close" class="big-btn sticky-back-btn" style="background:linear-gradient(135deg, #444, #222);border-color:rgba(255,255,255,0.3);">AVBRYT</button>
 </div>
 
 <div id="costumes-screen" class="overlay hidden">

@@ -3337,7 +3337,7 @@ const Coop = {
   MAX_PLAYERS: 8,
   onLobbyChange: null,
   onConfigChange: null,
-  config: { difficulty: 'veteran', mode: 'story', cheats: {}, includeConvoy: false, serverSim: false },
+  config: { difficulty: 'veteran', mode: 'story', cheats: {}, includeConvoy: false, serverSim: true },
   serverSimActive: false,  // sätts till true av sim_started, false av sim_stopped/disconnect
   randomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -4647,6 +4647,45 @@ function renderHostControls() {
     renderHostControls();
   });
   lobbyModeButtonsEl.appendChild(convoyBtn);
+
+  // PvP-rutan: TDM (+ utbyggbart för fler PvP-modes)
+  const pvpEl = document.getElementById('lobby-pvp-buttons');
+  if (pvpEl) {
+    pvpEl.innerHTML = '';
+    const tdmBtn = document.createElement('button');
+    tdmBtn.textContent = '⚔️ TDM (Team Deathmatch)';
+    tdmBtn.style.cssText = 'background:' + (Coop.config.tdm ? '#ff5a5a' : '#222') + ';color:' + (Coop.config.tdm ? '#fff' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
+    if (Coop.config.tdm) tdmBtn.classList.add('active');
+    tdmBtn.addEventListener('click', () => {
+      const newTdm = !Coop.config.tdm;
+      Coop.config.tdm = newTdm;
+      if (newTdm) {
+        Coop.config.serverSim = true;
+        Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
+      }
+      Coop.updateConfig({
+        tdm: newTdm,
+        tdmTargetKills: Coop.config.tdmTargetKills,
+        serverSim: Coop.config.serverSim,
+      });
+      renderHostControls();
+    });
+    pvpEl.appendChild(tdmBtn);
+    // Target-kills selector (visas bara om TDM aktivt)
+    if (Coop.config.tdm) {
+      for (const tk of [10, 20, 30]) {
+        const tkBtn = document.createElement('button');
+        tkBtn.textContent = tk + ' kills';
+        tkBtn.style.cssText = 'background:' + ((Coop.config.tdmTargetKills || 10) === tk ? '#aa3aff' : '#222') + ';color:#fff;font-size:11px;padding:6px 10px;';
+        tkBtn.addEventListener('click', () => {
+          Coop.config.tdmTargetKills = tk;
+          Coop.updateConfig({ tdmTargetKills: tk });
+          renderHostControls();
+        });
+        pvpEl.appendChild(tkBtn);
+      }
+    }
+  }
   // Cheats (endast unlocked)
   lobbyCheatButtonsEl.innerHTML = '';
   let anyUnlocked = false;
@@ -5232,7 +5271,9 @@ function renderCompanions() {
       if (!save.companions.active) save.companions.active = c.id;
       persist(); Audio.purchase(); renderCompanions();
       // Spawna companion direkt så användaren ser den även mid-run
-      if (typeof spawnCompanion === 'function' && state.mode === 'playing') spawnCompanion();
+      // Spawna companion direkt vid köp/toggle. spawnCompanion hanterar null-fallet
+      // så det är säkert att kalla även när shoppen är öppen (state.mode='shop').
+      if (typeof spawnCompanion === 'function') spawnCompanion();
     });
     const upgBtn = card.querySelector('[data-act="upgrade"]');
     if (upgBtn) upgBtn.addEventListener('click', () => {
@@ -5245,7 +5286,9 @@ function renderCompanions() {
     if (togBtn) togBtn.addEventListener('click', () => {
       save.companions.active = isActive ? null : c.id;
       persist(); Audio.uiClick(); renderCompanions();
-      if (typeof spawnCompanion === 'function' && state.mode === 'playing') spawnCompanion();
+      // Spawna companion direkt vid köp/toggle. spawnCompanion hanterar null-fallet
+      // så det är säkert att kalla även när shoppen är öppen (state.mode='shop').
+      if (typeof spawnCompanion === 'function') spawnCompanion();
     });
     companionsGridEl.appendChild(card);
   }
@@ -8123,7 +8166,7 @@ const weaponName = document.getElementById('weapon-name');
 const ammoInfo = document.getElementById('ammo-info');
 const killCountEl = document.getElementById('kill-count');
 
-const ammoDisplayEl = document.getElementById('ammo-display-text');
+const ammoDisplayEl = document.getElementById('fire-ammo') || document.getElementById('ammo-display-text');
 function updateHUD() {
   if (!state.player) return;
   sanitizeGold();
@@ -8148,9 +8191,12 @@ function updateHUD() {
   else if (p.reloading) ammoText = '...';
   else ammoText = `${p.ammo}/${effectiveMag(p.weaponId)}`;
   ammoInfo.textContent = ammoText;
-  // Prepend weapon-emoji till ammo-display (synligt vid fire-button)
-  // eftersom .hud-row.weapon är display:none.
-  if (ammoDisplayEl) ammoDisplayEl.textContent = wIcon + ' ' + ammoText;
+  // ammo-display ligger NU inuti fire-button. Ingen weapon-emoji där eftersom
+  // fire-icon redan visar 🔫 (vapen-typ-distinktion via fire-icon span).
+  if (ammoDisplayEl) ammoDisplayEl.textContent = ammoText;
+  // Uppdatera fire-icon med vapen-emoji så spelaren ser vad de skjuter med
+  const fireIconEl = document.querySelector('#btn-fire .fire-icon');
+  if (fireIconEl) fireIconEl.textContent = wIcon;
 }
 
 // In-game lag-indikator (visar host:s värsta peer-ping). Positioneras dynamiskt
@@ -14610,7 +14656,74 @@ function drawBullet(b) {
     ctx.restore();
     return;
   }
-  // standard
+  // Per-vapen distinct rendering för basic guns (pistol/revolver/shotgun/etc).
+  // Saknades innan så de föll i fallback. Nu varje vapen unikt:
+  if (b.style === 'pistol' || b.style === 'revolver') {
+    // Standard liten gul rund + tracer
+    ctx.fillStyle = b.color || '#ffd14a';
+    ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = b.color || '#ffd14a';
+    ctx.globalAlpha = 0.5; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(x - b.vx * 0.025, y - b.vy * 0.025); ctx.lineTo(x, y); ctx.stroke();
+    ctx.globalAlpha = 1;
+    return;
+  }
+  if (b.style === 'shotgun') {
+    // Hagel — mindre + spikrigt-mönster
+    ctx.fillStyle = b.color || '#ff6b3d';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.85, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x - 1, y - 1, 1.2, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+  if (b.style === 'smg' || b.style === 'rifle') {
+    // Långsmal rektangel-projektil med liten tracer
+    const ang = Math.atan2(b.vy, b.vx);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.fillStyle = b.color;
+    ctx.fillRect(-b.r * 1.2, -b.r * 0.5, b.r * 2.4, b.r);
+    ctx.fillStyle = `rgba(255,255,255,0.6)`;
+    ctx.fillRect(-b.r * 1.2, -b.r * 0.5, b.r * 0.8, b.r);
+    ctx.restore();
+    return;
+  }
+  if (b.style === 'sniper') {
+    // Lång vit-blå tracer
+    const ang = Math.atan2(b.vy, b.vx);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.shadowColor = b.color || '#bb88ff'; ctx.shadowBlur = 6;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-b.r * 2, -1.5, b.r * 4, 3);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    return;
+  }
+  if (b.style === 'burstpistol' || b.style === 'burst') {
+    // Lite mindre orange burst-bullet
+    ctx.fillStyle = b.color || '#ffae3a';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.9, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+    ctx.stroke();
+    return;
+  }
+  if (b.style === 'minigun') {
+    // Cyan fast tracer-stream
+    ctx.shadowColor = b.color || '#3cf0ff'; ctx.shadowBlur = 4;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.7, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    return;
+  }
+  if (b.style === 'mindctrl') {
+    // Pulserande rosa/lila stråle
+    const pulse = 0.6 + Math.sin(performance.now() / 60) * 0.4;
+    ctx.shadowColor = '#ff5aff'; ctx.shadowBlur = 12 * pulse;
+    ctx.fillStyle = `rgba(255, 90, 255, ${pulse})`;
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.4, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    return;
+  }
+  // standard fallback (skulle inte hit för player-bullets längre)
   ctx.fillStyle = b.color;
   ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI*2); ctx.fill();
   if (!b.hostile) {
