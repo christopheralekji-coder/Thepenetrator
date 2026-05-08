@@ -599,11 +599,12 @@ function spawnCompanion() {
   state.companion = {
     id, comp, lvl,
     x: p ? p.x + 30 : 1000, y: p ? p.y + 30 : 1000,
-    r: 12, // Hitbox för enemy-kontakt och bullet-träff
+    r: 12,
     hp: stats.hp, maxHp: stats.hp, dmg: stats.dmg, speed: stats.speed,
     range: stats.range, cooldown: stats.cooldown,
     lastAct: 0, target: null, alive: true,
     angle: 0, walkPhase: 0,
+    flashUntil: 0, // damage-flash-timestamp (sätts av damageCompanion / event)
   };
 }
 function updateCompanion(dt, now) {
@@ -5728,6 +5729,13 @@ function refreshModeButtons() {
   else if (lvl >= 3) modeLabel += ' (NG' + '+'.repeat(lvl) + ')';
   btnMode.textContent = 'LÄGE: ' + modeLabel;
   btnDifficulty.textContent = 'SVÅRIGHET: ' + (DIFF_LABELS[getDifficulty()] || 'VETERAN');
+  // Companions-knapp: visa 💀 om aktiv companion är död (persistent dead-state)
+  const compBtn = document.getElementById('btn-companions');
+  if (compBtn) {
+    const dead = save.companions && save.companions.active &&
+                 save.companions.dead && save.companions.dead[save.companions.active];
+    compBtn.textContent = dead ? '💀 KOMPANJONER' : '🐕 KOMPANJONER';
+  }
 }
 btnMode.addEventListener('click', () => {
   const cur = getMode();
@@ -6862,8 +6870,8 @@ function loadStage(n) {
   state._stageClearShown = false;
   state._waveCompleting = false;
   state._coopGameOverFired = false;
-  // Mini-boss state — counter är primary, miniBossSpawned bool kvar för bakåt-kompat
-  state.miniBossSpawned = false;
+  // Mini-boss state — counter är single source of truth (miniBossSpawned bool
+  // borttagen pga split-brain mellan flow-paths)
   state.miniBossesSpawned = 0;
   state._miniInterludeActive = false;
   state._miniInterludeNextIdx = 0;
@@ -7116,11 +7124,14 @@ function spawnMiniBoss(stage, idx) {
   e.miniBossIdx = idx || 0;
   e.name = m.name || 'Mini-boss';
   if (m.power) e.miniPower = m.power;
-  // Stage-tema-färg: använd stage.accentColor som accent + edgeColor som glow
-  // så samma power-rendering ser olika ut per stage (forest=grön, perimeter=orange, etc).
+  // Stage-tema-färg: använd stage.accentColor som accent + edgeColor som glow.
+  // Defensiv default-set så varje miniboss alltid har konsistenta tre nyanser
+  // även för custom/edge-stages som saknar fält (endless-builder etc).
   e.stageAccent = stage.accentColor || '#7a5aaa';
   e.stageEdge = stage.edgeColor || '#aaff5a';
   e.stageBg = stage.bgColor || '#3a2a44';
+  // Säkerställ miniIntensity är number (defensiv mot legacy-spawn utan idx)
+  e.miniIntensity = (typeof e.miniIntensity === 'number') ? e.miniIntensity : 0;
   // Index-baserad intensitet (mini1=svag glow, mini3=stark glow)
   e.miniIntensity = (idx || 0) / 2; // 0, 0.5, 1.0
   state.enemies.push(e);
@@ -9631,11 +9642,14 @@ function aiFinalCombo(b, p, ndx, ndy, d, hpFrac, dt, now) {
   if (now > b.powerSwapAt) {
     b.powerSwapAt = now + swapInterval;
     b.powerIdx = (b.powerIdx + 1) % ps.length;
-    // Visuell signalering vid power-byte (alla fields fyllda för partikel-update)
+    // Visuell signalering vid power-byte — radius scaled till viewport så stora
+    // skärmar inte tappar effekten (4K canvas annars relativt ~60px → osynligt)
+    const viewMin = Math.min(viewW || 600, viewH || 400);
+    const swapR = Math.max(60, viewMin * 0.10);
     state.particles.push({
       x: b.x, y: b.y, vx: 0, vy: 0,
       life: 0.4, color: b.glow || '#ffd54a',
-      r: 60, isExplosion: true,
+      r: swapR, isExplosion: true,
     });
     triggerShake(4, 0.2);
   }
@@ -14726,16 +14740,25 @@ BOSS_DRAW.gravgravaren = function(e, flash, now, phase, moving) {
 };
 
 // Alias gamla bossnames till nya så befintliga BOSS_DRAW-funktioner används.
-// Mappingen följer power-tema (caster/tank/cloaker/etc) per stage.
-BOSS_DRAW.witheredelder    = BOSS_DRAW.likvakare;
-BOSS_DRAW.ironclad         = BOSS_DRAW.benkrossare;
-BOSS_DRAW.mirroredone      = BOSS_DRAW.strypare;
-BOSS_DRAW.ossarius         = BOSS_DRAW.avrattare;
-BOSS_DRAW.vanguardatlas    = BOSS_DRAW.kottkvarn;
-BOSS_DRAW.emberoracle      = BOSS_DRAW.askmakare;
-BOSS_DRAW.blightsovereign  = BOSS_DRAW.lungrivare;
-BOSS_DRAW.buriedcrown      = BOSS_DRAW.skallsprackare;
-BOSS_DRAW.lastsovereign    = BOSS_DRAW.gravgravaren;
+// Defensiv: skippa alias om source-funktion saknas (utvecklare-skydd).
+const _bossAliases = {
+  witheredelder:   'likvakare',
+  ironclad:        'benkrossare',
+  mirroredone:     'strypare',
+  ossarius:        'avrattare',
+  vanguardatlas:   'kottkvarn',
+  emberoracle:     'askmakare',
+  blightsovereign: 'lungrivare',
+  buriedcrown:     'skallsprackare',
+  lastsovereign:   'gravgravaren',
+};
+for (const [newKey, srcKey] of Object.entries(_bossAliases)) {
+  if (typeof BOSS_DRAW[srcKey] === 'function') {
+    BOSS_DRAW[newKey] = BOSS_DRAW[srcKey];
+  } else {
+    console.warn('[BOSS_DRAW] alias source missing:', srcKey, '→', newKey);
+  }
+}
 
 // MINIBOSS_DRAW — 9 power-baserade unika rendering. Plus per-stage färgtint
 // (e.stageAccent / e.stageEdge) + intensity-glow (e.miniIntensity 0..1) ger
