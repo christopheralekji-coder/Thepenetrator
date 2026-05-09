@@ -1,14 +1,45 @@
 'use strict';
 
-// === GLOBAL ERROR HANDLER (tyst, bara console.error) ===
+// === GLOBAL ERROR HANDLER (loggar lokalt + skickar till server för diagnos) ===
 let _gameErrors = [];
+const _ERROR_REPORT_URL = 'https://penetrator-coop-eu.onrender.com/errors';
+const _errorCounts = {}; // dedup: msg → count, skicka bara första 3 av varje typ
+function _reportError(payload) {
+  try {
+    const key = (payload.msg || '') + '@' + (payload.line || 0);
+    _errorCounts[key] = (_errorCounts[key] || 0) + 1;
+    if (_errorCounts[key] > 3) return; // max 3 av samma error per session
+    fetch(_ERROR_REPORT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    }).catch(() => {});
+  } catch (_) {}
+}
 window.addEventListener('error', (e) => {
-  _gameErrors.push({ msg: e.message, file: e.filename, line: e.lineno, time: performance.now() });
+  const entry = { msg: e.message, file: e.filename, line: e.lineno, time: performance.now() };
+  _gameErrors.push(entry);
   if (_gameErrors.length > 10) _gameErrors.shift();
   console.error('Game error:', e.message, 'at', (e.filename || '?') + ':' + e.lineno);
+  _reportError({
+    msg: e.message,
+    src: e.filename,
+    line: e.lineno,
+    stack: e.error && e.error.stack ? e.error.stack : '',
+    ua: navigator.userAgent,
+    version: (typeof CACHE_VERSION !== 'undefined') ? CACHE_VERSION : 'unknown',
+  });
 });
 window.addEventListener('unhandledrejection', (e) => {
   console.error('Unhandled rejection:', e.reason);
+  _reportError({
+    msg: 'unhandledrejection: ' + (e.reason && e.reason.message || e.reason),
+    src: 'promise',
+    stack: e.reason && e.reason.stack ? e.reason.stack : '',
+    ua: navigator.userAgent,
+    version: (typeof CACHE_VERSION !== 'undefined') ? CACHE_VERSION : 'unknown',
+  });
 });
 
 // ============================================================

@@ -6,17 +6,55 @@ const http = require('http');
 const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage } = require('./sim/room-sim');
 const PORT = process.env.PORT || 8080;
 
-// Healthcheck endpoint så Render håller servern vid liv. Visar build-info
-// så vi kan se om Render kör senaste deploy.
-const SERVER_VERSION = 'v128-coop-fix';
+// Healthcheck + error-reporting endpoint
+const SERVER_VERSION = 'v131-skills-batch';
 const SERVER_BUILD_AT = new Date().toISOString();
+const errorLog = []; // ring-buffer av senaste 100 client-side errors
+const ERROR_LOG_MAX = 100;
+
 const server = http.createServer((req, res) => {
+  // CORS för fetch från klient (PWA)
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+
   if (req.url === '/health' || req.url === '/') {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end(`Penetrator co-op server\nVersion: ${SERVER_VERSION}\nBuilt: ${SERVER_BUILD_AT}\nRooms: ${rooms.size}\nUptime: ${Math.round(process.uptime())}s`);
-  } else {
-    res.writeHead(404); res.end();
+    res.end(`Penetrator co-op server\nVersion: ${SERVER_VERSION}\nBuilt: ${SERVER_BUILD_AT}\nRooms: ${rooms.size}\nUptime: ${Math.round(process.uptime())}s\nErrors logged: ${errorLog.length}`);
+    return;
   }
+  if (req.url === '/errors' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(errorLog, null, 2));
+    return;
+  }
+  if (req.url === '/errors' && req.method === 'POST') {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 5000) { req.destroy(); }});
+    req.on('end', () => {
+      try {
+        const data = JSON.parse(body);
+        const entry = {
+          ts: new Date().toISOString(),
+          msg: String(data.msg || '').slice(0, 500),
+          src: String(data.src || '').slice(0, 200),
+          line: data.line | 0,
+          stack: String(data.stack || '').slice(0, 1000),
+          ua: String(data.ua || '').slice(0, 200),
+          version: String(data.version || '').slice(0, 30),
+        };
+        errorLog.unshift(entry);
+        if (errorLog.length > ERROR_LOG_MAX) errorLog.length = ERROR_LOG_MAX;
+        console.log('[CLIENT-ERR]', entry.version, entry.msg.slice(0, 80));
+        res.writeHead(204); res.end();
+      } catch (e) {
+        res.writeHead(400); res.end('bad json');
+      }
+    });
+    return;
+  }
+  res.writeHead(404); res.end();
 });
 
 // perMessageDeflate: transparent gzip-komprimering på frame-nivå.

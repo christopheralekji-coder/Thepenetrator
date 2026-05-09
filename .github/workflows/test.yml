@@ -1,0 +1,33 @@
+name: CI Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  syntax-and-exports:
+    name: Syntax + exports verifiering
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Syntax check alla JS-filer
+        run: |
+          node --check game.js
+          node --check sw.js
+          for f in server/server.js server/sim/*.js shared/*.js; do
+            echo "Checking $f"
+            node --check "$f"
+          done
+      - name: Verifiera shared/stages-data exporter
+        run: node -e "const s=require('./shared/stages-data'); ['STAGES','getStage','DIFF_MULTIPLIERS','getDiffMul','getNGPMul','getCoopMultiplier'].forEach(k=>{if(typeof s[k]==='undefined')throw new Error('Missing export: '+k)}); console.log('OK: alla shared/stages-data exports')"
+      - name: Verifiera shared/boss-configs exporter
+        run: node -e "const b=require('./shared/boss-configs'); if(typeof b.getBossConfig!=='function')throw new Error('getBossConfig missing'); const keys=Object.keys(b.BOSS_CONFIGS); if(keys.length!==9)throw new Error('Expected 9 bosses, got '+keys.length); console.log('OK: '+keys.length+' bosses')"
+      - name: Verifiera server-sim laddas utan krasch
+        run: node -e "require('./server/sim/room-sim'); require('./server/sim/waves'); require('./server/sim/enemies'); require('./server/sim/bullets'); require('./server/sim/bosses'); require('./server/sim/pickups'); console.log('OK: alla server-sim moduler laddas')"
+      - name: Sim-tick test (10 ticks utan krasch)
+        run: node .github/workflows/sim-tick-test.js

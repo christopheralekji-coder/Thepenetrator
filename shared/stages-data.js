@@ -2,6 +2,46 @@
 // Uppdaterad till boss-revamp v119+ med miniBosses-array och nya bossKeys.
 'use strict';
 
+/**
+ * @typedef {Object} MiniBoss
+ * @property {string} type     - Enemy-base-typ (brute/ninja/sniper/shooter/etc)
+ * @property {string} name     - Display-namn ('GROVE GRIPPER' etc)
+ * @property {string} power    - AI-power-key (caster/tank_charger/cloaker/...)
+ * @property {number} hpMul    - HP-multiplier vs base-enemy-typ
+ * @property {number} dmgMul   - Damage-multiplier
+ * @property {number} scale    - Visual scale-multiplier
+ * @property {number} gold     - Gold-reward vid death
+ */
+
+/**
+ * @typedef {Object} StageZone
+ * @property {number} count    - Antal enemies i zonen
+ * @property {string[]} pool   - Möjliga enemy-typer
+ * @property {string} [event]  - Stage-event-key (release_dogs/alarm/etc)
+ */
+
+/**
+ * @typedef {Object} Stage
+ * @property {number} id
+ * @property {string} name
+ * @property {string} kind
+ * @property {number} worldW
+ * @property {number} worldH
+ * @property {{x:number,y:number}} spawnPos
+ * @property {{x:number,y:number}} goalPos
+ * @property {number} [goalRadius]
+ * @property {string} bossKey
+ * @property {boolean} [isBoss]
+ * @property {MiniBoss[]} miniBosses
+ * @property {StageZone[]} zones
+ */
+
+/**
+ * @typedef {Object} DiffMul
+ * @property {number} enemyHp
+ * @property {number} enemyDmg
+ */
+
 const STAGES = [
   { id: 1, name: 'DEN FÖRRUTTNADE SKOGEN', kind: 'forest', worldW: 2000, worldH: 2800,
     spawnPos: { x: 1000, y: 2640 }, goalPos: { x: 1000, y: 200 }, goalRadius: 100,
@@ -122,6 +162,11 @@ const STAGES = [
   },
 ];
 
+/**
+ * Hämta stage-config för given wave (clampad till sista stage).
+ * @param {number} wave
+ * @returns {Stage}
+ */
 function getStage(wave) {
   return STAGES[Math.min(wave - 1, STAGES.length - 1)];
 }
@@ -136,17 +181,35 @@ const DIFF_MULTIPLIERS = {
 // Helper-funktioner som server (waves.js, enemies.js) använder. Tidigare av misstag
 // borttagna i shared/stages-data omskrivning → server kraschade varje tick med
 // 'getDiffMul is not a function' → inga enemies spawnade någonsin i coop server-sim.
+// JSDoc-typer fångar liknande regressioner i framtiden.
+
+/**
+ * @param {string} difficulty - 'recruit' | 'veteran' | 'hard' | 'nightmare'
+ * @returns {DiffMul}
+ */
 function getDiffMul(difficulty) {
   return DIFF_MULTIPLIERS[difficulty] || DIFF_MULTIPLIERS.veteran;
 }
+
+/**
+ * NG+-scaling. NG=1.0, NG+=1.5, NG++=2.0, ... cap NG+++++=3.5.
+ * @param {number} ngpLevel - 0..5
+ * @returns {number}
+ */
 function getNGPMul(ngpLevel) {
   const lvl = Math.max(0, Math.min(5, ngpLevel || 0));
-  return 1 + lvl * 0.5; // NG=1.0, NG+=1.5, NG++=2.0, ... NG+++++=3.5
+  return 1 + lvl * 0.5;
 }
+
+/**
+ * Coop-multiplier för enemy-HP så svårighet håller jämn nivå per spelare.
+ * solo=1.0, 2p=1.6, 3p=2.2, 4p=2.8.
+ * @param {number} playerCount
+ * @returns {number}
+ */
 function getCoopMultiplier(playerCount) {
-  // Skalar enemy-HP per coop-spelare så svårighet håller jämn nivå
   const n = Math.max(1, playerCount || 1);
-  return 1 + (n - 1) * 0.6; // solo=1.0, 2p=1.6, 3p=2.2, 4p=2.8
+  return 1 + (n - 1) * 0.6;
 }
 
 if (typeof module !== 'undefined' && module.exports) {

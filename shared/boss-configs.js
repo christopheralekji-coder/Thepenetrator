@@ -2,6 +2,22 @@
 // Uppdaterad till boss-revamp v119+: 9 finals med powerSet-array.
 'use strict';
 
+/**
+ * @typedef {Object} BossConfig
+ * @property {string} name
+ * @property {string} subtitle
+ * @property {number} hp
+ * @property {number} speed
+ * @property {number} dmg
+ * @property {number} r
+ * @property {string} color
+ * @property {string} accent
+ * @property {string} glow
+ * @property {string} ai
+ * @property {string[]} [powerSet]
+ * @property {number} gold
+ */
+
 const BOSS_CONFIGS = {
   witheredelder:   { name: 'THE WITHERED ELDER',    subtitle: 'Skogens sista röst',                       hp: 3500, speed: 130, dmg: 48, r: 30, color: '#1a3018', accent: '#aaff5a', glow: '#5aff8a', ai: 'final_combo', powerSet: ['caster','tank_charger','cloaker'],         gold: 500 },
   ironclad:        { name: 'IRONCLAD HARBINGER',    subtitle: 'Pansrad rosthärlighet',                    hp: 4200, speed: 110, dmg: 56, r: 32, color: '#3a2018', accent: '#ff7a3a', glow: '#ffae5a', ai: 'final_combo', powerSet: ['brute_charger','gas_sniper','shielder'], gold: 650 },
@@ -14,6 +30,12 @@ const BOSS_CONFIGS = {
   lastsovereign:   { name: 'THE LAST SOVEREIGN',    subtitle: 'Den sista på sin tron — du tar nästa.',    hp: 9500, speed: 155, dmg: 72, r: 36, color: '#3a0a14', accent: '#aa3aff', glow: '#ff1a1a', ai: 'final_combo', powerSet: ['avatar','jetpack','gas_sniper'],         gold: 3000 },
 };
 
+/**
+ * @param {string} key - 'witheredelder' | 'ironclad' | 'mirroredone' | 'ossarius' |
+ *                       'vanguardatlas' | 'emberoracle' | 'blightsovereign' |
+ *                       'buriedcrown' | 'lastsovereign'
+ * @returns {BossConfig | undefined}
+ */
 function getBossConfig(key) { return BOSS_CONFIGS[key]; }
 
 module.exports = { BOSS_CONFIGS, getBossConfig };
