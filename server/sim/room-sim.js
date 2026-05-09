@@ -356,9 +356,13 @@ function broadcastWorld(sim, now) {
   const fullBroadcast = (now - sim.lastFullAt) > FULL_BROADCAST_MS;
   if (fullBroadcast) sim.lastFullAt = now;
 
-  // Bygg player-array
+  // Bygg player-array — companions inkluderas i sim's enemy-AI-targeting men FÅR INTE
+  // skickas som spelare till klient (deras position renderas separat via companion-state).
+  // BUG-FIX: tidigare läckte companions in i klient's player-rendering → host-companion
+  // mappades till partner-slot → "kompis-gubbe följer dig hela tiden".
   const players = buildPlayerList(sim);
-  const allPlayers = players.map((p, i) => ({
+  const realPlayers = players.filter(p => !p._isCompanion);
+  const allPlayers = realPlayers.map((p, i) => ({
     c: i,
     x: Math.round(p.x), y: Math.round(p.y),
     hp: Math.round(p.hp),
