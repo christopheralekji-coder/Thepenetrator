@@ -1219,37 +1219,70 @@ function drawPickups() {
   const cx = state.camera.x, cy = state.camera.y;
   const t = performance.now();
   for (const pk of state.pickups) {
-    const x = pk.x - cx, y = pk.y - cy + Math.sin(t/200 + pk.x) * 2;
-    // glow
+    const bob = Math.sin(t/200 + pk.x) * 2.5;
+    const x = pk.x - cx, y = pk.y - cy + bob;
     const colors = { hp: '#5aff5a', ammo: '#ffae3a', gold: '#ffd54a', temp_dmg: '#ff5a3a' };
     const col = colors[pk.type] || '#fff';
-    ctx.fillStyle = col + '55';
-    ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2); ctx.fill();
-    // ikon
+    // Pulserande halo (yttre ring + glow)
+    const pulse = 0.55 + Math.sin(t / 280 + pk.x * 0.1) * 0.45;
+    ctx.save();
+    ctx.shadowColor = col; ctx.shadowBlur = 14 * pulse;
+    ctx.fillStyle = col + '44';
+    ctx.beginPath(); ctx.arc(x, y, 16 + pulse * 3, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Inner glow disk
+    ctx.fillStyle = col + '22';
+    ctx.beginPath(); ctx.arc(x, y, 11, 0, Math.PI * 2); ctx.fill();
+    // Rotating sparkle ring (4 prickar)
+    const rot = t / 600;
+    for (let i = 0; i < 4; i++) {
+      const a = rot + i * Math.PI / 2;
+      const sx = x + Math.cos(a) * 13, sy = y + Math.sin(a) * 13;
+      ctx.fillStyle = '#fff';
+      ctx.globalAlpha = 0.5 + Math.sin(t / 200 + i) * 0.4;
+      ctx.beginPath(); ctx.arc(sx, sy, 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // Skugga under (gör att pickup känns flytande)
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath(); ctx.ellipse(x, y + 10 - bob * 0.5, 8, 3, 0, 0, Math.PI * 2); ctx.fill();
+    // Ikon
     if (pk.type === 'hp') {
       ctx.fillStyle = '#5aff5a';
+      ctx.shadowColor = '#5aff5a'; ctx.shadowBlur = 6;
       ctx.fillRect(x - 5, y - 2, 10, 4);
       ctx.fillRect(x - 2, y - 5, 4, 10);
+      ctx.shadowBlur = 0;
     } else if (pk.type === 'ammo') {
       ctx.fillStyle = '#ffae3a';
+      ctx.shadowColor = '#ffae3a'; ctx.shadowBlur = 6;
       ctx.fillRect(x - 4, y - 6, 8, 12);
+      ctx.shadowBlur = 0;
       ctx.fillStyle = '#3a2a08';
       ctx.fillRect(x - 3, y - 5, 6, 3);
     } else if (pk.type === 'gold') {
       ctx.fillStyle = '#ffd54a';
+      ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 8;
       ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
       ctx.fillStyle = '#a07a18';
       ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
       ctx.fillText('$', x, y + 3);
     } else if (pk.type === 'temp_dmg') {
       ctx.fillStyle = '#ff5a3a';
+      ctx.shadowColor = '#ff5a3a'; ctx.shadowBlur = 8;
       ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center';
       ctx.fillText('⚡', x, y + 5);
+      ctx.shadowBlur = 0;
     }
-    // life-blink när < 5s kvar
-    if (pk.life < 5 && Math.sin(t/100) > 0) {
-      ctx.strokeStyle = col; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(x, y, 14, 0, Math.PI*2); ctx.stroke();
+    // Life-blink när < 5s kvar — nu mer aggressiv så spelaren ser brådskan
+    if (pk.life < 5) {
+      const blink = 0.5 + Math.sin(t / 80) * 0.5;
+      ctx.strokeStyle = col; ctx.lineWidth = 2;
+      ctx.globalAlpha = blink;
+      ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI*2); ctx.stroke();
+      ctx.globalAlpha = 1;
     }
   }
 }
@@ -1638,6 +1671,13 @@ function addWeaponXp(weaponId, amount) {
   if (after > before) {
     showAchievementPopup({ icon: '⭐', name: W_BY_ID[weaponId].name + ' nivå ' + after });
     Audio.achievement();
+    // Mastery-level-up: gyllene burst runt spelaren + shockwave + sparks
+    if (state.player) {
+      const p = state.player;
+      spawnShockwave(p.x, p.y, 12, 90, '#ffd54a', 0.55, 4);
+      spawnSparks(p.x, p.y, '#ffd54a', 14, 320);
+      triggerShake(5, 0.25);
+    }
   }
   // Player XP
   save.playerXp = (save.playerXp || 0) + amount;
@@ -1647,6 +1687,14 @@ function addWeaponXp(weaponId, amount) {
     save.playerLevel = (save.playerLevel || 1) + 1;
     showAchievementPopup({ icon: '🎖️', name: 'Level up: ' + save.playerLevel });
     Audio.achievement();
+    // Player-level-up: större cyan/lila burst
+    if (state.player) {
+      const p = state.player;
+      spawnShockwave(p.x, p.y, 14, 120, '#aa3aff', 0.7, 5);
+      setTimeout(() => spawnShockwave(p.x, p.y, 14, 180, '#3acaff', 0.6, 3), 120);
+      spawnSparks(p.x, p.y, '#aa3aff', 20, 380);
+      triggerShake(8, 0.4);
+    }
   }
 }
 
@@ -7024,6 +7072,10 @@ function startWave(n) {
 function loadStage(n) {
   const stage = getStage(n);
   if (!stage) { endGame(true); return; }
+  // Stage-transition white-flash (utöver stage 1 där det är onödigt)
+  if (state.wave && n > state.wave) {
+    state.stageTransitionUntil = performance.now() + 600;
+  }
   state.wave = n;
   state.killsThisWave = 0;
   state.bossAlive = false;
@@ -16981,6 +17033,7 @@ function render() {
   drawLowHpVignette();
   drawDamageFlash();
   drawEventVignette();
+  drawStageTransition();
   drawBossPhaseBanner();
   drawToast();
   drawKillstreak();
@@ -17471,6 +17524,17 @@ function drawBossPhaseBanner() {
   ctx.strokeText(b.text, viewW / 2, cy);
   ctx.fillText(b.text, viewW / 2, cy);
   ctx.restore();
+}
+
+// Stage-transition white-flash — kort fade in från vit när ny stage laddas så
+// skiftet känns dramatiskt istället för "wait, är jag i nästa stage nu?".
+function drawStageTransition() {
+  if (!state.stageTransitionUntil) return;
+  const remaining = state.stageTransitionUntil - performance.now();
+  if (remaining <= 0) { state.stageTransitionUntil = 0; return; }
+  const intensity = remaining / 600;
+  ctx.fillStyle = `rgba(255, 240, 220, ${intensity * 0.9})`;
+  ctx.fillRect(0, 0, viewW, viewH);
 }
 
 // Damage screen-flash — kort röd pulse hela skärmen vid hit.
