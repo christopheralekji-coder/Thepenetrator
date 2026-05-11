@@ -12422,6 +12422,23 @@ function layoutForest(stage) {
   // Trasiga staketsegment
   stageState.buildings.push({ x: W * 0.20, y: H * 0.42, w: 140, h: 8, kind: 'fence_seg_broken' });
   stageState.buildings.push({ x: W * 0.70, y: H * 0.65, w: 8, h: 120, kind: 'fence_seg_broken' });
+  // --- NYA FOREST-DEKORATIONER ---
+  // Blomster-patches
+  for (let i = 0; i < 12; i++) {
+    stageState.decorations.push({ x: 60 + r() * (W - 120), y: 60 + r() * (H - 120), kind: 'flower_patch', seed: (r() * 1e6) | 0 });
+  }
+  // Svampkluster
+  for (let i = 0; i < 8; i++) {
+    stageState.decorations.push({ x: 80 + r() * (W - 160), y: 80 + r() * (H - 160), kind: 'mushroom_cluster', seed: (r() * 1e6) | 0 });
+  }
+  // Bioluminiscenta svampar (3 — sällsynta, nära goal)
+  for (let i = 0; i < 3; i++) {
+    stageState.decorations.push({ x: stage.goalPos.x + (r() - 0.5) * 400, y: stage.goalPos.y + 100 + r() * 300, kind: 'glowing_mushroom', seed: (r() * 1e6) | 0 });
+  }
+  // Ormbunkar
+  for (let i = 0; i < 14; i++) {
+    stageState.decorations.push({ x: 50 + r() * (W - 100), y: 50 + r() * (H - 100), kind: 'fern', seed: (r() * 1e6) | 0 });
+  }
 }
 
 // Stage 2 — PERIMETERN: vägbom-portal som setpiece, asfalt, fordon, vakttorn med sweeping spotlights
@@ -12514,6 +12531,21 @@ function layoutPerimeter(stage) {
   for (let i = 0; i < 6; i++) {
     stageState.decorations.push({ x: W*0.5 + (r()-0.5)*220, y: 200 + r()*(H-400), kind: 'oil_stain' });
   }
+  // --- NYA PERIMETER-DEKORATIONER ---
+  // Taggtråd-poster längs ena långsidan
+  for (let i = 0; i < 6; i++) {
+    stageState.decorations.push({ x: 70, y: 200 + i * 250, kind: 'barbed_wire_post' });
+  }
+  for (let i = 0; i < 6; i++) {
+    stageState.decorations.push({ x: W - 70, y: 200 + i * 250, kind: 'barbed_wire_post' });
+  }
+  // Rubble-hög efter strider
+  for (let i = 0; i < 5; i++) {
+    stageState.decorations.push({ x: 120 + r() * (W - 240), y: 200 + r() * (H - 400), kind: 'rubble_pile', seed: (r() * 1e6) | 0 });
+  }
+  // Varningsremsor vid kritiska punkter
+  stageState.decorations.push({ x: W * 0.5, y: 250, kind: 'warning_strip', length: 200, ang: 0 });
+  stageState.decorations.push({ x: W * 0.5, y: H - 250, kind: 'warning_strip', length: 200, ang: 0 });
 }
 // Stage 3 — LOBBYN: receptionen som setpiece, korridor med dörrar, anslagstavla, växter
 function layoutLobby(stage) {
@@ -12588,6 +12620,17 @@ function layoutLobby(stage) {
   stageState.decorations.push({ x: W*0.82, y: H - 760 + 30, kind: 'door_label', text: 'COMMS' });
   stageState.decorations.push({ x: W/2, y: H/2 - 90, kind: 'metal_sign', text: 'RECEPTION', red: false });
   stageState.decorations.push({ x: W/2, y: H * 0.18, kind: 'door_label', text: 'INNER ZONE →' });
+  // --- NYA LOBBY-DEKORATIONER ---
+  // Marmor-pelare i 4 hörn av centrala salen
+  const colX = [W * 0.32, W * 0.68];
+  const colY = [H * 0.35, H * 0.65];
+  for (const cx2 of colX) for (const cy2 of colY) {
+    stageState.decorations.push({ x: cx2, y: cy2, kind: 'marble_column' });
+  }
+  // Ljus-pillars från takfönster
+  stageState.decorations.push({ x: W * 0.25, y: H * 0.4, kind: 'light_pillar' });
+  stageState.decorations.push({ x: W * 0.75, y: H * 0.6, kind: 'light_pillar' });
+  stageState.decorations.push({ x: W / 2, y: H * 0.50, kind: 'light_pillar' });
 }
 // Stage 4 — BARACK-GÅRDEN: 6 baracker med dörrlabels, flagga, bål-fat, tvättlina
 function layoutBarracks(stage) {
@@ -12645,6 +12688,14 @@ function layoutBarracks(stage) {
   // SKYLTAR
   stageState.decorations.push({ x: stage.spawnPos.x, y: stage.spawnPos.y - 60, kind: 'metal_sign', text: 'PARADE GROUND' });
   stageState.decorations.push({ x: W*0.5, y: 280, kind: 'metal_sign', text: 'OFFICERS ONLY', red: true });
+  // --- NYA BARRACKS-DEKORATIONER ---
+  // Små tält i mellanrummet
+  stageState.decorations.push({ x: W * 0.3, y: H * 0.5, kind: 'tent_small', color: '#5a4a26' });
+  stageState.decorations.push({ x: W * 0.7, y: H * 0.5, kind: 'tent_small', color: '#3a3a2a' });
+  stageState.decorations.push({ x: W * 0.5, y: H * 0.3, kind: 'tent_small', color: '#4a3a18' });
+  // Crate-stacks med materiel
+  stageState.decorations.push({ x: W * 0.5 - 80, y: H * 0.7, kind: 'crate_stack', layers: 2, seed: 11 });
+  stageState.decorations.push({ x: W * 0.5 + 80, y: H * 0.7, kind: 'crate_stack', layers: 3, seed: 22 });
 }
 // Stage 5 — HANGAREN: stora plan som setpiece, bränsletruck, verktygsvagnar, taklikedjor
 function layoutHangar(stage) {
@@ -12711,6 +12762,18 @@ function layoutHangar(stage) {
   stageState.decorations.push({ x: W*0.5, y: 110, kind: 'big_overhead_sign', text: 'AIRCRAFT MAINTENANCE — RESTRICTED' });
   stageState.decorations.push({ x: W*0.4, y: H/2 + 120, kind: 'metal_sign', text: 'FUEL DEPOT', red: true });
   stageState.decorations.push({ x: W*0.5, y: H - 120, kind: 'metal_sign', text: '⚠ AVIATION FUEL', red: true });
+  // --- NYA HANGAR-DEKORATIONER ---
+  // Bränsle-rör runt hangaren
+  stageState.decorations.push({ x: 200, y: 200, kind: 'fuel_pipe', length: 80, ang: 0 });
+  stageState.decorations.push({ x: W - 200, y: 200, kind: 'fuel_pipe', length: 80, ang: 0 });
+  stageState.decorations.push({ x: 200, y: H - 200, kind: 'fuel_pipe', length: 80, ang: 0 });
+  stageState.decorations.push({ x: W - 200, y: H - 200, kind: 'fuel_pipe', length: 80, ang: 0 });
+  // Ljus-pelare från takfönster (industrial)
+  stageState.decorations.push({ x: W * 0.3, y: H / 2 - 100, kind: 'light_pillar' });
+  stageState.decorations.push({ x: W * 0.7, y: H / 2 + 100, kind: 'light_pillar' });
+  // Steam-vents
+  stageState.decorations.push({ x: W * 0.4, y: H * 0.85, kind: 'steam_vent' });
+  stageState.decorations.push({ x: W * 0.6, y: H * 0.15, kind: 'steam_vent' });
 }
 // Stage 6 — AMMO-DEPÅN: hyllor med koder, gabblar, kran-skena, mängder explosiva fat, varningar
 function layoutDepot(stage) {
@@ -12791,6 +12854,17 @@ function layoutDepot(stage) {
   for (let i = 0; i < 6; i++) {
     stageState.decorations.push({ x: 150 + r() * (W - 300), y: 200 + r() * (H - 400), kind: 'warning_stripe' });
   }
+  // --- NYA DEPOT-DEKORATIONER ---
+  // Crate-staplar med hazard-stencils
+  for (let i = 0; i < 6; i++) {
+    stageState.decorations.push({ x: 200 + r() * (W - 400), y: 250 + r() * (H - 500), kind: 'crate_stack', layers: 2 + ((r() * 100) | 0) % 2, seed: (r() * 1e6) | 0 });
+  }
+  // Steam-vents (rökiga rör)
+  stageState.decorations.push({ x: W * 0.2, y: H * 0.5, kind: 'steam_vent' });
+  stageState.decorations.push({ x: W * 0.8, y: H * 0.5, kind: 'steam_vent' });
+  // Varningsremsor över golvet
+  stageState.decorations.push({ x: W * 0.5, y: H * 0.3, kind: 'warning_strip', length: 240, ang: 0 });
+  stageState.decorations.push({ x: W * 0.5, y: H * 0.7, kind: 'warning_strip', length: 240, ang: 0 });
 }
 // Stage 7 — LASTHANGAREN: containers med koder, kran med hängande container (event), gaffeltruck
 function layoutCargo(stage) {
@@ -12855,6 +12929,16 @@ function layoutCargo(stage) {
   stageState.decorations.push({ x: W * 0.18, y: H/2, kind: 'metal_sign', text: 'BAY 1' });
   stageState.decorations.push({ x: W * 0.82, y: H/2, kind: 'metal_sign', text: 'BAY 2' });
   stageState.decorations.push({ x: W/2, y: H * 0.18, kind: 'big_overhead_sign', text: 'CARGO TERMINAL' });
+  // --- NYA CARGO-DEKORATIONER ---
+  // Container-staplar (extra crate_stack — passar shipping aesthetic)
+  stageState.decorations.push({ x: W * 0.25, y: H * 0.25, kind: 'crate_stack', layers: 3, seed: 33 });
+  stageState.decorations.push({ x: W * 0.75, y: H * 0.25, kind: 'crate_stack', layers: 2, seed: 44 });
+  stageState.decorations.push({ x: W * 0.25, y: H * 0.75, kind: 'crate_stack', layers: 2, seed: 55 });
+  stageState.decorations.push({ x: W * 0.75, y: H * 0.75, kind: 'crate_stack', layers: 3, seed: 66 });
+  // Vatten-pölar (regn på cement)
+  for (let i = 0; i < 6; i++) {
+    stageState.decorations.push({ x: 200 + Math.random() * (W - 400), y: 200 + Math.random() * (H - 400), kind: 'puddle', size: 14 + Math.random() * 10 });
+  }
 }
 // Stage 8 — BUNKER-TUNNLAR: zigzag, ventilation, kablar, sektionsskyltar, blod, en kropp
 function layoutBunker(stage) {
@@ -12926,6 +13010,21 @@ function layoutBunker(stage) {
   // SKYLTAR
   stageState.decorations.push({ x: stage.spawnPos.x, y: stage.spawnPos.y - 50, kind: 'metal_sign', text: 'TUNNEL ENTRANCE', red: false });
   stageState.decorations.push({ x: W/2, y: H * 0.10, kind: 'big_warning_sign', text: '⚠ COMMAND →' });
+  // --- NYA BUNKER-DEKORATIONER ---
+  // Steam-vents (rörläckage)
+  stageState.decorations.push({ x: W * 0.3, y: H * 0.3, kind: 'steam_vent' });
+  stageState.decorations.push({ x: W * 0.7, y: H * 0.6, kind: 'steam_vent' });
+  stageState.decorations.push({ x: W * 0.5, y: H * 0.45, kind: 'steam_vent' });
+  // Vatten-pölar (läckande tak)
+  for (let i = 0; i < 8; i++) {
+    stageState.decorations.push({ x: 150 + Math.random() * (W - 300), y: 250 + Math.random() * (H - 500), kind: 'puddle', size: 10 + Math.random() * 8 });
+  }
+  // Rubble-piles (förstörd bunker)
+  for (let i = 0; i < 4; i++) {
+    stageState.decorations.push({ x: 150 + r() * (W - 300), y: 250 + r() * (H - 500), kind: 'rubble_pile', seed: (r() * 1e6) | 0 });
+  }
+  // Varningsremsor i kritiska zoner
+  stageState.decorations.push({ x: stage.goalPos.x, y: stage.goalPos.y - 80, kind: 'warning_strip', length: 180, ang: 0 });
 }
 // Stage 9 — KOMMANDO-CELLEN: skärm-vägg, hologram-projektor, server-skåp, tactical maps, ALERT-skyltar
 function layoutCommand(stage) {
@@ -12986,6 +13085,22 @@ function layoutCommand(stage) {
   stageState.decorations.push({ x: stage.goalPos.x, y: stage.goalPos.y + 200, kind: 'big_warning_sign', text: '⚠ DEFCON 1' });
   stageState.decorations.push({ x: W * 0.18, y: H/2, kind: 'metal_sign', text: 'AUTH-LVL Ω', red: true });
   stageState.decorations.push({ x: W * 0.82, y: H/2, kind: 'metal_sign', text: 'OVERSIGHT', red: true });
+  // --- NYA COMMAND-DEKORATIONER ---
+  // Server-racks längs väggar (3-4 st)
+  stageState.decorations.push({ x: W * 0.15, y: H * 0.35, kind: 'server_rack' });
+  stageState.decorations.push({ x: W * 0.15, y: H * 0.65, kind: 'server_rack' });
+  stageState.decorations.push({ x: W * 0.85, y: H * 0.35, kind: 'server_rack' });
+  stageState.decorations.push({ x: W * 0.85, y: H * 0.65, kind: 'server_rack' });
+  // Kod-skärmar (scrollande text)
+  stageState.decorations.push({ x: W * 0.30, y: H * 0.30, kind: 'code_screen', seed: 1 });
+  stageState.decorations.push({ x: W * 0.70, y: H * 0.30, kind: 'code_screen', seed: 2 });
+  stageState.decorations.push({ x: W * 0.30, y: H * 0.70, kind: 'code_screen', seed: 3 });
+  stageState.decorations.push({ x: W * 0.70, y: H * 0.70, kind: 'code_screen', seed: 4 });
+  // Hologram-pyramid i mitten
+  stageState.decorations.push({ x: W / 2, y: H * 0.50, kind: 'hologram_chart' });
+  // Ljus-pelare (kall futuristisk)
+  stageState.decorations.push({ x: W * 0.40, y: H * 0.45, kind: 'light_pillar' });
+  stageState.decorations.push({ x: W * 0.60, y: H * 0.55, kind: 'light_pillar' });
 }
 
 // TDM-arena: symmetrisk PvP-layout. 6 mirrored crates/rocks som cover, ett centralt
@@ -14839,51 +14954,587 @@ function drawDecorationItem(d, cx, cy) {
     ctx.restore();
     return;
   }
+  // ============================================================
+  // NYA DEKORATIONS-TYPER (map-uppgradering)
+  // ============================================================
+  if (d.kind === 'flower_patch') {
+    // Färgade prickar i en patch — slumpvis 6 prickar med 4 färger
+    const seed = d.seed || 1;
+    const colors = ['#ff5a8a', '#ffd54a', '#aa3aff', '#3aff8a'];
+    for (let i = 0; i < 6; i++) {
+      const a = (seed * 17 + i * 60) % 360;
+      const rad = ((seed * 7 + i * 13) % 12) + 4;
+      const fx = x + Math.cos(a * Math.PI / 180) * rad;
+      const fy = y + Math.sin(a * Math.PI / 180) * rad * 0.6;
+      ctx.fillStyle = colors[(seed + i) % colors.length];
+      ctx.beginPath(); ctx.arc(fx, fy, 1.8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#3a5a2a';
+      ctx.beginPath(); ctx.arc(fx, fy + 2, 0.9, 0, Math.PI * 2); ctx.fill();
+    }
+    return;
+  }
+  if (d.kind === 'mushroom_cluster') {
+    // 3-4 svampar i en grupp, vit-prickade hattar
+    const seed = d.seed || 1;
+    for (let i = 0; i < 4; i++) {
+      const ang = (seed * 13 + i * 90) % 360;
+      const rad = (seed * 5 + i * 7) % 8 + 3;
+      const mx = x + Math.cos(ang * Math.PI / 180) * rad;
+      const my = y + Math.sin(ang * Math.PI / 180) * rad * 0.6;
+      // Stam
+      ctx.fillStyle = '#e0d4b8';
+      ctx.fillRect(mx - 1.5, my, 3, 4);
+      // Hatt
+      ctx.fillStyle = '#aa2a2a';
+      ctx.beginPath(); ctx.ellipse(mx, my, 4, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+      // Vita prickar
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(mx - 1.5, my - 0.5, 0.7, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(mx + 1, my, 0.7, 0, Math.PI * 2); ctx.fill();
+    }
+    return;
+  }
+  if (d.kind === 'glowing_mushroom') {
+    // Bioluminiscent — pulserande blå glow
+    const t = performance.now();
+    const pulse = 0.6 + Math.sin(t / 600 + (d.seed || 0) * 0.3) * 0.4;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(x, y + 6, 8, 3, 0, 0, Math.PI * 2); ctx.fill();
+    // Stam
+    ctx.fillStyle = '#d0e0e8';
+    ctx.fillRect(x - 2, y - 2, 4, 8);
+    // Glow
+    const grad = ctx.createRadialGradient(x, y - 4, 2, x, y - 4, 24);
+    grad.addColorStop(0, `rgba(60, 200, 255, ${0.8 * pulse})`);
+    grad.addColorStop(1, 'rgba(60, 200, 255, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - 24, y - 28, 48, 48);
+    // Hatt
+    ctx.fillStyle = '#5acaff';
+    ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 10 * pulse;
+    ctx.beginPath(); ctx.ellipse(x, y - 4, 6, 4, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Highlight
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x - 1.5, y - 5, 1, 0, Math.PI * 2); ctx.fill();
+    return;
+  }
+  if (d.kind === 'fern') {
+    // Ormbunke — 5-6 utgående blad
+    const seed = d.seed || 1;
+    const ang0 = (seed * 0.01) % (Math.PI * 2);
+    for (let i = 0; i < 6; i++) {
+      const a = ang0 + i * Math.PI / 3;
+      const r = 14;
+      ctx.strokeStyle = '#2a4a1a';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.quadraticCurveTo(x + Math.cos(a) * r * 0.5 - 2, y + Math.sin(a) * r * 0.5, x + Math.cos(a) * r, y + Math.sin(a) * r);
+      ctx.stroke();
+      // Mindre blad-fångare
+      ctx.strokeStyle = '#3a5a2a';
+      ctx.lineWidth = 1;
+      for (let j = 1; j <= 3; j++) {
+        const t = j / 4;
+        const lx = x + Math.cos(a) * r * t;
+        const ly = y + Math.sin(a) * r * t;
+        const pa = a + Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(lx, ly);
+        ctx.lineTo(lx + Math.cos(pa) * 3, ly + Math.sin(pa) * 3);
+        ctx.moveTo(lx, ly);
+        ctx.lineTo(lx + Math.cos(pa + Math.PI) * 3, ly + Math.sin(pa + Math.PI) * 3);
+        ctx.stroke();
+      }
+    }
+    return;
+  }
+  if (d.kind === 'puddle') {
+    // Vatten-pöl med reflektion
+    const t = performance.now();
+    ctx.save();
+    ctx.fillStyle = 'rgba(100, 140, 180, 0.5)';
+    ctx.beginPath();
+    ctx.ellipse(x, y, d.size || 18, (d.size || 18) * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Mörk kant
+    ctx.strokeStyle = 'rgba(40, 60, 80, 0.7)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Ripple-effekt
+    const rippleR = ((t / 800) % 1) * (d.size || 18);
+    ctx.strokeStyle = `rgba(180, 220, 255, ${0.5 * (1 - rippleR / (d.size || 18))})`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rippleR, rippleR * 0.5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    // Highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.ellipse(x - (d.size || 18) * 0.3, y - (d.size || 18) * 0.2, (d.size || 18) * 0.3, (d.size || 18) * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
+  if (d.kind === 'steam_vent') {
+    // Ventil-grille i golvet som spyr ut ånga
+    const t = performance.now();
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.beginPath(); ctx.ellipse(x, y, 14, 6, 0, 0, Math.PI * 2); ctx.fill();
+    // Grille
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x - 10, y + i * 2);
+      ctx.lineTo(x + 10, y + i * 2);
+      ctx.stroke();
+    }
+    // Ångfilament — flera lager med olika alpha
+    for (let i = 0; i < 4; i++) {
+      const ph = (t / 600 + i * 0.25) % 1;
+      const sy = y - ph * 50;
+      const sx = x + Math.sin(ph * Math.PI * 2 + i) * 6;
+      const sr = 6 + ph * 10;
+      ctx.fillStyle = `rgba(200,220,230,${0.4 * (1 - ph)})`;
+      ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.fill();
+    }
+    return;
+  }
+  if (d.kind === 'code_screen') {
+    // Skärm med scrollande kod (command/bunker)
+    const t = performance.now();
+    // Stand
+    ctx.fillStyle = '#1a1a22';
+    ctx.fillRect(x - 3, y + 16, 6, 14);
+    ctx.fillRect(x - 14, y + 28, 28, 4);
+    // Skärm
+    ctx.fillStyle = '#0a0a14';
+    ctx.fillRect(x - 26, y - 22, 52, 40);
+    ctx.fillStyle = '#1a3a3a';
+    ctx.fillRect(x - 24, y - 20, 48, 36);
+    // Kod-rader (scrollande)
+    ctx.font = 'bold 7px monospace';
+    ctx.textAlign = 'left';
+    const scroll = (t / 50) % 36;
+    for (let row = 0; row < 8; row++) {
+      const ry = y - 18 + row * 5 - scroll % 5;
+      const seed = ((d.seed || 0) + row * 17 + Math.floor(t / 300)) & 0xff;
+      const hue = (seed & 1) ? '#5aff8a' : '#3acaff';
+      ctx.fillStyle = hue;
+      // "kod" rendered as random chars
+      const chars = ['0x', 'AF', '01', '>>', 'EF', '32', 'CC', 'A1'];
+      const txt = chars[seed % chars.length] + chars[(seed >> 2) % chars.length];
+      ctx.fillText(txt, x - 22, ry);
+    }
+    // Glow
+    ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 8;
+    ctx.strokeStyle = '#5aff8a';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - 24, y - 20, 48, 36);
+    ctx.shadowBlur = 0;
+    return;
+  }
+  if (d.kind === 'server_rack') {
+    // Server-stack med blinkande LEDs
+    const t = performance.now();
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x - 18, y + 14, 36, 6);
+    // Rack
+    ctx.fillStyle = '#1a1a22';
+    ctx.fillRect(x - 16, y - 24, 32, 38);
+    ctx.strokeStyle = '#3a3a3a'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - 16, y - 24, 32, 38);
+    // Server-enheter (5 lager)
+    for (let i = 0; i < 5; i++) {
+      const sy = y - 22 + i * 7;
+      ctx.fillStyle = '#2a2a35';
+      ctx.fillRect(x - 14, sy, 28, 5);
+      // LEDs — blink baserat på tid + offset
+      for (let l = 0; l < 4; l++) {
+        const blinkPhase = (t / 200 + i * 7 + l * 3) % 5;
+        const on = blinkPhase < 1;
+        ctx.fillStyle = on ? (l % 2 === 0 ? '#5aff5a' : '#3acaff') : '#1a3a1a';
+        ctx.fillRect(x - 10 + l * 4, sy + 1.5, 1.5, 1.5);
+      }
+    }
+    return;
+  }
+  if (d.kind === 'light_pillar') {
+    // Vertikal ljus-stråle som faller ned från höjd
+    const t = performance.now();
+    const flicker = 0.85 + Math.sin(t / 800) * 0.15;
+    const grad = ctx.createLinearGradient(x, y - 60, x, y + 40);
+    grad.addColorStop(0, `rgba(255, 240, 180, ${0.5 * flicker})`);
+    grad.addColorStop(0.6, `rgba(255, 220, 140, ${0.25 * flicker})`);
+    grad.addColorStop(1, 'rgba(255, 200, 100, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(x - 14, y - 60);
+    ctx.lineTo(x + 14, y - 60);
+    ctx.lineTo(x + 36, y + 40);
+    ctx.lineTo(x - 36, y + 40);
+    ctx.closePath();
+    ctx.fill();
+    // Glow center
+    ctx.fillStyle = `rgba(255,255,200,${0.6 * flicker})`;
+    ctx.beginPath();
+    ctx.ellipse(x, y + 38, 20, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    return;
+  }
+  if (d.kind === 'marble_column') {
+    // Decorerad pelare (lobby) med skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.beginPath(); ctx.ellipse(x, y + 18, 16, 5, 0, 0, Math.PI * 2); ctx.fill();
+    // Bas
+    ctx.fillStyle = '#aaa094';
+    ctx.fillRect(x - 14, y + 12, 28, 8);
+    ctx.fillStyle = '#9a8c80';
+    ctx.fillRect(x - 14, y + 16, 28, 4);
+    // Pelare-skaft
+    const colGrad = ctx.createLinearGradient(x - 10, y, x + 10, y);
+    colGrad.addColorStop(0, '#7a7068');
+    colGrad.addColorStop(0.4, '#c8c0b4');
+    colGrad.addColorStop(0.6, '#c8c0b4');
+    colGrad.addColorStop(1, '#7a7068');
+    ctx.fillStyle = colGrad;
+    ctx.fillRect(x - 10, y - 26, 20, 40);
+    // Vertikala rännor
+    ctx.strokeStyle = '#7a7068';
+    ctx.lineWidth = 0.8;
+    for (let i = 0; i < 3; i++) {
+      const lx = x - 7 + i * 7;
+      ctx.beginPath();
+      ctx.moveTo(lx, y - 24); ctx.lineTo(lx, y + 12);
+      ctx.stroke();
+    }
+    // Kapitäl (top)
+    ctx.fillStyle = '#c8c0b4';
+    ctx.fillRect(x - 13, y - 30, 26, 6);
+    ctx.fillStyle = '#aaa094';
+    ctx.fillRect(x - 15, y - 32, 30, 3);
+    return;
+  }
+  if (d.kind === 'rubble_pile') {
+    // Hög av betongbitar med skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.ellipse(x + 2, y + 8, 20, 6, 0, 0, Math.PI * 2); ctx.fill();
+    const seed = d.seed || 1;
+    const chunks = 5;
+    for (let i = 0; i < chunks; i++) {
+      const a = (seed * 23 + i * 67) % 360;
+      const rad = ((seed * 11 + i * 13) % 10) + 2;
+      const cx2 = x + Math.cos(a * Math.PI / 180) * rad;
+      const cy2 = y + Math.sin(a * Math.PI / 180) * rad * 0.6;
+      const sz = 4 + ((seed + i) % 4);
+      ctx.fillStyle = '#5a5a52';
+      ctx.fillRect(cx2 - sz / 2, cy2 - sz / 2, sz, sz);
+      ctx.fillStyle = '#7a7a72';
+      ctx.fillRect(cx2 - sz / 2, cy2 - sz / 2, sz / 2, sz / 2);
+      // Rebar (rust-färgad metallstång)
+      if (i === 0) {
+        ctx.strokeStyle = '#7a3a18';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(cx2, cy2 - sz);
+        ctx.lineTo(cx2 + 4, cy2 - sz - 6);
+        ctx.stroke();
+      }
+    }
+    return;
+  }
+  if (d.kind === 'barbed_wire_post') {
+    // Pole med taggtråd
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath(); ctx.ellipse(x + 1, y + 8, 4, 2, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x - 1.5, y - 24, 3, 32);
+    // Wire (3 nivåer)
+    ctx.strokeStyle = '#888';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) {
+      const wy = y - 18 + i * 8;
+      ctx.beginPath();
+      ctx.moveTo(x - 30, wy + Math.sin(i) * 2);
+      ctx.lineTo(x + 30, wy - Math.sin(i) * 2);
+      ctx.stroke();
+      // Taggar (x's längs wire)
+      ctx.fillStyle = '#aaa';
+      for (let j = 0; j < 6; j++) {
+        const tx = x - 25 + j * 10;
+        const ty = wy - Math.sin(i + j) * 1.5;
+        ctx.fillText('×', tx, ty);
+      }
+    }
+    return;
+  }
+  if (d.kind === 'hologram_chart') {
+    // Snurrande pyramid-hologram (kommandocentral)
+    const t = performance.now();
+    const rot = t / 800;
+    const flicker = 0.7 + Math.sin(t / 90) * 0.3;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 12 * flicker;
+    ctx.strokeStyle = `rgba(90, 200, 255, ${flicker})`;
+    ctx.lineWidth = 1.5;
+    // Pyramid wireframe
+    const size = 18;
+    const c1 = Math.cos(rot), s1 = Math.sin(rot);
+    const corners = [
+      [-size * c1, -size * 0.6, -size * s1],
+      [size * c1, -size * 0.6, size * s1],
+      [size * s1, -size * 0.6, -size * c1],
+      [-size * s1, -size * 0.6, size * c1],
+    ];
+    const top = [0, -size * 1.2, 0];
+    // Rita 4 trianglar
+    for (let i = 0; i < 4; i++) {
+      const a = corners[i], b = corners[(i + 1) % 4];
+      ctx.beginPath();
+      ctx.moveTo(a[0], a[1]);
+      ctx.lineTo(b[0], b[1]);
+      ctx.lineTo(top[0], top[1]);
+      ctx.closePath();
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    // Bas-cylinder
+    ctx.fillStyle = '#2a2a3a';
+    ctx.fillRect(x - 10, y + 6, 20, 6);
+    ctx.fillStyle = '#3acaff';
+    ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 6;
+    ctx.fillRect(x - 9, y + 7, 18, 1.5);
+    ctx.shadowBlur = 0;
+    return;
+  }
+  if (d.kind === 'warning_strip') {
+    // Gula-svarta varningsremsor på golvet (depot/bunker)
+    ctx.save();
+    const len = d.length || 100;
+    const ang = d.ang || 0;
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    const stripeW = 12;
+    const stripes = Math.ceil(len / stripeW);
+    for (let i = 0; i < stripes; i++) {
+      ctx.fillStyle = i % 2 === 0 ? '#ffd54a' : '#1a1a1a';
+      ctx.fillRect(-len / 2 + i * stripeW, -4, stripeW, 8);
+    }
+    ctx.restore();
+    return;
+  }
+  if (d.kind === 'crate_stack') {
+    // Stapel av 2-3 lådor
+    const layers = d.layers || 2;
+    const seed = d.seed || 1;
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(x - 16, y + 16 - layers * 4, 32, 6);
+    for (let i = 0; i < layers; i++) {
+      const off = (i % 2 === 0 ? 0 : 3) - 4;
+      const ly = y + 14 - i * 18;
+      ctx.fillStyle = '#7a5a30';
+      ctx.fillRect(x - 14 + off, ly - 16, 28, 18);
+      ctx.strokeStyle = '#3a2a18';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x - 14 + off, ly - 16, 28, 18);
+      // Plank-linjer
+      ctx.beginPath();
+      ctx.moveTo(x - 14 + off, ly - 8); ctx.lineTo(x + 14 + off, ly - 8);
+      ctx.moveTo(x + off, ly - 16); ctx.lineTo(x + off, ly + 2);
+      ctx.stroke();
+      // Hazard-stencil (var 3:e)
+      if ((seed + i) % 3 === 0) {
+        ctx.fillStyle = 'rgba(255,213,74,0.7)';
+        ctx.font = 'bold 8px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText('☢', x + off, ly - 6);
+      }
+    }
+    return;
+  }
+  if (d.kind === 'tent_small') {
+    // Tält (barracks)
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(x - 22, y + 14, 44, 5);
+    ctx.fillStyle = d.color || '#5a4a26';
+    ctx.beginPath();
+    ctx.moveTo(x - 22, y + 16);
+    ctx.lineTo(x, y - 18);
+    ctx.lineTo(x + 22, y + 16);
+    ctx.closePath();
+    ctx.fill();
+    // Skugga på höger sida
+    ctx.fillStyle = darken(d.color || '#5a4a26', 0.7);
+    ctx.beginPath();
+    ctx.moveTo(x, y - 18);
+    ctx.lineTo(x + 22, y + 16);
+    ctx.lineTo(x, y + 16);
+    ctx.closePath();
+    ctx.fill();
+    // Öppning fram
+    ctx.fillStyle = '#0a0a08';
+    ctx.beginPath();
+    ctx.moveTo(x - 4, y + 16);
+    ctx.lineTo(x, y - 4);
+    ctx.lineTo(x + 4, y + 16);
+    ctx.closePath();
+    ctx.fill();
+    // Tent-poles
+    ctx.strokeStyle = '#3a2a18';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x - 22, y + 16); ctx.lineTo(x - 22 - 4, y + 18);
+    ctx.moveTo(x + 22, y + 16); ctx.lineTo(x + 22 + 4, y + 18);
+    ctx.moveTo(x, y - 18); ctx.lineTo(x, y - 22);
+    ctx.stroke();
+    return;
+  }
+  if (d.kind === 'fuel_pipe') {
+    // Industri-rör med ventil (hangar/depot)
+    const len = d.length || 60;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(d.ang || 0);
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(-len / 2, 4, len, 4);
+    // Rör
+    const pipeGrad = ctx.createLinearGradient(0, -8, 0, 8);
+    pipeGrad.addColorStop(0, '#5a5a64');
+    pipeGrad.addColorStop(0.5, '#a0a0aa');
+    pipeGrad.addColorStop(1, '#3a3a44');
+    ctx.fillStyle = pipeGrad;
+    ctx.fillRect(-len / 2, -7, len, 14);
+    // Skarvar
+    for (let i = 0; i < 3; i++) {
+      const px = -len / 2 + (len / 3) * (i + 0.5);
+      ctx.fillStyle = '#3a3a44';
+      ctx.fillRect(px - 3, -8, 6, 16);
+    }
+    // Ventilhjul i mitten
+    ctx.fillStyle = '#aa1818';
+    ctx.shadowColor = '#aa1818'; ctx.shadowBlur = 4;
+    ctx.beginPath(); ctx.arc(0, 0, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 4; i++) {
+      const ang = i * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(ang) * 7, Math.sin(ang) * 7);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return;
+  }
 }
 
 function drawTree(x, y, size, seed) {
-  // skugga större
+  // Subtil sway-anim — varje träd har egen fas baserat på seed
+  const t = performance.now();
+  const sway = Math.sin(t / 1400 + (seed * 0.07)) * 1.5 * size;
+  // Variation per seed: 0=normal, 1=dödt-träd, 2=pine
+  const variant = seed % 11;
+  const isDead = variant === 5;
+  const isPine = variant === 7 || variant === 9;
+  // skugga större (rör sig med sway)
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.beginPath(); ctx.ellipse(x + 6, y + 10, 24 * size, 9 * size, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + 6 + sway * 0.5, y + 10, 24 * size, 9 * size, 0, 0, Math.PI*2); ctx.fill();
   // stam (synlig genom lövverk)
-  ctx.fillStyle = '#2a1808';
+  const trunkC = isDead ? '#3a2818' : '#2a1808';
+  ctx.fillStyle = trunkC;
   ctx.fillRect(x - 5, y + 4, 10, 12 * size);
-  ctx.fillStyle = '#3a2210';
+  ctx.fillStyle = isDead ? '#5a4028' : '#3a2210';
   ctx.fillRect(x - 4, y + 4, 4, 12 * size);
-  // bark-textur
+  // bark-textur (mer på dead trees)
   ctx.strokeStyle = '#1a0e04'; ctx.lineWidth = 1;
   ctx.beginPath();
   ctx.moveTo(x - 3, y + 5); ctx.lineTo(x - 3, y + 14 * size);
   ctx.moveTo(x + 1, y + 5); ctx.lineTo(x + 1, y + 14 * size);
   ctx.stroke();
-  // 5 lager av lövverk för djup
+  if (isDead) {
+    // Dödt-träd: knottiga grenar utan löv
+    ctx.strokeStyle = '#3a2818'; ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x, y); ctx.lineTo(x - 10 * size + sway, y - 12 * size);
+    ctx.moveTo(x, y - 2); ctx.lineTo(x + 12 * size - sway, y - 14 * size);
+    ctx.moveTo(x, y - 4); ctx.lineTo(x - 6 * size, y - 18 * size);
+    ctx.moveTo(x - 5 * size, y - 10 * size); ctx.lineTo(x - 12 * size + sway * 0.6, y - 14 * size);
+    ctx.moveTo(x + 6 * size, y - 11 * size); ctx.lineTo(x + 12 * size - sway * 0.6, y - 16 * size);
+    ctx.stroke();
+    return;
+  }
+  if (isPine) {
+    // Pine/gran: tre triangulära nivåer
+    const pineColors = ['#1a3014', '#244a1c', '#2f5a24'];
+    for (let lvl = 2; lvl >= 0; lvl--) {
+      const py = y - lvl * 11 * size;
+      const pw = (16 - lvl * 3) * size;
+      const ph = 14 * size;
+      ctx.fillStyle = pineColors[lvl];
+      ctx.beginPath();
+      ctx.moveTo(x + sway * 0.4, py - ph);
+      ctx.lineTo(x - pw, py);
+      ctx.lineTo(x + pw, py);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // Sol-highlight
+    ctx.fillStyle = 'rgba(255,255,180,0.18)';
+    ctx.beginPath();
+    ctx.moveTo(x - 4, y - 18 * size);
+    ctx.lineTo(x - 10 * size, y - 11 * size);
+    ctx.lineTo(x - 4, y - 11 * size);
+    ctx.closePath();
+    ctx.fill();
+    return;
+  }
+  // 6 lager av lövverk för djup (sway-offset på topp-lagren)
   const layers = [
-    { dx:-10, dy: 1,  r: 17 * size, c: '#162810' },
-    { dx:  8, dy: -4, r: 15 * size, c: '#1f3a14' },
-    { dx: -4, dy: -7, r: 14 * size, c: '#2a4a1c' },
-    { dx:  3, dy:  4, r: 18 * size, c: '#3a5a2a' },
-    { dx: -2, dy: -10, r: 11 * size, c: '#4a6a36' },
-    { dx:  4, dy: -8, r: 9 * size, c: '#5a7a40' },
+    { dx:-10, dy: 1,  r: 17 * size, c: '#162810', s: 0.2 },
+    { dx:  8, dy: -4, r: 15 * size, c: '#1f3a14', s: 0.4 },
+    { dx: -4, dy: -7, r: 14 * size, c: '#2a4a1c', s: 0.6 },
+    { dx:  3, dy:  4, r: 18 * size, c: '#3a5a2a', s: 0.3 },
+    { dx: -2, dy: -10, r: 11 * size, c: '#4a6a36', s: 0.8 },
+    { dx:  4, dy: -8, r: 9 * size, c: '#5a7a40', s: 1.0 },
   ];
   for (const L of layers) {
     ctx.fillStyle = L.c;
-    ctx.beginPath(); ctx.arc(x + L.dx, y + L.dy, L.r, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + L.dx + sway * L.s, y + L.dy, L.r, 0, Math.PI*2); ctx.fill();
   }
   // mindre löv-blobs på kanten för organisk look
   const leafR = 16 * size;
   const baseAng = (seed * 0.001) % (Math.PI*2);
   for (let i = 0; i < 8; i++) {
     const a = baseAng + i * Math.PI/4;
-    const lx = x + Math.cos(a) * leafR * 0.85;
+    const lx = x + Math.cos(a) * leafR * 0.85 + sway * 0.5;
     const ly = y + Math.sin(a) * leafR * 0.7 - 3;
     ctx.fillStyle = i % 2 === 0 ? '#2a4a1c' : '#3a5a2a';
     ctx.beginPath(); ctx.arc(lx, ly, 4 * size, 0, Math.PI*2); ctx.fill();
   }
-  // höjdljus (sol uppe från vänster)
-  ctx.fillStyle = 'rgba(255,255,180,0.22)';
-  ctx.beginPath(); ctx.arc(x - 6, y - 9, 7 * size, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle = 'rgba(255,255,200,0.4)';
-  ctx.beginPath(); ctx.arc(x - 7, y - 10, 3 * size, 0, Math.PI*2); ctx.fill();
+  // höjdljus (sol uppe från vänster) — pulserande för "filtrerat ljus"-effekt
+  const sunPulse = 0.85 + Math.sin(t / 900 + seed * 0.05) * 0.15;
+  ctx.fillStyle = `rgba(255,255,180,${0.22 * sunPulse})`;
+  ctx.beginPath(); ctx.arc(x - 6 + sway, y - 9, 7 * size, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = `rgba(255,255,200,${0.4 * sunPulse})`;
+  ctx.beginPath(); ctx.arc(x - 7 + sway, y - 10, 3 * size, 0, Math.PI*2); ctx.fill();
+  // Subtila ljusstickor — gula små prickar längs sun-side (filtrerat ljus)
+  if (size > 0.85) {
+    for (let i = 0; i < 4; i++) {
+      const a = baseAng + i * Math.PI / 2.5;
+      ctx.fillStyle = `rgba(255,255,200,${0.5 * sunPulse})`;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a) * 6 * size, y - 5 + Math.sin(a) * 4 * size, 0.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
 }
 
 function drawRoads(cx, cy) {
@@ -15064,15 +15715,9 @@ function drawEnvironment() {
   // Byggnader + dekorationer
   drawBuildings(cx, cy);
 
-  // världsgräns
-  ctx.strokeStyle = stage.edgeColor || '#3a3a44';
-  ctx.lineWidth = 6;
-  ctx.strokeRect(-cx, -cy, WORLD.w, WORLD.h);
-  ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-  ctx.lineWidth = 2;
-  ctx.setLineDash([6, 6]);
-  ctx.strokeRect(-cx + 8, -cy + 8, WORLD.w - 16, WORLD.h - 16);
-  ctx.setLineDash([]);
+  // Världsgräns: solid stage-themed boundary istället för dashad yellow strok.
+  // Olika design per stage-kind så kanten känns thematic.
+  drawWorldBoundary(stage, cx, cy);
 
   // atmosfär (dimma ju djupare in i basen)
   if (stage.fog > 0) {
@@ -15080,13 +15725,122 @@ function drawEnvironment() {
     ctx.fillRect(0, 0, viewW, viewH);
   }
 
-  // vinjettering vid kanterna (subtil polish)
-  const grad = ctx.createRadialGradient(viewW/2, viewH/2, Math.min(viewW, viewH) * 0.4,
-                                        viewW/2, viewH/2, Math.max(viewW, viewH) * 0.7);
+  // Per-stage atmosfär-tint: subtilt färgcast som ger varje stage en distinct mood.
+  drawStageAtmosphere(stage);
+
+  // vinjettering vid kanterna (subtil polish) — använd stage-färg istället för svart
+  // för att förstärka atmosfär-tinten.
+  const edgeC = STAGE_ATMOSPHERE[stage.kind] && STAGE_ATMOSPHERE[stage.kind].vignette || 'rgba(0,0,0,0.45)';
+  const grad = ctx.createRadialGradient(viewW/2, viewH/2, Math.min(viewW, viewH) * 0.42,
+                                        viewW/2, viewH/2, Math.max(viewW, viewH) * 0.72);
   grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(1, 'rgba(0,0,0,0.45)');
+  grad.addColorStop(1, edgeC);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, viewW, viewH);
+}
+
+// Per-stage atmosfär — färgcast + light-rays + subtil overlay som gör varje
+// stage visuellt distinkt på första blick.
+const STAGE_ATMOSPHERE = {
+  forest:    { tint: 'rgba(40,80,30,0.10)',  vignette: 'rgba(10,25,5,0.55)',  rays: { color: 'rgba(255,250,180,0.04)', dir: 'down', count: 4 } },
+  perimeter: { tint: 'rgba(180,140,80,0.07)', vignette: 'rgba(30,20,10,0.50)', rays: null },
+  lobby:     { tint: 'rgba(255,210,140,0.10)', vignette: 'rgba(30,20,10,0.45)', rays: { color: 'rgba(255,230,180,0.07)', dir: 'down', count: 3 } },
+  barracks:  { tint: 'rgba(120,140,80,0.08)', vignette: 'rgba(20,25,15,0.50)', rays: null },
+  hangar:    { tint: 'rgba(80,120,180,0.08)', vignette: 'rgba(15,20,40,0.55)', rays: { color: 'rgba(255,255,255,0.05)', dir: 'down', count: 5 } },
+  depot:     { tint: 'rgba(255,140,60,0.10)', vignette: 'rgba(40,15,10,0.55)', rays: null },
+  cargo:     { tint: 'rgba(120,160,200,0.08)', vignette: 'rgba(15,25,40,0.55)', rays: null },
+  bunker:    { tint: 'rgba(40,60,90,0.18)',   vignette: 'rgba(0,0,0,0.70)',     rays: null },
+  command:   { tint: 'rgba(120,80,255,0.10)', vignette: 'rgba(20,5,40,0.55)',  rays: { color: 'rgba(60,255,180,0.06)', dir: 'down', count: 6 } },
+};
+function drawStageAtmosphere(stage) {
+  const atm = STAGE_ATMOSPHERE[stage.kind];
+  if (!atm) return;
+  // Färgcast över hela skärmen
+  ctx.fillStyle = atm.tint;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // Ljusstrålar (volumetric god rays för forest/lobby/hangar/command)
+  if (atm.rays) {
+    const t = performance.now();
+    const drift = (t / 4000) % 1;
+    for (let i = 0; i < atm.rays.count; i++) {
+      const baseX = (i / atm.rays.count + drift) * viewW * 1.3 - viewW * 0.15;
+      const skewX = atm.rays.dir === 'down' ? 30 : -30;
+      const grad = ctx.createLinearGradient(baseX, 0, baseX + skewX, viewH);
+      grad.addColorStop(0, atm.rays.color);
+      grad.addColorStop(0.6, atm.rays.color.replace(/,(\s*0\.\d+)\)$/, ',0)'));
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.moveTo(baseX - 25, 0);
+      ctx.lineTo(baseX + 25, 0);
+      ctx.lineTo(baseX + skewX + 45, viewH);
+      ctx.lineTo(baseX + skewX - 5, viewH);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+}
+
+// World-boundary: stage-themed kant istället för dashad linje.
+function drawWorldBoundary(stage, cx, cy) {
+  ctx.save();
+  const kind = stage.kind;
+  // Boundary-färg per stage
+  const boundaryColors = {
+    forest: '#0a1505', perimeter: '#3a2818', lobby: '#3a2818',
+    barracks: '#1a1f12', hangar: '#0a1525', depot: '#2a1008',
+    cargo: '#0a1825', bunker: '#0a0a14', command: '#100525',
+  };
+  const col = boundaryColors[kind] || '#1a1a22';
+  // Yttre "blackout" utanför världen (allt utanför 0..WORLD.w är solid)
+  // Övre kant
+  if (cy < 0) { ctx.fillStyle = col; ctx.fillRect(0, 0, viewW, -cy); }
+  // Nedre kant
+  if (cy + viewH > WORLD.h) { ctx.fillStyle = col; ctx.fillRect(0, WORLD.h - cy, viewW, viewH); }
+  // Vänster
+  if (cx < 0) { ctx.fillStyle = col; ctx.fillRect(0, 0, -cx, viewH); }
+  // Höger
+  if (cx + viewW > WORLD.w) { ctx.fillStyle = col; ctx.fillRect(WORLD.w - cx, 0, viewW, viewH); }
+  // Fade-gradient över de sista 60px innan boundary så det inte ser fyrkantigt ut.
+  const fadeR = 80;
+  const fadeC = col;
+  // Top fade
+  if (cy < fadeR) {
+    const g = ctx.createLinearGradient(0, -cy, 0, -cy + fadeR);
+    g.addColorStop(0, fadeC);
+    g.addColorStop(1, fadeC.replace(')', ',0)').replace('rgb', 'rgba'));
+    // Above doesn't work for hex; just do direct alpha
+    const grad = ctx.createLinearGradient(0, -cy, 0, -cy + fadeR);
+    grad.addColorStop(0, hexA(fadeC, 0.85));
+    grad.addColorStop(1, hexA(fadeC, 0));
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, Math.max(0, -cy), viewW, fadeR);
+  }
+  // Right fade
+  if (cx + viewW > WORLD.w - fadeR) {
+    const grad = ctx.createLinearGradient(WORLD.w - cx - fadeR, 0, WORLD.w - cx, 0);
+    grad.addColorStop(0, hexA(fadeC, 0));
+    grad.addColorStop(1, hexA(fadeC, 0.85));
+    ctx.fillStyle = grad;
+    ctx.fillRect(WORLD.w - cx - fadeR, 0, fadeR, viewH);
+  }
+  // Bottom fade
+  if (cy + viewH > WORLD.h - fadeR) {
+    const grad = ctx.createLinearGradient(0, WORLD.h - cy - fadeR, 0, WORLD.h - cy);
+    grad.addColorStop(0, hexA(fadeC, 0));
+    grad.addColorStop(1, hexA(fadeC, 0.85));
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, WORLD.h - cy - fadeR, viewW, fadeR);
+  }
+  // Left fade
+  if (cx < fadeR) {
+    const grad = ctx.createLinearGradient(-cx, 0, -cx + fadeR, 0);
+    grad.addColorStop(0, hexA(fadeC, 0.85));
+    grad.addColorStop(1, hexA(fadeC, 0));
+    ctx.fillStyle = grad;
+    ctx.fillRect(Math.max(0, -cx), 0, fadeR, viewH);
+  }
+  ctx.restore();
 }
 
 function drawStageTerrain(stage, cx, cy) {
