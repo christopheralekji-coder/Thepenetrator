@@ -2513,6 +2513,49 @@ function updateShake(dt) {
     if (Feedback.shake.t <= 0) Feedback.shake.mag = 0;
   }
 }
+
+// ============================================================
+// VFX-HELPERS — partikel-spawn för shockwaves, sparks, muzzle-flash, trails
+// ============================================================
+// Shockwave: expanderande ring från (x,y) med startradie r0 till r1 under life-sek.
+function spawnShockwave(x, y, r0, r1, color, life = 0.5, lineWidth = 3) {
+  if (!state.particles) return;
+  state.particles.push({
+    x, y, vx: 0, vy: 0, isShockwave: true,
+    r0, r1, color, lineWidth,
+    life, maxLife: life, r: 0,
+  });
+}
+// Muzzle flash: kort kon mot ang (rad).
+function spawnMuzzleFlash(x, y, ang, color, size = 18) {
+  if (!state.particles) return;
+  state.particles.push({
+    x, y, vx: 0, vy: 0, isMuzzleFlash: true,
+    ang, color, r: size,
+    life: 0.08, maxLife: 0.08,
+  });
+}
+// Sparks: spridda gnistor med gravity.
+function spawnSparks(x, y, color, count = 6, speed = 220, gravity = 320) {
+  if (!state.particles) return;
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const sp = speed * (0.5 + Math.random() * 0.8);
+    state.particles.push({
+      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - speed * 0.3,
+      isSpark: true, color, r: 1.5 + Math.random(),
+      life: 0.35 + Math.random() * 0.25, gravity,
+    });
+  }
+}
+// Bullet trail: liten färgad dot bakom kulan.
+function spawnBulletTrail(x, y, color, r = 2) {
+  if (!state.particles) return;
+  state.particles.push({
+    x, y, vx: 0, vy: 0, isTrail: true,
+    color, r, life: 0.18, fadeMul: 5.5,
+  });
+}
 // Ladda från save
 if (save.feedback) {
   if (typeof save.feedback.shake === 'boolean') Feedback.shakeEnabled = save.feedback.shake;
@@ -2573,7 +2616,11 @@ const state = {
 // ============================================================
 function tryDash() {
   const p = state.player;
-  if (!p || p.dashUntil > 0 || p.dashCdAt > performance.now() - 800) return;
+  // Bug-fix: `p.dashUntil > 0` var permanent truthy efter första dashen (värdet
+  // resettas aldrig till 0) → spelaren kunde bara dasha en gång per run. Använd
+  // jämförelse mot now istället så bara *aktiv* dash blockar.
+  const _now = performance.now();
+  if (!p || p.dashUntil > _now || p.dashCdAt > _now - 800) return;
   const mx = input.moveX || (input.keys.has('w') ? 0 : 0) + (input.keys.has('s') ? 0 : 0);
   const my = input.moveY;
   let dx = input.moveX, dy = input.moveY;
@@ -6185,6 +6232,18 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
     }
   }
   if (_coopShots && _coopShots.length) Coop.broadcastShots(_coopShots);
+  // Muzzle flash: kort kon vid mynningen. Storlek skalas med vapen-DPS-känsla.
+  // Skip för melee/passiva vapen (de har egen slash-VFX).
+  if (w.type === 'gun') {
+    const muzzleSize = w.explosive ? 28 : (w.style === 'plasma' || w.style === 'tesla' || w.style === 'railgun') ? 24 : (w.style === 'flame' || w.style === 'minigun') ? 16 : 18;
+    const mx = p.x + Math.cos(p.aimAngle) * (p.r + 4);
+    const my = p.y + Math.sin(p.aimAngle) * (p.r + 4);
+    spawnMuzzleFlash(mx, my, p.aimAngle, w.color || '#ffd14a', muzzleSize);
+    // Större vapen kastar gnistor
+    if (w.explosive || w.style === 'railgun' || w.style === 'plasma' || w.id === 'sniper') {
+      spawnSparks(mx, my, w.color || '#ffd14a', 4, 180);
+    }
+  }
   // Server-auth: skicka sim_shoot så server fires authoritative bullet (skadar enemies).
   // Klientens lokala bullets är purely visual (för instant feedback) — server gör damage.
   // VIKTIGT: weaponLevelDmgBonus måste bakas in i dmgMul eftersom server inte har save-data.
@@ -6452,6 +6511,10 @@ function killEnemy(e) {
     showToast('💥 ' + (e.name || 'MINI-BOSS') + ' NEDLAGD!');
     triggerShake(12, 0.5);
     spawnParticles(e.x, e.y, '#ffae3a', 30, 280);
+    // Dubbel-shockwave + spark-burst
+    spawnShockwave(e.x, e.y, e.r * 1.2, e.r * 5, '#ffae3a', 0.45, 3);
+    setTimeout(() => spawnShockwave(e.x, e.y, e.r, e.r * 8, '#ff5a3a', 0.5, 2), 150);
+    spawnSparks(e.x, e.y, '#ffae3a', 12, 300);
     // Bonus pickup
     spawnPickup(e.x - 25, e.y, 'hp');
     spawnPickup(e.x + 25, e.y, 'ammo');
@@ -6465,6 +6528,9 @@ function killEnemy(e) {
   if (e.isBoss) save.stats.bossKills++;
   Achievements.check();
   spawnParticles(e.x, e.y, e.color, 10, 140);
+  // Kill shockwave — snabb ring + gnistor så varje kill känns punchy.
+  spawnShockwave(e.x, e.y, e.r * 1.2, e.r * 3.5, '#ffe9a0', 0.35, 2);
+  spawnSparks(e.x, e.y, '#ffd14a', 5, 200);
   // Throttle: max ett kill-ljud per 70ms så AoE/avatar-summon-massmord inte stackar
   // 5 ljud ovanpå varandra → ljudgrums. Mini-boss/boss kringgår throttle (ovanliga).
   const _nowKill = performance.now();
@@ -6557,6 +6623,11 @@ function killEnemy(e) {
     // 25px shake @ 1.2s var orkanmessigt på 6" mobil i landscape — cap till 16px
     triggerShake(16, 1.0);
     triggerHitStop(150); // dramatisk paus
+    // Trippel-shockwave + gnistor + flame-burst
+    spawnShockwave(e.x, e.y, e.r, e.r * 6, '#ffeb3b', 0.5, 4);
+    setTimeout(() => spawnShockwave(e.x, e.y, e.r, e.r * 9, '#ff9a3a', 0.55, 3), 120);
+    setTimeout(() => spawnShockwave(e.x, e.y, e.r, e.r * 12, '#ff3a3a', 0.55, 2), 280);
+    spawnSparks(e.x, e.y, '#ffd14a', 18, 380);
     // Slow-mo + zoom på boss-död
     state.bossDeathCinematic = {
       x: e.x, y: e.y, startTime: performance.now(), duration: 1500, name: e.name,
@@ -6725,6 +6796,9 @@ function spawnSlash(x, y, ang, reach, color) {
 function explode(x, y, radius, dmg, friendly) {
   spawnParticles(x, y, '#ffb84a', 24, 280);
   state.particles.push({ x, y, vx:0, vy:0, life: 0.35, color: '#ffb84a', r: radius, isExplosion: true });
+  // Shockwave + sparks — gör att även små explosioner känns punchy
+  spawnShockwave(x, y, radius * 0.4, radius * 1.6, '#ff8a3a', 0.4, 3);
+  spawnSparks(x, y, '#ffd14a', Math.min(14, Math.round(radius / 12)), 280, 280);
   Audio.explosion();
   triggerShake(12, 0.4);
   if (friendly) {
@@ -6764,6 +6838,9 @@ function damagePlayer(amount, source) {
   Audio.playerHurt();
   triggerShake(8, 0.3);
   triggerVibrate(40);
+  // Skärm-flash + small shockwave runt spelaren så damage känns punchy.
+  state.dmgFlashUntil = performance.now() + 180;
+  spawnShockwave(p.x, p.y, 8, 32, '#ff3a3a', 0.25, 2);
   if (p.hp <= 0) {
     // Andra chans perk
     if (p.reviveAvailable) {
@@ -8832,8 +8909,12 @@ function updateHUD() {
   // Special: 'repair' har inget riktigt vapen
   const isRepair = wid === 'repair';
   const w = isRepair ? { name: 'Reparera' } : (W_BY_ID[wid] || W_BY_ID[p.weaponId] || W_BY_ID['fists']);
-  hpFill.style.width = Math.max(0, p.hp / p.maxHp * 100) + '%';
+  const hpFrac = Math.max(0, p.hp / p.maxHp);
+  hpFill.style.width = (hpFrac * 100) + '%';
   hpText.textContent = `${Math.ceil(p.hp)}/${p.maxHp}`;
+  // Toggle low-HP-pulse på hp-bar (CSS animation)
+  const hpBar = hpFill.parentElement;
+  if (hpBar) hpBar.dataset.low = hpFrac < 0.3 ? '1' : '0';
   if (killCountEl) killCountEl.textContent = state.killsThisRun || 0;
   const lvl = getLevel(state.wave);
   waveInfo.textContent = `${state.wave}/${getStageCount()} · ${lvl.name}`;
@@ -9049,10 +9130,16 @@ function updatePlayer(dt, now) {
   if (p.dashUntil > now) {
     p.x += p.dashDir.x * 700 * dt;
     p.y += p.dashDir.y * 700 * dt;
-    // dash-trail particle
+    // Dash-trail: ghost-bild av spelarens position + cyan gnistor i kölvattnet
     state.particles.push({
-      x: p.x, y: p.y, vx: 0, vy: 0, life: 0.3, color: 'rgba(255,213,74,0.4)',
-      r: p.r, isBloodPool: true,
+      x: p.x, y: p.y, vx: 0, vy: 0, life: 0.3, color: 'rgba(60,200,255,0.55)',
+      r: p.r * 1.1, isBloodPool: true,
+    });
+    // Glow-trail bakom
+    state.particles.push({
+      x: p.x - p.dashDir.x * p.r * 0.6, y: p.y - p.dashDir.y * p.r * 0.6,
+      vx: -p.dashDir.x * 60, vy: -p.dashDir.y * 60,
+      isTrail: true, color: '#3acaff', r: p.r * 0.7, life: 0.18, fadeMul: 6,
     });
   } else if (!p._mountedTurretId) {
     // Adrenalin-perk: snabbare vid <30% HP
@@ -9493,6 +9580,37 @@ function updateBoss(b, dt, now) {
 
   b.x = Math.max(b.r, Math.min(WORLD.w - b.r, b.x));
   b.y = Math.max(b.r, Math.min(WORLD.h - b.r, b.y));
+
+  // VFX: gather-particles under telegraph-windup (drar in mot boss),
+  //     dust-trail under charge/dash (puffer ut bakom).
+  if (b.telegraphFireAt && now < b.telegraphFireAt) {
+    if ((b.x | 0) % 2 === 0) {
+      const a = Math.random() * Math.PI * 2;
+      const dist = b.r * (2.5 + Math.random() * 1.5);
+      state.particles.push({
+        x: b.x + Math.cos(a) * dist, y: b.y + Math.sin(a) * dist,
+        vx: -Math.cos(a) * 240, vy: -Math.sin(a) * 240,
+        isTrail: true, color: '#ff3a3a', r: 2.5, life: 0.18, fadeMul: 6,
+      });
+    }
+  }
+  if (b.chargeUntil && now < b.chargeUntil) {
+    // Damm-puffer bakom rusande boss
+    state.particles.push({
+      x: b.x - (b.chargeDir.x || 0) * b.r * 0.6,
+      y: b.y - (b.chargeDir.y || 0) * b.r * 0.6,
+      vx: -(b.chargeDir.x || 0) * 80 + (Math.random() - 0.5) * 40,
+      vy: -(b.chargeDir.y || 0) * 80 + (Math.random() - 0.5) * 40,
+      life: 0.5, color: 'rgba(180,150,110,0.6)', r: 4 + Math.random() * 3,
+    });
+  }
+  if (b.dashUntil && now < b.dashUntil) {
+    // Blue-trail bakom plasma/sniper-boss-dash
+    state.particles.push({
+      x: b.x, y: b.y, vx: 0, vy: 0,
+      isTrail: true, color: b.glow || '#3acaff', r: b.r * 0.6, life: 0.18, fadeMul: 5.5,
+    });
+  }
 
   if (d < (p.r || 14) + b.r && b.contactCd <= 0) {
     if (_bti.peerId) {
@@ -9967,10 +10085,25 @@ function updateBullets(dt) {
   if (state.bullets.length > 300) {
     state.bullets.splice(0, state.bullets.length - 300);
   }
+  // Trail-counter: pusha trail-partikel var ~33ms (max 30/s per bullet) så
+  // vi inte överbelastar partikel-poolen vid minigun + multipla bullets.
+  state._bulletTrailAccum = (state._bulletTrailAccum || 0) + dt;
+  const emitTrails = state._bulletTrailAccum > 0.033;
+  if (emitTrails) state._bulletTrailAccum = 0;
   for (const b of state.bullets) {
     b.x += b.vx * dt;
     b.y += b.vy * dt;
     b.life -= dt;
+    // Bullet trail — bara för player-bullets (hostile skulle dubbla mängden).
+    // Skip för stilar som redan har egna trails (flame/plasma/tesla/railgun/rocket).
+    if (emitTrails && !b.hostile && !b.dead) {
+      const skipStyle = b.style === 'flame' || b.style === 'plasma' || b.style === 'tesla' ||
+                        b.style === 'railgun' || b.style === 'rocket' || b.style === 'frost' ||
+                        b.style === 'mindctrl' || b.style === 'blackhole';
+      if (!skipStyle) {
+        spawnBulletTrail(b.x, b.y, b.color, Math.max(1.5, (b.r || 4) * 0.7));
+      }
+    }
     // Svartphål: dra fiender mot bullet-positionen
     if (b.pullRadius && !b.hostile) {
       for (const e of state.enemies) {
@@ -10121,17 +10254,120 @@ function updateBullets(dt) {
   state.bullets = state.bullets.filter(b => !b.dead);
 }
 
+// Drift-emitter: kontinuerligt subtila bakgrunds-partiklar för varje stage-kind.
+// Spawn-rate balanseras så partikel-budgeten (250 cap) inte sprängs vid combat.
+function emitAmbientDrift(stage, dt, p) {
+  state._ambDriftAccum = (state._ambDriftAccum || 0) + dt;
+  // Emit-intervall: 110ms = ~9 partiklar/sek. Vid combat-burst med <50 free particles,
+  // sänk vi raten ytterligare så stage-ambient aldrig stjäl from kärnpartiklar.
+  const freeBudget = 250 - state.particles.length;
+  if (freeBudget < 50) return;
+  const interval = 0.11 + (freeBudget < 100 ? 0.2 : 0);
+  if (state._ambDriftAccum < interval) return;
+  state._ambDriftAccum = 0;
+  // Spawn just utanför viewport, drifta in mot mitten över ~6-12 sek så de hinner
+  // korsa skärmen utan att leva 30s i partikel-poolen.
+  const camx = state.camera.x, camy = state.camera.y;
+  const W = viewW || 800, H = viewH || 600;
+  const margin = 30;
+  // Bias mot top/sidor beroende på stage
+  let sx, sy, vx, vy, life, color, r = 2, shape = 'dot', rotV = 0, alpha = 0.4;
+  switch (stage.kind) {
+    case 'forest': {
+      // Löv som vandrar diagonalt med rotation
+      sx = camx - margin; sy = camy + Math.random() * H;
+      vx = 50 + Math.random() * 40; vy = 15 + Math.random() * 25;
+      life = 8 + Math.random() * 4;
+      const hues = ['rgba(120,160,80,0.55)', 'rgba(160,120,40,0.55)', 'rgba(80,140,60,0.55)', 'rgba(180,160,60,0.45)'];
+      color = hues[(Math.random() * hues.length) | 0];
+      r = 2.5 + Math.random() * 2;
+      shape = 'leaf'; rotV = (Math.random() - 0.5) * 4; alpha = 0.55;
+      break;
+    }
+    case 'perimeter': {
+      // Damm som driver med vind
+      sx = camx - margin; sy = camy + Math.random() * H;
+      vx = 30 + Math.random() * 20; vy = (Math.random() - 0.5) * 10;
+      life = 12; color = 'rgba(180,170,140,0.35)'; r = 1.2 + Math.random() * 1.2; alpha = 0.35;
+      break;
+    }
+    case 'lobby': {
+      // Pappers-flagor + glitter
+      sx = camx + Math.random() * W; sy = camy - margin;
+      vx = (Math.random() - 0.5) * 30; vy = 25 + Math.random() * 15;
+      life = 10; r = 1.5 + Math.random() * 2;
+      color = Math.random() < 0.5 ? 'rgba(220,210,180,0.5)' : 'rgba(160,160,180,0.4)';
+      alpha = 0.5; shape = Math.random() < 0.3 ? 'leaf' : 'dot';
+      rotV = (Math.random() - 0.5) * 5;
+      break;
+    }
+    case 'barracks': {
+      // Glödande gnistor som driver uppåt
+      sx = camx + Math.random() * W; sy = camy + H + margin;
+      vx = (Math.random() - 0.5) * 12; vy = -30 - Math.random() * 25;
+      life = 6; color = 'rgba(255,180,80,0.7)'; r = 1.2 + Math.random() * 1.2; alpha = 0.7;
+      break;
+    }
+    case 'hangar': {
+      // Gnistor från ovan (svetsning) — snabba, korta
+      sx = camx + Math.random() * W; sy = camy - margin;
+      vx = (Math.random() - 0.5) * 40; vy = 90 + Math.random() * 60;
+      life = 3.5; color = 'rgba(255,220,140,0.85)'; r = 1.3; alpha = 0.85;
+      shape = 'line';
+      break;
+    }
+    case 'depot': {
+      // Aska + glöd
+      sx = camx + Math.random() * W; sy = camy + H + margin;
+      vx = (Math.random() - 0.5) * 18; vy = -20 - Math.random() * 20;
+      life = 8;
+      color = Math.random() < 0.4 ? 'rgba(255,140,60,0.75)' : 'rgba(140,130,120,0.4)';
+      r = 1.6 + Math.random(); alpha = Math.random() < 0.4 ? 0.75 : 0.45;
+      break;
+    }
+    case 'cargo': {
+      // Regndroppar — snabba diagonala linjer
+      sx = camx + Math.random() * W; sy = camy - margin;
+      vx = -40; vy = 320 + Math.random() * 60;
+      life = 1.6; color = 'rgba(160,180,210,0.55)'; r = 1.2; shape = 'line'; alpha = 0.55;
+      break;
+    }
+    case 'bunker': {
+      // Damm i dunkel + droppe ibland
+      sx = camx + Math.random() * W; sy = camy + Math.random() * H * 0.4;
+      vx = (Math.random() - 0.5) * 8; vy = 8 + Math.random() * 12;
+      life = 14; color = 'rgba(120,120,140,0.3)'; r = 1.1; alpha = 0.3;
+      break;
+    }
+    case 'command': {
+      // Cyan kod-regn
+      sx = camx + Math.random() * W; sy = camy - margin;
+      vx = 0; vy = 120 + Math.random() * 60;
+      life = 4; color = 'rgba(80,255,180,0.65)'; r = 1.4; shape = 'line'; alpha = 0.65;
+      break;
+    }
+    default: return;
+  }
+  state.particles.push({
+    x: sx, y: sy, vx, vy, life,
+    color, r, isAmbient: true, shape, alpha,
+    rot: Math.random() * Math.PI * 2, rotV,
+  });
+}
+
 function updateStageAmbient(dt) {
   if (!state.player || state.zoneState !== 'spawning' && state.zoneState !== 'clearing') return;
   const stage = getStage(state.wave);
   if (!stage) return;
+  // Kontinuerlig drift varje frame (löv/damm/gnistor).
+  emitAmbientDrift(stage, dt, state.player);
   state.ambientTimer = (state.ambientTimer || 0) - dt;
   if (state.ambientTimer > 0) return;
-  // Per-stage ambient (chans varje 8-15 sek)
+  // Per-stage rare ambient (chans varje 8-15 sek) — separat från drift.
   state.ambientTimer = 8 + Math.random() * 7;
   switch (stage.kind) {
     case 'forest':
-      // löv-vind-partiklar
+      // löv-vind-burst (utöver kontinuerlig drift)
       for (let i = 0; i < 8; i++) {
         state.particles.push({
           x: state.player.x + (Math.random()-0.5)*viewW,
@@ -10223,7 +10459,18 @@ function recycleParticle(p) {
 
 function updateParticles(dt) {
   for (const p of state.particles) {
-    if (!p.isSlash && !p.isExplosion && !p.isFootprint && !p.isLightning && !p.isCritText && !p.isDamageNumber) {
+    if (p.isSpark) {
+      // Sparks: gravity + air-drag
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.vy += (p.gravity || 320) * dt;
+      p.vx *= 0.96; p.vy *= 0.96;
+    } else if (p.isAmbient) {
+      // Ambient: ren drift utan damping så löv/damm rör sig stabilt
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.rot !== undefined) p.rot += (p.rotV || 0) * dt;
+    } else if (p.isTrail || p.isShockwave || p.isMuzzleFlash) {
+      // Stationära — bara life decay
+    } else if (!p.isSlash && !p.isExplosion && !p.isFootprint && !p.isLightning && !p.isCritText && !p.isDamageNumber) {
       p.x += p.vx * dt; p.y += p.vy * dt;
       p.vx *= 0.92; p.vy *= 0.92;
     } else if (p.isCritText) {
@@ -16313,59 +16560,86 @@ function drawBullet(b) {
   // Per-vapen distinct rendering för basic guns (pistol/revolver/shotgun/etc).
   // Saknades innan så de föll i fallback. Nu varje vapen unikt:
   if (b.style === 'pistol' || b.style === 'revolver') {
-    // Standard liten gul rund + tracer
-    ctx.fillStyle = b.color || '#ffd14a';
+    // Liten gul rund med glow-kärna + längre tracer
+    const c = b.color || '#ffd14a';
+    ctx.save();
+    ctx.shadowColor = c; ctx.shadowBlur = 8;
+    ctx.fillStyle = c;
     ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = b.color || '#ffd14a';
-    ctx.globalAlpha = 0.5; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(x - b.vx * 0.025, y - b.vy * 0.025); ctx.lineTo(x, y); ctx.stroke();
-    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.45, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = c;
+    ctx.globalAlpha = 0.6; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x - b.vx * 0.035, y - b.vy * 0.035); ctx.lineTo(x, y); ctx.stroke();
+    ctx.restore();
     return;
   }
   if (b.style === 'shotgun') {
-    // Hagel — mindre + spikrigt-mönster
-    ctx.fillStyle = b.color || '#ff6b3d';
+    // Hagel — med glow-kant + hot center
+    const c = b.color || '#ff6b3d';
+    ctx.save();
+    ctx.shadowColor = c; ctx.shadowBlur = 5;
+    ctx.fillStyle = c;
     ctx.beginPath(); ctx.arc(x, y, b.r * 0.85, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x - 1, y - 1, 1.2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x - 1, y - 1, 1.4, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
     return;
   }
   if (b.style === 'smg' || b.style === 'rifle') {
-    // Långsmal rektangel-projektil med liten tracer
+    // Långsmal projektil med glow-hot-tail
     const ang = Math.atan2(b.vy, b.vx);
     ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.shadowColor = b.color; ctx.shadowBlur = 6;
     ctx.fillStyle = b.color;
-    ctx.fillRect(-b.r * 1.2, -b.r * 0.5, b.r * 2.4, b.r);
-    ctx.fillStyle = `rgba(255,255,255,0.6)`;
-    ctx.fillRect(-b.r * 1.2, -b.r * 0.5, b.r * 0.8, b.r);
+    ctx.fillRect(-b.r * 1.4, -b.r * 0.5, b.r * 2.8, b.r);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(b.r * 0.5, -b.r * 0.4, b.r * 0.9, b.r * 0.8);
     ctx.restore();
     return;
   }
   if (b.style === 'sniper') {
-    // Lång vit-blå tracer
+    // Lång vit-blå tracer + glow
     const ang = Math.atan2(b.vy, b.vx);
     ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
-    ctx.shadowColor = b.color || '#bb88ff'; ctx.shadowBlur = 6;
+    ctx.shadowColor = b.color || '#bb88ff'; ctx.shadowBlur = 12;
     ctx.fillStyle = '#fff';
-    ctx.fillRect(-b.r * 2, -1.5, b.r * 4, 3);
+    ctx.fillRect(-b.r * 2.4, -1.8, b.r * 4.8, 3.6);
     ctx.shadowBlur = 0;
+    // Inner core
+    ctx.fillStyle = b.color || '#bb88ff';
+    ctx.fillRect(-b.r * 1.0, -0.8, b.r * 2.5, 1.6);
     ctx.restore();
     return;
   }
   if (b.style === 'burstpistol' || b.style === 'burst') {
-    // Lite mindre orange burst-bullet
-    ctx.fillStyle = b.color || '#ffae3a';
-    ctx.beginPath(); ctx.arc(x, y, b.r * 0.9, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
-    ctx.stroke();
+    // Orange burst-bullet med glow + vit kärna
+    const c = b.color || '#ffae3a';
+    ctx.save();
+    ctx.shadowColor = c; ctx.shadowBlur = 6;
+    ctx.fillStyle = c;
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.95, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.4, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
     return;
   }
   if (b.style === 'minigun') {
-    // Cyan fast tracer-stream
-    ctx.shadowColor = b.color || '#3cf0ff'; ctx.shadowBlur = 4;
+    // Cyan tracer-stream med tjockare glow
+    const c = b.color || '#3cf0ff';
+    ctx.save();
+    ctx.shadowColor = c; ctx.shadowBlur = 8;
     ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x, y, b.r * 0.7, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.8, 0, Math.PI*2); ctx.fill();
     ctx.shadowBlur = 0;
+    ctx.fillStyle = c;
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.3, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
     return;
   }
   if (b.style === 'mindctrl') {
@@ -16377,9 +16651,24 @@ function drawBullet(b) {
     ctx.shadowBlur = 0;
     return;
   }
-  // standard fallback (skulle inte hit för player-bullets längre)
+  // standard fallback. Hostile bullets får liten röd-aktig glow så de syns bättre
+  // mot mörk bakgrund + spelare har chans att undvika.
+  ctx.save();
+  if (b.hostile) {
+    ctx.shadowColor = b.color || '#ff3a3a';
+    ctx.shadowBlur = 5;
+  } else {
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = 6;
+  }
   ctx.fillStyle = b.color;
   ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // White hot core
+  ctx.fillStyle = '#fff';
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath(); ctx.arc(x, y, Math.max(1, b.r * 0.4), 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
   if (!b.hostile) {
     ctx.strokeStyle = b.color;
     ctx.globalAlpha = 0.4;
@@ -16390,6 +16679,7 @@ function drawBullet(b) {
     ctx.stroke();
     ctx.globalAlpha = 1;
   }
+  ctx.restore();
 }
 
 function drawParticle(p) {
@@ -16518,9 +16808,102 @@ function drawParticle(p) {
     ctx.restore();
     return;
   }
+  // SHOCKWAVE — expanderande ring, fader ut. Bra för kills/explosioner/boss phase-shift.
+  if (p.isShockwave) {
+    const t = 1 - p.life / (p.maxLife || 0.5);
+    const r = (p.r0 || 10) + ((p.r1 || 80) - (p.r0 || 10)) * t;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life * 2);
+    ctx.strokeStyle = p.color || '#fff';
+    ctx.lineWidth = (p.lineWidth || 3) * (1 - t * 0.5);
+    ctx.shadowColor = p.color || '#fff';
+    ctx.shadowBlur = 12 * (1 - t);
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  // MUZZLE FLASH — kort bright kon vid skotts-punkt. Riktning via p.ang.
+  if (p.isMuzzleFlash) {
+    const t = 1 - p.life / (p.maxLife || 0.08);
+    const intensity = (1 - t);
+    const len = (p.r || 18) * intensity;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(p.ang || 0);
+    ctx.globalAlpha = intensity;
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = p.color || '#ffd14a';
+    ctx.shadowBlur = 22 * intensity;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(len, -len * 0.5);
+    ctx.lineTo(len * 1.3, 0);
+    ctx.lineTo(len, len * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = p.color || '#ffd14a';
+    ctx.beginPath(); ctx.arc(0, 0, len * 0.45, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    return;
+  }
+  // SPARK — gravity-driven gnista med trail-line.
+  if (p.isSpark) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, p.life * 3);
+    ctx.strokeStyle = p.color || '#ffeb3b';
+    ctx.lineWidth = p.r || 1.5;
+    ctx.lineCap = 'round';
+    ctx.shadowColor = p.color || '#ffeb3b';
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.moveTo(x - p.vx * 0.02, y - p.vy * 0.02);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  // TRAIL — bullet trail, fader snabbt med liten glow.
+  if (p.isTrail) {
+    const a = Math.min(1, p.life * (p.fadeMul || 4));
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.arc(x, y, p.r || 2, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    return;
+  }
+  // AMBIENT — bakgrunds-stoft (löv, damm, gnistor) som drar långsamt.
+  if (p.isAmbient) {
+    ctx.save();
+    ctx.globalAlpha = (p.alpha || 0.4) * Math.min(1, p.life * 2);
+    ctx.fillStyle = p.color;
+    if (p.shape === 'leaf') {
+      ctx.translate(x, y);
+      ctx.rotate(p.rot || 0);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, p.r * 1.3, p.r * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (p.shape === 'line') {
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = p.r || 1;
+      ctx.beginPath();
+      ctx.moveTo(x, y); ctx.lineTo(x + (p.vx || 0) * 0.04, y + (p.vy || 0) * 0.04);
+      ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(x, y, p.r || 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+    return;
+  }
+  // GLOW-GENERIC — vanlig partikel med opt-in shadowBlur via p.glow.
   ctx.fillStyle = p.color;
   ctx.globalAlpha = Math.max(0, p.life * 2);
+  if (p.glow) { ctx.shadowColor = p.color; ctx.shadowBlur = p.glow; }
   ctx.beginPath(); ctx.arc(x, y, p.r, 0, Math.PI*2); ctx.fill();
+  if (p.glow) ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
 }
 
@@ -16594,7 +16977,9 @@ function render() {
   drawBossHpTop();
   drawDamageIndicators();
   drawCheatBanner();
+  drawCinematicVignette();
   drawLowHpVignette();
+  drawDamageFlash();
   drawEventVignette();
   drawBossPhaseBanner();
   drawToast();
@@ -17086,6 +17471,35 @@ function drawBossPhaseBanner() {
   ctx.strokeText(b.text, viewW / 2, cy);
   ctx.fillText(b.text, viewW / 2, cy);
   ctx.restore();
+}
+
+// Damage screen-flash — kort röd pulse hela skärmen vid hit.
+function drawDamageFlash() {
+  if (!state.dmgFlashUntil) return;
+  const remaining = state.dmgFlashUntil - performance.now();
+  if (remaining <= 0) { state.dmgFlashUntil = 0; return; }
+  const intensity = remaining / 180;
+  ctx.save();
+  ctx.fillStyle = `rgba(255, 30, 30, ${0.32 * intensity})`;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // Edge gradient hot
+  const grad = ctx.createRadialGradient(viewW/2, viewH/2, viewW * 0.2, viewW/2, viewH/2, viewW * 0.65);
+  grad.addColorStop(0, 'rgba(255,30,30,0)');
+  grad.addColorStop(1, `rgba(255,30,30,${0.55 * intensity})`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
+  ctx.restore();
+}
+
+// Always-on subtil cinematic vinjett runt kanten. Mycket subtil så bara känns "premium",
+// inte distraherande. Skala med kortaste sidan så den inte växer på super-wide.
+function drawCinematicVignette() {
+  const minDim = Math.min(viewW, viewH);
+  const grad = ctx.createRadialGradient(viewW/2, viewH/2, minDim * 0.35, viewW/2, viewH/2, minDim * 0.85);
+  grad.addColorStop(0, 'rgba(0,0,0,0)');
+  grad.addColorStop(1, 'rgba(0,0,0,0.45)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
 }
 
 // Kort röd vinjett när stage-event firar — gör att "HUNDARNA SLÄPPS!" etc faktiskt
