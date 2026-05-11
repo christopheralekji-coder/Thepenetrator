@@ -467,6 +467,32 @@ html, body {
   background: radial-gradient(circle at 30% 30%, rgba(255,120,80,1), rgba(180,40,40,1));
   box-shadow: 0 2px 8px rgba(255,30,30,0.6), inset 0 2px 6px rgba(0,0,0,0.3);
 }
+/* Dash-knapp — blå, med cooldown-ring (samma teknik som reload-ring på fire) */
+.action-btn.dash {
+  background: radial-gradient(circle at 30% 30%, rgba(60,200,255,0.85), rgba(20,80,180,0.9));
+  border-color: rgba(90,200,255,0.7);
+  box-shadow: 0 4px 16px rgba(60,160,255,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+  position: relative;
+  --dash-cd: 0; /* 0..1 — JS sätter (1 - cd_remaining/cd_total) */
+  --dash-color: #3acaff;
+}
+.action-btn.dash::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(var(--dash-color) calc(var(--dash-cd) * 360deg), transparent 0);
+  -webkit-mask: radial-gradient(circle, transparent 50%, #000 52%, #000 58%, transparent 60%);
+          mask: radial-gradient(circle, transparent 50%, #000 52%, #000 58%, transparent 60%);
+  opacity: calc(1 - var(--dash-cd));
+  transition: opacity 0.05s;
+  filter: drop-shadow(0 0 4px var(--dash-color));
+}
+.action-btn.dash:active {
+  background: radial-gradient(circle at 30% 30%, rgba(120,230,255,1), rgba(40,120,220,1));
+  box-shadow: 0 2px 8px rgba(60,200,255,0.6), inset 0 2px 6px rgba(0,0,0,0.3);
+}
 
 /* Overlays — modern fräsch design med scroll */
 .overlay {

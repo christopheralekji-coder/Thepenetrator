@@ -203,15 +203,37 @@ function getNGPMul(ngpLevel) {
 
 /**
  * Coop-multiplier för enemy-HP så svårighet håller jämn nivå per spelare.
- * solo=1.0, 2p=1.6, 3p=2.2, 4p=2.8.
+ * Tidigare 1.6/2.2/2.8 vid 2/3/4p — gjorde coop *lättare* än solo eftersom
+ * 4 spelares firepower är ~4× men HP bara 2.8×. Höjt till 1.85/2.7/3.55/4.4.
  * @param {number} playerCount
  * @returns {number}
  */
 function getCoopMultiplier(playerCount) {
   const n = Math.max(1, playerCount || 1);
-  return 1 + (n - 1) * 0.6;
+  return 1 + (n - 1) * 0.85;
+}
+
+/**
+ * Coop enemy-damage-scaling: +15% dmg per extra spelare (1.0/1.15/1.30/1.45).
+ * Solo känns just nu tätare än 4p — det här pressar 4p-grupperna mer.
+ * @param {number} playerCount
+ * @returns {number}
+ */
+function getCoopDmgMultiplier(playerCount) {
+  const n = Math.max(1, playerCount || 1);
+  return 1 + (n - 1) * 0.15;
+}
+
+/**
+ * Coop enemy-spawn-count-scaling: +15% spawn per extra spelare så svärmen växer.
+ * @param {number} playerCount
+ * @returns {number}
+ */
+function getCoopSpawnMultiplier(playerCount) {
+  const n = Math.max(1, playerCount || 1);
+  return 1 + (n - 1) * 0.15;
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { STAGES, getStage, DIFF_MULTIPLIERS, getDiffMul, getNGPMul, getCoopMultiplier };
+  module.exports = { STAGES, getStage, DIFF_MULTIPLIERS, getDiffMul, getNGPMul, getCoopMultiplier, getCoopDmgMultiplier, getCoopSpawnMultiplier };
 }

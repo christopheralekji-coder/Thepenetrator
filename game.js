@@ -1286,7 +1286,7 @@ const WEAPONS = [
     desc: 'Tyngre än bara nävar. 2× skada.' },
   { id: 'knife',      name: 'Kniv',             type: 'melee', price: 100,  dmg: 22,  rate: 240, range: 38, color: '#bcc8d0',
     desc: 'Snabbaste meleen. Hög DPS, kort räckvidd.' },
-  { id: 'bat',        name: 'Påk',              type: 'melee', price: 200,  dmg: 32,  rate: 520, range: 50, color: '#7a4a20',
+  { id: 'bat',        name: 'Påk',              type: 'melee', price: 200,  dmg: 32,  rate: 440, range: 50, color: '#7a4a20',
     desc: 'Klassisk gatuvapen. Bra räckvidd.' },
   { id: 'machete',    name: 'Machete',          type: 'melee', price: 320,  dmg: 42,  rate: 500, range: 56, color: '#9aa8b0',
     desc: 'Bredbladig, sliter genom flera fiender.' },
@@ -1306,26 +1306,26 @@ const WEAPONS = [
     desc: 'Mästarvapen. Hög DPS, lång räckvidd.' },
   { id: 'energysword',name: 'Energi-svärd',     type: 'melee', price: 1700, dmg: 120, rate: 340, range: 78, color: '#ff8a3a', style: 'energysword', pierce: true,
     desc: 'Pierce — träffar genom flera fiender.' },
-  { id: 'lightsaber', name: 'Laser-svärd',      type: 'melee', price: 2400, dmg: 125, rate: 350, range: 78, color: '#3aff5a', style: 'lightsaber', pierce: true,
+  { id: 'lightsaber', name: 'Laser-svärd',      type: 'melee', price: 1900, dmg: 150, rate: 350, range: 78, color: '#3aff5a', style: 'lightsaber', pierce: true,
     desc: 'Toppvapen. Pierce + maxskada.' },
   // === GUNS — progression 220g → 3500g ===
   { id: 'pistol',     name: 'Pistol',           type: 'gun',   price: 220,  dmg: 18,  rate: 340, speed: 700, mag: 12, reload: 1100, spread: 0.04, color: '#ffd14a',
     desc: 'Pålitligt startvapen. Säker DPS.' },
-  { id: 'shuriken',   name: 'Kaststjärnor',     type: 'gun',   price: 280,  dmg: 14,  rate: 130, speed: 700, mag: 24, reload: 1100, spread: 0.06, color: '#cccccc', style: 'thrown', burn: 2,
+  { id: 'shuriken',   name: 'Kaststjärnor',     type: 'gun',   price: 380,  dmg: 14,  rate: 130, speed: 700, mag: 24, reload: 1100, spread: 0.06, color: '#cccccc', style: 'thrown', burn: 2,
     desc: 'Hög fire-rate + brand. Sätt elden i fiender.' },
   { id: 'throwknife', name: 'Kastkniv',         type: 'gun',   price: 380,  dmg: 32,  rate: 280, speed: 760, mag: 12, reload: 1300, spread: 0.04, color: '#aaaacc', style: 'thrown',
     desc: 'Mid-tier kast. Hög träffsäkerhet.' },
-  { id: 'revolver',   name: 'Revolver',         type: 'gun',   price: 420,  dmg: 42,  rate: 580, speed: 760, mag: 6,  reload: 1500, spread: 0.02, color: '#ffae3a',
+  { id: 'revolver',   name: 'Revolver',         type: 'gun',   price: 420,  dmg: 52,  rate: 580, speed: 760, mag: 6,  reload: 1500, spread: 0.02, color: '#ffae3a',
     desc: 'Tung kalibervapen. Hög dmg per skott.' },
   { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 540,  dmg: 24,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 3,
     desc: 'Tre snabba skott per tryck. Hög burst-dmg.' },
   { id: 'shotgun',    name: 'Hagelgevär',       type: 'gun',   price: 600,  dmg: 16,  rate: 760, speed: 700, mag: 6,  reload: 1900, spread: 0.32, pellets: 6, color: '#ff6b3d',
     desc: 'Sex hagel per skott. Förödande på nära håll.' },
-  { id: 'bow',        name: 'Compoundbåge',     type: 'gun',   price: 720,  dmg: 90,  rate: 540, speed: 950, mag: 1,  reload: 500,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true,
+  { id: 'bow',        name: 'Compoundbåge',     type: 'gun',   price: 1000, dmg: 90,  rate: 540, speed: 950, mag: 1,  reload: 500,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true,
     desc: 'Pierce. Snabb reload. Perfekt aim krävs.' },
   { id: 'smg',        name: 'Kpist',            type: 'gun',   price: 800,  dmg: 14,  rate: 95,  speed: 740, mag: 30, reload: 1500, spread: 0.10, color: '#88ccff',
     desc: 'Spray-and-pray. Hög ROF.' },
-  { id: 'crossbow',   name: 'Armborst',         type: 'gun',   price: 900,  dmg: 90,  rate: 900, speed: 950, mag: 4,  reload: 1700, spread: 0.0,  color: '#7a5a3a', style: 'crossbow', pierce: true,
+  { id: 'crossbow',   name: 'Armborst',         type: 'gun',   price: 900,  dmg: 110, rate: 900, speed: 950, mag: 4,  reload: 1700, spread: 0.0,  color: '#7a5a3a', style: 'crossbow', pierce: true,
     desc: 'Pierce + hög dmg. För taktiska spelare.' },
   { id: 'rifle',      name: 'Automatkarbin',    type: 'gun',   price: 1100, dmg: 26,  rate: 130, speed: 820, mag: 30, reload: 1800, spread: 0.05, color: '#5fd95f',
     desc: 'All-around assault rifle.' },
@@ -1353,8 +1353,8 @@ const WEAPONS = [
     desc: 'Fryser tiden 1s. Perfekt för bossar.' },
   { id: 'blackhole',  name: 'Svartphål-pistol', type: 'gun',   price: 2800, dmg: 90,  rate: 1200, speed: 480, mag: 4, reload: 2400, spread: 0.0, color: '#aa3aff', style: 'blackhole', pullRadius: 200,
     desc: 'Skapar svart hål — drar in fiender.' },
-  { id: 'mindcontrol',name: 'Tank-strålen',     type: 'gun',   price: 2200, dmg: 0,   rate: 2000, speed: 600, mag: 2, reload: 4000, spread: 0.0, color: '#ff5aff', style: 'mindctrl', mindControlMs: 6000,
-    desc: 'Förvandlar fiende till allierad i 6s.' },
+  { id: 'mindcontrol',name: 'Tank-strålen',     type: 'gun',   price: 1400, dmg: 0,   rate: 2000, speed: 600, mag: 2, reload: 4000, spread: 0.0, color: '#ff5aff', style: 'mindctrl', mindControlMs: 6000,
+    desc: 'Förvandlar fiende till allierad i 6s. Kills ger 30% guld.' },
   { id: 'railgun',    name: 'Railgun',          type: 'gun',   price: 3200, dmg: 280, rate: 1600, speed: 2200, mag: 3, reload: 3000, spread: 0.0, pierce: true, color: '#ffffff', style: 'railgun',
     desc: 'Maxdmg pierce. Skär genom allt.' },
   { id: 'minigun',    name: 'Minigun',          type: 'gun',   price: 3500, dmg: 22,  rate: 50,  speed: 920, mag: 100, reload: 3500, spread: 0.14, color: '#3cf0ff',
@@ -1699,14 +1699,14 @@ const UPGRADES = [
   { id: 'speed',  name: 'Hastighet',       icon: '⚡', perLevel: 18,   basePrice: 100, desc: '+18 hastighet per nivå' },
   { id: 'dmg',    name: 'Skade-bonus',     icon: '💪', perLevel: 0.10, basePrice: 150, desc: '+10% skada per nivå' },
   { id: 'ammo',   name: 'Ammo-kapacitet',  icon: '🔫', perLevel: 0.20, basePrice: 120, desc: '+20% magasin per nivå' },
-  { id: 'crit',   name: 'Krit-chans',      icon: '🎯', perLevel: 0.05, basePrice: 180, desc: '+5% chans för 2× skada' },
+  { id: 'crit',   name: 'Krit-chans',      icon: '🎯', perLevel: 0.08, basePrice: 180, desc: '+8% chans för 2× skada per nivå' },
   { id: 'regen',  name: 'HP-regen',        icon: '🩹', perLevel: 0.6,  basePrice: 140, desc: '+0.6 HP/sek per nivå' },
   // === 6 NYA UPPGRADERINGAR ===
-  { id: 'reload', name: 'Reload-fart',     icon: '⏱️', perLevel: 0.15, basePrice: 140, desc: '-15% reload-tid per nivå' },
+  { id: 'reload', name: 'Reload-fart',     icon: '⏱️', perLevel: 0.12, basePrice: 140, desc: '-12% reload-tid per nivå (max −60%)' },
   { id: 'expl',   name: 'Sprängradie',     icon: '💥', perLevel: 0.18, basePrice: 160, desc: '+18% explosionsradie per nivå' },
   { id: 'mrange', name: 'Melee-räckvidd',  icon: '⚔️', perLevel: 0.12, basePrice: 130, desc: '+12% melee-räckvidd per nivå' },
   { id: 'gold',   name: 'Lucky Find',      icon: '💎', perLevel: 0.18, basePrice: 200, desc: '+18% gold per dödad fiende' },
-  { id: 'kb',     name: 'Knockback',       icon: '🦵', perLevel: 0.25, basePrice: 110, desc: '+25% knockback per nivå' },
+  { id: 'kb',     name: 'Knockback',       icon: '🦵', perLevel: 0.15, basePrice: 110, desc: '+15% knockback per nivå (max +75%)' },
   { id: 'bspeed', name: 'Skotthastighet',  icon: '🏹', perLevel: 0.10, basePrice: 100, desc: '+10% kulhastighet per nivå' },
 ];
 const MAX_UPGRADE_LEVEL = 5;
@@ -1724,7 +1724,8 @@ const COMPANIONS = [
     icon: '🐕‍🦺',
     desc: 'Robothund. Springer och biter — staggrar fiender vid bett.',
     basePrice: 1500,
-    baseHp: 120, baseDmg: 12, baseSpeed: 240, baseRange: 32,
+    // baseHp 120→200 så companion överlever stage 9 insane (miniboss-contact ~150 dmg)
+    baseHp: 200, baseDmg: 12, baseSpeed: 240, baseRange: 32,
     color: '#7a8a9a', accent: '#ffae3a',
     special: 'Bett: stagga fiende 0.6s + bonus dmg',
     cooldown: 1.2,
@@ -1735,7 +1736,8 @@ const COMPANIONS = [
     icon: '🛸',
     desc: 'Flyger runt dig och skjuter automatiskt mot ranged-hot.',
     basePrice: 2200,
-    baseHp: 90, baseDmg: 14, baseSpeed: 320, baseRange: 360,
+    // baseHp 90→150, baseDmg 14→24 (lvl 100 dmg var <5% av spelarens — nu meaningful)
+    baseHp: 150, baseDmg: 24, baseSpeed: 320, baseRange: 360,
     color: '#3acaff', accent: '#ffffff',
     special: 'Skjuter laser var 0.7s mot närmsta fiende',
     cooldown: 0.7,
@@ -1744,12 +1746,13 @@ const COMPANIONS = [
     id: 'spacemonkey',
     name: 'Space Monkey',
     icon: '🐵',
-    desc: 'Slänger plasma-bomber. Aoe-damage var 4:e sekund.',
+    desc: 'Slänger plasma-bomber. Aoe-damage var 3:e sekund.',
     basePrice: 2800,
-    baseHp: 150, baseDmg: 22, baseSpeed: 180, baseRange: 280,
+    // baseHp 150→240, cooldown 4.0→3.0 (per-bomb dmg höll inte takt mid-stage)
+    baseHp: 240, baseDmg: 22, baseSpeed: 180, baseRange: 280,
     color: '#aa6a3a', accent: '#aa3aff',
     special: 'Plasma-bomb: 60 AOE-skada i 80px radius',
-    cooldown: 4.0,
+    cooldown: 3.0,
   },
 ];
 const MAX_COMPANION_LEVEL = 100;
@@ -1901,12 +1904,12 @@ function showAchievementPopup(ach) {
 // PERKS — passiva förmågor man köper en gång
 const PERKS = [
   { id: 'adrenalin',  icon: '🔥', name: 'Adrenalin',       price: 350,  desc: 'Vid <30% HP rör du dig 35% snabbare och skadar 20% mer.' },
-  { id: 'vampire',    icon: '🩸', name: 'Vampyrism',       price: 500,  desc: 'Återställ 4 HP per dödad fiende.' },
+  { id: 'vampire',    icon: '🩸', name: 'Vampyrism',       price: 500,  desc: 'Återställ 3 HP per dödad fiende.' },
   { id: 'ricochet',   icon: '🎱', name: 'Studsskott',      price: 600,  desc: 'Skott studsar en gång på väggar och fortsätter.' },
   { id: 'goldbonus',  icon: '💰', name: 'Mynt-bonus',      price: 400,  desc: '+30% gold från alla källor (staplar med Lucky Find).' },
   { id: 'revive',     icon: '🛡️', name: 'Andra chans',     price: 1200, desc: 'Vid första döden per RUN återupplivas du med 50% HP.' },
   { id: 'blastsafe',  icon: '🦺', name: 'Sprängskydd',     price: 450,  desc: '−50% skada från explosioner och eldspår.' },
-  { id: 'headshot',   icon: '🎯', name: 'Headshot',        price: 500,  desc: '20% chans att skott ger 3× skada (oberoende av Krit).' },
+  { id: 'headshot',   icon: '🎯', name: 'Headshot',        price: 800,  desc: '20% chans att skott ger 3× skada (oberoende av Krit).' },
   { id: 'fastmelee',  icon: '⚡', name: 'Stark-melee',     price: 380,  desc: '+30% melee-attackfrekvens.' },
   { id: 'firespread', icon: '🔥', name: 'Kraftbrand',      price: 800,  desc: 'Brinnande fiender sprider eld till närmsta fiende.' },
   { id: 'stealth',    icon: '👤', name: 'Tystgångare',     price: 550,  desc: 'Fiender upptäcker dig 40% senare. Första skottet ger +50% skada.' },
@@ -2044,7 +2047,7 @@ const DIFF_MULTIPLIERS = {
   casual:   { enemyHp: 0.7, enemyDmg: 0.7, gold: 1.2, shopPrice: 0.85 },
   veteran:  { enemyHp: 1.0, enemyDmg: 1.0, gold: 1.0, shopPrice: 1.0 },
   hardcore: { enemyHp: 1.3, enemyDmg: 1.3, gold: 1.0, shopPrice: 1.15 },
-  insane:   { enemyHp: 2.5, enemyDmg: 2.0, gold: 1.5, shopPrice: 1.5 },
+  insane:   { enemyHp: 2.5, enemyDmg: 2.0, gold: 1.5, shopPrice: 1.3 },
 };
 function getMode() { return save.mode || 'story'; }
 function getDifficulty() { return save.difficulty || 'veteran'; }
@@ -2620,14 +2623,14 @@ function makePlayer() {
     invuln: 0,
     flashUntil: 0,
     dmgMul: (1 + u.dmg * 0.10) * (dailyMod === 'reduced_hp' ? 1.3 : (dailyMod === 'glass_cannon' ? 3.0 : 1)) * (hasPerk('glasscannon') ? 1.6 : 1),
-    critChance: u.crit * 0.05,
+    critChance: u.crit * 0.08,
     regenPerSec: u.regen * 0.6,
-    reloadMul: 1 - u.reload * 0.15,
+    reloadMul: 1 - Math.min(0.6, u.reload * 0.12),
     explMul: 1 + u.expl * 0.18,
     mrangeMul: 1 + u.mrange * 0.12,
-    goldMul: (1 + u.gold * 0.18 + (hasPerk('goldbonus') ? 0.30 : 0)) * (dailyMod === 'double_gold' ? 2 : 1) * (isCheatActive('jappa') ? 1.5 : 1) * (isCheatActive('ultimate') ? 3 : 1),
+    goldMul: (1 + u.gold * 0.18 + (hasPerk('goldbonus') ? 0.30 : 0)) * (dailyMod === 'double_gold' ? 2 : 1) * (isCheatActive('jappa') ? 1.5 : 1) * (isCheatActive('ultimate') ? 3 : 1) * (1 + 0.3 * getNGPLevel()),
     // BigBoi-cheat ger ×2 knockback ovanpå upgrade-kbMul (var tidigare överskriven av denna rad)
-    kbMul: (1 + u.kb * 0.25) * (isCheatActive('bigboi') ? 2 : 1),
+    kbMul: (1 + Math.min(0.75, u.kb * 0.15)) * (isCheatActive('bigboi') ? 2 : 1),
     bspeedMul: 1 + u.bspeed * 0.10,
     reviveAvailable: hasPerk('revive'),
     firstShotBonus: hasPerk('stealth'),
@@ -2916,6 +2919,18 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
 
 // Vapenmeny-knapp — pausar spelet och öppnar fullskärms-vapenmeny
 document.getElementById('btn-weapon-menu').addEventListener('click', openWeaponMenu);
+
+// Dash-knapp (mobil). Använder pointerdown så det fungerar både touch + mouse.
+// CSS-ring uppdateras i runFrame via state.player.dashCdAt.
+const _btnDash = document.getElementById('btn-dash');
+if (_btnDash) {
+  const onDashDown = (e) => {
+    e.preventDefault();
+    if (state.mode === 'playing') tryDash();
+  };
+  _btnDash.addEventListener('pointerdown', onDashDown);
+  _btnDash.addEventListener('touchstart', onDashDown, { passive: false });
+}
 
 // EMOTE-knapp + picker (lazy-build första gången knappen trycks så EMOTES finns då)
 const emotePickerEl = document.getElementById('emote-picker');
@@ -6250,7 +6265,12 @@ function spawnHitParticles(x, y, b) {
       state.particles.push({ x, y, vx: Math.cos(a)*70, vy: Math.sin(a)*70, life: 0.3, color: '#cccccc', r: 1.5 });
     }
   } else if (style === 'rocket' || style === 'grenade') {
-    // Hanteras av explode() — skip particles här
+    // Explosion hanteras av explode(), men icke-kill-träff på tanky-fiende behöver
+    // ändå små rök-puffar så spelaren ser att skottet landade.
+    for (let i = 0; i < 3; i++) {
+      const a = Math.random() * Math.PI * 2;
+      state.particles.push({ x, y, vx: Math.cos(a)*30, vy: Math.sin(a)*30 - 10, life: 0.4, color: 'rgba(160,160,160,0.7)', r: 3 + Math.random() * 2 });
+    }
   } else {
     // Default: små gula gnistor (pistol/revolver/rifle/smg/shotgun/sniper/burst/minigun/bow/crossbow)
     for (let i = 0; i < 3; i++) {
@@ -6275,6 +6295,13 @@ function damageEnemy(e, dmg, isCrit) {
         y: e.y + Math.sin(ang) * e.r * 0.6,
         vx: 0, vy: 0, life: 0.4, color: '#ff5a3a', r: 12, isExplosion: true,
       });
+      // Lär ut weak-point en gång per save — ofta upptäcks det aldrig annars
+      if (!save.tutFlags || !save.tutFlags.weakPoint) {
+        save.tutFlags = save.tutFlags || {};
+        save.tutFlags.weakPoint = true;
+        persist();
+        if (typeof showToast === 'function') showToast('🎯 FRONT-TRÄFF — 3× SKADA! Sikta på bossens framsida.', 4);
+      }
     }
   }
   e.hp -= dmg;
@@ -6293,12 +6320,16 @@ function damageEnemy(e, dmg, isCrit) {
     save.stats.totalCrits = (save.stats.totalCrits || 0) + 1;
   } else Audio.hit();
   if (isCrit) {
-    triggerHitStop(40);
+    triggerHitStop(60);
     triggerShake(3, 0.1);
     state.particles.push({
       x: e.x, y: e.y - e.r - 10, vx: 0, vy: -40,
       life: 0.7, color: '#ffeb3b', r: 0, isCritText: true, text: 'CRIT!',
     });
+  } else {
+    // Punchy non-crit feel — varje träff staggrar bilden lite. self-clampar via Math.max.
+    triggerHitStop(10);
+    triggerShake(1.2, 0.05);
   }
   // Damage number (flytande över fienden)
   spawnDamageNumber(e.x, e.y - e.r, Math.round(dmg), isCrit);
@@ -6319,16 +6350,31 @@ function maybeChatter(e, lines) {
 }
 
 function spawnDamageNumber(x, y, dmg, isCrit) {
-  // Maxa 5 samtidiga damage numbers — släng äldsta
-  const existing = state.particles.filter(p => p.isDamageNumber);
-  if (existing.length >= 5) {
-    existing[0].life = 0;
+  // Stacka: hitta recent damage-number inom 40px — bumpa siffran istället för ny partikel.
+  // Burst-vapen (shotgun 6 pellets, burstpistol 3 skott) spawnade tidigare 3-6 ovanpå
+  // varandra som FIFO-cullades, så spelaren såg bara "12 / 12 / 12" innan de försvann.
+  // Crits stackar inte (separat visuell payoff).
+  if (!isCrit) {
+    for (const pt of state.particles) {
+      if (!pt.isDamageNumber || pt.isCritStack) continue;
+      if (pt.life < 0.55) continue; // bara färska
+      if (Math.abs(pt.x - x) < 40 && Math.abs(pt.y - y) < 40) {
+        pt.stackedDmg = (pt.stackedDmg || parseInt(pt.text, 10) || 0) + dmg;
+        pt.text = '' + pt.stackedDmg;
+        pt.life = 0.8; // refresh så stacken inte försvinner mitt i burst
+        return;
+      }
+    }
   }
+  // Cap 10 samtidiga (var 5) — FIFO på äldsta om över cap.
+  const existing = state.particles.filter(p => p.isDamageNumber);
+  if (existing.length >= 10) existing[0].life = 0;
   state.particles.push({
     x: x + (Math.random() - 0.5) * 12, y, vx: (Math.random() - 0.5) * 30, vy: -60,
     life: 0.8, r: 0,
     color: isCrit ? '#ffeb3b' : '#fff',
     isDamageNumber: true,
+    isCritStack: !!isCrit,
     text: isCrit ? dmg + '!' : '' + dmg,
     size: isCrit ? 18 : 13,
   });
@@ -6419,7 +6465,13 @@ function killEnemy(e) {
   if (e.isBoss) save.stats.bossKills++;
   Achievements.check();
   spawnParticles(e.x, e.y, e.color, 10, 140);
-  Audio.kill();
+  // Throttle: max ett kill-ljud per 70ms så AoE/avatar-summon-massmord inte stackar
+  // 5 ljud ovanpå varandra → ljudgrums. Mini-boss/boss kringgår throttle (ovanliga).
+  const _nowKill = performance.now();
+  if (e.isBoss || e.isMiniBoss || _nowKill - (state._lastKillSfx || 0) > 70) {
+    Audio.kill();
+    state._lastKillSfx = _nowKill;
+  }
   if (e.gold >= 10) Audio.goldPickup();
   // Ultimate cheat: massive explosion at kill
   if (isCheatActive('ultimate')) {
@@ -6445,7 +6497,8 @@ function killEnemy(e) {
   if (!state.killstreak || now - state.lastKillTime > 3000) state.killstreak = 0;
   state.killstreak++;
   state.lastKillTime = now;
-  if (state.killstreak >= 3) showKillstreakBanner(state.killstreak);
+  // Tröskel 3 → 5: rocket/blackhole/AoE-vapen procade banner varje wave → tapet.
+  if (state.killstreak >= 5) showKillstreakBanner(state.killstreak);
   if (state.killstreak >= 10) Achievements.unlock('streak10');
   if (state.killstreak >= 20) Achievements.unlock('streak20');
   // Blod-puddel som death-animation
@@ -6453,9 +6506,9 @@ function killEnemy(e) {
     x: e.x, y: e.y, vx: 0, vy: 0, life: 3.5, color: 'rgba(80,0,0,0.7)',
     r: e.r * 0.9, isBloodPool: true,
   });
-  // Vampyrism perk
+  // Vampyrism perk: 3 HP/kill (nerf från 4 — 240 HP/wave trivializerade hardcore)
   if (p && hasPerk('vampire')) {
-    p.hp = Math.min(p.maxHp, p.hp + 4);
+    p.hp = Math.min(p.maxHp, p.hp + 3);
   }
   // Drop-chans (mer från större fiender)
   const dropChance = e.isBoss ? 1.0 : (e.gold > 15 ? 0.18 : 0.08);
@@ -6501,7 +6554,8 @@ function killEnemy(e) {
     spawnParticles(e.x, e.y, '#ffeb3b', 30, 220);
     Audio.bossDeath();
     Music.setIntensity('active'); // tysta boss-spänning
-    triggerShake(25, 1.2);
+    // 25px shake @ 1.2s var orkanmessigt på 6" mobil i landscape — cap till 16px
+    triggerShake(16, 1.0);
     triggerHitStop(150); // dramatisk paus
     // Slow-mo + zoom på boss-död
     state.bossDeathCinematic = {
@@ -6529,6 +6583,10 @@ function killEnemy(e) {
 function triggerStageEvent(stage, eventType) {
   const p = state.player;
   showToast(eventNames[eventType] || '!');
+  // Visuell signalering: shake + röd vinjett-pulse så spelaren känner att något händer.
+  // Tidigare bara en liten text-toast — i strids-flöde missades det helt.
+  triggerShake(6, 0.35);
+  state.eventVignetteUntil = performance.now() + 500;
   // I serverSim-mode äger SERVERN entity-listan — skip lokal spawn (annars står
   // hundarna stilla för server vet inget om dem).
   if (Coop.serverSimActive) return;
@@ -6684,7 +6742,7 @@ function explode(x, y, radius, dmg, friendly) {
       const falloff = 1 - d / (radius + p.r);
       // Sprängskydd-perk halverar
       const safeMul = hasPerk('blastsafe') ? 0.5 : 1;
-      damagePlayer(dmg * Math.max(0.3, falloff) * safeMul);
+      damagePlayer(dmg * Math.max(0.3, falloff) * safeMul, 'explosion');
     }
   }
 }
@@ -7026,8 +7084,14 @@ function spawnBoss(stage) {
     state.enemies.push(boss);
     state.bossAlive = true;
     state.bossSequenceStep = 1;
-    state.bossIntro = { startTime: performance.now(), duration: 2400, name: boss.name, sub: boss.subtitle, entrance: getBossEntrance(boss.bossKey) };
-    boss.entranceUntil = performance.now() + 2400;
+    // Korta boss-intro när spelaren redan sett denna boss (NG+, repris) — 2400→1200ms.
+    const seen = save.bossesSeen && save.bossesSeen[stage.bossKey];
+    const introDur = seen ? 1200 : 2400;
+    state.bossIntro = { startTime: performance.now(), duration: introDur, name: boss.name, sub: boss.subtitle, entrance: getBossEntrance(boss.bossKey) };
+    boss.entranceUntil = performance.now() + introDur;
+    save.bossesSeen = save.bossesSeen || {};
+    save.bossesSeen[stage.bossKey] = true;
+    persist();
     Audio.bossSpawn();
     triggerShake(12, 1.0);
     Music.setIntensity('boss');
@@ -7429,10 +7493,12 @@ function closeShop() {
     return;
   }
   // Mellan-stage shop: partial heal + nästa wave
-  // Story/speedrun/truck/daily = full heal (linear progression).
-  // Endless/Bossrush/Survive = +60% av maxHp så spelaren måste vara försiktig.
-  const fullHealModes = ['story', 'speedrun', 'truck', 'daily', 'sandbox'];
-  const healFrac = fullHealModes.indexOf(getMode()) >= 0 ? 1.0 : 0.6;
+  // Tidigare full-heal i story gjorde boss-överlevnad värdelös — du kunde dö i fel
+  // och ändå vara fullt återställd nästa stage. Nu 75% heal i story så väl-spelade
+  // bossar känns belönande, men ger fortfarande generös buffer.
+  // Endless/Bossrush/Survive: 45% — pressar resurser hårdare.
+  const reducedHealModes = ['endless', 'bossrush', 'survive'];
+  const healFrac = reducedHealModes.indexOf(getMode()) >= 0 ? 0.45 : 0.75;
   state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.player.maxHp * healFrac);
   state.player.ammo = getWeapon(state.player.weaponId).mag || 0;
   state.player.reloading = false;
@@ -7730,13 +7796,13 @@ function applyUpgradesToPlayer() {
   p.hp = Math.min(newMax, Math.round(newMax * hpRatio));
   p.speed = 230 + u.speed * 18;
   p.dmgMul = 1 + u.dmg * 0.10;
-  p.critChance = u.crit * 0.05;
+  p.critChance = u.crit * 0.08;
   p.regenPerSec = u.regen * 0.6;
-  p.reloadMul = 1 - u.reload * 0.15;
+  p.reloadMul = 1 - Math.min(0.6, u.reload * 0.12);
   p.explMul = 1 + u.expl * 0.18;
   p.mrangeMul = 1 + u.mrange * 0.12;
-  p.goldMul = 1 + u.gold * 0.18 + (hasPerk('goldbonus') ? 0.30 : 0);
-  p.kbMul = 1 + u.kb * 0.25;
+  p.goldMul = (1 + u.gold * 0.18 + (hasPerk('goldbonus') ? 0.30 : 0)) * (1 + 0.3 * getNGPLevel());
+  p.kbMul = 1 + Math.min(0.75, u.kb * 0.15);
   p.bspeedMul = 1 + u.bspeed * 0.10;
   // Revive-perk: per RUN, inte per shop-purchase. Sätt bara om reviveUsed inte
   // redan är truthy (annars resettade varje purchase = obegränsade revives, bug).
@@ -8789,6 +8855,12 @@ function updateHUD() {
   // Uppdatera fire-icon med vapen-emoji så spelaren ser vad de skjuter med
   const fireIconEl = document.querySelector('#btn-fire .fire-icon');
   if (fireIconEl) fireIconEl.textContent = wIcon;
+  // Dash-cooldown-ring: 800ms total CD från tryDash. cd=1.0 betyder "redo att dasha".
+  if (_btnDash) {
+    const elapsed = performance.now() - (p.dashCdAt || -10000);
+    const cd = elapsed >= 800 ? 1 : (elapsed / 800);
+    _btnDash.style.setProperty('--dash-cd', cd.toFixed(3));
+  }
 }
 
 // In-game lag-indikator (MS): under HP-bar, längst in mot vänster.
@@ -9004,16 +9076,28 @@ function updatePlayer(dt, now) {
     // sikta i rörelseriktning som default
     p.aimAngle = Math.atan2(my, mx);
   }
-  // auto-aim mot närmsta fiende vid skjutning (om aktiverat och INTE i fire-joy-mode)
+  // auto-aim mot närmsta fiende vid skjutning (om aktiverat och INTE i fire-joy-mode).
+  // Sticky: prioritera boss/miniboss inom 60° framåt så grunt-skräp inte stjäl target
+  // mitt i en boss-fight. Fall back på nearest om inget prio-mål finns.
   const autoAimEnabled = save.autoaim !== false; // default på
   if (input.firing && autoAimEnabled && !(input.fireJoyActive && save.firejoy)) {
     let best = null, bestD = Infinity;
+    let bestPrio = null, bestPrioD = Infinity;
+    const curAim = p.aimAngle || 0;
+    const CONE = Math.PI / 3; // 60° kon framåt för boss-prio
     for (const e of state.enemies) {
       if (e.dead) continue;
-      const d = Math.hypot(e.x - p.x, e.y - p.y);
+      const dx = e.x - p.x, dy = e.y - p.y;
+      const d = Math.hypot(dx, dy);
       if (d < bestD) { bestD = d; best = e; }
+      if (e.isBoss || e.isMiniBoss) {
+        const ang = Math.atan2(dy, dx);
+        const diff = Math.abs(((ang - curAim + Math.PI*3) % (Math.PI*2)) - Math.PI);
+        if (diff < CONE && d < bestPrioD) { bestPrioD = d; bestPrio = e; }
+      }
     }
-    if (best) p.aimAngle = Math.atan2(best.y - p.y, best.x - p.x);
+    const target = bestPrio || best;
+    if (target) p.aimAngle = Math.atan2(target.y - p.y, target.x - p.x);
   }
 
   // reload (med reload-fart-uppgradering)
@@ -9334,7 +9418,7 @@ function updateEnemies(dt, now) {
           Coop.sendDamageToPartner(_ti.peerId, e.dmg);
           p.hp = Math.max(0, (p.hp || 100) - e.dmg);
         } else {
-          damagePlayer(e.dmg);
+          damagePlayer(e.dmg, e.name || e.type || 'fiende');
         }
         e.contactCd = 0.6;
       } else {
@@ -9415,13 +9499,30 @@ function updateBoss(b, dt, now) {
       Coop.sendDamageToPartner(_bti.peerId, b.dmg);
       p.hp = Math.max(0, (p.hp || 100) - b.dmg);
     } else {
-      damagePlayer(b.dmg);
+      damagePlayer(b.dmg, b.name || 'BOSS');
     }
     b.contactCd = 0.5;
   }
 }
 
 // AI helpers
+// Telegraph: arm an attack with a 350ms visible windup so spelaren hinner reagera.
+// emitTelegraph sätter b.telegraphFireAt + telegraphKind; consumeTelegraph kallas
+// efter att attacken faktiskt firat. Renderingen sker i drawBossTelegraph (drawEnemy).
+const BOSS_TELEGRAPH_MS = 350;
+function emitTelegraph(b, kind, ang) {
+  b.telegraphFireAt = performance.now() + BOSS_TELEGRAPH_MS;
+  b.telegraphKind = kind;
+  b.telegraphAng = ang;
+}
+function consumeTelegraph(b) {
+  b.telegraphFireAt = 0;
+  b.telegraphKind = null;
+}
+function telegraphReady(b, now) {
+  return b.telegraphFireAt && now >= b.telegraphFireAt;
+}
+
 function bossShoot(b, dx, dy, count, spread, color, speedMul = 1, life = 2.0) {
   const baseAng = Math.atan2(dy, dx);
   for (let i = 0; i < count; i++) {
@@ -9468,15 +9569,23 @@ function aiTankCharger(b, p, ndx, ndy, d, hpFrac, dt, now) {
   if (b.chargeUntil && now < b.chargeUntil) {
     b.x += b.chargeDir.x * 360 * dt;
     b.y += b.chargeDir.y * 360 * dt;
-  } else {
-    if (b.chargeUntil) b.chargeUntil = 0;
-    b.x += ndx * b.speed * dt;
-    b.y += ndy * b.speed * dt;
-    if (now - b.lastAttack > (hpFrac < 0.5 ? 2800 : 4200)) {
-      b.lastAttack = now;
-      b.chargeUntil = now + 900;
-      b.chargeDir = { x: ndx, y: ndy };
-    }
+    return;
+  }
+  if (b.chargeUntil) b.chargeUntil = 0;
+  // Telegraph commit — fyr av i armed-riktningen
+  if (b.telegraphKind === 'charge' && telegraphReady(b, now)) {
+    b.lastAttack = now;
+    b.chargeUntil = now + 900;
+    b.chargeDir = { x: Math.cos(b.telegraphAng), y: Math.sin(b.telegraphAng) };
+    consumeTelegraph(b);
+    return;
+  }
+  // Frys under windup så spelaren ser riktningen
+  if (b.telegraphKind === 'charge') return;
+  b.x += ndx * b.speed * dt;
+  b.y += ndy * b.speed * dt;
+  if (!b.telegraphFireAt && now - b.lastAttack > (hpFrac < 0.5 ? 2800 : 4200)) {
+    emitTelegraph(b, 'charge', Math.atan2(ndy, ndx));
   }
 }
 
@@ -9496,15 +9605,20 @@ function aiCloaker(b, p, ndx, ndy, d, hpFrac, dt, now) {
   }
   if (d > 250) { b.x += ndx * b.speed * dt; b.y += ndy * b.speed * dt; }
   else if (d < 150) { b.x -= ndx * b.speed * dt; b.y -= ndy * b.speed * dt; }
-  // SMG burst
-  if (now - b.lastAttack > 1200) {
+  // Telegraph commit för SMG-burst
+  if (b.telegraphKind === 'burst' && telegraphReady(b, now)) {
     b.lastAttack = now;
+    consumeTelegraph(b);
     for (let i = 0; i < 5; i++) {
       setTimeout(() => {
         if (b.dead) return;
         bossShoot(b, p.x - b.x, p.y - b.y, 1, 0.06, '#ff3a44', 0.95, 1.4);
       }, i * 80);
     }
+  }
+  // SMG burst — telegraph först
+  if (!b.telegraphFireAt && now - b.lastAttack > 1200) {
+    emitTelegraph(b, 'burst', 0);
   }
   // Cloak vid <60% var 6:e sek
   if (hpFrac < 0.6 && now - b.lastSpread > 6000) {
@@ -9521,18 +9635,29 @@ function aiBruteCharger(b, p, ndx, ndy, d, hpFrac, dt, now) {
     return;
   }
   if (b.chargeUntil) b.chargeUntil = 0;
+  // Telegraph commit för charge
+  if (b.telegraphKind === 'charge' && telegraphReady(b, now)) {
+    b.lastAttack = now;
+    b.chargeUntil = now + 850;
+    b.chargeDir = { x: Math.cos(b.telegraphAng), y: Math.sin(b.telegraphAng) };
+    consumeTelegraph(b);
+    return;
+  }
+  if (b.telegraphKind === 'charge') return;
   b.x += ndx * b.speed * dt;
   b.y += ndy * b.speed * dt;
   const cd = hpFrac < 0.33 ? 2000 : (hpFrac < 0.66 ? 3000 : 4000);
-  if (now - b.lastAttack > cd) {
-    b.lastAttack = now;
-    b.chargeUntil = now + 850;
-    b.chargeDir = { x: ndx, y: ndy };
+  if (!b.telegraphFireAt && now - b.lastAttack > cd) {
+    emitTelegraph(b, 'charge', Math.atan2(ndy, ndx));
   }
-  // Spread shotgun vid <50%
-  if (hpFrac < 0.5 && now - b.lastSpread > 2500) {
+  // Spread shotgun vid <50% — telegraph först
+  if (b.telegraphKind === 'burst' && telegraphReady(b, now)) {
+    consumeTelegraph(b);
     b.lastSpread = now;
     bossShoot(b, p.x - b.x, p.y - b.y, 5, 0.20, '#ff8a30', 0.9, 1.6);
+  }
+  if (hpFrac < 0.5 && !b.telegraphFireAt && now - b.lastSpread > 2500) {
+    emitTelegraph(b, 'burst', 0);
   }
 }
 
@@ -9551,11 +9676,17 @@ function aiPlasma(b, p, ndx, ndy, d, hpFrac, dt, now) {
     b.lastAttack = now;
     bossShoot(b, p.x - b.x, p.y - b.y, 1, 0, b.glow, 1.1, 2.4);
   }
-  if (hpFrac < 0.5 && now - b.lastSpread > 3500) {
+  // Telegraph commit för flank-dash
+  if (b.telegraphKind === 'dash' && telegraphReady(b, now)) {
+    consumeTelegraph(b);
     b.lastSpread = now;
     b.dashUntil = now + 600;
+    b.dashDir = { x: Math.cos(b.telegraphAng), y: Math.sin(b.telegraphAng) };
+    return;
+  }
+  if (hpFrac < 0.5 && !b.telegraphFireAt && now - b.lastSpread > 3500) {
     const a = Math.atan2(p.y - b.y, p.x - b.x) + (Math.random() < 0.5 ? Math.PI/2 : -Math.PI/2);
-    b.dashDir = { x: Math.cos(a), y: Math.sin(a) };
+    emitTelegraph(b, 'dash', a);
   }
 }
 
@@ -9595,8 +9726,9 @@ function aiGasSniper(b, p, ndx, ndy, d, hpFrac, dt, now) {
   const ideal = hpFrac < 0.5 ? 240 : 380;
   if (d > ideal + 40) { b.x += ndx * b.speed * dt; b.y += ndy * b.speed * dt; }
   else if (d < ideal - 40) { b.x -= ndx * b.speed * dt; b.y -= ndy * b.speed * dt; }
-  // sniper-burst (3 shots)
-  if (d <= 600 && now - b.lastAttack > (hpFrac < 0.5 ? 1100 : 1600)) {
+  // sniper-burst (3 shots) — med 350ms telegraph
+  if (b.telegraphKind === 'burst' && telegraphReady(b, now)) {
+    consumeTelegraph(b);
     b.lastAttack = now;
     for (let i = -1; i <= 1; i++) {
       const a = Math.atan2(p.y - b.y, p.x - b.x) + i * 0.07;
@@ -9605,6 +9737,9 @@ function aiGasSniper(b, p, ndx, ndy, d, hpFrac, dt, now) {
         dmg: b.bulletDmg, life: 2.4, r: 5, color: b.glow, hostile: true,
       });
     }
+  }
+  if (d <= 600 && !b.telegraphFireAt && now - b.lastAttack > (hpFrac < 0.5 ? 1100 : 1600)) {
+    emitTelegraph(b, 'burst', 0);
   }
   // gasmoln var 4:e sek
   if (now - b.lastSpread > 4000) {
@@ -9627,11 +9762,15 @@ function aiShielder(b, p, ndx, ndy, d, hpFrac, dt, now) {
     b.lastAttack = now;
     bossShoot(b, p.x - b.x, p.y - b.y, 1, 0, '#ffd54a', 1.3, 2.0);
   }
-  // Sköld-bash vid <40%
-  if (hpFrac < 0.4 && now - b.lastSpread > 4000 && !b.chargeUntil) {
+  // Sköld-bash vid <40% — med telegraph
+  if (b.telegraphKind === 'bash' && telegraphReady(b, now) && !b.chargeUntil) {
+    consumeTelegraph(b);
     b.lastSpread = now;
     b.chargeUntil = now + 700;
-    b.chargeDir = { x: ndx, y: ndy };
+    b.chargeDir = { x: Math.cos(b.telegraphAng), y: Math.sin(b.telegraphAng) };
+  }
+  if (hpFrac < 0.4 && !b.telegraphFireAt && !b.chargeUntil && now - b.lastSpread > 4000) {
+    emitTelegraph(b, 'bash', Math.atan2(ndy, ndx));
   }
   if (b.chargeUntil && now < b.chargeUntil) {
     b.x += b.chargeDir.x * 380 * dt;
@@ -9652,10 +9791,14 @@ function aiAvatar(b, p, ndx, ndy, d, hpFrac, dt, now) {
   }
   const ideal = 300;
   if (d > ideal + 50) { b.x += ndx * b.speed * 0.6 * dt; b.y += ndy * b.speed * 0.6 * dt; }
-  // ring av orbs
-  if (now - b.lastAttack > 1800) {
+  // ring av orbs — med telegraph
+  if (b.telegraphKind === 'burst' && telegraphReady(b, now)) {
+    consumeTelegraph(b);
     b.lastAttack = now;
     bossShoot(b, p.x - b.x, p.y - b.y, 12, Math.PI*2/12, b.glow, 0.7, 3.0);
+  }
+  if (!b.telegraphFireAt && now - b.lastAttack > 1800) {
+    emitTelegraph(b, 'burst', 0);
   }
   // summona ninja vid <60%
   if (hpFrac < 0.6 && now - b.lastSpread > 6000) {
@@ -9681,6 +9824,21 @@ function aiFinalCombo(b, p, ndx, ndy, d, hpFrac, dt, now) {
   if (now > b.powerSwapAt) {
     b.powerSwapAt = now + swapInterval;
     b.powerIdx = (b.powerIdx + 1) % ps.length;
+    // Power-glow: tint b.glow per aktiv power så spelaren ser "han är i caster-mode nu"
+    // istället för en generisk gul flash som inte signalerar något.
+    const POWER_TINTS = {
+      caster:        '#9aff5a',
+      tank_charger:  '#ff3a3a',
+      cloaker:       '#aa3aff',
+      brute_charger: '#ff8a30',
+      plasma:        '#3acaff',
+      jetpack:       '#ff5a14',
+      gas_sniper:    '#aaff5a',
+      shielder:      '#ffd54a',
+      avatar:        '#ff5aff',
+    };
+    const newPower = ps[b.powerIdx % ps.length];
+    if (POWER_TINTS[newPower]) b.glow = POWER_TINTS[newPower];
     // Visuell signalering vid power-byte — radius scaled till viewport så stora
     // skärmar inte tappar effekten (4K canvas annars relativt ~60px → osynligt)
     const viewMin = Math.min(viewW || 600, viewH || 400);
@@ -9710,10 +9868,21 @@ function aiFinalCombo(b, p, ndx, ndy, d, hpFrac, dt, now) {
 function aiFinal(b, p, ndx, ndy, d, hpFrac, dt, now) {
   const phase = hpFrac < 0.33 ? 3 : (hpFrac < 0.66 ? 2 : 1);
   if (phase !== b.phase) {
+    const prevPhase = b.phase;
     b.phase = phase;
     // Vid fas-skift: spread shockwave + heal liten
     bossShoot(b, 1, 0, 16, Math.PI*2/16, b.glow, 1.0, 2.5);
     state.particles.push({ x: b.x, y: b.y, vx:0, vy:0, life: 0.5, color: b.glow, r: 100, isExplosion: true });
+    // Banner: phase-shift är boss-fightets climactic beat. Liten 11px text på sidan
+    // av HP-baren var helt osynlig på mobil. 1.5s screen-banner i mitten istället.
+    if (prevPhase) {
+      const phaseLabels = { 2: 'FAS 2 — DEN BLIR ARG', 3: 'FAS 3 — FÖRTVIVLAN' };
+      state.bossPhaseBanner = {
+        text: phaseLabels[phase] || ('FAS ' + phase),
+        until: performance.now() + 1500,
+      };
+      triggerShake(8, 0.3);
+    }
   }
   if (b.chargeUntil && now < b.chargeUntil) {
     b.x += b.chargeDir.x * 480 * dt;
@@ -9739,11 +9908,15 @@ function aiFinal(b, p, ndx, ndy, d, hpFrac, dt, now) {
       state.enemies.push(makeEnemy('runner', b.x + Math.cos(a)*90, b.y + Math.sin(a)*90));
     }
   }
-  // Charge vid fas 3
-  if (phase === 3 && now - b.chargeCdAt > 3000) {
+  // Charge vid fas 3 — med telegraph
+  if (b.telegraphKind === 'charge' && telegraphReady(b, now)) {
+    consumeTelegraph(b);
     b.chargeCdAt = now;
     b.chargeUntil = now + 700;
-    b.chargeDir = { x: ndx, y: ndy };
+    b.chargeDir = { x: Math.cos(b.telegraphAng), y: Math.sin(b.telegraphAng) };
+  }
+  if (phase === 3 && !b.telegraphFireAt && now - b.chargeCdAt > 3000) {
+    emitTelegraph(b, 'charge', Math.atan2(ndy, ndx));
   }
 }
 
@@ -9872,7 +10045,7 @@ function updateBullets(dt) {
           Coop.sendDamageToPartner(nearestPid, b.dmg);
           nearest.hp = Math.max(0, (nearest.hp || 100) - b.dmg);
         } else {
-          damagePlayer(b.dmg);
+          damagePlayer(b.dmg, 'fientligt skott');
         }
         if (b.gasOnHit) dropGasCloud(b.x, b.y, 70, 4, 6);
         b.dead = true;
@@ -10003,7 +10176,7 @@ function updateHazards(dt) {
       g.life -= dt;
       if (g.life <= 0) { g.dead = true; continue; }
       const d = Math.hypot(p.x - g.x, p.y - g.y);
-      if (d < g.r + p.r) damagePlayer(g.dps * dt);
+      if (d < g.r + p.r) damagePlayer(g.dps * dt, 'gasmoln');
       // partiklar för synlighet
       if (Math.random() < 0.3) {
         const a = Math.random()*Math.PI*2;
@@ -10023,7 +10196,7 @@ function updateHazards(dt) {
       f.life -= dt;
       if (f.life <= 0) { f.dead = true; continue; }
       const d = Math.hypot(p.x - f.x, p.y - f.y);
-      if (d < f.r + p.r) damagePlayer(f.dps * dt);
+      if (d < f.r + p.r) damagePlayer(f.dps * dt, 'eldspår');
       if (Math.random() < 0.4) {
         state.particles.push({
           x: f.x + (Math.random()-0.5)*f.r, y: f.y + (Math.random()-0.5)*f.r,
@@ -14193,6 +14366,42 @@ function darken(hex, factor) {
   return `rgb(${r},${g},${b})`;
 }
 
+// Telegraph: ritar windup-varning så spelaren ser inkommande attack.
+// 'charge' / 'dash' / 'bash' → röd kon i armed-riktningen (200–260px).
+// 'burst' → pulserande röd ring runt boss-kroppen.
+function drawBossTelegraph(e, x, y, now) {
+  if (!e.telegraphFireAt || now >= e.telegraphFireAt) return;
+  const remaining = e.telegraphFireAt - now;
+  const progress = 1 - remaining / BOSS_TELEGRAPH_MS; // 0..1
+  const pulse = Math.sin(now / 45) > 0;
+  ctx.save();
+  if (e.telegraphKind === 'charge' || e.telegraphKind === 'dash' || e.telegraphKind === 'bash') {
+    const ang = e.telegraphAng || 0;
+    const len = 220 + 40 * progress;
+    const wide = 0.45;
+    ctx.fillStyle = pulse ? 'rgba(255, 50, 50, 0.42)' : 'rgba(255, 50, 50, 0.22)';
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.arc(x, y, len, ang - wide, ang + wide);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#ff3a3a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, len, ang - wide, ang + wide);
+    ctx.stroke();
+  } else {
+    // burst / spread — pulserande ring
+    ctx.strokeStyle = '#ff3a3a';
+    ctx.lineWidth = 3 + 2 * Math.abs(Math.sin(now / 40));
+    ctx.globalAlpha = 0.5 + 0.4 * progress;
+    ctx.beginPath();
+    ctx.arc(x, y, (e.r || 30) * (1.6 + 0.5 * progress), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawBossSoldier(e, x, y, flash) {
   const now = performance.now();
 
@@ -15143,6 +15352,7 @@ function drawEnemy(e) {
 
   if (e.isBoss) {
     drawBossSoldier(e, x, y, flash);
+    drawBossTelegraph(e, x, y, now);
     drawHpBar(e, x, y);
     return;
   }
@@ -16385,6 +16595,8 @@ function render() {
   drawDamageIndicators();
   drawCheatBanner();
   drawLowHpVignette();
+  drawEventVignette();
+  drawBossPhaseBanner();
   drawToast();
   drawKillstreak();
   drawBossIntro();
@@ -16844,6 +17056,48 @@ function drawLowHpVignette() {
   const grad = ctx.createRadialGradient(viewW/2, viewH/2, viewW * 0.3, viewW/2, viewH/2, viewW * 0.7);
   grad.addColorStop(0, 'rgba(180, 0, 0, 0)');
   grad.addColorStop(1, `rgba(180, 0, 0, ${0.55 * intensity})`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
+}
+
+// Boss phase-shift banner — stor text i mitten av skärmen i 1.5s.
+function drawBossPhaseBanner() {
+  if (!state.bossPhaseBanner) return;
+  const b = state.bossPhaseBanner;
+  const remaining = b.until - performance.now();
+  if (remaining <= 0) { state.bossPhaseBanner = null; return; }
+  const total = 1500;
+  const t = 1 - remaining / total;
+  // Fade in 0-0.15, hold 0.15-0.85, fade out 0.85-1.0
+  let alpha = 1;
+  if (t < 0.15) alpha = t / 0.15;
+  else if (t > 0.85) alpha = (1 - t) / 0.15;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const cy = viewH * 0.35;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, cy - 28, viewW, 56);
+  ctx.fillStyle = '#ff3a3a';
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 4;
+  ctx.font = 'bold 28px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.strokeText(b.text, viewW / 2, cy);
+  ctx.fillText(b.text, viewW / 2, cy);
+  ctx.restore();
+}
+
+// Kort röd vinjett när stage-event firar — gör att "HUNDARNA SLÄPPS!" etc faktiskt
+// känns istället för att försvinna i strids-fokus.
+function drawEventVignette() {
+  if (!state.eventVignetteUntil) return;
+  const remaining = state.eventVignetteUntil - performance.now();
+  if (remaining <= 0) { state.eventVignetteUntil = 0; return; }
+  const intensity = remaining / 500; // fade ut över 500ms
+  const grad = ctx.createRadialGradient(viewW/2, viewH/2, viewW * 0.25, viewW/2, viewH/2, viewW * 0.7);
+  grad.addColorStop(0, 'rgba(255, 60, 60, 0)');
+  grad.addColorStop(1, `rgba(255, 60, 60, ${0.45 * intensity})`);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, viewW, viewH);
 }
