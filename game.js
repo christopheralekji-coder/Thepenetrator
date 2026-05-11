@@ -1176,10 +1176,26 @@ function updatePickups(dt) {
       const speed = Math.min(600, 200 + (1 - d/magnetRange) * 300);
       pk.x += (dx/d) * speed * dt;
       pk.y += (dy/d) * speed * dt;
+      // Magnet-trail: liten färgad prick bakom pickup som drar mot spelaren.
+      // Throttle via _magnetTrailAccum så vi inte spammar pool vid flera pickups.
+      state._magnetTrailAccum = (state._magnetTrailAccum || 0) + dt;
+      if (state._magnetTrailAccum > 0.045 && state.particles.length < 220) {
+        state._magnetTrailAccum = 0;
+        const trailColors = { hp: '#5aff5a', ammo: '#ffae3a', gold: '#ffd54a', temp_dmg: '#ff5a3a' };
+        state.particles.push({
+          x: pk.x, y: pk.y, vx: 0, vy: 0,
+          isTrail: true, color: trailColors[pk.type] || '#fff',
+          r: 2.5, life: 0.22, fadeMul: 5,
+        });
+      }
     }
     if (d < (nearest.ref.r || 14) + 10) {
       pk.dead = true;
       Audio.goldPickup();
+      // Pickup-collect burst — färgad shockwave + 4 sparks i samma färg
+      const burstColor = pk.type === 'hp' ? '#5aff5a' : pk.type === 'ammo' ? '#ffae3a' : pk.type === 'gold' ? '#ffd54a' : '#ff5a3a';
+      spawnShockwave(pk.x, pk.y, 6, 36, burstColor, 0.28, 2);
+      spawnSparks(pk.x, pk.y, burstColor, 5, 220);
       // Om partner picked it up, skicka event
       if (!nearest.isLocal && nearest.pid) {
         Coop.sendPickupToPartner(nearest.pid, pk.type);
@@ -6440,6 +6456,12 @@ function damageEnemy(e, dmg, isCrit) {
   }
   // Damage number (flytande över fienden)
   spawnDamageNumber(e.x, e.y - e.r, Math.round(dmg), isCrit);
+  // Impact-shockwave skalas med dmg så små skott känns lätta, stora hits punchy.
+  // Skip vid dmg<8 så minigun-spam inte spränger partikel-poolen.
+  if (dmg >= 8) {
+    const ringR = Math.min(70, (e.r || 12) + 4 + dmg * 0.4);
+    spawnShockwave(e.x, e.y, (e.r || 12) * 0.5, ringR, isCrit ? '#ffeb3b' : '#fff', 0.22, 2);
+  }
   if (e.hp <= 0) killEnemy(e);
 }
 
@@ -8988,12 +9010,19 @@ function updateHUD() {
   // Uppdatera fire-icon med vapen-emoji så spelaren ser vad de skjuter med
   const fireIconEl = document.querySelector('#btn-fire .fire-icon');
   if (fireIconEl) fireIconEl.textContent = wIcon;
-  // Dash-cooldown-ring: 800ms total CD från tryDash. cd=1.0 betyder "redo att dasha".
-  if (_btnDash) {
-    const elapsed = performance.now() - (p.dashCdAt || -10000);
-    const cd = elapsed >= 800 ? 1 : (elapsed / 800);
-    _btnDash.style.setProperty('--dash-cd', cd.toFixed(3));
-  }
+}
+
+// Dash-cooldown-ring uppdateras separat varje frame (från runFrame) så ringen
+// animerar smooth istället för bara när updateHUD råkar trigga.
+let _lastDashCdSet = -1;
+function updateDashCdRing() {
+  if (!_btnDash || !state.player) return;
+  const elapsed = performance.now() - (state.player.dashCdAt || -10000);
+  const cd = elapsed >= 800 ? 1 : Math.max(0, elapsed / 800);
+  // Throttle DOM-writes: skriv bara när värdet ändrats >1% (skip när redan ready)
+  if (Math.abs(cd - _lastDashCdSet) < 0.01) return;
+  _lastDashCdSet = cd;
+  _btnDash.style.setProperty('--dash-cd', cd.toFixed(3));
 }
 
 // In-game lag-indikator (MS): under HP-bar, längst in mot vänster.
@@ -17105,40 +17134,92 @@ function drawBossHpTop() {
   if (!boss) return;
   // Bara visa när intro är klar
   if (state.bossIntro && performance.now() < state.bossIntro.startTime + state.bossIntro.duration * 0.6) return;
-  const w = Math.min(viewW * 0.7, 480);
-  const h = 22;
+  const w = Math.min(viewW * 0.72, 520);
+  const h = 26;
   const x = (viewW - w) / 2;
   const y = 50;
-  // Bakgrund
-  ctx.fillStyle = 'rgba(0,0,0,0.75)';
-  ctx.fillRect(x - 4, y - 4, w + 8, h + 8);
+  const now = performance.now();
+  const frac = Math.max(0, boss.hp / boss.maxHp);
+  // Outer glow när låg HP — pulserande röd
+  if (frac < 0.33) {
+    const pulse = 0.5 + Math.sin(now / 180) * 0.5;
+    ctx.shadowColor = '#ff3a3a';
+    ctx.shadowBlur = 18 * pulse;
+    ctx.fillStyle = 'rgba(255,30,30,0.15)';
+    ctx.fillRect(x - 8, y - 8, w + 16, h + 16);
+    ctx.shadowBlur = 0;
+  }
+  // Mörk panel-bakgrund med subtil gradient
+  const bgGrad = ctx.createLinearGradient(x, y - 6, x, y + h + 6);
+  bgGrad.addColorStop(0, 'rgba(20,5,10,0.95)');
+  bgGrad.addColorStop(1, 'rgba(0,0,0,0.95)');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(x - 6, y - 6, w + 12, h + 12);
+  // Inner-track (mörk-rött när låg, mörk neutral annars)
   ctx.fillStyle = '#1a0510';
   ctx.fillRect(x, y, w, h);
-  // HP-fill
-  const frac = boss.hp / boss.maxHp;
+  // Hatched-track för "skadad zon" — visar maxHP-konturen
+  ctx.fillStyle = 'rgba(100,30,30,0.25)';
+  ctx.fillRect(x, y, w, h);
+  // HP-fill med gradient + glow
+  const hpW = w * frac;
   const grad = ctx.createLinearGradient(x, y, x + w, y);
-  grad.addColorStop(0, '#7a1818');
-  grad.addColorStop(0.5, '#ff3a3a');
-  grad.addColorStop(1, '#ff5a5a');
+  grad.addColorStop(0, '#8a1818');
+  grad.addColorStop(0.4, '#ff3a3a');
+  grad.addColorStop(0.8, '#ff7a5a');
+  grad.addColorStop(1, '#ffae5a');
   ctx.fillStyle = grad;
-  ctx.fillRect(x, y, w * frac, h);
-  // Border
-  ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 2;
-  ctx.strokeRect(x, y, w, h);
-  // Boss-name
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 14px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
-  ctx.fillText(boss.name, viewW/2, y + 16);
+  ctx.shadowColor = '#ff5a3a'; ctx.shadowBlur = frac < 0.33 ? 10 : 6;
+  ctx.fillRect(x, y, hpW, h);
   ctx.shadowBlur = 0;
-  // Phase indicator
+  // Top highlight (glossy)
+  ctx.fillStyle = 'rgba(255,255,255,0.18)';
+  ctx.fillRect(x, y, hpW, h * 0.35);
+  // Animerad shimmer-stripe svepar över HP-baren
+  const shimmerX = x + ((now / 18) % (w + 100)) - 50;
+  const sGrad = ctx.createLinearGradient(shimmerX - 30, y, shimmerX + 30, y);
+  sGrad.addColorStop(0, 'rgba(255,255,255,0)');
+  sGrad.addColorStop(0.5, 'rgba(255,255,255,0.28)');
+  sGrad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, hpW, h);
+  ctx.clip();
+  ctx.fillStyle = sGrad;
+  ctx.fillRect(shimmerX - 30, y, 60, h);
+  ctx.restore();
+  // Border (guld-gul)
+  ctx.strokeStyle = '#ffd54a';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x, y, w, h);
+  // Inre border för djup
+  ctx.strokeStyle = 'rgba(255,213,74,0.25)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
+  // Boss-name med stark drop-shadow
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 15px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 6;
+  ctx.fillText(boss.name, viewW/2, y + 18);
+  ctx.shadowBlur = 0;
+  // Phase indicator — större och med glow
   if (boss.phase >= 2) {
-    ctx.fillStyle = '#ff5a3a';
-    ctx.font = 'bold 11px sans-serif';
+    const phaseColor = boss.phase === 3 ? '#ff1a1a' : '#ff8a3a';
+    ctx.fillStyle = phaseColor;
+    ctx.shadowColor = phaseColor; ctx.shadowBlur = 8;
+    ctx.font = 'bold 13px sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText('FAS ' + boss.phase, x + w - 8, y - 8);
+    ctx.fillText('⚠ FAS ' + boss.phase, x + w - 6, y - 10);
+    ctx.shadowBlur = 0;
   }
+  // HP-procent till vänster
+  ctx.fillStyle = 'rgba(255,213,74,0.8)';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+  ctx.fillText(Math.ceil(frac * 100) + '%', x + 4, y - 10);
+  ctx.shadowBlur = 0;
 }
 
 function drawDamageIndicators() {
@@ -17908,6 +17989,9 @@ function runFrame(dt, now) {
       showStageClearOverlay();
     }
   }
+
+  // Per-frame CSS-var-update för dash-cooldown-ring (smooth animation)
+  if (state.mode === 'playing') updateDashCdRing();
 
   render();
 }
