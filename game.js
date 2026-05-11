@@ -6068,6 +6068,7 @@ function renderWeaponMenu() {
 // ============================================================
 function equip(id) {
   if (!save.owned.includes(id)) return;
+  const wasEquipped = save.equipped;
   save.equipped = id;
   if (state.player) {
     state.player.weaponId = id;
@@ -6075,6 +6076,18 @@ function equip(id) {
     const baseMag = getWeapon(id).mag || 0;
     state.player.ammo = Math.floor(baseMag * magBonus);
     state.player.reloading = false;
+    // Weapon-switch VFX: snabbt flash på spelaren + sparks i nya vapnets färg
+    if (wasEquipped && wasEquipped !== id) {
+      const w = getWeapon(id);
+      const c = (w && w.color) || '#ffd54a';
+      spawnShockwave(state.player.x, state.player.y, state.player.r * 0.8, state.player.r * 2.2, c, 0.22, 2);
+      spawnSparks(state.player.x, state.player.y, c, 4, 150);
+      // CSS-flash på weapon-name HUD
+      if (weaponName) {
+        weaponName.classList.add('weapon-flash');
+        setTimeout(() => weaponName.classList.remove('weapon-flash'), 350);
+      }
+    }
   }
   if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
   updateHUD();
@@ -7496,6 +7509,15 @@ function onWaveComplete() {
     save.records.daily[key] = { won: state.wave >= STAGES.length };
   }
   Audio.zoneClear();
+  // Wave-complete fanfare — gyllene shockwaves + sparks runt spelaren så stage-clear känns belönande
+  if (state.player) {
+    const p = state.player;
+    spawnShockwave(p.x, p.y, 16, 140, '#ffd54a', 0.55, 5);
+    setTimeout(() => spawnShockwave(p.x, p.y, 16, 220, '#ffae3a', 0.6, 4), 140);
+    setTimeout(() => spawnShockwave(p.x, p.y, 20, 300, '#fff', 0.55, 3), 280);
+    spawnSparks(p.x, p.y, '#ffd54a', 24, 380);
+    triggerShake(6, 0.4);
+  }
   console.log('[GAME] Stage ' + state.wave + ' complete');
   // I coop: host broadcastar event till klienter
   if (Coop.active && Coop.isHost) {
@@ -8992,6 +9014,17 @@ function updateHUD() {
   if (killCountEl) killCountEl.textContent = state.killsThisRun || 0;
   const lvl = getLevel(state.wave);
   waveInfo.textContent = `${state.wave}/${getStageCount()} · ${lvl.name}`;
+  // Gold-info: bounce-anim när värdet förändrats
+  const prevGold = state._hudPrevGold || 0;
+  if (save.gold !== prevGold) {
+    state._hudPrevGold = save.gold;
+    if (save.gold > prevGold && goldInfo) {
+      goldInfo.classList.remove('gold-pop');
+      // Force reflow så animationen kan retriggas
+      void goldInfo.offsetWidth;
+      goldInfo.classList.add('gold-pop');
+    }
+  }
   goldInfo.textContent = `💰 ${save.gold}`;
   // Per-weapon emoji som visuell identitet i HUD. .hud-row.weapon är hidden
   // (ammo visas vid fire-button istället) så vi prependar emoji till ammo-display.
@@ -9278,10 +9311,17 @@ function updatePlayer(dt, now) {
       p.reloading = false;
       Audio.reloadDone();
       updateHUD();
-      // Rensa reload-ring
+      // Rensa reload-ring + reload-complete burst: gnistor + shockwave runt spelaren
+      // i vapen-färg så spelaren ser "redo att skjuta igen"
       if (fireBtn) {
         fireBtn.style.setProperty('--reload-progress', '0');
+        fireBtn.classList.add('reload-flash');
+        setTimeout(() => fireBtn.classList.remove('reload-flash'), 220);
       }
+      const w = getWeapon(p.weaponId);
+      const wcolor = (w && w.color) || '#ffd54a';
+      spawnShockwave(p.x, p.y, p.r * 1.1, p.r * 2.4, wcolor, 0.28, 2);
+      spawnSparks(p.x, p.y, wcolor, 6, 180);
     } else if (fireBtn) {
       // Visa progress-ring i vapen-färg medan reload pågår
       const prog = Math.max(0, Math.min(1, elapsed / total));
@@ -17508,16 +17548,30 @@ function drawMiniMap() {
     ctx.arc(ox + stage.goalPos.x * scale, oy + stage.goalPos.y * scale, 4, 0, Math.PI*2);
     ctx.stroke();
   }
-  // fiender (röda prickar)
+  // fiender (röda prickar). Boss/miniboss pulsar med glow så de sticker ut.
+  const mmNow = performance.now();
   for (const e of state.enemies) {
-    ctx.fillStyle = e.isBoss ? '#ff1a1a' : '#ff5a5a';
-    ctx.beginPath();
-    ctx.arc(ox + e.x * scale, oy + e.y * scale, e.isBoss ? 3 : 1.5, 0, Math.PI*2);
-    ctx.fill();
+    const mx = ox + e.x * scale, my = oy + e.y * scale;
     if (e.isBoss) {
-      ctx.shadowColor = '#ff1a1a'; ctx.shadowBlur = 6;
-      ctx.beginPath(); ctx.arc(ox + e.x * scale, oy + e.y * scale, 3, 0, Math.PI*2); ctx.fill();
+      // Boss: pulserande röd ring + fyllning, mycket synlig
+      const pulse = 0.7 + Math.sin(mmNow / 220) * 0.3;
+      ctx.shadowColor = '#ff1a1a'; ctx.shadowBlur = 10 * pulse;
+      ctx.fillStyle = '#ff1a1a';
+      ctx.beginPath(); ctx.arc(mx, my, 3.5, 0, Math.PI * 2); ctx.fill();
       ctx.shadowBlur = 0;
+      ctx.strokeStyle = `rgba(255,40,40,${pulse})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(mx, my, 5 + pulse * 2, 0, Math.PI * 2); ctx.stroke();
+    } else if (e.isMiniBoss) {
+      // Miniboss: orange med liten pulse
+      const pulse = 0.7 + Math.sin(mmNow / 300) * 0.3;
+      ctx.shadowColor = '#ffae3a'; ctx.shadowBlur = 6 * pulse;
+      ctx.fillStyle = '#ffae3a';
+      ctx.beginPath(); ctx.arc(mx, my, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+    } else {
+      ctx.fillStyle = '#ff5a5a';
+      ctx.beginPath(); ctx.arc(mx, my, 1.5, 0, Math.PI * 2); ctx.fill();
     }
   }
   // collectibles (gul)
