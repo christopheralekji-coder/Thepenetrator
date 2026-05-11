@@ -384,11 +384,33 @@
 
 <div id="wardrobe-screen" class="overlay hidden">
   <h2>🪄 GARDEROB</h2>
-  <p class="menu-sub" style="margin-bottom:12px;">Mixa & matcha din egna look</p>
-  <canvas id="wardrobe-preview" width="220" height="240" style="background:rgba(0,0,0,0.3);border-radius:8px;margin-bottom:8px;max-width:80vw;"></canvas>
-  <div id="wardrobe-tabs" style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;justify-content:center;position:relative;z-index:2;pointer-events:auto;"></div>
-  <div id="wardrobe-options" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:560px;margin-bottom:14px;position:relative;z-index:2;pointer-events:auto;max-height:45vh;overflow-y:auto;"></div>
-  <button id="btn-wardrobe-close" class="big-btn">TILLBAKA</button>
+  <p class="menu-sub" id="wardrobe-sub" style="margin-bottom:8px;">Mixa & matcha din egna look</p>
+  <div id="wardrobe-layout">
+    <div id="wardrobe-preview-wrap">
+      <canvas id="wardrobe-preview" width="300" height="380"></canvas>
+      <div id="wardrobe-slots">
+        <div class="ward-slot-label">⭐ MINA OUTFITS</div>
+        <div class="ward-slot-row">
+          <button class="ward-slot" data-slot="0"></button>
+          <button class="ward-slot" data-slot="1"></button>
+          <button class="ward-slot" data-slot="2"></button>
+        </div>
+        <div class="ward-slot-actions">
+          <button id="btn-wardrobe-save-slot" class="small-btn">💾 SPARA</button>
+          <button id="btn-wardrobe-clear-slot" class="small-btn">🗑 RENSA</button>
+        </div>
+      </div>
+    </div>
+    <div id="wardrobe-controls">
+      <div id="wardrobe-tabs"></div>
+      <div id="wardrobe-options"></div>
+    </div>
+  </div>
+  <div id="wardrobe-actionbar">
+    <button id="btn-wardrobe-random" class="medium-btn">🎲 SLUMPA</button>
+    <button id="btn-wardrobe-reset" class="medium-btn">↺ STANDARD</button>
+    <button id="btn-wardrobe-close" class="big-btn">TILLBAKA</button>
+  </div>
 </div>
 
 <div id="cheats-screen" class="overlay hidden">

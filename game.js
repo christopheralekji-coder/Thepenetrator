@@ -5461,73 +5461,253 @@ const WARDROBE_PRESETS = [
   { id: 'robot', name: 'Robot', wardrobe: { skin: 'silver', hair: 'bald', shirt: 'silver', pants: 'urban', bandana: 'none' } },
 ];
 let _wardrobeCurrentTab = 'skin';
+let _wardrobeRaf = 0;
+let _wardrobeAnimStart = 0;
 function drawWardrobePreview() {
   if (!wardrobePreview) return;
   const c = wardrobePreview.getContext('2d');
-  c.clearRect(0, 0, wardrobePreview.width, wardrobePreview.height);
+  const W = wardrobePreview.width, H = wardrobePreview.height;
+  c.clearRect(0, 0, W, H);
   ensureWardrobe();
   const w = save.wardrobe;
   const skin = getWardrobeOpt('skin', w.skin).color;
   const skinDark = darken(skin, 0.7);
+  const skinShade = darken(skin, 0.85);
   const hairOpt = getWardrobeOpt('hair', w.hair);
   const shirtC = getWardrobeOpt('shirt', w.shirt).color;
-  const shirtDark = darken(shirtC, 0.7);
+  const shirtDark = darken(shirtC, 0.65);
+  const shirtLight = lightenHex(shirtC, 0.12);
   const pantsC = getWardrobeOpt('pants', w.pants).color;
+  const pantsDark = darken(pantsC, 0.7);
   const bandanaC = getWardrobeOpt('bandana', w.bandana).color;
-  const cx = wardrobePreview.width / 2, cy = wardrobePreview.height / 2 + 20;
+
+  // Animation: idle sway + breath bob
+  const t = performance.now() - _wardrobeAnimStart;
+  const sway = Math.sin(t / 1100) * 0.10;       // ±5.7° rotation
+  const breath = Math.sin(t / 720) * 2.0;       // vertical breath
+  const tiltX = Math.sin(t / 1300) * 4;         // subtle weight shift
+
+  const cx = W / 2, cy = H * 0.58 + breath;
+
+  // Ground spotlight (cinematic floor pool)
+  const groundGrad = c.createRadialGradient(cx, cy + 78, 4, cx, cy + 78, 90);
+  groundGrad.addColorStop(0, 'rgba(170,58,255,0.45)');
+  groundGrad.addColorStop(0.5, 'rgba(170,58,255,0.15)');
+  groundGrad.addColorStop(1, 'rgba(170,58,255,0)');
+  c.fillStyle = groundGrad;
+  c.beginPath();
+  c.ellipse(cx, cy + 78, 90, 18, 0, 0, Math.PI * 2);
+  c.fill();
+
   // Skugga
-  c.fillStyle = 'rgba(0,0,0,0.4)';
-  c.beginPath(); c.ellipse(cx, cy + 50, 30, 8, 0, 0, Math.PI*2); c.fill();
-  // Byxor
+  c.fillStyle = 'rgba(0,0,0,0.55)';
+  c.beginPath();
+  c.ellipse(cx + tiltX * 0.5, cy + 78, 36, 9, 0, 0, Math.PI * 2);
+  c.fill();
+
+  // Save context, apply idle-sway rotation around chest pivot
+  c.save();
+  c.translate(cx, cy);
+  c.rotate(sway);
+
+  // Body proportions (skala upp jämfört med gamla 26×36)
+  const bodyW = 32, bodyH = 46;
+  const headR = 22;
+
+  // BEN (med subtil walk-cycle)
+  const legSwing = Math.sin(t / 600) * 3;
+  // Vänster ben
   c.fillStyle = pantsC;
-  c.fillRect(cx - 18, cy + 18, 36, 30);
+  c.fillRect(-16 + legSwing, 30, 14, 38);
+  c.fillStyle = pantsDark;
+  c.fillRect(-16 + legSwing, 30, 4, 38);
+  // Vänster stövel
   c.fillStyle = '#1a1208';
-  c.fillRect(cx - 18, cy + 44, 36, 8);
-  // Väst (kropp)
+  c.fillRect(-17 + legSwing, 60, 16, 10);
+  // Höger ben
+  c.fillStyle = pantsC;
+  c.fillRect(2 - legSwing, 30, 14, 38);
+  c.fillStyle = pantsDark;
+  c.fillRect(2 - legSwing, 30, 4, 38);
+  // Höger stövel
+  c.fillStyle = '#1a1208';
+  c.fillRect(1 - legSwing, 60, 16, 10);
+  // Bälte
+  c.fillStyle = '#2a1a08';
+  c.fillRect(-18, 26, 36, 6);
+  c.fillStyle = '#aa8a3a';
+  c.fillRect(-3, 27, 6, 4);
+
+  // VÄST/SKJORTA (kropp)
   c.fillStyle = shirtC;
-  c.beginPath(); c.ellipse(cx, cy, 26, 36, 0, 0, Math.PI*2); c.fill();
+  c.beginPath();
+  c.ellipse(0, 0, bodyW, bodyH, 0, 0, Math.PI * 2);
+  c.fill();
+  // Shadow på sidan
   c.fillStyle = shirtDark;
-  c.beginPath(); c.ellipse(cx - 8, cy, 14, 32, 0, 0, Math.PI*2); c.fill();
-  // Axlar (skin)
+  c.beginPath();
+  c.ellipse(-bodyW * 0.4, 0, bodyW * 0.5, bodyH * 0.92, 0, 0, Math.PI * 2);
+  c.fill();
+  // Highlight
+  c.fillStyle = shirtLight;
+  c.globalAlpha = 0.45;
+  c.beginPath();
+  c.ellipse(bodyW * 0.25, -bodyH * 0.2, bodyW * 0.25, bodyH * 0.5, 0, 0, Math.PI * 2);
+  c.fill();
+  c.globalAlpha = 1;
+  // Ammo-pouches (tactical detail)
+  c.fillStyle = '#1a1a14';
+  c.fillRect(-bodyW * 0.55, -bodyH * 0.18, bodyW * 0.32, bodyH * 0.28);
+  c.fillRect(bodyW * 0.23, -bodyH * 0.18, bodyW * 0.32, bodyH * 0.28);
+  c.fillStyle = '#5a4a30';
+  c.fillRect(-bodyW * 0.5, -bodyH * 0.10, bodyW * 0.22, 1.5);
+  c.fillRect(bodyW * 0.28, -bodyH * 0.10, bodyW * 0.22, 1.5);
+  // Mitten-sömm
+  c.strokeStyle = darken(shirtC, 0.4);
+  c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(0, -bodyH * 0.9); c.lineTo(0, bodyH * 0.9);
+  c.stroke();
+
+  // ARMAR (skin)
   c.fillStyle = skin;
-  c.beginPath(); c.ellipse(cx - 22, cy - 8, 12, 10, 0, 0, Math.PI*2); c.fill();
-  c.beginPath(); c.ellipse(cx + 22, cy - 8, 12, 10, 0, 0, Math.PI*2); c.fill();
-  // Hals
+  // Vänster arm
+  c.save();
+  c.translate(-bodyW - 2, -2);
+  c.rotate(Math.sin(t / 700) * 0.06);
+  c.beginPath(); c.ellipse(0, 0, 9, 18, 0, 0, Math.PI * 2); c.fill();
   c.fillStyle = skinDark;
-  c.fillRect(cx - 5, cy - 24, 10, 12);
-  // Huvud
+  c.beginPath(); c.ellipse(-3, 0, 4, 16, 0, 0, Math.PI * 2); c.fill();
+  c.restore();
+  // Höger arm
   c.fillStyle = skin;
-  c.beginPath(); c.arc(cx, cy - 32, 18, 0, Math.PI*2); c.fill();
-  // Hår
+  c.save();
+  c.translate(bodyW + 2, -2);
+  c.rotate(-Math.sin(t / 700) * 0.06);
+  c.beginPath(); c.ellipse(0, 0, 9, 18, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = skinDark;
+  c.beginPath(); c.ellipse(3, 0, 4, 16, 0, 0, Math.PI * 2); c.fill();
+  c.restore();
+
+  // Händer (handsktag på skin)
+  c.fillStyle = skin;
+  c.beginPath(); c.arc(-bodyW - 2, 14, 5, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(bodyW + 2, 14, 5, 0, Math.PI * 2); c.fill();
+
+  // HALS
+  c.fillStyle = skinDark;
+  c.fillRect(-6, -bodyH - 8, 12, 14);
+
+  // HUVUD
+  c.fillStyle = skin;
+  c.beginPath(); c.arc(0, -bodyH - 16, headR, 0, Math.PI * 2); c.fill();
+  // Ansikts-skugga (höger sida)
+  c.fillStyle = skinShade;
+  c.globalAlpha = 0.45;
+  c.beginPath();
+  c.arc(headR * 0.3, -bodyH - 16, headR * 0.85, -Math.PI / 2.2, Math.PI / 2.2);
+  c.lineTo(0, -bodyH - 16);
+  c.closePath();
+  c.fill();
+  c.globalAlpha = 1;
+
+  // HÅR
   if (hairOpt.style !== 'bald') {
     c.save();
-    c.translate(cx, cy - 32);
-    c.rotate(-Math.PI/2);
-    drawHair(c, 18, hairOpt.style, hairOpt.color, false);
+    c.translate(0, -bodyH - 16);
+    c.rotate(-Math.PI / 2);
+    drawHair(c, headR, hairOpt.style, hairOpt.color, false);
     c.restore();
   }
-  // Bandana
+
+  // BANDANA
   if (bandanaC) {
     c.fillStyle = bandanaC;
-    c.beginPath(); c.ellipse(cx, cy - 36, 20, 8, 0, 0, Math.PI*2); c.fill();
+    c.beginPath();
+    c.ellipse(0, -bodyH - 20, headR + 2, 7, 0, 0, Math.PI * 2);
+    c.fill();
+    // Bandana-knut bak
+    c.beginPath();
+    c.ellipse(-headR + 2, -bodyH - 14, 6, 4, -0.3, 0, Math.PI * 2);
+    c.fill();
+    // Detalj-stripe
+    c.fillStyle = darken(bandanaC, 0.6);
+    c.fillRect(-headR + 6, -bodyH - 21, headR * 2 - 12, 2);
   }
-  // Ögon
+
+  // ÖGON (lite mer detaljerade)
+  c.fillStyle = '#fff';
+  c.beginPath(); c.arc(-7, -bodyH - 14, 3, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(7, -bodyH - 14, 3, 0, Math.PI * 2); c.fill();
   c.fillStyle = '#0a0a0a';
-  c.beginPath(); c.arc(cx - 5, cy - 30, 1.6, 0, Math.PI*2); c.fill();
-  c.beginPath(); c.arc(cx + 5, cy - 30, 1.6, 0, Math.PI*2); c.fill();
+  c.beginPath(); c.arc(-7, -bodyH - 14, 1.6, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(7, -bodyH - 14, 1.6, 0, Math.PI * 2); c.fill();
+  // Eyebrows (lätt)
+  c.strokeStyle = darken(hairOpt.color || '#1a0a08', 0.5);
+  c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(-10, -bodyH - 19); c.lineTo(-4, -bodyH - 18); c.stroke();
+  c.beginPath(); c.moveTo(4, -bodyH - 18); c.lineTo(10, -bodyH - 19); c.stroke();
+
+  // MUN (subtil)
+  c.strokeStyle = darken(skin, 0.55);
+  c.lineWidth = 1.2;
+  c.beginPath();
+  c.moveTo(-3, -bodyH - 8); c.lineTo(3, -bodyH - 8);
+  c.stroke();
+
+  c.restore();
+
+  // RIM-LIGHT från ovan (lila gradient så character popar mot bakgrunden)
+  const rim = c.createLinearGradient(0, 0, 0, H);
+  rim.addColorStop(0, 'rgba(255,255,255,0.04)');
+  rim.addColorStop(0.5, 'rgba(255,255,255,0)');
+  rim.addColorStop(1, 'rgba(170,58,255,0.08)');
+  c.fillStyle = rim;
+  c.fillRect(0, 0, W, H);
+}
+
+// Hex-lightener helper (drawWardrobePreview använder lättare väst-färg)
+function lightenHex(hex, amount) {
+  if (!hex || hex[0] !== '#' || hex.length !== 7) return hex;
+  const r = Math.min(255, parseInt(hex.slice(1, 3), 16) + Math.round(255 * amount));
+  const g = Math.min(255, parseInt(hex.slice(3, 5), 16) + Math.round(255 * amount));
+  const b = Math.min(255, parseInt(hex.slice(5, 7), 16) + Math.round(255 * amount));
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+}
+
+// Animation-loop för garderoben — startas i openWardrobe, stoppas i close.
+function wardrobeAnimTick() {
+  drawWardrobePreview();
+  _wardrobeRaf = requestAnimationFrame(wardrobeAnimTick);
+}
+
+// Equip-burst feedback: visa toast + scale-pop på card + flash på preview
+let _wardEquipToastEl = null;
+function showWardrobeEquipFeedback(cardEl, label) {
+  if (cardEl) {
+    cardEl.classList.remove('equip-burst');
+    void cardEl.offsetWidth; // reflow
+    cardEl.classList.add('equip-burst');
+  }
+  // Toast inuti wardrobe-screen
+  if (!_wardEquipToastEl) {
+    _wardEquipToastEl = document.createElement('div');
+    _wardEquipToastEl.id = 'ward-equip-toast';
+    if (wardrobeScreen) wardrobeScreen.appendChild(_wardEquipToastEl);
+  }
+  _wardEquipToastEl.textContent = label || '✓ EQUIPPED';
+  _wardEquipToastEl.classList.add('show');
+  clearTimeout(_wardEquipToastEl._tm);
+  _wardEquipToastEl._tm = setTimeout(() => {
+    _wardEquipToastEl.classList.remove('show');
+  }, 900);
 }
 function renderWardrobeTabs() {
   wardrobeTabsEl.innerHTML = '';
   for (const cat of ['preset','skin','hair','shirt','pants','bandana']) {
     const btn = document.createElement('button');
-    btn.className = 'small-btn';
+    btn.className = 'small-btn' + (cat === _wardrobeCurrentTab ? ' active' : '');
     btn.textContent = WARDROBE_CAT_LABELS[cat];
-    btn.style.padding = '6px 10px';
-    btn.style.fontSize = '12px';
-    if (cat === _wardrobeCurrentTab) {
-      btn.style.background = '#aa3aff';
-      btn.style.color = '#fff';
-    }
     btn.addEventListener('click', () => {
       _wardrobeCurrentTab = cat;
       Audio.uiClick();
@@ -5537,92 +5717,296 @@ function renderWardrobeTabs() {
     wardrobeTabsEl.appendChild(btn);
   }
 }
+
+// Rita en kategori-specifik mini-preview-thumbnail inuti ett card-swatch element
+function drawWardrobeCardThumb(canvas, cat, opt, ctxSkin) {
+  const c = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  c.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2;
+  if (cat === 'hair') {
+    // Ansikte + hår
+    c.fillStyle = ctxSkin || '#d4a574';
+    c.beginPath(); c.arc(cx, cy + 2, W * 0.32, 0, Math.PI * 2); c.fill();
+    c.save();
+    c.translate(cx, cy + 2);
+    c.rotate(-Math.PI / 2);
+    drawHair(c, W * 0.32, opt.style, opt.color, false);
+    c.restore();
+    // Tiny eyes
+    c.fillStyle = '#0a0a0a';
+    c.beginPath(); c.arc(cx - 3, cy, 1.2, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + 3, cy, 1.2, 0, Math.PI * 2); c.fill();
+  } else if (cat === 'skin') {
+    // Liten ansikte
+    c.fillStyle = opt.color;
+    c.beginPath(); c.arc(cx, cy, W * 0.36, 0, Math.PI * 2); c.fill();
+    c.fillStyle = darken(opt.color, 0.85);
+    c.globalAlpha = 0.4;
+    c.beginPath();
+    c.arc(cx + 4, cy, W * 0.28, -Math.PI / 2, Math.PI / 2);
+    c.lineTo(cx, cy); c.closePath(); c.fill();
+    c.globalAlpha = 1;
+    c.fillStyle = '#0a0a0a';
+    c.beginPath(); c.arc(cx - 5, cy - 2, 1.5, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + 5, cy - 2, 1.5, 0, Math.PI * 2); c.fill();
+  } else if (cat === 'shirt') {
+    // T-shirt-shape
+    c.fillStyle = opt.color;
+    c.beginPath();
+    c.moveTo(cx - 16, cy - 8);
+    c.lineTo(cx - 8, cy - 14);
+    c.lineTo(cx - 4, cy - 10);
+    c.lineTo(cx + 4, cy - 10);
+    c.lineTo(cx + 8, cy - 14);
+    c.lineTo(cx + 16, cy - 8);
+    c.lineTo(cx + 12, cy + 10);
+    c.lineTo(cx - 12, cy + 10);
+    c.closePath();
+    c.fill();
+    c.fillStyle = darken(opt.color, 0.65);
+    c.fillRect(cx - 12, cy - 9, 2, 18);
+  } else if (cat === 'pants') {
+    // Pants-shape
+    c.fillStyle = opt.color;
+    c.fillRect(cx - 10, cy - 8, 20, 18);
+    c.fillStyle = darken(opt.color, 0.7);
+    c.fillRect(cx - 1, cy - 8, 2, 18);
+    // Bälte
+    c.fillStyle = '#2a1a08';
+    c.fillRect(cx - 10, cy - 10, 20, 2);
+  } else if (cat === 'bandana') {
+    if (!opt.color) {
+      c.fillStyle = '#3a3a3a';
+      c.strokeStyle = '#888';
+      c.lineWidth = 2;
+      c.setLineDash([4, 3]);
+      c.beginPath(); c.arc(cx, cy, W * 0.32, 0, Math.PI * 2); c.stroke();
+      c.setLineDash([]);
+      c.fillStyle = '#888';
+      c.font = 'bold 14px sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('✕', cx, cy + 1);
+    } else {
+      // Huvud + bandana ovanpå
+      c.fillStyle = ctxSkin || '#d4a574';
+      c.beginPath(); c.arc(cx, cy + 2, W * 0.32, 0, Math.PI * 2); c.fill();
+      c.fillStyle = opt.color;
+      c.beginPath();
+      c.ellipse(cx, cy - 6, W * 0.34, 5, 0, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = darken(opt.color, 0.6);
+      c.fillRect(cx - 12, cy - 8, 24, 1.5);
+    }
+  }
+}
+
 function renderWardrobeOptions() {
   ensureWardrobe();
   wardrobeOptsEl.innerHTML = '';
   const cat = _wardrobeCurrentTab;
-  // Preset-tab: rendera outfit-presets (applicerar alla 5 cats vid klick)
+  const currentSkinHex = (getWardrobeOpt('skin', save.wardrobe.skin) || {}).color || '#d4a574';
+
   if (cat === 'preset') {
     for (const preset of WARDROBE_PRESETS) {
       const card = document.createElement('div');
-      card.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;padding:10px 12px;border-radius:10px;background:linear-gradient(135deg, rgba(170,90,255,0.15), rgba(255,213,74,0.08));border:2px solid rgba(170,90,255,0.4);min-width:120px;transition:all 0.15s;';
-      card.onmouseenter = () => { card.style.borderColor = '#ffd54a'; card.style.transform = 'scale(1.03)'; };
-      card.onmouseleave = () => { card.style.borderColor = 'rgba(170,90,255,0.4)'; card.style.transform = 'scale(1)'; };
-      // Mini-preview swatch som visar 4 färger
-      const swatch = document.createElement('div');
+      card.className = 'ward-card';
       const sk = WARDROBE.skin.find(o => o.id === preset.wardrobe.skin) || WARDROBE.skin[0];
       const sh = WARDROBE.shirt.find(o => o.id === preset.wardrobe.shirt) || WARDROBE.shirt[0];
       const ha = WARDROBE.hair.find(o => o.id === preset.wardrobe.hair) || WARDROBE.hair[0];
       const ba = WARDROBE.bandana.find(o => o.id === preset.wardrobe.bandana) || WARDROBE.bandana[0];
-      swatch.style.cssText = 'display:flex;width:48px;height:48px;border-radius:50%;overflow:hidden;border:2px solid rgba(255,255,255,0.2);';
-      swatch.innerHTML = `<div style="flex:1;background:${sk.color};"></div><div style="flex:1;background:${ha.color};"></div><div style="flex:1;background:${sh.color};"></div><div style="flex:1;background:${ba.color || '#222'};"></div>`;
-      card.appendChild(swatch);
+      const thumb = document.createElement('div');
+      thumb.className = 'ward-thumb';
+      thumb.style.background = `linear-gradient(135deg, ${sh.color}, ${sk.color})`;
+      thumb.innerHTML = `
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+          <div style="width:18px;height:18px;border-radius:50%;background:${sk.color};border:2px solid ${ba.color || '#222'};box-shadow:inset 0 -2px 0 ${ha.color || '#222'};"></div>
+        </div>
+      `;
+      card.appendChild(thumb);
       const name = document.createElement('div');
-      name.style.cssText = 'font-size:11px;font-weight:700;color:#fff;text-align:center;letter-spacing:0.5px;';
+      name.className = 'ward-name';
       name.textContent = preset.name;
       card.appendChild(name);
       card.addEventListener('click', () => {
         Object.assign(save.wardrobe, preset.wardrobe);
         persist();
         Audio.purchase();
-        drawWardrobePreview();
+        renderWardrobeOptions();
+        showWardrobeEquipFeedback(card, '✨ ' + preset.name.toUpperCase());
       });
       wardrobeOptsEl.appendChild(card);
     }
     return;
   }
+
   const current = save.wardrobe[cat];
   for (const opt of WARDROBE[cat]) {
     const card = document.createElement('div');
-    card.style.cssText = 'cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.05);min-width:70px;border:2px solid ' + (opt.id === current ? '#aa3aff' : 'transparent');
-    // Swatch
-    const swatch = document.createElement('div');
-    if (cat === 'hair') {
-      swatch.style.cssText = 'width:32px;height:32px;border-radius:50%;background:#d4a574;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;';
-      const hairCanvas = document.createElement('canvas');
-      hairCanvas.width = 32; hairCanvas.height = 32;
-      hairCanvas.style.cssText = 'position:absolute;top:0;left:0;';
-      const hc = hairCanvas.getContext('2d');
-      hc.translate(16, 16);
-      hc.rotate(-Math.PI/2);
-      drawHair(hc, 14, opt.style, opt.color, false);
-      swatch.appendChild(hairCanvas);
-    } else if (cat === 'bandana' && !opt.color) {
-      swatch.style.cssText = 'width:32px;height:32px;border-radius:50%;background:#3a3a3a;border:2px dashed #888;display:flex;align-items:center;justify-content:center;font-size:14px;color:#888;';
-      swatch.textContent = '✕';
-    } else {
-      swatch.style.cssText = 'width:32px;height:32px;border-radius:50%;background:' + opt.color + ';border:2px solid rgba(255,255,255,0.2);';
-    }
-    card.appendChild(swatch);
+    card.className = 'ward-card' + (opt.id === current ? ' active' : '');
+    const thumb = document.createElement('div');
+    thumb.className = 'ward-thumb';
+    const thumbCanvas = document.createElement('canvas');
+    thumbCanvas.width = 44; thumbCanvas.height = 44;
+    thumbCanvas.style.cssText = 'position:absolute;inset:0;';
+    thumb.appendChild(thumbCanvas);
+    drawWardrobeCardThumb(thumbCanvas, cat, opt, currentSkinHex);
+    card.appendChild(thumb);
     const name = document.createElement('div');
-    name.style.cssText = 'font-size:10px;color:#ddd;text-align:center;';
+    name.className = 'ward-name';
     name.textContent = opt.name;
     card.appendChild(name);
     card.addEventListener('click', () => {
+      if (save.wardrobe[cat] === opt.id) return;
       save.wardrobe[cat] = opt.id;
       persist();
       Audio.uiClick();
       renderWardrobeOptions();
-      drawWardrobePreview();
+      showWardrobeEquipFeedback(card, '✓ ' + opt.name.toUpperCase());
     });
     wardrobeOptsEl.appendChild(card);
   }
 }
+
+// ============ SLOTS ============
+function ensureWardrobeSlots() {
+  if (!Array.isArray(save.wardrobeSlots)) save.wardrobeSlots = [null, null, null];
+}
+let _wardrobeSelectedSlot = -1;
+function renderWardrobeSlots() {
+  ensureWardrobeSlots();
+  const slotEls = document.querySelectorAll('.ward-slot');
+  slotEls.forEach((el, i) => {
+    const slot = save.wardrobeSlots[i];
+    el.classList.toggle('filled', !!slot);
+    el.classList.toggle('empty', !slot);
+    el.classList.toggle('selected', _wardrobeSelectedSlot === i);
+    el.innerHTML = '';
+    const swatch = document.createElement('div');
+    swatch.className = 'slot-swatch';
+    if (slot) {
+      const sk = WARDROBE.skin.find(o => o.id === slot.skin) || WARDROBE.skin[0];
+      const sh = WARDROBE.shirt.find(o => o.id === slot.shirt) || WARDROBE.shirt[0];
+      const ha = WARDROBE.hair.find(o => o.id === slot.hair) || WARDROBE.hair[0];
+      const ba = WARDROBE.bandana.find(o => o.id === slot.bandana) || WARDROBE.bandana[0];
+      swatch.innerHTML =
+        `<div style="background:${sk.color};"></div>` +
+        `<div style="background:${ha.color || '#222'};"></div>` +
+        `<div style="background:${sh.color};"></div>` +
+        `<div style="background:${ba.color || '#222'};"></div>`;
+    }
+    el.appendChild(swatch);
+    const lbl = document.createElement('div');
+    lbl.className = 'slot-label';
+    lbl.textContent = slot ? ('SLOT ' + (i + 1)) : 'TOM';
+    el.appendChild(lbl);
+  });
+}
+function bindWardrobeSlotHandlers() {
+  document.querySelectorAll('.ward-slot').forEach((el) => {
+    el.addEventListener('click', () => {
+      const i = parseInt(el.dataset.slot, 10);
+      ensureWardrobeSlots();
+      const slot = save.wardrobeSlots[i];
+      if (slot) {
+        // Ladda denna slot
+        Object.assign(save.wardrobe, slot);
+        persist();
+        Audio.purchase();
+        _wardrobeSelectedSlot = i;
+        renderWardrobeSlots();
+        renderWardrobeOptions();
+        showWardrobeEquipFeedback(null, '⭐ SLOT ' + (i + 1));
+      } else {
+        // Tom slot — markera så save-knapp vet vart vi sparar
+        _wardrobeSelectedSlot = i;
+        renderWardrobeSlots();
+      }
+    });
+  });
+  const saveBtn = document.getElementById('btn-wardrobe-save-slot');
+  if (saveBtn) saveBtn.addEventListener('click', () => {
+    ensureWardrobeSlots();
+    const i = _wardrobeSelectedSlot >= 0 ? _wardrobeSelectedSlot : save.wardrobeSlots.findIndex(s => !s);
+    const target = i >= 0 ? i : 0; // fallback: skriv över slot 0
+    save.wardrobeSlots[target] = Object.assign({}, save.wardrobe);
+    persist();
+    Audio.purchase();
+    _wardrobeSelectedSlot = target;
+    renderWardrobeSlots();
+    showWardrobeEquipFeedback(null, '💾 SPARAT I SLOT ' + (target + 1));
+  });
+  const clearBtn = document.getElementById('btn-wardrobe-clear-slot');
+  if (clearBtn) clearBtn.addEventListener('click', () => {
+    ensureWardrobeSlots();
+    const i = _wardrobeSelectedSlot;
+    if (i < 0 || !save.wardrobeSlots[i]) return;
+    save.wardrobeSlots[i] = null;
+    persist();
+    Audio.uiClick();
+    renderWardrobeSlots();
+  });
+}
+
+// ============ RANDOMIZE & RESET ============
+function randomizeWardrobe() {
+  const cats = ['skin', 'hair', 'shirt', 'pants', 'bandana'];
+  for (const cat of cats) {
+    const opts = WARDROBE[cat];
+    save.wardrobe[cat] = opts[Math.floor(Math.random() * opts.length)].id;
+  }
+  persist();
+  if (wardrobePreview) {
+    wardrobePreview.classList.remove('randomizing');
+    void wardrobePreview.offsetWidth;
+    wardrobePreview.classList.add('randomizing');
+    setTimeout(() => wardrobePreview && wardrobePreview.classList.remove('randomizing'), 520);
+  }
+  Audio.purchase();
+  renderWardrobeOptions();
+  showWardrobeEquipFeedback(null, '🎲 SLUMPAT');
+}
+function resetWardrobe() {
+  save.wardrobe = { skin: 'tan', hair: 'shortDark', shirt: 'black', pants: 'khaki', bandana: 'black' };
+  persist();
+  Audio.uiClick();
+  renderWardrobeOptions();
+  showWardrobeEquipFeedback(null, '↺ ÅTERSTÄLLT');
+}
+
 function openWardrobe() {
   ensureWardrobe();
+  ensureWardrobeSlots();
   wardrobeScreen.classList.remove('hidden');
   Audio.uiClick();
-  _wardrobeCurrentTab = 'skin';
+  _wardrobeCurrentTab = 'preset'; // Start på preset så det är mest engagerande
+  _wardrobeSelectedSlot = -1;
+  _wardrobeAnimStart = performance.now();
   renderWardrobeTabs();
   renderWardrobeOptions();
-  drawWardrobePreview();
+  renderWardrobeSlots();
+  // Starta animation-loop
+  if (_wardrobeRaf) cancelAnimationFrame(_wardrobeRaf);
+  _wardrobeRaf = requestAnimationFrame(wardrobeAnimTick);
+}
+function closeWardrobe() {
+  wardrobeScreen.classList.add('hidden');
+  if (_wardrobeRaf) {
+    cancelAnimationFrame(_wardrobeRaf);
+    _wardrobeRaf = 0;
+  }
+  Audio.uiClick();
 }
 const _btnWardrobe = document.getElementById('btn-wardrobe');
 if (_btnWardrobe) _btnWardrobe.addEventListener('click', openWardrobe);
 const _btnWardrobeClose = document.getElementById('btn-wardrobe-close');
-if (_btnWardrobeClose) _btnWardrobeClose.addEventListener('click', () => {
-  wardrobeScreen.classList.add('hidden'); Audio.uiClick();
-});
+if (_btnWardrobeClose) _btnWardrobeClose.addEventListener('click', closeWardrobe);
+const _btnWardrobeRandom = document.getElementById('btn-wardrobe-random');
+if (_btnWardrobeRandom) _btnWardrobeRandom.addEventListener('click', randomizeWardrobe);
+const _btnWardrobeReset = document.getElementById('btn-wardrobe-reset');
+if (_btnWardrobeReset) _btnWardrobeReset.addEventListener('click', resetWardrobe);
+bindWardrobeSlotHandlers();
 
 // COMPANIONS-skärm
 const companionsScreen = document.getElementById('companions-screen');

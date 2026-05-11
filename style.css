@@ -1116,6 +1116,336 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
     linear-gradient(180deg, rgba(30,5,15,0.6) 0%, rgba(0,0,0,0.96) 30%, rgba(0,0,0,0.96) 70%, rgba(15,5,20,0.6) 100%);
 }
 
+/* ============================================================
+   WARDROBE-UPPGRADERING — fancy layout med preview vänster,
+   controls höger, slot-bar + action-bar för full kontroll.
+   ============================================================ */
+#wardrobe-screen {
+  background:
+    radial-gradient(ellipse at 25% 50%, rgba(170,58,255,0.18) 0%, transparent 50%),
+    radial-gradient(ellipse at 75% 60%, rgba(255,213,74,0.10) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(20,10,30,0.95) 0%, rgba(0,0,0,0.97) 50%, rgba(15,5,25,0.95) 100%);
+  padding: 16px 20px;
+}
+#wardrobe-layout {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 20px;
+  max-width: 980px;
+  width: 100%;
+  margin-bottom: 12px;
+  align-items: start;
+}
+/* PREVIEW-KOLUMN */
+#wardrobe-preview-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+#wardrobe-preview {
+  background:
+    radial-gradient(ellipse at center bottom, rgba(170,58,255,0.25) 0%, transparent 65%),
+    radial-gradient(circle at 50% 30%, rgba(255,255,255,0.06) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(40,20,50,0.6) 0%, rgba(10,5,15,0.85) 100%);
+  border-radius: 14px;
+  border: 2px solid rgba(170,58,255,0.35);
+  box-shadow:
+    0 8px 28px rgba(170,58,255,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.08);
+  display: block;
+  max-width: min(80vw, 320px);
+  height: auto;
+  aspect-ratio: 300 / 380;
+}
+/* SLOTS */
+#wardrobe-slots {
+  background: linear-gradient(180deg, rgba(30,15,40,0.7), rgba(15,5,20,0.7));
+  border: 1px solid rgba(170,58,255,0.3);
+  border-radius: 10px;
+  padding: 8px 10px;
+  width: 100%;
+  max-width: 300px;
+}
+.ward-slot-label {
+  font-size: 10px;
+  letter-spacing: 1.5px;
+  color: #ffd54a;
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 6px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+.ward-slot-row {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.ward-slot {
+  width: 56px;
+  height: 36px;
+  border-radius: 6px;
+  background: rgba(0,0,0,0.5);
+  border: 1px dashed rgba(170,58,255,0.4);
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 3px;
+  transition: all 0.15s;
+  position: relative;
+  overflow: hidden;
+}
+.ward-slot:hover {
+  border-color: #ffd54a;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(255,213,74,0.3);
+}
+.ward-slot.filled {
+  border-style: solid;
+  border-color: rgba(170,58,255,0.6);
+}
+.ward-slot.selected {
+  border-color: #ffd54a;
+  box-shadow: 0 0 14px rgba(255,213,74,0.5);
+}
+.ward-slot .slot-swatch {
+  width: 100%;
+  height: 18px;
+  border-radius: 3px;
+  display: flex;
+  overflow: hidden;
+}
+.ward-slot .slot-swatch > div { flex: 1; }
+.ward-slot .slot-label {
+  font-size: 9px;
+  color: #aaa;
+  letter-spacing: 0.5px;
+}
+.ward-slot.filled .slot-label { color: #fff; }
+.ward-slot.empty .slot-swatch {
+  background: repeating-linear-gradient(45deg, rgba(80,40,120,0.2) 0 4px, rgba(40,20,60,0.2) 4px 8px);
+}
+.ward-slot-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: center;
+}
+.ward-slot-actions .small-btn {
+  padding: 5px 10px;
+  font-size: 10px;
+  flex: 1;
+  min-height: 0;
+  letter-spacing: 0.5px;
+}
+
+/* CONTROLS-KOLUMN */
+#wardrobe-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  max-width: 540px;
+}
+#wardrobe-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+}
+#wardrobe-tabs button {
+  padding: 7px 12px !important;
+  font-size: 12px !important;
+  border-radius: 8px !important;
+  background: rgba(30,15,40,0.7) !important;
+  border: 1px solid rgba(170,58,255,0.3) !important;
+  color: #ccc !important;
+  letter-spacing: 0.5px !important;
+  transition: all 0.15s !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+}
+#wardrobe-tabs button:hover { background: rgba(170,58,255,0.25) !important; color: #fff !important; }
+#wardrobe-tabs button.active {
+  background: linear-gradient(135deg, #aa3aff, #6a1aaa) !important;
+  color: #fff !important;
+  border-color: #ffd54a !important;
+  box-shadow: 0 2px 10px rgba(170,58,255,0.5);
+}
+#wardrobe-options {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 8px;
+  max-height: 56vh;
+  overflow-y: auto;
+  padding: 4px;
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  background: rgba(0,0,0,0.25);
+  border-radius: 10px;
+  border: 1px solid rgba(170,58,255,0.15);
+}
+.ward-card {
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(40,25,55,0.5), rgba(20,10,30,0.5));
+  border: 2px solid transparent;
+  transition: all 0.15s;
+  position: relative;
+}
+.ward-card:hover {
+  border-color: rgba(170,58,255,0.6);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 14px rgba(170,58,255,0.25);
+}
+.ward-card.active {
+  border-color: #ffd54a;
+  background: linear-gradient(180deg, rgba(170,58,255,0.25), rgba(80,20,140,0.4));
+  box-shadow: 0 0 14px rgba(255,213,74,0.4), inset 0 0 12px rgba(170,58,255,0.2);
+}
+.ward-card.active::before {
+  content: '✓';
+  position: absolute;
+  top: 2px; right: 4px;
+  color: #ffd54a;
+  font-size: 12px;
+  font-weight: 900;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+}
+.ward-card .ward-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #2a1a3a;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ward-card .ward-name {
+  font-size: 10px;
+  color: #ddd;
+  text-align: center;
+  letter-spacing: 0.3px;
+  line-height: 1.1;
+}
+.ward-card.active .ward-name { color: #fff; font-weight: 700; }
+/* Pulse-animation vid equip */
+.ward-card.equip-burst {
+  animation: wardEquipBurst 0.4s ease-out;
+}
+@keyframes wardEquipBurst {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255,213,74,0); }
+  40% { transform: scale(1.18); box-shadow: 0 0 24px 6px rgba(255,213,74,0.7); }
+  100% { transform: scale(1); box-shadow: 0 0 14px rgba(255,213,74,0.4); }
+}
+/* ACTION-BAR */
+#wardrobe-actionbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  max-width: 980px;
+  width: 100%;
+}
+#wardrobe-actionbar .medium-btn {
+  padding: 10px 18px;
+  font-size: 13px;
+  letter-spacing: 1px;
+  min-width: 0;
+  background: linear-gradient(135deg, rgba(170,58,255,0.85), rgba(80,20,140,0.9));
+  border: 2px solid rgba(255,213,74,0.4);
+  color: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  margin: 0;
+  font-weight: 800;
+  transition: all 0.15s;
+}
+#wardrobe-actionbar .medium-btn:hover {
+  filter: brightness(1.15);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(170,58,255,0.5);
+}
+#wardrobe-actionbar .medium-btn:active { transform: translateY(0); }
+#wardrobe-actionbar .big-btn {
+  padding: 10px 28px;
+  font-size: 14px;
+  min-width: 180px;
+}
+/* Random-anim på preview när slumpa-knappen triggas */
+#wardrobe-preview.randomizing {
+  animation: wardSlumpa 0.5s ease-in-out;
+}
+@keyframes wardSlumpa {
+  0%, 100% { filter: blur(0px) hue-rotate(0deg); }
+  50% { filter: blur(2px) hue-rotate(180deg); }
+}
+
+/* Equip-toast — slide-in från höger */
+#ward-equip-toast {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  background: linear-gradient(135deg, rgba(255,213,74,0.95), rgba(255,140,40,0.9));
+  color: #000;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 1px;
+  box-shadow: 0 6px 18px rgba(255,213,74,0.5);
+  transform: translateX(120%);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 10;
+  pointer-events: none;
+}
+#ward-equip-toast.show { transform: translateX(0); }
+
+/* Mobil/landscape — kollapsa till en kolumn */
+@media (max-width: 720px), (max-height: 540px) and (orientation: landscape) {
+  #wardrobe-layout {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  #wardrobe-preview-wrap {
+    flex-direction: row;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  #wardrobe-preview {
+    max-width: 220px;
+  }
+  #wardrobe-slots {
+    flex: 1 1 200px;
+    max-width: 280px;
+  }
+  #wardrobe-controls {
+    max-width: 100%;
+  }
+  #wardrobe-options {
+    max-height: 36vh;
+  }
+  #wardrobe-screen > #wardrobe-sub { font-size: 11px; }
+}
+
 /* Animerad bakgrundsskugga på meny + scan-lines för retro-futuristisk känsla */
 #menu-screen::before {
   content: '';
@@ -1895,49 +2225,8 @@ button, .shop-item, .player-row, .pet-card {
   .stat-row { display: flex; justify-content: space-between; }
 }
 
-/* Wardrobe specifik landscape-layout — canvas + tabs + options + TILLBAKA
-   måste rymmas på 393px höjd. Crit-fix: utan denna hamnade options-elementet
-   på top:420 (utanför viewport) med height:0. */
-@media (max-height: 500px) and (orientation: landscape) {
-  #wardrobe-screen {
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    gap: 12px;
-    padding: 12px !important;
-    align-items: flex-start !important;
-    justify-content: center !important;
-  }
-  #wardrobe-screen > h2 { width: 100%; margin: 0 0 4px 0 !important; font-size: 18px !important; }
-  #wardrobe-screen > .menu-sub { display: none !important; }
-  #wardrobe-preview {
-    width: 130px !important; height: 160px !important;
-    flex: 0 0 auto !important;
-    margin: 0 !important;
-  }
-  #wardrobe-tabs {
-    flex-basis: 100% !important;
-    order: 2;
-    margin-bottom: 4px !important;
-  }
-  #wardrobe-options {
-    flex: 1 1 380px !important;
-    order: 3;
-    max-height: 200px !important;
-    min-height: 80px !important;
-    align-content: flex-start !important;
-    /* Padding-bottom så cards syns ovanför sticky TILLBAKA-knappen */
-    padding-bottom: 60px !important;
-  }
-  /* Override sticky-position så TILLBAKA-knappen INTE täcker options-grid.
-     I wardrobe är layout flex-row + wrap → sticky bottom drar knappen över items. */
-  #wardrobe-screen > #btn-wardrobe-close {
-    order: 4;
-    flex-basis: 100%;
-    position: relative !important;
-    bottom: auto !important;
-    margin-top: 4px !important;
-  }
-}
+/* Gamla wardrobe-landscape-overrides borttagna — den nya #wardrobe-layout
+   grid:en hanterar både desktop + mobil + landscape via egna breakpoints. */
 /* Landskap — viktigt för smartphone som spelas liggande */
 @media (max-height: 500px) and (orientation: landscape) {
   #shop-items { max-height: 50vh; }
