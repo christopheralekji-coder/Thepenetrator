@@ -1599,6 +1599,20 @@ const WARDROBE = {
     { id: 'pumpkin',   name: 'Pumpa',         style: 'pumpkin',  color: '#ff7a14' },
     { id: 'santa',     name: 'Tomtekåpa',     style: 'santa',    color: '#aa1818' },
   ],
+  cape: [
+    { id: 'none',      name: 'Ingen',     style: 'none',     color: null },
+    { id: 'red',       name: 'Röd Cape',  style: 'cape',     color: '#aa1818' },
+    { id: 'black',     name: 'Svart',     style: 'cape',     color: '#0a0a0a' },
+    { id: 'crimson',   name: 'Crimson',   style: 'cape',     color: '#5a0a14' },
+    { id: 'royal',     name: 'Royal Blå', style: 'cape',     color: '#1a2a8a' },
+    { id: 'gold',      name: 'Guld-Cape', style: 'cape',     color: '#aa8a3a' },
+    { id: 'purple',    name: 'Lila',      style: 'cape',     color: '#5a2aaa' },
+    { id: 'green',     name: 'Skog',      style: 'cape',     color: '#1a4a1a' },
+    { id: 'rainbow',   name: 'Regnbåge',  style: 'rainbow',  color: '#ff5aff' },
+    { id: 'tattered',  name: 'Sönderriven', style: 'tattered', color: '#3a3a3a' },
+    { id: 'wings',     name: 'Vingar',    style: 'wings',    color: '#eeeeee' },
+    { id: 'flames',    name: 'Eld',       style: 'flames',   color: '#ff5a14' },
+  ],
 };
 
 // ============================================================
@@ -1656,6 +1670,14 @@ const TIER_RANK = { common: 0, rare: 1, epic: 2, legendary: 3 };
   set('hat', 'top',     { tier: 'rare' });
   set('hat', 'pumpkin', { tier: 'legendary', unlock: () => _isHalloween(), lore: '🎃 Halloween-exklusiv (oktober). Spöktid.', vfx: 'pumpkin-glow' });
   set('hat', 'santa',   { tier: 'legendary', unlock: () => _isChristmas(), lore: '🎅 Jul-exklusiv (december). HO HO HO.', vfx: 'snow' });
+  // CAPE
+  set('cape', 'gold',     { tier: 'epic',  unlock: () => (save.stats && save.stats.wins >= 1), lore: 'Mästar-cape. Win-låst.', vfx: 'shimmer-gold' });
+  set('cape', 'royal',    { tier: 'rare', lore: 'Royal blå sammet.' });
+  set('cape', 'purple',   { tier: 'rare' });
+  set('cape', 'rainbow',  { tier: 'legendary', unlock: () => save.cheatsUnlocked >= 4, lore: 'Alla cheats upplåsta.', vfx: 'rainbow' });
+  set('cape', 'wings',    { tier: 'legendary', unlock: () => save.achievements && save.achievements.length >= 15, lore: 'Änglavingar. 15+ achievements.', vfx: 'halo-glow' });
+  set('cape', 'flames',   { tier: 'epic', unlock: () => (save.stats && save.stats.totalKills >= 1000), lore: 'Bränn-cape. 1k kills-låst.', vfx: 'aura-red' });
+  set('cape', 'tattered', { tier: 'rare', lore: 'Berättar din historia.' });
 })();
 function ensureWardrobe() {
   if (!save.wardrobe) save.wardrobe = {};
@@ -1667,6 +1689,8 @@ function ensureWardrobe() {
   if (!w.bandana) w.bandana = 'black';
   if (!w.glasses) w.glasses = 'none';
   if (!w.hat)     w.hat = 'none';
+  if (!w.cape)    w.cape = 'none';
+  if (!w.tints)   w.tints = { shirtHue: 0, pantsHue: 0 };
 }
 function getWardrobeOpt(cat, id) {
   return WARDROBE[cat].find(o => o.id === id) || WARDROBE[cat][0];
@@ -1901,6 +1925,207 @@ function drawGlassesInGame(c, x, y, r, style, color) {
   }
 }
 
+// drawCape (preview): hänger bakom kroppen från axlarna nedåt
+// (cx, cy) = mitten av karaktären, w = kroppsbredd, h = höjd
+function drawCape(c, cx, cy, w, h, style, color, t) {
+  if (!style || style === 'none') return;
+  const wave = Math.sin((t || 0) / 700) * 4;
+  const col = color || '#aa1818';
+  c.save();
+  if (style === 'cape') {
+    // Klassisk cape — trapets bakom kroppen
+    c.fillStyle = col;
+    c.beginPath();
+    c.moveTo(cx - w * 0.55, cy - h * 0.6);
+    c.lineTo(cx - w * 0.85 + wave, cy + h * 0.85);
+    c.lineTo(cx + w * 0.85 - wave, cy + h * 0.85);
+    c.lineTo(cx + w * 0.55, cy - h * 0.6);
+    c.closePath();
+    c.fill();
+    // Skugga i mitten
+    c.fillStyle = darken(col, 0.65);
+    c.beginPath();
+    c.moveTo(cx - w * 0.2, cy - h * 0.55);
+    c.lineTo(cx - w * 0.35 + wave * 0.5, cy + h * 0.8);
+    c.lineTo(cx + w * 0.35 - wave * 0.5, cy + h * 0.8);
+    c.lineTo(cx + w * 0.2, cy - h * 0.55);
+    c.closePath();
+    c.fill();
+  } else if (style === 'rainbow') {
+    // 6 färg-stripes
+    const colors = ['#ff3a3a', '#ff8a3a', '#ffd54a', '#5aff5a', '#3acaff', '#aa3aff'];
+    const segs = colors.length;
+    for (let i = 0; i < segs; i++) {
+      const t0 = i / segs, t1 = (i + 1) / segs;
+      const x0 = cx - w * 0.55 + (w * 1.1) * t0;
+      const x1 = cx - w * 0.55 + (w * 1.1) * t1;
+      const bx0 = cx - w * 0.85 + wave + ((w * 1.7) - wave * 2) * t0;
+      const bx1 = cx - w * 0.85 + wave + ((w * 1.7) - wave * 2) * t1;
+      c.fillStyle = colors[i];
+      c.beginPath();
+      c.moveTo(x0, cy - h * 0.6);
+      c.lineTo(bx0, cy + h * 0.85);
+      c.lineTo(bx1, cy + h * 0.85);
+      c.lineTo(x1, cy - h * 0.6);
+      c.closePath();
+      c.fill();
+    }
+  } else if (style === 'flames') {
+    // Jagged flame-edges
+    c.fillStyle = col;
+    c.beginPath();
+    c.moveTo(cx - w * 0.55, cy - h * 0.6);
+    for (let i = 0; i <= 6; i++) {
+      const fx = cx - w * 0.85 + wave + (w * 1.7 - wave * 2) * (i / 6);
+      const flick = (i % 2 === 0 ? -8 : -16) + Math.sin((t || 0) / 200 + i) * 4;
+      c.lineTo(fx, cy + h * 0.85 + flick);
+    }
+    c.lineTo(cx + w * 0.55, cy - h * 0.6);
+    c.closePath();
+    c.fill();
+    // Hot core
+    c.fillStyle = '#ffae3a';
+    c.globalAlpha = 0.6;
+    c.beginPath();
+    c.ellipse(cx, cy + h * 0.3, w * 0.4, h * 0.45, 0, 0, Math.PI * 2);
+    c.fill();
+    c.globalAlpha = 1;
+  } else if (style === 'tattered') {
+    c.fillStyle = col;
+    // Trasiga kanter — alternerande linje-höjder
+    c.beginPath();
+    c.moveTo(cx - w * 0.55, cy - h * 0.6);
+    for (let i = 0; i <= 8; i++) {
+      const fx = cx - w * 0.85 + wave + (w * 1.7 - wave * 2) * (i / 8);
+      const torn = (i % 2 === 0) ? cy + h * 0.85 : cy + h * 0.65 + (i % 3) * 6;
+      c.lineTo(fx, torn);
+    }
+    c.lineTo(cx + w * 0.55, cy - h * 0.6);
+    c.closePath();
+    c.fill();
+    // Hål
+    c.fillStyle = 'rgba(0,0,0,0.6)';
+    c.beginPath(); c.ellipse(cx - w * 0.2, cy + h * 0.1, 4, 5, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(cx + w * 0.3, cy + h * 0.4, 5, 4, 0, 0, Math.PI * 2); c.fill();
+  } else if (style === 'wings') {
+    // Två vinge-blades
+    c.fillStyle = col;
+    for (const side of [-1, 1]) {
+      c.save();
+      c.translate(cx + side * w * 0.3, cy - h * 0.5);
+      c.rotate(side * 0.3 + Math.sin((t || 0) / 400) * 0.06);
+      // Vinge-blade
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.quadraticCurveTo(side * w * 0.8, h * 0.2, side * w * 0.95, h * 0.7);
+      c.quadraticCurveTo(side * w * 0.5, h * 0.7, 0, h * 0.4);
+      c.closePath();
+      c.fill();
+      // Fjäder-linjer
+      c.strokeStyle = darken(col, 0.6); c.lineWidth = 1;
+      for (let i = 1; i < 4; i++) {
+        c.beginPath();
+        c.moveTo(0, h * 0.1 * i);
+        c.lineTo(side * w * (0.4 + i * 0.15), h * (0.3 + i * 0.1));
+        c.stroke();
+      }
+      c.restore();
+    }
+  }
+  c.restore();
+}
+// In-game cape: dras BAKOM player i rotated frame (+x = forward, så cape går mot -x)
+function drawCapeInGame(c, p, cos, flash, now) {
+  if (!cos.cape || !cos.cape.style || cos.cape.style === 'none') return;
+  const r = p.r;
+  const wave = Math.sin(now / 500) * r * 0.18;
+  const moving = Math.abs(input.moveX) + Math.abs(input.moveY) > 0.1 ||
+                 input.keys.has('w') || input.keys.has('a') || input.keys.has('s') || input.keys.has('d');
+  const trailMul = moving ? 1.3 : 1.0;
+  const col = cos.cape.color || '#aa1818';
+  c.save();
+  if (cos.cape.style === 'cape') {
+    c.fillStyle = flash ? '#fff' : col;
+    c.beginPath();
+    c.moveTo(-r * 0.4, -r * 0.85);
+    c.lineTo(-r * 1.8 * trailMul, -r * 1.2 + wave);
+    c.lineTo(-r * 1.8 * trailMul,  r * 1.2 - wave);
+    c.lineTo(-r * 0.4,  r * 0.85);
+    c.closePath();
+    c.fill();
+    c.fillStyle = flash ? '#fff' : darken(col, 0.65);
+    c.beginPath();
+    c.moveTo(-r * 0.5, -r * 0.35);
+    c.lineTo(-r * 1.6 * trailMul, -r * 0.4 + wave * 0.5);
+    c.lineTo(-r * 1.6 * trailMul,  r * 0.4 - wave * 0.5);
+    c.lineTo(-r * 0.5,  r * 0.35);
+    c.closePath();
+    c.fill();
+  } else if (cos.cape.style === 'rainbow') {
+    const colors = ['#ff3a3a', '#ff8a3a', '#ffd54a', '#5aff5a', '#3acaff', '#aa3aff'];
+    const segs = colors.length;
+    for (let i = 0; i < segs; i++) {
+      const t0 = -r * 0.85 + (r * 1.7) * (i / segs);
+      const t1 = -r * 0.85 + (r * 1.7) * ((i + 1) / segs);
+      const b0 = -r * 1.2 + wave + ((r * 2.4) - wave * 2) * (i / segs);
+      const b1 = -r * 1.2 + wave + ((r * 2.4) - wave * 2) * ((i + 1) / segs);
+      c.fillStyle = flash ? '#fff' : colors[i];
+      c.beginPath();
+      c.moveTo(-r * 0.4, t0);
+      c.lineTo(-r * 1.8 * trailMul, b0);
+      c.lineTo(-r * 1.8 * trailMul, b1);
+      c.lineTo(-r * 0.4, t1);
+      c.closePath();
+      c.fill();
+    }
+  } else if (cos.cape.style === 'flames') {
+    c.fillStyle = flash ? '#fff' : col;
+    c.beginPath();
+    c.moveTo(-r * 0.4, -r * 0.85);
+    for (let i = 0; i <= 6; i++) {
+      const fy = -r * 1.2 + wave + (r * 2.4 - wave * 2) * (i / 6);
+      const flick = (i % 2 === 0 ? -r * 0.15 : -r * 0.30) + Math.sin(now / 150 + i) * 3;
+      c.lineTo(-r * 1.8 * trailMul + flick, fy);
+    }
+    c.lineTo(-r * 0.4, r * 0.85);
+    c.closePath();
+    c.fill();
+    c.fillStyle = flash ? '#fff' : '#ffae3a';
+    c.globalAlpha = 0.5;
+    c.beginPath();
+    c.ellipse(-r * 1.0, 0, r * 0.5, r * 0.7, 0, 0, Math.PI * 2);
+    c.fill();
+    c.globalAlpha = 1;
+  } else if (cos.cape.style === 'tattered') {
+    c.fillStyle = flash ? '#fff' : col;
+    c.beginPath();
+    c.moveTo(-r * 0.4, -r * 0.85);
+    for (let i = 0; i <= 8; i++) {
+      const fy = -r * 1.2 + wave + (r * 2.4 - wave * 2) * (i / 8);
+      const tornX = (i % 2 === 0) ? -r * 1.8 * trailMul : -r * 1.5 * trailMul + (i % 3) * 4;
+      c.lineTo(tornX, fy);
+    }
+    c.lineTo(-r * 0.4, r * 0.85);
+    c.closePath();
+    c.fill();
+  } else if (cos.cape.style === 'wings') {
+    c.fillStyle = flash ? '#fff' : col;
+    for (const side of [-1, 1]) {
+      c.save();
+      c.translate(-r * 0.3, side * r * 0.5);
+      c.rotate(side * 0.3 + Math.sin(now / 350) * 0.08);
+      c.beginPath();
+      c.moveTo(0, 0);
+      c.quadraticCurveTo(-r * 1.0, side * r * 0.4, -r * 1.4, side * r * 1.1);
+      c.quadraticCurveTo(-r * 0.7, side * r * 0.4, 0, side * r * 0.3);
+      c.closePath();
+      c.fill();
+      c.restore();
+    }
+  }
+  c.restore();
+}
+
 function drawHatInGame(c, x, y, r, style, color) {
   if (!style || style === 'none') return;
   const col = color || '#222';
@@ -2004,27 +2229,73 @@ function getCurrentCostume() {
     const bandanaO = getWardrobeOpt('bandana', w.bandana);
     const glassesO = w.glasses ? getWardrobeOpt('glasses', w.glasses) : null;
     const hatO = w.hat ? getWardrobeOpt('hat', w.hat) : null;
+    const capeO = w.cape ? getWardrobeOpt('cape', w.cape) : null;
+    // HSL hue-tinting på shirt/pants
+    const tints = w.tints || {};
+    const tShirt = tints.shirtHue ? applyHueShift(shirtO.color, tints.shirtHue) : shirtO.color;
+    const tPants = tints.pantsHue ? applyHueShift(pantsO.color, tints.pantsHue) : pantsO.color;
     // Item-VFX: hitta legendary/epic items med .vfx-property
     const vfxList = [];
-    for (const cat of ['skin','hair','shirt','pants','bandana','glasses','hat']) {
+    for (const cat of ['skin','hair','shirt','pants','bandana','glasses','hat','cape']) {
       const opt = w[cat] ? WARDROBE[cat] && WARDROBE[cat].find(o => o.id === w[cat]) : null;
       if (opt && opt.vfx) vfxList.push(opt.vfx);
     }
     return {
       id: 'custom', name: 'Custom',
       skin: skinO.color,
-      shirt: shirtO.color,
+      shirt: tShirt,
       bandana: bandanaO.color, // null = ingen
       accent: '#aa1818',
-      pants: pantsO.color,
+      pants: tPants,
       hairStyle: hairO.style,
       hairColor: hairO.color,
       glasses: glassesO,
       hat: hatO,
+      cape: capeO,
       vfx: vfxList,
     };
   }
   return COSTUMES.find(c => c.id === (save.costume || 'classic')) || COSTUMES[0];
+}
+
+// applyHueShift: shift en hex-färg's hue med ° (0-359). Använd RGB→HSL→RGB.
+function applyHueShift(hex, degrees) {
+  if (!hex || hex[0] !== '#' || hex.length !== 7 || !degrees) return hex;
+  let r = parseInt(hex.slice(1, 3), 16) / 255;
+  let g = parseInt(hex.slice(3, 5), 16) / 255;
+  let b = parseInt(hex.slice(5, 7), 16) / 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  if (max === min) { h = 0; s = 0; }
+  else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+    else if (max === g) h = ((b - r) / d + 2) / 6;
+    else h = ((r - g) / d + 4) / 6;
+  }
+  h = (h + degrees / 360) % 1;
+  if (h < 0) h += 1;
+  // HSL→RGB
+  let r2, g2, b2;
+  if (s === 0) { r2 = g2 = b2 = l; }
+  else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r2 = hue2rgb(p, q, h + 1 / 3);
+    g2 = hue2rgb(p, q, h);
+    b2 = hue2rgb(p, q, h - 1 / 3);
+  }
+  const toHex = (v) => Math.round(v * 255).toString(16).padStart(2, '0');
+  return '#' + toHex(r2) + toHex(g2) + toHex(b2);
 }
 
 function ensureMastery() {
@@ -4522,11 +4793,24 @@ const Coop = {
     this._connectWS(false, code, onConnect, onError);
   },
   serializeLobby() {
-    const arr = [{ peerId: this.myId, name: (this.myName || 'P1') + ' (HOST)', colorIdx: 0, isHost: true, ping: 0 }];
+    // Inkludera wardrobe så alla ser allas outfits i lobby (mini-preview per spelare)
+    const myWardrobe = (save && save.wardrobe) ? Object.assign({}, save.wardrobe) : null;
+    const arr = [{ peerId: this.myId, name: (this.myName || 'P1') + ' (HOST)', colorIdx: 0, isHost: true, ping: 0, wardrobe: myWardrobe }];
     for (const [pid, p] of this.players) {
-      arr.push({ peerId: pid, name: p.name, colorIdx: p.colorIdx, isHost: false, ping: p.ping == null ? null : p.ping });
+      arr.push({ peerId: pid, name: p.name, colorIdx: p.colorIdx, isHost: false, ping: p.ping == null ? null : p.ping, wardrobe: p.wardrobe || null });
     }
     return arr;
+  },
+  broadcastMyWardrobe() {
+    if (!this.active || !save || !save.wardrobe) return;
+    const wardrobe = Object.assign({}, save.wardrobe);
+    if (this.isHost) {
+      // Host: bara trigga lobby-broadcast (host's wardrobe är i save direkt)
+      this.broadcastLobby();
+      if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
+    } else {
+      this.sendToHost({ type: 'wardrobe-update', wardrobe });
+    }
   },
   updateName(name) {
     name = (name || '').trim().slice(0, 14) || 'Player';
@@ -4591,9 +4875,11 @@ const Coop = {
       this.players.clear();
       this._rebuildSlotMap(data.players);
       for (const p of data.players) {
-        if (p.peerId !== this.myId) this.players.set(p.peerId, { x: 900, y: 900, hp: 100, name: p.name, colorIdx: p.colorIdx });
+        if (p.peerId !== this.myId) this.players.set(p.peerId, { x: 900, y: 900, hp: 100, name: p.name, colorIdx: p.colorIdx, wardrobe: p.wardrobe || null });
       }
       if (this.onLobbyChange) this.onLobbyChange(data.players);
+      // Auto-broadcast min wardrobe när jag joinar lobby så host (+andra) ser min outfit
+      setTimeout(() => { try { this.broadcastMyWardrobe(); } catch (e) {} }, 200);
       return;
     }
     if (data.type === 'lobby' && !this.isHost) {
@@ -4601,7 +4887,7 @@ const Coop = {
       this.players.clear();
       this._rebuildSlotMap(data.players);
       for (const p of data.players) {
-        if (p.peerId !== this.myId) this.players.set(p.peerId, { x: 900, y: 900, hp: 100, name: p.name, colorIdx: p.colorIdx });
+        if (p.peerId !== this.myId) this.players.set(p.peerId, { x: 900, y: 900, hp: 100, name: p.name, colorIdx: p.colorIdx, wardrobe: p.wardrobe || null });
       }
       if (this.onLobbyChange) this.onLobbyChange(data.players);
       return;
@@ -4617,6 +4903,15 @@ const Coop = {
     if (data.type === 'rename' && this.isHost) {
       const p = this.players.get(fromId);
       if (p) p.name = (data.name || '').slice(0, 14) || p.name;
+      this.broadcastLobby();
+      if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
+      return;
+    }
+    // Wardrobe-broadcast: peer skickar sin garderob så alla ser allas outfits
+    // i lobby-listan (mini-preview per spelare).
+    if (data.type === 'wardrobe-update' && this.isHost) {
+      const p = this.players.get(fromId);
+      if (p) p.wardrobe = data.wardrobe;
       this.broadcastLobby();
       if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
       return;
@@ -5510,6 +5805,66 @@ function renderHostControls() {
   }
 }
 
+// Render mini-character (32×40) av en wardrobe på en canvas. Mycket simpel — bara
+// huvud + kropp + cape + hatt så det syns vem som är vem i lobby.
+function drawMiniWardrobeAvatar(canvas, wardrobe) {
+  const c = canvas.getContext('2d');
+  c.clearRect(0, 0, canvas.width, canvas.height);
+  if (!wardrobe) {
+    // Tom outline
+    c.strokeStyle = 'rgba(170,58,255,0.4)';
+    c.lineWidth = 1.5;
+    c.setLineDash([3, 2]);
+    c.beginPath(); c.arc(canvas.width / 2, canvas.height / 2 + 4, 9, 0, Math.PI * 2); c.stroke();
+    c.setLineDash([]);
+    c.fillStyle = '#666';
+    c.font = '10px sans-serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('?', canvas.width / 2, canvas.height / 2 + 4);
+    return;
+  }
+  const skinOpt = WARDROBE.skin.find(o => o.id === wardrobe.skin) || WARDROBE.skin[0];
+  const hairOpt = WARDROBE.hair.find(o => o.id === wardrobe.hair) || WARDROBE.hair[0];
+  const shirtOpt = WARDROBE.shirt.find(o => o.id === wardrobe.shirt) || WARDROBE.shirt[0];
+  const bandanaOpt = WARDROBE.bandana.find(o => o.id === wardrobe.bandana) || WARDROBE.bandana[0];
+  const hatOpt = wardrobe.hat ? WARDROBE.hat.find(o => o.id === wardrobe.hat) : null;
+  const capeOpt = wardrobe.cape ? WARDROBE.cape.find(o => o.id === wardrobe.cape) : null;
+  const tints = wardrobe.tints || {};
+  const shirtC = tints.shirtHue ? applyHueShift(shirtOpt.color, tints.shirtHue) : shirtOpt.color;
+  const cx = canvas.width / 2, cy = canvas.height / 2 + 6;
+  // Cape bakom
+  if (capeOpt && capeOpt.style !== 'none') {
+    drawCape(c, cx, cy + 2, 8, 14, capeOpt.style, capeOpt.color, performance.now());
+  }
+  // Kropp
+  c.fillStyle = shirtC;
+  c.beginPath(); c.ellipse(cx, cy + 2, 8, 11, 0, 0, Math.PI * 2); c.fill();
+  // Huvud
+  c.fillStyle = skinOpt.color;
+  c.beginPath(); c.arc(cx, cy - 9, 6, 0, Math.PI * 2); c.fill();
+  // Hår (om har)
+  if (hairOpt && hairOpt.style !== 'bald') {
+    c.save();
+    c.translate(cx, cy - 9);
+    c.rotate(-Math.PI / 2);
+    drawHair(c, 6, hairOpt.style, hairOpt.color, false);
+    c.restore();
+  }
+  // Bandana
+  if (bandanaOpt && bandanaOpt.color) {
+    c.fillStyle = bandanaOpt.color;
+    c.beginPath(); c.ellipse(cx, cy - 11, 7, 2.5, 0, 0, Math.PI * 2); c.fill();
+  }
+  // Hatt
+  if (hatOpt && hatOpt.style !== 'none') {
+    drawHat(c, cx, cy - 9, 6, hatOpt.style, hatOpt.color);
+  }
+  // Ögon
+  c.fillStyle = '#0a0a0a';
+  c.beginPath(); c.arc(cx - 2, cy - 9, 0.8, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(cx + 2, cy - 9, 0.8, 0, Math.PI * 2); c.fill();
+}
+
 function renderLobbyPlayers(players) {
   coopPlayerList.innerHTML = '';
   // TDM: pre-assigna teams i lobbyn (red/blue alternerande efter player-ordning) så
@@ -5546,6 +5901,16 @@ function renderLobbyPlayers(players) {
       <span class="pname">${p.name}${youTag}</span>
       <span style="margin-left:auto;margin-right:8px;">${pingHtml}</span>
     `;
+    // Mini-avatar canvas — visar spelarens outfit
+    const avatarCanvas = document.createElement('canvas');
+    avatarCanvas.width = 32; avatarCanvas.height = 40;
+    avatarCanvas.style.cssText = 'flex:0 0 auto;background:rgba(0,0,0,0.35);border-radius:6px;border:1px solid ' + color + '55;margin:0 4px;';
+    // Wardrobe-data: för host använd save.wardrobe direkt, annars lobby-data
+    const wardrobeData = (p.peerId === Coop.myId) ? save.wardrobe : p.wardrobe;
+    drawMiniWardrobeAvatar(avatarCanvas, wardrobeData);
+    // Sätt in avataren EFTER team-tag men före färg-circle. Vi rebuilda row.innerHTML
+    // så DOM-noden ovan är inte längre där — istället: re-prepend mini-avatar
+    row.insertBefore(avatarCanvas, row.firstChild ? row.firstChild.nextSibling : null);
     if (Coop.isHost && !p.isHost) {
       const btn = document.createElement('button');
       btn.className = 'kick-btn';
@@ -5840,7 +6205,7 @@ const wardrobeScreen = document.getElementById('wardrobe-screen');
 const wardrobeTabsEl = document.getElementById('wardrobe-tabs');
 const wardrobeOptsEl = document.getElementById('wardrobe-options');
 const wardrobePreview = document.getElementById('wardrobe-preview');
-const WARDROBE_CAT_LABELS = { preset: '✨ Outfits', skin: '🧑 Hud', hair: '🧔 Ansiktshår', glasses: '👓 Glasögon', hat: '🎩 Hatt', shirt: '👕 Väst', pants: '👖 Byxor', bandana: '🪢 Bandana' };
+const WARDROBE_CAT_LABELS = { preset: '✨ Outfits', skin: '🧑 Hud', hair: '🧔 Ansiktshår', glasses: '👓 Glasögon', hat: '🎩 Hatt', shirt: '👕 Väst', pants: '👖 Byxor', bandana: '🪢 Bandana', cape: '🦸 Cape', tint: '🎨 Färg-tint' };
 
 // Pre-set outfit-kombinationer — applicerar alla 5 categories i ett klick
 const WARDROBE_PRESETS = [
@@ -5873,10 +6238,13 @@ function drawWardrobePreview() {
   const skinDark = darken(skin, 0.7);
   const skinShade = darken(skin, 0.85);
   const hairOpt = getWardrobeOpt('hair', w.hair);
-  const shirtC = getWardrobeOpt('shirt', w.shirt).color;
+  const tints = w.tints || {};
+  const shirtRaw = getWardrobeOpt('shirt', w.shirt).color;
+  const shirtC = tints.shirtHue ? applyHueShift(shirtRaw, tints.shirtHue) : shirtRaw;
   const shirtDark = darken(shirtC, 0.65);
   const shirtLight = lightenHex(shirtC, 0.12);
-  const pantsC = getWardrobeOpt('pants', w.pants).color;
+  const pantsRaw = getWardrobeOpt('pants', w.pants).color;
+  const pantsC = tints.pantsHue ? applyHueShift(pantsRaw, tints.pantsHue) : pantsRaw;
   const pantsDark = darken(pantsC, 0.7);
   const bandanaC = getWardrobeOpt('bandana', w.bandana).color;
 
@@ -5936,6 +6304,12 @@ function drawWardrobePreview() {
   c.fillRect(-18, 26, 36, 6);
   c.fillStyle = '#aa8a3a';
   c.fillRect(-3, 27, 6, 4);
+
+  // CAPE (bakom kroppen — ritas före väst så den hänger BAKOM body)
+  const capeOpt = w.cape ? WARDROBE.cape.find(o => o.id === w.cape) : null;
+  if (capeOpt && capeOpt.style !== 'none') {
+    drawCape(c, 0, -bodyH * 0.2, bodyW, bodyH * 1.4, capeOpt.style, capeOpt.color, t);
+  }
 
   // VÄST/SKJORTA (kropp)
   c.fillStyle = shirtC;
@@ -6180,7 +6554,7 @@ function showWardrobeEquipFeedback(cardEl, label) {
 }
 function renderWardrobeTabs() {
   wardrobeTabsEl.innerHTML = '';
-  for (const cat of ['preset','skin','hair','glasses','hat','shirt','pants','bandana']) {
+  for (const cat of ['preset','skin','hair','glasses','hat','shirt','pants','bandana','cape','tint']) {
     const btn = document.createElement('button');
     btn.className = 'small-btn' + (cat === _wardrobeCurrentTab ? ' active' : '');
     btn.textContent = WARDROBE_CAT_LABELS[cat];
@@ -6312,6 +6686,25 @@ function drawWardrobeCardThumb(canvas, cat, opt, ctxSkin) {
       c.beginPath(); c.arc(cx, cy + 4, W * 0.32, 0, Math.PI * 2); c.fill();
       drawHat(c, cx, cy + 4, 14, opt.style, opt.color);
     }
+  } else if (cat === 'cape') {
+    if (opt.style === 'none') {
+      c.fillStyle = '#3a3a3a';
+      c.strokeStyle = '#888';
+      c.lineWidth = 2;
+      c.setLineDash([4, 3]);
+      c.beginPath(); c.arc(cx, cy, W * 0.32, 0, Math.PI * 2); c.stroke();
+      c.setLineDash([]);
+      c.fillStyle = '#888';
+      c.font = 'bold 14px sans-serif';
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('✕', cx, cy + 1);
+    } else {
+      // Mini cape rendering
+      drawCape(c, cx, cy - 4, 14, 24, opt.style, opt.color, performance.now());
+      // Dolt huvud framme
+      c.fillStyle = ctxSkin || '#d4a574';
+      c.beginPath(); c.arc(cx, cy - 8, 6, 0, Math.PI * 2); c.fill();
+    }
   }
 }
 
@@ -6321,6 +6714,58 @@ function renderWardrobeOptions() {
   const cat = _wardrobeCurrentTab;
   const currentSkinHex = (getWardrobeOpt('skin', save.wardrobe.skin) || {}).color || '#d4a574';
 
+  if (cat === 'tint') {
+    // Specialvy: HSL hue-sliders för shirt och pants. Lägger till "reset"-knapp också.
+    ensureWardrobe();
+    if (!save.wardrobe.tints) save.wardrobe.tints = { shirtHue: 0, pantsHue: 0 };
+    const tints = save.wardrobe.tints;
+    const buildTintRow = (key, label, color) => {
+      const wrap = document.createElement('div');
+      wrap.style.cssText = 'grid-column: 1 / -1; padding: 8px 10px; background: rgba(0,0,0,0.4); border-radius: 8px; border: 1px solid rgba(170,58,255,0.25); display: flex; flex-direction: column; gap: 6px;';
+      const lblEl = document.createElement('div');
+      lblEl.style.cssText = 'font-size: 11px; color: #ffd54a; font-weight: 800; letter-spacing: 1px; display: flex; justify-content: space-between; align-items: center;';
+      lblEl.innerHTML = `<span>${label}</span><span style="font-size:10px;color:#aaa;">${tints[key] || 0}°</span>`;
+      wrap.appendChild(lblEl);
+      // Preview-swatch som visar tintad färg
+      const preview = document.createElement('div');
+      preview.style.cssText = 'width: 100%; height: 18px; border-radius: 4px; background: ' + (tints[key] ? applyHueShift(color, tints[key]) : color) + '; border: 1px solid rgba(255,255,255,0.2);';
+      wrap.appendChild(preview);
+      const slider = document.createElement('input');
+      slider.type = 'range';
+      slider.min = '0'; slider.max = '359'; slider.step = '5';
+      slider.value = tints[key] || 0;
+      slider.style.cssText = 'width: 100%; accent-color: #aa3aff;';
+      slider.addEventListener('input', (e) => {
+        tints[key] = parseInt(e.target.value, 10);
+        lblEl.querySelector('span:last-child').textContent = tints[key] + '°';
+        preview.style.background = tints[key] ? applyHueShift(color, tints[key]) : color;
+        persist();
+      });
+      wrap.appendChild(slider);
+      return wrap;
+    };
+    const currentShirt = getWardrobeOpt('shirt', save.wardrobe.shirt).color;
+    const currentPants = getWardrobeOpt('pants', save.wardrobe.pants).color;
+    wardrobeOptsEl.appendChild(buildTintRow('shirtHue', '👕 VÄST-HUE', currentShirt));
+    wardrobeOptsEl.appendChild(buildTintRow('pantsHue', '👖 BYXOR-HUE', currentPants));
+    // Reset-knapp
+    const resetWrap = document.createElement('div');
+    resetWrap.style.cssText = 'grid-column: 1 / -1; display: flex; gap: 8px; justify-content: center;';
+    const resetBtn = document.createElement('button');
+    resetBtn.className = 'small-btn';
+    resetBtn.textContent = '↺ NOLLSTÄLL HUE';
+    resetBtn.style.padding = '6px 14px';
+    resetBtn.addEventListener('click', () => {
+      save.wardrobe.tints = { shirtHue: 0, pantsHue: 0 };
+      persist();
+      Audio.uiClick();
+      renderWardrobeOptions();
+      showWardrobeEquipFeedback(null, '↺ HUE NOLLSTÄLLT');
+    });
+    resetWrap.appendChild(resetBtn);
+    wardrobeOptsEl.appendChild(resetWrap);
+    return;
+  }
   if (cat === 'preset') {
     for (const preset of WARDROBE_PRESETS) {
       const card = document.createElement('div');
@@ -6592,6 +7037,10 @@ function closeWardrobe() {
   }
   closeItemInfoModal();
   applyWardrobeTheme();
+  // Coop: skicka wardrobe-update så lobby-listan visar uppdaterad outfit
+  if (Coop.active && typeof Coop.broadcastMyWardrobe === 'function') {
+    try { Coop.broadcastMyWardrobe(); } catch (e) {}
+  }
   Audio.uiClick();
 }
 const _btnWardrobe = document.getElementById('btn-wardrobe');
@@ -15007,6 +15456,11 @@ function drawPlayer() {
   const vestDark = darken(cos.shirt, 0.7);
   const pants = cos.pants || '#3a3528';
   const boot = '#1a1208';
+
+  // CAPE (bakom allt annat — ritas först i rotated frame)
+  if (cos.cape && cos.cape.style && cos.cape.style !== 'none') {
+    drawCapeInGame(ctx, p, cos, flash, now);
+  }
 
   // BEN — ses bakom kroppen, alternerar
   const legSwing = Math.sin(phase);
