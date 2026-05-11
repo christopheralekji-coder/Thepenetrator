@@ -1470,7 +1470,14 @@ const COSTUMES = [
   { id: 'cyberpunk',  name: 'Cyberpunk',       desc: 'Neon-detaljer', skin: '#e8b888', shirt: '#1a1a2a', bandana: '#aa3aff', accent: '#3acaff', unlock: () => save.cheatsUnlocked >= 1 },
   { id: 'demon',      name: 'Demon-form',      desc: 'NG+++ låst', skin: '#a07060', shirt: '#3a0a14', bandana: '#7a1818', accent: '#ff1a1a', unlock: () => getNGPLevel() >= 3 },
 ];
-// WARDROBE — mix & match (5 kategorier, många alternativ)
+// WARDROBE — mix & match (7 kategorier, många alternativ, tier-system)
+// tier: 'common' (grå), 'rare' (blå), 'epic' (lila), 'legendary' (guld)
+// unlock: () => bool, om saknas är item alltid unlocked
+// vfx: 'glow-pink' / 'sparkle-gold' / 'aura-red' / 'shimmer' — renderas i drawPlayer
+// lore: short story-text för item-info-modal
+// Seasonal check: October=halloween, December=christmas
+function _isHalloween() { return new Date().getMonth() === 9; }
+function _isChristmas() { return new Date().getMonth() === 11; }
 const WARDROBE = {
   skin: [
     { id: 'porcelain', name: 'Porslin', color: '#f8e0c8' },
@@ -1565,7 +1572,91 @@ const WARDROBE = {
     { id: 'green2',  name: 'Neon',   color: '#3aff5a' },
     { id: 'rainbow', name: 'Regnbåge',color: '#ff5aff' },
   ],
+  glasses: [
+    { id: 'none',      name: 'Inga',          style: 'none',     color: null },
+    { id: 'shades',    name: 'Solglasögon',   style: 'shades',   color: '#0a0a0a' },
+    { id: 'aviator',   name: 'Aviator',       style: 'aviator',  color: '#5a5a5a' },
+    { id: 'round',     name: 'Runda',         style: 'round',    color: '#2a2a2a' },
+    { id: 'cyber',     name: 'AR-Visir',      style: 'visor',    color: '#3acaff' },
+    { id: 'pinkshades',name: 'Rosa Shades',   style: 'shades',   color: '#ff5aca' },
+    { id: 'goldframe', name: 'Guld-Glasögon', style: 'round',    color: '#ffd54a' },
+    { id: 'monocle',   name: 'Monokel',       style: 'monocle',  color: '#aa8a3a' },
+    { id: 'tactical',  name: 'Tactical-Visir',style: 'visor',    color: '#5a8a3a' },
+  ],
+  hat: [
+    { id: 'none',      name: 'Ingen',         style: 'none',     color: null },
+    { id: 'beanie',    name: 'Mössa',         style: 'beanie',   color: '#222' },
+    { id: 'cap',       name: 'Keps',          style: 'cap',      color: '#1a3a1a' },
+    { id: 'capRed',    name: 'Röd Keps',      style: 'cap',      color: '#aa1818' },
+    { id: 'helmet',    name: 'Stridshjälm',   style: 'helmet',   color: '#3a4a26' },
+    { id: 'cowboy',    name: 'Cowboy-Hatt',   style: 'cowboy',   color: '#7a5a30' },
+    { id: 'crown',     name: 'Krona',         style: 'crown',    color: '#ffd54a' },
+    { id: 'halo',      name: 'Gloria',        style: 'halo',     color: '#ffeb88' },
+    { id: 'horns',     name: 'Horn',          style: 'horns',    color: '#aa1818' },
+    { id: 'top',       name: 'Cylinderhatt',  style: 'top',      color: '#0a0a0a' },
+    { id: 'wizard',    name: 'Trollkarls-Hatt',style: 'wizard',  color: '#5a2aaa' },
+    // Seasonal
+    { id: 'pumpkin',   name: 'Pumpa',         style: 'pumpkin',  color: '#ff7a14' },
+    { id: 'santa',     name: 'Tomtekåpa',     style: 'santa',    color: '#aa1818' },
+  ],
 };
+
+// ============================================================
+// META-AUGMENT: tier + unlock + vfx + lore på items
+// Default = common, unlock = alltid. Specifika items bumpas till rare/epic/legendary.
+// ============================================================
+const TIER_RANK = { common: 0, rare: 1, epic: 2, legendary: 3 };
+(function _augmentWardrobeMeta() {
+  // Hjälpare: applicera meta på item by id i kategori
+  const set = (cat, id, meta) => {
+    const o = WARDROBE[cat] && WARDROBE[cat].find(x => x.id === id);
+    if (o) Object.assign(o, meta);
+  };
+  // SKIN — exotiska tones som rare/epic
+  set('skin', 'pink',   { tier: 'rare',  lore: 'Anime-rosa hud. För dig som vill stå ut.' });
+  set('skin', 'green',  { tier: 'rare',  lore: 'Alien-grön. Färgad av plasma-bestrålning.' });
+  set('skin', 'blue',   { tier: 'rare',  lore: 'Smurf-blå. Smurfslayer-cred.' });
+  set('skin', 'gray',   { tier: 'rare',  lore: 'Zombie-grå. Du dog en gång, kom tillbaka.' });
+  set('skin', 'red',    { tier: 'epic',  unlock: () => getNGPLevel() >= 1, lore: 'Demon-röd. Låst tills NG+.', vfx: 'aura-red' });
+  set('skin', 'gold',   { tier: 'legendary', unlock: () => getNGPLevel() >= 3, lore: 'Gud-guld. NG+++ exklusiv.', vfx: 'shimmer-gold' });
+  set('skin', 'silver', { tier: 'legendary', unlock: () => save.achievements && save.achievements.includes('allbosses'), lore: 'Robot-silver. Klara alla 9 bossar.', vfx: 'glow-cyan' });
+  // HAIR — vissa exotic-färger som rare/epic
+  set('hair', 'mohawkPink',  { tier: 'rare', lore: 'Anarchy 1977 i Stockholm.' });
+  set('hair', 'longPurple',  { tier: 'rare' });
+  set('hair', 'mulletGreen', { tier: 'rare', lore: 'Mullet är aldrig fel.' });
+  set('hair', 'whiteLong',   { tier: 'epic', unlock: () => (save.stats && save.stats.totalKills >= 500), lore: 'Tystnad efter striden. Låst: 500 kills.' });
+  set('hair', 'mohawkRed',   { tier: 'rare' });
+  // SHIRT
+  set('shirt', 'gold',    { tier: 'epic',  unlock: () => (save.stats && save.stats.totalGold >= 10000), lore: 'Guld-väst. Låst: samla 10k gold totalt.', vfx: 'shimmer-gold' });
+  set('shirt', 'pink',    { tier: 'rare' });
+  set('shirt', 'cyber',   { tier: 'rare' });
+  set('shirt', 'silver',  { tier: 'epic', unlock: () => (save.stats && save.stats.bossKills >= 9), lore: 'Robotsilver. Låst: 9 boss-kills.' });
+  // PANTS
+  set('pants', 'gold',    { tier: 'epic',  unlock: () => (save.stats && save.stats.totalGold >= 10000), lore: 'Mathing shirt. 10k gold-låst.' });
+  set('pants', 'purple',  { tier: 'rare' });
+  set('pants', 'cyber',   { tier: 'rare' });
+  // BANDANA
+  set('bandana', 'gold',    { tier: 'epic', unlock: () => (save.stats && save.stats.wins >= 1), lore: 'Vinnar-bandana. Klara story först.', vfx: 'shimmer-gold' });
+  set('bandana', 'rainbow', { tier: 'legendary', unlock: () => save.cheatsUnlocked >= 4, lore: 'Regnbåge — alla cheats upplåsta.', vfx: 'rainbow' });
+  set('bandana', 'green2',  { tier: 'rare' });
+  set('bandana', 'purple',  { tier: 'rare' });
+  // GLASSES
+  set('glasses', 'cyber',     { tier: 'rare', lore: 'AR-overlay för moderna soldater.' });
+  set('glasses', 'pinkshades',{ tier: 'rare' });
+  set('glasses', 'goldframe', { tier: 'epic', unlock: () => (save.stats && save.stats.totalGold >= 5000), lore: 'Guld-bågar. Låst: 5k gold totalt.' });
+  set('glasses', 'monocle',   { tier: 'epic', unlock: () => getNGPLevel() >= 2, lore: 'Aristokratisk monokel. NG++ låst.' });
+  set('glasses', 'tactical',  { tier: 'rare', lore: 'Mil-spec tactical visor.' });
+  // HAT
+  set('hat', 'helmet',  { tier: 'rare', lore: 'Standard combat-hjälm.' });
+  set('hat', 'cowboy',  { tier: 'rare', lore: 'Wild West-snubbe.' });
+  set('hat', 'crown',   { tier: 'legendary', unlock: () => getNGPLevel() >= 5, lore: 'NG+++++ — endast för kungar.', vfx: 'shimmer-gold' });
+  set('hat', 'halo',    { tier: 'legendary', unlock: () => save.achievements && save.achievements.length >= 15, lore: 'Helgon-status. 15+ achievements.', vfx: 'halo-glow' });
+  set('hat', 'horns',   { tier: 'epic', unlock: () => getNGPLevel() >= 3, lore: 'Demoniska horn. NG+++ låst.', vfx: 'aura-red' });
+  set('hat', 'wizard',  { tier: 'epic', unlock: () => (save.stats && save.stats.totalKills >= 1000), lore: 'Trollkarl. 1k kills-låst.' });
+  set('hat', 'top',     { tier: 'rare' });
+  set('hat', 'pumpkin', { tier: 'legendary', unlock: () => _isHalloween(), lore: '🎃 Halloween-exklusiv (oktober). Spöktid.', vfx: 'pumpkin-glow' });
+  set('hat', 'santa',   { tier: 'legendary', unlock: () => _isChristmas(), lore: '🎅 Jul-exklusiv (december). HO HO HO.', vfx: 'snow' });
+})();
 function ensureWardrobe() {
   if (!save.wardrobe) save.wardrobe = {};
   const w = save.wardrobe;
@@ -1574,6 +1665,8 @@ function ensureWardrobe() {
   if (!w.shirt)   w.shirt = 'black';
   if (!w.pants)   w.pants = 'khaki';
   if (!w.bandana) w.bandana = 'black';
+  if (!w.glasses) w.glasses = 'none';
+  if (!w.hat)     w.hat = 'none';
 }
 function getWardrobeOpt(cat, id) {
   return WARDROBE[cat].find(o => o.id === id) || WARDROBE[cat][0];
@@ -1604,6 +1697,301 @@ function drawHair(ctx2, r, style, color, flash) {
   }
 }
 
+// drawGlasses: ritar glasögon-typ centrerat på (cx, cy) med ansikts-radie r.
+// Anropas i top-down preview-context — för in-game rendering används separat rotation.
+function drawGlasses(c, cx, cy, r, style, color) {
+  if (!style || style === 'none') return;
+  const col = color || '#0a0a0a';
+  c.fillStyle = col;
+  c.strokeStyle = col;
+  c.lineWidth = 1.5;
+  if (style === 'shades') {
+    c.fillRect(cx - r * 0.7, cy - r * 0.2, r * 0.55, r * 0.35);
+    c.fillRect(cx + r * 0.15, cy - r * 0.2, r * 0.55, r * 0.35);
+    c.fillStyle = col;
+    c.fillRect(cx - r * 0.15, cy - r * 0.1, r * 0.3, 1.5);
+  } else if (style === 'aviator') {
+    c.beginPath(); c.ellipse(cx - r * 0.4, cy, r * 0.32, r * 0.28, 0, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.ellipse(cx + r * 0.4, cy, r * 0.32, r * 0.28, 0, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = col + 'aa';
+    c.beginPath(); c.ellipse(cx - r * 0.4, cy, r * 0.28, r * 0.24, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(cx + r * 0.4, cy, r * 0.28, r * 0.24, 0, 0, Math.PI * 2); c.fill();
+  } else if (style === 'round') {
+    c.beginPath(); c.arc(cx - r * 0.35, cy, r * 0.25, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(cx + r * 0.35, cy, r * 0.25, 0, Math.PI * 2); c.stroke();
+    c.beginPath();
+    c.moveTo(cx - r * 0.1, cy); c.lineTo(cx + r * 0.1, cy);
+    c.stroke();
+  } else if (style === 'visor') {
+    // Cyber-visor
+    c.fillStyle = col;
+    c.shadowColor = col; c.shadowBlur = 6;
+    c.fillRect(cx - r * 0.75, cy - r * 0.15, r * 1.5, r * 0.3);
+    c.shadowBlur = 0;
+    c.fillStyle = 'rgba(255,255,255,0.6)';
+    c.fillRect(cx - r * 0.7, cy - r * 0.13, r * 0.3, 1.5);
+  } else if (style === 'monocle') {
+    c.beginPath(); c.arc(cx + r * 0.4, cy, r * 0.28, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = col + '66';
+    c.beginPath(); c.arc(cx + r * 0.4, cy, r * 0.26, 0, Math.PI * 2); c.fill();
+    // Chain
+    c.strokeStyle = col;
+    c.beginPath();
+    c.moveTo(cx + r * 0.65, cy + r * 0.1); c.lineTo(cx + r * 0.85, cy + r * 0.5);
+    c.stroke();
+  }
+}
+// drawHat: ritar hatt-typ centrerat på (cx, cy) med ansikts-radie r.
+function drawHat(c, cx, cy, r, style, color) {
+  if (!style || style === 'none') return;
+  const col = color || '#222';
+  c.fillStyle = col;
+  if (style === 'beanie') {
+    c.beginPath();
+    c.ellipse(cx, cy - r * 0.8, r * 0.9, r * 0.55, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = darken(col, 0.65);
+    c.fillRect(cx - r * 0.9, cy - r * 0.4, r * 1.8, r * 0.18);
+    // Pom-pom
+    c.fillStyle = '#fff';
+    c.beginPath(); c.arc(cx, cy - r * 1.4, 3, 0, Math.PI * 2); c.fill();
+  } else if (style === 'cap') {
+    // Baseball-cap
+    c.beginPath();
+    c.ellipse(cx, cy - r * 0.7, r * 0.85, r * 0.45, 0, 0, Math.PI * 2);
+    c.fill();
+    // Brim sticking forward
+    c.fillStyle = darken(col, 0.7);
+    c.beginPath();
+    c.ellipse(cx + r * 0.5, cy - r * 0.3, r * 0.55, r * 0.2, 0, 0, Math.PI * 2);
+    c.fill();
+  } else if (style === 'helmet') {
+    c.beginPath();
+    c.arc(cx, cy - r * 0.4, r * 0.95, Math.PI, 0);
+    c.closePath();
+    c.fill();
+    c.fillStyle = darken(col, 0.5);
+    c.fillRect(cx - r * 0.9, cy - r * 0.42, r * 1.8, r * 0.12);
+    // Stripe
+    c.fillStyle = '#aaa';
+    c.fillRect(cx - 1, cy - r * 1.3, 2, r * 0.6);
+  } else if (style === 'cowboy') {
+    c.beginPath();
+    c.ellipse(cx, cy - r * 0.5, r * 1.2, r * 0.35, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = darken(col, 0.6);
+    c.beginPath();
+    c.ellipse(cx, cy - r * 0.85, r * 0.55, r * 0.45, 0, 0, Math.PI * 2);
+    c.fill();
+  } else if (style === 'crown') {
+    // Guld krona med spikar
+    c.fillStyle = col;
+    c.shadowColor = col; c.shadowBlur = 8;
+    c.beginPath();
+    c.moveTo(cx - r * 0.8, cy - r * 0.4);
+    c.lineTo(cx - r * 0.5, cy - r * 1.1);
+    c.lineTo(cx - r * 0.25, cy - r * 0.55);
+    c.lineTo(cx, cy - r * 1.3);
+    c.lineTo(cx + r * 0.25, cy - r * 0.55);
+    c.lineTo(cx + r * 0.5, cy - r * 1.1);
+    c.lineTo(cx + r * 0.8, cy - r * 0.4);
+    c.closePath();
+    c.fill();
+    c.shadowBlur = 0;
+    // Gems
+    c.fillStyle = '#ff3a3a';
+    c.beginPath(); c.arc(cx, cy - r * 0.55, 2, 0, Math.PI * 2); c.fill();
+  } else if (style === 'halo') {
+    c.strokeStyle = col;
+    c.lineWidth = 3;
+    c.shadowColor = col; c.shadowBlur = 14;
+    c.beginPath();
+    c.ellipse(cx, cy - r * 1.0, r * 0.7, r * 0.18, 0, 0, Math.PI * 2);
+    c.stroke();
+    c.shadowBlur = 0;
+  } else if (style === 'horns') {
+    c.fillStyle = col;
+    c.beginPath();
+    c.moveTo(cx - r * 0.55, cy - r * 0.4);
+    c.lineTo(cx - r * 0.85, cy - r * 1.1);
+    c.lineTo(cx - r * 0.3, cy - r * 0.55);
+    c.closePath();
+    c.fill();
+    c.beginPath();
+    c.moveTo(cx + r * 0.55, cy - r * 0.4);
+    c.lineTo(cx + r * 0.85, cy - r * 1.1);
+    c.lineTo(cx + r * 0.3, cy - r * 0.55);
+    c.closePath();
+    c.fill();
+  } else if (style === 'top') {
+    // Cylinderhatt
+    c.fillStyle = col;
+    c.fillRect(cx - r * 0.5, cy - r * 1.3, r * 1.0, r * 0.85);
+    c.beginPath();
+    c.ellipse(cx, cy - r * 0.4, r * 0.85, r * 0.18, 0, 0, Math.PI * 2);
+    c.fill();
+    // Band
+    c.fillStyle = '#aa1818';
+    c.fillRect(cx - r * 0.5, cy - r * 0.55, r * 1.0, 4);
+  } else if (style === 'wizard') {
+    c.fillStyle = col;
+    c.beginPath();
+    c.moveTo(cx - r * 0.7, cy - r * 0.3);
+    c.lineTo(cx, cy - r * 1.5);
+    c.lineTo(cx + r * 0.7, cy - r * 0.3);
+    c.closePath();
+    c.fill();
+    // Stars
+    c.fillStyle = '#ffd54a';
+    c.fillText('✦', cx - r * 0.2, cy - r * 0.7);
+  } else if (style === 'pumpkin') {
+    c.fillStyle = col;
+    c.beginPath();
+    c.arc(cx, cy - r * 0.55, r * 0.7, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = darken(col, 0.6);
+    c.fillRect(cx - 1, cy - r * 1.3, 2, r * 0.4);
+    c.fillStyle = '#3a2a08';
+    c.beginPath(); c.arc(cx - r * 0.25, cy - r * 0.6, 2, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + r * 0.25, cy - r * 0.6, 2, 0, Math.PI * 2); c.fill();
+  } else if (style === 'santa') {
+    c.fillStyle = col;
+    c.beginPath();
+    c.moveTo(cx - r * 0.7, cy - r * 0.4);
+    c.lineTo(cx + r * 0.5, cy - r * 1.4);
+    c.lineTo(cx + r * 0.7, cy - r * 0.4);
+    c.closePath();
+    c.fill();
+    // White trim
+    c.fillStyle = '#fff';
+    c.fillRect(cx - r * 0.7, cy - r * 0.45, r * 1.4, r * 0.15);
+    // Pom-pom
+    c.beginPath(); c.arc(cx + r * 0.5, cy - r * 1.4, 3.5, 0, Math.PI * 2); c.fill();
+  }
+}
+
+// In-game versioner som ritar i top-down rotated frame (+x = framåt-aim, ±y = sidor)
+function drawGlassesInGame(c, x, y, r, style, color) {
+  if (!style || style === 'none') return;
+  const col = color || '#0a0a0a';
+  c.fillStyle = col;
+  if (style === 'shades') {
+    c.fillRect(x + r * 0.3, y - r * 0.55, r * 0.4, r * 0.35);
+    c.fillRect(x + r * 0.3, y + r * 0.20, r * 0.4, r * 0.35);
+    c.fillRect(x + r * 0.3, y - r * 0.10, r * 0.4, 1.5);
+  } else if (style === 'aviator' || style === 'round') {
+    c.strokeStyle = col; c.lineWidth = 1.2;
+    c.beginPath(); c.arc(x + r * 0.5, y - r * 0.35, r * 0.24, 0, Math.PI * 2); c.stroke();
+    c.beginPath(); c.arc(x + r * 0.5, y + r * 0.35, r * 0.24, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = col + 'aa';
+    c.beginPath(); c.arc(x + r * 0.5, y - r * 0.35, r * 0.22, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(x + r * 0.5, y + r * 0.35, r * 0.22, 0, Math.PI * 2); c.fill();
+  } else if (style === 'visor') {
+    c.fillStyle = col;
+    c.shadowColor = col; c.shadowBlur = 5;
+    c.fillRect(x + r * 0.3, y - r * 0.6, r * 0.4, r * 1.2);
+    c.shadowBlur = 0;
+    c.fillStyle = 'rgba(255,255,255,0.7)';
+    c.fillRect(x + r * 0.35, y - r * 0.55, r * 0.3, 1.5);
+  } else if (style === 'monocle') {
+    c.strokeStyle = col; c.lineWidth = 1.5;
+    c.beginPath(); c.arc(x + r * 0.5, y + r * 0.35, r * 0.24, 0, Math.PI * 2); c.stroke();
+    c.fillStyle = col + '66';
+    c.beginPath(); c.arc(x + r * 0.5, y + r * 0.35, r * 0.22, 0, Math.PI * 2); c.fill();
+  }
+}
+
+function drawHatInGame(c, x, y, r, style, color) {
+  if (!style || style === 'none') return;
+  const col = color || '#222';
+  c.fillStyle = col;
+  if (style === 'beanie') {
+    c.beginPath(); c.arc(x, y, r * 1.05, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#fff';
+    c.beginPath(); c.arc(x + r * 0.7, y, 2, 0, Math.PI * 2); c.fill();
+  } else if (style === 'cap') {
+    c.beginPath(); c.arc(x, y, r * 0.95, 0, Math.PI * 2); c.fill();
+    c.fillStyle = darken(col, 0.7);
+    c.beginPath();
+    c.ellipse(x + r * 0.95, y, r * 0.55, r * 0.7, 0, -Math.PI / 2, Math.PI / 2);
+    c.fill();
+  } else if (style === 'helmet') {
+    c.beginPath(); c.arc(x, y, r * 1.08, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#aaa';
+    c.fillRect(x - r * 0.2, y - r * 0.05, r * 1.2, r * 0.1);
+  } else if (style === 'cowboy') {
+    c.fillStyle = col;
+    c.beginPath();
+    c.ellipse(x, y, r * 1.45, r * 1.05, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = darken(col, 0.6);
+    c.beginPath(); c.arc(x, y, r * 0.65, 0, Math.PI * 2); c.fill();
+  } else if (style === 'crown') {
+    c.fillStyle = col;
+    c.shadowColor = col; c.shadowBlur = 6;
+    for (let i = -2; i <= 2; i++) {
+      c.save();
+      c.translate(x, y);
+      c.rotate(i * 0.32);
+      c.beginPath();
+      c.moveTo(0, -r * 0.6);
+      c.lineTo(r * 0.95, 0);
+      c.lineTo(0, r * 0.6);
+      c.closePath();
+      c.fill();
+      c.restore();
+    }
+    c.shadowBlur = 0;
+    c.fillStyle = '#ff3a3a';
+    c.beginPath(); c.arc(x + r * 0.4, y, 2, 0, Math.PI * 2); c.fill();
+  } else if (style === 'halo') {
+    c.strokeStyle = col; c.lineWidth = 2.5;
+    c.shadowColor = col; c.shadowBlur = 10;
+    c.beginPath(); c.arc(x, y, r * 1.45, 0, Math.PI * 2); c.stroke();
+    c.shadowBlur = 0;
+  } else if (style === 'horns') {
+    c.fillStyle = col;
+    for (const sign of [-1, 1]) {
+      c.beginPath();
+      c.moveTo(x - r * 0.2, sign * r * 0.4);
+      c.lineTo(x + r * 0.7, sign * r * 1.0);
+      c.lineTo(x + r * 0.4, sign * r * 0.55);
+      c.closePath();
+      c.fill();
+    }
+  } else if (style === 'top') {
+    c.fillStyle = col;
+    c.beginPath(); c.arc(x, y, r * 0.95, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#aa1818';
+    c.beginPath(); c.arc(x, y, r * 0.55, 0, Math.PI * 2); c.fill();
+  } else if (style === 'wizard') {
+    c.fillStyle = col;
+    c.beginPath(); c.arc(x, y, r * 0.95, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#ffd54a';
+    c.font = 'bold 7px sans-serif';
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('✦', x, y);
+  } else if (style === 'pumpkin') {
+    c.fillStyle = col;
+    c.shadowColor = '#ff7a14'; c.shadowBlur = 6;
+    c.beginPath(); c.arc(x, y, r * 1.05, 0, Math.PI * 2); c.fill();
+    c.shadowBlur = 0;
+    c.fillStyle = '#3a1a08';
+    c.beginPath(); c.arc(x + r * 0.3, y - r * 0.3, 2, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(x + r * 0.3, y + r * 0.3, 2, 0, Math.PI * 2); c.fill();
+  } else if (style === 'santa') {
+    c.fillStyle = col;
+    c.beginPath();
+    c.moveTo(x - r * 0.5, y - r * 0.55);
+    c.lineTo(x + r * 1.0, y);
+    c.lineTo(x - r * 0.5, y + r * 0.55);
+    c.closePath();
+    c.fill();
+    c.fillStyle = '#fff';
+    c.beginPath(); c.arc(x + r * 1.0, y, 2.5, 0, Math.PI * 2); c.fill();
+  }
+}
+
 function getCurrentCostume() {
   // Wardrobe = primär källa nu
   if (save.wardrobe) {
@@ -1614,6 +2002,14 @@ function getCurrentCostume() {
     const shirtO = getWardrobeOpt('shirt', w.shirt);
     const pantsO = getWardrobeOpt('pants', w.pants);
     const bandanaO = getWardrobeOpt('bandana', w.bandana);
+    const glassesO = w.glasses ? getWardrobeOpt('glasses', w.glasses) : null;
+    const hatO = w.hat ? getWardrobeOpt('hat', w.hat) : null;
+    // Item-VFX: hitta legendary/epic items med .vfx-property
+    const vfxList = [];
+    for (const cat of ['skin','hair','shirt','pants','bandana','glasses','hat']) {
+      const opt = w[cat] ? WARDROBE[cat] && WARDROBE[cat].find(o => o.id === w[cat]) : null;
+      if (opt && opt.vfx) vfxList.push(opt.vfx);
+    }
     return {
       id: 'custom', name: 'Custom',
       skin: skinO.color,
@@ -1623,6 +2019,9 @@ function getCurrentCostume() {
       pants: pantsO.color,
       hairStyle: hairO.style,
       hairColor: hairO.color,
+      glasses: glassesO,
+      hat: hatO,
+      vfx: vfxList,
     };
   }
   return COSTUMES.find(c => c.id === (save.costume || 'classic')) || COSTUMES[0];
@@ -5441,7 +5840,7 @@ const wardrobeScreen = document.getElementById('wardrobe-screen');
 const wardrobeTabsEl = document.getElementById('wardrobe-tabs');
 const wardrobeOptsEl = document.getElementById('wardrobe-options');
 const wardrobePreview = document.getElementById('wardrobe-preview');
-const WARDROBE_CAT_LABELS = { preset: '✨ Outfits', skin: '🧑 Hud', hair: '💇 Hår', shirt: '👕 Väst', pants: '👖 Byxor', bandana: '🪢 Bandana' };
+const WARDROBE_CAT_LABELS = { preset: '✨ Outfits', skin: '🧑 Hud', hair: '🧔 Ansiktshår', glasses: '👓 Glasögon', hat: '🎩 Hatt', shirt: '👕 Väst', pants: '👖 Byxor', bandana: '🪢 Bandana' };
 
 // Pre-set outfit-kombinationer — applicerar alla 5 categories i ett klick
 const WARDROBE_PRESETS = [
@@ -5655,7 +6054,84 @@ function drawWardrobePreview() {
   c.moveTo(-3, -bodyH - 8); c.lineTo(3, -bodyH - 8);
   c.stroke();
 
+  // GLASÖGON (på ögon-nivå)
+  const glassesOpt = w.glasses ? WARDROBE.glasses.find(o => o.id === w.glasses) : null;
+  if (glassesOpt && glassesOpt.style !== 'none') {
+    drawGlasses(c, 0, -bodyH - 14, headR, glassesOpt.style, glassesOpt.color);
+  }
+  // HATT (ovanpå huvudet, efter bandana men före VFX)
+  const hatOpt = w.hat ? WARDROBE.hat.find(o => o.id === w.hat) : null;
+  if (hatOpt && hatOpt.style !== 'none') {
+    drawHat(c, 0, -bodyH - 16, headR, hatOpt.style, hatOpt.color);
+  }
+
   c.restore();
+
+  // ITEM-VFX: rendera glow/aura/shimmer baserat på equippade legendary items.
+  // Sker UTANFÖR sway-rotation så effekten är stabil.
+  const cosVfx = getCurrentCostume().vfx || [];
+  if (cosVfx.length) {
+    const vfxT = t;
+    c.save();
+    c.translate(cx, cy);
+    for (const fx of cosVfx) {
+      if (fx === 'aura-red') {
+        const pulse = 0.5 + Math.sin(vfxT / 400) * 0.5;
+        const grad = c.createRadialGradient(0, -20, 10, 0, -20, 100);
+        grad.addColorStop(0, `rgba(255, 30, 30, ${0.18 * pulse})`);
+        grad.addColorStop(1, 'rgba(255, 30, 30, 0)');
+        c.fillStyle = grad;
+        c.fillRect(-100, -150, 200, 250);
+      } else if (fx === 'shimmer-gold') {
+        for (let i = 0; i < 3; i++) {
+          const ang = (vfxT / 600 + i * Math.PI * 2 / 3) % (Math.PI * 2);
+          const sx = Math.cos(ang) * 40, sy = -40 + Math.sin(ang) * 60;
+          c.fillStyle = '#ffd54a';
+          c.shadowColor = '#ffd54a'; c.shadowBlur = 10;
+          c.beginPath(); c.arc(sx, sy, 1.6, 0, Math.PI * 2); c.fill();
+        }
+        c.shadowBlur = 0;
+      } else if (fx === 'glow-cyan') {
+        const pulse = 0.5 + Math.sin(vfxT / 300) * 0.5;
+        const grad = c.createRadialGradient(0, -20, 5, 0, -20, 80);
+        grad.addColorStop(0, `rgba(60, 200, 255, ${0.22 * pulse})`);
+        grad.addColorStop(1, 'rgba(60, 200, 255, 0)');
+        c.fillStyle = grad;
+        c.fillRect(-80, -120, 160, 200);
+      } else if (fx === 'rainbow') {
+        const hue = (vfxT / 4) % 360;
+        const grad = c.createRadialGradient(0, -20, 10, 0, -20, 90);
+        grad.addColorStop(0, `hsla(${hue}, 100%, 60%, 0.25)`);
+        grad.addColorStop(1, 'transparent');
+        c.fillStyle = grad;
+        c.fillRect(-90, -130, 180, 220);
+      } else if (fx === 'halo-glow') {
+        const pulse = 0.6 + Math.sin(vfxT / 500) * 0.4;
+        c.strokeStyle = `rgba(255, 235, 136, ${pulse})`;
+        c.lineWidth = 3;
+        c.shadowColor = '#ffeb88'; c.shadowBlur = 20;
+        c.beginPath();
+        c.ellipse(0, -bodyH - 32, headR + 4, 5, 0, 0, Math.PI * 2);
+        c.stroke();
+        c.shadowBlur = 0;
+      } else if (fx === 'pumpkin-glow') {
+        const pulse = 0.7 + Math.sin(vfxT / 200) * 0.3;
+        const grad = c.createRadialGradient(0, -bodyH - 16, 5, 0, -bodyH - 16, 40);
+        grad.addColorStop(0, `rgba(255, 140, 30, ${0.5 * pulse})`);
+        grad.addColorStop(1, 'rgba(255, 140, 30, 0)');
+        c.fillStyle = grad;
+        c.fillRect(-40, -bodyH - 56, 80, 80);
+      } else if (fx === 'snow') {
+        for (let i = 0; i < 6; i++) {
+          const fy = ((vfxT / 4 + i * 40) % 200) - 100;
+          const fx2 = (i * 17 % 100) - 50;
+          c.fillStyle = 'rgba(255,255,255,0.7)';
+          c.beginPath(); c.arc(fx2, fy, 1.5, 0, Math.PI * 2); c.fill();
+        }
+      }
+    }
+    c.restore();
+  }
 
   // RIM-LIGHT från ovan (lila gradient så character popar mot bakgrunden)
   const rim = c.createLinearGradient(0, 0, 0, H);
@@ -5704,7 +6180,7 @@ function showWardrobeEquipFeedback(cardEl, label) {
 }
 function renderWardrobeTabs() {
   wardrobeTabsEl.innerHTML = '';
-  for (const cat of ['preset','skin','hair','shirt','pants','bandana']) {
+  for (const cat of ['preset','skin','hair','glasses','hat','shirt','pants','bandana']) {
     const btn = document.createElement('button');
     btn.className = 'small-btn' + (cat === _wardrobeCurrentTab ? ' active' : '');
     btn.textContent = WARDROBE_CAT_LABELS[cat];
@@ -5799,6 +6275,43 @@ function drawWardrobeCardThumb(canvas, cat, opt, ctxSkin) {
       c.fillStyle = darken(opt.color, 0.6);
       c.fillRect(cx - 12, cy - 8, 24, 1.5);
     }
+  } else if (cat === 'glasses') {
+    // Ansikte med glasögon
+    if (opt.style === 'none') {
+      c.fillStyle = '#3a3a3a';
+      c.strokeStyle = '#888';
+      c.lineWidth = 2;
+      c.setLineDash([4, 3]);
+      c.beginPath(); c.arc(cx, cy, W * 0.32, 0, Math.PI * 2); c.stroke();
+      c.setLineDash([]);
+      c.fillStyle = '#888';
+      c.font = 'bold 14px sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('✕', cx, cy + 1);
+    } else {
+      c.fillStyle = ctxSkin || '#d4a574';
+      c.beginPath(); c.arc(cx, cy, W * 0.34, 0, Math.PI * 2); c.fill();
+      drawGlasses(c, cx, cy, 14, opt.style, opt.color);
+    }
+  } else if (cat === 'hat') {
+    if (opt.style === 'none') {
+      c.fillStyle = '#3a3a3a';
+      c.strokeStyle = '#888';
+      c.lineWidth = 2;
+      c.setLineDash([4, 3]);
+      c.beginPath(); c.arc(cx, cy, W * 0.32, 0, Math.PI * 2); c.stroke();
+      c.setLineDash([]);
+      c.fillStyle = '#888';
+      c.font = 'bold 14px sans-serif';
+      c.textAlign = 'center';
+      c.textBaseline = 'middle';
+      c.fillText('✕', cx, cy + 1);
+    } else {
+      c.fillStyle = ctxSkin || '#d4a574';
+      c.beginPath(); c.arc(cx, cy + 4, W * 0.32, 0, Math.PI * 2); c.fill();
+      drawHat(c, cx, cy + 4, 14, opt.style, opt.color);
+    }
   }
 }
 
@@ -5843,8 +6356,10 @@ function renderWardrobeOptions() {
 
   const current = save.wardrobe[cat];
   for (const opt of WARDROBE[cat]) {
+    const tier = opt.tier || 'common';
+    const isLocked = typeof opt.unlock === 'function' ? !opt.unlock() : false;
     const card = document.createElement('div');
-    card.className = 'ward-card' + (opt.id === current ? ' active' : '');
+    card.className = 'ward-card tier-' + tier + (opt.id === current ? ' active' : '') + (isLocked ? ' locked' : '');
     const thumb = document.createElement('div');
     thumb.className = 'ward-thumb';
     const thumbCanvas = document.createElement('canvas');
@@ -5855,9 +6370,40 @@ function renderWardrobeOptions() {
     card.appendChild(thumb);
     const name = document.createElement('div');
     name.className = 'ward-name';
-    name.textContent = opt.name;
+    name.textContent = isLocked ? '???' : opt.name;
     card.appendChild(name);
+    // Tier-badge (visas på rare+) — liten färg-prick top-left
+    if (tier !== 'common') {
+      const badge = document.createElement('div');
+      badge.className = 'ward-tier-badge';
+      badge.textContent = tier === 'rare' ? 'R' : tier === 'epic' ? 'E' : '★';
+      card.appendChild(badge);
+    }
+    // Info-knapp om item har lore
+    if (opt.lore) {
+      const info = document.createElement('button');
+      info.className = 'ward-info-btn';
+      info.textContent = 'i';
+      info.title = 'Info';
+      info.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openItemInfoModal(cat, opt, isLocked);
+      });
+      card.appendChild(info);
+    }
+    // Lock-overlay
+    if (isLocked) {
+      const lockEl = document.createElement('div');
+      lockEl.className = 'ward-lock-overlay';
+      lockEl.innerHTML = '<span class="ward-lock-icon">🔒</span>';
+      card.appendChild(lockEl);
+    }
     card.addEventListener('click', () => {
+      if (isLocked) {
+        Audio.uiClick();
+        openItemInfoModal(cat, opt, true);
+        return;
+      }
       if (save.wardrobe[cat] === opt.id) return;
       save.wardrobe[cat] = opt.id;
       persist();
@@ -5867,6 +6413,53 @@ function renderWardrobeOptions() {
     });
     wardrobeOptsEl.appendChild(card);
   }
+}
+
+// ============ ITEM-INFO-MODAL ============
+let _itemInfoModalEl = null;
+function openItemInfoModal(cat, opt, isLocked) {
+  if (!_itemInfoModalEl) {
+    _itemInfoModalEl = document.createElement('div');
+    _itemInfoModalEl.id = 'ward-info-modal';
+    _itemInfoModalEl.addEventListener('click', (e) => {
+      if (e.target === _itemInfoModalEl) closeItemInfoModal();
+    });
+    document.body.appendChild(_itemInfoModalEl);
+  }
+  const tier = opt.tier || 'common';
+  const tierName = { common: 'Vanlig', rare: 'Sällsynt', epic: 'Episk', legendary: 'Legendarisk' }[tier];
+  const tierColor = { common: '#aaa', rare: '#3acaff', epic: '#aa3aff', legendary: '#ffd54a' }[tier];
+  // Större preview-canvas i modal
+  _itemInfoModalEl.innerHTML = `
+    <div class="ward-info-panel tier-${tier}">
+      <button class="ward-info-close" aria-label="Stäng">×</button>
+      <canvas class="ward-info-canvas" width="120" height="120"></canvas>
+      <div class="ward-info-name">${isLocked ? '???' : opt.name}</div>
+      <div class="ward-info-tier" style="color:${tierColor}">${tierName.toUpperCase()}</div>
+      ${opt.lore ? `<div class="ward-info-lore">${isLocked ? 'Information låst — lås upp först.' : opt.lore}</div>` : ''}
+      ${isLocked ? '<div class="ward-info-unlock">🔒 LÅST</div>' : ''}
+      ${opt.vfx ? `<div class="ward-info-vfx">⚡ VFX i spelet: ${opt.vfx}</div>` : ''}
+    </div>
+  `;
+  const ic = _itemInfoModalEl.querySelector('.ward-info-canvas');
+  if (ic) {
+    // Använd en intern 44×44 buffer + skala upp till modal-storlek så design-koden
+    // i drawWardrobeCardThumb (som är optimerad för 44px) funkar utan ändring.
+    const buf = document.createElement('canvas');
+    buf.width = 44; buf.height = 44;
+    drawWardrobeCardThumb(buf, cat, opt, (getWardrobeOpt('skin', save.wardrobe && save.wardrobe.skin) || {}).color || '#d4a574');
+    const ictx = ic.getContext('2d');
+    ictx.imageSmoothingEnabled = false;
+    ictx.clearRect(0, 0, ic.width, ic.height);
+    ictx.drawImage(buf, 0, 0, ic.width, ic.height);
+  }
+  _itemInfoModalEl.querySelector('.ward-info-close').addEventListener('click', closeItemInfoModal);
+  _itemInfoModalEl.classList.add('show');
+  Audio.uiClick();
+}
+function closeItemInfoModal() {
+  if (_itemInfoModalEl) _itemInfoModalEl.classList.remove('show');
+  Audio.uiClick();
 }
 
 // ============ SLOTS ============
@@ -5986,6 +6579,7 @@ function openWardrobe() {
   renderWardrobeTabs();
   renderWardrobeOptions();
   renderWardrobeSlots();
+  applyWardrobeTheme();
   // Starta animation-loop
   if (_wardrobeRaf) cancelAnimationFrame(_wardrobeRaf);
   _wardrobeRaf = requestAnimationFrame(wardrobeAnimTick);
@@ -5996,6 +6590,8 @@ function closeWardrobe() {
     cancelAnimationFrame(_wardrobeRaf);
     _wardrobeRaf = 0;
   }
+  closeItemInfoModal();
+  applyWardrobeTheme();
   Audio.uiClick();
 }
 const _btnWardrobe = document.getElementById('btn-wardrobe');
@@ -6006,7 +6602,78 @@ const _btnWardrobeRandom = document.getElementById('btn-wardrobe-random');
 if (_btnWardrobeRandom) _btnWardrobeRandom.addEventListener('click', randomizeWardrobe);
 const _btnWardrobeReset = document.getElementById('btn-wardrobe-reset');
 if (_btnWardrobeReset) _btnWardrobeReset.addEventListener('click', resetWardrobe);
+const _btnWardrobePhoto = document.getElementById('btn-wardrobe-photo');
+if (_btnWardrobePhoto) _btnWardrobePhoto.addEventListener('click', takeWardrobePhoto);
 bindWardrobeSlotHandlers();
+
+// ============ PHOTO BOOTH ============
+function takeWardrobePhoto() {
+  if (!wardrobePreview) return;
+  // Skapa hög-upplöst version av karaktären på en cleaner bakgrund (300×400 base)
+  const photoCanvas = document.createElement('canvas');
+  photoCanvas.width = 600; photoCanvas.height = 760;
+  const pc = photoCanvas.getContext('2d');
+  // Cinematic-bakgrund med radial spotlight
+  const bgGrad = pc.createRadialGradient(300, 380, 50, 300, 380, 500);
+  bgGrad.addColorStop(0, '#3a1a5a');
+  bgGrad.addColorStop(0.5, '#1a0a2a');
+  bgGrad.addColorStop(1, '#000');
+  pc.fillStyle = bgGrad;
+  pc.fillRect(0, 0, photoCanvas.width, photoCanvas.height);
+  // Scan-lines för cool retro look
+  pc.fillStyle = 'rgba(255,255,255,0.03)';
+  for (let yy = 0; yy < photoCanvas.height; yy += 3) {
+    pc.fillRect(0, yy, photoCanvas.width, 1);
+  }
+  // Spelnamn-watermark uppe
+  pc.fillStyle = 'rgba(255,213,74,0.7)';
+  pc.font = 'bold 18px sans-serif';
+  pc.textAlign = 'center';
+  pc.fillText('THE PENETRATOR', 300, 36);
+  pc.fillStyle = 'rgba(170,58,255,0.6)';
+  pc.font = '12px sans-serif';
+  pc.fillText('— Min outfit —', 300, 56);
+  // Skala upp wardrobePreview till photo-canvas (2x)
+  pc.imageSmoothingEnabled = false;
+  pc.drawImage(wardrobePreview, 0, 80, 600, 760);
+  // Underskrift
+  pc.fillStyle = 'rgba(255,255,255,0.5)';
+  pc.font = '11px sans-serif';
+  pc.fillText(new Date().toLocaleDateString('sv-SE'), 300, photoCanvas.height - 12);
+  // Trigger download
+  try {
+    const url = photoCanvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'penetrator-outfit-' + Date.now() + '.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    Audio.purchase();
+    showWardrobeEquipFeedback(null, '📸 SPARAD!');
+  } catch (e) {
+    console.warn('[PHOTO] Export failed:', e.message);
+    showWardrobeEquipFeedback(null, '⚠ EXPORT FAILED');
+  }
+}
+
+// ============ THEME PREVIEW ============
+// Vissa outfits sätter en CSS-variabel som tintar HUD-accent. Subtilt.
+function applyWardrobeTheme() {
+  if (!save.wardrobe) return;
+  const w = save.wardrobe;
+  // Theme baserat på bandana-färg (mest framträdande accent)
+  const bandanaOpt = w.bandana ? WARDROBE.bandana.find(o => o.id === w.bandana) : null;
+  let themeColor = null;
+  if (bandanaOpt && bandanaOpt.color && bandanaOpt.tier && bandanaOpt.tier !== 'common') {
+    themeColor = bandanaOpt.color;
+  }
+  if (themeColor) {
+    document.documentElement.style.setProperty('--player-theme', themeColor);
+  } else {
+    document.documentElement.style.removeProperty('--player-theme');
+  }
+}
 
 // COMPANIONS-skärm
 const companionsScreen = document.getElementById('companions-screen');
@@ -14438,6 +15105,16 @@ function drawPlayer() {
   ctx.beginPath(); ctx.arc(p.r * 0.50, -p.r * 0.18, 1.8, 0, Math.PI*2); ctx.fill();
   ctx.beginPath(); ctx.arc(p.r * 0.50,  p.r * 0.18, 1.8, 0, Math.PI*2); ctx.fill();
 
+  // GLASÖGON (ovanpå ögon-nivå)
+  if (cos.glasses && cos.glasses.style && cos.glasses.style !== 'none') {
+    drawGlassesInGame(ctx, p.r * 0.20, 0, p.r * 0.55, cos.glasses.style, flash ? '#fff' : cos.glasses.color);
+  }
+
+  // HATT (ovanpå huvudet — under skägg-rendering så skägg ligger nedanför)
+  if (cos.hat && cos.hat.style && cos.hat.style !== 'none') {
+    drawHatInGame(ctx, p.r * 0.20, 0, p.r * 0.55, cos.hat.style, flash ? '#fff' : cos.hat.color);
+  }
+
   // SKÄGG (tjockare, syns från ovan)
   ctx.fillStyle = flash ? '#fff' : '#1a0a08';
   ctx.beginPath(); ctx.ellipse(p.r * 0.62, 0, p.r * 0.24, p.r * 0.28, 0, 0, Math.PI*2); ctx.fill();
@@ -14446,6 +15123,74 @@ function drawPlayer() {
   drawPlayerWeapon(p, w, flash, now);
 
   ctx.restore();
+
+  // ITEM-VFX i spelet — legendary items genererar passive auror/glow runt spelaren.
+  // Drawing is in screen coords (efter restore).
+  if (cos.vfx && cos.vfx.length) {
+    drawPlayerVfx(p, x, y, cos.vfx, now);
+  }
+}
+
+// Rita item-VFX (aura, shimmer, halo) runt spelaren i screen-coords.
+function drawPlayerVfx(p, x, y, vfxList, now) {
+  for (const fx of vfxList) {
+    if (fx === 'aura-red') {
+      const pulse = 0.4 + Math.sin(now / 400) * 0.4;
+      const grad = ctx.createRadialGradient(x, y, p.r * 0.5, x, y, p.r * 3);
+      grad.addColorStop(0, `rgba(255, 30, 30, ${0.20 * pulse})`);
+      grad.addColorStop(1, 'rgba(255, 30, 30, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(x, y, p.r * 3, 0, Math.PI * 2); ctx.fill();
+    } else if (fx === 'shimmer-gold') {
+      for (let i = 0; i < 3; i++) {
+        const ang = (now / 600 + i * Math.PI * 2 / 3) % (Math.PI * 2);
+        const sx = x + Math.cos(ang) * p.r * 1.8;
+        const sy = y + Math.sin(ang) * p.r * 1.8;
+        ctx.fillStyle = '#ffd54a';
+        ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 8;
+        ctx.beginPath(); ctx.arc(sx, sy, 1.6, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.shadowBlur = 0;
+    } else if (fx === 'glow-cyan') {
+      const pulse = 0.5 + Math.sin(now / 300) * 0.5;
+      const grad = ctx.createRadialGradient(x, y, p.r * 0.4, x, y, p.r * 2.4);
+      grad.addColorStop(0, `rgba(60, 200, 255, ${0.22 * pulse})`);
+      grad.addColorStop(1, 'rgba(60, 200, 255, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(x, y, p.r * 2.4, 0, Math.PI * 2); ctx.fill();
+    } else if (fx === 'rainbow') {
+      const hue = (now / 4) % 360;
+      const grad = ctx.createRadialGradient(x, y, p.r * 0.5, x, y, p.r * 2.5);
+      grad.addColorStop(0, `hsla(${hue}, 100%, 60%, 0.25)`);
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(x, y, p.r * 2.5, 0, Math.PI * 2); ctx.fill();
+    } else if (fx === 'halo-glow') {
+      const pulse = 0.6 + Math.sin(now / 500) * 0.4;
+      ctx.strokeStyle = `rgba(255, 235, 136, ${pulse})`;
+      ctx.lineWidth = 2.5;
+      ctx.shadowColor = '#ffeb88'; ctx.shadowBlur = 14;
+      ctx.beginPath();
+      ctx.ellipse(x, y - p.r * 1.6, p.r * 1.2, p.r * 0.3, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    } else if (fx === 'pumpkin-glow') {
+      const pulse = 0.7 + Math.sin(now / 200) * 0.3;
+      const grad = ctx.createRadialGradient(x, y, 2, x, y, p.r * 1.4);
+      grad.addColorStop(0, `rgba(255, 140, 30, ${0.5 * pulse})`);
+      grad.addColorStop(1, 'rgba(255, 140, 30, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(x, y, p.r * 1.4, 0, Math.PI * 2); ctx.fill();
+    } else if (fx === 'snow') {
+      // 4 snöflingor randomly falling around player
+      for (let i = 0; i < 4; i++) {
+        const fy = ((now / 4 + i * 50) % 100) - 50;
+        const fxOff = ((i * 23) % 30) - 15;
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.beginPath(); ctx.arc(x + fxOff, y + fy, 1.2, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
 }
 
 // Per-vapen visuella detaljer (alla i player-rotation där +x = framåt-aim)

@@ -1397,6 +1397,191 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   50% { filter: blur(2px) hue-rotate(180deg); }
 }
 
+/* TIER-FÄRGER på cards */
+.ward-card.tier-common { /* default — ingen extra styling */ }
+.ward-card.tier-rare {
+  background: linear-gradient(180deg, rgba(60,140,200,0.25), rgba(20,40,80,0.5));
+  border-color: rgba(60,200,255,0.35);
+}
+.ward-card.tier-rare:hover { border-color: #3acaff; box-shadow: 0 6px 14px rgba(60,200,255,0.4); }
+.ward-card.tier-epic {
+  background: linear-gradient(180deg, rgba(140,60,200,0.3), rgba(60,20,120,0.5));
+  border-color: rgba(170,90,255,0.5);
+}
+.ward-card.tier-epic:hover { border-color: #aa3aff; box-shadow: 0 6px 18px rgba(170,58,255,0.5); }
+.ward-card.tier-legendary {
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255,235,136,0.18) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(200,140,40,0.3), rgba(120,60,10,0.5));
+  border-color: rgba(255,213,74,0.6);
+  animation: wardLegendaryShimmer 3s ease-in-out infinite;
+}
+@keyframes wardLegendaryShimmer {
+  0%, 100% { box-shadow: 0 0 8px rgba(255,213,74,0.4); }
+  50% { box-shadow: 0 0 16px rgba(255,213,74,0.7), 0 0 24px rgba(255,213,74,0.3); }
+}
+.ward-card.tier-legendary:hover { border-color: #ffd54a; box-shadow: 0 0 22px rgba(255,213,74,0.8); }
+
+/* TIER-BADGE — liten R/E/★ top-left */
+.ward-tier-badge {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0;
+  padding: 1px 4px;
+  border-radius: 4px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+}
+.tier-rare .ward-tier-badge { background: rgba(60,200,255,0.7); color: #fff; }
+.tier-epic .ward-tier-badge { background: rgba(170,58,255,0.85); color: #fff; }
+.tier-legendary .ward-tier-badge { background: rgba(255,213,74,0.95); color: #000; }
+
+/* INFO-knapp */
+.ward-info-btn {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,213,74,0.5);
+  color: #ffd54a;
+  font-size: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  font-family: serif;
+  font-style: italic;
+}
+.ward-info-btn:hover { background: rgba(255,213,74,0.3); transform: scale(1.15); }
+
+/* LOCKED-overlay */
+.ward-card.locked {
+  filter: grayscale(0.8) brightness(0.6);
+  cursor: help;
+}
+.ward-card.locked:hover { filter: grayscale(0.5) brightness(0.85); }
+.ward-lock-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.ward-lock-icon {
+  font-size: 20px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+}
+
+/* ITEM-INFO MODAL */
+#ward-info-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 20px;
+}
+#ward-info-modal.show { display: flex; }
+.ward-info-panel {
+  background: linear-gradient(180deg, rgba(40,20,55,0.98), rgba(15,5,25,0.98));
+  border: 2px solid rgba(170,58,255,0.5);
+  border-radius: 14px;
+  padding: 24px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  position: relative;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.8);
+  animation: wardInfoModalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes wardInfoModalIn {
+  from { transform: scale(0.85); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.ward-info-panel.tier-rare { border-color: #3acaff; box-shadow: 0 12px 40px rgba(60,200,255,0.3); }
+.ward-info-panel.tier-epic { border-color: #aa3aff; box-shadow: 0 12px 40px rgba(170,58,255,0.4); }
+.ward-info-panel.tier-legendary {
+  border-color: #ffd54a;
+  box-shadow: 0 12px 40px rgba(255,213,74,0.5);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255,235,136,0.15) 0%, transparent 50%),
+    linear-gradient(180deg, rgba(60,30,10,0.98), rgba(15,5,5,0.98));
+}
+.ward-info-close {
+  position: absolute;
+  top: 8px; right: 12px;
+  background: none;
+  border: none;
+  color: #aaa;
+  font-size: 28px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  font-weight: 100;
+}
+.ward-info-close:hover { color: #fff; }
+.ward-info-canvas {
+  width: 120px;
+  height: 120px;
+  background: rgba(0,0,0,0.5);
+  border-radius: 10px;
+  margin: 8px auto 16px;
+  display: block;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+.ward-info-name {
+  font-size: 20px;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.ward-info-tier {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  margin-bottom: 14px;
+}
+.ward-info-lore {
+  font-size: 13px;
+  color: #ddd;
+  line-height: 1.5;
+  margin-bottom: 12px;
+  font-style: italic;
+}
+.ward-info-unlock {
+  background: rgba(80,30,30,0.5);
+  border: 1px solid rgba(255,60,60,0.4);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #ff7a7a;
+  letter-spacing: 1px;
+  margin-top: 8px;
+}
+.ward-info-vfx {
+  background: rgba(170,58,255,0.2);
+  border: 1px solid rgba(170,58,255,0.4);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: #d8b0ff;
+  margin-top: 8px;
+  font-family: monospace;
+}
+
 /* Equip-toast — slide-in från höger */
 #ward-equip-toast {
   position: absolute;
