@@ -1462,14 +1462,10 @@ function loadSave() {
     return defaultSave();
   }
 }
-// COSTUMES
-const COSTUMES = [
-  { id: 'classic',    name: 'Classic',         desc: 'Bandana + svart tee', skin: '#d8a878', shirt: '#222', bandana: '#0a0a0a', accent: '#aa1818', unlock: () => true },
-  { id: 'tactical',   name: 'Tactical',        desc: 'Full kevlar', skin: '#d8a878', shirt: '#1a3a1a', bandana: '#3a4a26', accent: '#3a3a3a', unlock: () => save.stats && save.stats.wins >= 1 },
-  { id: 'vintage',    name: 'Vintage Soldier', desc: '70-tals uniform', skin: '#d8a878', shirt: '#5a4a2a', bandana: '#3a2a18', accent: '#2a1a08', unlock: () => save.stats && save.stats.totalKills >= 500 },
-  { id: 'cyberpunk',  name: 'Cyberpunk',       desc: 'Neon-detaljer', skin: '#e8b888', shirt: '#1a1a2a', bandana: '#aa3aff', accent: '#3acaff', unlock: () => save.cheatsUnlocked >= 1 },
-  { id: 'demon',      name: 'Demon-form',      desc: 'NG+++ låst', skin: '#a07060', shirt: '#3a0a14', bandana: '#7a1818', accent: '#ff1a1a', unlock: () => getNGPLevel() >= 3 },
-];
+// COSTUMES borttaget — wardrobe är primär källa nu. Fallback i getCurrentCostume
+// säkerställer att om save.wardrobe saknas (legacy save), så initieras den via
+// ensureWardrobe innan render körs (i actuallyStartGame + openWardrobe).
+const _CLASSIC_FALLBACK = { id: 'classic', name: 'Classic', skin: '#d8a878', shirt: '#222', bandana: '#0a0a0a', accent: '#aa1818', pants: '#3a3528' };
 // WARDROBE — mix & match (7 kategorier, många alternativ, tier-system)
 // tier: 'common' (grå), 'rare' (blå), 'epic' (lila), 'legendary' (guld)
 // unlock: () => bool, om saknas är item alltid unlocked
@@ -2279,10 +2275,10 @@ function getCurrentCostume() {
     _costumeCacheFrame = fr;
     return cos;
   }
-  const fallback = COSTUMES.find(c => c.id === (save.costume || 'classic')) || COSTUMES[0];
-  _costumeCache = fallback;
+  // Legacy fallback: bara om save.wardrobe är null/undefined (sällsynt)
+  _costumeCache = _CLASSIC_FALLBACK;
   _costumeCacheFrame = fr;
-  return fallback;
+  return _CLASSIC_FALLBACK;
 }
 
 // applyHueShift: shift en hex-färg's hue med ° (0-359). Använd RGB→HSL→RGB.
@@ -4552,7 +4548,7 @@ const Coop = {
           const delay = 1000 * Math.pow(2, attempt);
           this._reconnectAttempt = attempt + 1;
           if (typeof showToast === 'function') showToast('Anslutning bröts — försöker igen om ' + (delay/1000) + 's...');
-          console.log('[Coop] reconnect attempt', this._reconnectAttempt, 'in', delay, 'ms');
+          if (window._debug) console.log('[Coop] reconnect attempt', this._reconnectAttempt, 'in', delay, 'ms');
           setTimeout(() => {
             if (!this.active) return;  // user disconnected manually
             this._connectWS(this._lastAsHost, this._lastJoinCode, this._lastOnConnect, this._lastOnError);
@@ -4618,7 +4614,7 @@ const Coop = {
       state._stageClearShownForWave = null;
       state._waveCompleting = false;
       state._countdownEndAt = null;
-      console.log('[SIM] activated');
+      if (window._debug) console.log('[SIM] activated');
       if (typeof showToast === 'function') showToast('🌐 Server-sim AKTIV');
       // Starta server-ping-loop för RTT-mätning
       if (this._serverPingInterval) clearInterval(this._serverPingInterval);
@@ -4776,7 +4772,7 @@ const Coop = {
         showTdmEndScreen(ev.winner, ev.redKills || 0, ev.blueKills || 0, ev.stats || [], this.tdmTeams || {});
       }
     } else if (ev.type === 'stage_loaded') {
-      console.log('[SIM] stage loaded:', ev.stageName);
+      if (window._debug) console.log('[SIM] stage loaded:', ev.stageName);
     } else if (ev.type === 'countdown_start') {
       // 5-sekunders prep-overlay innan stage börjar — alla synkar position
       state._countdownEndAt = performance.now() + (ev.durationMs || 5000);
@@ -6126,62 +6122,9 @@ function updateServerSimToggleVisibility() {
   }
 }
 
-// TDM toggle (host-only) — kräver server-sim, så aktiverar den automatiskt
-const coopTdmToggle = document.getElementById('coop-tdm-toggle');
-const coopTdmRow = document.getElementById('coop-tdm-row');
-const coopTdmOptions = document.getElementById('coop-tdm-options');
-if (coopTdmToggle) {
-  coopTdmToggle.addEventListener('change', () => {
-    Coop.config.tdm = coopTdmToggle.checked;
-    if (Coop.config.tdm) {
-      // TDM kräver server-sim
-      Coop.config.serverSim = true;
-      if (coopServerSimToggle) coopServerSimToggle.checked = true;
-      Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
-      coopTdmOptions.classList.remove('hidden');
-    } else {
-      coopTdmOptions.classList.add('hidden');
-    }
-    if (Coop.isHost) Coop.updateConfig({
-      tdm: Coop.config.tdm,
-      tdmTargetKills: Coop.config.tdmTargetKills,
-      serverSim: Coop.config.serverSim,
-    });
-    updateTdmToggleVisibility();
-  });
-}
-// Target-kills knappar
-document.querySelectorAll('.tdm-target-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const tk = parseInt(btn.dataset.tk, 10);
-    Coop.config.tdmTargetKills = tk;
-    document.querySelectorAll('.tdm-target-btn').forEach(b => b.classList.toggle('active', b === btn));
-    if (Coop.isHost) Coop.updateConfig({ tdmTargetKills: tk });
-  });
-});
-function updateTdmToggleVisibility() {
-  if (!coopTdmRow) return;
-  if (Coop.isHost) {
-    coopTdmRow.classList.remove('hidden');
-    if (coopTdmToggle) coopTdmToggle.checked = !!Coop.config.tdm;
-    if (coopTdmOptions) coopTdmOptions.classList.toggle('hidden', !Coop.config.tdm);
-    // Markera default-knapp
-    const tk = Coop.config.tdmTargetKills || 10;
-    document.querySelectorAll('.tdm-target-btn').forEach(b => {
-      b.classList.toggle('active', parseInt(b.dataset.tk, 10) === tk);
-    });
-  } else if (Coop.active && Coop.config.tdm) {
-    coopTdmRow.classList.remove('hidden');
-    if (coopTdmToggle) { coopTdmToggle.checked = true; coopTdmToggle.disabled = true; }
-    if (coopTdmOptions) coopTdmOptions.classList.remove('hidden');
-    document.querySelectorAll('.tdm-target-btn').forEach(b => {
-      b.disabled = true;
-      b.classList.toggle('active', parseInt(b.dataset.tk, 10) === (Coop.config.tdmTargetKills || 10));
-    });
-  } else {
-    coopTdmRow.classList.add('hidden');
-  }
-}
+// TDM-toggle borttagen — TDM aktiveras nu via lobby-pvp-buttons (renderHostControls).
+// updateTdmToggleVisibility behålls som no-op för bakåtkompat med call-sites.
+function updateTdmToggleVisibility() { /* TDM via PVP-knapprad nu */ }
 const _origRenderLobbyPlayers = renderLobbyPlayers;
 Coop.onLobbyChange = (players) => {
   _origRenderLobbyPlayers(players);
@@ -6317,49 +6260,8 @@ btnCoopStart.addEventListener('click', () => {
   }
 });
 
-// COSTUMES-skärm
-const costumesScreen = document.getElementById('costumes-screen');
-const costumesGrid = document.getElementById('costumes-grid');
-function openCostumes() {
-  if (!costumesScreen || !costumesGrid) return; // outfit-feature borttagen
-  costumesScreen.classList.remove('hidden');
-  Audio.uiClick();
-  costumesGrid.innerHTML = '';
-  for (const c of COSTUMES) {
-    const unlocked = c.unlock();
-    const equipped = save.costume === c.id || (!save.costume && c.id === 'classic');
-    const card = document.createElement('div');
-    card.className = 'cheat-card ' + (unlocked ? (equipped ? 'unlocked active' : 'unlocked') : 'locked');
-    card.innerHTML = `
-      <div class="cheat-icon" style="background:${c.shirt};border:2px solid ${c.accent};border-radius:50%;width:46px;height:46px;display:flex;align-items:center;justify-content:center;">
-        <div style="width:22px;height:22px;background:${c.skin};border-radius:50%;border:2px solid ${c.bandana};"></div>
-      </div>
-      <div class="cheat-info">
-        <div class="cheat-name">${unlocked ? c.name : '???'}</div>
-        <div class="cheat-desc">${unlocked ? c.desc : 'Låst'}</div>
-      </div>
-      <div class="cheat-toggle">${equipped ? 'PÅ' : (unlocked ? 'BYT' : '🔒')}</div>
-    `;
-    if (unlocked) {
-      card.addEventListener('click', () => {
-        save.costume = c.id;
-        persist();
-        Audio.uiClick();
-        openCostumes();
-      });
-    }
-    costumesGrid.appendChild(card);
-  }
-}
-// Outfits-feature borttagen — wardrobe är primär. Null-check så koden inte
-// kraschar för legacy save-states som råkar kalla openCostumes.
-const _btnCostumes = document.getElementById('btn-costumes');
-if (_btnCostumes) _btnCostumes.addEventListener('click', openCostumes);
-const _btnCostumesClose = document.getElementById('btn-costumes-close');
-if (_btnCostumesClose) _btnCostumesClose.addEventListener('click', () => {
-  if (costumesScreen) costumesScreen.classList.add('hidden');
-  Audio.uiClick();
-});
+// COSTUMES-feature borttagen (rest av outfits-system). Wardrobe Phase 1-3 är primär.
+// Inga DOM-refs, inga listeners. Legacy save.costume ignoreras nu — wardrobe är auth.
 
 // WARDROBE-skärm
 const wardrobeScreen = document.getElementById('wardrobe-screen');
@@ -7250,19 +7152,27 @@ function takeWardrobePhoto() {
   pc.fillStyle = 'rgba(255,255,255,0.5)';
   pc.font = '11px sans-serif';
   pc.fillText(new Date().toLocaleDateString('sv-SE'), 300, photoCanvas.height - 12);
-  // Trigger download
+  // Trigger download — iOS Safari ignorerar `download`-attribute så vi öppnar
+  // i ny tab så user kan long-press → "Spara i bilder".
   try {
     const url = photoCanvas.toDataURL('image/png');
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'penetrator-outfit-' + Date.now() + '.png';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    Audio.purchase();
-    showWardrobeEquipFeedback(null, '📸 SPARAD!');
+    const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent);
+    if (isIOS) {
+      window.open(url, '_blank');
+      Audio.purchase();
+      showWardrobeEquipFeedback(null, '📸 LÅNGTRYCK FÖR ATT SPARA');
+    } else {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'penetrator-outfit-' + Date.now() + '.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      Audio.purchase();
+      showWardrobeEquipFeedback(null, '📸 SPARAD!');
+    }
   } catch (e) {
-    console.warn('[PHOTO] Export failed:', e.message);
+    if (window._debug) console.warn('[PHOTO] Export failed:', e.message);
     showWardrobeEquipFeedback(null, '⚠ EXPORT FAILED');
   }
 }
@@ -8414,7 +8324,7 @@ function killEnemy(e) {
       setTimeout(() => spawnSecondBoss(stage), 1200);
     } else {
       state.bossDefeated = true;
-      console.log('[GAME] Boss dead — väntar på att alla minions är döda');
+      if (window._debug) console.log('[GAME] Boss dead — väntar på att alla minions är döda');
     }
   }
   updateHUD();
@@ -9222,7 +9132,7 @@ function onWaveComplete() {
     spawnSparks(p.x, p.y, '#ffd54a', 24, 380);
     triggerShake(6, 0.4);
   }
-  console.log('[GAME] Stage ' + state.wave + ' complete');
+  if (window._debug) console.log('[GAME] Stage ' + state.wave + ' complete');
   // I coop: host broadcastar event till klienter
   if (Coop.active && Coop.isHost) {
     Coop.broadcast({ type: 'event', event: 'stage_complete' });
@@ -9294,7 +9204,7 @@ function onWaveComplete() {
 
 // Visa STAGE CLEAR-overlay med manuell FORTSÄTT-knapp
 function showStageClearOverlay() {
-  console.log('[GAME] showStageClearOverlay called');
+  if (window._debug) console.log('[GAME] showStageClearOverlay called');
   state._stageClearShown = true;
   try {
     const overlay = document.getElementById('stage-clear-overlay');
@@ -9329,7 +9239,7 @@ function showStageClearOverlay() {
     }
     overlay.classList.remove('hidden');
     try { Audio.victory(); } catch(e) {}
-    console.log('[GAME] Stage clear overlay visible');
+    if (window._debug) console.log('[GAME] Stage clear overlay visible');
   } catch (e) {
     console.error('[GAME] showStageClearOverlay error:', e);
     // Fallback om något går fel: hoppa direkt
@@ -10763,53 +10673,8 @@ function showKillstreakBanner(count) {
   if (count === 5) Audio.achievement();
   if (count === 10) { Audio.achievement(); triggerShake(4, 0.15); }
 }
-// Combo-counter: visar "COMBO ×N" i top-center när N >= 5, växer med streak,
-// fadar ut efter 1.8s utan ny hit.
-function drawComboCounter() {
-  const now = performance.now();
-  const elapsed = now - (state.lastComboHit || 0);
-  if (!state.comboHits || state.comboHits < 5 || elapsed > 1800) return;
-  // Fade-out de sista 400ms av lifespan
-  const fadeStart = 1800 - 400;
-  let alpha = 1;
-  if (elapsed > fadeStart) alpha = (1800 - elapsed) / 400;
-  // Scale grows with streak (10→1.0, 25→1.3, 50→1.6, 100+→2.0)
-  const n = state.comboHits;
-  const scale = Math.min(2.0, 1.0 + (n - 5) * 0.025);
-  // Tier-color per streak
-  let col = '#fff';
-  if (n >= 50) col = '#ffd54a';
-  else if (n >= 25) col = '#ff8a3a';
-  else if (n >= 15) col = '#aa3aff';
-  else if (n >= 10) col = '#3acaff';
-  // Position: top-center under boss-HP-bar
-  const x = viewW / 2;
-  const y = 110;
-  // Bumpa upp om boss inte är aktiv
-  const yPos = (state.enemies && state.enemies.some(e => e.isBoss)) ? y + 60 : y;
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  ctx.translate(x, yPos);
-  ctx.scale(scale, scale);
-  // Pop-anim när siffran ändras
-  const sincePop = elapsed < 100 ? (1 + 0.15 * (1 - elapsed / 100)) : 1;
-  ctx.scale(sincePop, sincePop);
-  // Text
-  ctx.font = 'bold 30px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.lineWidth = 5;
-  ctx.strokeStyle = '#000';
-  ctx.shadowColor = col; ctx.shadowBlur = 14;
-  ctx.strokeText('COMBO ×' + n, 0, 0);
-  ctx.fillStyle = col;
-  ctx.fillText('COMBO ×' + n, 0, 0);
-  ctx.shadowBlur = 0;
-  // Underline-bar
-  ctx.fillStyle = col;
-  const barW = 80 + Math.min(120, n);
-  ctx.fillRect(-barW / 2, 8, barW, 3);
-  ctx.restore();
-}
+// drawComboCounter borttaget (combo-state.comboHits räknas fortfarande för
+// maxComboThisRun-stats men ingen visuell render).
 
 function drawKillstreak() {
   if (killstreakBanner.timer <= 0) return;
@@ -10978,7 +10843,7 @@ function updateSimDiag() {
     'last event:    ' + _simDiag.lastEvent + '\n' +
     'wave:          ' + state.wave;
 }
-setInterval(updateSimDiag, 500);
+const _simDiagInterval = setInterval(updateSimDiag, 500);
 function updateLagIndicator() {
   if (!Coop.active || Coop.inLobby) {
     _lagIndicatorEl.style.display = 'none';
@@ -11006,7 +10871,7 @@ function updateLagIndicator() {
   _lagIndicatorEl.style.color = c;
   _lagIndicatorEl.textContent = txt;
 }
-setInterval(updateLagIndicator, 1000);
+const _lagIndicatorInterval = setInterval(updateLagIndicator, 1000);
 
 // Dynamiskt positionera #action-buttons så de är CENTRERADE under minimap.
 // CSS-algebran (right:25 + 84/2 == minimap right:12 + 110/2 == 67) bröt på
@@ -11043,7 +10908,7 @@ function _syncActionButtonsThrottled() {
   if (document.body.classList.contains('menu-mode')) return; // skip i menu
   syncActionButtonsToMinimap();
 }
-setInterval(_syncActionButtonsThrottled, 300);
+const _actionBtnSyncInterval = setInterval(_syncActionButtonsThrottled, 300);
 setTimeout(syncActionButtonsToMinimap, 50);
 setTimeout(syncActionButtonsToMinimap, 500);
 setTimeout(syncActionButtonsToMinimap, 1500);
@@ -11071,7 +10936,14 @@ function _syncEmoteThrottled() {
   if (document.body.classList.contains('menu-mode')) return;
   syncEmoteButtonToJoystick();
 }
-setInterval(_syncEmoteThrottled, 300);
+const _emoteSyncInterval = setInterval(_syncEmoteThrottled, 300);
+// Clean up alla intervals vid page-unload (defensiv mot mobile Safari memory-cleanup)
+window.addEventListener('beforeunload', () => {
+  clearInterval(_simDiagInterval);
+  clearInterval(_lagIndicatorInterval);
+  clearInterval(_actionBtnSyncInterval);
+  clearInterval(_emoteSyncInterval);
+});
 setTimeout(syncEmoteButtonToJoystick, 50);
 setTimeout(syncEmoteButtonToJoystick, 500);
 

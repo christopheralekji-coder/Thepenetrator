@@ -3330,12 +3330,8 @@ button, .shop-item, .player-row, .pet-card {
   20% { opacity: 1; }
   100% { opacity: 0; }
 }
-.tdm-target-btn.active {
-  background: linear-gradient(135deg, #ff5a5a, #aa3030) !important;
-  color: #fff !important;
-  border-color: #ff5a5a !important;
-  box-shadow: 0 0 6px rgba(255,90,90,0.5);
-}
+/* .tdm-target-btn-CSS borttagen — TDM aktiveras nu via lobby-pvp-buttons (renderHostControls).
+   Element-typen finns inte längre i DOM efter coop-tdm-row-borttagningen. */
 @media (max-width: 600px) {
   #tdm-score { font-size: 14px !important; padding: 4px 10px !important; }
   /* Kill-feed: krockar med fire-button + ammo-HUD i mobil-landskap. Flytta till

@@ -15,6 +15,12 @@ const { getStage } = require('../../shared/stages-data');
 // vi sätta SIM_TICK_HZ env-var lokalt utan ny deploy.
 const TICK_HZ = parseInt(process.env.SIM_TICK_HZ, 10) || 45;
 const TICK_MS = 1000 / TICK_HZ;
+// Broadcast-rate separat från tick: sim räknar fortfarande 45Hz för snabb
+// input-response, men world-broadcast sker bara 30Hz för att spara CPU vid
+// 8-player-rum (perMessageDeflate-compression är dyrast delen per-peer-send).
+// Klient interpolerar partner-positioner så 30Hz visual känns smooth.
+const BROADCAST_HZ = parseInt(process.env.SIM_BROADCAST_HZ, 10) || 30;
+const BROADCAST_EVERY = Math.max(1, Math.round(TICK_HZ / BROADCAST_HZ));
 const FULL_BROADCAST_MS = 1500;
 const ENEMY_CAP = 80;
 const CULL_DIST = 1100;
@@ -247,8 +253,11 @@ function tickSim(sim) {
     if (isStageComplete(sim)) onWaveComplete(sim);
   }
 
-  // Skicka world-snapshots
-  broadcastWorld(sim, now);
+  // Skicka world-snapshots — bara var BROADCAST_EVERY:te tick för att spara CPU
+  sim._tickCount = (sim._tickCount || 0) + 1;
+  if (sim._tickCount % BROADCAST_EVERY === 0) {
+    broadcastWorld(sim, now);
+  }
 }
 
 // Revive-system: levande spelare nära dead body 5s → respawn på platsen med 50% HP
