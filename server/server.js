@@ -95,8 +95,9 @@ function buildPublicRoomsList() {
 
 function broadcastPublicRooms() {
   if (publicRoomSubscribers.size === 0) return;
-  const rooms = buildPublicRoomsList();
-  const json = JSON.stringify({ type: 'public_rooms', rooms });
+  // Lokalt namn `list` (inte `rooms`) så vi inte skuggar module-level `rooms` Map
+  const list = buildPublicRoomsList();
+  const json = JSON.stringify({ type: 'public_rooms', rooms: list });
   for (const ws of publicRoomSubscribers) {
     if (ws.readyState === 1) try { ws.send(json); } catch (e) {}
   }
@@ -284,25 +285,64 @@ function handleMessage(ws, msg) {
       const arena = room.sim.tdmArena || { worldW: 4000, worldH: 3000 };
       const spawnX = team === 'red' ? Math.floor(arena.worldW * 0.10) : Math.floor(arena.worldW * 0.90);
       const spawnY = Math.floor(arena.worldH * 0.50);
-      ws.playerState = { x: spawnX, y: spawnY, hp: 100, invulnUntil: Date.now() + 1500 };
+      // Late-joiner får också shield + maxShield (annars saknar de PvP-shield helt)
+      ws.playerState = { x: spawnX, y: spawnY, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500 };
       room.sim.tdmKillsByPid[ws.id] = 0;
       room.sim.tdmDeathsByPid[ws.id] = 0;
       // Bygg fullständig roster så late-joiner ser alla teams
       const teams = {};
       for (const [pid, m] of room.members) if (m.tdmTeam) teams[pid] = m.tdmTeam;
-      // Skicka tdm_started bara till late-joiner (inte broadcast — andra har det redan).
-      // Använd 'sim_events' batch-format (klient stödjer båda men nyare path är konsistent).
       send(ws, { type: 'sim_events', events: [{
         type: 'tdm_started',
         targetKills: room.sim.tdmTargetKills,
         teams,
         arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },
         spawns: { red: { x: Math.floor(arena.worldW * 0.10), y: spawnY }, blue: { x: Math.floor(arena.worldW * 0.90), y: spawnY } },
+        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+        shieldMax: 100,
       }] });
-      // Andra peers får team-uppdatering så deras tdmTeams-roster är komplett
       for (const [pid, m] of room.members) {
         if (pid === ws.id) continue;
         send(m, { type: 'sim_events', events: [{ type: 'tdm_team_assigned', peerId: ws.id, team }] });
+      }
+    }
+    // CTF late-joiner: samma pattern men för CTF-arena + flag-state + ctf_started
+    if (room.sim && room.sim.ctfActive) {
+      const { CTF_ARENA } = require('../shared/ctf-arena');
+      let red = 0, blue = 0;
+      for (const [, m] of room.members) {
+        if (m.tdmTeam === 'red') red++;
+        else if (m.tdmTeam === 'blue') blue++;
+      }
+      const team = red <= blue ? 'red' : 'blue';
+      ws.tdmTeam = team;
+      const pts = CTF_ARENA.spawns[team];
+      const sp = pts[Math.floor(Math.random() * pts.length)];
+      ws.playerState = { x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500 };
+      room.sim.ctfKillsByPid[ws.id] = 0;
+      room.sim.ctfCapturesByPid[ws.id] = 0;
+      room.sim.tdmDeathsByPid[ws.id] = 0;
+      const teams = {};
+      for (const [pid, m] of room.members) if (m.tdmTeam) teams[pid] = m.tdmTeam;
+      send(ws, { type: 'sim_events', events: [{
+        type: 'ctf_started',
+        targetCaptures: room.sim.ctfTargetCaptures,
+        teams,
+        arena: { worldW: CTF_ARENA.worldW, worldH: CTF_ARENA.worldH, name: CTF_ARENA.name },
+        flags: {
+          red:  { baseX: CTF_ARENA.flags.red.baseX,  baseY: CTF_ARENA.flags.red.baseY  },
+          blue: { baseX: CTF_ARENA.flags.blue.baseX, baseY: CTF_ARENA.flags.blue.baseY },
+        },
+        spawns: CTF_ARENA.spawns,
+        walls: CTF_ARENA.walls,
+        pickupRadius: CTF_ARENA.pickupRadius,
+        captureRadius: CTF_ARENA.captureRadius,
+        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+        shieldMax: 100,
+      }] });
+      for (const [pid, m] of room.members) {
+        if (pid === ws.id) continue;
+        send(m, { type: 'sim_events', events: [{ type: 'ctf_team_assigned', peerId: ws.id, team }] });
       }
     }
     return;
@@ -336,7 +376,12 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room) return;
     if (room.hostId !== ws.id) return;  // bara host får starta
-    if (!room.sim) room.sim = createSim(room);
+    // Rematch / mode-byte: stoppa ev. tidigare sim och skapa en ny så ingen
+    // gammal state (tdmActive/ctfActive/scores/pickup-ids) läcker in i nästa match.
+    if (room.sim) {
+      try { stopSim(room.sim); } catch (e) {}
+    }
+    room.sim = createSim(room);
     startSim(room.sim, {
       difficulty: msg.difficulty,
       ngpLevel: msg.ngpLevel,

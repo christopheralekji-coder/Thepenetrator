@@ -4973,8 +4973,14 @@ const Coop = {
       this.broadcastLobby();
       if (this._onPlayerJoinCb) this._onPlayerJoinCb(this.players.size + 1);
     } else if (msg.type === 'host_left') {
-      alert('Host lämnade rummet.');
+      // Tidigare alert + disconnect lämnade spelaren med state.mode='playing'
+      // utan input/enemies → visuellt frozen. Skicka tillbaka till menyn.
       this.disconnect();
+      state.mode = 'menu';
+      document.body.classList.add('menu-mode');
+      if (typeof menuScreen !== 'undefined') menuScreen.classList.remove('hidden');
+      if (typeof Music !== 'undefined' && Music.stop) Music.stop();
+      if (typeof showToast === 'function') showToast('🏠 Host lämnade rummet');
     } else if (msg.type === 'public_rooms') {
       // Live-uppdatering av publika rum (browse-skärmen)
       if (typeof renderPublicRoomsList === 'function') renderPublicRoomsList(msg.rooms || []);
@@ -6144,6 +6150,17 @@ const Coop = {
       state.serverSimActive = false;
       state.tdmActive = false;
       state.ctfActive = false;
+      // Rensa stale CTF/PvP-state så de inte läcker in i nästa run
+      state.ctfWalls = null;
+      state.ctfFlags = null;
+      state.ctfArena = null;
+      state.pvpPickups = null;
+      state.pvpShieldMax = null;
+      if (state.player) {
+        state.player.carryingFlag = null;
+        state.player.shield = undefined;
+        state.player.maxShield = undefined;
+      }
     }
     // Säkerhetsnät: göm alla PvP HUD-element så de inte spookar i menyn
     if (typeof hideCtfHud === 'function') hideCtfHud();
@@ -10566,6 +10583,10 @@ document.getElementById('btn-retry').addEventListener('click', () => {
       payload.tdm = true;
       payload.tdmTargetKills = Coop.config.tdmTargetKills || 10;
     }
+    if (Coop.config.ctf) {
+      payload.ctf = true;
+      payload.ctfTargetCaptures = Coop.config.ctfTargetCaptures || 3;
+    }
     try { Coop.ws.send(JSON.stringify(payload)); } catch (_) {}
     Coop.serverSimActive = true;
     state.serverSimActive = true;
@@ -13058,6 +13079,8 @@ function updateBullets(dt) {
   const emitTrails = state._bulletTrailAccum > 0.033;
   if (emitTrails) state._bulletTrailAccum = 0;
   for (const b of state.bullets) {
+    // Spara förra positionen för swept-collision (bulletHitsWall i CTF)
+    b._prevX = b.x; b._prevY = b.y;
     b.x += b.vx * dt;
     b.y += b.vy * dt;
     b.life -= dt;

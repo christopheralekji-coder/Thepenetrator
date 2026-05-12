@@ -13,6 +13,18 @@ const { W_BY_ID } = require('../../shared/weapons-data');
 const { findNearestPlayer } = require('./enemies');
 const { CTF_ARENA, bulletHitsWall } = require('../../shared/ctf-arena');
 
+// PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
+// Sniper nerf: 130→95 (fortfarande 2-shot genom shield+hp men inte instant).
+// Pistol buff: 18→24 (TTK 200hp 6→7 shots, mer relevant än 12).
+const PVP_DMG_OVERRIDE = {
+  sniper: 95,
+  pistol: 24,
+};
+function getPvpDmg(weaponId, baseDmg) {
+  if (PVP_DMG_OVERRIDE[weaponId] != null) return PVP_DMG_OVERRIDE[weaponId];
+  return baseDmg;
+}
+
 // Skada enemy server-side (mirror av game.js:5073-5116, utan UI/audio)
 // Returnerar true om enemy dog.
 function damageEnemy(e, dmg, isCrit, fromPid) {
@@ -147,11 +159,12 @@ function applyBulletEffects(b, e, sim) {
 
 // Explode (radius damage) — speglar game.js:5435-5458
 function explode(sim, x, y, radius, dmg, fromPid) {
-  // I TDM: en explosion från en spelare ska INTE skada eget lag eller egen
-  // spelare. PvE-skada på enemies skippas också i TDM (inga enemies).
+  // PvP-modes (TDM + CTF): explosion ska INTE skada eget lag, egen spelare,
+  // eller respawn-invuln. Shield absorberar först, sedan HP. Emiterar pvp_hp_changed.
   const fromWs = fromPid ? sim.room.members.get(fromPid) : null;
   const fromTeam = fromWs && fromWs.tdmTeam;
-  if (!sim.tdmActive) {
+  const inPvP = sim.tdmActive || sim.ctfActive;
+  if (!inPvP) {
     for (const e of sim.enemies) {
       if (e.dead) continue;
       const dx = e.x - x, dy = e.y - y;
@@ -165,20 +178,36 @@ function explode(sim, x, y, radius, dmg, fromPid) {
   // Skadar även spelare i radie
   for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
-    if (sim.tdmActive) {
+    if (inPvP) {
       if (pid === fromPid) continue;             // egen spelare oskadad
-      // Late-joiner utan team kan exploitera: fromTeam undefined → friendly-fire OK.
-      // Skip helt om någon part saknar team (säkrare default i tvivelsmål).
-      if (!fromTeam || !ws.tdmTeam) continue;
-      if (ws.tdmTeam === fromTeam) continue;  // friendly fire av
+      if (!fromTeam || !ws.tdmTeam) continue;    // okänt team → no-op (safer)
+      if (ws.tdmTeam === fromTeam) continue;     // friendly fire av
       const invuln = ws.playerState.invulnUntil || 0;
-      if (Date.now() < invuln) continue;          // respawn-invuln skyddar
+      if (Date.now() < invuln) continue;         // respawn-invuln skyddar
     }
     const dx = ws.playerState.x - x, dy = ws.playerState.y - y;
     const d2 = dx * dx + dy * dy;
     if (d2 < radius * radius) {
       const falloff = 1 - Math.sqrt(d2) / radius;
-      ws.playerState.hp = Math.max(0, ws.playerState.hp - dmg * (0.3 + falloff * 0.4));
+      const finalDmg = dmg * (0.3 + falloff * 0.4);
+      if (inPvP) {
+        // Shield absorberar först
+        let remaining = finalDmg;
+        if ((ws.playerState.shield || 0) > 0) {
+          const absorb = Math.min(ws.playerState.shield, remaining);
+          ws.playerState.shield -= absorb;
+          remaining -= absorb;
+        }
+        if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+        sim.eventQueue.push({
+          type: 'pvp_hp_changed',
+          peerId: pid,
+          hp: ws.playerState.hp,
+          shield: ws.playerState.shield || 0,
+        });
+      } else {
+        ws.playerState.hp = Math.max(0, ws.playerState.hp - finalDmg);
+      }
     }
   }
 }
@@ -195,6 +224,8 @@ function updateBullets(sim, dt, now) {
   }
   for (let i = bullets.length - 1; i >= 0; i--) {
     const b = bullets[i];
+    // Spara förra position för swept-collision (bulletHitsWall i CTF använder den).
+    b._prevX = b.x; b._prevY = b.y;
     b.x += b.vx * dt;
     b.y += b.vy * dt;
     b.life -= dt;
@@ -294,8 +325,10 @@ function updateBullets(sim, dt, now) {
         const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
+          // PvP-balance: vissa vapen overriddar dmg (sniper nerf, pistol buff)
+          const effDmg = getPvpDmg(b.weaponId, b.dmg);
           // Shield absorberar först, sedan HP. Shield = lika mycket som HP (= 100).
-          let remaining = b.dmg;
+          let remaining = effDmg;
           if ((ws.playerState.shield || 0) > 0) {
             const absorb = Math.min(ws.playerState.shield, remaining);
             ws.playerState.shield -= absorb;
@@ -376,8 +409,10 @@ function updateBullets(sim, dt, now) {
         const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
+          // PvP-balance: vissa vapen overriddar dmg
+          const effDmg = getPvpDmg(b.weaponId, b.dmg);
           // Shield absorberar först, sedan HP
-          let remaining = b.dmg;
+          let remaining = effDmg;
           if ((ws.playerState.shield || 0) > 0) {
             const absorb = Math.min(ws.playerState.shield, remaining);
             ws.playerState.shield -= absorb;

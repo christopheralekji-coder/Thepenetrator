@@ -127,14 +127,50 @@ function resolveCtfWall(entity, walls) {
   }
 }
 
-// Bullet wall-hit: returnera true om bullet träffat någon wall (för att markera dead)
+// Bullet wall-hit: swept-segment kollision från förra positionen till nuvarande.
+// Krävs för snabba bullets (sniper @ 1500 px/s = 33 px/frame, tunnlade tidigare
+// genom 22px-tjocka dividers). Använd b._prevX/b._prevY om de finns (updateBullets
+// sätter dem). Fallback: point-in-rect + radie så åtminstone träffar registreras.
 function bulletHitsWall(b, walls) {
+  const r = (b.r || 4);
+  // Snabb-väg: om bullet redan står i en wall (eller dess radie överlappar)
   for (const w of walls) {
-    if (b.x >= w.x && b.x <= w.x + w.w && b.y >= w.y && b.y <= w.y + w.h) {
+    if (b.x + r >= w.x && b.x - r <= w.x + w.w &&
+        b.y + r >= w.y && b.y - r <= w.y + w.h) {
       return true;
     }
   }
+  // Swept-test: linje från förra pos till nuvarande pos
+  if (typeof b._prevX === 'number' && typeof b._prevY === 'number') {
+    const x0 = b._prevX, y0 = b._prevY, x1 = b.x, y1 = b.y;
+    for (const w of walls) {
+      if (segmentIntersectsAABB(x0, y0, x1, y1, w.x - r, w.y - r, w.x + w.w + r, w.y + w.h + r)) {
+        return true;
+      }
+    }
+  }
   return false;
+}
+// Liang-Barsky line-vs-AABB clip — returnerar true om segmentet träffar boxen.
+function segmentIntersectsAABB(x0, y0, x1, y1, minX, minY, maxX, maxY) {
+  const dx = x1 - x0, dy = y1 - y0;
+  let tMin = 0, tMax = 1;
+  const checks = [
+    { p: -dx, q: x0 - minX },
+    { p:  dx, q: maxX - x0 },
+    { p: -dy, q: y0 - minY },
+    { p:  dy, q: maxY - y0 },
+  ];
+  for (const c of checks) {
+    if (c.p === 0) {
+      if (c.q < 0) return false;
+    } else {
+      const t = c.q / c.p;
+      if (c.p < 0) { if (t > tMax) return false; if (t > tMin) tMin = t; }
+      else         { if (t < tMin) return false; if (t < tMax) tMax = t; }
+    }
+  }
+  return true;
 }
 
 if (typeof module !== 'undefined' && module.exports) {

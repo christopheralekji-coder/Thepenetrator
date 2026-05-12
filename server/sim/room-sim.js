@@ -132,11 +132,21 @@ function tickSim(sim) {
         }
       }
     }
-    // PvP-pickups: respawn-timer + collect-detection
-    tickPvpPickups(sim, now);
+    // PvP-pickups: respawn-timer + collect-detection (BARA om match ej avslutad)
+    if (!sim.tdmEnded) tickPvpPickups(sim, now);
     // Match-end-flagga: stoppa allt när någon nått targetKills
     if (!sim.tdmEnded) {
       updateBullets(sim, dt, now);
+      // Centraliserad death-detection: även om explosioner/PvE-källor dödar
+      // sätts respawn-timer + emit kill-events. Bullets.js sätter dem redan
+      // för player-bullets, så vi bara fyller luckorna.
+      for (const [pid, ws] of sim.room.members) {
+        if (ws.playerState && ws.playerState.hp <= 0 && !ws.tdmRespawnAt) {
+          ws.tdmRespawnAt = nowMs + 3000;
+          sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
+          sim.eventQueue.push({ type: 'tdm_player_died', victim: pid, durationMs: 3000 });
+        }
+      }
     }
     broadcastWorld(sim, now);
     return;
@@ -491,12 +501,14 @@ function tickCtf(sim, dt, now) {
 
     // 1. Pickup enemy-flagga (om ledig)
     const enemyFlag = sim.ctfFlags[enemyTeam];
+    let justPickedUp = false;
     if (!enemyFlag.carrierId) {
       const dx = px - enemyFlag.x, dy = py - enemyFlag.y;
       if (dx * dx + dy * dy < CTF_ARENA.pickupRadius * CTF_ARENA.pickupRadius) {
         enemyFlag.carrierId = pid;
         enemyFlag.atBase = false;
         enemyFlag.droppedAt = 0;
+        justPickedUp = true;
         sim.eventQueue.push({
           type: 'ctf_flag_picked',
           peerId: pid,
@@ -507,6 +519,8 @@ function tickCtf(sim, dt, now) {
     }
 
     // 2. Capture: jag bär enemy-flagga + jag är vid min egen flagga (som måste vara hemma)
+    //    Skippa om vi just plockade upp denna tick → annars instant-capture-exploit
+    if (justPickedUp) continue;
     if (enemyFlag.carrierId === pid) {
       const myFlag = sim.ctfFlags[myTeam];
       if (myFlag.atBase) {
@@ -576,6 +590,18 @@ function tickCtf(sim, dt, now) {
   // Bullet-physics (kolla wall-hits via bullets.js: vi behöver toggla flagga
   // för wall-check inom updateBullets, så markeras via sim.ctfActive)
   updateBullets(sim, dt, now);
+
+  // Centraliserad death-detection: explosions, hostile-bullets eller framtida
+  // damage-källor som dödar en CTF-spelare måste få respawn + flag-drop. Bullets.js
+  // sätter dem redan för direkt player-bullets, så vi fyller luckorna.
+  for (const [pid, ws] of sim.room.members) {
+    if (ws.playerState && ws.playerState.hp <= 0 && !ws.tdmRespawnAt) {
+      ws.tdmRespawnAt = Date.now() + 3000;
+      sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
+      sim.eventQueue.push({ type: 'ctf_player_died', victim: pid, durationMs: 3000 });
+      applyCtfDeath(sim, pid); // droppar flaggan om han bar någon + emit ctf_flag_dropped
+    }
+  }
 }
 
 // ============================================================
@@ -711,14 +737,13 @@ function broadcastWorld(sim, now) {
   // peer per tick — sparar 1 JSON.stringify + 1 ws.send per event per client.
   // Skipsa helt om inga events. Klienten hanterar bakåtkompat genom att stödja
   // både 'sim_event' (en) och 'sim_events' (lista).
-  if (sim.eventQueue.length > 0) {
-    const events = sim.eventQueue.slice();
-    sim.eventQueue.length = 0;
-    if (sim.room.members.size > 0) {
-      const json = JSON.stringify({ type: 'sim_events', events });
-      for (const [, ws] of sim.room.members) {
-        if (ws.readyState === 1) try { ws.send(json); } catch (e) {}
-      }
+  // Bugfix: dräna BARA om vi faktiskt har subscribers (annars förlorades
+  // ctf_match_end om sista spelaren disconnectade samma tick).
+  if (sim.eventQueue.length > 0 && sim.room.members.size > 0) {
+    const events = sim.eventQueue.splice(0);
+    const json = JSON.stringify({ type: 'sim_events', events });
+    for (const [, ws] of sim.room.members) {
+      if (ws.readyState === 1) try { ws.send(json); } catch (e) {}
     }
   }
 
@@ -846,6 +871,23 @@ function broadcastWorld(sim, now) {
 
 function startSim(sim, opts) {
   if (sim.interval) return;
+  // Bugfix: nollställ ALLA PvP-flags vid varje startSim. Annars läckte
+  // tdmActive/ctfActive från föregående match in i nästa (rematch / mode-byte
+  // i samma rum) och triggade fel logik-gren.
+  sim.tdmActive = false;
+  sim.ctfActive = false;
+  sim.tdmEnded = false;
+  sim.ctfEnded = false;
+  sim.tdmKills = { red: 0, blue: 0 };
+  sim.ctfCaptures = { red: 0, blue: 0 };
+  sim.tdmKillsByPid = {};
+  sim.tdmDeathsByPid = {};
+  sim.ctfKillsByPid = {};
+  sim.ctfCapturesByPid = {};
+  sim.pvpPickups = null;
+  sim.bullets = [];
+  sim.enemies = [];
+  sim.eventQueue.length = 0;
   if (opts) {
     if (opts.difficulty) sim.config.difficulty = opts.difficulty;
     if (opts.ngpLevel) sim.config.ngpLevel = opts.ngpLevel;
@@ -854,18 +896,10 @@ function startSim(sim, opts) {
     if (opts.tdm) {
       sim.tdmActive = true;
       sim.tdmTargetKills = opts.tdmTargetKills || 10;
-      sim.tdmKills = { red: 0, blue: 0 };
-      sim.tdmEnded = false;
-      sim.tdmKillsByPid = {};
-      sim.tdmDeathsByPid = {};
     }
     if (opts.ctf) {
       sim.ctfActive = true;
       sim.ctfTargetCaptures = opts.ctfTargetCaptures || 3;
-      sim.ctfCaptures = { red: 0, blue: 0 };
-      sim.ctfEnded = false;
-      sim.ctfKillsByPid = {};
-      sim.ctfCapturesByPid = {};
     }
   }
   console.log('[SIM]', sim.room.code, 'started mode=' + (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode)) + ' diff=' + sim.config.difficulty);
@@ -887,9 +921,10 @@ function startSim(sim, opts) {
       const team = i % 2 === 0 ? 'red' : 'blue';
       ws.tdmTeam = team;
       ws.playerState = ws.playerState || {};
-      // Spawn på random egna spawn-point
+      // Spawn på random egna spawn-point (slumpa per spelare så 8-mannarum
+      // inte staplar players ovanpå varandra på samma pixel).
       const pts = CTF_ARENA.spawns[team];
-      const sp = pts[i % pts.length];
+      const sp = pts[Math.floor(Math.random() * pts.length)];
       ws.playerState.x = sp.x;
       ws.playerState.y = sp.y;
       ws.playerState.hp = 100;
@@ -983,8 +1018,42 @@ function applyPlayerInput(sim, peerId, input) {
   const ws = sim.room.members.get(peerId);
   if (!ws) return;
   if (!ws.playerState) ws.playerState = { x: 1000, y: 1000, hp: 100 };
-  if (typeof input.x === 'number') ws.playerState.x = input.x;
-  if (typeof input.y === 'number') ws.playerState.y = input.y;
+  // PvP anti-cheat / carrier-slow enforcement: klampa positionsdelta per tick
+  // till rimlig max-speed. Klient kan annars skicka godtycklig x/y och teleporta
+  // genom väggar eller kringgå CTF_CARRIER_SPEED_MUL (-25% när man bär flagga).
+  if ((sim.tdmActive || sim.ctfActive) && typeof input.x === 'number' && typeof input.y === 'number') {
+    const now = Date.now();
+    const lastT = ws._lastInputT || now;
+    const dt = Math.max(0.001, Math.min(0.25, (now - lastT) / 1000));
+    ws._lastInputT = now;
+    // Bas-speed 230, adrenalin 1.35×, cheat 2×. Tillåt 2× för säkerhets-margin
+    // (lag-spikes). Carrier i CTF är 0.75× — men late lag kan göra delta större;
+    // ge en generös cap. Server tar slut-snapshot från klient ändå.
+    let maxSpeed = 230 * 2.0;
+    if (sim.ctfActive) {
+      // Kolla om peeren bär en flagga
+      const isCarrier = sim.ctfFlags && (
+        (sim.ctfFlags.red && sim.ctfFlags.red.carrierId === peerId) ||
+        (sim.ctfFlags.blue && sim.ctfFlags.blue.carrierId === peerId)
+      );
+      if (isCarrier) maxSpeed *= CTF_CARRIER_SPEED_MUL; // 0.75
+    }
+    const maxDelta = maxSpeed * dt + 12; // +12 buffer för server-tick-overlap
+    const dx = input.x - ws.playerState.x;
+    const dy = input.y - ws.playerState.y;
+    const d = Math.hypot(dx, dy);
+    if (d > maxDelta && d > 0) {
+      const scale = maxDelta / d;
+      ws.playerState.x += dx * scale;
+      ws.playerState.y += dy * scale;
+    } else {
+      ws.playerState.x = input.x;
+      ws.playerState.y = input.y;
+    }
+  } else {
+    if (typeof input.x === 'number') ws.playerState.x = input.x;
+    if (typeof input.y === 'number') ws.playerState.y = input.y;
+  }
   if (typeof input.hp === 'number') ws.playerState.hp = input.hp;
   if (typeof input.aim === 'number') ws.playerState.aim = input.aim;
   if (input.weaponId) ws.playerState.weaponId = input.weaponId;
