@@ -11,6 +11,7 @@ const { getStage } = require('../../shared/stages-data');
 const { CTF_ARENA, resolveCtfWall, bulletHitsWall } = require('../../shared/ctf-arena');
 const { TDM_ARENA } = require('../../shared/tdm-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
+const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS } = require('../../shared/gungame-arena');
 
 // 30Hz → 45Hz: tickar var 22ms istället för 33ms. Halverar input→pixel-delay
 // från server-tick-perspektiv. 1.5× CPU-last, men Node klarar 10k+ ops/tick i
@@ -90,6 +91,13 @@ function createSim(room) {
     siegeTurrets: {},      // turretId → same structure as ctfTurrets
     _siegePointAccum: { red: 0, blue: 0 }, // fractional points buffer
     _siegeLastTick: 0,
+    // GUNGAME state (FFA, 15-tier progression)
+    gungameActive: false,
+    gungameEnded: false,
+    gungameWinner: null,
+    gungameTiers: {},        // peerId → 0..14 (current weapon tier)
+    gungameKillsByPid: {},   // peerId → total kills (för stats)
+    _gungameSpawnIdx: 0,     // roterar spawn-punkter så respawn inte upprepar
   };
   return sim;
 }
@@ -202,6 +210,13 @@ function tickSim(sim) {
   // SIEGE-mode: capture-bases + core-damage + scoring
   if (sim.siegeActive) {
     tickSiege(sim, dt, now);
+    sim._tickCount = (sim._tickCount || 0) + 1;
+    if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
+    return;
+  }
+  // GUNGAME-mode: FFA, 15-tier vapen-progression
+  if (sim.gungameActive) {
+    tickGungame(sim, dt, now);
     sim._tickCount = (sim._tickCount || 0) + 1;
     if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
@@ -1164,6 +1179,89 @@ function endSiegeMatch(sim, winner, reason) {
   });
 }
 
+// === GUNGAME ===
+// FFA mode: 15-tier vapen-progression. Varje kill promotar shooter +1 tier.
+// Kill med melee-vapen → offret demoteras 1 tier (cap 0). Första som dödar
+// någon på tier 15 (sledge) vinner. Inga teams — alla är fiender.
+function tickGungame(sim, dt, now) {
+  const nowMs = Date.now();
+
+  // Respawn döda spelare på roterande spawn-point (anti-spawn-camp)
+  for (const [pid, ws] of sim.room.members) {
+    if (ws.tdmRespawnAt && nowMs >= ws.tdmRespawnAt) {
+      ws.tdmRespawnAt = 0;
+      if (ws.playerState) {
+        // Roterande spawn-index så respawn inte upprepar samma plats
+        const sp = GUNGAME_ARENA.spawns[sim._gungameSpawnIdx % GUNGAME_ARENA.spawns.length];
+        sim._gungameSpawnIdx++;
+        ws.playerState.x = sp.x;
+        ws.playerState.y = sp.y;
+        ws.playerState.hp = 100;
+        ws.playerState.shield = ws.playerState.maxShield || 100;
+        ws.playerState.invulnUntil = nowMs + 1500;
+        // Sätt vapen till current tier (kan ha demoterats)
+        const tier = sim.gungameTiers[pid] || 0;
+        ws.playerState.weaponId = GUNGAME_WEAPONS[tier];
+        sim.eventQueue.push({
+          type: 'gungame_player_respawned',
+          peerId: pid,
+          x: ws.playerState.x, y: ws.playerState.y,
+          hp: ws.playerState.hp, shield: ws.playerState.shield,
+          tier, weaponId: GUNGAME_WEAPONS[tier],
+        });
+      }
+    }
+  }
+
+  // Pickups (HP/ammo) tickas också för gungame
+  if (!sim.gungameEnded) tickPvpPickups(sim, now);
+
+  // Match-end? Skip game-logic
+  if (sim.gungameEnded) return;
+
+  // Wall-collision för spelare
+  for (const [, ws] of sim.room.members) {
+    if (ws.playerState && ws.playerState.hp > 0) {
+      const e = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
+      resolveCtfWall(e, GUNGAME_ARENA.walls);
+      ws.playerState.x = e.x;
+      ws.playerState.y = e.y;
+    }
+  }
+
+  // Bullets uppdateras efter wall-collision
+  updateBullets(sim, dt, now);
+
+  // Death-detection + promote/demote-logik. Kill-attribution måste komma från
+  // bullets.js som sätter sim._gungameLastKill { victim, killer, weaponId } per dödsfall.
+  for (const [pid, ws] of sim.room.members) {
+    if (ws.playerState && ws.playerState.hp <= 0 && !ws.tdmRespawnAt) {
+      ws.tdmRespawnAt = nowMs + 3000;
+      sim.tdmDeathsByPid = sim.tdmDeathsByPid || {};
+      sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
+      sim.eventQueue.push({ type: 'gungame_player_died', victim: pid, durationMs: 3000 });
+    }
+  }
+}
+
+function endGungameMatch(sim, winnerId, reason) {
+  if (sim.gungameEnded) return;
+  sim.gungameEnded = true;
+  sim.gungameWinner = winnerId;
+  const stats = { perPlayer: {} };
+  for (const [p] of sim.room.members) {
+    stats.perPlayer[p] = {
+      kills: sim.gungameKillsByPid[p] || 0,
+      deaths: (sim.tdmDeathsByPid && sim.tdmDeathsByPid[p]) || 0,
+      tier: sim.gungameTiers[p] || 0,
+    };
+  }
+  sim.eventQueue.push({
+    type: 'gungame_match_end',
+    winner: winnerId, reason, stats,
+  });
+}
+
 function broadcastWorld(sim, now) {
   const fullBroadcast = (now - sim.lastFullAt) > FULL_BROADCAST_MS;
   if (fullBroadcast) sim.lastFullAt = now;
@@ -1325,9 +1423,12 @@ function startSim(sim, opts) {
   sim.tdmActive = false;
   sim.ctfActive = false;
   sim.siegeActive = false;
+  sim.gungameActive = false;
   sim.tdmEnded = false;
   sim.ctfEnded = false;
   sim.siegeEnded = false;
+  sim.gungameEnded = false;
+  sim.gungameWinner = null;
   sim.tdmKills = { red: 0, blue: 0 };
   sim.ctfCaptures = { red: 0, blue: 0 };
   sim.siegeScores = { red: 0, blue: 0 };
@@ -1336,6 +1437,9 @@ function startSim(sim, opts) {
   sim.ctfKillsByPid = {};
   sim.ctfCapturesByPid = {};
   sim.siegeKillsByPid = {};
+  sim.gungameTiers = {};
+  sim.gungameKillsByPid = {};
+  sim._gungameSpawnIdx = 0;
   sim._siegePointAccum = { red: 0, blue: 0 };
   sim.pvpPickups = null;
   sim.bullets = [];
@@ -1357,6 +1461,9 @@ function startSim(sim, opts) {
     if (opts.siege) {
       sim.siegeActive = true;
       sim.siegeTargetPoints = opts.siegeTargetPoints || 500;
+    }
+    if (opts.gungame) {
+      sim.gungameActive = true;
     }
   }
   console.log('[SIM]', sim.room.code, 'started mode=' + (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode)) + ' diff=' + sim.config.difficulty);
@@ -1549,6 +1656,42 @@ function startSim(sim, opts) {
     // Bullets.js behöver kunna kalla endSiegeMatch när core förstörs.
     // Eftersom funktionen är local i denna fil exponerar vi via sim-objektet.
     sim._endSiegeMatch = endSiegeMatch;
+  } else if (sim.gungameActive) {
+    // GUNGAME: FFA på 3500×2000 close-quarters arena, 15-tier progression
+    sim.simReadyAt = Date.now() + 5000;
+    // Init alla spelare på tier 0 (fists), roterande spawn-point
+    let i = 0;
+    for (const [pid, ws] of sim.room.members) {
+      ws.playerState = ws.playerState || {};
+      const sp = GUNGAME_ARENA.spawns[i % GUNGAME_ARENA.spawns.length];
+      ws.playerState.x = sp.x;
+      ws.playerState.y = sp.y;
+      ws.playerState.hp = 100;
+      ws.playerState.shield = 100;
+      ws.playerState.maxShield = 100;
+      ws.playerState.invulnUntil = Date.now() + 1500;
+      ws.playerState.weaponId = GUNGAME_WEAPONS[0]; // fists
+      ws.tdmRespawnAt = 0;
+      ws.tdmTeam = null; // FFA - inget team
+      sim.gungameTiers[pid] = 0;
+      sim.gungameKillsByPid[pid] = 0;
+      sim.tdmDeathsByPid[pid] = 0;
+      i++;
+    }
+    sim._gungameSpawnIdx = i; // fortsätt rotera vid respawn
+    sim.eventQueue.push({
+      type: 'gungame_started',
+      arena: { worldW: GUNGAME_ARENA.worldW, worldH: GUNGAME_ARENA.worldH, name: GUNGAME_ARENA.name },
+      walls: GUNGAME_ARENA.walls,
+      spawns: GUNGAME_ARENA.spawns,
+      decorations: GUNGAME_ARENA.decorations || [],
+      weapons: GUNGAME_WEAPONS,
+      totalTiers: GUNGAME_WEAPONS.length,
+      shieldMax: 100,
+    });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    // Exponera promote/demote till bullets.js
+    sim._endGungameMatch = endGungameMatch;
   } else {
     loadStage(sim, sim.wave);
   }

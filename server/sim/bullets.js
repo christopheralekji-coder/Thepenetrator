@@ -14,6 +14,7 @@ const { findNearestPlayer } = require('./enemies');
 const { CTF_ARENA, bulletHitsWall } = require('../../shared/ctf-arena');
 const { TDM_ARENA } = require('../../shared/tdm-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
+const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS } = require('../../shared/gungame-arena');
 
 // PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
 // Sniper nerf: 130→95 (fortfarande 2-shot genom shield+hp men inte instant).
