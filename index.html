@@ -338,6 +338,16 @@
     <div style="margin:18px 0;color:#888;font-size:13px;letter-spacing:2px;">— eller —</div>
     <input id="coop-code-input" placeholder="ABCD" maxlength="4" autocapitalize="characters" autocorrect="off" autocomplete="off" inputmode="text" style="font-size:24px;text-align:center;letter-spacing:8px;text-transform:uppercase;padding:10px 14px;width:180px;background:#1a1a22;border:2px solid #ffd54a;border-radius:6px;color:#fff;font-weight:700;margin-bottom:18px;display:block;margin-left:auto;margin-right:auto;">
     <button id="btn-coop-join" class="big-btn">JOINA RUM</button>
+
+    <div style="margin-top:24px;text-align:left;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <label class="lobby-label" style="margin:0;">🌐 AKTIVA RUM</label>
+        <button id="btn-public-rooms-refresh" class="medium-btn" style="font-size:11px;padding:4px 10px;min-width:0;">↻</button>
+      </div>
+      <div id="public-rooms-list" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px;min-height:60px;max-height:240px;overflow-y:auto;">
+        <div id="public-rooms-empty" style="text-align:center;color:#666;font-size:12px;padding:20px 10px;">Söker efter aktiva rum...</div>
+      </div>
+    </div>
   </div>
   <div id="coop-lobby" class="coop-options hidden">
     <div id="coop-code-display" style="font-size:36px;letter-spacing:14px;color:#ffd54a;margin-bottom:8px;font-weight:900;"></div>
@@ -362,6 +372,13 @@
     </div>
 
     <div id="host-controls" class="hidden">
+      <div class="lobby-section">
+        <label class="lobby-label">RUM SYNLIGHET</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button id="btn-room-private" class="medium-btn" style="font-size:12px;padding:6px 12px;min-width:0;">🌐 PUBLIKT</button>
+          <span style="font-size:11px;color:#888;">Visas i aktiva rum-listan</span>
+        </div>
+      </div>
       <div class="lobby-section">
         <label class="lobby-label">SVÅRIGHET</label>
         <div id="lobby-diff-buttons" class="lobby-button-row"></div>

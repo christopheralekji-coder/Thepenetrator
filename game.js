@@ -4847,8 +4847,14 @@ const Coop = {
     this._intentionalClose = false;
     this.ws.onopen = () => {
       this._reconnectAttempt = 0;  // lyckad anslutning återställer räknaren
-      if (asHost) this.ws.send(JSON.stringify({ type: 'host' }));
-      else this.ws.send(JSON.stringify({ type: 'join', code: joinCode }));
+      const myName = (save.coopName || this.myName || '').slice(0, 14) || 'Spelare';
+      if (asHost) {
+        const mode = (this.config && this.config.mode) || 'story';
+        const isPrivate = !!(this.config && this.config.private);
+        this.ws.send(JSON.stringify({ type: 'host', name: myName, mode, private: isPrivate }));
+      } else {
+        this.ws.send(JSON.stringify({ type: 'join', code: joinCode, name: myName }));
+      }
     };
     this.ws.onmessage = (ev) => {
       // Binärt frame → world packet
@@ -4919,6 +4925,9 @@ const Coop = {
     } else if (msg.type === 'host_left') {
       alert('Host lämnade rummet.');
       this.disconnect();
+    } else if (msg.type === 'public_rooms') {
+      // Live-uppdatering av publika rum (browse-skärmen)
+      if (typeof renderPublicRoomsList === 'function') renderPublicRoomsList(msg.rooms || []);
     } else if (msg.type === 'relay') {
       this.onData(msg.from, msg.data);
     } else if (msg.type === 'sim_started') {
@@ -5542,6 +5551,10 @@ const Coop = {
     if (this.isHost) {
       this.broadcastLobby();
       if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
+      // Spegla host-namn till server-meta så public-rooms-listan uppdateras
+      if (this.ws && this.ws.readyState === 1) {
+        try { this.ws.send(JSON.stringify({ type: 'update_room_meta', hostName: name })); } catch (_) {}
+      }
     } else {
       this.sendToHost({ type: 'rename', name });
     }
@@ -5563,6 +5576,17 @@ const Coop = {
     Object.assign(this.config, partial);
     this.broadcast({ type: 'config', config: this.config });
     if (this.onConfigChange) this.onConfigChange(this.config);
+    // Speglar mode/private till server så public-rooms-listan visar rätt info
+    if (this.ws && this.ws.readyState === 1 && (partial.mode != null || partial.tdm != null || partial.ctf != null || partial.private != null)) {
+      const effMode = this.config.ctf ? 'ctf' : (this.config.tdm ? 'tdm' : (this.config.mode || 'story'));
+      try {
+        this.ws.send(JSON.stringify({
+          type: 'update_room_meta',
+          mode: effMode,
+          private: !!this.config.private,
+        }));
+      } catch (_) {}
+    }
   },
   applyConfigToSave() {
     // Tillämpa lobby-config till save inför game-start
@@ -6400,11 +6424,146 @@ function openCoop() {
     const httpUrl = wsUrl.replace(/^ws/, 'http') + '/health';
     fetch(httpUrl, { method: 'GET', cache: 'no-store', mode: 'cors' }).catch(() => {});
   } catch (_) {}
+  // Öppna browser-WS som prenumererar på public-rooms-listan medan användaren
+  // är på join-skärmen. Auto-stängs när host/join valts eller skärmen lämnas.
+  startBrowsingPublicRooms();
 }
 document.getElementById('btn-coop').addEventListener('click', openCoop);
 document.getElementById('btn-coop-close').addEventListener('click', () => {
   coopScreen.classList.add('hidden');
+  stopBrowsingPublicRooms();
   Coop.disconnect();
+});
+
+// ============================================================
+// PUBLIC GAMES LOBBY — live-lista över aktiva rum medan användaren
+// är på join-skärmen. Separat WS-anslutning (browser-mode) som
+// subscriber till `public_rooms`-uppdateringar. Stängs när användaren
+// väljer host/join/close.
+// ============================================================
+let _browserWs = null;
+function startBrowsingPublicRooms() {
+  // Om redan ansluten i lobby/sim: använd den anslutningen
+  if (Coop.ws && Coop.ws.readyState === 1) {
+    try { Coop.ws.send(JSON.stringify({ type: 'subscribe_public_rooms' })); } catch (_) {}
+    return;
+  }
+  // Stäng tidigare browser-WS
+  if (_browserWs) {
+    try { _browserWs.close(); } catch (_) {}
+    _browserWs = null;
+  }
+  try {
+    _browserWs = new WebSocket(COOP_SERVER_URL);
+  } catch (e) {
+    renderPublicRoomsList([]);
+    return;
+  }
+  _browserWs.onopen = () => {
+    try { _browserWs.send(JSON.stringify({ type: 'subscribe_public_rooms' })); } catch (_) {}
+  };
+  _browserWs.onmessage = (ev) => {
+    let msg; try { msg = JSON.parse(ev.data); } catch (_) { return; }
+    if (msg && msg.type === 'public_rooms') {
+      renderPublicRoomsList(msg.rooms || []);
+    }
+  };
+  _browserWs.onerror = () => {};
+  _browserWs.onclose = () => { _browserWs = null; };
+}
+function stopBrowsingPublicRooms() {
+  if (_browserWs) {
+    try { _browserWs.send(JSON.stringify({ type: 'unsubscribe_public_rooms' })); } catch (_) {}
+    try { _browserWs.close(); } catch (_) {}
+    _browserWs = null;
+  }
+}
+function modeIcon(mode) {
+  if (mode === 'tdm') return '⚔️';
+  if (mode === 'ctf') return '🚩';
+  if (mode === 'bossrush') return '👑';
+  if (mode === 'endless') return '∞';
+  if (mode === 'survive') return '⏱';
+  if (mode === 'speedrun') return '⚡';
+  if (mode === 'daily') return '📅';
+  return '🎮';
+}
+function modeLabel(mode) {
+  if (mode === 'tdm') return 'TDM';
+  if (mode === 'ctf') return 'CTF';
+  if (mode === 'bossrush') return 'Boss Rush';
+  if (mode === 'endless') return 'Endless';
+  if (mode === 'survive') return 'Survive';
+  if (mode === 'speedrun') return 'Speedrun';
+  if (mode === 'daily') return 'Daily';
+  return 'Story';
+}
+function renderPublicRoomsList(rooms) {
+  const list = document.getElementById('public-rooms-list');
+  const empty = document.getElementById('public-rooms-empty');
+  if (!list) return;
+  // Rensa allt utom empty-elementet
+  for (const child of Array.from(list.children)) {
+    if (child !== empty) list.removeChild(child);
+  }
+  if (!rooms || rooms.length === 0) {
+    if (empty) {
+      empty.style.display = 'block';
+      empty.textContent = 'Inga aktiva rum just nu.';
+    }
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  for (const r of rooms) {
+    const row = document.createElement('div');
+    const startedBadge = r.started
+      ? '<span style="background:#aa3aff;color:#fff;font-size:9px;font-weight:900;padding:2px 6px;border-radius:3px;letter-spacing:1px;margin-left:6px;">PÅGÅR</span>'
+      : '<span style="background:#3a7a3a;color:#fff;font-size:9px;font-weight:900;padding:2px 6px;border-radius:3px;letter-spacing:1px;margin-left:6px;">ÖPPET</span>';
+    row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin:3px 0;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:6px;cursor:pointer;transition:background 0.12s,border-color 0.12s;gap:8px;';
+    row.innerHTML = `
+      <div style="flex:1;min-width:0;text-align:left;">
+        <div style="font-weight:700;color:#fff;font-size:13px;letter-spacing:0.5px;display:flex;align-items:center;gap:6px;">
+          <span>${modeIcon(r.mode)}</span>
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px;">${escapeHtml(r.hostName)}</span>
+          ${startedBadge}
+        </div>
+        <div style="font-size:11px;color:#aaa;margin-top:2px;">
+          ${modeLabel(r.mode)} · 👥 ${r.players}/${r.maxPlayers}
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-family:monospace;font-size:14px;color:#ffd54a;letter-spacing:2px;font-weight:900;">${escapeHtml(r.code)}</div>
+        <button class="medium-btn" style="font-size:10px;padding:4px 10px;min-width:0;margin-top:3px;">JOINA</button>
+      </div>
+    `;
+    row.addEventListener('mouseenter', () => { row.style.background = 'rgba(255,213,74,0.10)'; row.style.borderColor = 'rgba(255,213,74,0.35)'; });
+    row.addEventListener('mouseleave', () => { row.style.background = 'rgba(255,255,255,0.04)'; row.style.borderColor = 'rgba(255,255,255,0.08)'; });
+    row.addEventListener('click', () => {
+      if (r.players >= r.maxPlayers) { showToast('🚫 Rummet är fullt'); return; }
+      // Fyll input + trigga existerande join-flow
+      const codeInput = document.getElementById('coop-code-input');
+      if (codeInput) codeInput.value = r.code;
+      stopBrowsingPublicRooms();
+      const joinBtn = document.getElementById('btn-coop-join');
+      if (joinBtn) joinBtn.click();
+    });
+    list.appendChild(row);
+  }
+}
+// Manuell refresh-knapp
+document.addEventListener('DOMContentLoaded', () => {
+  const refreshBtn = document.getElementById('btn-public-rooms-refresh');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      // Om browser-WS finns, skicka request — annars öppna en
+      if (_browserWs && _browserWs.readyState === 1) {
+        try { _browserWs.send(JSON.stringify({ type: 'list_public_rooms' })); } catch (_) {}
+      } else {
+        startBrowsingPublicRooms();
+      }
+      Audio.uiClick();
+    });
+  }
 });
 const coopInitEl = document.getElementById('coop-init');
 const coopLobbyEl = document.getElementById('coop-lobby');
@@ -6442,6 +6601,21 @@ function showLobby(code, isHost) {
 }
 
 function renderHostControls() {
+  // Privacy-toggle (publikt rum vs dolt)
+  const privBtn = document.getElementById('btn-room-private');
+  if (privBtn) {
+    const isPriv = !!Coop.config.private;
+    privBtn.textContent = isPriv ? '🔒 DOLT' : '🌐 PUBLIKT';
+    privBtn.style.background = isPriv ? '#5a3a3a' : '#1a4a3a';
+    privBtn.style.color = '#fff';
+    if (!privBtn._wired) {
+      privBtn._wired = true;
+      privBtn.addEventListener('click', () => {
+        Coop.updateConfig({ private: !Coop.config.private });
+        renderHostControls();
+      });
+    }
+  }
   // Difficulty
   lobbyDiffButtonsEl.innerHTML = '';
   for (const d of DIFFICULTIES) {
@@ -6827,6 +7001,7 @@ if (btnCheatRedeem) {
 
 document.getElementById('btn-coop-host').addEventListener('click', () => {
   coopStatus.textContent = 'Startar rum...';
+  stopBrowsingPublicRooms();
   Coop.host(
     (code) => { showLobby(code, true); coopStatus.textContent = ''; renderLobbyPlayers(Coop.serializeLobby()); },
     () => {},
@@ -6837,6 +7012,7 @@ document.getElementById('btn-coop-join').addEventListener('click', () => {
   const code = document.getElementById('coop-code-input').value.trim().toUpperCase();
   if (code.length !== 4) { coopStatus.textContent = 'Skriv 4-bokstavskod'; return; }
   coopStatus.textContent = 'Ansluter till ' + code + '...';
+  stopBrowsingPublicRooms();
   Coop.join(code,
     () => { showLobby(code, false); coopStatus.textContent = ''; },
     (err) => { coopStatus.style.color = '#ff5a3a'; coopStatus.textContent = err; }

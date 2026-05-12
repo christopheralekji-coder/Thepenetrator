@@ -70,7 +70,37 @@ const wss = new WebSocket.Server({
     clientNoContextTakeover: true,
   },
 });
-const rooms = new Map(); // code → { hostId, members: Map(id → ws) }
+const rooms = new Map(); // code → { hostId, members: Map(id → ws), meta: { hostName, mode, private, started, createdAt } }
+const publicRoomSubscribers = new Set(); // ws-references som vill ha live room-list updates
+
+// Bygg publikt room-snapshot för broadcast/snapshot till browse-skärmen
+function buildPublicRoomsList() {
+  const list = [];
+  for (const [code, room] of rooms) {
+    if (room.meta && room.meta.private) continue;
+    list.push({
+      code,
+      hostName: (room.meta && room.meta.hostName) || 'Spelare',
+      mode: (room.meta && room.meta.mode) || 'story',
+      players: room.members.size,
+      maxPlayers: 8,
+      started: !!(room.meta && room.meta.started),
+      createdAt: (room.meta && room.meta.createdAt) || 0,
+    });
+  }
+  // Senaste rummen först
+  list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  return list;
+}
+
+function broadcastPublicRooms() {
+  if (publicRoomSubscribers.size === 0) return;
+  const rooms = buildPublicRoomsList();
+  const json = JSON.stringify({ type: 'public_rooms', rooms });
+  for (const ws of publicRoomSubscribers) {
+    if (ws.readyState === 1) try { ws.send(json); } catch (e) {}
+  }
+}
 
 function generateCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -178,12 +208,53 @@ function handleMessage(ws, msg) {
   if (msg.type === 'host') {
     // Skapa rum
     const code = generateCode();
-    const room = { code, hostId: ws.id, members: new Map() };
+    const hostName = String(msg.name || '').trim().slice(0, 14) || 'Spelare';
+    const mode = String(msg.mode || 'story').slice(0, 16);
+    const isPrivate = !!msg.private;
+    const room = {
+      code,
+      hostId: ws.id,
+      members: new Map(),
+      meta: { hostName, mode, private: isPrivate, started: false, createdAt: Date.now() },
+    };
     room.members.set(ws.id, ws);
     rooms.set(code, room);
     ws.roomCode = code;
+    ws.playerName = hostName;
     send(ws, { type: 'hosted', code, peerId: ws.id });
-    console.log('[ROOM]', code, 'created by', ws.id);
+    console.log('[ROOM]', code, 'created by', ws.id, 'name="' + hostName + '" mode=' + mode + (isPrivate ? ' [PRIVATE]' : ''));
+    broadcastPublicRooms();
+    return;
+  }
+
+  // Host kan uppdatera room-meta (mode/namn/private) — speglas i public-rooms-list
+  if (msg.type === 'update_room_meta') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || room.hostId !== ws.id) return;
+    if (msg.hostName != null) {
+      room.meta.hostName = String(msg.hostName).trim().slice(0, 14) || 'Spelare';
+      ws.playerName = room.meta.hostName;
+    }
+    if (msg.mode != null) room.meta.mode = String(msg.mode).slice(0, 16);
+    if (msg.private != null) room.meta.private = !!msg.private;
+    broadcastPublicRooms();
+    return;
+  }
+
+  // Klient vill se publika rum (engångs-snapshot)
+  if (msg.type === 'list_public_rooms') {
+    send(ws, { type: 'public_rooms', rooms: buildPublicRoomsList() });
+    return;
+  }
+
+  // Klient prenumererar på publika rum-uppdateringar (live på join-skärmen)
+  if (msg.type === 'subscribe_public_rooms') {
+    publicRoomSubscribers.add(ws);
+    send(ws, { type: 'public_rooms', rooms: buildPublicRoomsList() });
+    return;
+  }
+  if (msg.type === 'unsubscribe_public_rooms') {
+    publicRoomSubscribers.delete(ws);
     return;
   }
 
@@ -194,11 +265,13 @@ function handleMessage(ws, msg) {
     if (room.members.size >= 8) { send(ws, { type: 'error', error: 'Rummet är fullt (max 8)' }); return; }
     room.members.set(ws.id, ws);
     ws.roomCode = code;
+    if (msg.name) ws.playerName = String(msg.name).trim().slice(0, 14);
     send(ws, { type: 'joined', peerId: ws.id, hostId: room.hostId });
     // Meddela host
     const host = room.members.get(room.hostId);
     if (host) send(host, { type: 'peer_joined', peerId: ws.id });
     console.log('[ROOM]', code, ws.id, 'joined (', room.members.size, 'members)');
+    broadcastPublicRooms();
     // TDM late-joiner: tilldela team baserat på balans, push tdm_started-event riktat
     if (room.sim && room.sim.tdmActive) {
       let red = 0, blue = 0;
@@ -274,6 +347,14 @@ function handleMessage(ws, msg) {
       ctf: msg.ctf,
       ctfTargetCaptures: msg.ctfTargetCaptures,
     });
+    // Markera rummet som "startat" i public-listan + uppdatera mode om CTF/TDM
+    if (room.meta) {
+      room.meta.started = true;
+      if (msg.ctf) room.meta.mode = 'ctf';
+      else if (msg.tdm) room.meta.mode = 'tdm';
+      else if (msg.mode) room.meta.mode = msg.mode;
+    }
+    broadcastPublicRooms();
     send(ws, { type: 'sim_started' });
     // Meddela alla i rummet
     for (const [, m] of room.members) {
@@ -292,6 +373,8 @@ function handleMessage(ws, msg) {
     if (!room || !room.sim) return;
     if (room.hostId !== ws.id) return;
     stopSim(room.sim);
+    if (room.meta) room.meta.started = false;
+    broadcastPublicRooms();
     return;
   }
   if (msg.type === 'sim_input') {
@@ -314,6 +397,8 @@ function handleMessage(ws, msg) {
 }
 
 function handleDisconnect(ws) {
+  // Rensa public-rooms-prenumeration
+  publicRoomSubscribers.delete(ws);
   if (!ws.roomCode) return;
   const room = rooms.get(ws.roomCode);
   if (!room) return;
@@ -338,6 +423,7 @@ function handleDisconnect(ws) {
       rooms.delete(room.code);
     }
   }
+  broadcastPublicRooms();
 }
 
 server.listen(PORT, () => {
