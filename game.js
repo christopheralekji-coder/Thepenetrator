@@ -10543,6 +10543,24 @@ function updateHUD() {
   // Uppdatera fire-icon med vapen-emoji så spelaren ser vad de skjuter med
   const fireIconEl = document.querySelector('#btn-fire .fire-icon');
   if (fireIconEl) fireIconEl.textContent = wIcon;
+  // Weapon-mastery XP-progress (visas som thin stripe längst ner i weapon-name)
+  // Trösklar: 0/10/40/100/250/500 → 5 nivåer
+  if (weaponName && !isRepair) {
+    const xp = (save.weaponMastery && save.weaponMastery[p.weaponId]) || 0;
+    const thresh = [0, 10, 40, 100, 250, 500];
+    const lvl = getMasteryLevel(p.weaponId);
+    let pct;
+    if (lvl >= 5) { pct = 1; }
+    else {
+      const next = thresh[lvl + 1] || thresh[5];
+      const cur = thresh[lvl];
+      pct = Math.max(0, Math.min(1, (xp - cur) / (next - cur)));
+    }
+    weaponName.style.setProperty('--xp-pct', pct.toFixed(3));
+    // Färg per nivå: 0=cyan, 1-2=lila, 3-4=orange, 5=guld
+    const xpColors = ['#3acaff', '#aa3aff', '#aa3aff', '#ff8a3a', '#ff8a3a', '#ffd54a'];
+    weaponName.style.setProperty('--xp-color', xpColors[Math.min(5, lvl)]);
+  }
 }
 
 // Dash-cooldown-ring uppdateras separat varje frame (från runFrame) så ringen
