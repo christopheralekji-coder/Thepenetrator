@@ -4672,13 +4672,16 @@ const Audio = {
     this._tone(440, 0.15, 'sine', 0.2, 0.005, 0.12, 880);
   },
   purchase() {
-    this._tone(660, 0.1, 'sine', 0.2, 0.001, 0.08, 990);
-    this._tone(990, 0.1, 'sine', 0.15, 0.001, 0.08, 1320);
+    // Trevlig 3-tons ladder (perfect-5th sweep)
+    this._tone(523, 0.08, 'sine', 0.18, 0.001, 0.06);
+    setTimeout(() => this._tone(659, 0.08, 'sine', 0.18, 0.001, 0.06), 50);
+    setTimeout(() => this._tone(784, 0.12, 'sine', 0.20, 0.001, 0.10), 100);
   },
   playerHurt() {
     if (!this._throttle('playerHurt', 200)) return;
-    this._tone(180, 0.15, 'sawtooth', 0.35, 0.002, 0.12, 90);
-    this._noise(0.1, 0.2, { type: 'lowpass', freq: 500 });
+    // Mjukare hurt-ljud — triangle istället för sawtooth, kortare brus
+    this._tone(220, 0.12, 'triangle', 0.28, 0.002, 0.10, 110);
+    this._noise(0.06, 0.12, { type: 'lowpass', freq: 350 });
   },
   heartbeat() {
     if (!this._throttle('heartbeat', 600)) return;
@@ -4696,17 +4699,31 @@ const Audio = {
     setTimeout(() => this._tone(110, 0.8, 'sawtooth', 0.4, 0.05, 0.7, 40), 900);
   },
   victory() {
-    const notes = [523, 659, 784, 1046];
+    // Full triumf-fanfare: 5 toner ascending + 2 oktav-höga avslut
+    const notes = [523, 587, 659, 784, 1046];
     notes.forEach((n, i) => {
-      setTimeout(() => this._tone(n, 0.2, 'sine', 0.3, 0.005, 0.15), i * 120);
+      setTimeout(() => this._tone(n, 0.22, 'sine', 0.3, 0.005, 0.18), i * 110);
+      // 5th-harmony underneath
+      setTimeout(() => this._tone(n * 1.5, 0.18, 'triangle', 0.15, 0.005, 0.14), i * 110);
     });
+    // Avslut: höga "ding-ding"
+    setTimeout(() => this._tone(1568, 0.3, 'sine', 0.25, 0.005, 0.25), 700);
+    setTimeout(() => this._tone(2093, 0.4, 'sine', 0.20, 0.005, 0.35), 850);
   },
   stageStart() {
-    this._tone(330, 0.15, 'sine', 0.2, 0.005, 0.12, 660);
+    // Stigande arpeggio som introduktion
+    this._tone(330, 0.10, 'sine', 0.18, 0.005, 0.08);
+    setTimeout(() => this._tone(440, 0.10, 'sine', 0.20, 0.005, 0.08), 80);
+    setTimeout(() => this._tone(660, 0.18, 'sine', 0.25, 0.005, 0.15), 160);
   },
   zoneClear() {
-    this._tone(440, 0.1, 'sine', 0.2, 0.005, 0.08, 660);
-    setTimeout(() => this._tone(660, 0.12, 'sine', 0.2, 0.005, 0.10, 880), 120);
+    // 3-tons reward-chime med harmony
+    this._tone(523, 0.10, 'sine', 0.22, 0.005, 0.08);
+    this._tone(784, 0.10, 'triangle', 0.12, 0.005, 0.08);
+    setTimeout(() => this._tone(659, 0.10, 'sine', 0.22, 0.005, 0.08), 100);
+    setTimeout(() => this._tone(988, 0.14, 'triangle', 0.12, 0.005, 0.12), 100);
+    setTimeout(() => this._tone(880, 0.18, 'sine', 0.25, 0.005, 0.15), 200);
+    setTimeout(() => this._tone(1318, 0.16, 'triangle', 0.15, 0.005, 0.13), 200);
   },
   alarm() {
     if (!this._throttle('alarm', 800)) return;
@@ -4714,132 +4731,313 @@ const Audio = {
     setTimeout(() => this._tone(440, 0.2, 'sawtooth', 0.3, 0.005, 0.18, 660), 200);
   },
   achievement() {
-    this._tone(523, 0.15, 'sine', 0.25, 0.005, 0.12);
-    setTimeout(() => this._tone(784, 0.15, 'sine', 0.25, 0.005, 0.12), 120);
-    setTimeout(() => this._tone(1046, 0.25, 'sine', 0.3, 0.005, 0.20), 240);
+    // Magisk treklang med extra "shimmer" på toppen
+    this._tone(523, 0.13, 'sine', 0.22, 0.005, 0.10);
+    this._tone(659, 0.13, 'triangle', 0.13, 0.005, 0.10);
+    setTimeout(() => this._tone(784, 0.13, 'sine', 0.22, 0.005, 0.10), 110);
+    setTimeout(() => this._tone(988, 0.13, 'triangle', 0.13, 0.005, 0.10), 110);
+    setTimeout(() => this._tone(1046, 0.22, 'sine', 0.28, 0.005, 0.18), 220);
+    setTimeout(() => this._tone(1568, 0.18, 'triangle', 0.13, 0.005, 0.14), 220);
+    // Shimmer-sprinkle
+    setTimeout(() => this._tone(2093, 0.10, 'sine', 0.15, 0.005, 0.08), 320);
+    setTimeout(() => this._tone(2637, 0.08, 'sine', 0.10, 0.005, 0.07), 380);
   },
 };
 // ============================================================
 // MUSIC — procedurell ambient + drum + boss-mode
 // ============================================================
+// ============================================================
+// NEW MUSIC SYSTEM — melodisk loop med ackord-progression, basgång, pad,
+// arpeggio + skön kick/hihat. Helt omskriven från drönar+brus till riktig
+// procedural-musik. Per stage: tempo + nyckel + ackord-progression.
+// ============================================================
 const Music = {
-  active: null, // { drone, sub, kick, gain, theme, intensity }
-  intensity: 'calm', // calm | active | boss
+  active: null,
+  intensity: 'calm',
+  // Per-stage tema: root-frekvens (A2 = 110Hz som referens), scale (minor/major
+  // semi-toner från root), tempo (BPM), och 4-ackords-progression som loopar.
+  // Ackord-värdet är offset i scale-steg från root (0 = root, 5 = quinten, etc.)
+  // Mode: minor = [0,2,3,5,7,8,10], major = [0,2,4,5,7,9,11].
   themes: {
-    forest:  { root: 110, fifth: 165, mode: 'minor', drumRate: 0.7 },
-    perimeter: { root: 130, fifth: 195, mode: 'minor', drumRate: 0.8 },
-    lobby:   { root: 120, fifth: 180, mode: 'minor', drumRate: 0.6 },
-    barracks: { root: 110, fifth: 165, mode: 'minor', drumRate: 1.0 },
-    hangar:  { root: 90,  fifth: 135, mode: 'minor', drumRate: 1.0 },
-    depot:   { root: 100, fifth: 150, mode: 'minor', drumRate: 1.2 },
-    cargo:   { root: 110, fifth: 165, mode: 'minor', drumRate: 1.0 },
-    bunker:  { root: 80,  fifth: 120, mode: 'minor', drumRate: 0.8 },
-    command: { root: 73,  fifth: 110, mode: 'phrygian', drumRate: 1.4 },
+    // Story-stages — chill, ambient
+    forest:    { root: 110, mode: 'minor', tempo:  85, chords: [0, -3,  5, -2], style: 'ambient' },
+    perimeter: { root: 117, mode: 'minor', tempo:  92, chords: [0, -4,  5, -2], style: 'ambient' },
+    lobby:     { root: 130, mode: 'minor', tempo:  78, chords: [0, -3,  5,  3], style: 'ambient' },
+    barracks:  { root: 110, mode: 'minor', tempo: 100, chords: [0, -3,  5, -2], style: 'tense' },
+    hangar:    { root:  98, mode: 'minor', tempo: 105, chords: [0, -4,  3, -2], style: 'tense' },
+    depot:     { root: 104, mode: 'minor', tempo: 110, chords: [0,  3,  5, -3], style: 'tense' },
+    cargo:     { root: 110, mode: 'minor', tempo: 100, chords: [0, -3,  5, -2], style: 'tense' },
+    bunker:    { root:  87, mode: 'minor', tempo:  95, chords: [0, -4,  3, -1], style: 'tense' },
+    command:   { root:  92, mode: 'minor', tempo: 130, chords: [0, -1,  5, -2], style: 'dark' },
+    // PvP-modes — upbeat
+    tdm:       { root: 110, mode: 'minor', tempo: 138, chords: [0,  3,  5, -2], style: 'action' },
+    ctf:       { root: 117, mode: 'minor', tempo: 125, chords: [0,  3, -3,  5], style: 'action' },
+    siege:     { root: 110, mode: 'minor', tempo: 120, chords: [0, -3,  5,  3], style: 'action' },
   },
+  // Skalor (semi-toner från root)
+  scales: {
+    minor: [0, 2, 3, 5, 7, 8, 10, 12],
+    major: [0, 2, 4, 5, 7, 9, 11, 12],
+  },
+  // 16-step melodi-mönster (scale-index, -1 = pause). Loopas över hela ackord-cykeln.
+  // Olika mönster per style — ambient mjukt, action energiskt.
+  melodyPatterns: {
+    ambient: [0, -1, 4, -1, 2, -1, 4, -1, 5, -1, 4, 2, 0, -1, -1, -1],
+    tense:   [0, 4, 2, 5, 4, 2, 0, 4, 7, 5, 4, 2, 5, 4, 2, 0],
+    dark:    [0, 3, 5, 3, 7, 5, 3, 0, 4, 2, 0, -1, 3, 5, 3, -1],
+    action:  [0, 4, 7, 4, 5, 7, 4, 2, 7, 4, 2, 0, 4, 7, 5, 4],
+  },
+  // Bass-mönster per style — bara på vissa steg
+  bassPatterns: {
+    ambient: [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    tense:   [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0],
+    dark:    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
+    action:  [1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1],
+  },
+  // Hihat-mönster (1=träff)
+  hihatPatterns: {
+    ambient: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
+    tense:   [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
+    dark:    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
+    action:  [0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1],
+  },
+  // Kick-mönster
+  kickPatterns: {
+    ambient: [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+    tense:   [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+    dark:    [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
+    action:  [1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0],
+  },
+
+  // Konvertera scale-step till frekvens (relativ till root, oktav-aware)
+  noteToFreq(rootHz, scale, step) {
+    // step kan vara negativ (lägre oktav) eller > 7 (högre)
+    const len = scale.length - 1; // 0..6 är samma oktav, 7 = oktav upp
+    let oct = 0;
+    let s = step;
+    while (s < 0) { oct--; s += len; }
+    while (s >= len) { oct++; s -= len; }
+    const semi = scale[s] + oct * 12;
+    return rootHz * Math.pow(2, semi / 12);
+  },
+
   startStage(stageKind) {
     this.stop();
     if (!Audio.ctx) return;
     const theme = this.themes[stageKind] || this.themes.forest;
+    const scale = this.scales[theme.mode];
     const t = Audio.ctx.currentTime;
+    // Master-gain för hela musiken
     const gain = Audio.ctx.createGain();
     gain.gain.value = 0;
-    gain.gain.linearRampToValueAtTime(0.5, t + 1.5);
+    gain.gain.linearRampToValueAtTime(0.55, t + 2.0);
     gain.connect(Audio.musicGain);
-    // Sub-bass drone
-    const sub = Audio.ctx.createOscillator();
-    sub.type = 'sine';
-    sub.frequency.value = theme.root / 2;
-    const subG = Audio.ctx.createGain();
-    subG.gain.value = 0.6;
-    sub.connect(subG); subG.connect(gain);
-    sub.start(t);
-    // Mellan-drone (tonik) med svag detuning
-    const drone = Audio.ctx.createOscillator();
-    drone.type = 'triangle';
-    drone.frequency.value = theme.root;
-    const droneG = Audio.ctx.createGain();
-    droneG.gain.value = 0.3;
-    drone.connect(droneG); droneG.connect(gain);
-    drone.start(t);
-    // LFO för droneG (subtil andning)
-    const lfo = Audio.ctx.createOscillator();
-    lfo.frequency.value = 0.08;
-    const lfoG = Audio.ctx.createGain();
-    lfoG.gain.value = 0.15;
-    lfo.connect(lfoG); lfoG.connect(droneG.gain);
-    lfo.start(t);
-    // Filter på drone (mörker)
-    this.active = { sub, drone, lfo, gain, theme, intensity: 'calm', drumTimer: 0, fifthOsc: null };
+    // Master-lowpass för att mjuka upp helheten
+    const lp = Audio.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 3500;
+    lp.Q.value = 0.5;
+    lp.connect(gain);
+    // Subtil reverb-ersättning: en feedback-delay för "rum"-känsla
+    const delay = Audio.ctx.createDelay(0.5);
+    delay.delayTime.value = 0.18;
+    const dlyG = Audio.ctx.createGain();
+    dlyG.gain.value = 0.25;
+    delay.connect(dlyG); dlyG.connect(delay); dlyG.connect(lp);
+
+    this.active = {
+      gain, lp, delay, dlyG,
+      theme, scale,
+      intensity: 'calm',
+      beatTimer: 0,
+      beatStep: 0,        // 0..15 (16 steps per chord cycle)
+      chordIdx: 0,        // 0..3 (current chord in progression)
+      stepsPerBeat: 4,    // 16th-notes per beat
+      sustainedNotes: [], // bassosc/pad-osc with stop-times for cleanup
+    };
   },
+
   stop() {
     if (!this.active) return;
     if (!Audio.ctx) { this.active = null; return; }
     const a = this.active;
     this.active = null;
-    a.gain.gain.linearRampToValueAtTime(0, Audio.ctx.currentTime + 0.5);
+    a.gain.gain.cancelScheduledValues(Audio.ctx.currentTime);
+    a.gain.gain.linearRampToValueAtTime(0, Audio.ctx.currentTime + 0.6);
+    // Cleanup sustained notes after fade
     setTimeout(() => {
-      try { a.sub.stop(); a.drone.stop(); a.lfo.stop(); if (a.fifthOsc) a.fifthOsc.stop(); } catch (e) {}
-    }, 700);
+      try {
+        for (const n of a.sustainedNotes) {
+          try { n.stop(); } catch (e) {}
+        }
+      } catch (e) {}
+    }, 800);
   },
+
   setIntensity(level) {
     if (!this.active || this.active.intensity === level) return;
     if (!Audio.ctx) return;
     this.active.intensity = level;
     const t = Audio.ctx.currentTime;
-    if (level === 'boss' && !this.active.fifthOsc) {
-      // Lägg till kvint för spänning
-      const fifth = Audio.ctx.createOscillator();
-      fifth.type = 'sawtooth';
-      fifth.frequency.value = this.active.theme.fifth;
-      const fG = Audio.ctx.createGain();
-      fG.gain.setValueAtTime(0, t);
-      fG.gain.linearRampToValueAtTime(0.18, t + 0.8);
-      fifth.connect(fG); fG.connect(this.active.gain);
-      fifth.start(t);
-      this.active.fifthOsc = fifth;
-      this.active.gain.gain.linearRampToValueAtTime(0.65, t + 0.8);
+    if (level === 'boss') {
+      this.active.gain.gain.linearRampToValueAtTime(0.65, t + 1.0);
+      this.active.lp.frequency.linearRampToValueAtTime(5500, t + 1.0);
     } else if (level === 'active') {
-      this.active.gain.gain.linearRampToValueAtTime(0.5, t + 0.8);
-      // Fade ut kvint-osc smooth om vi går från boss → active
-      if (this.active.fifthOsc) {
-        const fO = this.active.fifthOsc;
-        try {
-          // Fade ut osc-gain via dess egen connected gain-node (kan inte direkt accessas
-          // utan att spara referens). Stop osc efter 1.2s.
-          fO.stop(t + 1.2);
-        } catch (e) {}
-        this.active.fifthOsc = null;
-      }
-    } else if (level === 'calm') {
-      this.active.gain.gain.linearRampToValueAtTime(0.4, t + 1.2);
-      if (this.active.fifthOsc) {
-        try { this.active.fifthOsc.stop(t + 1.2); } catch (e) {}
-        this.active.fifthOsc = null;
+      this.active.gain.gain.linearRampToValueAtTime(0.55, t + 1.0);
+      this.active.lp.frequency.linearRampToValueAtTime(4000, t + 1.0);
+    } else {
+      this.active.gain.gain.linearRampToValueAtTime(0.45, t + 1.5);
+      this.active.lp.frequency.linearRampToValueAtTime(3000, t + 1.5);
+    }
+  },
+
+  // Spela en melodi-not (triangle, mjuk envelope)
+  _playMelodyNote(freq, duration, vol = 0.18) {
+    if (!this.active || !Audio.ctx) return;
+    const t = Audio.ctx.currentTime;
+    const osc = Audio.ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    const g = Audio.ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    osc.connect(g);
+    g.connect(this.active.lp);
+    g.connect(this.active.delay); // route också till delay för "rum"
+    osc.start(t);
+    osc.stop(t + duration + 0.05);
+  },
+
+  // Spela en bas-not (sine, längre + lägre)
+  _playBassNote(freq, duration, vol = 0.25) {
+    if (!this.active || !Audio.ctx) return;
+    const t = Audio.ctx.currentTime;
+    const osc = Audio.ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq / 2; // oktav ner
+    const g = Audio.ctx.createGain();
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    osc.connect(g);
+    g.connect(this.active.lp);
+    osc.start(t);
+    osc.stop(t + duration + 0.05);
+  },
+
+  // Pad-ackord (3 sawtooth-noter med chorus-detuning)
+  _playChord(rootFreq, scale, duration, vol = 0.10) {
+    if (!this.active || !Audio.ctx) return;
+    const t = Audio.ctx.currentTime;
+    // Triad: root, terts, kvint (scale-index 0, 2, 4)
+    const notes = [rootFreq, rootFreq * Math.pow(2, scale[2] / 12), rootFreq * Math.pow(2, scale[4] / 12)];
+    for (const f of notes) {
+      // Två lätt detunade saw för chorus-effekt
+      for (const detune of [-4, 4]) {
+        const osc = Audio.ctx.createOscillator();
+        osc.type = 'sawtooth';
+        osc.frequency.value = f;
+        osc.detune.value = detune;
+        const g = Audio.ctx.createGain();
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(vol, t + 0.6);
+        g.gain.linearRampToValueAtTime(vol * 0.6, t + duration - 0.4);
+        g.gain.exponentialRampToValueAtTime(0.001, t + duration);
+        osc.connect(g);
+        g.connect(this.active.lp);
+        osc.start(t);
+        osc.stop(t + duration + 0.05);
       }
     }
   },
+
+  _playKick() {
+    if (!this.active || !Audio.ctx) return;
+    const t = Audio.ctx.currentTime;
+    // Pitched sine sweep från 80→40Hz för riktig kick-feel (ej bara brus)
+    const osc = Audio.ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(120, t);
+    osc.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+    const g = Audio.ctx.createGain();
+    g.gain.setValueAtTime(0.5, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    osc.connect(g);
+    g.connect(this.active.lp);
+    osc.start(t);
+    osc.stop(t + 0.2);
+  },
+
+  _playHihat() {
+    if (!this.active || !Audio.ctx) return;
+    const t = Audio.ctx.currentTime;
+    // Vit brus + highpass-filter för hihat-känsla
+    const buf = Audio.ctx.createBuffer(1, Audio.ctx.sampleRate * 0.08, Audio.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
+    const src = Audio.ctx.createBufferSource();
+    src.buffer = buf;
+    const f = Audio.ctx.createBiquadFilter();
+    f.type = 'highpass';
+    f.frequency.value = 7000;
+    f.Q.value = 1;
+    const g = Audio.ctx.createGain();
+    g.gain.setValueAtTime(0.06, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
+    src.connect(f); f.connect(g); g.connect(this.active.lp);
+    src.start(t);
+  },
+
   tick(dt) {
     if (!this.active || !Audio.ctx) return;
-    this.active.drumTimer -= dt;
-    if (this.active.drumTimer <= 0) {
-      const rate = this.active.theme.drumRate * (this.active.intensity === 'boss' ? 0.5 : 1);
-      this.active.drumTimer = rate;
-      // Kick (lowpass-filter på brus)
-      const t = Audio.ctx.currentTime;
-      const buf = Audio.ctx.createBuffer(1, Audio.ctx.sampleRate * 0.15, Audio.ctx.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
-      const src = Audio.ctx.createBufferSource();
-      src.buffer = buf;
-      const f = Audio.ctx.createBiquadFilter();
-      f.type = 'lowpass';
-      f.frequency.value = 80;
-      f.Q.value = 1;
-      const g = Audio.ctx.createGain();
-      g.gain.setValueAtTime(0.4, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
-      src.connect(f); f.connect(g); g.connect(this.active.gain);
-      src.start(t);
+    const a = this.active;
+    const theme = a.theme;
+    // BPM → step-tid. 16th-notes så stepsPerBeat=4 → 16 steps = 4 beats = 1 takt.
+    const stepDur = 60 / theme.tempo / a.stepsPerBeat;
+    a.beatTimer -= dt;
+    if (a.beatTimer > 0) return;
+    a.beatTimer += stepDur;
+
+    const style = theme.style || 'tense';
+    const melodyPat = this.melodyPatterns[style] || this.melodyPatterns.tense;
+    const bassPat = this.bassPatterns[style] || this.bassPatterns.tense;
+    const hihatPat = this.hihatPatterns[style] || this.hihatPatterns.tense;
+    const kickPat = this.kickPatterns[style] || this.kickPatterns.tense;
+
+    const step = a.beatStep;
+    // Beräkna nuvarande ackords-root (offset från theme.root)
+    const chordOffset = theme.chords[a.chordIdx % theme.chords.length];
+    const chordRoot = this.noteToFreq(theme.root, a.scale, chordOffset);
+
+    // På step 0 av varje ackord-cykel (var 4:e step = 1 beat), spela hela ackord-pad (4 beats sustain)
+    if (step % 4 === 0) {
+      // Spela pad-ackord vid varje beat-start (men bara 1 gång per ackord-byte)
+      if (step === 0) {
+        const chordDur = stepDur * 16; // hela ackord-cykeln (16 steps)
+        this._playChord(chordRoot, a.scale, chordDur, 0.08);
+      }
+    }
+
+    // Spela melodi-not om patternet säger så
+    if (melodyPat[step] >= 0) {
+      const noteFreq = this.noteToFreq(chordRoot, a.scale, melodyPat[step]);
+      // Noter går upp en oktav för melodin (tydligare)
+      this._playMelodyNote(noteFreq * 2, stepDur * 2.5, 0.13);
+    }
+
+    // Bas
+    if (bassPat[step]) {
+      this._playBassNote(chordRoot, stepDur * 4, 0.18);
+    }
+    // Trummor
+    if (kickPat[step]) this._playKick();
+    if (hihatPat[step]) this._playHihat();
+
+    // Advancera step + chord
+    a.beatStep = (a.beatStep + 1) % 16;
+    if (a.beatStep === 0) {
+      a.chordIdx = (a.chordIdx + 1) % theme.chords.length;
     }
   },
 };
@@ -6507,7 +6705,9 @@ const Coop = {
       }
       if (typeof showTdmHud === 'function') showTdmHud(myTeam);
       if (typeof showToast === 'function') showToast(myTeam === 'red' ? '⚔ DU ÄR I RÖDA LAGET' : '⚔ DU ÄR I BLÅA LAGET');
-      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
+      // Spela TDM-specifik musik (snabb, action)
+      if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('tdm');
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
     } else if (ev.type === 'companion_damaged') {
       // Server-sim: companion tog skada från enemy. Apply till klient state.
       if (ev.peerId === this.myId && state.companion && state.companion.alive) {
@@ -6680,7 +6880,8 @@ const Coop = {
       if (typeof showCtfHud === 'function') showCtfHud(myTeam);
       if (typeof updateCtfScore === 'function') updateCtfScore(0, 0, this.ctfTargetCaptures);
       if (typeof showToast === 'function') showToast(myTeam === 'red' ? '🚩 DU ÄR I RÖDA LAGET' : '🚩 DU ÄR I BLÅA LAGET');
-      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
+      if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('ctf');
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
     } else if (ev.type === 'ctf_flag_picked') {
       // Server-shape: { peerId, team (=flag picked up), carrierTeam }
       const flagTeam = ev.team;
@@ -7001,7 +7202,8 @@ const Coop = {
       if (typeof showSiegeHud === 'function') showSiegeHud();
       if (typeof updateSiegeScore === 'function') updateSiegeScore(0, 0, this.siegeTargetPoints);
       if (typeof showToast === 'function') showToast(myTeam === 'red' ? '⚔ DU ÄR I RÖDA LAGET' : '⚔ DU ÄR I BLÅA LAGET');
-      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
+      if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('siege');
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
     } else if (ev.type === 'siege_base_captured') {
       // { baseId, team }
       if (state.siegeBases && state.siegeBases[ev.baseId]) {
