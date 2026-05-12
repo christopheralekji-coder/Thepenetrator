@@ -250,12 +250,17 @@
     </div>
 
   </div>
+  <!-- Sekundära menyer från startsidan: Stats + Cheats. Inbakade i settings för
+       att minska rumsligt brus på hemskärm. -->
+  <div class="settings-submenu">
+    <button id="btn-settings-stats" class="medium-btn">📊 STATISTIK</button>
+    <button id="btn-settings-cheats" class="medium-btn">🔓 CHEATS</button>
+  </div>
   <button id="btn-settings-close" class="big-btn">STÄNG</button>
 </div>
 
 <div id="menu-screen" class="overlay">
   <h1>THE PENETRATOR</h1>
-  <p class="subtitle">Jakten på Jimmy Mourad</p>
   <button id="btn-start" class="big-btn">SPELA</button>
   <button id="btn-coop" class="medium-btn">👥 CO-OP MULTIPLAYER</button>
   <div class="menu-row">
@@ -264,14 +269,10 @@
   </div>
   <div class="menu-row">
     <button id="btn-shop-menu" class="medium-btn">🛒 SHOP</button>
-    <button id="btn-costumes" class="medium-btn">👕 OUTFITS</button>
     <button id="btn-wardrobe" class="medium-btn">🪄 GARDEROB</button>
-    <button id="btn-companions" class="medium-btn">🐕 KOMPANJONER</button>
+    <button id="btn-achievements" class="medium-btn">🏆 PRESTATIONER</button>
   </div>
   <div class="menu-row">
-    <button id="btn-stats" class="medium-btn">📊 STATISTIK</button>
-    <button id="btn-achievements" class="medium-btn">🏆 PRESTATIONER</button>
-    <button id="btn-cheats" class="medium-btn">🔓 CHEATS</button>
     <button id="btn-menu-settings" class="medium-btn">⚙ INSTÄLLNINGAR</button>
     <button id="btn-menu-help" class="medium-btn">❓ HJÄLP / TUTORIAL</button>
   </div>
@@ -366,13 +367,6 @@
   </div>
   <div id="coop-status" style="margin-top:20px;font-size:14px;color:#ffd54a;min-height:30px;"></div>
   <button id="btn-coop-close" class="big-btn" style="background:linear-gradient(135deg, #444, #222);border-color:rgba(255,255,255,0.3);margin-top:18px;">AVBRYT</button>
-</div>
-
-<div id="costumes-screen" class="overlay hidden">
-  <h2>👕 OUTFITS</h2>
-  <p class="menu-sub" style="margin-bottom:20px;">Välj din look</p>
-  <div id="costumes-grid"></div>
-  <button id="btn-costumes-close" class="big-btn">TILLBAKA</button>
 </div>
 
 <div id="companions-screen" class="overlay hidden">

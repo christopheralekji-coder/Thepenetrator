@@ -4007,7 +4007,15 @@ function openStats() {
     <div class="stats-row"><span class="label">Högsta wave</span><span class="val">${save.highWave || 1}</span></div>
   `;
 }
-document.getElementById('btn-stats').addEventListener('click', openStats);
+// btn-stats borttagen från hemskärm — använd btn-settings-stats istället (bakad i settings).
+const _btnStatsMenu = document.getElementById('btn-stats');
+if (_btnStatsMenu) _btnStatsMenu.addEventListener('click', openStats);
+const _btnSettingsStats = document.getElementById('btn-settings-stats');
+if (_btnSettingsStats) _btnSettingsStats.addEventListener('click', () => {
+  // Stäng settings först så stats kan slå upp ren
+  if (settingsScreen) settingsScreen.classList.add('hidden');
+  openStats();
+});
 document.getElementById('btn-stats-close').addEventListener('click', () => {
   statsScreen.classList.add('hidden'); Audio.uiClick();
 });
@@ -6230,6 +6238,7 @@ btnCoopStart.addEventListener('click', () => {
 const costumesScreen = document.getElementById('costumes-screen');
 const costumesGrid = document.getElementById('costumes-grid');
 function openCostumes() {
+  if (!costumesScreen || !costumesGrid) return; // outfit-feature borttagen
   costumesScreen.classList.remove('hidden');
   Audio.uiClick();
   costumesGrid.innerHTML = '';
@@ -6259,9 +6268,14 @@ function openCostumes() {
     costumesGrid.appendChild(card);
   }
 }
-document.getElementById('btn-costumes').addEventListener('click', openCostumes);
-document.getElementById('btn-costumes-close').addEventListener('click', () => {
-  costumesScreen.classList.add('hidden'); Audio.uiClick();
+// Outfits-feature borttagen — wardrobe är primär. Null-check så koden inte
+// kraschar för legacy save-states som råkar kalla openCostumes.
+const _btnCostumes = document.getElementById('btn-costumes');
+if (_btnCostumes) _btnCostumes.addEventListener('click', openCostumes);
+const _btnCostumesClose = document.getElementById('btn-costumes-close');
+if (_btnCostumesClose) _btnCostumesClose.addEventListener('click', () => {
+  if (costumesScreen) costumesScreen.classList.add('hidden');
+  Audio.uiClick();
 });
 
 // WARDROBE-skärm
@@ -7286,9 +7300,18 @@ if (_btnCompClose) _btnCompClose.addEventListener('click', () => {
   companionsScreen.classList.add('hidden'); Audio.uiClick();
 });
 
-document.getElementById('btn-cheats').addEventListener('click', openCheats);
-document.getElementById('btn-cheats-close').addEventListener('click', () => {
-  cheatsScreen.classList.add('hidden'); Audio.uiClick();
+// btn-cheats borttagen från hemskärm — använd btn-settings-cheats istället
+const _btnCheatsMenu = document.getElementById('btn-cheats');
+if (_btnCheatsMenu) _btnCheatsMenu.addEventListener('click', openCheats);
+const _btnSettingsCheats = document.getElementById('btn-settings-cheats');
+if (_btnSettingsCheats) _btnSettingsCheats.addEventListener('click', () => {
+  if (settingsScreen) settingsScreen.classList.add('hidden');
+  openCheats();
+});
+const _btnCheatsClose = document.getElementById('btn-cheats-close');
+if (_btnCheatsClose) _btnCheatsClose.addEventListener('click', () => {
+  if (cheatsScreen) cheatsScreen.classList.add('hidden');
+  Audio.uiClick();
 });
 
 // Apply ultimate-aura on load
