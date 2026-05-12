@@ -6099,6 +6099,12 @@ const Coop = {
       state.bullets = [];
       state.bossAlive = false;
       state.bossIntro = null;
+      // Stoppa wave-progression som actuallyStartGame→startWave(1) startade.
+      // TDM har inga waves — annars triggar safety-fallback efter 40s felaktigt.
+      state.waveActive = false;
+      state.enemiesToSpawn = 0;
+      state._serverSpawnWaitSince = 0;
+      state._serverWakeToastShown = false;
       // Sätt TDM-arena som klientens stage så koordinater matchar server (annars
       // hamnar player utanför sin stage och kameran ligger fel)
       if (ev.arena) {
@@ -6267,6 +6273,13 @@ const Coop = {
       state.bullets = [];
       state.bossAlive = false;
       state.bossIntro = null;
+      // Stoppa wave-progression som actuallyStartGame→startWave(1) startade.
+      // CTF/TDM har inga waves; om dessa flaggor läcker triggar safety-fallback
+      // efter 40s med "Server svarar inte" trots att servern är OK.
+      state.waveActive = false;
+      state.enemiesToSpawn = 0;
+      state._serverSpawnWaitSince = 0;
+      state._serverWakeToastShown = false;
       // Custom stage så kamera/koord matchar CTF-arena
       if (ev.arena) {
         state.customStages = [{
@@ -22957,9 +22970,15 @@ function runFrame(dt, now) {
       // fallback till host-mode. 40s är medvetet hög så Render free-tier
       // (sömn efter 15 min, ~30-50s wakeup) hinner vakna utan trigga fallback.
       // Pre-warm vid openCoop() försöker undvika detta helt.
+      // KRITISKT: PvP-modes (TDM/CTF) har INGA enemies eller waves — fallback-
+      // logiken passar bara story-coop. Tidigare läckte state.waveActive/
+      // enemiesToSpawn från actuallyStartGame→startWave(1) in i CTF/TDM som
+      // override:ades senare av ctf_started/tdm_started → fallback triggade
+      // felaktigt efter 40s och visade "Server svarar inte — host-fallback".
       if (Coop.active && Coop.isHost && Coop.serverSimActive && state.waveActive &&
           state.enemiesToSpawn > 0 && state.enemies.length === 0 &&
-          state.mode === 'playing') {
+          state.mode === 'playing' &&
+          !state.tdmActive && !state.ctfActive) {
         const countdownActive = state._countdownEndAt && performance.now() < state._countdownEndAt;
         if (!countdownActive) {
           state._serverSpawnWaitSince = state._serverSpawnWaitSince || performance.now();

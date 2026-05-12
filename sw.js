@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v165-no-auto-reload';
+const CACHE = 'penetrator-v166-pvp-fallback-fix';
 const ASSETS = [
   './',
   './index.html',
