@@ -1,6 +1,6 @@
-// Shared SIEGE THE BASE arena. Symmetrisk 5000×3000 med 6 capture-bases,
-// 2 destructible cores (15000 HP, extremt svår att förstöra), turrets per
-// lag, mängder med cover. Vinst: 100 poäng ELLER destroy enemy core.
+// Shared SIEGE THE BASE arena. Symmetrisk 5000×3000 med 7 capture-bases
+// (6 sidobas + 1 mid-bas högvärdig), 2 destructible cores (15000 HP),
+// turrets per lag, mängder med cover. Vinst: 500/5000/20000 poäng ELLER core-kill.
 'use strict';
 
 const SIEGE_ARENA = {
@@ -41,16 +41,20 @@ const SIEGE_ARENA = {
     { id: 'base_tr', x: 3200, y: 800,  r: 80, startOwner: null },
     { id: 'base_bl', x: 1800, y: 2200, r: 80, startOwner: null },
     { id: 'base_br', x: 3200, y: 2200, r: 80, startOwner: null },
+    // Mid-bas: kontrollpunkt i exakt mitten, högvärdig (båda lag rusar hit).
+    // r=100 för att ge plats för flera spelare + clash-känsla.
+    { id: 'base_mid', x: 2500, y: 1500, r: 100, startOwner: null },
   ],
   captureTimeSec: 10.0,      // 10s från neutral → capture
   neutralizeTimeSec: 5.0,    // 5s för att neutralisera enemy-base
 
-  // === TURRETS — 2 per lag. Varje lag har 1 MACHINEGUN + 1 ROCKET LAUNCHER ===
+  // === TURRETS — 2 per lag. Varje lag har 1 MACHINEGUN + 1 ROCKET LAUNCHER.
+  // r=34 så hit-box matchar visuell sprite (med pipa) → skott stannar som vägg ===
   turrets: [
-    { id: 'siege_turret_red_mg',     team: 'red',  x: 700,  y: 1300, maxHp: 1500, r: 22, weaponId: 'turret_mg',     turretType: 'mg' },
-    { id: 'siege_turret_red_rocket', team: 'red',  x: 700,  y: 1700, maxHp: 1500, r: 22, weaponId: 'turret_rocket', turretType: 'rocket' },
-    { id: 'siege_turret_blue_mg',     team: 'blue', x: 4300, y: 1300, maxHp: 1500, r: 22, weaponId: 'turret_mg',     turretType: 'mg' },
-    { id: 'siege_turret_blue_rocket', team: 'blue', x: 4300, y: 1700, maxHp: 1500, r: 22, weaponId: 'turret_rocket', turretType: 'rocket' },
+    { id: 'siege_turret_red_mg',     team: 'red',  x: 700,  y: 1300, maxHp: 1500, r: 34, weaponId: 'turret_mg',     turretType: 'mg' },
+    { id: 'siege_turret_red_rocket', team: 'red',  x: 700,  y: 1700, maxHp: 1500, r: 34, weaponId: 'turret_rocket', turretType: 'rocket' },
+    { id: 'siege_turret_blue_mg',     team: 'blue', x: 4300, y: 1300, maxHp: 1500, r: 34, weaponId: 'turret_mg',     turretType: 'mg' },
+    { id: 'siege_turret_blue_rocket', team: 'blue', x: 4300, y: 1700, maxHp: 1500, r: 34, weaponId: 'turret_rocket', turretType: 'rocket' },
   ],
   turretEnterRadius: 50,
 
@@ -75,9 +79,7 @@ const SIEGE_ARENA = {
     { x: 1280, y: 1400, w: 40, h: 200, kind: 'wall_pillar' },
     { x: 3680, y: 1400, w: 40, h: 200, kind: 'wall_pillar' },
 
-    // === Mid-zon cover (sandbags + crates) ===
-    { x: 2400, y: 1450, w: 100, h: 30, kind: 'sandbag' },
-    { x: 2500, y: 1450, w: 100, h: 30, kind: 'sandbag' },
+    // === Mid-zon cover (sandbags + crates) — center cleared för base_mid (2500,1500 r=100) ===
     { x: 2350, y: 1500, w: 30,  h: 100, kind: 'sandbag' },
     { x: 2620, y: 1500, w: 30,  h: 100, kind: 'sandbag' },
     { x: 2360, y: 1350, w: 50,  h: 50, kind: 'crate' },

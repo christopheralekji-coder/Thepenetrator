@@ -616,6 +616,10 @@ function drawTruck() {
 
 function spawnCompanion() {
   if (!save.companions || !save.companions.active) { state.companion = null; return; }
+  // PvP-modes (tdm/ctf/siege) tillåter inte companion — orättvist + ingen shop att köpa
+  if (Coop.active && Coop.config && (Coop.config.tdm || Coop.config.ctf || Coop.config.siege)) {
+    state.companion = null; return;
+  }
   const id = save.companions.active;
   const comp = getCompanionById(id);
   if (!comp) { state.companion = null; return; }
@@ -2911,7 +2915,7 @@ const COOP_STORY_WEAPON_UNLOCKS = {
   // Stage 6+: alla 6 låsta, ingen ytterligare unlock
 };
 function isCoopStoryMode() {
-  return Coop.active && !Coop.config.tdm && !Coop.config.ctf && (Coop.config.mode === 'story' || !Coop.config.mode);
+  return Coop.active && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && (Coop.config.mode === 'story' || !Coop.config.mode);
 }
 function coopStoryUnlockedThroughWave(wave) {
   const unlocked = ['fists'];
@@ -6678,6 +6682,8 @@ const Coop = {
       // Säkerställ mutual exclusion mellan PvP-modes
       this.ctfActive = false; this.siegeActive = false;
       state.ctfActive = false; state.siegeActive = false;
+      // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
+      state.companion = null;
       this.tdmActive = true;
       this.tdmTargetKills = ev.targetKills || 10;
       this.tdmTeams = ev.teams || {};       // peerId → 'red'|'blue'
@@ -6833,6 +6839,8 @@ const Coop = {
       // Säkerställ mutual exclusion mellan PvP-modes
       this.tdmActive = false; this.siegeActive = false;
       state.tdmActive = false; state.siegeActive = false;
+      // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
+      state.companion = null;
       this.ctfActive = true;
       this.ctfTargetCaptures = ev.targetCaptures || 3;
       this.ctfTeams = ev.teams || {};      // peerId → 'red'|'blue'
@@ -7180,6 +7188,8 @@ const Coop = {
       // Säkerställ mutual exclusion mellan PvP-modes
       this.tdmActive = false; this.ctfActive = false;
       state.tdmActive = false; state.ctfActive = false;
+      // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
+      state.companion = null;
       this.siegeActive = true;
       this.siegeTargetPoints = ev.targetPoints || 100;
       this.siegeTeams = ev.teams || {};
@@ -14038,7 +14048,7 @@ function updateHUD() {
   if (hpBar) hpBar.dataset.low = hpFrac < 0.3 ? '1' : '0';
   // Shield-bar: bara synlig i PvP (TDM/CTF)
   if (typeof _shieldBar !== 'undefined' && _shieldBar) {
-    if ((state.tdmActive || state.ctfActive) && p.maxShield) {
+    if ((state.tdmActive || state.ctfActive || state.siegeActive) && p.maxShield) {
       _shieldBar.classList.remove('hidden');
       const sFrac = Math.max(0, (p.shield || 0) / p.maxShield);
       if (_shieldFill) _shieldFill.style.width = (sFrac * 100) + '%';
@@ -14117,7 +14127,7 @@ let _lastShieldCdSet = -1;
 let _lastShieldVisible = null;
 function updatePvpShieldButton() {
   if (!_btnPvpShield) return;
-  const inPvP = state.tdmActive || state.ctfActive;
+  const inPvP = state.tdmActive || state.ctfActive || state.siegeActive;
   if (inPvP !== _lastShieldVisible) {
     _lastShieldVisible = inPvP;
     _btnPvpShield.classList.toggle('hidden', !inPvP);

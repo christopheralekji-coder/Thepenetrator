@@ -926,11 +926,28 @@ function tickSiege(sim, dt, now) {
   // Match-end? Skip game-logic
   if (sim.siegeEnded) return;
 
-  // Wall-collision för spelare
+  // Wall-collision för spelare + turret-collision (turrets är cirklar, push out)
   for (const [, ws] of sim.room.members) {
     if (ws.playerState && ws.playerState.hp > 0) {
+      // Hoppa över wall/turret-collision om spelaren sitter i sin turret
+      if (ws._mountedSiegeTurretId) continue;
       const e = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
       resolveCtfWall(e, SIEGE_ARENA.walls);
+      // Turret-collision: push player out om de överlappar med turret-radius
+      if (sim.siegeTurrets) {
+        for (const tid of Object.keys(sim.siegeTurrets)) {
+          const t = sim.siegeTurrets[tid];
+          const dx = e.x - t.x, dy = e.y - t.y;
+          const rsum = t.r + e.r;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < rsum * rsum && d2 > 0.01) {
+            const d = Math.sqrt(d2);
+            const push = (rsum - d) / d;
+            e.x += dx * push;
+            e.y += dy * push;
+          }
+        }
+      }
       ws.playerState.x = e.x;
       ws.playerState.y = e.y;
     }

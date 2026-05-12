@@ -352,15 +352,20 @@ function updateBullets(sim, dt, now) {
       bullets.splice(i, 1);
       continue;
     }
-    // SIEGE: turret hit detection (samma som CTF)
+    // SIEGE: turret hit detection — turrets fungerar som väggar (även destroyed
+    // vrak blockerar). Skott stannar alltid när de träffar.
     if (sim.siegeActive && sim.siegeTurrets) {
       let hitTurret = false;
       for (const tid of Object.keys(sim.siegeTurrets)) {
         const t = sim.siegeTurrets[tid];
-        if (t.destroyed) continue;
         const dx = t.x - b.x, dy = t.y - b.y;
         const rsum = t.r + b.r;
         if (dx * dx + dy * dy < rsum * rsum) {
+          if (t.destroyed) {
+            // Vrak blockerar skott men tar ingen mer skada
+            hitTurret = true;
+            break;
+          }
           t.hp = Math.max(0, t.hp - b.dmg);
           sim.eventQueue.push({ type: 'siege_turret_damaged', turretId: t.id, hp: t.hp, maxHp: t.maxHp });
           if (t.hp <= 0 && !t.destroyed) {

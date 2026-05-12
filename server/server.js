@@ -541,11 +541,11 @@ function handleMessage(ws, msg) {
     return;
   }
 
-  // PvP-shield-ability: 3s immunitet, 45s cooldown. Bara TDM/CTF.
+  // PvP-shield-ability: 3s immunitet, 45s cooldown. TDM/CTF/Siege.
   if (msg.type === 'pvp_ability_shield') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
-    if (!room.sim.tdmActive && !room.sim.ctfActive) return;
+    if (!room.sim.tdmActive && !room.sim.ctfActive && !room.sim.siegeActive) return;
     if (!ws.playerState || ws.playerState.hp <= 0) return;
     const now = Date.now();
     const SHIELD_DURATION = 3000;
