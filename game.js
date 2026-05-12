@@ -1022,23 +1022,27 @@ function drawPvpWalls(walls) {
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
       ctx.fillRect(x + 2, y + Math.max(3, w.h * 0.06), w.w, w.h);
     }
+    // Stabil hash per-wall baserat på WORLD-koord (konstant). Tidigare beräknades
+    // hash från SCREEN-coords (x,y) inom helpers → bullet-holes, concrete-dots och
+    // wood-grain "vandrade" varje frame när kameran rörde sig.
+    const seed = ((w.x * 7) ^ (w.y * 13) ^ (w.w * 5) ^ (w.h * 11)) | 0;
     // Rita själva obstaclet
-    if (w.kind === 'wall_red_base' || w.kind === 'wall_blue_base') drawBaseWall(x, y, w.w, w.h, w.kind === 'wall_red_base');
-    else if (w.kind === 'wall_pillar') drawPillar(x, y, w.w, w.h);
+    if (w.kind === 'wall_red_base' || w.kind === 'wall_blue_base') drawBaseWall(x, y, w.w, w.h, w.kind === 'wall_red_base', seed);
+    else if (w.kind === 'wall_pillar') drawPillar(x, y, w.w, w.h, seed);
     else if (w.kind === 'wall_divider') drawDivider(x, y, w.w, w.h);
     else if (w.kind === 'sandbag') drawSandbag(x, y, w.w, w.h);
     else if (w.kind === 'barrel') drawBarrel(x, y, w.w, w.h);
-    else if (w.kind === 'debris') drawDebris(x, y, w.w, w.h);
+    else if (w.kind === 'debris') drawDebris(x, y, w.w, w.h, seed);
     else if (w.kind === 'barricade') drawBarricade(x, y, w.w, w.h);
     else if (w.kind === 'pipe') drawPipe(x, y, w.w, w.h);
-    else if (w.kind === 'crate') drawCrate(x, y, w.w, w.h);
+    else if (w.kind === 'crate') drawCrate(x, y, w.w, w.h, seed);
     else { ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x, y, w.w, w.h); }
   }
   ctx.restore();
 }
 
 // Base-wall: stålplattor med nitar + lag-färg + slitage + bullet-holes
-function drawBaseWall(x, y, w, h, isRed) {
+function drawBaseWall(x, y, w, h, isRed, seed) {
   const baseDark = isRed ? '#3a1010' : '#10204a';
   const baseMid = isRed ? '#5a2828' : '#1a3060';
   const stroke = isRed ? '#ff6060' : '#60a0ff';
@@ -1097,8 +1101,8 @@ function drawBaseWall(x, y, w, h, isRed) {
       placeRivet(x + w - 5, y + i);
     }
   }
-  // Bullet-holes (deterministisk via xor-hash så de inte flickrar)
-  const hash = (x * 7 + y * 13 + w * 5 + h * 11) | 0;
+  // Bullet-holes — använd seed (world-coord-baserad) så de inte vandrar
+  const hash = seed || 0;
   const holes = Math.min(3, Math.floor((w + h) / 120));
   for (let i = 0; i < holes; i++) {
     const hx = x + 10 + ((hash * (i + 1) * 23) & 0xff) % Math.max(1, w - 20);
@@ -1116,7 +1120,7 @@ function drawBaseWall(x, y, w, h, isRed) {
 }
 
 // Pillar: betongpelare med synligt rebar + sprickor + bullet-holes
-function drawPillar(x, y, w, h) {
+function drawPillar(x, y, w, h, seed) {
   // Concrete-gradient
   const grad = ctx.createLinearGradient(x, y, x + w, y);
   grad.addColorStop(0, '#4a4a4a');
@@ -1131,8 +1135,8 @@ function drawPillar(x, y, w, h) {
   // Inner highlight (left edge)
   ctx.fillStyle = 'rgba(255,255,255,0.08)';
   ctx.fillRect(x + 2, y + 2, 2, h - 4);
-  // Concrete texture (noise-dots)
-  const hash = (x * 17 + y * 23) | 0;
+  // Concrete texture (noise-dots) — använd seed så texturen är stabil
+  const hash = seed || 0;
   ctx.fillStyle = 'rgba(0,0,0,0.18)';
   for (let i = 0; i < 8; i++) {
     const px = x + 2 + ((hash * (i + 1) * 7) & 0xff) % (w - 4);
@@ -1305,15 +1309,17 @@ function drawBarrel(x, y, w, h) {
 }
 
 // Debris: jaggad metallbit med rost + rivets
-function drawDebris(x, y, w, h) {
+function drawDebris(x, y, w, h, seed) {
   // Bakgrund (mörk skugga-area)
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(x, y, w, h);
   // Mestadels mörkgrå metal med rost
   ctx.fillStyle = '#4a4a52';
   ctx.beginPath();
-  // Jaggad oregelbunden form
-  const hash = (x * 13 + y * 19) | 0;
+  // Jaggad oregelbunden form (seed används för stabilitet, även om current
+  // polygon-form är hårdkodad relativ till x/y så seeds bara håller framtida
+  // randomisering konsekvent)
+  const hash = seed || 0;
   ctx.moveTo(x + 2, y + 4);
   ctx.lineTo(x + w * 0.3, y + 1);
   ctx.lineTo(x + w * 0.6, y + 3);
@@ -1445,7 +1451,7 @@ function drawPipe(x, y, w, h) {
 }
 
 // Crate: trälåda med plankor, hörn-band, stamps
-function drawCrate(x, y, w, h) {
+function drawCrate(x, y, w, h, seed) {
   // Gradient-bakgrund för wood-tone
   const grad = ctx.createLinearGradient(x, y, x, y + h);
   grad.addColorStop(0, '#9a6a3a');
@@ -1464,10 +1470,10 @@ function drawCrate(x, y, w, h) {
     ctx.lineTo(x + w - 2, py);
     ctx.stroke();
   }
-  // Trä-grain (subtila vertikala streck)
+  // Trä-grain (subtila vertikala streck) — använd seed så grain inte vandrar
   ctx.strokeStyle = 'rgba(40,20,5,0.3)';
   ctx.lineWidth = 0.6;
-  const hash = (x * 7 + y * 11) | 0;
+  const hash = seed || 0;
   for (let i = 0; i < 4; i++) {
     const gx = x + 4 + ((hash * (i + 1) * 13) & 0x7f) % (w - 8);
     ctx.beginPath();
