@@ -74,6 +74,9 @@ function createSim(room) {
       red:  { x: 0, y: 0, baseX: 0, baseY: 0, carrierId: null, atBase: true, droppedAt: 0 },
       blue: { x: 0, y: 0, baseX: 0, baseY: 0, carrierId: null, atBase: true, droppedAt: 0 },
     },
+    // CTF-turrets: en MG-torn per lag. occupantId === null = ledig, satt = en spelare sitter i.
+    // hp <= 0 = destroyed (kan inte mountas igen). lastShotAt = rate-limit för MG-fire.
+    ctfTurrets: {},
   };
   return sim;
 }
@@ -610,6 +613,24 @@ function tickCtf(sim, dt, now) {
     }
   }
 
+  // Turret occupant position-lock: håll spelaren fast vid turret-pos
+  if (sim.ctfTurrets) {
+    for (const tid of Object.keys(sim.ctfTurrets)) {
+      const t = sim.ctfTurrets[tid];
+      if (t.destroyed) continue;
+      if (t.occupantId) {
+        const ws = sim.room.members.get(t.occupantId);
+        if (!ws || !ws.playerState || ws.playerState.hp <= 0) {
+          // Occupant disconnected/dog — släpp turret
+          exitTurret(sim, tid, 'occupant_lost');
+        } else {
+          ws.playerState.x = t.x;
+          ws.playerState.y = t.y;
+        }
+      }
+    }
+  }
+
   // Bullet-physics (kolla wall-hits via bullets.js: vi behöver toggla flagga
   // för wall-check inom updateBullets, så markeras via sim.ctfActive)
   updateBullets(sim, dt, now);
@@ -715,6 +736,51 @@ function tickPvpPickups(sim, now) {
       break; // pickup borta — gå till nästa
     }
   }
+}
+
+// ============================================================
+// CTF-turrets — enter/exit + damage-routing
+// ============================================================
+const TURRET_ENTER_RADIUS = 50;
+
+function tryEnterTurret(sim, peerId, turretId) {
+  if (!sim.ctfActive) return false;
+  const t = sim.ctfTurrets && sim.ctfTurrets[turretId];
+  if (!t || t.destroyed) return false;
+  if (t.occupantId) return false; // upptagen — bara en åt gången
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return false;
+  // Måste vara nära turret + på samma lag
+  if (ws.tdmTeam !== t.team) return false;
+  const dx = ws.playerState.x - t.x, dy = ws.playerState.y - t.y;
+  if (dx * dx + dy * dy > TURRET_ENTER_RADIUS * TURRET_ENTER_RADIUS) return false;
+  t.occupantId = peerId;
+  ws._mountedCtfTurretId = turretId;
+  // Lås spelare till turret-position
+  ws.playerState.x = t.x;
+  ws.playerState.y = t.y;
+  sim.eventQueue.push({ type: 'ctf_turret_entered', peerId, turretId });
+  return true;
+}
+
+function exitTurret(sim, turretId, reason) {
+  const t = sim.ctfTurrets && sim.ctfTurrets[turretId];
+  if (!t) return;
+  const peerId = t.occupantId;
+  t.occupantId = null;
+  if (peerId) {
+    const ws = sim.room.members.get(peerId);
+    if (ws) {
+      ws._mountedCtfTurretId = null;
+      // Knuffa spelaren ~30px utåt så de inte direkt re-enterar
+      if (ws.playerState) {
+        const dir = t.team === 'red' ? 1 : -1; // röd står mer höger om sin turret
+        ws.playerState.x = t.x + dir * 35;
+        ws.playerState.y = t.y;
+      }
+    }
+  }
+  sim.eventQueue.push({ type: 'ctf_turret_exited', peerId, turretId, reason: reason || 'manual' });
 }
 
 // Hantera spelare-död under CTF: droppa flagga vid death-position
@@ -940,6 +1006,16 @@ function startSim(sim, opts) {
         carrierId: null, atBase: true, droppedAt: 0,
       };
     }
+    // Init turret-state per lag (full hp, ingen occupant, ej destroyed)
+    sim.ctfTurrets = {};
+    for (const t of CTF_ARENA.turrets) {
+      sim.ctfTurrets[t.id] = {
+        id: t.id, team: t.team, x: t.x, y: t.y, r: t.r,
+        hp: t.maxHp, maxHp: t.maxHp,
+        occupantId: null, destroyed: false, destroyedAt: 0,
+        lastShotAt: 0, aim: 0,
+      };
+    }
     const teams = {};
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
@@ -980,6 +1056,10 @@ function startSim(sim, opts) {
       captureRadius: CTF_ARENA.captureRadius,
       pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
       shieldMax: 100,
+      turrets: Object.values(sim.ctfTurrets).map(t => ({
+        id: t.id, team: t.team, x: t.x, y: t.y, r: t.r, maxHp: t.maxHp, hp: t.hp,
+      })),
+      turretEnterRadius: CTF_ARENA.turretEnterRadius,
     });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
   } else if (sim.tdmActive) {
@@ -1160,4 +1240,4 @@ function applyLoadStage(sim, peerId, msg) {
   loadStage(sim, wave);
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, tryEnterTurret, exitTurret };

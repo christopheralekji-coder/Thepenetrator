@@ -1004,7 +1004,9 @@ function drawCtfArenaFloor() {
   ctx.restore();
 }
 
-// Generisk wall-render som används av både CTF och TDM
+// Generisk wall-render som används av både CTF och TDM. Stöder många kinds:
+// wall_red_base, wall_blue_base, wall_pillar, wall_divider, crate, sandbag,
+// barrel, debris, barricade, pipe.
 function drawPvpWalls(walls) {
   if (!walls) return;
   const cx = state.camera.x, cy = state.camera.y;
@@ -1012,27 +1014,214 @@ function drawPvpWalls(walls) {
   for (const w of walls) {
     const x = w.x - cx, y = w.y - cy;
     if (x + w.w < -10 || x > viewW + 10 || y + w.h < -10 || y > viewH + 10) continue;
-    let fill, stroke;
-    if (w.kind === 'wall_red_base')       { fill = '#5a2020'; stroke = '#ff6060'; }
-    else if (w.kind === 'wall_blue_base') { fill = '#1a2a5a'; stroke = '#60a0ff'; }
-    else if (w.kind === 'wall_pillar')    { fill = '#444';    stroke = '#888'; }
-    else if (w.kind === 'wall_divider')   { fill = '#333';    stroke = '#666'; }
-    else                                  { fill = '#6a4a2a'; stroke = '#b07b3a'; }
-    ctx.fillStyle = fill;
-    ctx.fillRect(x, y, w.w, w.h);
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
-    if (w.kind === 'crate') {
+    if (w.kind === 'wall_red_base' || w.kind === 'wall_blue_base') {
+      const isRed = w.kind === 'wall_red_base';
+      ctx.fillStyle = isRed ? '#5a2020' : '#1a2a5a';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.strokeStyle = isRed ? '#ff6060' : '#60a0ff';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+    } else if (w.kind === 'wall_pillar') {
+      ctx.fillStyle = '#444';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.strokeStyle = '#888';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+      // Vertikal highlight för att se det är en pillar
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      ctx.fillRect(x + 2, y + 2, 3, w.h - 4);
+    } else if (w.kind === 'wall_divider') {
+      ctx.fillStyle = '#333';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.strokeStyle = '#666';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+    } else if (w.kind === 'sandbag') {
+      // Sandsäckar — beige rundade rektanglar med stripes
+      ctx.fillStyle = '#9a7a4a';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.strokeStyle = '#6a4e2a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+      // Stripes (sandsäck-segment)
+      ctx.strokeStyle = 'rgba(80,60,30,0.5)';
+      const segs = Math.max(2, Math.floor(w.w / 30));
+      for (let i = 1; i < segs; i++) {
+        const sx = x + (w.w / segs) * i;
+        ctx.beginPath();
+        ctx.moveTo(sx, y + 2);
+        ctx.lineTo(sx, y + w.h - 2);
+        ctx.stroke();
+      }
+    } else if (w.kind === 'barrel') {
+      // Rött explosivt fat (rund look via fyrkant + cirkel-overlay)
+      ctx.fillStyle = '#7a2020';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.strokeStyle = '#ff5050';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+      // Cirkel-overlay för att se det är ett fat
+      ctx.fillStyle = 'rgba(255,80,80,0.4)';
+      ctx.beginPath();
+      ctx.arc(x + w.w / 2, y + w.h / 2, Math.min(w.w, w.h) * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+      // Varnings-X
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('☢', x + w.w / 2, y + w.h / 2);
+    } else if (w.kind === 'debris') {
+      // Skrot-bit — mörkgrå random shape
+      ctx.fillStyle = '#5a5a60';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.strokeStyle = '#3a3a40';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+      // Inner-streck för att se skrot-textur
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath();
+      ctx.moveTo(x + 4, y + 4);
+      ctx.lineTo(x + w.w - 4, y + w.h - 4);
+      ctx.moveTo(x + w.w - 4, y + 4);
+      ctx.lineTo(x + 4, y + w.h - 4);
+      ctx.stroke();
+    } else if (w.kind === 'barricade') {
+      // Trä-barrikad (gult-brun + diagonal-stripes)
+      ctx.fillStyle = '#8a6a3a';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.strokeStyle = '#5a3a1a';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+      ctx.strokeStyle = 'rgba(60,30,10,0.5)';
+      ctx.lineWidth = 1;
+      for (let i = -w.h; i < w.w; i += 8) {
+        ctx.beginPath();
+        ctx.moveTo(x + i, y + w.h);
+        ctx.lineTo(x + i + w.h, y);
+        ctx.stroke();
+      }
+    } else if (w.kind === 'pipe') {
+      // Rör — cyan/blå metallic
+      ctx.fillStyle = '#4a6a7a';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.strokeStyle = '#2a4a5a';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+      // Highlight för rör-rundning
+      ctx.fillStyle = 'rgba(140,180,200,0.4)';
+      ctx.fillRect(x + 2, y + 2, w.w - 4, 3);
+    } else if (w.kind === 'crate') {
+      ctx.fillStyle = '#6a4a2a';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.strokeStyle = '#b07b3a';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+      // Mitten-linje (träplankor-look)
       ctx.strokeStyle = 'rgba(0,0,0,0.4)';
       ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x + 4, y + w.h * 0.5);
       ctx.lineTo(x + w.w - 4, y + w.h * 0.5);
       ctx.stroke();
+    } else {
+      // Default fallback
+      ctx.fillStyle = '#5a5a5a';
+      ctx.fillRect(x, y, w.w, w.h);
     }
   }
   ctx.restore();
+}
+
+// CTF: rita turrets — bas + roterande pipa + hp-bar + förstörd-version
+function drawCtfTurrets() {
+  if (!state.ctfTurrets) return;
+  const cx = state.camera.x, cy = state.camera.y;
+  const t = performance.now();
+  for (const id of Object.keys(state.ctfTurrets)) {
+    const tur = state.ctfTurrets[id];
+    const x = tur.x - cx, y = tur.y - cy;
+    if (x < -80 || x > viewW + 80 || y < -80 || y > viewH + 80) continue;
+    ctx.save();
+    const teamColor = tur.team === 'red' ? '#ff5a5a' : '#5aaaff';
+    if (tur.destroyed) {
+      // Förstörd: mörk vrak + flickering eld + rök-partiklar (spawnas av tick i runFrame)
+      ctx.fillStyle = '#222';
+      ctx.beginPath();
+      ctx.arc(x, y, 24, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#444';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Flickering eld
+      const flicker = 0.5 + Math.random() * 0.5;
+      ctx.fillStyle = `rgba(255,120,30,${flicker * 0.6})`;
+      ctx.beginPath();
+      ctx.arc(x + (Math.random() - 0.5) * 8, y + (Math.random() - 0.5) * 8, 8 + Math.random() * 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = `rgba(255,200,60,${flicker * 0.4})`;
+      ctx.beginPath();
+      ctx.arc(x + (Math.random() - 0.5) * 4, y + (Math.random() - 0.5) * 4, 4 + Math.random() * 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Spawna rök-partiklar då och då
+      if (state.particles && state.particles.length < 200 && Math.random() < 0.15) {
+        state.particles.push({
+          x: tur.x + (Math.random() - 0.5) * 16,
+          y: tur.y + (Math.random() - 0.5) * 16,
+          vx: (Math.random() - 0.5) * 20,
+          vy: -30 - Math.random() * 30,
+          life: 1.2 + Math.random() * 0.8,
+          color: 'rgba(80,80,80,0.5)',
+          r: 8 + Math.random() * 4,
+          isExplosion: true,
+        });
+      }
+    } else {
+      // Aktiv: bas-cirkel
+      ctx.fillStyle = '#333';
+      ctx.beginPath();
+      ctx.arc(x, y, tur.r, 0, Math.PI * 2);
+      ctx.fill();
+      // Lag-färgad ring
+      ctx.strokeStyle = teamColor;
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      // Inner-detalj (turret-bas-skiva)
+      ctx.fillStyle = '#555';
+      ctx.beginPath();
+      ctx.arc(x, y, tur.r * 0.65, 0, Math.PI * 2);
+      ctx.fill();
+      // Pipa — roterar mot occupants aim (vi har inte den, så vi pekar mot mid-arena)
+      const aim = tur.aim || 0; // server kan skicka detta senare; tills då pekar mot mitten
+      const dirX = Math.cos(aim), dirY = Math.sin(aim);
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 8;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + dirX * (tur.r + 10), y + dirY * (tur.r + 10));
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+      // Occupant-indikator
+      if (tur.occupantId) {
+        const pulse = 0.6 + Math.sin(t / 200) * 0.4;
+        ctx.fillStyle = `rgba(255,213,74,${pulse})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // HP-bar ovanför om skadad
+      if (tur.hp < tur.maxHp) {
+        const bw = 50;
+        const hpFrac = Math.max(0, tur.hp / tur.maxHp);
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(x - bw / 2 - 1, y - tur.r - 16, bw + 2, 7);
+        ctx.fillStyle = hpFrac > 0.5 ? '#5aff5a' : (hpFrac > 0.25 ? '#ffd54a' : '#ff5a5a');
+        ctx.fillRect(x - bw / 2, y - tur.r - 15, bw * hpFrac, 5);
+      }
+    }
+    ctx.restore();
+  }
 }
 
 // CTF: rita walls — använd generisk drawPvpWalls
@@ -1921,6 +2110,9 @@ const WEAPONS = [
     desc: 'Maxdmg pierce. Skär genom allt.' },
   { id: 'minigun',    name: 'Minigun',          type: 'gun',   price: 3500, dmg: 22,  rate: 50,  speed: 920, mag: 100, reload: 3500, spread: 0.14, color: '#3cf0ff',
     desc: 'Toppvapen: 100 mag, ultra-ROF.' },
+  // turret_mg: bara åtkomlig via CTF-torn-mount. Inte i shop, inte i save.owned.
+  { id: 'turret_mg',  name: 'Turret MG',        type: 'gun',   price: 0,    dmg: 14,  rate: 75,  speed: 1100, mag: 9999, reload: 0, spread: 0.07, color: '#ff5a3a',
+    desc: 'Tornets MG. Hög DPS, oändlig ammo.' },
 ];
 const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 
@@ -4328,6 +4520,65 @@ if (_btnDash) {
   _btnDash.addEventListener('touchstart', onDashDown, { passive: false });
 }
 
+// CTF turret-ENTER/EXIT-knapp. Visas dynamiskt när spelaren är nära ett ledigt
+// torn av sitt eget lag, eller när hen sitter i ett torn.
+const _btnTurretAction = document.getElementById('btn-turret-action');
+let _turretNearbyId = null; // id på närmaste ledigt torn (för enter), eller null
+function updateTurretButton() {
+  if (!_btnTurretAction) return;
+  if (!state.ctfActive || !state.player) {
+    if (!_btnTurretAction.classList.contains('hidden')) _btnTurretAction.classList.add('hidden');
+    _turretNearbyId = null;
+    return;
+  }
+  // Sitter spelaren i ett torn? Visa EXIT
+  if (state.player._mountedCtfTurretId) {
+    _btnTurretAction.textContent = '🚪 EXIT TORN';
+    _btnTurretAction.classList.remove('hidden');
+    _turretNearbyId = null;
+    return;
+  }
+  // Annars: leta ledigt torn av eget lag inom radie
+  const myTeam = Coop.ctfTeams && Coop.ctfTeams[Coop.myId];
+  if (!myTeam || !state.ctfTurrets) {
+    if (!_btnTurretAction.classList.contains('hidden')) _btnTurretAction.classList.add('hidden');
+    _turretNearbyId = null;
+    return;
+  }
+  const r = state.ctfTurretEnterRadius || 50;
+  let found = null;
+  for (const id of Object.keys(state.ctfTurrets)) {
+    const t = state.ctfTurrets[id];
+    if (t.destroyed || t.occupantId || t.team !== myTeam) continue;
+    const dx = state.player.x - t.x, dy = state.player.y - t.y;
+    if (dx * dx + dy * dy < r * r) { found = id; break; }
+  }
+  if (found) {
+    _turretNearbyId = found;
+    _btnTurretAction.textContent = '🔫 ENTER TORN';
+    _btnTurretAction.classList.remove('hidden');
+  } else {
+    _turretNearbyId = null;
+    if (!_btnTurretAction.classList.contains('hidden')) _btnTurretAction.classList.add('hidden');
+  }
+}
+if (_btnTurretAction) {
+  const onTurretClick = (e) => {
+    e.preventDefault();
+    if (!state.player || !Coop.ws || Coop.ws.readyState !== 1) return;
+    if (state.player._mountedCtfTurretId) {
+      // EXIT
+      const tid = state.player._mountedCtfTurretId;
+      try { Coop.ws.send(JSON.stringify({ type: 'ctf_turret_exit', turretId: tid })); } catch (_) {}
+    } else if (_turretNearbyId) {
+      // ENTER
+      try { Coop.ws.send(JSON.stringify({ type: 'ctf_turret_enter', turretId: _turretNearbyId })); } catch (_) {}
+    }
+  };
+  _btnTurretAction.addEventListener('pointerdown', onTurretClick);
+  _btnTurretAction.addEventListener('touchstart', onTurretClick, { passive: false });
+}
+
 // PvP-shield-knapp: 3s total immunitet, 45s cooldown. Bara aktiv i TDM/CTF.
 // Server-auth: skickar pvp_ability_shield till server som sätter invulnUntil.
 const PVP_SHIELD_DURATION_MS = 3000;
@@ -5439,6 +5690,16 @@ const Coop = {
       state.ctfWalls = ev.walls || (fallback ? fallback.walls : []);
       state.ctfCaptureRadius = ev.captureRadius || (fallback ? fallback.captureRadius : 50);
       state.ctfPickupRadius = ev.pickupRadius || (fallback ? fallback.pickupRadius : 28);
+      state.ctfTurretEnterRadius = ev.turretEnterRadius || 50;
+      state.ctfTurrets = {};
+      if (ev.turrets) {
+        for (const t of ev.turrets) {
+          state.ctfTurrets[t.id] = {
+            id: t.id, team: t.team, x: t.x, y: t.y, r: t.r || 22,
+            hp: t.hp, maxHp: t.maxHp, occupantId: null, destroyed: false,
+          };
+        }
+      }
       state.ctfFlags = {
         red:  { x: ev.flags.red.baseX,  y: ev.flags.red.baseY,  baseX: ev.flags.red.baseX,  baseY: ev.flags.red.baseY,  carrierId: null, atBase: true, droppedAt: null },
         blue: { x: ev.flags.blue.baseX, y: ev.flags.blue.baseY, baseX: ev.flags.blue.baseX, baseY: ev.flags.blue.baseY, carrierId: null, atBase: true, droppedAt: null },
@@ -5632,6 +5893,45 @@ const Coop = {
       }
     } else if (ev.type === 'ctf_return_cancelled') {
       if (ev.peerId === this.myId) state.ctfReturnHold = null;
+    } else if (ev.type === 'ctf_turret_entered') {
+      // Server-shape: { peerId, turretId }
+      if (state.ctfTurrets && state.ctfTurrets[ev.turretId]) {
+        state.ctfTurrets[ev.turretId].occupantId = ev.peerId;
+      }
+      if (ev.peerId === this.myId && state.player) {
+        state.player._mountedCtfTurretId = ev.turretId;
+        state.player._turretWeapon = 'turret_mg';
+        if (typeof showToast === 'function') showToast('🔫 TORN AKTIVT — tryck EXIT för att hoppa av');
+      }
+    } else if (ev.type === 'ctf_turret_exited') {
+      if (state.ctfTurrets && state.ctfTurrets[ev.turretId]) {
+        state.ctfTurrets[ev.turretId].occupantId = null;
+      }
+      if (ev.peerId === this.myId && state.player) {
+        state.player._mountedCtfTurretId = null;
+        state.player._turretWeapon = null;
+        if (ev.reason !== 'destroyed' && typeof showToast === 'function') showToast('🚪 Hoppade av tornet');
+      }
+    } else if (ev.type === 'ctf_turret_damaged') {
+      if (state.ctfTurrets && state.ctfTurrets[ev.turretId]) {
+        state.ctfTurrets[ev.turretId].hp = ev.hp;
+        state.ctfTurrets[ev.turretId].maxHp = ev.maxHp;
+      }
+    } else if (ev.type === 'ctf_turret_destroyed') {
+      const t = state.ctfTurrets && state.ctfTurrets[ev.turretId];
+      if (t) {
+        t.destroyed = true;
+        t.hp = 0;
+        t.destroyedAt = performance.now();
+        // VFX: explosion-shockwave + sparks
+        if (typeof spawnSparks === 'function') spawnSparks(t.x, t.y, '#ff8a3a', 28, 360);
+        if (typeof spawnShockwave === 'function') spawnShockwave(t.x, t.y, 24, 120, '#ff5a3a', 0.6, 5);
+        if (typeof triggerShake === 'function') triggerShake(14, 0.7);
+        if (typeof showToast === 'function') {
+          const team = t.team === 'red' ? 'RÖDA' : 'BLÅA';
+          showToast('💥 ' + team + ' TORN FÖRSTÖRT!');
+        }
+      }
     } else if (ev.type === 'pvp_shield_used') {
       // En spelare aktiverade PvP-shield-knappen. Server-shape: { peerId, durationMs }
       const dur = ev.durationMs || 3000;
@@ -12445,7 +12745,7 @@ function updatePlayer(dt, now) {
       vx: -p.dashDir.x * 60, vy: -p.dashDir.y * 60,
       isTrail: true, color: '#3acaff', r: p.r * 0.7, life: 0.18, fadeMul: 6,
     });
-  } else if (!p._mountedTurretId) {
+  } else if (!p._mountedTurretId && !p._mountedCtfTurretId) {
     // Adrenalin-perk: snabbare vid <30% HP
     const adrenalineSpeed = (hasPerk('adrenalin') && p.hp < p.maxHp * 0.3) ? 1.35 : 1;
     const cheatSpeed = isCheatActive('speedrun') ? 2 : 1;
@@ -12453,6 +12753,11 @@ function updatePlayer(dt, now) {
     const ctfCarrySlow = (state.ctfActive && p.carryingFlag) ? 0.75 : 1;
     p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * dt;
     p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * dt;
+  }
+  // Mounted i CTF-torn: lås position till turret-koord (server skickar uppdaterad pos via world packet)
+  if (p._mountedCtfTurretId && state.ctfTurrets && state.ctfTurrets[p._mountedCtfTurretId]) {
+    const t = state.ctfTurrets[p._mountedCtfTurretId];
+    p.x = t.x; p.y = t.y;
   }
   p.x = Math.max(p.r, Math.min(WORLD.w - p.r, p.x));
   p.y = Math.max(p.r, Math.min(WORLD.h - p.r, p.y));
@@ -21140,6 +21445,7 @@ function render() {
   // CTF walls + flag-stands + dropped/carried flags (ovanpå entities men under HUD)
   if (state.ctfActive) {
     drawCtfWalls();
+    drawCtfTurrets();
     drawCtfFlags();
     drawCtfReturnHold();
     drawCtfStolenFlagAlert();
@@ -22196,7 +22502,7 @@ function runFrame(dt, now) {
   }
 
   // Per-frame CSS-var-update för dash-cooldown-ring (smooth animation)
-  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); }
+  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); }
 
   render();
 }

@@ -48,14 +48,13 @@ const CTF_ARENA = {
   },
 
   // Walls = AABB-rektanglar. Bullets + spelare blockeras vid overlap.
-  // Naming: bs=base, top=top, mid=mid, bot=bot, pil=pillar, cr=crate
+  // Kinds: wall_red_base, wall_blue_base, wall_pillar, wall_divider, crate,
+  // sandbag (låg gul), barrel (rund explosivt look, fortfarande AABB), debris
+  // (random skrot), barricade (träbarrikad), pipe (rör-bit i mitten).
   walls: [
     // === RED BASE U-shape (öppen mot höger/mitten) ===
-    // Top wall
     { x: 100,  y: 1100, w: 360, h: 30, kind: 'wall_red_base' },
-    // Bottom wall
     { x: 100,  y: 1670, w: 360, h: 30, kind: 'wall_red_base' },
-    // Back-left wall (deep behind flag)
     { x: 100,  y: 1130, w: 30,  h: 540, kind: 'wall_red_base' },
 
     // === BLUE BASE U-shape (mirrored) ===
@@ -63,43 +62,112 @@ const CTF_ARENA = {
     { x: 4040, y: 1670, w: 360, h: 30, kind: 'wall_blue_base' },
     { x: 4370, y: 1130, w: 30,  h: 540, kind: 'wall_blue_base' },
 
-    // === CENTER PILLAR (vertikalt — bryter direkt sikt) ===
+    // === CENTER PILLAR + extra mid-pillars (taktiska hörn-peek) ===
     { x: 2230, y: 1100, w: 40,  h: 600, kind: 'wall_pillar' },
+    { x: 1850, y: 800,  w: 40,  h: 200, kind: 'wall_pillar' },
+    { x: 2610, y: 800,  w: 40,  h: 200, kind: 'wall_pillar' },
+    { x: 1850, y: 1800, w: 40,  h: 200, kind: 'wall_pillar' },
+    { x: 2610, y: 1800, w: 40,  h: 200, kind: 'wall_pillar' },
 
-    // === MID-LANE COVER ===
-    // Mitten av mid-zone, två crates på vardera sida av pillaren
+    // === MID-LANE COVER (utbyggt) ===
     { x: 1700, y: 1350, w: 70,  h: 100, kind: 'crate' },
     { x: 2730, y: 1350, w: 70,  h: 100, kind: 'crate' },
+    // Sandbag-stack mitt i (low cover, bra för crouch-feel)
+    { x: 2100, y: 1400, w: 120, h: 30, kind: 'sandbag' },
+    { x: 2280, y: 1400, w: 120, h: 30, kind: 'sandbag' },
+    // Barrels (looks explosive — kan utökas senare till faktisk explode)
+    { x: 2080, y: 1250, w: 28,  h: 28, kind: 'barrel' },
+    { x: 2390, y: 1250, w: 28,  h: 28, kind: 'barrel' },
+    { x: 2080, y: 1530, w: 28,  h: 28, kind: 'barrel' },
+    { x: 2390, y: 1530, w: 28,  h: 28, kind: 'barrel' },
+    // Pipe-bitar (rör som sträcker sig över marken)
+    { x: 2000, y: 1100, w: 250, h: 16, kind: 'pipe' },
+    { x: 2250, y: 1700, w: 250, h: 16, kind: 'pipe' },
 
-    // === TOP LANE COVER (mirrored crates) ===
+    // === TOP LANE COVER (varierat) ===
     { x: 900,  y: 700,  w: 80,  h: 80, kind: 'crate' },
     { x: 1600, y: 600,  w: 80,  h: 80, kind: 'crate' },
     { x: 2210, y: 500,  w: 80,  h: 80, kind: 'crate' },
     { x: 2900, y: 600,  w: 80,  h: 80, kind: 'crate' },
     { x: 3520, y: 700,  w: 80,  h: 80, kind: 'crate' },
+    // Sandbag-rader i toppen
+    { x: 1200, y: 400,  w: 180, h: 25, kind: 'sandbag' },
+    { x: 3000, y: 400,  w: 180, h: 25, kind: 'sandbag' },
+    // Barricader (träbalkar)
+    { x: 1450, y: 850,  w: 100, h: 20, kind: 'barricade' },
+    { x: 2950, y: 850,  w: 100, h: 20, kind: 'barricade' },
+    // Debris-skrot
+    { x: 1100, y: 580,  w: 45,  h: 45, kind: 'debris' },
+    { x: 3300, y: 580,  w: 45,  h: 45, kind: 'debris' },
+    // Toppen-barrels
+    { x: 1900, y: 350,  w: 28,  h: 28, kind: 'barrel' },
+    { x: 2570, y: 350,  w: 28,  h: 28, kind: 'barrel' },
 
-    // === BOTTOM LANE COVER (mirrored crates) ===
+    // === BOTTOM LANE COVER (mirrored, varierat) ===
     { x: 900,  y: 2020, w: 80,  h: 80, kind: 'crate' },
     { x: 1600, y: 2120, w: 80,  h: 80, kind: 'crate' },
     { x: 2210, y: 2220, w: 80,  h: 80, kind: 'crate' },
     { x: 2900, y: 2120, w: 80,  h: 80, kind: 'crate' },
     { x: 3520, y: 2020, w: 80,  h: 80, kind: 'crate' },
+    { x: 1200, y: 2380, w: 180, h: 25, kind: 'sandbag' },
+    { x: 3000, y: 2380, w: 180, h: 25, kind: 'sandbag' },
+    { x: 1450, y: 1930, w: 100, h: 20, kind: 'barricade' },
+    { x: 2950, y: 1930, w: 100, h: 20, kind: 'barricade' },
+    { x: 1100, y: 2180, w: 45,  h: 45, kind: 'debris' },
+    { x: 3300, y: 2180, w: 45,  h: 45, kind: 'debris' },
+    { x: 1900, y: 2430, w: 28,  h: 28, kind: 'barrel' },
+    { x: 2570, y: 2430, w: 28,  h: 28, kind: 'barrel' },
 
-    // === LANE-DIVIDERS — låga väggar som skiljer top/mid/bot lanes ===
-    // Top-mid divider (vänster + höger om center)
+    // === LANE-DIVIDERS (utökat) ===
     { x: 950,  y: 1000, w: 240, h: 22, kind: 'wall_divider' },
     { x: 3310, y: 1000, w: 240, h: 22, kind: 'wall_divider' },
-    // Mid-bot divider
     { x: 950,  y: 1780, w: 240, h: 22, kind: 'wall_divider' },
     { x: 3310, y: 1780, w: 240, h: 22, kind: 'wall_divider' },
+    // Extra dividers längre ut mot baserna
+    { x: 600,  y: 920,  w: 180, h: 18, kind: 'wall_divider' },
+    { x: 3720, y: 920,  w: 180, h: 18, kind: 'wall_divider' },
+    { x: 600,  y: 1860, w: 180, h: 18, kind: 'wall_divider' },
+    { x: 3720, y: 1860, w: 180, h: 18, kind: 'wall_divider' },
 
-    // === SIDE COVER nära baser (för base-defenders) ===
-    // Crates strax framför bas-öppningen
+    // === SIDE COVER nära baser (utökat) ===
     { x: 540,  y: 1300, w: 60,  h: 60, kind: 'crate' },
     { x: 540,  y: 1440, w: 60,  h: 60, kind: 'crate' },
     { x: 3900, y: 1300, w: 60,  h: 60, kind: 'crate' },
     { x: 3900, y: 1440, w: 60,  h: 60, kind: 'crate' },
+    // Extra debris precis utanför baserna (kontrollerar 'corridors')
+    { x: 700,  y: 1200, w: 36,  h: 36, kind: 'debris' },
+    { x: 700,  y: 1580, w: 36,  h: 36, kind: 'debris' },
+    { x: 3764, y: 1200, w: 36,  h: 36, kind: 'debris' },
+    { x: 3764, y: 1580, w: 36,  h: 36, kind: 'debris' },
+    // Sandbag-skydd bredvid turret-position (förrär dess flank)
+    { x: 460,  y: 1240, w: 80,  h: 20, kind: 'sandbag' },
+    { x: 460,  y: 1540, w: 80,  h: 20, kind: 'sandbag' },
+    { x: 3960, y: 1240, w: 80,  h: 20, kind: 'sandbag' },
+    { x: 3960, y: 1540, w: 80,  h: 20, kind: 'sandbag' },
   ],
+
+  // === MACHINEGUN-TURRETS — ett per lag, just utanför basen ===
+  // Tunga prickskytt-positioner. Spelare kan mounta för en kraftig MG men
+  // turret hp = 1500 betyder den tål kanske ~75 rifle-shots / ~16 sniper-shots
+  // innan den brinner. Kan inte enter igen efter destroyed.
+  turrets: [
+    { id: 'turret_red',  team: 'red',  x: 600,  y: 1400, maxHp: 1500, r: 22 },
+    { id: 'turret_blue', team: 'blue', x: 3900, y: 1400, maxHp: 1500, r: 22 },
+  ],
+  turretEnterRadius: 50,
+  // MG-stats när spelaren mounted: höga DPS, ingen reload
+  turretWeapon: {
+    id: 'turret_mg',
+    name: 'Turret MG',
+    dmg: 14,
+    rate: 75,        // ms mellan skott (~13 shots/sec)
+    speed: 1100,
+    spread: 0.07,
+    r: 5,
+    color: '#ff5a3a',
+    mag: 9999,
+    reload: 0,
+  },
 };
 
 // AABB-collision: returnera true om punkt (x, y, r) overlap med wall

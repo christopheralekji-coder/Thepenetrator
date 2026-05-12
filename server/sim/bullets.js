@@ -300,6 +300,44 @@ function updateBullets(sim, dt, now) {
       bullets.splice(i, 1);
       continue;
     }
+    // CTF: bullet träffar turret? Damage routes till turret-hp, bullet dies.
+    // Egen lags-turret kan fortfarande beskjutas (fri damage från alla håll).
+    if (sim.ctfActive && sim.ctfTurrets) {
+      let hitTurret = false;
+      for (const tid of Object.keys(sim.ctfTurrets)) {
+        const t = sim.ctfTurrets[tid];
+        if (t.destroyed) continue;
+        const dx = t.x - b.x, dy = t.y - b.y;
+        const rsum = t.r + b.r;
+        if (dx * dx + dy * dy < rsum * rsum) {
+          // Hit! Skada turret. Bullet dies.
+          t.hp = Math.max(0, t.hp - b.dmg);
+          sim.eventQueue.push({ type: 'ctf_turret_damaged', turretId: t.id, hp: t.hp, maxHp: t.maxHp });
+          if (t.hp <= 0 && !t.destroyed) {
+            t.destroyed = true;
+            t.destroyedAt = Date.now();
+            const ejected = t.occupantId;
+            if (ejected) {
+              // Ejecta occupant ur turret + emit
+              const ws2 = sim.room.members.get(ejected);
+              if (ws2) {
+                ws2._mountedCtfTurretId = null;
+                if (ws2.playerState) {
+                  ws2.playerState.x = t.x + (t.team === 'red' ? 35 : -35);
+                  ws2.playerState.y = t.y;
+                }
+              }
+              t.occupantId = null;
+              sim.eventQueue.push({ type: 'ctf_turret_exited', peerId: ejected, turretId: t.id, reason: 'destroyed' });
+            }
+            sim.eventQueue.push({ type: 'ctf_turret_destroyed', turretId: t.id });
+          }
+          hitTurret = true;
+          break;
+        }
+      }
+      if (hitTurret) { bullets.splice(i, 1); continue; }
+    }
     // Hostile bullets — collision mot players (Phase 6 polish — sker även i enemies.js)
     // I aktuell flow: enemy contact-damage hanteras i enemies.js, hostile bullets
     // som flyger måste också kolla mot players.

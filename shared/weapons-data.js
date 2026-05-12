@@ -43,6 +43,9 @@ const WEAPONS = [
   { id: 'mindcontrol',type: 'gun',   dmg: 0,   rate: 2000, speed: 600, mag: 2, reload: 4000, spread: 0.0, color: '#ff5aff', mindControlMs: 6000 },
   { id: 'railgun',    type: 'gun',   dmg: 200, rate: 1600, speed: 2200, mag: 2, reload: 3000, spread: 0.0, pierce: true, color: '#ffffff' },
   { id: 'minigun',    type: 'gun',   dmg: 26,  rate: 50,  speed: 920, mag: 100, reload: 3500, spread: 0.14, color: '#3cf0ff' },
+  // turret_mg: värsting-MG som spelaren får när de mountar CTF-tornet. Hög DPS,
+  // ingen reload, oändlig ammo. Bara åtkomlig via turret-enter, inte i shop.
+  { id: 'turret_mg',  type: 'gun',   dmg: 14,  rate: 75,  speed: 1100, mag: 9999, reload: 0, spread: 0.07, color: '#ff5a3a' },
 ];
 
 const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));

@@ -3,7 +3,7 @@
 
 const WebSocket = require('ws');
 const http = require('http');
-const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage } = require('./sim/room-sim');
+const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, tryEnterTurret, exitTurret } = require('./sim/room-sim');
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
@@ -427,6 +427,28 @@ function handleMessage(ws, msg) {
     stopSim(room.sim);
     if (room.meta) room.meta.started = false;
     broadcastPublicRooms();
+    return;
+  }
+
+  // CTF turret-enter: spelaren vill mounta turret. Server auktoritet kollar
+  // avstånd + lag + ledig + ej destroyed.
+  if (msg.type === 'ctf_turret_enter') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    if (!room.sim.ctfActive) return;
+    tryEnterTurret(room.sim, ws.id, msg.turretId);
+    return;
+  }
+  if (msg.type === 'ctf_turret_exit') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    if (!room.sim.ctfActive) return;
+    // Bara occupanten själv kan exit:a sin egen turret
+    const tid = msg.turretId;
+    const t = room.sim.ctfTurrets && room.sim.ctfTurrets[tid];
+    if (t && t.occupantId === ws.id) {
+      exitTurret(room.sim, tid, 'manual');
+    }
     return;
   }
 
