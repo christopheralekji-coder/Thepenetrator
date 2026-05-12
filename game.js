@@ -4230,6 +4230,25 @@ function openPause() {
   pauseScreen.classList.remove('hidden');
   Audio.uiClick();
   input.firing = false;
+  // I coop går restart-run ändå inte att köra korrekt (host-side state). Göm den.
+  const restartBtn = document.getElementById('btn-pause-restart');
+  if (restartBtn) restartBtn.classList.toggle('hidden', !!Coop.active);
+  // Visa stage/bana-info bara på pause (gömd i HUD under gameplay)
+  let info = document.getElementById('pause-stage-info');
+  if (!info) {
+    info = document.createElement('div');
+    info.id = 'pause-stage-info';
+    info.style.cssText = 'margin:6px 0 14px 0;color:#ffd54a;font-size:13px;letter-spacing:1px;font-weight:700;';
+    const h2 = pauseScreen.querySelector('h2');
+    if (h2 && h2.parentNode) h2.parentNode.insertBefore(info, h2.nextSibling);
+  }
+  if (state.tdmActive) info.textContent = '⚔ TDM ARENA';
+  else if (state.ctfActive) info.textContent = '🚩 CTF — BATTLEGROUND';
+  else {
+    const stage = getStage(state.wave);
+    const stageName = stage ? stage.name : '';
+    info.textContent = 'Stage ' + state.wave + '/' + getStageCount() + ' · ' + stageName;
+  }
 }
 function closePause() {
   pauseScreen.classList.add('hidden');
@@ -4251,6 +4270,15 @@ document.getElementById('btn-pause-quit').addEventListener('click', () => {
   // Anti-läck: restore sandbox + coop-snapshots innan tillbaka till menu
   if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
   if (typeof restoreCoopIfNeeded === 'function' && Coop.active) restoreCoopIfNeeded();
+  // Coop: stäng WebSocket explicit. Annars stannar rummet kvar i server.rooms
+  // tills heartbeat-timeout (upp till 60s) och syns kvar i Aktiva Rum-listan
+  // för andra spelare.
+  if (Coop.active) {
+    if (Coop.isHost && Coop.ws && Coop.ws.readyState === 1) {
+      try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (e) {}
+    }
+    Coop.disconnect();
+  }
 });
 const btnPauseRestart = document.getElementById('btn-pause-restart');
 if (btnPauseRestart) {
@@ -12015,15 +12043,16 @@ window.addEventListener('beforeunload', () => {
 setTimeout(syncEmoteButtonToJoystick, 50);
 setTimeout(syncEmoteButtonToJoystick, 500);
 
-// In-game settings-knapp (i HUD bredvid gold)
+// In-game settings/pause-knapp (i HUD bredvid gold) — öppnar PAUSE-skärmen
+// så användaren kan välja återuppta / starta om / inställningar / AVSLUTA TILL MENY.
+// Tidigare gick den direkt till settings vilket innebar att man inte kunde
+// lämna ett pågående coop-game utan att starta om sidan.
 const btnIngameSettings = document.getElementById('btn-ingame-settings');
 if (btnIngameSettings) {
   btnIngameSettings.addEventListener('click', (e) => {
     e.stopPropagation();
     if (state.mode === 'playing') {
       openPause();
-      pauseScreen.classList.add('hidden');
-      openSettings('pause');
     }
   });
 }
