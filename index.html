@@ -316,7 +316,7 @@
     <button id="btn-menu-help" class="medium-btn">❓ HJÄLP / TUTORIAL</button>
   </div>
   <button id="btn-fullscreen" class="small-btn" style="display:none;">⛶ HELSKÄRM</button>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:10px;opacity:0.4;">v1.154</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:10px;opacity:0.4;">v1.155</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">
@@ -345,6 +345,12 @@
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
         <label class="lobby-label" style="margin:0;">🌐 AKTIVA RUM</label>
         <button id="btn-public-rooms-refresh" class="medium-btn" style="font-size:11px;padding:4px 10px;min-width:0;">↻</button>
+      </div>
+      <div id="public-rooms-filters" style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;">
+        <button class="prf-btn active" data-filter="all" style="font-size:10px;padding:5px 9px;background:#aa3aff;color:#fff;border:0;border-radius:5px;font-weight:700;letter-spacing:0.5px;">ALLA</button>
+        <button class="prf-btn" data-filter="story" style="font-size:10px;padding:5px 9px;background:#222;color:#aaa;border:0;border-radius:5px;font-weight:700;letter-spacing:0.5px;">🎮 STORY</button>
+        <button class="prf-btn" data-filter="tdm" style="font-size:10px;padding:5px 9px;background:#222;color:#aaa;border:0;border-radius:5px;font-weight:700;letter-spacing:0.5px;">⚔️ TDM</button>
+        <button class="prf-btn" data-filter="ctf" style="font-size:10px;padding:5px 9px;background:#222;color:#aaa;border:0;border-radius:5px;font-weight:700;letter-spacing:0.5px;">🚩 CTF</button>
       </div>
       <div id="public-rooms-list" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px;min-height:60px;max-height:240px;overflow-y:auto;">
         <div id="public-rooms-empty" style="text-align:center;color:#666;font-size:12px;padding:20px 10px;">Söker efter aktiva rum...</div>
@@ -495,6 +501,7 @@
 </div>
 
 <script src="shared/ctf-arena.js"></script>
+<script src="shared/tdm-arena.js"></script>
 <script src="game.js"></script>
 <script>
   // Registrera service worker för offline-stöd, tvinga uppdatering

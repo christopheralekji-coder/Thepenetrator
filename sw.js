@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v154-bug-purge';
+const CACHE = 'penetrator-v155-finish-everything';
 const ASSETS = [
   './',
   './index.html',
@@ -8,6 +8,8 @@ const ASSETS = [
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg',
+  './shared/ctf-arena.js',
+  './shared/tdm-arena.js',
 ];
 
 self.addEventListener('install', e => {

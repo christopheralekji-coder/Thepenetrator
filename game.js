@@ -1004,8 +1004,38 @@ function drawCtfArenaFloor() {
   ctx.restore();
 }
 
-// CTF: rita walls — solida AABB-rektanglar med team-färgad bas-wall + neutral
-// crate/pillar/divider. Ger taktisk visuell läsbarhet.
+// Generisk wall-render som används av både CTF och TDM
+function drawPvpWalls(walls) {
+  if (!walls) return;
+  const cx = state.camera.x, cy = state.camera.y;
+  ctx.save();
+  for (const w of walls) {
+    const x = w.x - cx, y = w.y - cy;
+    if (x + w.w < -10 || x > viewW + 10 || y + w.h < -10 || y > viewH + 10) continue;
+    let fill, stroke;
+    if (w.kind === 'wall_red_base')       { fill = '#5a2020'; stroke = '#ff6060'; }
+    else if (w.kind === 'wall_blue_base') { fill = '#1a2a5a'; stroke = '#60a0ff'; }
+    else if (w.kind === 'wall_pillar')    { fill = '#444';    stroke = '#888'; }
+    else if (w.kind === 'wall_divider')   { fill = '#333';    stroke = '#666'; }
+    else                                  { fill = '#6a4a2a'; stroke = '#b07b3a'; }
+    ctx.fillStyle = fill;
+    ctx.fillRect(x, y, w.w, w.h);
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+    if (w.kind === 'crate') {
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 4, y + w.h * 0.5);
+      ctx.lineTo(x + w.w - 4, y + w.h * 0.5);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+// CTF: rita walls — använd generisk drawPvpWalls
 function drawCtfWalls() {
   const walls = state.ctfWalls;
   if (!walls) return;
@@ -1244,6 +1274,102 @@ function drawPvpPickups() {
       ctx.fill();
       ctx.stroke();
     }
+  }
+  ctx.restore();
+}
+
+// CTF: rita hold-to-return progress-ring runt spelaren när de håller över egen dropped-flag
+function drawCtfReturnHold() {
+  const hold = state.ctfReturnHold;
+  if (!hold || !state.player) return;
+  const elapsed = performance.now() - hold.startAt;
+  const frac = Math.min(1, elapsed / (hold.durationMs || 1000));
+  const px = state.player.x - state.camera.x;
+  const py = state.player.y - state.camera.y;
+  const color = hold.team === 'red' ? '#ff5a5a' : '#5aaaff';
+  ctx.save();
+  // Outer ring (track)
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(px, py, 26, 0, Math.PI * 2);
+  ctx.stroke();
+  // Progress arc
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 4;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.arc(px, py, 26, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+  ctx.stroke();
+  // Label
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowBlur = 4;
+  ctx.shadowColor = '#000';
+  ctx.fillText('RETUR ' + Math.round(frac * 100) + '%', px, py - 38);
+  ctx.restore();
+}
+
+// CTF: HUD-banner när FIENDEN bär min flagga (defenders behöver veta) + arrow mot carrier
+function drawCtfStolenFlagAlert() {
+  if (!state.ctfFlags || !Coop.ctfTeams) return;
+  const myTeam = Coop.ctfTeams[Coop.myId];
+  if (!myTeam) return;
+  const myFlag = state.ctfFlags[myTeam];
+  if (!myFlag || !myFlag.carrierId) return;
+  const carrierId = myFlag.carrierId;
+  let carrier = null;
+  if (carrierId === Coop.myId && state.player) carrier = state.player;
+  else if (Coop.players && Coop.players.has(carrierId)) carrier = Coop.players.get(carrierId);
+  if (!carrier || carrier.x === undefined) return;
+  const carrierName = (Coop.players.get(carrierId) && Coop.players.get(carrierId).name) || 'Fiende';
+  const color = myTeam === 'red' ? '#ff5a5a' : '#5aaaff';
+
+  ctx.save();
+  // Banner top-center (just under score-bar)
+  const bannerY = 84;
+  const pulse = 0.85 + Math.sin(performance.now() / 180) * 0.15;
+  ctx.globalAlpha = pulse;
+  ctx.fillStyle = 'rgba(0,0,0,0.78)';
+  const text = '⚠ ' + carrierName.toUpperCase() + ' STAL ER FLAGGA!';
+  ctx.font = 'bold 13px sans-serif';
+  const w = ctx.measureText(text).width + 24;
+  ctx.fillRect(viewW / 2 - w / 2, bannerY, w, 26);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(viewW / 2 - w / 2, bannerY, w, 26);
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, viewW / 2, bannerY + 13);
+  ctx.globalAlpha = 1;
+
+  // Directional arrow mot carrier (om utanför skärm) — pekar från player mot carrier
+  const px = state.player ? state.player.x - state.camera.x : viewW / 2;
+  const py = state.player ? state.player.y - state.camera.y : viewH / 2;
+  const cx = carrier.x - state.camera.x;
+  const cy = carrier.y - state.camera.y;
+  const offScreen = cx < 30 || cx > viewW - 30 || cy < 30 || cy > viewH - 30;
+  if (offScreen && state.player) {
+    const ang = Math.atan2(cy - py, cx - px);
+    const r = Math.min(viewW, viewH) * 0.32;
+    const ax = viewW / 2 + Math.cos(ang) * r;
+    const ay = viewH / 2 + Math.sin(ang) * r;
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(ang);
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.moveTo(18, 0);
+    ctx.lineTo(-8, -10);
+    ctx.lineTo(-8, 10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -1648,13 +1774,15 @@ const COOP_WEAPONS = ['pistol', 'shuriken', 'burstpistol', 'shotgun', 'sniper', 
 // Story-coop: progressiv vapen-unlock per wave så det inte blir för lätt direkt.
 // PvP-modes (TDM/CTF) får alla 6 från start (rättvis match), endless/bossrush/
 // survive coop likaså — det är bara story coop som progressar.
+// Stage 1 har två vapen så Shadow Stalker (cloak-miniboss, hp×14) faktiskt går
+// att döda inom rimlig tid med pistol-only.
 const COOP_STORY_WEAPON_UNLOCKS = {
-  1: 'pistol',       // Stage 1: bara pistol
-  2: 'shuriken',     // Stage 2: + kaststjärnor (snabb DPS)
-  3: 'shotgun',      // Stage 3: + hagelgevär (close-range power)
-  4: 'burstpistol',  // Stage 4: + burst (mid-range)
-  5: 'rifle',        // Stage 5: + automatkarbin (sustained)
-  6: 'sniper',       // Stage 6: + prickskytte (long-range finisher)
+  1: ['pistol', 'shuriken'],  // Stage 1: pistol + kaststjärnor (för Shadow Stalker)
+  2: 'shotgun',               // Stage 2: + hagelgevär (close-range power)
+  3: 'burstpistol',           // Stage 3: + burst (mid-range)
+  4: 'rifle',                 // Stage 4: + automatkarbin (Ossarius behöver DPS)
+  5: 'sniper',                // Stage 5: + prickskytte (Valv XIII öppna ytor)
+  // Stage 6+: alla 6 låsta, ingen ytterligare unlock
 };
 function isCoopStoryMode() {
   return Coop.active && !Coop.config.tdm && !Coop.config.ctf && (Coop.config.mode === 'story' || !Coop.config.mode);
@@ -1662,7 +1790,10 @@ function isCoopStoryMode() {
 function coopStoryUnlockedThroughWave(wave) {
   const unlocked = ['fists'];
   for (let w = 1; w <= wave; w++) {
-    if (COOP_STORY_WEAPON_UNLOCKS[w]) unlocked.push(COOP_STORY_WEAPON_UNLOCKS[w]);
+    const v = COOP_STORY_WEAPON_UNLOCKS[w];
+    if (!v) continue;
+    if (Array.isArray(v)) unlocked.push(...v);
+    else unlocked.push(v);
   }
   return unlocked;
 }
@@ -4074,9 +4205,11 @@ function joyEnd(e) {
   input.moveX = 0; input.moveY = 0;
 }
 joy.addEventListener('touchstart', joyStart, { passive: false });
-joy.addEventListener('touchmove',  joyMove,  { passive: false });
-joy.addEventListener('touchend',   joyEnd);
-joy.addEventListener('touchcancel',joyEnd);
+// touchmove/end på document så fingret kan dra utanför joystick-cirkeln utan
+// att tracking släpps (samma pattern som fire-joystick).
+document.addEventListener('touchmove',  (e) => { if (joyTouchId !== null) joyMove(e); }, { passive: true });
+document.addEventListener('touchend',   (e) => { if (joyTouchId !== null) joyEnd(e); }, { passive: true });
+document.addEventListener('touchcancel',(e) => { if (joyTouchId !== null) joyEnd(e); }, { passive: true });
 joy.addEventListener('mousedown', joyStart);
 window.addEventListener('mousemove', e => { if (joyTouchId === 'mouse') joyMove(e); });
 window.addEventListener('mouseup',   e => { if (joyTouchId === 'mouse') joyEnd({ changedTouches: null }); });
@@ -4088,23 +4221,26 @@ let fireJoyCenter = { x: 0, y: 0 };
 const FIRE_JOY_RADIUS = 50;
 input.aimX = 0; input.aimY = 0; input.fireJoyActive = false;
 
+// Fire-knappen är ALLTID joystick (oavsett save.firejoy). Bullets fire i den
+// riktning du håller stickan — inte i karaktärens facing-direction. Joysticken
+// är inte begränsad till knappens yta: så fort du börjat dra inifrån, kan
+// fingret dra var som helst på skärmen.
 function fireDown(e) {
   e.preventDefault();
   input.firing = true;
-  if (save.firejoy) {
-    const t = e.changedTouches ? e.changedTouches[0] : e;
-    fireJoyTouchId = e.changedTouches ? t.identifier : 'mouse';
-    const r = fireBtn.getBoundingClientRect();
-    fireJoyCenter = { x: r.left + r.width/2, y: r.top + r.height/2 };
-    input.fireJoyActive = true;
-    fireMove(e);
-  }
+  const t = e.changedTouches ? e.changedTouches[0] : e;
+  fireJoyTouchId = e.changedTouches ? t.identifier : 'mouse';
+  const r = fireBtn.getBoundingClientRect();
+  fireJoyCenter = { x: r.left + r.width/2, y: r.top + r.height/2 };
+  input.fireJoyActive = true;
+  fireMove(e);
 }
 function fireMove(e) {
-  if (!save.firejoy || fireJoyTouchId === null) return;
+  if (fireJoyTouchId === null) return;
   let pt = null;
-  if (e.changedTouches) {
-    for (const t of e.changedTouches) if (t.identifier === fireJoyTouchId) { pt = t; break; }
+  if (e.changedTouches || e.touches) {
+    const arr = e.changedTouches || e.touches;
+    for (const t of arr) if (t.identifier === fireJoyTouchId) { pt = t; break; }
     if (!pt) return;
   } else { pt = e; }
   const dx = pt.clientX - fireJoyCenter.x;
@@ -4122,9 +4258,18 @@ function fireUp(e) {
   input.fireJoyActive = false;
 }
 fireBtn.addEventListener('touchstart', fireDown, { passive: false });
-fireBtn.addEventListener('touchmove',  fireMove, { passive: false });
-fireBtn.addEventListener('touchend',   fireUp);
-fireBtn.addEventListener('touchcancel',fireUp);
+// Touch-move + end på document så fingret kan dra utanför knappen utan att
+// joystick-tracking släpps. Touch-events fortsätter levereras till original-target
+// men vi binder document-listeners som extra säkerhetsnät för iOS-edge-cases.
+document.addEventListener('touchmove',  fireMove, { passive: true });
+document.addEventListener('touchend',   (e) => {
+  if (fireJoyTouchId === null) return;
+  if (e.changedTouches) for (const t of e.changedTouches) if (t.identifier === fireJoyTouchId) { fireUp(e); return; }
+}, { passive: true });
+document.addEventListener('touchcancel',(e) => {
+  if (fireJoyTouchId === null) return;
+  if (e.changedTouches) for (const t of e.changedTouches) if (t.identifier === fireJoyTouchId) { fireUp(e); return; }
+}, { passive: true });
 fireBtn.addEventListener('mousedown',  fireDown);
 window.addEventListener('mousemove',   (e) => { if (fireJoyTouchId === 'mouse') fireMove(e); });
 window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') fireUp(e); });
@@ -4242,8 +4387,9 @@ function openPause() {
     const h2 = pauseScreen.querySelector('h2');
     if (h2 && h2.parentNode) h2.parentNode.insertBefore(info, h2.nextSibling);
   }
-  if (state.tdmActive) info.textContent = '⚔ TDM ARENA';
-  else if (state.ctfActive) info.textContent = '🚩 CTF — BATTLEGROUND';
+  // Använd Coop.config (inte state.*Active) så pause efter match-end fortfarande visar rätt mode
+  if (state.tdmActive || (Coop.active && Coop.config && Coop.config.tdm)) info.textContent = '⚔ TDM ARENA';
+  else if (state.ctfActive || (Coop.active && Coop.config && Coop.config.ctf)) info.textContent = '🚩 CTF — BATTLEGROUND';
   else {
     const stage = getStage(state.wave);
     const stageName = stage ? stage.name : '';
@@ -5082,7 +5228,7 @@ const Coop = {
         }
       }
       const myTeam = this.tdmTeams[this.myId];
-      // PvP-pickups + shield-init
+      // PvP-pickups + shield-init + walls (TDM har nu cover)
       state.pvpPickups = {};
       if (ev.pvpPickups) {
         for (const p of ev.pvpPickups) {
@@ -5090,6 +5236,7 @@ const Coop = {
         }
       }
       state.pvpShieldMax = ev.shieldMax || 100;
+      state.tdmWalls = ev.walls || (typeof TDM_ARENA !== 'undefined' ? TDM_ARENA.walls : []);
       // Flytta egen spelare till sin spawn-position (server gjorde det redan på sim-sidan)
       if (state.player && ev.spawns && ev.spawns[myTeam]) {
         state.player.x = ev.spawns[myTeam].x;
@@ -5298,6 +5445,8 @@ const Coop = {
         f.y = f.baseY;
         f.droppedAt = null;
       }
+      // Rensa eventuell aktiv hold-ring
+      if (ev.peerId === this.myId) state.ctfReturnHold = null;
       if (typeof updateCtfFlagIcons === 'function') updateCtfFlagIcons();
       const flagName = flagTeam === 'red' ? 'RÖD' : 'BLÅ';
       const reasonText = ev.reason === 'timeout' ? '(auto-return)' : (ev.reason === 'manual' ? '(retur)' : '(återställd)');
@@ -5385,6 +5534,13 @@ const Coop = {
         this.ctfTeams[ev.peerId] = ev.team;
         if (state.ctfTeams) state.ctfTeams[ev.peerId] = ev.team;
       }
+    } else if (ev.type === 'ctf_return_started') {
+      // Bara visualisera om DET är jag som håller
+      if (ev.peerId === this.myId) {
+        state.ctfReturnHold = { team: ev.team, startAt: performance.now(), durationMs: ev.durationMs || 1000 };
+      }
+    } else if (ev.type === 'ctf_return_cancelled') {
+      if (ev.peerId === this.myId) state.ctfReturnHold = null;
     } else if (ev.type === 'pvp_hp_changed') {
       // PvP shield + HP-uppdatering efter damage eller pickup.
       // Server-shape: { peerId, hp, shield }
@@ -6601,7 +6757,10 @@ function modeLabel(mode) {
   if (mode === 'daily') return 'Daily';
   return 'Story';
 }
+let _publicRoomsLastList = [];
+let _publicRoomsFilter = 'all';
 function renderPublicRoomsList(rooms) {
+  if (rooms) _publicRoomsLastList = rooms;
   const list = document.getElementById('public-rooms-list');
   const empty = document.getElementById('public-rooms-empty');
   if (!list) return;
@@ -6609,15 +6768,25 @@ function renderPublicRoomsList(rooms) {
   for (const child of Array.from(list.children)) {
     if (child !== empty) list.removeChild(child);
   }
-  if (!rooms || rooms.length === 0) {
+  // Filtrera enligt aktiv tab
+  const filtered = _publicRoomsLastList.filter(r => {
+    if (_publicRoomsFilter === 'all') return true;
+    if (_publicRoomsFilter === 'tdm') return r.mode === 'tdm';
+    if (_publicRoomsFilter === 'ctf') return r.mode === 'ctf';
+    if (_publicRoomsFilter === 'story') return !['tdm', 'ctf'].includes(r.mode);
+    return true;
+  });
+  if (filtered.length === 0) {
     if (empty) {
       empty.style.display = 'block';
-      empty.textContent = 'Inga aktiva rum just nu.';
+      empty.textContent = (_publicRoomsLastList.length === 0)
+        ? 'Inga aktiva rum just nu.'
+        : 'Inga rum av denna typ — testa "ALLA".';
     }
     return;
   }
   if (empty) empty.style.display = 'none';
-  for (const r of rooms) {
+  for (const r of filtered) {
     const row = document.createElement('div');
     const startedBadge = r.started
       ? '<span style="background:#aa3aff;color:#fff;font-size:9px;font-weight:900;padding:2px 6px;border-radius:3px;letter-spacing:1px;margin-left:6px;">PÅGÅR</span>'
@@ -6653,17 +6822,31 @@ function renderPublicRoomsList(rooms) {
     list.appendChild(row);
   }
 }
-// Manuell refresh-knapp
+// Manuell refresh-knapp + filter-tabs
 document.addEventListener('DOMContentLoaded', () => {
   const refreshBtn = document.getElementById('btn-public-rooms-refresh');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => {
-      // Om browser-WS finns, skicka request — annars öppna en
       if (_browserWs && _browserWs.readyState === 1) {
         try { _browserWs.send(JSON.stringify({ type: 'list_public_rooms' })); } catch (_) {}
       } else {
         startBrowsingPublicRooms();
       }
+      Audio.uiClick();
+    });
+  }
+  const filterRow = document.getElementById('public-rooms-filters');
+  if (filterRow) {
+    filterRow.addEventListener('click', (e) => {
+      const btn = e.target.closest('.prf-btn');
+      if (!btn) return;
+      _publicRoomsFilter = btn.dataset.filter || 'all';
+      // Visa aktiv-state
+      for (const b of filterRow.querySelectorAll('.prf-btn')) {
+        if (b === btn) { b.classList.add('active'); b.style.background = '#aa3aff'; b.style.color = '#fff'; }
+        else           { b.classList.remove('active'); b.style.background = '#222'; b.style.color = '#aaa'; }
+      }
+      renderPublicRoomsList();
       Audio.uiClick();
     });
   }
@@ -9622,12 +9805,17 @@ function drawDeadBody() {
 function startWave(n) {
   // Story-coop: lås upp progressivt vapen för denna wave
   if (isCoopStoryMode()) {
-    const newWeapon = COOP_STORY_WEAPON_UNLOCKS[n];
-    if (newWeapon && !save.owned.includes(newWeapon)) {
-      save.owned.push(newWeapon);
-      const w = getWeapon(newWeapon);
-      if (typeof showToast === 'function' && w) showToast('🔓 NYTT VAPEN: ' + w.name);
-      if (typeof Audio !== 'undefined' && Audio.achievement) Audio.achievement();
+    const entry = COOP_STORY_WEAPON_UNLOCKS[n];
+    if (entry) {
+      const list = Array.isArray(entry) ? entry : [entry];
+      for (const wid of list) {
+        if (!save.owned.includes(wid)) {
+          save.owned.push(wid);
+          const w = getWeapon(wid);
+          if (typeof showToast === 'function' && w) showToast('🔓 NYTT VAPEN: ' + w.name);
+          if (typeof Audio !== 'undefined' && Audio.achievement) Audio.achievement();
+        }
+      }
     }
   }
   loadStage(n);
@@ -12127,13 +12315,16 @@ function updatePlayer(dt, now) {
   p.x = Math.max(p.r, Math.min(WORLD.w - p.r, p.x));
   p.y = Math.max(p.r, Math.min(WORLD.h - p.r, p.y));
   resolveBuildingCollision(p);
-  // CTF: blockera spelar-rörelse vid wall-overlap (klientlokalt; server är auktoritativ)
+  // PvP: blockera spelar-rörelse vid wall-overlap (klientlokalt; server är auktoritativ)
   if (state.ctfActive && state.ctfWalls && typeof resolveCtfWall === 'function') {
     resolveCtfWall(p, state.ctfWalls);
   }
+  if (state.tdmActive && state.tdmWalls && typeof resolveCtfWall === 'function') {
+    resolveCtfWall(p, state.tdmWalls);
+  }
 
-  // sikta: prio fire-joystick, sen mus, sen rörelse, sen auto-aim
-  if (input.fireJoyActive && save.firejoy) {
+  // sikta: prio fire-joystick (alltid på när fire-knappen hålls), sen mus, sen rörelse, sen auto-aim
+  if (input.fireJoyActive) {
     p.aimAngle = Math.atan2(input.aimY, input.aimX);
   } else if (input.mouse.down && (window.innerWidth >= 900)) {
     const wx = input.mouse.x + state.camera.x;
@@ -12148,7 +12339,7 @@ function updatePlayer(dt, now) {
   // mitt i en boss-fight. Fall back på nearest om inget prio-mål finns.
   // COOP: auto-aim är ALLTID avstängt — manuell sikte enbart (rättvist för alla)
   const autoAimEnabled = !Coop.active && save.autoaim !== false;
-  if (input.firing && autoAimEnabled && !(input.fireJoyActive && save.firejoy)) {
+  if (input.firing && autoAimEnabled && !input.fireJoyActive) {
     let best = null, bestD = Infinity;
     let bestPrio = null, bestPrioD = Infinity;
     const curAim = p.aimAngle || 0;
@@ -13147,12 +13338,18 @@ function updateBullets(dt) {
       b.dead = true;
       continue;
     }
-    // CTF: bullet dör vid wall-hit (samma walls som blockar spelare).
-    // Speglar server-side bullets.js logik så visuellt + auktoritativt matchar.
+    // PvP: bullet dör vid wall-hit. Speglar server-side bullets.js.
     if (state.ctfActive && state.ctfWalls && typeof bulletHitsWall === 'function') {
       if (bulletHitsWall(b, state.ctfWalls)) {
         if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
-        // Spark-flash där bullet träffar väggen
+        if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
+        b.dead = true;
+        continue;
+      }
+    }
+    if (state.tdmActive && state.tdmWalls && typeof bulletHitsWall === 'function') {
+      if (bulletHitsWall(b, state.tdmWalls)) {
+        if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
         if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
         b.dead = true;
         continue;
@@ -20802,7 +20999,11 @@ function render() {
   if (state.ctfActive) {
     drawCtfWalls();
     drawCtfFlags();
+    drawCtfReturnHold();
+    drawCtfStolenFlagAlert();
   }
+  // TDM walls (cover-crates + pillar) — samma render som CTF walls
+  if (state.tdmActive && state.tdmWalls) drawPvpWalls(state.tdmWalls);
   // PvP-pickups (HP/shield-regen) — rita på både TDM och CTF
   if ((state.tdmActive || state.ctfActive) && state.pvpPickups) drawPvpPickups();
   // Top layer: damage-numbers + crit-text + chatter + explosions

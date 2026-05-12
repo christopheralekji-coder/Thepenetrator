@@ -12,6 +12,7 @@
 const { W_BY_ID } = require('../../shared/weapons-data');
 const { findNearestPlayer } = require('./enemies');
 const { CTF_ARENA, bulletHitsWall } = require('../../shared/ctf-arena');
+const { TDM_ARENA } = require('../../shared/tdm-arena');
 
 // PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
 // Sniper nerf: 130→95 (fortfarande 2-shot genom shield+hp men inte instant).
@@ -284,8 +285,15 @@ function updateBullets(sim, dt, now) {
       bullets.splice(i, 1);
       continue;
     }
-    // CTF: wall-collision. Skott dör vid wall-hit så cover faktiskt skyddar.
+    // PvP: wall-collision. Skott dör vid wall-hit så cover faktiskt skyddar.
     if (sim.ctfActive && bulletHitsWall(b, CTF_ARENA.walls)) {
+      if (b.explosive && !b.hostile) {
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+      }
+      bullets.splice(i, 1);
+      continue;
+    }
+    if (sim.tdmActive && bulletHitsWall(b, TDM_ARENA.walls)) {
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
       }

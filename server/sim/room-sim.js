@@ -9,6 +9,7 @@ const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onW
 const { updatePickups, dropFromEnemyDeath } = require('./pickups');
 const { getStage } = require('../../shared/stages-data');
 const { CTF_ARENA, resolveCtfWall, bulletHitsWall } = require('../../shared/ctf-arena');
+const { TDM_ARENA } = require('../../shared/tdm-arena');
 
 // 30Hz → 45Hz: tickar var 22ms istället för 33ms. Halverar input→pixel-delay
 // från server-tick-perspektiv. 1.5× CPU-last, men Node klarar 10k+ ops/tick i
@@ -130,6 +131,16 @@ function tickSim(sim) {
             shield: ws.playerState.shield,
           });
         }
+      }
+    }
+    // Wall-collision för spelare i TDM (server är auktoritet — annars går att
+    // springa genom cover-crates). resolveCtfWall muterar entity.x/y in-place.
+    for (const [, ws] of sim.room.members) {
+      if (ws.playerState && ws.playerState.hp > 0) {
+        const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
+        resolveCtfWall(ent, TDM_ARENA.walls);
+        ws.playerState.x = ent.x;
+        ws.playerState.y = ent.y;
       }
     }
     // PvP-pickups: respawn-timer + collect-detection (BARA om match ej avslutad)
@@ -568,22 +579,34 @@ function tickCtf(sim, dt, now) {
       }
     }
 
-    // 3. Return own-flagga (om dropped, inte at-base)
+    // 3. Return own-flagga: hold-to-return (1s standing within radius) så defender
+    //    inte råkar returnera av misstag när hen jagar fienden förbi den.
     const myFlag = sim.ctfFlags[myTeam];
     if (!myFlag.atBase && !myFlag.carrierId) {
       const dx = px - myFlag.x, dy = py - myFlag.y;
-      if (dx * dx + dy * dy < CTF_ARENA.pickupRadius * CTF_ARENA.pickupRadius) {
-        myFlag.x = myFlag.baseX;
-        myFlag.y = myFlag.baseY;
-        myFlag.atBase = true;
-        myFlag.droppedAt = 0;
-        sim.eventQueue.push({
-          type: 'ctf_flag_returned',
-          team: myTeam,
-          peerId: pid,
-          reason: 'manual',
-        });
+      const inRange = dx * dx + dy * dy < CTF_ARENA.pickupRadius * CTF_ARENA.pickupRadius;
+      if (inRange) {
+        const wasStarted = (ws._returnHoldT || 0) > 0;
+        ws._returnHoldT = (ws._returnHoldT || 0) + dt;
+        // Emit "started" event endast vid start (klient renderar progress-ring)
+        if (!wasStarted) {
+          sim.eventQueue.push({ type: 'ctf_return_started', peerId: pid, team: myTeam, durationMs: 1000 });
+        }
+        if (ws._returnHoldT >= 1.0) {
+          ws._returnHoldT = 0;
+          myFlag.x = myFlag.baseX;
+          myFlag.y = myFlag.baseY;
+          myFlag.atBase = true;
+          myFlag.droppedAt = 0;
+          sim.eventQueue.push({ type: 'ctf_flag_returned', team: myTeam, peerId: pid, reason: 'manual' });
+        }
+      } else if (ws._returnHoldT) {
+        ws._returnHoldT = 0;
+        sim.eventQueue.push({ type: 'ctf_return_cancelled', peerId: pid, team: myTeam });
       }
+    } else if (ws._returnHoldT) {
+      // Flaggan kom hem på annat sätt (auto-return, carrier-pickup) — rensa state
+      ws._returnHoldT = 0;
     }
   }
 
@@ -613,38 +636,40 @@ const PICKUP_RESPAWN_MS = 15000;
 const PICKUP_HEAL = 40;
 const PICKUP_RADIUS = 28;
 
-let _pickupIdCounter = 0;
-function nextPickupId() { return 'pu_' + (++_pickupIdCounter); }
+function nextPickupId(sim) {
+  sim._pickupIdCounter = (sim._pickupIdCounter || 0) + 1;
+  return 'pu_' + sim._pickupIdCounter;
+}
 
-function buildCtfPickups() {
+function buildCtfPickups(sim) {
   // 4500×2800 arena, symmetrisk runt x=2250.
   // HP-pickups i flank-positioner (mellan baser och mitten).
   // Shield-pickups i mid-zon (riskabla att hämta — kontakt med fiender).
   return [
     // HP: 4 flanker
-    { id: nextPickupId(), x: 1300, y: 700,  type: 'hp',     available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 3200, y: 700,  type: 'hp',     available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 1300, y: 2100, type: 'hp',     available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 3200, y: 2100, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1300, y: 700,  type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3200, y: 700,  type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1300, y: 2100, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3200, y: 2100, type: 'hp',     available: true, respawnAt: 0 },
     // Shield: 4 mid-zon (mer kontestbara)
-    { id: nextPickupId(), x: 2250, y: 350,  type: 'shield', available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 2250, y: 2450, type: 'shield', available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 1900, y: 1400, type: 'shield', available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 2600, y: 1400, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2250, y: 350,  type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2250, y: 2450, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1900, y: 1400, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2600, y: 1400, type: 'shield', available: true, respawnAt: 0 },
   ];
 }
 
-function buildTdmPickups(arena) {
+function buildTdmPickups(sim, arena) {
   // 4000×3000 öppen arena. Symmetrisk runt center x=2000, y=1500.
   return [
-    { id: nextPickupId(), x: 1200, y: 1000, type: 'hp',     available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 2800, y: 1000, type: 'hp',     available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 1200, y: 2000, type: 'hp',     available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 2800, y: 2000, type: 'hp',     available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 2000, y: 600,  type: 'shield', available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 2000, y: 2400, type: 'shield', available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 1600, y: 1500, type: 'shield', available: true, respawnAt: 0 },
-    { id: nextPickupId(), x: 2400, y: 1500, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1200, y: 1000, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2800, y: 1000, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1200, y: 2000, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2800, y: 2000, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2000, y: 600,  type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2000, y: 2400, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1600, y: 1500, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2400, y: 1500, type: 'shield', available: true, respawnAt: 0 },
   ];
 }
 
@@ -939,7 +964,7 @@ function startSim(sim, opts) {
       i++;
     }
     // PvP-pickups på CTF-arenan — symmetrisk 4 HP + 4 shield, respawn 15s
-    sim.pvpPickups = buildCtfPickups();
+    sim.pvpPickups = buildCtfPickups(sim);
     sim.eventQueue.push({
       type: 'ctf_started',
       targetCaptures: sim.ctfTargetCaptures,
@@ -985,13 +1010,14 @@ function startSim(sim, opts) {
       i++;
     }
     // PvP-pickups på arenan — symmetrisk 4 HP + 4 shield, respawn 15s
-    sim.pvpPickups = buildTdmPickups(arena);
-    // Skicka arena-info till klient så de kan rita rätt map + spawn-positions
+    sim.pvpPickups = buildTdmPickups(sim, arena);
+    // Skicka arena-info + walls (TDM har nu cover så sniper inte one-shots edge-to-edge)
     sim.eventQueue.push({
       type: 'tdm_started',
       targetKills: sim.tdmTargetKills,
       teams,
       arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },
+      walls: TDM_ARENA.walls,
       spawns: { red: { x: redSpawnX, y: spawnY }, blue: { x: blueSpawnX, y: spawnY } },
       pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
       shieldMax: 100,
