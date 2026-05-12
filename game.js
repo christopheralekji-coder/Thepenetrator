@@ -1645,6 +1645,28 @@ const SAVE_KEY = 'penetrator_save_v1';
 // aktivt i coop. Switcha via vapen-menyn som vanligt.
 const COOP_WEAPONS = ['pistol', 'shuriken', 'burstpistol', 'shotgun', 'sniper', 'rifle'];
 
+// Story-coop: progressiv vapen-unlock per wave så det inte blir för lätt direkt.
+// PvP-modes (TDM/CTF) får alla 6 från start (rättvis match), endless/bossrush/
+// survive coop likaså — det är bara story coop som progressar.
+const COOP_STORY_WEAPON_UNLOCKS = {
+  1: 'pistol',       // Stage 1: bara pistol
+  2: 'shuriken',     // Stage 2: + kaststjärnor (snabb DPS)
+  3: 'shotgun',      // Stage 3: + hagelgevär (close-range power)
+  4: 'burstpistol',  // Stage 4: + burst (mid-range)
+  5: 'rifle',        // Stage 5: + automatkarbin (sustained)
+  6: 'sniper',       // Stage 6: + prickskytte (long-range finisher)
+};
+function isCoopStoryMode() {
+  return Coop.active && !Coop.config.tdm && !Coop.config.ctf && (Coop.config.mode === 'story' || !Coop.config.mode);
+}
+function coopStoryUnlockedThroughWave(wave) {
+  const unlocked = ['fists'];
+  for (let w = 1; w <= wave; w++) {
+    if (COOP_STORY_WEAPON_UNLOCKS[w]) unlocked.push(COOP_STORY_WEAPON_UNLOCKS[w]);
+  }
+  return unlocked;
+}
+
 // WEAPONS — balanserad lista efter cleanup. Borttagna: tonfa/boxgloves (sämre än knuckles),
 // glaive (överdyr), drone-vapen (companions täcker rollen). 'whip' melee (Kedjepiska) behållen,
 // gun-versionen omdöpt 'pullwhip'. Tier-progression: tidiga vapen billiga + svaga, sena dyra + starka.
@@ -5011,6 +5033,19 @@ const Coop = {
           goalPos: { x: Math.floor(ev.arena.worldW * 0.90), y: Math.floor(ev.arena.worldH * 0.50) },
         }];
         state.wave = 1;
+        // KRITISKT: uppdatera WORLD.w/h så player-clamp + camera-clamp + bullet-clamp
+        // använder arena-storleken. Annars klampas spelaren i story-stage 1's 1800×2400-bounds
+        // och kan inte ens nå motståndarsidan.
+        WORLD.w = ev.arena.worldW;
+        WORLD.h = ev.arena.worldH;
+        // Rensa story-stage-byggnader/dekor som actuallyStartGame laddade (annars
+        // syns forest-decorations i hörnet av TDM-arenan)
+        if (typeof stageState !== 'undefined') {
+          stageState.buildings = [];
+          stageState.decorations = [];
+          stageState.hazards = [];
+          stageState.collectibles = [];
+        }
       }
       const myTeam = this.tdmTeams[this.myId];
       // PvP-pickups + shield-init
@@ -5153,6 +5188,17 @@ const Coop = {
           goalPos: { x: Math.floor(ev.arena.worldW * 0.90), y: Math.floor(ev.arena.worldH * 0.50) },
         }];
         state.wave = 1;
+        // KRITISKT: uppdatera WORLD.w/h så player/camera/bullet-clamp inte begränsar
+        // till story-stage 1's bounds (1800×2400 → spelaren kunde bara nå 30% av CTF-arenan)
+        WORLD.w = ev.arena.worldW;
+        WORLD.h = ev.arena.worldH;
+        // Rensa story-stage-byggnader/dekor (CTF har egna walls via drawCtfWalls)
+        if (typeof stageState !== 'undefined') {
+          stageState.buildings = [];
+          stageState.decorations = [];
+          stageState.hazards = [];
+          stageState.collectibles = [];
+        }
       }
       const myTeam = this.ctfTeams[this.myId];
       // PvP-pickups + shield-init
@@ -9517,6 +9563,16 @@ function drawDeadBody() {
 // SPAWNING / NIVÅER
 // ============================================================
 function startWave(n) {
+  // Story-coop: lås upp progressivt vapen för denna wave
+  if (isCoopStoryMode()) {
+    const newWeapon = COOP_STORY_WEAPON_UNLOCKS[n];
+    if (newWeapon && !save.owned.includes(newWeapon)) {
+      save.owned.push(newWeapon);
+      const w = getWeapon(newWeapon);
+      if (typeof showToast === 'function' && w) showToast('🔓 NYTT VAPEN: ' + w.name);
+      if (typeof Audio !== 'undefined' && Audio.achievement) Audio.achievement();
+    }
+  }
   loadStage(n);
 }
 
@@ -10723,10 +10779,15 @@ function actuallyStartGame() {
     }
     // Reset varje coop-run (både första gången och återupprepade gånger).
     // Companions BEHÅLLS — användaren ska se sin köpta pet även i coop.
-    // Coop-inventory: 6 PvP-vapen tillgängliga (inget shop/perks/upgrades-system
-    // är aktivt i coop — alla har samma utgångsläge för rättvis match).
+    // Coop-inventory:
+    //  - Story coop: progressiv unlock (start: bara pistol+fists, +1 vapen per wave)
+    //  - PvP/endless/bossrush: alla 6 vapen från start
     save.gold = 0;
-    save.owned = ['fists', ...COOP_WEAPONS];
+    if (isCoopStoryMode()) {
+      save.owned = coopStoryUnlockedThroughWave(1);
+    } else {
+      save.owned = ['fists', ...COOP_WEAPONS];
+    }
     save.weaponId = 'pistol';
     save.equipped = 'pistol';
     if (save.upgrades) {
@@ -12022,7 +12083,8 @@ function updatePlayer(dt, now) {
   // auto-aim mot närmsta fiende vid skjutning (om aktiverat och INTE i fire-joy-mode).
   // Sticky: prioritera boss/miniboss inom 60° framåt så grunt-skräp inte stjäl target
   // mitt i en boss-fight. Fall back på nearest om inget prio-mål finns.
-  const autoAimEnabled = save.autoaim !== false; // default på
+  // COOP: auto-aim är ALLTID avstängt — manuell sikte enbart (rättvist för alla)
+  const autoAimEnabled = !Coop.active && save.autoaim !== false;
   if (input.firing && autoAimEnabled && !(input.fireJoyActive && save.firejoy)) {
     let best = null, bestD = Infinity;
     let bestPrio = null, bestPrioD = Infinity;
