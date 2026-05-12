@@ -1400,14 +1400,33 @@ html, body {
 }
 .ach-card, .cheat-card {
   transition: transform 0.15s, box-shadow 0.18s, border-color 0.18s !important;
+  animation: achCardSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  position: relative;
+}
+@keyframes achCardSlide {
+  0% { transform: translateY(10px); opacity: 0; }
+  100% { transform: translateY(0); opacity: 1; }
 }
 .ach-card:hover, .cheat-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 22px rgba(170,58,255,0.35) !important;
 }
 .ach-card.unlocked, .cheat-card.unlocked {
-  background: linear-gradient(180deg, rgba(170,58,255,0.18), rgba(60,20,100,0.5)) !important;
-  border-color: rgba(170,58,255,0.6) !important;
+  background: linear-gradient(180deg, rgba(255,213,74,0.18), rgba(120,80,20,0.4)) !important;
+  border-color: rgba(255,213,74,0.55) !important;
+  box-shadow: 0 4px 14px rgba(255,213,74,0.18) !important;
+}
+.ach-card .ach-badge {
+  position: absolute;
+  top: 6px; right: 8px;
+  background: #5aff8a;
+  color: #000;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-shadow: none;
+  letter-spacing: 0.5px;
 }
 .ach-card.locked, .cheat-card.locked {
   filter: grayscale(0.6) brightness(0.75);
@@ -1418,6 +1437,40 @@ html, body {
 @keyframes achGlow {
   0% { box-shadow: 0 0 30px 6px rgba(255,213,74,0.6); }
   100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+/* Settings sliders themed */
+.setting-row input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: rgba(255,213,74,0.18);
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+}
+.setting-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffe88a, #ffae3a);
+  cursor: pointer;
+  border: 2px solid rgba(0,0,0,0.4);
+  box-shadow: 0 2px 6px rgba(255,213,74,0.5);
+  transition: transform 0.1s;
+}
+.setting-row input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.setting-row input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #ffe88a, #ffae3a);
+  cursor: pointer;
+  border: 2px solid rgba(0,0,0,0.4);
+  box-shadow: 0 2px 6px rgba(255,213,74,0.5);
 }
 
 /* ============================================================
@@ -2324,12 +2377,42 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
 /* Stats-rows fancy */
 .stats-row {
   background: linear-gradient(90deg, rgba(255,213,74,0.05), transparent);
-  border-radius: 4px;
-  margin-bottom: 2px;
-  transition: background 0.2s;
+  border-radius: 6px;
+  margin-bottom: 4px;
+  padding: 8px 12px;
+  transition: background 0.2s, transform 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  animation: statsRowSlide 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  border-left: 2px solid transparent;
 }
 .stats-row:hover {
-  background: linear-gradient(90deg, rgba(255,213,74,0.15), transparent);
+  background: linear-gradient(90deg, rgba(255,213,74,0.18), transparent);
+  border-left-color: #ffd54a;
+  transform: translateX(2px);
+}
+.stats-row .stats-icon {
+  font-size: 16px;
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.stats-row .label {
+  font-size: 13px;
+  color: #ddd;
+  flex: 1;
+}
+.stats-row .val {
+  font-weight: 800;
+  color: #ffd54a;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+}
+@keyframes statsRowSlide {
+  0% { transform: translateX(-12px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
 }
 
 /* Achievement card hover */

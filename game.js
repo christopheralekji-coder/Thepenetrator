@@ -3991,21 +3991,45 @@ function openStats() {
   const ownedW = (save.owned || []).length;
   const ownedP = (save.perks || []).length;
   const achs = (save.achievements || []).length;
-  statsContent.innerHTML = `
-    <div class="stats-row"><span class="label">Total speltid</span><span class="val">${playMin}m ${playSec}s</span></div>
-    <div class="stats-row"><span class="label">Antal runs</span><span class="val">${s.runs || 0}</span></div>
-    <div class="stats-row"><span class="label">Vinster</span><span class="val">${s.wins || 0}</span></div>
-    <div class="stats-row"><span class="label">Total kills</span><span class="val">${s.totalKills || 0}</span></div>
-    <div class="stats-row"><span class="label">Bossar dödade</span><span class="val">${s.bossKills || 0}</span></div>
-    <div class="stats-row"><span class="label">Total krits</span><span class="val">${s.totalCrits || 0}</span></div>
-    <div class="stats-row"><span class="label">Spräng-kills</span><span class="val">${s.explKills || 0}</span></div>
-    <div class="stats-row"><span class="label">Total gold tjänat</span><span class="val">💰 ${s.totalGold || 0}</span></div>
-    <div class="stats-row"><span class="label">Nuvarande gold</span><span class="val">💰 ${save.gold || 0}</span></div>
-    <div class="stats-row"><span class="label">Vapen ägda</span><span class="val">${ownedW}/${WEAPONS.length}</span></div>
-    <div class="stats-row"><span class="label">Perks ägda</span><span class="val">${ownedP}/${PERKS.length}</span></div>
-    <div class="stats-row"><span class="label">Prestationer</span><span class="val">${achs}/${ACHIEVEMENTS.length}</span></div>
-    <div class="stats-row"><span class="label">Högsta wave</span><span class="val">${save.highWave || 1}</span></div>
-  `;
+  // Icon per rad för visuell rikedom
+  const rows = [
+    { icon: '⏱', label: 'Total speltid', value: `${playMin}m ${playSec}s`, raw: null },
+    { icon: '🎮', label: 'Antal runs', value: null, raw: s.runs || 0 },
+    { icon: '🏆', label: 'Vinster', value: null, raw: s.wins || 0 },
+    { icon: '💀', label: 'Total kills', value: null, raw: s.totalKills || 0 },
+    { icon: '👑', label: 'Bossar dödade', value: null, raw: s.bossKills || 0 },
+    { icon: '💥', label: 'Total krits', value: null, raw: s.totalCrits || 0 },
+    { icon: '💣', label: 'Spräng-kills', value: null, raw: s.explKills || 0 },
+    { icon: '💰', label: 'Total gold tjänat', value: '💰 ' + (s.totalGold || 0), raw: null },
+    { icon: '🪙', label: 'Nuvarande gold', value: '💰 ' + (save.gold || 0), raw: null },
+    { icon: '⚔', label: 'Vapen ägda', value: `${ownedW}/${WEAPONS.length}`, raw: null },
+    { icon: '✨', label: 'Perks ägda', value: `${ownedP}/${PERKS.length}`, raw: null },
+    { icon: '🏅', label: 'Prestationer', value: `${achs}/${ACHIEVEMENTS.length}`, raw: null },
+    { icon: '📈', label: 'Högsta wave', value: null, raw: save.highWave || 1 },
+  ];
+  statsContent.innerHTML = rows.map((r, i) => `
+    <div class="stats-row" style="animation-delay:${i * 0.05}s">
+      <span class="stats-icon">${r.icon}</span>
+      <span class="label">${r.label}</span>
+      <span class="val" data-count-to="${r.raw != null ? r.raw : ''}">${r.value != null ? r.value : (r.raw || 0)}</span>
+    </div>
+  `).join('');
+  // Count-up-animation för numeriska rader (raw != null) — 800ms ease-out
+  const valEls = statsContent.querySelectorAll('.val[data-count-to]');
+  const start = performance.now();
+  const dur = 800;
+  const targets = Array.from(valEls).map(el => parseInt(el.dataset.countTo, 10)).filter(n => Number.isFinite(n));
+  function tick() {
+    const t = Math.min(1, (performance.now() - start) / dur);
+    const eased = 1 - Math.pow(1 - t, 3);
+    valEls.forEach((el) => {
+      const target = parseInt(el.dataset.countTo, 10);
+      if (!Number.isFinite(target)) return;
+      el.textContent = Math.round(target * eased);
+    });
+    if (t < 1) requestAnimationFrame(tick);
+  }
+  if (targets.length > 0) requestAnimationFrame(tick);
 }
 // btn-stats borttagen från hemskärm — använd btn-settings-stats istället (bakad i settings).
 const _btnStatsMenu = document.getElementById('btn-stats');
@@ -4035,18 +4059,22 @@ function openAchievements() {
     <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
   `;
   achGrid.innerHTML = '';
+  let idx = 0;
   for (const a of ACHIEVEMENTS) {
     const has = Achievements.has(a.id);
     const card = document.createElement('div');
     card.className = 'ach-card ' + (has ? 'unlocked' : 'locked');
+    card.style.animationDelay = (idx * 0.035) + 's';
     card.innerHTML = `
       <div class="ach-icon">${has ? a.icon : '🔒'}</div>
       <div class="ach-info">
-        <div class="ach-info-name">${a.name}</div>
-        <div class="ach-info-desc">${has ? a.desc : '???'}</div>
+        <div class="ach-info-name">${has ? a.name : '???'}</div>
+        <div class="ach-info-desc">${has ? a.desc : 'Låst — lås upp för att avslöja'}</div>
       </div>
+      ${has ? '<div class="ach-badge">✓</div>' : ''}
     `;
     achGrid.appendChild(card);
+    idx++;
   }
 }
 document.getElementById('btn-achievements').addEventListener('click', openAchievements);
