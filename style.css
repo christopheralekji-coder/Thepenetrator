@@ -131,14 +131,14 @@ html, body {
 }
 .sc-content {
   text-align: center;
-  padding: 30px 24px;
-  max-width: 480px;
-  width: 92%;
+  padding: 20px 18px;
+  max-width: 360px;
+  width: min(82%, 360px);
   background:
     radial-gradient(ellipse at top, rgba(255,213,74,0.18) 0%, transparent 60%),
     linear-gradient(180deg, #1a0a14, #0a0508);
   border: 2px solid #ffd54a;
-  border-radius: 16px;
+  border-radius: 14px;
   box-shadow:
     0 10px 50px rgba(255,213,74,0.4),
     inset 0 1px 0 rgba(255,255,255,0.1),
@@ -147,6 +147,13 @@ html, body {
   position: relative;
   z-index: 1;
 }
+.sc-trophy { font-size: 50px !important; margin-bottom: 2px !important; }
+.sc-title { font-size: clamp(22px, 5.5vw, 34px) !important; letter-spacing: 3px !important; }
+.sc-subtitle { font-size: 11px !important; margin-bottom: 14px !important; }
+.sc-stat { padding: 8px !important; }
+.sc-stat span { font-size: 9px !important; }
+.sc-stat b { font-size: 16px !important; }
+#btn-stage-continue { font-size: 13px !important; padding: 10px 18px !important; letter-spacing: 1.5px !important; }
 @keyframes scContentPop {
   0% { transform: scale(0.6) rotate(-3deg); opacity: 0; }
   60% { transform: scale(1.06) rotate(0.5deg); }
@@ -238,20 +245,34 @@ html, body {
   text-shadow: 0 1px 2px rgba(0,0,0,0.8), 0 0 8px rgba(255,213,74,0.4);
   font-weight: 900;
 }
-/* Rank-stat har specialfärger per värde */
+/* Rank-stat: stor cinematic bokstav med shimmer + tier-färg */
+.sc-stat:nth-child(3) {
+  position: relative;
+  overflow: visible;
+}
 .sc-stat:nth-child(3) b {
-  font-size: 28px;
-  letter-spacing: 1px;
-  background: linear-gradient(180deg, #fff, #ffd54a);
+  font-size: 38px !important;
+  letter-spacing: 0;
+  font-weight: 900;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-style: italic;
+  background: linear-gradient(180deg, #ffeb88 0%, #ffd54a 45%, #ff8a3a 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: scRankPop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 1.0s backwards;
+  filter:
+    drop-shadow(0 2px 4px rgba(255,213,74,0.6))
+    drop-shadow(0 0 12px rgba(255,213,74,0.3));
+  animation: scRankPop 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) 1.0s backwards;
+  text-shadow: none;
+  line-height: 1;
+  padding: 2px 0;
 }
 @keyframes scRankPop {
-  0% { transform: scale(0.3); opacity: 0; }
-  60% { transform: scale(1.5); }
-  100% { transform: scale(1); opacity: 1; }
+  0% { transform: scale(0.2) rotate(-12deg); opacity: 0; }
+  55% { transform: scale(1.35) rotate(3deg); opacity: 1; }
+  75% { transform: scale(0.95) rotate(-1deg); }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
 }
 #btn-stage-continue {
   font-size: 16px !important;
@@ -380,6 +401,44 @@ html, body {
   transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 0 6px var(--xp-color);
 }
+/* HUD-toast-stack: small notifications under HP-bar, max 3 rows */
+#hud-toast-stack {
+  position: fixed;
+  top: max(46px, calc(env(safe-area-inset-top, 0px) + 38px));
+  left: max(12px, env(safe-area-inset-left, 12px));
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: none;
+  max-width: 240px;
+}
+.hud-toast-row {
+  background: linear-gradient(90deg, rgba(0,0,0,0.85), rgba(20,15,25,0.7));
+  border-left: 3px solid #ffd54a;
+  border-radius: 6px;
+  padding: 5px 10px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.9);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.55);
+  animation: hudToastSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.3s, transform 0.3s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud-toast-row.fading {
+  opacity: 0;
+  transform: translateX(-12px);
+}
+@keyframes hudToastSlideIn {
+  0% { transform: translateX(-30px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+
 #weapon-name.weapon-flash {
   animation: weaponSwitchFlash 0.35s ease-out;
 }
@@ -2929,6 +2988,26 @@ body.ios .overlay {
 .reset-btn:hover, .reset-btn:active {
   background: rgba(220,60,60,0.35);
   border-color: rgba(255,120,120,0.7);
+  color: #fff;
+}
+/* Settings-link-btn: samma layout som reset-btn men i guld/lila (icke-destruktiv) */
+.settings-link-btn {
+  margin-left: auto;
+  padding: 10px 18px;
+  font-size: 12px;
+  min-height: 40px;
+  font-weight: 600;
+  background: rgba(170,90,255,0.15);
+  border: 1px solid rgba(170,90,255,0.4);
+  color: #d8b0ff;
+  border-radius: 6px;
+  cursor: pointer;
+  letter-spacing: 0.4px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.settings-link-btn:hover, .settings-link-btn:active {
+  background: rgba(170,58,255,0.35);
+  border-color: rgba(220,150,255,0.7);
   color: #fff;
 }
 .setting-row input[type=range] {

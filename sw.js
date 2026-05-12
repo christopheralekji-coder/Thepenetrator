@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v144-tick45-autoquality';
+const CACHE = 'penetrator-v145-ui-cleanup';
 const ASSETS = [
   './',
   './index.html',

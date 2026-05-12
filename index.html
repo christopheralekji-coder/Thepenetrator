@@ -243,18 +243,21 @@
       <label>Skjut-joystick</label>
       <input id="set-firejoy" type="checkbox">
     </div>
+    <!-- Sekundära menyer inline i settings-listan (samma layout som reset-knappen) -->
+    <div class="setting-row">
+      <label>📊 Statistik</label>
+      <button id="btn-settings-stats" class="settings-link-btn">Visa</button>
+    </div>
+    <div class="setting-row">
+      <label>🔓 Cheats</label>
+      <button id="btn-settings-cheats" class="settings-link-btn">Visa</button>
+    </div>
     <!-- Reset-knapp för progression. Liten + diskret — destruktiv aktion. -->
     <div class="setting-row">
       <label>Återställ progression</label>
       <button id="btn-reset-save" class="reset-btn">Nollställ</button>
     </div>
 
-  </div>
-  <!-- Sekundära menyer från startsidan: Stats + Cheats. Inbakade i settings för
-       att minska rumsligt brus på hemskärm. -->
-  <div class="settings-submenu">
-    <button id="btn-settings-stats" class="medium-btn">📊 STATISTIK</button>
-    <button id="btn-settings-cheats" class="medium-btn">🔓 CHEATS</button>
   </div>
   <button id="btn-settings-close" class="big-btn">STÄNG</button>
 </div>
@@ -348,20 +351,9 @@
     <div id="coop-server-sim-row" class="hidden">
       <input type="checkbox" id="coop-server-sim-toggle" checked style="display:none;">
     </div>
-    <div id="coop-tdm-row" class="hidden" style="margin:8px 0;padding:8px;border:1px solid rgba(255,90,90,0.3);border-radius:8px;background:rgba(255,90,90,0.06);">
-      <label style="display:flex;align-items:center;gap:8px;justify-content:center;color:#ff5a5a;font-size:13px;font-weight:700;cursor:pointer;">
-        <input type="checkbox" id="coop-tdm-toggle" style="width:16px;height:16px;cursor:pointer;">
-        ⚔️ TEAM DEATHMATCH (PvP)
-      </label>
-      <div style="font-size:10px;color:#888;margin-top:4px;text-align:center;">Röda mot blåa — slåss mot varandra istället för fiender</div>
-      <div id="coop-tdm-options" class="hidden" style="margin-top:8px;display:flex;gap:6px;justify-content:center;align-items:center;flex-wrap:wrap;">
-        <span style="color:#aaa;font-size:11px;">FÖRSTA TILL:</span>
-        <button class="tdm-target-btn small-btn" data-tk="5" style="padding:4px 10px;font-size:11px;">5</button>
-        <button class="tdm-target-btn small-btn" data-tk="10" style="padding:4px 10px;font-size:11px;">10</button>
-        <button class="tdm-target-btn small-btn" data-tk="20" style="padding:4px 10px;font-size:11px;">20</button>
-        <button class="tdm-target-btn small-btn" data-tk="30" style="padding:4px 10px;font-size:11px;">30</button>
-      </div>
-    </div>
+    <!-- TDM-checkbox borttagen — TDM aktiveras nu via "PLAYER VS PLAYER"-knappraden
+         i samma format som Team Play. coop-tdm-row finns inte längre. -->
+
     <button id="btn-coop-start" class="big-btn hidden" style="margin-top:14px;">STARTA SPELET</button>
     <div id="coop-waiting" class="hidden" style="color:#5aff5a;font-size:13px;">Väntar på att host startar...</div>
   </div>

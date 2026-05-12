@@ -10536,7 +10536,37 @@ function getMostUsedWeapon() {
 // Toast
 let toastTimer = 0;
 let toastText = '';
-function showToast(text, sec) { toastText = text; toastTimer = (typeof sec === 'number' && sec > 0) ? sec : 2.0; }
+function showToast(text, sec) {
+  toastText = text;
+  toastTimer = (typeof sec === 'number' && sec > 0) ? sec : 2.0;
+  // Visa även som DOM-toast under HP-baren (smidigare än canvas-text)
+  showHudToast(text, (typeof sec === 'number' && sec > 0) ? sec * 1000 : 2000);
+}
+// HUD-toast: DOM-element under HP-baren. Stackar 3 senaste, fadar ut.
+let _hudToastEl = null;
+function ensureHudToast() {
+  if (_hudToastEl) return _hudToastEl;
+  const el = document.createElement('div');
+  el.id = 'hud-toast-stack';
+  document.body.appendChild(el);
+  _hudToastEl = el;
+  return el;
+}
+function showHudToast(text, ms) {
+  const stack = ensureHudToast();
+  const row = document.createElement('div');
+  row.className = 'hud-toast-row';
+  row.textContent = text;
+  stack.appendChild(row);
+  // Max 3 rader — släng äldsta
+  while (stack.children.length > 3) stack.removeChild(stack.firstChild);
+  setTimeout(() => {
+    if (row.parentNode) {
+      row.classList.add('fading');
+      setTimeout(() => { if (row.parentNode) row.parentNode.removeChild(row); }, 350);
+    }
+  }, Math.max(800, ms || 2000));
+}
 
 // ============================================================
 // TDM HUD — team-score banner + kill-feed + match-end screen
@@ -19681,16 +19711,10 @@ function drawParticle(p) {
 }
 
 function drawToast() {
-  if (toastTimer <= 0) return;
-  ctx.save();
-  ctx.globalAlpha = Math.min(1, toastTimer);
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 36px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.shadowColor = '#000';
-  ctx.shadowBlur = 8;
-  ctx.fillText(toastText, viewW/2, viewH/2 - 80);
-  ctx.restore();
+  // Canvas-toast i mitten borttaget — toaster visas nu som DOM-stack under
+  // HP-baren via showHudToast. Behåll funktionen som no-op för bakåtkompat
+  // (drawToast anropas fortfarande från render()).
+  if (toastTimer > 0) toastTimer = 0;
 }
 
 function render() {
@@ -19758,7 +19782,7 @@ function render() {
   drawDeathCam();
   drawBossPhaseBanner();
   drawToast();
-  drawComboCounter();
+  // drawComboCounter borttagen — krockade visuellt mitt på skärmen
   drawKillstreak();
   drawBossIntro();
   drawFadeOverlay();
