@@ -4036,12 +4036,19 @@ const _btnStatsMenu = document.getElementById('btn-stats');
 if (_btnStatsMenu) _btnStatsMenu.addEventListener('click', openStats);
 const _btnSettingsStats = document.getElementById('btn-settings-stats');
 if (_btnSettingsStats) _btnSettingsStats.addEventListener('click', () => {
-  // Stäng settings först så stats kan slå upp ren
+  // Stäng settings först så stats kan slå upp ren — kom ihåg så close återgår till settings.
   if (settingsScreen) settingsScreen.classList.add('hidden');
+  state._fromSettingsSubmenu = 'stats';
   openStats();
 });
 document.getElementById('btn-stats-close').addEventListener('click', () => {
-  statsScreen.classList.add('hidden'); Audio.uiClick();
+  statsScreen.classList.add('hidden');
+  Audio.uiClick();
+  // Återgå till settings om vi öppnades därifrån
+  if (state._fromSettingsSubmenu === 'stats' && settingsScreen) {
+    settingsScreen.classList.remove('hidden');
+    state._fromSettingsSubmenu = null;
+  }
 });
 
 // Achievements screen
@@ -7334,12 +7341,18 @@ if (_btnCheatsMenu) _btnCheatsMenu.addEventListener('click', openCheats);
 const _btnSettingsCheats = document.getElementById('btn-settings-cheats');
 if (_btnSettingsCheats) _btnSettingsCheats.addEventListener('click', () => {
   if (settingsScreen) settingsScreen.classList.add('hidden');
+  state._fromSettingsSubmenu = 'cheats';
   openCheats();
 });
 const _btnCheatsClose = document.getElementById('btn-cheats-close');
 if (_btnCheatsClose) _btnCheatsClose.addEventListener('click', () => {
   if (cheatsScreen) cheatsScreen.classList.add('hidden');
   Audio.uiClick();
+  // Återgå till settings om vi öppnades därifrån
+  if (state._fromSettingsSubmenu === 'cheats' && settingsScreen) {
+    settingsScreen.classList.remove('hidden');
+    state._fromSettingsSubmenu = null;
+  }
 });
 
 // Apply ultimate-aura on load
