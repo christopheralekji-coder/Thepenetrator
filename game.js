@@ -1521,6 +1521,19 @@ function drawCrate(x, y, w, h) {
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
 
+// Linjär färgblandning. Stöder #rgb, #rrggbb. t=0→a, t=1→b.
+function mixColors(a, b, t) {
+  const parseHex = (h) => {
+    if (!h || h[0] !== '#') return [255, 255, 255];
+    const s = h.length === 4 ? h[1]+h[1]+h[2]+h[2]+h[3]+h[3] : h.slice(1);
+    return [parseInt(s.substr(0,2),16), parseInt(s.substr(2,2),16), parseInt(s.substr(4,2),16)];
+  };
+  const [ar, ag, ab] = parseHex(a);
+  const [br, bg, bb] = parseHex(b);
+  const mix = (x, y) => Math.round(x + (y - x) * t);
+  return 'rgb(' + mix(ar, br) + ',' + mix(ag, bg) + ',' + mix(ab, bb) + ')';
+}
+
 // CTF: rita decorations — skyltar, klotter, lyktor, små flaggor.
 // Ingen collision, bara visuell flavor. Renderas under walls.
 function drawCtfDecorations() {
@@ -1563,15 +1576,76 @@ function drawCtfDecorations() {
       ctx.translate(x, y);
       if (d.rot) ctx.rotate(d.rot);
       const fontSize = d.size || 16;
-      ctx.font = 'bold italic ' + fontSize + 'px sans-serif';
+      const text = d.text || '';
+      const baseColor = d.color || '#fff';
+      // Realistic spray-paint: 5 lager + drips
+      // Använd condensed font för "tag"-känsla
+      ctx.font = 'italic 900 ' + fontSize + 'px "Impact","Arial Black",sans-serif';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      // Spray-look: drop-shadow + uneven edges via dubbel-fill
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillText(d.text || '', 2, 2);
-      ctx.fillStyle = d.color || '#fff';
+      // Mät för drips
+      const metrics = ctx.measureText(text);
+      const textW = metrics.width;
+      // Layer 1: overspray haze runt hela texten (mörk halo)
+      ctx.save();
+      ctx.shadowColor = baseColor;
+      ctx.shadowBlur = fontSize * 0.6;
+      ctx.globalAlpha = 0.35;
+      ctx.fillStyle = baseColor;
+      ctx.fillText(text, 0, 0);
+      ctx.restore();
+      // Layer 2: tjock svart outline (kontur som ett tag)
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = Math.max(3, fontSize * 0.18);
+      ctx.lineJoin = 'round';
+      ctx.miterLimit = 2;
       ctx.globalAlpha = 0.85;
-      ctx.fillText(d.text || '', 0, 0);
+      ctx.strokeText(text, 0, 0);
+      // Layer 3: huvudfärg fyllning
+      ctx.fillStyle = baseColor;
+      ctx.globalAlpha = 0.95;
+      ctx.fillText(text, 0, 0);
+      // Layer 4: ljusare highlight inom (upper-left, klassisk tag-style)
+      ctx.fillStyle = mixColors(baseColor, '#ffffff', 0.45);
+      ctx.globalAlpha = 0.55;
+      ctx.fillText(text, -1, -1.5);
+      // Layer 5: drips — droppar som rinner ner från bokstäver (deterministic hash)
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = baseColor;
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      const dripHash = ((d.x * 13) | 0) + ((d.y * 7) | 0);
+      const charSpacing = textW / Math.max(1, text.length);
+      const numDrips = 2 + ((dripHash >> 3) & 0x3); // 2-5 drips
+      for (let i = 0; i < numDrips; i++) {
+        const charIdx = ((dripHash >> (i * 3)) & 0xff) % text.length;
+        const dripX = charIdx * charSpacing + ((dripHash * (i + 1)) & 0xf) - 8;
+        const dripLen = fontSize * 0.3 + ((dripHash >> i) & 0xf) * 0.8;
+        const dropR = Math.max(1.5, fontSize * 0.08);
+        // Vertikal streak
+        ctx.fillRect(dripX, fontSize * 0.3, 1.5, dripLen);
+        // Droppe i botten
+        ctx.beginPath();
+        ctx.arc(dripX + 0.75, fontSize * 0.3 + dripLen + dropR * 0.5, dropR, 0, Math.PI * 2);
+        ctx.fill();
+        // Subtil outline på droppen
+        ctx.beginPath();
+        ctx.arc(dripX + 0.75, fontSize * 0.3 + dripLen + dropR * 0.5, dropR, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // Layer 6: spray-dust speckles (små prickar runt texten)
+      ctx.fillStyle = baseColor;
+      ctx.globalAlpha = 0.6;
+      const numSpeckles = 12 + ((dripHash >> 5) & 0x7);
+      for (let i = 0; i < numSpeckles; i++) {
+        const sx = ((dripHash * (i + 11)) & 0xff) / 255 * (textW + 30) - 15;
+        const sy = (((dripHash >> 2) * (i + 7)) & 0xff) / 255 * (fontSize * 1.8) - fontSize * 0.7;
+        const sr = 0.6 + (i & 1) * 0.4;
+        ctx.beginPath();
+        ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     } else if (d.kind === 'flag_decoration') {
       const color = d.team === 'red' ? '#ff5a5a' : '#5aaaff';
       const wave = Math.sin(t / 220) * 2;
@@ -22434,6 +22508,53 @@ function drawMiniMap() {
   for (const b of stageState.buildings) {
     if (b.kind === 'tree' || b.kind === 'fence_seg' || b.kind === 'fence_seg_broken') continue;
     ctx.fillRect(ox + b.x * scale, oy + b.y * scale, Math.max(1, b.w * scale), Math.max(1, b.h * scale));
+  }
+  // PvP-obstacles (CTF/TDM walls) — färgkodade per typ för läsbarhet på minimap
+  const pvpWalls = state.ctfActive ? state.ctfWalls : (state.tdmActive ? state.tdmWalls : null);
+  if (pvpWalls) {
+    for (const w of pvpWalls) {
+      let color;
+      if (w.kind === 'wall_red_base')       color = 'rgba(255,90,90,0.9)';
+      else if (w.kind === 'wall_blue_base') color = 'rgba(90,170,255,0.9)';
+      else if (w.kind === 'wall_pillar')    color = 'rgba(180,180,180,0.85)';
+      else if (w.kind === 'wall_divider')   color = 'rgba(220,200,80,0.6)';
+      else if (w.kind === 'sandbag')        color = 'rgba(180,140,80,0.75)';
+      else if (w.kind === 'barrel')         color = 'rgba(255,80,80,0.85)';
+      else if (w.kind === 'debris')         color = 'rgba(120,120,130,0.7)';
+      else if (w.kind === 'barricade')      color = 'rgba(160,110,50,0.75)';
+      else if (w.kind === 'pipe')           color = 'rgba(100,160,200,0.7)';
+      else if (w.kind === 'crate')          color = 'rgba(180,120,60,0.75)';
+      else                                  color = 'rgba(150,150,150,0.6)';
+      ctx.fillStyle = color;
+      ctx.fillRect(ox + w.x * scale, oy + w.y * scale,
+                   Math.max(1, w.w * scale), Math.max(1, w.h * scale));
+    }
+  }
+  // CTF flag-stands på minimap (pulse) + turrets
+  if (state.ctfActive && state.ctfFlags) {
+    const flagPulse = 0.7 + Math.sin(performance.now() / 250) * 0.3;
+    for (const team of ['red', 'blue']) {
+      const f = state.ctfFlags[team];
+      if (!f) continue;
+      const fx = ox + f.baseX * scale, fy = oy + f.baseY * scale;
+      ctx.fillStyle = team === 'red' ? '#ff3030' : '#3060ff';
+      ctx.shadowColor = team === 'red' ? '#ff5a5a' : '#5aaaff';
+      ctx.shadowBlur = 8 * flagPulse;
+      ctx.beginPath(); ctx.arc(fx, fy, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+  if (state.ctfTurrets) {
+    for (const id of Object.keys(state.ctfTurrets)) {
+      const t = state.ctfTurrets[id];
+      const tx = ox + t.x * scale, ty = oy + t.y * scale;
+      if (t.destroyed) {
+        ctx.fillStyle = 'rgba(100,40,20,0.7)';
+      } else {
+        ctx.fillStyle = t.team === 'red' ? 'rgba(255,140,50,0.9)' : 'rgba(60,180,255,0.9)';
+      }
+      ctx.beginPath(); ctx.arc(tx, ty, 2.5, 0, Math.PI * 2); ctx.fill();
+    }
   }
   // mål-zon
   if (!stage.isBoss) {
