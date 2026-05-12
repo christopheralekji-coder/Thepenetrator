@@ -4338,6 +4338,9 @@ function openWeaponMenu() {
   prevModeBeforeWeaponMenu = state.mode;
   state.mode = 'weaponmenu';
   weaponMenuScreen.classList.remove('hidden');
+  // I coop: dölj shop-knappen så användaren inte ens ser den (ingen shop tillåten)
+  const wsBtn = document.getElementById('btn-weapon-shop');
+  if (wsBtn) wsBtn.classList.toggle('hidden', !!Coop.active);
   // släpp pågående input
   input.firing = false;
   if (typeof joyEnd === 'function') joyEnd({ changedTouches: null });
@@ -10377,6 +10380,12 @@ const shopItems = document.getElementById('shop-items');
 const shopGoldEl = document.getElementById('shop-gold-amount');
 
 function openShop() {
+  // Coop blockerar shop hårt — alla har samma utgångsläge, inga köp tillåtna.
+  // Defense-in-depth: även om en UI-väg råkar slippa Coop-check så blockas det här.
+  if (Coop.active) {
+    if (typeof showToast === 'function') showToast('🚫 Shop ej tillgänglig i coop');
+    return;
+  }
   state.mode = 'shop';
   shopScreen.classList.remove('hidden');
   setShopTab('weapons');
