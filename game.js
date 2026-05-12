@@ -993,12 +993,14 @@ function drawCtfArenaFloor() {
     if (!f) continue;
     const bx = f.baseX - cx, by = f.baseY - cy;
     const color = team === 'red' ? 'rgba(255,90,90,' : 'rgba(90,170,255,';
-    const grad = ctx.createRadialGradient(bx, by, 20, bx, by, 220);
-    grad.addColorStop(0, color + (0.12 * pulse) + ')');
+    // Tighter pulse-glow (90px var 220px) så bara området DIREKT runt flag-stand
+    // är highlightat — annars överlappade glow:n med decorations som RED 4 LIFE.
+    const grad = ctx.createRadialGradient(bx, by, 15, bx, by, 90);
+    grad.addColorStop(0, color + (0.20 * pulse) + ')');
     grad.addColorStop(1, color + '0)');
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(bx, by, 220, 0, Math.PI * 2);
+    ctx.arc(bx, by, 90, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.restore();
@@ -1656,21 +1658,103 @@ function drawCtfDecorations() {
       }
       ctx.globalAlpha = 1;
     } else if (d.kind === 'flag_decoration') {
-      const color = d.team === 'red' ? '#ff5a5a' : '#5aaaff';
-      const wave = Math.sin(t / 220) * 2;
-      // Stolpe
-      ctx.fillStyle = '#3a2a1a';
-      ctx.fillRect(x - 1, y - 18, 2, 30);
-      // Lag-flagga
-      ctx.fillStyle = color;
+      // En riktig flagga: hög stolpe + topp-knopp + rektangulär våg-flagga med
+      // animation. Mörk team-färg + ljusare highlight + svart kant + stjärna.
+      const color = d.team === 'red' ? '#dd2020' : '#2050ff';
+      const colorDark = d.team === 'red' ? '#8a0a0a' : '#0a2080';
+      const colorLight = d.team === 'red' ? '#ff7070' : '#7090ff';
+      // Hög stolpe (silver med träbas)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 1, y - 40, 2, 50);
+      // Topp-knopp (gylne sphere)
+      ctx.fillStyle = '#ffd54a';
       ctx.beginPath();
-      ctx.moveTo(x, y - 18);
-      ctx.lineTo(x + 14 + wave, y - 14);
-      ctx.lineTo(x, y - 8);
-      ctx.closePath();
+      ctx.arc(x, y - 41, 2.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      // Flagga: rektangulär med wave-effekt (segmenterad så den ser ut att fladdra)
+      const flagW = 24;
+      const flagH = 16;
+      const flagTop = y - 38;
+      const segments = 4;
+      const segW = flagW / segments;
+      // Bakgrund (mörk skugga under flagga)
+      ctx.fillStyle = colorDark;
+      ctx.beginPath();
+      let py0 = flagTop;
+      for (let i = 0; i <= segments; i++) {
+        const wave = Math.sin(t / 200 + i * 0.6) * 2;
+        const px = x + 1 + i * segW;
+        if (i === 0) ctx.moveTo(px, py0 + wave);
+        else ctx.lineTo(px, py0 + wave);
+      }
+      for (let i = segments; i >= 0; i--) {
+        const wave = Math.sin(t / 200 + i * 0.6) * 2;
+        const px = x + 1 + i * segW;
+        ctx.lineTo(px, py0 + flagH + wave);
+      }
+      ctx.closePath();
+      ctx.fill();
+      // Huvudfärg (samma form, lite mindre)
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      for (let i = 0; i <= segments; i++) {
+        const wave = Math.sin(t / 200 + i * 0.6) * 2;
+        const px = x + 1 + i * segW;
+        if (i === 0) ctx.moveTo(px, py0 + 1 + wave);
+        else ctx.lineTo(px, py0 + 1 + wave);
+      }
+      for (let i = segments; i >= 0; i--) {
+        const wave = Math.sin(t / 200 + i * 0.6) * 2;
+        const px = x + 1 + i * segW;
+        ctx.lineTo(px, py0 + flagH - 1 + wave);
+      }
+      ctx.closePath();
+      ctx.fill();
+      // Ljusare topp-highlight
+      ctx.fillStyle = colorLight;
+      ctx.beginPath();
+      for (let i = 0; i <= segments; i++) {
+        const wave = Math.sin(t / 200 + i * 0.6) * 2;
+        const px = x + 1 + i * segW;
+        if (i === 0) ctx.moveTo(px, py0 + 1 + wave);
+        else ctx.lineTo(px, py0 + 1 + wave);
+      }
+      for (let i = segments; i >= 0; i--) {
+        const wave = Math.sin(t / 200 + i * 0.6) * 2;
+        const px = x + 1 + i * segW;
+        ctx.lineTo(px, py0 + 4 + wave);
+      }
+      ctx.closePath();
+      ctx.fill();
+      // Star i mitten (vit, klassisk team-symbol)
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#000';
+      ctx.shadowBlur = 1;
+      const starWave = Math.sin(t / 200 + segments * 0.3) * 2;
+      ctx.fillText('★', x + 1 + flagW * 0.5, flagTop + flagH * 0.5 + starWave);
+      ctx.shadowBlur = 0;
+      // Kant runt flaggan
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      for (let i = 0; i <= segments; i++) {
+        const wave = Math.sin(t / 200 + i * 0.6) * 2;
+        const px = x + 1 + i * segW;
+        if (i === 0) ctx.moveTo(px, py0 + wave);
+        else ctx.lineTo(px, py0 + wave);
+      }
+      for (let i = segments; i >= 0; i--) {
+        const wave = Math.sin(t / 200 + i * 0.6) * 2;
+        const px = x + 1 + i * segW;
+        ctx.lineTo(px, py0 + flagH + wave);
+      }
+      ctx.closePath();
       ctx.stroke();
     } else if (d.kind === 'lantern') {
       const color = d.color || '#ffb84a';
@@ -1828,29 +1912,121 @@ function drawCtfFlags() {
       ctx.arc(x, y, glowR, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Stolpe (alltid synlig - markerar bas-position)
-    ctx.fillStyle = '#3a2a1a';
-    ctx.fillRect(x - 2, y - 4, 4, 28);
-    // Bas-platta
-    ctx.fillStyle = color;
+    // Stor stolpe (hög + tjock, snyggare än tunn rektangel)
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x - 2, y - 38, 4, 60);
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 0.6;
+    ctx.strokeRect(x - 2, y - 38, 4, 60);
+    // Topp-knopp (gylne sphere)
+    ctx.fillStyle = '#ffd54a';
     ctx.beginPath();
-    ctx.arc(x, y + 26, 8, 0, Math.PI * 2);
+    ctx.arc(x, y - 40, 4, 0, Math.PI * 2);
     ctx.fill();
     ctx.strokeStyle = '#000';
     ctx.lineWidth = 1;
     ctx.stroke();
-    // Flag-tyg (endast om flagga är hemma — inte vid carry/dropped)
+    // Cirkulär bas-platta (hexagonal-look)
+    const colorDark = team === 'red' ? '#5a1010' : '#102050';
+    ctx.fillStyle = colorDark;
+    ctx.beginPath();
+    ctx.arc(x, y + 24, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y + 24, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Team-emblem på basen (☆)
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('★', x, y + 24);
+    // Stor flagga med wave-segment, kant och stjärna (samma stil som flag_decoration)
     if (f.atBase) {
-      ctx.fillStyle = color;
+      const colorLight = team === 'red' ? '#ff7070' : '#7090ff';
+      const flagW = 36;
+      const flagH = 26;
+      const flagTop = y - 36;
+      const segments = 5;
+      const segW = flagW / segments;
+      // Skugga
+      ctx.fillStyle = colorDark;
       ctx.beginPath();
-      const flutter = Math.sin(t / 200) * 2;
-      ctx.moveTo(x, y - 4);
-      ctx.lineTo(x + 18 + flutter, y);
-      ctx.lineTo(x, y + 6);
+      for (let i = 0; i <= segments; i++) {
+        const wave = Math.sin(t / 180 + i * 0.55) * 3;
+        const px = x + 2 + i * segW;
+        if (i === 0) ctx.moveTo(px, flagTop + wave);
+        else ctx.lineTo(px, flagTop + wave);
+      }
+      for (let i = segments; i >= 0; i--) {
+        const wave = Math.sin(t / 180 + i * 0.55) * 3;
+        const px = x + 2 + i * segW;
+        ctx.lineTo(px, flagTop + flagH + wave);
+      }
       ctx.closePath();
       ctx.fill();
+      // Huvudfärg
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      for (let i = 0; i <= segments; i++) {
+        const wave = Math.sin(t / 180 + i * 0.55) * 3;
+        const px = x + 2 + i * segW;
+        if (i === 0) ctx.moveTo(px, flagTop + 1.5 + wave);
+        else ctx.lineTo(px, flagTop + 1.5 + wave);
+      }
+      for (let i = segments; i >= 0; i--) {
+        const wave = Math.sin(t / 180 + i * 0.55) * 3;
+        const px = x + 2 + i * segW;
+        ctx.lineTo(px, flagTop + flagH - 1.5 + wave);
+      }
+      ctx.closePath();
+      ctx.fill();
+      // Top-highlight
+      ctx.fillStyle = colorLight;
+      ctx.beginPath();
+      for (let i = 0; i <= segments; i++) {
+        const wave = Math.sin(t / 180 + i * 0.55) * 3;
+        const px = x + 2 + i * segW;
+        if (i === 0) ctx.moveTo(px, flagTop + 1.5 + wave);
+        else ctx.lineTo(px, flagTop + 1.5 + wave);
+      }
+      for (let i = segments; i >= 0; i--) {
+        const wave = Math.sin(t / 180 + i * 0.55) * 3;
+        const px = x + 2 + i * segW;
+        ctx.lineTo(px, flagTop + 6 + wave);
+      }
+      ctx.closePath();
+      ctx.fill();
+      // Stjärna i mitten
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#000';
+      ctx.shadowBlur = 2;
+      const starWave = Math.sin(t / 180 + segments * 0.27) * 3;
+      ctx.fillText('★', x + 2 + flagW * 0.5, flagTop + flagH * 0.5 + starWave);
+      ctx.shadowBlur = 0;
+      // Kant
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      for (let i = 0; i <= segments; i++) {
+        const wave = Math.sin(t / 180 + i * 0.55) * 3;
+        const px = x + 2 + i * segW;
+        if (i === 0) ctx.moveTo(px, flagTop + wave);
+        else ctx.lineTo(px, flagTop + wave);
+      }
+      for (let i = segments; i >= 0; i--) {
+        const wave = Math.sin(t / 180 + i * 0.55) * 3;
+        const px = x + 2 + i * segW;
+        ctx.lineTo(px, flagTop + flagH + wave);
+      }
+      ctx.closePath();
       ctx.stroke();
     }
   };

@@ -150,39 +150,40 @@ const CTF_ARENA = {
   // graffiti, lyktor, flaggor). Bara render, kollar inte collision. ===
   decorations: [
     // ====== RED BASE ======
-    // RED HQ-skylt ovanför top-wall (y=1100-1130) så den syns helt
-    { kind: 'sign', x: 280, y: 1040, w: 200, h: 36, text: '🚩 RED HQ', bg: '#5a1010', fg: '#ffd54a' },
-    // Trash-talk på back-wall (uppe vid baksidan, inte över flagga)
-    { kind: 'sign', x: 200, y: 1180, w: 140, h: 24, text: 'BLUE = NOOBS', bg: '#3a0808', fg: '#ff9090', rot: -0.06 },
-    // Graffiti placerad OVANFÖR och NEDANFÖR flagga (280, 1400) — inte över den
-    { kind: 'graffiti', x: 250, y: 1230, text: 'RED 4 LIFE', color: '#ff3030', size: 26, rot: -0.1 },
-    { kind: 'graffiti', x: 260, y: 1580, text: 'VI ÄGER', color: '#ff5a3a', size: 24, rot: 0.08 },
+    // RED HQ-skylt — flyttat upp till y=990 (110px ovanför top-wall y=1100)
+    // för extra säker visibility. Tidigare y=1040 var fortfarande "för nära".
+    { kind: 'sign', x: 280, y: 990, w: 200, h: 40, text: '🚩 RED HQ', bg: '#5a1010', fg: '#ffd54a' },
+    // Trash-talk uppe vid baksidans top (170px från flagga vertikalt)
+    { kind: 'sign', x: 160, y: 1140, w: 160, h: 26, text: 'BLUE = NOOBS', bg: '#3a0808', fg: '#ff9090', rot: -0.06 },
+    // Graffiti — alla utanför 100px-flag-cirkel (flagga vid 280,1400)
+    { kind: 'graffiti', x: 200, y: 1210, text: 'RED 4 LIFE', color: '#ff3030', size: 26, rot: -0.1 },
+    { kind: 'graffiti', x: 200, y: 1610, text: 'VI ÄGER', color: '#ff5a3a', size: 24, rot: 0.08 },
     // Streetart utanför baseöppningen
     { kind: 'graffiti', x: 530, y: 1180, text: 'BLUE STINKS', color: '#ff4040', size: 18, rot: -0.05 },
     { kind: 'graffiti', x: 530, y: 1640, text: 'EZ CLAP', color: '#ff5a3a', size: 18, rot: 0.05 },
-    // Team-flaggor på pinnarna i hörnen
+    // Team-flaggor på pinnarna i hörnen (utanför base)
     { kind: 'flag_decoration', x: 150, y: 1150, team: 'red' },
     { kind: 'flag_decoration', x: 150, y: 1650, team: 'red' },
-    // Lyktor (flyttade utanför flag-area)
+    // Lyktor i hörnen
     { kind: 'lantern', x: 180, y: 1200, color: '#ff7a3a' },
     { kind: 'lantern', x: 180, y: 1600, color: '#ff7a3a' },
-    // Wanted-poster (mot top, ej över flagga)
-    { kind: 'sign', x: 380, y: 1160, w: 90, h: 60, text: 'WANTED:\nBLUE\nFLAGS', bg: '#2a0808', fg: '#ffd54a', size: 9, rot: -0.05 },
+    // Wanted-poster top-höger (mot back-wall corner)
+    { kind: 'sign', x: 360, y: 1145, w: 95, h: 60, text: 'WANTED:\nBLUE\nFLAGS', bg: '#2a0808', fg: '#ffd54a', size: 10, rot: -0.05 },
 
     // ====== BLUE BASE ======
-    { kind: 'sign', x: 4220, y: 1040, w: 200, h: 36, text: '🚩 BLUE HQ', bg: '#102050', fg: '#88ccff' },
-    { kind: 'sign', x: 4220, y: 1180, w: 140, h: 24, text: 'RED = SUS', bg: '#082040', fg: '#a0c8ff', rot: 0.06 },
-    { kind: 'graffiti', x: 4190, y: 1230, text: 'BLÅ FOR LIFE', color: '#3060ff', size: 26, rot: 0.1 },
-    { kind: 'graffiti', x: 4200, y: 1580, text: 'NO RED ZONE', color: '#3060ff', size: 24, rot: -0.08 },
+    { kind: 'sign', x: 4220, y: 990,  w: 200, h: 40, text: '🚩 BLUE HQ', bg: '#102050', fg: '#88ccff' },
+    { kind: 'sign', x: 4380, y: 1140, w: 160, h: 26, text: 'RED = SUS', bg: '#082040', fg: '#a0c8ff', rot: 0.06 },
+    { kind: 'graffiti', x: 4250, y: 1210, text: 'BLÅ FOR LIFE', color: '#3060ff', size: 26, rot: 0.1 },
+    { kind: 'graffiti', x: 4260, y: 1610, text: 'NO RED ZONE', color: '#3060ff', size: 24, rot: -0.08 },
     { kind: 'graffiti', x: 3930, y: 1180, text: 'GET REKT', color: '#4080ff', size: 18, rot: 0.05 },
     { kind: 'graffiti', x: 3930, y: 1640, text: 'L + RATIO', color: '#4080ff', size: 18, rot: -0.05 },
     { kind: 'flag_decoration', x: 4360, y: 1150, team: 'blue' },
     { kind: 'flag_decoration', x: 4360, y: 1650, team: 'blue' },
     { kind: 'lantern', x: 4320, y: 1200, color: '#3a7aff' },
     { kind: 'lantern', x: 4320, y: 1600, color: '#3a7aff' },
-    { kind: 'sign', x: 4030, y: 1160, w: 90, h: 60, text: 'WANTED:\nRED\nFLAGS', bg: '#080828', fg: '#88ccff', size: 9, rot: 0.05 },
+    { kind: 'sign', x: 4045, y: 1145, w: 95, h: 60, text: 'WANTED:\nRED\nFLAGS', bg: '#080828', fg: '#88ccff', size: 10, rot: 0.05 },
 
-    // ====== MID-ARENA NEUTRAL ======
+    // ====== MID-ARENA NEUTRAL (renare nu, mindre cluttered) ======
     { kind: 'sign', x: 2150, y: 200, w: 200, h: 32, text: 'BATTLEGROUND', bg: '#2a2a2a', fg: '#ffd54a' },
     { kind: 'sign', x: 1500, y: 1380, w: 80, h: 24, text: '⚠ DANGER', bg: '#3a1a08', fg: '#ffd54a', rot: -0.1 },
     { kind: 'sign', x: 2900, y: 1380, w: 80, h: 24, text: '⚠ HOT ZONE', bg: '#3a1a08', fg: '#ffd54a', rot: 0.1 },
@@ -190,7 +191,7 @@ const CTF_ARENA = {
     { kind: 'graffiti', x: 2200, y: 350, text: 'WAR ZONE', color: '#ffaa30', size: 28, rot: 0 },
     { kind: 'graffiti', x: 2180, y: 2500, text: 'KILL OR DIE', color: '#dd5a3a', size: 24, rot: 0 },
     { kind: 'graffiti', x: 1700, y: 900, text: 'NO MERCY', color: '#ff5a3a', size: 22, rot: -0.1 },
-    { kind: 'graffiti', x: 2800, y: 900, text: 'GIT GUD', color: '#ff5a3a', size: 22, rot: 0.1 },
+    // GIT GUD borttagen på användar-begäran
     { kind: 'graffiti', x: 1700, y: 1950, text: 'RIP', color: '#5a5a5a', size: 30, rot: 0.15 },
     { kind: 'graffiti', x: 2800, y: 1950, text: '☠ HERE', color: '#5a5a5a', size: 22, rot: -0.15 },
     // Pilar-markings mot baserna
