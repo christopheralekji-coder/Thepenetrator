@@ -9,7 +9,11 @@ const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onW
 const { updatePickups, dropFromEnemyDeath } = require('./pickups');
 const { getStage } = require('../../shared/stages-data');
 
-const TICK_HZ = 30;
+// 30Hz → 45Hz: tickar var 22ms istället för 33ms. Halverar input→pixel-delay
+// från server-tick-perspektiv. 1.5× CPU-last, men Node klarar 10k+ ops/tick i
+// god marginal (current load ~10ms/tick på Render free). Vid CPU-tryck kan
+// vi sätta SIM_TICK_HZ env-var lokalt utan ny deploy.
+const TICK_HZ = parseInt(process.env.SIM_TICK_HZ, 10) || 45;
 const TICK_MS = 1000 / TICK_HZ;
 const FULL_BROADCAST_MS = 1500;
 const ENEMY_CAP = 80;

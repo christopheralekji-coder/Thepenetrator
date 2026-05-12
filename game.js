@@ -8516,7 +8516,15 @@ function getQualityMul() {
   if (q === 'low') base = 0.4;
   else if (q === 'high') base = 1.4;
   // Coop = ännu lägre kvalitet (mer enemies + nätverk = behöver CPU för andra saker)
-  if (Coop && Coop.active && Coop.players && Coop.players.size > 0) base *= 0.6;
+  if (Coop && Coop.active && Coop.players && Coop.players.size > 0) {
+    base *= 0.6;
+    // Auto-drop ytterligare baserat på server-RTT så frame-budget bevaras vid laggy
+    // anslutningar. Klient med 250ms+ ping har ändå "knyckig" upplevelse — vi köper
+    // tillbaka stabilitet genom att sänka partikel-budget + decoration-cull.
+    const rtt = Coop._serverRtt || 0;
+    if (rtt > 250) base *= 0.5;
+    else if (rtt > 150) base *= 0.75;
+  }
   return base;
 }
 function spawnParticles(x, y, color, count, speed) {
