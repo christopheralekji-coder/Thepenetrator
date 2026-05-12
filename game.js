@@ -12917,6 +12917,10 @@ function actuallyStartGame() {
       for (const k of Object.keys(save.upgrades)) save.upgrades[k] = 0;
     }
     save.perks = [];
+    // KRITISK: _perkSet är cached → hasPerk() returnerar stale true om vi inte
+    // rebuildar. Annars läcker glasscannon/revive/headshot/etc in i coop trots
+    // att save.perks=[]. Bugg som fick perks/upgrades att "fortfarande gälla" i PvP.
+    if (typeof rebuildPerkSet === 'function') rebuildPerkSet();
     // save.companions.active behålls — pets ska följa med in i coop
   }
   state.mode = 'playing';
@@ -13441,6 +13445,8 @@ function endGame(victory) {
     save.upgrades = snap.upgrades;
     save.perks = snap.perks;
     if (save.companions && snap.activeCompanion !== undefined) save.companions.active = snap.activeCompanion;
+    // Återbygg perk-cachen så hasPerk() reflekterar restored save.perks
+    if (typeof rebuildPerkSet === 'function') rebuildPerkSet();
     state._coopSnapshot = null;
     // Rensa localStorage-snapshot — coop-run är slutförd, no recovery needed
     try { localStorage.removeItem('penetrator_coop_snapshot'); } catch (e) {}

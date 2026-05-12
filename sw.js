@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v174-siege-pvp-polish';
+const CACHE = 'penetrator-v175-perks-cache-fix';
 const ASSETS = [
   './',
   './index.html',
