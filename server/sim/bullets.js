@@ -279,7 +279,9 @@ function updateBullets(sim, dt, now) {
       }
     }
     // Out-of-bounds eller life-ut → spräng om explosive
-    if (b.life <= 0 || b.x < 0 || b.y < 0 || b.x > 5000 || b.y > 5000) {
+    // Använd siege-arena-höjd (3000) när siege aktiv, annars generös 5000
+    const worldMaxY = sim.siegeActive ? SIEGE_ARENA.worldH : 5000;
+    if (b.life <= 0 || b.x < 0 || b.y < 0 || b.x > 5000 || b.y > worldMaxY) {
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
       }
@@ -318,10 +320,12 @@ function updateBullets(sim, dt, now) {
               core.hp = Math.max(0, core.hp - b.dmg);
               sim.eventQueue.push({ type: 'siege_core_damaged', coreId: core.id, hp: core.hp, maxHp: core.maxHp, by: b.ownerPid });
               // Score: 1 pt per 100 dmg dealt to enemy core
+              // Balansering: 1 pt per 250 core-dmg (var 100). MG-turret på core
+              // ger då 0.75 pt/s istället för 1.87 — inte längre dominant strategi.
               sim._siegeCoreDmgAccum = sim._siegeCoreDmgAccum || { red: 0, blue: 0 };
               sim._siegeCoreDmgAccum[ownerTeam] = (sim._siegeCoreDmgAccum[ownerTeam] || 0) + b.dmg;
-              while (sim._siegeCoreDmgAccum[ownerTeam] >= 100) {
-                sim._siegeCoreDmgAccum[ownerTeam] -= 100;
+              while (sim._siegeCoreDmgAccum[ownerTeam] >= 250) {
+                sim._siegeCoreDmgAccum[ownerTeam] -= 250;
                 sim.siegeScores[ownerTeam] = (sim.siegeScores[ownerTeam] || 0) + 1;
               }
               sim.eventQueue.push({ type: 'siege_score_update', red: sim.siegeScores.red, blue: sim.siegeScores.blue });
@@ -333,7 +337,8 @@ function updateBullets(sim, dt, now) {
                 const { _siegePointAccum } = sim;
                 // Vinnaren är den som SKADADE coren (motståndarlaget till core.team)
                 const winner = core.team === 'red' ? 'blue' : 'red';
-                if (typeof endSiegeMatch === 'function') endSiegeMatch(sim, winner, 'core_destroyed');
+                // sim._endSiegeMatch är callback satt av room-sim.js (lokal scope där)
+                if (sim._endSiegeMatch) sim._endSiegeMatch(sim, winner, 'core_destroyed');
               }
             }
           }

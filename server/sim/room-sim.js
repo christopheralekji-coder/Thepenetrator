@@ -80,7 +80,7 @@ function createSim(room) {
     ctfTurrets: {},
     // SIEGE THE BASE state
     siegeActive: false,
-    siegeTargetPoints: 100,
+    siegeTargetPoints: 500,
     siegeEnded: false,
     siegeScores: { red: 0, blue: 0 },
     siegeKillsByPid: {},
@@ -1115,6 +1115,7 @@ function tickSiege(sim, dt, now) {
 }
 
 function endSiegeMatch(sim, winner, reason) {
+  if (sim.siegeEnded) return; // dubbel-fire-guard
   sim.siegeEnded = true;
   const stats = { red: sim.siegeScores.red, blue: sim.siegeScores.blue, perPlayer: {} };
   for (const [p, ws] of sim.room.members) {
@@ -1324,7 +1325,7 @@ function startSim(sim, opts) {
     }
     if (opts.siege) {
       sim.siegeActive = true;
-      sim.siegeTargetPoints = opts.siegeTargetPoints || 100;
+      sim.siegeTargetPoints = opts.siegeTargetPoints || 500;
     }
   }
   console.log('[SIM]', sim.room.code, 'started mode=' + (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode)) + ' diff=' + sim.config.difficulty);
@@ -1514,6 +1515,9 @@ function startSim(sim, opts) {
       shieldMax: 100,
     });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    // Bullets.js behöver kunna kalla endSiegeMatch när core förstörs.
+    // Eftersom funktionen är local i denna fil exponerar vi via sim-objektet.
+    sim._endSiegeMatch = endSiegeMatch;
   } else {
     loadStage(sim, sim.wave);
   }
@@ -1551,10 +1555,18 @@ function applyPlayerInput(sim, peerId, input) {
   const ws = sim.room.members.get(peerId);
   if (!ws) return;
   if (!ws.playerState) ws.playerState = { x: 1000, y: 1000, hp: 100 };
+  // Mounted turret-spelare: position låst av server. Ignorera klient-position
+  // helt så ingen kan skjuta från fel pos eller bypass turret-occupant.
+  if (ws._mountedSiegeTurretId || ws._mountedCtfTurretId) {
+    if (typeof input.aim === 'number') ws.playerState.aim = input.aim;
+    if (input.weaponId) ws.playerState.weaponId = input.weaponId;
+    return;
+  }
   // PvP anti-cheat / carrier-slow enforcement: klampa positionsdelta per tick
   // till rimlig max-speed. Klient kan annars skicka godtycklig x/y och teleporta
   // genom väggar eller kringgå CTF_CARRIER_SPEED_MUL (-25% när man bär flagga).
-  if ((sim.tdmActive || sim.ctfActive) && typeof input.x === 'number' && typeof input.y === 'number') {
+  // Inkluderar nu siegeActive (saknades innan → kunde teleporta i siege).
+  if ((sim.tdmActive || sim.ctfActive || sim.siegeActive) && typeof input.x === 'number' && typeof input.y === 'number') {
     const now = Date.now();
     const lastT = ws._lastInputT || now;
     const dt = Math.max(0.001, Math.min(0.25, (now - lastT) / 1000));
@@ -1630,10 +1642,20 @@ function applyShoot(sim, peerId, msg) {
     };
   }
   const ps = ws.playerState;
-  const weaponId = msg.weaponId || ps.weaponId || 'pistol';
+  // Mounted turret: tvinga rätt vapen-id + position. Annars kan client säga
+  // "weaponId: railgun" och få railgun-dmg från turret-position.
+  let weaponId = msg.weaponId || ps.weaponId || 'pistol';
+  let posX = typeof msg.x === 'number' ? msg.x : ps.x;
+  let posY = typeof msg.y === 'number' ? msg.y : ps.y;
+  if (ws._mountedSiegeTurretId && sim.siegeTurrets) {
+    const t = sim.siegeTurrets[ws._mountedSiegeTurretId];
+    if (t) { weaponId = t.weaponId || 'turret_mg'; posX = t.x; posY = t.y; }
+  } else if (ws._mountedCtfTurretId && sim.ctfTurrets) {
+    const t = sim.ctfTurrets[ws._mountedCtfTurretId];
+    if (t) { weaponId = t.weaponId || 'turret_mg'; posX = t.x; posY = t.y; }
+  }
   const p = {
-    x: typeof msg.x === 'number' ? msg.x : ps.x,
-    y: typeof msg.y === 'number' ? msg.y : ps.y,
+    x: posX, y: posY,
     aimAngle: typeof msg.ang === 'number' ? msg.ang : (ps.aim || 0),
     r: 14, peerId,
   };

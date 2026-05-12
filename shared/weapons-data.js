@@ -45,10 +45,12 @@ const WEAPONS = [
   { id: 'minigun',    type: 'gun',   dmg: 26,  rate: 50,  speed: 920, mag: 100, reload: 3500, spread: 0.14, color: '#3cf0ff' },
   // turret_mg: värsting-MG som spelaren får när de mountar CTF-tornet. Hög DPS,
   // ingen reload, oändlig ammo. Bara åtkomlig via turret-enter, inte i shop.
-  { id: 'turret_mg',  type: 'gun',   dmg: 14,  rate: 75,  speed: 1100, mag: 9999, reload: 0, spread: 0.07, color: '#ff5a3a' },
+  // BALANSERING: 14→11 dmg så MG-DPS inte är >1.4× rifle (immobil tradeoff).
+  { id: 'turret_mg',  type: 'gun',   dmg: 11,  rate: 75,  speed: 1100, mag: 9999, reload: 0, spread: 0.07, color: '#ff5a3a' },
   // turret_rocket: explosivt rocket launcher i Siege-tornen. Långsamt rate
-  // men HÖG dmg + AoE-explosion. Bara via turret-enter.
-  { id: 'turret_rocket', type: 'gun', dmg: 120, rate: 1400, speed: 700, mag: 9999, reload: 0, spread: 0.0, color: '#ff8a3a', explosive: 100 },
+  // men HÖG dmg + AoE-explosion. BALANSERING: 120→70 dmg + 1400→1700ms rate
+  // så det inte längre 1-shot:ar 200-EHP-spelare via direct+AoE-double-dip.
+  { id: 'turret_rocket', type: 'gun', dmg: 70, rate: 1700, speed: 700, mag: 9999, reload: 0, spread: 0.0, color: '#ff8a3a', explosive: 80 },
 ];
 
 const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));

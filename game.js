@@ -2318,11 +2318,12 @@ function drawCtfStolenFlagAlert() {
 // SIEGE — decorations använder samma renderer som CTF (samma data-format)
 function drawSiegeDecorations() {
   if (!state.siegeDecorations || !state.siegeDecorations.length) return;
-  // Tillfälligt swap state.ctfDecorations så vi kan återanvända drawCtfDecorations
+  // Tillfälligt swap state.ctfDecorations så vi kan återanvända drawCtfDecorations.
+  // Try/finally så swap restoreas även om drawCtfDecorations throwar.
   const saved = state.ctfDecorations;
   state.ctfDecorations = state.siegeDecorations;
-  drawCtfDecorations();
-  state.ctfDecorations = saved;
+  try { drawCtfDecorations(); }
+  finally { state.ctfDecorations = saved; }
 }
 
 // SIEGE: capture-bases — pulsande cirklar med owner-färg + capture-progress-ring
@@ -3007,11 +3008,11 @@ const WEAPONS = [
     desc: 'Maxdmg pierce. Skär genom allt.' },
   { id: 'minigun',    name: 'Minigun',          type: 'gun',   price: 3500, dmg: 22,  rate: 50,  speed: 920, mag: 100, reload: 3500, spread: 0.14, color: '#3cf0ff',
     desc: 'Toppvapen: 100 mag, ultra-ROF.' },
-  // turret_mg: bara åtkomlig via CTF-torn-mount. Inte i shop, inte i save.owned.
-  { id: 'turret_mg',  name: 'Turret MG',        type: 'gun',   price: 0,    dmg: 14,  rate: 75,  speed: 1100, mag: 9999, reload: 0, spread: 0.07, color: '#ff5a3a',
+  // turret_mg: 14→11 dmg så MG inte > rifle. Immobil tradeoff fortfarande balans.
+  { id: 'turret_mg',  name: 'Turret MG',        type: 'gun',   price: 0,    dmg: 11,  rate: 75,  speed: 1100, mag: 9999, reload: 0, spread: 0.07, color: '#ff5a3a',
     desc: 'Tornets MG. Hög DPS, oändlig ammo.' },
-  // turret_rocket: Siege rocket-launcher-torn. Långsamt + explosivt.
-  { id: 'turret_rocket', name: 'Turret Rocket', type: 'gun',   price: 0,    dmg: 120, rate: 1400, speed: 700, mag: 9999, reload: 0, spread: 0.0, color: '#ff8a3a', explosive: 100, style: 'rocket',
+  // turret_rocket: 120→70 dmg + slower rate, AoE 100→80. Tar bort 1-shot på 200-EHP.
+  { id: 'turret_rocket', name: 'Turret Rocket', type: 'gun',   price: 0,    dmg: 70, rate: 1700, speed: 700, mag: 9999, reload: 0, spread: 0.0, color: '#ff8a3a', explosive: 80, style: 'rocket',
     desc: 'Tornets rocket launcher. Hög dmg + explosion.' },
 ];
 const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
@@ -5712,10 +5713,10 @@ if (_btnTurretAction) {
   _btnTurretAction.addEventListener('pointerdown', onTurretClick);
   _btnTurretAction.addEventListener('touchstart', onTurretClick, { passive: false });
 }
-// Keyboard fallback: E-key för desktop-spelare
+// Keyboard fallback: E-key för desktop-spelare (CTF + SIEGE)
 window.addEventListener('keydown', (e) => {
   if (e.key === 'e' || e.key === 'E') {
-    if (state.mode === 'playing' && state.ctfActive) triggerTurretAction('keyE');
+    if (state.mode === 'playing' && (state.ctfActive || state.siegeActive)) triggerTurretAction('keyE');
   }
 });
 
@@ -5727,7 +5728,7 @@ const _btnPvpShield = document.getElementById('btn-pvp-shield');
 function tryPvpShield() {
   const p = state.player;
   if (!p) return;
-  if (!state.tdmActive && !state.ctfActive) return;
+  if (!state.tdmActive && !state.ctfActive && !state.siegeActive) return;
   const now = performance.now();
   if (p.pvpShieldUntil && now < p.pvpShieldUntil) return; // redan aktiv
   // Bugfix: ingen cooldown vid match-start. pvpShieldCdAt = null = aldrig använd.
@@ -6674,6 +6675,9 @@ const Coop = {
     }
     if (ev.type === 'tdm_started') {
       // PvP-läge initierat — spara team-roster och visa banner
+      // Säkerställ mutual exclusion mellan PvP-modes
+      this.ctfActive = false; this.siegeActive = false;
+      state.ctfActive = false; state.siegeActive = false;
       this.tdmActive = true;
       this.tdmTargetKills = ev.targetKills || 10;
       this.tdmTeams = ev.teams || {};       // peerId → 'red'|'blue'
@@ -6826,6 +6830,9 @@ const Coop = {
       }
     } else if (ev.type === 'ctf_started') {
       // CTF-läge initierat — spara arena + walls + flag-positions + teams
+      // Säkerställ mutual exclusion mellan PvP-modes
+      this.tdmActive = false; this.siegeActive = false;
+      state.tdmActive = false; state.siegeActive = false;
       this.ctfActive = true;
       this.ctfTargetCaptures = ev.targetCaptures || 3;
       this.ctfTeams = ev.teams || {};      // peerId → 'red'|'blue'
@@ -7170,6 +7177,9 @@ const Coop = {
       // Server-shape: { targetPoints, teams, arena, spawns, walls, cores, bases,
       //                 turrets, turretEnterRadius, captureTimeSec, decorations,
       //                 pvpPickups, shieldMax }
+      // Säkerställ mutual exclusion mellan PvP-modes
+      this.tdmActive = false; this.ctfActive = false;
+      state.tdmActive = false; state.ctfActive = false;
       this.siegeActive = true;
       this.siegeTargetPoints = ev.targetPoints || 100;
       this.siegeTeams = ev.teams || {};
@@ -8107,6 +8117,10 @@ const Coop = {
         state.player.carryingFlag = null;
         state.player.shield = undefined;
         state.player.maxShield = undefined;
+        // Rensa turret-mount-refs så de inte läcker till nästa run
+        state.player._mountedCtfTurretId = null;
+        state.player._mountedSiegeTurretId = null;
+        state.player._turretWeapon = null;
       }
     }
     if (typeof hideSiegeHud === 'function') hideSiegeHud();
@@ -8757,13 +8771,13 @@ function renderHostControls() {
     tdmBtn.addEventListener('click', () => {
       const newTdm = !Coop.config.tdm;
       Coop.config.tdm = newTdm;
-      Coop.config.ctf = false; // mutually exclusive
+      Coop.config.ctf = false; Coop.config.siege = false; // alla PvP mutually exclusive
       if (newTdm) {
         Coop.config.serverSim = true;
         Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
       }
       Coop.updateConfig({
-        tdm: newTdm, ctf: false,
+        tdm: newTdm, ctf: false, siege: false,
         tdmTargetKills: Coop.config.tdmTargetKills,
         serverSim: Coop.config.serverSim,
       });
@@ -23056,10 +23070,10 @@ function render() {
     drawSiegeCores();        // core-detalj ovanpå walls
     drawSiegeTurrets();
   }
-  // PvP shield-bubbles ovanpå spelare (TDM + CTF)
-  if (state.tdmActive || state.ctfActive) drawPvpShieldBubbles();
-  // PvP-pickups (HP/shield-regen) — rita på både TDM och CTF
-  if ((state.tdmActive || state.ctfActive) && state.pvpPickups) drawPvpPickups();
+  // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE)
+  if (state.tdmActive || state.ctfActive || state.siegeActive) drawPvpShieldBubbles();
+  // PvP-pickups (HP/shield-regen) — alla 3 PvP-lägen
+  if ((state.tdmActive || state.ctfActive || state.siegeActive) && state.pvpPickups) drawPvpPickups();
   // Top layer: damage-numbers + crit-text + chatter + explosions
   for (const p of state.particles) if (p.isDamageNumber || p.isCritText || p.isChatter) drawParticle(p);
   for (const p of state.particles) if (p.isExplosion) drawParticle(p);
@@ -24066,7 +24080,7 @@ function runFrame(dt, now) {
       if (Coop.active && Coop.isHost && Coop.serverSimActive && state.waveActive &&
           state.enemiesToSpawn > 0 && state.enemies.length === 0 &&
           state.mode === 'playing' &&
-          !state.tdmActive && !state.ctfActive) {
+          !state.tdmActive && !state.ctfActive && !state.siegeActive) {
         const countdownActive = state._countdownEndAt && performance.now() < state._countdownEndAt;
         if (!countdownActive) {
           state._serverSpawnWaitSince = state._serverSpawnWaitSince || performance.now();

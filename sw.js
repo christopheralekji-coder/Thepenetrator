@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v172-siege-revamp';
+const CACHE = 'penetrator-v173-siege-bugfix';
 const ASSETS = [
   './',
   './index.html',

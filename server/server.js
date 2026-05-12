@@ -378,6 +378,48 @@ function handleMessage(ws, msg) {
         send(m, { type: 'sim_events', events: [{ type: 'ctf_team_assigned', peerId: ws.id, team }] });
       }
     }
+    // SIEGE late-joiner: samma pattern som CTF
+    if (room.sim && room.sim.siegeActive) {
+      const { SIEGE_ARENA } = require('../shared/siege-arena');
+      let red = 0, blue = 0;
+      for (const [, m] of room.members) {
+        if (m.tdmTeam === 'red') red++;
+        else if (m.tdmTeam === 'blue') blue++;
+      }
+      const team = red <= blue ? 'red' : 'blue';
+      ws.tdmTeam = team;
+      const pts = SIEGE_ARENA.spawns[team];
+      const sp = pts[Math.floor(Math.random() * pts.length)];
+      ws.playerState = { x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500 };
+      room.sim.siegeKillsByPid[ws.id] = 0;
+      room.sim.tdmDeathsByPid[ws.id] = 0;
+      const teams = {};
+      for (const [pid, m] of room.members) if (m.tdmTeam) teams[pid] = m.tdmTeam;
+      send(ws, { type: 'sim_events', events: [{
+        type: 'siege_started',
+        targetPoints: room.sim.siegeTargetPoints,
+        teams,
+        arena: { worldW: SIEGE_ARENA.worldW, worldH: SIEGE_ARENA.worldH, name: SIEGE_ARENA.name },
+        spawns: SIEGE_ARENA.spawns,
+        walls: SIEGE_ARENA.walls,
+        cores: Object.values(room.sim.siegeCores).map(c => ({ id: c.id, team: c.team, x: c.x, y: c.y, w: c.w, h: c.h, maxHp: c.maxHp, hp: c.hp })),
+        bases: Object.values(room.sim.siegeBases).map(b => ({ id: b.id, x: b.x, y: b.y, r: b.r, owner: b.owner })),
+        turrets: Object.values(room.sim.siegeTurrets).map(t => ({
+          id: t.id, team: t.team, x: t.x, y: t.y, r: t.r, maxHp: t.maxHp, hp: t.hp,
+          weaponId: t.weaponId, turretType: t.turretType,
+        })),
+        turretEnterRadius: SIEGE_ARENA.turretEnterRadius,
+        captureTimeSec: SIEGE_ARENA.captureTimeSec,
+        neutralizeTimeSec: SIEGE_ARENA.neutralizeTimeSec,
+        decorations: SIEGE_ARENA.decorations || [],
+        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+        shieldMax: 100,
+      }] });
+      for (const [pid, m] of room.members) {
+        if (pid === ws.id) continue;
+        send(m, { type: 'sim_events', events: [{ type: 'siege_team_assigned', peerId: ws.id, team }] });
+      }
+    }
     return;
   }
 
