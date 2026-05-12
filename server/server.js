@@ -182,6 +182,23 @@ setInterval(() => {
   }
 }, HEARTBEAT_INTERVAL_MS);
 
+// RTT-mätning per WS för lag compensation. Server pingar varje aktiv WS-klient
+// 1Hz; klient ekar omedelbart tillbaka via srv_rtt_pong. Server beräknar RTT
+// och sparar i ws._serverRtt (millisekunder). bullets.js använder det för att
+// rewinda target-positioner ws._serverRtt/2 bakåt vid hit-check (cap 200ms).
+const RTT_PING_INTERVAL_MS = 1000;
+setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.readyState !== WebSocket.OPEN) continue;
+    // Bara mät RTT när klient är aktivt i ett sim-aktivt rum
+    if (!ws.roomCode) continue;
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) continue;
+    ws._lastRttPingAt = Date.now();
+    try { ws.send(JSON.stringify({ type: 'srv_rtt_ping', t: ws._lastRttPingAt })); } catch (e) {}
+  }
+}, RTT_PING_INTERVAL_MS);
+
 function send(ws, obj) {
   if (ws.readyState !== WebSocket.OPEN) return;
   try { ws.send(JSON.stringify(obj)); } catch (e) {}
@@ -571,6 +588,17 @@ function handleMessage(ws, msg) {
   if (msg.type === 'server_ping') {
     // Echo tillbaka klient-timestamp så de kan beräkna RTT mot servern
     send(ws, { type: 'server_pong', t: msg.t });
+    return;
+  }
+  // Lag comp: klient ekar tillbaka RTT-ping. Server beräknar RTT och sparar.
+  // Smooth via EMA (0.3 ny, 0.7 gammal) så enstaka spikes inte ger felaktig rewind.
+  if (msg.type === 'srv_rtt_pong') {
+    const now = Date.now();
+    const sent = typeof msg.t === 'number' ? msg.t : ws._lastRttPingAt;
+    if (sent) {
+      const rtt = Math.max(0, Math.min(500, now - sent));
+      ws._serverRtt = ws._serverRtt == null ? rtt : Math.round(ws._serverRtt * 0.7 + rtt * 0.3);
+    }
     return;
   }
   if (msg.type === 'sim_shoot') {

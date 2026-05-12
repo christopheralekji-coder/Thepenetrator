@@ -27,6 +27,37 @@ function getPvpDmg(weaponId, baseDmg) {
   return baseDmg;
 }
 
+// Lag compensation: returnera target-position rewindad shooterRtt/2 (cap 200ms)
+// så klienten som sköt ser "sina träffar registrera" mot vad de såg på sin
+// skärm. Server-tickSim pushar positionssnapshots till playerState._history.
+// Anti-cheat: cap 200ms => cheaters kan inte claim 5000ms ping för att träffa
+// genom väggar / mot teleporterade spelare.
+const MAX_REWIND_MS = 200;
+function rewoundPosition(targetWs, shooterRtt) {
+  if (!targetWs || !targetWs.playerState) return null;
+  const cur = { x: targetWs.playerState.x, y: targetWs.playerState.y };
+  if (!shooterRtt || shooterRtt < 20) return cur; // ingen meningsfull rewind
+  const rewindMs = Math.min(MAX_REWIND_MS, shooterRtt / 2);
+  const targetTime = Date.now() - rewindMs;
+  const hist = targetWs.playerState._history;
+  if (!hist || hist.length === 0) return cur;
+  // Hitta snapshot vid targetTime (linear scan från slut — oftast nyligen)
+  for (let i = hist.length - 1; i >= 0; i--) {
+    if (hist[i].t <= targetTime) {
+      const next = hist[i + 1];
+      if (next) {
+        // Interpolera mellan hist[i] och next för exakt position vid targetTime
+        const span = next.t - hist[i].t;
+        const f = span > 0 ? (targetTime - hist[i].t) / span : 0;
+        return { x: hist[i].x + (next.x - hist[i].x) * f, y: hist[i].y + (next.y - hist[i].y) * f };
+      }
+      return { x: hist[i].x, y: hist[i].y };
+    }
+  }
+  // targetTime äldre än alla snapshots — använd äldsta tillgängliga
+  return { x: hist[0].x, y: hist[0].y };
+}
+
 // Skada enemy server-side (mirror av game.js:5073-5116, utan UI/audio)
 // Returnerar true om enemy dog.
 function damageEnemy(e, dmg, isCrit, fromPid) {
@@ -453,13 +484,16 @@ function updateBullets(sim, dt, now) {
       const ownerWs = sim.room.members.get(b.ownerPid);
       const ownerTeam = ownerWs && ownerWs.tdmTeam;
       if (!ownerTeam) { continue; }  // late-joiner utan team — skippa
+      // Lag comp: rewinda target-position till där skytten såg dem
+      const shooterRtt = ownerWs && ownerWs._serverRtt;
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue;
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         if (ws.tdmTeam === ownerTeam) continue;  // friendly fire off
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;       // respawn-invuln skyddar
-        const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
+        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
           // PvP-balance: vissa vapen overriddar dmg (sniper nerf, pistol buff)
@@ -537,13 +571,16 @@ function updateBullets(sim, dt, now) {
       const ownerWs = sim.room.members.get(b.ownerPid);
       const ownerTeam = ownerWs && ownerWs.tdmTeam;
       if (!ownerTeam) continue;
+      // Lag comp: rewinda target-position till där skytten såg dem
+      const shooterRtt = ownerWs && ownerWs._serverRtt;
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue;
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         if (ws.tdmTeam === ownerTeam) continue;
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
-        const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
+        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
           // PvP-balance: vissa vapen overriddar dmg
@@ -611,13 +648,16 @@ function updateBullets(sim, dt, now) {
       const ownerWs = sim.room.members.get(b.ownerPid);
       const ownerTeam = ownerWs && ownerWs.tdmTeam;
       if (!ownerTeam) continue;
+      // Lag comp: rewinda target-position till där skytten såg dem
+      const shooterRtt = ownerWs && ownerWs._serverRtt;
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue;
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         if (ws.tdmTeam === ownerTeam) continue;
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
-        const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
+        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
           const effDmg = getPvpDmg(b.weaponId, b.dmg);

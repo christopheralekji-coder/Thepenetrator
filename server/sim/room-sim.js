@@ -102,6 +102,19 @@ function tickSim(sim) {
   const dt = Math.min(0.1, (now - sim.lastTick) / 1000);
   sim.lastTick = now;
 
+  // Lag compensation: snapshot alla spelar-positioner FÖRE tick-logiken så vi
+  // kan rewinda upp till 200ms när skott från en laggande klient anländer.
+  // Ringbuffer per ws.playerState — håll bara 12 snapshots (~265ms @ 45Hz).
+  for (const [, ws] of sim.room.members) {
+    if (!ws.playerState) continue;
+    if (!ws.playerState._history) ws.playerState._history = [];
+    ws.playerState._history.push({ t: now, x: ws.playerState.x, y: ws.playerState.y });
+    // Prune äldre än 250ms (lite mer än max rewind 200ms för safety)
+    while (ws.playerState._history.length > 0 && now - ws.playerState._history[0].t > 250) {
+      ws.playerState._history.shift();
+    }
+  }
+
   // 5s startup-countdown: skicka world-snapshot (för synk) men frys enemy-AI/spawn/damage
   if (sim.simReadyAt && now < sim.simReadyAt) {
     broadcastWorld(sim, now);

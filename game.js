@@ -6650,6 +6650,12 @@ const Coop = {
     } else if (msg.type === 'server_pong') {
       // RTT-mätning mot server
       if (msg.t) this._serverRtt = Math.round(performance.now() - msg.t);
+    } else if (msg.type === 'srv_rtt_ping') {
+      // Server pingar oss för lag-comp-RTT-mätning. Eko omedelbart tillbaka.
+      // msg.t är server-timestamp (Date.now()), ska bara skickas tillbaka oförändrad.
+      if (this.ws && this.ws.readyState === 1) {
+        try { this.ws.send(JSON.stringify({ type: 'srv_rtt_pong', t: msg.t })); } catch (_) {}
+      }
     } else if (msg.type === 'sim_stopped') {
       this.serverSimActive = false;
       state.serverSimActive = false;
