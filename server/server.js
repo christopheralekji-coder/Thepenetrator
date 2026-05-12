@@ -217,18 +217,19 @@ function handleMessage(ws, msg) {
       // Bygg fullständig roster så late-joiner ser alla teams
       const teams = {};
       for (const [pid, m] of room.members) if (m.tdmTeam) teams[pid] = m.tdmTeam;
-      // Skicka tdm_started bara till late-joiner (inte broadcast — andra har det redan)
-      send(ws, { type: 'sim_event', event: {
+      // Skicka tdm_started bara till late-joiner (inte broadcast — andra har det redan).
+      // Använd 'sim_events' batch-format (klient stödjer båda men nyare path är konsistent).
+      send(ws, { type: 'sim_events', events: [{
         type: 'tdm_started',
         targetKills: room.sim.tdmTargetKills,
         teams,
         arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },
         spawns: { red: { x: Math.floor(arena.worldW * 0.10), y: spawnY }, blue: { x: Math.floor(arena.worldW * 0.90), y: spawnY } },
-      }});
+      }] });
       // Andra peers får team-uppdatering så deras tdmTeams-roster är komplett
       for (const [pid, m] of room.members) {
         if (pid === ws.id) continue;
-        send(m, { type: 'sim_event', event: { type: 'tdm_team_assigned', peerId: ws.id, team } });
+        send(m, { type: 'sim_events', events: [{ type: 'tdm_team_assigned', peerId: ws.id, team }] });
       }
     }
     return;

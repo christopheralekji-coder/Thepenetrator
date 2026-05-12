@@ -3094,8 +3094,10 @@ body.ios .overlay {
 /* Mini-map */
 #minimap {
   position: absolute;
-  top: 60px;
-  right: 12px;
+  /* Safe-area: i landscape med Dynamic Island på höger kant kan minimap krocka.
+     Använd env(safe-area-inset-*) som garderar mot DI och home indicator. */
+  top: max(60px, calc(env(safe-area-inset-top, 0px) + 52px));
+  right: max(12px, env(safe-area-inset-right, 12px));
   width: 110px;
   height: 110px;
   background: rgba(0,0,0,0.6);

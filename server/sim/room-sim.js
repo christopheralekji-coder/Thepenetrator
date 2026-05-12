@@ -197,7 +197,9 @@ function tickSim(sim) {
       // (server-side spegling av game.js:killEnemy)
       if (e.isMiniBoss && !e._miniBossNextSpawned) {
         e._miniBossNextSpawned = true;
-        const stage = require('../../shared/stages-data.js').getStage(sim.wave);
+        // Använd top-level imports (require är hot-loop-noise + crashar mid-tick
+        // om modul-load fail. getStage + makeEnemy redan importerade.)
+        const stage = getStage(sim.wave);
         const list = stage && (stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []));
         if (list && (sim.miniBossesSpawned || 0) < list.length) {
           sim._miniInterludeActive = true;
@@ -212,7 +214,7 @@ function tickSim(sim) {
             const dist = 350 + Math.random() * 200;
             const cx = e.x + Math.cos(angle) * dist;
             const cy = e.y + Math.sin(angle) * dist;
-            const ne = require('./enemies.js').makeEnemy(t,
+            const ne = makeEnemy(t,
               Math.max(40, Math.min(stage.worldW - 40, cx)),
               Math.max(40, Math.min(stage.worldH - 40, cy)));
             ne._idx = sim.nextEnemyIdx++;
@@ -491,6 +493,10 @@ function broadcastWorld(sim, now) {
     }
     const payload = encodeWorldBinary(pkt);
     if (ws && ws.readyState === 1) {
+      // Backpressure-guard: om klient inte hänger med (buffer fullt), skippa
+      // denna tick. Klient re-syncs vid nästa full-broadcast (var 1500ms).
+      // Tröskel 32KB är generös; klient adaptiv-rate kicked in vid 15KB.
+      if (ws.bufferedAmount > 32768) continue;
       const out = Buffer.alloc(1 + payload.length);
       out[0] = 0;
       payload.copy(out, 1);
@@ -498,10 +504,14 @@ function broadcastWorld(sim, now) {
     }
   }
 
-  // Cleanup peers som lämnat
+  // Cleanup peers som lämnat — både enemy-delta-cache OCH seq-tracker (annars
+  // växer seqByPeer obegränsat över sessionens livstid).
   if (sim.lastSentEnemyByPeer.size > sim.room.members.size) {
     for (const peerId of [...sim.lastSentEnemyByPeer.keys()]) {
-      if (!sim.room.members.has(peerId)) sim.lastSentEnemyByPeer.delete(peerId);
+      if (!sim.room.members.has(peerId)) {
+        sim.lastSentEnemyByPeer.delete(peerId);
+        sim.seqByPeer.delete(peerId);
+      }
     }
   }
 }
@@ -654,6 +664,9 @@ function applyLoadStage(sim, peerId, msg) {
     ? Math.min(50, msg.maxStages)
     : 30;
   const wave = Math.max(1, Math.min(maxStages, msg.wave || 1));
+  // Reset deadBodies vid stage-load så ev. icke-revivad spelare från förra stage
+  // inte är stuck. Spelare som dog precis innan stage-clear ska respawna fresh.
+  sim.deadBodies = {};
   loadStage(sim, wave);
 }
 

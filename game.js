@@ -1366,11 +1366,11 @@ const WEAPONS = [
     desc: 'Mid-tier kast. Hög träffsäkerhet.' },
   { id: 'revolver',   name: 'Revolver',         type: 'gun',   price: 420,  dmg: 52,  rate: 580, speed: 760, mag: 6,  reload: 1500, spread: 0.02, color: '#ffae3a',
     desc: 'Tung kalibervapen. Hög dmg per skott.' },
-  { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 540,  dmg: 24,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 3,
+  { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 540,  dmg: 20,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 3,
     desc: 'Tre snabba skott per tryck. Hög burst-dmg.' },
   { id: 'shotgun',    name: 'Hagelgevär',       type: 'gun',   price: 600,  dmg: 16,  rate: 760, speed: 700, mag: 6,  reload: 1900, spread: 0.32, pellets: 6, color: '#ff6b3d',
     desc: 'Sex hagel per skott. Förödande på nära håll.' },
-  { id: 'bow',        name: 'Compoundbåge',     type: 'gun',   price: 1000, dmg: 90,  rate: 540, speed: 950, mag: 1,  reload: 500,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true,
+  { id: 'bow',        name: 'Compoundbåge',     type: 'gun',   price: 800,  dmg: 90,  rate: 540, speed: 950, mag: 1,  reload: 500,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true,
     desc: 'Pierce. Snabb reload. Perfekt aim krävs.' },
   { id: 'smg',        name: 'Kpist',            type: 'gun',   price: 800,  dmg: 14,  rate: 95,  speed: 740, mag: 30, reload: 1500, spread: 0.10, color: '#88ccff',
     desc: 'Spray-and-pray. Hög ROF.' },
@@ -1691,6 +1691,17 @@ function ensureWardrobe() {
   if (!w.hat)     w.hat = 'none';
   if (!w.cape)    w.cape = 'none';
   if (!w.tints)   w.tints = { shirtHue: 0, pantsHue: 0 };
+  // Lock-validation: om equippad item nu är låst (t.ex. NG+-reset eller achievement
+  // wipe), defaulta tillbaka till första (alltid common, alltid unlocked).
+  for (const cat of Object.keys(WARDROBE)) {
+    const cur = w[cat];
+    if (!cur) continue;
+    const opt = WARDROBE[cat].find(o => o.id === cur);
+    if (!opt) { w[cat] = WARDROBE[cat][0].id; continue; }
+    if (typeof opt.unlock === 'function' && !opt.unlock()) {
+      w[cat] = WARDROBE[cat][0].id;
+    }
+  }
 }
 function getWardrobeOpt(cat, id) {
   return WARDROBE[cat].find(o => o.id === id) || WARDROBE[cat][0];
@@ -2217,7 +2228,17 @@ function drawHatInGame(c, x, y, r, style, color) {
   }
 }
 
+// Frame-cache för getCurrentCostume — rebuildas en gång per frame i loop()
+// (set _costumeCacheFrame nullas). Sparar 8 wardrobe-lookups + new Object × 2
+// drawPlayer-anrop per frame.
+let _costumeCache = null;
+let _costumeCacheFrame = -1;
+function invalidateCostumeCache() { _costumeCache = null; _costumeCacheFrame = -1; }
 function getCurrentCostume() {
+  // Använd cache om samma frame — drawPlayer + drawCoopPartner anropar båda
+  // varje frame och allokerar annars dubblat.
+  const fr = state._currentFrame || 0;
+  if (_costumeCache && _costumeCacheFrame === fr) return _costumeCache;
   // Wardrobe = primär källa nu
   if (save.wardrobe) {
     ensureWardrobe();
@@ -2240,7 +2261,7 @@ function getCurrentCostume() {
       const opt = w[cat] ? WARDROBE[cat] && WARDROBE[cat].find(o => o.id === w[cat]) : null;
       if (opt && opt.vfx) vfxList.push(opt.vfx);
     }
-    return {
+    const cos = {
       id: 'custom', name: 'Custom',
       skin: skinO.color,
       shirt: tShirt,
@@ -2254,8 +2275,14 @@ function getCurrentCostume() {
       cape: capeO,
       vfx: vfxList,
     };
+    _costumeCache = cos;
+    _costumeCacheFrame = fr;
+    return cos;
   }
-  return COSTUMES.find(c => c.id === (save.costume || 'classic')) || COSTUMES[0];
+  const fallback = COSTUMES.find(c => c.id === (save.costume || 'classic')) || COSTUMES[0];
+  _costumeCache = fallback;
+  _costumeCacheFrame = fr;
+  return fallback;
 }
 
 // applyHueShift: shift en hex-färg's hue med ° (0-359). Använd RGB→HSL→RGB.
@@ -2603,7 +2630,8 @@ function createAchPopup() {
   el.id = 'ach-popup-dyn';
   // Top-left under HP-bar (var top-right förut, täckte minimap).
   // Slide-in från VÄNSTER istället för höger.
-  el.style.cssText = 'position:fixed;top:max(58px, calc(env(safe-area-inset-top, 0px) + 50px));left:-380px;max-width:300px;background:#1a0a08;color:#fff;border:2px solid #ffd54a;border-left:6px solid #ffd54a;border-radius:8px;padding:10px 14px;z-index:10000;transition:left 0.4s cubic-bezier(0.34,1.56,0.64,1);display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,0.7),0 0 12px rgba(255,213,74,0.4);cursor:pointer;font-family:-apple-system,sans-serif;';
+  // Push ach-popup nedanför hud-toast-stack-zonen (toast-stack tar top:58-110px).
+  el.style.cssText = 'position:fixed;top:max(120px, calc(env(safe-area-inset-top, 0px) + 112px));left:-380px;max-width:300px;background:#1a0a08;color:#fff;border:2px solid #ffd54a;border-left:6px solid #ffd54a;border-radius:8px;padding:10px 14px;z-index:10000;transition:left 0.4s cubic-bezier(0.34,1.56,0.64,1);display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,0.7),0 0 12px rgba(255,213,74,0.4);cursor:pointer;font-family:-apple-system,sans-serif;';
   el.innerHTML = `
     <div class="ach-icon" style="font-size:30px;flex:0 0 auto;line-height:1;">🏆</div>
     <div style="flex:1;min-width:0;text-align:left;">
@@ -3471,7 +3499,7 @@ function makePlayer() {
     reloadMul: 1 - Math.min(0.6, u.reload * 0.12),
     explMul: 1 + u.expl * 0.18,
     mrangeMul: 1 + u.mrange * 0.12,
-    goldMul: (1 + u.gold * 0.18 + (hasPerk('goldbonus') ? 0.30 : 0)) * (dailyMod === 'double_gold' ? 2 : 1) * (isCheatActive('jappa') ? 1.5 : 1) * (isCheatActive('ultimate') ? 3 : 1) * (1 + 0.3 * getNGPLevel()),
+    goldMul: (1 + u.gold * 0.18 + (hasPerk('goldbonus') ? 0.30 : 0)) * (dailyMod === 'double_gold' ? 2 : 1) * (isCheatActive('jappa') ? 1.5 : 1) * (isCheatActive('ultimate') ? 3 : 1) * Math.min(5, (1 + 0.15 * getNGPLevel())),
     // BigBoi-cheat ger ×2 knockback ovanpå upgrade-kbMul (var tidigare överskriven av denna rad)
     kbMul: (1 + Math.min(0.75, u.kb * 0.15)) * (isCheatActive('bigboi') ? 2 : 1),
     bspeedMul: 1 + u.bspeed * 0.10,
@@ -9650,7 +9678,7 @@ function applyUpgradesToPlayer() {
   p.reloadMul = 1 - Math.min(0.6, u.reload * 0.12);
   p.explMul = 1 + u.expl * 0.18;
   p.mrangeMul = 1 + u.mrange * 0.12;
-  p.goldMul = (1 + u.gold * 0.18 + (hasPerk('goldbonus') ? 0.30 : 0)) * (1 + 0.3 * getNGPLevel());
+  p.goldMul = (1 + u.gold * 0.18 + (hasPerk('goldbonus') ? 0.30 : 0)) * Math.min(5, (1 + 0.15 * getNGPLevel()));
   p.kbMul = 1 + Math.min(0.75, u.kb * 0.15);
   p.bspeedMul = 1 + u.bspeed * 0.10;
   // Revive-perk: per RUN, inte per shop-purchase. Sätt bara om reviveUsed inte
@@ -16094,7 +16122,7 @@ const STAGE_ATMOSPHERE = {
   hangar:    { tint: 'rgba(80,120,180,0.08)', vignette: 'rgba(15,20,40,0.55)', rays: { color: 'rgba(255,255,255,0.05)', dir: 'down', count: 5 } },
   depot:     { tint: 'rgba(255,140,60,0.10)', vignette: 'rgba(40,15,10,0.55)', rays: null },
   cargo:     { tint: 'rgba(120,160,200,0.08)', vignette: 'rgba(15,25,40,0.55)', rays: null },
-  bunker:    { tint: 'rgba(40,60,90,0.18)',   vignette: 'rgba(0,0,0,0.70)',     rays: null },
+  bunker:    { tint: 'rgba(40,60,90,0.10)',   vignette: 'rgba(0,0,0,0.70)',     rays: null },
   command:   { tint: 'rgba(120,80,255,0.10)', vignette: 'rgba(20,5,40,0.55)',  rays: { color: 'rgba(60,255,180,0.06)', dir: 'down', count: 6 } },
 };
 function drawStageAtmosphere(stage) {
@@ -20617,6 +20645,8 @@ let lastTime = performance.now();
 function loop(now) {
   const dt = Math.min(0.05, (now - lastTime) / 1000);
   lastTime = now;
+  // Frame-counter för cache-invalidation (getCurrentCostume etc)
+  state._currentFrame = (state._currentFrame || 0) + 1;
   try { runFrame(dt, now); } catch (e) {
     console.error('Frame error:', (e && e.message) || e);
   }

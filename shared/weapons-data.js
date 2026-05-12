@@ -22,7 +22,7 @@ const WEAPONS = [
   { id: 'shuriken',   type: 'gun',   dmg: 14,  rate: 130, speed: 700, mag: 24, reload: 1100, spread: 0.06, color: '#cccccc', burn: 2 },
   { id: 'throwknife', type: 'gun',   dmg: 32,  rate: 280, speed: 760, mag: 12, reload: 1300, spread: 0.04, color: '#aaaacc' },
   { id: 'revolver',   type: 'gun',   dmg: 52,  rate: 580, speed: 760, mag: 6,  reload: 1500, spread: 0.02, color: '#ffae3a' },
-  { id: 'burstpistol',type: 'gun',   dmg: 24,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', burstCount: 3, burstDelay: 70, ammoCost: 3 },
+  { id: 'burstpistol',type: 'gun',   dmg: 20,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', burstCount: 3, burstDelay: 70, ammoCost: 3 },
   { id: 'shotgun',    type: 'gun',   dmg: 16,  rate: 760, speed: 700, mag: 6,  reload: 1900, spread: 0.32, pellets: 6, color: '#ff6b3d' },
   { id: 'bow',        type: 'gun',   dmg: 65,  rate: 540, speed: 950, mag: 1,  reload: 700,  spread: 0.0,  color: '#3a8a3a', pierce: true },
   { id: 'smg',        type: 'gun',   dmg: 14,  rate: 95,  speed: 740, mag: 30, reload: 1500, spread: 0.10, color: '#88ccff' },
