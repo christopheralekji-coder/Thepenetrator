@@ -2619,7 +2619,14 @@ function createAchPopup() {
   achPopupEl = el;
   return el;
 }
+// Achievements som triggar full-screen cinematic istället för slide-in toast
+const ACH_CINEMATIC_IDS = new Set(['allbosses', 'firstboss', 'kill1000', 'streak20', 'rich', 'allweapons', 'allperks']);
 function showAchievementPopup(ach) {
+  // Stora milestones → cinematic instead of toast
+  if (ach && ach.id && ACH_CINEMATIC_IDS.has(ach.id) && !state._achCinematicRunning) {
+    showAchievementCinematic(ach);
+    return;
+  }
   const el = createAchPopup();
   if (!el) return;
   const iconEl = el.querySelector('.ach-icon');
@@ -2633,6 +2640,41 @@ function showAchievementPopup(ach) {
   achPopupTimer = setTimeout(() => {
     el.style.left = '-380px';
   }, 2200);
+}
+
+// Full-screen cinematic för major achievements — backdrop blur, scale-in icon,
+// shockwave + sparks på spelaren, fader ut efter 2.5s.
+let _achCinematicEl = null;
+function showAchievementCinematic(ach) {
+  state._achCinematicRunning = true;
+  if (!_achCinematicEl) {
+    _achCinematicEl = document.createElement('div');
+    _achCinematicEl.id = 'ach-cinematic';
+    document.body.appendChild(_achCinematicEl);
+  }
+  _achCinematicEl.innerHTML = `
+    <div class="ach-cin-bg"></div>
+    <div class="ach-cin-panel">
+      <div class="ach-cin-banner">ACHIEVEMENT UNLOCKED</div>
+      <div class="ach-cin-icon">${ach.icon || '🏆'}</div>
+      <div class="ach-cin-name">${ach.name || ''}</div>
+      <div class="ach-cin-desc">${ach.desc || ''}</div>
+    </div>
+  `;
+  _achCinematicEl.classList.add('show');
+  try { Audio.achievement(); } catch (e) {}
+  // VFX på spelaren
+  if (state.player) {
+    const p = state.player;
+    spawnShockwave(p.x, p.y, 16, 140, '#ffd54a', 0.7, 5);
+    setTimeout(() => spawnShockwave(p.x, p.y, 16, 220, '#fff', 0.6, 4), 150);
+    spawnSparks(p.x, p.y, '#ffd54a', 24, 380);
+    triggerShake(8, 0.4);
+  }
+  setTimeout(() => {
+    if (_achCinematicEl) _achCinematicEl.classList.remove('show');
+    state._achCinematicRunning = false;
+  }, 2500);
 }
 
 // PERKS — passiva förmågor man köper en gång
@@ -2956,11 +2998,17 @@ const Audio = {
   },
   hit() {
     if (!this._throttle('hit', 30)) return;
-    this._tone(180, 0.05, 'square', 0.15, 0.002, 0.03, 80);
+    // Pitch-variation per träff så audio inte blir monotont vid spam
+    const baseFreq = 160 + Math.random() * 80;
+    this._tone(baseFreq, 0.05, 'square', 0.15, 0.002, 0.03, baseFreq * 0.45);
   },
   hitCrit() {
-    this._tone(440, 0.1, 'square', 0.3, 0.002, 0.08, 880);
-    this._tone(220, 0.08, 'sawtooth', 0.2, 0.002, 0.06, 110);
+    // Crit får en uppåtgående ton + sawtooth-bas för punch
+    const baseFreq = 420 + Math.random() * 60;
+    this._tone(baseFreq, 0.1, 'square', 0.3, 0.002, 0.08, baseFreq * 2);
+    this._tone(baseFreq * 0.5, 0.08, 'sawtooth', 0.2, 0.002, 0.06, baseFreq * 0.25);
+    // Subtil chime ovanpå
+    this._tone(baseFreq * 3.5, 0.06, 'sine', 0.12, 0.001, 0.05, baseFreq * 4);
   },
   kill() {
     if (!this._throttle('kill', 40)) return;
@@ -3140,8 +3188,22 @@ const Music = {
       this.active.gain.gain.linearRampToValueAtTime(0.65, t + 0.8);
     } else if (level === 'active') {
       this.active.gain.gain.linearRampToValueAtTime(0.5, t + 0.8);
+      // Fade ut kvint-osc smooth om vi går från boss → active
+      if (this.active.fifthOsc) {
+        const fO = this.active.fifthOsc;
+        try {
+          // Fade ut osc-gain via dess egen connected gain-node (kan inte direkt accessas
+          // utan att spara referens). Stop osc efter 1.2s.
+          fO.stop(t + 1.2);
+        } catch (e) {}
+        this.active.fifthOsc = null;
+      }
     } else if (level === 'calm') {
-      this.active.gain.gain.linearRampToValueAtTime(0.4, t + 1.0);
+      this.active.gain.gain.linearRampToValueAtTime(0.4, t + 1.2);
+      if (this.active.fifthOsc) {
+        try { this.active.fifthOsc.stop(t + 1.2); } catch (e) {}
+        this.active.fifthOsc = null;
+      }
     }
   },
   tick(dt) {
@@ -3562,6 +3624,8 @@ function checkMinimapZoomClick(mx, my) {
   const z = state._minimapZoomBtn;
   if (z && mx >= z.x && mx <= z.x + z.w && my >= z.y && my <= z.y + z.h) {
     state.minimapBig = !state.minimapBig;
+    // Animera zoom-target (lerpas i drawMiniMap)
+    state._minimapZoomTarget = state.minimapBig ? 1 : 0;
     Audio.uiClick();
     return true;
   }
@@ -7975,6 +8039,12 @@ function damageEnemy(e, dmg, isCrit) {
     const ringR = Math.min(70, (e.r || 12) + 4 + dmg * 0.4);
     spawnShockwave(e.x, e.y, (e.r || 12) * 0.5, ringR, isCrit ? '#ffeb3b' : '#fff', 0.22, 2);
   }
+  // Combo-counter: konsekutiva träffar utan att tappa streak. Resetar vid 1.8s utan hit.
+  const nowC = performance.now();
+  if (nowC - (state.lastComboHit || 0) > 1800) state.comboHits = 0;
+  state.comboHits = (state.comboHits || 0) + 1;
+  state.lastComboHit = nowC;
+  state.maxComboThisRun = Math.max(state.maxComboThisRun || 0, state.comboHits);
   if (e.hp <= 0) killEnemy(e);
 }
 
@@ -8462,6 +8532,13 @@ function enterDeathState() {
     x: p.x, y: p.y, reviveTimer: 0, revivedBy: null,
     color: getCurrentCostume().shirt || '#222',
   };
+  // Death-cam: slow-mo + heavy shake + radial dark vignette i 1500ms
+  state.deathCamUntil = performance.now() + 1500;
+  triggerHitStop(180);
+  triggerShake(14, 0.6);
+  // Big shockwave på death-platsen
+  spawnShockwave(p.x, p.y, 12, 90, '#ff3a3a', 0.5, 3);
+  spawnSparks(p.x, p.y, '#ff5a5a', 16, 280, 200);
   p.spectating = true;
   p.specTarget = null; // välj live-player att speca
   // Visa orsak om vi spårat senaste damage-källan
@@ -9596,42 +9673,108 @@ function runIntroCutscene(onDone) {
       onDone();
       return;
     }
-    // Find current frame
-    let cur = INTRO_FRAMES[0];
-    for (const f of INTRO_FRAMES) if (f.t <= elapsed) cur = f;
-    // render
-    ctx.fillStyle = '#000';
+    // Find current frame + nästa för cross-fade
+    let cur = INTRO_FRAMES[0], curIdx = 0;
+    for (let i = 0; i < INTRO_FRAMES.length; i++) {
+      if (INTRO_FRAMES[i].t <= elapsed) { cur = INTRO_FRAMES[i]; curIdx = i; }
+    }
+    const next = INTRO_FRAMES[curIdx + 1] || INTRO_FRAMES[curIdx];
+    // Bakgrund: djup mörk röd radial + scanlines
+    const bgGrad = ctx.createRadialGradient(viewW/2, viewH/2, 50, viewW/2, viewH/2, viewW * 0.8);
+    bgGrad.addColorStop(0, '#1a0a14');
+    bgGrad.addColorStop(0.5, '#0a0508');
+    bgGrad.addColorStop(1, '#000');
+    ctx.fillStyle = bgGrad;
     ctx.fillRect(0, 0, viewW, viewH);
-    // The Penetrator silhuett (bli större)
+    // Scan-lines för cinematic film-look
+    ctx.fillStyle = 'rgba(255,255,255,0.025)';
+    for (let yy = 0; yy < viewH; yy += 3) ctx.fillRect(0, yy, viewW, 1);
+    // Subtilt drift-noise (TV-grain)
+    if (elapsed % 50 < 25) {
+      ctx.fillStyle = 'rgba(255,255,255,0.015)';
+      ctx.fillRect(0, (elapsed * 0.7) % viewH, viewW, 2);
+    }
+    // The Penetrator silhuett (bli större + sway)
     const t = elapsed / totalDur;
-    const cx = viewW/2, cy = viewH/2 - 50;
-    ctx.fillStyle = '#1a1a1a';
-    const size = 40 + t * 80;
-    // Kropp
+    const sway = Math.sin(elapsed / 800) * 3;
+    const cx = viewW/2 + sway, cy = viewH/2 - 50;
+    const size = 40 + t * 90;
+    // Glödande aura bakom
+    const auraGrad = ctx.createRadialGradient(cx, cy + size * 0.3, 10, cx, cy + size * 0.3, size * 2);
+    auraGrad.addColorStop(0, 'rgba(180, 30, 30, 0.25)');
+    auraGrad.addColorStop(1, 'rgba(180, 30, 30, 0)');
+    ctx.fillStyle = auraGrad;
+    ctx.fillRect(cx - size * 2, cy - size, size * 4, size * 3);
+    // Silhuett-kropp
+    ctx.fillStyle = '#0a0a0a';
     ctx.fillRect(cx - size*0.3, cy, size*0.6, size*1.2);
     // Huvud
     ctx.beginPath(); ctx.arc(cx, cy - size*0.3, size*0.3, 0, Math.PI*2); ctx.fill();
+    // Rim-light kant runt silhuett
+    ctx.strokeStyle = 'rgba(255, 80, 80, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(cx - size*0.3, cy, size*0.6, size*1.2);
+    ctx.beginPath(); ctx.arc(cx, cy - size*0.3, size*0.3, 0, Math.PI*2); ctx.stroke();
     // Bandana (röd när nära slutet)
     if (elapsed > 8000) {
-      ctx.fillStyle = '#aa1818';
+      const bandaTime = (elapsed - 8000) / 500;
+      const bandaA = Math.min(1, bandaTime);
+      ctx.fillStyle = `rgba(170, 24, 24, ${bandaA})`;
       ctx.fillRect(cx - size*0.3, cy - size*0.3, size*0.6, size*0.1);
+      ctx.fillStyle = `rgba(220, 60, 60, ${bandaA})`;
+      ctx.fillRect(cx - size*0.3, cy - size*0.3, size*0.6, 2);
     }
-    // Pistol (sista 3 sek)
+    // Pistol (sista 3 sek) — med subtil glow
     if (elapsed > 10000) {
-      ctx.fillStyle = '#1a1a1a';
+      const pistolA = Math.min(1, (elapsed - 10000) / 500);
+      ctx.fillStyle = `rgba(20, 20, 20, ${pistolA})`;
       ctx.fillRect(cx + size*0.3, cy + size*0.2, size*0.4, size*0.1);
+      // Mynning-glow
+      ctx.fillStyle = `rgba(255, 200, 80, ${pistolA * 0.4})`;
+      ctx.beginPath();
+      ctx.arc(cx + size*0.7, cy + size*0.25, size*0.06, 0, Math.PI * 2);
+      ctx.fill();
     }
-    // Text
-    ctx.fillStyle = '#ffd54a';
-    ctx.font = 'italic 22px serif';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = '#000'; ctx.shadowBlur = 6;
-    ctx.fillText(cur.text, viewW/2, viewH * 0.85);
-    // Skip-tip
-    ctx.fillStyle = '#666';
+    // Text med fade-in mellan frames
+    const frameProgress = (elapsed - cur.t) / Math.max(50, (next.t - cur.t));
+    let textAlpha = 1;
+    if (frameProgress < 0.15) textAlpha = frameProgress / 0.15;
+    else if (frameProgress > 0.85) textAlpha = (1 - frameProgress) / 0.15;
+    textAlpha = Math.max(0, Math.min(1, textAlpha));
+    // Text-panel
+    if (cur.text) {
+      const textY = viewH * 0.85;
+      const textW = Math.min(600, viewW - 40);
+      ctx.save();
+      ctx.globalAlpha = textAlpha;
+      // Text-bakgrund (subtilt)
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect((viewW - textW) / 2, textY - 22, textW, 36);
+      // Gula linjer ovan/under text
+      ctx.fillStyle = 'rgba(255, 213, 74, 0.4)';
+      ctx.fillRect((viewW - textW) / 2, textY - 22, textW, 1);
+      ctx.fillRect((viewW - textW) / 2, textY + 13, textW, 1);
+      // Text
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'italic 22px serif';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 8;
+      ctx.fillText(cur.text, viewW/2, textY);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
+    // Skip-tip (pulserande)
+    const skipPulse = 0.6 + Math.sin(elapsed / 400) * 0.3;
+    ctx.fillStyle = `rgba(170, 170, 170, ${skipPulse})`;
     ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center';
     ctx.fillText('Tryck för att skippa', viewW/2, viewH - 14);
-    ctx.shadowBlur = 0;
+    // Vinjettering kant
+    const vGrad = ctx.createRadialGradient(viewW/2, viewH/2, viewW * 0.3, viewW/2, viewH/2, viewW * 0.8);
+    vGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    vGrad.addColorStop(1, 'rgba(0,0,0,0.7)');
+    ctx.fillStyle = vGrad;
+    ctx.fillRect(0, 0, viewW, viewH);
     requestAnimationFrame(intoFrame);
   }
   intoFrame();
@@ -10354,14 +10497,18 @@ function addTdmKillFeed(killerName, killerTeam, victimName, victimTeam, weaponNa
   const row = document.createElement('div');
   const kColor = killerTeam === 'red' ? '#ff5a5a' : '#5aaaff';
   const vColor = victimTeam === 'red' ? '#ff5a5a' : '#5aaaff';
-  row.style.cssText = 'background:rgba(0,0,0,0.65);padding:3px 8px;border-radius:4px;animation:tdmKillFade 4s forwards;';
-  const weaponHtml = weaponName ? ` <span style="color:#ffd54a;font-size:11px;">· ${escapeHtml(weaponName)}</span>` : '';
-  row.innerHTML = `<span style="color:${kColor};font-weight:700;">${escapeHtml(killerName)}</span> <span style="color:#aaa;">→</span> <span style="color:${vColor};font-weight:700;">${escapeHtml(victimName)}</span>${weaponHtml}`;
+  row.className = 'tdm-kf-row tdm-kf-' + killerTeam;
+  // Neon-kort med team-färgad vänster-border och glow
+  const weaponHtml = weaponName ? `<span class="tdm-kf-weapon">· ${escapeHtml(weaponName)}</span>` : '';
+  row.innerHTML = `<span class="tdm-kf-killer" style="color:${kColor};">${escapeHtml(killerName)}</span><span class="tdm-kf-arrow">⚡</span><span class="tdm-kf-victim" style="color:${vColor};">${escapeHtml(victimName)}</span>${weaponHtml}`;
   _tdmKillFeedEl.appendChild(row);
-  // Behåll max 5 rader
   while (_tdmKillFeedEl.children.length > 5) _tdmKillFeedEl.removeChild(_tdmKillFeedEl.firstChild);
-  // Auto-cleanup efter 4.5s
-  setTimeout(() => { if (row.parentNode) row.parentNode.removeChild(row); }, 4500);
+  setTimeout(() => {
+    if (row.parentNode) {
+      row.classList.add('fading');
+      setTimeout(() => { if (row.parentNode) row.parentNode.removeChild(row); }, 400);
+    }
+  }, 4100);
 }
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
@@ -10459,6 +10606,54 @@ function showKillstreakBanner(count) {
   if (count === 5) Audio.achievement();
   if (count === 10) { Audio.achievement(); triggerShake(4, 0.15); }
 }
+// Combo-counter: visar "COMBO ×N" i top-center när N >= 5, växer med streak,
+// fadar ut efter 1.8s utan ny hit.
+function drawComboCounter() {
+  const now = performance.now();
+  const elapsed = now - (state.lastComboHit || 0);
+  if (!state.comboHits || state.comboHits < 5 || elapsed > 1800) return;
+  // Fade-out de sista 400ms av lifespan
+  const fadeStart = 1800 - 400;
+  let alpha = 1;
+  if (elapsed > fadeStart) alpha = (1800 - elapsed) / 400;
+  // Scale grows with streak (10→1.0, 25→1.3, 50→1.6, 100+→2.0)
+  const n = state.comboHits;
+  const scale = Math.min(2.0, 1.0 + (n - 5) * 0.025);
+  // Tier-color per streak
+  let col = '#fff';
+  if (n >= 50) col = '#ffd54a';
+  else if (n >= 25) col = '#ff8a3a';
+  else if (n >= 15) col = '#aa3aff';
+  else if (n >= 10) col = '#3acaff';
+  // Position: top-center under boss-HP-bar
+  const x = viewW / 2;
+  const y = 110;
+  // Bumpa upp om boss inte är aktiv
+  const yPos = (state.enemies && state.enemies.some(e => e.isBoss)) ? y + 60 : y;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x, yPos);
+  ctx.scale(scale, scale);
+  // Pop-anim när siffran ändras
+  const sincePop = elapsed < 100 ? (1 + 0.15 * (1 - elapsed / 100)) : 1;
+  ctx.scale(sincePop, sincePop);
+  // Text
+  ctx.font = 'bold 30px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.lineWidth = 5;
+  ctx.strokeStyle = '#000';
+  ctx.shadowColor = col; ctx.shadowBlur = 14;
+  ctx.strokeText('COMBO ×' + n, 0, 0);
+  ctx.fillStyle = col;
+  ctx.fillText('COMBO ×' + n, 0, 0);
+  ctx.shadowBlur = 0;
+  // Underline-bar
+  ctx.fillStyle = col;
+  const barW = 80 + Math.min(120, n);
+  ctx.fillRect(-barW / 2, 8, barW, 3);
+  ctx.restore();
+}
+
 function drawKillstreak() {
   if (killstreakBanner.timer <= 0) return;
   const t = Math.min(1, killstreakBanner.timer / 1.5);
@@ -19458,8 +19653,10 @@ function render() {
   drawDamageFlash();
   drawEventVignette();
   drawStageTransition();
+  drawDeathCam();
   drawBossPhaseBanner();
   drawToast();
+  drawComboCounter();
   drawKillstreak();
   drawBossIntro();
   drawFadeOverlay();
@@ -19869,7 +20066,13 @@ function drawMiniMap() {
   if (save.minimapHidden) return;
   const stage = getStage(state.wave);
   if (!stage) return;
-  const size = state.minimapBig ? Math.min(viewW * 0.5, 280) : 110;
+  // Smooth zoom-anim mellan small (110) och big — lerp toward target var frame
+  if (state._minimapZoomT === undefined) state._minimapZoomT = state.minimapBig ? 1 : 0;
+  if (state._minimapZoomTarget === undefined) state._minimapZoomTarget = state.minimapBig ? 1 : 0;
+  state._minimapZoomT += (state._minimapZoomTarget - state._minimapZoomT) * 0.18;
+  const smallSize = 110;
+  const bigSize = Math.min(viewW * 0.5, 280);
+  const size = smallSize + (bigSize - smallSize) * state._minimapZoomT;
   const margin = 12;
   const x0 = viewW - size - margin;
   const y0 = 60;
@@ -20016,6 +20219,35 @@ function drawBossPhaseBanner() {
   ctx.restore();
 }
 
+// Death-cam: dramatisk röd vinjett + desaturation under 1500ms efter död.
+function drawDeathCam() {
+  if (!state.deathCamUntil) return;
+  const remaining = state.deathCamUntil - performance.now();
+  if (remaining <= 0) { state.deathCamUntil = 0; return; }
+  const t = 1 - remaining / 1500;
+  // Mörk vinjett som intensifieras
+  const intensity = Math.min(1, t * 1.6);
+  const grad = ctx.createRadialGradient(viewW/2, viewH/2, viewW * 0.15, viewW/2, viewH/2, viewW * 0.7);
+  grad.addColorStop(0, `rgba(80, 0, 0, ${0.15 * intensity})`);
+  grad.addColorStop(0.7, `rgba(50, 0, 0, ${0.45 * intensity})`);
+  grad.addColorStop(1, `rgba(0, 0, 0, ${0.85 * intensity})`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // Stora "DEAD"-text mid-screen som fader in
+  if (t > 0.3) {
+    const textA = Math.min(1, (t - 0.3) / 0.4);
+    ctx.save();
+    ctx.globalAlpha = textA;
+    ctx.fillStyle = '#ff1a1a';
+    ctx.shadowColor = '#ff1a1a'; ctx.shadowBlur = 24;
+    ctx.font = 'bold 72px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('DEAD', viewW / 2, viewH / 2);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+}
+
 // Stage-transition white-flash — kort fade in från vit när ny stage laddas så
 // skiftet känns dramatiskt istället för "wait, är jag i nästa stage nu?".
 function drawStageTransition() {
@@ -20152,52 +20384,95 @@ function drawBossIntro() {
   else if (t < 0.7) alpha = 1;
   else alpha = (1 - t) / 0.3;
   alpha = Math.max(0, Math.min(1, alpha));
-  ctx.fillStyle = `rgba(0,0,0,${0.7 * alpha})`;
+  ctx.fillStyle = `rgba(0,0,0,${0.78 * alpha})`;
   ctx.fillRect(0, 0, viewW, viewH);
   const name = state.bossIntro.name || '???';
   const sub = state.bossIntro.sub || '';
   const isSmall = viewW < 600;
   // Mät text för proportionell box
-  const big = Math.min(viewW * 0.075, isSmall ? 28 : 42);
+  const big = Math.min(viewW * 0.085, isSmall ? 30 : 48);
   ctx.font = `bold ${big}px sans-serif`;
   const nameW = ctx.measureText(name.toUpperCase()).width;
   ctx.font = 'italic ' + (isSmall ? 12 : 14) + 'px sans-serif';
   const subW = ctx.measureText(sub).width;
   const contentW = Math.max(nameW, subW, 200) + 60;
   const boxW = Math.min(contentW, viewW - 20);
-  const boxH = isSmall ? 110 : 140;
+  const boxH = isSmall ? 130 : 160;
   const bx = (viewW - boxW) / 2;
   const by = (viewH - boxH) / 2;
   // röd spotlight
-  const grad = ctx.createRadialGradient(viewW/2, viewH/2, 50, viewW/2, viewH/2, viewW * 0.4);
-  grad.addColorStop(0, `rgba(180, 20, 30, ${0.45 * alpha})`);
-  grad.addColorStop(1, 'rgba(180, 20, 30, 0)');
+  const grad = ctx.createRadialGradient(viewW/2, viewH/2, 50, viewW/2, viewH/2, viewW * 0.5);
+  grad.addColorStop(0, `rgba(220, 30, 40, ${0.55 * alpha})`);
+  grad.addColorStop(0.6, `rgba(120, 10, 20, ${0.25 * alpha})`);
+  grad.addColorStop(1, 'rgba(40, 0, 10, 0)');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, viewW, viewH);
-  // Box-bakgrund (proportionell)
+  // Sweeping lens-flare som sveper över skärmen
+  const sweep = (t * 1.3) - 0.15;
+  if (sweep > 0 && sweep < 1) {
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.6;
+    const sx = sweep * viewW * 1.4 - viewW * 0.2;
+    const lfGrad = ctx.createLinearGradient(sx - 60, 0, sx + 60, 0);
+    lfGrad.addColorStop(0, 'rgba(255,80,80,0)');
+    lfGrad.addColorStop(0.5, 'rgba(255,180,180,0.5)');
+    lfGrad.addColorStop(1, 'rgba(255,80,80,0)');
+    ctx.fillStyle = lfGrad;
+    ctx.fillRect(sx - 60, 0, 120, viewH);
+    ctx.restore();
+  }
+  // Pulserande röda scan-bars upp + ned
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = 'rgba(20,5,10,0.85)';
+  const pulse = 0.7 + Math.sin(elapsed / 80) * 0.3;
+  // Top scan-bar
+  const topY = by - 6;
+  const sg = ctx.createLinearGradient(0, topY, viewW, topY);
+  sg.addColorStop(0, 'rgba(255,30,30,0)');
+  sg.addColorStop(0.5, `rgba(255,40,40,${pulse})`);
+  sg.addColorStop(1, 'rgba(255,30,30,0)');
+  ctx.fillStyle = sg;
+  ctx.fillRect(0, topY, viewW, 3);
+  // Bottom scan-bar
+  ctx.fillRect(0, by + boxH + 3, viewW, 3);
+  ctx.restore();
+  // Box-bakgrund (proportionell) med inner shadow
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const boxGrad = ctx.createLinearGradient(bx, by, bx, by + boxH);
+  boxGrad.addColorStop(0, 'rgba(40,10,15,0.95)');
+  boxGrad.addColorStop(0.5, 'rgba(15,3,5,0.95)');
+  boxGrad.addColorStop(1, 'rgba(35,8,12,0.95)');
+  ctx.fillStyle = boxGrad;
   ctx.fillRect(bx, by, boxW, boxH);
+  // Tjock röd border + outer glow
+  ctx.shadowColor = '#ff3a3a'; ctx.shadowBlur = 18;
   ctx.strokeStyle = '#ff3a3a';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 2.5;
   ctx.strokeRect(bx, by, boxW, boxH);
-  // streck över skärmen (subtil)
-  ctx.fillStyle = `rgba(180,20,30,${0.5 * alpha})`;
-  ctx.fillRect(0, by - 4, viewW, 2);
-  ctx.fillRect(0, by + boxH + 2, viewW, 2);
+  ctx.shadowBlur = 0;
+  // Inre tunn röd border för djup
+  ctx.strokeStyle = 'rgba(255,80,80,0.4)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(bx + 4, by + 4, boxW - 8, boxH - 8);
   // BOSS-tag
   ctx.textAlign = 'center';
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold ' + (isSmall ? 11 : 14) + 'px sans-serif';
-  ctx.fillText('BOSS', viewW/2, by + (isSmall ? 22 : 28));
-  // namn
+  ctx.font = 'bold ' + (isSmall ? 12 : 16) + 'px sans-serif';
+  ctx.shadowColor = '#ff3a3a'; ctx.shadowBlur = 4;
+  ctx.fillText('⚠ BOSS ⚠', viewW/2, by + (isSmall ? 22 : 30));
+  ctx.shadowBlur = 0;
+  // namn med scale-pop in
   ctx.fillStyle = '#ff4848';
-  ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 16;
+  ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 22;
   ctx.font = `bold ${big}px sans-serif`;
-  const scale = 0.85 + 0.15 * Math.min(1, t * 4);
+  // Bouncier scale-anim
+  let scale;
+  if (t < 0.25) scale = 0.5 + (t / 0.25) * 0.7; // 0.5→1.2
+  else if (t < 0.35) scale = 1.2 - ((t - 0.25) / 0.10) * 0.2; // 1.2→1.0
+  else scale = 1.0;
   ctx.save();
-  ctx.translate(viewW/2, by + boxH/2 + (isSmall ? 4 : 8));
+  ctx.translate(viewW/2, by + boxH/2 + (isSmall ? 6 : 12));
   ctx.scale(scale, scale);
   ctx.fillText(name.toUpperCase(), 0, 0);
   ctx.restore();
@@ -20205,7 +20480,7 @@ function drawBossIntro() {
   // sub
   ctx.fillStyle = '#ffd54a';
   ctx.font = 'italic ' + (isSmall ? 12 : 14) + 'px sans-serif';
-  ctx.fillText(sub, viewW/2, by + boxH - (isSmall ? 14 : 18));
+  ctx.fillText(sub, viewW/2, by + boxH - (isSmall ? 16 : 22));
   ctx.restore();
 }
 
