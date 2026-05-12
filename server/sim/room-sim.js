@@ -8,6 +8,7 @@ const { updateBoss } = require('./bosses');
 const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onWaveComplete, checkBossDeath } = require('./waves');
 const { updatePickups, dropFromEnemyDeath } = require('./pickups');
 const { getStage } = require('../../shared/stages-data');
+const { CTF_ARENA, resolveCtfWall, bulletHitsWall } = require('../../shared/ctf-arena');
 
 // 30Hz → 45Hz: tickar var 22ms istället för 33ms. Halverar input→pixel-delay
 // från server-tick-perspektiv. 1.5× CPU-last, men Node klarar 10k+ ops/tick i
@@ -61,9 +62,23 @@ function createSim(room) {
     tdmEnded: false,
     tdmKillsByPid: {},   // peerId → kills (för leaderboard)
     tdmDeathsByPid: {},  // peerId → deaths
+    // CTF-state (Capture the Flag PVP)
+    ctfActive: false,
+    ctfCaptures: { red: 0, blue: 0 },
+    ctfTargetCaptures: 3,
+    ctfEnded: false,
+    ctfKillsByPid: {},     // för leaderboard
+    ctfCapturesByPid: {},  // peerId → captures
+    ctfFlags: {            // flagga-state — carrierId === null betyder "på base/dropad/return-timer"
+      red:  { x: 0, y: 0, baseX: 0, baseY: 0, carrierId: null, atBase: true, droppedAt: 0 },
+      blue: { x: 0, y: 0, baseX: 0, baseY: 0, carrierId: null, atBase: true, droppedAt: 0 },
+    },
   };
   return sim;
 }
+
+const CTF_FLAG_AUTORETURN_MS = 30000;
+const CTF_CARRIER_SPEED_MUL = 0.75; // -25% speed för flag-carrier
 
 function tickSim(sim) {
   const now = Date.now();
@@ -119,6 +134,14 @@ function tickSim(sim) {
       updateBullets(sim, dt, now);
     }
     broadcastWorld(sim, now);
+    return;
+  }
+
+  // CTF-mode: pickup/drop/capture-logik + bullets
+  if (sim.ctfActive) {
+    tickCtf(sim, dt, now);
+    sim._tickCount = (sim._tickCount || 0) + 1;
+    if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
   }
   // Wave-spawn: spawnEnemyAtEdge
@@ -371,6 +394,204 @@ function updateHazards(sim, dt, now, players) {
   }
 }
 
+// ============================================================
+// CTF (Capture the Flag) — server-auktoritativ logic
+// ============================================================
+// Tickas istället för enemy-AI/wave-progression när sim.ctfActive=true.
+// Hanterar: respawn, flag-carrier-follow, pickup, capture, drop, auto-return,
+// wall-collision för spelare, samt bullets via befintlig updateBullets (som
+// kollar walls via shared/ctf-arena).
+function tickCtf(sim, dt, now) {
+  // Respawn döda spelare på random egna spawn-point
+  for (const [pid, ws] of sim.room.members) {
+    if (ws.tdmRespawnAt && now >= ws.tdmRespawnAt) {
+      ws.tdmRespawnAt = 0;
+      if (ws.playerState) {
+        const team = ws.tdmTeam || 'red';
+        const pts = CTF_ARENA.spawns[team] || CTF_ARENA.spawns.red;
+        const sp = pts[Math.floor(Math.random() * pts.length)];
+        ws.playerState.x = sp.x;
+        ws.playerState.y = sp.y;
+        ws.playerState.hp = 100;
+        ws.playerState.invulnUntil = Date.now() + 1500;
+        // Om spelare dog med en flagga, droppa den vid death-positionen (sker via
+        // applyCtfDeath separat — denna respawn-path ger ny position).
+        sim.eventQueue.push({
+          type: 'ctf_player_respawned',
+          peerId: pid,
+          x: ws.playerState.x,
+          y: ws.playerState.y,
+        });
+      }
+    }
+  }
+
+  // Match-end: skippa allt
+  if (sim.ctfEnded) {
+    broadcastWorld(sim, now);
+    return;
+  }
+
+  // Push spelare ur walls (collision)
+  for (const [, ws] of sim.room.members) {
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    const e = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
+    resolveCtfWall(e, CTF_ARENA.walls);
+    ws.playerState.x = e.x;
+    ws.playerState.y = e.y;
+    // Klamp till arena-bounds
+    ws.playerState.x = Math.max(20, Math.min(CTF_ARENA.worldW - 20, ws.playerState.x));
+    ws.playerState.y = Math.max(20, Math.min(CTF_ARENA.worldH - 20, ws.playerState.y));
+  }
+
+  // Flagga-state: om carrier finns, flagga följer carrier-position
+  for (const team of ['red', 'blue']) {
+    const flag = sim.ctfFlags[team];
+    if (flag.carrierId) {
+      const ws = sim.room.members.get(flag.carrierId);
+      if (ws && ws.playerState && ws.playerState.hp > 0) {
+        flag.x = ws.playerState.x;
+        flag.y = ws.playerState.y;
+      } else {
+        // Carrier disconnected/missing → returnera flagga
+        flag.carrierId = null;
+        flag.x = flag.baseX;
+        flag.y = flag.baseY;
+        flag.atBase = true;
+        sim.eventQueue.push({ type: 'ctf_flag_returned', team, reason: 'carrier_lost' });
+      }
+    } else if (!flag.atBase) {
+      // Dropped — kolla auto-return efter 30s
+      if (now - flag.droppedAt > CTF_FLAG_AUTORETURN_MS) {
+        flag.x = flag.baseX;
+        flag.y = flag.baseY;
+        flag.atBase = true;
+        flag.droppedAt = 0;
+        sim.eventQueue.push({ type: 'ctf_flag_returned', team, reason: 'timeout' });
+      }
+    }
+  }
+
+  // Pickup / capture / return-detection — iterera spelare
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    const myTeam = ws.tdmTeam || 'red';
+    const enemyTeam = myTeam === 'red' ? 'blue' : 'red';
+    const px = ws.playerState.x, py = ws.playerState.y;
+
+    // 1. Pickup enemy-flagga (om ledig)
+    const enemyFlag = sim.ctfFlags[enemyTeam];
+    if (!enemyFlag.carrierId) {
+      const dx = px - enemyFlag.x, dy = py - enemyFlag.y;
+      if (dx * dx + dy * dy < CTF_ARENA.pickupRadius * CTF_ARENA.pickupRadius) {
+        enemyFlag.carrierId = pid;
+        enemyFlag.atBase = false;
+        enemyFlag.droppedAt = 0;
+        sim.eventQueue.push({
+          type: 'ctf_flag_picked',
+          peerId: pid,
+          team: enemyTeam, // vilken flagga som plockades upp
+          carrierTeam: myTeam,
+        });
+      }
+    }
+
+    // 2. Capture: jag bär enemy-flagga + jag är vid min egen flagga (som måste vara hemma)
+    if (enemyFlag.carrierId === pid) {
+      const myFlag = sim.ctfFlags[myTeam];
+      if (myFlag.atBase) {
+        const dx = px - myFlag.baseX, dy = py - myFlag.baseY;
+        if (dx * dx + dy * dy < CTF_ARENA.captureRadius * CTF_ARENA.captureRadius) {
+          // CAPTURE!
+          sim.ctfCaptures[myTeam] = (sim.ctfCaptures[myTeam] || 0) + 1;
+          sim.ctfCapturesByPid[pid] = (sim.ctfCapturesByPid[pid] || 0) + 1;
+          // Reset enemy-flagga tillbaka till sin bas
+          enemyFlag.carrierId = null;
+          enemyFlag.x = enemyFlag.baseX;
+          enemyFlag.y = enemyFlag.baseY;
+          enemyFlag.atBase = true;
+          enemyFlag.droppedAt = 0;
+          sim.eventQueue.push({
+            type: 'ctf_flag_captured',
+            peerId: pid,
+            team: myTeam, // vilket lag scorade
+            captures: { red: sim.ctfCaptures.red, blue: sim.ctfCaptures.blue },
+          });
+          // Match-end check
+          if (sim.ctfCaptures[myTeam] >= sim.ctfTargetCaptures) {
+            sim.ctfEnded = true;
+            const stats = {
+              red: sim.ctfCaptures.red,
+              blue: sim.ctfCaptures.blue,
+              perPlayer: {},
+            };
+            for (const [p, ws2] of sim.room.members) {
+              stats.perPlayer[p] = {
+                team: ws2.tdmTeam,
+                captures: sim.ctfCapturesByPid[p] || 0,
+                kills: sim.ctfKillsByPid[p] || 0,
+                deaths: sim.tdmDeathsByPid[p] || 0,
+              };
+            }
+            sim.eventQueue.push({
+              type: 'ctf_match_end',
+              winner: myTeam,
+              captures: { red: sim.ctfCaptures.red, blue: sim.ctfCaptures.blue },
+              stats,
+            });
+          }
+        }
+      }
+    }
+
+    // 3. Return own-flagga (om dropped, inte at-base)
+    const myFlag = sim.ctfFlags[myTeam];
+    if (!myFlag.atBase && !myFlag.carrierId) {
+      const dx = px - myFlag.x, dy = py - myFlag.y;
+      if (dx * dx + dy * dy < CTF_ARENA.pickupRadius * CTF_ARENA.pickupRadius) {
+        myFlag.x = myFlag.baseX;
+        myFlag.y = myFlag.baseY;
+        myFlag.atBase = true;
+        myFlag.droppedAt = 0;
+        sim.eventQueue.push({
+          type: 'ctf_flag_returned',
+          team: myTeam,
+          peerId: pid,
+          reason: 'manual',
+        });
+      }
+    }
+  }
+
+  // Bullet-physics (kolla wall-hits via bullets.js: vi behöver toggla flagga
+  // för wall-check inom updateBullets, så markeras via sim.ctfActive)
+  updateBullets(sim, dt, now);
+}
+
+// Hantera spelare-död under CTF: droppa flagga vid death-position
+function applyCtfDeath(sim, peerId) {
+  if (!sim.ctfActive) return;
+  for (const team of ['red', 'blue']) {
+    const flag = sim.ctfFlags[team];
+    if (flag.carrierId === peerId) {
+      const ws = sim.room.members.get(peerId);
+      const dx = ws && ws.playerState ? ws.playerState.x : flag.baseX;
+      const dy = ws && ws.playerState ? ws.playerState.y : flag.baseY;
+      flag.carrierId = null;
+      flag.atBase = false;
+      flag.x = dx;
+      flag.y = dy;
+      flag.droppedAt = Date.now();
+      sim.eventQueue.push({
+        type: 'ctf_flag_dropped',
+        team,
+        x: dx, y: dy,
+        droppedBy: peerId,
+      });
+    }
+  }
+}
+
 function broadcastWorld(sim, now) {
   const fullBroadcast = (now - sim.lastFullAt) > FULL_BROADCAST_MS;
   if (fullBroadcast) sim.lastFullAt = now;
@@ -540,9 +761,64 @@ function startSim(sim, opts) {
       sim.tdmKillsByPid = {};
       sim.tdmDeathsByPid = {};
     }
+    if (opts.ctf) {
+      sim.ctfActive = true;
+      sim.ctfTargetCaptures = opts.ctfTargetCaptures || 3;
+      sim.ctfCaptures = { red: 0, blue: 0 };
+      sim.ctfEnded = false;
+      sim.ctfKillsByPid = {};
+      sim.ctfCapturesByPid = {};
+    }
   }
-  console.log('[SIM]', sim.room.code, 'started mode=' + (sim.tdmActive ? 'tdm' : sim.config.mode) + ' diff=' + sim.config.difficulty);
-  if (sim.tdmActive) {
+  console.log('[SIM]', sim.room.code, 'started mode=' + (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode)) + ' diff=' + sim.config.difficulty);
+  if (sim.ctfActive) {
+    // CTF: dedikerad arena (4500×2800 med walls). Symmetrisk röd/blå.
+    sim.simReadyAt = Date.now() + 5000;
+    // Init flag-state från CTF_ARENA
+    for (const team of ['red', 'blue']) {
+      const fs = CTF_ARENA.flags[team];
+      sim.ctfFlags[team] = {
+        baseX: fs.baseX, baseY: fs.baseY,
+        x: fs.baseX, y: fs.baseY,
+        carrierId: null, atBase: true, droppedAt: 0,
+      };
+    }
+    const teams = {};
+    let i = 0;
+    for (const [pid, ws] of sim.room.members) {
+      const team = i % 2 === 0 ? 'red' : 'blue';
+      ws.tdmTeam = team;
+      ws.playerState = ws.playerState || {};
+      // Spawn på random egna spawn-point
+      const pts = CTF_ARENA.spawns[team];
+      const sp = pts[i % pts.length];
+      ws.playerState.x = sp.x;
+      ws.playerState.y = sp.y;
+      ws.playerState.hp = 100;
+      ws.playerState.invulnUntil = Date.now() + 1500;
+      ws.tdmRespawnAt = 0;
+      teams[pid] = team;
+      sim.ctfKillsByPid[pid] = 0;
+      sim.ctfCapturesByPid[pid] = 0;
+      sim.tdmDeathsByPid[pid] = 0;
+      i++;
+    }
+    sim.eventQueue.push({
+      type: 'ctf_started',
+      targetCaptures: sim.ctfTargetCaptures,
+      teams,
+      arena: { worldW: CTF_ARENA.worldW, worldH: CTF_ARENA.worldH, name: CTF_ARENA.name },
+      flags: {
+        red:  { baseX: CTF_ARENA.flags.red.baseX,  baseY: CTF_ARENA.flags.red.baseY  },
+        blue: { baseX: CTF_ARENA.flags.blue.baseX, baseY: CTF_ARENA.flags.blue.baseY },
+      },
+      spawns: CTF_ARENA.spawns,
+      walls: CTF_ARENA.walls,
+      pickupRadius: CTF_ARENA.pickupRadius,
+      captureRadius: CTF_ARENA.captureRadius,
+    });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+  } else if (sim.tdmActive) {
     // PvP-mode: dedikerad TDM-arena (4000×3000 öppet fält). Inget enemy-spawn,
     // ingen wave-progression. Lagen spawnar på motsatta sidor.
     sim.simReadyAt = Date.now() + 5000;

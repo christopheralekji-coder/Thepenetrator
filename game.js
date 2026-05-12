@@ -932,6 +932,259 @@ function drawTdmTeamRings() {
   }
 }
 
+function drawCtfTeamRings() {
+  if (!Coop.ctfTeams) return;
+  const pulse = 0.85 + Math.sin(performance.now() / 200) * 0.15;
+  const drawRing = (wx, wy, team, isMe) => {
+    const x = wx - state.camera.x, y = wy - state.camera.y;
+    if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) return;
+    const color = team === 'red' ? '#ff5a5a' : '#5aaaff';
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isMe ? 3 : 2;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12 * pulse;
+    ctx.globalAlpha = 0.9;
+    if (team === 'blue') ctx.setLineDash([6, 4]);
+    ctx.beginPath();
+    ctx.arc(x, y + 14, 22, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.restore();
+  };
+  if (state.player && Coop.ctfTeams[Coop.myId]) {
+    drawRing(state.player.x, state.player.y, Coop.ctfTeams[Coop.myId], true);
+  }
+  for (const [pid, p] of Coop.players) {
+    if (p.x === undefined) continue;
+    if (p.hp !== undefined && p.hp <= 0) continue;
+    const team = Coop.ctfTeams[pid];
+    if (!team) continue;
+    drawRing(p.x, p.y, team, false);
+  }
+}
+
+// CTF: team-tinted floor halves — visa direkt vem äger vilken sida av arenan.
+// Subtilt så det inte överröstar player/enemies.
+function drawCtfArenaFloor() {
+  const arena = state.ctfArena;
+  if (!arena) return;
+  const cx = state.camera.x, cy = state.camera.y;
+  ctx.save();
+  // Röd sida (vänster halva)
+  ctx.fillStyle = 'rgba(255,60,60,0.05)';
+  ctx.fillRect(0 - cx, 0 - cy, arena.worldW * 0.45, arena.worldH);
+  // Blå sida (höger halva)
+  ctx.fillStyle = 'rgba(60,140,255,0.05)';
+  ctx.fillRect(arena.worldW * 0.55 - cx, 0 - cy, arena.worldW * 0.45, arena.worldH);
+  // Mittlinje (neutral zone)
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([12, 12]);
+  ctx.beginPath();
+  ctx.moveTo(arena.worldW * 0.5 - cx, 0 - cy);
+  ctx.lineTo(arena.worldW * 0.5 - cx, arena.worldH - cy);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Subtila team-cirklar runt baser (ambient glow)
+  const pulse = 0.5 + Math.sin(performance.now() / 700) * 0.2;
+  for (const team of ['red', 'blue']) {
+    const f = state.ctfFlags && state.ctfFlags[team];
+    if (!f) continue;
+    const bx = f.baseX - cx, by = f.baseY - cy;
+    const color = team === 'red' ? 'rgba(255,90,90,' : 'rgba(90,170,255,';
+    const grad = ctx.createRadialGradient(bx, by, 20, bx, by, 220);
+    grad.addColorStop(0, color + (0.12 * pulse) + ')');
+    grad.addColorStop(1, color + '0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(bx, by, 220, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// CTF: rita walls — solida AABB-rektanglar med team-färgad bas-wall + neutral
+// crate/pillar/divider. Ger taktisk visuell läsbarhet.
+function drawCtfWalls() {
+  const walls = state.ctfWalls;
+  if (!walls) return;
+  const cx = state.camera.x, cy = state.camera.y;
+  ctx.save();
+  for (const w of walls) {
+    const x = w.x - cx, y = w.y - cy;
+    if (x + w.w < -10 || x > viewW + 10 || y + w.h < -10 || y > viewH + 10) continue;
+    let fill, stroke;
+    if (w.kind === 'wall_red_base')      { fill = '#5a2020'; stroke = '#ff6060'; }
+    else if (w.kind === 'wall_blue_base'){ fill = '#1a2a5a'; stroke = '#60a0ff'; }
+    else if (w.kind === 'wall_pillar')   { fill = '#444';    stroke = '#888'; }
+    else if (w.kind === 'wall_divider')  { fill = '#333';    stroke = '#666'; }
+    else                                 { fill = '#6a4a2a'; stroke = '#b07b3a'; } // crate
+    // Fyllning
+    ctx.fillStyle = fill;
+    ctx.fillRect(x, y, w.w, w.h);
+    // Border (lite ljusare)
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+    // Inner highlight för crates (träplankor-look)
+    if (w.kind === 'crate') {
+      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x + 4, y + w.h * 0.5);
+      ctx.lineTo(x + w.w - 4, y + w.h * 0.5);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+// CTF: rita flag-stands + dropped flags + carrier-flagga ovanför bärare
+function drawCtfFlags() {
+  const flags = state.ctfFlags;
+  if (!flags) return;
+  const cx = state.camera.x, cy = state.camera.y;
+  const t = performance.now();
+  const pulse = 0.7 + Math.sin(t / 250) * 0.3;
+  ctx.save();
+
+  const drawFlagStand = (team, f) => {
+    const x = f.baseX - cx, y = f.baseY - cy;
+    if (x < -60 || x > viewW + 60 || y < -60 || y > viewH + 60) return;
+    const color = team === 'red' ? '#ff5a5a' : '#5aaaff';
+    // Capture-zon ring (alltid synlig)
+    ctx.strokeStyle = team === 'red' ? 'rgba(255,90,90,0.35)' : 'rgba(90,170,255,0.35)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.arc(x, y, state.ctfCaptureRadius || 50, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Pulserande glow när flagga är hemma
+    if (f.atBase) {
+      const glowR = 32 + pulse * 8;
+      const grad = ctx.createRadialGradient(x, y, 8, x, y, glowR);
+      grad.addColorStop(0, team === 'red' ? 'rgba(255,90,90,0.55)' : 'rgba(90,170,255,0.55)');
+      grad.addColorStop(1, team === 'red' ? 'rgba(255,90,90,0)' : 'rgba(90,170,255,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, glowR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Stolpe (alltid synlig - markerar bas-position)
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(x - 2, y - 4, 4, 28);
+    // Bas-platta
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y + 26, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Flag-tyg (endast om flagga är hemma — inte vid carry/dropped)
+    if (f.atBase) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      const flutter = Math.sin(t / 200) * 2;
+      ctx.moveTo(x, y - 4);
+      ctx.lineTo(x + 18 + flutter, y);
+      ctx.lineTo(x, y + 6);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  };
+
+  const drawDroppedFlag = (team, f) => {
+    const x = f.x - cx, y = f.y - cy;
+    if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) return;
+    const color = team === 'red' ? '#ff5a5a' : '#5aaaff';
+    // Auto-return countdown ring (30s)
+    const droppedAge = f.droppedAt ? (t - f.droppedAt) / 1000 : 0;
+    const timeLeft = Math.max(0, 30 - droppedAge);
+    const frac = timeLeft / 30;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.arc(x, y, 18, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    // Pulserande glow
+    const glowR = 14 + pulse * 4;
+    const grad = ctx.createRadialGradient(x, y, 4, x, y, glowR);
+    grad.addColorStop(0, team === 'red' ? 'rgba(255,90,90,0.8)' : 'rgba(90,170,255,0.8)');
+    grad.addColorStop(1, team === 'red' ? 'rgba(255,90,90,0)' : 'rgba(90,170,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, glowR, 0, Math.PI * 2);
+    ctx.fill();
+    // Flag-emoji + tyg
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x - 2, y - 8);
+    ctx.lineTo(x + 12, y - 4);
+    ctx.lineTo(x - 2, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(x - 3, y - 9, 2, 18);
+  };
+
+  const drawCarrierFlag = (team, carrierId) => {
+    let carrier = null;
+    if (carrierId === Coop.myId && state.player) carrier = state.player;
+    else if (Coop.players && Coop.players.has(carrierId)) carrier = Coop.players.get(carrierId);
+    if (!carrier || carrier.x === undefined) return;
+    const x = carrier.x - cx, y = carrier.y - cy;
+    if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) return;
+    const color = team === 'red' ? '#ff5a5a' : '#5aaaff';
+    const wave = Math.sin(t / 150) * 3;
+    // Flagga ovanför huvudet
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 24);
+    ctx.lineTo(x + 16 + wave, y - 20);
+    ctx.lineTo(x, y - 16);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // Stolpe
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(x - 1, y - 26, 2, 14);
+    // Trail (partiklar i lagets färg)
+    if ((carrier._trailTimer === undefined || t - carrier._trailTimer > 80)) {
+      carrier._trailTimer = t;
+      if (state.particles && state.particles.length < 200) {
+        state.particles.push({
+          x: carrier.x, y: carrier.y + 8, vx: 0, vy: 0, life: 0.55,
+          color: team === 'red' ? 'rgba(255,90,90,0.7)' : 'rgba(90,170,255,0.7)',
+          r: 5, isBloodPool: true,
+        });
+      }
+    }
+  };
+
+  // Stands (alltid rita) + dropped/carrier (per state)
+  for (const team of ['red', 'blue']) {
+    const f = flags[team];
+    if (!f) continue;
+    drawFlagStand(team, f);
+    if (f.carrierId) drawCarrierFlag(team, f.carrierId);
+    else if (!f.atBase) drawDroppedFlag(team, f);
+  }
+  ctx.restore();
+}
+
 function drawCoopPartner() {
   if (!Coop.active || Coop.inLobby) return;
   const now = performance.now();
@@ -4771,6 +5024,204 @@ const Coop = {
       if (typeof showTdmEndScreen === 'function') {
         showTdmEndScreen(ev.winner, ev.redKills || 0, ev.blueKills || 0, ev.stats || [], this.tdmTeams || {});
       }
+    } else if (ev.type === 'ctf_started') {
+      // CTF-läge initierat — spara arena + walls + flag-positions + teams
+      this.ctfActive = true;
+      this.ctfTargetCaptures = ev.targetCaptures || 3;
+      this.ctfTeams = ev.teams || {};      // peerId → 'red'|'blue'
+      this.ctfRedCaps = 0;
+      this.ctfBlueCaps = 0;
+      state.ctfActive = true;
+      state.ctfTargetCaptures = this.ctfTargetCaptures;
+      state.ctfTeams = this.ctfTeams;
+      state.ctfRedCaps = 0;
+      state.ctfBlueCaps = 0;
+      // Server skickar arena-meta separat från walls/spawns/flags — slå ihop till
+      // ett objekt med fallback till CTF_ARENA-globalen (shared/ctf-arena.js)
+      const fallback = (typeof CTF_ARENA !== 'undefined') ? CTF_ARENA : null;
+      state.ctfArena = ev.arena || fallback;
+      state.ctfWalls = ev.walls || (fallback ? fallback.walls : []);
+      state.ctfCaptureRadius = ev.captureRadius || (fallback ? fallback.captureRadius : 50);
+      state.ctfPickupRadius = ev.pickupRadius || (fallback ? fallback.pickupRadius : 28);
+      state.ctfFlags = {
+        red:  { x: ev.flags.red.baseX,  y: ev.flags.red.baseY,  baseX: ev.flags.red.baseX,  baseY: ev.flags.red.baseY,  carrierId: null, atBase: true, droppedAt: null },
+        blue: { x: ev.flags.blue.baseX, y: ev.flags.blue.baseY, baseX: ev.flags.blue.baseX, baseY: ev.flags.blue.baseY, carrierId: null, atBase: true, droppedAt: null },
+      };
+      // Rensa solo-spawned entities — server äger
+      state.enemies = [];
+      state.bullets = [];
+      state.bossAlive = false;
+      state.bossIntro = null;
+      // Custom stage så kamera/koord matchar CTF-arena
+      if (ev.arena) {
+        state.customStages = [{
+          id: 'ctf_arena',
+          name: ev.arena.name || 'BATTLEGROUND',
+          kind: 'ctf',
+          worldW: ev.arena.worldW,
+          worldH: ev.arena.worldH,
+          spawnPos: { x: Math.floor(ev.arena.worldW * 0.10), y: Math.floor(ev.arena.worldH * 0.50) },
+          goalPos: { x: Math.floor(ev.arena.worldW * 0.90), y: Math.floor(ev.arena.worldH * 0.50) },
+        }];
+        state.wave = 1;
+      }
+      const myTeam = this.ctfTeams[this.myId];
+      if (state.player && ev.spawns && ev.spawns[myTeam] && ev.spawns[myTeam][0]) {
+        const sp = ev.spawns[myTeam][0];
+        state.player.x = sp.x;
+        state.player.y = sp.y;
+        state.player.hp = state.player.maxHp || 100;
+        state.player.spectating = false;
+        state.player.invuln = 1.5;
+        state.player.carryingFlag = null;
+      }
+      if (typeof showCtfHud === 'function') showCtfHud(myTeam);
+      if (typeof updateCtfScore === 'function') updateCtfScore(0, 0, this.ctfTargetCaptures);
+      if (typeof showToast === 'function') showToast(myTeam === 'red' ? '🚩 DU ÄR I RÖDA LAGET' : '🚩 DU ÄR I BLÅA LAGET');
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
+    } else if (ev.type === 'ctf_flag_picked') {
+      // Server-shape: { peerId, team (=flag picked up), carrierTeam }
+      const flagTeam = ev.team;
+      if (state.ctfFlags && state.ctfFlags[flagTeam]) {
+        state.ctfFlags[flagTeam].carrierId = ev.peerId;
+        state.ctfFlags[flagTeam].atBase = false;
+        state.ctfFlags[flagTeam].droppedAt = null;
+      }
+      if (ev.peerId === this.myId && state.player) state.player.carryingFlag = flagTeam;
+      if (typeof updateCtfFlagIcons === 'function') updateCtfFlagIcons();
+      const isMine = ev.peerId === this.myId;
+      const flagName = flagTeam === 'red' ? 'RÖD' : 'BLÅ';
+      if (typeof showCtfStatus === 'function') showCtfStatus(isMine ? `🚩 DU TOG ${flagName} FLAGGAN!` : `⚠ ${flagName} FLAGGAN TOGS!`, 2400);
+      if (typeof Audio !== 'undefined' && Audio.purchase && isMine) Audio.purchase();
+      if (typeof triggerShake === 'function' && isMine) triggerShake(6, 0.3);
+    } else if (ev.type === 'ctf_flag_dropped') {
+      // Server-shape: { team, x, y, droppedBy }
+      const flagTeam = ev.team;
+      if (state.ctfFlags && state.ctfFlags[flagTeam]) {
+        state.ctfFlags[flagTeam].carrierId = null;
+        state.ctfFlags[flagTeam].atBase = false;
+        state.ctfFlags[flagTeam].x = ev.x;
+        state.ctfFlags[flagTeam].y = ev.y;
+        state.ctfFlags[flagTeam].droppedAt = performance.now();
+      }
+      if (state.player && state.player.carryingFlag === flagTeam) state.player.carryingFlag = null;
+      if (typeof updateCtfFlagIcons === 'function') updateCtfFlagIcons();
+      const flagName = flagTeam === 'red' ? 'RÖD' : 'BLÅ';
+      if (typeof showCtfStatus === 'function') showCtfStatus(`💧 ${flagName} FLAGGAN TAPPADES`, 1800);
+    } else if (ev.type === 'ctf_flag_returned') {
+      // Server-shape: { team, peerId?, reason: 'carrier_lost'|'timeout'|'manual' }
+      const flagTeam = ev.team;
+      if (state.ctfFlags && state.ctfFlags[flagTeam]) {
+        const f = state.ctfFlags[flagTeam];
+        f.carrierId = null;
+        f.atBase = true;
+        f.x = f.baseX;
+        f.y = f.baseY;
+        f.droppedAt = null;
+      }
+      if (typeof updateCtfFlagIcons === 'function') updateCtfFlagIcons();
+      const flagName = flagTeam === 'red' ? 'RÖD' : 'BLÅ';
+      const reasonText = ev.reason === 'timeout' ? '(auto-return)' : (ev.reason === 'manual' ? '(retur)' : '(återställd)');
+      if (typeof showCtfStatus === 'function') showCtfStatus(`🏠 ${flagName} FLAGGAN HEMMA ${reasonText}`, 1800);
+    } else if (ev.type === 'ctf_flag_captured') {
+      // Server-shape: { peerId, team (=scoring team), captures: { red, blue } }
+      this.ctfRedCaps = (ev.captures && ev.captures.red) || 0;
+      this.ctfBlueCaps = (ev.captures && ev.captures.blue) || 0;
+      state.ctfRedCaps = this.ctfRedCaps;
+      state.ctfBlueCaps = this.ctfBlueCaps;
+      // Den OPPONENT-flagga som carrier just deponerade resetas till sin egen bas.
+      // Carriern var i 'ev.team', flaggan som plockades upp tillhör motståndar-laget.
+      const scoredBy = ev.team;
+      const flagTeamReset = scoredBy === 'red' ? 'blue' : 'red';
+      if (state.ctfFlags && state.ctfFlags[flagTeamReset]) {
+        const f = state.ctfFlags[flagTeamReset];
+        f.carrierId = null;
+        f.atBase = true;
+        f.x = f.baseX;
+        f.y = f.baseY;
+        f.droppedAt = null;
+      }
+      if (state.player && state.player.carryingFlag === flagTeamReset) state.player.carryingFlag = null;
+      if (typeof updateCtfFlagIcons === 'function') updateCtfFlagIcons();
+      if (typeof updateCtfScore === 'function') updateCtfScore(this.ctfRedCaps, this.ctfBlueCaps, this.ctfTargetCaptures);
+      const capperName = (ev.peerId === this.myId)
+        ? (this.myName || 'Du')
+        : (this.players.get(ev.peerId) && this.players.get(ev.peerId).name) || 'Spelare';
+      const teamColor = scoredBy === 'red' ? '#ff5a5a' : '#5aaaff';
+      if (typeof showCtfStatus === 'function') showCtfStatus(`🏆 ${capperName.toUpperCase()} SCOREADE!`, 2800);
+      if (typeof showToast === 'function') showToast(`🏆 ${capperName} (${scoredBy.toUpperCase()}) SCOREADE!`);
+      if (typeof Audio !== 'undefined' && Audio.achievement) Audio.achievement();
+      if (typeof triggerShake === 'function') triggerShake(10, 0.7);
+      // Konfetti-burst i lagets färg vid scorande lagets bas
+      if (typeof spawnParticles === 'function' && state.ctfFlags && state.ctfFlags[scoredBy]) {
+        const baseX = state.ctfFlags[scoredBy].baseX;
+        const baseY = state.ctfFlags[scoredBy].baseY;
+        spawnParticles(baseX, baseY, teamColor, 40, 250);
+      }
+    } else if (ev.type === 'ctf_kill') {
+      // Server-shape: { killer, victim, killerTeam, victimTeam, weapon }
+      const killerName = (ev.killer === this.myId)
+        ? (this.myName || 'Du')
+        : (this.players.get(ev.killer) && this.players.get(ev.killer).name) || 'Spelare';
+      const victimName = (ev.victim === this.myId)
+        ? (this.myName || 'Du')
+        : (this.players.get(ev.victim) && this.players.get(ev.victim).name) || 'Spelare';
+      const weaponName = ev.weapon && W_BY_ID[ev.weapon] ? (W_BY_ID[ev.weapon].name || ev.weapon) : null;
+      if (typeof addCtfKillFeed === 'function') addCtfKillFeed(killerName, ev.killerTeam, victimName, ev.victimTeam, weaponName);
+      if (ev.victim === this.myId) {
+        if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
+        if (typeof triggerShake === 'function') triggerShake(14, 0.6);
+      } else if (ev.killer === this.myId) {
+        if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+      }
+    } else if (ev.type === 'ctf_player_died') {
+      if (ev.victim === this.myId && typeof showCtfRespawnCountdown === 'function') {
+        const respawnAt = ev.durationMs ? Date.now() + ev.durationMs : ev.respawnAt;
+        showCtfRespawnCountdown(respawnAt);
+        if (state.player) state.player.carryingFlag = null;
+      }
+    } else if (ev.type === 'ctf_player_respawned') {
+      if (ev.peerId === this.myId && state.player) {
+        state.player.spectating = false;
+        state.player.specTarget = null;
+        state.player.x = ev.x;
+        state.player.y = ev.y;
+        state.player.hp = state.player.maxHp || 100;
+        state.player.invuln = 1.5;
+        state.player.flashUntil = 0;
+        state.player.carryingFlag = null;
+        state.deadBody = null;
+        if (typeof _ctfRespawnOverlay !== 'undefined' && _ctfRespawnOverlay) {
+          _ctfRespawnOverlay.classList.add('hidden');
+        }
+        if (typeof _ctfRespawnInterval !== 'undefined' && _ctfRespawnInterval) {
+          clearInterval(_ctfRespawnInterval);
+        }
+        if (typeof showToast === 'function') showToast('🔄 RESPAWN');
+      }
+    } else if (ev.type === 'ctf_team_assigned') {
+      if (this.ctfTeams && ev.peerId && ev.team) {
+        this.ctfTeams[ev.peerId] = ev.team;
+        if (state.ctfTeams) state.ctfTeams[ev.peerId] = ev.team;
+      }
+    } else if (ev.type === 'ctf_match_end') {
+      // Server-shape: { winner, captures: { red, blue }, stats: { red, blue, perPlayer: { pid: { team, captures, kills, deaths } } } }
+      this.ctfActive = false;
+      state.ctfActive = false;
+      if (state.player) state.player.carryingFlag = null;
+      const redCaps = (ev.captures && ev.captures.red) || 0;
+      const blueCaps = (ev.captures && ev.captures.blue) || 0;
+      // Konvertera perPlayer-objekt till array för showCtfEndScreen
+      const statsArr = [];
+      if (ev.stats && ev.stats.perPlayer) {
+        for (const pid of Object.keys(ev.stats.perPlayer)) {
+          const s = ev.stats.perPlayer[pid];
+          statsArr.push({ peerId: pid, team: s.team, captures: s.captures || 0, kills: s.kills || 0, deaths: s.deaths || 0 });
+        }
+      }
+      if (typeof showCtfEndScreen === 'function') {
+        showCtfEndScreen(ev.winner, redCaps, blueCaps, statsArr, this.ctfTeams || {});
+      }
     } else if (ev.type === 'stage_loaded') {
       if (window._debug) console.log('[SIM] stage loaded:', ev.stageName);
     } else if (ev.type === 'countdown_start') {
@@ -5895,30 +6346,53 @@ function renderHostControls() {
   });
   lobbyModeButtonsEl.appendChild(convoyBtn);
 
-  // PvP-rutan: TDM (+ utbyggbart för fler PvP-modes)
+  // PvP-rutan: TDM + CTF (mutually exclusive)
   const pvpEl = document.getElementById('lobby-pvp-buttons');
   if (pvpEl) {
     pvpEl.innerHTML = '';
+    // TDM-knapp
     const tdmBtn = document.createElement('button');
-    tdmBtn.textContent = '⚔️ TDM (Team Deathmatch)';
+    tdmBtn.textContent = '⚔️ TDM';
     tdmBtn.style.cssText = 'background:' + (Coop.config.tdm ? '#ff5a5a' : '#222') + ';color:' + (Coop.config.tdm ? '#fff' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
     if (Coop.config.tdm) tdmBtn.classList.add('active');
     tdmBtn.addEventListener('click', () => {
       const newTdm = !Coop.config.tdm;
       Coop.config.tdm = newTdm;
+      Coop.config.ctf = false; // mutually exclusive
       if (newTdm) {
         Coop.config.serverSim = true;
         Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
       }
       Coop.updateConfig({
-        tdm: newTdm,
+        tdm: newTdm, ctf: false,
         tdmTargetKills: Coop.config.tdmTargetKills,
         serverSim: Coop.config.serverSim,
       });
       renderHostControls();
     });
     pvpEl.appendChild(tdmBtn);
-    // Target-kills selector (visas bara om TDM aktivt)
+    // CTF-knapp
+    const ctfBtn = document.createElement('button');
+    ctfBtn.textContent = '🚩 CTF (Capture the Flag)';
+    ctfBtn.style.cssText = 'background:' + (Coop.config.ctf ? '#aa3aff' : '#222') + ';color:' + (Coop.config.ctf ? '#fff' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
+    if (Coop.config.ctf) ctfBtn.classList.add('active');
+    ctfBtn.addEventListener('click', () => {
+      const newCtf = !Coop.config.ctf;
+      Coop.config.ctf = newCtf;
+      Coop.config.tdm = false; // mutually exclusive
+      if (newCtf) {
+        Coop.config.serverSim = true;
+        Coop.config.ctfTargetCaptures = Coop.config.ctfTargetCaptures || 3;
+      }
+      Coop.updateConfig({
+        ctf: newCtf, tdm: false,
+        ctfTargetCaptures: Coop.config.ctfTargetCaptures,
+        serverSim: Coop.config.serverSim,
+      });
+      renderHostControls();
+    });
+    pvpEl.appendChild(ctfBtn);
+    // Target-selectors per aktivt PvP-läge
     if (Coop.config.tdm) {
       for (const tk of [10, 20, 30]) {
         const tkBtn = document.createElement('button');
@@ -5930,6 +6404,18 @@ function renderHostControls() {
           renderHostControls();
         });
         pvpEl.appendChild(tkBtn);
+      }
+    } else if (Coop.config.ctf) {
+      for (const tc of [3, 5, 10]) {
+        const tcBtn = document.createElement('button');
+        tcBtn.textContent = tc + ' flags';
+        tcBtn.style.cssText = 'background:' + ((Coop.config.ctfTargetCaptures || 3) === tc ? '#ff5a5a' : '#222') + ';color:#fff;font-size:11px;padding:6px 10px;';
+        tcBtn.addEventListener('click', () => {
+          Coop.config.ctfTargetCaptures = tc;
+          Coop.updateConfig({ ctfTargetCaptures: tc });
+          renderHostControls();
+        });
+        pvpEl.appendChild(tcBtn);
       }
     }
   }
@@ -6244,6 +6730,10 @@ btnCoopStart.addEventListener('click', () => {
     if (Coop.config.tdm) {
       payload.tdm = true;
       payload.tdmTargetKills = Coop.config.tdmTargetKills || 10;
+    }
+    if (Coop.config.ctf) {
+      payload.ctf = true;
+      payload.ctfTargetCaptures = Coop.config.ctfTargetCaptures || 3;
     }
     Coop.ws.send(JSON.stringify(payload));
     Coop.serverSimActive = true;
@@ -10658,6 +11148,174 @@ if (_btnTdmRematch) {
   });
 }
 
+// ============================================================
+// CTF HUD — capture-score banner + flag-status + kill-feed + match-end screen
+// ============================================================
+const _ctfHud = document.getElementById('ctf-hud');
+const _ctfRedEl = document.getElementById('ctf-red');
+const _ctfBlueEl = document.getElementById('ctf-blue');
+const _ctfTargetEl = document.getElementById('ctf-target');
+const _ctfRedFlagEl = document.getElementById('ctf-red-flag');
+const _ctfBlueFlagEl = document.getElementById('ctf-blue-flag');
+const _ctfStatusEl = document.getElementById('ctf-status');
+const _ctfKillFeedEl = document.getElementById('ctf-killfeed');
+const _ctfEndOverlay = document.getElementById('ctf-end-overlay');
+const _ctfEndTitle = document.getElementById('ctf-end-title');
+const _ctfEndScore = document.getElementById('ctf-end-score');
+const _ctfEndStats = document.getElementById('ctf-end-stats');
+const _btnCtfBack = document.getElementById('btn-ctf-back');
+const _btnCtfRematch = document.getElementById('btn-ctf-rematch');
+const _ctfRespawnOverlay = document.getElementById('ctf-respawn-overlay');
+const _ctfRespawnNum = document.getElementById('ctf-respawn-num');
+let _ctfRespawnInterval = null;
+
+function showCtfRespawnCountdown(respawnAt) {
+  if (!_ctfRespawnOverlay || !_ctfRespawnNum) return;
+  _ctfRespawnOverlay.classList.remove('hidden');
+  if (_ctfRespawnInterval) clearInterval(_ctfRespawnInterval);
+  const tick = () => {
+    const remaining = Math.max(0, respawnAt - Date.now());
+    if (remaining <= 0) {
+      _ctfRespawnOverlay.classList.add('hidden');
+      clearInterval(_ctfRespawnInterval);
+      _ctfRespawnInterval = null;
+      return;
+    }
+    _ctfRespawnNum.textContent = String(Math.ceil(remaining / 1000));
+  };
+  tick();
+  _ctfRespawnInterval = setInterval(tick, 100);
+}
+
+function showCtfHud(myTeam) {
+  if (!_ctfHud) return;
+  _ctfHud.classList.remove('hidden');
+  if (_ctfRedEl) _ctfRedEl.textContent = 'RED 0';
+  if (_ctfBlueEl) _ctfBlueEl.textContent = 'BLUE 0';
+  if (_ctfTargetEl) _ctfTargetEl.textContent = String(Coop.ctfTargetCaptures || 3);
+  if (_ctfRedFlagEl) { _ctfRedFlagEl.textContent = '🚩'; _ctfRedFlagEl.style.opacity = '1'; _ctfRedFlagEl.style.filter = 'hue-rotate(0deg)'; }
+  if (_ctfBlueFlagEl) { _ctfBlueFlagEl.textContent = '🚩'; _ctfBlueFlagEl.style.opacity = '1'; _ctfBlueFlagEl.style.filter = 'hue-rotate(190deg)'; }
+  if (_ctfKillFeedEl) _ctfKillFeedEl.innerHTML = '';
+  if (_ctfStatusEl) { _ctfStatusEl.style.display = 'none'; _ctfStatusEl.textContent = ''; }
+}
+function hideCtfHud() {
+  if (_ctfHud) _ctfHud.classList.add('hidden');
+}
+function updateCtfScore(red, blue, target) {
+  if (_ctfRedEl) _ctfRedEl.textContent = 'RED ' + red;
+  if (_ctfBlueEl) _ctfBlueEl.textContent = 'BLUE ' + blue;
+  if (_ctfTargetEl) _ctfTargetEl.textContent = String(target || 3);
+}
+function updateCtfFlagIcons() {
+  const flags = state.ctfFlags;
+  if (!flags) return;
+  const setIcon = (el, flag, hue) => {
+    if (!el) return;
+    if (flag.carrierId) { el.textContent = '🏃'; el.style.opacity = '1'; }
+    else if (!flag.atBase) { el.textContent = '⚠'; el.style.opacity = '1'; }
+    else { el.textContent = '🚩'; el.style.opacity = '1'; }
+    el.style.filter = `hue-rotate(${hue}deg)`;
+  };
+  setIcon(_ctfRedFlagEl, flags.red, 0);
+  setIcon(_ctfBlueFlagEl, flags.blue, 190);
+}
+function showCtfStatus(text, durationMs) {
+  if (!_ctfStatusEl) return;
+  _ctfStatusEl.textContent = text;
+  _ctfStatusEl.style.display = 'block';
+  if (_ctfStatusEl._timeout) clearTimeout(_ctfStatusEl._timeout);
+  _ctfStatusEl._timeout = setTimeout(() => {
+    _ctfStatusEl.style.display = 'none';
+  }, durationMs || 2200);
+}
+function addCtfKillFeed(killerName, killerTeam, victimName, victimTeam, weaponName) {
+  if (!_ctfKillFeedEl) return;
+  const row = document.createElement('div');
+  const kColor = killerTeam === 'red' ? '#ff5a5a' : '#5aaaff';
+  const vColor = victimTeam === 'red' ? '#ff5a5a' : '#5aaaff';
+  row.className = 'tdm-kf-row tdm-kf-' + killerTeam;
+  const weaponHtml = weaponName ? `<span class="tdm-kf-weapon">· ${escapeHtml(weaponName)}</span>` : '';
+  row.innerHTML = `<span class="tdm-kf-killer" style="color:${kColor};">${escapeHtml(killerName)}</span><span class="tdm-kf-arrow">⚡</span><span class="tdm-kf-victim" style="color:${vColor};">${escapeHtml(victimName)}</span>${weaponHtml}`;
+  _ctfKillFeedEl.appendChild(row);
+  while (_ctfKillFeedEl.children.length > 5) _ctfKillFeedEl.removeChild(_ctfKillFeedEl.firstChild);
+  setTimeout(() => {
+    if (row.parentNode) {
+      row.classList.add('fading');
+      setTimeout(() => { if (row.parentNode) row.parentNode.removeChild(row); }, 400);
+    }
+  }, 4100);
+}
+function showCtfEndScreen(winner, redCaps, blueCaps, stats, teams) {
+  if (!_ctfEndOverlay) return;
+  hideCtfHud();
+  const winColor = winner === 'red' ? 'rgba(255,90,90,0.4)' : 'rgba(90,170,255,0.4)';
+  const flash = document.createElement('div');
+  flash.style.cssText = `position:fixed;inset:0;background:${winColor};z-index:199;pointer-events:none;animation:tdmEndFlash 1s forwards;`;
+  document.body.appendChild(flash);
+  setTimeout(() => { if (flash.parentNode) flash.parentNode.removeChild(flash); }, 1100);
+  _ctfEndOverlay.classList.remove('hidden');
+  if (_btnCtfRematch) _btnCtfRematch.classList.toggle('hidden', !Coop.isHost);
+  if (_ctfEndTitle) {
+    _ctfEndTitle.textContent = winner === 'red' ? 'RED WINS' : 'BLUE WINS';
+    _ctfEndTitle.style.color = winner === 'red' ? '#ff5a5a' : '#5aaaff';
+  }
+  if (_ctfEndScore) _ctfEndScore.textContent = redCaps + ' — ' + blueCaps;
+  if (_ctfEndStats) {
+    const sorted = (stats || []).slice().sort((a, b) => (b.captures - a.captures) || (b.kills - a.kills));
+    _ctfEndStats.innerHTML = sorted.map(s => {
+      const name = (s.peerId === Coop.myId)
+        ? (Coop.myName || 'Du')
+        : (Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || 'Spelare';
+      const tColor = s.team === 'red' ? '#ff5a5a' : '#5aaaff';
+      const isMe = s.peerId === Coop.myId ? ' (du)' : '';
+      return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);gap:10px;">
+        <span style="color:${tColor};font-weight:700;">${escapeHtml(name)}${isMe}</span>
+        <span style="color:#ddd;"><b>🚩 ${s.captures || 0}</b> · ⚡ ${s.kills || 0} · 💀 ${s.deaths || 0}</span>
+      </div>`;
+    }).join('') || '<div style="color:#888;">Inga stats</div>';
+  }
+}
+if (_btnCtfBack) {
+  _btnCtfBack.addEventListener('click', () => {
+    if (_ctfEndOverlay) _ctfEndOverlay.classList.add('hidden');
+    if (Coop.isHost && Coop.ws && Coop.ws.readyState === 1) {
+      try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (e) {}
+    }
+    state.ctfActive = false;
+    Coop.ctfActive = false;
+    Coop.serverSimActive = false;
+    state.serverSimActive = false;
+    state.mode = 'menu';
+    if (typeof Music !== 'undefined' && Music.stop) Music.stop();
+    document.body.classList.add('menu-mode');
+    if (typeof menuScreen !== 'undefined') menuScreen.classList.remove('hidden');
+    Coop.disconnect();
+  });
+}
+if (_btnCtfRematch) {
+  _btnCtfRematch.addEventListener('click', () => {
+    if (!Coop.isHost) return;
+    if (_ctfEndOverlay) _ctfEndOverlay.classList.add('hidden');
+    if (Coop.ws && Coop.ws.readyState === 1) {
+      try {
+        Coop.ws.send(JSON.stringify({ type: 'sim_stop' }));
+        setTimeout(() => {
+          if (!Coop.ws || Coop.ws.readyState !== 1) return;
+          Coop.ws.send(JSON.stringify({
+            type: 'sim_start',
+            wave: 1,
+            difficulty: Coop.config.difficulty || 'veteran',
+            ngpLevel: 0,
+            mode: Coop.config.mode || 'story',
+            ctf: true,
+            ctfTargetCaptures: Coop.config.ctfTargetCaptures || 3,
+          }));
+        }, 400);
+      } catch (e) {}
+    }
+  });
+}
+
 // Killstreak banner (visas i sidan av skärmen, inte i mitten)
 let killstreakBanner = { text: '', timer: 0, count: 0 };
 function showKillstreakBanner(count) {
@@ -11001,12 +11659,18 @@ function updatePlayer(dt, now) {
     // Adrenalin-perk: snabbare vid <30% HP
     const adrenalineSpeed = (hasPerk('adrenalin') && p.hp < p.maxHp * 0.3) ? 1.35 : 1;
     const cheatSpeed = isCheatActive('speedrun') ? 2 : 1;
-    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * dt;
-    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * dt;
+    // CTF: flag-bärare är 25% långsammare (taktisk risk/reward)
+    const ctfCarrySlow = (state.ctfActive && p.carryingFlag) ? 0.75 : 1;
+    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * dt;
+    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * dt;
   }
   p.x = Math.max(p.r, Math.min(WORLD.w - p.r, p.x));
   p.y = Math.max(p.r, Math.min(WORLD.h - p.r, p.y));
   resolveBuildingCollision(p);
+  // CTF: blockera spelar-rörelse vid wall-overlap (klientlokalt; server är auktoritativ)
+  if (state.ctfActive && state.ctfWalls && typeof resolveCtfWall === 'function') {
+    resolveCtfWall(p, state.ctfWalls);
+  }
 
   // sikta: prio fire-joystick, sen mus, sen rörelse, sen auto-aim
   if (input.fireJoyActive && save.firejoy) {
@@ -19622,6 +20286,8 @@ function render() {
   if (state.mode === 'menu' || !state.player) return;
 
   drawEnvironment();
+  // CTF: team-tinted floor halves + walls + flag-stands UNDER allt annat
+  if (state.ctfActive) drawCtfArenaFloor();
   drawHazards();
   drawCollectibles();
   drawPickups();
@@ -19633,8 +20299,9 @@ function render() {
   // Entities
   for (const e of state.enemies) drawEnemy(e);
   drawDeadBody();
-  // TDM: rita team-ringar UNDER spelarna så de syns på avstånd
+  // TDM/CTF: rita team-ringar UNDER spelarna så de syns på avstånd
   if (state.tdmActive && Coop.tdmTeams) drawTdmTeamRings();
+  if (state.ctfActive && Coop.ctfTeams) drawCtfTeamRings();
   if (!state.player || !state.player.spectating) drawPlayer();
   drawCoopPartner();
   // Emotes ovanpå allt
@@ -19657,6 +20324,11 @@ function render() {
   if (state.truck) drawTruck();
   // Bullets
   for (const b of state.bullets) drawBullet(b);
+  // CTF walls + flag-stands + dropped/carried flags (ovanpå entities men under HUD)
+  if (state.ctfActive) {
+    drawCtfWalls();
+    drawCtfFlags();
+  }
   // Top layer: damage-numbers + crit-text + chatter + explosions
   for (const p of state.particles) if (p.isDamageNumber || p.isCritText || p.isChatter) drawParticle(p);
   for (const p of state.particles) if (p.isExplosion) drawParticle(p);

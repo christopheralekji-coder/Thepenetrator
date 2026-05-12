@@ -271,6 +271,8 @@ function handleMessage(ws, msg) {
       wave: msg.wave,
       tdm: msg.tdm,
       tdmTargetKills: msg.tdmTargetKills,
+      ctf: msg.ctf,
+      ctfTargetCaptures: msg.ctfTargetCaptures,
     });
     send(ws, { type: 'sim_started' });
     // Meddela alla i rummet

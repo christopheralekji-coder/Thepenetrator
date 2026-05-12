@@ -11,6 +11,7 @@
 
 const { W_BY_ID } = require('../../shared/weapons-data');
 const { findNearestPlayer } = require('./enemies');
+const { CTF_ARENA, bulletHitsWall } = require('../../shared/ctf-arena');
 
 // Skada enemy server-side (mirror av game.js:5073-5116, utan UI/audio)
 // Returnerar true om enemy dog.
@@ -252,6 +253,14 @@ function updateBullets(sim, dt, now) {
       bullets.splice(i, 1);
       continue;
     }
+    // CTF: wall-collision. Skott dör vid wall-hit så cover faktiskt skyddar.
+    if (sim.ctfActive && bulletHitsWall(b, CTF_ARENA.walls)) {
+      if (b.explosive && !b.hostile) {
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+      }
+      bullets.splice(i, 1);
+      continue;
+    }
     // Hostile bullets — collision mot players (Phase 6 polish — sker även i enemies.js)
     // I aktuell flow: enemy contact-damage hanteras i enemies.js, hostile bullets
     // som flyger måste också kolla mot players.
@@ -333,6 +342,64 @@ function updateBullets(sim, dt, now) {
       }
       if (pvpHit) bullets.splice(i, 1);
       continue;  // skip enemy collision when in TDM
+    }
+    // CTF-mode: player-bullet kollar mot andra spelare (andra laget) + dödar
+    // → applyCtfDeath droppar ev. flagga, sim.ctfKillsByPid trackar
+    if (sim.ctfActive) {
+      if (sim.ctfEnded) continue;
+      let pvpHit = false;
+      const ownerWs = sim.room.members.get(b.ownerPid);
+      const ownerTeam = ownerWs && ownerWs.tdmTeam;
+      if (!ownerTeam) continue;
+      for (const [pid, ws] of sim.room.members) {
+        if (pid === b.ownerPid) continue;
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        if (ws.tdmTeam === ownerTeam) continue;
+        const invuln = ws.playerState.invulnUntil || 0;
+        if (Date.now() < invuln) continue;
+        const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
+        const rsum = 14 + b.r + 8;
+        if (dx * dx + dy * dy < rsum * rsum) {
+          ws.playerState.hp = Math.max(0, ws.playerState.hp - b.dmg);
+          if (ws.playerState.hp <= 0) {
+            ws.tdmRespawnAt = Date.now() + 3000;
+            sim.ctfKillsByPid[b.ownerPid] = (sim.ctfKillsByPid[b.ownerPid] || 0) + 1;
+            sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
+            sim.eventQueue.push({
+              type: 'ctf_kill',
+              killer: b.ownerPid,
+              victim: pid,
+              killerTeam: ownerTeam,
+              victimTeam: ws.tdmTeam,
+              weapon: b.weaponId || null,
+            });
+            sim.eventQueue.push({
+              type: 'ctf_player_died',
+              victim: pid,
+              durationMs: 3000,
+            });
+            // Drop flagga om victim bar en (refererar applyCtfDeath inline)
+            for (const team of ['red', 'blue']) {
+              const flag = sim.ctfFlags[team];
+              if (flag.carrierId === pid) {
+                flag.carrierId = null;
+                flag.atBase = false;
+                flag.x = ws.playerState.x;
+                flag.y = ws.playerState.y;
+                flag.droppedAt = Date.now();
+                sim.eventQueue.push({
+                  type: 'ctf_flag_dropped',
+                  team, x: flag.x, y: flag.y, droppedBy: pid,
+                });
+              }
+            }
+          }
+          pvpHit = true;
+          break;
+        }
+      }
+      if (pvpHit) bullets.splice(i, 1);
+      continue;
     }
     // Player bullet — kolla mot enemies. Lag-kompensation: utöka hit-radie med 8px så klient
     // som skjuter på snabb enemy (runner/ninja: 200+ px/s = 20-25px lag på 100ms RTT) träffar.
