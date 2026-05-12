@@ -1278,6 +1278,45 @@ function drawPvpPickups() {
   ctx.restore();
 }
 
+// PvP shield-bubble: rita runt spelare som är immuna. Visas för mig + alla
+// partners som har aktiv shield. Renderas i alla PvP-lägen.
+function drawPvpShieldBubbles() {
+  const now = performance.now();
+  const draw = (wx, wy) => {
+    const x = wx - state.camera.x, y = wy - state.camera.y;
+    if (x < -60 || x > viewW + 60 || y < -60 || y > viewH + 60) return;
+    const pulse = 0.7 + Math.sin(now / 120) * 0.3;
+    ctx.save();
+    // Outer ring
+    ctx.strokeStyle = `rgba(140,255,200,${0.55 * pulse})`;
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#5aff9a';
+    ctx.shadowBlur = 18 * pulse;
+    ctx.beginPath();
+    ctx.arc(x, y, 26, 0, Math.PI * 2);
+    ctx.stroke();
+    // Inner glow
+    const grad = ctx.createRadialGradient(x, y, 8, x, y, 26);
+    grad.addColorStop(0, `rgba(140,255,200,${0.18 * pulse})`);
+    grad.addColorStop(1, 'rgba(140,255,200,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, 26, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+  if (state.player && state.player.pvpShieldUntil && now < state.player.pvpShieldUntil) {
+    draw(state.player.x, state.player.y);
+  }
+  if (typeof Coop !== 'undefined' && Coop.players) {
+    for (const [, p] of Coop.players) {
+      if (p.pvpShieldUntil && now < p.pvpShieldUntil && p.x !== undefined) {
+        draw(p.x, p.y);
+      }
+    }
+  }
+}
+
 // CTF: rita hold-to-return progress-ring runt spelaren när de håller över egen dropped-flag
 function drawCtfReturnHold() {
   const hold = state.ctfReturnHold;
@@ -4289,6 +4328,44 @@ if (_btnDash) {
   _btnDash.addEventListener('touchstart', onDashDown, { passive: false });
 }
 
+// PvP-shield-knapp: 3s total immunitet, 45s cooldown. Bara aktiv i TDM/CTF.
+// Server-auth: skickar pvp_ability_shield till server som sätter invulnUntil.
+const PVP_SHIELD_DURATION_MS = 3000;
+const PVP_SHIELD_COOLDOWN_MS = 45000;
+const _btnPvpShield = document.getElementById('btn-pvp-shield');
+function tryPvpShield() {
+  const p = state.player;
+  if (!p) return;
+  if (!state.tdmActive && !state.ctfActive) return;
+  const now = performance.now();
+  if (p.pvpShieldUntil && now < p.pvpShieldUntil) return; // redan aktiv
+  const cdEnd = (p.pvpShieldCdAt || 0) + PVP_SHIELD_COOLDOWN_MS;
+  if (cdEnd > now) {
+    if (typeof showToast === 'function') {
+      const remaining = Math.ceil((cdEnd - now) / 1000);
+      showToast('🛡 Cooldown ' + remaining + 's');
+    }
+    return;
+  }
+  // Optimistic-aktivera lokalt + skicka till server
+  p.pvpShieldUntil = now + PVP_SHIELD_DURATION_MS;
+  p.pvpShieldCdAt = now;
+  if (typeof Coop !== 'undefined' && Coop.ws && Coop.ws.readyState === 1) {
+    try { Coop.ws.send(JSON.stringify({ type: 'pvp_ability_shield' })); } catch (_) {}
+  }
+  if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(600, 0.3, 'sine', 0.3, 0.005, 0.25, 1000);
+  if (typeof showToast === 'function') showToast('🛡 SHIELD AKTIV (3s)');
+  if (typeof triggerVibrate === 'function') triggerVibrate(40);
+}
+if (_btnPvpShield) {
+  const onShieldDown = (e) => {
+    e.preventDefault();
+    if (state.mode === 'playing') tryPvpShield();
+  };
+  _btnPvpShield.addEventListener('pointerdown', onShieldDown);
+  _btnPvpShield.addEventListener('touchstart', onShieldDown, { passive: false });
+}
+
 // EMOTE-knapp + picker (lazy-build första gången knappen trycks så EMOTES finns då)
 const emotePickerEl = document.getElementById('emote-picker');
 let _emotePickerBuilt = false;
@@ -5054,6 +5131,14 @@ const Coop = {
       } else {
         this.ws.send(JSON.stringify({ type: 'join', code: joinCode, name: myName }));
       }
+      // App-level keepalive: skicka tom 'keepalive' var 25s så Render/proxies
+      // inte cuttar idle WS-anslutningen. Server räknar alla messages som alive.
+      if (this._keepaliveInterval) clearInterval(this._keepaliveInterval);
+      this._keepaliveInterval = setInterval(() => {
+        if (this.ws && this.ws.readyState === 1) {
+          try { this.ws.send(JSON.stringify({ type: 'keepalive' })); } catch (_) {}
+        }
+      }, 25000);
     };
     this.ws.onmessage = (ev) => {
       // Binärt frame → world packet
@@ -5547,6 +5632,16 @@ const Coop = {
       }
     } else if (ev.type === 'ctf_return_cancelled') {
       if (ev.peerId === this.myId) state.ctfReturnHold = null;
+    } else if (ev.type === 'pvp_shield_used') {
+      // En spelare aktiverade PvP-shield-knappen. Server-shape: { peerId, durationMs }
+      const dur = ev.durationMs || 3000;
+      const until = performance.now() + dur;
+      if (ev.peerId === this.myId && state.player) {
+        state.player.pvpShieldUntil = until;
+      } else if (this.players.has(ev.peerId)) {
+        const p = this.players.get(ev.peerId);
+        p.pvpShieldUntil = until;
+      }
     } else if (ev.type === 'pvp_hp_changed') {
       // PvP shield + HP-uppdatering efter damage eller pickup.
       // Server-shape: { peerId, hp, shield }
@@ -6349,6 +6444,7 @@ const Coop = {
     if (typeof _tdmRespawnOverlay !== 'undefined' && _tdmRespawnOverlay) _tdmRespawnOverlay.classList.add('hidden');
     this._stopPingLoop();
     if (this._serverPingInterval) { clearInterval(this._serverPingInterval); this._serverPingInterval = null; }
+    if (this._keepaliveInterval) { clearInterval(this._keepaliveInterval); this._keepaliveInterval = null; }
     if (this.ws) {
       try { this.ws.close(); } catch(e) {}
     }
@@ -12124,6 +12220,24 @@ function updateDashCdRing() {
   if (Math.abs(cd - _lastDashCdSet) < 0.01) return;
   _lastDashCdSet = cd;
   _btnDash.style.setProperty('--dash-cd', cd.toFixed(3));
+}
+
+// PvP-shield knapp: show/hide + cooldown-ring update
+let _lastShieldCdSet = -1;
+let _lastShieldVisible = null;
+function updatePvpShieldButton() {
+  if (!_btnPvpShield) return;
+  const inPvP = state.tdmActive || state.ctfActive;
+  if (inPvP !== _lastShieldVisible) {
+    _lastShieldVisible = inPvP;
+    _btnPvpShield.classList.toggle('hidden', !inPvP);
+  }
+  if (!inPvP || !state.player) return;
+  const elapsed = performance.now() - (state.player.pvpShieldCdAt || -PVP_SHIELD_COOLDOWN_MS);
+  const cd = elapsed >= PVP_SHIELD_COOLDOWN_MS ? 1 : Math.max(0, elapsed / PVP_SHIELD_COOLDOWN_MS);
+  if (Math.abs(cd - _lastShieldCdSet) < 0.01) return;
+  _lastShieldCdSet = cd;
+  _btnPvpShield.style.setProperty('--shield-cd', cd.toFixed(3));
 }
 
 // In-game lag-indikator (MS): under HP-bar, längst in mot vänster.
@@ -21032,6 +21146,8 @@ function render() {
   }
   // TDM walls (cover-crates + pillar) — samma render som CTF walls
   if (state.tdmActive && state.tdmWalls) drawPvpWalls(state.tdmWalls);
+  // PvP shield-bubbles ovanpå spelare (TDM + CTF)
+  if (state.tdmActive || state.ctfActive) drawPvpShieldBubbles();
   // PvP-pickups (HP/shield-regen) — rita på både TDM och CTF
   if ((state.tdmActive || state.ctfActive) && state.pvpPickups) drawPvpPickups();
   // Top layer: damage-numbers + crit-text + chatter + explosions
@@ -22080,7 +22196,7 @@ function runFrame(dt, now) {
   }
 
   // Per-frame CSS-var-update för dash-cooldown-ring (smooth animation)
-  if (state.mode === 'playing') updateDashCdRing();
+  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); }
 
   render();
 }

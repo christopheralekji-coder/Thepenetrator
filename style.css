@@ -755,6 +755,48 @@ html, body {
   box-shadow: 0 2px 8px rgba(60,200,255,0.6), inset 0 2px 6px rgba(0,0,0,0.3);
 }
 
+/* PvP-shield (TDM/CTF only): 3s immunitet med 45s cooldown */
+.action-btn.pvp-shield {
+  position: absolute;
+  right: 195px;
+  bottom: 8px;
+  width: 60px;
+  height: 60px;
+  font-size: 22px;
+  background: radial-gradient(circle at 30% 30%, rgba(140,255,200,0.85), rgba(40,160,120,0.9));
+  border-color: rgba(120,255,180,0.7);
+  box-shadow: 0 4px 16px rgba(80,255,180,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+  --shield-cd: 1; /* 0..1 — 1 = ready, 0 = just-activated */
+  --shield-color: #5aff9a;
+}
+.action-btn.pvp-shield::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(from -90deg, rgba(0,0,0,0.62) calc((1 - var(--shield-cd)) * 360deg), transparent 0);
+  opacity: calc(1 - var(--shield-cd));
+}
+.action-btn.pvp-shield::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  pointer-events: none;
+  border: 2px solid var(--shield-color);
+  opacity: calc(var(--shield-cd) * 0.7);
+  box-shadow: 0 0 12px var(--shield-color);
+}
+.action-btn.pvp-shield {
+  filter: saturate(calc(0.4 + var(--shield-cd) * 0.6));
+  transition: filter 0.1s;
+}
+.action-btn.pvp-shield:active {
+  background: radial-gradient(circle at 30% 30%, rgba(200,255,220,1), rgba(60,200,150,1));
+  box-shadow: 0 2px 8px rgba(120,255,180,0.6), inset 0 2px 6px rgba(0,0,0,0.3);
+}
+
 /* Overlays — modern fräsch design med scroll */
 .overlay {
   position: absolute;

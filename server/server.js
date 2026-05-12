@@ -429,6 +429,28 @@ function handleMessage(ws, msg) {
     broadcastPublicRooms();
     return;
   }
+
+  // PvP-shield-ability: 3s immunitet, 45s cooldown. Bara TDM/CTF.
+  if (msg.type === 'pvp_ability_shield') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    if (!room.sim.tdmActive && !room.sim.ctfActive) return;
+    if (!ws.playerState || ws.playerState.hp <= 0) return;
+    const now = Date.now();
+    const SHIELD_DURATION = 3000;
+    const SHIELD_COOLDOWN = 45000;
+    if (ws._lastShieldUseAt && now - ws._lastShieldUseAt < SHIELD_COOLDOWN) return; // cooldown
+    ws._lastShieldUseAt = now;
+    // Sätter invulnUntil — bullets.js/explode kollar redan denna
+    ws.playerState.invulnUntil = Math.max(ws.playerState.invulnUntil || 0, now + SHIELD_DURATION);
+    // Broadcasta så alla klienter renderar bubblan + ljudet
+    room.sim.eventQueue.push({
+      type: 'pvp_shield_used',
+      peerId: ws.id,
+      durationMs: SHIELD_DURATION,
+    });
+    return;
+  }
   if (msg.type === 'sim_input') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
