@@ -617,7 +617,7 @@ function drawTruck() {
 function spawnCompanion() {
   if (!save.companions || !save.companions.active) { state.companion = null; return; }
   // PvP-modes (tdm/ctf/siege) tillåter inte companion — orättvist + ingen shop att köpa
-  if (Coop.active && Coop.config && (Coop.config.tdm || Coop.config.ctf || Coop.config.siege)) {
+  if (Coop.active && Coop.config && (Coop.config.tdm || Coop.config.ctf || Coop.config.siege || Coop.config.gungame)) {
     state.companion = null; return;
   }
   const id = save.companions.active;
@@ -2915,7 +2915,7 @@ const COOP_STORY_WEAPON_UNLOCKS = {
   // Stage 6+: alla 6 låsta, ingen ytterligare unlock
 };
 function isCoopStoryMode() {
-  return Coop.active && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && (Coop.config.mode === 'story' || !Coop.config.mode);
+  return Coop.active && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && (Coop.config.mode === 'story' || !Coop.config.mode);
 }
 function coopStoryUnlockedThroughWave(wave) {
   const unlocked = ['fists'];
@@ -5732,7 +5732,7 @@ const _btnPvpShield = document.getElementById('btn-pvp-shield');
 function tryPvpShield() {
   const p = state.player;
   if (!p) return;
-  if (!state.tdmActive && !state.ctfActive && !state.siegeActive) return;
+  if (!state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive) return;
   const now = performance.now();
   if (p.pvpShieldUntil && now < p.pvpShieldUntil) return; // redan aktiv
   // Bugfix: ingen cooldown vid match-start. pvpShieldCdAt = null = aldrig använd.
@@ -6686,8 +6686,8 @@ const Coop = {
     if (ev.type === 'tdm_started') {
       // PvP-läge initierat — spara team-roster och visa banner
       // Säkerställ mutual exclusion mellan PvP-modes
-      this.ctfActive = false; this.siegeActive = false;
-      state.ctfActive = false; state.siegeActive = false;
+      this.ctfActive = false; this.siegeActive = false; this.gungameActive = false;
+      state.ctfActive = false; state.siegeActive = false; state.gungameActive = false;
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
       state.companion = null;
       this.tdmActive = true;
@@ -6843,8 +6843,8 @@ const Coop = {
     } else if (ev.type === 'ctf_started') {
       // CTF-läge initierat — spara arena + walls + flag-positions + teams
       // Säkerställ mutual exclusion mellan PvP-modes
-      this.tdmActive = false; this.siegeActive = false;
-      state.tdmActive = false; state.siegeActive = false;
+      this.tdmActive = false; this.siegeActive = false; this.gungameActive = false;
+      state.tdmActive = false; state.siegeActive = false; state.gungameActive = false;
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
       state.companion = null;
       this.ctfActive = true;
@@ -7192,8 +7192,8 @@ const Coop = {
       //                 turrets, turretEnterRadius, captureTimeSec, decorations,
       //                 pvpPickups, shieldMax }
       // Säkerställ mutual exclusion mellan PvP-modes
-      this.tdmActive = false; this.ctfActive = false;
-      state.tdmActive = false; state.ctfActive = false;
+      this.tdmActive = false; this.ctfActive = false; this.gungameActive = false;
+      state.tdmActive = false; state.ctfActive = false; state.gungameActive = false;
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
       state.companion = null;
       this.siegeActive = true;
@@ -7410,6 +7410,145 @@ const Coop = {
         const r = (ev.scores && ev.scores.red) || 0;
         const b = (ev.scores && ev.scores.blue) || 0;
         showSiegeEndScreen(ev.winner, r, b, statsArr, this.siegeTeams || {}, ev.reason);
+      }
+    } else if (ev.type === 'gungame_started') {
+      // FFA 15-tier mode. ev: { arena, walls, spawns, decorations, weapons, totalTiers, shieldMax }
+      this.tdmActive = false; this.ctfActive = false; this.siegeActive = false;
+      state.tdmActive = false; state.ctfActive = false; state.siegeActive = false;
+      state.companion = null; // ingen companion i PvP
+      this.gungameActive = true;
+      state.gungameActive = true;
+      this.gungameWeapons = ev.weapons || [];
+      this.gungameTotalTiers = ev.totalTiers || 15;
+      this.gungameTier = 0;
+      this.gungameTiers = {}; // peerId → tier (för partner-render)
+      state.gungameWalls = ev.walls || [];
+      state.gungameDecorations = ev.decorations || [];
+      state.pvpShieldMax = ev.shieldMax || 100;
+      // Rensa solo-state
+      state.enemies = []; state.bullets = [];
+      state.bossAlive = false; state.bossIntro = null;
+      state.waveActive = false; state.enemiesToSpawn = 0;
+      state._serverSpawnWaitSince = 0; state._serverWakeToastShown = false;
+      if (ev.arena) {
+        state.customStages = [{
+          id: 'gungame_arena', name: ev.arena.name || 'GUNGAME ARENA',
+          kind: 'gungame', worldW: ev.arena.worldW, worldH: ev.arena.worldH,
+          spawnPos: { x: 200, y: 200 }, goalPos: { x: ev.arena.worldW - 200, y: ev.arena.worldH - 200 },
+        }];
+        state.wave = 1;
+        WORLD.w = ev.arena.worldW; WORLD.h = ev.arena.worldH;
+        if (typeof stageState !== 'undefined') {
+          stageState.buildings = []; stageState.decorations = [];
+          stageState.hazards = []; stageState.collectibles = [];
+        }
+      }
+      // Force first weapon = fists, lock arsenal to just current tier's weapon
+      if (state.player) {
+        state.player.weaponId = this.gungameWeapons[0];
+        state.player.hp = state.player.maxHp || 100;
+        state.player.shield = state.pvpShieldMax;
+        state.player.maxShield = state.pvpShieldMax;
+        state.player.spectating = false;
+        state.player.invuln = 1.5;
+      }
+      save.equipped = this.gungameWeapons[0];
+      save.weaponId = this.gungameWeapons[0];
+      save.owned = ['fists', ...this.gungameWeapons]; // alla 15 unlockad — kommer användas via tier
+      if (typeof showGungameHud === 'function') showGungameHud();
+      if (typeof updateGungameTier === 'function') updateGungameTier(0, this.gungameWeapons);
+      if (typeof showToast === 'function') showToast('🔫 GUNGAME — döda dig till tier 15!');
+      if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('tdm');
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
+    } else if (ev.type === 'gungame_kill') {
+      // { killer, victim, weapon, killerTier, victimTier, wasMelee, demoted }
+      const killerName = (ev.killer === this.myId) ? (this.myName || 'Du')
+        : (this.players.get(ev.killer) && this.players.get(ev.killer).name) || 'Spelare';
+      const victimName = (ev.victim === this.myId) ? (this.myName || 'Du')
+        : (this.players.get(ev.victim) && this.players.get(ev.victim).name) || 'Spelare';
+      const weaponName = ev.weapon && W_BY_ID[ev.weapon] ? (W_BY_ID[ev.weapon].name || ev.weapon) : null;
+      if (typeof addGungameKillFeed === 'function') addGungameKillFeed(killerName, victimName, weaponName, ev.wasMelee, ev.demoted);
+      // Uppdatera tiers cache
+      this.gungameTiers = this.gungameTiers || {};
+      this.gungameTiers[ev.killer] = ev.killerTier;
+      this.gungameTiers[ev.victim] = ev.victimTier;
+      // Ego: jag är killer → uppgradera mitt vapen
+      if (ev.killer === this.myId) {
+        this.gungameTier = ev.killerTier;
+        const newWeapon = this.gungameWeapons[ev.killerTier];
+        if (newWeapon && state.player) {
+          state.player.weaponId = newWeapon;
+          save.equipped = newWeapon;
+          save.weaponId = newWeapon;
+          // Reset reload-state så nytt vapen är direkt redo
+          state.player.reloading = false;
+          state.player.ammo = (W_BY_ID[newWeapon] && W_BY_ID[newWeapon].mag) || 0;
+        }
+        if (typeof updateGungameTier === 'function') updateGungameTier(ev.killerTier, this.gungameWeapons);
+        if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+        if (typeof showToast === 'function') {
+          const nextW = W_BY_ID[this.gungameWeapons[ev.killerTier]];
+          showToast('⬆ TIER ' + (ev.killerTier + 1) + '/' + this.gungameTotalTiers + (nextW ? ' — ' + nextW.name : ''));
+        }
+      }
+      // Ego: jag blev demoterad
+      if (ev.victim === this.myId && ev.demoted) {
+        this.gungameTier = ev.victimTier;
+        if (typeof showToast === 'function') showToast('⬇ DEMOTION! Melee-kill → tier ' + (ev.victimTier + 1));
+      }
+      if (ev.victim === this.myId) {
+        if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
+        if (typeof triggerShake === 'function') triggerShake(14, 0.6);
+      }
+    } else if (ev.type === 'gungame_player_died') {
+      if (ev.victim === this.myId && typeof showSiegeRespawnCountdown === 'function') {
+        showSiegeRespawnCountdown(Date.now() + (ev.durationMs || 3000));
+      }
+    } else if (ev.type === 'gungame_player_respawned') {
+      if (ev.peerId === this.myId && state.player) {
+        state.player.spectating = false;
+        state.player.specTarget = null;
+        state.player.x = ev.x; state.player.y = ev.y;
+        state.player.hp = ev.hp || state.player.maxHp || 100;
+        state.player.shield = ev.shield != null ? ev.shield : (state.pvpShieldMax || 100);
+        state.player.maxShield = state.pvpShieldMax || 100;
+        state.player.invuln = 1.5;
+        state.player.flashUntil = 0;
+        if (ev.weaponId) {
+          state.player.weaponId = ev.weaponId;
+          save.equipped = ev.weaponId;
+          save.weaponId = ev.weaponId;
+        }
+        state.deadBody = null;
+        if (typeof _siegeRespawnOverlay !== 'undefined' && _siegeRespawnOverlay) _siegeRespawnOverlay.classList.add('hidden');
+        if (typeof _siegeRespawnInterval !== 'undefined' && _siegeRespawnInterval) clearInterval(_siegeRespawnInterval);
+        if (typeof showToast === 'function') showToast('🔄 RESPAWN');
+      }
+      // Uppdatera cached tier för alla
+      if (typeof ev.tier === 'number') {
+        this.gungameTiers = this.gungameTiers || {};
+        this.gungameTiers[ev.peerId] = ev.tier;
+      }
+    } else if (ev.type === 'gungame_match_end') {
+      // { winner, reason ('final_tier_kill'), stats }
+      this.gungameActive = false;
+      state.gungameActive = false;
+      const statsArr = [];
+      if (ev.stats && ev.stats.perPlayer) {
+        for (const pid of Object.keys(ev.stats.perPlayer)) {
+          const s = ev.stats.perPlayer[pid];
+          statsArr.push({ peerId: pid, kills: s.kills || 0, deaths: s.deaths || 0, tier: s.tier || 0 });
+        }
+      }
+      if (typeof showGungameEndScreen === 'function') {
+        showGungameEndScreen(ev.winner, statsArr);
+      } else if (typeof showToast === 'function') {
+        const winnerName = ev.winner === this.myId ? (this.myName || 'Du') : (this.players.get(ev.winner) && this.players.get(ev.winner).name) || 'Spelare';
+        showToast('🏆 ' + winnerName + ' VANN GUNGAME!');
+      }
+    } else if (ev.type === 'gungame_respawn_pending') {
+      if (ev.peerId === this.myId && typeof showSiegeRespawnCountdown === 'function') {
+        showSiegeRespawnCountdown(Date.now() + (ev.durationMs || 3000));
       }
     } else if (ev.type === 'stage_loaded') {
       if (window._debug) console.log('[SIM] stage loaded:', ev.stageName);
@@ -8110,22 +8249,25 @@ const Coop = {
     this._intentionalClose = true;  // hindrar onclose från att auto-reconnecta
     this.active = false; this.inLobby = false;
     this.serverSimActive = false;
-    this.tdmActive = false; this.ctfActive = false; this.siegeActive = false;
+    this.tdmActive = false; this.ctfActive = false; this.siegeActive = false; this.gungameActive = false;
     if (typeof state !== 'undefined') {
       state.serverSimActive = false;
       state.tdmActive = false;
       state.ctfActive = false;
       state.siegeActive = false;
+      state.gungameActive = false;
       // Rensa stale PvP-state så de inte läcker in i nästa run
       state.ctfWalls = null;
       state.tdmWalls = null;
       state.siegeWalls = null;
+      state.gungameWalls = null;
       state.ctfFlags = null;
       state.ctfArena = null;
       state.siegeCores = null;
       state.siegeBases = null;
       state.siegeTurrets = null;
       state.siegeDecorations = null;
+      state.gungameDecorations = null;
       state.pvpPickups = null;
       state.pvpShieldMax = null;
       state.customStages = null;
@@ -8788,13 +8930,13 @@ function renderHostControls() {
     tdmBtn.addEventListener('click', () => {
       const newTdm = !Coop.config.tdm;
       Coop.config.tdm = newTdm;
-      Coop.config.ctf = false; Coop.config.siege = false; // alla PvP mutually exclusive
+      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; // alla PvP mutually exclusive
       if (newTdm) {
         Coop.config.serverSim = true;
         Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
       }
       Coop.updateConfig({
-        tdm: newTdm, ctf: false, siege: false,
+        tdm: newTdm, ctf: false, siege: false, gungame: false,
         tdmTargetKills: Coop.config.tdmTargetKills,
         serverSim: Coop.config.serverSim,
       });
@@ -8809,13 +8951,13 @@ function renderHostControls() {
     ctfBtn.addEventListener('click', () => {
       const newCtf = !Coop.config.ctf;
       Coop.config.ctf = newCtf;
-      Coop.config.tdm = false; Coop.config.siege = false;
+      Coop.config.tdm = false; Coop.config.siege = false; Coop.config.gungame = false;
       if (newCtf) {
         Coop.config.serverSim = true;
         Coop.config.ctfTargetCaptures = Coop.config.ctfTargetCaptures || 3;
       }
       Coop.updateConfig({
-        ctf: newCtf, tdm: false, siege: false,
+        ctf: newCtf, tdm: false, siege: false, gungame: false,
         ctfTargetCaptures: Coop.config.ctfTargetCaptures,
         serverSim: Coop.config.serverSim,
       });
@@ -8830,19 +8972,38 @@ function renderHostControls() {
     siegeBtn.addEventListener('click', () => {
       const newSiege = !Coop.config.siege;
       Coop.config.siege = newSiege;
-      Coop.config.tdm = false; Coop.config.ctf = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.gungame = false;
       if (newSiege) {
         Coop.config.serverSim = true;
         Coop.config.siegeTargetPoints = Coop.config.siegeTargetPoints || 500;
       }
       Coop.updateConfig({
-        siege: newSiege, tdm: false, ctf: false,
+        siege: newSiege, tdm: false, ctf: false, gungame: false,
         siegeTargetPoints: Coop.config.siegeTargetPoints,
         serverSim: Coop.config.serverSim,
       });
       renderHostControls();
     });
     pvpEl.appendChild(siegeBtn);
+    // GUNGAME-knapp (FFA 15-tier progression)
+    const ggBtn = document.createElement('button');
+    ggBtn.textContent = '🔫 GUNGAME (FFA 15-tier)';
+    ggBtn.style.cssText = 'background:' + (Coop.config.gungame ? '#3acaff' : '#222') + ';color:' + (Coop.config.gungame ? '#000' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
+    if (Coop.config.gungame) ggBtn.classList.add('active');
+    ggBtn.addEventListener('click', () => {
+      const newGg = !Coop.config.gungame;
+      Coop.config.gungame = newGg;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
+      if (newGg) {
+        Coop.config.serverSim = true;
+      }
+      Coop.updateConfig({
+        gungame: newGg, tdm: false, ctf: false, siege: false,
+        serverSim: Coop.config.serverSim,
+      });
+      renderHostControls();
+    });
+    pvpEl.appendChild(ggBtn);
     // Target-selectors per aktivt PvP-läge
     if (Coop.config.tdm) {
       for (const tk of [10, 20, 30]) {
@@ -9203,6 +9364,9 @@ btnCoopStart.addEventListener('click', () => {
     if (Coop.config.siege) {
       payload.siege = true;
       payload.siegeTargetPoints = Coop.config.siegeTargetPoints || 500;
+    }
+    if (Coop.config.gungame) {
+      payload.gungame = true;
     }
     Coop.ws.send(JSON.stringify(payload));
     Coop.serverSimActive = true;
@@ -12656,6 +12820,9 @@ document.getElementById('btn-retry').addEventListener('click', () => {
       payload.siege = true;
       payload.siegeTargetPoints = Coop.config.siegeTargetPoints || 500;
     }
+    if (Coop.config.gungame) {
+      payload.gungame = true;
+    }
     try { Coop.ws.send(JSON.stringify(payload)); } catch (_) {}
     Coop.serverSimActive = true;
     state.serverSimActive = true;
@@ -13986,6 +14153,86 @@ if (_btnSiegeRematch) {
   });
 }
 
+// === GUNGAME HUD ===
+// Skapas dynamiskt vid första gungame_started (slipper index.html-ändringar).
+// Visar: TIER X/15 + current vapen + nästa vapen-preview.
+let _gungameHud = null;
+let _gungameKillFeedEl = null;
+function ensureGungameHud() {
+  if (_gungameHud) return;
+  _gungameHud = document.createElement('div');
+  _gungameHud.id = 'gungame-hud';
+  _gungameHud.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.75);border:2px solid #3acaff;border-radius:8px;padding:8px 14px;color:#fff;font-family:sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;z-index:50;display:flex;gap:14px;align-items:center;pointer-events:none;';
+  _gungameHud.innerHTML = '<div id="gg-tier" style="color:#3acaff;">TIER 1/15</div><div id="gg-cur" style="color:#ffd54a;"></div><div style="color:#888;font-size:10px;">NÄSTA:</div><div id="gg-next" style="color:#5aff5a;"></div>';
+  document.body.appendChild(_gungameHud);
+  // Kill feed (samma stil som tdm/siege)
+  _gungameKillFeedEl = document.createElement('div');
+  _gungameKillFeedEl.id = 'gungame-killfeed';
+  _gungameKillFeedEl.style.cssText = 'position:fixed;top:50px;right:12px;width:260px;display:flex;flex-direction:column;gap:3px;z-index:49;pointer-events:none;';
+  document.body.appendChild(_gungameKillFeedEl);
+}
+function showGungameHud() {
+  ensureGungameHud();
+  _gungameHud.classList.remove('hidden');
+  _gungameHud.style.display = 'flex';
+}
+function hideGungameHud() {
+  if (_gungameHud) _gungameHud.style.display = 'none';
+}
+function updateGungameTier(tier, weapons) {
+  ensureGungameHud();
+  const total = (weapons && weapons.length) || 15;
+  const cur = weapons && weapons[tier] && W_BY_ID[weapons[tier]];
+  const next = weapons && weapons[tier + 1] && W_BY_ID[weapons[tier + 1]];
+  const tierEl = document.getElementById('gg-tier');
+  const curEl = document.getElementById('gg-cur');
+  const nextEl = document.getElementById('gg-next');
+  if (tierEl) tierEl.textContent = 'TIER ' + (tier + 1) + '/' + total;
+  if (curEl) curEl.textContent = cur ? cur.name : '?';
+  if (nextEl) nextEl.textContent = next ? next.name : '🏆 FINAL';
+}
+function addGungameKillFeed(killerName, victimName, weaponName, wasMelee, demoted) {
+  ensureGungameHud();
+  if (!_gungameKillFeedEl) return;
+  const row = document.createElement('div');
+  row.className = 'tdm-kf-row';
+  row.style.cssText = 'background:rgba(0,0,0,0.7);padding:4px 8px;border-radius:4px;font-size:11px;color:#fff;border-left:3px solid ' + (wasMelee ? '#ff5a3a' : '#3acaff') + ';';
+  const wHtml = weaponName ? '<span style="color:#ffd54a;"> · ' + escapeHtml(weaponName) + '</span>' : '';
+  const demoteIcon = demoted ? ' <span style="color:#ff5a3a;">⬇</span>' : '';
+  row.innerHTML = '<span style="color:#5aff5a;">' + escapeHtml(killerName) + '</span> ⚡ <span style="color:#fff;">' + escapeHtml(victimName) + '</span>' + wHtml + demoteIcon;
+  _gungameKillFeedEl.appendChild(row);
+  while (_gungameKillFeedEl.children.length > 6) _gungameKillFeedEl.removeChild(_gungameKillFeedEl.firstChild);
+  setTimeout(() => {
+    if (row.parentNode) {
+      row.style.opacity = '0';
+      row.style.transition = 'opacity 0.4s';
+      setTimeout(() => { if (row.parentNode) row.parentNode.removeChild(row); }, 400);
+    }
+  }, 4100);
+}
+function showGungameEndScreen(winnerId, stats) {
+  hideGungameHud();
+  // Återanvänd siege-end-overlay om finns, annars enkel alert/toast
+  const winnerName = winnerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(winnerId) && Coop.players.get(winnerId).name) || 'Spelare');
+  // Build stats-tabell
+  const rows = (stats || []).sort((a, b) => (b.tier || 0) - (a.tier || 0)).map(s => {
+    const name = s.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || s.peerId);
+    return '<tr><td style="padding:4px 8px;">' + escapeHtml(name) + '</td><td style="padding:4px 8px;text-align:center;color:#3acaff;">' + (s.tier + 1) + '/15</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.deaths || 0) + '</td></tr>';
+  }).join('');
+  // Använd siege-end-overlay om det finns
+  if (_siegeEndOverlay) {
+    const titleEl = document.getElementById('siege-end-title');
+    const subEl = document.getElementById('siege-end-subtitle');
+    const statsEl = document.getElementById('siege-end-stats');
+    if (titleEl) titleEl.textContent = '🏆 GUNGAME WINNER';
+    if (subEl) subEl.innerHTML = '<span style="color:#5aff5a;">' + escapeHtml(winnerName) + '</span> klarade alla 15 tiers!';
+    if (statsEl) statsEl.innerHTML = '<table style="margin:8px auto;border-collapse:collapse;"><thead><tr><th style="padding:4px 8px;color:#888;">Spelare</th><th style="padding:4px 8px;color:#888;">Tier</th><th style="padding:4px 8px;color:#888;">Kills</th><th style="padding:4px 8px;color:#888;">Deaths</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    _siegeEndOverlay.classList.remove('hidden');
+  } else if (typeof showToast === 'function') {
+    showToast('🏆 ' + winnerName + ' VANN GUNGAME!');
+  }
+}
+
 // Killstreak banner (visas i sidan av skärmen, inte i mitten)
 let killstreakBanner = { text: '', timer: 0, count: 0 };
 function showKillstreakBanner(count) {
@@ -14061,7 +14308,7 @@ function updateHUD() {
   if (hpBar) hpBar.dataset.low = hpFrac < 0.3 ? '1' : '0';
   // Shield-bar: bara synlig i PvP (TDM/CTF)
   if (typeof _shieldBar !== 'undefined' && _shieldBar) {
-    if ((state.tdmActive || state.ctfActive || state.siegeActive) && p.maxShield) {
+    if ((state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive) && p.maxShield) {
       _shieldBar.classList.remove('hidden');
       const sFrac = Math.max(0, (p.shield || 0) / p.maxShield);
       if (_shieldFill) _shieldFill.style.width = (sFrac * 100) + '%';
@@ -14140,7 +14387,7 @@ let _lastShieldCdSet = -1;
 let _lastShieldVisible = null;
 function updatePvpShieldButton() {
   if (!_btnPvpShield) return;
-  const inPvP = state.tdmActive || state.ctfActive || state.siegeActive;
+  const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive;
   if (inPvP !== _lastShieldVisible) {
     _lastShieldVisible = inPvP;
     _btnPvpShield.classList.toggle('hidden', !inPvP);
@@ -14392,6 +14639,9 @@ function updatePlayer(dt, now) {
   }
   if (state.siegeActive && state.siegeWalls && typeof resolveCtfWall === 'function') {
     resolveCtfWall(p, state.siegeWalls);
+  }
+  if (state.gungameActive && state.gungameWalls && typeof resolveCtfWall === 'function') {
+    resolveCtfWall(p, state.gungameWalls);
   }
 
   // sikta: prio fire-joystick (alltid på när fire-knappen hålls), sen mus, sen rörelse, sen auto-aim
@@ -15428,6 +15678,14 @@ function updateBullets(dt) {
     }
     if (state.siegeActive && state.siegeWalls && typeof bulletHitsWall === 'function') {
       if (bulletHitsWall(b, state.siegeWalls)) {
+        if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
+        if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
+        b.dead = true;
+        continue;
+      }
+    }
+    if (state.gungameActive && state.gungameWalls && typeof bulletHitsWall === 'function') {
+      if (bulletHitsWall(b, state.gungameWalls)) {
         if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
         if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
         b.dead = true;
@@ -19235,7 +19493,7 @@ function drawGoalZone(cx, cy) {
   // PvP-modes använder customStage med goalPos (för spawnPos-symmetri) men
   // har ingen "utgång" — målet är att döda/cappa, inte gå till en plats.
   // Skippa den gula cirkeln + UTGÅNG-pilen helt i alla PvP-modes.
-  if (state.tdmActive || state.ctfActive || state.siegeActive) return;
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive) return;
   const t = performance.now();
   const pulse = 1 + Math.sin(t/280) * 0.15;
   const gx = stage.goalPos.x - cx;
@@ -23097,10 +23355,20 @@ function render() {
     drawSiegeCores();        // core-detalj ovanpå walls
     drawSiegeTurrets();
   }
+  // GUNGAME — bara dekoration + walls (inga cores/bases/turrets)
+  if (state.gungameActive && state.gungameWalls) {
+    // Återanvänd siege-decorations-funktionen via temp-pekare
+    if (state.gungameDecorations && state.gungameDecorations.length) {
+      const saved = state.siegeDecorations;
+      state.siegeDecorations = state.gungameDecorations;
+      try { drawSiegeDecorations(); } finally { state.siegeDecorations = saved; }
+    }
+    drawPvpWalls(state.gungameWalls);
+  }
   // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE)
-  if (state.tdmActive || state.ctfActive || state.siegeActive) drawPvpShieldBubbles();
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive) drawPvpShieldBubbles();
   // PvP-pickups (HP/shield-regen) — alla 3 PvP-lägen
-  if ((state.tdmActive || state.ctfActive || state.siegeActive) && state.pvpPickups) drawPvpPickups();
+  if ((state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive) && state.pvpPickups) drawPvpPickups();
   // Top layer: damage-numbers + crit-text + chatter + explosions
   for (const p of state.particles) if (p.isDamageNumber || p.isCritText || p.isChatter) drawParticle(p);
   for (const p of state.particles) if (p.isExplosion) drawParticle(p);
@@ -23568,10 +23836,11 @@ function drawMiniMap() {
     if (b.kind === 'tree' || b.kind === 'fence_seg' || b.kind === 'fence_seg_broken') continue;
     ctx.fillRect(ox + b.x * scale, oy + b.y * scale, Math.max(1, b.w * scale), Math.max(1, b.h * scale));
   }
-  // PvP-obstacles — alla 3 lägen får walls renderade på minimap
+  // PvP-obstacles — alla 4 lägen får walls renderade på minimap
   const pvpWalls = state.ctfActive ? state.ctfWalls
     : (state.tdmActive ? state.tdmWalls
-    : (state.siegeActive ? state.siegeWalls : null));
+    : (state.siegeActive ? state.siegeWalls
+    : (state.gungameActive ? state.gungameWalls : null)));
   if (pvpWalls) {
     for (const w of pvpWalls) {
       let color;
@@ -24107,7 +24376,7 @@ function runFrame(dt, now) {
       if (Coop.active && Coop.isHost && Coop.serverSimActive && state.waveActive &&
           state.enemiesToSpawn > 0 && state.enemies.length === 0 &&
           state.mode === 'playing' &&
-          !state.tdmActive && !state.ctfActive && !state.siegeActive) {
+          !state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive) {
         const countdownActive = state._countdownEndAt && performance.now() < state._countdownEndAt;
         if (!countdownActive) {
           state._serverSpawnWaitSince = state._serverSpawnWaitSince || performance.now();

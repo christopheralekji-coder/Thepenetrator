@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v178-pvp-no-goalzone';
+const CACHE = 'penetrator-v179-gungame';
 const ASSETS = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const ASSETS = [
   './icon-192.svg',
   './icon-512.svg',
   './shared/ctf-arena.js',
+  './shared/gungame-arena.js',
   './shared/tdm-arena.js',
   './shared/siege-arena.js',
 ];

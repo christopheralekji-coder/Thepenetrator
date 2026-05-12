@@ -437,6 +437,28 @@ function handleMessage(ws, msg) {
         send(m, { type: 'sim_events', events: [{ type: 'siege_team_assigned', peerId: ws.id, team }] });
       }
     }
+    // GUNGAME late-joiner: spawna på roterande spawn, tier 0, FFA (inget team)
+    if (room.sim && room.sim.gungameActive) {
+      const { GUNGAME_ARENA, GUNGAME_WEAPONS } = require('../shared/gungame-arena');
+      const idx = (room.sim._gungameSpawnIdx || 0) % GUNGAME_ARENA.spawns.length;
+      room.sim._gungameSpawnIdx = (room.sim._gungameSpawnIdx || 0) + 1;
+      const sp = GUNGAME_ARENA.spawns[idx];
+      ws.playerState = { x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500, weaponId: GUNGAME_WEAPONS[0] };
+      ws.tdmTeam = null; // FFA
+      room.sim.gungameTiers[ws.id] = 0;
+      room.sim.gungameKillsByPid[ws.id] = 0;
+      room.sim.tdmDeathsByPid[ws.id] = 0;
+      send(ws, { type: 'sim_events', events: [{
+        type: 'gungame_started',
+        arena: { worldW: GUNGAME_ARENA.worldW, worldH: GUNGAME_ARENA.worldH, name: GUNGAME_ARENA.name },
+        walls: GUNGAME_ARENA.walls,
+        spawns: GUNGAME_ARENA.spawns,
+        decorations: GUNGAME_ARENA.decorations || [],
+        weapons: GUNGAME_WEAPONS,
+        totalTiers: GUNGAME_WEAPONS.length,
+        shieldMax: 100,
+      }] });
+    }
     return;
   }
 
@@ -485,11 +507,13 @@ function handleMessage(ws, msg) {
       ctfTargetCaptures: msg.ctfTargetCaptures,
       siege: msg.siege,
       siegeTargetPoints: msg.siegeTargetPoints,
+      gungame: msg.gungame,
     });
     // Markera rummet som "startat" i public-listan + uppdatera mode
     if (room.meta) {
       room.meta.started = true;
-      if (msg.siege) room.meta.mode = 'siege';
+      if (msg.gungame) room.meta.mode = 'gungame';
+      else if (msg.siege) room.meta.mode = 'siege';
       else if (msg.ctf) room.meta.mode = 'ctf';
       else if (msg.tdm) room.meta.mode = 'tdm';
       else if (msg.mode) room.meta.mode = msg.mode;

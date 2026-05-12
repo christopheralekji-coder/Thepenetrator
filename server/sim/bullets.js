@@ -714,6 +714,98 @@ function updateBullets(sim, dt, now) {
       if (pvpHit) bullets.splice(i, 1);
       continue;
     }
+    // GUNGAME-mode: FFA player-bullet kollar mot ALLA andra spelare. Kill →
+    // promote shooter +1 tier, set weapon till nästa tier. Kill med melee →
+    // demote offret -1 tier (cant go below 0). Kill på tier 15 vinner matchen.
+    if (sim.gungameActive) {
+      if (sim.gungameEnded) continue;
+      let pvpHit = false;
+      const ownerWs = sim.room.members.get(b.ownerPid);
+      if (!ownerWs) continue;
+      // Lag comp: rewinda target-position till där skytten såg dem
+      const shooterRtt = ownerWs && ownerWs._serverRtt;
+      for (const [pid, ws] of sim.room.members) {
+        if (pid === b.ownerPid) continue; // ingen self-fire
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        const invuln = ws.playerState.invulnUntil || 0;
+        if (Date.now() < invuln) continue;
+        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const dx = rPos.x - b.x, dy = rPos.y - b.y;
+        const rsum = 14 + b.r + 8;
+        if (dx * dx + dy * dy < rsum * rsum) {
+          const effDmg = getPvpDmg(b.weaponId, b.dmg);
+          let remaining = effDmg;
+          if ((ws.playerState.shield || 0) > 0) {
+            const absorb = Math.min(ws.playerState.shield, remaining);
+            ws.playerState.shield -= absorb;
+            remaining -= absorb;
+          }
+          if (remaining > 0) {
+            ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+          }
+          sim.eventQueue.push({
+            type: 'pvp_hp_changed',
+            peerId: pid,
+            hp: ws.playerState.hp,
+            shield: ws.playerState.shield || 0,
+          });
+          if (ws.playerState.hp <= 0) {
+            // KILL — promote shooter, ev. demote victim
+            const wasMelee = GUNGAME_MELEE_DEMOTERS.has(b.weaponId);
+            sim.gungameKillsByPid[b.ownerPid] = (sim.gungameKillsByPid[b.ownerPid] || 0) + 1;
+            const oldTier = sim.gungameTiers[b.ownerPid] || 0;
+            const newTier = Math.min(GUNGAME_WEAPONS.length - 1, oldTier + 1);
+            sim.gungameTiers[b.ownerPid] = newTier;
+            // Sätt shooter:s vapen till nästa tier
+            if (ownerWs.playerState) {
+              ownerWs.playerState.weaponId = GUNGAME_WEAPONS[newTier];
+            }
+            // Demote-mekanik: melee-kill → offret förlorar 1 tier (cap 0)
+            let demoted = false;
+            if (wasMelee) {
+              const vTier = sim.gungameTiers[pid] || 0;
+              const newVTier = Math.max(0, vTier - 1);
+              if (newVTier < vTier) {
+                sim.gungameTiers[pid] = newVTier;
+                demoted = true;
+              }
+            }
+            // Skicka kill-event + tier-changes
+            sim.eventQueue.push({
+              type: 'gungame_kill',
+              killer: b.ownerPid,
+              victim: pid,
+              weapon: b.weaponId || null,
+              killerTier: newTier,
+              victimTier: sim.gungameTiers[pid],
+              wasMelee,
+              demoted,
+            });
+            // Respawn-event
+            const respawnAt = Date.now() + 3000;
+            ws.tdmRespawnAt = respawnAt;
+            sim.eventQueue.push({
+              type: 'gungame_respawn_pending',
+              peerId: pid,
+              durationMs: 3000,
+            });
+            // Win-check: killer nådde tier 14 (sledge, index 14 = vapen 15) OCH
+            // dödade någon med det vapnet — endast då vinner de.
+            // KORRIGERING: kill med tier 14 (oldTier=14) = win. Nya tiern blir
+            // capped på 14, så villkoret är oldTier === GUNGAME_WEAPONS.length - 1.
+            if (oldTier === GUNGAME_WEAPONS.length - 1) {
+              if (sim._endGungameMatch) {
+                sim._endGungameMatch(sim, b.ownerPid, 'final_tier_kill');
+              }
+            }
+          }
+          pvpHit = true;
+          break;
+        }
+      }
+      if (pvpHit) bullets.splice(i, 1);
+      continue;
+    }
     // Player bullet — kolla mot enemies. Lag-kompensation: utöka hit-radie med 8px så klient
     // som skjuter på snabb enemy (runner/ninja: 200+ px/s = 20-25px lag på 100ms RTT) träffar.
     let hit = false;
