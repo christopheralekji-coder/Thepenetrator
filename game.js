@@ -1133,6 +1133,98 @@ function drawPvpWalls(walls) {
   ctx.restore();
 }
 
+// CTF: rita decorations — skyltar, klotter, lyktor, små flaggor.
+// Ingen collision, bara visuell flavor. Renderas under walls.
+function drawCtfDecorations() {
+  const decos = state.ctfDecorations;
+  if (!decos || !decos.length) return;
+  const cx = state.camera.x, cy = state.camera.y;
+  const t = performance.now();
+  for (const d of decos) {
+    const x = d.x - cx, y = d.y - cy;
+    // Cull (med marginal för rot/text-bounds)
+    if (x < -200 || x > viewW + 200 || y < -100 || y > viewH + 100) continue;
+    ctx.save();
+    if (d.kind === 'sign') {
+      const w = d.w || 120, h = d.h || 28;
+      ctx.translate(x + w / 2, y + h / 2);
+      if (d.rot) ctx.rotate(d.rot);
+      // Skylt-bakgrund
+      ctx.fillStyle = d.bg || '#222';
+      ctx.fillRect(-w / 2, -h / 2, w, h);
+      ctx.strokeStyle = d.fg || '#ffd54a';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(-w / 2 + 0.5, -h / 2 + 0.5, w - 1, h - 1);
+      // Skylt-text (stöder \n)
+      ctx.fillStyle = d.fg || '#ffd54a';
+      const fontSize = d.size || Math.min(h - 8, 14);
+      ctx.font = 'bold ' + fontSize + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const lines = String(d.text || '').split('\n');
+      const lineH = fontSize + 2;
+      const startY = -(lines.length - 1) * lineH / 2;
+      for (let li = 0; li < lines.length; li++) {
+        ctx.fillText(lines[li], 0, startY + li * lineH);
+      }
+      // Nedhängande "kedja"-look längs ovansidan så det ser fastsatt ut
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(-w / 2 - 2, -h / 2 - 4, 3, 4);
+      ctx.fillRect(w / 2 - 1, -h / 2 - 4, 3, 4);
+    } else if (d.kind === 'graffiti') {
+      ctx.translate(x, y);
+      if (d.rot) ctx.rotate(d.rot);
+      const fontSize = d.size || 16;
+      ctx.font = 'bold italic ' + fontSize + 'px sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      // Spray-look: drop-shadow + uneven edges via dubbel-fill
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillText(d.text || '', 2, 2);
+      ctx.fillStyle = d.color || '#fff';
+      ctx.globalAlpha = 0.85;
+      ctx.fillText(d.text || '', 0, 0);
+    } else if (d.kind === 'flag_decoration') {
+      const color = d.team === 'red' ? '#ff5a5a' : '#5aaaff';
+      const wave = Math.sin(t / 220) * 2;
+      // Stolpe
+      ctx.fillStyle = '#3a2a1a';
+      ctx.fillRect(x - 1, y - 18, 2, 30);
+      // Lag-flagga
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 18);
+      ctx.lineTo(x + 14 + wave, y - 14);
+      ctx.lineTo(x, y - 8);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else if (d.kind === 'lantern') {
+      const color = d.color || '#ffb84a';
+      // Glow
+      const pulse = 0.6 + Math.sin(t / 380 + (x + y) * 0.001) * 0.4;
+      const grad = ctx.createRadialGradient(x, y, 4, x, y, 60);
+      grad.addColorStop(0, color);
+      grad.addColorStop(0.4, color + '44');
+      grad.addColorStop(1, 'transparent');
+      ctx.globalAlpha = 0.45 * pulse;
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(x, y, 60, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      // Lyktans bas
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 4, y - 6, 8, 12);
+      ctx.fillStyle = color;
+      ctx.fillRect(x - 3, y - 5, 6, 10);
+    }
+    ctx.restore();
+  }
+}
+
 // CTF: rita turrets — bas + roterande pipa + hp-bar + förstörd-version
 function drawCtfTurrets() {
   if (!state.ctfTurrets) return;
@@ -4590,7 +4682,11 @@ function tryPvpShield() {
   if (!state.tdmActive && !state.ctfActive) return;
   const now = performance.now();
   if (p.pvpShieldUntil && now < p.pvpShieldUntil) return; // redan aktiv
-  const cdEnd = (p.pvpShieldCdAt || 0) + PVP_SHIELD_COOLDOWN_MS;
+  // Bugfix: ingen cooldown vid match-start. pvpShieldCdAt = null = aldrig använd.
+  // Tidigare gjorde (null || 0) + 45000 = 45000 vilket var > performance.now()
+  // när sidan precis laddats → spelaren kunde inte använda shielden första
+  // ~45s av matchen.
+  const cdEnd = p.pvpShieldCdAt == null ? 0 : (p.pvpShieldCdAt + PVP_SHIELD_COOLDOWN_MS);
   if (cdEnd > now) {
     if (typeof showToast === 'function') {
       const remaining = Math.ceil((cdEnd - now) / 1000);
@@ -5691,6 +5787,7 @@ const Coop = {
       state.ctfCaptureRadius = ev.captureRadius || (fallback ? fallback.captureRadius : 50);
       state.ctfPickupRadius = ev.pickupRadius || (fallback ? fallback.pickupRadius : 28);
       state.ctfTurretEnterRadius = ev.turretEnterRadius || 50;
+      state.ctfDecorations = ev.decorations || (fallback ? fallback.decorations : []);
       state.ctfTurrets = {};
       if (ev.turrets) {
         for (const t of ev.turrets) {
@@ -12533,8 +12630,12 @@ function updatePvpShieldButton() {
     _btnPvpShield.classList.toggle('hidden', !inPvP);
   }
   if (!inPvP || !state.player) return;
-  const elapsed = performance.now() - (state.player.pvpShieldCdAt || -PVP_SHIELD_COOLDOWN_MS);
-  const cd = elapsed >= PVP_SHIELD_COOLDOWN_MS ? 1 : Math.max(0, elapsed / PVP_SHIELD_COOLDOWN_MS);
+  // Cooldown-ring: full (1.0) när inte använd än, krymper efter aktivering.
+  let cd = 1;
+  if (state.player.pvpShieldCdAt != null) {
+    const elapsed = performance.now() - state.player.pvpShieldCdAt;
+    cd = elapsed >= PVP_SHIELD_COOLDOWN_MS ? 1 : Math.max(0, elapsed / PVP_SHIELD_COOLDOWN_MS);
+  }
   if (Math.abs(cd - _lastShieldCdSet) < 0.01) return;
   _lastShieldCdSet = cd;
   _btnPvpShield.style.setProperty('--shield-cd', cd.toFixed(3));
@@ -21444,6 +21545,7 @@ function render() {
   for (const b of state.bullets) drawBullet(b);
   // CTF walls + flag-stands + dropped/carried flags (ovanpå entities men under HUD)
   if (state.ctfActive) {
+    drawCtfDecorations(); // skyltar, klotter, lyktor — under walls
     drawCtfWalls();
     drawCtfTurrets();
     drawCtfFlags();

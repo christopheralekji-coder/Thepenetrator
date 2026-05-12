@@ -1060,6 +1060,7 @@ function startSim(sim, opts) {
         id: t.id, team: t.team, x: t.x, y: t.y, r: t.r, maxHp: t.maxHp, hp: t.hp,
       })),
       turretEnterRadius: CTF_ARENA.turretEnterRadius,
+      decorations: CTF_ARENA.decorations || [],
     });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
   } else if (sim.tdmActive) {

@@ -146,6 +146,64 @@ const CTF_ARENA = {
     { x: 3960, y: 1540, w: 80,  h: 20, kind: 'sandbag' },
   ],
 
+  // === DECORATIONS — icke-blockerande visuella element (skyltar, klotter,
+  // graffiti, lyktor, flaggor). Bara render, kollar inte collision. ===
+  decorations: [
+    // ====== RED BASE ======
+    // Stor välkomst-skylt över basens öppning
+    { kind: 'sign', x: 280, y: 1080, w: 200, h: 36, text: '🚩 RED HQ', bg: '#5a1010', fg: '#ffd54a' },
+    // Trash-talk-skylt på back-wall
+    { kind: 'sign', x: 240, y: 1400, w: 160, h: 28, text: 'BLUE = NOOBS', bg: '#3a0808', fg: '#ff9090', rot: -0.08 },
+    // Graffiti på golvet inne i basen
+    { kind: 'graffiti', x: 250, y: 1250, text: 'RED 4 LIFE', color: '#ff5a5a', size: 22, rot: -0.12 },
+    { kind: 'graffiti', x: 260, y: 1550, text: 'VI ÄGER', color: '#ff8a8a', size: 20, rot: 0.08 },
+    { kind: 'graffiti', x: 200, y: 1370, text: 'ROYAL RED', color: '#ffaa50', size: 16, rot: 0 },
+    // Streetart "blue stinks" framför base
+    { kind: 'graffiti', x: 500, y: 1180, text: 'BLUE STINKS', color: '#ff6060', size: 14, rot: -0.05 },
+    { kind: 'graffiti', x: 500, y: 1620, text: 'EZ CLAP', color: '#ff7070', size: 14, rot: 0.05 },
+    // Små team-flaggor på pinnarna i hörnen
+    { kind: 'flag_decoration', x: 150, y: 1150, team: 'red' },
+    { kind: 'flag_decoration', x: 150, y: 1650, team: 'red' },
+    // Lyktor i basen
+    { kind: 'lantern', x: 180, y: 1300, color: '#ff7a3a' },
+    { kind: 'lantern', x: 180, y: 1500, color: '#ff7a3a' },
+    // Bonus: wanted-poster
+    { kind: 'sign', x: 380, y: 1180, w: 90, h: 60, text: 'WANTED:\nBLUE\nFLAGS', bg: '#2a0808', fg: '#ffd54a', size: 9, rot: -0.05 },
+
+    // ====== BLUE BASE ======
+    { kind: 'sign', x: 4220, y: 1080, w: 200, h: 36, text: '🚩 BLUE HQ', bg: '#102050', fg: '#88ccff' },
+    { kind: 'sign', x: 4180, y: 1400, w: 160, h: 28, text: 'RED = SUS', bg: '#082040', fg: '#a0c8ff', rot: 0.08 },
+    { kind: 'graffiti', x: 4190, y: 1250, text: 'BLÅ FOR LIFE', color: '#5aaaff', size: 22, rot: 0.12 },
+    { kind: 'graffiti', x: 4200, y: 1550, text: 'NO RED ZONE', color: '#88aaff', size: 20, rot: -0.08 },
+    { kind: 'graffiti', x: 4250, y: 1370, text: 'ICE COLD', color: '#aacaff', size: 16, rot: 0 },
+    { kind: 'graffiti', x: 3940, y: 1180, text: 'GET REKT', color: '#6080ff', size: 14, rot: 0.05 },
+    { kind: 'graffiti', x: 3940, y: 1620, text: 'L + RATIO', color: '#6080ff', size: 14, rot: -0.05 },
+    { kind: 'flag_decoration', x: 4360, y: 1150, team: 'blue' },
+    { kind: 'flag_decoration', x: 4360, y: 1650, team: 'blue' },
+    { kind: 'lantern', x: 4320, y: 1300, color: '#3a7aff' },
+    { kind: 'lantern', x: 4320, y: 1500, color: '#3a7aff' },
+    { kind: 'sign', x: 4030, y: 1180, w: 90, h: 60, text: 'WANTED:\nRED\nFLAGS', bg: '#080828', fg: '#88ccff', size: 9, rot: 0.05 },
+
+    // ====== MID-ARENA NEUTRAL ======
+    // Stor "BATTLEGROUND"-skylt
+    { kind: 'sign', x: 2150, y: 200, w: 200, h: 32, text: 'BATTLEGROUND', bg: '#2a2a2a', fg: '#ffd54a' },
+    // Warning-skyltar i mid-zone
+    { kind: 'sign', x: 1500, y: 1380, w: 80, h: 24, text: '⚠ DANGER', bg: '#3a1a08', fg: '#ffd54a', rot: -0.1 },
+    { kind: 'sign', x: 2900, y: 1380, w: 80, h: 24, text: '⚠ HOT ZONE', bg: '#3a1a08', fg: '#ffd54a', rot: 0.1 },
+    // Mid-graffiti (neutralt — alla har varit här)
+    { kind: 'graffiti', x: 2250, y: 350, text: 'WAR ZONE', color: '#ddd', size: 18, rot: 0 },
+    { kind: 'graffiti', x: 2250, y: 2500, text: 'KILL OR DIE', color: '#aaa', size: 18, rot: 0 },
+    { kind: 'graffiti', x: 1700, y: 900, text: 'NO MERCY', color: '#ff8a3a', size: 14, rot: -0.1 },
+    { kind: 'graffiti', x: 2800, y: 900, text: 'GIT GUD', color: '#ff8a3a', size: 14, rot: 0.1 },
+    { kind: 'graffiti', x: 1700, y: 1950, text: 'RIP', color: '#888', size: 16, rot: 0.15 },
+    { kind: 'graffiti', x: 2800, y: 1950, text: '☠ HERE', color: '#888', size: 16, rot: -0.15 },
+    // En "tagg" från en spelare i historien
+    { kind: 'graffiti', x: 2250, y: 1380, text: 'JIMMY VAR HÄR', color: '#aa3aff', size: 13, rot: 0 },
+    // Pilar-markings mot baserna
+    { kind: 'sign', x: 700, y: 100, w: 100, h: 22, text: '← RED', bg: '#1a0a0a', fg: '#ff8080', size: 11 },
+    { kind: 'sign', x: 3700, y: 100, w: 100, h: 22, text: 'BLUE →', bg: '#0a0a1a', fg: '#80a0ff', size: 11 },
+  ],
+
   // === MACHINEGUN-TURRETS — ett per lag, just utanför basen ===
   // Tunga prickskytt-positioner. Spelare kan mounta för en kraftig MG men
   // turret hp = 1500 betyder den tål kanske ~75 rifle-shots / ~16 sniper-shots

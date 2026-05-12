@@ -2994,6 +2994,10 @@ body.ios .overlay {
 /* Emote-button: position styrs av JS (syncEmoteButtonToJoystick), CSS handles visuals */
 .emote-btn {
   position: absolute;
+  /* Fallback-position innan JS hinner sync:a mot joystick. Annars hamnar emote
+     vid 0,0 och syns "borta" första frames + om sync misslyckas helt. */
+  bottom: max(80px, calc(env(safe-area-inset-bottom, 16px) + 80px));
+  left: max(160px, calc(env(safe-area-inset-left, 16px) + 160px));
   width: 48px; height: 48px;
   border-radius: 50%;
   background: rgba(170,58,255,0.75);
