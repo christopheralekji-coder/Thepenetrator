@@ -424,11 +424,14 @@ function handleMessage(ws, msg) {
       tdmTargetKills: msg.tdmTargetKills,
       ctf: msg.ctf,
       ctfTargetCaptures: msg.ctfTargetCaptures,
+      siege: msg.siege,
+      siegeTargetPoints: msg.siegeTargetPoints,
     });
-    // Markera rummet som "startat" i public-listan + uppdatera mode om CTF/TDM
+    // Markera rummet som "startat" i public-listan + uppdatera mode
     if (room.meta) {
       room.meta.started = true;
-      if (msg.ctf) room.meta.mode = 'ctf';
+      if (msg.siege) room.meta.mode = 'siege';
+      else if (msg.ctf) room.meta.mode = 'ctf';
       else if (msg.tdm) room.meta.mode = 'tdm';
       else if (msg.mode) room.meta.mode = msg.mode;
     }

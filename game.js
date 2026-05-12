@@ -2315,6 +2315,176 @@ function drawCtfStolenFlagAlert() {
   ctx.restore();
 }
 
+// SIEGE — decorations använder samma renderer som CTF (samma data-format)
+function drawSiegeDecorations() {
+  if (!state.siegeDecorations || !state.siegeDecorations.length) return;
+  // Tillfälligt swap state.ctfDecorations så vi kan återanvända drawCtfDecorations
+  const saved = state.ctfDecorations;
+  state.ctfDecorations = state.siegeDecorations;
+  drawCtfDecorations();
+  state.ctfDecorations = saved;
+}
+
+// SIEGE: capture-bases — pulsande cirklar med owner-färg + capture-progress-ring
+function drawSiegeBases() {
+  if (!state.siegeBases) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const t = performance.now();
+  for (const id of Object.keys(state.siegeBases)) {
+    const b = state.siegeBases[id];
+    const x = b.x - cx, y = b.y - cy;
+    if (x < -120 || x > viewW + 120 || y < -120 || y > viewH + 120) continue;
+    let baseColor;
+    if (b.owner === 'red') baseColor = 'rgba(255,60,60,';
+    else if (b.owner === 'blue') baseColor = 'rgba(60,140,255,';
+    else baseColor = 'rgba(180,180,180,';
+    const pulse = 0.5 + Math.sin(t / 600) * 0.2;
+    // Yttre cirkel (capture-zon)
+    ctx.save();
+    ctx.strokeStyle = baseColor + (0.6 * pulse) + ')';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([10, 6]);
+    ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    // Inner-fyllning (subtil)
+    const grad = ctx.createRadialGradient(x, y, 4, x, y, b.r);
+    grad.addColorStop(0, baseColor + (0.25 * pulse) + ')');
+    grad.addColorStop(1, baseColor + '0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI * 2); ctx.fill();
+    // Capture-progress (om någon captures just nu)
+    if (b.captureProgress > 0 && b.captureSide) {
+      const sideColor = b.captureSide === 'red' ? '#ff5a5a' : '#5aaaff';
+      ctx.strokeStyle = sideColor;
+      ctx.lineWidth = 4;
+      ctx.shadowColor = sideColor; ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.arc(x, y, b.r + 6, -Math.PI / 2, -Math.PI / 2 + b.captureProgress * Math.PI * 2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    // Centrum-emblem (★)
+    ctx.fillStyle = b.owner === 'red' ? '#ff8080' : (b.owner === 'blue' ? '#80aaff' : '#bbb');
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+    ctx.fillText('⬢', x, y);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+}
+
+// SIEGE: cores — stor blinkande HP-bar + symbol över core-byggnaden
+function drawSiegeCores() {
+  if (!state.siegeCores) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const t = performance.now();
+  for (const id of Object.keys(state.siegeCores)) {
+    const c = state.siegeCores[id];
+    const x = c.x - cx, y = c.y - cy;
+    if (x + c.w < -100 || x > viewW + 100 || y + c.h < -100 || y > viewH + 100) continue;
+    ctx.save();
+    if (c.destroyed) {
+      // Förstörd: röd skugga + flickering eld
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(x + 30, y + 30, c.w - 60, c.h - 60);
+      const flicker = 0.5 + Math.random() * 0.5;
+      ctx.fillStyle = `rgba(255,120,30,${flicker * 0.7})`;
+      ctx.fillRect(x + c.w * 0.3, y + c.h * 0.3, c.w * 0.4, c.h * 0.4);
+      if (state.particles && state.particles.length < 200 && Math.random() < 0.4) {
+        state.particles.push({
+          x: c.x + c.w / 2 + (Math.random() - 0.5) * c.w,
+          y: c.y + c.h / 2 + (Math.random() - 0.5) * c.h,
+          vx: (Math.random() - 0.5) * 30,
+          vy: -50 - Math.random() * 40,
+          life: 1.5 + Math.random(),
+          color: 'rgba(80,80,80,0.5)',
+          r: 10 + Math.random() * 5,
+          isExplosion: true,
+        });
+      }
+    } else {
+      // Aktiv core: pulsande inner-light + emblem
+      const pulse = 0.6 + Math.sin(t / 400) * 0.3;
+      const teamColor = c.team === 'red' ? 'rgba(255,90,90,' : 'rgba(90,170,255,';
+      ctx.fillStyle = teamColor + (0.25 * pulse) + ')';
+      ctx.fillRect(x + 30, y + 30, c.w - 60, c.h - 60);
+      // Stor team-emblem
+      ctx.fillStyle = c.team === 'red' ? '#ff8080' : '#88aaff';
+      ctx.font = 'bold 60px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 8;
+      ctx.fillText('🛡', x + c.w / 2, y + c.h / 2);
+      ctx.shadowBlur = 0;
+      // HP-bar ovanför core
+      const bw = c.w - 40;
+      const hpFrac = Math.max(0, c.hp / c.maxHp);
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(x + 20 - 2, y - 22, bw + 4, 12);
+      ctx.fillStyle = hpFrac > 0.5 ? '#5aff5a' : (hpFrac > 0.25 ? '#ffd54a' : '#ff5a5a');
+      ctx.fillRect(x + 20, y - 20, bw * hpFrac, 8);
+      // HP-text
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 2;
+      ctx.fillText(Math.round(c.hp) + ' / ' + c.maxHp, x + c.w / 2, y - 16);
+      ctx.shadowBlur = 0;
+    }
+    ctx.restore();
+  }
+}
+
+// SIEGE: turrets — reuse CTF turret-rendering pattern men för siege state
+function drawSiegeTurrets() {
+  if (!state.siegeTurrets) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const t = performance.now();
+  for (const id of Object.keys(state.siegeTurrets)) {
+    const tur = state.siegeTurrets[id];
+    const x = tur.x - cx, y = tur.y - cy;
+    if (x < -80 || x > viewW + 80 || y < -80 || y > viewH + 80) continue;
+    ctx.save();
+    const teamColor = tur.team === 'red' ? '#ff5a5a' : '#5aaaff';
+    if (tur.destroyed) {
+      ctx.fillStyle = '#222';
+      ctx.beginPath(); ctx.arc(x, y, 24, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#444'; ctx.lineWidth = 2; ctx.stroke();
+      const flicker = 0.5 + Math.random() * 0.5;
+      ctx.fillStyle = `rgba(255,120,30,${flicker * 0.6})`;
+      ctx.beginPath(); ctx.arc(x, y, 8 + Math.random() * 4, 0, Math.PI * 2); ctx.fill();
+    } else {
+      ctx.fillStyle = '#333';
+      ctx.beginPath(); ctx.arc(x, y, tur.r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = teamColor; ctx.lineWidth = 3; ctx.stroke();
+      ctx.fillStyle = '#555';
+      ctx.beginPath(); ctx.arc(x, y, tur.r * 0.65, 0, Math.PI * 2); ctx.fill();
+      // Pipa
+      ctx.strokeStyle = '#222'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + (tur.team === 'red' ? 1 : -1) * (tur.r + 10), y);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+      if (tur.occupantId) {
+        const pulse = 0.6 + Math.sin(t / 200) * 0.4;
+        ctx.fillStyle = `rgba(255,213,74,${pulse})`;
+        ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fill();
+      }
+      if (tur.hp < tur.maxHp) {
+        const bw = 50;
+        const hpFrac = Math.max(0, tur.hp / tur.maxHp);
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(x - bw / 2 - 1, y - tur.r - 16, bw + 2, 7);
+        ctx.fillStyle = hpFrac > 0.5 ? '#5aff5a' : (hpFrac > 0.25 ? '#ffd54a' : '#ff5a5a');
+        ctx.fillRect(x - bw / 2, y - tur.r - 15, bw * hpFrac, 5);
+      }
+    }
+    ctx.restore();
+  }
+}
+
 function drawCoopPartner() {
   if (!Coop.active || Coop.inLobby) return;
   const now = performance.now();
@@ -5460,6 +5630,7 @@ function openPause() {
   // Använd Coop.config (inte state.*Active) så pause efter match-end fortfarande visar rätt mode
   if (state.tdmActive || (Coop.active && Coop.config && Coop.config.tdm)) info.textContent = '⚔ TDM ARENA';
   else if (state.ctfActive || (Coop.active && Coop.config && Coop.config.ctf)) info.textContent = '🚩 CTF — BATTLEGROUND';
+  else if (state.siegeActive || (Coop.active && Coop.config && Coop.config.siege)) info.textContent = '⚔ SIEGE — BASE CONQUEST';
   else {
     const stage = getStage(state.wave);
     const stageName = stage ? stage.name : '';
@@ -6757,6 +6928,161 @@ const Coop = {
       if (typeof showCtfEndScreen === 'function') {
         showCtfEndScreen(ev.winner, redCaps, blueCaps, statsArr, this.ctfTeams || {});
       }
+    } else if (ev.type === 'siege_started') {
+      // Server-shape: { targetPoints, teams, arena, spawns, walls, cores, bases,
+      //                 turrets, turretEnterRadius, captureTimeSec, decorations,
+      //                 pvpPickups, shieldMax }
+      this.siegeActive = true;
+      this.siegeTargetPoints = ev.targetPoints || 100;
+      this.siegeTeams = ev.teams || {};
+      this.siegeRedScore = 0;
+      this.siegeBlueScore = 0;
+      state.siegeActive = true;
+      state.siegeTeams = this.siegeTeams;
+      state.siegeRedScore = 0;
+      state.siegeBlueScore = 0;
+      state.siegeTargetPoints = this.siegeTargetPoints;
+      state.siegeArena = ev.arena;
+      state.siegeWalls = ev.walls || [];
+      state.siegeCaptureTimeSec = ev.captureTimeSec || 3.0;
+      state.siegeTurretEnterRadius = ev.turretEnterRadius || 50;
+      state.siegeDecorations = ev.decorations || [];
+      // Cores
+      state.siegeCores = {};
+      if (ev.cores) for (const c of ev.cores) {
+        state.siegeCores[c.id] = { ...c, destroyed: false };
+      }
+      // Bases
+      state.siegeBases = {};
+      if (ev.bases) for (const b of ev.bases) {
+        state.siegeBases[b.id] = { ...b, captureProgress: 0, captureSide: null };
+      }
+      // Turrets
+      state.siegeTurrets = {};
+      if (ev.turrets) for (const t of ev.turrets) {
+        state.siegeTurrets[t.id] = { ...t, occupantId: null, destroyed: false };
+      }
+      // Pickups
+      state.pvpPickups = {};
+      if (ev.pvpPickups) for (const p of ev.pvpPickups) {
+        state.pvpPickups[p.id] = { id: p.id, x: p.x, y: p.y, type: p.type, available: true, respawnAt: 0 };
+      }
+      state.pvpShieldMax = ev.shieldMax || 100;
+      // Rensa solo-state (samma som CTF/TDM)
+      state.enemies = []; state.bullets = [];
+      state.bossAlive = false; state.bossIntro = null;
+      state.waveActive = false; state.enemiesToSpawn = 0;
+      state._serverSpawnWaitSince = 0; state._serverWakeToastShown = false;
+      if (ev.arena) {
+        state.customStages = [{
+          id: 'siege_arena', name: ev.arena.name || 'SIEGE GROUNDS',
+          kind: 'siege', worldW: ev.arena.worldW, worldH: ev.arena.worldH,
+          spawnPos: { x: Math.floor(ev.arena.worldW * 0.10), y: Math.floor(ev.arena.worldH * 0.50) },
+          goalPos: { x: Math.floor(ev.arena.worldW * 0.90), y: Math.floor(ev.arena.worldH * 0.50) },
+        }];
+        state.wave = 1;
+        WORLD.w = ev.arena.worldW;
+        WORLD.h = ev.arena.worldH;
+        if (typeof stageState !== 'undefined') {
+          stageState.buildings = []; stageState.decorations = [];
+          stageState.hazards = []; stageState.collectibles = [];
+        }
+      }
+      const myTeam = this.siegeTeams[this.myId];
+      if (state.player && ev.spawns && ev.spawns[myTeam] && ev.spawns[myTeam][0]) {
+        const sp = ev.spawns[myTeam][0];
+        state.player.x = sp.x; state.player.y = sp.y;
+        state.player.hp = state.player.maxHp || 100;
+        state.player.shield = state.pvpShieldMax;
+        state.player.maxShield = state.pvpShieldMax;
+        state.player.spectating = false;
+        state.player.invuln = 1.5;
+      }
+      if (typeof showSiegeHud === 'function') showSiegeHud();
+      if (typeof updateSiegeScore === 'function') updateSiegeScore(0, 0, this.siegeTargetPoints);
+      if (typeof showToast === 'function') showToast(myTeam === 'red' ? '⚔ DU ÄR I RÖDA LAGET' : '⚔ DU ÄR I BLÅA LAGET');
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
+    } else if (ev.type === 'siege_base_captured') {
+      // { baseId, team }
+      if (state.siegeBases && state.siegeBases[ev.baseId]) {
+        state.siegeBases[ev.baseId].owner = ev.team;
+        state.siegeBases[ev.baseId].captureProgress = 0;
+        state.siegeBases[ev.baseId].captureSide = null;
+      }
+      if (typeof showToast === 'function') {
+        const teamName = ev.team === 'red' ? 'RÖD' : 'BLÅ';
+        showToast('🚩 ' + teamName + ' tog en bas!');
+      }
+      if (typeof Audio !== 'undefined' && Audio.achievement) Audio.achievement();
+    } else if (ev.type === 'siege_score_update') {
+      // { red, blue }
+      this.siegeRedScore = ev.red || 0;
+      this.siegeBlueScore = ev.blue || 0;
+      state.siegeRedScore = this.siegeRedScore;
+      state.siegeBlueScore = this.siegeBlueScore;
+      if (typeof updateSiegeScore === 'function') updateSiegeScore(this.siegeRedScore, this.siegeBlueScore, this.siegeTargetPoints);
+    } else if (ev.type === 'siege_core_damaged') {
+      // { coreId, hp, maxHp, by }
+      if (state.siegeCores && state.siegeCores[ev.coreId]) {
+        state.siegeCores[ev.coreId].hp = ev.hp;
+      }
+      if (typeof updateSiegeCoreHp === 'function') updateSiegeCoreHp();
+    } else if (ev.type === 'siege_core_destroyed') {
+      // { coreId }
+      if (state.siegeCores && state.siegeCores[ev.coreId]) {
+        state.siegeCores[ev.coreId].destroyed = true;
+        state.siegeCores[ev.coreId].hp = 0;
+      }
+      if (typeof updateSiegeCoreHp === 'function') updateSiegeCoreHp();
+      if (typeof triggerShake === 'function') triggerShake(20, 1.5);
+    } else if (ev.type === 'siege_kill') {
+      const killerName = (ev.killer === this.myId) ? (this.myName || 'Du')
+        : (this.players.get(ev.killer) && this.players.get(ev.killer).name) || 'Spelare';
+      const victimName = (ev.victim === this.myId) ? (this.myName || 'Du')
+        : (this.players.get(ev.victim) && this.players.get(ev.victim).name) || 'Spelare';
+      const weaponName = ev.weapon && W_BY_ID[ev.weapon] ? (W_BY_ID[ev.weapon].name || ev.weapon) : null;
+      if (typeof addSiegeKillFeed === 'function') addSiegeKillFeed(killerName, ev.killerTeam, victimName, ev.victimTeam, weaponName);
+      if (ev.victim === this.myId) {
+        if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
+        if (typeof triggerShake === 'function') triggerShake(14, 0.6);
+      } else if (ev.killer === this.myId) {
+        if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+      }
+    } else if (ev.type === 'siege_player_died') {
+      if (ev.victim === this.myId && typeof showSiegeRespawnCountdown === 'function') {
+        showSiegeRespawnCountdown(Date.now() + (ev.durationMs || 3000));
+      }
+    } else if (ev.type === 'siege_player_respawned') {
+      if (ev.peerId === this.myId && state.player) {
+        state.player.spectating = false;
+        state.player.specTarget = null;
+        state.player.x = ev.x; state.player.y = ev.y;
+        state.player.hp = ev.hp || state.player.maxHp || 100;
+        state.player.shield = ev.shield != null ? ev.shield : (state.pvpShieldMax || 100);
+        state.player.maxShield = state.pvpShieldMax || 100;
+        state.player.invuln = 1.5;
+        state.player.flashUntil = 0;
+        state.deadBody = null;
+        if (typeof _siegeRespawnOverlay !== 'undefined' && _siegeRespawnOverlay) _siegeRespawnOverlay.classList.add('hidden');
+        if (typeof _siegeRespawnInterval !== 'undefined' && _siegeRespawnInterval) clearInterval(_siegeRespawnInterval);
+        if (typeof showToast === 'function') showToast('🔄 RESPAWN');
+      }
+    } else if (ev.type === 'siege_match_end') {
+      // { winner, reason ('points'|'core_destroyed'), scores: {red, blue}, stats }
+      this.siegeActive = false;
+      state.siegeActive = false;
+      const statsArr = [];
+      if (ev.stats && ev.stats.perPlayer) {
+        for (const pid of Object.keys(ev.stats.perPlayer)) {
+          const s = ev.stats.perPlayer[pid];
+          statsArr.push({ peerId: pid, team: s.team, kills: s.kills || 0, deaths: s.deaths || 0 });
+        }
+      }
+      if (typeof showSiegeEndScreen === 'function') {
+        const r = (ev.scores && ev.scores.red) || 0;
+        const b = (ev.scores && ev.scores.blue) || 0;
+        showSiegeEndScreen(ev.winner, r, b, statsArr, this.siegeTeams || {}, ev.reason);
+      }
     } else if (ev.type === 'stage_loaded') {
       if (window._debug) console.log('[SIM] stage loaded:', ev.stageName);
     } else if (ev.type === 'countdown_start') {
@@ -6967,8 +7293,8 @@ const Coop = {
     this.broadcast({ type: 'config', config: this.config });
     if (this.onConfigChange) this.onConfigChange(this.config);
     // Speglar mode/private till server så public-rooms-listan visar rätt info
-    if (this.ws && this.ws.readyState === 1 && (partial.mode != null || partial.tdm != null || partial.ctf != null || partial.private != null)) {
-      const effMode = this.config.ctf ? 'ctf' : (this.config.tdm ? 'tdm' : (this.config.mode || 'story'));
+    if (this.ws && this.ws.readyState === 1 && (partial.mode != null || partial.tdm != null || partial.ctf != null || partial.siege != null || partial.private != null)) {
+      const effMode = this.config.siege ? 'siege' : (this.config.ctf ? 'ctf' : (this.config.tdm ? 'tdm' : (this.config.mode || 'story')));
       try {
         this.ws.send(JSON.stringify({
           type: 'update_room_meta',
@@ -7456,21 +7782,24 @@ const Coop = {
     this._intentionalClose = true;  // hindrar onclose från att auto-reconnecta
     this.active = false; this.inLobby = false;
     this.serverSimActive = false;
-    this.tdmActive = false; this.ctfActive = false;
+    this.tdmActive = false; this.ctfActive = false; this.siegeActive = false;
     if (typeof state !== 'undefined') {
       state.serverSimActive = false;
       state.tdmActive = false;
       state.ctfActive = false;
-      // Rensa stale CTF/PvP-state så de inte läcker in i nästa run
+      state.siegeActive = false;
+      // Rensa stale PvP-state så de inte läcker in i nästa run
       state.ctfWalls = null;
       state.tdmWalls = null;
+      state.siegeWalls = null;
       state.ctfFlags = null;
       state.ctfArena = null;
+      state.siegeCores = null;
+      state.siegeBases = null;
+      state.siegeTurrets = null;
+      state.siegeDecorations = null;
       state.pvpPickups = null;
       state.pvpShieldMax = null;
-      // Rensa custom-stages så story-fallback inte använder CTF-arena vid
-      // nästa solo-spel. Bug innan: efter disconnect mid-CTF spawnade minions
-      // lokalt på CTF-arenan (state.mode='playing', server-auth bort, fallback PvE).
       state.customStages = null;
       if (state.player) {
         state.player.carryingFlag = null;
@@ -7478,6 +7807,7 @@ const Coop = {
         state.player.maxShield = undefined;
       }
     }
+    if (typeof hideSiegeHud === 'function') hideSiegeHud();
     // Om vi förlorat anslutningen mid-game, kicka tillbaka till menyn så vi inte
     // hamnar i lokalt PvE-fallback-läge (minions spawnar lokalt). Tidigare:
     // 'playing' state kvar → solo-game-loop tog över → fel mode → buggat.
@@ -8146,19 +8476,40 @@ function renderHostControls() {
     ctfBtn.addEventListener('click', () => {
       const newCtf = !Coop.config.ctf;
       Coop.config.ctf = newCtf;
-      Coop.config.tdm = false; // mutually exclusive
+      Coop.config.tdm = false; Coop.config.siege = false;
       if (newCtf) {
         Coop.config.serverSim = true;
         Coop.config.ctfTargetCaptures = Coop.config.ctfTargetCaptures || 3;
       }
       Coop.updateConfig({
-        ctf: newCtf, tdm: false,
+        ctf: newCtf, tdm: false, siege: false,
         ctfTargetCaptures: Coop.config.ctfTargetCaptures,
         serverSim: Coop.config.serverSim,
       });
       renderHostControls();
     });
     pvpEl.appendChild(ctfBtn);
+    // SIEGE-knapp
+    const siegeBtn = document.createElement('button');
+    siegeBtn.textContent = '⚔️ SIEGE (Base Conquest)';
+    siegeBtn.style.cssText = 'background:' + (Coop.config.siege ? '#ff8a3a' : '#222') + ';color:' + (Coop.config.siege ? '#fff' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
+    if (Coop.config.siege) siegeBtn.classList.add('active');
+    siegeBtn.addEventListener('click', () => {
+      const newSiege = !Coop.config.siege;
+      Coop.config.siege = newSiege;
+      Coop.config.tdm = false; Coop.config.ctf = false;
+      if (newSiege) {
+        Coop.config.serverSim = true;
+        Coop.config.siegeTargetPoints = Coop.config.siegeTargetPoints || 100;
+      }
+      Coop.updateConfig({
+        siege: newSiege, tdm: false, ctf: false,
+        siegeTargetPoints: Coop.config.siegeTargetPoints,
+        serverSim: Coop.config.serverSim,
+      });
+      renderHostControls();
+    });
+    pvpEl.appendChild(siegeBtn);
     // Target-selectors per aktivt PvP-läge
     if (Coop.config.tdm) {
       for (const tk of [10, 20, 30]) {
@@ -8183,6 +8534,18 @@ function renderHostControls() {
           renderHostControls();
         });
         pvpEl.appendChild(tcBtn);
+      }
+    } else if (Coop.config.siege) {
+      for (const tp of [50, 100, 150]) {
+        const tpBtn = document.createElement('button');
+        tpBtn.textContent = tp + ' poäng';
+        tpBtn.style.cssText = 'background:' + ((Coop.config.siegeTargetPoints || 100) === tp ? '#ff8a3a' : '#222') + ';color:#fff;font-size:11px;padding:6px 10px;';
+        tpBtn.addEventListener('click', () => {
+          Coop.config.siegeTargetPoints = tp;
+          Coop.updateConfig({ siegeTargetPoints: tp });
+          renderHostControls();
+        });
+        pvpEl.appendChild(tpBtn);
       }
     }
   }
@@ -8503,6 +8866,10 @@ btnCoopStart.addEventListener('click', () => {
     if (Coop.config.ctf) {
       payload.ctf = true;
       payload.ctfTargetCaptures = Coop.config.ctfTargetCaptures || 3;
+    }
+    if (Coop.config.siege) {
+      payload.siege = true;
+      payload.siegeTargetPoints = Coop.config.siegeTargetPoints || 100;
     }
     Coop.ws.send(JSON.stringify(payload));
     Coop.serverSimActive = true;
@@ -11952,6 +12319,10 @@ document.getElementById('btn-retry').addEventListener('click', () => {
       payload.ctf = true;
       payload.ctfTargetCaptures = Coop.config.ctfTargetCaptures || 3;
     }
+    if (Coop.config.siege) {
+      payload.siege = true;
+      payload.siegeTargetPoints = Coop.config.siegeTargetPoints || 100;
+    }
     try { Coop.ws.send(JSON.stringify(payload)); } catch (_) {}
     Coop.serverSimActive = true;
     state.serverSimActive = true;
@@ -13126,6 +13497,156 @@ if (_btnCtfRematch) {
   });
 }
 
+// ============================================================
+// SIEGE THE BASE HUD
+// ============================================================
+const _siegeHud = document.getElementById('siege-hud');
+const _siegeRedEl = document.getElementById('siege-red');
+const _siegeBlueEl = document.getElementById('siege-blue');
+const _siegeTargetEl = document.getElementById('siege-target');
+const _siegeCoreRedEl = document.getElementById('siege-core-red-hp');
+const _siegeCoreBlueEl = document.getElementById('siege-core-blue-hp');
+const _siegeKillFeedEl = document.getElementById('siege-killfeed');
+const _siegeEndOverlay = document.getElementById('siege-end-overlay');
+const _siegeEndTitle = document.getElementById('siege-end-title');
+const _siegeEndScore = document.getElementById('siege-end-score');
+const _siegeEndReason = document.getElementById('siege-end-reason');
+const _siegeEndStats = document.getElementById('siege-end-stats');
+const _btnSiegeBack = document.getElementById('btn-siege-back');
+const _btnSiegeRematch = document.getElementById('btn-siege-rematch');
+const _siegeRespawnOverlay = document.getElementById('siege-respawn-overlay');
+const _siegeRespawnNum = document.getElementById('siege-respawn-num');
+let _siegeRespawnInterval = null;
+
+function showSiegeRespawnCountdown(respawnAt) {
+  if (!_siegeRespawnOverlay || !_siegeRespawnNum) return;
+  _siegeRespawnOverlay.classList.remove('hidden');
+  if (_siegeRespawnInterval) clearInterval(_siegeRespawnInterval);
+  const tick = () => {
+    const remaining = Math.max(0, respawnAt - Date.now());
+    if (remaining <= 0) {
+      _siegeRespawnOverlay.classList.add('hidden');
+      clearInterval(_siegeRespawnInterval);
+      _siegeRespawnInterval = null;
+      return;
+    }
+    _siegeRespawnNum.textContent = String(Math.ceil(remaining / 1000));
+  };
+  tick();
+  _siegeRespawnInterval = setInterval(tick, 100);
+}
+
+function showSiegeHud() {
+  if (_siegeHud) _siegeHud.classList.remove('hidden');
+  if (_siegeRedEl) _siegeRedEl.textContent = 'RED 0';
+  if (_siegeBlueEl) _siegeBlueEl.textContent = 'BLUE 0';
+  if (_siegeTargetEl) _siegeTargetEl.textContent = String(Coop.siegeTargetPoints || 100);
+  if (_siegeKillFeedEl) _siegeKillFeedEl.innerHTML = '';
+  updateSiegeCoreHp();
+}
+function hideSiegeHud() { if (_siegeHud) _siegeHud.classList.add('hidden'); }
+function updateSiegeScore(red, blue, target) {
+  if (_siegeRedEl) _siegeRedEl.textContent = 'RED ' + red;
+  if (_siegeBlueEl) _siegeBlueEl.textContent = 'BLUE ' + blue;
+  if (_siegeTargetEl) _siegeTargetEl.textContent = String(target || 100);
+}
+function updateSiegeCoreHp() {
+  if (!state.siegeCores) return;
+  const r = state.siegeCores.core_red;
+  const b = state.siegeCores.core_blue;
+  if (r && _siegeCoreRedEl) _siegeCoreRedEl.textContent = Math.round((r.hp / r.maxHp) * 100) + '%';
+  if (b && _siegeCoreBlueEl) _siegeCoreBlueEl.textContent = Math.round((b.hp / b.maxHp) * 100) + '%';
+}
+function addSiegeKillFeed(killerName, killerTeam, victimName, victimTeam, weaponName) {
+  if (!_siegeKillFeedEl) return;
+  const row = document.createElement('div');
+  const kColor = killerTeam === 'red' ? '#ff5a5a' : '#5aaaff';
+  const vColor = victimTeam === 'red' ? '#ff5a5a' : '#5aaaff';
+  row.className = 'tdm-kf-row tdm-kf-' + killerTeam;
+  const weaponHtml = weaponName ? `<span class="tdm-kf-weapon">· ${escapeHtml(weaponName)}</span>` : '';
+  row.innerHTML = `<span class="tdm-kf-killer" style="color:${kColor};">${escapeHtml(killerName)}</span><span class="tdm-kf-arrow">⚡</span><span class="tdm-kf-victim" style="color:${vColor};">${escapeHtml(victimName)}</span>${weaponHtml}`;
+  _siegeKillFeedEl.appendChild(row);
+  while (_siegeKillFeedEl.children.length > 5) _siegeKillFeedEl.removeChild(_siegeKillFeedEl.firstChild);
+  setTimeout(() => {
+    if (row.parentNode) {
+      row.classList.add('fading');
+      setTimeout(() => { if (row.parentNode) row.parentNode.removeChild(row); }, 400);
+    }
+  }, 4100);
+}
+function showSiegeEndScreen(winner, redScore, blueScore, stats, teams, reason) {
+  if (!_siegeEndOverlay) return;
+  hideSiegeHud();
+  const winColor = winner === 'red' ? 'rgba(255,90,90,0.4)' : 'rgba(90,170,255,0.4)';
+  const flash = document.createElement('div');
+  flash.style.cssText = `position:fixed;inset:0;background:${winColor};z-index:199;pointer-events:none;animation:tdmEndFlash 1s forwards;`;
+  document.body.appendChild(flash);
+  setTimeout(() => { if (flash.parentNode) flash.parentNode.removeChild(flash); }, 1100);
+  _siegeEndOverlay.classList.remove('hidden');
+  if (_btnSiegeRematch) _btnSiegeRematch.classList.toggle('hidden', !Coop.isHost);
+  if (_siegeEndTitle) {
+    _siegeEndTitle.textContent = winner === 'red' ? 'RED WINS' : 'BLUE WINS';
+    _siegeEndTitle.style.color = winner === 'red' ? '#ff5a5a' : '#5aaaff';
+  }
+  if (_siegeEndReason) {
+    _siegeEndReason.textContent = reason === 'core_destroyed' ? '💥 FIENDENS CORE FÖRSTÖRD!' : '🏆 POÄNG-MÅL UPPNÅTT';
+  }
+  if (_siegeEndScore) _siegeEndScore.textContent = redScore + ' — ' + blueScore;
+  if (_siegeEndStats) {
+    const sorted = (stats || []).slice().sort((a, b) => (b.kills - a.kills));
+    _siegeEndStats.innerHTML = sorted.map(s => {
+      const name = (s.peerId === Coop.myId) ? (Coop.myName || 'Du')
+        : (Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || 'Spelare';
+      const tColor = s.team === 'red' ? '#ff5a5a' : '#5aaaff';
+      const isMe = s.peerId === Coop.myId ? ' (du)' : '';
+      return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);gap:10px;">
+        <span style="color:${tColor};font-weight:700;">${escapeHtml(name)}${isMe}</span>
+        <span style="color:#ddd;">⚡ ${s.kills || 0} · 💀 ${s.deaths || 0}</span>
+      </div>`;
+    }).join('') || '<div style="color:#888;">Inga stats</div>';
+  }
+}
+if (_btnSiegeBack) {
+  _btnSiegeBack.addEventListener('click', () => {
+    if (_siegeEndOverlay) _siegeEndOverlay.classList.add('hidden');
+    if (Coop.isHost && Coop.ws && Coop.ws.readyState === 1) {
+      try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (e) {}
+    }
+    state.siegeActive = false;
+    Coop.siegeActive = false;
+    Coop.serverSimActive = false;
+    state.serverSimActive = false;
+    state.mode = 'menu';
+    if (typeof Music !== 'undefined' && Music.stop) Music.stop();
+    document.body.classList.add('menu-mode');
+    if (typeof menuScreen !== 'undefined') menuScreen.classList.remove('hidden');
+    Coop.disconnect();
+  });
+}
+if (_btnSiegeRematch) {
+  _btnSiegeRematch.addEventListener('click', () => {
+    if (!Coop.isHost) return;
+    if (_siegeEndOverlay) _siegeEndOverlay.classList.add('hidden');
+    if (Coop.ws && Coop.ws.readyState === 1) {
+      try {
+        Coop.ws.send(JSON.stringify({ type: 'sim_stop' }));
+        setTimeout(() => {
+          if (!Coop.ws || Coop.ws.readyState !== 1) return;
+          Coop.ws.send(JSON.stringify({
+            type: 'sim_start',
+            wave: 1,
+            difficulty: Coop.config.difficulty || 'veteran',
+            ngpLevel: 0,
+            mode: Coop.config.mode || 'story',
+            siege: true,
+            siegeTargetPoints: Coop.config.siegeTargetPoints || 100,
+          }));
+        }, 400);
+      } catch (e) {}
+    }
+  });
+}
+
 // Killstreak banner (visas i sidan av skärmen, inte i mitten)
 let killstreakBanner = { text: '', timer: 0, count: 0 };
 function showKillstreakBanner(count) {
@@ -13525,6 +14046,9 @@ function updatePlayer(dt, now) {
   }
   if (state.tdmActive && state.tdmWalls && typeof resolveCtfWall === 'function') {
     resolveCtfWall(p, state.tdmWalls);
+  }
+  if (state.siegeActive && state.siegeWalls && typeof resolveCtfWall === 'function') {
+    resolveCtfWall(p, state.siegeWalls);
   }
 
   // sikta: prio fire-joystick (alltid på när fire-knappen hålls), sen mus, sen rörelse, sen auto-aim
@@ -14553,6 +15077,14 @@ function updateBullets(dt) {
     }
     if (state.tdmActive && state.tdmWalls && typeof bulletHitsWall === 'function') {
       if (bulletHitsWall(b, state.tdmWalls)) {
+        if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
+        if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
+        b.dead = true;
+        continue;
+      }
+    }
+    if (state.siegeActive && state.siegeWalls && typeof bulletHitsWall === 'function') {
+      if (bulletHitsWall(b, state.siegeWalls)) {
         if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
         if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
         b.dead = true;
@@ -22210,6 +22742,14 @@ function render() {
   }
   // TDM walls (cover-crates + pillar) — samma render som CTF walls
   if (state.tdmActive && state.tdmWalls) drawPvpWalls(state.tdmWalls);
+  // SIEGE — decorations + walls + cores + bases + turrets
+  if (state.siegeActive) {
+    drawSiegeDecorations();
+    drawSiegeBases();        // capture-zoner under walls/cores
+    drawPvpWalls(state.siegeWalls);
+    drawSiegeCores();        // core-detalj ovanpå walls
+    drawSiegeTurrets();
+  }
   // PvP shield-bubbles ovanpå spelare (TDM + CTF)
   if (state.tdmActive || state.ctfActive) drawPvpShieldBubbles();
   // PvP-pickups (HP/shield-regen) — rita på både TDM och CTF

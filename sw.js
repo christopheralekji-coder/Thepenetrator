@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v168-real-flags';
+const CACHE = 'penetrator-v169-siege-mode';
 const ASSETS = [
   './',
   './index.html',
@@ -10,6 +10,7 @@ const ASSETS = [
   './icon-512.svg',
   './shared/ctf-arena.js',
   './shared/tdm-arena.js',
+  './shared/siege-arena.js',
 ];
 
 self.addEventListener('install', e => {

@@ -13,6 +13,7 @@ const { W_BY_ID } = require('../../shared/weapons-data');
 const { findNearestPlayer } = require('./enemies');
 const { CTF_ARENA, bulletHitsWall } = require('../../shared/ctf-arena');
 const { TDM_ARENA } = require('../../shared/tdm-arena');
+const { SIEGE_ARENA } = require('../../shared/siege-arena');
 
 // PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
 // Sniper nerf: 130→95 (fortfarande 2-shot genom shield+hp men inte instant).
@@ -300,6 +301,86 @@ function updateBullets(sim, dt, now) {
       bullets.splice(i, 1);
       continue;
     }
+    // SIEGE: walls + core-damage routing
+    if (sim.siegeActive && bulletHitsWall(b, SIEGE_ARENA.walls)) {
+      // Hitta vilken wall som träffades — om coreId så damage core
+      let coreDamaged = false;
+      for (const w of SIEGE_ARENA.walls) {
+        if (!w.coreId) continue;
+        if (b.x + b.r >= w.x && b.x - b.r <= w.x + w.w &&
+            b.y + b.r >= w.y && b.y - b.r <= w.y + w.h) {
+          const core = sim.siegeCores[w.coreId];
+          if (core && !core.destroyed) {
+            // Hindra friendly-fire mot egen core (egen lagets bullet)
+            const ownerWs = sim.room.members.get(b.ownerPid);
+            const ownerTeam = ownerWs && ownerWs.tdmTeam;
+            if (ownerTeam && ownerTeam !== core.team) {
+              core.hp = Math.max(0, core.hp - b.dmg);
+              sim.eventQueue.push({ type: 'siege_core_damaged', coreId: core.id, hp: core.hp, maxHp: core.maxHp, by: b.ownerPid });
+              // Score: 1 pt per 100 dmg dealt to enemy core
+              sim._siegeCoreDmgAccum = sim._siegeCoreDmgAccum || { red: 0, blue: 0 };
+              sim._siegeCoreDmgAccum[ownerTeam] = (sim._siegeCoreDmgAccum[ownerTeam] || 0) + b.dmg;
+              while (sim._siegeCoreDmgAccum[ownerTeam] >= 100) {
+                sim._siegeCoreDmgAccum[ownerTeam] -= 100;
+                sim.siegeScores[ownerTeam] = (sim.siegeScores[ownerTeam] || 0) + 1;
+              }
+              sim.eventQueue.push({ type: 'siege_score_update', red: sim.siegeScores.red, blue: sim.siegeScores.blue });
+              // Core destroyed → instant win
+              if (core.hp <= 0 && !core.destroyed) {
+                core.destroyed = true;
+                core.destroyedAt = Date.now();
+                sim.eventQueue.push({ type: 'siege_core_destroyed', coreId: core.id });
+                const { _siegePointAccum } = sim;
+                // Vinnaren är den som SKADADE coren (motståndarlaget till core.team)
+                const winner = core.team === 'red' ? 'blue' : 'red';
+                if (typeof endSiegeMatch === 'function') endSiegeMatch(sim, winner, 'core_destroyed');
+              }
+            }
+          }
+          coreDamaged = true;
+          break;
+        }
+      }
+      if (b.explosive && !b.hostile) {
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+      }
+      bullets.splice(i, 1);
+      continue;
+    }
+    // SIEGE: turret hit detection (samma som CTF)
+    if (sim.siegeActive && sim.siegeTurrets) {
+      let hitTurret = false;
+      for (const tid of Object.keys(sim.siegeTurrets)) {
+        const t = sim.siegeTurrets[tid];
+        if (t.destroyed) continue;
+        const dx = t.x - b.x, dy = t.y - b.y;
+        const rsum = t.r + b.r;
+        if (dx * dx + dy * dy < rsum * rsum) {
+          t.hp = Math.max(0, t.hp - b.dmg);
+          sim.eventQueue.push({ type: 'siege_turret_damaged', turretId: t.id, hp: t.hp, maxHp: t.maxHp });
+          if (t.hp <= 0 && !t.destroyed) {
+            t.destroyed = true;
+            const ejected = t.occupantId;
+            if (ejected) {
+              const ws2 = sim.room.members.get(ejected);
+              if (ws2) {
+                ws2._mountedSiegeTurretId = null;
+                if (ws2.playerState) {
+                  ws2.playerState.x = t.x + (t.team === 'red' ? 35 : -35);
+                  ws2.playerState.y = t.y;
+                }
+              }
+              t.occupantId = null;
+              sim.eventQueue.push({ type: 'siege_turret_exited', peerId: ejected, turretId: t.id, reason: 'destroyed' });
+            }
+            sim.eventQueue.push({ type: 'siege_turret_destroyed', turretId: t.id });
+          }
+          hitTurret = true;
+          break;
+        }
+      }
+      if (hitTurret) { bullets.splice(i, 1); continue; }
+    }
     // CTF: bullet träffar turret? Damage routes till turret-hp, bullet dies.
     // Egen lags-turret kan fortfarande beskjutas (fri damage från alla håll).
     if (sim.ctfActive && sim.ctfTurrets) {
@@ -504,6 +585,75 @@ function updateBullets(sim, dt, now) {
                   team, x: flag.x, y: flag.y, droppedBy: pid,
                 });
               }
+            }
+          }
+          pvpHit = true;
+          break;
+        }
+      }
+      if (pvpHit) bullets.splice(i, 1);
+      continue;
+    }
+    // SIEGE-mode: player-bullet kollar mot andra spelare (andra laget). Kill +3 pt.
+    if (sim.siegeActive) {
+      if (sim.siegeEnded) continue;
+      let pvpHit = false;
+      const ownerWs = sim.room.members.get(b.ownerPid);
+      const ownerTeam = ownerWs && ownerWs.tdmTeam;
+      if (!ownerTeam) continue;
+      for (const [pid, ws] of sim.room.members) {
+        if (pid === b.ownerPid) continue;
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        if (ws.tdmTeam === ownerTeam) continue;
+        const invuln = ws.playerState.invulnUntil || 0;
+        if (Date.now() < invuln) continue;
+        const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
+        const rsum = 14 + b.r + 8;
+        if (dx * dx + dy * dy < rsum * rsum) {
+          const effDmg = getPvpDmg(b.weaponId, b.dmg);
+          let remaining = effDmg;
+          if ((ws.playerState.shield || 0) > 0) {
+            const absorb = Math.min(ws.playerState.shield, remaining);
+            ws.playerState.shield -= absorb;
+            remaining -= absorb;
+          }
+          if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+          sim.eventQueue.push({
+            type: 'pvp_hp_changed',
+            peerId: pid,
+            hp: ws.playerState.hp,
+            shield: ws.playerState.shield || 0,
+          });
+          if (ws.playerState.hp <= 0) {
+            ws.tdmRespawnAt = Date.now() + 3000;
+            sim.siegeKillsByPid[b.ownerPid] = (sim.siegeKillsByPid[b.ownerPid] || 0) + 1;
+            sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
+            sim.siegeScores[ownerTeam] = (sim.siegeScores[ownerTeam] || 0) + 3; // +3 per kill
+            sim.eventQueue.push({
+              type: 'siege_kill',
+              killer: b.ownerPid, victim: pid,
+              killerTeam: ownerTeam, victimTeam: ws.tdmTeam,
+              weapon: b.weaponId || null,
+            });
+            sim.eventQueue.push({ type: 'siege_player_died', victim: pid, durationMs: 3000 });
+            sim.eventQueue.push({ type: 'siege_score_update', red: sim.siegeScores.red, blue: sim.siegeScores.blue });
+            // Vinst på 100p?
+            if (sim.siegeScores[ownerTeam] >= sim.siegeTargetPoints) {
+              sim.siegeEnded = true;
+              const stats = { red: sim.siegeScores.red, blue: sim.siegeScores.blue, perPlayer: {} };
+              for (const [p, w2] of sim.room.members) {
+                stats.perPlayer[p] = {
+                  team: w2.tdmTeam,
+                  kills: sim.siegeKillsByPid[p] || 0,
+                  deaths: sim.tdmDeathsByPid[p] || 0,
+                };
+              }
+              sim.eventQueue.push({
+                type: 'siege_match_end',
+                winner: ownerTeam, reason: 'points',
+                scores: { red: sim.siegeScores.red, blue: sim.siegeScores.blue },
+                stats,
+              });
             }
           }
           pvpHit = true;

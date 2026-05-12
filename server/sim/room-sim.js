@@ -10,6 +10,7 @@ const { updatePickups, dropFromEnemyDeath } = require('./pickups');
 const { getStage } = require('../../shared/stages-data');
 const { CTF_ARENA, resolveCtfWall, bulletHitsWall } = require('../../shared/ctf-arena');
 const { TDM_ARENA } = require('../../shared/tdm-arena');
+const { SIEGE_ARENA } = require('../../shared/siege-arena');
 
 // 30Hz → 45Hz: tickar var 22ms istället för 33ms. Halverar input→pixel-delay
 // från server-tick-perspektiv. 1.5× CPU-last, men Node klarar 10k+ ops/tick i
@@ -77,6 +78,17 @@ function createSim(room) {
     // CTF-turrets: en MG-torn per lag. occupantId === null = ledig, satt = en spelare sitter i.
     // hp <= 0 = destroyed (kan inte mountas igen). lastShotAt = rate-limit för MG-fire.
     ctfTurrets: {},
+    // SIEGE THE BASE state
+    siegeActive: false,
+    siegeTargetPoints: 100,
+    siegeEnded: false,
+    siegeScores: { red: 0, blue: 0 },
+    siegeKillsByPid: {},
+    siegeBases: {},        // baseId → { id, x, y, r, owner, captureProgress, captureSide }
+    siegeCores: {},        // coreId → { id, team, x, y, w, h, hp, maxHp, destroyed }
+    siegeTurrets: {},      // turretId → same structure as ctfTurrets
+    _siegePointAccum: { red: 0, blue: 0 }, // fractional points buffer
+    _siegeLastTick: 0,
   };
   return sim;
 }
@@ -169,6 +181,13 @@ function tickSim(sim) {
   // CTF-mode: pickup/drop/capture-logik + bullets
   if (sim.ctfActive) {
     tickCtf(sim, dt, now);
+    sim._tickCount = (sim._tickCount || 0) + 1;
+    if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
+    return;
+  }
+  // SIEGE-mode: capture-bases + core-damage + scoring
+  if (sim.siegeActive) {
+    tickSiege(sim, dt, now);
     sim._tickCount = (sim._tickCount || 0) + 1;
     if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
@@ -819,6 +838,196 @@ function applyCtfDeath(sim, peerId) {
   }
 }
 
+// ============================================================
+// SIEGE THE BASE — capture-bases + core-damage + scoring
+// ============================================================
+function tickSiege(sim, dt, now) {
+  const nowMs = Date.now();
+
+  // Respawn döda spelare på random egna spawn-point
+  for (const [pid, ws] of sim.room.members) {
+    if (ws.tdmRespawnAt && nowMs >= ws.tdmRespawnAt) {
+      ws.tdmRespawnAt = 0;
+      if (ws.playerState) {
+        const team = ws.tdmTeam || 'red';
+        const pts = SIEGE_ARENA.spawns[team] || SIEGE_ARENA.spawns.red;
+        const sp = pts[Math.floor(Math.random() * pts.length)];
+        ws.playerState.x = sp.x;
+        ws.playerState.y = sp.y;
+        ws.playerState.hp = 100;
+        ws.playerState.shield = ws.playerState.maxShield || 100;
+        ws.playerState.invulnUntil = Date.now() + 1500;
+        sim.eventQueue.push({
+          type: 'siege_player_respawned',
+          peerId: pid,
+          x: ws.playerState.x, y: ws.playerState.y,
+          hp: ws.playerState.hp, shield: ws.playerState.shield,
+        });
+      }
+    }
+  }
+
+  // Pickups respawn + collect
+  if (!sim.siegeEnded) tickPvpPickups(sim, now);
+
+  // Match-end? Skip game-logic
+  if (sim.siegeEnded) return;
+
+  // Wall-collision för spelare
+  for (const [, ws] of sim.room.members) {
+    if (ws.playerState && ws.playerState.hp > 0) {
+      const e = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
+      resolveCtfWall(e, SIEGE_ARENA.walls);
+      ws.playerState.x = e.x;
+      ws.playerState.y = e.y;
+    }
+  }
+
+  // Turret-occupant lock
+  if (sim.siegeTurrets) {
+    for (const tid of Object.keys(sim.siegeTurrets)) {
+      const t = sim.siegeTurrets[tid];
+      if (t.destroyed) continue;
+      if (t.occupantId) {
+        const ws = sim.room.members.get(t.occupantId);
+        if (!ws || !ws.playerState || ws.playerState.hp <= 0) {
+          // Auto-eject (occupant_lost)
+          t.occupantId = null;
+          sim.eventQueue.push({ type: 'siege_turret_exited', peerId: t.occupantId, turretId: tid, reason: 'occupant_lost' });
+        } else {
+          ws.playerState.x = t.x;
+          ws.playerState.y = t.y;
+        }
+      }
+    }
+  }
+
+  // Capture-base-logik: kolla varje bas vem som står där
+  const CAPTURE_TIME = SIEGE_ARENA.captureTimeSec || 3.0;
+  for (const baseId of Object.keys(sim.siegeBases)) {
+    const base = sim.siegeBases[baseId];
+    // Räkna spelare per team som står inom base.r
+    let redOn = 0, blueOn = 0;
+    for (const [, ws] of sim.room.members) {
+      if (!ws.playerState || ws.playerState.hp <= 0) continue;
+      const dx = ws.playerState.x - base.x, dy = ws.playerState.y - base.y;
+      if (dx * dx + dy * dy <= base.r * base.r) {
+        if (ws.tdmTeam === 'red') redOn++;
+        else if (ws.tdmTeam === 'blue') blueOn++;
+      }
+    }
+    // Logik:
+    //  - Båda lag på basen → PAUS (first-occupant-protection: den som äger
+    //    behåller, men ingen progress avancerar)
+    //  - Bara red på basen → om red äger redan, ingen progress; annars red captures
+    //  - Bara blue på basen → mirror
+    //  - Ingen på basen → om progress pågår av lag-X men ej slutförts, decay tillbaka
+    const contested = redOn > 0 && blueOn > 0;
+    const onlyRed = redOn > 0 && blueOn === 0;
+    const onlyBlue = blueOn > 0 && redOn === 0;
+    if (contested) {
+      // Pausa progress, ingen ändring
+    } else if (onlyRed) {
+      if (base.owner === 'red') {
+        // Redan ägd — reset progress
+        base.captureProgress = 0;
+        base.captureSide = null;
+      } else {
+        // Red försöker capturera (från null eller blue)
+        if (base.captureSide !== 'red') {
+          base.captureProgress = 0;
+          base.captureSide = 'red';
+        }
+        base.captureProgress = Math.min(1, base.captureProgress + dt / CAPTURE_TIME);
+        if (base.captureProgress >= 1) {
+          base.owner = 'red';
+          base.captureProgress = 0;
+          base.captureSide = null;
+          sim.eventQueue.push({ type: 'siege_base_captured', baseId, team: 'red' });
+        }
+      }
+    } else if (onlyBlue) {
+      if (base.owner === 'blue') {
+        base.captureProgress = 0;
+        base.captureSide = null;
+      } else {
+        if (base.captureSide !== 'blue') {
+          base.captureProgress = 0;
+          base.captureSide = 'blue';
+        }
+        base.captureProgress = Math.min(1, base.captureProgress + dt / CAPTURE_TIME);
+        if (base.captureProgress >= 1) {
+          base.owner = 'blue';
+          base.captureProgress = 0;
+          base.captureSide = null;
+          sim.eventQueue.push({ type: 'siege_base_captured', baseId, team: 'blue' });
+        }
+      }
+    } else {
+      // Ingen på basen — decay progress
+      if (base.captureProgress > 0) {
+        base.captureProgress = Math.max(0, base.captureProgress - dt / CAPTURE_TIME * 0.5);
+        if (base.captureProgress === 0) base.captureSide = null;
+      }
+    }
+  }
+
+  // Passive points: varje ägd bas ger 1 pt/sek till owning team
+  for (const baseId of Object.keys(sim.siegeBases)) {
+    const base = sim.siegeBases[baseId];
+    if (base.owner === 'red')  sim._siegePointAccum.red  += dt;
+    if (base.owner === 'blue') sim._siegePointAccum.blue += dt;
+  }
+  // Flush integer-poäng från accumulator
+  let scoreChanged = false;
+  for (const team of ['red', 'blue']) {
+    while (sim._siegePointAccum[team] >= 1) {
+      sim._siegePointAccum[team] -= 1;
+      sim.siegeScores[team] += 1;
+      scoreChanged = true;
+    }
+  }
+  if (scoreChanged) {
+    sim.eventQueue.push({ type: 'siege_score_update', red: sim.siegeScores.red, blue: sim.siegeScores.blue });
+    // Vinst-check via poäng
+    if (sim.siegeScores.red >= sim.siegeTargetPoints || sim.siegeScores.blue >= sim.siegeTargetPoints) {
+      const winner = sim.siegeScores.red >= sim.siegeTargetPoints ? 'red' : 'blue';
+      endSiegeMatch(sim, winner, 'points');
+      return;
+    }
+  }
+
+  // Bullets — uppdaterad efter resolveCtfWall så de inte träffar inuti walls
+  updateBullets(sim, dt, now);
+
+  // Centraliserad death-detection
+  for (const [pid, ws] of sim.room.members) {
+    if (ws.playerState && ws.playerState.hp <= 0 && !ws.tdmRespawnAt) {
+      ws.tdmRespawnAt = nowMs + 3000;
+      sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
+      sim.eventQueue.push({ type: 'siege_player_died', victim: pid, durationMs: 3000 });
+    }
+  }
+}
+
+function endSiegeMatch(sim, winner, reason) {
+  sim.siegeEnded = true;
+  const stats = { red: sim.siegeScores.red, blue: sim.siegeScores.blue, perPlayer: {} };
+  for (const [p, ws] of sim.room.members) {
+    stats.perPlayer[p] = {
+      team: ws.tdmTeam,
+      kills: sim.siegeKillsByPid[p] || 0,
+      deaths: sim.tdmDeathsByPid[p] || 0,
+    };
+  }
+  sim.eventQueue.push({
+    type: 'siege_match_end',
+    winner, reason,
+    scores: { red: sim.siegeScores.red, blue: sim.siegeScores.blue },
+    stats,
+  });
+}
+
 function broadcastWorld(sim, now) {
   const fullBroadcast = (now - sim.lastFullAt) > FULL_BROADCAST_MS;
   if (fullBroadcast) sim.lastFullAt = now;
@@ -979,14 +1188,19 @@ function startSim(sim, opts) {
   // i samma rum) och triggade fel logik-gren.
   sim.tdmActive = false;
   sim.ctfActive = false;
+  sim.siegeActive = false;
   sim.tdmEnded = false;
   sim.ctfEnded = false;
+  sim.siegeEnded = false;
   sim.tdmKills = { red: 0, blue: 0 };
   sim.ctfCaptures = { red: 0, blue: 0 };
+  sim.siegeScores = { red: 0, blue: 0 };
   sim.tdmKillsByPid = {};
   sim.tdmDeathsByPid = {};
   sim.ctfKillsByPid = {};
   sim.ctfCapturesByPid = {};
+  sim.siegeKillsByPid = {};
+  sim._siegePointAccum = { red: 0, blue: 0 };
   sim.pvpPickups = null;
   sim.bullets = [];
   sim.enemies = [];
@@ -1003,6 +1217,10 @@ function startSim(sim, opts) {
     if (opts.ctf) {
       sim.ctfActive = true;
       sim.ctfTargetCaptures = opts.ctfTargetCaptures || 3;
+    }
+    if (opts.siege) {
+      sim.siegeActive = true;
+      sim.siegeTargetPoints = opts.siegeTargetPoints || 100;
     }
   }
   console.log('[SIM]', sim.room.code, 'started mode=' + (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode)) + ' diff=' + sim.config.difficulty);
@@ -1116,6 +1334,75 @@ function startSim(sim, opts) {
       shieldMax: 100,
     });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+  } else if (sim.siegeActive) {
+    // SIEGE THE BASE: 5000×3000 arena med 2 cores + 6 capture-bases.
+    sim.simReadyAt = Date.now() + 5000;
+    // Init cores
+    sim.siegeCores = {};
+    for (const c of SIEGE_ARENA.cores) {
+      sim.siegeCores[c.id] = {
+        id: c.id, team: c.team, x: c.x, y: c.y, w: c.w, h: c.h,
+        hp: c.maxHp, maxHp: c.maxHp, destroyed: false,
+      };
+    }
+    // Init bases (home-bases startar i lagets ägo, mid neutrala)
+    sim.siegeBases = {};
+    for (const b of SIEGE_ARENA.bases) {
+      sim.siegeBases[b.id] = {
+        id: b.id, x: b.x, y: b.y, r: b.r,
+        owner: b.startOwner || null,
+        captureProgress: 0,        // 0..1
+        captureSide: null,          // 'red' / 'blue' / null
+      };
+    }
+    // Init turrets
+    sim.siegeTurrets = {};
+    for (const t of SIEGE_ARENA.turrets) {
+      sim.siegeTurrets[t.id] = {
+        id: t.id, team: t.team, x: t.x, y: t.y, r: t.r,
+        hp: t.maxHp, maxHp: t.maxHp,
+        occupantId: null, destroyed: false, destroyedAt: 0,
+      };
+    }
+    // Team-tilldelning + spawn
+    const teams = {};
+    let i = 0;
+    for (const [pid, ws] of sim.room.members) {
+      const team = i % 2 === 0 ? 'red' : 'blue';
+      ws.tdmTeam = team;
+      ws.playerState = ws.playerState || {};
+      const pts = SIEGE_ARENA.spawns[team];
+      const sp = pts[Math.floor(Math.random() * pts.length)];
+      ws.playerState.x = sp.x;
+      ws.playerState.y = sp.y;
+      ws.playerState.hp = 100;
+      ws.playerState.shield = 100;
+      ws.playerState.maxShield = 100;
+      ws.playerState.invulnUntil = Date.now() + 1500;
+      ws.tdmRespawnAt = 0;
+      teams[pid] = team;
+      sim.siegeKillsByPid[pid] = 0;
+      sim.tdmDeathsByPid[pid] = 0;
+      i++;
+    }
+    sim.pvpPickups = buildSiegePickups(sim);
+    sim.eventQueue.push({
+      type: 'siege_started',
+      targetPoints: sim.siegeTargetPoints,
+      teams,
+      arena: { worldW: SIEGE_ARENA.worldW, worldH: SIEGE_ARENA.worldH, name: SIEGE_ARENA.name },
+      spawns: SIEGE_ARENA.spawns,
+      walls: SIEGE_ARENA.walls,
+      cores: Object.values(sim.siegeCores).map(c => ({ id: c.id, team: c.team, x: c.x, y: c.y, w: c.w, h: c.h, maxHp: c.maxHp, hp: c.hp })),
+      bases: Object.values(sim.siegeBases).map(b => ({ id: b.id, x: b.x, y: b.y, r: b.r, owner: b.owner })),
+      turrets: Object.values(sim.siegeTurrets).map(t => ({ id: t.id, team: t.team, x: t.x, y: t.y, r: t.r, maxHp: t.maxHp, hp: t.hp })),
+      turretEnterRadius: SIEGE_ARENA.turretEnterRadius,
+      captureTimeSec: SIEGE_ARENA.captureTimeSec,
+      decorations: SIEGE_ARENA.decorations || [],
+      pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+      shieldMax: 100,
+    });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
   } else {
     loadStage(sim, sim.wave);
   }
@@ -1123,6 +1410,22 @@ function startSim(sim, opts) {
   sim.interval = setInterval(() => {
     try { tickSim(sim); } catch (e) { console.error('sim-tick error:', e.message, e.stack); }
   }, TICK_MS);
+}
+
+// Pickups för siege-arena — symmetrisk runt mitten + flank-positions
+function buildSiegePickups(sim) {
+  return [
+    // HP-pickups vid mid-bases
+    { id: nextPickupId(sim), x: 1800, y: 1100, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3200, y: 1100, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1800, y: 1900, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3200, y: 1900, type: 'hp',     available: true, respawnAt: 0 },
+    // Shield-pickups i mid och vid hörn
+    { id: nextPickupId(sim), x: 2500, y: 800,  type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2500, y: 2200, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1200, y: 1500, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3800, y: 1500, type: 'shield', available: true, respawnAt: 0 },
+  ];
 }
 
 function stopSim(sim) {
