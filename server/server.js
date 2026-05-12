@@ -7,10 +7,19 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v131-skills-batch';
+const SERVER_VERSION = 'v161-disconnect-debug';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
+
+// TCP keepalive på alla inkommande HTTP-anslutningar. WS körs på TCP-socket;
+// utan OS-level keepalive kan intermediate routers/proxies (Render edge, mobil-NAT)
+// släppa "idle" anslutningar trots WS-message-flow. Initial-delay 25s + interval 10s
+// håller socketen "warm" oavsett app-level traffic-pattern.
+function applyTcpKeepalive(socket) {
+  try { socket.setKeepAlive(true, 25000); } catch (e) {}
+  try { socket.setNoDelay(true); } catch (e) {} // disable Nagle för låg latens
+}
 
 const server = http.createServer((req, res) => {
   // CORS för fetch från klient (PWA)
@@ -115,19 +124,22 @@ function generateCode() {
 let _idCounter = 0;
 function genId() { return 'p' + (++_idCounter) + '_' + Math.random().toString(36).slice(2, 7); }
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   ws.id = genId();
   ws.isAlive = true;
-  console.log('[CONN]', ws.id, 'connected');
+  ws._missedPings = 0;
+  ws._connectedAt = Date.now();
+  // Aktivera TCP keepalive på underliggande socket (fix för Render edge-proxy
+  // idle-timeout som dödar WS efter ~60s trots app-traffic).
+  if (req && req.socket) applyTcpKeepalive(req.socket);
+  console.log('[CONN]', ws.id, 'connected from', req && req.headers ? (req.headers['x-forwarded-for'] || req.socket.remoteAddress) : '?');
 
-  // Heartbeat: vilken meddelande/pong som helst räknas som "alive". Tidigare
-  // var bara pong tracked → mobil Safari + vissa proxies som inte auto-pong:ar
-  // korrekt ledde till disconnect efter ~60s mitt i CTF/TDM trots att client
-  // skickade sim_input @2Hz. Räknar nu vilken inbound-aktivitet som helst.
-  ws.on('pong', () => { ws.isAlive = true; });
+  // Heartbeat: vilken meddelande/pong som helst räknas som "alive".
+  ws.on('pong', () => { ws.isAlive = true; ws._missedPings = 0; });
 
   ws.on('message', (raw, isBinary) => {
-    ws.isAlive = true; // ANY message = alive (mobile-safari pong-issue fix)
+    ws.isAlive = true;
+    ws._missedPings = 0;
     if (isBinary) {
       try { handleBinaryMessage(ws, raw); } catch (e) { console.error('bin-error:', e.message); }
       return;
@@ -137,24 +149,38 @@ wss.on('connection', (ws) => {
     try { handleMessage(ws, msg); } catch (e) { console.error('msg-error:', e.message); }
   });
 
-  ws.on('close', () => {
-    console.log('[DISC]', ws.id);
+  // Logga close-code + reason så vi kan diagnostisera disconnect-källan
+  // (1000=normal, 1006=abnormal-close, 1011=server-error, 4xxx=app-specific).
+  ws.on('close', (code, reason) => {
+    const lifetime = Math.round((Date.now() - ws._connectedAt) / 1000);
+    const reasonStr = reason ? reason.toString().slice(0, 50) : '';
+    console.log('[DISC]', ws.id, 'code=' + code, 'reason="' + reasonStr + '" lifetime=' + lifetime + 's');
     handleDisconnect(ws);
   });
 
   ws.on('error', (e) => console.warn('[ERR]', ws.id, e.message));
 });
 
-// Heartbeat — döda silent connections. 60s interval (var 30s) så total kill-
-// fönster är 120s vilket är generöst nog för mobila spikes utan att låsa fast
-// zombie-anslutningar.
+// Heartbeat — döda BARA helt silent connections. 25s interval med 3-strike-rule
+// (max ~75s grace) så mobila spikes/4G-handoffs inte triggar onödig disconnect.
+// Tidigare: 30s ping + 30s grace → ~60s exakt timing matchade Render edge
+// idle-timeout och dödade live anslutningar.
+const HEARTBEAT_INTERVAL_MS = 25000;
+const MAX_MISSED_PINGS = 3; // 3 × 25s = ~75s helt utan svar krävs för terminate
 setInterval(() => {
   for (const ws of wss.clients) {
-    if (!ws.isAlive) { ws.terminate(); continue; }
+    if (!ws.isAlive) {
+      ws._missedPings = (ws._missedPings || 0) + 1;
+      if (ws._missedPings >= MAX_MISSED_PINGS) {
+        console.log('[HEARTBEAT-KILL]', ws.id, 'missed', ws._missedPings, 'pings');
+        ws.terminate();
+        continue;
+      }
+    }
     ws.isAlive = false;
     try { ws.ping(); } catch (e) {}
   }
-}, 60000);
+}, HEARTBEAT_INTERVAL_MS);
 
 function send(ws, obj) {
   if (ws.readyState !== WebSocket.OPEN) return;

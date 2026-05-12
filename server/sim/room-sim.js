@@ -744,21 +744,33 @@ function tickPvpPickups(sim, now) {
 const TURRET_ENTER_RADIUS = 50;
 
 function tryEnterTurret(sim, peerId, turretId) {
-  if (!sim.ctfActive) return false;
+  // Diagnostisk logging för att hitta varför enter ibland inte funkar
+  const fail = (reason) => {
+    console.log('[TURRET-ENTER-FAIL]', sim.room && sim.room.code, peerId, 'turret=' + turretId, 'reason=' + reason);
+    return false;
+  };
+  if (!sim.ctfActive) return fail('not_ctf_active');
   const t = sim.ctfTurrets && sim.ctfTurrets[turretId];
-  if (!t || t.destroyed) return false;
-  if (t.occupantId) return false; // upptagen — bara en åt gången
+  if (!t) return fail('turret_not_found_' + turretId);
+  if (t.destroyed) return fail('destroyed');
+  if (t.occupantId) return fail('occupied_by_' + t.occupantId);
   const ws = sim.room.members.get(peerId);
-  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return false;
-  // Måste vara nära turret + på samma lag
-  if (ws.tdmTeam !== t.team) return false;
+  if (!ws) return fail('ws_missing');
+  if (!ws.playerState) return fail('no_player_state');
+  if (ws.playerState.hp <= 0) return fail('dead');
+  // Lag-check: turret måste matcha spelarens team
+  if (ws.tdmTeam !== t.team) return fail('wrong_team_' + ws.tdmTeam + '_vs_' + t.team);
+  // Avstånds-check — använd en generös radie så enter inte misslyckas pga lag-jitter
   const dx = ws.playerState.x - t.x, dy = ws.playerState.y - t.y;
-  if (dx * dx + dy * dy > TURRET_ENTER_RADIUS * TURRET_ENTER_RADIUS) return false;
+  const d2 = dx * dx + dy * dy;
+  const maxR = (CTF_ARENA.turretEnterRadius || 50) + 20; // +20px tolerance
+  if (d2 > maxR * maxR) return fail('too_far_' + Math.round(Math.sqrt(d2)) + 'px');
   t.occupantId = peerId;
   ws._mountedCtfTurretId = turretId;
   // Lås spelare till turret-position
   ws.playerState.x = t.x;
   ws.playerState.y = t.y;
+  console.log('[TURRET-ENTER-OK]', sim.room && sim.room.code, peerId, '→', turretId);
   sim.eventQueue.push({ type: 'ctf_turret_entered', peerId, turretId });
   return true;
 }

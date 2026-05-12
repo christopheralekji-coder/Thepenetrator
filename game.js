@@ -1004,133 +1004,521 @@ function drawCtfArenaFloor() {
   ctx.restore();
 }
 
-// Generisk wall-render som används av både CTF och TDM. Stöder många kinds:
-// wall_red_base, wall_blue_base, wall_pillar, wall_divider, crate, sandbag,
-// barrel, debris, barricade, pipe.
+// Generisk wall-render — detaljerad pixel-art-style rendering för varje kind.
+// Använd helper-funktioner per typ så koden är läsbar. Alla helpers tar
+// (x, y, w, h) som ABSOLUTA skärm-koord (kameran är redan applicerad).
 function drawPvpWalls(walls) {
   if (!walls) return;
   const cx = state.camera.x, cy = state.camera.y;
+  // Shadow under varje wall (drop-shadow) först så de lager-lurar visuellt
   ctx.save();
   for (const w of walls) {
     const x = w.x - cx, y = w.y - cy;
-    if (x + w.w < -10 || x > viewW + 10 || y + w.h < -10 || y > viewH + 10) continue;
-    if (w.kind === 'wall_red_base' || w.kind === 'wall_blue_base') {
-      const isRed = w.kind === 'wall_red_base';
-      ctx.fillStyle = isRed ? '#5a2020' : '#1a2a5a';
-      ctx.fillRect(x, y, w.w, w.h);
-      ctx.strokeStyle = isRed ? '#ff6060' : '#60a0ff';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
-    } else if (w.kind === 'wall_pillar') {
-      ctx.fillStyle = '#444';
-      ctx.fillRect(x, y, w.w, w.h);
-      ctx.strokeStyle = '#888';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
-      // Vertikal highlight för att se det är en pillar
-      ctx.fillStyle = 'rgba(255,255,255,0.07)';
-      ctx.fillRect(x + 2, y + 2, 3, w.h - 4);
-    } else if (w.kind === 'wall_divider') {
-      ctx.fillStyle = '#333';
-      ctx.fillRect(x, y, w.w, w.h);
-      ctx.strokeStyle = '#666';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
-    } else if (w.kind === 'sandbag') {
-      // Sandsäckar — beige rundade rektanglar med stripes
-      ctx.fillStyle = '#9a7a4a';
-      ctx.fillRect(x, y, w.w, w.h);
-      ctx.strokeStyle = '#6a4e2a';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
-      // Stripes (sandsäck-segment)
-      ctx.strokeStyle = 'rgba(80,60,30,0.5)';
-      const segs = Math.max(2, Math.floor(w.w / 30));
-      for (let i = 1; i < segs; i++) {
-        const sx = x + (w.w / segs) * i;
-        ctx.beginPath();
-        ctx.moveTo(sx, y + 2);
-        ctx.lineTo(sx, y + w.h - 2);
-        ctx.stroke();
-      }
-    } else if (w.kind === 'barrel') {
-      // Rött explosivt fat (rund look via fyrkant + cirkel-overlay)
-      ctx.fillStyle = '#7a2020';
-      ctx.fillRect(x, y, w.w, w.h);
-      ctx.strokeStyle = '#ff5050';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
-      // Cirkel-overlay för att se det är ett fat
-      ctx.fillStyle = 'rgba(255,80,80,0.4)';
-      ctx.beginPath();
-      ctx.arc(x + w.w / 2, y + w.h / 2, Math.min(w.w, w.h) * 0.35, 0, Math.PI * 2);
-      ctx.fill();
-      // Varnings-X
-      ctx.fillStyle = '#ffd54a';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('☢', x + w.w / 2, y + w.h / 2);
-    } else if (w.kind === 'debris') {
-      // Skrot-bit — mörkgrå random shape
-      ctx.fillStyle = '#5a5a60';
-      ctx.fillRect(x, y, w.w, w.h);
-      ctx.strokeStyle = '#3a3a40';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
-      // Inner-streck för att se skrot-textur
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-      ctx.beginPath();
-      ctx.moveTo(x + 4, y + 4);
-      ctx.lineTo(x + w.w - 4, y + w.h - 4);
-      ctx.moveTo(x + w.w - 4, y + 4);
-      ctx.lineTo(x + 4, y + w.h - 4);
-      ctx.stroke();
-    } else if (w.kind === 'barricade') {
-      // Trä-barrikad (gult-brun + diagonal-stripes)
-      ctx.fillStyle = '#8a6a3a';
-      ctx.fillRect(x, y, w.w, w.h);
-      ctx.strokeStyle = '#5a3a1a';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
-      ctx.strokeStyle = 'rgba(60,30,10,0.5)';
-      ctx.lineWidth = 1;
-      for (let i = -w.h; i < w.w; i += 8) {
-        ctx.beginPath();
-        ctx.moveTo(x + i, y + w.h);
-        ctx.lineTo(x + i + w.h, y);
-        ctx.stroke();
-      }
-    } else if (w.kind === 'pipe') {
-      // Rör — cyan/blå metallic
-      ctx.fillStyle = '#4a6a7a';
-      ctx.fillRect(x, y, w.w, w.h);
-      ctx.strokeStyle = '#2a4a5a';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
-      // Highlight för rör-rundning
-      ctx.fillStyle = 'rgba(140,180,200,0.4)';
-      ctx.fillRect(x + 2, y + 2, w.w - 4, 3);
-    } else if (w.kind === 'crate') {
-      ctx.fillStyle = '#6a4a2a';
-      ctx.fillRect(x, y, w.w, w.h);
-      ctx.strokeStyle = '#b07b3a';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
-      // Mitten-linje (träplankor-look)
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x + 4, y + w.h * 0.5);
-      ctx.lineTo(x + w.w - 4, y + w.h * 0.5);
-      ctx.stroke();
-    } else {
-      // Default fallback
-      ctx.fillStyle = '#5a5a5a';
-      ctx.fillRect(x, y, w.w, w.h);
+    if (x + w.w < -20 || x > viewW + 20 || y + w.h < -20 || y > viewH + 20) continue;
+    // Drop-shadow för depth (ej för low dividers eller pipes som ligger på marken)
+    if (w.kind !== 'pipe' && w.kind !== 'wall_divider') {
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillRect(x + 2, y + Math.max(3, w.h * 0.06), w.w, w.h);
     }
+    // Rita själva obstaclet
+    if (w.kind === 'wall_red_base' || w.kind === 'wall_blue_base') drawBaseWall(x, y, w.w, w.h, w.kind === 'wall_red_base');
+    else if (w.kind === 'wall_pillar') drawPillar(x, y, w.w, w.h);
+    else if (w.kind === 'wall_divider') drawDivider(x, y, w.w, w.h);
+    else if (w.kind === 'sandbag') drawSandbag(x, y, w.w, w.h);
+    else if (w.kind === 'barrel') drawBarrel(x, y, w.w, w.h);
+    else if (w.kind === 'debris') drawDebris(x, y, w.w, w.h);
+    else if (w.kind === 'barricade') drawBarricade(x, y, w.w, w.h);
+    else if (w.kind === 'pipe') drawPipe(x, y, w.w, w.h);
+    else if (w.kind === 'crate') drawCrate(x, y, w.w, w.h);
+    else { ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x, y, w.w, w.h); }
   }
   ctx.restore();
+}
+
+// Base-wall: stålplattor med nitar + lag-färg + slitage + bullet-holes
+function drawBaseWall(x, y, w, h, isRed) {
+  const baseDark = isRed ? '#3a1010' : '#10204a';
+  const baseMid = isRed ? '#5a2828' : '#1a3060';
+  const stroke = isRed ? '#ff6060' : '#60a0ff';
+  // Gradient fyllning för 3D-look
+  const grad = ctx.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, baseMid);
+  grad.addColorStop(0.5, baseDark);
+  grad.addColorStop(1, baseMid);
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+  // Plattor-segmentering (varje 60-80 px)
+  const segW = Math.max(40, w > h ? w / Math.max(2, Math.round(w / 80)) : w);
+  const segH = Math.max(40, h > w ? h / Math.max(2, Math.round(h / 80)) : h);
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  ctx.lineWidth = 1;
+  if (w > h) {
+    for (let i = segW; i < w; i += segW) {
+      ctx.beginPath();
+      ctx.moveTo(x + i, y + 2);
+      ctx.lineTo(x + i, y + h - 2);
+      ctx.stroke();
+    }
+  } else {
+    for (let i = segH; i < h; i += segH) {
+      ctx.beginPath();
+      ctx.moveTo(x + 2, y + i);
+      ctx.lineTo(x + w - 2, y + i);
+      ctx.stroke();
+    }
+  }
+  // Nitar (små cirklar i hörnen + längs kanterna)
+  const rivetR = 1.8;
+  const rivetColor = '#222';
+  const rivetHi = isRed ? '#7a3030' : '#3050a0';
+  const placeRivet = (rx, ry) => {
+    ctx.fillStyle = rivetColor;
+    ctx.beginPath(); ctx.arc(rx, ry, rivetR, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = rivetHi;
+    ctx.beginPath(); ctx.arc(rx - 0.5, ry - 0.5, rivetR * 0.4, 0, Math.PI * 2); ctx.fill();
+  };
+  // Hörn-nitar
+  placeRivet(x + 5, y + 5);
+  placeRivet(x + w - 5, y + 5);
+  placeRivet(x + 5, y + h - 5);
+  placeRivet(x + w - 5, y + h - 5);
+  // Längs långsidor
+  if (w > 60) {
+    for (let i = 30; i < w - 10; i += 30) {
+      placeRivet(x + i, y + 5);
+      placeRivet(x + i, y + h - 5);
+    }
+  }
+  if (h > 60) {
+    for (let i = 30; i < h - 10; i += 30) {
+      placeRivet(x + 5, y + i);
+      placeRivet(x + w - 5, y + i);
+    }
+  }
+  // Bullet-holes (deterministisk via xor-hash så de inte flickrar)
+  const hash = (x * 7 + y * 13 + w * 5 + h * 11) | 0;
+  const holes = Math.min(3, Math.floor((w + h) / 120));
+  for (let i = 0; i < holes; i++) {
+    const hx = x + 10 + ((hash * (i + 1) * 23) & 0xff) % Math.max(1, w - 20);
+    const hy = y + 10 + ((hash * (i + 3) * 31) & 0xff) % Math.max(1, h - 20);
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(hx, hy, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(180,180,180,0.4)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath(); ctx.arc(hx, hy, 3.5, 0, Math.PI * 2); ctx.stroke();
+  }
+  // Lag-färgad ram (subtil)
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+}
+
+// Pillar: betongpelare med synligt rebar + sprickor + bullet-holes
+function drawPillar(x, y, w, h) {
+  // Concrete-gradient
+  const grad = ctx.createLinearGradient(x, y, x + w, y);
+  grad.addColorStop(0, '#4a4a4a');
+  grad.addColorStop(0.5, '#606060');
+  grad.addColorStop(1, '#3a3a3a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+  // Yttre kant
+  ctx.strokeStyle = '#2a2a2a';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  // Inner highlight (left edge)
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  ctx.fillRect(x + 2, y + 2, 2, h - 4);
+  // Concrete texture (noise-dots)
+  const hash = (x * 17 + y * 23) | 0;
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  for (let i = 0; i < 8; i++) {
+    const px = x + 2 + ((hash * (i + 1) * 7) & 0xff) % (w - 4);
+    const py = y + 2 + ((hash * (i + 7) * 13) & 0xff) % (h - 4);
+    ctx.fillRect(px, py, 1.5, 1.5);
+  }
+  // Sprickor (zig-zag-linjer)
+  ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+  ctx.lineWidth = 1;
+  if (h > 100) {
+    ctx.beginPath();
+    const midX = x + w / 2;
+    ctx.moveTo(midX, y + h * 0.2);
+    ctx.lineTo(midX - 2, y + h * 0.35);
+    ctx.lineTo(midX + 1, y + h * 0.5);
+    ctx.lineTo(midX - 3, y + h * 0.65);
+    ctx.lineTo(midX + 2, y + h * 0.8);
+    ctx.stroke();
+  }
+  // Exponerad rebar i toppen om hög pillar
+  if (h > 100) {
+    ctx.strokeStyle = '#5a3a1a';
+    ctx.lineWidth = 1.5;
+    for (let rx = x + 6; rx < x + w - 6; rx += 6) {
+      ctx.beginPath();
+      ctx.moveTo(rx, y);
+      ctx.lineTo(rx, y - 4);
+      ctx.stroke();
+    }
+    // Rost-orange tipp
+    ctx.fillStyle = '#9a5a20';
+    for (let rx = x + 6; rx < x + w - 6; rx += 6) {
+      ctx.fillRect(rx - 1, y - 4, 2, 2);
+    }
+  }
+  // Bullet-holes
+  const holesN = Math.floor(h / 60);
+  for (let i = 0; i < holesN; i++) {
+    const hx = x + 5 + ((hash * (i + 1) * 19) & 0xff) % (w - 10);
+    const hy = y + 20 + (i * h / Math.max(1, holesN)) | 0;
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(hx, hy, 1.5, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
+// Divider: jersey-barrier-style med reflektiv-stripes
+function drawDivider(x, y, w, h) {
+  // Concrete-gradient (top → bottom)
+  const grad = ctx.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, '#5a5a5a');
+  grad.addColorStop(0.5, '#404040');
+  grad.addColorStop(1, '#2a2a2a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+  // Kant
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  // Reflective gul-svart stripes (varannan)
+  const stripeW = 12;
+  for (let i = 0; i < w; i += stripeW * 2) {
+    ctx.fillStyle = 'rgba(255,213,74,0.85)';
+    ctx.fillRect(x + i, y + h * 0.3, Math.min(stripeW, w - i), h * 0.4);
+  }
+  // Yttre kant (mörk)
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(x, y + h - 2, w, 2);
+}
+
+// Sandsäck: stack av runda säckar med stitches + rope
+function drawSandbag(x, y, w, h) {
+  // Antal säckar baserat på bredd (varje säck ~36px)
+  const bagW = 36;
+  const bags = Math.max(1, Math.floor(w / bagW));
+  const actualBagW = w / bags;
+  for (let i = 0; i < bags; i++) {
+    const bx = x + i * actualBagW;
+    const bw = actualBagW;
+    // Säck-bas (rounded shape via gradient)
+    const grad = ctx.createLinearGradient(bx, y, bx, y + h);
+    grad.addColorStop(0, '#b89060');
+    grad.addColorStop(0.5, '#9a7440');
+    grad.addColorStop(1, '#6a4e2a');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(bx + 1, y + 1, bw - 2, h - 2, Math.min(6, h * 0.3));
+    } else {
+      ctx.rect(bx + 1, y + 1, bw - 2, h - 2);
+    }
+    ctx.fill();
+    // Kant (mörk konturlinje)
+    ctx.strokeStyle = '#3a2810';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    // Stitching (sömmar) — horisontella streck längs ovansidan
+    ctx.strokeStyle = 'rgba(40,25,5,0.7)';
+    ctx.lineWidth = 0.8;
+    ctx.setLineDash([2, 2]);
+    ctx.beginPath();
+    ctx.moveTo(bx + 4, y + 3);
+    ctx.lineTo(bx + bw - 4, y + 3);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Mid-tie (rep i mitten)
+    ctx.fillStyle = '#5a3a15';
+    ctx.fillRect(bx + bw / 2 - 2, y + 2, 4, h - 4);
+    // Knut i mitten
+    ctx.fillStyle = '#7a5025';
+    ctx.beginPath();
+    ctx.arc(bx + bw / 2, y + h / 2, Math.min(3, h * 0.2), 0, Math.PI * 2);
+    ctx.fill();
+    // Top-highlight
+    ctx.fillStyle = 'rgba(255,220,180,0.25)';
+    ctx.fillRect(bx + 4, y + 2, bw - 8, 2);
+  }
+}
+
+// Explosivt fat: cylinder med metal-bands + biohazard + dripps
+function drawBarrel(x, y, w, h) {
+  const cx = x + w / 2;
+  const cy = y + h / 2;
+  // Yttre cirkel (top-view-style ovanifrån). Använd lite rektangel för "djup"
+  ctx.fillStyle = '#2a0808';
+  ctx.fillRect(x, y, w, h);
+  // Huvud-cirkel (3D-bowl)
+  const grad = ctx.createRadialGradient(cx - 2, cy - 2, 1, cx, cy, w * 0.55);
+  grad.addColorStop(0, '#ff6060');
+  grad.addColorStop(0.5, '#aa2020');
+  grad.addColorStop(1, '#5a1010');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, w * 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  // Metal-band runt (yttre)
+  ctx.strokeStyle = '#3a3a3a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, w * 0.5, 0, Math.PI * 2);
+  ctx.stroke();
+  // Inner-cirkel (top-opening)
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(cx, cy, w * 0.32, 0, Math.PI * 2);
+  ctx.stroke();
+  // Biohazard-symbol (☢) i mitten
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'bold ' + Math.floor(w * 0.5) + 'px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#000';
+  ctx.shadowBlur = 2;
+  ctx.fillText('☢', cx, cy);
+  ctx.shadowBlur = 0;
+  // Drip-streck nedanför (looks dangerous)
+  ctx.strokeStyle = '#2a0a0a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - 4, cy + w * 0.45);
+  ctx.lineTo(cx - 5, y + h + 2);
+  ctx.moveTo(cx + 3, cy + w * 0.4);
+  ctx.lineTo(cx + 4, y + h + 1);
+  ctx.stroke();
+  // Top-highlight (reflective)
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.beginPath();
+  ctx.arc(cx - w * 0.18, cy - w * 0.18, w * 0.1, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// Debris: jaggad metallbit med rost + rivets
+function drawDebris(x, y, w, h) {
+  // Bakgrund (mörk skugga-area)
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x, y, w, h);
+  // Mestadels mörkgrå metal med rost
+  ctx.fillStyle = '#4a4a52';
+  ctx.beginPath();
+  // Jaggad oregelbunden form
+  const hash = (x * 13 + y * 19) | 0;
+  ctx.moveTo(x + 2, y + 4);
+  ctx.lineTo(x + w * 0.3, y + 1);
+  ctx.lineTo(x + w * 0.6, y + 3);
+  ctx.lineTo(x + w - 2, y + 2);
+  ctx.lineTo(x + w - 1, y + h * 0.4);
+  ctx.lineTo(x + w - 4, y + h - 3);
+  ctx.lineTo(x + w * 0.5, y + h - 1);
+  ctx.lineTo(x + 3, y + h - 2);
+  ctx.lineTo(x + 1, y + h * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  // Rost-fläckar (orange-bruna)
+  ctx.fillStyle = '#7a4a20';
+  ctx.beginPath();
+  ctx.arc(x + w * 0.3, y + h * 0.4, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#9a5a30';
+  ctx.beginPath();
+  ctx.arc(x + w * 0.7, y + h * 0.6, 3, 0, Math.PI * 2);
+  ctx.fill();
+  // Rivets/bolts (silver-små cirklar)
+  const placeBolt = (bx, by) => {
+    ctx.fillStyle = '#222';
+    ctx.beginPath(); ctx.arc(bx, by, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#7a7a80';
+    ctx.beginPath(); ctx.arc(bx - 0.3, by - 0.3, 0.6, 0, Math.PI * 2); ctx.fill();
+  };
+  placeBolt(x + w * 0.2, y + h * 0.2);
+  placeBolt(x + w * 0.8, y + h * 0.25);
+  placeBolt(x + w * 0.4, y + h * 0.7);
+  // Sprick-linjer
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.15, y + h * 0.1);
+  ctx.lineTo(x + w * 0.6, y + h * 0.5);
+  ctx.lineTo(x + w * 0.85, y + h * 0.45);
+  ctx.stroke();
+}
+
+// Barricade: korslagda träplankor med spikar + slitage
+function drawBarricade(x, y, w, h) {
+  // Bakgrund (svagt mörkare)
+  ctx.fillStyle = '#3a2a18';
+  ctx.fillRect(x, y, w, h);
+  // Tre plankor överlappande
+  const plankH = Math.max(6, h * 0.55);
+  const drawPlank = (px, py, pw, ph, rot, color1, color2) => {
+    ctx.save();
+    ctx.translate(px + pw / 2, py + ph / 2);
+    if (rot) ctx.rotate(rot);
+    const grad = ctx.createLinearGradient(-pw / 2, -ph / 2, -pw / 2, ph / 2);
+    grad.addColorStop(0, color1);
+    grad.addColorStop(0.5, color2);
+    grad.addColorStop(1, color1);
+    ctx.fillStyle = grad;
+    ctx.fillRect(-pw / 2, -ph / 2, pw, ph);
+    ctx.strokeStyle = '#3a2810';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-pw / 2 + 0.5, -ph / 2 + 0.5, pw - 1, ph - 1);
+    // Trä-grain (horisontella linjer)
+    ctx.strokeStyle = 'rgba(50,30,10,0.4)';
+    ctx.lineWidth = 0.5;
+    for (let i = -ph / 2 + 2; i < ph / 2; i += 3) {
+      ctx.beginPath();
+      ctx.moveTo(-pw / 2 + 2, i);
+      ctx.lineTo(pw / 2 - 2, i);
+      ctx.stroke();
+    }
+    // Spikar
+    ctx.fillStyle = '#222';
+    ctx.beginPath(); ctx.arc(-pw / 2 + 4, 0, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(pw / 2 - 4, 0, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#7a7a80';
+    ctx.beginPath(); ctx.arc(-pw / 2 + 4 - 0.3, -0.3, 0.6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(pw / 2 - 4 - 0.3, -0.3, 0.6, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  };
+  // Bottenplanka (rakt)
+  drawPlank(x, y + h - plankH, w, plankH, 0, '#8a6a3a', '#6a4a20');
+  // Korslagd planka (lite roterad)
+  drawPlank(x + 4, y, w - 8, plankH * 0.9, -0.05, '#9a7a40', '#7a5a28');
+  // Yttre kontur
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+}
+
+// Rör: cylindriskt metallrör med flänsar + bolts + ångström
+function drawPipe(x, y, w, h) {
+  // Cylinder gradient (top → bottom för horisontellt rör)
+  const grad = ctx.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, '#7a98a8');
+  grad.addColorStop(0.45, '#4a6a7a');
+  grad.addColorStop(0.5, '#3a5a6a');
+  grad.addColorStop(0.55, '#4a6a7a');
+  grad.addColorStop(1, '#1a3040');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+  // Top-highlight (reflective shine)
+  ctx.fillStyle = 'rgba(220,240,255,0.5)';
+  ctx.fillRect(x, y + 1, w, 2);
+  // Botten-skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(x, y + h - 2, w, 2);
+  // Flänsar i ändarna (bredare cirkel-bands)
+  ctx.fillStyle = '#3a4a55';
+  ctx.fillRect(x, y - 2, 8, h + 4);
+  ctx.fillRect(x + w - 8, y - 2, 8, h + 4);
+  ctx.strokeStyle = '#1a2a35';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y - 2, 7, h + 4);
+  ctx.strokeRect(x + w - 7.5, y - 2, 7, h + 4);
+  // Bolts på flänsarna
+  const placeBolt = (bx, by) => {
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(bx, by, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#aaa';
+    ctx.beginPath(); ctx.arc(bx - 0.3, by - 0.3, 0.6, 0, Math.PI * 2); ctx.fill();
+  };
+  placeBolt(x + 4, y);
+  placeBolt(x + 4, y + h - 1);
+  placeBolt(x + w - 4, y);
+  placeBolt(x + w - 4, y + h - 1);
+  // Rost-strimmor längs röret
+  ctx.fillStyle = 'rgba(120,60,20,0.4)';
+  ctx.fillRect(x + w * 0.3, y + h * 0.3, 2, h * 0.4);
+  ctx.fillRect(x + w * 0.65, y + h * 0.5, 2, h * 0.3);
+}
+
+// Crate: trälåda med plankor, hörn-band, stamps
+function drawCrate(x, y, w, h) {
+  // Gradient-bakgrund för wood-tone
+  const grad = ctx.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, '#9a6a3a');
+  grad.addColorStop(0.5, '#7a4a20');
+  grad.addColorStop(1, '#5a3010');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+  // Plankor (horisontella separator-linjer)
+  ctx.strokeStyle = '#3a1a0a';
+  ctx.lineWidth = 1.2;
+  const plankCount = Math.max(2, Math.floor(h / 25));
+  for (let i = 1; i < plankCount; i++) {
+    const py = y + (h / plankCount) * i;
+    ctx.beginPath();
+    ctx.moveTo(x + 2, py);
+    ctx.lineTo(x + w - 2, py);
+    ctx.stroke();
+  }
+  // Trä-grain (subtila vertikala streck)
+  ctx.strokeStyle = 'rgba(40,20,5,0.3)';
+  ctx.lineWidth = 0.6;
+  const hash = (x * 7 + y * 11) | 0;
+  for (let i = 0; i < 4; i++) {
+    const gx = x + 4 + ((hash * (i + 1) * 13) & 0x7f) % (w - 8);
+    ctx.beginPath();
+    ctx.moveTo(gx, y + 2);
+    ctx.lineTo(gx, y + h - 2);
+    ctx.stroke();
+  }
+  // Hörn-metall-bands (mörka L-shapes)
+  ctx.fillStyle = '#3a2818';
+  const cornerSize = Math.min(8, Math.floor(Math.min(w, h) * 0.25));
+  // Top-left
+  ctx.fillRect(x, y, cornerSize, 2);
+  ctx.fillRect(x, y, 2, cornerSize);
+  // Top-right
+  ctx.fillRect(x + w - cornerSize, y, cornerSize, 2);
+  ctx.fillRect(x + w - 2, y, 2, cornerSize);
+  // Bottom-left
+  ctx.fillRect(x, y + h - 2, cornerSize, 2);
+  ctx.fillRect(x, y + h - cornerSize, 2, cornerSize);
+  // Bottom-right
+  ctx.fillRect(x + w - cornerSize, y + h - 2, cornerSize, 2);
+  ctx.fillRect(x + w - 2, y + h - cornerSize, 2, cornerSize);
+  // Nitar i hörnen
+  const placeNail = (nx, ny) => {
+    ctx.fillStyle = '#1a1010';
+    ctx.beginPath(); ctx.arc(nx, ny, 1.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#888';
+    ctx.beginPath(); ctx.arc(nx - 0.2, ny - 0.2, 0.5, 0, Math.PI * 2); ctx.fill();
+  };
+  placeNail(x + 3, y + 3);
+  placeNail(x + w - 3, y + 3);
+  placeNail(x + 3, y + h - 3);
+  placeNail(x + w - 3, y + h - 3);
+  // Stamp/label (om tillräckligt stor)
+  if (w >= 60 && h >= 60) {
+    ctx.save();
+    ctx.translate(x + w / 2, y + h * 0.6);
+    ctx.rotate(-0.08);
+    ctx.fillStyle = 'rgba(20,10,5,0.55)';
+    ctx.strokeStyle = 'rgba(20,10,5,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.font = 'bold ' + Math.floor(w * 0.18) + 'px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('AMMO', 0, 0);
+    // Frame runt stamp
+    ctx.strokeRect(-w * 0.28, -h * 0.12, w * 0.56, h * 0.24);
+    ctx.restore();
+  }
+  // Yttre kant
+  ctx.strokeStyle = '#1a0a05';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
 
 // CTF: rita decorations — skyltar, klotter, lyktor, små flaggor.
@@ -4637,7 +5025,9 @@ function updateTurretButton() {
     _turretNearbyId = null;
     return;
   }
-  const r = state.ctfTurretEnterRadius || 50;
+  // Klient-side radie LITE större än server-side för att kompensera för
+  // network-lag (server är auktoritet — server-radie är 50+20 tolerance).
+  const r = (state.ctfTurretEnterRadius || 50) + 15;
   let found = null;
   for (const id of Object.keys(state.ctfTurrets)) {
     const t = state.ctfTurrets[id];
@@ -4646,6 +5036,9 @@ function updateTurretButton() {
     if (dx * dx + dy * dy < r * r) { found = id; break; }
   }
   if (found) {
+    if (_turretNearbyId !== found) {
+      console.log('[TURRET-CLIENT] in range of', found);
+    }
     _turretNearbyId = found;
     _btnTurretAction.textContent = '🔫 ENTER TORN';
     _btnTurretAction.classList.remove('hidden');
@@ -4654,22 +5047,39 @@ function updateTurretButton() {
     if (!_btnTurretAction.classList.contains('hidden')) _btnTurretAction.classList.add('hidden');
   }
 }
+function triggerTurretAction(source) {
+  if (!state.player) { console.log('[TURRET-CLIENT] no player'); return; }
+  if (!Coop.ws || Coop.ws.readyState !== 1) { console.log('[TURRET-CLIENT] ws not open'); return; }
+  if (state.player._mountedCtfTurretId) {
+    const tid = state.player._mountedCtfTurretId;
+    console.log('[TURRET-CLIENT] EXIT', tid, 'via', source);
+    try { Coop.ws.send(JSON.stringify({ type: 'ctf_turret_exit', turretId: tid })); } catch (_) {}
+  } else if (_turretNearbyId) {
+    console.log('[TURRET-CLIENT] ENTER', _turretNearbyId, 'via', source);
+    try { Coop.ws.send(JSON.stringify({ type: 'ctf_turret_enter', turretId: _turretNearbyId })); } catch (_) {}
+  } else {
+    console.log('[TURRET-CLIENT] no nearby turret');
+  }
+}
 if (_btnTurretAction) {
+  // Dedupe pointerdown + touchstart (båda fyrar på mobil)
+  let _lastTurretClick = 0;
   const onTurretClick = (e) => {
     e.preventDefault();
-    if (!state.player || !Coop.ws || Coop.ws.readyState !== 1) return;
-    if (state.player._mountedCtfTurretId) {
-      // EXIT
-      const tid = state.player._mountedCtfTurretId;
-      try { Coop.ws.send(JSON.stringify({ type: 'ctf_turret_exit', turretId: tid })); } catch (_) {}
-    } else if (_turretNearbyId) {
-      // ENTER
-      try { Coop.ws.send(JSON.stringify({ type: 'ctf_turret_enter', turretId: _turretNearbyId })); } catch (_) {}
-    }
+    const now = performance.now();
+    if (now - _lastTurretClick < 200) return; // ignore double-fire
+    _lastTurretClick = now;
+    triggerTurretAction('btn');
   };
   _btnTurretAction.addEventListener('pointerdown', onTurretClick);
   _btnTurretAction.addEventListener('touchstart', onTurretClick, { passive: false });
 }
+// Keyboard fallback: E-key för desktop-spelare
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'e' || e.key === 'E') {
+    if (state.mode === 'playing' && state.ctfActive) triggerTurretAction('keyE');
+  }
+});
 
 // PvP-shield-knapp: 3s total immunitet, 45s cooldown. Bara aktiv i TDM/CTF.
 // Server-auth: skickar pvp_ability_shield till server som sätter invulnUntil.
