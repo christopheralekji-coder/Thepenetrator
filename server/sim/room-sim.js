@@ -18,11 +18,12 @@ const { SIEGE_ARENA } = require('../../shared/siege-arena');
 // vi sätta SIM_TICK_HZ env-var lokalt utan ny deploy.
 const TICK_HZ = parseInt(process.env.SIM_TICK_HZ, 10) || 45;
 const TICK_MS = 1000 / TICK_HZ;
-// Broadcast-rate separat från tick: sim räknar fortfarande 45Hz för snabb
-// input-response, men world-broadcast sker bara 30Hz för att spara CPU vid
-// 8-player-rum (perMessageDeflate-compression är dyrast delen per-peer-send).
-// Klient interpolerar partner-positioner så 30Hz visual känns smooth.
-const BROADCAST_HZ = parseInt(process.env.SIM_BROADCAST_HZ, 10) || 30;
+// Broadcast-rate matchar nu tick (45Hz) för minimal input→pixel-delay.
+// Tidigare 30Hz introducerade upp till 22ms dödtid mellan world-snapshots
+// vilket var en stor del av "lagg-känslan" trots OK ping. Per-peer-broadcast
+// kostar mest i deflate; men threshold:256 i server.js skippar deflate för
+// små paket så CPU-impacten är acceptabel även för 8-player-rum.
+const BROADCAST_HZ = parseInt(process.env.SIM_BROADCAST_HZ, 10) || 45;
 const BROADCAST_EVERY = Math.max(1, Math.round(TICK_HZ / BROADCAST_HZ));
 const FULL_BROADCAST_MS = 1500;
 const ENEMY_CAP = 80;

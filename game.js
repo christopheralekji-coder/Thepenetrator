@@ -8195,9 +8195,10 @@ const Coop = {
     if (!this.active || this.inLobby || !state.player) return;
     const now = performance.now();
     // Adaptiv rate: om servern inte hänger med (buffer fylls upp), sakta ner
-    // Default 33ms → 30Hz tick (höjt från 50/20 för ännu jämnare känsla — bandbredd-budget håller med slot/enum/deflate)
+    // Default 22ms → 45Hz tick (matchar server-tick så input inte tappar timing).
+    // Höjt från 30Hz för att eliminera ~11ms quantization-lag mot server.
     const buffered = this.ws ? this.ws.bufferedAmount : 0;
-    const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 33);
+    const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 22);
     // Server-auth mode: ALLA klienter (inkl host) skickar bara position till servern.
     // Visual shots delas fortfarande peer-to-peer via _sendBroadcast så andra ser dina projektiler.
     if (this.serverSimActive) {
@@ -24157,21 +24158,28 @@ function runFrame(dt, now) {
         updateHazards(dt);
         updatePickups(dt);
       } else {
-        // KLIENT: kör interpolation mot host's positions (smooth)
-        const lerpFactor = Math.min(1, dt * 12); // 12 = lerp speed (högre = snabbare följer)
+        // KLIENT: kör interpolation mot host's positions (smooth).
+        // lerpFactor 12→25: gammal smoothing tog ~220ms att nå 95% av ny target
+        // vilket adderade märkbar input-lag-känsla ovanpå ping. 25 ger ~90ms
+        // istället — fortfarande smooth men reaktivt. Vid större diff (>100px)
+        // = teleport pga respawn/eject, ingen smoothing behövs.
+        const lerpFactor = Math.min(1, dt * 25);
         for (const e of state.enemies) {
           if (e.targetX === undefined) continue;
-          e.x += (e.targetX - e.x) * lerpFactor;
-          e.y += (e.targetY - e.y) * lerpFactor;
-          // Walk-cycle ändå animerad lokalt
+          const dxE = e.targetX - e.x, dyE = e.targetY - e.y;
+          // Snap vid stor diff (respawn/teleport) — smooth bara små rörelser
+          if (dxE * dxE + dyE * dyE > 10000) { e.x = e.targetX; e.y = e.targetY; }
+          else { e.x += dxE * lerpFactor; e.y += dyE * lerpFactor; }
           if (e.walkAccum !== undefined) e.walkAccum += dt * 5;
         }
-        // Coop-partners interpolation också
-        const aimLerp = Math.min(1, dt * 18);
+        // Coop-partners interpolation också — aim snabbare än position (taktiskt)
+        const aimLerp = Math.min(1, dt * 30);
         for (const [, p] of Coop.players) {
           if (p.targetX === undefined) { p.targetX = p.x; p.targetY = p.y; }
-          p.x += (p.targetX - p.x) * lerpFactor;
-          p.y += (p.targetY - p.y) * lerpFactor;
+          const dxP = p.targetX - p.x, dyP = p.targetY - p.y;
+          // Snap vid teleport (respawn/spawn) — smooth bara små rörelser
+          if (dxP * dxP + dyP * dyP > 10000) { p.x = p.targetX; p.y = p.targetY; }
+          else { p.x += dxP * lerpFactor; p.y += dyP * lerpFactor; }
           if (p.targetAimAngle !== undefined) {
             let d = p.targetAimAngle - p.aimAngle;
             while (d > Math.PI) d -= Math.PI * 2;
