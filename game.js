@@ -4607,6 +4607,12 @@ const Coop = {
       state.serverSimActive = false;
     } else if (msg.type === 'sim_event') {
       this._handleSimEvent(msg.event);
+    } else if (msg.type === 'sim_events') {
+      // Server batch:ar flera events i ett meddelande för att minska
+      // JSON.stringify/ws.send overhead. Iterera klient-side.
+      if (Array.isArray(msg.events)) {
+        for (const ev of msg.events) this._handleSimEvent(ev);
+      }
     } else if (msg.type === 'pickup_to_you') {
       // Server-sim pickup-pickup-event (samma som befintlig host-mode)
       if (typeof _simDiag !== 'undefined') _simDiag.pickupsReceived++;
@@ -5481,14 +5487,28 @@ const Coop = {
       const _dead = state.player.spectating;
       const _cx = _dead && state.deadBody ? state.deadBody.x : state.player.x;
       const _cy = _dead && state.deadBody ? state.deadBody.y : state.player.y;
+      const _x = Math.round(_cx);
+      const _y = Math.round(_cy);
+      const _aim = Math.round(state.player.aimAngle * 100) / 100;
+      const _wid = state.player.weaponId;
+      // Idle-skip: om position+aim+vapen inte ändrats sedan förra paketet, skip send.
+      // Server behåller senaste state, klient broadcast bara när något händer. Sparar
+      // bandbredd och server-CPU ≈ 50% när spelaren står still + tittar samma håll.
+      // Companion-state får igenom (rörs alltid).
+      const _hasComp = !!(state.companion && state.companion.alive);
+      const _last = this._lastInputSent;
+      const sameAsLast = _last && _last.x === _x && _last.y === _y && _last.aim === _aim && _last.wid === _wid && !_hasComp;
+      // Force send var 500ms ändå så server vet att klient lever (heartbeat)
+      if (sameAsLast && (now - (_last.t || 0)) < 500) return;
+      this._lastInputSent = { x: _x, y: _y, aim: _aim, wid: _wid, t: now };
       // sim_input: position+aim+vapen — INTE hp (server auktoritet för hp).
       // Companion-state inkluderas så server-AI kan target + skada den.
       const _payload = {
         type: 'sim_input',
-        x: Math.round(_cx),
-        y: Math.round(_cy),
-        aim: Math.round(state.player.aimAngle * 100) / 100,
-        weaponId: state.player.weaponId,
+        x: _x,
+        y: _y,
+        aim: _aim,
+        weaponId: _wid,
       };
       const _comp = state.companion;
       if (_comp && _comp.alive) {
@@ -12387,9 +12407,12 @@ function updateParticles(dt) {
     }
     p.life -= dt;
   }
-  // Cap totala partiklar (släng äldsta vid över 250)
-  if (state.particles.length > 250) {
-    const removed = state.particles.splice(0, state.particles.length - 250);
+  // Cap totala partiklar — lägre cap i coop så frame-budget håller med
+  // nätverk-overhead. Coop med 4 spelare har 4× input-events + multi-bullet
+  // broadcasts → mer CPU upptaget, lägre partikel-budget för render-headroom.
+  const particleCap = (Coop && Coop.active && Coop.players && Coop.players.size > 0) ? 180 : 250;
+  if (state.particles.length > particleCap) {
+    const removed = state.particles.splice(0, state.particles.length - particleCap);
     for (const p of removed) recycleParticle(p);
   }
   // Filter dead particles + recycle them

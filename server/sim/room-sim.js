@@ -119,8 +119,12 @@ function tickSim(sim) {
       const players = buildPlayerList(sim);
       const beforeCount = sim.enemies.length;
       if (stage) spawnEnemyAtEdge(sim, stage, players);
-      const spawned = sim.enemies.length > beforeCount;
-      console.log('[SIM]', sim.room.code, 'spawn-attempt: wave=' + sim.wave + ' zone=' + sim.currentZone + ' toSpawn=' + sim.enemiesToSpawn + ' players=' + players.length + ' spawned=' + spawned + ' total=' + sim.enemies.length);
+      // Spam-skydd: bara logga första spawn per wave (annars 100+ logs/match)
+      if (process.env.SIM_DEBUG || (sim._lastLogWave !== sim.wave)) {
+        const spawned = sim.enemies.length > beforeCount;
+        console.log('[SIM]', sim.room.code, 'spawn wave=' + sim.wave + ' zone=' + sim.currentZone + ' toSpawn=' + sim.enemiesToSpawn + ' players=' + players.length + ' spawned=' + spawned);
+        sim._lastLogWave = sim.wave;
+      }
       sim.enemiesToSpawn--;
       sim.spawnTimer = 0.4 + Math.random() * 0.4;
     }
@@ -369,12 +373,15 @@ function broadcastWorld(sim, now) {
     a: 0, w: 'fists', rT: 0,
   }));
 
-  // Drain event-queue (broadcast som JSON via room.members)
+  // Drain event-queue. Batch ALLA events i ett enda 'sim_events'-meddelande per
+  // peer per tick — sparar 1 JSON.stringify + 1 ws.send per event per client.
+  // Skipsa helt om inga events. Klienten hanterar bakåtkompat genom att stödja
+  // både 'sim_event' (en) och 'sim_events' (lista).
   if (sim.eventQueue.length > 0) {
     const events = sim.eventQueue.slice();
     sim.eventQueue.length = 0;
-    for (const ev of events) {
-      const json = JSON.stringify({ type: 'sim_event', event: ev });
+    if (sim.room.members.size > 0) {
+      const json = JSON.stringify({ type: 'sim_events', events });
       for (const [, ws] of sim.room.members) {
         if (ws.readyState === 1) try { ws.send(json); } catch (e) {}
       }
