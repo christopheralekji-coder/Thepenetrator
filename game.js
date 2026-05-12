@@ -4759,54 +4759,47 @@ const Music = {
   // Ackord-värdet är offset i scale-steg från root (0 = root, 5 = quinten, etc.)
   // Mode: minor = [0,2,3,5,7,8,10], major = [0,2,4,5,7,9,11].
   themes: {
-    // Story-stages — chill, ambient
-    forest:    { root: 110, mode: 'minor', tempo:  85, chords: [0, -3,  5, -2], style: 'ambient' },
-    perimeter: { root: 117, mode: 'minor', tempo:  92, chords: [0, -4,  5, -2], style: 'ambient' },
-    lobby:     { root: 130, mode: 'minor', tempo:  78, chords: [0, -3,  5,  3], style: 'ambient' },
-    barracks:  { root: 110, mode: 'minor', tempo: 100, chords: [0, -3,  5, -2], style: 'tense' },
-    hangar:    { root:  98, mode: 'minor', tempo: 105, chords: [0, -4,  3, -2], style: 'tense' },
-    depot:     { root: 104, mode: 'minor', tempo: 110, chords: [0,  3,  5, -3], style: 'tense' },
-    cargo:     { root: 110, mode: 'minor', tempo: 100, chords: [0, -3,  5, -2], style: 'tense' },
-    bunker:    { root:  87, mode: 'minor', tempo:  95, chords: [0, -4,  3, -1], style: 'tense' },
-    command:   { root:  92, mode: 'minor', tempo: 130, chords: [0, -1,  5, -2], style: 'dark' },
-    // PvP-modes — upbeat
-    tdm:       { root: 110, mode: 'minor', tempo: 138, chords: [0,  3,  5, -2], style: 'action' },
-    ctf:       { root: 117, mode: 'minor', tempo: 125, chords: [0,  3, -3,  5], style: 'action' },
-    siege:     { root: 110, mode: 'minor', tempo: 120, chords: [0, -3,  5,  3], style: 'action' },
+    // Chill / pleasant per stage — långsamma tempon + warm pad
+    forest:    { root: 110, mode: 'minor', tempo:  60, chords: [0, -3,  5, -2], style: 'chill' },
+    perimeter: { root: 117, mode: 'minor', tempo:  64, chords: [0, -4,  5, -2], style: 'chill' },
+    lobby:     { root: 130, mode: 'major', tempo:  56, chords: [0, -3,  5,  3], style: 'chill' },
+    barracks:  { root: 110, mode: 'minor', tempo:  72, chords: [0, -3,  5, -2], style: 'mellow' },
+    hangar:    { root:  98, mode: 'minor', tempo:  78, chords: [0, -4,  3, -2], style: 'mellow' },
+    depot:     { root: 104, mode: 'minor', tempo:  80, chords: [0,  3,  5, -3], style: 'mellow' },
+    cargo:     { root: 110, mode: 'minor', tempo:  74, chords: [0, -3,  5, -2], style: 'mellow' },
+    bunker:    { root:  87, mode: 'minor', tempo:  68, chords: [0, -4,  3, -1], style: 'chill' },
+    command:   { root:  92, mode: 'minor', tempo:  90, chords: [0, -1,  5, -2], style: 'mellow' },
+    // PvP — fortfarande pleasant, lite mer rörelse men inte stressande
+    tdm:       { root: 110, mode: 'minor', tempo:  92, chords: [0,  3,  5, -2], style: 'mellow' },
+    ctf:       { root: 117, mode: 'minor', tempo:  88, chords: [0,  3, -3,  5], style: 'mellow' },
+    siege:     { root: 110, mode: 'minor', tempo:  84, chords: [0, -3,  5,  3], style: 'mellow' },
   },
   // Skalor (semi-toner från root)
   scales: {
     minor: [0, 2, 3, 5, 7, 8, 10, 12],
     major: [0, 2, 4, 5, 7, 9, 11, 12],
   },
-  // 16-step melodi-mönster (scale-index, -1 = pause). Loopas över hela ackord-cykeln.
-  // Olika mönster per style — ambient mjukt, action energiskt.
+  // GLESA melodi-mönster — bara 2-4 toner per 16-step bar så det inte blir
+  // irriterande. Mest pauser (-1). Toner är "bell-like" och ackord-baserade.
   melodyPatterns: {
-    ambient: [0, -1, 4, -1, 2, -1, 4, -1, 5, -1, 4, 2, 0, -1, -1, -1],
-    tense:   [0, 4, 2, 5, 4, 2, 0, 4, 7, 5, 4, 2, 5, 4, 2, 0],
-    dark:    [0, 3, 5, 3, 7, 5, 3, 0, 4, 2, 0, -1, 3, 5, 3, -1],
-    action:  [0, 4, 7, 4, 5, 7, 4, 2, 7, 4, 2, 0, 4, 7, 5, 4],
+    chill:  [0, -1, -1, -1, -1, -1, -1, -1, 4, -1, -1, -1, -1, -1, -1, -1],
+    mellow: [0, -1, -1, -1, 4, -1, -1, -1, 7, -1, -1, -1, 4, -1, -1, -1],
   },
-  // Bass-mönster per style — bara på vissa steg
+  // Bas: bara root-not en gång per ackord (på beat 1). Helt utan rytmiska
+  // bas-figurer som blev annoying.
   bassPatterns: {
-    ambient: [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-    tense:   [1, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 1, 0],
-    dark:    [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0],
-    action:  [1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 0, 1, 0, 1],
+    chill:  [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    mellow: [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
   },
-  // Hihat-mönster (1=träff)
+  // INGEN hihat — too clicky. Lämna tomt för chill.
   hihatPatterns: {
-    ambient: [0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0],
-    tense:   [0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0],
-    dark:    [0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1],
-    action:  [0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1],
+    chill:  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    mellow: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   },
-  // Kick-mönster
+  // Mycket sparse kick — bara på bar-start för chill, varje 4:e beat för mellow
   kickPatterns: {
-    ambient: [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
-    tense:   [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
-    dark:    [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0],
-    action:  [1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 1, 0],
+    chill:  [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    mellow: [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
   },
 
   // Konvertera scale-step till frekvens (relativ till root, oktav-aware)
@@ -4827,22 +4820,22 @@ const Music = {
     const theme = this.themes[stageKind] || this.themes.forest;
     const scale = this.scales[theme.mode];
     const t = Audio.ctx.currentTime;
-    // Master-gain för hela musiken
+    // Master-gain (mycket lägre nu — chill bakgrundsljud)
     const gain = Audio.ctx.createGain();
     gain.gain.value = 0;
-    gain.gain.linearRampToValueAtTime(0.55, t + 2.0);
+    gain.gain.linearRampToValueAtTime(0.30, t + 3.0);  // var 0.55 — nu mycket mjukare
     gain.connect(Audio.musicGain);
-    // Master-lowpass för att mjuka upp helheten
+    // Master-lowpass — varmare cutoff (1800Hz var 3500Hz) så inga vassa övertoner
     const lp = Audio.ctx.createBiquadFilter();
     lp.type = 'lowpass';
-    lp.frequency.value = 3500;
-    lp.Q.value = 0.5;
+    lp.frequency.value = 1800;
+    lp.Q.value = 0.4;
     lp.connect(gain);
-    // Subtil reverb-ersättning: en feedback-delay för "rum"-känsla
+    // Mjuk reverb-känsla (kortare delay, mindre feedback)
     const delay = Audio.ctx.createDelay(0.5);
-    delay.delayTime.value = 0.18;
+    delay.delayTime.value = 0.25;
     const dlyG = Audio.ctx.createGain();
-    dlyG.gain.value = 0.25;
+    dlyG.gain.value = 0.15;  // var 0.25 — subtilare echo
     delay.connect(dlyG); dlyG.connect(delay); dlyG.connect(lp);
 
     this.active = {
@@ -4850,10 +4843,10 @@ const Music = {
       theme, scale,
       intensity: 'calm',
       beatTimer: 0,
-      beatStep: 0,        // 0..15 (16 steps per chord cycle)
-      chordIdx: 0,        // 0..3 (current chord in progression)
-      stepsPerBeat: 4,    // 16th-notes per beat
-      sustainedNotes: [], // bassosc/pad-osc with stop-times for cleanup
+      beatStep: 0,
+      chordIdx: 0,
+      stepsPerBeat: 4,
+      sustainedNotes: [],
     };
   },
 
@@ -4879,46 +4872,61 @@ const Music = {
     if (!Audio.ctx) return;
     this.active.intensity = level;
     const t = Audio.ctx.currentTime;
+    // Behåll lugnare volymer även i boss-mode — pleasant > intense
     if (level === 'boss') {
-      this.active.gain.gain.linearRampToValueAtTime(0.65, t + 1.0);
-      this.active.lp.frequency.linearRampToValueAtTime(5500, t + 1.0);
+      this.active.gain.gain.linearRampToValueAtTime(0.36, t + 1.5);
+      this.active.lp.frequency.linearRampToValueAtTime(2400, t + 1.5);
     } else if (level === 'active') {
-      this.active.gain.gain.linearRampToValueAtTime(0.55, t + 1.0);
-      this.active.lp.frequency.linearRampToValueAtTime(4000, t + 1.0);
+      this.active.gain.gain.linearRampToValueAtTime(0.32, t + 1.5);
+      this.active.lp.frequency.linearRampToValueAtTime(2000, t + 1.5);
     } else {
-      this.active.gain.gain.linearRampToValueAtTime(0.45, t + 1.5);
-      this.active.lp.frequency.linearRampToValueAtTime(3000, t + 1.5);
+      this.active.gain.gain.linearRampToValueAtTime(0.28, t + 2.0);
+      this.active.lp.frequency.linearRampToValueAtTime(1700, t + 2.0);
     }
   },
 
-  // Spela en melodi-not (triangle, mjuk envelope)
-  _playMelodyNote(freq, duration, vol = 0.18) {
+  // Spela en melodi-not — bell-like sine med subtil triangle-overlay
+  _playMelodyNote(freq, duration, vol = 0.10) {
     if (!this.active || !Audio.ctx) return;
     const t = Audio.ctx.currentTime;
+    // Huvud-osc: sine (varm, ren ton)
     const osc = Audio.ctx.createOscillator();
-    osc.type = 'triangle';
+    osc.type = 'sine';
     osc.frequency.value = freq;
     const g = Audio.ctx.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.015);
+    g.gain.linearRampToValueAtTime(vol, t + 0.04);  // kortare attack än chord men inte spiky
     g.gain.exponentialRampToValueAtTime(0.001, t + duration);
     osc.connect(g);
     g.connect(this.active.lp);
-    g.connect(this.active.delay); // route också till delay för "rum"
+    g.connect(this.active.delay);  // svag echo för rumskänsla
     osc.start(t);
     osc.stop(t + duration + 0.05);
+    // Sub-overlay: triangle oktav under, halv volym för djup
+    const osc2 = Audio.ctx.createOscillator();
+    osc2.type = 'triangle';
+    osc2.frequency.value = freq / 2;
+    const g2 = Audio.ctx.createGain();
+    g2.gain.setValueAtTime(0, t);
+    g2.gain.linearRampToValueAtTime(vol * 0.4, t + 0.05);
+    g2.gain.exponentialRampToValueAtTime(0.001, t + duration);
+    osc2.connect(g2);
+    g2.connect(this.active.lp);
+    osc2.start(t);
+    osc2.stop(t + duration + 0.05);
   },
 
-  // Spela en bas-not (sine, längre + lägre)
-  _playBassNote(freq, duration, vol = 0.25) {
+  // Spela en bas-not — sine, mycket mjuk attack och decay
+  _playBassNote(freq, duration, vol = 0.16) {
     if (!this.active || !Audio.ctx) return;
     const t = Audio.ctx.currentTime;
     const osc = Audio.ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.value = freq / 2; // oktav ner
+    osc.frequency.value = freq / 2;
     const g = Audio.ctx.createGain();
     g.gain.setValueAtTime(0, t);
-    g.gain.linearRampToValueAtTime(vol, t + 0.02);
+    g.gain.linearRampToValueAtTime(vol, t + 0.15);  // långsam attack, smörig
+    g.gain.linearRampToValueAtTime(vol * 0.5, t + duration * 0.7);
     g.gain.exponentialRampToValueAtTime(0.001, t + duration);
     osc.connect(g);
     g.connect(this.active.lp);
@@ -4926,28 +4934,33 @@ const Music = {
     osc.stop(t + duration + 0.05);
   },
 
-  // Pad-ackord (3 sawtooth-noter med chorus-detuning)
-  _playChord(rootFreq, scale, duration, vol = 0.10) {
+  // Pad-ackord — SINE + TRIANGLE blend (varmt) istället för sawtooth (vasst).
+  // Långsam attack (1s) + långsam release så det blir smörigt pad-ljud, inte buzz.
+  _playChord(rootFreq, scale, duration, vol = 0.06) {
     if (!this.active || !Audio.ctx) return;
     const t = Audio.ctx.currentTime;
-    // Triad: root, terts, kvint (scale-index 0, 2, 4)
+    // Triad: root, terts, kvint
     const notes = [rootFreq, rootFreq * Math.pow(2, scale[2] / 12), rootFreq * Math.pow(2, scale[4] / 12)];
-    for (const f of notes) {
-      // Två lätt detunade saw för chorus-effekt
-      for (const detune of [-4, 4]) {
+    for (let n = 0; n < notes.length; n++) {
+      const f = notes[n];
+      // Sine-huvudton + triangle-overlay för värme. Inga sawtooth-vassa övertoner.
+      const types = ['sine', 'triangle'];
+      for (let ti = 0; ti < types.length; ti++) {
         const osc = Audio.ctx.createOscillator();
-        osc.type = 'sawtooth';
+        osc.type = types[ti];
         osc.frequency.value = f;
-        osc.detune.value = detune;
+        // Subtil detune (±3 cents) för chorus-värme, en per typ
+        osc.detune.value = (ti === 0 ? -3 : 3);
         const g = Audio.ctx.createGain();
+        const volN = vol * (ti === 0 ? 1.0 : 0.4); // triangle-overlay mjukare
         g.gain.setValueAtTime(0, t);
-        g.gain.linearRampToValueAtTime(vol, t + 0.6);
-        g.gain.linearRampToValueAtTime(vol * 0.6, t + duration - 0.4);
-        g.gain.exponentialRampToValueAtTime(0.001, t + duration);
+        g.gain.linearRampToValueAtTime(volN, t + 1.0);  // SLOW attack 1s
+        g.gain.linearRampToValueAtTime(volN * 0.7, t + duration - 0.8);
+        g.gain.linearRampToValueAtTime(0.001, t + duration);  // LONG release
         osc.connect(g);
         g.connect(this.active.lp);
         osc.start(t);
-        osc.stop(t + duration + 0.05);
+        osc.stop(t + duration + 0.1);
       }
     }
   },
@@ -4955,39 +4968,23 @@ const Music = {
   _playKick() {
     if (!this.active || !Audio.ctx) return;
     const t = Audio.ctx.currentTime;
-    // Pitched sine sweep från 80→40Hz för riktig kick-feel (ej bara brus)
+    // Mycket mjukare kick — sine sweep med låg gain. Bara en subtil puls,
+    // inte ett knytnävsslag som den var tidigare.
     const osc = Audio.ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(120, t);
-    osc.frequency.exponentialRampToValueAtTime(40, t + 0.12);
+    osc.frequency.setValueAtTime(80, t);
+    osc.frequency.exponentialRampToValueAtTime(35, t + 0.18);
     const g = Audio.ctx.createGain();
-    g.gain.setValueAtTime(0.5, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+    g.gain.setValueAtTime(0.15, t);  // var 0.5 — DRAMATISKT mjukare
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
     osc.connect(g);
     g.connect(this.active.lp);
     osc.start(t);
-    osc.stop(t + 0.2);
+    osc.stop(t + 0.22);
   },
 
-  _playHihat() {
-    if (!this.active || !Audio.ctx) return;
-    const t = Audio.ctx.currentTime;
-    // Vit brus + highpass-filter för hihat-känsla
-    const buf = Audio.ctx.createBuffer(1, Audio.ctx.sampleRate * 0.08, Audio.ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1);
-    const src = Audio.ctx.createBufferSource();
-    src.buffer = buf;
-    const f = Audio.ctx.createBiquadFilter();
-    f.type = 'highpass';
-    f.frequency.value = 7000;
-    f.Q.value = 1;
-    const g = Audio.ctx.createGain();
-    g.gain.setValueAtTime(0.06, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.06);
-    src.connect(f); f.connect(g); g.connect(this.active.lp);
-    src.start(t);
-  },
+  // Hihat helt borttagen — too clicky. Tomt no-op.
+  _playHihat() { /* removed for pleasantness */ },
 
   tick(dt) {
     if (!this.active || !Audio.ctx) return;
@@ -4999,11 +4996,11 @@ const Music = {
     if (a.beatTimer > 0) return;
     a.beatTimer += stepDur;
 
-    const style = theme.style || 'tense';
-    const melodyPat = this.melodyPatterns[style] || this.melodyPatterns.tense;
-    const bassPat = this.bassPatterns[style] || this.bassPatterns.tense;
-    const hihatPat = this.hihatPatterns[style] || this.hihatPatterns.tense;
-    const kickPat = this.kickPatterns[style] || this.kickPatterns.tense;
+    const style = theme.style || 'mellow';
+    const melodyPat = this.melodyPatterns[style] || this.melodyPatterns.mellow;
+    const bassPat = this.bassPatterns[style] || this.bassPatterns.mellow;
+    const hihatPat = this.hihatPatterns[style] || this.hihatPatterns.mellow;
+    const kickPat = this.kickPatterns[style] || this.kickPatterns.mellow;
 
     const step = a.beatStep;
     // Beräkna nuvarande ackords-root (offset från theme.root)
@@ -5019,11 +5016,11 @@ const Music = {
       }
     }
 
-    // Spela melodi-not om patternet säger så
+    // Spela melodi-not om patternet säger så — bell-like (sine), längre sustain
     if (melodyPat[step] >= 0) {
       const noteFreq = this.noteToFreq(chordRoot, a.scale, melodyPat[step]);
-      // Noter går upp en oktav för melodin (tydligare)
-      this._playMelodyNote(noteFreq * 2, stepDur * 2.5, 0.13);
+      // Noter går upp en oktav för klarhet, längre sustain (4 steps) för bell-feel
+      this._playMelodyNote(noteFreq * 2, stepDur * 4, 0.09);
     }
 
     // Bas
