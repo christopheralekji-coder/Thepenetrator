@@ -118,6 +118,7 @@ function tickSim(sim) {
           ws.playerState.x = ws.tdmTeam === 'red' ? redSpawnX : blueSpawnX;
           ws.playerState.y = spawnY;
           ws.playerState.hp = 100;
+          ws.playerState.shield = ws.playerState.maxShield || 100;
           ws.playerState.invulnUntil = Date.now() + 1500;
           // Riktat event så klienten kan reseta spectating-mode + spawna-fx
           sim.eventQueue.push({
@@ -125,10 +126,14 @@ function tickSim(sim) {
             peerId: pid,
             x: ws.playerState.x,
             y: ws.playerState.y,
+            hp: ws.playerState.hp,
+            shield: ws.playerState.shield,
           });
         }
       }
     }
+    // PvP-pickups: respawn-timer + collect-detection
+    tickPvpPickups(sim, now);
     // Match-end-flagga: stoppa allt när någon nått targetKills
     if (!sim.tdmEnded) {
       updateBullets(sim, dt, now);
@@ -413,6 +418,7 @@ function tickCtf(sim, dt, now) {
         ws.playerState.x = sp.x;
         ws.playerState.y = sp.y;
         ws.playerState.hp = 100;
+        ws.playerState.shield = ws.playerState.maxShield || 100;
         ws.playerState.invulnUntil = Date.now() + 1500;
         // Om spelare dog med en flagga, droppa den vid death-positionen (sker via
         // applyCtfDeath separat — denna respawn-path ger ny position).
@@ -421,10 +427,14 @@ function tickCtf(sim, dt, now) {
           peerId: pid,
           x: ws.playerState.x,
           y: ws.playerState.y,
+          hp: ws.playerState.hp,
+          shield: ws.playerState.shield,
         });
       }
     }
   }
+  // PvP-pickups: respawn timer + collect-detection (shared mellan CTF + TDM)
+  tickPvpPickups(sim, now);
 
   // Match-end: skippa allt
   if (sim.ctfEnded) {
@@ -566,6 +576,94 @@ function tickCtf(sim, dt, now) {
   // Bullet-physics (kolla wall-hits via bullets.js: vi behöver toggla flagga
   // för wall-check inom updateBullets, så markeras via sim.ctfActive)
   updateBullets(sim, dt, now);
+}
+
+// ============================================================
+// PvP-pickups — HP- och shield-regen-pickups på TDM- och CTF-arenor
+// ============================================================
+// Symmetrisk placering: 4 HP + 4 shield per arena. Respawn 15s efter collect.
+// PICKUP_HEAL = +40 (delvis återställning så spelare måste samla flera).
+const PICKUP_RESPAWN_MS = 15000;
+const PICKUP_HEAL = 40;
+const PICKUP_RADIUS = 28;
+
+let _pickupIdCounter = 0;
+function nextPickupId() { return 'pu_' + (++_pickupIdCounter); }
+
+function buildCtfPickups() {
+  // 4500×2800 arena, symmetrisk runt x=2250.
+  // HP-pickups i flank-positioner (mellan baser och mitten).
+  // Shield-pickups i mid-zon (riskabla att hämta — kontakt med fiender).
+  return [
+    // HP: 4 flanker
+    { id: nextPickupId(), x: 1300, y: 700,  type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 3200, y: 700,  type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 1300, y: 2100, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 3200, y: 2100, type: 'hp',     available: true, respawnAt: 0 },
+    // Shield: 4 mid-zon (mer kontestbara)
+    { id: nextPickupId(), x: 2250, y: 350,  type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 2250, y: 2450, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 1900, y: 1400, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 2600, y: 1400, type: 'shield', available: true, respawnAt: 0 },
+  ];
+}
+
+function buildTdmPickups(arena) {
+  // 4000×3000 öppen arena. Symmetrisk runt center x=2000, y=1500.
+  return [
+    { id: nextPickupId(), x: 1200, y: 1000, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 2800, y: 1000, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 1200, y: 2000, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 2800, y: 2000, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 2000, y: 600,  type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 2000, y: 2400, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 1600, y: 1500, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(), x: 2400, y: 1500, type: 'shield', available: true, respawnAt: 0 },
+  ];
+}
+
+// Tickas från CTF + TDM: respawn timer + collision-detection mot spelare.
+// Emiterar pvp_pickup_collected (med uppdaterad hp/shield) + pvp_pickup_spawned.
+function tickPvpPickups(sim, now) {
+  if (!sim.pvpPickups) return;
+  for (const pu of sim.pvpPickups) {
+    // Respawn
+    if (!pu.available && now >= pu.respawnAt) {
+      pu.available = true;
+      sim.eventQueue.push({ type: 'pvp_pickup_spawned', id: pu.id, x: pu.x, y: pu.y, ptype: pu.type });
+    }
+    if (!pu.available) continue;
+    // Collect: kolla alla levande spelare
+    for (const [pid, ws] of sim.room.members) {
+      if (!ws.playerState || ws.playerState.hp <= 0) continue;
+      const dx = ws.playerState.x - pu.x, dy = ws.playerState.y - pu.y;
+      if (dx * dx + dy * dy > PICKUP_RADIUS * PICKUP_RADIUS) continue;
+      // Heal
+      const maxHp = 100;
+      const maxShield = ws.playerState.maxShield || 100;
+      if (pu.type === 'hp') {
+        const before = ws.playerState.hp;
+        ws.playerState.hp = Math.min(maxHp, before + PICKUP_HEAL);
+        if (ws.playerState.hp === before) continue; // redan full HP — skip pickup
+      } else { // 'shield'
+        const before = ws.playerState.shield || 0;
+        ws.playerState.shield = Math.min(maxShield, before + PICKUP_HEAL);
+        if (ws.playerState.shield === before) continue; // redan full shield
+      }
+      pu.available = false;
+      pu.respawnAt = now + PICKUP_RESPAWN_MS;
+      sim.eventQueue.push({
+        type: 'pvp_pickup_collected',
+        id: pu.id,
+        peerId: pid,
+        ptype: pu.type,
+        hp: ws.playerState.hp,
+        shield: ws.playerState.shield || 0,
+        respawnAt: pu.respawnAt,
+      });
+      break; // pickup borta — gå till nästa
+    }
+  }
 }
 
 // Hantera spelare-död under CTF: droppa flagga vid death-position
@@ -795,6 +893,8 @@ function startSim(sim, opts) {
       ws.playerState.x = sp.x;
       ws.playerState.y = sp.y;
       ws.playerState.hp = 100;
+      ws.playerState.shield = 100;
+      ws.playerState.maxShield = 100;
       ws.playerState.invulnUntil = Date.now() + 1500;
       ws.tdmRespawnAt = 0;
       teams[pid] = team;
@@ -803,6 +903,8 @@ function startSim(sim, opts) {
       sim.tdmDeathsByPid[pid] = 0;
       i++;
     }
+    // PvP-pickups på CTF-arenan — symmetrisk 4 HP + 4 shield, respawn 15s
+    sim.pvpPickups = buildCtfPickups();
     sim.eventQueue.push({
       type: 'ctf_started',
       targetCaptures: sim.ctfTargetCaptures,
@@ -816,6 +918,8 @@ function startSim(sim, opts) {
       walls: CTF_ARENA.walls,
       pickupRadius: CTF_ARENA.pickupRadius,
       captureRadius: CTF_ARENA.captureRadius,
+      pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+      shieldMax: 100,
     });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
   } else if (sim.tdmActive) {
@@ -836,6 +940,8 @@ function startSim(sim, opts) {
       ws.playerState.x = team === 'red' ? redSpawnX : blueSpawnX;
       ws.playerState.y = spawnY;
       ws.playerState.hp = 100;
+      ws.playerState.shield = 100;
+      ws.playerState.maxShield = 100;
       ws.playerState.invulnUntil = Date.now() + 1500;
       ws.tdmRespawnAt = 0;
       teams[pid] = team;
@@ -843,6 +949,8 @@ function startSim(sim, opts) {
       sim.tdmDeathsByPid[pid] = 0;
       i++;
     }
+    // PvP-pickups på arenan — symmetrisk 4 HP + 4 shield, respawn 15s
+    sim.pvpPickups = buildTdmPickups(arena);
     // Skicka arena-info till klient så de kan rita rätt map + spawn-positions
     sim.eventQueue.push({
       type: 'tdm_started',
@@ -850,6 +958,8 @@ function startSim(sim, opts) {
       teams,
       arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },
       spawns: { red: { x: redSpawnX, y: spawnY }, blue: { x: blueSpawnX, y: spawnY } },
+      pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+      shieldMax: 100,
     });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
   } else {

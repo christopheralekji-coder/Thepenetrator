@@ -1185,6 +1185,69 @@ function drawCtfFlags() {
   ctx.restore();
 }
 
+// PvP-pickups (HP-regen + shield-regen) — rita pulserande ikoner på arenan.
+// Tillgängliga = full färg + pulse, otillgängliga = tonad ghost.
+function drawPvpPickups() {
+  const cx = state.camera.x, cy = state.camera.y;
+  const t = performance.now();
+  const pulse = 0.7 + Math.sin(t / 250) * 0.3;
+  ctx.save();
+  for (const id of Object.keys(state.pvpPickups)) {
+    const pu = state.pvpPickups[id];
+    const x = pu.x - cx, y = pu.y - cy;
+    if (x < -30 || x > viewW + 30 || y < -30 || y > viewH + 30) continue;
+    const isHp = pu.type === 'hp';
+    const color = isHp ? '#5aff5a' : '#3acaff';
+    if (!pu.available) {
+      // Tonad ghost-version + respawn-progress-ring
+      ctx.globalAlpha = 0.25;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, 14, 0, Math.PI * 2);
+      ctx.stroke();
+      // Respawn-progress (server-tid → klient-tid är osynkat, så vi visar bara cirkeln)
+      ctx.globalAlpha = 1;
+      ctx.restore();
+      continue;
+    }
+    // Glow
+    const glowR = 18 + pulse * 6;
+    const grad = ctx.createRadialGradient(x, y, 4, x, y, glowR);
+    grad.addColorStop(0, isHp ? 'rgba(90,255,90,0.55)' : 'rgba(58,202,255,0.55)');
+    grad.addColorStop(1, isHp ? 'rgba(90,255,90,0)' : 'rgba(58,202,255,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(x, y, glowR, 0, Math.PI * 2);
+    ctx.fill();
+    // Ikon
+    if (isHp) {
+      // Grön + (kors-form)
+      ctx.fillStyle = '#5aff5a';
+      ctx.fillRect(x - 9, y - 3, 18, 6);
+      ctx.fillRect(x - 3, y - 9, 6, 18);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x - 9, y - 3, 18, 6);
+      ctx.strokeRect(x - 3, y - 9, 6, 18);
+    } else {
+      // Cyan diamant (shield)
+      ctx.fillStyle = '#3acaff';
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 10);
+      ctx.lineTo(x + 8, y);
+      ctx.lineTo(x, y + 10);
+      ctx.lineTo(x - 8, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
 function drawCoopPartner() {
   if (!Coop.active || Coop.inLobby) return;
   const now = performance.now();
@@ -1577,6 +1640,11 @@ const SAVE_KEY = 'penetrator_save_v1';
 // Varje vapen: id, name, type ('melee'|'gun'), price, dmg, rate (ms),
 // range/speed, mag, reload, spread, pellets, explosive, color
 // ============================================================
+// COOP_WEAPONS — i alla coop-modes (med eller mot varandra) har spelare ETT
+// gemensamt arsenal: dessa 6 vapen + 'fists'. Ingen shop/perks/upgrades-system
+// aktivt i coop. Switcha via vapen-menyn som vanligt.
+const COOP_WEAPONS = ['pistol', 'shuriken', 'burstpistol', 'shotgun', 'sniper', 'rifle'];
+
 // WEAPONS — balanserad lista efter cleanup. Borttagna: tonfa/boxgloves (sämre än knuckles),
 // glaive (överdyr), drone-vapen (companions täcker rollen). 'whip' melee (Kedjepiska) behållen,
 // gun-versionen omdöpt 'pullwhip'. Tier-progression: tidiga vapen billiga + svaga, sena dyra + starka.
@@ -4936,11 +5004,21 @@ const Coop = {
         state.wave = 1;
       }
       const myTeam = this.tdmTeams[this.myId];
+      // PvP-pickups + shield-init
+      state.pvpPickups = {};
+      if (ev.pvpPickups) {
+        for (const p of ev.pvpPickups) {
+          state.pvpPickups[p.id] = { id: p.id, x: p.x, y: p.y, type: p.type, available: true, respawnAt: 0 };
+        }
+      }
+      state.pvpShieldMax = ev.shieldMax || 100;
       // Flytta egen spelare till sin spawn-position (server gjorde det redan på sim-sidan)
       if (state.player && ev.spawns && ev.spawns[myTeam]) {
         state.player.x = ev.spawns[myTeam].x;
         state.player.y = ev.spawns[myTeam].y;
         state.player.hp = state.player.maxHp || 100;
+        state.player.shield = state.pvpShieldMax;
+        state.player.maxShield = state.pvpShieldMax;
         state.player.spectating = false;
         state.player.invuln = 1.5;
       }
@@ -5005,7 +5083,9 @@ const Coop = {
         state.player.x = ev.x;
         state.player.y = ev.y;
         // Använd maxHp så perks/upgrades respekteras
-        state.player.hp = state.player.maxHp || 100;
+        state.player.hp = ev.hp || state.player.maxHp || 100;
+        state.player.shield = ev.shield != null ? ev.shield : (state.pvpShieldMax || 100);
+        state.player.maxShield = state.pvpShieldMax || 100;
         state.player.invuln = 1.5;
         state.player.flashUntil = 0;
         state.deadBody = null;
@@ -5066,11 +5146,21 @@ const Coop = {
         state.wave = 1;
       }
       const myTeam = this.ctfTeams[this.myId];
+      // PvP-pickups + shield-init
+      state.pvpPickups = {};
+      if (ev.pvpPickups) {
+        for (const p of ev.pvpPickups) {
+          state.pvpPickups[p.id] = { id: p.id, x: p.x, y: p.y, type: p.type, available: true, respawnAt: 0 };
+        }
+      }
+      state.pvpShieldMax = ev.shieldMax || 100;
       if (state.player && ev.spawns && ev.spawns[myTeam] && ev.spawns[myTeam][0]) {
         const sp = ev.spawns[myTeam][0];
         state.player.x = sp.x;
         state.player.y = sp.y;
         state.player.hp = state.player.maxHp || 100;
+        state.player.shield = state.pvpShieldMax;
+        state.player.maxShield = state.pvpShieldMax;
         state.player.spectating = false;
         state.player.invuln = 1.5;
         state.player.carryingFlag = null;
@@ -5186,7 +5276,9 @@ const Coop = {
         state.player.specTarget = null;
         state.player.x = ev.x;
         state.player.y = ev.y;
-        state.player.hp = state.player.maxHp || 100;
+        state.player.hp = ev.hp || state.player.maxHp || 100;
+        state.player.shield = ev.shield != null ? ev.shield : (state.pvpShieldMax || 100);
+        state.player.maxShield = state.pvpShieldMax || 100;
         state.player.invuln = 1.5;
         state.player.flashUntil = 0;
         state.player.carryingFlag = null;
@@ -5203,6 +5295,50 @@ const Coop = {
       if (this.ctfTeams && ev.peerId && ev.team) {
         this.ctfTeams[ev.peerId] = ev.team;
         if (state.ctfTeams) state.ctfTeams[ev.peerId] = ev.team;
+      }
+    } else if (ev.type === 'pvp_hp_changed') {
+      // PvP shield + HP-uppdatering efter damage eller pickup.
+      // Server-shape: { peerId, hp, shield }
+      if (ev.peerId === this.myId && state.player) {
+        state.player.hp = ev.hp;
+        state.player.shield = ev.shield;
+        if (typeof updateHUD === 'function') updateHUD();
+      } else if (this.players.has(ev.peerId)) {
+        const p = this.players.get(ev.peerId);
+        p.hp = ev.hp;
+        p.shield = ev.shield;
+      }
+    } else if (ev.type === 'pvp_pickup_collected') {
+      // Server-shape: { id, peerId, ptype, hp, shield, respawnAt }
+      if (state.pvpPickups && state.pvpPickups[ev.id]) {
+        state.pvpPickups[ev.id].available = false;
+        state.pvpPickups[ev.id].respawnAt = ev.respawnAt;
+      }
+      if (ev.peerId === this.myId && state.player) {
+        state.player.hp = ev.hp;
+        state.player.shield = ev.shield;
+        if (typeof updateHUD === 'function') updateHUD();
+        if (typeof showToast === 'function') {
+          showToast(ev.ptype === 'hp' ? '💚 +40 HP' : '🛡 +40 SHIELD');
+        }
+        if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+      } else if (this.players.has(ev.peerId)) {
+        const p = this.players.get(ev.peerId);
+        p.hp = ev.hp;
+        p.shield = ev.shield;
+      }
+      // VFX: shockwave + sparks i pickup-färgen
+      if (typeof spawnSparks === 'function' && state.pvpPickups && state.pvpPickups[ev.id]) {
+        const pu = state.pvpPickups[ev.id];
+        const color = ev.ptype === 'hp' ? '#5aff5a' : '#3acaff';
+        spawnSparks(pu.x, pu.y, color, 18, 220);
+      }
+    } else if (ev.type === 'pvp_pickup_spawned') {
+      // Pickup tillbaka på arenan (efter 15s timer)
+      // Server-shape: { id, x, y, ptype }
+      if (state.pvpPickups && state.pvpPickups[ev.id]) {
+        state.pvpPickups[ev.id].available = true;
+        state.pvpPickups[ev.id].respawnAt = 0;
       }
     } else if (ev.type === 'ctf_match_end') {
       // Server-shape: { winner, captures: { red, blue }, stats: { red, blue, perPlayer: { pid: { team, captures, kills, deaths } } } }
@@ -9680,6 +9816,14 @@ function onWaveComplete() {
       // Guard: om spelaren dog/lämnade under grace, öppna inte shop (softlock-risk
       // där shop öppnar ovanpå gameover-skärm).
       if (state.mode !== 'playing') return;
+      // Coop: ingen shop — hoppa direkt till nästa stage. Alla har samma 6 vapen
+      // hela tiden, inga perks/upgrades-köp tillåtna i coop.
+      if (Coop.active) {
+        state._waveCompleting = false;
+        try { startWave(state.wave + 1); }
+        catch (e) { console.error('[COOP] startWave error:', e); }
+        return;
+      }
       try {
         state._waveCompleting = false;
         openShop();
@@ -10403,10 +10547,12 @@ function actuallyStartGame() {
     }
     // Reset varje coop-run (både första gången och återupprepade gånger).
     // Companions BEHÅLLS — användaren ska se sin köpta pet även i coop.
+    // Coop-inventory: 6 PvP-vapen tillgängliga (inget shop/perks/upgrades-system
+    // är aktivt i coop — alla har samma utgångsläge för rättvis match).
     save.gold = 0;
-    save.owned = ['fists'];
-    save.weaponId = 'fists';
-    save.equipped = 'fists';
+    save.owned = ['fists', ...COOP_WEAPONS];
+    save.weaponId = 'pistol';
+    save.equipped = 'pistol';
     if (save.upgrades) {
       for (const k of Object.keys(save.upgrades)) save.upgrades[k] = 0;
     }
@@ -11364,6 +11510,9 @@ function drawKillstreak() {
 // ============================================================
 const hpFill = document.getElementById('hp-fill');
 const hpText = document.getElementById('hp-text');
+const _shieldBar = document.getElementById('shield-bar');
+const _shieldFill = document.getElementById('shield-fill');
+const _shieldText = document.getElementById('shield-text');
 const waveInfo = document.getElementById('wave-info');
 const goldInfo = document.getElementById('gold-info');
 const weaponName = document.getElementById('weapon-name');
@@ -11386,6 +11535,17 @@ function updateHUD() {
   // Toggle low-HP-pulse på hp-bar (CSS animation)
   const hpBar = hpFill.parentElement;
   if (hpBar) hpBar.dataset.low = hpFrac < 0.3 ? '1' : '0';
+  // Shield-bar: bara synlig i PvP (TDM/CTF)
+  if (typeof _shieldBar !== 'undefined' && _shieldBar) {
+    if ((state.tdmActive || state.ctfActive) && p.maxShield) {
+      _shieldBar.classList.remove('hidden');
+      const sFrac = Math.max(0, (p.shield || 0) / p.maxShield);
+      if (_shieldFill) _shieldFill.style.width = (sFrac * 100) + '%';
+      if (_shieldText) _shieldText.textContent = '🛡 ' + Math.ceil(p.shield || 0);
+    } else {
+      _shieldBar.classList.add('hidden');
+    }
+  }
   if (killCountEl) killCountEl.textContent = state.killsThisRun || 0;
   const lvl = getLevel(state.wave);
   waveInfo.textContent = `${state.wave}/${getStageCount()} · ${lvl.name}`;
@@ -20329,6 +20489,8 @@ function render() {
     drawCtfWalls();
     drawCtfFlags();
   }
+  // PvP-pickups (HP/shield-regen) — rita på både TDM och CTF
+  if ((state.tdmActive || state.ctfActive) && state.pvpPickups) drawPvpPickups();
   // Top layer: damage-numbers + crit-text + chatter + explosions
   for (const p of state.particles) if (p.isDamageNumber || p.isCritText || p.isChatter) drawParticle(p);
   for (const p of state.particles) if (p.isExplosion) drawParticle(p);

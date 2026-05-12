@@ -294,7 +294,23 @@ function updateBullets(sim, dt, now) {
         const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
-          ws.playerState.hp = Math.max(0, ws.playerState.hp - b.dmg);
+          // Shield absorberar först, sedan HP. Shield = lika mycket som HP (= 100).
+          let remaining = b.dmg;
+          if ((ws.playerState.shield || 0) > 0) {
+            const absorb = Math.min(ws.playerState.shield, remaining);
+            ws.playerState.shield -= absorb;
+            remaining -= absorb;
+          }
+          if (remaining > 0) {
+            ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+          }
+          // Broadcasta uppdaterad hp+shield så klienten kan visa exakt
+          sim.eventQueue.push({
+            type: 'pvp_hp_changed',
+            peerId: pid,
+            hp: ws.playerState.hp,
+            shield: ws.playerState.shield || 0,
+          });
           if (ws.playerState.hp <= 0) {
             // Kill — respawn timer + öka team-score + per-pid stats
             const respawnAt = Date.now() + 3000;
@@ -360,7 +376,22 @@ function updateBullets(sim, dt, now) {
         const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
-          ws.playerState.hp = Math.max(0, ws.playerState.hp - b.dmg);
+          // Shield absorberar först, sedan HP
+          let remaining = b.dmg;
+          if ((ws.playerState.shield || 0) > 0) {
+            const absorb = Math.min(ws.playerState.shield, remaining);
+            ws.playerState.shield -= absorb;
+            remaining -= absorb;
+          }
+          if (remaining > 0) {
+            ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+          }
+          sim.eventQueue.push({
+            type: 'pvp_hp_changed',
+            peerId: pid,
+            hp: ws.playerState.hp,
+            shield: ws.playerState.shield || 0,
+          });
           if (ws.playerState.hp <= 0) {
             ws.tdmRespawnAt = Date.now() + 3000;
             sim.ctfKillsByPid[b.ownerPid] = (sim.ctfKillsByPid[b.ownerPid] || 0) + 1;
