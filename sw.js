@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v164-drawwalls-bugfix';
+const CACHE = 'penetrator-v165-no-auto-reload';
 const ASSETS = [
   './',
   './index.html',
@@ -14,7 +14,9 @@ const ASSETS = [
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
-  self.skipWaiting();
+  // VIKTIGT: INGEN self.skipWaiting() — annars aktiveras nya SW DIREKT när
+  // de installeras, vilket triggar auto-reload mitt i gameplay (= "1-min DC").
+  // Användaren får manuellt klicka NY VERSION-banner för att aktivera nya SW.
 });
 
 self.addEventListener('activate', e => {
@@ -23,6 +25,14 @@ self.addEventListener('activate', e => {
       Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
     ).then(() => self.clients.claim())
   );
+});
+
+// Lyssna på SKIP_WAITING-meddelande från klienten (när användaren klickar
+// NY VERSION-banner). Då aktiverar vi nya SW och tar över sidan.
+self.addEventListener('message', (e) => {
+  if (e.data && e.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', e => {

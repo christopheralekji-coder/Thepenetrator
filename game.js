@@ -1009,7 +1009,9 @@ function drawCtfArenaFloor() {
 // (x, y, w, h) som ABSOLUTA skärm-koord (kameran är redan applicerad).
 function drawPvpWalls(walls) {
   if (!walls) return;
-  const cx = state.camera.x, cy = state.camera.y;
+  // Avrunda kameran så väggar (integer-koord) renderas vid exakta pixel-positioner.
+  // Annars: camera float → wall screen-pos float → anti-aliased blur → wobble vid kamera-pan.
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   // Shadow under varje wall (drop-shadow) först så de lager-lurar visuellt
   ctx.save();
   for (const w of walls) {
@@ -1539,7 +1541,8 @@ function mixColors(a, b, t) {
 function drawCtfDecorations() {
   const decos = state.ctfDecorations;
   if (!decos || !decos.length) return;
-  const cx = state.camera.x, cy = state.camera.y;
+  // Avrunda kameran så decorations inte vobblar vid kamera-pan (sub-pixel rendering).
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const t = performance.now();
   for (const d of decos) {
     const x = d.x - cx, y = d.y - cy;
@@ -1690,7 +1693,8 @@ function drawCtfDecorations() {
 // CTF: rita turrets — bas + roterande pipa + hp-bar + förstörd-version
 function drawCtfTurrets() {
   if (!state.ctfTurrets) return;
-  const cx = state.camera.x, cy = state.camera.y;
+  // Avrunda kameran så turret-baser inte vobblar vid kamera-pan
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const t = performance.now();
   for (const id of Object.keys(state.ctfTurrets)) {
     const tur = state.ctfTurrets[id];
@@ -1789,7 +1793,8 @@ function drawCtfWalls() {
 function drawCtfFlags() {
   const flags = state.ctfFlags;
   if (!flags) return;
-  const cx = state.camera.x, cy = state.camera.y;
+  // Avrunda kameran så flag-stands inte vobblar vid kamera-pan
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const t = performance.now();
   const pulse = 0.7 + Math.sin(t / 250) * 0.3;
   ctx.save();
