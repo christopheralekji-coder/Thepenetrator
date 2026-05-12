@@ -7479,9 +7479,16 @@ function refreshModeButtons() {
   if (lvl === 1) modeLabel += ' (NG+)';
   else if (lvl === 2) modeLabel += ' (NG++)';
   else if (lvl >= 3) modeLabel += ' (NG' + '+'.repeat(lvl) + ')';
-  btnMode.textContent = 'LÄGE: ' + modeLabel;
-  btnDifficulty.textContent = 'SVÅRIGHET: ' + (DIFF_LABELS[getDifficulty()] || 'VETERAN');
+  // Mode-ikoner per läge
+  const modeIcons = { story: '📖', endless: '♾️', bossrush: '👑', daily: '📅', sandbox: '🛠️', speedrun: '⚡', survive: '⏳', truck: '🚚' };
+  const modeIcon = modeIcons[getMode()] || '🎮';
+  btnMode.textContent = modeIcon + ' LÄGE: ' + modeLabel;
+  // Difficulty-färg per nivå
+  const diff = getDifficulty();
+  const diffIcons = { casual: '🟢', veteran: '🟡', hardcore: '🟠', insane: '🔴' };
+  btnDifficulty.textContent = (diffIcons[diff] || '🟡') + ' SVÅRIGHET: ' + (DIFF_LABELS[diff] || 'VETERAN');
   // Companions-knapp: visa 💀 om aktiv companion är död (persistent dead-state)
+  // Knapp finns inte längre på hemskärm, men i shop visas via comp-tab
   const compBtn = document.getElementById('btn-companions');
   if (compBtn) {
     const dead = save.companions && save.companions.active &&
