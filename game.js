@@ -6111,7 +6111,19 @@ const Coop = {
     this._intentionalClose = true;  // hindrar onclose från att auto-reconnecta
     this.active = false; this.inLobby = false;
     this.serverSimActive = false;
-    if (typeof state !== 'undefined') state.serverSimActive = false;
+    this.tdmActive = false; this.ctfActive = false;
+    if (typeof state !== 'undefined') {
+      state.serverSimActive = false;
+      state.tdmActive = false;
+      state.ctfActive = false;
+    }
+    // Säkerhetsnät: göm alla PvP HUD-element så de inte spookar i menyn
+    if (typeof hideCtfHud === 'function') hideCtfHud();
+    if (typeof hideTdmHud === 'function') hideTdmHud();
+    if (typeof _ctfEndOverlay !== 'undefined' && _ctfEndOverlay) _ctfEndOverlay.classList.add('hidden');
+    if (typeof _tdmEndOverlay !== 'undefined' && _tdmEndOverlay) _tdmEndOverlay.classList.add('hidden');
+    if (typeof _ctfRespawnOverlay !== 'undefined' && _ctfRespawnOverlay) _ctfRespawnOverlay.classList.add('hidden');
+    if (typeof _tdmRespawnOverlay !== 'undefined' && _tdmRespawnOverlay) _tdmRespawnOverlay.classList.add('hidden');
     this._stopPingLoop();
     if (this._serverPingInterval) { clearInterval(this._serverPingInterval); this._serverPingInterval = null; }
     if (this.ws) {
@@ -11661,6 +11673,7 @@ function showCtfEndScreen(winner, redCaps, blueCaps, stats, teams) {
 if (_btnCtfBack) {
   _btnCtfBack.addEventListener('click', () => {
     if (_ctfEndOverlay) _ctfEndOverlay.classList.add('hidden');
+    hideCtfHud();
     if (Coop.isHost && Coop.ws && Coop.ws.readyState === 1) {
       try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (e) {}
     }
@@ -13081,6 +13094,17 @@ function updateBullets(dt) {
       if (b.gasOnHit) dropGasCloud(b.x, b.y, 70, 4, 6);
       b.dead = true;
       continue;
+    }
+    // CTF: bullet dör vid wall-hit (samma walls som blockar spelare).
+    // Speglar server-side bullets.js logik så visuellt + auktoritativt matchar.
+    if (state.ctfActive && state.ctfWalls && typeof bulletHitsWall === 'function') {
+      if (bulletHitsWall(b, state.ctfWalls)) {
+        if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
+        // Spark-flash där bullet träffar väggen
+        if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
+        b.dead = true;
+        continue;
+      }
     }
     if (b.hostile) {
       // Träffa närmsta spelare (host eller partner) — squared distance, slipper sqrt
