@@ -318,7 +318,7 @@
     <button id="btn-menu-help" class="medium-btn">❓ HJÄLP / TUTORIAL</button>
   </div>
   <button id="btn-fullscreen" class="small-btn" style="display:none;">⛶ HELSKÄRM</button>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:10px;opacity:0.4;">v1.162</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.163 ⚡</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">
@@ -506,23 +506,47 @@
 <script src="shared/tdm-arena.js"></script>
 <script src="game.js"></script>
 <script>
-  // Registrera service worker för offline-stöd, tvinga uppdatering
+  // Registrera service worker. Periodiskt update-check (var 60s) + auto-reload
+  // när ny version aktiverats. Användare kan annars sitta på gammal cached
+  // version i timmar utan att veta att en uppdatering finns.
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js').then(reg => {
         reg.update();
-        // Lyssna på SW-uppdateringar och reload när ny aktiv
+        // Auto-reload när ny SW aktiveras
         reg.addEventListener('updatefound', () => {
           const nw = reg.installing;
           if (!nw) return;
           nw.addEventListener('statechange', () => {
-            if (nw.state === 'activated' && navigator.serviceWorker.controller) {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+              // Ny version finns — visa banner istället för att silent-reloada
+              showUpdateBanner();
+            } else if (nw.state === 'activated' && navigator.serviceWorker.controller) {
+              // Backup: om banner missades, auto-reload
               location.reload();
             }
           });
         });
+        // Tvinga update-check var 60s så användare inte sitter på stale cache
+        setInterval(() => { reg.update().catch(() => {}); }, 60000);
+        // Också på page-visibility-change (när användare återvänder till tab)
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) reg.update().catch(() => {});
+        });
       }).catch(() => {});
     });
+  }
+  function showUpdateBanner() {
+    if (document.getElementById('update-banner')) return;
+    const b = document.createElement('div');
+    b.id = 'update-banner';
+    b.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top, 8px));left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#5aff5a,#3a8a3a);color:#000;padding:10px 20px;border-radius:8px;font-weight:900;font-size:14px;letter-spacing:1px;z-index:9999;box-shadow:0 4px 16px rgba(90,255,90,0.5);cursor:pointer;animation:updPulse 1.4s infinite;';
+    b.innerHTML = '🔄 NY VERSION! Tryck för att ladda om';
+    b.addEventListener('click', () => { location.reload(); });
+    document.body.appendChild(b);
+    const style = document.createElement('style');
+    style.textContent = '@keyframes updPulse{0%{box-shadow:0 4px 16px rgba(90,255,90,0.5)}50%{box-shadow:0 4px 24px rgba(90,255,90,0.9)}100%{box-shadow:0 4px 16px rgba(90,255,90,0.5)}}';
+    document.head.appendChild(style);
   }
 </script>
 </body>

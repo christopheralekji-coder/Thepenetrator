@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v162-graffiti-minimap';
+const CACHE = 'penetrator-v163-force-update';
 const ASSETS = [
   './',
   './index.html',
