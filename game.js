@@ -1778,39 +1778,11 @@ function drawCtfTurrets() {
   }
 }
 
-// CTF: rita walls — använd generisk drawPvpWalls
+// CTF: rita walls — använd detaljerade drawPvpWalls med pixel-art per kind.
+// Tidigare var detta en separat simpel version som ALDRIG anropade
+// drawPvpWalls → nya detaljerade grafiken syntes aldrig.
 function drawCtfWalls() {
-  const walls = state.ctfWalls;
-  if (!walls) return;
-  const cx = state.camera.x, cy = state.camera.y;
-  ctx.save();
-  for (const w of walls) {
-    const x = w.x - cx, y = w.y - cy;
-    if (x + w.w < -10 || x > viewW + 10 || y + w.h < -10 || y > viewH + 10) continue;
-    let fill, stroke;
-    if (w.kind === 'wall_red_base')      { fill = '#5a2020'; stroke = '#ff6060'; }
-    else if (w.kind === 'wall_blue_base'){ fill = '#1a2a5a'; stroke = '#60a0ff'; }
-    else if (w.kind === 'wall_pillar')   { fill = '#444';    stroke = '#888'; }
-    else if (w.kind === 'wall_divider')  { fill = '#333';    stroke = '#666'; }
-    else                                 { fill = '#6a4a2a'; stroke = '#b07b3a'; } // crate
-    // Fyllning
-    ctx.fillStyle = fill;
-    ctx.fillRect(x, y, w.w, w.h);
-    // Border (lite ljusare)
-    ctx.strokeStyle = stroke;
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
-    // Inner highlight för crates (träplankor-look)
-    if (w.kind === 'crate') {
-      ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x + 4, y + w.h * 0.5);
-      ctx.lineTo(x + w.w - 4, y + w.h * 0.5);
-      ctx.stroke();
-    }
-  }
-  ctx.restore();
+  drawPvpWalls(state.ctfWalls);
 }
 
 // CTF: rita flag-stands + dropped flags + carrier-flagga ovanför bärare
