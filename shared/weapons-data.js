@@ -46,6 +46,9 @@ const WEAPONS = [
   // turret_mg: värsting-MG som spelaren får när de mountar CTF-tornet. Hög DPS,
   // ingen reload, oändlig ammo. Bara åtkomlig via turret-enter, inte i shop.
   { id: 'turret_mg',  type: 'gun',   dmg: 14,  rate: 75,  speed: 1100, mag: 9999, reload: 0, spread: 0.07, color: '#ff5a3a' },
+  // turret_rocket: explosivt rocket launcher i Siege-tornen. Långsamt rate
+  // men HÖG dmg + AoE-explosion. Bara via turret-enter.
+  { id: 'turret_rocket', type: 'gun', dmg: 120, rate: 1400, speed: 700, mag: 9999, reload: 0, spread: 0.0, color: '#ff8a3a', explosive: 100 },
 ];
 
 const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));

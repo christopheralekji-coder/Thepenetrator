@@ -814,6 +814,59 @@ function exitTurret(sim, turretId, reason) {
   sim.eventQueue.push({ type: 'ctf_turret_exited', peerId, turretId, reason: reason || 'manual' });
 }
 
+// SIEGE-turret enter — mirror av CTF men för sim.siegeTurrets + använder turret.weaponId
+function tryEnterSiegeTurret(sim, peerId, turretId) {
+  const fail = (reason) => {
+    console.log('[SIEGE-TURRET-ENTER-FAIL]', sim.room && sim.room.code, peerId, 'turret=' + turretId, 'reason=' + reason);
+    return false;
+  };
+  if (!sim.siegeActive) return fail('not_siege_active');
+  const t = sim.siegeTurrets && sim.siegeTurrets[turretId];
+  if (!t) return fail('turret_not_found_' + turretId);
+  if (t.destroyed) return fail('destroyed');
+  if (t.occupantId) return fail('occupied_by_' + t.occupantId);
+  const ws = sim.room.members.get(peerId);
+  if (!ws) return fail('ws_missing');
+  if (!ws.playerState) return fail('no_player_state');
+  if (ws.playerState.hp <= 0) return fail('dead');
+  if (ws.tdmTeam !== t.team) return fail('wrong_team_' + ws.tdmTeam + '_vs_' + t.team);
+  const dx = ws.playerState.x - t.x, dy = ws.playerState.y - t.y;
+  const d2 = dx * dx + dy * dy;
+  const maxR = (SIEGE_ARENA.turretEnterRadius || 50) + 20;
+  if (d2 > maxR * maxR) return fail('too_far_' + Math.round(Math.sqrt(d2)) + 'px');
+  t.occupantId = peerId;
+  ws._mountedSiegeTurretId = turretId;
+  ws.playerState.x = t.x;
+  ws.playerState.y = t.y;
+  console.log('[SIEGE-TURRET-ENTER-OK]', sim.room && sim.room.code, peerId, '→', turretId, '(' + t.turretType + ')');
+  sim.eventQueue.push({
+    type: 'siege_turret_entered',
+    peerId, turretId,
+    weaponId: t.weaponId || 'turret_mg',
+    turretType: t.turretType || 'mg',
+  });
+  return true;
+}
+
+function exitSiegeTurret(sim, turretId, reason) {
+  const t = sim.siegeTurrets && sim.siegeTurrets[turretId];
+  if (!t) return;
+  const peerId = t.occupantId;
+  t.occupantId = null;
+  if (peerId) {
+    const ws = sim.room.members.get(peerId);
+    if (ws) {
+      ws._mountedSiegeTurretId = null;
+      if (ws.playerState) {
+        const dir = t.team === 'red' ? 1 : -1;
+        ws.playerState.x = t.x + dir * 35;
+        ws.playerState.y = t.y;
+      }
+    }
+  }
+  sim.eventQueue.push({ type: 'siege_turret_exited', peerId, turretId, reason: reason || 'manual' });
+}
+
 // Hantera spelare-död under CTF: droppa flagga vid death-position
 function applyCtfDeath(sim, peerId) {
   if (!sim.ctfActive) return;
@@ -883,7 +936,7 @@ function tickSiege(sim, dt, now) {
     }
   }
 
-  // Turret-occupant lock
+  // Turret-occupant lock (BÅDE ctf och siege)
   if (sim.siegeTurrets) {
     for (const tid of Object.keys(sim.siegeTurrets)) {
       const t = sim.siegeTurrets[tid];
@@ -891,9 +944,8 @@ function tickSiege(sim, dt, now) {
       if (t.occupantId) {
         const ws = sim.room.members.get(t.occupantId);
         if (!ws || !ws.playerState || ws.playerState.hp <= 0) {
-          // Auto-eject (occupant_lost)
-          t.occupantId = null;
-          sim.eventQueue.push({ type: 'siege_turret_exited', peerId: t.occupantId, turretId: tid, reason: 'occupant_lost' });
+          // Auto-eject
+          exitSiegeTurret(sim, tid, 'occupant_lost');
         } else {
           ws.playerState.x = t.x;
           ws.playerState.y = t.y;
@@ -902,11 +954,13 @@ function tickSiege(sim, dt, now) {
     }
   }
 
-  // Capture-base-logik: kolla varje bas vem som står där
-  const CAPTURE_TIME = SIEGE_ARENA.captureTimeSec || 3.0;
+  // Capture-base-logik med 2-fas: NEUTRALIZE (5s om enemy äger) + CAPTURE (10s).
+  // base.phase: null (neutral, fri att capturera) eller 'neutralize' (måste först
+  // göra basen neutral) eller 'capture' (capturerar mot neutral base).
+  const CAPTURE_TIME = SIEGE_ARENA.captureTimeSec || 10.0;
+  const NEUTRALIZE_TIME = SIEGE_ARENA.neutralizeTimeSec || 5.0;
   for (const baseId of Object.keys(sim.siegeBases)) {
     const base = sim.siegeBases[baseId];
-    // Räkna spelare per team som står inom base.r
     let redOn = 0, blueOn = 0;
     for (const [, ws] of sim.room.members) {
       if (!ws.playerState || ws.playerState.hp <= 0) continue;
@@ -916,33 +970,44 @@ function tickSiege(sim, dt, now) {
         else if (ws.tdmTeam === 'blue') blueOn++;
       }
     }
-    // Logik:
-    //  - Båda lag på basen → PAUS (first-occupant-protection: den som äger
-    //    behåller, men ingen progress avancerar)
-    //  - Bara red på basen → om red äger redan, ingen progress; annars red captures
-    //  - Bara blue på basen → mirror
-    //  - Ingen på basen → om progress pågår av lag-X men ej slutförts, decay tillbaka
     const contested = redOn > 0 && blueOn > 0;
     const onlyRed = redOn > 0 && blueOn === 0;
     const onlyBlue = blueOn > 0 && redOn === 0;
     if (contested) {
-      // Pausa progress, ingen ändring
+      // Pausa progress (first-occupant-protection)
     } else if (onlyRed) {
       if (base.owner === 'red') {
-        // Redan ägd — reset progress
+        // Egen bas, reset eventuell progress
         base.captureProgress = 0;
         base.captureSide = null;
-      } else {
-        // Red försöker capturera (från null eller blue)
-        if (base.captureSide !== 'red') {
+        base.phase = null;
+      } else if (base.owner === 'blue') {
+        // FAS 1: Neutralisera blå-basen först (5s)
+        if (base.captureSide !== 'red' || base.phase !== 'neutralize') {
           base.captureProgress = 0;
           base.captureSide = 'red';
+          base.phase = 'neutralize';
+        }
+        base.captureProgress = Math.min(1, base.captureProgress + dt / NEUTRALIZE_TIME);
+        if (base.captureProgress >= 1) {
+          base.owner = null;
+          base.captureProgress = 0;
+          base.phase = 'capture'; // direkt in i capture-fasen
+          sim.eventQueue.push({ type: 'siege_base_neutralized', baseId, by: 'red' });
+        }
+      } else {
+        // FAS 2 (eller direkt om neutral): Capturera neutral (10s)
+        if (base.captureSide !== 'red' || base.phase !== 'capture') {
+          base.captureProgress = 0;
+          base.captureSide = 'red';
+          base.phase = 'capture';
         }
         base.captureProgress = Math.min(1, base.captureProgress + dt / CAPTURE_TIME);
         if (base.captureProgress >= 1) {
           base.owner = 'red';
           base.captureProgress = 0;
           base.captureSide = null;
+          base.phase = null;
           sim.eventQueue.push({ type: 'siege_base_captured', baseId, team: 'red' });
         }
       }
@@ -950,26 +1015,65 @@ function tickSiege(sim, dt, now) {
       if (base.owner === 'blue') {
         base.captureProgress = 0;
         base.captureSide = null;
-      } else {
-        if (base.captureSide !== 'blue') {
+        base.phase = null;
+      } else if (base.owner === 'red') {
+        if (base.captureSide !== 'blue' || base.phase !== 'neutralize') {
           base.captureProgress = 0;
           base.captureSide = 'blue';
+          base.phase = 'neutralize';
+        }
+        base.captureProgress = Math.min(1, base.captureProgress + dt / NEUTRALIZE_TIME);
+        if (base.captureProgress >= 1) {
+          base.owner = null;
+          base.captureProgress = 0;
+          base.phase = 'capture';
+          sim.eventQueue.push({ type: 'siege_base_neutralized', baseId, by: 'blue' });
+        }
+      } else {
+        if (base.captureSide !== 'blue' || base.phase !== 'capture') {
+          base.captureProgress = 0;
+          base.captureSide = 'blue';
+          base.phase = 'capture';
         }
         base.captureProgress = Math.min(1, base.captureProgress + dt / CAPTURE_TIME);
         if (base.captureProgress >= 1) {
           base.owner = 'blue';
           base.captureProgress = 0;
           base.captureSide = null;
+          base.phase = null;
           sim.eventQueue.push({ type: 'siege_base_captured', baseId, team: 'blue' });
         }
       }
     } else {
-      // Ingen på basen — decay progress
+      // Ingen på basen — decay progress (50% rate)
       if (base.captureProgress > 0) {
-        base.captureProgress = Math.max(0, base.captureProgress - dt / CAPTURE_TIME * 0.5);
-        if (base.captureProgress === 0) base.captureSide = null;
+        const decayTime = base.phase === 'neutralize' ? NEUTRALIZE_TIME : CAPTURE_TIME;
+        base.captureProgress = Math.max(0, base.captureProgress - dt / decayTime * 0.5);
+        if (base.captureProgress === 0) {
+          base.captureSide = null;
+          base.phase = null;
+        }
       }
     }
+  }
+
+  // Broadcasta capture-progress till klienten ungefär 5Hz (var 9 tick @ 45Hz)
+  sim._siegeProgressBroadcastTick = (sim._siegeProgressBroadcastTick || 0) + 1;
+  if (sim._siegeProgressBroadcastTick >= 9) {
+    sim._siegeProgressBroadcastTick = 0;
+    const progress = {};
+    for (const baseId of Object.keys(sim.siegeBases)) {
+      const b = sim.siegeBases[baseId];
+      if (b.captureProgress > 0 || b.owner !== null) {
+        progress[baseId] = {
+          owner: b.owner,
+          captureProgress: b.captureProgress,
+          captureSide: b.captureSide,
+          phase: b.phase,
+        };
+      }
+    }
+    sim.eventQueue.push({ type: 'siege_base_progress', bases: progress });
   }
 
   // Passive points: varje ägd bas ger 1 pt/sek till owning team
@@ -1345,23 +1449,26 @@ function startSim(sim, opts) {
         hp: c.maxHp, maxHp: c.maxHp, destroyed: false,
       };
     }
-    // Init bases (home-bases startar i lagets ägo, mid neutrala)
+    // Init bases — ALLA startar NEUTRALA (grå)
     sim.siegeBases = {};
     for (const b of SIEGE_ARENA.bases) {
       sim.siegeBases[b.id] = {
         id: b.id, x: b.x, y: b.y, r: b.r,
-        owner: b.startOwner || null,
-        captureProgress: 0,        // 0..1
+        owner: null,                // alla starts neutral
+        captureProgress: 0,         // 0..1
         captureSide: null,          // 'red' / 'blue' / null
+        phase: null,                // 'neutralize' / 'capture' / null
       };
     }
-    // Init turrets
+    // Init turrets — bevara weaponId + turretType per torn
     sim.siegeTurrets = {};
     for (const t of SIEGE_ARENA.turrets) {
       sim.siegeTurrets[t.id] = {
         id: t.id, team: t.team, x: t.x, y: t.y, r: t.r,
         hp: t.maxHp, maxHp: t.maxHp,
         occupantId: null, destroyed: false, destroyedAt: 0,
+        weaponId: t.weaponId || 'turret_mg',
+        turretType: t.turretType || 'mg',
       };
     }
     // Team-tilldelning + spawn
@@ -1395,9 +1502,13 @@ function startSim(sim, opts) {
       walls: SIEGE_ARENA.walls,
       cores: Object.values(sim.siegeCores).map(c => ({ id: c.id, team: c.team, x: c.x, y: c.y, w: c.w, h: c.h, maxHp: c.maxHp, hp: c.hp })),
       bases: Object.values(sim.siegeBases).map(b => ({ id: b.id, x: b.x, y: b.y, r: b.r, owner: b.owner })),
-      turrets: Object.values(sim.siegeTurrets).map(t => ({ id: t.id, team: t.team, x: t.x, y: t.y, r: t.r, maxHp: t.maxHp, hp: t.hp })),
+      turrets: Object.values(sim.siegeTurrets).map(t => ({
+        id: t.id, team: t.team, x: t.x, y: t.y, r: t.r, maxHp: t.maxHp, hp: t.hp,
+        weaponId: t.weaponId, turretType: t.turretType,
+      })),
       turretEnterRadius: SIEGE_ARENA.turretEnterRadius,
       captureTimeSec: SIEGE_ARENA.captureTimeSec,
+      neutralizeTimeSec: SIEGE_ARENA.neutralizeTimeSec,
       decorations: SIEGE_ARENA.decorations || [],
       pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
       shieldMax: 100,
@@ -1556,4 +1667,4 @@ function applyLoadStage(sim, peerId, msg) {
   loadStage(sim, wave);
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, tryEnterTurret, exitTurret };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret };

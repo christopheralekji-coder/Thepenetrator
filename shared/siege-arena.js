@@ -31,27 +31,26 @@ const SIEGE_ARENA = {
     { id: 'core_blue', team: 'blue', x: 4325, y: 1375, w: 250, h: 250, maxHp: 15000 },
   ],
 
-  // === 6 CAPTURE-BASES — 2 home-bases nära varje spawn (auto-captured vid
-  // game-start) + 4 contestable mid-bases i hörnen. Standing på en base i 3s
-  // (uncontested) capturar den. Pausas om båda lag är där samtidigt. ===
+  // === 6 CAPTURE-BASES — alla startar NEUTRALA (grå). Stå 10s uncontested
+  // för att capturera. Om enemy äger: stå 5s för att NEUTRALISERA, sedan 10s
+  // för att capturera (totalt 15s). Båda lag på basen = paus. ===
   bases: [
-    // Home-bases (närmast spawn — startar redan i lagets ägo)
-    { id: 'base_red_home',  x: 850,  y: 1500, r: 80, startOwner: 'red'  },
-    { id: 'base_blue_home', x: 4150, y: 1500, r: 80, startOwner: 'blue' },
-    // Mid-bases (alla 4 startar neutrala, contestable)
-    { id: 'base_tl', x: 1800, y: 800,  r: 80, startOwner: null }, // top-left
-    { id: 'base_tr', x: 3200, y: 800,  r: 80, startOwner: null }, // top-right
-    { id: 'base_bl', x: 1800, y: 2200, r: 80, startOwner: null }, // bot-left
-    { id: 'base_br', x: 3200, y: 2200, r: 80, startOwner: null }, // bot-right
+    { id: 'base_red_home',  x: 850,  y: 1500, r: 80, startOwner: null },
+    { id: 'base_blue_home', x: 4150, y: 1500, r: 80, startOwner: null },
+    { id: 'base_tl', x: 1800, y: 800,  r: 80, startOwner: null },
+    { id: 'base_tr', x: 3200, y: 800,  r: 80, startOwner: null },
+    { id: 'base_bl', x: 1800, y: 2200, r: 80, startOwner: null },
+    { id: 'base_br', x: 3200, y: 2200, r: 80, startOwner: null },
   ],
-  captureTimeSec: 3.0,   // 3s uncontested presence för att flippa ägare
+  captureTimeSec: 10.0,      // 10s från neutral → capture
+  neutralizeTimeSec: 5.0,    // 5s för att neutralisera enemy-base
 
-  // === TURRETS — 2 per lag, defensive positions nära cores ===
+  // === TURRETS — 2 per lag. Varje lag har 1 MACHINEGUN + 1 ROCKET LAUNCHER ===
   turrets: [
-    { id: 'siege_turret_red_1',  team: 'red',  x: 700,  y: 1300, maxHp: 1500, r: 22 },
-    { id: 'siege_turret_red_2',  team: 'red',  x: 700,  y: 1700, maxHp: 1500, r: 22 },
-    { id: 'siege_turret_blue_1', team: 'blue', x: 4300, y: 1300, maxHp: 1500, r: 22 },
-    { id: 'siege_turret_blue_2', team: 'blue', x: 4300, y: 1700, maxHp: 1500, r: 22 },
+    { id: 'siege_turret_red_mg',     team: 'red',  x: 700,  y: 1300, maxHp: 1500, r: 22, weaponId: 'turret_mg',     turretType: 'mg' },
+    { id: 'siege_turret_red_rocket', team: 'red',  x: 700,  y: 1700, maxHp: 1500, r: 22, weaponId: 'turret_rocket', turretType: 'rocket' },
+    { id: 'siege_turret_blue_mg',     team: 'blue', x: 4300, y: 1300, maxHp: 1500, r: 22, weaponId: 'turret_mg',     turretType: 'mg' },
+    { id: 'siege_turret_blue_rocket', team: 'blue', x: 4300, y: 1700, maxHp: 1500, r: 22, weaponId: 'turret_rocket', turretType: 'rocket' },
   ],
   turretEnterRadius: 50,
 

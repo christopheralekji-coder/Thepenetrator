@@ -2337,38 +2337,52 @@ function drawSiegeBases() {
     let baseColor;
     if (b.owner === 'red') baseColor = 'rgba(255,60,60,';
     else if (b.owner === 'blue') baseColor = 'rgba(60,140,255,';
-    else baseColor = 'rgba(180,180,180,';
+    else baseColor = 'rgba(140,140,140,';  // GRÅ för neutral
     const pulse = 0.5 + Math.sin(t / 600) * 0.2;
-    // Yttre cirkel (capture-zon)
     ctx.save();
-    ctx.strokeStyle = baseColor + (0.6 * pulse) + ')';
+    // Yttre cirkel (zon-border)
+    ctx.strokeStyle = baseColor + (0.65 * pulse) + ')';
     ctx.lineWidth = 3;
     ctx.setLineDash([10, 6]);
     ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI * 2); ctx.stroke();
     ctx.setLineDash([]);
     // Inner-fyllning (subtil)
     const grad = ctx.createRadialGradient(x, y, 4, x, y, b.r);
-    grad.addColorStop(0, baseColor + (0.25 * pulse) + ')');
+    grad.addColorStop(0, baseColor + (0.30 * pulse) + ')');
     grad.addColorStop(1, baseColor + '0)');
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI * 2); ctx.fill();
-    // Capture-progress (om någon captures just nu)
+    // Capture-progress-ring med fas-färg
     if (b.captureProgress > 0 && b.captureSide) {
-      const sideColor = b.captureSide === 'red' ? '#ff5a5a' : '#5aaaff';
-      ctx.strokeStyle = sideColor;
-      ctx.lineWidth = 4;
-      ctx.shadowColor = sideColor; ctx.shadowBlur = 8;
+      // 'neutralize'-fas = gul-orange (rensar enemy-bas), 'capture'-fas = lag-färg
+      let ringColor;
+      if (b.phase === 'neutralize') ringColor = '#ffaa30';
+      else ringColor = b.captureSide === 'red' ? '#ff5a5a' : '#5aaaff';
+      ctx.strokeStyle = ringColor;
+      ctx.lineWidth = 5;
+      ctx.shadowColor = ringColor; ctx.shadowBlur = 12;
       ctx.beginPath();
-      ctx.arc(x, y, b.r + 6, -Math.PI / 2, -Math.PI / 2 + b.captureProgress * Math.PI * 2);
+      ctx.arc(x, y, b.r + 8, -Math.PI / 2, -Math.PI / 2 + b.captureProgress * Math.PI * 2);
       ctx.stroke();
       ctx.shadowBlur = 0;
+      // Procent + fas-label
+      ctx.fillStyle = ringColor;
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+      const label = b.phase === 'neutralize'
+        ? 'NEUTRAL ' + Math.round(b.captureProgress * 100) + '%'
+        : 'CAPTURE ' + Math.round(b.captureProgress * 100) + '%';
+      ctx.fillText(label, x, y - b.r - 20);
+      ctx.shadowBlur = 0;
     }
-    // Centrum-emblem (★)
-    ctx.fillStyle = b.owner === 'red' ? '#ff8080' : (b.owner === 'blue' ? '#80aaff' : '#bbb');
-    ctx.font = 'bold 18px sans-serif';
+    // Centrum-emblem (⬢)
+    ctx.fillStyle = b.owner === 'red' ? '#ff8080' : (b.owner === 'blue' ? '#80aaff' : '#999');
+    ctx.font = 'bold 22px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
     ctx.fillText('⬢', x, y);
     ctx.shadowBlur = 0;
     ctx.restore();
@@ -2996,6 +3010,9 @@ const WEAPONS = [
   // turret_mg: bara åtkomlig via CTF-torn-mount. Inte i shop, inte i save.owned.
   { id: 'turret_mg',  name: 'Turret MG',        type: 'gun',   price: 0,    dmg: 14,  rate: 75,  speed: 1100, mag: 9999, reload: 0, spread: 0.07, color: '#ff5a3a',
     desc: 'Tornets MG. Hög DPS, oändlig ammo.' },
+  // turret_rocket: Siege rocket-launcher-torn. Långsamt + explosivt.
+  { id: 'turret_rocket', name: 'Turret Rocket', type: 'gun',   price: 0,    dmg: 120, rate: 1400, speed: 700, mag: 9999, reload: 0, spread: 0.0, color: '#ff8a3a', explosive: 100, style: 'rocket',
+    desc: 'Tornets rocket launcher. Hög dmg + explosion.' },
 ];
 const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 
@@ -5604,41 +5621,57 @@ const _btnTurretAction = document.getElementById('btn-turret-action');
 let _turretNearbyId = null; // id på närmaste ledigt torn (för enter), eller null
 function updateTurretButton() {
   if (!_btnTurretAction) return;
-  if (!state.ctfActive || !state.player) {
+  if (!state.player) {
+    if (!_btnTurretAction.classList.contains('hidden')) _btnTurretAction.classList.add('hidden');
+    _turretNearbyId = null;
+    return;
+  }
+  // CTF eller SIEGE? Pick right state/team-source.
+  let turrets, team, mountedId, radius;
+  if (state.ctfActive) {
+    turrets = state.ctfTurrets;
+    team = Coop.ctfTeams && Coop.ctfTeams[Coop.myId];
+    mountedId = state.player._mountedCtfTurretId;
+    radius = state.ctfTurretEnterRadius || 50;
+  } else if (state.siegeActive) {
+    turrets = state.siegeTurrets;
+    team = Coop.siegeTeams && Coop.siegeTeams[Coop.myId];
+    mountedId = state.player._mountedSiegeTurretId;
+    radius = state.siegeTurretEnterRadius || 50;
+  } else {
     if (!_btnTurretAction.classList.contains('hidden')) _btnTurretAction.classList.add('hidden');
     _turretNearbyId = null;
     return;
   }
   // Sitter spelaren i ett torn? Visa EXIT
-  if (state.player._mountedCtfTurretId) {
+  if (mountedId) {
     _btnTurretAction.textContent = '🚪 EXIT TORN';
     _btnTurretAction.classList.remove('hidden');
     _turretNearbyId = null;
     return;
   }
-  // Annars: leta ledigt torn av eget lag inom radie
-  const myTeam = Coop.ctfTeams && Coop.ctfTeams[Coop.myId];
-  if (!myTeam || !state.ctfTurrets) {
+  if (!team || !turrets) {
     if (!_btnTurretAction.classList.contains('hidden')) _btnTurretAction.classList.add('hidden');
     _turretNearbyId = null;
     return;
   }
-  // Klient-side radie LITE större än server-side för att kompensera för
-  // network-lag (server är auktoritet — server-radie är 50+20 tolerance).
-  const r = (state.ctfTurretEnterRadius || 50) + 15;
-  let found = null;
-  for (const id of Object.keys(state.ctfTurrets)) {
-    const t = state.ctfTurrets[id];
-    if (t.destroyed || t.occupantId || t.team !== myTeam) continue;
+  const r = radius + 15;
+  let found = null, foundType = null;
+  for (const id of Object.keys(turrets)) {
+    const t = turrets[id];
+    if (t.destroyed || t.occupantId || t.team !== team) continue;
     const dx = state.player.x - t.x, dy = state.player.y - t.y;
-    if (dx * dx + dy * dy < r * r) { found = id; break; }
+    if (dx * dx + dy * dy < r * r) {
+      found = id;
+      foundType = t.turretType || 'mg';
+      break;
+    }
   }
   if (found) {
-    if (_turretNearbyId !== found) {
-      console.log('[TURRET-CLIENT] in range of', found);
-    }
+    if (_turretNearbyId !== found) console.log('[TURRET-CLIENT] in range of', found);
     _turretNearbyId = found;
-    _btnTurretAction.textContent = '🔫 ENTER TORN';
+    const label = foundType === 'rocket' ? '🚀 ENTER ROCKET' : '🔫 ENTER MG';
+    _btnTurretAction.textContent = label;
     _btnTurretAction.classList.remove('hidden');
   } else {
     _turretNearbyId = null;
@@ -5648,15 +5681,22 @@ function updateTurretButton() {
 function triggerTurretAction(source) {
   if (!state.player) { console.log('[TURRET-CLIENT] no player'); return; }
   if (!Coop.ws || Coop.ws.readyState !== 1) { console.log('[TURRET-CLIENT] ws not open'); return; }
+  // CTF turret
   if (state.player._mountedCtfTurretId) {
     const tid = state.player._mountedCtfTurretId;
-    console.log('[TURRET-CLIENT] EXIT', tid, 'via', source);
     try { Coop.ws.send(JSON.stringify({ type: 'ctf_turret_exit', turretId: tid })); } catch (_) {}
-  } else if (_turretNearbyId) {
-    console.log('[TURRET-CLIENT] ENTER', _turretNearbyId, 'via', source);
-    try { Coop.ws.send(JSON.stringify({ type: 'ctf_turret_enter', turretId: _turretNearbyId })); } catch (_) {}
-  } else {
-    console.log('[TURRET-CLIENT] no nearby turret');
+    return;
+  }
+  // SIEGE turret
+  if (state.player._mountedSiegeTurretId) {
+    const tid = state.player._mountedSiegeTurretId;
+    try { Coop.ws.send(JSON.stringify({ type: 'siege_turret_exit', turretId: tid })); } catch (_) {}
+    return;
+  }
+  // Inte mounted — försök ENTER
+  if (_turretNearbyId) {
+    const enterType = state.siegeActive ? 'siege_turret_enter' : 'ctf_turret_enter';
+    try { Coop.ws.send(JSON.stringify({ type: enterType, turretId: _turretNearbyId })); } catch (_) {}
   }
 }
 if (_btnTurretAction) {
@@ -7142,7 +7182,8 @@ const Coop = {
       state.siegeTargetPoints = this.siegeTargetPoints;
       state.siegeArena = ev.arena;
       state.siegeWalls = ev.walls || [];
-      state.siegeCaptureTimeSec = ev.captureTimeSec || 3.0;
+      state.siegeCaptureTimeSec = ev.captureTimeSec || 10.0;
+      state.siegeNeutralizeTimeSec = ev.neutralizeTimeSec || 5.0;
       state.siegeTurretEnterRadius = ev.turretEnterRadius || 50;
       state.siegeDecorations = ev.decorations || [];
       // Cores
@@ -7202,17 +7243,79 @@ const Coop = {
       if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('siege');
       if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
     } else if (ev.type === 'siege_base_captured') {
-      // { baseId, team }
       if (state.siegeBases && state.siegeBases[ev.baseId]) {
         state.siegeBases[ev.baseId].owner = ev.team;
         state.siegeBases[ev.baseId].captureProgress = 0;
         state.siegeBases[ev.baseId].captureSide = null;
+        state.siegeBases[ev.baseId].phase = null;
       }
       if (typeof showToast === 'function') {
         const teamName = ev.team === 'red' ? 'RÖD' : 'BLÅ';
         showToast('🚩 ' + teamName + ' tog en bas!');
       }
       if (typeof Audio !== 'undefined' && Audio.achievement) Audio.achievement();
+    } else if (ev.type === 'siege_base_neutralized') {
+      // { baseId, by ('red'/'blue' — den som neutraliserade) }
+      if (state.siegeBases && state.siegeBases[ev.baseId]) {
+        state.siegeBases[ev.baseId].owner = null;
+        state.siegeBases[ev.baseId].captureProgress = 0;
+        state.siegeBases[ev.baseId].phase = 'capture';  // går direkt in i capture-fas
+      }
+      if (typeof showToast === 'function') {
+        const byName = ev.by === 'red' ? 'RÖD' : 'BLÅ';
+        showToast('⚪ ' + byName + ' neutraliserade en bas!');
+      }
+    } else if (ev.type === 'siege_base_progress') {
+      // { bases: { baseId: { owner, captureProgress, captureSide, phase } } }
+      if (state.siegeBases && ev.bases) {
+        for (const baseId of Object.keys(ev.bases)) {
+          const b = state.siegeBases[baseId];
+          if (!b) continue;
+          const upd = ev.bases[baseId];
+          b.owner = upd.owner;
+          b.captureProgress = upd.captureProgress;
+          b.captureSide = upd.captureSide;
+          b.phase = upd.phase;
+        }
+      }
+    } else if (ev.type === 'siege_turret_entered') {
+      // { peerId, turretId, weaponId, turretType }
+      if (state.siegeTurrets && state.siegeTurrets[ev.turretId]) {
+        state.siegeTurrets[ev.turretId].occupantId = ev.peerId;
+      }
+      if (ev.peerId === this.myId && state.player) {
+        state.player._mountedSiegeTurretId = ev.turretId;
+        state.player._turretWeapon = ev.weaponId || 'turret_mg';
+        const typeLabel = ev.turretType === 'rocket' ? 'ROCKET LAUNCHER' : 'MACHINE GUN';
+        if (typeof showToast === 'function') showToast('🔫 ' + typeLabel + ' AKTIV');
+      }
+    } else if (ev.type === 'siege_turret_exited') {
+      if (state.siegeTurrets && state.siegeTurrets[ev.turretId]) {
+        state.siegeTurrets[ev.turretId].occupantId = null;
+      }
+      if (ev.peerId === this.myId && state.player) {
+        state.player._mountedSiegeTurretId = null;
+        state.player._turretWeapon = null;
+        if (ev.reason !== 'destroyed' && typeof showToast === 'function') showToast('🚪 Hoppade av tornet');
+      }
+    } else if (ev.type === 'siege_turret_damaged') {
+      if (state.siegeTurrets && state.siegeTurrets[ev.turretId]) {
+        state.siegeTurrets[ev.turretId].hp = ev.hp;
+        state.siegeTurrets[ev.turretId].maxHp = ev.maxHp;
+      }
+    } else if (ev.type === 'siege_turret_destroyed') {
+      const t = state.siegeTurrets && state.siegeTurrets[ev.turretId];
+      if (t) {
+        t.destroyed = true;
+        t.hp = 0;
+        if (typeof spawnSparks === 'function') spawnSparks(t.x, t.y, '#ff8a3a', 28, 360);
+        if (typeof spawnShockwave === 'function') spawnShockwave(t.x, t.y, 24, 120, '#ff5a3a', 0.6, 5);
+        if (typeof triggerShake === 'function') triggerShake(10, 0.5);
+        if (typeof showToast === 'function') {
+          const team = t.team === 'red' ? 'RÖD' : 'BLÅ';
+          showToast('💥 ' + team + ' TORN FÖRSTÖRT!');
+        }
+      }
     } else if (ev.type === 'siege_score_update') {
       // { red, blue }
       this.siegeRedScore = ev.red || 0;
@@ -8699,7 +8802,7 @@ function renderHostControls() {
       Coop.config.tdm = false; Coop.config.ctf = false;
       if (newSiege) {
         Coop.config.serverSim = true;
-        Coop.config.siegeTargetPoints = Coop.config.siegeTargetPoints || 100;
+        Coop.config.siegeTargetPoints = Coop.config.siegeTargetPoints || 500;
       }
       Coop.updateConfig({
         siege: newSiege, tdm: false, ctf: false,
@@ -8735,10 +8838,10 @@ function renderHostControls() {
         pvpEl.appendChild(tcBtn);
       }
     } else if (Coop.config.siege) {
-      for (const tp of [50, 100, 150]) {
+      for (const tp of [500, 5000, 20000]) {
         const tpBtn = document.createElement('button');
         tpBtn.textContent = tp + ' poäng';
-        tpBtn.style.cssText = 'background:' + ((Coop.config.siegeTargetPoints || 100) === tp ? '#ff8a3a' : '#222') + ';color:#fff;font-size:11px;padding:6px 10px;';
+        tpBtn.style.cssText = 'background:' + ((Coop.config.siegeTargetPoints || 500) === tp ? '#ff8a3a' : '#222') + ';color:#fff;font-size:11px;padding:6px 10px;';
         tpBtn.addEventListener('click', () => {
           Coop.config.siegeTargetPoints = tp;
           Coop.updateConfig({ siegeTargetPoints: tp });
@@ -9068,7 +9171,7 @@ btnCoopStart.addEventListener('click', () => {
     }
     if (Coop.config.siege) {
       payload.siege = true;
-      payload.siegeTargetPoints = Coop.config.siegeTargetPoints || 100;
+      payload.siegeTargetPoints = Coop.config.siegeTargetPoints || 500;
     }
     Coop.ws.send(JSON.stringify(payload));
     Coop.serverSimActive = true;
@@ -12520,7 +12623,7 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     }
     if (Coop.config.siege) {
       payload.siege = true;
-      payload.siegeTargetPoints = Coop.config.siegeTargetPoints || 100;
+      payload.siegeTargetPoints = Coop.config.siegeTargetPoints || 500;
     }
     try { Coop.ws.send(JSON.stringify(payload)); } catch (_) {}
     Coop.serverSimActive = true;
@@ -13739,7 +13842,7 @@ function showSiegeHud() {
   if (_siegeHud) _siegeHud.classList.remove('hidden');
   if (_siegeRedEl) _siegeRedEl.textContent = 'RED 0';
   if (_siegeBlueEl) _siegeBlueEl.textContent = 'BLUE 0';
-  if (_siegeTargetEl) _siegeTargetEl.textContent = String(Coop.siegeTargetPoints || 100);
+  if (_siegeTargetEl) _siegeTargetEl.textContent = String(Coop.siegeTargetPoints || 500);
   if (_siegeKillFeedEl) _siegeKillFeedEl.innerHTML = '';
   updateSiegeCoreHp();
 }
@@ -13838,7 +13941,7 @@ if (_btnSiegeRematch) {
             ngpLevel: 0,
             mode: Coop.config.mode || 'story',
             siege: true,
-            siegeTargetPoints: Coop.config.siegeTargetPoints || 100,
+            siegeTargetPoints: Coop.config.siegeTargetPoints || 500,
           }));
         }, 400);
       } catch (e) {}
@@ -14222,7 +14325,7 @@ function updatePlayer(dt, now) {
       vx: -p.dashDir.x * 60, vy: -p.dashDir.y * 60,
       isTrail: true, color: '#3acaff', r: p.r * 0.7, life: 0.18, fadeMul: 6,
     });
-  } else if (!p._mountedTurretId && !p._mountedCtfTurretId) {
+  } else if (!p._mountedTurretId && !p._mountedCtfTurretId && !p._mountedSiegeTurretId) {
     // Adrenalin-perk: snabbare vid <30% HP
     const adrenalineSpeed = (hasPerk('adrenalin') && p.hp < p.maxHp * 0.3) ? 1.35 : 1;
     const cheatSpeed = isCheatActive('speedrun') ? 2 : 1;
@@ -14231,9 +14334,13 @@ function updatePlayer(dt, now) {
     p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * dt;
     p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * dt;
   }
-  // Mounted i CTF-torn: lås position till turret-koord (server skickar uppdaterad pos via world packet)
+  // Mounted i CTF/SIEGE-torn: lås position till turret-koord
   if (p._mountedCtfTurretId && state.ctfTurrets && state.ctfTurrets[p._mountedCtfTurretId]) {
     const t = state.ctfTurrets[p._mountedCtfTurretId];
+    p.x = t.x; p.y = t.y;
+  }
+  if (p._mountedSiegeTurretId && state.siegeTurrets && state.siegeTurrets[p._mountedSiegeTurretId]) {
+    const t = state.siegeTurrets[p._mountedSiegeTurretId];
     p.x = t.x; p.y = t.y;
   }
   p.x = Math.max(p.r, Math.min(WORLD.w - p.r, p.x));
@@ -23420,8 +23527,10 @@ function drawMiniMap() {
     if (b.kind === 'tree' || b.kind === 'fence_seg' || b.kind === 'fence_seg_broken') continue;
     ctx.fillRect(ox + b.x * scale, oy + b.y * scale, Math.max(1, b.w * scale), Math.max(1, b.h * scale));
   }
-  // PvP-obstacles (CTF/TDM walls) — färgkodade per typ för läsbarhet på minimap
-  const pvpWalls = state.ctfActive ? state.ctfWalls : (state.tdmActive ? state.tdmWalls : null);
+  // PvP-obstacles — alla 3 lägen får walls renderade på minimap
+  const pvpWalls = state.ctfActive ? state.ctfWalls
+    : (state.tdmActive ? state.tdmWalls
+    : (state.siegeActive ? state.siegeWalls : null));
   if (pvpWalls) {
     for (const w of pvpWalls) {
       let color;
@@ -23459,11 +23568,69 @@ function drawMiniMap() {
     for (const id of Object.keys(state.ctfTurrets)) {
       const t = state.ctfTurrets[id];
       const tx = ox + t.x * scale, ty = oy + t.y * scale;
-      if (t.destroyed) {
-        ctx.fillStyle = 'rgba(100,40,20,0.7)';
-      } else {
-        ctx.fillStyle = t.team === 'red' ? 'rgba(255,140,50,0.9)' : 'rgba(60,180,255,0.9)';
+      if (t.destroyed) ctx.fillStyle = 'rgba(100,40,20,0.7)';
+      else ctx.fillStyle = t.team === 'red' ? 'rgba(255,140,50,0.9)' : 'rgba(60,180,255,0.9)';
+      ctx.beginPath(); ctx.arc(tx, ty, 2.5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // SIEGE: bases (med owner-färg) + cores + turrets på minimap
+  if (state.siegeBases) {
+    const pulse = 0.7 + Math.sin(performance.now() / 350) * 0.3;
+    for (const id of Object.keys(state.siegeBases)) {
+      const b = state.siegeBases[id];
+      const bx = ox + b.x * scale, by = oy + b.y * scale;
+      // Cirkel-kontur som markerar capture-zone
+      let color;
+      if (b.owner === 'red') color = '#ff3030';
+      else if (b.owner === 'blue') color = '#3060ff';
+      else color = '#888';
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(bx, by, Math.max(3, b.r * scale), 0, Math.PI * 2); ctx.stroke();
+      // Centrum-prick
+      ctx.fillStyle = color;
+      ctx.shadowColor = color;
+      ctx.shadowBlur = b.owner ? (8 * pulse) : 0;
+      ctx.beginPath(); ctx.arc(bx, by, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // Aktiv capture-progress = liten ring som visar progress
+      if (b.captureProgress > 0 && b.captureSide) {
+        ctx.strokeStyle = b.phase === 'neutralize' ? '#ffaa30'
+          : (b.captureSide === 'red' ? '#ff5a5a' : '#5aaaff');
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(bx, by, 4, -Math.PI / 2, -Math.PI / 2 + b.captureProgress * Math.PI * 2);
+        ctx.stroke();
       }
+    }
+  }
+  if (state.siegeCores) {
+    for (const id of Object.keys(state.siegeCores)) {
+      const c = state.siegeCores[id];
+      const cxm = ox + (c.x + c.w / 2) * scale;
+      const cym = oy + (c.y + c.h / 2) * scale;
+      if (c.destroyed) {
+        ctx.fillStyle = 'rgba(80,30,20,0.85)';
+        ctx.fillRect(cxm - 4, cym - 4, 8, 8);
+      } else {
+        ctx.fillStyle = c.team === 'red' ? 'rgba(255,90,90,0.95)' : 'rgba(90,170,255,0.95)';
+        ctx.shadowColor = c.team === 'red' ? '#ff5a5a' : '#5aaaff';
+        ctx.shadowBlur = 6;
+        ctx.fillRect(cxm - 5, cym - 5, 10, 10);
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(cxm - 5, cym - 5, 10, 10);
+      }
+    }
+  }
+  if (state.siegeTurrets) {
+    for (const id of Object.keys(state.siegeTurrets)) {
+      const t = state.siegeTurrets[id];
+      const tx = ox + t.x * scale, ty = oy + t.y * scale;
+      if (t.destroyed) ctx.fillStyle = 'rgba(100,40,20,0.7)';
+      else if (t.turretType === 'rocket') ctx.fillStyle = t.team === 'red' ? 'rgba(255,170,50,0.95)' : 'rgba(60,200,255,0.95)';
+      else ctx.fillStyle = t.team === 'red' ? 'rgba(255,140,50,0.9)' : 'rgba(60,180,255,0.9)';
       ctx.beginPath(); ctx.arc(tx, ty, 2.5, 0, Math.PI * 2); ctx.fill();
     }
   }
