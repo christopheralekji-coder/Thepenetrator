@@ -19232,6 +19232,10 @@ function drawGoalZone(cx, cy) {
   const stage = getStage(state.wave);
   if (!stage || stage.isBoss) return;
   if (state.enemiesToSpawn > 0 || state.enemies.length > 0) return;
+  // PvP-modes använder customStage med goalPos (för spawnPos-symmetri) men
+  // har ingen "utgång" — målet är att döda/cappa, inte gå till en plats.
+  // Skippa den gula cirkeln + UTGÅNG-pilen helt i alla PvP-modes.
+  if (state.tdmActive || state.ctfActive || state.siegeActive) return;
   const t = performance.now();
   const pulse = 1 + Math.sin(t/280) * 0.15;
   const gx = stage.goalPos.x - cx;

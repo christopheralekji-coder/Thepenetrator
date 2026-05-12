@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v177-lag-compensation';
+const CACHE = 'penetrator-v178-pvp-no-goalzone';
 const ASSETS = [
   './',
   './index.html',
