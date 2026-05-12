@@ -120,9 +120,14 @@ wss.on('connection', (ws) => {
   ws.isAlive = true;
   console.log('[CONN]', ws.id, 'connected');
 
+  // Heartbeat: vilken meddelande/pong som helst räknas som "alive". Tidigare
+  // var bara pong tracked → mobil Safari + vissa proxies som inte auto-pong:ar
+  // korrekt ledde till disconnect efter ~60s mitt i CTF/TDM trots att client
+  // skickade sim_input @2Hz. Räknar nu vilken inbound-aktivitet som helst.
   ws.on('pong', () => { ws.isAlive = true; });
 
   ws.on('message', (raw, isBinary) => {
+    ws.isAlive = true; // ANY message = alive (mobile-safari pong-issue fix)
     if (isBinary) {
       try { handleBinaryMessage(ws, raw); } catch (e) { console.error('bin-error:', e.message); }
       return;
@@ -140,14 +145,16 @@ wss.on('connection', (ws) => {
   ws.on('error', (e) => console.warn('[ERR]', ws.id, e.message));
 });
 
-// Heartbeat — döda silent connections
+// Heartbeat — döda silent connections. 60s interval (var 30s) så total kill-
+// fönster är 120s vilket är generöst nog för mobila spikes utan att låsa fast
+// zombie-anslutningar.
 setInterval(() => {
   for (const ws of wss.clients) {
     if (!ws.isAlive) { ws.terminate(); continue; }
     ws.isAlive = false;
     try { ws.ping(); } catch (e) {}
   }
-}, 30000);
+}, 60000);
 
 function send(ws, obj) {
   if (ws.readyState !== WebSocket.OPEN) return;

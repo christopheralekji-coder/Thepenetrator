@@ -5109,6 +5109,9 @@ const Coop = {
       this.slotToPeerId.set(colorIdx, msg.peerId);
       // Skicka welcome direkt
       this._sendTo(msg.peerId, { type: 'welcome', colorIdx, players: this.serializeLobby() });
+      // VIKTIGT: skicka nuvarande config till late-joiner. Annars använder partner
+      // default-config (ctf:false, tdm:false) → får fel vapen-arsenal i CTF/TDM.
+      this._sendTo(msg.peerId, { type: 'config', config: this.config });
       this.broadcastLobby();
       if (this._onPlayerJoinCb) this._onPlayerJoinCb(this.players.size + 1);
     } else if (msg.type === 'peer_left') {
@@ -6301,6 +6304,7 @@ const Coop = {
     }
   },
   disconnect() {
+    const wasMidGame = this.active && typeof state !== 'undefined' && state.mode === 'playing';
     this._intentionalClose = true;  // hindrar onclose från att auto-reconnecta
     this.active = false; this.inLobby = false;
     this.serverSimActive = false;
@@ -6311,15 +6315,30 @@ const Coop = {
       state.ctfActive = false;
       // Rensa stale CTF/PvP-state så de inte läcker in i nästa run
       state.ctfWalls = null;
+      state.tdmWalls = null;
       state.ctfFlags = null;
       state.ctfArena = null;
       state.pvpPickups = null;
       state.pvpShieldMax = null;
+      // Rensa custom-stages så story-fallback inte använder CTF-arena vid
+      // nästa solo-spel. Bug innan: efter disconnect mid-CTF spawnade minions
+      // lokalt på CTF-arenan (state.mode='playing', server-auth bort, fallback PvE).
+      state.customStages = null;
       if (state.player) {
         state.player.carryingFlag = null;
         state.player.shield = undefined;
         state.player.maxShield = undefined;
       }
+    }
+    // Om vi förlorat anslutningen mid-game, kicka tillbaka till menyn så vi inte
+    // hamnar i lokalt PvE-fallback-läge (minions spawnar lokalt). Tidigare:
+    // 'playing' state kvar → solo-game-loop tog över → fel mode → buggat.
+    if (wasMidGame && typeof state !== 'undefined') {
+      state.mode = 'menu';
+      if (typeof document !== 'undefined') document.body.classList.add('menu-mode');
+      if (typeof menuScreen !== 'undefined') menuScreen.classList.remove('hidden');
+      if (typeof Music !== 'undefined' && Music.stop) Music.stop();
+      if (typeof showToast === 'function') showToast('🌐 Anslutning förlorad — tillbaka till menyn');
     }
     // Säkerhetsnät: göm alla PvP HUD-element så de inte spookar i menyn
     if (typeof hideCtfHud === 'function') hideCtfHud();
