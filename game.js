@@ -2336,7 +2336,9 @@ function drawKothZone() {
   const z = state.kothZones[state.kothActiveZoneIdx];
   if (!z) return;
   const t = performance.now() / 1000;
-  const pulse = 0.85 + Math.sin(t * 2.4) * 0.15;
+  // Snabbare puls + röd-tint under warning-fas (5s före byte)
+  const warningActive = state._kothWarningUntil && performance.now() < state._kothWarningUntil;
+  const pulse = warningActive ? (0.4 + Math.sin(t * 12) * 0.6) : (0.85 + Math.sin(t * 2.4) * 0.15);
   ctx.save();
   // Gold ring + glow
   ctx.strokeStyle = '#ffd54a';
@@ -2371,6 +2373,14 @@ function drawKothZone() {
     ctx.fillStyle = '#fff';
     ctx.shadowBlur = 3;
     ctx.fillText('byter om ' + sec + 's', z.x, z.y + 46);
+  }
+  // Contested-banner (>1 spelare i zonen) ovanför zone
+  if (state._kothContestedUntil && performance.now() < state._kothContestedUntil) {
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillStyle = '#ff5a3a';
+    ctx.globalAlpha = 0.95;
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 5;
+    ctx.fillText('⏸ CONTESTED (' + (state._kothContestedCount || 2) + ')', z.x, z.y - 50);
   }
   ctx.restore();
 }
@@ -2983,7 +2993,7 @@ const COOP_STORY_WEAPON_UNLOCKS = {
   // Stage 6+: alla 6 låsta, ingen ytterligare unlock
 };
 function isCoopStoryMode() {
-  return Coop.active && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && (Coop.config.mode === 'story' || !Coop.config.mode);
+  return Coop.active && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && !Coop.config.koth && (Coop.config.mode === 'story' || !Coop.config.mode);
 }
 function coopStoryUnlockedThroughWave(wave) {
   const unlocked = ['fists'];
@@ -6818,6 +6828,48 @@ const Coop = {
       }
       return;
     }
+    // Bot-shot: server skickar när bot skjuter ett gun-vapen. Klient spawnar
+    // lokal visuell bullet (server gör hit-detection separat).
+    if (ev.type === 'bot_shot') {
+      const w = W_BY_ID[ev.weaponId];
+      if (w && state.bullets) {
+        const speed = w.speed || 700;
+        const pellets = w.pellets || 1;
+        for (let i = 0; i < pellets; i++) {
+          const spread = (Math.random() - 0.5) * 2 * (w.spread || 0);
+          const a = ev.ang + spread;
+          state.bullets.push({
+            x: ev.x + Math.cos(a) * 14,
+            y: ev.y + Math.sin(a) * 14,
+            vx: Math.cos(a) * speed,
+            vy: Math.sin(a) * speed,
+            r: 4,
+            color: w.color || '#ffd54a',
+            life: w.id === 'flame' ? 0.5 : 1.6,
+            dmg: 0,                  // visuell only — server gör hit-check
+            hostile: false,
+            visualOnly: true,        // klient-flag så hit-detection skippas
+            style: w.id,
+            ownerPid: ev.peerId,
+          });
+        }
+        // Muzzle-flash om finns
+        if (typeof spawnMuzzleFlash === 'function') {
+          const mx = ev.x + Math.cos(ev.ang) * 18;
+          const my = ev.y + Math.sin(ev.ang) * 18;
+          spawnMuzzleFlash(mx, my, ev.ang, w.color || '#ffd14a', 18);
+        }
+      }
+      return;
+    }
+    // Bot-swing: melee-attack visuellt slash
+    if (ev.type === 'bot_swing') {
+      const w = W_BY_ID[ev.weaponId];
+      if (w && typeof spawnSlash === 'function') {
+        spawnSlash(ev.x, ev.y, ev.ang, w.range || 40, w.color || '#dab27a');
+      }
+      return;
+    }
     if (ev.type === 'tdm_started') {
       // PvP-läge initierat — spara team-roster och visa banner
       // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
@@ -7284,14 +7336,41 @@ const Coop = {
     } else if (ev.type === 'pvp_hp_changed') {
       // PvP shield + HP-uppdatering efter damage eller pickup.
       // Server-shape: { peerId, hp, shield }
+      // Räkna ut damage-amount för floating number + off-screen hit-marker.
+      let targetX = null, targetY = null, prevHp = null, prevShield = null;
       if (ev.peerId === this.myId && state.player) {
+        prevHp = state.player.hp;
+        prevShield = state.player.shield || 0;
         state.player.hp = ev.hp;
         state.player.shield = ev.shield;
         if (typeof updateHUD === 'function') updateHUD();
+        targetX = state.player.x;
+        targetY = state.player.y;
       } else if (this.players.has(ev.peerId)) {
         const p = this.players.get(ev.peerId);
+        prevHp = p.hp;
+        prevShield = p.shield || 0;
         p.hp = ev.hp;
         p.shield = ev.shield;
+        targetX = p.x;
+        targetY = p.y;
+      }
+      // Damage-number + hit-marker (om target träffades, inte vid pickup)
+      if (prevHp != null && targetX != null) {
+        const dealtHp = Math.max(0, Math.round(prevHp - ev.hp));
+        const dealtShield = Math.max(0, Math.round(prevShield - (ev.shield || 0)));
+        const totalDealt = dealtHp + dealtShield;
+        if (totalDealt > 0) {
+          // Floating-number i världen vid target
+          if (typeof spawnDamageNumber === 'function') {
+            spawnDamageNumber(targetX, targetY - 20, totalDealt, false);
+          }
+          // Off-screen hit-marker: om jag är shooter och target utanför viewport,
+          // visa pil-indikator vid skärmkant så jag vet att jag träffade.
+          if (ev.peerId !== this.myId) {
+            queueOffscreenHitMarker(targetX, targetY, totalDealt);
+          }
+        }
       }
     } else if (ev.type === 'pvp_pickup_collected') {
       // Server-shape: { id, peerId, ptype, hp, shield, respawnAt }
@@ -7653,6 +7732,16 @@ const Coop = {
       if (typeof showToast === 'function') showToast('👑 KING OF THE HILL — håll zonen för poäng!');
       if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('tdm');
       if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
+    } else if (ev.type === 'koth_zone_contested') {
+      // 1Hz från server när >1 spelare i zonen — visa contested-banner
+      state._kothContestedUntil = performance.now() + 1500;
+      state._kothContestedCount = ev.count || 0;
+    } else if (ev.type === 'koth_zone_warning') {
+      // 5s före zone-byter — visa banner + ljud + screen-shake
+      if (typeof showToast === 'function') showToast('⚠ ZON BYTER OM 5s — ' + (ev.nextName || 'NÄSTA'));
+      if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(800, 0.3, 'square', 0.25, 0.005, 0.25, 1200);
+      if (typeof triggerShake === 'function') triggerShake(3, 0.2);
+      state._kothWarningUntil = performance.now() + 5000;
     } else if (ev.type === 'koth_zone_changed') {
       // { idx, x, y, r, name, nextRotateAt }
       this.kothActiveZoneIdx = ev.idx;
@@ -9507,16 +9596,26 @@ function renderHostControls() {
         });
         botEl.appendChild(sBtn);
       }
-      // Team-val (bara 1 bot i team-mode)
-      if (botCount === 1 && (Coop.config.tdm || Coop.config.ctf || Coop.config.siege)) {
-        for (const team of ['red', 'blue']) {
+      // Team-val i team-modes — 3 lägen oavsett antal bots:
+      // AUTO = alternera red/blue per bot (balanserade lag)
+      // RED  = alla bots på röda laget
+      // BLUE = alla bots på blå laget
+      if (Coop.config.tdm || Coop.config.ctf || Coop.config.siege) {
+        const opts = [
+          { id: 'auto', label: '⚖ AUTO', color: '#ffd54a' },
+          { id: 'red',  label: '🔴 RÖDA', color: '#ff5a5a' },
+          { id: 'blue', label: '🔵 BLÅ',  color: '#5aaaff' },
+        ];
+        for (const o of opts) {
           const tBtn = document.createElement('button');
-          const isSel = (Coop.config.botTeam || 'red') === team;
-          tBtn.textContent = team === 'red' ? '🔴 RED' : '🔵 BLUE';
-          tBtn.style.cssText = 'background:' + (isSel ? (team === 'red' ? '#ff5a5a' : '#5aaaff') : '#222') + ';color:#fff;font-size:11px;padding:6px 10px;font-weight:700;';
+          // 'auto' = botTeam unset eller 'auto'; matchar logiken server-side via botCount > 1
+          const cur = Coop.config.botTeam || (botCount > 1 ? 'auto' : 'red');
+          const isSel = cur === o.id;
+          tBtn.textContent = o.label;
+          tBtn.style.cssText = 'background:' + (isSel ? o.color : '#222') + ';color:' + (isSel ? '#000' : '#fff') + ';font-size:11px;padding:6px 10px;font-weight:700;';
           tBtn.addEventListener('click', () => {
-            Coop.config.botTeam = team;
-            Coop.updateConfig({ botTeam: team });
+            Coop.config.botTeam = o.id;
+            Coop.updateConfig({ botTeam: o.id });
             renderHostControls();
           });
           botEl.appendChild(tBtn);
@@ -9545,6 +9644,45 @@ function renderHostControls() {
   if (!anyUnlocked) {
     lobbyCheatButtonsEl.innerHTML = '<span style="font-size:11px;color:#666;">Inga cheats upplåsta än — klara story-mode för att låsa upp.</span>';
   }
+  updateLobbySectionSuffixes();
+}
+
+// Lobby mode-suffix: collapsed sections visar nu vad som är aktivt så host
+// inte glömmer att t.ex. KOTH är på medan PvP-flik är stängd.
+function updateLobbySectionSuffixes() {
+  const sections = document.querySelectorAll('.lobby-section[data-collapsible="1"]');
+  sections.forEach(sec => {
+    const label = sec.querySelector('.lobby-label');
+    if (!label) return;
+    // Spara original-text första gången så suffix kan strippas vid omrendering
+    if (!label._baseText) label._baseText = label.textContent.replace(/ · .+$/, '').trim();
+    const containerId = (sec.querySelector('[id^="lobby-"]') || {}).id || '';
+    let suffix = '';
+    if (containerId === 'lobby-mode-buttons') {
+      // Inkluderar bara om PvP är aktivt (annars duplicerar med PvP-section)
+      if (Coop.config.tdm) suffix = ' · ⚔ TDM';
+      else if (Coop.config.ctf) suffix = ' · 🚩 CTF';
+      else if (Coop.config.siege) suffix = ' · 🛡 SIEGE';
+      else if (Coop.config.gungame) suffix = ' · 🔫 GUN';
+      else if (Coop.config.koth) suffix = ' · 👑 KOTH';
+      else if (Coop.config.mode && Coop.config.mode !== 'story') suffix = ' · ' + Coop.config.mode.toUpperCase();
+    } else if (containerId === 'lobby-pvp-buttons') {
+      if (Coop.config.tdm) suffix = ' · ⚔ TDM';
+      else if (Coop.config.ctf) suffix = ' · 🚩 CTF';
+      else if (Coop.config.siege) suffix = ' · 🛡 SIEGE';
+      else if (Coop.config.gungame) suffix = ' · 🔫 GUNGAME';
+      else if (Coop.config.koth) suffix = ' · 👑 KOTH';
+    } else if (containerId === 'lobby-bot-buttons') {
+      if (Coop.config.addBot) {
+        const sk = Coop.config.botSkill === 'easy' ? '😴' : (Coop.config.botSkill === 'hard' ? '🔥' : '🎯');
+        suffix = ' · 🤖×' + (Coop.config.botCount || 1) + ' ' + sk;
+      }
+    } else if (containerId === 'lobby-cheat-buttons') {
+      const activeCount = Object.values(Coop.config.cheats || {}).filter(Boolean).length;
+      if (activeCount > 0) suffix = ' · ' + activeCount + ' aktiva';
+    }
+    label.textContent = label._baseText + suffix;
+  });
 }
 
 // Render mini-character (32×40) av en wardrobe på en canvas. Mycket simpel — bara
@@ -9667,18 +9805,25 @@ function renderLobbyPlayers(players) {
   // Bot-placeholders i player-listen — så host ser exakt vilka som kommer vara
   // med i matchen. Räknas också i start-disable + team-balance.
   const botCount = Coop.isHost && Coop.config && Coop.config.addBot ? (Coop.config.botCount || 1) : 0;
-  const botTeamForOne = Coop.config && Coop.config.botTeam || 'red';
+  const botTeamMode = (Coop.config && Coop.config.botTeam) || 'auto';
   let botRedCount = 0, botBlueCount = 0;
   for (let bi = 0; bi < botCount; bi++) {
     const row = document.createElement('div');
     row.className = 'player-row';
     row.style.borderLeftColor = '#5aff5a';
     row.style.opacity = '0.85';
-    // Team-tag i TDM/CTF/SIEGE (FFA-modes ingen team)
+    // Team-tag i TDM/CTF/SIEGE — matchar server-logik:
+    // 'auto' = motsatt host-team (default), 'red'/'blue' = fixad sida
     let teamHtml = '';
     if (Coop.config.tdm || Coop.config.ctf || Coop.config.siege) {
-      // 1 bot: använd botTeam-val. Flera bots: alternera red/blue.
-      const team = botCount === 1 ? botTeamForOne : (bi % 2 === 0 ? 'red' : 'blue');
+      let team;
+      if (botTeamMode === 'red') team = 'red';
+      else if (botTeamMode === 'blue') team = 'blue';
+      else {
+        // AUTO: motsatt host (host typiskt red). 1 bot = blue, fler = alternera
+        if (botCount === 1) team = 'blue';
+        else team = (bi % 2 === 0) ? 'blue' : 'red';
+      }
       if (team === 'red') { redCount++; botRedCount++; } else { blueCount++; botBlueCount++; }
       const teamColor = team === 'red' ? '#ff5a5a' : '#5aaaff';
       const teamLabel = team === 'red' ? 'RÖD' : 'BLÅ';
@@ -10972,6 +11117,26 @@ if (_btnCheatsClose) _btnCheatsClose.addEventListener('click', () => {
     state._fromSettingsSubmenu = null;
   }
 });
+// Cheats-screen-input: samma redeem-flow som lobby-input
+const _cheatsScreenInput = document.getElementById('cheats-screen-input');
+const _btnCheatsScreenRedeem = document.getElementById('btn-cheats-screen-redeem');
+function _redeemCheatFromScreen() {
+  if (!_cheatsScreenInput) return;
+  const v = _cheatsScreenInput.value;
+  if (tryRedeemCheatCode(v)) {
+    _cheatsScreenInput.value = '';
+    _cheatsScreenInput.style.borderColor = '#5aff5a';
+    setTimeout(() => { if (_cheatsScreenInput) _cheatsScreenInput.style.borderColor = '#ffd54a'; }, 1000);
+    if (typeof renderCheatsScreen === 'function') renderCheatsScreen();
+  } else {
+    _cheatsScreenInput.style.borderColor = '#ff5a3a';
+    setTimeout(() => { if (_cheatsScreenInput) _cheatsScreenInput.style.borderColor = '#ffd54a'; }, 700);
+  }
+}
+if (_btnCheatsScreenRedeem) _btnCheatsScreenRedeem.addEventListener('click', _redeemCheatFromScreen);
+if (_cheatsScreenInput) _cheatsScreenInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') _redeemCheatFromScreen();
+});
 
 // Apply ultimate-aura on load
 if (isCheatActive('ultimate')) document.body.classList.add('ultimate-active');
@@ -11771,6 +11936,76 @@ function maybeChatter(e, lines) {
     color: '#ffd54a',
     isChatter: true, text, size: 11,
   });
+}
+
+// Off-screen hit-markers — visa pil-indikator vid skärmkant när jag träffar
+// någon utanför viewport. Stackas i en kö som ritas i drawOffscreenHitMarkers.
+const _offscreenHitMarkers = [];
+function queueOffscreenHitMarker(worldX, worldY, dmg) {
+  _offscreenHitMarkers.push({
+    x: worldX, y: worldY, dmg,
+    spawnAt: performance.now(),
+    life: 1.0,                // sekunder, fade ut
+  });
+  // Cap till senaste 6 (gamla droppas)
+  while (_offscreenHitMarkers.length > 6) _offscreenHitMarkers.shift();
+}
+function drawOffscreenHitMarkers() {
+  if (!_offscreenHitMarkers.length || !state.player) return;
+  const now = performance.now();
+  // Filtrera ut gamla
+  for (let i = _offscreenHitMarkers.length - 1; i >= 0; i--) {
+    if (now - _offscreenHitMarkers[i].spawnAt > 1500) _offscreenHitMarkers.splice(i, 1);
+  }
+  const cam = state.camera;
+  if (!cam) return;
+  const margin = 50;
+  const cx = viewW / 2, cy = viewH / 2;
+  for (const m of _offscreenHitMarkers) {
+    const sx = m.x - cam.x;
+    const sy = m.y - cam.y;
+    // Bara visa om utanför viewport
+    if (sx >= 0 && sx <= viewW && sy >= 0 && sy <= viewH) continue;
+    const age = (now - m.spawnAt) / 1500;
+    if (age >= 1) continue;
+    const alpha = 1 - age;
+    // Rikta från center mot target
+    const dx = sx - cx, dy = sy - cy;
+    const ang = Math.atan2(dy, dx);
+    // Klamp till viewport-rand med margin
+    const halfW = viewW / 2 - margin;
+    const halfH = viewH / 2 - margin;
+    const scale = Math.min(halfW / Math.abs(Math.cos(ang) || 0.0001), halfH / Math.abs(Math.sin(ang) || 0.0001));
+    const ex = cx + Math.cos(ang) * scale;
+    const ey = cy + Math.sin(ang) * scale;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(ex, ey);
+    ctx.rotate(ang);
+    // Pil-form: triangel med damage-tal
+    ctx.fillStyle = '#ff5a3a';
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(18, 0);
+    ctx.lineTo(-6, 10);
+    ctx.lineTo(-6, -10);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    // Damage-tal (oroterat)
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    const labelOffX = -Math.cos(ang) * 26;
+    const labelOffY = -Math.sin(ang) * 26;
+    ctx.fillText('-' + m.dmg, ex + labelOffX, ey + labelOffY + 4);
+    ctx.restore();
+  }
 }
 
 function spawnDamageNumber(x, y, dmg, isCrit) {
@@ -17029,9 +17264,9 @@ function updateCollectibles() {
         // Lägg till i arsenal oavsett — pickup är alltid en uppgradering till "ägd"
         const wasOwned = save.owned.includes(c.weaponId);
         if (!wasOwned) save.owned.push(c.weaponId);
-        // Byt vapen BARA om nya är starkare än current. Annars stannar du på ditt
-        // (smartare än auto-byte som kunde sätta dig på pistol mitt i boss-fight).
-        const curW = W_BY_ID[state.player ? state.player.weaponId : save.equipped];
+        // Byt vapen BARA om nya är starkare än current. Annars stannar du på ditt.
+        const curWeaponId = state.player ? state.player.weaponId : save.equipped;
+        const curW = W_BY_ID[curWeaponId];
         const newW = W_BY_ID[c.weaponId];
         const curStr = weaponStrength(curW);
         const newStr = weaponStrength(newW);
@@ -17040,14 +17275,16 @@ function updateCollectibles() {
           equip(c.weaponId);
           Audio.purchase();
           showToast('⬆ ' + (w ? w.name : c.weaponId) + ' — utrustad!');
-        } else {
-          // Lägg till i inventory men byt inte. Visa svagare toast.
+        } else if (c.weaponId === curWeaponId) {
+          // Samma vapen — gå tyst (story-pickup spawnar bara pistol, slipp toast-spam)
           Audio.goldPickup();
-          if (wasOwned) {
-            showToast('🔫 ' + (w ? w.name : c.weaponId) + ' (samlad, svagare än ditt)');
-          } else {
-            showToast('🔫 ' + (w ? w.name : c.weaponId) + ' (sparad till arsenal)');
-          }
+        } else if (!wasOwned) {
+          // Nytt vapen i arsenal men svagare → liten toast
+          Audio.goldPickup();
+          showToast('🔫 ' + (w ? w.name : c.weaponId) + ' (sparad)');
+        } else {
+          // Ägt vapen, svagare — totalt tyst (pickup-spam i story)
+          Audio.goldPickup();
         }
         persist();
       } else {
@@ -24279,6 +24516,7 @@ function render() {
   for (const p of state.particles) if (p.isExplosion) drawParticle(p);
   drawCraneDrop();
   drawOffScreenGoalArrow();
+  drawOffscreenHitMarkers();
   drawReloadRing();
   drawMiniMap();
   drawAlarmOverlay();

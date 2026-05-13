@@ -1344,11 +1344,25 @@ function tickKoth(sim, dt, now) {
 
   if (sim.kothEnded) return;
 
+  // Warning 5s före zone-byter — så spelare hinner springa till nästa zon
+  const msToRotate = sim._kothZoneRotateAt - nowMs;
+  if (msToRotate > 0 && msToRotate <= 5000 && !sim._kothWarningSent) {
+    sim._kothWarningSent = true;
+    const nextIdx = (sim.kothActiveZoneIdx + 1) % KOTH_ARENA.zones.length;
+    const nextZ = KOTH_ARENA.zones[nextIdx];
+    sim.eventQueue.push({
+      type: 'koth_zone_warning',
+      msToRotate,
+      nextIdx,
+      nextX: nextZ.x, nextY: nextZ.y, nextName: nextZ.name,
+    });
+  }
   // Zone-rotation
   if (nowMs >= sim._kothZoneRotateAt) {
     const next = (sim.kothActiveZoneIdx + 1) % KOTH_ARENA.zones.length;
     sim.kothActiveZoneIdx = next;
     sim._kothZoneRotateAt = nowMs + (KOTH_ARENA.zoneRotateSec || 45) * 1000;
+    sim._kothWarningSent = false;
     const z = KOTH_ARENA.zones[next];
     sim.eventQueue.push({
       type: 'koth_zone_changed',
@@ -1372,21 +1386,35 @@ function tickKoth(sim, dt, now) {
   // Bullets
   updateBullets(sim, dt, now);
 
-  // Score: spelare i aktiv zon får dt poäng (1 pt/sek)
+  // Score: ENSAM i aktiv zon = +1 pt/sek. Contested (>1 spelare) = ingen får
+  // poäng. Bryter genre-konventionen att man bara CAN hill om uncontested.
+  // Detta gör att killing/utrensning av zonen blir taktisk.
   const zone = KOTH_ARENA.zones[sim.kothActiveZoneIdx];
-  let leadersInZone = [];
+  const inZone = [];
   for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
     const dx = ws.playerState.x - zone.x, dy = ws.playerState.y - zone.y;
-    if (dx * dx + dy * dy <= zone.r * zone.r) {
-      sim._kothPointAccum[pid] = (sim._kothPointAccum[pid] || 0) + dt * (KOTH_ARENA.pointsPerSecond || 1);
-      if (sim._kothPointAccum[pid] >= 1) {
-        const whole = Math.floor(sim._kothPointAccum[pid]);
-        sim._kothPointAccum[pid] -= whole;
-        sim.kothScores[pid] = (sim.kothScores[pid] || 0) + whole;
-        leadersInZone.push(pid);
-      }
+    if (dx * dx + dy * dy <= zone.r * zone.r) inZone.push(pid);
+  }
+  // Bara ensam-occupant tickar poäng. Multi-occupant = contested (pausad).
+  if (inZone.length === 1) {
+    const pid = inZone[0];
+    sim._kothPointAccum[pid] = (sim._kothPointAccum[pid] || 0) + dt * (KOTH_ARENA.pointsPerSecond || 1);
+    if (sim._kothPointAccum[pid] >= 1) {
+      const whole = Math.floor(sim._kothPointAccum[pid]);
+      sim._kothPointAccum[pid] -= whole;
+      sim.kothScores[pid] = (sim.kothScores[pid] || 0) + whole;
     }
+  }
+  // Skicka contested-state om relevant så klient kan visa banner
+  if (inZone.length > 1) {
+    sim._kothContestedSent = sim._kothContestedSent || 0;
+    if (now - sim._kothContestedSent > 1000) {
+      sim._kothContestedSent = now;
+      sim.eventQueue.push({ type: 'koth_zone_contested', count: inZone.length });
+    }
+  } else {
+    sim._kothContestedSent = 0;
   }
 
   // Death-detection
@@ -1683,13 +1711,24 @@ function startSim(sim, opts) {
     // realPlayers-array (klient mappar c: i mot slotToPeerId). Bot kommer sist
     // i sim.room.members (insertion order), så colorIdx = nuvarande size + bi.
     let nextColorIdx = sim.room.members.size;
+    // Beräkna host-team-prediction (host hamnar typiskt i loop-index 0 = red).
+    // 'auto'-default sätter bot på MOTSATT sida så solo-spelare får en motståndare,
+    // inte en teammate. Med flera bots: alternera red/blue.
+    const realCount = [...sim.room.members.values()].filter(m => !m._isBot).length;
+    const hostPredictTeam = realCount > 0 ? 'red' : 'red'; // host typiskt i=0 → red
     for (let bi = 0; bi < botCount; bi++) {
-      // I team-modes: alternera röd/blå om botCount > 1 så lagen blir balanserade,
-      // annars använd opts.botTeam som default. I FFA: ingen team.
       let botTeam = null;
       if (inTeamMode) {
-        if (botCount === 1) botTeam = (opts.botTeam === 'blue' ? 'blue' : 'red');
-        else botTeam = (bi % 2 === 0) ? 'red' : 'blue';
+        const tm = opts.botTeam || 'auto';
+        if (tm === 'red') botTeam = 'red';
+        else if (tm === 'blue') botTeam = 'blue';
+        else {
+          // AUTO: motsatt host. Med 1 bot = motsatt. Flera bots: alternera men
+          // första boten på motsatt sida för balans.
+          const oppHost = hostPredictTeam === 'red' ? 'blue' : 'red';
+          if (botCount === 1) botTeam = oppHost;
+          else botTeam = (bi % 2 === 0) ? oppHost : hostPredictTeam;
+        }
       }
       const botInfo = addBot(sim, botTeam, skill);
       // Skicka bot_joined så klienter lägger in bot i sin Coop.players-map.

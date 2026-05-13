@@ -345,8 +345,25 @@ function shootIfReady(sim, botWs, target, now) {
   const params = { dmgMul: 1, perks: {}, cheats: {} };
   if (w.type === 'melee') {
     applyMelee(sim, p, ps.weaponId, params);
+    // Slash-VFX-event så klienten renderar bot:s melee-swing
+    sim.eventQueue.push({
+      type: 'bot_swing',
+      peerId: botWs.id,
+      x: ps.x, y: ps.y, ang,
+      weaponId: ps.weaponId,
+    });
   } else {
     spawnPlayerBullets(sim, p, ps.weaponId, params);
+    // Bot-bullet-event så klient renderar lokala visuella bullets (player-bullets
+    // skickas inte i world-paket — vanligtvis hanteras de via klient-relay men
+    // bots har ingen klient). Skicka pos + vinkel + vapen så klient kan
+    // spawna lokal "fake" bullet med samma trajectory.
+    sim.eventQueue.push({
+      type: 'bot_shot',
+      peerId: botWs.id,
+      x: ps.x, y: ps.y, ang,
+      weaponId: ps.weaponId,
+    });
   }
 }
 
