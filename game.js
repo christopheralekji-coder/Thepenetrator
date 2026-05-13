@@ -2714,12 +2714,13 @@ function drawCoopPartner() {
 
     ctx.restore();
 
-    // Namn-tag
+    // Namn-tag (🤖-prefix för bots så spelaren ser AI vs människor)
     ctx.fillStyle = color;
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
     ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
-    ctx.fillText(p.name, x, y - 28);
+    const nameLabel = p.isBot ? ('🤖 ' + p.name) : p.name;
+    ctx.fillText(nameLabel, x, y - 28);
     ctx.shadowBlur = 0;
     // HP-bar
     if (p.hp !== undefined) {
@@ -9663,17 +9664,50 @@ function renderLobbyPlayers(players) {
     }
     coopPlayerList.appendChild(row);
   }
+  // Bot-placeholders i player-listen — så host ser exakt vilka som kommer vara
+  // med i matchen. Räknas också i start-disable + team-balance.
+  const botCount = Coop.isHost && Coop.config && Coop.config.addBot ? (Coop.config.botCount || 1) : 0;
+  const botTeamForOne = Coop.config && Coop.config.botTeam || 'red';
+  let botRedCount = 0, botBlueCount = 0;
+  for (let bi = 0; bi < botCount; bi++) {
+    const row = document.createElement('div');
+    row.className = 'player-row';
+    row.style.borderLeftColor = '#5aff5a';
+    row.style.opacity = '0.85';
+    // Team-tag i TDM/CTF/SIEGE (FFA-modes ingen team)
+    let teamHtml = '';
+    if (Coop.config.tdm || Coop.config.ctf || Coop.config.siege) {
+      // 1 bot: använd botTeam-val. Flera bots: alternera red/blue.
+      const team = botCount === 1 ? botTeamForOne : (bi % 2 === 0 ? 'red' : 'blue');
+      if (team === 'red') { redCount++; botRedCount++; } else { blueCount++; botBlueCount++; }
+      const teamColor = team === 'red' ? '#ff5a5a' : '#5aaaff';
+      const teamLabel = team === 'red' ? 'RÖD' : 'BLÅ';
+      teamHtml = `<span style="background:${teamColor};color:#000;font-weight:900;font-size:10px;padding:2px 6px;border-radius:3px;margin-right:6px;">${teamLabel}</span>`;
+    }
+    const skillName = (Coop.config.botSkill || 'normal').toUpperCase();
+    const skillEmoji = Coop.config.botSkill === 'easy' ? '😴' : (Coop.config.botSkill === 'hard' ? '🔥' : '🎯');
+    row.innerHTML = `
+      ${teamHtml}
+      <div style="width:32px;height:40px;background:rgba(90,255,90,0.15);border-radius:6px;border:1px solid #5aff5a55;margin:0 4px;display:flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto;">🤖</div>
+      <div style="width:12px;height:12px;background:#5aff5a;border-radius:50%;flex:0 0 auto;"></div>
+      <span class="pname">BOT ${bi + 1}</span>
+      <span style="margin-left:auto;margin-right:8px;color:#5aff5a;font-size:11px;font-weight:700;">${skillEmoji} ${skillName}</span>
+    `;
+    coopPlayerList.appendChild(row);
+  }
+  // Effektivt antal player-slots (inkl bots) för start-check
+  const effectivePlayers = players.length + botCount;
   // TDM-säkerhet: visa team-balance + blockera start vid <2 spelare eller obalans
   if (tdmOn && Coop.isHost) {
     const balanceMsg = document.createElement('div');
     balanceMsg.style.cssText = 'margin-top:8px;font-size:11px;text-align:center;font-weight:700;';
     let warning = '';
-    if (players.length < 2) warning = ' · ⚠ MINST 2 SPELARE KRÄVS';
+    if (effectivePlayers < 2) warning = ' · ⚠ MINST 2 SPELARE KRÄVS';
     else if (redCount !== blueCount) warning = ' · ⚠ OJÄMNA LAG';
     balanceMsg.innerHTML = `<span style="color:#ff5a5a;">RÖD ${redCount}</span> · <span style="color:#5aaaff;">BLÅ ${blueCount}</span><span style="color:#ffd54a;">${warning}</span>`;
     coopPlayerList.appendChild(balanceMsg);
-    // Disable start om < 2 spelare (ojämna lag tillåts men varnas)
-    if (btnCoopStart) btnCoopStart.disabled = (players.length < 2);
+    // Disable start om < 2 effektiva spelare (inkl bots)
+    if (btnCoopStart) btnCoopStart.disabled = (effectivePlayers < 2);
   } else if (btnCoopStart) {
     btnCoopStart.disabled = false;
   }
@@ -14292,6 +14326,18 @@ function addTdmKillFeed(killerName, killerTeam, victimName, victimTeam, weaponNa
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
 }
+
+// Bot-payload-helper: lägger till addBot+botCount+botSkill+botTeam i sim_start-
+// payload om host valt bots. DRY för 7 callsites (2 sim_start + 5 rematch).
+function applyBotPayload(payload) {
+  if (Coop.config && Coop.config.addBot) {
+    payload.addBot = true;
+    payload.botCount = Coop.config.botCount || 1;
+    payload.botSkill = Coop.config.botSkill || 'normal';
+    payload.botTeam = Coop.config.botTeam || 'red';
+  }
+  return payload;
+}
 function showTdmEndScreen(winner, redKills, blueKills, stats, teams) {
   if (!_tdmEndOverlay) return;
   hideTdmHud();
@@ -14365,7 +14411,7 @@ if (_btnTdmRematch) {
         // Liten paus så server hinner stoppa innan nytt start (annars race)
         setTimeout(() => {
           if (!Coop.ws || Coop.ws.readyState !== 1) return;
-          Coop.ws.send(JSON.stringify({
+          Coop.ws.send(JSON.stringify(applyBotPayload({
             type: 'sim_start',
             wave: 1,
             difficulty: Coop.config.difficulty || 'veteran',
@@ -14373,7 +14419,7 @@ if (_btnTdmRematch) {
             mode: Coop.config.mode || 'story',
             tdm: true,
             tdmTargetKills: Coop.config.tdmTargetKills || 10,
-          }));
+          })));
         }, 400);
       } catch (e) {}
     }
@@ -14550,7 +14596,7 @@ if (_btnCtfRematch) {
         Coop.ws.send(JSON.stringify({ type: 'sim_stop' }));
         setTimeout(() => {
           if (!Coop.ws || Coop.ws.readyState !== 1) return;
-          Coop.ws.send(JSON.stringify({
+          Coop.ws.send(JSON.stringify(applyBotPayload({
             type: 'sim_start',
             wave: 1,
             difficulty: Coop.config.difficulty || 'veteran',
@@ -14558,7 +14604,7 @@ if (_btnCtfRematch) {
             mode: Coop.config.mode || 'story',
             ctf: true,
             ctfTargetCaptures: Coop.config.ctfTargetCaptures || 3,
-          }));
+          })));
         }, 400);
       } catch (e) {}
     }
@@ -14715,7 +14761,7 @@ if (_btnSiegeRematch) {
         Coop.ws.send(JSON.stringify({ type: 'sim_stop' }));
         setTimeout(() => {
           if (!Coop.ws || Coop.ws.readyState !== 1) return;
-          Coop.ws.send(JSON.stringify({
+          Coop.ws.send(JSON.stringify(applyBotPayload({
             type: 'sim_start',
             wave: 1,
             difficulty: Coop.config.difficulty || 'veteran',
@@ -14723,7 +14769,7 @@ if (_btnSiegeRematch) {
             mode: Coop.config.mode || 'story',
             siege: true,
             siegeTargetPoints: Coop.config.siegeTargetPoints || 500,
-          }));
+          })));
         }, 400);
       } catch (e) {}
     }
@@ -14760,14 +14806,14 @@ if (_btnGungameRematch) {
         Coop.ws.send(JSON.stringify({ type: 'sim_stop' }));
         setTimeout(() => {
           if (!Coop.ws || Coop.ws.readyState !== 1) return;
-          Coop.ws.send(JSON.stringify({
+          Coop.ws.send(JSON.stringify(applyBotPayload({
             type: 'sim_start',
             wave: 1,
             difficulty: Coop.config.difficulty || 'veteran',
             ngpLevel: 0,
             mode: Coop.config.mode || 'story',
             gungame: true,
-          }));
+          })));
         }, 400);
       } catch (e) {}
     }
@@ -14804,7 +14850,7 @@ if (_btnKothRematch) {
         Coop.ws.send(JSON.stringify({ type: 'sim_stop' }));
         setTimeout(() => {
           if (!Coop.ws || Coop.ws.readyState !== 1) return;
-          Coop.ws.send(JSON.stringify({
+          Coop.ws.send(JSON.stringify(applyBotPayload({
             type: 'sim_start',
             wave: 1,
             difficulty: Coop.config.difficulty || 'veteran',
@@ -14812,7 +14858,7 @@ if (_btnKothRematch) {
             mode: Coop.config.mode || 'story',
             koth: true,
             kothTargetPoints: Coop.config.kothTargetPoints || 100,
-          }));
+          })));
         }, 400);
       } catch (e) {}
     }

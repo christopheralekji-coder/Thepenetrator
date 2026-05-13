@@ -310,9 +310,9 @@ function moveBotTowards(sim, botWs, target, dt) {
   // fallback till stora 5000×3000 default. (Gungame är 3500×2000 men i de andra
   // modes kan bot tidigare inte nå höger del av Siege 5000×3000.)
   const worldW = (sim.tdmArena && sim.tdmArena.worldW)
-    || (sim.gungameActive ? 3500 : 5000);
+    || ((sim.gungameActive || sim.kothActive) ? 3500 : 5000);
   const worldH = (sim.tdmArena && sim.tdmArena.worldH)
-    || (sim.gungameActive ? 2000 : 3000);
+    || ((sim.gungameActive || sim.kothActive) ? 2000 : 3000);
   ps.x = Math.max(50, Math.min(worldW - 50, ps.x));
   ps.y = Math.max(50, Math.min(worldH - 50, ps.y));
   ps.aim = Math.atan2(dy, dx);
