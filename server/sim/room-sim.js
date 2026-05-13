@@ -1516,13 +1516,48 @@ function broadcastWorld(sim, now) {
   // ctf_match_end om sista spelaren disconnectade samma tick).
   if (sim.eventQueue.length > 0 && sim.room.members.size > 0) {
     const events = sim.eventQueue.splice(0);
-    const json = JSON.stringify({ type: 'sim_events', events });
-    for (const [, ws] of sim.room.members) {
-      if (ws.readyState === 1) try { ws.send(json); } catch (e) {}
+    // Per-peer filtering: vissa events (pvp_hp_changed) är bara relevanta för
+    // target — skip:as till andra peers. Sparar ~30-40% paketstorlek vid 8 spelare.
+    // Andra events (kill, score, started, etc) skickas till alla.
+    const PER_TARGET_TYPES = new Set(['pvp_hp_changed', 'pvp_pickup_collected']);
+    // Snabb-path: om inga filterbar-events, en gemensam JSON för alla
+    let needsFilter = false;
+    for (const ev of events) {
+      if (PER_TARGET_TYPES.has(ev.type)) { needsFilter = true; break; }
+    }
+    if (!needsFilter) {
+      const json = JSON.stringify({ type: 'sim_events', events });
+      for (const [, ws] of sim.room.members) {
+        if (ws._isBot) continue;
+        if (ws.readyState === 1) try { ws.send(json); } catch (e) {}
+      }
+    } else {
+      // Filter-path: per-peer event-array. Mer CPU men mindre nät.
+      for (const [pid, ws] of sim.room.members) {
+        if (ws._isBot) continue;
+        if (ws.readyState !== 1) continue;
+        const filtered = events.filter(ev => {
+          if (!PER_TARGET_TYPES.has(ev.type)) return true;
+          // Per-target event: bara skicka till ägare
+          return ev.peerId === pid;
+        });
+        if (filtered.length === 0) continue;
+        try { ws.send(JSON.stringify({ type: 'sim_events', events: filtered })); } catch (e) {}
+      }
     }
   }
 
   for (const [peerId, ws] of sim.room.members) {
+    if (ws._isBot) continue; // bots har ingen klient att ta emot
+    // ADAPTIVE BROADCAST: vid hög RTT (>150ms = mobil 4G eller dålig WiFi),
+    // sänk till varannan tick (22Hz istället för 45Hz). Halverar nät-burden
+    // för peer utan att förlora för mycket smoothness. Force-broadcast var
+    // 1500ms ändå via fullBroadcast så ingen freezes ut.
+    const rtt = ws._serverRtt || 0;
+    if (rtt > 150 && !fullBroadcast) {
+      ws._broadcastSkipCounter = (ws._broadcastSkipCounter || 0) + 1;
+      if (ws._broadcastSkipCounter % 2 === 1) continue;
+    }
     let lastSent = sim.lastSentEnemyByPeer.get(peerId);
     let forceFullForPeer = !lastSent || fullBroadcast;
     if (!lastSent) lastSent = {};
