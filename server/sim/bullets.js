@@ -499,6 +499,28 @@ function explode(sim, x, y, radius, dmg, fromPid) {
       }
     }
   }
+  // Siege-cores: explosion nära enemy-core ska skada den (med 0.15× nerf så
+  // explosive-spam inte trivialiserar core-rush). Förhindrar friendly fire.
+  if (sim.siegeActive && fromPid && sim.siegeCores) {
+    const fromTeamSiege = fromWs && fromWs.tdmTeam;
+    for (const cid of Object.keys(sim.siegeCores)) {
+      const core = sim.siegeCores[cid];
+      if (core.destroyed || core.team === fromTeamSiege) continue;
+      const cx = core.x + (core.w || 0) / 2;
+      const cy = core.y + (core.h || 0) / 2;
+      const dx = cx - x, dy = cy - y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < radius * radius) {
+        const falloff = 1 - Math.sqrt(d2) / radius;
+        core.hp = Math.max(0, core.hp - dmg * 0.15 * falloff);
+        sim.eventQueue.push({ type: 'siege_core_damaged', coreId: cid, hp: core.hp, maxHp: core.maxHp });
+        if (core.hp <= 0 && !core.destroyed) {
+          core.destroyed = true;
+          if (sim._endSiegeMatch) sim._endSiegeMatch(sim, fromTeamSiege, 'core_destroyed');
+        }
+      }
+    }
+  }
 }
 
 // Update bullets — collision + life + special-effekter (boomerang/blackhole/pull-whip).

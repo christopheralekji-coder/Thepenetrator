@@ -2382,6 +2382,29 @@ function drawSiegeBases() {
       ctx.fillText(label, x, y - b.r - 20);
       ctx.shadowBlur = 0;
     }
+    // Contested-badge: visa "R vs B"-count om båda lagen står på basen
+    const redOn = b.redOn || 0;
+    const blueOn = b.blueOn || 0;
+    if (redOn > 0 && blueOn > 0) {
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+      ctx.fillText('⏸ ' + redOn + ' vs ' + blueOn + ' — CONTESTED', x, y - b.r - 6);
+      ctx.shadowBlur = 0;
+    } else if (redOn > 0 || blueOn > 0) {
+      // Visa antal capturers när en sida har basen
+      const c = redOn || blueOn;
+      const color = redOn ? '#ff8080' : '#80aaff';
+      ctx.fillStyle = color;
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+      ctx.fillText('×' + c, x, y - b.r - 6);
+      ctx.shadowBlur = 0;
+    }
     // Centrum-emblem (⬢)
     ctx.fillStyle = b.owner === 'red' ? '#ff8080' : (b.owner === 'blue' ? '#80aaff' : '#999');
     ctx.font = 'bold 22px sans-serif';
@@ -6950,6 +6973,17 @@ const Coop = {
       if (typeof showCtfHud === 'function') showCtfHud(myTeam);
       if (typeof updateCtfScore === 'function') updateCtfScore(0, 0, this.ctfTargetCaptures);
       if (typeof showToast === 'function') showToast(myTeam === 'red' ? '🚩 DU ÄR I RÖDA LAGET' : '🚩 DU ÄR I BLÅA LAGET');
+      // Onboarding-banner för nya spelare — 6s overlay förklarar mål.
+      // save.ctfOnboarded sätts efter första visning så veteraner slipper banner.
+      if (!save.ctfOnboarded) {
+        save.ctfOnboarded = true;
+        if (typeof persist === 'function') persist();
+        setTimeout(() => {
+          if (typeof showCtfStatus === 'function') {
+            showCtfStatus('🎯 Stjäl deras flagga → spring hem. Din flagga måste vara hemma för score.', 6000);
+          }
+        }, 1500);
+      }
       if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('ctf');
       if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
     } else if (ev.type === 'ctf_flag_picked') {
@@ -7317,6 +7351,8 @@ const Coop = {
           b.captureProgress = upd.captureProgress;
           b.captureSide = upd.captureSide;
           b.phase = upd.phase;
+          b.redOn = upd.redOn || 0;
+          b.blueOn = upd.blueOn || 0;
         }
       }
     } else if (ev.type === 'siege_turret_entered') {
@@ -7366,8 +7402,26 @@ const Coop = {
       if (typeof updateSiegeScore === 'function') updateSiegeScore(this.siegeRedScore, this.siegeBlueScore, this.siegeTargetPoints);
     } else if (ev.type === 'siege_core_damaged') {
       // { coreId, hp, maxHp, by }
-      if (state.siegeCores && state.siegeCores[ev.coreId]) {
-        state.siegeCores[ev.coreId].hp = ev.hp;
+      const core = state.siegeCores && state.siegeCores[ev.coreId];
+      if (core) {
+        const prevHp = core.hp;
+        core.hp = ev.hp;
+        const dealt = Math.max(0, Math.round(prevHp - ev.hp));
+        // Flash + pop bara om det är MIN core som tar damage (visuell varning)
+        const myTeam = this.siegeTeams && this.siegeTeams[this.myId];
+        if (myTeam && core.team === myTeam) {
+          // Röd flash på core-HP badge
+          const el = document.getElementById('siege-core-' + core.team);
+          if (el) {
+            el.classList.add('core-flash');
+            setTimeout(() => el.classList.remove('core-flash'), 350);
+          }
+          if (dealt > 5 && typeof Audio !== 'undefined' && Audio.bossHit) Audio.bossHit();
+        }
+        // -N pop ovanför core (i världen)
+        if (dealt > 0 && typeof spawnDamageNumber === 'function') {
+          spawnDamageNumber(core.x + (core.w || 0) / 2, core.y + (core.h || 0) / 2, dealt, false);
+        }
       }
       if (typeof updateSiegeCoreHp === 'function') updateSiegeCoreHp();
     } else if (ev.type === 'siege_core_destroyed') {
@@ -7509,7 +7563,8 @@ const Coop = {
           state.player.ammo = Math.max(1, Math.ceil(_mag * 0.5));
         }
         if (typeof updateGungameTier === 'function') updateGungameTier(ev.killerTier, this.gungameWeapons);
-        if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+        // Full-screen tier-up VFX (ersätter den tysta purchase()-pinget)
+        if (typeof playGungameTierUpVFX === 'function') playGungameTierUpVFX(ev.killerTier, this.gungameWeapons);
         if (typeof showToast === 'function') {
           const nextW = W_BY_ID[this.gungameWeapons[ev.killerTier]];
           showToast('⬆ TIER ' + (ev.killerTier + 1) + '/' + this.gungameTotalTiers + (nextW ? ' — ' + nextW.name : ''));
@@ -14302,6 +14357,31 @@ function updateGungameTier(tier, weapons) {
   if (curEl) curEl.textContent = cur ? cur.name : '?';
   if (nextEl) nextEl.textContent = next ? next.name : '🏆 FINAL';
 }
+
+// GUNGAME tier-up VFX: stor central flash + nya vapen-namn. Triggas bara
+// vid promote (egen kill), inte vid demotion eller respawn.
+function playGungameTierUpVFX(tier, weapons) {
+  const w = weapons && weapons[tier] && W_BY_ID[weapons[tier]];
+  if (!w) return;
+  // Ta bort gamla overlays om dom finns
+  document.querySelectorAll('#gungame-tier-flash, #gungame-tier-flash-text').forEach(el => el.remove());
+  const flash = document.createElement('div');
+  flash.id = 'gungame-tier-flash';
+  document.body.appendChild(flash);
+  const text = document.createElement('div');
+  text.id = 'gungame-tier-flash-text';
+  text.textContent = '⬆ TIER ' + (tier + 1) + ' — ' + (w.name || w.id).toUpperCase();
+  document.body.appendChild(text);
+  // Cleanup efter animation
+  setTimeout(() => { flash.remove(); text.remove(); }, 850);
+  // Power-up ljud
+  if (typeof Audio !== 'undefined' && Audio._tone) {
+    Audio._tone(800, 0.4, 'square', 0.3, 0.01, 0.3, 1400);
+    setTimeout(() => Audio._tone(1200, 0.3, 'square', 0.25, 0.01, 0.25, 1800), 100);
+  }
+  // Screen-shake för impact
+  if (typeof triggerShake === 'function') triggerShake(6, 0.3);
+}
 function addGungameKillFeed(killerName, victimName, weaponName, wasMelee, demoted) {
   ensureGungameHud();
   if (!_gungameKillFeedEl) return;
@@ -14427,6 +14507,22 @@ function updateHUD() {
     } else {
       _shieldBar.classList.add('hidden');
     }
+  }
+  // PvP-shield cooldown-ring (CSS conic-progress på knappen)
+  if (_btnPvpShield && !_btnPvpShield.classList.contains('hidden')) {
+    const now = performance.now();
+    let cdProgress = 0;
+    if (p.pvpShieldUntil && now < p.pvpShieldUntil) {
+      // Aktiv: visa full ring som "aktiv" indikator
+      cdProgress = 1;
+    } else if (p.pvpShieldCdAt != null) {
+      const cdEnd = p.pvpShieldCdAt + PVP_SHIELD_COOLDOWN_MS;
+      if (now < cdEnd) {
+        // Cooldown: ring krymper från 1 till 0 (mer kvar = mer fyllt)
+        cdProgress = (cdEnd - now) / PVP_SHIELD_COOLDOWN_MS;
+      }
+    }
+    _btnPvpShield.style.setProperty('--shield-cd-progress', cdProgress);
   }
   if (killCountEl) killCountEl.textContent = state.killsThisRun || 0;
   const lvl = getLevel(state.wave);

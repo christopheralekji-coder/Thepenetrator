@@ -1025,6 +1025,9 @@ function tickSiege(sim, dt, now) {
     const contested = redOn > 0 && blueOn > 0;
     const onlyRed = redOn > 0 && blueOn === 0;
     const onlyBlue = blueOn > 0 && redOn === 0;
+    // Spara count för broadcast (klient visar "2 vs 1 contested")
+    base.redOn = redOn;
+    base.blueOn = blueOn;
     if (contested) {
       // Pausa progress (first-occupant-protection)
     } else if (onlyRed) {
@@ -1116,12 +1119,14 @@ function tickSiege(sim, dt, now) {
     const progress = {};
     for (const baseId of Object.keys(sim.siegeBases)) {
       const b = sim.siegeBases[baseId];
-      if (b.captureProgress > 0 || b.owner !== null) {
+      if (b.captureProgress > 0 || b.owner !== null || b.redOn || b.blueOn) {
         progress[baseId] = {
           owner: b.owner,
           captureProgress: b.captureProgress,
           captureSide: b.captureSide,
           phase: b.phase,
+          redOn: b.redOn || 0,
+          blueOn: b.blueOn || 0,
         };
       }
     }

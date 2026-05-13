@@ -165,8 +165,35 @@ function chooseCtfTarget(sim, botWs, team) {
 }
 
 function chooseSiegeTarget(sim, botWs, team) {
-  // MVP: gå mot närmsta motståndare-spelare. (Base-capture-mekaniken är komplex —
-  // kräver att man står i radie länge — skip för nu.)
+  const px = botWs.playerState.x, py = botWs.playerState.y;
+  // Hitta närmaste enemy inom 300px — om en, prioritera kill (skydd)
+  let nearestEnemyD2 = Infinity;
+  for (const [pid, ws] of sim.room.members) {
+    if (pid === botWs.id) continue;
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    if (ws.tdmTeam === team) continue;
+    const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < nearestEnemyD2) nearestEnemyD2 = d2;
+  }
+  if (nearestEnemyD2 < 300 * 300) {
+    return findClosestPlayer(sim, botWs, team);
+  }
+  // Annars: hitta neutral/enemy-bas inom 800px och kapsa
+  if (sim.siegeBases) {
+    let bestBase = null, bestD2 = 800 * 800;
+    for (const baseId of Object.keys(sim.siegeBases)) {
+      const base = sim.siegeBases[baseId];
+      if (base.owner === team) continue;       // skip egen
+      const dx = base.x - px, dy = base.y - py;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; bestBase = base; }
+    }
+    if (bestBase) {
+      return { x: bestBase.x, y: bestBase.y, type: 'siege_base', ref: bestBase };
+    }
+  }
+  // Fallback: hitta närmsta motståndare även om långt borta
   return findClosestPlayer(sim, botWs, team);
 }
 
@@ -179,7 +206,11 @@ function moveBotTowards(sim, botWs, target, dt) {
   const d = Math.hypot(dx, dy) || 1;
   const w = W_BY_ID[ps.weaponId] || {};
   const isMelee = w.type === 'melee';
-  const desiredDist = isMelee ? Math.max(20, (w.range || 36) - 5) : 250;
+  // Base-objectives (SIEGE-capture, CTF-flag-base): stå nära mitten så
+  // capture-progress fortsätter ticka. Inte strafe utåt → ut ur radien.
+  const isObjective = target.type === 'siege_base' || target.type === 'home_base'
+    || target.type === 'enemy_flag' || target.type === 'enemy_flag_base';
+  const desiredDist = isObjective ? 30 : (isMelee ? Math.max(20, (w.range || 36) - 5) : 250);
   const speed = 180;
 
   // Wall-unstick: om bot rört sig <20px på 1s, lås in i sidoangle 90° för 1.5s

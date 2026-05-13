@@ -3423,3 +3423,69 @@ button, .shop-item, .player-row, .pet-card {
 @media (max-height: 500px) and (orientation: landscape) {
   #public-rooms-list { max-height: 110px !important; }
 }
+
+/* SIEGE core-HP flash när min core tar damage (varning) */
+#siege-core-red.core-flash, #siege-core-blue.core-flash {
+  animation: coreFlash 0.35s ease-out;
+}
+@keyframes coreFlash {
+  0%   { background: rgba(0,0,0,0.6); transform: scale(1); }
+  40%  { background: rgba(255,40,40,0.9); transform: scale(1.08); box-shadow: 0 0 16px rgba(255,80,80,0.7); }
+  100% { background: rgba(0,0,0,0.6); transform: scale(1); }
+}
+
+/* PvP-shield cooldown-ring — visar 45s sweep istället för bara toast-fail */
+.action-btn.pvp-shield {
+  --shield-cd-progress: 0;        /* 0..1, sätts från JS */
+  position: relative;
+}
+.action-btn.pvp-shield::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(#3acaff calc(var(--shield-cd-progress) * 360deg), transparent 0);
+  -webkit-mask: radial-gradient(circle, transparent 50%, #000 52%, #000 58%, transparent 60%);
+          mask: radial-gradient(circle, transparent 50%, #000 52%, #000 58%, transparent 60%);
+  opacity: var(--shield-cd-progress);
+  transition: opacity 0.1s;
+  filter: drop-shadow(0 0 4px #3acaff);
+}
+
+/* GUNGAME tier-up VFX: full-screen flash 0.8s */
+#gungame-tier-flash {
+  position: fixed; inset: 0;
+  background: radial-gradient(circle at center, rgba(58,202,255,0.5), rgba(58,202,255,0.0) 60%);
+  pointer-events: none;
+  z-index: 200;
+  opacity: 0;
+  animation: gungameTierFlash 0.8s ease-out;
+}
+@keyframes gungameTierFlash {
+  0%   { opacity: 0; transform: scale(0.8); }
+  20%  { opacity: 1; transform: scale(1.0); }
+  100% { opacity: 0; transform: scale(1.3); }
+}
+#gungame-tier-flash-text {
+  position: fixed; top: 40%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 48px; font-weight: 900; color: #ffd54a;
+  text-shadow: 0 4px 16px rgba(0,0,0,0.95), 0 0 24px #3acaff;
+  letter-spacing: 4px;
+  pointer-events: none;
+  z-index: 201;
+  animation: gungameTierText 0.8s ease-out;
+}
+@keyframes gungameTierText {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+  30%  { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+  70%  { opacity: 1; transform: translate(-50%, -50%) scale(1.0); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.9); }
+}
+
+/* Killfeed-position-fix: alla mode-killfeeds har samma top + right så de
+   inte överlappar varandra. Endast EN är synlig åt gången pga hide-mutex. */
+#tdm-killfeed, #ctf-killfeed, #siege-killfeed, #gungame-killfeed {
+  z-index: 51 !important;
+}
