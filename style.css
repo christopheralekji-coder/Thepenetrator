@@ -3526,24 +3526,8 @@ button, .shop-item, .player-row, .pet-card {
   100% { background: rgba(0,0,0,0.6); transform: scale(1); }
 }
 
-/* PvP-shield cooldown-ring — visar 45s sweep istället för bara toast-fail */
-.action-btn.pvp-shield {
-  --shield-cd-progress: 0;        /* 0..1, sätts från JS */
-  position: relative;
-}
-.action-btn.pvp-shield::after {
-  content: '';
-  position: absolute;
-  inset: -4px;
-  border-radius: 50%;
-  pointer-events: none;
-  background: conic-gradient(#3acaff calc(var(--shield-cd-progress) * 360deg), transparent 0);
-  -webkit-mask: radial-gradient(circle, transparent 50%, #000 52%, #000 58%, transparent 60%);
-          mask: radial-gradient(circle, transparent 50%, #000 52%, #000 58%, transparent 60%);
-  opacity: var(--shield-cd-progress);
-  transition: opacity 0.1s;
-  filter: drop-shadow(0 0 4px #3acaff);
-}
+/* PvP-shield cooldown är redan stylad i den primära block ovan (rad ~768).
+   Den HÄR duplikate-overriden orsakade utspridd glow + felaktig var-mapping. */
 
 /* GUNGAME tier-up VFX: full-screen flash 0.8s */
 #gungame-tier-flash {

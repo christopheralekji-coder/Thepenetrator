@@ -15399,21 +15399,22 @@ function updateHUD() {
       _shieldBar.classList.add('hidden');
     }
   }
-  // PvP-shield cooldown-ring (CSS conic-progress på knappen)
+  // PvP-shield cooldown — matchar existerande CSS-var --shield-cd:
+  // 1 = ready (full glow ::before), 0 = just aktiverad (mörk conic täcker hela)
   if (_btnPvpShield && !_btnPvpShield.classList.contains('hidden')) {
     const now = performance.now();
-    let cdProgress = 0;
+    let shieldCd = 1; // ready default
     if (p.pvpShieldUntil && now < p.pvpShieldUntil) {
-      // Aktiv: visa full ring som "aktiv" indikator
-      cdProgress = 1;
+      // Aktivt (3s immunitet) — visa som "0 = nyss aktiverad" så ring är mörk
+      shieldCd = 0;
     } else if (p.pvpShieldCdAt != null) {
       const cdEnd = p.pvpShieldCdAt + PVP_SHIELD_COOLDOWN_MS;
       if (now < cdEnd) {
-        // Cooldown: ring krymper från 1 till 0 (mer kvar = mer fyllt)
-        cdProgress = (cdEnd - now) / PVP_SHIELD_COOLDOWN_MS;
+        // Cooldown: 0 → 1 över 45s. Mörk del krymper i conic-gradient.
+        shieldCd = 1 - (cdEnd - now) / PVP_SHIELD_COOLDOWN_MS;
       }
     }
-    _btnPvpShield.style.setProperty('--shield-cd-progress', cdProgress);
+    _btnPvpShield.style.setProperty('--shield-cd', shieldCd);
   }
   if (killCountEl) killCountEl.textContent = state.killsThisRun || 0;
   const lvl = getLevel(state.wave);
