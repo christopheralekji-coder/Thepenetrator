@@ -2025,8 +2025,23 @@ function startSim(sim, opts) {
     loadStage(sim, sim.wave);
   }
   sim.lastTick = Date.now();
+  // Tick-profiling: logga slow ticks > 16ms så vi kan se CPU-spikes i prod.
+  // Throttled till 1Hz max så vi inte spammar logs.
+  sim._slowTickLogAt = 0;
   sim.interval = setInterval(() => {
+    const t0 = process.hrtime.bigint();
     try { tickSim(sim); } catch (e) { console.error('sim-tick error:', e.message, e.stack); }
+    const elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;
+    if (elapsedMs > 16) {
+      const now = Date.now();
+      if (now - sim._slowTickLogAt > 1000) {
+        sim._slowTickLogAt = now;
+        console.warn('[SLOW-TICK]', sim.room.code, elapsedMs.toFixed(1) + 'ms',
+          'enemies=' + sim.enemies.length,
+          'bullets=' + sim.bullets.length,
+          'members=' + sim.room.members.size);
+      }
+    }
   }, TICK_MS);
 }
 
