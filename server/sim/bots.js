@@ -324,7 +324,11 @@ function shootIfReady(sim, botWs, target, now) {
   if (!w) return;
   const bot = botWs._bot;
   const rate = w.rate || 400;
-  const skillMul = (bot.skill && bot.skill.cooldownMul) || 1.3;
+  let skillMul = (bot.skill && bot.skill.cooldownMul) || 1.3;
+  // Crowd-comp: vid många hard-bots (5+) blir 7-bot DPS = 350 → 0.6s TTK
+  // för spelaren. Skala upp cooldown så crowd inte överväldigar 1 human.
+  const botCount = (sim._botIds || []).length;
+  if (botCount >= 5 && bot.skillName === 'hard') skillMul *= 1.25;
   const cooldown = rate * skillMul;          // skill-baserad — easy = saktare, hard = snabbare
   if (now - bot.lastShotAt < cooldown) return;
   // Check att target är inom range (melee) eller LoS-distans (gun)

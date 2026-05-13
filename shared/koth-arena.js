@@ -64,7 +64,7 @@ const KOTH_ARENA = {
   ],
 
   // Match-config
-  targetPoints: 100,         // First to 100 vinner
+  targetPoints: 70,          // First to 70 vinner (~5 min FFA — mobile-vänlig längd)
   zoneRotateSec: 45,         // Sek innan zone-byter
   pointsPerSecond: 1,        // +1 pt/sek per spelare i zon (oavsett count)
 };

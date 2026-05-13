@@ -3432,6 +3432,21 @@ button, .shop-item, .player-row, .pet-card {
   -webkit-overflow-scrolling: touch;
   justify-content: flex-start !important;
   padding-top: max(20px, env(safe-area-inset-top, 20px)) !important;
+  /* iOS Safari URL-bar safe — använd dvh (dynamic viewport height) så TILLBAKA-knapp
+     alltid är åtkomlig oavsett om bar:en är synlig eller dold. */
+  height: 100dvh !important;
+  padding-bottom: max(20px, calc(env(safe-area-inset-bottom, 0px) + 24px)) !important;
+}
+/* Score-banner DI-kollision i landscape: höj till min 48px från top */
+#tdm-score, #ctf-score, #siege-score {
+  top: max(48px, calc(env(safe-area-inset-top, 0px) + 8px)) !important;
+}
+/* Lobby collapsed-label suffix overflow (👑 KOTH etc) — ellipsis i smal vy */
+.lobby-section[data-collapsible="1"] > .lobby-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 #tdm-end-stats, #ctf-end-stats, #siege-end-stats,
 #gungame-end-stats, #koth-end-stats {

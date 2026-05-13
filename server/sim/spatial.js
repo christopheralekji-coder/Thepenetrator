@@ -16,7 +16,10 @@ class SpatialGrid {
     this.cells = new Map();         // cellKey → array of entities
     this.size = 0;
   }
-  _key(cx, cy) { return cx * 65536 + cy; }
+  // Offset så negativa cells (vid x/y < 0, bullet out-of-bounds) inte krockar
+  // med positiva. Arena max ~5000×3000 → cell 200 → cx max 25, cy max 15.
+  // Med offset 10000 håller vi all rimlig spelvärld inom +int safe range.
+  _key(cx, cy) { return (cx + 10000) * 100000 + (cy + 10000); }
   clear() {
     // Re-use map för att undvika GC-tryck per tick
     if (this.size > 0) {
