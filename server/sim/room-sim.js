@@ -1222,6 +1222,13 @@ function tickGungame(sim, dt, now) {
         // Sätt vapen till current tier (kan ha demoterats)
         const tier = sim.gungameTiers[pid] || 0;
         ws.playerState.weaponId = GUNGAME_WEAPONS[tier];
+        // Rensa bot-state vid respawn (annars siktar bot på en stale target-ref
+        // som kan vara död/disconnected)
+        if (ws._bot) {
+          ws._bot.target = null;
+          ws._bot.lastShotAt = 0;
+          ws._bot.stuckSince = 0;
+        }
         sim.eventQueue.push({
           type: 'gungame_player_respawned',
           peerId: pid,

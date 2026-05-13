@@ -2976,7 +2976,7 @@ const WEAPONS = [
     desc: 'Sex hagel per skott. Förödande på nära håll.' },
   { id: 'bow',        name: 'Compoundbåge',     type: 'gun',   price: 800,  dmg: 90,  rate: 540, speed: 950, mag: 1,  reload: 500,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true,
     desc: 'Pierce. Snabb reload. Perfekt aim krävs.' },
-  { id: 'smg',        name: 'Kpist',            type: 'gun',   price: 800,  dmg: 14,  rate: 95,  speed: 740, mag: 30, reload: 1500, spread: 0.10, color: '#88ccff',
+  { id: 'smg',        name: 'Kpist',            type: 'gun',   price: 800,  dmg: 14,  rate: 95,  speed: 740, mag: 30, reload: 1500, spread: 0.07, color: '#88ccff',
     desc: 'Spray-and-pray. Hög ROF.' },
   { id: 'crossbow',   name: 'Armborst',         type: 'gun',   price: 900,  dmg: 110, rate: 900, speed: 950, mag: 4,  reload: 1700, spread: 0.0,  color: '#7a5a3a', style: 'crossbow', pierce: true,
     desc: 'Pierce + hög dmg. För taktiska spelare.' },
@@ -4066,7 +4066,7 @@ const UPGRADES = [
   { id: 'speed',  name: 'Hastighet',       icon: '⚡', perLevel: 18,   basePrice: 100, desc: '+18 hastighet per nivå' },
   { id: 'dmg',    name: 'Skade-bonus',     icon: '💪', perLevel: 0.10, basePrice: 150, desc: '+10% skada per nivå' },
   { id: 'ammo',   name: 'Ammo-kapacitet',  icon: '🔫', perLevel: 0.20, basePrice: 120, desc: '+20% magasin per nivå' },
-  { id: 'crit',   name: 'Krit-chans',      icon: '🎯', perLevel: 0.08, basePrice: 180, desc: '+8% chans för 2× skada per nivå' },
+  { id: 'crit',   name: 'Krit-chans',      icon: '🎯', perLevel: 0.10, basePrice: 150, desc: '+10% chans för 2× skada per nivå' },
   { id: 'regen',  name: 'HP-regen',        icon: '🩹', perLevel: 0.6,  basePrice: 140, desc: '+0.6 HP/sek per nivå' },
   // === 6 NYA UPPGRADERINGAR ===
   { id: 'reload', name: 'Reload-fart',     icon: '⏱️', perLevel: 0.12, basePrice: 140, desc: '-12% reload-tid per nivå (max −60%)' },
@@ -4327,13 +4327,13 @@ const PERKS = [
   { id: 'timerewind', icon: '⏪', name: 'Time-rewind',     price: 1500, desc: 'Vid kritisk HP, spola tillbaka 3 sek. En gång per stage.' },
   { id: 'glasscannon',icon: '💥', name: 'Glas-kanon',      price: 700,  desc: '+60% skada men halverat HP. Skjuter 15% snabbare.' },
   { id: 'phantombody',icon: '👻', name: 'Spektral kropp',  price: 800,  desc: '20% chans att skott missar dig.' },
-  { id: 'klone',      icon: '👯', name: 'Klone',           price: 700,  desc: 'En skugga följer dig och skjuter likadant 35% av tiden.' },
+  { id: 'klone',      icon: '👯', name: 'Klone',           price: 1000, desc: 'En skugga följer dig och skjuter likadant 35% av tiden.' },
   { id: 'goldwindow', icon: '✨', name: 'Gold-fönster',    price: 600,  desc: 'Vid stage-clear, 5 sek där alla droppar guld.' },
   { id: 'reflexes',   icon: '🥋', name: 'Reflexer',         price: 500,  desc: 'Bullets vid 50px räckvidd kan blockas med melee.' },
   { id: 'magnetism',  icon: '🧲', name: 'Magnet-mästare',  price: 350,  desc: 'Pickup-magnet 3× räckvidd. Mer guld i drops.' },
-  { id: 'masterful',  icon: '🎓', name: 'Lärling',         price: 700,  desc: '+25% XP till alla vapen-mastery.' },
+  { id: 'masterful',  icon: '🎓', name: 'Lärling',         price: 500,  desc: '+25% XP till alla vapen-mastery. +5% skada på mastered vapen.' },
   { id: 'berserker',  icon: '🪓', name: 'Berserker',       price: 850,  desc: 'Melee-combo cap höjs till 20 (från 10).' },
-  { id: 'lastlaugh',  icon: '😈', name: 'Sista skrattet',  price: 700,  desc: 'Vid din död: explosion 200dmg i 250px radius.' },
+  { id: 'lastlaugh',  icon: '😈', name: 'Sista skrattet',  price: 500,  desc: 'Vid din död: explosion 200dmg i 250px radius.' },
 ];
 
 function ensurePerks() {
@@ -7502,9 +7502,11 @@ const Coop = {
           state.player.weaponId = newWeapon;
           save.equipped = newWeapon;
           save.weaponId = newWeapon;
-          // Reset reload-state så nytt vapen är direkt redo
+          // Reset reload-state. Halv mag vid promote så killer inte snöbollar
+          // 3 kills på rad med fullt rocket-mag direkt efter promote.
           state.player.reloading = false;
-          state.player.ammo = (W_BY_ID[newWeapon] && W_BY_ID[newWeapon].mag) || 0;
+          const _mag = (W_BY_ID[newWeapon] && W_BY_ID[newWeapon].mag) || 0;
+          state.player.ammo = Math.max(1, Math.ceil(_mag * 0.5));
         }
         if (typeof updateGungameTier === 'function') updateGungameTier(ev.killerTier, this.gungameWeapons);
         if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();

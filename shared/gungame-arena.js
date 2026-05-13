@@ -96,20 +96,22 @@ const GUNGAME_ARENA = {
 // 15-vapen-progression. Stigande tier: melee → pistols → guns → power → final melee.
 // Final tier (sledge) = "knife"-humiliation i CS-stil men med en TUNG melee.
 // Kill med melee från ANY tier → demotion av offret (knife-kill-demotion).
+// ORDNING fixad efter balance-audit: tidigare 4-7 (shuriken→burstpistol→shotgun
+// →revolver) gav negativ progression 99→87→80→76 DPS. Ny ordning ger jämn kurva.
 const GUNGAME_WEAPONS = [
   'fists',       // 1  — knytnävar (baseline melee)
   'knife',       // 2  — snabb melee
   'pistol',      // 3  — basic gun
   'shuriken',    // 4  — rapid throwing
-  'burstpistol', // 5  — 3-burst
-  'shotgun',     // 6  — close-range power
-  'revolver',    // 7  — heavy pistol
+  'shotgun',     // 5  — close-range power
+  'revolver',    // 6  — heavy pistol
+  'burstpistol', // 7  — 3-burst (sista pistol-tier innan auto-guns)
   'smg',         // 8  — auto-fire
   'bow',         // 9  — precision
   'rifle',       // 10 — standard auto
   'sonic',       // 11 — knockback gun
-  'plasma',      // 12 — high-dmg
-  'sniper',      // 13 — one-shot precision
+  'sniper',      // 12 — one-shot precision (flyttad upp för att undvika dead tier)
+  'plasma',      // 13 — high-dmg (nerf rate i bullets.js för balanserad progression)
   'rocket',      // 14 — explosive
   'sledge',      // 15 — FINAL melee humiliation (svår, kort räckvidd, hög dmg)
 ];

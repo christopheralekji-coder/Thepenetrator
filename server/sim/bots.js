@@ -11,7 +11,7 @@
 
 const { W_BY_ID } = require('../../shared/weapons-data');
 
-const BOT_NAMES = ['Echo', 'Vega', 'Nyx', 'Atlas', 'Onyx', 'Raven', 'Zane', 'Kira'];
+const BOT_NAMES = ['Echo', 'Vega', 'Nyx', 'Atlas', 'Onyx', 'Raven', 'Zane', 'Kira', 'Loki', 'Aria', 'Cipher', 'Hex'];
 let _botCounter = 0;
 
 // Spawna bot i ett sim-rum. Returnerar bot-id om lyckad.
@@ -19,7 +19,11 @@ let _botCounter = 0;
 function addBot(sim, team) {
   _botCounter++;
   const botId = 'bot_' + _botCounter;
-  const name = BOT_NAMES[(_botCounter - 1) % BOT_NAMES.length];
+  // Shuffle namn per sim så samma "Echo" inte återkommer match efter match
+  if (!sim._botNamePool || sim._botNamePool.length === 0) {
+    sim._botNamePool = [...BOT_NAMES].sort(() => Math.random() - 0.5);
+  }
+  const name = sim._botNamePool.shift();
   // Fake-ws som efterliknar tillräckligt av WebSocket-API:n
   const botWs = {
     id: botId,
@@ -45,6 +49,10 @@ function addBot(sim, team) {
       moveAngle: 0,                       // current heading
       stuckSince: 0,
       lastX: 1000, lastY: 1000,
+      seed: Math.floor(Math.random() * 10000),  // per-bot offset så de inte rör sig synkat
+      strafeFlipAt: 0,                          // när nästa strafe-byte ska ske
+      strafeDir: Math.random() < 0.5 ? 1 : -1,
+      unstickUntil: 0,                          // tving sidoangle om fastnat
     },
   };
   sim.room.members.set(botId, botWs);
@@ -164,34 +172,62 @@ function chooseSiegeTarget(sim, botWs, team) {
 
 function moveBotTowards(sim, botWs, target, dt) {
   const ps = botWs.playerState;
+  const bot = botWs._bot;
+  const now = Date.now();
   const dx = target.x - ps.x;
   const dy = target.y - ps.y;
   const d = Math.hypot(dx, dy) || 1;
   const w = W_BY_ID[ps.weaponId] || {};
   const isMelee = w.type === 'melee';
-  // För melee: hoppa in tätt (range ~ w.range). För gun: håll avstånd (~250-400px).
   const desiredDist = isMelee ? Math.max(20, (w.range || 36) - 5) : 250;
-  const speed = 180;                         // px/s, matcha grunt-AI roughly
-  if (d > desiredDist) {
-    // Närma sig
+  const speed = 180;
+
+  // Wall-unstick: om bot rört sig <20px på 1s, lås in i sidoangle 90° för 1.5s
+  const moved = Math.hypot(ps.x - bot.lastX, ps.y - bot.lastY);
+  if (moved < 20 * dt * 30) {            // < ~20px per ~1s vid 30Hz
+    if (bot.stuckSince === 0) bot.stuckSince = now;
+    if (now - bot.stuckSince > 1000 && now > bot.unstickUntil) {
+      bot.unstickUntil = now + 1500;
+      bot.strafeDir = -bot.strafeDir;    // flippa riktning
+    }
+  } else {
+    bot.stuckSince = 0;
+  }
+  bot.lastX = ps.x;
+  bot.lastY = ps.y;
+
+  // Per-bot strafe-flip timing (annars rör sig alla bots synkat med klockan)
+  if (now > bot.strafeFlipAt) {
+    bot.strafeFlipAt = now + 900 + (bot.seed % 600);  // 900-1500ms per bot
+    bot.strafeDir = -bot.strafeDir;
+  }
+
+  // Force sido-angle om unstick aktiv
+  if (now < bot.unstickUntil) {
+    const nx = -dy / d, ny = dx / d;
+    ps.x += nx * speed * bot.strafeDir * dt;
+    ps.y += ny * speed * bot.strafeDir * dt;
+  } else if (d > desiredDist) {
     ps.x += (dx / d) * speed * dt;
     ps.y += (dy / d) * speed * dt;
   } else if (d < desiredDist - 60 && !isMelee) {
-    // Backa lite om för nära (bara för gun-bots — melee vill stå nära)
     ps.x -= (dx / d) * speed * 0.5 * dt;
     ps.y -= (dy / d) * speed * 0.5 * dt;
   } else {
-    // Strafe i sidled för att vara svår att träffa
-    const nx = -dy / d, ny = dx / d;          // perpendikulär
-    const strafeDir = (Math.floor(Date.now() / 1200) % 2) === 0 ? 1 : -1;
-    ps.x += nx * speed * 0.6 * dt * strafeDir;
-    ps.y += ny * speed * 0.6 * dt * strafeDir;
+    const nx = -dy / d, ny = dx / d;
+    ps.x += nx * speed * 0.6 * dt * bot.strafeDir;
+    ps.y += ny * speed * 0.6 * dt * bot.strafeDir;
   }
-  // Clamp inom arena-bounds (use sim.config eller default 4000x3000)
-  // Per-mode worldW/worldH skulle vara bättre men 4000x3000 räcker som safety
-  ps.x = Math.max(50, Math.min(4400, ps.x));
-  ps.y = Math.max(50, Math.min(3000, ps.y));
-  // Spara aim-vinkel (för shoot)
+
+  // Dynamisk arena-clamp: läs från sim.tdmArena/CTF/SIEGE/GUNGAME_ARENA om satt,
+  // fallback till stora 5000×3000 default. (Gungame är 3500×2000 men i de andra
+  // modes kan bot tidigare inte nå höger del av Siege 5000×3000.)
+  const worldW = (sim.tdmArena && sim.tdmArena.worldW)
+    || (sim.gungameActive ? 3500 : 5000);
+  const worldH = (sim.tdmArena && sim.tdmArena.worldH)
+    || (sim.gungameActive ? 2000 : 3000);
+  ps.x = Math.max(50, Math.min(worldW - 50, ps.x));
+  ps.y = Math.max(50, Math.min(worldH - 50, ps.y));
   ps.aim = Math.atan2(dy, dx);
 }
 
@@ -212,8 +248,11 @@ function shootIfReady(sim, botWs, target, now) {
   // Använd applyShoot via lokal-import för att slippa cirkulär require
   // (bots.js → room-sim.js → bots.js). Vi anropar bullets.js direkt.
   const { spawnPlayerBullets, applyMelee } = require('./bullets');
-  // Lite aim-jitter så bots inte är perfekta (5% spread i radianer)
-  const jitter = (Math.random() - 0.5) * 0.10;
+  // Aim-jitter skalad med distans — på nära håll mer perfekt, på långt mer miss.
+  // Tidigare ±0.05 rad var aimbot-feel mot rörliga targets. Nu: baseline 0.12 +
+  // distance-skala (d/300) ger ~0.35 rad spread på 700px räckvidd.
+  const jitterMag = 0.12 + Math.min(0.30, d / 700 * 0.30);
+  const jitter = (Math.random() - 0.5) * jitterMag;
   const ang = Math.atan2(dy, dx) + jitter;
   const p = { x: ps.x, y: ps.y, aimAngle: ang, r: 14, peerId: botWs.id };
   const params = { dmgMul: 1, perks: {}, cheats: {} };

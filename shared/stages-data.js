@@ -210,10 +210,11 @@ function getNGPMul(ngpLevel) {
  */
 function getCoopMultiplier(playerCount) {
   const n = Math.max(1, playerCount || 1);
-  // 0.85 per spelare gav 4p ≈ 1.88× tuffare än solo (HP×3.55 + dmg×1.45 + spawn×1.45
-  // vs 4× firepower). 0.70 balanserar mot 4p ≈ 1.20× tuffare, vilket är vad coop
-  // SKA kännas — lite svårare än solo per spelare, inte ohanterligt.
-  return 1 + (n - 1) * 0.70;
+  // 0.85 per spelare: 4p HP×3.55 + dmg×1.45 + spawn×1.45 vs 4× firepower
+  // = 0.89× effective difficulty vs solo (11% lättare). Standard "co-op
+  // trivializer" feel som matchar spelar-förväntning. Tidigare 0.70 gav
+  // 0.78× = 22% lättare än solo, vilket motsade kommentaren.
+  return 1 + (n - 1) * 0.85;
 }
 
 /**

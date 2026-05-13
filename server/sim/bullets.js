@@ -19,9 +19,13 @@ const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS } = require('../.
 // PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
 // Sniper nerf: 130→95 (fortfarande 2-shot genom shield+hp men inte instant).
 // Pistol buff: 18→24 (TTK 200hp 6→7 shots, mer relevant än 12).
+// Railgun nerf: 280→140 (annars 1-shot genom 200 EHP, no counterplay).
+// Rocket direct nerf: 150→95 (AoE 140 behålls — duo-träffar är fortfarande starka).
 const PVP_DMG_OVERRIDE = {
   sniper: 95,
   pistol: 24,
+  railgun: 140,
+  rocket: 95,
 };
 function getPvpDmg(weaponId, baseDmg) {
   if (PVP_DMG_OVERRIDE[weaponId] != null) return PVP_DMG_OVERRIDE[weaponId];
@@ -148,13 +152,19 @@ function applyMelee(sim, p, weaponId, params) {
       } else if (inSiege) {
         handleSiegeKill(sim, p.peerId, pid, ws, ownerTeam, weaponId);
       }
+      // BREAK: en swing träffar bara en spelare (mirror av klient-melee). Utan
+      // detta promotras gungame-bot dubbelt om 2 fiender står i cone+range.
+      break;
     }
   }
 }
 
 // handleTdmKill — kill-flow för TDM. Refactor av bullets-loopen så applyMelee kan
 // återanvända samma flow. Antar att invuln+team-checks redan gjorts av caller.
+// GUARD: om victim redan har respawn-timer (= redan dödad denna tick) → skip,
+// annars dubbel-räknas explosion+bullet samma tick → score-inflation + falsk match-end.
 function handleTdmKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
+  if (victimWs.tdmRespawnAt) return;
   victimWs.tdmRespawnAt = Date.now() + 3000;
   sim.tdmKills[ownerTeam] = (sim.tdmKills[ownerTeam] || 0) + 1;
   sim.tdmKillsByPid[killerPid] = (sim.tdmKillsByPid[killerPid] || 0) + 1;
@@ -193,6 +203,7 @@ function handleTdmKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId)
 
 // handleCtfKill — kill-flow för CTF inkl. flag-drop om offret bar flagga.
 function handleCtfKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
+  if (victimWs.tdmRespawnAt) return;
   victimWs.tdmRespawnAt = Date.now() + 3000;
   sim.ctfKillsByPid[killerPid] = (sim.ctfKillsByPid[killerPid] || 0) + 1;
   sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
@@ -228,6 +239,7 @@ function handleCtfKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId)
 
 // handleSiegeKill — kill-flow för SIEGE. +3 poäng till killer-teamet.
 function handleSiegeKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
+  if (victimWs.tdmRespawnAt) return;
   victimWs.tdmRespawnAt = Date.now() + 3000;
   sim.siegeKillsByPid[killerPid] = (sim.siegeKillsByPid[killerPid] || 0) + 1;
   sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
@@ -262,20 +274,26 @@ function handleSiegeKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponI
 // handleGungameKill — promote shooter, demote victim om melee, schedule respawn,
 // emit gungame_kill + gungame_respawn_pending, check win-condition.
 // Kallas från bullets-loopen (PvP-hit) och applyMelee.
+// GUARD: dubbel-kill samma tick → bara första räknas (annars dubbel tier-promote).
 function handleGungameKill(sim, killerPid, killerWs, victimPid, victimWs, weaponId) {
+  if (victimWs.tdmRespawnAt) return;
   const wasMelee = GUNGAME_MELEE_DEMOTERS.has(weaponId);
   sim.gungameKillsByPid[killerPid] = (sim.gungameKillsByPid[killerPid] || 0) + 1;
   const oldTier = sim.gungameTiers[killerPid] || 0;
+  const vTierBefore = sim.gungameTiers[victimPid] || 0;
   const newTier = Math.min(GUNGAME_WEAPONS.length - 1, oldTier + 1);
   sim.gungameTiers[killerPid] = newTier;
   if (killerWs.playerState) {
     killerWs.playerState.weaponId = GUNGAME_WEAPONS[newTier];
   }
+  // Demote-regel (efter playtest-feedback): bara om killer är på tier ≥ 5
+  // ELLER om offret leder med ≥3 tiers (catch-up för efterblivna). Tidigare
+  // var ALLA melee-kills demoters → mid-tier spelare som dog av fists-bots
+  // straffades med dubbelförlust.
   let demoted = false;
-  if (wasMelee) {
-    const vTier = sim.gungameTiers[victimPid] || 0;
-    const newVTier = Math.max(0, vTier - 1);
-    if (newVTier < vTier) {
+  if (wasMelee && (oldTier >= 5 || (vTierBefore - oldTier) >= 3)) {
+    const newVTier = Math.max(0, vTierBefore - 1);
+    if (newVTier < vTierBefore) {
       sim.gungameTiers[victimPid] = newVTier;
       demoted = true;
     }
