@@ -3119,11 +3119,6 @@ function weaponStrength(w) {
   let dps = (dmg * pellets * burst * 1000) / rate;
   // Explosive: AoE räknas som ~50% av direct-damage extra
   if (w.explosive) dps += w.explosive * 0.5 * (1000 / rate);
-  // Utility-multipliers så bow/tesla/sonic/frost inte underviktar mot ren-DPS-vapen.
-  if (w.pierce) dps *= 1.4;                                          // pierce: 1.4 mål snitt
-  if (w.chain && w.chain > 0) dps *= (1 + w.chain * 0.3);            // tesla chain
-  if (w.knockback) dps *= 1.15;                                      // utility ~15%
-  if (w.slow || w.mindControlMs || w.timeStopMs || w.pullRadius || w.pullsEnemy) dps *= 1.25;
   // Utility-vapen utan dmg (mindcontrol) — använd price som proxy så det inte är 0
   if (dps === 0 && w.price) dps = w.price / 30;
   // Price tie-break (för vapen med liknande DPS, högre pris vinner)
@@ -5287,47 +5282,40 @@ function spawnSparks(x, y, color, count = 6, speed = 220, gravity = 320) {
 }
 // Bullet trail: liten färgad dot bakom kulan.
 // HEADSHOT-popup: visuell extra-flash + tone vid 3× headshot-träff (perk).
-// THROTTLE: max 1 full popup per 600ms — vid auto-fire (smg/minigun, 30+ shots/s)
-// kunde spammar ge motion-sickness och text-overflow. Mindre damage-numbers
-// får alltid igenom (de räknas i normal damage-flow).
-let _lastHeadshotPopupAt = 0;
+// Större/röd damage-number + "HEADSHOT!" text + power-up ljud.
 function showHeadshotPopup(x, y, dmg) {
   if (!state.particles) return;
-  const now = performance.now();
-  const throttled = (now - _lastHeadshotPopupAt) < 600;
-  if (!throttled) _lastHeadshotPopupAt = now;
-  // Damage-number alltid (oranger för distinktion mot crit-gul)
-  state.particles.push({
-    x, y: y - 12, vx: 0, vy: -50,
-    isCritText: true,
-    text: '-' + dmg,
-    color: '#ff8a3a',  // orange istället för gul → särskild från crit
-    life: 1.0, fadeMul: 1.0,
-    r: 22,
-  });
-  // Throttle "HEADSHOT!" text + ljud + shake (anti-spam vid auto-fire)
-  if (throttled) return;
+  // Stor röd damage-number med headshot-text
   state.particles.push({
     x, y: y - 30, vx: 0, vy: -60,
     isCritText: true,
     text: 'HEADSHOT!',
     color: '#ff3a3a',
     life: 1.2, fadeMul: 0.85,
-    r: 18,
+    r: 18, // hint till render om size
   });
+  state.particles.push({
+    x, y: y - 12, vx: 0, vy: -50,
+    isCritText: true,
+    text: '-' + dmg,
+    color: '#ffeb3b',
+    life: 1.0, fadeMul: 1.0,
+    r: 22,
+  });
+  // Ljud: power-up double-tone
   if (typeof Audio !== 'undefined' && Audio._tone) {
     Audio._tone(900, 0.15, 'square', 0.22, 0.005, 0.12, 1500);
     setTimeout(() => Audio._tone(1400, 0.1, 'square', 0.18, 0.005, 0.08, 1900), 50);
   }
-  if (typeof triggerShake === 'function') triggerShake(3, 0.12);
+  if (typeof triggerShake === 'function') triggerShake(4, 0.18);
 }
 
-function spawnBulletTrail(x, y, color, r = 2, life = 0.32) {
+function spawnBulletTrail(x, y, color, r = 2) {
   if (!state.particles) return;
-  // Life skalat mot vapen-rate av caller. Default 0.32 (sniper-tier).
+  // Längre life (0.18→0.32) för synligare tracer-spår. Slightly bigger r.
   state.particles.push({
     x, y, vx: 0, vy: 0, isTrail: true,
-    color, r: r * 1.15, life, fadeMul: 1 / Math.max(0.1, life) * 1.05,
+    color, r: r * 1.15, life: 0.32, fadeMul: 3.2,
   });
 }
 // Ladda från save
@@ -5370,9 +5358,7 @@ let viewW = 0, viewH = 0;
 })();
 
 function resize() {
-  // DPR-clamp: ≤ 2 normal, ≤ 1.5 i low quality (sparar 30% pixel-fill på mobil).
-  const dprCap = (typeof save !== 'undefined' && save && save.quality === 'low') ? 1.5 : 2;
-  DPR = Math.min(window.devicePixelRatio || 1, dprCap);
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
   // Använd visualViewport om tillgänglig (mer korrekt på mobile med dynamic island)
   const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
   const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -11649,7 +11635,7 @@ function tryShoot(now) {
       let diff = Math.abs(((a - ang + Math.PI*3) % (Math.PI*2)) - Math.PI);
       if (diff < 0.9) {
         const isCrit = isCheatActive('chozza') ? true : Math.random() < (p.critChance || 0);
-        const isHead = hasPerk('headshot') && Math.random() < 0.20;
+        const isHead = hasPerk('headshot') && Math.random() < 0.15;
         const ultMul = isCheatActive('ultimate') ? 10 : 1;
         p.meleeComboTimer = 1.0;
         const comboCap = hasPerk('berserker') ? 20 : 10;
@@ -11782,7 +11768,7 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
     const ang = p.aimAngle + spread;
     const speed = w.speed * (p.bspeedMul || 1) * speedBonus;
     const isCrit = cheatChozza ? true : Math.random() < (p.critChance || 0);
-    const isHead = hasPerk('headshot') && Math.random() < 0.20;
+    const isHead = hasPerk('headshot') && Math.random() < 0.15;
     state.bullets.push({
       x: p.x + Math.cos(ang)*p.r, y: p.y + Math.sin(ang)*p.r,
       vx: Math.cos(ang)*speed, vy: Math.sin(ang)*speed,
@@ -16786,12 +16772,7 @@ function updateBullets(dt) {
                         b.style === 'railgun' || b.style === 'rocket' || b.style === 'frost' ||
                         b.style === 'mindctrl' || b.style === 'blackhole';
       if (!skipStyle) {
-        // Trail-life skala mot rate: snabba vapen (smg/minigun) → korta tracers,
-        // långsamma (sniper/railgun) → långa tracers. Anti-spam vid auto-fire.
-        const w = b.style && W_BY_ID[b.style];
-        const wRate = (w && w.rate) || 400;
-        const trailLife = Math.min(0.32, Math.max(0.12, wRate / 1000 * 0.8));
-        spawnBulletTrail(b.x, b.y, b.color, Math.max(1.5, (b.r || 4) * 0.7), trailLife);
+        spawnBulletTrail(b.x, b.y, b.color, Math.max(1.5, (b.r || 4) * 0.7));
       }
     }
     // Svartphål: dra fiender mot bullet-positionen
@@ -16922,9 +16903,10 @@ function updateBullets(dt) {
           state._damageFlashUntil = performance.now() + 180;
           if (typeof triggerShake === 'function') triggerShake(5, 0.25);
           if (typeof Audio !== 'undefined' && Audio.playerHit) Audio.playerHit();
-          // INTE spawn damage-number här — pvp_hp_changed-handlern (server-confirm)
-          // spawnar exakt damage-number ~50ms senare. Att visa prediction-tal kan
-          // visuellt skapa "ghost damage" om server säger miss.
+          // Predicted damage-number (uppskattad — server kan säga miss via lag-comp)
+          if (typeof spawnDamageNumber === 'function' && b.dmg > 0) {
+            spawnDamageNumber(p.x, p.y - 20, Math.round(b.dmg), false);
+          }
           b.dead = true; // visuellt försvinner bullet vid predicted-hit
         }
       }
@@ -24561,18 +24543,9 @@ function render() {
   drawPickups();
   drawGoalZone(state.camera.x, state.camera.y);
   // Bottom layer: footprints + blood pools (below enemies)
-  // Viewport-cull saving 10-30% particle-time (lokala bounds från ovan)
-  for (const p of state.particles) {
-    if (!(p.isFootprint || p.isBloodPool)) continue;
-    if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
-    drawParticle(p);
-  }
+  for (const p of state.particles) if (p.isFootprint || p.isBloodPool) drawParticle(p);
   // Mid layer: vanliga partiklar
-  for (const p of state.particles) {
-    if (p.isExplosion || p.isFootprint || p.isBloodPool || p.isDamageNumber || p.isCritText || p.isChatter) continue;
-    if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
-    drawParticle(p);
-  }
+  for (const p of state.particles) if (!p.isExplosion && !p.isFootprint && !p.isBloodPool && !p.isDamageNumber && !p.isCritText && !p.isChatter) drawParticle(p);
   // Entities
   for (const e of state.enemies) drawEnemy(e);
   drawDeadBody();
@@ -24599,15 +24572,8 @@ function render() {
   drawDrone();
   drawCompanion();
   if (state.truck) drawTruck();
-  // VIEWPORT-CULLING (lokala variabler för loops nedan + andra hot render-paths)
-  const _cullCamX = state.camera.x, _cullCamY = state.camera.y;
-  const _cullL = _cullCamX - 80, _cullT = _cullCamY - 80;
-  const _cullR = _cullCamX + viewW + 80, _cullB = _cullCamY + viewH + 80;
-  // Bullets — off-screen culling sparar ~5-15% bullet-render-tid vid burst-fire
-  for (const b of state.bullets) {
-    if (b.x < _cullL || b.x > _cullR || b.y < _cullT || b.y > _cullB) continue;
-    drawBullet(b);
-  }
+  // Bullets
+  for (const b of state.bullets) drawBullet(b);
   // CTF walls + flag-stands + dropped/carried flags (ovanpå entities men under HUD)
   if (state.ctfActive) {
     drawCtfDecorations(); // skyltar, klotter, lyktor — under walls
@@ -24652,18 +24618,8 @@ function render() {
   // PvP-pickups (HP/shield-regen) — alla PvP-lägen
   if ((state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive) && state.pvpPickups) drawPvpPickups();
   // Top layer: damage-numbers + crit-text + chatter + explosions
-  // Top layer: damage-numbers/crit-text/chatter — viewport-cull (sällsynta utanför viewport)
-  for (const p of state.particles) {
-    if (!(p.isDamageNumber || p.isCritText || p.isChatter)) continue;
-    if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
-    drawParticle(p);
-  }
-  // Explosions (toppmost) — cull skadar inte eftersom de är inom view ändå
-  for (const p of state.particles) {
-    if (!p.isExplosion) continue;
-    if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
-    drawParticle(p);
-  }
+  for (const p of state.particles) if (p.isDamageNumber || p.isCritText || p.isChatter) drawParticle(p);
+  for (const p of state.particles) if (p.isExplosion) drawParticle(p);
   drawCraneDrop();
   drawOffScreenGoalArrow();
   drawOffscreenHitMarkers();

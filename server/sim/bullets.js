@@ -123,7 +123,7 @@ function applyMelee(sim, p, weaponId, params) {
     if (diff > 0.9) continue;
 
     const isCrit = cheats.chozza ? true : Math.random() < critChance;
-    const isHead = headshotPerk && Math.random() < 0.20;
+    const isHead = headshotPerk && Math.random() < 0.15;
     const baseDmg = getPvpDmg(weaponId, w.dmg);
     const finalDmg = baseDmg * dmgMul * adrenalineDmg * stealthBonus * ultMul * (isCrit ? 2 : 1) * (isHead ? 3 : 1);
 
@@ -400,7 +400,7 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
     const ang = p.aimAngle + spread;
     const speed = w.speed * bspeedMul * speedBonus;
     const isCrit = cheatChozza ? true : Math.random() < critChance;
-    const isHead = headshotPerk && Math.random() < 0.20;
+    const isHead = headshotPerk && Math.random() < 0.15;
     sim.bullets.push({
       x: p.x + Math.cos(ang) * (p.r || 14),
       y: p.y + Math.sin(ang) * (p.r || 14),
@@ -611,15 +611,11 @@ function updateBullets(sim, dt, now) {
         }
       }
     }
-    // Pull-whip: drar enemy mot ägare (game.js:7906-7913).
-    // SPATIAL-HASH: bara enemies inom ~60px av whip-bullet — sparar linear scan.
+    // Pull-whip: drar enemy mot ägare (game.js:7906-7913)
     if (b.pullsEnemy && !b.hostile) {
       const ownerPos = findOwnerPos(b.ownerPid);
       if (ownerPos) {
-        const pullR = (b.r || 4) + 60;
-        const candidates = sim.enemyGrid ? sim.enemyGrid.getNearby(b.x, b.y, pullR) : sim.enemies;
-        for (let i = 0; i < candidates.length; i++) {
-          const e = candidates[i];
+        for (const e of sim.enemies) {
           if (e.dead || e.isBoss) continue;
           const dx = e.x - b.x, dy = e.y - b.y;
           const rsum = e.r + b.r + 8;

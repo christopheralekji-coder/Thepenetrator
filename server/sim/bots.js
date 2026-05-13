@@ -185,7 +185,7 @@ function chooseCtfTarget(sim, botWs, team) {
 // aktiv zon. Prio 3 = närmsta spelare.
 function chooseKothTarget(sim, botWs) {
   const px = botWs.playerState.x, py = botWs.playerState.y;
-  // Hitta närmsta fiende (för aim/shoot oavsett position)
+  // Fiende inom 250px → kill
   let nearestEnemyD2 = Infinity, nearestEnemy = null;
   for (const [pid, ws] of sim.room.members) {
     if (pid === botWs.id) continue;
@@ -195,26 +195,25 @@ function chooseKothTarget(sim, botWs) {
     const d2 = dx * dx + dy * dy;
     if (d2 < nearestEnemyD2) { nearestEnemyD2 = d2; nearestEnemy = ws; }
   }
-  // Aktiv zon
-  const z = (sim.kothActiveZoneIdx != null && KOTH_ARENA.zones) ? KOTH_ARENA.zones[sim.kothActiveZoneIdx] : null;
-  if (z) {
-    const dxZ = z.x - px, dyZ = z.y - py;
-    const inZone = dxZ * dxZ + dyZ * dyZ <= z.r * z.r;
-    if (inZone) {
-      // ZONE-DEFENDER: STÅ KVAR i zonen. Skjuta fiende från zone-center.
-      // Tidigare bug: bot jagade fiende UT ur zonen (push→ut→push→ut) → ingen
-      // tickade poäng. Nu rör vi mot zone-center men siktar/skjuter mot fiende
-      // via target._aimTarget i shootIfReady.
-      if (nearestEnemy && nearestEnemyD2 < 600 * 600) {
-        return { x: z.x, y: z.y, type: 'koth_zone', ref: z, _aimTarget: nearestEnemy.playerState };
+  if (nearestEnemy && nearestEnemyD2 < 250 * 250) {
+    return { x: nearestEnemy.playerState.x, y: nearestEnemy.playerState.y, type: 'player', ref: nearestEnemy };
+  }
+  // Annars: aktiv zon
+  if (sim.kothActiveZoneIdx != null && KOTH_ARENA.zones) {
+    const z = KOTH_ARENA.zones[sim.kothActiveZoneIdx];
+    if (z) {
+      // Om jag ÄR i zonen, hitta fiende att skjuta. Annars gå dit.
+      const dxZ = z.x - px, dyZ = z.y - py;
+      if (dxZ * dxZ + dyZ * dyZ <= z.r * z.r) {
+        // I zonen: jaga fiende eller stå still (kill om någon i sikt)
+        if (nearestEnemy) {
+          return { x: nearestEnemy.playerState.x, y: nearestEnemy.playerState.y, type: 'player', ref: nearestEnemy };
+        }
+        // Ingen fiende inom range — stå still mitt i zonen
+        return { x: z.x, y: z.y, type: 'koth_zone', ref: z };
       }
       return { x: z.x, y: z.y, type: 'koth_zone', ref: z };
     }
-    // Inte i zon — gå dit. Skjuta fiende på vägen om mycket nära (< 200px).
-    if (nearestEnemy && nearestEnemyD2 < 200 * 200) {
-      return { x: nearestEnemy.playerState.x, y: nearestEnemy.playerState.y, type: 'player', ref: nearestEnemy };
-    }
-    return { x: z.x, y: z.y, type: 'koth_zone', ref: z };
   }
   // Fallback
   return findClosestPlayer(sim, botWs, null);
@@ -316,10 +315,7 @@ function moveBotTowards(sim, botWs, target, dt) {
     || ((sim.gungameActive || sim.kothActive) ? 2000 : 3000);
   ps.x = Math.max(50, Math.min(worldW - 50, ps.x));
   ps.y = Math.max(50, Math.min(worldH - 50, ps.y));
-  // Aim mot _aimTarget (KOTH zone-defender: bot rör mot zon-center men siktar
-  // mot fiende). Fallback till move-target.
-  const aim = target._aimTarget || target;
-  ps.aim = Math.atan2(aim.y - ps.y, aim.x - ps.x);
+  ps.aim = Math.atan2(dy, dx);
 }
 
 function shootIfReady(sim, botWs, target, now) {
@@ -328,17 +324,11 @@ function shootIfReady(sim, botWs, target, now) {
   if (!w) return;
   const bot = botWs._bot;
   const rate = w.rate || 400;
-  let skillMul = (bot.skill && bot.skill.cooldownMul) || 1.3;
-  // Crowd-comp: vid många hard-bots (5+) blir 7-bot DPS = 350 → 0.6s TTK
-  // för spelaren. Skala upp cooldown så crowd inte överväldigar 1 human.
-  const botCount = (sim._botIds || []).length;
-  if (botCount >= 5 && bot.skillName === 'hard') skillMul *= 1.25;
+  const skillMul = (bot.skill && bot.skill.cooldownMul) || 1.3;
   const cooldown = rate * skillMul;          // skill-baserad — easy = saktare, hard = snabbare
   if (now - bot.lastShotAt < cooldown) return;
-  // KOTH zone-defender: target = zone-center, men _aimTarget = fiende att skjuta.
-  // Tillåter bot att stå still i zonen och fortfarande engagera fiender utanför.
-  const aim = target._aimTarget || target;
-  const dx = aim.x - ps.x, dy = aim.y - ps.y;
+  // Check att target är inom range (melee) eller LoS-distans (gun)
+  const dx = target.x - ps.x, dy = target.y - ps.y;
   const d = Math.hypot(dx, dy);
   const maxRange = w.type === 'melee' ? (w.range || 36) + 14 : 700;
   if (d > maxRange) return;

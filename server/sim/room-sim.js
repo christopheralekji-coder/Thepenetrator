@@ -1501,20 +1501,12 @@ function broadcastWorld(sim, now) {
   // mappades till partner-slot → "kompis-gubbe följer dig hela tiden".
   const players = buildPlayerList(sim);
   const realPlayers = players.filter(p => !p._isCompanion);
-  const allPlayers = realPlayers.map((p, i) => {
-    // Hämta aim + weaponId från ws.playerState (bevarat av applyPlayerInput/applyShoot)
-    const ws = p._wsRef;
-    const ps = ws && ws.playerState;
-    return {
-      c: i,
-      x: Math.round(p.x), y: Math.round(p.y),
-      hp: Math.round(p.hp),
-      // Verklig aim + vapen så klient kan rita partner med rätt riktning + vapen
-      a: ps ? Math.round((ps.aim || 0) * 1000) / 1000 : 0,
-      w: (ps && ps.weaponId) || 'fists',
-      rT: 0,
-    };
-  });
+  const allPlayers = realPlayers.map((p, i) => ({
+    c: i,
+    x: Math.round(p.x), y: Math.round(p.y),
+    hp: Math.round(p.hp),
+    a: 0, w: 'fists', rT: 0,
+  }));
 
   // Drain event-queue. Batch ALLA events i ett enda 'sim_events'-meddelande per
   // peer per tick — sparar 1 JSON.stringify + 1 ws.send per event per client.
@@ -1524,68 +1516,13 @@ function broadcastWorld(sim, now) {
   // ctf_match_end om sista spelaren disconnectade samma tick).
   if (sim.eventQueue.length > 0 && sim.room.members.size > 0) {
     const events = sim.eventQueue.splice(0);
-    // Per-peer filtering: vissa events (pvp_hp_changed) är bara relevanta för
-    // target — skip:as till andra peers. Sparar ~30-40% paketstorlek vid 8 spelare.
-    // Andra events (kill, score, started, etc) skickas till alla.
-    const PER_TARGET_TYPES = new Set(['pvp_hp_changed', 'pvp_pickup_collected']);
-    // Snabb-path: om inga filterbar-events, en gemensam JSON för alla
-    let needsFilter = false;
-    for (const ev of events) {
-      if (PER_TARGET_TYPES.has(ev.type)) { needsFilter = true; break; }
-    }
-    if (!needsFilter) {
-      const json = JSON.stringify({ type: 'sim_events', events });
-      for (const [, ws] of sim.room.members) {
-        if (ws._isBot) continue;
-        if (ws.readyState === 1) try { ws.send(json); } catch (e) {}
-      }
-    } else {
-      // Filter-path optimerad: bygg per-target-map EN gång (O(events)) istället
-      // för att filter() per peer (O(events × peers)). Sparar CPU vid full lobby.
-      const perTargetMap = new Map();      // pid → events[]
-      const broadcastEvents = [];          // shared till alla
-      for (let ei = 0; ei < events.length; ei++) {
-        const ev = events[ei];
-        if (PER_TARGET_TYPES.has(ev.type) && ev.peerId) {
-          let arr = perTargetMap.get(ev.peerId);
-          if (!arr) { arr = []; perTargetMap.set(ev.peerId, arr); }
-          arr.push(ev);
-        } else {
-          broadcastEvents.push(ev);
-        }
-      }
-      // Cache shared-JSON så samma stringify inte körs N gånger
-      const sharedJson = broadcastEvents.length > 0
-        ? JSON.stringify({ type: 'sim_events', events: broadcastEvents })
-        : null;
-      for (const [pid, ws] of sim.room.members) {
-        if (ws._isBot) continue;
-        if (ws.readyState !== 1) continue;
-        const myTargeted = perTargetMap.get(pid);
-        if (myTargeted && myTargeted.length > 0) {
-          // Concat: shared + mina target-events i ett paket
-          const combined = sharedJson
-            ? broadcastEvents.concat(myTargeted)
-            : myTargeted;
-          try { ws.send(JSON.stringify({ type: 'sim_events', events: combined })); } catch (e) {}
-        } else if (sharedJson) {
-          try { ws.send(sharedJson); } catch (e) {}
-        }
-      }
+    const json = JSON.stringify({ type: 'sim_events', events });
+    for (const [, ws] of sim.room.members) {
+      if (ws.readyState === 1) try { ws.send(json); } catch (e) {}
     }
   }
 
   for (const [peerId, ws] of sim.room.members) {
-    if (ws._isBot) continue; // bots har ingen klient att ta emot
-    // ADAPTIVE BROADCAST: vid hög RTT (>150ms = mobil 4G eller dålig WiFi),
-    // sänk till varannan tick (22Hz istället för 45Hz). Halverar nät-burden
-    // för peer utan att förlora för mycket smoothness. Force-broadcast var
-    // 1500ms ändå via fullBroadcast så ingen freezes ut.
-    const rtt = ws._serverRtt || 0;
-    if (rtt > 150 && !fullBroadcast) {
-      ws._broadcastSkipCounter = (ws._broadcastSkipCounter || 0) + 1;
-      if (ws._broadcastSkipCounter % 2 === 1) continue;
-    }
     let lastSent = sim.lastSentEnemyByPeer.get(peerId);
     let forceFullForPeer = !lastSent || fullBroadcast;
     if (!lastSent) lastSent = {};
@@ -2048,9 +1985,7 @@ function startSim(sim, opts) {
     sim.simReadyAt = Date.now() + 5000;
     // Bot:s vapen-roterande i KOTH — random från common-arsenal så de inte alla
     // har samma vapen. Riktiga spelare behåller sin equipped.
-    // Rifle borttagen (200 DPS = 2.83× pistol → orättvis bot-roulette). Spread
-    // nu 70-147 DPS = max 2.1× = acceptabel variation.
-    const KOTH_BOT_WEAPONS = ['pistol', 'smg', 'shotgun', 'burstpistol', 'revolver'];
+    const KOTH_BOT_WEAPONS = ['pistol', 'smg', 'rifle', 'shotgun', 'burstpistol', 'revolver'];
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
       ws.playerState = ws.playerState || {};
