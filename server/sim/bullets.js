@@ -15,6 +15,7 @@ const { CTF_ARENA, bulletHitsWall } = require('../../shared/ctf-arena');
 const { TDM_ARENA } = require('../../shared/tdm-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
 const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS } = require('../../shared/gungame-arena');
+const { KOTH_ARENA } = require('../../shared/koth-arena');
 
 // PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
 // Sniper nerf: 130→95 (fortfarande 2-shot genom shield+hp men inte instant).
@@ -89,7 +90,8 @@ function applyMelee(sim, p, weaponId, params) {
   const inTdm = !!sim.tdmActive && !sim.tdmEnded;
   const inCtf = !!sim.ctfActive && !sim.ctfEnded;
   const inSiege = !!sim.siegeActive && !sim.siegeEnded;
-  if (!inGungame && !inTdm && !inCtf && !inSiege) return;
+  const inKoth = !!sim.kothActive && !sim.kothEnded;
+  if (!inGungame && !inTdm && !inCtf && !inSiege && !inKoth) return;
 
   const ownerWs = sim.room.members.get(p.peerId);
   if (!ownerWs) return;
@@ -107,8 +109,9 @@ function applyMelee(sim, p, weaponId, params) {
     if (pid === p.peerId) continue;
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
     if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
-    // Friendly-fire av i team-modes
-    if (!inGungame && ownerTeam && ws.tdmTeam && ws.tdmTeam === ownerTeam) continue;
+    // Friendly-fire av i team-modes (KOTH + gungame är FFA — alla mål)
+    const isFfa = inGungame || inKoth;
+    if (!isFfa && ownerTeam && ws.tdmTeam && ws.tdmTeam === ownerTeam) continue;
 
     const dx = ws.playerState.x - p.x;
     const dy = ws.playerState.y - p.y;
@@ -145,6 +148,8 @@ function applyMelee(sim, p, weaponId, params) {
     if (ws.playerState.hp <= 0) {
       if (inGungame) {
         handleGungameKill(sim, p.peerId, ownerWs, pid, ws, weaponId);
+      } else if (inKoth) {
+        handleKothKill(sim, p.peerId, pid, ws, weaponId);
       } else if (inTdm) {
         handleTdmKill(sim, p.peerId, pid, ws, ownerTeam, weaponId);
       } else if (inCtf) {
@@ -269,6 +274,27 @@ function handleSiegeKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponI
       stats,
     });
   }
+}
+
+// handleKothKill — kill-flow för KOTH. Inkrementera kills, respawn-timer.
+// Ingen tier-progression, ingen poäng-bonus för kill (KOTH-poäng kommer från
+// zone-occupancy). Bara kill-feed + respawn.
+function handleKothKill(sim, killerPid, victimPid, victimWs, weaponId) {
+  if (victimWs.tdmRespawnAt) return;
+  sim.kothKillsByPid[killerPid] = (sim.kothKillsByPid[killerPid] || 0) + 1;
+  sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
+  victimWs.tdmRespawnAt = Date.now() + 3000;
+  sim.eventQueue.push({
+    type: 'koth_kill',
+    killer: killerPid,
+    victim: victimPid,
+    weapon: weaponId || null,
+  });
+  sim.eventQueue.push({
+    type: 'koth_respawn_pending',
+    peerId: victimPid,
+    durationMs: 3000,
+  });
 }
 
 // handleGungameKill — promote shooter, demote victim om melee, schedule respawn,
@@ -448,8 +474,9 @@ function explode(sim, x, y, radius, dmg, fromPid) {
   const fromWs = fromPid ? sim.room.members.get(fromPid) : null;
   const fromTeam = fromWs && fromWs.tdmTeam;
   const inGungame = !!sim.gungameActive;
+  const inKoth = !!sim.kothActive;
   const inTeamPvP = !!(sim.tdmActive || sim.ctfActive || sim.siegeActive);
-  const inPvP = inTeamPvP || inGungame;
+  const inPvP = inTeamPvP || inGungame || inKoth;
   if (!inPvP) {
     for (const e of sim.enemies) {
       if (e.dead) continue;
@@ -886,6 +913,47 @@ function updateBullets(sim, dt, now) {
           });
           if (ws.playerState.hp <= 0) {
             handleSiegeKill(sim, b.ownerPid, pid, ws, ownerTeam, b.weaponId);
+          }
+          pvpHit = true;
+          break;
+        }
+      }
+      if (pvpHit) bullets.splice(i, 1);
+      continue;
+    }
+    // KOTH-mode: FFA player-bullet kollar mot ALLA andra spelare. Kill =
+    // bara kill-feed + respawn. Inget tier-system.
+    if (sim.kothActive) {
+      if (sim.kothEnded) continue;
+      let pvpHit = false;
+      const ownerWs = sim.room.members.get(b.ownerPid);
+      if (!ownerWs) continue;
+      const shooterRtt = ownerWs && ownerWs._serverRtt;
+      for (const [pid, ws] of sim.room.members) {
+        if (pid === b.ownerPid) continue;
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        const invuln = ws.playerState.invulnUntil || 0;
+        if (Date.now() < invuln) continue;
+        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const dx = rPos.x - b.x, dy = rPos.y - b.y;
+        const rsum = 14 + b.r + 8;
+        if (dx * dx + dy * dy < rsum * rsum) {
+          const effDmg = getPvpDmg(b.weaponId, b.dmg);
+          let remaining = effDmg;
+          if ((ws.playerState.shield || 0) > 0) {
+            const absorb = Math.min(ws.playerState.shield, remaining);
+            ws.playerState.shield -= absorb;
+            remaining -= absorb;
+          }
+          if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+          sim.eventQueue.push({
+            type: 'pvp_hp_changed',
+            peerId: pid,
+            hp: ws.playerState.hp,
+            shield: ws.playerState.shield || 0,
+          });
+          if (ws.playerState.hp <= 0) {
+            handleKothKill(sim, b.ownerPid, pid, ws, b.weaponId);
           }
           pvpHit = true;
           break;

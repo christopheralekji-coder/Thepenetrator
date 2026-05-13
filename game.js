@@ -2331,6 +2331,50 @@ function drawSiegeDecorations() {
 }
 
 // SIEGE: capture-bases — pulsande cirklar med owner-färg + capture-progress-ring
+function drawKothZone() {
+  if (!state.kothZones || state.kothActiveZoneIdx == null) return;
+  const z = state.kothZones[state.kothActiveZoneIdx];
+  if (!z) return;
+  const t = performance.now() / 1000;
+  const pulse = 0.85 + Math.sin(t * 2.4) * 0.15;
+  ctx.save();
+  // Gold ring + glow
+  ctx.strokeStyle = '#ffd54a';
+  ctx.lineWidth = 4;
+  ctx.shadowColor = '#ffd54a';
+  ctx.shadowBlur = 18 * pulse;
+  ctx.globalAlpha = 0.75;
+  ctx.beginPath();
+  ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
+  ctx.stroke();
+  // Inner fill
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(255, 213, 74, 0.10)';
+  ctx.fill();
+  // Crown emblem i mitten
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'bold 32px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.globalAlpha = 0.55 + pulse * 0.4;
+  ctx.fillText('👑', z.x, z.y);
+  // Zone-namn under
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillStyle = '#ffd54a';
+  ctx.globalAlpha = 0.85;
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+  ctx.fillText(z.name || 'HILL', z.x, z.y + 28);
+  // Countdown till nästa zone-byte (om vi har info)
+  if (state.kothNextRotateAt) {
+    const sec = Math.max(0, Math.ceil((state.kothNextRotateAt - Date.now()) / 1000));
+    ctx.font = 'bold 11px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.shadowBlur = 3;
+    ctx.fillText('byter om ' + sec + 's', z.x, z.y + 46);
+  }
+  ctx.restore();
+}
+
 function drawSiegeBases() {
   if (!state.siegeBases) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
@@ -6718,6 +6762,7 @@ const Coop = {
       if (typeof hideCtfHud === 'function') hideCtfHud();
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
       if (typeof hideGungameHud === 'function') hideGungameHud();
+      if (typeof hideKothHud === 'function') hideKothHud();
       this.ctfActive = false; this.siegeActive = false; this.gungameActive = false;
       state.ctfActive = false; state.siegeActive = false; state.gungameActive = false;
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
@@ -6878,6 +6923,7 @@ const Coop = {
       if (typeof hideTdmHud === 'function') hideTdmHud();
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
       if (typeof hideGungameHud === 'function') hideGungameHud();
+      if (typeof hideKothHud === 'function') hideKothHud();
       this.tdmActive = false; this.siegeActive = false; this.gungameActive = false;
       state.tdmActive = false; state.siegeActive = false; state.gungameActive = false;
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
@@ -7241,6 +7287,7 @@ const Coop = {
       if (typeof hideTdmHud === 'function') hideTdmHud();
       if (typeof hideCtfHud === 'function') hideCtfHud();
       if (typeof hideGungameHud === 'function') hideGungameHud();
+      if (typeof hideKothHud === 'function') hideKothHud();
       this.tdmActive = false; this.ctfActive = false; this.gungameActive = false;
       state.tdmActive = false; state.ctfActive = false; state.gungameActive = false;
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
@@ -7480,14 +7527,126 @@ const Coop = {
         const b = (ev.scores && ev.scores.blue) || 0;
         showSiegeEndScreen(ev.winner, r, b, statsArr, this.siegeTeams || {}, ev.reason);
       }
+    } else if (ev.type === 'koth_started') {
+      // KOTH FFA. ev: { arena, walls, spawns, zones, activeZoneIdx, zoneRotateSec, targetPoints, shieldMax }
+      if (typeof hideTdmHud === 'function') hideTdmHud();
+      if (typeof hideCtfHud === 'function') hideCtfHud();
+      if (typeof hideSiegeHud === 'function') hideSiegeHud();
+      if (typeof hideGungameHud === 'function') hideGungameHud();
+      this.tdmActive = false; this.ctfActive = false; this.siegeActive = false; this.gungameActive = false;
+      state.tdmActive = false; state.ctfActive = false; state.siegeActive = false; state.gungameActive = false;
+      state.companion = null;
+      this.kothActive = true;
+      state.kothActive = true;
+      this.kothTargetPoints = ev.targetPoints || 100;
+      this.kothScores = {};
+      this.kothZones = ev.zones || [];
+      this.kothActiveZoneIdx = ev.activeZoneIdx || 0;
+      state.kothWalls = ev.walls || [];
+      state.kothDecorations = ev.decorations || [];
+      state.kothZones = this.kothZones;
+      state.kothActiveZoneIdx = this.kothActiveZoneIdx;
+      state.pvpShieldMax = ev.shieldMax || 100;
+      state.enemies = []; state.bullets = [];
+      state.bossAlive = false; state.bossIntro = null;
+      state.waveActive = false; state.enemiesToSpawn = 0;
+      state._serverSpawnWaitSince = 0; state._serverWakeToastShown = false;
+      if (ev.arena) {
+        state.customStages = [{
+          id: 'koth_arena', name: ev.arena.name || 'KOTH ARENA',
+          kind: 'koth', worldW: ev.arena.worldW, worldH: ev.arena.worldH,
+          spawnPos: { x: 200, y: 200 }, goalPos: { x: ev.arena.worldW - 200, y: ev.arena.worldH - 200 },
+        }];
+        state.wave = 1;
+        WORLD.w = ev.arena.worldW; WORLD.h = ev.arena.worldH;
+        if (typeof stageState !== 'undefined') {
+          stageState.buildings = []; stageState.decorations = [];
+          stageState.hazards = []; stageState.collectibles = [];
+        }
+      }
+      if (state.player) {
+        state.player.hp = state.player.maxHp || 100;
+        state.player.shield = state.pvpShieldMax;
+        state.player.maxShield = state.pvpShieldMax;
+        state.player.spectating = false;
+        state.player.invuln = 1.5;
+        state.player.weaponId = 'pistol';
+      }
+      save.equipped = 'pistol';
+      save.weaponId = 'pistol';
+      if (typeof showKothHud === 'function') showKothHud();
+      if (typeof showToast === 'function') showToast('👑 KING OF THE HILL — håll zonen för poäng!');
+      if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('tdm');
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
+    } else if (ev.type === 'koth_zone_changed') {
+      // { idx, x, y, r, name, nextRotateAt }
+      this.kothActiveZoneIdx = ev.idx;
+      state.kothActiveZoneIdx = ev.idx;
+      state.kothNextRotateAt = ev.nextRotateAt;
+      if (typeof showToast === 'function') showToast('👑 NY ZON: ' + (ev.name || 'HILL'));
+      if (typeof triggerShake === 'function') triggerShake(4, 0.2);
+    } else if (ev.type === 'koth_score_update') {
+      // { scores: { pid: pts }, target }
+      this.kothScores = ev.scores || {};
+      this.kothTargetPoints = ev.target || this.kothTargetPoints;
+      if (typeof updateKothHud === 'function') updateKothHud(this.kothScores, this.kothTargetPoints, Coop.myId);
+    } else if (ev.type === 'koth_kill') {
+      const killerName = (ev.killer === this.myId) ? (this.myName || 'Du')
+        : (this.players.get(ev.killer) && this.players.get(ev.killer).name) || 'Spelare';
+      const victimName = (ev.victim === this.myId) ? (this.myName || 'Du')
+        : (this.players.get(ev.victim) && this.players.get(ev.victim).name) || 'Spelare';
+      const weaponName = ev.weapon && W_BY_ID[ev.weapon] ? (W_BY_ID[ev.weapon].name || ev.weapon) : null;
+      if (typeof addKothKillFeed === 'function') addKothKillFeed(killerName, victimName, weaponName);
+      if (ev.victim === this.myId) {
+        if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
+        if (typeof triggerShake === 'function') triggerShake(14, 0.6);
+        if (state.player) { state.player.spectating = true; state.player.hp = 0; }
+        state.deadBody = { x: state.player ? state.player.x : 0, y: state.player ? state.player.y : 0, reviveTimer: 3 };
+      }
+    } else if (ev.type === 'koth_player_died') {
+      // Death-overlay drivs av koth_respawn_pending
+    } else if (ev.type === 'koth_respawn_pending') {
+      if (ev.peerId === this.myId && typeof showSiegeRespawnCountdown === 'function') {
+        showSiegeRespawnCountdown(Date.now() + (ev.durationMs || 3000));
+      }
+    } else if (ev.type === 'koth_player_respawned') {
+      if (ev.peerId === this.myId && state.player) {
+        state.player.spectating = false;
+        state.player.specTarget = null;
+        state.player.x = ev.x; state.player.y = ev.y;
+        state.player.hp = ev.hp || state.player.maxHp || 100;
+        state.player.shield = ev.shield != null ? ev.shield : (state.pvpShieldMax || 100);
+        state.player.maxShield = state.pvpShieldMax || 100;
+        state.player.invuln = 1.5;
+        state.deadBody = null;
+        if (typeof _siegeRespawnOverlay !== 'undefined' && _siegeRespawnOverlay) _siegeRespawnOverlay.classList.add('hidden');
+        if (typeof showToast === 'function') showToast('🔄 RESPAWN');
+      }
+    } else if (ev.type === 'koth_match_end') {
+      this.kothActive = false;
+      state.kothActive = false;
+      const statsArr = [];
+      if (ev.stats && ev.stats.perPlayer) {
+        for (const pid of Object.keys(ev.stats.perPlayer)) {
+          const s = ev.stats.perPlayer[pid];
+          statsArr.push({ peerId: pid, score: s.score || 0, kills: s.kills || 0, deaths: s.deaths || 0 });
+        }
+      }
+      if (typeof showKothEndScreen === 'function') {
+        showKothEndScreen(ev.winner, statsArr);
+      } else if (typeof showToast === 'function') {
+        const winnerName = ev.winner === this.myId ? (this.myName || 'Du') : (this.players.get(ev.winner) && this.players.get(ev.winner).name) || 'Spelare';
+        showToast('🏆 ' + winnerName + ' VANN KOTH!');
+      }
     } else if (ev.type === 'gungame_started') {
       // FFA 15-tier mode. ev: { arena, walls, spawns, decorations, weapons, totalTiers, shieldMax }
       // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
       if (typeof hideTdmHud === 'function') hideTdmHud();
       if (typeof hideCtfHud === 'function') hideCtfHud();
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
-      this.tdmActive = false; this.ctfActive = false; this.siegeActive = false;
-      state.tdmActive = false; state.ctfActive = false; state.siegeActive = false;
+      if (typeof hideKothHud === 'function') hideKothHud();
+      this.tdmActive = false; this.ctfActive = false; this.siegeActive = false; this.kothActive = false;
+      state.tdmActive = false; state.ctfActive = false; state.siegeActive = false; state.kothActive = false;
       state.companion = null; // ingen companion i PvP
       this.gungameActive = true;
       state.gungameActive = true;
@@ -8349,13 +8508,14 @@ const Coop = {
     this._intentionalClose = true;  // hindrar onclose från att auto-reconnecta
     this.active = false; this.inLobby = false;
     this.serverSimActive = false;
-    this.tdmActive = false; this.ctfActive = false; this.siegeActive = false; this.gungameActive = false;
+    this.tdmActive = false; this.ctfActive = false; this.siegeActive = false; this.gungameActive = false; this.kothActive = false;
     if (typeof state !== 'undefined') {
       state.serverSimActive = false;
       state.tdmActive = false;
       state.ctfActive = false;
       state.siegeActive = false;
       state.gungameActive = false;
+      state.kothActive = false;
       // Rensa stale PvP-state så de inte läcker in i nästa run
       state.ctfWalls = null;
       state.tdmWalls = null;
@@ -8368,6 +8528,11 @@ const Coop = {
       state.siegeTurrets = null;
       state.siegeDecorations = null;
       state.gungameDecorations = null;
+      state.kothWalls = null;
+      state.kothDecorations = null;
+      state.kothZones = null;
+      state.kothActiveZoneIdx = null;
+      state.kothNextRotateAt = null;
       state.pvpPickups = null;
       state.pvpShieldMax = null;
       state.customStages = null;
@@ -8386,6 +8551,7 @@ const Coop = {
     if (typeof hideTdmHud === 'function') hideTdmHud();
     if (typeof hideCtfHud === 'function') hideCtfHud();
     if (typeof hideGungameHud === 'function') hideGungameHud();
+    if (typeof hideKothHud === 'function') hideKothHud();
     // Om vi förlorat anslutningen mid-game, kicka tillbaka till menyn så vi inte
     // hamnar i lokalt PvE-fallback-läge (minions spawnar lokalt). Tidigare:
     // 'playing' state kvar → solo-game-loop tog över → fel mode → buggat.
@@ -9101,17 +9267,52 @@ function renderHostControls() {
     ggBtn.addEventListener('click', () => {
       const newGg = !Coop.config.gungame;
       Coop.config.gungame = newGg;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.koth = false;
       if (newGg) {
         Coop.config.serverSim = true;
       }
       Coop.updateConfig({
-        gungame: newGg, tdm: false, ctf: false, siege: false,
+        gungame: newGg, tdm: false, ctf: false, siege: false, koth: false,
         serverSim: Coop.config.serverSim,
       });
       renderHostControls();
     });
     pvpEl.appendChild(ggBtn);
+    // KOTH-knapp (FFA hold-the-hill)
+    const kothBtn = document.createElement('button');
+    kothBtn.textContent = '👑 KOTH (Hold the Hill)';
+    kothBtn.style.cssText = 'background:' + (Coop.config.koth ? '#ffd54a' : '#222') + ';color:' + (Coop.config.koth ? '#000' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
+    if (Coop.config.koth) kothBtn.classList.add('active');
+    kothBtn.addEventListener('click', () => {
+      const newKoth = !Coop.config.koth;
+      Coop.config.koth = newKoth;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false;
+      if (newKoth) {
+        Coop.config.serverSim = true;
+        Coop.config.kothTargetPoints = Coop.config.kothTargetPoints || 100;
+      }
+      Coop.updateConfig({
+        koth: newKoth, tdm: false, ctf: false, siege: false, gungame: false,
+        kothTargetPoints: Coop.config.kothTargetPoints,
+        serverSim: Coop.config.serverSim,
+      });
+      renderHostControls();
+    });
+    pvpEl.appendChild(kothBtn);
+    // KOTH target-poäng-selector
+    if (Coop.config.koth) {
+      for (const tp of [50, 100, 200]) {
+        const tpBtn = document.createElement('button');
+        tpBtn.textContent = tp + ' poäng';
+        tpBtn.style.cssText = 'background:' + ((Coop.config.kothTargetPoints || 100) === tp ? '#ffd54a' : '#222') + ';color:#000;font-size:11px;padding:6px 10px;font-weight:700;';
+        tpBtn.addEventListener('click', () => {
+          Coop.config.kothTargetPoints = tp;
+          Coop.updateConfig({ kothTargetPoints: tp });
+          renderHostControls();
+        });
+        pvpEl.appendChild(tpBtn);
+      }
+    }
     // Target-selectors per aktivt PvP-läge
     if (Coop.config.tdm) {
       for (const tk of [10, 20, 30]) {
@@ -9502,6 +9703,10 @@ btnCoopStart.addEventListener('click', () => {
     }
     if (Coop.config.gungame) {
       payload.gungame = true;
+    }
+    if (Coop.config.koth) {
+      payload.koth = true;
+      payload.kothTargetPoints = Coop.config.kothTargetPoints || 100;
     }
     if (Coop.config.addBot) {
       payload.addBot = true;
@@ -12985,6 +13190,10 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     if (Coop.config.gungame) {
       payload.gungame = true;
     }
+    if (Coop.config.koth) {
+      payload.koth = true;
+      payload.kothTargetPoints = Coop.config.kothTargetPoints || 100;
+    }
     if (Coop.config.addBot) {
       payload.addBot = true;
       payload.botTeam = Coop.config.botTeam || 'red';
@@ -14421,6 +14630,89 @@ function showGungameEndScreen(winnerId, stats) {
     _siegeEndOverlay.classList.remove('hidden');
   } else if (typeof showToast === 'function') {
     showToast('🏆 ' + winnerName + ' VANN GUNGAME!');
+  }
+}
+
+// === KOTH HUD ===
+let _kothHud = null;
+let _kothKillFeedEl = null;
+function ensureKothHud() {
+  if (_kothHud) return;
+  _kothHud = document.createElement('div');
+  _kothHud.id = 'koth-hud';
+  _kothHud.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #ffd54a;border-radius:8px;padding:8px 14px;color:#fff;font-family:sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;z-index:50;display:flex;flex-direction:column;gap:4px;align-items:center;pointer-events:none;min-width:240px;';
+  _kothHud.innerHTML = '<div style="display:flex;gap:8px;align-items:center;"><span style="color:#ffd54a;">👑</span><span id="koth-leader" style="color:#fff;">—</span></div><div id="koth-board" style="font-size:11px;color:#aaa;text-align:center;line-height:1.4;"></div>';
+  document.body.appendChild(_kothHud);
+  _kothKillFeedEl = document.createElement('div');
+  _kothKillFeedEl.id = 'koth-killfeed';
+  _kothKillFeedEl.style.cssText = 'position:fixed;top:50px;right:12px;width:260px;display:flex;flex-direction:column;gap:3px;z-index:51;pointer-events:none;';
+  document.body.appendChild(_kothKillFeedEl);
+}
+function showKothHud() {
+  ensureKothHud();
+  _kothHud.style.display = 'flex';
+}
+function hideKothHud() {
+  if (_kothHud) _kothHud.style.display = 'none';
+  if (_kothKillFeedEl) _kothKillFeedEl.innerHTML = '';
+}
+function updateKothHud(scores, target, myId) {
+  ensureKothHud();
+  const entries = Object.entries(scores || {})
+    .map(([pid, pts]) => ({
+      pid,
+      pts,
+      name: pid === myId ? (Coop.myName || 'Du') : ((Coop.players.get(pid) && Coop.players.get(pid).name) || pid),
+    }))
+    .sort((a, b) => b.pts - a.pts);
+  const leader = entries[0];
+  const leaderEl = document.getElementById('koth-leader');
+  if (leaderEl && leader) {
+    leaderEl.textContent = leader.name + '  ' + leader.pts + '/' + target;
+    leaderEl.style.color = leader.pid === myId ? '#5aff5a' : '#ffd54a';
+  }
+  const boardEl = document.getElementById('koth-board');
+  if (boardEl) {
+    boardEl.innerHTML = entries.slice(0, 5).map((e, i) => {
+      const color = e.pid === myId ? '#5aff5a' : '#aaa';
+      return '<span style="color:' + color + ';">' + (i + 1) + '. ' + escapeHtml(e.name) + ' ' + e.pts + '</span>';
+    }).join('  ');
+  }
+}
+function addKothKillFeed(killerName, victimName, weaponName) {
+  ensureKothHud();
+  if (!_kothKillFeedEl) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'background:rgba(0,0,0,0.7);padding:4px 8px;border-radius:4px;font-size:11px;color:#fff;border-left:3px solid #ffd54a;';
+  const wHtml = weaponName ? '<span style="color:#ffd54a;"> · ' + escapeHtml(weaponName) + '</span>' : '';
+  row.innerHTML = '<span style="color:#5aff5a;">' + escapeHtml(killerName) + '</span> ⚔ <span style="color:#fff;">' + escapeHtml(victimName) + '</span>' + wHtml;
+  _kothKillFeedEl.appendChild(row);
+  while (_kothKillFeedEl.children.length > 6) _kothKillFeedEl.removeChild(_kothKillFeedEl.firstChild);
+  setTimeout(() => {
+    if (row.parentNode) {
+      row.style.opacity = '0';
+      row.style.transition = 'opacity 0.4s';
+      setTimeout(() => { if (row.parentNode) row.parentNode.removeChild(row); }, 400);
+    }
+  }, 4100);
+}
+function showKothEndScreen(winnerId, stats) {
+  hideKothHud();
+  const winnerName = winnerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(winnerId) && Coop.players.get(winnerId).name) || 'Spelare');
+  const rows = (stats || []).sort((a, b) => (b.score || 0) - (a.score || 0)).map(s => {
+    const name = s.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || s.peerId);
+    return '<tr><td style="padding:4px 8px;">' + escapeHtml(name) + '</td><td style="padding:4px 8px;text-align:center;color:#ffd54a;">' + (s.score || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.deaths || 0) + '</td></tr>';
+  }).join('');
+  if (typeof _siegeEndOverlay !== 'undefined' && _siegeEndOverlay) {
+    const titleEl = document.getElementById('siege-end-title');
+    const subEl = document.getElementById('siege-end-subtitle');
+    const statsEl = document.getElementById('siege-end-stats');
+    if (titleEl) titleEl.textContent = '👑 KOTH WINNER';
+    if (subEl) subEl.innerHTML = '<span style="color:#5aff5a;">' + escapeHtml(winnerName) + '</span> höll kullen!';
+    if (statsEl) statsEl.innerHTML = '<table style="margin:8px auto;border-collapse:collapse;"><thead><tr><th style="padding:4px 8px;color:#888;">Spelare</th><th style="padding:4px 8px;color:#888;">Poäng</th><th style="padding:4px 8px;color:#888;">Kills</th><th style="padding:4px 8px;color:#888;">Deaths</th></tr></thead><tbody>' + rows + '</tbody></table>';
+    _siegeEndOverlay.classList.remove('hidden');
+  } else if (typeof showToast === 'function') {
+    showToast('🏆 ' + winnerName + ' VANN KOTH!');
   }
 }
 
@@ -23586,10 +23878,20 @@ function render() {
     }
     drawPvpWalls(state.gungameWalls);
   }
-  // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE)
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive) drawPvpShieldBubbles();
-  // PvP-pickups (HP/shield-regen) — alla 3 PvP-lägen
-  if ((state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive) && state.pvpPickups) drawPvpPickups();
+  // KOTH — zone-cirkel + walls + decorations
+  if (state.kothActive && state.kothWalls) {
+    if (state.kothDecorations && state.kothDecorations.length) {
+      const saved = state.siegeDecorations;
+      state.siegeDecorations = state.kothDecorations;
+      try { drawSiegeDecorations(); } finally { state.siegeDecorations = saved; }
+    }
+    drawKothZone();
+    drawPvpWalls(state.kothWalls);
+  }
+  // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE + GUNGAME + KOTH)
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive) drawPvpShieldBubbles();
+  // PvP-pickups (HP/shield-regen) — alla PvP-lägen
+  if ((state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive) && state.pvpPickups) drawPvpPickups();
   // Top layer: damage-numbers + crit-text + chatter + explosions
   for (const p of state.particles) if (p.isDamageNumber || p.isCritText || p.isChatter) drawParticle(p);
   for (const p of state.particles) if (p.isExplosion) drawParticle(p);

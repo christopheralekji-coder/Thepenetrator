@@ -13,6 +13,7 @@ const { CTF_ARENA, resolveCtfWall, bulletHitsWall } = require('../../shared/ctf-
 const { TDM_ARENA } = require('../../shared/tdm-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
 const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS } = require('../../shared/gungame-arena');
+const { KOTH_ARENA } = require('../../shared/koth-arena');
 
 // 30Hz → 45Hz: tickar var 22ms istället för 33ms. Halverar input→pixel-delay
 // från server-tick-perspektiv. 1.5× CPU-last, men Node klarar 10k+ ops/tick i
@@ -99,6 +100,17 @@ function createSim(room) {
     gungameTiers: {},        // peerId → 0..14 (current weapon tier)
     gungameKillsByPid: {},   // peerId → total kills (för stats)
     _gungameSpawnIdx: 0,     // roterar spawn-punkter så respawn inte upprepar
+    // KOTH state (FFA, hold-the-hill, first to N points)
+    kothActive: false,
+    kothEnded: false,
+    kothWinner: null,
+    kothTargetPoints: 100,
+    kothScores: {},          // peerId → points
+    kothKillsByPid: {},      // peerId → kills (för stats)
+    kothActiveZoneIdx: 0,    // current zone-index (rotates)
+    _kothZoneRotateAt: 0,    // när nästa zone-rotation sker
+    _kothPointAccum: {},     // peerId → fractional accumulator
+    _kothSpawnIdx: 0,        // spawn-rotation
   };
   return sim;
 }
@@ -219,6 +231,10 @@ function tickSim(sim) {
     sim._tickCount = (sim._tickCount || 0) + 1;
     if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
+  }
+  // KOTH-mode: hold-the-hill med roterande zon
+  if (sim.kothActive) {
+    tickKoth(sim, dt, now);
   }
   // GUNGAME-mode: FFA, 15-tier vapen-progression
   if (sim.gungameActive) {
@@ -1276,6 +1292,129 @@ function tickGungame(sim, dt, now) {
   }
 }
 
+// === KOTH ===
+// Hold-the-hill FFA. Spelare i aktiv zon får +1 pt/sek. Zone-position roterar
+// var N sek så ingen kan sitta i samma hörn hela matchen. First to targetPoints.
+function tickKoth(sim, dt, now) {
+  const nowMs = Date.now();
+
+  // Respawn (samma som gungame — roterande spawn, 3s cooldown)
+  for (const [pid, ws] of sim.room.members) {
+    if (ws.tdmRespawnAt && nowMs >= ws.tdmRespawnAt) {
+      ws.tdmRespawnAt = 0;
+      if (ws.playerState) {
+        const spawns = KOTH_ARENA.spawns;
+        const sp = spawns[sim._kothSpawnIdx % spawns.length];
+        sim._kothSpawnIdx++;
+        ws.playerState.x = sp.x;
+        ws.playerState.y = sp.y;
+        ws.playerState.hp = 100;
+        ws.playerState.shield = ws.playerState.maxShield || 100;
+        ws.playerState.invulnUntil = nowMs + 1500;
+        if (ws._bot) { ws._bot.target = null; ws._bot.lastShotAt = 0; }
+        sim.eventQueue.push({
+          type: 'koth_player_respawned',
+          peerId: pid,
+          x: ws.playerState.x, y: ws.playerState.y,
+          hp: ws.playerState.hp, shield: ws.playerState.shield,
+        });
+      }
+    }
+  }
+
+  if (sim.kothEnded) return;
+
+  // Zone-rotation
+  if (nowMs >= sim._kothZoneRotateAt) {
+    const next = (sim.kothActiveZoneIdx + 1) % KOTH_ARENA.zones.length;
+    sim.kothActiveZoneIdx = next;
+    sim._kothZoneRotateAt = nowMs + (KOTH_ARENA.zoneRotateSec || 45) * 1000;
+    const z = KOTH_ARENA.zones[next];
+    sim.eventQueue.push({
+      type: 'koth_zone_changed',
+      idx: next,
+      x: z.x, y: z.y, r: z.r, name: z.name,
+      nextRotateAt: sim._kothZoneRotateAt,
+    });
+  }
+
+  // Wall-collision + pickups
+  for (const [, ws] of sim.room.members) {
+    if (ws.playerState && ws.playerState.hp > 0) {
+      const e = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
+      resolveCtfWall(e, KOTH_ARENA.walls);
+      ws.playerState.x = e.x;
+      ws.playerState.y = e.y;
+    }
+  }
+  tickPvpPickups(sim, now);
+
+  // Bullets
+  updateBullets(sim, dt, now);
+
+  // Score: spelare i aktiv zon får dt poäng (1 pt/sek)
+  const zone = KOTH_ARENA.zones[sim.kothActiveZoneIdx];
+  let leadersInZone = [];
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    const dx = ws.playerState.x - zone.x, dy = ws.playerState.y - zone.y;
+    if (dx * dx + dy * dy <= zone.r * zone.r) {
+      sim._kothPointAccum[pid] = (sim._kothPointAccum[pid] || 0) + dt * (KOTH_ARENA.pointsPerSecond || 1);
+      if (sim._kothPointAccum[pid] >= 1) {
+        const whole = Math.floor(sim._kothPointAccum[pid]);
+        sim._kothPointAccum[pid] -= whole;
+        sim.kothScores[pid] = (sim.kothScores[pid] || 0) + whole;
+        leadersInZone.push(pid);
+      }
+    }
+  }
+
+  // Death-detection
+  for (const [pid, ws] of sim.room.members) {
+    if (ws.playerState && ws.playerState.hp <= 0 && !ws.tdmRespawnAt) {
+      ws.tdmRespawnAt = nowMs + 3000;
+      sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
+      sim.eventQueue.push({ type: 'koth_player_died', victim: pid, durationMs: 3000 });
+    }
+  }
+
+  // Score-broadcast var sekund + win-check
+  sim._kothBroadcastTick = (sim._kothBroadcastTick || 0) + dt;
+  if (sim._kothBroadcastTick >= 1.0) {
+    sim._kothBroadcastTick = 0;
+    sim.eventQueue.push({
+      type: 'koth_score_update',
+      scores: { ...sim.kothScores },
+      target: sim.kothTargetPoints,
+    });
+    // Win-check
+    for (const pid of Object.keys(sim.kothScores)) {
+      if (sim.kothScores[pid] >= sim.kothTargetPoints) {
+        endKothMatch(sim, pid, 'target_points');
+        return;
+      }
+    }
+  }
+}
+
+function endKothMatch(sim, winnerId, reason) {
+  if (sim.kothEnded) return;
+  sim.kothEnded = true;
+  sim.kothWinner = winnerId;
+  const stats = { perPlayer: {} };
+  for (const [p] of sim.room.members) {
+    stats.perPlayer[p] = {
+      score: sim.kothScores[p] || 0,
+      kills: sim.kothKillsByPid[p] || 0,
+      deaths: (sim.tdmDeathsByPid && sim.tdmDeathsByPid[p]) || 0,
+    };
+  }
+  sim.eventQueue.push({
+    type: 'koth_match_end',
+    winner: winnerId, reason, stats,
+  });
+}
+
 function endGungameMatch(sim, winnerId, reason) {
   if (sim.gungameEnded) return;
   sim.gungameEnded = true;
@@ -1472,6 +1611,17 @@ function startSim(sim, opts) {
   sim.gungameTiers = {};
   sim.gungameKillsByPid = {};
   sim._gungameSpawnIdx = 0;
+  // KOTH reset
+  sim.kothActive = false;
+  sim.kothEnded = false;
+  sim.kothWinner = null;
+  sim.kothScores = {};
+  sim.kothKillsByPid = {};
+  sim.kothActiveZoneIdx = 0;
+  sim._kothPointAccum = {};
+  sim._kothSpawnIdx = 0;
+  sim._kothZoneRotateAt = 0;
+  sim._kothBroadcastTick = 0;
   sim._siegePointAccum = { red: 0, blue: 0 };
   sim.pvpPickups = null;
   sim.bullets = [];
@@ -1496,6 +1646,10 @@ function startSim(sim, opts) {
     }
     if (opts.gungame) {
       sim.gungameActive = true;
+    }
+    if (opts.koth) {
+      sim.kothActive = true;
+      sim.kothTargetPoints = opts.kothTargetPoints || 100;
     }
   }
   // Bot-spawn: lägg bot som virtuell member INNAN mode-init så loopen tilldelar
@@ -1735,6 +1889,45 @@ function startSim(sim, opts) {
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
     // Exponera promote/demote till bullets.js
     sim._endGungameMatch = endGungameMatch;
+  } else if (sim.kothActive) {
+    // KOTH: hold-the-hill FFA på 3500×2000 close-quarters arena.
+    sim.simReadyAt = Date.now() + 5000;
+    let i = 0;
+    for (const [pid, ws] of sim.room.members) {
+      ws.playerState = ws.playerState || {};
+      const sp = KOTH_ARENA.spawns[i % KOTH_ARENA.spawns.length];
+      ws.playerState.x = sp.x;
+      ws.playerState.y = sp.y;
+      ws.playerState.hp = 100;
+      ws.playerState.shield = 100;
+      ws.playerState.maxShield = 100;
+      ws.playerState.invulnUntil = Date.now() + 1500;
+      ws.playerState.weaponId = 'pistol';
+      ws.tdmRespawnAt = 0;
+      ws.tdmTeam = null; // FFA
+      sim.kothScores[pid] = 0;
+      sim.kothKillsByPid[pid] = 0;
+      sim.tdmDeathsByPid[pid] = 0;
+      sim._kothPointAccum[pid] = 0;
+      i++;
+    }
+    sim._kothSpawnIdx = i;
+    sim.kothActiveZoneIdx = 0;
+    sim._kothZoneRotateAt = Date.now() + (KOTH_ARENA.zoneRotateSec || 45) * 1000;
+    sim.eventQueue.push({
+      type: 'koth_started',
+      arena: { worldW: KOTH_ARENA.worldW, worldH: KOTH_ARENA.worldH, name: KOTH_ARENA.name },
+      walls: KOTH_ARENA.walls,
+      spawns: KOTH_ARENA.spawns,
+      decorations: KOTH_ARENA.decorations || [],
+      zones: KOTH_ARENA.zones,
+      activeZoneIdx: sim.kothActiveZoneIdx,
+      zoneRotateSec: KOTH_ARENA.zoneRotateSec,
+      targetPoints: sim.kothTargetPoints,
+      shieldMax: 100,
+    });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    sim._endKothMatch = endKothMatch;
   } else {
     loadStage(sim, sim.wave);
   }

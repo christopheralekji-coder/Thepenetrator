@@ -517,13 +517,16 @@ function handleMessage(ws, msg) {
       siege: msg.siege,
       siegeTargetPoints: msg.siegeTargetPoints,
       gungame: msg.gungame,
+      koth: msg.koth,
+      kothTargetPoints: msg.kothTargetPoints,
       addBot: !!msg.addBot,
       botTeam: msg.botTeam,
     });
     // Markera rummet som "startat" i public-listan + uppdatera mode
     if (room.meta) {
       room.meta.started = true;
-      if (msg.gungame) room.meta.mode = 'gungame';
+      if (msg.koth) room.meta.mode = 'koth';
+      else if (msg.gungame) room.meta.mode = 'gungame';
       else if (msg.siege) room.meta.mode = 'siege';
       else if (msg.ctf) room.meta.mode = 'ctf';
       else if (msg.tdm) room.meta.mode = 'tdm';
