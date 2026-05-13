@@ -3,7 +3,7 @@
 
 const { encodeWorldBinary } = require('./wirefmt');
 const { makeEnemy, updateEnemy } = require('./enemies');
-const { spawnPlayerBullets, updateBullets, damageEnemy } = require('./bullets');
+const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy } = require('./bullets');
 const { updateBoss } = require('./bosses');
 const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onWaveComplete, checkBossDeath } = require('./waves');
 const { updatePickups, dropFromEnemyDeath } = require('./pickups');
@@ -1186,13 +1186,27 @@ function endSiegeMatch(sim, winner, reason) {
 function tickGungame(sim, dt, now) {
   const nowMs = Date.now();
 
-  // Respawn döda spelare på roterande spawn-point (anti-spawn-camp)
+  // Respawn döda spelare på roterande spawn-point (anti-spawn-camp).
+  // Försök upp till N spawn-punkter tills vi hittar en utan levande spelare
+  // inom 120px — annars spawnar man rakt ovanpå en motståndare.
   for (const [pid, ws] of sim.room.members) {
     if (ws.tdmRespawnAt && nowMs >= ws.tdmRespawnAt) {
       ws.tdmRespawnAt = 0;
       if (ws.playerState) {
-        // Roterande spawn-index så respawn inte upprepar samma plats
-        const sp = GUNGAME_ARENA.spawns[sim._gungameSpawnIdx % GUNGAME_ARENA.spawns.length];
+        const spawns = GUNGAME_ARENA.spawns;
+        let sp = spawns[sim._gungameSpawnIdx % spawns.length];
+        for (let tries = 0; tries < spawns.length; tries++) {
+          const candidate = spawns[(sim._gungameSpawnIdx + tries) % spawns.length];
+          let occupied = false;
+          for (const [otherPid, otherWs] of sim.room.members) {
+            if (otherPid === pid) continue;
+            if (!otherWs.playerState || otherWs.playerState.hp <= 0) continue;
+            const dx = otherWs.playerState.x - candidate.x;
+            const dy = otherWs.playerState.y - candidate.y;
+            if (dx * dx + dy * dy < 120 * 120) { occupied = true; break; }
+          }
+          if (!occupied) { sp = candidate; sim._gungameSpawnIdx += tries; break; }
+        }
         sim._gungameSpawnIdx++;
         ws.playerState.x = sp.x;
         ws.playerState.y = sp.y;
@@ -1845,6 +1859,13 @@ function applyShoot(sim, peerId, msg) {
     stealthBonus: msg.stealthBonus || 1,
     perks: msg.perks || {}, cheats: msg.cheats || {},
   };
+  // Melee i PvP-modes: direkt hit-check, ingen bullet spawnas.
+  // (Story-mode melee körs lokalt på klient mot state.enemies.)
+  const w = require('../../shared/weapons-data').W_BY_ID[weaponId];
+  if (w && w.type === 'melee') {
+    applyMelee(sim, p, weaponId, params);
+    return;
+  }
   spawnPlayerBullets(sim, p, weaponId, params);
 }
 

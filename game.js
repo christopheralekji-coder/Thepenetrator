@@ -7494,16 +7494,24 @@ const Coop = {
       // Ego: jag blev demoterad
       if (ev.victim === this.myId && ev.demoted) {
         this.gungameTier = ev.victimTier;
+        // Uppdatera HUD-bannern direkt så spelaren ser nya tiern under death-overlayen
+        if (typeof updateGungameTier === 'function') updateGungameTier(ev.victimTier, this.gungameWeapons);
         if (typeof showToast === 'function') showToast('⬇ DEMOTION! Melee-kill → tier ' + (ev.victimTier + 1));
       }
       if (ev.victim === this.myId) {
         if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
         if (typeof triggerShake === 'function') triggerShake(14, 0.6);
+        // Sätt spectating + spawna deadBody-ghost så spelaren ser "jag är död"
+        // istället för att stå still med hp=0 och utan visuell indikation.
+        if (state.player) {
+          state.player.spectating = true;
+          state.player.hp = 0;
+        }
+        state.deadBody = { x: state.player ? state.player.x : 0, y: state.player ? state.player.y : 0, reviveTimer: 3 };
       }
     } else if (ev.type === 'gungame_player_died') {
-      if (ev.victim === this.myId && typeof showSiegeRespawnCountdown === 'function') {
-        showSiegeRespawnCountdown(Date.now() + (ev.durationMs || 3000));
-      }
+      // Death-countdown drivs av gungame_respawn_pending — INTE här (skulle
+      // dubbel-starta countdown). Ev. spectating-state sätts redan i gungame_kill.
     } else if (ev.type === 'gungame_player_respawned') {
       if (ev.peerId === this.myId && state.player) {
         state.player.spectating = false;
@@ -7518,6 +7526,14 @@ const Coop = {
           state.player.weaponId = ev.weaponId;
           save.equipped = ev.weaponId;
           save.weaponId = ev.weaponId;
+          // Reset reload-state så respawnat vapen är direkt redo
+          state.player.reloading = false;
+          state.player.ammo = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) || 0;
+        }
+        // Uppdatera egen tier + HUD-banner (kan ha demoterats sedan death)
+        if (typeof ev.tier === 'number') {
+          this.gungameTier = ev.tier;
+          if (typeof updateGungameTier === 'function') updateGungameTier(ev.tier, this.gungameWeapons);
         }
         state.deadBody = null;
         if (typeof _siegeRespawnOverlay !== 'undefined' && _siegeRespawnOverlay) _siegeRespawnOverlay.classList.add('hidden');
@@ -10893,6 +10909,27 @@ function tryShoot(now) {
       }
     }
     spawnSlash(p.x, p.y, ang, reach, w.color);
+    // Server-auth PvP: skicka sim_shoot även för melee så server gör PvP-hit-check
+    // mot andra spelare. Story-mode skadar enemies lokalt ovan; PvP-mode har
+    // tomma state.enemies så lokal damage är no-op och server tar över.
+    if (Coop.serverSimActive && Coop.ws && Coop.ws.readyState === 1) {
+      const wepLvlBonus = (typeof weaponLevelDmgBonus === 'function') ? weaponLevelDmgBonus(w.id) : 1;
+      if (typeof _simDiag !== 'undefined') _simDiag.shotsSent++;
+      Coop.ws.send(JSON.stringify({
+        type: 'sim_shoot',
+        weaponId: w.id,
+        x: p.x, y: p.y, ang: p.aimAngle,
+        dmgMul: (p.dmgMul || 1) * wepLvlBonus,
+        critChance: p.critChance || 0,
+        adrenalineDmg, stealthBonus,
+        perks: { headshot: hasPerk('headshot') },
+        cheats: {
+          chozza: isCheatActive('chozza'),
+          ultimate: isCheatActive('ultimate'),
+          penetrera: isCheatActive('penetrera'),
+        },
+      }));
+    }
     return;
   }
 

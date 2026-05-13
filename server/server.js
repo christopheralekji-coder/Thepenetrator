@@ -448,7 +448,7 @@ function handleMessage(ws, msg) {
       room.sim.gungameTiers[ws.id] = 0;
       room.sim.gungameKillsByPid[ws.id] = 0;
       room.sim.tdmDeathsByPid[ws.id] = 0;
-      send(ws, { type: 'sim_events', events: [{
+      const lateJoinEvents = [{
         type: 'gungame_started',
         arena: { worldW: GUNGAME_ARENA.worldW, worldH: GUNGAME_ARENA.worldH, name: GUNGAME_ARENA.name },
         walls: GUNGAME_ARENA.walls,
@@ -457,7 +457,16 @@ function handleMessage(ws, msg) {
         weapons: GUNGAME_WEAPONS,
         totalTiers: GUNGAME_WEAPONS.length,
         shieldMax: 100,
-      }] });
+      }];
+      // Om sim fortfarande är i 5s prep-countdown, skicka countdown_start med
+      // resten av tiden så late-joiner ser samma overlay som andra spelare.
+      if (room.sim.simReadyAt && Date.now() < room.sim.simReadyAt) {
+        lateJoinEvents.push({
+          type: 'countdown_start',
+          durationMs: room.sim.simReadyAt - Date.now(),
+        });
+      }
+      send(ws, { type: 'sim_events', events: lateJoinEvents });
     }
     return;
   }

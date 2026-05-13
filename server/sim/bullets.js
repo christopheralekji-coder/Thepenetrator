@@ -73,11 +73,242 @@ function damageEnemy(e, dmg, isCrit, fromPid) {
   return false;
 }
 
+// applyMelee — server-auth melee-attack i PvP-modes. Klienten skickar sim_shoot
+// även för melee-vapen så server kan göra hit-detection mot andra spelare.
+// Story-mode melee körs fortfarande lokalt på klient mot state.enemies.
+// p = { x, y, aimAngle, r, peerId }
+function applyMelee(sim, p, weaponId, params) {
+  const w = W_BY_ID[weaponId];
+  if (!w || w.type !== 'melee') return;
+  // Bara PvP-modes — story melee hanteras lokalt på klient
+  const inGungame = !!sim.gungameActive && !sim.gungameEnded;
+  const inTdm = !!sim.tdmActive && !sim.tdmEnded;
+  const inCtf = !!sim.ctfActive && !sim.ctfEnded;
+  const inSiege = !!sim.siegeActive && !sim.siegeEnded;
+  if (!inGungame && !inTdm && !inCtf && !inSiege) return;
+
+  const ownerWs = sim.room.members.get(p.peerId);
+  if (!ownerWs) return;
+  const range = w.range || 40;
+  const cheats = params.cheats || {};
+  const dmgMul = params.dmgMul || 1;
+  const adrenalineDmg = params.adrenalineDmg || 1;
+  const stealthBonus = params.stealthBonus || 1;
+  const critChance = params.critChance || 0;
+  const headshotPerk = !!(params.perks && params.perks.headshot);
+  const ultMul = cheats.ultimate ? 10 : 1;
+  const ownerTeam = ownerWs.tdmTeam;
+
+  for (const [pid, ws] of sim.room.members) {
+    if (pid === p.peerId) continue;
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
+    // Friendly-fire av i team-modes
+    if (!inGungame && ownerTeam && ws.tdmTeam && ws.tdmTeam === ownerTeam) continue;
+
+    const dx = ws.playerState.x - p.x;
+    const dy = ws.playerState.y - p.y;
+    const d = Math.hypot(dx, dy);
+    if (d > range + 14) continue;
+    // Cone-check: 0.9 rad framför aimAngle (samma som klient game.js:10876)
+    const a = Math.atan2(dy, dx);
+    const diff = Math.abs(((a - p.aimAngle + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    if (diff > 0.9) continue;
+
+    const isCrit = cheats.chozza ? true : Math.random() < critChance;
+    const isHead = headshotPerk && Math.random() < 0.15;
+    const baseDmg = getPvpDmg(weaponId, w.dmg);
+    const finalDmg = baseDmg * dmgMul * adrenalineDmg * stealthBonus * ultMul * (isCrit ? 2 : 1) * (isHead ? 3 : 1);
+
+    // Apply damage (shield först)
+    let remaining = finalDmg;
+    if ((ws.playerState.shield || 0) > 0) {
+      const absorb = Math.min(ws.playerState.shield, remaining);
+      ws.playerState.shield -= absorb;
+      remaining -= absorb;
+    }
+    if (remaining > 0) {
+      ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+    }
+    sim.eventQueue.push({
+      type: 'pvp_hp_changed',
+      peerId: pid,
+      hp: ws.playerState.hp,
+      shield: ws.playerState.shield || 0,
+    });
+
+    // Kill-flow (mode-specifikt)
+    if (ws.playerState.hp <= 0) {
+      if (inGungame) {
+        handleGungameKill(sim, p.peerId, ownerWs, pid, ws, weaponId);
+      } else if (inTdm) {
+        handleTdmKill(sim, p.peerId, pid, ws, ownerTeam, weaponId);
+      } else if (inCtf) {
+        handleCtfKill(sim, p.peerId, pid, ws, ownerTeam, weaponId);
+      } else if (inSiege) {
+        handleSiegeKill(sim, p.peerId, pid, ws, ownerTeam, weaponId);
+      }
+    }
+  }
+}
+
+// handleTdmKill — kill-flow för TDM. Refactor av bullets-loopen så applyMelee kan
+// återanvända samma flow. Antar att invuln+team-checks redan gjorts av caller.
+function handleTdmKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
+  victimWs.tdmRespawnAt = Date.now() + 3000;
+  sim.tdmKills[ownerTeam] = (sim.tdmKills[ownerTeam] || 0) + 1;
+  sim.tdmKillsByPid[killerPid] = (sim.tdmKillsByPid[killerPid] || 0) + 1;
+  sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
+  sim.eventQueue.push({
+    type: 'tdm_kill',
+    killer: killerPid,
+    victim: victimPid,
+    killerTeam: ownerTeam,
+    victimTeam: victimWs.tdmTeam,
+    weapon: weaponId || null,
+    redKills: sim.tdmKills.red,
+    blueKills: sim.tdmKills.blue,
+  });
+  sim.eventQueue.push({
+    type: 'tdm_player_died',
+    victim: victimPid,
+    durationMs: 3000,
+  });
+  if (sim.tdmKills[ownerTeam] >= sim.tdmTargetKills) {
+    sim.tdmEnded = true;
+    sim.eventQueue.push({
+      type: 'tdm_match_end',
+      winner: ownerTeam,
+      redKills: sim.tdmKills.red,
+      blueKills: sim.tdmKills.blue,
+      stats: Object.keys(sim.tdmKillsByPid).map(p => ({
+        peerId: p,
+        team: sim.room.members.get(p) && sim.room.members.get(p).tdmTeam,
+        kills: sim.tdmKillsByPid[p] || 0,
+        deaths: sim.tdmDeathsByPid[p] || 0,
+      })),
+    });
+  }
+}
+
+// handleCtfKill — kill-flow för CTF inkl. flag-drop om offret bar flagga.
+function handleCtfKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
+  victimWs.tdmRespawnAt = Date.now() + 3000;
+  sim.ctfKillsByPid[killerPid] = (sim.ctfKillsByPid[killerPid] || 0) + 1;
+  sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
+  sim.eventQueue.push({
+    type: 'ctf_kill',
+    killer: killerPid,
+    victim: victimPid,
+    killerTeam: ownerTeam,
+    victimTeam: victimWs.tdmTeam,
+    weapon: weaponId || null,
+  });
+  sim.eventQueue.push({
+    type: 'ctf_player_died',
+    victim: victimPid,
+    durationMs: 3000,
+  });
+  // Drop flagga om victim bar en
+  for (const team of ['red', 'blue']) {
+    const flag = sim.ctfFlags[team];
+    if (flag.carrierId === victimPid) {
+      flag.carrierId = null;
+      flag.atBase = false;
+      flag.x = victimWs.playerState.x;
+      flag.y = victimWs.playerState.y;
+      flag.droppedAt = Date.now();
+      sim.eventQueue.push({
+        type: 'ctf_flag_dropped',
+        team, x: flag.x, y: flag.y, droppedBy: victimPid,
+      });
+    }
+  }
+}
+
+// handleSiegeKill — kill-flow för SIEGE. +3 poäng till killer-teamet.
+function handleSiegeKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
+  victimWs.tdmRespawnAt = Date.now() + 3000;
+  sim.siegeKillsByPid[killerPid] = (sim.siegeKillsByPid[killerPid] || 0) + 1;
+  sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
+  sim.siegeScores[ownerTeam] = (sim.siegeScores[ownerTeam] || 0) + 3;
+  sim.eventQueue.push({
+    type: 'siege_kill',
+    killer: killerPid, victim: victimPid,
+    killerTeam: ownerTeam, victimTeam: victimWs.tdmTeam,
+    weapon: weaponId || null,
+  });
+  sim.eventQueue.push({ type: 'siege_player_died', victim: victimPid, durationMs: 3000 });
+  sim.eventQueue.push({ type: 'siege_score_update', red: sim.siegeScores.red, blue: sim.siegeScores.blue });
+  if (sim.siegeScores[ownerTeam] >= sim.siegeTargetPoints) {
+    sim.siegeEnded = true;
+    const stats = { red: sim.siegeScores.red, blue: sim.siegeScores.blue, perPlayer: {} };
+    for (const [p, w2] of sim.room.members) {
+      stats.perPlayer[p] = {
+        team: w2.tdmTeam,
+        kills: sim.siegeKillsByPid[p] || 0,
+        deaths: sim.tdmDeathsByPid[p] || 0,
+      };
+    }
+    sim.eventQueue.push({
+      type: 'siege_match_end',
+      winner: ownerTeam, reason: 'points',
+      scores: { red: sim.siegeScores.red, blue: sim.siegeScores.blue },
+      stats,
+    });
+  }
+}
+
+// handleGungameKill — promote shooter, demote victim om melee, schedule respawn,
+// emit gungame_kill + gungame_respawn_pending, check win-condition.
+// Kallas från bullets-loopen (PvP-hit) och applyMelee.
+function handleGungameKill(sim, killerPid, killerWs, victimPid, victimWs, weaponId) {
+  const wasMelee = GUNGAME_MELEE_DEMOTERS.has(weaponId);
+  sim.gungameKillsByPid[killerPid] = (sim.gungameKillsByPid[killerPid] || 0) + 1;
+  const oldTier = sim.gungameTiers[killerPid] || 0;
+  const newTier = Math.min(GUNGAME_WEAPONS.length - 1, oldTier + 1);
+  sim.gungameTiers[killerPid] = newTier;
+  if (killerWs.playerState) {
+    killerWs.playerState.weaponId = GUNGAME_WEAPONS[newTier];
+  }
+  let demoted = false;
+  if (wasMelee) {
+    const vTier = sim.gungameTiers[victimPid] || 0;
+    const newVTier = Math.max(0, vTier - 1);
+    if (newVTier < vTier) {
+      sim.gungameTiers[victimPid] = newVTier;
+      demoted = true;
+    }
+  }
+  sim.eventQueue.push({
+    type: 'gungame_kill',
+    killer: killerPid,
+    victim: victimPid,
+    weapon: weaponId || null,
+    killerTier: newTier,
+    victimTier: sim.gungameTiers[victimPid],
+    wasMelee,
+    demoted,
+  });
+  victimWs.tdmRespawnAt = Date.now() + 3000;
+  sim.eventQueue.push({
+    type: 'gungame_respawn_pending',
+    peerId: victimPid,
+    durationMs: 3000,
+  });
+  // Win: killer hade redan tier 14 (sledge) när killen registrerades
+  if (oldTier === GUNGAME_WEAPONS.length - 1) {
+    if (sim._endGungameMatch) {
+      sim._endGungameMatch(sim, killerPid, 'final_tier_kill');
+    }
+  }
+}
+
 // Spawna player bullets — speglar spawnPlayerBullets-loopen (game.js:5029-5068)
 // p = { x, y, aimAngle, r=14, peerId, dmgMul, bspeedMul, explMul, kbMul, critChance, perks, cheats }
 function spawnPlayerBullets(sim, p, weaponId, params) {
   const w = W_BY_ID[weaponId];
-  if (!w || w.type === 'melee') return;  // melee handled separately (Phase 6)
+  if (!w || w.type === 'melee') return;  // melee handled by applyMelee
   // Special: mind-control — mark närmsta fiende, ingen bullet
   if (w.id === 'mindcontrol') {
     let target = null, bestD2 = 999 * 999;
@@ -193,11 +424,14 @@ function applyBulletEffects(b, e, sim) {
 
 // Explode (radius damage) — speglar game.js:5435-5458
 function explode(sim, x, y, radius, dmg, fromPid) {
-  // PvP-modes (TDM + CTF): explosion ska INTE skada eget lag, egen spelare,
-  // eller respawn-invuln. Shield absorberar först, sedan HP. Emiterar pvp_hp_changed.
+  // PvP-modes (TDM + CTF + SIEGE + GUNGAME): explosion ska INTE skada egen
+  // spelare eller respawn-invuln. I team-modes också inte eget lag. I gungame
+  // (FFA) träffar alla utom shooter. Shield absorberar först, sedan HP.
   const fromWs = fromPid ? sim.room.members.get(fromPid) : null;
   const fromTeam = fromWs && fromWs.tdmTeam;
-  const inPvP = sim.tdmActive || sim.ctfActive;
+  const inGungame = !!sim.gungameActive;
+  const inTeamPvP = !!(sim.tdmActive || sim.ctfActive || sim.siegeActive);
+  const inPvP = inTeamPvP || inGungame;
   if (!inPvP) {
     for (const e of sim.enemies) {
       if (e.dead) continue;
@@ -214,8 +448,11 @@ function explode(sim, x, y, radius, dmg, fromPid) {
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
     if (inPvP) {
       if (pid === fromPid) continue;             // egen spelare oskadad
-      if (!fromTeam || !ws.tdmTeam) continue;    // okänt team → no-op (safer)
-      if (ws.tdmTeam === fromTeam) continue;     // friendly fire av
+      // I FFA-gungame finns inga teams — skippa team-check
+      if (inTeamPvP) {
+        if (!fromTeam || !ws.tdmTeam) continue;  // okänt team → no-op (safer)
+        if (ws.tdmTeam === fromTeam) continue;   // friendly fire av
+      }
       const invuln = ws.playerState.invulnUntil || 0;
       if (Date.now() < invuln) continue;         // respawn-invuln skyddar
     }
@@ -517,45 +754,7 @@ function updateBullets(sim, dt, now) {
             shield: ws.playerState.shield || 0,
           });
           if (ws.playerState.hp <= 0) {
-            // Kill — respawn timer + öka team-score + per-pid stats
-            const respawnAt = Date.now() + 3000;
-            ws.tdmRespawnAt = respawnAt;
-            sim.tdmKills[ownerTeam] = (sim.tdmKills[ownerTeam] || 0) + 1;
-            sim.tdmKillsByPid[b.ownerPid] = (sim.tdmKillsByPid[b.ownerPid] || 0) + 1;
-            sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
-            sim.eventQueue.push({
-              type: 'tdm_kill',
-              killer: b.ownerPid,
-              victim: pid,
-              killerTeam: ownerTeam,
-              victimTeam: ws.tdmTeam,
-              weapon: b.weaponId || null,
-              redKills: sim.tdmKills.red,
-              blueKills: sim.tdmKills.blue,
-            });
-            // Riktat event till victim så de kan rendera respawn-countdown.
-            // Skickar durationMs istället för respawnAt (server-clock) — annars
-            // räknar klient från sin egen Date.now() vilket driftar.
-            sim.eventQueue.push({
-              type: 'tdm_player_died',
-              victim: pid,
-              durationMs: 3000,
-            });
-            if (sim.tdmKills[ownerTeam] >= sim.tdmTargetKills) {
-              sim.tdmEnded = true;
-              sim.eventQueue.push({
-                type: 'tdm_match_end',
-                winner: ownerTeam,
-                redKills: sim.tdmKills.red,
-                blueKills: sim.tdmKills.blue,
-                stats: Object.keys(sim.tdmKillsByPid).map(p => ({
-                  peerId: p,
-                  team: sim.room.members.get(p) && sim.room.members.get(p).tdmTeam,
-                  kills: sim.tdmKillsByPid[p] || 0,
-                  deaths: sim.tdmDeathsByPid[p] || 0,
-                })),
-              });
-            }
+            handleTdmKill(sim, b.ownerPid, pid, ws, ownerTeam, b.weaponId);
           }
           pvpHit = true;
           break;
@@ -603,37 +802,7 @@ function updateBullets(sim, dt, now) {
             shield: ws.playerState.shield || 0,
           });
           if (ws.playerState.hp <= 0) {
-            ws.tdmRespawnAt = Date.now() + 3000;
-            sim.ctfKillsByPid[b.ownerPid] = (sim.ctfKillsByPid[b.ownerPid] || 0) + 1;
-            sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
-            sim.eventQueue.push({
-              type: 'ctf_kill',
-              killer: b.ownerPid,
-              victim: pid,
-              killerTeam: ownerTeam,
-              victimTeam: ws.tdmTeam,
-              weapon: b.weaponId || null,
-            });
-            sim.eventQueue.push({
-              type: 'ctf_player_died',
-              victim: pid,
-              durationMs: 3000,
-            });
-            // Drop flagga om victim bar en (refererar applyCtfDeath inline)
-            for (const team of ['red', 'blue']) {
-              const flag = sim.ctfFlags[team];
-              if (flag.carrierId === pid) {
-                flag.carrierId = null;
-                flag.atBase = false;
-                flag.x = ws.playerState.x;
-                flag.y = ws.playerState.y;
-                flag.droppedAt = Date.now();
-                sim.eventQueue.push({
-                  type: 'ctf_flag_dropped',
-                  team, x: flag.x, y: flag.y, droppedBy: pid,
-                });
-              }
-            }
+            handleCtfKill(sim, b.ownerPid, pid, ws, ownerTeam, b.weaponId);
           }
           pvpHit = true;
           break;
@@ -676,36 +845,7 @@ function updateBullets(sim, dt, now) {
             shield: ws.playerState.shield || 0,
           });
           if (ws.playerState.hp <= 0) {
-            ws.tdmRespawnAt = Date.now() + 3000;
-            sim.siegeKillsByPid[b.ownerPid] = (sim.siegeKillsByPid[b.ownerPid] || 0) + 1;
-            sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
-            sim.siegeScores[ownerTeam] = (sim.siegeScores[ownerTeam] || 0) + 3; // +3 per kill
-            sim.eventQueue.push({
-              type: 'siege_kill',
-              killer: b.ownerPid, victim: pid,
-              killerTeam: ownerTeam, victimTeam: ws.tdmTeam,
-              weapon: b.weaponId || null,
-            });
-            sim.eventQueue.push({ type: 'siege_player_died', victim: pid, durationMs: 3000 });
-            sim.eventQueue.push({ type: 'siege_score_update', red: sim.siegeScores.red, blue: sim.siegeScores.blue });
-            // Vinst på 100p?
-            if (sim.siegeScores[ownerTeam] >= sim.siegeTargetPoints) {
-              sim.siegeEnded = true;
-              const stats = { red: sim.siegeScores.red, blue: sim.siegeScores.blue, perPlayer: {} };
-              for (const [p, w2] of sim.room.members) {
-                stats.perPlayer[p] = {
-                  team: w2.tdmTeam,
-                  kills: sim.siegeKillsByPid[p] || 0,
-                  deaths: sim.tdmDeathsByPid[p] || 0,
-                };
-              }
-              sim.eventQueue.push({
-                type: 'siege_match_end',
-                winner: ownerTeam, reason: 'points',
-                scores: { red: sim.siegeScores.red, blue: sim.siegeScores.blue },
-                stats,
-              });
-            }
+            handleSiegeKill(sim, b.ownerPid, pid, ws, ownerTeam, b.weaponId);
           }
           pvpHit = true;
           break;
@@ -750,54 +890,7 @@ function updateBullets(sim, dt, now) {
             shield: ws.playerState.shield || 0,
           });
           if (ws.playerState.hp <= 0) {
-            // KILL — promote shooter, ev. demote victim
-            const wasMelee = GUNGAME_MELEE_DEMOTERS.has(b.weaponId);
-            sim.gungameKillsByPid[b.ownerPid] = (sim.gungameKillsByPid[b.ownerPid] || 0) + 1;
-            const oldTier = sim.gungameTiers[b.ownerPid] || 0;
-            const newTier = Math.min(GUNGAME_WEAPONS.length - 1, oldTier + 1);
-            sim.gungameTiers[b.ownerPid] = newTier;
-            // Sätt shooter:s vapen till nästa tier
-            if (ownerWs.playerState) {
-              ownerWs.playerState.weaponId = GUNGAME_WEAPONS[newTier];
-            }
-            // Demote-mekanik: melee-kill → offret förlorar 1 tier (cap 0)
-            let demoted = false;
-            if (wasMelee) {
-              const vTier = sim.gungameTiers[pid] || 0;
-              const newVTier = Math.max(0, vTier - 1);
-              if (newVTier < vTier) {
-                sim.gungameTiers[pid] = newVTier;
-                demoted = true;
-              }
-            }
-            // Skicka kill-event + tier-changes
-            sim.eventQueue.push({
-              type: 'gungame_kill',
-              killer: b.ownerPid,
-              victim: pid,
-              weapon: b.weaponId || null,
-              killerTier: newTier,
-              victimTier: sim.gungameTiers[pid],
-              wasMelee,
-              demoted,
-            });
-            // Respawn-event
-            const respawnAt = Date.now() + 3000;
-            ws.tdmRespawnAt = respawnAt;
-            sim.eventQueue.push({
-              type: 'gungame_respawn_pending',
-              peerId: pid,
-              durationMs: 3000,
-            });
-            // Win-check: killer nådde tier 14 (sledge, index 14 = vapen 15) OCH
-            // dödade någon med det vapnet — endast då vinner de.
-            // KORRIGERING: kill med tier 14 (oldTier=14) = win. Nya tiern blir
-            // capped på 14, så villkoret är oldTier === GUNGAME_WEAPONS.length - 1.
-            if (oldTier === GUNGAME_WEAPONS.length - 1) {
-              if (sim._endGungameMatch) {
-                sim._endGungameMatch(sim, b.ownerPid, 'final_tier_kill');
-              }
-            }
+            handleGungameKill(sim, b.ownerPid, ownerWs, pid, ws, b.weaponId);
           }
           pvpHit = true;
           break;
@@ -847,6 +940,7 @@ function updateBullets(sim, dt, now) {
 
 module.exports = {
   spawnPlayerBullets,
+  applyMelee,
   updateBullets,
   damageEnemy,
   explode,
