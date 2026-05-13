@@ -14150,6 +14150,16 @@ function showTdmEndScreen(winner, redKills, blueKills, stats, teams) {
     _tdmEndTitle.style.color = winner === 'red' ? '#ff5a5a' : '#5aaaff';
   }
   if (_tdmEndScore) _tdmEndScore.textContent = redKills + ' — ' + blueKills;
+  // Hero-stat: MVP = mest kills
+  const tdmHeroEl = document.getElementById('tdm-end-hero');
+  if (tdmHeroEl && stats && stats.length) {
+    const mvp = stats.slice().sort((a, b) => (b.kills || 0) - (a.kills || 0))[0];
+    if (mvp) {
+      const mvpName = mvp.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(mvp.peerId) && Coop.players.get(mvp.peerId).name) || 'Spelare');
+      const mvpKd = mvp.deaths > 0 ? (mvp.kills / mvp.deaths).toFixed(2) : (mvp.kills || 0) + '.00';
+      tdmHeroEl.innerHTML = '🏆 MVP: <span style="color:#fff;">' + escapeHtml(mvpName) + '</span> · ' + (mvp.kills || 0) + ' kills · K/D ' + mvpKd;
+    }
+  }
   if (_tdmEndStats) {
     const sortedStats = (stats || []).slice().sort((a, b) => b.kills - a.kills);
     _tdmEndStats.innerHTML = sortedStats.map(s => {
@@ -14321,6 +14331,22 @@ function showCtfEndScreen(winner, redCaps, blueCaps, stats, teams) {
     _ctfEndTitle.style.color = winner === 'red' ? '#ff5a5a' : '#5aaaff';
   }
   if (_ctfEndScore) _ctfEndScore.textContent = redCaps + ' — ' + blueCaps;
+  // Hero-stat: flag-carrier MVP (mest captures)
+  const ctfHeroEl = document.getElementById('ctf-end-hero');
+  if (ctfHeroEl && stats && stats.length) {
+    const flagMvp = stats.slice().sort((a, b) => (b.captures || 0) - (a.captures || 0))[0];
+    if (flagMvp && (flagMvp.captures || 0) > 0) {
+      const mvpName = flagMvp.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(flagMvp.peerId) && Coop.players.get(flagMvp.peerId).name) || 'Spelare');
+      ctfHeroEl.innerHTML = '🚩 FLAG CARRIER: <span style="color:#fff;">' + escapeHtml(mvpName) + '</span> · ' + (flagMvp.captures || 0) + ' caps · ⚡ ' + (flagMvp.kills || 0) + ' kills';
+    } else {
+      // Fallback till kill-MVP om ingen capade
+      const killMvp = stats.slice().sort((a, b) => (b.kills || 0) - (a.kills || 0))[0];
+      if (killMvp) {
+        const mvpName = killMvp.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(killMvp.peerId) && Coop.players.get(killMvp.peerId).name) || 'Spelare');
+        ctfHeroEl.innerHTML = '⚔ TOP FRAG: <span style="color:#fff;">' + escapeHtml(mvpName) + '</span> · ' + (killMvp.kills || 0) + ' kills';
+      }
+    }
+  }
   if (_ctfEndStats) {
     const sorted = (stats || []).slice().sort((a, b) => (b.captures - a.captures) || (b.kills - a.kills));
     _ctfEndStats.innerHTML = sorted.map(s => {
@@ -14473,6 +14499,21 @@ function showSiegeEndScreen(winner, redScore, blueScore, stats, teams, reason) {
     _siegeEndReason.textContent = reason === 'core_destroyed' ? '💥 FIENDENS CORE FÖRSTÖRD!' : '🏆 POÄNG-MÅL UPPNÅTT';
   }
   if (_siegeEndScore) _siegeEndScore.textContent = redScore + ' — ' + blueScore;
+  // Subtitle: visa team-resultat tydligare
+  const siegeSubEl = document.getElementById('siege-end-subtitle');
+  if (siegeSubEl) {
+    siegeSubEl.textContent = winner === 'red' ? '🔴 Röda laget krossade fienden' : '🔵 Blå laget krossade fienden';
+  }
+  // Hero-stat: top-fragger per match
+  const siegeHeroEl = document.getElementById('siege-end-hero');
+  if (siegeHeroEl && stats && stats.length) {
+    const mvp = stats.slice().sort((a, b) => (b.kills || 0) - (a.kills || 0))[0];
+    if (mvp && (mvp.kills || 0) > 0) {
+      const mvpName = mvp.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(mvp.peerId) && Coop.players.get(mvp.peerId).name) || 'Spelare');
+      const mvpKd = mvp.deaths > 0 ? (mvp.kills / mvp.deaths).toFixed(2) : (mvp.kills || 0) + '.00';
+      siegeHeroEl.innerHTML = '🏆 TOP SIEGER: <span style="color:#fff;">' + escapeHtml(mvpName) + '</span> · ' + (mvp.kills || 0) + ' kills · K/D ' + mvpKd;
+    }
+  }
   if (_siegeEndStats) {
     const sorted = (stats || []).slice().sort((a, b) => (b.kills - a.kills));
     _siegeEndStats.innerHTML = sorted.map(s => {
@@ -14521,6 +14562,95 @@ if (_btnSiegeRematch) {
             mode: Coop.config.mode || 'story',
             siege: true,
             siegeTargetPoints: Coop.config.siegeTargetPoints || 500,
+          }));
+        }, 400);
+      } catch (e) {}
+    }
+  });
+}
+
+// GUNGAME end-overlay back + rematch
+const _btnGungameBack = document.getElementById('btn-gungame-back');
+const _btnGungameRematch = document.getElementById('btn-gungame-rematch');
+const _gungameEndOverlay = document.getElementById('gungame-end-overlay');
+if (_btnGungameBack) {
+  _btnGungameBack.addEventListener('click', () => {
+    if (_gungameEndOverlay) _gungameEndOverlay.classList.add('hidden');
+    if (Coop.isHost && Coop.ws && Coop.ws.readyState === 1) {
+      try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (e) {}
+    }
+    state.gungameActive = false;
+    Coop.gungameActive = false;
+    Coop.serverSimActive = false;
+    state.serverSimActive = false;
+    state.mode = 'menu';
+    if (typeof Music !== 'undefined' && Music.stop) Music.stop();
+    document.body.classList.add('menu-mode');
+    if (typeof menuScreen !== 'undefined') menuScreen.classList.remove('hidden');
+    Coop.disconnect();
+  });
+}
+if (_btnGungameRematch) {
+  _btnGungameRematch.addEventListener('click', () => {
+    if (!Coop.isHost) return;
+    if (_gungameEndOverlay) _gungameEndOverlay.classList.add('hidden');
+    if (Coop.ws && Coop.ws.readyState === 1) {
+      try {
+        Coop.ws.send(JSON.stringify({ type: 'sim_stop' }));
+        setTimeout(() => {
+          if (!Coop.ws || Coop.ws.readyState !== 1) return;
+          Coop.ws.send(JSON.stringify({
+            type: 'sim_start',
+            wave: 1,
+            difficulty: Coop.config.difficulty || 'veteran',
+            ngpLevel: 0,
+            mode: Coop.config.mode || 'story',
+            gungame: true,
+          }));
+        }, 400);
+      } catch (e) {}
+    }
+  });
+}
+
+// KOTH end-overlay back + rematch
+const _btnKothBack = document.getElementById('btn-koth-back');
+const _btnKothRematch = document.getElementById('btn-koth-rematch');
+const _kothEndOverlay = document.getElementById('koth-end-overlay');
+if (_btnKothBack) {
+  _btnKothBack.addEventListener('click', () => {
+    if (_kothEndOverlay) _kothEndOverlay.classList.add('hidden');
+    if (Coop.isHost && Coop.ws && Coop.ws.readyState === 1) {
+      try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (e) {}
+    }
+    state.kothActive = false;
+    Coop.kothActive = false;
+    Coop.serverSimActive = false;
+    state.serverSimActive = false;
+    state.mode = 'menu';
+    if (typeof Music !== 'undefined' && Music.stop) Music.stop();
+    document.body.classList.add('menu-mode');
+    if (typeof menuScreen !== 'undefined') menuScreen.classList.remove('hidden');
+    Coop.disconnect();
+  });
+}
+if (_btnKothRematch) {
+  _btnKothRematch.addEventListener('click', () => {
+    if (!Coop.isHost) return;
+    if (_kothEndOverlay) _kothEndOverlay.classList.add('hidden');
+    if (Coop.ws && Coop.ws.readyState === 1) {
+      try {
+        Coop.ws.send(JSON.stringify({ type: 'sim_stop' }));
+        setTimeout(() => {
+          if (!Coop.ws || Coop.ws.readyState !== 1) return;
+          Coop.ws.send(JSON.stringify({
+            type: 'sim_start',
+            wave: 1,
+            difficulty: Coop.config.difficulty || 'veteran',
+            ngpLevel: 0,
+            mode: Coop.config.mode || 'story',
+            koth: true,
+            kothTargetPoints: Coop.config.kothTargetPoints || 100,
           }));
         }, 400);
       } catch (e) {}
@@ -14612,25 +14742,40 @@ function addGungameKillFeed(killerName, victimName, weaponName, wasMelee, demote
 }
 function showGungameEndScreen(winnerId, stats) {
   hideGungameHud();
-  // Återanvänd siege-end-overlay om finns, annars enkel alert/toast
+  const overlay = document.getElementById('gungame-end-overlay');
   const winnerName = winnerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(winnerId) && Coop.players.get(winnerId).name) || 'Spelare');
-  // Build stats-tabell
-  const rows = (stats || []).sort((a, b) => (b.tier || 0) - (a.tier || 0)).map(s => {
-    const name = s.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || s.peerId);
-    return '<tr><td style="padding:4px 8px;">' + escapeHtml(name) + '</td><td style="padding:4px 8px;text-align:center;color:#3acaff;">' + (s.tier + 1) + '/15</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.deaths || 0) + '</td></tr>';
-  }).join('');
-  // Använd siege-end-overlay om det finns
-  if (_siegeEndOverlay) {
-    const titleEl = document.getElementById('siege-end-title');
-    const subEl = document.getElementById('siege-end-subtitle');
-    const statsEl = document.getElementById('siege-end-stats');
-    if (titleEl) titleEl.textContent = '🏆 GUNGAME WINNER';
-    if (subEl) subEl.innerHTML = '<span style="color:#5aff5a;">' + escapeHtml(winnerName) + '</span> klarade alla 15 tiers!';
-    if (statsEl) statsEl.innerHTML = '<table style="margin:8px auto;border-collapse:collapse;"><thead><tr><th style="padding:4px 8px;color:#888;">Spelare</th><th style="padding:4px 8px;color:#888;">Tier</th><th style="padding:4px 8px;color:#888;">Kills</th><th style="padding:4px 8px;color:#888;">Deaths</th></tr></thead><tbody>' + rows + '</tbody></table>';
-    _siegeEndOverlay.classList.remove('hidden');
-  } else if (typeof showToast === 'function') {
-    showToast('🏆 ' + winnerName + ' VANN GUNGAME!');
+  const titleEl = document.getElementById('gungame-end-title');
+  const subEl = document.getElementById('gungame-end-subtitle');
+  const heroEl = document.getElementById('gungame-end-hero');
+  const statsEl = document.getElementById('gungame-end-stats');
+  // Hero-stat: vem hade flest kills (MVP) + vem nådde högsta tier
+  const sortedByTier = (stats || []).slice().sort((a, b) => (b.tier || 0) - (a.tier || 0));
+  const sortedByKills = (stats || []).slice().sort((a, b) => (b.kills || 0) - (a.kills || 0));
+  const tierLeader = sortedByTier[0];
+  const killLeader = sortedByKills[0];
+  const tierLeaderName = tierLeader ? (tierLeader.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(tierLeader.peerId) && Coop.players.get(tierLeader.peerId).name) || 'Spelare')) : '';
+  const killLeaderName = killLeader ? (killLeader.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(killLeader.peerId) && Coop.players.get(killLeader.peerId).name) || 'Spelare')) : '';
+  if (titleEl) titleEl.textContent = '🏆 ' + winnerName.toUpperCase();
+  if (subEl) subEl.textContent = 'klarade alla 15 tiers!';
+  if (heroEl && killLeader) {
+    heroEl.innerHTML = '⚔ MVP: <span style="color:#fff;">' + escapeHtml(killLeaderName) + '</span> · ' + (killLeader.kills || 0) + ' kills';
   }
+  if (statsEl) {
+    const rows = sortedByTier.map((s, i) => {
+      const name = s.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || s.peerId);
+      const winBadge = s.peerId === winnerId ? '🏆 ' : '';
+      const isMe = s.peerId === Coop.myId ? ' (du)' : '';
+      // Vapen-namn för aktuell tier
+      const tw = (typeof GUNGAME_WEAPONS !== 'undefined' && GUNGAME_WEAPONS[s.tier]) ? GUNGAME_WEAPONS[s.tier] : null;
+      const wName = tw && W_BY_ID[tw] ? W_BY_ID[tw].name : (tw || '');
+      return '<tr><td style="padding:4px 8px;text-align:left;">' + winBadge + escapeHtml(name) + isMe + '</td><td style="padding:4px 8px;text-align:center;color:#3acaff;font-weight:700;">' + (s.tier + 1) + '/15</td><td style="padding:4px 8px;text-align:center;color:#aaa;font-size:11px;">' + escapeHtml(wName) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.deaths || 0) + '</td></tr>';
+    }).join('');
+    statsEl.innerHTML = '<table style="margin:0 auto;border-collapse:collapse;"><thead><tr><th style="padding:4px 8px;color:#888;text-align:left;">Spelare</th><th style="padding:4px 8px;color:#888;">Tier</th><th style="padding:4px 8px;color:#888;">Vapen</th><th style="padding:4px 8px;color:#888;">Kills</th><th style="padding:4px 8px;color:#888;">Deaths</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+  if (overlay) overlay.classList.remove('hidden');
+  // Rematch-knapp bara för host
+  const _rematchBtn = document.getElementById('btn-gungame-rematch');
+  if (_rematchBtn) _rematchBtn.classList.toggle('hidden', !Coop.isHost);
 }
 
 // === KOTH HUD ===
@@ -14698,22 +14843,34 @@ function addKothKillFeed(killerName, victimName, weaponName) {
 }
 function showKothEndScreen(winnerId, stats) {
   hideKothHud();
+  const overlay = document.getElementById('koth-end-overlay');
   const winnerName = winnerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(winnerId) && Coop.players.get(winnerId).name) || 'Spelare');
-  const rows = (stats || []).sort((a, b) => (b.score || 0) - (a.score || 0)).map(s => {
-    const name = s.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || s.peerId);
-    return '<tr><td style="padding:4px 8px;">' + escapeHtml(name) + '</td><td style="padding:4px 8px;text-align:center;color:#ffd54a;">' + (s.score || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.deaths || 0) + '</td></tr>';
-  }).join('');
-  if (typeof _siegeEndOverlay !== 'undefined' && _siegeEndOverlay) {
-    const titleEl = document.getElementById('siege-end-title');
-    const subEl = document.getElementById('siege-end-subtitle');
-    const statsEl = document.getElementById('siege-end-stats');
-    if (titleEl) titleEl.textContent = '👑 KOTH WINNER';
-    if (subEl) subEl.innerHTML = '<span style="color:#5aff5a;">' + escapeHtml(winnerName) + '</span> höll kullen!';
-    if (statsEl) statsEl.innerHTML = '<table style="margin:8px auto;border-collapse:collapse;"><thead><tr><th style="padding:4px 8px;color:#888;">Spelare</th><th style="padding:4px 8px;color:#888;">Poäng</th><th style="padding:4px 8px;color:#888;">Kills</th><th style="padding:4px 8px;color:#888;">Deaths</th></tr></thead><tbody>' + rows + '</tbody></table>';
-    _siegeEndOverlay.classList.remove('hidden');
-  } else if (typeof showToast === 'function') {
-    showToast('🏆 ' + winnerName + ' VANN KOTH!');
+  const titleEl = document.getElementById('koth-end-title');
+  const subEl = document.getElementById('koth-end-subtitle');
+  const heroEl = document.getElementById('koth-end-hero');
+  const statsEl = document.getElementById('koth-end-stats');
+  const sortedByScore = (stats || []).slice().sort((a, b) => (b.score || 0) - (a.score || 0));
+  const sortedByKills = (stats || []).slice().sort((a, b) => (b.kills || 0) - (a.kills || 0));
+  const killLeader = sortedByKills[0];
+  const killLeaderName = killLeader ? (killLeader.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(killLeader.peerId) && Coop.players.get(killLeader.peerId).name) || 'Spelare')) : '';
+  if (titleEl) titleEl.textContent = '👑 ' + winnerName.toUpperCase();
+  if (subEl) subEl.textContent = 'höll kullen längst!';
+  if (heroEl && killLeader) {
+    heroEl.innerHTML = '⚔ FLEST KILLS: <span style="color:#fff;">' + escapeHtml(killLeaderName) + '</span> · ' + (killLeader.kills || 0) + ' frags';
   }
+  if (statsEl) {
+    const rows = sortedByScore.map((s, i) => {
+      const name = s.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || s.peerId);
+      const winBadge = s.peerId === winnerId ? '👑 ' : '';
+      const isMe = s.peerId === Coop.myId ? ' (du)' : '';
+      const rank = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : (i + 1) + '.'));
+      return '<tr><td style="padding:4px 8px;text-align:center;color:#888;">' + rank + '</td><td style="padding:4px 8px;text-align:left;">' + winBadge + escapeHtml(name) + isMe + '</td><td style="padding:4px 8px;text-align:center;color:#ffd54a;font-weight:700;">' + (s.score || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.deaths || 0) + '</td></tr>';
+    }).join('');
+    statsEl.innerHTML = '<table style="margin:0 auto;border-collapse:collapse;"><thead><tr><th style="padding:4px 8px;color:#888;">#</th><th style="padding:4px 8px;color:#888;text-align:left;">Spelare</th><th style="padding:4px 8px;color:#888;">Poäng</th><th style="padding:4px 8px;color:#888;">Kills</th><th style="padding:4px 8px;color:#888;">Deaths</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+  if (overlay) overlay.classList.remove('hidden');
+  const _rematchBtn = document.getElementById('btn-koth-rematch');
+  if (_rematchBtn) _rematchBtn.classList.toggle('hidden', !Coop.isHost);
 }
 
 // Killstreak banner (visas i sidan av skärmen, inte i mitten)
@@ -24359,11 +24516,12 @@ function drawMiniMap() {
     if (b.kind === 'tree' || b.kind === 'fence_seg' || b.kind === 'fence_seg_broken') continue;
     ctx.fillRect(ox + b.x * scale, oy + b.y * scale, Math.max(1, b.w * scale), Math.max(1, b.h * scale));
   }
-  // PvP-obstacles — alla 4 lägen får walls renderade på minimap
+  // PvP-obstacles — alla 5 lägen får walls renderade på minimap
   const pvpWalls = state.ctfActive ? state.ctfWalls
     : (state.tdmActive ? state.tdmWalls
     : (state.siegeActive ? state.siegeWalls
-    : (state.gungameActive ? state.gungameWalls : null)));
+    : (state.gungameActive ? state.gungameWalls
+    : (state.kothActive ? state.kothWalls : null))));
   if (pvpWalls) {
     for (const w of pvpWalls) {
       let color;
@@ -24381,6 +24539,26 @@ function drawMiniMap() {
       ctx.fillStyle = color;
       ctx.fillRect(ox + w.x * scale, oy + w.y * scale,
                    Math.max(1, w.w * scale), Math.max(1, w.h * scale));
+    }
+  }
+  // KOTH active zone på minimap (pulse-cirkel i guld)
+  if (state.kothActive && state.kothZones && state.kothActiveZoneIdx != null) {
+    const z = state.kothZones[state.kothActiveZoneIdx];
+    if (z) {
+      const zx = ox + z.x * scale, zy = oy + z.y * scale;
+      const zr = z.r * scale;
+      const pulse = 0.6 + Math.sin(performance.now() / 240) * 0.4;
+      ctx.strokeStyle = 'rgba(255,213,74,' + (0.5 + 0.3 * pulse) + ')';
+      ctx.fillStyle = 'rgba(255,213,74,0.18)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(zx, zy, zr, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+      // Crown-icon centrerad
+      ctx.fillStyle = 'rgba(255,213,74,0.9)';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('👑', zx, zy);
     }
   }
   // CTF flag-stands på minimap (pulse) + turrets

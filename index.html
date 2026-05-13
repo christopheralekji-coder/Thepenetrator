@@ -156,8 +156,10 @@
 </div>
 
 <div id="tdm-end-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;padding-bottom:max(20px, env(safe-area-inset-bottom, 20px));padding-left:max(20px, env(safe-area-inset-left, 20px));padding-right:max(20px, env(safe-area-inset-right, 20px));">
-  <div id="tdm-end-title" style="font-size:48px;font-weight:900;letter-spacing:6px;margin-bottom:12px;">RED WINS</div>
-  <div id="tdm-end-score" style="font-size:22px;color:#ddd;margin-bottom:18px;">10 — 7</div>
+  <div style="font-size:14px;color:#aaa;margin-bottom:4px;letter-spacing:3px;font-weight:700;">⚔ TEAM DEATHMATCH ⚔</div>
+  <div id="tdm-end-title" style="font-size:48px;font-weight:900;letter-spacing:6px;margin-bottom:8px;">RED WINS</div>
+  <div id="tdm-end-score" style="font-size:22px;color:#ddd;margin-bottom:8px;">10 — 7</div>
+  <div id="tdm-end-hero" style="font-size:14px;color:#ffd54a;margin-bottom:14px;font-weight:700;min-height:18px;"></div>
   <div id="tdm-end-stats" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:14px 18px;min-width:300px;max-width:90vw;margin-bottom:20px;font-size:14px;"></div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
     <button id="btn-tdm-rematch" class="big-btn hidden">REMATCH</button>
@@ -205,11 +207,13 @@
 </div>
 
 <div id="siege-end-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;padding-bottom:max(20px, env(safe-area-inset-bottom, 20px));">
+  <div style="font-size:14px;color:#ff8a3a;margin-bottom:4px;letter-spacing:3px;font-weight:700;">⚔ SIEGE THE BASE ⚔</div>
   <div id="siege-end-title" style="font-size:46px;font-weight:900;letter-spacing:6px;margin-bottom:8px;">RED WINS</div>
-  <div style="font-size:14px;color:#aaa;margin-bottom:4px;letter-spacing:2px;">⚔ SIEGE THE BASE ⚔</div>
-  <div id="siege-end-reason" style="font-size:13px;color:#ffd54a;margin-bottom:10px;"></div>
-  <div id="siege-end-score" style="font-size:22px;color:#ddd;margin-bottom:18px;">100 — 87</div>
-  <div id="siege-end-stats" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:14px 18px;min-width:320px;max-width:90vw;margin-bottom:20px;font-size:14px;"></div>
+  <div id="siege-end-subtitle" style="font-size:16px;color:#ddd;margin-bottom:6px;"></div>
+  <div id="siege-end-reason" style="font-size:13px;color:#ffd54a;margin-bottom:6px;"></div>
+  <div id="siege-end-score" style="font-size:22px;color:#ddd;margin-bottom:8px;">100 — 87</div>
+  <div id="siege-end-hero" style="font-size:14px;color:#ffd54a;margin-bottom:14px;font-weight:700;min-height:18px;"></div>
+  <div id="siege-end-stats" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,138,58,0.3);border-radius:8px;padding:14px 18px;min-width:320px;max-width:90vw;margin-bottom:20px;font-size:14px;"></div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
     <button id="btn-siege-rematch" class="big-btn hidden">REMATCH</button>
     <button id="btn-siege-back" class="big-btn">LÄMNA</button>
@@ -219,11 +223,38 @@
 <div id="ctf-end-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;padding-bottom:max(20px, env(safe-area-inset-bottom, 20px));padding-left:max(20px, env(safe-area-inset-left, 20px));padding-right:max(20px, env(safe-area-inset-right, 20px));">
   <div id="ctf-end-title" style="font-size:46px;font-weight:900;letter-spacing:6px;margin-bottom:8px;">RED WINS</div>
   <div style="font-size:14px;color:#aaa;margin-bottom:4px;letter-spacing:2px;">🚩 CAPTURE THE FLAG 🚩</div>
-  <div id="ctf-end-score" style="font-size:22px;color:#ddd;margin-bottom:18px;">3 — 1</div>
+  <div id="ctf-end-score" style="font-size:22px;color:#ddd;margin-bottom:8px;">3 — 1</div>
+  <div id="ctf-end-hero" style="font-size:14px;color:#ffd54a;margin-bottom:12px;font-weight:700;min-height:18px;"></div>
   <div id="ctf-end-stats" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:8px;padding:14px 18px;min-width:320px;max-width:90vw;margin-bottom:20px;font-size:14px;"></div>
   <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
     <button id="btn-ctf-rematch" class="big-btn hidden">REMATCH</button>
     <button id="btn-ctf-back" class="big-btn">LÄMNA</button>
+  </div>
+</div>
+
+<!-- GUNGAME end-overlay — cyan tema, tier-progression highlight -->
+<div id="gungame-end-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;padding-bottom:max(20px, env(safe-area-inset-bottom, 20px));">
+  <div style="font-size:14px;color:#3acaff;margin-bottom:4px;letter-spacing:3px;font-weight:700;">🔫 GUNGAME — FFA 15-TIER 🔫</div>
+  <div id="gungame-end-title" style="font-size:46px;font-weight:900;letter-spacing:6px;margin-bottom:8px;color:#3acaff;text-shadow:0 0 20px rgba(58,202,255,0.6);">WINNER</div>
+  <div id="gungame-end-subtitle" style="font-size:18px;color:#ddd;margin-bottom:8px;"></div>
+  <div id="gungame-end-hero" style="font-size:14px;color:#ffd54a;margin-bottom:14px;font-weight:700;min-height:18px;"></div>
+  <div id="gungame-end-stats" style="background:rgba(58,202,255,0.05);border:1px solid rgba(58,202,255,0.3);border-radius:8px;padding:14px 18px;min-width:320px;max-width:90vw;margin-bottom:20px;font-size:14px;"></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+    <button id="btn-gungame-rematch" class="big-btn hidden">REMATCH</button>
+    <button id="btn-gungame-back" class="big-btn">LÄMNA</button>
+  </div>
+</div>
+
+<!-- KOTH end-overlay — gold tema, hill-master highlight -->
+<div id="koth-end-overlay" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:200;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:20px;padding-bottom:max(20px, env(safe-area-inset-bottom, 20px));">
+  <div style="font-size:14px;color:#ffd54a;margin-bottom:4px;letter-spacing:3px;font-weight:700;">👑 KING OF THE HILL 👑</div>
+  <div id="koth-end-title" style="font-size:46px;font-weight:900;letter-spacing:6px;margin-bottom:8px;color:#ffd54a;text-shadow:0 0 20px rgba(255,213,74,0.7);">CROWNED</div>
+  <div id="koth-end-subtitle" style="font-size:18px;color:#ddd;margin-bottom:8px;"></div>
+  <div id="koth-end-hero" style="font-size:14px;color:#5aff5a;margin-bottom:14px;font-weight:700;min-height:18px;"></div>
+  <div id="koth-end-stats" style="background:rgba(255,213,74,0.05);border:1px solid rgba(255,213,74,0.3);border-radius:8px;padding:14px 18px;min-width:320px;max-width:90vw;margin-bottom:20px;font-size:14px;"></div>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+    <button id="btn-koth-rematch" class="big-btn hidden">REMATCH</button>
+    <button id="btn-koth-back" class="big-btn">LÄMNA</button>
   </div>
 </div>
 
@@ -350,7 +381,7 @@
     <button id="btn-menu-help" class="medium-btn">❓ HJÄLP / TUTORIAL</button>
   </div>
   <button id="btn-fullscreen" class="small-btn" style="display:none;">⛶ HELSKÄRM</button>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.186 ⚡</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.187 ⚡</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">
@@ -385,6 +416,9 @@
         <button class="prf-btn" data-filter="story" style="font-size:10px;padding:5px 9px;background:#222;color:#aaa;border:0;border-radius:5px;font-weight:700;letter-spacing:0.5px;">🎮 STORY</button>
         <button class="prf-btn" data-filter="tdm" style="font-size:10px;padding:5px 9px;background:#222;color:#aaa;border:0;border-radius:5px;font-weight:700;letter-spacing:0.5px;">⚔️ TDM</button>
         <button class="prf-btn" data-filter="ctf" style="font-size:10px;padding:5px 9px;background:#222;color:#aaa;border:0;border-radius:5px;font-weight:700;letter-spacing:0.5px;">🚩 CTF</button>
+        <button class="prf-btn" data-filter="siege" style="font-size:10px;padding:5px 9px;background:#222;color:#aaa;border:0;border-radius:5px;font-weight:700;letter-spacing:0.5px;">🛡 SIEGE</button>
+        <button class="prf-btn" data-filter="gungame" style="font-size:10px;padding:5px 9px;background:#222;color:#aaa;border:0;border-radius:5px;font-weight:700;letter-spacing:0.5px;">🔫 GUN</button>
+        <button class="prf-btn" data-filter="koth" style="font-size:10px;padding:5px 9px;background:#222;color:#aaa;border:0;border-radius:5px;font-weight:700;letter-spacing:0.5px;">👑 KOTH</button>
       </div>
       <div id="public-rooms-list" style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:6px;min-height:60px;max-height:240px;overflow-y:auto;">
         <div id="public-rooms-empty" style="text-align:center;color:#666;font-size:12px;padding:20px 10px;">Söker efter aktiva rum...</div>

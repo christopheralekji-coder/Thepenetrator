@@ -468,6 +468,48 @@ function handleMessage(ws, msg) {
       }
       send(ws, { type: 'sim_events', events: lateJoinEvents });
     }
+    // KOTH late-joiner: spawna på roterande spawn-point + skicka current scores
+    if (room.sim && room.sim.kothActive) {
+      const { KOTH_ARENA } = require('../shared/koth-arena');
+      const idx = (room.sim._kothSpawnIdx || 0) % KOTH_ARENA.spawns.length;
+      room.sim._kothSpawnIdx = (room.sim._kothSpawnIdx || 0) + 1;
+      const sp = KOTH_ARENA.spawns[idx];
+      ws.playerState = { x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500, weaponId: 'pistol' };
+      ws.tdmTeam = null;
+      room.sim.kothScores[ws.id] = 0;
+      room.sim.kothKillsByPid[ws.id] = 0;
+      room.sim.tdmDeathsByPid[ws.id] = 0;
+      room.sim._kothPointAccum[ws.id] = 0;
+      const lateKothEvents = [{
+        type: 'koth_started',
+        arena: { worldW: KOTH_ARENA.worldW, worldH: KOTH_ARENA.worldH, name: KOTH_ARENA.name },
+        walls: KOTH_ARENA.walls,
+        spawns: KOTH_ARENA.spawns,
+        decorations: KOTH_ARENA.decorations || [],
+        zones: KOTH_ARENA.zones,
+        activeZoneIdx: room.sim.kothActiveZoneIdx || 0,
+        zoneRotateSec: KOTH_ARENA.zoneRotateSec,
+        targetPoints: room.sim.kothTargetPoints,
+        shieldMax: 100,
+      }];
+      // Aktuella scores så late-joiner ser leaderboard direkt
+      lateKothEvents.push({
+        type: 'koth_score_update',
+        scores: { ...(room.sim.kothScores || {}) },
+        target: room.sim.kothTargetPoints,
+      });
+      // Också nästa zone-rotate-tid
+      if (room.sim._kothZoneRotateAt) {
+        const zone = KOTH_ARENA.zones[room.sim.kothActiveZoneIdx || 0];
+        lateKothEvents.push({
+          type: 'koth_zone_changed',
+          idx: room.sim.kothActiveZoneIdx || 0,
+          x: zone.x, y: zone.y, r: zone.r, name: zone.name,
+          nextRotateAt: room.sim._kothZoneRotateAt,
+        });
+      }
+      send(ws, { type: 'sim_events', events: lateKothEvents });
+    }
     return;
   }
 

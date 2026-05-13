@@ -10,6 +10,7 @@
 'use strict';
 
 const { W_BY_ID } = require('../../shared/weapons-data');
+const { KOTH_ARENA } = require('../../shared/koth-arena');
 
 const BOT_NAMES = ['Echo', 'Vega', 'Nyx', 'Atlas', 'Onyx', 'Raven', 'Zane', 'Kira', 'Loki', 'Aria', 'Cipher', 'Hex'];
 let _botCounter = 0;
@@ -101,6 +102,10 @@ function chooseBotTarget(sim, botWs) {
   if (sim.siegeActive && !sim.siegeEnded) {
     return chooseSiegeTarget(sim, botWs, team);
   }
+  // KOTH (FFA): gå till aktiv zon om ingen fiende nära, annars kill
+  if (sim.kothActive && !sim.kothEnded) {
+    return chooseKothTarget(sim, botWs);
+  }
   // GUNGAME (FFA): närmsta annan spelare (inkl bots)
   if (sim.gungameActive && !sim.gungameEnded) {
     return findClosestPlayer(sim, botWs, /*excludeTeam*/ null);
@@ -164,6 +169,44 @@ function chooseCtfTarget(sim, botWs, team) {
   return findClosestPlayer(sim, botWs, team);
 }
 
+// KOTH bot-AI: prio 1 = kill fiende inom 250px (defense). Prio 2 = gå till
+// aktiv zon. Prio 3 = närmsta spelare.
+function chooseKothTarget(sim, botWs) {
+  const px = botWs.playerState.x, py = botWs.playerState.y;
+  // Fiende inom 250px → kill
+  let nearestEnemyD2 = Infinity, nearestEnemy = null;
+  for (const [pid, ws] of sim.room.members) {
+    if (pid === botWs.id) continue;
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
+    const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < nearestEnemyD2) { nearestEnemyD2 = d2; nearestEnemy = ws; }
+  }
+  if (nearestEnemy && nearestEnemyD2 < 250 * 250) {
+    return { x: nearestEnemy.playerState.x, y: nearestEnemy.playerState.y, type: 'player', ref: nearestEnemy };
+  }
+  // Annars: aktiv zon
+  if (sim.kothActiveZoneIdx != null && KOTH_ARENA.zones) {
+    const z = KOTH_ARENA.zones[sim.kothActiveZoneIdx];
+    if (z) {
+      // Om jag ÄR i zonen, hitta fiende att skjuta. Annars gå dit.
+      const dxZ = z.x - px, dyZ = z.y - py;
+      if (dxZ * dxZ + dyZ * dyZ <= z.r * z.r) {
+        // I zonen: jaga fiende eller stå still (kill om någon i sikt)
+        if (nearestEnemy) {
+          return { x: nearestEnemy.playerState.x, y: nearestEnemy.playerState.y, type: 'player', ref: nearestEnemy };
+        }
+        // Ingen fiende inom range — stå still mitt i zonen
+        return { x: z.x, y: z.y, type: 'koth_zone', ref: z };
+      }
+      return { x: z.x, y: z.y, type: 'koth_zone', ref: z };
+    }
+  }
+  // Fallback
+  return findClosestPlayer(sim, botWs, null);
+}
+
 function chooseSiegeTarget(sim, botWs, team) {
   const px = botWs.playerState.x, py = botWs.playerState.y;
   // Hitta närmaste enemy inom 300px — om en, prioritera kill (skydd)
@@ -206,10 +249,11 @@ function moveBotTowards(sim, botWs, target, dt) {
   const d = Math.hypot(dx, dy) || 1;
   const w = W_BY_ID[ps.weaponId] || {};
   const isMelee = w.type === 'melee';
-  // Base-objectives (SIEGE-capture, CTF-flag-base): stå nära mitten så
-  // capture-progress fortsätter ticka. Inte strafe utåt → ut ur radien.
+  // Base-objectives (SIEGE-capture, CTF-flag-base, KOTH-zone): stå nära mitten
+  // så capture-progress fortsätter ticka. Inte strafe utåt → ut ur radien.
   const isObjective = target.type === 'siege_base' || target.type === 'home_base'
-    || target.type === 'enemy_flag' || target.type === 'enemy_flag_base';
+    || target.type === 'enemy_flag' || target.type === 'enemy_flag_base'
+    || target.type === 'koth_zone';
   const desiredDist = isObjective ? 30 : (isMelee ? Math.max(20, (w.range || 36) - 5) : 250);
   const speed = 180;
 
