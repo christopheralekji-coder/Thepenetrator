@@ -5281,11 +5281,41 @@ function spawnSparks(x, y, color, count = 6, speed = 220, gravity = 320) {
   }
 }
 // Bullet trail: liten färgad dot bakom kulan.
+// HEADSHOT-popup: visuell extra-flash + tone vid 3× headshot-träff (perk).
+// Större/röd damage-number + "HEADSHOT!" text + power-up ljud.
+function showHeadshotPopup(x, y, dmg) {
+  if (!state.particles) return;
+  // Stor röd damage-number med headshot-text
+  state.particles.push({
+    x, y: y - 30, vx: 0, vy: -60,
+    isCritText: true,
+    text: 'HEADSHOT!',
+    color: '#ff3a3a',
+    life: 1.2, fadeMul: 0.85,
+    r: 18, // hint till render om size
+  });
+  state.particles.push({
+    x, y: y - 12, vx: 0, vy: -50,
+    isCritText: true,
+    text: '-' + dmg,
+    color: '#ffeb3b',
+    life: 1.0, fadeMul: 1.0,
+    r: 22,
+  });
+  // Ljud: power-up double-tone
+  if (typeof Audio !== 'undefined' && Audio._tone) {
+    Audio._tone(900, 0.15, 'square', 0.22, 0.005, 0.12, 1500);
+    setTimeout(() => Audio._tone(1400, 0.1, 'square', 0.18, 0.005, 0.08, 1900), 50);
+  }
+  if (typeof triggerShake === 'function') triggerShake(4, 0.18);
+}
+
 function spawnBulletTrail(x, y, color, r = 2) {
   if (!state.particles) return;
+  // Längre life (0.18→0.32) för synligare tracer-spår. Slightly bigger r.
   state.particles.push({
     x, y, vx: 0, vy: 0, isTrail: true,
-    color, r, life: 0.18, fadeMul: 5.5,
+    color, r: r * 1.15, life: 0.32, fadeMul: 3.2,
   });
 }
 // Ladda från save
@@ -5301,6 +5331,31 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 let DPR = Math.min(window.devicePixelRatio || 1, 2);
 let viewW = 0, viewH = 0;
+
+// PERF: ShadowBlur är 5-15× långsammare än utan på Canvas2D. 280 callsites i
+// game.js använder shadowBlur för text-skuggor, glow-effekter, etc. På mobil
+// (speciellt iPhone 60Hz @ DPR 3) blir det märkbart fps-tapp.
+// Override CanvasRenderingContext2D.shadowBlur setter så låg-kvalitet-mode
+// no-op:ar utan att vi behöver röra alla 280 callsites.
+(function installShadowQualityGate() {
+  try {
+    const Proto = CanvasRenderingContext2D.prototype;
+    const orig = Object.getOwnPropertyDescriptor(Proto, 'shadowBlur');
+    if (!orig || !orig.set) return; // unsupported browser
+    Object.defineProperty(Proto, 'shadowBlur', {
+      configurable: true,
+      get() { return orig.get.call(this); },
+      set(v) {
+        // Använd save.quality direkt — kollas vid varje set (cheap)
+        if (typeof save !== 'undefined' && save && save.quality === 'low') {
+          orig.set.call(this, 0);
+        } else {
+          orig.set.call(this, v);
+        }
+      },
+    });
+  } catch (e) { /* fall back to existing behavior */ }
+})();
 
 function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -11725,6 +11780,7 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
       pierce: cheatPen || cheatUlt || !!w.pierce,
       explosive: (w.explosive || 0) * (p.explMul || 1),
       crit: isCrit || isHead,
+      _isHeadshot: isHead,  // separat flag så vi kan visa distinct HEADSHOT-popup vid hit
       style: w.style,
       weaponId: w.id, // Krävs av anti-cheese long-range allow-list (line ~9540)
       burn: w.burn || 0,
@@ -16912,6 +16968,10 @@ function updateBullets(dt) {
             damageEnemy(e, b.dmg, b.crit);
             // Per-vapen hit-particles (frost/flame/plasma/tesla/etc)
             spawnHitParticles(e.x, e.y, b);
+          }
+          // Headshot-popup: 3× dmg perk-bonus — distinct visuell + ljud
+          if (b._isHeadshot && typeof showHeadshotPopup === 'function') {
+            showHeadshotPopup(e.x, e.y, Math.round(b.dmg));
           }
           b.hitIds.add(e);
           if (!b.pierce) { hit = true; break; }
