@@ -5812,6 +5812,12 @@ let prevModeBeforeWeaponMenu = 'playing';
 
 function openWeaponMenu() {
   if (state.mode !== 'playing') return;
+  // GUNGAME: vapen styrs av server via tier-promotion — spelaren får inte
+  // välja vapen själv. Visa en kort toast istället.
+  if (state.gungameActive) {
+    if (typeof showToast === 'function') showToast('🔫 GUNGAME — vapnet växlar via kills');
+    return;
+  }
   prevModeBeforeWeaponMenu = state.mode;
   state.mode = 'weaponmenu';
   weaponMenuScreen.classList.remove('hidden');
@@ -7454,7 +7460,10 @@ const Coop = {
       }
       save.equipped = this.gungameWeapons[0];
       save.weaponId = this.gungameWeapons[0];
-      save.owned = ['fists', ...this.gungameWeapons]; // alla 15 unlockad — kommer användas via tier
+      // I gungame styr server vapnet via tier-promotion — save.owned ska INTE
+      // innehålla alla 15 (då dyker de upp i weapon-menyn och equip() tillåter
+      // byte till sledge utan kills). Behåll bara fists (current tier 0).
+      save.owned = ['fists'];
       if (typeof showGungameHud === 'function') showGungameHud();
       if (typeof updateGungameTier === 'function') updateGungameTier(0, this.gungameWeapons);
       if (typeof showToast === 'function') showToast('🔫 GUNGAME — döda dig till tier 15!');
@@ -10800,6 +10809,8 @@ function renderWeaponMenu() {
 // ============================================================
 function equip(id) {
   if (!save.owned.includes(id)) return;
+  // GUNGAME: spelaren får inte byta vapen — server bestämmer via tier
+  if (state.gungameActive) return;
   const wasEquipped = save.equipped;
   save.equipped = id;
   if (state.player) {
