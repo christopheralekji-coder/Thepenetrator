@@ -735,6 +735,23 @@ function nextPickupId(sim) {
   return 'pu_' + sim._pickupIdCounter;
 }
 
+function buildKothPickups(sim) {
+  // 3500×2000 arena. Pickups placerade NÄRA zon-positionerna så hill-defense
+  // har strategiska resurser, men inte i zonen själv (då blir det auto-grab).
+  return [
+    // HP: i kvadrant-positioner runt arenan
+    { id: nextPickupId(sim), x: 500,  y: 500,  type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3000, y: 500,  type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 500,  y: 1500, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3000, y: 1500, type: 'hp',     available: true, respawnAt: 0 },
+    // Shield: nära mid och flank-zoner — kontestbara, värd risken
+    { id: nextPickupId(sim), x: 1200, y: 1000, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2300, y: 1000, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1750, y: 600,  type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1750, y: 1400, type: 'shield', available: true, respawnAt: 0 },
+  ];
+}
+
 function buildCtfPickups(sim) {
   // 4500×2800 arena, symmetrisk runt x=2250.
   // HP-pickups i flank-positioner (mellan baser och mitten).
@@ -1917,6 +1934,9 @@ function startSim(sim, opts) {
   } else if (sim.kothActive) {
     // KOTH: hold-the-hill FFA på 3500×2000 close-quarters arena.
     sim.simReadyAt = Date.now() + 5000;
+    // Bot:s vapen-roterande i KOTH — random från common-arsenal så de inte alla
+    // har samma vapen. Riktiga spelare behåller sin equipped.
+    const KOTH_BOT_WEAPONS = ['pistol', 'smg', 'rifle', 'shotgun', 'burstpistol', 'revolver'];
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
       ws.playerState = ws.playerState || {};
@@ -1927,7 +1947,12 @@ function startSim(sim, opts) {
       ws.playerState.shield = 100;
       ws.playerState.maxShield = 100;
       ws.playerState.invulnUntil = Date.now() + 1500;
-      ws.playerState.weaponId = 'pistol';
+      // Bots får random gun, riktiga spelare behåller sin equipped (default pistol).
+      if (ws._isBot) {
+        ws.playerState.weaponId = KOTH_BOT_WEAPONS[Math.floor(Math.random() * KOTH_BOT_WEAPONS.length)];
+      } else if (!ws.playerState.weaponId) {
+        ws.playerState.weaponId = 'pistol';
+      }
       ws.tdmRespawnAt = 0;
       ws.tdmTeam = null; // FFA
       sim.kothScores[pid] = 0;
@@ -1939,6 +1964,8 @@ function startSim(sim, opts) {
     sim._kothSpawnIdx = i;
     sim.kothActiveZoneIdx = 0;
     sim._kothZoneRotateAt = Date.now() + (KOTH_ARENA.zoneRotateSec || 45) * 1000;
+    // PvP-pickups: 4 HP + 4 shield runt arenan
+    sim.pvpPickups = buildKothPickups(sim);
     sim.eventQueue.push({
       type: 'koth_started',
       arena: { worldW: KOTH_ARENA.worldW, worldH: KOTH_ARENA.worldH, name: KOTH_ARENA.name },
@@ -1950,6 +1977,7 @@ function startSim(sim, opts) {
       zoneRotateSec: KOTH_ARENA.zoneRotateSec,
       nextRotateAt: sim._kothZoneRotateAt,
       targetPoints: sim.kothTargetPoints,
+      pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
       shieldMax: 100,
     });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });

@@ -381,7 +381,7 @@
     <button id="btn-menu-help" class="medium-btn">❓ HJÄLP / TUTORIAL</button>
   </div>
   <button id="btn-fullscreen" class="small-btn" style="display:none;">⛶ HELSKÄRM</button>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.188 ⚡</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.189 ⚡</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">
@@ -459,15 +459,19 @@
         <label class="lobby-label">SVÅRIGHET</label>
         <div id="lobby-diff-buttons" class="lobby-button-row"></div>
       </div>
-      <div class="lobby-section">
+      <div class="lobby-section" data-collapsible="1">
         <label class="lobby-label">🤝 TEAM PLAY (samarbete mot fiender)</label>
         <div id="lobby-mode-buttons" class="lobby-button-row"></div>
       </div>
-      <div class="lobby-section">
+      <div class="lobby-section" data-collapsible="1" data-collapsed="1">
         <label class="lobby-label">⚔️ PLAYER VS PLAYER</label>
         <div id="lobby-pvp-buttons" class="lobby-button-row"></div>
       </div>
-      <div class="lobby-section">
+      <div class="lobby-section" data-collapsible="1" data-collapsed="1">
+        <label class="lobby-label">🤖 BOTS (träna mot AI)</label>
+        <div id="lobby-bot-buttons" class="lobby-button-row"></div>
+      </div>
+      <div class="lobby-section" data-collapsible="1" data-collapsed="1">
         <label class="lobby-label">CHEATS (för detta game)</label>
         <div id="lobby-cheat-buttons" class="lobby-button-row"></div>
       </div>

@@ -3371,11 +3371,20 @@ function ensureWardrobe() {
     if (!cur) continue;
     const opt = WARDROBE[cat].find(o => o.id === cur);
     if (!opt) { w[cat] = WARDROBE[cat][0].id; continue; }
-    if (typeof opt.unlock === 'function' && !opt.unlock()) {
+    if (!isWardrobeUnlocked(opt)) {
       w[cat] = WARDROBE[cat][0].id;
     }
   }
 }
+// Helper: kollar om wardrobe-option är unlockad. Respekterar save.wardrobeUnlockAll
+// (cheat-flagga som låser upp ALLA items). Annars använd opt.unlock() om finns.
+function isWardrobeUnlocked(opt) {
+  if (!opt) return false;
+  if (save && save.wardrobeUnlockAll) return true;
+  if (typeof opt.unlock === 'function') return !!opt.unlock();
+  return true; // ingen unlock-funktion = alltid tillgänglig
+}
+
 function getWardrobeOpt(cat, id) {
   return WARDROBE[cat].find(o => o.id === id) || WARDROBE[cat][0];
 }
@@ -7582,6 +7591,11 @@ const Coop = {
       state.kothZones = this.kothZones;
       state.kothActiveZoneIdx = this.kothActiveZoneIdx;
       state.kothNextRotateAt = ev.nextRotateAt || 0;
+      // KOTH pvp-pickups (HP/shield runt arenan, samma som TDM/CTF/SIEGE)
+      state.pvpPickups = {};
+      if (ev.pvpPickups) for (const p of ev.pvpPickups) {
+        state.pvpPickups[p.id] = { id: p.id, x: p.x, y: p.y, type: p.type, available: true, respawnAt: 0 };
+      }
       state.pvpShieldMax = ev.shieldMax || 100;
       state.enemies = []; state.bullets = [];
       state.bossAlive = false; state.bossIntro = null;
@@ -7606,10 +7620,13 @@ const Coop = {
         state.player.maxShield = state.pvpShieldMax;
         state.player.spectating = false;
         state.player.invuln = 1.5;
-        state.player.weaponId = 'pistol';
+        // Behåll spelarens equipped vapen (default = pistol om inget satt). KOTH
+        // är arsenal-driven precis som TDM/CTF/SIEGE — spelaren kan välja från
+        // sin arsenal via vapen-menyn.
+        if (!state.player.weaponId || !W_BY_ID[state.player.weaponId]) {
+          state.player.weaponId = save.equipped || 'pistol';
+        }
       }
-      save.equipped = 'pistol';
-      save.weaponId = 'pistol';
       if (typeof showKothHud === 'function') showKothHud();
       if (typeof updateHUD === 'function') updateHUD();        // tvinga HP/shield-bar att visas
       if (typeof showToast === 'function') showToast('👑 KING OF THE HILL — håll zonen för poäng!');
@@ -9148,9 +9165,27 @@ const lobbyModeButtonsEl = document.getElementById('lobby-mode-buttons');
 const lobbyCheatButtonsEl = document.getElementById('lobby-cheat-buttons');
 const coopNameInput = document.getElementById('coop-name-input');
 
+// Init dropdown-collapse på lobby-sections. Binds en gång — labels får click-toggle.
+let _lobbyDropdownsInited = false;
+function initLobbyDropdowns() {
+  if (_lobbyDropdownsInited) return;
+  _lobbyDropdownsInited = true;
+  const sections = document.querySelectorAll('.lobby-section[data-collapsible="1"]');
+  sections.forEach(sec => {
+    const label = sec.querySelector('.lobby-label');
+    if (!label) return;
+    label.addEventListener('click', () => {
+      const isCollapsed = sec.getAttribute('data-collapsed') === '1';
+      if (isCollapsed) sec.removeAttribute('data-collapsed');
+      else sec.setAttribute('data-collapsed', '1');
+    });
+  });
+}
+
 function showLobby(code, isHost) {
   coopInitEl.classList.add('hidden');
   coopLobbyEl.classList.remove('hidden');
+  initLobbyDropdowns();
   coopCodeDisplay.textContent = code || '----';
   // Pre-fyll namn-fält — prio save.coopName (persisterat) > Coop.myName > default
   const persistedName = (save && save.coopName) || '';
@@ -9241,13 +9276,13 @@ function renderHostControls() {
     tdmBtn.addEventListener('click', () => {
       const newTdm = !Coop.config.tdm;
       Coop.config.tdm = newTdm;
-      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; // alla PvP mutually exclusive
+      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; // alla PvP mutually exclusive
       if (newTdm) {
         Coop.config.serverSim = true;
         Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
       }
       Coop.updateConfig({
-        tdm: newTdm, ctf: false, siege: false, gungame: false,
+        tdm: newTdm, ctf: false, siege: false, gungame: false, koth: false,
         tdmTargetKills: Coop.config.tdmTargetKills,
         serverSim: Coop.config.serverSim,
       });
@@ -9262,13 +9297,13 @@ function renderHostControls() {
     ctfBtn.addEventListener('click', () => {
       const newCtf = !Coop.config.ctf;
       Coop.config.ctf = newCtf;
-      Coop.config.tdm = false; Coop.config.siege = false; Coop.config.gungame = false;
+      Coop.config.tdm = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false;
       if (newCtf) {
         Coop.config.serverSim = true;
         Coop.config.ctfTargetCaptures = Coop.config.ctfTargetCaptures || 3;
       }
       Coop.updateConfig({
-        ctf: newCtf, tdm: false, siege: false, gungame: false,
+        ctf: newCtf, tdm: false, siege: false, gungame: false, koth: false,
         ctfTargetCaptures: Coop.config.ctfTargetCaptures,
         serverSim: Coop.config.serverSim,
       });
@@ -9283,13 +9318,13 @@ function renderHostControls() {
     siegeBtn.addEventListener('click', () => {
       const newSiege = !Coop.config.siege;
       Coop.config.siege = newSiege;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.gungame = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.gungame = false; Coop.config.koth = false;
       if (newSiege) {
         Coop.config.serverSim = true;
         Coop.config.siegeTargetPoints = Coop.config.siegeTargetPoints || 500;
       }
       Coop.updateConfig({
-        siege: newSiege, tdm: false, ctf: false, gungame: false,
+        siege: newSiege, tdm: false, ctf: false, gungame: false, koth: false,
         siegeTargetPoints: Coop.config.siegeTargetPoints,
         serverSim: Coop.config.serverSim,
       });
@@ -9388,12 +9423,16 @@ function renderHostControls() {
         pvpEl.appendChild(tpBtn);
       }
     }
-    // Bot-toggle (för alla PvP-modes och story coop)
-    const botBtn = document.createElement('button');
+  }
+  // Bot-controls: separat sektion (eftersom de funkar både i PvP och story-coop)
+  const botEl = document.getElementById('lobby-bot-buttons');
+  if (botEl) {
+    botEl.innerHTML = '';
     const botActive = !!Coop.config.addBot;
     const botCount = Coop.config.botCount || 1;
+    const botBtn = document.createElement('button');
     botBtn.textContent = botActive ? ('🤖 BOTS: ' + botCount + ' PÅ') : '🤖 Lägg till bots';
-    botBtn.style.cssText = 'background:' + (botActive ? '#5aff5a' : '#222') + ';color:' + (botActive ? '#000' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;margin-top:4px;';
+    botBtn.style.cssText = 'background:' + (botActive ? '#5aff5a' : '#222') + ';color:' + (botActive ? '#000' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
     botBtn.addEventListener('click', () => {
       Coop.config.addBot = !Coop.config.addBot;
       if (Coop.config.addBot) {
@@ -9409,12 +9448,12 @@ function renderHostControls() {
       });
       renderHostControls();
     });
-    pvpEl.appendChild(botBtn);
-    // Antal bots — bara om addBot aktivt
-    if (Coop.config.addBot) {
+    botEl.appendChild(botBtn);
+    if (botActive) {
+      // Antal bots
       for (const n of [1, 2, 3, 5, 7]) {
         const nBtn = document.createElement('button');
-        const isSel = (Coop.config.botCount || 1) === n;
+        const isSel = botCount === n;
         nBtn.textContent = '×' + n;
         nBtn.style.cssText = 'background:' + (isSel ? '#5aff5a' : '#222') + ';color:' + (isSel ? '#000' : '#aaa') + ';font-size:11px;padding:6px 10px;font-weight:700;min-width:38px;';
         nBtn.addEventListener('click', () => {
@@ -9422,9 +9461,9 @@ function renderHostControls() {
           Coop.updateConfig({ botCount: n });
           renderHostControls();
         });
-        pvpEl.appendChild(nBtn);
+        botEl.appendChild(nBtn);
       }
-      // Skill-val: easy / normal / hard
+      // Skill
       for (const sk of ['easy', 'normal', 'hard']) {
         const sBtn = document.createElement('button');
         const isSel = (Coop.config.botSkill || 'normal') === sk;
@@ -9437,10 +9476,9 @@ function renderHostControls() {
           Coop.updateConfig({ botSkill: sk });
           renderHostControls();
         });
-        pvpEl.appendChild(sBtn);
+        botEl.appendChild(sBtn);
       }
-      // Team-val för bot — bara i team-modes (TDM/CTF/SIEGE) OCH bara om 1 bot
-      // (vid fler bots alterneras team auto)
+      // Team-val (bara 1 bot i team-mode)
       if (botCount === 1 && (Coop.config.tdm || Coop.config.ctf || Coop.config.siege)) {
         for (const team of ['red', 'blue']) {
           const tBtn = document.createElement('button');
@@ -9452,7 +9490,7 @@ function renderHostControls() {
             Coop.updateConfig({ botTeam: team });
             renderHostControls();
           });
-          pvpEl.appendChild(tBtn);
+          botEl.appendChild(tBtn);
         }
       }
     }
@@ -9693,6 +9731,19 @@ const btnCheatRedeem = document.getElementById('btn-cheat-redeem');
 function tryRedeemCheatCode(input) {
   const code = (input || '').trim().toLowerCase();
   if (!code) return false;
+  // SPECIAL: Wardrobe-unlock-cheat. Persisterar save.wardrobeUnlockAll så alla
+  // wardrobe-items (även legendary) blir tillgängliga.
+  if (code === 'fashionista' || code === 'wardrobeunlock' || code === 'unlockall') {
+    save.wardrobeUnlockAll = true;
+    persist();
+    if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+    if (typeof showAchievementPopup === 'function') {
+      showAchievementPopup({ icon: '🪄', name: 'GARDEROB UNLOCKED!' });
+    } else if (typeof showToast === 'function') {
+      showToast('🪄 GARDEROB — alla items upplåsta!');
+    }
+    return true;
+  }
   for (const c of CHEATS) {
     if (c.name.toLowerCase() === code || c.id.toLowerCase() === code) {
       // Aktivera för denna run
@@ -10412,7 +10463,7 @@ function renderWardrobeOptions() {
   const current = save.wardrobe[cat];
   for (const opt of WARDROBE[cat]) {
     const tier = opt.tier || 'common';
-    const isLocked = typeof opt.unlock === 'function' ? !opt.unlock() : false;
+    const isLocked = !isWardrobeUnlocked(opt);
     const card = document.createElement('div');
     card.className = 'ward-card tier-' + tier + (opt.id === current ? ' active' : '') + (isLocked ? ' locked' : '');
     const thumb = document.createElement('div');
