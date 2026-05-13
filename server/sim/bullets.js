@@ -451,14 +451,18 @@ function applyBulletEffects(b, e, sim) {
     e.y += Math.sin(ang) * b.knockback * 0.05;
     e.staggerUntil = Date.now() + 200;
   }
-  // Chain (tesla)
+  // Chain (tesla) — spatial-hash: bara enemies inom 240px-radie per hop
   if (b.chain > 0) {
     let prevPos = { x: e.x, y: e.y };
     let chainsLeft = b.chain;
     const hitSet = new Set([e]);
     while (chainsLeft > 0) {
       let nextE = null, bestD2 = 240 * 240;
-      for (const o of sim.enemies) {
+      const candidates = sim.enemyGrid
+        ? sim.enemyGrid.getNearby(prevPos.x, prevPos.y, 240)
+        : sim.enemies;
+      for (let i = 0; i < candidates.length; i++) {
+        const o = candidates[i];
         if (hitSet.has(o) || o.dead) continue;
         const dx = o.x - prevPos.x, dy = o.y - prevPos.y;
         const d2 = dx * dx + dy * dy;
@@ -485,7 +489,10 @@ function explode(sim, x, y, radius, dmg, fromPid) {
   const inTeamPvP = !!(sim.tdmActive || sim.ctfActive || sim.siegeActive);
   const inPvP = inTeamPvP || inGungame || inKoth;
   if (!inPvP) {
-    for (const e of sim.enemies) {
+    // Spatial-hash: query bara enemies inom explosion-radie
+    const list = sim.enemyGrid ? sim.enemyGrid.getNearby(x, y, radius) : sim.enemies;
+    for (let i = 0; i < list.length; i++) {
+      const e = list[i];
       if (e.dead) continue;
       const dx = e.x - x, dy = e.y - y;
       const d2 = dx * dx + dy * dy;
@@ -1023,13 +1030,16 @@ function updateBullets(sim, dt, now) {
     const ownerWsForCheese = b.ownerPid ? sim.room.members.get(b.ownerPid) : null;
     const ownerPosForCheese = (ownerWsForCheese && ownerWsForCheese.playerState)
       ? { x: ownerWsForCheese.playerState.x, y: ownerWsForCheese.playerState.y } : null;
-    for (let j = 0; j < sim.enemies.length; j++) {
-      const e = sim.enemies[j];
+    // SPATIAL-HASH: query bara enemies inom ~60px av bullet istället för linear-scan
+    // (max enemy-r ≈ 50, max bullet-r ≈ 5 + lag-comp 8 = 63px worst-case).
+    const _longRangeIds = ['sniper', 'railgun', 'crossbow', 'bow', 'rifle', 'minigun'];
+    const _isLong = b.weaponId && _longRangeIds.indexOf(b.weaponId) >= 0;
+    const queryR = (b.r || 4) + 60;
+    const nearby = sim.enemyGrid ? sim.enemyGrid.getNearby(b.x, b.y, queryR) : sim.enemies;
+    for (let j = 0; j < nearby.length; j++) {
+      const e = nearby[j];
       if (e.dead || b.hitIds.has(e)) continue;
-      // Anti-cheese: explicit long-range allow-list (sniper/railgun/crossbow/bow/rifle/
-      // minigun) — boomerang/lightsaber har också pierce:true men ska inte få exemption.
-      const _longRangeIds = ['sniper', 'railgun', 'crossbow', 'bow', 'rifle', 'minigun'];
-      const _isLong = b.weaponId && _longRangeIds.indexOf(b.weaponId) >= 0;
+      // Anti-cheese: explicit long-range allow-list
       if (ownerPosForCheese && !e.isBoss && !e.isMiniBoss && !_isLong && !b._companion) {
         const ddx = e.x - ownerPosForCheese.x;
         const ddy = e.y - ownerPosForCheese.y;

@@ -14,6 +14,7 @@ const { TDM_ARENA } = require('../../shared/tdm-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
 const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS } = require('../../shared/gungame-arena');
 const { KOTH_ARENA } = require('../../shared/koth-arena');
+const { SpatialGrid } = require('./spatial');
 
 // 30Hz → 45Hz: tickar var 22ms istället för 33ms. Halverar input→pixel-delay
 // från server-tick-perspektiv. 1.5× CPU-last, men Node klarar 10k+ ops/tick i
@@ -54,6 +55,7 @@ function createSim(room) {
     bossSequenceStep: 0,
     wave: 1,
     eventQueue: [],
+    enemyGrid: new SpatialGrid(),     // built once per tick, used by bullets/explode/applySeparation
     config: { difficulty: 'veteran', ngpLevel: 0, mode: 'story' },
     timeStopUntil: 0,
     lastTick: Date.now(),
@@ -284,6 +286,14 @@ function tickSim(sim) {
       e.x = Math.max(20, Math.min(ww - 20, e.x));
       e.y = Math.max(20, Math.min(wh - 20, e.y));
     }
+  }
+
+  // Bygg spatial-grid över ALIVE enemies — används av bullets-collision,
+  // applySeparation (i enemies.js), chain-effekter, explode. Sparar ~1M
+  // ops/s vs linear scan vid 80 enemies × 200 bullets.
+  sim.enemyGrid.clear();
+  for (const e of sim.enemies) {
+    if (!e.dead) sim.enemyGrid.insert(e);
   }
 
   // Skriv tillbaka playerState.hp + invulnUntil från contact-damage

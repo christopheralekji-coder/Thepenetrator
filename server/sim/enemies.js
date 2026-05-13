@@ -247,8 +247,27 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
   }
 }
 
-// Enemy-enemy separation (lätt push-effekt)
-function applySeparation(e, allEnemies) {
+// Enemy-enemy separation (lätt push-effekt) — använder spatial-grid om
+// tillgängligt (O(E) totalt istället för O(E²)). Fallback linear scan.
+function applySeparation(e, allEnemies, grid) {
+  if (grid) {
+    // Max-radius vi behöver söka: e.r + worst-case other.r ≈ 60px
+    const r = (e.r || 14) + 60;
+    grid.queryRadius(e.x, e.y, r, other => {
+      if (other === e || other.dead) return;
+      const dx = e.x - other.x, dy = e.y - other.y;
+      const d2 = dx * dx + dy * dy;
+      const min = e.r + other.r;
+      if (d2 > 0 && d2 < min * min) {
+        const d = Math.sqrt(d2);
+        const push = (min - d) * 0.5;
+        e.x += (dx / d) * push;
+        e.y += (dy / d) * push;
+      }
+    });
+    return;
+  }
+  // Fallback (utan grid)
   for (const other of allEnemies) {
     if (other === e || other.dead) continue;
     const dx = e.x - other.x, dy = e.y - other.y;
@@ -356,7 +375,7 @@ function updateEnemy(e, dt, now, sim, players) {
   // Smartare AI: gå runt obstacles om stuck
   applyStuckSidestep(e, dt, now, target);
   // Fysik: separation + contact damage
-  applySeparation(e, sim.enemies);
+  applySeparation(e, sim.enemies, sim.enemyGrid);
   applyContactDamage(e, target, sim);
 }
 
