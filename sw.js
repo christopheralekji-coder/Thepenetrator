@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v196-spatial-hash-perf';
+const CACHE = 'penetrator-v197-zero-felt-latency-hit-prediction';
 const ASSETS = [
   './',
   './index.html',

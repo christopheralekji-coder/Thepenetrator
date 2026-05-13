@@ -16832,7 +16832,28 @@ function updateBullets(dt) {
         b.dead = true;
       }
     } else if (b._visualOnly) {
-      // Visuell-only bullet (från coop-partner) — ingen skada, bara flyger
+      // Visuell-only bullet (från coop-partner eller bot) — ingen skada, bara flyger.
+      // T1B HIT-PREDICTION: kolla om bullet träffar MIG lokalt → spawn instant
+      // flash + shake så jag känner träffen utan att vänta på pvp_hp_changed
+      // (~50-100ms server-RTT). Server uppdaterar exakt HP officiellt.
+      if (!b._localHitMe && b.ownerPid && b.ownerPid !== Coop.myId &&
+          (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive)) {
+        const myDx = p.x - b.x, myDy = p.y - b.y;
+        const myR = (p.r || 14) + (b.r || 4) + 8; // lag-comp +8 mirror
+        if (myDx * myDx + myDy * myDy < myR * myR) {
+          b._localHitMe = true;
+          // Visuell prediction: flash + shake + ev. predicted dmg-number
+          if (typeof drawDamageFlash === 'function') {} // drawDamageFlash är canvas-render
+          state._damageFlashUntil = performance.now() + 180;
+          if (typeof triggerShake === 'function') triggerShake(5, 0.25);
+          if (typeof Audio !== 'undefined' && Audio.playerHit) Audio.playerHit();
+          // Predicted damage-number (uppskattad — server kan säga miss via lag-comp)
+          if (typeof spawnDamageNumber === 'function' && b.dmg > 0) {
+            spawnDamageNumber(p.x, p.y - 20, Math.round(b.dmg), false);
+          }
+          b.dead = true; // visuellt försvinner bullet vid predicted-hit
+        }
+      }
     } else {
       let hit = false;
       if (!b.hitIds) b.hitIds = new Set();
@@ -16894,6 +16915,30 @@ function updateBullets(dt) {
           }
           b.hitIds.add(e);
           if (!b.pierce) { hit = true; break; }
+        }
+      }
+      // T1A PvP-HIT-PREDICTION: min egen bullet mot Coop.players (motståndare).
+      // Server är fortfarande auth för damage, men spelaren ser instant feedback
+      // (damage-number + spark) utan att vänta på pvp_hp_changed (~50ms RTT).
+      if (!hit && !b._predictedPvpHit && (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive)) {
+        const myTeam = (state.tdmActive || state.ctfActive || state.siegeActive)
+          ? (Coop.tdmTeams && Coop.tdmTeams[Coop.myId]) || (Coop.ctfTeams && Coop.ctfTeams[Coop.myId]) || (Coop.siegeTeams && Coop.siegeTeams[Coop.myId])
+          : null;
+        for (const [pid, partner] of Coop.players) {
+          if (partner.hp <= 0) continue;
+          // Friendly-fire av i team-modes
+          if (myTeam && partner.team && partner.team === myTeam) continue;
+          const pdx = partner.x - b.x, pdy = partner.y - b.y;
+          const prsum = (partner.r || 14) + (b.r || 4) + 8;
+          if (pdx * pdx + pdy * pdy < prsum * prsum) {
+            b._predictedPvpHit = true;
+            // Spawn damage-number direkt — server confirmar HP separat
+            if (typeof spawnDamageNumber === 'function') {
+              spawnDamageNumber(partner.x, partner.y - 20, Math.round(b.dmg), b.crit);
+            }
+            if (typeof spawnHitParticles === 'function') spawnHitParticles(partner.x, partner.y, b);
+            if (!b.pierce) { hit = true; break; }
+          }
         }
       }
       if (hit) b.dead = true;
