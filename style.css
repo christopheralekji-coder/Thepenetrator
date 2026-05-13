@@ -640,13 +640,22 @@ html, body {
 }
 .action-btn.fire .fire-ammo {
   display: block;
-  font-size: 13px;
-  font-weight: 800;
-  color: #ffd54a;
-  text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.7);
+  margin-top: 3px;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.5px;
+  transition: color 0.15s;
+}
+/* Ammo color-coding: full=vit, low=gul, crit=röd-blink, reload=blå */
+.action-btn.fire .fire-ammo[data-state="low"]    { color: #ffd54a; }
+.action-btn.fire .fire-ammo[data-state="crit"]   { color: #ff5a3a; animation: ammoCritPulse 0.55s infinite; }
+.action-btn.fire .fire-ammo[data-state="reload"] { color: #5aaaff; font-size: 12px; letter-spacing: 1px; }
+@keyframes ammoCritPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.95); }
 }
 .action-btn.fire {
   width: 84px; height: 84px;

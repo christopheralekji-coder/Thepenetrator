@@ -6691,7 +6691,10 @@ const Coop = {
     }
     if (ev.type === 'tdm_started') {
       // PvP-läge initierat — spara team-roster och visa banner
-      // Säkerställ mutual exclusion mellan PvP-modes
+      // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
+      if (typeof hideCtfHud === 'function') hideCtfHud();
+      if (typeof hideSiegeHud === 'function') hideSiegeHud();
+      if (typeof hideGungameHud === 'function') hideGungameHud();
       this.ctfActive = false; this.siegeActive = false; this.gungameActive = false;
       state.ctfActive = false; state.siegeActive = false; state.gungameActive = false;
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
@@ -6848,7 +6851,10 @@ const Coop = {
       }
     } else if (ev.type === 'ctf_started') {
       // CTF-läge initierat — spara arena + walls + flag-positions + teams
-      // Säkerställ mutual exclusion mellan PvP-modes
+      // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
+      if (typeof hideTdmHud === 'function') hideTdmHud();
+      if (typeof hideSiegeHud === 'function') hideSiegeHud();
+      if (typeof hideGungameHud === 'function') hideGungameHud();
       this.tdmActive = false; this.siegeActive = false; this.gungameActive = false;
       state.tdmActive = false; state.siegeActive = false; state.gungameActive = false;
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
@@ -7197,7 +7203,10 @@ const Coop = {
       // Server-shape: { targetPoints, teams, arena, spawns, walls, cores, bases,
       //                 turrets, turretEnterRadius, captureTimeSec, decorations,
       //                 pvpPickups, shieldMax }
-      // Säkerställ mutual exclusion mellan PvP-modes
+      // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
+      if (typeof hideTdmHud === 'function') hideTdmHud();
+      if (typeof hideCtfHud === 'function') hideCtfHud();
+      if (typeof hideGungameHud === 'function') hideGungameHud();
       this.tdmActive = false; this.ctfActive = false; this.gungameActive = false;
       state.tdmActive = false; state.ctfActive = false; state.gungameActive = false;
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
@@ -7419,6 +7428,10 @@ const Coop = {
       }
     } else if (ev.type === 'gungame_started') {
       // FFA 15-tier mode. ev: { arena, walls, spawns, decorations, weapons, totalTiers, shieldMax }
+      // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
+      if (typeof hideTdmHud === 'function') hideTdmHud();
+      if (typeof hideCtfHud === 'function') hideCtfHud();
+      if (typeof hideSiegeHud === 'function') hideSiegeHud();
       this.tdmActive = false; this.ctfActive = false; this.siegeActive = false;
       state.tdmActive = false; state.ctfActive = false; state.siegeActive = false;
       state.companion = null; // ingen companion i PvP
@@ -7756,6 +7769,11 @@ const Coop = {
   updateName(name) {
     name = (name || '').trim().slice(0, 14) || 'Player';
     this.myName = name;
+    // Persistera till save så det auto-fylls nästa gång användaren öppnar coop
+    if (typeof save !== 'undefined' && typeof persist === 'function') {
+      save.coopName = name;
+      persist();
+    }
     if (this.isHost) {
       this.broadcastLobby();
       if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
@@ -8306,7 +8324,11 @@ const Coop = {
         state.player._turretWeapon = null;
       }
     }
+    // Göm alla mode-HUDs vid disconnect (tidigare gömdes bara siege)
     if (typeof hideSiegeHud === 'function') hideSiegeHud();
+    if (typeof hideTdmHud === 'function') hideTdmHud();
+    if (typeof hideCtfHud === 'function') hideCtfHud();
+    if (typeof hideGungameHud === 'function') hideGungameHud();
     // Om vi förlorat anslutningen mid-game, kicka tillbaka till menyn så vi inte
     // hamnar i lokalt PvE-fallback-läge (minions spawnar lokalt). Tidigare:
     // 'playing' state kvar → solo-game-loop tog över → fel mode → buggat.
@@ -8870,8 +8892,12 @@ function showLobby(code, isHost) {
   coopInitEl.classList.add('hidden');
   coopLobbyEl.classList.remove('hidden');
   coopCodeDisplay.textContent = code || '----';
-  // Pre-fyll namn-fält
-  coopNameInput.value = Coop.myName || (isHost ? 'P1' : 'Player');
+  // Pre-fyll namn-fält — prio save.coopName (persisterat) > Coop.myName > default
+  const persistedName = (save && save.coopName) || '';
+  if (persistedName && (!Coop.myName || Coop.myName === 'P1' || Coop.myName === 'Player')) {
+    Coop.myName = persistedName;
+  }
+  coopNameInput.value = Coop.myName || persistedName || (isHost ? 'P1' : 'Player');
   if (isHost) {
     btnCoopStart.classList.remove('hidden');
     coopWaiting.classList.add('hidden');
@@ -14386,14 +14412,27 @@ function updateHUD() {
   weaponName.textContent = wIcon + ' ' + w.name;
   // Tier-färg på weapon-namn (gör det visuellt klart vilken kvalitet vapnet har)
   if (!isRepair) weaponName.style.color = getWeaponTierColor(p.weaponId);
-  let ammoText;
-  if (w.type === 'melee') ammoText = '∞';
-  else if (p.reloading) ammoText = '...';
-  else ammoText = `${p.ammo}/${effectiveMag(p.weaponId)}`;
+  let ammoText, ammoState = null;
+  const _mag = effectiveMag(p.weaponId);
+  if (w.type === 'melee') {
+    ammoText = '∞';
+  } else if (p.reloading) {
+    ammoText = 'RELOAD';
+    ammoState = 'reload';
+  } else {
+    ammoText = `${p.ammo}/${_mag}`;
+    const frac = _mag > 0 ? p.ammo / _mag : 1;
+    if (p.ammo === 0) ammoState = 'crit';
+    else if (frac < 0.25) ammoState = 'crit';
+    else if (frac < 0.5) ammoState = 'low';
+  }
   ammoInfo.textContent = ammoText;
-  // ammo-display ligger NU inuti fire-button. Ingen weapon-emoji där eftersom
-  // fire-icon redan visar 🔫 (vapen-typ-distinktion via fire-icon span).
-  if (ammoDisplayEl) ammoDisplayEl.textContent = ammoText;
+  // ammo-display ligger NU inuti fire-button — färg-kodad efter ammo-status
+  if (ammoDisplayEl) {
+    ammoDisplayEl.textContent = ammoText;
+    if (ammoState) ammoDisplayEl.setAttribute('data-state', ammoState);
+    else ammoDisplayEl.removeAttribute('data-state');
+  }
   // Uppdatera fire-icon med vapen-emoji så spelaren ser vad de skjuter med
   const fireIconEl = document.querySelector('#btn-fire .fire-icon');
   if (fireIconEl) fireIconEl.textContent = wIcon;
@@ -14580,14 +14619,15 @@ function syncEmoteButtonToJoystick() {
   if (!joy || !emote) return;
   if (joy.offsetWidth === 0) return; // joystick hidden (menu-mode)
   const r = joy.getBoundingClientRect();
-  const desiredLeft = r.right + 10;
+  const desiredLeft = r.right + 12;
   const emoteH = emote.offsetHeight || 44;
-  // Vertikalt: centrera mot joystick-mid
-  const desiredTop = r.top + (r.height - emoteH) / 2;
+  // Vertikalt: linja emote-BOTTEN mot joystick-botten ("höger, nere")
+  const desiredTop = r.bottom - emoteH;
   emote.style.setProperty('left', desiredLeft + 'px', 'important');
   emote.style.setProperty('top', desiredTop + 'px', 'important');
   emote.style.setProperty('bottom', 'auto', 'important');
   emote.style.setProperty('right', 'auto', 'important');
+  emote.style.setProperty('display', 'flex', 'important');
 }
 window.addEventListener('resize', syncEmoteButtonToJoystick);
 window.addEventListener('orientationchange', () => setTimeout(syncEmoteButtonToJoystick, 200));
