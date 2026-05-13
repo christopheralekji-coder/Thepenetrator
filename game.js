@@ -3094,6 +3094,26 @@ function getWeapon(id) {
   return W_BY_ID[id] || W_BY_ID.fists;
 }
 
+// weaponStrength: numerisk styrka för pickup-jämförelse (auto-byte bara om
+// nya är starkare). Använder DPS + pris för tie-break. Utility-vapen som
+// timestop/mindcontrol/blackhole får bonus från price (deras värde är inte
+// DPS-baserat). Melee räknas också (rate-baserad DPS).
+function weaponStrength(w) {
+  if (!w) return 0;
+  const burst = w.burstCount || 1;
+  const pellets = w.pellets || 1;
+  const dmg = w.dmg || 0;
+  const rate = w.rate || 500;
+  // Bas-DPS (skott-skada per sekund)
+  let dps = (dmg * pellets * burst * 1000) / rate;
+  // Explosive: AoE räknas som ~50% av direct-damage extra
+  if (w.explosive) dps += w.explosive * 0.5 * (1000 / rate);
+  // Utility-vapen utan dmg (mindcontrol) — använd price som proxy så det inte är 0
+  if (dps === 0 && w.price) dps = w.price / 30;
+  // Price tie-break (för vapen med liknande DPS, högre pris vinner)
+  return dps + (w.price || 0) * 0.01;
+}
+
 // WEAPON_ICONS + getWeaponIcon definieras längre ner (line ~5519)
 
 // Per-weapon färg-tier för HUD weapon-name (visuell hierarki).
@@ -8464,12 +8484,20 @@ const Coop = {
       return;
     }
     if (data.type === 'weapon_pickup' && !this.isHost) {
-      // Host meddelar att vi plockat upp ett vapen
-      if (data.weaponId && !save.owned.includes(data.weaponId)) save.owned.push(data.weaponId);
-      if (data.weaponId) equip(data.weaponId);
-      Audio.purchase();
-      const w = getWeapon(data.weaponId);
-      showToast('🔫 ' + (w ? w.name : data.weaponId));
+      // Host meddelar att vi plockat upp ett vapen — byt bara om starkare
+      const wasOwned = save.owned.includes(data.weaponId);
+      if (data.weaponId && !wasOwned) save.owned.push(data.weaponId);
+      const curW = W_BY_ID[state.player ? state.player.weaponId : save.equipped];
+      const newW = W_BY_ID[data.weaponId];
+      const w = newW;
+      if (newW && weaponStrength(newW) > weaponStrength(curW)) {
+        equip(data.weaponId);
+        Audio.purchase();
+        showToast('⬆ ' + (w ? w.name : data.weaponId) + ' — utrustad!');
+      } else {
+        Audio.goldPickup();
+        showToast('🔫 ' + (w ? w.name : data.weaponId) + ' (' + (wasOwned ? 'samlad' : 'sparad') + ', svagare än ditt)');
+      }
       persist();
       return;
     }
@@ -16952,11 +16980,29 @@ function updateCollectibles() {
           Coop._sendTo(closest.pid, { type: 'weapon_pickup', weaponId: c.weaponId });
           continue;
         }
-        if (!save.owned.includes(c.weaponId)) save.owned.push(c.weaponId);
-        equip(c.weaponId);
-        Audio.purchase();
-        const w = W_BY_ID[c.weaponId];
-        showToast('🔫 ' + (w ? w.name : c.weaponId));
+        // Lägg till i arsenal oavsett — pickup är alltid en uppgradering till "ägd"
+        const wasOwned = save.owned.includes(c.weaponId);
+        if (!wasOwned) save.owned.push(c.weaponId);
+        // Byt vapen BARA om nya är starkare än current. Annars stannar du på ditt
+        // (smartare än auto-byte som kunde sätta dig på pistol mitt i boss-fight).
+        const curW = W_BY_ID[state.player ? state.player.weaponId : save.equipped];
+        const newW = W_BY_ID[c.weaponId];
+        const curStr = weaponStrength(curW);
+        const newStr = weaponStrength(newW);
+        const w = newW;
+        if (newStr > curStr) {
+          equip(c.weaponId);
+          Audio.purchase();
+          showToast('⬆ ' + (w ? w.name : c.weaponId) + ' — utrustad!');
+        } else {
+          // Lägg till i inventory men byt inte. Visa svagare toast.
+          Audio.goldPickup();
+          if (wasOwned) {
+            showToast('🔫 ' + (w ? w.name : c.weaponId) + ' (samlad, svagare än ditt)');
+          } else {
+            showToast('🔫 ' + (w ? w.name : c.weaponId) + ' (sparad till arsenal)');
+          }
+        }
         persist();
       } else {
         // Default: dog tag
