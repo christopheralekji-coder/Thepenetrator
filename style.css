@@ -3424,15 +3424,79 @@ button, .shop-item, .player-row, .pet-card {
   #public-rooms-list { max-height: 110px !important; }
 }
 
+/* Mobile-fixes från audit: end-overlays scrollbara + safe-area-padding +
+   stats-min-width-fix för 360px-skärmar. */
+#tdm-end-overlay, #ctf-end-overlay, #siege-end-overlay,
+#gungame-end-overlay, #koth-end-overlay {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  justify-content: flex-start !important;
+  padding-top: max(20px, env(safe-area-inset-top, 20px)) !important;
+}
+#tdm-end-stats, #ctf-end-stats, #siege-end-stats,
+#gungame-end-stats, #koth-end-stats {
+  min-width: 0 !important;
+  width: min(360px, 92vw);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+/* GUNGAME stats-tabell har 5 kolumner — horisontellt scrollbar på 360px */
+#gungame-end-stats table {
+  white-space: nowrap;
+}
+/* Hero-stat-rader: word-break vid långa MVP-namn */
+#tdm-end-hero, #ctf-end-hero, #siege-end-hero,
+#gungame-end-hero, #koth-end-hero {
+  max-width: 92vw;
+  word-break: break-word;
+  line-height: 1.35;
+  padding: 0 8px;
+  min-height: auto !important;
+}
+/* Killfeed safe-area-right för Android landscape (DI höger) */
+#tdm-killfeed, #ctf-killfeed, #siege-killfeed,
+#gungame-killfeed, #koth-killfeed {
+  top: max(50px, calc(env(safe-area-inset-top, 0px) + 44px)) !important;
+  right: max(8px, env(safe-area-inset-right, 8px)) !important;
+}
+/* Score-bars safe-area i landscape */
+#tdm-score, #ctf-score, #siege-score {
+  top: max(6px, calc(env(safe-area-inset-top, 0px) + 4px)) !important;
+}
+
 /* Collapsible lobby-sections — dropdown-pil + skiftbar content */
 .lobby-section[data-collapsible="1"] > .lobby-label {
   cursor: pointer;
   user-select: none;
-  padding: 6px 0;
+  /* Min 44px touch-target enligt HIG */
+  min-height: 44px;
+  padding: 12px 4px;
+  margin-bottom: 0;
   display: flex;
   align-items: center;
   gap: 6px;
-  transition: color 0.15s;
+  transition: color 0.15s, background 0.15s;
+  touch-action: manipulation;
+}
+.lobby-section[data-collapsible="1"] > .lobby-label:active {
+  color: #ffd54a;
+  background: rgba(255,213,74,0.08);
+}
+/* Bot-flik knappar: säkerställ 44px touch-target + active-feedback */
+#lobby-bot-buttons button {
+  min-width: 44px !important;
+  min-height: 44px !important;
+  touch-action: manipulation;
+}
+#lobby-bot-buttons button:active {
+  transform: scale(0.95);
+  opacity: 0.75;
+}
+/* Re-skala mobile lobby-label så collapsible-rader inte är 9px små */
+@media (max-width: 600px) {
+  .lobby-section[data-collapsible="1"] > .lobby-label {
+    font-size: 11px !important;
+  }
 }
 .lobby-section[data-collapsible="1"] > .lobby-label::before {
   content: '▼';

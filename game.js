@@ -14946,7 +14946,7 @@ function ensureKothHud() {
   if (_kothHud) return;
   _kothHud = document.createElement('div');
   _kothHud.id = 'koth-hud';
-  _kothHud.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #ffd54a;border-radius:8px;padding:8px 14px;color:#fff;font-family:sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;z-index:50;display:flex;flex-direction:column;gap:4px;align-items:center;pointer-events:none;min-width:240px;';
+  _kothHud.style.cssText = 'position:fixed;top:max(8px, calc(env(safe-area-inset-top, 0px) + 6px));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #ffd54a;border-radius:8px;padding:8px 14px;color:#fff;font-family:sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;z-index:50;display:flex;flex-direction:column;gap:4px;align-items:center;pointer-events:none;min-width:min(240px, 90vw);max-width:96vw;';
   _kothHud.innerHTML = '<div style="display:flex;gap:8px;align-items:center;"><span style="color:#ffd54a;">👑</span><span id="koth-leader" style="color:#fff;">—</span></div><div id="koth-board" style="font-size:11px;color:#aaa;text-align:center;line-height:1.4;"></div>';
   document.body.appendChild(_kothHud);
   _kothKillFeedEl = document.createElement('div');

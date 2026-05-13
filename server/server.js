@@ -466,6 +466,21 @@ function handleMessage(ws, msg) {
           durationMs: room.sim.simReadyAt - Date.now(),
         });
       }
+      // Befintliga bots — late-joiner ser dem inte utan synthetiska bot_joined
+      if (room.sim._botIds && room.sim._botIds.length) {
+        const memberList = [...room.members.keys()];
+        for (const botId of room.sim._botIds) {
+          const botWs = room.members.get(botId);
+          if (!botWs) continue;
+          lateJoinEvents.push({
+            type: 'bot_joined',
+            peerId: botId,
+            name: botWs.name || 'BOT',
+            team: botWs.tdmTeam || null,
+            colorIdx: memberList.indexOf(botId),
+          });
+        }
+      }
       send(ws, { type: 'sim_events', events: lateJoinEvents });
     }
     // KOTH late-joiner: spawna på roterande spawn-point + skicka current scores
@@ -490,6 +505,7 @@ function handleMessage(ws, msg) {
         activeZoneIdx: room.sim.kothActiveZoneIdx || 0,
         zoneRotateSec: KOTH_ARENA.zoneRotateSec,
         targetPoints: room.sim.kothTargetPoints,
+        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
         shieldMax: 100,
       }];
       // Aktuella scores så late-joiner ser leaderboard direkt
@@ -507,6 +523,22 @@ function handleMessage(ws, msg) {
           x: zone.x, y: zone.y, r: zone.r, name: zone.name,
           nextRotateAt: room.sim._kothZoneRotateAt,
         });
+      }
+      // Befintliga bots i sim:n — late-joiner ser dem inte annars (bot_joined
+      // emittades vid sim-start och queuen tömdes innan denna spelare anslöt).
+      if (room.sim._botIds && room.sim._botIds.length) {
+        const memberList = [...room.members.keys()];
+        for (const botId of room.sim._botIds) {
+          const botWs = room.members.get(botId);
+          if (!botWs) continue;
+          lateKothEvents.push({
+            type: 'bot_joined',
+            peerId: botId,
+            name: botWs.name || 'BOT',
+            team: botWs.tdmTeam || null,
+            colorIdx: memberList.indexOf(botId),
+          });
+        }
       }
       send(ws, { type: 'sim_events', events: lateKothEvents });
     }

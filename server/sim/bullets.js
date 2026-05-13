@@ -170,6 +170,9 @@ function applyMelee(sim, p, weaponId, params) {
 // annars dubbel-räknas explosion+bullet samma tick → score-inflation + falsk match-end.
 function handleTdmKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
   if (victimWs.tdmRespawnAt) return;
+  // Killer kan ha disconnectat mellan bullet-spawn och hit (rare). Skip credit
+  // så stats inte rapporterar ghost-kills för borttagna peerId:n.
+  if (!sim.room.members.has(killerPid)) return;
   victimWs.tdmRespawnAt = Date.now() + 3000;
   sim.tdmKills[ownerTeam] = (sim.tdmKills[ownerTeam] || 0) + 1;
   sim.tdmKillsByPid[killerPid] = (sim.tdmKillsByPid[killerPid] || 0) + 1;
@@ -209,6 +212,7 @@ function handleTdmKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId)
 // handleCtfKill — kill-flow för CTF inkl. flag-drop om offret bar flagga.
 function handleCtfKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
   if (victimWs.tdmRespawnAt) return;
+  if (!sim.room.members.has(killerPid)) return;
   victimWs.tdmRespawnAt = Date.now() + 3000;
   sim.ctfKillsByPid[killerPid] = (sim.ctfKillsByPid[killerPid] || 0) + 1;
   sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
@@ -245,6 +249,7 @@ function handleCtfKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId)
 // handleSiegeKill — kill-flow för SIEGE. +3 poäng till killer-teamet.
 function handleSiegeKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
   if (victimWs.tdmRespawnAt) return;
+  if (!sim.room.members.has(killerPid)) return;
   victimWs.tdmRespawnAt = Date.now() + 3000;
   sim.siegeKillsByPid[killerPid] = (sim.siegeKillsByPid[killerPid] || 0) + 1;
   sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
@@ -281,6 +286,7 @@ function handleSiegeKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponI
 // zone-occupancy). Bara kill-feed + respawn.
 function handleKothKill(sim, killerPid, victimPid, victimWs, weaponId) {
   if (victimWs.tdmRespawnAt) return;
+  if (!sim.room.members.has(killerPid)) return;
   sim.kothKillsByPid[killerPid] = (sim.kothKillsByPid[killerPid] || 0) + 1;
   sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
   victimWs.tdmRespawnAt = Date.now() + 3000;
@@ -303,6 +309,7 @@ function handleKothKill(sim, killerPid, victimPid, victimWs, weaponId) {
 // GUARD: dubbel-kill samma tick → bara första räknas (annars dubbel tier-promote).
 function handleGungameKill(sim, killerPid, killerWs, victimPid, victimWs, weaponId) {
   if (victimWs.tdmRespawnAt) return;
+  if (!sim.room.members.has(killerPid)) return;
   const wasMelee = GUNGAME_MELEE_DEMOTERS.has(weaponId);
   sim.gungameKillsByPid[killerPid] = (sim.gungameKillsByPid[killerPid] || 0) + 1;
   const oldTier = sim.gungameTiers[killerPid] || 0;
