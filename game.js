@@ -6756,6 +6756,38 @@ const Coop = {
       if (ev.type === 'enemy_killed') _simDiag.enemyKilledEvts++;
       if (ev.type === 'boss_spawned') _simDiag.bossSpawnedEvts++;
     }
+    // Bot joined: server-skickat när bot spawnas. Lägg in i Coop.players + slotToPeerId
+    // så klient kan rita bot. Utan slotToPeerId-mapping missar world-paket-mapping
+    // bot:s peerId (server skickar `c: colorIdx` per spelare, klient gör
+    // slotToPeerId.get(c) — utan mapping = undefined = bot osynlig).
+    if (ev.type === 'bot_joined') {
+      const colorIdx = ev.colorIdx != null ? ev.colorIdx : 7;
+      if (ev.peerId !== this.myId) {
+        this.players.set(ev.peerId, {
+          x: 900, y: 900, hp: 100,
+          name: ev.name || 'BOT',
+          colorIdx,
+          isBot: true,
+          team: ev.team || null,
+          weaponId: 'pistol',
+          aimAngle: 0,
+          wardrobe: null,
+        });
+        if (!this.slotToPeerId) this.slotToPeerId = new Map();
+        this.slotToPeerId.set(colorIdx, ev.peerId);
+      }
+      return;
+    }
+    if (ev.type === 'bot_left') {
+      if (ev.peerId && this.players.has(ev.peerId)) this.players.delete(ev.peerId);
+      // Rensa slotToPeerId
+      if (this.slotToPeerId) {
+        for (const [slot, pid] of this.slotToPeerId) {
+          if (pid === ev.peerId) { this.slotToPeerId.delete(slot); break; }
+        }
+      }
+      return;
+    }
     if (ev.type === 'tdm_started') {
       // PvP-läge initierat — spara team-roster och visa banner
       // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
@@ -6763,8 +6795,9 @@ const Coop = {
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
       if (typeof hideGungameHud === 'function') hideGungameHud();
       if (typeof hideKothHud === 'function') hideKothHud();
-      this.ctfActive = false; this.siegeActive = false; this.gungameActive = false;
-      state.ctfActive = false; state.siegeActive = false; state.gungameActive = false;
+      this.ctfActive = false; this.siegeActive = false; this.gungameActive = false; this.kothActive = false;
+      state.ctfActive = false; state.siegeActive = false; state.gungameActive = false; state.kothActive = false;
+      state.kothZones = null; state.kothWalls = null; state.kothNextRotateAt = null;
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
       state.companion = null;
       this.tdmActive = true;
@@ -6924,8 +6957,9 @@ const Coop = {
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
       if (typeof hideGungameHud === 'function') hideGungameHud();
       if (typeof hideKothHud === 'function') hideKothHud();
-      this.tdmActive = false; this.siegeActive = false; this.gungameActive = false;
-      state.tdmActive = false; state.siegeActive = false; state.gungameActive = false;
+      this.tdmActive = false; this.siegeActive = false; this.gungameActive = false; this.kothActive = false;
+      state.tdmActive = false; state.siegeActive = false; state.gungameActive = false; state.kothActive = false;
+      state.kothZones = null; state.kothWalls = null; state.kothNextRotateAt = null;
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
       state.companion = null;
       this.ctfActive = true;
@@ -7288,8 +7322,9 @@ const Coop = {
       if (typeof hideCtfHud === 'function') hideCtfHud();
       if (typeof hideGungameHud === 'function') hideGungameHud();
       if (typeof hideKothHud === 'function') hideKothHud();
-      this.tdmActive = false; this.ctfActive = false; this.gungameActive = false;
-      state.tdmActive = false; state.ctfActive = false; state.gungameActive = false;
+      this.tdmActive = false; this.ctfActive = false; this.gungameActive = false; this.kothActive = false;
+      state.tdmActive = false; state.ctfActive = false; state.gungameActive = false; state.kothActive = false;
+      state.kothZones = null; state.kothWalls = null; state.kothNextRotateAt = null;
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
       state.companion = null;
       this.siegeActive = true;
@@ -7546,6 +7581,7 @@ const Coop = {
       state.kothDecorations = ev.decorations || [];
       state.kothZones = this.kothZones;
       state.kothActiveZoneIdx = this.kothActiveZoneIdx;
+      state.kothNextRotateAt = ev.nextRotateAt || 0;
       state.pvpShieldMax = ev.shieldMax || 100;
       state.enemies = []; state.bullets = [];
       state.bossAlive = false; state.bossIntro = null;
@@ -7575,6 +7611,7 @@ const Coop = {
       save.equipped = 'pistol';
       save.weaponId = 'pistol';
       if (typeof showKothHud === 'function') showKothHud();
+      if (typeof updateHUD === 'function') updateHUD();        // tvinga HP/shield-bar att visas
       if (typeof showToast === 'function') showToast('👑 KING OF THE HILL — håll zonen för poäng!');
       if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('tdm');
       if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
@@ -9351,31 +9388,72 @@ function renderHostControls() {
         pvpEl.appendChild(tpBtn);
       }
     }
-    // Bot-toggle + team-val (för alla PvP-modes och story coop)
+    // Bot-toggle (för alla PvP-modes och story coop)
     const botBtn = document.createElement('button');
     const botActive = !!Coop.config.addBot;
-    botBtn.textContent = botActive ? '🤖 BOT: PÅ' : '🤖 Lägg till bot';
+    const botCount = Coop.config.botCount || 1;
+    botBtn.textContent = botActive ? ('🤖 BOTS: ' + botCount + ' PÅ') : '🤖 Lägg till bots';
     botBtn.style.cssText = 'background:' + (botActive ? '#5aff5a' : '#222') + ';color:' + (botActive ? '#000' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;margin-top:4px;';
     botBtn.addEventListener('click', () => {
       Coop.config.addBot = !Coop.config.addBot;
-      if (Coop.config.addBot && !Coop.config.botTeam) Coop.config.botTeam = 'red';
-      Coop.updateConfig({ addBot: Coop.config.addBot, botTeam: Coop.config.botTeam });
+      if (Coop.config.addBot) {
+        if (!Coop.config.botTeam) Coop.config.botTeam = 'red';
+        if (!Coop.config.botCount) Coop.config.botCount = 1;
+        if (!Coop.config.botSkill) Coop.config.botSkill = 'normal';
+      }
+      Coop.updateConfig({
+        addBot: Coop.config.addBot,
+        botTeam: Coop.config.botTeam,
+        botCount: Coop.config.botCount,
+        botSkill: Coop.config.botSkill,
+      });
       renderHostControls();
     });
     pvpEl.appendChild(botBtn);
-    // Team-val för bot — bara i team-modes (TDM/CTF/SIEGE)
-    if (Coop.config.addBot && (Coop.config.tdm || Coop.config.ctf || Coop.config.siege)) {
-      for (const team of ['red', 'blue']) {
-        const tBtn = document.createElement('button');
-        const isSel = (Coop.config.botTeam || 'red') === team;
-        tBtn.textContent = team === 'red' ? '🔴 RED' : '🔵 BLUE';
-        tBtn.style.cssText = 'background:' + (isSel ? (team === 'red' ? '#ff5a5a' : '#5aaaff') : '#222') + ';color:#fff;font-size:11px;padding:6px 10px;font-weight:700;';
-        tBtn.addEventListener('click', () => {
-          Coop.config.botTeam = team;
-          Coop.updateConfig({ botTeam: team });
+    // Antal bots — bara om addBot aktivt
+    if (Coop.config.addBot) {
+      for (const n of [1, 2, 3, 5, 7]) {
+        const nBtn = document.createElement('button');
+        const isSel = (Coop.config.botCount || 1) === n;
+        nBtn.textContent = '×' + n;
+        nBtn.style.cssText = 'background:' + (isSel ? '#5aff5a' : '#222') + ';color:' + (isSel ? '#000' : '#aaa') + ';font-size:11px;padding:6px 10px;font-weight:700;min-width:38px;';
+        nBtn.addEventListener('click', () => {
+          Coop.config.botCount = n;
+          Coop.updateConfig({ botCount: n });
           renderHostControls();
         });
-        pvpEl.appendChild(tBtn);
+        pvpEl.appendChild(nBtn);
+      }
+      // Skill-val: easy / normal / hard
+      for (const sk of ['easy', 'normal', 'hard']) {
+        const sBtn = document.createElement('button');
+        const isSel = (Coop.config.botSkill || 'normal') === sk;
+        const skLabel = sk === 'easy' ? '😴 EASY' : (sk === 'normal' ? '🎯 NORMAL' : '🔥 HARD');
+        const skColor = sk === 'easy' ? '#5aff5a' : (sk === 'normal' ? '#ffd54a' : '#ff5a3a');
+        sBtn.textContent = skLabel;
+        sBtn.style.cssText = 'background:' + (isSel ? skColor : '#222') + ';color:' + (isSel ? '#000' : '#aaa') + ';font-size:11px;padding:6px 10px;font-weight:700;';
+        sBtn.addEventListener('click', () => {
+          Coop.config.botSkill = sk;
+          Coop.updateConfig({ botSkill: sk });
+          renderHostControls();
+        });
+        pvpEl.appendChild(sBtn);
+      }
+      // Team-val för bot — bara i team-modes (TDM/CTF/SIEGE) OCH bara om 1 bot
+      // (vid fler bots alterneras team auto)
+      if (botCount === 1 && (Coop.config.tdm || Coop.config.ctf || Coop.config.siege)) {
+        for (const team of ['red', 'blue']) {
+          const tBtn = document.createElement('button');
+          const isSel = (Coop.config.botTeam || 'red') === team;
+          tBtn.textContent = team === 'red' ? '🔴 RED' : '🔵 BLUE';
+          tBtn.style.cssText = 'background:' + (isSel ? (team === 'red' ? '#ff5a5a' : '#5aaaff') : '#222') + ';color:#fff;font-size:11px;padding:6px 10px;font-weight:700;';
+          tBtn.addEventListener('click', () => {
+            Coop.config.botTeam = team;
+            Coop.updateConfig({ botTeam: team });
+            renderHostControls();
+          });
+          pvpEl.appendChild(tBtn);
+        }
       }
     }
   }
@@ -9711,6 +9789,8 @@ btnCoopStart.addEventListener('click', () => {
     if (Coop.config.addBot) {
       payload.addBot = true;
       payload.botTeam = Coop.config.botTeam || 'red';
+      payload.botCount = Coop.config.botCount || 1;
+      payload.botSkill = Coop.config.botSkill || 'normal';
     }
     Coop.ws.send(JSON.stringify(payload));
     Coop.serverSimActive = true;
@@ -13197,6 +13277,8 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     if (Coop.config.addBot) {
       payload.addBot = true;
       payload.botTeam = Coop.config.botTeam || 'red';
+      payload.botCount = Coop.config.botCount || 1;
+      payload.botSkill = Coop.config.botSkill || 'normal';
     }
     try { Coop.ws.send(JSON.stringify(payload)); } catch (_) {}
     Coop.serverSimActive = true;

@@ -15,9 +15,19 @@ const { KOTH_ARENA } = require('../../shared/koth-arena');
 const BOT_NAMES = ['Echo', 'Vega', 'Nyx', 'Atlas', 'Onyx', 'Raven', 'Zane', 'Kira', 'Loki', 'Aria', 'Cipher', 'Hex'];
 let _botCounter = 0;
 
+// Skill-presets: påverkar aim-jitter och fire-rate
+// easy: tydligt sämre — bra för nybörjare
+// normal: balanserad (default)
+// hard: nästan perfekt aim, snabb fire-rate
+const BOT_SKILL = {
+  easy:   { aimJitter: 0.28, cooldownMul: 1.8, reactionMs: 350 },
+  normal: { aimJitter: 0.12, cooldownMul: 1.3, reactionMs: 180 },
+  hard:   { aimJitter: 0.05, cooldownMul: 1.0, reactionMs: 80 },
+};
+
 // Spawna bot i ett sim-rum. Returnerar bot-id om lyckad.
 // team='red'|'blue'|null (FFA). spawnPos sätts av caller efter mode.
-function addBot(sim, team) {
+function addBot(sim, team, skill) {
   _botCounter++;
   const botId = 'bot_' + _botCounter;
   // Shuffle namn per sim så samma "Echo" inte återkommer match efter match
@@ -54,6 +64,8 @@ function addBot(sim, team) {
       strafeFlipAt: 0,                          // när nästa strafe-byte ska ske
       strafeDir: Math.random() < 0.5 ? 1 : -1,
       unstickUntil: 0,                          // tving sidoangle om fastnat
+      skill: BOT_SKILL[skill] || BOT_SKILL.normal, // aim+cooldown-tuning per difficulty
+      skillName: skill || 'normal',
     },
   };
   sim.room.members.set(botId, botWs);
@@ -312,7 +324,8 @@ function shootIfReady(sim, botWs, target, now) {
   if (!w) return;
   const bot = botWs._bot;
   const rate = w.rate || 400;
-  const cooldown = rate * 1.3;               // bots skjuter lite saktare än rate cap
+  const skillMul = (bot.skill && bot.skill.cooldownMul) || 1.3;
+  const cooldown = rate * skillMul;          // skill-baserad — easy = saktare, hard = snabbare
   if (now - bot.lastShotAt < cooldown) return;
   // Check att target är inom range (melee) eller LoS-distans (gun)
   const dx = target.x - ps.x, dy = target.y - ps.y;
@@ -323,10 +336,9 @@ function shootIfReady(sim, botWs, target, now) {
   // Använd applyShoot via lokal-import för att slippa cirkulär require
   // (bots.js → room-sim.js → bots.js). Vi anropar bullets.js direkt.
   const { spawnPlayerBullets, applyMelee } = require('./bullets');
-  // Aim-jitter skalad med distans — på nära håll mer perfekt, på långt mer miss.
-  // Tidigare ±0.05 rad var aimbot-feel mot rörliga targets. Nu: baseline 0.12 +
-  // distance-skala (d/300) ger ~0.35 rad spread på 700px räckvidd.
-  const jitterMag = 0.12 + Math.min(0.30, d / 700 * 0.30);
+  // Aim-jitter skalad med distans + skill-baseline. easy=0.28, normal=0.12, hard=0.05.
+  const baseJitter = (bot.skill && bot.skill.aimJitter) || 0.12;
+  const jitterMag = baseJitter + Math.min(0.30, d / 700 * 0.30);
   const jitter = (Math.random() - 0.5) * jitterMag;
   const ang = Math.atan2(dy, dx) + jitter;
   const p = { x: ps.x, y: ps.y, aimAngle: ang, r: 14, peerId: botWs.id };

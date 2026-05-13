@@ -562,6 +562,8 @@ function handleMessage(ws, msg) {
       koth: msg.koth,
       kothTargetPoints: msg.kothTargetPoints,
       addBot: !!msg.addBot,
+      botCount: Math.max(1, Math.min(7, msg.botCount || 1)),
+      botSkill: msg.botSkill || 'normal',
       botTeam: msg.botTeam,
     });
     // Markera rummet som "startat" i public-listan + uppdatera mode
@@ -710,8 +712,11 @@ function handleDisconnect(ws) {
     const host = room.members.get(room.hostId);
     if (host) send(host, { type: 'peer_left', peerId: ws.id });
     console.log('[ROOM]', room.code, ws.id, 'left (', room.members.size, 'members)');
-    if (room.members.size === 0) {
-      // Säkerhetsnät: stoppa eventuell sim som lever vidare i ett tomt rum
+    // KRITISKT: räkna inte bots i tom-rum-check, annars lever sim:en vidare med
+    // bara bot-ws kvar (rum-läcka, evig bot-AI-tick).
+    let realCount = 0;
+    for (const [, m] of room.members) { if (!m._isBot) realCount++; }
+    if (realCount === 0) {
       if (room.sim) stopSim(room.sim);
       rooms.delete(room.code);
     }

@@ -235,6 +235,9 @@ function tickSim(sim) {
   // KOTH-mode: hold-the-hill med roterande zon
   if (sim.kothActive) {
     tickKoth(sim, dt, now);
+    sim._tickCount = (sim._tickCount || 0) + 1;
+    if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
+    return;
   }
   // GUNGAME-mode: FFA, 15-tier vapen-progression
   if (sim.gungameActive) {
@@ -1311,7 +1314,7 @@ function tickKoth(sim, dt, now) {
         ws.playerState.hp = 100;
         ws.playerState.shield = ws.playerState.maxShield || 100;
         ws.playerState.invulnUntil = nowMs + 1500;
-        if (ws._bot) { ws._bot.target = null; ws._bot.lastShotAt = 0; }
+        if (ws._bot) { ws._bot.target = null; ws._bot.lastShotAt = 0; ws._bot.stuckSince = 0; }
         sim.eventQueue.push({
           type: 'koth_player_respawned',
           peerId: pid,
@@ -1652,13 +1655,35 @@ function startSim(sim, opts) {
       sim.kothTargetPoints = opts.kothTargetPoints || 100;
     }
   }
-  // Bot-spawn: lägg bot som virtuell member INNAN mode-init så loopen tilldelar
-  // den team + spawn-pos precis som riktiga spelare. Pre-set team respekteras
+  // Bot-spawn: lägg bot(s) som virtuella members INNAN mode-init så loopen tilldelar
+  // dem team + spawn-pos precis som riktiga spelare. Pre-set team respekteras
   // av mode-init-loopen via ws._isBot-check.
-  if (opts && opts.addBot) {
+  const botCount = Math.max(0, Math.min(7, (opts && opts.addBot) ? (opts.botCount || 1) : 0));
+  if (botCount > 0) {
     const inTeamMode = sim.tdmActive || sim.ctfActive || sim.siegeActive;
-    const botTeam = inTeamMode ? (opts.botTeam === 'blue' ? 'blue' : 'red') : null;
-    addBot(sim, botTeam);
+    const skill = (opts && opts.botSkill) || 'normal';
+    // KRITISKT: colorIdx måste matcha loop-position i broadcastWorld's
+    // realPlayers-array (klient mappar c: i mot slotToPeerId). Bot kommer sist
+    // i sim.room.members (insertion order), så colorIdx = nuvarande size + bi.
+    let nextColorIdx = sim.room.members.size;
+    for (let bi = 0; bi < botCount; bi++) {
+      // I team-modes: alternera röd/blå om botCount > 1 så lagen blir balanserade,
+      // annars använd opts.botTeam som default. I FFA: ingen team.
+      let botTeam = null;
+      if (inTeamMode) {
+        if (botCount === 1) botTeam = (opts.botTeam === 'blue' ? 'blue' : 'red');
+        else botTeam = (bi % 2 === 0) ? 'red' : 'blue';
+      }
+      const botInfo = addBot(sim, botTeam, skill);
+      // Skicka bot_joined så klienter lägger in bot i sin Coop.players-map.
+      sim.eventQueue.push({
+        type: 'bot_joined',
+        peerId: botInfo.id,
+        name: botInfo.name + (botCount > 1 ? ' #' + (bi + 1) : ''),
+        team: botTeam,
+        colorIdx: nextColorIdx++,
+      });
+    }
   }
   console.log('[SIM]', sim.room.code, 'started mode=' + (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode)) + ' diff=' + sim.config.difficulty + (opts && opts.addBot ? ' +bot' : ''));
   if (sim.ctfActive) {
@@ -1923,6 +1948,7 @@ function startSim(sim, opts) {
       zones: KOTH_ARENA.zones,
       activeZoneIdx: sim.kothActiveZoneIdx,
       zoneRotateSec: KOTH_ARENA.zoneRotateSec,
+      nextRotateAt: sim._kothZoneRotateAt,
       targetPoints: sim.kothTargetPoints,
       shieldMax: 100,
     });
@@ -1958,6 +1984,17 @@ function stopSim(sim) {
     clearInterval(sim.interval);
     sim.interval = null;
     console.log('[SIM]', sim.room.code, 'stopped');
+  }
+  // Broadcasta bot_left till klienter INNAN vi rensar — annars hänger bot
+  // kvar i Coop.players även efter match-end.
+  if (sim._botIds && sim._botIds.length && sim.room && sim.room.members) {
+    for (const botId of sim._botIds) {
+      const msg = JSON.stringify({ type: 'sim_events', events: [{ type: 'bot_left', peerId: botId }] });
+      for (const [, ws] of sim.room.members) {
+        if (ws._isBot) continue;
+        if (ws.readyState === 1) try { ws.send(msg); } catch (_) {}
+      }
+    }
   }
   // Rensa bots ur room.members så de inte hänger kvar till nästa match
   removeAllBots(sim);
