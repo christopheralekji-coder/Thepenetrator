@@ -4,6 +4,7 @@
 const { encodeWorldBinary } = require('./wirefmt');
 const { makeEnemy, updateEnemy } = require('./enemies');
 const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy } = require('./bullets');
+const { addBot, tickBots, removeAllBots } = require('./bots');
 const { updateBoss } = require('./bosses');
 const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onWaveComplete, checkBossDeath } = require('./waves');
 const { updatePickups, dropFromEnemyDeath } = require('./pickups');
@@ -122,6 +123,11 @@ function tickSim(sim) {
       ws.playerState._history.shift();
     }
   }
+
+  // Bot-AI: rör bots + skjuter. Skippar countdown och time-stop internt.
+  // Körs FÖRE mode-specifika branches så bot-position är updated innan
+  // bullets uppdateras / damage appliceras.
+  tickBots(sim, dt, now);
 
   // 5s startup-countdown: skicka world-snapshot (för synk) men frys enemy-AI/spawn/damage
   if (sim.simReadyAt && now < sim.simReadyAt) {
@@ -1480,7 +1486,15 @@ function startSim(sim, opts) {
       sim.gungameActive = true;
     }
   }
-  console.log('[SIM]', sim.room.code, 'started mode=' + (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode)) + ' diff=' + sim.config.difficulty);
+  // Bot-spawn: lägg bot som virtuell member INNAN mode-init så loopen tilldelar
+  // den team + spawn-pos precis som riktiga spelare. Pre-set team respekteras
+  // av mode-init-loopen via ws._isBot-check.
+  if (opts && opts.addBot) {
+    const inTeamMode = sim.tdmActive || sim.ctfActive || sim.siegeActive;
+    const botTeam = inTeamMode ? (opts.botTeam === 'blue' ? 'blue' : 'red') : null;
+    addBot(sim, botTeam);
+  }
+  console.log('[SIM]', sim.room.code, 'started mode=' + (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode)) + ' diff=' + sim.config.difficulty + (opts && opts.addBot ? ' +bot' : ''));
   if (sim.ctfActive) {
     // CTF: dedikerad arena (4500×2800 med walls). Symmetrisk röd/blå.
     sim.simReadyAt = Date.now() + 5000;
@@ -1506,7 +1520,8 @@ function startSim(sim, opts) {
     const teams = {};
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
-      const team = i % 2 === 0 ? 'red' : 'blue';
+      // Bot:s tdmTeam är pre-satt av addBot — respektera. Andra spelare alternerar.
+      const team = (ws._isBot && ws.tdmTeam) ? ws.tdmTeam : (i % 2 === 0 ? 'red' : 'blue');
       ws.tdmTeam = team;
       ws.playerState = ws.playerState || {};
       // Spawn på random egna spawn-point (slumpa per spelare så 8-mannarum
@@ -1562,7 +1577,8 @@ function startSim(sim, opts) {
     const teams = {};
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
-      const team = i % 2 === 0 ? 'red' : 'blue';
+      // Bot:s tdmTeam är pre-satt av addBot — respektera. Andra alternerar.
+      const team = (ws._isBot && ws.tdmTeam) ? ws.tdmTeam : (i % 2 === 0 ? 'red' : 'blue');
       ws.tdmTeam = team;
       ws.playerState = ws.playerState || {};
       ws.playerState.x = team === 'red' ? redSpawnX : blueSpawnX;
@@ -1628,7 +1644,8 @@ function startSim(sim, opts) {
     const teams = {};
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
-      const team = i % 2 === 0 ? 'red' : 'blue';
+      // Bot:s tdmTeam är pre-satt av addBot — respektera. Andra alternerar.
+      const team = (ws._isBot && ws.tdmTeam) ? ws.tdmTeam : (i % 2 === 0 ? 'red' : 'blue');
       ws.tdmTeam = team;
       ws.playerState = ws.playerState || {};
       const pts = SIEGE_ARENA.spawns[team];
@@ -1737,6 +1754,8 @@ function stopSim(sim) {
     sim.interval = null;
     console.log('[SIM]', sim.room.code, 'stopped');
   }
+  // Rensa bots ur room.members så de inte hänger kvar till nästa match
+  removeAllBots(sim);
 }
 
 function applyPlayerInput(sim, peerId, input) {

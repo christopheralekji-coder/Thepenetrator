@@ -517,6 +517,8 @@ function handleMessage(ws, msg) {
       siege: msg.siege,
       siegeTargetPoints: msg.siegeTargetPoints,
       gungame: msg.gungame,
+      addBot: !!msg.addBot,
+      botTeam: msg.botTeam,
     });
     // Markera rummet som "startat" i public-listan + uppdatera mode
     if (room.meta) {

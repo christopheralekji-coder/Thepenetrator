@@ -9093,6 +9093,33 @@ function renderHostControls() {
         pvpEl.appendChild(tpBtn);
       }
     }
+    // Bot-toggle + team-val (för alla PvP-modes och story coop)
+    const botBtn = document.createElement('button');
+    const botActive = !!Coop.config.addBot;
+    botBtn.textContent = botActive ? '🤖 BOT: PÅ' : '🤖 Lägg till bot';
+    botBtn.style.cssText = 'background:' + (botActive ? '#5aff5a' : '#222') + ';color:' + (botActive ? '#000' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;margin-top:4px;';
+    botBtn.addEventListener('click', () => {
+      Coop.config.addBot = !Coop.config.addBot;
+      if (Coop.config.addBot && !Coop.config.botTeam) Coop.config.botTeam = 'red';
+      Coop.updateConfig({ addBot: Coop.config.addBot, botTeam: Coop.config.botTeam });
+      renderHostControls();
+    });
+    pvpEl.appendChild(botBtn);
+    // Team-val för bot — bara i team-modes (TDM/CTF/SIEGE)
+    if (Coop.config.addBot && (Coop.config.tdm || Coop.config.ctf || Coop.config.siege)) {
+      for (const team of ['red', 'blue']) {
+        const tBtn = document.createElement('button');
+        const isSel = (Coop.config.botTeam || 'red') === team;
+        tBtn.textContent = team === 'red' ? '🔴 RED' : '🔵 BLUE';
+        tBtn.style.cssText = 'background:' + (isSel ? (team === 'red' ? '#ff5a5a' : '#5aaaff') : '#222') + ';color:#fff;font-size:11px;padding:6px 10px;font-weight:700;';
+        tBtn.addEventListener('click', () => {
+          Coop.config.botTeam = team;
+          Coop.updateConfig({ botTeam: team });
+          renderHostControls();
+        });
+        pvpEl.appendChild(tBtn);
+      }
+    }
   }
   // Cheats (endast unlocked)
   lobbyCheatButtonsEl.innerHTML = '';
@@ -9418,6 +9445,10 @@ btnCoopStart.addEventListener('click', () => {
     }
     if (Coop.config.gungame) {
       payload.gungame = true;
+    }
+    if (Coop.config.addBot) {
+      payload.addBot = true;
+      payload.botTeam = Coop.config.botTeam || 'red';
     }
     Coop.ws.send(JSON.stringify(payload));
     Coop.serverSimActive = true;
@@ -12896,6 +12927,10 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     }
     if (Coop.config.gungame) {
       payload.gungame = true;
+    }
+    if (Coop.config.addBot) {
+      payload.addBot = true;
+      payload.botTeam = Coop.config.botTeam || 'red';
     }
     try { Coop.ws.send(JSON.stringify(payload)); } catch (_) {}
     Coop.serverSimActive = true;
