@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v229-fire-edge-mirror-no-battery-weapon-higher';
+const CACHE = 'penetrator-v230-fix-desktop-and-mobile-media-query-overrides';
 const ASSETS = [
   './',
   './index.html',

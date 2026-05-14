@@ -2778,6 +2778,8 @@ body.ios .overlay {
 /* Compact mode för små skärmar (telefoner portrait/iPhone SE) */
 @media (max-width: 480px) {
   #joystick { width: 100px; height: 100px; bottom: 16px; left: 16px; }
+  /* Edge-mirror till joysticken på smal mobil också */
+  #action-buttons { bottom: 16px; right: 16px; }
   /* JS sets emote-btn position dynamically; size only here */
   .emote-btn { width: 44px !important; height: 44px !important; font-size: 18px !important; }
   #joystick-knob { width: 44px; height: 44px; margin: -22px 0 0 -22px; }
@@ -3038,9 +3040,9 @@ body.ios .overlay {
 .perk-item.owned .pprice { color: #aa5aff; }
 
 @media (min-width: 900px) {
-  /* Desktop: gör joystick + knappar mindre påträngande, men håll centrerat under minimap */
+  /* Desktop: identisk inset till joystick på BÅDA sidor (annars edge-mirror bryts) */
   #joystick { bottom: 40px; left: 40px; }
-  #action-buttons { bottom: 40px; right: 25px; }
+  #action-buttons { bottom: 40px; right: 40px; }
 }
 
 /* Settings */
