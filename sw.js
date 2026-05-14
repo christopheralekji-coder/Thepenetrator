@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v220-ms-transparent-canvas-state-isolate';
+const CACHE = 'penetrator-v221-fix-setTransform-broke-dpr';
 const ASSETS = [
   './',
   './index.html',

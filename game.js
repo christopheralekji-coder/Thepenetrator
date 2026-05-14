@@ -24794,10 +24794,9 @@ function render() {
   // Matchande restore till outer save vid funktionsstart. Containerar ev.
   // save/restore-imbalans inom enskild frame (se kommentar vid render-start).
   ctx.restore();
-  // Belt-and-suspenders: även om internal-imbalans poppade outer-saven (gjorde
-  // restore till no-op pga stack-underflow), tvinga alla state-modifierande
-  // properties tillbaka till baseline så nästa frame börjar clean. Detta är
-  // det som faktiskt förhindrar "ljus blir helt ljust"-leaket.
+  // Belt-and-suspenders: tvinga state-properties tillbaka till baseline.
+  // OBS: INTE setTransform() — canvas har DPR-scaling-transform från resize()
+  // som måste behållas, annars krymper hela rendrering till 1/dpr av size.
   ctx.globalAlpha = 1;
   ctx.shadowBlur = 0;
   ctx.shadowColor = 'transparent';
@@ -24805,7 +24804,6 @@ function render() {
   ctx.lineWidth = 1;
   ctx.globalCompositeOperation = 'source-over';
   ctx.filter = 'none';
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
 function drawCountdownOverlay() {
