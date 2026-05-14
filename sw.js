@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v230-fix-desktop-and-mobile-media-query-overrides';
+const CACHE = 'penetrator-v231-symmetric-safe-area-inset-ios';
 const ASSETS = [
   './',
   './index.html',

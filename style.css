@@ -2742,8 +2742,16 @@ body:not(.menu-mode) #install-banner { display: none !important; }
 /* iOS safe-area: använd max() så env() bara används OM den är större än basen.
    calc(base + env) skapade dubbel-offset på iPhone landscape (Dynamic Island ~50px
    left + base 30px → joystick 80px från kanten = för långt ute/upp). */
-body.ios #joystick { bottom: max(30px, env(safe-area-inset-bottom, 30px)); left: max(30px, env(safe-area-inset-left, 30px)); }
-body.ios #action-buttons { bottom: max(30px, env(safe-area-inset-bottom, 30px)); right: max(30px, env(safe-area-inset-right, 30px)); }
+/* iPhone har notch på EN sida → env-left och env-right är asymmetriska.
+   Använd MAX av båda så joystick + fire får IDENTISK inset oavsett notch-sida. */
+body.ios #joystick {
+  bottom: max(30px, env(safe-area-inset-bottom, 30px));
+  left: max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px));
+}
+body.ios #action-buttons {
+  bottom: max(30px, env(safe-area-inset-bottom, 30px));
+  right: max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px));
+}
 /* Behåll horisontella safe-area-insets (Dynamic Island i landscape täcker vänstra kanten) */
 body.ios .overlay {
   padding-top: max(24px, env(safe-area-inset-top, 24px));
