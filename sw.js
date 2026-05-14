@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v212-inline-style-on-hud-right-group';
+const CACHE = 'penetrator-v213-settings-right-0-no-safe-area';
 const ASSETS = [
   './',
   './index.html',
