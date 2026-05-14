@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v268-minimap-zoom-multitouch';
+const CACHE = 'penetrator-v269-sandbox-coop-sanitize';
 const ASSETS = [
   './',
   './index.html',

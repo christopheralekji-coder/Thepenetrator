@@ -4676,10 +4676,31 @@ ensureCompanions();
       if (snap.weaponId) save.weaponId = snap.weaponId;
       if (typeof snap.gold === 'number') save.gold = snap.gold;
       localStorage.removeItem('penetrator_sandbox_snapshot');
-      // Persist genom att skriva om save direkt
       try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {}
     }
   } catch (_) {}
+})();
+// SANITY-CLAMP vid boot: om save är polluterad (sandbox-state läckt) → rensa.
+// Triggers: gold > 500k ELLER owned har >15 vapen. Sandbox sätter 999999 +
+// ALL_WEAPONS, så detta är säkra trösklar för legitim progression.
+(function sanitizePollutedSave() {
+  let dirty = false;
+  if (save.gold > 500000) {
+    save.gold = 1000; // safe fallback
+    dirty = true;
+  }
+  if (Array.isArray(save.owned) && save.owned.length > 15) {
+    save.owned = ['fists', 'pistol'];
+    save.equipped = 'pistol';
+    save.weaponId = 'pistol';
+    dirty = true;
+  }
+  if (dirty) {
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch (_) {}
+    // Också rensa stale snapshots så de inte återapplicerar
+    try { localStorage.removeItem('penetrator_sandbox_snapshot'); } catch (_) {}
+    try { localStorage.removeItem('penetrator_coop_snapshot'); } catch (_) {}
+  }
 })();
 
 // ============================================================
@@ -14053,6 +14074,16 @@ function actuallyStartGame() {
         const stored = localStorage.getItem('penetrator_coop_snapshot');
         if (stored) state._coopSnapshot = JSON.parse(stored);
       } catch (e) {}
+    }
+    // SANITY: om coop_snapshot är polluterad av sandbox-state (>10 vapen ELLER
+    // gold > 100000) → ignorera den. Annars "restore"ar vi tillbaka till 999999
+    // gold + alla-vapen efter coop-spel.
+    if (state._coopSnapshot && (
+        (state._coopSnapshot.owned && state._coopSnapshot.owned.length > 10) ||
+        (state._coopSnapshot.gold > 100000)
+    )) {
+      state._coopSnapshot = null;
+      try { localStorage.removeItem('penetrator_coop_snapshot'); } catch (_) {}
     }
     if (!state._coopSnapshot) {
       state._coopSnapshot = {
