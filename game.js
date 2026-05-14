@@ -5817,34 +5817,27 @@ fireBtn.addEventListener('mousedown',  fireDown);
 window.addEventListener('mousemove',   (e) => { if (fireJoyTouchId === 'mouse') fireMove(e); });
 window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') fireUp(e); });
 
-// Vapenmeny-knapp — pausar spelet och öppnar fullskärms-vapenmeny.
-// pointerdown istället för click → funkar även när joystick är aktiv.
+// Vapenmeny-knapp — pointerdown för multi-touch
 (function() {
   const btn = document.getElementById('btn-weapon-menu');
   if (!btn) return;
   btn.style.touchAction = 'manipulation';
-  const handler = (e) => {
+  btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     openWeaponMenu();
-  };
-  btn.addEventListener('pointerdown', handler, { passive: false });
-  btn.addEventListener('touchstart', handler, { passive: false });
+  }, { passive: false });
 })();
 
-// Reload-knapp — manuell reload (för att ladda om innan magasinet tar slut)
-// pointerdown istället för click → fungerar även när joystick är aktiv
-// (click fyrar inte i alla browsers när multi-touch är pågående).
+// Reload-knapp — pointerdown för multi-touch (joystick aktiv samtidigt OK)
 const _btnReload = document.getElementById('btn-reload');
 if (_btnReload) {
-  const reloadHandler = (e) => {
+  _btnReload.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (state.mode === 'playing') startReload();
     Audio.uiClick && Audio.uiClick();
-  };
-  _btnReload.addEventListener('pointerdown', reloadHandler, { passive: false });
-  _btnReload.addEventListener('touchstart', reloadHandler, { passive: false });
+  }, { passive: false });
 }
 
 // Dash-knapp (mobil). Använder pointerdown så det fungerar både touch + mouse.
@@ -6019,43 +6012,38 @@ function buildEmotePicker() {
     btn.title = em.text;
     btn.style.touchAction = 'manipulation';
     btn.innerHTML = '<span style="font-size:17px;line-height:1;">' + em.emoji + '</span>';
-    // pointerdown istället för click → funkar även när joystick är aktiv
-    const pick = (ev) => {
+    // ENDAST pointerdown — annars fyrar både pointerdown + touchstart på touch.
+    btn.addEventListener('pointerdown', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
       if (state.player) applyEmote(state.player, em.id);
       Coop.broadcastEmote(em.id);
       emotePickerEl.classList.add('hidden');
       Audio.uiClick();
-    };
-    btn.addEventListener('pointerdown', pick, { passive: false });
-    btn.addEventListener('touchstart', pick, { passive: false });
+    }, { passive: false });
     emotePickerEl.appendChild(btn);
   }
 }
 const _btnEmote = document.getElementById('btn-emote');
 if (_btnEmote) {
   _btnEmote.style.touchAction = 'manipulation';
-  // pointerdown istället för click → funkar även när joystick är aktiv
-  const toggleEmote = (e) => {
+  // ENDAST pointerdown (inte touchstart också) — annars fyrar båda på touch
+  // och toggle visar+gömmer picker direkt = "tryck men inget händer".
+  _btnEmote.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     buildEmotePicker();
     emotePickerEl.classList.toggle('hidden');
     Audio.uiClick();
-  };
-  _btnEmote.addEventListener('pointerdown', toggleEmote, { passive: false });
-  _btnEmote.addEventListener('touchstart', toggleEmote, { passive: false });
-  // Stäng picker om man klickar/tappar någon annanstans
-  const dismiss = (e) => {
+  }, { passive: false });
+  // Stäng picker om man tappar någon annanstans
+  document.addEventListener('pointerdown', (e) => {
     if (emotePickerEl && !emotePickerEl.classList.contains('hidden') &&
         !emotePickerEl.contains(e.target) &&
         e.target !== _btnEmote && !_btnEmote.contains(e.target)) {
       emotePickerEl.classList.add('hidden');
     }
-  };
-  document.addEventListener('pointerdown', dismiss);
-  document.addEventListener('touchstart', dismiss, { passive: true });
+  });
 }
 
 const weaponMenuScreen = document.getElementById('weapon-menu-screen');
@@ -15886,14 +15874,12 @@ setTimeout(syncEmoteButtonToJoystick, 500);
 const btnIngameSettings = document.getElementById('btn-ingame-settings');
 if (btnIngameSettings) {
   btnIngameSettings.style.touchAction = 'manipulation';
-  // pointerdown istället för click → funkar även när joystick är aktiv
-  const handler = (e) => {
+  // pointerdown för multi-touch (bara en — inte touchstart också annars dubbel-fyrar)
+  btnIngameSettings.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (state.mode === 'playing') openPause();
-  };
-  btnIngameSettings.addEventListener('pointerdown', handler, { passive: false });
-  btnIngameSettings.addEventListener('touchstart', handler, { passive: false });
+  }, { passive: false });
 }
 
 // ============================================================
@@ -26054,20 +26040,22 @@ function runFrame(dt, now) {
 
 requestAnimationFrame(loop);
 
-// Förhindra default touch-scroll på canvas + dismiss dialog (endast på knapp)
+// Förhindra default touch-scroll på canvas + dismiss dialog (endast på knapp).
+// Använd changedTouches (nya touchen i denna event), inte touches[0] — annars
+// kollas alltid första aktiva touchen (joystick) → minimap-zoom funkar inte
+// när joystick är aktiv.
 canvas.addEventListener('touchstart', e => {
-  if (e.touches[0]) {
-    const r = canvas.getBoundingClientRect();
-    const tx = e.touches[0].clientX - r.left;
-    const ty = e.touches[0].clientY - r.top;
+  const r = canvas.getBoundingClientRect();
+  const newTouch = e.changedTouches && e.changedTouches[0];
+  if (newTouch) {
+    const tx = newTouch.clientX - r.left;
+    const ty = newTouch.clientY - r.top;
     if (checkMinimapZoomClick(tx, ty)) { e.preventDefault(); return; }
-  }
-  if (storyDialogActive && e.touches[0]) {
-    const r = canvas.getBoundingClientRect();
-    const tx = e.touches[0].clientX - r.left, ty = e.touches[0].clientY - r.top;
-    const b = storyDialogActive.btn;
-    if (b && tx >= b.x && tx <= b.x + b.w && ty >= b.y && ty <= b.y + b.h) {
-      closeStoryDialog(); Audio.uiClick();
+    if (storyDialogActive) {
+      const b = storyDialogActive.btn;
+      if (b && tx >= b.x && tx <= b.x + b.w && ty >= b.y && ty <= b.y + b.h) {
+        closeStoryDialog(); Audio.uiClick();
+      }
     }
   }
   e.preventDefault();
