@@ -3117,7 +3117,7 @@ body.ios .overlay {
   position: fixed;
   /* Placera picker DIREKT höger om joysticken (joystick width 140 + 10 gap) så
      den inte täcker rörelse-joysticken när menyn är öppen. */
-  bottom: max(36px, calc(env(safe-area-inset-bottom, 30px) + 36px));
+  bottom: 72px; /* Strax ovanför emote-knappen (bottom:14 + height 52 + 6px gap) */
   left: calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 150px);
   background: transparent;
   border: none;
