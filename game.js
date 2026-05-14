@@ -9547,6 +9547,24 @@ function initLobbyDropdowns() {
   });
 }
 
+// Tap-helper för lobby-knappar — `click`-eventet är OPÅLITLIGT på iOS PWA
+// för dynamiskt skapade knappar inuti animerade/transformerade containers
+// (.lobby-tab-panel har translateY-animation). Vi måste lyssna på pointerup
+// (fires direkt vid lift, oberoende av click-synthetic). dedupe-guard hindrar
+// dubbel-fire från pointerup+click som båda kan komma från samma tap.
+function onTap(el, fn) {
+  if (!el) return;
+  let _last = 0;
+  const wrap = (e) => {
+    const now = Date.now();
+    if (now - _last < 300) return;
+    _last = now;
+    fn(e);
+  };
+  el.addEventListener('pointerup', wrap);
+  el.addEventListener('click', wrap); // desktop / fallback
+}
+
 // ============================================================
 // MODE-OPTIONS POPUP — bottom-sheet med target-points/bot-config/etc
 // ============================================================
@@ -9622,14 +9640,7 @@ function openModePopup(modeId) {
       b.className = 'popup-option-btn' + (cur === v ? ' active' : '');
       b.textContent = (opt.labels ? opt.labels[i] : v + (opt.suffix || ''));
       b.style.touchAction = 'manipulation';
-      // pointerup för iOS-reliabilitet — `click` är opålitligt på dynamiskt skapade
-      // knappar inuti en animated/translateY-transformerad bottom-sheet (lobbyPopupSlideUp).
-      // Använd guard så samma fysiska tap inte triggar dubbelt.
-      let _lastFire = 0;
-      const fire = (e) => {
-        const now = Date.now();
-        if (now - _lastFire < 250) return;
-        _lastFire = now;
+      onTap(b, (e) => {
         if (e) { e.preventDefault(); e.stopPropagation(); }
         Coop.config[opt.key] = v;
         Coop.updateConfig({ [opt.key]: v });
@@ -9637,9 +9648,7 @@ function openModePopup(modeId) {
           btn.classList.toggle('active', opt.values[j] === v);
         });
         Audio.uiClick && Audio.uiClick();
-      };
-      b.addEventListener('pointerup', fire);
-      b.addEventListener('click', fire); // desktop-fallback
+      });
       row.appendChild(b);
     });
     section.appendChild(row);
@@ -9812,7 +9821,7 @@ function renderHostControls() {
     privBtn.style.color = '#fff';
     if (!privBtn._wired) {
       privBtn._wired = true;
-      privBtn.addEventListener('click', () => {
+      onTap(privBtn, () => {
         Coop.updateConfig({ private: !Coop.config.private });
         renderHostControls();
       });
@@ -9824,7 +9833,7 @@ function renderHostControls() {
     const b = document.createElement('button');
     b.textContent = DIFF_LABELS[d];
     if (Coop.config.difficulty === d) b.classList.add('active');
-    b.addEventListener('click', () => {
+    onTap(b, () => {
       Coop.updateConfig({ difficulty: d });
       renderHostControls();
       renderScalingInfo();
@@ -9837,7 +9846,7 @@ function renderHostControls() {
     const b = document.createElement('button');
     b.textContent = MODE_LABELS[m];
     if (Coop.config.mode === m && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && !Coop.config.koth) b.classList.add('active');
-    b.addEventListener('click', () => {
+    onTap(b, () => {
       // Aktivera team-mode + clear alla PvP-flags
       Coop.config.tdm = false;
       Coop.config.ctf = false;
@@ -9857,7 +9866,7 @@ function renderHostControls() {
   convoyBtn.style.cssText = 'background:' + (isOn ? '#aa3aff' : (inStory ? '#444' : '#222')) + ';margin-top:6px;width:100%;font-size:12px;padding:6px 10px;color:' + (inStory ? '#fff' : '#666') + ';';
   convoyBtn.title = inStory ? 'Lägg till truck-konvoj efter story → 11 banor totalt' : 'Endast i Story-mode';
   if (!inStory) convoyBtn.disabled = true;
-  convoyBtn.addEventListener('click', () => {
+  onTap(convoyBtn, () => {
     if (!inStory) { showToast('Bara i Story-mode'); return; }
     Coop.updateConfig({ includeConvoy: !Coop.config.includeConvoy });
     renderHostControls();
@@ -9873,7 +9882,7 @@ function renderHostControls() {
     tdmBtn.textContent = '⚔️ TDM';
     tdmBtn.style.cssText = 'background:' + (Coop.config.tdm ? '#ff5a5a' : '#222') + ';color:' + (Coop.config.tdm ? '#fff' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
     if (Coop.config.tdm) tdmBtn.classList.add('active');
-    tdmBtn.addEventListener('click', () => {
+    onTap(tdmBtn, () => {
       const newTdm = !Coop.config.tdm;
       Coop.config.tdm = newTdm;
       Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false;
@@ -9895,7 +9904,7 @@ function renderHostControls() {
     ctfBtn.textContent = '🚩 CTF (Capture the Flag)';
     ctfBtn.style.cssText = 'background:' + (Coop.config.ctf ? '#aa3aff' : '#222') + ';color:' + (Coop.config.ctf ? '#fff' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
     if (Coop.config.ctf) ctfBtn.classList.add('active');
-    ctfBtn.addEventListener('click', () => {
+    onTap(ctfBtn, () => {
       const newCtf = !Coop.config.ctf;
       Coop.config.ctf = newCtf;
       Coop.config.tdm = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false;
@@ -9917,7 +9926,7 @@ function renderHostControls() {
     siegeBtn.textContent = '⚔️ SIEGE (Base Conquest)';
     siegeBtn.style.cssText = 'background:' + (Coop.config.siege ? '#ff8a3a' : '#222') + ';color:' + (Coop.config.siege ? '#fff' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
     if (Coop.config.siege) siegeBtn.classList.add('active');
-    siegeBtn.addEventListener('click', () => {
+    onTap(siegeBtn, () => {
       const newSiege = !Coop.config.siege;
       Coop.config.siege = newSiege;
       Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.gungame = false; Coop.config.koth = false;
@@ -9939,7 +9948,7 @@ function renderHostControls() {
     ggBtn.textContent = '🔫 GUNGAME (FFA 15-tier)';
     ggBtn.style.cssText = 'background:' + (Coop.config.gungame ? '#3acaff' : '#222') + ';color:' + (Coop.config.gungame ? '#000' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
     if (Coop.config.gungame) ggBtn.classList.add('active');
-    ggBtn.addEventListener('click', () => {
+    onTap(ggBtn, () => {
       const newGg = !Coop.config.gungame;
       Coop.config.gungame = newGg;
       Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.koth = false;
@@ -9957,7 +9966,7 @@ function renderHostControls() {
     kothBtn.textContent = '👑 KOTH (Hold the Hill)';
     kothBtn.style.cssText = 'background:' + (Coop.config.koth ? '#ffd54a' : '#222') + ';color:' + (Coop.config.koth ? '#000' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
     if (Coop.config.koth) kothBtn.classList.add('active');
-    kothBtn.addEventListener('click', () => {
+    onTap(kothBtn, () => {
       const newKoth = !Coop.config.koth;
       Coop.config.koth = newKoth;
       Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false;
@@ -9974,58 +9983,8 @@ function renderHostControls() {
       if (newKoth) openModePopup('koth');
     });
     pvpEl.appendChild(kothBtn);
-    // KOTH target-poäng-selector
-    if (Coop.config.koth) {
-      for (const tp of [50, 100, 200]) {
-        const tpBtn = document.createElement('button');
-        tpBtn.textContent = tp + ' poäng';
-        tpBtn.style.cssText = 'background:' + ((Coop.config.kothTargetPoints || 100) === tp ? '#ffd54a' : '#222') + ';color:#000;font-size:11px;padding:6px 10px;font-weight:700;';
-        tpBtn.addEventListener('click', () => {
-          Coop.config.kothTargetPoints = tp;
-          Coop.updateConfig({ kothTargetPoints: tp });
-          renderHostControls();
-        });
-        pvpEl.appendChild(tpBtn);
-      }
-    }
-    // Target-selectors per aktivt PvP-läge
-    if (Coop.config.tdm) {
-      for (const tk of [10, 20, 30]) {
-        const tkBtn = document.createElement('button');
-        tkBtn.textContent = tk + ' kills';
-        tkBtn.style.cssText = 'background:' + ((Coop.config.tdmTargetKills || 10) === tk ? '#aa3aff' : '#222') + ';color:#fff;font-size:11px;padding:6px 10px;';
-        tkBtn.addEventListener('click', () => {
-          Coop.config.tdmTargetKills = tk;
-          Coop.updateConfig({ tdmTargetKills: tk });
-          renderHostControls();
-        });
-        pvpEl.appendChild(tkBtn);
-      }
-    } else if (Coop.config.ctf) {
-      for (const tc of [3, 5, 10]) {
-        const tcBtn = document.createElement('button');
-        tcBtn.textContent = tc + ' flags';
-        tcBtn.style.cssText = 'background:' + ((Coop.config.ctfTargetCaptures || 3) === tc ? '#ff5a5a' : '#222') + ';color:#fff;font-size:11px;padding:6px 10px;';
-        tcBtn.addEventListener('click', () => {
-          Coop.config.ctfTargetCaptures = tc;
-          Coop.updateConfig({ ctfTargetCaptures: tc });
-          renderHostControls();
-        });
-        pvpEl.appendChild(tcBtn);
-      }
-    } else if (Coop.config.siege) {
-      for (const tp of [500, 5000, 20000]) {
-        const tpBtn = document.createElement('button');
-        tpBtn.textContent = tp + ' poäng';
-        tpBtn.style.cssText = 'background:' + ((Coop.config.siegeTargetPoints || 500) === tp ? '#ff8a3a' : '#222') + ';color:#fff;font-size:11px;padding:6px 10px;';
-        tpBtn.addEventListener('click', () => {
-          Coop.config.siegeTargetPoints = tp;
-          Coop.updateConfig({ siegeTargetPoints: tp });
-          renderHostControls();
-        });
-        pvpEl.appendChild(tpBtn);
-      }
-    }
+    // Target-selektorer för aktivt PvP-läge sker nu UTESLUTANDE via popup —
+    // ingen inline-rendering här (rensar mode-knapparna så det inte blir spretigt).
   }
   // Bot-controls: bara EN togglar-knapp. Alla andra inställningar (antal, skill,
   // team) görs i popupen som öppnas av samma knapp. Det räcker — popup täcker hela.
@@ -10040,7 +9999,7 @@ function renderHostControls() {
     botBtn.textContent = botActive ? ('🤖 BOTS PÅ · ×' + botCount + ' ' + skEmoji + ' · KONFIGURERA') : '🤖 LÄGG TILL BOTS';
     botBtn.style.cssText = 'background:' + (botActive ? '#5aff5a' : '#222') + ';color:' + (botActive ? '#000' : '#aaa') + ';font-size:12px;padding:10px 12px;letter-spacing:1px;font-weight:700;width:100%;touch-action:manipulation;';
     if (botActive) botBtn.classList.add('active');
-    botBtn.addEventListener('click', () => {
+    onTap(botBtn, () => {
       const wasOn = Coop.config.addBot;
       if (!wasOn) {
         Coop.config.addBot = true;
@@ -10062,7 +10021,7 @@ function renderHostControls() {
       const offBtn = document.createElement('button');
       offBtn.textContent = '✕ STÄNG AV BOTS';
       offBtn.style.cssText = 'background:#3a1a1a;color:#ff8a8a;font-size:11px;padding:8px 12px;letter-spacing:1px;font-weight:700;width:100%;margin-top:6px;touch-action:manipulation;border:1px solid #5a2a2a;';
-      offBtn.addEventListener('click', () => {
+      onTap(offBtn, () => {
         Coop.config.addBot = false;
         Coop.updateConfig({ addBot: false });
         renderHostControls();
@@ -10080,7 +10039,7 @@ function renderHostControls() {
     b.className = 'cheat-btn';
     b.textContent = c.icon + ' ' + c.name.split(' ')[0];
     if (Coop.config.cheats[c.id]) b.classList.add('active');
-    b.addEventListener('click', () => {
+    onTap(b, () => {
       const newCheats = { ...Coop.config.cheats };
       newCheats[c.id] = !newCheats[c.id];
       Coop.updateConfig({ cheats: newCheats });

@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v274-popup-pointerup-bots-menu-cleanup';
+const CACHE = 'penetrator-v275-lobby-buttons-onTap-pointerup-helper';
 const ASSETS = [
   './',
   './index.html',
