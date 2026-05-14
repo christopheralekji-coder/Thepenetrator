@@ -9547,22 +9547,27 @@ function initLobbyDropdowns() {
   });
 }
 
-// Tap-helper för lobby-knappar — `click`-eventet är OPÅLITLIGT på iOS PWA
-// för dynamiskt skapade knappar inuti animerade/transformerade containers
-// (.lobby-tab-panel har translateY-animation). Vi måste lyssna på pointerup
-// (fires direkt vid lift, oberoende av click-synthetic). dedupe-guard hindrar
-// dubbel-fire från pointerup+click som båda kan komma från samma tap.
+// Tap-helper — iOS PWA inuti `.overlay { overflow-y:auto }` hijackar touchen
+// som potentiell scroll. Det gör att `click` OCH `pointerup` ALDRIG firar för
+// dynamiskt skapade knappar. Joystick + fire-knapp i spelet använder `touchstart`
+// och funkar perfekt — så vi gör samma sak.
+//
+// touchstart fires INSTANT innan iOS hinner bestämma "scroll vs tap". preventDefault
+// hindrar synthetic mouse/click events. click = desktop-fallback (mus genererar
+// ingen touchstart). 400ms dedupe stoppar dubbel-fire från touchstart+click på
+// hybrid-devices (Android med mus/touch eller iPad med Magic Keyboard).
 function onTap(el, fn) {
   if (!el) return;
   let _last = 0;
   const wrap = (e) => {
     const now = Date.now();
-    if (now - _last < 300) return;
+    if (now - _last < 400) return;
     _last = now;
+    if (e && e.cancelable) e.preventDefault();
     fn(e);
   };
-  el.addEventListener('pointerup', wrap);
-  el.addEventListener('click', wrap); // desktop / fallback
+  el.addEventListener('touchstart', wrap, { passive: false });
+  el.addEventListener('click', wrap);
 }
 
 // ============================================================
@@ -9670,34 +9675,19 @@ function initModePopup() {
   const close = document.getElementById('lobby-mode-popup-close');
   const confirm = document.getElementById('lobby-mode-popup-confirm');
   const backdrop = document.querySelector('.lobby-mode-popup-backdrop');
-  let _lastClose = 0;
-  const closeHandler = (e) => {
-    const now = Date.now();
-    if (now - _lastClose < 250) return; // dedupe pointerup+click from same tap
-    _lastClose = now;
-    if (e) { e.preventDefault(); e.stopPropagation(); }
+  const closeFn = () => {
     closeModePopup();
     Audio.uiClick && Audio.uiClick();
   };
-  // Backdrop måste använda pointerup (inte pointerdown) — annars stänger iOS
-  // synthetic pointerdown från samma tap som öppnade popupen den direkt.
-  // Dessutom: 350ms lockout som extra säkerhet mot synthetic ghost-events.
-  const backdropHandler = (e) => {
-    if (Date.now() - _modePopupOpenedAt < 350) return;
-    closeHandler(e);
+  // Backdrop: 400ms lockout efter open så samma tap som öppnade popupen inte
+  // stänger den direkt (iOS kan re-dispatcha events när popup täcker touch-point).
+  const backdropFn = () => {
+    if (Date.now() - _modePopupOpenedAt < 400) return;
+    closeFn();
   };
-  if (close) {
-    close.addEventListener('pointerup', closeHandler);
-    close.addEventListener('click', closeHandler);
-  }
-  if (confirm) {
-    confirm.addEventListener('pointerup', closeHandler);
-    confirm.addEventListener('click', closeHandler);
-  }
-  if (backdrop) {
-    backdrop.addEventListener('pointerup', backdropHandler);
-    backdrop.addEventListener('click', backdropHandler);
-  }
+  onTap(close, closeFn);
+  onTap(confirm, closeFn);
+  onTap(backdrop, backdropFn);
 }
 
 // Tab-switching för lobby V2 (TEAM / PVP / BOTS). Idempotent — bara binder en gång.

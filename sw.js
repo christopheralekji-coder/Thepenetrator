@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v275-lobby-buttons-onTap-pointerup-helper';
+const CACHE = 'penetrator-v276-lobby-buttons-TOUCHSTART-fix-ios-scroll-hijack';
 const ASSETS = [
   './',
   './index.html',
