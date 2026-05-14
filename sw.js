@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v205-exit-arrow-story-only';
+const CACHE = 'penetrator-v206-koth-shield-toast-ms';
 const ASSETS = [
   './',
   './index.html',

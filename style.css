@@ -401,10 +401,11 @@ html, body {
   transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   box-shadow: 0 0 6px var(--xp-color);
 }
-/* HUD-toast-stack: small notifications under HP-bar, max 3 rows */
+/* HUD-toast-stack: small notifications BELOW HP-bar + MS-knappen, max 3 rows.
+   MS-indikator ligger top:36 + h~16 = slutar ~52px. Toast måste börja under det. */
 #hud-toast-stack {
   position: fixed;
-  top: max(46px, calc(env(safe-area-inset-top, 0px) + 38px));
+  top: max(60px, calc(env(safe-area-inset-top, 0px) + 54px));
   left: max(12px, env(safe-area-inset-left, 12px));
   z-index: 9;
   display: flex;

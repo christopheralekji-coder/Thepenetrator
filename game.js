@@ -15521,9 +15521,9 @@ function updateHUD() {
   // Toggle low-HP-pulse på hp-bar (CSS animation)
   const hpBar = hpFill.parentElement;
   if (hpBar) hpBar.dataset.low = hpFrac < 0.3 ? '1' : '0';
-  // Shield-bar: bara synlig i PvP (TDM/CTF)
+  // Shield-bar: bara synlig i PvP (TDM/CTF/SIEGE/GUNGAME/KOTH)
   if (typeof _shieldBar !== 'undefined' && _shieldBar) {
-    if ((state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive) && p.maxShield) {
+    if ((state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive) && p.maxShield) {
       _shieldBar.classList.remove('hidden');
       const sFrac = Math.max(0, (p.shield || 0) / p.maxShield);
       if (_shieldFill) _shieldFill.style.width = (sFrac * 100) + '%';
