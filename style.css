@@ -56,6 +56,13 @@ html, body {
   display: flex;
   align-items: center;
   gap: 6px;
+  /* Ankra till absoluta höger-kanten av viewport — bypassa #hud-paddingen.
+     Detta är enda säkra sättet att garantera ⚙ i hörnet på alla devices
+     oavsett shorthand-padding-override:s i media-queries. */
+  position: fixed;
+  top: max(8px, env(safe-area-inset-top, 8px));
+  right: env(safe-area-inset-right, 0px);
+  z-index: 6;
 }
 .hud-row {
   display: flex;
