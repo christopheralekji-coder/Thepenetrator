@@ -24535,6 +24535,11 @@ function render() {
   ctx.clearRect(0, 0, viewW, viewH);
   if (state.mode === 'menu' || !state.player) return;
 
+  // Viewport-culling bounds — deklareras HÄR (före första användning) så TDZ
+  // inte kraschar render() vid första footstep-partikeln (v1.199-buggen).
+  const _cullL = state.camera.x - 80, _cullT = state.camera.y - 80;
+  const _cullR = state.camera.x + viewW + 80, _cullB = state.camera.y + viewH + 80;
+
   drawEnvironment();
   // CTF: team-tinted floor halves + walls + flag-stands UNDER allt annat
   if (state.ctfActive) drawCtfArenaFloor();
@@ -24542,10 +24547,18 @@ function render() {
   drawCollectibles();
   drawPickups();
   drawGoalZone(state.camera.x, state.camera.y);
-  // Bottom layer: footprints + blood pools (below enemies)
-  for (const p of state.particles) if (p.isFootprint || p.isBloodPool) drawParticle(p);
-  // Mid layer: vanliga partiklar
-  for (const p of state.particles) if (!p.isExplosion && !p.isFootprint && !p.isBloodPool && !p.isDamageNumber && !p.isCritText && !p.isChatter) drawParticle(p);
+  // Bottom layer: footprints + blood pools (below enemies) — viewport-cull
+  for (const p of state.particles) {
+    if (!(p.isFootprint || p.isBloodPool)) continue;
+    if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
+    drawParticle(p);
+  }
+  // Mid layer: vanliga partiklar — viewport-cull (hot: 200+ items)
+  for (const p of state.particles) {
+    if (p.isExplosion || p.isFootprint || p.isBloodPool || p.isDamageNumber || p.isCritText || p.isChatter) continue;
+    if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
+    drawParticle(p);
+  }
   // Entities
   for (const e of state.enemies) drawEnemy(e);
   drawDeadBody();
@@ -24572,8 +24585,11 @@ function render() {
   drawDrone();
   drawCompanion();
   if (state.truck) drawTruck();
-  // Bullets
-  for (const b of state.bullets) drawBullet(b);
+  // Bullets — viewport-cull sparar 5-15% bullet-render vid burst-fire
+  for (const b of state.bullets) {
+    if (b.x < _cullL || b.x > _cullR || b.y < _cullT || b.y > _cullB) continue;
+    drawBullet(b);
+  }
   // CTF walls + flag-stands + dropped/carried flags (ovanpå entities men under HUD)
   if (state.ctfActive) {
     drawCtfDecorations(); // skyltar, klotter, lyktor — under walls
@@ -24617,9 +24633,18 @@ function render() {
   if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive) drawPvpShieldBubbles();
   // PvP-pickups (HP/shield-regen) — alla PvP-lägen
   if ((state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive) && state.pvpPickups) drawPvpPickups();
-  // Top layer: damage-numbers + crit-text + chatter + explosions
-  for (const p of state.particles) if (p.isDamageNumber || p.isCritText || p.isChatter) drawParticle(p);
-  for (const p of state.particles) if (p.isExplosion) drawParticle(p);
+  // Top layer: damage-numbers + crit-text + chatter — viewport-cull
+  for (const p of state.particles) {
+    if (!(p.isDamageNumber || p.isCritText || p.isChatter)) continue;
+    if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
+    drawParticle(p);
+  }
+  // Explosions (toppmost) — viewport-cull
+  for (const p of state.particles) {
+    if (!p.isExplosion) continue;
+    if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
+    drawParticle(p);
+  }
   drawCraneDrop();
   drawOffScreenGoalArrow();
   drawOffscreenHitMarkers();

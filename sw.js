@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v202-safe-baseline-for-playtest';
+const CACHE = 'penetrator-v203-viewport-cull-tdz-fixed';
 const ASSETS = [
   './',
   './index.html',
