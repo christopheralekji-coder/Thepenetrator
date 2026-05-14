@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v209-settings-flush-right';
+const CACHE = 'penetrator-v210-settings-flush-mobile-override-fix';
 const ASSETS = [
   './',
   './index.html',

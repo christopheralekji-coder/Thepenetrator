@@ -2734,7 +2734,14 @@ body.ios .overlay {
   }
   .menu-row { gap: 3px; }
   #hp-bar { width: 110px; height: 16px; }
-  #hud { padding: 4px 6px; }
+  /* Behåll individuella paddings — shorthand 'padding: 4px 6px' skrev över
+     padding-right: env(safe-area-inset-right) som håller ⚙ flush mot kanten */
+  #hud {
+    padding-top: max(4px, env(safe-area-inset-top, 4px));
+    padding-bottom: 4px;
+    padding-left: max(6px, env(safe-area-inset-left, 6px));
+    padding-right: env(safe-area-inset-right, 0px);
+  }
   #wave-info, #gold-info, #weapon-name, #ammo-info { padding: 3px 8px; font-size: 11px; }
   .hud-row.weapon { font-size: 10px; }
   #btn-fullscreen { font-size: 10px; padding: 4px 8px; top: 8px; right: 8px; }
