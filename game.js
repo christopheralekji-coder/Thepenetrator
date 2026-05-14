@@ -9838,6 +9838,9 @@ function showLobby(code, isHost) {
     btnCoopStart.classList.add('hidden');
     coopWaiting.classList.remove('hidden');
     hostControlsEl.classList.add('hidden');
+    // Klienter ser bara match-info-card — host-controls är dolt. Initial render
+    // så de ser hosts inställningar direkt vid join (onConfigChange uppdaterar sen).
+    if (typeof renderLobbyMatchInfo === 'function') renderLobbyMatchInfo();
   }
 }
 
@@ -10084,6 +10087,69 @@ function renderHostControls() {
   syncLobbyTabToMode();
   updateLobbyTeamControls();
   updateLobbyDifficultyVisibility();
+  renderLobbyMatchInfo();
+}
+
+// Match-info card — synlig för alla i lobbyn (både host och klienter). Visar
+// vad host valt: mode, target-points/kills/captures, bots, svårighet, cheats.
+function renderLobbyMatchInfo() {
+  const body = document.getElementById('lobby-match-info-body');
+  if (!body) return;
+  const cfg = (Coop && Coop.config) || {};
+  const chips = [];
+  // 1. Mode-chip — visar aktivt spelläge
+  let modeLabel = '';
+  if (cfg.tdm) modeLabel = '⚔️ TDM';
+  else if (cfg.ctf) modeLabel = '🚩 CTF';
+  else if (cfg.siege) modeLabel = '🛡 SIEGE';
+  else if (cfg.gungame) modeLabel = '🔫 GUNGAME';
+  else if (cfg.koth) modeLabel = '👑 KOTH';
+  else if (cfg.mode === 'story') modeLabel = '📖 STORY';
+  else if (cfg.mode === 'endless') modeLabel = '♾️ ENDLESS';
+  else if (cfg.mode === 'bossrush') modeLabel = '👹 BOSSRUSH';
+  else if (cfg.mode === 'survive') modeLabel = '🛡 SURVIVE';
+  else if (cfg.mode === 'truck') modeLabel = '🚚 TRUCK';
+  else modeLabel = (cfg.mode || 'STORY').toUpperCase();
+  chips.push(`<span class="match-info-chip mode">${modeLabel}</span>`);
+  // 2. Target-chip (vad krävs för vinst i aktiv mode)
+  let target = '';
+  if (cfg.tdm) target = (cfg.tdmTargetKills || 10) + ' kills';
+  else if (cfg.ctf) target = (cfg.ctfTargetCaptures || 3) + ' flags';
+  else if (cfg.siege) target = (cfg.siegeTargetPoints || 500) + ' poäng';
+  else if (cfg.koth) target = (cfg.kothTargetPoints || 100) + ' poäng';
+  else if (cfg.gungame) target = '15 tiers';
+  if (target) chips.push(`<span class="match-info-chip target">🎯 ${target}</span>`);
+  // 3. Konvoj (story-mode only)
+  if (cfg.mode === 'story' && cfg.includeConvoy) {
+    chips.push(`<span class="match-info-chip">🚚 +KONVOJ</span>`);
+  }
+  // 4. Svårighet — visas bara för team-modes (PvP har fast svårighet)
+  const isPvP = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth);
+  if (!isPvP) {
+    const diff = (cfg.difficulty || 'veteran').toUpperCase();
+    chips.push(`<span class="match-info-chip diff">📊 ${diff}</span>`);
+  }
+  // 5. Bots (om aktivt)
+  if (cfg.addBot) {
+    const n = cfg.botCount || 1;
+    const sk = cfg.botSkill === 'easy' ? '😴' : (cfg.botSkill === 'hard' ? '🔥' : '🎯');
+    let teamHint = '';
+    if (cfg.tdm || cfg.ctf || cfg.siege) {
+      const bt = cfg.botTeam || 'auto';
+      teamHint = bt === 'red' ? ' RÖD' : (bt === 'blue' ? ' BLÅ' : '');
+    }
+    chips.push(`<span class="match-info-chip bots">🤖×${n} ${sk}${teamHint}</span>`);
+  }
+  // 6. Free-pick / shuffle-hint i team-PvP
+  if ((cfg.tdm || cfg.ctf || cfg.siege) && cfg.teamPickFree) {
+    chips.push(`<span class="match-info-chip">🎯 FRI VAL</span>`);
+  }
+  // 7. Aktiva cheats
+  const activeCheats = Object.entries(cfg.cheats || {}).filter(([,v]) => v).map(([k]) => k);
+  if (activeCheats.length > 0) {
+    chips.push(`<span class="match-info-chip cheat">⚡ ${activeCheats.length} CHEAT${activeCheats.length > 1 ? 'S' : ''}</span>`);
+  }
+  body.innerHTML = chips.join('');
 }
 
 // Team-management UI (shuffle + free-pick) — visas bara i team-PvP-modes
@@ -10428,6 +10494,8 @@ Coop.onConfigChange = (cfg) => {
   if (typeof renderLobbyPlayers === 'function' && typeof Coop.serializeLobby === 'function') {
     renderLobbyPlayers(Coop.serializeLobby());
   }
+  // Match-info-card uppdateras för ALLA (inkl klienter som inte är host)
+  if (typeof renderLobbyMatchInfo === 'function') renderLobbyMatchInfo();
   renderScalingInfo();
 };
 
