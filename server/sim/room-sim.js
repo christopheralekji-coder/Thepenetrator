@@ -714,6 +714,9 @@ function tickCtf(sim, dt, now) {
     }
   }
 
+  // CTF turret-rebuild: friendly team-spelare 20s nära förstörd turret = restore
+  tickTurretRebuilds(sim, sim.ctfTurrets, dt, now, 'ctf');
+
   // Bullet-physics (kolla wall-hits via bullets.js: vi behöver toggla flagga
   // för wall-check inom updateBullets, så markeras via sim.ctfActive)
   updateBullets(sim, dt, now);
@@ -842,6 +845,55 @@ function tickPvpPickups(sim, now) {
 // CTF-turrets — enter/exit + damage-routing
 // ============================================================
 const TURRET_ENTER_RADIUS = 50;
+
+// Rebuild: friendly team-spelare nära förstörd turret tickar timern.
+// 20s totalt → restore full hp. Throttle progress-events till 4Hz.
+const TURRET_REBUILD_MS = 20000;
+const TURRET_REBUILD_RADIUS = 70;
+const TURRET_REBUILD_EMIT_MS = 250;
+
+function tickTurretRebuilds(sim, turrets, dt, now, mode) {
+  if (!turrets) return;
+  const radiusSq = TURRET_REBUILD_RADIUS * TURRET_REBUILD_RADIUS;
+  for (const tid of Object.keys(turrets)) {
+    const t = turrets[tid];
+    if (!t.destroyed) continue;
+    let friendlyNear = false;
+    for (const [, ws] of sim.room.members) {
+      if (!ws.playerState || ws.playerState.hp <= 0) continue;
+      if (ws.tdmTeam !== t.team) continue;
+      const dx = ws.playerState.x - t.x, dy = ws.playerState.y - t.y;
+      if (dx * dx + dy * dy <= radiusSq) { friendlyNear = true; break; }
+    }
+    const wasRebuilding = (t.rebuildT || 0) > 0;
+    if (friendlyNear) {
+      t.rebuildT = (t.rebuildT || 0) + dt * 1000;
+      if (t.rebuildT >= TURRET_REBUILD_MS) {
+        // Restore — full hp, ej destroyed, ingen occupant
+        t.destroyed = false;
+        t.hp = t.maxHp;
+        t.destroyedAt = 0;
+        t.rebuildT = 0;
+        t.occupantId = null;
+        t._lastRebuildEmitAt = 0;
+        sim.eventQueue.push({ type: mode + '_turret_rebuilt', turretId: t.id, hp: t.hp, maxHp: t.maxHp });
+        continue;
+      }
+      if (!t._lastRebuildEmitAt || now - t._lastRebuildEmitAt >= TURRET_REBUILD_EMIT_MS) {
+        t._lastRebuildEmitAt = now;
+        sim.eventQueue.push({
+          type: mode + '_turret_rebuild_progress',
+          turretId: t.id,
+          progress: Math.min(1, t.rebuildT / TURRET_REBUILD_MS),
+        });
+      }
+    } else if (wasRebuilding) {
+      t.rebuildT = 0;
+      t._lastRebuildEmitAt = 0;
+      sim.eventQueue.push({ type: mode + '_turret_rebuild_progress', turretId: t.id, progress: 0 });
+    }
+  }
+}
 
 function tryEnterTurret(sim, peerId, turretId) {
   // Diagnostisk logging för att hitta varför enter ibland inte funkar
@@ -1051,6 +1103,9 @@ function tickSiege(sim, dt, now) {
       }
     }
   }
+
+  // SIEGE turret-rebuild: båda lagens MG + rocket-turrets kan repas på 20s
+  tickTurretRebuilds(sim, sim.siegeTurrets, dt, now, 'siege');
 
   // Capture-base-logik med 2-fas: NEUTRALIZE (5s om enemy äger) + CAPTURE (10s).
   // base.phase: null (neutral, fri att capturera) eller 'neutralize' (måste först

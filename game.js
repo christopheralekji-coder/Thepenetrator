@@ -1828,6 +1828,30 @@ function drawCtfTurrets() {
           isExplosion: true,
         });
       }
+      // Rebuild-progress-ring: grön båge när team-spelare står och repar
+      const p = tur.rebuildProgress || 0;
+      if (p > 0) {
+        ctx.lineWidth = 4;
+        // Bakgrunds-spår
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.beginPath();
+        ctx.arc(x, y, 32, 0, Math.PI * 2);
+        ctx.stroke();
+        // Progress
+        ctx.strokeStyle = '#5aff5a';
+        ctx.shadowColor = '#5aff5a';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(x, y, 32, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        // Tid kvar (sekunder)
+        const sLeft = Math.ceil((1 - p) * 20);
+        ctx.fillStyle = '#5aff5a';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(sLeft + 's', x, y - 40);
+      }
     } else {
       // Aktiv: bas-cirkel
       ctx.fillStyle = '#333';
@@ -2550,6 +2574,24 @@ function drawSiegeTurrets() {
       const flicker = 0.5 + Math.random() * 0.5;
       ctx.fillStyle = `rgba(255,120,30,${flicker * 0.6})`;
       ctx.beginPath(); ctx.arc(x, y, 8 + Math.random() * 4, 0, Math.PI * 2); ctx.fill();
+      // Rebuild-progress-ring
+      const p = tur.rebuildProgress || 0;
+      if (p > 0) {
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+        ctx.beginPath(); ctx.arc(x, y, 32, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#5aff5a';
+        ctx.shadowColor = '#5aff5a'; ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(x, y, 32, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2);
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+        const sLeft = Math.ceil((1 - p) * 20);
+        ctx.fillStyle = '#5aff5a';
+        ctx.font = 'bold 13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(sLeft + 's', x, y - 40);
+      }
     } else {
       ctx.fillStyle = '#333';
       ctx.beginPath(); ctx.arc(x, y, tur.r, 0, Math.PI * 2); ctx.fill();
@@ -7369,13 +7411,31 @@ const Coop = {
         t.destroyed = true;
         t.hp = 0;
         t.destroyedAt = performance.now();
+        t.rebuildProgress = 0;
         // VFX: explosion-shockwave + sparks
         if (typeof spawnSparks === 'function') spawnSparks(t.x, t.y, '#ff8a3a', 28, 360);
         if (typeof spawnShockwave === 'function') spawnShockwave(t.x, t.y, 24, 120, '#ff5a3a', 0.6, 5);
         if (typeof triggerShake === 'function') triggerShake(14, 0.7);
         if (typeof showToast === 'function') {
           const team = t.team === 'red' ? 'RÖDA' : 'BLÅA';
-          showToast('💥 ' + team + ' TORN FÖRSTÖRT!');
+          showToast('💥 ' + team + ' TORN FÖRSTÖRT! Stå på det 20s för att laga');
+        }
+      }
+    } else if (ev.type === 'ctf_turret_rebuild_progress') {
+      const t = state.ctfTurrets && state.ctfTurrets[ev.turretId];
+      if (t) t.rebuildProgress = ev.progress || 0;
+    } else if (ev.type === 'ctf_turret_rebuilt') {
+      const t = state.ctfTurrets && state.ctfTurrets[ev.turretId];
+      if (t) {
+        t.destroyed = false;
+        t.hp = ev.hp != null ? ev.hp : (ev.maxHp || t.maxHp);
+        t.maxHp = ev.maxHp || t.maxHp;
+        t.rebuildProgress = 0;
+        t.destroyedAt = 0;
+        if (typeof spawnShockwave === 'function') spawnShockwave(t.x, t.y, 20, 80, '#5aff5a', 0.4, 4);
+        if (typeof showToast === 'function') {
+          const team = t.team === 'red' ? 'RÖDA' : 'BLÅA';
+          showToast('🔧 ' + team + ' TORN LAGAT');
         }
       }
     } else if (ev.type === 'pvp_shield_used') {
@@ -7631,12 +7691,29 @@ const Coop = {
       if (t) {
         t.destroyed = true;
         t.hp = 0;
+        t.rebuildProgress = 0;
         if (typeof spawnSparks === 'function') spawnSparks(t.x, t.y, '#ff8a3a', 28, 360);
         if (typeof spawnShockwave === 'function') spawnShockwave(t.x, t.y, 24, 120, '#ff5a3a', 0.6, 5);
         if (typeof triggerShake === 'function') triggerShake(10, 0.5);
         if (typeof showToast === 'function') {
           const team = t.team === 'red' ? 'RÖD' : 'BLÅ';
-          showToast('💥 ' + team + ' TORN FÖRSTÖRT!');
+          showToast('💥 ' + team + ' TORN FÖRSTÖRT! Stå på det 20s för att laga');
+        }
+      }
+    } else if (ev.type === 'siege_turret_rebuild_progress') {
+      const t = state.siegeTurrets && state.siegeTurrets[ev.turretId];
+      if (t) t.rebuildProgress = ev.progress || 0;
+    } else if (ev.type === 'siege_turret_rebuilt') {
+      const t = state.siegeTurrets && state.siegeTurrets[ev.turretId];
+      if (t) {
+        t.destroyed = false;
+        t.hp = ev.hp != null ? ev.hp : (ev.maxHp || t.maxHp);
+        t.maxHp = ev.maxHp || t.maxHp;
+        t.rebuildProgress = 0;
+        if (typeof spawnShockwave === 'function') spawnShockwave(t.x, t.y, 20, 80, '#5aff5a', 0.4, 4);
+        if (typeof showToast === 'function') {
+          const team = t.team === 'red' ? 'RÖD' : 'BLÅ';
+          showToast('🔧 ' + team + ' TORN LAGAT');
         }
       }
     } else if (ev.type === 'siege_score_update') {
@@ -15555,7 +15632,7 @@ let _lastShieldCdSet = -1;
 let _lastShieldVisible = null;
 function updatePvpShieldButton() {
   if (!_btnPvpShield) return;
-  const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive;
+  const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive;
   if (inPvP !== _lastShieldVisible) {
     _lastShieldVisible = inPvP;
     _btnPvpShield.classList.toggle('hidden', !inPvP);
