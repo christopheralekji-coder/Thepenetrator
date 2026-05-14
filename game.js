@@ -5994,7 +5994,7 @@ function buildEmotePicker() {
     const btn = document.createElement('button');
     btn.className = 'emote-picker-btn';
     btn.title = em.text;
-    btn.innerHTML = '<span style="font-size:20px;line-height:1;">' + em.emoji + '</span>';
+    btn.innerHTML = '<span style="font-size:17px;line-height:1;">' + em.emoji + '</span>';
     btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       if (state.player) applyEmote(state.player, em.id);

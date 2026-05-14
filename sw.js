@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v238-emote-picker-smaller-blue-theme';
+const CACHE = 'penetrator-v239-emote-picker-3rows-transparent';
 const ASSETS = [
   './',
   './index.html',
