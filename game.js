@@ -2166,9 +2166,12 @@ function drawPvpPickups() {
       ctx.beginPath();
       ctx.arc(x, y, 14, 0, Math.PI * 2);
       ctx.stroke();
-      // Respawn-progress (server-tid → klient-tid är osynkat, så vi visar bara cirkeln)
       ctx.globalAlpha = 1;
-      ctx.restore();
+      // OBS: INGEN ctx.restore() här! Outer ctx.save() är på rad 2154 (en gång),
+      // och final ctx.restore() är på rad 2208. Tidigare buggrest pop'ade outer-save
+      // mitt i loopen → final restore pop'ade en save från en TIDIGARE funktion
+      // (drawCtfFlags etc.) → canvas-state-leak ("ljus blir helt ljust") + ev. krasch
+      // i Chrome → render() bail'ade → minimap + timer + dark-overlays försvann.
       continue;
     }
     // Glow
@@ -14074,6 +14077,10 @@ function actuallyStartGame() {
   } else if (mode === 'truck') {
     state.customStages = buildTruckStages();
   }
+  // Rensa speedrun/survive-state om vi startar en ANNAN mode — annars läckte
+  // drawModeTimer in stale timer i story/PvP. (Klockan med "00:00.00"-emoji)
+  if (mode !== 'speedrun') state.speedrunStart = null;
+  if (mode !== 'survive') state.surviveStart = null;
   // Coop story + convoy-tillägg = story-stages + truck-stages (11 totalt)
   if (Coop.active && Coop.config && Coop.config.includeConvoy && mode === 'story') {
     state.customStages = [...STAGES, ...buildTruckStages()];
@@ -24940,6 +24947,8 @@ function drawDamageIndicators() {
 }
 
 function drawModeTimer() {
+  // Aldrig i PvP — speedrun/survive-timer hör bara hemma i solo-PvE
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive) return;
   const mode = getMode();
   if (mode !== 'survive' && mode !== 'speedrun' && mode !== 'daily') return;
   // Daily-badge: visa modifier persistent när daily aktivt

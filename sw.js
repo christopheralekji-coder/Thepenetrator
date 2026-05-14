@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v206-koth-shield-toast-ms';
+const CACHE = 'penetrator-v207-pvp-pickup-canvas-save-restore-fix';
 const ASSETS = [
   './',
   './index.html',
