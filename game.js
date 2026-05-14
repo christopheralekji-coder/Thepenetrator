@@ -20808,7 +20808,7 @@ function drawGoalZone(cx, cy) {
   // PvP-modes använder customStage med goalPos (för spawnPos-symmetri) men
   // har ingen "utgång" — målet är att döda/cappa, inte gå till en plats.
   // Skippa den gula cirkeln + UTGÅNG-pilen helt i alla PvP-modes.
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive) return;
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive) return;
   const t = performance.now();
   const pulse = 1 + Math.sin(t/280) * 0.15;
   const gx = stage.goalPos.x - cx;
@@ -25316,8 +25316,9 @@ function drawMiniMap() {
       ctx.beginPath(); ctx.arc(tx, ty, 2.5, 0, Math.PI * 2); ctx.fill();
     }
   }
-  // mål-zon
-  if (!stage.isBoss) {
+  // mål-zon — bara story (PvP har inget "exit"-mål)
+  const isPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive;
+  if (!stage.isBoss && !isPvP) {
     ctx.strokeStyle = '#ffd54a';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -25544,6 +25545,8 @@ function drawOffScreenGoalArrow() {
   const stage = getStage(state.wave);
   if (!stage || stage.isBoss) return;
   if (state.enemiesToSpawn > 0 || state.enemies.length > 0) return;
+  // Inga "UTGÅNG"-pilar i PvP-modes — story-only feature
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive) return;
   const cx = state.camera.x, cy = state.camera.y;
   const gx = stage.goalPos.x - cx, gy = stage.goalPos.y - cy;
   // utanför skärmen?

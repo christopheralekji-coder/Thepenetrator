@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v204-turret-rebuild-koth-shield';
+const CACHE = 'penetrator-v205-exit-arrow-story-only';
 const ASSETS = [
   './',
   './index.html',
