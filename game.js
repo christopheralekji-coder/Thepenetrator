@@ -9574,6 +9574,14 @@ function _showTapDebug(msg) {
   _tapDebugEl._timer = setTimeout(() => { _tapDebugEl.style.opacity = '0'; }, 1800);
 }
 
+// Bot-namn — MÅSTE matcha server/sim/bots.js BOT_NAMES exakt. Client genererar
+// en shuffle vid bot-aktivering så lobbyn visar samma namn som matchen får.
+const BOT_NAMES = ['Hovigo', 'Jamlo', 'Kostefo', 'Wisämo', 'Salimius', 'Muzzius', 'Okanius'];
+function generateBotNames(count) {
+  const shuffled = [...BOT_NAMES].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, Math.min(count, shuffled.length));
+}
+
 // Tap-helper — iOS PWA inuti `.overlay { overflow-y:auto }` hijackar touchen
 // som potentiell scroll. Det gör att `click` OCH `pointerup` ALDRIG firar för
 // dynamiskt skapade knappar. Joystick + fire-knapp i spelet använder `touchstart`
@@ -10391,6 +10399,13 @@ function renderLobbyPlayers(players) {
   // med i matchen. Räknas också i start-disable + team-balance.
   const botCount = Coop.isHost && Coop.config && Coop.config.addBot ? (Coop.config.botCount || 1) : 0;
   const botTeamMode = (Coop.config && Coop.config.botTeam) || 'auto';
+  // Säkerställ att botNames är genererat och matchar nuvarande count. Vi
+  // skickar dessa till server vid sim_start så namnen synkar lobby ↔ match.
+  if (botCount > 0 && Coop.isHost) {
+    if (!Coop.config.botNames || !Array.isArray(Coop.config.botNames) || Coop.config.botNames.length !== botCount) {
+      Coop.config.botNames = generateBotNames(botCount);
+    }
+  }
   let botRedCount = 0, botBlueCount = 0;
   for (let bi = 0; bi < botCount; bi++) {
     const row = document.createElement('div');
@@ -10416,11 +10431,12 @@ function renderLobbyPlayers(players) {
     }
     const skillName = (Coop.config.botSkill || 'normal').toUpperCase();
     const skillEmoji = Coop.config.botSkill === 'easy' ? '😴' : (Coop.config.botSkill === 'hard' ? '🔥' : '🎯');
+    const botName = (Coop.config.botNames && Coop.config.botNames[bi]) || ('BOT ' + (bi + 1));
     row.innerHTML = `
       ${teamHtml}
       <div style="width:32px;height:40px;background:rgba(90,255,90,0.15);border-radius:6px;border:1px solid #5aff5a55;margin:0 4px;display:flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 auto;">🤖</div>
       <div style="width:12px;height:12px;background:#5aff5a;border-radius:50%;flex:0 0 auto;"></div>
-      <span class="pname">BOT ${bi + 1}</span>
+      <span class="pname">${botName}</span>
       <span style="margin-left:auto;margin-right:8px;color:#5aff5a;font-size:11px;font-weight:700;">${skillEmoji} ${skillName}</span>
     `;
     coopPlayerList.appendChild(row);
@@ -10636,6 +10652,9 @@ btnCoopStart.addEventListener('click', () => {
       payload.botTeam = Coop.config.botTeam || 'red';
       payload.botCount = Coop.config.botCount || 1;
       payload.botSkill = Coop.config.botSkill || 'normal';
+      if (Coop.config.botNames && Array.isArray(Coop.config.botNames)) {
+        payload.botNames = Coop.config.botNames.slice(0, payload.botCount);
+      }
     }
     // Inkludera team-assignments (shuffle/pick) så server respekterar dem
     if (Coop.teamAssignments && Object.keys(Coop.teamAssignments).length > 0) {
@@ -14223,6 +14242,9 @@ document.getElementById('btn-retry').addEventListener('click', () => {
       payload.botTeam = Coop.config.botTeam || 'red';
       payload.botCount = Coop.config.botCount || 1;
       payload.botSkill = Coop.config.botSkill || 'normal';
+      if (Coop.config.botNames && Array.isArray(Coop.config.botNames)) {
+        payload.botNames = Coop.config.botNames.slice(0, payload.botCount);
+      }
     }
     try { Coop.ws.send(JSON.stringify(payload)); } catch (_) {}
     Coop.serverSimActive = true;
@@ -15187,6 +15209,10 @@ function applyBotPayload(payload) {
     payload.botCount = Coop.config.botCount || 1;
     payload.botSkill = Coop.config.botSkill || 'normal';
     payload.botTeam = Coop.config.botTeam || 'red';
+    // Skicka pre-genererade bot-namn så server och lobby visar samma namn
+    if (Coop.config.botNames && Array.isArray(Coop.config.botNames)) {
+      payload.botNames = Coop.config.botNames.slice(0, payload.botCount);
+    }
   }
   // Skicka team-assignments (shuffle/pick) så server respekterar dem vid sim_start
   if (Coop.teamAssignments && Object.keys(Coop.teamAssignments).length > 0) {

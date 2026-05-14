@@ -27,14 +27,20 @@ const BOT_SKILL = {
 
 // Spawna bot i ett sim-rum. Returnerar bot-id om lyckad.
 // team='red'|'blue'|null (FFA). spawnPos sätts av caller efter mode.
-function addBot(sim, team, skill) {
+// customName: om angivet (host pre-genererat) använd det — annars shuffle.
+function addBot(sim, team, skill, customName) {
   _botCounter++;
   const botId = 'bot_' + _botCounter;
-  // Shuffle namn per sim så samma "Echo" inte återkommer match efter match
-  if (!sim._botNamePool || sim._botNamePool.length === 0) {
-    sim._botNamePool = [...BOT_NAMES].sort(() => Math.random() - 0.5);
+  let name;
+  if (customName && typeof customName === 'string' && customName.trim()) {
+    name = customName.trim();
+  } else {
+    // Shuffle namn per sim så samma "Hovigo" inte återkommer match efter match
+    if (!sim._botNamePool || sim._botNamePool.length === 0) {
+      sim._botNamePool = [...BOT_NAMES].sort(() => Math.random() - 0.5);
+    }
+    name = sim._botNamePool.shift();
   }
-  const name = sim._botNamePool.shift();
   // Fake-ws som efterliknar tillräckligt av WebSocket-API:n
   const botWs = {
     id: botId,

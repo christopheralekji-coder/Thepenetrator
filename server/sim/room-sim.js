@@ -1795,12 +1795,16 @@ function startSim(sim, opts) {
           else botTeam = (bi % 2 === 0) ? oppHost : hostPredictTeam;
         }
       }
-      const botInfo = addBot(sim, botTeam, skill);
+      // Använd host-skickat namn om tillgängligt (synkar lobby ↔ match),
+      // annars fall tillbaka till server-shuffle från BOT_NAMES.
+      const customName = (opts && Array.isArray(opts.botNames) && opts.botNames[bi]) || null;
+      const botInfo = addBot(sim, botTeam, skill, customName);
       // Skicka bot_joined så klienter lägger in bot i sin Coop.players-map.
+      // Ingen #N-suffix längre — namnen är redan unika via shuffle-poolen.
       sim.eventQueue.push({
         type: 'bot_joined',
         peerId: botInfo.id,
-        name: botInfo.name + (botCount > 1 ? ' #' + (bi + 1) : ''),
+        name: botInfo.name,
         team: botTeam,
         colorIdx: nextColorIdx++,
       });
