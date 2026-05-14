@@ -626,9 +626,10 @@ html, body {
 }
 #action-buttons {
   position: absolute;
-  /* Mirror joystick CENTER: joystick @ bottom:30 height:140 → center @ y=100 från bottom.
-     Fire button är 84px → bottom: 100-42 = 58 så CENTER lägger sig på samma höjd. */
-  bottom: 58px; right: 30px;
+  /* Mirror joystick CENTER på BÅDA axlar:
+     joystick @ bottom:30 left:30 width/height:140 → center @ (100, 100) från (left, bottom).
+     Fire button 84×84 → bottom/right = 100-42 = 58 så fire-CENTER hamnar på (100, 100) från (right, bottom). */
+  bottom: 58px; right: 58px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -2733,7 +2734,7 @@ body:not(.menu-mode) #install-banner { display: none !important; }
    calc(base + env) skapade dubbel-offset på iPhone landscape (Dynamic Island ~50px
    left + base 30px → joystick 80px från kanten = för långt ute/upp). */
 body.ios #joystick { bottom: max(30px, env(safe-area-inset-bottom, 30px)); left: max(30px, env(safe-area-inset-left, 30px)); }
-body.ios #action-buttons { bottom: max(58px, calc(env(safe-area-inset-bottom, 0px) + 58px)); right: max(30px, env(safe-area-inset-right, 30px)); }
+body.ios #action-buttons { bottom: max(58px, calc(env(safe-area-inset-bottom, 0px) + 58px)); right: max(58px, calc(env(safe-area-inset-right, 0px) + 58px)); }
 /* Behåll horisontella safe-area-insets (Dynamic Island i landscape täcker vänstra kanten) */
 body.ios .overlay {
   padding-top: max(24px, env(safe-area-inset-top, 24px));
