@@ -6005,33 +6005,45 @@ function buildEmotePicker() {
     const btn = document.createElement('button');
     btn.className = 'emote-picker-btn';
     btn.title = em.text;
+    btn.style.touchAction = 'manipulation';
     btn.innerHTML = '<span style="font-size:17px;line-height:1;">' + em.emoji + '</span>';
-    btn.addEventListener('click', (ev) => {
+    // pointerdown istället för click → funkar även när joystick är aktiv
+    const pick = (ev) => {
+      ev.preventDefault();
       ev.stopPropagation();
       if (state.player) applyEmote(state.player, em.id);
       Coop.broadcastEmote(em.id);
       emotePickerEl.classList.add('hidden');
       Audio.uiClick();
-    });
+    };
+    btn.addEventListener('pointerdown', pick, { passive: false });
+    btn.addEventListener('touchstart', pick, { passive: false });
     emotePickerEl.appendChild(btn);
   }
 }
 const _btnEmote = document.getElementById('btn-emote');
 if (_btnEmote) {
-  _btnEmote.addEventListener('click', (e) => {
+  _btnEmote.style.touchAction = 'manipulation';
+  // pointerdown istället för click → funkar även när joystick är aktiv
+  const toggleEmote = (e) => {
+    e.preventDefault();
     e.stopPropagation();
-    buildEmotePicker(); // bygg picker första gången om inte byggd
+    buildEmotePicker();
     emotePickerEl.classList.toggle('hidden');
     Audio.uiClick();
-  });
-  // Stäng picker om man klickar någon annanstans
-  document.addEventListener('click', (e) => {
+  };
+  _btnEmote.addEventListener('pointerdown', toggleEmote, { passive: false });
+  _btnEmote.addEventListener('touchstart', toggleEmote, { passive: false });
+  // Stäng picker om man klickar/tappar någon annanstans
+  const dismiss = (e) => {
     if (emotePickerEl && !emotePickerEl.classList.contains('hidden') &&
         !emotePickerEl.contains(e.target) &&
-        e.target !== _btnEmote) {
+        e.target !== _btnEmote && !_btnEmote.contains(e.target)) {
       emotePickerEl.classList.add('hidden');
     }
-  });
+  };
+  document.addEventListener('pointerdown', dismiss);
+  document.addEventListener('touchstart', dismiss, { passive: true });
 }
 
 const weaponMenuScreen = document.getElementById('weapon-menu-screen');
