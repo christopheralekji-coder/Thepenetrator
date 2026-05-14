@@ -12,7 +12,7 @@
 const { W_BY_ID } = require('../../shared/weapons-data');
 const { KOTH_ARENA } = require('../../shared/koth-arena');
 
-const BOT_NAMES = ['Echo', 'Vega', 'Nyx', 'Atlas', 'Onyx', 'Raven', 'Zane', 'Kira', 'Loki', 'Aria', 'Cipher', 'Hex'];
+const BOT_NAMES = ['Hovigo', 'Jamlo', 'Kostefo', 'Wisämo', 'Salimius', 'Muzzius', 'Okanius'];
 let _botCounter = 0;
 
 // Skill-presets: påverkar aim-jitter och fire-rate

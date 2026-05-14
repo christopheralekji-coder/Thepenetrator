@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v280-lobby-match-info-card-visible-to-all-players';
+const CACHE = 'penetrator-v281-name-persist-fix-bot-names-custom';
 const ASSETS = [
   './',
   './index.html',

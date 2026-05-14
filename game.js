@@ -6758,7 +6758,9 @@ const Coop = {
   players: new Map(),   // peerId → { x, y, hp, weaponId, aimAngle, name, colorIdx }
   myId: null,           // egen peer-id
   myColorIdx: 0,
-  myName: 'P1',
+  // Init från persisterat save.coopName så namnet följer med från sessionsstart —
+  // inte 'P1' som default som måste skrivas över i showLobby.
+  myName: (typeof save !== 'undefined' && save && save.coopName) || 'P1',
   hostId: null,
   PEER_PREFIX: 'penetrator_',
   MAX_PLAYERS: 8,
@@ -8373,10 +8375,20 @@ const Coop = {
   updateName(name) {
     name = (name || '').trim().slice(0, 14) || 'Player';
     this.myName = name;
-    // Persistera till save så det auto-fylls nästa gång användaren öppnar coop
-    if (typeof save !== 'undefined' && typeof persist === 'function') {
+    // Persistera till save så det auto-fylls nästa gång användaren öppnar coop.
+    // VIKTIGT: skriv ALLTID coopName direkt till localStorage — persist() är
+    // no-op när _coopSnapshot är aktivt (under coop-runs) vilket gjorde att
+    // namnet INTE sparades om user uppdaterade det mellan rundor.
+    if (typeof save !== 'undefined') {
       save.coopName = name;
-      persist();
+      try {
+        const stored = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
+        stored.coopName = name;
+        localStorage.setItem(SAVE_KEY, JSON.stringify(stored));
+      } catch (_) {
+        // Fallback: vanlig persist (skriver hela save om _coopSnapshot är off)
+        if (typeof persist === 'function') persist();
+      }
     }
     if (this.isHost) {
       this.broadcastLobby();
@@ -9826,6 +9838,9 @@ function showLobby(code, isHost) {
     Coop.myName = persistedName;
   }
   coopNameInput.value = Coop.myName || persistedName || (isHost ? 'P1' : 'Player');
+  // Säkerställ att server har samma namn som visas — annars kan name-state divergera
+  // (t.ex. efter reconnect där server saknar custom name men input visar det).
+  if (typeof Coop.updateName === 'function') Coop.updateName(coopNameInput.value);
   if (isHost) {
     btnCoopStart.classList.remove('hidden');
     coopWaiting.classList.add('hidden');
