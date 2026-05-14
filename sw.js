@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v208-settings-circle-battery-indicator';
+const CACHE = 'penetrator-v209-settings-flush-right';
 const ASSETS = [
   './',
   './index.html',
