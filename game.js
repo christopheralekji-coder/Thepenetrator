@@ -2754,13 +2754,34 @@ function drawCoopPartner() {
     const nameLabel = p.isBot ? ('🤖 ' + p.name) : p.name;
     ctx.fillText(nameLabel, x, y - 28);
     ctx.shadowBlur = 0;
-    // HP-bar
+    // HP-bar + shield-bar (shield ovanpå HP i PvP, bara HP i story-coop)
     if (p.hp !== undefined) {
+      const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive;
+      const maxShield = inPvP ? (p.maxShield || state.pvpShieldMax || 100) : 0;
+      const hasShield = inPvP && maxShield > 0;
+      const barW = 36;
+      const hpY = y - 24;
+      // HP-bar (grön/team-färg) — ALLTID synlig
       const hpFrac = Math.max(0, p.hp / 100);
       ctx.fillStyle = '#5a0a0a';
-      ctx.fillRect(x - 18, y - 24, 36, 4);
+      ctx.fillRect(x - barW/2, hpY, barW, 4);
       ctx.fillStyle = color;
-      ctx.fillRect(x - 18, y - 24, 36 * hpFrac, 4);
+      ctx.fillRect(x - barW/2, hpY, barW * hpFrac, 4);
+      // Shield-bar ovanpå (bara PvP) — blå, krymper FÖRST när skada tas
+      if (hasShield) {
+        const shVal = (p.shield != null) ? p.shield : maxShield;
+        const sFrac = Math.max(0, Math.min(1, shVal / maxShield));
+        const shY = hpY - 5;
+        ctx.fillStyle = 'rgba(15,30,55,0.85)';
+        ctx.fillRect(x - barW/2, shY, barW, 3);
+        if (sFrac > 0) {
+          ctx.fillStyle = '#3acaff';
+          ctx.shadowColor = '#3acaff';
+          ctx.shadowBlur = 4;
+          ctx.fillRect(x - barW/2, shY, barW * sFrac, 3);
+          ctx.shadowBlur = 0;
+        }
+      }
     }
   }
 }
