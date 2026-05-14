@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v284-koth-zone-render-fix-no-walls-gate';
+const CACHE = 'penetrator-v285-koth-zone-camera-subtract-fix';
 const ASSETS = [
   './',
   './index.html',

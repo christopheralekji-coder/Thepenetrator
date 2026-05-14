@@ -2339,6 +2339,13 @@ function drawKothZone() {
   if (!state.kothZones || state.kothActiveZoneIdx == null) return;
   const z = state.kothZones[state.kothActiveZoneIdx];
   if (!z) return;
+  // KRITISKT: rendera i skärm-koords genom att subtrahera kameran. Render-loopen
+  // använder INTE ctx.translate(-camera) globalt — varje draw-funktion subtraherar
+  // själv. Glömd subtraktion = zonen ritas långt utanför skärmen.
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const sx = z.x - cx, sy = z.y - cy;
+  // Viewport-cull: om hela cirkeln är utanför skärmen, skippa
+  if (sx + z.r < -20 || sx - z.r > viewW + 20 || sy + z.r < -20 || sy - z.r > viewH + 20) return;
   const t = performance.now() / 1000;
   // Snabbare puls + röd-tint under warning-fas (5s före byte)
   const warningActive = state._kothWarningUntil && performance.now() < state._kothWarningUntil;
@@ -2351,7 +2358,7 @@ function drawKothZone() {
   ctx.shadowBlur = 18 * pulse;
   ctx.globalAlpha = 0.75;
   ctx.beginPath();
-  ctx.arc(z.x, z.y, z.r, 0, Math.PI * 2);
+  ctx.arc(sx, sy, z.r, 0, Math.PI * 2);
   ctx.stroke();
   // Inner fill
   ctx.shadowBlur = 0;
@@ -2363,20 +2370,20 @@ function drawKothZone() {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.globalAlpha = 0.55 + pulse * 0.4;
-  ctx.fillText('👑', z.x, z.y);
+  ctx.fillText('👑', sx, sy);
   // Zone-namn under
   ctx.font = 'bold 13px sans-serif';
   ctx.fillStyle = '#ffd54a';
   ctx.globalAlpha = 0.85;
   ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
-  ctx.fillText(z.name || 'HILL', z.x, z.y + 28);
+  ctx.fillText(z.name || 'HILL', sx, sy + 28);
   // Countdown till nästa zone-byte (om vi har info)
   if (state.kothNextRotateAt) {
     const sec = Math.max(0, Math.ceil((state.kothNextRotateAt - Date.now()) / 1000));
     ctx.font = 'bold 11px sans-serif';
     ctx.fillStyle = '#fff';
     ctx.shadowBlur = 3;
-    ctx.fillText('byter om ' + sec + 's', z.x, z.y + 46);
+    ctx.fillText('byter om ' + sec + 's', sx, sy + 46);
   }
   // Contested-banner (>1 spelare i zonen) ovanför zone
   if (state._kothContestedUntil && performance.now() < state._kothContestedUntil) {
@@ -2384,7 +2391,7 @@ function drawKothZone() {
     ctx.fillStyle = '#ff5a3a';
     ctx.globalAlpha = 0.95;
     ctx.shadowColor = '#000'; ctx.shadowBlur = 5;
-    ctx.fillText('⏸ CONTESTED (' + (state._kothContestedCount || 2) + ')', z.x, z.y - 50);
+    ctx.fillText('⏸ CONTESTED (' + (state._kothContestedCount || 2) + ')', sx, sy - 50);
   }
   ctx.restore();
 }
