@@ -9582,14 +9582,17 @@ const MODE_OPTIONS = {
     options: [
       { key: 'botCount', label: 'ANTAL BOTS', values: [1, 2, 3, 4, 5, 6, 7], suffix: '', def: 1 },
       { key: 'botSkill', label: 'SVÅRIGHET', values: ['easy', 'normal', 'hard'], labels: ['😴 EASY', '🎯 NORMAL', '🔥 HARD'], def: 'normal' },
+      { key: 'botTeam',  label: 'LAG (TEAM-MODES)', values: ['auto', 'red', 'blue'], labels: ['⚖ AUTO', '🔴 RÖDA', '🔵 BLÅ'], def: 'auto' },
     ],
   },
 };
 let _modePopupCurrent = null;
+let _modePopupOpenedAt = 0;
 function openModePopup(modeId) {
   const cfg = MODE_OPTIONS[modeId];
   if (!cfg) return;
   _modePopupCurrent = modeId;
+  _modePopupOpenedAt = Date.now();
   const popup = document.getElementById('lobby-mode-popup');
   const title = document.getElementById('lobby-mode-popup-title');
   const body = document.getElementById('lobby-mode-popup-body');
@@ -9615,19 +9618,28 @@ function openModePopup(modeId) {
     const cur = (Coop.config && Coop.config[opt.key] != null) ? Coop.config[opt.key] : opt.def;
     opt.values.forEach((v, i) => {
       const b = document.createElement('button');
+      b.type = 'button';
       b.className = 'popup-option-btn' + (cur === v ? ' active' : '');
       b.textContent = (opt.labels ? opt.labels[i] : v + (opt.suffix || ''));
       b.style.touchAction = 'manipulation';
-      // click istället för pointerdown — pointerdown + stopPropagation orsakade
-      // att vissa option-buttons inte registrerade tap på iOS Safari
-      b.addEventListener('click', (e) => {
+      // pointerup för iOS-reliabilitet — `click` är opålitligt på dynamiskt skapade
+      // knappar inuti en animated/translateY-transformerad bottom-sheet (lobbyPopupSlideUp).
+      // Använd guard så samma fysiska tap inte triggar dubbelt.
+      let _lastFire = 0;
+      const fire = (e) => {
+        const now = Date.now();
+        if (now - _lastFire < 250) return;
+        _lastFire = now;
+        if (e) { e.preventDefault(); e.stopPropagation(); }
         Coop.config[opt.key] = v;
         Coop.updateConfig({ [opt.key]: v });
         row.querySelectorAll('.popup-option-btn').forEach((btn, j) => {
           btn.classList.toggle('active', opt.values[j] === v);
         });
         Audio.uiClick && Audio.uiClick();
-      });
+      };
+      b.addEventListener('pointerup', fire);
+      b.addEventListener('click', fire); // desktop-fallback
       row.appendChild(b);
     });
     section.appendChild(row);
@@ -9649,14 +9661,34 @@ function initModePopup() {
   const close = document.getElementById('lobby-mode-popup-close');
   const confirm = document.getElementById('lobby-mode-popup-confirm');
   const backdrop = document.querySelector('.lobby-mode-popup-backdrop');
+  let _lastClose = 0;
   const closeHandler = (e) => {
+    const now = Date.now();
+    if (now - _lastClose < 250) return; // dedupe pointerup+click from same tap
+    _lastClose = now;
     if (e) { e.preventDefault(); e.stopPropagation(); }
     closeModePopup();
     Audio.uiClick && Audio.uiClick();
   };
-  if (close) close.addEventListener('pointerdown', closeHandler);
-  if (confirm) confirm.addEventListener('pointerdown', closeHandler);
-  if (backdrop) backdrop.addEventListener('pointerdown', closeHandler);
+  // Backdrop måste använda pointerup (inte pointerdown) — annars stänger iOS
+  // synthetic pointerdown från samma tap som öppnade popupen den direkt.
+  // Dessutom: 350ms lockout som extra säkerhet mot synthetic ghost-events.
+  const backdropHandler = (e) => {
+    if (Date.now() - _modePopupOpenedAt < 350) return;
+    closeHandler(e);
+  };
+  if (close) {
+    close.addEventListener('pointerup', closeHandler);
+    close.addEventListener('click', closeHandler);
+  }
+  if (confirm) {
+    confirm.addEventListener('pointerup', closeHandler);
+    confirm.addEventListener('click', closeHandler);
+  }
+  if (backdrop) {
+    backdrop.addEventListener('pointerup', backdropHandler);
+    backdrop.addEventListener('click', backdropHandler);
+  }
 }
 
 // Tab-switching för lobby V2 (TEAM / PVP / BOTS). Idempotent — bara binder en gång.
@@ -9995,20 +10027,21 @@ function renderHostControls() {
       }
     }
   }
-  // Bot-controls: separat sektion (eftersom de funkar både i PvP och story-coop)
+  // Bot-controls: bara EN togglar-knapp. Alla andra inställningar (antal, skill,
+  // team) görs i popupen som öppnas av samma knapp. Det räcker — popup täcker hela.
   const botEl = document.getElementById('lobby-bot-buttons');
   if (botEl) {
     botEl.innerHTML = '';
     const botActive = !!Coop.config.addBot;
     const botCount = Coop.config.botCount || 1;
+    const skLabel = (Coop.config.botSkill || 'normal');
+    const skEmoji = skLabel === 'easy' ? '😴' : (skLabel === 'hard' ? '🔥' : '🎯');
     const botBtn = document.createElement('button');
-    botBtn.textContent = botActive ? ('🤖 BOTS: ' + botCount + ' PÅ') : '🤖 Lägg till bots';
-    botBtn.style.cssText = 'background:' + (botActive ? '#5aff5a' : '#222') + ';color:' + (botActive ? '#000' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
+    botBtn.textContent = botActive ? ('🤖 BOTS PÅ · ×' + botCount + ' ' + skEmoji + ' · KONFIGURERA') : '🤖 LÄGG TILL BOTS';
+    botBtn.style.cssText = 'background:' + (botActive ? '#5aff5a' : '#222') + ';color:' + (botActive ? '#000' : '#aaa') + ';font-size:12px;padding:10px 12px;letter-spacing:1px;font-weight:700;width:100%;touch-action:manipulation;';
+    if (botActive) botBtn.classList.add('active');
     botBtn.addEventListener('click', () => {
       const wasOn = Coop.config.addBot;
-      // Klick på inaktiv → aktivera + öppna popup. Klick på aktiv → öppna popup
-      // (för att ändra count/skill). Avstängning sker via popup eller om man
-      // explicit klickar bort.
       if (!wasOn) {
         Coop.config.addBot = true;
         if (!Coop.config.botTeam) Coop.config.botTeam = 'red';
@@ -10020,65 +10053,21 @@ function renderHostControls() {
           botCount: Coop.config.botCount,
           botSkill: Coop.config.botSkill,
         });
-        renderHostControls();
       }
       openModePopup('bots');
     });
     botEl.appendChild(botBtn);
+    // Avstängning: separat knapp under huvudknappen, bara om bots är på
     if (botActive) {
-      // Antal bots
-      for (const n of [1, 2, 3, 5, 7]) {
-        const nBtn = document.createElement('button');
-        const isSel = botCount === n;
-        nBtn.textContent = '×' + n;
-        nBtn.style.cssText = 'background:' + (isSel ? '#5aff5a' : '#222') + ';color:' + (isSel ? '#000' : '#aaa') + ';font-size:11px;padding:6px 10px;font-weight:700;min-width:38px;';
-        nBtn.addEventListener('click', () => {
-          Coop.config.botCount = n;
-          Coop.updateConfig({ botCount: n });
-          renderHostControls();
-        });
-        botEl.appendChild(nBtn);
-      }
-      // Skill
-      for (const sk of ['easy', 'normal', 'hard']) {
-        const sBtn = document.createElement('button');
-        const isSel = (Coop.config.botSkill || 'normal') === sk;
-        const skLabel = sk === 'easy' ? '😴 EASY' : (sk === 'normal' ? '🎯 NORMAL' : '🔥 HARD');
-        const skColor = sk === 'easy' ? '#5aff5a' : (sk === 'normal' ? '#ffd54a' : '#ff5a3a');
-        sBtn.textContent = skLabel;
-        sBtn.style.cssText = 'background:' + (isSel ? skColor : '#222') + ';color:' + (isSel ? '#000' : '#aaa') + ';font-size:11px;padding:6px 10px;font-weight:700;';
-        sBtn.addEventListener('click', () => {
-          Coop.config.botSkill = sk;
-          Coop.updateConfig({ botSkill: sk });
-          renderHostControls();
-        });
-        botEl.appendChild(sBtn);
-      }
-      // Team-val i team-modes — 3 lägen oavsett antal bots:
-      // AUTO = alternera red/blue per bot (balanserade lag)
-      // RED  = alla bots på röda laget
-      // BLUE = alla bots på blå laget
-      if (Coop.config.tdm || Coop.config.ctf || Coop.config.siege) {
-        const opts = [
-          { id: 'auto', label: '⚖ AUTO', color: '#ffd54a' },
-          { id: 'red',  label: '🔴 RÖDA', color: '#ff5a5a' },
-          { id: 'blue', label: '🔵 BLÅ',  color: '#5aaaff' },
-        ];
-        for (const o of opts) {
-          const tBtn = document.createElement('button');
-          // 'auto' = botTeam unset eller 'auto'; matchar logiken server-side via botCount > 1
-          const cur = Coop.config.botTeam || (botCount > 1 ? 'auto' : 'red');
-          const isSel = cur === o.id;
-          tBtn.textContent = o.label;
-          tBtn.style.cssText = 'background:' + (isSel ? o.color : '#222') + ';color:' + (isSel ? '#000' : '#fff') + ';font-size:11px;padding:6px 10px;font-weight:700;';
-          tBtn.addEventListener('click', () => {
-            Coop.config.botTeam = o.id;
-            Coop.updateConfig({ botTeam: o.id });
-            renderHostControls();
-          });
-          botEl.appendChild(tBtn);
-        }
-      }
+      const offBtn = document.createElement('button');
+      offBtn.textContent = '✕ STÄNG AV BOTS';
+      offBtn.style.cssText = 'background:#3a1a1a;color:#ff8a8a;font-size:11px;padding:8px 12px;letter-spacing:1px;font-weight:700;width:100%;margin-top:6px;touch-action:manipulation;border:1px solid #5a2a2a;';
+      offBtn.addEventListener('click', () => {
+        Coop.config.addBot = false;
+        Coop.updateConfig({ addBot: false });
+        renderHostControls();
+      });
+      botEl.appendChild(offBtn);
     }
   }
   // Cheats (endast unlocked)

@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v273-popup-options-click-fix-no-auto-tab-switch';
+const CACHE = 'penetrator-v274-popup-pointerup-bots-menu-cleanup';
 const ASSETS = [
   './',
   './index.html',
