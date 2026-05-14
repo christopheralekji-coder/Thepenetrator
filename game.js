@@ -5821,13 +5821,18 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
 document.getElementById('btn-weapon-menu').addEventListener('click', openWeaponMenu);
 
 // Reload-knapp — manuell reload (för att ladda om innan magasinet tar slut)
+// pointerdown istället för click → fungerar även när joystick är aktiv
+// (click fyrar inte i alla browsers när multi-touch är pågående).
 const _btnReload = document.getElementById('btn-reload');
 if (_btnReload) {
-  _btnReload.addEventListener('click', (e) => {
+  const reloadHandler = (e) => {
+    e.preventDefault();
     e.stopPropagation();
     if (state.mode === 'playing') startReload();
     Audio.uiClick && Audio.uiClick();
-  });
+  };
+  _btnReload.addEventListener('pointerdown', reloadHandler, { passive: false });
+  _btnReload.addEventListener('touchstart', reloadHandler, { passive: false });
 }
 
 // Dash-knapp (mobil). Använder pointerdown så det fungerar både touch + mouse.

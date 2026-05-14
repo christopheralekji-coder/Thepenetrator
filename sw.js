@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v263-reload-button-below-fire';
+const CACHE = 'penetrator-v264-reload-multitouch-fix';
 const ASSETS = [
   './',
   './index.html',
