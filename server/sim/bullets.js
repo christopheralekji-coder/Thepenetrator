@@ -319,13 +319,20 @@ function handleGungameKill(sim, killerPid, killerWs, victimPid, victimWs, weapon
   if (killerWs.playerState) {
     killerWs.playerState.weaponId = GUNGAME_WEAPONS[newTier];
   }
-  // Demote-regel: bara om killer är på tier ≥ 5 ELLER offret leder med ≥3 tiers
-  // (catch-up för efterblivna). Floor: om offret är på tier >= DEMOTE_FLOOR
-  // (level 10+) så kan de INTE demoteras under det — late-game grind-skydd.
+  // Demote-regler:
+  // - Late-game (tier >= DEMOTE_FLOOR = level 10+): ANY death demoteras, floor 9.
+  //   Stakes höjs i late-game — kan inte campa toppen riskfritt.
+  // - Early/mid (tier < 9): bara melee-kill demoterar, om killer >= tier 5
+  //   ELLER offret leder med ≥3 tiers (catch-up). Floor 0.
   let demoted = false;
-  if (wasMelee && (oldTier >= 5 || (vTierBefore - oldTier) >= 3)) {
-    const floor = vTierBefore >= GUNGAME_DEMOTE_FLOOR ? GUNGAME_DEMOTE_FLOOR : 0;
-    const newVTier = Math.max(floor, vTierBefore - 1);
+  if (vTierBefore >= GUNGAME_DEMOTE_FLOOR) {
+    const newVTier = Math.max(GUNGAME_DEMOTE_FLOOR, vTierBefore - 1);
+    if (newVTier < vTierBefore) {
+      sim.gungameTiers[victimPid] = newVTier;
+      demoted = true;
+    }
+  } else if (wasMelee && (oldTier >= 5 || (vTierBefore - oldTier) >= 3)) {
+    const newVTier = Math.max(0, vTierBefore - 1);
     if (newVTier < vTierBefore) {
       sim.gungameTiers[victimPid] = newVTier;
       demoted = true;
