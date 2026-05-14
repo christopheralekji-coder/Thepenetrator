@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v276-lobby-buttons-TOUCHSTART-fix-ios-scroll-hijack';
+const CACHE = 'penetrator-v277-DEBUG-toast-diagnose-tap-events';
 const ASSETS = [
   './',
   './index.html',

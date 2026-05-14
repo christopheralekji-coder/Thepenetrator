@@ -9547,6 +9547,23 @@ function initLobbyDropdowns() {
   });
 }
 
+// Synlig debug-toast — flashar tap-events på skärmen så vi kan se LIVE vad som
+// händer på telefonen utan att behöva web-inspector. PÅ som default i v1.277,
+// kan stängas av via `localStorage.setItem('_tapDebug','0')` i console.
+let _tapDebugEl = null;
+function _showTapDebug(msg) {
+  if (typeof localStorage !== 'undefined' && localStorage.getItem('_tapDebug') === '0') return;
+  if (!_tapDebugEl) {
+    _tapDebugEl = document.createElement('div');
+    _tapDebugEl.style.cssText = 'position:fixed;top:max(10px, env(safe-area-inset-top, 10px));left:50%;transform:translateX(-50%);background:rgba(170,58,255,0.95);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:900;letter-spacing:1px;z-index:99999;pointer-events:none;font-family:monospace;max-width:90%;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,0.6);';
+    document.body.appendChild(_tapDebugEl);
+  }
+  _tapDebugEl.textContent = msg;
+  _tapDebugEl.style.opacity = '1';
+  clearTimeout(_tapDebugEl._timer);
+  _tapDebugEl._timer = setTimeout(() => { _tapDebugEl.style.opacity = '0'; }, 1800);
+}
+
 // Tap-helper — iOS PWA inuti `.overlay { overflow-y:auto }` hijackar touchen
 // som potentiell scroll. Det gör att `click` OCH `pointerup` ALDRIG firar för
 // dynamiskt skapade knappar. Joystick + fire-knapp i spelet använder `touchstart`
@@ -9564,11 +9581,33 @@ function onTap(el, fn) {
     if (now - _last < 400) return;
     _last = now;
     if (e && e.cancelable) e.preventDefault();
-    fn(e);
+    const lbl = (el.textContent || '').slice(0, 18);
+    const evType = e ? e.type : 'unknown';
+    _showTapDebug('[' + evType + '] ' + lbl);
+    try {
+      fn(e);
+    } catch (err) {
+      _showTapDebug('ERROR: ' + (err && err.message || err));
+      throw err;
+    }
   };
   el.addEventListener('touchstart', wrap, { passive: false });
   el.addEventListener('click', wrap);
 }
+
+// GLOBAL diagnostik — capture-phase listener på document för att se OM
+// touch-events firar alls på lobby-knappar. Om vi ser "GLOBAL TOUCH" men
+// inte "TOUCHSTART <button>" så fångas eventet aldrig av onTap.
+document.addEventListener('touchstart', (e) => {
+  const t = e.target;
+  if (!t || !t.closest) return;
+  // Bara visa för lobby-relaterade element
+  const card = t.closest('.lobby-card, .lobby-tab, .lobby-tab-panel, #lobby-mode-popup');
+  if (!card) return;
+  const tagName = t.tagName || '?';
+  const text = (t.textContent || '').replace(/\s+/g, ' ').slice(0, 16);
+  _showTapDebug('GLOBAL: ' + tagName + ' "' + text + '"');
+}, { capture: true, passive: true });
 
 // ============================================================
 // MODE-OPTIONS POPUP — bottom-sheet med target-points/bot-config/etc
