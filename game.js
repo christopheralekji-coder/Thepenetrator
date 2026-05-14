@@ -5948,7 +5948,7 @@ const _btnPvpShield = document.getElementById('btn-pvp-shield');
 function tryPvpShield() {
   const p = state.player;
   if (!p) return;
-  if (!state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive) return;
+  if (!state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive && !state.kothActive) return;
   const now = performance.now();
   if (p.pvpShieldUntil && now < p.pvpShieldUntil) return; // redan aktiv
   // Bugfix: ingen cooldown vid match-start. pvpShieldCdAt = null = aldrig använd.
@@ -15926,8 +15926,9 @@ function updatePlayer(dt, now) {
     const wx = input.mouse.x + state.camera.x;
     const wy = input.mouse.y + state.camera.y;
     p.aimAngle = Math.atan2(wy - p.y, wx - p.x);
-  } else if (m > 0.1) {
-    // sikta i rörelseriktning som default
+  } else if (m > 0.1 && !p.reloading) {
+    // sikta i rörelseriktning som default — MEN INTE under reload, då vill
+    // spelaren fortsätta skjuta åt samma håll när magasinet är klart.
     p.aimAngle = Math.atan2(my, mx);
   }
   // auto-aim mot närmsta fiende vid skjutning (om aktiverat och INTE i fire-joy-mode).

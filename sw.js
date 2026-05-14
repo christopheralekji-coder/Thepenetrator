@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v236-emote-back-glassmorphism-triggered-taunts';
+const CACHE = 'penetrator-v237-koth-shield-trigger-aim-freeze-on-reload';
 const ASSETS = [
   './',
   './index.html',
