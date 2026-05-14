@@ -15961,6 +15961,7 @@ function updatePlayer(dt, now) {
       // i vapen-färg så spelaren ser "redo att skjuta igen"
       if (fireBtn) {
         fireBtn.style.setProperty('--reload-progress', '0');
+        fireBtn.classList.remove('reloading');
         fireBtn.classList.add('reload-flash');
         setTimeout(() => fireBtn.classList.remove('reload-flash'), 220);
       }
@@ -15969,10 +15970,11 @@ function updatePlayer(dt, now) {
       spawnShockwave(p.x, p.y, p.r * 1.1, p.r * 2.4, wcolor, 0.28, 2);
       spawnSparks(p.x, p.y, wcolor, 6, 180);
     } else if (fireBtn) {
-      // Visa progress-ring i vapen-färg medan reload pågår
+      // Visa progress-ring i vapen-färg medan reload pågår + spin på inner knob
       const prog = Math.max(0, Math.min(1, elapsed / total));
       fireBtn.style.setProperty('--reload-progress', prog.toFixed(3));
       fireBtn.style.setProperty('--reload-color', w.color || '#ffd54a');
+      if (!fireBtn.classList.contains('reloading')) fireBtn.classList.add('reloading');
     }
   }
 
