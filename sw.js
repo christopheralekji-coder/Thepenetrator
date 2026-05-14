@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v231-symmetric-safe-area-inset-ios';
+const CACHE = 'penetrator-v232-mirror-fire-via-js-bounding-rect';
 const ASSETS = [
   './',
   './index.html',

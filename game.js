@@ -5422,6 +5422,27 @@ function resize() {
   canvas.style.width = viewW + 'px';
   canvas.style.height = viewH + 'px';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  mirrorFireToJoystick();
+}
+
+// Spegla joystickens FAKTISKA renderade position till fire-button. Slut på
+// CSS-gissning — vi läser joystickens bounding-rect och sätter motsvarande
+// inset på fire-buttonen via inline style. Garanterat symmetriskt mot
+// joysticken oavsett media-queries, safe-area-inset, eller andra override:s.
+function mirrorFireToJoystick() {
+  const joystick = document.getElementById('joystick');
+  const fire = document.getElementById('btn-fire');
+  if (!joystick || !fire) return;
+  const jr = joystick.getBoundingClientRect();
+  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  const leftInset = Math.max(0, Math.round(jr.left));
+  const bottomInset = Math.max(0, Math.round(vh - jr.bottom));
+  fire.style.position = 'fixed';
+  fire.style.left = 'auto';
+  fire.style.top = 'auto';
+  fire.style.right = leftInset + 'px';
+  fire.style.bottom = bottomInset + 'px';
+  fire.style.zIndex = '6';
 }
 window.addEventListener('orientationchange', () => setTimeout(resize, 100));
 if (window.visualViewport) {
@@ -11297,6 +11318,13 @@ const isMobile = isIOS || isAndroid || ('ontouchstart' in window && window.inner
 if (isIOS) document.body.classList.add('ios');
 if (isAndroid) document.body.classList.add('android');
 if (isMobile) document.body.classList.add('mobile');
+// Re-mirror fire→joystick efter att ios/android-classes är pålagda (joysticken
+// kan ha flyttat pga body.ios-CSS-regeln som inte var aktiv vid första resize).
+if (typeof mirrorFireToJoystick === 'function') {
+  mirrorFireToJoystick();
+  setTimeout(mirrorFireToJoystick, 100); // belt-and-suspenders mot layout-timing
+  setTimeout(mirrorFireToJoystick, 500);
+}
 // Disable vibration on iOS (saknas)
 if (isIOS) Feedback.vibrateEnabled = false;
 
