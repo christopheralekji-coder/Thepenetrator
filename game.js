@@ -10338,8 +10338,8 @@ function renderLobbyPlayers(players) {
   }
   // Effektivt antal player-slots (inkl bots) för start-check
   const effectivePlayers = players.length + botCount;
-  // TDM-säkerhet: visa team-balance + blockera start vid <2 spelare eller obalans
-  if (tdmOn && Coop.isHost) {
+  // Team-PvP-säkerhet: visa team-balance + blockera start vid <2 spelare eller obalans
+  if (isTeamPvP && Coop.isHost) {
     const balanceMsg = document.createElement('div');
     balanceMsg.style.cssText = 'margin-top:8px;font-size:11px;text-align:center;font-weight:700;';
     let warning = '';

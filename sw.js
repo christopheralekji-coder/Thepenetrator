@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v277-DEBUG-toast-diagnose-tap-events';
+const CACHE = 'penetrator-v278-fix-tdmOn-undefined-renderLobbyPlayers';
 const ASSETS = [
   './',
   './index.html',
