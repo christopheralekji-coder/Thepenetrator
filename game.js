@@ -25268,15 +25268,18 @@ function render() {
     }
     drawPvpWalls(state.gungameWalls);
   }
-  // KOTH — zone-cirkel + walls + decorations
-  if (state.kothActive && state.kothWalls) {
+  // KOTH — zone-cirkel + walls + decorations.
+  // VIKTIGT: drawKothZone() ska INTE gates bakom kothWalls — om walls inte
+  // hunnit ladda från servern hamnar zonen osynlig på canvas men syns på
+  // minimap (som inte har samma gate). Skilj dem åt.
+  if (state.kothActive) {
     if (state.kothDecorations && state.kothDecorations.length) {
       const saved = state.siegeDecorations;
       state.siegeDecorations = state.kothDecorations;
       try { drawSiegeDecorations(); } finally { state.siegeDecorations = saved; }
     }
     drawKothZone();
-    drawPvpWalls(state.kothWalls);
+    if (state.kothWalls) drawPvpWalls(state.kothWalls);
   }
   // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE + GUNGAME + KOTH)
   if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive) drawPvpShieldBubbles();

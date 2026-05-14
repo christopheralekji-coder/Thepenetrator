@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v283-host-free-pick-bot-teams';
+const CACHE = 'penetrator-v284-koth-zone-render-fix-no-walls-gate';
 const ASSETS = [
   './',
   './index.html',
