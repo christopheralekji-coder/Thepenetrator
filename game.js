@@ -9617,11 +9617,12 @@ function openModePopup(modeId) {
       const b = document.createElement('button');
       b.className = 'popup-option-btn' + (cur === v ? ' active' : '');
       b.textContent = (opt.labels ? opt.labels[i] : v + (opt.suffix || ''));
-      b.addEventListener('pointerdown', (e) => {
-        e.preventDefault(); e.stopPropagation();
+      b.style.touchAction = 'manipulation';
+      // click istället för pointerdown — pointerdown + stopPropagation orsakade
+      // att vissa option-buttons inte registrerade tap på iOS Safari
+      b.addEventListener('click', (e) => {
         Coop.config[opt.key] = v;
         Coop.updateConfig({ [opt.key]: v });
-        // Re-render row
         row.querySelectorAll('.popup-option-btn').forEach((btn, j) => {
           btn.classList.toggle('active', opt.values[j] === v);
         });
@@ -9676,26 +9677,9 @@ function initLobbyTabs() {
     });
   });
 }
-// Auto-pick tab baserat på current config — PvP är boolean-flags i Coop.config,
-// inte i mode-fältet. Detekterar genom att leta tdm/ctf/siege/gungame/koth.
-function syncLobbyTabToMode() {
-  if (!_lobbyTabsInit) return;
-  const cfg = Coop.config || {};
-  const isPvP = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth);
-  let target = 'team';
-  if (isPvP) target = 'pvp';
-  // Behåll user's manuella val: om de just klickat en tab och inte ändrat mode,
-  // respektera nuvarande val istället för att hoppa tillbaka.
-  const currentActive = document.querySelector('.lobby-tab.active');
-  if (currentActive) {
-    const ct = currentActive.dataset.tab;
-    if (ct === 'bots' && cfg.addBot) target = 'bots';   // bots-tab stannar om bots är på
-    if (ct === 'pvp' && isPvP) target = 'pvp';
-    if (ct === 'team' && !isPvP) target = 'team';
-  }
-  document.querySelectorAll('.lobby-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === target));
-  document.querySelectorAll('.lobby-tab-panel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== target));
-}
+// Tabs är ren VIEW-state (vad host tittar på). Vi auto-switchar INTE — annars
+// hoppar tabben runt vilket bryter user's flöde. Host kan manuellt byta.
+function syncLobbyTabToMode() { /* no-op — behåll user's tab-val */ }
 // Shuffle + free-pick-toggle (team-PvP-modes)
 let _lobbyTeamInit = false;
 function initLobbyTeamControls() {
@@ -9815,14 +9799,20 @@ function renderHostControls() {
     });
     lobbyDiffButtonsEl.appendChild(b);
   }
-  // Mode
+  // Mode (story/endless/bossrush/survive/truck) — clear PvP-flags så switching funkar
   lobbyModeButtonsEl.innerHTML = '';
   for (const m of ['story', 'endless', 'bossrush', 'survive', 'truck']) {
     const b = document.createElement('button');
     b.textContent = MODE_LABELS[m];
-    if (Coop.config.mode === m) b.classList.add('active');
+    if (Coop.config.mode === m && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && !Coop.config.koth) b.classList.add('active');
     b.addEventListener('click', () => {
-      Coop.updateConfig({ mode: m });
+      // Aktivera team-mode + clear alla PvP-flags
+      Coop.config.tdm = false;
+      Coop.config.ctf = false;
+      Coop.config.siege = false;
+      Coop.config.gungame = false;
+      Coop.config.koth = false;
+      Coop.updateConfig({ mode: m, tdm: false, ctf: false, siege: false, gungame: false, koth: false });
       renderHostControls();
     });
     lobbyModeButtonsEl.appendChild(b);
