@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v207-pvp-pickup-canvas-save-restore-fix';
+const CACHE = 'penetrator-v208-settings-circle-battery-indicator';
 const ASSETS = [
   './',
   './index.html',

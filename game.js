@@ -25399,6 +25399,54 @@ function drawMiniMap() {
   ctx.textAlign = 'center';
   ctx.fillText(state.minimapBig ? '⊟' : '🔍', btnX + btnSize/2, btnY + btnSize/2 + 4);
   state._minimapZoomBtn = { x: btnX, y: btnY, w: btnSize, h: btnSize };
+
+  // Batteri-indikator under minimap (mobil PWA). Lazy-init på första anrop.
+  _initBatteryMonitor();
+  if (_batteryLevel != null) {
+    const bx = x0, by = y0 + size + 4;
+    const bw = size, bh = 16;
+    ctx.fillStyle = 'rgba(0,0,0,0.65)';
+    ctx.fillRect(bx, by, bw, bh);
+    ctx.strokeStyle = 'rgba(255,213,74,0.5)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+    // Liten batteri-ikon (16×9) + tip
+    const ix = bx + 4, iy = by + 3.5, iw = 16, ih = 9;
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
+    ctx.strokeRect(ix, iy, iw, ih);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(ix + iw, iy + 2.5, 2, 4);
+    // Fyllning — grön/orange/röd beroende på nivå
+    const pct = Math.max(0, Math.min(1, _batteryLevel));
+    const fillW = Math.max(0.5, (iw - 2) * pct);
+    ctx.fillStyle = pct > 0.5 ? '#5aff5a' : (pct > 0.2 ? '#ffa030' : '#ff5a5a');
+    ctx.fillRect(ix + 1, iy + 1, fillW, ih - 2);
+    // Procent + laddnings-blixt
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    const pctTxt = Math.round(pct * 100) + '%' + (_batteryCharging ? ' ⚡' : '');
+    ctx.fillText(pctTxt, ix + iw + 6, by + bh / 2);
+    ctx.textBaseline = 'alphabetic';
+  }
+}
+
+// Batteri-monitor — använd Battery Status API. Lazy-init: kallas från drawMiniMap.
+// iOS Safari saknar den (deprecated 2022) → graceful fallback, visar inget.
+let _batteryInit = false;
+let _batteryLevel = null;
+let _batteryCharging = false;
+function _initBatteryMonitor() {
+  if (_batteryInit) return;
+  _batteryInit = true;
+  if (!navigator.getBattery) return; // iOS Safari: API saknas
+  navigator.getBattery().then(b => {
+    _batteryLevel = b.level;
+    _batteryCharging = b.charging;
+    b.addEventListener('levelchange', () => { _batteryLevel = b.level; });
+    b.addEventListener('chargingchange', () => { _batteryCharging = b.charging; });
+  }).catch(() => { /* permission denied / other — ignorera */ });
 }
 
 // Reload-ring renderas via CSS conic-gradient på #btn-fire::after (style.css:447)
