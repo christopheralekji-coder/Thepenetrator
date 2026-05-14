@@ -2396,25 +2396,29 @@ function drawSiegeBases() {
   for (const id of Object.keys(state.siegeBases)) {
     const b = state.siegeBases[id];
     const x = b.x - cx, y = b.y - cy;
-    if (x < -120 || x > viewW + 120 || y < -120 || y > viewH + 120) continue;
-    let baseColor;
-    if (b.owner === 'red') baseColor = 'rgba(255,60,60,';
-    else if (b.owner === 'blue') baseColor = 'rgba(60,140,255,';
-    else baseColor = 'rgba(140,140,140,';  // GRÅ för neutral
-    const pulse = 0.5 + Math.sin(t / 600) * 0.2;
+    if (x < -200 || x > viewW + 200 || y < -200 || y > viewH + 200) continue;
+    let baseColor, baseRgb;
+    if (b.owner === 'red') { baseColor = 'rgba(255,60,60,'; baseRgb = '255,60,60'; }
+    else if (b.owner === 'blue') { baseColor = 'rgba(60,140,255,'; baseRgb = '60,140,255'; }
+    else { baseColor = 'rgba(200,200,200,'; baseRgb = '200,200,200'; }  // ljus-grå för neutral
+    const pulse = 0.7 + Math.sin(t / 500) * 0.3;
     ctx.save();
-    // Yttre cirkel (zon-border)
-    ctx.strokeStyle = baseColor + (0.65 * pulse) + ')';
-    ctx.lineWidth = 3;
-    ctx.setLineDash([10, 6]);
-    ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI * 2); ctx.stroke();
-    ctx.setLineDash([]);
-    // Inner-fyllning (subtil)
+    // STARK inner-fyllning (mycket synligare än tidigare 0.15 alpha)
     const grad = ctx.createRadialGradient(x, y, 4, x, y, b.r);
-    grad.addColorStop(0, baseColor + (0.30 * pulse) + ')');
+    grad.addColorStop(0, baseColor + (0.55 * pulse) + ')');
+    grad.addColorStop(0.7, baseColor + (0.25 * pulse) + ')');
     grad.addColorStop(1, baseColor + '0)');
     ctx.fillStyle = grad;
     ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI * 2); ctx.fill();
+    // Tjock yttre dashed ring + GLOW
+    ctx.strokeStyle = baseColor + (0.95 * pulse) + ')';
+    ctx.lineWidth = 5;
+    ctx.shadowColor = 'rgb(' + baseRgb + ')';
+    ctx.shadowBlur = 14 * pulse;
+    ctx.setLineDash([14, 8]);
+    ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.shadowBlur = 0;
     // Capture-progress-ring med fas-färg
     if (b.captureProgress > 0 && b.captureSide) {
       // 'neutralize'-fas = gul-orange (rensar enemy-bas), 'capture'-fas = lag-färg

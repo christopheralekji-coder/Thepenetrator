@@ -70,8 +70,34 @@ html, body {
   align-items: center;
   gap: 8px;
 }
+/* HUD-rad för vapen-namn + ammo — visas under HP-baren så ammo är ALLTID synligt.
+   Fire-button-badgen visade sig opålitlig på vissa devices → flyttad till säkert HUD-läge. */
 .hud-row.weapon {
-  display: none; /* dolda - ammo visas nära fire-button istället */
+  display: flex;
+  margin-top: 4px;
+  gap: 6px;
+  width: fit-content;
+}
+.hud-row.weapon #weapon-name {
+  padding: 4px 10px;
+  background: linear-gradient(135deg, rgba(20,30,55,0.85), rgba(10,15,30,0.85));
+  border: 1px solid rgba(60,200,255,0.4);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+.hud-row.weapon #ammo-info {
+  padding: 4px 12px;
+  background: linear-gradient(135deg, rgba(50,30,5,0.9), rgba(25,15,3,0.9));
+  border: 1px solid rgba(255,213,74,0.55);
+  border-radius: 999px;
+  color: #ffd54a;
+  font-size: 13px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.95);
 }
 
 /* Ammo-display gömt — visas nu INUTI fire-button (se .action-btn.fire .fire-ammo) */

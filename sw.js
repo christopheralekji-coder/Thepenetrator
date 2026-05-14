@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v256-ammo-below-fire-and-retry-death-reset';
+const CACHE = 'penetrator-v257-ammo-in-hud-row-siege-bases-visible';
 const ASSETS = [
   './',
   './index.html',
