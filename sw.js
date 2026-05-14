@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v235-dash-no-overlap-with-fire';
+const CACHE = 'penetrator-v236-emote-back-glassmorphism-triggered-taunts';
 const ASSETS = [
   './',
   './index.html',

@@ -3087,30 +3087,100 @@ body.ios .overlay {
   color: #ddd;
   letter-spacing: 0.3px;
 }
-/* Emote-button: position styrs av JS (syncEmoteButtonToJoystick), CSS handles visuals */
+/* Emote-button: glassmorphism med subtil purple glow, position styrs inline i HTML */
 .emote-btn {
-  position: absolute;
-  /* Fallback-position innan JS hinner sync:a mot joystick. Annars hamnar emote
-     vid 0,0 och syns "borta" första frames + om sync misslyckas helt. */
-  bottom: max(80px, calc(env(safe-area-inset-bottom, 16px) + 80px));
-  left: max(160px, calc(env(safe-area-inset-left, 16px) + 160px));
-  width: 48px; height: 48px;
   border-radius: 50%;
-  background: rgba(170,58,255,0.75);
-  border: 2px solid rgba(255,255,255,0.45);
+  background: linear-gradient(135deg, rgba(170,58,255,0.55), rgba(110,30,200,0.65));
+  border: 2px solid rgba(220,180,255,0.55);
   color: #fff;
-  font-size: 22px;
+  font-size: 26px;
   cursor: pointer;
   pointer-events: auto;
-  z-index: 5;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.55), 0 0 18px rgba(170,58,255,0.35), inset 0 1px 0 rgba(255,255,255,0.25);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  padding: 0;
+  transition: transform 0.12s, box-shadow 0.15s, background 0.15s;
+  line-height: 1;
+}
+.emote-btn:active {
+  transform: scale(0.9);
+  background: linear-gradient(135deg, rgba(190,90,255,0.85), rgba(140,50,230,0.85));
+  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 0 24px rgba(170,58,255,0.7);
+}
+.emote-btn:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.55), 0 0 24px rgba(170,58,255,0.55); }
+
+/* ============================================================
+   EMOTE PICKER — glassmorphism panel ovanför emote-knappen
+   ============================================================ */
+#emote-picker {
+  position: fixed;
+  bottom: max(94px, calc(env(safe-area-inset-bottom, 30px) + 94px));
+  left: calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 152px);
+  transform: translateX(-50%);
+  margin-left: 26px; /* halv-emote-bredd så picker centreras OVER knappen */
+  background: linear-gradient(160deg, rgba(30,15,50,0.78), rgba(15,5,30,0.85));
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(170,58,255,0.4);
+  border-radius: 18px;
+  padding: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  z-index: 100;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.65), 0 0 30px rgba(170,58,255,0.25), inset 0 1px 0 rgba(255,255,255,0.08);
+  animation: emotePickerIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+  max-width: 280px;
+}
+@keyframes emotePickerIn {
+  0%   { transform: translateX(-50%) translateY(16px) scale(0.92); opacity: 0; }
+  100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+}
+.emote-picker-btn {
+  width: 56px; height: 56px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
+  border: 1px solid rgba(170,58,255,0.25);
+  border-radius: 12px;
+  font-size: 28px;
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0;
-  transition: transform 0.1s, background 0.15s;
+  line-height: 1;
+  transition: all 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
 }
-.emote-btn:active { transform: scale(0.92); background: rgba(170,58,255,0.95); }
+.emote-picker-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 120%, rgba(170,58,255,0.35), transparent 65%);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.emote-picker-btn:hover::before { opacity: 1; }
+.emote-picker-btn:active {
+  transform: scale(0.88);
+  background: linear-gradient(135deg, rgba(170,58,255,0.35), rgba(110,30,200,0.45));
+  border-color: rgba(220,180,255,0.6);
+  box-shadow: 0 0 16px rgba(170,58,255,0.55);
+}
+.emote-picker-btn .emote-pick-label {
+  position: absolute;
+  bottom: 2px;
+  left: 0; right: 0;
+  font-size: 8px;
+  font-weight: 700;
+  color: rgba(220,200,255,0.85);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  pointer-events: none;
+}
 
 /* Reset-knapp: diskret destruktiv, men ≥ HIG 44 touch-target */
 .reset-btn {

@@ -5987,13 +5987,14 @@ const emotePickerEl = document.getElementById('emote-picker');
 let _emotePickerBuilt = false;
 function buildEmotePicker() {
   if (!emotePickerEl || _emotePickerBuilt) return;
-  if (typeof EMOTES === 'undefined') return; // EMOTES inte definierat än
+  if (typeof EMOTES === 'undefined') return;
   _emotePickerBuilt = true;
   emotePickerEl.innerHTML = '';
   for (const em of EMOTES) {
     const btn = document.createElement('button');
-    btn.style.cssText = 'background:rgba(255,255,255,0.08);border:1px solid rgba(170,58,255,0.4);border-radius:8px;width:46px;height:46px;font-size:22px;cursor:pointer;padding:0;';
-    btn.textContent = em.emoji;
+    btn.className = 'emote-picker-btn';
+    btn.title = em.text;
+    btn.innerHTML = '<span style="font-size:26px;line-height:1;">' + em.emoji + '</span>';
     btn.addEventListener('click', (ev) => {
       ev.stopPropagation();
       if (state.player) applyEmote(state.player, em.id);
@@ -9183,20 +9184,27 @@ const Coop = {
   },
 };
 
-// EMOTES
+// EMOTES — mix av kompis-emotes och TRIGGADE taunts som retar motståndare
 const EMOTES = [
-  { id: 'wave',   emoji: '👋', text: 'Hej!' },
+  // Taunt-row (PvP-trigger)
   { id: 'laugh',  emoji: '😂', text: 'HAHA!' },
-  { id: 'cheer',  emoji: '🎉', text: 'YES!' },
-  { id: 'thumbs', emoji: '👍', text: 'GG' },
-  { id: 'sad',    emoji: '😢', text: 'nej..' },
-  { id: 'angry',  emoji: '😡', text: 'GRR!' },
-  { id: 'sus',    emoji: '🤨', text: 'sus' },
-  { id: 'dead',   emoji: '💀', text: 'DÖD!' },
-  { id: 'heart',  emoji: '❤️', text: '<3' },
-  { id: 'mock',   emoji: '🤡', text: 'CLOWN' },
-  { id: 'hello',  emoji: '🙏', text: 'tack' },
+  { id: 'loser',  emoji: '👎', text: 'LOSER!' },
+  { id: 'ez',     emoji: '🥱', text: 'EZ' },
+  { id: 'mock',   emoji: '🤡', text: 'CLOWN!' },
+  { id: 'cope',   emoji: '😭', text: 'COPE' },
+  { id: 'noob',   emoji: '👶', text: 'NOOB' },
+  { id: 'rage',   emoji: '🤬', text: 'RAGE QUIT?' },
+  { id: 'rekt',   emoji: '💀', text: 'REKT!' },
+  // Sass / chill
+  { id: 'sus',    emoji: '🤨', text: 'sus...' },
+  { id: 'sleep',  emoji: '😴', text: 'BORING' },
+  { id: 'kiss',   emoji: '😘', text: 'BYEBYE!' },
+  { id: 'crown',  emoji: '👑', text: 'KING!' },
+  // Positiva (för lagkamrater)
   { id: 'flex',   emoji: '💪', text: 'BÄST!' },
+  { id: 'cheer',  emoji: '🎉', text: 'GG!' },
+  { id: 'heart',  emoji: '❤️', text: '<3' },
+  { id: 'wave',   emoji: '👋', text: 'Hej!' },
 ];
 function getEmoteById(id) { return EMOTES.find(e => e.id === id); }
 function applyEmote(player, emoteId) {
