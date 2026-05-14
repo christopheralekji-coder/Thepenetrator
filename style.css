@@ -661,11 +661,12 @@ html, body {
   justify-content: center;
 }
 .fire-knob {
-  width: 52px; height: 52px;
+  width: 54px; height: 54px;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4), rgba(255,90,60,0.55));
-  border: 2px solid rgba(255,255,255,0.5);
-  box-shadow: 0 3px 10px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.3);
+  /* Solid nog att synas tydligt mot game-bg — matchar joystick-knob visuellt */
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.55), rgba(255,90,60,0.85));
+  border: 2px solid rgba(255,255,255,0.85);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.65), inset 0 2px 4px rgba(255,255,255,0.35), inset 0 -2px 4px rgba(0,0,0,0.25);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -678,26 +679,27 @@ html, body {
   line-height: 1;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7));
 }
-/* Ammo som litet badge nere höger — synligt men inte i vägen */
+/* Ammo som litet badge nere höger — tydligt synligt */
 .action-btn.fire .fire-ammo {
   position: absolute;
-  bottom: -2px;
-  right: -4px;
+  bottom: 0;
+  right: -6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 24px;
-  height: 18px;
-  padding: 0 6px;
-  background: rgba(0,0,0,0.88);
-  border: 1.5px solid rgba(255,213,74,0.55);
+  min-width: 28px;
+  height: 20px;
+  padding: 0 7px;
+  background: rgba(0,0,0,0.92);
+  border: 2px solid rgba(255,213,74,0.85);
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   color: #fff;
   letter-spacing: 0.3px;
   font-variant-numeric: tabular-nums;
   text-shadow: 0 1px 2px rgba(0,0,0,0.95);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.6);
   pointer-events: none;
   transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
