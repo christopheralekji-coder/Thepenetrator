@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v234-fire-center-mirror-inline-important';
+const CACHE = 'penetrator-v235-dash-no-overlap-with-fire';
 const ASSETS = [
   './',
   './index.html',
