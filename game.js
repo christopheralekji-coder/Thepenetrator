@@ -8792,6 +8792,9 @@ const Coop = {
   disconnect() {
     const wasMidGame = this.active && typeof state !== 'undefined' && state.mode === 'playing';
     this._intentionalClose = true;  // hindrar onclose från att auto-reconnecta
+    // Anti-läck: garanterad sandbox-restore vid varje coop-disconnect (alla
+    // PvP back-knappar går via disconnect → fångas här utan att touch:a 5 handlers).
+    if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
     this.active = false; this.inLobby = false;
     this.serverSimActive = false;
     this.tdmActive = false; this.ctfActive = false; this.siegeActive = false; this.gungameActive = false; this.kothActive = false;
@@ -9213,6 +9216,9 @@ function getNearestAlivePlayer(x, y) {
 const coopScreen = document.getElementById('coop-screen');
 const coopStatus = document.getElementById('coop-status');
 function openCoop() {
+  // Anti-läck: restore sandbox-state INNAN coop-screen visas — annars syns
+  // sandbox-gold + alla-vapen i lobby + leakas in i coop-snapshot.
+  if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
   coopScreen.classList.remove('hidden');
   Audio.uiClick();
   coopStatus.textContent = '';
@@ -13980,9 +13986,9 @@ function actuallyStartGame() {
   if (coopInitEl) coopInitEl.classList.remove('hidden');
   if (coopLobbyEl) coopLobbyEl.classList.add('hidden');
   document.body.classList.remove('menu-mode');
-  // Anti-läck: om kommer från sandbox till annan mode → restore innan modes
-  // får modifiera save.gold/owned.
-  if (state && state.mode !== 'sandbox') restoreSandboxIfNeeded();
+  // Anti-läck: ALLTID restore sandbox-snapshot innan ny game-start. Garanterar
+  // att sandbox-state aldrig leakas in i nästa mode oavsett exit-path.
+  restoreSandboxIfNeeded();
   // Coop: fresh-start varje run (ingen pengar/vapen/perks/upgrades carry-over)
   if (Coop.active) {
     // Snapshot bara FÖRSTA gången (om vi inte redan har en sparad).
@@ -14761,6 +14767,7 @@ if (_btnTdmBack) {
     Coop.serverSimActive = false;
     state.serverSimActive = false;
     state.mode = 'menu';
+    if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
     if (typeof Music !== 'undefined' && Music.stop) Music.stop();
     document.body.classList.add('menu-mode');
     if (typeof menuScreen !== 'undefined') menuScreen.classList.remove('hidden');
