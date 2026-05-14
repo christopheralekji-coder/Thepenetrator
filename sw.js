@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v265-emote-multitouch-fix';
+const CACHE = 'penetrator-v266-weaponmenu-settings-multitouch-fix';
 const ASSETS = [
   './',
   './index.html',

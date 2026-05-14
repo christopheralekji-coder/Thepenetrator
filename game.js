@@ -5817,8 +5817,20 @@ fireBtn.addEventListener('mousedown',  fireDown);
 window.addEventListener('mousemove',   (e) => { if (fireJoyTouchId === 'mouse') fireMove(e); });
 window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') fireUp(e); });
 
-// Vapenmeny-knapp — pausar spelet och öppnar fullskärms-vapenmeny
-document.getElementById('btn-weapon-menu').addEventListener('click', openWeaponMenu);
+// Vapenmeny-knapp — pausar spelet och öppnar fullskärms-vapenmeny.
+// pointerdown istället för click → funkar även när joystick är aktiv.
+(function() {
+  const btn = document.getElementById('btn-weapon-menu');
+  if (!btn) return;
+  btn.style.touchAction = 'manipulation';
+  const handler = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openWeaponMenu();
+  };
+  btn.addEventListener('pointerdown', handler, { passive: false });
+  btn.addEventListener('touchstart', handler, { passive: false });
+})();
 
 // Reload-knapp — manuell reload (för att ladda om innan magasinet tar slut)
 // pointerdown istället för click → fungerar även när joystick är aktiv
@@ -15873,12 +15885,15 @@ setTimeout(syncEmoteButtonToJoystick, 500);
 // lämna ett pågående coop-game utan att starta om sidan.
 const btnIngameSettings = document.getElementById('btn-ingame-settings');
 if (btnIngameSettings) {
-  btnIngameSettings.addEventListener('click', (e) => {
+  btnIngameSettings.style.touchAction = 'manipulation';
+  // pointerdown istället för click → funkar även när joystick är aktiv
+  const handler = (e) => {
+    e.preventDefault();
     e.stopPropagation();
-    if (state.mode === 'playing') {
-      openPause();
-    }
-  });
+    if (state.mode === 'playing') openPause();
+  };
+  btnIngameSettings.addEventListener('pointerdown', handler, { passive: false });
+  btnIngameSettings.addEventListener('touchstart', handler, { passive: false });
 }
 
 // ============================================================
