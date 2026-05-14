@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v223-fire-knob-and-ammo-badge-more-visible';
+const CACHE = 'penetrator-v224-mirror-joystick-half-weapon-ammo-inside';
 const ASSETS = [
   './',
   './index.html',
