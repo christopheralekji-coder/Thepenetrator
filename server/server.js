@@ -578,6 +578,17 @@ function handleMessage(ws, msg) {
     if (room.sim) {
       try { stopSim(room.sim); } catch (e) {}
     }
+    // Tillämpa team-assignments från host (om shuffle/pick aktiverat).
+    // msg.teams: { peerId → 'red' | 'blue' }. Sätt ws.tdmTeam INNAN startSim
+    // så room-sim plockar upp dem istället för i%2-defaulten.
+    if (msg.teams && typeof msg.teams === 'object') {
+      for (const [pid, team] of Object.entries(msg.teams)) {
+        const member = room.members.get(pid);
+        if (member && (team === 'red' || team === 'blue')) {
+          member.tdmTeam = team;
+        }
+      }
+    }
     room.sim = createSim(room);
     startSim(room.sim, {
       difficulty: msg.difficulty,

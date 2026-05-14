@@ -385,7 +385,7 @@
     <button id="btn-menu-help" class="medium-btn">❓ HJÄLP / TUTORIAL</button>
   </div>
   <button id="btn-fullscreen" class="small-btn" style="display:none;">⛶ HELSKÄRM</button>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.270 ⚡</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.271 ⚡</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">
@@ -468,6 +468,14 @@
         </div>
         <div class="lobby-tab-panel hidden" data-panel="pvp">
           <div id="lobby-pvp-buttons" class="lobby-button-row"></div>
+          <!-- Team-management (visas bara i team-PvP: tdm/ctf/siege) -->
+          <div id="lobby-team-controls" class="lobby-team-controls hidden">
+            <div class="lobby-team-controls-label">LAG-HANTERING</div>
+            <div class="lobby-team-controls-row">
+              <button id="btn-shuffle-teams" class="lobby-team-btn">🔀 SHUFFLA</button>
+              <button id="btn-team-pick-toggle" class="lobby-team-btn">🎯 FRI VAL: AV</button>
+            </div>
+          </div>
         </div>
         <div class="lobby-tab-panel hidden" data-panel="bots">
           <div id="lobby-bot-buttons" class="lobby-button-row"></div>

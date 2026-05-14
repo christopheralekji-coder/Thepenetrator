@@ -1833,7 +1833,7 @@ function startSim(sim, opts) {
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
       // Bot:s tdmTeam är pre-satt av addBot — respektera. Andra spelare alternerar.
-      const team = (ws._isBot && ws.tdmTeam) ? ws.tdmTeam : (i % 2 === 0 ? 'red' : 'blue');
+      const team = ws.tdmTeam || (i % 2 === 0 ? 'red' : 'blue');
       ws.tdmTeam = team;
       ws.playerState = ws.playerState || {};
       // Spawn på random egna spawn-point (slumpa per spelare så 8-mannarum
@@ -1890,7 +1890,7 @@ function startSim(sim, opts) {
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
       // Bot:s tdmTeam är pre-satt av addBot — respektera. Andra alternerar.
-      const team = (ws._isBot && ws.tdmTeam) ? ws.tdmTeam : (i % 2 === 0 ? 'red' : 'blue');
+      const team = ws.tdmTeam || (i % 2 === 0 ? 'red' : 'blue');
       ws.tdmTeam = team;
       ws.playerState = ws.playerState || {};
       ws.playerState.x = team === 'red' ? redSpawnX : blueSpawnX;
@@ -1957,7 +1957,7 @@ function startSim(sim, opts) {
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
       // Bot:s tdmTeam är pre-satt av addBot — respektera. Andra alternerar.
-      const team = (ws._isBot && ws.tdmTeam) ? ws.tdmTeam : (i % 2 === 0 ? 'red' : 'blue');
+      const team = ws.tdmTeam || (i % 2 === 0 ? 'red' : 'blue');
       ws.tdmTeam = team;
       ws.playerState = ws.playerState || {};
       const pts = SIEGE_ARENA.spawns[team];

@@ -1136,6 +1136,72 @@ html, body {
   100% { transform: translateY(0); opacity: 1; }
 }
 
+/* Team-controls — shuffle + free-pick (host-only, team-PvP-modes) */
+.lobby-team-controls {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.lobby-team-controls-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #aaa;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.lobby-team-controls-row { display: flex; gap: 8px; }
+.lobby-team-btn {
+  flex: 1;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(255,213,74,0.18), rgba(180,120,30,0.18));
+  border: 1.5px solid rgba(255,213,74,0.45);
+  border-radius: 10px;
+  color: #ffd54a;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.12s, background 0.15s;
+}
+.lobby-team-btn:active { transform: scale(0.95); }
+.lobby-team-btn.active {
+  background: linear-gradient(135deg, rgba(255,213,74,0.5), rgba(180,120,30,0.5));
+  color: #fff;
+  box-shadow: 0 0 14px rgba(255,213,74,0.5);
+}
+
+/* Player-row team-pick buttons (free-pick mode) */
+.player-team-pick {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: 8px;
+}
+.player-team-pick-btn {
+  width: 30px; height: 24px;
+  border-radius: 6px;
+  border: 1.5px solid transparent;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.12s;
+}
+.player-team-pick-btn[data-team="red"] {
+  background: rgba(255,90,90,0.25); color: #ff8a8a; border-color: rgba(255,90,90,0.4);
+}
+.player-team-pick-btn[data-team="blue"] {
+  background: rgba(90,170,255,0.25); color: #8aaaff; border-color: rgba(90,170,255,0.4);
+}
+.player-team-pick-btn.active[data-team="red"] {
+  background: rgba(255,90,90,0.8); color: #fff; border-color: #fff; box-shadow: 0 0 8px rgba(255,90,90,0.7);
+}
+.player-team-pick-btn.active[data-team="blue"] {
+  background: rgba(90,170,255,0.8); color: #fff; border-color: #fff; box-shadow: 0 0 8px rgba(90,170,255,0.7);
+}
+
 /* Difficulty pill — prominent info */
 .lobby-diff-pill {
   margin-top: 10px;

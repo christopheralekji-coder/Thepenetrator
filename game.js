@@ -8316,13 +8316,48 @@ const Coop = {
     this._connectWS(false, code, onConnect, onError);
   },
   serializeLobby() {
-    // Inkludera wardrobe så alla ser allas outfits i lobby (mini-preview per spelare)
+    // Inkludera wardrobe + team-val (för shuffle/pick) så alla ser team-färgning
     const myWardrobe = (save && save.wardrobe) ? Object.assign({}, save.wardrobe) : null;
-    const arr = [{ peerId: this.myId, name: (this.myName || 'P1') + ' (HOST)', colorIdx: 0, isHost: true, ping: 0, wardrobe: myWardrobe }];
+    if (!this.teamAssignments) this.teamAssignments = {}; // peerId → 'red'|'blue'|null
+    const arr = [{
+      peerId: this.myId, name: (this.myName || 'P1') + ' (HOST)',
+      colorIdx: 0, isHost: true, ping: 0, wardrobe: myWardrobe,
+      team: this.teamAssignments[this.myId] || null,
+    }];
     for (const [pid, p] of this.players) {
-      arr.push({ peerId: pid, name: p.name, colorIdx: p.colorIdx, isHost: false, ping: p.ping == null ? null : p.ping, wardrobe: p.wardrobe || null });
+      arr.push({
+        peerId: pid, name: p.name, colorIdx: p.colorIdx,
+        isHost: false, ping: p.ping == null ? null : p.ping,
+        wardrobe: p.wardrobe || null,
+        team: this.teamAssignments[pid] || null,
+      });
     }
     return arr;
+  },
+  // Slumpa team-assignments balanserat (50/50 mellan red/blue). Host-only.
+  shuffleTeams() {
+    if (!this.isHost) return;
+    const all = [this.myId, ...Array.from(this.players.keys())];
+    // Fisher-Yates
+    for (let i = all.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [all[i], all[j]] = [all[j], all[i]];
+    }
+    this.teamAssignments = {};
+    for (let i = 0; i < all.length; i++) {
+      this.teamAssignments[all[i]] = i % 2 === 0 ? 'red' : 'blue';
+    }
+    this.broadcastLobby();
+    if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
+  },
+  // Manuellt sätt team för spelare (free-pick eller host-overrides). Host-only.
+  setPlayerTeam(peerId, team) {
+    if (!this.isHost) return;
+    if (team !== 'red' && team !== 'blue') return;
+    if (!this.teamAssignments) this.teamAssignments = {};
+    this.teamAssignments[peerId] = team;
+    this.broadcastLobby();
+    if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
   },
   broadcastMyWardrobe() {
     if (!this.active || !save || !save.wardrobe) return;
@@ -8457,6 +8492,13 @@ const Coop = {
       if (p) p.wardrobe = data.wardrobe;
       this.broadcastLobby();
       if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
+      return;
+    }
+    // Free-pick: peer skickar sitt team-val. Host validerar och uppdaterar.
+    if (data.type === 'team_pick' && this.isHost) {
+      if (data.team === 'red' || data.team === 'blue') {
+        this.setPlayerTeam(fromId, data.team);
+      }
       return;
     }
     if (data.type === 'config' && !this.isHost) {
@@ -9523,17 +9565,56 @@ function initLobbyTabs() {
     });
   });
 }
-// Auto-pick tab baserat på current mode/config
+// Auto-pick tab baserat på current config — PvP är boolean-flags i Coop.config,
+// inte i mode-fältet. Detekterar genom att leta tdm/ctf/siege/gungame/koth.
 function syncLobbyTabToMode() {
   if (!_lobbyTabsInit) return;
-  const mode = (Coop.config && Coop.config.mode) || 'story';
-  const pvpModes = ['tdm', 'ctf', 'siege', 'gungame', 'koth'];
+  const cfg = Coop.config || {};
+  const isPvP = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth);
   let target = 'team';
-  if (pvpModes.includes(mode)) target = 'pvp';
-  else if (Coop.config && Coop.config.addBot && !pvpModes.includes(mode) && mode !== 'story') target = 'bots';
+  if (isPvP) target = 'pvp';
+  // Behåll user's manuella val: om de just klickat en tab och inte ändrat mode,
+  // respektera nuvarande val istället för att hoppa tillbaka.
+  const currentActive = document.querySelector('.lobby-tab.active');
+  if (currentActive) {
+    const ct = currentActive.dataset.tab;
+    if (ct === 'bots' && cfg.addBot) target = 'bots';   // bots-tab stannar om bots är på
+    if (ct === 'pvp' && isPvP) target = 'pvp';
+    if (ct === 'team' && !isPvP) target = 'team';
+  }
   document.querySelectorAll('.lobby-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === target));
   document.querySelectorAll('.lobby-tab-panel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== target));
 }
+// Shuffle + free-pick-toggle (team-PvP-modes)
+let _lobbyTeamInit = false;
+function initLobbyTeamControls() {
+  if (_lobbyTeamInit) return;
+  _lobbyTeamInit = true;
+  const shuffleBtn = document.getElementById('btn-shuffle-teams');
+  const pickBtn = document.getElementById('btn-team-pick-toggle');
+  if (shuffleBtn) {
+    shuffleBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof Coop !== 'undefined' && Coop.shuffleTeams) Coop.shuffleTeams();
+      if (typeof showToast === 'function') showToast('🔀 Teams shufflade');
+      Audio.uiClick && Audio.uiClick();
+    });
+  }
+  if (pickBtn) {
+    pickBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!Coop.isHost) return;
+      Coop.config.teamPickFree = !Coop.config.teamPickFree;
+      Coop.broadcastLobby && Coop.broadcastLobby();
+      if (Coop.onLobbyChange) Coop.onLobbyChange(Coop.serializeLobby());
+      updateLobbyTeamControls();
+      Audio.uiClick && Audio.uiClick();
+    });
+  }
+}
+
 // Copy-room-code-knapp
 let _lobbyCopyInit = false;
 function initLobbyCopyCode() {
@@ -9570,6 +9651,7 @@ function showLobby(code, isHost) {
   initLobbyDropdowns();
   initLobbyTabs();
   initLobbyCopyCode();
+  initLobbyTeamControls();
   coopCodeDisplay.textContent = code || '----';
   // Pre-fyll namn-fält — prio save.coopName (persisterat) > Coop.myName > default
   const persistedName = (save && save.coopName) || '';
@@ -9912,6 +9994,33 @@ function renderHostControls() {
   }
   updateLobbySectionSuffixes();
   syncLobbyTabToMode();
+  updateLobbyTeamControls();
+  updateLobbyDifficultyVisibility();
+}
+
+// Team-management UI (shuffle + free-pick) — visas bara i team-PvP-modes
+function updateLobbyTeamControls() {
+  const wrap = document.getElementById('lobby-team-controls');
+  if (!wrap) return;
+  const cfg = Coop.config || {};
+  const isTeamPvP = !!(cfg.tdm || cfg.ctf || cfg.siege);
+  wrap.classList.toggle('hidden', !isTeamPvP);
+  // Update free-pick-toggle label
+  const pickBtn = document.getElementById('btn-team-pick-toggle');
+  if (pickBtn) {
+    pickBtn.textContent = cfg.teamPickFree ? '🎯 FRI VAL: PÅ' : '🎯 FRI VAL: AV';
+    pickBtn.classList.toggle('active', !!cfg.teamPickFree);
+  }
+}
+// Svårighet-card synlig bara i team/story-modes (PvP har fast svårighet)
+function updateLobbyDifficultyVisibility() {
+  const diffCard = document.getElementById('lobby-diff-buttons');
+  if (!diffCard) return;
+  const card = diffCard.closest('.lobby-card');
+  if (!card) return;
+  const cfg = Coop.config || {};
+  const isPvP = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth);
+  card.classList.toggle('hidden', isPvP);
 }
 
 // Lobby mode-suffix: collapsed sections visar nu vad som är aktivt så host
@@ -10017,9 +10126,9 @@ function renderLobbyPlayers(players) {
   // Player-count pill (e.g. "2 / 8")
   const countEl = document.getElementById('lobby-player-count');
   if (countEl) countEl.textContent = (players ? players.length : 0) + ' / 8';
-  // TDM: pre-assigna teams i lobbyn (red/blue alternerande efter player-ordning) så
-  // spelarna ser sitt team innan match. Server gör samma assignment vid sim_start.
-  const tdmOn = !!Coop.config.tdm;
+  // Team-PvP-detektion (TDM/CTF/SIEGE)
+  const isTeamPvP = !!(Coop.config.tdm || Coop.config.ctf || Coop.config.siege);
+  const freePick = !!Coop.config.teamPickFree;
   let redCount = 0, blueCount = 0;
   for (let i = 0; i < players.length; i++) {
     const p = players[i];
@@ -10036,13 +10145,13 @@ function renderLobbyPlayers(players) {
       const c = p.ping < 80 ? '#5aff5a' : (p.ping < 150 ? '#ffd54a' : '#ff5a5a');
       pingHtml = `<span style="color:${c};font-size:11px;font-weight:700;">${p.ping}ms</span>`;
     }
-    // Team-tilldelning för TDM (i % 2: red=jämn, blue=udda) — speglar server-logik
+    // Team-tilldelning: prio p.team (shuffle/pick), fall back till i%2
     let teamHtml = '';
-    if (tdmOn) {
-      const team = i % 2 === 0 ? 'red' : 'blue';
-      if (team === 'red') redCount++; else blueCount++;
-      const teamColor = team === 'red' ? '#ff5a5a' : '#5aaaff';
-      const teamLabel = team === 'red' ? 'RÖD' : 'BLÅ';
+    const assignedTeam = p.team || (i % 2 === 0 ? 'red' : 'blue');
+    if (isTeamPvP) {
+      if (assignedTeam === 'red') redCount++; else blueCount++;
+      const teamColor = assignedTeam === 'red' ? '#ff5a5a' : '#5aaaff';
+      const teamLabel = assignedTeam === 'red' ? 'RÖD' : 'BLÅ';
       teamHtml = `<span style="background:${teamColor};color:#000;font-weight:900;font-size:10px;padding:2px 6px;border-radius:3px;margin-right:6px;">${teamLabel}</span>`;
     }
     row.innerHTML = `
@@ -10069,6 +10178,36 @@ function renderLobbyPlayers(players) {
         if (confirm('Kicka ' + p.name + '?')) Coop.kickPlayer(p.peerId);
       });
       row.appendChild(btn);
+    }
+    // Free-pick: RED/BLUE-knappar nästa till varje spelare (bara i team-PvP +
+    // free-pick på). Mig själv kan jag alltid välja. Host kan välja för alla.
+    if (isTeamPvP && freePick) {
+      const canPick = (p.peerId === Coop.myId) || Coop.isHost;
+      if (canPick) {
+        const pickWrap = document.createElement('span');
+        pickWrap.className = 'player-team-pick';
+        ['red', 'blue'].forEach(team => {
+          const pb = document.createElement('button');
+          pb.className = 'player-team-pick-btn' + (assignedTeam === team ? ' active' : '');
+          pb.setAttribute('data-team', team);
+          pb.textContent = team === 'red' ? 'R' : 'B';
+          pb.addEventListener('pointerdown', (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            if (Coop.isHost) {
+              if (typeof Coop.setPlayerTeam === 'function') Coop.setPlayerTeam(p.peerId, team);
+            } else if (p.peerId === Coop.myId) {
+              // Skicka till host
+              if (typeof Coop.sendToHost === 'function') {
+                Coop.sendToHost({ type: 'team_pick', team });
+              }
+            }
+            Audio.uiClick && Audio.uiClick();
+          });
+          pickWrap.appendChild(pb);
+        });
+        row.appendChild(pickWrap);
+      }
     }
     coopPlayerList.appendChild(row);
   }
@@ -10319,6 +10458,10 @@ btnCoopStart.addEventListener('click', () => {
       payload.botTeam = Coop.config.botTeam || 'red';
       payload.botCount = Coop.config.botCount || 1;
       payload.botSkill = Coop.config.botSkill || 'normal';
+    }
+    // Inkludera team-assignments (shuffle/pick) så server respekterar dem
+    if (Coop.teamAssignments && Object.keys(Coop.teamAssignments).length > 0) {
+      payload.teams = { ...Coop.teamAssignments };
     }
     Coop.ws.send(JSON.stringify(payload));
     Coop.serverSimActive = true;
@@ -14866,6 +15009,10 @@ function applyBotPayload(payload) {
     payload.botCount = Coop.config.botCount || 1;
     payload.botSkill = Coop.config.botSkill || 'normal';
     payload.botTeam = Coop.config.botTeam || 'red';
+  }
+  // Skicka team-assignments (shuffle/pick) så server respekterar dem vid sim_start
+  if (Coop.teamAssignments && Object.keys(Coop.teamAssignments).length > 0) {
+    payload.teams = { ...Coop.teamAssignments };
   }
   return payload;
 }
