@@ -3087,16 +3087,16 @@ body.ios .overlay {
   color: #ddd;
   letter-spacing: 0.3px;
 }
-/* Emote-button: glassmorphism med subtil purple glow, position styrs inline i HTML */
+/* Emote-button: glassmorphism med blå glow (matchar dash-knappen) */
 .emote-btn {
   border-radius: 50%;
-  background: linear-gradient(135deg, rgba(170,58,255,0.55), rgba(110,30,200,0.65));
-  border: 2px solid rgba(220,180,255,0.55);
+  background: linear-gradient(135deg, rgba(60,200,255,0.55), rgba(20,80,180,0.65));
+  border: 2px solid rgba(150,220,255,0.6);
   color: #fff;
   font-size: 26px;
   cursor: pointer;
   pointer-events: auto;
-  box-shadow: 0 4px 14px rgba(0,0,0,0.55), 0 0 18px rgba(170,58,255,0.35), inset 0 1px 0 rgba(255,255,255,0.25);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.55), 0 0 18px rgba(60,200,255,0.4), inset 0 1px 0 rgba(255,255,255,0.25);
   backdrop-filter: blur(8px) saturate(140%);
   -webkit-backdrop-filter: blur(8px) saturate(140%);
   padding: 0;
@@ -3105,10 +3105,10 @@ body.ios .overlay {
 }
 .emote-btn:active {
   transform: scale(0.9);
-  background: linear-gradient(135deg, rgba(190,90,255,0.85), rgba(140,50,230,0.85));
-  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 0 24px rgba(170,58,255,0.7);
+  background: linear-gradient(135deg, rgba(100,220,255,0.85), rgba(40,120,220,0.85));
+  box-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 0 24px rgba(60,200,255,0.7);
 }
-.emote-btn:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.55), 0 0 24px rgba(170,58,255,0.55); }
+.emote-btn:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.55), 0 0 24px rgba(60,200,255,0.55); }
 
 /* ============================================================
    EMOTE PICKER — glassmorphism panel ovanför emote-knappen
@@ -3118,32 +3118,32 @@ body.ios .overlay {
   bottom: max(94px, calc(env(safe-area-inset-bottom, 30px) + 94px));
   left: calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 152px);
   transform: translateX(-50%);
-  margin-left: 26px; /* halv-emote-bredd så picker centreras OVER knappen */
-  background: linear-gradient(160deg, rgba(30,15,50,0.78), rgba(15,5,30,0.85));
+  margin-left: 26px; /* halv-emote-bredd så picker centreras över knappen */
+  background: linear-gradient(160deg, rgba(15,30,55,0.82), rgba(5,15,35,0.88));
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(170,58,255,0.4);
-  border-radius: 18px;
-  padding: 14px;
+  border: 1px solid rgba(60,200,255,0.4);
+  border-radius: 14px;
+  padding: 8px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(8, 1fr); /* 8 kolumner × 2 rader = mindre vertikalt footprint */
+  gap: 5px;
   z-index: 100;
-  box-shadow: 0 12px 40px rgba(0,0,0,0.65), 0 0 30px rgba(170,58,255,0.25), inset 0 1px 0 rgba(255,255,255,0.08);
-  animation: emotePickerIn 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 10px 32px rgba(0,0,0,0.65), 0 0 24px rgba(60,200,255,0.25), inset 0 1px 0 rgba(255,255,255,0.08);
+  animation: emotePickerIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: auto;
-  max-width: 280px;
+  max-width: 92vw;
 }
 @keyframes emotePickerIn {
-  0%   { transform: translateX(-50%) translateY(16px) scale(0.92); opacity: 0; }
+  0%   { transform: translateX(-50%) translateY(14px) scale(0.92); opacity: 0; }
   100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
 }
 .emote-picker-btn {
-  width: 56px; height: 56px;
+  width: 36px; height: 36px;
   background: linear-gradient(135deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02));
-  border: 1px solid rgba(170,58,255,0.25);
-  border-radius: 12px;
-  font-size: 28px;
+  border: 1px solid rgba(60,200,255,0.25);
+  border-radius: 9px;
+  font-size: 22px;
   color: #fff;
   cursor: pointer;
   padding: 0;
@@ -3159,16 +3159,16 @@ body.ios .overlay {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at 50% 120%, rgba(170,58,255,0.35), transparent 65%);
+  background: radial-gradient(circle at 50% 120%, rgba(60,200,255,0.4), transparent 65%);
   opacity: 0;
   transition: opacity 0.15s;
 }
 .emote-picker-btn:hover::before { opacity: 1; }
 .emote-picker-btn:active {
   transform: scale(0.88);
-  background: linear-gradient(135deg, rgba(170,58,255,0.35), rgba(110,30,200,0.45));
-  border-color: rgba(220,180,255,0.6);
-  box-shadow: 0 0 16px rgba(170,58,255,0.55);
+  background: linear-gradient(135deg, rgba(60,200,255,0.4), rgba(20,80,180,0.5));
+  border-color: rgba(150,220,255,0.7);
+  box-shadow: 0 0 14px rgba(60,200,255,0.6);
 }
 .emote-picker-btn .emote-pick-label {
   position: absolute;
