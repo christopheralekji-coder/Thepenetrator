@@ -15772,20 +15772,9 @@ setTimeout(syncActionButtonsToMinimap, 1500);
 // Positionera emote-knappen direkt höger om joysticken (10px gap) — joystick
 // finns som DOM-element, så getBoundingClientRect funkar.
 function syncEmoteButtonToJoystick() {
-  const joy = document.getElementById('joystick');
-  const emote = document.getElementById('btn-emote');
-  if (!joy || !emote) return;
-  if (joy.offsetWidth === 0) return; // joystick hidden (menu-mode)
-  const r = joy.getBoundingClientRect();
-  const desiredLeft = r.right + 12;
-  const emoteH = emote.offsetHeight || 44;
-  // Vertikalt: linja emote-BOTTEN mot joystick-botten ("höger, nere")
-  const desiredTop = r.bottom - emoteH;
-  emote.style.setProperty('left', desiredLeft + 'px', 'important');
-  emote.style.setProperty('top', desiredTop + 'px', 'important');
-  emote.style.setProperty('bottom', 'auto', 'important');
-  emote.style.setProperty('right', 'auto', 'important');
-  emote.style.setProperty('display', 'flex', 'important');
+  // NO-OP: position styrs nu helt via inline-style i HTML (bottom:14 i linje
+  // med dash). Tidigare overrid:ade denna `bottom:auto` + sätta `top` baserat
+  // på joystick-bottom-rect, vilket gjorde att inline bottom:14 inte gällde.
 }
 window.addEventListener('resize', syncEmoteButtonToJoystick);
 window.addEventListener('orientationchange', () => setTimeout(syncEmoteButtonToJoystick, 200));
