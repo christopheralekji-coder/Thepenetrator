@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v271-lobby-shuffle-pick-tab-fix';
+const CACHE = 'penetrator-v272-mode-options-popup-bottom-sheet';
 const ASSETS = [
   './',
   './index.html',

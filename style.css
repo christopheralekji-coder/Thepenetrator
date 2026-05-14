@@ -1136,6 +1136,140 @@ html, body {
   100% { transform: translateY(0); opacity: 1; }
 }
 
+/* ============================================================
+   LOBBY MODE-OPTIONS POPUP — bottom-sheet med slide-up
+   ============================================================ */
+#lobby-mode-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: auto;
+}
+.lobby-mode-popup-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: lobbyPopupFadeIn 0.22s ease-out;
+}
+@keyframes lobbyPopupFadeIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+.lobby-mode-popup-sheet {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  background: linear-gradient(160deg, rgba(40,30,55,0.96), rgba(20,15,30,0.98));
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-top: 1px solid rgba(170,58,255,0.45);
+  border-radius: 22px 22px 0 0;
+  padding: 18px 18px max(20px, env(safe-area-inset-bottom, 20px));
+  box-shadow: 0 -12px 40px rgba(0,0,0,0.65), 0 0 32px rgba(170,58,255,0.25);
+  animation: lobbyPopupSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  margin-bottom: 0;
+}
+@keyframes lobbyPopupSlideUp {
+  0%   { transform: translateY(100%); opacity: 0; }
+  100% { transform: translateY(0);    opacity: 1; }
+}
+.lobby-mode-popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+#lobby-mode-popup-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  color: #ffd54a;
+  text-transform: uppercase;
+}
+#lobby-mode-popup-close {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: transform 0.12s, background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+#lobby-mode-popup-close:active { transform: scale(0.9); background: rgba(255,90,90,0.3); }
+#lobby-mode-popup-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+#lobby-mode-popup-body .popup-section-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: #aaa;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: block;
+}
+#lobby-mode-popup-body .popup-option-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+#lobby-mode-popup-body .popup-option-btn {
+  flex: 1 1 auto;
+  min-width: 60px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1.5px solid rgba(255,255,255,0.1);
+  border-radius: 10px;
+  color: #ccc;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: all 0.14s cubic-bezier(0.16, 1, 0.3, 1);
+}
+#lobby-mode-popup-body .popup-option-btn:active { transform: scale(0.94); }
+#lobby-mode-popup-body .popup-option-btn.active {
+  background: linear-gradient(135deg, rgba(170,58,255,0.45), rgba(110,30,200,0.55));
+  border-color: rgba(220,180,255,0.75);
+  color: #fff;
+  box-shadow: 0 0 14px rgba(170,58,255,0.45);
+}
+.lobby-mode-popup-confirm-btn {
+  margin-top: 18px !important;
+  width: 100% !important;
+  background: linear-gradient(135deg, #5aff5a, #2aa030) !important;
+  border-color: rgba(255,255,255,0.4) !important;
+  color: #0a1a05 !important;
+  font-weight: 900;
+  letter-spacing: 2px;
+  box-shadow: 0 4px 18px rgba(90,255,90,0.4) !important;
+}
+.popup-mode-desc {
+  font-size: 12px;
+  color: #aaa;
+  line-height: 1.4;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.03);
+  border-left: 3px solid rgba(255,213,74,0.5);
+  border-radius: 6px;
+}
+
 /* Team-controls — shuffle + free-pick (host-only, team-PvP-modes) */
 .lobby-team-controls {
   margin-top: 12px;

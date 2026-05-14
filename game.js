@@ -9547,6 +9547,117 @@ function initLobbyDropdowns() {
   });
 }
 
+// ============================================================
+// MODE-OPTIONS POPUP — bottom-sheet med target-points/bot-config/etc
+// ============================================================
+const MODE_OPTIONS = {
+  tdm: {
+    title: '⚔️ TDM — TEAM DEATHMATCH',
+    desc: 'Två lag, först till X kills vinner.',
+    options: [{ key: 'tdmTargetKills', label: 'KILLS TILL VINST', values: [10, 20, 30], suffix: ' kills', def: 10 }],
+  },
+  ctf: {
+    title: '🚩 CTF — CAPTURE THE FLAG',
+    desc: 'Stjäl fiendens flagga och returnera till bas.',
+    options: [{ key: 'ctfTargetCaptures', label: 'FLAGS TILL VINST', values: [3, 5, 10], suffix: ' flags', def: 3 }],
+  },
+  siege: {
+    title: '🛡 SIEGE — BASE CONQUEST',
+    desc: '7 baser att capturera. Förstör fiendens core ELLER nå target-poäng.',
+    options: [{ key: 'siegeTargetPoints', label: 'POÄNG TILL VINST', values: [500, 5000, 20000], suffix: ' poäng', def: 500 }],
+  },
+  gungame: {
+    title: '🔫 GUNGAME — 15-TIER FFA',
+    desc: 'Free-for-all. Varje kill = +1 tier. Vinn med sista tier (sledge).',
+    options: [],
+  },
+  koth: {
+    title: '👑 KOTH — KING OF THE HILL',
+    desc: 'FFA. Håll zonen → poäng. Först till target vinner.',
+    options: [{ key: 'kothTargetPoints', label: 'POÄNG TILL VINST', values: [50, 100, 200], suffix: ' poäng', def: 100 }],
+  },
+  bots: {
+    title: '🤖 BOTS — TRÄNA MOT AI',
+    desc: 'AI-motståndare med valbar svårighet.',
+    options: [
+      { key: 'botCount', label: 'ANTAL BOTS', values: [1, 2, 3, 4, 5, 6, 7], suffix: '', def: 1 },
+      { key: 'botSkill', label: 'SVÅRIGHET', values: ['easy', 'normal', 'hard'], labels: ['😴 EASY', '🎯 NORMAL', '🔥 HARD'], def: 'normal' },
+    ],
+  },
+};
+let _modePopupCurrent = null;
+function openModePopup(modeId) {
+  const cfg = MODE_OPTIONS[modeId];
+  if (!cfg) return;
+  _modePopupCurrent = modeId;
+  const popup = document.getElementById('lobby-mode-popup');
+  const title = document.getElementById('lobby-mode-popup-title');
+  const body = document.getElementById('lobby-mode-popup-body');
+  if (!popup || !title || !body) return;
+  title.textContent = cfg.title;
+  body.innerHTML = '';
+  // Description
+  if (cfg.desc) {
+    const desc = document.createElement('div');
+    desc.className = 'popup-mode-desc';
+    desc.textContent = cfg.desc;
+    body.appendChild(desc);
+  }
+  // Options
+  for (const opt of cfg.options) {
+    const section = document.createElement('div');
+    const label = document.createElement('div');
+    label.className = 'popup-section-label';
+    label.textContent = opt.label;
+    section.appendChild(label);
+    const row = document.createElement('div');
+    row.className = 'popup-option-row';
+    const cur = (Coop.config && Coop.config[opt.key] != null) ? Coop.config[opt.key] : opt.def;
+    opt.values.forEach((v, i) => {
+      const b = document.createElement('button');
+      b.className = 'popup-option-btn' + (cur === v ? ' active' : '');
+      b.textContent = (opt.labels ? opt.labels[i] : v + (opt.suffix || ''));
+      b.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        Coop.config[opt.key] = v;
+        Coop.updateConfig({ [opt.key]: v });
+        // Re-render row
+        row.querySelectorAll('.popup-option-btn').forEach((btn, j) => {
+          btn.classList.toggle('active', opt.values[j] === v);
+        });
+        Audio.uiClick && Audio.uiClick();
+      });
+      row.appendChild(b);
+    });
+    section.appendChild(row);
+    body.appendChild(section);
+  }
+  popup.classList.remove('hidden');
+}
+function closeModePopup() {
+  const popup = document.getElementById('lobby-mode-popup');
+  if (popup) popup.classList.add('hidden');
+  _modePopupCurrent = null;
+  if (typeof renderHostControls === 'function') renderHostControls();
+}
+// Wire up popup close-handlers (one-time)
+let _modePopupInit = false;
+function initModePopup() {
+  if (_modePopupInit) return;
+  _modePopupInit = true;
+  const close = document.getElementById('lobby-mode-popup-close');
+  const confirm = document.getElementById('lobby-mode-popup-confirm');
+  const backdrop = document.querySelector('.lobby-mode-popup-backdrop');
+  const closeHandler = (e) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    closeModePopup();
+    Audio.uiClick && Audio.uiClick();
+  };
+  if (close) close.addEventListener('pointerdown', closeHandler);
+  if (confirm) confirm.addEventListener('pointerdown', closeHandler);
+  if (backdrop) backdrop.addEventListener('pointerdown', closeHandler);
+}
+
 // Tab-switching för lobby V2 (TEAM / PVP / BOTS). Idempotent — bara binder en gång.
 let _lobbyTabsInit = false;
 function initLobbyTabs() {
@@ -9652,6 +9763,7 @@ function showLobby(code, isHost) {
   initLobbyTabs();
   initLobbyCopyCode();
   initLobbyTeamControls();
+  initModePopup();
   coopCodeDisplay.textContent = code || '----';
   // Pre-fyll namn-fält — prio save.coopName (persisterat) > Coop.myName > default
   const persistedName = (save && save.coopName) || '';
@@ -9742,7 +9854,7 @@ function renderHostControls() {
     tdmBtn.addEventListener('click', () => {
       const newTdm = !Coop.config.tdm;
       Coop.config.tdm = newTdm;
-      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; // alla PvP mutually exclusive
+      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false;
       if (newTdm) {
         Coop.config.serverSim = true;
         Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
@@ -9753,6 +9865,7 @@ function renderHostControls() {
         serverSim: Coop.config.serverSim,
       });
       renderHostControls();
+      if (newTdm) openModePopup('tdm');
     });
     pvpEl.appendChild(tdmBtn);
     // CTF-knapp
@@ -9774,6 +9887,7 @@ function renderHostControls() {
         serverSim: Coop.config.serverSim,
       });
       renderHostControls();
+      if (newCtf) openModePopup('ctf');
     });
     pvpEl.appendChild(ctfBtn);
     // SIEGE-knapp
@@ -9795,6 +9909,7 @@ function renderHostControls() {
         serverSim: Coop.config.serverSim,
       });
       renderHostControls();
+      if (newSiege) openModePopup('siege');
     });
     pvpEl.appendChild(siegeBtn);
     // GUNGAME-knapp (FFA 15-tier progression)
@@ -9806,14 +9921,13 @@ function renderHostControls() {
       const newGg = !Coop.config.gungame;
       Coop.config.gungame = newGg;
       Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.koth = false;
-      if (newGg) {
-        Coop.config.serverSim = true;
-      }
+      if (newGg) Coop.config.serverSim = true;
       Coop.updateConfig({
         gungame: newGg, tdm: false, ctf: false, siege: false, koth: false,
         serverSim: Coop.config.serverSim,
       });
       renderHostControls();
+      if (newGg) openModePopup('gungame');
     });
     pvpEl.appendChild(ggBtn);
     // KOTH-knapp (FFA hold-the-hill)
@@ -9835,6 +9949,7 @@ function renderHostControls() {
         serverSim: Coop.config.serverSim,
       });
       renderHostControls();
+      if (newKoth) openModePopup('koth');
     });
     pvpEl.appendChild(kothBtn);
     // KOTH target-poäng-selector
@@ -9900,19 +10015,24 @@ function renderHostControls() {
     botBtn.textContent = botActive ? ('🤖 BOTS: ' + botCount + ' PÅ') : '🤖 Lägg till bots';
     botBtn.style.cssText = 'background:' + (botActive ? '#5aff5a' : '#222') + ';color:' + (botActive ? '#000' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
     botBtn.addEventListener('click', () => {
-      Coop.config.addBot = !Coop.config.addBot;
-      if (Coop.config.addBot) {
+      const wasOn = Coop.config.addBot;
+      // Klick på inaktiv → aktivera + öppna popup. Klick på aktiv → öppna popup
+      // (för att ändra count/skill). Avstängning sker via popup eller om man
+      // explicit klickar bort.
+      if (!wasOn) {
+        Coop.config.addBot = true;
         if (!Coop.config.botTeam) Coop.config.botTeam = 'red';
         if (!Coop.config.botCount) Coop.config.botCount = 1;
         if (!Coop.config.botSkill) Coop.config.botSkill = 'normal';
+        Coop.updateConfig({
+          addBot: true,
+          botTeam: Coop.config.botTeam,
+          botCount: Coop.config.botCount,
+          botSkill: Coop.config.botSkill,
+        });
+        renderHostControls();
       }
-      Coop.updateConfig({
-        addBot: Coop.config.addBot,
-        botTeam: Coop.config.botTeam,
-        botCount: Coop.config.botCount,
-        botSkill: Coop.config.botSkill,
-      });
-      renderHostControls();
+      openModePopup('bots');
     });
     botEl.appendChild(botBtn);
     if (botActive) {
