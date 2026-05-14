@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v233-revert-js-mirror-button-back';
+const CACHE = 'penetrator-v234-fire-center-mirror-inline-important';
 const ASSETS = [
   './',
   './index.html',
