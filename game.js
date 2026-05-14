@@ -5820,6 +5820,16 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
 // Vapenmeny-knapp — pausar spelet och öppnar fullskärms-vapenmeny
 document.getElementById('btn-weapon-menu').addEventListener('click', openWeaponMenu);
 
+// Reload-knapp — manuell reload (för att ladda om innan magasinet tar slut)
+const _btnReload = document.getElementById('btn-reload');
+if (_btnReload) {
+  _btnReload.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (state.mode === 'playing') startReload();
+    Audio.uiClick && Audio.uiClick();
+  });
+}
+
 // Dash-knapp (mobil). Använder pointerdown så det fungerar både touch + mouse.
 // CSS-ring uppdateras i runFrame via state.player.dashCdAt.
 const _btnDash = document.getElementById('btn-dash');
