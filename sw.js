@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v227-weapon-btn-under-minimap';
+const CACHE = 'penetrator-v228-weapon-btn-position-fixed';
 const ASSETS = [
   './',
   './index.html',

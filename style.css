@@ -648,12 +648,12 @@ html, body {
   box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
   transition: transform 0.08s, box-shadow 0.15s;
 }
-/* Vapen/shop-knapp halv storlek — flyttad ur action-buttons-stacken,
-   placerad direkt under minimap+batteri-indikatorn (höger-kant i linje
-   med minimap-höger). Minimap top:60 + size 110 + battery 4+16 = 190,
-   så vapen-knapp top:196 ger ~6px gap. */
+/* Vapen/shop-knapp halv storlek — placerad direkt under minimap+batteri.
+   position:FIXED (inte absolute) annars positioneras den relativt
+   #action-buttons (som själv är position:absolute), inte viewport.
+   Höger-kant i linje med minimap-höger (båda 12px från viewport-right). */
 #btn-weapon-menu {
-  position: absolute;
+  position: fixed;
   top: 196px;
   right: 12px;
   width: 38px; height: 38px;
