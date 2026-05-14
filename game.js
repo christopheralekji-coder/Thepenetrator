@@ -9492,9 +9492,10 @@ let _lobbyDropdownsInited = false;
 function initLobbyDropdowns() {
   if (_lobbyDropdownsInited) return;
   _lobbyDropdownsInited = true;
-  const sections = document.querySelectorAll('.lobby-section[data-collapsible="1"]');
+  // Stöd både .lobby-section och .lobby-card (V2 advanced-section är ett card)
+  const sections = document.querySelectorAll('[data-collapsible="1"]');
   sections.forEach(sec => {
-    const label = sec.querySelector('.lobby-label');
+    const label = sec.querySelector('.lobby-label, .lobby-advanced-label');
     if (!label) return;
     label.addEventListener('click', () => {
       const isCollapsed = sec.getAttribute('data-collapsed') === '1';
@@ -9504,10 +9505,71 @@ function initLobbyDropdowns() {
   });
 }
 
+// Tab-switching för lobby V2 (TEAM / PVP / BOTS). Idempotent — bara binder en gång.
+let _lobbyTabsInit = false;
+function initLobbyTabs() {
+  if (_lobbyTabsInit) return;
+  _lobbyTabsInit = true;
+  const tabs = document.querySelectorAll('.lobby-tab');
+  const panels = document.querySelectorAll('.lobby-tab-panel');
+  tabs.forEach(tab => {
+    tab.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const target = tab.dataset.tab;
+      tabs.forEach(t => t.classList.toggle('active', t === tab));
+      panels.forEach(p => p.classList.toggle('hidden', p.dataset.panel !== target));
+      Audio.uiClick && Audio.uiClick();
+    });
+  });
+}
+// Auto-pick tab baserat på current mode/config
+function syncLobbyTabToMode() {
+  if (!_lobbyTabsInit) return;
+  const mode = (Coop.config && Coop.config.mode) || 'story';
+  const pvpModes = ['tdm', 'ctf', 'siege', 'gungame', 'koth'];
+  let target = 'team';
+  if (pvpModes.includes(mode)) target = 'pvp';
+  else if (Coop.config && Coop.config.addBot && !pvpModes.includes(mode) && mode !== 'story') target = 'bots';
+  document.querySelectorAll('.lobby-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === target));
+  document.querySelectorAll('.lobby-tab-panel').forEach(p => p.classList.toggle('hidden', p.dataset.panel !== target));
+}
+// Copy-room-code-knapp
+let _lobbyCopyInit = false;
+function initLobbyCopyCode() {
+  if (_lobbyCopyInit) return;
+  _lobbyCopyInit = true;
+  const btn = document.getElementById('btn-copy-code');
+  if (!btn) return;
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const code = coopCodeDisplay && coopCodeDisplay.textContent;
+    if (!code || code === '----') return;
+    const fallback = () => {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch (_) {}
+    };
+    if (navigator.clipboard) navigator.clipboard.writeText(code).catch(fallback);
+    else fallback();
+    btn.classList.add('copied');
+    btn.textContent = '✓';
+    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📋'; }, 1500);
+    Audio.uiClick && Audio.uiClick();
+  });
+}
+
 function showLobby(code, isHost) {
   coopInitEl.classList.add('hidden');
   coopLobbyEl.classList.remove('hidden');
   initLobbyDropdowns();
+  initLobbyTabs();
+  initLobbyCopyCode();
   coopCodeDisplay.textContent = code || '----';
   // Pre-fyll namn-fält — prio save.coopName (persisterat) > Coop.myName > default
   const persistedName = (save && save.coopName) || '';
@@ -9849,6 +9911,7 @@ function renderHostControls() {
     lobbyCheatButtonsEl.innerHTML = '<span style="font-size:11px;color:#666;">Inga cheats upplåsta än — klara story-mode för att låsa upp.</span>';
   }
   updateLobbySectionSuffixes();
+  syncLobbyTabToMode();
 }
 
 // Lobby mode-suffix: collapsed sections visar nu vad som är aktivt så host
@@ -9951,6 +10014,9 @@ function drawMiniWardrobeAvatar(canvas, wardrobe) {
 
 function renderLobbyPlayers(players) {
   coopPlayerList.innerHTML = '';
+  // Player-count pill (e.g. "2 / 8")
+  const countEl = document.getElementById('lobby-player-count');
+  if (countEl) countEl.textContent = (players ? players.length : 0) + ' / 8';
   // TDM: pre-assigna teams i lobbyn (red/blue alternerande efter player-ordning) så
   // spelarna ser sitt team innan match. Server gör samma assignment vid sim_start.
   const tdmOn = !!Coop.config.tdm;

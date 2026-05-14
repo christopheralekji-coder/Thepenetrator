@@ -385,7 +385,7 @@
     <button id="btn-menu-help" class="medium-btn">❓ HJÄLP / TUTORIAL</button>
   </div>
   <button id="btn-fullscreen" class="small-btn" style="display:none;">⛶ HELSKÄRM</button>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.269 ⚡</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.270 ⚡</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">
@@ -430,67 +430,89 @@
     </div>
   </div>
   <div id="coop-lobby" class="coop-options hidden">
-    <div id="coop-code-display" style="font-size:36px;letter-spacing:14px;color:#ffd54a;margin-bottom:8px;font-weight:900;"></div>
-    <div style="font-size:13px;color:#888;margin-bottom:14px;">Dela koden med dina vänner</div>
-
-    <div class="lobby-section">
-      <label class="lobby-label">DITT NAMN</label>
-      <input id="coop-name-input" maxlength="14" placeholder="Skriv namn..." class="lobby-input">
+    <!-- Room code card med kopiera-knapp -->
+    <div class="lobby-card lobby-room-card">
+      <div class="lobby-room-meta">RUMSKOD · dela med vänner</div>
+      <div class="lobby-room-row">
+        <div id="coop-code-display">ABCD</div>
+        <button id="btn-copy-code" class="lobby-copy-btn" aria-label="Kopiera kod">📋</button>
+      </div>
     </div>
 
-    <div class="lobby-section">
-      <label class="lobby-label">SPELARE</label>
+    <!-- Players card -->
+    <div class="lobby-card">
+      <div class="lobby-card-header">
+        <span class="lobby-card-title">👥 SPELARE</span>
+        <span id="lobby-player-count" class="lobby-count-pill">1 / 8</span>
+      </div>
+      <div class="lobby-name-row">
+        <span class="lobby-name-label">Ditt namn</span>
+        <input id="coop-name-input" maxlength="14" placeholder="Skriv namn..." class="lobby-input lobby-name-input">
+      </div>
       <div id="coop-player-list"></div>
     </div>
 
-    <div class="lobby-section">
-      <label class="lobby-label">CHEAT-KOD</label>
-      <div style="display:flex;gap:6px;">
-        <input id="lobby-cheat-input" placeholder="Skriv kod..." class="lobby-input" style="flex:1;">
-        <button id="btn-cheat-redeem" class="medium-btn" style="min-width:0;">AKTIVERA</button>
-      </div>
-    </div>
-
     <div id="host-controls" class="hidden">
-      <div class="lobby-section">
-        <label class="lobby-label">RUM SYNLIGHET</label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button id="btn-room-private" class="medium-btn" style="font-size:12px;padding:6px 12px;min-width:0;">🌐 PUBLIKT</button>
-          <span style="font-size:11px;color:#888;">Visas i aktiva rum-listan</span>
+      <!-- Mode-tabs card: TEAM / PVP / BOTS -->
+      <div class="lobby-card">
+        <div class="lobby-card-header">
+          <span class="lobby-card-title">🎮 SPELLÄGE</span>
+        </div>
+        <div class="lobby-tabs">
+          <button class="lobby-tab active" data-tab="team">🤝<span>TEAM</span></button>
+          <button class="lobby-tab" data-tab="pvp">⚔️<span>PVP</span></button>
+          <button class="lobby-tab" data-tab="bots">🤖<span>BOTS</span></button>
+        </div>
+        <div class="lobby-tab-panel" data-panel="team">
+          <div id="lobby-mode-buttons" class="lobby-button-row"></div>
+        </div>
+        <div class="lobby-tab-panel hidden" data-panel="pvp">
+          <div id="lobby-pvp-buttons" class="lobby-button-row"></div>
+        </div>
+        <div class="lobby-tab-panel hidden" data-panel="bots">
+          <div id="lobby-bot-buttons" class="lobby-button-row"></div>
         </div>
       </div>
-      <div class="lobby-section">
-        <label class="lobby-label">SVÅRIGHET</label>
+
+      <!-- Difficulty card -->
+      <div class="lobby-card">
+        <div class="lobby-card-header">
+          <span class="lobby-card-title">📊 SVÅRIGHET</span>
+        </div>
         <div id="lobby-diff-buttons" class="lobby-button-row"></div>
+        <div id="coop-difficulty-info" class="lobby-diff-pill"></div>
       </div>
-      <div class="lobby-section" data-collapsible="1">
-        <label class="lobby-label">🤝 TEAM PLAY (samarbete mot fiender)</label>
-        <div id="lobby-mode-buttons" class="lobby-button-row"></div>
-      </div>
-      <div class="lobby-section" data-collapsible="1" data-collapsed="1">
-        <label class="lobby-label">⚔️ PLAYER VS PLAYER</label>
-        <div id="lobby-pvp-buttons" class="lobby-button-row"></div>
-      </div>
-      <div class="lobby-section" data-collapsible="1" data-collapsed="1">
-        <label class="lobby-label">🤖 BOTS (träna mot AI)</label>
-        <div id="lobby-bot-buttons" class="lobby-button-row"></div>
-      </div>
-      <div class="lobby-section" data-collapsible="1" data-collapsed="1">
-        <label class="lobby-label">CHEATS (för detta game)</label>
-        <div id="lobby-cheat-buttons" class="lobby-button-row"></div>
+
+      <!-- Avancerat: collapsed by default -->
+      <div class="lobby-card lobby-advanced" data-collapsible="1" data-collapsed="1">
+        <label class="lobby-label lobby-advanced-label">⚙️ AVANCERAT</label>
+        <div class="lobby-advanced-inner">
+          <div class="lobby-section">
+            <label class="lobby-label">RUM-SYNLIGHET</label>
+            <button id="btn-room-private" class="medium-btn lobby-toggle-btn">🌐 PUBLIKT</button>
+          </div>
+          <div class="lobby-section">
+            <label class="lobby-label">CHEAT-KOD</label>
+            <div style="display:flex;gap:6px;">
+              <input id="lobby-cheat-input" placeholder="Skriv kod..." class="lobby-input" style="flex:1;">
+              <button id="btn-cheat-redeem" class="medium-btn" style="min-width:0;">AKTIVERA</button>
+            </div>
+          </div>
+          <div class="lobby-section">
+            <label class="lobby-label">AKTIVA CHEATS</label>
+            <div id="lobby-cheat-buttons" class="lobby-button-row"></div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div id="coop-difficulty-info" style="margin:10px 0;color:#ff8a3a;font-weight:700;font-size:12px;"></div>
     <!-- server-side sim är nu STANDARD när coop aktivt (ingen toggle behövs) -->
     <div id="coop-server-sim-row" class="hidden">
       <input type="checkbox" id="coop-server-sim-toggle" checked style="display:none;">
     </div>
-    <!-- TDM-checkbox borttagen — TDM aktiveras nu via "PLAYER VS PLAYER"-knappraden
-         i samma format som Team Play. coop-tdm-row finns inte längre. -->
 
-    <button id="btn-coop-start" class="big-btn hidden" style="margin-top:14px;">STARTA SPELET</button>
-    <div id="coop-waiting" class="hidden" style="color:#5aff5a;font-size:13px;">Väntar på att host startar...</div>
+    <button id="btn-coop-start" class="big-btn lobby-start-btn hidden">🚀 STARTA SPELET</button>
+    <div id="coop-waiting" class="hidden lobby-waiting">⏳ Väntar på att host startar...</div>
   </div>
   <div id="coop-status" style="margin-top:20px;font-size:14px;color:#ffd54a;min-height:30px;"></div>
   <button id="btn-coop-close" class="big-btn" style="background:linear-gradient(135deg, #444, #222);border-color:rgba(255,255,255,0.3);margin-top:18px;">AVBRYT</button>
