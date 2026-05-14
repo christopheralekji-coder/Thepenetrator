@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v214-settings-smaller-slight-inset';
+const CACHE = 'penetrator-v215-settings-aligned-with-minimap-right';
 const ASSETS = [
   './',
   './index.html',
