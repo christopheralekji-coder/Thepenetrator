@@ -704,10 +704,14 @@ function updateBullets(sim, dt, now) {
     }
     // SIEGE: turret hit detection — turrets fungerar som väggar (även destroyed
     // vrak blockerar). Skott stannar alltid när de träffar.
+    // Friendly fire: bullets från samma lag passerar GENOM egen turret (ignorerar helt).
     if (sim.siegeActive && sim.siegeTurrets) {
+      const shooter = b.ownerPid && sim.room.members.get(b.ownerPid);
+      const shooterTeam = shooter && shooter.tdmTeam;
       let hitTurret = false;
       for (const tid of Object.keys(sim.siegeTurrets)) {
         const t = sim.siegeTurrets[tid];
+        if (shooterTeam && shooterTeam === t.team) continue; // egen turret = ingen kollision
         const dx = t.x - b.x, dy = t.y - b.y;
         const rsum = t.r + b.r;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -742,12 +746,15 @@ function updateBullets(sim, dt, now) {
       if (hitTurret) { bullets.splice(i, 1); continue; }
     }
     // CTF: bullet träffar turret? Damage routes till turret-hp, bullet dies.
-    // Egen lags-turret kan fortfarande beskjutas (fri damage från alla håll).
+    // Friendly fire: egna lagets bullets passerar genom egen turret (kan inte döda den).
     if (sim.ctfActive && sim.ctfTurrets) {
+      const shooter = b.ownerPid && sim.room.members.get(b.ownerPid);
+      const shooterTeam = shooter && shooter.tdmTeam;
       let hitTurret = false;
       for (const tid of Object.keys(sim.ctfTurrets)) {
         const t = sim.ctfTurrets[tid];
         if (t.destroyed) continue;
+        if (shooterTeam && shooterTeam === t.team) continue; // egen turret = ingen kollision
         const dx = t.x - b.x, dy = t.y - b.y;
         const rsum = t.r + b.r;
         if (dx * dx + dy * dy < rsum * rsum) {

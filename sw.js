@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v217-ms-vid-hp-skull-vid-gold-titel-fits';
+const CACHE = 'penetrator-v218-hit-vibrate-dash-3s-team-rings-own-turrets';
 const ASSETS = [
   './',
   './index.html',

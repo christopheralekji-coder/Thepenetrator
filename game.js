@@ -907,17 +907,25 @@ function drawTdmTeamRings() {
   const drawRing = (wx, wy, team, isMe) => {
     const x = wx - state.camera.x, y = wy - state.camera.y;
     if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) return;
-    const color = team === 'red' ? '#ff5a5a' : '#5aaaff';
+    const color = team === 'red' ? '#ff3a3a' : '#3a8aff';
+    const fillCol = team === 'red' ? 'rgba(255,58,58,0.22)' : 'rgba(58,138,255,0.22)';
+    const r = 24;
     ctx.save();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = isMe ? 3 : 2;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 12 * pulse;
-    ctx.globalAlpha = 0.9;
-    // Color-blind safety: röd = solid ring, blå = streckad ring (deuteranope-vänligt)
-    if (team === 'blue') ctx.setLineDash([6, 4]);
+    // Fylld inner-disk för stark team-identifiering — synlig direkt vid blick
+    ctx.fillStyle = fillCol;
     ctx.beginPath();
-    ctx.arc(x, y + 14, 22, 0, Math.PI * 2);
+    ctx.arc(x, y + 14, r, 0, Math.PI * 2);
+    ctx.fill();
+    // Tjock ring + glow
+    ctx.strokeStyle = color;
+    ctx.lineWidth = isMe ? 4 : 3;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 14 * pulse;
+    ctx.globalAlpha = 1;
+    // Color-blind safety: röd = solid ring, blå = streckad (deuteranope-vänligt)
+    if (team === 'blue') ctx.setLineDash([8, 5]);
+    ctx.beginPath();
+    ctx.arc(x, y + 14, r, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
     ctx.restore();
@@ -5446,13 +5454,14 @@ const state = {
 // ============================================================
 // ENTITIES
 // ============================================================
+const DASH_COOLDOWN_MS = 3000;
 function tryDash() {
   const p = state.player;
   // Bug-fix: `p.dashUntil > 0` var permanent truthy efter första dashen (värdet
   // resettas aldrig till 0) → spelaren kunde bara dasha en gång per run. Använd
   // jämförelse mot now istället så bara *aktiv* dash blockar.
   const _now = performance.now();
-  if (!p || p.dashUntil > _now || p.dashCdAt > _now - 800) return;
+  if (!p || p.dashUntil > _now || p.dashCdAt > _now - DASH_COOLDOWN_MS) return;
   const mx = input.moveX || (input.keys.has('w') ? 0 : 0) + (input.keys.has('s') ? 0 : 0);
   const my = input.moveY;
   let dx = input.moveX, dy = input.moveY;
@@ -12031,7 +12040,11 @@ function damageEnemy(e, dmg, isCrit) {
     Audio.hitCrit();
     state.critsThisRun = (state.critsThisRun || 0) + 1;
     save.stats.totalCrits = (save.stats.totalCrits || 0) + 1;
-  } else Audio.hit();
+    triggerVibrate(30); // Hit-confirm: längre puls vid crit
+  } else {
+    Audio.hit();
+    triggerVibrate(15); // Hit-confirm: kort puls vid vanlig träff
+  }
   if (isCrit) {
     triggerHitStop(60);
     triggerShake(3, 0.1);
@@ -15627,7 +15640,7 @@ let _lastDashCdSet = -1;
 function updateDashCdRing() {
   if (!_btnDash || !state.player) return;
   const elapsed = performance.now() - (state.player.dashCdAt || -10000);
-  const cd = elapsed >= 800 ? 1 : Math.max(0, elapsed / 800);
+  const cd = elapsed >= DASH_COOLDOWN_MS ? 1 : Math.max(0, elapsed / DASH_COOLDOWN_MS);
   // Throttle DOM-writes: skriv bara när värdet ändrats >1% (skip när redan ready)
   if (Math.abs(cd - _lastDashCdSet) < 0.01) return;
   _lastDashCdSet = cd;
@@ -17083,6 +17096,8 @@ function updateBullets(dt) {
               spawnDamageNumber(partner.x, partner.y - 20, Math.round(b.dmg), b.crit);
             }
             if (typeof spawnHitParticles === 'function') spawnHitParticles(partner.x, partner.y, b);
+            // Hit-confirm vibration även i PvP (predicted hit på motståndare)
+            triggerVibrate(b.crit ? 30 : 15);
             if (!b.pierce) { hit = true; break; }
           }
         }
