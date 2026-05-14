@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v240-two-more-emotes-you-chicken';
+const CACHE = 'penetrator-v241-emote-no-bubble-picker-right-of-joystick';
 const ASSETS = [
   './',
   './index.html',

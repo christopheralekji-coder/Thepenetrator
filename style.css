@@ -3115,23 +3115,23 @@ body.ios .overlay {
    ============================================================ */
 #emote-picker {
   position: fixed;
-  bottom: max(90px, calc(env(safe-area-inset-bottom, 30px) + 90px));
-  left: calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 152px);
-  transform: translateX(-50%);
-  margin-left: 26px;
+  /* Placera picker DIREKT höger om joysticken (joystick width 140 + 10 gap) så
+     den inte täcker rörelse-joysticken när menyn är öppen. */
+  bottom: max(36px, calc(env(safe-area-inset-bottom, 30px) + 36px));
+  left: calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 150px);
   background: transparent;
   border: none;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(6, 1fr); /* 6 kol × 3 rad (16 emotes, 2 tomma sista raden) */
+  grid-template-columns: repeat(6, 1fr);
   gap: 4px;
   z-index: 100;
   animation: emotePickerIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: auto;
 }
 @keyframes emotePickerIn {
-  0%   { transform: translateX(-50%) translateY(10px) scale(0.94); opacity: 0; }
-  100% { transform: translateX(-50%) translateY(0) scale(1); opacity: 1; }
+  0%   { transform: translateY(10px) scale(0.94); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
 }
 .emote-picker-btn {
   width: 32px; height: 32px;

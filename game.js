@@ -843,60 +843,29 @@ function drawEmoteBubble(em, x, y, r) {
   const totalDur = em.dur || 3500;
   const t = em.until - now;
   const elapsed = totalDur - t;
-  // Pop-in: scale från 0.4 till 1 första 200ms (overshoot till 1.15 vid 120ms)
+  // Pop-in: scale 0.4 → 1 (overshoot 1.15 vid 120ms)
   let scale;
   if (elapsed < 120) scale = 0.4 + (elapsed / 120) * 0.75;
   else if (elapsed < 200) scale = 1.15 - ((elapsed - 120) / 80) * 0.15;
   else scale = 1;
   // Fade-out: sista 400ms
   const alpha = t > 400 ? 1 : Math.max(0, t / 400);
-  // Bobbing: subtil floating effekt
+  // Bobbing: subtil floating
   const bob = Math.sin(elapsed / 250) * 2;
   ctx.save();
   ctx.globalAlpha = alpha;
-  // Position: ovanför player med bob
   const cx = x;
-  const cy = y - r - 42 + bob;
-  const bw = 56 * scale;
-  const bh = 44 * scale;
-  // Drop-shadow för djup
-  ctx.shadowColor = 'rgba(0,0,0,0.5)';
-  ctx.shadowBlur = 8 * scale;
+  const cy = y - r - 30 + bob;
+  // Bara emojin — ingen bubbla, ingen border. Soft drop-shadow för läsbarhet
+  // mot game-bg så emojin pop:par utan att behöva white-box runt.
+  ctx.shadowColor = 'rgba(0,0,0,0.7)';
+  ctx.shadowBlur = 4;
   ctx.shadowOffsetY = 2;
-  // Bubbla — gradient bg
-  const grad = ctx.createLinearGradient(cx, cy - bh/2, cx, cy + bh/2);
-  grad.addColorStop(0, 'rgba(255,255,255,0.98)');
-  grad.addColorStop(1, 'rgba(230,225,240,0.95)');
-  ctx.fillStyle = grad;
-  ctx.strokeStyle = '#aa3aff';
-  ctx.lineWidth = 2.5 * scale;
-  ctx.beginPath();
-  if (ctx.roundRect) ctx.roundRect(cx - bw/2, cy - bh/2, bw, bh, 12 * scale);
-  else ctx.rect(cx - bw/2, cy - bh/2, bw, bh);
-  ctx.fill();
-  ctx.shadowColor = 'transparent'; // stäng shadow för stroke + tail
-  ctx.stroke();
-  // Stjärt (pekar ner mot spelaren) — fyllning
-  ctx.beginPath();
-  ctx.moveTo(cx - 6 * scale, cy + bh/2 - 1);
-  ctx.lineTo(cx, cy + bh/2 + 9 * scale);
-  ctx.lineTo(cx + 6 * scale, cy + bh/2 - 1);
-  ctx.closePath();
-  ctx.fillStyle = 'rgba(245,242,250,0.97)';
-  ctx.fill();
-  // Stjärt-stroke (bara sidorna, inte top)
-  ctx.beginPath();
-  ctx.moveTo(cx - 6 * scale, cy + bh/2);
-  ctx.lineTo(cx, cy + bh/2 + 9 * scale);
-  ctx.lineTo(cx + 6 * scale, cy + bh/2);
-  ctx.strokeStyle = '#aa3aff';
-  ctx.stroke();
-  // Emoji centrerat
-  ctx.font = 'bold ' + Math.round(26 * scale) + 'px sans-serif';
+  ctx.font = 'bold ' + Math.round(32 * scale) + 'px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#1a1020';
-  ctx.fillText(em.emoji, cx, cy + 1);
+  ctx.fillStyle = '#fff'; // fallback om systemet inte renderar emoji som färg
+  ctx.fillText(em.emoji, cx, cy);
   ctx.restore();
 }
 
