@@ -14,7 +14,7 @@ const { findNearestPlayer } = require('./enemies');
 const { CTF_ARENA, bulletHitsWall } = require('../../shared/ctf-arena');
 const { TDM_ARENA } = require('../../shared/tdm-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
-const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS } = require('../../shared/gungame-arena');
+const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS, GUNGAME_DEMOTE_FLOOR } = require('../../shared/gungame-arena');
 const { KOTH_ARENA } = require('../../shared/koth-arena');
 
 // PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
@@ -319,13 +319,13 @@ function handleGungameKill(sim, killerPid, killerWs, victimPid, victimWs, weapon
   if (killerWs.playerState) {
     killerWs.playerState.weaponId = GUNGAME_WEAPONS[newTier];
   }
-  // Demote-regel (efter playtest-feedback): bara om killer är på tier ≥ 5
-  // ELLER om offret leder med ≥3 tiers (catch-up för efterblivna). Tidigare
-  // var ALLA melee-kills demoters → mid-tier spelare som dog av fists-bots
-  // straffades med dubbelförlust.
+  // Demote-regel: bara om killer är på tier ≥ 5 ELLER offret leder med ≥3 tiers
+  // (catch-up för efterblivna). Floor: om offret är på tier >= DEMOTE_FLOOR
+  // (level 10+) så kan de INTE demoteras under det — late-game grind-skydd.
   let demoted = false;
   if (wasMelee && (oldTier >= 5 || (vTierBefore - oldTier) >= 3)) {
-    const newVTier = Math.max(0, vTierBefore - 1);
+    const floor = vTierBefore >= GUNGAME_DEMOTE_FLOOR ? GUNGAME_DEMOTE_FLOOR : 0;
+    const newVTier = Math.max(floor, vTierBefore - 1);
     if (newVTier < vTierBefore) {
       sim.gungameTiers[victimPid] = newVTier;
       demoted = true;

@@ -94,27 +94,31 @@ const GUNGAME_ARENA = {
 };
 
 // 15-vapen-progression. Stigande tier: melee → pistols → guns → power → final melee.
-// Final tier (sledge) = "knife"-humiliation i CS-stil men med en TUNG melee.
-// Kill med melee från ANY tier → demotion av offret (knife-kill-demotion).
-// ORDNING fixad efter balance-audit: tidigare 4-7 (shuriken→burstpistol→shotgun
-// →revolver) gav negativ progression 99→87→80→76 DPS. Ny ordning ger jämn kurva.
+// START med knife (var fists — för svag att ta sig från noll med). Sledge kvar
+// som final-tier humiliation. Kill med melee → ev. demotion av offret.
+// Demotion-floor: när offret är på tier ≥ 9 (level 10+) kan de INTE demoteras
+// under tier 9 — annars hopplöst grind efter att ha klivit sig upp i late-game.
 const GUNGAME_WEAPONS = [
-  'fists',       // 1  — knytnävar (baseline melee)
-  'knife',       // 2  — snabb melee
-  'pistol',      // 3  — basic gun
-  'shuriken',    // 4  — rapid throwing
-  'shotgun',     // 5  — close-range power
-  'revolver',    // 6  — heavy pistol
-  'burstpistol', // 7  — 3-burst (sista pistol-tier innan auto-guns)
-  'smg',         // 8  — auto-fire
-  'bow',         // 9  — precision
-  'rifle',       // 10 — standard auto
-  'sonic',       // 11 — knockback gun
-  'sniper',      // 12 — one-shot precision (flyttad upp för att undvika dead tier)
-  'plasma',      // 13 — high-dmg (nerf rate i bullets.js för balanserad progression)
+  'knife',       // 1  — start, snabb melee (var fists, för svag)
+  'pistol',      // 2  — basic gun
+  'shuriken',    // 3  — rapid throwing
+  'shotgun',     // 4  — close-range power
+  'revolver',    // 5  — heavy pistol
+  'burstpistol', // 6  — 3-burst
+  'smg',         // 7  — auto-fire
+  'bow',         // 8  — precision
+  'rifle',       // 9  — standard auto
+  'sonic',       // 10 — knockback gun (level 10 = demotion-floor)
+  'sniper',      // 11 — one-shot precision
+  'plasma',      // 12 — high-dmg
+  'minigun',     // 13 — heavy auto (NY — fyller upp till 15 efter fists-borttag)
   'rocket',      // 14 — explosive
-  'sledge',      // 15 — FINAL melee humiliation (svår, kort räckvidd, hög dmg)
+  'sledge',      // 15 — FINAL melee humiliation (TUNG)
 ];
+
+// Demotion-floor: vid death med melee, om offret är på tier >= GUNGAME_DEMOTE_FLOOR
+// så är det också det LÄGSTA de kan demoteras till. Skyddar late-game-spelare.
+const GUNGAME_DEMOTE_FLOOR = 9; // = level 10 (1-indexed)
 
 // Vilka vapen räknas som "melee" för demotion-mekanik?
 // Killer med dessa → offret förlorar 1 tier (kan inte gå under 0).
@@ -124,10 +128,11 @@ const GUNGAME_MELEE_DEMOTERS = new Set([
 ]);
 
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS };
+  module.exports = { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS, GUNGAME_DEMOTE_FLOOR };
 }
 if (typeof window !== 'undefined') {
   window.GUNGAME_ARENA = GUNGAME_ARENA;
   window.GUNGAME_WEAPONS = GUNGAME_WEAPONS;
   window.GUNGAME_MELEE_DEMOTERS = GUNGAME_MELEE_DEMOTERS;
+  window.GUNGAME_DEMOTE_FLOOR = GUNGAME_DEMOTE_FLOOR;
 }
