@@ -15674,7 +15674,7 @@ function updatePvpShieldButton() {
 const _lagIndicatorEl = (() => {
   const el = document.createElement('div');
   el.id = 'lag-indicator';
-  el.style.cssText = 'background:rgba(0,0,0,0.55);color:#fff;padding:3px 7px;border-radius:5px;font:700 10px monospace;display:none;pointer-events:none;letter-spacing:0.5px;white-space:nowrap;';
+  el.style.cssText = 'background:transparent;color:#fff;padding:0 2px;font:700 9px monospace;display:none;pointer-events:none;letter-spacing:0.5px;white-space:nowrap;text-shadow:0 1px 2px rgba(0,0,0,0.95), 0 0 3px rgba(0,0,0,0.8);';
   const mount = document.getElementById('hp-row') || document.querySelector('.hud-left-group');
   if (mount) mount.appendChild(el); else document.body.appendChild(el);
   return el;
@@ -24635,6 +24635,21 @@ function render() {
   ctx.clearRect(0, 0, viewW, viewH);
   if (state.mode === 'menu' || !state.player) return;
 
+  // === Canvas state-isolation per frame ===
+  // 117 saves vs 118 restores i game.js (1 extra restore) → en draw-funktion
+  // poppar mer än den pushar → state leaker över frames → "ljus blir helt ljust"
+  // i CTF nära enemy flag (en draw-funktion där triggar leaket). Tills exakt
+  // platsen är hittad: outer save/restore + force-reset gör att leaket
+  // kontaineras INOM en frame istället för att ackumuleras över alla.
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.filter = 'none';
+
   // Viewport-culling bounds — deklareras HÄR (före första användning) så TDZ
   // inte kraschar render() vid första footstep-partikeln (v1.199-buggen).
   const _cullL = state.camera.x - 80, _cullT = state.camera.y - 80;
@@ -24776,6 +24791,21 @@ function render() {
   // Story-dialog MÅSTE ritas top-level (inte instängd i drawCountdownOverlay) — solo-mode
   // har ingen countdown så dialogen försvann tidigare och spelet hängde med dialogActive=true
   drawStoryDialog();
+  // Matchande restore till outer save vid funktionsstart. Containerar ev.
+  // save/restore-imbalans inom enskild frame (se kommentar vid render-start).
+  ctx.restore();
+  // Belt-and-suspenders: även om internal-imbalans poppade outer-saven (gjorde
+  // restore till no-op pga stack-underflow), tvinga alla state-modifierande
+  // properties tillbaka till baseline så nästa frame börjar clean. Detta är
+  // det som faktiskt förhindrar "ljus blir helt ljust"-leaket.
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+  ctx.shadowColor = 'transparent';
+  ctx.setLineDash([]);
+  ctx.lineWidth = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.filter = 'none';
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
 function drawCountdownOverlay() {
