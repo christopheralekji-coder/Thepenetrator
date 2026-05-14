@@ -683,9 +683,10 @@ html, body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1px;
+  gap: 0;
   transition: transform 0.08s, background 0.15s;
   pointer-events: none;
+  overflow: visible;
 }
 .action-btn.fire .fire-icon-wrap {
   display: flex;
@@ -695,28 +696,28 @@ html, body {
 }
 .action-btn.fire .fire-icon {
   display: block;
-  font-size: 22px;
+  font-size: 18px;
   line-height: 1;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7));
 }
-/* Ammo INUTI fire-knob, direkt under ikonen. STARK kontrast (vit text +
-   svart stroke via multi-shadow) så den syns mot orange/röd knob-bg. */
+/* AMMO — STOR gul text med svart outline. Centrerad inuti knob, dominerar
+   visuellt så användaren ALDRIG kan missa det. */
 .action-btn.fire .fire-ammo {
-  display: inline-block;
-  font-size: 12px;
-  font-weight: 900;
-  color: #fff;
-  line-height: 1;
+  display: block !important;
+  font-size: 16px !important;
+  font-weight: 900 !important;
+  color: #ffd54a !important;
+  line-height: 1 !important;
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
-  /* Black "outline" via 8-direction text-shadow för max kontrast */
   text-shadow:
-    -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000,
-    -1px 0 0 #000, 1px 0 0 #000, 0 -1px 0 #000, 0 1px 0 #000,
-    0 0 4px rgba(0,0,0,0.95);
+    -2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000,
+    -2px 0 0 #000, 2px 0 0 #000, 0 -2px 0 #000, 0 2px 0 #000 !important;
   pointer-events: none;
   white-space: nowrap;
-  transition: color 0.15s;
+  text-align: center;
+  margin-top: 2px;
+  z-index: 10;
 }
 /* Ammo color-coding: full=vit, low=gul, crit=röd-blink, reload=blå */
 .action-btn.fire .fire-ammo[data-state="low"]    { color: #ffd54a; border-color: rgba(255,213,74,0.85); }
