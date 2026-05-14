@@ -609,6 +609,7 @@ function handleMessage(ws, msg) {
       botSkill: msg.botSkill || 'normal',
       botTeam: msg.botTeam,
       botNames: Array.isArray(msg.botNames) ? msg.botNames : null,
+      botTeams: Array.isArray(msg.botTeams) ? msg.botTeams : null,
     });
     // Markera rummet som "startat" i public-listan + uppdatera mode
     if (room.meta) {

@@ -10406,21 +10406,29 @@ function renderLobbyPlayers(players) {
       Coop.config.botNames = generateBotNames(botCount);
     }
   }
+  // Säkerställ botTeams-array om freePick + team-PvP — host kan override:a per bot.
+  const isTeamPvPForBots = !!(Coop.config.tdm || Coop.config.ctf || Coop.config.siege);
+  if (botCount > 0 && isTeamPvPForBots && Coop.isHost) {
+    if (!Coop.config.botTeams || !Array.isArray(Coop.config.botTeams) || Coop.config.botTeams.length !== botCount) {
+      Coop.config.botTeams = new Array(botCount).fill(null);
+    }
+  }
   let botRedCount = 0, botBlueCount = 0;
   for (let bi = 0; bi < botCount; bi++) {
     const row = document.createElement('div');
     row.className = 'player-row';
     row.style.borderLeftColor = '#5aff5a';
     row.style.opacity = '0.85';
-    // Team-tag i TDM/CTF/SIEGE — matchar server-logik:
-    // 'auto' = motsatt host-team (default), 'red'/'blue' = fixad sida
+    // Team-tag i TDM/CTF/SIEGE — prio: per-bot override > botTeamMode > auto
+    let team = null;
     let teamHtml = '';
-    if (Coop.config.tdm || Coop.config.ctf || Coop.config.siege) {
-      let team;
-      if (botTeamMode === 'red') team = 'red';
+    if (isTeamPvPForBots) {
+      const perBotOverride = Coop.config.botTeams && Coop.config.botTeams[bi];
+      if (perBotOverride === 'red' || perBotOverride === 'blue') {
+        team = perBotOverride;
+      } else if (botTeamMode === 'red') team = 'red';
       else if (botTeamMode === 'blue') team = 'blue';
       else {
-        // AUTO: motsatt host (host typiskt red). 1 bot = blue, fler = alternera
         if (botCount === 1) team = 'blue';
         else team = (bi % 2 === 0) ? 'blue' : 'red';
       }
@@ -10439,6 +10447,28 @@ function renderLobbyPlayers(players) {
       <span class="pname">${botName}</span>
       <span style="margin-left:auto;margin-right:8px;color:#5aff5a;font-size:11px;font-weight:700;">${skillEmoji} ${skillName}</span>
     `;
+    // Free-pick: R/B-knappar för host att override:a bot-team i team-PvP
+    if (isTeamPvPForBots && freePick && Coop.isHost) {
+      const pickWrap = document.createElement('span');
+      pickWrap.className = 'player-team-pick';
+      ['red', 'blue'].forEach(t => {
+        const pb = document.createElement('button');
+        pb.className = 'player-team-pick-btn' + (team === t ? ' active' : '');
+        pb.setAttribute('data-team', t);
+        pb.textContent = t === 'red' ? 'R' : 'B';
+        pb.addEventListener('pointerdown', (ev) => {
+          ev.preventDefault();
+          ev.stopPropagation();
+          if (!Coop.config.botTeams) Coop.config.botTeams = new Array(botCount).fill(null);
+          Coop.config.botTeams[bi] = t;
+          Coop.updateConfig({ botTeams: Coop.config.botTeams });
+          if (typeof renderLobbyPlayers === 'function') renderLobbyPlayers(Coop.serializeLobby());
+          Audio.uiClick && Audio.uiClick();
+        });
+        pickWrap.appendChild(pb);
+      });
+      row.appendChild(pickWrap);
+    }
     coopPlayerList.appendChild(row);
   }
   // Effektivt antal player-slots (inkl bots) för start-check
@@ -10654,6 +10684,9 @@ btnCoopStart.addEventListener('click', () => {
       payload.botSkill = Coop.config.botSkill || 'normal';
       if (Coop.config.botNames && Array.isArray(Coop.config.botNames)) {
         payload.botNames = Coop.config.botNames.slice(0, payload.botCount);
+      }
+      if (Coop.config.botTeams && Array.isArray(Coop.config.botTeams)) {
+        payload.botTeams = Coop.config.botTeams.slice(0, payload.botCount);
       }
     }
     // Inkludera team-assignments (shuffle/pick) så server respekterar dem
@@ -14245,6 +14278,9 @@ document.getElementById('btn-retry').addEventListener('click', () => {
       if (Coop.config.botNames && Array.isArray(Coop.config.botNames)) {
         payload.botNames = Coop.config.botNames.slice(0, payload.botCount);
       }
+      if (Coop.config.botTeams && Array.isArray(Coop.config.botTeams)) {
+        payload.botTeams = Coop.config.botTeams.slice(0, payload.botCount);
+      }
     }
     try { Coop.ws.send(JSON.stringify(payload)); } catch (_) {}
     Coop.serverSimActive = true;
@@ -15212,6 +15248,10 @@ function applyBotPayload(payload) {
     // Skicka pre-genererade bot-namn så server och lobby visar samma namn
     if (Coop.config.botNames && Array.isArray(Coop.config.botNames)) {
       payload.botNames = Coop.config.botNames.slice(0, payload.botCount);
+    }
+    // Per-bot-team-override från free-pick (R/B-knappar per bot-rad)
+    if (Coop.config.botTeams && Array.isArray(Coop.config.botTeams)) {
+      payload.botTeams = Coop.config.botTeams.slice(0, payload.botCount);
     }
   }
   // Skicka team-assignments (shuffle/pick) så server respekterar dem vid sim_start

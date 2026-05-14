@@ -1784,15 +1784,21 @@ function startSim(sim, opts) {
     for (let bi = 0; bi < botCount; bi++) {
       let botTeam = null;
       if (inTeamMode) {
-        const tm = opts.botTeam || 'auto';
-        if (tm === 'red') botTeam = 'red';
-        else if (tm === 'blue') botTeam = 'blue';
-        else {
-          // AUTO: motsatt host. Med 1 bot = motsatt. Flera bots: alternera men
-          // första boten på motsatt sida för balans.
-          const oppHost = hostPredictTeam === 'red' ? 'blue' : 'red';
-          if (botCount === 1) botTeam = oppHost;
-          else botTeam = (bi % 2 === 0) ? oppHost : hostPredictTeam;
+        // Prio: per-bot-override från host-free-pick > botTeamMode > auto
+        const perBotOverride = (opts && Array.isArray(opts.botTeams)) ? opts.botTeams[bi] : null;
+        if (perBotOverride === 'red' || perBotOverride === 'blue') {
+          botTeam = perBotOverride;
+        } else {
+          const tm = opts.botTeam || 'auto';
+          if (tm === 'red') botTeam = 'red';
+          else if (tm === 'blue') botTeam = 'blue';
+          else {
+            // AUTO: motsatt host. Med 1 bot = motsatt. Flera bots: alternera men
+            // första boten på motsatt sida för balans.
+            const oppHost = hostPredictTeam === 'red' ? 'blue' : 'red';
+            if (botCount === 1) botTeam = oppHost;
+            else botTeam = (bi % 2 === 0) ? oppHost : hostPredictTeam;
+          }
         }
       }
       // Använd host-skickat namn om tillgängligt (synkar lobby ↔ match),
