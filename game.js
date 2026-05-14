@@ -14121,6 +14121,13 @@ function actuallyStartGame() {
   state.bullets = [];
   state.pickups = [];
   state.particles = [];
+  // Rensa ALLA death-state som annars triggar instant-death-loop vid retry
+  state.deadBody = null;
+  state.deathCamUntil = 0;
+  state._lastDamageSource = null;
+  state._stageClearShown = false;
+  state._stageClearShownForWave = null;
+  if (state.player) state.player.spectating = false;
   state.goldThisRun = 0;
   state.killsThisRun = 0;
   state.critsThisRun = 0;
