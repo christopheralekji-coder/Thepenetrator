@@ -9200,11 +9200,13 @@ const EMOTES = [
   { id: 'sleep',  emoji: '😴', text: 'BORING' },
   { id: 'kiss',   emoji: '😘', text: 'BYEBYE!' },
   { id: 'crown',  emoji: '👑', text: 'KING!' },
-  // Positiva (för lagkamrater)
+  // Positiva (för lagkamrater) + extra taunts
   { id: 'flex',   emoji: '💪', text: 'BÄST!' },
   { id: 'cheer',  emoji: '🎉', text: 'GG!' },
   { id: 'heart',  emoji: '❤️', text: '<3' },
   { id: 'wave',   emoji: '👋', text: 'Hej!' },
+  { id: 'point',  emoji: '🫵', text: 'YOU!' },
+  { id: 'chicken',emoji: '🐔', text: 'FEGIS!' },
 ];
 function getEmoteById(id) { return EMOTES.find(e => e.id === id); }
 function applyEmote(player, emoteId) {
