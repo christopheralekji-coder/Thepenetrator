@@ -15669,14 +15669,13 @@ function updatePvpShieldButton() {
   _btnPvpShield.style.setProperty('--shield-cd', cd.toFixed(3));
 }
 
-// In-game lag-indikator (MS): direkt höger om HP-bar, vertikalt centrerad mot HP.
-// Monteras som flex-barn i .hud-left-group (efter HP/shield-kolumnen).
+// In-game lag-indikator (MS): direkt höger om HP-bar, perfekt vertikalt centrerad
+// via #hp-row's align-items:center (vilket inte påverkas av om shield-bar visas).
 const _lagIndicatorEl = (() => {
   const el = document.createElement('div');
   el.id = 'lag-indicator';
-  // margin-top:2px → mitten av MS-pill (h~16) ligger i linje med mitten av HP-bar (h=20)
-  el.style.cssText = 'align-self:flex-start;margin-top:2px;background:rgba(0,0,0,0.55);color:#fff;padding:3px 7px;border-radius:5px;font:700 10px monospace;display:none;pointer-events:none;letter-spacing:0.5px;white-space:nowrap;';
-  const mount = document.querySelector('.hud-left-group');
+  el.style.cssText = 'background:rgba(0,0,0,0.55);color:#fff;padding:3px 7px;border-radius:5px;font:700 10px monospace;display:none;pointer-events:none;letter-spacing:0.5px;white-space:nowrap;';
+  const mount = document.getElementById('hp-row') || document.querySelector('.hud-left-group');
   if (mount) mount.appendChild(el); else document.body.appendChild(el);
   return el;
 })();
