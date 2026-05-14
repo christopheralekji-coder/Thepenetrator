@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v216-minimap-title-pill';
+const CACHE = 'penetrator-v217-ms-vid-hp-skull-vid-gold-titel-fits';
 const ASSETS = [
   './',
   './index.html',

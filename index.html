@@ -18,7 +18,7 @@
 
 <div id="hud">
   <div class="hud-row top" style="align-items:flex-start;">
-    <div class="hud-left-group" style="display:flex;align-items:flex-start;gap:6px;">
+    <div class="hud-left-group" style="display:flex;align-items:flex-start;gap:8px;">
       <div style="display:flex;flex-direction:column;align-items:flex-start;gap:3px;">
         <div id="hp-bar"><div id="hp-fill"></div><span id="hp-text">100/100</span></div>
         <div id="shield-bar" class="hidden" style="position:relative;width:160px;height:14px;background:rgba(0,0,0,0.6);border:1px solid rgba(58,202,255,0.6);border-radius:7px;overflow:hidden;box-shadow:0 0 6px rgba(58,202,255,0.4);">
@@ -26,11 +26,12 @@
           <span id="shield-text" style="position:absolute;left:0;right:0;top:0;text-align:center;font-size:10px;font-weight:900;line-height:14px;color:#fff;text-shadow:0 0 3px #000;letter-spacing:1px;">🛡 100</span>
         </div>
       </div>
-      <div id="kill-counter">💀 <span id="kill-count">0</span></div>
+      <!-- MS lag-indicator monteras här av JS (vertikalt centrerad mot HP-bar) -->
     </div>
     <div class="hud-right-group" style="position:fixed;top:6px;right:12px;display:flex;align-items:center;gap:6px;z-index:6;pointer-events:none;">
       <div id="wave-info" class="hidden">Wave 1</div>
-      <div id="gold-info">💰 0</div>
+      <div id="kill-counter" style="pointer-events:auto;">💀 <span id="kill-count">0</span></div>
+      <div id="gold-info" style="pointer-events:auto;">💰 0</div>
       <button id="btn-ingame-settings" class="hud-btn" aria-label="Inställningar" style="pointer-events:auto;">⚙</button>
     </div>
   </div>
@@ -381,7 +382,7 @@
     <button id="btn-menu-help" class="medium-btn">❓ HJÄLP / TUTORIAL</button>
   </div>
   <button id="btn-fullscreen" class="small-btn" style="display:none;">⛶ HELSKÄRM</button>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.216 ⚡</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.217 ⚡</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">

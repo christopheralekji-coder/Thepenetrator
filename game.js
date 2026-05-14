@@ -15656,13 +15656,15 @@ function updatePvpShieldButton() {
   _btnPvpShield.style.setProperty('--shield-cd', cd.toFixed(3));
 }
 
-// In-game lag-indikator (MS): under HP-bar, längst in mot vänster.
-// HP-bar är ~22px hög + 8px padding-top = ~30, så top:36 är direkt under den.
+// In-game lag-indikator (MS): direkt höger om HP-bar, vertikalt centrerad mot HP.
+// Monteras som flex-barn i .hud-left-group (efter HP/shield-kolumnen).
 const _lagIndicatorEl = (() => {
   const el = document.createElement('div');
   el.id = 'lag-indicator';
-  el.style.cssText = 'position:fixed;top:36px;left:max(12px, env(safe-area-inset-left, 12px));background:rgba(0,0,0,0.55);color:#fff;padding:3px 7px;border-radius:5px;font:700 10px monospace;z-index:6;display:none;pointer-events:none;letter-spacing:0.5px;';
-  document.body.appendChild(el);
+  // margin-top:2px → mitten av MS-pill (h~16) ligger i linje med mitten av HP-bar (h=20)
+  el.style.cssText = 'align-self:flex-start;margin-top:2px;background:rgba(0,0,0,0.55);color:#fff;padding:3px 7px;border-radius:5px;font:700 10px monospace;display:none;pointer-events:none;letter-spacing:0.5px;white-space:nowrap;';
+  const mount = document.querySelector('.hud-left-group');
+  if (mount) mount.appendChild(el); else document.body.appendChild(el);
   return el;
 })();
 // Behåll function-stub för bakåtkompatibilitet (anropad från updateLagIndicator)
@@ -25392,17 +25394,16 @@ function drawMiniMap() {
     ctx.strokeStyle = 'rgba(255,213,74,0.55)';
     ctx.lineWidth = 1.5;
     ctx.strokeRect(x0, titleY, size, titleH);
-    // Text — centrerad, kompakt om långt namn
+    // Text — centrerad, dynamisk shrink ner till min 6px så ALLA banor får plats
     ctx.fillStyle = '#ffd54a';
-    ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    // Krymp font om texten är bredare än pill (med 8px marginal)
-    let measured = ctx.measureText(titleTxt).width;
-    if (measured > size - 8) {
-      ctx.font = 'bold 9px sans-serif';
-      measured = ctx.measureText(titleTxt).width;
-      if (measured > size - 8) ctx.font = 'bold 8px sans-serif';
+    const maxW = size - 6;
+    let fontSize = 11;
+    ctx.font = 'bold ' + fontSize + 'px sans-serif';
+    while (fontSize > 6 && ctx.measureText(titleTxt).width > maxW) {
+      fontSize -= 0.5;
+      ctx.font = 'bold ' + fontSize + 'px sans-serif';
     }
     ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
     ctx.fillText(titleTxt, x0 + size / 2, titleY + titleH / 2 + 0.5);
