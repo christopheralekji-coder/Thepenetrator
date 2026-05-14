@@ -25381,11 +25381,35 @@ function drawMiniMap() {
   ctx.moveTo(px, py);
   ctx.lineTo(px + Math.cos(state.player.aimAngle) * 6, py + Math.sin(state.player.aimAngle) * 6);
   ctx.stroke();
-  // titel
-  ctx.fillStyle = '#ffd54a';
-  ctx.font = 'bold 9px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText(stage.name, x0 + 4, y0 - 2);
+  // Titel — centrerad pill ovanför minimap, matchar minimap-bredd
+  {
+    const titleTxt = (stage.name || '').toUpperCase();
+    const titleH = 16;
+    const titleY = y0 - titleH - 3;
+    // Bakgrunds-pill
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.fillRect(x0, titleY, size, titleH);
+    ctx.strokeStyle = 'rgba(255,213,74,0.55)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x0, titleY, size, titleH);
+    // Text — centrerad, kompakt om långt namn
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // Krymp font om texten är bredare än pill (med 8px marginal)
+    let measured = ctx.measureText(titleTxt).width;
+    if (measured > size - 8) {
+      ctx.font = 'bold 9px sans-serif';
+      measured = ctx.measureText(titleTxt).width;
+      if (measured > size - 8) ctx.font = 'bold 8px sans-serif';
+    }
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+    ctx.fillText(titleTxt, x0 + size / 2, titleY + titleH / 2 + 0.5);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'alphabetic';
+  }
   // Förstoringsglas-knapp i hörnet av minimap
   const btnSize = 22;
   const btnX = x0 + size - btnSize - 2;
