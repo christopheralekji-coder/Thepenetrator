@@ -9547,12 +9547,10 @@ function initLobbyDropdowns() {
   });
 }
 
-// Synlig debug-toast — flashar tap-events på skärmen så vi kan se LIVE vad som
-// händer på telefonen utan att behöva web-inspector. PÅ som default i v1.277,
-// kan stängas av via `localStorage.setItem('_tapDebug','0')` i console.
+// Synlig debug-toast för errors från onTap (rare path). Alltid PÅ — om en
+// handler kraschar vill vi veta varför direkt på telefonen.
 let _tapDebugEl = null;
 function _showTapDebug(msg) {
-  if (typeof localStorage !== 'undefined' && localStorage.getItem('_tapDebug') === '0') return;
   if (!_tapDebugEl) {
     _tapDebugEl = document.createElement('div');
     _tapDebugEl.style.cssText = 'position:fixed;top:max(10px, env(safe-area-inset-top, 10px));left:50%;transform:translateX(-50%);background:rgba(170,58,255,0.95);color:#fff;padding:8px 14px;border-radius:8px;font-size:12px;font-weight:900;letter-spacing:1px;z-index:99999;pointer-events:none;font-family:monospace;max-width:90%;text-align:center;box-shadow:0 4px 16px rgba(0,0,0,0.6);';
@@ -9581,12 +9579,10 @@ function onTap(el, fn) {
     if (now - _last < 400) return;
     _last = now;
     if (e && e.cancelable) e.preventDefault();
-    const lbl = (el.textContent || '').slice(0, 18);
-    const evType = e ? e.type : 'unknown';
-    _showTapDebug('[' + evType + '] ' + lbl);
     try {
       fn(e);
     } catch (err) {
+      // Visa errors så vi kan se buggar live (rare path — annars tyst)
       _showTapDebug('ERROR: ' + (err && err.message || err));
       throw err;
     }
@@ -9594,20 +9590,6 @@ function onTap(el, fn) {
   el.addEventListener('touchstart', wrap, { passive: false });
   el.addEventListener('click', wrap);
 }
-
-// GLOBAL diagnostik — capture-phase listener på document för att se OM
-// touch-events firar alls på lobby-knappar. Om vi ser "GLOBAL TOUCH" men
-// inte "TOUCHSTART <button>" så fångas eventet aldrig av onTap.
-document.addEventListener('touchstart', (e) => {
-  const t = e.target;
-  if (!t || !t.closest) return;
-  // Bara visa för lobby-relaterade element
-  const card = t.closest('.lobby-card, .lobby-tab, .lobby-tab-panel, #lobby-mode-popup');
-  if (!card) return;
-  const tagName = t.tagName || '?';
-  const text = (t.textContent || '').replace(/\s+/g, ' ').slice(0, 16);
-  _showTapDebug('GLOBAL: ' + tagName + ' "' + text + '"');
-}, { capture: true, passive: true });
 
 // ============================================================
 // MODE-OPTIONS POPUP — bottom-sheet med target-points/bot-config/etc
@@ -9744,6 +9726,25 @@ function initLobbyTabs() {
       tabs.forEach(t => t.classList.toggle('active', t === tab));
       panels.forEach(p => p.classList.toggle('hidden', p.dataset.panel !== target));
       Audio.uiClick && Audio.uiClick();
+      // BOTS-tab → öppna konfig-popup direkt. Aktivera bots om de var av så
+      // popup-state är meningsfullt (annars visar den tom config).
+      if (target === 'bots') {
+        if (!Coop.config.addBot) {
+          Coop.config.addBot = true;
+          if (!Coop.config.botTeam) Coop.config.botTeam = 'auto';
+          if (!Coop.config.botCount) Coop.config.botCount = 1;
+          if (!Coop.config.botSkill) Coop.config.botSkill = 'normal';
+          Coop.updateConfig({
+            addBot: true,
+            botTeam: Coop.config.botTeam,
+            botCount: Coop.config.botCount,
+            botSkill: Coop.config.botSkill,
+          });
+        }
+        openModePopup('bots');
+      }
+      // Uppdatera diff-card synlighet baserat på vald tab (PVP → dölj)
+      if (typeof updateLobbyDifficultyVisibility === 'function') updateLobbyDifficultyVisibility(target);
     });
   });
 }
@@ -10100,14 +10101,21 @@ function updateLobbyTeamControls() {
   }
 }
 // Svårighet-card synlig bara i team/story-modes (PvP har fast svårighet)
-function updateLobbyDifficultyVisibility() {
+function updateLobbyDifficultyVisibility(activeTabOverride) {
   const diffCard = document.getElementById('lobby-diff-buttons');
   if (!diffCard) return;
   const card = diffCard.closest('.lobby-card');
   if (!card) return;
   const cfg = Coop.config || {};
-  const isPvP = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth);
-  card.classList.toggle('hidden', isPvP);
+  // Dölj diff-card om: PvP-mode aktivt ELLER PVP-tab är vald (svårighet är
+  // irrelevant i PvP). Om activeTabOverride ges använd den, annars läs aktiv tab.
+  const activeTab = activeTabOverride || (function() {
+    const t = document.querySelector('.lobby-tab.active');
+    return t ? t.dataset.tab : 'team';
+  })();
+  const isPvPMode = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth);
+  const isPvPTab = activeTab === 'pvp';
+  card.classList.toggle('hidden', isPvPMode || isPvPTab);
 }
 
 // Lobby mode-suffix: collapsed sections visar nu vad som är aktivt så host

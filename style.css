@@ -1144,9 +1144,10 @@ html, body {
   inset: 0;
   z-index: 200;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
   pointer-events: auto;
+  padding: 20px;
 }
 .lobby-mode-popup-backdrop {
   position: absolute;
@@ -1163,82 +1164,84 @@ html, body {
 .lobby-mode-popup-sheet {
   position: relative;
   width: 100%;
-  max-width: 520px;
-  background: linear-gradient(160deg, rgba(40,30,55,0.96), rgba(20,15,30,0.98));
+  max-width: 340px;
+  background: linear-gradient(160deg, rgba(40,30,55,0.97), rgba(20,15,30,0.98));
   backdrop-filter: blur(20px) saturate(160%);
   -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border-top: 1px solid rgba(170,58,255,0.45);
-  border-radius: 22px 22px 0 0;
-  padding: 18px 18px max(20px, env(safe-area-inset-bottom, 20px));
-  box-shadow: 0 -12px 40px rgba(0,0,0,0.65), 0 0 32px rgba(170,58,255,0.25);
-  animation: lobbyPopupSlideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1);
-  margin-bottom: 0;
+  border: 1px solid rgba(170,58,255,0.45);
+  border-radius: 18px;
+  padding: 16px 16px 18px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.7), 0 0 28px rgba(170,58,255,0.22);
+  animation: lobbyPopupScaleIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  max-height: 80vh;
+  overflow-y: auto;
 }
-@keyframes lobbyPopupSlideUp {
-  0%   { transform: translateY(100%); opacity: 0; }
-  100% { transform: translateY(0);    opacity: 1; }
+@keyframes lobbyPopupScaleIn {
+  0%   { transform: scale(0.86); opacity: 0; }
+  100% { transform: scale(1);    opacity: 1; }
 }
 .lobby-mode-popup-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
-  padding-bottom: 12px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 #lobby-mode-popup-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 900;
-  letter-spacing: 1.5px;
+  letter-spacing: 1px;
   color: #ffd54a;
   text-transform: uppercase;
 }
 #lobby-mode-popup-close {
-  width: 36px; height: 36px;
+  width: 30px; height: 30px;
   border-radius: 50%;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.15);
   color: #fff;
-  font-size: 16px;
+  font-size: 14px;
   cursor: pointer;
   pointer-events: auto;
   transition: transform 0.12s, background 0.15s;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 30px;
 }
 #lobby-mode-popup-close:active { transform: scale(0.9); background: rgba(255,90,90,0.3); }
 #lobby-mode-popup-body {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
 }
 #lobby-mode-popup-body .popup-section-label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 800;
-  letter-spacing: 1.2px;
+  letter-spacing: 1px;
   color: #aaa;
   text-transform: uppercase;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   display: block;
 }
 #lobby-mode-popup-body .popup-option-row {
   display: flex;
-  gap: 6px;
+  gap: 5px;
   flex-wrap: wrap;
 }
 #lobby-mode-popup-body .popup-option-btn {
   flex: 1 1 auto;
-  min-width: 60px;
-  padding: 10px 14px;
+  min-width: 52px;
+  padding: 8px 10px;
   background: rgba(255,255,255,0.05);
   border: 1.5px solid rgba(255,255,255,0.1);
-  border-radius: 10px;
+  border-radius: 8px;
   color: #ccc;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.3px;
   cursor: pointer;
   pointer-events: auto;
   transition: all 0.14s cubic-bezier(0.16, 1, 0.3, 1);
@@ -1248,23 +1251,26 @@ html, body {
   background: linear-gradient(135deg, rgba(170,58,255,0.45), rgba(110,30,200,0.55));
   border-color: rgba(220,180,255,0.75);
   color: #fff;
-  box-shadow: 0 0 14px rgba(170,58,255,0.45);
+  box-shadow: 0 0 12px rgba(170,58,255,0.4);
 }
 .lobby-mode-popup-confirm-btn {
-  margin-top: 18px !important;
+  margin-top: 12px !important;
   width: 100% !important;
+  padding: 10px 16px !important;
+  font-size: 13px !important;
   background: linear-gradient(135deg, #5aff5a, #2aa030) !important;
   border-color: rgba(255,255,255,0.4) !important;
   color: #0a1a05 !important;
   font-weight: 900;
-  letter-spacing: 2px;
-  box-shadow: 0 4px 18px rgba(90,255,90,0.4) !important;
+  letter-spacing: 1.5px;
+  box-shadow: 0 4px 14px rgba(90,255,90,0.35) !important;
+  min-width: 0 !important;
 }
 .popup-mode-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: #aaa;
-  line-height: 1.4;
-  padding: 10px 12px;
+  line-height: 1.35;
+  padding: 8px 10px;
   background: rgba(255,255,255,0.03);
   border-left: 3px solid rgba(255,213,74,0.5);
   border-radius: 6px;

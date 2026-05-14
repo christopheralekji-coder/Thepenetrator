@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v278-fix-tdmOn-undefined-renderLobbyPlayers';
+const CACHE = 'penetrator-v279-bots-tab-direct-popup-centered-smaller-difftab';
 const ASSETS = [
   './',
   './index.html',
