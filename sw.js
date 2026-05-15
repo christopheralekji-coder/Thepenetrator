@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v303-jug-stats-overlay-destroy-on-close';
+const CACHE = 'penetrator-v304-7-more-weapon-redesigns';
 const ASSETS = [
   './',
   './index.html',

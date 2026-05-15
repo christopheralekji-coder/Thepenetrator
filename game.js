@@ -12671,6 +12671,156 @@ const WEAPON_ICON_SVGS = {
     +   '<rect x="22" y="10.2" width="2" height="0.5" fill="#2a2a30"/>'
     +   '<rect x="22" y="12" width="2" height="0.5" fill="#2a2a30"/>'
     + '</svg>',
+  revolver: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<path d="M5 13 L9 13 L8.5 21 L4 21 Z" fill="#5a2a18"/>'
+    +   '<rect x="5" y="13.5" width="0.7" height="6.5" fill="#7a4028"/>'
+    +   '<line x1="5.5" y1="14" x2="8" y2="14.5" stroke="#3a1a08" stroke-width="0.3"/>'
+    +   '<line x1="5.5" y1="15.5" x2="8" y2="16" stroke="#3a1a08" stroke-width="0.3"/>'
+    +   '<line x1="5.5" y1="17" x2="8" y2="17.5" stroke="#3a1a08" stroke-width="0.3"/>'
+    +   '<line x1="5.5" y1="18.5" x2="8" y2="19" stroke="#3a1a08" stroke-width="0.3"/>'
+    +   '<rect x="5" y="10" width="9" height="3.5" fill="#2a2a2a"/>'
+    +   '<rect x="3.5" y="8.5" width="2" height="2" fill="#1a1a1a"/>'
+    +   '<path d="M7.5 13.5 Q9 16 10.5 13.5" fill="none" stroke="#2a2a2a" stroke-width="0.8"/>'
+    +   '<circle cx="11" cy="12" r="4" fill="#3a3a3a"/>'
+    +   '<circle cx="10.3" cy="11.3" r="1.3" fill="#5a5a5a"/>'
+    +   '<circle cx="11" cy="9" r="0.8" fill="#0a0a0a" stroke="#ffae3a" stroke-width="0.3"/>'
+    +   '<circle cx="13.4" cy="10.5" r="0.8" fill="#0a0a0a" stroke="#ffae3a" stroke-width="0.3"/>'
+    +   '<circle cx="13.4" cy="13.5" r="0.8" fill="#0a0a0a" stroke="#ffae3a" stroke-width="0.3"/>'
+    +   '<circle cx="11" cy="15" r="0.8" fill="#0a0a0a" stroke="#ffae3a" stroke-width="0.3"/>'
+    +   '<circle cx="8.6" cy="13.5" r="0.8" fill="#0a0a0a" stroke="#ffae3a" stroke-width="0.3"/>'
+    +   '<circle cx="8.6" cy="10.5" r="0.8" fill="#0a0a0a" stroke="#ffae3a" stroke-width="0.3"/>'
+    +   '<circle cx="11" cy="12" r="0.5" fill="#1a1a1a"/>'
+    +   '<rect x="14.5" y="10.3" width="8" height="3.4" fill="#2a2a30"/>'
+    +   '<rect x="14.5" y="10.3" width="8" height="0.6" fill="#5a5a60"/>'
+    +   '<path d="M21 10.3 L22 8.5 L22.5 8.5 L23 10.3 Z" fill="#ffae3a"/>'
+    +   '<circle cx="23" cy="12" r="0.9" fill="#0a0a0a"/>'
+    + '</svg>',
+  smg: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="11" width="0.8" height="3" fill="#1a1a1a"/>'
+    +   '<rect x="1" y="11.5" width="4" height="1.2" fill="#3a3a3a"/>'
+    +   '<rect x="1" y="13.2" width="4" height="1.2" fill="#3a3a3a"/>'
+    +   '<rect x="5" y="9.5" width="7" height="5" fill="#1a2a3a"/>'
+    +   '<rect x="5" y="9.5" width="7" height="0.6" fill="#88ccff"/>'
+    +   '<rect x="6.5" y="7.5" width="1.2" height="2" fill="#88ccff"/>'
+    +   '<rect x="6.5" y="14.5" width="4" height="7.5" fill="#1a2a3a"/>'
+    +   '<rect x="6.5" y="14.5" width="0.8" height="7.5" fill="#88ccff"/>'
+    +   '<rect x="6.5" y="21" width="4" height="1" fill="#1a1a1a"/>'
+    +   '<path d="M5 14.5 L7 14.5 L6.2 19 L4 19 Z" fill="#1a1a1a"/>'
+    +   '<path d="M11.5 15 Q13 17 14.5 15" fill="none" stroke="#2a2a2a" stroke-width="0.8"/>'
+    +   '<rect x="12" y="10" width="9" height="3.2" fill="#2a2a30"/>'
+    +   '<rect x="12" y="10" width="9" height="0.6" fill="#5a5a60"/>'
+    +   '<rect x="14" y="12" width="5" height="1.2" fill="#1a1a1a"/>'
+    +   '<rect x="18" y="8.5" width="1.2" height="1.6" fill="#88ccff"/>'
+    +   '<rect x="21" y="9.5" width="2.5" height="4" fill="#1a1a1a"/>'
+    +   '<circle cx="22.5" cy="11.5" r="0.9" fill="#0a0a0a"/>'
+    + '</svg>',
+  bow: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<path d="M8 4 Q14 10 16 12 Q14 14 8 20" fill="none" stroke="#3a6a2a" stroke-width="2.2" stroke-linecap="round"/>'
+    +   '<circle cx="8" cy="4" r="1.5" fill="#1a1a1a"/>'
+    +   '<circle cx="8" cy="4" r="0.6" fill="#3a8a3a"/>'
+    +   '<circle cx="8" cy="20" r="1.5" fill="#1a1a1a"/>'
+    +   '<circle cx="8" cy="20" r="0.6" fill="#3a8a3a"/>'
+    +   '<rect x="14" y="9.5" width="2.5" height="5" fill="#2a4a2a"/>'
+    +   '<rect x="14" y="9.5" width="0.6" height="5" fill="#3a8a3a"/>'
+    +   '<rect x="15" y="10.5" width="1" height="3" fill="#1a1a1a"/>'
+    +   '<line x1="8" y1="4" x2="10" y2="12" stroke="#dcdcdc" stroke-width="0.7"/>'
+    +   '<line x1="10" y1="12" x2="8" y2="20" stroke="#dcdcdc" stroke-width="0.7"/>'
+    +   '<line x1="10" y1="12" x2="22" y2="12" stroke="#8a6038" stroke-width="1.2"/>'
+    +   '<path d="M21.5 10.5 L23.5 12 L21.5 13.5 Z" fill="#cccccc"/>'
+    +   '<path d="M10 12 L8 10.8 L9 12 L8 13.2 Z" fill="#3a8a3a"/>'
+    +   '<rect x="17" y="7.5" width="1" height="2.5" fill="#1a1a1a"/>'
+    +   '<circle cx="17.5" cy="8.5" r="0.7" fill="#5fd95f"/>'
+    + '</svg>',
+  sonic: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="1" y="9" width="3.5" height="6" fill="#3a1a2a"/>'
+    +   '<rect x="2" y="10" width="2" height="4" fill="#ff5ac4"/>'
+    +   '<rect x="2.3" y="10.3" width="1.4" height="0.7" fill="#fff" opacity="0.5"/>'
+    +   '<rect x="2.3" y="11.5" width="1.4" height="0.7" fill="#fff" opacity="0.5"/>'
+    +   '<rect x="2.3" y="12.7" width="1.4" height="0.7" fill="#fff" opacity="0.5"/>'
+    +   '<rect x="4.5" y="9" width="10" height="6" fill="#2a1a2a"/>'
+    +   '<rect x="4.5" y="9" width="10" height="0.7" fill="#5a3a4a"/>'
+    +   '<rect x="6" y="11" width="8" height="2" fill="#ff5ac4" opacity="0.6"/>'
+    +   '<path d="M5.5 15 L8 15 L7.3 19 L4.7 19 Z" fill="#1a1a1a"/>'
+    +   '<path d="M14.5 8.5 L21 5.5 L21 18.5 L14.5 15.5 Z" fill="#3a2a3a"/>'
+    +   '<path d="M14.5 9.5 L20 6.5 L20 17.5 L14.5 14.5 Z" fill="#ff5ac4" opacity="0.4"/>'
+    +   '<line x1="21" y1="5.5" x2="21" y2="18.5" stroke="#ff5ac4" stroke-width="1.2"/>'
+    +   '<circle cx="21" cy="12" r="1.6" fill="#ffffff"/>'
+    +   '<circle cx="21" cy="12" r="1" fill="#ff5ac4"/>'
+    +   '<path d="M6 8 Q8 7 10 8 Q12 9 14 8" fill="none" stroke="#ffcafd" stroke-width="0.5" opacity="0.8"/>'
+    +   '<path d="M6 16 Q8 17 10 16 Q12 15 14 16" fill="none" stroke="#ffcafd" stroke-width="0.5" opacity="0.8"/>'
+    + '</svg>',
+  plasma: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="11" width="4" height="3" fill="#1a2a3a"/>'
+    +   '<rect x="0.5" y="11" width="4" height="0.6" fill="#3acaff"/>'
+    +   '<rect x="4.5" y="9" width="8" height="7" fill="#2a3a4a"/>'
+    +   '<rect x="4.5" y="9" width="8" height="0.6" fill="#3acaff"/>'
+    +   '<rect x="5.5" y="10" width="1.2" height="1" fill="#0a1a2a"/>'
+    +   '<rect x="7.5" y="10" width="1.2" height="1" fill="#0a1a2a"/>'
+    +   '<rect x="9.5" y="10" width="1.2" height="1" fill="#0a1a2a"/>'
+    +   '<rect x="5.5" y="14" width="1.2" height="1" fill="#0a1a2a"/>'
+    +   '<rect x="7.5" y="14" width="1.2" height="1" fill="#0a1a2a"/>'
+    +   '<rect x="9.5" y="14" width="1.2" height="1" fill="#0a1a2a"/>'
+    +   '<path d="M5 16 L8 16 L7 21 L4 21 Z" fill="#1a1a1a"/>'
+    +   '<rect x="6.5" y="15.5" width="6" height="1" fill="#3acaff"/>'
+    +   '<rect x="12.5" y="10" width="9" height="4" fill="#1a2a3a"/>'
+    +   '<rect x="12.5" y="10" width="9" height="0.6" fill="#3a4a5a"/>'
+    +   '<rect x="13" y="11" width="8.5" height="2" fill="#3acaff" opacity="0.8"/>'
+    +   '<ellipse cx="15" cy="12" rx="1" ry="2" fill="none" stroke="#3acaff" stroke-width="0.8"/>'
+    +   '<ellipse cx="17.5" cy="12" rx="1" ry="2" fill="none" stroke="#3acaff" stroke-width="0.8"/>'
+    +   '<ellipse cx="20" cy="12" rx="1" ry="2" fill="none" stroke="#3acaff" stroke-width="0.8"/>'
+    +   '<circle cx="22.5" cy="12" r="1.8" fill="#ffffff"/>'
+    +   '<circle cx="22.5" cy="12" r="1.1" fill="#3acaff"/>'
+    + '</svg>',
+  minigun: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="3" y="6" width="9" height="1.5" fill="#1a1a1a"/>'
+    +   '<rect x="3" y="6" width="0.8" height="3" fill="#1a1a1a"/>'
+    +   '<rect x="11.2" y="6" width="0.8" height="3" fill="#1a1a1a"/>'
+    +   '<rect x="1" y="8" width="13" height="9" fill="#2a2a30"/>'
+    +   '<rect x="1" y="8" width="13" height="0.8" fill="#3cf0ff"/>'
+    +   '<rect x="3" y="17" width="6" height="3.5" fill="#3a3a3a"/>'
+    +   '<circle cx="4" cy="18.5" r="0.5" fill="#ffae3a"/>'
+    +   '<circle cx="5.5" cy="18.5" r="0.5" fill="#ffae3a"/>'
+    +   '<circle cx="7" cy="18.5" r="0.5" fill="#ffae3a"/>'
+    +   '<circle cx="8.5" cy="18.5" r="0.5" fill="#ffae3a"/>'
+    +   '<rect x="5" y="17" width="2.5" height="5" fill="#1a1a1a"/>'
+    +   '<circle cx="16" cy="12.5" r="5.5" fill="#1a1a20"/>'
+    +   '<circle cx="16" cy="12.5" r="5" fill="#3a3a40"/>'
+    +   '<circle cx="16" cy="8.5" r="1" fill="#0a0a0a"/>'
+    +   '<circle cx="19.5" cy="10.5" r="1" fill="#0a0a0a"/>'
+    +   '<circle cx="19.5" cy="14.5" r="1" fill="#0a0a0a"/>'
+    +   '<circle cx="16" cy="16.5" r="1" fill="#0a0a0a"/>'
+    +   '<circle cx="12.5" cy="14.5" r="1" fill="#0a0a0a"/>'
+    +   '<circle cx="12.5" cy="10.5" r="1" fill="#0a0a0a"/>'
+    +   '<line x1="16" y1="8.5" x2="22" y2="11" stroke="#3a3a40" stroke-width="1.5"/>'
+    +   '<line x1="19.5" y1="10.5" x2="22" y2="11.5" stroke="#3a3a40" stroke-width="1.5"/>'
+    +   '<line x1="19.5" y1="14.5" x2="22" y2="13" stroke="#3a3a40" stroke-width="1.5"/>'
+    +   '<line x1="16" y1="16.5" x2="22" y2="13.5" stroke="#3a3a40" stroke-width="1.5"/>'
+    +   '<circle cx="22.5" cy="12.5" r="1.5" fill="#1a1a20" stroke="#3cf0ff" stroke-width="0.5"/>'
+    + '</svg>',
+  rocket: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="9" width="2" height="6" fill="#1a1a1a"/>'
+    +   '<rect x="0.5" y="10" width="1" height="4" fill="#0a0a0a"/>'
+    +   '<rect x="2.5" y="9.5" width="2.5" height="5" fill="#3a2a1a"/>'
+    +   '<rect x="2.5" y="9.5" width="2.5" height="0.7" fill="#5a3a20"/>'
+    +   '<rect x="5" y="8" width="14" height="8" fill="#3a3a30"/>'
+    +   '<rect x="5" y="8" width="14" height="0.8" fill="#5a5a4a"/>'
+    +   '<rect x="7" y="9" width="1.5" height="6" fill="#ff3c3c"/>'
+    +   '<rect x="16" y="9" width="1.5" height="6" fill="#ff3c3c"/>'
+    +   '<path d="M11 15.5 L13.5 15.5 L13 21 L10.5 21 Z" fill="#1a1a1a"/>'
+    +   '<path d="M11.5 16 Q12.2 17.5 13 16" fill="none" stroke="#1a1a1a" stroke-width="0.6"/>'
+    +   '<rect x="9" y="5.5" width="1" height="2.5" fill="#1a1a1a"/>'
+    +   '<rect x="17" y="5.5" width="1" height="2.5" fill="#1a1a1a"/>'
+    +   '<circle cx="17.5" cy="5" r="0.7" fill="none" stroke="#ff3c3c" stroke-width="0.4"/>'
+    +   '<path d="M19 9.5 L22.5 12 L19 14.5 Z" fill="#ff3c3c"/>'
+    +   '<rect x="19" y="11" width="3" height="2" fill="#ffffff"/>'
+    + '</svg>',
   sledge: ''
     + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
     +   '<rect x="11" y="9" width="2" height="13" fill="#5a3a18"/>'
@@ -24118,6 +24268,518 @@ function drawPlayerWeapon(p, w, flash, now) {
       ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI*2); ctx.fill();
       ctx.restore();
     }
+    return;
+  }
+
+  // ─── REVOLVER ── Colt-style single-action med 6-kammar cylinder ──────────
+  if (w.id === 'revolver') {
+    const recoilBack = 0;
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(p.r + 1, 4, 18, 1.5);
+    // Wooden grip (curved)
+    ctx.fillStyle = flash ? '#fff' : '#5a2a18';
+    ctx.beginPath();
+    ctx.moveTo(p.r - 1, 1); ctx.lineTo(p.r + 3, 1.5);
+    ctx.lineTo(p.r + 2.5, 10); ctx.lineTo(p.r - 2, 9.5);
+    ctx.closePath(); ctx.fill();
+    // Grip highlight (lighter wood)
+    ctx.fillStyle = flash ? '#fff' : '#7a4028';
+    ctx.fillRect(p.r - 1, 2, 0.7, 7);
+    // Grip checkering
+    ctx.strokeStyle = flash ? '#fff' : '#3a1a08';
+    ctx.lineWidth = 0.3;
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath();
+      ctx.moveTo(p.r - 0.5, 2.5 + i * 1.4); ctx.lineTo(p.r + 2.5, 3 + i * 1.4);
+      ctx.stroke();
+    }
+    // Frame (mörk metall)
+    ctx.fillStyle = flash ? '#fff' : '#2a2a2a';
+    ctx.fillRect(p.r - 1, -1.5, 8, 3);
+    // Hammer baktill
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r - 2.5, -3, 1.5, 2);
+    // Trigger guard
+    ctx.strokeStyle = flash ? '#fff' : '#2a2a2a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(p.r + 2, 2.5, 1.8, 0, Math.PI, false);
+    ctx.stroke();
+    // Cylinder (stor cirkel framför grip — 6 kammar)
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.beginPath(); ctx.arc(p.r + 5, 0, 4.5, 0, Math.PI*2); ctx.fill();
+    // Cylinder highlight
+    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.beginPath(); ctx.arc(p.r + 4.5, -0.5, 1.5, 0, Math.PI*2); ctx.fill();
+    // 6 chamber holes
+    const cylRotation = (now / 1200) % (Math.PI * 2 / 6);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2 + cylRotation;
+      const hx = p.r + 5 + Math.cos(a) * 2.8;
+      const hy = Math.sin(a) * 2.8;
+      ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+      ctx.beginPath(); ctx.arc(hx, hy, 0.9, 0, Math.PI*2); ctx.fill();
+      // brass-rim runt hålen
+      ctx.strokeStyle = flash ? '#fff' : '#ffae3a';
+      ctx.lineWidth = 0.4;
+      ctx.beginPath(); ctx.arc(hx, hy, 1.1, 0, Math.PI*2); ctx.stroke();
+    }
+    // Cylinder pin (center)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath(); ctx.arc(p.r + 5, 0, 0.6, 0, Math.PI*2); ctx.fill();
+    // Lång barrel (oktagonal silhuett-känsla)
+    ctx.fillStyle = flash ? '#fff' : '#2a2a30';
+    ctx.fillRect(p.r + 9, -2, 14, 4);
+    ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+    ctx.fillRect(p.r + 9, -2, 14, 0.6);
+    // Front sight blade (klassisk revolver)
+    ctx.fillStyle = flash ? '#fff' : '#ffae3a';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 21, -2);
+    ctx.lineTo(p.r + 22, -4); ctx.lineTo(p.r + 22.5, -4);
+    ctx.lineTo(p.r + 23, -2); ctx.closePath(); ctx.fill();
+    // Barrel-hole
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.beginPath(); ctx.arc(p.r + 23, 0, 1.3, 0, Math.PI*2); ctx.fill();
+    if (muzz) drawMuzzleFlash(p.r + 25, 0, 1.15);
+    return;
+  }
+
+  // ─── SMG ── MP5-style med vertikal magasin + collapsible stock ───────────
+  if (w.id === 'smg') {
+    const recoilBack = 0;
+    const slideOffset = muzzlePulse * -1.5;
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(p.r + 1, 4, 20, 1.5);
+    // Stock (wire, collapsible)
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(p.r - 6, -1, 5, 1);
+    ctx.fillRect(p.r - 6, 0.5, 5, 1);
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r - 6.5, -1.5, 0.7, 4);
+    // Receiver (cyan-tinted dark)
+    ctx.fillStyle = flash ? '#fff' : '#1a2a3a';
+    ctx.fillRect(p.r - 1, -2.5, 10, 5);
+    ctx.fillStyle = flash ? '#fff' : '#88ccff';
+    ctx.fillRect(p.r - 1, -2.5, 10, 0.5);
+    // Top rail med iron-sight
+    ctx.fillStyle = flash ? '#fff' : '#88ccff';
+    ctx.fillRect(p.r + 1, -4, 1, 1.5);
+    // Vertikal magasin (cyan)
+    ctx.fillStyle = flash ? '#fff' : '#1a2a3a';
+    ctx.fillRect(p.r + 1, 2.5, 4, 7);
+    ctx.fillStyle = flash ? '#fff' : '#88ccff';
+    ctx.fillRect(p.r + 1, 2.5, 0.7, 7);
+    // Mag-base
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 1, 9, 4, 1);
+    // Pistol grip
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(p.r - 1, 2.5); ctx.lineTo(p.r + 1.5, 2.5);
+    ctx.lineTo(p.r + 0.5, 7); ctx.lineTo(p.r - 2, 7);
+    ctx.closePath(); ctx.fill();
+    // Trigger guard
+    ctx.strokeStyle = flash ? '#fff' : '#2a2a2a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(p.r + 5.5, 2.5, 1.7, 0, Math.PI, false);
+    ctx.stroke();
+    // Barrel + handguard
+    ctx.fillStyle = flash ? '#fff' : '#2a2a30';
+    ctx.fillRect(p.r + 9, -1.5, 11, 3);
+    ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+    ctx.fillRect(p.r + 9, -1.5, 11, 0.5);
+    // Handguard groove
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 11, 1, 5, 1);
+    // Front sight
+    ctx.fillStyle = flash ? '#fff' : '#88ccff';
+    ctx.fillRect(p.r + 17, -3, 1, 1.5);
+    // Muzzle compensator
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 20 + slideOffset, -2, 2, 4);
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.beginPath(); ctx.arc(p.r + 22 + slideOffset, 0, 1.1, 0, Math.PI*2); ctx.fill();
+    if (muzz) drawMuzzleFlash(p.r + 24 + slideOffset, 0, 0.95);
+    return;
+  }
+
+  // ─── BOW ── Compound bow med string + nockad pil ─────────────────────────
+  if (w.id === 'bow') {
+    const drawAnim = (sinceShot < 200) ? Math.max(0, 1 - sinceShot / 200) : 0;
+    // Riser (centrum-grepp i mörk grön)
+    ctx.fillStyle = flash ? '#fff' : '#2a4a2a';
+    ctx.fillRect(p.r + 4, -3, 4, 6);
+    // Riser-detalj (svart grepp-wrap)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 5, -2, 2, 4);
+    // Riser-highlight
+    ctx.fillStyle = flash ? '#fff' : '#3a8a3a';
+    ctx.fillRect(p.r + 4, -3, 0.5, 6);
+    // Övre limb (curve uppåt)
+    ctx.strokeStyle = flash ? '#fff' : '#3a6a2a';
+    ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 6, -3);
+    ctx.quadraticCurveTo(p.r + 12, -8, p.r + 14, -14);
+    ctx.stroke();
+    // Övre limb-tip (cam)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath(); ctx.arc(p.r + 14, -14, 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#3a8a3a';
+    ctx.beginPath(); ctx.arc(p.r + 14, -14, 0.6, 0, Math.PI*2); ctx.fill();
+    // Nedre limb
+    ctx.strokeStyle = flash ? '#fff' : '#3a6a2a';
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 6, 3);
+    ctx.quadraticCurveTo(p.r + 12, 8, p.r + 14, 14);
+    ctx.stroke();
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath(); ctx.arc(p.r + 14, 14, 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#3a8a3a';
+    ctx.beginPath(); ctx.arc(p.r + 14, 14, 0.6, 0, Math.PI*2); ctx.fill();
+    // String (dragen bakåt om drawAnim)
+    const stringPullX = p.r + 2 - drawAnim * 4;
+    ctx.strokeStyle = flash ? '#fff' : '#dcdcdc';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 14, -14);
+    ctx.lineTo(stringPullX, 0);
+    ctx.lineTo(p.r + 14, 14);
+    ctx.stroke();
+    // Nockad pil (om inte just släppt)
+    if (drawAnim > 0.05 || sinceShot > 200) {
+      // Arrow shaft
+      ctx.strokeStyle = flash ? '#fff' : '#8a6038';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(stringPullX, 0);
+      ctx.lineTo(p.r + 20, 0);
+      ctx.stroke();
+      // Arrowhead
+      ctx.fillStyle = flash ? '#fff' : '#cccccc';
+      ctx.beginPath();
+      ctx.moveTo(p.r + 23, 0); ctx.lineTo(p.r + 20, -2);
+      ctx.lineTo(p.r + 20, 2); ctx.closePath(); ctx.fill();
+      // Fletching (gröna fjädrar baktill)
+      ctx.fillStyle = flash ? '#fff' : '#3a8a3a';
+      ctx.beginPath();
+      ctx.moveTo(stringPullX, 0); ctx.lineTo(stringPullX - 2, -1.5);
+      ctx.lineTo(stringPullX - 0.5, 0); ctx.lineTo(stringPullX - 2, 1.5);
+      ctx.closePath(); ctx.fill();
+    }
+    // Sight (pin på höger riser-sida)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 8, -4, 0.8, 1.5);
+    ctx.fillStyle = flash ? '#fff' : '#5fd95f';
+    ctx.beginPath(); ctx.arc(p.r + 8.4, -3, 0.5, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+
+  // ─── SONIC ── Futuristisk sonic-emitter med horn + elektriska coils ──────
+  if (w.id === 'sonic') {
+    const recoilBack = 0;
+    const electricFlicker = 0.6 + Math.sin(now / 50) * 0.4;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(p.r + 1, 4, 22, 1.5);
+    // Battery pack baktill (rosa-glödande)
+    ctx.fillStyle = flash ? '#fff' : '#3a1a2a';
+    ctx.fillRect(p.r - 5, -3, 4, 7);
+    ctx.fillStyle = flash ? '#fff' : `rgba(255, 90, 196, ${electricFlicker})`;
+    ctx.fillRect(p.r - 4, -2, 2, 5);
+    // Battery cells (3 vertikala glow-pucker)
+    ctx.fillStyle = flash ? '#fff' : '#ff5ac4';
+    ctx.fillRect(p.r - 3.5, -1.5, 1, 1);
+    ctx.fillRect(p.r - 3.5, 0, 1, 1);
+    ctx.fillRect(p.r - 3.5, 1.5, 1, 1);
+    // Body (mörk metall)
+    ctx.fillStyle = flash ? '#fff' : '#2a1a2a';
+    ctx.fillRect(p.r - 1, -2.5, 10, 5);
+    ctx.fillStyle = flash ? '#fff' : '#5a3a4a';
+    ctx.fillRect(p.r - 1, -2.5, 10, 0.6);
+    // Grepp under
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 1, 2.5); ctx.lineTo(p.r + 4, 2.5);
+    ctx.lineTo(p.r + 3, 8); ctx.lineTo(p.r, 8);
+    ctx.closePath(); ctx.fill();
+    // Elektriska coils (3 rader på sidan)
+    ctx.strokeStyle = flash ? '#fff' : `rgba(255, 200, 255, ${electricFlicker})`;
+    ctx.lineWidth = 0.7;
+    for (let i = 0; i < 3; i++) {
+      const cy = -1.5 + i * 1.5;
+      ctx.beginPath();
+      for (let j = 0; j < 5; j++) {
+        const cx = p.r + j * 2;
+        ctx.lineTo(cx, cy + Math.sin(j + now / 80) * 0.4);
+      }
+      ctx.stroke();
+    }
+    // Glödande inner-tube
+    ctx.fillStyle = flash ? '#fff' : `rgba(255, 90, 196, ${0.6 * electricFlicker})`;
+    ctx.fillRect(p.r + 1, -1, 8, 2);
+    // Wide horn-mouth (megaphone shape)
+    ctx.fillStyle = flash ? '#fff' : '#3a2a3a';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 9, -3);
+    ctx.lineTo(p.r + 16, -6);
+    ctx.lineTo(p.r + 16, 6);
+    ctx.lineTo(p.r + 9, 3);
+    ctx.closePath(); ctx.fill();
+    // Horn-rim (pink)
+    ctx.strokeStyle = flash ? '#fff' : '#ff5ac4';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 16, -6); ctx.lineTo(p.r + 16, 6);
+    ctx.stroke();
+    // Inner horn-glow
+    ctx.fillStyle = flash ? '#fff' : `rgba(255, 90, 196, ${0.4 * electricFlicker})`;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 11, -2);
+    ctx.lineTo(p.r + 15, -4);
+    ctx.lineTo(p.r + 15, 4);
+    ctx.lineTo(p.r + 11, 2);
+    ctx.closePath(); ctx.fill();
+    // Center emitter-dot
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.shadowColor = '#ff5ac4'; ctx.shadowBlur = 8 * electricFlicker;
+    ctx.beginPath(); ctx.arc(p.r + 16, 0, 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Sonic-wave ripple när skott
+    if (muzz) {
+      ctx.strokeStyle = `rgba(255, 90, 196, ${muzzlePulse * 0.8})`;
+      ctx.lineWidth = 2;
+      for (let r = 1; r <= 3; r++) {
+        ctx.beginPath();
+        ctx.arc(p.r + 16, 0, 6 + r * 4 + (1 - muzzlePulse) * 10, -0.8, 0.8);
+        ctx.stroke();
+      }
+    }
+    return;
+  }
+
+  // ─── PLASMA ── Sci-fi plasma rifle med cyan glödande kärna + ventiler ────
+  if (w.id === 'plasma') {
+    const recoilBack = 0;
+    const corePulse = 0.7 + Math.sin(now / 100) * 0.3;
+    ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.fillRect(p.r + 1, 4, 24, 1.5);
+    // Stock (sci-fi mörk metall)
+    ctx.fillStyle = flash ? '#fff' : '#1a2a3a';
+    ctx.fillRect(p.r - 6, -1.5, 5, 3);
+    ctx.fillStyle = flash ? '#fff' : '#3acaff';
+    ctx.fillRect(p.r - 6, -1.5, 5, 0.5);
+    // Receiver
+    ctx.fillStyle = flash ? '#fff' : '#2a3a4a';
+    ctx.fillRect(p.r - 1, -3, 10, 6);
+    ctx.fillStyle = flash ? '#fff' : '#3acaff';
+    ctx.fillRect(p.r - 1, -3, 10, 0.5);
+    // Cooling vents på sidan (3 slot-rader)
+    ctx.fillStyle = flash ? '#fff' : '#0a1a2a';
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(p.r + 1 + i * 2.5, -2.5, 1.5, 1);
+      ctx.fillRect(p.r + 1 + i * 2.5, 1.5, 1.5, 1);
+    }
+    // Pistol grip
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(p.r, 3); ctx.lineTo(p.r + 2.5, 3);
+    ctx.lineTo(p.r + 1.5, 8); ctx.lineTo(p.r - 1, 8);
+    ctx.closePath(); ctx.fill();
+    // Energy-conduit tube (glödande cyan-linje under)
+    ctx.fillStyle = flash ? '#fff' : `rgba(58, 202, 255, ${corePulse})`;
+    ctx.fillRect(p.r + 2, 1.8, 9, 0.7);
+    ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 6 * corePulse;
+    ctx.fillRect(p.r + 2, 1.8, 9, 0.7);
+    ctx.shadowBlur = 0;
+    // Lång barrel — outer dark metal
+    ctx.fillStyle = flash ? '#fff' : '#1a2a3a';
+    ctx.fillRect(p.r + 9, -1.8, 14, 3.6);
+    ctx.fillStyle = flash ? '#fff' : '#3a4a5a';
+    ctx.fillRect(p.r + 9, -1.8, 14, 0.5);
+    // Inner glödande plasma-channel
+    ctx.fillStyle = flash ? '#fff' : `rgba(58, 202, 255, ${corePulse})`;
+    ctx.fillRect(p.r + 10, -0.8, 13, 1.6);
+    ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 8 * corePulse;
+    ctx.fillRect(p.r + 10, -0.8, 13, 1.6);
+    ctx.shadowBlur = 0;
+    // 3 energy-ring förstärkare runt barrel
+    for (let i = 0; i < 3; i++) {
+      const rx = p.r + 12 + i * 3.5;
+      ctx.strokeStyle = flash ? '#fff' : '#3acaff';
+      ctx.lineWidth = 1;
+      ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 5 * corePulse;
+      ctx.beginPath();
+      ctx.ellipse(rx, 0, 1.5, 2.8, 0, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+    }
+    // Focus-lens framtill (glow-cirkel)
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 12 * corePulse;
+    ctx.beginPath(); ctx.arc(p.r + 24, 0, 2.2, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = flash ? '#fff' : '#3acaff';
+    ctx.beginPath(); ctx.arc(p.r + 24, 0, 1.2, 0, Math.PI*2); ctx.fill();
+    if (muzz) {
+      ctx.fillStyle = `rgba(58, 202, 255, ${muzzlePulse * 0.9})`;
+      ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 16;
+      ctx.beginPath(); ctx.arc(p.r + 26, 0, 5, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    return;
+  }
+
+  // ─── MINIGUN ── 6-barrel rotary med ammo feed + twin handles ─────────────
+  if (w.id === 'minigun') {
+    const recoilBack = 0;
+    const rotation = (now / 25) % (Math.PI * 2);
+    const spinSpeed = muzz ? 1.5 : 0.3;
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(p.r + 1, 5, 26, 2);
+    // Ammo-feed-belt (kommer från nedanför, går in i body)
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(p.r + 2, 6, 6, 4);
+    // Belt-links (gula skott)
+    for (let i = 0; i < 4; i++) {
+      ctx.fillStyle = flash ? '#fff' : '#ffae3a';
+      ctx.beginPath();
+      ctx.arc(p.r + 3 + i * 1.3, 7.5 + Math.sin(i + now / 200) * 0.3, 0.6, 0, Math.PI*2);
+      ctx.fill();
+    }
+    // Top handle (carry handle)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 2, -7, 8, 1.2);
+    ctx.fillRect(p.r + 2, -7, 0.8, 3);
+    ctx.fillRect(p.r + 9.2, -7, 0.8, 3);
+    // Body/receiver (large heavy block)
+    ctx.fillStyle = flash ? '#fff' : '#2a2a30';
+    ctx.fillRect(p.r - 1, -5, 13, 10);
+    // Cyan body-stripe
+    ctx.fillStyle = flash ? '#fff' : '#3cf0ff';
+    ctx.fillRect(p.r - 1, -5, 13, 0.7);
+    // Side handle (vertical grip)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 4, 5, 2, 5);
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(p.r + 4, 5, 2, 0.5);
+    // Cooling shroud (cylinder framför body)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a20';
+    ctx.beginPath();
+    ctx.arc(p.r + 13, 0, 5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+    ctx.beginPath();
+    ctx.arc(p.r + 13, 0, 4.5, 0, Math.PI*2); ctx.fill();
+    // 6 roterande barrels arrangerade i cirkel
+    for (let i = 0; i < 6; i++) {
+      const a = rotation * spinSpeed + i * (Math.PI * 2 / 6);
+      const bx = p.r + 13 + Math.cos(a) * 3;
+      const by = Math.sin(a) * 3;
+      // Barrel-skugga
+      ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+      ctx.beginPath();
+      ctx.arc(bx, by, 1, 0, Math.PI*2); ctx.fill();
+      // Barrel-shaft (extends forward)
+      ctx.strokeStyle = flash ? '#fff' : '#3a3a40';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(bx, by); ctx.lineTo(p.r + 25, by * 0.3);
+      ctx.stroke();
+    }
+    // Outer ring framme (samlar barrels)
+    ctx.strokeStyle = flash ? '#fff' : '#1a1a20';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(p.r + 25, 0, 2, 0, Math.PI*2); ctx.stroke();
+    // Motion-blur när skjuter
+    if (muzz) {
+      ctx.strokeStyle = `rgba(60, 240, 255, ${muzzlePulse * 0.5})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(p.r + 13, 0, 3, 0, Math.PI*2);
+      ctx.stroke();
+      // Streaming muzzle-flashes från random barrels
+      const flashBarrel = Math.floor(Math.random() * 6);
+      const fa = rotation * spinSpeed + flashBarrel * (Math.PI * 2 / 6);
+      const fy = Math.sin(fa) * 1;
+      drawMuzzleFlash(p.r + 27, fy, 0.7);
+    }
+    return;
+  }
+
+  // ─── ROCKET ── RPG-style med rakettip i röret + iron-sight + bakvent ─────
+  if (w.id === 'rocket') {
+    const recoilBack = 0;
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(p.r + 1, 5, 24, 2);
+    // Shoulder rest baktill
+    ctx.fillStyle = flash ? '#fff' : '#3a2a1a';
+    ctx.fillRect(p.r - 4, -3, 3, 6);
+    ctx.fillStyle = flash ? '#fff' : '#5a3a20';
+    ctx.fillRect(p.r - 4, -3, 3, 0.7);
+    // Back vent (exhaust med flame)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r - 6, -2.5, 2, 5);
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(p.r - 6, -1.5, 1, 3);
+    // Exhaust flame (back) — bara när skott
+    if (muzz) {
+      ctx.fillStyle = `rgba(255, ${100 + Math.random() * 80}, 30, ${muzzlePulse * 0.8})`;
+      ctx.beginPath();
+      ctx.moveTo(p.r - 6, -2);
+      ctx.lineTo(p.r - 11 - Math.random() * 3, 0);
+      ctx.lineTo(p.r - 6, 2);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = `rgba(255, 255, 200, ${muzzlePulse})`;
+      ctx.beginPath();
+      ctx.moveTo(p.r - 6, -1);
+      ctx.lineTo(p.r - 8, 0);
+      ctx.lineTo(p.r - 6, 1);
+      ctx.closePath(); ctx.fill();
+    }
+    // Main tube (heavy launcher)
+    ctx.fillStyle = flash ? '#fff' : '#3a3a30';
+    ctx.fillRect(p.r - 1, -4, 20, 8);
+    ctx.fillStyle = flash ? '#fff' : '#5a5a4a';
+    ctx.fillRect(p.r - 1, -4, 20, 1);
+    // Red stripe (military marking)
+    ctx.fillStyle = flash ? '#fff' : '#ff3c3c';
+    ctx.fillRect(p.r + 2, -3, 1.5, 6);
+    ctx.fillRect(p.r + 15, -3, 1.5, 6);
+    // Front handguard (pistol grip under)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 6, 4); ctx.lineTo(p.r + 9, 4);
+    ctx.lineTo(p.r + 8, 9); ctx.lineTo(p.r + 5, 9);
+    ctx.closePath(); ctx.fill();
+    // Trigger
+    ctx.strokeStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.arc(p.r + 7, 4.5, 1.2, 0, Math.PI, false);
+    ctx.stroke();
+    // Iron-sight (flip-up)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 4, -7, 0.8, 3);
+    ctx.fillRect(p.r + 14, -7, 0.8, 3);
+    // Sight aperture
+    ctx.strokeStyle = flash ? '#fff' : '#ff3c3c';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.arc(p.r + 14.4, -8, 0.6, 0, Math.PI*2); ctx.stroke();
+    // Rocket visible inuti tube (om inte skjutet just nu)
+    if (!muzz) {
+      // Rocket nose-cone (röd, sticker ut framme)
+      ctx.fillStyle = flash ? '#fff' : '#ff3c3c';
+      ctx.beginPath();
+      ctx.moveTo(p.r + 19, -2);
+      ctx.lineTo(p.r + 23, 0);
+      ctx.lineTo(p.r + 19, 2);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#fff';
+      ctx.fillRect(p.r + 19, -0.5, 1.5, 1);
+    } else {
+      // Tube är tom — mörk öppning
+      ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+      ctx.beginPath(); ctx.arc(p.r + 19.5, 0, 2.5, 0, Math.PI*2); ctx.fill();
+    }
+    if (muzz) drawMuzzleFlash(p.r + 23, 0, 1.6);
     return;
   }
 
