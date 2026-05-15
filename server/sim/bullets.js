@@ -16,6 +16,7 @@ const { TDM_ARENA } = require('../../shared/tdm-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
 const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS, GUNGAME_DEMOTE_FLOOR } = require('../../shared/gungame-arena');
 const { KOTH_ARENA } = require('../../shared/koth-arena');
+const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
 
 // PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
 // Sniper nerf: 130→95 (fortfarande 2-shot genom shield+hp men inte instant).
@@ -91,7 +92,8 @@ function applyMelee(sim, p, weaponId, params) {
   const inCtf = !!sim.ctfActive && !sim.ctfEnded;
   const inSiege = !!sim.siegeActive && !sim.siegeEnded;
   const inKoth = !!sim.kothActive && !sim.kothEnded;
-  if (!inGungame && !inTdm && !inCtf && !inSiege && !inKoth) return;
+  const inJug = !!sim.juggernautActive && !sim.juggernautEnded;
+  if (!inGungame && !inTdm && !inCtf && !inSiege && !inKoth && !inJug) return;
 
   const ownerWs = sim.room.members.get(p.peerId);
   if (!ownerWs) return;
@@ -104,14 +106,21 @@ function applyMelee(sim, p, weaponId, params) {
   const headshotPerk = !!(params.perks && params.perks.headshot);
   const ultMul = cheats.ultimate ? 10 : 1;
   const ownerTeam = ownerWs.tdmTeam;
+  const shooterIsJug = inJug && ownerWs.playerState && ownerWs.playerState.isJug;
 
   for (const [pid, ws] of sim.room.members) {
     if (pid === p.peerId) continue;
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
     if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
-    // Friendly-fire av i team-modes (KOTH + gungame är FFA — alla mål)
+    // Friendly-fire av i team-modes (KOTH + gungame är FFA — alla mål).
+    // Juggernaut: hunters får BARA skada JUG, JUG får skada alla hunters.
     const isFfa = inGungame || inKoth;
-    if (!isFfa && ownerTeam && ws.tdmTeam && ws.tdmTeam === ownerTeam) continue;
+    if (!isFfa && !inJug && ownerTeam && ws.tdmTeam && ws.tdmTeam === ownerTeam) continue;
+    if (inJug) {
+      const targetIsJug = !!ws.playerState.isJug;
+      if (!shooterIsJug && !targetIsJug) continue; // hunter→hunter blockerat
+      if (shooterIsJug && targetIsJug) continue;   // (kan inte hända, en JUG)
+    }
 
     const dx = ws.playerState.x - p.x;
     const dy = ws.playerState.y - p.y;
@@ -144,9 +153,16 @@ function applyMelee(sim, p, weaponId, params) {
       shield: ws.playerState.shield || 0,
     });
 
+    // Damage-attribution för juggernaut (hunter skadar JUG → tracka för transfer)
+    if (inJug && !shooterIsJug && ws.playerState.isJug && sim._trackJuggernautDmg) {
+      sim._trackJuggernautDmg(sim, p.peerId, pid, finalDmg);
+    }
+
     // Kill-flow (mode-specifikt)
     if (ws.playerState.hp <= 0) {
-      if (inGungame) {
+      if (inJug) {
+        if (sim._handleJuggernautKill) sim._handleJuggernautKill(sim, p.peerId, ownerWs, pid, ws, weaponId);
+      } else if (inGungame) {
         handleGungameKill(sim, p.peerId, ownerWs, pid, ws, weaponId);
       } else if (inKoth) {
         handleKothKill(sim, p.peerId, pid, ws, weaponId);
@@ -674,6 +690,13 @@ function updateBullets(sim, dt, now) {
       bullets.splice(i, 1);
       continue;
     }
+    if (sim.juggernautActive && bulletHitsWall(b, JUGGERNAUT_ARENA.walls)) {
+      if (b.explosive && !b.hostile) {
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+      }
+      bullets.splice(i, 1);
+      continue;
+    }
     // SIEGE: walls + core-damage routing
     if (sim.siegeActive && bulletHitsWall(b, SIEGE_ARENA.walls)) {
       // Hitta vilken wall som träffades — om coreId så damage core
@@ -996,6 +1019,58 @@ function updateBullets(sim, dt, now) {
           });
           if (ws.playerState.hp <= 0) {
             handleKothKill(sim, b.ownerPid, pid, ws, b.weaponId);
+          }
+          pvpHit = true;
+          break;
+        }
+      }
+      if (pvpHit) bullets.splice(i, 1);
+      continue;
+    }
+    // JUGGERNAUT-mode: hunters skjuter BARA på JUG, JUG skjuter på alla hunters.
+    // Friendly-fire av för hunters → hunter-bullet ignorerar andra hunters.
+    if (sim.juggernautActive) {
+      if (sim.juggernautEnded) continue;
+      let pvpHit = false;
+      const ownerWs = sim.room.members.get(b.ownerPid);
+      if (!ownerWs) continue;
+      const ownerIsJug = ownerWs.playerState && ownerWs.playerState.isJug;
+      const shooterRtt = ownerWs && ownerWs._serverRtt;
+      for (const [pid, ws] of sim.room.members) {
+        if (pid === b.ownerPid) continue;
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        const invuln = ws.playerState.invulnUntil || 0;
+        if (Date.now() < invuln) continue;
+        const targetIsJug = !!ws.playerState.isJug;
+        // Friendly-fire-regler: hunter→hunter blockerat, JUG→JUG kan inte hända
+        if (!ownerIsJug && !targetIsJug) continue;
+        if (ownerIsJug && targetIsJug) continue;
+        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const dx = rPos.x - b.x, dy = rPos.y - b.y;
+        const rsum = 14 + b.r + 8;
+        if (dx * dx + dy * dy < rsum * rsum) {
+          const effDmg = getPvpDmg(b.weaponId, b.dmg);
+          let remaining = effDmg;
+          if ((ws.playerState.shield || 0) > 0) {
+            const absorb = Math.min(ws.playerState.shield, remaining);
+            ws.playerState.shield -= absorb;
+            remaining -= absorb;
+          }
+          if (remaining > 0) {
+            ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+          }
+          sim.eventQueue.push({
+            type: 'pvp_hp_changed',
+            peerId: pid,
+            hp: ws.playerState.hp,
+            shield: ws.playerState.shield || 0,
+          });
+          // Damage-attribution om hunter skadar JUG
+          if (!ownerIsJug && targetIsJug && sim._trackJuggernautDmg) {
+            sim._trackJuggernautDmg(sim, b.ownerPid, pid, effDmg);
+          }
+          if (ws.playerState.hp <= 0) {
+            if (sim._handleJuggernautKill) sim._handleJuggernautKill(sim, b.ownerPid, ownerWs, pid, ws, b.weaponId);
           }
           pvpHit = true;
           break;

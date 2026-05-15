@@ -14,6 +14,7 @@ const { TDM_ARENA } = require('../../shared/tdm-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
 const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS } = require('../../shared/gungame-arena');
 const { KOTH_ARENA } = require('../../shared/koth-arena');
+const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
 const { SpatialGrid } = require('./spatial');
 
 // 30Hz → 45Hz: tickar var 22ms istället för 33ms. Halverar input→pixel-delay
@@ -113,6 +114,20 @@ function createSim(room) {
     _kothZoneRotateAt: 0,    // när nästa zone-rotation sker
     _kothPointAccum: {},     // peerId → fractional accumulator
     _kothSpawnIdx: 0,        // spawn-rotation
+    // JUGGERNAUT state (FFA-roll, 1 JUG åt gången, mest tid-som-JUG vinner)
+    juggernautActive: false,
+    juggernautEnded: false,
+    juggernautWinner: null,
+    juggernautPid: null,           // nuvarande JUG (peerId), null = ingen
+    juggernautWeapon: null,        // vapen JUG-spelaren valt (rifle/shotgun/sledge)
+    juggernautScores: {},          // peerId → ackumulerad tid som JUG (sek)
+    juggernautKillsByPid: {},      // peerId → kills som JUG
+    juggernautHpMax: 0,            // beräknas vid match-start från hunterCount
+    juggernautEndAt: 0,            // ms timestamp då matchen tar slut
+    juggernautDmgToJug: {},        // peerId → damage gjort mot current JUG sedan senaste transfer
+    _juggernautLastPulseAt: 0,     // ms när senaste minimap-puls sändes
+    _juggernautSpawnIdx: 0,        // roterar spawn-punkter
+    _juggernautScoreAccum: 0,      // fractional second-accumulator för JUG score
   };
   return sim;
 }
@@ -244,6 +259,14 @@ function tickSim(sim) {
   // GUNGAME-mode: FFA, 15-tier vapen-progression
   if (sim.gungameActive) {
     tickGungame(sim, dt, now);
+    sim._tickCount = (sim._tickCount || 0) + 1;
+    if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
+    return;
+  }
+  // JUGGERNAUT-mode: 1 JUG (5× HP, +35% speed), övriga = hunters med pistol.
+  // Mest tid-som-JUG vinner när timer går ut.
+  if (sim.juggernautActive) {
+    tickJuggernaut(sim, dt, now);
     sim._tickCount = (sim._tickCount || 0) + 1;
     if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
@@ -1528,6 +1551,304 @@ function endKothMatch(sim, winnerId, reason) {
   });
 }
 
+// ============================================================
+// JUGGERNAUT — FFA-roll-mode: 1 JUG (kraftig, kollar 5× HP/+speed/dash)
+// ============================================================
+// Spawnar alla som hunters med pistol. Random human (aldrig bot) blir initial
+// JUG. JUG-spelaren får 5× HP (skalat med spelarcount), +35% speed, 1s dash CD,
+// valbart vapen (rifle/shotgun/sledge). Hunters har bara pistol.
+// JUG dör → killer blir ny JUG (bot kan inte → human med högst dmg blir det).
+// Vinst: mest sek-som-JUG när timer går ut.
+function applyJugStats(sim, ws) {
+  if (!ws.playerState) return;
+  ws.playerState.hp = sim.juggernautHpMax;
+  ws.playerState.maxHp = sim.juggernautHpMax;
+  ws.playerState.shield = ws.playerState.maxShield || 100;
+  ws.playerState.isJug = true;
+  ws.playerState.scaleMul = JUGGERNAUT_ARENA.jugScale;
+  ws.playerState.speedMul = JUGGERNAUT_ARENA.jugSpeedMul;
+  ws.playerState.dashCdMs = JUGGERNAUT_ARENA.jugDashCdMs;
+  ws.playerState.weaponId = sim.juggernautWeapon || JUGGERNAUT_ARENA.jugDefaultWeapon;
+}
+
+function applyHunterStats(sim, ws) {
+  if (!ws.playerState) return;
+  ws.playerState.hp = 100;
+  ws.playerState.maxHp = 100;
+  ws.playerState.shield = ws.playerState.maxShield || 100;
+  ws.playerState.isJug = false;
+  ws.playerState.scaleMul = 1.0;
+  ws.playerState.speedMul = 1.0;
+  ws.playerState.dashCdMs = null; // null = default klient-CD
+  ws.playerState.weaponId = JUGGERNAUT_ARENA.hunterWeapon;
+}
+
+function pickRandomHumanHunter(sim, excludePid) {
+  const candidates = [];
+  for (const [pid, ws] of sim.room.members) {
+    if (ws._isBot) continue;
+    if (pid === excludePid) continue;
+    if (!ws.playerState) continue;
+    candidates.push(pid);
+  }
+  if (!candidates.length) return null;
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+function transferJug(sim, newPid, reason) {
+  const oldPid = sim.juggernautPid;
+  // Demote gamla JUG (kan vara null vid initial)
+  if (oldPid) {
+    const oldWs = sim.room.members.get(oldPid);
+    if (oldWs && oldWs.playerState) {
+      applyHunterStats(sim, oldWs);
+      oldWs.playerState.invulnUntil = Date.now() + 1500;
+    }
+  }
+  sim.juggernautPid = newPid;
+  // Reset dmg-attribution när JUG byter
+  sim.juggernautDmgToJug = {};
+  if (newPid) {
+    const newWs = sim.room.members.get(newPid);
+    if (newWs) {
+      // Default-vapen: behåll current sim.juggernautWeapon om satt, annars default
+      if (!sim.juggernautWeapon) sim.juggernautWeapon = JUGGERNAUT_ARENA.jugDefaultWeapon;
+      applyJugStats(sim, newWs);
+      newWs.playerState.invulnUntil = Date.now() + 2000; // 2s invuln för ny JUG
+      newWs.tdmRespawnAt = 0;
+    }
+  }
+  sim.eventQueue.push({
+    type: 'juggernaut_jug_changed',
+    newJug: newPid,
+    oldJug: oldPid,
+    reason,
+    weapon: sim.juggernautWeapon,
+    jugHp: sim.juggernautHpMax,
+  });
+}
+
+function tickJuggernaut(sim, dt, now) {
+  const nowMs = Date.now();
+
+  // Respawn hunters (3s gungame-style, roterande spawn). JUG respawnar inte —
+  // när JUG dör händer transferJug + ny JUG spawnar direkt på dödsplatsen.
+  for (const [pid, ws] of sim.room.members) {
+    if (ws.tdmRespawnAt && nowMs >= ws.tdmRespawnAt) {
+      ws.tdmRespawnAt = 0;
+      if (ws.playerState) {
+        const spawns = JUGGERNAUT_ARENA.spawns;
+        let sp = spawns[sim._juggernautSpawnIdx % spawns.length];
+        for (let tries = 0; tries < spawns.length; tries++) {
+          const candidate = spawns[(sim._juggernautSpawnIdx + tries) % spawns.length];
+          let occupied = false;
+          for (const [otherPid, otherWs] of sim.room.members) {
+            if (otherPid === pid) continue;
+            if (!otherWs.playerState || otherWs.playerState.hp <= 0) continue;
+            const dx = otherWs.playerState.x - candidate.x;
+            const dy = otherWs.playerState.y - candidate.y;
+            if (dx * dx + dy * dy < 200 * 200) { occupied = true; break; }
+          }
+          if (!occupied) { sp = candidate; sim._juggernautSpawnIdx += tries; break; }
+        }
+        sim._juggernautSpawnIdx++;
+        ws.playerState.x = sp.x;
+        ws.playerState.y = sp.y;
+        applyHunterStats(sim, ws);
+        ws.playerState.invulnUntil = nowMs + 1500;
+        if (ws._bot) {
+          ws._bot.target = null;
+          ws._bot.lastShotAt = 0;
+          ws._bot.stuckSince = 0;
+        }
+        sim.eventQueue.push({
+          type: 'juggernaut_player_respawned',
+          peerId: pid,
+          x: ws.playerState.x, y: ws.playerState.y,
+          hp: ws.playerState.hp, shield: ws.playerState.shield,
+          isJug: false,
+        });
+      }
+    }
+  }
+
+  // Pickups + walls (även när match slutar — bara score-tick stoppar)
+  if (!sim.juggernautEnded) tickPvpPickups(sim, now);
+  for (const [, ws] of sim.room.members) {
+    if (ws.playerState && ws.playerState.hp > 0) {
+      const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
+      resolveCtfWall(ent, JUGGERNAUT_ARENA.walls);
+      ws.playerState.x = ent.x;
+      ws.playerState.y = ent.y;
+    }
+  }
+
+  if (sim.juggernautEnded) return;
+
+  updateBullets(sim, dt, now);
+
+  // Death-detection — kompletterar bullets.js (explosioner, gas, mfl. ej-bullet-kills)
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState || ws.playerState.hp > 0) continue;
+    if (pid === sim.juggernautPid) {
+      // JUG dog från icke-bullet-källa (explosion/oob etc) — random hunter blir ny JUG
+      const fallback = pickRandomHumanHunter(sim, pid);
+      ws.tdmRespawnAt = nowMs + 3000;
+      sim.juggernautKillsByPid[pid] = sim.juggernautKillsByPid[pid] || 0;
+      sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
+      sim.eventQueue.push({ type: 'juggernaut_player_died', victim: pid, durationMs: 3000, wasJug: true });
+      if (fallback) transferJug(sim, fallback, 'jug_suicide_or_environment');
+      else {
+        // Inga humans kvar — låt JUG stå tom; tickJug återkommer
+        sim.juggernautPid = null;
+      }
+    } else if (!ws.tdmRespawnAt) {
+      ws.tdmRespawnAt = nowMs + 3000;
+      sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
+      sim.eventQueue.push({ type: 'juggernaut_player_died', victim: pid, durationMs: 3000, wasJug: false });
+    }
+  }
+
+  // Score-ackumulering: nuvarande JUG får dt-sek per tick
+  if (sim.juggernautPid) {
+    sim.juggernautScores[sim.juggernautPid] = (sim.juggernautScores[sim.juggernautPid] || 0) + dt;
+  }
+
+  // Score-broadcast var sekund (mirror av KOTH)
+  sim._juggernautBroadcastTick = (sim._juggernautBroadcastTick || 0) + dt;
+  if (sim._juggernautBroadcastTick >= 1.0) {
+    sim._juggernautBroadcastTick = 0;
+    const scoresRounded = {};
+    for (const pid of Object.keys(sim.juggernautScores)) {
+      scoresRounded[pid] = Math.floor(sim.juggernautScores[pid]);
+    }
+    sim.eventQueue.push({
+      type: 'juggernaut_score_update',
+      scores: scoresRounded,
+      currentJug: sim.juggernautPid,
+      msRemaining: Math.max(0, sim.juggernautEndAt - nowMs),
+    });
+  }
+
+  // Minimap-puls var 5s — hunters får en kort blink av JUG-pos
+  if (sim.juggernautPid && nowMs - sim._juggernautLastPulseAt >= JUGGERNAUT_ARENA.minimapPulseIntervalMs) {
+    sim._juggernautLastPulseAt = nowMs;
+    const jugWs = sim.room.members.get(sim.juggernautPid);
+    if (jugWs && jugWs.playerState) {
+      sim.eventQueue.push({
+        type: 'juggernaut_minimap_pulse',
+        x: Math.round(jugWs.playerState.x),
+        y: Math.round(jugWs.playerState.y),
+      });
+    }
+  }
+
+  // Match-end på timer
+  if (nowMs >= sim.juggernautEndAt) {
+    let winnerId = null, bestScore = -1;
+    for (const pid of Object.keys(sim.juggernautScores)) {
+      const s = sim.juggernautScores[pid];
+      if (s > bestScore) { bestScore = s; winnerId = pid; }
+    }
+    endJuggernautMatch(sim, winnerId, 'timer_expired');
+  }
+}
+
+// Kallas från bullets.js när en kill registreras i juggernaut-mode.
+// Anropas via sim._handleJuggernautKill (exponerad vid startSim).
+function handleJuggernautKill(sim, killerPid, killerWs, victimPid, victimWs, weaponId) {
+  if (sim.juggernautEnded) return;
+  const wasJugKilled = (victimPid === sim.juggernautPid);
+  sim.juggernautKillsByPid[killerPid] = (sim.juggernautKillsByPid[killerPid] || 0) + 1;
+  sim.eventQueue.push({
+    type: 'juggernaut_kill',
+    killer: killerPid,
+    victim: victimPid,
+    weapon: weaponId || null,
+    wasJugKilled,
+  });
+  if (wasJugKilled) {
+    // JUG dog. Bot kan inte bli JUG → human med högst dmg vinner rollen.
+    sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
+    victimWs.tdmRespawnAt = Date.now() + 3000;
+    sim.eventQueue.push({ type: 'juggernaut_player_died', victim: victimPid, durationMs: 3000, wasJug: true });
+    let newJugPid;
+    if (killerWs && !killerWs._isBot) {
+      newJugPid = killerPid;
+    } else {
+      // Bot dödade JUG → human med högst ackumulerad dmg vinner
+      let bestPid = null, bestDmg = -1;
+      for (const pid of Object.keys(sim.juggernautDmgToJug)) {
+        const ws = sim.room.members.get(pid);
+        if (!ws || ws._isBot) continue;
+        const d = sim.juggernautDmgToJug[pid];
+        if (d > bestDmg) { bestDmg = d; bestPid = pid; }
+      }
+      newJugPid = bestPid || pickRandomHumanHunter(sim, victimPid);
+    }
+    if (newJugPid) {
+      // Spawn ny JUG på dödsplatsen
+      const newWs = sim.room.members.get(newJugPid);
+      if (newWs && newWs.playerState && victimWs.playerState) {
+        newWs.playerState.x = victimWs.playerState.x;
+        newWs.playerState.y = victimWs.playerState.y;
+      }
+      transferJug(sim, newJugPid, 'jug_killed');
+    } else {
+      sim.juggernautPid = null;
+    }
+  } else {
+    // Hunter dödad — vanlig respawn
+    sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
+    victimWs.tdmRespawnAt = Date.now() + 3000;
+    sim.eventQueue.push({ type: 'juggernaut_player_died', victim: victimPid, durationMs: 3000, wasJug: false });
+  }
+}
+
+// Damage-attribution — kallas från bullets.js när hunter skadar JUG, så vi
+// vet vem som ska ärva rollen om bot dödar JUG.
+function trackJuggernautDmg(sim, shooterPid, victimPid, dmg) {
+  if (victimPid !== sim.juggernautPid) return;
+  const ws = sim.room.members.get(shooterPid);
+  if (!ws || ws._isBot) return; // bot-dmg räknas inte för attribution
+  sim.juggernautDmgToJug[shooterPid] = (sim.juggernautDmgToJug[shooterPid] || 0) + dmg;
+}
+
+function endJuggernautMatch(sim, winnerId, reason) {
+  if (sim.juggernautEnded) return;
+  sim.juggernautEnded = true;
+  sim.juggernautWinner = winnerId;
+  const stats = { perPlayer: {} };
+  for (const [p] of sim.room.members) {
+    stats.perPlayer[p] = {
+      timeAsJug: Math.floor(sim.juggernautScores[p] || 0),
+      kills: sim.juggernautKillsByPid[p] || 0,
+      deaths: (sim.tdmDeathsByPid && sim.tdmDeathsByPid[p]) || 0,
+    };
+  }
+  sim.eventQueue.push({
+    type: 'juggernaut_match_end',
+    winner: winnerId, reason, stats,
+  });
+}
+
+// Pickup-builder för juggernaut-arenan — symmetrisk runt 2500,1750
+function buildJuggernautPickups(sim) {
+  return [
+    // HP-pickups vid hörn-spawns (hunters behöver healing efter JUG-möte)
+    { id: nextPickupId(sim), x: 900,  y: 900,  type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 4100, y: 900,  type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 900,  y: 2600, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 4100, y: 2600, type: 'hp',     available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2500, y: 1750, type: 'hp',     available: true, respawnAt: 0 },
+    // Shield-pickups i flank-zoner (riskabla — JUG kan campa här)
+    { id: nextPickupId(sim), x: 2500, y: 500,  type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2500, y: 3000, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1500, y: 1750, type: 'shield', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3500, y: 1750, type: 'shield', available: true, respawnAt: 0 },
+  ];
+}
+
 function endGungameMatch(sim, winnerId, reason) {
   if (sim.gungameEnded) return;
   sim.gungameEnded = true;
@@ -1735,6 +2056,21 @@ function startSim(sim, opts) {
   sim._kothSpawnIdx = 0;
   sim._kothZoneRotateAt = 0;
   sim._kothBroadcastTick = 0;
+  // JUGGERNAUT reset
+  sim.juggernautActive = false;
+  sim.juggernautEnded = false;
+  sim.juggernautWinner = null;
+  sim.juggernautPid = null;
+  sim.juggernautWeapon = null;
+  sim.juggernautScores = {};
+  sim.juggernautKillsByPid = {};
+  sim.juggernautHpMax = 0;
+  sim.juggernautEndAt = 0;
+  sim.juggernautDmgToJug = {};
+  sim._juggernautLastPulseAt = 0;
+  sim._juggernautSpawnIdx = 0;
+  sim._juggernautScoreAccum = 0;
+  sim._juggernautBroadcastTick = 0;
   sim._siegePointAccum = { red: 0, blue: 0 };
   sim.pvpPickups = null;
   sim.bullets = [];
@@ -1763,6 +2099,10 @@ function startSim(sim, opts) {
     if (opts.koth) {
       sim.kothActive = true;
       sim.kothTargetPoints = opts.kothTargetPoints || 100;
+    }
+    if (opts.juggernaut) {
+      sim.juggernautActive = true;
+      sim.juggernautMatchDurationSec = opts.juggernautMatchDurationSec || JUGGERNAUT_ARENA.defaultMatchDuration;
     }
   }
   // Bot-spawn: lägg bot(s) som virtuella members INNAN mode-init så loopen tilldelar
@@ -2096,6 +2436,67 @@ function startSim(sim, opts) {
     });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
     sim._endKothMatch = endKothMatch;
+  } else if (sim.juggernautActive) {
+    // JUGGERNAUT: 5000×3500 underjordisk parkering. Random human blir initial JUG.
+    sim.simReadyAt = Date.now() + 5000;
+    let i = 0;
+    const humanIds = [];
+    for (const [pid, ws] of sim.room.members) {
+      ws.playerState = ws.playerState || {};
+      const sp = JUGGERNAUT_ARENA.spawns[i % JUGGERNAUT_ARENA.spawns.length];
+      ws.playerState.x = sp.x;
+      ws.playerState.y = sp.y;
+      // Default = hunter — JUG-roll appliceras efter spawning
+      applyHunterStats(sim, ws);
+      ws.playerState.invulnUntil = Date.now() + 1500;
+      ws.tdmRespawnAt = 0;
+      ws.tdmTeam = null; // FFA
+      sim.juggernautScores[pid] = 0;
+      sim.juggernautKillsByPid[pid] = 0;
+      sim.tdmDeathsByPid[pid] = 0;
+      if (!ws._isBot) humanIds.push(pid);
+      i++;
+    }
+    sim._juggernautSpawnIdx = i;
+    sim.juggernautWeapon = JUGGERNAUT_ARENA.jugDefaultWeapon;
+    // Beräkna JUG HP utifrån hunter-count (snapshot vid start)
+    const hunterCount = Math.max(1, sim.room.members.size - 1);
+    sim.juggernautHpMax = JUGGERNAUT_ARENA.jugBaseHp + JUGGERNAUT_ARENA.jugHpPerHunter * hunterCount;
+    sim.juggernautEndAt = Date.now() + (sim.juggernautMatchDurationSec || JUGGERNAUT_ARENA.defaultMatchDuration) * 1000;
+    // Pickups
+    sim.pvpPickups = buildJuggernautPickups(sim);
+    // Välj initial JUG random från humans (aldrig bot)
+    let initialJug = null;
+    if (humanIds.length > 0) {
+      initialJug = humanIds[Math.floor(Math.random() * humanIds.length)];
+      const jws = sim.room.members.get(initialJug);
+      if (jws) applyJugStats(sim, jws);
+      sim.juggernautPid = initialJug;
+    }
+    sim.eventQueue.push({
+      type: 'juggernaut_started',
+      arena: { worldW: JUGGERNAUT_ARENA.worldW, worldH: JUGGERNAUT_ARENA.worldH, name: JUGGERNAUT_ARENA.name },
+      walls: JUGGERNAUT_ARENA.walls,
+      spawns: JUGGERNAUT_ARENA.spawns,
+      decorations: JUGGERNAUT_ARENA.decorations || [],
+      pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+      shieldMax: 100,
+      initialJug,
+      jugWeapons: JUGGERNAUT_ARENA.jugWeapons,
+      jugDefaultWeapon: JUGGERNAUT_ARENA.jugDefaultWeapon,
+      jugHpMax: sim.juggernautHpMax,
+      jugSpeedMul: JUGGERNAUT_ARENA.jugSpeedMul,
+      jugScale: JUGGERNAUT_ARENA.jugScale,
+      jugDashCdMs: JUGGERNAUT_ARENA.jugDashCdMs,
+      hunterWeapon: JUGGERNAUT_ARENA.hunterWeapon,
+      matchDurationSec: sim.juggernautMatchDurationSec || JUGGERNAUT_ARENA.defaultMatchDuration,
+      matchEndAt: sim.juggernautEndAt,
+      minimapPulseIntervalMs: JUGGERNAUT_ARENA.minimapPulseIntervalMs,
+    });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    // Exponera kill-handler + dmg-tracker till bullets.js
+    sim._handleJuggernautKill = handleJuggernautKill;
+    sim._trackJuggernautDmg = trackJuggernautDmg;
   } else {
     loadStage(sim, sim.wave);
   }

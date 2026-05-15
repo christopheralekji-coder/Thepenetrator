@@ -128,6 +128,18 @@ function chooseBotTarget(sim, botWs) {
   if (sim.gungameActive && !sim.gungameEnded) {
     return findClosestPlayer(sim, botWs, /*excludeTeam*/ null);
   }
+  // JUGGERNAUT: alla bots = hunters (kan aldrig vara JUG). Prioritera JUG som
+  // target. Om JUG inte finns (mellan transfer), närmsta levande spelare.
+  if (sim.juggernautActive && !sim.juggernautEnded) {
+    if (sim.juggernautPid) {
+      const jws = sim.room.members.get(sim.juggernautPid);
+      if (jws && jws.playerState && jws.playerState.hp > 0 &&
+          Date.now() >= (jws.playerState.invulnUntil || 0)) {
+        return { x: jws.playerState.x, y: jws.playerState.y, type: 'player', ref: jws };
+      }
+    }
+    return findClosestPlayer(sim, botWs, /*excludeTeam*/ null);
+  }
   // TDM: närmsta motståndare-spelare
   if (sim.tdmActive && !sim.tdmEnded) {
     return findClosestPlayer(sim, botWs, /*excludeTeam*/ team);

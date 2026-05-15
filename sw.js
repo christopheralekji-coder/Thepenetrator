@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v288-gungame-koth-bullet-wall-collision';
+const CACHE = 'penetrator-v289-juggernaut-mode';
 const ASSETS = [
   './',
   './index.html',
@@ -13,6 +13,7 @@ const ASSETS = [
   './shared/tdm-arena.js',
   './shared/siege-arena.js',
   './shared/koth-arena.js',
+  './shared/juggernaut-arena.js',
 ];
 
 self.addEventListener('install', e => {

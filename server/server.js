@@ -542,6 +542,69 @@ function handleMessage(ws, msg) {
       }
       send(ws, { type: 'sim_events', events: lateKothEvents });
     }
+    // JUGGERNAUT late-joiner: spawn som hunter, roterande spawn-pos, fresh score
+    if (room.sim && room.sim.juggernautActive) {
+      const { JUGGERNAUT_ARENA } = require('../shared/juggernaut-arena');
+      const idx = (room.sim._juggernautSpawnIdx || 0) % JUGGERNAUT_ARENA.spawns.length;
+      room.sim._juggernautSpawnIdx = (room.sim._juggernautSpawnIdx || 0) + 1;
+      const sp = JUGGERNAUT_ARENA.spawns[idx];
+      ws.playerState = {
+        x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, maxHp: 100,
+        invulnUntil: Date.now() + 1500,
+        weaponId: JUGGERNAUT_ARENA.hunterWeapon,
+        isJug: false, scaleMul: 1.0, speedMul: 1.0, dashCdMs: null,
+      };
+      ws.tdmTeam = null;
+      room.sim.juggernautScores[ws.id] = 0;
+      room.sim.juggernautKillsByPid[ws.id] = 0;
+      room.sim.tdmDeathsByPid[ws.id] = 0;
+      const lateJugEvents = [{
+        type: 'juggernaut_started',
+        arena: { worldW: JUGGERNAUT_ARENA.worldW, worldH: JUGGERNAUT_ARENA.worldH, name: JUGGERNAUT_ARENA.name },
+        walls: JUGGERNAUT_ARENA.walls,
+        spawns: JUGGERNAUT_ARENA.spawns,
+        decorations: JUGGERNAUT_ARENA.decorations || [],
+        pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+        shieldMax: 100,
+        initialJug: room.sim.juggernautPid,
+        jugWeapons: JUGGERNAUT_ARENA.jugWeapons,
+        jugDefaultWeapon: JUGGERNAUT_ARENA.jugDefaultWeapon,
+        jugHpMax: room.sim.juggernautHpMax,
+        jugSpeedMul: JUGGERNAUT_ARENA.jugSpeedMul,
+        jugScale: JUGGERNAUT_ARENA.jugScale,
+        jugDashCdMs: JUGGERNAUT_ARENA.jugDashCdMs,
+        hunterWeapon: JUGGERNAUT_ARENA.hunterWeapon,
+        matchDurationSec: room.sim.juggernautMatchDurationSec,
+        matchEndAt: room.sim.juggernautEndAt,
+        minimapPulseIntervalMs: JUGGERNAUT_ARENA.minimapPulseIntervalMs,
+      }];
+      // Aktuella scores för leaderboard
+      const scoresRounded = {};
+      for (const pid of Object.keys(room.sim.juggernautScores || {})) {
+        scoresRounded[pid] = Math.floor(room.sim.juggernautScores[pid]);
+      }
+      lateJugEvents.push({
+        type: 'juggernaut_score_update',
+        scores: scoresRounded,
+        currentJug: room.sim.juggernautPid,
+        msRemaining: Math.max(0, room.sim.juggernautEndAt - Date.now()),
+      });
+      if (room.sim._botIds && room.sim._botIds.length) {
+        const memberList = [...room.members.keys()];
+        for (const botId of room.sim._botIds) {
+          const botWs = room.members.get(botId);
+          if (!botWs) continue;
+          lateJugEvents.push({
+            type: 'bot_joined',
+            peerId: botId,
+            name: botWs.name || 'BOT',
+            team: null,
+            colorIdx: memberList.indexOf(botId),
+          });
+        }
+      }
+      send(ws, { type: 'sim_events', events: lateJugEvents });
+    }
     return;
   }
 
@@ -604,6 +667,8 @@ function handleMessage(ws, msg) {
       gungame: msg.gungame,
       koth: msg.koth,
       kothTargetPoints: msg.kothTargetPoints,
+      juggernaut: msg.juggernaut,
+      juggernautMatchDurationSec: msg.juggernautMatchDurationSec,
       addBot: !!msg.addBot,
       botCount: Math.max(1, Math.min(7, msg.botCount || 1)),
       botSkill: msg.botSkill || 'normal',
@@ -614,7 +679,8 @@ function handleMessage(ws, msg) {
     // Markera rummet som "startat" i public-listan + uppdatera mode
     if (room.meta) {
       room.meta.started = true;
-      if (msg.koth) room.meta.mode = 'koth';
+      if (msg.juggernaut) room.meta.mode = 'juggernaut';
+      else if (msg.koth) room.meta.mode = 'koth';
       else if (msg.gungame) room.meta.mode = 'gungame';
       else if (msg.siege) room.meta.mode = 'siege';
       else if (msg.ctf) room.meta.mode = 'ctf';
@@ -689,7 +755,7 @@ function handleMessage(ws, msg) {
   if (msg.type === 'pvp_ability_shield') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
-    if (!room.sim.tdmActive && !room.sim.ctfActive && !room.sim.siegeActive && !room.sim.kothActive && !room.sim.gungameActive) return;
+    if (!room.sim.tdmActive && !room.sim.ctfActive && !room.sim.siegeActive && !room.sim.kothActive && !room.sim.gungameActive && !room.sim.juggernautActive) return;
     if (!ws.playerState || ws.playerState.hp <= 0) return;
     const now = Date.now();
     const SHIELD_DURATION = 3000;
@@ -703,6 +769,25 @@ function handleMessage(ws, msg) {
       type: 'pvp_shield_used',
       peerId: ws.id,
       durationMs: SHIELD_DURATION,
+    });
+    return;
+  }
+  // JUGGERNAUT vapen-byte: bara nuvarande JUG-spelaren får byta, valet måste
+  // vara inom listan från arena-konfig.
+  if (msg.type === 'juggernaut_weapon_change') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    if (!room.sim.juggernautActive || room.sim.juggernautEnded) return;
+    if (room.sim.juggernautPid !== ws.id) return;
+    const { JUGGERNAUT_ARENA } = require('../shared/juggernaut-arena');
+    const newWeapon = msg.weaponId;
+    if (!JUGGERNAUT_ARENA.jugWeapons.includes(newWeapon)) return;
+    room.sim.juggernautWeapon = newWeapon;
+    if (ws.playerState) ws.playerState.weaponId = newWeapon;
+    room.sim.eventQueue.push({
+      type: 'juggernaut_weapon_changed',
+      peerId: ws.id,
+      weaponId: newWeapon,
     });
     return;
   }
