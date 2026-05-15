@@ -3484,11 +3484,29 @@ function drawJuggernautDecorations(decos) {
       ctx.fillRect(x2 - 3, y2 - 2, 6, 1);
 
     } else if (d.kind === 'ceiling_drip') {
-      // BRUSTET RÖR i taket: synligt horisontellt rörsegment med stor spricka,
-      // vatten sprutar ut + rinner nedåt, stor våt fläck på golvet, rost runt
-      // sprickan. Mer dramatisk än vanlig drip.
+      // BRUSTET RÖR — anslutet till befintligt ceiling_pipe-system. Söker
+      // nearest horisontell pipe-y och placerar sprickan PÅ den. Vatten
+      // cascadar från sprickan ner till puddle vid d.y.
       const breakSeed = ((d.x * 13) ^ (d.y * 19)) | 0;
       const sprayPhase = (t / 280) % 1;
+      // Hitta nearest ceiling_pipe (måste vara OVANFÖR drippen så vattnet kan
+      // cascada nedåt). Om ingen pipe ovanför hittas, fallback.
+      let nearestPipeY = d.y - 55; // fallback
+      let nearestPipeDia = 14;
+      let nearestDist = Infinity;
+      for (const pd of decos) {
+        if (pd.kind !== 'ceiling_pipe') continue;
+        if (pd.y >= d.y) continue; // bara pipes OVANFÖR drippen
+        const dist = d.y - pd.y;
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearestPipeY = pd.y;
+          nearestPipeDia = pd.dia || 14;
+        }
+      }
+      // Convert pipe-y till screen-coord (cy är från outer scope)
+      const pipeY = nearestPipeY - cy;
+      const pipeDia = nearestPipeDia;
 
       // 1) STOR våt mörk fläck på golvet (där vattnet samlas)
       const poolR = 22;
@@ -3519,116 +3537,102 @@ function drawJuggernautDecorations(decos) {
       ctx.ellipse(x, y, 4 + rippleA * 12, 1.5 + rippleA * 4, 0, 0, Math.PI*2);
       ctx.stroke();
 
-      // 2) Vatten-stråle/cascade från taket till pölen (multi-streak)
-      const pipeY = y - 55;
-      // Mid-streak (huvud-cascade — bred, halvtransparent)
-      ctx.strokeStyle = 'rgba(150, 200, 240, 0.55)';
-      ctx.lineWidth = 2.2;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(x - 1, pipeY + 3);
-      // Liten våg i streamen
-      for (let s = 0; s < 6; s++) {
-        const sy = pipeY + 3 + s * (55 / 6);
-        const sx = x - 1 + Math.sin(t / 90 + s * 1.2 + breakSeed) * 1.2;
-        ctx.lineTo(sx, sy);
-      }
-      ctx.stroke();
-      // Smala detalj-droppar runt huvudströmmen
-      ctx.strokeStyle = 'rgba(180, 220, 250, 0.65)';
-      ctx.lineWidth = 0.9;
-      ctx.beginPath();
-      ctx.moveTo(x + 1, pipeY + 4);
-      for (let s = 0; s < 5; s++) {
-        const sy = pipeY + 4 + s * (50 / 5);
-        const sx = x + 1 + Math.sin(t / 110 + s * 0.9 + breakSeed * 0.3) * 1.5;
-        ctx.lineTo(sx, sy);
-      }
-      ctx.stroke();
-      // Individuella droppar som faller (3 st med olika phaser)
-      for (let i = 0; i < 3; i++) {
-        const phase = (sprayPhase + i * 0.33) % 1;
-        const dropY = pipeY + 6 + phase * 50;
-        const dropX = x + Math.sin(i + breakSeed * 0.1) * 2;
-        ctx.fillStyle = `rgba(190, 220, 250, ${0.9 - phase * 0.3})`;
+      // 2) Vatten-cascade från sprickan på pipe ner till puddle (variabel längd)
+      const cascadeLen = y - pipeY - pipeDia / 2;
+      if (cascadeLen > 5) {
+        // Mid-streak (bred, halvtransparent)
+        ctx.strokeStyle = 'rgba(150, 200, 240, 0.55)';
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = 'round';
         ctx.beginPath();
-        ctx.ellipse(dropX, dropY, 1.1, 2.2, 0, 0, Math.PI*2); ctx.fill();
+        ctx.moveTo(x - 1, pipeY + pipeDia / 2);
+        const segs = Math.max(6, Math.floor(cascadeLen / 10));
+        for (let s = 0; s < segs; s++) {
+          const sy = pipeY + pipeDia / 2 + s * (cascadeLen / segs);
+          const sx = x - 1 + Math.sin(t / 90 + s * 1.2 + breakSeed) * 1.2;
+          ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+        // Smal detalj-stream
+        ctx.strokeStyle = 'rgba(180, 220, 250, 0.65)';
+        ctx.lineWidth = 0.9;
+        ctx.beginPath();
+        ctx.moveTo(x + 1, pipeY + pipeDia / 2);
+        for (let s = 0; s < segs; s++) {
+          const sy = pipeY + pipeDia / 2 + s * (cascadeLen / segs);
+          const sx = x + 1 + Math.sin(t / 110 + s * 0.9 + breakSeed * 0.3) * 1.5;
+          ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+        // Individuella droppar (3 st olika phaser)
+        for (let i = 0; i < 3; i++) {
+          const phase = (sprayPhase + i * 0.33) % 1;
+          const dropY = pipeY + pipeDia / 2 + phase * cascadeLen;
+          const dropX = x + Math.sin(i + breakSeed * 0.1) * 2;
+          ctx.fillStyle = `rgba(190, 220, 250, ${0.9 - phase * 0.3})`;
+          ctx.beginPath();
+          ctx.ellipse(dropX, dropY, 1.1, 2.2, 0, 0, Math.PI*2); ctx.fill();
+        }
       }
 
-      // 3) Side-spray (mindre droppar som spritter åt sidorna från brott-punkten)
+      // 3) Side-spray (droppar spritter åt sidorna från sprickan på pipe)
       for (let i = 0; i < 4; i++) {
         const sphase = (t / 400 + i * 0.25 + breakSeed * 0.01) % 1;
         const sa = ((breakSeed >> (i * 3)) & 0x7) / 7 * Math.PI - Math.PI / 2;
         const sdist = sphase * 18;
         const sx = x + Math.cos(sa) * sdist;
-        const sy = pipeY + 4 + Math.sin(sa) * sdist + sphase * sphase * 18; // gravity
+        const sy = pipeY + pipeDia / 2 + Math.sin(sa) * sdist + sphase * sphase * 18;
         ctx.fillStyle = `rgba(170, 210, 240, ${(1 - sphase) * 0.7})`;
         ctx.beginPath(); ctx.arc(sx, sy, 0.8, 0, Math.PI*2); ctx.fill();
       }
 
-      // 4) BRUSTET RÖR-SEGMENT (i taket — synligt rör med spricka)
-      // Pipe shadow (subtle drop nedanför pipe)
-      ctx.fillStyle = 'rgba(0,0,0,0.3)';
-      ctx.fillRect(x - 16, pipeY + 8, 32, 2);
-      // Pipe-kropp (kort segment 32px brett)
-      const pipeGrad = ctx.createLinearGradient(0, pipeY, 0, pipeY + 8);
-      pipeGrad.addColorStop(0, '#1a1a1e');
-      pipeGrad.addColorStop(0.3, '#5a4030');
-      pipeGrad.addColorStop(0.7, '#5a4030');
-      pipeGrad.addColorStop(1, '#0a0a0e');
-      ctx.fillStyle = pipeGrad;
-      ctx.fillRect(x - 16, pipeY, 32, 8);
-      // Rost-fläckar på rör (mörka orange-brun)
-      ctx.fillStyle = 'rgba(120, 60, 25, 0.6)';
-      ctx.fillRect(x - 14, pipeY + 1, 3, 2);
-      ctx.fillRect(x + 8, pipeY + 4, 4, 2);
-      ctx.fillRect(x - 5, pipeY + 5, 2, 2);
-      // SPRICKAN i mitten (oregelbunden dark gap där vattnet kommer ut)
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.moveTo(x - 4, pipeY + 1);
-      ctx.lineTo(x - 2, pipeY + 4);
-      ctx.lineTo(x - 3, pipeY + 7);
-      ctx.lineTo(x + 1, pipeY + 6);
-      ctx.lineTo(x + 3, pipeY + 8);
-      ctx.lineTo(x + 4, pipeY + 5);
-      ctx.lineTo(x + 2, pipeY + 2);
-      ctx.lineTo(x + 1, pipeY);
-      ctx.closePath();
-      ctx.fill();
-      // Vit highlight-edge på sprickan (där metallen är bruten/böjd)
-      ctx.strokeStyle = '#7a7a82';
-      ctx.lineWidth = 0.6;
-      ctx.stroke();
-      // Bent metal-flaps runt sprickan (små flackar som böjts utåt)
+      // 4) CRACK-OVERLAY på befintliga pipe (renderas ovanpå existerande pipe-pixel)
+      // Pipens rendering ligger redan i decoration-loopen — vi overlay:ar bara
+      // crack-detaljer + dent-zone + rost-halo på ON-PIPE-positionen.
+      // Bent metal-flaps som böjts ut från sprickan
       ctx.fillStyle = '#3a3a40';
       ctx.beginPath();
-      ctx.moveTo(x - 4, pipeY + 1); ctx.lineTo(x - 6, pipeY); ctx.lineTo(x - 3, pipeY + 1);
+      ctx.moveTo(x - 5, pipeY); ctx.lineTo(x - 7, pipeY - 2); ctx.lineTo(x - 3, pipeY + 1);
       ctx.closePath(); ctx.fill();
       ctx.beginPath();
-      ctx.moveTo(x + 2, pipeY); ctx.lineTo(x + 5, pipeY - 1); ctx.lineTo(x + 3, pipeY + 1);
+      ctx.moveTo(x + 2, pipeY); ctx.lineTo(x + 6, pipeY - 2); ctx.lineTo(x + 3, pipeY + 1);
       ctx.closePath(); ctx.fill();
-      // Rost-cirkel runt sprickan (corrosion-halo)
-      ctx.strokeStyle = 'rgba(140, 70, 30, 0.45)';
-      ctx.lineWidth = 1;
+      // Bright bent-edge highlight (metallisk reflektion på böjda kanter)
+      ctx.strokeStyle = '#9aa0a8';
+      ctx.lineWidth = 0.6;
       ctx.beginPath();
-      ctx.ellipse(x, pipeY + 4, 9, 5, 0, 0, Math.PI*2);
+      ctx.moveTo(x - 5, pipeY); ctx.lineTo(x - 7, pipeY - 2);
+      ctx.moveTo(x + 2, pipeY); ctx.lineTo(x + 6, pipeY - 2);
       ctx.stroke();
-      // Pipe-mounts (fastsättnings-brackets till tak)
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(x - 16, pipeY - 3, 4, 3);
-      ctx.fillRect(x + 12, pipeY - 3, 4, 3);
-      ctx.fillStyle = '#3a3a3a';
-      ctx.fillRect(x - 16, pipeY - 3, 4, 1);
-      ctx.fillRect(x + 12, pipeY - 3, 4, 1);
-      // Mounting-skruvar
-      ctx.fillStyle = '#0a0a0a';
-      ctx.beginPath(); ctx.arc(x - 14, pipeY - 1, 0.6, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(x + 14, pipeY - 1, 0.6, 0, Math.PI*2); ctx.fill();
-      // Subtle steam/mist ovanför sprickan (där vattnet träffar luften)
+      // SPRICKA — oregelbunden mörk öppning DIREKT på pipe
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.moveTo(x - 4, pipeY - 1);
+      ctx.lineTo(x - 2, pipeY + 2);
+      ctx.lineTo(x - 3, pipeY + pipeDia - 1);
+      ctx.lineTo(x + 1, pipeY + pipeDia - 2);
+      ctx.lineTo(x + 3, pipeY + pipeDia);
+      ctx.lineTo(x + 4, pipeY + 3);
+      ctx.lineTo(x + 2, pipeY - 1);
+      ctx.closePath(); ctx.fill();
+      // Inner highlight på spricka (svag silver inuti)
+      ctx.strokeStyle = '#5a5a62';
+      ctx.lineWidth = 0.4;
+      ctx.stroke();
+      // Rost-corona runt sprickan (corrosion-halo)
+      ctx.strokeStyle = 'rgba(140, 70, 30, 0.5)';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(x, pipeY + pipeDia / 2, 9, 6, 0, 0, Math.PI*2);
+      ctx.stroke();
+      // Rost-fläckar fortlöpande från sprickan utåt
+      ctx.fillStyle = 'rgba(120, 60, 25, 0.55)';
+      ctx.fillRect(x - 8, pipeY + 1, 2, 2);
+      ctx.fillRect(x + 6, pipeY + pipeDia - 3, 2, 2);
+      // Steam/mist ovanför pipe (där vattnet träffar luften)
       ctx.fillStyle = `rgba(180, 200, 220, ${0.15 + Math.sin(t / 250) * 0.05})`;
-      ctx.beginPath(); ctx.arc(x - 1, pipeY - 4, 5, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(x + 2, pipeY - 6, 3, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x - 1, pipeY - 5, 5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 2, pipeY - 8, 3, 0, Math.PI*2); ctx.fill();
 
     } else if (d.kind === 'rubble') {
       // Concrete-chunks (krossad betong)
