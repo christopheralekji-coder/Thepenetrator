@@ -2896,7 +2896,23 @@ function drawJuggernautDecorations(decos) {
   for (const d of ordered) {
     if (ctfFallbackKinds.indexOf(d.kind) >= 0) continue; // hanteras nedan
     const x = d.x - cx, y = d.y - cy;
-    if (x < -200 || x > viewW + 200 || y < -200 || y > viewH + 200) continue;
+    // Cull-check: ceiling_pipe + ceiling_pipe_v + cable_bundle har bredd/höjd
+    // som sträcker sig långt från x/y, så bounds-check måste inkludera w/h.
+    if (d.kind === 'ceiling_pipe') {
+      const w = d.w || 1000;
+      if (x + w < -50 || x > viewW + 50 || y < -50 || y > viewH + 50) continue;
+    } else if (d.kind === 'ceiling_pipe_v') {
+      const h = d.h || 1000;
+      if (y + h < -50 || y > viewH + 50 || x < -50 || x > viewW + 50) continue;
+    } else if (d.kind === 'cable_bundle') {
+      const x2s = (d.x2 || d.x + 200) - cx;
+      const y2s = (d.y2 || d.y) - cy;
+      const minX = Math.min(x, x2s), maxX = Math.max(x, x2s);
+      const minY = Math.min(y, y2s), maxY = Math.max(y, y2s);
+      if (maxX < -50 || minX > viewW + 50 || maxY < -50 || minY > viewH + 50) continue;
+    } else {
+      if (x < -200 || x > viewW + 200 || y < -200 || y > viewH + 200) continue;
+    }
     ctx.save();
 
     if (d.kind === 'puddle') {
@@ -3242,14 +3258,19 @@ function drawJuggernautDecorations(decos) {
 
     } else if (d.kind === 'ceiling_pipe') {
       // Horisontellt tak-rör — bred mörk balk med highlight + shadow
-      // Halvtransparent för "tak ovanpå"-känsla
+      // Clamp rendering till visible-region för perf — varje pipe är 4800px
       const w = d.w || 1000;
       const dia = d.dia || 14;
       const color = d.color || '#5a4030';
+      // Visible-range i screen-coord
+      const drawLeft = Math.max(x, -20);
+      const drawRight = Math.min(x + w, viewW + 20);
+      const drawW = drawRight - drawLeft;
+      if (drawW <= 0) { ctx.restore(); continue; }
       // Skugga på golvet (halvtransparent, lite offset)
       ctx.fillStyle = 'rgba(0,0,0,0.18)';
-      ctx.fillRect(x, y + dia * 0.8, w, dia * 0.4);
-      // Pipe-body (med skuggning)
+      ctx.fillRect(drawLeft, y + dia * 0.8, drawW, dia * 0.4);
+      // Pipe-body (med skuggning) — gradient bara i visible-region
       const grad = ctx.createLinearGradient(0, y, 0, y + dia);
       grad.addColorStop(0, '#1a1a1e');
       grad.addColorStop(0.3, color);
@@ -3257,38 +3278,47 @@ function drawJuggernautDecorations(decos) {
       grad.addColorStop(1, '#0a0a0e');
       ctx.fillStyle = grad;
       ctx.globalAlpha = 0.82;
-      ctx.fillRect(x, y, w, dia);
+      ctx.fillRect(drawLeft, y, drawW, dia);
       // Highlight-streak ovanpå
       ctx.fillStyle = '#ffffff';
       ctx.globalAlpha = 0.15;
-      ctx.fillRect(x, y + dia * 0.15, w, 1);
-      // Pipe-joints/brackets (var ~250px)
+      ctx.fillRect(drawLeft, y + dia * 0.15, drawW, 1);
+      // Pipe-joints/brackets (var 250px i world-coord, starting från d.x)
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#1a1a1a';
       const jointSpacing = 250;
-      const startX = Math.floor((cx - x) / jointSpacing) * jointSpacing + x;
-      for (let jx = Math.max(x, startX); jx < x + w && jx < cx + viewW + 20; jx += jointSpacing) {
-        ctx.fillRect(jx - cx - 2, y, 4, dia);
-        ctx.fillStyle = '#3a3a3a';
-        ctx.fillRect(jx - cx - 2, y, 4, 1);
+      // Hitta första visible joint-index
+      const firstK = Math.max(0, Math.ceil((-20 - x) / jointSpacing));
+      const lastK = Math.min(Math.floor(w / jointSpacing), Math.floor((viewW + 20 - x) / jointSpacing));
+      for (let k = firstK; k <= lastK; k++) {
+        const jx = x + k * jointSpacing;
         ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(jx - 2, y, 4, dia);
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillRect(jx - 2, y, 4, 1);
       }
-      // Rust-streaks (random vertical drips ned från piper)
+      // Rust-streaks (vertical drips ned från pipe — deterministic world-coord)
       ctx.fillStyle = 'rgba(140, 70, 30, 0.35)';
       const rustSeed = ((d.x * 7) ^ (d.y * 11)) | 0;
-      for (let i = 0; i < Math.min(8, w / 200); i++) {
-        const rx = x + ((rustSeed * (i + 1) * 19) % w);
-        ctx.fillRect(rx - cx, y + dia, 1, 8);
+      const rustCount = Math.min(8, Math.floor(w / 200));
+      for (let i = 0; i < rustCount; i++) {
+        const worldRx = d.x + ((rustSeed * (i + 1) * 19) & 0x7fff) % w;
+        const sx = worldRx - cx;
+        if (sx < -5 || sx > viewW + 5) continue;
+        ctx.fillRect(sx, y + dia, 1, 8);
       }
       ctx.globalAlpha = 1;
 
     } else if (d.kind === 'ceiling_pipe_v') {
-      // Vertikalt tak-rör (samma logik som ceiling_pipe men rotated 90°)
+      // Vertikalt tak-rör — clamp till visible-region som horisontell
       const h = d.h || 1000;
       const dia = d.dia || 10;
       const color = d.color || '#4a4a55';
+      const drawTop = Math.max(y, -20);
+      const drawBot = Math.min(y + h, viewH + 20);
+      const drawH = drawBot - drawTop;
+      if (drawH <= 0) { ctx.restore(); continue; }
       ctx.fillStyle = 'rgba(0,0,0,0.18)';
-      ctx.fillRect(x + dia * 0.8, y, dia * 0.4, h);
+      ctx.fillRect(x + dia * 0.8, drawTop, dia * 0.4, drawH);
       const grad = ctx.createLinearGradient(x, 0, x + dia, 0);
       grad.addColorStop(0, '#1a1a1e');
       grad.addColorStop(0.3, color);
@@ -3296,21 +3326,22 @@ function drawJuggernautDecorations(decos) {
       grad.addColorStop(1, '#0a0a0e');
       ctx.fillStyle = grad;
       ctx.globalAlpha = 0.78;
-      ctx.fillRect(x, y, dia, h);
+      ctx.fillRect(x, drawTop, dia, drawH);
       // Highlight
       ctx.fillStyle = '#ffffff';
       ctx.globalAlpha = 0.13;
-      ctx.fillRect(x + dia * 0.15, y, 1, h);
+      ctx.fillRect(x + dia * 0.15, drawTop, 1, drawH);
       ctx.globalAlpha = 1;
       // Joints var 250px
-      ctx.fillStyle = '#1a1a1a';
       const jointSpacing = 250;
-      const startY = Math.floor((cy - y) / jointSpacing) * jointSpacing + y;
-      for (let jy = Math.max(y, startY); jy < y + h && jy < cy + viewH + 20; jy += jointSpacing) {
-        ctx.fillRect(x, jy - cy - 2, dia, 4);
-        ctx.fillStyle = '#3a3a3a';
-        ctx.fillRect(x, jy - cy - 2, 1, 4);
+      const firstK = Math.max(0, Math.ceil((-20 - y) / jointSpacing));
+      const lastK = Math.min(Math.floor(h / jointSpacing), Math.floor((viewH + 20 - y) / jointSpacing));
+      for (let k = firstK; k <= lastK; k++) {
+        const jy = y + k * jointSpacing;
         ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x, jy - 2, dia, 4);
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillRect(x, jy - 2, 1, 4);
       }
 
     } else if (d.kind === 'cable_bundle') {

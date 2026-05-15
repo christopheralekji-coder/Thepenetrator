@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v308-sandbox-leak-into-pvp-modes';
+const CACHE = 'penetrator-v309-ceiling-pipes-popping-cull-fix';
 const ASSETS = [
   './',
   './index.html',
