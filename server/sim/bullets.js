@@ -660,6 +660,20 @@ function updateBullets(sim, dt, now) {
       bullets.splice(i, 1);
       continue;
     }
+    if (sim.gungameActive && bulletHitsWall(b, GUNGAME_ARENA.walls)) {
+      if (b.explosive && !b.hostile) {
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+      }
+      bullets.splice(i, 1);
+      continue;
+    }
+    if (sim.kothActive && bulletHitsWall(b, KOTH_ARENA.walls)) {
+      if (b.explosive && !b.hostile) {
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+      }
+      bullets.splice(i, 1);
+      continue;
+    }
     // SIEGE: walls + core-damage routing
     if (sim.siegeActive && bulletHitsWall(b, SIEGE_ARENA.walls)) {
       // Hitta vilken wall som träffades — om coreId så damage core
