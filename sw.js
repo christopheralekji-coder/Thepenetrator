@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v299-fix-recoil-undefined-game-freeze';
+const CACHE = 'penetrator-v300-fire-knob-transparent';
 const ASSETS = [
   './',
   './index.html',
