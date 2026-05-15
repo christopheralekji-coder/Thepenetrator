@@ -3323,9 +3323,11 @@ function drawJuggernautDecorations(decos) {
       const minY = Math.min(y, y2s), maxY = Math.max(y, y2s);
       if (maxX < -50 || minX > viewW + 50 || maxY < -50 || minY > viewH + 50) continue;
     } else if (d.kind === 'ceiling_drip' || d.kind === 'pipe_valve') {
-      // Renderingen extends UPÅT till pipe-Y som kan vara långt över d.y.
-      // Använd generös top-margin (-1500) så pipe-crack/valve inte poppar.
-      if (x < -200 || x > viewW + 200 || y < -1500 || y > viewH + 200) continue;
+      // Renderingen sträcker sig från pipe-Y (kan vara 800+ px över d.y) ner
+      // till puddle vid d.y. Pipe-crack är på pipeY — om puddle är off-screen
+      // BELOW kan crack fortfarande vara visible. Använd generösa cull-bounds
+      // åt båda håll så popping aldrig sker oavsett kamera-pan.
+      if (x < -200 || x > viewW + 200 || y < -1500 || y > viewH + 1500) continue;
     } else {
       if (x < -200 || x > viewW + 200 || y < -200 || y > viewH + 200) continue;
     }

@@ -49,13 +49,13 @@ const JUGGERNAUT_ARENA = {
     { x: 2800, y: 1500, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 3500, y: 1500, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 4200, y: 1500, w: 50, h: 50, kind: 'wall_pillar' },
-    // Row 3 (y=2300) — center-SE är "tagged" med röd graffiti som landmark
+    // Row 3 (y=2300) — landmark-pelare utan röd text (var: tagged_pillar med "JUG")
     { x: 700,  y: 2300, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 1400, y: 2300, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 2100, y: 2300, w: 50, h: 50, kind: 'wall_pillar' },
-    { x: 2800, y: 2300, w: 50, h: 50, kind: 'tagged_pillar' },  // landmark — röd graffiti
+    { x: 2800, y: 2300, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 3500, y: 2300, w: 50, h: 50, kind: 'wall_pillar' },
-    { x: 4200, y: 2300, w: 50, h: 50, kind: 'broken_pillar' },  // landmark — andra hörnet
+    { x: 4200, y: 2300, w: 50, h: 50, kind: 'broken_pillar' },  // landmark — exponerad rebar
     // Row 4 (y=3100)
     { x: 700,  y: 3100, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 1400, y: 3100, w: 50, h: 50, kind: 'wall_pillar' },
@@ -170,9 +170,8 @@ const JUGGERNAUT_ARENA = {
   //  3) Tak (ovanpå allt — "syns igenom" som ovanifrån-perspektiv):
   //     ceiling_pipe, cable_bundle, ceiling_drip
   decorations: [
-    // === Stor "P"-markering målad på golvet vid entré-zonen (var: floating sign) ===
-    { kind: 'floor_marking', x: 2500, y: 200, text: 'P', size: 140, color: '#ffd54a' },
-    { kind: 'floor_marking', x: 2500, y: 3300, text: 'EXIT →', size: 36, color: '#ff5a3a' },
+    // (Floor-marking "P" + "EXIT →" borttagna — användaren bad ta bort
+    // textinslag i mitten/golvet)
 
     // === Vatten-pölar (under ceiling_drips + sprinklers, 8 st) ===
     { kind: 'puddle', x: 1700, y: 1200, r: 60 },
