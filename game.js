@@ -16459,8 +16459,8 @@ function ensureJuggernautHud() {
   if (_juggernautHud) return;
   _juggernautHud = document.createElement('div');
   _juggernautHud.id = 'juggernaut-hud';
-  _juggernautHud.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top, 8px));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #ffd54a;border-radius:8px;padding:5px 10px;color:#fff;font-family:sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;z-index:50;display:flex;flex-direction:column;gap:2px;align-items:center;pointer-events:none;max-width:calc(100vw - 220px);';
-  _juggernautHud.innerHTML = '<div style="display:flex;gap:8px;align-items:center;font-size:11px;"><span style="color:#ffd54a;">👑</span><span id="jug-current" style="color:#fff;">—</span><span id="jug-timer" style="color:#3acaff;margin-left:8px;">—</span></div><div id="jug-board" style="font-size:10px;color:#aaa;text-align:center;line-height:1.3;"></div>';
+  _juggernautHud.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top, 8px));left:50%;transform:translateX(-50%);background:transparent;border:0;padding:5px 10px;color:#fff;font-family:sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;z-index:50;display:flex;flex-direction:column;gap:3px;align-items:center;pointer-events:none;max-width:calc(100vw - 220px);text-shadow:0 1px 3px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.8);';
+  _juggernautHud.innerHTML = '<div id="jug-timer" style="color:#3acaff;font-size:13px;text-align:center;">—</div><div id="jug-board" style="font-size:10px;color:#aaa;text-align:center;line-height:1.3;"></div>';
   document.body.appendChild(_juggernautHud);
   _juggernautKillFeedEl = document.createElement('div');
   _juggernautKillFeedEl.id = 'juggernaut-killfeed';
@@ -16575,14 +16575,6 @@ function updateJuggernautHud(scores, currentJug, matchEndAt, myId) {
   // återställa scoreboarden bredvid den synliga end-screen-overlayen)
   if (!state.juggernautActive) return;
   ensureJuggernautHud();
-  const currentName = currentJug
-    ? (currentJug === myId ? (Coop.myName || 'Du') : ((Coop.players.get(currentJug) && Coop.players.get(currentJug).name) || '—'))
-    : '—';
-  const curEl = document.getElementById('jug-current');
-  if (curEl) {
-    curEl.textContent = currentName;
-    curEl.style.color = (currentJug === myId) ? '#5aff5a' : '#ffd54a';
-  }
   // Match-timer countdown
   const timerEl = document.getElementById('jug-timer');
   if (timerEl && matchEndAt) {
