@@ -836,8 +836,8 @@ function tickPvpPickups(sim, now) {
       if (!ws.playerState || ws.playerState.hp <= 0) continue;
       const dx = ws.playerState.x - pu.x, dy = ws.playerState.y - pu.y;
       if (dx * dx + dy * dy > PICKUP_RADIUS * PICKUP_RADIUS) continue;
-      // Heal
-      const maxHp = 100;
+      // Heal — använd spelarens faktiska maxHp (JUG har 400-1300, inte 100)
+      const maxHp = ws.playerState.maxHp || 100;
       const maxShield = ws.playerState.maxShield || 100;
       if (pu.type === 'hp') {
         const before = ws.playerState.hp;
