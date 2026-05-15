@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v323-jug-picker-touchstart-events';
+const CACHE = 'penetrator-v324-jug-picker-scrollable-tap';
 const ASSETS = [
   './',
   './index.html',

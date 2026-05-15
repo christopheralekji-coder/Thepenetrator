@@ -12264,6 +12264,45 @@ function onTap(el, fn) {
   el.addEventListener('click', wrap);
 }
 
+// onTapScrollable — scroll-aware variant av onTap. Använd när elementet
+// ligger i en scrollbar container (t.ex. JUG-pickerns kort-lista). Skiljer sig
+// från onTap genom att INTE preventDefault på touchstart — annars dödas scroll
+// innan den ens börjar. Fires bara om touchen släpps utan rörelse > 10px.
+function onTapScrollable(el, fn) {
+  if (!el) return;
+  let _last = 0, _sx = 0, _sy = 0, _moved = false, _active = false;
+  el.addEventListener('touchstart', (e) => {
+    _active = true;
+    _moved = false;
+    const t = e.touches && e.touches[0];
+    if (t) { _sx = t.clientX; _sy = t.clientY; }
+  }, { passive: true });
+  el.addEventListener('touchmove', (e) => {
+    if (!_active) return;
+    const t = e.touches && e.touches[0];
+    if (!t) return;
+    const dx = t.clientX - _sx, dy = t.clientY - _sy;
+    if (dx * dx + dy * dy > 100) _moved = true; // 10px tröskel
+  }, { passive: true });
+  el.addEventListener('touchend', (e) => {
+    if (!_active) return;
+    _active = false;
+    if (_moved) return;
+    const now = Date.now();
+    if (now - _last < 400) return;
+    _last = now;
+    if (e.cancelable) e.preventDefault(); // suppressa synthetic click
+    try { fn(e); } catch (err) { _showTapDebug('ERROR: ' + (err && err.message || err)); throw err; }
+  }, { passive: false });
+  el.addEventListener('touchcancel', () => { _active = false; _moved = false; });
+  el.addEventListener('click', (e) => {
+    const now = Date.now();
+    if (now - _last < 400) return;
+    _last = now;
+    try { fn(e); } catch (err) { _showTapDebug('ERROR: ' + (err && err.message || err)); throw err; }
+  });
+}
+
 // ============================================================
 // MODE-OPTIONS POPUP — bottom-sheet med target-points/bot-config/etc
 // ============================================================
@@ -19181,10 +19220,11 @@ function showJuggernautWeaponPicker() {
         +     bar(w.type === 'melee' ? 'RÄCKV' : 'HAST', rangeOrSpeed, '#5acaff')
         +   '</div>'
         + '</div>';
-      // Använd onTap (touchstart + click med preventDefault) istället för bara
-      // 'click'. På mobil saknades touch-handler vilket gjorde att klick föll
-      // igenom till canvas-joystick + 300ms-delay åt click-event dröjde.
-      onTap(card, () => {
+      // onTapScrollable istället för onTap: korten ligger i en scrollbar
+      // container, och onTap:s touchstart+preventDefault dödar scroll-gesten
+      // direkt. onTapScrollable låter touchen börja som ev. scroll och fires
+      // bara om fingret släpps utan att ha rört sig > 10px.
+      onTapScrollable(card, () => {
         if (wid === current) {
           // Klick på aktivt vapen = stäng
           picker.classList.add('hidden');
