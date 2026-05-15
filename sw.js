@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v285-koth-zone-camera-subtract-fix';
+const CACHE = 'penetrator-v286-pvp-skip-coop-alldead-game-over';
 const ASSETS = [
   './',
   './index.html',

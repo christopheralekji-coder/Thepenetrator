@@ -13186,6 +13186,9 @@ function checkCoopAllDead() {
   if (!Coop.active || !Coop.isHost) return;
   if (state._coopGameOverFired) return;
   if (state.mode !== 'playing') return;
+  // PvP-modes har egna match-end-villkor (mode_match_end-events). Död är bara
+  // ett 3s respawn-fönster — game-over på "alla döda" ska INTE triggas där.
+  if (Coop.gungameActive || Coop.tdmActive || Coop.ctfActive || Coop.siegeActive || Coop.kothActive) return;
   const hostDead = !state.player || state.player.hp <= 0 || state.player.spectating;
   if (!hostDead) return;
   let anyAlive = false;
