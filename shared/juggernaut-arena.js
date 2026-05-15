@@ -174,12 +174,15 @@ const JUGGERNAUT_ARENA = {
     { kind: 'floor_marking', x: 2500, y: 200, text: 'P', size: 140, color: '#ffd54a' },
     { kind: 'floor_marking', x: 2500, y: 3300, text: 'EXIT →', size: 36, color: '#ff5a3a' },
 
-    // === Sprinkler-pölar (vatten på golvet, blanka mörka fläckar) ===
+    // === Vatten-pölar (under ceiling_drips + sprinklers, 8 st) ===
     { kind: 'puddle', x: 1700, y: 1200, r: 60 },
     { kind: 'puddle', x: 3300, y: 2000, r: 70 },
     { kind: 'puddle', x: 900,  y: 2400, r: 50 },
     { kind: 'puddle', x: 4100, y: 900,  r: 65 },
     { kind: 'puddle', x: 2400, y: 2500, r: 55 },
+    { kind: 'puddle', x: 2500, y: 2700, r: 58 },  // under new drip
+    { kind: 'puddle', x: 3800, y: 1750, r: 52 },  // under new drip
+    { kind: 'puddle', x: 650,  y: 1700, r: 48 },  // under new drip
 
     // === Avloppsbrunnar / golvgaller (visuella) — 8 st ===
     { kind: 'drain', x: 1200, y: 900 },
@@ -191,11 +194,8 @@ const JUGGERNAUT_ARENA = {
     { kind: 'drain', x: 4500, y: 1750 },
     { kind: 'drain', x: 2500, y: 3000 },
 
-    // === Graffiti (visuell texture, ingen center-text/krona)  ===
-    { kind: 'graffiti', x: 600,  y: 1500, text: 'RUN', color: '#ff3a3a', size: 36, rot: -0.1 },
-    { kind: 'graffiti', x: 4400, y: 1500, text: 'OR DIE', color: '#ff3a3a', size: 32, rot: 0.08 },
-    { kind: 'graffiti', x: 1500, y: 2900, text: 'HUNT', color: '#ff7030', size: 28, rot: 0.12 },
-    { kind: 'graffiti', x: 3500, y: 600,  text: 'NO EXIT', color: '#aa3030', size: 26, rot: -0.06 },
+    // === Graffiti — bara icke-röda färger (användaren bad ta bort röda) ===
+    // (Tidigare hade vi RUN/OR DIE/HUNT/NO EXIT — alla rött. Alla borttagna.)
 
     // === Tape-avskärmningar ("OUT OF ORDER") — visuella ovanpå barricades ===
     { kind: 'caution_tape', x: 1040, y: 470, w: 80, rot: 0 },
@@ -247,11 +247,15 @@ const JUGGERNAUT_ARENA = {
     { kind: 'cable_bundle', x: 800,  y: 1780, x2: 2200, y2: 1820 },
     { kind: 'cable_bundle', x: 2400, y: 2380, x2: 3800, y2: 2420 },
 
-    // === BRUSTNA RÖR (vatten gushar ut från sprickor i takröret) ===
-    { kind: 'ceiling_drip', x: 1700, y: 1200 }, // över puddle
-    { kind: 'ceiling_drip', x: 3300, y: 2000 },
-    { kind: 'ceiling_drip', x: 900,  y: 2400 },
-    { kind: 'ceiling_drip', x: 4100, y: 900 },
+    // === BRUSTNA RÖR (vatten gushar ut från sprickor i takröret, 7 st)
+    // Spridda jämnt över banan, alla snappar till nearest pipe ovanför.
+    { kind: 'ceiling_drip', x: 1700, y: 1200 }, // över puddle 1
+    { kind: 'ceiling_drip', x: 3300, y: 2000 }, // över puddle 2
+    { kind: 'ceiling_drip', x: 900,  y: 2400 }, // över puddle 3
+    { kind: 'ceiling_drip', x: 4100, y: 900 },  // över puddle 4
+    { kind: 'ceiling_drip', x: 2500, y: 2700 }, // mid-syd (under y=2200 pipe)
+    { kind: 'ceiling_drip', x: 3800, y: 1750 }, // höger-mid (under y=1400 pipe)
+    { kind: 'ceiling_drip', x: 650,  y: 1700 }, // vänster-mid (under y=1400 pipe)
 
     // === RUBBLE / krossad betong-hög (5 st utspridda) ===
     { kind: 'rubble', x: 1450, y: 1450 },

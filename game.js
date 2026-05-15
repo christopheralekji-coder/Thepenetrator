@@ -3322,6 +3322,10 @@ function drawJuggernautDecorations(decos) {
       const minX = Math.min(x, x2s), maxX = Math.max(x, x2s);
       const minY = Math.min(y, y2s), maxY = Math.max(y, y2s);
       if (maxX < -50 || minX > viewW + 50 || maxY < -50 || minY > viewH + 50) continue;
+    } else if (d.kind === 'ceiling_drip' || d.kind === 'pipe_valve') {
+      // Renderingen extends UPÅT till pipe-Y som kan vara långt över d.y.
+      // Använd generös top-margin (-1500) så pipe-crack/valve inte poppar.
+      if (x < -200 || x > viewW + 200 || y < -1500 || y > viewH + 200) continue;
     } else {
       if (x < -200 || x > viewW + 200 || y < -200 || y > viewH + 200) continue;
     }
@@ -3695,12 +3699,13 @@ function drawJuggernautDecorations(decos) {
       ctx.fillStyle = '#ffffff';
       ctx.globalAlpha = 0.15;
       ctx.fillRect(drawLeft, y + dia * 0.15, drawW, 1);
-      // Pipe-joints/brackets (var 250px i world-coord, starting från d.x)
+      // Pipe-joints/brackets (var 250px i world-coord, starting från d.x).
+      // Använd CEIL för end-index så vi inkluderar sista joint vid pipe-änden
+      // även om den ligger något off-screen (ex. nära world-edge).
       ctx.globalAlpha = 1;
       const jointSpacing = 250;
-      // Hitta första visible joint-index
       const firstK = Math.max(0, Math.ceil((-20 - x) / jointSpacing));
-      const lastK = Math.min(Math.floor(w / jointSpacing), Math.floor((viewW + 20 - x) / jointSpacing));
+      const lastK = Math.min(Math.floor(w / jointSpacing), Math.ceil((viewW + 20 - x) / jointSpacing));
       for (let k = firstK; k <= lastK; k++) {
         const jx = x + k * jointSpacing;
         ctx.fillStyle = '#1a1a1a';
@@ -3724,7 +3729,7 @@ function drawJuggernautDecorations(decos) {
       if (d.leds) {
         const ledSpacing = 200;
         const ledStartK = Math.max(0, Math.ceil((-15 - x) / ledSpacing));
-        const ledEndK = Math.min(Math.floor(w / ledSpacing), Math.floor((viewW + 15 - x) / ledSpacing));
+        const ledEndK = Math.min(Math.floor(w / ledSpacing), Math.ceil((viewW + 15 - x) / ledSpacing));
         for (let k = ledStartK; k <= ledEndK; k++) {
           const lx = x + k * ledSpacing;
           // Per-LED blink-fas (deterministic från world-pos)
@@ -3777,10 +3782,10 @@ function drawJuggernautDecorations(decos) {
       ctx.globalAlpha = 0.13;
       ctx.fillRect(x + dia * 0.15, drawTop, 1, drawH);
       ctx.globalAlpha = 1;
-      // Joints var 250px
+      // Joints var 250px — CEIL för end-index så sista joint vid pipe-änden tas med
       const jointSpacing = 250;
       const firstK = Math.max(0, Math.ceil((-20 - y) / jointSpacing));
-      const lastK = Math.min(Math.floor(h / jointSpacing), Math.floor((viewH + 20 - y) / jointSpacing));
+      const lastK = Math.min(Math.floor(h / jointSpacing), Math.ceil((viewH + 20 - y) / jointSpacing));
       for (let k = firstK; k <= lastK; k++) {
         const jy = y + k * jointSpacing;
         ctx.fillStyle = '#1a1a1a';
@@ -3792,7 +3797,7 @@ function drawJuggernautDecorations(decos) {
       if (d.leds) {
         const ledSpacing = 200;
         const ledStartK = Math.max(0, Math.ceil((-15 - y) / ledSpacing));
-        const ledEndK = Math.min(Math.floor(h / ledSpacing), Math.floor((viewH + 15 - y) / ledSpacing));
+        const ledEndK = Math.min(Math.floor(h / ledSpacing), Math.ceil((viewH + 15 - y) / ledSpacing));
         for (let k = ledStartK; k <= ledEndK; k++) {
           const ly = y + k * ledSpacing;
           const ledSeed = ((d.y + k * 200) * 11) | 0;
