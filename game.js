@@ -19847,6 +19847,9 @@ function updatePlayer(dt, now) {
   if (state.gungameActive && state.gungameWalls && typeof resolveCtfWall === 'function') {
     resolveCtfWall(p, state.gungameWalls);
   }
+  if (state.kothActive && state.kothWalls && typeof resolveCtfWall === 'function') {
+    resolveCtfWall(p, state.kothWalls);
+  }
 
   // sikta: prio fire-joystick (alltid på när fire-knappen hålls), sen mus, sen rörelse, sen auto-aim
   if (input.fireJoyActive) {
@@ -20901,6 +20904,14 @@ function updateBullets(dt) {
     }
     if (state.gungameActive && state.gungameWalls && typeof bulletHitsWall === 'function') {
       if (bulletHitsWall(b, state.gungameWalls)) {
+        if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
+        if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
+        b.dead = true;
+        continue;
+      }
+    }
+    if (state.kothActive && state.kothWalls && typeof bulletHitsWall === 'function') {
+      if (bulletHitsWall(b, state.kothWalls)) {
         if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
         if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
         b.dead = true;

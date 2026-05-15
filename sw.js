@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v320-jug-transfer-most-damage';
+const CACHE = 'penetrator-v321-koth-wall-collision-client';
 const ASSETS = [
   './',
   './index.html',
