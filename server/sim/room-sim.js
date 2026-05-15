@@ -1617,9 +1617,8 @@ function transferJug(sim, newPid, reason) {
     if (newWs) {
       // Default-vapen: behåll current sim.juggernautWeapon om satt, annars default
       if (!sim.juggernautWeapon) sim.juggernautWeapon = JUGGERNAUT_ARENA.jugDefaultWeapon;
-      // Mid-match transfer = 60% HP (anti-snowball). Initial JUG = full HP.
-      const isInitial = (reason === 'initial' || !oldPid);
-      applyJugStats(sim, newWs, isInitial ? 1.0 : 0.6);
+      // Full HP + shield för ny JUG (var: 60% mid-match — nu full per user-spec)
+      applyJugStats(sim, newWs, 1.0);
       newWs.playerState.invulnUntil = Date.now() + 2000; // 2s invuln för ny JUG
       newWs.tdmRespawnAt = 0;
     }

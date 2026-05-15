@@ -4832,7 +4832,11 @@ function drawCoopPartner() {
 
     // Off-screen check (rita pil mot dem istället)
     if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) {
-      drawOffscreenPartner(p, x, y);
+      // JUGGERNAUT: hunters ska INTE se pil mot JUG (bara minimap-puls var 5s).
+      // Skippa off-screen-arrow när partner är JUG och jag är hunter.
+      const skipJugArrow = state.juggernautActive && p.isJug &&
+                           state.player && !state.player.isJug;
+      if (!skipJugArrow) drawOffscreenPartner(p, x, y);
       continue;
     }
     const color = PLAYER_COLORS[p.colorIdx % PLAYER_COLORS.length];
@@ -4997,7 +5001,8 @@ function drawCoopPartner() {
       const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive;
       const maxShield = inPvP ? (p.maxShield || state.pvpShieldMax || 100) : 0;
       const hasShield = inPvP && maxShield > 0;
-      const barW = (p.isJug && state.juggernautActive) ? 50 : 36;
+      // Samma barW för alla — JUG ska se ut som vanlig spelare-hp-bar
+      const barW = 36;
       const hpY = y - 24;
       // HP-bar (grön/team-färg) — JUG har högre maxHp så bar-fraktionen
       // måste relatera till p.maxHp om det är satt.
@@ -10644,10 +10649,14 @@ const Coop = {
       if (this.players.has(ev.oldJug)) {
         const op = this.players.get(ev.oldJug);
         op.isJug = false; op.scaleMul = 1.0;
+        op.maxHp = 100;
       }
       if (this.players.has(ev.newJug)) {
         const np = this.players.get(ev.newJug);
         np.isJug = true; np.scaleMul = this.juggernautScale;
+        // Sätt partner.maxHp till JUG-HP så HP-bar-fraktionen blir korrekt
+        // (annars: hp=600 / maxHp=100 = 6× → bar overflowar ut till skärm-bredd)
+        np.maxHp = this.juggernautHpMax;
       }
       if (typeof updateJuggernautHud === 'function') {
         updateJuggernautHud(this.juggernautScores, this.juggernautPid, this.juggernautMatchEndAt, this.myId);
@@ -19046,7 +19055,9 @@ function ensureJuggernautHud() {
   document.body.appendChild(_juggernautHud);
   _juggernautKillFeedEl = document.createElement('div');
   _juggernautKillFeedEl.id = 'juggernaut-killfeed';
-  _juggernautKillFeedEl.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top, 0px) + 110px);right:max(12px, env(safe-area-inset-right, 12px));width:min(260px, calc(100vw - 24px - env(safe-area-inset-right, 0px)));display:flex;flex-direction:column;gap:3px;z-index:51;pointer-events:none;';
+  // Placera under minimapen (minimap = top:60, height 110 default → bot 170;
+   // lägg kill-feed på top:200 så den aldrig overlappar minimapen)
+  _juggernautKillFeedEl.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top, 0px) + 200px);right:max(12px, env(safe-area-inset-right, 12px));width:min(220px, calc(100vw - 24px - env(safe-area-inset-right, 0px)));display:flex;flex-direction:column;gap:3px;z-index:51;pointer-events:none;';
   document.body.appendChild(_juggernautKillFeedEl);
   // Vapen-byte sker via existerande btn-weapon-menu under minimapen — ingen
   // dedikerad knapp behövs. openWeaponMenu() routar JUG till weapon-picker.
