@@ -165,7 +165,9 @@ function applyMelee(sim, p, weaponId, params) {
     });
 
     // Damage-attribution för juggernaut (hunter skadar JUG → tracka för transfer)
-
+    if (inJug && !shooterIsJug && ws.playerState.isJug && sim._trackJuggernautDmg) {
+      sim._trackJuggernautDmg(sim, p.peerId, pid, finalDmg);
+    }
     // Kill-flow (mode-specifikt)
     if (ws.playerState.hp <= 0) {
       if (inJug) {
@@ -1080,6 +1082,10 @@ function updateBullets(sim, dt, now) {
             hp: ws.playerState.hp,
             shield: ws.playerState.shield || 0,
           });
+          // Damage-attribution för juggernaut (hunter skadar JUG → tracka för transfer)
+          if (!ownerIsJug && targetIsJug && sim._trackJuggernautDmg) {
+            sim._trackJuggernautDmg(sim, b.ownerPid, pid, effDmg);
+          }
           if (ws.playerState.hp <= 0) {
             if (sim._handleJuggernautKill) sim._handleJuggernautKill(sim, b.ownerPid, ownerWs, pid, ws, b.weaponId);
           }

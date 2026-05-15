@@ -124,7 +124,7 @@ function createSim(room) {
     juggernautKillsByPid: {},      // peerId → kills som JUG
     juggernautHpMax: 0,            // beräknas vid match-start från hunterCount
     juggernautEndAt: 0,            // ms timestamp då matchen tar slut
-    // (juggernautDmgToJug borttagen — transfer-selection går via _juggernautAwaitFirstRespawn nu)
+    juggernautDmgToJug: {},        // peerId → ackumulerad dmg gjord mot current JUG (reset:as vid transfer)
     _juggernautLastPulseAt: 0,     // ms när senaste minimap-puls sändes
     _juggernautSpawnIdx: 0,        // roterar spawn-punkter
     _juggernautScoreAccum: 0,      // fractional second-accumulator för JUG score
@@ -1612,6 +1612,8 @@ function transferJug(sim, newPid, reason) {
   sim.juggernautPid = newPid;
   // Reset mobility-decay-tracker så nya JUG inte ärver gamla timer
   sim._jugLastMovePos = null;
+  // Reset dmg-attribution när JUG byter (nya JUG ska få fresh dmg-tally mot sig)
+  sim.juggernautDmgToJug = {};
   if (newPid) {
     const newWs = sim.room.members.get(newPid);
     if (newWs) {
@@ -1826,13 +1828,19 @@ function handleJuggernautKill(sim, killerPid, killerWs, victimPid, victimWs, wea
     sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
     victimWs.tdmRespawnAt = Date.now() + 3000;
     sim.eventQueue.push({ type: 'juggernaut_player_died', victim: victimPid, durationMs: 3000, wasJug: true });
-    let newJugPid;
-    if (killerWs && !killerWs._isBot) {
-      // Human killer → de blir ny JUG direkt
-      newJugPid = killerPid;
-    } else {
-      // Bot dödade JUG → "första hunter som respawnar" blir JUG.
-      // Markera flagga; tickJuggernaut plockar upp första respawn-event.
+    // Hitta human med HÖGST damage mot denna JUG (killing-blow räknas också,
+    // den har redan fått sina senaste dmg-poäng via _trackJuggernautDmg).
+    let bestPid = null, bestDmg = -1;
+    for (const pid of Object.keys(sim.juggernautDmgToJug)) {
+      const ws = sim.room.members.get(pid);
+      if (!ws || ws._isBot) continue;
+      if (ws.playerState && ws.playerState.hp <= 0) continue; // skippa döda
+      const d = sim.juggernautDmgToJug[pid];
+      if (d > bestDmg) { bestDmg = d; bestPid = pid; }
+    }
+    let newJugPid = bestPid;
+    if (!newJugPid) {
+      // Ingen human i dmg-listan vid liv → first-respawn-fallback
       sim.juggernautPid = null;
       sim._juggernautAwaitFirstRespawn = true;
     }
@@ -1860,6 +1868,14 @@ function handleJuggernautKill(sim, killerPid, killerWs, victimPid, victimWs, wea
     victimWs.tdmRespawnAt = Date.now() + 3000;
     sim.eventQueue.push({ type: 'juggernaut_player_died', victim: victimPid, durationMs: 3000, wasJug: false });
   }
+}
+
+// Damage-attribution — kallas från bullets.js när hunter skadar JUG.
+// Bot-dmg räknas också (för konsistens i siffrorna) men bots kan inte BLI JUG.
+function trackJuggernautDmg(sim, shooterPid, victimPid, dmg) {
+  if (victimPid !== sim.juggernautPid) return;
+  if (shooterPid === sim.juggernautPid) return; // self-dmg (decay/explosion) räknas inte
+  sim.juggernautDmgToJug[shooterPid] = (sim.juggernautDmgToJug[shooterPid] || 0) + dmg;
 }
 
 function endJuggernautMatch(sim, winnerId, reason) {
@@ -2119,6 +2135,7 @@ function startSim(sim, opts) {
   sim._juggernautScoreAccum = 0;
   sim._juggernautBroadcastTick = 0;
   sim._juggernautAwaitFirstRespawn = false;
+  sim.juggernautDmgToJug = {};
   sim._siegePointAccum = { red: 0, blue: 0 };
   sim.pvpPickups = null;
   sim.bullets = [];
@@ -2555,6 +2572,7 @@ function startSim(sim, opts) {
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
     // Exponera kill-handler + dmg-tracker till bullets.js
     sim._handleJuggernautKill = handleJuggernautKill;
+    sim._trackJuggernautDmg = trackJuggernautDmg;
   } else {
     loadStage(sim, sim.wave);
   }
