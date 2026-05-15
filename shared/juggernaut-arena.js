@@ -201,7 +201,7 @@ const JUGGERNAUT_ARENA = {
   jugBaseHp: 400,
   jugHpPerHunter: 100,
   jugSpeedMul: 1.35,
-  jugScale: 1.8,
+  jugScale: 1.4,
   jugDashCdMs: 1000,              // 1s — JUG samma som hunter (i praktiken liknande utfall)
   hunterDmgVsJugMul: 1.0,         // ingen damage-bonus (5× HP + skalning hanterar balansen)
   hunterWeapon: 'pistol',

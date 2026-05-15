@@ -2690,15 +2690,16 @@ function drawCoopPartner() {
     ctx.save();
     ctx.translate(x, y + bob);
     ctx.rotate(p.aimAngle || 0);
-    // JUG-scale i juggernaut-mode
-    const _partnerJugScale = (p.isJug && p.scaleMul) ? p.scaleMul : 1;
+    // JUG-scale + JUG-kostym i juggernaut-mode
+    const _partnerIsJug = p.isJug && state.juggernautActive;
+    const _partnerJugScale = (_partnerIsJug && p.scaleMul) ? p.scaleMul : 1;
     if (_partnerJugScale !== 1) ctx.scale(_partnerJugScale, _partnerJugScale);
 
-    const skin = '#d4a574';
-    const skinDark = '#a07a52';
-    const vest = color;
-    const vestDark = darken(color, 0.7);
-    const pants = '#3a3528';
+    const skin = _partnerIsJug ? '#4a7a3a' : '#d4a574';
+    const skinDark = _partnerIsJug ? '#2e5a26' : '#a07a52';
+    const vest = _partnerIsJug ? '#1a1a14' : color;
+    const vestDark = _partnerIsJug ? '#0a0a08' : darken(color, 0.7);
+    const pants = _partnerIsJug ? '#2a1a0a' : '#3a3528';
     const boot = '#1a1208';
 
     // BEN (alternerar)
@@ -4026,7 +4027,30 @@ function drawHatInGame(c, x, y, r, style, color) {
 let _costumeCache = null;
 let _costumeCacheFrame = -1;
 function invalidateCostumeCache() { _costumeCache = null; _costumeCacheFrame = -1; }
+// JUG-kostym: gröngrå monster-skin, mörk armor-väst, ingen hatt, ingen mantel.
+// Används i drawPlayer/drawCoopPartner när p.isJug + state.juggernautActive.
+const JUG_COSTUME = Object.freeze({
+  id: 'jug', name: 'Juggernaut',
+  skin: '#4a7a3a',          // grön muterad hud
+  shirt: '#1a1a14',         // mörk metall-väst
+  bandana: null,
+  accent: '#ff3030',
+  pants: '#2a1a0a',         // mörk brun
+  hairStyle: 'bald',
+  hairColor: '#2a3a2a',
+  glasses: null,
+  hat: null,
+  cape: null,
+  vfx: [],
+  _isJug: true,             // flagga som drawPlayer kan kolla för extra effekter
+});
+
 function getCurrentCostume() {
+  // JUG i juggernaut-mode → unik kostym (grön monster). Skippa cache så
+  // växling JUG↔hunter inte sitter kvar fel.
+  if (state.juggernautActive && state.player && state.player.isJug) {
+    return JUG_COSTUME;
+  }
   // Använd cache om samma frame — drawPlayer + drawCoopPartner anropar båda
   // varje frame och allokerar annars dubblat.
   const fr = state._currentFrame || 0;
@@ -16426,7 +16450,7 @@ function ensureJuggernautHud() {
   if (_juggernautHud) return;
   _juggernautHud = document.createElement('div');
   _juggernautHud.id = 'juggernaut-hud';
-  _juggernautHud.style.cssText = 'position:fixed;top:max(54px, calc(env(safe-area-inset-top, 0px) + 50px));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #ffd54a;border-radius:8px;padding:6px 12px;color:#fff;font-family:sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;z-index:50;display:flex;flex-direction:column;gap:3px;align-items:center;pointer-events:none;min-width:min(220px, 90vw);max-width:96vw;';
+  _juggernautHud.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top, 8px));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #ffd54a;border-radius:8px;padding:5px 10px;color:#fff;font-family:sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;z-index:50;display:flex;flex-direction:column;gap:2px;align-items:center;pointer-events:none;max-width:calc(100vw - 220px);';
   _juggernautHud.innerHTML = '<div style="display:flex;gap:8px;align-items:center;font-size:11px;"><span style="color:#ffd54a;">👑</span><span id="jug-current" style="color:#fff;">—</span><span id="jug-timer" style="color:#3acaff;margin-left:8px;">—</span></div><div id="jug-board" style="font-size:10px;color:#aaa;text-align:center;line-height:1.3;"></div>';
   document.body.appendChild(_juggernautHud);
   _juggernautKillFeedEl = document.createElement('div');
@@ -16437,39 +16461,82 @@ function ensureJuggernautHud() {
   // dedikerad knapp behövs. openWeaponMenu() routar JUG till weapon-picker.
 }
 
-// showJuggernautWeaponPicker — visar 3 stora ikoner (AK/Shotgun/Sledge)
-// när JUG-spelaren öppnar vapen-menyn. Klick → skicka val till server.
+// showJuggernautWeaponPicker — premium 3-vapen-val med stats per vapen.
+// Återanvänder wmenu-item-styling så det känns konsistent med vanlig vapen-meny.
 function showJuggernautWeaponPicker() {
   let picker = document.getElementById('juggernaut-weapon-picker');
   if (!picker) {
     picker = document.createElement('div');
     picker.id = 'juggernaut-weapon-picker';
-    picker.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:120;padding:max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));';
-    picker.innerHTML = '<div style="background:#181818;border:2px solid #ffd54a;border-radius:12px;padding:20px;max-width:480px;width:100%;color:#fff;text-align:center;"><h2 style="color:#ffd54a;margin:0 0 14px;font-size:18px;letter-spacing:2px;">👑 VÄLJ JUG-VAPEN</h2><div id="jug-weapon-options" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;"></div><button id="jug-weapon-cancel" style="background:#444;color:#fff;border:0;padding:10px 22px;border-radius:6px;font-weight:900;letter-spacing:1px;cursor:pointer;min-height:44px;">↩ STÄNG</button></div>';
+    picker.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;z-index:120;padding:max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));';
+    picker.innerHTML = ''
+      + '<div style="background:linear-gradient(180deg, #1a1a18, #0e0e0c);border:2px solid #ffd54a;border-radius:14px;padding:18px 18px 14px;max-width:540px;width:100%;max-height:100%;overflow-y:auto;color:#fff;text-align:center;box-shadow:0 12px 48px rgba(0,0,0,0.6), 0 0 24px rgba(255,213,74,0.25);box-sizing:border-box;">'
+      +   '<div style="display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:14px;">'
+      +     '<span style="font-size:22px;">👑</span>'
+      +     '<h2 style="color:#ffd54a;margin:0;font-size:18px;letter-spacing:2px;">VÄLJ JUG-VAPEN</h2>'
+      +     '<span style="font-size:22px;">👑</span>'
+      +   '</div>'
+      +   '<div id="jug-weapon-options" class="wmenu-grid" style="display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:14px;"></div>'
+      +   '<button id="jug-weapon-cancel" style="background:#2a2a2a;color:#ffd54a;border:1px solid #444;padding:10px 22px;border-radius:6px;font-weight:900;letter-spacing:2px;cursor:pointer;min-height:44px;font-size:13px;">↩ STÄNG</button>'
+      + '</div>';
     document.body.appendChild(picker);
     document.getElementById('jug-weapon-cancel').addEventListener('click', () => picker.classList.add('hidden'));
+    // Stäng vid backdrop-klick
+    picker.addEventListener('click', (e) => {
+      if (e.target === picker) picker.classList.add('hidden');
+    });
   }
-  // Bygg om alternativen varje gång (visar nuvarande val markerat)
   const optsEl = document.getElementById('jug-weapon-options');
   if (optsEl) {
     optsEl.innerHTML = '';
     const weapons = Coop.juggernautWeapons || ['rifle', 'shotgun', 'sledge'];
     const current = state.player && state.player.weaponId;
+    const flavors = {
+      rifle:   { icon: '🔫', tag: 'BALANSERAD', desc: 'Snabb auto-eld, lång räckvidd. Säkert val för fjärr-engagement.' },
+      shotgun: { icon: '💥', tag: 'CLOSE RANGE',  desc: 'Spridning, hög burst. Tvinga close fight för 1-shot potential.' },
+      sledge:  { icon: '🔨', tag: '⚡ 1-HIT KILL', desc: 'Melee-only. EN swing inom räckvidd dödar oavsett HP/shield.' },
+    };
     for (const wid of weapons) {
       const w = W_BY_ID[wid];
       if (!w) continue;
-      const icon = wid === 'rifle' ? '🔫' : (wid === 'shotgun' ? '💥' : (wid === 'sledge' ? '🔨' : '🔫'));
+      const f = flavors[wid] || { icon: '🔫', tag: '', desc: '' };
       const isCur = (wid === current);
-      const btn = document.createElement('button');
-      btn.style.cssText = 'background:' + (isCur ? '#ffd54a' : '#2a2a2a') + ';color:' + (isCur ? '#000' : '#ffd54a') + ';border:2px solid #ffd54a;border-radius:10px;padding:18px 14px;min-width:120px;min-height:120px;font-size:36px;font-weight:900;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;';
-      btn.innerHTML = '<span>' + icon + '</span><span style="font-size:13px;letter-spacing:1px;">' + (w.name || wid).toUpperCase() + '</span>' + (isCur ? '<span style="font-size:10px;color:#000;">✓ AKTIV</span>' : '');
-      btn.addEventListener('click', () => {
+      const card = document.createElement('button');
+      card.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:2px solid ' + (isCur ? '#ffd54a' : '#3a3a30') + ';background:' + (isCur ? 'linear-gradient(135deg, rgba(255,213,74,0.18), rgba(255,213,74,0.06))' : 'rgba(255,255,255,0.03)') + ';color:#fff;cursor:pointer;text-align:left;touch-action:manipulation;min-height:80px;font-family:inherit;';
+      // Compute stat-bars (samma normalisering som wmenu)
+      const dmgMax = w.type === 'melee' ? 100 : 200;
+      const dmg = Math.min(1, w.dmg * (w.pellets || 1) / dmgMax);
+      const fireRate = Math.min(1, (60000 / (w.rate || 500)) / 12);
+      const rangeOrSpeed = w.type === 'melee' ? Math.min(1, (w.range || 40) / 100) : Math.min(1, (w.speed || 800) / 1500);
+      const bar = (label, frac, color) => '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#aaa;"><span style="width:48px;">' + label + '</span><div style="flex:1;height:5px;background:rgba(0,0,0,0.4);border-radius:3px;overflow:hidden;"><div style="height:100%;width:' + (frac * 100) + '%;background:' + color + ';"></div></div></div>';
+      card.innerHTML = ''
+        + '<div style="font-size:42px;flex-shrink:0;width:54px;text-align:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));">' + f.icon + '</div>'
+        + '<div style="flex:1;min-width:0;">'
+        +   '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">'
+        +     '<span style="font-size:15px;font-weight:900;letter-spacing:1px;color:' + (isCur ? '#ffd54a' : '#fff') + ';">' + (w.name || wid).toUpperCase() + '</span>'
+        +     (isCur ? '<span style="background:#ffd54a;color:#000;font-size:9px;font-weight:900;padding:2px 6px;border-radius:3px;letter-spacing:1px;">✓ AKTIV</span>' : '')
+        +   '</div>'
+        +   '<div style="font-size:10px;color:' + (wid === 'sledge' ? '#ff5a3a' : '#888') + ';font-weight:700;letter-spacing:1px;margin-bottom:4px;">' + f.tag + '</div>'
+        +   '<div style="font-size:11px;color:#aaa;line-height:1.3;margin-bottom:6px;">' + f.desc + '</div>'
+        +   '<div style="display:flex;flex-direction:column;gap:2px;">'
+        +     bar('SKADA',  dmg,         '#ff5a5a')
+        +     bar('SNABB',  fireRate,    '#5aff5a')
+        +     bar(w.type === 'melee' ? 'RÄCKV' : 'HAST', rangeOrSpeed, '#5acaff')
+        +   '</div>'
+        + '</div>';
+      card.addEventListener('click', () => {
+        if (wid === current) {
+          // Klick på aktivt vapen = stäng
+          picker.classList.add('hidden');
+          return;
+        }
         if (Coop.ws && Coop.ws.readyState === 1) {
           try { Coop.ws.send(JSON.stringify({ type: 'juggernaut_weapon_change', weaponId: wid })); } catch (_) {}
         }
+        if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
         picker.classList.add('hidden');
       });
-      optsEl.appendChild(btn);
+      optsEl.appendChild(card);
     }
   }
   picker.classList.remove('hidden');
@@ -16844,8 +16911,10 @@ function updateHUD() {
 let _lastDashCdSet = -1;
 function updateDashCdRing() {
   if (!_btnDash || !state.player) return;
+  // CD-längd måste matcha det faktiska CD som tryDash använder (JUG har eget)
+  const cdMs = (state.juggernautActive && state.player.isJug && state.player.dashCdMs) ? state.player.dashCdMs : DASH_COOLDOWN_MS;
   const elapsed = performance.now() - (state.player.dashCdAt || -10000);
-  const cd = elapsed >= DASH_COOLDOWN_MS ? 1 : Math.max(0, elapsed / DASH_COOLDOWN_MS);
+  const cd = elapsed >= cdMs ? 1 : Math.max(0, elapsed / cdMs);
   // Throttle DOM-writes: skriv bara när värdet ändrats >1% (skip när redan ready)
   if (Math.abs(cd - _lastDashCdSet) < 0.01) return;
   _lastDashCdSet = cd;

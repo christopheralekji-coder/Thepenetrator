@@ -134,10 +134,16 @@ function applyMelee(sim, p, weaponId, params) {
     const isCrit = cheats.chozza ? true : Math.random() < critChance;
     const isHead = headshotPerk && Math.random() < 0.15;
     let baseDmg = getPvpDmg(weaponId, w.dmg);
-    // JUG-vapen-mul: nerfa rifle, buffa sledge (gäller även melee-sledge)
-    if (inJug && shooterIsJug && JUGGERNAUT_ARENA.jugWeaponDmgMul) {
-      const mul = JUGGERNAUT_ARENA.jugWeaponDmgMul[weaponId];
-      if (typeof mul === 'number') baseDmg *= mul;
+    // JUG-vapen-specialer:
+    //  - Sledge = 1-hit-kill garanterat (bygger high-risk-close-quarters-fantasin)
+    //  - Övriga vapen får jugWeaponDmgMul
+    if (inJug && shooterIsJug) {
+      if (weaponId === 'sledge') {
+        baseDmg = 99999; // garanterad kill genom shield + max HP
+      } else if (JUGGERNAUT_ARENA.jugWeaponDmgMul) {
+        const mul = JUGGERNAUT_ARENA.jugWeaponDmgMul[weaponId];
+        if (typeof mul === 'number') baseDmg *= mul;
+      }
     }
     const finalDmg = baseDmg * dmgMul * adrenalineDmg * stealthBonus * ultMul * (isCrit ? 2 : 1) * (isHead ? 3 : 1);
 
