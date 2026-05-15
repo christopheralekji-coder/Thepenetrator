@@ -10422,6 +10422,9 @@ const Coop = {
           state.player.reloading = false;
           const _mag = (W_BY_ID[newWeapon] && W_BY_ID[newWeapon].mag) || 0;
           state.player.ammo = Math.max(1, Math.ceil(_mag * 0.5));
+          // Tvinga fire-button-icon-refresh efter promote
+          if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+          if (typeof updateHUD === 'function') updateHUD();
         }
         if (typeof updateGungameTier === 'function') updateGungameTier(ev.killerTier, this.gungameWeapons);
         // Full-screen tier-up VFX (ersätter den tysta purchase()-pinget)
@@ -10469,6 +10472,9 @@ const Coop = {
           // Reset reload-state så respawnat vapen är direkt redo
           state.player.reloading = false;
           state.player.ammo = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) || 0;
+          // Tvinga fire-button-icon-refresh efter respawn
+          if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+          if (typeof updateHUD === 'function') updateHUD();
         }
         // Uppdatera egen tier + HUD-banner (kan ha demoterats sedan death)
         if (typeof ev.tier === 'number') {
@@ -10685,6 +10691,10 @@ const Coop = {
         save.weaponId = ev.weaponId;
         state.player.reloading = false;
         state.player.ammo = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) || 0;
+        // Tvinga fire-button-icon-refresh (annars uppdateras märket inte
+        // förrän nästa updateHUD trigger som pvp_hp_changed eller pickup)
+        if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+        if (typeof updateHUD === 'function') updateHUD();
       }
       if (typeof showToast === 'function' && ev.peerId === this.myId) {
         const w = W_BY_ID[ev.weaponId];

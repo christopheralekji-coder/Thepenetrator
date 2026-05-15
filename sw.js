@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v321-koth-wall-collision-client';
+const CACHE = 'penetrator-v322-koth-walls-weapon-icon-refresh';
 const ASSETS = [
   './',
   './index.html',
