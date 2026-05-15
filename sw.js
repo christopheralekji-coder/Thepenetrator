@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v294-juggernaut-design-sledge-1hit-hud-fix';
+const CACHE = 'penetrator-v295-juggernaut-scoreboard-leak-fix';
 const ASSETS = [
   './',
   './index.html',

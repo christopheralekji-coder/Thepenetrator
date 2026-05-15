@@ -7103,6 +7103,7 @@ const Coop = {
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
       if (typeof hideGungameHud === 'function') hideGungameHud();
       if (typeof hideKothHud === 'function') hideKothHud();
+      if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
       this.ctfActive = false; this.siegeActive = false; this.gungameActive = false; this.kothActive = false; this.juggernautActive = false;
       state.ctfActive = false; state.siegeActive = false; state.gungameActive = false; state.kothActive = false; state.juggernautActive = false;
       state.kothZones = null; state.kothWalls = null; state.kothNextRotateAt = null;
@@ -7275,6 +7276,7 @@ const Coop = {
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
       if (typeof hideGungameHud === 'function') hideGungameHud();
       if (typeof hideKothHud === 'function') hideKothHud();
+      if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
       this.tdmActive = false; this.siegeActive = false; this.gungameActive = false; this.kothActive = false; this.juggernautActive = false;
       state.tdmActive = false; state.siegeActive = false; state.gungameActive = false; state.kothActive = false; state.juggernautActive = false;
       state.kothZones = null; state.kothWalls = null; state.kothNextRotateAt = null;
@@ -7706,6 +7708,7 @@ const Coop = {
       if (typeof hideCtfHud === 'function') hideCtfHud();
       if (typeof hideGungameHud === 'function') hideGungameHud();
       if (typeof hideKothHud === 'function') hideKothHud();
+      if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
       this.tdmActive = false; this.ctfActive = false; this.gungameActive = false; this.kothActive = false; this.juggernautActive = false;
       state.tdmActive = false; state.ctfActive = false; state.gungameActive = false; state.kothActive = false; state.juggernautActive = false;
       state.kothZones = null; state.kothWalls = null; state.kothNextRotateAt = null;
@@ -8118,6 +8121,7 @@ const Coop = {
       if (typeof hideCtfHud === 'function') hideCtfHud();
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
       if (typeof hideKothHud === 'function') hideKothHud();
+      if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
       this.tdmActive = false; this.ctfActive = false; this.siegeActive = false; this.kothActive = false; this.juggernautActive = false;
       state.tdmActive = false; state.ctfActive = false; state.siegeActive = false; state.kothActive = false; state.juggernautActive = false;
       state.juggernautWalls = null; state.juggernautDecorations = null;
@@ -8294,6 +8298,7 @@ const Coop = {
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
       if (typeof hideGungameHud === 'function') hideGungameHud();
       if (typeof hideKothHud === 'function') hideKothHud();
+      if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
       this.tdmActive = false; this.ctfActive = false; this.siegeActive = false;
       this.gungameActive = false; this.kothActive = false;
       state.tdmActive = false; state.ctfActive = false; state.siegeActive = false;
@@ -8524,6 +8529,10 @@ const Coop = {
       state.juggernautPid = null;
       state._jugLowHpMusic = false;
       state._jugHeartbeatTimer = 0;
+      // Stäng scoreboard + killfeed EXPLICIT före end-screen (annars kan
+      // late juggernaut_score_update från server racea och visa scoreboard
+      // bredvid end-overlay)
+      if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
       const statsArr = [];
       if (ev.stats && ev.stats.perPlayer) {
         for (const pid of Object.keys(ev.stats.perPlayer)) {
@@ -16543,15 +16552,28 @@ function showJuggernautWeaponPicker() {
 }
 function showJuggernautHud() {
   ensureJuggernautHud();
+  _juggernautHud.classList.remove('hidden');
   _juggernautHud.style.display = 'flex';
+  if (_juggernautKillFeedEl) _juggernautKillFeedEl.classList.remove('hidden');
 }
 function hideJuggernautHud() {
-  if (_juggernautHud) _juggernautHud.style.display = 'none';
-  if (_juggernautKillFeedEl) _juggernautKillFeedEl.innerHTML = '';
+  // Använd både classList ('hidden' har !important globalt) och style.display
+  // som belt-and-suspenders. Annars kan stale events efter match-end läcka.
+  if (_juggernautHud) {
+    _juggernautHud.classList.add('hidden');
+    _juggernautHud.style.display = 'none';
+  }
+  if (_juggernautKillFeedEl) {
+    _juggernautKillFeedEl.innerHTML = '';
+    _juggernautKillFeedEl.classList.add('hidden');
+  }
   const picker = document.getElementById('juggernaut-weapon-picker');
   if (picker) picker.classList.add('hidden');
 }
 function updateJuggernautHud(scores, currentJug, matchEndAt, myId) {
+  // Guard: skippa stale events efter match-end (annars kan late score-update
+  // återställa scoreboarden bredvid den synliga end-screen-overlayen)
+  if (!state.juggernautActive) return;
   ensureJuggernautHud();
   const currentName = currentJug
     ? (currentJug === myId ? (Coop.myName || 'Du') : ((Coop.players.get(currentJug) && Coop.players.get(currentJug).name) || '—'))
@@ -16588,6 +16610,7 @@ function updateJuggernautHud(scores, currentJug, matchEndAt, myId) {
   }
 }
 function addJuggernautKillFeed(killerName, victimName, weaponName, wasJugKilled) {
+  if (!state.juggernautActive) return; // skippa stale events efter match-end
   ensureJuggernautHud();
   if (!_juggernautKillFeedEl) return;
   const row = document.createElement('div');
