@@ -153,10 +153,9 @@ const JUGGERNAUT_ARENA = {
     { kind: 'drain', x: 4500, y: 1750 },
     { kind: 'drain', x: 2500, y: 3000 },
 
-    // === Graffiti (visuell texture) ===
+    // === Graffiti (visuell texture, ingen center-text/krona)  ===
     { kind: 'graffiti', x: 600,  y: 1500, text: 'RUN', color: '#ff3a3a', size: 36, rot: -0.1 },
     { kind: 'graffiti', x: 4400, y: 1500, text: 'OR DIE', color: '#ff3a3a', size: 32, rot: 0.08 },
-    { kind: 'graffiti', x: 2500, y: 1750, text: '👑 JUG 👑', color: '#ffd54a', size: 38, rot: -0.05 },
     { kind: 'graffiti', x: 1500, y: 2900, text: 'HUNT', color: '#ff7030', size: 28, rot: 0.12 },
     { kind: 'graffiti', x: 3500, y: 600,  text: 'NO EXIT', color: '#aa3030', size: 26, rot: -0.06 },
 
@@ -193,16 +192,16 @@ const JUGGERNAUT_ARENA = {
     { kind: 'warning_triangle', x: 4030, y: 1980 },
     { kind: 'warning_triangle', x: 2030, y: 2780 },
 
-    // === TAK-RÖR: stora industri-rör som löper över parkering (visuell overlay)
-    // Renderade halvtransparent över marken för "tak ovanpå"-känsla
-    { kind: 'ceiling_pipe', x: 100,  y: 600, w: 4800, color: '#5a4030', dia: 14 },
-    { kind: 'ceiling_pipe', x: 100,  y: 1400, w: 4800, color: '#3a3a45', dia: 16 },
-    { kind: 'ceiling_pipe', x: 100,  y: 2200, w: 4800, color: '#5a4030', dia: 14 },
-    { kind: 'ceiling_pipe', x: 100,  y: 3000, w: 4800, color: '#3a3a45', dia: 16 },
-    // Tvärgående mindre rör
-    { kind: 'ceiling_pipe_v', x: 1100, y: 100, h: 3300, color: '#4a4a55', dia: 10 },
-    { kind: 'ceiling_pipe_v', x: 2500, y: 100, h: 3300, color: '#4a4a55', dia: 10 },
-    { kind: 'ceiling_pipe_v', x: 3900, y: 100, h: 3300, color: '#4a4a55', dia: 10 },
+    // === TAK-RÖR: stora industri-rör som går EDGE-TO-EDGE över hela banan
+    // Renderas halvtransparent som tak-overlay. Pipes har LEDs som blinkar.
+    { kind: 'ceiling_pipe', x: 0,  y: 600, w: 5000, color: '#5a4030', dia: 14, leds: true },
+    { kind: 'ceiling_pipe', x: 0,  y: 1400, w: 5000, color: '#3a3a45', dia: 16, leds: true },
+    { kind: 'ceiling_pipe', x: 0,  y: 2200, w: 5000, color: '#5a4030', dia: 14, leds: true },
+    { kind: 'ceiling_pipe', x: 0,  y: 3000, w: 5000, color: '#3a3a45', dia: 16, leds: true },
+    // Tvärgående mindre rör (också edge-to-edge top→bottom)
+    { kind: 'ceiling_pipe_v', x: 1100, y: 0, h: 3500, color: '#4a4a55', dia: 10, leds: true },
+    { kind: 'ceiling_pipe_v', x: 2500, y: 0, h: 3500, color: '#4a4a55', dia: 10, leds: true },
+    { kind: 'ceiling_pipe_v', x: 3900, y: 0, h: 3500, color: '#4a4a55', dia: 10, leds: true },
 
     // === KABEL-HÄRVOR i taket: tjocka kablar i klasar som svänger ===
     { kind: 'cable_bundle', x: 800,  y: 980, x2: 2200, y2: 1020 },
@@ -210,11 +209,55 @@ const JUGGERNAUT_ARENA = {
     { kind: 'cable_bundle', x: 800,  y: 1780, x2: 2200, y2: 1820 },
     { kind: 'cable_bundle', x: 2400, y: 2380, x2: 3800, y2: 2420 },
 
-    // === TAK-LÄCKOR: små vatten-droppar från taket (animerade) ===
+    // === BRUSTNA RÖR (vatten gushar ut från sprickor i takröret) ===
     { kind: 'ceiling_drip', x: 1700, y: 1200 }, // över puddle
     { kind: 'ceiling_drip', x: 3300, y: 2000 },
     { kind: 'ceiling_drip', x: 900,  y: 2400 },
     { kind: 'ceiling_drip', x: 4100, y: 900 },
+
+    // === RUBBLE / krossad betong-hög (5 st utspridda) ===
+    { kind: 'rubble', x: 1450, y: 1450 },
+    { kind: 'rubble', x: 2860, y: 2350 },
+    { kind: 'rubble', x: 4250, y: 1500 },
+    { kind: 'rubble', x: 800,  y: 2000 },
+    { kind: 'rubble', x: 3700, y: 800 },
+
+    // === TRAFIK-KONOR (orange, varning, 6 st) ===
+    { kind: 'traffic_cone', x: 1080, y: 1075 },
+    { kind: 'traffic_cone', x: 1120, y: 1085 },
+    { kind: 'traffic_cone', x: 4380, y: 2415 },
+    { kind: 'traffic_cone', x: 2370, y: 1820 },
+    { kind: 'traffic_cone', x: 3050, y: 425 },
+    { kind: 'traffic_cone', x: 4030, y: 1995 },
+
+    // === PALLETAR (trä-pallets, 4 st övergivna) ===
+    { kind: 'pallet', x: 1820, y: 1900 },
+    { kind: 'pallet', x: 3550, y: 1100 },
+    { kind: 'pallet', x: 480,  y: 1300 },
+    { kind: 'pallet', x: 2820, y: 2900 },
+
+    // === BROKEN GLASS (utspridda skärvor, 6 st clusters) ===
+    { kind: 'broken_glass', x: 1050, y: 1180 }, // runt bilskelett
+    { kind: 'broken_glass', x: 1900, y: 2720 },
+    { kind: 'broken_glass', x: 3950, y: 1880 },
+    { kind: 'broken_glass', x: 2750, y: 600 },
+    { kind: 'broken_glass', x: 4550, y: 2300 },
+    { kind: 'broken_glass', x: 700,  y: 2800 },
+
+    // === TRASH PILES (skräp + tidningar + flaskor, 5 st) ===
+    { kind: 'trash_pile', x: 1600, y: 800 },
+    { kind: 'trash_pile', x: 3400, y: 1600 },
+    { kind: 'trash_pile', x: 2200, y: 3050 },
+    { kind: 'trash_pile', x: 4400, y: 700 },
+    { kind: 'trash_pile', x: 200,  y: 1500 },
+
+    // === PARKING-NUMMER (mindre golv-text, 6 st: "P-XX") ===
+    { kind: 'parking_number', x: 1150, y: 1100, text: 'P-12', size: 22 },
+    { kind: 'parking_number', x: 2150, y: 1100, text: 'P-15', size: 22 },
+    { kind: 'parking_number', x: 3150, y: 1100, text: 'P-18', size: 22 },
+    { kind: 'parking_number', x: 1150, y: 2700, text: 'P-32', size: 22 },
+    { kind: 'parking_number', x: 2850, y: 2700, text: 'P-38', size: 22 },
+    { kind: 'parking_number', x: 4150, y: 2700, text: 'P-42', size: 22 },
   ],
 
   // JUG-specifika vapenval. Klient visar dessa i weapon-switch-UI när

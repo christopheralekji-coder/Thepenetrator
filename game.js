@@ -1815,125 +1815,173 @@ function drawRamp(x, y, w, h) {
 }
 
 function drawOilDrum(x, y, w, h, seed) {
-  // Vanligt oljefat (icke-brinnande) — rostigt + lock + band
+  // Industrifat — sealed steel barrel top-down. Realistisk metallic-look med
+  // 3 koncentriska ringar (rolling ribs), screw-cap, deep shadows.
   ctx.save();
   const cx = x + w / 2, cy = y + h / 2;
   const r = Math.min(w, h) / 2;
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.beginPath(); ctx.ellipse(cx + 1.5, cy + 4, r + 1, 4, 0, 0, Math.PI*2); ctx.fill();
-  // Fat-bas
-  ctx.fillStyle = '#3a2818';
+  // Skugga under
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.ellipse(cx + 2, cy + 5, r + 1, 4, 0, 0, Math.PI*2); ctx.fill();
+  // Bas — mörk metall (industri-blå-grå)
+  const baseGrad = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
+  baseGrad.addColorStop(0, '#7a7a82');
+  baseGrad.addColorStop(0.55, '#3a3a40');
+  baseGrad.addColorStop(1, '#1a1a20');
+  ctx.fillStyle = baseGrad;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
-  // Highlight-ring (vänster sida)
-  ctx.fillStyle = '#6a4828';
-  ctx.beginPath(); ctx.arc(cx - r * 0.3, cy - r * 0.3, r * 0.4, 0, Math.PI*2); ctx.fill();
-  // Topp-lock (mörkare cirkel)
-  ctx.fillStyle = '#1a1208';
-  ctx.beginPath(); ctx.arc(cx, cy, r * 0.85, 0, Math.PI*2); ctx.fill();
-  // Lock-rim
-  ctx.strokeStyle = '#5a3818';
+  // 3 rolling-ribs (koncentriska ringar — typiska industriella oljefat)
+  ctx.strokeStyle = '#0a0a0e';
   ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.arc(cx, cy, r * 0.85, 0, Math.PI*2); ctx.stroke();
-  // Center-skruv (lock-handle)
-  ctx.fillStyle = '#1a1a1a';
-  ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
-  ctx.fillStyle = '#3a3a3a';
-  ctx.fillRect(cx - 1.5, cy - 1, 3, 0.5);
-  // Rost-fläckar
-  ctx.fillStyle = '#8a4818';
-  ctx.fillRect(cx - r * 0.6, cy + r * 0.2, 3, 2);
-  ctx.fillRect(cx + r * 0.3, cy - r * 0.5, 2, 2);
-  // OIL-text om fatet är stort nog
-  if (r > 14) {
-    ctx.fillStyle = '#ffd54a';
-    ctx.font = 'bold 6px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('OIL', cx, cy + 8);
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.65, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.45, 0, Math.PI*2); ctx.stroke();
+  // Ring-highlights (vita streck på vänster-sida av varje ring)
+  ctx.strokeStyle = 'rgba(180, 180, 195, 0.7)';
+  ctx.lineWidth = 0.5;
+  for (const rr of [0.85, 0.65, 0.45]) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * rr, Math.PI * 1.1, Math.PI * 1.6);
+    ctx.stroke();
   }
-  // Yttre outline
-  ctx.strokeStyle = '#0a0a0a';
-  ctx.lineWidth = 1;
+  // Center-cap (bung — screw-cap för påfyllning)
+  ctx.fillStyle = '#1a1a1e';
+  ctx.beginPath(); ctx.arc(cx + r * 0.18, cy - r * 0.05, r * 0.15, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#5a5a62';
+  ctx.beginPath(); ctx.arc(cx + r * 0.18, cy - r * 0.05, r * 0.11, 0, Math.PI*2); ctx.fill();
+  // Cap-cross (insex)
+  ctx.strokeStyle = '#0a0a0e';
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(cx + r * 0.12, cy - r * 0.05); ctx.lineTo(cx + r * 0.24, cy - r * 0.05);
+  ctx.moveTo(cx + r * 0.18, cy - r * 0.11); ctx.lineTo(cx + r * 0.18, cy + r * 0.01);
+  ctx.stroke();
+  // Secondary vent (mindre skruv på motsatt sida)
+  ctx.fillStyle = '#1a1a1e';
+  ctx.beginPath(); ctx.arc(cx - r * 0.22, cy + r * 0.05, r * 0.08, 0, Math.PI*2); ctx.fill();
+  // Subtle skada/dunk (en mörk konkav-fläck)
+  ctx.fillStyle = 'rgba(10, 10, 14, 0.4)';
+  ctx.beginPath(); ctx.ellipse(cx + r * 0.4, cy + r * 0.3, r * 0.18, r * 0.1, 0.5, 0, Math.PI*2); ctx.fill();
+  // Yttre dark outline
+  ctx.strokeStyle = '#0a0a0e';
+  ctx.lineWidth = 1.2;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
   ctx.restore();
 }
 
 function drawFireDrum(x, y, w, h, seed) {
-  // Brinnande oljefat — solid collision + animerade flammor + ljuspöl
+  // Brinnande fat — top-down vy. Cylindrisk fat-rim runt MÖRK ÖPPNING i mitten.
+  // Eld kommer ut FRÅN öppningen (logiskt — fatet är öppet i toppen och brinner inuti).
   const cx = x + w / 2, cy = y + h / 2;
   const r = Math.min(w, h) / 2;
   const t = performance.now();
   const flicker = 0.85 + Math.sin(t / 70 + (seed & 0xff)) * 0.15;
   ctx.save();
-  // Ljuspöl på golvet (rendera FÖRST så fat hamnar ovanpå)
-  const lightR = 80;
-  const lightGrad = ctx.createRadialGradient(cx, cy + 6, 4, cx, cy + 6, lightR);
-  lightGrad.addColorStop(0, `rgba(255, 140, 50, ${0.45 * flicker})`);
-  lightGrad.addColorStop(0.6, `rgba(255, 100, 30, ${0.15 * flicker})`);
+  // Ljuspöl på golvet — varmt orange runt fatet
+  const lightR = 90;
+  const lightGrad = ctx.createRadialGradient(cx, cy, 4, cx, cy, lightR);
+  lightGrad.addColorStop(0, `rgba(255, 140, 50, ${0.5 * flicker})`);
+  lightGrad.addColorStop(0.6, `rgba(255, 100, 30, ${0.18 * flicker})`);
   lightGrad.addColorStop(1, 'rgba(255, 80, 20, 0)');
   ctx.fillStyle = lightGrad;
-  ctx.fillRect(cx - lightR, cy + 6 - lightR, lightR * 2, lightR * 2);
-  // Skugga
+  ctx.fillRect(cx - lightR, cy - lightR, lightR * 2, lightR * 2);
+  // Skugga under fatet
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.beginPath(); ctx.ellipse(cx + 1, cy + 5, r + 2, 4, 0, 0, Math.PI*2); ctx.fill();
-  // Fat-kropp (rostig mörk metall)
-  ctx.fillStyle = '#2a1a0a';
+  ctx.beginPath(); ctx.ellipse(cx + 1, cy + 4, r + 2, 4, 0, 0, Math.PI*2); ctx.fill();
+
+  // FAT-KROPP (rund top-down) — rostig metall
+  // Outer rim (sotad bränd metall — mörkare än ett vanligt oljefat eftersom det brinner)
+  ctx.fillStyle = '#1a0a06';
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
-  // Vänster highlight
-  ctx.fillStyle = '#4a2a1a';
-  ctx.beginPath(); ctx.arc(cx - r * 0.3, cy - r * 0.3, r * 0.5, 0, Math.PI*2); ctx.fill();
-  // 2 band runt fat
-  ctx.strokeStyle = '#1a0808';
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.moveTo(cx - r, cy - r * 0.4); ctx.lineTo(cx + r, cy - r * 0.4);
-  ctx.moveTo(cx - r, cy + r * 0.5); ctx.lineTo(cx + r, cy + r * 0.5);
-  ctx.stroke();
-  // Rost-fläckar
+  // Tjock metall-rim (där öppningen är) — ljusare
+  ctx.fillStyle = '#4a3018';
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#2a1808';
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.78, 0, Math.PI*2); ctx.fill();
+  // ÖPPNINGEN (mörk hål in i fatet — fyrkantig form med oregelbunden glow)
+  ctx.fillStyle = '#000000';
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.65, 0, Math.PI*2); ctx.fill();
+  // Hot orange glow INUTI öppningen (där elden kommer ifrån)
+  const innerGrad = ctx.createRadialGradient(cx, cy, 1, cx, cy, r * 0.65);
+  innerGrad.addColorStop(0, `rgba(255, 230, 150, ${flicker})`);
+  innerGrad.addColorStop(0.3, `rgba(255, 160, 50, ${0.95 * flicker})`);
+  innerGrad.addColorStop(0.7, `rgba(180, 60, 20, ${0.7 * flicker})`);
+  innerGrad.addColorStop(1, 'rgba(60, 20, 10, 0.5)');
+  ctx.fillStyle = innerGrad;
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.65, 0, Math.PI*2); ctx.fill();
+  // Rim-highlight (vänster sida — vit reflex från flammorna)
+  ctx.fillStyle = '#7a5028';
+  ctx.beginPath(); ctx.arc(cx - r * 0.4, cy - r * 0.3, r * 0.18, 0, Math.PI*2); ctx.fill();
+  // Rost-fläckar på fat-rimmen
   ctx.fillStyle = '#7a3818';
-  ctx.fillRect(cx - r * 0.5, cy + r * 0.1, 3, 2);
-  ctx.fillRect(cx + r * 0.2, cy - r * 0.6, 2, 1.5);
-  ctx.fillRect(cx - r * 0.3, cy + r * 0.6, 2, 1);
-  // Topp-rim (mörkare)
+  ctx.fillRect(cx + r * 0.55, cy - r * 0.3, 2, 1.5);
+  ctx.fillRect(cx - r * 0.7, cy + r * 0.3, 2, 1.5);
+  ctx.fillRect(cx + r * 0.3, cy + r * 0.6, 1.5, 1);
+  // Yttre dark outline
   ctx.strokeStyle = '#0a0a0a';
   ctx.lineWidth = 1.5;
   ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
-  // FLAMMA (multi-lager animation)
-  const flameH = r * 1.8 + Math.sin(t / 70) * 4;
-  // Yttre orange
-  ctx.fillStyle = `rgba(255, 100, 30, ${0.7 * flicker})`;
+
+  // FLAMMOR — kommer UPP UR öppningen (top-down: flammorna är centerade på cy och växer ut)
+  const flameSize = r * 1.4 + Math.sin(t / 70) * 3;
+  // Yttre orange ring (bredast)
+  ctx.fillStyle = `rgba(255, 100, 30, ${0.55 * flicker})`;
   ctx.beginPath();
-  ctx.moveTo(cx - r * 0.7, cy - r * 0.3);
-  ctx.quadraticCurveTo(cx - r * 0.5 + Math.sin(t / 100) * 2, cy - flameH * 0.55, cx - 2, cy - flameH * 0.85);
-  ctx.quadraticCurveTo(cx + Math.sin(t / 80) * 3, cy - flameH, cx + 2, cy - flameH * 0.85);
-  ctx.quadraticCurveTo(cx + r * 0.5 + Math.sin(t / 90) * 2, cy - flameH * 0.55, cx + r * 0.7, cy - r * 0.3);
-  ctx.closePath(); ctx.fill();
-  // Mid gul
-  ctx.fillStyle = `rgba(255, 200, 60, ${0.85 * flicker})`;
-  ctx.beginPath();
-  ctx.moveTo(cx - r * 0.45, cy - r * 0.3);
-  ctx.quadraticCurveTo(cx - r * 0.3 + Math.sin(t / 90) * 1.5, cy - flameH * 0.45, cx - 1, cy - flameH * 0.7);
-  ctx.quadraticCurveTo(cx + Math.sin(t / 70) * 2, cy - flameH * 0.8, cx + 1, cy - flameH * 0.7);
-  ctx.quadraticCurveTo(cx + r * 0.3 + Math.sin(t / 95) * 1.5, cy - flameH * 0.45, cx + r * 0.45, cy - r * 0.3);
-  ctx.closePath(); ctx.fill();
-  // Vit hot-core
-  ctx.fillStyle = `rgba(255, 250, 220, ${0.9 * flicker})`;
-  ctx.beginPath();
-  ctx.ellipse(cx + Math.sin(t / 60) * 1, cy - flameH * 0.35, 2, 5, 0, 0, Math.PI*2); ctx.fill();
-  // Glow ovanpå
-  ctx.shadowColor = '#ff7030'; ctx.shadowBlur = 16 * flicker;
-  ctx.fillStyle = `rgba(255, 180, 50, ${0.5 * flicker})`;
-  ctx.beginPath(); ctx.arc(cx, cy - flameH * 0.3, 3, 0, Math.PI*2); ctx.fill();
-  ctx.shadowBlur = 0;
-  // Sparks (flyger upp)
-  const sparkSeed = Math.floor(t / 100) + (seed & 0xff);
-  for (let i = 0; i < 4; i++) {
-    const sphase = (t / 800 + i * 0.25) % 1;
-    const sx = cx + Math.sin((sparkSeed + i) * 13) * 6;
-    const sy = cy - r - sphase * 40;
-    ctx.fillStyle = `rgba(255, ${150 + i * 30}, 50, ${1 - sphase})`;
-    ctx.beginPath(); ctx.arc(sx, sy, 1 + (1 - sphase) * 0.7, 0, Math.PI*2); ctx.fill();
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const variation = 0.85 + Math.sin(t / 90 + i * 1.7 + seed) * 0.25;
+    const rr = flameSize * variation;
+    const px = cx + Math.cos(a) * rr;
+    const py = cy + Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
   }
+  ctx.closePath(); ctx.fill();
+  // Mid yellow flame
+  ctx.fillStyle = `rgba(255, 200, 60, ${0.8 * flicker})`;
+  ctx.beginPath();
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    const variation = 0.75 + Math.sin(t / 80 + i * 2.1 + seed * 0.7) * 0.22;
+    const rr = flameSize * 0.7 * variation;
+    const px = cx + Math.cos(a) * rr;
+    const py = cy + Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath(); ctx.fill();
+  // Vit hot-core (i mitten av öppningen)
+  ctx.fillStyle = `rgba(255, 250, 220, ${flicker})`;
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    const variation = 0.7 + Math.sin(t / 60 + i * 2.3) * 0.3;
+    const rr = flameSize * 0.32 * variation;
+    const px = cx + Math.cos(a) * rr;
+    const py = cy + Math.sin(a) * rr;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath(); ctx.fill();
+  // Outer glow (radial halo)
+  ctx.shadowColor = '#ff7030'; ctx.shadowBlur = 22 * flicker;
+  ctx.fillStyle = `rgba(255, 180, 50, ${0.35 * flicker})`;
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.5, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Sparks som flyger uppåt OCH utåt (lite åt sidorna eftersom det är top-down)
+  const sparkSeed = Math.floor(t / 100) + (seed & 0xff);
+  for (let i = 0; i < 6; i++) {
+    const sphase = (t / 700 + i * 0.17 + (sparkSeed & 0x1f) / 31) % 1;
+    const sa = ((sparkSeed + i * 7) & 0xff) / 255 * Math.PI * 2;
+    const sdist = sphase * 22;
+    const sx = cx + Math.cos(sa) * sdist;
+    const sy = cy + Math.sin(sa) * sdist;
+    ctx.fillStyle = `rgba(255, ${150 + i * 18}, 50, ${(1 - sphase) * 0.9})`;
+    ctx.beginPath(); ctx.arc(sx, sy, 1 + (1 - sphase) * 0.6, 0, Math.PI*2); ctx.fill();
+  }
+  // Subtle smoke ovanför (mörk transparent puff som drar uppåt-utåt)
+  ctx.fillStyle = `rgba(40, 35, 30, ${0.18 + Math.sin(t / 250) * 0.04})`;
+  ctx.beginPath();
+  ctx.arc(cx - 3 + Math.sin(t / 200) * 2, cy - 5, 6, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx + 4 + Math.cos(t / 180) * 2, cy - 3, 4, 0, Math.PI*2); ctx.fill();
   ctx.restore();
 }
 
@@ -3307,6 +3355,39 @@ function drawJuggernautDecorations(decos) {
         ctx.fillRect(sx, y + dia, 1, 8);
       }
       ctx.globalAlpha = 1;
+      // BLINKANDE LED-LAMPOR på piper (var 200px i world-coord, alternating
+      // röd/orange med deterministic blink-fas per pos så de inte synkar)
+      if (d.leds) {
+        const ledSpacing = 200;
+        const ledStartK = Math.max(0, Math.ceil((-15 - x) / ledSpacing));
+        const ledEndK = Math.min(Math.floor(w / ledSpacing), Math.floor((viewW + 15 - x) / ledSpacing));
+        for (let k = ledStartK; k <= ledEndK; k++) {
+          const lx = x + k * ledSpacing;
+          // Per-LED blink-fas (deterministic från world-pos)
+          const ledSeed = ((d.x + k * 200) * 11) | 0;
+          const blinkPhase = (t / 600 + (ledSeed & 0xff) / 255) % 1;
+          const isOn = blinkPhase < 0.5;
+          const ledColor = (k % 2 === 0) ? 'red' : 'orange';
+          // LED-housing (liten mörk square OVANPÅ pipe)
+          ctx.fillStyle = '#1a1a1a';
+          ctx.fillRect(lx - 1.5, y - 2.5, 3, 2.5);
+          // LED-lampa
+          if (isOn) {
+            ctx.fillStyle = ledColor === 'red' ? '#ff3030' : '#ff8a30';
+            ctx.shadowColor = ledColor === 'red' ? '#ff3030' : '#ff8a30';
+            ctx.shadowBlur = 6;
+            ctx.beginPath(); ctx.arc(lx, y - 1.2, 1.2, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+            // Bright center-dot
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(lx, y - 1.2, 0.4, 0, Math.PI*2); ctx.fill();
+          } else {
+            // Av — mörk LED
+            ctx.fillStyle = ledColor === 'red' ? '#5a1010' : '#5a3010';
+            ctx.beginPath(); ctx.arc(lx, y - 1.2, 1.2, 0, Math.PI*2); ctx.fill();
+          }
+        }
+      }
 
     } else if (d.kind === 'ceiling_pipe_v') {
       // Vertikalt tak-rör — clamp till visible-region som horisontell
@@ -3343,6 +3424,33 @@ function drawJuggernautDecorations(decos) {
         ctx.fillStyle = '#3a3a3a';
         ctx.fillRect(x, jy - 2, 1, 4);
       }
+      // BLINKANDE LED-LAMPOR på vertikal pipe (var 200px)
+      if (d.leds) {
+        const ledSpacing = 200;
+        const ledStartK = Math.max(0, Math.ceil((-15 - y) / ledSpacing));
+        const ledEndK = Math.min(Math.floor(h / ledSpacing), Math.floor((viewH + 15 - y) / ledSpacing));
+        for (let k = ledStartK; k <= ledEndK; k++) {
+          const ly = y + k * ledSpacing;
+          const ledSeed = ((d.y + k * 200) * 11) | 0;
+          const blinkPhase = (t / 600 + (ledSeed & 0xff) / 255) % 1;
+          const isOn = blinkPhase < 0.5;
+          const ledColor = (k % 2 === 0) ? 'red' : 'orange';
+          ctx.fillStyle = '#1a1a1a';
+          ctx.fillRect(x - 2.5, ly - 1.5, 2.5, 3);
+          if (isOn) {
+            ctx.fillStyle = ledColor === 'red' ? '#ff3030' : '#ff8a30';
+            ctx.shadowColor = ledColor === 'red' ? '#ff3030' : '#ff8a30';
+            ctx.shadowBlur = 6;
+            ctx.beginPath(); ctx.arc(x - 1.2, ly, 1.2, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#fff';
+            ctx.beginPath(); ctx.arc(x - 1.2, ly, 0.4, 0, Math.PI*2); ctx.fill();
+          } else {
+            ctx.fillStyle = ledColor === 'red' ? '#5a1010' : '#5a3010';
+            ctx.beginPath(); ctx.arc(x - 1.2, ly, 1.2, 0, Math.PI*2); ctx.fill();
+          }
+        }
+      }
 
     } else if (d.kind === 'cable_bundle') {
       // Hängande kabel-knippe — flera kurviga linjer mellan 2 punkter
@@ -3376,38 +3484,358 @@ function drawJuggernautDecorations(decos) {
       ctx.fillRect(x2 - 3, y2 - 2, 6, 1);
 
     } else if (d.kind === 'ceiling_drip') {
-      // Tak-läcka: liten dropp som forms + faller med periodisk anim
-      const dripPhase = (t / 1500 + (d.x * 0.001) + (d.y * 0.001)) % 1;
-      // Tak-håll-punkt
-      ctx.fillStyle = '#1a1a1a';
-      ctx.beginPath(); ctx.arc(x, y - 60, 1.5, 0, Math.PI*2); ctx.fill();
-      // Vått fuktig fläck runt håll-punkten
-      ctx.fillStyle = 'rgba(40, 60, 90, 0.45)';
+      // BRUSTET RÖR i taket: synligt horisontellt rörsegment med stor spricka,
+      // vatten sprutar ut + rinner nedåt, stor våt fläck på golvet, rost runt
+      // sprickan. Mer dramatisk än vanlig drip.
+      const breakSeed = ((d.x * 13) ^ (d.y * 19)) | 0;
+      const sprayPhase = (t / 280) % 1;
+
+      // 1) STOR våt mörk fläck på golvet (där vattnet samlas)
+      const poolR = 22;
+      const poolGrad = ctx.createRadialGradient(x, y, 2, x, y, poolR);
+      poolGrad.addColorStop(0, 'rgba(20, 40, 70, 0.85)');
+      poolGrad.addColorStop(0.6, 'rgba(15, 30, 50, 0.5)');
+      poolGrad.addColorStop(1, 'rgba(15, 30, 50, 0)');
+      ctx.fillStyle = poolGrad;
       ctx.beginPath();
-      ctx.ellipse(x, y - 60, 6, 2, 0, 0, Math.PI*2); ctx.fill();
-      // Droppe i fallning
-      const dropY = y - 60 + dripPhase * 60;
-      const dropAlpha = dripPhase < 0.9 ? 1 : (1 - dripPhase) * 10;
-      ctx.fillStyle = `rgba(140, 180, 220, ${dropAlpha})`;
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        const variation = 0.7 + (((breakSeed >> i) & 0x1f) / 31) * 0.6;
+        const px = x + Math.cos(a) * poolR * variation;
+        const py = y + Math.sin(a) * poolR * 0.55 * variation;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath(); ctx.fill();
+      // Vit reflektion-streak på pölen
+      ctx.fillStyle = 'rgba(160, 200, 240, 0.4)';
+      ctx.beginPath(); ctx.ellipse(x - 3, y - 1, 6, 1.5, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(200, 220, 250, 0.3)';
+      ctx.beginPath(); ctx.ellipse(x + 4, y + 2, 4, 1, 0, 0, Math.PI*2); ctx.fill();
+      // Concentric ripple from continuous drip impact
+      const rippleA = (t / 600 + (d.x * 0.001)) % 1;
+      ctx.strokeStyle = `rgba(160, 200, 240, ${(1 - rippleA) * 0.5})`;
+      ctx.lineWidth = 0.8;
       ctx.beginPath();
-      ctx.ellipse(x, dropY, 1.3, 2.5, 0, 0, Math.PI*2); ctx.fill();
-      // Subtle trail-streak ovanför droppen
-      if (dripPhase > 0.2) {
-        ctx.strokeStyle = `rgba(140, 180, 220, ${0.3 * dropAlpha})`;
-        ctx.lineWidth = 0.8;
+      ctx.ellipse(x, y, 4 + rippleA * 12, 1.5 + rippleA * 4, 0, 0, Math.PI*2);
+      ctx.stroke();
+
+      // 2) Vatten-stråle/cascade från taket till pölen (multi-streak)
+      const pipeY = y - 55;
+      // Mid-streak (huvud-cascade — bred, halvtransparent)
+      ctx.strokeStyle = 'rgba(150, 200, 240, 0.55)';
+      ctx.lineWidth = 2.2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x - 1, pipeY + 3);
+      // Liten våg i streamen
+      for (let s = 0; s < 6; s++) {
+        const sy = pipeY + 3 + s * (55 / 6);
+        const sx = x - 1 + Math.sin(t / 90 + s * 1.2 + breakSeed) * 1.2;
+        ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+      // Smala detalj-droppar runt huvudströmmen
+      ctx.strokeStyle = 'rgba(180, 220, 250, 0.65)';
+      ctx.lineWidth = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(x + 1, pipeY + 4);
+      for (let s = 0; s < 5; s++) {
+        const sy = pipeY + 4 + s * (50 / 5);
+        const sx = x + 1 + Math.sin(t / 110 + s * 0.9 + breakSeed * 0.3) * 1.5;
+        ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+      // Individuella droppar som faller (3 st med olika phaser)
+      for (let i = 0; i < 3; i++) {
+        const phase = (sprayPhase + i * 0.33) % 1;
+        const dropY = pipeY + 6 + phase * 50;
+        const dropX = x + Math.sin(i + breakSeed * 0.1) * 2;
+        ctx.fillStyle = `rgba(190, 220, 250, ${0.9 - phase * 0.3})`;
         ctx.beginPath();
-        ctx.moveTo(x, dropY - 8);
-        ctx.lineTo(x, dropY);
+        ctx.ellipse(dropX, dropY, 1.1, 2.2, 0, 0, Math.PI*2); ctx.fill();
+      }
+
+      // 3) Side-spray (mindre droppar som spritter åt sidorna från brott-punkten)
+      for (let i = 0; i < 4; i++) {
+        const sphase = (t / 400 + i * 0.25 + breakSeed * 0.01) % 1;
+        const sa = ((breakSeed >> (i * 3)) & 0x7) / 7 * Math.PI - Math.PI / 2;
+        const sdist = sphase * 18;
+        const sx = x + Math.cos(sa) * sdist;
+        const sy = pipeY + 4 + Math.sin(sa) * sdist + sphase * sphase * 18; // gravity
+        ctx.fillStyle = `rgba(170, 210, 240, ${(1 - sphase) * 0.7})`;
+        ctx.beginPath(); ctx.arc(sx, sy, 0.8, 0, Math.PI*2); ctx.fill();
+      }
+
+      // 4) BRUSTET RÖR-SEGMENT (i taket — synligt rör med spricka)
+      // Pipe shadow (subtle drop nedanför pipe)
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(x - 16, pipeY + 8, 32, 2);
+      // Pipe-kropp (kort segment 32px brett)
+      const pipeGrad = ctx.createLinearGradient(0, pipeY, 0, pipeY + 8);
+      pipeGrad.addColorStop(0, '#1a1a1e');
+      pipeGrad.addColorStop(0.3, '#5a4030');
+      pipeGrad.addColorStop(0.7, '#5a4030');
+      pipeGrad.addColorStop(1, '#0a0a0e');
+      ctx.fillStyle = pipeGrad;
+      ctx.fillRect(x - 16, pipeY, 32, 8);
+      // Rost-fläckar på rör (mörka orange-brun)
+      ctx.fillStyle = 'rgba(120, 60, 25, 0.6)';
+      ctx.fillRect(x - 14, pipeY + 1, 3, 2);
+      ctx.fillRect(x + 8, pipeY + 4, 4, 2);
+      ctx.fillRect(x - 5, pipeY + 5, 2, 2);
+      // SPRICKAN i mitten (oregelbunden dark gap där vattnet kommer ut)
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.moveTo(x - 4, pipeY + 1);
+      ctx.lineTo(x - 2, pipeY + 4);
+      ctx.lineTo(x - 3, pipeY + 7);
+      ctx.lineTo(x + 1, pipeY + 6);
+      ctx.lineTo(x + 3, pipeY + 8);
+      ctx.lineTo(x + 4, pipeY + 5);
+      ctx.lineTo(x + 2, pipeY + 2);
+      ctx.lineTo(x + 1, pipeY);
+      ctx.closePath();
+      ctx.fill();
+      // Vit highlight-edge på sprickan (där metallen är bruten/böjd)
+      ctx.strokeStyle = '#7a7a82';
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+      // Bent metal-flaps runt sprickan (små flackar som böjts utåt)
+      ctx.fillStyle = '#3a3a40';
+      ctx.beginPath();
+      ctx.moveTo(x - 4, pipeY + 1); ctx.lineTo(x - 6, pipeY); ctx.lineTo(x - 3, pipeY + 1);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x + 2, pipeY); ctx.lineTo(x + 5, pipeY - 1); ctx.lineTo(x + 3, pipeY + 1);
+      ctx.closePath(); ctx.fill();
+      // Rost-cirkel runt sprickan (corrosion-halo)
+      ctx.strokeStyle = 'rgba(140, 70, 30, 0.45)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.ellipse(x, pipeY + 4, 9, 5, 0, 0, Math.PI*2);
+      ctx.stroke();
+      // Pipe-mounts (fastsättnings-brackets till tak)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 16, pipeY - 3, 4, 3);
+      ctx.fillRect(x + 12, pipeY - 3, 4, 3);
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 16, pipeY - 3, 4, 1);
+      ctx.fillRect(x + 12, pipeY - 3, 4, 1);
+      // Mounting-skruvar
+      ctx.fillStyle = '#0a0a0a';
+      ctx.beginPath(); ctx.arc(x - 14, pipeY - 1, 0.6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 14, pipeY - 1, 0.6, 0, Math.PI*2); ctx.fill();
+      // Subtle steam/mist ovanför sprickan (där vattnet träffar luften)
+      ctx.fillStyle = `rgba(180, 200, 220, ${0.15 + Math.sin(t / 250) * 0.05})`;
+      ctx.beginPath(); ctx.arc(x - 1, pipeY - 4, 5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 2, pipeY - 6, 3, 0, Math.PI*2); ctx.fill();
+
+    } else if (d.kind === 'rubble') {
+      // Concrete-chunks (krossad betong)
+      const rubbleSeed = ((d.x * 17) ^ (d.y * 23)) | 0;
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath(); ctx.ellipse(x + 2, y + 7, 16, 3, 0, 0, Math.PI*2); ctx.fill();
+      // 5-7 chunks i en hög
+      const chunkCount = 5 + (rubbleSeed & 0x3);
+      for (let i = 0; i < chunkCount; i++) {
+        const h = rubbleSeed >> (i * 4);
+        const cxOff = ((h & 0x1f) - 16) * 0.6;
+        const cyOff = (((h >> 5) & 0x1f) - 16) * 0.4;
+        const cSz = 3 + ((h >> 10) & 0x7);
+        // Chunk-grays
+        ctx.fillStyle = i % 2 === 0 ? '#4a4a4e' : '#5a5a5e';
+        ctx.fillRect(x + cxOff, y + cyOff, cSz, cSz * 0.7);
+        // Mörk skugga på en sida
+        ctx.fillStyle = '#1a1a1e';
+        ctx.fillRect(x + cxOff, y + cyOff + cSz * 0.5, cSz, cSz * 0.2);
+        // Highlight
+        ctx.fillStyle = '#7a7a82';
+        ctx.fillRect(x + cxOff, y + cyOff, cSz, 0.6);
+      }
+      // Exponerad rebar (rostig pinne sticker ut)
+      ctx.strokeStyle = '#7a4828';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(x + 2, y - 4);
+      ctx.lineTo(x + 4, y + 4);
+      ctx.stroke();
+      // Dust-haze runt högen
+      ctx.fillStyle = 'rgba(160, 150, 140, 0.12)';
+      ctx.beginPath(); ctx.arc(x, y + 2, 14, 0, Math.PI*2); ctx.fill();
+
+    } else if (d.kind === 'traffic_cone') {
+      // Orange varningskona med vita reflexer
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.beginPath(); ctx.ellipse(x + 1, y + 8, 8, 2, 0, 0, Math.PI*2); ctx.fill();
+      // Bas (svart kvadrat)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 7, y + 5, 14, 3);
+      // Bas-highlight
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 7, y + 5, 14, 0.6);
+      // Kon-kropp (orange triangel ovanifrån — vy från sidan)
+      ctx.fillStyle = '#ff6a20';
+      ctx.beginPath();
+      ctx.moveTo(x - 5, y + 5);
+      ctx.lineTo(x, y - 8);
+      ctx.lineTo(x + 5, y + 5);
+      ctx.closePath(); ctx.fill();
+      // Mörkare orange skugga (höger sida)
+      ctx.fillStyle = '#c04a10';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 8);
+      ctx.lineTo(x + 5, y + 5);
+      ctx.lineTo(x + 1, y + 5);
+      ctx.closePath(); ctx.fill();
+      // Vita reflex-band (2 horisontella ringar)
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(x - 3.5, y - 1); ctx.lineTo(x + 3.5, y - 1);
+      ctx.lineTo(x + 3, y + 0.5); ctx.lineTo(x - 3, y + 0.5);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x - 2, y - 4.5); ctx.lineTo(x + 2, y - 4.5);
+      ctx.lineTo(x + 1.6, y - 3.5); ctx.lineTo(x - 1.6, y - 3.5);
+      ctx.closePath(); ctx.fill();
+      // Mörk outline
+      ctx.strokeStyle = '#0a0a0a';
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(x - 5, y + 5); ctx.lineTo(x, y - 8); ctx.lineTo(x + 5, y + 5);
+      ctx.stroke();
+
+    } else if (d.kind === 'pallet') {
+      // Trä-pallet (lämnad på golvet)
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(x - 14, y - 8, 30, 18);
+      // Bas-planka (mörkbrun trä)
+      ctx.fillStyle = '#5a3a20';
+      ctx.fillRect(x - 14, y - 9, 30, 18);
+      // Top-plankor (3 horisontella med gap)
+      ctx.fillStyle = '#7a5028';
+      ctx.fillRect(x - 14, y - 9, 30, 4);
+      ctx.fillRect(x - 14, y - 3, 30, 4);
+      ctx.fillRect(x - 14, y + 3, 30, 4);
+      // Trä-grain på top-plankor (subtila streck)
+      ctx.strokeStyle = '#3a2010';
+      ctx.lineWidth = 0.3;
+      for (let i = 0; i < 3; i++) {
+        const py = y - 8 + i * 6;
+        ctx.beginPath();
+        ctx.moveTo(x - 13, py); ctx.lineTo(x + 13, py + 0.5);
+        ctx.moveTo(x - 13, py + 2); ctx.lineTo(x + 13, py + 2.5);
         ctx.stroke();
       }
-      // Splash vid impact (synlig kort)
-      if (dripPhase > 0.92) {
-        const splashAlpha = (dripPhase - 0.92) / 0.08;
-        ctx.strokeStyle = `rgba(140, 180, 220, ${splashAlpha * 0.6})`;
-        ctx.lineWidth = 0.8;
+      // Bottom-stöd (3 vertikala block)
+      ctx.fillStyle = '#3a2010';
+      ctx.fillRect(x - 14, y + 7, 4, 3);
+      ctx.fillRect(x - 2, y + 7, 4, 3);
+      ctx.fillRect(x + 10, y + 7, 4, 3);
+      // Spik-detaljer (små mörka prickar i hörnen)
+      ctx.fillStyle = '#1a0808';
+      const nails = [[-13, -8], [13, -8], [-13, 8], [13, 8], [0, -8], [0, 8]];
+      for (const [nx, ny] of nails) {
+        ctx.beginPath(); ctx.arc(x + nx, y + ny, 0.5, 0, Math.PI*2); ctx.fill();
+      }
+      // Yttre outline
+      ctx.strokeStyle = '#1a0a05';
+      ctx.lineWidth = 0.7;
+      ctx.strokeRect(x - 14, y - 9, 30, 18);
+
+    } else if (d.kind === 'broken_glass') {
+      // Spritt glas-skärvor
+      const glassSeed = ((d.x * 19) ^ (d.y * 29)) | 0;
+      // 8-12 skärvor i en oregelbunden spridning
+      const shardCount = 8 + (glassSeed & 0x7);
+      for (let i = 0; i < shardCount; i++) {
+        const h = glassSeed >> (i * 2);
+        const sx = ((h & 0x1f) - 16) * 1.5;
+        const sy = (((h >> 5) & 0x1f) - 16) * 1.0;
+        const sSz = 1 + ((h >> 10) & 0x3);
+        const angle = ((h >> 13) & 0x7) / 7 * Math.PI;
+        ctx.save();
+        ctx.translate(x + sx, y + sy);
+        ctx.rotate(angle);
+        // Skärva (triangulär)
+        ctx.fillStyle = 'rgba(180, 210, 230, 0.8)';
         ctx.beginPath();
-        ctx.arc(x, y, 4 + splashAlpha * 3, 0, Math.PI*2);
-        ctx.stroke();
+        ctx.moveTo(0, 0); ctx.lineTo(sSz, sSz * 0.3); ctx.lineTo(sSz * 0.4, sSz * 0.8);
+        ctx.closePath(); ctx.fill();
+        // Highlight-streak
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, sSz * 0.6, 0.4);
+        // Mörk skugga-kant
+        ctx.strokeStyle = 'rgba(80, 100, 120, 0.6)';
+        ctx.lineWidth = 0.3;
+        ctx.beginPath();
+        ctx.moveTo(0, 0); ctx.lineTo(sSz, sSz * 0.3); ctx.lineTo(sSz * 0.4, sSz * 0.8);
+        ctx.closePath(); ctx.stroke();
+        ctx.restore();
+      }
+
+    } else if (d.kind === 'trash_pile') {
+      // Skräp-hög: pappers + flaskor + plast
+      const trashSeed = ((d.x * 11) ^ (d.y * 13)) | 0;
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath(); ctx.ellipse(x + 2, y + 6, 14, 3, 0, 0, Math.PI*2); ctx.fill();
+      // Tidnings-papper (vita rektanglar med text-illusion)
+      ctx.fillStyle = '#d0c8b8';
+      ctx.fillRect(x - 8, y - 2, 8, 5);
+      ctx.fillRect(x + 2, y, 7, 4);
+      ctx.fillStyle = '#5a5040';
+      // Fake text-lines
+      for (let i = 0; i < 4; i++) {
+        ctx.fillRect(x - 7, y - 1 + i, 6, 0.3);
+        ctx.fillRect(x + 3, y + 0.5 + i * 0.8, 5, 0.2);
+      }
+      // Bottle/can (mörk cirkel)
+      ctx.fillStyle = '#3a5a30';
+      ctx.fillRect(x - 3, y + 2, 3, 5);
+      ctx.fillStyle = '#1a3a10';
+      ctx.fillRect(x - 3, y + 6, 3, 1);
+      // Aluminum-can (silver)
+      ctx.fillStyle = '#9a9aa0';
+      ctx.fillRect(x + 5, y - 4, 2.5, 5);
+      ctx.fillStyle = '#5a5a60';
+      ctx.fillRect(x + 5, y - 4, 2.5, 0.6);
+      // Plast-bit (genomskinlig)
+      ctx.fillStyle = 'rgba(200, 200, 220, 0.5)';
+      ctx.beginPath();
+      ctx.moveTo(x - 9, y + 1); ctx.lineTo(x - 6, y + 4);
+      ctx.lineTo(x - 4, y + 1); ctx.lineTo(x - 6, y - 2);
+      ctx.closePath(); ctx.fill();
+      // Random small dots (smuts)
+      ctx.fillStyle = 'rgba(40, 30, 20, 0.5)';
+      for (let i = 0; i < 6; i++) {
+        const h = trashSeed >> (i * 3);
+        const dx = ((h & 0x1f) - 16) * 0.7;
+        const dy = (((h >> 5) & 0x1f) - 16) * 0.4;
+        ctx.fillRect(x + dx, y + dy, 1, 1);
+      }
+
+    } else if (d.kind === 'parking_number') {
+      // Stort målat "P-XX" på golvet (smaller än floor_marking)
+      const text = d.text || 'P-12';
+      const size = d.size || 28;
+      ctx.font = 'bold ' + size + 'px Impact, "Arial Black", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Slitet utseende
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.fillText(text, x + 1, y + 1);
+      ctx.fillStyle = 'rgba(220, 220, 200, 0.7)';
+      ctx.fillText(text, x, y);
+      // Slitage
+      const wearSeed = ((d.x * 13) ^ (d.y * 17)) | 0;
+      ctx.fillStyle = 'rgba(20, 20, 24, 0.5)';
+      for (let i = 0; i < 5; i++) {
+        const wx = x + ((wearSeed * (i + 1) * 23) % size) - size * 0.4;
+        const wy = y + ((wearSeed * (i + 3) * 31) % size) - size * 0.4;
+        ctx.fillRect(wx, wy, 2, 1.5);
       }
 
     } else if (d.kind === 'warning_triangle') {
