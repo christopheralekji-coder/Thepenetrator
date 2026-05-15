@@ -124,6 +124,44 @@ const JUGGERNAUT_ARENA = {
     { x: 3800, y: 500,  w: 80, h: 20, kind: 'barricade' },
     { x: 1000, y: 2950, w: 80, h: 20, kind: 'barricade' },
     { x: 3800, y: 2950, w: 80, h: 20, kind: 'barricade' },
+
+    // === BOLLARDS — betong-pollare (gula varnings-stoppblock, 14 st) ===
+    { x: 250,  y: 1000, w: 18, h: 18, kind: 'bollard' },
+    { x: 250,  y: 1400, w: 18, h: 18, kind: 'bollard' },
+    { x: 250,  y: 2400, w: 18, h: 18, kind: 'bollard' },
+    { x: 4750, y: 1000, w: 18, h: 18, kind: 'bollard' },
+    { x: 4750, y: 1400, w: 18, h: 18, kind: 'bollard' },
+    { x: 4750, y: 2400, w: 18, h: 18, kind: 'bollard' },
+    { x: 1900, y: 250, w: 18, h: 18, kind: 'bollard' },
+    { x: 2200, y: 250, w: 18, h: 18, kind: 'bollard' },
+    { x: 2800, y: 250, w: 18, h: 18, kind: 'bollard' },
+    { x: 3100, y: 250, w: 18, h: 18, kind: 'bollard' },
+    { x: 1900, y: 3250, w: 18, h: 18, kind: 'bollard' },
+    { x: 2200, y: 3250, w: 18, h: 18, kind: 'bollard' },
+    { x: 2800, y: 3250, w: 18, h: 18, kind: 'bollard' },
+    { x: 3100, y: 3250, w: 18, h: 18, kind: 'bollard' },
+
+    // === BRINNANDE SOPCONTAINERS — dumpsters med eld (2 st) ===
+    { x: 1300, y: 100, w: 60, h: 36, kind: 'dumpster_fire' },
+    { x: 3500, y: 3300, w: 60, h: 36, kind: 'dumpster_fire' },
+
+    // === TRAPPHUSDÖRRAR — exit-dörrar med EXIT-skylt (3 st) ===
+    { x: 100, y: 100, w: 36, h: 60, kind: 'stairwell_door' },
+    { x: 4760, y: 1700, w: 36, h: 60, kind: 'stairwell_door' },
+    { x: 2400, y: 3400, w: 60, h: 36, kind: 'stairwell_door' },
+
+    // === PAY-AUTOMATER — parkerings-betalningsstationer (3 st) ===
+    { x: 800,  y: 350, w: 22, h: 50, kind: 'pay_machine' },
+    { x: 3400, y: 350, w: 22, h: 50, kind: 'pay_machine' },
+    { x: 2400, y: 2900, w: 22, h: 50, kind: 'pay_machine' },
+
+    // === JERSEY-BETONGBARRIÄRER — låga betong-block (6 st) ===
+    { x: 600, y: 1100, w: 220, h: 20, kind: 'jersey_barrier' },
+    { x: 4180, y: 1100, w: 220, h: 20, kind: 'jersey_barrier' },
+    { x: 600, y: 2400, w: 220, h: 20, kind: 'jersey_barrier' },
+    { x: 4180, y: 2400, w: 220, h: 20, kind: 'jersey_barrier' },
+    { x: 2300, y: 1700, w: 20, h: 100, kind: 'jersey_barrier' },
+    { x: 2680, y: 1700, w: 20, h: 100, kind: 'jersey_barrier' },
   ],
 
   // Decorations — visuella overlays, ingen collision. Strukturerade i lager:
@@ -258,6 +296,46 @@ const JUGGERNAUT_ARENA = {
     { kind: 'parking_number', x: 1150, y: 2700, text: 'P-32', size: 22 },
     { kind: 'parking_number', x: 2850, y: 2700, text: 'P-38', size: 22 },
     { kind: 'parking_number', x: 4150, y: 2700, text: 'P-42', size: 22 },
+
+    // === BRANDPOSTER (fire hydrants — röda metall-poster, 5 st) ===
+    { kind: 'fire_hydrant', x: 380,  y: 600 },
+    { kind: 'fire_hydrant', x: 4620, y: 600 },
+    { kind: 'fire_hydrant', x: 380,  y: 2900 },
+    { kind: 'fire_hydrant', x: 4620, y: 2900 },
+    { kind: 'fire_hydrant', x: 2500, y: 1100 },
+
+    // === VÄLTA SHOPPING-CARTS (3 st, sidan-down) ===
+    { kind: 'overturned_cart', x: 1750, y: 2050, rot: 0.5 },
+    { kind: 'overturned_cart', x: 3950, y: 1500, rot: -0.4 },
+    { kind: 'overturned_cart', x: 650,  y: 2750, rot: 0.7 },
+
+    // === PARKERINGS-SKYLTAR på stolpar (6 st) ===
+    { kind: 'parking_sign', x: 500,  y: 250, text: 'P', color: '#1a3a8a' },
+    { kind: 'parking_sign', x: 1700, y: 250, text: 'P', color: '#1a3a8a' },
+    { kind: 'parking_sign', x: 3300, y: 250, text: 'P', color: '#1a3a8a' },
+    { kind: 'parking_sign', x: 4500, y: 250, text: '⤓', color: '#3a8a3a' },
+    { kind: 'parking_sign', x: 500,  y: 3250, text: '⇄', color: '#1a3a8a' },
+    { kind: 'parking_sign', x: 4500, y: 3250, text: '⤓', color: '#3a8a3a' },
+
+    // === WHEEL-STOPS (små betong-stopp vid parkerings-rutor, 10 st) ===
+    { kind: 'wheel_stop', x: 1100, y: 900, len: 60, dir: 'h' },
+    { kind: 'wheel_stop', x: 2100, y: 900, len: 60, dir: 'h' },
+    { kind: 'wheel_stop', x: 3100, y: 900, len: 60, dir: 'h' },
+    { kind: 'wheel_stop', x: 4100, y: 900, len: 60, dir: 'h' },
+    { kind: 'wheel_stop', x: 1100, y: 2500, len: 60, dir: 'h' },
+    { kind: 'wheel_stop', x: 2100, y: 2500, len: 60, dir: 'h' },
+    { kind: 'wheel_stop', x: 3100, y: 2500, len: 60, dir: 'h' },
+    { kind: 'wheel_stop', x: 4100, y: 2500, len: 60, dir: 'h' },
+    { kind: 'wheel_stop', x: 1100, y: 3050, len: 60, dir: 'h' },
+    { kind: 'wheel_stop', x: 3100, y: 3050, len: 60, dir: 'h' },
+
+    // === PIPE-VALVES (rattar fastsatta på tak-rören, 6 st) ===
+    { kind: 'pipe_valve', x: 800,  y: 600 },
+    { kind: 'pipe_valve', x: 2200, y: 1400 },
+    { kind: 'pipe_valve', x: 3700, y: 2200 },
+    { kind: 'pipe_valve', x: 1500, y: 3000 },
+    { kind: 'pipe_valve', x: 4200, y: 600 },
+    { kind: 'pipe_valve', x: 600,  y: 2200 },
   ],
 
   // JUG-specifika vapenval. Klient visar dessa i weapon-switch-UI när

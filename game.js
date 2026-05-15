@@ -1030,6 +1030,11 @@ function drawPvpWalls(walls) {
     else if (w.kind === 'broken_pillar') drawBrokenPillar(x, y, w.w, w.h, seed);
     else if (w.kind === 'tagged_pillar') drawTaggedPillar(x, y, w.w, w.h, seed);
     else if (w.kind === 'concrete') drawConcreteWall(x, y, w.w, w.h);
+    else if (w.kind === 'bollard') drawBollard(x, y, w.w, w.h);
+    else if (w.kind === 'dumpster_fire') drawDumpsterFire(x, y, w.w, w.h, seed);
+    else if (w.kind === 'stairwell_door') drawStairwellDoor(x, y, w.w, w.h);
+    else if (w.kind === 'pay_machine') drawPayMachine(x, y, w.w, w.h);
+    else if (w.kind === 'jersey_barrier') drawJerseyBarrier(x, y, w.w, w.h);
     else { ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x, y, w.w, w.h); }
   }
   ctx.restore();
@@ -2079,6 +2084,365 @@ function drawBrokenPillar(x, y, w, h, seed) {
   ctx.fillStyle = '#5a5a60';
   ctx.fillRect(x - 1, y + h - 2, 1, 1);
   ctx.restore();
+}
+
+function drawBollard(x, y, w, h) {
+  // Cylindrisk betong-pollare med gul-svart varnings-stripe + reflex
+  const cx = x + w / 2, cy = y + h / 2;
+  const r = Math.min(w, h) / 2;
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.ellipse(cx + 1.5, cy + 3, r + 1, 3, 0, 0, Math.PI*2); ctx.fill();
+  // Bas (betong-grå med radial-gradient för cylinder-känsla)
+  const grad = ctx.createRadialGradient(cx - r * 0.4, cy - r * 0.4, r * 0.2, cx, cy, r);
+  grad.addColorStop(0, '#9a9a9a');
+  grad.addColorStop(0.6, '#5a5a5a');
+  grad.addColorStop(1, '#2a2a2a');
+  ctx.fillStyle = grad;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  // Gul varnings-stripe (cirkulär band runt mid)
+  ctx.strokeStyle = '#ffd54a';
+  ctx.lineWidth = Math.max(1.5, r * 0.4);
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.92, 0, Math.PI*2); ctx.stroke();
+  // Svart kant runt gul-stripe (klassisk varnings-look)
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.7, 0, Math.PI*2); ctx.stroke();
+  // Reflex-fläckar (3 vita prickar på gula stripen)
+  ctx.fillStyle = '#fff';
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 - Math.PI / 6;
+    ctx.beginPath();
+    ctx.arc(cx + Math.cos(a) * r * 0.92, cy + Math.sin(a) * r * 0.92, 0.6, 0, Math.PI*2);
+    ctx.fill();
+  }
+  // Top-cap (mörkare mitten)
+  ctx.fillStyle = '#3a3a3a';
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.35, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#5a5a5a';
+  ctx.beginPath(); ctx.arc(cx - r * 0.1, cy - r * 0.1, r * 0.15, 0, Math.PI*2); ctx.fill();
+  // Slitage-spår (mörka streck längs sidan)
+  ctx.strokeStyle = 'rgba(20, 20, 20, 0.5)';
+  ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(cx + r * 0.5, cy + r * 0.4); ctx.lineTo(cx + r * 0.8, cy + r * 0.2);
+  ctx.stroke();
+  // Yttre outline
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+}
+
+function drawDumpsterFire(x, y, w, h, seed) {
+  // Brinnande soptunna/dumpster — stor rektangulär metallcontainer med
+  // öppet lock och flammor som strömmar ut. Sotad, grön/rostig, varningar.
+  const t = performance.now();
+  const flicker = 0.85 + Math.sin(t / 80 + (seed & 0xff)) * 0.15;
+  ctx.save();
+  // Ljuspöl på golvet (varmt orange) — först
+  const lightR = 110;
+  const lightGrad = ctx.createRadialGradient(x + w / 2, y + h / 2, 6, x + w / 2, y + h / 2, lightR);
+  lightGrad.addColorStop(0, `rgba(255, 140, 50, ${0.5 * flicker})`);
+  lightGrad.addColorStop(0.6, `rgba(255, 100, 30, ${0.2 * flicker})`);
+  lightGrad.addColorStop(1, 'rgba(255, 80, 20, 0)');
+  ctx.fillStyle = lightGrad;
+  ctx.fillRect(x + w / 2 - lightR, y + h / 2 - lightR, lightR * 2, lightR * 2);
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(x + 3, y + 5, w, h);
+  // Bas-kropp (grön/sotad metall — dumpster-klassiker)
+  ctx.fillStyle = '#2a3a25';
+  ctx.fillRect(x, y, w, h);
+  // Sotade fläckar (svart-fläckar från elden)
+  ctx.fillStyle = '#0a0a08';
+  ctx.fillRect(x + 2, y + 2, w - 4, 6);
+  ctx.fillStyle = '#1a1a14';
+  ctx.fillRect(x + w * 0.2, y + 4, w * 0.3, h * 0.3);
+  ctx.fillRect(x + w * 0.6, y + 6, w * 0.2, h * 0.4);
+  // Top-rim (lite ljusare — lock-kant där elden går upp)
+  ctx.fillStyle = '#4a5a40';
+  ctx.fillRect(x, y, w, 3);
+  // Öppning (mörk öppet topp där flammorna kommer från)
+  ctx.fillStyle = '#000';
+  ctx.fillRect(x + 4, y + 3, w - 8, 5);
+  // Inner hot glow inuti dumpstern
+  const innerG = ctx.createLinearGradient(0, y + 3, 0, y + 8);
+  innerG.addColorStop(0, `rgba(255, 200, 100, ${0.9 * flicker})`);
+  innerG.addColorStop(1, `rgba(180, 60, 20, ${0.7 * flicker})`);
+  ctx.fillStyle = innerG;
+  ctx.fillRect(x + 4, y + 3, w - 8, 5);
+  // Vertikala ribbor (typiska dumpster-paneler)
+  ctx.strokeStyle = '#1a2a18';
+  ctx.lineWidth = 0.8;
+  const ribCount = 6;
+  for (let i = 1; i < ribCount; i++) {
+    const rx = x + (w * i / ribCount);
+    ctx.beginPath();
+    ctx.moveTo(rx, y + 8); ctx.lineTo(rx, y + h - 4);
+    ctx.stroke();
+  }
+  // 4 hjul-bockar i hörnen
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x + 2, y + h - 4, 4, 4);
+  ctx.fillRect(x + w - 6, y + h - 4, 4, 4);
+  // FLAMMOR ovanför öppning (multi-lager)
+  const flameH = h * 0.8 + Math.sin(t / 70) * 4;
+  // Yttre orange
+  ctx.fillStyle = `rgba(255, 100, 30, ${0.6 * flicker})`;
+  ctx.beginPath();
+  ctx.moveTo(x + 4, y + 3);
+  ctx.quadraticCurveTo(x + w * 0.25 + Math.sin(t / 100) * 3, y - flameH * 0.6, x + w * 0.45, y - flameH * 0.85);
+  ctx.quadraticCurveTo(x + w / 2 + Math.sin(t / 80) * 4, y - flameH, x + w * 0.55, y - flameH * 0.85);
+  ctx.quadraticCurveTo(x + w * 0.75 + Math.sin(t / 90) * 3, y - flameH * 0.6, x + w - 4, y + 3);
+  ctx.closePath(); ctx.fill();
+  // Mid yellow
+  ctx.fillStyle = `rgba(255, 200, 60, ${0.85 * flicker})`;
+  ctx.beginPath();
+  ctx.moveTo(x + 8, y + 3);
+  ctx.quadraticCurveTo(x + w * 0.3 + Math.sin(t / 90) * 2, y - flameH * 0.5, x + w * 0.47, y - flameH * 0.72);
+  ctx.quadraticCurveTo(x + w / 2 + Math.sin(t / 70) * 3, y - flameH * 0.82, x + w * 0.53, y - flameH * 0.72);
+  ctx.quadraticCurveTo(x + w * 0.7 + Math.sin(t / 95) * 2, y - flameH * 0.5, x + w - 8, y + 3);
+  ctx.closePath(); ctx.fill();
+  // Vit hot-core (i mitten)
+  ctx.fillStyle = `rgba(255, 250, 220, ${flicker})`;
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2 + Math.sin(t / 60) * 2, y - flameH * 0.4, 4, 8, 0, 0, Math.PI*2); ctx.fill();
+  // Glow halo
+  ctx.shadowColor = '#ff7030'; ctx.shadowBlur = 18 * flicker;
+  ctx.fillStyle = `rgba(255, 180, 50, ${0.4 * flicker})`;
+  ctx.beginPath(); ctx.arc(x + w / 2, y - flameH * 0.3, 6, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Sparks som flyger upp
+  const sparkSeed = Math.floor(t / 100) + (seed & 0xff);
+  for (let i = 0; i < 5; i++) {
+    const sphase = (t / 700 + i * 0.2) % 1;
+    const sx = x + w / 2 + Math.sin((sparkSeed + i) * 13) * 12;
+    const sy = y - sphase * 45;
+    ctx.fillStyle = `rgba(255, ${150 + i * 25}, 50, ${1 - sphase})`;
+    ctx.beginPath(); ctx.arc(sx, sy, 1 + (1 - sphase) * 0.6, 0, Math.PI*2); ctx.fill();
+  }
+  // Smoke ovanför flammorna
+  ctx.fillStyle = `rgba(40, 35, 30, ${0.25 + Math.sin(t / 250) * 0.05})`;
+  ctx.beginPath(); ctx.arc(x + w / 2 - 4 + Math.sin(t / 200) * 3, y - flameH - 4, 6, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + w / 2 + 5 + Math.cos(t / 180) * 2, y - flameH - 8, 4, 0, Math.PI*2); ctx.fill();
+  // Yellow warning-stripe (klassisk dumpster-varning)
+  ctx.fillStyle = '#ffd54a';
+  ctx.fillRect(x, y + h - 8, w, 3);
+  // Svart-gul varnings-pattern
+  ctx.fillStyle = '#1a1a1a';
+  for (let i = 0; i < w / 8; i++) {
+    if (i % 2 === 0) ctx.fillRect(x + i * 8, y + h - 8, 4, 3);
+  }
+  // Yttre outline
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.restore();
+}
+
+function drawStairwellDoor(x, y, w, h) {
+  // Trapphusdörr — stålram + dörr + EXIT-skylt + glaspartier
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(x + 2, y + 4, w, h);
+  // Ram (mörk metall)
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x, y, w, h);
+  // Dörr-bas (stål-grå)
+  ctx.fillStyle = '#3a3a3a';
+  ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
+  // Dörr-gradient (lite 3D)
+  const grad = ctx.createLinearGradient(x, 0, x + w, 0);
+  grad.addColorStop(0, '#4a4a4a');
+  grad.addColorStop(0.5, '#5a5a5a');
+  grad.addColorStop(1, '#3a3a3a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x + 3, y + 3, w - 6, h - 6);
+  // Glasruta (top-half — säkerhetsglas med wire-mesh)
+  ctx.fillStyle = '#1a2a3a';
+  ctx.fillRect(x + 6, y + 5, w - 12, h * 0.35);
+  // Wire-mesh (kryss-mönster)
+  ctx.strokeStyle = '#3a3a3a';
+  ctx.lineWidth = 0.4;
+  const meshSz = 4;
+  for (let mx = x + 6; mx < x + w - 6; mx += meshSz) {
+    ctx.beginPath();
+    ctx.moveTo(mx, y + 5); ctx.lineTo(mx, y + 5 + h * 0.35);
+    ctx.stroke();
+  }
+  for (let my = y + 5; my < y + 5 + h * 0.35; my += meshSz) {
+    ctx.beginPath();
+    ctx.moveTo(x + 6, my); ctx.lineTo(x + w - 6, my);
+    ctx.stroke();
+  }
+  // Reflektion på glaset
+  ctx.fillStyle = 'rgba(180, 200, 220, 0.18)';
+  ctx.fillRect(x + 7, y + 6, w - 14, 3);
+  // Dörrhandtag (horisontellt push-bar)
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x + 4, y + h * 0.55, w - 8, 2);
+  ctx.fillStyle = '#7a7a7a';
+  ctx.fillRect(x + 4, y + h * 0.55, w - 8, 0.6);
+  // Handtag-stöd (2 små brackets)
+  ctx.fillStyle = '#5a5a5a';
+  ctx.fillRect(x + 6, y + h * 0.54, 2, 4);
+  ctx.fillRect(x + w - 8, y + h * 0.54, 2, 4);
+  // EXIT-skylt ovanför dörren (grön LED-emaljerad skylt)
+  ctx.fillStyle = '#0a2a0a';
+  ctx.fillRect(x + 4, y + 4, w - 8, 6);
+  ctx.fillStyle = '#3aff5a';
+  ctx.shadowColor = '#3aff5a'; ctx.shadowBlur = 4;
+  ctx.font = 'bold 8px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('EXIT', x + w / 2, y + 7);
+  ctx.shadowBlur = 0;
+  // Trapp-symbol nedanför handtag
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('⤓', x + w / 2, y + h * 0.78);
+  // Hinges (gångjärn — 2 mörka cirklar på vänster sida)
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath(); ctx.arc(x + 4, y + 8, 1.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + 4, y + h - 8, 1.2, 0, Math.PI*2); ctx.fill();
+  // Yttre outline
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+}
+
+function drawPayMachine(x, y, w, h) {
+  // Parkerings-automat — vertikal stolpe med touchscreen + slot
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(x + 2, y + 4, w, h);
+  // Pole-bas (stål-grå)
+  ctx.fillStyle = '#2a2a2a';
+  ctx.fillRect(x, y, w, h);
+  // Top-housing (rundare)
+  ctx.fillStyle = '#3a3a3a';
+  ctx.fillRect(x, y, w, h * 0.65);
+  // Highlight (top edge)
+  ctx.fillStyle = '#5a5a5a';
+  ctx.fillRect(x, y, w, 1.5);
+  ctx.fillStyle = '#5a5a5a';
+  ctx.fillRect(x, y, 1.5, h * 0.65);
+  // Touchscreen (mörk cyan)
+  ctx.fillStyle = '#0a1a2a';
+  ctx.fillRect(x + 3, y + 4, w - 6, h * 0.35);
+  // Screen content (vit text + cyan UI)
+  ctx.fillStyle = '#3acaff';
+  ctx.font = 'bold 5px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('P', x + w / 2, y + 9);
+  ctx.fillStyle = '#fff';
+  ctx.font = '4px monospace';
+  ctx.fillText('20:00', x + w / 2, y + 14);
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'bold 5px monospace';
+  ctx.fillText('50kr', x + w / 2, y + 19);
+  // Screen-frame
+  ctx.strokeStyle = '#1a2a3a';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(x + 3, y + 4, w - 6, h * 0.35);
+  // Card-slot (horisontell)
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(x + 4, y + h * 0.45, w - 8, 1.5);
+  // Slot-label
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = '3px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('CARD', x + w / 2, y + h * 0.5);
+  // Coin-slot (rund)
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath(); ctx.arc(x + w / 2, y + h * 0.6, 1.5, 0, Math.PI*2); ctx.fill();
+  // Receipt-slot (vid botten)
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x + 3, y + h * 0.75, w - 6, 1);
+  // Pole-bas (smal stolpe)
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(x + w * 0.3, y + h * 0.85, w * 0.4, h * 0.15);
+  // "PAY HERE"-text på top-housing
+  ctx.fillStyle = '#ffd54a';
+  ctx.font = 'bold 4px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('PAY HERE', x + w / 2, y + 3);
+  // Yttre outline
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+}
+
+function drawJerseyBarrier(x, y, w, h) {
+  // Jersey-betongbarriär — lång låg form med sluttande sidor + reflexer
+  const isHorizontal = w > h;
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(x + 2, y + 3, w, h);
+  // Bas-form: top-shadow + body + bottom-base
+  if (isHorizontal) {
+    // Mörk top-edge
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x, y, w, h * 0.15);
+    // Body (ljus betong med gradient)
+    const grad = ctx.createLinearGradient(0, y, 0, y + h);
+    grad.addColorStop(0, '#6a6a6a');
+    grad.addColorStop(0.5, '#8a8a8a');
+    grad.addColorStop(1, '#5a5a5a');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x, y + h * 0.15, w, h * 0.75);
+    // Botten-bas (mörkare — bredare än top)
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x, y + h * 0.9, w, h * 0.1);
+    // Concrete-texture (random svaga prickar)
+    const baSeed = ((x * 7) ^ (y * 11)) | 0;
+    ctx.fillStyle = '#4a4a4a';
+    for (let i = 0; i < w / 5; i++) {
+      const dx = (baSeed * (i + 1) * 17) % w;
+      const dy = ((baSeed * (i + 3)) % (h * 70)) / 100 + h * 0.2;
+      ctx.fillRect(x + dx, y + dy, 1, 1);
+    }
+    // Diagonal reflex-streck (svart-gul varning)
+    for (let i = 0; i < w; i += 16) {
+      ctx.fillStyle = '#ffd54a';
+      ctx.fillRect(x + i, y + h * 0.35, 8, 4);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x + i + 8, y + h * 0.35, 8, 4);
+    }
+    // Top edge highlight
+    ctx.fillStyle = '#9a9a9a';
+    ctx.fillRect(x, y + h * 0.15, w, 0.8);
+    // Concrete-skarvar (var ~80px segment)
+    ctx.strokeStyle = 'rgba(20, 20, 20, 0.6)';
+    ctx.lineWidth = 1;
+    for (let i = 80; i < w; i += 80) {
+      ctx.beginPath();
+      ctx.moveTo(x + i, y); ctx.lineTo(x + i, y + h);
+      ctx.stroke();
+    }
+  } else {
+    // Vertikal version
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(x, y, w * 0.15, h);
+    const grad = ctx.createLinearGradient(x, 0, x + w, 0);
+    grad.addColorStop(0, '#6a6a6a');
+    grad.addColorStop(0.5, '#8a8a8a');
+    grad.addColorStop(1, '#5a5a5a');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x + w * 0.15, y, w * 0.75, h);
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(x + w * 0.9, y, w * 0.1, h);
+    for (let i = 0; i < h; i += 16) {
+      ctx.fillStyle = '#ffd54a';
+      ctx.fillRect(x + w * 0.35, y + i, 4, 8);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x + w * 0.35, y + i + 8, 4, 8);
+    }
+  }
+  // Yttre outline
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
 
 function drawTaggedPillar(x, y, w, h, seed) {
@@ -3820,6 +4184,288 @@ function drawJuggernautDecorations(decos) {
         const dy = (((h >> 5) & 0x1f) - 16) * 0.4;
         ctx.fillRect(x + dx, y + dy, 1, 1);
       }
+
+    } else if (d.kind === 'fire_hydrant') {
+      // Brandpost — röd metall med caps, valve-handle, "FH"-stamp
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.beginPath(); ctx.ellipse(x + 1, y + 7, 8, 2.5, 0, 0, Math.PI*2); ctx.fill();
+      // Bas-fot (svart sockel)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 5, y + 5, 10, 3);
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 5, y + 5, 10, 0.6);
+      // Bolts på fot (4 st)
+      ctx.fillStyle = '#0a0a0a';
+      ctx.beginPath(); ctx.arc(x - 4, y + 6, 0.6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 4, y + 6, 0.6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x - 4, y + 7.5, 0.6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 4, y + 7.5, 0.6, 0, Math.PI*2); ctx.fill();
+      // Huvud-kropp (röd, klassisk brandpost-form)
+      ctx.fillStyle = '#aa1818';
+      ctx.fillRect(x - 4, y - 6, 8, 11);
+      // Mid-bredning (utbuktning där sido-kapsen är)
+      ctx.fillStyle = '#cc2020';
+      ctx.fillRect(x - 5, y - 3, 10, 5);
+      // Body-highlight (vänster sida)
+      ctx.fillStyle = '#ff4040';
+      ctx.fillRect(x - 4, y - 6, 1, 11);
+      ctx.fillRect(x - 5, y - 3, 1.5, 5);
+      // Body-shadow (höger sida)
+      ctx.fillStyle = '#7a0a0a';
+      ctx.fillRect(x + 3, y - 6, 1, 11);
+      ctx.fillRect(x + 3.5, y - 3, 1.5, 5);
+      // Topp-cap (rund mörk dome ovanpå)
+      ctx.fillStyle = '#7a0a0a';
+      ctx.beginPath(); ctx.ellipse(x, y - 7, 4.5, 2, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#aa1818';
+      ctx.beginPath(); ctx.ellipse(x, y - 7.5, 4, 1.5, 0, 0, Math.PI*2); ctx.fill();
+      // Valve-handle (femkantig ratt på toppen)
+      ctx.fillStyle = '#5a5a5a';
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+        const px = x + Math.cos(a) * 2;
+        const py = y - 8.5 + Math.sin(a) * 2;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#7a7a7a';
+      ctx.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2 - Math.PI / 2;
+        const px = x - 0.3 + Math.cos(a) * 1.4;
+        const py = y - 8.8 + Math.sin(a) * 1.4;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath(); ctx.arc(x, y - 8.5, 0.5, 0, Math.PI*2); ctx.fill();
+      // Side-caps (2 mässings-mynningar på sidorna)
+      ctx.fillStyle = '#8a6020';
+      ctx.beginPath(); ctx.arc(x - 5, y - 1, 1.6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 5, y - 1, 1.6, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#bb8030';
+      ctx.beginPath(); ctx.arc(x - 5.3, y - 1.3, 0.7, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 4.7, y - 1.3, 0.7, 0, Math.PI*2); ctx.fill();
+      // Side-cap chain (liten kedja från side-cap)
+      ctx.strokeStyle = '#3a3a3a';
+      ctx.lineWidth = 0.4;
+      ctx.beginPath();
+      ctx.moveTo(x - 5, y); ctx.lineTo(x - 4, y + 3);
+      ctx.moveTo(x + 5, y); ctx.lineTo(x + 4, y + 3);
+      ctx.stroke();
+      // "FH"-stamp
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 4px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('FH', x, y + 1);
+      // Rost-fläckar
+      ctx.fillStyle = '#5a3018';
+      ctx.fillRect(x - 4, y + 3, 2, 1);
+      ctx.fillRect(x + 2, y + 4, 1.5, 1);
+
+    } else if (d.kind === 'overturned_cart') {
+      // Välta shopping-cart — på sidan, ena hjulet sticker upp
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(d.rot || (Math.PI / 6));
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.beginPath(); ctx.ellipse(2, 8, 16, 3, 0, 0, Math.PI*2); ctx.fill();
+      // Korg (silver-mesh) — på sidan
+      ctx.fillStyle = '#7a7a82';
+      ctx.fillRect(-14, -10, 28, 14);
+      // Mesh-pattern (rotated så den ligger korrekt)
+      ctx.strokeStyle = '#3a3a40';
+      ctx.lineWidth = 0.4;
+      for (let i = -12; i <= 12; i += 3) {
+        ctx.beginPath();
+        ctx.moveTo(i, -10); ctx.lineTo(i, 4);
+        ctx.stroke();
+      }
+      for (let i = -8; i <= 2; i += 3) {
+        ctx.beginPath();
+        ctx.moveTo(-14, i); ctx.lineTo(14, i);
+        ctx.stroke();
+      }
+      // Korg-rim
+      ctx.strokeStyle = '#3a3a40';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(-14, -10, 28, 14);
+      // Handle (silver-stång — på sidan, sticker bortåt)
+      ctx.fillStyle = '#9a9aa2';
+      ctx.fillRect(-15, -13, 30, 1.5);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(-13, -13.5, 26, 2);
+      // 4 hjul — 2 sticker UPP eftersom carten är välta, 2 är dolda
+      // Övre 2 hjul (sticker upp åt taket från perspektivet)
+      ctx.fillStyle = '#0a0a0a';
+      ctx.beginPath(); ctx.arc(-10, -15, 2.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(10, -15, 2.5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#3a3a40';
+      ctx.beginPath(); ctx.arc(-10, -15, 1.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(10, -15, 1.5, 0, Math.PI*2); ctx.fill();
+      // Hjul-axlar (synliga eftersom carten är på sidan)
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(-10, -15); ctx.lineTo(-10, -10);
+      ctx.moveTo(10, -15); ctx.lineTo(10, -10);
+      ctx.stroke();
+      // Krasch-skada (svart streck på korgen där den slagit i)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(-5, -3, 4, 1);
+      ctx.fillRect(3, -7, 3, 1);
+      // Rost-fläckar
+      ctx.fillStyle = 'rgba(120, 60, 25, 0.5)';
+      ctx.fillRect(-13, -8, 2, 1);
+      ctx.fillRect(8, -2, 2, 1);
+      ctx.restore();
+
+    } else if (d.kind === 'parking_sign') {
+      // Liten skylt på stolpe (P-skylt eller pil)
+      const signText = d.text || 'P';
+      const signColor = d.color || '#1a3a8a';
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.fillRect(x + 1, y + 14, 2.5, 4);
+      // Stolpe (silver)
+      ctx.fillStyle = '#7a7a82';
+      ctx.fillRect(x - 0.8, y - 6, 1.6, 22);
+      // Stolpe-highlight
+      ctx.fillStyle = '#9a9aa2';
+      ctx.fillRect(x - 0.8, y - 6, 0.4, 22);
+      // Stolpe-bas (mörk platta vid golvet)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 2, y + 14, 4, 2);
+      // Skylt-bakgrund (vit ram)
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - 8, y - 14, 16, 12);
+      // Skylt-inner-färg (blå P-skylt eller röd förbud-skylt)
+      ctx.fillStyle = signColor;
+      ctx.fillRect(x - 7, y - 13, 14, 10);
+      // Skylt-höglight (top edge)
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.fillRect(x - 7, y - 13, 14, 1.5);
+      // Text/symbol (vit "P" eller pil)
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(signText, x, y - 7.5);
+      // Skylt-skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(x - 7, y - 4, 14, 1);
+      // Yttre outline
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 0.6;
+      ctx.strokeRect(x - 8, y - 14, 16, 12);
+      // Stolpe-skruvar (där skylten fästs)
+      ctx.fillStyle = '#3a3a3a';
+      ctx.beginPath(); ctx.arc(x, y - 11, 0.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y - 5, 0.5, 0, Math.PI*2); ctx.fill();
+
+    } else if (d.kind === 'wheel_stop') {
+      // Wheel-stop — liten betong-block vid parkerings-ruta
+      const len = d.len || 50;
+      const isHorizontal = d.dir !== 'v';
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      if (isHorizontal) ctx.fillRect(x + 1, y + 3, len, 2);
+      else ctx.fillRect(x + 3, y + 1, 2, len);
+      // Bas (mörk betong)
+      ctx.fillStyle = '#3a3a3a';
+      if (isHorizontal) {
+        ctx.fillRect(x, y - 2, len, 6);
+        // Top-highlight
+        ctx.fillStyle = '#5a5a5a';
+        ctx.fillRect(x, y - 2, len, 1);
+        // Front-edge dark
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x, y + 3, len, 1);
+        // Slitage-färg på topp (gul markering)
+        ctx.fillStyle = 'rgba(220, 180, 60, 0.65)';
+        ctx.fillRect(x + 2, y - 1.5, len - 4, 0.8);
+        // Slitage-chips (random mörka prickar)
+        ctx.fillStyle = '#1a1a1a';
+        for (let i = 0; i < 3; i++) {
+          ctx.fillRect(x + 6 + i * (len / 3), y - 1, 1.5, 0.6);
+        }
+      } else {
+        ctx.fillRect(x - 2, y, 6, len);
+        ctx.fillStyle = '#5a5a5a';
+        ctx.fillRect(x - 2, y, 1, len);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(x + 3, y, 1, len);
+        ctx.fillStyle = 'rgba(220, 180, 60, 0.65)';
+        ctx.fillRect(x - 1.5, y + 2, 0.8, len - 4);
+      }
+      // Yttre outline
+      ctx.strokeStyle = '#0a0a0a';
+      ctx.lineWidth = 0.6;
+      if (isHorizontal) ctx.strokeRect(x + 0.5, y - 1.5, len - 1, 5);
+      else ctx.strokeRect(x - 1.5, y + 0.5, 5, len - 1);
+
+    } else if (d.kind === 'pipe_valve') {
+      // Pipe-valve — rund hjul-ratt fastsatt på tak-rör
+      // Hitta nearest pipe (samma logik som ceiling_drip)
+      let valvePipeY = d.y;
+      let nearestDist = Infinity;
+      for (const pd of decos) {
+        if (pd.kind !== 'ceiling_pipe') continue;
+        const dist = Math.abs(pd.y - d.y);
+        if (dist < nearestDist) { nearestDist = dist; valvePipeY = pd.y; }
+      }
+      const vy = valvePipeY - cy;
+      // Connecting-stem (kort vertikal pipe-anslutning från huvud-pipe ned)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 1.5, vy + 8, 3, 6);
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 1.5, vy + 8, 0.8, 6);
+      // Valve-housing (rektangulär mörk box)
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x - 4, vy + 14, 8, 4);
+      ctx.fillStyle = '#5a5a5a';
+      ctx.fillRect(x - 4, vy + 14, 8, 0.6);
+      // Bolts på housing
+      ctx.fillStyle = '#0a0a0a';
+      ctx.beginPath(); ctx.arc(x - 3, vy + 15, 0.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 3, vy + 15, 0.5, 0, Math.PI*2); ctx.fill();
+      // Valve-stem (sticker ut nedanför housing)
+      ctx.fillStyle = '#5a5a5a';
+      ctx.fillRect(x - 0.8, vy + 18, 1.6, 3);
+      // Hjul-ratt (rund med ekrar)
+      const wheelR = 5;
+      const wy = vy + 23;
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath(); ctx.ellipse(x + 1, wy + 2, wheelR, 2, 0, 0, Math.PI*2); ctx.fill();
+      // Ring (yttre)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath(); ctx.arc(x, wy, wheelR, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#cc3030';
+      ctx.beginPath(); ctx.arc(x, wy, wheelR - 0.7, 0, Math.PI*2); ctx.fill();
+      // Inner cutout (där handen håller)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath(); ctx.arc(x, wy, wheelR * 0.45, 0, Math.PI*2); ctx.fill();
+      // Ekrar (3-4 spokes)
+      ctx.strokeStyle = '#cc3030';
+      ctx.lineWidth = 1.4;
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(a) * wheelR * 0.45, wy + Math.sin(a) * wheelR * 0.45);
+        ctx.lineTo(x + Math.cos(a) * (wheelR - 0.7), wy + Math.sin(a) * (wheelR - 0.7));
+        ctx.stroke();
+      }
+      // Highlight på ring
+      ctx.strokeStyle = '#ff6060';
+      ctx.lineWidth = 0.6;
+      ctx.beginPath(); ctx.arc(x, wy, wheelR - 0.2, Math.PI * 1.1, Math.PI * 1.7); ctx.stroke();
+      // Center-hub
+      ctx.fillStyle = '#5a5a5a';
+      ctx.beginPath(); ctx.arc(x, wy, 0.9, 0, Math.PI*2); ctx.fill();
 
     } else if (d.kind === 'parking_number') {
       // Stort målat "P-XX" på golvet (smaller än floor_marking)
