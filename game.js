@@ -4830,12 +4830,20 @@ function drawCoopPartner() {
     p._walkPhase = (p._walkPhase || 0) + (moved > 0.5 ? 0.22 : 0.04);
     p._prevX = p.x; p._prevY = p.y;
 
+    // JUGGERNAUT: detektera om partnern är JUG via BÅDE p.isJug-flag OCH
+    // state.juggernautPid (defensiv fallback om flagga inte hunnit synkas).
+    const partnerIsJugFromPid = state.juggernautActive && state.juggernautPid && state.juggernautPid === pid;
+    const partnerIsJug = !!(p.isJug || partnerIsJugFromPid) && state.juggernautActive;
+    if (partnerIsJug && !p.isJug) {
+      // Lazy-set så efterföljande logik (HP-bar, scale, glow) funkar
+      p.isJug = true;
+      p.scaleMul = (Coop.juggernautScale || 1.4);
+      p.maxHp = Coop.juggernautHpMax || 500;
+    }
     // Off-screen check (rita pil mot dem istället)
     if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) {
-      // JUGGERNAUT: hunters ska INTE se pil mot JUG (bara minimap-puls var 5s).
-      // Skippa off-screen-arrow när partner är JUG och jag är hunter.
-      const skipJugArrow = state.juggernautActive && p.isJug &&
-                           state.player && !state.player.isJug;
+      // Hunters ska INTE se pil mot JUG (bara minimap-puls var 5s).
+      const skipJugArrow = partnerIsJug && state.player && !state.player.isJug;
       if (!skipJugArrow) drawOffscreenPartner(p, x, y);
       continue;
     }
@@ -4898,8 +4906,9 @@ function drawCoopPartner() {
     ctx.translate(x, y + bob);
     ctx.rotate(p.aimAngle || 0);
     // JUG-scale + JUG-kostym i juggernaut-mode
-    const _partnerIsJug = p.isJug && state.juggernautActive;
-    const _partnerJugScale = (_partnerIsJug && p.scaleMul) ? p.scaleMul : 1;
+    // Use partnerIsJug (defensiv) som beräknats ovan istället för bara p.isJug
+    const _partnerIsJug = partnerIsJug;
+    const _partnerJugScale = (_partnerIsJug && (p.scaleMul || Coop.juggernautScale)) ? (p.scaleMul || Coop.juggernautScale || 1.4) : 1;
     if (_partnerJugScale !== 1) ctx.scale(_partnerJugScale, _partnerJugScale);
 
     const skin = _partnerIsJug ? '#4a7a3a' : '#d4a574';
@@ -4968,11 +4977,11 @@ function drawCoopPartner() {
 
     ctx.restore();
 
-    // JUG-glow ring + crown om denna partner är JUG
-    if (p.isJug && state.juggernautActive) {
+    // JUG-glow ring + crown om denna partner är JUG (använd partnerIsJug-fallback)
+    if (partnerIsJug) {
       const now2 = performance.now();
       const pulse = 0.5 + Math.sin(now2 / 300) * 0.5;
-      const ringR = r * (p.scaleMul || 1.8) + 6;
+      const ringR = r * (p.scaleMul || Coop.juggernautScale || 1.4) + 6;
       ctx.save();
       ctx.strokeStyle = `rgba(255, 213, 74, ${0.6 + 0.4 * pulse})`;
       ctx.lineWidth = 3;
@@ -4986,11 +4995,11 @@ function drawCoopPartner() {
     }
 
     // Namn-tag (🤖-prefix för bots så spelaren ser AI vs människor)
-    ctx.fillStyle = (p.isJug && state.juggernautActive) ? '#ffd54a' : color;
+    ctx.fillStyle = partnerIsJug ? '#ffd54a' : color;
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
     ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
-    const _crown = (p.isJug && state.juggernautActive) ? '👑 ' : '';
+    const _crown = partnerIsJug ? '👑 ' : '';
     const nameLabel = _crown + (p.isBot ? ('🤖 ' + p.name) : p.name);
     ctx.fillText(nameLabel, x, y - 28);
     ctx.shadowBlur = 0;
@@ -5006,7 +5015,9 @@ function drawCoopPartner() {
       const hpY = y - 24;
       // HP-bar (grön/team-färg) — JUG har högre maxHp så bar-fraktionen
       // måste relatera till p.maxHp om det är satt.
-      const _maxHp = (p.maxHp && p.maxHp > 100) ? p.maxHp : 100;
+      // Använd JUG maxHp som fallback om partner är JUG (anti-overflow)
+      const _maxHp = partnerIsJug ? (p.maxHp || Coop.juggernautHpMax || 500)
+                                  : ((p.maxHp && p.maxHp > 100) ? p.maxHp : 100);
       const hpFrac = Math.max(0, p.hp / _maxHp);
       ctx.fillStyle = '#5a0a0a';
       ctx.fillRect(x - barW/2, hpY, barW, 4);

@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v316-jug-initial-partner-sync-hud-reapply';
+const CACHE = 'penetrator-v317-jug-defensive-pid-fallback-render';
 const ASSETS = [
   './',
   './index.html',
