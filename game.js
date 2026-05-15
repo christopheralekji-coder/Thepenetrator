@@ -15156,6 +15156,525 @@ const WEAPON_ICON_SVGS = {
     +   '<rect x="22" y="10.4" width="2" height="0.4" fill="#3a3a3a"/>'
     +   '<rect x="22" y="11.9" width="2" height="0.4" fill="#3a3a3a"/>'
     + '</svg>',
+  // ─── KNUCKLES ── mässingsknogar med skarpa spikes + reflektion
+  knuckles: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<path d="M3 11 Q3 8 6 7 L18 7 Q21 8 21 11 L21 14 Q21 16 18 16 L6 16 Q3 16 3 14 Z" fill="#c8a040" stroke="#5a3818" stroke-width="0.6"/>'
+    +   '<path d="M3 12 L21 12 L21 14 Q21 16 18 16 L6 16 Q3 16 3 14 Z" fill="#8a6020"/>'
+    +   '<circle cx="6.5" cy="9" r="2" fill="#e8c060" stroke="#5a3818" stroke-width="0.4"/>'
+    +   '<circle cx="10" cy="8.5" r="2.2" fill="#e8c060" stroke="#5a3818" stroke-width="0.4"/>'
+    +   '<circle cx="14" cy="8.5" r="2.2" fill="#e8c060" stroke="#5a3818" stroke-width="0.4"/>'
+    +   '<circle cx="17.5" cy="9" r="2" fill="#e8c060" stroke="#5a3818" stroke-width="0.4"/>'
+    +   '<path d="M5.5 7 L6.5 4 L7.5 7 Z" fill="#9098a0"/>'
+    +   '<path d="M9 6.5 L10 3.5 L11 6.5 Z" fill="#9098a0"/>'
+    +   '<path d="M13 6.5 L14 3.5 L15 6.5 Z" fill="#9098a0"/>'
+    +   '<path d="M16.5 7 L17.5 4 L18.5 7 Z" fill="#9098a0"/>'
+    +   '<ellipse cx="6.5" cy="8.3" rx="0.7" ry="0.4" fill="#fff5c0" opacity="0.85"/>'
+    +   '<ellipse cx="10" cy="7.8" rx="0.8" ry="0.4" fill="#fff5c0" opacity="0.85"/>'
+    +   '<ellipse cx="14" cy="7.8" rx="0.8" ry="0.4" fill="#fff5c0" opacity="0.85"/>'
+    +   '<ellipse cx="17.5" cy="8.3" rx="0.7" ry="0.4" fill="#fff5c0" opacity="0.85"/>'
+    +   '<rect x="3" y="14.5" width="18" height="0.5" fill="#5a3818"/>'
+    + '</svg>',
+  // ─── BAT ── nailed bat med trä-grain + tape-grepp + spikes
+  bat: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<path d="M3 13 L5 12.3 L5 13.7 L3 14 Z" fill="#2a1810"/>'
+    +   '<rect x="3" y="12.5" width="2" height="3" fill="#1a1a1a"/>'
+    +   '<line x1="3.2" y1="12.7" x2="3.2" y2="14.5" stroke="#5a5a5a" stroke-width="0.3"/>'
+    +   '<line x1="3.7" y1="12.7" x2="3.7" y2="14.5" stroke="#5a5a5a" stroke-width="0.3"/>'
+    +   '<line x1="4.2" y1="12.7" x2="4.2" y2="14.5" stroke="#5a5a5a" stroke-width="0.3"/>'
+    +   '<line x1="4.7" y1="12.7" x2="4.7" y2="14.5" stroke="#5a5a5a" stroke-width="0.3"/>'
+    +   '<path d="M5 11.5 L13 10.5 L20 8 L21.5 12 L20 16 L13 13.5 L5 12.5 Z" fill="#7a4a20"/>'
+    +   '<path d="M5 11.5 L13 10.5 L20 8 L21.5 12 L20 12.5 L13 11 L5 11.7 Z" fill="#9a6028"/>'
+    +   '<path d="M5 12.8 L13 13 L20 15.5 L21.5 12 L20 12.5 L13 11.5 L5 12 Z" fill="#5a3010"/>'
+    +   '<line x1="6" y1="11.5" x2="20" y2="9" stroke="#3a1808" stroke-width="0.2"/>'
+    +   '<line x1="7" y1="11.8" x2="20" y2="10" stroke="#3a1808" stroke-width="0.2"/>'
+    +   '<line x1="7" y1="12.2" x2="20" y2="14" stroke="#3a1808" stroke-width="0.2"/>'
+    +   '<line x1="6" y1="12.5" x2="20" y2="15" stroke="#3a1808" stroke-width="0.2"/>'
+    +   '<line x1="15" y1="9.8" x2="15.7" y2="7.5" stroke="#cccccc" stroke-width="0.5"/>'
+    +   '<circle cx="15" cy="9.8" r="0.4" fill="#9a9a9a"/>'
+    +   '<line x1="17" y1="9.2" x2="17.5" y2="6.8" stroke="#cccccc" stroke-width="0.5"/>'
+    +   '<circle cx="17" cy="9.2" r="0.4" fill="#9a9a9a"/>'
+    +   '<line x1="19" y1="8.6" x2="19.3" y2="6" stroke="#cccccc" stroke-width="0.5"/>'
+    +   '<circle cx="19" cy="8.6" r="0.4" fill="#9a9a9a"/>'
+    +   '<line x1="16" y1="14.5" x2="16.7" y2="16.8" stroke="#cccccc" stroke-width="0.5"/>'
+    +   '<circle cx="16" cy="14.5" r="0.4" fill="#9a9a9a"/>'
+    +   '<line x1="18" y1="15" x2="18.5" y2="17.3" stroke="#cccccc" stroke-width="0.5"/>'
+    +   '<circle cx="18" cy="15" r="0.4" fill="#9a9a9a"/>'
+    + '</svg>',
+  // ─── MACHETE ── jungle-blade med leather-grepp + brass rivets + serrated back
+  machete: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="2" y="11" width="5" height="3" fill="#3a2010"/>'
+    +   '<rect x="2" y="11" width="5" height="0.6" fill="#5a3018"/>'
+    +   '<line x1="3" y1="11.5" x2="3" y2="13.7" stroke="#1a0a04" stroke-width="0.3"/>'
+    +   '<line x1="4" y1="11.5" x2="4" y2="13.7" stroke="#1a0a04" stroke-width="0.3"/>'
+    +   '<line x1="5" y1="11.5" x2="5" y2="13.7" stroke="#1a0a04" stroke-width="0.3"/>'
+    +   '<line x1="6" y1="11.5" x2="6" y2="13.7" stroke="#1a0a04" stroke-width="0.3"/>'
+    +   '<circle cx="2.7" cy="11.7" r="0.4" fill="#ffae3a"/>'
+    +   '<circle cx="6.3" cy="13.3" r="0.4" fill="#ffae3a"/>'
+    +   '<rect x="7" y="10" width="1.5" height="5" fill="#5a5a60"/>'
+    +   '<path d="M8.5 9.5 L21 11 L22.5 12.5 L21 14 L8.5 15 Z" fill="#bcc8d0"/>'
+    +   '<path d="M8.5 9.5 L21 11 L22.5 12.5 L21 11.5 L8.5 11 Z" fill="#dce6ee"/>'
+    +   '<path d="M8.5 14.5 L21 13.8 L22 12.7 L21 14 L8.5 15 Z" fill="#7a8088"/>'
+    +   '<path d="M9.5 9.7 L11 8.7 L11.5 9.8 Z" fill="#5a6068"/>'
+    +   '<path d="M11.5 9.85 L13 8.9 L13.5 9.95 Z" fill="#5a6068"/>'
+    +   '<path d="M13.5 10 L15 9.1 L15.5 10.1 Z" fill="#5a6068"/>'
+    +   '<path d="M15.5 10.15 L17 9.3 L17.5 10.25 Z" fill="#5a6068"/>'
+    +   '<line x1="9" y1="11.5" x2="22" y2="12.3" stroke="#fff" stroke-width="0.4" opacity="0.6"/>'
+    + '</svg>',
+  // ─── SICKLE ── böjd skördeskära med trä-skaft + brass-cap + chrome blade
+  sickle: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="2" y="14" width="9" height="2.5" fill="#5a3818"/>'
+    +   '<rect x="2" y="14" width="9" height="0.5" fill="#7a4828"/>'
+    +   '<line x1="3" y1="14.6" x2="11" y2="14.6" stroke="#3a2008" stroke-width="0.2"/>'
+    +   '<line x1="3" y1="15.3" x2="11" y2="15.3" stroke="#3a2008" stroke-width="0.2"/>'
+    +   '<line x1="3" y1="16" x2="11" y2="16" stroke="#3a2008" stroke-width="0.2"/>'
+    +   '<rect x="11" y="13.5" width="2" height="3.5" fill="#ffae3a"/>'
+    +   '<rect x="11" y="13.5" width="2" height="0.6" fill="#fff0a0"/>'
+    +   '<circle cx="11.5" cy="14.7" r="0.3" fill="#5a4020"/>'
+    +   '<circle cx="12.5" cy="15.7" r="0.3" fill="#5a4020"/>'
+    +   '<path d="M13 14 Q22 8 21 4 Q15 5 13 12 Z" fill="#cccfd5" stroke="#5a5a60" stroke-width="0.3"/>'
+    +   '<path d="M13 14 Q22 8 21 4 Q19 6 17 9 Q15 12 13 13 Z" fill="#e6e9ee"/>'
+    +   '<path d="M14 13.5 Q19 9 20.5 5.5" fill="none" stroke="#fff" stroke-width="0.5" opacity="0.8"/>'
+    +   '<path d="M21 4 L22 3 L21.7 5 Z" fill="#9098a0"/>'
+    + '</svg>',
+  // ─── SPEAR ── tactical spear med wrapped grepp + cross-guard + leaf-blade
+  spear: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="11.5" width="1.5" height="1" fill="#3a2418"/>'
+    +   '<rect x="2" y="11.5" width="13" height="1" fill="#5a3818"/>'
+    +   '<rect x="2" y="11.5" width="13" height="0.3" fill="#7a4828"/>'
+    +   '<rect x="3" y="11.2" width="3" height="1.6" fill="#1a1a1a"/>'
+    +   '<line x1="3.3" y1="11.2" x2="3.5" y2="12.8" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="3.8" y1="11.2" x2="4" y2="12.8" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="4.3" y1="11.2" x2="4.5" y2="12.8" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="4.8" y1="11.2" x2="5" y2="12.8" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="5.3" y1="11.2" x2="5.5" y2="12.8" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<rect x="14.5" y="9.5" width="1" height="5" fill="#9098a0"/>'
+    +   '<rect x="14.5" y="9.5" width="1" height="0.6" fill="#cccfd5"/>'
+    +   '<path d="M15.5 12 L17 9 L20 11 L23 12 L20 13 L17 15 Z" fill="#dce6ee" stroke="#5a5a60" stroke-width="0.3"/>'
+    +   '<path d="M15.5 12 L17 9 L20 11 L23 12 L20 12 L17 12 Z" fill="#fff" opacity="0.5"/>'
+    +   '<path d="M16 12 L20 11.5 L22.5 12 L20 12.5 L16 12 Z" fill="#7a8088"/>'
+    +   '<line x1="17" y1="9.5" x2="22.5" y2="11.9" stroke="#fff" stroke-width="0.4" opacity="0.7"/>'
+    + '</svg>',
+  // ─── AXE ── tactical fire-axe med trä-skaft + steel-shaft + dual edge
+  axe: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="2" y="13.5" width="3" height="3" fill="#1a1a1a"/>'
+    +   '<line x1="2.3" y1="13.7" x2="2.3" y2="16.3" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="2.8" y1="13.7" x2="2.8" y2="16.3" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="3.3" y1="13.7" x2="3.3" y2="16.3" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="3.8" y1="13.7" x2="3.8" y2="16.3" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="4.3" y1="13.7" x2="4.3" y2="16.3" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<rect x="5" y="13.7" width="9" height="2.6" fill="#5a3818"/>'
+    +   '<rect x="5" y="13.7" width="9" height="0.5" fill="#7a4828"/>'
+    +   '<line x1="5.5" y1="14.5" x2="13.5" y2="14.5" stroke="#3a2008" stroke-width="0.2"/>'
+    +   '<line x1="5.5" y1="15.3" x2="13.5" y2="15.3" stroke="#3a2008" stroke-width="0.2"/>'
+    +   '<rect x="14" y="13" width="1" height="4" fill="#3a3a40"/>'
+    +   '<path d="M14.5 13 L15 9 L20 8 L22 11 L23 13 L23 15 L22 17 L20 19 L15 18 L14.5 14 Z" fill="#9aa0a8" stroke="#3a3a40" stroke-width="0.4"/>'
+    +   '<path d="M15 9 L20 8 L22 11 L23 13 L19 11 L15.5 10 Z" fill="#cccfd5"/>'
+    +   '<path d="M22 11 L23 13 L23 14 L21.5 12.5 Z" fill="#ffd54a"/>'
+    +   '<path d="M23 14 L23 15 L22 17 L21.5 14 Z" fill="#ffd54a"/>'
+    +   '<path d="M16 11 L18 12.5" stroke="#fff" stroke-width="0.4" opacity="0.7"/>'
+    +   '<circle cx="17" cy="13" r="0.5" fill="#3a3a40"/>'
+    + '</svg>',
+  // ─── MACE ── stridsklubba med flänsar + trä-skaft + leather grepp + spike
+  mace: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="2" y="11" width="2" height="3" fill="#1a1a1a"/>'
+    +   '<line x1="2.3" y1="11.2" x2="2.3" y2="13.8" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="2.8" y1="11.2" x2="2.8" y2="13.8" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="3.3" y1="11.2" x2="3.3" y2="13.8" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="3.8" y1="11.2" x2="3.8" y2="13.8" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<rect x="4" y="11.5" width="9" height="2" fill="#5a3818"/>'
+    +   '<rect x="4" y="11.5" width="9" height="0.4" fill="#7a4828"/>'
+    +   '<rect x="13" y="10.5" width="1.5" height="4" fill="#3a3a40"/>'
+    +   '<circle cx="18" cy="12.5" r="5.5" fill="#5a4a3a" stroke="#2a2018" stroke-width="0.4"/>'
+    +   '<circle cx="18" cy="12.5" r="5" fill="#7a6048"/>'
+    +   '<path d="M18 7 L19 9.5 L18 12.5 L17 9.5 Z" fill="#3a2a18"/>'
+    +   '<path d="M22.5 12 L20 11 L18 12.5 L20 14 L23 13 Z" fill="#3a2a18"/>'
+    +   '<path d="M18 18 L17 16 L18 12.5 L19 16 Z" fill="#3a2a18"/>'
+    +   '<path d="M13.5 13 L16 14 L18 12.5 L16 11 L13 12 Z" fill="#3a2a18"/>'
+    +   '<path d="M21 8.5 L20 10 L18 12.5 L20.5 11 Z" fill="#3a2a18"/>'
+    +   '<path d="M15 17 L16.5 15 L18 12.5 L15.5 14.5 Z" fill="#3a2a18"/>'
+    +   '<path d="M16 9 L17 11 L18 12.5 L16.5 10.5 Z" fill="#9a8060"/>'
+    +   '<circle cx="18" cy="12.5" r="1.5" fill="#cccfd5" stroke="#3a3a40" stroke-width="0.4"/>'
+    +   '<circle cx="17.5" cy="12" r="0.5" fill="#fff"/>'
+    +   '<path d="M18 7 L19 4.5 L18.5 4 L17 4.5 Z" fill="#9aa0a8"/>'
+    +   '<path d="M18 4.5 L18.5 2.5 L19 4.5 Z" fill="#cccfd5"/>'
+    + '</svg>',
+  // ─── WHIP ── flätad läder-piska med metallic tip + claw-handle
+  whip: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="2" y="11" width="3.5" height="3" fill="#3a2418"/>'
+    +   '<rect x="2" y="11" width="3.5" height="0.5" fill="#5a3a20"/>'
+    +   '<rect x="2" y="13.5" width="3.5" height="0.5" fill="#1a1208"/>'
+    +   '<circle cx="3" cy="11.7" r="0.3" fill="#ffae3a"/>'
+    +   '<circle cx="4.5" cy="11.7" r="0.3" fill="#ffae3a"/>'
+    +   '<circle cx="3" cy="13.3" r="0.3" fill="#ffae3a"/>'
+    +   '<circle cx="4.5" cy="13.3" r="0.3" fill="#ffae3a"/>'
+    +   '<path d="M5.5 12 L8 10.5 L11 13.5 L14 10.5 L17 13.5 L20 11 L22 14" fill="none" stroke="#5a4030" stroke-width="2.2" stroke-linecap="round"/>'
+    +   '<path d="M5.5 11.7 L8 10.2 L11 13.2 L14 10.2 L17 13.2 L20 10.7 L22 13.7" fill="none" stroke="#7a5840" stroke-width="0.6" opacity="0.7"/>'
+    +   '<path d="M6 12.3 L7.5 11.5 M9.5 11 L10.5 12.5 M12 12.5 L13 11 M15 11 L16 12.5 M18 12.5 L19.5 11.5" stroke="#1a1208" stroke-width="0.4"/>'
+    +   '<path d="M22 14 L23 16 L21.5 15.5 L23 14.5 L21 14.5 Z" fill="#cccfd5" stroke="#3a3a40" stroke-width="0.3"/>'
+    +   '<circle cx="22.5" cy="14.7" r="0.5" fill="#fff" opacity="0.8"/>'
+    + '</svg>',
+  // ─── KATANA ── traditional samurai svärd med tsuba + ito-wrap grepp + hamon
+  katana: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="2" y="11.5" width="0.7" height="1" fill="#1a1a1a"/>'
+    +   '<rect x="2.7" y="11" width="5" height="2" fill="#1a1a1a"/>'
+    +   '<rect x="2.7" y="11" width="5" height="0.4" fill="#3a3a3a"/>'
+    +   '<line x1="3" y1="11" x2="3.5" y2="13" stroke="#aa3a3a" stroke-width="0.5"/>'
+    +   '<line x1="3.8" y1="11" x2="4.3" y2="13" stroke="#aa3a3a" stroke-width="0.5"/>'
+    +   '<line x1="4.6" y1="11" x2="5.1" y2="13" stroke="#aa3a3a" stroke-width="0.5"/>'
+    +   '<line x1="5.4" y1="11" x2="5.9" y2="13" stroke="#aa3a3a" stroke-width="0.5"/>'
+    +   '<line x1="6.2" y1="11" x2="6.7" y2="13" stroke="#aa3a3a" stroke-width="0.5"/>'
+    +   '<line x1="3.5" y1="11" x2="3" y2="13" stroke="#5a1818" stroke-width="0.3"/>'
+    +   '<line x1="4.3" y1="11" x2="3.8" y2="13" stroke="#5a1818" stroke-width="0.3"/>'
+    +   '<line x1="5.1" y1="11" x2="4.6" y2="13" stroke="#5a1818" stroke-width="0.3"/>'
+    +   '<circle cx="8" cy="12" r="2" fill="#ffd54a" stroke="#5a4020" stroke-width="0.4"/>'
+    +   '<circle cx="8" cy="12" r="1.4" fill="#ffe88a"/>'
+    +   '<circle cx="8" cy="12" r="0.5" fill="#5a4020"/>'
+    +   '<path d="M9 11 L9.7 11.3 L9.7 12.7 L9 13 Z" fill="#cccfd5"/>'
+    +   '<path d="M10 11.3 Q15 10.5 22 11.5 Q22.5 12 22 12.5 Q15 13.5 10 12.7 Z" fill="#e6e6f0" stroke="#7a8088" stroke-width="0.3"/>'
+    +   '<path d="M10 11.5 Q15 10.8 22 11.8 Q15 12 10 12 Z" fill="#fff"/>'
+    +   '<path d="M10.5 12.4 Q14 11.5 18 11.7 Q20 11.7 21.5 12.1 Q19 12.5 14 12.7 Q12 12.7 10.5 12.4 Z" fill="#a0a8b0" opacity="0.5"/>'
+    + '</svg>',
+  // ─── ENERGYSWORD ── plasma-blade med vented hilt + glow + jagged edge
+  energysword: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<defs><filter id="esGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.8"/></filter></defs>'
+    +   '<rect x="2" y="10.5" width="6" height="3" fill="#3a1a0a" stroke="#1a0a04" stroke-width="0.3"/>'
+    +   '<rect x="2" y="10.5" width="6" height="0.6" fill="#5a2a18"/>'
+    +   '<rect x="3" y="11.5" width="0.6" height="1.2" fill="#1a0a04"/>'
+    +   '<rect x="4.5" y="11.5" width="0.6" height="1.2" fill="#1a0a04"/>'
+    +   '<rect x="6" y="11.5" width="0.6" height="1.2" fill="#1a0a04"/>'
+    +   '<path d="M2 9.5 L3 8 L4 9.5 Z" fill="#aa3a3a"/>'
+    +   '<path d="M5 9.5 L6 8 L7 9.5 Z" fill="#aa3a3a"/>'
+    +   '<path d="M2 14.5 L3 16 L4 14.5 Z" fill="#aa3a3a"/>'
+    +   '<path d="M5 14.5 L6 16 L7 14.5 Z" fill="#aa3a3a"/>'
+    +   '<rect x="7.5" y="10" width="1.5" height="4" fill="#5a5a60"/>'
+    +   '<rect x="7.5" y="10" width="1.5" height="0.4" fill="#9aa0a8"/>'
+    +   '<g filter="url(#esGlow)">'
+    +     '<path d="M9 11 L13 10.3 L17 11.2 L20 10.5 L23 12 L20 13.5 L17 12.8 L13 13.7 L9 13 Z" fill="#ff8a3a"/>'
+    +   '</g>'
+    +   '<path d="M9 11.3 L13 10.7 L17 11.5 L20 10.9 L23 12 L20 13.1 L17 12.5 L13 13.3 L9 12.7 Z" fill="#fff8aa"/>'
+    +   '<path d="M9 11.7 L23 12 L9 12.3 Z" fill="#fff"/>'
+    +   '<circle cx="13" cy="11" r="0.4" fill="#fff" opacity="0.9"/>'
+    +   '<circle cx="17" cy="13" r="0.3" fill="#fff" opacity="0.9"/>'
+    + '</svg>',
+  // ─── LIGHTSABER ── elegant Jedi-style hilt med activation switch + grön blade
+  lightsaber: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<defs><filter id="lsGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="0.7"/></filter></defs>'
+    +   '<rect x="2" y="10.7" width="0.5" height="2.6" fill="#1a1a1a"/>'
+    +   '<rect x="2.5" y="10.5" width="6" height="3" fill="#888" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<rect x="2.5" y="10.5" width="6" height="0.5" fill="#cccfd5"/>'
+    +   '<rect x="2.5" y="13" width="6" height="0.5" fill="#3a3a3a"/>'
+    +   '<rect x="3" y="11" width="1" height="2" fill="#1a1a1a"/>'
+    +   '<rect x="4.2" y="11" width="1" height="2" fill="#1a1a1a"/>'
+    +   '<rect x="5.4" y="11" width="1" height="2" fill="#1a1a1a"/>'
+    +   '<rect x="6.6" y="11.2" width="1.2" height="0.8" fill="#aa3a3a"/>'
+    +   '<rect x="6.6" y="12.2" width="1.2" height="0.8" fill="#9aa0a8"/>'
+    +   '<rect x="8.5" y="10.7" width="1" height="2.6" fill="#5a5a60"/>'
+    +   '<rect x="8.5" y="10.7" width="1" height="0.4" fill="#aab0b8"/>'
+    +   '<g filter="url(#lsGlow)">'
+    +     '<rect x="9.5" y="10.5" width="13.5" height="3" fill="#3aff5a" rx="1"/>'
+    +   '</g>'
+    +   '<rect x="9.5" y="11.2" width="13.5" height="1.6" fill="#aaffbb" rx="0.3"/>'
+    +   '<rect x="9.5" y="11.7" width="13.5" height="0.6" fill="#fff"/>'
+    +   '<circle cx="23" cy="12" r="0.6" fill="#fff" opacity="0.9"/>'
+    + '</svg>',
+  // ─── THROWKNIFE ── kastkniv i hand-position + spinning blade-design
+  throwknife: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<g transform="translate(12 12) rotate(-25)">'
+    +     '<rect x="-9" y="-1.5" width="5" height="3" fill="#2a2218"/>'
+    +     '<rect x="-9" y="-1.5" width="5" height="0.6" fill="#4a3828"/>'
+    +     '<line x1="-8.5" y1="-1.2" x2="-8.5" y2="1.2" stroke="#5a4030" stroke-width="0.3"/>'
+    +     '<line x1="-7.5" y1="-1.2" x2="-7.5" y2="1.2" stroke="#5a4030" stroke-width="0.3"/>'
+    +     '<line x1="-6.5" y1="-1.2" x2="-6.5" y2="1.2" stroke="#5a4030" stroke-width="0.3"/>'
+    +     '<line x1="-5.5" y1="-1.2" x2="-5.5" y2="1.2" stroke="#5a4030" stroke-width="0.3"/>'
+    +     '<rect x="-4.5" y="-2.5" width="0.8" height="5" fill="#9098a0"/>'
+    +     '<rect x="-4.5" y="-2.5" width="0.8" height="0.5" fill="#cccfd5"/>'
+    +     '<path d="M-3.5 -2 L8 -0.5 L11 0 L8 0.5 L-3.5 2 Z" fill="#dce6ee" stroke="#5a5a60" stroke-width="0.2"/>'
+    +     '<path d="M-3.5 -2 L8 -0.5 L11 0 L8 0 L-3.5 0 Z" fill="#fff" opacity="0.6"/>'
+    +     '<path d="M-3 -1.5 L8 -0.3 L10 0" stroke="#fff" stroke-width="0.4" opacity="0.8"/>'
+    +     '<circle cx="-9.5" cy="0" r="0.8" fill="#5a5a60"/>'
+    +     '<circle cx="-9.5" cy="0" r="0.4" fill="#1a1a1a"/>'
+    +   '</g>'
+    + '</svg>',
+  // ─── CROSSBOW ── horisontell crossbow med stock + scope + laddad bolt
+  crossbow: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="11" width="4" height="3" fill="#5a3818"/>'
+    +   '<rect x="0.5" y="11" width="4" height="0.5" fill="#7a4828"/>'
+    +   '<rect x="0.5" y="13.5" width="4" height="0.5" fill="#3a2008"/>'
+    +   '<rect x="4.5" y="9" width="9" height="6" fill="#7a5a3a"/>'
+    +   '<rect x="4.5" y="9" width="9" height="0.6" fill="#9a7a4a"/>'
+    +   '<rect x="4.5" y="14.5" width="9" height="0.5" fill="#3a2a18"/>'
+    +   '<path d="M4.5 12 L13 11 L13 13 L4.5 12.5 Z" fill="#3a2a18"/>'
+    +   '<path d="M13 9 L20 5 Q22 11.5 22 12 Q22 12.5 20 19 L13 15 Z" fill="none" stroke="#3a2a18" stroke-width="2.5" stroke-linecap="round"/>'
+    +   '<circle cx="20" cy="5" r="0.8" fill="#1a1a1a"/>'
+    +   '<circle cx="20" cy="19" r="0.8" fill="#1a1a1a"/>'
+    +   '<line x1="20" y1="5" x2="13" y2="11" stroke="#dcdcdc" stroke-width="0.6"/>'
+    +   '<line x1="20" y1="19" x2="13" y2="13" stroke="#dcdcdc" stroke-width="0.6"/>'
+    +   '<line x1="13" y1="11" x2="13" y2="13" stroke="#dcdcdc" stroke-width="0.6"/>'
+    +   '<rect x="13" y="11.7" width="9" height="0.7" fill="#7a5a3a"/>'
+    +   '<path d="M22 12 L23.5 12 L22.5 11 L22.5 13 Z" fill="#cccfd5"/>'
+    +   '<path d="M13 12 L11 11 L11.5 13 Z" fill="#5a4030"/>'
+    +   '<rect x="7" y="6.5" width="3" height="2" fill="#1a1a1a"/>'
+    +   '<rect x="8" y="6" width="1" height="0.6" fill="#1a1a1a"/>'
+    + '</svg>',
+  // ─── FLAME ── eldkastare med fuel-tank + valve + pilot light
+  flame: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="6" width="4" height="11" fill="#8a4a20" stroke="#5a3010" stroke-width="0.3"/>'
+    +   '<rect x="0.5" y="6" width="4" height="2" fill="#aa6028"/>'
+    +   '<rect x="2" y="5" width="1" height="1.5" fill="#5a3010"/>'
+    +   '<rect x="0.8" y="9" width="3.4" height="0.6" fill="#3a1808"/>'
+    +   '<rect x="0.8" y="13" width="3.4" height="0.6" fill="#3a1808"/>'
+    +   '<rect x="1" y="10" width="2.2" height="2" fill="#3a1808"/>'
+    +   '<rect x="1.5" y="10.5" width="1.2" height="0.5" fill="#ff7a2a"/>'
+    +   '<rect x="4.5" y="10" width="2.5" height="3" fill="#3a3a3a"/>'
+    +   '<rect x="4.5" y="10" width="2.5" height="0.5" fill="#5a5a5a"/>'
+    +   '<circle cx="5.7" cy="11.5" r="0.8" fill="#aa3a3a"/>'
+    +   '<circle cx="5.7" cy="11.5" r="0.4" fill="#5a1818"/>'
+    +   '<rect x="7" y="10.5" width="9" height="2" fill="#2a2a30"/>'
+    +   '<rect x="7" y="10.5" width="9" height="0.4" fill="#5a5a60"/>'
+    +   '<rect x="16" y="9.5" width="3.5" height="4" fill="#1a1a1a"/>'
+    +   '<rect x="16" y="9.5" width="3.5" height="0.6" fill="#3a3a3a"/>'
+    +   '<rect x="19" y="11" width="1.5" height="1" fill="#0a0a0a"/>'
+    +   '<path d="M16.5 9 L17 7.5 L17.5 9 Z" fill="#ff7a2a"/>'
+    +   '<path d="M16.7 8 L17 7 L17.3 8 Z" fill="#fff8a0"/>'
+    +   '<path d="M20.5 11.5 Q22 11 23 12 Q22 13 20.5 12.5 Q21.5 12 20.5 11.5 Z" fill="#ff7a2a"/>'
+    +   '<path d="M21 11.7 Q22 11.3 22.5 12 Q22 12.7 21 12.3 Z" fill="#fff8a0"/>'
+    + '</svg>',
+  // ─── FROST ── kryo-kanon med frost-tank + blue gem nozzle + ice crystals
+  frost: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="8" width="3.5" height="9" fill="#1a4a5a" stroke="#0a2a3a" stroke-width="0.3"/>'
+    +   '<rect x="0.5" y="8" width="3.5" height="2" fill="#2a6a7a"/>'
+    +   '<rect x="0.8" y="10" width="3" height="0.5" fill="#9af2ff" opacity="0.7"/>'
+    +   '<rect x="0.8" y="11.5" width="3" height="0.5" fill="#9af2ff" opacity="0.7"/>'
+    +   '<rect x="0.8" y="13" width="3" height="0.5" fill="#9af2ff" opacity="0.7"/>'
+    +   '<rect x="0.8" y="14.5" width="3" height="0.5" fill="#9af2ff" opacity="0.7"/>'
+    +   '<rect x="4" y="10.5" width="2" height="3" fill="#3a4a5a"/>'
+    +   '<circle cx="5" cy="12" r="0.6" fill="#9af2ff"/>'
+    +   '<rect x="6" y="10" width="9" height="4" fill="#2a3a4a"/>'
+    +   '<rect x="6" y="10" width="9" height="0.5" fill="#9af2ff"/>'
+    +   '<rect x="7" y="11" width="7" height="2" fill="#1a2a3a"/>'
+    +   '<rect x="7" y="11.5" width="7" height="0.7" fill="#9af2ff" opacity="0.5"/>'
+    +   '<path d="M15 8 L19 9 L21 12 L19 15 L15 16 L17 12 Z" fill="#3a5a6a"/>'
+    +   '<path d="M19 9 L21 12 L19 15 L20 12 Z" fill="#5a7a8a"/>'
+    +   '<g transform="translate(21 12)">'
+    +     '<path d="M0 -2.5 L0 2.5 M-2.5 0 L2.5 0 M-1.7 -1.7 L1.7 1.7 M-1.7 1.7 L1.7 -1.7" stroke="#9af2ff" stroke-width="0.7"/>'
+    +     '<circle r="1.2" fill="#fff" opacity="0.8"/>'
+    +     '<circle r="0.7" fill="#9af2ff"/>'
+    +   '</g>'
+    +   '<circle cx="22.5" cy="10" r="0.5" fill="#fff" opacity="0.6"/>'
+    +   '<circle cx="23" cy="14" r="0.5" fill="#fff" opacity="0.6"/>'
+    + '</svg>',
+  // ─── TESLA ── coil-pistol med copper coil + sphere emitter + lightning
+  tesla: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="11" width="3" height="3" fill="#5a3818"/>'
+    +   '<rect x="0.5" y="11" width="3" height="0.5" fill="#7a4828"/>'
+    +   '<rect x="3.5" y="9" width="7" height="7" fill="#3a3a3a"/>'
+    +   '<rect x="3.5" y="9" width="7" height="0.6" fill="#5a5a5a"/>'
+    +   '<rect x="4" y="10" width="6" height="0.4" fill="#aa6818"/>'
+    +   '<rect x="4" y="11" width="6" height="0.4" fill="#aa6818"/>'
+    +   '<rect x="4" y="12" width="6" height="0.4" fill="#aa6818"/>'
+    +   '<rect x="4" y="13" width="6" height="0.4" fill="#aa6818"/>'
+    +   '<rect x="4" y="14" width="6" height="0.4" fill="#aa6818"/>'
+    +   '<rect x="4" y="15" width="6" height="0.4" fill="#aa6818"/>'
+    +   '<rect x="3.5" y="16" width="7" height="1" fill="#1a1a1a"/>'
+    +   '<path d="M5 17 L4 22 L7 22 L8 17 Z" fill="#1a1a1a"/>'
+    +   '<rect x="10.5" y="10.5" width="6" height="4" fill="#3a3a3a"/>'
+    +   '<rect x="10.5" y="10.5" width="6" height="0.6" fill="#5a5a5a"/>'
+    +   '<rect x="11" y="11" width="5" height="3" fill="#1a1a1a"/>'
+    +   '<rect x="11.5" y="11.5" width="0.6" height="2" fill="#ffeb3b"/>'
+    +   '<rect x="12.5" y="11.5" width="0.6" height="2" fill="#ffeb3b"/>'
+    +   '<rect x="13.5" y="11.5" width="0.6" height="2" fill="#ffeb3b"/>'
+    +   '<rect x="14.5" y="11.5" width="0.6" height="2" fill="#ffeb3b"/>'
+    +   '<circle cx="20" cy="12.5" r="3.2" fill="#1a1a1a" stroke="#5a5a5a" stroke-width="0.4"/>'
+    +   '<circle cx="20" cy="12.5" r="2.5" fill="#3a3a3a"/>'
+    +   '<circle cx="20" cy="12.5" r="1.7" fill="#ffeb3b" opacity="0.8"/>'
+    +   '<circle cx="20" cy="12.5" r="1" fill="#fff8a0"/>'
+    +   '<path d="M20 9.3 L19 8 L21 7.5 M22.5 11 L23.5 10 L22.7 9 M22.5 14 L23.5 15 L22.7 16 M20 15.7 L19 17 L21 16.5 M17.5 14 L16.5 15 L17.3 16 M17.5 11 L16.5 10 L17.3 9" stroke="#ffeb3b" stroke-width="0.6" fill="none"/>'
+    + '</svg>',
+  // ─── GRENADE ── M203-style underbarrel grenade launcher
+  grenade: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="9.5" width="3.5" height="3" fill="#2a3a1a"/>'
+    +   '<rect x="0.5" y="9.5" width="3.5" height="0.5" fill="#4a5a2a"/>'
+    +   '<rect x="4" y="9.5" width="2" height="3" fill="#1a1a1a"/>'
+    +   '<rect x="6" y="8.5" width="9" height="5" fill="#3a4a2a"/>'
+    +   '<rect x="6" y="8.5" width="9" height="0.6" fill="#5a6a3a"/>'
+    +   '<rect x="6.5" y="9.5" width="8" height="3" fill="#2a3a1a"/>'
+    +   '<rect x="6.5" y="9.5" width="8" height="0.4" fill="#9aff5a"/>'
+    +   '<line x1="7" y1="10.5" x2="14" y2="10.5" stroke="#1a1a14" stroke-width="0.3"/>'
+    +   '<line x1="7" y1="11.5" x2="14" y2="11.5" stroke="#1a1a14" stroke-width="0.3"/>'
+    +   '<path d="M7 13 L12 13 L11.5 17 L7.5 17 Z" fill="#1a1a1a"/>'
+    +   '<rect x="15" y="8.5" width="7" height="5" fill="#1a2a1a"/>'
+    +   '<rect x="15" y="8.5" width="7" height="0.6" fill="#3a4a2a"/>'
+    +   '<rect x="16" y="9.5" width="5" height="3" fill="#0a1a0a"/>'
+    +   '<line x1="17" y1="10.5" x2="20" y2="10.5" stroke="#3a4a2a" stroke-width="0.3"/>'
+    +   '<line x1="17" y1="11.5" x2="20" y2="11.5" stroke="#3a4a2a" stroke-width="0.3"/>'
+    +   '<circle cx="22" cy="11" r="1.2" fill="#0a0a0a"/>'
+    +   '<rect x="9" y="6" width="1" height="2.5" fill="#1a1a1a"/>'
+    +   '<rect x="13" y="6" width="1" height="2.5" fill="#1a1a1a"/>'
+    +   '<circle cx="13.5" cy="5.5" r="0.5" fill="#9aff5a"/>'
+    + '</svg>',
+  // ─── BOOMERANG ── böjd boomerang i hand med trä-grain + carved markings
+  boomerang: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<g transform="translate(12 12) rotate(-15)">'
+    +     '<path d="M-10 -6 Q-9 -7 -7 -6 L-2 0 L7 7 Q8 8 7 9 L6 10 Q5 11 4 10 L-3 3 L-9 -4 Q-10 -5 -10 -6 Z" fill="#9a6a30" stroke="#5a3010" stroke-width="0.5"/>'
+    +     '<path d="M-9.5 -5.5 Q-9 -6 -7.5 -5.5 L-2.5 0 L6.5 8.5 Q7 9 6.5 9.5 Q5.5 9 -2.5 1 L-9 -4.5 Q-9.5 -5 -9.5 -5.5 Z" fill="#bc8848"/>'
+    +     '<path d="M-8 -5 L-3 0 L5 8" fill="none" stroke="#5a3010" stroke-width="0.4"/>'
+    +     '<circle cx="-7" cy="-4" r="0.5" fill="#ffd54a"/>'
+    +     '<circle cx="-3" cy="0" r="0.5" fill="#ffd54a"/>'
+    +     '<circle cx="2" cy="4" r="0.4" fill="#5a3010"/>'
+    +     '<circle cx="0" cy="2" r="0.4" fill="#5a3010"/>'
+    +     '<path d="M-5 -2 L-3 -2 M-2 1 L0 1 M3 5 L5 5" stroke="#5a3010" stroke-width="0.5"/>'
+    +     '<line x1="-9" y1="-5" x2="-1" y2="2" stroke="#fff" stroke-width="0.4" opacity="0.6"/>'
+    +     '<line x1="-1" y1="2" x2="6" y2="9" stroke="#fff" stroke-width="0.4" opacity="0.6"/>'
+    +   '</g>'
+    + '</svg>',
+  // ─── PULLWHIP ── grappling hook launcher med spool + kabel + claw
+  pullwhip: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="11" width="3" height="3" fill="#3a2a1a"/>'
+    +   '<rect x="0.5" y="11" width="3" height="0.5" fill="#5a4030"/>'
+    +   '<line x1="1" y1="11.7" x2="3" y2="13.5" stroke="#1a1208" stroke-width="0.3"/>'
+    +   '<line x1="1" y1="13" x2="3" y2="14.7" stroke="#1a1208" stroke-width="0.3"/>'
+    +   '<rect x="3.5" y="9" width="6" height="7" fill="#3a3a3a"/>'
+    +   '<rect x="3.5" y="9" width="6" height="0.6" fill="#5a5a5a"/>'
+    +   '<circle cx="6.5" cy="12.5" r="2.8" fill="#1a1a1a" stroke="#5a5a5a" stroke-width="0.4"/>'
+    +   '<circle cx="6.5" cy="12.5" r="2.2" fill="#3a3a3a"/>'
+    +   '<circle cx="6.5" cy="12.5" r="1.5" fill="#1a1a1a"/>'
+    +   '<line x1="5" y1="12.5" x2="8" y2="12.5" stroke="#5a4030" stroke-width="1.2"/>'
+    +   '<line x1="6.5" y1="11" x2="6.5" y2="14" stroke="#5a4030" stroke-width="1.2"/>'
+    +   '<rect x="9.5" y="10.5" width="6" height="3" fill="#2a2a30"/>'
+    +   '<rect x="9.5" y="10.5" width="6" height="0.5" fill="#5a5a60"/>'
+    +   '<rect x="9.5" y="13" width="6" height="0.5" fill="#1a1a1a"/>'
+    +   '<line x1="15.5" y1="12" x2="22" y2="12" stroke="#5a4030" stroke-width="1"/>'
+    +   '<line x1="15.5" y1="11.7" x2="22" y2="11.7" stroke="#3a2a18" stroke-width="0.3"/>'
+    +   '<line x1="15.5" y1="12.3" x2="22" y2="12.3" stroke="#3a2a18" stroke-width="0.3"/>'
+    +   '<circle cx="20" cy="12" r="0.5" fill="#3a2a1a"/>'
+    +   '<circle cx="17" cy="12" r="0.5" fill="#3a2a1a"/>'
+    +   '<path d="M22 12 L23.5 10 L23 13.5 L21.5 13.5 L23 11 Z" fill="#9aa0a8" stroke="#3a3a40" stroke-width="0.3"/>'
+    +   '<path d="M22.5 11 L23.5 10.5 L23 11.5 Z" fill="#cccfd5"/>'
+    + '</svg>',
+  // ─── TIMESTOP ── chrono-pistol med klockbild + runic glyphs + hourglass
+  timestop: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="11" width="3.5" height="3" fill="#1a3a1a"/>'
+    +   '<rect x="0.5" y="11" width="3.5" height="0.5" fill="#3a5a3a"/>'
+    +   '<rect x="4" y="9" width="9" height="6" fill="#0a2a0a" stroke="#1a3a1a" stroke-width="0.4"/>'
+    +   '<rect x="4" y="9" width="9" height="0.5" fill="#9aff5a"/>'
+    +   '<circle cx="8.5" cy="12" r="2.5" fill="#1a3a1a" stroke="#9aff5a" stroke-width="0.5"/>'
+    +   '<circle cx="8.5" cy="12" r="1.8" fill="#0a1a0a"/>'
+    +   '<line x1="8.5" y1="12" x2="8.5" y2="10.5" stroke="#9aff5a" stroke-width="0.6"/>'
+    +   '<line x1="8.5" y1="12" x2="9.7" y2="12" stroke="#9aff5a" stroke-width="0.6"/>'
+    +   '<circle cx="8.5" cy="10.2" r="0.3" fill="#9aff5a"/>'
+    +   '<circle cx="10.3" cy="12" r="0.3" fill="#9aff5a"/>'
+    +   '<circle cx="8.5" cy="13.8" r="0.3" fill="#9aff5a"/>'
+    +   '<circle cx="6.7" cy="12" r="0.3" fill="#9aff5a"/>'
+    +   '<text x="11" y="11" fill="#9aff5a" font-size="2.5" font-family="serif">⌛</text>'
+    +   '<path d="M11 10 L12.5 10 L11.7 11.5 L12.5 13 L11 13 L11.7 11.5 Z" fill="#9aff5a"/>'
+    +   '<path d="M5 12 L13 13.5" fill="none" stroke="#9aff5a" stroke-width="0.3" opacity="0.6"/>'
+    +   '<path d="M4 16 L13 16" stroke="#9aff5a" stroke-width="0.5" opacity="0.7"/>'
+    +   '<path d="M5 17 L7 19 L9 17 L11 19 L13 17" stroke="#9aff5a" stroke-width="0.4" opacity="0.6" fill="none"/>'
+    +   '<rect x="13" y="10.5" width="9" height="3" fill="#1a2a1a"/>'
+    +   '<rect x="13" y="10.5" width="9" height="0.5" fill="#3a4a3a"/>'
+    +   '<rect x="14" y="11.5" width="7" height="1" fill="#9aff5a" opacity="0.7"/>'
+    +   '<circle cx="22.5" cy="12" r="1" fill="#fff"/>'
+    +   '<circle cx="22.5" cy="12" r="0.6" fill="#9aff5a"/>'
+    + '</svg>',
+  // ─── BLACKHOLE ── singularitet-kanon med swirl + event horizon + gravity
+  blackhole: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<defs><radialGradient id="bhGrad"><stop offset="0%" stop-color="#000"/><stop offset="60%" stop-color="#3a0a5a"/><stop offset="100%" stop-color="#aa3aff"/></radialGradient></defs>'
+    +   '<rect x="0.5" y="11" width="3" height="3" fill="#2a1a3a"/>'
+    +   '<rect x="0.5" y="11" width="3" height="0.5" fill="#4a3a5a"/>'
+    +   '<rect x="3.5" y="9" width="6" height="6" fill="#1a0a2a"/>'
+    +   '<rect x="3.5" y="9" width="6" height="0.6" fill="#aa3aff"/>'
+    +   '<rect x="4" y="10" width="0.6" height="4" fill="#aa3aff" opacity="0.8"/>'
+    +   '<rect x="5.2" y="10" width="0.6" height="4" fill="#aa3aff" opacity="0.6"/>'
+    +   '<rect x="6.4" y="10" width="0.6" height="4" fill="#aa3aff" opacity="0.4"/>'
+    +   '<rect x="7.6" y="10" width="0.6" height="4" fill="#aa3aff" opacity="0.2"/>'
+    +   '<path d="M5 15 L9 15 L8 19 L4 19 Z" fill="#1a0a2a"/>'
+    +   '<circle cx="16" cy="12" r="6" fill="#0a0a14" stroke="#aa3aff" stroke-width="0.6"/>'
+    +   '<circle cx="16" cy="12" r="5" fill="url(#bhGrad)"/>'
+    +   '<circle cx="16" cy="12" r="2.5" fill="#000"/>'
+    +   '<g transform="translate(16 12)">'
+    +     '<path d="M-4 0 Q-3 -3 0 -4 Q3 -3 4 0 Q3 3 0 4 Q-3 3 -4 0 Z" fill="none" stroke="#aa3aff" stroke-width="0.5" opacity="0.7"/>'
+    +     '<path d="M-3 -1 Q-2 -3 1 -3 Q3 -1 3 1 Q1 3 -1 3 Q-3 1 -3 -1 Z" fill="none" stroke="#cc6affcc" stroke-width="0.4" opacity="0.7"/>'
+    +   '</g>'
+    +   '<path d="M22 12 Q21 10 22 8" stroke="#aa3aff" stroke-width="0.4" fill="none" opacity="0.7"/>'
+    +   '<path d="M22 12 Q21 14 22 16" stroke="#aa3aff" stroke-width="0.4" fill="none" opacity="0.7"/>'
+    + '</svg>',
+  // ─── MINDCONTROL ── psy-emitter med brain-icon + dish + magenta aura
+  mindcontrol: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="11" width="3" height="3" fill="#3a1a3a"/>'
+    +   '<rect x="0.5" y="11" width="3" height="0.5" fill="#5a3a5a"/>'
+    +   '<rect x="3.5" y="9" width="7" height="6" fill="#2a0a2a" stroke="#5a1a5a" stroke-width="0.4"/>'
+    +   '<rect x="3.5" y="9" width="7" height="0.6" fill="#ff5aff"/>'
+    +   '<g transform="translate(7 12)">'
+    +     '<path d="M-1.5 -1.5 Q-2 -2 -1 -2.5 Q0 -3 1 -2.5 Q2 -2 1.5 -1.5 Q2.5 -1 2 0 Q2.5 1 1.5 1.5 Q2 2 1 2.5 Q0 3 -1 2.5 Q-2 2 -1.5 1.5 Q-2.5 1 -2 0 Q-2.5 -1 -1.5 -1.5 Z" fill="#ff5aff" opacity="0.9"/>'
+    +     '<path d="M0 -2 L0 2 M-1.5 -0.5 L1.5 -0.5 M-1.5 0.5 L1.5 0.5" stroke="#5a1a5a" stroke-width="0.3"/>'
+    +     '<circle r="0.4" fill="#fff"/>'
+    +   '</g>'
+    +   '<path d="M5 16 L9 16 L8 19 L5 19 Z" fill="#1a1a1a"/>'
+    +   '<rect x="10.5" y="10" width="4" height="4" fill="#1a1a1a"/>'
+    +   '<rect x="10.5" y="10" width="4" height="0.5" fill="#5a5a5a"/>'
+    +   '<g transform="translate(20 12)">'
+    +     '<path d="M-5 -5 L5 -5 L7 0 L5 5 L-5 5 L-7 0 Z" fill="none" stroke="#1a1a1a" stroke-width="0.6"/>'
+    +     '<path d="M-3.5 -3.5 L3.5 -3.5 L5 0 L3.5 3.5 L-3.5 3.5 L-5 0 Z" fill="#aa3aaa" stroke="#5a1a5a" stroke-width="0.4"/>'
+    +     '<path d="M-2.5 -2.5 L2.5 -2.5 L3.5 0 L2.5 2.5 L-2.5 2.5 L-3.5 0 Z" fill="#ff5aff"/>'
+    +     '<circle r="1.2" fill="#fff"/>'
+    +     '<circle r="0.6" fill="#ff5aff"/>'
+    +   '</g>'
+    +   '<path d="M14.5 11 Q17 10 19 11" stroke="#ff5aff" stroke-width="0.4" fill="none" opacity="0.7"/>'
+    +   '<path d="M14.5 13 Q17 14 19 13" stroke="#ff5aff" stroke-width="0.4" fill="none" opacity="0.7"/>'
+    + '</svg>',
+  // ─── RAILGUN ── industrial railgun med dual rails + capacitors + circuitry
+  railgun: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="11" width="3" height="3" fill="#3a3a3a"/>'
+    +   '<rect x="0.5" y="11" width="3" height="0.5" fill="#5a5a5a"/>'
+    +   '<rect x="3.5" y="9" width="7" height="6" fill="#1a1a20"/>'
+    +   '<rect x="3.5" y="9" width="7" height="0.6" fill="#ffffff"/>'
+    +   '<circle cx="5" cy="11" r="0.8" fill="#3a3a40" stroke="#fff" stroke-width="0.4"/>'
+    +   '<circle cx="5" cy="11" r="0.4" fill="#fff"/>'
+    +   '<circle cx="7" cy="11" r="0.8" fill="#3a3a40" stroke="#fff" stroke-width="0.4"/>'
+    +   '<circle cx="7" cy="11" r="0.4" fill="#fff"/>'
+    +   '<circle cx="9" cy="11" r="0.8" fill="#3a3a40" stroke="#fff" stroke-width="0.4"/>'
+    +   '<circle cx="9" cy="11" r="0.4" fill="#fff"/>'
+    +   '<rect x="4" y="12.5" width="6" height="0.8" fill="#0a0a0a"/>'
+    +   '<rect x="4" y="13.5" width="6" height="0.5" fill="#3a3a40"/>'
+    +   '<line x1="4.5" y1="13" x2="9.5" y2="13" stroke="#fff" stroke-width="0.3" opacity="0.7"/>'
+    +   '<path d="M5 15 L9 15 L8 19 L4 19 Z" fill="#1a1a1a"/>'
+    +   '<rect x="10.5" y="10" width="2" height="4" fill="#1a1a1a"/>'
+    +   '<rect x="12.5" y="9.5" width="10" height="1" fill="#3a3a40"/>'
+    +   '<rect x="12.5" y="9.5" width="10" height="0.4" fill="#cccfd5"/>'
+    +   '<rect x="12.5" y="13.5" width="10" height="1" fill="#3a3a40"/>'
+    +   '<rect x="12.5" y="14.1" width="10" height="0.4" fill="#5a5a60"/>'
+    +   '<rect x="13" y="10.7" width="9" height="2.6" fill="#0a0a14"/>'
+    +   '<rect x="13" y="11.7" width="9" height="0.6" fill="#fff" opacity="0.9"/>'
+    +   '<line x1="14" y1="11" x2="14" y2="13" stroke="#fff" stroke-width="0.3" opacity="0.6"/>'
+    +   '<line x1="16" y1="11" x2="16" y2="13" stroke="#fff" stroke-width="0.3" opacity="0.6"/>'
+    +   '<line x1="18" y1="11" x2="18" y2="13" stroke="#fff" stroke-width="0.3" opacity="0.6"/>'
+    +   '<line x1="20" y1="11" x2="20" y2="13" stroke="#fff" stroke-width="0.3" opacity="0.6"/>'
+    +   '<circle cx="22.5" cy="12" r="1.3" fill="#fff"/>'
+    +   '<circle cx="22.5" cy="12" r="0.7" fill="#cccfff"/>'
+    + '</svg>',
 };
 
 // Returnerar SVG-sträng om custom-design finns, annars emoji-fallback.
@@ -25882,15 +26401,50 @@ function drawPlayerWeapon(p, w, flash, now) {
         ctx.lineTo(cx - 7, cy);
         ctx.lineTo(cx - 5, cy + 1.5);
         ctx.closePath(); ctx.fill();
-        // Knuckles-specifikt: gyllene metall över knogarna
+        // Knuckles-specifikt: chunky brass-knuckle plates med skarpa spikes
+        // mellan varje knogled + dome-formade brass-cap över varje knoge.
         if (isKnuckles) {
+          // Solid brass-bar bakgrund (under alla domes)
+          ctx.fillStyle = flash ? '#fff' : '#aa7a30';
+          ctx.fillRect(cx + 1.5, cy - 5, 6, 8);
+          // Brass-bar highlight
           ctx.fillStyle = flash ? '#fff' : '#ffd54a';
-          ctx.fillRect(cx + 2, cy - 4, 5, 1.5);
-          ctx.fillRect(cx + 2, cy - 1.5, 5, 1.5);
-          ctx.fillRect(cx + 2, cy + 1, 5, 1.5);
-          // Reflection
-          ctx.fillStyle = flash ? '#fff' : '#fff8c8';
-          ctx.fillRect(cx + 3, cy - 3.5, 2, 0.5);
+          ctx.fillRect(cx + 1.5, cy - 5, 6, 0.7);
+          // Brass-bar shadow
+          ctx.fillStyle = flash ? '#fff' : '#7a5020';
+          ctx.fillRect(cx + 1.5, cy + 2.3, 6, 0.7);
+          // 4 dome-shaped brass caps över varje knoge
+          for (let k = 0; k < 4; k++) {
+            const dx = cx + 3 + k * 0.5;
+            const dy = cy - 3 + k * 1.6;
+            ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+            ctx.beginPath(); ctx.arc(dx, dy, 1.4, 0, Math.PI*2); ctx.fill();
+            // Inner highlight (reflection)
+            ctx.fillStyle = flash ? '#fff' : '#fff5a0';
+            ctx.beginPath(); ctx.arc(dx - 0.4, dy - 0.4, 0.6, 0, Math.PI*2); ctx.fill();
+            // Edge stroke (mörk)
+            ctx.strokeStyle = flash ? '#fff' : '#7a5020';
+            ctx.lineWidth = 0.4;
+            ctx.beginPath(); ctx.arc(dx, dy, 1.4, 0, Math.PI*2); ctx.stroke();
+          }
+          // Sharp spikes mellan knogarna (3 st korta silver-taggar)
+          ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+          for (let k = 0; k < 3; k++) {
+            const sx = cx + 3.2 + k * 0.5;
+            const sy = cy - 2.3 + k * 1.6;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy); ctx.lineTo(sx + 1, sy - 2.5); ctx.lineTo(sx + 0.5, sy + 0.3);
+            ctx.closePath(); ctx.fill();
+          }
+          // Spikes highlight
+          ctx.fillStyle = flash ? '#fff' : '#fff';
+          for (let k = 0; k < 3; k++) {
+            const sx = cx + 3.5 + k * 0.5;
+            const sy = cy - 2.3 + k * 1.6;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy - 0.5); ctx.lineTo(sx + 0.6, sy - 2.2); ctx.lineTo(sx + 0.3, sy - 0.3);
+            ctx.closePath(); ctx.fill();
+          }
         }
       }
       // Impact-puff vid full reach (punch-moment)
@@ -25903,32 +26457,73 @@ function drawPlayerWeapon(p, w, flash, now) {
         ctx.stroke();
       }
     } else if (w.id === 'bat') {
-      // Basebollträ: brun stång med tape-grepp + nail-detaljer
+      // Premium nailed-bat: trä-grain skaft, pommel, tape-grepp + nail-spikes med
+      // glödande highlights, motion-blur arc vid swing.
       const swing = slashAnim * 1.2;
       ctx.save(); ctx.rotate(-0.6 + swing);
-      // Stång (gradient tjocklek smal-tjock)
-      ctx.strokeStyle = flash ? '#fff' : '#7a4a20';
-      ctx.lineWidth = 5; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 1.7, 0); ctx.stroke();
-      ctx.lineWidth = 8;
-      ctx.beginPath(); ctx.moveTo(p.r * 1.7, 0); ctx.lineTo(p.r * 2.3, 0); ctx.stroke();
-      // Tape-grepp (svart spiral)
-      ctx.strokeStyle = flash ? '#fff' : '#1a1a1a';
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 5; i++) {
-        const tx = p.r * 0.75 + i * (p.r * 0.15);
+      // Motion-blur trail
+      if (slashAnim > 0.3) {
+        ctx.strokeStyle = `rgba(255,200,160,${slashAnim * 0.35})`;
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.moveTo(tx, -3); ctx.lineTo(tx + 2, 3);
+        ctx.arc(0, 0, p.r * 1.9, -0.4 - slashAnim * 0.4, -0.4);
         ctx.stroke();
       }
-      // Nails sticker ut (3 st i tjocka änden)
-      ctx.strokeStyle = flash ? '#fff' : '#ccc';
-      ctx.lineWidth = 1.5;
-      for (let i = 0; i < 3; i++) {
-        const nx = p.r * 1.85 + i * (p.r * 0.15);
-        ctx.beginPath();
-        ctx.moveTo(nx, -4); ctx.lineTo(nx + 1, -7);
-        ctx.stroke();
+      // Skugga under
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(p.r * 1.5, 5, 14, 1.5, 0, 0, Math.PI*2); ctx.fill();
+      // Pommel-knob (mörk metall)
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.beginPath(); ctx.arc(p.r * 0.55, 0, 2.5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+      ctx.beginPath(); ctx.arc(p.r * 0.5, -0.6, 0.8, 0, Math.PI*2); ctx.fill();
+      // Tape-grepp (svart med diagonal-mönster)
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.fillRect(p.r * 0.7, -2.3, p.r * 0.4, 4.6);
+      ctx.strokeStyle = flash ? '#fff' : '#3a3a3a';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i < 5; i++) {
+        const tx = p.r * 0.72 + i * (p.r * 0.4 / 5);
+        ctx.beginPath(); ctx.moveTo(tx, -2.3); ctx.lineTo(tx + 1.2, 2.3); ctx.stroke();
+      }
+      // Bat-skaft (taperad: smalt vid grip → tjockt vid huvud)
+      ctx.fillStyle = flash ? '#fff' : '#7a4a20';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.1, -2.5); ctx.lineTo(p.r * 2.4, -5);
+      ctx.lineTo(p.r * 2.4, 5); ctx.lineTo(p.r * 1.1, 2.5);
+      ctx.closePath(); ctx.fill();
+      // Trä-grain (mörka horizontella linjer)
+      ctx.strokeStyle = flash ? '#fff' : '#3a1808';
+      ctx.lineWidth = 0.4;
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.15, -1.5); ctx.lineTo(p.r * 2.35, -2.5);
+      ctx.moveTo(p.r * 1.15, 0); ctx.lineTo(p.r * 2.35, 0);
+      ctx.moveTo(p.r * 1.15, 1.5); ctx.lineTo(p.r * 2.35, 2.5);
+      ctx.stroke();
+      // Top highlight
+      ctx.fillStyle = flash ? '#fff' : '#9a6028';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.1, -2.5); ctx.lineTo(p.r * 2.4, -5);
+      ctx.lineTo(p.r * 2.4, -4); ctx.lineTo(p.r * 1.1, -1.7);
+      ctx.closePath(); ctx.fill();
+      // Bottom shadow
+      ctx.fillStyle = flash ? '#fff' : '#5a3010';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.1, 2.5); ctx.lineTo(p.r * 2.4, 5);
+      ctx.lineTo(p.r * 2.4, 4); ctx.lineTo(p.r * 1.1, 1.7);
+      ctx.closePath(); ctx.fill();
+      // Nails (5 st spikes med shaft + head)
+      const nailPos = [[1.4, -3.5, -2.2], [1.7, -4, -2.5], [2.0, -4.6, -2.8], [1.55, 3.7, 2.4], [2.05, 4.5, 2.8]];
+      for (const [rx, hy, sy] of nailPos) {
+        // Shaft
+        ctx.strokeStyle = flash ? '#fff' : '#cccfd5';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.moveTo(p.r * rx, sy); ctx.lineTo(p.r * rx + 0.5, hy); ctx.stroke();
+        // Head (silver knob)
+        ctx.fillStyle = flash ? '#fff' : '#9aa0a8';
+        ctx.beginPath(); ctx.arc(p.r * rx + 0.5, hy, 0.7, 0, Math.PI*2); ctx.fill();
+        ctx.fillStyle = flash ? '#fff' : '#fff';
+        ctx.beginPath(); ctx.arc(p.r * rx + 0.3, hy - 0.2, 0.25, 0, Math.PI*2); ctx.fill();
       }
       ctx.restore();
     } else if (w.id === 'knife') {
@@ -25995,57 +26590,172 @@ function drawPlayerWeapon(p, w, flash, now) {
         ctx.stroke();
       }
     } else if (w.id === 'machete') {
-      // Machete: bredbladigt, lite kortare, brett blad (jakt-machete)
+      // Premium machete: jungle-blade med leather-grepp + brass rivets,
+      // serrated back-edge, cross-guard, polished blade med fuller + reflektion.
       const swing = slashAnim * 1.3;
       ctx.save();
       ctx.rotate(-0.6 + swing);
-      // Skaft (mörkbrun)
-      ctx.fillStyle = flash ? '#fff' : '#3a2a1a';
-      ctx.fillRect(p.r * 0.5, -2, p.r * 0.4, 4);
-      // Bredt platt blad
-      ctx.fillStyle = flash ? '#fff' : '#9aa8b0';
+      // Motion-blur trail
+      if (slashAnim > 0.3) {
+        ctx.strokeStyle = `rgba(255,255,255,${slashAnim * 0.4})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.r * 1.6, -0.4 - slashAnim * 0.4, -0.4);
+        ctx.stroke();
+      }
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(p.r * 1.4, 6, 12, 1.5, 0, 0, Math.PI*2); ctx.fill();
+      // Leather grepp (brun med rivets)
+      ctx.fillStyle = flash ? '#fff' : '#3a2010';
+      ctx.fillRect(p.r * 0.45, -2.2, p.r * 0.45, 4.4);
+      ctx.fillStyle = flash ? '#fff' : '#5a3018';
+      ctx.fillRect(p.r * 0.45, -2.2, p.r * 0.45, 0.6);
+      // Grip stitching (kors)
+      ctx.strokeStyle = flash ? '#fff' : '#1a0a04';
+      ctx.lineWidth = 0.4;
+      for (let i = 0; i < 4; i++) {
+        const gx = p.r * 0.5 + i * (p.r * 0.4 / 4);
+        ctx.beginPath(); ctx.moveTo(gx, -2.2); ctx.lineTo(gx, 2.2); ctx.stroke();
+      }
+      // Brass rivets (3 st)
+      ctx.fillStyle = flash ? '#fff' : '#ffae3a';
+      ctx.beginPath(); ctx.arc(p.r * 0.55, -1.3, 0.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.r * 0.78, 1.3, 0.5, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#fff5a0';
+      ctx.beginPath(); ctx.arc(p.r * 0.5, -1.4, 0.2, 0, Math.PI*2); ctx.fill();
+      // Cross-guard (silver tvärbalk)
+      ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+      ctx.fillRect(p.r * 0.9, -3.5, 1.5, 7);
+      ctx.fillStyle = flash ? '#fff' : '#9aa0a8';
+      ctx.fillRect(p.r * 0.9, -3.5, 0.5, 7);
+      // Brett platt blad (utåt-flytande shape)
+      ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
       ctx.beginPath();
-      ctx.moveTo(p.r * 0.9, -5);
-      ctx.lineTo(p.r * 2.2, -3);
+      ctx.moveTo(p.r * 1.0, -3);
+      ctx.lineTo(p.r * 2.2, -4);
+      ctx.lineTo(p.r * 2.5, 0);
       ctx.lineTo(p.r * 2.2, 5);
-      ctx.lineTo(p.r * 0.9, 5);
+      ctx.lineTo(p.r * 1.0, 4);
       ctx.closePath(); ctx.fill();
-      // Egg-detalj (mörkare linje)
-      ctx.strokeStyle = flash ? '#fff' : '#666';
-      ctx.lineWidth = 1;
+      // Top highlight (polerat blad)
+      ctx.fillStyle = flash ? '#fff' : '#dce6ee';
       ctx.beginPath();
-      ctx.moveTo(p.r * 0.9, 4); ctx.lineTo(p.r * 2.2, 4);
-      ctx.stroke();
+      ctx.moveTo(p.r * 1.0, -3);
+      ctx.lineTo(p.r * 2.2, -4);
+      ctx.lineTo(p.r * 2.4, -2);
+      ctx.lineTo(p.r * 1.0, -1.5);
+      ctx.closePath(); ctx.fill();
+      // Serrated back-edge (sågtaggar på övre kanten)
+      ctx.fillStyle = flash ? '#fff' : '#7a8088';
+      for (let i = 0; i < 5; i++) {
+        const sx = p.r * 1.15 + i * (p.r * 0.2);
+        ctx.beginPath();
+        ctx.moveTo(sx, -3.5); ctx.lineTo(sx + 1.5, -4.5); ctx.lineTo(sx + 2, -3.5);
+        ctx.closePath(); ctx.fill();
+      }
+      // Fuller (mörk groove-linje)
+      ctx.strokeStyle = flash ? '#fff' : '#7a8088';
+      ctx.lineWidth = 0.7;
+      ctx.beginPath(); ctx.moveTo(p.r * 1.1, 0); ctx.lineTo(p.r * 2.2, 0); ctx.stroke();
+      // Egg-reflection (vit highlight längs nedre kant)
+      ctx.strokeStyle = flash ? '#fff' : 'rgba(255,255,255,0.7)';
+      ctx.lineWidth = 0.6;
+      ctx.beginPath(); ctx.moveTo(p.r * 1.1, 3.5); ctx.lineTo(p.r * 2.1, 4.3); ctx.stroke();
       ctx.restore();
     } else if (w.id === 'katana') {
-      // Katana: lång slank elegant blad, vit-silver, distinkt grepp
+      // Premium katana: traditional samurai svärd med tsuba (handskydd),
+      // ito-wrap grepp med rauta-mönster, polished blade med hamon (temper-line),
+      // kissaki (spets-detalj), motion-blur arc.
       const swing = slashAnim * 1.5;
       ctx.save();
       ctx.rotate(-0.8 + swing);
-      // Grepp (svart med band-mönster)
+      // Motion-blur trail (subtil silver)
+      if (slashAnim > 0.3) {
+        ctx.strokeStyle = `rgba(255,255,255,${slashAnim * 0.5})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.r * 2.0, -0.6 - slashAnim * 0.5, -0.6);
+        ctx.stroke();
+      }
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(p.r * 1.7, 6, 16, 1.5, 0, 0, Math.PI*2); ctx.fill();
+      // Kashira (pommel) — rund svart kapsel
       ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
-      ctx.fillRect(p.r * 0.4, -2, p.r * 0.5, 4);
+      ctx.beginPath(); ctx.arc(p.r * 0.35, 0, 2.2, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+      ctx.beginPath(); ctx.arc(p.r * 0.32, -0.3, 0.5, 0, Math.PI*2); ctx.fill();
+      // Tsuka (grepp) — svart med röd ito-wrap rauta-mönster (X-pattern)
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.fillRect(p.r * 0.45, -2, p.r * 0.5, 4);
+      // Samegawa (white texture under wrap)
+      ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+      for (let i = 0; i < 4; i++) {
+        const gx = p.r * 0.5 + i * (p.r * 0.5 / 4);
+        ctx.beginPath(); ctx.arc(gx + 0.5, 0, 0.3, 0, Math.PI*2); ctx.fill();
+      }
+      // Ito-wrap (röda diagonal-band, ena hållet)
       ctx.strokeStyle = flash ? '#fff' : '#aa3a3a';
       ctx.lineWidth = 0.8;
-      for (let i = 0; i < 4; i++) {
-        const gx = p.r * 0.4 + i * (p.r * 0.5 / 4);
-        ctx.beginPath(); ctx.moveTo(gx, -2); ctx.lineTo(gx + 1, 2); ctx.stroke();
+      for (let i = 0; i < 5; i++) {
+        const gx = p.r * 0.45 + i * (p.r * 0.5 / 5);
+        ctx.beginPath(); ctx.moveTo(gx, -2); ctx.lineTo(gx + 1.5, 2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(gx + 1.5, -2); ctx.lineTo(gx, 2); ctx.stroke();
       }
-      // Tsuba (handskydd, gyllene)
+      // Mörk skugga på band-korsningarna
+      ctx.strokeStyle = flash ? '#fff' : '#5a1818';
+      ctx.lineWidth = 0.4;
+      for (let i = 0; i < 5; i++) {
+        const gx = p.r * 0.45 + i * (p.r * 0.5 / 5);
+        ctx.beginPath(); ctx.moveTo(gx + 0.2, -1.8); ctx.lineTo(gx + 1.7, 2.2); ctx.stroke();
+      }
+      // Tsuba (cirkulär gyllene handskydd — flat med ornamentation)
       ctx.fillStyle = flash ? '#fff' : '#ffd54a';
-      ctx.beginPath(); ctx.arc(p.r * 0.95, 0, 3.5, 0, Math.PI*2); ctx.fill();
-      // Långt slankt blad (ljust silver med curve)
-      ctx.strokeStyle = flash ? '#fff' : '#e6e6f0';
-      ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.arc(p.r * 1.0, 0, 3.8, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#fff5a0';
+      ctx.beginPath(); ctx.arc(p.r * 1.0, 0, 3, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#5a4020';
+      ctx.beginPath(); ctx.arc(p.r * 1.0, 0, 1.3, 0, Math.PI*2); ctx.fill();
+      // Tsuba-ornament (4 prickar runt center)
+      ctx.fillStyle = flash ? '#fff' : '#7a5828';
+      for (let i = 0; i < 4; i++) {
+        const a = i * Math.PI / 2 + Math.PI / 4;
+        ctx.beginPath();
+        ctx.arc(p.r * 1.0 + Math.cos(a) * 2.3, Math.sin(a) * 2.3, 0.4, 0, Math.PI*2);
+        ctx.fill();
+      }
+      // Habaki (smal silver-koppling före blade)
+      ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+      ctx.fillRect(p.r * 1.15, -1.2, 1.5, 2.4);
+      // Lång slank curved blade (polerad silver-vit)
+      ctx.fillStyle = flash ? '#fff' : '#e6e6f0';
       ctx.beginPath();
-      ctx.moveTo(p.r * 1.1, -1);
-      ctx.quadraticCurveTo(p.r * 1.8, -3, p.r * 2.7, -1);
+      ctx.moveTo(p.r * 1.3, -1.2);
+      ctx.quadraticCurveTo(p.r * 2.0, -2.8, p.r * 2.85, -1.5);
+      ctx.lineTo(p.r * 2.95, -0.5);
+      ctx.quadraticCurveTo(p.r * 2.0, 0, p.r * 1.3, 0.8);
+      ctx.closePath(); ctx.fill();
+      // Hamon (temper-line) — ljusare våg-mönster
+      ctx.fillStyle = flash ? '#fff' : '#fff';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.3, -0.6);
+      ctx.quadraticCurveTo(p.r * 2.0, -1.5, p.r * 2.85, -1.0);
+      ctx.lineTo(p.r * 2.85, -0.8);
+      ctx.quadraticCurveTo(p.r * 2.0, -1.0, p.r * 1.3, -0.4);
+      ctx.closePath(); ctx.fill();
+      // Glansreflexion (vit linje längs övre kanten)
+      ctx.strokeStyle = flash ? '#fff' : 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.3, -1.0);
+      ctx.quadraticCurveTo(p.r * 2.0, -2.4, p.r * 2.85, -1.3);
       ctx.stroke();
-      // Glansreflexion
-      ctx.strokeStyle = flash ? '#fff' : 'rgba(255,255,255,0.7)';
-      ctx.lineWidth = 1;
+      // Kissaki (spets — markering där blade möter spetsen)
+      ctx.strokeStyle = flash ? '#fff' : '#9aa0a8';
+      ctx.lineWidth = 0.3;
       ctx.beginPath();
-      ctx.moveTo(p.r * 1.3, -2.2); ctx.lineTo(p.r * 2.3, -1.8);
+      ctx.moveTo(p.r * 2.7, -1.7); ctx.lineTo(p.r * 2.6, -0.2);
       ctx.stroke();
       ctx.restore();
     } else if (w.style === 'club_short') {
@@ -26057,18 +26767,81 @@ function drawPlayerWeapon(p, w, flash, now) {
       ctx.beginPath(); ctx.moveTo(p.r * 0.6, 0); ctx.lineTo(p.r * 1.7, 0); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(p.r * 0.9, -3); ctx.lineTo(p.r * 0.9, 6); ctx.stroke();
       ctx.restore();
-    } else if (w.style === 'axe') {
+    } else if (w.id === 'axe') {
+      // Premium tactical fire-axe: trä-skaft med tape-pommel, steel-shaft,
+      // dual-edged head med gold-tinted edges, motion-blur arc.
       const swing = slashAnim * 1.3;
       ctx.save(); ctx.rotate(-0.7 + swing);
-      ctx.strokeStyle = flash ? '#fff' : '#7a5a3a';
-      ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.0, 0); ctx.stroke();
-      // yxblad
-      ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
+      // Motion-blur trail
+      if (slashAnim > 0.3) {
+        ctx.strokeStyle = `rgba(255,255,255,${slashAnim * 0.45})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.r * 1.9, -0.5 - slashAnim * 0.5, -0.5);
+        ctx.stroke();
+      }
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(p.r * 1.5, 6, 13, 1.5, 0, 0, Math.PI*2); ctx.fill();
+      // Pommel (svart cap med tape)
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.fillRect(p.r * 0.5, -2.2, 4, 4.4);
+      ctx.strokeStyle = flash ? '#fff' : '#3a3a3a';
+      ctx.lineWidth = 0.4;
+      for (let i = 0; i < 4; i++) {
+        const tx = p.r * 0.55 + i;
+        ctx.beginPath(); ctx.moveTo(tx, -2.2); ctx.lineTo(tx + 0.7, 2.2); ctx.stroke();
+      }
+      // Trä-skaft (varmt brun med grain)
+      ctx.fillStyle = flash ? '#fff' : '#5a3818';
+      ctx.fillRect(p.r * 0.85, -2.2, p.r * 1.2, 4.4);
+      ctx.fillStyle = flash ? '#fff' : '#7a4828';
+      ctx.fillRect(p.r * 0.85, -2.2, p.r * 1.2, 0.6);
+      ctx.strokeStyle = flash ? '#fff' : '#3a2008';
+      ctx.lineWidth = 0.3;
       ctx.beginPath();
-      ctx.moveTo(p.r * 1.85, -8); ctx.lineTo(p.r * 2.4, -2);
-      ctx.lineTo(p.r * 2.4, 2); ctx.lineTo(p.r * 1.85, 8);
+      ctx.moveTo(p.r * 0.9, -1); ctx.lineTo(p.r * 2.0, -1.1);
+      ctx.moveTo(p.r * 0.9, 0.5); ctx.lineTo(p.r * 2.0, 0.4);
+      ctx.stroke();
+      // Steel shaft-collar (där skaft möter huvudet)
+      ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+      ctx.fillRect(p.r * 1.95, -3.5, 2, 7);
+      ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+      ctx.fillRect(p.r * 1.95, -3.5, 2, 0.6);
+      // Yxhuvud — bred, asymmetrisk fire-axe shape (större främre edge)
+      ctx.fillStyle = flash ? '#fff' : '#9aa0a8';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 2.05, -3);
+      ctx.lineTo(p.r * 2.4, -8);
+      ctx.lineTo(p.r * 2.95, -7);
+      ctx.lineTo(p.r * 3.15, -4);
+      ctx.lineTo(p.r * 3.2, 0);
+      ctx.lineTo(p.r * 3.15, 4);
+      ctx.lineTo(p.r * 2.95, 7);
+      ctx.lineTo(p.r * 2.4, 8);
+      ctx.lineTo(p.r * 2.05, 3);
       ctx.closePath(); ctx.fill();
+      // Top highlight (polerad metall)
+      ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 2.05, -3);
+      ctx.lineTo(p.r * 2.4, -8);
+      ctx.lineTo(p.r * 2.7, -7.5);
+      ctx.lineTo(p.r * 2.7, -4);
+      ctx.closePath(); ctx.fill();
+      // Gold edge (skarp gyllene yxegg)
+      ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 3.05, -5);
+      ctx.lineTo(p.r * 3.2, -2);
+      ctx.lineTo(p.r * 3.2, 2);
+      ctx.lineTo(p.r * 3.05, 5);
+      ctx.closePath(); ctx.fill();
+      // Center bolt på blad
+      ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+      ctx.beginPath(); ctx.arc(p.r * 2.6, 0, 0.7, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.fillRect(p.r * 2.6 - 0.5, -0.2, 1, 0.4);
       ctx.restore();
     } else if (w.style === 'sledge') {
       // Premium sledgehammer: trä-skaft med grain + tape-grepp, dubbelsidig stål-huvud
@@ -26156,47 +26929,201 @@ function drawPlayerWeapon(p, w, flash, now) {
         ctx.stroke();
       }
       ctx.restore();
-    } else if (w.style === 'spear') {
+    } else if (w.id === 'spear') {
+      // Premium spear: tactical lance med wrapped grepp, cross-guard,
+      // leaf-shaped polished steel point med fuller, motion-blur stab streak.
       const stab = slashAnim * 14;
-      ctx.strokeStyle = flash ? '#fff' : '#bcbccc';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(p.r * 0.6 + stab, 0); ctx.lineTo(p.r * 3.0 + stab, 0); ctx.stroke();
-      ctx.fillStyle = flash ? '#fff' : '#ccd';
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(p.r * 1.8 + stab, 6, 18, 1.5, 0, 0, Math.PI*2); ctx.fill();
+      // Pommel (svart cap)
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.beginPath(); ctx.arc(p.r * 0.5 + stab, 0, 1.6, 0, Math.PI*2); ctx.fill();
+      // Skaft (mörkt trä)
+      ctx.fillStyle = flash ? '#fff' : '#5a3818';
+      ctx.fillRect(p.r * 0.6 + stab, -1.2, p.r * 2.2, 2.4);
+      ctx.fillStyle = flash ? '#fff' : '#7a4828';
+      ctx.fillRect(p.r * 0.6 + stab, -1.2, p.r * 2.2, 0.5);
+      // Wrapped grepp (svart) i mitten
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.fillRect(p.r * 0.85 + stab, -1.5, p.r * 0.55, 3);
+      ctx.strokeStyle = flash ? '#fff' : '#3a3a3a';
+      ctx.lineWidth = 0.4;
+      for (let i = 0; i < 5; i++) {
+        const tx = p.r * 0.9 + stab + i * (p.r * 0.5 / 5);
+        ctx.beginPath(); ctx.moveTo(tx, -1.5); ctx.lineTo(tx + 0.7, 1.5); ctx.stroke();
+      }
+      // Cross-guard (silver tvärbalk innan blade)
+      ctx.fillStyle = flash ? '#fff' : '#9098a0';
+      ctx.fillRect(p.r * 2.75 + stab, -3.5, 1.2, 7);
+      ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+      ctx.fillRect(p.r * 2.75 + stab, -3.5, 0.4, 7);
+      // Leaf-shaped point (polerad steel)
+      ctx.fillStyle = flash ? '#fff' : '#dce6ee';
       ctx.beginPath();
-      ctx.moveTo(p.r * 3.0 + stab, -5); ctx.lineTo(p.r * 3.5 + stab, 0);
-      ctx.lineTo(p.r * 3.0 + stab, 5);
+      ctx.moveTo(p.r * 2.95 + stab, -2.5);
+      ctx.lineTo(p.r * 3.5 + stab, -3);
+      ctx.lineTo(p.r * 4.0 + stab, 0);
+      ctx.lineTo(p.r * 3.5 + stab, 3);
+      ctx.lineTo(p.r * 2.95 + stab, 2.5);
       ctx.closePath(); ctx.fill();
-    } else if (w.style === 'whip') {
-      const wave = Math.sin(now/40) * 6;
-      ctx.strokeStyle = flash ? '#fff' : w.color;
-      ctx.lineWidth = 3; ctx.lineCap = 'round';
+      // Top highlight på blade
+      ctx.fillStyle = flash ? '#fff' : '#fff';
       ctx.beginPath();
-      ctx.moveTo(p.r * 0.7, 0);
-      ctx.quadraticCurveTo(p.r * 2.0, wave, p.r * 3.5, wave * 0.5);
+      ctx.moveTo(p.r * 3.0 + stab, -2.3);
+      ctx.lineTo(p.r * 3.5 + stab, -2.8);
+      ctx.lineTo(p.r * 3.9 + stab, 0);
+      ctx.lineTo(p.r * 3.5 + stab, -1);
+      ctx.closePath(); ctx.fill();
+      // Fuller (mörk groove i mitten av blade)
+      ctx.fillStyle = flash ? '#fff' : '#7a8088';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 3.0 + stab, -0.4);
+      ctx.lineTo(p.r * 3.85 + stab, 0);
+      ctx.lineTo(p.r * 3.0 + stab, 0.4);
+      ctx.closePath(); ctx.fill();
+      // Stab-streak när stab är stark
+      if (slashAnim > 0.4) {
+        ctx.strokeStyle = `rgba(255,255,255,${slashAnim * 0.55})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(p.r * 1.5 + stab - 8, 0);
+        ctx.lineTo(p.r * 1.5 + stab - 18, 0);
+        ctx.stroke();
+      }
+    } else if (w.id === 'whip') {
+      // Premium braided leather-piska med metallic tip + claw-handle,
+      // dynamisk våg-rörelse + crack-effekt vid full swing.
+      const wave = Math.sin(now / 40) * 6;
+      // Handle (mörk läder med brass rivets)
+      ctx.fillStyle = flash ? '#fff' : '#3a2418';
+      ctx.fillRect(p.r * 0.5, -2.5, p.r * 0.4, 5);
+      ctx.fillStyle = flash ? '#fff' : '#5a3a20';
+      ctx.fillRect(p.r * 0.5, -2.5, p.r * 0.4, 0.6);
+      ctx.fillStyle = flash ? '#fff' : '#1a1208';
+      ctx.fillRect(p.r * 0.5, 1.9, p.r * 0.4, 0.6);
+      // Brass rivets (4)
+      ctx.fillStyle = flash ? '#fff' : '#ffae3a';
+      ctx.beginPath(); ctx.arc(p.r * 0.55, -1.3, 0.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.r * 0.85, -1.3, 0.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.r * 0.55, 1.3, 0.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.r * 0.85, 1.3, 0.5, 0, Math.PI*2); ctx.fill();
+      // Wrap-collar där läder möter handle
+      ctx.fillStyle = flash ? '#fff' : '#1a1208';
+      ctx.fillRect(p.r * 0.9, -1.8, 1.5, 3.6);
+      // Braided whip-body (segmenterad våg-form med shadow + highlight)
+      ctx.strokeStyle = flash ? '#fff' : '#5a4030';
+      ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.0, 0);
+      const w1y = wave * 0.3, w2y = wave * -0.5, w3y = wave * 0.7, w4y = wave * 0.4;
+      ctx.bezierCurveTo(p.r * 1.6, w1y, p.r * 2.3, w2y, p.r * 3.0, w3y);
+      ctx.bezierCurveTo(p.r * 3.4, w3y * 0.8, p.r * 3.8, w4y, p.r * 4.2, w4y * 0.5);
       ctx.stroke();
-    } else if (w.style === 'lightsaber') {
-      // Lightsaber: ELEGANT, smal grön strålglöd, hi-tech grepp
+      // Highlight ovanpå (ljusare läder-stripe)
+      ctx.strokeStyle = flash ? '#fff' : '#7a5840';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.0, -0.4);
+      ctx.bezierCurveTo(p.r * 1.6, w1y - 0.4, p.r * 2.3, w2y - 0.4, p.r * 3.0, w3y - 0.4);
+      ctx.bezierCurveTo(p.r * 3.4, w3y * 0.8 - 0.4, p.r * 3.8, w4y - 0.4, p.r * 4.2, w4y * 0.5 - 0.4);
+      ctx.stroke();
+      // Braid-segments (små diagonal-linjer längs piskan)
+      ctx.strokeStyle = flash ? '#fff' : '#1a1208';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i < 8; i++) {
+        const t = i / 8;
+        const sx = p.r * 1.0 + (p.r * 3.2) * t;
+        const sy = wave * (0.3 - t * 0.2) * Math.sin(t * 4);
+        ctx.beginPath();
+        ctx.moveTo(sx, sy - 1.5);
+        ctx.lineTo(sx + 1.5, sy + 1.5);
+        ctx.stroke();
+      }
+      // Metallic tip (silver claw-spike) framtill
+      const tipX = p.r * 4.2;
+      const tipY = wave * 0.25;
+      ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+      ctx.beginPath();
+      ctx.moveTo(tipX, tipY);
+      ctx.lineTo(tipX + 4, tipY - 1);
+      ctx.lineTo(tipX + 6, tipY + 0.5);
+      ctx.lineTo(tipX + 4, tipY + 1.5);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#fff';
+      ctx.beginPath(); ctx.arc(tipX + 4.5, tipY - 0.3, 0.5, 0, Math.PI*2); ctx.fill();
+      // Crack-effekt när swing är stark
+      if (slashAnim > 0.5) {
+        ctx.strokeStyle = `rgba(255,255,255,${slashAnim * 0.6})`;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(tipX + 6, tipY); ctx.lineTo(tipX + 9, tipY - 2);
+        ctx.moveTo(tipX + 6, tipY); ctx.lineTo(tipX + 9, tipY + 2);
+        ctx.stroke();
+      }
+    } else if (w.id === 'lightsaber') {
+      // Premium Jedi-style lightsaber: ribbed silver hilt med activation switch,
+      // emitter, pommel-cap, vented design + smooth pulserande grön blade med
+      // hot core. Stiligare än innan.
       const swing = slashAnim * 1.2;
       ctx.save(); ctx.rotate(-0.5 + swing);
-      // Hi-tech grepp (silver med detaljer)
-      ctx.fillStyle = flash ? '#fff' : '#888';
-      ctx.fillRect(p.r * 0.45, -2.5, p.r * 0.45, 5);
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(p.r * 1.7, 6, 16, 1.5, 0, 0, Math.PI*2); ctx.fill();
+      // Pommel-cap baktill
       ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
-      ctx.fillRect(p.r * 0.55, -1, 2, 2);
-      ctx.fillRect(p.r * 0.65, -1, 2, 2);
-      ctx.fillRect(p.r * 0.75, -1, 2, 2);
-      // Pulserande glow-blade — smal och elegant
+      ctx.fillRect(p.r * 0.4, -2.6, 1, 5.2);
+      // Hilt-body (silver med ribbing)
+      ctx.fillStyle = flash ? '#fff' : '#888';
+      ctx.fillRect(p.r * 0.5, -2.5, p.r * 0.5, 5);
+      // Top highlight
+      ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+      ctx.fillRect(p.r * 0.5, -2.5, p.r * 0.5, 0.7);
+      // Bottom shadow
+      ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+      ctx.fillRect(p.r * 0.5, 1.8, p.r * 0.5, 0.7);
+      // Ribbed grip-section (3 svarta band)
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.fillRect(p.r * 0.55, -2, 2, 4);
+      ctx.fillRect(p.r * 0.7, -2, 2, 4);
+      ctx.fillRect(p.r * 0.85, -2, 2, 4);
+      // Vent-slots (mörka rektangulära slits)
+      ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+      ctx.fillRect(p.r * 0.95, -1.8, 0.5, 1);
+      ctx.fillRect(p.r * 0.95, 0.8, 0.5, 1);
+      // Activation-switch (röd knapp)
+      ctx.fillStyle = flash ? '#fff' : '#aa3a3a';
+      ctx.fillRect(p.r * 0.78, -2.5, 1.5, 0.8);
+      ctx.fillStyle = flash ? '#fff' : '#ff5a5a';
+      ctx.fillRect(p.r * 0.78, -2.5, 1.5, 0.3);
+      // Emitter (silver disk där blade kommer ut)
+      ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+      ctx.fillRect(p.r * 1.0, -2.8, 1.5, 5.6);
+      ctx.fillStyle = flash ? '#fff' : '#aab0b8';
+      ctx.fillRect(p.r * 1.0, -2.8, 1.5, 0.6);
+      // Pulserande blade — yttre glow + core + hot center
       const pulseLS = 0.85 + Math.sin(now / 80) * 0.15;
+      // Yttre glow (bred, halvgenomskinlig)
       ctx.shadowColor = w.color;
-      ctx.shadowBlur = 18 * pulseLS;
+      ctx.shadowBlur = 24 * pulseLS;
       ctx.strokeStyle = flash ? '#fff' : w.color;
-      ctx.lineWidth = 5; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(p.r * 0.95, 0); ctx.lineTo(p.r * 2.7, 0); ctx.stroke();
+      ctx.lineWidth = 7; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(p.r * 1.15, 0); ctx.lineTo(p.r * 2.85, 0); ctx.stroke();
+      // Mid blade (ljusare grön)
+      ctx.shadowBlur = 12 * pulseLS;
+      ctx.strokeStyle = flash ? '#fff' : '#aaffbb';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.moveTo(p.r * 1.15, 0); ctx.lineTo(p.r * 2.85, 0); ctx.stroke();
       ctx.shadowBlur = 0;
-      // Vit kärna
+      // Vit hot kärna
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.5;
-      ctx.beginPath(); ctx.moveTo(p.r * 0.95, 0); ctx.lineTo(p.r * 2.7, 0); ctx.stroke();
+      ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.moveTo(p.r * 1.15, 0); ctx.lineTo(p.r * 2.85, 0); ctx.stroke();
+      // Spets-glow (rund prick framtill)
+      ctx.shadowColor = w.color; ctx.shadowBlur = 10 * pulseLS;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(p.r * 2.85, 0, 1.2, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
       ctx.restore();
     } else if (w.style === 'boxgloves') {
       // dubbelnävar med taggar
@@ -26211,35 +27138,166 @@ function drawPlayerWeapon(p, w, flash, now) {
         ctx.fillRect(p.r * 1.2 + reach + Math.cos(a) * 8 - 1, -p.r * 0.5 + Math.sin(a) * 8 - 2, 2, 4);
         ctx.fillRect(p.r * 1.2 + reach + Math.cos(a) * 8 - 1,  p.r * 0.5 + Math.sin(a) * 8 - 2, 2, 4);
       }
-    } else if (w.style === 'sickle') {
+    } else if (w.id === 'sickle') {
+      // Premium sickle: trä-skaft med brass-cap, polished chrome curved blade
+      // med sharp inner edge + fuller, motion-blur arc.
       const swing = slashAnim * 1.2;
       ctx.save(); ctx.rotate(-0.5 + swing);
-      // skaft
-      ctx.strokeStyle = flash ? '#fff' : '#3a2a1a';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 1.7, 0); ctx.stroke();
-      // krökt blad
-      ctx.strokeStyle = flash ? '#fff' : '#9a9aa0';
-      ctx.lineWidth = 4; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.arc(p.r * 1.7, -p.r * 0.5, p.r * 0.55, Math.PI*0.2, Math.PI*1.2); ctx.stroke();
+      // Motion-blur trail
+      if (slashAnim > 0.3) {
+        ctx.strokeStyle = `rgba(255,255,255,${slashAnim * 0.4})`;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.r * 1.7, -0.3 - slashAnim * 0.4, -0.3);
+        ctx.stroke();
+      }
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(p.r * 1.4, 6, 12, 1.5, 0, 0, Math.PI*2); ctx.fill();
+      // Skaft (mörkt trä med grain)
+      ctx.fillStyle = flash ? '#fff' : '#5a3818';
+      ctx.fillRect(p.r * 0.5, -1.5, p.r * 1.4, 3);
+      ctx.fillStyle = flash ? '#fff' : '#7a4828';
+      ctx.fillRect(p.r * 0.5, -1.5, p.r * 1.4, 0.5);
+      ctx.strokeStyle = flash ? '#fff' : '#3a2008';
+      ctx.lineWidth = 0.3;
+      ctx.beginPath();
+      ctx.moveTo(p.r * 0.55, -0.4); ctx.lineTo(p.r * 1.85, -0.5);
+      ctx.moveTo(p.r * 0.55, 0.6); ctx.lineTo(p.r * 1.85, 0.5);
+      ctx.stroke();
+      // Brass-cap (där blade möter skaft)
+      ctx.fillStyle = flash ? '#fff' : '#ffae3a';
+      ctx.fillRect(p.r * 1.85, -2, 2.5, 4);
+      ctx.fillStyle = flash ? '#fff' : '#fff5a0';
+      ctx.fillRect(p.r * 1.85, -2, 2.5, 0.6);
+      // Brass rivet
+      ctx.fillStyle = flash ? '#fff' : '#5a4020';
+      ctx.beginPath(); ctx.arc(p.r * 2.0, 0, 0.4, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.r * 2.2, 0, 0.4, 0, Math.PI*2); ctx.fill();
+      // Krökt chrome-blade (bredare och mer elegant)
+      ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 2.1, -2);
+      ctx.quadraticCurveTo(p.r * 4.0, -7, p.r * 3.5, -10);
+      ctx.quadraticCurveTo(p.r * 2.5, -8, p.r * 1.8, -3);
+      ctx.closePath(); ctx.fill();
+      // Inner sharp edge (mörkare)
+      ctx.fillStyle = flash ? '#fff' : '#7a8088';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 2.0, -2.5);
+      ctx.quadraticCurveTo(p.r * 3.5, -6.5, p.r * 3.2, -9);
+      ctx.quadraticCurveTo(p.r * 2.5, -7, p.r * 1.95, -3);
+      ctx.closePath(); ctx.fill();
+      // Top highlight (vit reflektion)
+      ctx.strokeStyle = flash ? '#fff' : '#fff';
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(p.r * 2.2, -2.5);
+      ctx.quadraticCurveTo(p.r * 4.0, -6.5, p.r * 3.4, -9.5);
+      ctx.stroke();
+      // Spets (skarp tag framtill)
+      ctx.fillStyle = flash ? '#fff' : '#9aa0a8';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 3.5, -10);
+      ctx.lineTo(p.r * 3.7, -11);
+      ctx.lineTo(p.r * 3.4, -10.2);
+      ctx.closePath(); ctx.fill();
       ctx.restore();
-    } else if (w.style === 'mace') {
+    } else if (w.id === 'mace') {
+      // Premium flanged mace: heavy spiked head med 6 flanges + spike crown,
+      // trä-skaft med leather-wrap, motion-blur arc, impact-marks vid swing.
       const swing = slashAnim * 1.6;
       ctx.save(); ctx.rotate(-0.8 + swing);
-      ctx.strokeStyle = flash ? '#fff' : '#3a2a1a';
-      ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 1.9, 0); ctx.stroke();
-      // klubban (rundad med taggar)
-      ctx.fillStyle = flash ? '#fff' : '#5a4a3a';
-      ctx.beginPath(); ctx.arc(p.r * 2.1, 0, 12, 0, Math.PI*2); ctx.fill();
+      // Motion-blur trail
+      if (slashAnim > 0.3) {
+        ctx.strokeStyle = `rgba(255,255,255,${slashAnim * 0.4})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.r * 2.1, -0.7 - slashAnim * 0.5, -0.7);
+        ctx.stroke();
+      }
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath(); ctx.ellipse(p.r * 2.1, 8, 16, 2, 0, 0, Math.PI*2); ctx.fill();
+      // Pommel (silver cap)
+      ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+      ctx.fillRect(p.r * 0.5, -1.8, 1.5, 3.6);
+      ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+      ctx.fillRect(p.r * 0.5, -1.8, 1.5, 0.6);
+      // Trä-skaft
+      ctx.fillStyle = flash ? '#fff' : '#5a3818';
+      ctx.fillRect(p.r * 0.6, -1.5, p.r * 1.3, 3);
+      ctx.fillStyle = flash ? '#fff' : '#7a4828';
+      ctx.fillRect(p.r * 0.6, -1.5, p.r * 1.3, 0.5);
+      // Leather wrap (mid-grip svart)
       ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.fillRect(p.r * 0.85, -1.7, p.r * 0.5, 3.4);
+      ctx.strokeStyle = flash ? '#fff' : '#3a3a3a';
+      ctx.lineWidth = 0.4;
+      for (let i = 0; i < 5; i++) {
+        const tx = p.r * 0.9 + i * (p.r * 0.45 / 5);
+        ctx.beginPath(); ctx.moveTo(tx, -1.7); ctx.lineTo(tx + 0.7, 1.7); ctx.stroke();
+      }
+      // Steel collar (innan huvud)
+      ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+      ctx.fillRect(p.r * 1.85, -2.5, 2, 5);
+      ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+      ctx.fillRect(p.r * 1.85, -2.5, 2, 0.7);
+      // Mace head — 6 flanges arrangerade runt center
+      const hcx = p.r * 2.15, hcy = 0;
+      ctx.fillStyle = flash ? '#fff' : '#7a6048';
+      ctx.beginPath(); ctx.arc(hcx, hcy, 6.5, 0, Math.PI*2); ctx.fill();
+      // Highlights (övre halv)
+      ctx.fillStyle = flash ? '#fff' : '#9a8060';
+      ctx.beginPath(); ctx.arc(hcx, hcy - 1, 5.5, 0, Math.PI*2); ctx.fill();
+      // 6 flanger (triangulära klingor utåt)
+      ctx.fillStyle = flash ? '#fff' : '#3a2a18';
       for (let i = 0; i < 6; i++) {
         const a = i / 6 * Math.PI * 2;
         ctx.beginPath();
-        ctx.moveTo(p.r * 2.1 + Math.cos(a) * 10, Math.sin(a) * 10);
-        ctx.lineTo(p.r * 2.1 + Math.cos(a) * 16, Math.sin(a) * 16);
-        ctx.lineTo(p.r * 2.1 + Math.cos(a + 0.2) * 12, Math.sin(a + 0.2) * 12);
+        ctx.moveTo(hcx + Math.cos(a) * 5, hcy + Math.sin(a) * 5);
+        ctx.lineTo(hcx + Math.cos(a) * 11, hcy + Math.sin(a) * 11);
+        ctx.lineTo(hcx + Math.cos(a + 0.3) * 6, hcy + Math.sin(a + 0.3) * 6);
         ctx.closePath(); ctx.fill();
+      }
+      // Flange highlights (vit edge på topp-flanger)
+      ctx.fillStyle = flash ? '#fff' : '#5a4a30';
+      for (let i = 0; i < 3; i++) {
+        const a = i / 6 * Math.PI * 2 - Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(hcx + Math.cos(a) * 5, hcy + Math.sin(a) * 5);
+        ctx.lineTo(hcx + Math.cos(a) * 10, hcy + Math.sin(a) * 10);
+        ctx.lineTo(hcx + Math.cos(a + 0.1) * 6, hcy + Math.sin(a + 0.1) * 6);
+        ctx.closePath(); ctx.fill();
+      }
+      // Center bolt-cap
+      ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+      ctx.beginPath(); ctx.arc(hcx, hcy, 2, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+      ctx.beginPath(); ctx.arc(hcx, hcy, 1.2, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#fff';
+      ctx.beginPath(); ctx.arc(hcx - 0.5, hcy - 0.4, 0.4, 0, Math.PI*2); ctx.fill();
+      // Spike crown (skarp topp-tagg)
+      ctx.fillStyle = flash ? '#fff' : '#9aa0a8';
+      ctx.beginPath();
+      ctx.moveTo(hcx, hcy - 8);
+      ctx.lineTo(hcx + 1, hcy - 12);
+      ctx.lineTo(hcx + 0.3, hcy - 9);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+      ctx.beginPath();
+      ctx.moveTo(hcx, hcy - 8);
+      ctx.lineTo(hcx + 0.5, hcy - 12);
+      ctx.lineTo(hcx + 0.2, hcy - 9);
+      ctx.closePath(); ctx.fill();
+      // Impact-marks vid swing
+      if (slashAnim > 0.6) {
+        ctx.strokeStyle = `rgba(255,255,255,${slashAnim * 0.7})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(hcx + 11, hcy - 6); ctx.lineTo(hcx + 14, hcy - 9);
+        ctx.moveTo(hcx + 11, hcy + 6); ctx.lineTo(hcx + 14, hcy + 9);
+        ctx.stroke();
       }
       ctx.restore();
     } else if (w.style === 'glaive') {
@@ -26258,41 +27316,108 @@ function drawPlayerWeapon(p, w, flash, now) {
       ctx.strokeStyle = flash ? '#fff' : '#888';
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(p.r * 2.9 + stab, -4); ctx.lineTo(p.r * 3.5 + stab, 0); ctx.stroke();
-    } else if (w.style === 'energysword') {
-      // Energysword: BRUTAL, tjock orange flam-blade, taggig grepp
+    } else if (w.id === 'energysword') {
+      // Premium plasma-energy svärd: BRUTAL ribbed hilt med vented design,
+      // röda spike-guards på topp+botten, jagged plasma-blade med orange-vit
+      // hot core, sparks och particles vid swing.
       const swing = slashAnim * 1.5;
       ctx.save(); ctx.rotate(-0.7 + swing);
-      // Tjock röd-svart grepp med taggar
+      // Skugga
+      ctx.fillStyle = 'rgba(255,138,58,0.25)';
+      ctx.beginPath(); ctx.ellipse(p.r * 1.7, 6, 18, 1.5, 0, 0, Math.PI*2); ctx.fill();
+      // Pommel (svart spike baktill)
+      ctx.fillStyle = flash ? '#fff' : '#1a0a04';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 0.35, -2);
+      ctx.lineTo(p.r * 0.2, 0);
+      ctx.lineTo(p.r * 0.35, 2);
+      ctx.closePath(); ctx.fill();
+      // Hilt-body (svart-röd metall)
       ctx.fillStyle = flash ? '#fff' : '#3a1a0a';
-      ctx.fillRect(p.r * 0.4, -4, p.r * 0.4, 8);
-      // Taggar på grepp
+      ctx.fillRect(p.r * 0.4, -4, p.r * 0.5, 8);
+      // Hilt edge highlight
+      ctx.fillStyle = flash ? '#fff' : '#5a2a18';
+      ctx.fillRect(p.r * 0.4, -4, p.r * 0.5, 0.8);
+      // Mörk shadow under
+      ctx.fillStyle = flash ? '#fff' : '#1a0a04';
+      ctx.fillRect(p.r * 0.4, 3.2, p.r * 0.5, 0.8);
+      // Vent-slits (mörka)
+      ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+      ctx.fillRect(p.r * 0.5, -2, 1, 1.5);
+      ctx.fillRect(p.r * 0.65, -2, 1, 1.5);
+      ctx.fillRect(p.r * 0.8, -2, 1, 1.5);
+      ctx.fillRect(p.r * 0.5, 0.5, 1, 1.5);
+      ctx.fillRect(p.r * 0.65, 0.5, 1, 1.5);
+      ctx.fillRect(p.r * 0.8, 0.5, 1, 1.5);
+      // Spike-guards (röda taggar topp+botten)
       ctx.fillStyle = flash ? '#fff' : '#aa3a3a';
       for (let i = 0; i < 3; i++) {
-        const gx = p.r * 0.45 + i * 4;
+        const gx = p.r * 0.45 + i * 3;
         ctx.beginPath();
-        ctx.moveTo(gx, -4); ctx.lineTo(gx + 2, -6); ctx.lineTo(gx + 3, -4);
+        ctx.moveTo(gx, -4); ctx.lineTo(gx + 2, -7); ctx.lineTo(gx + 3, -4);
         ctx.closePath(); ctx.fill();
         ctx.beginPath();
-        ctx.moveTo(gx, 4); ctx.lineTo(gx + 2, 6); ctx.lineTo(gx + 3, 4);
+        ctx.moveTo(gx, 4); ctx.lineTo(gx + 2, 7); ctx.lineTo(gx + 3, 4);
         ctx.closePath(); ctx.fill();
       }
-      // Glödande bred orange blade med flickering
+      // Spike highlight (vit edge)
+      ctx.fillStyle = flash ? '#fff' : '#ff7a7a';
+      for (let i = 0; i < 3; i++) {
+        const gx = p.r * 0.45 + i * 3;
+        ctx.beginPath();
+        ctx.moveTo(gx + 1.5, -5); ctx.lineTo(gx + 2, -7); ctx.lineTo(gx + 2.2, -5);
+        ctx.closePath(); ctx.fill();
+      }
+      // Emitter-disk (silver)
+      ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+      ctx.fillRect(p.r * 0.9, -4.2, 1.5, 8.4);
+      ctx.fillStyle = flash ? '#fff' : '#aab0b8';
+      ctx.fillRect(p.r * 0.9, -4.2, 1.5, 0.8);
+      // Plasma-blade — yttre orange jagged glow
       const flick = 0.7 + Math.random() * 0.3;
       ctx.shadowColor = w.color;
-      ctx.shadowBlur = 22 * flick;
-      ctx.strokeStyle = flash ? '#fff' : w.color;
-      ctx.lineWidth = 8; ctx.lineCap = 'butt';
-      ctx.beginPath(); ctx.moveTo(p.r * 0.85, 0); ctx.lineTo(p.r * 2.6, 0); ctx.stroke();
+      ctx.shadowBlur = 26 * flick;
+      ctx.fillStyle = flash ? '#fff' : w.color;
+      // Jagged blade-outline (zigzag på övre + undre kanten)
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.05, -3.5);
+      ctx.lineTo(p.r * 1.5, -2.8);
+      ctx.lineTo(p.r * 1.9, -3.5);
+      ctx.lineTo(p.r * 2.3, -2.5);
+      ctx.lineTo(p.r * 2.7, -3);
+      ctx.lineTo(p.r * 2.95, 0);
+      ctx.lineTo(p.r * 2.7, 3);
+      ctx.lineTo(p.r * 2.3, 2.5);
+      ctx.lineTo(p.r * 1.9, 3.5);
+      ctx.lineTo(p.r * 1.5, 2.8);
+      ctx.lineTo(p.r * 1.05, 3.5);
+      ctx.closePath(); ctx.fill();
       ctx.shadowBlur = 0;
-      // Vit-gul kärna
-      ctx.strokeStyle = '#fff8aa';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.moveTo(p.r * 0.85, 0); ctx.lineTo(p.r * 2.6, 0); ctx.stroke();
-      // Spets-tag
+      // Inner gul-vit core
       ctx.fillStyle = '#fff8aa';
       ctx.beginPath();
-      ctx.moveTo(p.r * 2.6, -4); ctx.lineTo(p.r * 2.85, 0); ctx.lineTo(p.r * 2.6, 4);
+      ctx.moveTo(p.r * 1.1, -1.8);
+      ctx.lineTo(p.r * 1.5, -1.2);
+      ctx.lineTo(p.r * 2.0, -1.8);
+      ctx.lineTo(p.r * 2.5, -1.2);
+      ctx.lineTo(p.r * 2.85, 0);
+      ctx.lineTo(p.r * 2.5, 1.2);
+      ctx.lineTo(p.r * 2.0, 1.8);
+      ctx.lineTo(p.r * 1.5, 1.2);
+      ctx.lineTo(p.r * 1.1, 1.8);
       ctx.closePath(); ctx.fill();
+      // Vit hot kärna
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(p.r * 1.1, -0.5, p.r * 1.75, 1);
+      // Spark-particles vid swing
+      if (slashAnim > 0.4) {
+        ctx.fillStyle = `rgba(255, 220, 100, ${slashAnim * 0.8})`;
+        for (let i = 0; i < 5; i++) {
+          const sx = p.r * (1.5 + Math.random() * 1.4);
+          const sy = (Math.random() - 0.5) * 8;
+          ctx.beginPath(); ctx.arc(sx, sy, 0.6 + Math.random() * 0.5, 0, Math.PI*2); ctx.fill();
+        }
+      }
       ctx.restore();
     }
     return;
@@ -27240,6 +28365,833 @@ function drawPlayerWeapon(p, w, flash, now) {
       ctx.beginPath(); ctx.arc(p.r + 19.5, 0, 2.5, 0, Math.PI*2); ctx.fill();
     }
     if (muzz) drawMuzzleFlash(p.r + 23, 0, 1.6);
+    return;
+  }
+
+  // ─── THROWKNIFE ── kniv hållen i hand-position innan kast ────────────────
+  if (w.id === 'throwknife') {
+    const throwAnim = sinceShot < 200 ? (1 - sinceShot / 200) : 0;
+    const offsetX = throwAnim * 8;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.beginPath(); ctx.ellipse(p.r * 1.4 + offsetX, 5, 10, 1.3, 0, 0, Math.PI*2); ctx.fill();
+    // Pommel
+    ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+    ctx.beginPath(); ctx.arc(p.r * 0.45 + offsetX, 0, 1.6, 0, Math.PI*2); ctx.fill();
+    // Wrapped grepp (kort)
+    ctx.fillStyle = flash ? '#fff' : '#2a2218';
+    ctx.fillRect(p.r * 0.55 + offsetX, -1.5, p.r * 0.35, 3);
+    ctx.strokeStyle = flash ? '#fff' : '#4a3828';
+    ctx.lineWidth = 0.4;
+    for (let i = 0; i < 4; i++) {
+      const gx = p.r * 0.6 + offsetX + i * (p.r * 0.32 / 4);
+      ctx.beginPath(); ctx.moveTo(gx, -1.5); ctx.lineTo(gx + 0.5, 1.5); ctx.stroke();
+    }
+    // Cross-guard
+    ctx.fillStyle = flash ? '#fff' : '#9098a0';
+    ctx.fillRect(p.r * 0.92 + offsetX, -2.5, 1.2, 5);
+    ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+    ctx.fillRect(p.r * 0.92 + offsetX, -2.5, 0.4, 5);
+    // Slank kasta-blad
+    ctx.fillStyle = flash ? '#fff' : '#dce6ee';
+    ctx.beginPath();
+    ctx.moveTo(p.r * 1.0 + offsetX, -1.8);
+    ctx.lineTo(p.r * 2.0 + offsetX, -0.6);
+    ctx.lineTo(p.r * 2.2 + offsetX, 0);
+    ctx.lineTo(p.r * 2.0 + offsetX, 0.6);
+    ctx.lineTo(p.r * 1.0 + offsetX, 1.8);
+    ctx.closePath(); ctx.fill();
+    // Top highlight
+    ctx.strokeStyle = flash ? '#fff' : '#fff';
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(p.r * 1.0 + offsetX, -1.5); ctx.lineTo(p.r * 1.95 + offsetX, -0.3);
+    ctx.stroke();
+    // Throw-streak
+    if (throwAnim > 0.3) {
+      ctx.strokeStyle = `rgba(255,255,255,${throwAnim * 0.5})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.r * 0.9 + offsetX - 4, 0);
+      ctx.lineTo(p.r * 0.9 + offsetX - 12, 0);
+      ctx.stroke();
+    }
+    return;
+  }
+
+  // ─── CROSSBOW ── horisontell crossbow med stock + scope + laddad bolt ────
+  if (w.id === 'crossbow') {
+    const reload = (sinceShot < 400) ? (1 - sinceShot / 400) : 0;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(p.r + 1, 5, 22, 1.5);
+    // Stock baktill (trä)
+    ctx.fillStyle = flash ? '#fff' : '#5a3818';
+    ctx.beginPath();
+    ctx.moveTo(p.r - 6, -2); ctx.lineTo(p.r + 2, -1.5);
+    ctx.lineTo(p.r + 2, 3); ctx.lineTo(p.r - 5, 5);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#7a4828';
+    ctx.fillRect(p.r - 5, -1.5, 6, 0.7);
+    // Receiver / body
+    ctx.fillStyle = flash ? '#fff' : '#7a5a3a';
+    ctx.fillRect(p.r + 2, -3, 11, 6);
+    ctx.fillStyle = flash ? '#fff' : '#9a7a4a';
+    ctx.fillRect(p.r + 2, -3, 11, 0.7);
+    // Trigger guard
+    ctx.strokeStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(p.r + 5, 3, 1.5, 0, Math.PI, false); ctx.stroke();
+    // Scope (top)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 4, -5.5, 5, 2);
+    ctx.beginPath(); ctx.arc(p.r + 6.5, -4.5, 0.7, 0, Math.PI*2); ctx.fill();
+    // Limbs (vertikala böjda armar)
+    ctx.strokeStyle = flash ? '#fff' : '#3a2a18';
+    ctx.lineWidth = 2.5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 13, -3);
+    ctx.quadraticCurveTo(p.r + 18, -10, p.r + 20, -14);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(p.r + 13, 3);
+    ctx.quadraticCurveTo(p.r + 18, 10, p.r + 20, 14);
+    ctx.stroke();
+    // Limb-tips (small caps)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath(); ctx.arc(p.r + 20, -14, 1, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.r + 20, 14, 1, 0, Math.PI*2); ctx.fill();
+    // String (dragen om reload pågår)
+    const stringX = p.r + 13 + reload * 3;
+    ctx.strokeStyle = flash ? '#fff' : '#dcdcdc';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 20, -14); ctx.lineTo(stringX, 0); ctx.lineTo(p.r + 20, 14);
+    ctx.stroke();
+    // Bolt (laddat skott)
+    if (sinceShot > 200) {
+      ctx.fillStyle = flash ? '#fff' : '#7a5a3a';
+      ctx.fillRect(stringX, -0.7, 14, 1.4);
+      // Bolt-spets (silver)
+      ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+      ctx.beginPath();
+      ctx.moveTo(stringX + 14, -1.5); ctx.lineTo(stringX + 17, 0); ctx.lineTo(stringX + 14, 1.5);
+      ctx.closePath(); ctx.fill();
+      // Fletching
+      ctx.fillStyle = flash ? '#fff' : '#aa3a3a';
+      ctx.beginPath();
+      ctx.moveTo(stringX, -0.7); ctx.lineTo(stringX - 2, -2); ctx.lineTo(stringX - 1, -0.5);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(stringX, 0.7); ctx.lineTo(stringX - 2, 2); ctx.lineTo(stringX - 1, 0.5);
+      ctx.closePath(); ctx.fill();
+    }
+    return;
+  }
+
+  // ─── FLAME ── eldkastare med fuel-tank + valve + pilot light ─────────────
+  if (w.id === 'flame') {
+    const flameFlick = 0.7 + Math.random() * 0.3;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(p.r + 1, 5, 22, 1.5);
+    // Fuel-tank baktill (rust-orange cylinder)
+    ctx.fillStyle = flash ? '#fff' : '#8a4a20';
+    ctx.fillRect(p.r - 5, -5, 5, 10);
+    ctx.fillStyle = flash ? '#fff' : '#aa6028';
+    ctx.fillRect(p.r - 5, -5, 5, 1.5);
+    ctx.fillStyle = flash ? '#fff' : '#5a3010';
+    ctx.fillRect(p.r - 5, 4, 5, 1);
+    // Valve på tank
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r - 3.5, -7, 1, 2);
+    // Tank-stripes (warning-band)
+    ctx.fillStyle = flash ? '#fff' : '#3a1808';
+    ctx.fillRect(p.r - 4.5, -2, 4, 0.8);
+    ctx.fillRect(p.r - 4.5, 1, 4, 0.8);
+    // Pressure-gauge
+    ctx.fillStyle = flash ? '#fff' : '#3a1808';
+    ctx.fillRect(p.r - 4, -0.5, 3, 1.5);
+    ctx.fillStyle = flash ? '#fff' : '#ff7a2a';
+    ctx.fillRect(p.r - 3.5, -0.2, 2, 0.8);
+    // Connector pipe → main body
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(p.r, -1.5, 2, 3);
+    // Valve-handle (röd)
+    ctx.fillStyle = flash ? '#fff' : '#aa3a3a';
+    ctx.beginPath(); ctx.arc(p.r + 1, -2.5, 1, 0, Math.PI*2); ctx.fill();
+    // Main body (mörk metall)
+    ctx.fillStyle = flash ? '#fff' : '#2a2a30';
+    ctx.fillRect(p.r + 2, -2, 12, 4);
+    ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+    ctx.fillRect(p.r + 2, -2, 12, 0.6);
+    // Trigger
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 5, 2); ctx.lineTo(p.r + 7, 2);
+    ctx.lineTo(p.r + 6.5, 6); ctx.lineTo(p.r + 5, 6);
+    ctx.closePath(); ctx.fill();
+    // Burner-end (svart)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 14, -3, 5, 6);
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(p.r + 14, -3, 5, 0.7);
+    // Inner muzzle hole (mörk)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(p.r + 18, -1.2, 1.5, 2.4);
+    // Pilot-light (small flame ovanpå burner)
+    ctx.fillStyle = flash ? '#fff' : `rgba(255, 122, 42, ${flameFlick})`;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 14.5, -3); ctx.lineTo(p.r + 15, -5.5); ctx.lineTo(p.r + 15.5, -3);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#fff8a0';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 14.8, -3); ctx.lineTo(p.r + 15, -4.8); ctx.lineTo(p.r + 15.2, -3);
+    ctx.closePath(); ctx.fill();
+    // Flame burst när skott
+    if (muzz) {
+      ctx.shadowColor = '#ff7a2a'; ctx.shadowBlur = 18;
+      ctx.fillStyle = `rgba(255, ${100 + Math.random() * 80}, 30, ${muzzlePulse * 0.9})`;
+      ctx.beginPath();
+      ctx.moveTo(p.r + 19, -3);
+      ctx.lineTo(p.r + 28 + Math.random() * 4, -1.5);
+      ctx.lineTo(p.r + 30, 0);
+      ctx.lineTo(p.r + 28, 1.5);
+      ctx.lineTo(p.r + 19, 3);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = `rgba(255, 240, 160, ${muzzlePulse * 0.9})`;
+      ctx.beginPath();
+      ctx.moveTo(p.r + 19, -1.5);
+      ctx.lineTo(p.r + 25, 0);
+      ctx.lineTo(p.r + 19, 1.5);
+      ctx.closePath(); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    return;
+  }
+
+  // ─── FROST ── kryo-kanon med frost-tank + blue gem nozzle + ice crystals ─
+  if (w.id === 'frost') {
+    const frostShimmer = 0.7 + Math.sin(now / 80) * 0.3;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(p.r + 1, 5, 22, 1.5);
+    // Frost-tank (mörk teal)
+    ctx.fillStyle = flash ? '#fff' : '#1a4a5a';
+    ctx.fillRect(p.r - 5, -5, 5, 10);
+    ctx.fillStyle = flash ? '#fff' : '#2a6a7a';
+    ctx.fillRect(p.r - 5, -5, 5, 1.5);
+    // Frost-coolant viewing (4 glödande blå-bands)
+    ctx.fillStyle = flash ? '#fff' : `rgba(154, 242, 255, ${frostShimmer})`;
+    ctx.fillRect(p.r - 4.5, -3, 4, 0.7);
+    ctx.fillRect(p.r - 4.5, -1.5, 4, 0.7);
+    ctx.fillRect(p.r - 4.5, 0, 4, 0.7);
+    ctx.fillRect(p.r - 4.5, 1.5, 4, 0.7);
+    ctx.fillRect(p.r - 4.5, 3, 4, 0.7);
+    // Connector
+    ctx.fillStyle = flash ? '#fff' : '#3a4a5a';
+    ctx.fillRect(p.r, -1.5, 2, 3);
+    ctx.fillStyle = flash ? '#fff' : '#9af2ff';
+    ctx.beginPath(); ctx.arc(p.r + 1, 0, 0.6, 0, Math.PI*2); ctx.fill();
+    // Body
+    ctx.fillStyle = flash ? '#fff' : '#2a3a4a';
+    ctx.fillRect(p.r + 2, -2, 11, 4);
+    ctx.fillStyle = flash ? '#fff' : '#9af2ff';
+    ctx.fillRect(p.r + 2, -2, 11, 0.5);
+    // Trigger
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 5, 2); ctx.lineTo(p.r + 7, 2);
+    ctx.lineTo(p.r + 6.5, 6); ctx.lineTo(p.r + 5, 6);
+    ctx.closePath(); ctx.fill();
+    // Inner glow-tube
+    ctx.fillStyle = flash ? '#fff' : `rgba(154, 242, 255, ${0.7 * frostShimmer})`;
+    ctx.fillRect(p.r + 3, -1, 9, 2);
+    // Ice-crystal nozzle (geometrisk)
+    ctx.fillStyle = flash ? '#fff' : '#3a5a6a';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 13, -3);
+    ctx.lineTo(p.r + 20, -4);
+    ctx.lineTo(p.r + 22, 0);
+    ctx.lineTo(p.r + 20, 4);
+    ctx.lineTo(p.r + 13, 3);
+    ctx.closePath(); ctx.fill();
+    // Crystal facet highlights
+    ctx.fillStyle = flash ? '#fff' : '#5a7a8a';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 13, -3); ctx.lineTo(p.r + 20, -4);
+    ctx.lineTo(p.r + 17, -1);
+    ctx.closePath(); ctx.fill();
+    // Center blue gem
+    ctx.shadowColor = '#9af2ff'; ctx.shadowBlur = 8 * frostShimmer;
+    ctx.fillStyle = flash ? '#fff' : '#9af2ff';
+    ctx.beginPath(); ctx.arc(p.r + 19, 0, 1.8, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.beginPath(); ctx.arc(p.r + 19, 0, 0.9, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Frost crystals (små pricks runt nozzle)
+    ctx.fillStyle = flash ? '#fff' : `rgba(255,255,255,${frostShimmer * 0.6})`;
+    for (let i = 0; i < 4; i++) {
+      const fa = (i / 4) * Math.PI * 2 + now / 1000;
+      ctx.beginPath();
+      ctx.arc(p.r + 19 + Math.cos(fa) * 5, Math.sin(fa) * 5, 0.5, 0, Math.PI*2); ctx.fill();
+    }
+    if (muzz) {
+      ctx.fillStyle = `rgba(154, 242, 255, ${muzzlePulse * 0.7})`;
+      ctx.beginPath(); ctx.arc(p.r + 21, 0, 4 + muzzlePulse * 2, 0, Math.PI*2); ctx.fill();
+    }
+    return;
+  }
+
+  // ─── TESLA ── coil-pistol med copper coil + sphere emitter + lightning ───
+  if (w.id === 'tesla') {
+    const electricFlick = 0.5 + Math.random() * 0.5;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(p.r + 1, 5, 22, 1.5);
+    // Pistol-grip
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(p.r - 1, 2.5); ctx.lineTo(p.r + 2, 2.5);
+    ctx.lineTo(p.r + 1, 8); ctx.lineTo(p.r - 2, 8);
+    ctx.closePath(); ctx.fill();
+    // Body med copper-coil
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(p.r, -3, 9, 6);
+    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.fillRect(p.r, -3, 9, 0.6);
+    // Copper-coil bands (5 ringar runt body)
+    ctx.fillStyle = flash ? '#fff' : '#aa6818';
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(p.r + 1 + i * 1.6, -2.5, 0.6, 5);
+    }
+    ctx.fillStyle = flash ? '#fff' : '#cc8828';
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(p.r + 1 + i * 1.6, -2.5, 0.6, 0.5);
+    }
+    // Capacitor-rectangle ovanpå
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 9, -1.5, 4, 3);
+    // Capacitor LED-prickar
+    ctx.fillStyle = flash ? '#fff' : '#ffeb3b';
+    ctx.beginPath(); ctx.arc(p.r + 10, 0, 0.4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.r + 11.5, 0, 0.4, 0, Math.PI*2); ctx.fill();
+    // Sphere emitter (silver kula)
+    ctx.shadowColor = '#ffeb3b'; ctx.shadowBlur = 12 * electricFlick;
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.beginPath(); ctx.arc(p.r + 17, 0, 4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.beginPath(); ctx.arc(p.r + 16.5, -0.5, 2, 0, Math.PI*2); ctx.fill();
+    // Inner sphere glow
+    ctx.fillStyle = flash ? '#fff' : `rgba(255, 235, 59, ${electricFlick})`;
+    ctx.beginPath(); ctx.arc(p.r + 17, 0, 2.2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.beginPath(); ctx.arc(p.r + 17, 0, 1.2, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Lightning-arcs runt sphere (random zigzags)
+    ctx.strokeStyle = flash ? '#fff' : `rgba(255, 235, 59, ${electricFlick})`;
+    ctx.lineWidth = 0.7;
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + now / 200;
+      ctx.beginPath();
+      let lx = p.r + 17, ly = 0;
+      for (let j = 1; j <= 3; j++) {
+        const tx = p.r + 17 + Math.cos(a) * j * 2 + (Math.random() - 0.5) * 1.5;
+        const ty = Math.sin(a) * j * 2 + (Math.random() - 0.5) * 1.5;
+        ctx.moveTo(lx, ly); ctx.lineTo(tx, ty);
+        lx = tx; ly = ty;
+      }
+      ctx.stroke();
+    }
+    if (muzz) {
+      ctx.fillStyle = `rgba(255, 235, 59, ${muzzlePulse * 0.9})`;
+      ctx.beginPath(); ctx.arc(p.r + 21, 0, 5 + muzzlePulse * 2, 0, Math.PI*2); ctx.fill();
+    }
+    return;
+  }
+
+  // ─── GRENADE ── M203-style grenade launcher med under-barrel + drum-mag ──
+  if (w.id === 'grenade') {
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(p.r + 1, 5, 22, 1.5);
+    // Stock baktill
+    ctx.fillStyle = flash ? '#fff' : '#2a3a1a';
+    ctx.fillRect(p.r - 6, -1.5, 5, 3);
+    ctx.fillStyle = flash ? '#fff' : '#4a5a2a';
+    ctx.fillRect(p.r - 6, -1.5, 5, 0.6);
+    // Buttplate
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r - 6.5, -2, 1, 4);
+    // Receiver (mörk grön)
+    ctx.fillStyle = flash ? '#fff' : '#3a4a2a';
+    ctx.fillRect(p.r - 1, -3, 10, 6);
+    ctx.fillStyle = flash ? '#fff' : '#5a6a3a';
+    ctx.fillRect(p.r - 1, -3, 10, 0.7);
+    // Drum-magazine (rund cylinder under)
+    ctx.fillStyle = flash ? '#fff' : '#2a3a1a';
+    ctx.beginPath(); ctx.arc(p.r + 2, 5, 3.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#5a6a3a';
+    ctx.beginPath(); ctx.arc(p.r + 2, 5, 3, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath(); ctx.arc(p.r + 2, 5, 1.2, 0, Math.PI*2); ctx.fill();
+    // Grenade-rounds visible i drum (4 små cirklar)
+    ctx.fillStyle = flash ? '#fff' : '#9aff5a';
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2;
+      ctx.beginPath(); ctx.arc(p.r + 2 + Math.cos(a) * 2, 5 + Math.sin(a) * 2, 0.5, 0, Math.PI*2); ctx.fill();
+    }
+    // Top-rail med iron-sight
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r - 0.5, -4.5, 8, 1.5);
+    ctx.fillStyle = flash ? '#fff' : '#9aff5a';
+    ctx.fillRect(p.r + 5, -6, 1, 1.5);
+    // Wide tube-barrel (40mm)
+    ctx.fillStyle = flash ? '#fff' : '#1a2a1a';
+    ctx.fillRect(p.r + 9, -3.5, 12, 7);
+    ctx.fillStyle = flash ? '#fff' : '#3a4a2a';
+    ctx.fillRect(p.r + 9, -3.5, 12, 0.7);
+    // Rifling visible inuti barrel
+    ctx.strokeStyle = flash ? '#fff' : '#0a1a0a';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 10, -1.5); ctx.lineTo(p.r + 20, -1.5);
+    ctx.moveTo(p.r + 10, 1.5); ctx.lineTo(p.r + 20, 1.5);
+    ctx.stroke();
+    // Wide barrel-hole
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.beginPath(); ctx.arc(p.r + 21, 0, 2.5, 0, Math.PI*2); ctx.fill();
+    if (muzz) {
+      ctx.fillStyle = `rgba(255, 220, 100, ${muzzlePulse * 0.9})`;
+      ctx.beginPath(); ctx.arc(p.r + 23, 0, 5 + muzzlePulse * 2, 0, Math.PI*2); ctx.fill();
+      // Smoke-puff
+      ctx.fillStyle = `rgba(180, 180, 180, ${muzzlePulse * 0.5})`;
+      ctx.beginPath(); ctx.arc(p.r + 25, -1, 3 * muzzlePulse, 0, Math.PI*2); ctx.fill();
+    }
+    return;
+  }
+
+  // ─── BOOMERANG ── boomerang hållen i hand med grain + carved markings ────
+  if (w.id === 'boomerang') {
+    const throwAnim = sinceShot < 200 ? (1 - sinceShot / 200) : 0;
+    const offsetX = throwAnim * 6;
+    const idleSpin = (1 - throwAnim) * Math.sin(now / 600) * 0.1;
+    ctx.save();
+    ctx.translate(p.r * 1.5 + offsetX, 0);
+    ctx.rotate(idleSpin - throwAnim * 0.5);
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(0, 4, 10, 1.5, 0, 0, Math.PI*2); ctx.fill();
+    // Boomerang body — V-shape med wood-grain
+    ctx.fillStyle = flash ? '#fff' : '#9a6a30';
+    ctx.beginPath();
+    ctx.moveTo(-8, -2);
+    ctx.lineTo(-1, 1);
+    ctx.lineTo(8, -2);
+    ctx.lineTo(8.5, 0);
+    ctx.lineTo(2, 4);
+    ctx.lineTo(-1, 4);
+    ctx.lineTo(-8.5, 0);
+    ctx.closePath(); ctx.fill();
+    // Top highlight
+    ctx.fillStyle = flash ? '#fff' : '#bc8848';
+    ctx.beginPath();
+    ctx.moveTo(-8, -2);
+    ctx.lineTo(-1, 1);
+    ctx.lineTo(8, -2);
+    ctx.lineTo(8, -1);
+    ctx.lineTo(-1, 0);
+    ctx.lineTo(-8, -1);
+    ctx.closePath(); ctx.fill();
+    // Wood-grain (mörk linjer)
+    ctx.strokeStyle = flash ? '#fff' : '#5a3010';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(-7, 0); ctx.lineTo(-1, 2.5);
+    ctx.moveTo(-1, 2.5); ctx.lineTo(7, 0);
+    ctx.stroke();
+    // Carved markings (gold dots)
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.beginPath(); ctx.arc(-6, -0.5, 0.4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-3, 0.5, 0.4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(3, 0.5, 0.4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6, -0.5, 0.4, 0, Math.PI*2); ctx.fill();
+    // Center notch
+    ctx.fillStyle = flash ? '#fff' : '#5a3010';
+    ctx.fillRect(-1, 1, 2, 1.2);
+    ctx.restore();
+    return;
+  }
+
+  // ─── PULLWHIP ── grappling-hook launcher med spool + cable + claw-tip ────
+  if (w.id === 'pullwhip') {
+    const reload = (sinceShot < 600) ? (1 - sinceShot / 600) : 0;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(p.r + 1, 5, 22, 1.5);
+    // Pistol-grip
+    ctx.fillStyle = flash ? '#fff' : '#3a2a1a';
+    ctx.beginPath();
+    ctx.moveTo(p.r - 1, 2); ctx.lineTo(p.r + 2, 2);
+    ctx.lineTo(p.r + 1, 7); ctx.lineTo(p.r - 2, 7);
+    ctx.closePath(); ctx.fill();
+    // Body
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(p.r, -2.5, 7, 4.5);
+    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.fillRect(p.r, -2.5, 7, 0.6);
+    // Spool (cirkulär kabelhjul)
+    const spoolRot = reload * Math.PI * 4;
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath(); ctx.arc(p.r + 3, 0, 3, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.beginPath(); ctx.arc(p.r + 3, 0, 2.5, 0, Math.PI*2); ctx.fill();
+    // Spool spokes (visar rotation)
+    ctx.strokeStyle = flash ? '#fff' : '#5a4030';
+    ctx.lineWidth = 1;
+    ctx.save(); ctx.translate(p.r + 3, 0); ctx.rotate(spoolRot);
+    ctx.beginPath();
+    ctx.moveTo(-2.3, 0); ctx.lineTo(2.3, 0);
+    ctx.moveTo(0, -2.3); ctx.lineTo(0, 2.3);
+    ctx.stroke();
+    ctx.restore();
+    // Center pin
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath(); ctx.arc(p.r + 3, 0, 0.6, 0, Math.PI*2); ctx.fill();
+    // Launcher-tube
+    ctx.fillStyle = flash ? '#fff' : '#2a2a30';
+    ctx.fillRect(p.r + 7, -1.5, 9, 3);
+    ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+    ctx.fillRect(p.r + 7, -1.5, 9, 0.5);
+    // Cable visible (om reload)
+    if (reload > 0) {
+      ctx.strokeStyle = flash ? '#fff' : '#5a4030';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(p.r + 16, 0); ctx.lineTo(p.r + 22, 0); ctx.stroke();
+    }
+    // Claw-tip (silver hook framtill)
+    ctx.fillStyle = flash ? '#fff' : '#9aa0a8';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 16, -2);
+    ctx.lineTo(p.r + 19, -3);
+    ctx.lineTo(p.r + 21, -2);
+    ctx.lineTo(p.r + 22, 0);
+    ctx.lineTo(p.r + 21, 2);
+    ctx.lineTo(p.r + 19, 3);
+    ctx.lineTo(p.r + 16, 2);
+    ctx.closePath(); ctx.fill();
+    // Claw highlight
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 16, -1.8); ctx.lineTo(p.r + 19, -2.7); ctx.lineTo(p.r + 20, -1.5);
+    ctx.closePath(); ctx.fill();
+    // Claw-prongs (3 spikes)
+    ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 22, -1.5); ctx.lineTo(p.r + 24, -1); ctx.lineTo(p.r + 22, 0);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(p.r + 22, 1.5); ctx.lineTo(p.r + 24, 1); ctx.lineTo(p.r + 22, 0);
+    ctx.closePath(); ctx.fill();
+    return;
+  }
+
+  // ─── TIMESTOP ── chrono-pistol med klockbild + glödande grön rune ────────
+  if (w.id === 'timestop') {
+    const chronoTick = (now / 1000) % 1;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(p.r + 1, 5, 22, 1.5);
+    // Pistol-grip
+    ctx.fillStyle = flash ? '#fff' : '#1a3a1a';
+    ctx.beginPath();
+    ctx.moveTo(p.r - 1, 2.5); ctx.lineTo(p.r + 2, 2.5);
+    ctx.lineTo(p.r + 1, 7.5); ctx.lineTo(p.r - 2, 7.5);
+    ctx.closePath(); ctx.fill();
+    // Body (mörk grön)
+    ctx.fillStyle = flash ? '#fff' : '#0a2a0a';
+    ctx.fillRect(p.r, -3.5, 9, 6);
+    ctx.fillStyle = flash ? '#fff' : '#9aff5a';
+    ctx.fillRect(p.r, -3.5, 9, 0.6);
+    // Klockbild (cirkulär dial med visare)
+    ctx.fillStyle = flash ? '#fff' : '#1a3a1a';
+    ctx.beginPath(); ctx.arc(p.r + 4, -0.5, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = flash ? '#fff' : '#9aff5a';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.arc(p.r + 4, -0.5, 2.5, 0, Math.PI*2); ctx.stroke();
+    // 4 tick-prickar (12, 3, 6, 9)
+    ctx.fillStyle = flash ? '#fff' : '#9aff5a';
+    ctx.beginPath(); ctx.arc(p.r + 4, -2.7, 0.3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.r + 6.2, -0.5, 0.3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.r + 4, 1.7, 0.3, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.r + 1.8, -0.5, 0.3, 0, Math.PI*2); ctx.fill();
+    // Visare (roterar)
+    ctx.strokeStyle = flash ? '#fff' : '#9aff5a';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 4, -0.5);
+    ctx.lineTo(p.r + 4 + Math.cos(chronoTick * Math.PI * 2 - Math.PI / 2) * 1.8,
+              -0.5 + Math.sin(chronoTick * Math.PI * 2 - Math.PI / 2) * 1.8);
+    ctx.stroke();
+    // Sekund-visare (snabbare)
+    ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 4, -0.5);
+    ctx.lineTo(p.r + 4 + Math.cos(chronoTick * Math.PI * 12) * 1.3,
+              -0.5 + Math.sin(chronoTick * Math.PI * 12) * 1.3);
+    ctx.stroke();
+    // Center pivot
+    ctx.fillStyle = flash ? '#fff' : '#9aff5a';
+    ctx.beginPath(); ctx.arc(p.r + 4, -0.5, 0.4, 0, Math.PI*2); ctx.fill();
+    // Runic glyph på sidan
+    ctx.fillStyle = flash ? '#fff' : '#9aff5a';
+    ctx.fillRect(p.r + 7.5, -1.5, 0.5, 2);
+    ctx.fillRect(p.r + 7.5, -1.5, 1.5, 0.5);
+    ctx.fillRect(p.r + 7.5, 0, 1.5, 0.5);
+    // Barrel (mörk grön)
+    ctx.fillStyle = flash ? '#fff' : '#1a2a1a';
+    ctx.fillRect(p.r + 9, -1.5, 9, 3);
+    ctx.fillStyle = flash ? '#fff' : '#3a4a3a';
+    ctx.fillRect(p.r + 9, -1.5, 9, 0.5);
+    // Inner glow-line (grön energi)
+    ctx.shadowColor = '#9aff5a'; ctx.shadowBlur = 6;
+    ctx.fillStyle = flash ? '#fff' : '#9aff5a';
+    ctx.fillRect(p.r + 10, -0.3, 8, 0.6);
+    ctx.shadowBlur = 0;
+    // Crystal-emitter framtill
+    ctx.shadowColor = '#9aff5a'; ctx.shadowBlur = 10;
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.beginPath(); ctx.arc(p.r + 19, 0, 1.4, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#9aff5a';
+    ctx.beginPath(); ctx.arc(p.r + 19, 0, 0.8, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    if (muzz) {
+      ctx.fillStyle = `rgba(154, 255, 90, ${muzzlePulse * 0.9})`;
+      ctx.beginPath(); ctx.arc(p.r + 21, 0, 5 + muzzlePulse * 2, 0, Math.PI*2); ctx.fill();
+    }
+    return;
+  }
+
+  // ─── BLACKHOLE ── singularitet-kanon med swirl + event horizon ───────────
+  if (w.id === 'blackhole') {
+    const swirl = now / 200;
+    const pulse = 0.7 + Math.sin(now / 150) * 0.3;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(p.r + 1, 5, 22, 1.5);
+    // Pistol-grip
+    ctx.fillStyle = flash ? '#fff' : '#2a1a3a';
+    ctx.beginPath();
+    ctx.moveTo(p.r - 1, 2.5); ctx.lineTo(p.r + 2, 2.5);
+    ctx.lineTo(p.r + 1, 7.5); ctx.lineTo(p.r - 2, 7.5);
+    ctx.closePath(); ctx.fill();
+    // Body — mörk lila med glödande prick-rader
+    ctx.fillStyle = flash ? '#fff' : '#1a0a2a';
+    ctx.fillRect(p.r, -3, 9, 6);
+    ctx.fillStyle = flash ? '#fff' : '#aa3aff';
+    ctx.fillRect(p.r, -3, 9, 0.6);
+    // Energy-drain LED-rader (vertical bars som drar mot framtill)
+    for (let i = 0; i < 4; i++) {
+      const op = pulse * (1 - i * 0.2);
+      ctx.fillStyle = flash ? '#fff' : `rgba(170, 58, 255, ${op})`;
+      ctx.fillRect(p.r + 1 + i * 1.8, -2.5, 0.7, 5);
+    }
+    // Spherical chamber (stor cirkel framme)
+    ctx.shadowColor = '#aa3aff'; ctx.shadowBlur = 16 * pulse;
+    ctx.fillStyle = flash ? '#fff' : '#0a0a14';
+    ctx.beginPath(); ctx.arc(p.r + 16, 0, 6, 0, Math.PI*2); ctx.fill();
+    // Inner radial-gradient (svart center → lila ring)
+    const grad = ctx.createRadialGradient(p.r + 16, 0, 0, p.r + 16, 0, 5);
+    grad.addColorStop(0, '#000');
+    grad.addColorStop(0.5, '#3a0a5a');
+    grad.addColorStop(1, '#aa3aff');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(p.r + 16, 0, 5, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Roterande swirl-arms (3 spirals)
+    ctx.strokeStyle = flash ? '#fff' : `rgba(204, 106, 255, ${pulse})`;
+    ctx.lineWidth = 0.7;
+    for (let i = 0; i < 3; i++) {
+      const a0 = swirl + i * (Math.PI * 2 / 3);
+      ctx.beginPath();
+      for (let t = 0; t <= 1; t += 0.1) {
+        const r = 1 + t * 4;
+        const a = a0 + t * 1.5;
+        const px = p.r + 16 + Math.cos(a) * r;
+        const py = Math.sin(a) * r;
+        if (t === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+    // Event horizon (svart center)
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(p.r + 16, 0, 1.8, 0, Math.PI*2); ctx.fill();
+    // Center white-hot point
+    ctx.fillStyle = flash ? '#fff' : `rgba(255, 255, 255, ${pulse * 0.7})`;
+    ctx.beginPath(); ctx.arc(p.r + 16, 0, 0.5, 0, Math.PI*2); ctx.fill();
+    // Gravity-distortion lines runtom
+    ctx.strokeStyle = flash ? '#fff' : `rgba(170, 58, 255, ${pulse * 0.5})`;
+    ctx.lineWidth = 0.4;
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + swirl * 0.3;
+      ctx.beginPath();
+      ctx.arc(p.r + 16, 0, 7 + Math.sin(now / 300 + i) * 0.8, a, a + 0.5);
+      ctx.stroke();
+    }
+    return;
+  }
+
+  // ─── MINDCONTROL ── psy-emitter med brain-icon + dish + magenta aura ─────
+  if (w.id === 'mindcontrol') {
+    const psyPulse = 0.5 + Math.sin(now / 150) * 0.5;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(p.r + 1, 5, 22, 1.5);
+    // Pistol-grip
+    ctx.fillStyle = flash ? '#fff' : '#3a1a3a';
+    ctx.beginPath();
+    ctx.moveTo(p.r - 1, 2.5); ctx.lineTo(p.r + 2, 2.5);
+    ctx.lineTo(p.r + 1, 7.5); ctx.lineTo(p.r - 2, 7.5);
+    ctx.closePath(); ctx.fill();
+    // Body (mörk lila)
+    ctx.fillStyle = flash ? '#fff' : '#2a0a2a';
+    ctx.fillRect(p.r, -3.5, 8, 6);
+    ctx.fillStyle = flash ? '#fff' : '#ff5aff';
+    ctx.fillRect(p.r, -3.5, 8, 0.6);
+    // Brain-icon (rund med "lobes")
+    ctx.fillStyle = flash ? '#fff' : `rgba(255, 90, 255, ${psyPulse})`;
+    ctx.beginPath();
+    ctx.arc(p.r + 3.5, -0.5, 2.2, 0, Math.PI*2); ctx.fill();
+    // Brain "wrinkles" (kurviga linjer)
+    ctx.strokeStyle = flash ? '#fff' : '#5a1a5a';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 1.8, -0.5); ctx.lineTo(p.r + 5.2, -0.5);
+    ctx.moveTo(p.r + 2.5, -1.5); ctx.lineTo(p.r + 4.5, -1.5);
+    ctx.moveTo(p.r + 2.5, 0.5); ctx.lineTo(p.r + 4.5, 0.5);
+    ctx.stroke();
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.beginPath(); ctx.arc(p.r + 3.5, -0.5, 0.4, 0, Math.PI*2); ctx.fill();
+    // Connector tube
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 8, -1.5, 4, 3);
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(p.r + 8, -1.5, 4, 0.4);
+    // Satellite dish (parabolic)
+    const dx = p.r + 18;
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.beginPath();
+    ctx.moveTo(dx - 5, -5); ctx.lineTo(dx + 5, -5);
+    ctx.lineTo(dx + 7, 0); ctx.lineTo(dx + 5, 5);
+    ctx.lineTo(dx - 5, 5); ctx.lineTo(dx - 7, 0);
+    ctx.closePath(); ctx.fill();
+    // Inner dish (lila)
+    ctx.fillStyle = flash ? '#fff' : '#aa3aaa';
+    ctx.beginPath();
+    ctx.moveTo(dx - 3.5, -3.5); ctx.lineTo(dx + 3.5, -3.5);
+    ctx.lineTo(dx + 5, 0); ctx.lineTo(dx + 3.5, 3.5);
+    ctx.lineTo(dx - 3.5, 3.5); ctx.lineTo(dx - 5, 0);
+    ctx.closePath(); ctx.fill();
+    // Inner glow
+    ctx.fillStyle = flash ? '#fff' : `rgba(255, 90, 255, ${psyPulse})`;
+    ctx.beginPath();
+    ctx.moveTo(dx - 2.5, -2.5); ctx.lineTo(dx + 2.5, -2.5);
+    ctx.lineTo(dx + 3.5, 0); ctx.lineTo(dx + 2.5, 2.5);
+    ctx.lineTo(dx - 2.5, 2.5); ctx.lineTo(dx - 3.5, 0);
+    ctx.closePath(); ctx.fill();
+    // Center emitter dot
+    ctx.shadowColor = '#ff5aff'; ctx.shadowBlur = 10 * psyPulse;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(dx, 0, 1.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#ff5aff';
+    ctx.beginPath(); ctx.arc(dx, 0, 0.8, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Psy-waves (concentric arcs framtill)
+    ctx.strokeStyle = flash ? '#fff' : `rgba(255, 90, 255, ${psyPulse * 0.6})`;
+    ctx.lineWidth = 0.7;
+    for (let r = 1; r <= 3; r++) {
+      ctx.beginPath();
+      ctx.arc(dx, 0, 6 + r * 2 + (1 - psyPulse) * 4, -0.6, 0.6);
+      ctx.stroke();
+    }
+    if (muzz) {
+      ctx.fillStyle = `rgba(255, 90, 255, ${muzzlePulse * 0.9})`;
+      ctx.beginPath(); ctx.arc(dx + 3, 0, 6 + muzzlePulse * 3, 0, Math.PI*2); ctx.fill();
+    }
+    return;
+  }
+
+  // ─── RAILGUN ── industriell railgun med dual rails + capacitors + glow ───
+  if (w.id === 'railgun') {
+    const charge = 0.7 + Math.sin(now / 100) * 0.3;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.fillRect(p.r + 1, 5, 30, 1.5);
+    // Stock
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(p.r - 6, -1.5, 5, 3);
+    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.fillRect(p.r - 6, -1.5, 5, 0.5);
+    // Buttplate
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r - 6.5, -2, 1, 4);
+    // Receiver med capacitor-banks (3 cylindriska)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a20';
+    ctx.fillRect(p.r - 1, -3.5, 11, 7);
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.fillRect(p.r - 1, -3.5, 11, 0.5);
+    // Capacitors (3 glödande cirklar med chrome rim)
+    for (let i = 0; i < 3; i++) {
+      const cx = p.r + 1 + i * 2.5;
+      ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+      ctx.beginPath(); ctx.arc(cx, -1, 1.1, 0, Math.PI*2); ctx.fill();
+      ctx.shadowColor = '#fff'; ctx.shadowBlur = 6 * charge;
+      ctx.fillStyle = flash ? '#fff' : `rgba(255, 255, 255, ${charge})`;
+      ctx.beginPath(); ctx.arc(cx, -1, 0.7, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+    // Cooling-vents på undersidan
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(p.r + 0.5, 1, 8, 0.6);
+    ctx.fillRect(p.r + 0.5, 2, 8, 0.6);
+    // Pistol-grip
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(p.r + 1, 3); ctx.lineTo(p.r + 4, 3);
+    ctx.lineTo(p.r + 3, 8); ctx.lineTo(p.r, 8);
+    ctx.closePath(); ctx.fill();
+    // Top-rail
+    ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+    ctx.fillRect(p.r, -5, 10, 1.5);
+    // Iron-sight
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.fillRect(p.r + 5, -6.5, 1, 1.8);
+    // Dual rails (parallel framtill — distinkt railgun-feature)
+    ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+    ctx.fillRect(p.r + 10, -3.5, 22, 1);
+    ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+    ctx.fillRect(p.r + 10, -3.5, 22, 0.4);
+    ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+    ctx.fillRect(p.r + 10, 2.5, 22, 1);
+    ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+    ctx.fillRect(p.r + 10, 3.1, 22, 0.4);
+    // Rail-spacer (mellanrum mellan rails)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a14';
+    ctx.fillRect(p.r + 10, -2.5, 22, 5);
+    // Charging beam i mellanrummet (vit-blå glow)
+    ctx.shadowColor = '#fff'; ctx.shadowBlur = 8 * charge;
+    ctx.fillStyle = flash ? '#fff' : `rgba(255, 255, 255, ${charge * 0.9})`;
+    ctx.fillRect(p.r + 10, -0.3, 22, 0.6);
+    ctx.shadowBlur = 0;
+    // Field-coil rings runt rails
+    ctx.strokeStyle = flash ? '#fff' : '#fff';
+    ctx.lineWidth = 0.6;
+    for (let i = 0; i < 4; i++) {
+      const cx = p.r + 14 + i * 5;
+      ctx.beginPath();
+      ctx.ellipse(cx, 0, 1.5, 4, 0, 0, Math.PI*2);
+      ctx.stroke();
+    }
+    // Front emitter-cap
+    ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+    ctx.fillRect(p.r + 32, -3.5, 1.5, 7);
+    if (muzz) {
+      // Massive vit muzzle-flash
+      ctx.shadowColor = '#fff'; ctx.shadowBlur = 24;
+      ctx.fillStyle = `rgba(255, 255, 255, ${muzzlePulse})`;
+      ctx.beginPath(); ctx.arc(p.r + 35, 0, 6 + muzzlePulse * 4, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+    }
     return;
   }
 
@@ -29325,40 +31277,122 @@ function drawBullet(b) {
     return;
   }
   if (b.style === 'tesla') {
-    // Lightning-zigzag trail bakåt
-    ctx.strokeStyle = `rgba(255, 235, 59, 0.6)`;
-    ctx.lineWidth = 1.5;
+    // Premium lightning-bolt: zigzag trail + branching arcs + glowing head
+    // + electric crackles runt bullet.
+    // Lightning-zigzag trail (mer dramatisk)
+    ctx.strokeStyle = `rgba(255, 235, 59, 0.7)`;
+    ctx.lineWidth = 1.8;
+    ctx.shadowColor = '#ffeb3b'; ctx.shadowBlur = 6;
     ctx.beginPath();
     let lx = x, ly = y;
-    for (let i = 1; i <= 4; i++) {
-      const tx = x - (b.vx * 0.015) * i + (Math.random() - 0.5) * 4;
-      const ty = y - (b.vy * 0.015) * i + (Math.random() - 0.5) * 4;
+    for (let i = 1; i <= 5; i++) {
+      const tx = x - (b.vx * 0.014) * i + (Math.random() - 0.5) * 5;
+      const ty = y - (b.vy * 0.014) * i + (Math.random() - 0.5) * 5;
       ctx.moveTo(lx, ly); ctx.lineTo(tx, ty);
       lx = tx; ly = ty;
     }
     ctx.stroke();
-    // Huvud
-    ctx.fillStyle = '#ffeb3b';
-    ctx.shadowColor = '#ffeb3b'; ctx.shadowBlur = 10;
-    ctx.beginPath(); ctx.arc(x, y, b.r * 1.2, 0, Math.PI*2); ctx.fill();
+    // Mid trail (vit kärna)
+    ctx.strokeStyle = `rgba(255, 255, 255, 0.7)`;
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    lx = x; ly = y;
+    for (let i = 1; i <= 5; i++) {
+      const tx = x - (b.vx * 0.014) * i + (Math.random() - 0.5) * 3;
+      const ty = y - (b.vy * 0.014) * i + (Math.random() - 0.5) * 3;
+      ctx.moveTo(lx, ly); ctx.lineTo(tx, ty);
+      lx = tx; ly = ty;
+    }
+    ctx.stroke();
     ctx.shadowBlur = 0;
+    // Yttre glow (gul aura)
+    ctx.shadowColor = '#ffeb3b'; ctx.shadowBlur = 14;
+    ctx.fillStyle = '#ffeb3b';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.4, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Vit hot center
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.6, 0, Math.PI*2); ctx.fill();
+    // Branching mini-arcs runt bullet
+    ctx.strokeStyle = `rgba(255, 235, 59, ${0.4 + Math.random() * 0.4})`;
+    ctx.lineWidth = 0.6;
+    for (let i = 0; i < 3; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const r1 = b.r * 1.2;
+      const r2 = b.r * (1.8 + Math.random() * 0.8);
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1);
+      ctx.lineTo(x + Math.cos(a) * r2 + (Math.random() - 0.5) * 1.5,
+                 y + Math.sin(a) * r2 + (Math.random() - 0.5) * 1.5);
+      ctx.stroke();
+    }
     return;
   }
   if (b.style === 'frost') {
-    // diamantformad is
-    ctx.fillStyle = b.color;
+    // Premium ice-shard: diamant med polerad facet + frost-trail + sparkle
+    const ang = Math.atan2(b.vy, b.vx);
+    // Frost-trail (3 vit-blå pricks bakåt)
+    for (let i = 1; i <= 3; i++) {
+      const tx = x - (b.vx * 0.012) * i;
+      const ty = y - (b.vy * 0.012) * i;
+      ctx.fillStyle = `rgba(154, 242, 255, ${0.4 / i})`;
+      ctx.beginPath(); ctx.arc(tx, ty, b.r * (1 - i * 0.25), 0, Math.PI*2); ctx.fill();
+    }
+    ctx.save();
+    ctx.translate(x, y); ctx.rotate(ang);
+    // Diamant-shape (yttre glow)
+    ctx.shadowColor = '#9af2ff'; ctx.shadowBlur = 8;
+    ctx.fillStyle = b.color || '#9af2ff';
     ctx.beginPath();
-    ctx.moveTo(x, y - b.r * 1.4); ctx.lineTo(x + b.r, y);
-    ctx.lineTo(x, y + b.r * 1.4); ctx.lineTo(x - b.r, y);
+    ctx.moveTo(b.r * 1.6, 0);
+    ctx.lineTo(0, -b.r * 1.4);
+    ctx.lineTo(-b.r * 1.4, 0);
+    ctx.lineTo(0, b.r * 1.4);
     ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Inner facet (ljusare)
+    ctx.fillStyle = '#dffbff';
+    ctx.beginPath();
+    ctx.moveTo(b.r * 1.0, 0);
+    ctx.lineTo(0, -b.r * 0.9);
+    ctx.lineTo(-b.r * 0.9, 0);
+    ctx.lineTo(0, b.r * 0.9);
+    ctx.closePath(); ctx.fill();
+    // Vit center
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(0, 0, b.r * 0.4, 0, Math.PI*2); ctx.fill();
+    // Sparkle (random vit prick)
+    if (Math.random() < 0.4) {
+      ctx.fillStyle = '#fff';
+      const sa = Math.random() * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(Math.cos(sa) * b.r * 1.3, Math.sin(sa) * b.r * 1.3, 0.5, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
     return;
   }
   if (b.style === 'sonic') {
-    ctx.strokeStyle = b.color;
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(x, y, b.r * 1.6, 0, Math.PI*2); ctx.stroke();
-    ctx.fillStyle = b.color;
-    ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI*2); ctx.fill();
+    // Premium sonic-puls: pulsing center + 3 expanding rings + glow
+    const pulse = 0.7 + Math.sin(performance.now() / 40) * 0.3;
+    ctx.save();
+    // 3 expanding rings (concentric)
+    for (let r = 0; r < 3; r++) {
+      ctx.strokeStyle = `rgba(255, 90, 196, ${(0.5 - r * 0.15) * pulse})`;
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(x, y, b.r * 1.4 + r * 2.5, 0, Math.PI*2);
+      ctx.stroke();
+    }
+    // Glow halo
+    ctx.shadowColor = b.color || '#ff5ac4'; ctx.shadowBlur = 12 * pulse;
+    ctx.fillStyle = b.color || '#ff5ac4';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.1, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Vit hot center
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.55, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
     return;
   }
   if (b.style === 'railgun') {
@@ -29377,20 +31411,44 @@ function drawBullet(b) {
     return;
   }
   if (b.style === 'blackhole') {
-    // svart kärna med lila ring
-    ctx.fillStyle = '#aa3aff';
-    ctx.shadowColor = '#aa3aff'; ctx.shadowBlur = 16;
-    ctx.beginPath(); ctx.arc(x, y, b.r * 2, 0, Math.PI*2); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = '#000000';
-    ctx.beginPath(); ctx.arc(x, y, b.r * 1.4, 0, Math.PI*2); ctx.fill();
-    // virvel
+    // Premium singularity-bullet: lila glow halo + svart event horizon +
+    // roterande spiral arms + grav-distortion lines
     const t = performance.now() / 100;
-    ctx.strokeStyle = '#aa3aff'; ctx.lineWidth = 1.5;
+    // Yttre lila glow (bred)
+    ctx.shadowColor = '#aa3aff'; ctx.shadowBlur = 20;
+    ctx.fillStyle = '#aa3aff';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 2.2, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Mid-glow (mörkare lila)
+    ctx.fillStyle = '#5a1aaa';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.7, 0, Math.PI*2); ctx.fill();
+    // Event horizon (svart)
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.3, 0, Math.PI*2); ctx.fill();
+    // Spiral arms (3 stycken som virvlar in)
+    ctx.strokeStyle = '#cc6aff'; ctx.lineWidth = 1.2;
     for (let i = 0; i < 3; i++) {
-      const a = i * Math.PI*2/3 + t;
+      const a0 = t + i * (Math.PI * 2 / 3);
       ctx.beginPath();
-      ctx.arc(x, y, b.r * 1.8, a, a + 0.5);
+      for (let s = 0; s <= 1; s += 0.1) {
+        const r = b.r * (0.4 + s * 1.4);
+        const a = a0 + s * 2;
+        const px = x + Math.cos(a) * r;
+        const py = y + Math.sin(a) * r;
+        if (s === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+    // Tiny vit-hot center point
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.3, 0, Math.PI*2); ctx.fill();
+    // Grav-distortion arcs (subtila)
+    ctx.strokeStyle = 'rgba(170, 58, 255, 0.5)';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + t * 0.3;
+      ctx.beginPath();
+      ctx.arc(x, y, b.r * 2.6, a, a + 0.4);
       ctx.stroke();
     }
     return;
@@ -29495,41 +31553,134 @@ function drawBullet(b) {
     return;
   }
   if (b.style === 'crossbow' || b.style === 'bow') {
-    // Pil med spets + fjäder
+    // Premium pil/bolt: trä-shaft med wood-grain, polished steel arrowhead
+    // med fuller, fletching (3 fjädrar), crossbow har grovare bolt + grön nock.
     const ang = Math.atan2(b.vy, b.vx);
+    const isBow = b.style === 'bow';
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(ang);
-    const len = b.r * 4;
-    ctx.fillStyle = '#7a5a3a';
-    ctx.fillRect(-len * 0.5, -1, len, 2);
-    ctx.fillStyle = '#cccccc';
+    const len = b.r * (isBow ? 4.5 : 4);
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(-len * 0.5, 1.5, len, 1);
+    // Shaft (trä med grain)
+    ctx.fillStyle = isBow ? '#7a5a3a' : '#5a4a3a';
+    ctx.fillRect(-len * 0.5, -0.7, len, 1.4);
+    // Top highlight
+    ctx.fillStyle = isBow ? '#9a7a4a' : '#7a6a4a';
+    ctx.fillRect(-len * 0.5, -0.7, len, 0.4);
+    // Arrowhead (silver leaf-shape med fuller)
+    ctx.fillStyle = '#cccfd5';
     ctx.beginPath();
-    ctx.moveTo(len * 0.5 + 6, 0);
-    ctx.lineTo(len * 0.5, -3);
-    ctx.lineTo(len * 0.5, 3);
+    ctx.moveTo(len * 0.5, -2);
+    ctx.lineTo(len * 0.5 + 5, 0);
+    ctx.lineTo(len * 0.5, 2);
+    ctx.lineTo(len * 0.5 - 1, 1);
+    ctx.lineTo(len * 0.5 - 1, -1);
     ctx.closePath(); ctx.fill();
-    ctx.fillStyle = b.style === 'bow' ? '#5a3a3a' : '#3a3a3a';
+    // Arrowhead highlight (vit edge)
+    ctx.fillStyle = '#fff';
     ctx.beginPath();
-    ctx.moveTo(-len * 0.5, -3);
-    ctx.lineTo(-len * 0.5 - 5, 0);
-    ctx.lineTo(-len * 0.5, 3);
+    ctx.moveTo(len * 0.5, -1.6);
+    ctx.lineTo(len * 0.5 + 4, -0.2);
+    ctx.lineTo(len * 0.5 + 0.2, -0.5);
     ctx.closePath(); ctx.fill();
+    // Fuller (mörk groove)
+    ctx.fillStyle = '#7a8088';
+    ctx.fillRect(len * 0.5 + 0.5, -0.3, 3, 0.6);
+    // Fletching (3 fjädrar — gröna för bow, röda för crossbow)
+    const fletchColor = isBow ? '#3a8a3a' : '#aa3a3a';
+    const fletchTip = isBow ? '#5fd95f' : '#cc5a5a';
+    // Top fletch
+    ctx.fillStyle = fletchColor;
+    ctx.beginPath();
+    ctx.moveTo(-len * 0.5, -0.5);
+    ctx.lineTo(-len * 0.5 - 5, -2.8);
+    ctx.lineTo(-len * 0.5 - 2, -0.5);
+    ctx.closePath(); ctx.fill();
+    // Bottom fletch
+    ctx.beginPath();
+    ctx.moveTo(-len * 0.5, 0.5);
+    ctx.lineTo(-len * 0.5 - 5, 2.8);
+    ctx.lineTo(-len * 0.5 - 2, 0.5);
+    ctx.closePath(); ctx.fill();
+    // Highlight på fletching
+    ctx.fillStyle = fletchTip;
+    ctx.beginPath();
+    ctx.moveTo(-len * 0.5 - 0.5, -0.5);
+    ctx.lineTo(-len * 0.5 - 5, -2.8);
+    ctx.lineTo(-len * 0.5 - 4, -1.5);
+    ctx.closePath(); ctx.fill();
+    // Nock (där string griper) — kort djup-cut
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(-len * 0.5 - 1, -0.4, 0.8, 0.8);
     ctx.restore();
     return;
   }
   if (b.style === 'boomerang') {
+    // Premium boomerang: V-shaped med wood-grain + carved markings + motion-blur
     const rot = performance.now() / 80;
+    const ang = Math.atan2(b.vy, b.vx);
+    // Motion-blur ghost (faint trail bakåt)
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.translate(x - Math.cos(ang) * 5, y - Math.sin(ang) * 5);
+    ctx.rotate(rot - 0.4);
+    ctx.fillStyle = b.color || '#9a6a30';
+    ctx.beginPath();
+    ctx.moveTo(-b.r * 1.5, -1);
+    ctx.lineTo(-0.3, 0.5);
+    ctx.lineTo(b.r * 1.5, -1);
+    ctx.lineTo(b.r * 1.5, 0.5);
+    ctx.lineTo(0, 1.8);
+    ctx.lineTo(-b.r * 1.5, 0.5);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+    // Huvud-boomerang
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rot);
-    ctx.strokeStyle = b.color || '#9a6a30';
-    ctx.lineWidth = 4;
-    ctx.lineCap = 'round';
+    // Skugga (under)
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.beginPath();
-    ctx.moveTo(-b.r * 1.5, b.r * 0.2);
-    ctx.lineTo(0, -b.r * 0.8);
-    ctx.lineTo(b.r * 1.5, b.r * 0.2);
+    ctx.moveTo(-b.r * 1.5 + 0.5, -0.5);
+    ctx.lineTo(0.5, 1);
+    ctx.lineTo(b.r * 1.5 + 0.5, -0.5);
+    ctx.lineTo(b.r * 1.5 + 0.5, 1);
+    ctx.lineTo(0.5, 2.3);
+    ctx.lineTo(-b.r * 1.5 + 0.5, 1);
+    ctx.closePath(); ctx.fill();
+    // Body (warm wood)
+    ctx.fillStyle = b.color || '#9a6a30';
+    ctx.beginPath();
+    ctx.moveTo(-b.r * 1.5, -1);
+    ctx.lineTo(-0.3, 0.5);
+    ctx.lineTo(b.r * 1.5, -1);
+    ctx.lineTo(b.r * 1.5, 0.5);
+    ctx.lineTo(0, 1.8);
+    ctx.lineTo(-b.r * 1.5, 0.5);
+    ctx.closePath(); ctx.fill();
+    // Top highlight
+    ctx.fillStyle = '#bc8848';
+    ctx.beginPath();
+    ctx.moveTo(-b.r * 1.5, -1);
+    ctx.lineTo(-0.3, 0.5);
+    ctx.lineTo(b.r * 1.5, -1);
+    ctx.lineTo(b.r * 1.5, -0.4);
+    ctx.lineTo(0, 0.9);
+    ctx.lineTo(-b.r * 1.5, -0.4);
+    ctx.closePath(); ctx.fill();
+    // Carved gold markings
+    ctx.fillStyle = '#ffd54a';
+    ctx.beginPath(); ctx.arc(-b.r * 1.0, -0.3, 0.4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(b.r * 1.0, -0.3, 0.4, 0, Math.PI*2); ctx.fill();
+    // Wood-grain
+    ctx.strokeStyle = '#5a3010';
+    ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(-b.r * 1.3, 0.1); ctx.lineTo(0, 0.9);
+    ctx.moveTo(0, 0.9); ctx.lineTo(b.r * 1.3, 0.1);
     ctx.stroke();
     ctx.restore();
     return;
@@ -29560,18 +31711,52 @@ function drawBullet(b) {
     return;
   }
   if (b.style === 'grenade') {
+    // Premium frag-grenade: M67-style med pineapple-pattern + spoon-handle +
+    // pin + shadow + arc-trail (visualiserar parabolisk bana).
     const rot = performance.now() / 200;
+    // Skugga under
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(x + 1, y + b.r * 1.5, b.r * 1.2, 1.5, 0, 0, Math.PI*2); ctx.fill();
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rot);
+    // Sphere body (mörk olive)
     ctx.fillStyle = '#3a4a2a';
-    ctx.beginPath(); ctx.arc(0, 0, b.r * 1.3, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = '#222';
-    ctx.fillRect(-1.5, -b.r * 1.6, 3, b.r * 0.5);
-    ctx.strokeStyle = '#888'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(0, 0, b.r * 1.4, 0, Math.PI*2); ctx.fill();
+    // Top highlight
+    ctx.fillStyle = '#5a6a3a';
+    ctx.beginPath(); ctx.arc(-b.r * 0.3, -b.r * 0.4, b.r * 0.7, 0, Math.PI*2); ctx.fill();
+    // Pineapple-pattern (grid av små pricks)
+    ctx.fillStyle = '#1a2a0a';
+    for (let i = -2; i <= 2; i++) {
+      for (let j = -2; j <= 2; j++) {
+        if (i * i + j * j <= 4) {
+          ctx.beginPath(); ctx.arc(i * 1.2, j * 1.2, 0.3, 0, Math.PI*2); ctx.fill();
+        }
+      }
+    }
+    // Cross-grooves (klassisk frag-mönster)
+    ctx.strokeStyle = '#0a1a04';
+    ctx.lineWidth = 0.5;
     ctx.beginPath();
-    ctx.moveTo(-b.r, -b.r * 0.5); ctx.lineTo(b.r, b.r * 0.5);
+    ctx.moveTo(-b.r * 1.3, 0); ctx.lineTo(b.r * 1.3, 0);
+    ctx.moveTo(0, -b.r * 1.3); ctx.lineTo(0, b.r * 1.3);
     ctx.stroke();
+    // Top fuze-cap (silver)
+    ctx.fillStyle = '#5a5a60';
+    ctx.fillRect(-1.2, -b.r * 1.7, 2.4, b.r * 0.4);
+    ctx.fillStyle = '#9aa0a8';
+    ctx.fillRect(-1.2, -b.r * 1.7, 2.4, 0.3);
+    // Spoon-handle (silver bygel)
+    ctx.strokeStyle = '#9aa0a8';
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(1, -b.r * 1.5); ctx.lineTo(b.r * 0.8, -b.r * 1.0);
+    ctx.stroke();
+    // Pin-ring
+    ctx.strokeStyle = '#cccfd5';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.arc(-b.r * 0.5, -b.r * 1.6, 0.6, 0, Math.PI*2); ctx.stroke();
     ctx.restore();
     return;
   }
@@ -29585,38 +31770,124 @@ function drawBullet(b) {
     return;
   }
   if (b.style === 'timestop') {
-    ctx.fillStyle = b.color || '#9aff5a';
-    ctx.shadowColor = b.color || '#9aff5a'; ctx.shadowBlur = 8;
-    ctx.beginPath(); ctx.arc(x, y, b.r * 1.4, 0, Math.PI*2); ctx.fill();
-    ctx.shadowBlur = 0;
+    // Premium chrono-bullet: glödande grön orb med klockface + 3 visare
+    // (timme/minut/sekund) + tick-marks + temporal-distortion ringar.
     const t = performance.now() / 100;
-    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1.5;
+    // Trail (3 fading pulses)
+    for (let i = 1; i <= 3; i++) {
+      const tx = x - (b.vx * 0.014) * i;
+      const ty = y - (b.vy * 0.014) * i;
+      ctx.fillStyle = `rgba(154, 255, 90, ${0.4 / i})`;
+      ctx.beginPath(); ctx.arc(tx, ty, b.r * (1 - i * 0.2), 0, Math.PI*2); ctx.fill();
+    }
+    // Yttre glow
+    ctx.shadowColor = b.color || '#9aff5a'; ctx.shadowBlur = 12;
+    ctx.fillStyle = `rgba(154, 255, 90, 0.6)`;
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.7, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Klockface (vit-grön)
+    ctx.fillStyle = '#dffbcc';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.3, 0, Math.PI*2); ctx.fill();
+    // Tick-marks (12 stycken)
+    ctx.strokeStyle = '#1a3a1a';
+    ctx.lineWidth = 0.4;
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const r1 = b.r * 1.15, r2 = b.r * 1.3;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1);
+      ctx.lineTo(x + Math.cos(a) * r2, y + Math.sin(a) * r2);
+      ctx.stroke();
+    }
+    // Hour visare (kort, tjock)
+    ctx.strokeStyle = '#1a1a1a'; ctx.lineWidth = 1.4;
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineTo(x + Math.cos(t) * b.r, y + Math.sin(t) * b.r);
+    ctx.lineTo(x + Math.cos(t * 0.1 - Math.PI / 2) * b.r * 0.7,
+              y + Math.sin(t * 0.1 - Math.PI / 2) * b.r * 0.7);
     ctx.stroke();
+    // Minute visare (lång)
+    ctx.lineWidth = 0.8;
     ctx.beginPath();
     ctx.moveTo(x, y);
-    ctx.lineTo(x + Math.cos(t * 12) * b.r * 0.7, y + Math.sin(t * 12) * b.r * 0.7);
+    ctx.lineTo(x + Math.cos(t - Math.PI / 2) * b.r * 1.0,
+              y + Math.sin(t - Math.PI / 2) * b.r * 1.0);
     ctx.stroke();
+    // Sekund visare (snabb, tunn röd)
+    ctx.strokeStyle = '#aa3a3a'; ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + Math.cos(t * 12 - Math.PI / 2) * b.r * 1.1,
+              y + Math.sin(t * 12 - Math.PI / 2) * b.r * 1.1);
+    ctx.stroke();
+    // Center pivot
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.2, 0, Math.PI*2); ctx.fill();
+    // Temporal distortion ring (expandande)
+    const expand = (t * 0.1) % 1;
+    ctx.strokeStyle = `rgba(154, 255, 90, ${0.5 - expand * 0.5})`;
+    ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.arc(x, y, b.r * (1.5 + expand * 1.5), 0, Math.PI*2); ctx.stroke();
     return;
   }
   if (b.style === 'pullwhip') {
+    // Premium grappling claw: chain + 3-pronged claw-tip + cable-trail
     const ang = Math.atan2(b.vy, b.vx);
+    // Cable bakåt (fadande linje som visar att den drar)
+    ctx.strokeStyle = `rgba(90, 64, 48, 0.6)`;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x - Math.cos(ang) * 22, y - Math.sin(ang) * 22);
+    ctx.lineTo(x, y);
+    ctx.stroke();
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(ang);
-    // kedjelänk
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(-b.r * 1.2 + 0.5, -b.r * 0.4 + 0.5, b.r * 2.4, b.r * 0.8);
+    // Chain-segment (mid)
     ctx.fillStyle = '#5a4030';
-    ctx.fillRect(-b.r, -b.r * 0.4, b.r * 1.4, b.r * 0.8);
-    // hak
-    ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 2.5;
-    ctx.lineCap = 'round';
+    ctx.fillRect(-b.r * 1.2, -b.r * 0.5, b.r * 1.6, b.r * 1.0);
+    // Chain-link details (2 ovaler)
+    ctx.strokeStyle = '#3a2a18'; ctx.lineWidth = 0.6;
     ctx.beginPath();
-    ctx.moveTo(b.r * 0.4, 0);
-    ctx.lineTo(b.r * 1.6, -b.r * 0.6);
-    ctx.lineTo(b.r * 1.0, -b.r * 1.3);
+    ctx.ellipse(-b.r * 0.7, 0, b.r * 0.4, b.r * 0.4, 0, 0, Math.PI*2); ctx.stroke();
+    ctx.ellipse(0, 0, b.r * 0.4, b.r * 0.4, 0, 0, Math.PI*2); ctx.stroke();
     ctx.stroke();
+    // Center-bolt
+    ctx.fillStyle = '#3a2a18';
+    ctx.beginPath(); ctx.arc(b.r * 0.3, 0, b.r * 0.2, 0, Math.PI*2); ctx.fill();
+    // Claw-base (silver)
+    ctx.fillStyle = '#9aa0a8';
+    ctx.beginPath();
+    ctx.moveTo(b.r * 0.4, -b.r * 0.6);
+    ctx.lineTo(b.r * 1.4, -b.r * 0.8);
+    ctx.lineTo(b.r * 1.7, 0);
+    ctx.lineTo(b.r * 1.4, b.r * 0.8);
+    ctx.lineTo(b.r * 0.4, b.r * 0.6);
+    ctx.closePath(); ctx.fill();
+    // Highlight
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.moveTo(b.r * 0.4, -b.r * 0.6); ctx.lineTo(b.r * 1.4, -b.r * 0.8); ctx.lineTo(b.r * 1.4, -b.r * 0.4);
+    ctx.closePath(); ctx.fill();
+    // 3 prong claws (top, mid, bottom)
+    ctx.fillStyle = '#3a3a40';
+    ctx.beginPath();
+    ctx.moveTo(b.r * 1.7, -b.r * 0.4); ctx.lineTo(b.r * 2.5, -b.r * 1.2); ctx.lineTo(b.r * 1.9, -b.r * 0.2);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(b.r * 1.7, 0); ctx.lineTo(b.r * 2.7, 0); ctx.lineTo(b.r * 1.9, b.r * 0.2);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(b.r * 1.7, b.r * 0.4); ctx.lineTo(b.r * 2.5, b.r * 1.2); ctx.lineTo(b.r * 1.9, b.r * 0.2);
+    ctx.closePath(); ctx.fill();
+    // Claw highlight (silver edges)
+    ctx.fillStyle = '#cccfd5';
+    ctx.beginPath();
+    ctx.moveTo(b.r * 1.7, -b.r * 0.4); ctx.lineTo(b.r * 2.5, -b.r * 1.2); ctx.lineTo(b.r * 2.3, -b.r * 1.0);
+    ctx.closePath(); ctx.fill();
     ctx.restore();
     return;
   }
@@ -29810,12 +32081,40 @@ function drawBullet(b) {
     return;
   }
   if (b.style === 'mindctrl') {
-    // Pulserande rosa/lila stråle
+    // Premium psy-puls: pulserande magenta orb + brain-icon-svg-like pattern + waves
     const pulse = 0.6 + Math.sin(performance.now() / 60) * 0.4;
-    ctx.shadowColor = '#ff5aff'; ctx.shadowBlur = 12 * pulse;
+    const ang = Math.atan2(b.vy, b.vx);
+    // Trail (3 pulses bakåt)
+    for (let i = 1; i <= 3; i++) {
+      const tx = x - (b.vx * 0.014) * i;
+      const ty = y - (b.vy * 0.014) * i;
+      ctx.fillStyle = `rgba(255, 90, 255, ${(0.4 - i * 0.1) * pulse})`;
+      ctx.beginPath(); ctx.arc(tx, ty, b.r * (1 - i * 0.2), 0, Math.PI*2); ctx.fill();
+    }
+    // Yttre glow
+    ctx.shadowColor = '#ff5aff'; ctx.shadowBlur = 14 * pulse;
+    ctx.fillStyle = `rgba(170, 58, 170, ${pulse * 0.7})`;
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.7, 0, Math.PI*2); ctx.fill();
+    // Mid pulse
     ctx.fillStyle = `rgba(255, 90, 255, ${pulse})`;
-    ctx.beginPath(); ctx.arc(x, y, b.r * 1.4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.2, 0, Math.PI*2); ctx.fill();
     ctx.shadowBlur = 0;
+    // Inner brain-pattern (3 koncentriska arcs)
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath(); ctx.arc(x - b.r * 0.3, y, b.r * 0.5, -Math.PI / 2, Math.PI / 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x + b.r * 0.3, y, b.r * 0.5, Math.PI / 2, Math.PI * 1.5); ctx.stroke();
+    // Vit center
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.4, 0, Math.PI*2); ctx.fill();
+    // Psy-waves (concentric arcs framåt)
+    ctx.strokeStyle = `rgba(255, 90, 255, ${pulse * 0.5})`;
+    ctx.lineWidth = 0.7;
+    for (let r = 1; r <= 2; r++) {
+      ctx.beginPath();
+      ctx.arc(x, y, b.r * 1.7 + r * 1.5, ang - 0.5, ang + 0.5);
+      ctx.stroke();
+    }
     return;
   }
   // standard fallback. Hostile bullets får liten röd-aktig glow så de syns bättre

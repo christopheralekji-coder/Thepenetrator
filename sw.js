@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v324-jug-picker-scrollable-tap';
+const CACHE = 'penetrator-v325-premium-weapon-redesigns-all-23';
 const ASSETS = [
   './',
   './index.html',
