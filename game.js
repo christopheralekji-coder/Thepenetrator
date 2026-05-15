@@ -12491,11 +12491,11 @@ const WEAPON_ICONS = {
   knife: '🔪', throwknife: '🗡️', sickle: '🪓',
   bat: '🏏', mace: '⚒️', sledge: '🔨',
   axe: '🪓', machete: '⚔️', katana: '🗡️',
-  spear: '🔱', whip: '⛓', shuriken: '⭐',
+  spear: '🔱', whip: '⛓', shuriken: '✴️',
   lightsaber: '🌟', energysword: '✨',
   // Guns — distinkta typer
   pistol: '🔫', revolver: '🤠',
-  burstpistol: '💥', shotgun: '🌪',
+  burstpistol: '💢', shotgun: '🌪',
   smg: '🔁', rifle: '🪖', minigun: '🌀',
   bow: '🏹', crossbow: '🎯',
   sniper: '🔭',
@@ -22999,12 +22999,64 @@ function drawPlayerWeapon(p, w, flash, now) {
   if (w.type === 'melee') {
     // Olika melee-vapen
     if (w.id === 'fists' || w.id === 'knuckles') {
-      // knogar: stora hudfärgade nävar
-      const fistColor = w.id === 'knuckles' ? '#c8a040' : '#d2a07a';
-      const reach = 6 + slashAnim * 12;
-      ctx.fillStyle = flash ? '#fff' : fistColor;
-      ctx.beginPath(); ctx.arc(p.r * 1.2 + reach, -p.r * 0.5, 6, 0, Math.PI*2); ctx.fill();
-      ctx.beginPath(); ctx.arc(p.r * 1.2 + reach, p.r * 0.5, 6, 0, Math.PI*2); ctx.fill();
+      // Anatomiska nävar: knogar + finger-leder + skugga + highlight + tum-fold
+      const isKnuckles = w.id === 'knuckles';
+      const skinBase = isKnuckles ? '#c8a040' : '#d2a07a';
+      const skinShadow = isKnuckles ? '#8a6020' : '#9a7050';
+      const skinHighlight = isKnuckles ? '#e8c060' : '#e8c098';
+      const reach = 6 + slashAnim * 14;
+      const punchY = slashAnim * 2; // subtil punch-bounce
+      for (const side of [-1, 1]) {
+        const cx = p.r * 1.2 + reach;
+        const cy = side * p.r * 0.5 + punchY;
+        // Skugga under handen (om side === 1)
+        if (side === 1) {
+          ctx.fillStyle = 'rgba(0,0,0,0.25)';
+          ctx.beginPath(); ctx.ellipse(cx + 1, cy + 7, 7, 2, 0, 0, Math.PI*2); ctx.fill();
+        }
+        // Huvud-knytnäve (oval för anatomisk form)
+        ctx.fillStyle = flash ? '#fff' : skinBase;
+        ctx.beginPath(); ctx.ellipse(cx, cy, 7, 6, 0, 0, Math.PI*2); ctx.fill();
+        // Skugga-shading på undersidan
+        ctx.fillStyle = flash ? '#fff' : skinShadow;
+        ctx.beginPath(); ctx.ellipse(cx - 1, cy + 2, 5, 3, 0, 0, Math.PI*2); ctx.fill();
+        // Highlight (övre vänster)
+        ctx.fillStyle = flash ? '#fff' : skinHighlight;
+        ctx.beginPath(); ctx.arc(cx - 2, cy - 2, 2.2, 0, Math.PI*2); ctx.fill();
+        // 4 knog-bumps (small circles for finger joints)
+        ctx.fillStyle = flash ? '#fff' : skinShadow;
+        for (let k = 0; k < 4; k++) {
+          const kx = cx + 3 + k * 0.5;
+          const ky = cy - 3 + k * 1.6;
+          ctx.beginPath(); ctx.arc(kx, ky, 1.2, 0, Math.PI*2); ctx.fill();
+        }
+        // Tum-fold (liten triangel-form på sidan)
+        ctx.fillStyle = flash ? '#fff' : skinBase;
+        ctx.beginPath();
+        ctx.moveTo(cx - 5, cy - 1);
+        ctx.lineTo(cx - 7, cy);
+        ctx.lineTo(cx - 5, cy + 1.5);
+        ctx.closePath(); ctx.fill();
+        // Knuckles-specifikt: gyllene metall över knogarna
+        if (isKnuckles) {
+          ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+          ctx.fillRect(cx + 2, cy - 4, 5, 1.5);
+          ctx.fillRect(cx + 2, cy - 1.5, 5, 1.5);
+          ctx.fillRect(cx + 2, cy + 1, 5, 1.5);
+          // Reflection
+          ctx.fillStyle = flash ? '#fff' : '#fff8c8';
+          ctx.fillRect(cx + 3, cy - 3.5, 2, 0.5);
+        }
+      }
+      // Impact-puff vid full reach (punch-moment)
+      if (slashAnim > 0.7) {
+        const puffR = (1 - slashAnim) * 14 + 3;
+        ctx.strokeStyle = flash ? '#fff' : `rgba(255,255,255,${slashAnim * 0.6})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(p.r * 1.2 + reach + 8, 0, puffR, 0, Math.PI*2);
+        ctx.stroke();
+      }
     } else if (w.id === 'bat') {
       // Basebollträ: brun stång med tape-grepp + nail-detaljer
       const swing = slashAnim * 1.2;
@@ -23035,31 +23087,68 @@ function drawPlayerWeapon(p, w, flash, now) {
       }
       ctx.restore();
     } else if (w.id === 'knife') {
-      // Knife: jaggad sågtand-blade + gripp med pommel
-      const stab = slashAnim * 10;
-      // Pommel + grepp
-      ctx.fillStyle = flash ? '#fff' : '#3a2a1a';
-      ctx.beginPath(); ctx.arc(p.r * 0.55 + stab, 0, 3, 0, Math.PI*2); ctx.fill();
-      ctx.fillStyle = flash ? '#fff' : '#5a3a20';
-      ctx.fillRect(p.r * 0.6 + stab, -2, 5, 4);
-      // Handskydd
-      ctx.fillStyle = flash ? '#fff' : '#888';
-      ctx.fillRect(p.r * 0.85 + stab, -4, 2, 8);
-      // Jaggad blade (sågtand-mönster på undersidan)
-      ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
+      // Combat-knife: polerad stål-blade med fuller (centrumränna), cross-guard,
+      // wrapped paracord-grepp med checker-mönster, pommel med skruv.
+      const stab = slashAnim * 12;
+      // Skugga under
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(p.r * 1.4 + stab, 5, 12, 1.5, 0, 0, Math.PI*2); ctx.fill();
+      // Pommel (rund metallklump med insex-skruv)
+      ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+      ctx.beginPath(); ctx.arc(p.r * 0.45 + stab, 0, 3.2, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.fillRect(p.r * 0.45 + stab - 1, -0.5, 2, 1); // skruv-spår
+      // Paracord-grepp (mörkt med checker-pattern)
+      ctx.fillStyle = flash ? '#fff' : '#2a2218';
+      ctx.fillRect(p.r * 0.6 + stab, -2.2, p.r * 0.4, 4.4);
+      // Checker-mönster på grepp (paracord-wrap)
+      ctx.fillStyle = flash ? '#fff' : '#4a3828';
+      for (let i = 0; i < 5; i++) {
+        const gx = p.r * 0.6 + stab + i * (p.r * 0.4 / 5);
+        if (i % 2 === 0) {
+          ctx.fillRect(gx, -2.2, p.r * 0.4 / 5, 2.2);
+        } else {
+          ctx.fillRect(gx, 0, p.r * 0.4 / 5, 2.2);
+        }
+      }
+      // Cross-guard (silver tvärbalk)
+      ctx.fillStyle = flash ? '#fff' : '#9098a0';
+      ctx.fillRect(p.r * 1.02 + stab, -4.5, 2.5, 9);
+      ctx.fillStyle = flash ? '#fff' : '#cccfd5';
+      ctx.fillRect(p.r * 1.02 + stab, -4.5, 1, 9); // ljus kant
+      // Blade — drop-point shape med polerad stål
+      ctx.fillStyle = flash ? '#fff' : '#e6e9ee';
       ctx.beginPath();
-      ctx.moveTo(p.r * 0.9 + stab, -3);
-      ctx.lineTo(p.r * 1.85 + stab, -1);
-      ctx.lineTo(p.r * 1.95 + stab, 0);
-      ctx.lineTo(p.r * 1.85 + stab, 1);
-      // Sågtand-mönster
-      ctx.lineTo(p.r * 1.7 + stab, 1);
-      ctx.lineTo(p.r * 1.6 + stab, 2.5);
-      ctx.lineTo(p.r * 1.45 + stab, 1);
-      ctx.lineTo(p.r * 1.3 + stab, 2.5);
-      ctx.lineTo(p.r * 1.15 + stab, 1);
-      ctx.lineTo(p.r * 0.9 + stab, 3);
+      ctx.moveTo(p.r * 1.08 + stab, -3.5);   // base top
+      ctx.lineTo(p.r * 1.95 + stab, -2.2);   // top-curve start
+      ctx.lineTo(p.r * 2.15 + stab, 0);      // tip
+      ctx.lineTo(p.r * 1.95 + stab, 2.5);    // bottom-curve back
+      ctx.lineTo(p.r * 1.08 + stab, 3.5);    // base bottom
       ctx.closePath(); ctx.fill();
+      // Fuller (mörk groove i mitten — klassisk combat-knife-detalj)
+      ctx.fillStyle = flash ? '#fff' : '#9098a0';
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.15 + stab, -1);
+      ctx.lineTo(p.r * 1.85 + stab, -0.6);
+      ctx.lineTo(p.r * 1.85 + stab, 0.6);
+      ctx.lineTo(p.r * 1.15 + stab, 1);
+      ctx.closePath(); ctx.fill();
+      // Egg-reflektion (vit highlight längs övre kanten)
+      ctx.strokeStyle = flash ? '#fff' : 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(p.r * 1.1 + stab, -3);
+      ctx.lineTo(p.r * 1.92 + stab, -1.9);
+      ctx.stroke();
+      // Stab-streak (vit motion-blur när stab är stark)
+      if (slashAnim > 0.4) {
+        ctx.strokeStyle = `rgba(255,255,255,${slashAnim * 0.55})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(p.r * 1.2 + stab - 6, 0);
+        ctx.lineTo(p.r * 1.2 + stab - 14, 0);
+        ctx.stroke();
+      }
     } else if (w.id === 'machete') {
       // Machete: bredbladigt, lite kortare, brett blad (jakt-machete)
       const swing = slashAnim * 1.3;
@@ -23282,6 +23371,439 @@ function drawPlayerWeapon(p, w, flash, now) {
       ctx.beginPath();
       ctx.moveTo(p.r * 2.6, -4); ctx.lineTo(p.r * 2.85, 0); ctx.lineTo(p.r * 2.6, 4);
       ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    return;
+  }
+
+  // ─── REDESIGNED WEAPONS — pistol, burstpistol, shotgun, rifle, sniper ────
+  // Dessa 5 vapen har full premium-render här och returnar innan generic-loopen.
+  // Övriga vapen (sonic/plasma/tesla/etc) använder generic-render längre ner.
+  const muzz = (now - p.lastShot) < 80;
+  const muzzlePulse = muzz ? (1 - (now - p.lastShot) / 80) : 0;
+  function drawMuzzleFlash(mx, my, scale) {
+    const s = scale || 1;
+    ctx.save();
+    ctx.translate(mx, my);
+    // Yttre orange-gul puff
+    ctx.fillStyle = `rgba(255, 220, 100, ${muzzlePulse * 0.9})`;
+    ctx.beginPath();
+    const r1 = 5 * s + muzzlePulse * 3;
+    ctx.moveTo(r1, 0);
+    for (let i = 1; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const r = (i % 2 === 0 ? r1 : r1 * 0.55) * (0.9 + Math.random() * 0.2);
+      ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    ctx.closePath(); ctx.fill();
+    // Vit hot-core
+    ctx.fillStyle = `rgba(255,255,240,${muzzlePulse})`;
+    ctx.beginPath(); ctx.arc(0, 0, 2.5 * s, 0, Math.PI*2); ctx.fill();
+    ctx.restore();
+  }
+
+  // ─── KASTSTJÄRNOR ── 3 shuriken hållna mellan fingrar (fan-formation) ────
+  if (w.id === 'shuriken') {
+    const throwAnim = sinceShot < 200 ? (1 - sinceShot / 200) : 0;
+    // Tre shuriken fanas ut mellan finger-grepp
+    for (let i = 0; i < 3; i++) {
+      const fanAng = (i - 1) * 0.35 - throwAnim * 0.4; // sprids ut bakåt vid kast
+      const cx = p.r * 1.05 + i * 1.2 + throwAnim * 8;
+      const cy = (i - 1) * 3;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(fanAng + (now / 200) * 0.04); // subtil idle-rotation
+      // Skugga under shuriken
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath(); ctx.ellipse(0.5, 1.5, 5, 1.2, 0, 0, Math.PI*2); ctx.fill();
+      // 4-armad shuriken-form (polerat stål)
+      ctx.fillStyle = flash ? '#fff' : '#9aa0a8';
+      ctx.beginPath();
+      for (let a = 0; a < 4; a++) {
+        const ang = a * Math.PI / 2;
+        ctx.moveTo(0, 0);
+        ctx.lineTo(Math.cos(ang + 0.4) * 1.5, Math.sin(ang + 0.4) * 1.5);
+        ctx.lineTo(Math.cos(ang) * 4.5, Math.sin(ang) * 4.5);
+        ctx.lineTo(Math.cos(ang - 0.4) * 1.5, Math.sin(ang - 0.4) * 1.5);
+      }
+      ctx.closePath(); ctx.fill();
+      // Highlight (vit reflektion på en av armarna)
+      ctx.fillStyle = flash ? '#fff' : '#e0e4ea';
+      ctx.beginPath();
+      ctx.moveTo(0.5, -0.5); ctx.lineTo(3.5, -1.2); ctx.lineTo(0.5, 0); ctx.closePath(); ctx.fill();
+      // Center-hub (mörk cirkel)
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.beginPath(); ctx.arc(0, 0, 1.1, 0, Math.PI*2); ctx.fill();
+      // Center-glow (brons-ringer)
+      ctx.strokeStyle = flash ? '#fff' : '#4a3a20';
+      ctx.lineWidth = 0.4;
+      ctx.beginPath(); ctx.arc(0, 0, 1.8, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
+    }
+    // Finger-tip på toppen av första shuriken (visar greppet)
+    ctx.fillStyle = flash ? '#fff' : '#d2a07a';
+    ctx.beginPath(); ctx.arc(p.r * 0.95, -2.5, 1.5, 0, Math.PI*2); ctx.fill();
+    return;
+  }
+
+  // ─── PISTOL ── kompakt semi-auto silhuett (Glock-style) ──────────────────
+  if (w.id === 'pistol') {
+    const recoilBack = Math.max(0, recoil);
+    const slideOffset = muzzlePulse * -2; // slide kicks back when firing
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(p.r + 1, 3, 15, 1.5);
+    // Grip — vertikal grepp med textur
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r - 1 - recoilBack, 1, 4, 9);
+    // Grip-texture (checker stripes)
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(p.r - 0.5 - recoilBack, 2 + i * 2, 3, 0.6);
+    }
+    // Magazine base sticking out under grip
+    ctx.fillStyle = flash ? '#fff' : '#2a2a2a';
+    ctx.fillRect(p.r - 1 - recoilBack, 9.5, 4.5, 1.5);
+    // Trigger guard
+    ctx.strokeStyle = flash ? '#fff' : '#222';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(p.r + 3 - recoilBack, 3, 3, 0, Math.PI, false);
+    ctx.stroke();
+    // Trigger
+    ctx.strokeStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 2.5 - recoilBack, 3); ctx.lineTo(p.r + 2.5 - recoilBack, 5);
+    ctx.stroke();
+    // Slide (top half, dark grey)
+    ctx.fillStyle = flash ? '#fff' : '#2a2a30';
+    ctx.fillRect(p.r - 2 - recoilBack + slideOffset, -3, 18, 4.5);
+    // Slide-highlight (top edge)
+    ctx.fillStyle = flash ? '#fff' : '#4a4a52';
+    ctx.fillRect(p.r - 2 - recoilBack + slideOffset, -3, 18, 0.8);
+    // Slide serrations (back)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(p.r - 2 - recoilBack + slideOffset + i * 1.2, -2.5, 0.6, 3.5);
+    }
+    // Front sight (small post)
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.fillRect(p.r + 14 - recoilBack + slideOffset, -4.5, 1, 1.5);
+    // Rear sight (notch)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r - 1 - recoilBack + slideOffset, -4, 1.5, 1.2);
+    ctx.fillRect(p.r + 1.5 - recoilBack + slideOffset, -4, 1.5, 1.2);
+    // Barrel-hole vid mynningen (mörk cirkel)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.beginPath(); ctx.arc(p.r + 16 - recoilBack + slideOffset, 0, 1.2, 0, Math.PI*2); ctx.fill();
+    // Eject port (visible square when slide is back)
+    if (muzz) {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(p.r + 8 - recoilBack + slideOffset, -2.3, 4, 1.2);
+    }
+    // Muzzle flash
+    if (muzz) drawMuzzleFlash(p.r + 17 - recoilBack + slideOffset, 0, 0.9);
+    return;
+  }
+
+  // ─── BURST-PISTOL ── kompakt machine-pistol med utökad mag ───────────────
+  if (w.id === 'burstpistol') {
+    const recoilBack = Math.max(0, recoil);
+    const slideOffset = muzzlePulse * -2;
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillRect(p.r + 1, 3, 18, 1.5);
+    // Extended magazine (sticker längre ned + framåt-lutad)
+    ctx.fillStyle = flash ? '#fff' : '#2a2a2a';
+    ctx.beginPath();
+    ctx.moveTo(p.r - 1 - recoilBack, 1);
+    ctx.lineTo(p.r + 3 - recoilBack, 1);
+    ctx.lineTo(p.r + 4 - recoilBack, 13);
+    ctx.lineTo(p.r - 1.5 - recoilBack, 13);
+    ctx.closePath(); ctx.fill();
+    // Magazine highlight
+    ctx.fillStyle = flash ? '#fff' : '#4a4a4a';
+    ctx.fillRect(p.r - 0.5 - recoilBack, 1.5, 1, 11);
+    // Magazine viewing slot (vertikal linje med synliga rundor)
+    ctx.fillStyle = flash ? '#fff' : '#ffa040';
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(p.r + 1.5 - recoilBack, 3 + i * 1.8, 1.5, 1);
+    }
+    // Grip wrapping
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r - 1 - recoilBack, 0, 4, 2);
+    // Trigger guard + trigger
+    ctx.strokeStyle = flash ? '#fff' : '#222';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(p.r + 4 - recoilBack, 3, 3, 0, Math.PI, false);
+    ctx.stroke();
+    // Aggressive slide (orange tint)
+    ctx.fillStyle = flash ? '#fff' : '#3a2a1a';
+    ctx.fillRect(p.r - 2 - recoilBack + slideOffset, -3.5, 22, 5);
+    // Slide highlight (orange-gul edge)
+    ctx.fillStyle = flash ? '#fff' : '#ffae3a';
+    ctx.fillRect(p.r - 2 - recoilBack + slideOffset, -3.5, 22, 0.7);
+    // Heavy slide serrations (front + back)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(p.r - 1.5 - recoilBack + slideOffset + i * 1.2, -3, 0.6, 4);
+    }
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(p.r + 11 - recoilBack + slideOffset + i * 1.2, -3, 0.6, 4);
+    }
+    // Compensator (aggressive front muzzle device — orange)
+    ctx.fillStyle = flash ? '#fff' : '#ffae3a';
+    ctx.fillRect(p.r + 18 - recoilBack + slideOffset, -3, 3, 4.5);
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 19 - recoilBack + slideOffset, -2.5, 0.5, 3.5);
+    ctx.fillRect(p.r + 20 - recoilBack + slideOffset, -2.5, 0.5, 3.5);
+    // Sights
+    ctx.fillStyle = flash ? '#fff' : '#ffae3a';
+    ctx.fillRect(p.r + 16 - recoilBack + slideOffset, -5, 1.2, 1.6);
+    // Muzzle flash (intensivare orange)
+    if (muzz) drawMuzzleFlash(p.r + 22 - recoilBack + slideOffset, 0, 1.05);
+    return;
+  }
+
+  // ─── HAGELGEVÄR ── pump-action shotgun (Remington-style) ─────────────────
+  if (w.id === 'shotgun') {
+    const recoilBack = Math.max(0, recoil);
+    const pumpForward = muzzlePulse * 3; // pump action — rörlig efter skott
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(p.r + 1, 4, 24, 1.5);
+    // Wooden stock baktill (curved)
+    ctx.fillStyle = flash ? '#fff' : '#5a3818';
+    ctx.beginPath();
+    ctx.moveTo(p.r - 6 - recoilBack, -2.5);
+    ctx.lineTo(p.r + 2 - recoilBack, -1.5);
+    ctx.lineTo(p.r + 2 - recoilBack, 3);
+    ctx.lineTo(p.r - 5 - recoilBack, 5);
+    ctx.closePath(); ctx.fill();
+    // Stock highlight (top stripe)
+    ctx.fillStyle = flash ? '#fff' : '#7a4a20';
+    ctx.fillRect(p.r - 5 - recoilBack, -2, 6, 0.8);
+    // Receiver (mörk centralblock)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 1 - recoilBack, -3, 7, 6);
+    // Receiver-detalj (eject-port)
+    ctx.fillStyle = flash ? '#fff' : '#3a2a20';
+    ctx.fillRect(p.r + 2 - recoilBack, -2, 4, 2);
+    // Side-saddle (shell loops på sidan av receiver)
+    ctx.fillStyle = flash ? '#fff' : '#ff6b3d';
+    for (let i = 0; i < 3; i++) {
+      ctx.fillRect(p.r + 2 - recoilBack + i * 1.6, 0.5, 1, 2);
+    }
+    // Barrel (lång stål-pipa)
+    ctx.fillStyle = flash ? '#fff' : '#2a2a30';
+    ctx.fillRect(p.r + 7 - recoilBack, -2, 18, 4);
+    // Barrel-highlight (top edge)
+    ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+    ctx.fillRect(p.r + 7 - recoilBack, -2, 18, 0.7);
+    // Pump-handle under (rörlig)
+    ctx.fillStyle = flash ? '#fff' : '#3a2818';
+    ctx.fillRect(p.r + 7 - recoilBack + pumpForward, 1.5, 7, 2.5);
+    // Pump-handle grooves
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(p.r + 8 - recoilBack + pumpForward + i * 1.5, 1.7, 0.4, 2);
+    }
+    // Front bead sight
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.beginPath(); ctx.arc(p.r + 24 - recoilBack, -3, 1, 0, Math.PI*2); ctx.fill();
+    // Wide barrel-hole vid mynningen (dark)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.beginPath(); ctx.arc(p.r + 25 - recoilBack, 0, 2, 0, Math.PI*2); ctx.fill();
+    // Smoke trail efter skott
+    if (muzzlePulse > 0.4) {
+      ctx.fillStyle = `rgba(180,180,180,${muzzlePulse * 0.5})`;
+      ctx.beginPath(); ctx.arc(p.r + 27 - recoilBack, -1, 3 * muzzlePulse, 0, Math.PI*2); ctx.fill();
+    }
+    // Muzzle flash (bred, intensiv för shotgun)
+    if (muzz) drawMuzzleFlash(p.r + 26 - recoilBack, 0, 1.4);
+    return;
+  }
+
+  // ─── AUTOMATKARBIN ── AK-style med banana-mag, picatinny-rail, kompenserare
+  if (w.id === 'rifle') {
+    const recoilBack = Math.max(0, recoil);
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.28)';
+    ctx.fillRect(p.r + 1, 4.5, 28, 1.5);
+    // Collapsible stock baktill (kort, metall)
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(p.r - 7 - recoilBack, -1.5, 5, 3);
+    // Stock-buttplate
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r - 7.5 - recoilBack, -2, 1, 4);
+    // Receiver — kompakt metallblock
+    ctx.fillStyle = flash ? '#fff' : '#2a2a25';
+    ctx.fillRect(p.r - 2 - recoilBack, -2.5, 12, 5);
+    // Receiver highlight
+    ctx.fillStyle = flash ? '#fff' : '#4a4a40';
+    ctx.fillRect(p.r - 2 - recoilBack, -2.5, 12, 0.6);
+    // Banana-magazine (curved, distinkt AK-look)
+    ctx.fillStyle = flash ? '#fff' : '#1a3a1a';
+    ctx.beginPath();
+    ctx.moveTo(p.r - recoilBack, 2.5);
+    ctx.lineTo(p.r + 6 - recoilBack, 2.5);
+    ctx.lineTo(p.r + 7 - recoilBack, 9);
+    ctx.lineTo(p.r + 1 - recoilBack, 10);
+    ctx.closePath(); ctx.fill();
+    // Magazine highlight
+    ctx.fillStyle = flash ? '#fff' : '#5fd95f';
+    ctx.fillRect(p.r - recoilBack, 3, 0.8, 6);
+    // Magazine ribs
+    ctx.strokeStyle = flash ? '#fff' : '#0a1a0a';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 3; i++) {
+      ctx.beginPath();
+      ctx.moveTo(p.r + 1 - recoilBack, 4 + i * 1.5);
+      ctx.lineTo(p.r + 6 - recoilBack, 4 + i * 1.6);
+      ctx.stroke();
+    }
+    // Pistol-grip (under receiver)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(p.r - 1 - recoilBack, 2.5);
+    ctx.lineTo(p.r + 1.5 - recoilBack, 2.5);
+    ctx.lineTo(p.r + 0.5 - recoilBack, 7);
+    ctx.lineTo(p.r - 2 - recoilBack, 7);
+    ctx.closePath(); ctx.fill();
+    // Picatinny rail på toppen (med slots)
+    ctx.fillStyle = flash ? '#fff' : '#3a3a35';
+    ctx.fillRect(p.r - 1 - recoilBack, -4, 11, 1.5);
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(p.r - recoilBack + i * 2, -3.7, 0.6, 0.8);
+    }
+    // Iron-sights (front + rear)
+    ctx.fillStyle = flash ? '#fff' : '#5fd95f';
+    ctx.fillRect(p.r + 1 - recoilBack, -5.5, 1, 1.5); // rear sight
+    // Long barrel
+    ctx.fillStyle = flash ? '#fff' : '#2a2a30';
+    ctx.fillRect(p.r + 10 - recoilBack, -1.5, 16, 3);
+    // Barrel highlight
+    ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+    ctx.fillRect(p.r + 10 - recoilBack, -1.5, 16, 0.6);
+    // Gas-block (small bump on top of barrel)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 18 - recoilBack, -2.5, 2, 1.2);
+    // Front sight (post on gas-block)
+    ctx.fillStyle = flash ? '#fff' : '#5fd95f';
+    ctx.fillRect(p.r + 18.5 - recoilBack, -4, 1, 1.5);
+    // Muzzle device (4-prong compensator — AK-style)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 26 - recoilBack, -2.2, 3, 4.4);
+    ctx.fillStyle = flash ? '#fff' : '#2a2a30';
+    ctx.fillRect(p.r + 26 - recoilBack, -1.5, 3, 0.5);
+    ctx.fillRect(p.r + 26 - recoilBack, 1, 3, 0.5);
+    // Barrel-hole
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.beginPath(); ctx.arc(p.r + 29 - recoilBack, 0, 1.2, 0, Math.PI*2); ctx.fill();
+    // Muzzle flash
+    if (muzz) drawMuzzleFlash(p.r + 31 - recoilBack, 0, 1.1);
+    return;
+  }
+
+  // ─── PRICKSKYTTEGEVÄR ── precision-rifle med bipod, scope, muzzle-brake ──
+  if (w.id === 'sniper') {
+    const recoilBack = Math.max(0, recoil) * 0.5; // sniper kicks less visually
+    // Skugga
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(p.r + 1, 5, 34, 1.5);
+    // Trä-stock med cheek-riser
+    ctx.fillStyle = flash ? '#fff' : '#3a2418';
+    ctx.beginPath();
+    ctx.moveTo(p.r - 8 - recoilBack, -1.5);
+    ctx.lineTo(p.r + 4 - recoilBack, -0.5);
+    ctx.lineTo(p.r + 4 - recoilBack, 4);
+    ctx.lineTo(p.r - 7 - recoilBack, 5);
+    ctx.closePath(); ctx.fill();
+    // Cheek-riser ovanpå stock
+    ctx.fillStyle = flash ? '#fff' : '#2a1810';
+    ctx.fillRect(p.r - 6 - recoilBack, -3, 7, 2);
+    // Stock-highlight
+    ctx.fillStyle = flash ? '#fff' : '#5a3a20';
+    ctx.fillRect(p.r - 7 - recoilBack, -1, 11, 0.6);
+    // Receiver (lila tint för sniper-färgschema)
+    ctx.fillStyle = flash ? '#fff' : '#2a1f3a';
+    ctx.fillRect(p.r - 2 - recoilBack, -2, 10, 4.5);
+    // Receiver highlight (lila edge)
+    ctx.fillStyle = flash ? '#fff' : '#bb88ff';
+    ctx.fillRect(p.r - 2 - recoilBack, -2, 10, 0.5);
+    // Bolt handle (sticker ut åt sidan)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 3 - recoilBack, -4, 1.5, 2.5);
+    ctx.beginPath(); ctx.arc(p.r + 3.7 - recoilBack, -4.5, 1, 0, Math.PI*2); ctx.fill();
+    // Magazine (low-capacity)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 1 - recoilBack, 2, 4, 4);
+    // Trigger guard
+    ctx.strokeStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(p.r + 1 - recoilBack, 3, 1.8, 0, Math.PI, false);
+    ctx.stroke();
+    // Lång heavy barrel
+    ctx.fillStyle = flash ? '#fff' : '#1a1a20';
+    ctx.fillRect(p.r + 8 - recoilBack, -1.5, 22, 3);
+    // Barrel highlight
+    ctx.fillStyle = flash ? '#fff' : '#4a4a55';
+    ctx.fillRect(p.r + 8 - recoilBack, -1.5, 22, 0.6);
+    // Stor scope (med tubs + turrets)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 4 - recoilBack, -7, 14, 2.5);
+    // Scope-tubs (vänster + höger linser)
+    ctx.beginPath(); ctx.arc(p.r + 4 - recoilBack, -5.8, 2, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.r + 18 - recoilBack, -5.8, 2.2, 0, Math.PI*2); ctx.fill();
+    // Scope-glass (lila reflektion)
+    ctx.fillStyle = flash ? '#fff' : '#bb88ff';
+    ctx.beginPath(); ctx.arc(p.r + 18.3 - recoilBack, -6.2, 1.2, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.beginPath(); ctx.arc(p.r + 18.6 - recoilBack, -6.5, 0.5, 0, Math.PI*2); ctx.fill();
+    // Scope turrets (vertical + horizontal adjusters)
+    ctx.fillStyle = flash ? '#fff' : '#3a2a4a';
+    ctx.fillRect(p.r + 9 - recoilBack, -8.5, 2, 2);
+    ctx.fillRect(p.r + 13 - recoilBack, -7.5, 1.5, 1.2);
+    // Scope-mount rings (på toppen av receiver)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 5.5 - recoilBack, -5, 1, 3);
+    ctx.fillRect(p.r + 16 - recoilBack, -5, 1, 3);
+    // Bipod under barrel (V-shape)
+    ctx.strokeStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(p.r + 22 - recoilBack, 1.5);
+    ctx.lineTo(p.r + 20 - recoilBack, 7);
+    ctx.moveTo(p.r + 22 - recoilBack, 1.5);
+    ctx.lineTo(p.r + 24 - recoilBack, 7);
+    ctx.stroke();
+    // Bipod feet
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.fillRect(p.r + 19 - recoilBack, 6.5, 2, 1);
+    ctx.fillRect(p.r + 23 - recoilBack, 6.5, 2, 1);
+    // Muzzle-brake (slotted)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(p.r + 30 - recoilBack, -2, 4, 4);
+    ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.fillRect(p.r + 30 - recoilBack, -1.3, 4, 0.6);
+    ctx.fillRect(p.r + 30 - recoilBack, 0.7, 4, 0.6);
+    // Barrel-hole
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.beginPath(); ctx.arc(p.r + 34 - recoilBack, 0, 1.3, 0, Math.PI*2); ctx.fill();
+    // Muzzle flash (lila tint för sniper)
+    if (muzz) {
+      ctx.save();
+      ctx.translate(p.r + 36 - recoilBack, 0);
+      ctx.fillStyle = `rgba(187, 136, 255, ${muzzlePulse * 0.9})`;
+      ctx.beginPath();
+      ctx.moveTo(8, 0); ctx.lineTo(0, -4); ctx.lineTo(2, 0); ctx.lineTo(0, 4); ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = `rgba(255,255,255,${muzzlePulse})`;
+      ctx.beginPath(); ctx.arc(0, 0, 2.5, 0, Math.PI*2); ctx.fill();
       ctx.restore();
     }
     return;
@@ -25457,25 +25979,84 @@ function drawBullet(b) {
     return;
   }
   if (b.style === 'thrown') {
-    // Shuriken: 4-armed roterande kaststjärna
-    const rot = (performance.now() / 50);
+    // Shuriken: 4-armed roterande kaststjärna med polerad stål + brand-trail
+    // (w.burn = 2 → liten orange burn-effekt enligt weapons-data)
+    const rot = (performance.now() / 35);
+    // Motion-blur ghost (faint trail bakom)
+    const ang = Math.atan2(b.vy, b.vx);
+    ctx.save();
+    ctx.globalAlpha = 0.3;
+    ctx.translate(x - Math.cos(ang) * 6, y - Math.sin(ang) * 6);
+    ctx.rotate(rot - 0.4);
+    ctx.fillStyle = b.color || '#9aa0a8';
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a + 0.4) * b.r * 0.6, Math.sin(a + 0.4) * b.r * 0.6);
+      ctx.lineTo(Math.cos(a) * b.r * 2, Math.sin(a) * b.r * 2);
+      ctx.lineTo(Math.cos(a - 0.4) * b.r * 0.6, Math.sin(a - 0.4) * b.r * 0.6);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+    // Burn-trail (subtle orange smoke om burn-flagga)
+    if (b.burn) {
+      for (let t = 1; t <= 3; t++) {
+        const tx = x - Math.cos(ang) * t * 3;
+        const ty = y - Math.sin(ang) * t * 3;
+        ctx.fillStyle = `rgba(255, ${130 + Math.random()*50}, 40, ${0.35 / t})`;
+        ctx.beginPath(); ctx.arc(tx, ty, 1.5 - t * 0.3, 0, Math.PI*2); ctx.fill();
+      }
+    }
+    // Huvud-shuriken (full polish)
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rot);
-    ctx.fillStyle = b.color || '#cccccc';
+    // Skugga (kall ton under)
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
     for (let i = 0; i < 4; i++) {
-      ctx.save();
-      ctx.rotate(i * Math.PI / 2);
+      const a = i * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(0.5, 0.5);
+      ctx.lineTo(Math.cos(a + 0.4) * b.r * 0.6, Math.sin(a + 0.4) * b.r * 0.6);
+      ctx.lineTo(Math.cos(a) * b.r * 2.2 + 0.5, Math.sin(a) * b.r * 2.2 + 0.5);
+      ctx.lineTo(Math.cos(a - 0.4) * b.r * 0.6, Math.sin(a - 0.4) * b.r * 0.6);
+      ctx.closePath(); ctx.fill();
+    }
+    // Stål-blade (medel ton)
+    ctx.fillStyle = b.color || '#9aa0a8';
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2;
       ctx.beginPath();
       ctx.moveTo(0, 0);
-      ctx.lineTo(b.r * 0.6, b.r * 0.6);
-      ctx.lineTo(b.r * 2.2, 0);
-      ctx.lineTo(b.r * 0.6, -b.r * 0.6);
+      ctx.lineTo(Math.cos(a + 0.4) * b.r * 0.6, Math.sin(a + 0.4) * b.r * 0.6);
+      ctx.lineTo(Math.cos(a) * b.r * 2.2, Math.sin(a) * b.r * 2.2);
+      ctx.lineTo(Math.cos(a - 0.4) * b.r * 0.6, Math.sin(a - 0.4) * b.r * 0.6);
       ctx.closePath(); ctx.fill();
-      ctx.restore();
     }
-    ctx.fillStyle = '#444';
-    ctx.beginPath(); ctx.arc(0, 0, b.r * 0.4, 0, Math.PI*2); ctx.fill();
+    // Light-edge (vit highlight på ena sidan av varje arm)
+    ctx.fillStyle = '#e8eaee';
+    for (let i = 0; i < 4; i++) {
+      const a = i * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(Math.cos(a + 0.4) * b.r * 0.5, Math.sin(a + 0.4) * b.r * 0.5);
+      ctx.lineTo(Math.cos(a) * b.r * 2.15, Math.sin(a) * b.r * 2.15);
+      ctx.closePath(); ctx.fill();
+    }
+    // Center-hub: brons-ring med svart hål
+    ctx.fillStyle = '#5a3a1a';
+    ctx.beginPath(); ctx.arc(0, 0, b.r * 0.55, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(0, 0, b.r * 0.32, 0, Math.PI*2); ctx.fill();
+    // Glittrande spark vid spetsen av en arm (intermittent)
+    if (Math.random() < 0.3) {
+      const sa = Math.floor(Math.random() * 4) * Math.PI / 2;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(Math.cos(sa) * b.r * 2.1, Math.sin(sa) * b.r * 2.1, 0.8, 0, Math.PI*2);
+      ctx.fill();
+    }
     ctx.restore();
     return;
   }
@@ -25608,71 +26189,175 @@ function drawBullet(b) {
   // Per-vapen distinct rendering för basic guns (pistol/revolver/shotgun/etc).
   // Saknades innan så de föll i fallback. Nu varje vapen unikt:
   if (b.style === 'pistol' || b.style === 'revolver') {
-    // Liten gul rund med glow-kärna + längre tracer
+    // Brass-jacketed round med hot tip, tracer + skenande gnistor
     const c = b.color || '#ffd14a';
+    const ang = Math.atan2(b.vy, b.vx);
     ctx.save();
-    ctx.shadowColor = c; ctx.shadowBlur = 8;
+    // Lång tracer-svans (fade from full color to transparent)
+    const tailLen = 18;
+    const grad = ctx.createLinearGradient(x - Math.cos(ang) * tailLen, y - Math.sin(ang) * tailLen, x, y);
+    grad.addColorStop(0, 'rgba(255,209,74,0)');
+    grad.addColorStop(0.6, 'rgba(255,209,74,0.4)');
+    grad.addColorStop(1, 'rgba(255,240,180,1)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2.2; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - Math.cos(ang) * tailLen, y - Math.sin(ang) * tailLen);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    // Hot core — vit-gul kärna
+    ctx.shadowColor = c; ctx.shadowBlur = 10;
     ctx.fillStyle = c;
-    ctx.beginPath(); ctx.arc(x, y, b.r, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.1, 0, Math.PI*2); ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x, y, b.r * 0.45, 0, Math.PI*2); ctx.fill();
-    ctx.strokeStyle = c;
-    ctx.globalAlpha = 0.6; ctx.lineWidth = 2; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(x - b.vx * 0.035, y - b.vy * 0.035); ctx.lineTo(x, y); ctx.stroke();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.5, 0, Math.PI*2); ctx.fill();
+    // Spets-fram (mörk för kontrast)
+    ctx.fillStyle = '#5a3a18';
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(ang) * b.r * 0.7, y + Math.sin(ang) * b.r * 0.7, b.r * 0.35, 0, Math.PI*2);
+    ctx.fill();
     ctx.restore();
     return;
   }
   if (b.style === 'shotgun') {
-    // Hagel — med glow-kant + hot center
+    // Hagel-pellet: bly-sfär med hot orange edge + spark-trail
     const c = b.color || '#ff6b3d';
+    const ang = Math.atan2(b.vy, b.vx);
     ctx.save();
-    ctx.shadowColor = c; ctx.shadowBlur = 5;
+    // Kort spark-svans (random ribbon)
+    ctx.strokeStyle = `rgba(255, 170, 60, ${0.5 + Math.random() * 0.3})`;
+    ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x - Math.cos(ang) * 8, y - Math.sin(ang) * 8 + (Math.random() - 0.5));
+    ctx.lineTo(x, y);
+    ctx.stroke();
+    // Pellet-skugga (dark base)
+    ctx.fillStyle = '#3a1a08';
+    ctx.beginPath(); ctx.arc(x + 0.5, y + 0.5, b.r * 0.95, 0, Math.PI*2); ctx.fill();
+    // Glödande halvsfär (kropp)
+    ctx.shadowColor = c; ctx.shadowBlur = 7;
     ctx.fillStyle = c;
-    ctx.beginPath(); ctx.arc(x, y, b.r * 0.85, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.9, 0, Math.PI*2); ctx.fill();
     ctx.shadowBlur = 0;
-    ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x - 1, y - 1, 1.4, 0, Math.PI*2); ctx.fill();
+    // Hot center (vit-gul punkt)
+    ctx.fillStyle = '#fff8a0';
+    ctx.beginPath(); ctx.arc(x - 0.5, y - 0.5, b.r * 0.4, 0, Math.PI*2); ctx.fill();
     ctx.restore();
     return;
   }
   if (b.style === 'smg' || b.style === 'rifle') {
-    // Långsmal projektil med glow-hot-tail
+    // 5.56-tracer: lång grön-glödande streak med hot copper-jacketed spets
     const ang = Math.atan2(b.vy, b.vx);
-    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
-    ctx.shadowColor = b.color; ctx.shadowBlur = 6;
-    ctx.fillStyle = b.color;
-    ctx.fillRect(-b.r * 1.4, -b.r * 0.5, b.r * 2.8, b.r);
+    const isRifle = (b.style === 'rifle');
+    const c = b.color || (isRifle ? '#5fd95f' : '#88ccff');
+    ctx.save();
+    // Lång linjär tracer-trail med gradient
+    const tailLen = isRifle ? 26 : 18;
+    const tx = x - Math.cos(ang) * tailLen;
+    const ty = y - Math.sin(ang) * tailLen;
+    const grad = ctx.createLinearGradient(tx, ty, x, y);
+    grad.addColorStop(0, c.replace('rgb', 'rgba').replace(')', ',0)'));
+    grad.addColorStop(0.5, `rgba(95, 217, 95, 0.4)`);
+    grad.addColorStop(1, '#ffffff');
+    ctx.strokeStyle = isRifle ? grad : c;
+    ctx.lineWidth = 2.3; ctx.lineCap = 'round';
+    ctx.shadowColor = c; ctx.shadowBlur = 5;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty); ctx.lineTo(x, y);
+    ctx.stroke();
     ctx.shadowBlur = 0;
+    // Projektil-spets: avlång rektangel
+    ctx.translate(x, y); ctx.rotate(ang);
+    ctx.fillStyle = c;
+    ctx.shadowColor = c; ctx.shadowBlur = 6;
+    ctx.fillRect(-b.r * 1.2, -b.r * 0.5, b.r * 2.6, b.r);
+    ctx.shadowBlur = 0;
+    // Hot tip (vit)
     ctx.fillStyle = '#fff';
-    ctx.fillRect(b.r * 0.5, -b.r * 0.4, b.r * 0.9, b.r * 0.8);
+    ctx.fillRect(b.r * 0.8, -b.r * 0.45, b.r * 0.6, b.r * 0.9);
+    // Copper-jacket bas (mörkare bak)
+    ctx.fillStyle = '#3a5a3a';
+    ctx.fillRect(-b.r * 1.2, -b.r * 0.4, b.r * 0.5, b.r * 0.8);
     ctx.restore();
     return;
   }
   if (b.style === 'sniper') {
-    // Lång vit-blå tracer + glow
+    // Kinetisk energi-streak: lång vit-lila linje med chromatic edge + shockwave
     const ang = Math.atan2(b.vy, b.vx);
-    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
-    ctx.shadowColor = b.color || '#bb88ff'; ctx.shadowBlur = 12;
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(-b.r * 2.4, -1.8, b.r * 4.8, 3.6);
+    const c = b.color || '#bb88ff';
+    ctx.save();
+    // Yttre lila glow-streak (lång)
+    const tailLen = 60;
+    const tx = x - Math.cos(ang) * tailLen;
+    const ty = y - Math.sin(ang) * tailLen;
+    ctx.strokeStyle = c;
+    ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+    ctx.shadowColor = c; ctx.shadowBlur = 14;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty); ctx.lineTo(x, y);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    // Vit kärn-linje (smal, ljus)
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.8;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty); ctx.lineTo(x, y);
+    ctx.stroke();
     ctx.shadowBlur = 0;
-    // Inner core
-    ctx.fillStyle = b.color || '#bb88ff';
-    ctx.fillRect(-b.r * 1.0, -0.8, b.r * 2.5, 1.6);
+    // Spets-shockwave: avlång cirkel-glow vid head
+    ctx.translate(x, y); ctx.rotate(ang);
+    ctx.fillStyle = '#fff';
+    ctx.shadowColor = c; ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, b.r * 2.5, b.r * 1.2, 0, 0, Math.PI*2); ctx.fill();
+    ctx.shadowBlur = 0;
+    // Inner core (lila prick)
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.ellipse(-b.r * 0.3, 0, b.r * 0.8, b.r * 0.6, 0, 0, Math.PI*2); ctx.fill();
+    // Front bright tip
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(b.r * 0.8, 0, b.r * 0.5, 0, Math.PI*2); ctx.fill();
     ctx.restore();
     return;
   }
   if (b.style === 'burstpistol' || b.style === 'burst') {
-    // Orange burst-bullet med glow + vit kärna
+    // Burst-pistol: het orange jacketed-round med kraftig glow + tail
     const c = b.color || '#ffae3a';
+    const ang = Math.atan2(b.vy, b.vx);
     ctx.save();
-    ctx.shadowColor = c; ctx.shadowBlur = 6;
+    // Orange tracer-svans
+    const tailLen = 14;
+    const tx = x - Math.cos(ang) * tailLen;
+    const ty = y - Math.sin(ang) * tailLen;
+    const grad = ctx.createLinearGradient(tx, ty, x, y);
+    grad.addColorStop(0, 'rgba(255, 174, 58, 0)');
+    grad.addColorStop(1, 'rgba(255, 220, 120, 1)');
+    ctx.strokeStyle = grad;
+    ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(tx, ty); ctx.lineTo(x, y);
+    ctx.stroke();
+    // Yttre orange glow
+    ctx.shadowColor = c; ctx.shadowBlur = 12;
     ctx.fillStyle = c;
-    ctx.beginPath(); ctx.arc(x, y, b.r * 0.95, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, b.r * 1.15, 0, Math.PI*2); ctx.fill();
     ctx.shadowBlur = 0;
+    // Vit hot-kärna
     ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x, y, b.r * 0.4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, b.r * 0.55, 0, Math.PI*2); ctx.fill();
+    // Mini-spark (random ring runtom)
+    if (Math.random() < 0.4) {
+      ctx.strokeStyle = `rgba(255,140,40,${0.4 + Math.random() * 0.3})`;
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.arc(x, y, b.r * 1.8 + Math.random() * 1.5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
     ctx.restore();
     return;
   }
