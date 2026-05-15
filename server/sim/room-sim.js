@@ -1796,14 +1796,15 @@ function tickJuggernaut(sim, dt, now) {
     }
   }
 
-  // Match-end på timer
-  if (nowMs >= sim.juggernautEndAt) {
-    let winnerId = null, bestScore = -1;
-    for (const pid of Object.keys(sim.juggernautScores)) {
-      const s = sim.juggernautScores[pid];
-      if (s > bestScore) { bestScore = s; winnerId = pid; }
+  // Win-check: först till targetSec sekunder som JUG vinner.
+  // (Tidigare: matchen tog slut på timer + mest-JUG-tid vann. Bytt till
+  // "race-to-target" där match fortsätter tills någon når mål.)
+  const targetSec = sim.juggernautMatchDurationSec || 360;
+  for (const pid of Object.keys(sim.juggernautScores)) {
+    if (sim.juggernautScores[pid] >= targetSec) {
+      endJuggernautMatch(sim, pid, 'target_reached');
+      return;
     }
-    endJuggernautMatch(sim, winnerId, 'timer_expired');
   }
 }
 

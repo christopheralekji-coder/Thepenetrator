@@ -12286,7 +12286,7 @@ const MODE_OPTIONS = {
   juggernaut: {
     title: '👑 JUGGERNAUT — HUNT THE KING',
     desc: '1 spelare blir JUG (5× HP, +35% speed, valbart vapen). Hunters har bara pistol. Mest sek som JUG vinner.',
-    options: [{ key: 'juggernautMatchDurationSec', label: 'MATCHLÄNGD', values: [120, 360, 900], labels: ['⚡ 2 MIN BLITZ', '🔥 6 MIN STANDARD', '🐌 15 MIN MARATHON'], def: 360 }],
+    options: [{ key: 'juggernautMatchDurationSec', label: 'FÖRST TILL (TID SOM JUG)', values: [120, 360, 900], labels: ['⚡ 2 MIN', '🔥 6 MIN', '👑 15 MIN'], def: 360 }],
   },
   bots: {
     title: '🤖 BOTS — TRÄNA MOT AI',
@@ -12816,7 +12816,7 @@ function renderLobbyMatchInfo() {
   else if (cfg.juggernaut) {
     const sec = cfg.juggernautMatchDurationSec || 360;
     const min = Math.round(sec / 60);
-    target = min + ' min match';
+    target = min + ' min som JUG';
   }
   if (target) chips.push(`<span class="match-info-chip target">🎯 ${target}</span>`);
   // 3. Konvoj (story-mode only)
@@ -19210,17 +19210,10 @@ function destroyJuggernautEndOverlay() {
   if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
 }
 function updateJuggernautHud(scores, currentJug, matchEndAt, myId) {
-  // Guard: skippa stale events efter match-end (annars kan late score-update
-  // återställa scoreboarden bredvid den synliga end-screen-overlayen)
   if (!state.juggernautActive) return;
   ensureJuggernautHud();
-  // Match-timer countdown
-  const timerEl = document.getElementById('jug-timer');
-  if (timerEl && matchEndAt) {
-    const sec = Math.max(0, Math.ceil((matchEndAt - Date.now()) / 1000));
-    const m = Math.floor(sec / 60), s = sec % 60;
-    timerEl.textContent = '⏱ ' + m + ':' + (s < 10 ? '0' : '') + s;
-  }
+  // Target (sek som JUG för vinst) — bytte från timer-countdown till "race to target"
+  const targetSec = (Coop.config && Coop.config.juggernautMatchDurationSec) || 360;
   // Leaderboard: sortera på score (sek som JUG)
   const entries = Object.entries(scores || {})
     .map(([pid, sec]) => ({
@@ -19228,7 +19221,21 @@ function updateJuggernautHud(scores, currentJug, matchEndAt, myId) {
       name: pid === myId ? (Coop.myName || 'Du') : ((Coop.players.get(pid) && Coop.players.get(pid).name) || pid),
     }))
     .sort((a, b) => b.sec - a.sec);
-  // Top-3 leaderboard (var top-5 — för långt vid 10-mans match)
+  // Top-rad: visa LEADERN's progress mot target (mm:ss/mm:ss)
+  const timerEl = document.getElementById('jug-timer');
+  if (timerEl) {
+    const leader = entries[0];
+    if (leader) {
+      const lm = Math.floor(leader.sec / 60), ls = leader.sec % 60;
+      const tm = Math.floor(targetSec / 60), ts = targetSec % 60;
+      const fmt = (m, s) => m + ':' + (s < 10 ? '0' : '') + s;
+      timerEl.innerHTML = '🏆 ' + escapeHtml(leader.name) + '  ' + fmt(lm, ls) + ' / ' + fmt(tm, ts);
+      timerEl.style.color = leader.pid === myId ? '#5aff5a' : '#ffd54a';
+    } else {
+      timerEl.textContent = 'Mål: ' + Math.floor(targetSec / 60) + ' min som JUG';
+    }
+  }
+  // Top-3 leaderboard
   const boardEl = document.getElementById('jug-board');
   if (boardEl) {
     boardEl.innerHTML = entries.slice(0, 3).map((e, i) => {

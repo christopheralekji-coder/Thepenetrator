@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v318-bullet-muzzle-pickup-ctf-flag-minimap';
+const CACHE = 'penetrator-v319-jug-race-to-target';
 const ASSETS = [
   './',
   './index.html',
