@@ -6014,6 +6014,7 @@ window.addEventListener('keydown', (e) => {
 // Server-auth: skickar pvp_ability_shield till server som sätter invulnUntil.
 const PVP_SHIELD_DURATION_MS = 3000;
 const PVP_SHIELD_COOLDOWN_MS = 45000;
+const PVP_SHIELD_COOLDOWN_HUNTER_MS = 20000; // juggernaut-hunters har snabbare CD
 const _btnPvpShield = document.getElementById('btn-pvp-shield');
 function tryPvpShield() {
   const p = state.player;
@@ -6025,7 +6026,9 @@ function tryPvpShield() {
   // Tidigare gjorde (null || 0) + 45000 = 45000 vilket var > performance.now()
   // när sidan precis laddats → spelaren kunde inte använda shielden första
   // ~45s av matchen.
-  const cdEnd = p.pvpShieldCdAt == null ? 0 : (p.pvpShieldCdAt + PVP_SHIELD_COOLDOWN_MS);
+  // Juggernaut: hunter får 20s CD, JUG behåller 45s (bot/server enforcerar också)
+  const cdLength = (state.juggernautActive && !p.isJug) ? PVP_SHIELD_COOLDOWN_HUNTER_MS : PVP_SHIELD_COOLDOWN_MS;
+  const cdEnd = p.pvpShieldCdAt == null ? 0 : (p.pvpShieldCdAt + cdLength);
   if (cdEnd > now) {
     if (typeof showToast === 'function') {
       const remaining = Math.ceil((cdEnd - now) / 1000);
@@ -6110,6 +6113,16 @@ function openWeaponMenu() {
   // välja vapen själv. Visa en kort toast istället.
   if (state.gungameActive) {
     if (typeof showToast === 'function') showToast('🔫 GUNGAME — vapnet växlar via kills');
+    return;
+  }
+  // JUGGERNAUT: hunters har bara pistol, JUG väljer mellan 3 vapen
+  if (state.juggernautActive) {
+    if (!state.player || !state.player.isJug) {
+      if (typeof showToast === 'function') showToast('🔫 HUNTER — pistol bara, döda JUG för att ta över');
+      return;
+    }
+    // JUG-spelare: använd dedikerad picker med bara 3 vapen
+    showJuggernautWeaponPicker();
     return;
   }
   prevModeBeforeWeaponMenu = state.mode;
@@ -16393,7 +16406,6 @@ function showKothEndScreen(winnerId, stats) {
 // Visar: nuvarande JUG + match-timer + top-3 scores.
 let _juggernautHud = null;
 let _juggernautKillFeedEl = null;
-let _juggernautWeaponBtn = null;
 function ensureJuggernautHud() {
   if (_juggernautHud) return;
   _juggernautHud = document.createElement('div');
@@ -16405,18 +16417,46 @@ function ensureJuggernautHud() {
   _juggernautKillFeedEl.id = 'juggernaut-killfeed';
   _juggernautKillFeedEl.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top, 0px) + 110px);right:max(12px, env(safe-area-inset-right, 12px));width:min(260px, calc(100vw - 24px - env(safe-area-inset-right, 0px)));display:flex;flex-direction:column;gap:3px;z-index:51;pointer-events:none;';
   document.body.appendChild(_juggernautKillFeedEl);
-  // Weapon-switch-knapp använder befintlig action-btn i index.html (samma stil
-  // som shield/dash). Wire up onTap-handler en gång.
-  _juggernautWeaponBtn = document.getElementById('btn-juggernaut-weapon');
-  if (_juggernautWeaponBtn && !_juggernautWeaponBtn._wired) {
-    _juggernautWeaponBtn._wired = true;
-    const onTapJug = (e) => {
-      if (e) { e.preventDefault(); e.stopPropagation(); }
-      tryJuggernautCycleWeapon();
-    };
-    _juggernautWeaponBtn.addEventListener('pointerdown', onTapJug);
-    _juggernautWeaponBtn.addEventListener('touchstart', onTapJug, { passive: false });
+  // Vapen-byte sker via existerande btn-weapon-menu under minimapen — ingen
+  // dedikerad knapp behövs. openWeaponMenu() routar JUG till weapon-picker.
+}
+
+// showJuggernautWeaponPicker — visar 3 stora ikoner (AK/Shotgun/Sledge)
+// när JUG-spelaren öppnar vapen-menyn. Klick → skicka val till server.
+function showJuggernautWeaponPicker() {
+  let picker = document.getElementById('juggernaut-weapon-picker');
+  if (!picker) {
+    picker = document.createElement('div');
+    picker.id = 'juggernaut-weapon-picker';
+    picker.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:120;padding:max(20px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));';
+    picker.innerHTML = '<div style="background:#181818;border:2px solid #ffd54a;border-radius:12px;padding:20px;max-width:480px;width:100%;color:#fff;text-align:center;"><h2 style="color:#ffd54a;margin:0 0 14px;font-size:18px;letter-spacing:2px;">👑 VÄLJ JUG-VAPEN</h2><div id="jug-weapon-options" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;"></div><button id="jug-weapon-cancel" style="background:#444;color:#fff;border:0;padding:10px 22px;border-radius:6px;font-weight:900;letter-spacing:1px;cursor:pointer;min-height:44px;">↩ STÄNG</button></div>';
+    document.body.appendChild(picker);
+    document.getElementById('jug-weapon-cancel').addEventListener('click', () => picker.classList.add('hidden'));
   }
+  // Bygg om alternativen varje gång (visar nuvarande val markerat)
+  const optsEl = document.getElementById('jug-weapon-options');
+  if (optsEl) {
+    optsEl.innerHTML = '';
+    const weapons = Coop.juggernautWeapons || ['rifle', 'shotgun', 'sledge'];
+    const current = state.player && state.player.weaponId;
+    for (const wid of weapons) {
+      const w = W_BY_ID[wid];
+      if (!w) continue;
+      const icon = wid === 'rifle' ? '🔫' : (wid === 'shotgun' ? '💥' : (wid === 'sledge' ? '🔨' : '🔫'));
+      const isCur = (wid === current);
+      const btn = document.createElement('button');
+      btn.style.cssText = 'background:' + (isCur ? '#ffd54a' : '#2a2a2a') + ';color:' + (isCur ? '#000' : '#ffd54a') + ';border:2px solid #ffd54a;border-radius:10px;padding:18px 14px;min-width:120px;min-height:120px;font-size:36px;font-weight:900;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;';
+      btn.innerHTML = '<span>' + icon + '</span><span style="font-size:13px;letter-spacing:1px;">' + (w.name || wid).toUpperCase() + '</span>' + (isCur ? '<span style="font-size:10px;color:#000;">✓ AKTIV</span>' : '');
+      btn.addEventListener('click', () => {
+        if (Coop.ws && Coop.ws.readyState === 1) {
+          try { Coop.ws.send(JSON.stringify({ type: 'juggernaut_weapon_change', weaponId: wid })); } catch (_) {}
+        }
+        picker.classList.add('hidden');
+      });
+      optsEl.appendChild(btn);
+    }
+  }
+  picker.classList.remove('hidden');
 }
 function showJuggernautHud() {
   ensureJuggernautHud();
@@ -16425,7 +16465,8 @@ function showJuggernautHud() {
 function hideJuggernautHud() {
   if (_juggernautHud) _juggernautHud.style.display = 'none';
   if (_juggernautKillFeedEl) _juggernautKillFeedEl.innerHTML = '';
-  if (_juggernautWeaponBtn) _juggernautWeaponBtn.classList.add('hidden');
+  const picker = document.getElementById('juggernaut-weapon-picker');
+  if (picker) picker.classList.add('hidden');
 }
 function updateJuggernautHud(scores, currentJug, matchEndAt, myId) {
   ensureJuggernautHud();
@@ -16451,34 +16492,16 @@ function updateJuggernautHud(scores, currentJug, matchEndAt, myId) {
       name: pid === myId ? (Coop.myName || 'Du') : ((Coop.players.get(pid) && Coop.players.get(pid).name) || pid),
     }))
     .sort((a, b) => b.sec - a.sec);
+  // Top-3 leaderboard (var top-5 — för långt vid 10-mans match)
   const boardEl = document.getElementById('jug-board');
   if (boardEl) {
-    boardEl.innerHTML = entries.slice(0, 5).map((e, i) => {
+    boardEl.innerHTML = entries.slice(0, 3).map((e, i) => {
       const color = e.pid === myId ? '#5aff5a' : '#aaa';
-      return '<span style="color:' + color + ';">' + (i + 1) + '. ' + escapeHtml(e.name) + ' ' + e.sec + 's</span>';
+      const m = Math.floor(e.sec / 60), s = e.sec % 60;
+      const time = m > 0 ? m + ':' + (s < 10 ? '0' : '') + s : e.sec + 's';
+      const rank = i === 0 ? '🥇' : (i === 1 ? '🥈' : '🥉');
+      return '<span style="color:' + color + ';">' + rank + ' ' + escapeHtml(e.name) + ' ' + time + '</span>';
     }).join('  ');
-  }
-  // Visa/dölj weapon-switch-knapp baserat på om jag är JUG (samma .hidden-mönster
-  // som btn-pvp-shield så styling matchar exakt övriga action-btns).
-  if (_juggernautWeaponBtn) {
-    const iAmJug = (currentJug === myId);
-    _juggernautWeaponBtn.classList.toggle('hidden', !iAmJug);
-    if (iAmJug && state.player) {
-      const wid = state.player.weaponId;
-      const icon = wid === 'rifle' ? '🔫' : (wid === 'shotgun' ? '💥' : (wid === 'sledge' ? '🔨' : '🔫'));
-      _juggernautWeaponBtn.textContent = icon;
-    }
-  }
-}
-function tryJuggernautCycleWeapon() {
-  if (!Coop.juggernautActive || Coop.juggernautPid !== Coop.myId) return;
-  const weapons = Coop.juggernautWeapons || ['rifle', 'shotgun', 'sledge'];
-  const cur = state.player && state.player.weaponId;
-  const curIdx = weapons.indexOf(cur);
-  const nextIdx = (curIdx + 1) % weapons.length;
-  const nextWeapon = weapons[nextIdx];
-  if (Coop.ws && Coop.ws.readyState === 1) {
-    try { Coop.ws.send(JSON.stringify({ type: 'juggernaut_weapon_change', weaponId: nextWeapon })); } catch (_) {}
   }
 }
 function addJuggernautKillFeed(killerName, victimName, weaponName, wasJugKilled) {
@@ -16581,15 +16604,23 @@ function showJuggernautEndScreen(winnerId, stats) {
   if (_rematchBtn) _rematchBtn.classList.toggle('hidden', !Coop.isHost);
 }
 
-// drawJuggernautArrows — JUG-spelaren ser off-screen-pilar mot alla hunters.
-// Hunters ser ingen pil mot JUG (men minimap-puls renderas separat).
+// drawJuggernautArrows — JUG-spelaren ser off-screen-pilar mot hunters
+// INOM 1800px (var: alla hunters alltid → för omniscient). Bortom 1800px får
+// JUG inga ledtrådar utöver minimap (samma rättvisa info-budget för båda sidor).
+// Hunters ser ingen pil mot JUG (minimap-puls renderas separat).
 function drawJuggernautArrows() {
   if (!state.juggernautActive) return;
   if (!state.player || state.player.hp <= 0 || !state.player.isJug) return;
   const cx = viewW / 2, cy = viewH / 2;
+  const ARROW_RANGE = 1800;
+  const ARROW_RANGE_SQ = ARROW_RANGE * ARROW_RANGE;
   for (const [pid, partner] of Coop.players) {
     if (!partner || partner.hp <= 0 || partner.x === undefined) continue;
     if (partner.isJug) continue; // skippa andra JUG (kan inte hända men säkerhet)
+    // Range-check i världs-koordinater — JUG ser inte hela banan, bara fiender
+    // i medeldistans. Hunters som gömmer sig längre bort förblir oupptäckta.
+    const wdx = partner.x - state.player.x, wdy = partner.y - state.player.y;
+    if (wdx * wdx + wdy * wdy > ARROW_RANGE_SQ) continue;
     const px = partner.x - state.camera.x;
     const py = partner.y - state.camera.y;
     // Bara off-screen
@@ -16718,10 +16749,11 @@ function updateHUD() {
       // Aktivt (3s immunitet) — visa som "0 = nyss aktiverad" så ring är mörk
       shieldCd = 0;
     } else if (p.pvpShieldCdAt != null) {
-      const cdEnd = p.pvpShieldCdAt + PVP_SHIELD_COOLDOWN_MS;
+      const _cdLen = (state.juggernautActive && !p.isJug) ? PVP_SHIELD_COOLDOWN_HUNTER_MS : PVP_SHIELD_COOLDOWN_MS;
+      const cdEnd = p.pvpShieldCdAt + _cdLen;
       if (now < cdEnd) {
-        // Cooldown: 0 → 1 över 45s. Mörk del krymper i conic-gradient.
-        shieldCd = 1 - (cdEnd - now) / PVP_SHIELD_COOLDOWN_MS;
+        // Cooldown: 0 → 1 över _cdLen. Mörk del krymper i conic-gradient.
+        shieldCd = 1 - (cdEnd - now) / _cdLen;
       }
     }
     _btnPvpShield.style.setProperty('--shield-cd', shieldCd);
@@ -16818,8 +16850,9 @@ function updatePvpShieldButton() {
   // Cooldown-ring: full (1.0) när inte använd än, krymper efter aktivering.
   let cd = 1;
   if (state.player.pvpShieldCdAt != null) {
+    const _cdLen = (state.juggernautActive && !state.player.isJug) ? PVP_SHIELD_COOLDOWN_HUNTER_MS : PVP_SHIELD_COOLDOWN_MS;
     const elapsed = performance.now() - state.player.pvpShieldCdAt;
-    cd = elapsed >= PVP_SHIELD_COOLDOWN_MS ? 1 : Math.max(0, elapsed / PVP_SHIELD_COOLDOWN_MS);
+    cd = elapsed >= _cdLen ? 1 : Math.max(0, elapsed / _cdLen);
   }
   if (Math.abs(cd - _lastShieldCdSet) < 0.01) return;
   _lastShieldCdSet = cd;

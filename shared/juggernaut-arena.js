@@ -202,7 +202,7 @@ const JUGGERNAUT_ARENA = {
   jugHpPerHunter: 100,
   jugSpeedMul: 1.35,
   jugScale: 1.8,
-  jugDashCdMs: 1500,              // 1.5s (var 1s — gav oändlig kiting). Hunter ~3s.
+  jugDashCdMs: 1000,              // 1s — JUG samma som hunter (i praktiken liknande utfall)
   hunterDmgVsJugMul: 1.0,         // ingen damage-bonus (5× HP + skalning hanterar balansen)
   hunterWeapon: 'pistol',
   minimapPulseIntervalMs: 5000,   // hunters ser JUG på minimap var 5s

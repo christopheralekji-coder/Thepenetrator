@@ -759,7 +759,12 @@ function handleMessage(ws, msg) {
     if (!ws.playerState || ws.playerState.hp <= 0) return;
     const now = Date.now();
     const SHIELD_DURATION = 3000;
-    const SHIELD_COOLDOWN = 45000;
+    // Juggernaut: JUG har 45s CD, hunters 20s CD. Andra modes: 45s standard.
+    let SHIELD_COOLDOWN = 45000;
+    if (room.sim.juggernautActive) {
+      const isJug = ws.playerState.isJug;
+      SHIELD_COOLDOWN = isJug ? 45000 : 20000;
+    }
     if (ws._lastShieldUseAt && now - ws._lastShieldUseAt < SHIELD_COOLDOWN) return; // cooldown
     ws._lastShieldUseAt = now;
     // Sätter invulnUntil — bullets.js/explode kollar redan denna
@@ -769,6 +774,7 @@ function handleMessage(ws, msg) {
       type: 'pvp_shield_used',
       peerId: ws.id,
       durationMs: SHIELD_DURATION,
+      cooldownMs: SHIELD_COOLDOWN, // klient använder för CD-ring
     });
     return;
   }
