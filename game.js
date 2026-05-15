@@ -7069,6 +7069,16 @@ const Coop = {
       this.ctfActive = false; this.siegeActive = false; this.gungameActive = false; this.kothActive = false; this.juggernautActive = false;
       state.ctfActive = false; state.siegeActive = false; state.gungameActive = false; state.kothActive = false; state.juggernautActive = false;
       state.kothZones = null; state.kothWalls = null; state.kothNextRotateAt = null;
+      state.juggernautWalls = null; state.juggernautDecorations = null;
+      state.juggernautMinimapPulse = null; state.juggernautPid = null;
+      // Reset ev. kvarvarande JUG-stats på spelaren (om vi byter från juggernaut)
+      if (state.player) {
+        state.player.isJug = false;
+        state.player.scaleMul = 1.0;
+        state.player.speedMul = 1.0;
+        state.player.dashCdMs = null;
+        if (state.player.maxHp > 100) state.player.maxHp = 100;
+      }
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
       state.companion = null;
       this.tdmActive = true;
@@ -7231,6 +7241,16 @@ const Coop = {
       this.tdmActive = false; this.siegeActive = false; this.gungameActive = false; this.kothActive = false; this.juggernautActive = false;
       state.tdmActive = false; state.siegeActive = false; state.gungameActive = false; state.kothActive = false; state.juggernautActive = false;
       state.kothZones = null; state.kothWalls = null; state.kothNextRotateAt = null;
+      state.juggernautWalls = null; state.juggernautDecorations = null;
+      state.juggernautMinimapPulse = null; state.juggernautPid = null;
+      // Reset ev. kvarvarande JUG-stats på spelaren (om vi byter från juggernaut)
+      if (state.player) {
+        state.player.isJug = false;
+        state.player.scaleMul = 1.0;
+        state.player.speedMul = 1.0;
+        state.player.dashCdMs = null;
+        if (state.player.maxHp > 100) state.player.maxHp = 100;
+      }
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
       state.companion = null;
       this.ctfActive = true;
@@ -7641,6 +7661,16 @@ const Coop = {
       this.tdmActive = false; this.ctfActive = false; this.gungameActive = false; this.kothActive = false; this.juggernautActive = false;
       state.tdmActive = false; state.ctfActive = false; state.gungameActive = false; state.kothActive = false; state.juggernautActive = false;
       state.kothZones = null; state.kothWalls = null; state.kothNextRotateAt = null;
+      state.juggernautWalls = null; state.juggernautDecorations = null;
+      state.juggernautMinimapPulse = null; state.juggernautPid = null;
+      // Reset ev. kvarvarande JUG-stats på spelaren (om vi byter från juggernaut)
+      if (state.player) {
+        state.player.isJug = false;
+        state.player.scaleMul = 1.0;
+        state.player.speedMul = 1.0;
+        state.player.dashCdMs = null;
+        if (state.player.maxHp > 100) state.player.maxHp = 100;
+      }
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
       state.companion = null;
       this.siegeActive = true;
@@ -7903,6 +7933,13 @@ const Coop = {
       if (typeof hideGungameHud === 'function') hideGungameHud();
       this.tdmActive = false; this.ctfActive = false; this.siegeActive = false; this.gungameActive = false; this.juggernautActive = false;
       state.tdmActive = false; state.ctfActive = false; state.siegeActive = false; state.gungameActive = false; state.juggernautActive = false;
+      state.juggernautWalls = null; state.juggernautDecorations = null;
+      state.juggernautMinimapPulse = null; state.juggernautPid = null;
+      if (state.player) {
+        state.player.isJug = false; state.player.scaleMul = 1.0;
+        state.player.speedMul = 1.0; state.player.dashCdMs = null;
+        if (state.player.maxHp > 100) state.player.maxHp = 100;
+      }
       state.companion = null;
       this.kothActive = true;
       state.kothActive = true;
@@ -8035,6 +8072,13 @@ const Coop = {
       if (typeof hideKothHud === 'function') hideKothHud();
       this.tdmActive = false; this.ctfActive = false; this.siegeActive = false; this.kothActive = false; this.juggernautActive = false;
       state.tdmActive = false; state.ctfActive = false; state.siegeActive = false; state.kothActive = false; state.juggernautActive = false;
+      state.juggernautWalls = null; state.juggernautDecorations = null;
+      state.juggernautMinimapPulse = null; state.juggernautPid = null;
+      if (state.player) {
+        state.player.isJug = false; state.player.scaleMul = 1.0;
+        state.player.speedMul = 1.0; state.player.dashCdMs = null;
+        if (state.player.maxHp > 100) state.player.maxHp = 100;
+      }
       state.companion = null; // ingen companion i PvP
       this.gungameActive = true;
       state.gungameActive = true;
@@ -8409,6 +8453,16 @@ const Coop = {
     } else if (ev.type === 'juggernaut_match_end') {
       this.juggernautActive = false;
       state.juggernautActive = false;
+      // Cleanup JUG-flaggor på spelaren så de inte läcker till nästa match
+      if (state.player) {
+        state.player.isJug = false;
+        state.player.scaleMul = 1.0;
+        state.player.speedMul = 1.0;
+        state.player.dashCdMs = null;
+        if (state.player.maxHp > 100) state.player.maxHp = 100;
+      }
+      state.juggernautMinimapPulse = null;
+      state.juggernautPid = null;
       const statsArr = [];
       if (ev.stats && ev.stats.perPlayer) {
         for (const pid of Object.keys(ev.stats.perPlayer)) {
@@ -9214,6 +9268,14 @@ const Coop = {
       state.juggernautDecorations = null;
       state.juggernautMinimapPulse = null;
       state.juggernautPid = null;
+      // Rensa JUG-flaggor på spelaren så de inte läcker till nästa run/mode
+      if (state.player) {
+        state.player.isJug = false;
+        state.player.scaleMul = 1.0;
+        state.player.speedMul = 1.0;
+        state.player.dashCdMs = null;
+        if (state.player.maxHp > 100) state.player.maxHp = 100;
+      }
       state.kothWalls = null;
       state.kothDecorations = null;
       state.kothZones = null;
@@ -16333,14 +16395,18 @@ function ensureJuggernautHud() {
   _juggernautKillFeedEl.id = 'juggernaut-killfeed';
   _juggernautKillFeedEl.style.cssText = 'position:fixed;top:50px;right:12px;width:260px;display:flex;flex-direction:column;gap:3px;z-index:51;pointer-events:none;';
   document.body.appendChild(_juggernautKillFeedEl);
-  // Weapon-switch-knapp (bara aktiv för JUG-spelaren — annars dold)
-  _juggernautWeaponBtn = document.createElement('button');
-  _juggernautWeaponBtn.id = 'juggernaut-weapon-btn';
-  _juggernautWeaponBtn.style.cssText = 'position:fixed;bottom:max(8px, calc(env(safe-area-inset-bottom, 0px) + 100px));right:12px;background:rgba(40,20,0,0.92);border:2px solid #ffd54a;border-radius:50%;width:64px;height:64px;color:#ffd54a;font-size:24px;font-weight:900;z-index:52;display:none;cursor:pointer;touch-action:manipulation;box-shadow:0 0 12px rgba(255,213,74,0.5);';
-  _juggernautWeaponBtn.innerHTML = '🔫';
-  _juggernautWeaponBtn.addEventListener('click', tryJuggernautCycleWeapon);
-  _juggernautWeaponBtn.addEventListener('touchstart', (e) => { e.preventDefault(); tryJuggernautCycleWeapon(); }, { passive: false });
-  document.body.appendChild(_juggernautWeaponBtn);
+  // Weapon-switch-knapp använder befintlig action-btn i index.html (samma stil
+  // som shield/dash). Wire up onTap-handler en gång.
+  _juggernautWeaponBtn = document.getElementById('btn-juggernaut-weapon');
+  if (_juggernautWeaponBtn && !_juggernautWeaponBtn._wired) {
+    _juggernautWeaponBtn._wired = true;
+    const onTapJug = (e) => {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      tryJuggernautCycleWeapon();
+    };
+    _juggernautWeaponBtn.addEventListener('pointerdown', onTapJug);
+    _juggernautWeaponBtn.addEventListener('touchstart', onTapJug, { passive: false });
+  }
 }
 function showJuggernautHud() {
   ensureJuggernautHud();
@@ -16349,7 +16415,7 @@ function showJuggernautHud() {
 function hideJuggernautHud() {
   if (_juggernautHud) _juggernautHud.style.display = 'none';
   if (_juggernautKillFeedEl) _juggernautKillFeedEl.innerHTML = '';
-  if (_juggernautWeaponBtn) _juggernautWeaponBtn.style.display = 'none';
+  if (_juggernautWeaponBtn) _juggernautWeaponBtn.classList.add('hidden');
 }
 function updateJuggernautHud(scores, currentJug, matchEndAt, myId) {
   ensureJuggernautHud();
@@ -16382,14 +16448,15 @@ function updateJuggernautHud(scores, currentJug, matchEndAt, myId) {
       return '<span style="color:' + color + ';">' + (i + 1) + '. ' + escapeHtml(e.name) + ' ' + e.sec + 's</span>';
     }).join('  ');
   }
-  // Visa/dölj weapon-switch-knapp baserat på om jag är JUG
+  // Visa/dölj weapon-switch-knapp baserat på om jag är JUG (samma .hidden-mönster
+  // som btn-pvp-shield så styling matchar exakt övriga action-btns).
   if (_juggernautWeaponBtn) {
     const iAmJug = (currentJug === myId);
-    _juggernautWeaponBtn.style.display = iAmJug ? 'block' : 'none';
+    _juggernautWeaponBtn.classList.toggle('hidden', !iAmJug);
     if (iAmJug && state.player) {
       const wid = state.player.weaponId;
       const icon = wid === 'rifle' ? '🔫' : (wid === 'shotgun' ? '💥' : (wid === 'sledge' ? '🔨' : '🔫'));
-      _juggernautWeaponBtn.innerHTML = icon;
+      _juggernautWeaponBtn.textContent = icon;
     }
   }
 }

@@ -1633,6 +1633,8 @@ function tickJuggernaut(sim, dt, now) {
 
   // Respawn hunters (3s gungame-style, roterande spawn). JUG respawnar inte —
   // när JUG dör händer transferJug + ny JUG spawnar direkt på dödsplatsen.
+  // Specialfall: om bot dödade förra JUG har sim._juggernautAwaitFirstRespawn
+  // satts. Då blir den första humanen som respawnar ny JUG (istället för dmg-leaders).
   for (const [pid, ws] of sim.room.members) {
     if (ws.tdmRespawnAt && nowMs >= ws.tdmRespawnAt) {
       ws.tdmRespawnAt = 0;
@@ -1654,8 +1656,17 @@ function tickJuggernaut(sim, dt, now) {
         sim._juggernautSpawnIdx++;
         ws.playerState.x = sp.x;
         ws.playerState.y = sp.y;
-        applyHunterStats(sim, ws);
-        ws.playerState.invulnUntil = nowMs + 1500;
+        // First-respawn-after-bot-kill = blir JUG istället för hunter
+        const becomesJug = sim._juggernautAwaitFirstRespawn && !ws._isBot;
+        if (becomesJug) {
+          sim._juggernautAwaitFirstRespawn = false;
+          // Aktivera JUG-stats + transfer
+          transferJug(sim, pid, 'bot_killed_jug_first_respawn');
+          // transferJug har redan satt invulnUntil + applyJugStats
+        } else {
+          applyHunterStats(sim, ws);
+          ws.playerState.invulnUntil = nowMs + 1500;
+        }
         if (ws._bot) {
           ws._bot.target = null;
           ws._bot.lastShotAt = 0;
@@ -1666,7 +1677,7 @@ function tickJuggernaut(sim, dt, now) {
           peerId: pid,
           x: ws.playerState.x, y: ws.playerState.y,
           hp: ws.playerState.hp, shield: ws.playerState.shield,
-          isJug: false,
+          isJug: becomesJug,
         });
       }
     }
@@ -1768,23 +1779,19 @@ function handleJuggernautKill(sim, killerPid, killerWs, victimPid, victimWs, wea
     wasJugKilled,
   });
   if (wasJugKilled) {
-    // JUG dog. Bot kan inte bli JUG → human med högst dmg vinner rollen.
+    // JUG dog. Bot kan inte bli JUG.
     sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
     victimWs.tdmRespawnAt = Date.now() + 3000;
     sim.eventQueue.push({ type: 'juggernaut_player_died', victim: victimPid, durationMs: 3000, wasJug: true });
     let newJugPid;
     if (killerWs && !killerWs._isBot) {
+      // Human killer → de blir ny JUG direkt
       newJugPid = killerPid;
     } else {
-      // Bot dödade JUG → human med högst ackumulerad dmg vinner
-      let bestPid = null, bestDmg = -1;
-      for (const pid of Object.keys(sim.juggernautDmgToJug)) {
-        const ws = sim.room.members.get(pid);
-        if (!ws || ws._isBot) continue;
-        const d = sim.juggernautDmgToJug[pid];
-        if (d > bestDmg) { bestDmg = d; bestPid = pid; }
-      }
-      newJugPid = bestPid || pickRandomHumanHunter(sim, victimPid);
+      // Bot dödade JUG → "första hunter som respawnar" blir JUG.
+      // Markera flagga; tickJuggernaut plockar upp första respawn-event.
+      sim.juggernautPid = null;
+      sim._juggernautAwaitFirstRespawn = true;
     }
     if (newJugPid) {
       // Spawn ny JUG på dödsplatsen
@@ -1794,8 +1801,6 @@ function handleJuggernautKill(sim, killerPid, killerWs, victimPid, victimWs, wea
         newWs.playerState.y = victimWs.playerState.y;
       }
       transferJug(sim, newJugPid, 'jug_killed');
-    } else {
-      sim.juggernautPid = null;
     }
   } else {
     // Hunter dödad — vanlig respawn
@@ -2156,7 +2161,18 @@ function startSim(sim, opts) {
       });
     }
   }
-  console.log('[SIM]', sim.room.code, 'started mode=' + (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode)) + ' diff=' + sim.config.difficulty + (opts && opts.addBot ? ' +bot' : ''));
+  console.log('[SIM]', sim.room.code, 'started mode=' + (sim.juggernautActive ? 'juggernaut' : (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode))) + ' diff=' + sim.config.difficulty + (opts && opts.addBot ? ' +bot' : ''));
+  // Anti-mode-leakage: rensa JUG-flaggor från ev. förra match på alla members.
+  // Annars kan en spelare som var JUG i förra rundan behålla isJug=true / scaleMul=1.8
+  // / speedMul=1.35 / dashCdMs=1000 / maxHp=500 in i nästa mode.
+  for (const [, ws] of sim.room.members) {
+    if (!ws.playerState) continue;
+    ws.playerState.isJug = false;
+    ws.playerState.scaleMul = 1.0;
+    ws.playerState.speedMul = 1.0;
+    ws.playerState.dashCdMs = null;
+    if (ws.playerState.maxHp > 100) ws.playerState.maxHp = 100;
+  }
   if (sim.ctfActive) {
     // CTF: dedikerad arena (4500×2800 med walls). Symmetrisk röd/blå.
     sim.simReadyAt = Date.now() + 5000;

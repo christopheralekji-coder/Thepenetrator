@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v289-juggernaut-mode';
+const CACHE = 'penetrator-v290-juggernaut-polish-bot-respawn-jug';
 const ASSETS = [
   './',
   './index.html',
