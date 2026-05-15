@@ -12655,6 +12655,30 @@ const WEAPON_ICON_SVGS = {
     +   '<rect x="22" y="10.2" width="2" height="0.5" fill="#2a2a30"/>'
     +   '<rect x="22" y="12" width="2" height="0.5" fill="#2a2a30"/>'
     + '</svg>',
+  sledge: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="11" y="9" width="2" height="13" fill="#5a3a18"/>'
+    +   '<line x1="11.3" y1="10" x2="12.7" y2="21" stroke="#3a2208" stroke-width="0.3"/>'
+    +   '<line x1="11.7" y1="10" x2="13" y2="21" stroke="#3a2208" stroke-width="0.3"/>'
+    +   '<rect x="11" y="9" width="2" height="0.6" fill="#7a5028"/>'
+    +   '<rect x="11" y="17" width="2" height="5" fill="#1a1a1a"/>'
+    +   '<line x1="11" y1="17.5" x2="13" y2="18.3" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="11" y1="19" x2="13" y2="19.8" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<line x1="11" y1="20.5" x2="13" y2="21.3" stroke="#3a3a3a" stroke-width="0.3"/>'
+    +   '<rect x="10" y="5" width="4" height="4" fill="#2a2a2a"/>'
+    +   '<rect x="3" y="1" width="18" height="8" fill="#3a3a40"/>'
+    +   '<rect x="3" y="1" width="18" height="6.5" fill="#6a6a70"/>'
+    +   '<rect x="3" y="1" width="3" height="8" fill="#4a4a50"/>'
+    +   '<rect x="18" y="1" width="3" height="8" fill="#4a4a50"/>'
+    +   '<rect x="3.8" y="2" width="13.4" height="1.6" fill="#9a9aa2"/>'
+    +   '<rect x="3.8" y="1.3" width="13.4" height="0.6" fill="#c0c0c8"/>'
+    +   '<circle cx="7" cy="4" r="0.85" fill="#1a1a1a"/>'
+    +   '<circle cx="7" cy="6.2" r="0.85" fill="#1a1a1a"/>'
+    +   '<circle cx="17" cy="4" r="0.85" fill="#1a1a1a"/>'
+    +   '<circle cx="17" cy="6.2" r="0.85" fill="#1a1a1a"/>'
+    +   '<circle cx="6.8" cy="3.8" r="0.3" fill="#5a5a60"/>'
+    +   '<circle cx="16.8" cy="3.8" r="0.3" fill="#5a5a60"/>'
+    + '</svg>',
   sniper: ''
     + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
     +   '<path d="M0.5 11 L4.5 10 L4.5 14 L0.5 14 Z" fill="#3a2418"/>'
@@ -23409,13 +23433,90 @@ function drawPlayerWeapon(p, w, flash, now) {
       ctx.closePath(); ctx.fill();
       ctx.restore();
     } else if (w.style === 'sledge') {
-      const swing = slashAnim * 1.5;
-      ctx.save(); ctx.rotate(-0.8 + swing);
+      // Premium sledgehammer: trä-skaft med grain + tape-grepp, dubbelsidig stål-huvud
+      // med bolt-detaljer, highlight, skugga. Tung slow-swing.
+      const swing = slashAnim * 1.6;
+      ctx.save(); ctx.rotate(-0.85 + swing);
+      // Motion-blur trail när swing pågår
+      if (slashAnim > 0.3) {
+        ctx.strokeStyle = `rgba(255,255,255,${slashAnim * 0.4})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(0, 0, p.r * 2.3, -0.5 - slashAnim * 0.4, -0.5);
+        ctx.stroke();
+      }
+      // Trä-skaft (varmt brun-ton, med grain)
+      ctx.fillStyle = flash ? '#fff' : '#5a3a18';
+      ctx.fillRect(p.r * 0.55, -2.5, p.r * 1.5, 5);
+      // Grain-linjer på skaft
+      ctx.strokeStyle = flash ? '#fff' : '#3a2208';
+      ctx.lineWidth = 0.4;
+      ctx.beginPath();
+      ctx.moveTo(p.r * 0.6, -1.2); ctx.lineTo(p.r * 2.0, -1.4);
+      ctx.moveTo(p.r * 0.6, 0); ctx.lineTo(p.r * 2.0, 0.1);
+      ctx.moveTo(p.r * 0.6, 1.2); ctx.lineTo(p.r * 2.0, 1.1);
+      ctx.stroke();
+      // Skaft-skugga (undersidan)
+      ctx.fillStyle = flash ? '#fff' : '#3a2208';
+      ctx.fillRect(p.r * 0.55, 1.5, p.r * 1.5, 1);
+      // Skaft-highlight (översidan)
+      ctx.fillStyle = flash ? '#fff' : '#7a5028';
+      ctx.fillRect(p.r * 0.55, -2.5, p.r * 1.5, 0.6);
+      // Tape-grepp baktill (svart med diagonal-mönster)
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.fillRect(p.r * 0.55, -2.8, p.r * 0.45, 5.6);
       ctx.strokeStyle = flash ? '#fff' : '#3a3a3a';
-      ctx.lineWidth = 5;
-      ctx.beginPath(); ctx.moveTo(p.r * 0.7, 0); ctx.lineTo(p.r * 2.1, 0); ctx.stroke();
-      ctx.fillStyle = flash ? '#fff' : '#888';
-      ctx.fillRect(p.r * 1.95, -10, 14, 20);
+      ctx.lineWidth = 0.4;
+      for (let i = 0; i < 4; i++) {
+        const gx = p.r * 0.6 + i * (p.r * 0.45 / 4);
+        ctx.beginPath();
+        ctx.moveTo(gx, -2.8); ctx.lineTo(gx + 0.8, 2.8);
+        ctx.stroke();
+      }
+      // Wedge (liten kil där skaft möter huvudet — mörk metall)
+      ctx.fillStyle = flash ? '#fff' : '#2a2a2a';
+      ctx.fillRect(p.r * 1.95, -4, 3, 8);
+      // STÅL-HUVUD: stor dubbel-sidig rektangulär block
+      // Skugga under huvudet
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(p.r * 2.0, 11, 18, 2);
+      // Huvud-bas (mörk grå)
+      ctx.fillStyle = flash ? '#fff' : '#3a3a40';
+      ctx.fillRect(p.r * 2.0, -11, 18, 22);
+      // Huvud-mid (medel grå)
+      ctx.fillStyle = flash ? '#fff' : '#6a6a70';
+      ctx.fillRect(p.r * 2.0, -9, 18, 18);
+      // Vänster ände (mörkare för djup)
+      ctx.fillStyle = flash ? '#fff' : '#4a4a50';
+      ctx.fillRect(p.r * 2.0, -11, 3, 22);
+      // Höger ände (mörkare)
+      ctx.fillStyle = flash ? '#fff' : '#4a4a50';
+      ctx.fillRect(p.r * 2.0 + 15, -11, 3, 22);
+      // Highlight (vit reflektion på övre halvan)
+      ctx.fillStyle = flash ? '#fff' : '#9a9aa2';
+      ctx.fillRect(p.r * 2.0 + 1, -10, 16, 2);
+      // Top-edge bright line
+      ctx.fillStyle = flash ? '#fff' : '#c0c0c8';
+      ctx.fillRect(p.r * 2.0 + 1, -10.5, 16, 0.6);
+      // Bolts / rivets på huvudet (2 st mittpå, 4 total)
+      ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+      ctx.beginPath(); ctx.arc(p.r * 2.0 + 4, -5, 1, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.r * 2.0 + 4, 5, 1, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.r * 2.0 + 14, -5, 1, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.r * 2.0 + 14, 5, 1, 0, Math.PI*2); ctx.fill();
+      // Bolt-highlights
+      ctx.fillStyle = flash ? '#fff' : '#5a5a60';
+      ctx.beginPath(); ctx.arc(p.r * 2.0 + 3.7, -5.3, 0.35, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.r * 2.0 + 13.7, -5.3, 0.35, 0, Math.PI*2); ctx.fill();
+      // Impact-marks vid slag (vita streaks i hörnen)
+      if (slashAnim > 0.6) {
+        ctx.strokeStyle = `rgba(255,255,255,${slashAnim * 0.7})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(p.r * 2.0 + 18, -11); ctx.lineTo(p.r * 2.0 + 22, -14);
+        ctx.moveTo(p.r * 2.0 + 18, 11); ctx.lineTo(p.r * 2.0 + 22, 14);
+        ctx.stroke();
+      }
       ctx.restore();
     } else if (w.style === 'spear') {
       const stab = slashAnim * 14;
