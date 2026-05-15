@@ -7104,6 +7104,7 @@ const Coop = {
       if (typeof hideGungameHud === 'function') hideGungameHud();
       if (typeof hideKothHud === 'function') hideKothHud();
       if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
+      if (typeof destroyJuggernautEndOverlay === 'function') destroyJuggernautEndOverlay();
       this.ctfActive = false; this.siegeActive = false; this.gungameActive = false; this.kothActive = false; this.juggernautActive = false;
       state.ctfActive = false; state.siegeActive = false; state.gungameActive = false; state.kothActive = false; state.juggernautActive = false;
       state.kothZones = null; state.kothWalls = null; state.kothNextRotateAt = null;
@@ -7277,6 +7278,7 @@ const Coop = {
       if (typeof hideGungameHud === 'function') hideGungameHud();
       if (typeof hideKothHud === 'function') hideKothHud();
       if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
+      if (typeof destroyJuggernautEndOverlay === 'function') destroyJuggernautEndOverlay();
       this.tdmActive = false; this.siegeActive = false; this.gungameActive = false; this.kothActive = false; this.juggernautActive = false;
       state.tdmActive = false; state.siegeActive = false; state.gungameActive = false; state.kothActive = false; state.juggernautActive = false;
       state.kothZones = null; state.kothWalls = null; state.kothNextRotateAt = null;
@@ -7709,6 +7711,7 @@ const Coop = {
       if (typeof hideGungameHud === 'function') hideGungameHud();
       if (typeof hideKothHud === 'function') hideKothHud();
       if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
+      if (typeof destroyJuggernautEndOverlay === 'function') destroyJuggernautEndOverlay();
       this.tdmActive = false; this.ctfActive = false; this.gungameActive = false; this.kothActive = false; this.juggernautActive = false;
       state.tdmActive = false; state.ctfActive = false; state.gungameActive = false; state.kothActive = false; state.juggernautActive = false;
       state.kothZones = null; state.kothWalls = null; state.kothNextRotateAt = null;
@@ -8122,6 +8125,7 @@ const Coop = {
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
       if (typeof hideKothHud === 'function') hideKothHud();
       if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
+      if (typeof destroyJuggernautEndOverlay === 'function') destroyJuggernautEndOverlay();
       this.tdmActive = false; this.ctfActive = false; this.siegeActive = false; this.kothActive = false; this.juggernautActive = false;
       state.tdmActive = false; state.ctfActive = false; state.siegeActive = false; state.kothActive = false; state.juggernautActive = false;
       state.juggernautWalls = null; state.juggernautDecorations = null;
@@ -8299,6 +8303,7 @@ const Coop = {
       if (typeof hideGungameHud === 'function') hideGungameHud();
       if (typeof hideKothHud === 'function') hideKothHud();
       if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
+      if (typeof destroyJuggernautEndOverlay === 'function') destroyJuggernautEndOverlay();
       this.tdmActive = false; this.ctfActive = false; this.siegeActive = false;
       this.gungameActive = false; this.kothActive = false;
       state.tdmActive = false; state.ctfActive = false; state.siegeActive = false;
@@ -8533,6 +8538,7 @@ const Coop = {
       // late juggernaut_score_update från server racea och visa scoreboard
       // bredvid end-overlay)
       if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
+      if (typeof destroyJuggernautEndOverlay === 'function') destroyJuggernautEndOverlay();
       const statsArr = [];
       if (ev.stats && ev.stats.perPlayer) {
         for (const pid of Object.keys(ev.stats.perPlayer)) {
@@ -9383,6 +9389,8 @@ const Coop = {
     // Säkerhetsnät: göm alla PvP HUD-element så de inte spookar i menyn
     if (typeof hideCtfHud === 'function') hideCtfHud();
     if (typeof hideTdmHud === 'function') hideTdmHud();
+    if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
+    if (typeof destroyJuggernautEndOverlay === 'function') destroyJuggernautEndOverlay();
     if (typeof _ctfEndOverlay !== 'undefined' && _ctfEndOverlay) _ctfEndOverlay.classList.add('hidden');
     if (typeof _tdmEndOverlay !== 'undefined' && _tdmEndOverlay) _tdmEndOverlay.classList.add('hidden');
     if (typeof _ctfRespawnOverlay !== 'undefined' && _ctfRespawnOverlay) _ctfRespawnOverlay.classList.add('hidden');
@@ -16785,6 +16793,12 @@ function hideJuggernautHud() {
   const picker = document.getElementById('juggernaut-weapon-picker');
   if (picker) picker.classList.add('hidden');
 }
+// Helper: ta bort end-overlay från DOM helt — anropas vid lobby-return,
+// mode-byte, Coop.disconnect så stats-tabellen inte läcker visuellt
+function destroyJuggernautEndOverlay() {
+  const overlay = document.getElementById('juggernaut-end-overlay');
+  if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+}
 function updateJuggernautHud(scores, currentJug, matchEndAt, myId) {
   // Guard: skippa stale events efter match-end (annars kan late score-update
   // återställa scoreboarden bredvid den synliga end-screen-overlayen)
@@ -16848,7 +16862,11 @@ function showJuggernautEndScreen(winnerId, stats) {
     overlay.innerHTML = '<div style="background:#181818;border:2px solid #ffd54a;border-radius:10px;padding:24px 24px;max-width:600px;width:100%;max-height:100%;overflow-y:auto;color:#fff;font-family:sans-serif;text-align:center;box-sizing:border-box;"><h1 id="jug-end-title" style="color:#ffd54a;margin:0 0 8px;font-size:28px;">🏆</h1><div id="jug-end-sub" style="color:#aaa;margin-bottom:18px;">vann juggernaut!</div><div id="jug-end-hero" style="color:#5aff5a;font-size:14px;margin-bottom:14px;"></div><div id="jug-end-stats" style="font-size:13px;margin-bottom:18px;overflow-x:auto;-webkit-overflow-scrolling:touch;"></div><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;"><button id="btn-jug-rematch" class="hidden" style="background:#5aff5a;color:#000;border:0;padding:12px 22px;border-radius:6px;font-weight:900;letter-spacing:1px;cursor:pointer;min-height:44px;">⚔ REMATCH</button><button id="btn-jug-back" style="background:#444;color:#fff;border:0;padding:12px 22px;border-radius:6px;font-weight:900;letter-spacing:1px;cursor:pointer;min-height:44px;">↩ LOBBY</button></div></div>';
     document.body.appendChild(overlay);
     document.getElementById('btn-jug-back').addEventListener('click', () => {
+      // Fysiskt ta bort overlay från DOM (inte bara dölja) så stats inte
+      // läcker visuellt om CSS-prioritet eller stale state återställer display
       overlay.classList.add('hidden');
+      overlay.style.display = 'none';
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
       // Full lobby-cleanup (samma som KOTH-back-knapp)
       state.juggernautActive = false;
       if (typeof Coop !== 'undefined') {
@@ -16869,6 +16887,8 @@ function showJuggernautEndScreen(winnerId, stats) {
     document.getElementById('btn-jug-rematch').addEventListener('click', () => {
       if (!Coop.isHost) return;
       overlay.classList.add('hidden');
+      overlay.style.display = 'none';
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
       if (Coop.ws && Coop.ws.readyState === 1) {
         try {
           Coop.ws.send(JSON.stringify({ type: 'sim_stop' }));
