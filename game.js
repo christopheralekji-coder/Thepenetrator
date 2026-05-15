@@ -8185,6 +8185,7 @@ const Coop = {
     }
     if (ev.type === 'tdm_started') {
       // PvP-läge initierat — spara team-roster och visa banner
+      if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
       // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
       if (typeof hideCtfHud === 'function') hideCtfHud();
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
@@ -8358,6 +8359,7 @@ const Coop = {
         showTdmEndScreen(ev.winner, ev.redKills || 0, ev.blueKills || 0, ev.stats || [], this.tdmTeams || {});
       }
     } else if (ev.type === 'ctf_started') {
+      if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
       // CTF-läge initierat — spara arena + walls + flag-positions + teams
       // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
       if (typeof hideTdmHud === 'function') hideTdmHud();
@@ -8789,6 +8791,7 @@ const Coop = {
         showCtfEndScreen(ev.winner, redCaps, blueCaps, statsArr, this.ctfTeams || {});
       }
     } else if (ev.type === 'siege_started') {
+      if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
       // Server-shape: { targetPoints, teams, arena, spawns, walls, cores, bases,
       //                 turrets, turretEnterRadius, captureTimeSec, decorations,
       //                 pvpPickups, shieldMax }
@@ -9067,6 +9070,7 @@ const Coop = {
         showSiegeEndScreen(ev.winner, r, b, statsArr, this.siegeTeams || {}, ev.reason);
       }
     } else if (ev.type === 'koth_started') {
+      if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
       // KOTH FFA. ev: { arena, walls, spawns, zones, activeZoneIdx, zoneRotateSec, targetPoints, shieldMax }
       if (typeof hideTdmHud === 'function') hideTdmHud();
       if (typeof hideCtfHud === 'function') hideCtfHud();
@@ -9205,6 +9209,7 @@ const Coop = {
         showToast('🏆 ' + winnerName + ' VANN KOTH!');
       }
     } else if (ev.type === 'gungame_started') {
+      if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
       // FFA 15-tier mode. ev: { arena, walls, spawns, decorations, weapons, totalTiers, shieldMax }
       // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
       if (typeof hideTdmHud === 'function') hideTdmHud();
@@ -9384,6 +9389,9 @@ const Coop = {
       // shieldMax, initialJug, jugWeapons, jugDefaultWeapon, jugHpMax,
       // jugSpeedMul, jugScale, jugDashCdMs, hunterWeapon, matchDurationSec,
       // matchEndAt, minimapPulseIntervalMs }
+      // Anti-läck: restore sandbox-state INNAN match-start så obegränsat-gold
+      // + alla-vapen-buff inte syns/läcker in i PvP.
+      if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
       if (typeof hideTdmHud === 'function') hideTdmHud();
       if (typeof hideCtfHud === 'function') hideCtfHud();
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
