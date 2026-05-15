@@ -3090,19 +3090,9 @@ function drawPvpPickups() {
     const isHp = pu.type === 'hp';
     const color = isHp ? '#5aff5a' : '#3acaff';
     if (!pu.available) {
-      // Tonad ghost-version + respawn-progress-ring
-      ctx.globalAlpha = 0.25;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.arc(x, y, 14, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.globalAlpha = 1;
-      // OBS: INGEN ctx.restore() här! Outer ctx.save() är på rad 2154 (en gång),
-      // och final ctx.restore() är på rad 2208. Tidigare buggrest pop'ade outer-save
-      // mitt i loopen → final restore pop'ade en save från en TIDIGARE funktion
-      // (drawCtfFlags etc.) → canvas-state-leak ("ljus blir helt ljust") + ev. krasch
-      // i Chrome → render() bail'ade → minimap + timer + dark-overlays försvann.
+      // Pickup består tills respawn — rita ingenting alls (var: ghost-ring som
+      // användaren tyckte såg buggigt ut). När respawn-event fires sätts
+      // available=true igen och full glow + ikon ritas.
       continue;
     }
     // Glow
@@ -15407,14 +15397,32 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
   const speedBonus = (cheatPen ? 1.5 : 1) * (cheatUlt ? 1.5 : 1);
   const ultDmgMul = cheatUlt ? 10 : 1;
   const _coopShots = Coop.active ? [] : null;
+  // Muzzle-offset: spawna bullets vid pip-mynning, inte mitt på spelaren.
+  // Värden matchar drawPlayerWeapon's muzzle-position per vapen.
+  const MUZZLE_OFFSETS = {
+    pistol: 17, burstpistol: 22, shotgun: 26, smg: 24,
+    rifle: 31, sniper: 36, revolver: 25, minigun: 27,
+    plasma: 26, rocket: 23, sonic: 16, bow: 23,
+    grenade: 18, flame: 16, tesla: 22, frost: 22,
+    crossbow: 20, shuriken: 14, throwknife: 16,
+    boomerang: 18, pullwhip: 16, railgun: 30, blackhole: 24,
+    timestop: 16, mindcontrol: 16,
+  };
+  const muzzleOff = (w.type === 'gun') ? (MUZZLE_OFFSETS[w.id] || 20) : 0;
+
   for (let i = 0; i < pellets; i++) {
     const spread = (Math.random() - 0.5) * 2 * (w.spread || 0);
     const ang = p.aimAngle + spread;
     const speed = w.speed * (p.bspeedMul || 1) * speedBonus;
     const isCrit = cheatChozza ? true : Math.random() < (p.critChance || 0);
     const isHead = hasPerk('headshot') && Math.random() < 0.15;
+    // Spawn-position: pip-mynningen (player.r + muzzleOff) i aim-riktning.
+    // Använd p.aimAngle (inte spread-justerad) så pellets kommer från samma
+    // muzzle-punkt men sprider sig EFTER spawning.
+    const spawnX = p.x + Math.cos(p.aimAngle) * (p.r + muzzleOff);
+    const spawnY = p.y + Math.sin(p.aimAngle) * (p.r + muzzleOff);
     state.bullets.push({
-      x: p.x + Math.cos(ang)*p.r, y: p.y + Math.sin(ang)*p.r,
+      x: spawnX, y: spawnY,
       vx: Math.cos(ang)*speed, vy: Math.sin(ang)*speed,
       dmg: w.dmg * (p.dmgMul || 1) * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 3 : 1) * ultDmgMul * weaponLevelDmgBonus(w.id),
       life: w.style === 'flame' ? 0.5 : (w.style === 'boomerang' ? 2.5 : 1.6),
@@ -30696,18 +30704,65 @@ function drawMiniMap() {
       ctx.fillText('👑', zx, zy);
     }
   }
-  // CTF flag-stands på minimap (pulse) + turrets
+  // CTF flag på minimap (alltid synlig — actual-position så man ser var den ÄR,
+  // inte bara base. Visar carrier-distinkt ikon om någon bär, dropp-position
+  // om dropad, base-position om hemma.)
   if (state.ctfActive && state.ctfFlags) {
     const flagPulse = 0.7 + Math.sin(performance.now() / 250) * 0.3;
     for (const team of ['red', 'blue']) {
       const f = state.ctfFlags[team];
       if (!f) continue;
-      const fx = ox + f.baseX * scale, fy = oy + f.baseY * scale;
-      ctx.fillStyle = team === 'red' ? '#ff3030' : '#3060ff';
+      // Hämta actual position: om carrier finns → carrier's nuvarande pos.
+      // Annars: f.x/f.y (server uppdaterar både vid base + vid drop).
+      let actualX = f.x, actualY = f.y;
+      if (f.carrierId) {
+        // Om bärare = mig
+        if (f.carrierId === Coop.myId && state.player) {
+          actualX = state.player.x; actualY = state.player.y;
+        } else if (Coop.players.has(f.carrierId)) {
+          const carrier = Coop.players.get(f.carrierId);
+          if (carrier.x !== undefined) { actualX = carrier.x; actualY = carrier.y; }
+        }
+      }
+      // Fallback om actual saknas: använd base
+      if (actualX === undefined) actualX = f.baseX;
+      if (actualY === undefined) actualY = f.baseY;
+      const fx = ox + actualX * scale, fy = oy + actualY * scale;
+      const isCarried = !!f.carrierId;
+      const isDropped = !f.atBase && !f.carrierId;
       ctx.shadowColor = team === 'red' ? '#ff5a5a' : '#5aaaff';
-      ctx.shadowBlur = 8 * flagPulse;
-      ctx.beginPath(); ctx.arc(fx, fy, 3, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
+      ctx.shadowBlur = 10 * flagPulse;
+      ctx.fillStyle = team === 'red' ? '#ff3030' : '#3060ff';
+      if (isCarried) {
+        // Triangulär flagga-form (visar att den är "i rörelse")
+        ctx.beginPath();
+        ctx.moveTo(fx, fy - 4);
+        ctx.lineTo(fx + 4, fy + 2);
+        ctx.lineTo(fx - 4, fy + 2);
+        ctx.closePath();
+        ctx.fill();
+        // Vit ring runt så det märks att flaggan är borta från base
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.arc(fx, fy, 5, 0, Math.PI * 2); ctx.stroke();
+      } else if (isDropped) {
+        // Dropad flagga: pulserande röd ring runt prick (warning)
+        ctx.beginPath(); ctx.arc(fx, fy, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = team === 'red' ? '#ff8080' : '#80a0ff';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(fx, fy, 5 + flagPulse * 2, 0, Math.PI * 2); ctx.stroke();
+      } else {
+        // Hemma vid base: enkel prick
+        ctx.beginPath(); ctx.arc(fx, fy, 3, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
+      // Lag-bokstav under
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 6px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(team === 'red' ? 'R' : 'B', fx, fy - 6);
     }
   }
   if (state.ctfTurrets) {
