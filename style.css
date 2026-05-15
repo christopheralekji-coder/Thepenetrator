@@ -700,6 +700,22 @@ html, body {
   line-height: 1;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7));
 }
+/* Custom SVG-ikoner som passar fire-button + andra knappar */
+.weapon-svg {
+  width: 24px;
+  height: 24px;
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.9));
+}
+.action-btn.fire .fire-icon .weapon-svg {
+  width: 28px;
+  height: 28px;
+}
+/* Juggernaut weapon-picker visar större ikoner i kortlayouten */
+.jug-pick-icon .weapon-svg {
+  width: 48px;
+  height: 48px;
+}
 /* AMMO — STOR gul text med svart outline. Centrerad inuti knob, dominerar
    visuellt så användaren ALDRIG kan missa det. */
 .action-btn.fire .fire-ammo {

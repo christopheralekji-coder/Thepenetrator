@@ -12512,9 +12512,186 @@ const WEAPON_ICONS = {
 };
 function getWeaponIcon(id) { return WEAPON_ICONS[id] || '🔫'; }
 
+// Custom SVG-ikoner som matchar in-game-designen för redesignade vapen.
+// Varje SVG: 24x24 viewBox, color-coded fills (inte currentColor — vill ha
+// visuell distinkt karaktär). Övriga vapen använder emoji-fallback via
+// WEAPON_ICONS. CSS-klassen .weapon-svg ger flex-fit + drop-shadow.
+const WEAPON_ICON_SVGS = {
+  fists: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<defs><filter id="fistShadow"><feDropShadow dx="0" dy="0.5" stdDeviation="0.4" flood-opacity="0.5"/></filter></defs>'
+    +   '<g filter="url(#fistShadow)">'
+    +     '<path d="M4.5 8 Q3.5 4.5 7 4 L17 4 Q20.5 4.5 19.5 8 L19.5 17 Q19.5 20 16 20 L8 20 Q4.5 20 4.5 17 Z" fill="#d2a07a" stroke="#5a3818" stroke-width="0.7"/>'
+    +     '<path d="M3.5 11 Q2.5 13 4.5 15 L4.5 11 Z" fill="#c0906a" stroke="#5a3818" stroke-width="0.6"/>'
+    +     '<circle cx="7.5" cy="6.5" r="1.4" fill="#9a7050"/>'
+    +     '<circle cx="11" cy="6" r="1.4" fill="#9a7050"/>'
+    +     '<circle cx="14.5" cy="6" r="1.4" fill="#9a7050"/>'
+    +     '<circle cx="17.5" cy="6.5" r="1.4" fill="#9a7050"/>'
+    +     '<circle cx="7.5" cy="6.5" r="0.4" fill="#fff5e0"/>'
+    +     '<circle cx="11" cy="6" r="0.4" fill="#fff5e0"/>'
+    +     '<circle cx="14.5" cy="6" r="0.4" fill="#fff5e0"/>'
+    +     '<circle cx="17.5" cy="6.5" r="0.4" fill="#fff5e0"/>'
+    +   '</g>'
+    + '</svg>',
+  pistol: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="2.5" y="7.5" width="17" height="4" fill="#2a2a30"/>'
+    +   '<rect x="2.5" y="7.5" width="17" height="0.7" fill="#5a5a60"/>'
+    +   '<rect x="3" y="8" width="0.4" height="3" fill="#1a1a1a"/>'
+    +   '<rect x="3.8" y="8" width="0.4" height="3" fill="#1a1a1a"/>'
+    +   '<rect x="4.6" y="8" width="0.4" height="3" fill="#1a1a1a"/>'
+    +   '<rect x="17.5" y="5.7" width="1" height="1.8" fill="#ffd14a"/>'
+    +   '<rect x="3" y="6.3" width="1.2" height="1.2" fill="#1a1a1a"/>'
+    +   '<rect x="5" y="6.3" width="1.2" height="1.2" fill="#1a1a1a"/>'
+    +   '<circle cx="20.5" cy="9.5" r="0.9" fill="#0a0a0a"/>'
+    +   '<path d="M7 11.5 Q9.5 14 12 11.5" fill="none" stroke="#2a2a30" stroke-width="1"/>'
+    +   '<rect x="7" y="8.5" width="0.6" height="3" fill="#5a5a60"/>'
+    +   '<path d="M6 11.5 L6 19.5 Q6 21 7.5 21 L11 21 Q12.5 21 12.5 19.5 L12.5 11.5 Z" fill="#1a1a1a"/>'
+    +   '<rect x="6.5" y="13" width="5.5" height="0.5" fill="#3a3a3a"/>'
+    +   '<rect x="6.5" y="14.5" width="5.5" height="0.5" fill="#3a3a3a"/>'
+    +   '<rect x="6.5" y="16" width="5.5" height="0.5" fill="#3a3a3a"/>'
+    +   '<rect x="6.5" y="17.5" width="5.5" height="0.5" fill="#3a3a3a"/>'
+    +   '<rect x="5.5" y="20.5" width="7.5" height="2" fill="#2a2a2a"/>'
+    + '</svg>',
+  knife: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<circle cx="2.2" cy="12" r="1.7" fill="#3a3a40" stroke="#1a1a1a" stroke-width="0.3"/>'
+    +   '<rect x="2" y="11.6" width="1.5" height="0.8" fill="#1a1a1a"/>'
+    +   '<rect x="3.5" y="10" width="6.5" height="4" fill="#2a2218"/>'
+    +   '<rect x="3.8" y="10" width="0.7" height="2" fill="#4a3828"/>'
+    +   '<rect x="4.8" y="12" width="0.7" height="2" fill="#4a3828"/>'
+    +   '<rect x="5.8" y="10" width="0.7" height="2" fill="#4a3828"/>'
+    +   '<rect x="6.8" y="12" width="0.7" height="2" fill="#4a3828"/>'
+    +   '<rect x="7.8" y="10" width="0.7" height="2" fill="#4a3828"/>'
+    +   '<rect x="8.8" y="12" width="0.7" height="2" fill="#4a3828"/>'
+    +   '<rect x="10" y="8.5" width="2" height="7" fill="#9098a0"/>'
+    +   '<rect x="10" y="8.5" width="0.8" height="7" fill="#cccfd5"/>'
+    +   '<path d="M12 10 L21 11.3 L22.5 12 L21 12.7 L12 14 Z" fill="#e6e9ee"/>'
+    +   '<path d="M12.5 11.8 L20 12 L20 12 L12.5 12.2 Z" fill="#9098a0"/>'
+    +   '<line x1="12.5" y1="10.5" x2="20.5" y2="11.8" stroke="#ffffff" stroke-width="0.4"/>'
+    + '</svg>',
+  shuriken: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<g transform="translate(12 12) rotate(15)">'
+    +     '<path d="M0 0 L1.8 -1.8 L0 -11 L-1.8 -1.8 Z" fill="#9aa0a8"/>'
+    +     '<path d="M0 0 L1.8 1.8 L11 0 L1.8 -1.8 Z" fill="#9aa0a8"/>'
+    +     '<path d="M0 0 L-1.8 1.8 L0 11 L1.8 1.8 Z" fill="#9aa0a8"/>'
+    +     '<path d="M0 0 L-1.8 -1.8 L-11 0 L-1.8 1.8 Z" fill="#9aa0a8"/>'
+    +     '<path d="M0 0 L0 -11 L-1.8 -1.8 Z" fill="#e8eaee"/>'
+    +     '<path d="M0 0 L11 0 L1.8 -1.8 Z" fill="#e8eaee"/>'
+    +     '<circle r="2.2" fill="#5a3a1a"/>'
+    +     '<circle r="1.4" fill="#1a1a1a"/>'
+    +     '<circle cx="-0.4" cy="-0.4" r="0.4" fill="#7a5a3a"/>'
+    +   '</g>'
+    + '</svg>',
+  burstpistol: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<circle cx="13" cy="3.5" r="0.7" fill="#ffae3a"/>'
+    +   '<circle cx="15.5" cy="3.5" r="0.7" fill="#ffae3a"/>'
+    +   '<circle cx="18" cy="3.5" r="0.7" fill="#ffae3a"/>'
+    +   '<rect x="2.5" y="7" width="16.5" height="4.5" fill="#3a2a1a"/>'
+    +   '<rect x="2.5" y="7" width="16.5" height="0.8" fill="#ffae3a"/>'
+    +   '<rect x="3" y="7.7" width="0.4" height="3.5" fill="#1a1a1a"/>'
+    +   '<rect x="3.8" y="7.7" width="0.4" height="3.5" fill="#1a1a1a"/>'
+    +   '<rect x="4.6" y="7.7" width="0.4" height="3.5" fill="#1a1a1a"/>'
+    +   '<rect x="15" y="7.7" width="0.4" height="3.5" fill="#1a1a1a"/>'
+    +   '<rect x="16" y="7.7" width="0.4" height="3.5" fill="#1a1a1a"/>'
+    +   '<rect x="19" y="6.8" width="2.5" height="5" fill="#ffae3a"/>'
+    +   '<rect x="19.5" y="7.5" width="0.4" height="0.8" fill="#1a1a1a"/>'
+    +   '<rect x="19.5" y="10.5" width="0.4" height="0.8" fill="#1a1a1a"/>'
+    +   '<rect x="20.5" y="7.5" width="0.4" height="0.8" fill="#1a1a1a"/>'
+    +   '<rect x="20.5" y="10.5" width="0.4" height="0.8" fill="#1a1a1a"/>'
+    +   '<path d="M6 11.5 L11.5 11.5 L12.5 22 L7 22 Z" fill="#2a2a2a"/>'
+    +   '<rect x="6.2" y="12" width="0.6" height="9" fill="#4a4a4a"/>'
+    +   '<rect x="8" y="13.5" width="2.5" height="0.7" fill="#ffae3a"/>'
+    +   '<rect x="8.1" y="15" width="2.5" height="0.7" fill="#ffae3a"/>'
+    +   '<rect x="8.2" y="16.5" width="2.5" height="0.7" fill="#ffae3a"/>'
+    +   '<rect x="8.3" y="18" width="2.5" height="0.7" fill="#ffae3a"/>'
+    + '</svg>',
+  shotgun: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<path d="M1 10.5 L5 9.5 L5 14.5 L1 13.5 Z" fill="#5a3818"/>'
+    +   '<rect x="1.5" y="10" width="3.5" height="0.7" fill="#7a4a20"/>'
+    +   '<rect x="5" y="9.5" width="4.5" height="4.5" fill="#1a1a1a"/>'
+    +   '<rect x="5" y="9.5" width="4.5" height="0.5" fill="#3a3a3a"/>'
+    +   '<rect x="5.5" y="11.5" width="0.7" height="1.8" fill="#ff6b3d"/>'
+    +   '<rect x="6.6" y="11.5" width="0.7" height="1.8" fill="#ff6b3d"/>'
+    +   '<rect x="7.7" y="11.5" width="0.7" height="1.8" fill="#ff6b3d"/>'
+    +   '<rect x="9.5" y="10" width="12.5" height="3.2" fill="#2a2a30"/>'
+    +   '<rect x="9.5" y="10" width="12.5" height="0.6" fill="#5a5a60"/>'
+    +   '<rect x="10" y="13.5" width="6" height="2.3" fill="#3a2818"/>'
+    +   '<line x1="10.7" y1="13.7" x2="10.7" y2="15.6" stroke="#1a1a14" stroke-width="0.3"/>'
+    +   '<line x1="11.7" y1="13.7" x2="11.7" y2="15.6" stroke="#1a1a14" stroke-width="0.3"/>'
+    +   '<line x1="12.7" y1="13.7" x2="12.7" y2="15.6" stroke="#1a1a14" stroke-width="0.3"/>'
+    +   '<line x1="13.7" y1="13.7" x2="13.7" y2="15.6" stroke="#1a1a14" stroke-width="0.3"/>'
+    +   '<line x1="14.7" y1="13.7" x2="14.7" y2="15.6" stroke="#1a1a14" stroke-width="0.3"/>'
+    +   '<circle cx="21" cy="9.5" r="0.7" fill="#ffd54a"/>'
+    +   '<circle cx="22" cy="11.6" r="1.1" fill="#0a0a0a"/>'
+    + '</svg>',
+  rifle: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<rect x="0.5" y="9.5" width="0.6" height="3" fill="#1a1a1a"/>'
+    +   '<rect x="1" y="9.5" width="3.5" height="3" fill="#3a3a3a"/>'
+    +   '<rect x="4.5" y="9" width="8" height="4" fill="#2a2a25"/>'
+    +   '<rect x="4.5" y="9" width="8" height="0.5" fill="#4a4a40"/>'
+    +   '<rect x="4.5" y="7.5" width="8" height="1.3" fill="#3a3a35"/>'
+    +   '<rect x="5" y="7.8" width="0.3" height="0.6" fill="#1a1a1a"/>'
+    +   '<rect x="6.3" y="7.8" width="0.3" height="0.6" fill="#1a1a1a"/>'
+    +   '<rect x="7.6" y="7.8" width="0.3" height="0.6" fill="#1a1a1a"/>'
+    +   '<rect x="8.9" y="7.8" width="0.3" height="0.6" fill="#1a1a1a"/>'
+    +   '<rect x="10.2" y="7.8" width="0.3" height="0.6" fill="#1a1a1a"/>'
+    +   '<rect x="11.5" y="7.8" width="0.3" height="0.6" fill="#1a1a1a"/>'
+    +   '<path d="M6 13 L8.2 13 L7.7 16.5 L5.5 16.5 Z" fill="#1a1a1a"/>'
+    +   '<path d="M7.5 13 L11.5 13 L12.5 19.5 L8.5 20 Z" fill="#1a3a1a"/>'
+    +   '<rect x="7.5" y="13.3" width="0.6" height="6.3" fill="#5fd95f"/>'
+    +   '<line x1="8.7" y1="14" x2="11.7" y2="14.2" stroke="#0a1a0a" stroke-width="0.3"/>'
+    +   '<line x1="8.7" y1="15.5" x2="11.8" y2="15.8" stroke="#0a1a0a" stroke-width="0.3"/>'
+    +   '<line x1="8.8" y1="17" x2="11.9" y2="17.4" stroke="#0a1a0a" stroke-width="0.3"/>'
+    +   '<rect x="12.5" y="10" width="9.5" height="2.3" fill="#2a2a30"/>'
+    +   '<rect x="12.5" y="10" width="9.5" height="0.5" fill="#5a5a60"/>'
+    +   '<rect x="16.5" y="9" width="1.5" height="1" fill="#1a1a1a"/>'
+    +   '<rect x="16.9" y="7" width="0.7" height="2" fill="#5fd95f"/>'
+    +   '<rect x="22" y="9.5" width="2" height="3.3" fill="#1a1a1a"/>'
+    +   '<rect x="22" y="10.2" width="2" height="0.5" fill="#2a2a30"/>'
+    +   '<rect x="22" y="12" width="2" height="0.5" fill="#2a2a30"/>'
+    + '</svg>',
+  sniper: ''
+    + '<svg class="weapon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'
+    +   '<path d="M0.5 11 L4.5 10 L4.5 14 L0.5 14 Z" fill="#3a2418"/>'
+    +   '<rect x="2" y="8.5" width="4.5" height="1.5" fill="#2a1810"/>'
+    +   '<rect x="0.5" y="11" width="4.5" height="0.6" fill="#5a3a20"/>'
+    +   '<rect x="4.5" y="9.5" width="7.5" height="3.5" fill="#2a1f3a"/>'
+    +   '<rect x="4.5" y="9.5" width="7.5" height="0.5" fill="#bb88ff"/>'
+    +   '<rect x="8.5" y="7.5" width="0.8" height="2" fill="#1a1a1a"/>'
+    +   '<circle cx="8.9" cy="7.2" r="0.7" fill="#1a1a1a"/>'
+    +   '<rect x="6.5" y="13" width="3.5" height="3.5" fill="#1a1a1a"/>'
+    +   '<rect x="6" y="6" width="9.5" height="2" fill="#1a1a1a"/>'
+    +   '<circle cx="6" cy="7" r="1.5" fill="#1a1a1a"/>'
+    +   '<circle cx="15.5" cy="7" r="1.7" fill="#1a1a1a"/>'
+    +   '<circle cx="15.7" cy="6.7" r="1" fill="#bb88ff"/>'
+    +   '<circle cx="16" cy="6.4" r="0.4" fill="#ffffff"/>'
+    +   '<rect x="9" y="4.5" width="1.6" height="1.6" fill="#3a2a4a"/>'
+    +   '<rect x="12" y="5.5" width="1.2" height="1" fill="#3a2a4a"/>'
+    +   '<rect x="12" y="10" width="10" height="2.4" fill="#1a1a20"/>'
+    +   '<rect x="12" y="10" width="10" height="0.5" fill="#4a4a55"/>'
+    +   '<line x1="17" y1="12.4" x2="15.5" y2="17.5" stroke="#3a3a3a" stroke-width="0.9"/>'
+    +   '<line x1="17" y1="12.4" x2="18.5" y2="17.5" stroke="#3a3a3a" stroke-width="0.9"/>'
+    +   '<rect x="14.8" y="17" width="1.5" height="0.7" fill="#1a1a1a"/>'
+    +   '<rect x="17.8" y="17" width="1.5" height="0.7" fill="#1a1a1a"/>'
+    +   '<rect x="22" y="9.7" width="2" height="3" fill="#0a0a0a"/>'
+    +   '<rect x="22" y="10.4" width="2" height="0.4" fill="#3a3a3a"/>'
+    +   '<rect x="22" y="11.9" width="2" height="0.4" fill="#3a3a3a"/>'
+    + '</svg>',
+};
+
+// Returnerar SVG-sträng om custom-design finns, annars emoji-fallback.
+function getWeaponIconHTML(id) {
+  return WEAPON_ICON_SVGS[id] || WEAPON_ICONS[id] || '🔫';
+}
+
 function updateFireButtonIcon() {
   if (!fireBtn || !state.player) return;
-  fireBtn.textContent = getWeaponIcon(state.player.weaponId);
+  fireBtn.innerHTML = getWeaponIconHTML(state.player.weaponId);
 }
 
 function renderWeaponMenu() {
@@ -16510,6 +16687,8 @@ function showJuggernautWeaponPicker() {
       if (!w) continue;
       const f = flavors[wid] || { icon: '🔫', tag: '', desc: '' };
       const isCur = (wid === current);
+      // Använd custom SVG-ikon om vapnet har en, annars emoji-fallback
+      const iconHtml = (typeof getWeaponIconHTML === 'function') ? getWeaponIconHTML(wid) : f.icon;
       const card = document.createElement('button');
       card.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:2px solid ' + (isCur ? '#ffd54a' : '#3a3a30') + ';background:' + (isCur ? 'linear-gradient(135deg, rgba(255,213,74,0.18), rgba(255,213,74,0.06))' : 'rgba(255,255,255,0.03)') + ';color:#fff;cursor:pointer;text-align:left;touch-action:manipulation;min-height:80px;font-family:inherit;';
       // Compute stat-bars (samma normalisering som wmenu)
@@ -16519,7 +16698,7 @@ function showJuggernautWeaponPicker() {
       const rangeOrSpeed = w.type === 'melee' ? Math.min(1, (w.range || 40) / 100) : Math.min(1, (w.speed || 800) / 1500);
       const bar = (label, frac, color) => '<div style="display:flex;align-items:center;gap:4px;font-size:10px;color:#aaa;"><span style="width:48px;">' + label + '</span><div style="flex:1;height:5px;background:rgba(0,0,0,0.4);border-radius:3px;overflow:hidden;"><div style="height:100%;width:' + (frac * 100) + '%;background:' + color + ';"></div></div></div>';
       card.innerHTML = ''
-        + '<div style="font-size:42px;flex-shrink:0;width:54px;text-align:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));">' + f.icon + '</div>'
+        + '<div class="jug-pick-icon" style="font-size:42px;flex-shrink:0;width:54px;height:54px;text-align:center;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));">' + iconHtml + '</div>'
         + '<div style="flex:1;min-width:0;">'
         +   '<div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">'
         +     '<span style="font-size:15px;font-weight:900;letter-spacing:1px;color:' + (isCur ? '#ffd54a' : '#fff') + ';">' + (w.name || wid).toUpperCase() + '</span>'
@@ -16873,7 +17052,7 @@ function updateHUD() {
   goldInfo.textContent = `💰 ${save.gold}`;
   // Per-weapon emoji som visuell identitet i HUD. .hud-row.weapon är hidden
   // (ammo visas vid fire-button istället) så vi prependar emoji till ammo-display.
-  const wIcon = isRepair ? '🔧' : (p._turretWeapon ? '🛡️' : getWeaponIcon(p.weaponId));
+  const wIcon = isRepair ? '🔧' : (p._turretWeapon ? '🛡️' : getWeaponIconHTML(p.weaponId));
   weaponName.textContent = wIcon + ' ' + w.name;
   // Tier-färg på weapon-namn (gör det visuellt klart vilken kvalitet vapnet har)
   if (!isRepair) weaponName.style.color = getWeaponTierColor(p.weaponId);
@@ -16900,7 +17079,7 @@ function updateHUD() {
   }
   // Uppdatera fire-icon med vapen-emoji så spelaren ser vad de skjuter med
   const fireIconEl = document.querySelector('#btn-fire .fire-icon');
-  if (fireIconEl) fireIconEl.textContent = wIcon;
+  if (fireIconEl) fireIconEl.innerHTML = wIcon;
   // Weapon-mastery XP-progress (visas som thin stripe längst ner i weapon-name)
   // Trösklar: 0/10/40/100/250/500 → 5 nivåer
   if (weaponName && !isRepair) {
