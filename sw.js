@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v298-custom-svg-weapon-icons-8x';
+const CACHE = 'penetrator-v299-fix-recoil-undefined-game-freeze';
 const ASSETS = [
   './',
   './index.html',

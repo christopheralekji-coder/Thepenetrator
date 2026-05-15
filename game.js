@@ -12691,7 +12691,11 @@ function getWeaponIconHTML(id) {
 
 function updateFireButtonIcon() {
   if (!fireBtn || !state.player) return;
-  fireBtn.innerHTML = getWeaponIconHTML(state.player.weaponId);
+  // Bevara fire-button's nested struktur (fire-knob > fire-icon-wrap > fire-icon)
+  // genom att bara uppdatera .fire-icon-span. Annars wipas ammo-display etc.
+  const iconEl = fireBtn.querySelector('.fire-icon');
+  if (iconEl) iconEl.innerHTML = getWeaponIconHTML(state.player.weaponId);
+  else fireBtn.innerHTML = getWeaponIconHTML(state.player.weaponId);
 }
 
 function renderWeaponMenu() {
@@ -23627,7 +23631,7 @@ function drawPlayerWeapon(p, w, flash, now) {
 
   // ─── PISTOL ── kompakt semi-auto silhuett (Glock-style) ──────────────────
   if (w.id === 'pistol') {
-    const recoilBack = Math.max(0, recoil);
+    const recoilBack = 0; // canvas är redan recoil-shiftad av drawPlayer
     const slideOffset = muzzlePulse * -2; // slide kicks back when firing
     // Skugga
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -23688,7 +23692,7 @@ function drawPlayerWeapon(p, w, flash, now) {
 
   // ─── BURST-PISTOL ── kompakt machine-pistol med utökad mag ───────────────
   if (w.id === 'burstpistol') {
-    const recoilBack = Math.max(0, recoil);
+    const recoilBack = 0; // canvas är redan recoil-shiftad av drawPlayer
     const slideOffset = muzzlePulse * -2;
     // Skugga
     ctx.fillStyle = 'rgba(0,0,0,0.25)';
@@ -23748,7 +23752,7 @@ function drawPlayerWeapon(p, w, flash, now) {
 
   // ─── HAGELGEVÄR ── pump-action shotgun (Remington-style) ─────────────────
   if (w.id === 'shotgun') {
-    const recoilBack = Math.max(0, recoil);
+    const recoilBack = 0; // canvas är redan recoil-shiftad av drawPlayer
     const pumpForward = muzzlePulse * 3; // pump action — rörlig efter skott
     // Skugga
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -23807,7 +23811,7 @@ function drawPlayerWeapon(p, w, flash, now) {
 
   // ─── AUTOMATKARBIN ── AK-style med banana-mag, picatinny-rail, kompenserare
   if (w.id === 'rifle') {
-    const recoilBack = Math.max(0, recoil);
+    const recoilBack = 0; // canvas är redan recoil-shiftad av drawPlayer
     // Skugga
     ctx.fillStyle = 'rgba(0,0,0,0.28)';
     ctx.fillRect(p.r + 1, 4.5, 28, 1.5);
@@ -23889,7 +23893,7 @@ function drawPlayerWeapon(p, w, flash, now) {
 
   // ─── PRICKSKYTTEGEVÄR ── precision-rifle med bipod, scope, muzzle-brake ──
   if (w.id === 'sniper') {
-    const recoilBack = Math.max(0, recoil) * 0.5; // sniper kicks less visually
+    const recoilBack = 0; // canvas är redan recoil-shiftad av drawPlayer
     // Skugga
     ctx.fillStyle = 'rgba(0,0,0,0.3)';
     ctx.fillRect(p.r + 1, 5, 34, 1.5);
