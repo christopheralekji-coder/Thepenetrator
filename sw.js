@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v306-jug-hp-pickup-respects-maxhp';
+const CACHE = 'penetrator-v307-jug-map-textures-collision-ceiling';
 const ASSETS = [
   './',
   './index.html',

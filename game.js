@@ -1019,6 +1019,17 @@ function drawPvpWalls(walls) {
     else if (w.kind === 'barricade') drawBarricade(x, y, w.w, w.h);
     else if (w.kind === 'pipe') drawPipe(x, y, w.w, w.h);
     else if (w.kind === 'crate') drawCrate(x, y, w.w, w.h, seed);
+    else if (w.kind === 'truck') drawTruck(x, y, w.w, w.h, seed);
+    else if (w.kind === 'van') drawVan(x, y, w.w, w.h, seed);
+    else if (w.kind === 'car_wreck') drawCarWreck(x, y, w.w, w.h, seed);
+    else if (w.kind === 'guardhouse') drawGuardhouse(x, y, w.w, w.h);
+    else if (w.kind === 'ramp') drawRamp(x, y, w.w, w.h);
+    else if (w.kind === 'oil_drum') drawOilDrum(x, y, w.w, w.h, seed);
+    else if (w.kind === 'fire_drum') drawFireDrum(x, y, w.w, w.h, seed);
+    else if (w.kind === 'lamppost') drawLamppost(x, y, w.w, w.h, w.x, w.y);
+    else if (w.kind === 'broken_pillar') drawBrokenPillar(x, y, w.w, w.h, seed);
+    else if (w.kind === 'tagged_pillar') drawTaggedPillar(x, y, w.w, w.h, seed);
+    else if (w.kind === 'concrete') drawConcreteWall(x, y, w.w, w.h);
     else { ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x, y, w.w, w.h); }
   }
   ctx.restore();
@@ -1510,6 +1521,537 @@ function drawCrate(x, y, w, h, seed) {
   ctx.strokeStyle = '#1a0a05';
   ctx.lineWidth = 1.5;
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+}
+
+// === JUGGERNAUT-WALL-RENDERS ====================================================
+
+function drawConcreteWall(x, y, w, h) {
+  // Perimeter-betong med mörk fog + textur
+  const grad = ctx.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, '#3a3a40');
+  grad.addColorStop(0.5, '#2a2a2e');
+  grad.addColorStop(1, '#1a1a1e');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+  // Streckad fog ovanpå
+  ctx.fillStyle = 'rgba(10,10,12,0.6)';
+  ctx.fillRect(x, y, w, 2);
+  ctx.fillRect(x, y + h - 2, w, 2);
+  // Bullet-marks (random)
+  ctx.fillStyle = '#0a0a0a';
+  if (w > 100) {
+    for (let i = 0; i < Math.min(8, w / 200); i++) {
+      const mx = x + 20 + ((i * 137) % (w - 40));
+      const my = y + (i % 2 === 0 ? 4 : h - 6);
+      ctx.beginPath(); ctx.arc(mx, my, 1.5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+}
+
+function drawTruck(x, y, w, h, seed) {
+  // Cargo-lastbil/skåpbil sett ovanifrån — cab + cargo + hjul + detaljer
+  const isHorizontal = w > h;
+  const bodyLen = isHorizontal ? w : h;
+  const bodyW = isHorizontal ? h : w;
+  // Lastbil-färg (deterministic per pos)
+  const colors = ['#5a4a30', '#3a4a5a', '#5a3a3a', '#4a4a4a'];
+  const bodyColor = colors[(seed >>> 4) & 3];
+  const bodyDark = '#1a1a1a';
+  ctx.save();
+  ctx.translate(x, y);
+  // Skugga under
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(2, 4, w, h);
+  // Body shadow-dark stripe
+  ctx.fillStyle = bodyDark;
+  ctx.fillRect(0, 0, w, h);
+  // Body main color
+  ctx.fillStyle = bodyColor;
+  ctx.fillRect(2, 2, w - 4, h - 4);
+  // Cab (front kvadrat, mörkare)
+  if (isHorizontal) {
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(w - 22, 2, 20, h - 4);
+    ctx.fillStyle = '#0a1a3a';
+    // Vindruta
+    ctx.fillRect(w - 18, 4, 14, 6);
+    // Reflektion på vindruta
+    ctx.fillStyle = '#3a6a8a';
+    ctx.fillRect(w - 17, 5, 6, 1);
+    // Strålkastare
+    ctx.fillStyle = '#fff8a0';
+    ctx.shadowColor = '#fff8a0'; ctx.shadowBlur = 4;
+    ctx.fillRect(w - 4, 4, 2, 3);
+    ctx.fillRect(w - 4, h - 7, 2, 3);
+    ctx.shadowBlur = 0;
+  } else {
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(2, h - 22, w - 4, 20);
+    ctx.fillStyle = '#0a1a3a';
+    ctx.fillRect(4, h - 18, w - 8, 6);
+    ctx.fillStyle = '#fff8a0';
+    ctx.fillRect(4, h - 4, 3, 2);
+    ctx.fillRect(w - 7, h - 4, 3, 2);
+  }
+  // Cargo-area panel-lines (3-4 vertikala)
+  ctx.strokeStyle = bodyDark;
+  ctx.lineWidth = 1;
+  const panelCount = 4;
+  if (isHorizontal) {
+    for (let i = 1; i < panelCount; i++) {
+      const px = (w - 22) * (i / panelCount);
+      ctx.beginPath(); ctx.moveTo(px, 4); ctx.lineTo(px, h - 4); ctx.stroke();
+    }
+  } else {
+    for (let i = 1; i < panelCount; i++) {
+      const py = (h - 22) * (i / panelCount);
+      ctx.beginPath(); ctx.moveTo(4, py); ctx.lineTo(w - 4, py); ctx.stroke();
+    }
+  }
+  // Top-highlight
+  ctx.fillStyle = mixColors(bodyColor, '#ffffff', 0.3);
+  if (isHorizontal) ctx.fillRect(2, 2, w - 4, 1.5);
+  else ctx.fillRect(2, 2, 1.5, h - 4);
+  // 4 hjul (mörka cirklar i hörnen)
+  ctx.fillStyle = '#0a0a0a';
+  const wR = Math.min(bodyW * 0.18, 5);
+  if (isHorizontal) {
+    ctx.fillRect(8, -wR * 0.5, 10, wR * 0.7);
+    ctx.fillRect(w - 30, -wR * 0.5, 10, wR * 0.7);
+    ctx.fillRect(8, h - wR * 0.2, 10, wR * 0.7);
+    ctx.fillRect(w - 30, h - wR * 0.2, 10, wR * 0.7);
+  } else {
+    ctx.fillRect(-wR * 0.5, 8, wR * 0.7, 10);
+    ctx.fillRect(w - wR * 0.2, 8, wR * 0.7, 10);
+    ctx.fillRect(-wR * 0.5, h - 30, wR * 0.7, 10);
+    ctx.fillRect(w - wR * 0.2, h - 30, wR * 0.7, 10);
+  }
+  // Rost / slitage (3-4 fläckar)
+  ctx.fillStyle = '#3a2a18';
+  for (let i = 0; i < 4; i++) {
+    const rx = 6 + ((seed * (i + 1) * 17) % (w - 30));
+    const ry = 6 + ((seed * (i + 2) * 13) % (h - 12));
+    ctx.fillRect(rx, ry, 3, 2);
+  }
+  // Yttre dark outline
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+  ctx.restore();
+}
+
+function drawVan(x, y, w, h, seed) {
+  // Skåpbil — kortare än lastbil, mer kvadratisk
+  drawTruck(x, y, w, h, seed); // återanvänd truck-design (mindre proportioner)
+  // Lägg på en distinkt "VAN"-detalj: stege på taket (3 streck)
+  ctx.save();
+  ctx.strokeStyle = '#3a3a3a';
+  ctx.lineWidth = 1.2;
+  if (w > h) {
+    ctx.beginPath();
+    ctx.moveTo(x + 10, y + h / 2 - 2); ctx.lineTo(x + w - 30, y + h / 2 - 2);
+    ctx.moveTo(x + 10, y + h / 2 + 2); ctx.lineTo(x + w - 30, y + h / 2 + 2);
+    for (let i = 0; i < 4; i++) {
+      const lx = x + 14 + i * ((w - 50) / 4);
+      ctx.moveTo(lx, y + h / 2 - 2); ctx.lineTo(lx, y + h / 2 + 2);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawCarWreck(x, y, w, h, seed) {
+  // Utbrunnen bil: svart-sotigt skelett med trasiga fönster + öppna dörrar
+  const isHorizontal = w > h;
+  ctx.save();
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(x + 2, y + 5, w, h);
+  // Body — mycket mörk, sotad
+  ctx.fillStyle = '#1a1410';
+  ctx.fillRect(x, y, w, h);
+  // Brand-fläckar / sot-streaks (mörkare)
+  ctx.fillStyle = '#0a0808';
+  for (let i = 0; i < 6; i++) {
+    const fx = x + 4 + ((seed * (i + 1) * 19) % (w - 8));
+    const fy = y + 4 + ((seed * (i + 3) * 23) % (h - 8));
+    ctx.fillRect(fx, fy, 4, 3);
+  }
+  // Orange-roströd glow var här lågorna brunnit
+  ctx.fillStyle = 'rgba(180, 60, 20, 0.25)';
+  ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
+  // Trasiga fönster (mörka rektanglar)
+  ctx.fillStyle = '#0a0a0a';
+  if (isHorizontal) {
+    ctx.fillRect(x + w * 0.2, y + 3, w * 0.6, 3);
+    ctx.fillRect(x + w * 0.2, y + h - 6, w * 0.6, 3);
+  } else {
+    ctx.fillRect(x + 3, y + h * 0.2, 3, h * 0.6);
+    ctx.fillRect(x + w - 6, y + h * 0.2, 3, h * 0.6);
+  }
+  // Tak (mörkare mid-stripe — välter / krossad)
+  ctx.fillStyle = '#0a0a08';
+  if (isHorizontal) {
+    ctx.fillRect(x + w * 0.25, y + h * 0.35, w * 0.5, h * 0.3);
+  } else {
+    ctx.fillRect(x + w * 0.35, y + h * 0.25, w * 0.3, h * 0.5);
+  }
+  // Hjul — 4 förbrända ringar
+  ctx.fillStyle = '#000';
+  ctx.strokeStyle = '#3a1a08';
+  ctx.lineWidth = 0.8;
+  const wheels = isHorizontal
+    ? [[x + 12, y - 1], [x + w - 12, y - 1], [x + 12, y + h + 1], [x + w - 12, y + h + 1]]
+    : [[x - 1, y + 12], [x + w + 1, y + 12], [x - 1, y + h - 12], [x + w + 1, y + h - 12]];
+  for (const [wx, wy] of wheels) {
+    ctx.beginPath();
+    ctx.ellipse(wx, wy, 5, 3, 0, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+  }
+  // Rost-orange highlights (random)
+  ctx.fillStyle = 'rgba(180, 90, 40, 0.4)';
+  ctx.fillRect(x + 2, y + 2, w - 4, 0.5);
+  ctx.fillRect(x + 2, y + h - 2.5, w - 4, 0.5);
+  // Yttre dark outline
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.restore();
+}
+
+function drawGuardhouse(x, y, w, h) {
+  // Vakthytt: liten betong-bod med fönster + dörr
+  ctx.save();
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(x + 3, y + 5, w, h);
+  // Bas: gradient grå betong
+  const grad = ctx.createLinearGradient(x, y, x + w, y);
+  grad.addColorStop(0, '#5a5a5a');
+  grad.addColorStop(0.5, '#7a7a7a');
+  grad.addColorStop(1, '#4a4a4a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+  // Tak (mörkt)
+  ctx.fillStyle = '#2a2a2a';
+  ctx.fillRect(x, y, w, 4);
+  // Tak-highlight
+  ctx.fillStyle = '#5a5a5a';
+  ctx.fillRect(x, y, w, 1);
+  // Stora fönster (2 framsidor — vänd mot center)
+  ctx.fillStyle = '#1a3a5a';
+  ctx.fillRect(x + 10, y + 12, w - 20, h - 30);
+  // Vindruta reflektion
+  ctx.fillStyle = '#3a6a8a';
+  ctx.fillRect(x + 12, y + 14, (w - 24) * 0.4, 2);
+  // Window-frame
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 10, y + 12, w - 20, h - 30);
+  // Horisontellt fönster-streck (mitten)
+  ctx.beginPath();
+  ctx.moveTo(x + 10, y + 12 + (h - 30) / 2); ctx.lineTo(x + w - 10, y + 12 + (h - 30) / 2);
+  ctx.stroke();
+  // Vertikalt center-streck
+  ctx.beginPath();
+  ctx.moveTo(x + w / 2, y + 12); ctx.lineTo(x + w / 2, y + h - 18);
+  ctx.stroke();
+  // Dörr (under fönstret)
+  ctx.fillStyle = '#3a2a1a';
+  ctx.fillRect(x + (w - 14) / 2, y + h - 16, 14, 12);
+  ctx.fillStyle = '#1a0a08';
+  ctx.fillRect(x + (w - 14) / 2, y + h - 16, 14, 1);
+  // Dörr-handtag
+  ctx.fillStyle = '#ffd54a';
+  ctx.fillRect(x + (w - 14) / 2 + 10, y + h - 10, 1.5, 2);
+  // SECURITY-text på sidan
+  ctx.fillStyle = '#ff5a3a';
+  ctx.font = 'bold 7px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('SECURITY', x + w / 2, y + 9);
+  // Yttre outline
+  ctx.strokeStyle = '#1a1a1a';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.restore();
+}
+
+function drawRamp(x, y, w, h) {
+  // Bilramp — diagonal gradient som ser ut som en sluttning
+  ctx.save();
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(x + 2, y + 4, w, h);
+  // Bas gradient (mörk → ljus → mörk = "valv-känsla")
+  const grad = ctx.createLinearGradient(x, y, x + w, y);
+  grad.addColorStop(0, '#2a2a2a');
+  grad.addColorStop(0.5, '#5a5a5a');
+  grad.addColorStop(1, '#2a2a2a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+  // Diagonala chevron-arrows (uppåt-pekande, gula) som indikerar slope
+  ctx.strokeStyle = '#ffd54a';
+  ctx.lineWidth = 2.5;
+  const chevronCount = Math.max(2, Math.floor(w / 60));
+  for (let i = 0; i < chevronCount; i++) {
+    const cx = x + 15 + i * (w / chevronCount);
+    ctx.beginPath();
+    ctx.moveTo(cx, y + h * 0.75);
+    ctx.lineTo(cx + 12, y + h * 0.35);
+    ctx.lineTo(cx + 24, y + h * 0.75);
+    ctx.stroke();
+  }
+  // Kant-striping (svart-gul varning)
+  for (let i = 0; i < w; i += 12) {
+    ctx.fillStyle = i % 24 < 12 ? '#ffd54a' : '#1a1a1a';
+    ctx.fillRect(x + i, y, 12, 3);
+    ctx.fillRect(x + i, y + h - 3, 12, 3);
+  }
+  // Yttre outline
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.restore();
+}
+
+function drawOilDrum(x, y, w, h, seed) {
+  // Vanligt oljefat (icke-brinnande) — rostigt + lock + band
+  ctx.save();
+  const cx = x + w / 2, cy = y + h / 2;
+  const r = Math.min(w, h) / 2;
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.beginPath(); ctx.ellipse(cx + 1.5, cy + 4, r + 1, 4, 0, 0, Math.PI*2); ctx.fill();
+  // Fat-bas
+  ctx.fillStyle = '#3a2818';
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  // Highlight-ring (vänster sida)
+  ctx.fillStyle = '#6a4828';
+  ctx.beginPath(); ctx.arc(cx - r * 0.3, cy - r * 0.3, r * 0.4, 0, Math.PI*2); ctx.fill();
+  // Topp-lock (mörkare cirkel)
+  ctx.fillStyle = '#1a1208';
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.85, 0, Math.PI*2); ctx.fill();
+  // Lock-rim
+  ctx.strokeStyle = '#5a3818';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(cx, cy, r * 0.85, 0, Math.PI*2); ctx.stroke();
+  // Center-skruv (lock-handle)
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(cx - 1.5, cy - 1.5, 3, 3);
+  ctx.fillStyle = '#3a3a3a';
+  ctx.fillRect(cx - 1.5, cy - 1, 3, 0.5);
+  // Rost-fläckar
+  ctx.fillStyle = '#8a4818';
+  ctx.fillRect(cx - r * 0.6, cy + r * 0.2, 3, 2);
+  ctx.fillRect(cx + r * 0.3, cy - r * 0.5, 2, 2);
+  // OIL-text om fatet är stort nog
+  if (r > 14) {
+    ctx.fillStyle = '#ffd54a';
+    ctx.font = 'bold 6px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('OIL', cx, cy + 8);
+  }
+  // Yttre outline
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+  ctx.restore();
+}
+
+function drawFireDrum(x, y, w, h, seed) {
+  // Brinnande oljefat — solid collision + animerade flammor + ljuspöl
+  const cx = x + w / 2, cy = y + h / 2;
+  const r = Math.min(w, h) / 2;
+  const t = performance.now();
+  const flicker = 0.85 + Math.sin(t / 70 + (seed & 0xff)) * 0.15;
+  ctx.save();
+  // Ljuspöl på golvet (rendera FÖRST så fat hamnar ovanpå)
+  const lightR = 80;
+  const lightGrad = ctx.createRadialGradient(cx, cy + 6, 4, cx, cy + 6, lightR);
+  lightGrad.addColorStop(0, `rgba(255, 140, 50, ${0.45 * flicker})`);
+  lightGrad.addColorStop(0.6, `rgba(255, 100, 30, ${0.15 * flicker})`);
+  lightGrad.addColorStop(1, 'rgba(255, 80, 20, 0)');
+  ctx.fillStyle = lightGrad;
+  ctx.fillRect(cx - lightR, cy + 6 - lightR, lightR * 2, lightR * 2);
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.ellipse(cx + 1, cy + 5, r + 2, 4, 0, 0, Math.PI*2); ctx.fill();
+  // Fat-kropp (rostig mörk metall)
+  ctx.fillStyle = '#2a1a0a';
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  // Vänster highlight
+  ctx.fillStyle = '#4a2a1a';
+  ctx.beginPath(); ctx.arc(cx - r * 0.3, cy - r * 0.3, r * 0.5, 0, Math.PI*2); ctx.fill();
+  // 2 band runt fat
+  ctx.strokeStyle = '#1a0808';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(cx - r, cy - r * 0.4); ctx.lineTo(cx + r, cy - r * 0.4);
+  ctx.moveTo(cx - r, cy + r * 0.5); ctx.lineTo(cx + r, cy + r * 0.5);
+  ctx.stroke();
+  // Rost-fläckar
+  ctx.fillStyle = '#7a3818';
+  ctx.fillRect(cx - r * 0.5, cy + r * 0.1, 3, 2);
+  ctx.fillRect(cx + r * 0.2, cy - r * 0.6, 2, 1.5);
+  ctx.fillRect(cx - r * 0.3, cy + r * 0.6, 2, 1);
+  // Topp-rim (mörkare)
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.stroke();
+  // FLAMMA (multi-lager animation)
+  const flameH = r * 1.8 + Math.sin(t / 70) * 4;
+  // Yttre orange
+  ctx.fillStyle = `rgba(255, 100, 30, ${0.7 * flicker})`;
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.7, cy - r * 0.3);
+  ctx.quadraticCurveTo(cx - r * 0.5 + Math.sin(t / 100) * 2, cy - flameH * 0.55, cx - 2, cy - flameH * 0.85);
+  ctx.quadraticCurveTo(cx + Math.sin(t / 80) * 3, cy - flameH, cx + 2, cy - flameH * 0.85);
+  ctx.quadraticCurveTo(cx + r * 0.5 + Math.sin(t / 90) * 2, cy - flameH * 0.55, cx + r * 0.7, cy - r * 0.3);
+  ctx.closePath(); ctx.fill();
+  // Mid gul
+  ctx.fillStyle = `rgba(255, 200, 60, ${0.85 * flicker})`;
+  ctx.beginPath();
+  ctx.moveTo(cx - r * 0.45, cy - r * 0.3);
+  ctx.quadraticCurveTo(cx - r * 0.3 + Math.sin(t / 90) * 1.5, cy - flameH * 0.45, cx - 1, cy - flameH * 0.7);
+  ctx.quadraticCurveTo(cx + Math.sin(t / 70) * 2, cy - flameH * 0.8, cx + 1, cy - flameH * 0.7);
+  ctx.quadraticCurveTo(cx + r * 0.3 + Math.sin(t / 95) * 1.5, cy - flameH * 0.45, cx + r * 0.45, cy - r * 0.3);
+  ctx.closePath(); ctx.fill();
+  // Vit hot-core
+  ctx.fillStyle = `rgba(255, 250, 220, ${0.9 * flicker})`;
+  ctx.beginPath();
+  ctx.ellipse(cx + Math.sin(t / 60) * 1, cy - flameH * 0.35, 2, 5, 0, 0, Math.PI*2); ctx.fill();
+  // Glow ovanpå
+  ctx.shadowColor = '#ff7030'; ctx.shadowBlur = 16 * flicker;
+  ctx.fillStyle = `rgba(255, 180, 50, ${0.5 * flicker})`;
+  ctx.beginPath(); ctx.arc(cx, cy - flameH * 0.3, 3, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Sparks (flyger upp)
+  const sparkSeed = Math.floor(t / 100) + (seed & 0xff);
+  for (let i = 0; i < 4; i++) {
+    const sphase = (t / 800 + i * 0.25) % 1;
+    const sx = cx + Math.sin((sparkSeed + i) * 13) * 6;
+    const sy = cy - r - sphase * 40;
+    ctx.fillStyle = `rgba(255, ${150 + i * 30}, 50, ${1 - sphase})`;
+    ctx.beginPath(); ctx.arc(sx, sy, 1 + (1 - sphase) * 0.7, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function drawLamppost(x, y, w, h, worldX, worldY) {
+  // Tak-monterad lyktstolpe (sticker NER från taket). Pole + lamp-head + light-pool
+  // Använd world-coords för deterministic flicker per pos
+  const t = performance.now();
+  const flickerSeed = ((worldX * 17 + worldY * 23) | 0);
+  const flickerPhase = (t / 1000) * 4 + flickerSeed * 0.1;
+  const flickerNoise = Math.sin(flickerPhase * 7.3) * Math.cos(flickerPhase * 11.7);
+  const isOn = flickerNoise > -0.3;
+  const intensity = isOn ? (0.8 + Math.sin(flickerPhase * 3.2) * 0.2) : (Math.random() < 0.08 ? 0.35 : 0);
+  ctx.save();
+  // Ljus-pöl på marken — render FÖRST
+  if (intensity > 0.1) {
+    const poolR = 95;
+    const poolGrad = ctx.createRadialGradient(x + w / 2, y + h + 14, 4, x + w / 2, y + h + 14, poolR);
+    poolGrad.addColorStop(0, `rgba(220, 230, 255, ${0.35 * intensity})`);
+    poolGrad.addColorStop(0.45, `rgba(180, 210, 255, ${0.18 * intensity})`);
+    poolGrad.addColorStop(1, 'rgba(180, 210, 255, 0)');
+    ctx.fillStyle = poolGrad;
+    ctx.fillRect(x + w / 2 - poolR, y + h + 14 - poolR, poolR * 2, poolR * 2);
+  }
+  // Skugga under pole
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(x + 2, y + 4, w, h);
+  // Pole-bas (mörk metall)
+  ctx.fillStyle = '#1a1a20';
+  ctx.fillRect(x, y, w, h);
+  // Pole highlight (vänster)
+  ctx.fillStyle = '#3a3a48';
+  ctx.fillRect(x, y, 1.5, h);
+  // Pole top-cap (mörk topp)
+  ctx.fillStyle = '#0a0a0e';
+  ctx.fillRect(x - 1, y - 1, w + 2, 2);
+  // Lamp-fixture (sticker ut ovanpå pole — lampskärm)
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(x - 6, y - 7, w + 12, 5);
+  // Lampskärm-inner-glow när på
+  if (intensity > 0.05) {
+    ctx.fillStyle = `rgba(220, 240, 255, ${intensity})`;
+    ctx.shadowColor = '#a8d0ff'; ctx.shadowBlur = 14 * intensity;
+    ctx.fillRect(x - 5, y - 6, w + 10, 3);
+    ctx.shadowBlur = 0;
+    // Vit hot-streak
+    ctx.fillStyle = `rgba(255, 255, 255, ${intensity * 0.7})`;
+    ctx.fillRect(x - 5, y - 5.5, w + 10, 1);
+  } else {
+    // Av — mörkt
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(x - 5, y - 6, w + 10, 3);
+  }
+  // Lampskärm-fastsättnings-skruvar
+  ctx.fillStyle = '#3a3a40';
+  ctx.beginPath(); ctx.arc(x - 4, y - 4, 0.7, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(x + w + 4, y - 4, 0.7, 0, Math.PI*2); ctx.fill();
+  // Mount-bracket (övre del — tak-fastsättning)
+  ctx.fillStyle = '#2a2a30';
+  ctx.fillRect(x - 2, y - 12, w + 4, 5);
+  ctx.fillStyle = '#5a5a60';
+  ctx.fillRect(x - 2, y - 12, w + 4, 1);
+  ctx.restore();
+}
+
+function drawBrokenPillar(x, y, w, h, seed) {
+  // Trasig pelare — exponerad rebar + sprickor + raserad topp
+  drawPillar(x, y, w, h, seed);
+  ctx.save();
+  // Stor diagonal spricka
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(x, y + h * 0.3);
+  ctx.lineTo(x + w * 0.5, y + h * 0.5);
+  ctx.lineTo(x + w, y + h * 0.4);
+  ctx.stroke();
+  // Exponerad rebar (rostig metallpinne sticker ut)
+  ctx.strokeStyle = '#8a4818';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.3, y - 4);
+  ctx.lineTo(x + w * 0.3, y + h * 0.4);
+  ctx.moveTo(x + w * 0.7, y - 6);
+  ctx.lineTo(x + w * 0.7, y + h * 0.3);
+  ctx.stroke();
+  // Rebar-böjningar (top)
+  ctx.beginPath();
+  ctx.moveTo(x + w * 0.3, y - 4); ctx.lineTo(x + w * 0.3 - 3, y - 8);
+  ctx.moveTo(x + w * 0.7, y - 6); ctx.lineTo(x + w * 0.7 + 4, y - 9);
+  ctx.stroke();
+  // Concrete-chunks-rubble vid botten
+  ctx.fillStyle = '#3a3a40';
+  ctx.fillRect(x - 2, y + h - 2, 4, 3);
+  ctx.fillRect(x + w - 2, y + h - 3, 5, 4);
+  ctx.fillStyle = '#5a5a60';
+  ctx.fillRect(x - 1, y + h - 2, 1, 1);
+  ctx.restore();
+}
+
+function drawTaggedPillar(x, y, w, h, seed) {
+  // Tagged pelare — vanlig pelare med stor röd graffiti-tag
+  drawPillar(x, y, w, h, seed);
+  ctx.save();
+  // Stor röd graffiti-tag (kryss / JUG-symbol)
+  ctx.translate(x + w / 2, y + h / 2);
+  ctx.font = 'italic 900 ' + Math.min(w, h) * 0.55 + 'px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#aa0000'; ctx.shadowBlur = 4;
+  ctx.fillStyle = '#ff3030';
+  ctx.fillText('JUG', 0, 0);
+  ctx.shadowBlur = 0;
+  // Spray-drips
+  ctx.fillStyle = '#ff3030';
+  ctx.fillRect(-w * 0.2, h * 0.05, 1, 6);
+  ctx.fillRect(w * 0.15, h * 0.05, 1, 4);
+  ctx.beginPath(); ctx.arc(-w * 0.2 + 0.5, h * 0.05 + 7, 1.2, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
 }
 
 // Linjär färgblandning. Stöder #rgb, #rrggbb. t=0→a, t=1→b.
@@ -2668,6 +3210,174 @@ function drawJuggernautDecorations(decos) {
       // Zip-puller (liten metall-bit)
       ctx.fillStyle = '#9a9a9a';
       ctx.fillRect(x - 1, y - 1.5, 2, 1);
+
+    } else if (d.kind === 'floor_marking') {
+      // Stor målad text på golvet (parking P, EXIT-arrow etc.) — slitet
+      const text = d.text || 'P';
+      const size = d.size || 80;
+      const color = d.color || '#ffd54a';
+      ctx.font = 'bold ' + size + 'px Impact, "Arial Black", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      // Slitet utseende: 3 lager med fade + chips
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillText(text, x + 2, y + 2);
+      ctx.fillStyle = color;
+      ctx.globalAlpha = 0.72;
+      ctx.fillText(text, x, y);
+      // Slitage-chips (random svarta fläckar inom texten)
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = 'rgba(20, 20, 24, 0.55)';
+      const wearSeed = ((d.x * 13) ^ (d.y * 17)) | 0;
+      for (let i = 0; i < 8; i++) {
+        const wx = x + ((wearSeed * (i + 1) * 23) % size) - size * 0.5;
+        const wy = y + ((wearSeed * (i + 3) * 31) % size) - size * 0.5;
+        const wsz = 2 + ((wearSeed >> i) & 0x3);
+        ctx.fillRect(wx, wy, wsz, wsz * 0.6);
+      }
+      // Subtle dark outline
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeText(text, x, y);
+
+    } else if (d.kind === 'ceiling_pipe') {
+      // Horisontellt tak-rör — bred mörk balk med highlight + shadow
+      // Halvtransparent för "tak ovanpå"-känsla
+      const w = d.w || 1000;
+      const dia = d.dia || 14;
+      const color = d.color || '#5a4030';
+      // Skugga på golvet (halvtransparent, lite offset)
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.fillRect(x, y + dia * 0.8, w, dia * 0.4);
+      // Pipe-body (med skuggning)
+      const grad = ctx.createLinearGradient(0, y, 0, y + dia);
+      grad.addColorStop(0, '#1a1a1e');
+      grad.addColorStop(0.3, color);
+      grad.addColorStop(0.7, color);
+      grad.addColorStop(1, '#0a0a0e');
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = 0.82;
+      ctx.fillRect(x, y, w, dia);
+      // Highlight-streak ovanpå
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.15;
+      ctx.fillRect(x, y + dia * 0.15, w, 1);
+      // Pipe-joints/brackets (var ~250px)
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#1a1a1a';
+      const jointSpacing = 250;
+      const startX = Math.floor((cx - x) / jointSpacing) * jointSpacing + x;
+      for (let jx = Math.max(x, startX); jx < x + w && jx < cx + viewW + 20; jx += jointSpacing) {
+        ctx.fillRect(jx - cx - 2, y, 4, dia);
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillRect(jx - cx - 2, y, 4, 1);
+        ctx.fillStyle = '#1a1a1a';
+      }
+      // Rust-streaks (random vertical drips ned från piper)
+      ctx.fillStyle = 'rgba(140, 70, 30, 0.35)';
+      const rustSeed = ((d.x * 7) ^ (d.y * 11)) | 0;
+      for (let i = 0; i < Math.min(8, w / 200); i++) {
+        const rx = x + ((rustSeed * (i + 1) * 19) % w);
+        ctx.fillRect(rx - cx, y + dia, 1, 8);
+      }
+      ctx.globalAlpha = 1;
+
+    } else if (d.kind === 'ceiling_pipe_v') {
+      // Vertikalt tak-rör (samma logik som ceiling_pipe men rotated 90°)
+      const h = d.h || 1000;
+      const dia = d.dia || 10;
+      const color = d.color || '#4a4a55';
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.fillRect(x + dia * 0.8, y, dia * 0.4, h);
+      const grad = ctx.createLinearGradient(x, 0, x + dia, 0);
+      grad.addColorStop(0, '#1a1a1e');
+      grad.addColorStop(0.3, color);
+      grad.addColorStop(0.7, color);
+      grad.addColorStop(1, '#0a0a0e');
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = 0.78;
+      ctx.fillRect(x, y, dia, h);
+      // Highlight
+      ctx.fillStyle = '#ffffff';
+      ctx.globalAlpha = 0.13;
+      ctx.fillRect(x + dia * 0.15, y, 1, h);
+      ctx.globalAlpha = 1;
+      // Joints var 250px
+      ctx.fillStyle = '#1a1a1a';
+      const jointSpacing = 250;
+      const startY = Math.floor((cy - y) / jointSpacing) * jointSpacing + y;
+      for (let jy = Math.max(y, startY); jy < y + h && jy < cy + viewH + 20; jy += jointSpacing) {
+        ctx.fillRect(x, jy - cy - 2, dia, 4);
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillRect(x, jy - cy - 2, 1, 4);
+        ctx.fillStyle = '#1a1a1a';
+      }
+
+    } else if (d.kind === 'cable_bundle') {
+      // Hängande kabel-knippe — flera kurviga linjer mellan 2 punkter
+      const x2 = (d.x2 || d.x + 200) - cx;
+      const y2 = (d.y2 || d.y) - cy;
+      // Skugga
+      ctx.strokeStyle = 'rgba(0,0,0,0.22)';
+      ctx.lineWidth = 6;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x, y + 6);
+      const sagY = (y + y2) / 2 + 18;
+      ctx.quadraticCurveTo((x + x2) / 2, sagY + 4, x2, y2 + 6);
+      ctx.stroke();
+      // 3 kabelfärger som hänger ihop i ett knippe
+      const cableColors = ['#1a1a1a', '#2a2018', '#181820'];
+      for (let i = 0; i < 3; i++) {
+        ctx.strokeStyle = cableColors[i];
+        ctx.lineWidth = 2.5 - i * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y + i * 1.5);
+        ctx.quadraticCurveTo((x + x2) / 2, sagY + i * 1.2, x2, y2 + i * 1.5);
+        ctx.stroke();
+      }
+      // Cable-clamps (mörka punkter där kablarna sitter fast i taket)
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(x - 3, y - 2, 6, 5);
+      ctx.fillRect(x2 - 3, y2 - 2, 6, 5);
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 3, y - 2, 6, 1);
+      ctx.fillRect(x2 - 3, y2 - 2, 6, 1);
+
+    } else if (d.kind === 'ceiling_drip') {
+      // Tak-läcka: liten dropp som forms + faller med periodisk anim
+      const dripPhase = (t / 1500 + (d.x * 0.001) + (d.y * 0.001)) % 1;
+      // Tak-håll-punkt
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath(); ctx.arc(x, y - 60, 1.5, 0, Math.PI*2); ctx.fill();
+      // Vått fuktig fläck runt håll-punkten
+      ctx.fillStyle = 'rgba(40, 60, 90, 0.45)';
+      ctx.beginPath();
+      ctx.ellipse(x, y - 60, 6, 2, 0, 0, Math.PI*2); ctx.fill();
+      // Droppe i fallning
+      const dropY = y - 60 + dripPhase * 60;
+      const dropAlpha = dripPhase < 0.9 ? 1 : (1 - dripPhase) * 10;
+      ctx.fillStyle = `rgba(140, 180, 220, ${dropAlpha})`;
+      ctx.beginPath();
+      ctx.ellipse(x, dropY, 1.3, 2.5, 0, 0, Math.PI*2); ctx.fill();
+      // Subtle trail-streak ovanför droppen
+      if (dripPhase > 0.2) {
+        ctx.strokeStyle = `rgba(140, 180, 220, ${0.3 * dropAlpha})`;
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(x, dropY - 8);
+        ctx.lineTo(x, dropY);
+        ctx.stroke();
+      }
+      // Splash vid impact (synlig kort)
+      if (dripPhase > 0.92) {
+        const splashAlpha = (dripPhase - 0.92) / 0.08;
+        ctx.strokeStyle = `rgba(140, 180, 220, ${splashAlpha * 0.6})`;
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.arc(x, y, 4 + splashAlpha * 3, 0, Math.PI*2);
+        ctx.stroke();
+      }
 
     } else if (d.kind === 'warning_triangle') {
       // Röd-vit varningstriangel (vanlig vägmarkering)

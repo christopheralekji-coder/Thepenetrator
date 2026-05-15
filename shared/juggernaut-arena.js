@@ -99,6 +99,26 @@ const JUGGERNAUT_ARENA = {
     { x: 4400, y: 1300, w: 32, h: 32, kind: 'oil_drum' },
     { x: 2600, y: 600,  w: 32, h: 32, kind: 'oil_drum' },
 
+    // === BRINNANDE OLJEFAT (4 st — solid collision + animated flame) ===
+    { x: 900,  y: 1700, w: 28, h: 28, kind: 'fire_drum' },
+    { x: 4100, y: 1700, w: 28, h: 28, kind: 'fire_drum' },
+    { x: 2500, y: 900,  w: 28, h: 28, kind: 'fire_drum' },
+    { x: 2500, y: 2600, w: 28, h: 28, kind: 'fire_drum' },
+
+    // === LYKTSTOLPAR (12 st — collidable poles med tak-monterade lampor) ===
+    { x: 700,  y: 350, w: 14, h: 14, kind: 'lamppost' },
+    { x: 1400, y: 350, w: 14, h: 14, kind: 'lamppost' },
+    { x: 2100, y: 350, w: 14, h: 14, kind: 'lamppost' },
+    { x: 2800, y: 350, w: 14, h: 14, kind: 'lamppost' },
+    { x: 3500, y: 350, w: 14, h: 14, kind: 'lamppost' },
+    { x: 4200, y: 350, w: 14, h: 14, kind: 'lamppost' },
+    { x: 700,  y: 2700, w: 14, h: 14, kind: 'lamppost' },
+    { x: 1400, y: 2700, w: 14, h: 14, kind: 'lamppost' },
+    { x: 2100, y: 2700, w: 14, h: 14, kind: 'lamppost' },
+    { x: 2800, y: 2700, w: 14, h: 14, kind: 'lamppost' },
+    { x: 3500, y: 2700, w: 14, h: 14, kind: 'lamppost' },
+    { x: 4200, y: 2700, w: 14, h: 14, kind: 'lamppost' },
+
     // === AVSKÄRMNINGAR / OUT-OF-ORDER-TAPE-block (4 st) ===
     { x: 1000, y: 500,  w: 80, h: 20, kind: 'barricade' },
     { x: 3800, y: 500,  w: 80, h: 20, kind: 'barricade' },
@@ -106,25 +126,15 @@ const JUGGERNAUT_ARENA = {
     { x: 3800, y: 2950, w: 80, h: 20, kind: 'barricade' },
   ],
 
-  // Decorations — 11 olika typer + dekorationer som inte är walls.
-  // Klienten ritar dessa men de blockerar inte rörelse/skott.
+  // Decorations — visuella overlays, ingen collision. Strukturerade i lager:
+  //  1) Mark-paint (under allt annat): floor_marking, parking_lines
+  //  2) Mark-detaljer: puddle, drain, caution_tape, abandoned_bag, warning_triangle, shopping_cart, graffiti
+  //  3) Tak (ovanpå allt — "syns igenom" som ovanifrån-perspektiv):
+  //     ceiling_pipe, cable_bundle, ceiling_drip
   decorations: [
-    // === Sign vid entrén ===
-    { kind: 'sign', x: 2400, y: 100, w: 240, h: 38, text: '🚗 P-GARAGE 🚗', bg: '#1a1a1a', fg: '#ffd54a' },
-
-    // === Trasiga lysrör (flackande) — 12 st i grid ovanför pelar-rader ===
-    { kind: 'flicker_light', x: 700,  y: 350, color: '#a8d0ff', flickerHz: 4 },
-    { kind: 'flicker_light', x: 1400, y: 350, color: '#a8d0ff', flickerHz: 6 },
-    { kind: 'flicker_light', x: 2100, y: 350, color: '#a8d0ff', flickerHz: 3 },
-    { kind: 'flicker_light', x: 2800, y: 350, color: '#a8d0ff', flickerHz: 5 },
-    { kind: 'flicker_light', x: 3500, y: 350, color: '#a8d0ff', flickerHz: 4 },
-    { kind: 'flicker_light', x: 4200, y: 350, color: '#a8d0ff', flickerHz: 7 },
-    { kind: 'flicker_light', x: 700,  y: 2700, color: '#a8d0ff', flickerHz: 3 },
-    { kind: 'flicker_light', x: 1400, y: 2700, color: '#a8d0ff', flickerHz: 5 },
-    { kind: 'flicker_light', x: 2100, y: 2700, color: '#a8d0ff', flickerHz: 4 },
-    { kind: 'flicker_light', x: 2800, y: 2700, color: '#a8d0ff', flickerHz: 6 },
-    { kind: 'flicker_light', x: 3500, y: 2700, color: '#a8d0ff', flickerHz: 4 },
-    { kind: 'flicker_light', x: 4200, y: 2700, color: '#a8d0ff', flickerHz: 3 },
+    // === Stor "P"-markering målad på golvet vid entré-zonen (var: floating sign) ===
+    { kind: 'floor_marking', x: 2500, y: 200, text: 'P', size: 140, color: '#ffd54a' },
+    { kind: 'floor_marking', x: 2500, y: 3300, text: 'EXIT →', size: 36, color: '#ff5a3a' },
 
     // === Sprinkler-pölar (vatten på golvet, blanka mörka fläckar) ===
     { kind: 'puddle', x: 1700, y: 1200, r: 60 },
@@ -132,12 +142,6 @@ const JUGGERNAUT_ARENA = {
     { kind: 'puddle', x: 900,  y: 2400, r: 50 },
     { kind: 'puddle', x: 4100, y: 900,  r: 65 },
     { kind: 'puddle', x: 2400, y: 2500, r: 55 },
-
-    // === Oljefatseld (brinnande oljefat — ljuspölar) — 4 st ===
-    { kind: 'fire_drum', x: 900,  y: 1700, color: '#ff7a30' },
-    { kind: 'fire_drum', x: 4100, y: 1700, color: '#ff7a30' },
-    { kind: 'fire_drum', x: 2500, y: 900,  color: '#ff7a30' },
-    { kind: 'fire_drum', x: 2500, y: 2600, color: '#ff7a30' },
 
     // === Avloppsbrunnar / golvgaller (visuella) — 8 st ===
     { kind: 'drain', x: 1200, y: 900 },
@@ -188,6 +192,29 @@ const JUGGERNAUT_ARENA = {
     { kind: 'warning_triangle', x: 1080, y: 1180 },
     { kind: 'warning_triangle', x: 4030, y: 1980 },
     { kind: 'warning_triangle', x: 2030, y: 2780 },
+
+    // === TAK-RÖR: stora industri-rör som löper över parkering (visuell overlay)
+    // Renderade halvtransparent över marken för "tak ovanpå"-känsla
+    { kind: 'ceiling_pipe', x: 100,  y: 600, w: 4800, color: '#5a4030', dia: 14 },
+    { kind: 'ceiling_pipe', x: 100,  y: 1400, w: 4800, color: '#3a3a45', dia: 16 },
+    { kind: 'ceiling_pipe', x: 100,  y: 2200, w: 4800, color: '#5a4030', dia: 14 },
+    { kind: 'ceiling_pipe', x: 100,  y: 3000, w: 4800, color: '#3a3a45', dia: 16 },
+    // Tvärgående mindre rör
+    { kind: 'ceiling_pipe_v', x: 1100, y: 100, h: 3300, color: '#4a4a55', dia: 10 },
+    { kind: 'ceiling_pipe_v', x: 2500, y: 100, h: 3300, color: '#4a4a55', dia: 10 },
+    { kind: 'ceiling_pipe_v', x: 3900, y: 100, h: 3300, color: '#4a4a55', dia: 10 },
+
+    // === KABEL-HÄRVOR i taket: tjocka kablar i klasar som svänger ===
+    { kind: 'cable_bundle', x: 800,  y: 980, x2: 2200, y2: 1020 },
+    { kind: 'cable_bundle', x: 2400, y: 980, x2: 3800, y2: 1020 },
+    { kind: 'cable_bundle', x: 800,  y: 1780, x2: 2200, y2: 1820 },
+    { kind: 'cable_bundle', x: 2400, y: 2380, x2: 3800, y2: 2420 },
+
+    // === TAK-LÄCKOR: små vatten-droppar från taket (animerade) ===
+    { kind: 'ceiling_drip', x: 1700, y: 1200 }, // över puddle
+    { kind: 'ceiling_drip', x: 3300, y: 2000 },
+    { kind: 'ceiling_drip', x: 900,  y: 2400 },
+    { kind: 'ceiling_drip', x: 4100, y: 900 },
   ],
 
   // JUG-specifika vapenval. Klient visar dessa i weapon-switch-UI när
