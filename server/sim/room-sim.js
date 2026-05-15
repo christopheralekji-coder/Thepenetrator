@@ -124,7 +124,7 @@ function createSim(room) {
     juggernautKillsByPid: {},      // peerId → kills som JUG
     juggernautHpMax: 0,            // beräknas vid match-start från hunterCount
     juggernautEndAt: 0,            // ms timestamp då matchen tar slut
-    juggernautDmgToJug: {},        // peerId → damage gjort mot current JUG sedan senaste transfer
+    // (juggernautDmgToJug borttagen — transfer-selection går via _juggernautAwaitFirstRespawn nu)
     _juggernautLastPulseAt: 0,     // ms när senaste minimap-puls sändes
     _juggernautSpawnIdx: 0,        // roterar spawn-punkter
     _juggernautScoreAccum: 0,      // fractional second-accumulator för JUG score
@@ -1610,8 +1610,8 @@ function transferJug(sim, newPid, reason) {
     }
   }
   sim.juggernautPid = newPid;
-  // Reset dmg-attribution när JUG byter
-  sim.juggernautDmgToJug = {};
+  // Reset mobility-decay-tracker så nya JUG inte ärver gamla timer
+  sim._jugLastMovePos = null;
   if (newPid) {
     const newWs = sim.room.members.get(newPid);
     if (newWs) {
@@ -1733,6 +1733,41 @@ function tickJuggernaut(sim, dt, now) {
     sim.juggernautScores[sim.juggernautPid] = (sim.juggernautScores[sim.juggernautPid] || 0) + dt;
   }
 
+  // Anti-camping: JUG som inte rört sig >25px på 5s börjar tappa 2 HP/sek.
+  // Tvingar JUG att hålla sig i rörelse istället för att fastna i ett hörn.
+  if (sim.juggernautPid) {
+    const jugWs = sim.room.members.get(sim.juggernautPid);
+    if (jugWs && jugWs.playerState && jugWs.playerState.hp > 0) {
+      const ps = jugWs.playerState;
+      if (sim._jugLastMovePos == null) {
+        sim._jugLastMovePos = { x: ps.x, y: ps.y, t: nowMs };
+      } else {
+        const dx = ps.x - sim._jugLastMovePos.x;
+        const dy = ps.y - sim._jugLastMovePos.y;
+        if (dx * dx + dy * dy > 25 * 25) {
+          sim._jugLastMovePos = { x: ps.x, y: ps.y, t: nowMs };
+        } else if (nowMs - sim._jugLastMovePos.t > 5000) {
+          // Stationär >5s → drain 2 HP/sek
+          ps.hp = Math.max(0, ps.hp - 2 * dt);
+          // Throttla pvp_hp_changed till 2Hz för att inte spamma events
+          sim._jugDecayBroadcast = (sim._jugDecayBroadcast || 0) + dt;
+          if (sim._jugDecayBroadcast >= 0.5) {
+            sim._jugDecayBroadcast = 0;
+            sim.eventQueue.push({
+              type: 'pvp_hp_changed',
+              peerId: sim.juggernautPid,
+              hp: ps.hp,
+              shield: ps.shield || 0,
+              decay: true,
+            });
+          }
+        }
+      }
+    }
+  } else {
+    sim._jugLastMovePos = null;
+  }
+
   // Score-broadcast var sekund (mirror av KOTH)
   sim._juggernautBroadcastTick = (sim._juggernautBroadcastTick || 0) + dt;
   if (sim._juggernautBroadcastTick >= 1.0) {
@@ -1825,15 +1860,6 @@ function handleJuggernautKill(sim, killerPid, killerWs, victimPid, victimWs, wea
     victimWs.tdmRespawnAt = Date.now() + 3000;
     sim.eventQueue.push({ type: 'juggernaut_player_died', victim: victimPid, durationMs: 3000, wasJug: false });
   }
-}
-
-// Damage-attribution — kallas från bullets.js när hunter skadar JUG, så vi
-// vet vem som ska ärva rollen om bot dödar JUG.
-function trackJuggernautDmg(sim, shooterPid, victimPid, dmg) {
-  if (victimPid !== sim.juggernautPid) return;
-  const ws = sim.room.members.get(shooterPid);
-  if (!ws || ws._isBot) return; // bot-dmg räknas inte för attribution
-  sim.juggernautDmgToJug[shooterPid] = (sim.juggernautDmgToJug[shooterPid] || 0) + dmg;
 }
 
 function endJuggernautMatch(sim, winnerId, reason) {
@@ -2088,7 +2114,6 @@ function startSim(sim, opts) {
   sim.juggernautKillsByPid = {};
   sim.juggernautHpMax = 0;
   sim.juggernautEndAt = 0;
-  sim.juggernautDmgToJug = {};
   sim._juggernautLastPulseAt = 0;
   sim._juggernautSpawnIdx = 0;
   sim._juggernautScoreAccum = 0;
@@ -2530,7 +2555,6 @@ function startSim(sim, opts) {
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
     // Exponera kill-handler + dmg-tracker till bullets.js
     sim._handleJuggernautKill = handleJuggernautKill;
-    sim._trackJuggernautDmg = trackJuggernautDmg;
   } else {
     loadStage(sim, sim.wave);
   }

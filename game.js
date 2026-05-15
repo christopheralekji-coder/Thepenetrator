@@ -7586,6 +7586,17 @@ const Coop = {
         if (typeof updateHUD === 'function') updateHUD();
         targetX = state.player.x;
         targetY = state.player.y;
+        // Juggernaut: JUG-spelaren under 30% HP → boss-musik-intensitet
+        if (state.juggernautActive && state.player.isJug && state.player.maxHp > 100) {
+          const hpFrac = state.player.hp / state.player.maxHp;
+          if (hpFrac < 0.3 && state._jugLowHpMusic !== true) {
+            state._jugLowHpMusic = true;
+            if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
+          } else if (hpFrac >= 0.5 && state._jugLowHpMusic) {
+            state._jugLowHpMusic = false;
+            if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
+          }
+        }
       } else if (this.players.has(ev.peerId)) {
         const p = this.players.get(ev.peerId);
         prevHp = p.hp;
@@ -8344,6 +8355,9 @@ const Coop = {
       state.juggernautPid = this.juggernautPid;
       this.juggernautWeapon = ev.weapon || this.juggernautWeapon;
       this.juggernautHpMax = ev.jugHp || this.juggernautHpMax;
+      // Reset låg-HP-musik så ny JUG börjar på 'active' istället för att ärva 'boss'
+      state._jugLowHpMusic = false;
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
       const iAmNewJug = (ev.newJug === this.myId);
       const iWasOldJug = (ev.oldJug === this.myId);
       if (state.player) {
@@ -8484,6 +8498,8 @@ const Coop = {
       }
       state.juggernautMinimapPulse = null;
       state.juggernautPid = null;
+      state._jugLowHpMusic = false;
+      state._jugHeartbeatTimer = 0;
       const statsArr = [];
       if (ev.stats && ev.stats.perPlayer) {
         for (const pid of Object.keys(ev.stats.perPlayer)) {
@@ -9994,7 +10010,7 @@ const MODE_OPTIONS = {
   juggernaut: {
     title: '👑 JUGGERNAUT — HUNT THE KING',
     desc: '1 spelare blir JUG (5× HP, +35% speed, valbart vapen). Hunters har bara pistol. Mest sek som JUG vinner.',
-    options: [{ key: 'juggernautMatchDurationSec', label: 'MATCHLÄNGD', values: [120, 360, 900], labels: ['⚡ 2 MIN', '🔥 6 MIN', '👑 15 MIN'], def: 360 }],
+    options: [{ key: 'juggernautMatchDurationSec', label: 'MATCHLÄNGD', values: [120, 360, 900], labels: ['⚡ 2 MIN BLITZ', '🔥 6 MIN STANDARD', '🐌 15 MIN MARATHON'], def: 360 }],
   },
   bots: {
     title: '🤖 BOTS — TRÄNA MOT AI',
@@ -27241,6 +27257,31 @@ function runFrame(dt, now) {
       if (state.truck) updateTruck(dt, now);
       updateDeathState(dt);
       checkCoopAllDead();
+      // Juggernaut proximity-heartbeat för hunters: pulsljud var 2s när JUG
+      // är <800px bort. Ger lokal warning utan att avslöja exakt riktning.
+      if (state.juggernautActive && state.player && !state.player.isJug && state.juggernautPid) {
+        const jp = Coop.players.get(state.juggernautPid);
+        const jx = jp && jp.x !== undefined ? jp.x : null;
+        const jy = jp && jp.y !== undefined ? jp.y : null;
+        if (jx != null && jy != null) {
+          const dx = jx - state.player.x, dy = jy - state.player.y;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < 800 * 800) {
+            state._jugHeartbeatTimer = (state._jugHeartbeatTimer || 0) + dt;
+            // Tätare puls ju närmre — 1.5s @ 800px, 0.6s @ 200px
+            const dist = Math.sqrt(d2);
+            const interval = 0.6 + (dist / 800) * 0.9;
+            if (state._jugHeartbeatTimer >= interval) {
+              state._jugHeartbeatTimer = 0;
+              if (typeof Audio !== 'undefined' && Audio._tone) {
+                Audio._tone(60, 0.08, 'sine', 0.15, 0.005, 0.07, 80);
+              }
+            }
+          } else {
+            state._jugHeartbeatTimer = 0;
+          }
+        }
+      }
       // ApokalypsJamlo cheat — meteor var 8:e sekund
       if (state.player && isCheatActive('apocalypse')) {
         state._apocalypseTimer = (state._apocalypseTimer || 0) + dt;
