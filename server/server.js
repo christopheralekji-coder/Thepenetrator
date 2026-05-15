@@ -689,7 +689,7 @@ function handleMessage(ws, msg) {
   if (msg.type === 'pvp_ability_shield') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
-    if (!room.sim.tdmActive && !room.sim.ctfActive && !room.sim.siegeActive && !room.sim.kothActive) return;
+    if (!room.sim.tdmActive && !room.sim.ctfActive && !room.sim.siegeActive && !room.sim.kothActive && !room.sim.gungameActive) return;
     if (!ws.playerState || ws.playerState.hp <= 0) return;
     const now = Date.now();
     const SHIELD_DURATION = 3000;

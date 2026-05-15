@@ -17539,6 +17539,13 @@ function updateBullets(dt) {
         const myDx = p.x - b.x, myDy = p.y - b.y;
         const myR = (p.r || 14) + (b.r || 4) + 8; // lag-comp +8 mirror
         if (myDx * myDx + myDy * myDy < myR * myR) {
+          // Shielden absorberar — server skippar damage, så klient måste också
+          // skippa hit-feedback (annars känns shielden buggig: flash+ljud+number
+          // utan att HP rör sig).
+          if (p.pvpShieldUntil && performance.now() < p.pvpShieldUntil) {
+            b.dead = true;
+            continue;
+          }
           b._localHitMe = true;
           // Visuell prediction: flash + shake + ev. predicted dmg-number
           if (typeof drawDamageFlash === 'function') {} // drawDamageFlash är canvas-render
