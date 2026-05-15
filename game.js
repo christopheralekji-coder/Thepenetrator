@@ -10588,6 +10588,20 @@ const Coop = {
         state.player.spectating = false;
         state.player.invuln = 1.5;
       }
+      // KRITISKT: Synka isJug + maxHp + scaleMul på alla PARTNER-objekt också,
+      // annars: (a) hunter ser pil mot JUG via drawOffscreenPartner eftersom
+      // p.isJug är false, (b) partner HP-bar overflowar pga hp=600/maxHp=100=6×.
+      for (const [pid, partner] of this.players) {
+        if (pid === this.juggernautPid) {
+          partner.isJug = true;
+          partner.scaleMul = this.juggernautScale;
+          partner.maxHp = this.juggernautHpMax;
+        } else {
+          partner.isJug = false;
+          partner.scaleMul = 1.0;
+          partner.maxHp = 100;
+        }
+      }
       // Spara aktuell vapen-mapping så GUI och spawnPlayerBullets använder JUG-vapnet
       save.equipped = state.player ? state.player.weaponId : this.juggernautHunterWeapon;
       save.weaponId = save.equipped;
@@ -19047,18 +19061,23 @@ function showKothEndScreen(winnerId, stats) {
 let _juggernautHud = null;
 let _juggernautKillFeedEl = null;
 function ensureJuggernautHud() {
-  if (_juggernautHud) return;
-  _juggernautHud = document.createElement('div');
-  _juggernautHud.id = 'juggernaut-hud';
-  _juggernautHud.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top, 8px));left:50%;transform:translateX(-50%);background:transparent;border:0;padding:5px 10px;color:#fff;font-family:sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;z-index:50;display:flex;flex-direction:column;gap:3px;align-items:center;pointer-events:none;max-width:calc(100vw - 220px);text-shadow:0 1px 3px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.8);';
-  _juggernautHud.innerHTML = '<div id="jug-timer" style="color:#3acaff;font-size:13px;text-align:center;">—</div><div id="jug-board" style="font-size:10px;color:#aaa;text-align:center;line-height:1.3;"></div>';
-  document.body.appendChild(_juggernautHud);
-  _juggernautKillFeedEl = document.createElement('div');
-  _juggernautKillFeedEl.id = 'juggernaut-killfeed';
-  // Placera under minimapen (minimap = top:60, height 110 default → bot 170;
-   // lägg kill-feed på top:200 så den aldrig overlappar minimapen)
-  _juggernautKillFeedEl.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top, 0px) + 200px);right:max(12px, env(safe-area-inset-right, 12px));width:min(220px, calc(100vw - 24px - env(safe-area-inset-right, 0px)));display:flex;flex-direction:column;gap:3px;z-index:51;pointer-events:none;';
-  document.body.appendChild(_juggernautKillFeedEl);
+  // ALLTID re-applya cssText så ny version's CSS-ändringar slår igenom även
+  // för users som har stale element från tidigare matcher i samma session.
+  const hudCss = 'position:fixed;top:max(8px, env(safe-area-inset-top, 8px));left:50%;transform:translateX(-50%);background:transparent;border:0;padding:5px 10px;color:#fff;font-family:sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;z-index:50;display:flex;flex-direction:column;gap:3px;align-items:center;pointer-events:none;max-width:calc(100vw - 220px);text-shadow:0 1px 3px rgba(0,0,0,0.95), 0 0 6px rgba(0,0,0,0.8);';
+  const kfCss = 'position:fixed;top:calc(env(safe-area-inset-top, 0px) + 200px);right:max(12px, env(safe-area-inset-right, 12px));width:min(220px, calc(100vw - 24px - env(safe-area-inset-right, 0px)));display:flex;flex-direction:column;gap:3px;z-index:51;pointer-events:none;';
+  if (!_juggernautHud) {
+    _juggernautHud = document.createElement('div');
+    _juggernautHud.id = 'juggernaut-hud';
+    _juggernautHud.innerHTML = '<div id="jug-timer" style="color:#3acaff;font-size:13px;text-align:center;">—</div><div id="jug-board" style="font-size:10px;color:#aaa;text-align:center;line-height:1.3;"></div>';
+    document.body.appendChild(_juggernautHud);
+  }
+  _juggernautHud.style.cssText = hudCss;
+  if (!_juggernautKillFeedEl) {
+    _juggernautKillFeedEl = document.createElement('div');
+    _juggernautKillFeedEl.id = 'juggernaut-killfeed';
+    document.body.appendChild(_juggernautKillFeedEl);
+  }
+  _juggernautKillFeedEl.style.cssText = kfCss;
   // Vapen-byte sker via existerande btn-weapon-menu under minimapen — ingen
   // dedikerad knapp behövs. openWeaponMenu() routar JUG till weapon-picker.
 }
