@@ -19130,11 +19130,16 @@ function showJuggernautWeaponPicker() {
       +   '<button id="jug-weapon-cancel" style="background:#2a2a2a;color:#ffd54a;border:1px solid #444;padding:10px 22px;border-radius:6px;font-weight:900;letter-spacing:2px;cursor:pointer;min-height:44px;font-size:13px;">↩ STÄNG</button>'
       + '</div>';
     document.body.appendChild(picker);
-    document.getElementById('jug-weapon-cancel').addEventListener('click', () => picker.classList.add('hidden'));
-    // Stäng vid backdrop-klick
-    picker.addEventListener('click', (e) => {
-      if (e.target === picker) picker.classList.add('hidden');
-    });
+    onTap(document.getElementById('jug-weapon-cancel'), () => picker.classList.add('hidden'));
+    // Stäng vid backdrop-klick (touchstart + click så det funkar på mobil)
+    const onBackdrop = (e) => {
+      if (e.target === picker) {
+        if (e.cancelable) e.preventDefault();
+        picker.classList.add('hidden');
+      }
+    };
+    picker.addEventListener('touchstart', onBackdrop, { passive: false });
+    picker.addEventListener('click', onBackdrop);
   }
   const optsEl = document.getElementById('jug-weapon-options');
   if (optsEl) {
@@ -19176,7 +19181,10 @@ function showJuggernautWeaponPicker() {
         +     bar(w.type === 'melee' ? 'RÄCKV' : 'HAST', rangeOrSpeed, '#5acaff')
         +   '</div>'
         + '</div>';
-      card.addEventListener('click', () => {
+      // Använd onTap (touchstart + click med preventDefault) istället för bara
+      // 'click'. På mobil saknades touch-handler vilket gjorde att klick föll
+      // igenom till canvas-joystick + 300ms-delay åt click-event dröjde.
+      onTap(card, () => {
         if (wid === current) {
           // Klick på aktivt vapen = stäng
           picker.classList.add('hidden');
