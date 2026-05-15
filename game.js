@@ -2334,6 +2334,383 @@ function drawSiegeDecorations() {
   finally { state.ctfDecorations = saved; }
 }
 
+// JUGGERNAUT-dedikerad decoration-render. Hanterar alla parking-garage-
+// specifika dekoration-typer (flicker_light, puddle, fire_drum, drain,
+// caution_tape, parking_lines, shopping_cart, abandoned_bag, warning_triangle).
+// Sign + graffiti faller tillbaka till drawCtfDecorations.
+function drawJuggernautDecorations(decos) {
+  if (!decos || !decos.length) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const t = performance.now();
+  // Sortera så vi ritar markdekor (puddle/parking_lines/drain) FÖRE höjd-element
+  // (fire_drum/shopping_cart) — annars hamnar pölar ovanpå objekt.
+  const groundKinds = ['puddle', 'parking_lines', 'drain', 'caution_tape'];
+  const ordered = [];
+  for (const d of decos) if (groundKinds.indexOf(d.kind) >= 0) ordered.push(d);
+  for (const d of decos) if (groundKinds.indexOf(d.kind) < 0) ordered.push(d);
+  // CTF-decoration-fallback-kinds (sign + graffiti) — låt drawCtfDecorations
+  // hantera dem. Vi behöver swappa in vår array kortvarigt.
+  const ctfFallbackKinds = ['sign', 'graffiti', 'flag_decoration', 'lantern'];
+  for (const d of ordered) {
+    if (ctfFallbackKinds.indexOf(d.kind) >= 0) continue; // hanteras nedan
+    const x = d.x - cx, y = d.y - cy;
+    if (x < -200 || x > viewW + 200 || y < -200 || y > viewH + 200) continue;
+    ctx.save();
+
+    if (d.kind === 'puddle') {
+      // Vatten-pöl: mörk reflective fläck med oregelbunden kant + highlight
+      const r = d.r || 60;
+      const grad = ctx.createRadialGradient(x, y, 2, x, y, r);
+      grad.addColorStop(0, 'rgba(40, 50, 80, 0.7)');
+      grad.addColorStop(0.7, 'rgba(20, 25, 40, 0.55)');
+      grad.addColorStop(1, 'rgba(20, 25, 40, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      // Oregelbunden bubble-form (8 punkter med deterministic variation)
+      const seed = ((d.x * 13) | 0) + ((d.y * 7) | 0);
+      for (let i = 0; i < 16; i++) {
+        const a = (i / 16) * Math.PI * 2;
+        const variation = 0.85 + (((seed >> i) & 0x1f) / 31) * 0.3;
+        const px = x + Math.cos(a) * r * variation;
+        const py = y + Math.sin(a) * r * 0.6 * variation; // mer oval
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath(); ctx.fill();
+      // Highlights (reflektion av lampor ovan)
+      ctx.fillStyle = 'rgba(140, 180, 255, 0.4)';
+      ctx.beginPath(); ctx.ellipse(x - r * 0.3, y - r * 0.2, r * 0.18, r * 0.05, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = 'rgba(200, 220, 255, 0.3)';
+      ctx.beginPath(); ctx.ellipse(x + r * 0.2, y + r * 0.1, r * 0.12, r * 0.04, 0, 0, Math.PI*2); ctx.fill();
+      // Subtle ripple-animation
+      const ripplePulse = (t / 800 + (d.x * 0.001) + (d.y * 0.001)) % 1;
+      if (ripplePulse < 0.5) {
+        ctx.strokeStyle = `rgba(160, 200, 255, ${(0.5 - ripplePulse) * 0.6})`;
+        ctx.lineWidth = 0.6;
+        ctx.beginPath();
+        ctx.ellipse(x, y, r * 0.4 * (0.3 + ripplePulse), r * 0.25 * (0.3 + ripplePulse), 0, 0, Math.PI*2);
+        ctx.stroke();
+      }
+
+    } else if (d.kind === 'drain') {
+      // Golvbrunn: mörk fyrkantig öppning med metall-galler (parallella streck)
+      const w = 22, h = 22;
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(x - w/2, y - h/2, w, h);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - w/2 + 1, y - h/2 + 1, w - 2, h - 2);
+      // Galler-stänger
+      ctx.fillStyle = '#3a3a3a';
+      for (let i = 0; i < 5; i++) {
+        ctx.fillRect(x - w/2 + 2 + i * 4, y - h/2 + 2, 2, h - 4);
+      }
+      // Highlight på galler-toppen
+      ctx.fillStyle = '#5a5a5a';
+      for (let i = 0; i < 5; i++) {
+        ctx.fillRect(x - w/2 + 2 + i * 4, y - h/2 + 2, 2, 0.5);
+      }
+      // Mörk skugga runt
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(x - w/2 - 1, y - h/2 - 1, w + 2, h + 2);
+
+    } else if (d.kind === 'parking_lines') {
+      // Vita parkeringsstreck: rader av streck längs en horisontell linje
+      const count = d.count || 5;
+      const dir = d.dir || 'h';
+      const lineLen = 60, spacing = 70;
+      ctx.fillStyle = 'rgba(220, 220, 200, 0.75)';
+      ctx.strokeStyle = 'rgba(140, 140, 120, 0.4)';
+      ctx.lineWidth = 0.5;
+      if (dir === 'h') {
+        for (let i = 0; i < count; i++) {
+          const lx = x + i * spacing;
+          if (lx < -lineLen || lx > viewW) continue;
+          // Streck — något slitet med subtil fade
+          ctx.fillRect(lx, y - 2, lineLen, 4);
+          ctx.strokeRect(lx, y - 2, lineLen, 4);
+          // Slitage-fläckar (utspridda mörkare prickar för worn look)
+          ctx.fillStyle = 'rgba(60, 60, 50, 0.25)';
+          const wear = ((d.x * 13 + i * 17) | 0);
+          for (let j = 0; j < 3; j++) {
+            const wx = lx + ((wear * (j + 1)) & 0x3f);
+            ctx.fillRect(wx, y - 1, 4, 2);
+          }
+          ctx.fillStyle = 'rgba(220, 220, 200, 0.75)';
+        }
+      }
+
+    } else if (d.kind === 'caution_tape') {
+      // OUT OF ORDER-tape: gul-svart diagonalt streck-mönster
+      const w = d.w || 80, h = 8;
+      ctx.save();
+      ctx.translate(x, y);
+      if (d.rot) ctx.rotate(d.rot);
+      // Gul bas
+      ctx.fillStyle = '#ffd54a';
+      ctx.fillRect(-w / 2, -h / 2, w, h);
+      // Svarta diagonaler
+      ctx.fillStyle = '#1a1a1a';
+      for (let i = 0; i < w / 6; i++) {
+        ctx.beginPath();
+        ctx.moveTo(-w / 2 + i * 6, -h / 2);
+        ctx.lineTo(-w / 2 + i * 6 - h, h / 2);
+        ctx.lineTo(-w / 2 + i * 6 + 3 - h, h / 2);
+        ctx.lineTo(-w / 2 + i * 6 + 3, -h / 2);
+        ctx.closePath(); ctx.fill();
+      }
+      // Mörk kant
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 0.6;
+      ctx.strokeRect(-w / 2, -h / 2, w, h);
+      // "CAUTION"-text liten
+      ctx.fillStyle = '#1a1a1a';
+      ctx.font = 'bold 6px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('CAUTION', 0, 0);
+      ctx.restore();
+
+    } else if (d.kind === 'fire_drum') {
+      // Brinnande oljefat: stor cylinder + flammor + ljuspöl
+      const color = d.color || '#ff7a30';
+      // Ljuspöl på golvet runt fat (varmt orange glow)
+      const lightR = 80;
+      const lightGrad = ctx.createRadialGradient(x, y + 6, 4, x, y + 6, lightR);
+      const flicker = 0.85 + Math.sin(t / 80) * 0.15;
+      lightGrad.addColorStop(0, `rgba(255, 140, 50, ${0.35 * flicker})`);
+      lightGrad.addColorStop(0.6, `rgba(255, 100, 30, ${0.12 * flicker})`);
+      lightGrad.addColorStop(1, 'rgba(255, 80, 20, 0)');
+      ctx.fillStyle = lightGrad;
+      ctx.fillRect(x - lightR, y - lightR + 6, lightR * 2, lightR * 2);
+      // Fat-skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.beginPath(); ctx.ellipse(x + 2, y + 12, 14, 4, 0, 0, Math.PI*2); ctx.fill();
+      // Fat-kropp (rostig mörk metall)
+      ctx.fillStyle = '#2a1a0a';
+      ctx.fillRect(x - 11, y - 8, 22, 20);
+      // Fat-highlight (vänster sida)
+      ctx.fillStyle = '#4a2a1a';
+      ctx.fillRect(x - 11, y - 8, 3, 20);
+      // Fat-rim top
+      ctx.fillStyle = '#3a2418';
+      ctx.fillRect(x - 11, y - 8, 22, 2);
+      // 2 horisontella band runt fatet
+      ctx.strokeStyle = '#1a1208';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(x - 11, y - 2); ctx.lineTo(x + 11, y - 2);
+      ctx.moveTo(x - 11, y + 6); ctx.lineTo(x + 11, y + 6);
+      ctx.stroke();
+      // Rost-fläckar
+      ctx.fillStyle = '#6a3818';
+      ctx.fillRect(x - 8, y + 1, 3, 2);
+      ctx.fillRect(x + 3, y - 4, 2, 1.5);
+      ctx.fillRect(x - 5, y + 8, 2, 1);
+      // FLAMMAN (fladdrar, multiple layers)
+      const flameH = 22 + Math.sin(t / 70) * 4;
+      // Yttre orange flame
+      ctx.fillStyle = `rgba(255, 100, 30, ${0.7 * flicker})`;
+      ctx.beginPath();
+      ctx.moveTo(x - 8, y - 8);
+      ctx.quadraticCurveTo(x - 6 + Math.sin(t / 100) * 2, y - flameH * 0.6, x - 2, y - flameH * 0.9);
+      ctx.quadraticCurveTo(x + Math.sin(t / 80) * 3, y - flameH, x + 2, y - flameH * 0.9);
+      ctx.quadraticCurveTo(x + 6 + Math.sin(t / 90) * 2, y - flameH * 0.6, x + 8, y - 8);
+      ctx.closePath(); ctx.fill();
+      // Mid yellow flame
+      ctx.fillStyle = `rgba(255, 200, 60, ${0.85 * flicker})`;
+      ctx.beginPath();
+      ctx.moveTo(x - 5, y - 8);
+      ctx.quadraticCurveTo(x - 3 + Math.sin(t / 90) * 1.5, y - flameH * 0.5, x - 1, y - flameH * 0.75);
+      ctx.quadraticCurveTo(x + Math.sin(t / 70) * 2, y - flameH * 0.85, x + 1, y - flameH * 0.75);
+      ctx.quadraticCurveTo(x + 3 + Math.sin(t / 95) * 1.5, y - flameH * 0.5, x + 5, y - 8);
+      ctx.closePath(); ctx.fill();
+      // Inner white-hot core
+      ctx.fillStyle = `rgba(255, 250, 220, ${0.9 * flicker})`;
+      ctx.beginPath();
+      ctx.ellipse(x + Math.sin(t / 60) * 1, y - flameH * 0.4, 2, 5, 0, 0, Math.PI*2); ctx.fill();
+      // Glow ovanpå
+      ctx.shadowColor = '#ff7030'; ctx.shadowBlur = 18 * flicker;
+      ctx.fillStyle = `rgba(255, 180, 50, ${0.4 * flicker})`;
+      ctx.beginPath(); ctx.arc(x, y - 12, 3, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // Random sparks som flyger uppåt
+      const sparkSeed = Math.floor(t / 100);
+      for (let i = 0; i < 3; i++) {
+        const sphase = (t / 800 + i * 0.33) % 1;
+        const sx = x + Math.sin((sparkSeed + i) * 13) * 6;
+        const sy = y - 8 - sphase * 35;
+        ctx.fillStyle = `rgba(255, ${150 + i * 30}, 50, ${1 - sphase})`;
+        ctx.beginPath(); ctx.arc(sx, sy, 1 + (1 - sphase) * 0.6, 0, Math.PI*2); ctx.fill();
+      }
+
+    } else if (d.kind === 'flicker_light') {
+      // Trasigt lysrör i tak: ljusrektangel + flackerande sken-pöl nedanför
+      const color = d.color || '#a8d0ff';
+      const flickerHz = d.flickerHz || 4;
+      // Flackerings-mönster (deterministic + pseudo-random)
+      const flickerSeed = ((d.x * 17 + d.y * 23) | 0);
+      const flickerPhase = (t / 1000) * flickerHz + flickerSeed * 0.1;
+      const flickerNoise = Math.sin(flickerPhase * 7.3) * Math.cos(flickerPhase * 11.7);
+      const isOn = flickerNoise > -0.3; // ofta på, ibland av
+      const intensity = isOn ? (0.75 + Math.sin(flickerPhase * 3.2) * 0.25) : (Math.random() < 0.1 ? 0.3 : 0);
+      // Ljus-pöl på golvet
+      const poolR = 90;
+      if (intensity > 0.1) {
+        const poolGrad = ctx.createRadialGradient(x, y + 12, 4, x, y + 12, poolR);
+        poolGrad.addColorStop(0, `rgba(200, 220, 255, ${0.32 * intensity})`);
+        poolGrad.addColorStop(0.5, `rgba(170, 200, 255, ${0.15 * intensity})`);
+        poolGrad.addColorStop(1, 'rgba(170, 200, 255, 0)');
+        ctx.fillStyle = poolGrad;
+        ctx.fillRect(x - poolR, y + 12 - poolR, poolR * 2, poolR * 2);
+      }
+      // Lampskärm (rektangulär, tak-mounted, med skugga)
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(x - 17, y - 6, 34, 8);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 16, y - 5, 32, 7);
+      // Lysrör inside (when on: white-blue glow)
+      if (intensity > 0.05) {
+        ctx.fillStyle = `rgba(220, 240, 255, ${intensity})`;
+        ctx.shadowColor = color; ctx.shadowBlur = 12 * intensity;
+        ctx.fillRect(x - 14, y - 3, 28, 3);
+        ctx.shadowBlur = 0;
+        // Vit kärn-streak
+        ctx.fillStyle = `rgba(255, 255, 255, ${intensity * 0.7})`;
+        ctx.fillRect(x - 14, y - 2.5, 28, 0.8);
+      } else {
+        // Av — mörkt insida
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(x - 14, y - 3, 28, 3);
+      }
+      // Skärm-skruv-detaljer
+      ctx.fillStyle = '#0a0a0a';
+      ctx.beginPath(); ctx.arc(x - 15, y - 4, 0.6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 15, y - 4, 0.6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x - 15, y + 1, 0.6, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 15, y + 1, 0.6, 0, Math.PI*2); ctx.fill();
+
+    } else if (d.kind === 'shopping_cart') {
+      // Övergiven shopping-cart: silver-gitter-korg + 4 hjul + handle
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath(); ctx.ellipse(x + 2, y + 9, 14, 3, 0, 0, Math.PI*2); ctx.fill();
+      // Korg (silver-mesh-style)
+      ctx.fillStyle = '#7a7a82';
+      ctx.fillRect(x - 12, y - 6, 24, 14);
+      // Mesh-pattern (vertical + horizontal grid)
+      ctx.strokeStyle = '#3a3a40';
+      ctx.lineWidth = 0.4;
+      for (let i = -10; i <= 10; i += 3) {
+        ctx.beginPath();
+        ctx.moveTo(x + i, y - 6); ctx.lineTo(x + i, y + 8);
+        ctx.stroke();
+      }
+      for (let i = -4; i <= 6; i += 3) {
+        ctx.beginPath();
+        ctx.moveTo(x - 12, y + i); ctx.lineTo(x + 12, y + i);
+        ctx.stroke();
+      }
+      // Korg-rim (mörkare metall-ram)
+      ctx.strokeStyle = '#3a3a40';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - 12, y - 6, 24, 14);
+      // Handle (silver-stång)
+      ctx.fillStyle = '#9a9aa2';
+      ctx.fillRect(x - 13, y - 9, 26, 1.5);
+      ctx.fillStyle = '#cccfd5';
+      ctx.fillRect(x - 13, y - 9, 26, 0.5);
+      // Handle-grepp (svart plast)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 11, y - 9.5, 22, 2);
+      // 4 hjul
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath(); ctx.arc(x - 9, y + 9, 2, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 9, y + 9, 2, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x - 9, y + 5, 1.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 9, y + 5, 1.5, 0, Math.PI*2); ctx.fill();
+      // Hjul-highlights
+      ctx.fillStyle = '#5a5a60';
+      ctx.beginPath(); ctx.arc(x - 9.5, y + 8.5, 0.5, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 8.5, y + 8.5, 0.5, 0, Math.PI*2); ctx.fill();
+      // Subtle rost (orange-brun fläck på kanten)
+      ctx.fillStyle = 'rgba(140, 70, 30, 0.5)';
+      ctx.fillRect(x + 10, y, 2, 4);
+
+    } else if (d.kind === 'abandoned_bag') {
+      // Övergiven väska/kasse: mörk taske med strap + zip
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath(); ctx.ellipse(x + 1, y + 7, 11, 2, 0, 0, Math.PI*2); ctx.fill();
+      // Body (mörk brun/grön)
+      ctx.fillStyle = '#3a2818';
+      ctx.beginPath();
+      ctx.moveTo(x - 9, y - 4);
+      ctx.lineTo(x - 9, y + 6);
+      ctx.lineTo(x + 9, y + 6);
+      ctx.lineTo(x + 9, y - 4);
+      ctx.quadraticCurveTo(x, y - 8, x - 9, y - 4);
+      ctx.fill();
+      // Highlight
+      ctx.fillStyle = '#5a4028';
+      ctx.fillRect(x - 9, y - 4, 18, 1);
+      // Strap-handle ovanpå
+      ctx.strokeStyle = '#2a1808';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y - 5, 4, Math.PI, 0, false);
+      ctx.stroke();
+      // Zip-detaljer
+      ctx.strokeStyle = '#1a1208';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x - 8, y - 1); ctx.lineTo(x + 8, y - 1);
+      ctx.stroke();
+      // Zip-puller (liten metall-bit)
+      ctx.fillStyle = '#9a9a9a';
+      ctx.fillRect(x - 1, y - 1.5, 2, 1);
+
+    } else if (d.kind === 'warning_triangle') {
+      // Röd-vit varningstriangel (vanlig vägmarkering)
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath();
+      ctx.moveTo(x + 1, y + 9); ctx.lineTo(x - 9, y + 9); ctx.lineTo(x + 1, y + 8);
+      ctx.closePath(); ctx.fill();
+      // Triangel-bas (svart kant)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 10); ctx.lineTo(x - 11, y + 8); ctx.lineTo(x + 11, y + 8);
+      ctx.closePath(); ctx.fill();
+      // Triangel inner (röd)
+      ctx.fillStyle = '#ff3030';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 8); ctx.lineTo(x - 9, y + 6); ctx.lineTo(x + 9, y + 6);
+      ctx.closePath(); ctx.fill();
+      // Vit inner
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.moveTo(x, y - 5); ctx.lineTo(x - 7, y + 5); ctx.lineTo(x + 7, y + 5);
+      ctx.closePath(); ctx.fill();
+      // Utropstecken
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 0.8, y - 3, 1.6, 5);
+      ctx.beginPath(); ctx.arc(x, y + 4, 0.9, 0, Math.PI*2); ctx.fill();
+      // Bas-block (rektangulär fot)
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 5, y + 8, 10, 2);
+    }
+
+    ctx.restore();
+  }
+  // Sign + graffiti → drawCtfDecorations
+  const fallback = decos.filter(d => ctfFallbackKinds.indexOf(d.kind) >= 0);
+  if (fallback.length) {
+    const saved = state.ctfDecorations;
+    state.ctfDecorations = fallback;
+    try { drawCtfDecorations(); } finally { state.ctfDecorations = saved; }
+  }
+}
+
 // SIEGE: capture-bases — pulsande cirklar med owner-färg + capture-progress-ring
 function drawKothZone() {
   if (!state.kothZones || state.kothActiveZoneIdx == null) return;
@@ -22823,6 +23200,10 @@ function drawStageTerrain(stage, cx, cy) {
     drawCommandGround(stage, cx, cy);
     return;
   }
+  if (stage.kind === 'juggernaut') {
+    drawJuggernautGround(stage, cx, cy);
+    return;
+  }
   // generisk grid (placeholder för andra stages tills de byggs ut)
   const grid = 80;
   ctx.strokeStyle = stage.accentColor || '#10101a';
@@ -22978,6 +23359,126 @@ function drawBunkerGround(stage, cx, cy) {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, viewW, viewH);
   ctx.restore();
+}
+
+// Juggernaut: underjordisk parkering med betong/asfalt — INTE rutigt grid.
+// Mörk asfalt-bas + subtila smutsfläckar + olje-stains + tunna betong-skarvar
+// (klassisk parkeringsgolv-look). Det är BANANS markränder, inte placerade
+// decorations — decorations som puddles/parking_lines ritas ovanpå detta.
+function drawJuggernautGround(stage, cx, cy) {
+  // Mörk asfalt-grund-färg (varmt grå-svart, inte ren mörkblå)
+  ctx.fillStyle = '#1c1c20';
+  ctx.fillRect(0, 0, viewW, viewH);
+
+  // Subtil large-scale vignette mot mitten av banan (varm orange från fire_drums)
+  const centerX = stage.worldW / 2 - cx;
+  const centerY = stage.worldH / 2 - cy;
+  const vGrad = ctx.createRadialGradient(centerX, centerY, 200, centerX, centerY, 1400);
+  vGrad.addColorStop(0, 'rgba(40, 25, 15, 0.18)');
+  vGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = vGrad;
+  ctx.fillRect(0, 0, viewW, viewH);
+
+  // Betong-skarvar (lågkontrast horisontella + vertikala linjer var 400px).
+  // Detta ger känsla av gjutna stora betongplattor utan att vara rutigt.
+  ctx.strokeStyle = 'rgba(10, 10, 12, 0.55)';
+  ctx.lineWidth = 1;
+  const slabSize = 400;
+  const sx = Math.floor(cx / slabSize) * slabSize;
+  const sy = Math.floor(cy / slabSize) * slabSize;
+  ctx.beginPath();
+  for (let x = sx; x <= cx + viewW + slabSize; x += slabSize) {
+    if (x < 0 || x > stage.worldW) continue;
+    ctx.moveTo(x - cx, Math.max(0, -cy));
+    ctx.lineTo(x - cx, Math.min(viewH, stage.worldH - cy));
+  }
+  for (let y = sy; y <= cy + viewH + slabSize; y += slabSize) {
+    if (y < 0 || y > stage.worldH) continue;
+    ctx.moveTo(Math.max(0, -cx), y - cy);
+    ctx.lineTo(Math.min(viewW, stage.worldW - cx), y - cy);
+  }
+  ctx.stroke();
+
+  // Asfalt-texture: random pseudo-deterministic prickar (gravel grit).
+  // ~250 punkter spridda över viewport, deterministic via tile-coord-hash så
+  // de inte vibrar när kameran pannar.
+  ctx.fillStyle = 'rgba(70, 65, 60, 0.4)';
+  const tileSize = 60;
+  const tx0 = Math.floor(cx / tileSize) * tileSize;
+  const ty0 = Math.floor(cy / tileSize) * tileSize;
+  for (let tx = tx0; tx < cx + viewW + tileSize; tx += tileSize) {
+    for (let ty = ty0; ty < cy + viewH + tileSize; ty += tileSize) {
+      if (tx < 0 || tx > stage.worldW || ty < 0 || ty > stage.worldH) continue;
+      // 6 prickar per tile, deterministic hash
+      const hash = ((tx * 13) ^ (ty * 17)) | 0;
+      for (let i = 0; i < 6; i++) {
+        const h = hash + i * 31;
+        const dx = (h & 0x3f) - 32;
+        const dy = ((h >> 6) & 0x3f) - 32;
+        const r = ((h >> 12) & 0x3) * 0.4 + 0.5;
+        const px = tx + tileSize / 2 + dx - cx;
+        const py = ty + tileSize / 2 + dy - cy;
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  // Olje-stains: stora mörka oregelbundna fläckar (deterministic placering)
+  ctx.fillStyle = 'rgba(5, 5, 8, 0.55)';
+  const stainPositions = [
+    { x: 1200, y: 1100, r: 35 }, { x: 3700, y: 1700, r: 42 },
+    { x: 2200, y: 2400, r: 38 }, { x: 600,  y: 1900, r: 30 },
+    { x: 4300, y: 2200, r: 36 }, { x: 1850, y: 600,  r: 33 },
+    { x: 3100, y: 2800, r: 40 }, { x: 2750, y: 1300, r: 28 },
+    { x: 950,  y: 2700, r: 32 }, { x: 4100, y: 900,  r: 34 },
+  ];
+  for (const s of stainPositions) {
+    const ssx = s.x - cx, ssy = s.y - cy;
+    if (ssx < -100 || ssx > viewW + 100 || ssy < -100 || ssy > viewH + 100) continue;
+    // Oregelbunden fläck — 12 punkter med deterministic variation
+    const stainHash = (s.x * 7 + s.y * 11) | 0;
+    ctx.beginPath();
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      const variation = 0.75 + (((stainHash >> i) & 0x1f) / 31) * 0.5;
+      const px = ssx + Math.cos(a) * s.r * variation;
+      const py = ssy + Math.sin(a) * s.r * variation;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.fill();
+    // Lite oljiga rainbow-shimmer i kanten
+    ctx.strokeStyle = 'rgba(80, 50, 90, 0.2)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      const variation = 0.85 + (((stainHash >> i) & 0x1f) / 31) * 0.35;
+      const px = ssx + Math.cos(a) * s.r * variation * 1.1;
+      const py = ssy + Math.sin(a) * s.r * variation * 1.1;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath(); ctx.stroke();
+  }
+
+  // Slitage-streaks (subtila riktningsspår där bilar kört)
+  ctx.strokeStyle = 'rgba(50, 45, 40, 0.25)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  const streakLines = [
+    { y: 400 }, { y: 1100 }, { y: 1850 }, { y: 2600 }, { y: 3150 },
+  ];
+  for (const sl of streakLines) {
+    if (sl.y - cy < -50 || sl.y - cy > viewH + 50) continue;
+    ctx.moveTo(Math.max(0, -cx), sl.y - cy);
+    ctx.lineTo(Math.min(viewW, stage.worldW - cx), sl.y - cy);
+  }
+  ctx.stroke();
+
+  // Tunn micro-noise overlay (low alpha)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.015)';
+  ctx.fillRect(0, 0, viewW, viewH);
 }
 
 function drawCommandGround(stage, cx, cy) {
@@ -27737,12 +28238,10 @@ function render() {
     drawKothZone();
     if (state.kothWalls) drawPvpWalls(state.kothWalls);
   }
-  // JUGGERNAUT — decorations + walls + JUG-glow ring
+  // JUGGERNAUT — dedikerade decorations + walls + JUG-glow ring
   if (state.juggernautActive && state.juggernautWalls) {
     if (state.juggernautDecorations && state.juggernautDecorations.length) {
-      const saved = state.siegeDecorations;
-      state.siegeDecorations = state.juggernautDecorations;
-      try { drawSiegeDecorations(); } finally { state.siegeDecorations = saved; }
+      drawJuggernautDecorations(state.juggernautDecorations);
     }
     drawPvpWalls(state.juggernautWalls);
     if (typeof drawJuggernautArrows === 'function') drawJuggernautArrows();
