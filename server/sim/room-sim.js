@@ -1559,11 +1559,14 @@ function endKothMatch(sim, winnerId, reason) {
 // valbart vapen (rifle/shotgun/sledge). Hunters har bara pistol.
 // JUG dör → killer blir ny JUG (bot kan inte → human med högst dmg blir det).
 // Vinst: mest sek-som-JUG när timer går ut.
-function applyJugStats(sim, ws) {
+// hpFrac: 1.0 = full HP (initial JUG), 0.6 = 60% HP (transfer mid-match —
+// motverkar snowball där JUG dödar någon och får full HP omedelbart).
+function applyJugStats(sim, ws, hpFrac) {
   if (!ws.playerState) return;
-  ws.playerState.hp = sim.juggernautHpMax;
+  const frac = (typeof hpFrac === 'number') ? Math.max(0.1, Math.min(1, hpFrac)) : 1;
   ws.playerState.maxHp = sim.juggernautHpMax;
-  ws.playerState.shield = ws.playerState.maxShield || 100;
+  ws.playerState.hp = Math.round(sim.juggernautHpMax * frac);
+  ws.playerState.shield = Math.round((ws.playerState.maxShield || 100) * frac);
   ws.playerState.isJug = true;
   ws.playerState.scaleMul = JUGGERNAUT_ARENA.jugScale;
   ws.playerState.speedMul = JUGGERNAUT_ARENA.jugSpeedMul;
@@ -1596,6 +1599,7 @@ function pickRandomHumanHunter(sim, excludePid) {
 }
 
 function transferJug(sim, newPid, reason) {
+  if (sim.juggernautEnded) return;
   const oldPid = sim.juggernautPid;
   // Demote gamla JUG (kan vara null vid initial)
   if (oldPid) {
@@ -1613,7 +1617,9 @@ function transferJug(sim, newPid, reason) {
     if (newWs) {
       // Default-vapen: behåll current sim.juggernautWeapon om satt, annars default
       if (!sim.juggernautWeapon) sim.juggernautWeapon = JUGGERNAUT_ARENA.jugDefaultWeapon;
-      applyJugStats(sim, newWs);
+      // Mid-match transfer = 60% HP (anti-snowball). Initial JUG = full HP.
+      const isInitial = (reason === 'initial' || !oldPid);
+      applyJugStats(sim, newWs, isInitial ? 1.0 : 0.6);
       newWs.playerState.invulnUntil = Date.now() + 2000; // 2s invuln för ny JUG
       newWs.tdmRespawnAt = 0;
     }
@@ -1710,8 +1716,10 @@ function tickJuggernaut(sim, dt, now) {
       sim.eventQueue.push({ type: 'juggernaut_player_died', victim: pid, durationMs: 3000, wasJug: true });
       if (fallback) transferJug(sim, fallback, 'jug_suicide_or_environment');
       else {
-        // Inga humans kvar — låt JUG stå tom; tickJug återkommer
+        // Inga humans kvar — låt JUG stå tom + flagga first-respawn-blir-JUG
+        // så match självläker när en human respawnar.
         sim.juggernautPid = null;
+        sim._juggernautAwaitFirstRespawn = true;
       }
     } else if (!ws.tdmRespawnAt) {
       ws.tdmRespawnAt = nowMs + 3000;
@@ -1794,11 +1802,20 @@ function handleJuggernautKill(sim, killerPid, killerWs, victimPid, victimWs, wea
       sim._juggernautAwaitFirstRespawn = true;
     }
     if (newJugPid) {
-      // Spawn ny JUG på dödsplatsen
+      // Spawn ny JUG ~400px från liket i random riktning. Tidigare spawnade vi
+      // PÅ liket vilket gjorde "JUG-transfer = instant farm" av närvarande
+      // hunters (spawn-camp loop). Nu får hunters tid att backa.
       const newWs = sim.room.members.get(newJugPid);
       if (newWs && newWs.playerState && victimWs.playerState) {
-        newWs.playerState.x = victimWs.playerState.x;
-        newWs.playerState.y = victimWs.playerState.y;
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 400;
+        let nx = victimWs.playerState.x + Math.cos(angle) * dist;
+        let ny = victimWs.playerState.y + Math.sin(angle) * dist;
+        // Klampa till arena-bounds
+        nx = Math.max(60, Math.min(JUGGERNAUT_ARENA.worldW - 60, nx));
+        ny = Math.max(60, Math.min(JUGGERNAUT_ARENA.worldH - 60, ny));
+        newWs.playerState.x = nx;
+        newWs.playerState.y = ny;
       }
       transferJug(sim, newJugPid, 'jug_killed');
     }
@@ -2076,6 +2093,7 @@ function startSim(sim, opts) {
   sim._juggernautSpawnIdx = 0;
   sim._juggernautScoreAccum = 0;
   sim._juggernautBroadcastTick = 0;
+  sim._juggernautAwaitFirstRespawn = false;
   sim._siegePointAccum = { red: 0, blue: 0 };
   sim.pvpPickups = null;
   sim.bullets = [];

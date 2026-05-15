@@ -133,7 +133,12 @@ function applyMelee(sim, p, weaponId, params) {
 
     const isCrit = cheats.chozza ? true : Math.random() < critChance;
     const isHead = headshotPerk && Math.random() < 0.15;
-    const baseDmg = getPvpDmg(weaponId, w.dmg);
+    let baseDmg = getPvpDmg(weaponId, w.dmg);
+    // JUG-vapen-mul: nerfa rifle, buffa sledge (gäller även melee-sledge)
+    if (inJug && shooterIsJug && JUGGERNAUT_ARENA.jugWeaponDmgMul) {
+      const mul = JUGGERNAUT_ARENA.jugWeaponDmgMul[weaponId];
+      if (typeof mul === 'number') baseDmg *= mul;
+    }
     const finalDmg = baseDmg * dmgMul * adrenalineDmg * stealthBonus * ultMul * (isCrit ? 2 : 1) * (isHead ? 3 : 1);
 
     // Apply damage (shield först)
@@ -651,10 +656,12 @@ function updateBullets(sim, dt, now) {
         }
       }
     }
-    // Out-of-bounds eller life-ut → spräng om explosive
-    // Använd siege-arena-höjd (3000) när siege aktiv, annars generös 5000
-    const worldMaxY = sim.siegeActive ? SIEGE_ARENA.worldH : 5000;
-    if (b.life <= 0 || b.x < 0 || b.y < 0 || b.x > 5000 || b.y > worldMaxY) {
+    // Out-of-bounds eller life-ut → spräng om explosive.
+    // Använd arena-specifik worldW/H så bullets cullas vid rätt edge i alla modes.
+    let worldMaxX = 5000, worldMaxY = 5000;
+    if (sim.siegeActive) { worldMaxY = SIEGE_ARENA.worldH; }
+    else if (sim.juggernautActive) { worldMaxX = JUGGERNAUT_ARENA.worldW; worldMaxY = JUGGERNAUT_ARENA.worldH; }
+    if (b.life <= 0 || b.x < 0 || b.y < 0 || b.x > worldMaxX || b.y > worldMaxY) {
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
       }
@@ -1049,7 +1056,12 @@ function updateBullets(sim, dt, now) {
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
-          const effDmg = getPvpDmg(b.weaponId, b.dmg);
+          let effDmg = getPvpDmg(b.weaponId, b.dmg);
+          // JUG-vapen-mul: nerfa rifle, buffa sledge så valet är meningsfullt
+          if (ownerIsJug && JUGGERNAUT_ARENA.jugWeaponDmgMul) {
+            const mul = JUGGERNAUT_ARENA.jugWeaponDmgMul[b.weaponId];
+            if (typeof mul === 'number') effDmg *= mul;
+          }
           let remaining = effDmg;
           if ((ws.playerState.shield || 0) > 0) {
             const absorb = Math.min(ws.playerState.shield, remaining);

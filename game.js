@@ -6018,7 +6018,7 @@ const _btnPvpShield = document.getElementById('btn-pvp-shield');
 function tryPvpShield() {
   const p = state.player;
   if (!p) return;
-  if (!state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive && !state.kothActive) return;
+  if (!state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive && !state.kothActive && !state.juggernautActive) return;
   const now = performance.now();
   if (p.pvpShieldUntil && now < p.pvpShieldUntil) return; // redan aktiv
   // Bugfix: ingen cooldown vid match-start. pvpShieldCdAt = null = aldrig använd.
@@ -8348,6 +8348,14 @@ const Coop = {
           save.weaponId = this.juggernautWeapon;
           if (typeof showToast === 'function') showToast('👑 DU ÄR NU JUG!');
           if (typeof triggerShake === 'function') triggerShake(8, 0.4);
+          // Gyllene flash + power-up-ljud (1.2s)
+          state._jugTransferFlashUntil = performance.now() + 1200;
+          if (typeof Audio !== 'undefined' && Audio._tone) {
+            Audio._tone(440, 0.15, 'square', 0.35, 0.01, 0.12, 1100);
+            setTimeout(() => Audio._tone(880, 0.18, 'square', 0.3, 0.01, 0.16, 1600), 100);
+            setTimeout(() => Audio._tone(1320, 0.3, 'square', 0.25, 0.01, 0.28, 2000), 220);
+          }
+          if (typeof triggerVibrate === 'function') triggerVibrate(60);
         } else if (iWasOldJug) {
           state.player.weaponId = this.juggernautHunterWeapon;
           state.player.maxHp = 100;
@@ -10589,6 +10597,7 @@ function updateLobbySectionSuffixes() {
       else if (Coop.config.siege) suffix = ' · 🛡 SIEGE';
       else if (Coop.config.gungame) suffix = ' · 🔫 GUN';
       else if (Coop.config.koth) suffix = ' · 👑 KOTH';
+      else if (Coop.config.juggernaut) suffix = ' · 👑 JUG';
       else if (Coop.config.mode && Coop.config.mode !== 'story') suffix = ' · ' + Coop.config.mode.toUpperCase();
     } else if (containerId === 'lobby-pvp-buttons') {
       if (Coop.config.tdm) suffix = ' · ⚔ TDM';
@@ -10596,6 +10605,7 @@ function updateLobbySectionSuffixes() {
       else if (Coop.config.siege) suffix = ' · 🛡 SIEGE';
       else if (Coop.config.gungame) suffix = ' · 🔫 GUNGAME';
       else if (Coop.config.koth) suffix = ' · 👑 KOTH';
+      else if (Coop.config.juggernaut) suffix = ' · 👑 JUGGERNAUT';
     } else if (containerId === 'lobby-bot-buttons') {
       if (Coop.config.addBot) {
         const sk = Coop.config.botSkill === 'easy' ? '😴' : (Coop.config.botSkill === 'hard' ? '🔥' : '🎯');
@@ -13549,7 +13559,7 @@ function checkCoopAllDead() {
   if (state.mode !== 'playing') return;
   // PvP-modes har egna match-end-villkor (mode_match_end-events). Död är bara
   // ett 3s respawn-fönster — game-over på "alla döda" ska INTE triggas där.
-  if (Coop.gungameActive || Coop.tdmActive || Coop.ctfActive || Coop.siegeActive || Coop.kothActive) return;
+  if (Coop.gungameActive || Coop.tdmActive || Coop.ctfActive || Coop.siegeActive || Coop.kothActive || Coop.juggernautActive) return;
   const hostDead = !state.player || state.player.hp <= 0 || state.player.spectating;
   if (!hostDead) return;
   let anyAlive = false;
@@ -16388,12 +16398,12 @@ function ensureJuggernautHud() {
   if (_juggernautHud) return;
   _juggernautHud = document.createElement('div');
   _juggernautHud.id = 'juggernaut-hud';
-  _juggernautHud.style.cssText = 'position:fixed;top:max(8px, calc(env(safe-area-inset-top, 0px) + 6px));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #ffd54a;border-radius:8px;padding:6px 12px;color:#fff;font-family:sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;z-index:50;display:flex;flex-direction:column;gap:3px;align-items:center;pointer-events:none;min-width:min(220px, 90vw);max-width:96vw;';
+  _juggernautHud.style.cssText = 'position:fixed;top:max(54px, calc(env(safe-area-inset-top, 0px) + 50px));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #ffd54a;border-radius:8px;padding:6px 12px;color:#fff;font-family:sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;z-index:50;display:flex;flex-direction:column;gap:3px;align-items:center;pointer-events:none;min-width:min(220px, 90vw);max-width:96vw;';
   _juggernautHud.innerHTML = '<div style="display:flex;gap:8px;align-items:center;font-size:11px;"><span style="color:#ffd54a;">👑</span><span id="jug-current" style="color:#fff;">—</span><span id="jug-timer" style="color:#3acaff;margin-left:8px;">—</span></div><div id="jug-board" style="font-size:10px;color:#aaa;text-align:center;line-height:1.3;"></div>';
   document.body.appendChild(_juggernautHud);
   _juggernautKillFeedEl = document.createElement('div');
   _juggernautKillFeedEl.id = 'juggernaut-killfeed';
-  _juggernautKillFeedEl.style.cssText = 'position:fixed;top:50px;right:12px;width:260px;display:flex;flex-direction:column;gap:3px;z-index:51;pointer-events:none;';
+  _juggernautKillFeedEl.style.cssText = 'position:fixed;top:calc(env(safe-area-inset-top, 0px) + 110px);right:max(12px, env(safe-area-inset-right, 12px));width:min(260px, calc(100vw - 24px - env(safe-area-inset-right, 0px)));display:flex;flex-direction:column;gap:3px;z-index:51;pointer-events:none;';
   document.body.appendChild(_juggernautKillFeedEl);
   // Weapon-switch-knapp använder befintlig action-btn i index.html (samma stil
   // som shield/dash). Wire up onTap-handler en gång.
@@ -16498,14 +16508,27 @@ function showJuggernautEndScreen(winnerId, stats) {
     overlay = document.createElement('div');
     overlay.id = 'juggernaut-end-overlay';
     overlay.className = 'overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;z-index:200;';
-    overlay.innerHTML = '<div style="background:#181818;border:2px solid #ffd54a;border-radius:10px;padding:24px 32px;max-width:600px;width:92vw;color:#fff;font-family:sans-serif;text-align:center;"><h1 id="jug-end-title" style="color:#ffd54a;margin:0 0 8px;font-size:28px;">🏆</h1><div id="jug-end-sub" style="color:#aaa;margin-bottom:18px;">vann juggernaut!</div><div id="jug-end-hero" style="color:#5aff5a;font-size:14px;margin-bottom:14px;"></div><div id="jug-end-stats" style="font-size:13px;margin-bottom:18px;"></div><div style="display:flex;gap:10px;justify-content:center;"><button id="btn-jug-rematch" class="hidden" style="background:#5aff5a;color:#000;border:0;padding:10px 18px;border-radius:6px;font-weight:900;letter-spacing:1px;cursor:pointer;">⚔ REMATCH</button><button id="btn-jug-back" style="background:#444;color:#fff;border:0;padding:10px 18px;border-radius:6px;font-weight:900;letter-spacing:1px;cursor:pointer;">↩ LOBBY</button></div></div>';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;z-index:200;padding:max(20px, env(safe-area-inset-top, 20px)) max(16px, env(safe-area-inset-right, 16px)) max(20px, env(safe-area-inset-bottom, 20px)) max(16px, env(safe-area-inset-left, 16px));box-sizing:border-box;';
+    overlay.innerHTML = '<div style="background:#181818;border:2px solid #ffd54a;border-radius:10px;padding:24px 24px;max-width:600px;width:100%;max-height:100%;overflow-y:auto;color:#fff;font-family:sans-serif;text-align:center;box-sizing:border-box;"><h1 id="jug-end-title" style="color:#ffd54a;margin:0 0 8px;font-size:28px;">🏆</h1><div id="jug-end-sub" style="color:#aaa;margin-bottom:18px;">vann juggernaut!</div><div id="jug-end-hero" style="color:#5aff5a;font-size:14px;margin-bottom:14px;"></div><div id="jug-end-stats" style="font-size:13px;margin-bottom:18px;overflow-x:auto;-webkit-overflow-scrolling:touch;"></div><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;"><button id="btn-jug-rematch" class="hidden" style="background:#5aff5a;color:#000;border:0;padding:12px 22px;border-radius:6px;font-weight:900;letter-spacing:1px;cursor:pointer;min-height:44px;">⚔ REMATCH</button><button id="btn-jug-back" style="background:#444;color:#fff;border:0;padding:12px 22px;border-radius:6px;font-weight:900;letter-spacing:1px;cursor:pointer;min-height:44px;">↩ LOBBY</button></div></div>';
     document.body.appendChild(overlay);
     document.getElementById('btn-jug-back').addEventListener('click', () => {
       overlay.classList.add('hidden');
-      if (Coop.ws && Coop.ws.readyState === 1 && Coop.isHost) {
-        try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (_) {}
+      // Full lobby-cleanup (samma som KOTH-back-knapp)
+      state.juggernautActive = false;
+      if (typeof Coop !== 'undefined') {
+        Coop.juggernautActive = false;
+        Coop.serverSimActive = false;
+        if (Coop.ws && Coop.ws.readyState === 1 && Coop.isHost) {
+          try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (_) {}
+        }
+        if (typeof Coop.disconnect === 'function') Coop.disconnect();
       }
+      state.serverSimActive = false;
+      state.mode = 'menu';
+      if (typeof Music !== 'undefined' && Music.stop) Music.stop();
+      document.body.classList.add('menu-mode');
+      const menuScreenEl = document.getElementById('menu');
+      if (menuScreenEl) menuScreenEl.classList.remove('hidden');
     });
     document.getElementById('btn-jug-rematch').addEventListener('click', () => {
       if (!Coop.isHost) return;
@@ -16673,7 +16696,7 @@ function updateHUD() {
   // default: om p.maxShield inte är satt (event-handlern hann inte) använd
   // state.pvpShieldMax eller 100 så bar:n ändå visas i PvP.
   if (typeof _shieldBar !== 'undefined' && _shieldBar) {
-    const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive;
+    const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive;
     if (inPvP) {
       const maxS = p.maxShield || state.pvpShieldMax || 100;
       if (!p.maxShield) p.maxShield = maxS; // backfill så övrig logik funkar
@@ -16786,7 +16809,7 @@ let _lastShieldCdSet = -1;
 let _lastShieldVisible = null;
 function updatePvpShieldButton() {
   if (!_btnPvpShield) return;
-  const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive;
+  const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive;
   if (inPvP !== _lastShieldVisible) {
     _lastShieldVisible = inPvP;
     _btnPvpShield.classList.toggle('hidden', !inPvP);
@@ -18131,7 +18154,7 @@ function updateBullets(dt) {
       // flash + shake så jag känner träffen utan att vänta på pvp_hp_changed
       // (~50-100ms server-RTT). Server uppdaterar exakt HP officiellt.
       if (!b._localHitMe && b.ownerPid && b.ownerPid !== Coop.myId &&
-          (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive)) {
+          (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive)) {
         const myDx = p.x - b.x, myDy = p.y - b.y;
         const myR = (p.r || 14) + (b.r || 4) + 8; // lag-comp +8 mirror
         if (myDx * myDx + myDy * myDy < myR * myR) {
@@ -18225,7 +18248,7 @@ function updateBullets(dt) {
       // T1A PvP-HIT-PREDICTION: min egen bullet mot Coop.players (motståndare).
       // Server är fortfarande auth för damage, men spelaren ser instant feedback
       // (damage-number + spark) utan att vänta på pvp_hp_changed (~50ms RTT).
-      if (!hit && !b._predictedPvpHit && (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive)) {
+      if (!hit && !b._predictedPvpHit && (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive)) {
         const myTeam = (state.tdmActive || state.ctfActive || state.siegeActive)
           ? (Coop.tdmTeams && Coop.tdmTeams[Coop.myId]) || (Coop.ctfTeams && Coop.ctfTeams[Coop.myId]) || (Coop.siegeTeams && Coop.siegeTeams[Coop.myId])
           : null;
@@ -21978,7 +22001,7 @@ function drawGoalZone(cx, cy) {
   // PvP-modes använder customStage med goalPos (för spawnPos-symmetri) men
   // har ingen "utgång" — målet är att döda/cappa, inte gå till en plats.
   // Skippa den gula cirkeln + UTGÅNG-pilen helt i alla PvP-modes.
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive) return;
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive) return;
   const t = performance.now();
   const pulse = 1 + Math.sin(t/280) * 0.15;
   const gx = stage.goalPos.x - cx;
@@ -25966,6 +25989,7 @@ function render() {
   drawCinematicVignette();
   drawLowHpVignette();
   drawDamageFlash();
+  drawJuggernautTransferFlash();
   drawEventVignette();
   drawStageTransition();
   drawDeathCam();
@@ -26793,6 +26817,31 @@ function drawDamageFlash() {
   ctx.restore();
 }
 
+// JUG-transfer sting — gyllene vinjett + "YOU ARE JUG"-text när jag blir JUG
+function drawJuggernautTransferFlash() {
+  if (!state._jugTransferFlashUntil) return;
+  const remaining = state._jugTransferFlashUntil - performance.now();
+  if (remaining <= 0) { state._jugTransferFlashUntil = 0; return; }
+  const intensity = remaining / 1200;
+  ctx.save();
+  // Gyllene vinjett från kanten
+  const grad = ctx.createRadialGradient(viewW/2, viewH/2, viewW * 0.25, viewW/2, viewH/2, viewW * 0.7);
+  grad.addColorStop(0, 'rgba(255,213,74,0)');
+  grad.addColorStop(1, `rgba(255,213,74,${0.55 * intensity})`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // Stor text "👑 YOU ARE JUG"
+  ctx.fillStyle = `rgba(255, 213, 74, ${intensity})`;
+  ctx.strokeStyle = `rgba(40, 20, 0, ${intensity})`;
+  ctx.lineWidth = 5;
+  ctx.font = 'bold ' + Math.floor(viewW * 0.08) + 'px sans-serif';
+  ctx.textAlign = 'center';
+  const txt = '👑 YOU ARE JUG';
+  ctx.strokeText(txt, viewW / 2, viewH / 2 - 20);
+  ctx.fillText(txt, viewW / 2, viewH / 2 - 20);
+  ctx.restore();
+}
+
 // Always-on subtil cinematic vinjett runt kanten. Mycket subtil så bara känns "premium",
 // inte distraherande. Skala med kortaste sidan så den inte växer på super-wide.
 function drawCinematicVignette() {
@@ -26843,7 +26892,7 @@ function drawOffScreenGoalArrow() {
   if (!stage || stage.isBoss) return;
   if (state.enemiesToSpawn > 0 || state.enemies.length > 0) return;
   // Inga "UTGÅNG"-pilar i PvP-modes — story-only feature
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive) return;
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive) return;
   const cx = state.camera.x, cy = state.camera.y;
   const gx = stage.goalPos.x - cx, gy = stage.goalPos.y - cy;
   // utanför skärmen?
@@ -27048,7 +27097,7 @@ function runFrame(dt, now) {
       if (Coop.active && Coop.isHost && Coop.serverSimActive && state.waveActive &&
           state.enemiesToSpawn > 0 && state.enemies.length === 0 &&
           state.mode === 'playing' &&
-          !state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive) {
+          !state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive && !state.kothActive && !state.juggernautActive) {
         const countdownActive = state._countdownEndAt && performance.now() < state._countdownEndAt;
         if (!countdownActive) {
           state._serverSpawnWaitSince = state._serverSpawnWaitSince || performance.now();

@@ -42,20 +42,20 @@ const JUGGERNAUT_ARENA = {
     { x: 2800, y: 700, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 3500, y: 700, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 4200, y: 700, w: 50, h: 50, kind: 'wall_pillar' },
-    // Row 2 (y=1500)
+    // Row 2 (y=1500) — center-NW pillar är "broken" som landmark
     { x: 700,  y: 1500, w: 50, h: 50, kind: 'wall_pillar' },
-    { x: 1400, y: 1500, w: 50, h: 50, kind: 'wall_pillar' },
+    { x: 1400, y: 1500, w: 50, h: 50, kind: 'broken_pillar' },  // landmark — exponerad rebar
     { x: 2100, y: 1500, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 2800, y: 1500, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 3500, y: 1500, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 4200, y: 1500, w: 50, h: 50, kind: 'wall_pillar' },
-    // Row 3 (y=2300)
+    // Row 3 (y=2300) — center-SE är "tagged" med röd graffiti som landmark
     { x: 700,  y: 2300, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 1400, y: 2300, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 2100, y: 2300, w: 50, h: 50, kind: 'wall_pillar' },
-    { x: 2800, y: 2300, w: 50, h: 50, kind: 'wall_pillar' },
+    { x: 2800, y: 2300, w: 50, h: 50, kind: 'tagged_pillar' },  // landmark — röd graffiti
     { x: 3500, y: 2300, w: 50, h: 50, kind: 'wall_pillar' },
-    { x: 4200, y: 2300, w: 50, h: 50, kind: 'wall_pillar' },
+    { x: 4200, y: 2300, w: 50, h: 50, kind: 'broken_pillar' },  // landmark — andra hörnet
     // Row 4 (y=3100)
     { x: 700,  y: 3100, w: 50, h: 50, kind: 'wall_pillar' },
     { x: 1400, y: 3100, w: 50, h: 50, kind: 'wall_pillar' },
@@ -202,10 +202,19 @@ const JUGGERNAUT_ARENA = {
   jugHpPerHunter: 100,
   jugSpeedMul: 1.35,
   jugScale: 1.8,
-  jugDashCdMs: 1000,
+  jugDashCdMs: 1500,              // 1.5s (var 1s — gav oändlig kiting). Hunter ~3s.
   hunterDmgVsJugMul: 1.0,         // ingen damage-bonus (5× HP + skalning hanterar balansen)
   hunterWeapon: 'pistol',
   minimapPulseIntervalMs: 5000,   // hunters ser JUG på minimap var 5s
+
+  // JUG-vapen-balans: rifle var dominant (137 DPS @ 820px räckvidd) på pelar-banan,
+  // sledge nästan obrukbar (kräver 52px kontakt). Multipliers premierar melee-risk.
+  // Applied via getPvpDmg när shooter är JUG.
+  jugWeaponDmgMul: {
+    rifle:   0.75,  // -25% — kraftigt men inte gimped
+    shotgun: 1.0,   // baseline
+    sledge:  1.15,  // +15% — premierar high-risk melee
+  },
 };
 
 if (typeof module !== 'undefined' && module.exports) {

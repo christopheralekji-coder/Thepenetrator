@@ -842,6 +842,17 @@ function handleDisconnect(ws) {
     const host = room.members.get(room.hostId);
     if (host) send(host, { type: 'peer_left', peerId: ws.id });
     console.log('[ROOM]', room.code, ws.id, 'left (', room.members.size, 'members)');
+    // JUGGERNAUT: om JUG-spelaren disconnectade, frigör JUG-rollen så nästa
+    // human-respawn ärver den (i stället för att JUG sitter död tills timer går ut).
+    if (room.sim && room.sim.juggernautActive && room.sim.juggernautPid === ws.id) {
+      room.sim.juggernautPid = null;
+      room.sim._juggernautAwaitFirstRespawn = true;
+      room.sim.eventQueue.push({
+        type: 'juggernaut_jug_changed',
+        newJug: null, oldJug: ws.id, reason: 'jug_disconnected',
+        weapon: room.sim.juggernautWeapon, jugHp: room.sim.juggernautHpMax,
+      });
+    }
     // KRITISKT: räkna inte bots i tom-rum-check, annars lever sim:en vidare med
     // bara bot-ws kvar (rum-läcka, evig bot-AI-tick).
     let realCount = 0;

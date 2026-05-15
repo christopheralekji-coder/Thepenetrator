@@ -327,10 +327,16 @@ function moveBotTowards(sim, botWs, target, dt) {
   // Dynamisk arena-clamp: läs från sim.tdmArena/CTF/SIEGE/GUNGAME_ARENA om satt,
   // fallback till stora 5000×3000 default. (Gungame är 3500×2000 men i de andra
   // modes kan bot tidigare inte nå höger del av Siege 5000×3000.)
-  const worldW = (sim.tdmArena && sim.tdmArena.worldW)
-    || ((sim.gungameActive || sim.kothActive) ? 3500 : 5000);
-  const worldH = (sim.tdmArena && sim.tdmArena.worldH)
-    || ((sim.gungameActive || sim.kothActive) ? 2000 : 3000);
+  let worldW, worldH;
+  if (sim.tdmArena && sim.tdmArena.worldW) {
+    worldW = sim.tdmArena.worldW; worldH = sim.tdmArena.worldH;
+  } else if (sim.juggernautActive) {
+    worldW = 5000; worldH = 3500;
+  } else if (sim.gungameActive || sim.kothActive) {
+    worldW = 3500; worldH = 2000;
+  } else {
+    worldW = 5000; worldH = 3000;
+  }
   ps.x = Math.max(50, Math.min(worldW - 50, ps.x));
   ps.y = Math.max(50, Math.min(worldH - 50, ps.y));
   ps.aim = Math.atan2(dy, dx);
