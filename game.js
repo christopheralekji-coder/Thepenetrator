@@ -7411,79 +7411,128 @@ function drawBrGroundDecorations(decos) {
       }
       ctx.restore();
     } else if (d.kind === 'alien_transition') {
-      // INFEKTERAD MARK-övergång: grön skog → svart/röd-infekterad → lila-glödande
-      // Bred radial gradient (0% → 100% av radien) med flera färgstopp för
-      // organisk infektions-look (inte längre ett synligt ring-streck).
+      // INFEKTERAD MARK-övergång: grön skog → ALIEN-zon.
+      // EXTRA STOR + EXTRA MJUK gradient så ingen synlig "ring" finns.
+      // Plus glödande röda SPRICKOR (vein-cracks) som ser ut som lava i mark.
       const x = d.x - cx, y = d.y - cy;
       if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
       const ccx = x + d.w / 2, ccy = y + d.h / 2;
       const maxR = d.w / 2;
-      // Layer 1: bred mjuk halo som täcker hela d.w-rutan
+      const t = performance.now() / 1000;
+      const pulse = 0.5 + Math.sin(t * 1.2) * 0.4;
+      // ============ LAYER 1: extremt mjuk radial fade utan synlig ring ============
+      // Många stopp över hela 0→1 så övergången blir gradvis (inget hopp).
       const halo = ctx.createRadialGradient(ccx, ccy, 0, ccx, ccy, maxR);
-      halo.addColorStop(0.00, 'rgba(120, 30, 160, 0.55)');   // tät lila-kärna
-      halo.addColorStop(0.25, 'rgba(90, 20, 110, 0.45)');    // lila övergång
-      halo.addColorStop(0.45, 'rgba(60, 14, 50, 0.40)');     // mörk röd-lila
-      halo.addColorStop(0.65, 'rgba(40, 10, 14, 0.30)');     // blod-svart
-      halo.addColorStop(0.82, 'rgba(20, 14, 10, 0.18)');     // mörk jord-ton
-      halo.addColorStop(1.00, 'rgba(20, 14, 10, 0)');        // helt transparent
+      halo.addColorStop(0.00, 'rgba(95, 25, 130, 0.62)');
+      halo.addColorStop(0.10, 'rgba(85, 22, 115, 0.58)');
+      halo.addColorStop(0.22, 'rgba(70, 18, 90, 0.50)');
+      halo.addColorStop(0.34, 'rgba(55, 14, 60, 0.43)');
+      halo.addColorStop(0.46, 'rgba(45, 12, 35, 0.36)');
+      halo.addColorStop(0.58, 'rgba(35, 12, 18, 0.28)');
+      halo.addColorStop(0.70, 'rgba(28, 14, 10, 0.20)');
+      halo.addColorStop(0.82, 'rgba(22, 14, 10, 0.12)');
+      halo.addColorStop(0.92, 'rgba(22, 14, 10, 0.05)');
+      halo.addColorStop(1.00, 'rgba(22, 14, 10, 0)');
       ctx.fillStyle = halo;
       ctx.fillRect(x, y, d.w, d.h);
-      // Layer 2: infekterade ådror — mörka röd-svart streck som sprider ut
       const seed = ((d.x * 19) ^ (d.y * 23)) | 0;
-      ctx.strokeStyle = 'rgba(80, 12, 16, 0.35)';
-      ctx.lineWidth = 2;
-      for (let i = 0; i < 18; i++) {
-        const a = (seed * (i + 1) * 73 % 628) / 100; // angle 0..2π
-        const r0 = maxR * 0.15 + ((seed * (i + 3) * 17) % 50);
-        const r1 = maxR * 0.85 + ((seed * (i + 7) * 23) % 100);
-        const x0 = ccx + Math.cos(a) * r0;
-        const y0 = ccy + Math.sin(a) * r0;
-        // Krokig vein-linje
-        ctx.beginPath();
-        ctx.moveTo(x0, y0);
-        const segs = 4;
-        for (let s = 1; s <= segs; s++) {
-          const rs = r0 + (r1 - r0) * (s / segs);
-          const wobble = ((seed * (i + s) * 41) % 30) - 15;
-          const ang = a + wobble * 0.02;
-          ctx.lineTo(ccx + Math.cos(ang) * rs, ccy + Math.sin(ang) * rs);
+      // ============ LAYER 2: GLÖDANDE RÖDA SPRICKOR ============
+      // Krokiga sprickor med yttre glow + inre lava-färg. Inga walls (passabla).
+      const insideAlienFloor = (wx, wy) => wx >= 7900 && wx <= 9800 && wy >= 7900 && wy <= 9800;
+      const crackCount = 26;
+      // Pre-bygg spricka-paths så vi kan rita dem 3 ggr (outer glow, mid, inner lava)
+      const cracks = [];
+      for (let i = 0; i < crackCount; i++) {
+        const a = ((seed * (i + 1) * 73) % 6283) / 1000; // 0..2π
+        const r0 = maxR * (0.10 + ((seed * (i + 3) * 17) % 30) / 100);
+        const r1 = maxR * (0.55 + ((seed * (i + 7) * 23) % 45) / 100);
+        const pts = [];
+        const segs = 6 + (i % 3);
+        for (let s = 0; s <= segs; s++) {
+          const f = s / segs;
+          const rs = r0 + (r1 - r0) * f;
+          const wobble = ((seed * (i + 1) * (s + 11) * 41) % 200 - 100) * 0.0008;
+          const ang = a + wobble * (1 + f * 2);
+          pts.push({
+            x: ccx + Math.cos(ang) * rs,
+            y: ccy + Math.sin(ang) * rs,
+          });
         }
+        cracks.push(pts);
+      }
+      // 2a: yttre röd glow (bred, mjuk)
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(255, 30, 40, ' + (0.20 + 0.10 * pulse) + ')';
+      ctx.lineWidth = 9;
+      ctx.shadowColor = '#ff2030';
+      ctx.shadowBlur = 14;
+      for (const pts of cracks) {
+        // Skippa om sprickan är ENTIRELY inom alien_floor-rutan
+        let allInside = true;
+        for (const p of pts) {
+          if (!insideAlienFloor(p.x + cx, p.y + cy)) { allInside = false; break; }
+        }
+        if (allInside) continue;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let s = 1; s < pts.length; s++) ctx.lineTo(pts[s].x, pts[s].y);
         ctx.stroke();
       }
-      // Layer 3: pulserande lila-glödande prickar (infekterade fläckar)
-      const t = performance.now() / 1000;
-      const pulse = 0.4 + Math.sin(t * 0.7) * 0.25;
-      for (let i = 0; i < 32; i++) {
-        const a = (seed * (i + 11) * 53 % 628) / 100;
-        const r = maxR * (0.12 + ((seed * (i + 17) * 31) % 70) / 100);
+      // 2b: medium-glow (orange-röd, smalare)
+      ctx.shadowBlur = 6;
+      ctx.strokeStyle = 'rgba(255, 90, 50, ' + (0.55 + 0.20 * pulse) + ')';
+      ctx.lineWidth = 4;
+      for (const pts of cracks) {
+        let allInside = true;
+        for (const p of pts) {
+          if (!insideAlienFloor(p.x + cx, p.y + cy)) { allInside = false; break; }
+        }
+        if (allInside) continue;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let s = 1; s < pts.length; s++) ctx.lineTo(pts[s].x, pts[s].y);
+        ctx.stroke();
+      }
+      // 2c: inre lava-kärna (ljus gul-orange, tunn)
+      ctx.strokeStyle = 'rgba(255, 200, 100, ' + (0.85 + 0.15 * pulse) + ')';
+      ctx.lineWidth = 1.4;
+      ctx.shadowBlur = 0;
+      for (const pts of cracks) {
+        let allInside = true;
+        for (const p of pts) {
+          if (!insideAlienFloor(p.x + cx, p.y + cy)) { allInside = false; break; }
+        }
+        if (allInside) continue;
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let s = 1; s < pts.length; s++) ctx.lineTo(pts[s].x, pts[s].y);
+        ctx.stroke();
+      }
+      // ============ LAYER 3: spridda svarta sotfläckar (infekterad jord) ============
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(12, 6, 6, 0.50)';
+      for (let i = 0; i < 22; i++) {
+        const a = ((seed * (i + 5) * 89) % 6283) / 1000;
+        const r = maxR * (0.18 + ((seed * (i + 13) * 19) % 70) / 100);
         const px = ccx + Math.cos(a) * r;
         const py = ccy + Math.sin(a) * r;
-        // Skippa om innanför alien_floor
-        const wx = px + cx, wy = py + cy;
-        if (wx >= 7900 && wx <= 9800 && wy >= 7900 && wy <= 9800) continue;
-        const radius = 6 + ((seed * (i + 7)) % 8);
-        // Mörk röd ring runt prick
-        ctx.fillStyle = 'rgba(120, 20, 30, ' + (0.35 * pulse) + ')';
+        if (insideAlienFloor(px + cx, py + cy)) continue;
         ctx.beginPath();
-        ctx.ellipse(px, py, radius * 1.4, radius * 0.9, 0, 0, Math.PI * 2);
-        ctx.fill();
-        // Inre lila glow
-        ctx.fillStyle = 'rgba(160, 60, 220, ' + (0.45 * pulse) + ')';
-        ctx.beginPath();
-        ctx.ellipse(px, py, radius * 0.8, radius * 0.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(px, py, 9 + ((seed * i) % 8), 5 + ((seed * i) % 5), (seed * i) % 6, 0, Math.PI * 2);
         ctx.fill();
       }
-      // Layer 4: spridda svarta kol-fläckar (infekterad mark)
-      ctx.fillStyle = 'rgba(15, 8, 8, 0.55)';
-      for (let i = 0; i < 14; i++) {
-        const a = (seed * (i + 5) * 89 % 628) / 100;
-        const r = maxR * (0.30 + ((seed * (i + 13) * 19) % 60) / 100);
+      // ============ LAYER 4: pulserande lila glow-prickar ============
+      for (let i = 0; i < 24; i++) {
+        const a = ((seed * (i + 11) * 53) % 6283) / 1000;
+        const r = maxR * (0.12 + ((seed * (i + 17) * 31) % 65) / 100);
         const px = ccx + Math.cos(a) * r;
         const py = ccy + Math.sin(a) * r;
-        const wx = px + cx, wy = py + cy;
-        if (wx >= 7900 && wx <= 9800 && wy >= 7900 && wy <= 9800) continue;
+        if (insideAlienFloor(px + cx, py + cy)) continue;
+        const radius = 4 + ((seed * (i + 7)) % 6);
+        ctx.fillStyle = 'rgba(160, 60, 220, ' + (0.40 * pulse) + ')';
         ctx.beginPath();
-        ctx.ellipse(px, py, 10 + ((seed * i) % 6), 6 + ((seed * i) % 4), 0, 0, Math.PI * 2);
+        ctx.ellipse(px, py, radius * 1.2, radius * 0.8, 0, 0, Math.PI * 2);
         ctx.fill();
       }
     } else if (d.kind === 'alien_floor') {
@@ -8512,6 +8561,12 @@ function drawCabinRoof(cabin, sx, sy) {
   // Tak-bas
   ctx.fillStyle = r.color;
   ctx.fillRect(sx, sy, b.w, b.h);
+  // Clip ALL tile/shingle/thatch-pattern till tak-rektangeln så inga linjer
+  // sträcker sig utanför takets kant (bug-fix för tidigare över-fyllda rader).
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(sx, sy, b.w, b.h);
+  ctx.clip();
   // Tak-stil
   ctx.strokeStyle = r.accent;
   ctx.lineWidth = 1.2;
@@ -8577,7 +8632,9 @@ function drawCabinRoof(cabin, sx, sy) {
       ctx.fillRect(sx + b.w - 4, sy, 4, b.h);
     }
   }
-  // Skorsten BARA på riktiga stugor (inte containers)
+  // Restore clip innan skorsten + yttre kant
+  ctx.restore();
+  // Skorsten BARA på riktiga stugor (inte containers) — får sticka upp ovanför taket
   if (r.style !== 'container') {
     const chimneyX = sx + b.w * 0.7;
     const chimneyY = sy + 6;
@@ -9227,7 +9284,9 @@ function drawCoopPartner() {
     if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) {
       // Hunters ska INTE se pil mot JUG (bara minimap-puls var 5s).
       const skipJugArrow = partnerIsJug && state.player && !state.player.isJug;
-      if (!skipJugArrow) drawOffscreenPartner(p, x, y);
+      // BR: ingen pil mot motståndare — det ska INTE vara enkelt att se var de är
+      const skipBrArrow = state.battleroyaleActive;
+      if (!skipJugArrow && !skipBrArrow) drawOffscreenPartner(p, x, y);
       continue;
     }
     const color = PLAYER_COLORS[p.colorIdx % PLAYER_COLORS.length];
@@ -12310,20 +12369,6 @@ window.addEventListener('keydown', e => {
   input.keys.add(e.key.toLowerCase());
   const k = e.key.toLowerCase();
   checkKonami(k);
-  // BR INVENTORY: 1-4 = byt slot, G = drop nuvarande slot
-  if (state.battleroyaleActive && state.mode === 'playing' && state.player && state.player.brInventory) {
-    const slotIdx = ['1','2','3','4'].indexOf(k);
-    if (slotIdx >= 0) {
-      brSwitchInventorySlot(slotIdx);
-      e.preventDefault();
-      return;
-    }
-    if (k === 'g') {
-      brDropCurrentWeapon();
-      e.preventDefault();
-      return;
-    }
-  }
   if (k === 'q') switchWeapon(-1);
   if (k === 'e') switchWeapon(1);
   if (k === 'r' && state.mode === 'playing') startReload();
@@ -15274,9 +15319,6 @@ const Coop = {
         state.player.speedMul = 1.0;
         state.player.dashCdMs = null;
         state.player.invuln = 1.5;
-        // BR INVENTORY: 4 slots, start med fists/knife/pistol (+1 tom slot för loot)
-        state.player.brInventory = ['fists', 'knife', ev.startWeapon || 'pistol', null];
-        state.player.brEquippedSlot = 2; // pistol som default
         if (ev.isSpectator) {
           // Late-joiner — direkt i spectator-mode
           state.player.spectating = true;
@@ -15285,6 +15327,12 @@ const Coop = {
           state.player.spectating = false;
         }
       }
+      // BR INVENTORY = save.owned (samma system som story). Backupa nuvarande
+      // ägda vapen så vi kan återställa när matchen är slut, och börja med
+      // fists/knife/pistol som BR-start-arsenal.
+      if (!state._brOwnedBackup) state._brOwnedBackup = save.owned ? save.owned.slice() : ['fists'];
+      if (state._brEquippedBackup === undefined) state._brEquippedBackup = save.equipped || 'fists';
+      save.owned = ['fists', 'knife', ev.startWeapon || 'pistol'];
       save.equipped = ev.startWeapon || 'pistol';
       save.weaponId = save.equipped;
       // Synka maxHp/scaleMul på partners (anti-läck från JUG/Sandbox)
@@ -15336,22 +15384,19 @@ const Coop = {
         if (typeof ev.hp === 'number') state.player.hp = ev.hp;
         if (typeof ev.shield === 'number') state.player.shield = ev.shield;
         if (ev.kind === 'weapon' && ev.weaponId) {
-          // BR INVENTORY: hitta tom slot, annars ersätt nuvarande slot
-          const inv = state.player.brInventory || ['fists', 'knife', null, null];
-          let slot = inv.findIndex(s => !s);
-          if (slot === -1) slot = (state.player.brEquippedSlot != null ? state.player.brEquippedSlot : inv.length - 1);
-          inv[slot] = ev.weaponId;
-          state.player.brInventory = inv;
-          state.player.brEquippedSlot = slot;
+          // BR: alla pickup-vapen läggs i save.owned (unlimited slots). Vapenmenyn
+          // under minimapen visar dem automatiskt — användaren byter där.
+          if (!Array.isArray(save.owned)) save.owned = ['fists'];
+          if (!save.owned.includes(ev.weaponId)) save.owned.push(ev.weaponId);
           state.player.weaponId = ev.weaponId;
           save.equipped = ev.weaponId;
           save.weaponId = ev.weaponId;
           state.player.reloading = false;
           state.player.ammo = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) || 0;
           if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
-          if (typeof updateBrInventoryHud === 'function') updateBrInventoryHud();
+          if (typeof updateHUD === 'function') updateHUD();
           const wName = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].name) || ev.weaponId;
-          if (typeof showToast === 'function') showToast('🔫 ' + wName.toUpperCase() + ' (slot ' + (slot + 1) + ')');
+          if (typeof showToast === 'function') showToast('🔫 ' + wName.toUpperCase());
         } else if (ev.kind === 'hp_small') {
           if (typeof showToast === 'function') showToast('❤ +60 HP');
         } else if (ev.kind === 'hp_big') {
@@ -24686,99 +24731,7 @@ function showBrHud() {
     document.body.appendChild(coords);
   }
   coords.style.display = 'block';
-  // Inventory-bar (bottom-center) — 4 slots
-  let inv = document.getElementById('br-inv');
-  if (!inv) {
-    inv = document.createElement('div');
-    inv.id = 'br-inv';
-    inv.style.cssText = 'position:fixed;bottom:max(12px, env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:80;pointer-events:none;font-family:sans-serif;';
-    document.body.appendChild(inv);
-    for (let i = 0; i < 4; i++) {
-      const slot = document.createElement('div');
-      slot.id = 'br-inv-slot-' + i;
-      slot.style.cssText = 'width:78px;height:52px;background:rgba(0,0,0,0.75);border:2px solid #444;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#aaa;font-size:11px;font-weight:700;letter-spacing:0.5px;padding:4px;box-sizing:border-box;text-align:center;line-height:1.1;';
-      slot.innerHTML = '<div style="font-size:10px;color:#666;">' + (i + 1) + '</div><div style="font-size:11px;">—</div>';
-      inv.appendChild(slot);
-    }
-    // Liten hjälp-text under
-    const hint = document.createElement('div');
-    hint.id = 'br-inv-hint';
-    hint.style.cssText = 'position:fixed;bottom:max(70px, calc(env(safe-area-inset-bottom) + 70px));left:50%;transform:translateX(-50%);color:#888;font-size:10px;font-family:sans-serif;letter-spacing:0.5px;z-index:80;pointer-events:none;';
-    hint.textContent = '1-4: byt vapen · G: släpp';
-    document.body.appendChild(hint);
-  }
-  inv.style.display = 'flex';
-  const hintEl = document.getElementById('br-inv-hint');
-  if (hintEl) hintEl.style.display = 'block';
-  updateBrInventoryHud();
   updateBrHud();
-}
-
-function updateBrInventoryHud() {
-  if (!state.player || !state.player.brInventory) return;
-  const inv = state.player.brInventory;
-  const eq = state.player.brEquippedSlot;
-  for (let i = 0; i < 4; i++) {
-    const el = document.getElementById('br-inv-slot-' + i);
-    if (!el) continue;
-    const wid = inv[i];
-    const isEq = (i === eq);
-    const wInfo = wid && W_BY_ID[wid];
-    const wName = wInfo ? (wInfo.name || wid).toUpperCase() : '—';
-    const wIcon = (typeof getWeaponIcon === 'function' && wid) ? getWeaponIcon(wid) : '';
-    el.style.border = '2px solid ' + (isEq ? '#3acaff' : (wid ? '#777' : '#333'));
-    el.style.background = isEq ? 'rgba(58, 202, 255, 0.18)' : 'rgba(0, 0, 0, 0.75)';
-    el.innerHTML =
-      '<div style="font-size:10px;color:' + (isEq ? '#3acaff' : '#666') + ';font-weight:900;">' + (i + 1) + '</div>' +
-      '<div style="font-size:16px;line-height:1;">' + (wIcon || '·') + '</div>' +
-      '<div style="font-size:9px;color:' + (wid ? '#ccc' : '#444') + ';">' + (wid ? wName.slice(0, 8) : '') + '</div>';
-  }
-}
-
-function brSwitchInventorySlot(slot) {
-  if (!state.player || !state.player.brInventory) return;
-  const wid = state.player.brInventory[slot];
-  if (!wid) return;
-  state.player.brEquippedSlot = slot;
-  state.player.weaponId = wid;
-  save.equipped = wid;
-  save.weaponId = wid;
-  state.player.reloading = false;
-  state.player.ammo = (W_BY_ID[wid] && W_BY_ID[wid].mag) || 0;
-  if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
-  if (typeof updateHUD === 'function') updateHUD();
-  updateBrInventoryHud();
-  if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
-}
-
-function brDropCurrentWeapon() {
-  if (!state.player || !state.player.brInventory) return;
-  const slot = state.player.brEquippedSlot;
-  const wid = state.player.brInventory[slot];
-  if (!wid) return;
-  // Starter-items kan inte slängas
-  if (wid === 'fists' || wid === 'knife' || wid === 'pistol') {
-    if (typeof showToast === 'function') showToast('❌ Kan inte slänga ' + wid);
-    return;
-  }
-  // Hitta nästa vapen i inventory (cykla)
-  let newSlot = slot;
-  for (let i = 1; i < state.player.brInventory.length; i++) {
-    const idx = (slot + i) % state.player.brInventory.length;
-    if (state.player.brInventory[idx] && idx !== slot) { newSlot = idx; break; }
-  }
-  const newWid = state.player.brInventory[newSlot] || 'fists';
-  // Skicka till server (server spawnar loot)
-  if (Coop && Coop.ws && Coop.ws.readyState === 1) {
-    try {
-      Coop.ws.send(JSON.stringify({ type: 'sim_br_drop', weaponId: wid, newWeaponId: newWid }));
-    } catch (_) {}
-  }
-  // Optimistic: rensa slot, byt vapen
-  state.player.brInventory[slot] = null;
-  if (newWid !== wid) brSwitchInventorySlot(newSlot);
-  if (typeof showToast === 'function') showToast('💢 SLÄPPT ' + ((W_BY_ID[wid] && W_BY_ID[wid].name) || wid).toUpperCase());
-  updateBrInventoryHud();
 }
 
 function hideBrHud() {
@@ -24789,10 +24742,15 @@ function hideBrHud() {
   if (kf) kf.innerHTML = '';
   const coords = document.getElementById('br-coords');
   if (coords) coords.style.display = 'none';
-  const inv = document.getElementById('br-inv');
-  if (inv) inv.style.display = 'none';
-  const hint = document.getElementById('br-inv-hint');
-  if (hint) hint.style.display = 'none';
+  // Rensa kvarvarande BR-overlays (gamla inventar-bar från v1.340, kill-feed,
+  // end-screen som blivit kvar) så de inte läcker in i menyn.
+  const stale = ['br-inv', 'br-inv-hint', 'br-end-overlay'];
+  for (const id of stale) {
+    const e = document.getElementById(id);
+    if (e && e.parentNode) e.parentNode.removeChild(e);
+  }
+  if (kf && kf.parentNode) kf.parentNode.removeChild(kf);
+  if (coords && coords.parentNode) coords.parentNode.removeChild(coords);
 }
 
 function destroyBrEndOverlay() {
@@ -24889,6 +24847,11 @@ function showBrEndScreen(winnerId, statsArr) {
       overlay.style.display = 'none';
       if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
       state.battleroyaleActive = false;
+      // Återställ save.owned/equipped från BR-backup (annars läcker BR-vapen
+      // in i story-modes nästa session)
+      if (state._brOwnedBackup) { save.owned = state._brOwnedBackup; state._brOwnedBackup = null; }
+      if (state._brEquippedBackup !== undefined) { save.equipped = state._brEquippedBackup; save.weaponId = state._brEquippedBackup; state._brEquippedBackup = undefined; }
+      hideBrHud();
       if (typeof Coop !== 'undefined') {
         Coop.battleroyaleActive = false;
         Coop.serverSimActive = false;
@@ -38218,6 +38181,12 @@ function drawMiniMap() {
     const z = state.battleroyaleZone;
     const zx = ox + z.x * scale, zy = oy + z.y * scale;
     const zr = z.r * scale;
+    // Clip alla zone-cirklar till minimap-rektangeln så de inte sticker
+    // ut utanför ramen vid stora radier.
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x0, y0, size, size);
+    ctx.clip();
     // Zone ring (cyan)
     ctx.strokeStyle = 'rgba(58,202,255,0.85)';
     ctx.fillStyle = 'rgba(58,202,255,0.12)';
@@ -38235,6 +38204,7 @@ function drawMiniMap() {
       ctx.beginPath(); ctx.arc(nzx, nzy, nzr, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
     }
+    ctx.restore();
     // Legendary-loot markers (gula prickar) — PERF: for...in + cache pulse-alpha
     if (state.battleroyaleLoot) {
       const t = performance.now() / 1000;

@@ -919,13 +919,45 @@ const BATTLEROYALE_ARENA = {
 
     // === 4-VÄGS BRO — flyttad till decorations (passabel, blockerar inte movement)
 
-    // === REN BERGSFORMATION (vattenfall öppen kanal direkt ner i sjön) ===
-    // Cliff-edges nu BARA vänster och höger om vattenfall-kanalen.
-    // Vattenfall-öppning: x=2860..3020 (160px), inga walls i den kanalen.
-    // Topp-massiv VÄNSTER om vattenfall (y=6420..6700)
-    { x: 2440, y: 6420, w: 420, h: 280, kind: 'cliff_edge' },
-    // Topp-massiv HÖGER om vattenfall (y=6420..6700)
-    { x: 3020, y: 6420, w: 420, h: 280, kind: 'cliff_edge' },
+    // === ORGANISK BERGSFORMATION ===
+    // Bergskedjan består av många små rock_large/rock_small i ett oregelbundet
+    // mönster — ser ut som ett RIKTIGT berg, inte en fyrkantig wall. Mellan
+    // alla stenarna finns en öppen kanal där vattenfallet faller ner (x=2860..3020).
+    // VÄNSTER bergsida (västra delen, x=2400..2840)
+    { x: 2420, y: 6420, w: 95, h: 70, kind: 'rock_large' },
+    { x: 2540, y: 6395, w: 80, h: 65, kind: 'rock_large' },
+    { x: 2640, y: 6430, w: 90, h: 75, kind: 'rock_large' },
+    { x: 2740, y: 6410, w: 85, h: 70, kind: 'rock_large' },
+    { x: 2480, y: 6505, w: 75, h: 60, kind: 'rock_large' },
+    { x: 2580, y: 6520, w: 90, h: 70, kind: 'rock_large' },
+    { x: 2700, y: 6510, w: 95, h: 75, kind: 'rock_large' },
+    { x: 2440, y: 6595, w: 80, h: 65, kind: 'rock_small' },
+    { x: 2560, y: 6610, w: 70, h: 55, kind: 'rock_small' },
+    { x: 2670, y: 6605, w: 75, h: 60, kind: 'rock_large' },
+    { x: 2770, y: 6620, w: 90, h: 70, kind: 'rock_large' },
+    { x: 2820, y: 6520, w: 60, h: 55, kind: 'rock_small' },
+    { x: 2830, y: 6445, w: 50, h: 45, kind: 'rock_small' },
+    // HÖGER bergsida (östra delen, x=3020..3450)
+    { x: 3020, y: 6415, w: 80, h: 60, kind: 'rock_small' },
+    { x: 3030, y: 6440, w: 85, h: 65, kind: 'rock_large' },
+    { x: 3130, y: 6420, w: 90, h: 70, kind: 'rock_large' },
+    { x: 3230, y: 6400, w: 85, h: 70, kind: 'rock_large' },
+    { x: 3320, y: 6430, w: 95, h: 70, kind: 'rock_large' },
+    { x: 3050, y: 6515, w: 90, h: 70, kind: 'rock_large' },
+    { x: 3160, y: 6500, w: 80, h: 65, kind: 'rock_large' },
+    { x: 3270, y: 6510, w: 95, h: 75, kind: 'rock_large' },
+    { x: 3370, y: 6520, w: 80, h: 65, kind: 'rock_large' },
+    { x: 3030, y: 6610, w: 75, h: 60, kind: 'rock_small' },
+    { x: 3130, y: 6620, w: 85, h: 65, kind: 'rock_large' },
+    { x: 3240, y: 6615, w: 80, h: 65, kind: 'rock_large' },
+    { x: 3350, y: 6610, w: 90, h: 70, kind: 'rock_large' },
+    // Små stenar nere vid vattenfallets BAS (där vattnet träffar sjön)
+    // — det är HÄR vattnet "rinner från små stenar" som user vill ha
+    { x: 2820, y: 6680, w: 50, h: 38, kind: 'rock_small' },
+    { x: 2880, y: 6700, w: 45, h: 35, kind: 'rock_small' },
+    { x: 2925, y: 6705, w: 50, h: 38, kind: 'rock_small' },
+    { x: 2985, y: 6700, w: 45, h: 35, kind: 'rock_small' },
+    { x: 3030, y: 6685, w: 55, h: 40, kind: 'rock_small' },
 
     // === LAKE_WATER_BLOCK — 9 små block (~200×200) som approximerar sjö-polygon.
     // GAPS för bron: horisontell vid y=6935 (28px), vertikal vid x=2935 (28px).
@@ -1365,7 +1397,7 @@ const BATTLEROYALE_ARENA = {
     { kind: 'alien_floor', x: 7900, y: 7900, w: 1900, h: 1900 },
     // === MJUK ÖVERGÅNG mellan skogen och alien-zonen ===
     // 3 transitions-bands runt alien-zonen (gradient: skog → blek-lila → alien)
-    { kind: 'alien_transition', x: 7300, y: 7300, w: 2700, h: 2700 },
+    { kind: 'alien_transition', x: 6800, y: 6800, w: 3500, h: 3500 },
 
     // === ALIEN-MYSTIK decorations (crop circles, glödande svampar, märkliga spår) ===
     { kind: 'crop_circle', x: 8750, y: 9000 },
@@ -1390,13 +1422,17 @@ const BATTLEROYALE_ARENA = {
     { kind: 'glade', x: 2400, y: 4500, r: 140 },  // path glade
     { kind: 'glade', x: 7400, y: 4000, r: 150 },  // scrap edge glade
 
-    // === VATTENFALLS — cascade direkt FRÅN klipptoppen NER I sjön
-    // Vattnet startar vid klipptoppen (y=6420) och faller hela vägen till
-    // sjöytan (y=6720) — total höjd 300px. Bredd 160px (passar mellan klipporna).
-    { kind: 'waterfall', x: 2860, y: 6420, w: 160, h: 300 },
-    { kind: 'water_splash', x: 2940, y: 6720 },  // skum DÄR vattnet träffar sjön
-    { kind: 'water_splash', x: 2900, y: 6740 },  // extra skum-cirkel för bredare splash
-    { kind: 'water_splash', x: 2980, y: 6740 },
+    // === VATTENFALL — vattnet sipprar fram mellan stenar på 3 nivåer
+    // Tre cascades (smala) som ser ut som om vatten letar sig fram mellan stenarna
+    { kind: 'waterfall', x: 2870, y: 6400, w: 50, h: 220 },
+    { kind: 'waterfall', x: 2925, y: 6420, w: 55, h: 200 },
+    { kind: 'waterfall', x: 2982, y: 6410, w: 45, h: 215 },
+    // Splash-skum där vattnet landar i sjön (multipla för bredare splash-effekt)
+    { kind: 'water_splash', x: 2890, y: 6735 },
+    { kind: 'water_splash', x: 2935, y: 6735 },
+    { kind: 'water_splash', x: 2980, y: 6735 },
+    { kind: 'water_splash', x: 2910, y: 6760 },
+    { kind: 'water_splash', x: 2960, y: 6760 },
 
     // === GROTTA ENTRANCE BAKOM vattenfallet (i klippan) ===
     { kind: 'cave_entrance', x: 2900, y: 6470, w: 80, h: 50 },
@@ -1894,16 +1930,19 @@ function postProcessArena(arena) {
     keptProc.push(w);
     return true;
   });
-  // 1d. KRYMP COLLISION-BBOX för träd. Visuell krona kvar via visual{X,Y,W,H}.
-  //     Pine = triangel (smal trunk), oak/giant = rundare krona, stump = nästan helt.
-  const TREE_COLL_FACTOR = {
+  // 1d. KRYMP COLLISION-BBOX för träd OCH stenar. Visuell storlek kvar via
+  //     visual{X,Y,W,H}. Pine triangel = smal trunk, oak/giant rundare krona,
+  //     stenar rundade så man kan gå nära dem utan att fastna.
+  const VISUAL_COLL_FACTOR = {
     tree_pine: 0.35,
     tree_oak: 0.55,
     tree_giant_oak: 0.50,
     tree_stump: 0.75,
+    rock_large: 0.62,
+    rock_small: 0.65,
   };
   for (const w of arena.walls) {
-    const f = TREE_COLL_FACTOR[w.kind];
+    const f = VISUAL_COLL_FACTOR[w.kind];
     if (!f) continue;
     if (w.visualW != null) continue; // redan processad
     w.visualX = w.x; w.visualY = w.y; w.visualW = w.w; w.visualH = w.h;
