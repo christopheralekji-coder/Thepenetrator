@@ -6934,20 +6934,21 @@ function drawBrLoot() {
     if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) continue;
     // Locked? (center-loot första 30s)
     const isLocked = lo.unlockAt && nowMs < lo.unlockAt;
-    // Tier-färg
+    // Tier-färg: grå/grön/blå/lila per user-spec
     let tierColor = '#ffffff', glowColor = '#999';
-    if (lo.tier === 'common')      { tierColor = '#cccccc'; glowColor = '#888'; }
-    else if (lo.tier === 'uncommon') { tierColor = '#5fd95f'; glowColor = '#3aff5a'; }
-    else if (lo.tier === 'rare')     { tierColor = '#3acaff'; glowColor = '#3acaff'; }
-    else if (lo.tier === 'legendary') { tierColor = '#ffd54a'; glowColor = '#ffd54a'; }
-    else if (lo.tier === 'corpse')   { tierColor = '#ff8aff'; glowColor = '#bb33bb'; } // corpse-drop = lila
+    if (lo.tier === 'common')      { tierColor = '#cccccc'; glowColor = '#cccccc'; } // GRÅ
+    else if (lo.tier === 'uncommon') { tierColor = '#5fd95f'; glowColor = '#3aff5a'; } // GRÖN
+    else if (lo.tier === 'rare')     { tierColor = '#3a7aff'; glowColor = '#5a90ff'; } // BLÅ
+    else if (lo.tier === 'legendary') { tierColor = '#bb3aff'; glowColor = '#cc6aff'; } // LILA
+    else if (lo.tier === 'corpse')   { tierColor = '#ff8aff'; glowColor = '#ff8aff'; } // rosa
     if (isLocked) { tierColor = '#666'; glowColor = '#444'; }
-    // PERF: shadowBlur är canvas-flaskhals. Bara använd för rare/legendary/corpse
-    // (där glow är meningsfull för "spotlight"). Common/uncommon = ingen shadow.
-    const useShadow = !isLocked && (lo.tier === 'rare' || lo.tier === 'legendary' || lo.tier === 'corpse');
+    // GLOW för ALLA tier-färger nu (user vill se lysande loot oavsett tier)
+    const useShadow = !isLocked;
     if (useShadow) {
       ctx.shadowColor = glowColor;
-      ctx.shadowBlur = 12 * pulse;
+      // Mindre glow för common, mer för legendary
+      const blurAmount = (lo.tier === 'legendary') ? 18 : (lo.tier === 'rare') ? 14 : (lo.tier === 'uncommon') ? 10 : 7;
+      ctx.shadowBlur = blurAmount * pulse;
     } else {
       ctx.shadowBlur = 0;
     }
@@ -20267,6 +20268,21 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
   };
   const muzzleOff = (w.type === 'gun') ? (MUZZLE_OFFSETS[w.id] || 20) : 0;
 
+  // BR wall-check: om muzzle-position hamnar INUTI en solid wall, korta
+  // spawn-offset så bullet hamnar PÅ spelar-positionen istället.
+  // Förhindrar "skjut genom väggen via stor barrel"-exploit.
+  const _brSolidWalls = (state.battleroyaleActive && state.battleroyaleWalls)
+    ? state.battleroyaleWalls.filter(w => !w.passThroughBullets)
+    : null;
+  const _isInsideBrWall = (bx, by) => {
+    if (!_brSolidWalls) return false;
+    for (let i = 0; i < _brSolidWalls.length; i++) {
+      const wl = _brSolidWalls[i];
+      if (bx >= wl.x && bx <= wl.x + wl.w && by >= wl.y && by <= wl.y + wl.h) return true;
+    }
+    return false;
+  };
+
   for (let i = 0; i < pellets; i++) {
     const spread = (Math.random() - 0.5) * 2 * (w.spread || 0);
     const ang = p.aimAngle + spread;
@@ -20274,10 +20290,17 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
     const isCrit = cheatChozza ? true : Math.random() < (p.critChance || 0);
     const isHead = hasPerk('headshot') && Math.random() < 0.15;
     // Spawn-position: pip-mynningen (player.r + muzzleOff) i aim-riktning.
-    // Använd p.aimAngle (inte spread-justerad) så pellets kommer från samma
-    // muzzle-punkt men sprider sig EFTER spawning.
-    const spawnX = p.x + Math.cos(p.aimAngle) * (p.r + muzzleOff);
-    const spawnY = p.y + Math.sin(p.aimAngle) * (p.r + muzzleOff);
+    let spawnX = p.x + Math.cos(p.aimAngle) * (p.r + muzzleOff);
+    let spawnY = p.y + Math.sin(p.aimAngle) * (p.r + muzzleOff);
+    // BR wall-check: om spawn-pos är inuti solid wall (typ utanför cabin via
+    // stor muzzle-offset), använd kortare offset eller skip bullet.
+    if (state.battleroyaleActive && _isInsideBrWall(spawnX, spawnY)) {
+      // Försök kortare offset (player.r räcker oftast)
+      spawnX = p.x + Math.cos(p.aimAngle) * p.r;
+      spawnY = p.y + Math.sin(p.aimAngle) * p.r;
+      // Om FORTFARANDE inne i wall → skip helt (player står i vägg-kant)
+      if (_isInsideBrWall(spawnX, spawnY)) continue;
+    }
     state.bullets.push({
       x: spawnX, y: spawnY,
       vx: Math.cos(ang)*speed, vy: Math.sin(ang)*speed,
@@ -37574,20 +37597,82 @@ function drawMiniMap() {
   if (pvpWalls) {
     for (const w of pvpWalls) {
       let color;
-      if (w.kind === 'wall_red_base')       color = 'rgba(255,90,90,0.9)';
+      // BR-specifika färger per kind
+      if (w.kind === 'tree_oak' || w.kind === 'tree_pine' || w.kind === 'tree_giant_oak')
+                                            color = 'rgba(50,140,50,0.95)';  // grön = träd
+      else if (w.kind === 'tree_stump')     color = 'rgba(100,70,30,0.85)';  // brun-stub
+      else if (w.kind === 'rock_large' || w.kind === 'rock_small')
+                                            color = 'rgba(120,120,120,0.95)'; // grå = sten
+      else if (w.kind === 'cabin_wall_wood') color = 'rgba(160,100,40,0.95)'; // brun = hus
+      else if (w.kind === 'cabin_window')   color = 'rgba(180,220,240,0.9)'; // ljusblå = fönster
+      else if (w.kind === 'shipping_container') color = 'rgba(220,140,40,0.9)'; // orange = container
+      else if (w.kind === 'lake_water_block') color = 'rgba(80,150,200,0.3)'; // ljusblå transp = vatten
+      else if (w.kind === 'bridge')         color = 'rgba(140,90,40,0.95)';  // mörk-brun bro
+      else if (w.kind === 'cliff_edge')     color = 'rgba(70,70,70,0.95)';   // mörk grå klippa
+      else if (w.kind === 'ufo_wreck')      color = 'rgba(120,255,150,0.95)'; // alien-grön
+      else if (w.kind === 'alien_crystal')  color = 'rgba(180,100,230,0.95)'; // lila
+      else if (w.kind === 'skull_totem')    color = 'rgba(230,220,200,0.85)'; // benvit
+      else if (w.kind === 'standing_stone' || w.kind === 'altar_stone') color = 'rgba(150,150,150,0.85)';
+      else if (w.kind === 'rune_stone')     color = 'rgba(170,60,255,0.9)';  // mystisk lila
+      else if (w.kind === 'burning_car' || w.kind === 'burning_truck' || w.kind === 'burning_caravan')
+                                            color = 'rgba(255,100,40,0.9)';  // orange = brinnande
+      else if (w.kind === 'car_wreck' || w.kind === 'truck' || w.kind === 'van')
+                                            color = 'rgba(80,60,40,0.85)';   // mörk brun = vrak
+      else if (w.kind === 'campfire')       color = 'rgba(255,180,60,0.9)';  // gul = eld
+      else if (w.kind === 'tent')           color = 'rgba(' + (w.color === 'red' ? '200,60,60' : w.color === 'blue' ? '60,90,180' : w.color === 'green' ? '60,150,60' : '200,120,60') + ',0.9)';
+      else if (w.kind === 'well')           color = 'rgba(40,80,120,0.95)';  // mörk-blå brunn
+      else if (w.kind === 'haystack')       color = 'rgba(220,180,80,0.85)'; // gul-brun
+      else if (w.kind === 'woodpile')       color = 'rgba(110,70,30,0.85)';  // brun
+      else if (w.kind === 'pump_jack')      color = 'rgba(120,100,40,0.9)';  // industri-gul
+      else if (w.kind === 'lighthouse')     color = 'rgba(255,80,80,0.95)';  // röd-vit
+      else if (w.kind === 'hunting_tower')  color = 'rgba(80,60,30,0.9)';    // mörk-brun
+      else if (w.kind === 'church_ruin')    color = 'rgba(100,90,80,0.95)';  // sten-grå
+      else if (w.kind === 'cemetery_gravestone') color = 'rgba(80,80,80,0.95)'; // grå
+      else if (w.kind === 'wooden_fence' || w.kind === 'stone_wall' || w.kind === 'stone_wall_low')
+                                            color = 'rgba(100,70,40,0.6)';   // brun-grå staket
+      // Legacy CTF/TDM/etc
+      else if (w.kind === 'wall_red_base')  color = 'rgba(255,90,90,0.9)';
       else if (w.kind === 'wall_blue_base') color = 'rgba(90,170,255,0.9)';
       else if (w.kind === 'wall_pillar')    color = 'rgba(180,180,180,0.85)';
-      else if (w.kind === 'wall_divider')   color = 'rgba(220,200,80,0.6)';
-      else if (w.kind === 'sandbag')        color = 'rgba(180,140,80,0.75)';
-      else if (w.kind === 'barrel')         color = 'rgba(255,80,80,0.85)';
-      else if (w.kind === 'debris')         color = 'rgba(120,120,130,0.7)';
-      else if (w.kind === 'barricade')      color = 'rgba(160,110,50,0.75)';
-      else if (w.kind === 'pipe')           color = 'rgba(100,160,200,0.7)';
-      else if (w.kind === 'crate')          color = 'rgba(180,120,60,0.75)';
       else                                  color = 'rgba(150,150,150,0.6)';
       ctx.fillStyle = color;
       ctx.fillRect(ox + w.x * scale, oy + w.y * scale,
                    Math.max(1, w.w * scale), Math.max(1, w.h * scale));
+    }
+  }
+  // BR: Specialområden — ALIEN-zon + KYRKOGÅRD-zon (med ikoner)
+  if (state.battleroyaleActive) {
+    // Alien-zon (SE-hörnet)
+    ctx.fillStyle = 'rgba(170,60,255,0.15)';
+    ctx.fillRect(ox + 7900 * scale, oy + 7900 * scale, 1900 * scale, 1900 * scale);
+    ctx.strokeStyle = 'rgba(170,60,255,0.5)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(ox + 7900 * scale, oy + 7900 * scale, 1900 * scale, 1900 * scale);
+    // UFO-ikon i alien-mitten
+    if (size > 100) {
+      ctx.fillStyle = '#a040e0';
+      ctx.font = 'bold ' + Math.max(8, size * 0.06) + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🛸', ox + 8800 * scale, oy + 8800 * scale);
+    }
+    // Kyrkogård-zon
+    ctx.fillStyle = 'rgba(80,80,80,0.2)';
+    ctx.fillRect(ox + 4380 * scale, oy + 6970 * scale, 500 * scale, 310 * scale);
+    if (size > 100) {
+      ctx.fillStyle = '#888';
+      ctx.font = 'bold ' + Math.max(7, size * 0.05) + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⚰', ox + 4630 * scale, oy + 7125 * scale);
+    }
+    // Vattenfall + sjö-zon
+    if (size > 100) {
+      ctx.fillStyle = '#3a7a8a';
+      ctx.font = 'bold ' + Math.max(8, size * 0.06) + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🌊', ox + 2935 * scale, oy + 6950 * scale);
     }
   }
   // JUGGERNAUT minimap-puls: hunters ser JUG-position briefly var 5s.

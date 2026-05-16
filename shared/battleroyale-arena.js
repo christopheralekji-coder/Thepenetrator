@@ -385,6 +385,17 @@ const BATTLEROYALE_ARENA = {
     { id: 'cont_ne_9', name: 'CONTAINER-J9', x: 7500, y: 3500, w: 80,  h: 220, color: 'orange' },
     // East camping
     { id: 'cont_e_1',  name: 'CONTAINER-K0', x: 7500, y: 6100, w: 220, h: 80, color: 'rust' },
+    // ===== 10 NYA CONTAINRAR (v1.337) — spridda över hela kartan =====
+    { id: 'cont_nw_1', name: 'CONTAINER-L1', x: 1200, y: 1200, w: 220, h: 80, color: 'green' },
+    { id: 'cont_nw_2', name: 'CONTAINER-M2', x: 2500, y: 900,  w: 80,  h: 220, color: 'blue' },
+    { id: 'cont_n_1',  name: 'CONTAINER-N3', x: 5500, y: 700,  w: 220, h: 80, color: 'yellow' },
+    { id: 'cont_w_1',  name: 'CONTAINER-P4', x: 1500, y: 4500, w: 220, h: 80, color: 'orange' },
+    { id: 'cont_w_2',  name: 'CONTAINER-Q5', x: 800,  y: 6200, w: 80,  h: 220, color: 'red' },
+    { id: 'cont_e_2',  name: 'CONTAINER-R6', x: 8800, y: 4500, w: 80,  h: 220, color: 'green' },
+    { id: 'cont_e_3',  name: 'CONTAINER-S7', x: 9200, y: 5800, w: 220, h: 80, color: 'rust' },
+    { id: 'cont_sw_1', name: 'CONTAINER-T8', x: 1100, y: 8500, w: 220, h: 80, color: 'blue' },
+    { id: 'cont_s_1',  name: 'CONTAINER-U9', x: 4500, y: 8800, w: 220, h: 80, color: 'yellow' },
+    { id: 'cont_se_1', name: 'CONTAINER-V0', x: 7300, y: 8500, w: 80,  h: 220, color: 'orange' },
   ],
 
   walls: [

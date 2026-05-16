@@ -432,15 +432,36 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
   const stealthBonus = params.stealthBonus || 1;
   const headshotPerk = !!(params.perks && params.perks.headshot);
 
+  // BR wall-check helper: testa om punkt är inuti en SOLID wall (icke-fönster)
+  const brWalls = sim.battleroyaleActive
+    ? BATTLEROYALE_ARENA.walls.filter(w => !w.passThroughBullets)
+    : null;
+  const isInsideBrWall = (bx, by) => {
+    if (!brWalls) return false;
+    for (let i = 0; i < brWalls.length; i++) {
+      const w = brWalls[i];
+      if (bx >= w.x && bx <= w.x + w.w && by >= w.y && by <= w.y + w.h) return true;
+    }
+    return false;
+  };
   for (let i = 0; i < pellets; i++) {
     const spread = (Math.random() - 0.5) * 2 * (w.spread || 0);
     const ang = p.aimAngle + spread;
     const speed = w.speed * bspeedMul * speedBonus;
     const isCrit = cheatChozza ? true : Math.random() < critChance;
     const isHead = headshotPerk && Math.random() < 0.15;
+    // Bullet-start vid player+offset
+    const bx = p.x + Math.cos(ang) * (p.r || 14);
+    const by = p.y + Math.sin(ang) * (p.r || 14);
+    // BUG-FIX: om bullet-start hamnar inuti en solid wall (typ utanför cabin-vägg
+    // när spelaren skjuter med stor vapen-offset från insidan) → bullet dör direkt.
+    // Förhindrar "skjut genom väggen via stor barrel"-exploit.
+    if (sim.battleroyaleActive && isInsideBrWall(bx, by)) {
+      continue; // skip — bullet skapas inte
+    }
     sim.bullets.push({
-      x: p.x + Math.cos(ang) * (p.r || 14),
-      y: p.y + Math.sin(ang) * (p.r || 14),
+      x: bx,
+      y: by,
       vx: Math.cos(ang) * speed,
       vy: Math.sin(ang) * speed,
       dmg: w.dmg * dmgMul * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 3 : 1) * ultDmgMul,
