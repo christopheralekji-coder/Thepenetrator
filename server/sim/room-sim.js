@@ -2251,6 +2251,36 @@ function tickBrLootPickups(sim, nowMs) {
   }
 }
 
+// Helper: kolla om punkt (x,y) är inom en wall (med 20px buffer för pickup-radie)
+function brPointInAnyWall(x, y, walls) {
+  for (const w of walls) {
+    // 20px buffer så loot inte spawnar precis bredvid wall heller
+    if (x + 20 >= w.x && x - 20 <= w.x + w.w &&
+        y + 20 >= w.y && y - 20 <= w.y + w.h) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Hitta närmaste fria punkt om original-pos är inuti wall (spiral-search)
+function brFindFreeSpot(x, y, walls, worldW, worldH) {
+  if (!brPointInAnyWall(x, y, walls)) return { x, y };
+  // Spiral-search: prova punkter i ökande radie runt original
+  for (let r = 40; r < 400; r += 30) {
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+      const nx = x + Math.cos(a) * r;
+      const ny = y + Math.sin(a) * r;
+      if (nx < 50 || nx > worldW - 50 || ny < 50 || ny > worldH - 50) continue;
+      if (!brPointInAnyWall(nx, ny, walls)) {
+        return { x: Math.round(nx), y: Math.round(ny) };
+      }
+    }
+  }
+  // Fallback: original (worst case)
+  return { x, y };
+}
+
 // Initialisera loot vid match-start enligt arena.lootSpawns + lootByTier
 function initBrLoot(sim) {
   const arena = BATTLEROYALE_ARENA;
@@ -2259,8 +2289,12 @@ function initBrLoot(sim) {
   // efter 30s (anti-rush). Klient ser containern men kan inte plocka loot.
   const centerIdx = arena.lootSpawns.length - 1;
   const matchStartMs = Date.now();
+  let movedCount = 0;
   for (let i = 0; i < arena.lootSpawns.length; i++) {
-    const sp = arena.lootSpawns[i];
+    const origSp = arena.lootSpawns[i];
+    // VALIDATION: om loot-pos är inuti wall, hitta närmaste fria pos
+    const sp = brFindFreeSpot(origSp.x, origSp.y, arena.walls, arena.worldW, arena.worldH);
+    if (sp.x !== origSp.x || sp.y !== origSp.y) movedCount++;
     let tier;
     if (i === centerIdx) {
       tier = 'legendary';
@@ -2295,6 +2329,9 @@ function initBrLoot(sim) {
       available: true,
       unlockAt,
     });
+  }
+  if (movedCount > 0) {
+    console.log('[BR] initBrLoot: ' + movedCount + ' loot-spawns flyttade ur walls');
   }
   return loot;
 }

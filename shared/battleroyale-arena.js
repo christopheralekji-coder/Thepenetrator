@@ -559,16 +559,99 @@ const BATTLEROYALE_ARENA = {
     { x: 6700, y: 7500, w: 50, h: 50, kind: 'campfire' },
 
     { x: 5000, y: 7300, w: 130, h: 70, kind: 'car_wreck' },
+
+    // ========================================================================
+    // === 6 STORA LANDMARKS — ger kartan personlighet ===
+    // ========================================================================
+
+    // 1. KRASCHAT PASSAGERARFLYGPLAN (i NE scrap-yard, gigantiskt vrak)
+    //    Bestående av: fuselage (huvuddelen), vingar (sub-walls), motor (eld), stjärt
+    { x: 6800, y: 1500, w: 400, h: 90, kind: 'plane_fuselage' }, // huvuddel
+    { x: 6750, y: 1350, w: 260, h: 50, kind: 'plane_wing' },     // vänster vinge
+    { x: 7100, y: 1620, w: 260, h: 50, kind: 'plane_wing' },     // höger vinge
+    { x: 7150, y: 1480, w: 60,  h: 50, kind: 'plane_tail' },     // stjärt
+    { x: 6700, y: 1530, w: 30,  h: 30, kind: 'fire_drum' },      // motor brinner
+    { x: 7250, y: 1530, w: 30,  h: 30, kind: 'fire_drum' },      // motor brinner
+
+    // 2. ÖDEKYRKA + KYRKOGÅRD (mellan village och south wild)
+    { x: 4500, y: 6400, w: 250, h: 320, kind: 'church_ruin' },          // ruin med spira
+    { x: 4520, y: 6720, w: 35,  h: 35,  kind: 'cemetery_gravestone' },  // gravsten
+    { x: 4580, y: 6730, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
+    { x: 4650, y: 6720, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
+    { x: 4720, y: 6730, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
+    { x: 4790, y: 6720, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
+    { x: 4560, y: 6790, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
+    { x: 4630, y: 6800, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
+    { x: 4700, y: 6790, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
+    { x: 4770, y: 6800, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
+
+    // 3. VATTENFALLS från klippa till sjön (decoration handled separately)
+    //    Klipp-vall som omger:
+    { x: 1750, y: 6200, w: 220, h: 50, kind: 'cliff_edge' },    // klippkant
+    { x: 1700, y: 6250, w: 40,  h: 100, kind: 'cliff_edge' },
+    { x: 1970, y: 6250, w: 40,  h: 100, kind: 'cliff_edge' },
+
+    // 4. STENCIRKEL / FORNTIDA ALTARE (i NW deep forest, mystiskt)
+    { x: 3850, y: 3000, w: 60, h: 60, kind: 'standing_stone' },
+    { x: 3970, y: 2960, w: 60, h: 60, kind: 'standing_stone' },
+    { x: 4060, y: 3050, w: 60, h: 60, kind: 'standing_stone' },
+    { x: 4030, y: 3170, w: 60, h: 60, kind: 'standing_stone' },
+    { x: 3920, y: 3210, w: 60, h: 60, kind: 'standing_stone' },
+    { x: 3810, y: 3140, w: 60, h: 60, kind: 'standing_stone' },
+    { x: 3950, y: 3080, w: 50, h: 50, kind: 'altar_stone' },  // centrum
+
+    // 5. PUMP-JACK OLJERIGG (i scrap-yard, animerad pump-arm)
+    { x: 5400, y: 2200, w: 140, h: 100, kind: 'pump_jack' },
+
+    // 6. FYRTORN PÅ KULLE (i south wild, tall landmark)
+    { x: 7800, y: 7900, w: 90, h: 90, kind: 'lighthouse' },
+
+    // ========================================================================
+    // === STUGA-UTSIDAN DETALJER (bänk + blomkruka utanför varje stuga) ===
+    // ========================================================================
+    // Jägar-stugan (south door at 1450+90, 920)
+    { x: 3490, y: 2960, w: 36, h: 18, kind: 'wooden_bench' },
+    { x: 3590, y: 2960, w: 18, h: 18, kind: 'flower_pot' },
+    { x: 3380, y: 2940, w: 50, h: 24, kind: 'woodpile' },
+    // Röda stugan (east door)
+    { x: 3010, y: 2730, w: 18, h: 18, kind: 'flower_pot' },
+    { x: 3010, y: 2790, w: 18, h: 18, kind: 'flower_pot' },
+    // Gula stugan (west door)
+    { x: 3660, y: 2810, w: 36, h: 18, kind: 'wooden_bench' },
+    { x: 3660, y: 2780, w: 18, h: 18, kind: 'flower_pot' },
+    // Ladan (north door) — vedstapel utanför
+    { x: 5290, y: 5650, w: 70, h: 30, kind: 'woodpile' },
+    // Camp-admin (south door)
+    { x: 6830, y: 5860, w: 36, h: 18, kind: 'wooden_bench' },
+    { x: 6960, y: 5860, w: 18, h: 18, kind: 'flower_pot' },
+    // Sommarstugan (east door)
+    { x: 3370, y: 3760, w: 36, h: 18, kind: 'wooden_bench' },
+    { x: 3370, y: 3700, w: 18, h: 18, kind: 'flower_pot' },
+    // Hunter-lyan (north door)
+    { x: 6190, y: 7220, w: 50, h: 24, kind: 'woodpile' },
+    { x: 6300, y: 7220, w: 18, h: 18, kind: 'flower_pot' },
+
+    // === ÖVRIGA NYA KÄNNINGAR ===
+    // Övergiven varuvagn (på en stig i NW)
+    { x: 2900, y: 4200, w: 100, h: 50, kind: 'wagon_cart' },
+    // En STOR (gigant) ek som dominanslandmark mitt i NW forest
+    { x: 2500, y: 2700, w: 120, h: 120, kind: 'tree_giant_oak' },
+    { x: 7000, y: 6000, w: 110, h: 110, kind: 'tree_giant_oak' },
+    // Runsten i south wild
+    { x: 5800, y: 6400, w: 40, h: 60, kind: 'rune_stone' },
+    { x: 3300, y: 7800, w: 40, h: 60, kind: 'rune_stone' },
   ],
 
   decorations: [
-    // === SKOGSGOLV-PATCHES ===
-    { kind: 'forest_floor', x: 200,  y: 200,  w: 9600, h: 1700 }, // hela norra
-    { kind: 'forest_floor', x: 200,  y: 1900, w: 1800, h: 6200 }, // hela västra
-    { kind: 'forest_floor', x: 8000, y: 1900, w: 1800, h: 6200 }, // hela östra
-    { kind: 'forest_floor', x: 200,  y: 8100, w: 9600, h: 1700 }, // hela södra
-    { kind: 'forest_floor', x: 2300, y: 2500, w: 2500, h: 2200 }, // NW forest tät
-    { kind: 'forest_floor', x: 2300, y: 6500, w: 5600, h: 1500 }, // south wild
+    // === SKOGSGOLV-PATCHES med varierade tints (forest har olika nyanser) ===
+    { kind: 'forest_floor', x: 200,  y: 200,  w: 9600, h: 1700, tint: 'dark_green' }, // hela norra
+    { kind: 'forest_floor', x: 200,  y: 1900, w: 1800, h: 3000, tint: 'mossy' },      // västra övre
+    { kind: 'forest_floor', x: 200,  y: 4900, w: 1800, h: 3200, tint: 'brown_leaf' }, // västra nedre (höstmark)
+    { kind: 'forest_floor', x: 8000, y: 1900, w: 1800, h: 3000, tint: 'mossy' },      // östra övre
+    { kind: 'forest_floor', x: 8000, y: 4900, w: 1800, h: 3200, tint: 'pine_needle' },// östra nedre
+    { kind: 'forest_floor', x: 200,  y: 8100, w: 9600, h: 1700, tint: 'dark_green' }, // hela södra
+    { kind: 'forest_floor', x: 2300, y: 2500, w: 2500, h: 2200, tint: 'pine_needle' },// NW forest tät
+    { kind: 'forest_floor', x: 2300, y: 6500, w: 5600, h: 1500, tint: 'mossy' },      // south wild
 
     // === BYNS GRÄSPLÄNN ===
     { kind: 'grass_open', x: 4400, y: 4400, w: 2100, h: 2100 },
@@ -583,8 +666,15 @@ const BATTLEROYALE_ARENA = {
     { kind: 'dirt_path', x: 1000, y: 5000, x2: 2200, y2: 5500, w: 30 }, // outer-w to lake
     { kind: 'dirt_path', x: 1500, y: 2000, x2: 2400, y2: 2700, w: 30 }, // outer-nw to forest
 
-    // === SJÖN ===
-    { kind: 'lake_water', x: 2000, y: 6200, w: 1900, h: 1300 },
+    // === SJÖN — organic polygon (8 punkter, slingrar runt klippkanten) ===
+    { kind: 'lake_water_polygon', points: [
+      [2000, 6300], [2200, 6200], [2500, 6250], [2800, 6300],
+      [3200, 6280], [3500, 6320], [3700, 6500], [3900, 6800],
+      [3950, 7100], [3850, 7400], [3500, 7500], [3000, 7480],
+      [2600, 7450], [2200, 7300], [2050, 7000], [2000, 6700]
+    ] },
+    // Behåll en stor "bas-water" som fallback (renderas FÖRST under polygon)
+    { kind: 'lake_water', x: 2000, y: 6200, w: 1900, h: 1300, _opacity: 0 },
     { kind: 'stream',     x: 3900, y: 6250, x2: 4400, y2: 6000, w: 22 },
     { kind: 'stream',     x: 4400, y: 6000, x2: 5000, y2: 5700, w: 22 },
 
@@ -720,6 +810,67 @@ const BATTLEROYALE_ARENA = {
     { kind: 'sign', x: 4900, y: 100, w: 200, h: 40, text: '☠ LAST HUNT ☠', bg: '#2a2a2a', fg: '#ffd54a' },
     { kind: 'sign', x: 200, y: 4900, w: 160, h: 26, text: 'FOREST', bg: '#1a2a08', fg: '#aaff7a', rot: -0.05 },
     { kind: 'sign', x: 8700, y: 3900, w: 160, h: 26, text: 'SCRAP', bg: '#3a1808', fg: '#ffaa30', rot: 0.05 },
+
+    // === GLÄNTOR — ljusare öppningar i skogen där solljus tränger in ===
+    { kind: 'glade', x: 1500, y: 5000, r: 180 },  // outer west glade
+    { kind: 'glade', x: 8200, y: 5500, r: 200 },  // outer east glade
+    { kind: 'glade', x: 3400, y: 2500, r: 160 },  // NW forest glade
+    { kind: 'glade', x: 4300, y: 4100, r: 150 },  // village edge
+    { kind: 'glade', x: 5500, y: 7000, r: 170 },  // south wild glade
+    { kind: 'glade', x: 6700, y: 7600, r: 180 },  // south east glade
+    { kind: 'glade', x: 2400, y: 4500, r: 140 },  // path glade
+    { kind: 'glade', x: 7400, y: 4000, r: 150 },  // scrap edge glade
+
+    // === VATTENFALLS (animerad) — i klippkanten vid sjön ===
+    { kind: 'waterfall', x: 1860, y: 6250, w: 220, h: 100 },
+    { kind: 'water_splash', x: 1970, y: 6360 },  // skum nedan
+
+    // === GROTTA ENTRANCE vid vattenfalls ===
+    { kind: 'cave_entrance', x: 1700, y: 6350, w: 60, h: 50 },
+
+    // === SKORSTENS-RÖK från ALLA stugor (auto-spawnar ovan tak) ===
+    { kind: 'smoke', x: 3604, y: 2756, scale: 0.8, color: 'light' }, // jägar
+    { kind: 'smoke', x: 4920, y: 4656, scale: 0.8, color: 'light' }, // röda
+    { kind: 'smoke', x: 5882, y: 4706, scale: 0.8, color: 'light' }, // gula
+    { kind: 'smoke', x: 5392, y: 5706, scale: 0.8, color: 'light' }, // lada
+    { kind: 'smoke', x: 6968, y: 5656, scale: 0.8, color: 'light' }, // camp
+    { kind: 'smoke', x: 3282, y: 5656, scale: 0.8, color: 'light' }, // sommar
+    { kind: 'smoke', x: 6290, y: 7256, scale: 0.8, color: 'light' }, // hunter
+
+    // === RÖK från oljerigg + flygplan + fyrtorn ===
+    { kind: 'smoke', x: 5470, y: 2200, scale: 1.4, color: 'dark' },  // pump_jack
+    { kind: 'smoke', x: 6850, y: 1530, scale: 2.5, color: 'dark' },  // plane motor 1
+    { kind: 'smoke', x: 7270, y: 1530, scale: 2.5, color: 'dark' },  // plane motor 2
+
+    // === LJUS-STRÅLAR genom träden (light shafts — partiella diagonala) ===
+    { kind: 'light_shaft', x: 2800, y: 3000, ang: 0.4, length: 180 },
+    { kind: 'light_shaft', x: 4400, y: 3500, ang: -0.5, length: 200 },
+    { kind: 'light_shaft', x: 6500, y: 7000, ang: 0.3, length: 220 },
+    { kind: 'light_shaft', x: 7300, y: 6500, ang: -0.4, length: 200 },
+
+    // === FALLNA LÖV (random färgklickar) ===
+    { kind: 'fallen_leaves', x: 3000, y: 3500, count: 15 },
+    { kind: 'fallen_leaves', x: 6500, y: 7000, count: 12 },
+    { kind: 'fallen_leaves', x: 4500, y: 3700, count: 10 },
+    { kind: 'fallen_leaves', x: 7200, y: 6200, count: 14 },
+    { kind: 'fallen_leaves', x: 5500, y: 7400, count: 12 },
+
+    // === MOSSIGA STENAR-LAGER (subtila mark-markings) ===
+    { kind: 'moss_patch', x: 2600, y: 3100, w: 60, h: 40 },
+    { kind: 'moss_patch', x: 4100, y: 3200, w: 50, h: 35 },
+    { kind: 'moss_patch', x: 5500, y: 7100, w: 70, h: 45 },
+
+    // === ÄLG-SKELETT (rare easter-egg i wild south) ===
+    { kind: 'moose_skeleton', x: 7000, y: 7400 },
+    { kind: 'moose_skeleton', x: 2800, y: 4600 },
+
+    // === KOLDARE-STACK (rökigt) ===
+    { kind: 'tar_pit', x: 6900, y: 1800, r: 50 },
+    { kind: 'smoke', x: 6900, y: 1800, scale: 1.0, color: 'dark' },
+
+    // === FÅGEL-FLOCK (decoration ovanpå) ===
+    { kind: 'bird_flock', x: 5000, y: 1500 },
+    { kind: 'bird_flock', x: 4500, y: 7800 },
   ],
 
   lootSpawns: [
@@ -759,8 +910,8 @@ const BATTLEROYALE_ARENA = {
     { x: 4700, y: 6900 }, { x: 5300, y: 7000 }, { x: 5800, y: 6900 },
     { x: 6800, y: 7000 }, { x: 7400, y: 6900 }, { x: 5000, y: 7600 },
     { x: 6500, y: 7500 }, { x: 7200, y: 7700 },
-    // CENTER (legendary lock) — village-torget
-    { x: 5400, y: 5180 },
+    // CENTER (legendary lock) — kyrkogården vid ödekyrkan (öppen mark, ingen wall)
+    { x: 4700, y: 6700 },
   ],
 
   lootTiers: {
