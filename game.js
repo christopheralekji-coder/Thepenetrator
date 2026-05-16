@@ -3753,35 +3753,92 @@ function drawPlaneFuselage(x, y, w, h, seed) {
 
 // PLANE WING — vinge
 function drawPlaneWing(x, y, w, h) {
-  // Mjuk ellips-skugga (under objektet)
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  // Mjuk ellips-skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
-  ctx.ellipse(x + w / 2, y + h * 0.95, w * 0.5, h * 0.14, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + w / 2, y + h * 0.95, w * 0.55, h * 0.18, 0, 0, Math.PI * 2);
   ctx.fill();
+  // RIKTIG VINGE-FORM: aerofoil-profil med rotation, tjockare vid rot, avsmalnande mot spets
+  // Rotationsvinkel: höger vinge pekar utåt-bakåt, vänster spegelvänd via h-orientering
+  const cx = x + w / 2, cy = y + h / 2;
+  // Bestäm orientering — w > h: horisontell vinge, rot-änden närmast fuselagen.
+  // Vi antar vingen pekar "från rot" till "spets" längs x-axeln, rot=vänster.
+  // Tjockaste delen vid rot (höger sida av w=fuselag), tunn spets (vänster).
+  // Path: rot-platt → bakkant kurva → spets → framkant kurva tillbaka
+  const rootW = h * 0.9;        // rot-tjocklek
+  const tipW = h * 0.35;        // spets-tjocklek
+  const rootX = x + w;          // rot vid plane-fuselagen (höger för höger vinge — vi roterar inte, bara skissar)
+  const tipX = x;               // spets är vänster
+  const baseY = y + h / 2;
+  // Skapa vinge-path (sett uppifrån): aerofoil → trapets med rundade hörn
+  ctx.save();
+  // Huvudvinge: gradient + path
   const grad = ctx.createLinearGradient(x, y, x, y + h);
-  grad.addColorStop(0, '#8a8e96');
-  grad.addColorStop(1, '#5a5a60');
+  grad.addColorStop(0, '#9da3ad');
+  grad.addColorStop(0.45, '#7a808a');
+  grad.addColorStop(1, '#4a4d56');
   ctx.fillStyle = grad;
-  ctx.fillRect(x, y, w, h);
-  // Vinge-spets (avsmalnande)
-  ctx.fillStyle = '#4a4a50';
   ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + w, y + h * 0.3);
-  ctx.lineTo(x + w, y + h * 0.7);
-  ctx.lineTo(x, y + h);
+  // Bakkant (rakare, lätt böjd)
+  ctx.moveTo(rootX, baseY + rootW / 2);
+  ctx.quadraticCurveTo(cx + 10, baseY + (rootW * 0.7) / 2, tipX + tipW * 0.3, baseY + tipW / 2);
+  // Spets (avrundad)
+  ctx.quadraticCurveTo(tipX - 4, baseY, tipX + tipW * 0.3, baseY - tipW / 2);
+  // Framkant (skarpare bukt — typisk aerofoil leading edge)
+  ctx.quadraticCurveTo(cx + 10, baseY - (rootW * 0.85) / 2, rootX, baseY - rootW / 2);
   ctx.closePath();
   ctx.fill();
-  // Flap-linjer (parallella streck)
-  ctx.strokeStyle = '#1a1408';
+  // Tunn highlight längs framkanten (sol-reflex)
+  ctx.strokeStyle = 'rgba(220, 225, 235, 0.55)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(rootX, baseY - rootW / 2 + 2);
+  ctx.quadraticCurveTo(cx + 10, baseY - (rootW * 0.85) / 2 + 2, tipX + tipW * 0.3, baseY - tipW / 2 + 1);
+  ctx.stroke();
+  // Mörk skuggad bakkant
+  ctx.strokeStyle = 'rgba(20, 14, 10, 0.7)';
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(x + 10, y + h * 0.5); ctx.lineTo(x + w - 20, y + h * 0.5);
+  ctx.moveTo(rootX, baseY + rootW / 2 - 1);
+  ctx.quadraticCurveTo(cx + 10, baseY + (rootW * 0.7) / 2 - 1, tipX + tipW * 0.3, baseY + tipW / 2 - 1);
   ctx.stroke();
-  // Yttre kant
-  ctx.strokeStyle = '#1a0e08';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  // Aileron-fog (flaps) — 2 vertikala små streck nära spets-bakkant
+  ctx.strokeStyle = 'rgba(15, 10, 6, 0.85)';
+  ctx.lineWidth = 1.2;
+  const flapY1 = baseY + tipW * 0.15;
+  const flapY2 = baseY + rootW * 0.30;
+  ctx.beginPath();
+  ctx.moveTo(cx - 10, flapY1 + 3); ctx.lineTo(cx - 10, flapY1 - tipW * 0.4);
+  ctx.moveTo(cx + 20, flapY2 + 3); ctx.lineTo(cx + 20, flapY2 - rootW * 0.6);
+  ctx.stroke();
+  // Vinge-luftintag/motor-bubbla under (mörk oval halvvägs ut)
+  ctx.fillStyle = '#2a2e36';
+  ctx.beginPath();
+  ctx.ellipse(cx + 5, baseY + 2, h * 0.35, h * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(15, 10, 6, 0.6)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // Liten röd/vit randmarkering vid spetsen (navigationsljus-look)
+  ctx.fillStyle = '#cc2020';
+  ctx.fillRect(tipX + 1, baseY - 2, 4, 4);
+  // Nitrader längs framkanten
+  ctx.fillStyle = 'rgba(40, 30, 20, 0.55)';
+  for (let i = 0; i < 8; i++) {
+    const t = i / 7;
+    const nx = rootX - t * (rootX - (tipX + tipW * 0.3));
+    const ny = baseY - rootW / 2 + t * (rootW / 2 - tipW / 2) * 0.85;
+    ctx.fillRect(nx - 0.5, ny - 0.5, 1.5, 1.5);
+  }
+  // Knäckta sprickor (vraket är ju kraschat — visuell skada)
+  ctx.strokeStyle = 'rgba(15, 8, 4, 0.6)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx - 20, baseY - rootW * 0.25);
+  ctx.lineTo(cx - 5, baseY - rootW * 0.1);
+  ctx.lineTo(cx + 8, baseY + rootW * 0.15);
+  ctx.stroke();
+  ctx.restore();
 }
 
 // PLANE TAIL — vertikal stjärt
@@ -3953,26 +4010,57 @@ function drawGravestone(x, y, w, h, seed, wallData) {
 
 // CLIFF EDGE — klippkanten över vattenfalls
 function drawCliffEdge(x, y, w, h, seed) {
-  // (Ingen skugga — klippkant är "marken-höjd")
-  // Klippa (mörkare grå)
+  // Skuggbas runt klippan
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.fillRect(x + 4, y + 6, w, h);
+  // Klippa — fragmenterad rock-look istället för stor solid blockyta
   const grad = ctx.createLinearGradient(x, y, x, y + h);
-  grad.addColorStop(0, '#5a5048');
-  grad.addColorStop(0.5, '#3a3228');
-  grad.addColorStop(1, '#1a1408');
+  grad.addColorStop(0, '#6a6058');
+  grad.addColorStop(0.4, '#4a4238');
+  grad.addColorStop(1, '#2a2018');
   ctx.fillStyle = grad;
   ctx.fillRect(x, y, w, h);
-  // Skarpa kanter
-  ctx.strokeStyle = '#1a0e04';
-  ctx.lineWidth = 1.5;
-  for (let i = 0; i < 4; i++) {
-    const px = x + 8 + ((seed * (i + 1) * 13) & 0xff) % (w - 16);
-    ctx.beginPath();
-    ctx.moveTo(px, y + 2); ctx.lineTo(px, y + h - 2);
-    ctx.stroke();
+  // Sten-block-mönster (varierad fyllning så det inte ser ut som en stor klump)
+  const blockSize = 28;
+  for (let by = 0; by < h; by += blockSize) {
+    for (let bx = 0; bx < w; bx += blockSize) {
+      const s = ((seed + bx * 17 + by * 31) >>> 0) % 100;
+      const bw = Math.min(blockSize - 2, w - bx - 2);
+      const bh = Math.min(blockSize - 2, h - by - 2);
+      if (bw <= 0 || bh <= 0) continue;
+      // Slumpmässig ljushet per block
+      const shade = 30 + (s % 35);
+      ctx.fillStyle = 'rgba(' + (shade + 40) + ',' + (shade + 32) + ',' + (shade + 20) + ',0.65)';
+      ctx.fillRect(x + bx + 1, y + by + 1, bw, bh);
+      // Mörka fogar runt block
+      ctx.strokeStyle = 'rgba(20, 14, 8, 0.7)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + bx + 1, y + by + 1, bw, bh);
+    }
   }
-  // Mossa-streck
-  ctx.fillStyle = 'rgba(50, 90, 40, 0.5)';
-  ctx.fillRect(x, y, w, 4);
+  // Översta kanten — ljus highlight (sol)
+  const topGrad = ctx.createLinearGradient(x, y, x, y + 8);
+  topGrad.addColorStop(0, 'rgba(220, 210, 180, 0.4)');
+  topGrad.addColorStop(1, 'rgba(220, 210, 180, 0)');
+  ctx.fillStyle = topGrad;
+  ctx.fillRect(x, y, w, 8);
+  // Mossa på toppen (mörkare grön)
+  ctx.fillStyle = 'rgba(45, 80, 35, 0.55)';
+  ctx.fillRect(x, y, w, 5);
+  // Spridda mossa-fläckar längs sidor
+  for (let i = 0; i < 6; i++) {
+    const mx = x + ((seed * (i + 7) * 11) >>> 0) % w;
+    const my = y + ((seed * (i + 13) * 17) >>> 0) % h;
+    const mr = 3 + ((seed * (i + 5)) >>> 0) % 4;
+    ctx.fillStyle = 'rgba(50, 90, 40, 0.45)';
+    ctx.beginPath();
+    ctx.arc(mx, my, mr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Yttre konturskugga
+  ctx.strokeStyle = 'rgba(15, 10, 5, 0.8)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
 
 // STANDING STONE — forntida menhir (del av stencirkel)
@@ -7029,27 +7117,9 @@ function drawBrZone() {
     ctx.arc(nsx, nsy, nz.r, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
-    // Pil från current center mot next center (om de är olika)
-    if (Math.abs(nz.x - z.x) > 50 || Math.abs(nz.y - z.y) > 50) {
-      ctx.strokeStyle = '#ffd54a';
-      ctx.lineWidth = 2;
-      ctx.globalAlpha = 0.7;
-      ctx.setLineDash([6, 4]);
-      ctx.beginPath();
-      ctx.moveTo(sx, sy);
-      ctx.lineTo(nsx, nsy);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      // Pil-spets
-      const ang = Math.atan2(nsy - sy, nsx - sx);
-      ctx.fillStyle = '#ffd54a';
-      ctx.beginPath();
-      ctx.moveTo(nsx, nsy);
-      ctx.lineTo(nsx - Math.cos(ang - 0.4) * 14, nsy - Math.sin(ang - 0.4) * 14);
-      ctx.lineTo(nsx - Math.cos(ang + 0.4) * 14, nsy - Math.sin(ang + 0.4) * 14);
-      ctx.closePath();
-      ctx.fill();
-    }
+    // (Tidigare streckad pil över world från current-center → next-center borttagen
+    //  — den synliga linjen drogs över hus/objekt vilket såg fel ut. Den gula
+    //  next-zone cirkeln + minimapen räcker som indikation.)
   }
   ctx.restore();
 }
@@ -7295,11 +7365,23 @@ function drawBrGroundDecorations(decos) {
     if (d.kind === 'forest_floor') {
       continue; // hanteras av drawBrForestFloor()
     } else if (d.kind === 'dirt_floor') {
-      // Jord-fläck (kyrkogård etc) — mörk-brun bas + texture
+      // Jord-fläck (kyrkogård etc) — mjuka kanter via radial gradient (ingen
+      // synlig rektangulär kant mot omgivande skog).
       const x = d.x - cx, y = d.y - cy;
       if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
-      // Bas (mörk brun)
-      ctx.fillStyle = '#3a2818';
+      const ccx = x + d.w / 2, ccy = y + d.h / 2;
+      const rx = d.w / 2, ry = d.h / 2;
+      // Använd ellips-clip så fill bara hamnar inom rundade kanter
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(ccx, ccy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.clip();
+      // Bas (mörk brun) med radial fade
+      const grad = ctx.createRadialGradient(ccx, ccy, 0, ccx, ccy, Math.max(rx, ry));
+      grad.addColorStop(0, 'rgba(58, 40, 24, 0.95)');
+      grad.addColorStop(0.7, 'rgba(58, 40, 24, 0.85)');
+      grad.addColorStop(1, 'rgba(58, 40, 24, 0)');
+      ctx.fillStyle = grad;
       ctx.fillRect(x, y, d.w, d.h);
       // Texture-prickar (mer jord-känsla)
       const seed = ((d.x * 17) ^ (d.y * 23)) | 0;
@@ -7327,32 +7409,82 @@ function drawBrGroundDecorations(decos) {
         ctx.ellipse(px, py, 14, 8, 0, 0, Math.PI * 2);
         ctx.fill();
       }
+      ctx.restore();
     } else if (d.kind === 'alien_transition') {
-      // Mjuk övergång mellan skog (grön) och alien-zon (lila)
-      // Radial gradient där KANTERNA är transparenta så det fadar naturligt
+      // INFEKTERAD MARK-övergång: grön skog → svart/röd-infekterad → lila-glödande
+      // Bred radial gradient (0% → 100% av radien) med flera färgstopp för
+      // organisk infektions-look (inte längre ett synligt ring-streck).
       const x = d.x - cx, y = d.y - cy;
       if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
       const ccx = x + d.w / 2, ccy = y + d.h / 2;
-      const grad = ctx.createRadialGradient(ccx, ccy, d.w * 0.3, ccx, ccy, d.w * 0.5);
-      grad.addColorStop(0, 'rgba(80, 40, 120, 0.45)');
-      grad.addColorStop(0.5, 'rgba(80, 50, 100, 0.25)');
-      grad.addColorStop(1, 'rgba(80, 60, 100, 0)');
-      ctx.fillStyle = grad;
+      const maxR = d.w / 2;
+      // Layer 1: bred mjuk halo som täcker hela d.w-rutan
+      const halo = ctx.createRadialGradient(ccx, ccy, 0, ccx, ccy, maxR);
+      halo.addColorStop(0.00, 'rgba(120, 30, 160, 0.55)');   // tät lila-kärna
+      halo.addColorStop(0.25, 'rgba(90, 20, 110, 0.45)');    // lila övergång
+      halo.addColorStop(0.45, 'rgba(60, 14, 50, 0.40)');     // mörk röd-lila
+      halo.addColorStop(0.65, 'rgba(40, 10, 14, 0.30)');     // blod-svart
+      halo.addColorStop(0.82, 'rgba(20, 14, 10, 0.18)');     // mörk jord-ton
+      halo.addColorStop(1.00, 'rgba(20, 14, 10, 0)');        // helt transparent
+      ctx.fillStyle = halo;
       ctx.fillRect(x, y, d.w, d.h);
-      // Pulserande lila prickar utspridda för att fade-känsla
+      // Layer 2: infekterade ådror — mörka röd-svart streck som sprider ut
       const seed = ((d.x * 19) ^ (d.y * 23)) | 0;
-      const t = performance.now() / 1000;
-      const pulse = 0.4 + Math.sin(t * 0.7) * 0.2;
-      ctx.fillStyle = 'rgba(140, 80, 200, ' + (0.3 * pulse) + ')';
-      for (let i = 0; i < 25; i++) {
-        const px = x + ((seed * (i + 1) * 13) & 0x7ff) % d.w;
-        const py = y + ((seed * (i + 3) * 17) & 0x7ff) % d.h;
-        // Bara om INTE inom alien_floor (annars dubbla)
-        if (px < 7900 - cx || px > 9800 - cx || py < 7900 - cy || py > 9800 - cy) {
-          ctx.beginPath();
-          ctx.ellipse(px, py, 18, 12, 0, 0, Math.PI * 2);
-          ctx.fill();
+      ctx.strokeStyle = 'rgba(80, 12, 16, 0.35)';
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 18; i++) {
+        const a = (seed * (i + 1) * 73 % 628) / 100; // angle 0..2π
+        const r0 = maxR * 0.15 + ((seed * (i + 3) * 17) % 50);
+        const r1 = maxR * 0.85 + ((seed * (i + 7) * 23) % 100);
+        const x0 = ccx + Math.cos(a) * r0;
+        const y0 = ccy + Math.sin(a) * r0;
+        // Krokig vein-linje
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        const segs = 4;
+        for (let s = 1; s <= segs; s++) {
+          const rs = r0 + (r1 - r0) * (s / segs);
+          const wobble = ((seed * (i + s) * 41) % 30) - 15;
+          const ang = a + wobble * 0.02;
+          ctx.lineTo(ccx + Math.cos(ang) * rs, ccy + Math.sin(ang) * rs);
         }
+        ctx.stroke();
+      }
+      // Layer 3: pulserande lila-glödande prickar (infekterade fläckar)
+      const t = performance.now() / 1000;
+      const pulse = 0.4 + Math.sin(t * 0.7) * 0.25;
+      for (let i = 0; i < 32; i++) {
+        const a = (seed * (i + 11) * 53 % 628) / 100;
+        const r = maxR * (0.12 + ((seed * (i + 17) * 31) % 70) / 100);
+        const px = ccx + Math.cos(a) * r;
+        const py = ccy + Math.sin(a) * r;
+        // Skippa om innanför alien_floor
+        const wx = px + cx, wy = py + cy;
+        if (wx >= 7900 && wx <= 9800 && wy >= 7900 && wy <= 9800) continue;
+        const radius = 6 + ((seed * (i + 7)) % 8);
+        // Mörk röd ring runt prick
+        ctx.fillStyle = 'rgba(120, 20, 30, ' + (0.35 * pulse) + ')';
+        ctx.beginPath();
+        ctx.ellipse(px, py, radius * 1.4, radius * 0.9, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Inre lila glow
+        ctx.fillStyle = 'rgba(160, 60, 220, ' + (0.45 * pulse) + ')';
+        ctx.beginPath();
+        ctx.ellipse(px, py, radius * 0.8, radius * 0.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Layer 4: spridda svarta kol-fläckar (infekterad mark)
+      ctx.fillStyle = 'rgba(15, 8, 8, 0.55)';
+      for (let i = 0; i < 14; i++) {
+        const a = (seed * (i + 5) * 89 % 628) / 100;
+        const r = maxR * (0.30 + ((seed * (i + 13) * 19) % 60) / 100);
+        const px = ccx + Math.cos(a) * r;
+        const py = ccy + Math.sin(a) * r;
+        const wx = px + cx, wy = py + cy;
+        if (wx >= 7900 && wx <= 9800 && wy >= 7900 && wy <= 9800) continue;
+        ctx.beginPath();
+        ctx.ellipse(px, py, 10 + ((seed * i) % 6), 6 + ((seed * i) % 4), 0, 0, Math.PI * 2);
+        ctx.fill();
       }
     } else if (d.kind === 'alien_floor') {
       // Lila glödande "alien-drabbat"-mark
@@ -12527,7 +12659,7 @@ const _btnPvpShield = document.getElementById('btn-pvp-shield');
 function tryPvpShield() {
   const p = state.player;
   if (!p) return;
-  if (!state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive && !state.kothActive && !state.juggernautActive) return;
+  if (!state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive && !state.kothActive && !state.juggernautActive && !state.battleroyaleActive) return;
   const now = performance.now();
   if (p.pvpShieldUntil && now < p.pvpShieldUntil) return; // redan aktiv
   // Bugfix: ingen cooldown vid match-start. pvpShieldCdAt = null = aldrig använd.
@@ -15221,13 +15353,13 @@ const Coop = {
           const wName = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].name) || ev.weaponId;
           if (typeof showToast === 'function') showToast('🔫 ' + wName.toUpperCase() + ' (slot ' + (slot + 1) + ')');
         } else if (ev.kind === 'hp_small') {
-          if (typeof showToast === 'function') showToast('❤ +30 HP');
+          if (typeof showToast === 'function') showToast('❤ +60 HP');
         } else if (ev.kind === 'hp_big') {
-          if (typeof showToast === 'function') showToast('❤❤ +60 HP');
+          if (typeof showToast === 'function') showToast('❤❤ +120 HP');
         } else if (ev.kind === 'shield_small') {
-          if (typeof showToast === 'function') showToast('🛡 +25 SHIELD');
+          if (typeof showToast === 'function') showToast('🛡 +50 SHIELD');
         } else if (ev.kind === 'shield_big') {
-          if (typeof showToast === 'function') showToast('🛡🛡 +50 SHIELD');
+          if (typeof showToast === 'function') showToast('🛡🛡 +100 SHIELD');
         } else if (ev.kind === 'ammo') {
           // Klient refyller current weapon
           const w = W_BY_ID[state.player.weaponId];

@@ -919,22 +919,13 @@ const BATTLEROYALE_ARENA = {
 
     // === 4-VÄGS BRO — flyttad till decorations (passabel, blockerar inte movement)
 
-    // === MAJESTÄTISK BERGSFORMATION (vattenfall faller FRÅN bergstoppen) ===
-    // Berget är högre och bredare — ser ut som en riktig klippformation.
-    // Topp (y=6300-6420): bred bergshöjd
-    { x: 2500, y: 6300, w: 920, h: 60, kind: 'cliff_edge' },
-    { x: 2400, y: 6360, w: 1100, h: 60, kind: 'cliff_edge' },
-    // Mellannivå (y=6420-6510): klippstegen ner
-    { x: 2550, y: 6420, w: 820, h: 90, kind: 'cliff_edge' },
-    // Sidoflanker (vänster + höger) — gör bergsbasen brett
-    { x: 2400, y: 6510, w: 200, h: 140, kind: 'cliff_edge' },
-    { x: 3320, y: 6510, w: 200, h: 140, kind: 'cliff_edge' },
-    // Smalare delar närmast vattenfall-öppningen
-    { x: 2700, y: 6510, w: 130, h: 140, kind: 'cliff_edge' },
-    { x: 3090, y: 6510, w: 130, h: 140, kind: 'cliff_edge' },
-    // Klipp-block runt sjön (östra och västra sidor)
-    { x: 2580, y: 6700, w: 70, h: 150, kind: 'cliff_edge' },
-    { x: 3220, y: 6700, w: 70, h: 150, kind: 'cliff_edge' },
+    // === REN BERGSFORMATION (vattenfall öppen kanal direkt ner i sjön) ===
+    // Cliff-edges nu BARA vänster och höger om vattenfall-kanalen.
+    // Vattenfall-öppning: x=2860..3020 (160px), inga walls i den kanalen.
+    // Topp-massiv VÄNSTER om vattenfall (y=6420..6700)
+    { x: 2440, y: 6420, w: 420, h: 280, kind: 'cliff_edge' },
+    // Topp-massiv HÖGER om vattenfall (y=6420..6700)
+    { x: 3020, y: 6420, w: 420, h: 280, kind: 'cliff_edge' },
 
     // === LAKE_WATER_BLOCK — 9 små block (~200×200) som approximerar sjö-polygon.
     // GAPS för bron: horisontell vid y=6935 (28px), vertikal vid x=2935 (28px).
@@ -1374,7 +1365,7 @@ const BATTLEROYALE_ARENA = {
     { kind: 'alien_floor', x: 7900, y: 7900, w: 1900, h: 1900 },
     // === MJUK ÖVERGÅNG mellan skogen och alien-zonen ===
     // 3 transitions-bands runt alien-zonen (gradient: skog → blek-lila → alien)
-    { kind: 'alien_transition', x: 7700, y: 7700, w: 2100, h: 2100 },
+    { kind: 'alien_transition', x: 7300, y: 7300, w: 2700, h: 2700 },
 
     // === ALIEN-MYSTIK decorations (crop circles, glödande svampar, märkliga spår) ===
     { kind: 'crop_circle', x: 8750, y: 9000 },
@@ -1399,11 +1390,13 @@ const BATTLEROYALE_ARENA = {
     { kind: 'glade', x: 2400, y: 4500, r: 140 },  // path glade
     { kind: 'glade', x: 7400, y: 4000, r: 150 },  // scrap edge glade
 
-    // === VATTENFALLS — solid cascade FRÅN klippa (y=6510) ner i sjön (y=6680)
-    // Cascade-höjd 170px, bredd 160px. Placerad mitt på klippan så vattnet
-    // direkt MÖTER sjökanten utan gap.
-    { kind: 'waterfall', x: 2860, y: 6510, w: 160, h: 170 },
-    { kind: 'water_splash', x: 2940, y: 6700 },  // skum DÄR vattnet träffar sjön
+    // === VATTENFALLS — cascade direkt FRÅN klipptoppen NER I sjön
+    // Vattnet startar vid klipptoppen (y=6420) och faller hela vägen till
+    // sjöytan (y=6720) — total höjd 300px. Bredd 160px (passar mellan klipporna).
+    { kind: 'waterfall', x: 2860, y: 6420, w: 160, h: 300 },
+    { kind: 'water_splash', x: 2940, y: 6720 },  // skum DÄR vattnet träffar sjön
+    { kind: 'water_splash', x: 2900, y: 6740 },  // extra skum-cirkel för bredare splash
+    { kind: 'water_splash', x: 2980, y: 6740 },
 
     // === GROTTA ENTRANCE BAKOM vattenfallet (i klippan) ===
     { kind: 'cave_entrance', x: 2900, y: 6470, w: 80, h: 50 },
@@ -1490,6 +1483,19 @@ const BATTLEROYALE_ARENA = {
     { x: 4700, y: 6900 }, { x: 5300, y: 7000 }, { x: 5800, y: 6900 },
     { x: 6800, y: 7000 }, { x: 7400, y: 6900 }, { x: 5000, y: 7600 },
     { x: 6500, y: 7500 }, { x: 7200, y: 7700 },
+    // EXTRA MEDKIT-spawns — spridda heals/shields över hela kartan (~30 st)
+    // Procentuellt blir alla loot-tiers, men positionerna ger mer pickup-täthet
+    // och eftersom common+uncommon-tier nu är hp-tunga → de flesta blir heals.
+    { x: 1200, y: 2500 }, { x: 1800, y: 4500 }, { x: 1500, y: 6500 },
+    { x: 1700, y: 8500 }, { x: 3500, y: 1500 }, { x: 5500, y: 1500 },
+    { x: 8000, y: 1700 }, { x: 8500, y: 3500 }, { x: 8500, y: 5500 },
+    { x: 8500, y: 7000 }, { x: 6800, y: 8800 }, { x: 3800, y: 8800 },
+    { x: 2900, y: 3500 }, { x: 4600, y: 3700 }, { x: 6200, y: 3500 },
+    { x: 5800, y: 5800 }, { x: 4400, y: 5700 }, { x: 3300, y: 4900 },
+    { x: 7400, y: 5400 }, { x: 6900, y: 6500 }, { x: 5900, y: 6500 },
+    { x: 4900, y: 6500 }, { x: 3500, y: 6800 }, { x: 7500, y: 8000 },
+    { x: 2400, y: 7900 }, { x: 5500, y: 8400 }, { x: 6300, y: 4400 },
+    { x: 4800, y: 4400 }, { x: 3700, y: 5200 }, { x: 5200, y: 3300 },
     // CENTER (legendary lock) — kyrkogården vid ödekyrkan (öppen mark, ingen wall)
     { x: 4700, y: 6700 },
   ],
@@ -1503,32 +1509,33 @@ const BATTLEROYALE_ARENA = {
 
   lootByTier: {
     common: [
-      { kind: 'hp_small',     weight: 40 },
-      { kind: 'shield_small', weight: 20 },
-      { kind: 'ammo',         weight: 15 },
-      { kind: 'weapon', weaponId: 'burstpistol', weight: 10 },
-      { kind: 'weapon', weaponId: 'smg',         weight: 10 },
-      { kind: 'weapon', weaponId: 'boomerang',   weight: 5 },
+      { kind: 'hp_small',     weight: 55 },
+      { kind: 'shield_small', weight: 30 },
+      { kind: 'ammo',         weight: 10 },
+      { kind: 'weapon', weaponId: 'burstpistol', weight: 5 },
+      { kind: 'weapon', weaponId: 'smg',         weight: 5 },
     ],
     uncommon: [
-      { kind: 'weapon', weaponId: 'smg',         weight: 25 },
-      { kind: 'weapon', weaponId: 'burstpistol', weight: 20 },
-      { kind: 'weapon', weaponId: 'crossbow',    weight: 20 },
-      { kind: 'weapon', weaponId: 'boomerang',   weight: 15 },
-      { kind: 'shield_small',                    weight: 15 },
-      { kind: 'hp_small',                        weight: 5 },
+      { kind: 'hp_small',                        weight: 25 },
+      { kind: 'shield_small',                    weight: 20 },
+      { kind: 'weapon', weaponId: 'smg',         weight: 15 },
+      { kind: 'weapon', weaponId: 'burstpistol', weight: 12 },
+      { kind: 'weapon', weaponId: 'crossbow',    weight: 15 },
+      { kind: 'weapon', weaponId: 'boomerang',   weight: 13 },
     ],
     rare: [
-      { kind: 'weapon', weaponId: 'rifle',       weight: 25 },
-      { kind: 'weapon', weaponId: 'sniper',      weight: 22 },
-      { kind: 'weapon', weaponId: 'flame',       weight: 20 },
-      { kind: 'weapon', weaponId: 'energysword', weight: 15 },
-      { kind: 'hp_big',                          weight: 10 },
-      { kind: 'shield_big',                      weight: 8 },
+      { kind: 'hp_big',                          weight: 25 },
+      { kind: 'shield_big',                      weight: 20 },
+      { kind: 'weapon', weaponId: 'rifle',       weight: 18 },
+      { kind: 'weapon', weaponId: 'sniper',      weight: 15 },
+      { kind: 'weapon', weaponId: 'flame',       weight: 12 },
+      { kind: 'weapon', weaponId: 'energysword', weight: 10 },
     ],
     legendary: [
-      { kind: 'weapon', weaponId: 'minigun',    weight: 50 },
-      { kind: 'weapon', weaponId: 'lightsaber', weight: 50 },
+      { kind: 'weapon', weaponId: 'minigun',    weight: 40 },
+      { kind: 'weapon', weaponId: 'lightsaber', weight: 40 },
+      { kind: 'hp_big',                         weight: 10 },
+      { kind: 'shield_big',                     weight: 10 },
     ],
   },
 
@@ -1866,14 +1873,23 @@ function postProcessArena(arena) {
     if (inCemetery(dx, dy, dw, dh)) return false;
     return true;
   });
-  // 1c. DE-DUP: ta bort procedural walls vars bbox överlappar en TIDIGARE
-  //     procedural wall (stone/tree på objekt). Använder bbox-mot-bbox check.
+  // 1c. DE-DUP: ta bort procedural walls vars bbox överlappar ELLER ligger
+  //     mycket nära en TIDIGARE wall (procedural ELLER manuell). 8px buffer
+  //     så objekt inte kysser varandra. Också check mot ALLA hardcoded walls,
+  //     inte bara andra procedurella → fixar "sten över objekt" buggar.
+  const keptAll = arena.walls.filter(w => !PROC_WALL_KINDS.has(w.kind));
   const keptProc = [];
+  const DEDUP_BUF = 8;
   arena.walls = arena.walls.filter(w => {
     if (!PROC_WALL_KINDS.has(w.kind)) return true;
+    // Kolla mot ALLA hardcoded walls + tidigare accepterade procedurella
+    const wMinX = w.x - DEDUP_BUF, wMaxX = w.x + w.w + DEDUP_BUF;
+    const wMinY = w.y - DEDUP_BUF, wMaxY = w.y + w.h + DEDUP_BUF;
+    for (const k of keptAll) {
+      if (wMinX < k.x + k.w && wMaxX > k.x && wMinY < k.y + k.h && wMaxY > k.y) return false;
+    }
     for (const k of keptProc) {
-      if (w.x < k.x + k.w && w.x + w.w > k.x &&
-          w.y < k.y + k.h && w.y + w.h > k.y) return false;
+      if (wMinX < k.x + k.w && wMaxX > k.x && wMinY < k.y + k.h && wMaxY > k.y) return false;
     }
     keptProc.push(w);
     return true;

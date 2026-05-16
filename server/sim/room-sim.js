@@ -2213,19 +2213,19 @@ function tickBrLootPickups(sim, nowMs) {
       let applied = false;
       if (lo.kind === 'hp_small') {
         const before = ws.playerState.hp;
-        ws.playerState.hp = Math.min(ws.playerState.maxHp || 100, before + 30);
+        ws.playerState.hp = Math.min(ws.playerState.maxHp || 100, before + 60);
         if (ws.playerState.hp !== before) applied = true;
       } else if (lo.kind === 'hp_big') {
         const before = ws.playerState.hp;
-        ws.playerState.hp = Math.min(ws.playerState.maxHp || 100, before + 60);
+        ws.playerState.hp = Math.min(ws.playerState.maxHp || 100, before + 120);
         if (ws.playerState.hp !== before) applied = true;
       } else if (lo.kind === 'shield_small') {
         const before = ws.playerState.shield || 0;
-        ws.playerState.shield = Math.min(ws.playerState.maxShield || 100, before + 25);
+        ws.playerState.shield = Math.min(ws.playerState.maxShield || 100, before + 50);
         if (ws.playerState.shield !== before) applied = true;
       } else if (lo.kind === 'shield_big') {
         const before = ws.playerState.shield || 0;
-        ws.playerState.shield = Math.min(ws.playerState.maxShield || 100, before + 50);
+        ws.playerState.shield = Math.min(ws.playerState.maxShield || 100, before + 100);
         if (ws.playerState.shield !== before) applied = true;
       } else if (lo.kind === 'ammo') {
         // Klient hanterar ammo lokalt; vi skickar event
