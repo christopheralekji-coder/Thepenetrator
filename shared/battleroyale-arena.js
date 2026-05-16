@@ -51,6 +51,11 @@ const BATTLEROYALE_ARENA = {
       name: 'JÄGAR-STUGAN',
       bounds: { x: 3450, y: 2750, w: 220, h: 180 },
       door: { side: 'south', offset: 90, width: 50 },
+      windows: [
+        { side: 'north', offset: 60, width: 40 },
+        { side: 'north', offset: 140, width: 40 },
+        { side: 'east', offset: 60, width: 40 },
+      ],
       roof: { color: '#4a2a18', accent: '#2a1408', style: 'wood_shingle' },
       floor: '#5a3a1a',
       interior: [
@@ -70,6 +75,13 @@ const BATTLEROYALE_ARENA = {
       name: 'RÖDA STUGAN',
       bounds: { x: 4750, y: 4650, w: 240, h: 200 },
       door: { side: 'east', offset: 80, width: 50 },
+      windows: [
+        { side: 'north', offset: 50, width: 40 },
+        { side: 'north', offset: 150, width: 40 },
+        { side: 'south', offset: 50, width: 40 },
+        { side: 'south', offset: 150, width: 40 },
+        { side: 'west', offset: 80, width: 40 },
+      ],
       roof: { color: '#8a3030', accent: '#5a1818', style: 'tile' },
       floor: '#6a4828',
       interior: [
@@ -90,6 +102,14 @@ const BATTLEROYALE_ARENA = {
       name: 'GULA STUGAN',
       bounds: { x: 5700, y: 4700, w: 260, h: 220 },
       door: { side: 'west', offset: 110, width: 50 },
+      windows: [
+        { side: 'north', offset: 60, width: 40 },
+        { side: 'north', offset: 160, width: 40 },
+        { side: 'south', offset: 60, width: 40 },
+        { side: 'south', offset: 160, width: 40 },
+        { side: 'east', offset: 70, width: 40 },
+        { side: 'east', offset: 140, width: 40 },
+      ],
       roof: { color: '#a08020', accent: '#5a4810', style: 'thatch' },
       floor: '#7a5828',
       interior: [
@@ -112,6 +132,13 @@ const BATTLEROYALE_ARENA = {
       name: 'LADAN',
       bounds: { x: 5200, y: 5700, w: 280, h: 220 },
       door: { side: 'north', offset: 120, width: 60 },
+      windows: [
+        { side: 'east', offset: 60, width: 40 },
+        { side: 'east', offset: 140, width: 40 },
+        { side: 'west', offset: 60, width: 40 },
+        { side: 'west', offset: 140, width: 40 },
+        { side: 'south', offset: 110, width: 60 }, // stort vindsfönster
+      ],
       roof: { color: '#5a3818', accent: '#2a1808', style: 'wood_shingle' },
       floor: '#3a2810',
       interior: [
@@ -130,6 +157,12 @@ const BATTLEROYALE_ARENA = {
       name: 'CAMPING-EXPEDITION',
       bounds: { x: 6800, y: 5650, w: 240, h: 200 },
       door: { side: 'south', offset: 100, width: 50 },
+      windows: [
+        { side: 'north', offset: 50, width: 40 },
+        { side: 'north', offset: 150, width: 40 },
+        { side: 'east', offset: 70, width: 40 },
+        { side: 'west', offset: 70, width: 40 },
+      ],
       roof: { color: '#306080', accent: '#102540', style: 'tile' },
       floor: '#4a4030',
       interior: [
@@ -149,6 +182,13 @@ const BATTLEROYALE_ARENA = {
       name: 'SOMMARSTUGAN',
       bounds: { x: 3100, y: 5650, w: 260, h: 200 },
       door: { side: 'east', offset: 100, width: 55 },
+      windows: [
+        { side: 'north', offset: 60, width: 40 },
+        { side: 'north', offset: 160, width: 40 },
+        { side: 'south', offset: 60, width: 40 },
+        { side: 'south', offset: 160, width: 40 },
+        { side: 'west', offset: 80, width: 50 }, // panorama mot sjön
+      ],
       roof: { color: '#d4d4c0', accent: '#7a7a6a', style: 'tile' },
       floor: '#a08060',
       interior: [
@@ -172,6 +212,11 @@ const BATTLEROYALE_ARENA = {
       name: 'HUNTER-LYAN',
       bounds: { x: 6150, y: 7250, w: 200, h: 180 },
       door: { side: 'north', offset: 80, width: 45 },
+      windows: [
+        { side: 'south', offset: 50, width: 35 },
+        { side: 'south', offset: 120, width: 35 },
+        { side: 'east', offset: 70, width: 35 },
+      ],
       roof: { color: '#3a2818', accent: '#1a0e08', style: 'wood_shingle' },
       floor: '#4a3018',
       interior: [
@@ -971,6 +1016,43 @@ const BATTLEROYALE_ARENA = {
   maxShield: 100,
   lootPickupRadius: 32,
 };
+
+// === FÖNSTER-PREPROCESSING ===
+// För varje cabin, generera fönster-walls (cabin_window) som blockerar movement
+// men släpper igenom bullets (via passThroughBullets-flag).
+// Processen körs EN GÅNG när modulen laddas så walls-arrayen utökas in-place.
+function preprocessCabinWindows(arena) {
+  if (arena._windowsProcessed) return;
+  arena._windowsProcessed = true;
+  for (const cabin of arena.cabins) {
+    if (!cabin.windows || !cabin.windows.length) continue;
+    const b = cabin.bounds;
+    for (const win of cabin.windows) {
+      // Räkna ut window-wall position baserat på side
+      let wx, wy, ww, wh;
+      const W = win.width || 40;
+      if (win.side === 'north') {
+        wx = b.x + (win.offset || 0); wy = b.y; ww = W; wh = 12;
+      } else if (win.side === 'south') {
+        wx = b.x + (win.offset || 0); wy = b.y + b.h - 12; ww = W; wh = 12;
+      } else if (win.side === 'east') {
+        wx = b.x + b.w - 12; wy = b.y + (win.offset || 0); ww = 12; wh = W;
+      } else if (win.side === 'west') {
+        wx = b.x; wy = b.y + (win.offset || 0); ww = 12; wh = W;
+      }
+      // Lägg till fönster-wall: blockerar movement (kollar AABB normalt) men
+      // passThroughBullets gör att bulletHitsWall ignorerar denna.
+      arena.walls.push({
+        x: wx, y: wy, w: ww, h: wh,
+        kind: 'cabin_window',
+        passThroughBullets: true,
+        cabinId: cabin.id,
+      });
+    }
+  }
+}
+
+preprocessCabinWindows(BATTLEROYALE_ARENA);
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { BATTLEROYALE_ARENA };

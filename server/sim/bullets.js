@@ -715,12 +715,16 @@ function updateBullets(sim, dt, now) {
       bullets.splice(i, 1);
       continue;
     }
-    if (sim.battleroyaleActive && bulletHitsWall(b, BATTLEROYALE_ARENA.walls)) {
-      if (b.explosive && !b.hostile) {
-        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+    if (sim.battleroyaleActive) {
+      // Skippa fönster-walls (passThroughBullets=true) så bullets passerar
+      const brSolidWalls = sim._brSolidWalls || (sim._brSolidWalls = BATTLEROYALE_ARENA.walls.filter(w => !w.passThroughBullets));
+      if (bulletHitsWall(b, brSolidWalls)) {
+        if (b.explosive && !b.hostile) {
+          explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+        }
+        bullets.splice(i, 1);
+        continue;
       }
-      bullets.splice(i, 1);
-      continue;
     }
     // SIEGE: walls + core-damage routing
     if (sim.siegeActive && bulletHitsWall(b, SIEGE_ARENA.walls)) {

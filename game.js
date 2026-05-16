@@ -1078,6 +1078,7 @@ function drawPvpWalls(walls) {
     else if (w.kind === 'wagon_cart') drawWagonCart(x, y, w.w, w.h, seed);
     else if (w.kind === 'tree_giant_oak') drawTreeGiantOak(x, y, w.w, w.h, seed);
     else if (w.kind === 'rune_stone') drawRuneStone(x, y, w.w, w.h, seed);
+    else if (w.kind === 'cabin_window') drawCabinWindow(x, y, w.w, w.h);
     else { ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x, y, w.w, w.h); }
   }
   ctx.restore();
@@ -2716,10 +2717,10 @@ function drawBuilding(x, y, w, h, seed) {
 function drawTreeOak(x, y, w, h, seed) {
   const cx = x + w / 2, cy = y + h / 2;
   const r = Math.min(w, h) / 2;
-  // Skugga (grundläggande oval under)
-  ctx.fillStyle = 'rgba(0,0,0,0.42)';
+  // Liten kompakt skugga DIREKT under (inte offset åt sidan)
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath();
-  ctx.ellipse(cx + 4, cy + 6, r * 1.05, r * 0.95, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx + 2, cy + 2, r * 0.95, r * 0.85, 0, 0, Math.PI * 2);
   ctx.fill();
   // Yttre krona (mörkare grön ring)
   ctx.fillStyle = '#1a3a1a';
@@ -2767,10 +2768,10 @@ function drawTreeOak(x, y, w, h, seed) {
 function drawTreePine(x, y, w, h, seed) {
   const cx = x + w / 2, cy = y + h / 2;
   const r = Math.min(w, h) / 2;
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  // Liten kompakt skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath();
-  ctx.ellipse(cx + 3, cy + 5, r * 0.95, r * 0.85, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx + 2, cy + 2, r * 0.85, r * 0.8, 0, 0, Math.PI * 2);
   ctx.fill();
   // Yttre triangulär krona (3 lager för "barrträd"-look)
   ctx.fillStyle = '#1a3a1a';
@@ -2853,10 +2854,10 @@ function drawTreeStump(x, y, w, h, seed) {
 // STEN — organisk grå form med highlights
 function drawRock(x, y, w, h, seed, isLarge) {
   const cx = x + w / 2, cy = y + h / 2;
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  // Kompakt skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath();
-  ctx.ellipse(cx + 4, cy + 5, w * 0.55, h * 0.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx + 2, cy + 2, w * 0.5, h * 0.45, 0, 0, Math.PI * 2);
   ctx.fill();
   // Bas-form (organisk — 6-sided polygon)
   ctx.fillStyle = isLarge ? '#5a5a5a' : '#6a6a6a';
@@ -2909,9 +2910,9 @@ function drawRock(x, y, w, h, seed, isLarge) {
 
 // STUGA-VÄGG TRÄ — planschstruktur med nitar
 function drawCabinWallWood(x, y, w, h, seed) {
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(x + 2, y + 3, w, h);
+  // Minimal skugga (bara liten kant — wall är "marken-höjd")
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.fillRect(x + 1, y + 1, w + 1, h + 1);
   // Bas-färg (mörk-brun trä)
   const grad = w > h
     ? ctx.createLinearGradient(0, y, 0, y + h)
@@ -4167,10 +4168,10 @@ function drawWagonCart(x, y, w, h, seed) {
 function drawTreeGiantOak(x, y, w, h, seed) {
   const cx = x + w / 2, cy = y + h / 2;
   const r = Math.min(w, h) / 2;
-  // Stor skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  // Kompakt stor skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
-  ctx.ellipse(cx + 6, cy + 8, r * 1.1, r * 1.0, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx + 3, cy + 3, r * 0.95, r * 0.9, 0, 0, Math.PI * 2);
   ctx.fill();
   // Yttre krona (mörkare grön ring)
   ctx.fillStyle = '#1a3a1a';
@@ -4258,6 +4259,39 @@ function drawRuneStone(x, y, w, h, seed) {
   // Yttre kant
   ctx.strokeStyle = '#1a1408';
   ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+}
+
+// CABIN WINDOW — trä-ram med glas-ruta (bullets passerar igenom)
+function drawCabinWindow(x, y, w, h) {
+  const isHorizontal = w > h;
+  // Trä-ram (mörk-brun, samma färg som cabin_wall_wood)
+  ctx.fillStyle = '#3a2008';
+  ctx.fillRect(x, y, w, h);
+  // Glas-ruta (insättning av blå, semi-transparent)
+  const insetX = isHorizontal ? 3 : 2;
+  const insetY = isHorizontal ? 2 : 3;
+  ctx.fillStyle = 'rgba(140, 180, 210, 0.55)';
+  ctx.fillRect(x + insetX, y + insetY, w - insetX * 2, h - insetY * 2);
+  // Korsmönster (vit kors-spröjs)
+  ctx.fillStyle = '#7a5028';
+  if (isHorizontal) {
+    // Vertikal spröjs mitt
+    ctx.fillRect(x + w / 2 - 1, y + insetY, 2, h - insetY * 2);
+  } else {
+    // Horisontell spröjs mitt
+    ctx.fillRect(x + insetX, y + h / 2 - 1, w - insetX * 2, 2);
+  }
+  // Reflektion (vit highlight uppe vänster)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.18)';
+  if (isHorizontal) {
+    ctx.fillRect(x + insetX + 2, y + insetY + 1, (w - insetX * 2) * 0.3, 2);
+  } else {
+    ctx.fillRect(x + insetX + 1, y + insetY + 2, 2, (h - insetY * 2) * 0.3);
+  }
+  // Yttre kant (svart)
+  ctx.strokeStyle = '#1a0a04';
+  ctx.lineWidth = 1;
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
 
@@ -24267,6 +24301,9 @@ function updatePlayer(dt, now) {
   if (state.kothActive && state.kothWalls && typeof resolveCtfWall === 'function') {
     resolveCtfWall(p, state.kothWalls);
   }
+  if (state.battleroyaleActive && state.battleroyaleWalls && typeof resolveCtfWall === 'function') {
+    resolveCtfWall(p, state.battleroyaleWalls);
+  }
 
   // sikta: prio fire-joystick (alltid på när fire-knappen hålls), sen mus, sen rörelse, sen auto-aim
   if (input.fireJoyActive) {
@@ -25329,6 +25366,16 @@ function updateBullets(dt) {
     }
     if (state.kothActive && state.kothWalls && typeof bulletHitsWall === 'function') {
       if (bulletHitsWall(b, state.kothWalls)) {
+        if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
+        if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
+        b.dead = true;
+        continue;
+      }
+    }
+    if (state.battleroyaleActive && state.battleroyaleWalls && typeof bulletHitsWall === 'function') {
+      // BR: skippa walls med passThroughBullets-flag (fönster) — bullets passerar igenom
+      const brSolidWalls = state.battleroyaleWalls.filter(w => !w.passThroughBullets);
+      if (bulletHitsWall(b, brSolidWalls)) {
         if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
         if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
         b.dead = true;
@@ -36247,6 +36294,11 @@ function render() {
   drawEnvironment();
   // CTF: team-tinted floor halves + walls + flag-stands UNDER allt annat
   if (state.ctfActive) drawCtfArenaFloor();
+  // BR: skogsgolv + sjö + stigar + gläntor RITAS TIDIGT (innan player/entities)
+  // annars täcker forest_floor hela skärmen och spelaren blir osynlig.
+  if (state.battleroyaleActive && state.battleroyaleDecorations) {
+    drawBrGroundDecorations(state.battleroyaleDecorations);
+  }
   drawHazards();
   drawCollectibles();
   drawPickups();
@@ -36344,27 +36396,24 @@ function render() {
     drawPvpWalls(state.juggernautWalls);
     if (typeof drawJuggernautArrows === 'function') drawJuggernautArrows();
   }
-  // BATTLE ROYALE — skogsgolv + decorations + walls + zone + loot + stugor + rök
+  // BATTLE ROYALE — walls + loot + top-decorations + stugor + rök + zone
+  // (ground-decorations ritas TIDIGT — se early-render block ovan)
   if (state.battleroyaleActive) {
-    // 1. Skogsgolv-patches + dirt-paths + lake-water UNDER allt
-    if (state.battleroyaleDecorations && state.battleroyaleDecorations.length) {
-      drawBrGroundDecorations(state.battleroyaleDecorations);
-    }
-    // 2. Walls (träd, stenar, stugor, bilar, etc.)
+    // 1. Walls (träd, stenar, stugor, bilar) — efter player så spelaren syns "under" träden
     if (state.battleroyaleWalls) drawPvpWalls(state.battleroyaleWalls);
-    // 3. Loot på marken
+    // 2. Loot på marken (ovanpå walls — fast loot är på öppen mark)
     drawBrLoot();
-    // 4. Övriga decorations (blommor, lampor, etc.) OVANPÅ walls
+    // 3. Övriga decorations (blommor, lampor, fallna stockar etc.) OVANPÅ walls
     if (state.battleroyaleDecorations && state.battleroyaleDecorations.length) {
       drawBrTopDecorations(state.battleroyaleDecorations);
     }
-    // 5. Stugor: tak ovanpå om jag är UTE, interior om jag är INNE
+    // 4. Stugor: tak ovanpå om jag är UTE, interior om jag är INNE
     drawBrCabins();
-    // 6. Rök ovanpå allt (atmosphere)
+    // 5. Rök ovanpå allt (atmosphere)
     if (state.battleroyaleDecorations && state.battleroyaleDecorations.length) {
       drawBrSmoke(state.battleroyaleDecorations);
     }
-    // 7. Zone-ring + outside-warning
+    // 6. Zone-ring + outside-warning
     drawBrZone();
     drawBrOutsideWarning();
   }
