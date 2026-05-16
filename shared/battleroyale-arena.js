@@ -960,17 +960,30 @@ const BATTLEROYALE_ARENA = {
     { x: 6700, y: 1530, w: 30,  h: 30, kind: 'fire_drum' },      // motor brinner
     { x: 7250, y: 1530, w: 30,  h: 30, kind: 'fire_drum' },      // motor brinner
 
-    // 2. ÖDEKYRKA + KYRKOGÅRD (mellan village och south wild)
-    { x: 4500, y: 6400, w: 250, h: 320, kind: 'church_ruin' },          // ruin med spira
-    { x: 4520, y: 6720, w: 35,  h: 35,  kind: 'cemetery_gravestone' },  // gravsten
-    { x: 4580, y: 6730, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
-    { x: 4650, y: 6720, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
-    { x: 4720, y: 6730, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
-    { x: 4790, y: 6720, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
-    { x: 4560, y: 6790, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
-    { x: 4630, y: 6800, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
-    { x: 4700, y: 6790, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
-    { x: 4770, y: 6800, w: 35,  h: 35,  kind: 'cemetery_gravestone' },
+    // 2. ÖDEKYRKA + DEDIKERAD KYRKOGÅRD (söder om kyrkan)
+    { x: 4500, y: 6400, w: 250, h: 320, kind: 'church_ruin' },
+    // Trä-staket runt kyrkogården (med öppning mot norr / kyrkan)
+    { x: 4380, y: 6810, w: 90,  h: 12, kind: 'wooden_fence' },  // top-left (gap mot kyrkan i mitten)
+    { x: 4660, y: 6810, w: 220, h: 12, kind: 'wooden_fence' },  // top-right (efter gap)
+    { x: 4380, y: 7110, w: 500, h: 12, kind: 'wooden_fence' },  // bottom
+    { x: 4380, y: 6810, w: 12,  h: 312, kind: 'wooden_fence' }, // left
+    { x: 4868, y: 6810, w: 12,  h: 312, kind: 'wooden_fence' }, // right
+    // Gravstenar i 3×4 RUTNÄT inom staketet (12 st)
+    // Row 1 (y=6850)
+    { x: 4440, y: 6850, w: 35, h: 35, kind: 'cemetery_gravestone' },
+    { x: 4540, y: 6850, w: 35, h: 35, kind: 'cemetery_gravestone' },
+    { x: 4660, y: 6850, w: 35, h: 35, kind: 'cemetery_gravestone' },
+    { x: 4780, y: 6850, w: 35, h: 35, kind: 'cemetery_gravestone' },
+    // Row 2 (y=6950)
+    { x: 4440, y: 6950, w: 35, h: 35, kind: 'cemetery_gravestone' },
+    { x: 4540, y: 6950, w: 35, h: 35, kind: 'cemetery_gravestone' },
+    { x: 4660, y: 6950, w: 35, h: 35, kind: 'cemetery_gravestone' },
+    { x: 4780, y: 6950, w: 35, h: 35, kind: 'cemetery_gravestone' },
+    // Row 3 (y=7050)
+    { x: 4440, y: 7050, w: 35, h: 35, kind: 'cemetery_gravestone' },
+    { x: 4540, y: 7050, w: 35, h: 35, kind: 'cemetery_gravestone' },
+    { x: 4660, y: 7050, w: 35, h: 35, kind: 'cemetery_gravestone' },
+    { x: 4780, y: 7050, w: 35, h: 35, kind: 'cemetery_gravestone' },
 
     // 3. VATTENFALLS från klippa till sjön (decoration handled separately)
     //    Klipp-vall som omger:
@@ -1555,6 +1568,13 @@ function generateProceduralContent(arena) {
     }
     return false;
   };
+  // Exklusions-zoner där procedural content INTE får spawna
+  // Format: [xMin, xMax, yMin, yMax]
+  const exclusionZones = [
+    [2300, 3700, 6300, 7350],  // sjö-bbox
+    [4350, 4900, 6380, 7140],  // kyrkogården (inkl staket-buffer)
+    [5250, 7700, 2150, 3900],  // scrap-yard (containrar etc behöver sin yta)
+  ];
   // Försök spawna ett objekt — ger upp efter N försök om position upptaget
   const trySpawn = (xMin, xMax, yMin, yMax, minDist, cabinBuf, fn) => {
     for (let attempt = 0; attempt < 8; attempt++) {
@@ -1562,8 +1582,15 @@ function generateProceduralContent(arena) {
       const y = yMin + rng() * (yMax - yMin);
       if (tooClose(x, y, minDist)) continue;
       if (cabinBuf && tooCloseToCabin(x, y, cabinBuf)) continue;
-      // Skippa positioner inom sjö-bbox (ungefär)
-      if (x > 2300 && x < 3700 && y > 6300 && y < 7350) continue;
+      // Skippa positioner inom exklusions-zoner
+      let inExclusion = false;
+      for (const [zxMin, zxMax, zyMin, zyMax] of exclusionZones) {
+        if (x >= zxMin && x <= zxMax && y >= zyMin && y <= zyMax) {
+          inExclusion = true;
+          break;
+        }
+      }
+      if (inExclusion) continue;
       fn(x, y);
       return true;
     }

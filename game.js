@@ -3859,41 +3859,64 @@ function drawChurchRuin(x, y, w, h, seed) {
 }
 
 // GRAVESTONE — liten gravsten i kyrkogården
+// Förinitierad namn-pool för gravstenar — sorted-deterministic per seed.
+const _GRAVE_NAMES = [
+  'BJÖRN', 'ASTRID', 'SVEN', 'INGA', 'OLAF', 'GUDRUN', 'ERIK', 'LARS',
+  'HELGA', 'KARL', 'MAGNUS', 'SIGRID', 'AXEL', 'EBBA', 'GUSTAV', 'ELIN',
+];
+
 function drawGravestone(x, y, w, h, seed) {
-  // Minimal mjuk ellips-skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  // Liten mjuk skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath();
-  ctx.ellipse(x + w / 2, y + h * 0.97, w * 0.45, h * 0.1, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + w / 2, y + h * 0.97, w * 0.5, h * 0.12, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Sten (avrundad topp)
-  ctx.fillStyle = '#5a5048';
+  // Bas-sten — mörkare grå nedan
+  ctx.fillStyle = '#3a3530';
   ctx.beginPath();
-  ctx.arc(x + w / 2, y + 5, w / 2, Math.PI, 0);
-  ctx.fillRect(x, y + 5, w, h - 5);
+  ctx.arc(x + w / 2, y + 6, w / 2, Math.PI, 0);
+  ctx.fillRect(x, y + 6, w, h - 6);
   ctx.fill();
-  // Highlight
-  ctx.fillStyle = '#7a7268';
+  // Ljus framsida (lite ljusare)
+  const grad = ctx.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, '#7a7268');
+  grad.addColorStop(0.6, '#5a5048');
+  grad.addColorStop(1, '#3a3530');
+  ctx.fillStyle = grad;
   ctx.beginPath();
-  ctx.arc(x + w / 2 - 2, y + 4, w / 2 - 3, Math.PI, 0);
-  ctx.fillRect(x + 2, y + 4, w - 4, h - 8);
+  ctx.arc(x + w / 2, y + 5, w / 2 - 2, Math.PI, 0);
+  ctx.fillRect(x + 2, y + 5, w - 4, h - 9);
   ctx.fill();
-  // Initialer/kors (i centrum)
-  const drawCross = (seed & 1) === 0;
-  if (drawCross) {
-    ctx.fillStyle = '#2a2018';
-    ctx.fillRect(x + w / 2 - 1, y + h / 2 - 5, 2, 10);
-    ctx.fillRect(x + w / 2 - 4, y + h / 2 - 2, 8, 2);
-  } else {
-    ctx.fillStyle = '#2a2018';
-    ctx.font = 'bold 8px serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    const letters = ['R.I.P', '✝', 'MS', 'JP'];
-    ctx.fillText(letters[seed & 3], x + w / 2, y + h / 2 + 2);
+  // Kors i toppen (litet)
+  ctx.fillStyle = '#1a1408';
+  ctx.fillRect(x + w / 2 - 1, y + 8, 2, 5);
+  ctx.fillRect(x + w / 2 - 3, y + 10, 6, 1.5);
+  // NAMN på stenen (seed-baserat — deterministic per gravsten-position)
+  const nameIdx = ((seed >>> 0) ^ ((seed >>> 5))) & 0xf;
+  const name = _GRAVE_NAMES[nameIdx % _GRAVE_NAMES.length];
+  ctx.fillStyle = '#1a1408';
+  ctx.font = 'bold 6px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(name, x + w / 2, y + h * 0.55);
+  // ÅRTAL (1860-1995 random) — t.ex. "1872-1945"
+  const birthYear = 1860 + (((seed * 13) >>> 0) & 0x7f); // 1860-1987
+  const ageAtDeath = 35 + (((seed * 17) >>> 0) & 0x3f); // 35-99
+  const deathYear = Math.min(1995, birthYear + ageAtDeath);
+  ctx.font = 'bold 5px serif';
+  ctx.fillText(birthYear + '–' + deathYear, x + w / 2, y + h * 0.78);
+  // Mossa-bas (lägre tjocklek så vi inte täcker text)
+  ctx.fillStyle = 'rgba(50, 80, 40, 0.4)';
+  ctx.fillRect(x, y + h - 3, w, 3);
+  // Subtil "spricka" (random)
+  if ((seed & 3) === 0) {
+    ctx.strokeStyle = 'rgba(20, 18, 12, 0.55)';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.3, y + h * 0.3);
+    ctx.lineTo(x + w * 0.4, y + h * 0.6);
+    ctx.stroke();
   }
-  // Mossa
-  ctx.fillStyle = 'rgba(50, 80, 40, 0.5)';
-  ctx.fillRect(x, y + h - 4, w, 4);
 }
 
 // CLIFF EDGE — klippkanten över vattenfalls
