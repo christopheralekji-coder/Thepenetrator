@@ -537,8 +537,16 @@ const BATTLEROYALE_ARENA = {
     // === ALIEN-OMRÅDE (SE-hörnet, x=7900-9800, y=7900-9800) ===
     // Crash-zon med UFO-vrak + crystals + skull-totems + alien-mark
     // ========================================================================
-    // CENTRAL: UFO-vrak (stor) i mitten av zonen
-    { x: 8650, y: 8700, w: 220, h: 220, kind: 'ufo_wreck' },
+    // CENTRAL: KRASCHAT UFO — mindre (160x160 = lätt att gå runt)
+    // + crash-debris (fragmenterade metallbitar) spridda runt vraket
+    { x: 8720, y: 8770, w: 160, h: 160, kind: 'ufo_wreck' },
+    // Crash-debris (mindre metallbitar spridda runt UFO:t)
+    { x: 8600, y: 8700, w: 40, h: 30, kind: 'ufo_debris' },
+    { x: 8900, y: 8700, w: 35, h: 28, kind: 'ufo_debris' },
+    { x: 8550, y: 8900, w: 38, h: 30, kind: 'ufo_debris' },
+    { x: 8950, y: 8950, w: 42, h: 32, kind: 'ufo_debris' },
+    { x: 8680, y: 8980, w: 36, h: 28, kind: 'ufo_debris' },
+    { x: 8820, y: 8640, w: 40, h: 30, kind: 'ufo_debris' },
     // CRYSTAL-FORMATIONER spridda runt UFO:t (lila glödande)
     { x: 8400, y: 8500, w: 50, h: 80, kind: 'alien_crystal' },
     { x: 9000, y: 8500, w: 60, h: 90, kind: 'alien_crystal' },
@@ -909,23 +917,24 @@ const BATTLEROYALE_ARENA = {
     // Båt på STRAND (utanför sjön, sydlig sida)
     { x: 2500, y: 7280, w: 110, h: 50, kind: 'boat' },
 
-    // === 4-VÄGS BRO (kors-form) över sjön ===
-    // Sjön är nu vid (2650-3220, 6680-7220). Center ~ (2935, 6950).
-    // Horisontell bro (väst-öst) genom centrum av sjön
-    { x: 2500, y: 6935, w: 920, h: 30, kind: 'bridge' },
-    // Vertikal bro (nord-syd) genom centrum av sjön
-    { x: 2920, y: 6500, w: 30, h: 800, kind: 'bridge' },
+    // === 4-VÄGS BRO — flyttad till decorations (passabel, blockerar inte movement)
 
-    // === KLIPPHÖJD NORR OM SJÖN (vattenfall faller FRÅN denna i sjön) ===
-    // Stor klippformation som DIREKT ansluter till sjö-toppen (y=6680).
-    // Klippan är 200px hög (y=6450-6650), vattenfallet kommer från klipp-foten
-    // och faller 30px ner i sjökanten (y=6650-6680).
-    { x: 2700, y: 6450, w: 520, h: 60, kind: 'cliff_edge' },   // klipp-topp horisontellt
-    { x: 2700, y: 6510, w: 80,  h: 140, kind: 'cliff_edge' },  // vänster klippvägg
-    { x: 3140, y: 6510, w: 80,  h: 140, kind: 'cliff_edge' },  // höger klippvägg
-    // Klipp-block runt sjön (östra och västra sidor — ger "djup-känsla")
-    { x: 2580, y: 6700, w: 70, h: 150, kind: 'cliff_edge' },   // västra klippkant av sjön
-    { x: 3220, y: 6700, w: 70, h: 150, kind: 'cliff_edge' },   // östra klippkant av sjön
+    // === MAJESTÄTISK BERGSFORMATION (vattenfall faller FRÅN bergstoppen) ===
+    // Berget är högre och bredare — ser ut som en riktig klippformation.
+    // Topp (y=6300-6420): bred bergshöjd
+    { x: 2500, y: 6300, w: 920, h: 60, kind: 'cliff_edge' },
+    { x: 2400, y: 6360, w: 1100, h: 60, kind: 'cliff_edge' },
+    // Mellannivå (y=6420-6510): klippstegen ner
+    { x: 2550, y: 6420, w: 820, h: 90, kind: 'cliff_edge' },
+    // Sidoflanker (vänster + höger) — gör bergsbasen brett
+    { x: 2400, y: 6510, w: 200, h: 140, kind: 'cliff_edge' },
+    { x: 3320, y: 6510, w: 200, h: 140, kind: 'cliff_edge' },
+    // Smalare delar närmast vattenfall-öppningen
+    { x: 2700, y: 6510, w: 130, h: 140, kind: 'cliff_edge' },
+    { x: 3090, y: 6510, w: 130, h: 140, kind: 'cliff_edge' },
+    // Klipp-block runt sjön (östra och västra sidor)
+    { x: 2580, y: 6700, w: 70, h: 150, kind: 'cliff_edge' },
+    { x: 3220, y: 6700, w: 70, h: 150, kind: 'cliff_edge' },
 
     // === LAKE_WATER_BLOCK — 9 små block (~200×200) som approximerar sjö-polygon.
     // GAPS för bron: horisontell vid y=6935 (28px), vertikal vid x=2935 (28px).
@@ -1353,8 +1362,19 @@ const BATTLEROYALE_ARENA = {
     // === KYRKOGÅRDENS JORD-BAS (mörk-brun mark under gravarna) ===
     { kind: 'dirt_floor', x: 4380, y: 6975, w: 500, h: 305 },
 
+    // === 4-VÄGS BRO som DECORATION (passabel — blockerar inte spelaren) ===
+    { kind: 'bridge_deco', x: 2500, y: 6935, w: 920, h: 30 },
+    { kind: 'bridge_deco', x: 2920, y: 6500, w: 30, h: 800 },
+
+    // === SIGHTSEEING-DÄCK framför vattenfallet (avlång trä-platform) ===
+    // Position: precis norr om sjön, söder om bergsfoten där folk kan se vattnet
+    { kind: 'sightseeing_deck', x: 2540, y: 6640, w: 840, h: 32 },
+
     // === ALIEN-MARK i SE-hörnet (lila glödande "drabbat"-textur) ===
     { kind: 'alien_floor', x: 7900, y: 7900, w: 1900, h: 1900 },
+    // === MJUK ÖVERGÅNG mellan skogen och alien-zonen ===
+    // 3 transitions-bands runt alien-zonen (gradient: skog → blek-lila → alien)
+    { kind: 'alien_transition', x: 7700, y: 7700, w: 2100, h: 2100 },
 
     // === ALIEN-MYSTIK decorations (crop circles, glödande svampar, märkliga spår) ===
     { kind: 'crop_circle', x: 8750, y: 9000 },
@@ -1804,25 +1824,55 @@ preprocessCabinWalls(BATTLEROYALE_ARENA);
 function postProcessArena(arena) {
   if (arena._postProcessed) return;
   arena._postProcessed = true;
-  // 1. Ta bort graffiti + caution_tape + fallen_log + stream decorations
-  //    (user gillar inte stora logs eller långa blåa bäckar)
+  // 1. Ta bort graffiti + caution_tape + fallen_log + stream + DIRT_PATH
+  //    (user gillar inte stigar — de gick ibland under hus)
   arena.decorations = arena.decorations.filter(d => {
     return d.kind !== 'graffiti' && d.kind !== 'caution_tape'
-        && d.kind !== 'fallen_log' && d.kind !== 'stream';
+        && d.kind !== 'fallen_log' && d.kind !== 'stream'
+        && d.kind !== 'dirt_path';
   });
   // 2. Lägg till loot-spawn inuti varje cabin (centrum av bounds).
-  //    Containers får GARANTERAD rare/legendary via guaranteedTier-flag.
+  //    RANDOM tier (containers använder samma distribution som hus — ingen garanti).
   const centerLoot = arena.lootSpawns.pop();
   for (const cabin of arena.cabins) {
     const b = cabin.bounds;
-    const spawn = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
-    // Containers: garanterad rare-tier loot (vapen alltid)
-    if (cabin._isContainer) {
-      spawn.guaranteedTier = 'rare';
-    }
-    arena.lootSpawns.push(spawn);
+    arena.lootSpawns.push({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
   }
   arena.lootSpawns.push(centerLoot);
+  // 3. Audit: ta bort walls som ligger ENTRY-blockerande precis utanför cabin-dörrar.
+  // För varje cabin, kolla en buffer-zon 40px ut från dörröppningen — om någon
+  // procedural wall hamnat där, ta bort den.
+  arena.walls = arena.walls.filter(w => {
+    if (w.kind === 'cabin_wall_wood' || w.kind === 'cabin_window') return true;
+    if (w.kind === 'wooden_fence' || w.kind === 'stone_wall' || w.kind === 'stone_wall_low') return true;
+    if (w.kind === 'lake_water_block' || w.kind === 'bridge') return true;
+    // Är denna wall i en cabins entry-buffer?
+    for (const c of arena.cabins) {
+      if (!c.door) continue;
+      const b = c.bounds;
+      const T = 12;
+      let bx, by, bw, bh;
+      const ENTRY_BUFFER = 50;
+      if (c.door.side === 'north') {
+        bx = b.x + c.door.offset - 5; by = b.y - ENTRY_BUFFER;
+        bw = c.door.width + 10; bh = ENTRY_BUFFER;
+      } else if (c.door.side === 'south') {
+        bx = b.x + c.door.offset - 5; by = b.y + b.h;
+        bw = c.door.width + 10; bh = ENTRY_BUFFER;
+      } else if (c.door.side === 'east') {
+        bx = b.x + b.w; by = b.y + c.door.offset - 5;
+        bw = ENTRY_BUFFER; bh = c.door.width + 10;
+      } else {
+        bx = b.x - ENTRY_BUFFER; by = b.y + c.door.offset - 5;
+        bw = ENTRY_BUFFER; bh = c.door.width + 10;
+      }
+      // Wall överlappar buffer-zon?
+      if (w.x < bx + bw && w.x + w.w > bx && w.y < by + bh && w.y + w.h > by) {
+        return false; // ta bort
+      }
+    }
+    return true;
+  });
 }
 postProcessArena(BATTLEROYALE_ARENA);
 

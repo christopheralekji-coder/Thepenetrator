@@ -1022,7 +1022,8 @@ function drawPvpWalls(walls) {
       w.kind === 'wagon_cart' || w.kind === 'rune_stone' ||
       w.kind === 'shipping_container' || w.kind === 'silo' || w.kind === 'building' ||
       w.kind === 'lake_water_block' ||
-      w.kind === 'ufo_wreck' || w.kind === 'alien_crystal' || w.kind === 'skull_totem'
+      w.kind === 'ufo_wreck' || w.kind === 'ufo_debris' ||
+      w.kind === 'alien_crystal' || w.kind === 'skull_totem'
     );
     if (w.kind !== 'pipe' && w.kind !== 'wall_divider' && !_brHasOwnShadow) {
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -1104,6 +1105,7 @@ function drawPvpWalls(walls) {
     else if (w.kind === 'cabin_window') drawCabinWindow(x, y, w.w, w.h);
     else if (w.kind === 'lake_water_block') { /* osynlig collision-wall — render hanteras av lake_water_polygon decoration */ }
     else if (w.kind === 'ufo_wreck') drawUfoWreck(x, y, w.w, w.h, seed);
+    else if (w.kind === 'ufo_debris') drawUfoDebris(x, y, w.w, w.h, seed);
     else if (w.kind === 'alien_crystal') drawAlienCrystal(x, y, w.w, w.h, seed);
     else if (w.kind === 'skull_totem') drawSkullTotem(x, y, w.w, w.h, seed);
     else { ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x, y, w.w, w.h); }
@@ -4402,62 +4404,175 @@ function drawCabinWindow(x, y, w, h) {
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
 
-// === ALIEN ELEMENT (v1.336) ===
-// UFO-VRAK: disk-formad med grön glöd
+// === KRASCHAT UFO — lutande, fragmenterat, med rök ===
 function drawUfoWreck(x, y, w, h, seed) {
   const cx = x + w / 2, cy = y + h / 2;
   const r = Math.min(w, h) / 2;
   const t = performance.now() / 1000;
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.save();
+  // Tilta hela disken (kraschat — lutar 15°)
+  ctx.translate(cx, cy);
+  ctx.rotate(0.28);
+  ctx.translate(-cx, -cy);
+  // Marknedslag-krater under (mörk-grön/lila)
+  ctx.fillStyle = 'rgba(40, 20, 60, 0.6)';
   ctx.beginPath();
-  ctx.ellipse(cx, y + h * 0.95, r * 0.9, r * 0.15, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, cy + r * 0.1, r * 1.2, r * 0.5, 0, 0, Math.PI * 2);
   ctx.fill();
-  const grad1 = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
-  grad1.addColorStop(0, '#7a7a8a');
+  ctx.fillStyle = 'rgba(60, 40, 80, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + r * 0.1, r * 0.9, r * 0.35, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Skugga under den lutande disken
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy + r * 0.3, r * 0.85, r * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Bas-disk — DEFORMERAD (en kant kollapsad)
+  const grad1 = ctx.createRadialGradient(cx - r * 0.2, cy - r * 0.2, r * 0.15, cx, cy, r);
+  grad1.addColorStop(0, '#9a9aaa');
   grad1.addColorStop(0.6, '#3a3a48');
   grad1.addColorStop(1, '#1a1a28');
   ctx.fillStyle = grad1;
   ctx.beginPath();
-  ctx.ellipse(cx, cy, r, r * 0.65, 0, 0, Math.PI * 2);
+  // Asymetrisk disk-shape (deformerad)
+  ctx.moveTo(cx + r * 0.95, cy + r * 0.1);
+  ctx.quadraticCurveTo(cx + r * 0.4, cy + r * 0.55, cx - r * 0.3, cy + r * 0.5);
+  ctx.quadraticCurveTo(cx - r * 0.95, cy + r * 0.3, cx - r * 0.9, cy - r * 0.2);
+  ctx.quadraticCurveTo(cx - r * 0.7, cy - r * 0.55, cx, cy - r * 0.65);
+  ctx.quadraticCurveTo(cx + r * 0.7, cy - r * 0.55, cx + r * 0.95, cy - r * 0.1);
+  ctx.closePath();
   ctx.fill();
-  const pulse = 0.5 + Math.sin(t * 2) * 0.3;
-  ctx.fillStyle = 'rgba(80, 220, 120, ' + (0.35 + pulse * 0.3) + ')';
+  // Krossat kupol-glas (matt-mörk pga skadat)
+  ctx.fillStyle = 'rgba(40, 100, 60, 0.6)';
   ctx.beginPath();
-  ctx.ellipse(cx, cy - r * 0.05, r * 0.45, r * 0.32, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx - r * 0.1, cy - r * 0.15, r * 0.4, r * 0.25, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 5; i++) {
-    const ang = i * (Math.PI * 2 / 5);
-    ctx.beginPath();
-    ctx.moveTo(cx, cy);
-    ctx.lineTo(cx + Math.cos(ang) * r * 0.9, cy + Math.sin(ang) * r * 0.6);
-    ctx.stroke();
-  }
-  ctx.strokeStyle = '#0a0a14';
-  ctx.lineWidth = 1.5;
-  for (let i = 0; i < 8; i++) {
-    const ang = (i / 8) * Math.PI * 2;
-    const px = cx + Math.cos(ang) * r * 0.85;
-    const py = cy + Math.sin(ang) * r * 0.55;
-    ctx.beginPath();
-    ctx.arc(px, py, 6, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.fillStyle = 'rgba(120, 255, 150, ' + pulse + ')';
+  // SPRICKOR i kupolen (mer dramatic)
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+  ctx.lineWidth = 1.8;
   for (let i = 0; i < 6; i++) {
-    const ang = (i / 6) * Math.PI * 2 + t * 0.3;
+    const ang = i * Math.PI / 3;
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 0.1, cy - r * 0.15);
+    ctx.lineTo(cx - r * 0.1 + Math.cos(ang) * r * 0.4, cy - r * 0.15 + Math.sin(ang) * r * 0.25);
+    ctx.stroke();
+  }
+  // BORTBRUTEN PANEL — visa hål i diskens högra sida (där den slog i marken)
+  ctx.fillStyle = '#0a0a14';
+  ctx.beginPath();
+  ctx.moveTo(cx + r * 0.6, cy + r * 0.05);
+  ctx.lineTo(cx + r * 0.85, cy + r * 0.15);
+  ctx.lineTo(cx + r * 0.75, cy + r * 0.35);
+  ctx.lineTo(cx + r * 0.5, cy + r * 0.25);
+  ctx.closePath();
+  ctx.fill();
+  // Exponerade interna ledningar i hålet
+  ctx.strokeStyle = '#ff5050';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx + r * 0.55, cy + r * 0.1); ctx.lineTo(cx + r * 0.75, cy + r * 0.25);
+  ctx.stroke();
+  ctx.strokeStyle = '#5050ff';
+  ctx.beginPath();
+  ctx.moveTo(cx + r * 0.6, cy + r * 0.2); ctx.lineTo(cx + r * 0.7, cy + r * 0.32);
+  ctx.stroke();
+  // Slumrande LEDs (några dåliga, andra döda)
+  const pulse = 0.5 + Math.sin(t * 2) * 0.3;
+  for (let i = 0; i < 6; i++) {
+    const ang = (i / 6) * Math.PI * 2 + 0.3;
     const lx = cx + Math.cos(ang) * r * 0.7;
     const ly = cy + Math.sin(ang) * r * 0.45;
+    // Var-tredje är död
+    if (i % 3 === 0) {
+      ctx.fillStyle = '#1a1a28'; // död
+    } else {
+      ctx.fillStyle = 'rgba(120, 255, 150, ' + (pulse * 0.6) + ')';
+    }
     ctx.beginPath();
     ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
     ctx.fill();
   }
+  // Paneler runt kanten
   ctx.strokeStyle = '#0a0a14';
-  ctx.lineWidth = 2;
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2;
+    const px = cx + Math.cos(ang) * r * 0.85;
+    const py = cy + Math.sin(ang) * r * 0.5;
+    ctx.beginPath();
+    ctx.arc(px, py, 5, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+  // Rök från kraschen (ANIMERAT, lila-grönt)
+  for (let i = 0; i < 3; i++) {
+    const phase = ((t * 0.5) + i * 0.4) % 1.5;
+    const yOff = -phase * 60;
+    const alpha = (1 - phase / 1.5) * 0.35;
+    ctx.fillStyle = 'rgba(120, 80, 140, ' + alpha + ')';
+    ctx.beginPath();
+    ctx.arc(cx + Math.sin(t + i) * 8, cy + yOff, 14 + phase * 8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+// UFO-DEBRIS — fragmenterade metallbitar från kraschen
+function drawUfoDebris(x, y, w, h, seed) {
+  const cx = x + w / 2, cy = y + h / 2;
+  // Liten skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
   ctx.beginPath();
-  ctx.ellipse(cx, cy, r, r * 0.65, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, y + h * 0.95, w * 0.4, h * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.save();
+  // Slumpmässig rotation per seed
+  ctx.translate(cx, cy);
+  ctx.rotate(((seed * 7) & 0xff) / 255 * Math.PI);
+  ctx.translate(-cx, -cy);
+  // Metallbit (oregelbunden form)
+  ctx.fillStyle = '#5a5a68';
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.4, cy - h * 0.2);
+  ctx.lineTo(cx + w * 0.3, cy - h * 0.35);
+  ctx.lineTo(cx + w * 0.4, cy + h * 0.1);
+  ctx.lineTo(cx + w * 0.1, cy + h * 0.4);
+  ctx.lineTo(cx - w * 0.3, cy + h * 0.3);
+  ctx.closePath();
+  ctx.fill();
+  // Ljus framsida (highlight)
+  ctx.fillStyle = '#7a7a8a';
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.3, cy - h * 0.15);
+  ctx.lineTo(cx + w * 0.15, cy - h * 0.25);
+  ctx.lineTo(cx + w * 0.2, cy);
+  ctx.lineTo(cx - w * 0.25, cy + h * 0.1);
+  ctx.closePath();
+  ctx.fill();
+  // Brännskador (mörka fläckar)
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.beginPath();
+  ctx.arc(cx - w * 0.1, cy + h * 0.05, w * 0.12, 0, Math.PI * 2);
+  ctx.fill();
+  // Exponerade ledningar (1-2)
+  ctx.strokeStyle = '#ff5050';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx + w * 0.1, cy - h * 0.1);
+  ctx.lineTo(cx + w * 0.3, cy + h * 0.05);
   ctx.stroke();
+  // Yttre kant
+  ctx.strokeStyle = '#1a1a28';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.4, cy - h * 0.2);
+  ctx.lineTo(cx + w * 0.3, cy - h * 0.35);
+  ctx.lineTo(cx + w * 0.4, cy + h * 0.1);
+  ctx.lineTo(cx + w * 0.1, cy + h * 0.4);
+  ctx.lineTo(cx - w * 0.3, cy + h * 0.3);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
 }
 
 // ALIEN-CRYSTAL: lila kristall med pulserande glöd
@@ -7207,6 +7322,33 @@ function drawBrGroundDecorations(decos) {
         ctx.ellipse(px, py, 14, 8, 0, 0, Math.PI * 2);
         ctx.fill();
       }
+    } else if (d.kind === 'alien_transition') {
+      // Mjuk övergång mellan skog (grön) och alien-zon (lila)
+      // Radial gradient där KANTERNA är transparenta så det fadar naturligt
+      const x = d.x - cx, y = d.y - cy;
+      if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
+      const ccx = x + d.w / 2, ccy = y + d.h / 2;
+      const grad = ctx.createRadialGradient(ccx, ccy, d.w * 0.3, ccx, ccy, d.w * 0.5);
+      grad.addColorStop(0, 'rgba(80, 40, 120, 0.45)');
+      grad.addColorStop(0.5, 'rgba(80, 50, 100, 0.25)');
+      grad.addColorStop(1, 'rgba(80, 60, 100, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(x, y, d.w, d.h);
+      // Pulserande lila prickar utspridda för att fade-känsla
+      const seed = ((d.x * 19) ^ (d.y * 23)) | 0;
+      const t = performance.now() / 1000;
+      const pulse = 0.4 + Math.sin(t * 0.7) * 0.2;
+      ctx.fillStyle = 'rgba(140, 80, 200, ' + (0.3 * pulse) + ')';
+      for (let i = 0; i < 25; i++) {
+        const px = x + ((seed * (i + 1) * 13) & 0x7ff) % d.w;
+        const py = y + ((seed * (i + 3) * 17) & 0x7ff) % d.h;
+        // Bara om INTE inom alien_floor (annars dubbla)
+        if (px < 7900 - cx || px > 9800 - cx || py < 7900 - cy || py > 9800 - cy) {
+          ctx.beginPath();
+          ctx.ellipse(px, py, 18, 12, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     } else if (d.kind === 'alien_floor') {
       // Lila glödande "alien-drabbat"-mark
       const x = d.x - cx, y = d.y - cy;
@@ -7243,6 +7385,85 @@ function drawBrGroundDecorations(decos) {
         const py = y + ((seed * (i + 17) * 31) & 0x7ff) % d.h;
         ctx.fillRect(px, py, 2, 2);
       }
+    } else if (d.kind === 'bridge_deco') {
+      // Bro som decoration — passabel, ritas på marken/vattnet
+      const x = d.x - cx, y = d.y - cy;
+      if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(x + 2, y + 3, d.w, d.h);
+      // Bas (mörk-brun trä)
+      ctx.fillStyle = '#3a2818';
+      ctx.fillRect(x, y, d.w, d.h);
+      // Plankor
+      ctx.strokeStyle = '#1a0e04';
+      ctx.lineWidth = 1.2;
+      const plankW = 12;
+      if (d.w > d.h) {
+        for (let i = plankW; i < d.w; i += plankW) {
+          ctx.beginPath();
+          ctx.moveTo(x + i, y); ctx.lineTo(x + i, y + d.h);
+          ctx.stroke();
+        }
+      } else {
+        for (let i = plankW; i < d.h; i += plankW) {
+          ctx.beginPath();
+          ctx.moveTo(x, y + i); ctx.lineTo(x + d.w, y + i);
+          ctx.stroke();
+        }
+      }
+      // Räcken (sidor med små stolpar)
+      ctx.fillStyle = '#5a3818';
+      if (d.w > d.h) {
+        ctx.fillRect(x, y - 4, d.w, 3); // top räcke
+        ctx.fillRect(x, y + d.h + 1, d.w, 3); // bottom räcke
+        // Stolpar var 80px
+        ctx.fillStyle = '#3a2010';
+        for (let i = 10; i < d.w; i += 80) {
+          ctx.fillRect(x + i, y - 8, 3, 6);
+          ctx.fillRect(x + i, y + d.h + 3, 3, 6);
+        }
+      } else {
+        ctx.fillRect(x - 4, y, 3, d.h);
+        ctx.fillRect(x + d.w + 1, y, 3, d.h);
+        ctx.fillStyle = '#3a2010';
+        for (let i = 10; i < d.h; i += 80) {
+          ctx.fillRect(x - 8, y + i, 6, 3);
+          ctx.fillRect(x + d.w + 3, y + i, 6, 3);
+        }
+      }
+    } else if (d.kind === 'sightseeing_deck') {
+      // Avlång promenadbrygga framför vattenfallet
+      const x = d.x - cx, y = d.y - cy;
+      if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(x + 3, y + 4, d.w, d.h);
+      // Trädäck (ljus-brun)
+      ctx.fillStyle = '#7a5028';
+      ctx.fillRect(x, y, d.w, d.h);
+      ctx.fillStyle = '#5a3818';
+      ctx.fillRect(x + 2, y + 2, d.w - 4, d.h - 4);
+      // Plankor
+      ctx.strokeStyle = '#3a2008';
+      ctx.lineWidth = 1;
+      for (let i = 14; i < d.w; i += 14) {
+        ctx.beginPath();
+        ctx.moveTo(x + i, y + 4); ctx.lineTo(x + i, y + d.h - 4);
+        ctx.stroke();
+      }
+      // Räcke mot vattenfall (norra sidan)
+      ctx.fillStyle = '#3a2010';
+      ctx.fillRect(x, y - 5, d.w, 4);
+      // Stolpar
+      for (let i = 6; i < d.w; i += 40) {
+        ctx.fillRect(x + i, y - 10, 3, 8);
+      }
+      // "OBSERVATIONS-DÄCK" skylt-text
+      ctx.fillStyle = 'rgba(255, 213, 74, 0.6)';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('OBSERVATIONS-DÄCK', x + d.w / 2, y + d.h / 2);
     } else if (d.kind === 'glade') {
       // Ljus glänta — ljusare gräs-cirkel där solljus tränger in
       const x = d.x - cx, y = d.y - cy;
@@ -7419,6 +7640,8 @@ function drawBrTopDecorations(decos) {
         || d.kind === 'lake_water_polygon' || d.kind === 'glade'
         || d.kind === 'stream' || d.kind === 'dirt_path' || d.kind === 'garden_patch'
         || d.kind === 'dirt_floor' || d.kind === 'alien_floor'
+        || d.kind === 'bridge_deco' || d.kind === 'sightseeing_deck'
+        || d.kind === 'alien_transition'
         || d.kind === 'smoke') continue; // hanteras separat
     const x = d.x - cx, y = d.y - cy;
     // Viewport-cull med bbox (objekt-storlek inkluderat så stora objekt inte
@@ -20299,9 +20522,8 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
   };
   const muzzleOff = (w.type === 'gun') ? (MUZZLE_OFFSETS[w.id] || 20) : 0;
 
-  // BR wall-check: om muzzle-position hamnar INUTI en solid wall, korta
-  // spawn-offset så bullet hamnar PÅ spelar-positionen istället.
-  // Förhindrar "skjut genom väggen via stor barrel"-exploit.
+  // BR wall-check: RAYTRACE från player till spawn-pos. Om någon solid wall
+  // är mellan player och muzzle, bullet stoppas (kan inte skjuta genom vägg).
   const _brSolidWalls = (state.battleroyaleActive && state.battleroyaleWalls)
     ? state.battleroyaleWalls.filter(w => !w.passThroughBullets)
     : null;
@@ -20310,6 +20532,20 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
     for (let i = 0; i < _brSolidWalls.length; i++) {
       const wl = _brSolidWalls[i];
       if (bx >= wl.x && bx <= wl.x + wl.w && by >= wl.y && by <= wl.y + wl.h) return true;
+    }
+    return false;
+  };
+  // Raytrace: sampla 8-12 punkter mellan player och spawn — om någon inuti wall = blocked
+  const _raycastBlocked = (px, py, sx, sy) => {
+    if (!_brSolidWalls) return false;
+    const dx = sx - px, dy = sy - py;
+    const len = Math.hypot(dx, dy);
+    const steps = Math.max(4, Math.ceil(len / 3));
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const tx = px + dx * t;
+      const ty = py + dy * t;
+      if (_isInsideBrWall(tx, ty)) return true;
     }
     return false;
   };
@@ -20323,14 +20559,16 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
     // Spawn-position: pip-mynningen (player.r + muzzleOff) i aim-riktning.
     let spawnX = p.x + Math.cos(p.aimAngle) * (p.r + muzzleOff);
     let spawnY = p.y + Math.sin(p.aimAngle) * (p.r + muzzleOff);
-    // BR wall-check: om spawn-pos är inuti solid wall (typ utanför cabin via
-    // stor muzzle-offset), använd kortare offset eller skip bullet.
-    if (state.battleroyaleActive && _isInsideBrWall(spawnX, spawnY)) {
-      // Försök kortare offset (player.r räcker oftast)
-      spawnX = p.x + Math.cos(p.aimAngle) * p.r;
-      spawnY = p.y + Math.sin(p.aimAngle) * p.r;
-      // Om FORTFARANDE inne i wall → skip helt (player står i vägg-kant)
-      if (_isInsideBrWall(spawnX, spawnY)) continue;
+    // BR wall-check (raytrace): om någon wall är MELLAN player och spawn-pos
+    // (pip-mynningen sticker ut genom väggen), bullet stoppas.
+    if (state.battleroyaleActive) {
+      if (_raycastBlocked(p.x, p.y, spawnX, spawnY)) {
+        // Försök kortare offset (player.r räcker oftast)
+        spawnX = p.x + Math.cos(p.aimAngle) * p.r;
+        spawnY = p.y + Math.sin(p.aimAngle) * p.r;
+        if (_raycastBlocked(p.x, p.y, spawnX, spawnY)) continue; // skip
+      }
+      if (_isInsideBrWall(spawnX, spawnY)) continue; // skip om inuti wall
     }
     state.bullets.push({
       x: spawnX, y: spawnY,

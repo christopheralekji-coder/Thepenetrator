@@ -444,6 +444,18 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
     }
     return false;
   };
+  // Raytrace: sampla punkter mellan player och spawn → om någon inuti wall = blocked
+  const raycastBlocked = (px, py, sx, sy) => {
+    if (!brWalls) return false;
+    const dx = sx - px, dy = sy - py;
+    const len = Math.hypot(dx, dy);
+    const steps = Math.max(4, Math.ceil(len / 3));
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      if (isInsideBrWall(px + dx * t, py + dy * t)) return true;
+    }
+    return false;
+  };
   for (let i = 0; i < pellets; i++) {
     const spread = (Math.random() - 0.5) * 2 * (w.spread || 0);
     const ang = p.aimAngle + spread;
@@ -453,11 +465,12 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
     // Bullet-start vid player+offset
     const bx = p.x + Math.cos(ang) * (p.r || 14);
     const by = p.y + Math.sin(ang) * (p.r || 14);
-    // BUG-FIX: om bullet-start hamnar inuti en solid wall (typ utanför cabin-vägg
-    // när spelaren skjuter med stor vapen-offset från insidan) → bullet dör direkt.
-    // Förhindrar "skjut genom väggen via stor barrel"-exploit.
-    if (sim.battleroyaleActive && isInsideBrWall(bx, by)) {
-      continue; // skip — bullet skapas inte
+    // BUG-FIX: raytrace från player till bullet-start. Om någon wall är
+    // mellan player och spawn → bullet skapas inte. Förhindrar
+    // "skjut genom väggen via pip-offset"-exploit.
+    if (sim.battleroyaleActive) {
+      if (raycastBlocked(p.x, p.y, bx, by)) continue;
+      if (isInsideBrWall(bx, by)) continue;
     }
     sim.bullets.push({
       x: bx,

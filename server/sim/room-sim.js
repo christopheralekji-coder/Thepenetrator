@@ -2298,9 +2298,6 @@ function initBrLoot(sim) {
     let tier;
     if (i === centerIdx) {
       tier = 'legendary';
-    } else if (origSp.guaranteedTier) {
-      // Containers/special spots: garanterad tier (oftast 'rare')
-      tier = origSp.guaranteedTier;
     } else {
       const r = Math.random();
       const t = arena.lootTiers;
