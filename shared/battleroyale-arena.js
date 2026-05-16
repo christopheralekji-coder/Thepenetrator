@@ -1940,6 +1940,12 @@ function postProcessArena(arena) {
     tree_stump: 0.75,
     rock_large: 0.62,
     rock_small: 0.65,
+    // Alien-objekt: smala/oregelbundna former, krymp collision så spelaren
+    // kan röra sig nära kristaller, totems och UFO-vrak utan att fastna i osynlig wall.
+    alien_crystal: 0.45,    // smal kristall — bara nedre delen kollar
+    skull_totem: 0.40,      // tunn pinne med skalle på toppen
+    ufo_debris: 0.55,       // små vrakdelar
+    ufo_wreck: 0.65,        // stora disken — kan luta sig mot kanten
   };
   for (const w of arena.walls) {
     const f = VISUAL_COLL_FACTOR[w.kind];

@@ -7736,17 +7736,39 @@ function drawBrGroundDecorations(decos) {
     } else if (d.kind === 'grass_open') {
       const x = d.x - cx, y = d.y - cy;
       if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
-      // Ljus-grön gräsmatta
-      ctx.fillStyle = '#3a5a28';
+      // Mjuka kanter via ellips-clip + radial fade (ingen synlig rektangulär kant)
+      const ccx = x + d.w / 2, ccy = y + d.h / 2;
+      const rx = d.w / 2, ry = d.h / 2;
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(ccx, ccy, rx, ry, 0, 0, Math.PI * 2);
+      ctx.clip();
+      // Ljus-grön gräsmatta med radial-fade mot kanten
+      const grad = ctx.createRadialGradient(ccx, ccy, 0, ccx, ccy, Math.max(rx, ry));
+      grad.addColorStop(0, 'rgba(58, 90, 40, 0.9)');
+      grad.addColorStop(0.6, 'rgba(58, 90, 40, 0.65)');
+      grad.addColorStop(0.85, 'rgba(58, 90, 40, 0.30)');
+      grad.addColorStop(1, 'rgba(58, 90, 40, 0)');
+      ctx.fillStyle = grad;
       ctx.fillRect(x, y, d.w, d.h);
       // Subtle grass-textur (mörkare prickar)
       ctx.fillStyle = 'rgba(40, 70, 25, 0.4)';
       const seed = ((d.x * 11) ^ (d.y * 17)) | 0;
-      for (let i = 0; i < 12; i++) {
-        const gx = x + ((seed * (i + 1) * 19) & 0x3ff) % d.w;
-        const gy = y + ((seed * (i + 3) * 23) & 0x3ff) % d.h;
+      for (let i = 0; i < 28; i++) {
+        const gx = x + ((seed * (i + 1) * 19) & 0xfff) % d.w;
+        const gy = y + ((seed * (i + 3) * 23) & 0xfff) % d.h;
         ctx.fillRect(gx, gy, 3, 1);
       }
+      // Ljusare gräs-tussar (varmare gröna fläckar) för djup
+      ctx.fillStyle = 'rgba(110, 150, 60, 0.20)';
+      for (let i = 0; i < 14; i++) {
+        const gx = x + ((seed * (i + 7) * 29) & 0xfff) % d.w;
+        const gy = y + ((seed * (i + 11) * 31) & 0xfff) % d.h;
+        ctx.beginPath();
+        ctx.ellipse(gx, gy, 25, 14, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
     } else if (d.kind === 'stream') {
       // Bäck — linje från (x,y) till (x2,y2) i ljus-blå
       const x1 = d.x - cx, y1 = d.y - cy;
