@@ -308,9 +308,9 @@ function chooseBattleRoyaleTarget(sim, botWs) {
     const myW = botWs.playerState.weaponId;
     const HIGH_TIER = new Set([
       // legendary
-      'minigun', 'rocket', 'plasma', 'sledge', 'railgun', 'lightsaber', 'energysword',
+      'minigun', 'lightsaber',
       // rare
-      'bow', 'sniper', 'crossbow', 'tesla', 'frost', 'grenade', 'sonic',
+      'rifle', 'sniper', 'flame', 'energysword',
     ]);
     const hasHighTierWeapon = HIGH_TIER.has(myW);
     let bestLoot = null, bestD2 = Infinity;

@@ -2479,14 +2479,15 @@ function drawShippingContainer(x, y, w, h, colorKey, seed) {
     ctx.arc(rx, ry, 2 + (i % 2), 0, Math.PI * 2);
     ctx.fill();
   }
-  // Color-key splatter (gold-container glödar lite)
+  // Color-key glow (gold-container ska sticka ut) — PERF: ingen shadowBlur,
+  // använd 2-pass-stroke istället (yttre tjock semi-trans, inre tunn solid).
   if (colorKey === 'gold') {
-    ctx.shadowColor = '#ffd54a';
-    ctx.shadowBlur = 8;
+    ctx.strokeStyle = 'rgba(255, 213, 74, 0.35)';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(x - 1, y - 1, w + 2, h + 2);
     ctx.strokeStyle = '#ffd54a';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
-    ctx.shadowBlur = 0;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
   }
 }
 
@@ -2646,14 +2647,15 @@ function drawBuilding(x, y, w, h, seed) {
     ctx.moveTo(ax - 6, ay - 4); ctx.lineTo(ax + 6, ay - 4);
     ctx.moveTo(ax - 4, ay); ctx.lineTo(ax + 4, ay);
     ctx.stroke();
-    // Röd LED-topp
+    // Röd LED-topp (PERF: dubbel-arc istället för shadowBlur)
+    ctx.fillStyle = 'rgba(255, 48, 48, 0.45)';
+    ctx.beginPath();
+    ctx.arc(ax, ay - 8, 3, 0, Math.PI * 2);
+    ctx.fill();
     ctx.fillStyle = '#ff3030';
-    ctx.shadowColor = '#ff3030';
-    ctx.shadowBlur = 6;
     ctx.beginPath();
     ctx.arc(ax, ay - 8, 1.8, 0, Math.PI * 2);
     ctx.fill();
-    ctx.shadowBlur = 0;
   }
   // Roof number (för identifiering)
   if (w > 100 && h > 100) {
@@ -4894,16 +4896,29 @@ function drawBrOutsideWarning() {
   const dy = state.player.y - z.y;
   const d2 = dx * dx + dy * dy;
   if (d2 <= z.r * z.r) return; // i zonen — safe
-  // Spelaren är UTANFÖR — pulserande röd vignett
+  // Spelaren är UTANFÖR — pulserande röd kant-frame (PERF: kant istället för full
+  // screen-gradient. 4 tunna rects = ~20% av en full-screen-fill i kostnad).
   const t = performance.now() / 1000;
   const pulse = 0.4 + Math.sin(t * 4) * 0.3;
   ctx.save();
-  const grad = ctx.createRadialGradient(viewW / 2, viewH / 2, viewW * 0.3, viewW / 2, viewH / 2, viewW * 0.7);
-  grad.addColorStop(0, 'rgba(220, 30, 30, 0)');
-  grad.addColorStop(0.7, 'rgba(220, 30, 30, ' + (0.15 * pulse) + ')');
-  grad.addColorStop(1, 'rgba(220, 30, 30, ' + (0.55 * pulse) + ')');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, viewW, viewH);
+  const edgeAlpha = 0.55 * pulse;
+  const edgeW = 60; // tjocklek på röd kant
+  ctx.fillStyle = 'rgba(220, 30, 30, ' + edgeAlpha + ')';
+  // Top
+  ctx.fillRect(0, 0, viewW, edgeW);
+  // Bottom
+  ctx.fillRect(0, viewH - edgeW, viewW, edgeW);
+  // Left
+  ctx.fillRect(0, edgeW, edgeW, viewH - 2 * edgeW);
+  // Right
+  ctx.fillRect(viewW - edgeW, edgeW, edgeW, viewH - 2 * edgeW);
+  // Inre fade-band (subtil — bara en liten rect på vardera kant)
+  ctx.fillStyle = 'rgba(220, 30, 30, ' + (edgeAlpha * 0.3) + ')';
+  const fadeW = 30;
+  ctx.fillRect(0, edgeW, viewW, fadeW);
+  ctx.fillRect(0, viewH - edgeW - fadeW, viewW, fadeW);
+  ctx.fillRect(edgeW, edgeW + fadeW, fadeW, viewH - 2 * (edgeW + fadeW));
+  ctx.fillRect(viewW - edgeW - fadeW, edgeW + fadeW, fadeW, viewH - 2 * (edgeW + fadeW));
   // Pil mot närmaste edge på zonen (inte centrum — annars går spelaren längre än nödvändigt)
   const cx = viewW / 2, cy = viewH / 2;
   const camX = Math.round(state.camera.x), camY = Math.round(state.camera.y);
@@ -4921,38 +4936,37 @@ function drawBrOutsideWarning() {
     const arrowR = Math.min(viewW, viewH) * 0.35;
     const ax = cx + Math.cos(angToZone) * arrowR;
     const ay = cy + Math.sin(angToZone) * arrowR;
+    // PERF: ingen shadowBlur på arrow — bara strokad utlinje för "glow"
     ctx.fillStyle = '#3acaff';
-    ctx.shadowColor = '#3acaff';
-    ctx.shadowBlur = 16;
     ctx.beginPath();
     ctx.moveTo(ax + Math.cos(angToZone) * 30, ay + Math.sin(angToZone) * 30);
     ctx.lineTo(ax + Math.cos(angToZone + 2.5) * 20, ay + Math.sin(angToZone + 2.5) * 20);
     ctx.lineTo(ax + Math.cos(angToZone - 2.5) * 20, ay + Math.sin(angToZone - 2.5) * 20);
     ctx.closePath();
     ctx.fill();
-    ctx.shadowBlur = 0;
-    // "→ ZON HÄR"-text
-    ctx.fillStyle = '#fff';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    // "→ ZON HÄR"-text — använd dubbel-fill (outline-effect) istället för shadow
     ctx.font = 'bold 14px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.shadowColor = '#000';
-    ctx.shadowBlur = 4;
     const txtX = cx + Math.cos(angToZone) * (arrowR - 35);
     const txtY = cy + Math.sin(angToZone) * (arrowR - 35);
+    ctx.fillStyle = '#000';
+    ctx.fillText('→ ZON', txtX + 1, txtY + 1); // skugga
+    ctx.fillStyle = '#fff';
     ctx.fillText('→ ZON', txtX, txtY);
-    ctx.shadowBlur = 0;
   }
-  // Top-center varning
-  ctx.fillStyle = '#ff5050';
+  // Top-center varning — dubbel-fill istället för shadow
   ctx.font = 'bold 18px sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  ctx.shadowColor = '#000';
-  ctx.shadowBlur = 5;
   ctx.globalAlpha = 0.6 + pulse * 0.4;
+  ctx.fillStyle = '#000';
+  ctx.fillText('⚠ UTANFÖR ZONEN — ' + phaseCfg.outsideDmg + ' HP/SEK', cx + 1, 81);
+  ctx.fillStyle = '#ff5050';
   ctx.fillText('⚠ UTANFÖR ZONEN — ' + phaseCfg.outsideDmg + ' HP/SEK', cx, 80);
-  ctx.shadowBlur = 0;
   ctx.restore();
 }
 
@@ -4964,44 +4978,35 @@ function drawBrZone() {
   const sx = z.x - cx, sy = z.y - cy;
   const t = performance.now() / 1000;
   ctx.save();
-  // 1. Rita "outside-zone" red tint — täcker hela skärmen, sedan klipper ut zonen
-  //    (cirkel "hål"). Detta gör att utanför-zonen färgas röd så spelaren ser
-  //    att de tar damage.
-  if (state.battleroyalePhase > 0) {
-    // Phase-baserad intensitet
-    const intensity = Math.min(0.35, state.battleroyalePhase * 0.08);
-    ctx.fillStyle = 'rgba(220, 30, 30, ' + intensity + ')';
-    ctx.beginPath();
-    ctx.rect(0, 0, viewW, viewH);
-    ctx.arc(sx, sy, z.r, 0, Math.PI * 2, true); // motsols = hål
-    ctx.fill('evenodd');
-  }
-  // 2. Zone ring (cyan/gold, pulserande)
+  // PERF: ta bort full-viewport evenodd-fill (var stor flaskhals — 2M pixlar/frame).
+  // Outside-feedback hanteras nu av drawBrOutsideWarning (mer effektiv kant-frame).
+  // 1. Zone ring (cyan, pulserande, INGEN shadowBlur — var dyrt)
   const pulse = 0.85 + Math.sin(t * 2.5) * 0.15;
   ctx.strokeStyle = '#3acaff';
   ctx.lineWidth = 5;
-  ctx.shadowColor = '#3acaff';
-  ctx.shadowBlur = 18 * pulse;
-  ctx.globalAlpha = 0.85;
+  ctx.globalAlpha = 0.85 + 0.1 * pulse;
   ctx.beginPath();
   ctx.arc(sx, sy, z.r, 0, Math.PI * 2);
   ctx.stroke();
-  ctx.shadowBlur = 0;
-  // 3. Next-zone preview (gold dashed circle) — warning-fas
+  // Inre svag-fill (visar tydligt vad som är "safe") — billig
+  if (state.battleroyalePhase > 0) {
+    ctx.fillStyle = 'rgba(58, 202, 255, 0.04)';
+    ctx.beginPath();
+    ctx.arc(sx, sy, z.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // 2. Next-zone preview (gold dashed circle) — warning-fas, INGEN shadowBlur
   if (state.battleroyaleNextZone) {
     const nz = state.battleroyaleNextZone;
     const nsx = nz.x - cx, nsy = nz.y - cy;
     ctx.strokeStyle = '#ffd54a';
     ctx.lineWidth = 3;
-    ctx.shadowColor = '#ffd54a';
-    ctx.shadowBlur = 12 * pulse;
     ctx.globalAlpha = 0.9;
     ctx.setLineDash([14, 8]);
     ctx.beginPath();
     ctx.arc(nsx, nsy, nz.r, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.shadowBlur = 0;
     // Pil från current center mot next center (om de är olika)
     if (Math.abs(nz.x - z.x) > 50 || Math.abs(nz.y - z.y) > 50) {
       ctx.strokeStyle = '#ffd54a';
@@ -5035,7 +5040,8 @@ function drawBrLoot() {
   const pulse = 0.7 + Math.sin(t * 3) * 0.3;
   ctx.save();
   const nowMs = Date.now();
-  for (const id of Object.keys(state.battleroyaleLoot)) {
+  // PERF: for...in är snabbare än Object.keys (ingen array-allokering per frame)
+  for (const id in state.battleroyaleLoot) {
     const lo = state.battleroyaleLoot[id];
     if (!lo.available) continue;
     const x = lo.x - cx, y = lo.y - cy;
@@ -5050,13 +5056,19 @@ function drawBrLoot() {
     else if (lo.tier === 'legendary') { tierColor = '#ffd54a'; glowColor = '#ffd54a'; }
     else if (lo.tier === 'corpse')   { tierColor = '#ff8aff'; glowColor = '#bb33bb'; } // corpse-drop = lila
     if (isLocked) { tierColor = '#666'; glowColor = '#444'; }
-    // Glow under
-    ctx.shadowColor = glowColor;
-    ctx.shadowBlur = 14 * pulse;
-    // Bas-cirkel (ground-shadow)
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    // PERF: shadowBlur är canvas-flaskhals. Bara använd för rare/legendary/corpse
+    // (där glow är meningsfull för "spotlight"). Common/uncommon = ingen shadow.
+    const useShadow = !isLocked && (lo.tier === 'rare' || lo.tier === 'legendary' || lo.tier === 'corpse');
+    if (useShadow) {
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = 12 * pulse;
+    } else {
+      ctx.shadowBlur = 0;
+    }
+    // Bas-cirkel (ground-shadow) — kort fyllning utan shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.beginPath();
-    ctx.arc(x, y + 4, 12, 0, Math.PI * 2);
+    ctx.arc(x, y + 4, 11, 0, Math.PI * 2);
     ctx.fill();
     // Loot-låda eller pickup-ikon baserat på kind
     if (lo.kind === 'weapon') {
@@ -20775,6 +20787,7 @@ function showJuggernautEndScreen(winnerId, stats) {
 // BATTLE ROYALE HUD + KILLFEED + END-SCREEN
 // ============================================================
 function showBrHud() {
+  _startBrHudInterval();
   let el = document.getElementById('br-hud');
   if (!el) {
     el = document.createElement('div');
@@ -20795,6 +20808,7 @@ function showBrHud() {
 }
 
 function hideBrHud() {
+  _stopBrHudInterval();
   const el = document.getElementById('br-hud');
   if (el) el.style.display = 'none';
   const kf = document.getElementById('br-killfeed');
@@ -20834,7 +20848,7 @@ function updateBrHud() {
   if (midUnlockEl && state.battleroyaleLoot) {
     let lockedCenter = null;
     const nowMs = Date.now();
-    for (const id of Object.keys(state.battleroyaleLoot)) {
+    for (const id in state.battleroyaleLoot) {
       const lo = state.battleroyaleLoot[id];
       if (lo.unlockAt && nowMs < lo.unlockAt && lo.tier === 'legendary') {
         lockedCenter = lo;
@@ -20961,10 +20975,20 @@ function showBrEndScreen(winnerId, statsArr) {
   if (rematchBtn) rematchBtn.classList.toggle('hidden', !Coop.isHost);
 }
 
-// Auto-update HUD every 200ms when active
-setInterval(() => {
-  if (state.battleroyaleActive && typeof updateBrHud === 'function') updateBrHud();
-}, 200);
+// HUD auto-update: startas vid showBrHud, stoppas vid hideBrHud.
+// PERF: tidigare permanent setInterval kördes alltid var 200ms även när BR inte
+// var aktivt — onödigt JS-arbete per match-end.
+let _brHudInterval = null;
+function _startBrHudInterval() {
+  if (_brHudInterval) return;
+  _brHudInterval = setInterval(() => {
+    if (state.battleroyaleActive && typeof updateBrHud === 'function') updateBrHud();
+    else { clearInterval(_brHudInterval); _brHudInterval = null; }
+  }, 200);
+}
+function _stopBrHudInterval() {
+  if (_brHudInterval) { clearInterval(_brHudInterval); _brHudInterval = null; }
+}
 
 // drawJuggernautArrows — JUG-spelaren ser off-screen-pilar mot hunters
 // INOM 1800px (var: alla hunters alltid → för omniscient). Bortom 1800px får
@@ -34130,22 +34154,22 @@ function drawMiniMap() {
       ctx.beginPath(); ctx.arc(nzx, nzy, nzr, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
     }
-    // Legendary-loot markers (gula prickar)
+    // Legendary-loot markers (gula prickar) — PERF: for...in + cache pulse-alpha
     if (state.battleroyaleLoot) {
       const t = performance.now() / 1000;
       const pulse = 0.6 + Math.sin(t * 3) * 0.4;
       const nowMs = Date.now();
-      ctx.fillStyle = 'rgba(255,213,74,' + (0.7 + 0.3 * pulse) + ')';
+      const goldAlpha = 'rgba(255,213,74,' + (0.7 + 0.3 * pulse) + ')';
       ctx.strokeStyle = 'rgba(0,0,0,0.5)';
       ctx.lineWidth = 0.5;
-      for (const id of Object.keys(state.battleroyaleLoot)) {
+      for (const id in state.battleroyaleLoot) {
         const lo = state.battleroyaleLoot[id];
         if (!lo.available) continue;
         if (lo.tier !== 'legendary' && lo.tier !== 'rare') continue;
         if (lo.unlockAt && nowMs < lo.unlockAt) continue;
         const lx = ox + lo.x * scale, ly = oy + lo.y * scale;
         const isLegendary = lo.tier === 'legendary';
-        ctx.fillStyle = isLegendary ? 'rgba(255,213,74,' + (0.7 + 0.3 * pulse) + ')' : 'rgba(58,202,255,0.7)';
+        ctx.fillStyle = isLegendary ? goldAlpha : 'rgba(58,202,255,0.7)';
         ctx.beginPath(); ctx.arc(lx, ly, isLegendary ? 2.5 : 1.8, 0, Math.PI * 2); ctx.fill();
         ctx.stroke();
       }

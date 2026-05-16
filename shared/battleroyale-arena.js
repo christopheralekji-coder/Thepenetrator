@@ -409,46 +409,39 @@ const BATTLEROYALE_ARENA = {
     legendary: 0.05,
   },
 
-  // Vapen-pool per tier. Justerat efter balance + playtest-rapport:
-  //   - Common: mindre ammo (var ratio-killer), mer hp_small + shield_small
-  //   - Uncommon: rifle viktas LÄGRE (dominerade tier), shield_small viktas högre
-  //   - Rare: lagt till grenade (var legendary — passar bättre här)
-  //   - Legendary: minigun viktas lägre (DOMINANT), tagit bort grenade
+  // Vapen-pool per tier. User-curaterad lista — 10 vapen totalt + pistol som start:
+  //   Common/Uncommon ("inte rare"): burstpistol, smg/kpist, crossbow/armborst, boomerang
+  //   Rare ("mellan rare"): rifle/automatkarbin, sniper, flame/eldkastare, energysword
+  //   Legendary ("rare topp"): minigun, lightsaber/lasersvärd
+  // Pickups (hp/shield/ammo) blandas in i common+uncommon för balansering.
   lootByTier: {
     common: [
-      { kind: 'hp_small',     weight: 45 }, // +30 HP — primär common-roll
-      { kind: 'shield_small', weight: 20 }, // +25 shield — ny i common (mer värde)
-      { kind: 'ammo',         weight: 15 }, // ammo-refill för current vapen
-      { kind: 'weapon', weaponId: 'pistol', weight: 10 },
-      { kind: 'weapon', weaponId: 'knife',  weight: 10 },
+      { kind: 'hp_small',     weight: 40 }, // +30 HP — primär common-roll
+      { kind: 'shield_small', weight: 20 }, // +25 shield
+      { kind: 'ammo',         weight: 15 }, // ammo-refill
+      { kind: 'weapon', weaponId: 'burstpistol', weight: 10 },
+      { kind: 'weapon', weaponId: 'smg',         weight: 10 },
+      { kind: 'weapon', weaponId: 'boomerang',   weight: 5 },
     ],
     uncommon: [
-      { kind: 'weapon', weaponId: 'smg',         weight: 20 },
-      { kind: 'weapon', weaponId: 'rifle',       weight: 15 }, // nerf weight (var 25)
-      { kind: 'weapon', weaponId: 'shotgun',     weight: 20 },
-      { kind: 'weapon', weaponId: 'revolver',    weight: 15 },
-      { kind: 'weapon', weaponId: 'burstpistol', weight: 10 }, // promoted från rare
-      { kind: 'shield_small',                    weight: 20 }, // mer cover (var 15)
+      { kind: 'weapon', weaponId: 'smg',         weight: 25 },
+      { kind: 'weapon', weaponId: 'burstpistol', weight: 20 },
+      { kind: 'weapon', weaponId: 'crossbow',    weight: 20 },
+      { kind: 'weapon', weaponId: 'boomerang',   weight: 15 },
+      { kind: 'shield_small',                    weight: 15 },
+      { kind: 'hp_small',                        weight: 5 },
     ],
     rare: [
-      { kind: 'weapon', weaponId: 'bow',         weight: 15 },
-      { kind: 'weapon', weaponId: 'sniper',      weight: 15 },
-      { kind: 'weapon', weaponId: 'crossbow',    weight: 12 },
-      { kind: 'weapon', weaponId: 'tesla',       weight: 10 },
-      { kind: 'weapon', weaponId: 'frost',       weight: 10 },
-      { kind: 'weapon', weaponId: 'grenade',     weight: 10 }, // demoted från legendary
-      { kind: 'weapon', weaponId: 'sonic',       weight: 8 },
+      { kind: 'weapon', weaponId: 'rifle',       weight: 25 }, // automatkarbin
+      { kind: 'weapon', weaponId: 'sniper',      weight: 22 },
+      { kind: 'weapon', weaponId: 'flame',       weight: 20 }, // eldkastare
+      { kind: 'weapon', weaponId: 'energysword', weight: 15 }, // energisvärd
       { kind: 'hp_big',                          weight: 10 },
-      { kind: 'shield_big',                      weight: 10 },
+      { kind: 'shield_big',                      weight: 8 },
     ],
     legendary: [
-      { kind: 'weapon', weaponId: 'minigun', weight: 15 }, // nerf weight (var 25)
-      { kind: 'weapon', weaponId: 'rocket',  weight: 20 },
-      { kind: 'weapon', weaponId: 'plasma',  weight: 20 },
-      { kind: 'weapon', weaponId: 'sledge',  weight: 15 },
-      { kind: 'weapon', weaponId: 'railgun', weight: 15 },
-      { kind: 'weapon', weaponId: 'lightsaber', weight: 8 }, // ny — 1-hit melee chase
-      { kind: 'weapon', weaponId: 'energysword', weight: 7 },
+      { kind: 'weapon', weaponId: 'minigun',    weight: 50 },
+      { kind: 'weapon', weaponId: 'lightsaber', weight: 50 }, // lasersvärd
     ],
   },
 
