@@ -3777,61 +3777,191 @@ function drawBridge(x, y, w, h) {
 
 // PLANE FUSELAGE — krashat flygkroppen
 function drawPlaneFuselage(x, y, w, h, seed) {
-  // Mjuk ellips-skugga (under objektet)
-  ctx.fillStyle = 'rgba(0,0,0,0.36)';
+  // KRASHAT PLAN — INTE en fyrkant. Render som AVLÅNG TUB med trasig mitten där
+  // flygkroppen knäcktes vid krasch, exponerade interiör, böjda metallplåtar.
+  const cy = y + h / 2;
+  // Mjuk skugga (oval för rundad form)
+  ctx.fillStyle = 'rgba(0,0,0,0.42)';
   ctx.beginPath();
-  ctx.ellipse(x + w / 2, y + h * 0.96, w * 0.52, h * 0.15, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + w / 2 + 8, cy + 12, w * 0.52, h * 0.30, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Bas (vit-grå metall med sotigt)
-  const grad = ctx.createLinearGradient(x, y, x, y + h);
-  grad.addColorStop(0, '#9aa0a8');
-  grad.addColorStop(0.4, '#7a808a');
-  grad.addColorStop(0.6, '#5a5a60');
-  grad.addColorStop(1, '#3a3038');
-  ctx.fillStyle = grad;
-  ctx.fillRect(x, y, w, h);
-  // Cockpit (front-höger, mörkare)
-  ctx.fillStyle = '#1a1818';
-  ctx.fillRect(x + w - 60, y + 5, 55, h - 10);
-  // Cockpit-fönster
-  ctx.fillStyle = '#5a7a8a';
-  ctx.fillRect(x + w - 55, y + 10, 18, 12);
-  ctx.fillRect(x + w - 33, y + 10, 18, 12);
-  ctx.strokeStyle = '#000';
-  ctx.lineWidth = 1.2;
-  ctx.strokeRect(x + w - 60, y + 5, 55, h - 10);
-  // Krossade fönster längs sidan (rad svarta rektanglar)
-  ctx.fillStyle = '#0a0408';
-  for (let i = 0; i < 8; i++) {
-    const wx = x + 30 + i * 35;
-    if (wx > x + w - 80) break;
-    ctx.fillRect(wx, y + h * 0.3, 18, h * 0.2);
-  }
-  // Sotigt sprickor
-  ctx.fillStyle = 'rgba(20, 10, 0, 0.7)';
-  for (let i = 0; i < 5; i++) {
-    const sx = x + ((seed * (i + 1) * 13) & 0xff) % (w - 30);
-    const sy = y + ((seed * (i + 3) * 17) & 0xff) % h;
-    ctx.fillRect(sx, sy, 25, 3);
-  }
-  // Airline logo (subtil)
-  ctx.fillStyle = '#cc2020';
-  ctx.fillRect(x + w * 0.3, y + h * 0.65, w * 0.15, 6);
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 12px sans-serif';
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('SKYAIR 442', x + w * 0.35, y + h * 0.78);
-  // Yttre kant
+  // ============ HUVUDKROPP — avlång rundad tub med BÖJD/KNÄCKT mitten ============
+  // Plane består av 3 delar: bakre + främre (intakt) + KNÄCKZON i mitten (öppen)
+  const breakStart = w * 0.35;
+  const breakEnd = w * 0.50;
+  // BAKRE sektion (vänster del, från x till x + breakStart)
+  ctx.save();
+  ctx.beginPath();
+  // Rundad nos (vänster, smal)
+  ctx.moveTo(x, cy);
+  // Övre kant — något böjd nedåt mot break-zonen
+  ctx.bezierCurveTo(x + 10, y - 4, x + breakStart * 0.4, y, x + breakStart, cy - h * 0.4);
+  // Krasch-kanten (jagged top)
+  ctx.lineTo(x + breakStart + 5, cy - h * 0.25);
+  ctx.lineTo(x + breakStart - 3, cy);
+  ctx.lineTo(x + breakStart + 4, cy + h * 0.15);
+  ctx.lineTo(x + breakStart - 2, cy + h * 0.35);
+  ctx.lineTo(x + breakStart, cy + h * 0.42);
+  // Botten-kant — något böjd
+  ctx.bezierCurveTo(x + breakStart * 0.4, y + h, x + 10, y + h + 4, x, cy);
+  ctx.closePath();
+  const bgrad = ctx.createLinearGradient(x, y, x, y + h);
+  bgrad.addColorStop(0, '#9aa0a8');
+  bgrad.addColorStop(0.45, '#7a808a');
+  bgrad.addColorStop(0.6, '#5a5a60');
+  bgrad.addColorStop(1, '#3a3038');
+  ctx.fillStyle = bgrad;
+  ctx.fill();
   ctx.strokeStyle = '#1a0e08';
   ctx.lineWidth = 2;
-  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-  // Rusty rivets (rad nitar)
-  ctx.fillStyle = '#3a2a18';
-  for (let i = 0; i < w; i += 18) {
+  ctx.stroke();
+  ctx.restore();
+  // FRÄMRE sektion (höger del, från x + breakEnd till x + w) — cockpit-sidan
+  // Tiltad något så det ser krashat ut
+  ctx.save();
+  // Tilt: pivot vid breakEnd, rotera -0.08 rad
+  const pivX = x + breakEnd + 10;
+  const pivY = cy + h * 0.10;
+  ctx.translate(pivX, pivY);
+  ctx.rotate(-0.10);
+  ctx.translate(-pivX, -pivY);
+  ctx.beginPath();
+  // Krasch-kant (jagged left)
+  ctx.moveTo(x + breakEnd, cy + h * 0.42);
+  ctx.lineTo(x + breakEnd + 3, cy + h * 0.20);
+  ctx.lineTo(x + breakEnd - 2, cy);
+  ctx.lineTo(x + breakEnd + 5, cy - h * 0.20);
+  ctx.lineTo(x + breakEnd, cy - h * 0.40);
+  // Övre kant — fram till cockpit-nosen
+  ctx.bezierCurveTo(x + w * 0.65, y - 2, x + w * 0.85, y, x + w - 18, cy - h * 0.42);
+  // Rundad nos (höger)
+  ctx.bezierCurveTo(x + w - 4, cy - h * 0.30, x + w + 2, cy - h * 0.10, x + w, cy);
+  ctx.bezierCurveTo(x + w + 2, cy + h * 0.10, x + w - 4, cy + h * 0.30, x + w - 18, cy + h * 0.42);
+  // Botten
+  ctx.bezierCurveTo(x + w * 0.85, y + h, x + w * 0.65, y + h + 2, x + breakEnd, cy + h * 0.42);
+  ctx.closePath();
+  ctx.fillStyle = bgrad;
+  ctx.fill();
+  ctx.strokeStyle = '#1a0e08';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // Cockpit-glas (rundad front)
+  ctx.fillStyle = '#1a2028';
+  ctx.beginPath();
+  ctx.ellipse(x + w - 30, cy, 22, h * 0.34, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Cockpit-window-glow
+  ctx.fillStyle = 'rgba(110, 140, 170, 0.55)';
+  ctx.beginPath();
+  ctx.ellipse(x + w - 30, cy - 3, 16, h * 0.22, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(x + w - 30, cy, 22, h * 0.34, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  // Cockpit-spricka (krossat glas)
+  ctx.strokeStyle = 'rgba(20, 25, 35, 0.85)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(x + w - 38, cy - 4);
+  ctx.lineTo(x + w - 28, cy + 2);
+  ctx.lineTo(x + w - 22, cy - 5);
+  ctx.stroke();
+  // Krossade fönster (rad runda fönster längs främre sektion)
+  ctx.fillStyle = '#0a0408';
+  for (let i = 0; i < 4; i++) {
+    const wx = x + breakEnd + 18 + i * 30;
+    if (wx > x + w - 55) break;
     ctx.beginPath();
-    ctx.arc(x + i, y + 6, 1.2, 0, Math.PI * 2);
-    ctx.arc(x + i, y + h - 6, 1.2, 0, Math.PI * 2);
+    ctx.ellipse(wx, cy, 7, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Spricka över fönstret
+    ctx.strokeStyle = 'rgba(70, 80, 95, 0.5)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(wx - 6, cy - 1); ctx.lineTo(wx + 6, cy + 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+  // ============ KNÄCK-ZON I MITTEN — exponerad interiör (mörk) ============
+  ctx.save();
+  // Mörk hål-bakgrund mellan break-sektionerna
+  ctx.fillStyle = '#0e0a08';
+  ctx.beginPath();
+  ctx.moveTo(x + breakStart, cy - h * 0.40);
+  ctx.lineTo(x + breakStart + 5, cy - h * 0.25);
+  ctx.lineTo(x + breakStart - 3, cy);
+  ctx.lineTo(x + breakStart + 4, cy + h * 0.15);
+  ctx.lineTo(x + breakStart - 2, cy + h * 0.35);
+  ctx.lineTo(x + breakStart, cy + h * 0.42);
+  ctx.lineTo(x + breakEnd, cy + h * 0.42);
+  ctx.lineTo(x + breakEnd + 3, cy + h * 0.20);
+  ctx.lineTo(x + breakEnd - 2, cy);
+  ctx.lineTo(x + breakEnd + 5, cy - h * 0.20);
+  ctx.lineTo(x + breakEnd, cy - h * 0.40);
+  ctx.closePath();
+  ctx.fill();
+  // Exponerade kablar/vajrar (rödorange + gula)
+  const wires = ['#cc4020', '#ddaa30', '#888888', '#cc4020', '#5050aa'];
+  for (let i = 0; i < wires.length; i++) {
+    const yy = cy - h * 0.30 + i * h * 0.16;
+    ctx.strokeStyle = wires[i];
+    ctx.lineWidth = 1.5 + (i % 2);
+    ctx.beginPath();
+    ctx.moveTo(x + breakStart - 2, yy);
+    // Slingrande
+    ctx.bezierCurveTo(
+      x + breakStart + 10, yy + 5,
+      x + breakEnd - 10, yy - 3,
+      x + breakEnd + 2, yy + 2
+    );
+    ctx.stroke();
+  }
+  // Stänger/balkar (mörkgrå metallbitar som sticker ut)
+  ctx.fillStyle = '#3a3a40';
+  ctx.fillRect(x + breakStart + 8, cy - h * 0.15, 16, 3);
+  ctx.fillRect(x + breakEnd - 14, cy + h * 0.10, 12, 3);
+  // Eld/glödande röda gnistor vid kraschpunkten
+  const t = performance.now() / 1000;
+  const flicker = 0.6 + Math.sin(t * 7) * 0.4;
+  ctx.fillStyle = 'rgba(255, 80, 30, ' + (0.6 * flicker) + ')';
+  ctx.beginPath();
+  ctx.ellipse((x + breakStart + x + breakEnd) / 2, cy, 12, h * 0.28, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255, 200, 80, ' + (0.55 * flicker) + ')';
+  ctx.beginPath();
+  ctx.ellipse((x + breakStart + x + breakEnd) / 2, cy, 5, h * 0.14, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  // ============ DETALJER ============
+  // Airline logo + text (på bakre sektion, INTE över krasch-zonen)
+  ctx.fillStyle = '#cc2020';
+  ctx.fillRect(x + breakStart * 0.35, cy + h * 0.15, 35, 4);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('SKYAIR', x + breakStart * 0.35, cy + h * 0.30);
+  // Sotiga sprickor på utsidan (random svarta-bruna fläckar)
+  ctx.fillStyle = 'rgba(20, 10, 0, 0.65)';
+  for (let i = 0; i < 8; i++) {
+    const sx = x + ((seed * (i + 1) * 13) & 0xff) % w;
+    const sy = y + ((seed * (i + 3) * 17) & 0xff) % h;
+    // Skip om i krasch-zonen
+    if (sx > x + breakStart - 10 && sx < x + breakEnd + 10) continue;
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, 14, 5, ((seed * i) % 100) / 100, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Rivets längs sidor (bara intakta sektioner)
+  ctx.fillStyle = '#3a2a18';
+  for (let i = 6; i < w; i += 22) {
+    // Hoppa över krasch-zonen
+    if (x + i > x + breakStart - 5 && x + i < x + breakEnd + 5) continue;
+    ctx.beginPath();
+    ctx.arc(x + i, y + 8, 1.2, 0, Math.PI * 2);
+    ctx.arc(x + i, y + h - 8, 1.2, 0, Math.PI * 2);
     ctx.fill();
   }
 }
@@ -4095,57 +4225,155 @@ function drawGravestone(x, y, w, h, seed, wallData) {
 
 // CLIFF EDGE — klippkanten över vattenfalls
 function drawCliffEdge(x, y, w, h, seed) {
-  // Skuggbas runt klippan
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(x + 4, y + 6, w, h);
-  // Klippa — fragmenterad rock-look istället för stor solid blockyta
-  const grad = ctx.createLinearGradient(x, y, x, y + h);
-  grad.addColorStop(0, '#6a6058');
-  grad.addColorStop(0.4, '#4a4238');
-  grad.addColorStop(1, '#2a2018');
-  ctx.fillStyle = grad;
-  ctx.fillRect(x, y, w, h);
-  // Sten-block-mönster (varierad fyllning så det inte ser ut som en stor klump)
-  const blockSize = 28;
-  for (let by = 0; by < h; by += blockSize) {
-    for (let bx = 0; bx < w; bx += blockSize) {
-      const s = ((seed + bx * 17 + by * 31) >>> 0) % 100;
-      const bw = Math.min(blockSize - 2, w - bx - 2);
-      const bh = Math.min(blockSize - 2, h - by - 2);
-      if (bw <= 0 || bh <= 0) continue;
-      // Slumpmässig ljushet per block
-      const shade = 30 + (s % 35);
-      ctx.fillStyle = 'rgba(' + (shade + 40) + ',' + (shade + 32) + ',' + (shade + 20) + ',0.65)';
-      ctx.fillRect(x + bx + 1, y + by + 1, bw, bh);
-      // Mörka fogar runt block
-      ctx.strokeStyle = 'rgba(20, 14, 8, 0.7)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + bx + 1, y + by + 1, bw, bh);
+  // ORGANISK BERGSMASS — INTE en fyrkant. Render som irregulär polygon-form
+  // med gradient, klippspetsar uppåt, snöcap, ridge-fasetter och mörk skugga.
+  const cx = x + w / 2, cy = y + h / 2;
+  // ============ Bygg irregulär polygon-kontur runt bbox ============
+  // 16 punkter runt rektangeln med per-punkt noise — ger mountain-silhuett
+  const N = 16;
+  const pts = [];
+  for (let i = 0; i < N; i++) {
+    const f = i / N;
+    const ang = f * Math.PI * 2;
+    // Basform: punkt på rektangelns kant baserat på vinkel
+    const dx0 = Math.cos(ang);
+    const dy0 = Math.sin(ang);
+    // Skalfaktor som matchar rektangeln (rektangulär basform)
+    const absX = Math.abs(dx0), absY = Math.abs(dy0);
+    const rs = Math.min(1 / Math.max(absX, 0.0001), 1 / Math.max(absY, 0.0001));
+    let bx = cx + dx0 * rs * (w / 2);
+    let by = cy + dy0 * rs * (h / 2);
+    // Noise: pull punkter UTÅT på toppen (peaks), INÅT i hörn (avrundade), neutralt på sidor
+    const noiseSeed = ((seed * (i + 1) * 73) >>> 0) % 1000;
+    const baseNoise = (noiseSeed / 1000 - 0.5) * 0.18; // ±9%
+    let scale = 1 + baseNoise;
+    // Top-halvan: ger PEAKS (mer utåt)
+    if (dy0 < -0.3) {
+      const peakNoise = ((seed * (i + 7) * 113) >>> 0) % 1000;
+      scale += (peakNoise / 1000) * 0.18; // 0..18% extra utåt
     }
+    // Botten: drar inåt (skugg-fot)
+    if (dy0 > 0.5) {
+      scale -= 0.05;
+    }
+    bx = cx + (bx - cx) * scale;
+    by = cy + (by - cy) * scale;
+    pts.push({ x: bx, y: by });
   }
-  // Översta kanten — ljus highlight (sol)
-  const topGrad = ctx.createLinearGradient(x, y, x, y + 8);
-  topGrad.addColorStop(0, 'rgba(220, 210, 180, 0.4)');
-  topGrad.addColorStop(1, 'rgba(220, 210, 180, 0)');
-  ctx.fillStyle = topGrad;
-  ctx.fillRect(x, y, w, 8);
-  // Mossa på toppen (mörkare grön)
-  ctx.fillStyle = 'rgba(45, 80, 35, 0.55)';
-  ctx.fillRect(x, y, w, 5);
-  // Spridda mossa-fläckar längs sidor
-  for (let i = 0; i < 6; i++) {
-    const mx = x + ((seed * (i + 7) * 11) >>> 0) % w;
-    const my = y + ((seed * (i + 13) * 17) >>> 0) % h;
-    const mr = 3 + ((seed * (i + 5)) >>> 0) % 4;
-    ctx.fillStyle = 'rgba(50, 90, 40, 0.45)';
+  // ============ Skugga (bredare än polygon för djup-effekt) ============
+  ctx.save();
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x + 6, pts[0].y + 10);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x + 6, pts[i].y + 10);
+  ctx.closePath();
+  ctx.fill();
+  // ============ Mountain body — gradient + clip till polygon ============
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.closePath();
+  ctx.save();
+  ctx.clip();
+  // Bas-gradient (mörk-blå-grå för riktig mountain-känsla)
+  const grad = ctx.createLinearGradient(x, y, x, y + h);
+  grad.addColorStop(0, '#8a8478');     // ljus topp
+  grad.addColorStop(0.25, '#6a6258');  // mid övre
+  grad.addColorStop(0.55, '#4a4238');  // mid undre
+  grad.addColorStop(0.85, '#2a2218');  // mörk botten
+  grad.addColorStop(1, '#15100a');     // skuggig fot
+  ctx.fillStyle = grad;
+  ctx.fillRect(x - 20, y - 20, w + 40, h + 40);
+  // ============ Ridge-fasetter (mörka diagonalstreck från topp ner) ============
+  // Slumpmässigt placerade ridges som ger berget 3D-form
+  ctx.strokeStyle = 'rgba(15, 10, 5, 0.55)';
+  ctx.lineWidth = 1.8;
+  const ridgeCount = 6;
+  for (let i = 0; i < ridgeCount; i++) {
+    const f = (i + 0.5) / ridgeCount;
+    const topX = x + f * w + ((seed * (i + 3) * 31) % 40) - 20;
+    const topY = y + 5;
+    const botX = topX + ((seed * (i + 7) * 17) % 60) - 30;
+    const botY = y + h - 8;
     ctx.beginPath();
-    ctx.arc(mx, my, mr, 0, Math.PI * 2);
+    ctx.moveTo(topX, topY);
+    // Lätt böjd ridge
+    const midX = (topX + botX) / 2 + ((seed * (i + 11)) % 20) - 10;
+    const midY = y + h * 0.5;
+    ctx.quadraticCurveTo(midX, midY, botX, botY);
+    ctx.stroke();
+  }
+  // ============ Stora sten-block (texture) — flera olika tonade fläckar ============
+  for (let i = 0; i < 18; i++) {
+    const px = x + ((seed * (i + 1) * 41) % 1000) / 1000 * w;
+    const py = y + ((seed * (i + 5) * 67) % 1000) / 1000 * h;
+    const psize = 22 + ((seed * (i + 3) * 13) % 30);
+    const shade = ((seed * (i + 7) * 11) % 80);
+    ctx.fillStyle = 'rgba(' + (40 + shade) + ',' + (35 + shade) + ',' + (28 + shade) + ',0.4)';
+    ctx.beginPath();
+    ctx.ellipse(px, py, psize, psize * 0.7, ((seed * i) % 100) / 100 * Math.PI, 0, Math.PI * 2);
     ctx.fill();
   }
-  // Yttre konturskugga
-  ctx.strokeStyle = 'rgba(15, 10, 5, 0.8)';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  // ============ Spridda mörka skuggor (crevices) ============
+  for (let i = 0; i < 10; i++) {
+    const px = x + ((seed * (i + 13) * 89) % 1000) / 1000 * w;
+    const py = y + ((seed * (i + 17) * 53) % 1000) / 1000 * h;
+    ctx.fillStyle = 'rgba(10, 8, 6, 0.55)';
+    ctx.beginPath();
+    ctx.ellipse(px, py, 16 + (i % 5), 8 + (i % 4), ((seed * i) % 100) / 100, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // ============ Snö-cap på toppen ============
+  // Snön ligger som en band längs övre delen av polygonen, med oregelbundna fingrar
+  // som droppar nedåt
+  ctx.fillStyle = 'rgba(240, 245, 250, 0.85)';
+  ctx.beginPath();
+  // Start från övre vänster
+  let snowStart = pts.findIndex(p => p.y < y + h * 0.12);
+  if (snowStart < 0) snowStart = 0;
+  // Gå längs övre kanten av polygonen
+  ctx.moveTo(x - 10, y - 5);
+  // Övre kant + finger-fall ned
+  for (let i = 0; i < pts.length; i++) {
+    const p = pts[i];
+    if (p.y > y + h * 0.30) continue; // bara övre 30% blir snö
+    ctx.lineTo(p.x, p.y);
+  }
+  ctx.lineTo(x + w + 10, y - 5);
+  ctx.lineTo(x + w + 10, y + h * 0.22);
+  // Oregelbundna snö-fingrar som faller ned
+  const fingerCount = 5;
+  for (let i = fingerCount - 1; i >= 0; i--) {
+    const fx = x + (i + 1) / (fingerCount + 1) * w;
+    const fy = y + h * (0.18 + ((seed * (i + 3) * 23) % 100) / 1000);
+    ctx.lineTo(fx + 12, fy - 4);
+    ctx.lineTo(fx, fy + ((seed * (i + 7)) % 30));
+    ctx.lineTo(fx - 12, fy - 4);
+  }
+  ctx.lineTo(x - 10, y + h * 0.22);
+  ctx.closePath();
+  ctx.fill();
+  // Snö-skugga (blå-grå)
+  ctx.fillStyle = 'rgba(170, 180, 195, 0.35)';
+  ctx.beginPath();
+  ctx.moveTo(x - 10, y + h * 0.08);
+  ctx.lineTo(x + w * 0.3, y + h * 0.04);
+  ctx.lineTo(x + w * 0.65, y + h * 0.10);
+  ctx.lineTo(x + w + 10, y + h * 0.16);
+  ctx.lineTo(x + w + 10, y + h * 0.22);
+  ctx.lineTo(x - 10, y + h * 0.22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore(); // pop polygon-clip
+  // ============ Yttre mörk outline (silhuett) — efter clip ============
+  ctx.strokeStyle = 'rgba(8, 6, 4, 0.85)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
 }
 
 // STANDING STONE — forntida menhir (del av stencirkel)
@@ -7516,114 +7744,144 @@ function drawBrGroundDecorations(decos) {
       ctx.fillStyle = halo;
       ctx.fillRect(x, y, d.w, d.h);
     } else if (d.kind === 'alien_floor') {
-      // ALIEN-MARK: lila bas + MJUK FADE mot skog-sidorna (top + vänster) +
-      // GLÖDANDE RÖDA SPRICKOR spridda över hela ytan.
+      // ALIEN-MARK: rendera STATIC base+sotfläckar+cracks till OFFSCREEN canvas,
+      // applicera fade-mask via destination-out på TOP+VÄNSTER så kanterna blir
+      // ÄKTA transparent (skogen syns igenom utan att vi raderar den). Cache mellan
+      // frames så vi inte rebuildar canvas-bitmappen 60 ggr/sek.
       const x = d.x - cx, y = d.y - cy;
       if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
       const t = performance.now() / 1000;
       const pulse = 0.5 + Math.sin(t * 0.8) * 0.25;
       const seed = ((d.x * 19) ^ (d.y * 23)) | 0;
-      // Världen är 10000x10000 — alien-zon når kant höger+ned, men topp+vänster
-      // ska fade mjukt ut mot skogen. Bygg en linjär fade-mask i de riktningarna.
-      // BAS-FILL: radial-gradient med center vid map-hörnet (höger-ned)
-      // så alien-marken är SOLID vid hörnet och fadar mjukt mot top+vänster
-      // (där den möter skogen). Inga rektangulära kanter på de sidor som möter skogen.
-      const cornerWorldX = d.x + d.w; // världs-X för bottom-right corner
-      const cornerWorldY = d.y + d.h;
-      const cornerSX = cornerWorldX - cx; // screen-X
-      const cornerSY = cornerWorldY - cy;
-      // Inner: solid till ~70% av radien, sedan fade till transparent
-      const maxDist = Math.hypot(d.w, d.h);
-      const fillGrad = ctx.createRadialGradient(cornerSX, cornerSY, 0, cornerSX, cornerSY, maxDist);
-      fillGrad.addColorStop(0.00, 'rgba(42, 24, 56, 1)');
-      fillGrad.addColorStop(0.55, 'rgba(42, 24, 56, 1)');     // solid kärna
-      fillGrad.addColorStop(0.78, 'rgba(42, 24, 56, 0.75)');
-      fillGrad.addColorStop(0.90, 'rgba(42, 24, 56, 0.40)');
-      fillGrad.addColorStop(1.00, 'rgba(42, 24, 56, 0)');    // transparent vid topp-vänster
-      ctx.fillStyle = fillGrad;
-      ctx.fillRect(x, y, d.w, d.h);
-      // Pulserande lila glöd-patches över hela ytan
-      ctx.fillStyle = 'rgba(140, 60, 200, ' + (0.22 * pulse) + ')';
-      for (let i = 0; i < 50; i++) {
-        const px = x + ((seed * (i + 1) * 13) & 0x7ff) % d.w;
-        const py = y + ((seed * (i + 3) * 17) & 0x7ff) % d.h;
-        const r = 30 + ((seed * (i + 5)) & 0x3f);
-        ctx.beginPath();
-        ctx.ellipse(px, py, r, r * 0.7, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // "Brända" mörka sotfläckar
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-      for (let i = 0; i < 25; i++) {
-        const px = x + ((seed * (i + 7) * 19) & 0x7ff) % d.w;
-        const py = y + ((seed * (i + 11) * 23) & 0x7ff) % d.h;
-        ctx.beginPath();
-        ctx.ellipse(px, py, 18 + ((seed * i) % 14), 11 + ((seed * i) % 8), (seed * i) % 6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // ============ GLÖDANDE RÖDA SPRICKOR — utspridda över hela alien-marken ============
-      // 60 sprickor i grid-deterministic positions så de täcker hela ytan jämnt.
-      const crackCount = 60;
-      const cracks = [];
-      for (let i = 0; i < crackCount; i++) {
-        // Position: deterministic spridning över d.w × d.h
-        const cxw = x + ((seed * (i + 1) * 71) & 0xffff) % d.w;
-        const cyw = y + ((seed * (i + 5) * 113) & 0xffff) % d.h;
-        const a = ((seed * (i + 3) * 73) % 6283) / 1000;
-        const length = 60 + ((seed * (i + 7) * 17) & 0x7f);
-        const pts = [];
-        const segs = 4 + (i % 3);
-        for (let s = 0; s <= segs; s++) {
-          const f = s / segs;
-          const wobble = ((seed * (i + 1) * (s + 11) * 41) % 200 - 100) * 0.001;
-          const ang = a + wobble;
-          pts.push({
-            x: cxw + Math.cos(ang) * length * f,
-            y: cyw + Math.sin(ang) * length * f,
-          });
+      const cacheKey = d.x + '_' + d.y + '_' + d.w + '_' + d.h;
+      const FADE = 500;
+      if (!state._alienFloorCache || state._alienFloorCache.key !== cacheKey) {
+        const off = document.createElement('canvas');
+        off.width = d.w; off.height = d.h;
+        const oc = off.getContext('2d');
+        // 1. Solid lila bas
+        oc.fillStyle = '#2a1838';
+        oc.fillRect(0, 0, d.w, d.h);
+        // 2. Sotfläckar
+        oc.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        for (let i = 0; i < 40; i++) {
+          const px = ((seed * (i + 7) * 19) & 0xffff) % d.w;
+          const py = ((seed * (i + 11) * 23) & 0xffff) % d.h;
+          oc.beginPath();
+          oc.ellipse(px, py, 18 + ((seed * i) % 14), 11 + ((seed * i) % 8), (seed * i) % 6, 0, Math.PI * 2);
+          oc.fill();
         }
-        cracks.push(pts);
+        // 3. Mörk lila energi-fläckar (subtila)
+        oc.fillStyle = 'rgba(120, 40, 180, 0.20)';
+        for (let i = 0; i < 70; i++) {
+          const px = ((seed * (i + 1) * 13) & 0xffff) % d.w;
+          const py = ((seed * (i + 3) * 17) & 0xffff) % d.h;
+          const r = 25 + ((seed * (i + 5)) % 50);
+          oc.beginPath();
+          oc.ellipse(px, py, r, r * 0.7, 0, 0, Math.PI * 2);
+          oc.fill();
+        }
+        // 4. GLÖDANDE RÖDA SPRICKOR — 80 stycken jämnt utspridda
+        const crackCount = 80;
+        const cracks = [];
+        for (let i = 0; i < crackCount; i++) {
+          const cxw = ((seed * (i + 1) * 71) & 0xffff) % d.w;
+          const cyw = ((seed * (i + 5) * 113) & 0xffff) % d.h;
+          const a = ((seed * (i + 3) * 73) % 6283) / 1000;
+          const length = 70 + ((seed * (i + 7) * 17) & 0x7f);
+          const path = [];
+          const segs = 4 + (i % 3);
+          for (let s = 0; s <= segs; s++) {
+            const f = s / segs;
+            const wobble = ((seed * (i + 1) * (s + 11) * 41) % 200 - 100) * 0.001;
+            const ang = a + wobble;
+            path.push({ x: cxw + Math.cos(ang) * length * f, y: cyw + Math.sin(ang) * length * f });
+          }
+          cracks.push(path);
+        }
+        oc.lineCap = 'round';
+        oc.lineJoin = 'round';
+        // Yttre röd halo (bred)
+        oc.strokeStyle = 'rgba(255, 30, 40, 0.30)';
+        oc.lineWidth = 11;
+        for (const path of cracks) {
+          oc.beginPath();
+          oc.moveTo(path[0].x, path[0].y);
+          for (let s = 1; s < path.length; s++) oc.lineTo(path[s].x, path[s].y);
+          oc.stroke();
+        }
+        // Mid orange-röd
+        oc.strokeStyle = 'rgba(255, 90, 50, 0.55)';
+        oc.lineWidth = 5;
+        for (const path of cracks) {
+          oc.beginPath();
+          oc.moveTo(path[0].x, path[0].y);
+          for (let s = 1; s < path.length; s++) oc.lineTo(path[s].x, path[s].y);
+          oc.stroke();
+        }
+        // Tunn orange
+        oc.strokeStyle = 'rgba(255, 140, 70, 0.78)';
+        oc.lineWidth = 2.5;
+        for (const path of cracks) {
+          oc.beginPath();
+          oc.moveTo(path[0].x, path[0].y);
+          for (let s = 1; s < path.length; s++) oc.lineTo(path[s].x, path[s].y);
+          oc.stroke();
+        }
+        // Inre lava-kärna (gul-vit)
+        oc.strokeStyle = 'rgba(255, 230, 150, 0.95)';
+        oc.lineWidth = 1.3;
+        for (const path of cracks) {
+          oc.beginPath();
+          oc.moveTo(path[0].x, path[0].y);
+          for (let s = 1; s < path.length; s++) oc.lineTo(path[s].x, path[s].y);
+          oc.stroke();
+        }
+        // 5. FADE-MASK via destination-out på TOP + VÄNSTER (skog syns igenom)
+        oc.globalCompositeOperation = 'destination-out';
+        const leftMask = oc.createLinearGradient(0, 0, FADE, 0);
+        leftMask.addColorStop(0, 'rgba(0,0,0,1)');
+        leftMask.addColorStop(1, 'rgba(0,0,0,0)');
+        oc.fillStyle = leftMask;
+        oc.fillRect(0, 0, FADE, d.h);
+        const topMask = oc.createLinearGradient(0, 0, 0, FADE);
+        topMask.addColorStop(0, 'rgba(0,0,0,1)');
+        topMask.addColorStop(1, 'rgba(0,0,0,0)');
+        oc.fillStyle = topMask;
+        oc.fillRect(0, 0, d.w, FADE);
+        state._alienFloorCache = { key: cacheKey, canvas: off };
       }
-      // Yttre röd glow (bred halo)
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(255, 30, 40, ' + (0.22 + 0.10 * pulse) + ')';
-      ctx.lineWidth = 9;
-      ctx.shadowColor = '#ff2030';
-      ctx.shadowBlur = 14;
-      for (const pts of cracks) {
+      // Rita cachen
+      ctx.drawImage(state._alienFloorCache.canvas, x, y);
+      // ANIMERAD OVERLAY: pulserande lila + gröna prickar (respekt fade-zon)
+      const fadeAlpha = (px, py) => {
+        const fLeft = Math.min(1, (px - x) / FADE);
+        const fTop = Math.min(1, (py - y) / FADE);
+        return Math.max(0, Math.min(fLeft, fTop));
+      };
+      // Pulserande lila glow-prickar
+      for (let i = 0; i < 25; i++) {
+        const px = x + ((seed * (i + 23) * 41) & 0xffff) % d.w;
+        const py = y + ((seed * (i + 29) * 47) & 0xffff) % d.h;
+        const a = fadeAlpha(px, py);
+        if (a <= 0) continue;
+        const radius = 5 + ((seed * (i + 7)) % 7);
+        ctx.fillStyle = 'rgba(180, 70, 230, ' + (0.42 * pulse * a) + ')';
         ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let s = 1; s < pts.length; s++) ctx.lineTo(pts[s].x, pts[s].y);
-        ctx.stroke();
+        ctx.ellipse(px, py, radius * 1.3, radius * 0.8, 0, 0, Math.PI * 2);
+        ctx.fill();
       }
-      // Medium orange-röd glow
-      ctx.shadowBlur = 6;
-      ctx.strokeStyle = 'rgba(255, 90, 50, ' + (0.55 + 0.20 * pulse) + ')';
-      ctx.lineWidth = 4;
-      for (const pts of cracks) {
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let s = 1; s < pts.length; s++) ctx.lineTo(pts[s].x, pts[s].y);
-        ctx.stroke();
+      // Gröna alien-energi-prickar
+      ctx.fillStyle = 'rgba(120, 255, 150, ' + (0.5 * pulse) + ')';
+      for (let i = 0; i < 45; i++) {
+        const px = x + ((seed * (i + 13) * 29) & 0xffff) % d.w;
+        const py = y + ((seed * (i + 17) * 31) & 0xffff) % d.h;
+        const a = fadeAlpha(px, py);
+        if (a <= 0) continue;
+        ctx.globalAlpha = 0.5 * pulse * a;
+        ctx.fillRect(px, py, 2.5, 2.5);
       }
-      // Inre lava-kärna (gul-vit)
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = 'rgba(255, 220, 130, ' + (0.85 + 0.15 * pulse) + ')';
-      ctx.lineWidth = 1.5;
-      for (const pts of cracks) {
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let s = 1; s < pts.length; s++) ctx.lineTo(pts[s].x, pts[s].y);
-        ctx.stroke();
-      }
-      // Pulserande gröna alien-energi-prickar
-      ctx.fillStyle = 'rgba(120, 255, 150, ' + (0.4 * pulse) + ')';
-      for (let i = 0; i < 35; i++) {
-        const px = x + ((seed * (i + 13) * 29) & 0x7ff) % d.w;
-        const py = y + ((seed * (i + 17) * 31) & 0x7ff) % d.h;
-        ctx.fillRect(px, py, 2, 2);
-      }
+      ctx.globalAlpha = 1;
     } else if (d.kind === 'bridge_deco') {
       // Bro som decoration — passabel, ritas på marken/vattnet
       const x = d.x - cx, y = d.y - cy;
@@ -12807,8 +13065,15 @@ function tryPvpShield() {
   if (typeof triggerVibrate === 'function') triggerVibrate(40);
 }
 if (_btnPvpShield) {
+  let _lastShieldTapAt = 0;
   const onShieldDown = (e) => {
     e.preventDefault();
+    // iOS Safari dispatchar BÅDE touchstart OCH pointerdown för samma tap.
+    // Debounce: ignorera duplicerade events inom 300ms så vi inte triggar
+    // tryPvpShield två gånger (vilket skapar "Cooldown" toast direkt efter aktivering).
+    const now = performance.now();
+    if (now - _lastShieldTapAt < 300) return;
+    _lastShieldTapAt = now;
     if (state.mode === 'playing') tryPvpShield();
   };
   _btnPvpShield.addEventListener('pointerdown', onShieldDown);
