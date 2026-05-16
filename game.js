@@ -7389,31 +7389,56 @@ function drawBrTopDecorations(decos) {
       ctx.arc(x + 4, y + 2, 1.5, 0, Math.PI * 2);
       ctx.fill();
     } else if (d.kind === 'waterfall') {
-      // Animerat vattenfalls — vertikala blå streck som "rör sig" nedåt
+      // SOLID CASCADING vattenfall — som riktig vattenmassa, inte regn-streck.
+      // 3-lager design: bakre mörk vattenmassa, ljusare mid-vatten, vit skum-front
       const t = performance.now() / 1000;
-      // Bas (mörk-blå bakgrund)
-      ctx.fillStyle = '#1a3858';
+      // 1. BAS — solid blå vattenmassa över hela ytan (mörk-blå)
+      const grad = ctx.createLinearGradient(x, y, x, y + d.h);
+      grad.addColorStop(0, '#5a90c8');   // ljus topp (där vattnet kommer från)
+      grad.addColorStop(0.3, '#3a7098');
+      grad.addColorStop(0.8, '#1a4878');
+      grad.addColorStop(1, '#0a2858');   // mörk botten
+      ctx.fillStyle = grad;
       ctx.fillRect(x, y, d.w, d.h);
-      // Animated vatten-streck
-      const lineCount = Math.floor(d.w / 4);
-      for (let i = 0; i < lineCount; i++) {
-        const lx = x + i * 4;
-        const phaseOffset = (i * 0.3) % 1;
-        const phase = ((t * 2) + phaseOffset) % 1;
+      // 2. VERTIKALA FLOW-band (subtila ljusare striper för rörelse-känsla)
+      // Inte tunna streck — bredare band så det ser ut som CASCADE
+      const bandCount = 5;
+      for (let i = 0; i < bandCount; i++) {
+        const bx = x + (i + 0.5) * (d.w / bandCount);
+        const bw = d.w / bandCount * 0.6;
+        const phaseOff = i * 0.4;
+        // Subtila rörelse-shimmer
+        const alpha = 0.15 + 0.1 * Math.sin(t * 3 + phaseOff);
+        ctx.fillStyle = 'rgba(180, 220, 255, ' + alpha + ')';
+        ctx.fillRect(bx - bw / 2, y, bw, d.h);
+      }
+      // 3. VIT SKUM-FRONT (toppen där vattnet börjar falla)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+      ctx.fillRect(x, y, d.w, 6);
+      ctx.fillStyle = 'rgba(220, 240, 255, 0.6)';
+      ctx.fillRect(x, y + 6, d.w, 4);
+      // 4. FLOWING WHITE STREAKS — diagonala vita streck som "flödar" nedåt
+      // Bredare och mer SOLID än tidigare regn-streck
+      ctx.fillStyle = 'rgba(240, 250, 255, 0.45)';
+      for (let i = 0; i < 4; i++) {
+        const sx = x + (i + 0.5) * (d.w / 4);
+        const phase = ((t * 1.5) + i * 0.25) % 1;
         const yOff = phase * d.h;
-        ctx.fillStyle = 'rgba(180, 220, 255, ' + (0.7 - phase * 0.5) + ')';
-        ctx.fillRect(lx, y + yOff, 2, 30);
-        // Bubbel
-        if (i % 3 === 0) {
-          ctx.fillStyle = 'rgba(220, 240, 255, 0.5)';
-          ctx.beginPath();
-          ctx.arc(lx, y + (yOff + 10) % d.h, 1.5, 0, Math.PI * 2);
-          ctx.fill();
+        const streakH = Math.min(40, d.h - yOff);
+        if (streakH > 0) {
+          ctx.fillRect(sx - 3, y + yOff, 6, streakH);
         }
       }
-      // Yttre strömningsskum (vit linje vid toppen)
-      ctx.fillStyle = 'rgba(240, 250, 255, 0.7)';
-      ctx.fillRect(x, y, d.w, 4);
+      // 5. BUBBLOR och DROPPAR i underkanten (vatten möter sjön)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+      for (let i = 0; i < 8; i++) {
+        const bx = x + (i + 0.5) * (d.w / 8);
+        const by = y + d.h - 10 + Math.sin(t * 4 + i) * 4;
+        const r = 2 + Math.sin(t * 5 + i * 0.7) * 1;
+        ctx.beginPath();
+        ctx.arc(bx, by, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
     } else if (d.kind === 'water_splash') {
       // Skum vid foten av vattenfalls
       const t = performance.now() / 1000;
@@ -23858,6 +23883,15 @@ function showBrHud() {
     kf.style.cssText = 'position:fixed;top:max(60px, env(safe-area-inset-top));right:12px;width:280px;max-height:200px;pointer-events:none;z-index:75;display:flex;flex-direction:column;gap:4px;font-family:sans-serif;';
     document.body.appendChild(kf);
   }
+  // Koordinat-display (debug — bottom-left)
+  let coords = document.getElementById('br-coords');
+  if (!coords) {
+    coords = document.createElement('div');
+    coords.id = 'br-coords';
+    coords.style.cssText = 'position:fixed;bottom:max(12px, env(safe-area-inset-bottom));left:12px;background:rgba(0,0,0,0.7);border:1px solid #3acaff;border-radius:6px;padding:6px 10px;color:#3acaff;font-family:monospace;font-weight:700;font-size:13px;z-index:80;pointer-events:none;letter-spacing:0.5px;';
+    document.body.appendChild(coords);
+  }
+  coords.style.display = 'block';
   updateBrHud();
 }
 
@@ -23867,6 +23901,8 @@ function hideBrHud() {
   if (el) el.style.display = 'none';
   const kf = document.getElementById('br-killfeed');
   if (kf) kf.innerHTML = '';
+  const coords = document.getElementById('br-coords');
+  if (coords) coords.style.display = 'none';
 }
 
 function destroyBrEndOverlay() {
@@ -23876,6 +23912,13 @@ function destroyBrEndOverlay() {
 
 function updateBrHud() {
   if (!state.battleroyaleActive) return;
+  // Koordinater-display (debug)
+  const coordsEl = document.getElementById('br-coords');
+  if (coordsEl && state.player) {
+    const px = Math.round(state.player.x);
+    const py = Math.round(state.player.y);
+    coordsEl.textContent = 'X: ' + px + '  Y: ' + py;
+  }
   const aliveEl = document.getElementById('br-alive');
   const phaseNameEl = document.getElementById('br-phase-name');
   const phaseTimerEl = document.getElementById('br-phase-timer');

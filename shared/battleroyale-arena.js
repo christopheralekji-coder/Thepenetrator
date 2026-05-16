@@ -838,47 +838,38 @@ const BATTLEROYALE_ARENA = {
     { x: 3348, y: 5650, w: 12,  h: 100, kind: 'cabin_wall_wood' },
     { x: 3348, y: 5805, w: 12,  h: 45,  kind: 'cabin_wall_wood' },
 
-    // Båt på STRAND (utanför sjön, vid sjökanten)
-    { x: 2200, y: 6300, w: 110, h: 50, kind: 'boat' },
+    // Båt på STRAND (utanför sjön, sydlig sida)
+    { x: 2500, y: 7280, w: 110, h: 50, kind: 'boat' },
 
-    // === 4-VÄGS BRO (kors-form) över sjön i centrum ===
-    // Horisontell del (väst-öst genom sjön): från x=2200 till x=3800, y=6850, höjd 30
-    { x: 2200, y: 6840, w: 1600, h: 28, kind: 'bridge' },
-    // Vertikal del (nord-syd): från y=6400 till y=7300, x=2950
-    { x: 2960, y: 6400, w: 28, h: 900, kind: 'bridge' },
+    // === 4-VÄGS BRO (kors-form) över sjön ===
+    // Sjön är nu vid (2650-3220, 6680-7220). Center ~ (2935, 6950).
+    // Horisontell bro (väst-öst) genom centrum av sjön
+    { x: 2500, y: 6935, w: 920, h: 30, kind: 'bridge' },
+    // Vertikal bro (nord-syd) genom centrum av sjön
+    { x: 2920, y: 6500, w: 30, h: 800, kind: 'bridge' },
 
-    // === KLIPPFORMATION som höjdpunkt vattenfallet faller FRÅN (en bergshöjd) ===
-    // En cluster av cliff_edge-walls bildar ett "berg" utanför sjökanten
-    { x: 1700, y: 6100, w: 250, h: 60, kind: 'cliff_edge' },   // bergstop
-    { x: 1700, y: 6160, w: 50,  h: 200, kind: 'cliff_edge' },  // vänster klippkant
-    { x: 1900, y: 6160, w: 50,  h: 150, kind: 'cliff_edge' },  // höger klippkant
-    { x: 1750, y: 6310, w: 150, h: 40, kind: 'cliff_edge' },   // nedre framkant
+    // === KLIPPHÖJD NORR OM SJÖN (vattenfall faller FRÅN denna i sjön) ===
+    // Stor klippformation som DIREKT ansluter till sjö-toppen (y=6680).
+    // Klippan är 200px hög (y=6450-6650), vattenfallet kommer från klipp-foten
+    // och faller 30px ner i sjökanten (y=6650-6680).
+    { x: 2700, y: 6450, w: 520, h: 60, kind: 'cliff_edge' },   // klipp-topp horisontellt
+    { x: 2700, y: 6510, w: 80,  h: 140, kind: 'cliff_edge' },  // vänster klippvägg
+    { x: 3140, y: 6510, w: 80,  h: 140, kind: 'cliff_edge' },  // höger klippvägg
+    // Klipp-block runt sjön (östra och västra sidor — ger "djup-känsla")
+    { x: 2580, y: 6700, w: 70, h: 150, kind: 'cliff_edge' },   // västra klippkant av sjön
+    { x: 3220, y: 6700, w: 70, h: 150, kind: 'cliff_edge' },   // östra klippkant av sjön
 
-    // === LAKE_WATER_BLOCK — små block (~200×200) med GAPS där broarna passerar.
-    // Bron horisontell: y=6840-6868 (gap = 6830-6878). Bron vertikal: x=2960-2988 (gap = 2950-3000).
-    // Block-storlek max 250px så push-out fungerar korrekt (inte fastnar inuti).
-    // Top-rad (y=6400-6600)
-    { x: 2500, y: 6400, w: 230, h: 200, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 2730, y: 6400, w: 220, h: 200, kind: 'lake_water_block', passThroughBullets: true },
-    // gap för vertikal-bro (x=2950-3000)
-    { x: 3000, y: 6400, w: 220, h: 200, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 3220, y: 6400, w: 230, h: 200, kind: 'lake_water_block', passThroughBullets: true },
-    // Mid-rad (y=6600-6830, slutar vid horisontal-bron)
-    { x: 2450, y: 6600, w: 250, h: 230, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 2700, y: 6600, w: 250, h: 230, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 3000, y: 6600, w: 250, h: 230, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 3250, y: 6600, w: 250, h: 230, kind: 'lake_water_block', passThroughBullets: true },
-    // Bottom-rad (y=6880-7100, börjar efter horisontal-bron)
-    { x: 2450, y: 6880, w: 250, h: 220, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 2700, y: 6880, w: 250, h: 220, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 3000, y: 6880, w: 250, h: 220, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 3250, y: 6880, w: 250, h: 220, kind: 'lake_water_block', passThroughBullets: true },
-    // Bottom (y=7100-7300)
-    { x: 2500, y: 7100, w: 240, h: 200, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 2740, y: 7100, w: 220, h: 200, kind: 'lake_water_block', passThroughBullets: true },
-    // gap för vertikal-bro
-    { x: 3000, y: 7100, w: 220, h: 200, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 3220, y: 7100, w: 230, h: 200, kind: 'lake_water_block', passThroughBullets: true },
+    // === LAKE_WATER_BLOCK — 9 små block (~200×200) som approximerar sjö-polygon.
+    // GAPS för bron: horisontell vid y=6935 (28px), vertikal vid x=2935 (28px).
+    // Top-row (y=6700-6900) — UNDER vattenfallet, kort så water-block hindrar inte falling
+    { x: 2680, y: 6700, w: 220, h: 230, kind: 'lake_water_block', passThroughBullets: true }, // top-west
+    { x: 2960, y: 6700, w: 220, h: 230, kind: 'lake_water_block', passThroughBullets: true }, // top-east (gap för vertikal-bro)
+    // Mid-row (y=6970-7100) — efter horisontal-bron
+    { x: 2660, y: 6970, w: 220, h: 130, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2960, y: 6970, w: 220, h: 130, kind: 'lake_water_block', passThroughBullets: true },
+    // Bottom-row (y=7100-7220)
+    { x: 2690, y: 7100, w: 220, h: 120, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2960, y: 7100, w: 220, h: 120, kind: 'lake_water_block', passThroughBullets: true },
 
     { x: 2300, y: 5200, w: 60, h: 60, kind: 'tree_oak' },
     { x: 2700, y: 5100, w: 55, h: 55, kind: 'tree_pine' },
@@ -1059,13 +1050,12 @@ const BATTLEROYALE_ARENA = {
     { kind: 'dirt_path', x: 1000, y: 5000, x2: 2200, y2: 5500, w: 30 }, // outer-w to lake
     { kind: 'dirt_path', x: 1500, y: 2000, x2: 2400, y2: 2700, w: 30 }, // outer-nw to forest
 
-    // === SJÖN — krympt organic polygon (mindre, mer rund-formad) ===
-    // Krympt från 1900x1300 → ~1100x900. Center ungefär (3000, 6800).
+    // === SJÖN — krympt YTTERLIGARE till ~500×500, rund form ===
+    // Center (2950, 6950). Klipp + vattenfall NORR om sjön smelter ihop.
     { kind: 'lake_water_polygon', points: [
-      [2500, 6400], [2700, 6350], [3000, 6380], [3300, 6400],
-      [3500, 6500], [3580, 6700], [3550, 6950], [3450, 7150],
-      [3200, 7280], [2900, 7300], [2600, 7250], [2450, 7100],
-      [2400, 6900], [2430, 6650]
+      [2750, 6700], [2900, 6680], [3050, 6700], [3180, 6780],
+      [3220, 6900], [3200, 7050], [3120, 7170], [2980, 7220],
+      [2820, 7210], [2700, 7130], [2650, 7000], [2680, 6850]
     ] },
     { kind: 'stream',     x: 3900, y: 6250, x2: 4400, y2: 6000, w: 22 },
     { kind: 'stream',     x: 4400, y: 6000, x2: 5000, y2: 5700, w: 22 },
@@ -1302,14 +1292,14 @@ const BATTLEROYALE_ARENA = {
     { kind: 'glade', x: 2400, y: 4500, r: 140 },  // path glade
     { kind: 'glade', x: 7400, y: 4000, r: 150 },  // scrap edge glade
 
-    // === VATTENFALLS (animerad) — faller från klippan ner i sjön ===
-    // Klippan är vid (1700-1950, 6100-6360). Vattenfallet faller från klippkanten (y=6360)
-    // ner i sjön (y=6400+). Bredd matchar klippformationen.
-    { kind: 'waterfall', x: 1770, y: 6160, w: 140, h: 280 },
-    { kind: 'water_splash', x: 1840, y: 6440 },  // skum där vattnet träffar sjön
+    // === VATTENFALLS — solid cascade FRÅN klippa (y=6510) ner i sjön (y=6680)
+    // Cascade-höjd 170px, bredd 160px. Placerad mitt på klippan så vattnet
+    // direkt MÖTER sjökanten utan gap.
+    { kind: 'waterfall', x: 2860, y: 6510, w: 160, h: 170 },
+    { kind: 'water_splash', x: 2940, y: 6700 },  // skum DÄR vattnet träffar sjön
 
-    // === GROTTA ENTRANCE BAKOM vattenfallet ===
-    { kind: 'cave_entrance', x: 1810, y: 6360, w: 60, h: 50 },
+    // === GROTTA ENTRANCE BAKOM vattenfallet (i klippan) ===
+    { kind: 'cave_entrance', x: 2900, y: 6470, w: 80, h: 50 },
 
     // === SKORSTENS-RÖK från ALLA stugor (auto-spawnar ovan tak) ===
     { kind: 'smoke', x: 3604, y: 2756, scale: 0.8, color: 'light' }, // jägar
@@ -1571,7 +1561,7 @@ function generateProceduralContent(arena) {
   // Exklusions-zoner där procedural content INTE får spawna
   // Format: [xMin, xMax, yMin, yMax]
   const exclusionZones = [
-    [2300, 3700, 6300, 7350],  // sjö-bbox
+    [2550, 3300, 6400, 7270],  // sjö + klippa + vattenfall (krympt)
     [4350, 4900, 6380, 7140],  // kyrkogården (inkl staket-buffer)
     [5250, 7700, 2150, 3900],  // scrap-yard (containrar etc behöver sin yta)
   ];
@@ -1596,87 +1586,82 @@ function generateProceduralContent(arena) {
     }
     return false;
   };
-  // === TRÄD (dubblerat — ~240 nya) ===
-  // Spread över hela kartan med clustering i skog-regioner
-  const treeCount = 240;
+  // === TRÄD (TRIPPLAT — 1500 träd, riktigt tät skog över hela kartan) ===
+  const treeCount = 1500;
   for (let i = 0; i < treeCount; i++) {
-    trySpawn(100, 9900, 100, 9900, 60, 30, (x, y) => {
+    trySpawn(80, 9920, 80, 9920, 45, 30, (x, y) => {
       const r = rng();
       let kind = 'tree_oak';
       if (r < 0.45) kind = 'tree_oak';
       else if (r < 0.85) kind = 'tree_pine';
-      else if (r < 0.95) kind = 'tree_giant_oak';
+      else if (r < 0.93) kind = 'tree_giant_oak';
       else kind = 'tree_stump';
-      const size = kind === 'tree_giant_oak' ? 110 + Math.floor(rng() * 20)
-                 : kind === 'tree_stump' ? 28 + Math.floor(rng() * 8)
-                 : 55 + Math.floor(rng() * 18);
+      const size = kind === 'tree_giant_oak' ? 100 + Math.floor(rng() * 25)
+                 : kind === 'tree_stump' ? 25 + Math.floor(rng() * 10)
+                 : 50 + Math.floor(rng() * 22);
       arena.walls.push({ x: Math.round(x - size / 2), y: Math.round(y - size / 2), w: size, h: size, kind });
     });
   }
-  // === STENAR (dubblerat — ~50 nya) ===
-  for (let i = 0; i < 50; i++) {
-    trySpawn(150, 9850, 150, 9850, 80, 50, (x, y) => {
-      const isLarge = rng() < 0.6;
-      const w = isLarge ? 70 + Math.floor(rng() * 25) : 45 + Math.floor(rng() * 15);
-      const h = isLarge ? 50 + Math.floor(rng() * 20) : 35 + Math.floor(rng() * 12);
+  // === STENAR (200 totalt) ===
+  for (let i = 0; i < 200; i++) {
+    trySpawn(150, 9850, 150, 9850, 70, 40, (x, y) => {
+      const isLarge = rng() < 0.5;
+      const w = isLarge ? 65 + Math.floor(rng() * 30) : 40 + Math.floor(rng() * 18);
+      const h = isLarge ? 45 + Math.floor(rng() * 22) : 30 + Math.floor(rng() * 15);
       arena.walls.push({
         x: Math.round(x - w / 2), y: Math.round(y - h / 2), w, h,
         kind: isLarge ? 'rock_large' : 'rock_small',
       });
     });
   }
-  // === BUSKAR + svamp + blommor (decoration spread) ===
-  for (let i = 0; i < 80; i++) {
-    trySpawn(150, 9850, 150, 9850, 50, 30, (x, y) => {
+  // === BUSKAR (300) ===
+  for (let i = 0; i < 300; i++) {
+    trySpawn(150, 9850, 150, 9850, 45, 25, (x, y) => {
       arena.decorations.push({ kind: 'bush', x: Math.round(x), y: Math.round(y) });
     });
   }
-  for (let i = 0; i < 50; i++) {
-    trySpawn(150, 9850, 150, 9850, 80, 40, (x, y) => {
+  // === BLOMMOR (180) ===
+  for (let i = 0; i < 180; i++) {
+    trySpawn(150, 9850, 150, 9850, 70, 30, (x, y) => {
       arena.decorations.push({ kind: 'flowers', x: Math.round(x), y: Math.round(y), count: 5 + Math.floor(rng() * 5) });
     });
   }
-  for (let i = 0; i < 40; i++) {
-    trySpawn(150, 9850, 150, 9850, 80, 40, (x, y) => {
+  // === SVAMP-KLUSTER (120) ===
+  for (let i = 0; i < 120; i++) {
+    trySpawn(150, 9850, 150, 9850, 70, 30, (x, y) => {
       arena.decorations.push({ kind: 'mushrooms', x: Math.round(x), y: Math.round(y), count: 4 + Math.floor(rng() * 4) });
     });
   }
-  for (let i = 0; i < 30; i++) {
-    trySpawn(150, 9850, 150, 9850, 100, 40, (x, y) => {
+  // === KOTTAR (100) ===
+  for (let i = 0; i < 100; i++) {
+    trySpawn(150, 9850, 150, 9850, 90, 30, (x, y) => {
       arena.decorations.push({ kind: 'pine_cones', x: Math.round(x), y: Math.round(y), count: 4 + Math.floor(rng() * 4) });
     });
   }
-  // === Extra small fallen logs ===
-  for (let i = 0; i < 25; i++) {
-    trySpawn(200, 9800, 200, 9800, 100, 50, (x, y) => {
-      const w = 45 + Math.floor(rng() * 20);
-      arena.decorations.push({ kind: 'fallen_log', x: Math.round(x), y: Math.round(y), w, h: 13, rot: (rng() - 0.5) * 1.2 });
-    });
-  }
-  // === Tre-infrastruktur ×3 — woodpiles, wooden_bench, flower_pot, etc spridda ===
-  for (let i = 0; i < 12; i++) {
-    trySpawn(200, 9800, 200, 9800, 120, 60, (x, y) => {
+  // === Tre-infrastruktur (×3 från by) ===
+  for (let i = 0; i < 30; i++) {
+    trySpawn(200, 9800, 200, 9800, 100, 60, (x, y) => {
       arena.walls.push({ x: Math.round(x - 35), y: Math.round(y - 15), w: 70, h: 30, kind: 'woodpile' });
     });
   }
-  for (let i = 0; i < 8; i++) {
-    trySpawn(200, 9800, 200, 9800, 150, 80, (x, y) => {
+  for (let i = 0; i < 20; i++) {
+    trySpawn(200, 9800, 200, 9800, 130, 80, (x, y) => {
       arena.walls.push({ x: Math.round(x - 40), y: Math.round(y - 40), w: 80, h: 80, kind: 'haystack' });
     });
   }
-  for (let i = 0; i < 6; i++) {
-    trySpawn(200, 9800, 200, 9800, 200, 100, (x, y) => {
+  for (let i = 0; i < 15; i++) {
+    trySpawn(200, 9800, 200, 9800, 180, 100, (x, y) => {
       arena.walls.push({ x: Math.round(x - 25), y: Math.round(y - 25), w: 50, h: 50, kind: 'well' });
     });
   }
-  // === Extra campfires + tents (mer äventyr-känsla) ===
-  for (let i = 0; i < 8; i++) {
-    trySpawn(300, 9700, 300, 9700, 150, 80, (x, y) => {
+  // === Extra campfires + tents (mer äventyr) ===
+  for (let i = 0; i < 25; i++) {
+    trySpawn(300, 9700, 300, 9700, 130, 80, (x, y) => {
       arena.walls.push({ x: Math.round(x - 25), y: Math.round(y - 25), w: 50, h: 50, kind: 'campfire' });
     });
   }
-  for (let i = 0; i < 6; i++) {
-    trySpawn(300, 9700, 300, 9700, 200, 100, (x, y) => {
+  for (let i = 0; i < 20; i++) {
+    trySpawn(300, 9700, 300, 9700, 170, 100, (x, y) => {
       const colors = ['red', 'blue', 'green', 'orange'];
       arena.walls.push({ x: Math.round(x - 40), y: Math.round(y - 35), w: 80, h: 70, kind: 'tent', color: colors[Math.floor(rng() * 4)] });
     });
@@ -1690,9 +1675,11 @@ preprocessCabinWalls(BATTLEROYALE_ARENA);
 function postProcessArena(arena) {
   if (arena._postProcessed) return;
   arena._postProcessed = true;
-  // 1. Ta bort graffiti + caution_tape decorations
+  // 1. Ta bort graffiti + caution_tape + fallen_log + stream decorations
+  //    (user gillar inte stora logs eller långa blåa bäckar)
   arena.decorations = arena.decorations.filter(d => {
-    return d.kind !== 'graffiti' && d.kind !== 'caution_tape';
+    return d.kind !== 'graffiti' && d.kind !== 'caution_tape'
+        && d.kind !== 'fallen_log' && d.kind !== 'stream';
   });
   // 2. Lägg till en loot-spawn inuti varje cabin (i mitten av bounds)
   // Insättas FÖRE center-loot (sista i lootSpawns är legendary-locked center).
