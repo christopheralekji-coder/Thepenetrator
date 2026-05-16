@@ -2022,8 +2022,10 @@ function tickBattleRoyale(sim, dt, now) {
         available: true,
         unlockAt: 0,
       });
-      // Emit corpse-drops så klient kan rendera dem (samma format som loot)
-      const newLoot = sim.battleroyaleLoot.slice(-2);
+      // BUGFIX: hårdkodad slice(-2) plockade fel items om bara hp_small pushades
+      // (pistol/knife = ingen weapon-drop). Använd faktisk count.
+      const dropCount = droppedWeapon ? 2 : 1;
+      const newLoot = sim.battleroyaleLoot.slice(-dropCount);
       sim.eventQueue.push({
         type: 'br_corpse_drop',
         x: Math.round(deathX),

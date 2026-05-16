@@ -303,6 +303,16 @@ function chooseBattleRoyaleTarget(sim, botWs) {
   const lowHp = botWs.playerState.hp < 60;
   if ((phase === 0 || lowHp) && sim.battleroyaleLoot) {
     const nowMs = Date.now();
+    // FIX: skip weapon-loot om bot redan har bra vapen (rare/legendary)
+    // Hardcoded high-tier-set (snabbare än att slå upp i loot-tabellen per tick)
+    const myW = botWs.playerState.weaponId;
+    const HIGH_TIER = new Set([
+      // legendary
+      'minigun', 'rocket', 'plasma', 'sledge', 'railgun', 'lightsaber', 'energysword',
+      // rare
+      'bow', 'sniper', 'crossbow', 'tesla', 'frost', 'grenade', 'sonic',
+    ]);
+    const hasHighTierWeapon = HIGH_TIER.has(myW);
     let bestLoot = null, bestD2 = Infinity;
     for (const lo of sim.battleroyaleLoot) {
       if (!lo.available) continue;
@@ -311,6 +321,8 @@ function chooseBattleRoyaleTarget(sim, botWs) {
       if (lo.unlockAt && nowMs < lo.unlockAt) continue;
       // FIX: skip HP-pickup om bot redan har full HP (annars omotiverad detour)
       if (!lowHp && (lo.kind === 'hp_small' || lo.kind === 'hp_big')) continue;
+      // FIX: skip weapon-loot om bot redan har rare/legendary (undvik onödig detour)
+      if (hasHighTierWeapon && lo.kind === 'weapon') continue;
       const dx = lo.x - px, dy = lo.y - py;
       const d2 = dx * dx + dy * dy;
       if (d2 < bestD2) { bestD2 = d2; bestLoot = lo; }
