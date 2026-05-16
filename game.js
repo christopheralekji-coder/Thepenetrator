@@ -1021,7 +1021,8 @@ function drawPvpWalls(walls) {
       w.kind === 'wooden_bench' || w.kind === 'flower_pot' ||
       w.kind === 'wagon_cart' || w.kind === 'rune_stone' ||
       w.kind === 'shipping_container' || w.kind === 'silo' || w.kind === 'building' ||
-      w.kind === 'lake_water_block'
+      w.kind === 'lake_water_block' ||
+      w.kind === 'ufo_wreck' || w.kind === 'alien_crystal' || w.kind === 'skull_totem'
     );
     if (w.kind !== 'pipe' && w.kind !== 'wall_divider' && !_brHasOwnShadow) {
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -1089,7 +1090,7 @@ function drawPvpWalls(walls) {
     else if (w.kind === 'plane_wing') drawPlaneWing(x, y, w.w, w.h);
     else if (w.kind === 'plane_tail') drawPlaneTail(x, y, w.w, w.h);
     else if (w.kind === 'church_ruin') drawChurchRuin(x, y, w.w, w.h, seed);
-    else if (w.kind === 'cemetery_gravestone') drawGravestone(x, y, w.w, w.h, seed);
+    else if (w.kind === 'cemetery_gravestone') drawGravestone(x, y, w.w, w.h, seed, w);
     else if (w.kind === 'cliff_edge') drawCliffEdge(x, y, w.w, w.h, seed);
     else if (w.kind === 'standing_stone') drawStandingStone(x, y, w.w, w.h, seed);
     else if (w.kind === 'altar_stone') drawAltarStone(x, y, w.w, w.h);
@@ -1102,6 +1103,9 @@ function drawPvpWalls(walls) {
     else if (w.kind === 'rune_stone') drawRuneStone(x, y, w.w, w.h, seed);
     else if (w.kind === 'cabin_window') drawCabinWindow(x, y, w.w, w.h);
     else if (w.kind === 'lake_water_block') { /* osynlig collision-wall — render hanteras av lake_water_polygon decoration */ }
+    else if (w.kind === 'ufo_wreck') drawUfoWreck(x, y, w.w, w.h, seed);
+    else if (w.kind === 'alien_crystal') drawAlienCrystal(x, y, w.w, w.h, seed);
+    else if (w.kind === 'skull_totem') drawSkullTotem(x, y, w.w, w.h, seed);
     else { ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x, y, w.w, w.h); }
   }
   ctx.restore();
@@ -3865,7 +3869,7 @@ const _GRAVE_NAMES = [
   'HELGA', 'KARL', 'MAGNUS', 'SIGRID', 'AXEL', 'EBBA', 'GUSTAV', 'ELIN',
 ];
 
-function drawGravestone(x, y, w, h, seed) {
+function drawGravestone(x, y, w, h, seed, wallData) {
   // Liten mjuk skugga
   ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath();
@@ -3891,18 +3895,23 @@ function drawGravestone(x, y, w, h, seed) {
   ctx.fillStyle = '#1a1408';
   ctx.fillRect(x + w / 2 - 1, y + 8, 2, 5);
   ctx.fillRect(x + w / 2 - 3, y + 10, 6, 1.5);
-  // NAMN på stenen (seed-baserat — deterministic per gravsten-position)
-  const nameIdx = ((seed >>> 0) ^ ((seed >>> 5))) & 0xf;
-  const name = _GRAVE_NAMES[nameIdx % _GRAVE_NAMES.length];
+  // NAMN på stenen — prio explicit graveName från arena, annars seed-baserat
+  let name, birthYear, deathYear;
+  if (wallData && wallData.graveName) {
+    name = wallData.graveName;
+    birthYear = wallData.graveBirth || 1880;
+    deathYear = wallData.graveDeath || 1950;
+  } else {
+    const nameIdx = ((seed >>> 0) ^ ((seed >>> 5))) & 0xf;
+    name = _GRAVE_NAMES[nameIdx % _GRAVE_NAMES.length];
+    birthYear = 1860 + (((seed * 13) >>> 0) & 0x7f);
+    deathYear = Math.min(1995, birthYear + 35 + (((seed * 17) >>> 0) & 0x3f));
+  }
   ctx.fillStyle = '#1a1408';
   ctx.font = 'bold 6px serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(name, x + w / 2, y + h * 0.55);
-  // ÅRTAL (1860-1995 random) — t.ex. "1872-1945"
-  const birthYear = 1860 + (((seed * 13) >>> 0) & 0x7f); // 1860-1987
-  const ageAtDeath = 35 + (((seed * 17) >>> 0) & 0x3f); // 35-99
-  const deathYear = Math.min(1995, birthYear + ageAtDeath);
   ctx.font = 'bold 5px serif';
   ctx.fillText(birthYear + '–' + deathYear, x + w / 2, y + h * 0.78);
   // Mossa-bas (lägre tjocklek så vi inte täcker text)
@@ -4375,6 +4384,142 @@ function drawCabinWindow(x, y, w, h) {
   ctx.strokeStyle = '#1a0a04';
   ctx.lineWidth = 1;
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+}
+
+// === ALIEN ELEMENT (v1.336) ===
+// UFO-VRAK: disk-formad med grön glöd
+function drawUfoWreck(x, y, w, h, seed) {
+  const cx = x + w / 2, cy = y + h / 2;
+  const r = Math.min(w, h) / 2;
+  const t = performance.now() / 1000;
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.ellipse(cx, y + h * 0.95, r * 0.9, r * 0.15, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const grad1 = ctx.createRadialGradient(cx, cy, r * 0.2, cx, cy, r);
+  grad1.addColorStop(0, '#7a7a8a');
+  grad1.addColorStop(0.6, '#3a3a48');
+  grad1.addColorStop(1, '#1a1a28');
+  ctx.fillStyle = grad1;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, r, r * 0.65, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const pulse = 0.5 + Math.sin(t * 2) * 0.3;
+  ctx.fillStyle = 'rgba(80, 220, 120, ' + (0.35 + pulse * 0.3) + ')';
+  ctx.beginPath();
+  ctx.ellipse(cx, cy - r * 0.05, r * 0.45, r * 0.32, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i < 5; i++) {
+    const ang = i * (Math.PI * 2 / 5);
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(ang) * r * 0.9, cy + Math.sin(ang) * r * 0.6);
+    ctx.stroke();
+  }
+  ctx.strokeStyle = '#0a0a14';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2;
+    const px = cx + Math.cos(ang) * r * 0.85;
+    const py = cy + Math.sin(ang) * r * 0.55;
+    ctx.beginPath();
+    ctx.arc(px, py, 6, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.fillStyle = 'rgba(120, 255, 150, ' + pulse + ')';
+  for (let i = 0; i < 6; i++) {
+    const ang = (i / 6) * Math.PI * 2 + t * 0.3;
+    const lx = cx + Math.cos(ang) * r * 0.7;
+    const ly = cy + Math.sin(ang) * r * 0.45;
+    ctx.beginPath();
+    ctx.arc(lx, ly, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = '#0a0a14';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, r, r * 0.65, 0, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+// ALIEN-CRYSTAL: lila kristall med pulserande glöd
+function drawAlienCrystal(x, y, w, h, seed) {
+  const cx = x + w / 2;
+  const t = performance.now() / 1000;
+  const pulse = 0.6 + Math.sin(t * 1.5 + (seed & 0xf)) * 0.4;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(cx, y + h * 0.95, w * 0.55, h * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  const grad = ctx.createRadialGradient(cx, y + h / 2, 0, cx, y + h / 2, w);
+  grad.addColorStop(0, 'rgba(200, 100, 255, ' + (0.5 * pulse) + ')');
+  grad.addColorStop(0.6, 'rgba(160, 60, 220, ' + (0.2 * pulse) + ')');
+  grad.addColorStop(1, 'rgba(100, 30, 180, 0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, y + h / 2, w, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#3a1858';
+  ctx.beginPath();
+  ctx.moveTo(cx, y);
+  ctx.lineTo(x + w * 0.85, y + h * 0.4);
+  ctx.lineTo(cx, y + h);
+  ctx.lineTo(x + w * 0.15, y + h * 0.4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(180, 100, 230, ' + (0.7 + pulse * 0.3) + ')';
+  ctx.beginPath();
+  ctx.moveTo(cx, y + 4);
+  ctx.lineTo(x + w * 0.65, y + h * 0.5);
+  ctx.lineTo(cx, y + h - 4);
+  ctx.lineTo(x + w * 0.35, y + h * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = 'rgba(255, 220, 255, ' + (0.5 * pulse) + ')';
+  ctx.beginPath();
+  ctx.ellipse(cx, y + h * 0.45, w * 0.15, h * 0.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1a0828';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(cx, y);
+  ctx.lineTo(x + w * 0.85, y + h * 0.4);
+  ctx.lineTo(cx, y + h);
+  ctx.lineTo(x + w * 0.15, y + h * 0.4);
+  ctx.closePath();
+  ctx.stroke();
+}
+
+// SKULL-TOTEM: trädstam med 3 skallar staplade
+function drawSkullTotem(x, y, w, h, seed) {
+  const cx = x + w / 2;
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(cx, y + h * 0.95, w * 0.5, h * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#3a2810';
+  ctx.fillRect(x + w * 0.3, y, w * 0.4, h);
+  ctx.fillStyle = '#5a3818';
+  ctx.fillRect(x + w * 0.32, y, w * 0.36, h - 4);
+  for (let i = 0; i < 3; i++) {
+    const sy = y + h * 0.15 + i * h * 0.27;
+    ctx.fillStyle = '#e0d8c0';
+    ctx.beginPath();
+    ctx.ellipse(cx, sy, w * 0.32, h * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#1a1408';
+    ctx.beginPath();
+    ctx.arc(cx - w * 0.1, sy - 1, 1.5, 0, Math.PI * 2);
+    ctx.arc(cx + w * 0.1, sy - 1, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = '#3a2010';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, y + h * 0.25); ctx.lineTo(cx, y + h * 0.85);
+  ctx.stroke();
 }
 
 function drawJerseyBarrier(x, y, w, h) {
@@ -6919,53 +7064,86 @@ function drawBrLoot() {
 // BATTLE ROYALE — SKOG-KARTA decoration-render
 // ============================================================
 
-// SEAMLESS SKOGSGOLV — solid bas + overlappande organiska blobs SPILLAR över
-// tile-grenser. Inga synliga rektangulära tile-edges.
+// SEAMLESS SKOGSGOLV — solid bas + RADIAL GRADIENT blobs med SOFT FALLOFF.
+// Kanten på varje blob fadar till alpha 0 → ingen synlig "cirkel-kontur".
+// Plus pixel-noise för grain (massa små prickar) så ingen yta är "helt slätt".
 function drawBrForestFloor() {
   if (!state.battleroyaleActive) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   // 1. Solid bas över hela viewporten
   ctx.fillStyle = '#1e2a14';
   ctx.fillRect(0, 0, viewW, viewH);
-  // 2. Stora overlappande organiska blobs. Deterministisk position per "anchor tile"
-  //    men radien är så stor att blobs SPILLAR över tile-grenser → ingen synlig grid.
-  const ANCHOR = 250; // anchor-spacing
+  // 2. Stora soft-falloff blobs (radial gradient → fade to 0 vid kanten)
+  const ANCHOR = 220;
   const startAx = Math.floor(state.camera.x / ANCHOR) - 1;
   const startAy = Math.floor(state.camera.y / ANCHOR) - 1;
   const endAx = Math.floor((state.camera.x + viewW) / ANCHOR) + 1;
   const endAy = Math.floor((state.camera.y + viewH) / ANCHOR) + 1;
-  // Palette of soft overlay-färger (alla semi-transparenta så de blendar)
   const palette = [
-    'rgba(40, 70, 30, 0.32)',    // mörkare grön
-    'rgba(70, 105, 40, 0.22)',   // ljusare grön
-    'rgba(55, 85, 30, 0.28)',    // mid grön
-    'rgba(100, 70, 30, 0.18)',   // brunlöv
-    'rgba(60, 90, 40, 0.25)',    // mossy
-    'rgba(45, 75, 25, 0.30)',    // mörk mossy
-    'rgba(80, 110, 50, 0.20)',   // ljus grön
-    'rgba(35, 60, 25, 0.30)',    // djup-grön
+    { r: 40,  g: 70,  b: 30 },  // mörkare grön
+    { r: 70,  g: 105, b: 40 },  // ljusare grön
+    { r: 55,  g: 85,  b: 30 },  // mid grön
+    { r: 100, g: 70,  b: 30 },  // brunlöv
+    { r: 60,  g: 90,  b: 40 },  // mossy
+    { r: 45,  g: 75,  b: 25 },  // mörk mossy
+    { r: 80,  g: 110, b: 50 },  // ljus grön
+    { r: 35,  g: 60,  b: 25 },  // djup-grön
   ];
   for (let ay = startAy; ay <= endAy; ay++) {
     for (let ax = startAx; ax <= endAx; ax++) {
       const seed = ((ax * 73) ^ (ay * 137)) | 0;
-      // 1-2 blobs per anchor
       const blobsHere = 1 + ((seed >> 2) & 1);
       for (let i = 0; i < blobsHere; i++) {
         const subSeed = (seed * (i + 7)) | 0;
-        // Position: anchor + offset upp till 1.5x anchor-spacing (så blobs spillar)
         const ox = ((subSeed * 23) & 0xff) / 256;
         const oy = ((subSeed * 31) & 0xff) / 256;
         const bx = ax * ANCHOR + ox * ANCHOR - cx;
         const by = ay * ANCHOR + oy * ANCHOR - cy;
-        // Radie: 100-200px så blobs DEFINITIVT överlappar grannblobs
-        const r = 100 + ((subSeed * 17) & 0x7f);
+        const r = 130 + ((subSeed * 17) & 0x7f);
         const colorIdx = (subSeed >>> 0) & 0x7;
-        ctx.fillStyle = palette[colorIdx];
+        const col = palette[colorIdx];
+        // Radial gradient: solid i centrum → alpha 0 vid kanten
+        const grad = ctx.createRadialGradient(bx, by, 0, bx, by, r);
+        grad.addColorStop(0, 'rgba(' + col.r + ',' + col.g + ',' + col.b + ',0.35)');
+        grad.addColorStop(0.6, 'rgba(' + col.r + ',' + col.g + ',' + col.b + ',0.15)');
+        grad.addColorStop(1, 'rgba(' + col.r + ',' + col.g + ',' + col.b + ',0)');
+        ctx.fillStyle = grad;
         ctx.beginPath();
-        // Lätt elliptisk för organisk look
-        const aspectVar = 0.7 + (((subSeed * 11) & 0xff) / 256) * 0.4;
-        ctx.ellipse(bx, by, r, r * aspectVar, 0, 0, Math.PI * 2);
+        ctx.arc(bx, by, r, 0, Math.PI * 2);
         ctx.fill();
+      }
+    }
+  }
+  // 3. PIXEL-GRAIN ovanpå — massa små noise-prickar så ingen yta är helt slätt
+  //    Deterministisk per world-tile (40×40 micro-tiles) → ingen flimmer
+  const MICRO = 40;
+  const mStartX = Math.floor(state.camera.x / MICRO);
+  const mStartY = Math.floor(state.camera.y / MICRO);
+  const mEndX = Math.floor((state.camera.x + viewW) / MICRO);
+  const mEndY = Math.floor((state.camera.y + viewH) / MICRO);
+  for (let my = mStartY; my <= mEndY; my++) {
+    for (let mx = mStartX; mx <= mEndX; mx++) {
+      const ms = ((mx * 1093) ^ (my * 1471)) >>> 0;
+      // 3-4 prickar per micro-tile
+      for (let i = 0; i < 3; i++) {
+        const s = (ms * (i + 11)) >>> 0;
+        const px = mx * MICRO + (s & 0x3f) * (MICRO / 64) - cx;
+        const py = my * MICRO + ((s >> 6) & 0x3f) * (MICRO / 64) - cy;
+        const intensity = (s >> 12) & 7;
+        if (intensity === 0) {
+          ctx.fillStyle = 'rgba(40, 60, 25, 0.5)';
+          ctx.fillRect(px, py, 1, 1);
+        } else if (intensity === 1) {
+          ctx.fillStyle = 'rgba(80, 110, 50, 0.35)';
+          ctx.fillRect(px, py, 1, 1);
+        } else if (intensity === 2) {
+          ctx.fillStyle = 'rgba(60, 90, 35, 0.4)';
+          ctx.fillRect(px, py, 1, 1);
+        } else if (intensity === 3) {
+          ctx.fillStyle = 'rgba(100, 75, 30, 0.3)';
+          ctx.fillRect(px, py, 1, 1);
+        }
+        // resterande intensity-värden: ingen prick = mer naturlig fördelning
       }
     }
   }
@@ -6979,6 +7157,75 @@ function drawBrGroundDecorations(decos) {
   for (const d of decos) {
     if (d.kind === 'forest_floor') {
       continue; // hanteras av drawBrForestFloor()
+    } else if (d.kind === 'dirt_floor') {
+      // Jord-fläck (kyrkogård etc) — mörk-brun bas + texture
+      const x = d.x - cx, y = d.y - cy;
+      if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
+      // Bas (mörk brun)
+      ctx.fillStyle = '#3a2818';
+      ctx.fillRect(x, y, d.w, d.h);
+      // Texture-prickar (mer jord-känsla)
+      const seed = ((d.x * 17) ^ (d.y * 23)) | 0;
+      ctx.fillStyle = 'rgba(90, 60, 30, 0.4)';
+      for (let i = 0; i < d.w / 8; i++) {
+        const px = x + ((seed * (i + 1) * 13) & 0x3ff) % d.w;
+        const py = y + ((seed * (i + 3) * 17) & 0x3ff) % d.h;
+        ctx.fillRect(px, py, 2, 2);
+      }
+      // Ljusare patches
+      ctx.fillStyle = 'rgba(120, 80, 40, 0.25)';
+      for (let i = 0; i < 6; i++) {
+        const px = x + ((seed * (i + 7) * 23) & 0x3ff) % d.w;
+        const py = y + ((seed * (i + 11) * 29) & 0x3ff) % d.h;
+        ctx.beginPath();
+        ctx.ellipse(px, py, 18, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Mörka skugg-patches (ojämn jord)
+      ctx.fillStyle = 'rgba(20, 12, 6, 0.35)';
+      for (let i = 0; i < 5; i++) {
+        const px = x + ((seed * (i + 13) * 31) & 0x3ff) % d.w;
+        const py = y + ((seed * (i + 17) * 37) & 0x3ff) % d.h;
+        ctx.beginPath();
+        ctx.ellipse(px, py, 14, 8, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (d.kind === 'alien_floor') {
+      // Lila glödande "alien-drabbat"-mark
+      const x = d.x - cx, y = d.y - cy;
+      if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
+      const t = performance.now() / 1000;
+      const pulse = 0.5 + Math.sin(t * 0.8) * 0.2;
+      // Mörk-lila bas
+      ctx.fillStyle = '#2a1838';
+      ctx.fillRect(x, y, d.w, d.h);
+      // Pulserande lila glöd-patches över ytan
+      const seed = ((d.x * 19) ^ (d.y * 23)) | 0;
+      ctx.fillStyle = 'rgba(140, 60, 200, ' + (0.2 * pulse) + ')';
+      for (let i = 0; i < 30; i++) {
+        const px = x + ((seed * (i + 1) * 13) & 0x7ff) % d.w;
+        const py = y + ((seed * (i + 3) * 17) & 0x7ff) % d.h;
+        const r = 30 + ((seed * (i + 5)) & 0x3f);
+        ctx.beginPath();
+        ctx.ellipse(px, py, r, r * 0.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // "Brända" mörka patches
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+      for (let i = 0; i < 12; i++) {
+        const px = x + ((seed * (i + 7) * 19) & 0x7ff) % d.w;
+        const py = y + ((seed * (i + 11) * 23) & 0x7ff) % d.h;
+        ctx.beginPath();
+        ctx.ellipse(px, py, 22, 14, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Pulserande gröna prickar (alien-energi)
+      ctx.fillStyle = 'rgba(120, 255, 150, ' + (0.4 * pulse) + ')';
+      for (let i = 0; i < 20; i++) {
+        const px = x + ((seed * (i + 13) * 29) & 0x7ff) % d.w;
+        const py = y + ((seed * (i + 17) * 31) & 0x7ff) % d.h;
+        ctx.fillRect(px, py, 2, 2);
+      }
     } else if (d.kind === 'glade') {
       // Ljus glänta — ljusare gräs-cirkel där solljus tränger in
       const x = d.x - cx, y = d.y - cy;
@@ -7154,6 +7401,7 @@ function drawBrTopDecorations(decos) {
     if (d.kind === 'forest_floor' || d.kind === 'grass_open' || d.kind === 'lake_water'
         || d.kind === 'lake_water_polygon' || d.kind === 'glade'
         || d.kind === 'stream' || d.kind === 'dirt_path' || d.kind === 'garden_patch'
+        || d.kind === 'dirt_floor' || d.kind === 'alien_floor'
         || d.kind === 'smoke') continue; // hanteras separat
     const x = d.x - cx, y = d.y - cy;
     // Viewport-cull med bbox (objekt-storlek inkluderat så stora objekt inte
@@ -7599,6 +7847,88 @@ function drawBrTopDecorations(decos) {
         ctx.moveTo(bx - 4, by + 2); ctx.lineTo(bx, by); ctx.lineTo(bx + 4, by + 2);
         ctx.stroke();
       }
+    } else if (d.kind === 'crop_circle') {
+      // Alien crop-circle (cirkulärt mönster — pulserande grön)
+      const t = performance.now() / 1000;
+      const pulse = 0.5 + Math.sin(t * 1.2) * 0.3;
+      ctx.strokeStyle = 'rgba(120, 255, 150, ' + (0.6 * pulse) + ')';
+      ctx.lineWidth = 2;
+      // Yttre cirkel
+      ctx.beginPath();
+      ctx.arc(x, y, 35, 0, Math.PI * 2);
+      ctx.stroke();
+      // Inner cirkel
+      ctx.beginPath();
+      ctx.arc(x, y, 18, 0, Math.PI * 2);
+      ctx.stroke();
+      // 4 radial lines
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 4; i++) {
+        const ang = i * Math.PI / 2;
+        ctx.beginPath();
+        ctx.moveTo(x + Math.cos(ang) * 18, y + Math.sin(ang) * 18);
+        ctx.lineTo(x + Math.cos(ang) * 35, y + Math.sin(ang) * 35);
+        ctx.stroke();
+      }
+      // Centrum-prick
+      ctx.fillStyle = 'rgba(180, 255, 200, ' + pulse + ')';
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (d.kind === 'glow_mushrooms') {
+      // Glödande svampar (lila/grön glöd, pulserande)
+      const count = d.count || 5;
+      const seed = ((d.x * 11) ^ (d.y * 17)) | 0;
+      const t = performance.now() / 1000;
+      for (let i = 0; i < count; i++) {
+        const ang = ((seed * (i + 1) * 13) & 0xff) / 255 * Math.PI * 2;
+        const dist = ((seed * (i + 3) * 19) & 0xff) / 255 * 35;
+        const mx = x + Math.cos(ang) * dist;
+        const my = y + Math.sin(ang) * dist;
+        const pulse = 0.6 + Math.sin(t * 1.5 + i * 0.7) * 0.4;
+        // Glöd
+        const gradGlow = ctx.createRadialGradient(mx, my, 0, mx, my, 12);
+        gradGlow.addColorStop(0, 'rgba(140, 80, 220, ' + (0.5 * pulse) + ')');
+        gradGlow.addColorStop(1, 'rgba(140, 80, 220, 0)');
+        ctx.fillStyle = gradGlow;
+        ctx.beginPath();
+        ctx.arc(mx, my, 12, 0, Math.PI * 2);
+        ctx.fill();
+        // Stam (vit)
+        ctx.fillStyle = '#e0d8c0';
+        ctx.fillRect(mx - 1, my, 2, 5);
+        // Hatt (lila glödande)
+        ctx.fillStyle = 'rgba(180, 100, 230, ' + (0.85 + pulse * 0.15) + ')';
+        ctx.beginPath();
+        ctx.arc(mx, my - 1, 4, 0, Math.PI);
+        ctx.fill();
+        // Spots
+        ctx.fillStyle = 'rgba(255, 230, 255, ' + pulse + ')';
+        ctx.beginPath();
+        ctx.arc(mx - 1, my - 1.5, 0.7, 0, Math.PI * 2);
+        ctx.arc(mx + 1.5, my - 1, 0.7, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (d.kind === 'alien_track') {
+      // Alien-spår — 3 udda 3-tå fotspår i grön
+      const t = performance.now() / 1000;
+      const pulse = 0.4 + Math.sin(t * 1.5) * 0.2;
+      ctx.fillStyle = 'rgba(120, 255, 150, ' + pulse + ')';
+      for (let i = 0; i < 3; i++) {
+        const fx = x + i * 12;
+        const fy = y + (i % 2) * 6;
+        // Centrum-prick + 3 tår
+        ctx.beginPath();
+        ctx.ellipse(fx, fy, 3, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        for (let j = 0; j < 3; j++) {
+          const tx = fx + (j - 1) * 2.5;
+          const ty = fy - 5;
+          ctx.beginPath();
+          ctx.arc(tx, ty, 1.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     } else if (d.kind === 'sign' || d.kind === 'graffiti' || d.kind === 'lantern' || d.kind === 'caution_tape') {
       // Fallback: använd drawDecorationItem
       if (typeof drawDecorationItem === 'function') {
@@ -7830,7 +8160,6 @@ function drawCabinRoof(cabin, sx, sy) {
       ctx.moveTo(sx + xx, sy + 2); ctx.lineTo(sx + xx, sy + b.h - 2);
       ctx.stroke();
     }
-    // Horisontella binder-linjer
     ctx.strokeStyle = r.accent;
     ctx.lineWidth = 2;
     for (let yy = 18; yy < b.h; yy += 22) {
@@ -7838,14 +8167,47 @@ function drawCabinRoof(cabin, sx, sy) {
       ctx.moveTo(sx + 2, sy + yy); ctx.lineTo(sx + b.w - 2, sy + yy);
       ctx.stroke();
     }
+  } else if (r.style === 'container') {
+    // Container-tak: korrugerade ribbor + container-kod
+    const isHoriz = b.w > b.h;
+    ctx.strokeStyle = r.accent;
+    ctx.lineWidth = 1;
+    if (isHoriz) {
+      for (let i = 12; i < b.w; i += 12) {
+        ctx.beginPath();
+        ctx.moveTo(sx + i, sy + 3); ctx.lineTo(sx + i, sy + b.h - 3);
+        ctx.stroke();
+      }
+      // Top + bottom band
+      ctx.fillStyle = r.accent;
+      ctx.fillRect(sx, sy, b.w, 4);
+      ctx.fillRect(sx, sy + b.h - 4, b.w, 4);
+    } else {
+      for (let i = 12; i < b.h; i += 12) {
+        ctx.beginPath();
+        ctx.moveTo(sx + 3, sy + i); ctx.lineTo(sx + b.w - 3, sy + i);
+        ctx.stroke();
+      }
+      ctx.fillStyle = r.accent;
+      ctx.fillRect(sx, sy, 4, b.h);
+      ctx.fillRect(sx + b.w - 4, sy, 4, b.h);
+    }
+    // Container-kod (vit text)
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    ctx.font = 'bold 9px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(cabin.name || 'CARGO', sx + b.w / 2, sy + b.h / 2);
   }
-  // Skorsten (mörk kvadrat vid övre kant)
-  const chimneyX = sx + b.w * 0.7;
-  const chimneyY = sy + 6;
-  ctx.fillStyle = '#3a3028';
-  ctx.fillRect(chimneyX, chimneyY, 14, 18);
-  ctx.fillStyle = '#1a1408';
-  ctx.fillRect(chimneyX + 2, chimneyY, 10, 4); // mörk topp
+  // Skorsten BARA på riktiga stugor (inte containers)
+  if (r.style !== 'container') {
+    const chimneyX = sx + b.w * 0.7;
+    const chimneyY = sy + 6;
+    ctx.fillStyle = '#3a3028';
+    ctx.fillRect(chimneyX, chimneyY, 14, 18);
+    ctx.fillStyle = '#1a1408';
+    ctx.fillRect(chimneyX + 2, chimneyY, 10, 4);
+  }
   // Yttre kant
   ctx.strokeStyle = '#1a0e04';
   ctx.lineWidth = 2;

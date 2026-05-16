@@ -369,6 +369,24 @@ const BATTLEROYALE_ARENA = {
       ] },
   ],
 
+  // === CONTAINER-CABINS — alla containrar är nu "miniature hus" ===
+  // Auto-konverteras till cabins-arrayen via preprocess. Dörr på kortsidan,
+  // garanterad legendary-loot inuti, tak försvinner när spelaren är inne.
+  containerCabins: [
+    // NE scrap-yard cluster (var staplade containrar)
+    { id: 'cont_ne_1', name: 'CONTAINER-A1', x: 5300, y: 2400, w: 220, h: 80, color: 'rust' },
+    { id: 'cont_ne_2', name: 'CONTAINER-B2', x: 5300, y: 2500, w: 220, h: 80, color: 'orange' },
+    { id: 'cont_ne_3', name: 'CONTAINER-C3', x: 5600, y: 2700, w: 80,  h: 220, color: 'blue' },
+    { id: 'cont_ne_4', name: 'CONTAINER-D4', x: 6100, y: 2300, w: 220, h: 80, color: 'green' },
+    { id: 'cont_ne_5', name: 'CONTAINER-E5', x: 6100, y: 2400, w: 220, h: 80, color: 'yellow' },
+    { id: 'cont_ne_6', name: 'CONTAINER-F6', x: 6500, y: 2600, w: 80,  h: 220, color: 'red' },
+    { id: 'cont_ne_7', name: 'CONTAINER-G7', x: 7000, y: 2800, w: 220, h: 80, color: 'rust' },
+    { id: 'cont_ne_8', name: 'CONTAINER-H8', x: 7300, y: 2400, w: 220, h: 80, color: 'blue' },
+    { id: 'cont_ne_9', name: 'CONTAINER-J9', x: 7500, y: 3500, w: 80,  h: 220, color: 'orange' },
+    // East camping
+    { id: 'cont_e_1',  name: 'CONTAINER-K0', x: 7500, y: 6100, w: 220, h: 80, color: 'rust' },
+  ],
+
   walls: [
     // === PERIMETER (10000×10000) ===
     { x: 0,    y: 0,    w: 10000, h: 20,   kind: 'stone_wall' },
@@ -503,6 +521,51 @@ const BATTLEROYALE_ARENA = {
     { x: 8500, y: 9500, w: 50, h: 50, kind: 'standing_stone' },
     { x: 8580, y: 9450, w: 50, h: 50, kind: 'standing_stone' },
     { x: 8660, y: 9500, w: 50, h: 50, kind: 'standing_stone' },
+
+    // ========================================================================
+    // === ALIEN-OMRÅDE (SE-hörnet, x=7900-9800, y=7900-9800) ===
+    // Crash-zon med UFO-vrak + crystals + skull-totems + alien-mark
+    // ========================================================================
+    // CENTRAL: UFO-vrak (stor) i mitten av zonen
+    { x: 8650, y: 8700, w: 220, h: 220, kind: 'ufo_wreck' },
+    // CRYSTAL-FORMATIONER spridda runt UFO:t (lila glödande)
+    { x: 8400, y: 8500, w: 50, h: 80, kind: 'alien_crystal' },
+    { x: 9000, y: 8500, w: 60, h: 90, kind: 'alien_crystal' },
+    { x: 8300, y: 8900, w: 50, h: 80, kind: 'alien_crystal' },
+    { x: 9100, y: 8900, w: 55, h: 85, kind: 'alien_crystal' },
+    { x: 8500, y: 9200, w: 60, h: 90, kind: 'alien_crystal' },
+    { x: 8900, y: 9300, w: 50, h: 80, kind: 'alien_crystal' },
+    { x: 8200, y: 8200, w: 55, h: 85, kind: 'alien_crystal' },
+    { x: 9300, y: 8200, w: 50, h: 80, kind: 'alien_crystal' },
+    // SKULL-TOTEMS — gamla skogs-altare med skallar
+    { x: 8100, y: 8400, w: 40, h: 70, kind: 'skull_totem' },
+    { x: 9400, y: 8400, w: 40, h: 70, kind: 'skull_totem' },
+    { x: 8100, y: 9400, w: 40, h: 70, kind: 'skull_totem' },
+    { x: 9400, y: 9400, w: 40, h: 70, kind: 'skull_totem' },
+    // EXTRA STENCIRKEL i alien-området
+    { x: 8550, y: 8350, w: 50, h: 50, kind: 'standing_stone' },
+    { x: 8700, y: 8320, w: 50, h: 50, kind: 'standing_stone' },
+    { x: 8850, y: 8350, w: 50, h: 50, kind: 'standing_stone' },
+    // RUNE-STONES i hörnen
+    { x: 8000, y: 8000, w: 40, h: 60, kind: 'rune_stone' },
+    { x: 9700, y: 8000, w: 40, h: 60, kind: 'rune_stone' },
+    { x: 8000, y: 9700, w: 40, h: 60, kind: 'rune_stone' },
+    { x: 9700, y: 9700, w: 40, h: 60, kind: 'rune_stone' },
+
+    // === EXTRA MYSTIK spridd över kartan ===
+    // NW deep mystik
+    { x: 1500, y: 2500, w: 50, h: 50, kind: 'standing_stone' },
+    { x: 1620, y: 2480, w: 50, h: 50, kind: 'standing_stone' },
+    { x: 1400, y: 2300, w: 40, h: 60, kind: 'rune_stone' },
+    // SW mystik
+    { x: 1800, y: 6800, w: 40, h: 70, kind: 'skull_totem' },
+    { x: 600, y: 7500, w: 40, h: 60, kind: 'rune_stone' },
+    // NE mystik (mellan scrap och alien)
+    { x: 9000, y: 6500, w: 50, h: 80, kind: 'alien_crystal' },
+    { x: 9300, y: 6800, w: 40, h: 70, kind: 'skull_totem' },
+    // Inom skog
+    { x: 3500, y: 5000, w: 40, h: 60, kind: 'rune_stone' },
+    { x: 6500, y: 5800, w: 40, h: 70, kind: 'skull_totem' },
 
     // === RING-CONTENT (mellan zonerna och outer-perimeter) ===
     // Mellan zoner: N
@@ -695,15 +758,9 @@ const BATTLEROYALE_ARENA = {
     // ========================================================================
     // === NE SCRAP-YARD (5000-8000, 2000-4000) ===
     // ========================================================================
-    { x: 5300, y: 2400,  w: 220, h: 80, kind: 'shipping_container', color: 'rust' },
-    { x: 5300, y: 2480,  w: 220, h: 80, kind: 'shipping_container', color: 'orange' },
-    { x: 5600, y: 2700,  w: 80,  h: 220, kind: 'shipping_container', color: 'blue' },
-    { x: 6100, y: 2300,  w: 220, h: 80, kind: 'shipping_container', color: 'green' },
-    { x: 6100, y: 2380,  w: 220, h: 80, kind: 'shipping_container', color: 'yellow' },
-    { x: 6500, y: 2600,  w: 80,  h: 220, kind: 'shipping_container', color: 'red' },
-    { x: 7000, y: 2800,  w: 220, h: 80, kind: 'shipping_container', color: 'rust' },
-    { x: 7300, y: 2400,  w: 220, h: 80, kind: 'shipping_container', color: 'blue' },
-    { x: 7500, y: 3500,  w: 80,  h: 220, kind: 'shipping_container', color: 'orange' },
+    // (Containrar konverteras nu till "container-cabins" — du kan gå IN i dem,
+    //  taket försvinner när du är inne, och varje har garanterad loot.
+    //  Se containerCabins-arrayen nedan.)
 
     { x: 5800, y: 3100, w: 130, h: 70, kind: 'burning_car' },
     { x: 6300, y: 3300, w: 130, h: 70, kind: 'burning_car' },
@@ -824,7 +881,7 @@ const BATTLEROYALE_ARENA = {
 
     // (stairwell_door borttagen — såg ut som dörr men var bara cover, förvirrande)
 
-    { x: 7500, y: 6100, w: 220, h: 80, kind: 'shipping_container', color: 'rust' },
+    // (container vid 7500,6100 konverterad till container-cabin — se nedan)
 
     { x: 7650, y: 4700, w: 32, h: 32, kind: 'oil_drum' },
     { x: 6800, y: 6400, w: 28, h: 28, kind: 'fire_drum' },
@@ -951,30 +1008,31 @@ const BATTLEROYALE_ARENA = {
     { x: 6700, y: 1530, w: 30,  h: 30, kind: 'fire_drum' },      // motor brinner
     { x: 7250, y: 1530, w: 30,  h: 30, kind: 'fire_drum' },      // motor brinner
 
-    // 2. ÖDEKYRKA + DEDIKERAD KYRKOGÅRD (söder om kyrkan)
+    // 2. ÖDEKYRKA + DEDIKERAD KYRKOGÅRD (separerat område med JORD-bas)
     { x: 4500, y: 6400, w: 250, h: 320, kind: 'church_ruin' },
-    // Trä-staket runt kyrkogården (med öppning mot norr / kyrkan)
-    { x: 4380, y: 6810, w: 90,  h: 12, kind: 'wooden_fence' },  // top-left (gap mot kyrkan i mitten)
-    { x: 4660, y: 6810, w: 220, h: 12, kind: 'wooden_fence' },  // top-right (efter gap)
-    { x: 4380, y: 7110, w: 500, h: 12, kind: 'wooden_fence' },  // bottom
-    { x: 4380, y: 6810, w: 12,  h: 312, kind: 'wooden_fence' }, // left
-    { x: 4868, y: 6810, w: 12,  h: 312, kind: 'wooden_fence' }, // right
-    // Gravstenar i 3×4 RUTNÄT inom staketet (12 st)
-    // Row 1 (y=6850)
-    { x: 4440, y: 6850, w: 35, h: 35, kind: 'cemetery_gravestone' },
-    { x: 4540, y: 6850, w: 35, h: 35, kind: 'cemetery_gravestone' },
-    { x: 4660, y: 6850, w: 35, h: 35, kind: 'cemetery_gravestone' },
-    { x: 4780, y: 6850, w: 35, h: 35, kind: 'cemetery_gravestone' },
-    // Row 2 (y=6950)
-    { x: 4440, y: 6950, w: 35, h: 35, kind: 'cemetery_gravestone' },
-    { x: 4540, y: 6950, w: 35, h: 35, kind: 'cemetery_gravestone' },
-    { x: 4660, y: 6950, w: 35, h: 35, kind: 'cemetery_gravestone' },
-    { x: 4780, y: 6950, w: 35, h: 35, kind: 'cemetery_gravestone' },
-    // Row 3 (y=7050)
-    { x: 4440, y: 7050, w: 35, h: 35, kind: 'cemetery_gravestone' },
-    { x: 4540, y: 7050, w: 35, h: 35, kind: 'cemetery_gravestone' },
-    { x: 4660, y: 7050, w: 35, h: 35, kind: 'cemetery_gravestone' },
-    { x: 4780, y: 7050, w: 35, h: 35, kind: 'cemetery_gravestone' },
+    // Trä-staket runt kyrkogården — flyttat YTTERLIGARE ner (y=6970+) så det
+    // finns ett rent gap mellan kyrkan (slut y=6720) och gravplatsen (start y=6970).
+    { x: 4380, y: 6970, w: 90,  h: 12, kind: 'wooden_fence' },   // top-left (gap mot kyrkan i mitten)
+    { x: 4660, y: 6970, w: 220, h: 12, kind: 'wooden_fence' },   // top-right (efter gap)
+    { x: 4380, y: 7270, w: 500, h: 12, kind: 'wooden_fence' },   // bottom
+    { x: 4380, y: 6970, w: 12,  h: 312, kind: 'wooden_fence' },  // left
+    { x: 4868, y: 6970, w: 12,  h: 312, kind: 'wooden_fence' },  // right
+    // Gravstenar i 3×4 RUTNÄT, EXPLICIT unika namn + årtal per sten
+    // Row 1 (y=7020)
+    { x: 4440, y: 7020, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'BJÖRN', graveBirth: 1872, graveDeath: 1934 },
+    { x: 4540, y: 7020, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'ASTRID', graveBirth: 1885, graveDeath: 1952 },
+    { x: 4660, y: 7020, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'SVEN', graveBirth: 1860, graveDeath: 1921 },
+    { x: 4780, y: 7020, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'INGA', graveBirth: 1891, graveDeath: 1968 },
+    // Row 2 (y=7120)
+    { x: 4440, y: 7120, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'OLAF', graveBirth: 1870, graveDeath: 1942 },
+    { x: 4540, y: 7120, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'GUDRUN', graveBirth: 1903, graveDeath: 1976 },
+    { x: 4660, y: 7120, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'ERIK', graveBirth: 1865, graveDeath: 1930 },
+    { x: 4780, y: 7120, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'HELGA', graveBirth: 1888, graveDeath: 1960 },
+    // Row 3 (y=7220)
+    { x: 4440, y: 7220, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'LARS', graveBirth: 1876, graveDeath: 1948 },
+    { x: 4540, y: 7220, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'SIGRID', graveBirth: 1899, graveDeath: 1971 },
+    { x: 4660, y: 7220, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'MAGNUS', graveBirth: 1882, graveDeath: 1959 },
+    { x: 4780, y: 7220, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'EBBA', graveBirth: 1894, graveDeath: 1972 },
 
     // 3. VATTENFALLS från klippa till sjön (decoration handled separately)
     //    Klipp-vall som omger:
@@ -1282,6 +1340,25 @@ const BATTLEROYALE_ARENA = {
     { kind: 'sign', x: 200, y: 4900, w: 160, h: 26, text: 'FOREST', bg: '#1a2a08', fg: '#aaff7a', rot: -0.05 },
     { kind: 'sign', x: 8700, y: 3900, w: 160, h: 26, text: 'SCRAP', bg: '#3a1808', fg: '#ffaa30', rot: 0.05 },
 
+    // === KYRKOGÅRDENS JORD-BAS (mörk-brun mark under gravarna) ===
+    { kind: 'dirt_floor', x: 4380, y: 6975, w: 500, h: 305 },
+
+    // === ALIEN-MARK i SE-hörnet (lila glödande "drabbat"-textur) ===
+    { kind: 'alien_floor', x: 7900, y: 7900, w: 1900, h: 1900 },
+
+    // === ALIEN-MYSTIK decorations (crop circles, glödande svampar, märkliga spår) ===
+    { kind: 'crop_circle', x: 8750, y: 9000 },
+    { kind: 'crop_circle', x: 8400, y: 8400 },
+    { kind: 'glow_mushrooms', x: 8200, y: 8800, count: 8 },
+    { kind: 'glow_mushrooms', x: 9000, y: 9300, count: 7 },
+    { kind: 'glow_mushrooms', x: 8500, y: 8100, count: 6 },
+    { kind: 'alien_track', x: 8300, y: 8600 },
+    { kind: 'alien_track', x: 8900, y: 8500 },
+    { kind: 'alien_track', x: 9200, y: 9100 },
+    // Spridd extra mystik (utanför alien-zonen)
+    { kind: 'glow_mushrooms', x: 1500, y: 2700, count: 5 },
+    { kind: 'glow_mushrooms', x: 6800, y: 6000, count: 4 },
+
     // === GLÄNTOR — ljusare öppningar i skogen där solljus tränger in ===
     { kind: 'glade', x: 1500, y: 5000, r: 180 },  // outer west glade
     { kind: 'glade', x: 8200, y: 5500, r: 200 },  // outer east glade
@@ -1562,8 +1639,9 @@ function generateProceduralContent(arena) {
   // Format: [xMin, xMax, yMin, yMax]
   const exclusionZones = [
     [2550, 3300, 6400, 7270],  // sjö + klippa + vattenfall (krympt)
-    [4350, 4900, 6380, 7140],  // kyrkogården (inkl staket-buffer)
+    [4350, 4900, 6380, 7300],  // kyrkogården (utökad — inkl flyttat staket)
     [5250, 7700, 2150, 3900],  // scrap-yard (containrar etc behöver sin yta)
+    [7800, 9900, 7800, 9900],  // ALIEN-OMRÅDE (SE-hörnet) — reserverat
   ];
   // Försök spawna ett objekt — ger upp efter N försök om position upptaget
   const trySpawn = (xMin, xMax, yMin, yMax, minDist, cabinBuf, fn) => {
@@ -1668,6 +1746,61 @@ function generateProceduralContent(arena) {
   }
 }
 
+// === CONTAINER-PREPROCESSING ===
+// Konvertera alla containerCabins till fullvärdiga cabins med door + interior + roof.
+// Tak försvinner när spelaren går in. Garanterad loot vid centrum.
+function preprocessContainerCabins(arena) {
+  if (arena._containersProcessed) return;
+  arena._containersProcessed = true;
+  if (!arena.containerCabins) return;
+  for (const c of arena.containerCabins) {
+    const isHorizontal = c.w > c.h;
+    // Dörr på kortsidan (ena änden)
+    const door = isHorizontal
+      ? { side: 'east', offset: Math.floor(c.h * 0.3), width: Math.floor(c.h * 0.4) }
+      : { side: 'south', offset: Math.floor(c.w * 0.3), width: Math.floor(c.w * 0.4) };
+    // Fönster på långsidan (1-2 st)
+    const windows = isHorizontal
+      ? [
+          { side: 'north', offset: Math.floor(c.w * 0.25), width: 30 },
+          { side: 'north', offset: Math.floor(c.w * 0.65), width: 30 },
+        ]
+      : [
+          { side: 'east', offset: Math.floor(c.h * 0.25), width: 30 },
+          { side: 'east', offset: Math.floor(c.h * 0.65), width: 30 },
+        ];
+    // Container-specifik roof
+    const palette = {
+      orange: { main: '#c47a30', dark: '#7a4a18' },
+      blue:   { main: '#2a5a8a', dark: '#15304a' },
+      rust:   { main: '#7a4a30', dark: '#3a2418' },
+      green:  { main: '#3a6a3a', dark: '#1a3a1a' },
+      yellow: { main: '#aa8a20', dark: '#5a4a10' },
+      red:    { main: '#8a2a2a', dark: '#5a1010' },
+      gold:   { main: '#aa8030', dark: '#5a4010' },
+    };
+    const p = palette[c.color] || palette.orange;
+    // Push som cabin
+    arena.cabins.push({
+      id: c.id,
+      name: c.name,
+      bounds: { x: c.x, y: c.y, w: c.w, h: c.h },
+      door,
+      windows,
+      roof: { color: p.main, accent: p.dark, style: 'container' },
+      floor: '#3a3a40',
+      _isContainer: true,
+      interior: [
+        // Liten container-interior: 2 crates + ammo box
+        { kind: 'workbench', x: c.x + Math.floor(c.w * 0.3) - 30, y: c.y + Math.floor(c.h * 0.3), w: 50, h: 25 },
+        { kind: 'rope_coil', x: c.x + Math.floor(c.w * 0.7), y: c.y + Math.floor(c.h * 0.7) },
+        { kind: 'oil_lamp', x: c.x + Math.floor(c.w * 0.5), y: c.y + Math.floor(c.h * 0.5) },
+      ],
+    });
+  }
+}
+
+preprocessContainerCabins(BATTLEROYALE_ARENA);
 generateProceduralContent(BATTLEROYALE_ARENA);
 preprocessCabinWalls(BATTLEROYALE_ARENA);
 
@@ -1681,17 +1814,19 @@ function postProcessArena(arena) {
     return d.kind !== 'graffiti' && d.kind !== 'caution_tape'
         && d.kind !== 'fallen_log' && d.kind !== 'stream';
   });
-  // 2. Lägg till en loot-spawn inuti varje cabin (i mitten av bounds)
-  // Insättas FÖRE center-loot (sista i lootSpawns är legendary-locked center).
-  const centerLoot = arena.lootSpawns.pop(); // ta bort center temporärt
+  // 2. Lägg till loot-spawn inuti varje cabin (centrum av bounds).
+  //    Containers får GARANTERAD rare/legendary via guaranteedTier-flag.
+  const centerLoot = arena.lootSpawns.pop();
   for (const cabin of arena.cabins) {
     const b = cabin.bounds;
-    arena.lootSpawns.push({
-      x: b.x + b.w / 2,
-      y: b.y + b.h / 2,
-    });
+    const spawn = { x: b.x + b.w / 2, y: b.y + b.h / 2 };
+    // Containers: garanterad rare-tier loot (vapen alltid)
+    if (cabin._isContainer) {
+      spawn.guaranteedTier = 'rare';
+    }
+    arena.lootSpawns.push(spawn);
   }
-  arena.lootSpawns.push(centerLoot); // återställ center-loot sist
+  arena.lootSpawns.push(centerLoot);
 }
 postProcessArena(BATTLEROYALE_ARENA);
 
