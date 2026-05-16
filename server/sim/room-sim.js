@@ -3088,8 +3088,9 @@ function startSim(sim, opts) {
     // BATTLE ROYALE: 6000×6000 FFA no-respawn arena. Krympande zon.
     sim.simReadyAt = Date.now() + 5000;
     const arena = BATTLEROYALE_ARENA;
-    // Initial zon = hela kartan (radius dimensioneras så ingen är "utanför" från start)
-    const initialR = Math.round(Math.sqrt(arena.worldW * arena.worldH / Math.PI));
+    // Initial zon = täcker HELA kartan inklusive hörn. Diagonal/2 + buffer.
+    // För 10000×10000 ger sqrt(2)*5000 ≈ 7071, +200 buffer = 7272 så hörn-spawns ligger inne.
+    const initialR = Math.round(Math.sqrt(2) * Math.max(arena.worldW, arena.worldH) / 2 + 200);
     sim.battleroyaleZone = {
       x: arena.worldW / 2,
       y: arena.worldH / 2,
@@ -3359,6 +3360,38 @@ function applyShoot(sim, peerId, msg) {
   spawnPlayerBullets(sim, p, weaponId, params);
 }
 
+// BR: spelaren dropar ett vapen från inventory → spawna loot vid sin pos
+function applyBrDropWeapon(sim, peerId, msg) {
+  if (!sim.battleroyaleActive) return;
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  const weaponId = msg && msg.weaponId;
+  if (!weaponId) return;
+  // Block default-starter dropp (fists/knife/pistol kan inte tas bort)
+  if (weaponId === 'fists' || weaponId === 'knife' || weaponId === 'pistol') return;
+  const px = ws.playerState.x, py = ws.playerState.y;
+  sim._brLootIdCounter = (sim._brLootIdCounter || 0) + 1;
+  const lo = {
+    id: 'br_loot_' + sim._brLootIdCounter,
+    x: px + (Math.random() - 0.5) * 30,
+    y: py + (Math.random() - 0.5) * 30,
+    kind: 'weapon',
+    weaponId,
+    tier: 'dropped',
+    available: true,
+    unlockAt: 0,
+  };
+  sim.battleroyaleLoot.push(lo);
+  // Server-side equip: byt till nästa vapen klienten skickade (eller pistol fallback)
+  if (msg.newWeaponId) ws.playerState.weaponId = msg.newWeaponId;
+  sim.eventQueue.push({
+    type: 'br_corpse_drop',
+    x: Math.round(lo.x),
+    y: Math.round(lo.y),
+    loot: [{ id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: 0 }],
+  });
+}
+
 // Ny: host kan köra "next stage" via sim_load_stage-meddelande
 function applyLoadStage(sim, peerId, msg) {
   if (sim.room.hostId !== peerId) return;
@@ -3374,4 +3407,4 @@ function applyLoadStage(sim, peerId, msg) {
   loadStage(sim, wave);
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret };

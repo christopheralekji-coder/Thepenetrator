@@ -1545,10 +1545,10 @@ const BATTLEROYALE_ARENA = {
   matchDurationLabels: ['⚡ 5 MIN', '🔥 10 MIN', '👑 15 MIN'],
 
   startWeapon: 'pistol',
-  startHp: 100,
-  startShield: 0,
-  maxHp: 100,
-  maxShield: 100,
+  startHp: 200,
+  startShield: 200,
+  maxHp: 200,
+  maxShield: 200,
   lootPickupRadius: 32,
 };
 
@@ -1831,6 +1831,73 @@ function postProcessArena(arena) {
         && d.kind !== 'fallen_log' && d.kind !== 'stream'
         && d.kind !== 'dirt_path';
   });
+  // 1b. AGGRESSIV CLEANUP: ta bort PROCEDURELLA walls vars bbox överlappar
+  //     någon cabin bounds (med 18px buffer) — fixar "träd inne i hus".
+  //     Gäller även dekorationer (bush, mushrooms, flowers, pine_cones).
+  const PROC_WALL_KINDS = new Set([
+    'tree_oak', 'tree_pine', 'tree_giant_oak', 'tree_stump',
+    'rock_large', 'rock_small',
+    'woodpile', 'haystack', 'well', 'campfire', 'tent',
+  ]);
+  const CABIN_BUF = 18;
+  const overlapsAnyCabin = (x, y, w, h) => {
+    for (const c of arena.cabins) {
+      const b = c.bounds;
+      if (x < b.x + b.w + CABIN_BUF && x + w > b.x - CABIN_BUF &&
+          y < b.y + b.h + CABIN_BUF && y + h > b.y - CABIN_BUF) return true;
+    }
+    return false;
+  };
+  // Cemetery zone (gravstenar finns där — inga träd/buskar)
+  const CEMETERY = { x: 4300, y: 6300, w: 650, h: 1050 };
+  const inCemetery = (x, y, w, h) => {
+    return x < CEMETERY.x + CEMETERY.w && x + w > CEMETERY.x &&
+           y < CEMETERY.y + CEMETERY.h && y + h > CEMETERY.y;
+  };
+  arena.walls = arena.walls.filter(w => {
+    if (!PROC_WALL_KINDS.has(w.kind)) return true;
+    if (overlapsAnyCabin(w.x, w.y, w.w, w.h)) return false;
+    if (inCemetery(w.x, w.y, w.w, w.h)) return false;
+    return true;
+  });
+  arena.decorations = arena.decorations.filter(d => {
+    const dx = d.x - 20, dy = d.y - 20, dw = 40, dh = 40;
+    if (overlapsAnyCabin(dx, dy, dw, dh)) return false;
+    if (inCemetery(dx, dy, dw, dh)) return false;
+    return true;
+  });
+  // 1c. DE-DUP: ta bort procedural walls vars bbox överlappar en TIDIGARE
+  //     procedural wall (stone/tree på objekt). Använder bbox-mot-bbox check.
+  const keptProc = [];
+  arena.walls = arena.walls.filter(w => {
+    if (!PROC_WALL_KINDS.has(w.kind)) return true;
+    for (const k of keptProc) {
+      if (w.x < k.x + k.w && w.x + w.w > k.x &&
+          w.y < k.y + k.h && w.y + w.h > k.y) return false;
+    }
+    keptProc.push(w);
+    return true;
+  });
+  // 1d. KRYMP COLLISION-BBOX för träd. Visuell krona kvar via visual{X,Y,W,H}.
+  //     Pine = triangel (smal trunk), oak/giant = rundare krona, stump = nästan helt.
+  const TREE_COLL_FACTOR = {
+    tree_pine: 0.35,
+    tree_oak: 0.55,
+    tree_giant_oak: 0.50,
+    tree_stump: 0.75,
+  };
+  for (const w of arena.walls) {
+    const f = TREE_COLL_FACTOR[w.kind];
+    if (!f) continue;
+    if (w.visualW != null) continue; // redan processad
+    w.visualX = w.x; w.visualY = w.y; w.visualW = w.w; w.visualH = w.h;
+    const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
+    const nw = Math.round(w.w * f), nh = Math.round(w.h * f);
+    w.x = Math.round(cx - nw / 2);
+    w.y = Math.round(cy - nh / 2);
+    w.w = nw;
+    w.h = nh;
+  }
   // 2. Lägg till loot-spawn inuti varje cabin (centrum av bounds).
   //    RANDOM tier (containers använder samma distribution som hus — ingen garanti).
   const centerLoot = arena.lootSpawns.pop();

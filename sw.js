@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v339-br-raytrace-bridge-ufo-crash';
+const CACHE = 'penetrator-v340-br-inventory-zone-double-hp';
 const ASSETS = [
   './',
   './index.html',

@@ -998,8 +998,13 @@ function drawPvpWalls(walls) {
   // Shadow under varje wall (drop-shadow) först så de lager-lurar visuellt
   ctx.save();
   for (const w of walls) {
-    const x = w.x - cx, y = w.y - cy;
-    if (x + w.w < -20 || x > viewW + 20 || y + w.h < -20 || y > viewH + 20) continue;
+    // Träd har shrunken collision-bbox men större visuell krona — använd visualX/Y/W/H när satt.
+    const renderX = (w.visualX != null) ? w.visualX : w.x;
+    const renderY = (w.visualY != null) ? w.visualY : w.y;
+    const renderW = (w.visualW != null) ? w.visualW : w.w;
+    const renderH = (w.visualH != null) ? w.visualH : w.h;
+    const x = renderX - cx, y = renderY - cy;
+    if (x + renderW < -20 || x > viewW + 20 || y + renderH < -20 || y > viewH + 20) continue;
     // Drop-shadow för depth (ej för low dividers eller pipes som ligger på marken).
     // EXKLUDERA alla BR-skog-walls + landmark-walls som har EGEN mjuk ellips-skugga
     // (annars får man dubbel-skugga: gammal fyrkantig + ny rund).
@@ -1027,88 +1032,88 @@ function drawPvpWalls(walls) {
     );
     if (w.kind !== 'pipe' && w.kind !== 'wall_divider' && !_brHasOwnShadow) {
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.fillRect(x + 2, y + Math.max(3, w.h * 0.06), w.w, w.h);
+      ctx.fillRect(x + 2, y + Math.max(3, renderH * 0.06), renderW, renderH);
     }
     // Stabil hash per-wall baserat på WORLD-koord (konstant). Tidigare beräknades
     // hash från SCREEN-coords (x,y) inom helpers → bullet-holes, concrete-dots och
     // wood-grain "vandrade" varje frame när kameran rörde sig.
-    const seed = ((w.x * 7) ^ (w.y * 13) ^ (w.w * 5) ^ (w.h * 11)) | 0;
+    const seed = ((renderX * 7) ^ (renderY * 13) ^ (renderW * 5) ^ (renderH * 11)) | 0;
     // Rita själva obstaclet
-    if (w.kind === 'wall_red_base' || w.kind === 'wall_blue_base') drawBaseWall(x, y, w.w, w.h, w.kind === 'wall_red_base', seed);
-    else if (w.kind === 'wall_pillar') drawPillar(x, y, w.w, w.h, seed);
-    else if (w.kind === 'wall_divider') drawDivider(x, y, w.w, w.h);
-    else if (w.kind === 'sandbag') drawSandbag(x, y, w.w, w.h);
-    else if (w.kind === 'barrel') drawBarrel(x, y, w.w, w.h);
-    else if (w.kind === 'debris') drawDebris(x, y, w.w, w.h, seed);
-    else if (w.kind === 'barricade') drawBarricade(x, y, w.w, w.h);
-    else if (w.kind === 'pipe') drawPipe(x, y, w.w, w.h);
-    else if (w.kind === 'crate') drawCrate(x, y, w.w, w.h, seed);
-    else if (w.kind === 'truck') drawTruck(x, y, w.w, w.h, seed);
-    else if (w.kind === 'van') drawVan(x, y, w.w, w.h, seed);
-    else if (w.kind === 'car_wreck') drawCarWreck(x, y, w.w, w.h, seed);
-    else if (w.kind === 'guardhouse') drawGuardhouse(x, y, w.w, w.h);
-    else if (w.kind === 'ramp') drawRamp(x, y, w.w, w.h);
-    else if (w.kind === 'oil_drum') drawOilDrum(x, y, w.w, w.h, seed);
-    else if (w.kind === 'fire_drum') drawFireDrum(x, y, w.w, w.h, seed);
-    else if (w.kind === 'lamppost') drawLamppost(x, y, w.w, w.h, w.x, w.y);
-    else if (w.kind === 'broken_pillar') drawBrokenPillar(x, y, w.w, w.h, seed);
-    else if (w.kind === 'tagged_pillar') drawTaggedPillar(x, y, w.w, w.h, seed);
-    else if (w.kind === 'concrete') drawConcreteWall(x, y, w.w, w.h);
-    else if (w.kind === 'bollard') drawBollard(x, y, w.w, w.h);
-    else if (w.kind === 'dumpster_fire') drawDumpsterFire(x, y, w.w, w.h, seed);
-    else if (w.kind === 'stairwell_door') drawStairwellDoor(x, y, w.w, w.h);
-    else if (w.kind === 'pay_machine') drawPayMachine(x, y, w.w, w.h);
-    else if (w.kind === 'jersey_barrier') drawJerseyBarrier(x, y, w.w, w.h);
-    else if (w.kind === 'shipping_container') drawShippingContainer(x, y, w.w, w.h, w.color || 'orange', seed);
-    else if (w.kind === 'silo') drawSilo(x, y, w.w, w.h, seed);
-    else if (w.kind === 'building') drawBuilding(x, y, w.w, w.h, seed);
+    if (w.kind === 'wall_red_base' || w.kind === 'wall_blue_base') drawBaseWall(x, y, renderW, renderH, w.kind === 'wall_red_base', seed);
+    else if (w.kind === 'wall_pillar') drawPillar(x, y, renderW, renderH, seed);
+    else if (w.kind === 'wall_divider') drawDivider(x, y, renderW, renderH);
+    else if (w.kind === 'sandbag') drawSandbag(x, y, renderW, renderH);
+    else if (w.kind === 'barrel') drawBarrel(x, y, renderW, renderH);
+    else if (w.kind === 'debris') drawDebris(x, y, renderW, renderH, seed);
+    else if (w.kind === 'barricade') drawBarricade(x, y, renderW, renderH);
+    else if (w.kind === 'pipe') drawPipe(x, y, renderW, renderH);
+    else if (w.kind === 'crate') drawCrate(x, y, renderW, renderH, seed);
+    else if (w.kind === 'truck') drawTruck(x, y, renderW, renderH, seed);
+    else if (w.kind === 'van') drawVan(x, y, renderW, renderH, seed);
+    else if (w.kind === 'car_wreck') drawCarWreck(x, y, renderW, renderH, seed);
+    else if (w.kind === 'guardhouse') drawGuardhouse(x, y, renderW, renderH);
+    else if (w.kind === 'ramp') drawRamp(x, y, renderW, renderH);
+    else if (w.kind === 'oil_drum') drawOilDrum(x, y, renderW, renderH, seed);
+    else if (w.kind === 'fire_drum') drawFireDrum(x, y, renderW, renderH, seed);
+    else if (w.kind === 'lamppost') drawLamppost(x, y, renderW, renderH, renderX, renderY);
+    else if (w.kind === 'broken_pillar') drawBrokenPillar(x, y, renderW, renderH, seed);
+    else if (w.kind === 'tagged_pillar') drawTaggedPillar(x, y, renderW, renderH, seed);
+    else if (w.kind === 'concrete') drawConcreteWall(x, y, renderW, renderH);
+    else if (w.kind === 'bollard') drawBollard(x, y, renderW, renderH);
+    else if (w.kind === 'dumpster_fire') drawDumpsterFire(x, y, renderW, renderH, seed);
+    else if (w.kind === 'stairwell_door') drawStairwellDoor(x, y, renderW, renderH);
+    else if (w.kind === 'pay_machine') drawPayMachine(x, y, renderW, renderH);
+    else if (w.kind === 'jersey_barrier') drawJerseyBarrier(x, y, renderW, renderH);
+    else if (w.kind === 'shipping_container') drawShippingContainer(x, y, renderW, renderH, w.color || 'orange', seed);
+    else if (w.kind === 'silo') drawSilo(x, y, renderW, renderH, seed);
+    else if (w.kind === 'building') drawBuilding(x, y, renderW, renderH, seed);
     // BR skog-karta wall-kinds
-    else if (w.kind === 'tree_oak') drawTreeOak(x, y, w.w, w.h, seed);
-    else if (w.kind === 'tree_pine') drawTreePine(x, y, w.w, w.h, seed);
-    else if (w.kind === 'tree_stump') drawTreeStump(x, y, w.w, w.h, seed);
-    else if (w.kind === 'rock_large') drawRock(x, y, w.w, w.h, seed, true);
-    else if (w.kind === 'rock_small') drawRock(x, y, w.w, w.h, seed, false);
-    else if (w.kind === 'cabin_wall_wood') drawCabinWallWood(x, y, w.w, w.h, seed);
-    else if (w.kind === 'burning_car') drawBurningCar(x, y, w.w, w.h, seed);
-    else if (w.kind === 'burning_truck') drawBurningTruck(x, y, w.w, w.h, seed);
-    else if (w.kind === 'burning_caravan') drawBurningCaravan(x, y, w.w, w.h, seed);
-    else if (w.kind === 'excavator_wreck') drawExcavatorWreck(x, y, w.w, w.h, seed);
-    else if (w.kind === 'hunting_tower') drawHuntingTower(x, y, w.w, w.h, seed);
-    else if (w.kind === 'tent') drawTent(x, y, w.w, w.h, w.color || 'red', seed);
-    else if (w.kind === 'well') drawWell(x, y, w.w, w.h, seed);
-    else if (w.kind === 'haystack') drawHaystack(x, y, w.w, w.h, seed);
-    else if (w.kind === 'woodpile') drawWoodpile(x, y, w.w, w.h, seed);
-    else if (w.kind === 'stone_wall') drawStoneWall(x, y, w.w, w.h, false);
-    else if (w.kind === 'stone_wall_low') drawStoneWall(x, y, w.w, w.h, true);
-    else if (w.kind === 'wooden_fence') drawWoodenFence(x, y, w.w, w.h);
-    else if (w.kind === 'chicken_coop') drawChickenCoop(x, y, w.w, w.h, seed);
-    else if (w.kind === 'picnic_table') drawPicnicTable(x, y, w.w, w.h);
-    else if (w.kind === 'campfire') drawCampfire(x, y, w.w, w.h, seed);
-    else if (w.kind === 'boat') drawBoat(x, y, w.w, w.h, seed);
-    else if (w.kind === 'bridge') drawBridge(x, y, w.w, w.h);
+    else if (w.kind === 'tree_oak') drawTreeOak(x, y, renderW, renderH, seed);
+    else if (w.kind === 'tree_pine') drawTreePine(x, y, renderW, renderH, seed);
+    else if (w.kind === 'tree_stump') drawTreeStump(x, y, renderW, renderH, seed);
+    else if (w.kind === 'rock_large') drawRock(x, y, renderW, renderH, seed, true);
+    else if (w.kind === 'rock_small') drawRock(x, y, renderW, renderH, seed, false);
+    else if (w.kind === 'cabin_wall_wood') drawCabinWallWood(x, y, renderW, renderH, seed);
+    else if (w.kind === 'burning_car') drawBurningCar(x, y, renderW, renderH, seed);
+    else if (w.kind === 'burning_truck') drawBurningTruck(x, y, renderW, renderH, seed);
+    else if (w.kind === 'burning_caravan') drawBurningCaravan(x, y, renderW, renderH, seed);
+    else if (w.kind === 'excavator_wreck') drawExcavatorWreck(x, y, renderW, renderH, seed);
+    else if (w.kind === 'hunting_tower') drawHuntingTower(x, y, renderW, renderH, seed);
+    else if (w.kind === 'tent') drawTent(x, y, renderW, renderH, w.color || 'red', seed);
+    else if (w.kind === 'well') drawWell(x, y, renderW, renderH, seed);
+    else if (w.kind === 'haystack') drawHaystack(x, y, renderW, renderH, seed);
+    else if (w.kind === 'woodpile') drawWoodpile(x, y, renderW, renderH, seed);
+    else if (w.kind === 'stone_wall') drawStoneWall(x, y, renderW, renderH, false);
+    else if (w.kind === 'stone_wall_low') drawStoneWall(x, y, renderW, renderH, true);
+    else if (w.kind === 'wooden_fence') drawWoodenFence(x, y, renderW, renderH);
+    else if (w.kind === 'chicken_coop') drawChickenCoop(x, y, renderW, renderH, seed);
+    else if (w.kind === 'picnic_table') drawPicnicTable(x, y, renderW, renderH);
+    else if (w.kind === 'campfire') drawCampfire(x, y, renderW, renderH, seed);
+    else if (w.kind === 'boat') drawBoat(x, y, renderW, renderH, seed);
+    else if (w.kind === 'bridge') drawBridge(x, y, renderW, renderH);
     // === LANDMARKS v1.329 ===
-    else if (w.kind === 'plane_fuselage') drawPlaneFuselage(x, y, w.w, w.h, seed);
-    else if (w.kind === 'plane_wing') drawPlaneWing(x, y, w.w, w.h);
-    else if (w.kind === 'plane_tail') drawPlaneTail(x, y, w.w, w.h);
-    else if (w.kind === 'church_ruin') drawChurchRuin(x, y, w.w, w.h, seed);
-    else if (w.kind === 'cemetery_gravestone') drawGravestone(x, y, w.w, w.h, seed, w);
-    else if (w.kind === 'cliff_edge') drawCliffEdge(x, y, w.w, w.h, seed);
-    else if (w.kind === 'standing_stone') drawStandingStone(x, y, w.w, w.h, seed);
-    else if (w.kind === 'altar_stone') drawAltarStone(x, y, w.w, w.h);
-    else if (w.kind === 'pump_jack') drawPumpJack(x, y, w.w, w.h);
-    else if (w.kind === 'lighthouse') drawLighthouse(x, y, w.w, w.h);
-    else if (w.kind === 'wooden_bench') drawWoodenBench(x, y, w.w, w.h);
-    else if (w.kind === 'flower_pot') drawFlowerPot(x, y, w.w, w.h);
-    else if (w.kind === 'wagon_cart') drawWagonCart(x, y, w.w, w.h, seed);
-    else if (w.kind === 'tree_giant_oak') drawTreeGiantOak(x, y, w.w, w.h, seed);
-    else if (w.kind === 'rune_stone') drawRuneStone(x, y, w.w, w.h, seed);
-    else if (w.kind === 'cabin_window') drawCabinWindow(x, y, w.w, w.h);
+    else if (w.kind === 'plane_fuselage') drawPlaneFuselage(x, y, renderW, renderH, seed);
+    else if (w.kind === 'plane_wing') drawPlaneWing(x, y, renderW, renderH);
+    else if (w.kind === 'plane_tail') drawPlaneTail(x, y, renderW, renderH);
+    else if (w.kind === 'church_ruin') drawChurchRuin(x, y, renderW, renderH, seed);
+    else if (w.kind === 'cemetery_gravestone') drawGravestone(x, y, renderW, renderH, seed, w);
+    else if (w.kind === 'cliff_edge') drawCliffEdge(x, y, renderW, renderH, seed);
+    else if (w.kind === 'standing_stone') drawStandingStone(x, y, renderW, renderH, seed);
+    else if (w.kind === 'altar_stone') drawAltarStone(x, y, renderW, renderH);
+    else if (w.kind === 'pump_jack') drawPumpJack(x, y, renderW, renderH);
+    else if (w.kind === 'lighthouse') drawLighthouse(x, y, renderW, renderH);
+    else if (w.kind === 'wooden_bench') drawWoodenBench(x, y, renderW, renderH);
+    else if (w.kind === 'flower_pot') drawFlowerPot(x, y, renderW, renderH);
+    else if (w.kind === 'wagon_cart') drawWagonCart(x, y, renderW, renderH, seed);
+    else if (w.kind === 'tree_giant_oak') drawTreeGiantOak(x, y, renderW, renderH, seed);
+    else if (w.kind === 'rune_stone') drawRuneStone(x, y, renderW, renderH, seed);
+    else if (w.kind === 'cabin_window') drawCabinWindow(x, y, renderW, renderH);
     else if (w.kind === 'lake_water_block') { /* osynlig collision-wall — render hanteras av lake_water_polygon decoration */ }
-    else if (w.kind === 'ufo_wreck') drawUfoWreck(x, y, w.w, w.h, seed);
-    else if (w.kind === 'ufo_debris') drawUfoDebris(x, y, w.w, w.h, seed);
-    else if (w.kind === 'alien_crystal') drawAlienCrystal(x, y, w.w, w.h, seed);
-    else if (w.kind === 'skull_totem') drawSkullTotem(x, y, w.w, w.h, seed);
-    else { ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x, y, w.w, w.h); }
+    else if (w.kind === 'ufo_wreck') drawUfoWreck(x, y, renderW, renderH, seed);
+    else if (w.kind === 'ufo_debris') drawUfoDebris(x, y, renderW, renderH, seed);
+    else if (w.kind === 'alien_crystal') drawAlienCrystal(x, y, renderW, renderH, seed);
+    else if (w.kind === 'skull_totem') drawSkullTotem(x, y, renderW, renderH, seed);
+    else { ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x, y, renderW, renderH); }
   }
   ctx.restore();
 }
@@ -8364,14 +8369,6 @@ function drawCabinInterior(cabin, sx, sy, cx, cy) {
       drawCabinInteriorItem(item, cx, cy);
     }
   }
-  // Stugnamn vid toppen
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-  ctx.fillRect(sx + 8, sy - 18, b.w - 16, 16);
-  ctx.fillStyle = '#ffd54a';
-  ctx.font = 'bold 11px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('🏠 ' + (cabin.name || 'STUGA'), sx + b.w / 2, sy - 10);
 }
 
 function drawCabinRoof(cabin, sx, sy) {
@@ -8447,12 +8444,6 @@ function drawCabinRoof(cabin, sx, sy) {
       ctx.fillRect(sx, sy, 4, b.h);
       ctx.fillRect(sx + b.w - 4, sy, 4, b.h);
     }
-    // Container-kod (vit text)
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    ctx.font = 'bold 9px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(cabin.name || 'CARGO', sx + b.w / 2, sy + b.h / 2);
   }
   // Skorsten BARA på riktiga stugor (inte containers)
   if (r.style !== 'container') {
@@ -8467,14 +8458,6 @@ function drawCabinRoof(cabin, sx, sy) {
   ctx.strokeStyle = '#1a0e04';
   ctx.lineWidth = 2;
   ctx.strokeRect(sx + 1, sy + 1, b.w - 2, b.h - 2);
-  // Stugnamn vid toppen
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-  ctx.fillRect(sx + 8, sy - 18, b.w - 16, 16);
-  ctx.fillStyle = '#ffd54a';
-  ctx.font = 'bold 11px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('🏠 ' + (cabin.name || 'STUGA'), sx + b.w / 2, sy - 10);
 }
 
 function drawCabinInteriorItem(item, cx, cy) {
@@ -12195,6 +12178,20 @@ window.addEventListener('keydown', e => {
   input.keys.add(e.key.toLowerCase());
   const k = e.key.toLowerCase();
   checkKonami(k);
+  // BR INVENTORY: 1-4 = byt slot, G = drop nuvarande slot
+  if (state.battleroyaleActive && state.mode === 'playing' && state.player && state.player.brInventory) {
+    const slotIdx = ['1','2','3','4'].indexOf(k);
+    if (slotIdx >= 0) {
+      brSwitchInventorySlot(slotIdx);
+      e.preventDefault();
+      return;
+    }
+    if (k === 'g') {
+      brDropCurrentWeapon();
+      e.preventDefault();
+      return;
+    }
+  }
   if (k === 'q') switchWeapon(-1);
   if (k === 'e') switchWeapon(1);
   if (k === 'r' && state.mode === 'playing') startReload();
@@ -15137,7 +15134,7 @@ const Coop = {
       if (state.player) {
         state.player.hp = ev.startHp || 100;
         state.player.maxHp = ev.maxHp || 100;
-        state.player.shield = 0;
+        state.player.shield = ev.maxShield || 0;
         state.player.maxShield = ev.maxShield || 100;
         state.player.weaponId = ev.startWeapon || 'pistol';
         state.player.isJug = false;
@@ -15145,6 +15142,9 @@ const Coop = {
         state.player.speedMul = 1.0;
         state.player.dashCdMs = null;
         state.player.invuln = 1.5;
+        // BR INVENTORY: 4 slots, start med fists/knife/pistol (+1 tom slot för loot)
+        state.player.brInventory = ['fists', 'knife', ev.startWeapon || 'pistol', null];
+        state.player.brEquippedSlot = 2; // pistol som default
         if (ev.isSpectator) {
           // Late-joiner — direkt i spectator-mode
           state.player.spectating = true;
@@ -15204,14 +15204,22 @@ const Coop = {
         if (typeof ev.hp === 'number') state.player.hp = ev.hp;
         if (typeof ev.shield === 'number') state.player.shield = ev.shield;
         if (ev.kind === 'weapon' && ev.weaponId) {
+          // BR INVENTORY: hitta tom slot, annars ersätt nuvarande slot
+          const inv = state.player.brInventory || ['fists', 'knife', null, null];
+          let slot = inv.findIndex(s => !s);
+          if (slot === -1) slot = (state.player.brEquippedSlot != null ? state.player.brEquippedSlot : inv.length - 1);
+          inv[slot] = ev.weaponId;
+          state.player.brInventory = inv;
+          state.player.brEquippedSlot = slot;
           state.player.weaponId = ev.weaponId;
           save.equipped = ev.weaponId;
           save.weaponId = ev.weaponId;
           state.player.reloading = false;
           state.player.ammo = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) || 0;
           if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+          if (typeof updateBrInventoryHud === 'function') updateBrInventoryHud();
           const wName = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].name) || ev.weaponId;
-          if (typeof showToast === 'function') showToast('🔫 ' + wName.toUpperCase());
+          if (typeof showToast === 'function') showToast('🔫 ' + wName.toUpperCase() + ' (slot ' + (slot + 1) + ')');
         } else if (ev.kind === 'hp_small') {
           if (typeof showToast === 'function') showToast('❤ +30 HP');
         } else if (ev.kind === 'hp_big') {
@@ -24546,7 +24554,99 @@ function showBrHud() {
     document.body.appendChild(coords);
   }
   coords.style.display = 'block';
+  // Inventory-bar (bottom-center) — 4 slots
+  let inv = document.getElementById('br-inv');
+  if (!inv) {
+    inv = document.createElement('div');
+    inv.id = 'br-inv';
+    inv.style.cssText = 'position:fixed;bottom:max(12px, env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:80;pointer-events:none;font-family:sans-serif;';
+    document.body.appendChild(inv);
+    for (let i = 0; i < 4; i++) {
+      const slot = document.createElement('div');
+      slot.id = 'br-inv-slot-' + i;
+      slot.style.cssText = 'width:78px;height:52px;background:rgba(0,0,0,0.75);border:2px solid #444;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#aaa;font-size:11px;font-weight:700;letter-spacing:0.5px;padding:4px;box-sizing:border-box;text-align:center;line-height:1.1;';
+      slot.innerHTML = '<div style="font-size:10px;color:#666;">' + (i + 1) + '</div><div style="font-size:11px;">—</div>';
+      inv.appendChild(slot);
+    }
+    // Liten hjälp-text under
+    const hint = document.createElement('div');
+    hint.id = 'br-inv-hint';
+    hint.style.cssText = 'position:fixed;bottom:max(70px, calc(env(safe-area-inset-bottom) + 70px));left:50%;transform:translateX(-50%);color:#888;font-size:10px;font-family:sans-serif;letter-spacing:0.5px;z-index:80;pointer-events:none;';
+    hint.textContent = '1-4: byt vapen · G: släpp';
+    document.body.appendChild(hint);
+  }
+  inv.style.display = 'flex';
+  const hintEl = document.getElementById('br-inv-hint');
+  if (hintEl) hintEl.style.display = 'block';
+  updateBrInventoryHud();
   updateBrHud();
+}
+
+function updateBrInventoryHud() {
+  if (!state.player || !state.player.brInventory) return;
+  const inv = state.player.brInventory;
+  const eq = state.player.brEquippedSlot;
+  for (let i = 0; i < 4; i++) {
+    const el = document.getElementById('br-inv-slot-' + i);
+    if (!el) continue;
+    const wid = inv[i];
+    const isEq = (i === eq);
+    const wInfo = wid && W_BY_ID[wid];
+    const wName = wInfo ? (wInfo.name || wid).toUpperCase() : '—';
+    const wIcon = (typeof getWeaponIcon === 'function' && wid) ? getWeaponIcon(wid) : '';
+    el.style.border = '2px solid ' + (isEq ? '#3acaff' : (wid ? '#777' : '#333'));
+    el.style.background = isEq ? 'rgba(58, 202, 255, 0.18)' : 'rgba(0, 0, 0, 0.75)';
+    el.innerHTML =
+      '<div style="font-size:10px;color:' + (isEq ? '#3acaff' : '#666') + ';font-weight:900;">' + (i + 1) + '</div>' +
+      '<div style="font-size:16px;line-height:1;">' + (wIcon || '·') + '</div>' +
+      '<div style="font-size:9px;color:' + (wid ? '#ccc' : '#444') + ';">' + (wid ? wName.slice(0, 8) : '') + '</div>';
+  }
+}
+
+function brSwitchInventorySlot(slot) {
+  if (!state.player || !state.player.brInventory) return;
+  const wid = state.player.brInventory[slot];
+  if (!wid) return;
+  state.player.brEquippedSlot = slot;
+  state.player.weaponId = wid;
+  save.equipped = wid;
+  save.weaponId = wid;
+  state.player.reloading = false;
+  state.player.ammo = (W_BY_ID[wid] && W_BY_ID[wid].mag) || 0;
+  if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+  if (typeof updateHUD === 'function') updateHUD();
+  updateBrInventoryHud();
+  if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
+}
+
+function brDropCurrentWeapon() {
+  if (!state.player || !state.player.brInventory) return;
+  const slot = state.player.brEquippedSlot;
+  const wid = state.player.brInventory[slot];
+  if (!wid) return;
+  // Starter-items kan inte slängas
+  if (wid === 'fists' || wid === 'knife' || wid === 'pistol') {
+    if (typeof showToast === 'function') showToast('❌ Kan inte slänga ' + wid);
+    return;
+  }
+  // Hitta nästa vapen i inventory (cykla)
+  let newSlot = slot;
+  for (let i = 1; i < state.player.brInventory.length; i++) {
+    const idx = (slot + i) % state.player.brInventory.length;
+    if (state.player.brInventory[idx] && idx !== slot) { newSlot = idx; break; }
+  }
+  const newWid = state.player.brInventory[newSlot] || 'fists';
+  // Skicka till server (server spawnar loot)
+  if (Coop && Coop.ws && Coop.ws.readyState === 1) {
+    try {
+      Coop.ws.send(JSON.stringify({ type: 'sim_br_drop', weaponId: wid, newWeaponId: newWid }));
+    } catch (_) {}
+  }
+  // Optimistic: rensa slot, byt vapen
+  state.player.brInventory[slot] = null;
+  if (newWid !== wid) brSwitchInventorySlot(newSlot);
+  if (typeof showToast === 'function') showToast('💢 SLÄPPT ' + ((W_BY_ID[wid] && W_BY_ID[wid].name) || wid).toUpperCase());
+  updateBrInventoryHud();
 }
 
 function hideBrHud() {
@@ -24557,6 +24657,10 @@ function hideBrHud() {
   if (kf) kf.innerHTML = '';
   const coords = document.getElementById('br-coords');
   if (coords) coords.style.display = 'none';
+  const inv = document.getElementById('br-inv');
+  if (inv) inv.style.display = 'none';
+  const hint = document.getElementById('br-inv-hint');
+  if (hint) hint.style.display = 'none';
 }
 
 function destroyBrEndOverlay() {
