@@ -968,7 +968,7 @@ const BATTLEROYALE_ARENA = {
     { x: 6150, y: 7250, w: 12,  h: 180, kind: 'cabin_wall_wood' },
     { x: 6338, y: 7250, w: 12,  h: 180, kind: 'cabin_wall_wood' },
 
-    { x: 4700, y: 6700, w: 70, h: 70, kind: 'tree_oak' },
+    // (tree_oak vid 4700,6700 + tree_pine vid 4700,7100 borttagna — kollade på kyrkogården)
     { x: 5000, y: 6800, w: 60, h: 60, kind: 'tree_pine' },
     { x: 5300, y: 6700, w: 65, h: 65, kind: 'tree_oak' },
     { x: 5700, y: 6900, w: 70, h: 70, kind: 'tree_pine' },
@@ -977,7 +977,6 @@ const BATTLEROYALE_ARENA = {
     { x: 6800, y: 6900, w: 60, h: 60, kind: 'tree_oak' },
     { x: 7200, y: 6750, w: 70, h: 70, kind: 'tree_pine' },
     { x: 7600, y: 6900, w: 65, h: 65, kind: 'tree_oak' },
-    { x: 4700, y: 7100, w: 60, h: 60, kind: 'tree_pine' },
     { x: 5100, y: 7200, w: 70, h: 70, kind: 'tree_oak' },
     { x: 5500, y: 7100, w: 60, h: 60, kind: 'tree_pine' },
     { x: 6500, y: 7200, w: 65, h: 65, kind: 'tree_pine' },
@@ -1650,7 +1649,7 @@ function generateProceduralContent(arena) {
   // Format: [xMin, xMax, yMin, yMax]
   const exclusionZones = [
     [2550, 3300, 6400, 7270],  // sjö + klippa + vattenfall (krympt)
-    [4350, 4900, 6380, 7300],  // kyrkogården (utökad — inkl flyttat staket)
+    [4300, 4950, 6300, 7350],  // kyrkan + kyrkogården (utökad — inkl buffer)
     [5250, 7700, 2150, 3900],  // scrap-yard (containrar etc behöver sin yta)
     [7800, 9900, 7800, 9900],  // ALIEN-OMRÅDE (SE-hörnet) — reserverat
   ];
@@ -1766,21 +1765,12 @@ function preprocessContainerCabins(arena) {
   if (!arena.containerCabins) return;
   for (const c of arena.containerCabins) {
     const isHorizontal = c.w > c.h;
-    // Dörr på kortsidan (ena änden)
+    // Dörr på kortsidan — BREDARE (60% av kortsidan, var 40%)
     const door = isHorizontal
-      ? { side: 'east', offset: Math.floor(c.h * 0.3), width: Math.floor(c.h * 0.4) }
-      : { side: 'south', offset: Math.floor(c.w * 0.3), width: Math.floor(c.w * 0.4) };
-    // Fönster på långsidan (1-2 st)
-    const windows = isHorizontal
-      ? [
-          { side: 'north', offset: Math.floor(c.w * 0.25), width: 30 },
-          { side: 'north', offset: Math.floor(c.w * 0.65), width: 30 },
-        ]
-      : [
-          { side: 'east', offset: Math.floor(c.h * 0.25), width: 30 },
-          { side: 'east', offset: Math.floor(c.h * 0.65), width: 30 },
-        ];
-    // Container-specifik roof
+      ? { side: 'east', offset: Math.floor(c.h * 0.2), width: Math.floor(c.h * 0.6) }
+      : { side: 'south', offset: Math.floor(c.w * 0.2), width: Math.floor(c.w * 0.6) };
+    // INGA fönster — containrar är tomma
+    const windows = [];
     const palette = {
       orange: { main: '#c47a30', dark: '#7a4a18' },
       blue:   { main: '#2a5a8a', dark: '#15304a' },
@@ -1791,7 +1781,7 @@ function preprocessContainerCabins(arena) {
       gold:   { main: '#aa8030', dark: '#5a4010' },
     };
     const p = palette[c.color] || palette.orange;
-    // Push som cabin
+    // Push som cabin med TOM interior
     arena.cabins.push({
       id: c.id,
       name: c.name,
@@ -1801,12 +1791,7 @@ function preprocessContainerCabins(arena) {
       roof: { color: p.main, accent: p.dark, style: 'container' },
       floor: '#3a3a40',
       _isContainer: true,
-      interior: [
-        // Liten container-interior: 2 crates + ammo box
-        { kind: 'workbench', x: c.x + Math.floor(c.w * 0.3) - 30, y: c.y + Math.floor(c.h * 0.3), w: 50, h: 25 },
-        { kind: 'rope_coil', x: c.x + Math.floor(c.w * 0.7), y: c.y + Math.floor(c.h * 0.7) },
-        { kind: 'oil_lamp', x: c.x + Math.floor(c.w * 0.5), y: c.y + Math.floor(c.h * 0.5) },
-      ],
+      interior: [], // INGA interior items — containrar är tomma
     });
   }
 }

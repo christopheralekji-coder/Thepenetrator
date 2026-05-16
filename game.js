@@ -3424,17 +3424,28 @@ function drawStoneWall(x, y, w, h, isLow) {
   grad.addColorStop(1, '#3a3228');
   ctx.fillStyle = grad;
   ctx.fillRect(x, y, w, h);
-  // Stenblock (organisk fogar)
+  // CLIP till wall-bounds så stenblock-strokes inte sticker ut
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  // Stenblock (organisk fogar) — anpassa storlek till wall-dimensioner
   ctx.strokeStyle = 'rgba(20, 15, 8, 0.7)';
   ctx.lineWidth = 1;
-  const stoneW = isLow ? 22 : 35;
-  const stoneH = isLow ? 14 : 20;
+  // Skala stoneW/stoneH per wall så de aldrig är större än wall-bounds
+  const stoneW = Math.min(isLow ? 22 : 35, Math.max(8, Math.floor(Math.max(w, h) / 3)));
+  const stoneH = Math.min(isLow ? 14 : 20, Math.max(6, Math.floor(Math.min(w, h) / 1.5)));
   if (w > h) {
     // Horisontell mur — stenblock i rader
     for (let yy = 0; yy < h; yy += stoneH) {
       const offset = (yy / stoneH) % 2 === 0 ? 0 : stoneW / 2;
       for (let xx = offset; xx < w; xx += stoneW) {
-        ctx.strokeRect(x + xx + 0.5, y + yy + 0.5, stoneW - 1, stoneH - 1);
+        // Beräkna faktiska storlek (clip kontot om vi går utanför)
+        const drawW = Math.min(stoneW, w - xx) - 1;
+        const drawH = Math.min(stoneH, h - yy) - 1;
+        if (drawW > 0 && drawH > 0) {
+          ctx.strokeRect(x + xx + 0.5, y + yy + 0.5, drawW, drawH);
+        }
       }
     }
   } else {
@@ -3442,11 +3453,15 @@ function drawStoneWall(x, y, w, h, isLow) {
     for (let xx = 0; xx < w; xx += stoneH) {
       const offset = (xx / stoneH) % 2 === 0 ? 0 : stoneW / 2;
       for (let yy = offset; yy < h; yy += stoneW) {
-        ctx.strokeRect(x + xx + 0.5, y + yy + 0.5, stoneH - 1, stoneW - 1);
+        const drawW = Math.min(stoneH, w - xx) - 1;
+        const drawH = Math.min(stoneW, h - yy) - 1;
+        if (drawW > 0 && drawH > 0) {
+          ctx.strokeRect(x + xx + 0.5, y + yy + 0.5, drawW, drawH);
+        }
       }
     }
   }
-  // Mossa-fläckar på toppen
+  // Mossa-fläckar (clippad inom wall)
   ctx.fillStyle = 'rgba(50, 90, 40, 0.55)';
   const mossCount = Math.floor((w + h) / 40);
   for (let i = 0; i < mossCount; i++) {
@@ -3456,6 +3471,7 @@ function drawStoneWall(x, y, w, h, isLow) {
     ctx.ellipse(mx, my, 4, 2.5, 0, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore(); // släpp clip
   // Yttre stroke
   ctx.strokeStyle = '#1a1408';
   ctx.lineWidth = 1.2;
@@ -8038,6 +8054,21 @@ function drawBrCabins() {
 // DÖRR-MARKÖR — tydlig entré: dörrmatta + arrow + hängande lampa
 function drawCabinDoorMarker(cabin, sx, sy) {
   if (!cabin.door) return;
+  // Containers: bara visuell dörröppning, INGEN dörrmatta (per user-spec)
+  if (cabin._isContainer) {
+    const b = cabin.bounds;
+    const door = cabin.door;
+    const T = 12;
+    let dx, dy, dw, dh;
+    if (door.side === 'north') { dx = sx + door.offset; dy = sy; dw = door.width; dh = T; }
+    else if (door.side === 'south') { dx = sx + door.offset; dy = sy + b.h - T; dw = door.width; dh = T; }
+    else if (door.side === 'east') { dx = sx + b.w - T; dy = sy + door.offset; dw = T; dh = door.width; }
+    else { dx = sx; dy = sy + door.offset; dw = T; dh = door.width; }
+    // Bara svart dörröppning (visuell)
+    ctx.fillStyle = '#1a0e04';
+    ctx.fillRect(dx, dy, dw, dh);
+    return;
+  }
   const b = cabin.bounds;
   const door = cabin.door;
   // Räkna ut dörr-positionen (yttre kant + matta utåt)
