@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v325-premium-weapon-redesigns-all-23';
+const CACHE = 'penetrator-v326-battle-royale-last-hunt';
 const ASSETS = [
   './',
   './index.html',
@@ -14,6 +14,7 @@ const ASSETS = [
   './shared/siege-arena.js',
   './shared/koth-arena.js',
   './shared/juggernaut-arena.js',
+  './shared/battleroyale-arena.js',
 ];
 
 self.addEventListener('install', e => {

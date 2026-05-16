@@ -605,6 +605,76 @@ function handleMessage(ws, msg) {
       }
       send(ws, { type: 'sim_events', events: lateJugEvents });
     }
+    // BATTLE ROYALE late-joiner: BR är no-respawn — sätt direkt som spectator.
+    // Klient renderar match från spectator-cam. När matchen slutar kan de joina
+    // rematch (vanlig flow).
+    if (room.sim && room.sim.battleroyaleActive) {
+      const { BATTLEROYALE_ARENA } = require('../shared/battleroyale-arena');
+      // Spawnpos i mitten — de blir spectator omedelbart (hp=0)
+      ws.playerState = {
+        x: BATTLEROYALE_ARENA.worldW / 2,
+        y: BATTLEROYALE_ARENA.worldH / 2,
+        hp: 0, // dead = spectator från start
+        maxHp: BATTLEROYALE_ARENA.maxHp,
+        shield: 0,
+        maxShield: BATTLEROYALE_ARENA.maxShield,
+        invulnUntil: 0,
+        weaponId: BATTLEROYALE_ARENA.startWeapon,
+        isJug: false, scaleMul: 1.0, speedMul: 1.0, dashCdMs: null,
+      };
+      ws.tdmTeam = null;
+      ws.tdmRespawnAt = 0;
+      // Markera som already-eliminated så de inte räknas i alive-count + ger placement-999
+      if (!room.sim.battleroyaleEliminated.includes(ws.id)) {
+        room.sim.battleroyaleEliminated.push(ws.id);
+        room.sim.battleroyaleRanks[ws.id] = 999; // late = ranking N/A
+      }
+      room.sim.battleroyaleKillsByPid[ws.id] = 0;
+      room.sim.tdmDeathsByPid[ws.id] = 0;
+      const lateBrEvents = [{
+        type: 'br_started',
+        arena: { worldW: BATTLEROYALE_ARENA.worldW, worldH: BATTLEROYALE_ARENA.worldH, name: BATTLEROYALE_ARENA.name },
+        walls: BATTLEROYALE_ARENA.walls,
+        spawns: BATTLEROYALE_ARENA.spawns,
+        decorations: BATTLEROYALE_ARENA.decorations || [],
+        loot: (room.sim.battleroyaleLoot || []).filter(lo => lo.available).map(lo => ({
+          id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: lo.unlockAt || 0,
+        })),
+        phases: BATTLEROYALE_ARENA.phases,
+        matchDurationSec: room.sim.battleroyaleMatchDurationSec,
+        matchEndAt: room.sim.battleroyaleEndAt,
+        phaseEndAt: room.sim.battleroyalePhaseEndAt,
+        currentPhase: room.sim.battleroyalePhase,
+        zone: room.sim.battleroyaleZone ? {
+          x: room.sim.battleroyaleZone.x,
+          y: room.sim.battleroyaleZone.y,
+          r: room.sim.battleroyaleZone.r,
+        } : { x: BATTLEROYALE_ARENA.worldW / 2, y: BATTLEROYALE_ARENA.worldH / 2, r: 1000 },
+        aliveCount: room.sim.battleroyaleAliveCount,
+        startWeapon: BATTLEROYALE_ARENA.startWeapon,
+        startHp: BATTLEROYALE_ARENA.startHp,
+        maxHp: BATTLEROYALE_ARENA.maxHp,
+        maxShield: BATTLEROYALE_ARENA.maxShield,
+        lootPickupRadius: BATTLEROYALE_ARENA.lootPickupRadius,
+        shieldMax: BATTLEROYALE_ARENA.maxShield,
+        isSpectator: true, // klient ska direkt gå in i spec-cam
+      }];
+      if (room.sim._botIds && room.sim._botIds.length) {
+        const memberList = [...room.members.keys()];
+        for (const botId of room.sim._botIds) {
+          const botWs = room.members.get(botId);
+          if (!botWs) continue;
+          lateBrEvents.push({
+            type: 'bot_joined',
+            peerId: botId,
+            name: botWs.name || 'BOT',
+            team: null,
+            colorIdx: memberList.indexOf(botId),
+          });
+        }
+      }
+      send(ws, { type: 'sim_events', events: lateBrEvents });
+    }
     return;
   }
 
@@ -669,6 +739,8 @@ function handleMessage(ws, msg) {
       kothTargetPoints: msg.kothTargetPoints,
       juggernaut: msg.juggernaut,
       juggernautMatchDurationSec: msg.juggernautMatchDurationSec,
+      battleroyale: msg.battleroyale,
+      battleroyaleMatchDurationSec: msg.battleroyaleMatchDurationSec,
       addBot: !!msg.addBot,
       botCount: Math.max(1, Math.min(7, msg.botCount || 1)),
       botSkill: msg.botSkill || 'normal',
@@ -679,7 +751,8 @@ function handleMessage(ws, msg) {
     // Markera rummet som "startat" i public-listan + uppdatera mode
     if (room.meta) {
       room.meta.started = true;
-      if (msg.juggernaut) room.meta.mode = 'juggernaut';
+      if (msg.battleroyale) room.meta.mode = 'battleroyale';
+      else if (msg.juggernaut) room.meta.mode = 'juggernaut';
       else if (msg.koth) room.meta.mode = 'koth';
       else if (msg.gungame) room.meta.mode = 'gungame';
       else if (msg.siege) room.meta.mode = 'siege';
@@ -755,7 +828,7 @@ function handleMessage(ws, msg) {
   if (msg.type === 'pvp_ability_shield') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
-    if (!room.sim.tdmActive && !room.sim.ctfActive && !room.sim.siegeActive && !room.sim.kothActive && !room.sim.gungameActive && !room.sim.juggernautActive) return;
+    if (!room.sim.tdmActive && !room.sim.ctfActive && !room.sim.siegeActive && !room.sim.kothActive && !room.sim.gungameActive && !room.sim.juggernautActive && !room.sim.battleroyaleActive) return;
     if (!ws.playerState || ws.playerState.hp <= 0) return;
     const now = Date.now();
     const SHIELD_DURATION = 3000;

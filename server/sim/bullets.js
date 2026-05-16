@@ -17,6 +17,7 @@ const { SIEGE_ARENA } = require('../../shared/siege-arena');
 const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS, GUNGAME_DEMOTE_FLOOR } = require('../../shared/gungame-arena');
 const { KOTH_ARENA } = require('../../shared/koth-arena');
 const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
+const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 
 // PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
 // Sniper nerf: 130→95 (fortfarande 2-shot genom shield+hp men inte instant).
@@ -93,7 +94,8 @@ function applyMelee(sim, p, weaponId, params) {
   const inSiege = !!sim.siegeActive && !sim.siegeEnded;
   const inKoth = !!sim.kothActive && !sim.kothEnded;
   const inJug = !!sim.juggernautActive && !sim.juggernautEnded;
-  if (!inGungame && !inTdm && !inCtf && !inSiege && !inKoth && !inJug) return;
+  const inBr = !!sim.battleroyaleActive && !sim.battleroyaleEnded;
+  if (!inGungame && !inTdm && !inCtf && !inSiege && !inKoth && !inJug && !inBr) return;
 
   const ownerWs = sim.room.members.get(p.peerId);
   if (!ownerWs) return;
@@ -112,9 +114,9 @@ function applyMelee(sim, p, weaponId, params) {
     if (pid === p.peerId) continue;
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
     if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
-    // Friendly-fire av i team-modes (KOTH + gungame är FFA — alla mål).
+    // Friendly-fire av i team-modes (KOTH + gungame + BR är FFA — alla mål).
     // Juggernaut: hunters får BARA skada JUG, JUG får skada alla hunters.
-    const isFfa = inGungame || inKoth;
+    const isFfa = inGungame || inKoth || inBr;
     if (!isFfa && !inJug && ownerTeam && ws.tdmTeam && ws.tdmTeam === ownerTeam) continue;
     if (inJug) {
       const targetIsJug = !!ws.playerState.isJug;
@@ -182,6 +184,8 @@ function applyMelee(sim, p, weaponId, params) {
         handleCtfKill(sim, p.peerId, pid, ws, ownerTeam, weaponId);
       } else if (inSiege) {
         handleSiegeKill(sim, p.peerId, pid, ws, ownerTeam, weaponId);
+      } else if (inBr) {
+        if (sim._handleBattleRoyaleKill) sim._handleBattleRoyaleKill(sim, p.peerId, ownerWs, pid, ws, weaponId);
       }
       // BREAK: en swing träffar bara en spelare (mirror av klient-melee). Utan
       // detta promotras gungame-bot dubbelt om 2 fiender står i cone+range.
@@ -519,8 +523,9 @@ function explode(sim, x, y, radius, dmg, fromPid) {
   const fromTeam = fromWs && fromWs.tdmTeam;
   const inGungame = !!sim.gungameActive;
   const inKoth = !!sim.kothActive;
+  const inBr = !!sim.battleroyaleActive;
   const inTeamPvP = !!(sim.tdmActive || sim.ctfActive || sim.siegeActive);
-  const inPvP = inTeamPvP || inGungame || inKoth;
+  const inPvP = inTeamPvP || inGungame || inKoth || inBr || !!sim.juggernautActive;
   if (!inPvP) {
     // Spatial-hash: query bara enemies inom explosion-radie
     const list = sim.enemyGrid ? sim.enemyGrid.getNearby(x, y, radius) : sim.enemies;
@@ -666,6 +671,7 @@ function updateBullets(sim, dt, now) {
     let worldMaxX = 5000, worldMaxY = 5000;
     if (sim.siegeActive) { worldMaxY = SIEGE_ARENA.worldH; }
     else if (sim.juggernautActive) { worldMaxX = JUGGERNAUT_ARENA.worldW; worldMaxY = JUGGERNAUT_ARENA.worldH; }
+    else if (sim.battleroyaleActive) { worldMaxX = BATTLEROYALE_ARENA.worldW; worldMaxY = BATTLEROYALE_ARENA.worldH; }
     if (b.life <= 0 || b.x < 0 || b.y < 0 || b.x > worldMaxX || b.y > worldMaxY) {
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
@@ -703,6 +709,13 @@ function updateBullets(sim, dt, now) {
       continue;
     }
     if (sim.juggernautActive && bulletHitsWall(b, JUGGERNAUT_ARENA.walls)) {
+      if (b.explosive && !b.hostile) {
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+      }
+      bullets.splice(i, 1);
+      continue;
+    }
+    if (sim.battleroyaleActive && bulletHitsWall(b, BATTLEROYALE_ARENA.walls)) {
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
       }
@@ -1031,6 +1044,47 @@ function updateBullets(sim, dt, now) {
           });
           if (ws.playerState.hp <= 0) {
             handleKothKill(sim, b.ownerPid, pid, ws, b.weaponId);
+          }
+          pvpHit = true;
+          break;
+        }
+      }
+      if (pvpHit) bullets.splice(i, 1);
+      continue;
+    }
+    // BATTLE ROYALE-mode: FFA, no friendly-fire constraints. Bullet träffar
+    // alla andra spelare (inkl bots). Kill → handleBattleRoyaleKill.
+    if (sim.battleroyaleActive) {
+      if (sim.battleroyaleEnded) continue;
+      let pvpHit = false;
+      const ownerWs = sim.room.members.get(b.ownerPid);
+      if (!ownerWs) continue;
+      const shooterRtt = ownerWs && ownerWs._serverRtt;
+      for (const [pid, ws] of sim.room.members) {
+        if (pid === b.ownerPid) continue;
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        const invuln = ws.playerState.invulnUntil || 0;
+        if (Date.now() < invuln) continue;
+        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const dx = rPos.x - b.x, dy = rPos.y - b.y;
+        const rsum = 14 + b.r + 8;
+        if (dx * dx + dy * dy < rsum * rsum) {
+          const effDmg = getPvpDmg(b.weaponId, b.dmg);
+          let remaining = effDmg;
+          if ((ws.playerState.shield || 0) > 0) {
+            const absorb = Math.min(ws.playerState.shield, remaining);
+            ws.playerState.shield -= absorb;
+            remaining -= absorb;
+          }
+          if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+          sim.eventQueue.push({
+            type: 'pvp_hp_changed',
+            peerId: pid,
+            hp: ws.playerState.hp,
+            shield: ws.playerState.shield || 0,
+          });
+          if (ws.playerState.hp <= 0) {
+            if (sim._handleBattleRoyaleKill) sim._handleBattleRoyaleKill(sim, b.ownerPid, ownerWs, pid, ws, b.weaponId);
           }
           pvpHit = true;
           break;

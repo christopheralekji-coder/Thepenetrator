@@ -11,6 +11,7 @@
 
 const { W_BY_ID } = require('../../shared/weapons-data');
 const { KOTH_ARENA } = require('../../shared/koth-arena');
+const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 
 const BOT_NAMES = ['Hovigo', 'Jamlo', 'Kostefo', 'Wisämo', 'Salimius', 'Muzzius', 'Okanius'];
 let _botCounter = 0;
@@ -128,6 +129,38 @@ function chooseBotTarget(sim, botWs) {
   if (sim.gungameActive && !sim.gungameEnded) {
     return findClosestPlayer(sim, botWs, /*excludeTeam*/ null);
   }
+  // BATTLE ROYALE: 3-substate-AI med target-stickiness.
+  //   1) Loot-phase (phase 0 + ingen fiende inom 400px): gå mot närmsta loot
+  //   2) Hunt-phase (fiende inom 600px): jaga + skjut
+  //   3) Survive-phase (utanför zonen): gå till zonens centrum
+  // STICKINESS: behåll target i 1.5s om det fortfarande är giltigt så bots
+  // inte zig-zaggar mellan 2 fiender och dör.
+  if (sim.battleroyaleActive && !sim.battleroyaleEnded) {
+    const bot = botWs._bot;
+    const now = Date.now();
+    // Validera nuvarande target — om dead/borta, force re-pick
+    let cur = bot._brStickyTarget;
+    if (cur && cur.type === 'player' && cur.ref) {
+      if (!cur.ref.playerState || cur.ref.playerState.hp <= 0) cur = null;
+    } else if (cur && cur.type === 'br_loot' && cur.ref) {
+      if (!cur.ref.available) cur = null;
+      else if (cur.ref.unlockAt && now < cur.ref.unlockAt) cur = null;
+    }
+    // Behåll target om <1.5s sedan senast swap + fortfarande giltigt
+    if (cur && (now - (bot._brStickySetAt || 0) < 1500)) {
+      // Update pos från ref (player rör sig, loot är stilla)
+      if (cur.type === 'player' && cur.ref && cur.ref.playerState) {
+        cur.x = cur.ref.playerState.x;
+        cur.y = cur.ref.playerState.y;
+      }
+      return cur;
+    }
+    // Re-pick
+    const newTarget = chooseBattleRoyaleTarget(sim, botWs);
+    bot._brStickyTarget = newTarget;
+    bot._brStickySetAt = now;
+    return newTarget;
+  }
   // JUGGERNAUT: alla bots = hunters (kan aldrig vara JUG). Prioritera JUG som
   // target. Om JUG inte finns (mellan transfer), närmsta levande spelare.
   if (sim.juggernautActive && !sim.juggernautEnded) {
@@ -237,6 +270,65 @@ function chooseKothTarget(sim, botWs) {
   return findClosestPlayer(sim, botWs, null);
 }
 
+// BR bot-AI: prio 1 = överlev (gå till zon om utanför). Prio 2 = jaga närmsta
+// fiende inom 600px. Prio 3 = loot om phase 0 eller låg HP. Prio 4 = drift mot
+// zonens centrum så bot inte bara står still.
+function chooseBattleRoyaleTarget(sim, botWs) {
+  const px = botWs.playerState.x, py = botWs.playerState.y;
+  // 1) Utanför zonen? Gå till centrum med priority
+  if (sim.battleroyaleZone) {
+    const z = sim.battleroyaleZone;
+    const dxZ = px - z.x, dyZ = py - z.y;
+    if (dxZ * dxZ + dyZ * dyZ > z.r * z.r) {
+      // Sikta mot zonens centrum (enkel + säker — bot kommer alltid in i zonen)
+      return { x: z.x, y: z.y, type: 'br_zone_center' };
+    }
+  }
+  // Hitta närmsta fiende
+  let nearestEnemyD2 = Infinity, nearestEnemy = null;
+  for (const [pid, ws] of sim.room.members) {
+    if (pid === botWs.id) continue;
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
+    const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < nearestEnemyD2) { nearestEnemyD2 = d2; nearestEnemy = ws; }
+  }
+  // 2) Fiende inom 600px → hunt
+  if (nearestEnemy && nearestEnemyD2 < 600 * 600) {
+    return { x: nearestEnemy.playerState.x, y: nearestEnemy.playerState.y, type: 'player', ref: nearestEnemy };
+  }
+  // 3) Phase 0 (loot) ELLER låg HP → gå mot närmsta available loot
+  const phase = sim.battleroyalePhase || 0;
+  const lowHp = botWs.playerState.hp < 60;
+  if ((phase === 0 || lowHp) && sim.battleroyaleLoot) {
+    const nowMs = Date.now();
+    let bestLoot = null, bestD2 = Infinity;
+    for (const lo of sim.battleroyaleLoot) {
+      if (!lo.available) continue;
+      // FIX: skip locked loot (center-fortet första 30s) — annars står bot
+      // och stirrar på låst container i 30s.
+      if (lo.unlockAt && nowMs < lo.unlockAt) continue;
+      // FIX: skip HP-pickup om bot redan har full HP (annars omotiverad detour)
+      if (!lowHp && (lo.kind === 'hp_small' || lo.kind === 'hp_big')) continue;
+      const dx = lo.x - px, dy = lo.y - py;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; bestLoot = lo; }
+    }
+    if (bestLoot) {
+      return { x: bestLoot.x, y: bestLoot.y, type: 'br_loot', ref: bestLoot };
+    }
+  }
+  // 4) Drift mot zonens centrum (default), eller närmsta fiende om långt borta
+  if (nearestEnemy) {
+    return { x: nearestEnemy.playerState.x, y: nearestEnemy.playerState.y, type: 'player', ref: nearestEnemy };
+  }
+  if (sim.battleroyaleZone) {
+    return { x: sim.battleroyaleZone.x, y: sim.battleroyaleZone.y, type: 'br_zone_center' };
+  }
+  return null;
+}
+
 function chooseSiegeTarget(sim, botWs, team) {
   const px = botWs.playerState.x, py = botWs.playerState.y;
   // Hitta närmaste enemy inom 300px — om en, prioritera kill (skydd)
@@ -283,7 +375,7 @@ function moveBotTowards(sim, botWs, target, dt) {
   // så capture-progress fortsätter ticka. Inte strafe utåt → ut ur radien.
   const isObjective = target.type === 'siege_base' || target.type === 'home_base'
     || target.type === 'enemy_flag' || target.type === 'enemy_flag_base'
-    || target.type === 'koth_zone';
+    || target.type === 'koth_zone' || target.type === 'br_loot' || target.type === 'br_zone_center';
   const desiredDist = isObjective ? 30 : (isMelee ? Math.max(20, (w.range || 36) - 5) : 250);
   const speed = 180;
 
@@ -307,8 +399,11 @@ function moveBotTowards(sim, botWs, target, dt) {
     bot.strafeDir = -bot.strafeDir;
   }
 
-  // Force sido-angle om unstick aktiv
-  if (now < bot.unstickUntil) {
+  // Force sido-angle om unstick aktiv — MEN inte om bot är i BR utanför zonen
+  // (annars wobble: bot strafe:r 90° → tillbaka utanför zonen → unstick triggas
+  // igen → loop. Måste prioritera "kom IN i zonen" framför wall-unstick.)
+  const isBrZoneEscape = sim.battleroyaleActive && target.type === 'br_zone_center';
+  if (now < bot.unstickUntil && !isBrZoneEscape) {
     const nx = -dy / d, ny = dx / d;
     ps.x += nx * speed * bot.strafeDir * dt;
     ps.y += ny * speed * bot.strafeDir * dt;
@@ -332,6 +427,8 @@ function moveBotTowards(sim, botWs, target, dt) {
     worldW = sim.tdmArena.worldW; worldH = sim.tdmArena.worldH;
   } else if (sim.juggernautActive) {
     worldW = 5000; worldH = 3500;
+  } else if (sim.battleroyaleActive) {
+    worldW = BATTLEROYALE_ARENA.worldW; worldH = BATTLEROYALE_ARENA.worldH;
   } else if (sim.gungameActive || sim.kothActive) {
     worldW = 3500; worldH = 2000;
   } else {

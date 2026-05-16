@@ -1035,6 +1035,9 @@ function drawPvpWalls(walls) {
     else if (w.kind === 'stairwell_door') drawStairwellDoor(x, y, w.w, w.h);
     else if (w.kind === 'pay_machine') drawPayMachine(x, y, w.w, w.h);
     else if (w.kind === 'jersey_barrier') drawJerseyBarrier(x, y, w.w, w.h);
+    else if (w.kind === 'shipping_container') drawShippingContainer(x, y, w.w, w.h, w.color || 'orange', seed);
+    else if (w.kind === 'silo') drawSilo(x, y, w.w, w.h, seed);
+    else if (w.kind === 'building') drawBuilding(x, y, w.w, w.h, seed);
     else { ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x, y, w.w, w.h); }
   }
   ctx.restore();
@@ -2371,6 +2374,296 @@ function drawPayMachine(x, y, w, h) {
   ctx.strokeStyle = '#000';
   ctx.lineWidth = 1.2;
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+}
+
+// SHIPPING CONTAINER — 40-fot frakt-container med ribbor, lås, color-coded.
+// Färg-paletten styrs av color-property: orange/blue/rust/green/yellow/red/gold.
+function drawShippingContainer(x, y, w, h, colorKey, seed) {
+  const palette = {
+    orange: { main: '#c47a30', dark: '#7a4a18', high: '#e0954a', stroke: '#3a1a08' },
+    blue:   { main: '#2a5a8a', dark: '#15304a', high: '#4080b0', stroke: '#0a1828' },
+    rust:   { main: '#7a4a30', dark: '#3a2418', high: '#9a6045', stroke: '#1a0e08' },
+    green:  { main: '#3a6a3a', dark: '#1a3a1a', high: '#5a8a5a', stroke: '#0a1a0a' },
+    yellow: { main: '#aa8a20', dark: '#5a4a10', high: '#d4aa30', stroke: '#2a2a08' },
+    red:    { main: '#8a2a2a', dark: '#5a1010', high: '#b04545', stroke: '#2a0808' },
+    gold:   { main: '#aa8030', dark: '#5a4010', high: '#d4a040', stroke: '#3a2008' },
+  };
+  const p = palette[colorKey] || palette.orange;
+  const isHorizontal = w > h;
+  // Bas-skugga + body
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.fillRect(x + 3, y + 4, w, h);
+  const grad = isHorizontal
+    ? ctx.createLinearGradient(x, y, x, y + h)
+    : ctx.createLinearGradient(x, y, x + w, y);
+  grad.addColorStop(0, p.high);
+  grad.addColorStop(0.4, p.main);
+  grad.addColorStop(1, p.dark);
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+  // Ribbor (korrugerade plattor) — viktigt för "container"-look
+  ctx.strokeStyle = p.stroke;
+  ctx.lineWidth = 1;
+  if (isHorizontal) {
+    for (let i = 12; i < w; i += 12) {
+      ctx.beginPath();
+      ctx.moveTo(x + i, y + 3);
+      ctx.lineTo(x + i, y + h - 3);
+      ctx.stroke();
+    }
+    // Top + bottom edge — mörkare bands
+    ctx.fillStyle = p.dark;
+    ctx.fillRect(x, y, w, 4);
+    ctx.fillRect(x, y + h - 4, w, 4);
+  } else {
+    for (let i = 12; i < h; i += 12) {
+      ctx.beginPath();
+      ctx.moveTo(x + 3, y + i);
+      ctx.lineTo(x + w - 3, y + i);
+      ctx.stroke();
+    }
+    ctx.fillStyle = p.dark;
+    ctx.fillRect(x, y, 4, h);
+    ctx.fillRect(x + w - 4, y, 4, h);
+  }
+  // Yttre kant (mörk ram)
+  ctx.strokeStyle = p.stroke;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  // Dörrar i ena änden (vertikala streck + lås)
+  const doorSide = isHorizontal ? 'right' : 'bottom';
+  if (doorSide === 'right' && w > 60) {
+    const dx = x + w - 12;
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(dx, y + 4); ctx.lineTo(dx, y + h - 4); ctx.stroke();
+    // Lås (3 små svarta cirklar)
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(dx + 4, y + h * 0.3, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(dx + 4, y + h * 0.5, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(dx + 4, y + h * 0.7, 2, 0, Math.PI * 2); ctx.fill();
+  } else if (doorSide === 'bottom' && h > 60) {
+    const dy = y + h - 12;
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(x + 4, dy); ctx.lineTo(x + w - 4, dy); ctx.stroke();
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath(); ctx.arc(x + w * 0.3, dy + 4, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + w * 0.5, dy + 4, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + w * 0.7, dy + 4, 2, 0, Math.PI * 2); ctx.fill();
+  }
+  // Container-text "HAULSEA 4282-XX" eller stencilerat nummer (seed-baserat)
+  const hashSeed = (seed | 0) & 0xfff;
+  const codeA = String.fromCharCode(65 + (hashSeed & 0x1f) % 26);
+  const codeB = String.fromCharCode(65 + ((hashSeed >> 4) & 0x1f) % 26);
+  const codeN = (hashSeed * 7) % 9999;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.font = 'bold 9px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  if (isHorizontal && w > 80) {
+    ctx.fillText(codeA + codeB + '-' + String(codeN).padStart(4, '0'), x + 8, y + 6);
+  } else if (h > 80) {
+    ctx.save();
+    ctx.translate(x + 6, y + 10);
+    ctx.rotate(Math.PI / 2);
+    ctx.fillText(codeA + codeB + '-' + String(codeN).padStart(4, '0'), 0, 0);
+    ctx.restore();
+  }
+  // Rost-fläckar (seed-baserat)
+  ctx.fillStyle = 'rgba(60, 30, 10, 0.45)';
+  for (let i = 0; i < 4; i++) {
+    const rx = x + 5 + ((hashSeed * (i + 1) * 13) & 0xff) % Math.max(1, w - 12);
+    const ry = y + 5 + ((hashSeed * (i + 3) * 17) & 0xff) % Math.max(1, h - 12);
+    ctx.beginPath();
+    ctx.arc(rx, ry, 2 + (i % 2), 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Color-key splatter (gold-container glödar lite)
+  if (colorKey === 'gold') {
+    ctx.shadowColor = '#ffd54a';
+    ctx.shadowBlur = 8;
+    ctx.strokeStyle = '#ffd54a';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+    ctx.shadowBlur = 0;
+  }
+}
+
+// SILO — cylindrisk industri-silo (sett uppifrån = cirkel med stripes + topp-kupol)
+function drawSilo(x, y, w, h, seed) {
+  const cx = x + w / 2, cy = y + h / 2;
+  const r = Math.min(w, h) / 2;
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  ctx.beginPath();
+  ctx.arc(cx + 3, cy + 4, r, 0, Math.PI * 2);
+  ctx.fill();
+  // Bas-cylindern (radial-gradient så det ser ut som 3D-rör)
+  const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
+  grad.addColorStop(0, '#b0a890');
+  grad.addColorStop(0.6, '#8a8270');
+  grad.addColorStop(1, '#4a4438');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  // Vertikala panel-skarvar (cylindrisk look)
+  ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+  ctx.lineWidth = 1;
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+    const x1 = cx + Math.cos(a) * r * 0.85;
+    const y1 = cy + Math.sin(a) * r * 0.85;
+    const x2 = cx + Math.cos(a) * r;
+    const y2 = cy + Math.sin(a) * r;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+  // Stencilerat namn på sidan (seed-baserat)
+  ctx.fillStyle = 'rgba(255, 213, 74, 0.55)';
+  ctx.font = 'bold 10px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const labels = ['GRAIN', 'OIL', 'FUEL', 'CHEM', 'ASH', 'FEED'];
+  const lbl = labels[(seed | 0) % labels.length];
+  ctx.fillText(lbl, cx, cy);
+  // Topp-kupol (HALV-cirkel ovanpå för 3D-känsla — på toppen av cirkeln)
+  ctx.fillStyle = '#5a5450';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r * 0.4, Math.PI, 0);
+  ctx.fill();
+  // Topp-ventil (cirkel i toppen)
+  ctx.fillStyle = '#3a3530';
+  ctx.beginPath();
+  ctx.arc(cx, cy - r * 0.2, r * 0.15, 0, Math.PI * 2);
+  ctx.fill();
+  // Vit warning-stripe (en horisontell ring runt mitten)
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.fillRect(cx - r, cy + r * 0.2, r * 2, 2);
+  // Rost-fläckar
+  ctx.fillStyle = 'rgba(80, 40, 15, 0.6)';
+  for (let i = 0; i < 3; i++) {
+    const a = (seed * (i + 1)) * 0.7;
+    const rr = r * (0.5 + ((seed * (i + 5)) & 0xff) / 512);
+    const rx = cx + Math.cos(a) * rr;
+    const ry = cy + Math.sin(a) * rr;
+    ctx.beginPath();
+    ctx.arc(rx, ry, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Yttre mörk kant
+  ctx.strokeStyle = '#2a2418';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
+// BUILDING — stort industrihus med tak-mönster, fönster, dörrar, antenn
+function drawBuilding(x, y, w, h, seed) {
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(x + 4, y + 6, w, h);
+  // Tak-färg (gradient: ljus → mörk för "uppifrån"-perspektiv)
+  const grad = ctx.createLinearGradient(x, y, x + w, y + h);
+  grad.addColorStop(0, '#6a605a');
+  grad.addColorStop(0.5, '#4a4438');
+  grad.addColorStop(1, '#2a2418');
+  ctx.fillStyle = grad;
+  ctx.fillRect(x, y, w, h);
+  // Yttre kant (mörk)
+  ctx.strokeStyle = '#1a1408';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+  // Tak-paneler (rutmönster — concrete-tiles uppifrån)
+  const tileSize = 40;
+  ctx.strokeStyle = 'rgba(20, 18, 12, 0.55)';
+  ctx.lineWidth = 1;
+  for (let i = tileSize; i < w; i += tileSize) {
+    ctx.beginPath();
+    ctx.moveTo(x + i, y + 3); ctx.lineTo(x + i, y + h - 3);
+    ctx.stroke();
+  }
+  for (let j = tileSize; j < h; j += tileSize) {
+    ctx.beginPath();
+    ctx.moveTo(x + 3, y + j); ctx.lineTo(x + w - 3, y + j);
+    ctx.stroke();
+  }
+  // Vent/AC-units på taket (4 små rektanglar)
+  const hashSeed = (seed | 0) & 0xfff;
+  for (let i = 0; i < 4; i++) {
+    const ux = x + 15 + ((hashSeed * (i + 1) * 23) & 0xff) % Math.max(1, w - 50);
+    const uy = y + 15 + ((hashSeed * (i + 3) * 17) & 0xff) % Math.max(1, h - 50);
+    ctx.fillStyle = '#9a9080';
+    ctx.fillRect(ux, uy, 20, 14);
+    ctx.fillStyle = '#3a3328';
+    ctx.fillRect(ux + 2, uy + 2, 16, 10);
+    // Grid i mitten
+    ctx.fillStyle = '#5a5040';
+    ctx.fillRect(ux + 4, uy + 4, 12, 2);
+    ctx.fillRect(ux + 4, uy + 8, 12, 2);
+    ctx.strokeStyle = '#1a1408';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(ux + 0.5, uy + 0.5, 19, 13);
+  }
+  // Vent-rör i hörnet (cirkel)
+  ctx.fillStyle = '#5a5040';
+  ctx.beginPath();
+  ctx.arc(x + 18, y + 18, 6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#1a1408';
+  ctx.beginPath();
+  ctx.arc(x + 18, y + 18, 3, 0, Math.PI * 2);
+  ctx.fill();
+  // Skylight (glas-ruta i mitten av takets nedre del)
+  if (w > 120 && h > 120) {
+    const slX = x + w / 2 - 25, slY = y + h / 2 - 15;
+    ctx.fillStyle = '#2a3a4a';
+    ctx.fillRect(slX, slY, 50, 30);
+    // Glas-mönster
+    ctx.strokeStyle = '#4a6080';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(slX + 25, slY); ctx.lineTo(slX + 25, slY + 30);
+    ctx.moveTo(slX, slY + 15); ctx.lineTo(slX + 50, slY + 15);
+    ctx.stroke();
+    // Reflektion
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+    ctx.fillRect(slX + 2, slY + 2, 16, 10);
+    ctx.strokeStyle = '#1a1408';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(slX + 0.5, slY + 0.5, 49, 29);
+  }
+  // Antenn (cross-shape om byggnaden är stor)
+  if (w > 180 || h > 180) {
+    const ax = x + w * 0.8;
+    const ay = y + h * 0.2;
+    ctx.strokeStyle = '#1a1408';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay - 8); ctx.lineTo(ax, ay + 8);
+    ctx.moveTo(ax - 6, ay - 4); ctx.lineTo(ax + 6, ay - 4);
+    ctx.moveTo(ax - 4, ay); ctx.lineTo(ax + 4, ay);
+    ctx.stroke();
+    // Röd LED-topp
+    ctx.fillStyle = '#ff3030';
+    ctx.shadowColor = '#ff3030';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.arc(ax, ay - 8, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  // Roof number (för identifiering)
+  if (w > 100 && h > 100) {
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+    ctx.font = 'bold 18px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const num = (((seed | 0) * 13) & 0xff) % 99;
+    ctx.fillText('#' + String(num).padStart(2, '0'), x + w / 2, y + h - 20);
+  }
 }
 
 function drawJerseyBarrier(x, y, w, h) {
@@ -4589,6 +4882,286 @@ function drawKothZone() {
   ctx.restore();
 }
 
+// BATTLE ROYALE — om spelaren är utanför zonen, rita pulserande röd vignett +
+// pil mot zonens centrum. Tydlig feedback att de tar dmg + var de ska gå.
+function drawBrOutsideWarning() {
+  if (!state.battleroyaleActive || !state.battleroyaleZone) return;
+  if (!state.player || state.player.spectating) return;
+  const phaseCfg = state.battleroyalePhases && state.battleroyalePhases[state.battleroyalePhase];
+  if (!phaseCfg || phaseCfg.outsideDmg <= 0) return;
+  const z = state.battleroyaleZone;
+  const dx = state.player.x - z.x;
+  const dy = state.player.y - z.y;
+  const d2 = dx * dx + dy * dy;
+  if (d2 <= z.r * z.r) return; // i zonen — safe
+  // Spelaren är UTANFÖR — pulserande röd vignett
+  const t = performance.now() / 1000;
+  const pulse = 0.4 + Math.sin(t * 4) * 0.3;
+  ctx.save();
+  const grad = ctx.createRadialGradient(viewW / 2, viewH / 2, viewW * 0.3, viewW / 2, viewH / 2, viewW * 0.7);
+  grad.addColorStop(0, 'rgba(220, 30, 30, 0)');
+  grad.addColorStop(0.7, 'rgba(220, 30, 30, ' + (0.15 * pulse) + ')');
+  grad.addColorStop(1, 'rgba(220, 30, 30, ' + (0.55 * pulse) + ')');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // Pil mot närmaste edge på zonen (inte centrum — annars går spelaren längre än nödvändigt)
+  const cx = viewW / 2, cy = viewH / 2;
+  const camX = Math.round(state.camera.x), camY = Math.round(state.camera.y);
+  // Närmaste punkt på zonens omkrets från spelaren (i world-koord)
+  const playerToZoneX = z.x - state.player.x;
+  const playerToZoneY = z.y - state.player.y;
+  const dToZone = Math.hypot(playerToZoneX, playerToZoneY) || 1;
+  // Edge-punkt = zone-centrum minus radius i riktning mot spelaren
+  const edgeWorldX = z.x - (playerToZoneX / dToZone) * z.r;
+  const edgeWorldY = z.y - (playerToZoneY / dToZone) * z.r;
+  const zoneScreenX = edgeWorldX - camX, zoneScreenY = edgeWorldY - camY;
+  // Om edge-punkten inte är synlig på skärmen — visa pil mot den
+  if (zoneScreenX < 0 || zoneScreenX > viewW || zoneScreenY < 0 || zoneScreenY > viewH) {
+    const angToZone = Math.atan2(zoneScreenY - cy, zoneScreenX - cx);
+    const arrowR = Math.min(viewW, viewH) * 0.35;
+    const ax = cx + Math.cos(angToZone) * arrowR;
+    const ay = cy + Math.sin(angToZone) * arrowR;
+    ctx.fillStyle = '#3acaff';
+    ctx.shadowColor = '#3acaff';
+    ctx.shadowBlur = 16;
+    ctx.beginPath();
+    ctx.moveTo(ax + Math.cos(angToZone) * 30, ay + Math.sin(angToZone) * 30);
+    ctx.lineTo(ax + Math.cos(angToZone + 2.5) * 20, ay + Math.sin(angToZone + 2.5) * 20);
+    ctx.lineTo(ax + Math.cos(angToZone - 2.5) * 20, ay + Math.sin(angToZone - 2.5) * 20);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // "→ ZON HÄR"-text
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#000';
+    ctx.shadowBlur = 4;
+    const txtX = cx + Math.cos(angToZone) * (arrowR - 35);
+    const txtY = cy + Math.sin(angToZone) * (arrowR - 35);
+    ctx.fillText('→ ZON', txtX, txtY);
+    ctx.shadowBlur = 0;
+  }
+  // Top-center varning
+  ctx.fillStyle = '#ff5050';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.shadowColor = '#000';
+  ctx.shadowBlur = 5;
+  ctx.globalAlpha = 0.6 + pulse * 0.4;
+  ctx.fillText('⚠ UTANFÖR ZONEN — ' + phaseCfg.outsideDmg + ' HP/SEK', cx, 80);
+  ctx.shadowBlur = 0;
+  ctx.restore();
+}
+
+// BATTLE ROYALE — shrinking safe-zone + next-zone preview + outside-red-tint
+function drawBrZone() {
+  if (!state.battleroyaleZone) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const z = state.battleroyaleZone;
+  const sx = z.x - cx, sy = z.y - cy;
+  const t = performance.now() / 1000;
+  ctx.save();
+  // 1. Rita "outside-zone" red tint — täcker hela skärmen, sedan klipper ut zonen
+  //    (cirkel "hål"). Detta gör att utanför-zonen färgas röd så spelaren ser
+  //    att de tar damage.
+  if (state.battleroyalePhase > 0) {
+    // Phase-baserad intensitet
+    const intensity = Math.min(0.35, state.battleroyalePhase * 0.08);
+    ctx.fillStyle = 'rgba(220, 30, 30, ' + intensity + ')';
+    ctx.beginPath();
+    ctx.rect(0, 0, viewW, viewH);
+    ctx.arc(sx, sy, z.r, 0, Math.PI * 2, true); // motsols = hål
+    ctx.fill('evenodd');
+  }
+  // 2. Zone ring (cyan/gold, pulserande)
+  const pulse = 0.85 + Math.sin(t * 2.5) * 0.15;
+  ctx.strokeStyle = '#3acaff';
+  ctx.lineWidth = 5;
+  ctx.shadowColor = '#3acaff';
+  ctx.shadowBlur = 18 * pulse;
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.arc(sx, sy, z.r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  // 3. Next-zone preview (gold dashed circle) — warning-fas
+  if (state.battleroyaleNextZone) {
+    const nz = state.battleroyaleNextZone;
+    const nsx = nz.x - cx, nsy = nz.y - cy;
+    ctx.strokeStyle = '#ffd54a';
+    ctx.lineWidth = 3;
+    ctx.shadowColor = '#ffd54a';
+    ctx.shadowBlur = 12 * pulse;
+    ctx.globalAlpha = 0.9;
+    ctx.setLineDash([14, 8]);
+    ctx.beginPath();
+    ctx.arc(nsx, nsy, nz.r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.shadowBlur = 0;
+    // Pil från current center mot next center (om de är olika)
+    if (Math.abs(nz.x - z.x) > 50 || Math.abs(nz.y - z.y) > 50) {
+      ctx.strokeStyle = '#ffd54a';
+      ctx.lineWidth = 2;
+      ctx.globalAlpha = 0.7;
+      ctx.setLineDash([6, 4]);
+      ctx.beginPath();
+      ctx.moveTo(sx, sy);
+      ctx.lineTo(nsx, nsy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // Pil-spets
+      const ang = Math.atan2(nsy - sy, nsx - sx);
+      ctx.fillStyle = '#ffd54a';
+      ctx.beginPath();
+      ctx.moveTo(nsx, nsy);
+      ctx.lineTo(nsx - Math.cos(ang - 0.4) * 14, nsy - Math.sin(ang - 0.4) * 14);
+      ctx.lineTo(nsx - Math.cos(ang + 0.4) * 14, nsy - Math.sin(ang + 0.4) * 14);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+// BATTLE ROYALE — loot på marken. Olika färger/ikoner per tier + kind.
+function drawBrLoot() {
+  if (!state.battleroyaleLoot) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const t = performance.now() / 1000;
+  const pulse = 0.7 + Math.sin(t * 3) * 0.3;
+  ctx.save();
+  const nowMs = Date.now();
+  for (const id of Object.keys(state.battleroyaleLoot)) {
+    const lo = state.battleroyaleLoot[id];
+    if (!lo.available) continue;
+    const x = lo.x - cx, y = lo.y - cy;
+    if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) continue;
+    // Locked? (center-loot första 30s)
+    const isLocked = lo.unlockAt && nowMs < lo.unlockAt;
+    // Tier-färg
+    let tierColor = '#ffffff', glowColor = '#999';
+    if (lo.tier === 'common')      { tierColor = '#cccccc'; glowColor = '#888'; }
+    else if (lo.tier === 'uncommon') { tierColor = '#5fd95f'; glowColor = '#3aff5a'; }
+    else if (lo.tier === 'rare')     { tierColor = '#3acaff'; glowColor = '#3acaff'; }
+    else if (lo.tier === 'legendary') { tierColor = '#ffd54a'; glowColor = '#ffd54a'; }
+    else if (lo.tier === 'corpse')   { tierColor = '#ff8aff'; glowColor = '#bb33bb'; } // corpse-drop = lila
+    if (isLocked) { tierColor = '#666'; glowColor = '#444'; }
+    // Glow under
+    ctx.shadowColor = glowColor;
+    ctx.shadowBlur = 14 * pulse;
+    // Bas-cirkel (ground-shadow)
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.beginPath();
+    ctx.arc(x, y + 4, 12, 0, Math.PI * 2);
+    ctx.fill();
+    // Loot-låda eller pickup-ikon baserat på kind
+    if (lo.kind === 'weapon') {
+      // Vapen-låda (tier-färgad rektangel + vapen-ikon)
+      const lw = 18, lh = 14;
+      ctx.fillStyle = tierColor;
+      ctx.fillRect(x - lw / 2, y - lh / 2, lw, lh);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1.2;
+      ctx.strokeRect(x - lw / 2 + 0.5, y - lh / 2 + 0.5, lw - 1, lh - 1);
+      // Lås
+      ctx.fillStyle = '#000';
+      ctx.fillRect(x - 1.5, y - lh / 2 + 1, 3, 3);
+      // Liten vapen-symbol över
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowBlur = 0;
+      ctx.fillText('🔫', x, y - 12);
+    } else if (lo.kind === 'hp_small' || lo.kind === 'hp_big') {
+      // HP-pickup (röd kors)
+      const r = lo.kind === 'hp_big' ? 11 : 8;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ff3030';
+      ctx.fillRect(x - r * 0.6, y - r * 0.18, r * 1.2, r * 0.36);
+      ctx.fillRect(x - r * 0.18, y - r * 0.6, r * 0.36, r * 1.2);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.stroke();
+    } else if (lo.kind === 'shield_small' || lo.kind === 'shield_big') {
+      // Shield-pickup (blå sköld)
+      const r = lo.kind === 'shield_big' ? 11 : 8;
+      ctx.fillStyle = '#3a7aff';
+      ctx.beginPath();
+      ctx.moveTo(x, y - r);
+      ctx.lineTo(x + r * 0.9, y - r * 0.3);
+      ctx.lineTo(x + r * 0.7, y + r);
+      ctx.lineTo(x - r * 0.7, y + r);
+      ctx.lineTo(x - r * 0.9, y - r * 0.3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowBlur = 0;
+      ctx.fillText('🛡', x, y);
+    } else if (lo.kind === 'ammo') {
+      // Ammo-låda (mörk grön med kulor)
+      ctx.fillStyle = '#3a5a30';
+      ctx.fillRect(x - 8, y - 6, 16, 12);
+      ctx.fillStyle = '#ffd54a';
+      ctx.fillRect(x - 6, y - 4, 3, 8);
+      ctx.fillRect(x - 1.5, y - 4, 3, 8);
+      ctx.fillRect(x + 3, y - 4, 3, 8);
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x - 8 + 0.5, y - 6 + 0.5, 15, 11);
+    } else {
+      // Fallback: en kub
+      ctx.fillStyle = tierColor;
+      ctx.fillRect(x - 8, y - 8, 16, 16);
+    }
+    ctx.shadowBlur = 0;
+    // Tier-färg-ring runtom (subtil)
+    if (!isLocked && (lo.tier === 'rare' || lo.tier === 'legendary')) {
+      ctx.strokeStyle = tierColor;
+      ctx.lineWidth = 1.5;
+      ctx.globalAlpha = 0.45 + pulse * 0.4;
+      ctx.beginPath();
+      ctx.arc(x, y, 16, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1.0;
+    }
+    // Lås-overlay om låst (center-loot första 30s)
+    if (isLocked) {
+      const secLeft = Math.max(0, Math.ceil((lo.unlockAt - nowMs) / 1000));
+      ctx.fillStyle = '#000';
+      ctx.globalAlpha = 0.7;
+      ctx.beginPath();
+      ctx.arc(x, y, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1.0;
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🔒', x, y - 2);
+      ctx.font = 'bold 10px sans-serif';
+      ctx.fillStyle = '#fff';
+      ctx.fillText(secLeft + 's', x, y + 12);
+    }
+  }
+  ctx.restore();
+}
+
 function drawSiegeBases() {
   if (!state.siegeBases) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
@@ -4997,7 +5570,7 @@ function drawCoopPartner() {
     // under — utan gap så det ser ut som en bar). Shield krymper först,
     // sedan HP. I story-coop: bara HP-bar.
     if (p.hp !== undefined) {
-      const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive;
+      const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive;
       const maxShield = inPvP ? (p.maxShield || state.pvpShieldMax || 100) : 0;
       const hasShield = inPvP && maxShield > 0;
       // Samma barW för alla — JUG ska se ut som vanlig spelare-hp-bar
@@ -10797,6 +11370,234 @@ const Coop = {
         const winnerName = ev.winner === this.myId ? (this.myName || 'Du') : (this.players.get(ev.winner) && this.players.get(ev.winner).name) || 'Spelare';
         showToast('🏆 ' + winnerName + ' VANN JUGGERNAUT!');
       }
+    } else if (ev.type === 'br_started') {
+      // BATTLE ROYALE start. ev: { arena, walls, spawns, decorations, loot,
+      // phases, matchDurationSec, matchEndAt, phaseEndAt, currentPhase, zone,
+      // aliveCount, startWeapon, startHp, maxHp, maxShield, lootPickupRadius,
+      // shieldMax, isSpectator (om late-joiner) }
+      if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
+      if (typeof hideTdmHud === 'function') hideTdmHud();
+      if (typeof hideCtfHud === 'function') hideCtfHud();
+      if (typeof hideSiegeHud === 'function') hideSiegeHud();
+      if (typeof hideGungameHud === 'function') hideGungameHud();
+      if (typeof hideKothHud === 'function') hideKothHud();
+      if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
+      if (typeof hideBrHud === 'function') hideBrHud();
+      if (typeof destroyBrEndOverlay === 'function') destroyBrEndOverlay();
+      this.tdmActive = false; this.ctfActive = false; this.siegeActive = false;
+      this.gungameActive = false; this.kothActive = false; this.juggernautActive = false;
+      state.tdmActive = false; state.ctfActive = false; state.siegeActive = false;
+      state.gungameActive = false; state.kothActive = false; state.juggernautActive = false;
+      state.companion = null;
+      this.battleroyaleActive = true;
+      state.battleroyaleActive = true;
+      state.battleroyalePhase = ev.currentPhase || 0;
+      state.battleroyalePhases = ev.phases || [];
+      state.battleroyaleZone = ev.zone || { x: 3000, y: 3000, r: 1000 };
+      state.battleroyaleNextZone = null;
+      state.battleroyaleAliveCount = ev.aliveCount || 0;
+      state.battleroyaleMatchEndAt = ev.matchEndAt || (Date.now() + 600000);
+      state.battleroyalePhaseEndAt = ev.phaseEndAt || 0;
+      state.battleroyaleWalls = ev.walls || [];
+      state.battleroyaleDecorations = ev.decorations || [];
+      state.battleroyaleLoot = {};
+      if (ev.loot) {
+        for (const lo of ev.loot) {
+          state.battleroyaleLoot[lo.id] = { id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, available: true, unlockAt: lo.unlockAt || 0 };
+        }
+      }
+      state.battleroyaleStartedAt = Date.now();
+      state.battleroyaleLootPickupRadius = ev.lootPickupRadius || 32;
+      state.pvpShieldMax = ev.shieldMax || 100;
+      state.enemies = []; state.bullets = [];
+      state.bossAlive = false; state.bossIntro = null;
+      state.waveActive = false; state.enemiesToSpawn = 0;
+      state._serverSpawnWaitSince = 0; state._serverWakeToastShown = false;
+      if (ev.arena) {
+        state.customStages = [{
+          id: 'br_arena', name: ev.arena.name || 'LAST HUNT',
+          kind: 'battleroyale', worldW: ev.arena.worldW, worldH: ev.arena.worldH,
+          spawnPos: { x: 400, y: 400 }, goalPos: { x: ev.arena.worldW - 400, y: ev.arena.worldH - 400 },
+        }];
+        state.wave = 1;
+        WORLD.w = ev.arena.worldW; WORLD.h = ev.arena.worldH;
+        if (typeof stageState !== 'undefined') {
+          stageState.buildings = []; stageState.decorations = [];
+          stageState.hazards = []; stageState.collectibles = [];
+        }
+      }
+      if (state.player) {
+        state.player.hp = ev.startHp || 100;
+        state.player.maxHp = ev.maxHp || 100;
+        state.player.shield = 0;
+        state.player.maxShield = ev.maxShield || 100;
+        state.player.weaponId = ev.startWeapon || 'pistol';
+        state.player.isJug = false;
+        state.player.scaleMul = 1.0;
+        state.player.speedMul = 1.0;
+        state.player.dashCdMs = null;
+        state.player.invuln = 1.5;
+        if (ev.isSpectator) {
+          // Late-joiner — direkt i spectator-mode
+          state.player.spectating = true;
+          state.player.hp = 0;
+        } else {
+          state.player.spectating = false;
+        }
+      }
+      save.equipped = ev.startWeapon || 'pistol';
+      save.weaponId = save.equipped;
+      // Synka maxHp/scaleMul på partners (anti-läck från JUG/Sandbox)
+      for (const [pid, partner] of this.players) {
+        partner.isJug = false;
+        partner.scaleMul = 1.0;
+        partner.maxHp = ev.maxHp || 100;
+      }
+      if (typeof showBrHud === 'function') showBrHud();
+      if (typeof showToast === 'function') {
+        if (ev.isSpectator) showToast('👁 SPECTATOR — matchen pågår');
+        else showToast('🌀 LAST HUNT — överlev till slutet!');
+      }
+      if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('tdm');
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
+    } else if (ev.type === 'br_state_update') {
+      // { aliveCount, phase, msToNextPhase, zoneX, zoneY, zoneR, nextZoneX, nextZoneY, nextZoneR }
+      state.battleroyaleAliveCount = ev.aliveCount;
+      state.battleroyalePhase = ev.phase;
+      state.battleroyalePhaseEndAt = Date.now() + (ev.msToNextPhase || 0);
+      if (ev.zoneR > 0) {
+        state.battleroyaleZone = { x: ev.zoneX, y: ev.zoneY, r: ev.zoneR };
+        if (ev.nextZoneR > 0 && (ev.nextZoneX !== ev.zoneX || ev.nextZoneY !== ev.zoneY || ev.nextZoneR !== ev.zoneR)) {
+          state.battleroyaleNextZone = { x: ev.nextZoneX, y: ev.nextZoneY, r: ev.nextZoneR };
+        } else {
+          state.battleroyaleNextZone = null;
+        }
+      }
+      if (typeof updateBrHud === 'function') updateBrHud();
+    } else if (ev.type === 'br_phase_changed') {
+      // { phase, name, outsideDmg, phaseDurMs, nextZoneX, nextZoneY, nextZoneR }
+      state.battleroyalePhase = ev.phase;
+      state.battleroyalePhaseEndAt = Date.now() + (ev.phaseDurMs || 60000);
+      if (ev.nextZoneR > 0) {
+        state.battleroyaleNextZone = { x: ev.nextZoneX, y: ev.nextZoneY, r: ev.nextZoneR };
+      }
+      if (typeof showToast === 'function') {
+        showToast('⚠ ' + (ev.name || 'PHASE ' + (ev.phase + 1)) + ' — ZON KRYMPER');
+      }
+      if (typeof triggerShake === 'function') triggerShake(6, 0.3);
+      if (typeof updateBrHud === 'function') updateBrHud();
+    } else if (ev.type === 'br_loot_picked') {
+      // { peerId, lootId, kind, weaponId, hp, shield }
+      if (state.battleroyaleLoot && state.battleroyaleLoot[ev.lootId]) {
+        state.battleroyaleLoot[ev.lootId].available = false;
+        delete state.battleroyaleLoot[ev.lootId];
+      }
+      if (ev.peerId === this.myId && state.player) {
+        if (typeof ev.hp === 'number') state.player.hp = ev.hp;
+        if (typeof ev.shield === 'number') state.player.shield = ev.shield;
+        if (ev.kind === 'weapon' && ev.weaponId) {
+          state.player.weaponId = ev.weaponId;
+          save.equipped = ev.weaponId;
+          save.weaponId = ev.weaponId;
+          state.player.reloading = false;
+          state.player.ammo = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) || 0;
+          if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+          const wName = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].name) || ev.weaponId;
+          if (typeof showToast === 'function') showToast('🔫 ' + wName.toUpperCase());
+        } else if (ev.kind === 'hp_small') {
+          if (typeof showToast === 'function') showToast('❤ +30 HP');
+        } else if (ev.kind === 'hp_big') {
+          if (typeof showToast === 'function') showToast('❤❤ +60 HP');
+        } else if (ev.kind === 'shield_small') {
+          if (typeof showToast === 'function') showToast('🛡 +25 SHIELD');
+        } else if (ev.kind === 'shield_big') {
+          if (typeof showToast === 'function') showToast('🛡🛡 +50 SHIELD');
+        } else if (ev.kind === 'ammo') {
+          // Klient refyller current weapon
+          const w = W_BY_ID[state.player.weaponId];
+          if (w && w.mag) state.player.ammo = w.mag;
+          state.player.reloading = false;
+          if (typeof showToast === 'function') showToast('🔋 AMMO');
+        }
+        if (typeof updateHUD === 'function') updateHUD();
+        if (typeof Audio !== 'undefined' && Audio.pickup) Audio.pickup();
+      }
+    } else if (ev.type === 'br_kill') {
+      // { killer, victim, weapon }
+      const killerName = (ev.killer === this.myId) ? (this.myName || 'Du')
+        : (this.players.get(ev.killer) && this.players.get(ev.killer).name) || 'Spelare';
+      const victimName = (ev.victim === this.myId) ? (this.myName || 'Du')
+        : (this.players.get(ev.victim) && this.players.get(ev.victim).name) || 'Spelare';
+      const weaponName = ev.weapon && W_BY_ID[ev.weapon] ? (W_BY_ID[ev.weapon].name || ev.weapon) : null;
+      if (typeof addBrKillFeed === 'function') addBrKillFeed(killerName, victimName, weaponName);
+    } else if (ev.type === 'br_corpse_drop') {
+      // { x, y, loot: [{ id, x, y, kind, weaponId, tier, unlockAt }] }
+      if (ev.loot && state.battleroyaleLoot) {
+        for (const lo of ev.loot) {
+          state.battleroyaleLoot[lo.id] = {
+            id: lo.id, x: lo.x, y: lo.y,
+            kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier || 'corpse',
+            available: true, unlockAt: lo.unlockAt || 0,
+          };
+        }
+      }
+    } else if (ev.type === 'br_player_eliminated') {
+      // { victim, placement, aliveCount }
+      state.battleroyaleAliveCount = ev.aliveCount;
+      if (ev.victim === this.myId) {
+        if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
+        if (typeof triggerShake === 'function') triggerShake(14, 0.6);
+        if (state.player) {
+          state.player.spectating = true;
+          state.player.hp = 0;
+          // Auto-pick: cykla till första levande partner som spec-target
+          state.player.specTarget = null;
+          for (const [pid, partner] of this.players) {
+            if (partner && partner.hp > 0) {
+              state.player.specTarget = pid;
+              break;
+            }
+          }
+        }
+        state.deadBody = { x: state.player ? state.player.x : 0, y: state.player ? state.player.y : 0, reviveTimer: 0 };
+        if (typeof showToast === 'function') {
+          // Total = players.size + 1 (mig själv är inte i players-map)
+          const totalCount = (this.players ? this.players.size : 0) + 1;
+          showToast('💀 ELIMINERAD — Placering ' + ev.placement + ' av ' + totalCount);
+        }
+      } else {
+        // Annan spelare dog
+        if (typeof showToast === 'function' && state.battleroyaleAliveCount <= 3) {
+          showToast('🔥 ' + state.battleroyaleAliveCount + ' KVAR');
+        }
+      }
+      if (typeof updateBrHud === 'function') updateBrHud();
+    } else if (ev.type === 'br_match_end') {
+      // { winner, reason, stats }
+      this.battleroyaleActive = false;
+      state.battleroyaleActive = false;
+      if (state.player) {
+        state.player.isJug = false;
+        state.player.scaleMul = 1.0;
+        state.player.speedMul = 1.0;
+        if (state.player.maxHp > 100) state.player.maxHp = 100;
+      }
+      if (typeof hideBrHud === 'function') hideBrHud();
+      if (typeof destroyBrEndOverlay === 'function') destroyBrEndOverlay();
+      const statsArr = [];
+      if (ev.stats && ev.stats.perPlayer) {
+        for (const pid of Object.keys(ev.stats.perPlayer)) {
+          const s = ev.stats.perPlayer[pid];
+          statsArr.push({ peerId: pid, placement: s.placement || 999, kills: s.kills || 0, deaths: s.deaths || 0 });
+        }
+      }
+      statsArr.sort((a, b) => a.placement - b.placement);
+      if (typeof showBrEndScreen === 'function') {
+        showBrEndScreen(ev.winner, statsArr);
+      } else if (typeof showToast === 'function') {
+        const winnerName = ev.winner === this.myId ? (this.myName || 'Du') : (this.players.get(ev.winner) && this.players.get(ev.winner).name) || 'Spelare';
+        showToast('🏆 ' + winnerName + ' VANN LAST HUNT!');
+      }
     } else if (ev.type === 'stage_loaded') {
       if (window._debug) console.log('[SIM] stage loaded:', ev.stageName);
     } else if (ev.type === 'countdown_start') {
@@ -12337,6 +13138,11 @@ const MODE_OPTIONS = {
     desc: '1 spelare blir JUG (5× HP, +35% speed, valbart vapen). Hunters har bara pistol. Mest sek som JUG vinner.',
     options: [{ key: 'juggernautMatchDurationSec', label: 'FÖRST TILL (TID SOM JUG)', values: [120, 360, 900], labels: ['⚡ 2 MIN', '🔥 6 MIN', '👑 15 MIN'], def: 360 }],
   },
+  battleroyale: {
+    title: '🌀 BATTLE ROYALE — LAST HUNT',
+    desc: 'FFA. Ingen respawn. Krympande zon tvingar spelare ihop. Loot på marken. Sista överlevare vinner.',
+    options: [{ key: 'battleroyaleMatchDurationSec', label: 'MATCH-LÄNGD', values: [300, 600, 900], labels: ['⚡ 5 MIN', '🔥 10 MIN', '👑 15 MIN'], def: 600 }],
+  },
   bots: {
     title: '🤖 BOTS — TRÄNA MOT AI',
     desc: 'AI-motståndare med valbar svårighet.',
@@ -12598,7 +13404,7 @@ function renderHostControls() {
   for (const m of ['story', 'endless', 'bossrush', 'survive', 'truck']) {
     const b = document.createElement('button');
     b.textContent = MODE_LABELS[m];
-    if (Coop.config.mode === m && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && !Coop.config.koth && !Coop.config.juggernaut) b.classList.add('active');
+    if (Coop.config.mode === m && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && !Coop.config.koth && !Coop.config.juggernaut && !Coop.config.battleroyale) b.classList.add('active');
     onTap(b, () => {
       // Aktivera team-mode + clear alla PvP-flags
       Coop.config.tdm = false;
@@ -12607,7 +13413,8 @@ function renderHostControls() {
       Coop.config.gungame = false;
       Coop.config.koth = false;
       Coop.config.juggernaut = false;
-      Coop.updateConfig({ mode: m, tdm: false, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false });
+      Coop.config.battleroyale = false;
+      Coop.updateConfig({ mode: m, tdm: false, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false, battleroyale: false });
       renderHostControls();
     });
     lobbyModeButtonsEl.appendChild(b);
@@ -12639,13 +13446,13 @@ function renderHostControls() {
     onTap(tdmBtn, () => {
       const newTdm = !Coop.config.tdm;
       Coop.config.tdm = newTdm;
-      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
+      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false;
       if (newTdm) {
         Coop.config.serverSim = true;
         Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
       }
       Coop.updateConfig({
-        tdm: newTdm, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false,
+        tdm: newTdm, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false, battleroyale: false,
         tdmTargetKills: Coop.config.tdmTargetKills,
         serverSim: Coop.config.serverSim,
       });
@@ -12661,13 +13468,13 @@ function renderHostControls() {
     onTap(ctfBtn, () => {
       const newCtf = !Coop.config.ctf;
       Coop.config.ctf = newCtf;
-      Coop.config.tdm = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
+      Coop.config.tdm = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false;
       if (newCtf) {
         Coop.config.serverSim = true;
         Coop.config.ctfTargetCaptures = Coop.config.ctfTargetCaptures || 3;
       }
       Coop.updateConfig({
-        ctf: newCtf, tdm: false, siege: false, gungame: false, koth: false, juggernaut: false,
+        ctf: newCtf, tdm: false, siege: false, gungame: false, koth: false, juggernaut: false, battleroyale: false,
         ctfTargetCaptures: Coop.config.ctfTargetCaptures,
         serverSim: Coop.config.serverSim,
       });
@@ -12683,13 +13490,13 @@ function renderHostControls() {
     onTap(siegeBtn, () => {
       const newSiege = !Coop.config.siege;
       Coop.config.siege = newSiege;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false;
       if (newSiege) {
         Coop.config.serverSim = true;
         Coop.config.siegeTargetPoints = Coop.config.siegeTargetPoints || 500;
       }
       Coop.updateConfig({
-        siege: newSiege, tdm: false, ctf: false, gungame: false, koth: false, juggernaut: false,
+        siege: newSiege, tdm: false, ctf: false, gungame: false, koth: false, juggernaut: false, battleroyale: false,
         siegeTargetPoints: Coop.config.siegeTargetPoints,
         serverSim: Coop.config.serverSim,
       });
@@ -12705,10 +13512,10 @@ function renderHostControls() {
     onTap(ggBtn, () => {
       const newGg = !Coop.config.gungame;
       Coop.config.gungame = newGg;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.koth = false; Coop.config.juggernaut = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false;
       if (newGg) Coop.config.serverSim = true;
       Coop.updateConfig({
-        gungame: newGg, tdm: false, ctf: false, siege: false, koth: false, juggernaut: false,
+        gungame: newGg, tdm: false, ctf: false, siege: false, koth: false, juggernaut: false, battleroyale: false,
         serverSim: Coop.config.serverSim,
       });
       renderHostControls();
@@ -12723,13 +13530,13 @@ function renderHostControls() {
     onTap(kothBtn, () => {
       const newKoth = !Coop.config.koth;
       Coop.config.koth = newKoth;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.juggernaut = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false;
       if (newKoth) {
         Coop.config.serverSim = true;
         Coop.config.kothTargetPoints = Coop.config.kothTargetPoints || 100;
       }
       Coop.updateConfig({
-        koth: newKoth, tdm: false, ctf: false, siege: false, gungame: false, juggernaut: false,
+        koth: newKoth, tdm: false, ctf: false, siege: false, gungame: false, juggernaut: false, battleroyale: false,
         kothTargetPoints: Coop.config.kothTargetPoints,
         serverSim: Coop.config.serverSim,
       });
@@ -12745,13 +13552,13 @@ function renderHostControls() {
     onTap(jugBtn, () => {
       const newJug = !Coop.config.juggernaut;
       Coop.config.juggernaut = newJug;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.battleroyale = false;
       if (newJug) {
         Coop.config.serverSim = true;
         Coop.config.juggernautMatchDurationSec = Coop.config.juggernautMatchDurationSec || 360;
       }
       Coop.updateConfig({
-        juggernaut: newJug, tdm: false, ctf: false, siege: false, gungame: false, koth: false,
+        juggernaut: newJug, tdm: false, ctf: false, siege: false, gungame: false, koth: false, battleroyale: false,
         juggernautMatchDurationSec: Coop.config.juggernautMatchDurationSec,
         serverSim: Coop.config.serverSim,
       });
@@ -12759,6 +13566,29 @@ function renderHostControls() {
       if (newJug) openModePopup('juggernaut');
     });
     pvpEl.appendChild(jugBtn);
+    // BATTLE ROYALE-knapp (FFA, no-respawn, krympande zon)
+    const brBtn = document.createElement('button');
+    brBtn.textContent = '🌀 BATTLE ROYALE (Last Hunt)';
+    brBtn.style.cssText = 'background:' + (Coop.config.battleroyale ? '#aa3aff' : '#222') + ';color:' + (Coop.config.battleroyale ? '#fff' : '#aaa') + ';font-size:12px;padding:8px 12px;letter-spacing:1px;font-weight:700;';
+    if (Coop.config.battleroyale) brBtn.classList.add('active');
+    onTap(brBtn, () => {
+      const newBr = !Coop.config.battleroyale;
+      Coop.config.battleroyale = newBr;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
+      Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
+      if (newBr) {
+        Coop.config.serverSim = true;
+        Coop.config.battleroyaleMatchDurationSec = Coop.config.battleroyaleMatchDurationSec || 600;
+      }
+      Coop.updateConfig({
+        battleroyale: newBr, tdm: false, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false,
+        battleroyaleMatchDurationSec: Coop.config.battleroyaleMatchDurationSec,
+        serverSim: Coop.config.serverSim,
+      });
+      renderHostControls();
+      if (newBr) openModePopup('battleroyale');
+    });
+    pvpEl.appendChild(brBtn);
     // Target-selektorer för aktivt PvP-läge sker nu UTESLUTANDE via popup —
     // ingen inline-rendering här (rensar mode-knapparna så det inte blir spretigt).
   }
@@ -12952,6 +13782,7 @@ function updateLobbySectionSuffixes() {
       else if (Coop.config.gungame) suffix = ' · 🔫 GUN';
       else if (Coop.config.koth) suffix = ' · 👑 KOTH';
       else if (Coop.config.juggernaut) suffix = ' · 👑 JUG';
+      else if (Coop.config.battleroyale) suffix = ' · 🌀 BR';
       else if (Coop.config.mode && Coop.config.mode !== 'story') suffix = ' · ' + Coop.config.mode.toUpperCase();
     } else if (containerId === 'lobby-pvp-buttons') {
       if (Coop.config.tdm) suffix = ' · ⚔ TDM';
@@ -12960,6 +13791,7 @@ function updateLobbySectionSuffixes() {
       else if (Coop.config.gungame) suffix = ' · 🔫 GUNGAME';
       else if (Coop.config.koth) suffix = ' · 👑 KOTH';
       else if (Coop.config.juggernaut) suffix = ' · 👑 JUGGERNAUT';
+      else if (Coop.config.battleroyale) suffix = ' · 🌀 BATTLE ROYALE';
     } else if (containerId === 'lobby-bot-buttons') {
       if (Coop.config.addBot) {
         const sk = Coop.config.botSkill === 'easy' ? '😴' : (Coop.config.botSkill === 'hard' ? '🔥' : '🎯');
@@ -13408,6 +14240,10 @@ btnCoopStart.addEventListener('click', () => {
     if (Coop.config.juggernaut) {
       payload.juggernaut = true;
       payload.juggernautMatchDurationSec = Coop.config.juggernautMatchDurationSec || 360;
+    }
+    if (Coop.config.battleroyale) {
+      payload.battleroyale = true;
+      payload.battleroyaleMatchDurationSec = Coop.config.battleroyaleMatchDurationSec || 600;
     }
     if (Coop.config.addBot) {
       payload.addBot = true;
@@ -16813,7 +17649,7 @@ function checkCoopAllDead() {
   if (state.mode !== 'playing') return;
   // PvP-modes har egna match-end-villkor (mode_match_end-events). Död är bara
   // ett 3s respawn-fönster — game-over på "alla döda" ska INTE triggas där.
-  if (Coop.gungameActive || Coop.tdmActive || Coop.ctfActive || Coop.siegeActive || Coop.kothActive || Coop.juggernautActive) return;
+  if (Coop.gungameActive || Coop.tdmActive || Coop.ctfActive || Coop.siegeActive || Coop.kothActive || Coop.juggernautActive || Coop.battleroyaleActive) return;
   const hostDead = !state.player || state.player.hp <= 0 || state.player.spectating;
   if (!hostDead) return;
   let anyAlive = false;
@@ -17908,6 +18744,10 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     if (Coop.config.juggernaut) {
       payload.juggernaut = true;
       payload.juggernautMatchDurationSec = Coop.config.juggernautMatchDurationSec || 360;
+    }
+    if (Coop.config.battleroyale) {
+      payload.battleroyale = true;
+      payload.battleroyaleMatchDurationSec = Coop.config.battleroyaleMatchDurationSec || 600;
     }
     if (Coop.config.addBot) {
       payload.addBot = true;
@@ -19931,6 +20771,201 @@ function showJuggernautEndScreen(winnerId, stats) {
   if (_rematchBtn) _rematchBtn.classList.toggle('hidden', !Coop.isHost);
 }
 
+// ============================================================
+// BATTLE ROYALE HUD + KILLFEED + END-SCREEN
+// ============================================================
+function showBrHud() {
+  let el = document.getElementById('br-hud');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'br-hud';
+    el.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #3acaff;border-radius:8px;padding:8px 16px;color:#fff;font-family:sans-serif;font-weight:900;letter-spacing:1px;z-index:80;pointer-events:none;display:flex;align-items:center;gap:14px;font-size:14px;text-align:center;';
+    el.innerHTML = '<div><span style="color:#3acaff;">🌀 ALIVE:</span> <span id="br-alive">--</span></div><div style="color:#666;">|</div><div><span style="color:#ffd54a;" id="br-phase-name">--</span> <span id="br-phase-timer" style="color:#fff;font-variant-numeric:tabular-nums;">--</span></div><div id="br-mid-unlock-wrap" style="color:#666;display:none;">|</div><div id="br-mid-unlock" style="display:none;color:#ff8aff;font-size:12px;"></div>';
+    document.body.appendChild(el);
+  }
+  el.style.display = 'flex';
+  let kf = document.getElementById('br-killfeed');
+  if (!kf) {
+    kf = document.createElement('div');
+    kf.id = 'br-killfeed';
+    kf.style.cssText = 'position:fixed;top:max(60px, env(safe-area-inset-top));right:12px;width:280px;max-height:200px;pointer-events:none;z-index:75;display:flex;flex-direction:column;gap:4px;font-family:sans-serif;';
+    document.body.appendChild(kf);
+  }
+  updateBrHud();
+}
+
+function hideBrHud() {
+  const el = document.getElementById('br-hud');
+  if (el) el.style.display = 'none';
+  const kf = document.getElementById('br-killfeed');
+  if (kf) kf.innerHTML = '';
+}
+
+function destroyBrEndOverlay() {
+  const o = document.getElementById('br-end-overlay');
+  if (o && o.parentNode) o.parentNode.removeChild(o);
+}
+
+function updateBrHud() {
+  if (!state.battleroyaleActive) return;
+  const aliveEl = document.getElementById('br-alive');
+  const phaseNameEl = document.getElementById('br-phase-name');
+  const phaseTimerEl = document.getElementById('br-phase-timer');
+  if (aliveEl) aliveEl.textContent = state.battleroyaleAliveCount || 0;
+  const phaseCfg = (state.battleroyalePhases && state.battleroyalePhases[state.battleroyalePhase]) || null;
+  if (phaseNameEl) {
+    // Visa fas-namn + dmg/s så spelaren förstår vad timern räknar ner till
+    let txt = phaseCfg ? phaseCfg.name : ('PHASE ' + (state.battleroyalePhase + 1));
+    if (phaseCfg && phaseCfg.outsideDmg > 0) {
+      txt += ' (' + phaseCfg.outsideDmg + ' HP/s)';
+    }
+    phaseNameEl.textContent = txt;
+  }
+  if (phaseTimerEl) {
+    const ms = Math.max(0, state.battleroyalePhaseEndAt - Date.now());
+    const sec = Math.floor(ms / 1000);
+    const mm = Math.floor(sec / 60);
+    const ss = sec % 60;
+    phaseTimerEl.textContent = mm + ':' + String(ss).padStart(2, '0');
+  }
+  // Mid-unlock countdown: visa proaktivt så spelare inte rusar och blir besvikna
+  const midUnlockEl = document.getElementById('br-mid-unlock');
+  const midUnlockWrap = document.getElementById('br-mid-unlock-wrap');
+  if (midUnlockEl && state.battleroyaleLoot) {
+    let lockedCenter = null;
+    const nowMs = Date.now();
+    for (const id of Object.keys(state.battleroyaleLoot)) {
+      const lo = state.battleroyaleLoot[id];
+      if (lo.unlockAt && nowMs < lo.unlockAt && lo.tier === 'legendary') {
+        lockedCenter = lo;
+        break;
+      }
+    }
+    if (lockedCenter) {
+      const secLeft = Math.max(0, Math.ceil((lockedCenter.unlockAt - nowMs) / 1000));
+      midUnlockEl.textContent = '⏱ MID UNLOCKS: ' + secLeft + 's';
+      midUnlockEl.style.display = 'inline';
+      if (midUnlockWrap) midUnlockWrap.style.display = 'inline';
+    } else {
+      midUnlockEl.style.display = 'none';
+      if (midUnlockWrap) midUnlockWrap.style.display = 'none';
+    }
+  }
+}
+
+function addBrKillFeed(killerName, victimName, weaponName) {
+  const kf = document.getElementById('br-killfeed');
+  if (!kf) return;
+  const row = document.createElement('div');
+  row.style.cssText = 'background:rgba(0,0,0,0.78);border-left:3px solid #ff3030;padding:5px 10px;font-size:12px;color:#fff;border-radius:3px;letter-spacing:0.5px;animation:brkf-fadein 0.3s ease;';
+  const wInfo = weaponName ? ' <span style="color:#3acaff;">' + escapeHtml(weaponName) + '</span>' : '';
+  row.innerHTML = '<span style="color:#5fd95f;">' + escapeHtml(killerName) + '</span>' + wInfo + ' ⚔ <span style="color:#ff8080;">' + escapeHtml(victimName) + '</span>';
+  kf.appendChild(row);
+  // Fade-out efter 6s
+  setTimeout(() => {
+    row.style.transition = 'opacity 0.5s';
+    row.style.opacity = '0';
+    setTimeout(() => { if (row.parentNode) row.parentNode.removeChild(row); }, 600);
+  }, 6000);
+  // Max 6 rows visible
+  while (kf.children.length > 6) {
+    kf.removeChild(kf.firstChild);
+  }
+}
+
+function showBrEndScreen(winnerId, statsArr) {
+  hideBrHud();
+  let overlay = document.getElementById('br-end-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'br-end-overlay';
+    overlay.className = 'overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;z-index:200;padding:max(20px, env(safe-area-inset-top, 20px)) max(16px, env(safe-area-inset-right, 16px)) max(20px, env(safe-area-inset-bottom, 20px)) max(16px, env(safe-area-inset-left, 16px));box-sizing:border-box;';
+    overlay.innerHTML = '<div style="background:#181818;border:2px solid #3acaff;border-radius:10px;padding:24px 24px;max-width:600px;width:100%;max-height:100%;overflow-y:auto;color:#fff;font-family:sans-serif;text-align:center;box-sizing:border-box;"><h1 id="br-end-title" style="color:#3acaff;margin:0 0 8px;font-size:28px;">🏆</h1><div id="br-end-sub" style="color:#aaa;margin-bottom:18px;">vann LAST HUNT!</div><div id="br-end-hero" style="color:#5aff5a;font-size:14px;margin-bottom:14px;"></div><div id="br-end-stats" style="font-size:13px;margin-bottom:18px;overflow-x:auto;-webkit-overflow-scrolling:touch;"></div><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;"><button id="btn-br-rematch" class="hidden" style="background:#5aff5a;color:#000;border:0;padding:12px 22px;border-radius:6px;font-weight:900;letter-spacing:1px;cursor:pointer;min-height:44px;">⚔ REMATCH</button><button id="btn-br-back" style="background:#444;color:#fff;border:0;padding:12px 22px;border-radius:6px;font-weight:900;letter-spacing:1px;cursor:pointer;min-height:44px;">↩ LOBBY</button></div></div>';
+    document.body.appendChild(overlay);
+    document.getElementById('btn-br-back').addEventListener('click', () => {
+      overlay.classList.add('hidden');
+      overlay.style.display = 'none';
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      state.battleroyaleActive = false;
+      if (typeof Coop !== 'undefined') {
+        Coop.battleroyaleActive = false;
+        Coop.serverSimActive = false;
+        if (Coop.ws && Coop.ws.readyState === 1 && Coop.isHost) {
+          try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (_) {}
+        }
+        if (typeof Coop.disconnect === 'function') Coop.disconnect();
+      }
+      state.serverSimActive = false;
+      state.mode = 'menu';
+      if (typeof Music !== 'undefined' && Music.stop) Music.stop();
+      document.body.classList.add('menu-mode');
+      const menuScreenEl = document.getElementById('menu');
+      if (menuScreenEl) menuScreenEl.classList.remove('hidden');
+    });
+    document.getElementById('btn-br-rematch').addEventListener('click', () => {
+      if (!Coop.isHost) return;
+      overlay.classList.add('hidden');
+      overlay.style.display = 'none';
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      if (Coop.ws && Coop.ws.readyState === 1) {
+        try {
+          Coop.ws.send(JSON.stringify({ type: 'sim_stop' }));
+          setTimeout(() => {
+            if (!Coop.ws || Coop.ws.readyState !== 1) return;
+            Coop.ws.send(JSON.stringify(applyBotPayload({
+              type: 'sim_start',
+              wave: 1,
+              difficulty: Coop.config.difficulty || 'veteran',
+              ngpLevel: 0,
+              mode: Coop.config.mode || 'story',
+              battleroyale: true,
+              battleroyaleMatchDurationSec: Coop.config.battleroyaleMatchDurationSec || 600,
+            })));
+          }, 400);
+        } catch (e) {}
+      }
+    });
+  }
+  const winnerName = winnerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(winnerId) && Coop.players.get(winnerId).name) || 'Spelare');
+  const titleEl = document.getElementById('br-end-title');
+  const subEl = document.getElementById('br-end-sub');
+  const heroEl = document.getElementById('br-end-hero');
+  const statsEl = document.getElementById('br-end-stats');
+  const sortedByPlacement = (statsArr || []).slice().sort((a, b) => (a.placement || 999) - (b.placement || 999));
+  const sortedByKills = (statsArr || []).slice().sort((a, b) => (b.kills || 0) - (a.kills || 0));
+  const killLeader = sortedByKills[0];
+  const killLeaderName = killLeader ? (killLeader.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(killLeader.peerId) && Coop.players.get(killLeader.peerId).name) || 'Spelare')) : '';
+  if (titleEl) titleEl.textContent = '🏆 ' + winnerName.toUpperCase();
+  if (subEl) subEl.textContent = 'överlevde LAST HUNT!';
+  if (heroEl && killLeader) {
+    heroEl.innerHTML = '⚔ FLEST KILLS: <span style="color:#fff;">' + escapeHtml(killLeaderName) + '</span> · ' + (killLeader.kills || 0) + ' frags';
+  }
+  if (statsEl) {
+    const rows = sortedByPlacement.map((s, i) => {
+      const name = s.peerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || s.peerId);
+      const winBadge = s.peerId === winnerId ? '👑 ' : '';
+      const isMe = s.peerId === Coop.myId ? ' (du)' : '';
+      let rank;
+      if (s.placement === 1) rank = '🥇';
+      else if (s.placement === 2) rank = '🥈';
+      else if (s.placement === 3) rank = '🥉';
+      else if (s.placement >= 999) rank = '–';
+      else rank = '#' + s.placement;
+      return '<tr><td style="padding:4px 8px;text-align:center;color:#888;">' + rank + '</td><td style="padding:4px 8px;text-align:left;">' + winBadge + escapeHtml(name) + isMe + '</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;color:#888;">' + (s.deaths || 0) + '</td></tr>';
+    }).join('');
+    statsEl.innerHTML = '<table style="margin:0 auto;border-collapse:collapse;"><thead><tr><th style="padding:4px 8px;color:#888;">#</th><th style="padding:4px 8px;color:#888;text-align:left;">Spelare</th><th style="padding:4px 8px;color:#888;">Kills</th><th style="padding:4px 8px;color:#888;">Deaths</th></tr></thead><tbody>' + rows + '</tbody></table>';
+  }
+  overlay.classList.remove('hidden');
+  const rematchBtn = document.getElementById('btn-br-rematch');
+  if (rematchBtn) rematchBtn.classList.toggle('hidden', !Coop.isHost);
+}
+
+// Auto-update HUD every 200ms when active
+setInterval(() => {
+  if (state.battleroyaleActive && typeof updateBrHud === 'function') updateBrHud();
+}, 200);
+
 // drawJuggernautArrows — JUG-spelaren ser off-screen-pilar mot hunters
 // INOM 1800px (var: alla hunters alltid → för omniscient). Bortom 1800px får
 // JUG inga ledtrådar utöver minimap (samma rättvisa info-budget för båda sidor).
@@ -20054,7 +21089,7 @@ function updateHUD() {
   // default: om p.maxShield inte är satt (event-handlern hann inte) använd
   // state.pvpShieldMax eller 100 så bar:n ändå visas i PvP.
   if (typeof _shieldBar !== 'undefined' && _shieldBar) {
-    const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive;
+    const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive;
     if (inPvP) {
       const maxS = p.maxShield || state.pvpShieldMax || 100;
       if (!p.maxShield) p.maxShield = maxS; // backfill så övrig logik funkar
@@ -20170,7 +21205,7 @@ let _lastShieldCdSet = -1;
 let _lastShieldVisible = null;
 function updatePvpShieldButton() {
   if (!_btnPvpShield) return;
-  const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive;
+  const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive;
   if (inPvP !== _lastShieldVisible) {
     _lastShieldVisible = inPvP;
     _btnPvpShield.classList.toggle('hidden', !inPvP);
@@ -21527,7 +22562,7 @@ function updateBullets(dt) {
       // flash + shake så jag känner träffen utan att vänta på pvp_hp_changed
       // (~50-100ms server-RTT). Server uppdaterar exakt HP officiellt.
       if (!b._localHitMe && b.ownerPid && b.ownerPid !== Coop.myId &&
-          (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive)) {
+          (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive)) {
         const myDx = p.x - b.x, myDy = p.y - b.y;
         const myR = (p.r || 14) + (b.r || 4) + 8; // lag-comp +8 mirror
         if (myDx * myDx + myDy * myDy < myR * myR) {
@@ -21621,7 +22656,7 @@ function updateBullets(dt) {
       // T1A PvP-HIT-PREDICTION: min egen bullet mot Coop.players (motståndare).
       // Server är fortfarande auth för damage, men spelaren ser instant feedback
       // (damage-number + spark) utan att vänta på pvp_hp_changed (~50ms RTT).
-      if (!hit && !b._predictedPvpHit && (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive)) {
+      if (!hit && !b._predictedPvpHit && (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive)) {
         const myTeam = (state.tdmActive || state.ctfActive || state.siegeActive)
           ? (Coop.tdmTeams && Coop.tdmTeams[Coop.myId]) || (Coop.ctfTeams && Coop.ctfTeams[Coop.myId]) || (Coop.siegeTeams && Coop.siegeTeams[Coop.myId])
           : null;
@@ -25374,7 +26409,7 @@ function drawGoalZone(cx, cy) {
   // PvP-modes använder customStage med goalPos (för spawnPos-symmetri) men
   // har ingen "utgång" — målet är att döda/cappa, inte gå till en plats.
   // Skippa den gula cirkeln + UTGÅNG-pilen helt i alla PvP-modes.
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive) return;
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive) return;
   const t = performance.now();
   const pulse = 1 + Math.sin(t/280) * 0.15;
   const gx = stage.goalPos.x - cx;
@@ -32504,10 +33539,22 @@ function render() {
     drawPvpWalls(state.juggernautWalls);
     if (typeof drawJuggernautArrows === 'function') drawJuggernautArrows();
   }
-  // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE + GUNGAME + KOTH + JUGGERNAUT)
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive) drawPvpShieldBubbles();
-  // PvP-pickups (HP/shield-regen) — alla PvP-lägen
-  if ((state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive) && state.pvpPickups) drawPvpPickups();
+  // BATTLE ROYALE — walls + decorations + shrinking zone + loot på marken
+  if (state.battleroyaleActive) {
+    if (state.battleroyaleDecorations && state.battleroyaleDecorations.length) {
+      const saved = state.siegeDecorations;
+      state.siegeDecorations = state.battleroyaleDecorations;
+      try { drawSiegeDecorations(); } finally { state.siegeDecorations = saved; }
+    }
+    if (state.battleroyaleWalls) drawPvpWalls(state.battleroyaleWalls);
+    drawBrLoot();
+    drawBrZone();
+    drawBrOutsideWarning();
+  }
+  // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE + GUNGAME + KOTH + JUGGERNAUT + BR)
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.battleroyaleActive) drawPvpShieldBubbles();
+  // PvP-pickups (HP/shield-regen) — alla PvP-lägen utom BR (BR har eget loot-system)
+  if ((state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive) && state.pvpPickups) drawPvpPickups();
   // Top layer: damage-numbers + crit-text + chatter — viewport-cull
   for (const p of state.particles) {
     if (!(p.isDamageNumber || p.isCritText || p.isChatter)) continue;
@@ -32753,7 +33800,7 @@ function drawDamageIndicators() {
 
 function drawModeTimer() {
   // Aldrig i PvP — speedrun/survive-timer hör bara hemma i solo-PvE
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive) return;
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive) return;
   const mode = getMode();
   if (mode !== 'survive' && mode !== 'speedrun' && mode !== 'daily') return;
   // Daily-badge: visa modifier persistent när daily aktivt
@@ -33001,13 +34048,14 @@ function drawMiniMap() {
     if (b.kind === 'tree' || b.kind === 'fence_seg' || b.kind === 'fence_seg_broken') continue;
     ctx.fillRect(ox + b.x * scale, oy + b.y * scale, Math.max(1, b.w * scale), Math.max(1, b.h * scale));
   }
-  // PvP-obstacles — alla 6 lägen får walls renderade på minimap
+  // PvP-obstacles — alla 7 lägen får walls renderade på minimap
   const pvpWalls = state.ctfActive ? state.ctfWalls
     : (state.tdmActive ? state.tdmWalls
     : (state.siegeActive ? state.siegeWalls
     : (state.gungameActive ? state.gungameWalls
     : (state.kothActive ? state.kothWalls
-    : (state.juggernautActive ? state.juggernautWalls : null)))));
+    : (state.juggernautActive ? state.juggernautWalls
+    : (state.battleroyaleActive ? state.battleroyaleWalls : null))))));
   if (pvpWalls) {
     for (const w of pvpWalls) {
       let color;
@@ -33056,6 +34104,50 @@ function drawMiniMap() {
         ctx.restore();
       } else {
         state.juggernautMinimapPulse = null;
+      }
+    }
+  }
+  // BR zone + legendary loot på minimap. Spelare ser zonen pulsa + gula prickar
+  // markerar legendary-loot inom 800px så de vet vart de ska gå.
+  if (state.battleroyaleActive && state.battleroyaleZone) {
+    const z = state.battleroyaleZone;
+    const zx = ox + z.x * scale, zy = oy + z.y * scale;
+    const zr = z.r * scale;
+    // Zone ring (cyan)
+    ctx.strokeStyle = 'rgba(58,202,255,0.85)';
+    ctx.fillStyle = 'rgba(58,202,255,0.12)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(zx, zy, zr, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(zx, zy, zr, 0, Math.PI * 2); ctx.stroke();
+    // Next-zone preview (gold dashed)
+    if (state.battleroyaleNextZone) {
+      const nz = state.battleroyaleNextZone;
+      const nzx = ox + nz.x * scale, nzy = oy + nz.y * scale;
+      const nzr = nz.r * scale;
+      ctx.strokeStyle = 'rgba(255,213,74,0.85)';
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath(); ctx.arc(nzx, nzy, nzr, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    // Legendary-loot markers (gula prickar)
+    if (state.battleroyaleLoot) {
+      const t = performance.now() / 1000;
+      const pulse = 0.6 + Math.sin(t * 3) * 0.4;
+      const nowMs = Date.now();
+      ctx.fillStyle = 'rgba(255,213,74,' + (0.7 + 0.3 * pulse) + ')';
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 0.5;
+      for (const id of Object.keys(state.battleroyaleLoot)) {
+        const lo = state.battleroyaleLoot[id];
+        if (!lo.available) continue;
+        if (lo.tier !== 'legendary' && lo.tier !== 'rare') continue;
+        if (lo.unlockAt && nowMs < lo.unlockAt) continue;
+        const lx = ox + lo.x * scale, ly = oy + lo.y * scale;
+        const isLegendary = lo.tier === 'legendary';
+        ctx.fillStyle = isLegendary ? 'rgba(255,213,74,' + (0.7 + 0.3 * pulse) + ')' : 'rgba(58,202,255,0.7)';
+        ctx.beginPath(); ctx.arc(lx, ly, isLegendary ? 2.5 : 1.8, 0, Math.PI * 2); ctx.fill();
+        ctx.stroke();
       }
     }
   }
@@ -33211,7 +34303,7 @@ function drawMiniMap() {
     }
   }
   // mål-zon — bara story (PvP har inget "exit"-mål)
-  const isPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive;
+  const isPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive;
   if (!stage.isBoss && !isPvP) {
     ctx.strokeStyle = '#ffd54a';
     ctx.lineWidth = 1.5;
@@ -33488,7 +34580,7 @@ function drawOffScreenGoalArrow() {
   if (!stage || stage.isBoss) return;
   if (state.enemiesToSpawn > 0 || state.enemies.length > 0) return;
   // Inga "UTGÅNG"-pilar i PvP-modes — story-only feature
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive) return;
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive) return;
   const cx = state.camera.x, cy = state.camera.y;
   const gx = stage.goalPos.x - cx, gy = stage.goalPos.y - cy;
   // utanför skärmen?

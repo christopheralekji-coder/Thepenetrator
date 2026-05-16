@@ -15,6 +15,7 @@ const { SIEGE_ARENA } = require('../../shared/siege-arena');
 const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS } = require('../../shared/gungame-arena');
 const { KOTH_ARENA } = require('../../shared/koth-arena');
 const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
+const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 const { SpatialGrid } = require('./spatial');
 
 // 30Hz → 45Hz: tickar var 22ms istället för 33ms. Halverar input→pixel-delay
@@ -128,6 +129,25 @@ function createSim(room) {
     _juggernautLastPulseAt: 0,     // ms när senaste minimap-puls sändes
     _juggernautSpawnIdx: 0,        // roterar spawn-punkter
     _juggernautScoreAccum: 0,      // fractional second-accumulator för JUG score
+    // BATTLE ROYALE state (FFA, no-respawn, shrinking zone)
+    battleroyaleActive: false,
+    battleroyaleEnded: false,
+    battleroyaleWinner: null,
+    battleroyaleMatchDurationSec: 600,
+    battleroyaleStartedAt: 0,
+    battleroyaleEndAt: 0,
+    battleroyalePhase: 0,           // 0=LOOT, 1-3=SHRINK, 4=FINAL
+    battleroyalePhaseStartedAt: 0,  // ms när nuvarande fas började
+    battleroyalePhaseEndAt: 0,      // ms när nuvarande fas slutar
+    battleroyaleZone: null,         // { x, y, r, nextX, nextY, nextR }
+    battleroyaleLoot: [],           // [{ id, x, y, kind, weaponId, available, respawnAt }]
+    battleroyaleKillsByPid: {},
+    battleroyaleAliveCount: 0,
+    battleroyaleEliminated: [],     // pids i ordning av elimination (för stats)
+    battleroyaleRanks: {},          // pid → placering (1 = winner, N = först-eliminerad)
+    _brZoneDmgTick: 0,              // ackumulator för outside-dmg-broadcasts
+    _brBroadcastTick: 0,
+    _brLootIdCounter: 0,
   };
   return sim;
 }
@@ -267,6 +287,13 @@ function tickSim(sim) {
   // Mest tid-som-JUG vinner när timer går ut.
   if (sim.juggernautActive) {
     tickJuggernaut(sim, dt, now);
+    sim._tickCount = (sim._tickCount || 0) + 1;
+    if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
+    return;
+  }
+  // BATTLE ROYALE: FFA, no-respawn, krympande zon. Sista överlevare vinner.
+  if (sim.battleroyaleActive) {
+    tickBattleRoyale(sim, dt, now);
     sim._tickCount = (sim._tickCount || 0) + 1;
     if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
@@ -1896,6 +1923,429 @@ function endJuggernautMatch(sim, winnerId, reason) {
   });
 }
 
+// ============================================================
+// BATTLE ROYALE — "LAST HUNT"
+// ============================================================
+// FFA, no-respawn. Krympande zon över N min (5/10/15). Loot på marken.
+// Sista överlevare vinner. Bot kan vinna (samma rules).
+function tickBattleRoyale(sim, dt, now) {
+  const nowMs = Date.now();
+  const arena = BATTLEROYALE_ARENA;
+
+  // Match-end? Skip game-logic men fortsätt broadcasta för spec-mode.
+  if (sim.battleroyaleEnded) return;
+
+  // Wall-collision för LEVANDE spelare (BR är no-respawn, dead = spectator)
+  for (const [, ws] of sim.room.members) {
+    if (ws.playerState && ws.playerState.hp > 0) {
+      const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
+      resolveCtfWall(ent, arena.walls);
+      // Klamp till arena-bounds
+      ent.x = Math.max(20, Math.min(arena.worldW - 20, ent.x));
+      ent.y = Math.max(20, Math.min(arena.worldH - 20, ent.y));
+      ws.playerState.x = ent.x;
+      ws.playerState.y = ent.y;
+    }
+  }
+
+  // Phase-progression: kolla om current phase slutat
+  if (sim.battleroyalePhaseEndAt && nowMs >= sim.battleroyalePhaseEndAt) {
+    advanceBrPhase(sim);
+  }
+
+  // Zone-shrink: interpolera mellan current radius och next-radius över phase-tid.
+  // Den första 50% av fasen är "warning"-fas (zon visar var den ska krympa till),
+  // den sista 50% är själva shrink-animationen. Detta ger spelare tid att flytta sig.
+  if (sim.battleroyaleZone) {
+    const z = sim.battleroyaleZone;
+    const phaseDur = sim.battleroyalePhaseEndAt - sim.battleroyalePhaseStartedAt;
+    const phaseElapsed = nowMs - sim.battleroyalePhaseStartedAt;
+    if (phaseDur > 0 && z.nextR != null) {
+      // 1. Warning-fas (0-50% av phase): zon hålls stilla, klient ritar "next-zone"
+      // 2. Shrink-fas (50-100% av phase): radien interpolerar från start till next
+      const f = Math.max(0, Math.min(1, (phaseElapsed - phaseDur * 0.5) / (phaseDur * 0.5)));
+      if (f > 0) {
+        // Interpolera linjärt; clamping krävs inte (f är redan i [0,1])
+        z.r = z.startR + (z.nextR - z.startR) * f;
+        z.x = z.startX + (z.nextX - z.startX) * f;
+        z.y = z.startY + (z.nextY - z.startY) * f;
+      }
+    }
+  }
+
+  // Outside-zone damage: applicera på spelare utanför zonen
+  applyBrOutsideDamage(sim, dt);
+
+  // Loot-pickup collision-detection
+  tickBrLootPickups(sim, nowMs);
+
+  // Bullets
+  updateBullets(sim, dt, now);
+
+  // Centraliserad death-detection (täcker explosion/oob/zone-dmg)
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState) continue;
+    if (ws.playerState.hp <= 0 && !sim.battleroyaleEliminated.includes(pid)) {
+      // BR: ingen respawn. Markera som eliminated + flagga som spectator.
+      const placement = sim.battleroyaleAliveCount; // current alive blir deras placering
+      sim.battleroyaleRanks[pid] = placement;
+      sim.battleroyaleEliminated.push(pid);
+      sim.battleroyaleAliveCount = Math.max(0, sim.battleroyaleAliveCount - 1);
+      ws.tdmRespawnAt = 0; // ingen respawn
+      sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
+      // CORPSE-DROP: dropp current vapen + small HP-pack vid death-pos (kill-reward)
+      const deathX = ws.playerState.x, deathY = ws.playerState.y;
+      const droppedWeapon = ws.playerState.weaponId && ws.playerState.weaponId !== 'pistol' && ws.playerState.weaponId !== 'knife'
+        ? ws.playerState.weaponId : null;
+      if (droppedWeapon) {
+        sim._brLootIdCounter = (sim._brLootIdCounter || 0) + 1;
+        sim.battleroyaleLoot.push({
+          id: 'br_loot_' + sim._brLootIdCounter,
+          x: deathX + (Math.random() - 0.5) * 20,
+          y: deathY + (Math.random() - 0.5) * 20,
+          kind: 'weapon',
+          weaponId: droppedWeapon,
+          tier: 'corpse',
+          available: true,
+          unlockAt: 0,
+        });
+      }
+      // Liten HP-pack också (mer reward även om vapen var pistol/knife)
+      sim._brLootIdCounter = (sim._brLootIdCounter || 0) + 1;
+      sim.battleroyaleLoot.push({
+        id: 'br_loot_' + sim._brLootIdCounter,
+        x: deathX + (Math.random() - 0.5) * 30,
+        y: deathY + (Math.random() - 0.5) * 30,
+        kind: 'hp_small',
+        weaponId: null,
+        tier: 'corpse',
+        available: true,
+        unlockAt: 0,
+      });
+      // Emit corpse-drops så klient kan rendera dem (samma format som loot)
+      const newLoot = sim.battleroyaleLoot.slice(-2);
+      sim.eventQueue.push({
+        type: 'br_corpse_drop',
+        x: Math.round(deathX),
+        y: Math.round(deathY),
+        loot: newLoot.map(lo => ({
+          id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: 0,
+        })),
+      });
+      sim.eventQueue.push({
+        type: 'br_player_eliminated',
+        victim: pid,
+        placement,
+        aliveCount: sim.battleroyaleAliveCount,
+      });
+    }
+  }
+
+  // Win-check: 1 levande kvar
+  if (sim.battleroyaleAliveCount <= 1) {
+    // Hitta sista levande (om någon)
+    let winner = null;
+    for (const [pid, ws] of sim.room.members) {
+      if (ws.playerState && ws.playerState.hp > 0) {
+        winner = pid;
+        break;
+      }
+    }
+    // EDGE-CASE: båda sista dog samma tick → ingen levande. Pick LAST eliminated
+    // (senast på listan = sist död) som "moral winner" — bättre än null.
+    if (!winner && sim.battleroyaleEliminated.length > 0) {
+      // Hitta senast eliminerad som inte är spectator (placement < 999)
+      for (let i = sim.battleroyaleEliminated.length - 1; i >= 0; i--) {
+        const pid = sim.battleroyaleEliminated[i];
+        if ((sim.battleroyaleRanks[pid] || 0) < 999) {
+          winner = pid;
+          break;
+        }
+      }
+    }
+    endBattleRoyaleMatch(sim, winner, 'last_alive');
+    return;
+  }
+
+  // Score-broadcast var sekund (timer + alive-count + phase)
+  sim._brBroadcastTick = (sim._brBroadcastTick || 0) + dt;
+  if (sim._brBroadcastTick >= 1.0) {
+    sim._brBroadcastTick = 0;
+    sim.eventQueue.push({
+      type: 'br_state_update',
+      aliveCount: sim.battleroyaleAliveCount,
+      phase: sim.battleroyalePhase,
+      msToNextPhase: Math.max(0, sim.battleroyalePhaseEndAt - nowMs),
+      zoneX: sim.battleroyaleZone ? Math.round(sim.battleroyaleZone.x) : 0,
+      zoneY: sim.battleroyaleZone ? Math.round(sim.battleroyaleZone.y) : 0,
+      zoneR: sim.battleroyaleZone ? Math.round(sim.battleroyaleZone.r) : 0,
+      nextZoneX: sim.battleroyaleZone ? Math.round(sim.battleroyaleZone.nextX || sim.battleroyaleZone.x) : 0,
+      nextZoneY: sim.battleroyaleZone ? Math.round(sim.battleroyaleZone.nextY || sim.battleroyaleZone.y) : 0,
+      nextZoneR: sim.battleroyaleZone ? Math.round(sim.battleroyaleZone.nextR || sim.battleroyaleZone.r) : 0,
+    });
+  }
+
+  // Final timeout-skydd: om matchen pågår > matchDurationSec + 30s safety
+  // → forced end (skydd mot stuck-final med 2 spelare som kampar i evighet)
+  if (sim.battleroyaleEndAt && nowMs > sim.battleroyaleEndAt + 30000) {
+    // Pick winner = LEVANDE spelare med högst HP (FILTRERA bort spectators/late-joiners)
+    let bestPid = null, bestHp = -1;
+    for (const [pid, ws] of sim.room.members) {
+      if (!ws.playerState || ws.playerState.hp <= 0) continue;
+      if (ws.playerState.hp > bestHp) {
+        bestHp = ws.playerState.hp;
+        bestPid = pid;
+      }
+    }
+    // Fallback: om INGEN är levande (extrem edge case), välj senast eliminated
+    if (!bestPid && sim.battleroyaleEliminated.length > 0) {
+      bestPid = sim.battleroyaleEliminated[sim.battleroyaleEliminated.length - 1];
+    }
+    endBattleRoyaleMatch(sim, bestPid, 'timeout');
+  }
+}
+
+// Phase-advance: 0→1→2→3→4 (sista fasen körs tills sista spelare dör)
+function advanceBrPhase(sim) {
+  const arena = BATTLEROYALE_ARENA;
+  const totalDurSec = sim.battleroyaleMatchDurationSec || 600;
+  const nowMs = Date.now();
+  const nextPhase = sim.battleroyalePhase + 1;
+  if (nextPhase >= arena.phases.length) {
+    // Sista fasen — den fortsätter tills nån dör. Sätt phaseEndAt långt fram.
+    sim.battleroyalePhaseEndAt = nowMs + 999999999;
+    return;
+  }
+  sim.battleroyalePhase = nextPhase;
+  sim.battleroyalePhaseStartedAt = nowMs;
+  const phaseCfg = arena.phases[nextPhase];
+  const phaseDurMs = totalDurSec * 1000 * phaseCfg.durationFrac;
+  sim.battleroyalePhaseEndAt = nowMs + phaseDurMs;
+  // Compute next-zone (slumpa centrum ±300px från nuvarande, klamp till bounds)
+  const cur = sim.battleroyaleZone;
+  const newR = Math.round(Math.sqrt(arena.worldW * arena.worldH * phaseCfg.areaFrac / Math.PI));
+  let nx = cur.x + (Math.random() - 0.5) * 600;
+  let ny = cur.y + (Math.random() - 0.5) * 600;
+  // Klamp så next-zonen håller sig inom kartan
+  nx = Math.max(newR + 100, Math.min(arena.worldW - newR - 100, nx));
+  ny = Math.max(newR + 100, Math.min(arena.worldH - newR - 100, ny));
+  // Spara start- + next-värden för interpolation
+  cur.startX = cur.x;
+  cur.startY = cur.y;
+  cur.startR = cur.r;
+  cur.nextX = nx;
+  cur.nextY = ny;
+  cur.nextR = newR;
+  sim.eventQueue.push({
+    type: 'br_phase_changed',
+    phase: nextPhase,
+    name: phaseCfg.name,
+    outsideDmg: phaseCfg.outsideDmg,
+    phaseDurMs,
+    nextZoneX: Math.round(nx),
+    nextZoneY: Math.round(ny),
+    nextZoneR: Math.round(newR),
+  });
+}
+
+// Outside-zone damage: alla spelare utanför zonens current-radius tar phase-dmg/s
+function applyBrOutsideDamage(sim, dt) {
+  if (!sim.battleroyaleZone) return;
+  const arena = BATTLEROYALE_ARENA;
+  const phaseCfg = arena.phases[sim.battleroyalePhase];
+  if (!phaseCfg || phaseCfg.outsideDmg <= 0) return;
+  const z = sim.battleroyaleZone;
+  const r2 = z.r * z.r;
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
+    const dx = ws.playerState.x - z.x;
+    const dy = ws.playerState.y - z.y;
+    if (dx * dx + dy * dy <= r2) continue; // i zonen — safe
+    // Utanför — applicera dmg. Shield tar damage först.
+    const dmg = phaseCfg.outsideDmg * dt;
+    let remaining = dmg;
+    if ((ws.playerState.shield || 0) > 0) {
+      const absorb = Math.min(ws.playerState.shield, remaining);
+      ws.playerState.shield -= absorb;
+      remaining -= absorb;
+    }
+    if (remaining > 0) {
+      ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+    }
+  }
+  // Throttla broadcast så vi inte spammar pvp_hp_changed varje tick
+  sim._brZoneDmgTick = (sim._brZoneDmgTick || 0) + dt;
+  if (sim._brZoneDmgTick >= 0.4) {
+    sim._brZoneDmgTick = 0;
+    for (const [pid, ws] of sim.room.members) {
+      if (!ws.playerState) continue;
+      const dx = ws.playerState.x - z.x;
+      const dy = ws.playerState.y - z.y;
+      if (dx * dx + dy * dy <= r2) continue;
+      sim.eventQueue.push({
+        type: 'pvp_hp_changed',
+        peerId: pid,
+        hp: ws.playerState.hp,
+        shield: ws.playerState.shield || 0,
+        zoneDmg: true,
+      });
+    }
+  }
+}
+
+// Loot pickup collision (BR-specifik — speglar tickPvpPickups men för loot-typer)
+function tickBrLootPickups(sim, nowMs) {
+  if (!sim.battleroyaleLoot) return;
+  for (const lo of sim.battleroyaleLoot) {
+    if (!lo.available) continue;
+    // Anti-rush: center-loot låst första 30s
+    if (lo.unlockAt && nowMs < lo.unlockAt) continue;
+    for (const [pid, ws] of sim.room.members) {
+      if (!ws.playerState || ws.playerState.hp <= 0) continue;
+      const dx = ws.playerState.x - lo.x;
+      const dy = ws.playerState.y - lo.y;
+      const r = BATTLEROYALE_ARENA.lootPickupRadius;
+      if (dx * dx + dy * dy > r * r) continue;
+      // Pickup! Apply effect
+      let applied = false;
+      if (lo.kind === 'hp_small') {
+        const before = ws.playerState.hp;
+        ws.playerState.hp = Math.min(ws.playerState.maxHp || 100, before + 30);
+        if (ws.playerState.hp !== before) applied = true;
+      } else if (lo.kind === 'hp_big') {
+        const before = ws.playerState.hp;
+        ws.playerState.hp = Math.min(ws.playerState.maxHp || 100, before + 60);
+        if (ws.playerState.hp !== before) applied = true;
+      } else if (lo.kind === 'shield_small') {
+        const before = ws.playerState.shield || 0;
+        ws.playerState.shield = Math.min(ws.playerState.maxShield || 100, before + 25);
+        if (ws.playerState.shield !== before) applied = true;
+      } else if (lo.kind === 'shield_big') {
+        const before = ws.playerState.shield || 0;
+        ws.playerState.shield = Math.min(ws.playerState.maxShield || 100, before + 50);
+        if (ws.playerState.shield !== before) applied = true;
+      } else if (lo.kind === 'ammo') {
+        // Klient hanterar ammo lokalt; vi skickar event
+        applied = true;
+      } else if (lo.kind === 'weapon' && lo.weaponId) {
+        // Sätter weapon. Klient hanterar ammo-refill själv.
+        ws.playerState.weaponId = lo.weaponId;
+        applied = true;
+      }
+      if (!applied) continue;
+      lo.available = false;
+      sim.eventQueue.push({
+        type: 'br_loot_picked',
+        peerId: pid,
+        lootId: lo.id,
+        kind: lo.kind,
+        weaponId: lo.weaponId || null,
+        hp: ws.playerState.hp,
+        shield: ws.playerState.shield || 0,
+      });
+      break; // pickup tagen — gå till nästa
+    }
+  }
+}
+
+// Initialisera loot vid match-start enligt arena.lootSpawns + lootByTier
+function initBrLoot(sim) {
+  const arena = BATTLEROYALE_ARENA;
+  const loot = [];
+  // Center-spawn (sista i lootSpawns) är ALLTID legendary, men UNLOCKAS först
+  // efter 30s (anti-rush). Klient ser containern men kan inte plocka loot.
+  const centerIdx = arena.lootSpawns.length - 1;
+  const matchStartMs = Date.now();
+  for (let i = 0; i < arena.lootSpawns.length; i++) {
+    const sp = arena.lootSpawns[i];
+    let tier;
+    if (i === centerIdx) {
+      tier = 'legendary';
+    } else {
+      const r = Math.random();
+      const t = arena.lootTiers;
+      if (r < t.common) tier = 'common';
+      else if (r < t.common + t.uncommon) tier = 'uncommon';
+      else if (r < t.common + t.uncommon + t.rare) tier = 'rare';
+      else tier = 'legendary';
+    }
+    // Välj item från tier (viktad)
+    const items = arena.lootByTier[tier];
+    let totalW = 0;
+    for (const it of items) totalW += it.weight;
+    let rr = Math.random() * totalW;
+    let chosen = items[0];
+    for (const it of items) {
+      rr -= it.weight;
+      if (rr <= 0) { chosen = it; break; }
+    }
+    sim._brLootIdCounter = (sim._brLootIdCounter || 0) + 1;
+    // Center-loot låst första 30s — anti-rush
+    const unlockAt = (i === centerIdx) ? (matchStartMs + 30000) : 0;
+    loot.push({
+      id: 'br_loot_' + sim._brLootIdCounter,
+      x: sp.x,
+      y: sp.y,
+      kind: chosen.kind,
+      weaponId: chosen.weaponId || null,
+      tier,
+      available: true,
+      unlockAt,
+    });
+  }
+  return loot;
+}
+
+function endBattleRoyaleMatch(sim, winnerId, reason) {
+  if (sim.battleroyaleEnded) return;
+  sim.battleroyaleEnded = true;
+  sim.battleroyaleWinner = winnerId;
+  // Winner får placement 1 (om de var alive)
+  if (winnerId && !sim.battleroyaleRanks[winnerId]) {
+    sim.battleroyaleRanks[winnerId] = 1;
+  }
+  const stats = { perPlayer: {}, winner: winnerId, reason };
+  for (const [p] of sim.room.members) {
+    stats.perPlayer[p] = {
+      placement: sim.battleroyaleRanks[p] || 999,
+      kills: sim.battleroyaleKillsByPid[p] || 0,
+      deaths: (sim.tdmDeathsByPid && sim.tdmDeathsByPid[p]) || 0,
+    };
+  }
+  sim.eventQueue.push({
+    type: 'br_match_end',
+    winner: winnerId, reason, stats,
+  });
+}
+
+// Kallas från bullets.js när PvP-kill registreras i BR
+// GUARD: Shotgun spawnar flera pellets per tick — alla räknas som "kill" om
+// vi guardar bara via eliminated-listan (som uppdateras senare i tick).
+// Använd även victimWs._brCreditedKill för att markera at offret redan
+// gett credit till en killer den här ticken.
+function handleBattleRoyaleKill(sim, killerPid, killerWs, victimPid, victimWs, weaponId) {
+  if (sim.battleroyaleEnded) return;
+  if (!sim.room.members.has(killerPid)) return;
+  // GUARD 1: redan eliminated (force-stop)
+  if (sim.battleroyaleEliminated.includes(victimPid)) return;
+  // GUARD 2: redan crediterad denna tick (multi-pellet shotgun)
+  if (victimWs._brCreditedKill) return;
+  victimWs._brCreditedKill = true;
+  // Rensa flaggan vid nästa tick-start så att samma victim kan döda igen senare
+  // (skulle inte hända i BR no-respawn men säkrare).
+  setTimeout(() => { victimWs._brCreditedKill = false; }, 100);
+  sim.battleroyaleKillsByPid[killerPid] = (sim.battleroyaleKillsByPid[killerPid] || 0) + 1;
+  // Death-detection-loopen i tickBattleRoyale tar hand om eliminated-flag,
+  // men vi emit:ar kill-event här för killfeed.
+  sim.eventQueue.push({
+    type: 'br_kill',
+    killer: killerPid,
+    victim: victimPid,
+    weapon: weaponId || null,
+  });
+}
+
 // Pickup-builder för juggernaut-arenan — symmetrisk runt 2500,1750
 function buildJuggernautPickups(sim) {
   return [
@@ -2136,6 +2586,24 @@ function startSim(sim, opts) {
   sim._juggernautBroadcastTick = 0;
   sim._juggernautAwaitFirstRespawn = false;
   sim.juggernautDmgToJug = {};
+  // BATTLE ROYALE reset
+  sim.battleroyaleActive = false;
+  sim.battleroyaleEnded = false;
+  sim.battleroyaleWinner = null;
+  sim.battleroyaleStartedAt = 0;
+  sim.battleroyaleEndAt = 0;
+  sim.battleroyalePhase = 0;
+  sim.battleroyalePhaseStartedAt = 0;
+  sim.battleroyalePhaseEndAt = 0;
+  sim.battleroyaleZone = null;
+  sim.battleroyaleLoot = [];
+  sim.battleroyaleKillsByPid = {};
+  sim.battleroyaleAliveCount = 0;
+  sim.battleroyaleEliminated = [];
+  sim.battleroyaleRanks = {};
+  sim._brZoneDmgTick = 0;
+  sim._brBroadcastTick = 0;
+  sim._brLootIdCounter = 0;
   sim._siegePointAccum = { red: 0, blue: 0 };
   sim.pvpPickups = null;
   sim.bullets = [];
@@ -2168,6 +2636,10 @@ function startSim(sim, opts) {
     if (opts.juggernaut) {
       sim.juggernautActive = true;
       sim.juggernautMatchDurationSec = opts.juggernautMatchDurationSec || JUGGERNAUT_ARENA.defaultMatchDuration;
+    }
+    if (opts.battleroyale) {
+      sim.battleroyaleActive = true;
+      sim.battleroyaleMatchDurationSec = opts.battleroyaleMatchDurationSec || BATTLEROYALE_ARENA.defaultMatchDuration;
     }
   }
   // Bot-spawn: lägg bot(s) som virtuella members INNAN mode-init så loopen tilldelar
@@ -2221,7 +2693,7 @@ function startSim(sim, opts) {
       });
     }
   }
-  console.log('[SIM]', sim.room.code, 'started mode=' + (sim.juggernautActive ? 'juggernaut' : (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode))) + ' diff=' + sim.config.difficulty + (opts && opts.addBot ? ' +bot' : ''));
+  console.log('[SIM]', sim.room.code, 'started mode=' + (sim.battleroyaleActive ? 'battleroyale' : (sim.juggernautActive ? 'juggernaut' : (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode)))) + ' diff=' + sim.config.difficulty + (opts && opts.addBot ? ' +bot' : ''));
   // Anti-mode-leakage: rensa JUG-flaggor från ev. förra match på alla members.
   // Annars kan en spelare som var JUG i förra rundan behålla isJug=true / scaleMul=1.8
   // / speedMul=1.35 / dashCdMs=1000 / maxHp=500 in i nästa mode.
@@ -2573,6 +3045,89 @@ function startSim(sim, opts) {
     // Exponera kill-handler + dmg-tracker till bullets.js
     sim._handleJuggernautKill = handleJuggernautKill;
     sim._trackJuggernautDmg = trackJuggernautDmg;
+  } else if (sim.battleroyaleActive) {
+    // BATTLE ROYALE: 6000×6000 FFA no-respawn arena. Krympande zon.
+    sim.simReadyAt = Date.now() + 5000;
+    const arena = BATTLEROYALE_ARENA;
+    // Initial zon = hela kartan (radius dimensioneras så ingen är "utanför" från start)
+    const initialR = Math.round(Math.sqrt(arena.worldW * arena.worldH / Math.PI));
+    sim.battleroyaleZone = {
+      x: arena.worldW / 2,
+      y: arena.worldH / 2,
+      r: initialR,
+      startX: arena.worldW / 2,
+      startY: arena.worldH / 2,
+      startR: initialR,
+      nextX: arena.worldW / 2,
+      nextY: arena.worldH / 2,
+      nextR: initialR,
+    };
+    sim.battleroyalePhase = 0;
+    sim.battleroyaleStartedAt = Date.now();
+    sim.battleroyaleEndAt = Date.now() + sim.battleroyaleMatchDurationSec * 1000;
+    sim.battleroyalePhaseStartedAt = Date.now();
+    const totalDurSec = sim.battleroyaleMatchDurationSec;
+    sim.battleroyalePhaseEndAt = Date.now() + arena.phases[0].durationFrac * totalDurSec * 1000;
+    // Init loot från arena
+    sim.battleroyaleLoot = initBrLoot(sim);
+    // Init alla spelare på spridd spawn-punkt (roterande från perimetern)
+    // Räkna ut alive-count för win-check
+    let aliveCount = 0;
+    const shuffledSpawns = [...arena.spawns].sort(() => Math.random() - 0.5);
+    let i = 0;
+    for (const [pid, ws] of sim.room.members) {
+      ws.playerState = ws.playerState || {};
+      const sp = shuffledSpawns[i % shuffledSpawns.length];
+      ws.playerState.x = sp.x;
+      ws.playerState.y = sp.y;
+      ws.playerState.hp = arena.startHp;
+      ws.playerState.maxHp = arena.maxHp;
+      ws.playerState.shield = arena.startShield;
+      ws.playerState.maxShield = arena.maxShield;
+      ws.playerState.invulnUntil = Date.now() + 1500;
+      ws.playerState.weaponId = arena.startWeapon;
+      ws.playerState.isJug = false;
+      ws.playerState.scaleMul = 1.0;
+      ws.playerState.speedMul = 1.0;
+      ws.playerState.dashCdMs = null;
+      ws.tdmRespawnAt = 0;
+      ws.tdmTeam = null; // FFA
+      sim.battleroyaleKillsByPid[pid] = 0;
+      sim.tdmDeathsByPid[pid] = 0;
+      aliveCount++;
+      i++;
+    }
+    sim.battleroyaleAliveCount = aliveCount;
+    sim.eventQueue.push({
+      type: 'br_started',
+      arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },
+      walls: arena.walls,
+      spawns: arena.spawns,
+      decorations: arena.decorations || [],
+      loot: sim.battleroyaleLoot.map(lo => ({
+        id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: lo.unlockAt || 0,
+      })),
+      phases: arena.phases,
+      matchDurationSec: sim.battleroyaleMatchDurationSec,
+      matchEndAt: sim.battleroyaleEndAt,
+      phaseEndAt: sim.battleroyalePhaseEndAt,
+      currentPhase: 0,
+      zone: {
+        x: sim.battleroyaleZone.x,
+        y: sim.battleroyaleZone.y,
+        r: sim.battleroyaleZone.r,
+      },
+      aliveCount,
+      startWeapon: arena.startWeapon,
+      startHp: arena.startHp,
+      maxHp: arena.maxHp,
+      maxShield: arena.maxShield,
+      lootPickupRadius: arena.lootPickupRadius,
+      shieldMax: arena.maxShield,
+    });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    sim._endBattleRoyaleMatch = endBattleRoyaleMatch;
+    sim._handleBattleRoyaleKill = handleBattleRoyaleKill;
   } else {
     loadStage(sim, sim.wave);
   }
