@@ -1011,7 +1011,7 @@ function drawPvpWalls(walls) {
     const _brHasOwnShadow = (
       w.kind === 'tree_oak' || w.kind === 'tree_pine' || w.kind === 'tree_stump' ||
       w.kind === 'tree_giant_oak' ||
-      w.kind === 'rock_large' || w.kind === 'rock_small' ||
+      w.kind === 'rock_large' || w.kind === 'rock_small' || w.kind === 'mountain_peak' ||
       w.kind === 'cabin_wall_wood' || w.kind === 'cabin_window' ||
       w.kind === 'burning_car' || w.kind === 'burning_truck' || w.kind === 'burning_caravan' ||
       w.kind === 'excavator_wreck' || w.kind === 'hunting_tower' ||
@@ -1073,6 +1073,7 @@ function drawPvpWalls(walls) {
     else if (w.kind === 'tree_stump') drawTreeStump(x, y, renderW, renderH, seed);
     else if (w.kind === 'rock_large') drawRock(x, y, renderW, renderH, seed, true);
     else if (w.kind === 'rock_small') drawRock(x, y, renderW, renderH, seed, false);
+    else if (w.kind === 'mountain_peak') drawMountainPeak(x, y, renderW, renderH, seed);
     else if (w.kind === 'cabin_wall_wood') drawCabinWallWood(x, y, renderW, renderH, seed);
     else if (w.kind === 'burning_car') drawBurningCar(x, y, renderW, renderH, seed);
     else if (w.kind === 'burning_truck') drawBurningTruck(x, y, renderW, renderH, seed);
@@ -2944,6 +2945,90 @@ function drawRock(x, y, w, h, seed, isLarge) {
     ctx.arc(mx, my, 3 + (i % 2), 0, Math.PI * 2);
     ctx.fill();
   }
+}
+
+// MOUNTAIN PEAK — klippspets ovanpå bergsmassivet (för silhuettering)
+// Triangulär/oregelbunden topp med snö-spets, mörka skuggor, ger berget en
+// faktisk profil sett uppifrån (inte bara en plan rektangulär klippvägg).
+function drawMountainPeak(x, y, w, h, seed) {
+  const cx = x + w / 2, cy = y + h / 2;
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.beginPath();
+  ctx.ellipse(cx + 3, y + h * 0.95, w * 0.55, h * 0.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Peak-form (5-7 punkter polygon med VARIATION, ser oregelbunden ut)
+  const points = 7;
+  ctx.beginPath();
+  for (let i = 0; i < points; i++) {
+    const ang = (i / points) * Math.PI * 2 - Math.PI / 2; // start uppåt
+    const noise = 0.75 + ((seed * (i + 1) * 7) & 0xff) / 800 * 0.35;
+    // Översta punkten extra skarp (peak)
+    const sharpness = (i === 0) ? 1.05 : noise;
+    const px = cx + Math.cos(ang) * (w / 2) * sharpness;
+    const py = cy + Math.sin(ang) * (h / 2) * sharpness;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  // Bas-fyllning (mörk stengrå)
+  const baseGrad = ctx.createLinearGradient(x, y, x, y + h);
+  baseGrad.addColorStop(0, '#7a7670');
+  baseGrad.addColorStop(0.4, '#5a564e');
+  baseGrad.addColorStop(0.8, '#3a3630');
+  baseGrad.addColorStop(1, '#1e1a14');
+  ctx.fillStyle = baseGrad;
+  ctx.fill();
+  // SNÖ-CAP på toppen (varför inte — gör berget mer mountain-like)
+  ctx.save();
+  ctx.clip(); // fortsätter använda peak-polygon som clip
+  ctx.fillStyle = 'rgba(240, 245, 250, 0.85)';
+  ctx.beginPath();
+  ctx.moveTo(cx, y - 2);
+  ctx.lineTo(cx + w * 0.35, y + h * 0.25);
+  ctx.lineTo(cx + w * 0.18, y + h * 0.18);
+  ctx.lineTo(cx, y + h * 0.30);
+  ctx.lineTo(cx - w * 0.20, y + h * 0.18);
+  ctx.lineTo(cx - w * 0.35, y + h * 0.25);
+  ctx.closePath();
+  ctx.fill();
+  // Snö-skugga (svag blå-grå)
+  ctx.fillStyle = 'rgba(160, 170, 185, 0.4)';
+  ctx.beginPath();
+  ctx.moveTo(cx - w * 0.05, y + h * 0.08);
+  ctx.lineTo(cx + w * 0.30, y + h * 0.26);
+  ctx.lineTo(cx + w * 0.10, y + h * 0.22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+  // Stenfasetter (mörka sprickor från topp ner längs sidor)
+  ctx.strokeStyle = 'rgba(15, 12, 10, 0.65)';
+  ctx.lineWidth = 1.4;
+  for (let i = 0; i < 3; i++) {
+    const sx = cx + Math.cos((i - 1) * 0.6 + Math.PI / 2) * w * 0.15;
+    const sy = y + h * 0.20;
+    const ex = cx + Math.cos((i - 1) * 0.7) * w * 0.40;
+    const ey = y + h * 0.85;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.quadraticCurveTo(cx + ((seed * (i + 3)) & 0xff) / 4 - 16, (sy + ey) / 2, ex, ey);
+    ctx.stroke();
+  }
+  // Yttre outline (mörk silhuett)
+  ctx.strokeStyle = 'rgba(8, 6, 4, 0.85)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < points; i++) {
+    const ang = (i / points) * Math.PI * 2 - Math.PI / 2;
+    const noise = 0.75 + ((seed * (i + 1) * 7) & 0xff) / 800 * 0.35;
+    const sharpness = (i === 0) ? 1.05 : noise;
+    const px = cx + Math.cos(ang) * (w / 2) * sharpness;
+    const py = cy + Math.sin(ang) * (h / 2) * sharpness;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.stroke();
 }
 
 // STUGA-VÄGG TRÄ — planschstruktur med nitar
@@ -7411,143 +7496,55 @@ function drawBrGroundDecorations(decos) {
       }
       ctx.restore();
     } else if (d.kind === 'alien_transition') {
-      // INFEKTERAD MARK-övergång: grön skog → ALIEN-zon.
-      // EXTRA STOR + EXTRA MJUK gradient så ingen synlig "ring" finns.
-      // Plus glödande röda SPRICKOR (vein-cracks) som ser ut som lava i mark.
+      // INFEKTERAD MARK-övergång: REN soft fade — sprickorna ligger i alien_floor.
       const x = d.x - cx, y = d.y - cy;
       if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
       const ccx = x + d.w / 2, ccy = y + d.h / 2;
       const maxR = d.w / 2;
-      const t = performance.now() / 1000;
-      const pulse = 0.5 + Math.sin(t * 1.2) * 0.4;
-      // ============ LAYER 1: extremt mjuk radial fade utan synlig ring ============
-      // Många stopp över hela 0→1 så övergången blir gradvis (inget hopp).
+      // Extremt mjuk radial fade (många stops) — ingen synlig ring
       const halo = ctx.createRadialGradient(ccx, ccy, 0, ccx, ccy, maxR);
-      halo.addColorStop(0.00, 'rgba(95, 25, 130, 0.62)');
-      halo.addColorStop(0.10, 'rgba(85, 22, 115, 0.58)');
-      halo.addColorStop(0.22, 'rgba(70, 18, 90, 0.50)');
-      halo.addColorStop(0.34, 'rgba(55, 14, 60, 0.43)');
-      halo.addColorStop(0.46, 'rgba(45, 12, 35, 0.36)');
-      halo.addColorStop(0.58, 'rgba(35, 12, 18, 0.28)');
-      halo.addColorStop(0.70, 'rgba(28, 14, 10, 0.20)');
-      halo.addColorStop(0.82, 'rgba(22, 14, 10, 0.12)');
-      halo.addColorStop(0.92, 'rgba(22, 14, 10, 0.05)');
+      halo.addColorStop(0.00, 'rgba(95, 25, 130, 0.55)');
+      halo.addColorStop(0.10, 'rgba(85, 22, 115, 0.50)');
+      halo.addColorStop(0.22, 'rgba(70, 18, 90, 0.42)');
+      halo.addColorStop(0.34, 'rgba(55, 14, 60, 0.35)');
+      halo.addColorStop(0.46, 'rgba(45, 12, 35, 0.28)');
+      halo.addColorStop(0.58, 'rgba(35, 12, 18, 0.22)');
+      halo.addColorStop(0.70, 'rgba(28, 14, 10, 0.15)');
+      halo.addColorStop(0.82, 'rgba(22, 14, 10, 0.08)');
+      halo.addColorStop(0.92, 'rgba(22, 14, 10, 0.03)');
       halo.addColorStop(1.00, 'rgba(22, 14, 10, 0)');
       ctx.fillStyle = halo;
       ctx.fillRect(x, y, d.w, d.h);
-      const seed = ((d.x * 19) ^ (d.y * 23)) | 0;
-      // ============ LAYER 2: GLÖDANDE RÖDA SPRICKOR ============
-      // Krokiga sprickor med yttre glow + inre lava-färg. Inga walls (passabla).
-      const insideAlienFloor = (wx, wy) => wx >= 7900 && wx <= 9800 && wy >= 7900 && wy <= 9800;
-      const crackCount = 26;
-      // Pre-bygg spricka-paths så vi kan rita dem 3 ggr (outer glow, mid, inner lava)
-      const cracks = [];
-      for (let i = 0; i < crackCount; i++) {
-        const a = ((seed * (i + 1) * 73) % 6283) / 1000; // 0..2π
-        const r0 = maxR * (0.10 + ((seed * (i + 3) * 17) % 30) / 100);
-        const r1 = maxR * (0.55 + ((seed * (i + 7) * 23) % 45) / 100);
-        const pts = [];
-        const segs = 6 + (i % 3);
-        for (let s = 0; s <= segs; s++) {
-          const f = s / segs;
-          const rs = r0 + (r1 - r0) * f;
-          const wobble = ((seed * (i + 1) * (s + 11) * 41) % 200 - 100) * 0.0008;
-          const ang = a + wobble * (1 + f * 2);
-          pts.push({
-            x: ccx + Math.cos(ang) * rs,
-            y: ccy + Math.sin(ang) * rs,
-          });
-        }
-        cracks.push(pts);
-      }
-      // 2a: yttre röd glow (bred, mjuk)
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      ctx.strokeStyle = 'rgba(255, 30, 40, ' + (0.20 + 0.10 * pulse) + ')';
-      ctx.lineWidth = 9;
-      ctx.shadowColor = '#ff2030';
-      ctx.shadowBlur = 14;
-      for (const pts of cracks) {
-        // Skippa om sprickan är ENTIRELY inom alien_floor-rutan
-        let allInside = true;
-        for (const p of pts) {
-          if (!insideAlienFloor(p.x + cx, p.y + cy)) { allInside = false; break; }
-        }
-        if (allInside) continue;
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let s = 1; s < pts.length; s++) ctx.lineTo(pts[s].x, pts[s].y);
-        ctx.stroke();
-      }
-      // 2b: medium-glow (orange-röd, smalare)
-      ctx.shadowBlur = 6;
-      ctx.strokeStyle = 'rgba(255, 90, 50, ' + (0.55 + 0.20 * pulse) + ')';
-      ctx.lineWidth = 4;
-      for (const pts of cracks) {
-        let allInside = true;
-        for (const p of pts) {
-          if (!insideAlienFloor(p.x + cx, p.y + cy)) { allInside = false; break; }
-        }
-        if (allInside) continue;
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let s = 1; s < pts.length; s++) ctx.lineTo(pts[s].x, pts[s].y);
-        ctx.stroke();
-      }
-      // 2c: inre lava-kärna (ljus gul-orange, tunn)
-      ctx.strokeStyle = 'rgba(255, 200, 100, ' + (0.85 + 0.15 * pulse) + ')';
-      ctx.lineWidth = 1.4;
-      ctx.shadowBlur = 0;
-      for (const pts of cracks) {
-        let allInside = true;
-        for (const p of pts) {
-          if (!insideAlienFloor(p.x + cx, p.y + cy)) { allInside = false; break; }
-        }
-        if (allInside) continue;
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let s = 1; s < pts.length; s++) ctx.lineTo(pts[s].x, pts[s].y);
-        ctx.stroke();
-      }
-      // ============ LAYER 3: spridda svarta sotfläckar (infekterad jord) ============
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = 'rgba(12, 6, 6, 0.50)';
-      for (let i = 0; i < 22; i++) {
-        const a = ((seed * (i + 5) * 89) % 6283) / 1000;
-        const r = maxR * (0.18 + ((seed * (i + 13) * 19) % 70) / 100);
-        const px = ccx + Math.cos(a) * r;
-        const py = ccy + Math.sin(a) * r;
-        if (insideAlienFloor(px + cx, py + cy)) continue;
-        ctx.beginPath();
-        ctx.ellipse(px, py, 9 + ((seed * i) % 8), 5 + ((seed * i) % 5), (seed * i) % 6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      // ============ LAYER 4: pulserande lila glow-prickar ============
-      for (let i = 0; i < 24; i++) {
-        const a = ((seed * (i + 11) * 53) % 6283) / 1000;
-        const r = maxR * (0.12 + ((seed * (i + 17) * 31) % 65) / 100);
-        const px = ccx + Math.cos(a) * r;
-        const py = ccy + Math.sin(a) * r;
-        if (insideAlienFloor(px + cx, py + cy)) continue;
-        const radius = 4 + ((seed * (i + 7)) % 6);
-        ctx.fillStyle = 'rgba(160, 60, 220, ' + (0.40 * pulse) + ')';
-        ctx.beginPath();
-        ctx.ellipse(px, py, radius * 1.2, radius * 0.8, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
     } else if (d.kind === 'alien_floor') {
-      // Lila glödande "alien-drabbat"-mark
+      // ALIEN-MARK: lila bas + MJUK FADE mot skog-sidorna (top + vänster) +
+      // GLÖDANDE RÖDA SPRICKOR spridda över hela ytan.
       const x = d.x - cx, y = d.y - cy;
       if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
       const t = performance.now() / 1000;
-      const pulse = 0.5 + Math.sin(t * 0.8) * 0.2;
-      // Mörk-lila bas
-      ctx.fillStyle = '#2a1838';
-      ctx.fillRect(x, y, d.w, d.h);
-      // Pulserande lila glöd-patches över ytan
+      const pulse = 0.5 + Math.sin(t * 0.8) * 0.25;
       const seed = ((d.x * 19) ^ (d.y * 23)) | 0;
-      ctx.fillStyle = 'rgba(140, 60, 200, ' + (0.2 * pulse) + ')';
-      for (let i = 0; i < 30; i++) {
+      // Världen är 10000x10000 — alien-zon når kant höger+ned, men topp+vänster
+      // ska fade mjukt ut mot skogen. Bygg en linjär fade-mask i de riktningarna.
+      // BAS-FILL: radial-gradient med center vid map-hörnet (höger-ned)
+      // så alien-marken är SOLID vid hörnet och fadar mjukt mot top+vänster
+      // (där den möter skogen). Inga rektangulära kanter på de sidor som möter skogen.
+      const cornerWorldX = d.x + d.w; // världs-X för bottom-right corner
+      const cornerWorldY = d.y + d.h;
+      const cornerSX = cornerWorldX - cx; // screen-X
+      const cornerSY = cornerWorldY - cy;
+      // Inner: solid till ~70% av radien, sedan fade till transparent
+      const maxDist = Math.hypot(d.w, d.h);
+      const fillGrad = ctx.createRadialGradient(cornerSX, cornerSY, 0, cornerSX, cornerSY, maxDist);
+      fillGrad.addColorStop(0.00, 'rgba(42, 24, 56, 1)');
+      fillGrad.addColorStop(0.55, 'rgba(42, 24, 56, 1)');     // solid kärna
+      fillGrad.addColorStop(0.78, 'rgba(42, 24, 56, 0.75)');
+      fillGrad.addColorStop(0.90, 'rgba(42, 24, 56, 0.40)');
+      fillGrad.addColorStop(1.00, 'rgba(42, 24, 56, 0)');    // transparent vid topp-vänster
+      ctx.fillStyle = fillGrad;
+      ctx.fillRect(x, y, d.w, d.h);
+      // Pulserande lila glöd-patches över hela ytan
+      ctx.fillStyle = 'rgba(140, 60, 200, ' + (0.22 * pulse) + ')';
+      for (let i = 0; i < 50; i++) {
         const px = x + ((seed * (i + 1) * 13) & 0x7ff) % d.w;
         const py = y + ((seed * (i + 3) * 17) & 0x7ff) % d.h;
         const r = 30 + ((seed * (i + 5)) & 0x3f);
@@ -7555,18 +7552,74 @@ function drawBrGroundDecorations(decos) {
         ctx.ellipse(px, py, r, r * 0.7, 0, 0, Math.PI * 2);
         ctx.fill();
       }
-      // "Brända" mörka patches
+      // "Brända" mörka sotfläckar
       ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-      for (let i = 0; i < 12; i++) {
+      for (let i = 0; i < 25; i++) {
         const px = x + ((seed * (i + 7) * 19) & 0x7ff) % d.w;
         const py = y + ((seed * (i + 11) * 23) & 0x7ff) % d.h;
         ctx.beginPath();
-        ctx.ellipse(px, py, 22, 14, 0, 0, Math.PI * 2);
+        ctx.ellipse(px, py, 18 + ((seed * i) % 14), 11 + ((seed * i) % 8), (seed * i) % 6, 0, Math.PI * 2);
         ctx.fill();
       }
-      // Pulserande gröna prickar (alien-energi)
+      // ============ GLÖDANDE RÖDA SPRICKOR — utspridda över hela alien-marken ============
+      // 60 sprickor i grid-deterministic positions så de täcker hela ytan jämnt.
+      const crackCount = 60;
+      const cracks = [];
+      for (let i = 0; i < crackCount; i++) {
+        // Position: deterministic spridning över d.w × d.h
+        const cxw = x + ((seed * (i + 1) * 71) & 0xffff) % d.w;
+        const cyw = y + ((seed * (i + 5) * 113) & 0xffff) % d.h;
+        const a = ((seed * (i + 3) * 73) % 6283) / 1000;
+        const length = 60 + ((seed * (i + 7) * 17) & 0x7f);
+        const pts = [];
+        const segs = 4 + (i % 3);
+        for (let s = 0; s <= segs; s++) {
+          const f = s / segs;
+          const wobble = ((seed * (i + 1) * (s + 11) * 41) % 200 - 100) * 0.001;
+          const ang = a + wobble;
+          pts.push({
+            x: cxw + Math.cos(ang) * length * f,
+            y: cyw + Math.sin(ang) * length * f,
+          });
+        }
+        cracks.push(pts);
+      }
+      // Yttre röd glow (bred halo)
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = 'rgba(255, 30, 40, ' + (0.22 + 0.10 * pulse) + ')';
+      ctx.lineWidth = 9;
+      ctx.shadowColor = '#ff2030';
+      ctx.shadowBlur = 14;
+      for (const pts of cracks) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let s = 1; s < pts.length; s++) ctx.lineTo(pts[s].x, pts[s].y);
+        ctx.stroke();
+      }
+      // Medium orange-röd glow
+      ctx.shadowBlur = 6;
+      ctx.strokeStyle = 'rgba(255, 90, 50, ' + (0.55 + 0.20 * pulse) + ')';
+      ctx.lineWidth = 4;
+      for (const pts of cracks) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let s = 1; s < pts.length; s++) ctx.lineTo(pts[s].x, pts[s].y);
+        ctx.stroke();
+      }
+      // Inre lava-kärna (gul-vit)
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(255, 220, 130, ' + (0.85 + 0.15 * pulse) + ')';
+      ctx.lineWidth = 1.5;
+      for (const pts of cracks) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let s = 1; s < pts.length; s++) ctx.lineTo(pts[s].x, pts[s].y);
+        ctx.stroke();
+      }
+      // Pulserande gröna alien-energi-prickar
       ctx.fillStyle = 'rgba(120, 255, 150, ' + (0.4 * pulse) + ')';
-      for (let i = 0; i < 20; i++) {
+      for (let i = 0; i < 35; i++) {
         const px = x + ((seed * (i + 13) * 29) & 0x7ff) % d.w;
         const py = y + ((seed * (i + 17) * 31) & 0x7ff) % d.h;
         ctx.fillRect(px, py, 2, 2);
