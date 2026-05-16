@@ -231,6 +231,142 @@ const BATTLEROYALE_ARENA = {
         { kind: 'rifle_rack',   x: 6170, y: 7290 },
       ],
     },
+    // ========================================================================
+    // === 13 NYA STUGOR (v1.333) — spridda ORGANISKT över hela kartan ===
+    // Auto-genererade walls via preprocessCabinWalls.
+    // Varierande layout/färg/sida för dörren.
+    // ========================================================================
+    // 8. SW Lake-cabin (annan plats än sommarstugan)
+    { id: 'cabin_lake_west', name: 'FISKE-STUGAN', bounds: { x: 800, y: 3200, w: 200, h: 170 },
+      door: { side: 'east', offset: 70, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'south', offset: 60, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#4060a0', accent: '#102540', style: 'tile' }, floor: '#7a5a30',
+      interior: [
+        { kind: 'bed', x: 820, y: 3240, w: 50, h: 65 }, { kind: 'fireplace', x: 920, y: 3240, w: 40, h: 40 },
+        { kind: 'table_round', x: 880, y: 3320, r: 18 }, { kind: 'chair', x: 860, y: 3310 },
+        { kind: 'oil_lamp', x: 870, y: 3245 }, { kind: 'rope_coil', x: 940, y: 3320 },
+      ] },
+    // 9. NW outer-stuga (gömd i skog)
+    { id: 'cabin_nw_outer', name: 'GAMLA STUGAN', bounds: { x: 600, y: 1700, w: 210, h: 180 },
+      door: { side: 'south', offset: 90, width: 45 },
+      windows: [ { side: 'north', offset: 70, width: 40 }, { side: 'east', offset: 60, width: 40 }, { side: 'west', offset: 60, width: 40 } ],
+      roof: { color: '#5a3018', accent: '#2a1808', style: 'wood_shingle' }, floor: '#5a3818',
+      interior: [
+        { kind: 'bed', x: 620, y: 1740, w: 50, h: 70 }, { kind: 'fireplace', x: 740, y: 1740, w: 40, h: 40 },
+        { kind: 'table_long', x: 660, y: 1800, w: 60, h: 30 }, { kind: 'chair', x: 670, y: 1790 },
+        { kind: 'animal_skull', x: 760, y: 1810 }, { kind: 'oil_lamp', x: 700, y: 1730 },
+      ] },
+    // 10. North-mid stuga (mellan NW och NE)
+    { id: 'cabin_north_mid', name: 'BERG-STUGAN', bounds: { x: 4500, y: 800, w: 200, h: 170 },
+      door: { side: 'south', offset: 75, width: 50 },
+      windows: [ { side: 'north', offset: 50, width: 40 }, { side: 'north', offset: 110, width: 40 }, { side: 'east', offset: 70, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#6a6a70', accent: '#3a3a40', style: 'tile' }, floor: '#7a5a30',
+      interior: [
+        { kind: 'bed', x: 4520, y: 840, w: 50, h: 65 }, { kind: 'dresser', x: 4520, y: 920 },
+        { kind: 'fireplace', x: 4620, y: 840, w: 40, h: 40 }, { kind: 'table_round', x: 4580, y: 920, r: 18 },
+        { kind: 'chair', x: 4560, y: 905 }, { kind: 'oil_lamp', x: 4600, y: 825 },
+        { kind: 'bookshelf', x: 4500, y: 945, w: 30, h: 25 },
+      ] },
+    // 11. NE outer-cabin
+    { id: 'cabin_ne_outer', name: 'BRUKS-STUGAN', bounds: { x: 8400, y: 2500, w: 210, h: 180 },
+      door: { side: 'west', offset: 80, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'south', offset: 60, width: 40 }, { side: 'east', offset: 70, width: 40 } ],
+      roof: { color: '#7a3030', accent: '#3a1010', style: 'tile' }, floor: '#6a4828',
+      interior: [
+        { kind: 'bed', x: 8430, y: 2540, w: 50, h: 65 }, { kind: 'fireplace', x: 8540, y: 2540, w: 40, h: 40 },
+        { kind: 'workbench', x: 8430, y: 2620, w: 60, h: 30 }, { kind: 'rope_coil', x: 8500, y: 2620 },
+        { kind: 'oil_lamp', x: 8520, y: 2530 }, { kind: 'wall_painting', x: 8440, y: 2510 },
+      ] },
+    // 12. NE deep
+    { id: 'cabin_ne_deep', name: 'GRÄNS-STUGAN', bounds: { x: 9000, y: 800, w: 190, h: 170 },
+      door: { side: 'south', offset: 70, width: 45 },
+      windows: [ { side: 'north', offset: 50, width: 40 }, { side: 'east', offset: 60, width: 40 }, { side: 'west', offset: 60, width: 40 } ],
+      roof: { color: '#4a2a18', accent: '#2a1408', style: 'wood_shingle' }, floor: '#5a3a1a',
+      interior: [
+        { kind: 'bed', x: 9020, y: 840, w: 50, h: 65 }, { kind: 'fireplace', x: 9120, y: 840, w: 40, h: 40 },
+        { kind: 'table_long', x: 9050, y: 900, w: 60, h: 30 }, { kind: 'animal_skull', x: 9120, y: 910 },
+        { kind: 'rifle_rack', x: 9020, y: 830 }, { kind: 'oil_lamp', x: 9080, y: 825 },
+      ] },
+    // 13. East-mid (mellan scrap och camping)
+    { id: 'cabin_east_mid', name: 'KÖPMANNEN', bounds: { x: 7800, y: 3300, w: 230, h: 190 },
+      door: { side: 'west', offset: 90, width: 50 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'north', offset: 140, width: 40 }, { side: 'south', offset: 80, width: 40 }, { side: 'east', offset: 70, width: 40 } ],
+      roof: { color: '#a08020', accent: '#5a4810', style: 'thatch' }, floor: '#7a5828',
+      interior: [
+        { kind: 'desk', x: 7830, y: 3340, w: 70, h: 35 }, { kind: 'chair', x: 7870, y: 3385 },
+        { kind: 'kitchen_counter', x: 7820, y: 3460, w: 120, h: 25 }, { kind: 'bookshelf', x: 7820, y: 3400, w: 30, h: 40 },
+        { kind: 'wall_painting', x: 7860, y: 3320 }, { kind: 'fireplace', x: 7960, y: 3340, w: 40, h: 40 },
+        { kind: 'oil_lamp', x: 7900, y: 3360 },
+      ] },
+    // 14. SW outer (vid stranden)
+    { id: 'cabin_sw_strand', name: 'STRAND-STUGAN', bounds: { x: 700, y: 7700, w: 200, h: 170 },
+      door: { side: 'east', offset: 70, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'south', offset: 60, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#d4d4c0', accent: '#7a7a6a', style: 'tile' }, floor: '#a08060',
+      interior: [
+        { kind: 'bed', x: 720, y: 7740, w: 50, h: 65 }, { kind: 'fireplace', x: 820, y: 7740, w: 40, h: 40 },
+        { kind: 'table_round', x: 780, y: 7820, r: 18 }, { kind: 'chair', x: 760, y: 7805 },
+        { kind: 'oil_lamp', x: 770, y: 7730 }, { kind: 'bathtub', x: 840, y: 7790, w: 35, h: 50 },
+      ] },
+    // 15. South outer (vild)
+    { id: 'cabin_south_outer', name: 'SKOGS-VAKTAREN', bounds: { x: 3000, y: 8300, w: 200, h: 170 },
+      door: { side: 'north', offset: 75, width: 45 },
+      windows: [ { side: 'south', offset: 60, width: 40 }, { side: 'east', offset: 70, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#3a2818', accent: '#1a0e08', style: 'wood_shingle' }, floor: '#4a3018',
+      interior: [
+        { kind: 'bed', x: 3020, y: 8340, w: 50, h: 65 }, { kind: 'fireplace', x: 3120, y: 8340, w: 40, h: 40 },
+        { kind: 'workbench', x: 3020, y: 8420, w: 60, h: 30 }, { kind: 'rifle_rack', x: 3020, y: 8330 },
+        { kind: 'animal_skull', x: 3140, y: 8410 }, { kind: 'oil_lamp', x: 3080, y: 8330 },
+      ] },
+    // 16. SE outer
+    { id: 'cabin_se_outer', name: 'KUST-STUGAN', bounds: { x: 8900, y: 7800, w: 210, h: 180 },
+      door: { side: 'north', offset: 85, width: 50 },
+      windows: [ { side: 'south', offset: 60, width: 40 }, { side: 'south', offset: 140, width: 40 }, { side: 'east', offset: 70, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#306080', accent: '#102540', style: 'tile' }, floor: '#a08060',
+      interior: [
+        { kind: 'bed', x: 8920, y: 7840, w: 50, h: 70 }, { kind: 'bed', x: 8920, y: 7920, w: 50, h: 55 },
+        { kind: 'fireplace', x: 9050, y: 7840, w: 40, h: 40 }, { kind: 'table_long', x: 8990, y: 7900, w: 60, h: 30 },
+        { kind: 'chair', x: 9000, y: 7890 }, { kind: 'oil_lamp', x: 9020, y: 7830 },
+      ] },
+    // 17. South deep (mellan wild och perimeter)
+    { id: 'cabin_south_deep', name: 'JÄGAR-LADAN', bounds: { x: 5500, y: 8400, w: 230, h: 190 },
+      door: { side: 'north', offset: 95, width: 55 },
+      windows: [ { side: 'south', offset: 80, width: 50 }, { side: 'east', offset: 80, width: 40 }, { side: 'west', offset: 80, width: 40 } ],
+      roof: { color: '#5a3818', accent: '#2a1808', style: 'wood_shingle' }, floor: '#3a2810',
+      interior: [
+        { kind: 'haystack_inside', x: 5520, y: 8440, w: 70, h: 50 }, { kind: 'woodpile_inside', x: 5520, y: 8500, w: 60, h: 30 },
+        { kind: 'workbench', x: 5630, y: 8440, w: 60, h: 30 }, { kind: 'pitchfork', x: 5680, y: 8470 },
+        { kind: 'rope_coil', x: 5600, y: 8550 }, { kind: 'animal_skull', x: 5680, y: 8550 },
+      ] },
+    // 18. East-edge cabin (på vägen mot scrap)
+    { id: 'cabin_east_edge', name: 'STÅL-STUGAN', bounds: { x: 7200, y: 4000, w: 200, h: 170 },
+      door: { side: 'south', offset: 75, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'north', offset: 130, width: 40 }, { side: 'east', offset: 70, width: 40 } ],
+      roof: { color: '#5a5a60', accent: '#2a2a30', style: 'tile' }, floor: '#5a4030',
+      interior: [
+        { kind: 'bed', x: 7220, y: 4040, w: 50, h: 65 }, { kind: 'workbench', x: 7220, y: 4120, w: 60, h: 30 },
+        { kind: 'fireplace', x: 7330, y: 4040, w: 40, h: 40 }, { kind: 'rope_coil', x: 7300, y: 4130 },
+        { kind: 'oil_lamp', x: 7300, y: 4030 }, { kind: 'map_on_wall', x: 7230, y: 4020 },
+      ] },
+    // 19. SW small (mellan lake och south)
+    { id: 'cabin_sw_small', name: 'LILLA STUGAN', bounds: { x: 2200, y: 8000, w: 180, h: 160 },
+      door: { side: 'east', offset: 60, width: 40 },
+      windows: [ { side: 'north', offset: 50, width: 35 }, { side: 'south', offset: 60, width: 35 }, { side: 'west', offset: 60, width: 35 } ],
+      roof: { color: '#7a3030', accent: '#3a1010', style: 'tile' }, floor: '#6a4828',
+      interior: [
+        { kind: 'bed', x: 2220, y: 8030, w: 45, h: 60 }, { kind: 'fireplace', x: 2310, y: 8030, w: 40, h: 40 },
+        { kind: 'chair', x: 2280, y: 8090 }, { kind: 'oil_lamp', x: 2270, y: 8020 },
+      ] },
+    // 20. North-deep (mellan NW skog och scrap)
+    { id: 'cabin_north_deep', name: 'GRANSKOGS-STUGAN', bounds: { x: 2700, y: 1500, w: 200, h: 170 },
+      door: { side: 'east', offset: 75, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'south', offset: 60, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#4a2a18', accent: '#2a1408', style: 'wood_shingle' }, floor: '#5a3a1a',
+      interior: [
+        { kind: 'bed', x: 2720, y: 1540, w: 50, h: 65 }, { kind: 'fireplace', x: 2820, y: 1540, w: 40, h: 40 },
+        { kind: 'table_round', x: 2780, y: 1620, r: 18 }, { kind: 'chair', x: 2760, y: 1605 },
+        { kind: 'bookshelf', x: 2700, y: 1640, w: 30, h: 25 }, { kind: 'oil_lamp', x: 2770, y: 1530 },
+      ] },
   ],
 
   walls: [
@@ -718,13 +854,31 @@ const BATTLEROYALE_ARENA = {
     { x: 1900, y: 6160, w: 50,  h: 150, kind: 'cliff_edge' },  // höger klippkant
     { x: 1750, y: 6310, w: 150, h: 40, kind: 'cliff_edge' },   // nedre framkant
 
-    // === LAKE_WATER_BLOCK — blockerar movement men bullets passerar
-    // (osynlig collision-wall; render-polygon ligger ovanpå).
-    { x: 2450, y: 6400, w: 1100, h: 200, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 2400, y: 6600, w: 1200, h: 200, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 2430, y: 6800, w: 1170, h: 200, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 2450, y: 7000, w: 1100, h: 200, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 2500, y: 7200, w: 900,  h: 100, kind: 'lake_water_block', passThroughBullets: true },
+    // === LAKE_WATER_BLOCK — små block (~200×200) med GAPS där broarna passerar.
+    // Bron horisontell: y=6840-6868 (gap = 6830-6878). Bron vertikal: x=2960-2988 (gap = 2950-3000).
+    // Block-storlek max 250px så push-out fungerar korrekt (inte fastnar inuti).
+    // Top-rad (y=6400-6600)
+    { x: 2500, y: 6400, w: 230, h: 200, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2730, y: 6400, w: 220, h: 200, kind: 'lake_water_block', passThroughBullets: true },
+    // gap för vertikal-bro (x=2950-3000)
+    { x: 3000, y: 6400, w: 220, h: 200, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3220, y: 6400, w: 230, h: 200, kind: 'lake_water_block', passThroughBullets: true },
+    // Mid-rad (y=6600-6830, slutar vid horisontal-bron)
+    { x: 2450, y: 6600, w: 250, h: 230, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2700, y: 6600, w: 250, h: 230, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3000, y: 6600, w: 250, h: 230, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3250, y: 6600, w: 250, h: 230, kind: 'lake_water_block', passThroughBullets: true },
+    // Bottom-rad (y=6880-7100, börjar efter horisontal-bron)
+    { x: 2450, y: 6880, w: 250, h: 220, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2700, y: 6880, w: 250, h: 220, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3000, y: 6880, w: 250, h: 220, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3250, y: 6880, w: 250, h: 220, kind: 'lake_water_block', passThroughBullets: true },
+    // Bottom (y=7100-7300)
+    { x: 2500, y: 7100, w: 240, h: 200, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2740, y: 7100, w: 220, h: 200, kind: 'lake_water_block', passThroughBullets: true },
+    // gap för vertikal-bro
+    { x: 3000, y: 7100, w: 220, h: 200, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3220, y: 7100, w: 230, h: 200, kind: 'lake_water_block', passThroughBullets: true },
 
     { x: 2300, y: 5200, w: 60, h: 60, kind: 'tree_oak' },
     { x: 2700, y: 5100, w: 55, h: 55, kind: 'tree_pine' },
@@ -1373,7 +1527,159 @@ function preprocessCabinWalls(arena) {
   }
 }
 
+// === PROCEDURAL CONTENT GENERATION ===
+// Spawnar extra träd/stenar/buskar med seedat slump-gen så de fördelas ORGANISKT
+// över hela kartan utan ring-mönster. Anpassar density per biome-region.
+function generateProceduralContent(arena) {
+  if (arena._proceduralGenerated) return;
+  arena._proceduralGenerated = true;
+  // Seedat LCG (deterministic så samma karta varje gång)
+  let _seed = 0xb16b00b5;
+  const rng = () => {
+    _seed = (_seed * 1664525 + 1013904223) >>> 0;
+    return _seed / 0x100000000;
+  };
+  // Helper: checka om position kolliderar med någon existerande wall
+  const tooClose = (x, y, minDist) => {
+    for (const w of arena.walls) {
+      const dx = x - (w.x + w.w / 2);
+      const dy = y - (w.y + w.h / 2);
+      if (dx * dx + dy * dy < minDist * minDist) return true;
+    }
+    return false;
+  };
+  const tooCloseToCabin = (x, y, buf) => {
+    for (const c of arena.cabins) {
+      const b = c.bounds;
+      if (x > b.x - buf && x < b.x + b.w + buf && y > b.y - buf && y < b.y + b.h + buf) return true;
+    }
+    return false;
+  };
+  // Försök spawna ett objekt — ger upp efter N försök om position upptaget
+  const trySpawn = (xMin, xMax, yMin, yMax, minDist, cabinBuf, fn) => {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const x = xMin + rng() * (xMax - xMin);
+      const y = yMin + rng() * (yMax - yMin);
+      if (tooClose(x, y, minDist)) continue;
+      if (cabinBuf && tooCloseToCabin(x, y, cabinBuf)) continue;
+      // Skippa positioner inom sjö-bbox (ungefär)
+      if (x > 2300 && x < 3700 && y > 6300 && y < 7350) continue;
+      fn(x, y);
+      return true;
+    }
+    return false;
+  };
+  // === TRÄD (dubblerat — ~240 nya) ===
+  // Spread över hela kartan med clustering i skog-regioner
+  const treeCount = 240;
+  for (let i = 0; i < treeCount; i++) {
+    trySpawn(100, 9900, 100, 9900, 60, 30, (x, y) => {
+      const r = rng();
+      let kind = 'tree_oak';
+      if (r < 0.45) kind = 'tree_oak';
+      else if (r < 0.85) kind = 'tree_pine';
+      else if (r < 0.95) kind = 'tree_giant_oak';
+      else kind = 'tree_stump';
+      const size = kind === 'tree_giant_oak' ? 110 + Math.floor(rng() * 20)
+                 : kind === 'tree_stump' ? 28 + Math.floor(rng() * 8)
+                 : 55 + Math.floor(rng() * 18);
+      arena.walls.push({ x: Math.round(x - size / 2), y: Math.round(y - size / 2), w: size, h: size, kind });
+    });
+  }
+  // === STENAR (dubblerat — ~50 nya) ===
+  for (let i = 0; i < 50; i++) {
+    trySpawn(150, 9850, 150, 9850, 80, 50, (x, y) => {
+      const isLarge = rng() < 0.6;
+      const w = isLarge ? 70 + Math.floor(rng() * 25) : 45 + Math.floor(rng() * 15);
+      const h = isLarge ? 50 + Math.floor(rng() * 20) : 35 + Math.floor(rng() * 12);
+      arena.walls.push({
+        x: Math.round(x - w / 2), y: Math.round(y - h / 2), w, h,
+        kind: isLarge ? 'rock_large' : 'rock_small',
+      });
+    });
+  }
+  // === BUSKAR + svamp + blommor (decoration spread) ===
+  for (let i = 0; i < 80; i++) {
+    trySpawn(150, 9850, 150, 9850, 50, 30, (x, y) => {
+      arena.decorations.push({ kind: 'bush', x: Math.round(x), y: Math.round(y) });
+    });
+  }
+  for (let i = 0; i < 50; i++) {
+    trySpawn(150, 9850, 150, 9850, 80, 40, (x, y) => {
+      arena.decorations.push({ kind: 'flowers', x: Math.round(x), y: Math.round(y), count: 5 + Math.floor(rng() * 5) });
+    });
+  }
+  for (let i = 0; i < 40; i++) {
+    trySpawn(150, 9850, 150, 9850, 80, 40, (x, y) => {
+      arena.decorations.push({ kind: 'mushrooms', x: Math.round(x), y: Math.round(y), count: 4 + Math.floor(rng() * 4) });
+    });
+  }
+  for (let i = 0; i < 30; i++) {
+    trySpawn(150, 9850, 150, 9850, 100, 40, (x, y) => {
+      arena.decorations.push({ kind: 'pine_cones', x: Math.round(x), y: Math.round(y), count: 4 + Math.floor(rng() * 4) });
+    });
+  }
+  // === Extra small fallen logs ===
+  for (let i = 0; i < 25; i++) {
+    trySpawn(200, 9800, 200, 9800, 100, 50, (x, y) => {
+      const w = 45 + Math.floor(rng() * 20);
+      arena.decorations.push({ kind: 'fallen_log', x: Math.round(x), y: Math.round(y), w, h: 13, rot: (rng() - 0.5) * 1.2 });
+    });
+  }
+  // === Tre-infrastruktur ×3 — woodpiles, wooden_bench, flower_pot, etc spridda ===
+  for (let i = 0; i < 12; i++) {
+    trySpawn(200, 9800, 200, 9800, 120, 60, (x, y) => {
+      arena.walls.push({ x: Math.round(x - 35), y: Math.round(y - 15), w: 70, h: 30, kind: 'woodpile' });
+    });
+  }
+  for (let i = 0; i < 8; i++) {
+    trySpawn(200, 9800, 200, 9800, 150, 80, (x, y) => {
+      arena.walls.push({ x: Math.round(x - 40), y: Math.round(y - 40), w: 80, h: 80, kind: 'haystack' });
+    });
+  }
+  for (let i = 0; i < 6; i++) {
+    trySpawn(200, 9800, 200, 9800, 200, 100, (x, y) => {
+      arena.walls.push({ x: Math.round(x - 25), y: Math.round(y - 25), w: 50, h: 50, kind: 'well' });
+    });
+  }
+  // === Extra campfires + tents (mer äventyr-känsla) ===
+  for (let i = 0; i < 8; i++) {
+    trySpawn(300, 9700, 300, 9700, 150, 80, (x, y) => {
+      arena.walls.push({ x: Math.round(x - 25), y: Math.round(y - 25), w: 50, h: 50, kind: 'campfire' });
+    });
+  }
+  for (let i = 0; i < 6; i++) {
+    trySpawn(300, 9700, 300, 9700, 200, 100, (x, y) => {
+      const colors = ['red', 'blue', 'green', 'orange'];
+      arena.walls.push({ x: Math.round(x - 40), y: Math.round(y - 35), w: 80, h: 70, kind: 'tent', color: colors[Math.floor(rng() * 4)] });
+    });
+  }
+}
+
+generateProceduralContent(BATTLEROYALE_ARENA);
 preprocessCabinWalls(BATTLEROYALE_ARENA);
+
+// === POST-PROCESS: ta bort graffiti + caution_tape + auto-lägg loot i cabins ===
+function postProcessArena(arena) {
+  if (arena._postProcessed) return;
+  arena._postProcessed = true;
+  // 1. Ta bort graffiti + caution_tape decorations
+  arena.decorations = arena.decorations.filter(d => {
+    return d.kind !== 'graffiti' && d.kind !== 'caution_tape';
+  });
+  // 2. Lägg till en loot-spawn inuti varje cabin (i mitten av bounds)
+  // Insättas FÖRE center-loot (sista i lootSpawns är legendary-locked center).
+  const centerLoot = arena.lootSpawns.pop(); // ta bort center temporärt
+  for (const cabin of arena.cabins) {
+    const b = cabin.bounds;
+    arena.lootSpawns.push({
+      x: b.x + b.w / 2,
+      y: b.y + b.h / 2,
+    });
+  }
+  arena.lootSpawns.push(centerLoot); // återställ center-loot sist
+}
+postProcessArena(BATTLEROYALE_ARENA);
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { BATTLEROYALE_ARENA };

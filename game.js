@@ -7133,8 +7133,10 @@ function drawBrTopDecorations(decos) {
         || d.kind === 'stream' || d.kind === 'dirt_path' || d.kind === 'garden_patch'
         || d.kind === 'smoke') continue; // hanteras separat
     const x = d.x - cx, y = d.y - cy;
-    // Viewport-cull
-    if (x < -60 || x > viewW + 60 || y < -60 || y > viewH + 60) {
+    // Viewport-cull med bbox (objekt-storlek inkluderat så stora objekt inte
+    // försvinner när deras top-left är utanför viewporten).
+    const objW = d.w || 0, objH = d.h || 0;
+    if (x + objW + 60 < 0 || x - 60 > viewW || y + objH + 60 < 0 || y - 60 > viewH) {
       if (!d.x2) continue;
       const x2 = d.x2 - cx, y2 = d.y2 - cy;
       if ((x < -60 || x > viewW + 60) && (x2 < -60 || x2 > viewW + 60)) continue;
@@ -7706,33 +7708,7 @@ function drawCabinDoorMarker(cabin, sx, sy) {
   ctx.strokeStyle = '#5a3018';
   ctx.lineWidth = 2;
   ctx.strokeRect(dx + 0.5, dy + 0.5, dw - 1, dh - 1);
-  // 3. Pulserande gul pil + "DÖRR"-text ovanför mattan
-  const t = performance.now() / 1000;
-  const pulse = 0.7 + Math.sin(t * 3) * 0.3;
-  ctx.fillStyle = 'rgba(255, 213, 74, ' + pulse + ')';
-  ctx.font = 'bold 11px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  // Pil pekar mot dörren
-  let arrowChar = '↓';
-  if (door.side === 'south') arrowChar = '↑';
-  else if (door.side === 'east') arrowChar = '←';
-  else if (door.side === 'west') arrowChar = '→';
-  // Position för pil (lite ut från mattan)
-  let arrX, arrY;
-  if (door.side === 'north') { arrX = outX + mw / 2; arrY = outY - 8; }
-  else if (door.side === 'south') { arrX = outX + mw / 2; arrY = outY + mh + 8; }
-  else if (door.side === 'east') { arrX = outX + mw + 10; arrY = outY + mh / 2; }
-  else { arrX = outX - 10; arrY = outY + mh / 2; }
-  // Bakgrund för text-läsbarhet
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-  ctx.beginPath();
-  ctx.arc(arrX, arrY, 9, 0, Math.PI * 2);
-  ctx.fill();
-  // Pil
-  ctx.fillStyle = 'rgba(255, 213, 74, ' + pulse + ')';
-  ctx.font = 'bold 14px sans-serif';
-  ctx.fillText(arrowChar, arrX, arrY);
+  // (Pilen borttagen — bara dörrmatta + visuell dörr räcker som markering)
 }
 
 function drawCabinInterior(cabin, sx, sy, cx, cy) {
