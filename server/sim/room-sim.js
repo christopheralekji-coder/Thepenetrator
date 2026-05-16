@@ -3106,6 +3106,7 @@ function startSim(sim, opts) {
       walls: arena.walls,
       spawns: arena.spawns,
       decorations: arena.decorations || [],
+      cabins: arena.cabins || [],
       loot: sim.battleroyaleLoot.map(lo => ({
         id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: lo.unlockAt || 0,
       })),

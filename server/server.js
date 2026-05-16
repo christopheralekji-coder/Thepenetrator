@@ -637,6 +637,7 @@ function handleMessage(ws, msg) {
         walls: BATTLEROYALE_ARENA.walls,
         spawns: BATTLEROYALE_ARENA.spawns,
         decorations: BATTLEROYALE_ARENA.decorations || [],
+        cabins: BATTLEROYALE_ARENA.cabins || [],
         loot: (room.sim.battleroyaleLoot || []).filter(lo => lo.available).map(lo => ({
           id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: lo.unlockAt || 0,
         })),

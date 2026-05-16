@@ -1,407 +1,768 @@
-// BATTLE ROYALE — "LAST HUNT"
-// 6000×6000 industri-stad. Krympande safe-zone över 5/10/15 min. FFA, no respawn.
-// Loot-pickups på marken (vapen, HP, shield, ammo). Sista överlevare vinner.
-// Återanvänder wall-kinds från andra arenor (concrete, wall_pillar, sandbag, crate,
-// barrel, debris, barricade, pipe, truck, van, car_wreck, oil_drum, fire_drum,
-// lamppost, broken_pillar, dumpster_fire, jersey_barrier, bollard, stairwell_door)
-// + 3 NYA kinds för BR-specifika landmarks (shipping_container, silo, building).
+// BATTLE ROYALE — "LAST HUNT" v3 — 10000×10000 STORKARTA
+//
+// Sex distinkta zoner i CENTER (2000-8000), wild outer-skog runt om.
+//   NW FOREST (2000-5000, 2000-5000):       Tät skog, stigar, djup-skogs stuga
+//   NE SCRAP (5000-8000, 2000-4000):        Dumpade containrar, brinnande grävmaskin
+//   CENTRAL VILLAGE (4000-6500, 4000-6500): Bonde-by med 3 stugor + brunn
+//   EAST CAMPING (6500-8000, 4000-6500):    Tält, lägereldar, admin-stuga
+//   WEST LAKE (2000-4500, 5000-7500):       Sjö, bro, sommarstuga, båt
+//   SOUTH WILD (4500-8000, 6500-8000):      Vild skog, hunter-stuga
+//   OUTER WILDERNESS (0-2000 + 8000-10000): Tät vild skog överallt
 'use strict';
 
 const BATTLEROYALE_ARENA = {
-  worldW: 6000,
-  worldH: 6000,
+  worldW: 10000,
+  worldH: 10000,
   name: 'LAST HUNT',
+  groundColor: '#2a3a1a',
 
-  // 16 spawn-punkter spridda längs perimetern — räcker till 8 spelare + 8 bots
-  // utan att 2 spawnar ovanpå varandra. Centrum av arenan lämnas till loot-rush.
+  // Spawn-punkter (16) — spridda kring outer-ring + zon-edges
   spawns: [
-    // Top edge
-    { x: 600,  y: 500  },
-    { x: 2200, y: 400  },
-    { x: 3800, y: 400  },
-    { x: 5400, y: 500  },
-    // Right edge
-    { x: 5500, y: 1800 },
-    { x: 5500, y: 4200 },
-    // Bottom edge
-    { x: 5400, y: 5500 },
-    { x: 3800, y: 5600 },
-    { x: 2200, y: 5600 },
-    { x: 600,  y: 5500 },
-    // Left edge
-    { x: 500,  y: 4200 },
-    { x: 500,  y: 1800 },
-    // Inner ring (för fyllning vid 16 spelare)
-    { x: 1500, y: 1500 },
-    { x: 4500, y: 1500 },
-    { x: 1500, y: 4500 },
-    { x: 4500, y: 4500 },
+    // Outer NW
+    { x: 500,  y: 500  },
+    { x: 1500, y: 800  },
+    { x: 800,  y: 1500 },
+    // Outer N
+    { x: 3000, y: 400  },
+    { x: 5000, y: 300  },
+    { x: 7000, y: 400  },
+    // Outer NE
+    { x: 9200, y: 600  },
+    { x: 9400, y: 2200 },
+    // Outer E
+    { x: 9400, y: 5000 },
+    { x: 9200, y: 7500 },
+    // Outer SE
+    { x: 8500, y: 9300 },
+    { x: 6500, y: 9400 },
+    // Outer S
+    { x: 4000, y: 9400 },
+    { x: 2000, y: 9300 },
+    // Outer SW + W
+    { x: 500,  y: 8500 },
+    { x: 300,  y: 5000 },
   ],
 
-  // Walls = AABB. Industri-stad med distinkta zoner:
-  //   NW: skrot-yard (skrot + bilskelett + olja)
-  //   NE: industri-fabrik (silos + containrar + skorstenar)
-  //   SW: bostadskvarter (byggnader + gränder)
-  //   SE: gas-station + parkering (pumpar + bilar + lamppor)
-  //   Mid: torget (springbrunn-fountain + flag-pole + 4 stora cover-block)
+  // === CABINS ===
+  // Alla offset +2000,+2000 från original. Spelaren räknas som "inne" om inom bounds.
+  cabins: [
+    {
+      id: 'cabin_deep_forest',
+      name: 'JÄGAR-STUGAN',
+      bounds: { x: 3450, y: 2750, w: 220, h: 180 },
+      door: { side: 'south', offset: 90, width: 50 },
+      roof: { color: '#4a2a18', accent: '#2a1408', style: 'wood_shingle' },
+      floor: '#5a3a1a',
+      interior: [
+        { kind: 'bed',          x: 3490, y: 2800, w: 50, h: 70 },
+        { kind: 'fireplace',    x: 3610, y: 2800, w: 40, h: 40 },
+        { kind: 'table_round',  x: 3560, y: 2870, r: 18 },
+        { kind: 'chair',        x: 3540, y: 2850 },
+        { kind: 'chair',        x: 3580, y: 2890 },
+        { kind: 'rug',          x: 3530, y: 2850, w: 80, h: 50 },
+        { kind: 'oil_lamp',     x: 3520, y: 2800 },
+        { kind: 'bookshelf',    x: 3480, y: 2870, w: 30, h: 40 },
+        { kind: 'animal_skull', x: 3620, y: 2870 },
+      ],
+    },
+    {
+      id: 'cabin_village_red',
+      name: 'RÖDA STUGAN',
+      bounds: { x: 4750, y: 4650, w: 240, h: 200 },
+      door: { side: 'east', offset: 80, width: 50 },
+      roof: { color: '#8a3030', accent: '#5a1818', style: 'tile' },
+      floor: '#6a4828',
+      interior: [
+        { kind: 'bed',         x: 4780, y: 4700, w: 60, h: 80 },
+        { kind: 'dresser',     x: 4780, y: 4790 },
+        { kind: 'table_long',  x: 4870, y: 4730, w: 60, h: 30 },
+        { kind: 'chair',       x: 4880, y: 4715 },
+        { kind: 'chair',       x: 4920, y: 4715 },
+        { kind: 'fireplace',   x: 4940, y: 4790, w: 40, h: 40 },
+        { kind: 'rug',         x: 4820, y: 4780, w: 80, h: 50 },
+        { kind: 'oil_lamp',    x: 4880, y: 4760 },
+        { kind: 'kitchen_counter', x: 4870, y: 4660, w: 90, h: 25 },
+        { kind: 'wall_painting', x: 4790, y: 4660 },
+      ],
+    },
+    {
+      id: 'cabin_village_yellow',
+      name: 'GULA STUGAN',
+      bounds: { x: 5700, y: 4700, w: 260, h: 220 },
+      door: { side: 'west', offset: 110, width: 50 },
+      roof: { color: '#a08020', accent: '#5a4810', style: 'thatch' },
+      floor: '#7a5828',
+      interior: [
+        { kind: 'bed',         x: 5720, y: 4750, w: 60, h: 80 },
+        { kind: 'bed',         x: 5720, y: 4840, w: 60, h: 60 },
+        { kind: 'table_long',  x: 5820, y: 4780, w: 70, h: 35 },
+        { kind: 'chair',       x: 5830, y: 4765 },
+        { kind: 'chair',       x: 5870, y: 4765 },
+        { kind: 'chair',       x: 5910, y: 4765 },
+        { kind: 'fireplace',   x: 5900, y: 4880, w: 40, h: 40 },
+        { kind: 'kitchen_counter', x: 5820, y: 4710, w: 120, h: 25 },
+        { kind: 'rug',         x: 5800, y: 4830, w: 90, h: 60 },
+        { kind: 'bookshelf',   x: 5700, y: 4890, w: 30, h: 30 },
+        { kind: 'wall_painting', x: 5720, y: 4710 },
+        { kind: 'oil_lamp',    x: 5870, y: 4810 },
+      ],
+    },
+    {
+      id: 'cabin_village_barn',
+      name: 'LADAN',
+      bounds: { x: 5200, y: 5700, w: 280, h: 220 },
+      door: { side: 'north', offset: 120, width: 60 },
+      roof: { color: '#5a3818', accent: '#2a1808', style: 'wood_shingle' },
+      floor: '#3a2810',
+      interior: [
+        { kind: 'haystack_inside', x: 5220, y: 5750, w: 80, h: 60 },
+        { kind: 'haystack_inside', x: 5380, y: 5850, w: 80, h: 50 },
+        { kind: 'woodpile_inside', x: 5220, y: 5830, w: 70, h: 30 },
+        { kind: 'pitchfork',       x: 5320, y: 5760 },
+        { kind: 'shovel',          x: 5340, y: 5770 },
+        { kind: 'workbench',       x: 5400, y: 5760, w: 60, h: 30 },
+        { kind: 'rope_coil',       x: 5300, y: 5820 },
+        { kind: 'animal_skull',    x: 5460, y: 5870 },
+      ],
+    },
+    {
+      id: 'cabin_camp_admin',
+      name: 'CAMPING-EXPEDITION',
+      bounds: { x: 6800, y: 5650, w: 240, h: 200 },
+      door: { side: 'south', offset: 100, width: 50 },
+      roof: { color: '#306080', accent: '#102540', style: 'tile' },
+      floor: '#4a4030',
+      interior: [
+        { kind: 'desk',           x: 6830, y: 5700, w: 70, h: 35 },
+        { kind: 'chair',          x: 6870, y: 5745 },
+        { kind: 'fireplace',      x: 6970, y: 5700, w: 40, h: 40 },
+        { kind: 'bed',            x: 6830, y: 5760, w: 50, h: 70 },
+        { kind: 'bookshelf',      x: 6920, y: 5760, w: 30, h: 40 },
+        { kind: 'oil_lamp',       x: 6900, y: 5690 },
+        { kind: 'wall_painting',  x: 6980, y: 5680 },
+        { kind: 'map_on_wall',    x: 6840, y: 5680 },
+        { kind: 'rug',            x: 6850, y: 5780, w: 70, h: 40 },
+      ],
+    },
+    {
+      id: 'cabin_lake_summer',
+      name: 'SOMMARSTUGAN',
+      bounds: { x: 3100, y: 5650, w: 260, h: 200 },
+      door: { side: 'east', offset: 100, width: 55 },
+      roof: { color: '#d4d4c0', accent: '#7a7a6a', style: 'tile' },
+      floor: '#a08060',
+      interior: [
+        { kind: 'bed',           x: 3120, y: 5700, w: 60, h: 80 },
+        { kind: 'bed',           x: 3120, y: 5790, w: 60, h: 60 },
+        { kind: 'table_round',   x: 3230, y: 5740, r: 22 },
+        { kind: 'chair',         x: 3210, y: 5720 },
+        { kind: 'chair',         x: 3260, y: 5720 },
+        { kind: 'chair',         x: 3230, y: 5770 },
+        { kind: 'fireplace',     x: 3310, y: 5700, w: 40, h: 40 },
+        { kind: 'kitchen_counter', x: 3220, y: 5810, w: 130, h: 25 },
+        { kind: 'rug',           x: 3180, y: 5760, w: 100, h: 60 },
+        { kind: 'oil_lamp',      x: 3230, y: 5700 },
+        { kind: 'wall_painting', x: 3140, y: 5680 },
+        { kind: 'wall_painting', x: 3320, y: 5680 },
+        { kind: 'bathtub',       x: 3310, y: 5760, w: 40, h: 60 },
+      ],
+    },
+    {
+      id: 'cabin_south_hunter',
+      name: 'HUNTER-LYAN',
+      bounds: { x: 6150, y: 7250, w: 200, h: 180 },
+      door: { side: 'north', offset: 80, width: 45 },
+      roof: { color: '#3a2818', accent: '#1a0e08', style: 'wood_shingle' },
+      floor: '#4a3018',
+      interior: [
+        { kind: 'bed',          x: 6170, y: 7300, w: 50, h: 65 },
+        { kind: 'fireplace',    x: 6280, y: 7300, w: 40, h: 40 },
+        { kind: 'workbench',    x: 6170, y: 7380, w: 60, h: 30 },
+        { kind: 'chair',        x: 6250, y: 7360 },
+        { kind: 'animal_skull', x: 6290, y: 7360 },
+        { kind: 'animal_skull', x: 6310, y: 7370 },
+        { kind: 'rope_coil',    x: 6210, y: 7375 },
+        { kind: 'oil_lamp',     x: 6280, y: 7285 },
+        { kind: 'rifle_rack',   x: 6170, y: 7290 },
+      ],
+    },
+  ],
+
   walls: [
-    // === PERIMETER (4 segment, betong-mur 20 px tjock) ===
-    { x: 0,    y: 0,    w: 6000, h: 20,   kind: 'concrete' },
-    { x: 0,    y: 5980, w: 6000, h: 20,   kind: 'concrete' },
-    { x: 0,    y: 0,    w: 20,   h: 6000, kind: 'concrete' },
-    { x: 5980, y: 0,    w: 20,   h: 6000, kind: 'concrete' },
+    // === PERIMETER (10000×10000) ===
+    { x: 0,    y: 0,    w: 10000, h: 20,   kind: 'stone_wall' },
+    { x: 0,    y: 9980, w: 10000, h: 20,   kind: 'stone_wall' },
+    { x: 0,    y: 0,    w: 20,    h: 10000, kind: 'stone_wall' },
+    { x: 9980, y: 0,    w: 20,    h: 10000, kind: 'stone_wall' },
 
-    // ====================================================================
-    // === NW KVADRANT: SKROT-YARD (0,0)–(3000,3000) ===
-    // ====================================================================
-    // Bilskelett (utbrunna bilar — bra cover)
-    { x: 400,  y: 800,  w: 110, h: 55, kind: 'car_wreck' },
-    { x: 700,  y: 1100, w: 55,  h: 110, kind: 'car_wreck' },
-    { x: 1100, y: 900,  w: 110, h: 55, kind: 'car_wreck' },
-    { x: 1500, y: 1200, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 900,  y: 1500, w: 55,  h: 110, kind: 'car_wreck' },
-    { x: 1800, y: 1700, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 400,  y: 2100, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 2200, y: 2400, w: 110, h: 55, kind: 'car_wreck' },
-    // Oljefat (utspridda)
-    { x: 600,  y: 600,  w: 32,  h: 32, kind: 'oil_drum' },
-    { x: 1200, y: 700,  w: 32,  h: 32, kind: 'oil_drum' },
-    { x: 1700, y: 1300, w: 32,  h: 32, kind: 'oil_drum' },
-    { x: 2300, y: 1800, w: 32,  h: 32, kind: 'oil_drum' },
-    { x: 800,  y: 2400, w: 32,  h: 32, kind: 'oil_drum' },
-    { x: 2400, y: 2600, w: 32,  h: 32, kind: 'oil_drum' },
-    // Brinnande fat (lyser i mörker, atmosfär)
-    { x: 1000, y: 1900, w: 28,  h: 28, kind: 'fire_drum' },
-    { x: 2000, y: 2200, w: 28,  h: 28, kind: 'fire_drum' },
-    // Containrar (NEW kind — 4 stora frakt-containrar, color-coded)
-    { x: 600,  y: 1700, w: 220, h: 80,  kind: 'shipping_container', color: 'orange' },
-    { x: 1700, y: 2000, w: 80,  h: 220, kind: 'shipping_container', color: 'blue' },
-    { x: 2400, y: 1100, w: 220, h: 80,  kind: 'shipping_container', color: 'rust' },
-    { x: 1300, y: 2500, w: 220, h: 80,  kind: 'shipping_container', color: 'green' },
-    // Dumpster fires (atmosphere)
-    { x: 1400, y: 400,  w: 60,  h: 36, kind: 'dumpster_fire' },
-    { x: 2500, y: 2900, w: 60,  h: 36, kind: 'dumpster_fire' },
-    // Debris-högar
-    { x: 850,  y: 1000, w: 50,  h: 50, kind: 'debris' },
-    { x: 1600, y: 600,  w: 50,  h: 50, kind: 'debris' },
-    { x: 2000, y: 1500, w: 50,  h: 50, kind: 'debris' },
-    { x: 600,  y: 2700, w: 50,  h: 50, kind: 'debris' },
-    // Barricader
-    { x: 500,  y: 1500, w: 120, h: 22, kind: 'barricade' },
-    { x: 2100, y: 800,  w: 120, h: 22, kind: 'barricade' },
-    { x: 1900, y: 2700, w: 120, h: 22, kind: 'barricade' },
+    // === OUTER WILDERNESS — TÄT VILD SKOG (norra ringen) ===
+    // North outer (y < 1800)
+    { x: 600,  y: 300,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1100, y: 500,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 1800, y: 400,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 2500, y: 300,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 3200, y: 500,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 3900, y: 400,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 4600, y: 300,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 5300, y: 500,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 6000, y: 400,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 6700, y: 500,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 7400, y: 300,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 8100, y: 500,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 8800, y: 400,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 9400, y: 1000, w: 65, h: 65, kind: 'tree_oak' },
+    // North row 2
+    { x: 800,  y: 1100, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 1500, y: 1000, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 2200, y: 1200, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 2900, y: 1100, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 3700, y: 1200, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 4500, y: 1100, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 5200, y: 1300, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 6000, y: 1100, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 6800, y: 1200, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 7600, y: 1100, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 8400, y: 1300, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 9100, y: 1200, w: 60, h: 60, kind: 'tree_pine' },
 
-    // ====================================================================
-    // === NE KVADRANT: INDUSTRI-FABRIK (3000,0)–(6000,3000) ===
-    // ====================================================================
-    // Silos (NEW kind — 3 stora cylindriska industri-silos)
-    { x: 3400, y: 600,  w: 110, h: 110, kind: 'silo' },
-    { x: 4500, y: 700,  w: 110, h: 110, kind: 'silo' },
-    { x: 5300, y: 1100, w: 110, h: 110, kind: 'silo' },
-    { x: 3800, y: 1900, w: 110, h: 110, kind: 'silo' },
-    // Building (NEW kind — 4 stora industribyggnader med fönster)
-    { x: 3200, y: 1100, w: 200, h: 280, kind: 'building' },
-    { x: 4800, y: 1400, w: 280, h: 200, kind: 'building' },
-    { x: 4100, y: 2300, w: 200, h: 280, kind: 'building' },
-    { x: 5400, y: 2400, w: 280, h: 200, kind: 'building' },
-    // Containers (industri-loading-bay)
-    { x: 3800, y: 1200, w: 220, h: 80,  kind: 'shipping_container', color: 'yellow' },
-    { x: 4500, y: 2700, w: 220, h: 80,  kind: 'shipping_container', color: 'red' },
-    { x: 5100, y: 800,  w: 80,  h: 220, kind: 'shipping_container', color: 'blue' },
-    { x: 3500, y: 2700, w: 80,  h: 220, kind: 'shipping_container', color: 'orange' },
-    // Pelar-rader (atmosfär)
-    { x: 3700, y: 400,  w: 50, h: 50, kind: 'wall_pillar' },
-    { x: 4100, y: 400,  w: 50, h: 50, kind: 'wall_pillar' },
-    { x: 4500, y: 400,  w: 50, h: 50, kind: 'wall_pillar' },
-    { x: 4900, y: 400,  w: 50, h: 50, kind: 'wall_pillar' },
-    // Crates och sandbags (cover)
-    { x: 3300, y: 1700, w: 80, h: 80, kind: 'crate' },
-    { x: 4400, y: 600,  w: 80, h: 80, kind: 'crate' },
-    { x: 5200, y: 1900, w: 80, h: 80, kind: 'crate' },
-    { x: 4700, y: 2900, w: 80, h: 80, kind: 'crate' },
-    { x: 3700, y: 2400, w: 100, h: 30, kind: 'sandbag' },
-    { x: 4900, y: 2100, w: 100, h: 30, kind: 'sandbag' },
-    { x: 5500, y: 1700, w: 30,  h: 100, kind: 'sandbag' },
-    // Lamppost-rad längs industri-vägen
-    { x: 3600, y: 900,  w: 14, h: 14, kind: 'lamppost' },
-    { x: 4200, y: 900,  w: 14, h: 14, kind: 'lamppost' },
-    { x: 4800, y: 900,  w: 14, h: 14, kind: 'lamppost' },
-    { x: 5400, y: 900,  w: 14, h: 14, kind: 'lamppost' },
-    // Fire drums (atmosfär)
-    { x: 4200, y: 1700, w: 28, h: 28, kind: 'fire_drum' },
-    { x: 5000, y: 2600, w: 28, h: 28, kind: 'fire_drum' },
-    // Oljefat
-    { x: 3300, y: 2100, w: 32, h: 32, kind: 'oil_drum' },
-    { x: 5100, y: 2300, w: 32, h: 32, kind: 'oil_drum' },
-    { x: 3900, y: 2900, w: 32, h: 32, kind: 'oil_drum' },
+    // West outer (x < 1800)
+    { x: 400,  y: 2000, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 700,  y: 2500, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 1200, y: 2300, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 500,  y: 3100, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1300, y: 3000, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 400,  y: 4000, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1100, y: 4200, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 600,  y: 6500, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1300, y: 6700, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 500,  y: 7300, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 1100, y: 7400, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 800,  y: 8200, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 1400, y: 8500, w: 65, h: 65, kind: 'tree_oak' },
 
-    // ====================================================================
-    // === SW KVADRANT: BOSTADSKVARTER (0,3000)–(3000,6000) ===
-    // ====================================================================
-    // Buildings (4 hus i kvarter)
-    { x: 400,  y: 3300, w: 280, h: 200, kind: 'building' },
-    { x: 1500, y: 3200, w: 200, h: 280, kind: 'building' },
-    { x: 800,  y: 4400, w: 280, h: 200, kind: 'building' },
-    { x: 2000, y: 4500, w: 280, h: 200, kind: 'building' },
-    { x: 400,  y: 5200, w: 200, h: 280, kind: 'building' },
-    { x: 2200, y: 3500, w: 200, h: 280, kind: 'building' },
-    // Truck & van på gatorna
-    { x: 1100, y: 3500, w: 220, h: 80, kind: 'truck' },
-    { x: 700,  y: 4100, w: 140, h: 60, kind: 'van' },
-    { x: 1800, y: 4200, w: 220, h: 80, kind: 'truck' },
-    { x: 2400, y: 5100, w: 140, h: 60, kind: 'van' },
-    // Bilskelett (övergivna)
-    { x: 500,  y: 3800, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 1900, y: 3900, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 1200, y: 5000, w: 110, h: 55, kind: 'car_wreck' },
-    // Dumpsters
-    { x: 900,  y: 4300, w: 60, h: 36, kind: 'dumpster_fire' },
-    { x: 2700, y: 3800, w: 60, h: 36, kind: 'dumpster_fire' },
-    { x: 1300, y: 5400, w: 60, h: 36, kind: 'dumpster_fire' },
-    // Pelare i gränder
-    { x: 1300, y: 3700, w: 50, h: 50, kind: 'wall_pillar' },
-    { x: 700,  y: 4700, w: 50, h: 50, kind: 'wall_pillar' },
-    { x: 1700, y: 5000, w: 50, h: 50, kind: 'wall_pillar' },
-    { x: 2700, y: 4500, w: 50, h: 50, kind: 'broken_pillar' },
-    // Lamppost-rad
-    { x: 600,  y: 3650, w: 14, h: 14, kind: 'lamppost' },
-    { x: 1300, y: 3650, w: 14, h: 14, kind: 'lamppost' },
-    { x: 2000, y: 3650, w: 14, h: 14, kind: 'lamppost' },
-    { x: 2700, y: 3650, w: 14, h: 14, kind: 'lamppost' },
-    { x: 600,  y: 5800, w: 14, h: 14, kind: 'lamppost' },
-    { x: 1500, y: 5800, w: 14, h: 14, kind: 'lamppost' },
-    { x: 2400, y: 5800, w: 14, h: 14, kind: 'lamppost' },
-    // Stairwell doors
-    { x: 480,  y: 3270, w: 36, h: 60, kind: 'stairwell_door' },
-    { x: 1580, y: 3170, w: 36, h: 60, kind: 'stairwell_door' },
-    { x: 880,  y: 4370, w: 36, h: 60, kind: 'stairwell_door' },
-    { x: 2080, y: 4470, w: 36, h: 60, kind: 'stairwell_door' },
-    // Crates och cover-block i gränder
-    { x: 900,  y: 4000, w: 80, h: 80, kind: 'crate' },
-    { x: 2400, y: 4000, w: 80, h: 80, kind: 'crate' },
-    { x: 1700, y: 5300, w: 80, h: 80, kind: 'crate' },
-    { x: 500,  y: 4900, w: 100, h: 30, kind: 'sandbag' },
-    { x: 2500, y: 4900, w: 100, h: 30, kind: 'sandbag' },
+    // East outer (x > 8200)
+    { x: 8400, y: 2300, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 9100, y: 2500, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 8500, y: 3200, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 9300, y: 3500, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 8400, y: 4500, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 9200, y: 4700, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 8600, y: 5500, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 9300, y: 5800, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 8400, y: 6500, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 9100, y: 6700, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 8500, y: 7500, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 9300, y: 7700, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 8700, y: 8500, w: 60, h: 60, kind: 'tree_pine' },
 
-    // ====================================================================
-    // === SE KVADRANT: GAS-STATION + PARKERING (3000,3000)–(6000,6000) ===
-    // ====================================================================
-    // Gas station building
-    { x: 4400, y: 3300, w: 280, h: 200, kind: 'building' },
-    // Pumpar (re-use pay_machine för bensinpump-likhet)
-    { x: 4350, y: 3550, w: 22, h: 50, kind: 'pay_machine' },
-    { x: 4750, y: 3550, w: 22, h: 50, kind: 'pay_machine' },
-    { x: 4150, y: 3550, w: 22, h: 50, kind: 'pay_machine' },
-    // Parkering med massa bilar
-    { x: 3400, y: 4000, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 3700, y: 4000, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 4000, y: 4000, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 4300, y: 4000, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 4600, y: 4000, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 4900, y: 4000, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 3400, y: 4400, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 3700, y: 4400, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 4000, y: 4400, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 4300, y: 4400, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 4600, y: 4400, w: 110, h: 55, kind: 'car_wreck' },
-    { x: 4900, y: 4400, w: 110, h: 55, kind: 'car_wreck' },
-    // Trucks och vans utanför parkeringen
-    { x: 3200, y: 5200, w: 220, h: 80, kind: 'truck' },
-    { x: 4400, y: 5300, w: 220, h: 80, kind: 'truck' },
-    { x: 5200, y: 5400, w: 140, h: 60, kind: 'van' },
-    { x: 5400, y: 3700, w: 220, h: 80, kind: 'truck' },
-    { x: 3500, y: 5500, w: 140, h: 60, kind: 'van' },
-    // Jersey barriers längs gatorna
-    { x: 3100, y: 3700, w: 220, h: 20, kind: 'jersey_barrier' },
-    { x: 5200, y: 3700, w: 220, h: 20, kind: 'jersey_barrier' },
-    { x: 3100, y: 5800, w: 220, h: 20, kind: 'jersey_barrier' },
-    { x: 5200, y: 5800, w: 220, h: 20, kind: 'jersey_barrier' },
-    // Containrar
-    { x: 5100, y: 4700, w: 220, h: 80, kind: 'shipping_container', color: 'blue' },
-    { x: 3300, y: 4700, w: 220, h: 80, kind: 'shipping_container', color: 'red' },
-    // Lamppost-rad på parkeringen
-    { x: 3600, y: 4250, w: 14, h: 14, kind: 'lamppost' },
-    { x: 4200, y: 4250, w: 14, h: 14, kind: 'lamppost' },
-    { x: 4800, y: 4250, w: 14, h: 14, kind: 'lamppost' },
-    { x: 5400, y: 4250, w: 14, h: 14, kind: 'lamppost' },
-    { x: 3600, y: 4700, w: 14, h: 14, kind: 'lamppost' },
-    { x: 4200, y: 4700, w: 14, h: 14, kind: 'lamppost' },
-    { x: 4800, y: 4700, w: 14, h: 14, kind: 'lamppost' },
-    // Bollards
-    { x: 3400, y: 3700, w: 18, h: 18, kind: 'bollard' },
-    { x: 4100, y: 3700, w: 18, h: 18, kind: 'bollard' },
-    { x: 4900, y: 3700, w: 18, h: 18, kind: 'bollard' },
-    { x: 5500, y: 3700, w: 18, h: 18, kind: 'bollard' },
-    // Crates och oljefat
-    { x: 3300, y: 5000, w: 80, h: 80, kind: 'crate' },
-    { x: 5400, y: 5000, w: 80, h: 80, kind: 'crate' },
-    { x: 3700, y: 5700, w: 32, h: 32, kind: 'oil_drum' },
-    { x: 5200, y: 5700, w: 32, h: 32, kind: 'oil_drum' },
+    // South outer (y > 8500)
+    { x: 1000, y: 8800, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 2000, y: 8900, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 2900, y: 8800, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 3800, y: 9000, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 4700, y: 8900, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 5600, y: 9100, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 6500, y: 8900, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 7400, y: 9000, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 8300, y: 9200, w: 65, h: 65, kind: 'tree_oak' },
+    // Row 2 south
+    { x: 1500, y: 9400, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 3000, y: 9500, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 4500, y: 9400, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 6000, y: 9500, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 7500, y: 9400, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 9000, y: 9300, w: 65, h: 65, kind: 'tree_oak' },
 
-    // ====================================================================
-    // === MID-TORG (centrum, runt 3000,3000) ===
-    // ====================================================================
-    // 4 stora cover-pelare runt mitten
-    { x: 2700, y: 2700, w: 60, h: 60, kind: 'wall_pillar' },
-    { x: 3240, y: 2700, w: 60, h: 60, kind: 'wall_pillar' },
-    { x: 2700, y: 3240, w: 60, h: 60, kind: 'wall_pillar' },
-    { x: 3240, y: 3240, w: 60, h: 60, kind: 'wall_pillar' },
-    // Jersey-barriers runt torget (formar en cirkel av cover)
-    { x: 2800, y: 2950, w: 100, h: 20, kind: 'jersey_barrier' },
-    { x: 3100, y: 2950, w: 100, h: 20, kind: 'jersey_barrier' },
-    { x: 2800, y: 3030, w: 100, h: 20, kind: 'jersey_barrier' },
-    { x: 3100, y: 3030, w: 100, h: 20, kind: 'jersey_barrier' },
-    // Container-fort i mitten (legendary loot här)
-    { x: 2920, y: 2820, w: 160, h: 60, kind: 'shipping_container', color: 'gold' },
-    // Sandbag-stack
-    { x: 2900, y: 3120, w: 200, h: 25, kind: 'sandbag' },
-    // Brinnande fat
-    { x: 2850, y: 2900, w: 28, h: 28, kind: 'fire_drum' },
-    { x: 3120, y: 2900, w: 28, h: 28, kind: 'fire_drum' },
+    // Outer-skog stenar
+    { x: 600,  y: 600,  w: 70, h: 50, kind: 'rock_large' },
+    { x: 3000, y: 200,  w: 80, h: 60, kind: 'rock_large' },
+    { x: 7000, y: 700,  w: 70, h: 50, kind: 'rock_large' },
+    { x: 8800, y: 3000, w: 80, h: 60, kind: 'rock_large' },
+    { x: 9000, y: 6000, w: 70, h: 50, kind: 'rock_large' },
+    { x: 600,  y: 7500, w: 80, h: 60, kind: 'rock_large' },
+    { x: 5000, y: 9300, w: 80, h: 60, kind: 'rock_large' },
+
+    // Outer-skog brunna gamla bilar (övergivna)
+    { x: 1500, y: 600,  w: 110, h: 55, kind: 'car_wreck' },
+    { x: 7500, y: 600,  w: 110, h: 55, kind: 'car_wreck' },
+    { x: 800,  y: 8200, w: 110, h: 55, kind: 'car_wreck' },
+    { x: 8700, y: 8500, w: 110, h: 55, kind: 'car_wreck' },
+
+    // ========================================================================
+    // === NW FOREST (2000-5000, 2000-5000) — TÄT SKOG ===
+    // ========================================================================
+    { x: 2250, y: 2500, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 2400, y: 2700, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 2600, y: 2550, w: 70, h: 70, kind: 'tree_oak' },
+    { x: 2800, y: 2750, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 3000, y: 2600, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 2250, y: 2900, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 2500, y: 3000, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 2750, y: 3100, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 2900, y: 2900, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 3150, y: 2900, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 2200, y: 3300, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 2400, y: 3400, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 2700, y: 3500, w: 70, h: 70, kind: 'tree_oak' },
+    { x: 2950, y: 3300, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 3200, y: 3500, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 2250, y: 3700, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 2550, y: 3800, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 2850, y: 3750, w: 70, h: 70, kind: 'tree_pine' },
+    { x: 3100, y: 3900, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 3400, y: 3800, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 3700, y: 3700, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 4000, y: 3900, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 4300, y: 3800, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 4600, y: 3900, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 3500, y: 2300, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 3800, y: 2400, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 4050, y: 2250, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 4400, y: 2450, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 4700, y: 2350, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 4700, y: 3000, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 4800, y: 3300, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 4750, y: 3700, w: 65, h: 65, kind: 'tree_oak' },
+
+    // Stenar
+    { x: 2300, y: 3100, w: 80, h: 60, kind: 'rock_large' },
+    { x: 2600, y: 3400, w: 50, h: 40, kind: 'rock_small' },
+    { x: 3300, y: 3100, w: 70, h: 50, kind: 'rock_large' },
+    { x: 4100, y: 3300, w: 50, h: 40, kind: 'rock_small' },
+    { x: 3900, y: 2600, w: 60, h: 45, kind: 'rock_small' },
+    { x: 4400, y: 3000, w: 80, h: 60, kind: 'rock_large' },
+
+    { x: 2700, y: 3250, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 3100, y: 3700, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 3900, y: 3500, w: 30, h: 30, kind: 'tree_stump' },
+
+    // Cabin 1: Jägar-stugan walls
+    { x: 3450, y: 2750, w: 220, h: 12, kind: 'cabin_wall_wood' },
+    { x: 3450, y: 2918, w: 90,  h: 12, kind: 'cabin_wall_wood' },
+    { x: 3590, y: 2918, w: 80,  h: 12, kind: 'cabin_wall_wood' },
+    { x: 3450, y: 2750, w: 12,  h: 180, kind: 'cabin_wall_wood' },
+    { x: 3658, y: 2750, w: 12,  h: 180, kind: 'cabin_wall_wood' },
+
+    // ========================================================================
+    // === NE SCRAP-YARD (5000-8000, 2000-4000) ===
+    // ========================================================================
+    { x: 5300, y: 2400,  w: 220, h: 80, kind: 'shipping_container', color: 'rust' },
+    { x: 5300, y: 2480,  w: 220, h: 80, kind: 'shipping_container', color: 'orange' },
+    { x: 5600, y: 2700,  w: 80,  h: 220, kind: 'shipping_container', color: 'blue' },
+    { x: 6100, y: 2300,  w: 220, h: 80, kind: 'shipping_container', color: 'green' },
+    { x: 6100, y: 2380,  w: 220, h: 80, kind: 'shipping_container', color: 'yellow' },
+    { x: 6500, y: 2600,  w: 80,  h: 220, kind: 'shipping_container', color: 'red' },
+    { x: 7000, y: 2800,  w: 220, h: 80, kind: 'shipping_container', color: 'rust' },
+    { x: 7300, y: 2400,  w: 220, h: 80, kind: 'shipping_container', color: 'blue' },
+    { x: 7500, y: 3500,  w: 80,  h: 220, kind: 'shipping_container', color: 'orange' },
+
+    { x: 5800, y: 3100, w: 130, h: 70, kind: 'burning_car' },
+    { x: 6300, y: 3300, w: 130, h: 70, kind: 'burning_car' },
+    { x: 7000, y: 3200, w: 200, h: 90, kind: 'burning_truck' },
+    { x: 5500, y: 3500, w: 110, h: 60, kind: 'car_wreck' },
+    { x: 6800, y: 3700, w: 110, h: 60, kind: 'car_wreck' },
+    { x: 7400, y: 2800, w: 110, h: 60, kind: 'car_wreck' },
+
+    { x: 6000, y: 2700, w: 120, h: 90, kind: 'excavator_wreck' },
+
+    { x: 7650, y: 2200, w: 70, h: 70, kind: 'hunting_tower' },
+
+    { x: 5700, y: 2350, w: 32, h: 32, kind: 'oil_drum' },
+    { x: 5700, y: 2600, w: 32, h: 32, kind: 'oil_drum' },
+    { x: 6400, y: 2950, w: 28, h: 28, kind: 'fire_drum' },
+    { x: 7200, y: 3400, w: 28, h: 28, kind: 'fire_drum' },
+    { x: 6700, y: 2400, w: 32, h: 32, kind: 'oil_drum' },
+
+    { x: 5400, y: 3000, w: 70, h: 50, kind: 'debris' },
+    { x: 6200, y: 2900, w: 60, h: 45, kind: 'debris' },
+    { x: 6900, y: 2600, w: 65, h: 50, kind: 'debris' },
+    { x: 7500, y: 3100, w: 70, h: 50, kind: 'debris' },
+
+    { x: 6600, y: 3000, w: 130, h: 70, kind: 'truck' },
+
+    { x: 5000, y: 2200, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 5050, y: 2800, w: 50, h: 50, kind: 'tree_pine' },
+    { x: 5000, y: 3500, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 7900, y: 3200, w: 50, h: 50, kind: 'tree_pine' },
+
+    { x: 5700, y: 3800, w: 80, h: 60, kind: 'rock_large' },
+    { x: 7100, y: 2200, w: 70, h: 50, kind: 'rock_large' },
+
+    // ========================================================================
+    // === CENTRAL VILLAGE (4000-6500, 4000-6500) ===
+    // ========================================================================
+    { x: 4750, y: 4650, w: 240, h: 12, kind: 'cabin_wall_wood' },
+    { x: 4750, y: 4838, w: 240, h: 12, kind: 'cabin_wall_wood' },
+    { x: 4750, y: 4650, w: 12,  h: 200, kind: 'cabin_wall_wood' },
+    { x: 4978, y: 4650, w: 12,  h: 80,  kind: 'cabin_wall_wood' },
+    { x: 4978, y: 4780, w: 12,  h: 70,  kind: 'cabin_wall_wood' },
+
+    { x: 5700, y: 4700, w: 260, h: 12, kind: 'cabin_wall_wood' },
+    { x: 5700, y: 4908, w: 260, h: 12, kind: 'cabin_wall_wood' },
+    { x: 5700, y: 4700, w: 12,  h: 110, kind: 'cabin_wall_wood' },
+    { x: 5700, y: 4860, w: 12,  h: 60,  kind: 'cabin_wall_wood' },
+    { x: 5948, y: 4700, w: 12,  h: 220, kind: 'cabin_wall_wood' },
+
+    { x: 5200, y: 5700, w: 120, h: 12, kind: 'cabin_wall_wood' },
+    { x: 5380, y: 5700, w: 100, h: 12, kind: 'cabin_wall_wood' },
+    { x: 5200, y: 5908, w: 280, h: 12, kind: 'cabin_wall_wood' },
+    { x: 5200, y: 5700, w: 12,  h: 220, kind: 'cabin_wall_wood' },
+    { x: 5468, y: 5700, w: 12,  h: 220, kind: 'cabin_wall_wood' },
+
+    { x: 5380, y: 5180, w: 50, h: 50, kind: 'well' },
+
+    { x: 5550, y: 5400, w: 80, h: 80, kind: 'haystack' },
+    { x: 5650, y: 5500, w: 60, h: 60, kind: 'haystack' },
+
+    { x: 4900, y: 5500, w: 70, h: 30, kind: 'woodpile' },
+    { x: 6000, y: 5550, w: 70, h: 30, kind: 'woodpile' },
+
+    { x: 4400, y: 4500, w: 200, h: 18, kind: 'stone_wall_low' },
+    { x: 6200, y: 4500, w: 200, h: 18, kind: 'stone_wall_low' },
+    { x: 4400, y: 6480, w: 200, h: 18, kind: 'stone_wall_low' },
+    { x: 6200, y: 6480, w: 200, h: 18, kind: 'stone_wall_low' },
+    { x: 5100, y: 4700, w: 18, h: 100, kind: 'stone_wall_low' },
+    { x: 5550, y: 4900, w: 100, h: 18, kind: 'stone_wall_low' },
+    { x: 5050, y: 5100, w: 18, h: 80,  kind: 'stone_wall_low' },
+
+    { x: 6000, y: 5400, w: 120, h: 12, kind: 'wooden_fence' },
+    { x: 6000, y: 5400, w: 12,  h: 100, kind: 'wooden_fence' },
+    { x: 6108, y: 5400, w: 12,  h: 100, kind: 'wooden_fence' },
+    { x: 6000, y: 5490, w: 120, h: 12, kind: 'wooden_fence' },
+
+    { x: 6200, y: 5700, w: 60, h: 50, kind: 'chicken_coop' },
+
+    { x: 4700, y: 5000, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 6100, y: 5000, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 5500, y: 6200, w: 70, h: 70, kind: 'tree_oak' },
+    { x: 5700, y: 6300, w: 55, h: 55, kind: 'tree_pine' },
+
+    { x: 5000, y: 5400, w: 70, h: 35, kind: 'picnic_table' },
+
+    { x: 6300, y: 4600, w: 60, h: 36, kind: 'dumpster_fire' },
+
+    // ========================================================================
+    // === EAST CAMPING (6500-8000, 4000-6500) ===
+    // ========================================================================
+    { x: 6700, y: 4400, w: 80,  h: 70, kind: 'tent', color: 'red' },
+    { x: 7100, y: 4700, w: 80,  h: 70, kind: 'tent', color: 'blue' },
+    { x: 7500, y: 5000, w: 80,  h: 70, kind: 'tent', color: 'green' },
+    { x: 6900, y: 5200, w: 80,  h: 70, kind: 'tent', color: 'orange' },
+
+    { x: 6900, y: 4700, w: 50, h: 50, kind: 'campfire' },
+    { x: 7300, y: 5300, w: 50, h: 50, kind: 'campfire' },
+
+    { x: 7400, y: 4200, w: 150, h: 80, kind: 'burning_caravan' },
+    { x: 6700, y: 6200, w: 150, h: 80, kind: 'burning_caravan' },
+
+    { x: 7000, y: 6000, w: 110, h: 55, kind: 'car_wreck' },
+    { x: 6900, y: 5650, w: 130, h: 70, kind: 'truck' },
+
+    { x: 6800, y: 5650, w: 240, h: 12, kind: 'cabin_wall_wood' },
+    { x: 6800, y: 5838, w: 100, h: 12, kind: 'cabin_wall_wood' },
+    { x: 6950, y: 5838, w: 90,  h: 12, kind: 'cabin_wall_wood' },
+    { x: 6800, y: 5650, w: 12,  h: 200, kind: 'cabin_wall_wood' },
+    { x: 7028, y: 5650, w: 12,  h: 200, kind: 'cabin_wall_wood' },
+
+    { x: 6550, y: 4200, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 6600, y: 6000, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 7800, y: 4300, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 7800, y: 5800, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 7200, y: 6400, w: 60, h: 60, kind: 'tree_oak' },
+
+    { x: 6600, y: 5500, w: 70, h: 50, kind: 'rock_large' },
+    { x: 7700, y: 5500, w: 50, h: 40, kind: 'rock_small' },
+
+    { x: 6750, y: 5400, w: 36, h: 60, kind: 'stairwell_door' },
+
+    { x: 7500, y: 6100, w: 220, h: 80, kind: 'shipping_container', color: 'rust' },
+
+    { x: 7650, y: 4700, w: 32, h: 32, kind: 'oil_drum' },
+    { x: 6800, y: 6400, w: 28, h: 28, kind: 'fire_drum' },
+
+    // ========================================================================
+    // === WEST LAKE (2000-4500, 5000-7500) ===
+    // ========================================================================
+    { x: 3100, y: 5650, w: 260, h: 12, kind: 'cabin_wall_wood' },
+    { x: 3100, y: 5838, w: 260, h: 12, kind: 'cabin_wall_wood' },
+    { x: 3100, y: 5650, w: 12,  h: 200, kind: 'cabin_wall_wood' },
+    { x: 3348, y: 5650, w: 12,  h: 100, kind: 'cabin_wall_wood' },
+    { x: 3348, y: 5805, w: 12,  h: 45,  kind: 'cabin_wall_wood' },
+
+    { x: 2800, y: 5950, w: 110, h: 50, kind: 'boat' },
+
+    { x: 3500, y: 6000, w: 200, h: 25, kind: 'bridge' },
+
+    { x: 2300, y: 5200, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 2700, y: 5100, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 3700, y: 5200, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 4100, y: 5300, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 2300, y: 7300, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 2700, y: 7300, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 3100, y: 7200, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 3700, y: 7100, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 4100, y: 7200, w: 60, h: 60, kind: 'tree_pine' },
+
+    { x: 3900, y: 6400, w: 80, h: 60, kind: 'rock_large' },
+    { x: 2400, y: 6700, w: 70, h: 50, kind: 'rock_large' },
+
+    { x: 3000, y: 7400, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 3800, y: 7500, w: 30, h: 30, kind: 'tree_stump' },
+
+    { x: 3000, y: 5870, w: 70, h: 30, kind: 'woodpile' },
+
+    { x: 2100, y: 6400, w: 80, h: 80, kind: 'cabin_wall_wood' },
+
+    // ========================================================================
+    // === SOUTH WILD (4500-8000, 6500-8000) ===
+    // ========================================================================
+    { x: 6150, y: 7250, w: 80,  h: 12, kind: 'cabin_wall_wood' },
+    { x: 6275, y: 7250, w: 75,  h: 12, kind: 'cabin_wall_wood' },
+    { x: 6150, y: 7418, w: 200, h: 12, kind: 'cabin_wall_wood' },
+    { x: 6150, y: 7250, w: 12,  h: 180, kind: 'cabin_wall_wood' },
+    { x: 6338, y: 7250, w: 12,  h: 180, kind: 'cabin_wall_wood' },
+
+    { x: 4700, y: 6700, w: 70, h: 70, kind: 'tree_oak' },
+    { x: 5000, y: 6800, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 5300, y: 6700, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 5700, y: 6900, w: 70, h: 70, kind: 'tree_pine' },
+    { x: 6000, y: 6750, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 6500, y: 6800, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 6800, y: 6900, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 7200, y: 6750, w: 70, h: 70, kind: 'tree_pine' },
+    { x: 7600, y: 6900, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 4700, y: 7100, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 5100, y: 7200, w: 70, h: 70, kind: 'tree_oak' },
+    { x: 5500, y: 7100, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 6500, y: 7200, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 6900, y: 7300, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 7300, y: 7200, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 7700, y: 7400, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 4800, y: 7500, w: 70, h: 70, kind: 'tree_oak' },
+    { x: 5200, y: 7600, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 5700, y: 7500, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 6500, y: 7700, w: 70, h: 70, kind: 'tree_pine' },
+    { x: 6900, y: 7650, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 7300, y: 7700, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 7700, y: 7650, w: 60, h: 60, kind: 'tree_oak' },
+
+    { x: 5300, y: 6900, w: 90, h: 70, kind: 'rock_large' },
+    { x: 6000, y: 7500, w: 80, h: 60, kind: 'rock_large' },
+    { x: 7500, y: 7100, w: 90, h: 70, kind: 'rock_large' },
+    { x: 4900, y: 7800, w: 70, h: 50, kind: 'rock_small' },
+    { x: 7100, y: 7800, w: 80, h: 60, kind: 'rock_large' },
+
+    { x: 5400, y: 7400, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 6600, y: 7000, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 7400, y: 7500, w: 30, h: 30, kind: 'tree_stump' },
+
+    { x: 6700, y: 7500, w: 50, h: 50, kind: 'campfire' },
+
+    { x: 5000, y: 7300, w: 130, h: 70, kind: 'car_wreck' },
   ],
 
-  // Decorations — visuella overlays (ej collision)
   decorations: [
-    // Stora skyltar (entré-zoner)
-    { kind: 'sign', x: 2900, y: 200, w: 200, h: 40, text: '☠ LAST HUNT ☠', bg: '#2a2a2a', fg: '#ffd54a' },
-    { kind: 'sign', x: 200,  y: 2900, w: 160, h: 30, text: 'SKROT-YARD', bg: '#3a2010', fg: '#ffaa30', rot: -0.05 },
-    { kind: 'sign', x: 5700, y: 2900, w: 160, h: 30, text: 'INDUSTRI', bg: '#1a1a3a', fg: '#88ccff', rot: 0.05 },
-    { kind: 'sign', x: 200,  y: 5750, w: 160, h: 30, text: 'KVARTERET', bg: '#3a1a1a', fg: '#ff8080', rot: -0.05 },
-    { kind: 'sign', x: 5700, y: 5750, w: 160, h: 30, text: 'BENSIN', bg: '#103030', fg: '#9affaa', rot: 0.05 },
+    // === SKOGSGOLV-PATCHES ===
+    { kind: 'forest_floor', x: 200,  y: 200,  w: 9600, h: 1700 }, // hela norra
+    { kind: 'forest_floor', x: 200,  y: 1900, w: 1800, h: 6200 }, // hela västra
+    { kind: 'forest_floor', x: 8000, y: 1900, w: 1800, h: 6200 }, // hela östra
+    { kind: 'forest_floor', x: 200,  y: 8100, w: 9600, h: 1700 }, // hela södra
+    { kind: 'forest_floor', x: 2300, y: 2500, w: 2500, h: 2200 }, // NW forest tät
+    { kind: 'forest_floor', x: 2300, y: 6500, w: 5600, h: 1500 }, // south wild
 
-    // Graffiti — atmosfär (4 zoner)
-    { kind: 'graffiti', x: 1500, y: 600, text: 'RUN OR DIE', color: '#ff3030', size: 30, rot: -0.1 },
-    { kind: 'graffiti', x: 4500, y: 600, text: 'NO SURVIVORS', color: '#ff5a3a', size: 28, rot: 0.08 },
-    { kind: 'graffiti', x: 1500, y: 5400, text: 'GAME OVER', color: '#5a5a5a', size: 32, rot: -0.05 },
-    { kind: 'graffiti', x: 4500, y: 5400, text: 'WINNER TAKES ALL', color: '#ffd54a', size: 24, rot: 0.05 },
-    { kind: 'graffiti', x: 3000, y: 2500, text: '☠ ZONE ☠', color: '#ff3030', size: 22, rot: 0 },
-    { kind: 'graffiti', x: 3000, y: 3500, text: 'LOOT HERE', color: '#ffd54a', size: 24, rot: 0 },
+    // === BYNS GRÄSPLÄNN ===
+    { kind: 'grass_open', x: 4400, y: 4400, w: 2100, h: 2100 },
 
-    // Lyktor i hörnen
-    { kind: 'lantern', x: 200,  y: 200,  color: '#ff7a3a' },
-    { kind: 'lantern', x: 5800, y: 200,  color: '#3a7aff' },
-    { kind: 'lantern', x: 200,  y: 5800, color: '#7a3aff' },
-    { kind: 'lantern', x: 5800, y: 5800, color: '#3aff7a' },
+    // === STIGAR (slingrar mellan zoner) ===
+    { kind: 'dirt_path', x: 2800, y: 4000, x2: 4400, y2: 4400, w: 35 },
+    { kind: 'dirt_path', x: 4400, y: 4400, x2: 5000, y2: 5000, w: 35 },
+    { kind: 'dirt_path', x: 6500, y: 5000, x2: 7000, y2: 5300, w: 35 },
+    { kind: 'dirt_path', x: 4400, y: 5500, x2: 3400, y2: 5700, w: 35 },
+    { kind: 'dirt_path', x: 5500, y: 6500, x2: 6200, y2: 7300, w: 35 },
+    { kind: 'dirt_path', x: 2500, y: 2800, x2: 3450, y2: 2900, w: 30 },
+    { kind: 'dirt_path', x: 1000, y: 5000, x2: 2200, y2: 5500, w: 30 }, // outer-w to lake
+    { kind: 'dirt_path', x: 1500, y: 2000, x2: 2400, y2: 2700, w: 30 }, // outer-nw to forest
 
-    // Parking lines på SE-parkeringen
-    { kind: 'parking_lines', x: 3550, y: 4000, count: 6, dir: 'h' },
-    { kind: 'parking_lines', x: 3550, y: 4400, count: 6, dir: 'h' },
+    // === SJÖN ===
+    { kind: 'lake_water', x: 2000, y: 6200, w: 1900, h: 1300 },
+    { kind: 'stream',     x: 3900, y: 6250, x2: 4400, y2: 6000, w: 22 },
+    { kind: 'stream',     x: 4400, y: 6000, x2: 5000, y2: 5700, w: 22 },
 
-    // Pölar (vatten under regn)
-    { kind: 'puddle', x: 1200, y: 1800, r: 70 },
-    { kind: 'puddle', x: 4500, y: 2200, r: 65 },
-    { kind: 'puddle', x: 1700, y: 4500, r: 80 },
-    { kind: 'puddle', x: 4300, y: 4700, r: 75 },
-    { kind: 'puddle', x: 3000, y: 3000, r: 55 },
+    // === FALLNA STOCKAR ===
+    { kind: 'fallen_log', x: 2500, y: 3500, w: 100, h: 18, rot: 0.3 },
+    { kind: 'fallen_log', x: 3700, y: 3100, w: 100, h: 18, rot: -0.4 },
+    { kind: 'fallen_log', x: 4200, y: 2600, w: 90,  h: 18, rot: 0.2 },
+    { kind: 'fallen_log', x: 5200, y: 6900, w: 100, h: 18, rot: 0.5 },
+    { kind: 'fallen_log', x: 6400, y: 7500, w: 110, h: 18, rot: -0.3 },
+    { kind: 'fallen_log', x: 7200, y: 7600, w: 90,  h: 18, rot: 0.4 },
+    { kind: 'fallen_log', x: 1500, y: 4500, w: 100, h: 18, rot: 0.3 }, // outer
+    { kind: 'fallen_log', x: 8800, y: 5500, w: 100, h: 18, rot: -0.2 }, // outer
+    { kind: 'fallen_log', x: 4000, y: 9100, w: 110, h: 18, rot: 0.4 }, // south outer
 
-    // Avloppsbrunnar
-    { kind: 'drain', x: 1000, y: 2000 },
-    { kind: 'drain', x: 4000, y: 1500 },
-    { kind: 'drain', x: 1500, y: 4500 },
-    { kind: 'drain', x: 4500, y: 4500 },
-    { kind: 'drain', x: 3000, y: 3000 },
+    // === BLOMMOR ===
+    { kind: 'flowers', x: 2450, y: 3000, count: 8 },
+    { kind: 'flowers', x: 2900, y: 3800, count: 6 },
+    { kind: 'flowers', x: 3600, y: 3400, count: 10 },
+    { kind: 'flowers', x: 4400, y: 3600, count: 7 },
+    { kind: 'flowers', x: 5000, y: 5400, count: 8 },
+    { kind: 'flowers', x: 5700, y: 5300, count: 6 },
+    { kind: 'flowers', x: 3100, y: 6900, count: 9 },
+    { kind: 'flowers', x: 5500, y: 6800, count: 7 },
+    { kind: 'flowers', x: 1100, y: 4500, count: 6 }, // outer
+    { kind: 'flowers', x: 8500, y: 5800, count: 7 }, // outer
+    { kind: 'flowers', x: 4500, y: 9100, count: 6 }, // south outer
 
-    // Övergivna shopping carts
-    { kind: 'shopping_cart', x: 1800, y: 1100 },
-    { kind: 'shopping_cart', x: 4300, y: 2800 },
-    { kind: 'shopping_cart', x: 900,  y: 4700 },
-    { kind: 'shopping_cart', x: 5100, y: 5200 },
+    // === SVAMPAR ===
+    { kind: 'mushrooms', x: 2700, y: 3300, count: 5 },
+    { kind: 'mushrooms', x: 3500, y: 3900, count: 6 },
+    { kind: 'mushrooms', x: 6300, y: 7200, count: 5 },
+    { kind: 'mushrooms', x: 7400, y: 7000, count: 4 },
+    { kind: 'mushrooms', x: 1000, y: 3000, count: 4 }, // outer
+    { kind: 'mushrooms', x: 9000, y: 4500, count: 5 }, // outer
 
-    // Övergivna väskor
-    { kind: 'abandoned_bag', x: 1300, y: 2300 },
-    { kind: 'abandoned_bag', x: 4700, y: 1700 },
-    { kind: 'abandoned_bag', x: 2100, y: 4900 },
-    { kind: 'abandoned_bag', x: 5400, y: 4200 },
+    // === KOTTAR ===
+    { kind: 'pine_cones', x: 3100, y: 2700, count: 7 },
+    { kind: 'pine_cones', x: 2700, y: 3700, count: 5 },
+    { kind: 'pine_cones', x: 6700, y: 7500, count: 6 },
+    { kind: 'pine_cones', x: 800,  y: 6500, count: 5 }, // outer
 
-    // Trash piles
-    { kind: 'trash_pile', x: 1600, y: 2700 },
-    { kind: 'trash_pile', x: 3700, y: 800 },
-    { kind: 'trash_pile', x: 2500, y: 5500 },
-    { kind: 'trash_pile', x: 5300, y: 5100 },
+    // === RÖK ===
+    { kind: 'smoke', x: 5865, y: 3090, scale: 1.5, color: 'dark' },
+    { kind: 'smoke', x: 6365, y: 3290, scale: 1.5, color: 'dark' },
+    { kind: 'smoke', x: 7100, y: 3180, scale: 2.2, color: 'dark' },
+    { kind: 'smoke', x: 7475, y: 4190, scale: 1.8, color: 'dark' },
+    { kind: 'smoke', x: 6775, y: 6190, scale: 1.8, color: 'dark' },
+    { kind: 'smoke', x: 6060, y: 2695, scale: 1.3, color: 'dark' },
+    { kind: 'smoke', x: 6414, y: 2940, scale: 0.8, color: 'light' },
+    { kind: 'smoke', x: 7214, y: 3390, scale: 0.8, color: 'light' },
+    { kind: 'smoke', x: 6814, y: 6390, scale: 0.8, color: 'light' },
+    { kind: 'smoke', x: 6925, y: 4725, scale: 0.9, color: 'light' },
+    { kind: 'smoke', x: 7325, y: 5325, scale: 0.9, color: 'light' },
+    { kind: 'smoke', x: 6725, y: 7525, scale: 0.9, color: 'light' },
+    { kind: 'smoke', x: 6330, y: 4618, scale: 0.7, color: 'light' },
 
-    // Rubble
-    { kind: 'rubble', x: 800,  y: 2600 },
-    { kind: 'rubble', x: 2800, y: 1900 },
-    { kind: 'rubble', x: 4900, y: 3000 },
-    { kind: 'rubble', x: 1500, y: 4700 },
+    // === VÄGSKYLT/TRÄSKYLT ===
+    { kind: 'sign_wooden', x: 4400, y: 4700, w: 80, h: 30, text: 'BYN →', color: '#5a3a18' },
+    { kind: 'sign_wooden', x: 6400, y: 4400, w: 80, h: 30, text: '← CAMP', color: '#3a5a8a' },
+    { kind: 'sign_wooden', x: 3400, y: 5500, w: 80, h: 30, text: 'SJÖN', color: '#3a7aa0' },
+    { kind: 'sign_wooden', x: 5000, y: 6600, w: 80, h: 30, text: 'WILD →', color: '#2a1a08' },
+    { kind: 'sign_wooden', x: 2000, y: 4400, w: 80, h: 30, text: 'JÄGAR-STUGAN →', color: '#5a3a18' },
+    { kind: 'sign_wooden', x: 5000, y: 2200, w: 80, h: 30, text: 'SCRAP-YARD ↑', color: '#3a1808' },
 
-    // Broken glass
-    { kind: 'broken_glass', x: 1100, y: 1100 },
-    { kind: 'broken_glass', x: 4400, y: 2400 },
-    { kind: 'broken_glass', x: 1800, y: 5100 },
-    { kind: 'broken_glass', x: 4600, y: 5300 },
+    // === GUNGDÄCK ===
+    { kind: 'tire_swing', x: 5540, y: 6280 },
 
-    // Traffic cones
-    { kind: 'traffic_cone', x: 3100, y: 3700 },
-    { kind: 'traffic_cone', x: 3140, y: 3720 },
-    { kind: 'traffic_cone', x: 2900, y: 5200 },
-    { kind: 'traffic_cone', x: 5100, y: 4900 },
+    // === TVÄTTLINOR ===
+    { kind: 'clothes_line', x: 4900, y: 4900, x2: 5000, y2: 4950 },
+    { kind: 'clothes_line', x: 3200, y: 5920, x2: 3300, y2: 5920 },
 
-    // Pallets
-    { kind: 'pallet', x: 1900, y: 2300 },
-    { kind: 'pallet', x: 4200, y: 1300 },
-    { kind: 'pallet', x: 2300, y: 4700 },
-    { kind: 'pallet', x: 5000, y: 5500 },
+    // === BREVLÅDOR ===
+    { kind: 'mailbox', x: 3430, y: 2950 },
+    { kind: 'mailbox', x: 4730, y: 4780 },
+    { kind: 'mailbox', x: 6780, y: 5700 },
+    { kind: 'mailbox', x: 3380, y: 5760 },
 
-    // Fire hydrants
-    { kind: 'fire_hydrant', x: 500,  y: 3300 },
-    { kind: 'fire_hydrant', x: 5400, y: 1300 },
-    { kind: 'fire_hydrant', x: 700,  y: 5500 },
-    { kind: 'fire_hydrant', x: 5400, y: 5500 },
+    // === TRÄDGÅRDSLAND ===
+    { kind: 'garden_patch', x: 6015, y: 5415, w: 90, h: 70 },
 
-    // Caution tape
-    { kind: 'caution_tape', x: 2200, y: 700, w: 100, rot: 0 },
-    { kind: 'caution_tape', x: 4500, y: 700, w: 100, rot: 0 },
+    // === LJUS LANTERS ===
+    { kind: 'lantern', x: 3535, y: 2920, color: '#ff9030' },
+    { kind: 'lantern', x: 4750, y: 4640, color: '#ff9030' },
+    { kind: 'lantern', x: 5700, y: 4690, color: '#ff9030' },
+    { kind: 'lantern', x: 5200, y: 5690, color: '#ff9030' },
+    { kind: 'lantern', x: 6790, y: 5650, color: '#ff9030' },
+    { kind: 'lantern', x: 3100, y: 5640, color: '#ff9030' },
+    { kind: 'lantern', x: 6140, y: 7240, color: '#ff9030' },
+
+    // === VASS ===
+    { kind: 'reeds', x: 3000, y: 6250, w: 200 },
+    { kind: 'reeds', x: 3500, y: 6350, w: 180 },
+    { kind: 'reeds', x: 2600, y: 6400, w: 150 },
+
+    // === NÄCKROSOR ===
+    { kind: 'lily_pad', x: 2700, y: 6800 },
+    { kind: 'lily_pad', x: 3200, y: 6700 },
+    { kind: 'lily_pad', x: 3500, y: 7000 },
+    { kind: 'lily_pad', x: 2900, y: 7100 },
+
+    // === DJURSPÅR ===
+    { kind: 'animal_track', x: 3300, y: 3600 },
+    { kind: 'animal_track', x: 5300, y: 7400 },
+    { kind: 'animal_track', x: 6400, y: 6800 },
+    { kind: 'animal_track', x: 1200, y: 6000 }, // outer
+
+    // === BUSKAR ===
+    { kind: 'bush', x: 2600, y: 3900 },
+    { kind: 'bush', x: 3300, y: 4200 },
+    { kind: 'bush', x: 4400, y: 3500 },
+    { kind: 'bush', x: 5800, y: 6500 },
+    { kind: 'bush', x: 7500, y: 6600 },
+    { kind: 'bush', x: 4900, y: 7300 },
+    { kind: 'bush', x: 1200, y: 3500 }, // outer
+    { kind: 'bush', x: 9000, y: 4500 }, // outer
+    { kind: 'bush', x: 7500, y: 9300 }, // outer
+    { kind: 'bush', x: 2500, y: 9400 }, // outer
+
+    // === CAUTION-TAPE ===
+    { kind: 'caution_tape', x: 5300, y: 3900, w: 200, rot: 0 },
+    { kind: 'caution_tape', x: 7500, y: 3900, w: 200, rot: 0 },
+
+    // === GRAFFITI ===
+    { kind: 'graffiti', x: 6000, y: 2600, text: 'NO RULES', color: '#ff3030', size: 30, rot: -0.1 },
+    { kind: 'graffiti', x: 7200, y: 3700, text: 'BURN IT ALL', color: '#ff5a3a', size: 26, rot: 0.05 },
+    { kind: 'graffiti', x: 5200, y: 4700, text: 'HOME', color: '#ffd54a', size: 28, rot: 0 },
+    { kind: 'graffiti', x: 3300, y: 6400, text: 'PARADISE', color: '#3aff5a', size: 24, rot: -0.05 },
+    { kind: 'graffiti', x: 6400, y: 7500, text: 'WILDLIFE', color: '#88ccff', size: 22, rot: 0.1 },
+    { kind: 'graffiti', x: 1000, y: 5000, text: 'BEYOND', color: '#aa3aff', size: 28, rot: -0.05 }, // outer mystery
+    { kind: 'graffiti', x: 9000, y: 5000, text: 'NO RETURN', color: '#5a5a5a', size: 30, rot: 0.05 }, // outer
+
+    // === SKYLT-LANDMARK ===
+    { kind: 'sign', x: 4900, y: 100, w: 200, h: 40, text: '☠ LAST HUNT ☠', bg: '#2a2a2a', fg: '#ffd54a' },
+    { kind: 'sign', x: 200, y: 4900, w: 160, h: 26, text: 'FOREST', bg: '#1a2a08', fg: '#aaff7a', rot: -0.05 },
+    { kind: 'sign', x: 8700, y: 3900, w: 160, h: 26, text: 'SCRAP', bg: '#3a1808', fg: '#ffaa30', rot: 0.05 },
   ],
 
-  // === LOOT-SPAWN-PUNKTER ===
-  // 80 spawn-punkter spridda över hela kartan. Server slumpar tier + typ vid match-start.
-  // Tier-tabell:
-  //   common (60%):   pistol-ammo (refill), small HP-pack (+30 HP)
-  //   uncommon (25%): smg/rifle/shotgun + ammo, armor-shard (+25 shield)
-  //   rare (12%):     bow/sniper/revolver, big HP-pack (+60 HP), big armor (+50 shield)
-  //   legendary (3%): minigun/rocket/plasma/sledge/railgun
-  // En "center"-spawn (i mid-torget) gör ALLTID legendary för att skapa kontestbar punkt.
   lootSpawns: [
-    // NW skrot-yard (20)
-    { x: 500,  y: 700  }, { x: 950,  y: 1050 }, { x: 1300, y: 800  },
-    { x: 1700, y: 1100 }, { x: 800,  y: 1400 }, { x: 1100, y: 1700 },
-    { x: 1500, y: 1900 }, { x: 2000, y: 1500 }, { x: 2400, y: 1700 },
-    { x: 700,  y: 2000 }, { x: 1300, y: 2200 }, { x: 1900, y: 2400 },
-    { x: 2300, y: 2200 }, { x: 700,  y: 2500 }, { x: 1500, y: 2600 },
-    { x: 2400, y: 2800 }, { x: 900,  y: 2800 }, { x: 2100, y: 600  },
-    { x: 1100, y: 600  }, { x: 600,  y: 1200 },
-    // NE industri (20)
-    { x: 3500, y: 800  }, { x: 4100, y: 600  }, { x: 4600, y: 950  },
-    { x: 5000, y: 1200 }, { x: 5500, y: 1400 }, { x: 3400, y: 1500 },
-    { x: 3900, y: 1500 }, { x: 4500, y: 1800 }, { x: 5200, y: 1700 },
-    { x: 3500, y: 2000 }, { x: 4000, y: 2200 }, { x: 4700, y: 2400 },
-    { x: 5300, y: 2200 }, { x: 3400, y: 2500 }, { x: 4200, y: 2800 },
-    { x: 4900, y: 2700 }, { x: 5500, y: 2700 }, { x: 3700, y: 700  },
-    { x: 4400, y: 1100 }, { x: 5100, y: 600  },
-    // SW bostäder (20)
-    { x: 700,  y: 3400 }, { x: 1200, y: 3300 }, { x: 1900, y: 3400 },
-    { x: 2500, y: 3600 }, { x: 600,  y: 3900 }, { x: 1500, y: 3900 },
-    { x: 2200, y: 3900 }, { x: 2800, y: 4000 }, { x: 800,  y: 4300 },
-    { x: 1700, y: 4400 }, { x: 2400, y: 4300 }, { x: 600,  y: 4700 },
-    { x: 1400, y: 4800 }, { x: 2100, y: 4900 }, { x: 2700, y: 5000 },
-    { x: 800,  y: 5200 }, { x: 1500, y: 5300 }, { x: 2300, y: 5400 },
-    { x: 700,  y: 5700 }, { x: 1900, y: 5700 },
-    // SE gas+parkering (20)
-    { x: 3300, y: 3500 }, { x: 4000, y: 3500 }, { x: 4700, y: 3500 },
-    { x: 5400, y: 3500 }, { x: 3300, y: 3900 }, { x: 5300, y: 3900 },
-    { x: 3600, y: 4500 }, { x: 4400, y: 4500 }, { x: 5200, y: 4500 },
-    { x: 3300, y: 4900 }, { x: 4100, y: 4900 }, { x: 4900, y: 4900 },
-    { x: 5500, y: 4900 }, { x: 3500, y: 5200 }, { x: 4700, y: 5300 },
-    { x: 5400, y: 5200 }, { x: 3900, y: 5600 }, { x: 4500, y: 5600 },
-    { x: 5100, y: 5700 }, { x: 5500, y: 4400 },
-    // CENTER (1 — alltid legendary)
-    { x: 3000, y: 3000 },
+    // OUTER WILDERNESS (12) — spread runt outer-ring
+    { x: 700,  y: 700  }, { x: 1500, y: 1300 }, { x: 2300, y: 700 },
+    { x: 5000, y: 800 }, { x: 7500, y: 700 }, { x: 9000, y: 1500 },
+    { x: 9200, y: 4000 }, { x: 9200, y: 6500 }, { x: 1000, y: 4500 },
+    { x: 1000, y: 7500 }, { x: 5000, y: 9200 }, { x: 8500, y: 9000 },
+    // NW FOREST (16)
+    { x: 2400, y: 2400 }, { x: 2700, y: 2600 }, { x: 3100, y: 2500 },
+    { x: 3500, y: 2600 }, { x: 3900, y: 2500 }, { x: 4200, y: 2700 },
+    { x: 2350, y: 3000 }, { x: 2800, y: 3200 }, { x: 3200, y: 3300 },
+    { x: 3600, y: 3100 }, { x: 4000, y: 3200 }, { x: 4400, y: 3000 },
+    { x: 2500, y: 3600 }, { x: 2900, y: 3700 }, { x: 3300, y: 3700 },
+    { x: 3700, y: 3900 },
+    // NE SCRAP-YARD (12)
+    { x: 5200, y: 2300 }, { x: 5700, y: 2250 }, { x: 6200, y: 2200 },
+    { x: 6700, y: 2350 }, { x: 7200, y: 2300 }, { x: 7700, y: 2400 },
+    { x: 5400, y: 2800 }, { x: 6000, y: 3000 }, { x: 6400, y: 2800 },
+    { x: 6900, y: 2700 }, { x: 7400, y: 2700 }, { x: 7500, y: 3200 },
+    // CENTRAL VILLAGE (12)
+    { x: 4500, y: 4600 }, { x: 4900, y: 4900 }, { x: 5300, y: 4700 },
+    { x: 5700, y: 4950 }, { x: 6100, y: 4700 }, { x: 6400, y: 4900 },
+    { x: 4600, y: 5300 }, { x: 5000, y: 5500 }, { x: 5500, y: 5200 },
+    { x: 6000, y: 5300 }, { x: 6300, y: 5500 }, { x: 4700, y: 6200 },
+    // EAST CAMPING (10)
+    { x: 6600, y: 4200 }, { x: 7000, y: 4400 }, { x: 7400, y: 4500 },
+    { x: 7700, y: 4700 }, { x: 6700, y: 4900 }, { x: 7200, y: 4900 },
+    { x: 7600, y: 5200 }, { x: 6800, y: 5400 }, { x: 7300, y: 5700 },
+    { x: 7700, y: 5900 },
+    // WEST LAKE (10)
+    { x: 2200, y: 5300 }, { x: 2600, y: 5500 }, { x: 3500, y: 5500 },
+    { x: 4000, y: 5700 }, { x: 2800, y: 6000 }, { x: 3500, y: 6150 },
+    { x: 4200, y: 6200 }, { x: 2400, y: 7000 }, { x: 3100, y: 7400 },
+    { x: 4200, y: 7400 },
+    // SOUTH WILD (8)
+    { x: 4700, y: 6900 }, { x: 5300, y: 7000 }, { x: 5800, y: 6900 },
+    { x: 6800, y: 7000 }, { x: 7400, y: 6900 }, { x: 5000, y: 7600 },
+    { x: 6500, y: 7500 }, { x: 7200, y: 7700 },
+    // CENTER (legendary lock) — village-torget
+    { x: 5400, y: 5180 },
   ],
 
-  // Loot-tier probabilities (om inte center-spawn).
-  // Justerat efter playtest: minskade common 60→45% (var skräp-spam), ökade
-  // uncommon 25→35% så fler får primärvapen. Legendary 3→5% (för rare annars).
   lootTiers: {
     common: 0.45,
     uncommon: 0.35,
@@ -409,16 +770,11 @@ const BATTLEROYALE_ARENA = {
     legendary: 0.05,
   },
 
-  // Vapen-pool per tier. User-curaterad lista — 10 vapen totalt + pistol som start:
-  //   Common/Uncommon ("inte rare"): burstpistol, smg/kpist, crossbow/armborst, boomerang
-  //   Rare ("mellan rare"): rifle/automatkarbin, sniper, flame/eldkastare, energysword
-  //   Legendary ("rare topp"): minigun, lightsaber/lasersvärd
-  // Pickups (hp/shield/ammo) blandas in i common+uncommon för balansering.
   lootByTier: {
     common: [
-      { kind: 'hp_small',     weight: 40 }, // +30 HP — primär common-roll
-      { kind: 'shield_small', weight: 20 }, // +25 shield
-      { kind: 'ammo',         weight: 15 }, // ammo-refill
+      { kind: 'hp_small',     weight: 40 },
+      { kind: 'shield_small', weight: 20 },
+      { kind: 'ammo',         weight: 15 },
       { kind: 'weapon', weaponId: 'burstpistol', weight: 10 },
       { kind: 'weapon', weaponId: 'smg',         weight: 10 },
       { kind: 'weapon', weaponId: 'boomerang',   weight: 5 },
@@ -432,32 +788,19 @@ const BATTLEROYALE_ARENA = {
       { kind: 'hp_small',                        weight: 5 },
     ],
     rare: [
-      { kind: 'weapon', weaponId: 'rifle',       weight: 25 }, // automatkarbin
+      { kind: 'weapon', weaponId: 'rifle',       weight: 25 },
       { kind: 'weapon', weaponId: 'sniper',      weight: 22 },
-      { kind: 'weapon', weaponId: 'flame',       weight: 20 }, // eldkastare
-      { kind: 'weapon', weaponId: 'energysword', weight: 15 }, // energisvärd
+      { kind: 'weapon', weaponId: 'flame',       weight: 20 },
+      { kind: 'weapon', weaponId: 'energysword', weight: 15 },
       { kind: 'hp_big',                          weight: 10 },
       { kind: 'shield_big',                      weight: 8 },
     ],
     legendary: [
       { kind: 'weapon', weaponId: 'minigun',    weight: 50 },
-      { kind: 'weapon', weaponId: 'lightsaber', weight: 50 }, // lasersvärd
+      { kind: 'weapon', weaponId: 'lightsaber', weight: 50 },
     ],
   },
 
-  // === ZONE-FASER ===
-  // Tid-baserade faser. Durations skaleras med matchDurationSec (5/10/15 min)
-  // så proportionerna är desamma. Faser baselade på 600s (10 min) som default.
-  //   Phase 0 (loot, 15%):    full zon, ingen damage
-  //   Phase 1 (shrink, 17%):  → 60% yta, dmg 1 hp/s utanför
-  //   Phase 2 (shrink, 17%):  → 30% yta, dmg 3 hp/s utanför
-  //   Phase 3 (shrink, 17%):  → 10% yta, dmg 8 hp/s utanför
-  //   Phase 4 (final, 34%):   5% statisk yta, dmg 15 hp/s utanför
-  // Zone centrum slumpas lätt mellan faser (±300 px) så slutspel inte alltid är samma plats.
-  // Phase-progression — durations relativa till matchDurationSec.
-  // Phase 0 har INGEN dmg så spelare hinner loota.
-  // Justerat efter balance-rapport: phase 1 dmg 1→2 (annars för svag straff).
-  // 5min match får snabbare loot-fas och kortare final via dynamic skalning i sim.
   phases: [
     { name: 'LOOT',     durationFrac: 0.15, areaFrac: 1.00, outsideDmg: 0  },
     { name: 'SHRINK 1', durationFrac: 0.17, areaFrac: 0.60, outsideDmg: 2  },
@@ -466,19 +809,15 @@ const BATTLEROYALE_ARENA = {
     { name: 'FINAL',    durationFrac: 0.34, areaFrac: 0.05, outsideDmg: 15 },
   ],
 
-  // Match-duration-val (sek) — klient visar dem som 5/10/15 min
   matchDurations: [300, 600, 900],
   defaultMatchDuration: 600,
   matchDurationLabels: ['⚡ 5 MIN', '🔥 10 MIN', '👑 15 MIN'],
 
-  // Spelare börjar med pistol (begränsad ammo) — tvingar dem att loota
   startWeapon: 'pistol',
   startHp: 100,
-  startShield: 0, // ingen shield från början — måste plockas
+  startShield: 0,
   maxHp: 100,
   maxShield: 100,
-
-  // Loot-pickup radie
   lootPickupRadius: 32,
 };
 
