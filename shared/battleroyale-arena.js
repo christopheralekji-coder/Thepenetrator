@@ -518,7 +518,7 @@ const BATTLEROYALE_ARENA = {
     { x: 6600, y: 5500, w: 70, h: 50, kind: 'rock_large' },
     { x: 7700, y: 5500, w: 50, h: 40, kind: 'rock_small' },
 
-    { x: 6750, y: 5400, w: 36, h: 60, kind: 'stairwell_door' },
+    // (stairwell_door borttagen — såg ut som dörr men var bara cover, förvirrande)
 
     { x: 7500, y: 6100, w: 220, h: 80, kind: 'shipping_container', color: 'rust' },
 
@@ -688,15 +688,8 @@ const BATTLEROYALE_ARENA = {
   ],
 
   decorations: [
-    // === SKOGSGOLV-PATCHES med varierade tints (forest har olika nyanser) ===
-    { kind: 'forest_floor', x: 200,  y: 200,  w: 9600, h: 1700, tint: 'dark_green' }, // hela norra
-    { kind: 'forest_floor', x: 200,  y: 1900, w: 1800, h: 3000, tint: 'mossy' },      // västra övre
-    { kind: 'forest_floor', x: 200,  y: 4900, w: 1800, h: 3200, tint: 'brown_leaf' }, // västra nedre (höstmark)
-    { kind: 'forest_floor', x: 8000, y: 1900, w: 1800, h: 3000, tint: 'mossy' },      // östra övre
-    { kind: 'forest_floor', x: 8000, y: 4900, w: 1800, h: 3200, tint: 'pine_needle' },// östra nedre
-    { kind: 'forest_floor', x: 200,  y: 8100, w: 9600, h: 1700, tint: 'dark_green' }, // hela södra
-    { kind: 'forest_floor', x: 2300, y: 2500, w: 2500, h: 2200, tint: 'pine_needle' },// NW forest tät
-    { kind: 'forest_floor', x: 2300, y: 6500, w: 5600, h: 1500, tint: 'mossy' },      // south wild
+    // (Skogsgolv ritas nu seamless via drawBrForestFloor() i klienten — inga
+    //  patches här eftersom det skapade fula raka kanter mellan tints.)
 
     // === BYNS GRÄSPLÄNN ===
     { kind: 'grass_open', x: 4400, y: 4400, w: 2100, h: 2100 },
@@ -1017,42 +1010,92 @@ const BATTLEROYALE_ARENA = {
   lootPickupRadius: 32,
 };
 
-// === FÖNSTER-PREPROCESSING ===
-// För varje cabin, generera fönster-walls (cabin_window) som blockerar movement
-// men släpper igenom bullets (via passThroughBullets-flag).
-// Processen körs EN GÅNG när modulen laddas så walls-arrayen utökas in-place.
-function preprocessCabinWindows(arena) {
-  if (arena._windowsProcessed) return;
-  arena._windowsProcessed = true;
-  for (const cabin of arena.cabins) {
-    if (!cabin.windows || !cabin.windows.length) continue;
-    const b = cabin.bounds;
-    for (const win of cabin.windows) {
-      // Räkna ut window-wall position baserat på side
-      let wx, wy, ww, wh;
-      const W = win.width || 40;
-      if (win.side === 'north') {
-        wx = b.x + (win.offset || 0); wy = b.y; ww = W; wh = 12;
-      } else if (win.side === 'south') {
-        wx = b.x + (win.offset || 0); wy = b.y + b.h - 12; ww = W; wh = 12;
-      } else if (win.side === 'east') {
-        wx = b.x + b.w - 12; wy = b.y + (win.offset || 0); ww = 12; wh = W;
-      } else if (win.side === 'west') {
-        wx = b.x; wy = b.y + (win.offset || 0); ww = 12; wh = W;
+// === CABIN-WALL PREPROCESSING ===
+// För varje cabin: TA BORT alla manuellt-skrivna cabin_wall_wood-segments
+// inom dess bounds, och REGENERERA väggarna med korrekta gaps för dörr OCH
+// fönster. Fönster-walls får passThroughBullets-flagga så bullets passerar.
+// Detta löser bug-v1.330 där bullets träffade gamla cabin-wall-segments
+// SOM FORTFARANDE FANNS bakom fönster-walls.
+function preprocessCabinWalls(arena) {
+  if (arena._cabinWallsProcessed) return;
+  arena._cabinWallsProcessed = true;
+  const T = 12; // wall-tjocklek
+  // Step 1: bygg en map över cabin-bounds + filtrera bort gamla cabin_wall_wood
+  // som ligger inom någon cabins bbox (med 5px buffer).
+  arena.walls = arena.walls.filter(w => {
+    if (w.kind !== 'cabin_wall_wood') return true;
+    for (const c of arena.cabins) {
+      const b = c.bounds;
+      if (w.x >= b.x - 6 && w.x + w.w <= b.x + b.w + 6 &&
+          w.y >= b.y - 6 && w.y + w.h <= b.y + b.h + 6) {
+        return false; // tillhör en cabin — ta bort, regenerera nedan
       }
-      // Lägg till fönster-wall: blockerar movement (kollar AABB normalt) men
-      // passThroughBullets gör att bulletHitsWall ignorerar denna.
-      arena.walls.push({
-        x: wx, y: wy, w: ww, h: wh,
-        kind: 'cabin_window',
-        passThroughBullets: true,
-        cabinId: cabin.id,
-      });
+    }
+    return true; // fri-stående cabin_wall_wood (typ fiskestuga) — behåll
+  });
+  // Step 2: regenerera 4 sidor per cabin med korrekta gaps
+  for (const cabin of arena.cabins) {
+    const b = cabin.bounds;
+    // Samla alla gaps per sida (dörrar + fönster)
+    const gaps = { north: [], south: [], east: [], west: [] };
+    if (cabin.door) {
+      gaps[cabin.door.side].push({ offset: cabin.door.offset, width: cabin.door.width, type: 'door' });
+    }
+    if (cabin.windows) {
+      for (const win of cabin.windows) {
+        gaps[win.side].push({ offset: win.offset, width: win.width, type: 'window' });
+      }
+    }
+    // För varje sida: sortera gaps och skapa wall-segments mellan dem
+    for (const side of ['north', 'south', 'east', 'west']) {
+      gaps[side].sort((a, b) => a.offset - b.offset);
+      // Sidans bbox
+      let sx, sy, isH, totalLen;
+      if (side === 'north') { sx = b.x; sy = b.y; isH = true; totalLen = b.w; }
+      else if (side === 'south') { sx = b.x; sy = b.y + b.h - T; isH = true; totalLen = b.w; }
+      else if (side === 'east') { sx = b.x + b.w - T; sy = b.y; isH = false; totalLen = b.h; }
+      else { sx = b.x; sy = b.y; isH = false; totalLen = b.h; }
+      // Iterera och bygg wall-segments
+      let cursor = 0;
+      for (const g of gaps[side]) {
+        // Wall-segment innan gap
+        if (g.offset > cursor) {
+          if (isH) {
+            arena.walls.push({ x: sx + cursor, y: sy, w: g.offset - cursor, h: T, kind: 'cabin_wall_wood' });
+          } else {
+            arena.walls.push({ x: sx, y: sy + cursor, w: T, h: g.offset - cursor, kind: 'cabin_wall_wood' });
+          }
+        }
+        // Fönster: lägg till cabin_window som BLOCKERAR movement men släpper igenom bullets
+        if (g.type === 'window') {
+          if (isH) {
+            arena.walls.push({
+              x: sx + g.offset, y: sy, w: g.width, h: T,
+              kind: 'cabin_window', passThroughBullets: true, cabinId: cabin.id,
+            });
+          } else {
+            arena.walls.push({
+              x: sx, y: sy + g.offset, w: T, h: g.width,
+              kind: 'cabin_window', passThroughBullets: true, cabinId: cabin.id,
+            });
+          }
+        }
+        // Door: ingen wall alls här (helt öppning)
+        cursor = g.offset + g.width;
+      }
+      // Sista segment efter sista gap
+      if (cursor < totalLen) {
+        if (isH) {
+          arena.walls.push({ x: sx + cursor, y: sy, w: totalLen - cursor, h: T, kind: 'cabin_wall_wood' });
+        } else {
+          arena.walls.push({ x: sx, y: sy + cursor, w: T, h: totalLen - cursor, kind: 'cabin_wall_wood' });
+        }
+      }
     }
   }
 }
 
-preprocessCabinWindows(BATTLEROYALE_ARENA);
+preprocessCabinWalls(BATTLEROYALE_ARENA);
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { BATTLEROYALE_ARENA };

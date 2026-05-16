@@ -2431,9 +2431,11 @@ function drawShippingContainer(x, y, w, h, colorKey, seed) {
   };
   const p = palette[colorKey] || palette.orange;
   const isHorizontal = w > h;
-  // Bas-skugga + body
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.fillRect(x + 3, y + 4, w, h);
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.96, w * 0.5, h * 0.13, 0, 0, Math.PI * 2);
+  ctx.fill();
   const grad = isHorizontal
     ? ctx.createLinearGradient(x, y, x, y + h)
     : ctx.createLinearGradient(x, y, x + w, y);
@@ -2536,10 +2538,10 @@ function drawShippingContainer(x, y, w, h, colorKey, seed) {
 function drawSilo(x, y, w, h, seed) {
   const cx = x + w / 2, cy = y + h / 2;
   const r = Math.min(w, h) / 2;
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
-  ctx.arc(cx + 3, cy + 4, r, 0, Math.PI * 2);
+  ctx.ellipse(cx, y + h * 0.95, r * 0.95, r * 0.22, 0, 0, Math.PI * 2);
   ctx.fill();
   // Bas-cylindern (radial-gradient så det ser ut som 3D-rör)
   const grad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
@@ -2604,9 +2606,11 @@ function drawSilo(x, y, w, h, seed) {
 
 // BUILDING — stort industrihus med tak-mönster, fönster, dörrar, antenn
 function drawBuilding(x, y, w, h, seed) {
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(x + 4, y + 6, w, h);
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.97, w * 0.52, h * 0.13, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Tak-färg (gradient: ljus → mörk för "uppifrån"-perspektiv)
   const grad = ctx.createLinearGradient(x, y, x + w, y + h);
   grad.addColorStop(0, '#6a605a');
@@ -2910,9 +2914,7 @@ function drawRock(x, y, w, h, seed, isLarge) {
 
 // STUGA-VÄGG TRÄ — planschstruktur med nitar
 function drawCabinWallWood(x, y, w, h, seed) {
-  // Minimal skugga (bara liten kant — wall är "marken-höjd")
-  ctx.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx.fillRect(x + 1, y + 1, w + 1, h + 1);
+  // (Ingen skugga — cabin walls är "marken-höjd")
   // Bas-färg (mörk-brun trä)
   const grad = w > h
     ? ctx.createLinearGradient(0, y, 0, y + h)
@@ -2958,9 +2960,11 @@ function drawCabinWallWood(x, y, w, h, seed) {
 // BRINNANDE BIL — bil-shape med eld i mitten
 function drawBurningCar(x, y, w, h, seed) {
   const cx = x + w / 2, cy = y + h / 2;
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(x + 3, y + 4, w, h);
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(cx, y + h * 0.95, w * 0.52, h * 0.14, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Förbrunnen kaross (mörk grå)
   const grad = ctx.createLinearGradient(x, y, x, y + h);
   grad.addColorStop(0, '#3a3028');
@@ -3003,9 +3007,11 @@ function drawBurningCar(x, y, w, h, seed) {
 
 // BRINNANDE LASTBIL — större version med släp
 function drawBurningTruck(x, y, w, h, seed) {
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(x + 4, y + 5, w, h);
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.95, w * 0.52, h * 0.15, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Hytt (vänster 30%)
   const cabW = w * 0.3;
   ctx.fillStyle = '#2a1810';
@@ -3050,9 +3056,11 @@ function drawBurningTruck(x, y, w, h, seed) {
 
 // BRINNANDE HUSVAGN — boxig, mörk, eld
 function drawBurningCaravan(x, y, w, h, seed) {
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(x + 3, y + 4, w, h);
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.94, w * 0.5, h * 0.14, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Kaross (vit-grå, sotat)
   const grad = ctx.createLinearGradient(x, y, x, y + h);
   grad.addColorStop(0, '#5a4a40');
@@ -3090,8 +3098,11 @@ function drawBurningCaravan(x, y, w, h, seed) {
 
 // GRÄVMASKIN-VRAK — gul/orange industri-fordon
 function drawExcavatorWreck(x, y, w, h, seed) {
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(x + 4, y + 5, w, h);
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.34)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.95, w * 0.52, h * 0.14, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Bas-larvband (svart)
   ctx.fillStyle = '#1a1408';
   ctx.fillRect(x, y + h * 0.7, w, h * 0.3);
@@ -3129,10 +3140,10 @@ function drawExcavatorWreck(x, y, w, h, seed) {
 // JAKTTORN — träplattform på pelare, uppifrån
 function drawHuntingTower(x, y, w, h, seed) {
   const cx = x + w / 2, cy = y + h / 2;
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
-  ctx.ellipse(cx + 3, cy + 5, w * 0.6, h * 0.55, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, y + h * 0.95, w * 0.5, h * 0.14, 0, 0, Math.PI * 2);
   ctx.fill();
   // Bas-platform (mörk-brun)
   ctx.fillStyle = '#3a2818';
@@ -3183,13 +3194,10 @@ function drawTent(x, y, w, h, color, seed) {
     orange: { main: '#a06028', dark: '#5a2810', stripe: '#e0a050' },
   };
   const p = palette[color] || palette.red;
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
   ctx.beginPath();
-  ctx.moveTo(x + w / 2, y + 2);
-  ctx.lineTo(x + w + 2, y + h);
-  ctx.lineTo(x - 2, y + h);
-  ctx.closePath();
+  ctx.ellipse(x + w / 2, y + h * 0.95, w * 0.5, h * 0.12, 0, 0, Math.PI * 2);
   ctx.fill();
   // Tält-form (triangel)
   ctx.fillStyle = p.main;
@@ -3246,10 +3254,10 @@ function drawTent(x, y, w, h, color, seed) {
 function drawWell(x, y, w, h, seed) {
   const cx = x + w / 2, cy = y + h / 2;
   const r = Math.min(w, h) / 2;
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
   ctx.beginPath();
-  ctx.arc(cx + 2, cy + 3, r, 0, Math.PI * 2);
+  ctx.ellipse(cx, y + h * 0.95, r * 0.95, r * 0.22, 0, 0, Math.PI * 2);
   ctx.fill();
   // Yttre stenring (mörkare)
   ctx.fillStyle = '#3a3028';
@@ -3301,10 +3309,10 @@ function drawWell(x, y, w, h, seed) {
 // HÖSTACK — gul oval med strå
 function drawHaystack(x, y, w, h, seed) {
   const cx = x + w / 2, cy = y + h / 2;
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.26)';
   ctx.beginPath();
-  ctx.ellipse(cx + 3, cy + 5, w * 0.55, h * 0.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, y + h * 0.94, w * 0.5, h * 0.13, 0, 0, Math.PI * 2);
   ctx.fill();
   // Bas (mörk gul-brun)
   const grad = ctx.createRadialGradient(cx, cy - h * 0.2, 5, cx, cy, w * 0.55);
@@ -3343,9 +3351,7 @@ function drawHaystack(x, y, w, h, seed) {
 
 // VEDSTAPEL — staplade bruna stockar
 function drawWoodpile(x, y, w, h, seed) {
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(x + 2, y + 3, w, h);
+  // (Ingen skugga — vedstapel ligger nära marken)
   // Bas (mörk-brun rektangel)
   ctx.fillStyle = '#3a2818';
   ctx.fillRect(x, y, w, h);
@@ -3383,9 +3389,7 @@ function drawWoodpile(x, y, w, h, seed) {
 
 // STENMUR — stora stenblock med fogar (low = lägre/kortare för "field-fence")
 function drawStoneWall(x, y, w, h, isLow) {
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(x + 2, y + 3, w, h);
+  // (Ingen skugga — mur är "marken-höjd")
   // Bas (mossigt grå)
   const grad = ctx.createLinearGradient(x, y, x, y + h);
   grad.addColorStop(0, '#7a7268');
@@ -3433,9 +3437,7 @@ function drawStoneWall(x, y, w, h, isLow) {
 
 // TRÄSTAKET — bruna plankor
 function drawWoodenFence(x, y, w, h) {
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.fillRect(x + 2, y + 3, w, h);
+  // (Ingen skugga — staket är "marken-höjd")
   // Bas (brun)
   ctx.fillStyle = '#5a3818';
   ctx.fillRect(x, y, w, h);
@@ -3462,8 +3464,11 @@ function drawWoodenFence(x, y, w, h) {
 
 // HÖNSBUR — liten träbur
 function drawChickenCoop(x, y, w, h, seed) {
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.fillRect(x + 2, y + 3, w, h);
+  // Minimal mjuk ellips-skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.96, w * 0.45, h * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Bas
   ctx.fillStyle = '#7a5828';
   ctx.fillRect(x, y, w, h);
@@ -3490,8 +3495,11 @@ function drawChickenCoop(x, y, w, h, seed) {
 
 // PICKNICKBORD — bord med bänkar
 function drawPicnicTable(x, y, w, h) {
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.fillRect(x + 2, y + 3, w, h);
+  // Minimal mjuk ellips-skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.95, w * 0.45, h * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Bord-bas (brun)
   ctx.fillStyle = '#7a5028';
   ctx.fillRect(x, y, w, h);
@@ -3516,10 +3524,10 @@ function drawPicnicTable(x, y, w, h) {
 function drawCampfire(x, y, w, h, seed) {
   const cx = x + w / 2, cy = y + h / 2;
   const r = Math.min(w, h) / 2;
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
   ctx.beginPath();
-  ctx.arc(cx + 2, cy + 4, r, 0, Math.PI * 2);
+  ctx.ellipse(cx, y + h * 0.95, r * 0.9, r * 0.22, 0, 0, Math.PI * 2);
   ctx.fill();
   // Stenring (mörk grå)
   ctx.fillStyle = '#3a3028';
@@ -3564,9 +3572,10 @@ function drawCampfire(x, y, w, h, seed) {
 
 // BÅT — liten roddbåt uppifrån
 function drawBoat(x, y, w, h, seed) {
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.26)';
   ctx.beginPath();
-  ctx.ellipse(x + w / 2 + 3, y + h / 2 + 4, w * 0.5, h * 0.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(x + w / 2, y + h * 0.95, w * 0.48, h * 0.13, 0, 0, Math.PI * 2);
   ctx.fill();
   // Båt-skrov (mörk-brun)
   ctx.fillStyle = '#3a1810';
@@ -3598,8 +3607,7 @@ function drawBoat(x, y, w, h, seed) {
 
 // BRO — trä-plankor över bäck
 function drawBridge(x, y, w, h) {
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(x + 2, y + 3, w, h);
+  // (Ingen skugga — bro är "marken-höjd")
   // Bas (mörk-brun)
   ctx.fillStyle = '#3a2818';
   ctx.fillRect(x, y, w, h);
@@ -3634,9 +3642,11 @@ function drawBridge(x, y, w, h) {
 
 // PLANE FUSELAGE — krashat flygkroppen
 function drawPlaneFuselage(x, y, w, h, seed) {
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(x + 5, y + 8, w, h);
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.36)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.96, w * 0.52, h * 0.15, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Bas (vit-grå metall med sotigt)
   const grad = ctx.createLinearGradient(x, y, x, y + h);
   grad.addColorStop(0, '#9aa0a8');
@@ -3693,8 +3703,11 @@ function drawPlaneFuselage(x, y, w, h, seed) {
 
 // PLANE WING — vinge
 function drawPlaneWing(x, y, w, h) {
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(x + 3, y + 4, w, h);
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.95, w * 0.5, h * 0.14, 0, 0, Math.PI * 2);
+  ctx.fill();
   const grad = ctx.createLinearGradient(x, y, x, y + h);
   grad.addColorStop(0, '#8a8e96');
   grad.addColorStop(1, '#5a5a60');
@@ -3723,8 +3736,11 @@ function drawPlaneWing(x, y, w, h) {
 
 // PLANE TAIL — vertikal stjärt
 function drawPlaneTail(x, y, w, h) {
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(x + 2, y + 3, w, h);
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.96, w * 0.5, h * 0.12, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.fillStyle = '#7a7a80';
   ctx.fillRect(x, y, w, h);
   // Röd stripe (airline-logo)
@@ -3738,9 +3754,11 @@ function drawPlaneTail(x, y, w, h) {
 // CHURCH RUIN — gotisk ruin med spira
 function drawChurchRuin(x, y, w, h, seed) {
   const cx = x + w / 2;
-  // Skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(x + 5, y + 8, w, h);
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.36)';
+  ctx.beginPath();
+  ctx.ellipse(cx, y + h * 0.97, w * 0.52, h * 0.13, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Bas (gamla stenar)
   const grad = ctx.createLinearGradient(x, y, x, y + h);
   grad.addColorStop(0, '#7a7268');
@@ -3819,8 +3837,11 @@ function drawChurchRuin(x, y, w, h, seed) {
 
 // GRAVESTONE — liten gravsten i kyrkogården
 function drawGravestone(x, y, w, h, seed) {
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(x + 1, y + 2, w, h);
+  // Minimal mjuk ellips-skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.97, w * 0.45, h * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Sten (avrundad topp)
   ctx.fillStyle = '#5a5048';
   ctx.beginPath();
@@ -3854,8 +3875,7 @@ function drawGravestone(x, y, w, h, seed) {
 
 // CLIFF EDGE — klippkanten över vattenfalls
 function drawCliffEdge(x, y, w, h, seed) {
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(x + 3, y + 4, w, h);
+  // (Ingen skugga — klippkant är "marken-höjd")
   // Klippa (mörkare grå)
   const grad = ctx.createLinearGradient(x, y, x, y + h);
   grad.addColorStop(0, '#5a5048');
@@ -3880,9 +3900,10 @@ function drawCliffEdge(x, y, w, h, seed) {
 // STANDING STONE — forntida menhir (del av stencirkel)
 function drawStandingStone(x, y, w, h, seed) {
   const cx = x + w / 2, cy = y + h / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
   ctx.beginPath();
-  ctx.ellipse(cx + 3, cy + 4, w * 0.45, h * 0.45, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, y + h * 0.96, w * 0.45, h * 0.12, 0, 0, Math.PI * 2);
   ctx.fill();
   // Avsmalnande triangular stone
   ctx.fillStyle = '#3a3028';
@@ -3923,9 +3944,10 @@ function drawStandingStone(x, y, w, h, seed) {
 // ALTAR STONE — centrum av stencirkel, mörk ritning
 function drawAltarStone(x, y, w, h) {
   const cx = x + w / 2, cy = y + h / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.32)';
   ctx.beginPath();
-  ctx.arc(cx + 3, cy + 5, w / 2, 0, Math.PI * 2);
+  ctx.ellipse(cx, y + h * 0.95, w * 0.48, h * 0.14, 0, 0, Math.PI * 2);
   ctx.fill();
   // Stenring (mörk)
   ctx.fillStyle = '#1a1408';
@@ -3962,8 +3984,11 @@ function drawAltarStone(x, y, w, h) {
 
 // PUMP-JACK OLJERIGG — animerad pump-arm
 function drawPumpJack(x, y, w, h) {
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(x + 4, y + 6, w, h);
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.34)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.97, w * 0.5, h * 0.13, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Bas-plattform (mörk-rost)
   ctx.fillStyle = '#3a2810';
   ctx.fillRect(x, y + h * 0.7, w, h * 0.3);
@@ -4009,9 +4034,10 @@ function drawPumpJack(x, y, w, h) {
 function drawLighthouse(x, y, w, h) {
   const cx = x + w / 2, cy = y + h / 2;
   const r = Math.min(w, h) / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.36)';
   ctx.beginPath();
-  ctx.arc(cx + 4, cy + 6, r, 0, Math.PI * 2);
+  ctx.ellipse(cx, y + h * 0.95, r * 0.95, r * 0.22, 0, 0, Math.PI * 2);
   ctx.fill();
   // Bas-cirkel (vit)
   ctx.fillStyle = '#e0e0e0';
@@ -4054,8 +4080,11 @@ function drawLighthouse(x, y, w, h) {
 
 // WOODEN BENCH — bänk utanför stuga
 function drawWoodenBench(x, y, w, h) {
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
-  ctx.fillRect(x + 1, y + 2, w, h);
+  // Minimal mjuk ellips-skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.2)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.98, w * 0.45, h * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Sittsäte (brun)
   ctx.fillStyle = '#7a5028';
   ctx.fillRect(x, y, w, h);
@@ -4077,9 +4106,10 @@ function drawWoodenBench(x, y, w, h) {
 // FLOWER POT — keramik-kruka med blommor
 function drawFlowerPot(x, y, w, h) {
   const cx = x + w / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  // Minimal mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
   ctx.beginPath();
-  ctx.ellipse(cx + 2, y + h + 1, w * 0.5, 3, 0, 0, Math.PI * 2);
+  ctx.ellipse(cx, y + h * 0.98, w * 0.4, h * 0.1, 0, 0, Math.PI * 2);
   ctx.fill();
   // Kruka (terrakotta)
   ctx.fillStyle = '#aa6030';
@@ -4116,8 +4146,11 @@ function drawFlowerPot(x, y, w, h) {
 
 // WAGON CART — övergiven varuvagn
 function drawWagonCart(x, y, w, h, seed) {
-  ctx.fillStyle = 'rgba(0,0,0,0.5)';
-  ctx.fillRect(x + 3, y + 4, w, h);
+  // Mjuk ellips-skugga (under objektet)
+  ctx.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx.beginPath();
+  ctx.ellipse(x + w / 2, y + h * 0.95, w * 0.5, h * 0.14, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Bottendelen (brun trä)
   ctx.fillStyle = '#5a3818';
   ctx.fillRect(x, y, w, h);
@@ -4230,8 +4263,11 @@ function drawTreeGiantOak(x, y, w, h, seed) {
 // RUNE STONE — gammal sten med runor
 function drawRuneStone(x, y, w, h, seed) {
   const cx = x + w / 2;
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(x + 2, y + 3, w, h);
+  // Minimal mjuk ellips-skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.26)';
+  ctx.beginPath();
+  ctx.ellipse(cx, y + h * 0.97, w * 0.45, h * 0.1, 0, 0, Math.PI * 2);
+  ctx.fill();
   // Bas (mörk-grå)
   const grad = ctx.createLinearGradient(x, y, x, y + h);
   grad.addColorStop(0, '#6a6058');
@@ -6805,32 +6841,57 @@ function drawBrLoot() {
 // BATTLE ROYALE — SKOG-KARTA decoration-render
 // ============================================================
 
-// GROUND-decorations: skogsgolv, gräs, stigar, sjö, bäck — RITAS UNDER walls
+// SEAMLESS SKOGSGOLV — fyller hela viewporten med per-tile noise.
+// Inga rektangulära patches → inga raka kanter mellan zoner.
+function drawBrForestFloor() {
+  if (!state.battleroyaleActive) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  ctx.fillStyle = '#1e2a14';
+  ctx.fillRect(0, 0, viewW, viewH);
+  const TILE = 180;
+  const startTx = Math.floor(state.camera.x / TILE);
+  const startTy = Math.floor(state.camera.y / TILE);
+  const endTx = Math.floor((state.camera.x + viewW) / TILE);
+  const endTy = Math.floor((state.camera.y + viewH) / TILE);
+  const tints = [
+    '#1a2a14', '#1e2a14', '#22301a', '#1c2818',
+    '#1e2c1a', '#1a2c18', '#202a16', '#1c2618',
+  ];
+  for (let ty = startTy; ty <= endTy; ty++) {
+    for (let tx = startTx; tx <= endTx; tx++) {
+      const seed = ((tx * 73) ^ (ty * 137)) | 0;
+      const tintIdx = ((seed >>> 0) >> 3) & 0x7;
+      ctx.fillStyle = tints[tintIdx];
+      const wx = tx * TILE - cx;
+      const wy = ty * TILE - cy;
+      ctx.fillRect(wx, wy, TILE, TILE);
+      const ox = ((seed * 23) & 0xff) / 256;
+      const oy = ((seed * 31) & 0xff) / 256;
+      const r = ((seed * 17) & 0x3f) + 18;
+      ctx.fillStyle = 'rgba(60, 100, 40, 0.18)';
+      ctx.beginPath();
+      ctx.ellipse(wx + ox * TILE, wy + oy * TILE, r, r * 0.55, 0, 0, Math.PI * 2);
+      ctx.fill();
+      if ((seed & 3) === 0) {
+        const lx = ((seed * 41) & 0xff) / 256;
+        const ly = ((seed * 53) & 0xff) / 256;
+        ctx.fillStyle = 'rgba(120, 80, 30, 0.14)';
+        ctx.beginPath();
+        ctx.ellipse(wx + lx * TILE, wy + ly * TILE, 24, 14, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+}
+
+// GROUND-decorations: stigar, sjö, bäck, gläntor, garden — RITAS UNDER walls
+// (forest_floor är legacy, hanteras av drawBrForestFloor — seamless tile-noise)
 function drawBrGroundDecorations(decos) {
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   ctx.save();
   for (const d of decos) {
     if (d.kind === 'forest_floor') {
-      const x = d.x - cx, y = d.y - cy;
-      if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
-      // Variant baserat på tint
-      let baseCol = '#1e2a14';
-      let speckCol = 'rgba(80, 110, 50, 0.18)';
-      if (d.tint === 'mossy')        { baseCol = '#1a2818'; speckCol = 'rgba(60, 110, 50, 0.25)'; }
-      else if (d.tint === 'brown_leaf') { baseCol = '#2a2010'; speckCol = 'rgba(120, 80, 30, 0.25)'; }
-      else if (d.tint === 'pine_needle') { baseCol = '#1a2010'; speckCol = 'rgba(50, 80, 30, 0.22)'; }
-      else if (d.tint === 'dark_green')  { baseCol = '#1e2a14'; speckCol = 'rgba(80, 110, 50, 0.18)'; }
-      ctx.fillStyle = baseCol;
-      ctx.fillRect(x, y, d.w, d.h);
-      ctx.fillStyle = speckCol;
-      const seed = ((d.x * 7) ^ (d.y * 13)) | 0;
-      for (let i = 0; i < 8; i++) {
-        const fx = x + ((seed * (i + 1) * 23) & 0x3ff) % d.w;
-        const fy = y + ((seed * (i + 3) * 17) & 0x3ff) % d.h;
-        ctx.beginPath();
-        ctx.ellipse(fx, fy, 30, 18, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
+      continue; // hanteras av drawBrForestFloor()
     } else if (d.kind === 'glade') {
       // Ljus glänta — ljusare gräs-cirkel där solljus tränger in
       const x = d.x - cx, y = d.y - cy;
@@ -7472,29 +7533,142 @@ function drawBrSmoke(decos) {
   ctx.restore();
 }
 
-// CABINS — toggle interior/roof baserat på spelar-pos
-function drawBrCabins() {
+// CABINS — splittas i två faser:
+//   drawBrCabinInteriors() — körs FÖRE player. Ritar golv + items i stugan jag är inne i,
+//     så spelaren ritas OVANPÅ golvet (inte under det).
+//   drawBrCabinRoofs() — körs EFTER player. Ritar tak ovanpå spelare för stugor jag är ute i
+//     (fog-of-war: fiende inne i stuga är dold för mig).
+//   drawCabinDoorMarker — ritas EFTER player. Markerar tydligt entré.
+
+// Helper: hämta cabin spelaren är inne i (eller null)
+function _brCabinPlayerIsIn() {
+  if (!state.battleroyaleCabins || !state.player) return null;
+  const px = state.player.x, py = state.player.y;
+  for (const cabin of state.battleroyaleCabins) {
+    const b = cabin.bounds;
+    if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) return cabin;
+  }
+  return null;
+}
+
+// Körs FÖRE player — ritar BARA golvet i stugan jag är inne i (om någon)
+function drawBrCabinInteriors() {
+  const cabin = _brCabinPlayerIsIn();
+  if (!cabin) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const b = cabin.bounds;
+  const sx = b.x - cx, sy = b.y - cy;
+  ctx.save();
+  drawCabinInterior(cabin, sx, sy, cx, cy);
+  ctx.restore();
+}
+
+// Körs EFTER player — ritar tak för alla stugor jag INTE är inne i (fog-of-war)
+function drawBrCabinRoofs() {
   if (!state.battleroyaleCabins || !state.battleroyaleCabins.length) return;
   if (!state.player) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const px = state.player.x, py = state.player.y;
   ctx.save();
   for (const cabin of state.battleroyaleCabins) {
     const b = cabin.bounds;
     const sx = b.x - cx, sy = b.y - cy;
-    // Viewport-cull
     if (sx + b.w < -50 || sx > viewW + 50 || sy + b.h < -50 || sy > viewH + 50) continue;
-    // Är JAG inne i denna stuga? (player.x/y inom bounds)
-    const px = state.player.x, py = state.player.y;
     const iAmInside = px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h;
-    if (iAmInside) {
-      // Rita INTERIÖR (golvfärg + interior items)
-      drawCabinInterior(cabin, sx, sy, cx, cy);
-    } else {
-      // Rita TAK ovanpå (döljer interior + spelare som är inne)
+    if (!iAmInside) {
       drawCabinRoof(cabin, sx, sy);
     }
+    // Dörrmarkör för ALLA stugor (även den jag är inne i — så jag ser entréerna)
+    drawCabinDoorMarker(cabin, sx, sy);
   }
   ctx.restore();
+}
+
+// Bakåtkompatibilitet — använd inte direkt, anropa drawBrCabinInteriors + drawBrCabinRoofs
+function drawBrCabins() {
+  drawBrCabinInteriors();
+  drawBrCabinRoofs();
+}
+
+// DÖRR-MARKÖR — tydlig entré: dörrmatta + arrow + hängande lampa
+function drawCabinDoorMarker(cabin, sx, sy) {
+  if (!cabin.door) return;
+  const b = cabin.bounds;
+  const door = cabin.door;
+  // Räkna ut dörr-positionen (yttre kant + matta utåt)
+  const T = 12; // wall-tjocklek
+  let dx, dy, dw, dh; // door-rektangel
+  let outX, outY; // matta-position UTANFÖR dörren
+  let mw, mh; // matta-storlek
+  if (door.side === 'north') {
+    dx = sx + door.offset; dy = sy; dw = door.width; dh = T;
+    outX = dx; outY = dy - 24; mw = door.width; mh = 18;
+  } else if (door.side === 'south') {
+    dx = sx + door.offset; dy = sy + b.h - T; dw = door.width; dh = T;
+    outX = dx; outY = dy + T + 6; mw = door.width; mh = 18;
+  } else if (door.side === 'east') {
+    dx = sx + b.w - T; dy = sy + door.offset; dw = T; dh = door.width;
+    outX = dx + T + 6; outY = dy; mw = 18; mh = door.width;
+  } else { // west
+    dx = sx; dy = sy + door.offset; dw = T; dh = door.width;
+    outX = dx - 24; outY = dy; mw = 18; mh = door.width;
+  }
+  // 1. Dörrmatta utanför (brun rektangel med "WELCOME"-look)
+  ctx.fillStyle = '#5a3018';
+  ctx.fillRect(outX, outY, mw, mh);
+  ctx.fillStyle = '#7a4828';
+  ctx.fillRect(outX + 2, outY + 2, mw - 4, mh - 4);
+  // Trådmönster
+  ctx.strokeStyle = '#3a2010';
+  ctx.lineWidth = 0.6;
+  for (let i = 4; i < mw; i += 4) {
+    ctx.beginPath();
+    ctx.moveTo(outX + i, outY + 2); ctx.lineTo(outX + i, outY + mh - 2);
+    ctx.stroke();
+  }
+  for (let i = 4; i < mh; i += 4) {
+    ctx.beginPath();
+    ctx.moveTo(outX + 2, outY + i); ctx.lineTo(outX + mw - 2, outY + i);
+    ctx.stroke();
+  }
+  // Yttre kant
+  ctx.strokeStyle = '#1a0e04';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(outX + 0.5, outY + 0.5, mw - 1, mh - 1);
+  // 2. Visuell dörr (öppen — visa trä-ram + svart inre)
+  ctx.fillStyle = '#1a0e04';
+  ctx.fillRect(dx, dy, dw, dh);
+  // Trä-ram runt
+  ctx.strokeStyle = '#5a3018';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(dx + 0.5, dy + 0.5, dw - 1, dh - 1);
+  // 3. Pulserande gul pil + "DÖRR"-text ovanför mattan
+  const t = performance.now() / 1000;
+  const pulse = 0.7 + Math.sin(t * 3) * 0.3;
+  ctx.fillStyle = 'rgba(255, 213, 74, ' + pulse + ')';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  // Pil pekar mot dörren
+  let arrowChar = '↓';
+  if (door.side === 'south') arrowChar = '↑';
+  else if (door.side === 'east') arrowChar = '←';
+  else if (door.side === 'west') arrowChar = '→';
+  // Position för pil (lite ut från mattan)
+  let arrX, arrY;
+  if (door.side === 'north') { arrX = outX + mw / 2; arrY = outY - 8; }
+  else if (door.side === 'south') { arrX = outX + mw / 2; arrY = outY + mh + 8; }
+  else if (door.side === 'east') { arrX = outX + mw + 10; arrY = outY + mh / 2; }
+  else { arrX = outX - 10; arrY = outY + mh / 2; }
+  // Bakgrund för text-läsbarhet
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.beginPath();
+  ctx.arc(arrX, arrY, 9, 0, Math.PI * 2);
+  ctx.fill();
+  // Pil
+  ctx.fillStyle = 'rgba(255, 213, 74, ' + pulse + ')';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText(arrowChar, arrX, arrY);
 }
 
 function drawCabinInterior(cabin, sx, sy, cx, cy) {
@@ -36294,10 +36468,15 @@ function render() {
   drawEnvironment();
   // CTF: team-tinted floor halves + walls + flag-stands UNDER allt annat
   if (state.ctfActive) drawCtfArenaFloor();
-  // BR: skogsgolv + sjö + stigar + gläntor RITAS TIDIGT (innan player/entities)
-  // annars täcker forest_floor hela skärmen och spelaren blir osynlig.
-  if (state.battleroyaleActive && state.battleroyaleDecorations) {
-    drawBrGroundDecorations(state.battleroyaleDecorations);
+  // BR: seamless skogsgolv FÖRST + ovanpå sjö/stigar/gläntor + cabin-INTERIOR
+  // (alla ritas FÖRE player så spelaren ses OVANPÅ marken/golvet)
+  if (state.battleroyaleActive) {
+    drawBrForestFloor();
+    if (state.battleroyaleDecorations) {
+      drawBrGroundDecorations(state.battleroyaleDecorations);
+    }
+    // Cabin-INTERIOR (golv + items för stugan jag är inne i) — under player
+    if (typeof drawBrCabinInteriors === 'function') drawBrCabinInteriors();
   }
   drawHazards();
   drawCollectibles();
@@ -36407,8 +36586,8 @@ function render() {
     if (state.battleroyaleDecorations && state.battleroyaleDecorations.length) {
       drawBrTopDecorations(state.battleroyaleDecorations);
     }
-    // 4. Stugor: tak ovanpå om jag är UTE, interior om jag är INNE
-    drawBrCabins();
+    // 4. Stugor: bara TAK + dörrmarkör (interior + golv ritades FÖRE player)
+    drawBrCabinRoofs();
     // 5. Rök ovanpå allt (atmosphere)
     if (state.battleroyaleDecorations && state.battleroyaleDecorations.length) {
       drawBrSmoke(state.battleroyaleDecorations);
