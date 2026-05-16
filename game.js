@@ -1000,8 +1000,30 @@ function drawPvpWalls(walls) {
   for (const w of walls) {
     const x = w.x - cx, y = w.y - cy;
     if (x + w.w < -20 || x > viewW + 20 || y + w.h < -20 || y > viewH + 20) continue;
-    // Drop-shadow för depth (ej för low dividers eller pipes som ligger på marken)
-    if (w.kind !== 'pipe' && w.kind !== 'wall_divider') {
+    // Drop-shadow för depth (ej för low dividers eller pipes som ligger på marken).
+    // EXKLUDERA alla BR-skog-walls + landmark-walls som har EGEN mjuk ellips-skugga
+    // (annars får man dubbel-skugga: gammal fyrkantig + ny rund).
+    const _brHasOwnShadow = (
+      w.kind === 'tree_oak' || w.kind === 'tree_pine' || w.kind === 'tree_stump' ||
+      w.kind === 'tree_giant_oak' ||
+      w.kind === 'rock_large' || w.kind === 'rock_small' ||
+      w.kind === 'cabin_wall_wood' || w.kind === 'cabin_window' ||
+      w.kind === 'burning_car' || w.kind === 'burning_truck' || w.kind === 'burning_caravan' ||
+      w.kind === 'excavator_wreck' || w.kind === 'hunting_tower' ||
+      w.kind === 'tent' || w.kind === 'well' || w.kind === 'haystack' ||
+      w.kind === 'woodpile' || w.kind === 'stone_wall' || w.kind === 'stone_wall_low' ||
+      w.kind === 'wooden_fence' || w.kind === 'chicken_coop' || w.kind === 'picnic_table' ||
+      w.kind === 'campfire' || w.kind === 'boat' || w.kind === 'bridge' ||
+      w.kind === 'plane_fuselage' || w.kind === 'plane_wing' || w.kind === 'plane_tail' ||
+      w.kind === 'church_ruin' || w.kind === 'cemetery_gravestone' ||
+      w.kind === 'cliff_edge' || w.kind === 'standing_stone' || w.kind === 'altar_stone' ||
+      w.kind === 'pump_jack' || w.kind === 'lighthouse' ||
+      w.kind === 'wooden_bench' || w.kind === 'flower_pot' ||
+      w.kind === 'wagon_cart' || w.kind === 'rune_stone' ||
+      w.kind === 'shipping_container' || w.kind === 'silo' || w.kind === 'building' ||
+      w.kind === 'lake_water_block'
+    );
+    if (w.kind !== 'pipe' && w.kind !== 'wall_divider' && !_brHasOwnShadow) {
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
       ctx.fillRect(x + 2, y + Math.max(3, w.h * 0.06), w.w, w.h);
     }
@@ -1079,6 +1101,7 @@ function drawPvpWalls(walls) {
     else if (w.kind === 'tree_giant_oak') drawTreeGiantOak(x, y, w.w, w.h, seed);
     else if (w.kind === 'rune_stone') drawRuneStone(x, y, w.w, w.h, seed);
     else if (w.kind === 'cabin_window') drawCabinWindow(x, y, w.w, w.h);
+    else if (w.kind === 'lake_water_block') { /* osynlig collision-wall — render hanteras av lake_water_polygon decoration */ }
     else { ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x, y, w.w, w.h); }
   }
   ctx.restore();
@@ -6636,8 +6659,40 @@ function drawBrOutsideWarning() {
 // BATTLE ROYALE — shrinking safe-zone + next-zone preview + outside-red-tint
 function drawBrZone() {
   if (!state.battleroyaleZone) return;
+  // SMOOTH INTERPOLATION: server skickar zone-state ~1Hz vilket gör att zonen
+  // hoppar abrupt mellan frames. Lerp:a render-zone mot target-zone så det blir
+  // mjukt även när server-uppdateringar kommer sällan.
+  if (!state.battleroyaleZoneRender) {
+    state.battleroyaleZoneRender = { x: state.battleroyaleZone.x, y: state.battleroyaleZone.y, r: state.battleroyaleZone.r };
+  }
+  if (!state.battleroyaleNextZoneRender && state.battleroyaleNextZone) {
+    state.battleroyaleNextZoneRender = { x: state.battleroyaleNextZone.x, y: state.battleroyaleNextZone.y, r: state.battleroyaleNextZone.r };
+  }
+  const r = state.battleroyaleZoneRender;
+  const target = state.battleroyaleZone;
+  const lerp = 0.12; // smooth-faktor per frame (~60Hz → ~7% step/frame)
+  r.x += (target.x - r.x) * lerp;
+  r.y += (target.y - r.y) * lerp;
+  r.r += (target.r - r.r) * lerp;
+  // Snap om mycket nära target (undviker eviga mikro-rörelser)
+  if (Math.abs(target.x - r.x) < 0.5) r.x = target.x;
+  if (Math.abs(target.y - r.y) < 0.5) r.y = target.y;
+  if (Math.abs(target.r - r.r) < 0.5) r.r = target.r;
+  // Next-zone också
+  if (state.battleroyaleNextZone) {
+    if (!state.battleroyaleNextZoneRender) {
+      state.battleroyaleNextZoneRender = { x: state.battleroyaleNextZone.x, y: state.battleroyaleNextZone.y, r: state.battleroyaleNextZone.r };
+    }
+    const nr = state.battleroyaleNextZoneRender;
+    const nt = state.battleroyaleNextZone;
+    nr.x += (nt.x - nr.x) * lerp;
+    nr.y += (nt.y - nr.y) * lerp;
+    nr.r += (nt.r - nr.r) * lerp;
+  } else {
+    state.battleroyaleNextZoneRender = null;
+  }
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
-  const z = state.battleroyaleZone;
+  const z = r; // använd render-zone (lerpad)
   const sx = z.x - cx, sy = z.y - cy;
   const t = performance.now() / 1000;
   ctx.save();
@@ -6659,8 +6714,8 @@ function drawBrZone() {
     ctx.fill();
   }
   // 2. Next-zone preview (gold dashed circle) — warning-fas, INGEN shadowBlur
-  if (state.battleroyaleNextZone) {
-    const nz = state.battleroyaleNextZone;
+  if (state.battleroyaleNextZoneRender) {
+    const nz = state.battleroyaleNextZoneRender;
     const nsx = nz.x - cx, nsy = nz.y - cy;
     ctx.strokeStyle = '#ffd54a';
     ctx.lineWidth = 3;
@@ -6841,43 +6896,52 @@ function drawBrLoot() {
 // BATTLE ROYALE — SKOG-KARTA decoration-render
 // ============================================================
 
-// SEAMLESS SKOGSGOLV — fyller hela viewporten med per-tile noise.
-// Inga rektangulära patches → inga raka kanter mellan zoner.
+// SEAMLESS SKOGSGOLV — solid bas + overlappande organiska blobs SPILLAR över
+// tile-grenser. Inga synliga rektangulära tile-edges.
 function drawBrForestFloor() {
   if (!state.battleroyaleActive) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  // 1. Solid bas över hela viewporten
   ctx.fillStyle = '#1e2a14';
   ctx.fillRect(0, 0, viewW, viewH);
-  const TILE = 180;
-  const startTx = Math.floor(state.camera.x / TILE);
-  const startTy = Math.floor(state.camera.y / TILE);
-  const endTx = Math.floor((state.camera.x + viewW) / TILE);
-  const endTy = Math.floor((state.camera.y + viewH) / TILE);
-  const tints = [
-    '#1a2a14', '#1e2a14', '#22301a', '#1c2818',
-    '#1e2c1a', '#1a2c18', '#202a16', '#1c2618',
+  // 2. Stora overlappande organiska blobs. Deterministisk position per "anchor tile"
+  //    men radien är så stor att blobs SPILLAR över tile-grenser → ingen synlig grid.
+  const ANCHOR = 250; // anchor-spacing
+  const startAx = Math.floor(state.camera.x / ANCHOR) - 1;
+  const startAy = Math.floor(state.camera.y / ANCHOR) - 1;
+  const endAx = Math.floor((state.camera.x + viewW) / ANCHOR) + 1;
+  const endAy = Math.floor((state.camera.y + viewH) / ANCHOR) + 1;
+  // Palette of soft overlay-färger (alla semi-transparenta så de blendar)
+  const palette = [
+    'rgba(40, 70, 30, 0.32)',    // mörkare grön
+    'rgba(70, 105, 40, 0.22)',   // ljusare grön
+    'rgba(55, 85, 30, 0.28)',    // mid grön
+    'rgba(100, 70, 30, 0.18)',   // brunlöv
+    'rgba(60, 90, 40, 0.25)',    // mossy
+    'rgba(45, 75, 25, 0.30)',    // mörk mossy
+    'rgba(80, 110, 50, 0.20)',   // ljus grön
+    'rgba(35, 60, 25, 0.30)',    // djup-grön
   ];
-  for (let ty = startTy; ty <= endTy; ty++) {
-    for (let tx = startTx; tx <= endTx; tx++) {
-      const seed = ((tx * 73) ^ (ty * 137)) | 0;
-      const tintIdx = ((seed >>> 0) >> 3) & 0x7;
-      ctx.fillStyle = tints[tintIdx];
-      const wx = tx * TILE - cx;
-      const wy = ty * TILE - cy;
-      ctx.fillRect(wx, wy, TILE, TILE);
-      const ox = ((seed * 23) & 0xff) / 256;
-      const oy = ((seed * 31) & 0xff) / 256;
-      const r = ((seed * 17) & 0x3f) + 18;
-      ctx.fillStyle = 'rgba(60, 100, 40, 0.18)';
-      ctx.beginPath();
-      ctx.ellipse(wx + ox * TILE, wy + oy * TILE, r, r * 0.55, 0, 0, Math.PI * 2);
-      ctx.fill();
-      if ((seed & 3) === 0) {
-        const lx = ((seed * 41) & 0xff) / 256;
-        const ly = ((seed * 53) & 0xff) / 256;
-        ctx.fillStyle = 'rgba(120, 80, 30, 0.14)';
+  for (let ay = startAy; ay <= endAy; ay++) {
+    for (let ax = startAx; ax <= endAx; ax++) {
+      const seed = ((ax * 73) ^ (ay * 137)) | 0;
+      // 1-2 blobs per anchor
+      const blobsHere = 1 + ((seed >> 2) & 1);
+      for (let i = 0; i < blobsHere; i++) {
+        const subSeed = (seed * (i + 7)) | 0;
+        // Position: anchor + offset upp till 1.5x anchor-spacing (så blobs spillar)
+        const ox = ((subSeed * 23) & 0xff) / 256;
+        const oy = ((subSeed * 31) & 0xff) / 256;
+        const bx = ax * ANCHOR + ox * ANCHOR - cx;
+        const by = ay * ANCHOR + oy * ANCHOR - cy;
+        // Radie: 100-200px så blobs DEFINITIVT överlappar grannblobs
+        const r = 100 + ((subSeed * 17) & 0x7f);
+        const colorIdx = (subSeed >>> 0) & 0x7;
+        ctx.fillStyle = palette[colorIdx];
         ctx.beginPath();
-        ctx.ellipse(wx + lx * TILE, wy + ly * TILE, 24, 14, 0, 0, Math.PI * 2);
+        // Lätt elliptisk för organisk look
+        const aspectVar = 0.7 + (((subSeed * 11) & 0xff) / 256) * 0.4;
+        ctx.ellipse(bx, by, r, r * aspectVar, 0, 0, Math.PI * 2);
         ctx.fill();
       }
     }
@@ -14394,7 +14458,9 @@ const Coop = {
       state.battleroyalePhase = ev.currentPhase || 0;
       state.battleroyalePhases = ev.phases || [];
       state.battleroyaleZone = ev.zone || { x: 3000, y: 3000, r: 1000 };
+      state.battleroyaleZoneRender = null; // reset så lerp startar från ny target
       state.battleroyaleNextZone = null;
+      state.battleroyaleNextZoneRender = null;
       state.battleroyaleAliveCount = ev.aliveCount || 0;
       state.battleroyaleMatchEndAt = ev.matchEndAt || (Date.now() + 600000);
       state.battleroyalePhaseEndAt = ev.phaseEndAt || 0;

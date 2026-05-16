@@ -240,6 +240,174 @@ const BATTLEROYALE_ARENA = {
     { x: 0,    y: 0,    w: 20,    h: 10000, kind: 'stone_wall' },
     { x: 9980, y: 0,    w: 20,    h: 10000, kind: 'stone_wall' },
 
+    // ========================================================================
+    // === EXTRA OUTER-CONTENT (v1.332) — utfyll alla 4 hörn + outer-ring ===
+    // ========================================================================
+    // NW HÖRN (0-2000, 0-2500)
+    { x: 200,  y: 200,  w: 70, h: 70, kind: 'tree_oak' },
+    { x: 350,  y: 350,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 550,  y: 200,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 800,  y: 350,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1000, y: 250,  w: 70, h: 70, kind: 'tree_oak' },
+    { x: 1300, y: 400,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1600, y: 250,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 250,  y: 650,  w: 55, h: 55, kind: 'tree_pine' },
+    { x: 500,  y: 800,  w: 70, h: 70, kind: 'tree_giant_oak' },
+    { x: 900,  y: 750,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1200, y: 850,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 1500, y: 700,  w: 55, h: 55, kind: 'tree_pine' },
+    { x: 1700, y: 950,  w: 60, h: 60, kind: 'tree_oak' },
+    { x: 300,  y: 1100, w: 50, h: 50, kind: 'tree_pine' },
+    { x: 750,  y: 1200, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 1100, y: 1300, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 1450, y: 1200, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 1800, y: 1400, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 400,  y: 1600, w: 80, h: 60, kind: 'rock_large' },
+    { x: 1200, y: 1800, w: 90, h: 70, kind: 'rock_large' },
+    { x: 700,  y: 1800, w: 50, h: 40, kind: 'rock_small' },
+    { x: 1600, y: 1700, w: 50, h: 40, kind: 'rock_small' },
+    { x: 500,  y: 1500, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 1300, y: 1100, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 200,  y: 1900, w: 70, h: 70, kind: 'tree_pine' },
+    { x: 1900, y: 1800, w: 65, h: 65, kind: 'tree_oak' },
+    // Litet camp i NW outer (lägereld + tält + några stenar)
+    { x: 900,  y: 1500, w: 80, h: 70, kind: 'tent', color: 'green' },
+    { x: 1050, y: 1600, w: 50, h: 50, kind: 'campfire' },
+    { x: 850,  y: 1650, w: 32, h: 32, kind: 'oil_drum' },
+
+    // NE HÖRN (8000-10000, 0-2500)
+    { x: 8100, y: 250,  w: 70, h: 70, kind: 'tree_oak' },
+    { x: 8350, y: 400,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 8600, y: 250,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 8850, y: 400,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 9100, y: 300,  w: 70, h: 70, kind: 'tree_oak' },
+    { x: 9400, y: 450,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 8200, y: 700,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 8550, y: 850,  w: 55, h: 55, kind: 'tree_pine' },
+    { x: 8800, y: 750,  w: 70, h: 70, kind: 'tree_giant_oak' },
+    { x: 9200, y: 900,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 9500, y: 800,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 8100, y: 1200, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 8450, y: 1300, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 8800, y: 1200, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 9200, y: 1400, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 9500, y: 1300, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 8300, y: 1700, w: 80, h: 60, kind: 'rock_large' },
+    { x: 9100, y: 1900, w: 90, h: 70, kind: 'rock_large' },
+    { x: 8700, y: 1900, w: 50, h: 40, kind: 'rock_small' },
+    { x: 9500, y: 1700, w: 50, h: 40, kind: 'rock_small' },
+    { x: 8500, y: 1500, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 9300, y: 1100, w: 30, h: 30, kind: 'tree_stump' },
+    // Övergiven NE outer-stuga ruin (bara walls — ingen interior, ser ut som ruin)
+    { x: 8800, y: 1800, w: 100, h: 12, kind: 'cabin_wall_wood' },
+    { x: 8800, y: 1900, w: 100, h: 12, kind: 'cabin_wall_wood' },
+    { x: 8800, y: 1800, w: 12,  h: 110, kind: 'cabin_wall_wood' },
+    // Lägereld i NE
+    { x: 9100, y: 2100, w: 50, h: 50, kind: 'campfire' },
+
+    // SW HÖRN (0-2000, 7500-10000)
+    { x: 200,  y: 7600, w: 70, h: 70, kind: 'tree_oak' },
+    { x: 450,  y: 7800, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 700,  y: 7700, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 950,  y: 7850, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1200, y: 7750, w: 70, h: 70, kind: 'tree_oak' },
+    { x: 1500, y: 7900, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1800, y: 7800, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 300,  y: 8100, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 600,  y: 8200, w: 70, h: 70, kind: 'tree_giant_oak' },
+    { x: 950,  y: 8250, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1300, y: 8150, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 1600, y: 8300, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 250,  y: 8600, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 700,  y: 8700, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 1100, y: 8600, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 1500, y: 8750, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1800, y: 8650, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 400,  y: 9100, w: 70, h: 70, kind: 'tree_pine' },
+    { x: 800,  y: 9200, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 1200, y: 9100, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 1600, y: 9250, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 500,  y: 8400, w: 80, h: 60, kind: 'rock_large' },
+    { x: 1300, y: 8500, w: 90, h: 70, kind: 'rock_large' },
+    { x: 1700, y: 9000, w: 50, h: 40, kind: 'rock_small' },
+    { x: 600,  y: 9500, w: 50, h: 40, kind: 'rock_small' },
+    { x: 900,  y: 8000, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 1400, y: 8800, w: 30, h: 30, kind: 'tree_stump' },
+    // Övergiven brunn i SW
+    { x: 850,  y: 8500, w: 50, h: 50, kind: 'well' },
+
+    // SE HÖRN (8000-10000, 7500-10000)
+    { x: 8200, y: 7600, w: 70, h: 70, kind: 'tree_oak' },
+    { x: 8500, y: 7800, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 8800, y: 7700, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 9100, y: 7850, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 9400, y: 7750, w: 70, h: 70, kind: 'tree_oak' },
+    { x: 8300, y: 8100, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 8600, y: 8250, w: 70, h: 70, kind: 'tree_giant_oak' },
+    { x: 8950, y: 8150, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 9300, y: 8300, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 9600, y: 8200, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 8200, y: 8600, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 8700, y: 8700, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 9100, y: 8600, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 9500, y: 8750, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 8400, y: 9100, w: 70, h: 70, kind: 'tree_pine' },
+    { x: 8800, y: 9200, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 9200, y: 9100, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 9600, y: 9250, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 8500, y: 8400, w: 80, h: 60, kind: 'rock_large' },
+    { x: 9300, y: 8500, w: 90, h: 70, kind: 'rock_large' },
+    { x: 8900, y: 9000, w: 50, h: 40, kind: 'rock_small' },
+    { x: 9500, y: 9500, w: 50, h: 40, kind: 'rock_small' },
+    { x: 8800, y: 8000, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 9400, y: 8800, w: 30, h: 30, kind: 'tree_stump' },
+    // Övergiven bil i SE
+    { x: 9000, y: 8500, w: 110, h: 55, kind: 'car_wreck' },
+    // Liten standing-stone-grupp i SE (mystik)
+    { x: 8500, y: 9500, w: 50, h: 50, kind: 'standing_stone' },
+    { x: 8580, y: 9450, w: 50, h: 50, kind: 'standing_stone' },
+    { x: 8660, y: 9500, w: 50, h: 50, kind: 'standing_stone' },
+
+    // === RING-CONTENT (mellan zonerna och outer-perimeter) ===
+    // Mellan zoner: N
+    { x: 3200, y: 1500, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 3800, y: 1700, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 4400, y: 1500, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 5000, y: 1700, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 5600, y: 1500, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 6200, y: 1700, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 6800, y: 1500, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 7400, y: 1700, w: 55, h: 55, kind: 'tree_pine' },
+    // Mellan zoner: W
+    { x: 1800, y: 4000, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1800, y: 4500, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 1800, y: 5500, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1800, y: 6800, w: 55, h: 55, kind: 'tree_oak' },
+    // Mellan zoner: E
+    { x: 8100, y: 4000, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 8100, y: 4800, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 8100, y: 5800, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 8100, y: 6800, w: 55, h: 55, kind: 'tree_pine' },
+    // Mellan zoner: S
+    { x: 3200, y: 8200, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 3800, y: 8400, w: 55, h: 55, kind: 'tree_oak' },
+    { x: 4500, y: 8200, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 5200, y: 8400, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 5900, y: 8200, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 6600, y: 8400, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 7300, y: 8200, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 8000, y: 8400, w: 55, h: 55, kind: 'tree_oak' },
+
+    // Extra stenar utspridda (utfyll outer-ring)
+    { x: 2300, y: 1300, w: 70, h: 50, kind: 'rock_large' },
+    { x: 4200, y: 1400, w: 80, h: 60, kind: 'rock_large' },
+    { x: 5800, y: 1200, w: 70, h: 50, kind: 'rock_large' },
+    { x: 7400, y: 1400, w: 80, h: 60, kind: 'rock_large' },
+    { x: 1700, y: 5200, w: 70, h: 50, kind: 'rock_large' },
+    { x: 8100, y: 5200, w: 80, h: 60, kind: 'rock_large' },
+    { x: 3500, y: 8400, w: 70, h: 50, kind: 'rock_large' },
+    { x: 6500, y: 8400, w: 80, h: 60, kind: 'rock_large' },
+
     // === OUTER WILDERNESS — TÄT VILD SKOG (norra ringen) ===
     // North outer (y < 1800)
     { x: 600,  y: 300,  w: 60, h: 60, kind: 'tree_pine' },
@@ -534,9 +702,29 @@ const BATTLEROYALE_ARENA = {
     { x: 3348, y: 5650, w: 12,  h: 100, kind: 'cabin_wall_wood' },
     { x: 3348, y: 5805, w: 12,  h: 45,  kind: 'cabin_wall_wood' },
 
-    { x: 2800, y: 5950, w: 110, h: 50, kind: 'boat' },
+    // Båt på STRAND (utanför sjön, vid sjökanten)
+    { x: 2200, y: 6300, w: 110, h: 50, kind: 'boat' },
 
-    { x: 3500, y: 6000, w: 200, h: 25, kind: 'bridge' },
+    // === 4-VÄGS BRO (kors-form) över sjön i centrum ===
+    // Horisontell del (väst-öst genom sjön): från x=2200 till x=3800, y=6850, höjd 30
+    { x: 2200, y: 6840, w: 1600, h: 28, kind: 'bridge' },
+    // Vertikal del (nord-syd): från y=6400 till y=7300, x=2950
+    { x: 2960, y: 6400, w: 28, h: 900, kind: 'bridge' },
+
+    // === KLIPPFORMATION som höjdpunkt vattenfallet faller FRÅN (en bergshöjd) ===
+    // En cluster av cliff_edge-walls bildar ett "berg" utanför sjökanten
+    { x: 1700, y: 6100, w: 250, h: 60, kind: 'cliff_edge' },   // bergstop
+    { x: 1700, y: 6160, w: 50,  h: 200, kind: 'cliff_edge' },  // vänster klippkant
+    { x: 1900, y: 6160, w: 50,  h: 150, kind: 'cliff_edge' },  // höger klippkant
+    { x: 1750, y: 6310, w: 150, h: 40, kind: 'cliff_edge' },   // nedre framkant
+
+    // === LAKE_WATER_BLOCK — blockerar movement men bullets passerar
+    // (osynlig collision-wall; render-polygon ligger ovanpå).
+    { x: 2450, y: 6400, w: 1100, h: 200, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2400, y: 6600, w: 1200, h: 200, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2430, y: 6800, w: 1170, h: 200, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2450, y: 7000, w: 1100, h: 200, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2500, y: 7200, w: 900,  h: 100, kind: 'lake_water_block', passThroughBullets: true },
 
     { x: 2300, y: 5200, w: 60, h: 60, kind: 'tree_oak' },
     { x: 2700, y: 5100, w: 55, h: 55, kind: 'tree_pine' },
@@ -544,12 +732,12 @@ const BATTLEROYALE_ARENA = {
     { x: 4100, y: 5300, w: 60, h: 60, kind: 'tree_oak' },
     { x: 2300, y: 7300, w: 60, h: 60, kind: 'tree_pine' },
     { x: 2700, y: 7300, w: 55, h: 55, kind: 'tree_oak' },
-    { x: 3100, y: 7200, w: 65, h: 65, kind: 'tree_pine' },
+    // (tree_pine vid 3100,7200 borttagen — låg inne i sjön)
     { x: 3700, y: 7100, w: 60, h: 60, kind: 'tree_oak' },
     { x: 4100, y: 7200, w: 60, h: 60, kind: 'tree_pine' },
 
     { x: 3900, y: 6400, w: 80, h: 60, kind: 'rock_large' },
-    { x: 2400, y: 6700, w: 70, h: 50, kind: 'rock_large' },
+    // (rock_large vid 2400,6700 borttagen — låg inne i sjön)
 
     { x: 3000, y: 7400, w: 30, h: 30, kind: 'tree_stump' },
     { x: 3800, y: 7500, w: 30, h: 30, kind: 'tree_stump' },
@@ -704,28 +892,56 @@ const BATTLEROYALE_ARENA = {
     { kind: 'dirt_path', x: 1000, y: 5000, x2: 2200, y2: 5500, w: 30 }, // outer-w to lake
     { kind: 'dirt_path', x: 1500, y: 2000, x2: 2400, y2: 2700, w: 30 }, // outer-nw to forest
 
-    // === SJÖN — organic polygon (8 punkter, slingrar runt klippkanten) ===
+    // === SJÖN — krympt organic polygon (mindre, mer rund-formad) ===
+    // Krympt från 1900x1300 → ~1100x900. Center ungefär (3000, 6800).
     { kind: 'lake_water_polygon', points: [
-      [2000, 6300], [2200, 6200], [2500, 6250], [2800, 6300],
-      [3200, 6280], [3500, 6320], [3700, 6500], [3900, 6800],
-      [3950, 7100], [3850, 7400], [3500, 7500], [3000, 7480],
-      [2600, 7450], [2200, 7300], [2050, 7000], [2000, 6700]
+      [2500, 6400], [2700, 6350], [3000, 6380], [3300, 6400],
+      [3500, 6500], [3580, 6700], [3550, 6950], [3450, 7150],
+      [3200, 7280], [2900, 7300], [2600, 7250], [2450, 7100],
+      [2400, 6900], [2430, 6650]
     ] },
-    // Behåll en stor "bas-water" som fallback (renderas FÖRST under polygon)
-    { kind: 'lake_water', x: 2000, y: 6200, w: 1900, h: 1300, _opacity: 0 },
     { kind: 'stream',     x: 3900, y: 6250, x2: 4400, y2: 6000, w: 22 },
     { kind: 'stream',     x: 4400, y: 6000, x2: 5000, y2: 5700, w: 22 },
 
-    // === FALLNA STOCKAR ===
-    { kind: 'fallen_log', x: 2500, y: 3500, w: 100, h: 18, rot: 0.3 },
-    { kind: 'fallen_log', x: 3700, y: 3100, w: 100, h: 18, rot: -0.4 },
-    { kind: 'fallen_log', x: 4200, y: 2600, w: 90,  h: 18, rot: 0.2 },
-    { kind: 'fallen_log', x: 5200, y: 6900, w: 100, h: 18, rot: 0.5 },
-    { kind: 'fallen_log', x: 6400, y: 7500, w: 110, h: 18, rot: -0.3 },
-    { kind: 'fallen_log', x: 7200, y: 7600, w: 90,  h: 18, rot: 0.4 },
-    { kind: 'fallen_log', x: 1500, y: 4500, w: 100, h: 18, rot: 0.3 }, // outer
-    { kind: 'fallen_log', x: 8800, y: 5500, w: 100, h: 18, rot: -0.2 }, // outer
-    { kind: 'fallen_log', x: 4000, y: 9100, w: 110, h: 18, rot: 0.4 }, // south outer
+    // === FALLNA STOCKAR — mindre & fler (50-65px = realistic-träd-rester) ===
+    // NW Forest
+    { kind: 'fallen_log', x: 2500, y: 3500, w: 55, h: 14, rot: 0.3 },
+    { kind: 'fallen_log', x: 3700, y: 3100, w: 60, h: 14, rot: -0.4 },
+    { kind: 'fallen_log', x: 4200, y: 2600, w: 50, h: 14, rot: 0.2 },
+    { kind: 'fallen_log', x: 2800, y: 2400, w: 55, h: 14, rot: -0.2 },
+    { kind: 'fallen_log', x: 3200, y: 2900, w: 50, h: 14, rot: 0.4 },
+    { kind: 'fallen_log', x: 4500, y: 3400, w: 58, h: 14, rot: -0.3 },
+    { kind: 'fallen_log', x: 2300, y: 3800, w: 52, h: 14, rot: 0.1 },
+    // South Wild
+    { kind: 'fallen_log', x: 5200, y: 6900, w: 55, h: 14, rot: 0.5 },
+    { kind: 'fallen_log', x: 6400, y: 7500, w: 60, h: 14, rot: -0.3 },
+    { kind: 'fallen_log', x: 7200, y: 7600, w: 50, h: 14, rot: 0.4 },
+    { kind: 'fallen_log', x: 4800, y: 7200, w: 55, h: 14, rot: -0.2 },
+    { kind: 'fallen_log', x: 5800, y: 7700, w: 58, h: 14, rot: 0.3 },
+    { kind: 'fallen_log', x: 6900, y: 6800, w: 50, h: 14, rot: -0.4 },
+    // West outer
+    { kind: 'fallen_log', x: 1500, y: 4500, w: 55, h: 14, rot: 0.3 },
+    { kind: 'fallen_log', x: 800,  y: 3600, w: 50, h: 14, rot: -0.2 },
+    { kind: 'fallen_log', x: 1200, y: 5800, w: 60, h: 14, rot: 0.4 },
+    { kind: 'fallen_log', x: 600,  y: 6800, w: 52, h: 14, rot: -0.3 },
+    // East outer
+    { kind: 'fallen_log', x: 8800, y: 5500, w: 55, h: 14, rot: -0.2 },
+    { kind: 'fallen_log', x: 9100, y: 3500, w: 50, h: 14, rot: 0.3 },
+    { kind: 'fallen_log', x: 8600, y: 7000, w: 58, h: 14, rot: -0.4 },
+    { kind: 'fallen_log', x: 9200, y: 6300, w: 52, h: 14, rot: 0.2 },
+    // North outer
+    { kind: 'fallen_log', x: 2500, y: 800,  w: 55, h: 14, rot: 0.3 },
+    { kind: 'fallen_log', x: 5500, y: 1200, w: 50, h: 14, rot: -0.2 },
+    { kind: 'fallen_log', x: 7500, y: 900,  w: 58, h: 14, rot: 0.4 },
+    { kind: 'fallen_log', x: 4200, y: 600,  w: 52, h: 14, rot: -0.3 },
+    // South outer
+    { kind: 'fallen_log', x: 4000, y: 9100, w: 55, h: 14, rot: 0.4 },
+    { kind: 'fallen_log', x: 2000, y: 9200, w: 50, h: 14, rot: -0.2 },
+    { kind: 'fallen_log', x: 6500, y: 9300, w: 58, h: 14, rot: 0.3 },
+    { kind: 'fallen_log', x: 8000, y: 9100, w: 52, h: 14, rot: -0.4 },
+    // Camping + village edges
+    { kind: 'fallen_log', x: 6300, y: 4400, w: 50, h: 14, rot: 0.3 },
+    { kind: 'fallen_log', x: 5800, y: 5800, w: 55, h: 14, rot: -0.2 },
 
     // === BLOMMOR ===
     { kind: 'flowers', x: 2450, y: 3000, count: 8 },
@@ -819,6 +1035,66 @@ const BATTLEROYALE_ARENA = {
     { kind: 'animal_track', x: 6400, y: 6800 },
     { kind: 'animal_track', x: 1200, y: 6000 }, // outer
 
+    // === EXTRA OUTER DECORATIONS (v1.332) — utfyll alla 4 hörn ===
+    // NW outer-decorations
+    { kind: 'flowers', x: 600, y: 600, count: 7 },
+    { kind: 'flowers', x: 1300, y: 900, count: 6 },
+    { kind: 'flowers', x: 400, y: 1600, count: 8 },
+    { kind: 'mushrooms', x: 800, y: 1200, count: 5 },
+    { kind: 'mushrooms', x: 1500, y: 1500, count: 6 },
+    { kind: 'pine_cones', x: 700, y: 350, count: 6 },
+    { kind: 'pine_cones', x: 1100, y: 1300, count: 5 },
+    { kind: 'bush', x: 1000, y: 500 },
+    { kind: 'bush', x: 1700, y: 1100 },
+    { kind: 'bush', x: 400, y: 1400 },
+    { kind: 'animal_track', x: 900, y: 1600 },
+    // NE outer-decorations
+    { kind: 'flowers', x: 8500, y: 600, count: 7 },
+    { kind: 'flowers', x: 9200, y: 1100, count: 6 },
+    { kind: 'mushrooms', x: 8700, y: 1300, count: 5 },
+    { kind: 'mushrooms', x: 9400, y: 1700, count: 5 },
+    { kind: 'pine_cones', x: 8200, y: 1000, count: 6 },
+    { kind: 'bush', x: 8400, y: 600 },
+    { kind: 'bush', x: 9300, y: 1500 },
+    { kind: 'animal_track', x: 9100, y: 1800 },
+    // SW outer-decorations
+    { kind: 'flowers', x: 600, y: 7800, count: 8 },
+    { kind: 'flowers', x: 1400, y: 8500, count: 6 },
+    { kind: 'flowers', x: 800, y: 9200, count: 7 },
+    { kind: 'mushrooms', x: 1100, y: 8200, count: 5 },
+    { kind: 'mushrooms', x: 1700, y: 9100, count: 6 },
+    { kind: 'pine_cones', x: 500, y: 8400, count: 6 },
+    { kind: 'pine_cones', x: 1300, y: 8800, count: 5 },
+    { kind: 'bush', x: 400, y: 7900 },
+    { kind: 'bush', x: 1100, y: 9000 },
+    { kind: 'bush', x: 1800, y: 8400 },
+    { kind: 'animal_track', x: 700, y: 8700 },
+    // SE outer-decorations
+    { kind: 'flowers', x: 8500, y: 7900, count: 7 },
+    { kind: 'flowers', x: 9200, y: 8400, count: 6 },
+    { kind: 'flowers', x: 8800, y: 9100, count: 8 },
+    { kind: 'mushrooms', x: 9400, y: 8700, count: 5 },
+    { kind: 'mushrooms', x: 8600, y: 8500, count: 6 },
+    { kind: 'pine_cones', x: 9100, y: 8300, count: 6 },
+    { kind: 'pine_cones', x: 8400, y: 9000, count: 5 },
+    { kind: 'bush', x: 8700, y: 7800 },
+    { kind: 'bush', x: 9300, y: 9000 },
+    { kind: 'bush', x: 8900, y: 8700 },
+    { kind: 'animal_track', x: 9200, y: 8600 },
+    // Ring-decorations (mellan center och outer)
+    { kind: 'flowers', x: 3000, y: 1600, count: 5 },
+    { kind: 'flowers', x: 5000, y: 1600, count: 5 },
+    { kind: 'flowers', x: 7000, y: 1600, count: 5 },
+    { kind: 'flowers', x: 1900, y: 4500, count: 5 },
+    { kind: 'flowers', x: 8200, y: 4500, count: 5 },
+    { kind: 'flowers', x: 3500, y: 8500, count: 5 },
+    { kind: 'flowers', x: 5500, y: 8500, count: 5 },
+    { kind: 'flowers', x: 7500, y: 8500, count: 5 },
+    { kind: 'mushrooms', x: 4500, y: 1800, count: 4 },
+    { kind: 'mushrooms', x: 6500, y: 1800, count: 4 },
+    { kind: 'mushrooms', x: 1900, y: 5800, count: 4 },
+    { kind: 'mushrooms', x: 8200, y: 5800, count: 4 },
+
     // === BUSKAR ===
     { kind: 'bush', x: 2600, y: 3900 },
     { kind: 'bush', x: 3300, y: 4200 },
@@ -859,12 +1135,14 @@ const BATTLEROYALE_ARENA = {
     { kind: 'glade', x: 2400, y: 4500, r: 140 },  // path glade
     { kind: 'glade', x: 7400, y: 4000, r: 150 },  // scrap edge glade
 
-    // === VATTENFALLS (animerad) — i klippkanten vid sjön ===
-    { kind: 'waterfall', x: 1860, y: 6250, w: 220, h: 100 },
-    { kind: 'water_splash', x: 1970, y: 6360 },  // skum nedan
+    // === VATTENFALLS (animerad) — faller från klippan ner i sjön ===
+    // Klippan är vid (1700-1950, 6100-6360). Vattenfallet faller från klippkanten (y=6360)
+    // ner i sjön (y=6400+). Bredd matchar klippformationen.
+    { kind: 'waterfall', x: 1770, y: 6160, w: 140, h: 280 },
+    { kind: 'water_splash', x: 1840, y: 6440 },  // skum där vattnet träffar sjön
 
-    // === GROTTA ENTRANCE vid vattenfalls ===
-    { kind: 'cave_entrance', x: 1700, y: 6350, w: 60, h: 50 },
+    // === GROTTA ENTRANCE BAKOM vattenfallet ===
+    { kind: 'cave_entrance', x: 1810, y: 6360, w: 60, h: 50 },
 
     // === SKORSTENS-RÖK från ALLA stugor (auto-spawnar ovan tak) ===
     { kind: 'smoke', x: 3604, y: 2756, scale: 0.8, color: 'light' }, // jägar
