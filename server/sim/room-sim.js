@@ -2212,14 +2212,37 @@ function advanceBrPhase(sim) {
   const phaseCfg = arena.phases[nextPhase];
   const phaseDurMs = totalDurSec * 1000 * phaseCfg.durationFrac;
   sim.battleroyalePhaseEndAt = nowMs + phaseDurMs;
-  // Compute next-zone (slumpa centrum ±300px från nuvarande, klamp till bounds)
+  // v1.378: final-zone-center pre-bestäms vid match-start (random på hela mapen).
+  // Varje phase lerpar nuvarande center MOT final-target med fraction = phase/totalPhases.
+  // Plus liten random noise per phase så det inte är perfekt linjärt.
+  // Resultat: final-zonen hamnar på olika ställen varje match (inkl nära hörnen),
+  // men progression är förutsägbar nog att spelare kan rotera.
   const cur = sim.battleroyaleZone;
   const newR = Math.round(Math.sqrt(arena.worldW * arena.worldH * phaseCfg.areaFrac / Math.PI));
-  let nx = cur.x + (Math.random() - 0.5) * 600;
-  let ny = cur.y + (Math.random() - 0.5) * 600;
-  // Klamp så next-zonen håller sig inom kartan
-  nx = Math.max(newR + 100, Math.min(arena.worldW - newR - 100, nx));
-  ny = Math.max(newR + 100, Math.min(arena.worldH - newR - 100, ny));
+  const totalShrinkPhases = arena.phases.length - 1;
+  const t = totalShrinkPhases > 0 ? nextPhase / totalShrinkPhases : 1;
+  const finalCx = sim.brFinalCenterX != null ? sim.brFinalCenterX : (arena.worldW / 2);
+  const finalCy = sim.brFinalCenterY != null ? sim.brFinalCenterY : (arena.worldH / 2);
+  // Lerp mot final-target
+  let nx = cur.x + (finalCx - cur.x) * t;
+  let ny = cur.y + (finalCy - cur.y) * t;
+  // Liten random noise (max 250px per phase) så det inte syns perfekt linjärt
+  const noiseAng = Math.random() * Math.PI * 2;
+  const noiseDist = Math.random() * Math.min(250, cur.r * 0.08);
+  nx += Math.cos(noiseAng) * noiseDist;
+  ny += Math.sin(noiseAng) * noiseDist;
+  // Klamp inside current zone (fairness — players i safe-area får inte get screwed)
+  const maxDrift = Math.max(0, cur.r - newR - 30);
+  const dxc = nx - cur.x, dyc = ny - cur.y;
+  const curDist = Math.hypot(dxc, dyc);
+  if (curDist > maxDrift && maxDrift > 0) {
+    const k = maxDrift / curDist;
+    nx = cur.x + dxc * k;
+    ny = cur.y + dyc * k;
+  }
+  // Map clamp (zonen får nudda edge)
+  nx = Math.max(newR, Math.min(arena.worldW - newR, nx));
+  ny = Math.max(newR, Math.min(arena.worldH - newR, ny));
   // Spara start- + next-värden för interpolation
   cur.startX = cur.x;
   cur.startY = cur.y;
@@ -3281,6 +3304,12 @@ function startSim(sim, opts) {
       nextY: arena.worldH / 2,
       nextR: initialR,
     };
+    // v1.378: pre-bestäm var FINAL-zonen ska hamna (random på hela mapen).
+    // Varje shrink-phase lerpar mot detta target → variation match-till-match.
+    const finalAreaFrac = arena.phases[arena.phases.length - 1].areaFrac;
+    const finalR = Math.round(Math.sqrt(arena.worldW * arena.worldH * finalAreaFrac / Math.PI));
+    sim.brFinalCenterX = finalR + Math.random() * (arena.worldW - 2 * finalR);
+    sim.brFinalCenterY = finalR + Math.random() * (arena.worldH - 2 * finalR);
     sim.battleroyalePhase = 0;
     sim.battleroyaleStartedAt = Date.now();
     sim.battleroyaleEndAt = Date.now() + sim.battleroyaleMatchDurationSec * 1000;

@@ -12942,7 +12942,19 @@ const state = {
 // ENTITIES
 // ============================================================
 const DASH_COOLDOWN_MS = 3000;
+// v1.378: under 5s prep-countdown är ALLT input blockerat (movement, fire,
+// dash, shield, grenade, reload, weapon switch, emote, etc). Spelaren ska
+// bara förbereda sig — inga åtgärder.
+// NOTE: LOOT-countdown (efter wave) gäller INTE — spelaren ska kunna röra
+// sig + plocka upp items där.
+function isInputLocked() {
+  if (!state._countdownEndAt) return false;
+  if (performance.now() >= state._countdownEndAt) return false;
+  return state._countdownLabel !== 'LOOT';
+}
+
 function tryDash() {
+  if (isInputLocked()) return;
   const p = state.player;
   // Bug-fix: `p.dashUntil > 0` var permanent truthy efter första dashen (värdet
   // resettas aldrig till 0) → spelaren kunde bara dasha en gång per run. Använd
@@ -13130,17 +13142,19 @@ window.addEventListener('keydown', e => {
   input.keys.add(e.key.toLowerCase());
   const k = e.key.toLowerCase();
   checkKonami(k);
-  if (k === 'q') switchWeapon(-1);
-  if (k === 'e') switchWeapon(1);
-  if (k === 'r' && state.mode === 'playing') startReload();
+  // v1.378: under countdown blockeras ALLA tangenter (rörelse hanteras i updatePlayer)
+  const _locked = typeof isInputLocked === 'function' && isInputLocked();
+  if (k === 'q' && !_locked) switchWeapon(-1);
+  if (k === 'e' && !_locked) switchWeapon(1);
+  if (k === 'r' && state.mode === 'playing' && !_locked) startReload();
   if (k === 'tab' || e.key === 'Tab') {
     e.preventDefault();
-    if (state.mode === 'playing') openWeaponMenu();
+    if (state.mode === 'playing' && !_locked) openWeaponMenu();
     else if (state.mode === 'weaponmenu') closeWeaponMenu();
   }
   if ((k === ' ' || k === 'shift') && state.mode === 'playing') {
     e.preventDefault();
-    tryDash();
+    tryDash(); // gatar själv
   }
   if (e.key === 'Escape') {
     e.preventDefault();
@@ -13275,6 +13289,7 @@ input.aimX = 0; input.aimY = 0; input.fireJoyActive = false;
 // Knob-visual räknas alltid från button-center.
 function fireDown(e) {
   e.preventDefault();
+  if (typeof isInputLocked === 'function' && isInputLocked()) return;
   input.firing = true;
   const t = e.changedTouches ? e.changedTouches[0] : e;
   fireJoyTouchId = e.changedTouches ? t.identifier : 'mouse';
@@ -13535,6 +13550,7 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
   btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (typeof isInputLocked === 'function' && isInputLocked()) return;
     const isPvP = state.tdmActive || state.ctfActive || state.siegeActive
                || state.gungameActive || state.kothActive
                || state.juggernautActive || state.battleroyaleActive;
@@ -13578,7 +13594,7 @@ if (_btnReload) {
   _btnReload.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (state.mode === 'playing') startReload();
+    if (state.mode === 'playing' && !(typeof isInputLocked === 'function' && isInputLocked())) startReload();
     Audio.uiClick && Audio.uiClick();
   }, { passive: false });
 }
@@ -13589,7 +13605,7 @@ const _btnDash = document.getElementById('btn-dash');
 if (_btnDash) {
   const onDashDown = (e) => {
     e.preventDefault();
-    if (state.mode === 'playing') tryDash();
+    if (state.mode === 'playing') tryDash(); // tryDash gatar själv på isInputLocked
   };
   _btnDash.addEventListener('pointerdown', onDashDown);
   _btnDash.addEventListener('touchstart', onDashDown, { passive: false });
@@ -13684,6 +13700,7 @@ function grenadeDown(e) {
   e.preventDefault();
   e.stopPropagation();
   if (state.mode !== 'playing' || !state.player || state.player.spectating) return;
+  if (typeof isInputLocked === 'function' && isInputLocked()) return;
   if (getGrenadeCount() <= 0) {
     if (typeof showToast === 'function') showToast('💣 INGA GRANATER KVAR');
     return;
@@ -14188,6 +14205,7 @@ if (_btnPvpShield) {
     const now = performance.now();
     if (now - _lastShieldTapAt < 300) return;
     _lastShieldTapAt = now;
+    if (typeof isInputLocked === 'function' && isInputLocked()) return;
     if (state.mode === 'playing') tryPvpShield();
   };
   _btnPvpShield.addEventListener('pointerdown', onShieldDown);
@@ -14228,6 +14246,7 @@ if (_btnEmote) {
   _btnEmote.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
+    if (typeof isInputLocked === 'function' && isInputLocked()) return;
     buildEmotePicker();
     emotePickerEl.classList.toggle('hidden');
     Audio.uiClick();
@@ -17023,8 +17042,15 @@ const Coop = {
     } else if (ev.type === 'countdown_start') {
       // 5-sekunders prep-overlay innan stage börjar — alla synkar position
       state._countdownEndAt = performance.now() + (ev.durationMs || 5000);
+      state._countdownLabel = 'FÖRBERED'; // v1.378: triggar isInputLocked
+      // Rensa eventuell stale input-state så user inte kan starta firing/grenade
+      // genom att hålla in knappen från föregående match.
+      input.firing = false;
+      input.fireJoyActive = false;
+      if (typeof state.grenadeAim !== 'undefined') state.grenadeAim = null;
     } else if (ev.type === 'countdown_end') {
       state._countdownEndAt = null;
+      state._countdownLabel = null;
     } else if (ev.type === 'boss_spawned') {
       // Dedup: visa bara en toast + intro per unik boss-key
       const key = 'boss_' + (ev.bossKey || ev.name || '');
@@ -23302,6 +23328,10 @@ function loadStage(n) {
   if (!Coop.serverSimActive) {
     state._countdownEndAt = performance.now() + 5000;
     state._countdownLabel = 'FÖRBERED';
+    // v1.378: rensa stale input så user inte kan smyga in actions
+    input.firing = false;
+    input.fireJoyActive = false;
+    if (typeof state.grenadeAim !== 'undefined') state.grenadeAim = null;
     if (Coop.active && Coop.isHost) {
       Coop.broadcast({ type: 'event', event: 'countdown_start', durationMs: 5000 });
     }
@@ -26969,6 +26999,10 @@ function updatePlayer(dt, now) {
   // Spectating (död) — gör inget. updateDeathState sköter spec-kameran.
   if (p.spectating) return;
 
+  // v1.378: under 5s prep-countdown blockeras ALL rörelse + skytte.
+  // Spelaren ska bara förbereda sig (titta runt, planera). Inga åtgärder.
+  const _locked = (typeof isInputLocked === 'function') && isInputLocked();
+
   // rörelse
   let mx = input.moveX, my = input.moveY;
   // Mountad på turret — joystick siktar bara, ingen rörelse
@@ -26981,6 +27015,8 @@ function updatePlayer(dt, now) {
   if (input.keys.has('s')) my += 1;
   if (input.keys.has('a')) mx -= 1;
   if (input.keys.has('d')) mx += 1;
+  // Countdown lock: nollställ rörelse helt (joystick + tangentbord)
+  if (_locked) { mx = 0; my = 0; }
   const m = Math.hypot(mx, my);
   if (m > 1) { mx /= m; my /= m; }
   // Dash override
@@ -27103,7 +27139,8 @@ function updatePlayer(dt, now) {
   }
 
   // skjuta
-  if (input.firing || input.keys.has(' ') || input.mouse.down) tryShoot(now);
+  // v1.378: countdown blockerar tryShoot (även om input.firing var true från fel-state)
+  if (!_locked && (input.firing || input.keys.has(' ') || input.mouse.down)) tryShoot(now);
 
   // invuln decay
   if (p.invuln > 0) p.invuln -= dt;
