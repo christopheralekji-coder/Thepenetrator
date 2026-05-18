@@ -367,6 +367,217 @@ const BATTLEROYALE_ARENA = {
         { kind: 'table_round', x: 2780, y: 1620, r: 18 }, { kind: 'chair', x: 2760, y: 1605 },
         { kind: 'bookshelf', x: 2700, y: 1640, w: 30, h: 25 }, { kind: 'oil_lamp', x: 2770, y: 1530 },
       ] },
+    // ========================================================================
+    // === 20 NYA STUGOR (v1.369) — fokus: NW/NE/SW edges + utfyllnad ===
+    // INTE i SE-hörnet (alien-mark). Sprida med varierande stilar/färger.
+    // ========================================================================
+    // --- LEFT EDGE TOP (x: 0-1500, y: 0-3000) ---
+    // 21. NW-corner (mellan corner-trees)
+    { id: 'cabin_nw_corner', name: 'HÖRN-STUGAN', bounds: { x: 1100, y: 1000, w: 200, h: 170 },
+      door: { side: 'south', offset: 80, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'east', offset: 60, width: 40 }, { side: 'west', offset: 60, width: 40 } ],
+      roof: { color: '#5a3018', accent: '#2a1808', style: 'wood_shingle' }, floor: '#5a3818',
+      interior: [
+        { kind: 'bed', x: 1120, y: 1040, w: 50, h: 65 }, { kind: 'fireplace', x: 1220, y: 1040, w: 40, h: 40 },
+        { kind: 'table_long', x: 1160, y: 1110, w: 60, h: 30 }, { kind: 'chair', x: 1170, y: 1095 },
+        { kind: 'oil_lamp', x: 1200, y: 1030 }, { kind: 'animal_skull', x: 1260, y: 1110 },
+      ] },
+    // 22. W-edge upper (mellan NW-outer och lake-west)
+    { id: 'cabin_w_edge_upper', name: 'TYST-STUGAN', bounds: { x: 250, y: 2400, w: 190, h: 160 },
+      door: { side: 'east', offset: 60, width: 40 },
+      windows: [ { side: 'north', offset: 50, width: 35 }, { side: 'south', offset: 50, width: 35 }, { side: 'west', offset: 50, width: 35 } ],
+      roof: { color: '#3a5a3a', accent: '#1a2a1a', style: 'wood_shingle' }, floor: '#5a3a1a',
+      interior: [
+        { kind: 'bed', x: 270, y: 2430, w: 45, h: 60 }, { kind: 'fireplace', x: 360, y: 2430, w: 40, h: 40 },
+        { kind: 'chair', x: 330, y: 2490 }, { kind: 'oil_lamp', x: 320, y: 2420 },
+      ] },
+    // 23. NW north (mellan trees)
+    { id: 'cabin_nw_north', name: 'SNÖ-STUGAN', bounds: { x: 1700, y: 500, w: 200, h: 170 },
+      door: { side: 'south', offset: 80, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'east', offset: 60, width: 40 } ],
+      roof: { color: '#d4d4c0', accent: '#7a7a6a', style: 'tile' }, floor: '#a08060',
+      interior: [
+        { kind: 'bed', x: 1720, y: 540, w: 50, h: 65 }, { kind: 'fireplace', x: 1820, y: 540, w: 40, h: 40 },
+        { kind: 'dresser', x: 1720, y: 620 }, { kind: 'wall_painting', x: 1750, y: 520 },
+        { kind: 'oil_lamp', x: 1800, y: 530 },
+      ] },
+    // 24. W-mid south (mellan lake-west och central)
+    { id: 'cabin_w_mid_south', name: 'GRAN-STUGAN', bounds: { x: 1300, y: 2700, w: 200, h: 170 },
+      door: { side: 'north', offset: 75, width: 45 },
+      windows: [ { side: 'south', offset: 60, width: 40 }, { side: 'east', offset: 60, width: 40 }, { side: 'west', offset: 60, width: 40 } ],
+      roof: { color: '#4a2a18', accent: '#2a1408', style: 'wood_shingle' }, floor: '#5a3a1a',
+      interior: [
+        { kind: 'bed', x: 1320, y: 2740, w: 50, h: 65 }, { kind: 'fireplace', x: 1420, y: 2740, w: 40, h: 40 },
+        { kind: 'table_round', x: 1380, y: 2820, r: 18 }, { kind: 'chair', x: 1360, y: 2805 },
+        { kind: 'bookshelf', x: 1300, y: 2840, w: 30, h: 25 }, { kind: 'oil_lamp', x: 1370, y: 2730 },
+      ] },
+
+    // --- LEFT EDGE BOTTOM (x: 0-1500, y: 7000-10000) ---
+    // 25. W lower-edge top
+    { id: 'cabin_w_lower_top', name: 'MOSSA-STUGAN', bounds: { x: 250, y: 7000, w: 200, h: 170 },
+      door: { side: 'east', offset: 70, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'south', offset: 60, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#3a5018', accent: '#1a2810', style: 'wood_shingle' }, floor: '#4a3018',
+      interior: [
+        { kind: 'bed', x: 270, y: 7040, w: 50, h: 65 }, { kind: 'fireplace', x: 370, y: 7040, w: 40, h: 40 },
+        { kind: 'table_long', x: 300, y: 7120, w: 60, h: 30 }, { kind: 'rope_coil', x: 380, y: 7140 },
+        { kind: 'oil_lamp', x: 320, y: 7030 }, { kind: 'animal_skull', x: 400, y: 7110 },
+      ] },
+    // 26. SW outside trees (north of corner-cluster)
+    { id: 'cabin_sw_outside', name: 'GLÄNTAN', bounds: { x: 1900, y: 7400, w: 200, h: 170 },
+      door: { side: 'west', offset: 70, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'south', offset: 60, width: 40 }, { side: 'east', offset: 70, width: 40 } ],
+      roof: { color: '#7a3030', accent: '#3a1010', style: 'tile' }, floor: '#6a4828',
+      interior: [
+        { kind: 'bed', x: 1920, y: 7440, w: 50, h: 65 }, { kind: 'fireplace', x: 2020, y: 7440, w: 40, h: 40 },
+        { kind: 'kitchen_counter', x: 1920, y: 7520, w: 80, h: 25 }, { kind: 'chair', x: 1960, y: 7500 },
+        { kind: 'oil_lamp', x: 1990, y: 7430 }, { kind: 'wall_painting', x: 1940, y: 7420 },
+      ] },
+    // 27. SW far (deep south-west corner)
+    { id: 'cabin_sw_far', name: 'ÖDE-STUGAN', bounds: { x: 350, y: 8900, w: 190, h: 160 },
+      door: { side: 'north', offset: 65, width: 40 },
+      windows: [ { side: 'south', offset: 50, width: 35 }, { side: 'east', offset: 60, width: 35 }, { side: 'west', offset: 60, width: 35 } ],
+      roof: { color: '#3a2818', accent: '#1a0e08', style: 'wood_shingle' }, floor: '#4a3018',
+      interior: [
+        { kind: 'bed', x: 370, y: 8930, w: 45, h: 60 }, { kind: 'fireplace', x: 460, y: 8930, w: 40, h: 40 },
+        { kind: 'workbench', x: 370, y: 8995, w: 60, h: 30 }, { kind: 'rifle_rack', x: 460, y: 8990 },
+        { kind: 'oil_lamp', x: 410, y: 8920 },
+      ] },
+    // 28. S-W lower mid (mellan SW och south)
+    { id: 'cabin_sw_lower_mid', name: 'RAGGAR-STUGAN', bounds: { x: 1500, y: 9100, w: 210, h: 170 },
+      door: { side: 'north', offset: 85, width: 50 },
+      windows: [ { side: 'south', offset: 70, width: 40 }, { side: 'east', offset: 70, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#5a5a60', accent: '#2a2a30', style: 'tile' }, floor: '#5a4030',
+      interior: [
+        { kind: 'bed', x: 1520, y: 9140, w: 50, h: 65 }, { kind: 'fireplace', x: 1630, y: 9140, w: 40, h: 40 },
+        { kind: 'workbench', x: 1520, y: 9220, w: 60, h: 30 }, { kind: 'oil_lamp', x: 1600, y: 9130 },
+        { kind: 'rope_coil', x: 1600, y: 9230 }, { kind: 'animal_skull', x: 1680, y: 9210 },
+      ] },
+
+    // --- RIGHT EDGE TOP (x: 8500-10000, y: 0-3000) — INTE i alien-hörnet! ---
+    // 29. NE-corner mid
+    { id: 'cabin_ne_corner_mid', name: 'BERGSPASS-STUGAN', bounds: { x: 8200, y: 2200, w: 190, h: 170 },
+      door: { side: 'west', offset: 80, width: 45 },
+      windows: [ { side: 'north', offset: 50, width: 40 }, { side: 'south', offset: 50, width: 40 }, { side: 'east', offset: 70, width: 40 } ],
+      roof: { color: '#a08020', accent: '#5a4810', style: 'thatch' }, floor: '#7a5828',
+      interior: [
+        { kind: 'bed', x: 8220, y: 2240, w: 50, h: 65 }, { kind: 'fireplace', x: 8320, y: 2240, w: 40, h: 40 },
+        { kind: 'desk', x: 8220, y: 2310, w: 60, h: 30 }, { kind: 'chair', x: 8250, y: 2345 },
+        { kind: 'oil_lamp', x: 8290, y: 2230 }, { kind: 'map_on_wall', x: 8240, y: 2220 },
+      ] },
+    // 30. NE far-east (helt vid right-wall)
+    { id: 'cabin_ne_far_east', name: 'GRÄNS-VAKT', bounds: { x: 9500, y: 2050, w: 190, h: 170 },
+      door: { side: 'south', offset: 70, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'east', offset: 70, width: 40 }, { side: 'west', offset: 60, width: 40 } ],
+      roof: { color: '#306080', accent: '#102540', style: 'tile' }, floor: '#a08060',
+      interior: [
+        { kind: 'bed', x: 9520, y: 2090, w: 50, h: 65 }, { kind: 'fireplace', x: 9620, y: 2090, w: 40, h: 40 },
+        { kind: 'rifle_rack', x: 9520, y: 2080 }, { kind: 'animal_skull', x: 9620, y: 2160 },
+        { kind: 'oil_lamp', x: 9580, y: 2080 }, { kind: 'rope_coil', x: 9580, y: 2180 },
+      ] },
+    // 31. NE south of trees
+    { id: 'cabin_ne_south', name: 'JÄRN-STUGAN', bounds: { x: 8200, y: 3700, w: 200, h: 170 },
+      door: { side: 'north', offset: 75, width: 45 },
+      windows: [ { side: 'south', offset: 60, width: 40 }, { side: 'east', offset: 70, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#5a5a60', accent: '#2a2a30', style: 'tile' }, floor: '#5a4030',
+      interior: [
+        { kind: 'bed', x: 8220, y: 3740, w: 50, h: 65 }, { kind: 'fireplace', x: 8320, y: 3740, w: 40, h: 40 },
+        { kind: 'workbench', x: 8220, y: 3820, w: 60, h: 30 }, { kind: 'rope_coil', x: 8300, y: 3830 },
+        { kind: 'oil_lamp', x: 8300, y: 3730 }, { kind: 'map_on_wall', x: 8230, y: 3720 },
+      ] },
+    // 32. N-central (mellan north-mid och NE)
+    { id: 'cabin_n_central', name: 'HÖGLANDS-STUGAN', bounds: { x: 6300, y: 1100, w: 210, h: 170 },
+      door: { side: 'south', offset: 90, width: 50 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'north', offset: 130, width: 40 }, { side: 'east', offset: 70, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#6a6a70', accent: '#3a3a40', style: 'tile' }, floor: '#7a5a30',
+      interior: [
+        { kind: 'bed', x: 6320, y: 1140, w: 50, h: 65 }, { kind: 'dresser', x: 6320, y: 1220 },
+        { kind: 'fireplace', x: 6440, y: 1140, w: 40, h: 40 }, { kind: 'table_round', x: 6400, y: 1220, r: 18 },
+        { kind: 'chair', x: 6380, y: 1205 }, { kind: 'oil_lamp', x: 6420, y: 1130 },
+        { kind: 'bookshelf', x: 6300, y: 1240, w: 30, h: 25 },
+      ] },
+
+    // --- MID-MAP GAPS (utfyllnad — undvik alien SE-corner) ---
+    // 33. W-mid (mellan lake-west och nw-deep — flyttad ner under cont_w_1)
+    { id: 'cabin_w_mid', name: 'BJÖRK-STUGAN', bounds: { x: 1750, y: 4700, w: 200, h: 170 },
+      door: { side: 'east', offset: 70, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'south', offset: 60, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#d4d4c0', accent: '#7a7a6a', style: 'tile' }, floor: '#a08060',
+      interior: [
+        { kind: 'bed', x: 1770, y: 4740, w: 50, h: 65 }, { kind: 'fireplace', x: 1870, y: 4740, w: 40, h: 40 },
+        { kind: 'table_round', x: 1830, y: 4820, r: 18 }, { kind: 'chair', x: 1810, y: 4805 },
+        { kind: 'oil_lamp', x: 1820, y: 4730 }, { kind: 'bathtub', x: 1890, y: 4790, w: 35, h: 50 },
+      ] },
+    // 34. W-central (mellan lake och central village)
+    { id: 'cabin_w_central', name: 'BÄCK-STUGAN', bounds: { x: 2200, y: 5800, w: 200, h: 170 },
+      door: { side: 'north', offset: 75, width: 45 },
+      windows: [ { side: 'south', offset: 60, width: 40 }, { side: 'east', offset: 70, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#4060a0', accent: '#102540', style: 'tile' }, floor: '#7a5a30',
+      interior: [
+        { kind: 'bed', x: 2220, y: 5840, w: 50, h: 65 }, { kind: 'fireplace', x: 2320, y: 5840, w: 40, h: 40 },
+        { kind: 'table_long', x: 2240, y: 5920, w: 60, h: 30 }, { kind: 'chair', x: 2250, y: 5905 },
+        { kind: 'rope_coil', x: 2320, y: 5930 }, { kind: 'oil_lamp', x: 2290, y: 5830 },
+      ] },
+    // 35. E-central (mellan camping och scrap)
+    { id: 'cabin_e_central', name: 'TÅRNS-STUGAN', bounds: { x: 6800, y: 5200, w: 210, h: 170 },
+      door: { side: 'west', offset: 75, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'south', offset: 60, width: 40 }, { side: 'east', offset: 70, width: 40 } ],
+      roof: { color: '#7a3030', accent: '#3a1010', style: 'tile' }, floor: '#6a4828',
+      interior: [
+        { kind: 'bed', x: 6820, y: 5240, w: 50, h: 65 }, { kind: 'fireplace', x: 6920, y: 5240, w: 40, h: 40 },
+        { kind: 'kitchen_counter', x: 6820, y: 5320, w: 90, h: 25 }, { kind: 'chair', x: 6870, y: 5300 },
+        { kind: 'oil_lamp', x: 6890, y: 5230 }, { kind: 'wall_painting', x: 6840, y: 5220 },
+      ] },
+    // 36. Central-south (mellan village och south)
+    { id: 'cabin_central_south', name: 'BONDE-LADAN', bounds: { x: 4200, y: 6800, w: 220, h: 180 },
+      door: { side: 'north', offset: 90, width: 55 },
+      windows: [ { side: 'south', offset: 80, width: 50 }, { side: 'east', offset: 80, width: 40 }, { side: 'west', offset: 80, width: 40 } ],
+      roof: { color: '#5a3818', accent: '#2a1808', style: 'wood_shingle' }, floor: '#3a2810',
+      interior: [
+        { kind: 'haystack_inside', x: 4220, y: 6840, w: 70, h: 50 }, { kind: 'woodpile_inside', x: 4220, y: 6900, w: 60, h: 30 },
+        { kind: 'workbench', x: 4330, y: 6840, w: 60, h: 30 }, { kind: 'pitchfork', x: 4380, y: 6870 },
+        { kind: 'rope_coil', x: 4300, y: 6940 }, { kind: 'animal_skull', x: 4380, y: 6940 },
+      ] },
+    // 37. SW-mid (mellan lake och south)
+    { id: 'cabin_sw_mid', name: 'KÄRR-STUGAN', bounds: { x: 1700, y: 6700, w: 200, h: 170 },
+      door: { side: 'east', offset: 70, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'south', offset: 60, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#3a5018', accent: '#1a2810', style: 'wood_shingle' }, floor: '#4a3018',
+      interior: [
+        { kind: 'bed', x: 1720, y: 6740, w: 50, h: 65 }, { kind: 'fireplace', x: 1820, y: 6740, w: 40, h: 40 },
+        { kind: 'table_long', x: 1740, y: 6820, w: 60, h: 30 }, { kind: 'chair', x: 1750, y: 6810 },
+        { kind: 'rope_coil', x: 1810, y: 6830 }, { kind: 'oil_lamp', x: 1790, y: 6730 },
+      ] },
+    // 38. N-mid-west (mellan north-deep och village)
+    { id: 'cabin_n_mid_west', name: 'KOLAR-STUGAN', bounds: { x: 3700, y: 1800, w: 200, h: 170 },
+      door: { side: 'south', offset: 75, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'east', offset: 70, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
+      roof: { color: '#4a2a18', accent: '#2a1408', style: 'wood_shingle' }, floor: '#5a3a1a',
+      interior: [
+        { kind: 'bed', x: 3720, y: 1840, w: 50, h: 65 }, { kind: 'fireplace', x: 3820, y: 1840, w: 40, h: 40 },
+        { kind: 'workbench', x: 3720, y: 1920, w: 60, h: 30 }, { kind: 'rifle_rack', x: 3720, y: 1830 },
+        { kind: 'animal_skull', x: 3820, y: 1930 }, { kind: 'oil_lamp', x: 3780, y: 1830 },
+      ] },
+    // 39. East-far-mid (mellan east-mid och scrap)
+    { id: 'cabin_e_far_mid', name: 'KORSVÄGS-STUGAN', bounds: { x: 8800, y: 5300, w: 200, h: 170 },
+      door: { side: 'west', offset: 70, width: 45 },
+      windows: [ { side: 'north', offset: 60, width: 40 }, { side: 'south', offset: 60, width: 40 }, { side: 'east', offset: 70, width: 40 } ],
+      roof: { color: '#a08020', accent: '#5a4810', style: 'thatch' }, floor: '#7a5828',
+      interior: [
+        { kind: 'bed', x: 8820, y: 5340, w: 50, h: 65 }, { kind: 'fireplace', x: 8920, y: 5340, w: 40, h: 40 },
+        { kind: 'kitchen_counter', x: 8820, y: 5420, w: 90, h: 25 }, { kind: 'desk', x: 8820, y: 5460, w: 60, h: 30 },
+        { kind: 'oil_lamp', x: 8890, y: 5330 }, { kind: 'bookshelf', x: 8800, y: 5440, w: 30, h: 25 },
+      ] },
+    // 40. SW lake-cluster (mellan lake-west och sw-strand)
+    { id: 'cabin_sw_lake_south', name: 'TRÄSKMARKEN', bounds: { x: 1200, y: 5200, w: 190, h: 160 },
+      door: { side: 'north', offset: 65, width: 40 },
+      windows: [ { side: 'south', offset: 60, width: 35 }, { side: 'east', offset: 60, width: 35 }, { side: 'west', offset: 60, width: 35 } ],
+      roof: { color: '#4060a0', accent: '#102540', style: 'tile' }, floor: '#7a5a30',
+      interior: [
+        { kind: 'bed', x: 1220, y: 5230, w: 45, h: 60 }, { kind: 'fireplace', x: 1310, y: 5230, w: 40, h: 40 },
+        { kind: 'table_round', x: 1280, y: 5310, r: 18 }, { kind: 'rope_coil', x: 1330, y: 5310 },
+        { kind: 'oil_lamp', x: 1270, y: 5220 },
+      ] },
   ],
 
   // === CONTAINER-CABINS — alla containrar är nu "miniature hus" ===
@@ -532,6 +743,124 @@ const BATTLEROYALE_ARENA = {
     { x: 8500, y: 9500, w: 50, h: 50, kind: 'standing_stone' },
     { x: 8580, y: 9450, w: 50, h: 50, kind: 'standing_stone' },
     { x: 8660, y: 9500, w: 50, h: 50, kind: 'standing_stone' },
+
+    // ========================================================================
+    // === EDGE BOOST (v1.369) — mer content på vänster + höger edges ===
+    // INTE i SE-hörn (alien-zon). Fyller upp:
+    //   - LEFT EDGE TOP (x:0-1500, y:0-3000)
+    //   - LEFT EDGE BOTTOM (x:0-1500, y:7000-10000)
+    //   - RIGHT EDGE TOP (x:8500-10000, y:0-3000)
+    // ========================================================================
+
+    // --- LEFT EDGE TOP BOOST (NW, x:0-1500, y:0-3000) ---
+    // Tätare skog i nord-mid + sydligt mellan-band (y:2000-3000)
+    { x: 150,  y: 450,  w: 65, h: 65, kind: 'tree_pine' },
+    { x: 700,  y: 100,  w: 70, h: 70, kind: 'tree_oak' },
+    { x: 1400, y: 100,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 50,   y: 1000, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 1450, y: 950,  w: 55, h: 55, kind: 'tree_pine' },
+    { x: 350,  y: 2100, w: 70, h: 70, kind: 'tree_giant_oak' },
+    { x: 700,  y: 2000, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1000, y: 2100, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 1300, y: 2050, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 200,  y: 2700, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 700,  y: 2700, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 1000, y: 2800, w: 60, h: 60, kind: 'tree_giant_oak' },
+    { x: 50,   y: 2400, w: 50, h: 50, kind: 'tree_pine' },
+    // Stenar + stubbar
+    { x: 950,  y: 600,  w: 80, h: 60, kind: 'rock_large' },
+    { x: 150,  y: 1700, w: 50, h: 40, kind: 'rock_small' },
+    { x: 1450, y: 2400, w: 50, h: 40, kind: 'rock_small' },
+    { x: 900,  y: 2500, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 1100, y: 2900, w: 30, h: 30, kind: 'tree_stump' },
+    // Camp + skogsmark (NW mellan-zon)
+    { x: 1250, y: 2300, w: 80, h: 70, kind: 'tent', color: 'brown' },
+    { x: 1400, y: 2200, w: 50, h: 50, kind: 'campfire' },
+    { x: 80,   y: 2900, w: 32, h: 32, kind: 'oil_drum' },
+    { x: 400,  y: 1300, w: 32, h: 32, kind: 'oil_drum' },
+    // Övergiven brunn nord-väst
+    { x: 1450, y: 1400, w: 50, h: 50, kind: 'well' },
+    // Standing-stone-mystik
+    { x: 200,  y: 350,  w: 50, h: 50, kind: 'standing_stone' },
+    { x: 1450, y: 2700, w: 40, h: 60, kind: 'rune_stone' },
+
+    // --- LEFT EDGE BOTTOM BOOST (SW, x:0-1500, y:7000-10000) ---
+    // Mer skog + camps i SW-banding
+    { x: 150,  y: 7150, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 500,  y: 7100, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1000, y: 7050, w: 70, h: 70, kind: 'tree_giant_oak' },
+    { x: 1300, y: 7200, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 50,   y: 7400, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 1450, y: 7400, w: 65, h: 65, kind: 'tree_pine' },
+    { x: 200,  y: 7700, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 1100, y: 7400, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 1450, y: 7700, w: 65, h: 65, kind: 'tree_giant_oak' },
+    { x: 100,  y: 7900, w: 50, h: 50, kind: 'tree_pine' },
+    { x: 1100, y: 8500, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 1450, y: 8500, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 100,  y: 9700, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 1000, y: 9700, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 1450, y: 9700, w: 65, h: 65, kind: 'tree_giant_oak' },
+    // Stenar och stubbar
+    { x: 1200, y: 7050, w: 80, h: 60, kind: 'rock_large' },
+    { x: 50,   y: 7800, w: 50, h: 40, kind: 'rock_small' },
+    { x: 1450, y: 8000, w: 50, h: 40, kind: 'rock_small' },
+    { x: 900,  y: 7300, w: 90, h: 70, kind: 'rock_large' },
+    { x: 1400, y: 9800, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 200,  y: 7200, w: 30, h: 30, kind: 'tree_stump' },
+    // Camp i SW
+    { x: 1200, y: 7500, w: 80, h: 70, kind: 'tent', color: 'red' },
+    { x: 1350, y: 7600, w: 50, h: 50, kind: 'campfire' },
+    { x: 1100, y: 7650, w: 32, h: 32, kind: 'oil_drum' },
+    // Övergiven car-wreck nere i SW
+    { x: 1000, y: 9500, w: 110, h: 55, kind: 'car_wreck' },
+    // Brunn i SW
+    { x: 1200, y: 8000, w: 50, h: 50, kind: 'well' },
+    // Mystik
+    { x: 1450, y: 9100, w: 50, h: 50, kind: 'standing_stone' },
+    { x: 50,   y: 9100, w: 40, h: 60, kind: 'rune_stone' },
+    { x: 1400, y: 9400, w: 40, h: 70, kind: 'skull_totem' },
+
+    // --- RIGHT EDGE TOP BOOST (NE, x:8500-10000, y:0-3000) ---
+    // Mer skog i NE — INTE i alien-corner som börjar y>=7900
+    { x: 8550, y: 100,  w: 70, h: 70, kind: 'tree_oak' },
+    { x: 9000, y: 150,  w: 60, h: 60, kind: 'tree_pine' },
+    { x: 9700, y: 200,  w: 65, h: 65, kind: 'tree_giant_oak' },
+    { x: 8500, y: 550,  w: 55, h: 55, kind: 'tree_pine' },
+    { x: 9750, y: 550,  w: 65, h: 65, kind: 'tree_oak' },
+    { x: 8500, y: 1000, w: 60, h: 60, kind: 'tree_giant_oak' },
+    { x: 9700, y: 1100, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 8700, y: 1500, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 9050, y: 1600, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 9750, y: 1500, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 8550, y: 2150, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 9700, y: 2050, w: 70, h: 70, kind: 'tree_giant_oak' },
+    { x: 8700, y: 2350, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 9000, y: 2400, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 9300, y: 2350, w: 65, h: 65, kind: 'tree_oak' },
+    { x: 9750, y: 2400, w: 55, h: 55, kind: 'tree_pine' },
+    { x: 8550, y: 2800, w: 60, h: 60, kind: 'tree_oak' },
+    { x: 9750, y: 2800, w: 60, h: 60, kind: 'tree_pine' },
+    { x: 9300, y: 2900, w: 70, h: 70, kind: 'tree_giant_oak' },
+    // Stenar och stubbar i NE
+    { x: 9600, y: 350,  w: 80, h: 60, kind: 'rock_large' },
+    { x: 8550, y: 1850, w: 90, h: 70, kind: 'rock_large' },
+    { x: 9750, y: 950,  w: 50, h: 40, kind: 'rock_small' },
+    { x: 8700, y: 2700, w: 50, h: 40, kind: 'rock_small' },
+    { x: 9100, y: 1100, w: 30, h: 30, kind: 'tree_stump' },
+    { x: 9450, y: 2750, w: 30, h: 30, kind: 'tree_stump' },
+    // Litet NE-camp (uppe vid kanten)
+    { x: 9400, y: 100,  w: 80, h: 70, kind: 'tent', color: 'blue' },
+    { x: 9550, y: 200,  w: 50, h: 50, kind: 'campfire' },
+    { x: 9300, y: 250,  w: 32, h: 32, kind: 'oil_drum' },
+    // NE car-wreck
+    { x: 8700, y: 2900, w: 110, h: 55, kind: 'car_wreck' },
+    // NE brunn
+    { x: 9500, y: 2600, w: 50, h: 50, kind: 'well' },
+    // Mystik nere i NE (innan alien-zon!)
+    { x: 9750, y: 350,  w: 40, h: 60, kind: 'rune_stone' },
+    { x: 9700, y: 1700, w: 50, h: 50, kind: 'standing_stone' },
+    { x: 8600, y: 2950, w: 40, h: 70, kind: 'skull_totem' },
 
     // ========================================================================
     // === ALIEN-OMRÅDE (SE-hörnet, x=7900-9800, y=7900-9800) ===
@@ -1540,34 +1869,37 @@ const BATTLEROYALE_ARENA = {
   },
 
   lootByTier: {
+    // +20% vapen, +40% ammo (split ammo/granate 50/50 — granat ger +3 st)
     common: [
-      { kind: 'hp_small',     weight: 55 },
-      { kind: 'shield_small', weight: 30 },
-      { kind: 'ammo',         weight: 10 },
-      { kind: 'weapon', weaponId: 'burstpistol', weight: 5 },
-      { kind: 'weapon', weaponId: 'smg',         weight: 5 },
+      { kind: 'hp_small',     weight: 48 },
+      { kind: 'shield_small', weight: 25 },
+      { kind: 'ammo',         weight: 7 },
+      { kind: 'grenade',      weight: 7 },
+      { kind: 'weapon', weaponId: 'burstpistol', weight: 7 },
+      { kind: 'weapon', weaponId: 'smg',         weight: 6 },
     ],
     uncommon: [
-      { kind: 'hp_small',                        weight: 25 },
-      { kind: 'shield_small',                    weight: 20 },
-      { kind: 'weapon', weaponId: 'smg',         weight: 15 },
-      { kind: 'weapon', weaponId: 'burstpistol', weight: 12 },
-      { kind: 'weapon', weaponId: 'crossbow',    weight: 15 },
-      { kind: 'weapon', weaponId: 'boomerang',   weight: 13 },
+      { kind: 'hp_small',                        weight: 20 },
+      { kind: 'shield_small',                    weight: 14 },
+      { kind: 'grenade',                         weight: 4 },
+      { kind: 'weapon', weaponId: 'smg',         weight: 18 },
+      { kind: 'weapon', weaponId: 'burstpistol', weight: 14 },
+      { kind: 'weapon', weaponId: 'crossbow',    weight: 18 },
+      { kind: 'weapon', weaponId: 'boomerang',   weight: 12 },
     ],
     rare: [
-      { kind: 'hp_big',                          weight: 25 },
-      { kind: 'shield_big',                      weight: 20 },
-      { kind: 'weapon', weaponId: 'rifle',       weight: 18 },
-      { kind: 'weapon', weaponId: 'sniper',      weight: 15 },
-      { kind: 'weapon', weaponId: 'flame',       weight: 12 },
-      { kind: 'weapon', weaponId: 'energysword', weight: 10 },
+      { kind: 'hp_big',                          weight: 20 },
+      { kind: 'shield_big',                      weight: 14 },
+      { kind: 'weapon', weaponId: 'rifle',       weight: 22 },
+      { kind: 'weapon', weaponId: 'sniper',      weight: 18 },
+      { kind: 'weapon', weaponId: 'flame',       weight: 14 },
+      { kind: 'weapon', weaponId: 'energysword', weight: 12 },
     ],
     legendary: [
-      { kind: 'weapon', weaponId: 'minigun',    weight: 40 },
-      { kind: 'weapon', weaponId: 'lightsaber', weight: 40 },
-      { kind: 'hp_big',                         weight: 10 },
-      { kind: 'shield_big',                     weight: 10 },
+      { kind: 'weapon', weaponId: 'minigun',    weight: 48 },
+      { kind: 'weapon', weaponId: 'lightsaber', weight: 48 },
+      { kind: 'hp_big',                         weight: 2 },
+      { kind: 'shield_big',                     weight: 2 },
     ],
   },
 

@@ -811,6 +811,11 @@ function buildKothPickups(sim) {
     { id: nextPickupId(sim), x: 2300, y: 1000, type: 'shield', available: true, respawnAt: 0 },
     { id: nextPickupId(sim), x: 1750, y: 600,  type: 'shield', available: true, respawnAt: 0 },
     { id: nextPickupId(sim), x: 1750, y: 1400, type: 'shield', available: true, respawnAt: 0 },
+    // Granater: spridda runt hörn + mid-flank för att inte hamna i zonen
+    { id: nextPickupId(sim), x: 800,  y: 300,  type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2700, y: 300,  type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 800,  y: 1700, type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2700, y: 1700, type: 'grenade', available: true, respawnAt: 0 },
   ];
 }
 
@@ -829,6 +834,11 @@ function buildCtfPickups(sim) {
     { id: nextPickupId(sim), x: 2250, y: 2450, type: 'shield', available: true, respawnAt: 0 },
     { id: nextPickupId(sim), x: 1900, y: 1400, type: 'shield', available: true, respawnAt: 0 },
     { id: nextPickupId(sim), x: 2600, y: 1400, type: 'shield', available: true, respawnAt: 0 },
+    // Granater: 4 symmetriska, mellan flanker och mid (taktiska val)
+    { id: nextPickupId(sim), x: 800,  y: 1400, type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3700, y: 1400, type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2250, y: 900,  type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2250, y: 1900, type: 'grenade', available: true, respawnAt: 0 },
   ];
 }
 
@@ -843,6 +853,11 @@ function buildTdmPickups(sim, arena) {
     { id: nextPickupId(sim), x: 2000, y: 2400, type: 'shield', available: true, respawnAt: 0 },
     { id: nextPickupId(sim), x: 1600, y: 1500, type: 'shield', available: true, respawnAt: 0 },
     { id: nextPickupId(sim), x: 2400, y: 1500, type: 'shield', available: true, respawnAt: 0 },
+    // Granater: 4 symmetriska runt mid (riskabla men taktiska)
+    { id: nextPickupId(sim), x: 800,  y: 1500, type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3200, y: 1500, type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2000, y: 1100, type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 2000, y: 1900, type: 'grenade', available: true, respawnAt: 0 },
   ];
 }
 
@@ -865,14 +880,19 @@ function tickPvpPickups(sim, now) {
       // Heal — använd spelarens faktiska maxHp (JUG har 400-1300, inte 100)
       const maxHp = ws.playerState.maxHp || 100;
       const maxShield = ws.playerState.maxShield || 100;
+      let grenadesGained = 0;
       if (pu.type === 'hp') {
         const before = ws.playerState.hp;
         ws.playerState.hp = Math.min(maxHp, before + PICKUP_HEAL);
         if (ws.playerState.hp === before) continue; // redan full HP — skip pickup
-      } else { // 'shield'
+      } else if (pu.type === 'shield') {
         const before = ws.playerState.shield || 0;
         ws.playerState.shield = Math.min(maxShield, before + PICKUP_HEAL);
         if (ws.playerState.shield === before) continue; // redan full shield
+      } else if (pu.type === 'grenade') {
+        // Grenade-pickup: +1 granat. Klient håller faktisk count (server bara
+        // emiterar event — klient bumpar lokal counter).
+        grenadesGained = 1;
       }
       pu.available = false;
       pu.respawnAt = now + PICKUP_RESPAWN_MS;
@@ -883,6 +903,7 @@ function tickPvpPickups(sim, now) {
         ptype: pu.type,
         hp: ws.playerState.hp,
         shield: ws.playerState.shield || 0,
+        grenadesGained,
         respawnAt: pu.respawnAt,
       });
       break; // pickup borta — gå till nästa
@@ -2298,6 +2319,9 @@ function tickBrLootPickups(sim, nowMs) {
       } else if (lo.kind === 'ammo') {
         // Klient hanterar ammo lokalt; vi skickar event
         applied = true;
+      } else if (lo.kind === 'grenade') {
+        // BR grenade-pickup: ger +3 granater. Klient bumpar lokal counter.
+        applied = true;
       } else if (lo.kind === 'weapon' && lo.weaponId) {
         // BR tier-baserad auto-equip:
         // - Picked tier > current tier → auto-equip
@@ -2489,6 +2513,11 @@ function buildJuggernautPickups(sim) {
     { id: nextPickupId(sim), x: 2500, y: 3000, type: 'shield', available: true, respawnAt: 0 },
     { id: nextPickupId(sim), x: 1500, y: 1750, type: 'shield', available: true, respawnAt: 0 },
     { id: nextPickupId(sim), x: 3500, y: 1750, type: 'shield', available: true, respawnAt: 0 },
+    // Granater: 4 spridda runt mitten + flank (anti-JUG tool)
+    { id: nextPickupId(sim), x: 1700, y: 900,  type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3300, y: 900,  type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1700, y: 2600, type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3300, y: 2600, type: 'grenade', available: true, respawnAt: 0 },
   ];
 }
 
@@ -3066,12 +3095,21 @@ function startSim(sim, opts) {
       i++;
     }
     sim._gungameSpawnIdx = i; // fortsätt rotera vid respawn
+    // Gungame: granat-pickups (inga HP/shield i GG eftersom respawn redan ger full hp)
+    sim.pvpPickups = [
+      { id: nextPickupId(sim), x: 600,  y: 400,  type: 'grenade', available: true, respawnAt: 0 },
+      { id: nextPickupId(sim), x: 2900, y: 400,  type: 'grenade', available: true, respawnAt: 0 },
+      { id: nextPickupId(sim), x: 600,  y: 1600, type: 'grenade', available: true, respawnAt: 0 },
+      { id: nextPickupId(sim), x: 2900, y: 1600, type: 'grenade', available: true, respawnAt: 0 },
+      { id: nextPickupId(sim), x: 1750, y: 1000, type: 'grenade', available: true, respawnAt: 0 },
+    ];
     sim.eventQueue.push({
       type: 'gungame_started',
       arena: { worldW: GUNGAME_ARENA.worldW, worldH: GUNGAME_ARENA.worldH, name: GUNGAME_ARENA.name },
       walls: GUNGAME_ARENA.walls,
       spawns: GUNGAME_ARENA.spawns,
       decorations: GUNGAME_ARENA.decorations || [],
+      pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
       weapons: GUNGAME_WEAPONS,
       totalTiers: GUNGAME_WEAPONS.length,
       shieldMax: 100,
@@ -3354,6 +3392,11 @@ function buildSiegePickups(sim) {
     { id: nextPickupId(sim), x: 2500, y: 2200, type: 'shield', available: true, respawnAt: 0 },
     { id: nextPickupId(sim), x: 1200, y: 1500, type: 'shield', available: true, respawnAt: 0 },
     { id: nextPickupId(sim), x: 3800, y: 1500, type: 'shield', available: true, respawnAt: 0 },
+    // Granater: 4 spridda mellan baser/mid
+    { id: nextPickupId(sim), x: 1500, y: 1100, type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3500, y: 1100, type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 1500, y: 1900, type: 'grenade', available: true, respawnAt: 0 },
+    { id: nextPickupId(sim), x: 3500, y: 1900, type: 'grenade', available: true, respawnAt: 0 },
   ];
 }
 

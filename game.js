@@ -5773,26 +5773,26 @@ function drawPvpPickups() {
     const pu = state.pvpPickups[id];
     const x = pu.x - cx, y = pu.y - cy;
     if (x < -30 || x > viewW + 30 || y < -30 || y > viewH + 30) continue;
+    if (!pu.available) continue;
     const isHp = pu.type === 'hp';
-    const color = isHp ? '#5aff5a' : '#3acaff';
-    if (!pu.available) {
-      // Pickup består tills respawn — rita ingenting alls (var: ghost-ring som
-      // användaren tyckte såg buggigt ut). När respawn-event fires sätts
-      // available=true igen och full glow + ikon ritas.
-      continue;
-    }
-    // Glow
+    const isShield = pu.type === 'shield';
+    const isGrenade = pu.type === 'grenade';
+    // Glow-färg per typ
+    let glowColor;
+    if (isHp) glowColor = 'rgba(90,255,90,0.55)';
+    else if (isShield) glowColor = 'rgba(58,202,255,0.55)';
+    else if (isGrenade) glowColor = 'rgba(255,170,60,0.55)';
+    else glowColor = 'rgba(180,180,180,0.55)';
     const glowR = 18 + pulse * 6;
     const grad = ctx.createRadialGradient(x, y, 4, x, y, glowR);
-    grad.addColorStop(0, isHp ? 'rgba(90,255,90,0.55)' : 'rgba(58,202,255,0.55)');
-    grad.addColorStop(1, isHp ? 'rgba(90,255,90,0)' : 'rgba(58,202,255,0)');
+    grad.addColorStop(0, glowColor);
+    grad.addColorStop(1, glowColor.replace(/0\.55\)/, '0)'));
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.arc(x, y, glowR, 0, Math.PI * 2);
     ctx.fill();
-    // Ikon
+    // Ikon per typ
     if (isHp) {
-      // Grön + (kors-form)
       ctx.fillStyle = '#5aff5a';
       ctx.fillRect(x - 9, y - 3, 18, 6);
       ctx.fillRect(x - 3, y - 9, 6, 18);
@@ -5800,8 +5800,7 @@ function drawPvpPickups() {
       ctx.lineWidth = 1.5;
       ctx.strokeRect(x - 9, y - 3, 18, 6);
       ctx.strokeRect(x - 3, y - 9, 6, 18);
-    } else {
-      // Cyan diamant (shield)
+    } else if (isShield) {
       ctx.fillStyle = '#3acaff';
       ctx.strokeStyle = '#fff';
       ctx.lineWidth = 1.5;
@@ -5813,6 +5812,40 @@ function drawPvpPickups() {
       ctx.closePath();
       ctx.fill();
       ctx.stroke();
+    } else if (isGrenade) {
+      // Mini-granat-ikon (oval + cross-hatch + cap)
+      ctx.save();
+      ctx.translate(x, y);
+      // Body
+      ctx.fillStyle = '#3a5a30';
+      ctx.strokeStyle = '#1a2a18';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(0, 2, 7, 8, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      // Cross-hatch
+      ctx.strokeStyle = '#1a2a18';
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(-6, -2); ctx.lineTo(6, -2);
+      ctx.moveTo(-6, 2);  ctx.lineTo(6, 2);
+      ctx.moveTo(-6, 6);  ctx.lineTo(6, 6);
+      ctx.moveTo(-3, -5); ctx.lineTo(-3, 9);
+      ctx.moveTo(0, -6);  ctx.lineTo(0, 10);
+      ctx.moveTo(3, -5);  ctx.lineTo(3, 9);
+      ctx.stroke();
+      // Cap
+      ctx.fillStyle = '#5a4030';
+      ctx.fillRect(-2.5, -8, 5, 3);
+      // Pin
+      ctx.strokeStyle = '#bbbbbb';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(-2, -6);
+      ctx.quadraticCurveTo(-6, -8, -7, -10);
+      ctx.stroke();
+      ctx.restore();
     }
   }
   ctx.restore();
@@ -15349,9 +15382,17 @@ const Coop = {
       if (ev.peerId === this.myId && state.player) {
         state.player.hp = ev.hp;
         state.player.shield = ev.shield;
+        // Grenade-pickup: bump count med grenadesGained (server skickar oftast 1)
+        if (ev.ptype === 'grenade' && typeof ev.grenadesGained === 'number' && ev.grenadesGained > 0) {
+          if (typeof setGrenadeCount === 'function' && typeof getGrenadeCount === 'function') {
+            setGrenadeCount(getGrenadeCount() + ev.grenadesGained);
+          }
+        }
         if (typeof updateHUD === 'function') updateHUD();
         if (typeof showToast === 'function') {
-          showToast(ev.ptype === 'hp' ? '💚 +40 HP' : '🛡 +40 SHIELD');
+          if (ev.ptype === 'hp') showToast('💚 +40 HP');
+          else if (ev.ptype === 'shield') showToast('🛡 +40 SHIELD');
+          else if (ev.ptype === 'grenade') showToast('💣 +' + (ev.grenadesGained || 1) + ' GRANAT');
         }
         if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
       } else if (this.players.has(ev.peerId)) {
@@ -15362,7 +15403,9 @@ const Coop = {
       // VFX: shockwave + sparks i pickup-färgen
       if (typeof spawnSparks === 'function' && state.pvpPickups && state.pvpPickups[ev.id]) {
         const pu = state.pvpPickups[ev.id];
-        const color = ev.ptype === 'hp' ? '#5aff5a' : '#3acaff';
+        let color = '#5aff5a';
+        if (ev.ptype === 'shield') color = '#3acaff';
+        else if (ev.ptype === 'grenade') color = '#ffaa30';
         spawnSparks(pu.x, pu.y, color, 18, 220);
       }
     } else if (ev.type === 'pvp_pickup_spawned') {
@@ -16460,6 +16503,12 @@ const Coop = {
           if (w && w.mag) state.player.ammo = w.mag;
           state.player.reloading = false;
           if (typeof showToast === 'function') showToast('🔋 AMMO');
+        } else if (ev.kind === 'grenade') {
+          // BR grenade-pickup: +3 granater
+          if (typeof setGrenadeCount === 'function' && typeof getGrenadeCount === 'function') {
+            setGrenadeCount(getGrenadeCount() + 3);
+          }
+          if (typeof showToast === 'function') showToast('💣 +3 GRANATER');
         }
         if (typeof updateHUD === 'function') updateHUD();
         if (typeof Audio !== 'undefined' && Audio.pickup) Audio.pickup();
