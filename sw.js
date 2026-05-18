@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v348-spawn-spread-tdm-gungame-koth-jug-br';
+const CACHE = 'penetrator-v349-gg-pistol-start-crossbow-tier8';
 const ASSETS = [
   './',
   './index.html',

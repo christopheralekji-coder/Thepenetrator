@@ -3013,7 +3013,9 @@ function startSim(sim, opts) {
     // Eftersom funktionen är local i denna fil exponerar vi via sim-objektet.
     sim._endSiegeMatch = endSiegeMatch;
   } else if (sim.gungameActive) {
-    // GUNGAME: FFA på 3500×2000 close-quarters arena, 15-tier progression
+    // GUNGAME: FFA på 3500×2000 close-quarters arena, 15-tier progression.
+    // Start-vapen är pistol (tier 0) — tidigare knife var för frustrerande.
+    // Tier 15 = sledge (final melee humiliation).
     sim.simReadyAt = Date.now() + 5000;
     // FFA — alla är fiender → använd max-spread så ingen spawnar bredvid varandra.
     const playerCount = sim.room.members.size;

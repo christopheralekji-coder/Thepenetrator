@@ -93,25 +93,25 @@ const GUNGAME_ARENA = {
   ],
 };
 
-// 15-vapen-progression. Stigande tier: melee → pistols → guns → power → final melee.
-// START med knife (var fists — för svag att ta sig från noll med). Sledge kvar
-// som final-tier humiliation. Kill med melee → ev. demotion av offret.
+// 15-vapen-progression. Stigande tier: pistols → mid-guns → precision → power → final melee.
+// START med pistol (var knife — för svag/frustrerande att ta sig från noll med).
+// Sledge kvar som final-tier humiliation. Kill med melee → ev. demotion av offret.
 // Demotion-floor: när offret är på tier ≥ 9 (level 10+) kan de INTE demoteras
 // under tier 9 — annars hopplöst grind efter att ha klivit sig upp i late-game.
 const GUNGAME_WEAPONS = [
-  'knife',       // 1  — start, snabb melee (var fists, för svag)
-  'pistol',      // 2  — basic gun
-  'shuriken',    // 3  — rapid throwing
-  'shotgun',     // 4  — close-range power
-  'revolver',    // 5  — heavy pistol
-  'burstpistol', // 6  — 3-burst
-  'smg',         // 7  — auto-fire
-  'bow',         // 8  — precision
+  'pistol',      // 1  — START (basic gun, ersätter knife — knife var för frustrerande)
+  'shuriken',    // 2  — rapid throwing
+  'shotgun',     // 3  — close-range power
+  'revolver',    // 4  — heavy pistol
+  'burstpistol', // 5  — 3-burst
+  'smg',         // 6  — auto-fire
+  'bow',         // 7  — precision
+  'crossbow',    // 8  — heavier precision (NY — slot mellan bow och rifle)
   'rifle',       // 9  — standard auto
   'sonic',       // 10 — knockback gun (level 10 = demotion-floor)
   'sniper',      // 11 — one-shot precision
   'plasma',      // 12 — high-dmg
-  'minigun',     // 13 — heavy auto (NY — fyller upp till 15 efter fists-borttag)
+  'minigun',     // 13 — heavy auto
   'rocket',      // 14 — explosive
   'sledge',      // 15 — FINAL melee humiliation (TUNG)
 ];
