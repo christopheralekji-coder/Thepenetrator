@@ -686,9 +686,39 @@ html, body {
   align-items: center;
   justify-content: center;
   gap: 0;
-  transition: transform 0.08s;
+  transition: transform 0.06s ease-out, background 0.10s, border 0.10s;
   pointer-events: none;
   overflow: visible;
+  /* Joystick-aktivt: bakgrund + border + glow för att efterlikna movement-knob */
+  --knob-x: 0px;
+  --knob-y: 0px;
+  transform: translate(var(--knob-x), var(--knob-y));
+}
+/* Joystick-aktivt state: visa knoben tydligt som en rörlig markör (matchar
+   movement-joystick-look) */
+.action-btn.fire.aiming .fire-knob {
+  background: radial-gradient(circle at 30% 30%, rgba(255, 235, 130, 0.85), rgba(220, 140, 30, 0.95));
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.55), 0 0 18px rgba(255, 180, 60, 0.45);
+}
+/* Yttre joystick-ring som visas när man siktar — runt fire-knappen.
+   Större än knappen (140px) för att matcha movement-joystick visuell-stil
+   och ge tydlig "joystick boundary" för fingret. */
+.action-btn.fire::before {
+  content: '';
+  position: absolute;
+  inset: -28px;  /* 84 + 56 = 140px diameter */
+  border-radius: 50%;
+  border: 2px solid rgba(255, 213, 74, 0);
+  background: rgba(0, 0, 0, 0);
+  pointer-events: none;
+  transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
+  box-shadow: 0 0 0 0 rgba(255, 213, 74, 0);
+}
+.action-btn.fire.aiming::before {
+  border-color: rgba(255, 213, 74, 0.55);
+  background: radial-gradient(circle at center, rgba(255, 213, 74, 0.06), rgba(0, 0, 0, 0.30));
+  box-shadow: 0 0 24px rgba(255, 213, 74, 0.25), inset 0 0 18px rgba(255, 213, 74, 0.12);
 }
 .action-btn.fire .fire-icon-wrap {
   display: flex;
@@ -800,7 +830,9 @@ html, body {
   background: radial-gradient(circle at center, rgba(255,213,74,0.18), rgba(0,0,0,0.4));
   box-shadow: 0 2px 8px rgba(255,90,60,0.45), inset 0 0 18px rgba(255,90,60,0.25);
 }
-.action-btn.fire:active .fire-knob {
+/* :active scale-feedback BARA när inte aiming — i aiming-läge ska transform
+   reserveras för knob-translate via CSS-variabler */
+.action-btn.fire:active:not(.aiming) .fire-knob {
   transform: scale(0.9);
   background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.55), rgba(255,120,80,0.85));
   box-shadow: 0 2px 6px rgba(0,0,0,0.6), inset 0 1px 3px rgba(0,0,0,0.2);

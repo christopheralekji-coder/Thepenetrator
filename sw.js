@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v353-jug-nerf-400hp-hunter-110-speed';
+const CACHE = 'penetrator-v354-fire-joystick-knob-crosshair';
 const ASSETS = [
   './',
   './index.html',

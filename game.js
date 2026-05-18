@@ -12838,6 +12838,7 @@ window.addEventListener('mouseup',   e => { if (joyTouchId === 'mouse') joyEnd({
 
 // Fire button — fungerar som vanlig knapp ELLER joystick (toggle i settings)
 const fireBtn = document.getElementById('btn-fire');
+const fireKnobEl = fireBtn ? fireBtn.querySelector('.fire-knob') : null;
 let fireJoyTouchId = null;
 let fireJoyCenter = { x: 0, y: 0 };
 const FIRE_JOY_RADIUS = 50;
@@ -12847,6 +12848,10 @@ input.aimX = 0; input.aimY = 0; input.fireJoyActive = false;
 // riktning du håller stickan — inte i karaktärens facing-direction. Joysticken
 // är inte begränsad till knappens yta: så fort du börjat dra inifrån, kan
 // fingret dra var som helst på skärmen.
+//
+// NY i v1.354: visuell knob translateras inom yttre ring (matchar movement-joystick
+// look), och kanvas-crosshair ritas vid spelarens aim-direction. Båda visa-bara-
+// när-firing så de inte skymmer sikten.
 function fireDown(e) {
   e.preventDefault();
   input.firing = true;
@@ -12855,6 +12860,8 @@ function fireDown(e) {
   const r = fireBtn.getBoundingClientRect();
   fireJoyCenter = { x: r.left + r.width/2, y: r.top + r.height/2 };
   input.fireJoyActive = true;
+  // Visa aiming-state (yttre ring + knob-glow)
+  fireBtn.classList.add('aiming');
   fireMove(e);
 }
 function fireMove(e) {
@@ -12872,12 +12879,28 @@ function fireMove(e) {
     input.aimX = dx / d;
     input.aimY = dy / d;
   }
+  // Translatera knob inom ring-radius (clampad). Aim-direction är OCLAMPAD så
+  // fingret kan gå utanför ringen utan att aim ändras — bara knob-visualen clampas.
+  if (fireKnobEl) {
+    const clampedD = Math.min(d, FIRE_JOY_RADIUS);
+    const safeD = Math.max(d, 0.001);
+    const knobX = (dx / safeD) * clampedD;
+    const knobY = (dy / safeD) * clampedD;
+    fireKnobEl.style.setProperty('--knob-x', knobX.toFixed(1) + 'px');
+    fireKnobEl.style.setProperty('--knob-y', knobY.toFixed(1) + 'px');
+  }
 }
 function fireUp(e) {
   if (e) e.preventDefault();
   input.firing = false;
   fireJoyTouchId = null;
   input.fireJoyActive = false;
+  // Reset visual
+  fireBtn.classList.remove('aiming');
+  if (fireKnobEl) {
+    fireKnobEl.style.setProperty('--knob-x', '0px');
+    fireKnobEl.style.setProperty('--knob-y', '0px');
+  }
 }
 fireBtn.addEventListener('touchstart', fireDown, { passive: false });
 // Touch-move + end på document så fingret kan dra utanför knappen utan att
@@ -13358,8 +13381,12 @@ function openWeaponMenu() {
   // I coop: dölj shop-knappen så användaren inte ens ser den (ingen shop tillåten)
   const wsBtn = document.getElementById('btn-weapon-shop');
   if (wsBtn) wsBtn.classList.toggle('hidden', !!Coop.active);
-  // släpp pågående input
+  // släpp pågående input + reset fire-joystick visual
   input.firing = false;
+  input.fireJoyActive = false;
+  fireJoyTouchId = null;
+  if (fireBtn) fireBtn.classList.remove('aiming');
+  if (fireKnobEl) { fireKnobEl.style.setProperty('--knob-x', '0px'); fireKnobEl.style.setProperty('--knob-y', '0px'); }
   if (typeof joyEnd === 'function') joyEnd({ changedTouches: null });
   renderWeaponMenu();
 }
@@ -13395,6 +13422,10 @@ function openPause() {
   pauseScreen.classList.remove('hidden');
   Audio.uiClick();
   input.firing = false;
+  input.fireJoyActive = false;
+  fireJoyTouchId = null;
+  if (fireBtn) fireBtn.classList.remove('aiming');
+  if (fireKnobEl) { fireKnobEl.style.setProperty('--knob-x', '0px'); fireKnobEl.style.setProperty('--knob-y', '0px'); }
   // I coop går restart-run ändå inte att köra korrekt (host-side state). Göm den.
   const restartBtn = document.getElementById('btn-pause-restart');
   if (restartBtn) restartBtn.classList.toggle('hidden', !!Coop.active);
@@ -31670,6 +31701,152 @@ function drawForestGround(stage, cx, cy) {
   ctx.setLineDash([]);
 }
 
+// === AIM CROSSHAIR ===
+// Top-down twin-stick reticle inspirerad av Brawl Stars / Bullet Echo:
+// - Dashed aim-linje från spelaren mot reticle-position
+// - Reticle vid impact-point (player + aim_dir × weapon_range)
+// - Vapen-specifik form: shotgun = spread-kon, sniper = liten dot+ring,
+//   melee = bågsegment, explosive = AOE-cirkel, default = + reticle.
+// Visas BARA när input.firing — annars hidden så den inte skymmer sikten.
+function drawAimCrosshair() {
+  if (!state.player || state.player.spectating) return;
+  if (state.mode !== 'playing') return;
+  if (!input.firing) return;
+  // Auto-aim kan ändra player.aimAngle bortom input.aim. Använd player.aimAngle
+  // som "sanning" så crosshair matchar var bullets ACTUALLY går.
+  const p = state.player;
+  if (typeof p.aimAngle !== 'number') return;
+  const px = p.x - state.camera.x;
+  const py = p.y - state.camera.y;
+  const aimAng = p.aimAngle;
+  const ax = Math.cos(aimAng), ay = Math.sin(aimAng);
+  const w = (typeof getWeapon === 'function') ? getWeapon(p.weaponId) : null;
+  const color = (w && w.color) || '#ffd54a';
+  // Vapen-specifik konfiguration
+  let lineLen, reticleR, mode = 'standard';
+  if (!w || w.type === 'melee') {
+    lineLen = (w && w.range ? w.range * 0.95 : 42);
+    reticleR = 16;
+    mode = 'melee';
+  } else if (w.id === 'shotgun') {
+    lineLen = 200;
+    reticleR = 26;
+    mode = 'spread';
+  } else if (w.id === 'sniper' || w.id === 'railgun' || w.id === 'crossbow') {
+    lineLen = 360;
+    reticleR = 9;
+    mode = 'precision';
+  } else if (w.explosive || w.id === 'rocket' || w.id === 'grenade') {
+    lineLen = 220;
+    reticleR = 32;
+    mode = 'aoe';
+  } else if (w.pierce || w.id === 'plasma' || w.id === 'sonic') {
+    lineLen = 260;
+    reticleR = 13;
+    mode = 'standard';
+  } else {
+    lineLen = 220;
+    reticleR = 13;
+  }
+  // Start-offset så linjen inte börjar inuti spelaren
+  const startOffset = (p.r || 14) + 6;
+  const sx = px + ax * startOffset;
+  const sy = py + ay * startOffset;
+  const endX = px + ax * lineLen;
+  const endY = py + ay * lineLen;
+  ctx.save();
+  // ============ AIM-LINJE (dashed, fade vid slutet) ============
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 6]);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(endX, endY);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // ============ SHOTGUN SPREAD-KON (2 yttre linjer) ============
+  if (mode === 'spread') {
+    const SPREAD = 0.32; // ±18° kon
+    ctx.globalAlpha = 0.40;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(px + Math.cos(aimAng - SPREAD) * lineLen, py + Math.sin(aimAng - SPREAD) * lineLen);
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(px + Math.cos(aimAng + SPREAD) * lineLen, py + Math.sin(aimAng + SPREAD) * lineLen);
+    ctx.stroke();
+  }
+  // ============ RETICLE ============
+  ctx.globalAlpha = 0.85;
+  ctx.lineWidth = 2.5;
+  if (mode === 'aoe') {
+    // AOE-cirkel: bredare outer + svagt fyllning för att visa explosion-radius
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.18;
+    ctx.beginPath();
+    ctx.arc(endX, endY, reticleR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.85;
+    ctx.beginPath();
+    ctx.arc(endX, endY, reticleR, 0, Math.PI * 2);
+    ctx.stroke();
+    // Inre cross
+    ctx.beginPath();
+    ctx.moveTo(endX - 7, endY); ctx.lineTo(endX + 7, endY);
+    ctx.moveTo(endX, endY - 7); ctx.lineTo(endX, endY + 7);
+    ctx.stroke();
+  } else if (mode === 'precision') {
+    // Liten dot + tunn ring (snipergevär)
+    ctx.beginPath();
+    ctx.arc(endX, endY, reticleR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(endX, endY, 2, 0, Math.PI * 2);
+    ctx.fill();
+    // Tunna marker-streck på 4 håll
+    ctx.lineWidth = 1.5;
+    const L = reticleR + 6;
+    ctx.beginPath();
+    ctx.moveTo(endX - L, endY); ctx.lineTo(endX - reticleR - 2, endY);
+    ctx.moveTo(endX + reticleR + 2, endY); ctx.lineTo(endX + L, endY);
+    ctx.moveTo(endX, endY - L); ctx.lineTo(endX, endY - reticleR - 2);
+    ctx.moveTo(endX, endY + reticleR + 2); ctx.lineTo(endX, endY + L);
+    ctx.stroke();
+  } else if (mode === 'melee') {
+    // Bågsegment som visar slag-zon
+    const arcSpan = Math.PI / 3; // 60° bågslag
+    ctx.beginPath();
+    ctx.arc(px, py, lineLen, aimAng - arcSpan / 2, aimAng + arcSpan / 2);
+    ctx.stroke();
+    // Liten "impact"-cirkel vid centrum av bågen
+    ctx.beginPath();
+    ctx.arc(endX, endY, 6, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (mode === 'spread') {
+    // Shotgun: medium-stor open-ring vid centrum, indikerar nominell träffpunkt
+    ctx.beginPath();
+    ctx.arc(endX, endY, reticleR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(endX - 7, endY); ctx.lineTo(endX + 7, endY);
+    ctx.moveTo(endX, endY - 7); ctx.lineTo(endX, endY + 7);
+    ctx.stroke();
+  } else {
+    // Standard: outer ring + + reticle
+    ctx.beginPath();
+    ctx.arc(endX, endY, reticleR, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(endX - 6, endY); ctx.lineTo(endX + 6, endY);
+    ctx.moveTo(endX, endY - 6); ctx.lineTo(endX, endY + 6);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function drawPlayer() {
   const p = state.player;
   const x = p.x - state.camera.x;
@@ -38027,6 +38204,8 @@ function render() {
   if (state.tdmActive && Coop.tdmTeams) drawTdmTeamRings();
   if (state.ctfActive && Coop.ctfTeams) drawCtfTeamRings();
   if (!state.player || !state.player.spectating) drawPlayer();
+  // Aim crosshair (efter player så reticle ritas ovanpå spelaren)
+  drawAimCrosshair();
   drawCoopPartner();
   // Emotes ovanpå allt
   if (state.player && state.player.emote) {
