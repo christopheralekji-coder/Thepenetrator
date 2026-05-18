@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v358-crosshair-cs16-style';
+const CACHE = 'penetrator-v359-aim-freeze-while-firing-no-autoaim';
 const ASSETS = [
   './',
   './index.html',

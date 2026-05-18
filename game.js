@@ -20101,12 +20101,7 @@ if (_setTutReplay) {
     alert('Tutorial visas vid nästa spelstart.');
   });
 }
-const _setAutoaim = document.getElementById('set-autoaim');
-if (_setAutoaim) {
-  _setAutoaim.addEventListener('change', (e) => {
-    save.autoaim = e.target.checked; persist();
-  });
-}
+// (Auto-aim borttagen i v1.359 — UI + listener + save.autoaim alla cleanade)
 const _setFirejoy = document.getElementById('set-firejoy');
 if (_setFirejoy) {
   _setFirejoy.addEventListener('change', (e) => {
@@ -26050,42 +26045,24 @@ function updatePlayer(dt, now) {
     resolveCtfWall(p, state.battleroyaleWalls);
   }
 
-  // sikta: prio fire-joystick (alltid på när fire-knappen hålls), sen mus, sen rörelse, sen auto-aim
+  // sikta: prio fire-joystick (alltid på när fire-knappen hålls), sen mus, sen rörelse.
+  // VIKTIGT: när input.firing är aktivt, AUTO-trackar inte rörelse-riktningen längre.
+  // Aim fryser vid sin nuvarande riktning så spelaren kan strafe:a fritt utan att
+  // tappa sikte. Inspired by Brawl Stars / Standoff 2 / Bullet Echo.
   if (input.fireJoyActive) {
     p.aimAngle = Math.atan2(input.aimY, input.aimX);
   } else if (input.mouse.down && (window.innerWidth >= 900)) {
     const wx = input.mouse.x + state.camera.x;
     const wy = input.mouse.y + state.camera.y;
     p.aimAngle = Math.atan2(wy - p.y, wx - p.x);
-  } else if (m > 0.1 && !p.reloading) {
-    // sikta i rörelseriktning som default — MEN INTE under reload, då vill
-    // spelaren fortsätta skjuta åt samma håll när magasinet är klart.
+  } else if (m > 0.1 && !p.reloading && !input.firing) {
+    // Bara när INTE skjuter: sikta i rörelseriktning som default. När man väl
+    // håller fire ska aim ligga still (strafe-while-firing). Reload-undantaget
+    // kvar så aim inte snappar mitt i magasin-byte.
     p.aimAngle = Math.atan2(my, mx);
   }
-  // auto-aim mot närmsta fiende vid skjutning (om aktiverat och INTE i fire-joy-mode).
-  // Sticky: prioritera boss/miniboss inom 60° framåt så grunt-skräp inte stjäl target
-  // mitt i en boss-fight. Fall back på nearest om inget prio-mål finns.
-  // COOP: auto-aim är ALLTID avstängt — manuell sikte enbart (rättvist för alla)
-  const autoAimEnabled = !Coop.active && save.autoaim !== false;
-  if (input.firing && autoAimEnabled && !input.fireJoyActive) {
-    let best = null, bestD = Infinity;
-    let bestPrio = null, bestPrioD = Infinity;
-    const curAim = p.aimAngle || 0;
-    const CONE = Math.PI / 3; // 60° kon framåt för boss-prio
-    for (const e of state.enemies) {
-      if (e.dead) continue;
-      const dx = e.x - p.x, dy = e.y - p.y;
-      const d = Math.hypot(dx, dy);
-      if (d < bestD) { bestD = d; best = e; }
-      if (e.isBoss || e.isMiniBoss) {
-        const ang = Math.atan2(dy, dx);
-        const diff = Math.abs(((ang - curAim + Math.PI*3) % (Math.PI*2)) - Math.PI);
-        if (diff < CONE && d < bestPrioD) { bestPrioD = d; bestPrio = e; }
-      }
-    }
-    const target = bestPrio || best;
-    if (target) p.aimAngle = Math.atan2(target.y - p.y, target.x - p.x);
-  }
+  // Auto-aim BORTTAGEN i v1.359 — singleplayer ska kräva manuellt sikte
+  // (samma som PvP-modes). Tidigare auto-targetade närmsta fiende vid skott.
 
   // reload (med reload-fart-uppgradering)
   if (p.reloading) {
