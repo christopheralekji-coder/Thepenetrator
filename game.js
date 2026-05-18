@@ -8066,6 +8066,33 @@ function drawBrGroundDecorations(decos) {
   for (const d of decos) {
     if (d.kind === 'forest_floor') {
       continue; // hanteras av drawBrForestFloor()
+    } else if (d.kind === 'tar_pit') {
+      // v1.377: tar_pit är NU ground-decoration (under player), tidigare ovan.
+      const x = d.x - cx, y = d.y - cy;
+      const r = d.r || 40;
+      if (x + r < -10 || x - r > viewW || y + r < -10 || y - r > viewH) continue;
+      ctx.fillStyle = '#0a0408';
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+      // Reflektion
+      ctx.fillStyle = 'rgba(80, 50, 30, 0.5)';
+      ctx.beginPath();
+      ctx.ellipse(x - r * 0.2, y - r * 0.2, r * 0.4, r * 0.2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Bubblar (animerade)
+      const t = performance.now() / 1000;
+      for (let i = 0; i < 4; i++) {
+        const phase = ((t * 0.6) + i * 0.3) % 1;
+        const bx = x + Math.cos(i) * r * 0.5;
+        const by = y + Math.sin(i) * r * 0.5;
+        if (phase < 0.7) {
+          ctx.fillStyle = 'rgba(40, 30, 20, 0.7)';
+          ctx.beginPath();
+          ctx.arc(bx, by, 2 + phase * 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
     } else if (d.kind === 'dirt_floor') {
       // Jord-fläck (kyrkogård etc) — mjuka kanter via radial gradient (ingen
       // synlig rektangulär kant mot omgivande skog).
@@ -8535,8 +8562,8 @@ function drawBrTopDecorations(decos) {
         || d.kind === 'stream' || d.kind === 'dirt_path' || d.kind === 'garden_patch'
         || d.kind === 'dirt_floor' || d.kind === 'alien_floor'
         || d.kind === 'bridge_deco' || d.kind === 'sightseeing_deck'
-        || d.kind === 'alien_transition'
-        || d.kind === 'smoke') continue; // hanteras separat
+        || d.kind === 'alien_transition' || d.kind === 'tar_pit'
+        || d.kind === 'smoke') continue; // hanteras separat (tar_pit nu i ground)
     const x = d.x - cx, y = d.y - cy;
     // Viewport-cull med bbox (objekt-storlek inkluderat så stora objekt inte
     // försvinner när deras top-left är utanför viewporten).
@@ -13943,6 +13970,24 @@ function drawGrenadeReticle() {
 function drawGrenades() {
   if (!state.grenades || state.grenades.length === 0) return;
   const now = performance.now();
+  // v1.377: BR — om granat-position är INNE i ett hus och spelaren INTE är i
+  // samma hus, dölj granaten (täcks av tak). Anledning: när granat går igenom
+  // fönster ska den inte synas utifrån, samma logik som spelare inomhus.
+  const cabins = state.battleroyaleActive ? state.battleroyaleCabins : null;
+  const myX = state.player ? state.player.x : 0;
+  const myY = state.player ? state.player.y : 0;
+  const inSameOrNoCabinAs = (gx, gy) => {
+    if (!cabins || cabins.length === 0) return true; // ingen cabin-logik = synlig
+    for (const cabin of cabins) {
+      const b = cabin.bounds;
+      const gInside = gx >= b.x && gx <= b.x + b.w && gy >= b.y && gy <= b.y + b.h;
+      if (!gInside) continue;
+      // granaten är i denna stuga — kolla om jag också är i den
+      const pInside = myX >= b.x && myX <= b.x + b.w && myY >= b.y && myY <= b.y + b.h;
+      return pInside; // synlig endast om jag är där också
+    }
+    return true; // granaten är ute = alltid synlig
+  };
   ctx.save();
   for (const g of state.grenades) {
     if (g.exploded) continue;
@@ -13950,6 +13995,8 @@ function drawGrenades() {
     const t = Math.min(1, elapsed / g.flightTime);
     const x = g.fromX + (g.toX - g.fromX) * t;
     const y = g.fromY + (g.toY - g.fromY) * t;
+    // Dölj granat om den är inne i hus och jag är ute
+    if (!inSameOrNoCabinAs(x, y)) continue;
     // Parabolisk höjd (visuell flight-känsla, max 32px upp)
     const arcH = Math.sin(t * Math.PI) * 32;
     const sx = x - state.camera.x;
@@ -27004,8 +27051,10 @@ function updatePlayer(dt, now) {
   if (input.fireJoyActive) {
     p.aimAngle = Math.atan2(input.aimY, input.aimX);
   } else if (input.mouse.down && (window.innerWidth >= 900)) {
-    const wx = input.mouse.x + state.camera.x;
-    const wy = input.mouse.y + state.camera.y;
+    // v1.377: kompensera för BR-zoom så mouse-aim träffar rätt world-coord.
+    const _z = (typeof getCameraZoom === 'function') ? getCameraZoom() : 1.0;
+    const wx = state.camera.x + (input.mouse.x - viewW / 2) / _z + viewW / 2;
+    const wy = state.camera.y + (input.mouse.y - viewH / 2) / _z + viewH / 2;
     p.aimAngle = Math.atan2(wy - p.y, wx - p.x);
   } else if (m > 0.1 && !p.reloading && !input.firing) {
     // Bara när INTE skjuter: sikta i rörelseriktning som default. När man väl
@@ -39237,10 +39286,23 @@ function render() {
   ctx.globalCompositeOperation = 'source-over';
   ctx.filter = 'none';
 
+  // v1.377: BR har zoomad-ut kamera (0.88) så man ser mer av världen — utan
+  // zoom kändes det för nära. Mouse-aim + culling adjustar via getCameraZoom().
+  const _camZoom = (typeof getCameraZoom === 'function') ? getCameraZoom() : 1.0;
+  const _extraView = viewW * (1 - _camZoom) / (2 * _camZoom);
+  const _cullPad = 80 + Math.max(0, _extraView);
   // Viewport-culling bounds — deklareras HÄR (före första användning) så TDZ
   // inte kraschar render() vid första footstep-partikeln (v1.199-buggen).
-  const _cullL = state.camera.x - 80, _cullT = state.camera.y - 80;
-  const _cullR = state.camera.x + viewW + 80, _cullB = state.camera.y + viewH + 80;
+  const _cullL = state.camera.x - _cullPad, _cullT = state.camera.y - _cullPad;
+  const _cullR = state.camera.x + viewW + _cullPad, _cullB = state.camera.y + viewH + _cullPad;
+
+  // Apply zoom-transform runt VÄRLD-rendering (HUD ritas efter ctx.restore() nedan)
+  ctx.save();
+  if (_camZoom !== 1.0) {
+    ctx.translate(viewW / 2, viewH / 2);
+    ctx.scale(_camZoom, _camZoom);
+    ctx.translate(-viewW / 2, -viewH / 2);
+  }
 
   drawEnvironment();
   // CTF: team-tinted floor halves + walls + flag-stands UNDER allt annat
@@ -39397,6 +39459,10 @@ function render() {
     if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
     drawParticle(p);
   }
+  // === END WORLD-RENDERING (zoom) ===
+  // HUD/overlays ritas i screen-space, utan zoom-transform.
+  ctx.restore();
+
   drawCraneDrop();
   drawOffScreenGoalArrow();
   drawOffscreenHitMarkers();
@@ -39841,6 +39907,12 @@ function drawLightsFlicker() {
   }
 }
 
+// v1.377: BR har zoomad-ut kamera så stora kartan känns mer manageable.
+// Andra modes använder default zoom = 1.0 (oförändrat).
+function getCameraZoom() {
+  return state.battleroyaleActive ? 0.88 : 1.0;
+}
+
 function drawMiniMap() {
   if (!state.player) return;
   if (save.minimapHidden) return;
@@ -39856,8 +39928,9 @@ function drawMiniMap() {
   if (state._minimapZoomTarget === undefined) state._minimapZoomTarget = state.minimapBig ? 1 : 0;
   state._minimapZoomT += (state._minimapZoomTarget - state._minimapZoomT) * 0.18;
   const t01 = state._minimapZoomT;
-  const smallSize = 130;
-  const bigSize = Math.min(viewW * 0.6, 320);
+  // v1.377: original storlek (110/280) — användaren tycker större känns för mycket
+  const smallSize = 110;
+  const bigSize = Math.min(viewW * 0.5, 280);
   const size = smallSize + (bigSize - smallSize) * t01;
   const margin = 12;
   const x0 = viewW - size - margin;
