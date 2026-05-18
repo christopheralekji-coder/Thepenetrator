@@ -12843,7 +12843,7 @@ let fireJoyTouchId = null;
 let fireJoyCenter = { x: 0, y: 0 };   // button-center (för knob-visualisering)
 let fireJoyStart = { x: 0, y: 0 };    // initial touch-position (för aim-engagement)
 const FIRE_JOY_RADIUS = 50;
-const FIRE_AIM_DEADZONE = 20;         // px drag-tröskel innan aim engageras
+const FIRE_AIM_DEADZONE = 6;          // px drag-tröskel innan aim engageras (responsiv)
 input.aimX = 0; input.aimY = 0; input.fireJoyActive = false;
 
 // Fire-knappen är joystick MED smart aim-engagement:
@@ -12879,17 +12879,18 @@ function fireMove(e) {
   const sdx = pt.clientX - fireJoyStart.x;
   const sdy = pt.clientY - fireJoyStart.y;
   const dragDist = Math.hypot(sdx, sdy);
-  if (dragDist > FIRE_AIM_DEADZONE) {
-    // Engagera aim — drag-riktning
-    input.fireJoyActive = true;
-    input.aimX = sdx / dragDist;
-    input.aimY = sdy / dragDist;
-  } else if (input.fireJoyActive) {
-    // Redan engagerad denna press → fortsätt uppdatera (sticky)
-    if (dragDist > 4) {
+  if (input.fireJoyActive) {
+    // Redan engagerad — ALLA rörelser uppdaterar aim (smooth tracking).
+    // Anti-jitter: ignorera bara extremt små rörelser (<1px).
+    if (dragDist > 1) {
       input.aimX = sdx / dragDist;
       input.aimY = sdy / dragDist;
     }
+  } else if (dragDist > FIRE_AIM_DEADZONE) {
+    // Första gången drag passerar deadzone → engagera + sätt aim
+    input.fireJoyActive = true;
+    input.aimX = sdx / dragDist;
+    input.aimY = sdy / dragDist;
   }
   // Knob-visualisering räknas från button-center (visuellt naturligt).
   if (fireKnobEl) {
@@ -31751,11 +31752,11 @@ function drawAimCrosshair() {
   const ex = px + ax * (startOff + RANGE);
   const ey = py + ay * (startOff + RANGE);
   ctx.save();
-  // ========== 1) Dashed guide-line från player (subtle, low alpha) ==========
+  // ========== 1) Dashed guide-line från player (extremt subtle) ==========
   ctx.strokeStyle = color;
-  ctx.globalAlpha = 0.30;
-  ctx.lineWidth = 2;
-  ctx.setLineDash([6, 5]);
+  ctx.globalAlpha = 0.18;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 4]);
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(sx, sy);
@@ -31763,28 +31764,30 @@ function drawAimCrosshair() {
   ctx.stroke();
   ctx.setLineDash([]);
   // ========== 2) Impact reticle: ring + tick-marks + center dot ==========
-  const RING = 11;
-  // Yttre ring
-  ctx.globalAlpha = 0.55;
-  ctx.lineWidth = 2;
+  // Diskret design: små + tunna element + låga alphas så det smälter in.
+  // Bara center dot håller hög alpha (det är fokuspunkten).
+  const RING = 9;
+  // Yttre ring (tunn, ljus)
+  ctx.globalAlpha = 0.38;
+  ctx.lineWidth = 1.4;
   ctx.beginPath();
   ctx.arc(ex, ey, RING, 0, Math.PI * 2);
   ctx.stroke();
-  // 4 tick-marks pekande UTÅT från ringen (klassisk CS/COD-look)
-  ctx.globalAlpha = 0.70;
-  ctx.lineWidth = 1.8;
-  const T0 = RING + 2, T1 = RING + 7;
+  // 4 tick-marks pekande UTÅT från ringen (CS/COD-look, små)
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = 1.2;
+  const T0 = RING + 2, T1 = RING + 6;
   ctx.beginPath();
   ctx.moveTo(ex - T1, ey); ctx.lineTo(ex - T0, ey);   // vänster
   ctx.moveTo(ex + T0, ey); ctx.lineTo(ex + T1, ey);   // höger
   ctx.moveTo(ex, ey - T1); ctx.lineTo(ex, ey - T0);   // upp
   ctx.moveTo(ex, ey + T0); ctx.lineTo(ex, ey + T1);   // ner
   ctx.stroke();
-  // Center dot (skarpt, högsta alpha — det är där fokus är)
-  ctx.globalAlpha = 0.90;
+  // Center dot (fokuspunkten — högsta alpha så ögat dras hit)
+  ctx.globalAlpha = 0.80;
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(ex, ey, 1.8, 0, Math.PI * 2);
+  ctx.arc(ex, ey, 1.6, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
