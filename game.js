@@ -7979,15 +7979,23 @@ function drawBrLoot() {
 function drawBrForestFloor() {
   if (!state.battleroyaleActive) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
-  // 1. Solid bas över hela viewporten
+  // v1.380: när BR-kameran är zoomad ut (0.88) syns ~14% mer världen per axis.
+  // Måste utöka fill + blob + grain bortom viewW/viewH annars syns seam
+  // ("streck") vid 6%-bordern när spelaren springer (blobs/grain rör sig med
+  // kamera, men border-fillen är statisk → mismatch). 15% padding för säkerhet.
+  const ZOOM = (typeof getCameraZoom === 'function') ? getCameraZoom() : 1.0;
+  const ZPAD = Math.max(0, (1 / ZOOM - 1) * 0.5 + 0.05); // 0.118 för zoom=0.88
+  const padX = Math.ceil(viewW * ZPAD);
+  const padY = Math.ceil(viewH * ZPAD);
+  // 1. Solid bas över viewporten + zoom-padding (täcker zoom-bordern smooth)
   ctx.fillStyle = '#1e2a14';
-  ctx.fillRect(0, 0, viewW, viewH);
+  ctx.fillRect(-padX, -padY, viewW + 2 * padX, viewH + 2 * padY);
   // 2. Stora soft-falloff blobs (radial gradient → fade to 0 vid kanten)
   const ANCHOR = 220;
-  const startAx = Math.floor(state.camera.x / ANCHOR) - 1;
-  const startAy = Math.floor(state.camera.y / ANCHOR) - 1;
-  const endAx = Math.floor((state.camera.x + viewW) / ANCHOR) + 1;
-  const endAy = Math.floor((state.camera.y + viewH) / ANCHOR) + 1;
+  const startAx = Math.floor((state.camera.x - padX) / ANCHOR) - 1;
+  const startAy = Math.floor((state.camera.y - padY) / ANCHOR) - 1;
+  const endAx = Math.floor((state.camera.x + viewW + padX) / ANCHOR) + 1;
+  const endAy = Math.floor((state.camera.y + viewH + padY) / ANCHOR) + 1;
   const palette = [
     { r: 40,  g: 70,  b: 30 },  // mörkare grön
     { r: 70,  g: 105, b: 40 },  // ljusare grön
@@ -8025,11 +8033,12 @@ function drawBrForestFloor() {
   }
   // 3. PIXEL-GRAIN ovanpå — massa små noise-prickar så ingen yta är helt slätt
   //    Deterministisk per world-tile (40×40 micro-tiles) → ingen flimmer
+  //    Iteration utökad med padX/padY så grain täcker zoom-borden också
   const MICRO = 40;
-  const mStartX = Math.floor(state.camera.x / MICRO);
-  const mStartY = Math.floor(state.camera.y / MICRO);
-  const mEndX = Math.floor((state.camera.x + viewW) / MICRO);
-  const mEndY = Math.floor((state.camera.y + viewH) / MICRO);
+  const mStartX = Math.floor((state.camera.x - padX) / MICRO);
+  const mStartY = Math.floor((state.camera.y - padY) / MICRO);
+  const mEndX = Math.floor((state.camera.x + viewW + padX) / MICRO);
+  const mEndY = Math.floor((state.camera.y + viewH + padY) / MICRO);
   for (let my = mStartY; my <= mEndY; my++) {
     for (let mx = mStartX; mx <= mEndX; mx++) {
       const ms = ((mx * 1093) ^ (my * 1471)) >>> 0;
@@ -39338,15 +39347,9 @@ function render() {
   const _cullL = state.camera.x - _cullPad, _cullT = state.camera.y - _cullPad;
   const _cullR = state.camera.x + viewW + _cullPad, _cullB = state.camera.y + viewH + _cullPad;
 
-  // v1.379: Pre-fill canvas i screen-space INNAN zoom-transform så zoom-ramen
-  // (6% av skärmen runtom) inte visar transparent → svart background.
-  // Användaren rapporterade "svart ram runt skärmen" i BR — orsakat av att
-  // drawBrForestFloor's fillRect ligger INNE i zoom-transformen och därför
-  // bara täcker 88% av skärmen.
-  if (_camZoom !== 1.0 && state.battleroyaleActive) {
-    ctx.fillStyle = '#1e2a14'; // matchar drawBrForestFloor base
-    ctx.fillRect(0, 0, viewW, viewH);
-  }
+  // v1.380: pre-fill från v1.379 BORTTAGEN — orsakade "streck"-seam mellan
+  // statisk pre-fill och rörande blobs/grain. Nu utökar drawBrForestFloor sin
+  // egen fill + blob + grain bortom viewporten så zoom-bordern täcks smooth.
 
   // Apply zoom-transform runt VÄRLD-rendering (HUD ritas efter ctx.restore() nedan)
   ctx.save();
