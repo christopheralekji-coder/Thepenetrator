@@ -13711,9 +13711,9 @@ function grenadeUp(e) {
 
 // Wall-kinds som BLOCKAR granater (kan inte kastas igenom).
 // Träd, stenar, mountain_peak, fences etc tillåter granat-flight (granaten flyger över).
+// cabin_window EJ med — granater flyger genom fönster precis som skott (bra mot campers).
 const GRENADE_BLOCKING_WALL_KINDS = new Set([
   'cabin_wall_wood',     // hus + container väggar
-  'cabin_window',        // hus-fönster
   'concrete',            // betongväggar (CTF/Siege)
   'building',            // stora byggnader
   'guardhouse',          // vakthytta
@@ -13737,6 +13737,9 @@ function raycastGrenadeWalls(fromX, fromY, toX, toY) {
   let nearestT = Infinity;
   for (const w of walls) {
     if (!GRENADE_BLOCKING_WALL_KINDS.has(w.kind)) continue;
+    // v1.373: walls med passThroughBullets-flag (fönster) släpper också igenom
+    // granater — så man kan kasta in granater till campers genom fönstret.
+    if (w.passThroughBullets) continue;
     // Slab-method: segment vs AABB
     let tMin = 0, tMax = 1;
     if (Math.abs(dx) < 0.0001) {
