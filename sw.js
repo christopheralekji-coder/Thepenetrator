@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v365-arc-grenade-emoji-line';
+const CACHE = 'penetrator-v366-grenade-zorder-cabin-wallblock';
 const ASSETS = [
   './',
   './index.html',

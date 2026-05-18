@@ -13232,30 +13232,39 @@ function resetGrenadesForMatch() {
   updateGrenadeBadge();
 }
 
-// Beräkna landing-target från drag-state
+// Beräkna landing-target från drag-state. Respekterar wall-blockering
+// (samma logik som throwGrenade) så reticle visar EXAKT var granaten landar.
 function computeGrenadeTarget() {
   const p = state.player;
   if (!p) return null;
+  let tx, ty, range;
   if (!state.grenadeAim || !state.grenadeAim.engaged) {
     // TAP: forward i player.aimAngle
     const ang = p.aimAngle || 0;
-    return {
-      x: p.x + Math.cos(ang) * GRENADE_MAX_RANGE,
-      y: p.y + Math.sin(ang) * GRENADE_MAX_RANGE,
-      range: GRENADE_MAX_RANGE,
-    };
+    tx = p.x + Math.cos(ang) * GRENADE_MAX_RANGE;
+    ty = p.y + Math.sin(ang) * GRENADE_MAX_RANGE;
+    range = GRENADE_MAX_RANGE;
+  } else {
+    // HOLD+DRAG: drag-direction + drag-distance scaled
+    const a = state.grenadeAim;
+    const d = Math.hypot(a.dragX, a.dragY);
+    if (d < 0.01) return null;
+    const ang = Math.atan2(a.dragY, a.dragX);
+    range = Math.min(GRENADE_MAX_RANGE, d * GRENADE_DRAG_SCALE);
+    tx = p.x + Math.cos(ang) * range;
+    ty = p.y + Math.sin(ang) * range;
   }
-  // HOLD+DRAG: drag-direction + drag-distance scaled
-  const a = state.grenadeAim;
-  const d = Math.hypot(a.dragX, a.dragY);
-  if (d < 0.01) return null;
-  const ang = Math.atan2(a.dragY, a.dragX);
-  const range = Math.min(GRENADE_MAX_RANGE, d * GRENADE_DRAG_SCALE);
-  return {
-    x: p.x + Math.cos(ang) * range,
-    y: p.y + Math.sin(ang) * range,
-    range,
-  };
+  // RAYCAST mot cabin/hus/container-walls — korta target till väggen om blockerat
+  if (typeof raycastGrenadeWalls === 'function') {
+    const blockT = raycastGrenadeWalls(p.x, p.y, tx, ty);
+    if (blockT < Infinity && blockT > 0) {
+      const safeT = blockT * 0.92;
+      tx = p.x + (tx - p.x) * safeT;
+      ty = p.y + (ty - p.y) * safeT;
+      range = range * safeT;
+    }
+  }
+  return { x: tx, y: ty, range };
 }
 
 function grenadeDown(e) {
@@ -13312,7 +13321,69 @@ function grenadeUp(e) {
   if (_btnGrenade) _btnGrenade.classList.remove('aiming');
 }
 
+// Wall-kinds som BLOCKAR granater (kan inte kastas igenom).
+// Träd, stenar, mountain_peak, fences etc tillåter granat-flight (granaten flyger över).
+const GRENADE_BLOCKING_WALL_KINDS = new Set([
+  'cabin_wall_wood',     // hus + container väggar
+  'cabin_window',        // hus-fönster
+  'concrete',            // betongväggar (CTF/Siege)
+  'building',            // stora byggnader
+  'guardhouse',          // vakthytta
+  'shipping_container',  // standalone-containrar
+]);
+
+// Hitta första cabin/wall-träff längs segmentet (from)→(to). Returnerar t (0..1)
+// där segmentet träffar väggen, eller Infinity om ingen träff.
+function raycastGrenadeWalls(fromX, fromY, toX, toY) {
+  // Plocka rätt walls-array baserat på aktivt mode
+  let walls = null;
+  if (state.battleroyaleActive) walls = state.battleroyaleWalls;
+  else if (state.ctfActive) walls = state.ctfWalls;
+  else if (state.tdmActive) walls = state.tdmWalls;
+  else if (state.siegeActive) walls = state.siegeWalls;
+  else if (state.gungameActive) walls = state.gungameWalls;
+  else if (state.kothActive) walls = state.kothWalls;
+  else if (state.juggernautActive) walls = state.juggernautWalls;
+  if (!walls || !walls.length) return Infinity;
+  const dx = toX - fromX, dy = toY - fromY;
+  let nearestT = Infinity;
+  for (const w of walls) {
+    if (!GRENADE_BLOCKING_WALL_KINDS.has(w.kind)) continue;
+    // Slab-method: segment vs AABB
+    let tMin = 0, tMax = 1;
+    if (Math.abs(dx) < 0.0001) {
+      if (fromX < w.x || fromX > w.x + w.w) continue;
+    } else {
+      const t1 = (w.x - fromX) / dx;
+      const t2 = (w.x + w.w - fromX) / dx;
+      tMin = Math.max(tMin, Math.min(t1, t2));
+      tMax = Math.min(tMax, Math.max(t1, t2));
+    }
+    if (Math.abs(dy) < 0.0001) {
+      if (fromY < w.y || fromY > w.y + w.h) continue;
+    } else {
+      const t1 = (w.y - fromY) / dy;
+      const t2 = (w.y + w.h - fromY) / dy;
+      tMin = Math.max(tMin, Math.min(t1, t2));
+      tMax = Math.min(tMax, Math.max(t1, t2));
+    }
+    if (tMin > tMax) continue; // no intersection
+    if (tMin < 0 || tMin > 1) continue; // wall behind throw-start eller bortom target
+    if (tMin < nearestT) nearestT = tMin;
+  }
+  return nearestT;
+}
+
 function throwGrenade(fromX, fromY, toX, toY) {
+  // RAYCAST: om en cabin/hus/container-wall blockerar mellan player och target,
+  // korta throw till strax FÖRE väggen (95% av t-värdet — så granaten landar
+  // på den OPEN sidan av väggen, inte INNE i väggen).
+  const blockT = raycastGrenadeWalls(fromX, fromY, toX, toY);
+  if (blockT < Infinity && blockT > 0) {
+    const safeT = blockT * 0.92;
+    toX = fromX + (toX - fromX) * safeT;
+    toY = fromY + (toY - fromY) * safeT;
+  }
   state.grenades = state.grenades || [];
   state.grenades.push({
     fromX, fromY, toX, toY,
@@ -38649,9 +38720,8 @@ function render() {
   if (!state.player || !state.player.spectating) drawPlayer();
   // Aim crosshair (efter player så reticle ritas ovanpå spelaren)
   drawAimCrosshair();
-  // Grenade landing-reticle (medan holding) + grenade-projektiler i flykt
-  if (typeof drawGrenadeReticle === 'function') drawGrenadeReticle();
-  if (typeof drawGrenades === 'function') drawGrenades();
+  // (Grenade-render flyttat till SLUTET av render() — efter walls/träd/tak
+  //  så granaten alltid syns överst, inte under objekt.)
   drawCoopPartner();
   // Emotes ovanpå allt
   if (state.player && state.player.emote) {
@@ -38747,6 +38817,10 @@ function render() {
     drawBrZone();
     drawBrOutsideWarning();
   }
+  // GRENADE-render ALLTID PÅ TOPP — efter walls/träd/tak så granaten aldrig hamnar
+  // under objekt visuellt. Både landing-reticle (medan holding) + projektiler i flykt.
+  if (typeof drawGrenadeReticle === 'function') drawGrenadeReticle();
+  if (typeof drawGrenades === 'function') drawGrenades();
   // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE + GUNGAME + KOTH + JUGGERNAUT + BR)
   if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.battleroyaleActive) drawPvpShieldBubbles();
   // PvP-pickups (HP/shield-regen) — alla PvP-lägen utom BR (BR har eget loot-system)
