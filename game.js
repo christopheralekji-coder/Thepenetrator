@@ -39841,36 +39841,86 @@ function drawMiniMap() {
   if (save.minimapHidden) return;
   const stage = getStage(state.wave);
   if (!stage) return;
-  // Smooth zoom-anim mellan small (110) och big — lerp toward target var frame
+  // v1.375: Minimap helt omdesignad. Default = ZOOMED-IN viewport centrerad på
+  // spelaren (1500×1500 world-units visible) så man ser hus/buskar/stenar nära.
+  // Klicka på förstoringsglas → smooth lerp till FULL KARTA (stor + full overview).
+  //
+  // state.minimapBig=false → zoomT=0 → small physical (130px), zoomed-in
+  // state.minimapBig=true  → zoomT=1 → big physical (320px), full world
   if (state._minimapZoomT === undefined) state._minimapZoomT = state.minimapBig ? 1 : 0;
   if (state._minimapZoomTarget === undefined) state._minimapZoomTarget = state.minimapBig ? 1 : 0;
   state._minimapZoomT += (state._minimapZoomTarget - state._minimapZoomT) * 0.18;
-  const smallSize = 110;
-  const bigSize = Math.min(viewW * 0.5, 280);
-  const size = smallSize + (bigSize - smallSize) * state._minimapZoomT;
+  const t01 = state._minimapZoomT;
+  const smallSize = 130;
+  const bigSize = Math.min(viewW * 0.6, 320);
+  const size = smallSize + (bigSize - smallSize) * t01;
   const margin = 12;
   const x0 = viewW - size - margin;
   const y0 = 60;
-  // Spara hit-area så canvas-click kan toggla zoom
   state._minimapHitbox = { x: x0, y: y0, w: size, h: size };
-  const scale = Math.min(size / stage.worldW, size / stage.worldH);
-  const w = stage.worldW * scale;
-  const h = stage.worldH * scale;
-  const ox = x0 + (size - w) / 2;
-  const oy = y0 + (size - h) / 2;
-  // ram
-  ctx.fillStyle = 'rgba(0,0,0,0.65)';
+
+  // ZOOMED-IN: visa 1500×1500 world centrerad på spelaren.
+  // ZOOMED-OUT (big): visa hela kartan.
+  const FOCUS_VIEW_WORLD = 1500;
+  const maxWorld = Math.max(stage.worldW, stage.worldH);
+  const viewWorldSize = FOCUS_VIEW_WORLD + (maxWorld - FOCUS_VIEW_WORLD) * t01;
+  const scale = size / viewWorldSize;
+
+  // Center-position lerp: zoomed-in följer spelaren, zoomed-out centrerar världen.
+  const worldCenterX = stage.worldW / 2;
+  const worldCenterY = stage.worldH / 2;
+  const focusX = state.player.x + (worldCenterX - state.player.x) * t01;
+  const focusY = state.player.y + (worldCenterY - state.player.y) * t01;
+
+  // World viewport top-left, clamped till world-bounds (kamera-stil)
+  let worldVx = focusX - viewWorldSize / 2;
+  let worldVy = focusY - viewWorldSize / 2;
+  if (viewWorldSize < stage.worldW) {
+    worldVx = Math.max(0, Math.min(stage.worldW - viewWorldSize, worldVx));
+  } else {
+    worldVx = (stage.worldW - viewWorldSize) / 2;
+  }
+  if (viewWorldSize < stage.worldH) {
+    worldVy = Math.max(0, Math.min(stage.worldH - viewWorldSize, worldVy));
+  } else {
+    worldVy = (stage.worldH - viewWorldSize) / 2;
+  }
+
+  // Transform: world coord → minimap pixel. ox/oy är offset så att
+  //   minimapX = ox + worldX * scale
+  // funkar för ALL nedanstående rendering (oförändrat API).
+  const ox = x0 - worldVx * scale;
+  const oy = y0 - worldVy * scale;
+
+  // Viewport-culling helper för walls (BR har ~2500, kostsamt att iterera alla)
+  const visMinX = worldVx, visMaxX = worldVx + viewWorldSize;
+  const visMinY = worldVy, visMaxY = worldVy + viewWorldSize;
+  const inMmView = (wx, wy, ww, wh) => {
+    return !(wx + ww < visMinX || wx > visMaxX || wy + wh < visMinY || wy > visMaxY);
+  };
+
+  // Ram
+  ctx.fillStyle = 'rgba(0,0,0,0.78)';
   ctx.fillRect(x0, y0, size, size);
-  ctx.strokeStyle = 'rgba(255,213,74,0.5)';
+  ctx.strokeStyle = 'rgba(255,213,74,0.6)';
   ctx.lineWidth = 2;
   ctx.strokeRect(x0, y0, size, size);
-  // världsgräns
-  ctx.fillStyle = 'rgba(40,40,50,0.5)';
-  ctx.fillRect(ox, oy, w, h);
-  // byggnader
+
+  // Allt inuti minimap-rectangeln — clip så zoomad vy inte spiller över ramen
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x0, y0, size, size);
+  ctx.clip();
+
+  // Världsgräns (full karta i grå-fyll så player ser kant-zoner)
+  ctx.fillStyle = 'rgba(40,40,50,0.45)';
+  ctx.fillRect(ox, oy, stage.worldW * scale, stage.worldH * scale);
+
+  // Byggnader (story-mode)
   ctx.fillStyle = 'rgba(120,120,130,0.6)';
   for (const b of stageState.buildings) {
     if (b.kind === 'tree' || b.kind === 'fence_seg' || b.kind === 'fence_seg_broken') continue;
+    if (!inMmView(b.x, b.y, b.w, b.h)) continue;
     ctx.fillRect(ox + b.x * scale, oy + b.y * scale, Math.max(1, b.w * scale), Math.max(1, b.h * scale));
   }
   // PvP-obstacles — alla 7 lägen får walls renderade på minimap
@@ -39883,6 +39933,7 @@ function drawMiniMap() {
     : (state.battleroyaleActive ? state.battleroyaleWalls : null))))));
   if (pvpWalls) {
     for (const w of pvpWalls) {
+      if (!inMmView(w.x, w.y, w.w, w.h)) continue;
       let color;
       // BR-specifika färger per kind
       if (w.kind === 'tree_oak' || w.kind === 'tree_pine' || w.kind === 'tree_giant_oak')
@@ -40235,6 +40286,8 @@ function drawMiniMap() {
   ctx.moveTo(px, py);
   ctx.lineTo(px + Math.cos(state.player.aimAngle) * 6, py + Math.sin(state.player.aimAngle) * 6);
   ctx.stroke();
+  // Stäng world-clip — title/zoom-button är UI-overlay utanför världs-vy
+  ctx.restore();
   // Titel — centrerad pill ovanför minimap, matchar minimap-bredd
   {
     const titleTxt = (stage.name || '').toUpperCase();

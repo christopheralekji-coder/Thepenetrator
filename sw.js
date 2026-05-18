@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v374-no-friendly-fire-cabin-rm';
+const CACHE = 'penetrator-v375-minimap-zoomed-detail';
 const ASSETS = [
   './',
   './index.html',
