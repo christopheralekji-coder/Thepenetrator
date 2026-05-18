@@ -31763,32 +31763,28 @@ function drawAimCrosshair() {
   ctx.lineTo(ex, ey);
   ctx.stroke();
   ctx.setLineDash([]);
-  // ========== 2) Impact reticle: ring + tick-marks + center dot ==========
-  // Diskret design: små + tunna element + låga alphas så det smälter in.
-  // Bara center dot håller hög alpha (det är fokuspunkten).
-  const RING = 9;
-  // Yttre ring (tunn, ljus)
-  ctx.globalAlpha = 0.38;
-  ctx.lineWidth = 1.4;
+  ctx.lineCap = 'butt'; // återställ för crisp CS-linjer
+  // ========== 2) CS 1.6-style crosshair: 4 perpendikulära linjer, INGEN ring ==========
+  // Klassisk Counter-Strike 1.6 reticle: gap i mitten + 4 korta linjer = "+".
+  // Mer kompakt än ring-versionen, smälter in i scenen.
+  const GAP = 3;   // inre gap från center
+  const LEN = 5;   // line length utåt
+  ctx.globalAlpha = 0.60;
+  ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.arc(ex, ey, RING, 0, Math.PI * 2);
+  // Vänster linje
+  ctx.moveTo(ex - GAP - LEN, ey); ctx.lineTo(ex - GAP, ey);
+  // Höger linje
+  ctx.moveTo(ex + GAP, ey); ctx.lineTo(ex + GAP + LEN, ey);
+  // Upp linje
+  ctx.moveTo(ex, ey - GAP - LEN); ctx.lineTo(ex, ey - GAP);
+  // Ner linje
+  ctx.moveTo(ex, ey + GAP); ctx.lineTo(ex, ey + GAP + LEN);
   ctx.stroke();
-  // 4 tick-marks pekande UTÅT från ringen (CS/COD-look, små)
-  ctx.globalAlpha = 0.45;
-  ctx.lineWidth = 1.2;
-  const T0 = RING + 2, T1 = RING + 6;
-  ctx.beginPath();
-  ctx.moveTo(ex - T1, ey); ctx.lineTo(ex - T0, ey);   // vänster
-  ctx.moveTo(ex + T0, ey); ctx.lineTo(ex + T1, ey);   // höger
-  ctx.moveTo(ex, ey - T1); ctx.lineTo(ex, ey - T0);   // upp
-  ctx.moveTo(ex, ey + T0); ctx.lineTo(ex, ey + T1);   // ner
-  ctx.stroke();
-  // Center dot (fokuspunkten — högsta alpha så ögat dras hit)
-  ctx.globalAlpha = 0.80;
+  // Center dot — 1px pixel-perfect (CS 1.6-look)
+  ctx.globalAlpha = 0.85;
   ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.arc(ex, ey, 1.6, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fillRect(ex - 0.5, ey - 0.5, 1, 1);
   ctx.restore();
 }
 
