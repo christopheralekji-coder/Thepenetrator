@@ -1716,12 +1716,11 @@ const BATTLEROYALE_ARENA = {
     // Position: precis norr om sjön, söder om bergsfoten där folk kan se vattnet
     { kind: 'sightseeing_deck', x: 2540, y: 6640, w: 840, h: 32 },
 
-    // === ALIEN-MARK i SE-hörnet — bbox sträcker sig 1000px PAST map-edge
-    // (renderaren stretchar ändå solid lila till map-edge via corner-radial-gradient).
-    // Det vi bryr oss om är att SOLID lila täcker hela visible SE-quadrant.
-    { kind: 'alien_floor', x: 6000, y: 6000, w: 5000, h: 5000 },
-    // === MJUK ÖVERGÅNG mellan skogen och alien-zonen ===
-    // 3 transitions-bands runt alien-zonen (gradient: skog → blek-lila → alien)
+    // === ALIEN-MARK i SE-hörnet (v1.371) — solid square 7900-10000 + 450px NW fade.
+    // Bbox: 7450-10000 (utöver fade-zonen får renderaren förlita sig på solid-fill).
+    { kind: 'alien_floor', x: 7450, y: 7450, w: 2550, h: 2550 },
+    // alien_transition är nu no-op i renderaren (alien_floor gör allt).
+    // Behåller entry för bakåtkompatibilitet med tidigare save-states.
     { kind: 'alien_transition', x: 5500, y: 5500, w: 5500, h: 5500 },
 
     // === ALIEN-MYSTIK decorations (crop circles, glödande svampar, märkliga spår) ===
@@ -2042,7 +2041,7 @@ function generateProceduralContent(arena) {
     [2550, 3300, 6400, 7270],  // sjö + klippa + vattenfall (krympt)
     [4300, 4950, 6300, 7350],  // kyrkan + kyrkogården (utökad — inkl buffer)
     [5250, 7700, 2150, 3900],  // scrap-yard (containrar etc behöver sin yta)
-    [7000, 10000, 7000, 10000],  // ALIEN-OMRÅDE (SE-hörnet) — utvidgat reserverat
+    [7900, 10000, 7900, 10000],  // ALIEN-OMRÅDE (SE-hörnet) — matchar minimap-square
   ];
   // Försök spawna ett objekt — ger upp efter N försök om position upptaget
   const trySpawn = (xMin, xMax, yMin, yMax, minDist, cabinBuf, fn) => {
@@ -2229,16 +2228,15 @@ function postProcessArena(arena) {
     return x < CEMETERY.x + CEMETERY.w && x + w > CEMETERY.x &&
            y < CEMETERY.y + CEMETERY.h && y + h > CEMETERY.y;
   };
-  // Alien-zon — INGA gröna träd/buskar/blommor får finnas där (infekterad mark)
-  // Solid SE-quadrant där alien_floor renderar solid lila (corner-radial 55% av maxR
-  // från (10500,10500) — det innebär ungefär en cirkel med radie 3500 från det hörnet).
-  const ALIEN_CENTER_X = 10500, ALIEN_CENTER_Y = 10500, ALIEN_SOLID_R = 3500;
+  // Alien-zon (v1.371) — solid SQUARE som matchar minimapen: (7900-10000, 7900-10000).
+  // INGA gröna träd/buskar/blommor inne i solid-zonen. I fade-zonen (7450-7900 NW)
+  // får träd vara — de skapar mjuk visuell blend mot skogen.
+  const ALIEN_SX0 = 7900, ALIEN_SY0 = 7900, ALIEN_SX1 = 10000, ALIEN_SY1 = 10000;
   const GREEN_KINDS = new Set(['tree_oak', 'tree_pine', 'tree_giant_oak', 'tree_stump']);
   const GREEN_DECO_KINDS = new Set(['bush', 'flowers', 'mushrooms', 'pine_cones', 'fallen_leaves', 'moss_patch']);
   const inAlienSolid = (x, y, w, h) => {
-    // Check distance from alien-radial-center (corner past map edge) — if inside solid radius
-    const cx = x + w / 2, cy = y + h / 2;
-    return Math.hypot(cx - ALIEN_CENTER_X, cy - ALIEN_CENTER_Y) < ALIEN_SOLID_R;
+    const cxw = x + w / 2, cyw = y + h / 2;
+    return cxw >= ALIEN_SX0 && cxw <= ALIEN_SX1 && cyw >= ALIEN_SY0 && cyw <= ALIEN_SY1;
   };
   arena.walls = arena.walls.filter(w => {
     if (PROC_WALL_KINDS.has(w.kind)) {

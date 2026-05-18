@@ -5762,6 +5762,26 @@ function drawCtfFlags() {
   ctx.restore();
 }
 
+// Helper: rita en rounded-rect path (canvas-roundRect-shim).
+function drawRoundedRect(c, x, y, w, h, r) {
+  if (typeof c.roundRect === 'function') {
+    c.beginPath();
+    c.roundRect(x, y, w, h, r);
+    return;
+  }
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.lineTo(x + w - r, y);
+  c.quadraticCurveTo(x + w, y, x + w, y + r);
+  c.lineTo(x + w, y + h - r);
+  c.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  c.lineTo(x + r, y + h);
+  c.quadraticCurveTo(x, y + h, x, y + h - r);
+  c.lineTo(x, y + r);
+  c.quadraticCurveTo(x, y, x + r, y);
+  c.closePath();
+}
+
 // PvP-pickups (HP-regen + shield-regen) — rita pulserande ikoner på arenan.
 // Tillgängliga = full färg + pulse, otillgängliga = tonad ghost.
 function drawPvpPickups() {
@@ -5791,62 +5811,159 @@ function drawPvpPickups() {
     ctx.beginPath();
     ctx.arc(x, y, glowR, 0, Math.PI * 2);
     ctx.fill();
-    // Ikon per typ
+    // v1.371: PROFESSIONELLA ikoner — gradient fill, rim, highlight, drop-shadow
+    ctx.save();
+    ctx.translate(x, y);
+    // Ground-shadow (alla pickups)
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    ctx.ellipse(0, 9, 11, 4, 0, 0, Math.PI * 2);
+    ctx.fill();
     if (isHp) {
-      ctx.fillStyle = '#5aff5a';
-      ctx.fillRect(x - 9, y - 3, 18, 6);
-      ctx.fillRect(x - 3, y - 9, 6, 18);
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(x - 9, y - 3, 18, 6);
-      ctx.strokeRect(x - 3, y - 9, 6, 18);
+      // ============ MED-KIT — vit kropp med röd kors + gradient + glow ============
+      // Outer rim (mörk röd outline)
+      ctx.fillStyle = '#7a0a0a';
+      drawRoundedRect(ctx, -11, -10, 22, 20, 4);
+      ctx.fill();
+      // Inner body (vit gradient)
+      const bodyGrad = ctx.createLinearGradient(0, -8, 0, 8);
+      bodyGrad.addColorStop(0, '#ffffff');
+      bodyGrad.addColorStop(0.5, '#f0f0f0');
+      bodyGrad.addColorStop(1, '#c8c8c8');
+      ctx.fillStyle = bodyGrad;
+      drawRoundedRect(ctx, -9, -8, 18, 16, 3);
+      ctx.fill();
+      // Topp-highlight (glansrand)
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      drawRoundedRect(ctx, -8, -7, 16, 5, 2);
+      ctx.fill();
+      // Röda kors med gradient
+      const crossGrad = ctx.createLinearGradient(0, -7, 0, 7);
+      crossGrad.addColorStop(0, '#ff4a4a');
+      crossGrad.addColorStop(1, '#c81818');
+      ctx.fillStyle = crossGrad;
+      // Horizontal bar
+      drawRoundedRect(ctx, -7, -2, 14, 4, 1);
+      ctx.fill();
+      // Vertical bar
+      drawRoundedRect(ctx, -2, -7, 4, 14, 1);
+      ctx.fill();
+      // Kors-stroke (subtil mörkröd kantlinje)
+      ctx.strokeStyle = 'rgba(120,0,0,0.6)';
+      ctx.lineWidth = 0.8;
+      drawRoundedRect(ctx, -7, -2, 14, 4, 1);
+      ctx.stroke();
+      drawRoundedRect(ctx, -2, -7, 4, 14, 1);
+      ctx.stroke();
     } else if (isShield) {
-      ctx.fillStyle = '#3acaff';
-      ctx.strokeStyle = '#fff';
+      // ============ ENERGY-SHIELD — hexagonal kärna + glödande ring ============
+      // Yttre glöd-ring
+      ctx.strokeStyle = 'rgba(80,200,255,0.65)';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.moveTo(x, y - 10);
-      ctx.lineTo(x + 8, y);
-      ctx.lineTo(x, y + 10);
-      ctx.lineTo(x - 8, y);
+      ctx.arc(0, 0, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      // Shield-shape (klassisk pointed-bottom shield)
+      ctx.beginPath();
+      ctx.moveTo(0, -11);
+      ctx.lineTo(9, -7);
+      ctx.lineTo(9, 3);
+      ctx.quadraticCurveTo(9, 9, 0, 12);
+      ctx.quadraticCurveTo(-9, 9, -9, 3);
+      ctx.lineTo(-9, -7);
+      ctx.closePath();
+      // Fyllning (blå gradient)
+      const shieldGrad = ctx.createLinearGradient(0, -11, 0, 12);
+      shieldGrad.addColorStop(0, '#7adcff');
+      shieldGrad.addColorStop(0.45, '#3a9aff');
+      shieldGrad.addColorStop(1, '#1a4ab8');
+      ctx.fillStyle = shieldGrad;
+      ctx.fill();
+      // Outline
+      ctx.strokeStyle = '#0a2a5a';
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+      // Inner highlight (top-left bevel)
+      ctx.fillStyle = 'rgba(255,255,255,0.45)';
+      ctx.beginPath();
+      ctx.moveTo(-7, -7);
+      ctx.lineTo(0, -9);
+      ctx.lineTo(4, -6);
+      ctx.lineTo(-3, -2);
       ctx.closePath();
       ctx.fill();
+      // Center "energy-bolt"
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.lineWidth = 1.4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-2, -5);
+      ctx.lineTo(2, -1);
+      ctx.lineTo(-1, 1);
+      ctx.lineTo(2, 6);
       ctx.stroke();
     } else if (isGrenade) {
-      // Mini-granat-ikon (oval + cross-hatch + cap)
-      ctx.save();
-      ctx.translate(x, y);
-      // Body
-      ctx.fillStyle = '#3a5a30';
-      ctx.strokeStyle = '#1a2a18';
-      ctx.lineWidth = 1.2;
+      // ============ GRENADE — metallic body + glödande topp + pin ============
+      // Body shadow base
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.beginPath();
+      ctx.ellipse(0.5, 3, 7.5, 8.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Body (oval) med metallic radial gradient
+      const bodyGrad = ctx.createRadialGradient(-2, -1, 1, 0, 2, 9);
+      bodyGrad.addColorStop(0, '#5a7a4a');
+      bodyGrad.addColorStop(0.5, '#3a5a30');
+      bodyGrad.addColorStop(1, '#1a2a18');
+      ctx.fillStyle = bodyGrad;
       ctx.beginPath();
       ctx.ellipse(0, 2, 7, 8, 0, 0, Math.PI * 2);
       ctx.fill();
-      ctx.stroke();
-      // Cross-hatch
-      ctx.strokeStyle = '#1a2a18';
-      ctx.lineWidth = 0.7;
+      // Cross-hatch grooves (subtle)
+      ctx.strokeStyle = 'rgba(20,30,15,0.65)';
+      ctx.lineWidth = 0.6;
       ctx.beginPath();
-      ctx.moveTo(-6, -2); ctx.lineTo(6, -2);
-      ctx.moveTo(-6, 2);  ctx.lineTo(6, 2);
-      ctx.moveTo(-6, 6);  ctx.lineTo(6, 6);
-      ctx.moveTo(-3, -5); ctx.lineTo(-3, 9);
-      ctx.moveTo(0, -6);  ctx.lineTo(0, 10);
-      ctx.moveTo(3, -5);  ctx.lineTo(3, 9);
+      ctx.moveTo(-6, -1); ctx.lineTo(6, -1);
+      ctx.moveTo(-6, 3); ctx.lineTo(6, 3);
+      ctx.moveTo(-6, 7); ctx.lineTo(6, 7);
       ctx.stroke();
-      // Cap
-      ctx.fillStyle = '#5a4030';
-      ctx.fillRect(-2.5, -8, 5, 3);
-      // Pin
-      ctx.strokeStyle = '#bbbbbb';
-      ctx.lineWidth = 1.2;
+      // Body outline
+      ctx.strokeStyle = '#0a1208';
+      ctx.lineWidth = 1.1;
       ctx.beginPath();
-      ctx.moveTo(-2, -6);
-      ctx.quadraticCurveTo(-6, -8, -7, -10);
+      ctx.ellipse(0, 2, 7, 8, 0, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.restore();
+      // Top highlight (glans på övre vänster)
+      ctx.fillStyle = 'rgba(180,220,150,0.55)';
+      ctx.beginPath();
+      ctx.ellipse(-2.5, -2, 2.2, 3, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      // Metal cap (top)
+      const capGrad = ctx.createLinearGradient(0, -8, 0, -5);
+      capGrad.addColorStop(0, '#a08868');
+      capGrad.addColorStop(1, '#4a3018');
+      ctx.fillStyle = capGrad;
+      drawRoundedRect(ctx, -3, -8.5, 6, 3.5, 1);
+      ctx.fill();
+      ctx.strokeStyle = '#1a0e04';
+      ctx.lineWidth = 0.8;
+      drawRoundedRect(ctx, -3, -8.5, 6, 3.5, 1);
+      ctx.stroke();
+      // Pull-pin (metal ring + wire)
+      ctx.strokeStyle = '#d8d8d8';
+      ctx.lineWidth = 1.3;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(-2.5, -7);
+      ctx.quadraticCurveTo(-7, -9, -8.5, -11);
+      ctx.stroke();
+      ctx.strokeStyle = '#e8e8e8';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.arc(-8.5, -11, 2, 0, Math.PI * 2);
+      ctx.stroke();
     }
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -7509,72 +7626,311 @@ function drawBrLoot() {
     ctx.beginPath();
     ctx.arc(x, y + 4, 11, 0, Math.PI * 2);
     ctx.fill();
-    // Loot-låda eller pickup-ikon baserat på kind
+    // v1.371: PROFESSIONELLA pickups — tier-färg gradient + glow + ikoner
     if (lo.kind === 'weapon') {
-      // Vapen-låda (tier-färgad rektangel + vapen-ikon)
-      const lw = 18, lh = 14;
-      ctx.fillStyle = tierColor;
-      ctx.fillRect(x - lw / 2, y - lh / 2, lw, lh);
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1.2;
-      ctx.strokeRect(x - lw / 2 + 0.5, y - lh / 2 + 0.5, lw - 1, lh - 1);
-      // Lås
-      ctx.fillStyle = '#000';
-      ctx.fillRect(x - 1.5, y - lh / 2 + 1, 3, 3);
-      // Liten vapen-symbol över
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.shadowBlur = 0;
-      ctx.fillText('🔫', x, y - 12);
-    } else if (lo.kind === 'hp_small' || lo.kind === 'hp_big') {
-      // HP-pickup (röd kors)
-      const r = lo.kind === 'hp_big' ? 11 : 8;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
+      // ============ VAPEN-CHEST — metallisk låda + tier-glödande gem-lock ============
+      ctx.shadowBlur = 0; // shadowBlur off för crisp chest-edge
+      const lw = 22, lh = 18;
+      // Lock-shadow under chesten
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      drawRoundedRect(ctx, x - lw / 2 + 1, y - lh / 2 + 2, lw, lh, 3);
       ctx.fill();
-      ctx.fillStyle = '#ff3030';
-      ctx.fillRect(x - r * 0.6, y - r * 0.18, r * 1.2, r * 0.36);
-      ctx.fillRect(x - r * 0.18, y - r * 0.6, r * 0.36, r * 1.2);
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
+      // Chest-body — mörk-metallisk vertikal gradient
+      const chestGrad = ctx.createLinearGradient(0, y - lh / 2, 0, y + lh / 2);
+      chestGrad.addColorStop(0, '#5a4a30');
+      chestGrad.addColorStop(0.5, '#3a2a18');
+      chestGrad.addColorStop(1, '#1a1208');
+      ctx.fillStyle = chestGrad;
+      drawRoundedRect(ctx, x - lw / 2, y - lh / 2, lw, lh, 3);
+      ctx.fill();
+      // Topp-band (lock) i tier-färg gradient
+      const lockH = 6;
+      const lockGrad = ctx.createLinearGradient(0, y - lh / 2, 0, y - lh / 2 + lockH);
+      const tcr = tierColor;
+      // Bright top
+      lockGrad.addColorStop(0, tcr);
+      lockGrad.addColorStop(1, '#1a1208');
+      ctx.fillStyle = lockGrad;
+      drawRoundedRect(ctx, x - lw / 2, y - lh / 2, lw, lockH, 3);
+      ctx.fill();
+      // Metallic edge-highlight (top)
+      ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+      ctx.lineWidth = 0.8;
       ctx.beginPath();
-      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.moveTo(x - lw / 2 + 2, y - lh / 2 + 1.5);
+      ctx.lineTo(x + lw / 2 - 2, y - lh / 2 + 1.5);
       ctx.stroke();
-    } else if (lo.kind === 'shield_small' || lo.kind === 'shield_big') {
-      // Shield-pickup (blå sköld)
-      const r = lo.kind === 'shield_big' ? 11 : 8;
-      ctx.fillStyle = '#3a7aff';
+      // Side-rivets (4 hörn)
+      ctx.fillStyle = '#8a7a50';
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 0.5;
+      const rivelPos = [
+        [x - lw / 2 + 2, y - lh / 2 + 9],
+        [x + lw / 2 - 2, y - lh / 2 + 9],
+        [x - lw / 2 + 2, y + lh / 2 - 2],
+        [x + lw / 2 - 2, y + lh / 2 - 2],
+      ];
+      for (const [rx, ry] of rivelPos) {
+        ctx.beginPath();
+        ctx.arc(rx, ry, 1.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      }
+      // Center lock-gem (tier-färg, glödande)
+      ctx.shadowColor = glowColor;
+      ctx.shadowBlur = 8 * pulse;
+      const gemGrad = ctx.createRadialGradient(x, y + 1, 1, x, y + 1, 4);
+      gemGrad.addColorStop(0, '#ffffff');
+      gemGrad.addColorStop(0.4, tcr);
+      gemGrad.addColorStop(1, tcr);
+      ctx.fillStyle = gemGrad;
       ctx.beginPath();
-      ctx.moveTo(x, y - r);
-      ctx.lineTo(x + r * 0.9, y - r * 0.3);
-      ctx.lineTo(x + r * 0.7, y + r);
-      ctx.lineTo(x - r * 0.7, y + r);
-      ctx.lineTo(x - r * 0.9, y - r * 0.3);
+      // Diamond-gem shape
+      ctx.moveTo(x, y - 2.5);
+      ctx.lineTo(x + 3.5, y + 1);
+      ctx.lineTo(x, y + 4.5);
+      ctx.lineTo(x - 3.5, y + 1);
       ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.2;
-      ctx.stroke();
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
       ctx.shadowBlur = 0;
-      ctx.fillText('🛡', x, y);
-    } else if (lo.kind === 'ammo') {
-      // Ammo-låda (mörk grön med kulor)
-      ctx.fillStyle = '#3a5a30';
-      ctx.fillRect(x - 8, y - 6, 16, 12);
-      ctx.fillStyle = '#ffd54a';
-      ctx.fillRect(x - 6, y - 4, 3, 8);
-      ctx.fillRect(x - 1.5, y - 4, 3, 8);
-      ctx.fillRect(x + 3, y - 4, 3, 8);
+      // Gem-rim
       ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x - 8 + 0.5, y - 6 + 0.5, 15, 11);
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 2.5);
+      ctx.lineTo(x + 3.5, y + 1);
+      ctx.lineTo(x, y + 4.5);
+      ctx.lineTo(x - 3.5, y + 1);
+      ctx.closePath();
+      ctx.stroke();
+      // Outer chest-outline
+      ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+      ctx.lineWidth = 1.2;
+      drawRoundedRect(ctx, x - lw / 2, y - lh / 2, lw, lh, 3);
+      ctx.stroke();
+    } else if (lo.kind === 'hp_small' || lo.kind === 'hp_big') {
+      // ============ MED-KIT — vit kropp + röd kors + gradient ============
+      ctx.shadowBlur = 0;
+      const big = lo.kind === 'hp_big';
+      const W = big ? 24 : 18, H = big ? 22 : 16;
+      // Drop-shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + H / 2 + 2, W / 2 + 1, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Outer mörk-röd rim
+      ctx.fillStyle = '#7a0a0a';
+      drawRoundedRect(ctx, x - W / 2, y - H / 2, W, H, 4);
+      ctx.fill();
+      // Inner body — vit gradient
+      const bodyGrad = ctx.createLinearGradient(0, y - H / 2 + 2, 0, y + H / 2 - 2);
+      bodyGrad.addColorStop(0, '#ffffff');
+      bodyGrad.addColorStop(0.5, '#f0f0f0');
+      bodyGrad.addColorStop(1, '#c8c8c8');
+      ctx.fillStyle = bodyGrad;
+      drawRoundedRect(ctx, x - W / 2 + 2, y - H / 2 + 2, W - 4, H - 4, 3);
+      ctx.fill();
+      // Topp-highlight (glansrand)
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      drawRoundedRect(ctx, x - W / 2 + 3, y - H / 2 + 3, W - 6, 4, 2);
+      ctx.fill();
+      // Röda kors (gradient)
+      const crossW = big ? 16 : 12, crossT = big ? 4.5 : 3.5;
+      const crossGrad = ctx.createLinearGradient(0, y - crossW / 2, 0, y + crossW / 2);
+      crossGrad.addColorStop(0, '#ff5050');
+      crossGrad.addColorStop(1, '#c81818');
+      ctx.fillStyle = crossGrad;
+      drawRoundedRect(ctx, x - crossW / 2, y - crossT / 2, crossW, crossT, 1.2);
+      ctx.fill();
+      drawRoundedRect(ctx, x - crossT / 2, y - crossW / 2, crossT, crossW, 1.2);
+      ctx.fill();
+      // Big-size: "+" extra label nedanför
+      if (big) {
+        ctx.fillStyle = '#7a0a0a';
+        ctx.font = 'bold 7px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('MAX', x, y + H / 2 - 3);
+      }
+    } else if (lo.kind === 'shield_small' || lo.kind === 'shield_big') {
+      // ============ SHIELD-pickup — hexagonal sköld + energy-bolt ============
+      ctx.shadowBlur = 0;
+      const big = lo.kind === 'shield_big';
+      const S = big ? 13 : 10;
+      // Drop-shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + S + 1, S - 1, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Yttre energy-ring
+      ctx.strokeStyle = 'rgba(80,200,255,0.7)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, S + 2, 0, Math.PI * 2);
+      ctx.stroke();
+      // Shield-shape (klassisk)
+      ctx.beginPath();
+      ctx.moveTo(x, y - S);
+      ctx.lineTo(x + S * 0.85, y - S * 0.55);
+      ctx.lineTo(x + S * 0.85, y + S * 0.3);
+      ctx.quadraticCurveTo(x + S * 0.85, y + S, x, y + S);
+      ctx.quadraticCurveTo(x - S * 0.85, y + S, x - S * 0.85, y + S * 0.3);
+      ctx.lineTo(x - S * 0.85, y - S * 0.55);
+      ctx.closePath();
+      // Blå gradient
+      const shGrad = ctx.createLinearGradient(0, y - S, 0, y + S);
+      shGrad.addColorStop(0, '#7adcff');
+      shGrad.addColorStop(0.45, '#3a9aff');
+      shGrad.addColorStop(1, '#1a4ab8');
+      ctx.fillStyle = shGrad;
+      ctx.fill();
+      ctx.strokeStyle = '#0a2a5a';
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+      // Inner highlight bevel
+      ctx.fillStyle = 'rgba(255,255,255,0.4)';
+      ctx.beginPath();
+      ctx.moveTo(x - S * 0.6, y - S * 0.55);
+      ctx.lineTo(x, y - S * 0.85);
+      ctx.lineTo(x + S * 0.35, y - S * 0.55);
+      ctx.lineTo(x - S * 0.2, y - S * 0.15);
+      ctx.closePath();
+      ctx.fill();
+      // Energy-bolt center
+      ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+      ctx.lineWidth = big ? 1.7 : 1.4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const bs = big ? 1.3 : 1;
+      ctx.beginPath();
+      ctx.moveTo(x - 2 * bs, y - 4 * bs);
+      ctx.lineTo(x + 2 * bs, y);
+      ctx.lineTo(x - 1 * bs, y + 1 * bs);
+      ctx.lineTo(x + 2 * bs, y + 5 * bs);
+      ctx.stroke();
+      // Big-size: MAX label
+      if (big) {
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 7px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 2;
+        ctx.fillText('MAX', x, y + S - 2.5);
+        ctx.shadowBlur = 0;
+      }
+    } else if (lo.kind === 'ammo') {
+      // ============ AMMO-CRATE — militär låda + gula kulor + label ============
+      ctx.shadowBlur = 0;
+      const W = 20, H = 16;
+      // Drop-shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + H / 2 + 1, W / 2 - 1, 2.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Crate body (mörk-grön metallisk gradient)
+      const crateGrad = ctx.createLinearGradient(0, y - H / 2, 0, y + H / 2);
+      crateGrad.addColorStop(0, '#5a7038');
+      crateGrad.addColorStop(0.5, '#3a4a20');
+      crateGrad.addColorStop(1, '#1a2410');
+      ctx.fillStyle = crateGrad;
+      drawRoundedRect(ctx, x - W / 2, y - H / 2, W, H, 2);
+      ctx.fill();
+      // Side panels (3 vertikala bars)
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(x - W / 2 + 3, y - H / 2 + 1, 1, H - 2);
+      ctx.fillRect(x + W / 2 - 4, y - H / 2 + 1, 1, H - 2);
+      // Topp-highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
+      ctx.fillRect(x - W / 2 + 1, y - H / 2 + 1, W - 2, 2);
+      // Gula bullets (3 st)
+      const bulletGrad = ctx.createLinearGradient(0, y - 4, 0, y + 4);
+      bulletGrad.addColorStop(0, '#ffe580');
+      bulletGrad.addColorStop(0.6, '#ffb020');
+      bulletGrad.addColorStop(1, '#a06010');
+      ctx.fillStyle = bulletGrad;
+      for (let bi = -1; bi <= 1; bi++) {
+        drawRoundedRect(ctx, x + bi * 4 - 1.5, y - 4, 3, 7, 1);
+        ctx.fill();
+      }
+      // Bullet-tips (silver)
+      ctx.fillStyle = '#c0c0c0';
+      for (let bi = -1; bi <= 1; bi++) {
+        ctx.beginPath();
+        ctx.moveTo(x + bi * 4 - 1.5, y - 4);
+        ctx.lineTo(x + bi * 4, y - 5.5);
+        ctx.lineTo(x + bi * 4 + 1.5, y - 4);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // Crate outline
+      ctx.strokeStyle = '#0a1408';
+      ctx.lineWidth = 1.1;
+      drawRoundedRect(ctx, x - W / 2, y - H / 2, W, H, 2);
+      ctx.stroke();
+    } else if (lo.kind === 'grenade') {
+      // ============ GRENADE-pickup — riktig granat med pin ============
+      ctx.shadowBlur = 0;
+      // Drop-shadow
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + 11, 9, 3, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Body (oval, metallic radial)
+      const grBody = ctx.createRadialGradient(x - 2.5, y - 1, 1, x, y + 2, 11);
+      grBody.addColorStop(0, '#6a8a48');
+      grBody.addColorStop(0.5, '#3a5a30');
+      grBody.addColorStop(1, '#1a2818');
+      ctx.fillStyle = grBody;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 2, 8.5, 10, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Cross-hatch grooves
+      ctx.strokeStyle = 'rgba(15,25,12,0.7)';
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      ctx.moveTo(x - 7, y - 2); ctx.lineTo(x + 7, y - 2);
+      ctx.moveTo(x - 7, y + 2); ctx.lineTo(x + 7, y + 2);
+      ctx.moveTo(x - 7, y + 6); ctx.lineTo(x + 7, y + 6);
+      ctx.moveTo(x - 3, y - 6); ctx.lineTo(x - 3, y + 11);
+      ctx.moveTo(x, y - 7); ctx.lineTo(x, y + 12);
+      ctx.moveTo(x + 3, y - 6); ctx.lineTo(x + 3, y + 11);
+      ctx.stroke();
+      // Body outline
+      ctx.strokeStyle = '#0a1408';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 2, 8.5, 10, 0, 0, Math.PI * 2);
+      ctx.stroke();
+      // Glans highlight
+      ctx.fillStyle = 'rgba(190,230,160,0.55)';
+      ctx.beginPath();
+      ctx.ellipse(x - 3, y - 3, 2.5, 3.5, -0.3, 0, Math.PI * 2);
+      ctx.fill();
+      // Metal cap (top)
+      const capGr = ctx.createLinearGradient(0, y - 10, 0, y - 6);
+      capGr.addColorStop(0, '#a08868');
+      capGr.addColorStop(1, '#4a3018');
+      ctx.fillStyle = capGr;
+      drawRoundedRect(ctx, x - 3.5, y - 10.5, 7, 4, 1);
+      ctx.fill();
+      ctx.strokeStyle = '#1a0e04';
+      ctx.lineWidth = 0.9;
+      drawRoundedRect(ctx, x - 3.5, y - 10.5, 7, 4, 1);
+      ctx.stroke();
+      // Pull-pin ring
+      ctx.strokeStyle = '#d8d8d8';
+      ctx.lineWidth = 1.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x - 3, y - 9);
+      ctx.quadraticCurveTo(x - 8, y - 11, x - 10, y - 13);
+      ctx.stroke();
+      ctx.strokeStyle = '#e8e8e8';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(x - 10, y - 13, 2.3, 0, Math.PI * 2);
+      ctx.stroke();
     } else {
       // Fallback: en kub
       ctx.fillStyle = tierColor;
@@ -7757,71 +8113,72 @@ function drawBrGroundDecorations(decos) {
       }
       ctx.restore();
     } else if (d.kind === 'alien_transition') {
-      // INFEKTERAD MARK-övergång: REN soft fade — sprickorna ligger i alien_floor.
-      const x = d.x - cx, y = d.y - cy;
-      if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
-      const ccx = x + d.w / 2, ccy = y + d.h / 2;
-      const maxR = d.w / 2;
-      // Extremt mjuk radial fade (många stops) — ingen synlig ring
-      const halo = ctx.createRadialGradient(ccx, ccy, 0, ccx, ccy, maxR);
-      halo.addColorStop(0.00, 'rgba(95, 25, 130, 0.55)');
-      halo.addColorStop(0.10, 'rgba(85, 22, 115, 0.50)');
-      halo.addColorStop(0.22, 'rgba(70, 18, 90, 0.42)');
-      halo.addColorStop(0.34, 'rgba(55, 14, 60, 0.35)');
-      halo.addColorStop(0.46, 'rgba(45, 12, 35, 0.28)');
-      halo.addColorStop(0.58, 'rgba(35, 12, 18, 0.22)');
-      halo.addColorStop(0.70, 'rgba(28, 14, 10, 0.15)');
-      halo.addColorStop(0.82, 'rgba(22, 14, 10, 0.08)');
-      halo.addColorStop(0.92, 'rgba(22, 14, 10, 0.03)');
-      halo.addColorStop(1.00, 'rgba(22, 14, 10, 0)');
-      ctx.fillStyle = halo;
-      ctx.fillRect(x, y, d.w, d.h);
+      // v1.371: alien_floor hanterar nu sin egen soft fade (square+gradient).
+      // alien_transition rendrar inget längre — skapade tidigare "streak" mellan
+      // grön och lila genom att tinta hela 5500×5500-zonen lila.
+      continue;
     } else if (d.kind === 'alien_floor') {
-      // ALIEN-MARK via CORNER-RADIAL gradient — solid lila vid SE-hörnet (10000,10000),
-      // fadar mot NW (där alien_transition tar över för smooth blend mot skogen).
-      // Inget offscreen canvas (bbox 5000x5000 = 100MB skulle vara för mycket).
+      // ALIEN-MARK (v1.371): SOLID LILA SQUARE som matchar minimapen (7900-10000),
+      // med smooth fade NW (7500-7900) för mjuk blend mot skogen — INGEN streak.
       const x = d.x - cx, y = d.y - cy;
       if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
       const t = performance.now() / 1000;
       const pulse = 0.5 + Math.sin(t * 0.8) * 0.25;
       const seed = ((d.x * 19) ^ (d.y * 23)) | 0;
-      // CORNER-RADIAL: center 500px PAST map-edge så solid lila täcker bortom kanten.
-      // d.x+d.w = 11000, d.y+d.h = 11000. Center = (10500, 10500).
-      const radCenterWX = d.x + d.w - 500;  // 10500 i världs-coords
-      const radCenterWY = d.y + d.h - 500;
-      const radCx = radCenterWX - cx;
-      const radCy = radCenterWY - cy;
-      // Max radius = diagonal från center till NW-hörn av d.bbox = (6000, 6000)
-      // distance = sqrt((10500-6000)^2 + (10500-6000)^2) = sqrt(2)*4500 ≈ 6364
-      const maxR = Math.hypot(d.w - 500, d.h - 500);
-      // ============ LAYER 1: Solid lila bas (corner-radial) ============
-      const baseGrad = ctx.createRadialGradient(radCx, radCy, 0, radCx, radCy, maxR);
-      baseGrad.addColorStop(0.00, 'rgba(42, 24, 56, 1)');
-      baseGrad.addColorStop(0.55, 'rgba(42, 24, 56, 1)');     // solid ut till 55% av radien
-      baseGrad.addColorStop(0.72, 'rgba(42, 24, 56, 0.85)');
-      baseGrad.addColorStop(0.85, 'rgba(42, 24, 56, 0.55)');
-      baseGrad.addColorStop(0.95, 'rgba(42, 24, 56, 0.20)');
-      baseGrad.addColorStop(1.00, 'rgba(42, 24, 56, 0)');
-      ctx.fillStyle = baseGrad;
-      ctx.fillRect(x, y, d.w, d.h);
-      // Helper: alfa-faktor baserat på distance från radial-center (matchar gradient)
+      // Solid lila zon (matchar minimap-rektangeln)
+      const SX0 = 7900, SY0 = 7900, SX1 = 10000, SY1 = 10000;
+      const FADE = 450; // soft blend mot NW
+      const PURPLE_BASE_R = 42, PURPLE_BASE_G = 24, PURPLE_BASE_B = 56;
+      const purpleStr = (a) => 'rgba(' + PURPLE_BASE_R + ',' + PURPLE_BASE_G + ',' + PURPLE_BASE_B + ',' + a + ')';
+      // alphaAt: 1 inom square, smooth cubic falloff utåt i fade-zonen
       const alphaAt = (wx, wy) => {
-        const dist = Math.hypot(wx - radCenterWX, wy - radCenterWY);
-        const f = dist / maxR;
-        if (f < 0.55) return 1;
-        if (f >= 1) return 0;
-        if (f < 0.72) return 1 - (f - 0.55) / 0.17 * 0.15;
-        if (f < 0.85) return 0.85 - (f - 0.72) / 0.13 * 0.30;
-        if (f < 0.95) return 0.55 - (f - 0.85) / 0.10 * 0.35;
-        return 0.20 - (f - 0.95) / 0.05 * 0.20;
+        if (wx >= SX0 && wy >= SY0 && wx <= SX1 && wy <= SY1) return 1;
+        let dx = 0, dy = 0;
+        if (wx < SX0) dx = SX0 - wx; else if (wx > SX1) dx = wx - SX1;
+        if (wy < SY0) dy = SY0 - wy; else if (wy > SY1) dy = wy - SY1;
+        const dist = Math.hypot(dx, dy);
+        if (dist >= FADE) return 0;
+        const f = 1 - dist / FADE;
+        return f * f; // cubic-ish falloff — smooth blend
       };
-      // ============ LAYER 2: Sotfläckar (deterministic, fade-aware) ============
+      // ============ LAYER 1: Solid square + 3 fade-bands ============
+      // 1A: Solid lila (alpha=1) ut till map-edge i SE
+      ctx.fillStyle = purpleStr(1);
+      ctx.fillRect(SX0 - cx, SY0 - cy, SX1 - SX0, SY1 - SY0);
+      // Gradient color-stop helper — matchar f*f curve
+      const addSmoothStops = (g, dir) => {
+        // dir=1 = 0 → 1 (alpha grows toward end), dir=-1 = 1 → 0
+        const stops = [[0.00, 0.00], [0.30, 0.09], [0.55, 0.30], [0.75, 0.56], [0.90, 0.81], [1.00, 1.00]];
+        for (const [t, a] of stops) {
+          const pos = dir === 1 ? t : 1 - t;
+          g.addColorStop(pos, purpleStr(a));
+        }
+      };
+      // 1B: N fade band — ovanför square, linjär gradient ner
+      const ngrad = ctx.createLinearGradient(0, (SY0 - FADE) - cy, 0, SY0 - cy);
+      addSmoothStops(ngrad, 1);
+      ctx.fillStyle = ngrad;
+      ctx.fillRect(SX0 - cx, (SY0 - FADE) - cy, SX1 - SX0, FADE);
+      // 1C: W fade band — vänster om square, linjär gradient höger
+      const wgrad = ctx.createLinearGradient((SX0 - FADE) - cx, 0, SX0 - cx, 0);
+      addSmoothStops(wgrad, 1);
+      ctx.fillStyle = wgrad;
+      ctx.fillRect((SX0 - FADE) - cx, SY0 - cy, FADE, SY1 - SY0);
+      // 1D: NW corner — radial från (SX0, SY0) ut till FADE
+      const cnx = SX0 - cx, cny = SY0 - cy;
+      const cgrad = ctx.createRadialGradient(cnx, cny, 0, cnx, cny, FADE);
+      addSmoothStops(cgrad, -1);
+      ctx.fillStyle = cgrad;
+      ctx.fillRect((SX0 - FADE) - cx, (SY0 - FADE) - cy, FADE, FADE);
+      // ============ LAYER 2: Sotfläckar (alpha-aware) ============
       ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-      for (let i = 0; i < 70; i++) {
-        const pxw = d.x + ((seed * (i + 7) * 19) & 0xffff) % d.w;
-        const pyw = d.y + ((seed * (i + 11) * 23) & 0xffff) % d.h;
+      const RANGE_X = (SX1 - SX0) + FADE;
+      const RANGE_Y = (SY1 - SY0) + FADE;
+      for (let i = 0; i < 60; i++) {
+        const pxw = (SX0 - FADE) + ((seed * (i + 7) * 19) & 0xffff) % RANGE_X;
+        const pyw = (SY0 - FADE) + ((seed * (i + 11) * 23) & 0xffff) % RANGE_Y;
         const a = alphaAt(pxw, pyw);
-        if (a <= 0.02) continue;
+        if (a <= 0.05) continue;
         const px = pxw - cx, py = pyw - cy;
         ctx.globalAlpha = 0.55 * a;
         ctx.beginPath();
@@ -7829,16 +8186,16 @@ function drawBrGroundDecorations(decos) {
         ctx.fill();
       }
       ctx.globalAlpha = 1;
-      // ============ LAYER 3: GLÖDANDE RÖDA SPRICKOR — utspridda över hela alien-bbox ============
-      // Bygg crack-paths (cache i state) — bara position, ritas varje frame med fade
-      if (!state._alienCracks || state._alienCracks.key !== d.x + '_' + d.y + '_' + d.w + '_' + d.h) {
-        const crackCount = 120;
+      // ============ LAYER 3: Glödande röda sprickor ============
+      const zoneKey = SX0 + '_' + SY0 + '_' + SX1 + '_' + SY1;
+      if (!state._alienCracks || state._alienCracks.key !== zoneKey) {
+        const crackCount = 80;
         const cracks = [];
         for (let i = 0; i < crackCount; i++) {
-          const cxw = d.x + ((seed * (i + 1) * 71) & 0xffff) % d.w;
-          const cyw = d.y + ((seed * (i + 5) * 113) & 0xffff) % d.h;
+          const cxw = (SX0 - FADE) + ((seed * (i + 1) * 71) & 0xffff) % RANGE_X;
+          const cyw = (SY0 - FADE) + ((seed * (i + 5) * 113) & 0xffff) % RANGE_Y;
           const ang0 = ((seed * (i + 3) * 73) % 6283) / 1000;
-          const length = 70 + ((seed * (i + 7) * 17) & 0x7f);
+          const length = 60 + ((seed * (i + 7) * 17) & 0x7f);
           const path = [];
           const segs = 4 + (i % 3);
           for (let s = 0; s <= segs; s++) {
@@ -7849,13 +8206,11 @@ function drawBrGroundDecorations(decos) {
           }
           cracks.push(path);
         }
-        state._alienCracks = { key: d.x + '_' + d.y + '_' + d.w + '_' + d.h, cracks };
+        state._alienCracks = { key: zoneKey, cracks };
       }
       const cracks = state._alienCracks.cracks;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
-      // Render cracks i 4 lager (yttre halo → mid → tunn → kärna). Per-crack alpha
-      // baserad på midten-pos i corner-radial-fadezonen.
       const drawCrackLayer = (strokeStyle, lineWidth, alphaMul) => {
         ctx.lineWidth = lineWidth;
         for (const path of cracks) {
@@ -7876,9 +8231,9 @@ function drawBrGroundDecorations(decos) {
       drawCrackLayer('rgb(255, 230, 150)', 1.3, 0.95);
       ctx.globalAlpha = 1;
       // ============ LAYER 4: Pulserande lila glow-prickar ============
-      for (let i = 0; i < 50; i++) {
-        const pxw = d.x + ((seed * (i + 23) * 41) & 0xffff) % d.w;
-        const pyw = d.y + ((seed * (i + 29) * 47) & 0xffff) % d.h;
+      for (let i = 0; i < 40; i++) {
+        const pxw = (SX0 - FADE) + ((seed * (i + 23) * 41) & 0xffff) % RANGE_X;
+        const pyw = (SY0 - FADE) + ((seed * (i + 29) * 47) & 0xffff) % RANGE_Y;
         const a = alphaAt(pxw, pyw);
         if (a <= 0.05) continue;
         const px = pxw - cx, py = pyw - cy;
@@ -7891,9 +8246,9 @@ function drawBrGroundDecorations(decos) {
       }
       ctx.globalAlpha = 1;
       // ============ LAYER 5: Gröna alien-energi-prickar ============
-      for (let i = 0; i < 70; i++) {
-        const pxw = d.x + ((seed * (i + 13) * 29) & 0xffff) % d.w;
-        const pyw = d.y + ((seed * (i + 17) * 31) & 0xffff) % d.h;
+      for (let i = 0; i < 60; i++) {
+        const pxw = (SX0 - FADE) + ((seed * (i + 13) * 29) & 0xffff) % RANGE_X;
+        const pyw = (SY0 - FADE) + ((seed * (i + 17) * 31) & 0xffff) % RANGE_Y;
         const a = alphaAt(pxw, pyw);
         if (a <= 0.05) continue;
         const px = pxw - cx, py = pyw - cy;
@@ -39459,19 +39814,19 @@ function drawMiniMap() {
   }
   // BR: Specialområden — ALIEN-zon + KYRKOGÅRD-zon (med ikoner)
   if (state.battleroyaleActive) {
-    // Alien-zon (SE-hörnet)
+    // Alien-zon (SE-hörnet) — matchar in-game solid square 7900-10000
     ctx.fillStyle = 'rgba(170,60,255,0.15)';
-    ctx.fillRect(ox + 7900 * scale, oy + 7900 * scale, 1900 * scale, 1900 * scale);
+    ctx.fillRect(ox + 7900 * scale, oy + 7900 * scale, 2100 * scale, 2100 * scale);
     ctx.strokeStyle = 'rgba(170,60,255,0.5)';
     ctx.lineWidth = 1;
-    ctx.strokeRect(ox + 7900 * scale, oy + 7900 * scale, 1900 * scale, 1900 * scale);
+    ctx.strokeRect(ox + 7900 * scale, oy + 7900 * scale, 2100 * scale, 2100 * scale);
     // UFO-ikon i alien-mitten
     if (size > 100) {
       ctx.fillStyle = '#a040e0';
       ctx.font = 'bold ' + Math.max(8, size * 0.06) + 'px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText('🛸', ox + 8800 * scale, oy + 8800 * scale);
+      ctx.fillText('🛸', ox + 8950 * scale, oy + 8950 * scale);
     }
     // Kyrkogård-zon
     ctx.fillStyle = 'rgba(80,80,80,0.2)';
@@ -39554,26 +39909,9 @@ function drawMiniMap() {
       ctx.setLineDash([]);
     }
     ctx.restore();
-    // Legendary-loot markers (gula prickar) — PERF: for...in + cache pulse-alpha
-    if (state.battleroyaleLoot) {
-      const t = performance.now() / 1000;
-      const pulse = 0.6 + Math.sin(t * 3) * 0.4;
-      const nowMs = Date.now();
-      const goldAlpha = 'rgba(255,213,74,' + (0.7 + 0.3 * pulse) + ')';
-      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
-      ctx.lineWidth = 0.5;
-      for (const id in state.battleroyaleLoot) {
-        const lo = state.battleroyaleLoot[id];
-        if (!lo.available) continue;
-        if (lo.tier !== 'legendary' && lo.tier !== 'rare') continue;
-        if (lo.unlockAt && nowMs < lo.unlockAt) continue;
-        const lx = ox + lo.x * scale, ly = oy + lo.y * scale;
-        const isLegendary = lo.tier === 'legendary';
-        ctx.fillStyle = isLegendary ? goldAlpha : 'rgba(58,202,255,0.7)';
-        ctx.beginPath(); ctx.arc(lx, ly, isLegendary ? 2.5 : 1.8, 0, Math.PI * 2); ctx.fill();
-        ctx.stroke();
-      }
-    }
+    // v1.371: Loot-markers borttagna helt — spelaren ska SE loot på kartan, inte
+    // få "epic-spotter" på minimapen. Tidigare visades gula prickar för legendary
+    // och cyan för rare → blev för lätt att vinna BR.
   }
   // KOTH active zone på minimap (pulse-cirkel i guld)
   if (state.kothActive && state.kothZones && state.kothActiveZoneIdx != null) {
