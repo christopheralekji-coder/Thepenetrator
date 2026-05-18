@@ -12945,27 +12945,35 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
 
     radialEl.innerHTML = '';
     slots = [];
-    // Center cancel-zon
+    const N = weaponList.length;
+    const W = window.innerWidth, H = window.innerHeight;
+    const SLOT_R = 36; // halv slot-bredd (64/2) + lite marginal
+    // Önskad radie skalar med antal vapen så ikonerna inte överlappar
+    const baseR = Math.min(W, H) * 0.20;
+    let radius = Math.max(100, Math.min(baseR + N * 5, 200));
+    // Krymp radien om viewport är för liten för cirkeln även centrerad
+    const maxRadiusFit = Math.min((W - 2 * SLOT_R) / 2 - 4, (H - 2 * SLOT_R) / 2 - 4);
+    if (radius > maxRadiusFit) radius = Math.max(70, maxRadiusFit);
+    // SKIFTA centrum så HELA cirkeln får plats utan att klampa enskilda slots.
+    // Vi vill: centerX-radius >= SLOT_R && centerX+radius <= W-SLOT_R (samma för Y).
+    // Om button-center inte uppfyller detta, dra centrum inåt (mot screen-center).
+    const minCX = SLOT_R + radius, maxCX = W - SLOT_R - radius;
+    const minCY = SLOT_R + radius, maxCY = H - SLOT_R - radius;
+    centerX = Math.max(minCX, Math.min(maxCX, centerX));
+    centerY = Math.max(minCY, Math.min(maxCY, centerY));
+    // Center cancel-zon (efter shifting av centrum)
     centerEl = document.createElement('div');
     centerEl.className = 'weapon-radial-center';
     centerEl.style.left = centerX + 'px';
     centerEl.style.top = centerY + 'px';
     centerEl.textContent = '✕';
     radialEl.appendChild(centerEl);
-    // Cirkel-layout
-    const N = weaponList.length;
-    // Radie skalar med antal vapen så ikonerna inte överlappar
-    const baseR = Math.min(window.innerWidth, window.innerHeight) * 0.18;
-    const radius = Math.max(95, Math.min(baseR + N * 4, 180));
-    // Start från top (−π/2) och rita medsols
+    // Start från top (−π/2) och rita medsols — INGEN klampning av slots
     for (let i = 0; i < N; i++) {
       const w = weaponList[i];
       const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
-      // Klampa positions till viewport så slots inte sticker utanför skärmen
-      let sx = centerX + Math.cos(angle) * radius;
-      let sy = centerY + Math.sin(angle) * radius;
-      sx = Math.max(40, Math.min(window.innerWidth - 40, sx));
-      sy = Math.max(40, Math.min(window.innerHeight - 40, sy));
+      const sx = centerX + Math.cos(angle) * radius;
+      const sy = centerY + Math.sin(angle) * radius;
       const el = document.createElement('div');
       el.className = 'weapon-radial-slot';
       if (w.id === save.equipped) el.classList.add('equipped');
