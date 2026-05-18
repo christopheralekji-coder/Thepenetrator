@@ -12948,12 +12948,16 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
     const N = weaponList.length;
     const W = window.innerWidth, H = window.innerHeight;
     const SLOT_R = 36; // halv slot-bredd (64/2) + lite marginal
-    // Önskad radie skalar med antal vapen så ikonerna inte överlappar
-    const baseR = Math.min(W, H) * 0.20;
-    let radius = Math.max(100, Math.min(baseR + N * 5, 200));
+    // TIGHT radius: precis så att slots INTE överlappar (chord-length = slot+padding).
+    // Formel: r = (slotWidth + padding) / (2*sin(π/N)).
+    // padding=2 ger "kantliggande" ikoner — så tätt som möjligt utan att klippa.
+    const SLOT_W = 64;
+    const PADDING = 2;
+    const minR = N >= 2 ? (SLOT_W + PADDING) / (2 * Math.sin(Math.PI / N)) : 0;
+    let radius = Math.max(55, minR + 2);
     // Krymp radien om viewport är för liten för cirkeln även centrerad
     const maxRadiusFit = Math.min((W - 2 * SLOT_R) / 2 - 4, (H - 2 * SLOT_R) / 2 - 4);
-    if (radius > maxRadiusFit) radius = Math.max(70, maxRadiusFit);
+    if (radius > maxRadiusFit) radius = Math.max(50, maxRadiusFit);
     // SKIFTA centrum så HELA cirkeln får plats utan att klampa enskilda slots.
     // Vi vill: centerX-radius >= SLOT_R && centerX+radius <= W-SLOT_R (samma för Y).
     // Om button-center inte uppfyller detta, dra centrum inåt (mot screen-center).
