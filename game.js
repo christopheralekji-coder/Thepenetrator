@@ -13163,6 +13163,339 @@ if (_btnDash) {
   _btnDash.addEventListener('touchstart', onDashDown, { passive: false });
 }
 
+// ============================================================
+// GRANATER — 5 per match, joystick-aim (tap=max range, hold+drag=sikta)
+// ============================================================
+const GRENADE_STARTING_COUNT = 5;
+const GRENADE_MAX_RANGE = 300;
+const GRENADE_AIM_DEADZONE = 6;
+const GRENADE_DRAG_SCALE = 2.5;     // drag-pixlar × scale = throw-distance
+const GRENADE_FLIGHT_MS = 800;       // tid från throw till landning
+const GRENADE_RADIUS = 85;           // explosion AOE
+const GRENADE_DAMAGE = 70;           // dmg vid center, linjär falloff till edge
+
+const _btnGrenade = document.getElementById('btn-grenade');
+const _grenadeCountEl = document.getElementById('grenade-count');
+let grenadeTouchId = null;
+let grenadeStartPos = { x: 0, y: 0 };
+state.grenadeAim = null;             // { dragX, dragY, engaged } medan holding
+state.grenades = state.grenades || [];
+
+function getGrenadeCount() {
+  return (state.player && typeof state.player.grenadeCount === 'number')
+    ? state.player.grenadeCount : 0;
+}
+function setGrenadeCount(n) {
+  if (state.player) state.player.grenadeCount = Math.max(0, n);
+  updateGrenadeBadge();
+}
+function updateGrenadeBadge() {
+  if (!_grenadeCountEl) return;
+  const n = getGrenadeCount();
+  _grenadeCountEl.textContent = n;
+  if (_btnGrenade) _btnGrenade.classList.toggle('empty', n <= 0);
+}
+function resetGrenadesForMatch() {
+  if (state.player) state.player.grenadeCount = GRENADE_STARTING_COUNT;
+  state.grenades = [];
+  state.grenadeAim = null;
+  if (_btnGrenade) _btnGrenade.classList.remove('aiming');
+  updateGrenadeBadge();
+}
+
+// Beräkna landing-target från drag-state
+function computeGrenadeTarget() {
+  const p = state.player;
+  if (!p) return null;
+  if (!state.grenadeAim || !state.grenadeAim.engaged) {
+    // TAP: forward i player.aimAngle
+    const ang = p.aimAngle || 0;
+    return {
+      x: p.x + Math.cos(ang) * GRENADE_MAX_RANGE,
+      y: p.y + Math.sin(ang) * GRENADE_MAX_RANGE,
+      range: GRENADE_MAX_RANGE,
+    };
+  }
+  // HOLD+DRAG: drag-direction + drag-distance scaled
+  const a = state.grenadeAim;
+  const d = Math.hypot(a.dragX, a.dragY);
+  if (d < 0.01) return null;
+  const ang = Math.atan2(a.dragY, a.dragX);
+  const range = Math.min(GRENADE_MAX_RANGE, d * GRENADE_DRAG_SCALE);
+  return {
+    x: p.x + Math.cos(ang) * range,
+    y: p.y + Math.sin(ang) * range,
+    range,
+  };
+}
+
+function grenadeDown(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (state.mode !== 'playing' || !state.player || state.player.spectating) return;
+  if (getGrenadeCount() <= 0) {
+    if (typeof showToast === 'function') showToast('💣 INGA GRANATER KVAR');
+    return;
+  }
+  const t = e.changedTouches ? e.changedTouches[0] : e;
+  grenadeTouchId = e.changedTouches ? t.identifier : (e.pointerId != null ? e.pointerId : 'mouse');
+  grenadeStartPos = { x: t.clientX, y: t.clientY };
+  state.grenadeAim = { dragX: 0, dragY: 0, engaged: false };
+  if (_btnGrenade) _btnGrenade.classList.add('aiming');
+}
+
+function grenadeMove(e) {
+  if (grenadeTouchId === null || !state.grenadeAim) return;
+  let pt = null;
+  if (e.changedTouches || e.touches) {
+    const arr = e.changedTouches || e.touches;
+    for (const t of arr) if (t.identifier === grenadeTouchId) { pt = t; break; }
+    if (!pt) return;
+  } else {
+    if (e.pointerId != null && e.pointerId !== grenadeTouchId && grenadeTouchId !== 'mouse') return;
+    pt = e;
+  }
+  const sdx = pt.clientX - grenadeStartPos.x;
+  const sdy = pt.clientY - grenadeStartPos.y;
+  const d = Math.hypot(sdx, sdy);
+  if (state.grenadeAim.engaged) {
+    if (d > 1) { state.grenadeAim.dragX = sdx; state.grenadeAim.dragY = sdy; }
+  } else if (d > GRENADE_AIM_DEADZONE) {
+    state.grenadeAim.engaged = true;
+    state.grenadeAim.dragX = sdx;
+    state.grenadeAim.dragY = sdy;
+  }
+}
+
+function grenadeUp(e) {
+  if (grenadeTouchId === null) return;
+  if (e && e.preventDefault) e.preventDefault();
+  // Validera fortfarande playable + har granater
+  if (state.mode === 'playing' && state.player && !state.player.spectating && getGrenadeCount() > 0) {
+    const target = computeGrenadeTarget();
+    if (target) {
+      throwGrenade(state.player.x, state.player.y, target.x, target.y);
+      setGrenadeCount(getGrenadeCount() - 1);
+    }
+  }
+  grenadeTouchId = null;
+  state.grenadeAim = null;
+  if (_btnGrenade) _btnGrenade.classList.remove('aiming');
+}
+
+function throwGrenade(fromX, fromY, toX, toY) {
+  state.grenades = state.grenades || [];
+  state.grenades.push({
+    fromX, fromY, toX, toY,
+    startTime: performance.now(),
+    flightTime: GRENADE_FLIGHT_MS,
+    radius: GRENADE_RADIUS,
+    damage: GRENADE_DAMAGE,
+    exploded: false,
+    fadeUntil: 0,
+    ownerId: (typeof Coop !== 'undefined' && Coop.myId) ? Coop.myId : 'local',
+  });
+  // PvP: skicka till server för auth damage + broadcasta till andra spelare
+  if (typeof Coop !== 'undefined' && Coop.active && Coop.ws && Coop.ws.readyState === 1) {
+    try {
+      Coop.ws.send(JSON.stringify({
+        type: 'sim_grenade_throw',
+        fromX: Math.round(fromX), fromY: Math.round(fromY),
+        toX: Math.round(toX), toY: Math.round(toY),
+      }));
+    } catch (_) {}
+  }
+  if (typeof Audio !== 'undefined' && Audio._tone) {
+    Audio._tone(220, 0.15, 'triangle', 0.3, 0.005, 0.13, 180);
+  }
+}
+
+if (_btnGrenade) {
+  _btnGrenade.style.touchAction = 'none';
+  _btnGrenade.addEventListener('pointerdown', grenadeDown, { passive: false });
+  _btnGrenade.addEventListener('touchstart', grenadeDown, { passive: false });
+  document.addEventListener('pointermove', grenadeMove, { passive: true });
+  document.addEventListener('touchmove', grenadeMove, { passive: true });
+  document.addEventListener('pointerup', grenadeUp, { passive: false });
+  document.addEventListener('touchend', (e) => {
+    if (grenadeTouchId === null) return;
+    if (e.changedTouches) {
+      for (const t of e.changedTouches) {
+        if (t.identifier === grenadeTouchId) { grenadeUp(e); return; }
+      }
+    } else { grenadeUp(e); }
+  }, { passive: false });
+  document.addEventListener('pointercancel', grenadeUp, { passive: true });
+  document.addEventListener('touchcancel', grenadeUp, { passive: true });
+}
+
+// Granat-projektil-uppdatering (kallas per frame i tick())
+function updateGrenades(dt) {
+  if (!state.grenades || state.grenades.length === 0) return;
+  const now = performance.now();
+  for (let i = state.grenades.length - 1; i >= 0; i--) {
+    const g = state.grenades[i];
+    const elapsed = now - g.startTime;
+    if (!g.exploded && elapsed >= g.flightTime) {
+      g.exploded = true;
+      g.fadeUntil = now + 500;
+      detonateGrenade(g);
+    }
+    if (g.exploded && now >= g.fadeUntil) {
+      state.grenades.splice(i, 1);
+    }
+  }
+}
+
+function detonateGrenade(g) {
+  // VFX
+  if (typeof spawnShockwave === 'function') {
+    spawnShockwave(g.toX, g.toY, 24, g.radius, '#ffaa30', 0.45, 6);
+  }
+  if (typeof spawnSparks === 'function') {
+    spawnSparks(g.toX, g.toY, '#ffaa30', 24, 260);
+    spawnSparks(g.toX, g.toY, '#ff5a20', 12, 200);
+  }
+  // Smoke-puff
+  if (state.particles && state.particles.length < 800) {
+    for (let i = 0; i < 10; i++) {
+      const ang = (i / 10) * Math.PI * 2;
+      state.particles.push({
+        x: g.toX + Math.cos(ang) * 8,
+        y: g.toY + Math.sin(ang) * 8,
+        vx: Math.cos(ang) * 60,
+        vy: Math.sin(ang) * 60 - 30,
+        life: 0.8,
+        maxLife: 0.8,
+        r: 8 + Math.random() * 4,
+        color: 'rgba(80,80,80,0.55)',
+        isExplosion: true,
+        decay: 1.2,
+      });
+    }
+  }
+  if (typeof Audio !== 'undefined' && Audio.explode) Audio.explode();
+  if (typeof triggerShake === 'function') triggerShake(8, 0.32);
+  if (typeof triggerVibrate === 'function') triggerVibrate(50);
+  // Damage — singleplayer: lokala enemies. PvP: server är auth, vi rör inte HP.
+  const isPvP = state.tdmActive || state.ctfActive || state.siegeActive
+             || state.gungameActive || state.kothActive
+             || state.juggernautActive || state.battleroyaleActive;
+  if (!isPvP && state.enemies) {
+    for (const e of state.enemies) {
+      if (e.dead) continue;
+      const dx = e.x - g.toX, dy = e.y - g.toY;
+      const d = Math.hypot(dx, dy);
+      if (d < g.radius) {
+        const falloff = 1 - (d / g.radius);
+        if (typeof damageEnemy === 'function') {
+          damageEnemy(e, g.damage * falloff);
+        }
+      }
+    }
+  }
+}
+
+// Render: landing-reticle medan holding + grenade-projektiler i flykt
+function drawGrenadeReticle() {
+  if (state.mode !== 'playing') return;
+  if (!state.grenadeAim || !state.grenadeAim.engaged) return;
+  const target = computeGrenadeTarget();
+  if (!target) return;
+  const p = state.player;
+  if (!p) return;
+  const sx = p.x - state.camera.x;
+  const sy = p.y - state.camera.y;
+  const ex = target.x - state.camera.x;
+  const ey = target.y - state.camera.y;
+  ctx.save();
+  // Dashed line från player till target
+  ctx.strokeStyle = '#ffaa30';
+  ctx.globalAlpha = 0.42;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 6]);
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // Landing-circle (AOE-radius)
+  ctx.fillStyle = 'rgba(255, 170, 48, 0.16)';
+  ctx.globalAlpha = 0.85;
+  ctx.beginPath();
+  ctx.arc(ex, ey, GRENADE_RADIUS, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#ffaa30';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(ex, ey, GRENADE_RADIUS, 0, Math.PI * 2);
+  ctx.stroke();
+  // Center cross
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(ex - 9, ey); ctx.lineTo(ex + 9, ey);
+  ctx.moveTo(ex, ey - 9); ctx.lineTo(ex, ey + 9);
+  ctx.stroke();
+  // Center dot
+  ctx.fillStyle = '#ffaa30';
+  ctx.beginPath();
+  ctx.arc(ex, ey, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawGrenades() {
+  if (!state.grenades || state.grenades.length === 0) return;
+  const now = performance.now();
+  ctx.save();
+  for (const g of state.grenades) {
+    if (g.exploded) continue;
+    const elapsed = now - g.startTime;
+    const t = Math.min(1, elapsed / g.flightTime);
+    const x = g.fromX + (g.toX - g.fromX) * t;
+    const y = g.fromY + (g.toY - g.fromY) * t;
+    // Parabolisk höjd (visuell flight-känsla, max 32px upp)
+    const arcH = Math.sin(t * Math.PI) * 32;
+    const sx = x - state.camera.x;
+    const sy = y - state.camera.y;
+    // Skugga på marken (storlek krymper när granaten är högt upp)
+    const shadowAlpha = 0.45 - (arcH / 32) * 0.20;
+    ctx.fillStyle = 'rgba(0,0,0,' + shadowAlpha.toFixed(2) + ')';
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, 6, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Granate-sprite (roterande grön/svart bomb)
+    const drawY = sy - arcH;
+    const rotAng = (now / 70) % (Math.PI * 2);
+    ctx.save();
+    ctx.translate(sx, drawY);
+    ctx.rotate(rotAng);
+    // Bomb-kropp
+    ctx.fillStyle = '#3a4a30';
+    ctx.beginPath();
+    ctx.arc(0, 1, 6.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Detalj-segment
+    ctx.strokeStyle = '#1a2418';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(-6, 1); ctx.lineTo(6, 1);
+    ctx.moveTo(0, -5); ctx.lineTo(0, 7);
+    ctx.stroke();
+    // Pin/topp
+    ctx.fillStyle = '#5a4020';
+    ctx.fillRect(-1.5, -8, 3, 4);
+    // Highlight
+    ctx.fillStyle = 'rgba(180, 200, 160, 0.5)';
+    ctx.beginPath();
+    ctx.arc(-2, -1, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
+}
+
 // CTF turret-ENTER/EXIT-knapp. Visas dynamiskt när spelaren är nära ett ledigt
 // torn av sitt eget lag, eller när hen sitter i ett torn.
 const _btnTurretAction = document.getElementById('btn-turret-action');
@@ -38124,6 +38457,9 @@ function render() {
   if (!state.player || !state.player.spectating) drawPlayer();
   // Aim crosshair (efter player så reticle ritas ovanpå spelaren)
   drawAimCrosshair();
+  // Grenade landing-reticle (medan holding) + grenade-projektiler i flykt
+  if (typeof drawGrenadeReticle === 'function') drawGrenadeReticle();
+  if (typeof drawGrenades === 'function') drawGrenades();
   drawCoopPartner();
   // Emotes ovanpå allt
   if (state.player && state.player.emote) {
@@ -39491,6 +39827,13 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 function runFrame(dt, now) {
+  // Grenade-reset: när mode TRANSITIONERAR till 'playing' (ny match start eller
+  // story-load), nollställ count till 5 + clear in-flight grenades. Respawn
+  // ändrar inte mode, så det räknas inte som ny match.
+  if (state.mode === 'playing' && state._prevMode !== 'playing') {
+    if (typeof resetGrenadesForMatch === 'function') resetGrenadesForMatch();
+  }
+  state._prevMode = state.mode;
 
   if (state.mode === 'playing') {
     const introActive = state.bossIntro &&
@@ -39502,6 +39845,9 @@ function runFrame(dt, now) {
     const countdownActive = state._countdownEndAt && performance.now() < state._countdownEndAt;
     if (!introActive && !hitStopActive && !dialogActive) {
       updatePlayer(dt, now);
+
+      // Granat-projektiler (lokala VFX + singleplayer damage)
+      if (typeof updateGrenades === 'function') updateGrenades(dt);
 
       // Klient-side: vapen-pickup, dog tags, stage ambient. KÖRS ALLTID — påverkar save-data, inte sim.
       updateCollectibles();

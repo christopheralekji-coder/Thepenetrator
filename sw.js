@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v359-aim-freeze-while-firing-no-autoaim';
+const CACHE = 'penetrator-v360-grenades-arc-buttons-joystick-aim';
 const ASSETS = [
   './',
   './index.html',

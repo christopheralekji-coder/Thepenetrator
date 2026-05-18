@@ -49,8 +49,11 @@
   </div>
   <div id="action-buttons">
     <button id="btn-weapon-menu" class="action-btn" aria-label="Öppna vapenmeny">⚔</button>
-    <button id="btn-pvp-shield" class="action-btn pvp-shield hidden" aria-label="PvP Shield (3s immunitet)" style="position:fixed !important;left:auto !important;top:auto !important;right:154px !important;bottom:88px !important;z-index:6 !important;">🛡</button>
-    <button id="btn-dash" class="action-btn dash" aria-label="Dash (i-frames)" style="position:fixed !important;left:auto !important;top:auto !important;right:140px !important;bottom:14px !important;z-index:6 !important;">⚡</button>
+    <!-- Action-buttons i ARC ovanför fire (radie 160 från fire-center, 30°/60°/90°)
+         Längst ner: GRENADE (närmast fire), över: DASH, längst upp: SHIELD -->
+    <button id="btn-pvp-shield" class="action-btn pvp-shield hidden" aria-label="PvP Shield (3s immunitet)" style="position:fixed !important;left:auto !important;top:auto !important;right:37px !important;bottom:180px !important;z-index:6 !important;">🛡</button>
+    <button id="btn-dash" class="action-btn dash" aria-label="Dash (i-frames)" style="position:fixed !important;left:auto !important;top:auto !important;right:117px !important;bottom:158px !important;z-index:6 !important;">⚡</button>
+    <button id="btn-grenade" class="action-btn grenade" aria-label="Granat (5 per match)" style="position:fixed !important;left:auto !important;top:auto !important;right:175px !important;bottom:100px !important;z-index:6 !important;"><span class="grenade-icon">💣</span><span class="grenade-count" id="grenade-count">5</span></button>
     <button id="btn-fire" class="action-btn fire" aria-label="Skjut" style="position:fixed !important;left:auto !important;top:auto !important;right:58px !important;bottom:58px !important;z-index:6 !important;"><span class="fire-stick-ring" aria-hidden="true"></span><span class="fire-knob"><span class="fire-icon-wrap"><span class="fire-icon">🔫</span></span></span></button>
     <button id="btn-reload" class="action-btn" aria-label="Ladda om" style="position:fixed !important;left:auto !important;top:auto !important;right:81px !important;bottom:14px !important;width:38px !important;height:38px !important;font-size:16px !important;z-index:6 !important;touch-action:manipulation !important;pointer-events:auto !important;">🔄</button>
   </div>
@@ -384,7 +387,7 @@
     <button id="btn-menu-help" class="medium-btn">❓ HJÄLP / TUTORIAL</button>
   </div>
   <button id="btn-fullscreen" class="small-btn" style="display:none;">⛶ HELSKÄRM</button>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.359 🎯</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.360 💣</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">
