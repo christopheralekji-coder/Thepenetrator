@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v378-countdown-lock-br-zone-random-end';
+const CACHE = 'penetrator-v379-minimap-zoom-black-frame-grenade-release';
 const ASSETS = [
   './',
   './index.html',

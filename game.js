@@ -13737,6 +13737,11 @@ function grenadeMove(e) {
 
 function grenadeUp(e) {
   if (grenadeTouchId === null) return;
+  // v1.379: validera att DEN RÄTTA pointern släpptes. Tidigare triggade vilken
+  // pointer som helst pointerup på document → grenadeUp → granaten kastades
+  // när användaren lyfte joystick-fingret medan grenade-fingret fortfarande
+  // höll knappen. Bug: "granaten släpps när jag börjar springa igen".
+  if (e && e.pointerId != null && grenadeTouchId !== 'mouse' && e.pointerId !== grenadeTouchId) return;
   if (e && e.preventDefault) e.preventDefault();
   // Validera fortfarande playable + har granater
   if (state.mode === 'playing' && state.player && !state.player.spectating && getGrenadeCount() > 0) {
@@ -39333,6 +39338,16 @@ function render() {
   const _cullL = state.camera.x - _cullPad, _cullT = state.camera.y - _cullPad;
   const _cullR = state.camera.x + viewW + _cullPad, _cullB = state.camera.y + viewH + _cullPad;
 
+  // v1.379: Pre-fill canvas i screen-space INNAN zoom-transform så zoom-ramen
+  // (6% av skärmen runtom) inte visar transparent → svart background.
+  // Användaren rapporterade "svart ram runt skärmen" i BR — orsakat av att
+  // drawBrForestFloor's fillRect ligger INNE i zoom-transformen och därför
+  // bara täcker 88% av skärmen.
+  if (_camZoom !== 1.0 && state.battleroyaleActive) {
+    ctx.fillStyle = '#1e2a14'; // matchar drawBrForestFloor base
+    ctx.fillRect(0, 0, viewW, viewH);
+  }
+
   // Apply zoom-transform runt VÄRLD-rendering (HUD ritas efter ctx.restore() nedan)
   ctx.save();
   if (_camZoom !== 1.0) {
@@ -39974,9 +39989,11 @@ function drawMiniMap() {
   const y0 = 60;
   state._minimapHitbox = { x: x0, y: y0, w: size, h: size };
 
-  // ZOOMED-IN: visa 1500×1500 world centrerad på spelaren.
+  // ZOOMED-IN: visa 3500×3500 world centrerad på spelaren (v1.379: ökat från
+  // 1500 → 3500 efter user-feedback att 1500 var för nära). Hus = ~7px,
+  // träd ~2px — fortfarande synliga + man ser MYCKET mer av omgivningen.
   // ZOOMED-OUT (big): visa hela kartan.
-  const FOCUS_VIEW_WORLD = 1500;
+  const FOCUS_VIEW_WORLD = 3500;
   const maxWorld = Math.max(stage.worldW, stage.worldH);
   const viewWorldSize = FOCUS_VIEW_WORLD + (maxWorld - FOCUS_VIEW_WORLD) * t01;
   const scale = size / viewWorldSize;
