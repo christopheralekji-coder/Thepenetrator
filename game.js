@@ -25780,21 +25780,18 @@ function showBrHud() {
 
 function hideBrHud() {
   _stopBrHudInterval();
-  const el = document.getElementById('br-hud');
-  if (el) el.style.display = 'none';
-  const kf = document.getElementById('br-killfeed');
-  if (kf) kf.innerHTML = '';
-  const coords = document.getElementById('br-coords');
-  if (coords) coords.style.display = 'none';
-  // Rensa kvarvarande BR-overlays (gamla inventar-bar från v1.340, kill-feed,
-  // end-screen som blivit kvar) så de inte läcker in i menyn.
-  const stale = ['br-inv', 'br-inv-hint', 'br-end-overlay'];
-  for (const id of stale) {
+  cleanupBrUI();
+}
+
+// Aggressiv cleanup av ALLA BR-UI-element (HUD, killfeed, coords, end-overlay,
+// inventory-bar). Anropas både från hideBrHud OCH vid mode-exit från 'playing'
+// (runFrame-watcher) så scoreboarden inte kan läcka till menyn via någon path.
+function cleanupBrUI() {
+  const ids = ['br-hud', 'br-killfeed', 'br-coords', 'br-inv', 'br-inv-hint', 'br-end-overlay'];
+  for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
   }
-  if (kf && kf.parentNode) kf.parentNode.removeChild(kf);
-  if (coords && coords.parentNode) coords.parentNode.removeChild(coords);
 }
 
 function destroyBrEndOverlay() {
@@ -25877,6 +25874,10 @@ function addBrKillFeed(killerName, victimName, weaponName) {
 }
 
 function showBrEndScreen(winnerId, statsArr) {
+  // Guard: om spelaren redan har lämnat till menyn (t.ex. pause-quit, disconnect),
+  // skippa end-screen så scoreboarden inte plötsligt poppar upp i menyn pga
+  // sent server-event (br_match_ended kan komma 1-2s efter mode-exit).
+  if (state.mode === 'menu' || state.mode === 'gameover') return;
   hideBrHud();
   let overlay = document.getElementById('br-end-overlay');
   if (!overlay) {
@@ -40098,6 +40099,13 @@ function runFrame(dt, now) {
   // ändrar inte mode, så det räknas inte som ny match.
   if (state.mode === 'playing' && state._prevMode !== 'playing') {
     if (typeof resetGrenadesForMatch === 'function') resetGrenadesForMatch();
+  }
+  // BR-UI cleanup: när mode TRANSITIONERAR från 'playing' till något annat
+  // (menu/gameover/etc), nuka alla BR-DOM-element så scoreboarden inte läcker
+  // in i menyn — oavsett vilken exit-path som användes (LOBBY-knapp, pause-quit,
+  // disconnect, etc).
+  if (state._prevMode === 'playing' && state.mode !== 'playing') {
+    if (typeof cleanupBrUI === 'function') cleanupBrUI();
   }
   state._prevMode = state.mode;
 
