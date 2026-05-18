@@ -13107,12 +13107,23 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
     slots = [];
   }
 
-  // pointerdown på knappen → öppna radial
+  // pointerdown på knappen:
+  // - Singleplayer (story/sandbox/etc) + INTE Coop → fullscreen weapon-menu
+  //   (har shop + alla detaljer). Mer info-rikt och bättre för loadout-management.
+  // - PvP-modes + Coop → radial (snabb tap-and-drag för on-the-fly switching).
   btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
+    const isPvP = state.tdmActive || state.ctfActive || state.siegeActive
+               || state.gungameActive || state.kothActive
+               || state.juggernautActive || state.battleroyaleActive;
+    const isCoop = typeof Coop !== 'undefined' && Coop.active;
+    if (!isPvP && !isCoop) {
+      // Singleplayer (inkl sandbox) → öppna fullscreen-menu med shop osv
+      if (typeof openWeaponMenu === 'function') openWeaponMenu();
+      return;
+    }
     if (open(e)) {
-      // Behåll capture av pointer så move/up fångas även utanför knappen
       try { btn.setPointerCapture(e.pointerId); } catch (_) {}
     }
   }, { passive: false });
@@ -13167,12 +13178,16 @@ if (_btnDash) {
 // GRANATER — 5 per match, joystick-aim (tap=max range, hold+drag=sikta)
 // ============================================================
 const GRENADE_STARTING_COUNT = 5;
-const GRENADE_MAX_RANGE = 225;      // -25% från v1.360 (var 300)
+const GRENADE_MAX_RANGE = 225;
 const GRENADE_AIM_DEADZONE = 6;
-const GRENADE_DRAG_SCALE = 2.5;     // drag 90px → max range 225 (90×2.5=225)
-const GRENADE_FLIGHT_MS = 800;       // tid från throw till landning
-const GRENADE_RADIUS = 85;           // explosion AOE
-const GRENADE_DAMAGE = 70;           // dmg vid center, linjär falloff till edge
+const GRENADE_DRAG_SCALE = 2.5;
+const GRENADE_FLIGHT_MS = 800;
+const GRENADE_RADIUS = 85;
+const GRENADE_DAMAGE = 120;          // direct hit dmg (var 70)
+// Sandbox = obegränsat antal granater (count visas som "∞")
+function isSandboxMode() {
+  return !!(state && state._sandboxSnapshot);
+}
 
 const _btnGrenade = document.getElementById('btn-grenade');
 const _grenadeCountEl = document.getElementById('grenade-count');
@@ -13182,15 +13197,22 @@ state.grenadeAim = null;             // { dragX, dragY, engaged } medan holding
 state.grenades = state.grenades || [];
 
 function getGrenadeCount() {
+  if (isSandboxMode()) return Infinity; // unlimited i sandbox
   return (state.player && typeof state.player.grenadeCount === 'number')
     ? state.player.grenadeCount : 0;
 }
 function setGrenadeCount(n) {
+  if (isSandboxMode()) return; // sandbox: ignorera decrement
   if (state.player) state.player.grenadeCount = Math.max(0, n);
   updateGrenadeBadge();
 }
 function updateGrenadeBadge() {
   if (!_grenadeCountEl) return;
+  if (isSandboxMode()) {
+    _grenadeCountEl.textContent = '∞';
+    if (_btnGrenade) _btnGrenade.classList.remove('empty');
+    return;
+  }
   const n = getGrenadeCount();
   _grenadeCountEl.textContent = n;
   if (_btnGrenade) _btnGrenade.classList.toggle('empty', n <= 0);
@@ -13387,7 +13409,10 @@ function detonateGrenade(g) {
       const dx = e.x - g.toX, dy = e.y - g.toY;
       const d = Math.hypot(dx, dy);
       if (d < g.radius) {
-        const falloff = 1 - (d / g.radius);
+        // KVADRATISK falloff: (1 - d/R)² — drastiskt mindre damage längre bort.
+        // Center=120, halv-radie=30 (25%), edge=0.
+        const t = 1 - (d / g.radius);
+        const falloff = t * t;
         if (typeof damageEnemy === 'function') {
           damageEnemy(e, g.damage * falloff);
         }
