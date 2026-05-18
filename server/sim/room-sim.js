@@ -3095,21 +3095,15 @@ function startSim(sim, opts) {
       i++;
     }
     sim._gungameSpawnIdx = i; // fortsätt rotera vid respawn
-    // Gungame: granat-pickups (inga HP/shield i GG eftersom respawn redan ger full hp)
-    sim.pvpPickups = [
-      { id: nextPickupId(sim), x: 600,  y: 400,  type: 'grenade', available: true, respawnAt: 0 },
-      { id: nextPickupId(sim), x: 2900, y: 400,  type: 'grenade', available: true, respawnAt: 0 },
-      { id: nextPickupId(sim), x: 600,  y: 1600, type: 'grenade', available: true, respawnAt: 0 },
-      { id: nextPickupId(sim), x: 2900, y: 1600, type: 'grenade', available: true, respawnAt: 0 },
-      { id: nextPickupId(sim), x: 1750, y: 1000, type: 'grenade', available: true, respawnAt: 0 },
-    ];
+    // Gungame: INGA pickups (varken hp/shield/granater — granater finns inte i GG)
+    sim.pvpPickups = [];
     sim.eventQueue.push({
       type: 'gungame_started',
       arena: { worldW: GUNGAME_ARENA.worldW, worldH: GUNGAME_ARENA.worldH, name: GUNGAME_ARENA.name },
       walls: GUNGAME_ARENA.walls,
       spawns: GUNGAME_ARENA.spawns,
       decorations: GUNGAME_ARENA.decorations || [],
-      pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+      pvpPickups: [],
       weapons: GUNGAME_WEAPONS,
       totalTiers: GUNGAME_WEAPONS.length,
       shieldMax: 100,

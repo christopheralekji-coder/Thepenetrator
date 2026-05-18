@@ -26291,6 +26291,41 @@ function updatePvpShieldButton() {
   _btnPvpShield.style.setProperty('--shield-cd', cd.toFixed(3));
 }
 
+// Gungame: hide grenade-knapp och flytta dash → grenade-slot, shield → dash-slot.
+// Bara 2 knappar (dash nedtill, shield i mitten). Alla andra modes: defaults.
+const _btnDashEl = document.getElementById('btn-dash');
+let _lastGgLayout = null;
+function updateGungameButtonLayout() {
+  const isGg = !!state.gungameActive;
+  if (_lastGgLayout === isGg) return;
+  _lastGgLayout = isGg;
+  if (_btnGrenade) {
+    _btnGrenade.style.display = isGg ? 'none' : '';
+  }
+  if (isGg) {
+    // Dash → grenade-slot (bottom-most)
+    if (_btnDashEl) {
+      _btnDashEl.style.setProperty('right', '147px', 'important');
+      _btnDashEl.style.setProperty('bottom', '14px', 'important');
+    }
+    // Shield → dash-slot (mitten)
+    if (_btnPvpShield) {
+      _btnPvpShield.style.setProperty('right', '165px', 'important');
+      _btnPvpShield.style.setProperty('bottom', '77px', 'important');
+    }
+  } else {
+    // Restore defaults
+    if (_btnDashEl) {
+      _btnDashEl.style.setProperty('right', '165px', 'important');
+      _btnDashEl.style.setProperty('bottom', '77px', 'important');
+    }
+    if (_btnPvpShield) {
+      _btnPvpShield.style.setProperty('right', '138px', 'important');
+      _btnPvpShield.style.setProperty('bottom', '136px', 'important');
+    }
+  }
+}
+
 // In-game lag-indikator (MS): direkt höger om HP-bar, perfekt vertikalt centrerad
 // via #hp-row's align-items:center (vilket inte påverkas av om shield-bar visas).
 const _lagIndicatorEl = (() => {
@@ -40377,6 +40412,9 @@ function runFrame(dt, now) {
 
   // Per-frame CSS-var-update för dash-cooldown-ring (smooth animation)
   if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); }
+  // Gungame button-layout uppdateras ALLTID (även mode='menu') så defaults
+  // återställs när matchen avslutats och spelaren går till menyn / annan mode.
+  updateGungameButtonLayout();
 
   render();
 }

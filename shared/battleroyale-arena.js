@@ -782,7 +782,7 @@ const BATTLEROYALE_ARENA = {
     { x: 1450, y: 1400, w: 50, h: 50, kind: 'well' },
     // Standing-stone-mystik
     { x: 200,  y: 350,  w: 50, h: 50, kind: 'standing_stone' },
-    { x: 1450, y: 2700, w: 40, h: 60, kind: 'rune_stone' },
+    { x: 1550, y: 2920, w: 40, h: 60, kind: 'rune_stone' },
 
     // --- LEFT EDGE BOTTOM BOOST (SW, x:0-1500, y:7000-10000) ---
     // Mer skog + camps i SW-banding
@@ -905,8 +905,8 @@ const BATTLEROYALE_ARENA = {
     { x: 1500, y: 2500, w: 50, h: 50, kind: 'standing_stone' },
     { x: 1620, y: 2480, w: 50, h: 50, kind: 'standing_stone' },
     { x: 1400, y: 2300, w: 40, h: 60, kind: 'rune_stone' },
-    // SW mystik
-    { x: 1800, y: 6800, w: 40, h: 70, kind: 'skull_totem' },
+    // SW mystik (flyttad ut ur cabin_sw_mid)
+    { x: 1950, y: 6900, w: 40, h: 70, kind: 'skull_totem' },
     { x: 600, y: 7500, w: 40, h: 60, kind: 'rune_stone' },
     // NE mystik (mellan scrap och alien)
     { x: 9000, y: 6500, w: 50, h: 80, kind: 'alien_crystal' },
@@ -2209,6 +2209,10 @@ function postProcessArena(arena) {
     'tree_oak', 'tree_pine', 'tree_giant_oak', 'tree_stump',
     'rock_large', 'rock_small',
     'woodpile', 'haystack', 'well', 'campfire', 'tent',
+    // Mystik + edge-boost dekor (v1.370): aggressivt rensa även dessa
+    // så de aldrig hamnar inuti hus eller blockerar dörrar.
+    'standing_stone', 'rune_stone', 'skull_totem',
+    'oil_drum', 'car_wreck',
   ]);
   const CABIN_BUF = 18;
   const overlapsAnyCabin = (x, y, w, h) => {
