@@ -12840,18 +12840,18 @@ window.addEventListener('mouseup',   e => { if (joyTouchId === 'mouse') joyEnd({
 const fireBtn = document.getElementById('btn-fire');
 const fireKnobEl = fireBtn ? fireBtn.querySelector('.fire-knob') : null;
 let fireJoyTouchId = null;
-let fireJoyCenter = { x: 0, y: 0 };
+let fireJoyCenter = { x: 0, y: 0 };   // button-center (för knob-visualisering)
+let fireJoyStart = { x: 0, y: 0 };    // initial touch-position (för aim-engagement)
 const FIRE_JOY_RADIUS = 50;
+const FIRE_AIM_DEADZONE = 20;         // px drag-tröskel innan aim engageras
 input.aimX = 0; input.aimY = 0; input.fireJoyActive = false;
 
-// Fire-knappen är ALLTID joystick (oavsett save.firejoy). Bullets fire i den
-// riktning du håller stickan — inte i karaktärens facing-direction. Joysticken
-// är inte begränsad till knappens yta: så fort du börjat dra inifrån, kan
-// fingret dra var som helst på skärmen.
-//
-// NY i v1.354: visuell knob translateras inom yttre ring (matchar movement-joystick
-// look), och kanvas-crosshair ritas vid spelarens aim-direction. Båda visa-bara-
-// när-firing så de inte skymmer sikten.
+// Fire-knappen är joystick MED smart aim-engagement:
+// - TAP (utan drag) → input.fireJoyActive=false → aim använder movement-direction
+//   (eller auto-aim i singleplayer). Spelaren skjuter i den riktning hen redan står/rör sig.
+// - DRAG >20px från initial touch → engagera aim → input.fireJoyActive=true,
+//   aim följer drag-riktning. Inspired by Brawl Stars + Standoff 2.
+// Knob-visual räknas alltid från button-center.
 function fireDown(e) {
   e.preventDefault();
   input.firing = true;
@@ -12859,10 +12859,13 @@ function fireDown(e) {
   fireJoyTouchId = e.changedTouches ? t.identifier : 'mouse';
   const r = fireBtn.getBoundingClientRect();
   fireJoyCenter = { x: r.left + r.width/2, y: r.top + r.height/2 };
-  input.fireJoyActive = true;
-  // Visa aiming-state (yttre ring + knob-glow)
+  fireJoyStart = { x: t.clientX, y: t.clientY };
+  // VIKTIGT: starta INTE som fireJoyActive — spelaren ska skjuta i sin
+  // movement-riktning tills fingern faktiskt dragits utanför deadzone.
+  input.fireJoyActive = false;
   fireBtn.classList.add('aiming');
-  fireMove(e);
+  // INGEN fireMove(e) här — den skulle sätta aim direkt från button-center
+  // till touch-position vilket gör att spelaren snappar oavsiktligt.
 }
 function fireMove(e) {
   if (fireJoyTouchId === null) return;
@@ -12872,20 +12875,31 @@ function fireMove(e) {
     for (const t of arr) if (t.identifier === fireJoyTouchId) { pt = t; break; }
     if (!pt) return;
   } else { pt = e; }
-  const dx = pt.clientX - fireJoyCenter.x;
-  const dy = pt.clientY - fireJoyCenter.y;
-  const d = Math.hypot(dx, dy);
-  if (d > 4) {
-    input.aimX = dx / d;
-    input.aimY = dy / d;
+  // Räkna FRÅN INITIAL touch-position för aim-engagement (inte button-center)
+  const sdx = pt.clientX - fireJoyStart.x;
+  const sdy = pt.clientY - fireJoyStart.y;
+  const dragDist = Math.hypot(sdx, sdy);
+  if (dragDist > FIRE_AIM_DEADZONE) {
+    // Engagera aim — drag-riktning
+    input.fireJoyActive = true;
+    input.aimX = sdx / dragDist;
+    input.aimY = sdy / dragDist;
+  } else if (input.fireJoyActive) {
+    // Redan engagerad denna press → fortsätt uppdatera (sticky)
+    if (dragDist > 4) {
+      input.aimX = sdx / dragDist;
+      input.aimY = sdy / dragDist;
+    }
   }
-  // Translatera knob inom ring-radius (clampad). Aim-direction är OCLAMPAD så
-  // fingret kan gå utanför ringen utan att aim ändras — bara knob-visualen clampas.
+  // Knob-visualisering räknas från button-center (visuellt naturligt).
   if (fireKnobEl) {
-    const clampedD = Math.min(d, FIRE_JOY_RADIUS);
-    const safeD = Math.max(d, 0.001);
-    const knobX = (dx / safeD) * clampedD;
-    const knobY = (dy / safeD) * clampedD;
+    const cdx = pt.clientX - fireJoyCenter.x;
+    const cdy = pt.clientY - fireJoyCenter.y;
+    const cd = Math.hypot(cdx, cdy);
+    const safeD = Math.max(cd, 0.001);
+    const clampedD = Math.min(cd, FIRE_JOY_RADIUS);
+    const knobX = (cdx / safeD) * clampedD;
+    const knobY = (cdy / safeD) * clampedD;
     fireKnobEl.style.setProperty('--knob-x', knobX.toFixed(1) + 'px');
     fireKnobEl.style.setProperty('--knob-y', knobY.toFixed(1) + 'px');
   }
@@ -12895,7 +12909,6 @@ function fireUp(e) {
   input.firing = false;
   fireJoyTouchId = null;
   input.fireJoyActive = false;
-  // Reset visual
   fireBtn.classList.remove('aiming');
   if (fireKnobEl) {
     fireKnobEl.style.setProperty('--knob-x', '0px');
@@ -31701,11 +31714,23 @@ function drawForestGround(stage, cx, cy) {
   ctx.setLineDash([]);
 }
 
-// === AIM-INDIKATOR (kort riktnings-arrow) ===
-// MEDVETET MINIMAL design: visar BARA riktning, inte exakt impact-point.
-// Liknar Brawl Stars i sin enklaste form — kort tunn linje med pilspets.
-// Inga vapen-specifika reticles (spread-kon, AOE-cirkel etc) eftersom det
-// gav för mycket tactical info. Spelaren ser VAR de pekar, inte VAR de träffar.
+// === AIM CROSSHAIR — "modern shooter classic" ===
+// Design-research från ledande spel:
+// - Brawl Stars: line från player + impact-marker vid range-slut
+// - CS:GO/Valorant: ring + tick-marks + center dot (universellt igenkännbart)
+// - Bullet Echo: tunn guide-line + subtle reticle vid impact
+// - Hotline Miami / Enter the Gungeon: floating reticle vid mouse/aim-position
+//
+// Min design kombinerar dessa:
+//   1) Dashed guide-line (subtle, 30% alpha) — visar riktning
+//   2) Impact-reticle vid fixed 200px (yttre ring + 4 tick-marks + center dot)
+//   3) Allt vapen-färgat för personlighet
+//   4) FAST längd för alla vapen — ingen autoaim, ingen tactical info-leak
+//
+// Skillnad mot tidigare versioner:
+//   v1.354: vapen-specifika reticles (shotgun-kon, AOE) = för mycket info
+//   v1.355: bara direction-arrow = för lite info
+//   v1.356: klassisk crosshair-look vid FIXED impact-point — sweet spot.
 function drawAimCrosshair() {
   if (!state.player || state.player.spectating) return;
   if (state.mode !== 'playing') return;
@@ -31718,33 +31743,48 @@ function drawAimCrosshair() {
   const ax = Math.cos(aimAng), ay = Math.sin(aimAng);
   const w = (typeof getWeapon === 'function') ? getWeapon(p.weaponId) : null;
   const color = (w && w.color) || '#ffd54a';
-  // Kort fast längd — INGEN info om vapen-räckvidd/AOE/spread.
-  // Bara visuell "vart jag pekar"-indikator.
-  const LEN = 70;
+  // Fast 200px — INGEN info om vapen-räckvidd. Universellt vapen-utseende.
+  const RANGE = 200;
   const startOff = (p.r || 14) + 4;
   const sx = px + ax * startOff;
   const sy = py + ay * startOff;
-  const ex = px + ax * (startOff + LEN);
-  const ey = py + ay * (startOff + LEN);
+  const ex = px + ax * (startOff + RANGE);
+  const ey = py + ay * (startOff + RANGE);
   ctx.save();
-  // Tunn solid linje
+  // ========== 1) Dashed guide-line från player (subtle, low alpha) ==========
   ctx.strokeStyle = color;
-  ctx.globalAlpha = 0.50;
-  ctx.lineWidth = 2.5;
+  ctx.globalAlpha = 0.30;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 5]);
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(sx, sy);
   ctx.lineTo(ex, ey);
   ctx.stroke();
-  // Pilspets vid slutet
-  ctx.globalAlpha = 0.65;
-  ctx.fillStyle = color;
-  const TIP = 7;
+  ctx.setLineDash([]);
+  // ========== 2) Impact reticle: ring + tick-marks + center dot ==========
+  const RING = 11;
+  // Yttre ring
+  ctx.globalAlpha = 0.55;
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(ex + ax * TIP, ey + ay * TIP);
-  ctx.lineTo(ex + Math.cos(aimAng + 2.4) * TIP, ey + Math.sin(aimAng + 2.4) * TIP);
-  ctx.lineTo(ex + Math.cos(aimAng - 2.4) * TIP, ey + Math.sin(aimAng - 2.4) * TIP);
-  ctx.closePath();
+  ctx.arc(ex, ey, RING, 0, Math.PI * 2);
+  ctx.stroke();
+  // 4 tick-marks pekande UTÅT från ringen (klassisk CS/COD-look)
+  ctx.globalAlpha = 0.70;
+  ctx.lineWidth = 1.8;
+  const T0 = RING + 2, T1 = RING + 7;
+  ctx.beginPath();
+  ctx.moveTo(ex - T1, ey); ctx.lineTo(ex - T0, ey);   // vänster
+  ctx.moveTo(ex + T0, ey); ctx.lineTo(ex + T1, ey);   // höger
+  ctx.moveTo(ex, ey - T1); ctx.lineTo(ex, ey - T0);   // upp
+  ctx.moveTo(ex, ey + T0); ctx.lineTo(ex, ey + T1);   // ner
+  ctx.stroke();
+  // Center dot (skarpt, högsta alpha — det är där fokus är)
+  ctx.globalAlpha = 0.90;
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(ex, ey, 1.8, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
 }
