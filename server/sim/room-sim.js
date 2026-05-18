@@ -200,16 +200,15 @@ function tickSim(sim) {
   // TDM-mode: skip enemy spawning/AI, but bullets MÅSTE tickas så spelare kan skjuta varandra
   if (sim.tdmActive) {
     const nowMs = Date.now();
-    const arena = sim.tdmArena || { worldW: 4000, worldH: 3000 };
-    const redSpawnX = Math.floor(arena.worldW * 0.10);
-    const blueSpawnX = Math.floor(arena.worldW * 0.90);
-    const spawnY = Math.floor(arena.worldH * 0.50);
     for (const [pid, ws] of sim.room.members) {
       if (ws.tdmRespawnAt && nowMs >= ws.tdmRespawnAt) {
         ws.tdmRespawnAt = 0;
         if (ws.playerState) {
-          ws.playerState.x = ws.tdmTeam === 'red' ? redSpawnX : blueSpawnX;
-          ws.playerState.y = spawnY;
+          // Välj från team-pool den spawn som ligger LÄNGST bort från motståndare.
+          const pool = ws.tdmTeam === 'red' ? TDM_ARENA.spawns.red : TDM_ARENA.spawns.blue;
+          const sp = pickFarthestSpawn(pool, sim, pid) || pool[0];
+          ws.playerState.x = sp.x;
+          ws.playerState.y = sp.y;
           ws.playerState.hp = 100;
           ws.playerState.shield = ws.playerState.maxShield || 100;
           ws.playerState.invulnUntil = Date.now() + 1500;
@@ -1581,6 +1580,70 @@ function endKothMatch(sim, winnerId, reason) {
 // ============================================================
 // JUGGERNAUT — FFA-roll-mode: 1 JUG (kraftig, kollar 5× HP/+speed/dash)
 // ============================================================
+// pickSpreadSpawns — välj N spawns från pool så att de är MAXIMALT SPRIDDA.
+// Best-candidate-algoritm: pick first random, sedan iterativt välj den
+// spawn som har STÖRST min-distance till alla redan valda.
+// Garanterar att spelare aldrig spawnar bredvid varandra (förutsatt att
+// poolen har minst N spawns med vettigt avstånd).
+function pickSpreadSpawns(pool, n) {
+  if (n <= 0 || pool.length === 0) return [];
+  const remaining = pool.slice();
+  const chosen = [];
+  // Pick first randomly
+  const firstIdx = Math.floor(Math.random() * remaining.length);
+  chosen.push(remaining[firstIdx]);
+  remaining.splice(firstIdx, 1);
+  while (chosen.length < n && remaining.length > 0) {
+    let bestIdx = 0, bestDist = -1;
+    for (let i = 0; i < remaining.length; i++) {
+      let minDist = Infinity;
+      for (const c of chosen) {
+        const dx = remaining[i].x - c.x, dy = remaining[i].y - c.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < minDist) minDist = d2;
+      }
+      if (minDist > bestDist) {
+        bestDist = minDist;
+        bestIdx = i;
+      }
+    }
+    chosen.push(remaining[bestIdx]);
+    remaining.splice(bestIdx, 1);
+  }
+  // Om n > pool.length: lägg till jitter-kopior så två spelare inte hamnar
+  // på exakt samma punkt
+  if (chosen.length < n) {
+    const need = n - chosen.length;
+    for (let k = 0; k < need; k++) {
+      const base = chosen[k % pool.length];
+      chosen.push({
+        x: base.x + (Math.random() - 0.5) * 200,
+        y: base.y + (Math.random() - 0.5) * 200,
+      });
+    }
+  }
+  return chosen;
+}
+
+// Hitta spawn från pool som ligger LÄNGST bort från alla levande spelare.
+// Används vid respawn så spelaren inte hamnar mitt i action.
+function pickFarthestSpawn(pool, sim, excludePid) {
+  if (pool.length === 0) return null;
+  let best = pool[0], bestDist = -1;
+  for (const sp of pool) {
+    let minDist = Infinity;
+    for (const [pid, ws] of sim.room.members) {
+      if (pid === excludePid) continue;
+      if (!ws.playerState || ws.playerState.hp <= 0) continue;
+      const dx = ws.playerState.x - sp.x, dy = ws.playerState.y - sp.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < minDist) minDist = d2;
+    }
+    if (minDist > bestDist) { bestDist = minDist; best = sp; }
+  }
+  return best;
+}
+
 // Spawnar alla som hunters med pistol. Random human (aldrig bot) blir initial
 // JUG. JUG-spelaren får 5× HP (skalat med spelarcount), +35% speed, 1s dash CD,
 // valbart vapen (rifle/shotgun/sledge). Hunters har bara pistol.
@@ -2820,28 +2883,41 @@ function startSim(sim, opts) {
     sim.simReadyAt = Date.now() + 5000;
     sim.tdmArena = { worldW: 4000, worldH: 3000, name: 'ARENA' };
     const arena = sim.tdmArena;
-    const redSpawnX = Math.floor(arena.worldW * 0.10);   // x=400
-    const blueSpawnX = Math.floor(arena.worldW * 0.90);  // x=3600
-    const spawnY = Math.floor(arena.worldH * 0.50);      // y=1500
+    // Team-tilldelning först — alternering så lag blir jämna
     const teams = {};
-    let i = 0;
+    const redIds = [], blueIds = [];
+    let tIdx = 0;
     for (const [pid, ws] of sim.room.members) {
-      // Bot:s tdmTeam är pre-satt av addBot — respektera. Andra alternerar.
-      const team = ws.tdmTeam || (i % 2 === 0 ? 'red' : 'blue');
+      const team = ws.tdmTeam || (tIdx % 2 === 0 ? 'red' : 'blue');
       ws.tdmTeam = team;
+      teams[pid] = team;
+      if (team === 'red') redIds.push(pid); else blueIds.push(pid);
+      tIdx++;
+    }
+    // Spawn-pool per team (array av punkter från arena-config)
+    const redPool = TDM_ARENA.spawns.red;
+    const bluePool = TDM_ARENA.spawns.blue;
+    const redSpawns = pickSpreadSpawns(redPool, redIds.length);
+    const blueSpawns = pickSpreadSpawns(bluePool, blueIds.length);
+    // Tilldela varje spelare en UNIK spawn från sin team-pool
+    let ri = 0, bi = 0;
+    for (const [pid, ws] of sim.room.members) {
       ws.playerState = ws.playerState || {};
-      ws.playerState.x = team === 'red' ? redSpawnX : blueSpawnX;
-      ws.playerState.y = spawnY;
+      const sp = ws.tdmTeam === 'red' ? redSpawns[ri++] : blueSpawns[bi++];
+      ws.playerState.x = sp.x;
+      ws.playerState.y = sp.y;
       ws.playerState.hp = 100;
       ws.playerState.shield = 100;
       ws.playerState.maxShield = 100;
       ws.playerState.invulnUntil = Date.now() + 1500;
       ws.tdmRespawnAt = 0;
-      teams[pid] = team;
       sim.tdmKillsByPid[pid] = 0;
       sim.tdmDeathsByPid[pid] = 0;
-      i++;
     }
+    // Behåll legacy spawn-coords för respawn-fallback (mitten av varje team-pool)
+    const redSpawnX = Math.floor(arena.worldW * 0.10);
+    const blueSpawnX = Math.floor(arena.worldW * 0.90);
+    const spawnY = Math.floor(arena.worldH * 0.50);
     // PvP-pickups på arenan — symmetrisk 4 HP + 4 shield, respawn 15s
     sim.pvpPickups = buildTdmPickups(sim, arena);
     // Skicka arena-info + walls (TDM har nu cover så sniper inte one-shots edge-to-edge)
@@ -2939,11 +3015,13 @@ function startSim(sim, opts) {
   } else if (sim.gungameActive) {
     // GUNGAME: FFA på 3500×2000 close-quarters arena, 15-tier progression
     sim.simReadyAt = Date.now() + 5000;
-    // Init alla spelare på tier 0 (fists), roterande spawn-point
+    // FFA — alla är fiender → använd max-spread så ingen spawnar bredvid varandra.
+    const playerCount = sim.room.members.size;
+    const spreadSpawns = pickSpreadSpawns(GUNGAME_ARENA.spawns, playerCount);
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
       ws.playerState = ws.playerState || {};
-      const sp = GUNGAME_ARENA.spawns[i % GUNGAME_ARENA.spawns.length];
+      const sp = spreadSpawns[i];
       ws.playerState.x = sp.x;
       ws.playerState.y = sp.y;
       ws.playerState.hp = 100;
@@ -2978,10 +3056,13 @@ function startSim(sim, opts) {
     // Bot:s vapen-roterande i KOTH — random från common-arsenal så de inte alla
     // har samma vapen. Riktiga spelare behåller sin equipped.
     const KOTH_BOT_WEAPONS = ['pistol', 'smg', 'rifle', 'shotgun', 'burstpistol', 'revolver'];
+    // FFA — max-spread så ingen spawnar bredvid varandra.
+    const kothPlayerCount = sim.room.members.size;
+    const kothSpreadSpawns = pickSpreadSpawns(KOTH_ARENA.spawns, kothPlayerCount);
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
       ws.playerState = ws.playerState || {};
-      const sp = KOTH_ARENA.spawns[i % KOTH_ARENA.spawns.length];
+      const sp = kothSpreadSpawns[i];
       ws.playerState.x = sp.x;
       ws.playerState.y = sp.y;
       ws.playerState.hp = 100;
@@ -3025,12 +3106,49 @@ function startSim(sim, opts) {
     sim._endKothMatch = endKothMatch;
   } else if (sim.juggernautActive) {
     // JUGGERNAUT: 5000×3500 underjordisk parkering. Random human blir initial JUG.
+    // Spawn-logik: JUG ensam på ena sidan, ALLA HUNTERS klustrade på motsatt sida
+    // — så hunters kan koordinera mot JUG direkt utan att JUG kan one-shot:a en
+    // ensam hunter vid match-start.
     sim.simReadyAt = Date.now() + 5000;
-    let i = 0;
     const humanIds = [];
+    const allPids = [];
     for (const [pid, ws] of sim.room.members) {
       ws.playerState = ws.playerState || {};
-      const sp = JUGGERNAUT_ARENA.spawns[i % JUGGERNAUT_ARENA.spawns.length];
+      if (!ws._isBot) humanIds.push(pid);
+      allPids.push(pid);
+    }
+    // Välj initial JUG först (random human)
+    let initialJug = null;
+    if (humanIds.length > 0) initialJug = humanIds[Math.floor(Math.random() * humanIds.length)];
+    // JUG-spawn: pick random från pool. Hunters-spawn-base: spawn LÄNGST från JUG.
+    const allSpawns = JUGGERNAUT_ARENA.spawns;
+    const jugSpawn = allSpawns[Math.floor(Math.random() * allSpawns.length)];
+    // Hitta spawn längst bort från JUG → hunters samlas där
+    let hunterBase = allSpawns[0];
+    let bestD2 = -1;
+    for (const sp of allSpawns) {
+      const dx = sp.x - jugSpawn.x, dy = sp.y - jugSpawn.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > bestD2) { bestD2 = d2; hunterBase = sp; }
+    }
+    // Tilldela spawns: JUG på sin spawn, hunters klustrade runt hunterBase med jitter
+    const hunterCount2 = allPids.length - (initialJug ? 1 : 0);
+    let hunterIdx = 0;
+    for (const pid of allPids) {
+      const ws = sim.room.members.get(pid);
+      let sp;
+      if (pid === initialJug) {
+        sp = jugSpawn;
+      } else {
+        // Hunter: kluster runt hunterBase med jitter så de inte stackar
+        const angle = (hunterIdx / Math.max(1, hunterCount2)) * Math.PI * 2;
+        const radius = 60 + (hunterIdx % 3) * 30; // 60-120px
+        sp = {
+          x: hunterBase.x + Math.cos(angle) * radius,
+          y: hunterBase.y + Math.sin(angle) * radius,
+        };
+        hunterIdx++;
+      }
       ws.playerState.x = sp.x;
       ws.playerState.y = sp.y;
       // Default = hunter — JUG-roll appliceras efter spawning
@@ -3041,10 +3159,8 @@ function startSim(sim, opts) {
       sim.juggernautScores[pid] = 0;
       sim.juggernautKillsByPid[pid] = 0;
       sim.tdmDeathsByPid[pid] = 0;
-      if (!ws._isBot) humanIds.push(pid);
-      i++;
     }
-    sim._juggernautSpawnIdx = i;
+    sim._juggernautSpawnIdx = allPids.length;
     sim.juggernautWeapon = JUGGERNAUT_ARENA.jugDefaultWeapon;
     // Beräkna JUG HP utifrån hunter-count (snapshot vid start)
     const hunterCount = Math.max(1, sim.room.members.size - 1);
@@ -3052,10 +3168,8 @@ function startSim(sim, opts) {
     sim.juggernautEndAt = Date.now() + (sim.juggernautMatchDurationSec || JUGGERNAUT_ARENA.defaultMatchDuration) * 1000;
     // Pickups
     sim.pvpPickups = buildJuggernautPickups(sim);
-    // Välj initial JUG random från humans (aldrig bot)
-    let initialJug = null;
-    if (humanIds.length > 0) {
-      initialJug = humanIds[Math.floor(Math.random() * humanIds.length)];
+    // Aktivera JUG-stats på den valde
+    if (initialJug) {
       const jws = sim.room.members.get(initialJug);
       if (jws) applyJugStats(sim, jws);
       sim.juggernautPid = initialJug;
@@ -3110,14 +3224,14 @@ function startSim(sim, opts) {
     sim.battleroyalePhaseEndAt = Date.now() + arena.phases[0].durationFrac * totalDurSec * 1000;
     // Init loot från arena
     sim.battleroyaleLoot = initBrLoot(sim);
-    // Init alla spelare på spridd spawn-punkt (roterande från perimetern)
-    // Räkna ut alive-count för win-check
+    // Init alla spelare på spridd spawn-punkt — MAX-SPREAD via pickSpreadSpawns
+    // så ingen spawnar bredvid varandra ens i en full lobby.
     let aliveCount = 0;
-    const shuffledSpawns = [...arena.spawns].sort(() => Math.random() - 0.5);
+    const brSpreadSpawns = pickSpreadSpawns(arena.spawns, sim.room.members.size);
     let i = 0;
     for (const [pid, ws] of sim.room.members) {
       ws.playerState = ws.playerState || {};
-      const sp = shuffledSpawns[i % shuffledSpawns.length];
+      const sp = brSpreadSpawns[i];
       ws.playerState.x = sp.x;
       ws.playerState.y = sp.y;
       ws.playerState.hp = arena.startHp;

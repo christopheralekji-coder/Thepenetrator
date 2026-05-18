@@ -9,10 +9,21 @@ const TDM_ARENA = {
   worldH: 3000,
   name: 'ARENA',
 
-  // Spawn-positions (mid-vänster / mid-höger)
+  // Spawn-positions per team (4 punkter per sida, vertikalt spridda)
+  // — spelare ska inte spawna ovanpå varandra ens i lag.
   spawns: {
-    red:  { x: 400,  y: 1500 },
-    blue: { x: 3600, y: 1500 },
+    red: [
+      { x: 350, y: 800 },
+      { x: 450, y: 1300 },
+      { x: 350, y: 1700 },
+      { x: 450, y: 2200 },
+    ],
+    blue: [
+      { x: 3650, y: 800 },
+      { x: 3550, y: 1300 },
+      { x: 3650, y: 1700 },
+      { x: 3550, y: 2200 },
+    ],
   },
 
   // Cover-walls: 4 mid-zon cover-block + 4 flank-block + center-pillar.
