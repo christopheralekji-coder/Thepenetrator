@@ -2294,9 +2294,27 @@ function tickBrLootPickups(sim, nowMs) {
         // Klient hanterar ammo lokalt; vi skickar event
         applied = true;
       } else if (lo.kind === 'weapon' && lo.weaponId) {
-        // Sätter weapon. Klient hanterar ammo-refill själv.
-        ws.playerState.weaponId = lo.weaponId;
+        // BR tier-baserad auto-equip:
+        // - Picked tier > current tier → auto-equip
+        // - Picked tier == current tier → BEHÅLL nuvarande (ingen ändring)
+        // - Picked tier < current tier → BEHÅLL nuvarande
+        // Vapnet läggs alltid i klient-inventoriet (save.owned) via event.
+        const TIER_RANK = {
+          starter: 0, corpse: 0, dropped: 0,
+          common: 1, uncommon: 2, rare: 3, legendary: 4,
+        };
+        const currentTier = ws.playerState._brWeaponTier || 'starter';
+        const oldRank = TIER_RANK[currentTier] != null ? TIER_RANK[currentTier] : 0;
+        const newRank = TIER_RANK[lo.tier] != null ? TIER_RANK[lo.tier] : 0;
+        let equippedNow = false;
+        if (newRank > oldRank) {
+          ws.playerState.weaponId = lo.weaponId;
+          ws.playerState._brWeaponTier = lo.tier;
+          equippedNow = true;
+        }
+        // Trigger event ALLTID så klient kan lägga vapnet i sitt inventory
         applied = true;
+        lo._brEquippedOnPickup = equippedNow;
       }
       if (!applied) continue;
       lo.available = false;
@@ -2306,6 +2324,10 @@ function tickBrLootPickups(sim, nowMs) {
         lootId: lo.id,
         kind: lo.kind,
         weaponId: lo.weaponId || null,
+        tier: lo.tier || null,
+        // For weapon pickups: did server auto-equip it? Client uses this för
+        // att veta om state.player.weaponId ska uppdateras.
+        equipped: lo._brEquippedOnPickup != null ? lo._brEquippedOnPickup : true,
         hp: ws.playerState.hp,
         shield: ws.playerState.shield || 0,
       });
@@ -3242,6 +3264,7 @@ function startSim(sim, opts) {
       ws.playerState.maxShield = arena.maxShield;
       ws.playerState.invulnUntil = Date.now() + 1500;
       ws.playerState.weaponId = arena.startWeapon;
+      ws.playerState._brWeaponTier = 'starter'; // för tier-baserad pickup-jämförelse
       ws.playerState.isJug = false;
       ws.playerState.scaleMul = 1.0;
       ws.playerState.speedMul = 1.0;
@@ -3396,7 +3419,14 @@ function applyPlayerInput(sim, peerId, input) {
   }
   if (typeof input.hp === 'number') ws.playerState.hp = input.hp;
   if (typeof input.aim === 'number') ws.playerState.aim = input.aim;
-  if (input.weaponId) ws.playerState.weaponId = input.weaponId;
+  if (input.weaponId) {
+    ws.playerState.weaponId = input.weaponId;
+    // BR: när klient SKICKAR vapen-byte (via radial/menu) skicka ALSO weaponTier
+    // så servern vet vilken tier nu equipped (för auto-equip-jämförelse vid nästa pickup).
+    if (sim.battleroyaleActive && input.weaponTier) {
+      ws.playerState._brWeaponTier = input.weaponTier;
+    }
+  }
   // Companion-state: server är AUKTORITET för hp + alive (klient kan annars skriva
   // över server-side damage genom att skicka full hp). Klient skickar position +
   // metadata; server preservar hp/alive om companion redan finns.

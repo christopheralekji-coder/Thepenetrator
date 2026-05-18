@@ -12896,16 +12896,199 @@ fireBtn.addEventListener('mousedown',  fireDown);
 window.addEventListener('mousemove',   (e) => { if (fireJoyTouchId === 'mouse') fireMove(e); });
 window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') fireUp(e); });
 
-// Vapenmeny-knapp — pointerdown för multi-touch
+// Vapenmeny-knapp — GTA-style RADIAL menu på hold.
+// Pointerdown öppnar cirkeln runt knappen, drag → highlight närmsta vapen,
+// release → equip (eller cancel om släppt i mitten).
 (function() {
   const btn = document.getElementById('btn-weapon-menu');
   if (!btn) return;
-  btn.style.touchAction = 'manipulation';
+  btn.style.touchAction = 'none';
+  const radialEl = document.getElementById('weapon-radial');
+  if (!radialEl) return;
+
+  // Radial-state
+  let active = false;
+  let pointerId = null;
+  let centerX = 0, centerY = 0;
+  let slots = []; // [{ id, x, y, el, ang }]
+  let selectedIdx = -1;
+  let centerEl = null;
+
+  // Färgkod tier för BR
+  function tierClass(weaponId) {
+    if (!state.battleroyaleActive) return '';
+    const t = (state.brWeaponTiers && state.brWeaponTiers[weaponId]) || null;
+    if (t === 'uncommon') return 'tier-uncommon';
+    if (t === 'rare') return 'tier-rare';
+    if (t === 'legendary') return 'tier-legendary';
+    return '';
+  }
+
+  function buildSlots() {
+    // Vilka vapen visas?
+    let weaponList = null;
+    if (state.juggernautActive && state.player && state.player.isJug) {
+      // JUG: bara jug-weapons
+      weaponList = (Coop.juggernautWeapons || ['rifle', 'shotgun', 'sledge']).map(id => WEAPONS.find(w => w.id === id)).filter(Boolean);
+    } else {
+      // Alla ägda vapen (story + alla PvP utom GG/JUG-hunter)
+      weaponList = WEAPONS.filter(w => save.owned && save.owned.includes(w.id));
+    }
+    if (!weaponList || weaponList.length === 0) return false;
+    // Sortera: equipped först, sedan efter typ (melee först), sedan pris
+    weaponList.sort((a, b) => {
+      if (a.id === save.equipped) return -1;
+      if (b.id === save.equipped) return 1;
+      if (a.type !== b.type) return a.type === 'melee' ? -1 : 1;
+      return (a.price || 0) - (b.price || 0);
+    });
+
+    radialEl.innerHTML = '';
+    slots = [];
+    // Center cancel-zon
+    centerEl = document.createElement('div');
+    centerEl.className = 'weapon-radial-center';
+    centerEl.style.left = centerX + 'px';
+    centerEl.style.top = centerY + 'px';
+    centerEl.textContent = '✕';
+    radialEl.appendChild(centerEl);
+    // Cirkel-layout
+    const N = weaponList.length;
+    // Radie skalar med antal vapen så ikonerna inte överlappar
+    const baseR = Math.min(window.innerWidth, window.innerHeight) * 0.18;
+    const radius = Math.max(95, Math.min(baseR + N * 4, 180));
+    // Start från top (−π/2) och rita medsols
+    for (let i = 0; i < N; i++) {
+      const w = weaponList[i];
+      const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
+      // Klampa positions till viewport så slots inte sticker utanför skärmen
+      let sx = centerX + Math.cos(angle) * radius;
+      let sy = centerY + Math.sin(angle) * radius;
+      sx = Math.max(40, Math.min(window.innerWidth - 40, sx));
+      sy = Math.max(40, Math.min(window.innerHeight - 40, sy));
+      const el = document.createElement('div');
+      el.className = 'weapon-radial-slot';
+      if (w.id === save.equipped) el.classList.add('equipped');
+      const tc = tierClass(w.id);
+      if (tc) el.classList.add(tc);
+      el.style.left = sx + 'px';
+      el.style.top = sy + 'px';
+      const iconHtml = (typeof getWeaponIconHTML === 'function') ? getWeaponIconHTML(w.id) : '🔫';
+      el.innerHTML = '<div class="wsymbol">' + iconHtml + '</div><div class="wname">' + (w.name || w.id).toUpperCase() + '</div>';
+      radialEl.appendChild(el);
+      slots.push({ id: w.id, x: sx, y: sy, el, ang: angle });
+    }
+    return true;
+  }
+
+  function open(e) {
+    if (state.mode !== 'playing' || !state.player) return false;
+    // GUNGAME: server styr vapnet via kills — blocka
+    if (state.gungameActive) {
+      if (typeof showToast === 'function') showToast('🔫 GUNGAME — vapnet växlar via kills');
+      return false;
+    }
+    // JUGGERNAUT hunter: bara pistol
+    if (state.juggernautActive && !state.player.isJug) {
+      if (typeof showToast === 'function') showToast('🔫 HUNTER — pistol bara');
+      return false;
+    }
+    // Center = knappens center
+    const r = btn.getBoundingClientRect();
+    centerX = r.left + r.width / 2;
+    centerY = r.top + r.height / 2;
+    if (!buildSlots()) return false;
+    radialEl.classList.remove('hidden');
+    active = true;
+    pointerId = e.pointerId != null ? e.pointerId : 'mouse';
+    selectedIdx = -1;
+    return true;
+  }
+
+  function handleMove(clientX, clientY) {
+    if (!active) return;
+    const dx = clientX - centerX, dy = clientY - centerY;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 40) {
+      // Cancel-zon
+      selectedIdx = -1;
+    } else {
+      // Hitta slot med min vinkelskillnad
+      const ang = Math.atan2(dy, dx);
+      let bestIdx = -1, bestDiff = Infinity;
+      for (let i = 0; i < slots.length; i++) {
+        let diff = Math.abs(((ang - slots[i].ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+      }
+      selectedIdx = bestIdx;
+    }
+    // Uppdatera highlights
+    for (let i = 0; i < slots.length; i++) {
+      slots[i].el.classList.toggle('hover', i === selectedIdx);
+    }
+  }
+
+  function close(commit) {
+    if (!active) return;
+    if (commit && selectedIdx >= 0) {
+      const wid = slots[selectedIdx].id;
+      if (wid !== save.equipped) {
+        // Story/standard: equip() ändrar save.equipped + state.player.weaponId
+        if (typeof equip === 'function') equip(wid);
+        // BR: skicka även weaponTier till server så pickup-jämförelse fungerar
+        if (state.battleroyaleActive && Coop && Coop.ws && Coop.ws.readyState === 1) {
+          const tier = (state.brWeaponTiers && state.brWeaponTiers[wid]) || 'starter';
+          try {
+            Coop.ws.send(JSON.stringify({ type: 'sim_input', weaponId: wid, weaponTier: tier }));
+          } catch (_) {}
+        }
+        // JUG: skicka jug-weapon-change om i juggernaut-mode
+        if (state.juggernautActive && state.player && state.player.isJug && Coop && Coop.ws && Coop.ws.readyState === 1) {
+          try {
+            Coop.ws.send(JSON.stringify({ type: 'juggernaut_weapon_change', weaponId: wid }));
+          } catch (_) {}
+        }
+      }
+    }
+    radialEl.classList.add('hidden');
+    radialEl.innerHTML = '';
+    active = false;
+    pointerId = null;
+    selectedIdx = -1;
+    slots = [];
+  }
+
+  // pointerdown på knappen → öppna radial
   btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    openWeaponMenu();
+    if (open(e)) {
+      // Behåll capture av pointer så move/up fångas även utanför knappen
+      try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+    }
   }, { passive: false });
+  // Move: track finger position
+  const onMove = (e) => {
+    if (!active) return;
+    if (e.pointerId != null && e.pointerId !== pointerId) return;
+    handleMove(e.clientX, e.clientY);
+  };
+  // Up: equip selected + close
+  const onUp = (e) => {
+    if (!active) return;
+    if (e.pointerId != null && e.pointerId !== pointerId) return;
+    close(true);
+    try { btn.releasePointerCapture(e.pointerId); } catch (_) {}
+  };
+  // Cancel: close utan equip
+  const onCancel = (e) => {
+    if (!active) return;
+    if (e.pointerId != null && e.pointerId !== pointerId) return;
+    close(false);
+  };
+  document.addEventListener('pointermove', onMove, { passive: true });
+  document.addEventListener('pointerup', onUp, { passive: true });
+  document.addEventListener('pointercancel', onCancel, { passive: true });
 })();
 
 // Reload-knapp — pointerdown för multi-touch (joystick aktiv samtidigt OK)
@@ -15682,6 +15865,9 @@ const Coop = {
       save.owned = ['fists', 'knife', ev.startWeapon || 'pistol'];
       save.equipped = ev.startWeapon || 'pistol';
       save.weaponId = save.equipped;
+      // Tier per ägt vapen (för pickup-jämförelse + radial-menu UI-coloring)
+      state.brWeaponTiers = { fists: 'starter', knife: 'starter' };
+      state.brWeaponTiers[save.equipped] = 'starter';
       // Synka maxHp/scaleMul på partners (anti-läck från JUG/Sandbox)
       for (const [pid, partner] of this.players) {
         partner.isJug = false;
@@ -15722,7 +15908,7 @@ const Coop = {
       if (typeof triggerShake === 'function') triggerShake(6, 0.3);
       if (typeof updateBrHud === 'function') updateBrHud();
     } else if (ev.type === 'br_loot_picked') {
-      // { peerId, lootId, kind, weaponId, hp, shield }
+      // { peerId, lootId, kind, weaponId, tier, equipped, hp, shield }
       if (state.battleroyaleLoot && state.battleroyaleLoot[ev.lootId]) {
         state.battleroyaleLoot[ev.lootId].available = false;
         delete state.battleroyaleLoot[ev.lootId];
@@ -15731,19 +15917,28 @@ const Coop = {
         if (typeof ev.hp === 'number') state.player.hp = ev.hp;
         if (typeof ev.shield === 'number') state.player.shield = ev.shield;
         if (ev.kind === 'weapon' && ev.weaponId) {
-          // BR: alla pickup-vapen läggs i save.owned (unlimited slots). Vapenmenyn
-          // under minimapen visar dem automatiskt — användaren byter där.
+          // BR: lägg ALLTID till i save.owned (inventory) men EQUIPA bara om server
+          // sa att det blev auto-equippat (= högre tier än current).
           if (!Array.isArray(save.owned)) save.owned = ['fists'];
           if (!save.owned.includes(ev.weaponId)) save.owned.push(ev.weaponId);
-          state.player.weaponId = ev.weaponId;
-          save.equipped = ev.weaponId;
-          save.weaponId = ev.weaponId;
-          state.player.reloading = false;
-          state.player.ammo = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) || 0;
-          if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
-          if (typeof updateHUD === 'function') updateHUD();
+          // Track tier per ägt vapen så användaren ser i vapen-menyn
+          state.brWeaponTiers = state.brWeaponTiers || {};
+          state.brWeaponTiers[ev.weaponId] = ev.tier || 'common';
           const wName = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].name) || ev.weaponId;
-          if (typeof showToast === 'function') showToast('🔫 ' + wName.toUpperCase());
+          if (ev.equipped === false) {
+            // Server NEKADE auto-equip (samma eller lägre tier). Vapnet i inventory.
+            if (typeof showToast === 'function') showToast('📦 ' + wName.toUpperCase() + ' i inventory');
+          } else {
+            // Auto-equip skedde
+            state.player.weaponId = ev.weaponId;
+            save.equipped = ev.weaponId;
+            save.weaponId = ev.weaponId;
+            state.player.reloading = false;
+            state.player.ammo = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) || 0;
+            if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+            if (typeof updateHUD === 'function') updateHUD();
+            if (typeof showToast === 'function') showToast('🔫 ' + wName.toUpperCase());
+          }
         } else if (ev.kind === 'hp_small') {
           if (typeof showToast === 'function') showToast('❤ +60 HP');
         } else if (ev.kind === 'hp_big') {

@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v349-gg-pistol-start-crossbow-tier8';
+const CACHE = 'penetrator-v350-radial-weapon-menu-br-tier-equip';
 const ASSETS = [
   './',
   './index.html',

@@ -911,6 +911,93 @@ html, body {
   box-shadow: 0 2px 8px rgba(120,255,180,0.6), inset 0 2px 6px rgba(0,0,0,0.3);
 }
 
+/* ============================================================
+   RADIAL WEAPON MENU (GTA-style) — håll på btn-weapon-menu så öppnas en
+   cirkel runt fingret. Drag till vapen-ikonen och släpp för att equippa.
+   ============================================================ */
+#weapon-radial {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+#weapon-radial.hidden { display: none; }
+/* Center "cancel"-zon — visuell indikator att släppa här avbryter */
+.weapon-radial-center {
+  position: fixed;
+  width: 56px; height: 56px;
+  margin: -28px 0 0 -28px;
+  border-radius: 50%;
+  border: 2px dashed rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+}
+/* Slot för varje ägt vapen — positioneras av JS */
+.weapon-radial-slot {
+  position: fixed;
+  width: 64px; height: 64px;
+  margin: -32px 0 0 -32px; /* centrera på given x/y */
+  border-radius: 50%;
+  background: rgba(30, 30, 36, 0.92);
+  border: 2px solid #555;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: #fff;
+  pointer-events: none;
+  transition: transform 0.10s ease, border-color 0.10s ease, box-shadow 0.10s ease, background 0.10s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+.weapon-radial-slot .wsymbol {
+  font-size: 26px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.weapon-radial-slot .wsymbol svg { width: 30px; height: 30px; }
+.weapon-radial-slot .wname {
+  font-size: 8px;
+  font-weight: 700;
+  color: #ccc;
+  letter-spacing: 0.3px;
+  margin-top: 2px;
+  max-width: 56px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Highlight: equipped (gul-ram) */
+.weapon-radial-slot.equipped {
+  border-color: #ffd54a;
+  box-shadow: 0 0 14px rgba(255, 213, 74, 0.5);
+}
+/* Highlight: currently hovered (drag-target) — grön glow */
+.weapon-radial-slot.hover {
+  transform: scale(1.28);
+  border-color: #5fff5f;
+  background: rgba(40, 80, 40, 0.95);
+  box-shadow: 0 0 22px rgba(95, 255, 95, 0.8);
+}
+.weapon-radial-slot.hover .wname { color: #5fff5f; }
+/* Tier-coloring för BR (visar rarity per vapen i radial) */
+.weapon-radial-slot.tier-uncommon { border-color: #5fd95f; }
+.weapon-radial-slot.tier-rare { border-color: #3a7aff; }
+.weapon-radial-slot.tier-legendary { border-color: #bb3aff; }
+
 /* Overlays — modern fräsch design med scroll */
 .overlay {
   position: absolute;
