@@ -905,6 +905,26 @@ function handleMessage(ws, msg) {
     applyBrDropWeapon(room.sim, ws.id, msg);
     return;
   }
+  // v1.376: Granat-throw från klient. Server schemalägger detonation efter
+  // flight-time och kör explode() (med friendly-fire-regler + turret-damage).
+  if (msg.type === 'sim_grenade_throw') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    const sim = room.sim;
+    const toX = Math.max(0, Math.min(20000, +msg.toX || 0));
+    const toY = Math.max(0, Math.min(20000, +msg.toY || 0));
+    const FLIGHT_MS = 800;
+    const RADIUS = 85;
+    const DMG = 120;
+    setTimeout(() => {
+      if (!sim || sim._stopped) return;
+      const { explode } = require('./sim/bullets');
+      if (typeof explode === 'function') {
+        explode(sim, toX, toY, RADIUS, DMG, ws.id);
+      }
+    }, FLIGHT_MS);
+    return;
+  }
 }
 
 function handleDisconnect(ws) {

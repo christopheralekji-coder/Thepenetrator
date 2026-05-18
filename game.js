@@ -13603,14 +13603,12 @@ function setGrenadeCount(n) {
 }
 function updateGrenadeBadge() {
   if (!_grenadeCountEl) return;
-  if (isSandboxMode()) {
-    _grenadeCountEl.textContent = '∞';
-    if (_btnGrenade) _btnGrenade.classList.remove('empty');
-    return;
-  }
-  const n = getGrenadeCount();
-  _grenadeCountEl.textContent = n;
-  if (_btnGrenade) _btnGrenade.classList.toggle('empty', n <= 0);
+  // v1.376: visa ALLTID riktigt count (även sandbox). I sandbox är decrement
+  // blockerad i setGrenadeCount så count stannar på starting-värdet.
+  const raw = (state.player && typeof state.player.grenadeCount === 'number')
+    ? state.player.grenadeCount : 0;
+  _grenadeCountEl.textContent = raw;
+  if (_btnGrenade) _btnGrenade.classList.toggle('empty', raw <= 0);
 }
 function resetGrenadesForMatch() {
   if (state.player) state.player.grenadeCount = GRENADE_STARTING_COUNT;
@@ -15639,8 +15637,15 @@ const Coop = {
       }
     } else if (ev.type === 'ctf_turret_damaged') {
       if (state.ctfTurrets && state.ctfTurrets[ev.turretId]) {
-        state.ctfTurrets[ev.turretId].hp = ev.hp;
-        state.ctfTurrets[ev.turretId].maxHp = ev.maxHp;
+        const t = state.ctfTurrets[ev.turretId];
+        // v1.376: spawna damage-number ovanför turret (som vid player-hits)
+        const prevHp = (typeof t.hp === 'number') ? t.hp : ev.maxHp;
+        const dealt = Math.max(0, Math.round(prevHp - ev.hp));
+        if (dealt > 0 && typeof spawnDamageNumber === 'function') {
+          spawnDamageNumber(t.x, t.y - 20, dealt, false);
+        }
+        t.hp = ev.hp;
+        t.maxHp = ev.maxHp;
       }
     } else if (ev.type === 'ctf_turret_destroyed') {
       const t = state.ctfTurrets && state.ctfTurrets[ev.turretId];
@@ -15956,8 +15961,14 @@ const Coop = {
       }
     } else if (ev.type === 'siege_turret_damaged') {
       if (state.siegeTurrets && state.siegeTurrets[ev.turretId]) {
-        state.siegeTurrets[ev.turretId].hp = ev.hp;
-        state.siegeTurrets[ev.turretId].maxHp = ev.maxHp;
+        const t = state.siegeTurrets[ev.turretId];
+        const prevHp = (typeof t.hp === 'number') ? t.hp : ev.maxHp;
+        const dealt = Math.max(0, Math.round(prevHp - ev.hp));
+        if (dealt > 0 && typeof spawnDamageNumber === 'function') {
+          spawnDamageNumber(t.x, t.y - 20, dealt, false);
+        }
+        t.hp = ev.hp;
+        t.maxHp = ev.maxHp;
       }
     } else if (ev.type === 'siege_turret_destroyed') {
       const t = state.siegeTurrets && state.siegeTurrets[ev.turretId];
@@ -26720,14 +26731,9 @@ function updatePvpShieldButton() {
   _btnPvpShield.style.setProperty('--shield-cd', cd.toFixed(3));
 }
 
-// Gungame: hide grenade-knapp och flytta dash till bottom-most + shield till mitten.
-// Normal mode (v1.372 swapped layout):
-//   grenade = top    (138, 136)
-//   dash    = middle (165, 77)
-//   shield  = bottom (147, 14) — mest tillgänglig (defensive)
-// Gungame mode (bara 2 knappar):
-//   dash    = bottom (147, 14) — ersätter granat
-//   shield  = middle (165, 77) — över dash
+// Gungame (v1.376): bara 2 knappar — matchar normal-mode-layouten utom att
+// granat-knappen är dold. Shield = bottom, dash = middle (samma som normal).
+// Tidigare (v1.370-1.375) var dash/shield swappade i GG — nu konsekvent.
 const _btnDashEl = document.getElementById('btn-dash');
 let _lastGgLayout = null;
 function updateGungameButtonLayout() {
@@ -26737,27 +26743,14 @@ function updateGungameButtonLayout() {
   if (_btnGrenade) {
     _btnGrenade.style.display = isGg ? 'none' : '';
   }
-  if (isGg) {
-    // Dash → bottom (där shield normalt är)
-    if (_btnDashEl) {
-      _btnDashEl.style.setProperty('right', '147px', 'important');
-      _btnDashEl.style.setProperty('bottom', '14px', 'important');
-    }
-    // Shield → mitten (där dash normalt är)
-    if (_btnPvpShield) {
-      _btnPvpShield.style.setProperty('right', '165px', 'important');
-      _btnPvpShield.style.setProperty('bottom', '77px', 'important');
-    }
-  } else {
-    // Restore swapped defaults (v1.372)
-    if (_btnDashEl) {
-      _btnDashEl.style.setProperty('right', '165px', 'important');
-      _btnDashEl.style.setProperty('bottom', '77px', 'important');
-    }
-    if (_btnPvpShield) {
-      _btnPvpShield.style.setProperty('right', '147px', 'important');
-      _btnPvpShield.style.setProperty('bottom', '14px', 'important');
-    }
+  // Defaults (samma i båda modes): dash mitten, shield bottom
+  if (_btnDashEl) {
+    _btnDashEl.style.setProperty('right', '165px', 'important');
+    _btnDashEl.style.setProperty('bottom', '77px', 'important');
+  }
+  if (_btnPvpShield) {
+    _btnPvpShield.style.setProperty('right', '147px', 'important');
+    _btnPvpShield.style.setProperty('bottom', '14px', 'important');
   }
 }
 
@@ -28005,8 +27998,20 @@ function updateBullets(dt) {
       continue;
     }
     // PvP: bullet dör vid wall-hit. Speglar server-side bullets.js.
+    // v1.376: även turrets blockerar bullets visuellt (speglar server-side).
+    const _hitTurretCheck = (turrets) => {
+      if (!turrets || b.hostile) return false;
+      for (const id in turrets) {
+        const t = turrets[id];
+        if (!t || t.r == null) continue;
+        const dx = t.x - b.x, dy = t.y - b.y;
+        const rsum = (t.r || 20) + (b.r || 4);
+        if (dx * dx + dy * dy < rsum * rsum) return true;
+      }
+      return false;
+    };
     if (state.ctfActive && state.ctfWalls && typeof bulletHitsWall === 'function') {
-      if (bulletHitsWall(b, state.ctfWalls)) {
+      if (bulletHitsWall(b, state.ctfWalls) || _hitTurretCheck(state.ctfTurrets)) {
         if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
         if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
         b.dead = true;
@@ -28022,7 +28027,7 @@ function updateBullets(dt) {
       }
     }
     if (state.siegeActive && state.siegeWalls && typeof bulletHitsWall === 'function') {
-      if (bulletHitsWall(b, state.siegeWalls)) {
+      if (bulletHitsWall(b, state.siegeWalls) || _hitTurretCheck(state.siegeTurrets)) {
         if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
         if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
         b.dead = true;

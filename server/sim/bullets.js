@@ -641,6 +641,46 @@ function explode(sim, x, y, radius, dmg, fromPid) {
       }
     }
   }
+  // v1.376: explosions skadar nu turrets (rockets/grenade-launcher mot torn).
+  // Friendly fire: ego-laget passerar genom egen turret = no damage.
+  const explodeTurrets = (turrets, dmgEvent) => {
+    if (!turrets) return;
+    for (const tid of Object.keys(turrets)) {
+      const t = turrets[tid];
+      if (!t || t.destroyed) continue;
+      if (fromTeam && fromTeam === t.team) continue; // friendly = skip
+      const dx = t.x - x, dy = t.y - y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < radius * radius) {
+        const falloff = 1 - Math.sqrt(d2) / radius;
+        t.hp = Math.max(0, t.hp - dmg * (0.3 + falloff * 0.5));
+        sim.eventQueue.push({ type: dmgEvent, turretId: t.id, hp: t.hp, maxHp: t.maxHp });
+        if (t.hp <= 0 && !t.destroyed) {
+          t.destroyed = true;
+          t.destroyedAt = Date.now();
+          const ejected = t.occupantId;
+          if (ejected) {
+            const ws2 = sim.room.members.get(ejected);
+            if (ws2) {
+              if (sim.ctfActive) ws2._mountedCtfTurretId = null;
+              else if (sim.siegeActive) ws2._mountedSiegeTurretId = null;
+              if (ws2.playerState) {
+                ws2.playerState.x = t.x + (t.team === 'red' ? 35 : -35);
+                ws2.playerState.y = t.y;
+              }
+            }
+            t.occupantId = null;
+            const exitEv = sim.ctfActive ? 'ctf_turret_exited' : 'siege_turret_exited';
+            sim.eventQueue.push({ type: exitEv, peerId: ejected, turretId: t.id, reason: 'destroyed' });
+          }
+          const destrEv = sim.ctfActive ? 'ctf_turret_destroyed' : 'siege_turret_destroyed';
+          sim.eventQueue.push({ type: destrEv, turretId: t.id });
+        }
+      }
+    }
+  };
+  if (sim.ctfActive && sim.ctfTurrets) explodeTurrets(sim.ctfTurrets, 'ctf_turret_damaged');
+  if (sim.siegeActive && sim.siegeTurrets) explodeTurrets(sim.siegeTurrets, 'siege_turret_damaged');
 }
 
 // Update bullets — collision + life + special-effekter (boomerang/blackhole/pull-whip).
