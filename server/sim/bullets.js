@@ -549,17 +549,21 @@ function applyBulletEffects(b, e, sim) {
 }
 
 // Explode (radius damage) — speglar game.js:5435-5458
+// v1.374: friendly-fire blockerat i ALLA team-baserade scenarier:
+//   - Co-op (story/sandbox/endless/bossrush) — INGEN spelare-skada alls
+//   - TDM/CTF/Siege — eget lag blockerat
+//   - Juggernaut — hunter→hunter blockerat
+//   - FFA-modes (gungame/koth/BR) — alla utom self skadas
 function explode(sim, x, y, radius, dmg, fromPid) {
-  // PvP-modes (TDM + CTF + SIEGE + GUNGAME): explosion ska INTE skada egen
-  // spelare eller respawn-invuln. I team-modes också inte eget lag. I gungame
-  // (FFA) träffar alla utom shooter. Shield absorberar först, sedan HP.
   const fromWs = fromPid ? sim.room.members.get(fromPid) : null;
   const fromTeam = fromWs && fromWs.tdmTeam;
+  const fromIsJug = !!(fromWs && fromWs.playerState && fromWs.playerState.isJug);
   const inGungame = !!sim.gungameActive;
   const inKoth = !!sim.kothActive;
   const inBr = !!sim.battleroyaleActive;
+  const inJug = !!sim.juggernautActive;
   const inTeamPvP = !!(sim.tdmActive || sim.ctfActive || sim.siegeActive);
-  const inPvP = inTeamPvP || inGungame || inKoth || inBr || !!sim.juggernautActive;
+  const inPvP = inTeamPvP || inGungame || inKoth || inBr || inJug;
   if (!inPvP) {
     // Spatial-hash: query bara enemies inom explosion-radie
     const list = sim.enemyGrid ? sim.enemyGrid.getNearby(x, y, radius) : sim.enemies;
@@ -577,39 +581,42 @@ function explode(sim, x, y, radius, dmg, fromPid) {
   // Skadar även spelare i radie
   for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
-    if (inPvP) {
-      if (pid === fromPid) continue;             // egen spelare oskadad
-      // I FFA-gungame finns inga teams — skippa team-check
-      if (inTeamPvP) {
-        if (!fromTeam || !ws.tdmTeam) continue;  // okänt team → no-op (safer)
-        if (ws.tdmTeam === fromTeam) continue;   // friendly fire av
-      }
-      const invuln = ws.playerState.invulnUntil || 0;
-      if (Date.now() < invuln) continue;         // respawn-invuln skyddar
+    // Aldrig skada sig själv (gäller även co-op story)
+    if (pid === fromPid) continue;
+    // Co-op (icke-PvP): ALDRIG skada andra spelare — alla är allierade
+    if (!inPvP) continue;
+    // Team-PvP: eget lag blockerat
+    if (inTeamPvP) {
+      if (!fromTeam || !ws.tdmTeam) continue;  // okänt team → no-op (safer)
+      if (ws.tdmTeam === fromTeam) continue;   // friendly fire av
     }
+    // Juggernaut: hunter→hunter blockerat (JUG→JUG kan inte hända, en JUG)
+    if (inJug) {
+      const targetIsJug = !!ws.playerState.isJug;
+      if (!fromIsJug && !targetIsJug) continue;
+      if (fromIsJug && targetIsJug) continue;
+    }
+    const invuln = ws.playerState.invulnUntil || 0;
+    if (Date.now() < invuln) continue;         // respawn-invuln skyddar
     const dx = ws.playerState.x - x, dy = ws.playerState.y - y;
     const d2 = dx * dx + dy * dy;
     if (d2 < radius * radius) {
       const falloff = 1 - Math.sqrt(d2) / radius;
       const finalDmg = dmg * (0.3 + falloff * 0.4);
-      if (inPvP) {
-        // Shield absorberar först
-        let remaining = finalDmg;
-        if ((ws.playerState.shield || 0) > 0) {
-          const absorb = Math.min(ws.playerState.shield, remaining);
-          ws.playerState.shield -= absorb;
-          remaining -= absorb;
-        }
-        if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
-        sim.eventQueue.push({
-          type: 'pvp_hp_changed',
-          peerId: pid,
-          hp: ws.playerState.hp,
-          shield: ws.playerState.shield || 0,
-        });
-      } else {
-        ws.playerState.hp = Math.max(0, ws.playerState.hp - finalDmg);
+      // Shield absorberar först
+      let remaining = finalDmg;
+      if ((ws.playerState.shield || 0) > 0) {
+        const absorb = Math.min(ws.playerState.shield, remaining);
+        ws.playerState.shield -= absorb;
+        remaining -= absorb;
       }
+      if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+      sim.eventQueue.push({
+        type: 'pvp_hp_changed',
+        peerId: pid,
+        hp: ws.playerState.hp,
+        shield: ws.playerState.shield || 0,
+      });
     }
   }
   // Siege-cores: explosion nära enemy-core ska skada den (med 0.15× nerf så

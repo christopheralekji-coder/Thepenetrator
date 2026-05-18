@@ -318,16 +318,7 @@ const BATTLEROYALE_ARENA = {
         { kind: 'workbench', x: 3020, y: 8420, w: 60, h: 30 }, { kind: 'rifle_rack', x: 3020, y: 8330 },
         { kind: 'animal_skull', x: 3140, y: 8410 }, { kind: 'oil_lamp', x: 3080, y: 8330 },
       ] },
-    // 16. SE outer
-    { id: 'cabin_se_outer', name: 'KUST-STUGAN', bounds: { x: 8900, y: 7800, w: 210, h: 180 },
-      door: { side: 'north', offset: 85, width: 50 },
-      windows: [ { side: 'south', offset: 60, width: 40 }, { side: 'south', offset: 140, width: 40 }, { side: 'east', offset: 70, width: 40 }, { side: 'west', offset: 70, width: 40 } ],
-      roof: { color: '#306080', accent: '#102540', style: 'tile' }, floor: '#a08060',
-      interior: [
-        { kind: 'bed', x: 8920, y: 7840, w: 50, h: 70 }, { kind: 'bed', x: 8920, y: 7920, w: 50, h: 55 },
-        { kind: 'fireplace', x: 9050, y: 7840, w: 40, h: 40 }, { kind: 'table_long', x: 8990, y: 7900, w: 60, h: 30 },
-        { kind: 'chair', x: 9000, y: 7890 }, { kind: 'oil_lamp', x: 9020, y: 7830 },
-      ] },
+    // 16. SE outer — BORTTAGEN v1.374 (för nära alien-zonen)
     // 17. South deep (mellan wild och perimeter)
     { id: 'cabin_south_deep', name: 'JÄGAR-LADAN', bounds: { x: 5500, y: 8400, w: 230, h: 190 },
       door: { side: 'north', offset: 95, width: 55 },
