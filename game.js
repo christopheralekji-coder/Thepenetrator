@@ -7744,141 +7744,128 @@ function drawBrGroundDecorations(decos) {
       ctx.fillStyle = halo;
       ctx.fillRect(x, y, d.w, d.h);
     } else if (d.kind === 'alien_floor') {
-      // ALIEN-MARK: rendera STATIC base+sotfläckar+cracks till OFFSCREEN canvas,
-      // applicera fade-mask via destination-out på TOP+VÄNSTER så kanterna blir
-      // ÄKTA transparent (skogen syns igenom utan att vi raderar den). Cache mellan
-      // frames så vi inte rebuildar canvas-bitmappen 60 ggr/sek.
+      // ALIEN-MARK via CORNER-RADIAL gradient — solid lila vid SE-hörnet (10000,10000),
+      // fadar mot NW (där alien_transition tar över för smooth blend mot skogen).
+      // Inget offscreen canvas (bbox 5000x5000 = 100MB skulle vara för mycket).
       const x = d.x - cx, y = d.y - cy;
       if (x + d.w < -50 || x > viewW + 50 || y + d.h < -50 || y > viewH + 50) continue;
       const t = performance.now() / 1000;
       const pulse = 0.5 + Math.sin(t * 0.8) * 0.25;
       const seed = ((d.x * 19) ^ (d.y * 23)) | 0;
-      const cacheKey = d.x + '_' + d.y + '_' + d.w + '_' + d.h;
-      const FADE = 500;
-      if (!state._alienFloorCache || state._alienFloorCache.key !== cacheKey) {
-        const off = document.createElement('canvas');
-        off.width = d.w; off.height = d.h;
-        const oc = off.getContext('2d');
-        // 1. Solid lila bas
-        oc.fillStyle = '#2a1838';
-        oc.fillRect(0, 0, d.w, d.h);
-        // 2. Sotfläckar
-        oc.fillStyle = 'rgba(0, 0, 0, 0.55)';
-        for (let i = 0; i < 40; i++) {
-          const px = ((seed * (i + 7) * 19) & 0xffff) % d.w;
-          const py = ((seed * (i + 11) * 23) & 0xffff) % d.h;
-          oc.beginPath();
-          oc.ellipse(px, py, 18 + ((seed * i) % 14), 11 + ((seed * i) % 8), (seed * i) % 6, 0, Math.PI * 2);
-          oc.fill();
-        }
-        // 3. Mörk lila energi-fläckar (subtila)
-        oc.fillStyle = 'rgba(120, 40, 180, 0.20)';
-        for (let i = 0; i < 70; i++) {
-          const px = ((seed * (i + 1) * 13) & 0xffff) % d.w;
-          const py = ((seed * (i + 3) * 17) & 0xffff) % d.h;
-          const r = 25 + ((seed * (i + 5)) % 50);
-          oc.beginPath();
-          oc.ellipse(px, py, r, r * 0.7, 0, 0, Math.PI * 2);
-          oc.fill();
-        }
-        // 4. GLÖDANDE RÖDA SPRICKOR — 80 stycken jämnt utspridda
-        const crackCount = 80;
+      // CORNER-RADIAL: center 500px PAST map-edge så solid lila täcker bortom kanten.
+      // d.x+d.w = 11000, d.y+d.h = 11000. Center = (10500, 10500).
+      const radCenterWX = d.x + d.w - 500;  // 10500 i världs-coords
+      const radCenterWY = d.y + d.h - 500;
+      const radCx = radCenterWX - cx;
+      const radCy = radCenterWY - cy;
+      // Max radius = diagonal från center till NW-hörn av d.bbox = (6000, 6000)
+      // distance = sqrt((10500-6000)^2 + (10500-6000)^2) = sqrt(2)*4500 ≈ 6364
+      const maxR = Math.hypot(d.w - 500, d.h - 500);
+      // ============ LAYER 1: Solid lila bas (corner-radial) ============
+      const baseGrad = ctx.createRadialGradient(radCx, radCy, 0, radCx, radCy, maxR);
+      baseGrad.addColorStop(0.00, 'rgba(42, 24, 56, 1)');
+      baseGrad.addColorStop(0.55, 'rgba(42, 24, 56, 1)');     // solid ut till 55% av radien
+      baseGrad.addColorStop(0.72, 'rgba(42, 24, 56, 0.85)');
+      baseGrad.addColorStop(0.85, 'rgba(42, 24, 56, 0.55)');
+      baseGrad.addColorStop(0.95, 'rgba(42, 24, 56, 0.20)');
+      baseGrad.addColorStop(1.00, 'rgba(42, 24, 56, 0)');
+      ctx.fillStyle = baseGrad;
+      ctx.fillRect(x, y, d.w, d.h);
+      // Helper: alfa-faktor baserat på distance från radial-center (matchar gradient)
+      const alphaAt = (wx, wy) => {
+        const dist = Math.hypot(wx - radCenterWX, wy - radCenterWY);
+        const f = dist / maxR;
+        if (f < 0.55) return 1;
+        if (f >= 1) return 0;
+        if (f < 0.72) return 1 - (f - 0.55) / 0.17 * 0.15;
+        if (f < 0.85) return 0.85 - (f - 0.72) / 0.13 * 0.30;
+        if (f < 0.95) return 0.55 - (f - 0.85) / 0.10 * 0.35;
+        return 0.20 - (f - 0.95) / 0.05 * 0.20;
+      };
+      // ============ LAYER 2: Sotfläckar (deterministic, fade-aware) ============
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+      for (let i = 0; i < 70; i++) {
+        const pxw = d.x + ((seed * (i + 7) * 19) & 0xffff) % d.w;
+        const pyw = d.y + ((seed * (i + 11) * 23) & 0xffff) % d.h;
+        const a = alphaAt(pxw, pyw);
+        if (a <= 0.02) continue;
+        const px = pxw - cx, py = pyw - cy;
+        ctx.globalAlpha = 0.55 * a;
+        ctx.beginPath();
+        ctx.ellipse(px, py, 18 + ((seed * i) % 14), 11 + ((seed * i) % 8), (seed * i) % 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+      // ============ LAYER 3: GLÖDANDE RÖDA SPRICKOR — utspridda över hela alien-bbox ============
+      // Bygg crack-paths (cache i state) — bara position, ritas varje frame med fade
+      if (!state._alienCracks || state._alienCracks.key !== d.x + '_' + d.y + '_' + d.w + '_' + d.h) {
+        const crackCount = 120;
         const cracks = [];
         for (let i = 0; i < crackCount; i++) {
-          const cxw = ((seed * (i + 1) * 71) & 0xffff) % d.w;
-          const cyw = ((seed * (i + 5) * 113) & 0xffff) % d.h;
-          const a = ((seed * (i + 3) * 73) % 6283) / 1000;
+          const cxw = d.x + ((seed * (i + 1) * 71) & 0xffff) % d.w;
+          const cyw = d.y + ((seed * (i + 5) * 113) & 0xffff) % d.h;
+          const ang0 = ((seed * (i + 3) * 73) % 6283) / 1000;
           const length = 70 + ((seed * (i + 7) * 17) & 0x7f);
           const path = [];
           const segs = 4 + (i % 3);
           for (let s = 0; s <= segs; s++) {
             const f = s / segs;
             const wobble = ((seed * (i + 1) * (s + 11) * 41) % 200 - 100) * 0.001;
-            const ang = a + wobble;
+            const ang = ang0 + wobble;
             path.push({ x: cxw + Math.cos(ang) * length * f, y: cyw + Math.sin(ang) * length * f });
           }
           cracks.push(path);
         }
-        oc.lineCap = 'round';
-        oc.lineJoin = 'round';
-        // Yttre röd halo (bred)
-        oc.strokeStyle = 'rgba(255, 30, 40, 0.30)';
-        oc.lineWidth = 11;
-        for (const path of cracks) {
-          oc.beginPath();
-          oc.moveTo(path[0].x, path[0].y);
-          for (let s = 1; s < path.length; s++) oc.lineTo(path[s].x, path[s].y);
-          oc.stroke();
-        }
-        // Mid orange-röd
-        oc.strokeStyle = 'rgba(255, 90, 50, 0.55)';
-        oc.lineWidth = 5;
-        for (const path of cracks) {
-          oc.beginPath();
-          oc.moveTo(path[0].x, path[0].y);
-          for (let s = 1; s < path.length; s++) oc.lineTo(path[s].x, path[s].y);
-          oc.stroke();
-        }
-        // Tunn orange
-        oc.strokeStyle = 'rgba(255, 140, 70, 0.78)';
-        oc.lineWidth = 2.5;
-        for (const path of cracks) {
-          oc.beginPath();
-          oc.moveTo(path[0].x, path[0].y);
-          for (let s = 1; s < path.length; s++) oc.lineTo(path[s].x, path[s].y);
-          oc.stroke();
-        }
-        // Inre lava-kärna (gul-vit)
-        oc.strokeStyle = 'rgba(255, 230, 150, 0.95)';
-        oc.lineWidth = 1.3;
-        for (const path of cracks) {
-          oc.beginPath();
-          oc.moveTo(path[0].x, path[0].y);
-          for (let s = 1; s < path.length; s++) oc.lineTo(path[s].x, path[s].y);
-          oc.stroke();
-        }
-        // 5. FADE-MASK via destination-out på TOP + VÄNSTER (skog syns igenom)
-        oc.globalCompositeOperation = 'destination-out';
-        const leftMask = oc.createLinearGradient(0, 0, FADE, 0);
-        leftMask.addColorStop(0, 'rgba(0,0,0,1)');
-        leftMask.addColorStop(1, 'rgba(0,0,0,0)');
-        oc.fillStyle = leftMask;
-        oc.fillRect(0, 0, FADE, d.h);
-        const topMask = oc.createLinearGradient(0, 0, 0, FADE);
-        topMask.addColorStop(0, 'rgba(0,0,0,1)');
-        topMask.addColorStop(1, 'rgba(0,0,0,0)');
-        oc.fillStyle = topMask;
-        oc.fillRect(0, 0, d.w, FADE);
-        state._alienFloorCache = { key: cacheKey, canvas: off };
+        state._alienCracks = { key: d.x + '_' + d.y + '_' + d.w + '_' + d.h, cracks };
       }
-      // Rita cachen
-      ctx.drawImage(state._alienFloorCache.canvas, x, y);
-      // ANIMERAD OVERLAY: pulserande lila + gröna prickar (respekt fade-zon)
-      const fadeAlpha = (px, py) => {
-        const fLeft = Math.min(1, (px - x) / FADE);
-        const fTop = Math.min(1, (py - y) / FADE);
-        return Math.max(0, Math.min(fLeft, fTop));
+      const cracks = state._alienCracks.cracks;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      // Render cracks i 4 lager (yttre halo → mid → tunn → kärna). Per-crack alpha
+      // baserad på midten-pos i corner-radial-fadezonen.
+      const drawCrackLayer = (strokeStyle, lineWidth, alphaMul) => {
+        ctx.lineWidth = lineWidth;
+        for (const path of cracks) {
+          const mid = path[Math.floor(path.length / 2)];
+          const a = alphaAt(mid.x, mid.y);
+          if (a <= 0.05) continue;
+          ctx.globalAlpha = a * alphaMul;
+          ctx.strokeStyle = strokeStyle;
+          ctx.beginPath();
+          ctx.moveTo(path[0].x - cx, path[0].y - cy);
+          for (let s = 1; s < path.length; s++) ctx.lineTo(path[s].x - cx, path[s].y - cy);
+          ctx.stroke();
+        }
       };
-      // Pulserande lila glow-prickar
-      for (let i = 0; i < 25; i++) {
-        const px = x + ((seed * (i + 23) * 41) & 0xffff) % d.w;
-        const py = y + ((seed * (i + 29) * 47) & 0xffff) % d.h;
-        const a = fadeAlpha(px, py);
-        if (a <= 0) continue;
+      drawCrackLayer('rgb(255, 30, 40)', 11, 0.30);
+      drawCrackLayer('rgb(255, 90, 50)', 5, 0.55);
+      drawCrackLayer('rgb(255, 140, 70)', 2.5, 0.78);
+      drawCrackLayer('rgb(255, 230, 150)', 1.3, 0.95);
+      ctx.globalAlpha = 1;
+      // ============ LAYER 4: Pulserande lila glow-prickar ============
+      for (let i = 0; i < 50; i++) {
+        const pxw = d.x + ((seed * (i + 23) * 41) & 0xffff) % d.w;
+        const pyw = d.y + ((seed * (i + 29) * 47) & 0xffff) % d.h;
+        const a = alphaAt(pxw, pyw);
+        if (a <= 0.05) continue;
+        const px = pxw - cx, py = pyw - cy;
         const radius = 5 + ((seed * (i + 7)) % 7);
-        ctx.fillStyle = 'rgba(180, 70, 230, ' + (0.42 * pulse * a) + ')';
+        ctx.globalAlpha = 0.42 * pulse * a;
+        ctx.fillStyle = 'rgb(180, 70, 230)';
         ctx.beginPath();
         ctx.ellipse(px, py, radius * 1.3, radius * 0.8, 0, 0, Math.PI * 2);
         ctx.fill();
       }
-      // Gröna alien-energi-prickar
-      ctx.fillStyle = 'rgba(120, 255, 150, ' + (0.5 * pulse) + ')';
-      for (let i = 0; i < 45; i++) {
-        const px = x + ((seed * (i + 13) * 29) & 0xffff) % d.w;
-        const py = y + ((seed * (i + 17) * 31) & 0xffff) % d.h;
-        const a = fadeAlpha(px, py);
-        if (a <= 0) continue;
+      ctx.globalAlpha = 1;
+      // ============ LAYER 5: Gröna alien-energi-prickar ============
+      for (let i = 0; i < 70; i++) {
+        const pxw = d.x + ((seed * (i + 13) * 29) & 0xffff) % d.w;
+        const pyw = d.y + ((seed * (i + 17) * 31) & 0xffff) % d.h;
+        const a = alphaAt(pxw, pyw);
+        if (a <= 0.05) continue;
+        const px = pxw - cx, py = pyw - cy;
         ctx.globalAlpha = 0.5 * pulse * a;
+        ctx.fillStyle = 'rgb(120, 255, 150)';
         ctx.fillRect(px, py, 2.5, 2.5);
       }
       ctx.globalAlpha = 1;
