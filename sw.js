@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v362-grenade-svg-120dmg-sandbox-unlimited';
+const CACHE = 'penetrator-v363-grenade-marker-melee-crosshair-sandbox-dash';
 const ASSETS = [
   './',
   './index.html',

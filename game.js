@@ -12533,9 +12533,15 @@ function tryDash() {
   // resettas aldrig till 0) → spelaren kunde bara dasha en gång per run. Använd
   // jämförelse mot now istället så bara *aktiv* dash blockar.
   const _now = performance.now();
+  // SANDBOX: ingen cooldown — spamma fritt för testning.
   // JUG har egen kortare cooldown (1s istället för default). Default-CD används
   // för alla andra spelare i alla modes.
-  const cdMs = (state.juggernautActive && p.isJug && p.dashCdMs) ? p.dashCdMs : DASH_COOLDOWN_MS;
+  let cdMs;
+  if (typeof isSandboxMode === 'function' && isSandboxMode()) {
+    cdMs = 0;
+  } else {
+    cdMs = (state.juggernautActive && p.isJug && p.dashCdMs) ? p.dashCdMs : DASH_COOLDOWN_MS;
+  }
   if (!p || p.dashUntil > _now || p.dashCdAt > _now - cdMs) return;
   const mx = input.moveX || (input.keys.has('w') ? 0 : 0) + (input.keys.has('s') ? 0 : 0);
   const my = input.moveY;
@@ -13182,7 +13188,8 @@ const GRENADE_MAX_RANGE = 225;
 const GRENADE_AIM_DEADZONE = 6;
 const GRENADE_DRAG_SCALE = 2.5;
 const GRENADE_FLIGHT_MS = 800;
-const GRENADE_RADIUS = 85;
+const GRENADE_RADIUS = 85;           // damage AOE-radie (oförändrad)
+const GRENADE_VISUAL_RADIUS = 22;    // visuell landing-marker (75% mindre än AOE)
 const GRENADE_DAMAGE = 120;          // direct hit dmg (var 70)
 // Sandbox = obegränsat antal granater (count visas som "∞")
 function isSandboxMode() {
@@ -13445,22 +13452,25 @@ function drawGrenadeReticle() {
   ctx.lineTo(ex, ey);
   ctx.stroke();
   ctx.setLineDash([]);
-  // Landing-circle (AOE-radius)
-  ctx.fillStyle = 'rgba(255, 170, 48, 0.16)';
-  ctx.globalAlpha = 0.85;
+  // Landing-marker (liten visuell impact-cirkel — damage-AOE är större men
+  // visas inte för att inte överbelasta UI). 75% mindre än damage-radien.
+  const VR = GRENADE_VISUAL_RADIUS;
+  ctx.fillStyle = 'rgba(255, 170, 48, 0.22)';
+  ctx.globalAlpha = 0.90;
   ctx.beginPath();
-  ctx.arc(ex, ey, GRENADE_RADIUS, 0, Math.PI * 2);
+  ctx.arc(ex, ey, VR, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = '#ffaa30';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(ex, ey, GRENADE_RADIUS, 0, Math.PI * 2);
+  ctx.arc(ex, ey, VR, 0, Math.PI * 2);
   ctx.stroke();
-  // Center cross
-  ctx.lineWidth = 1.5;
+  // Center cross (skalat efter visual radius)
+  ctx.lineWidth = 1.4;
+  const CX = Math.min(6, VR - 4);
   ctx.beginPath();
-  ctx.moveTo(ex - 9, ey); ctx.lineTo(ex + 9, ey);
-  ctx.moveTo(ex, ey - 9); ctx.lineTo(ex, ey + 9);
+  ctx.moveTo(ex - CX, ey); ctx.lineTo(ex + CX, ey);
+  ctx.moveTo(ex, ey - CX); ctx.lineTo(ex, ey + CX);
   ctx.stroke();
   // Center dot
   ctx.fillStyle = '#ffaa30';
@@ -32067,6 +32077,21 @@ function drawForestGround(stage, cx, cy) {
 //   v1.354: vapen-specifika reticles (shotgun-kon, AOE) = för mycket info
 //   v1.355: bara direction-arrow = för lite info
 //   v1.356: klassisk crosshair-look vid FIXED impact-point — sweet spot.
+// Melee-vapen kategoriserade efter attack-stil:
+//   punch: korta arc — fists/knuckles
+//   thrust: smal forward-linje — knife/spear
+//   slash: medel arc 90° — sword-typer
+//   heavy: bred arc 120° — tunga vapen
+//   whip: lång böjd dashed — whip
+const MELEE_CATEGORY = {
+  fists: 'punch', knuckles: 'punch',
+  knife: 'thrust', spear: 'thrust',
+  machete: 'slash', sickle: 'slash', katana: 'slash',
+  energysword: 'slash', lightsaber: 'slash',
+  bat: 'heavy', axe: 'heavy', mace: 'heavy', sledge: 'heavy',
+  whip: 'whip',
+};
+
 function drawAimCrosshair() {
   if (!state.player || state.player.spectating) return;
   if (state.mode !== 'playing') return;
@@ -32079,6 +32104,12 @@ function drawAimCrosshair() {
   const ax = Math.cos(aimAng), ay = Math.sin(aimAng);
   const w = (typeof getWeapon === 'function') ? getWeapon(p.weaponId) : null;
   const color = (w && w.color) || '#ffd54a';
+  // ========== MELEE: vapen-specifik crosshair (visar EXAKT där det träffar) ==========
+  if (w && w.type === 'melee') {
+    drawMeleeCrosshair(p, w, px, py, aimAng, ax, ay, color);
+    return;
+  }
+  // ========== GUN: CS 1.6-style crosshair ==========
   // Fast 200px — INGEN info om vapen-räckvidd. Universellt vapen-utseende.
   const RANGE = 200;
   const startOff = (p.r || 14) + 4;
@@ -32087,7 +32118,6 @@ function drawAimCrosshair() {
   const ex = px + ax * (startOff + RANGE);
   const ey = py + ay * (startOff + RANGE);
   ctx.save();
-  // ========== 1) Dashed guide-line från player (extremt subtle) ==========
   ctx.strokeStyle = color;
   ctx.globalAlpha = 0.18;
   ctx.lineWidth = 1.5;
@@ -32098,28 +32128,165 @@ function drawAimCrosshair() {
   ctx.lineTo(ex, ey);
   ctx.stroke();
   ctx.setLineDash([]);
-  ctx.lineCap = 'butt'; // återställ för crisp CS-linjer
-  // ========== 2) CS 1.6-style crosshair: 4 perpendikulära linjer, INGEN ring ==========
-  // Klassisk Counter-Strike 1.6 reticle: gap i mitten + 4 korta linjer = "+".
-  // Mer kompakt än ring-versionen, smälter in i scenen.
-  const GAP = 3;   // inre gap från center
-  const LEN = 5;   // line length utåt
+  ctx.lineCap = 'butt';
+  const GAP = 3, LEN = 5;
   ctx.globalAlpha = 0.60;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  // Vänster linje
   ctx.moveTo(ex - GAP - LEN, ey); ctx.lineTo(ex - GAP, ey);
-  // Höger linje
   ctx.moveTo(ex + GAP, ey); ctx.lineTo(ex + GAP + LEN, ey);
-  // Upp linje
   ctx.moveTo(ex, ey - GAP - LEN); ctx.lineTo(ex, ey - GAP);
-  // Ner linje
   ctx.moveTo(ex, ey + GAP); ctx.lineTo(ex, ey + GAP + LEN);
   ctx.stroke();
-  // Center dot — 1px pixel-perfect (CS 1.6-look)
   ctx.globalAlpha = 0.85;
   ctx.fillStyle = color;
   ctx.fillRect(ex - 0.5, ey - 0.5, 1, 1);
+  ctx.restore();
+}
+
+// Melee crosshair — visar EXAKT träff-zon per vapen (range + arc-form per typ).
+function drawMeleeCrosshair(p, w, px, py, aimAng, ax, ay, color) {
+  const category = MELEE_CATEGORY[w.id] || 'slash';
+  // Effektiv räckvidd = weapon.range × player melee-multiplier (om finns)
+  const range = (w.range || 40) * (p.mrangeMul || 1);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  if (category === 'punch') {
+    // Kort 60° kon vid range — fists/knuckles
+    const arcSpan = Math.PI / 3;
+    // Fyllt arc-segment (subtilt)
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.10;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.arc(px, py, range, aimAng - arcSpan / 2, aimAng + arcSpan / 2);
+    ctx.closePath();
+    ctx.fill();
+    // Yttre båge
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(px, py, range, aimAng - arcSpan / 2, aimAng + arcSpan / 2);
+    ctx.stroke();
+    // Impact-dot vid räckvidd-centrum
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(px + ax * range, py + ay * range, 3, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (category === 'thrust') {
+    // Smal forward-linje + pilspets — knife/spear
+    const startOff = (p.r || 14) + 2;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(px + ax * startOff, py + ay * startOff);
+    ctx.lineTo(px + ax * range, py + ay * range);
+    ctx.stroke();
+    // Pilspets (tip-marker)
+    ctx.globalAlpha = 0.80;
+    ctx.fillStyle = color;
+    const tx = px + ax * range, ty = py + ay * range;
+    const TIP = 7;
+    ctx.beginPath();
+    ctx.moveTo(tx + ax * TIP, ty + ay * TIP);
+    ctx.lineTo(tx + Math.cos(aimAng + 2.4) * TIP, ty + Math.sin(aimAng + 2.4) * TIP);
+    ctx.lineTo(tx + Math.cos(aimAng - 2.4) * TIP, ty + Math.sin(aimAng - 2.4) * TIP);
+    ctx.closePath();
+    ctx.fill();
+    // Tunna sido-streck för att markera narrow-hitbox
+    ctx.globalAlpha = 0.30;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(px + Math.cos(aimAng + Math.PI/2) * 6 + ax * startOff, py + Math.sin(aimAng + Math.PI/2) * 6 + ay * startOff);
+    ctx.lineTo(px + Math.cos(aimAng + Math.PI/2) * 4 + ax * range, py + Math.sin(aimAng + Math.PI/2) * 4 + ay * range);
+    ctx.moveTo(px + Math.cos(aimAng - Math.PI/2) * 6 + ax * startOff, py + Math.sin(aimAng - Math.PI/2) * 6 + ay * startOff);
+    ctx.lineTo(px + Math.cos(aimAng - Math.PI/2) * 4 + ax * range, py + Math.sin(aimAng - Math.PI/2) * 4 + ay * range);
+    ctx.stroke();
+  } else if (category === 'slash') {
+    // 90° bågsegment + radii — sword-typer (visar slash-zon)
+    const arcSpan = Math.PI / 2;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.08;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.arc(px, py, range, aimAng - arcSpan / 2, aimAng + arcSpan / 2);
+    ctx.closePath();
+    ctx.fill();
+    // Yttre båge
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(px, py, range, aimAng - arcSpan / 2, aimAng + arcSpan / 2);
+    ctx.stroke();
+    // Radii (sida-strålar)
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    const startOff = (p.r || 14) + 2;
+    ctx.moveTo(px + Math.cos(aimAng - arcSpan/2) * startOff, py + Math.sin(aimAng - arcSpan/2) * startOff);
+    ctx.lineTo(px + Math.cos(aimAng - arcSpan/2) * range, py + Math.sin(aimAng - arcSpan/2) * range);
+    ctx.moveTo(px + Math.cos(aimAng + arcSpan/2) * startOff, py + Math.sin(aimAng + arcSpan/2) * startOff);
+    ctx.lineTo(px + Math.cos(aimAng + arcSpan/2) * range, py + Math.sin(aimAng + arcSpan/2) * range);
+    ctx.stroke();
+    // Mitt-tick
+    ctx.globalAlpha = 0.55;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(px + ax * range, py + ay * range, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (category === 'heavy') {
+    // 120° bred båge + fyllning — tunga vapen (sledge/axe/etc)
+    const arcSpan = 2 * Math.PI / 3;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.12;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.arc(px, py, range, aimAng - arcSpan / 2, aimAng + arcSpan / 2);
+    ctx.closePath();
+    ctx.fill();
+    // Tjock yttre båge
+    ctx.globalAlpha = 0.60;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(px, py, range, aimAng - arcSpan / 2, aimAng + arcSpan / 2);
+    ctx.stroke();
+    // Radii
+    ctx.globalAlpha = 0.30;
+    ctx.lineWidth = 1.5;
+    const startOff = (p.r || 14) + 2;
+    ctx.beginPath();
+    ctx.moveTo(px + Math.cos(aimAng - arcSpan/2) * startOff, py + Math.sin(aimAng - arcSpan/2) * startOff);
+    ctx.lineTo(px + Math.cos(aimAng - arcSpan/2) * range, py + Math.sin(aimAng - arcSpan/2) * range);
+    ctx.moveTo(px + Math.cos(aimAng + arcSpan/2) * startOff, py + Math.sin(aimAng + arcSpan/2) * startOff);
+    ctx.lineTo(px + Math.cos(aimAng + arcSpan/2) * range, py + Math.sin(aimAng + arcSpan/2) * range);
+    ctx.stroke();
+  } else if (category === 'whip') {
+    // Lång böjd dashed-linje + tip — whip
+    const startOff = (p.r || 14) + 2;
+    ctx.globalAlpha = 0.50;
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 4]);
+    // Quadratic-böjd kurva (sino-shape)
+    const midOffset = range * 0.22;
+    const perp = aimAng + Math.PI / 2;
+    const midX = px + ax * range * 0.5 + Math.cos(perp) * midOffset;
+    const midY = py + ay * range * 0.5 + Math.sin(perp) * midOffset;
+    ctx.beginPath();
+    ctx.moveTo(px + ax * startOff, py + ay * startOff);
+    ctx.quadraticCurveTo(midX, midY, px + ax * range, py + ay * range);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Tip-dot
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(px + ax * range, py + ay * range, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
   ctx.restore();
 }
 
