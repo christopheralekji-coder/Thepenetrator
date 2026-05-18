@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v346-br-alien-corner-radial-past-edge-no-green';
+const CACHE = 'penetrator-v347-ctf-tdm-siege-only-teammate-arrows';
 const ASSETS = [
   './',
   './index.html',

@@ -9600,13 +9600,33 @@ function drawCoopPartner() {
       p.scaleMul = (Coop.juggernautScale || 1.4);
       p.maxHp = Coop.juggernautHpMax || 500;
     }
-    // Off-screen check (rita pil mot dem istället)
+    // Off-screen check (rita pil mot dem istället).
+    // Regel: man ska BARA se pil till TEAMMATES, inte till motståndare.
     if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) {
       // Hunters ska INTE se pil mot JUG (bara minimap-puls var 5s).
       const skipJugArrow = partnerIsJug && state.player && !state.player.isJug;
-      // BR: ingen pil mot motståndare — det ska INTE vara enkelt att se var de är
+      // BR: FFA — ingen pil mot någon motståndare.
       const skipBrArrow = state.battleroyaleActive;
-      if (!skipJugArrow && !skipBrArrow) drawOffscreenPartner(p, x, y);
+      // Gungame + KOTH: FFA — ingen pil mot någon motståndare.
+      const skipFfaArrow = state.gungameActive || state.kothActive;
+      // CTF/TDM/Siege: TEAM-MODES — pil bara mot SAMMA team
+      let isEnemyTeam = false;
+      if (state.ctfActive && Coop.ctfTeams) {
+        const myT = Coop.ctfTeams[Coop.myId];
+        const theirT = Coop.ctfTeams[pid];
+        if (myT && theirT && myT !== theirT) isEnemyTeam = true;
+      } else if (state.tdmActive && Coop.tdmTeams) {
+        const myT = Coop.tdmTeams[Coop.myId];
+        const theirT = Coop.tdmTeams[pid];
+        if (myT && theirT && myT !== theirT) isEnemyTeam = true;
+      } else if (state.siegeActive && Coop.siegeTeams) {
+        const myT = Coop.siegeTeams[Coop.myId];
+        const theirT = Coop.siegeTeams[pid];
+        if (myT && theirT && myT !== theirT) isEnemyTeam = true;
+      }
+      if (!skipJugArrow && !skipBrArrow && !skipFfaArrow && !isEnemyTeam) {
+        drawOffscreenPartner(p, x, y);
+      }
       continue;
     }
     const color = PLAYER_COLORS[p.colorIdx % PLAYER_COLORS.length];
