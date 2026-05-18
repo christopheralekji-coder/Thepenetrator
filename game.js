@@ -15174,6 +15174,8 @@ const Coop = {
     if (ev.type === 'tdm_started') {
       // PvP-läge initierat — spara team-roster och visa banner
       if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
+      if (typeof clearBattleroyaleState === 'function') clearBattleroyaleState();
+      state._pendingServerMode = null;
       // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
       if (typeof hideCtfHud === 'function') hideCtfHud();
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
@@ -15348,6 +15350,8 @@ const Coop = {
       }
     } else if (ev.type === 'ctf_started') {
       if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
+      if (typeof clearBattleroyaleState === 'function') clearBattleroyaleState();
+      state._pendingServerMode = null;
       // CTF-läge initierat — spara arena + walls + flag-positions + teams
       // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
       if (typeof hideTdmHud === 'function') hideTdmHud();
@@ -15790,6 +15794,8 @@ const Coop = {
       }
     } else if (ev.type === 'siege_started') {
       if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
+      if (typeof clearBattleroyaleState === 'function') clearBattleroyaleState();
+      state._pendingServerMode = null;
       // Server-shape: { targetPoints, teams, arena, spawns, walls, cores, bases,
       //                 turrets, turretEnterRadius, captureTimeSec, decorations,
       //                 pvpPickups, shieldMax }
@@ -16069,6 +16075,8 @@ const Coop = {
       }
     } else if (ev.type === 'koth_started') {
       if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
+      if (typeof clearBattleroyaleState === 'function') clearBattleroyaleState();
+      state._pendingServerMode = null;
       // KOTH FFA. ev: { arena, walls, spawns, zones, activeZoneIdx, zoneRotateSec, targetPoints, shieldMax }
       if (typeof hideTdmHud === 'function') hideTdmHud();
       if (typeof hideCtfHud === 'function') hideCtfHud();
@@ -16208,6 +16216,8 @@ const Coop = {
       }
     } else if (ev.type === 'gungame_started') {
       if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
+      if (typeof clearBattleroyaleState === 'function') clearBattleroyaleState();
+      state._pendingServerMode = null;
       // FFA 15-tier mode. ev: { arena, walls, spawns, decorations, weapons, totalTiers, shieldMax }
       // Säkerställ mutual exclusion mellan PvP-modes — göm övriga HUDs
       if (typeof hideTdmHud === 'function') hideTdmHud();
@@ -16396,6 +16406,8 @@ const Coop = {
       // Anti-läck: restore sandbox-state INNAN match-start så obegränsat-gold
       // + alla-vapen-buff inte syns/läcker in i PvP.
       if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
+      if (typeof clearBattleroyaleState === 'function') clearBattleroyaleState();
+      state._pendingServerMode = null;
       if (typeof hideTdmHud === 'function') hideTdmHud();
       if (typeof hideCtfHud === 'function') hideCtfHud();
       if (typeof hideSiegeHud === 'function') hideSiegeHud();
@@ -16703,6 +16715,7 @@ const Coop = {
       state.tdmActive = false; state.ctfActive = false; state.siegeActive = false;
       state.gungameActive = false; state.kothActive = false; state.juggernautActive = false;
       state.companion = null;
+      state._pendingServerMode = null; // BR confirmed — släck loading-overlay
       this.battleroyaleActive = true;
       state.battleroyaleActive = true;
       state.battleroyalePhase = ev.currentPhase || 0;
@@ -24366,6 +24379,23 @@ function actuallyStartGame() {
   // Anti-läck: ALLTID restore sandbox-snapshot innan ny game-start. Garanterar
   // att sandbox-state aldrig leakas in i nästa mode oavsett exit-path.
   restoreSandboxIfNeeded();
+  // v1.372: ALLTID full BR-state cleanup vid game-start så BR-state inte läcker
+  // till sandbox/story/PvP-modes via menu → playing-transitions.
+  if (typeof clearBattleroyaleState === 'function') clearBattleroyaleState();
+  // v1.372: Coop PvP/BR har server-driven mode. Sätt _pendingServerMode-flag
+  // så render skippar default-stage tills server-mode-event arriverar (annars
+  // syns "original mapen i en sekund" innan BR-stage laddas).
+  state._pendingServerMode = null;
+  if (Coop.active && Coop.config) {
+    const c = Coop.config;
+    if (c.battleroyale) state._pendingServerMode = 'battleroyale';
+    else if (c.tdm) state._pendingServerMode = 'tdm';
+    else if (c.ctf) state._pendingServerMode = 'ctf';
+    else if (c.siege) state._pendingServerMode = 'siege';
+    else if (c.gungame) state._pendingServerMode = 'gungame';
+    else if (c.koth) state._pendingServerMode = 'koth';
+    else if (c.juggernaut) state._pendingServerMode = 'juggernaut';
+  }
   // Coop: fresh-start varje run (ingen pengar/vapen/perks/upgrades carry-over)
   if (Coop.active) {
     // Snapshot bara FÖRSTA gången (om vi inte redan har en sparad).
@@ -26198,6 +26228,47 @@ function cleanupBrUI() {
   }
 }
 
+// v1.372: FULL BR-STATE CLEANUP. Anropas från ALLA mode-start-handlers (för att
+// förhindra att BR-state läcker när användaren går från BR till gungame/sandbox/
+// story etc.) samt från actuallyStartGame() (menu → playing transitions).
+//
+// Symptom som detta fixar: BR-mark visas i sandbox, BR-scoreboard visas i gungame,
+// "utanför zonen 2/hp"-warning visas i andra modes, etc.
+function clearBattleroyaleState() {
+  state.battleroyaleActive = false;
+  state.battleroyaleWalls = null;
+  state.battleroyaleDecorations = null;
+  state.battleroyaleCabins = null;
+  state.battleroyaleLoot = null;
+  state.battleroyaleZone = null;
+  state.battleroyaleZoneRender = null;
+  state.battleroyaleNextZone = null;
+  state.battleroyaleNextZoneRender = null;
+  state.battleroyalePhase = null;
+  state.battleroyalePhases = null;
+  state.battleroyaleAliveCount = 0;
+  state.battleroyaleMatchEndAt = null;
+  state.battleroyalePhaseEndAt = null;
+  state.battleroyaleStartedAt = null;
+  state.battleroyaleLootPickupRadius = null;
+  state.brWeaponTiers = null;
+  state._alienCracks = null; // cached crack-data (decoration-cache)
+  if (typeof Coop !== 'undefined') {
+    Coop.battleroyaleActive = false;
+  }
+  if (typeof cleanupBrUI === 'function') cleanupBrUI();
+  // Restore BR-modified inventory om backup finns (annars läcker BR-startvapen)
+  if (state._brOwnedBackup) {
+    save.owned = state._brOwnedBackup;
+    state._brOwnedBackup = null;
+  }
+  if (state._brEquippedBackup !== undefined) {
+    save.equipped = state._brEquippedBackup;
+    save.weaponId = state._brEquippedBackup;
+    state._brEquippedBackup = undefined;
+  }
+}
+
 function destroyBrEndOverlay() {
   const o = document.getElementById('br-end-overlay');
   if (o && o.parentNode) o.parentNode.removeChild(o);
@@ -26646,8 +26717,14 @@ function updatePvpShieldButton() {
   _btnPvpShield.style.setProperty('--shield-cd', cd.toFixed(3));
 }
 
-// Gungame: hide grenade-knapp och flytta dash → grenade-slot, shield → dash-slot.
-// Bara 2 knappar (dash nedtill, shield i mitten). Alla andra modes: defaults.
+// Gungame: hide grenade-knapp och flytta dash till bottom-most + shield till mitten.
+// Normal mode (v1.372 swapped layout):
+//   grenade = top    (138, 136)
+//   dash    = middle (165, 77)
+//   shield  = bottom (147, 14) — mest tillgänglig (defensive)
+// Gungame mode (bara 2 knappar):
+//   dash    = bottom (147, 14) — ersätter granat
+//   shield  = middle (165, 77) — över dash
 const _btnDashEl = document.getElementById('btn-dash');
 let _lastGgLayout = null;
 function updateGungameButtonLayout() {
@@ -26658,25 +26735,25 @@ function updateGungameButtonLayout() {
     _btnGrenade.style.display = isGg ? 'none' : '';
   }
   if (isGg) {
-    // Dash → grenade-slot (bottom-most)
+    // Dash → bottom (där shield normalt är)
     if (_btnDashEl) {
       _btnDashEl.style.setProperty('right', '147px', 'important');
       _btnDashEl.style.setProperty('bottom', '14px', 'important');
     }
-    // Shield → dash-slot (mitten)
+    // Shield → mitten (där dash normalt är)
     if (_btnPvpShield) {
       _btnPvpShield.style.setProperty('right', '165px', 'important');
       _btnPvpShield.style.setProperty('bottom', '77px', 'important');
     }
   } else {
-    // Restore defaults
+    // Restore swapped defaults (v1.372)
     if (_btnDashEl) {
       _btnDashEl.style.setProperty('right', '165px', 'important');
       _btnDashEl.style.setProperty('bottom', '77px', 'important');
     }
     if (_btnPvpShield) {
-      _btnPvpShield.style.setProperty('right', '138px', 'important');
-      _btnPvpShield.style.setProperty('bottom', '136px', 'important');
+      _btnPvpShield.style.setProperty('right', '147px', 'important');
+      _btnPvpShield.style.setProperty('bottom', '14px', 'important');
     }
   }
 }
@@ -38880,10 +38957,15 @@ function drawParticle(p) {
     return;
   }
   if (p.isExplosion) {
+    // v1.372: ctx.arc kastar exception om radius är negativ. För life > 0.667
+    // (vanligt vid grenade-smoke life=0.8) blir uttrycket negativt — render()
+    // aborterar då mitt i frame → minimapen försvinner. Clamp till 0.
+    const expR = Math.max(0, p.r * (1 - p.life * 1.5));
+    if (expR <= 0) return;
     ctx.fillStyle = p.color;
-    ctx.globalAlpha = p.life * 2;
+    ctx.globalAlpha = Math.min(1, p.life * 2);
     ctx.beginPath();
-    ctx.arc(x, y, p.r * (1 - p.life * 1.5), 0, Math.PI*2);
+    ctx.arc(x, y, expR, 0, Math.PI*2);
     ctx.fill();
     ctx.globalAlpha = 1;
     return;
@@ -39101,6 +39183,36 @@ function drawToast() {
 function render() {
   ctx.clearRect(0, 0, viewW, viewH);
   if (state.mode === 'menu' || !state.player) return;
+
+  // v1.372: Server-driven coop-mode startas. Skipa default-stage-rendering
+  // tills server bekräftar BR/TDM/etc — annars syns "original mapen i en
+  // sekund" innan rätt arena laddas. Safety-timeout: rensa flag efter 8s
+  // (server-sim failure) så vi inte fastnar i loading-overlay för alltid.
+  if (state._pendingServerMode) {
+    if (!state._pendingServerModeAt) state._pendingServerModeAt = performance.now();
+    if (performance.now() - state._pendingServerModeAt > 8000) {
+      state._pendingServerMode = null;
+      state._pendingServerModeAt = null;
+    } else {
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, viewW, viewH);
+      const pulse = 0.5 + Math.sin(performance.now() / 240) * 0.4;
+      ctx.fillStyle = 'rgba(58,202,255,' + pulse + ')';
+      ctx.font = 'bold 20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const label = String(state._pendingServerMode || '').toUpperCase();
+      ctx.fillText('⏳ VÄNTAR PÅ MATCH — ' + label + '...', viewW / 2, viewH / 2);
+      ctx.font = '12px sans-serif';
+      ctx.fillStyle = 'rgba(170,170,170,' + (0.6 * pulse) + ')';
+      ctx.fillText('Server-sync pågår', viewW / 2, viewH / 2 + 28);
+      return;
+    }
+  }
+  // Rensa timer när flag är borta
+  if (!state._pendingServerMode && state._pendingServerModeAt) {
+    state._pendingServerModeAt = null;
+  }
 
   // === Canvas state-isolation per frame ===
   // 117 saves vs 118 restores i game.js (1 extra restore) → en draw-funktion
@@ -40523,11 +40635,12 @@ function runFrame(dt, now) {
     if (typeof resetGrenadesForMatch === 'function') resetGrenadesForMatch();
   }
   // BR-UI cleanup: när mode TRANSITIONERAR från 'playing' till något annat
-  // (menu/gameover/etc), nuka alla BR-DOM-element så scoreboarden inte läcker
-  // in i menyn — oavsett vilken exit-path som användes (LOBBY-knapp, pause-quit,
-  // disconnect, etc).
+  // (menu/gameover/etc), nuka alla BR-DOM-element OCH full BR-state cleanup
+  // så inget läcker till menu/nästa mode — oavsett vilken exit-path (LOBBY-knapp,
+  // pause-quit, disconnect, etc).
   if (state._prevMode === 'playing' && state.mode !== 'playing') {
-    if (typeof cleanupBrUI === 'function') cleanupBrUI();
+    if (typeof clearBattleroyaleState === 'function') clearBattleroyaleState();
+    state._pendingServerMode = null;
   }
   state._prevMode = state.mode;
 
