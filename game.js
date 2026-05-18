@@ -31701,19 +31701,15 @@ function drawForestGround(stage, cx, cy) {
   ctx.setLineDash([]);
 }
 
-// === AIM CROSSHAIR ===
-// Top-down twin-stick reticle inspirerad av Brawl Stars / Bullet Echo:
-// - Dashed aim-linje från spelaren mot reticle-position
-// - Reticle vid impact-point (player + aim_dir × weapon_range)
-// - Vapen-specifik form: shotgun = spread-kon, sniper = liten dot+ring,
-//   melee = bågsegment, explosive = AOE-cirkel, default = + reticle.
-// Visas BARA när input.firing — annars hidden så den inte skymmer sikten.
+// === AIM-INDIKATOR (kort riktnings-arrow) ===
+// MEDVETET MINIMAL design: visar BARA riktning, inte exakt impact-point.
+// Liknar Brawl Stars i sin enklaste form — kort tunn linje med pilspets.
+// Inga vapen-specifika reticles (spread-kon, AOE-cirkel etc) eftersom det
+// gav för mycket tactical info. Spelaren ser VAR de pekar, inte VAR de träffar.
 function drawAimCrosshair() {
   if (!state.player || state.player.spectating) return;
   if (state.mode !== 'playing') return;
   if (!input.firing) return;
-  // Auto-aim kan ändra player.aimAngle bortom input.aim. Använd player.aimAngle
-  // som "sanning" så crosshair matchar var bullets ACTUALLY går.
   const p = state.player;
   if (typeof p.aimAngle !== 'number') return;
   const px = p.x - state.camera.x;
@@ -31722,128 +31718,34 @@ function drawAimCrosshair() {
   const ax = Math.cos(aimAng), ay = Math.sin(aimAng);
   const w = (typeof getWeapon === 'function') ? getWeapon(p.weaponId) : null;
   const color = (w && w.color) || '#ffd54a';
-  // Vapen-specifik konfiguration
-  let lineLen, reticleR, mode = 'standard';
-  if (!w || w.type === 'melee') {
-    lineLen = (w && w.range ? w.range * 0.95 : 42);
-    reticleR = 16;
-    mode = 'melee';
-  } else if (w.id === 'shotgun') {
-    lineLen = 200;
-    reticleR = 26;
-    mode = 'spread';
-  } else if (w.id === 'sniper' || w.id === 'railgun' || w.id === 'crossbow') {
-    lineLen = 360;
-    reticleR = 9;
-    mode = 'precision';
-  } else if (w.explosive || w.id === 'rocket' || w.id === 'grenade') {
-    lineLen = 220;
-    reticleR = 32;
-    mode = 'aoe';
-  } else if (w.pierce || w.id === 'plasma' || w.id === 'sonic') {
-    lineLen = 260;
-    reticleR = 13;
-    mode = 'standard';
-  } else {
-    lineLen = 220;
-    reticleR = 13;
-  }
-  // Start-offset så linjen inte börjar inuti spelaren
-  const startOffset = (p.r || 14) + 6;
-  const sx = px + ax * startOffset;
-  const sy = py + ay * startOffset;
-  const endX = px + ax * lineLen;
-  const endY = py + ay * lineLen;
+  // Kort fast längd — INGEN info om vapen-räckvidd/AOE/spread.
+  // Bara visuell "vart jag pekar"-indikator.
+  const LEN = 70;
+  const startOff = (p.r || 14) + 4;
+  const sx = px + ax * startOff;
+  const sy = py + ay * startOff;
+  const ex = px + ax * (startOff + LEN);
+  const ey = py + ay * (startOff + LEN);
   ctx.save();
-  // ============ AIM-LINJE (dashed, fade vid slutet) ============
+  // Tunn solid linje
   ctx.strokeStyle = color;
-  ctx.globalAlpha = 0.55;
-  ctx.lineWidth = 2;
-  ctx.setLineDash([8, 6]);
+  ctx.globalAlpha = 0.50;
+  ctx.lineWidth = 2.5;
   ctx.lineCap = 'round';
   ctx.beginPath();
   ctx.moveTo(sx, sy);
-  ctx.lineTo(endX, endY);
+  ctx.lineTo(ex, ey);
   ctx.stroke();
-  ctx.setLineDash([]);
-  // ============ SHOTGUN SPREAD-KON (2 yttre linjer) ============
-  if (mode === 'spread') {
-    const SPREAD = 0.32; // ±18° kon
-    ctx.globalAlpha = 0.40;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(px + Math.cos(aimAng - SPREAD) * lineLen, py + Math.sin(aimAng - SPREAD) * lineLen);
-    ctx.moveTo(sx, sy);
-    ctx.lineTo(px + Math.cos(aimAng + SPREAD) * lineLen, py + Math.sin(aimAng + SPREAD) * lineLen);
-    ctx.stroke();
-  }
-  // ============ RETICLE ============
-  ctx.globalAlpha = 0.85;
-  ctx.lineWidth = 2.5;
-  if (mode === 'aoe') {
-    // AOE-cirkel: bredare outer + svagt fyllning för att visa explosion-radius
-    ctx.fillStyle = color;
-    ctx.globalAlpha = 0.18;
-    ctx.beginPath();
-    ctx.arc(endX, endY, reticleR, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.globalAlpha = 0.85;
-    ctx.beginPath();
-    ctx.arc(endX, endY, reticleR, 0, Math.PI * 2);
-    ctx.stroke();
-    // Inre cross
-    ctx.beginPath();
-    ctx.moveTo(endX - 7, endY); ctx.lineTo(endX + 7, endY);
-    ctx.moveTo(endX, endY - 7); ctx.lineTo(endX, endY + 7);
-    ctx.stroke();
-  } else if (mode === 'precision') {
-    // Liten dot + tunn ring (snipergevär)
-    ctx.beginPath();
-    ctx.arc(endX, endY, reticleR, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(endX, endY, 2, 0, Math.PI * 2);
-    ctx.fill();
-    // Tunna marker-streck på 4 håll
-    ctx.lineWidth = 1.5;
-    const L = reticleR + 6;
-    ctx.beginPath();
-    ctx.moveTo(endX - L, endY); ctx.lineTo(endX - reticleR - 2, endY);
-    ctx.moveTo(endX + reticleR + 2, endY); ctx.lineTo(endX + L, endY);
-    ctx.moveTo(endX, endY - L); ctx.lineTo(endX, endY - reticleR - 2);
-    ctx.moveTo(endX, endY + reticleR + 2); ctx.lineTo(endX, endY + L);
-    ctx.stroke();
-  } else if (mode === 'melee') {
-    // Bågsegment som visar slag-zon
-    const arcSpan = Math.PI / 3; // 60° bågslag
-    ctx.beginPath();
-    ctx.arc(px, py, lineLen, aimAng - arcSpan / 2, aimAng + arcSpan / 2);
-    ctx.stroke();
-    // Liten "impact"-cirkel vid centrum av bågen
-    ctx.beginPath();
-    ctx.arc(endX, endY, 6, 0, Math.PI * 2);
-    ctx.stroke();
-  } else if (mode === 'spread') {
-    // Shotgun: medium-stor open-ring vid centrum, indikerar nominell träffpunkt
-    ctx.beginPath();
-    ctx.arc(endX, endY, reticleR, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(endX - 7, endY); ctx.lineTo(endX + 7, endY);
-    ctx.moveTo(endX, endY - 7); ctx.lineTo(endX, endY + 7);
-    ctx.stroke();
-  } else {
-    // Standard: outer ring + + reticle
-    ctx.beginPath();
-    ctx.arc(endX, endY, reticleR, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(endX - 6, endY); ctx.lineTo(endX + 6, endY);
-    ctx.moveTo(endX, endY - 6); ctx.lineTo(endX, endY + 6);
-    ctx.stroke();
-  }
+  // Pilspets vid slutet
+  ctx.globalAlpha = 0.65;
+  ctx.fillStyle = color;
+  const TIP = 7;
+  ctx.beginPath();
+  ctx.moveTo(ex + ax * TIP, ey + ay * TIP);
+  ctx.lineTo(ex + Math.cos(aimAng + 2.4) * TIP, ey + Math.sin(aimAng + 2.4) * TIP);
+  ctx.lineTo(ex + Math.cos(aimAng - 2.4) * TIP, ey + Math.sin(aimAng - 2.4) * TIP);
+  ctx.closePath();
+  ctx.fill();
   ctx.restore();
 }
 

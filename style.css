@@ -701,21 +701,23 @@ html, body {
   border: 2px solid rgba(255, 255, 255, 0.55);
   box-shadow: 0 3px 12px rgba(0, 0, 0, 0.55), 0 0 18px rgba(255, 180, 60, 0.45);
 }
-/* Yttre joystick-ring som visas när man siktar — runt fire-knappen.
-   Större än knappen (140px) för att matcha movement-joystick visuell-stil
-   och ge tydlig "joystick boundary" för fingret. */
-.action-btn.fire::before {
-  content: '';
+/* Yttre joystick-ring (separat DOM-element för att undvika konflikt med
+   befintliga ::before/::after på fire-knappen — touch-area + reload-conic).
+   Cirkulär, perfekt rund, syns BARA när .aiming. */
+.fire-stick-ring {
   position: absolute;
-  inset: -28px;  /* 84 + 56 = 140px diameter */
+  top: 50%; left: 50%;
+  width: 140px; height: 140px;
+  margin: -70px 0 0 -70px;
   border-radius: 50%;
   border: 2px solid rgba(255, 213, 74, 0);
   background: rgba(0, 0, 0, 0);
   pointer-events: none;
   transition: border-color 0.12s, background 0.12s, box-shadow 0.12s;
   box-shadow: 0 0 0 0 rgba(255, 213, 74, 0);
+  z-index: -1; /* under fire-knob så ikonen syns ovanpå */
 }
-.action-btn.fire.aiming::before {
+.action-btn.fire.aiming .fire-stick-ring {
   border-color: rgba(255, 213, 74, 0.55);
   background: radial-gradient(circle at center, rgba(255, 213, 74, 0.06), rgba(0, 0, 0, 0.30));
   box-shadow: 0 0 24px rgba(255, 213, 74, 0.25), inset 0 0 18px rgba(255, 213, 74, 0.12);
