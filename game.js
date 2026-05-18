@@ -13167,9 +13167,9 @@ if (_btnDash) {
 // GRANATER — 5 per match, joystick-aim (tap=max range, hold+drag=sikta)
 // ============================================================
 const GRENADE_STARTING_COUNT = 5;
-const GRENADE_MAX_RANGE = 300;
+const GRENADE_MAX_RANGE = 225;      // -25% från v1.360 (var 300)
 const GRENADE_AIM_DEADZONE = 6;
-const GRENADE_DRAG_SCALE = 2.5;     // drag-pixlar × scale = throw-distance
+const GRENADE_DRAG_SCALE = 2.5;     // drag 90px → max range 225 (90×2.5=225)
 const GRENADE_FLIGHT_MS = 800;       // tid från throw till landning
 const GRENADE_RADIUS = 85;           // explosion AOE
 const GRENADE_DAMAGE = 70;           // dmg vid center, linjär falloff till edge
