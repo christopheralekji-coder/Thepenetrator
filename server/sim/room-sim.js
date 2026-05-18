@@ -1656,7 +1656,9 @@ function applyJugStats(sim, ws, hpFrac) {
   const frac = (typeof hpFrac === 'number') ? Math.max(0.1, Math.min(1, hpFrac)) : 1;
   ws.playerState.maxHp = sim.juggernautHpMax;
   ws.playerState.hp = Math.round(sim.juggernautHpMax * frac);
-  ws.playerState.shield = Math.round((ws.playerState.maxShield || 100) * frac);
+  // JUG-specifik max-shield (200, var 100) — sätt FÖRE shield-räkningen
+  ws.playerState.maxShield = JUGGERNAUT_ARENA.jugShieldMax || 200;
+  ws.playerState.shield = Math.round(ws.playerState.maxShield * frac);
   ws.playerState.isJug = true;
   ws.playerState.scaleMul = JUGGERNAUT_ARENA.jugScale;
   ws.playerState.speedMul = JUGGERNAUT_ARENA.jugSpeedMul;
@@ -1668,11 +1670,14 @@ function applyHunterStats(sim, ws) {
   if (!ws.playerState) return;
   ws.playerState.hp = 100;
   ws.playerState.maxHp = 100;
-  ws.playerState.shield = ws.playerState.maxShield || 100;
+  ws.playerState.maxShield = JUGGERNAUT_ARENA.hunterShieldMax || 100;
+  ws.playerState.shield = ws.playerState.maxShield;
   ws.playerState.isJug = false;
   ws.playerState.scaleMul = 1.0;
-  ws.playerState.speedMul = 1.0;
-  ws.playerState.dashCdMs = null; // null = default klient-CD
+  ws.playerState.speedMul = JUGGERNAUT_ARENA.hunterSpeedMul || 1.10;
+  // Server returnerar dashCdMs så klient kan rita CD-ring — uttryckligt 3s
+  // (var 'null' vilket klient tolkade som default 3000ms; nu uttryckligt).
+  ws.playerState.dashCdMs = 3000;
   ws.playerState.weaponId = JUGGERNAUT_ARENA.hunterWeapon;
 }
 
@@ -3205,15 +3210,19 @@ function startSim(sim, opts) {
       spawns: JUGGERNAUT_ARENA.spawns,
       decorations: JUGGERNAUT_ARENA.decorations || [],
       pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
-      shieldMax: 100,
+      shieldMax: JUGGERNAUT_ARENA.hunterShieldMax || 100,
       initialJug,
       jugWeapons: JUGGERNAUT_ARENA.jugWeapons,
       jugDefaultWeapon: JUGGERNAUT_ARENA.jugDefaultWeapon,
       jugHpMax: sim.juggernautHpMax,
+      jugShieldMax: JUGGERNAUT_ARENA.jugShieldMax || 200,
       jugSpeedMul: JUGGERNAUT_ARENA.jugSpeedMul,
       jugScale: JUGGERNAUT_ARENA.jugScale,
       jugDashCdMs: JUGGERNAUT_ARENA.jugDashCdMs,
       hunterWeapon: JUGGERNAUT_ARENA.hunterWeapon,
+      hunterSpeedMul: JUGGERNAUT_ARENA.hunterSpeedMul || 1.10,
+      hunterShieldMax: JUGGERNAUT_ARENA.hunterShieldMax || 100,
+      hunterDashCdMs: 3000,
       matchDurationSec: sim.juggernautMatchDurationSec || JUGGERNAUT_ARENA.defaultMatchDuration,
       matchEndAt: sim.juggernautEndAt,
       minimapPulseIntervalMs: JUGGERNAUT_ARENA.minimapPulseIntervalMs,

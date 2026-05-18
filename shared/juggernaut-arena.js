@@ -349,12 +349,20 @@ const JUGGERNAUT_ARENA = {
   // Match-konfig
   matchDurations: [120, 360, 900], // sekunder att välja mellan
   defaultMatchDuration: 360,
+  // BALANS-OMDESIGN: JUG är inte längre "tank" utan "high-DPS bruiser".
+  // - Flat 400 HP + 200 shield = 600 total (var 800-1200 med scaling).
+  // - Speed UNDER hunter-speed → JUG kan inte chasa, måste positionera/ambushera.
+  // - Dash 1.5s (vs hunter 3s) = JUG har 2× burst-mobilitet för repositioning.
+  // - Hunters får +10% speed för att kunna fly + flanka.
   jugBaseHp: 400,
-  jugHpPerHunter: 100,
-  jugSpeedMul: 1.35,
-  jugScale: 1.4,
-  jugDashCdMs: 1000,              // 1s — JUG samma som hunter (i praktiken liknande utfall)
-  hunterDmgVsJugMul: 1.0,         // ingen damage-bonus (5× HP + skalning hanterar balansen)
+  jugHpPerHunter: 0,              // INGEN scaling per hunter — flat HP
+  jugShieldMax: 200,              // NY — dubbla normal shield (200 vs hunters 100)
+  jugSpeedMul: 1.00,              // NEDSATT från 1.35× → exakt baseline
+  jugScale: 1.4,                  // oförändrad — JUG förblir större (visuell + hitbox)
+  jugDashCdMs: 1500,              // 1.5s (var 1s)
+  hunterSpeedMul: 1.10,           // NY — hunters +10% snabbare än JUG
+  hunterShieldMax: 100,           // NY (explicit, var implicit default)
+  hunterDmgVsJugMul: 1.0,         // ingen damage-bonus — speed/dash-fördel räcker
   hunterWeapon: 'pistol',
   minimapPulseIntervalMs: 5000,   // hunters ser JUG på minimap var 5s
 
