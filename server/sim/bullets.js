@@ -18,6 +18,7 @@ const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS, GUNGAME_DEMOTE_F
 const { KOTH_ARENA } = require('../../shared/koth-arena');
 const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
 const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
+const { CASTLEDEFENSE_ARENA } = require('../../shared/castledefense-arena');
 
 // PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
 // Sniper nerf: 130→95 (fortfarande 2-shot genom shield+hp men inte instant).
@@ -753,6 +754,7 @@ function updateBullets(sim, dt, now) {
     if (sim.siegeActive) { worldMaxY = SIEGE_ARENA.worldH; }
     else if (sim.juggernautActive) { worldMaxX = JUGGERNAUT_ARENA.worldW; worldMaxY = JUGGERNAUT_ARENA.worldH; }
     else if (sim.battleroyaleActive) { worldMaxX = BATTLEROYALE_ARENA.worldW; worldMaxY = BATTLEROYALE_ARENA.worldH; }
+    else if (sim.castledefenseActive) { worldMaxX = CASTLEDEFENSE_ARENA.worldW; worldMaxY = CASTLEDEFENSE_ARENA.worldH; }
     if (b.life <= 0 || b.x < 0 || b.y < 0 || b.x > worldMaxX || b.y > worldMaxY) {
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
@@ -800,6 +802,41 @@ function updateBullets(sim, dt, now) {
       // Skippa fönster-walls (passThroughBullets=true) så bullets passerar
       const brSolidWalls = sim._brSolidWalls || (sim._brSolidWalls = BATTLEROYALE_ARENA.walls.filter(w => !w.passThroughBullets));
       if (bulletHitsWall(b, brSolidWalls)) {
+        if (b.explosive && !b.hostile) {
+          explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+        }
+        bullets.splice(i, 1);
+        continue;
+      }
+    }
+    // CASTLE DEFENSE: walls + buildings (allt med hp > 0). Bullets stoppas.
+    // Castle-walls tar damage från enemy-bullets, bullets från spelare passerar inte
+    // (cover). Buildings (manned turret etc.) blockerar också.
+    if (sim.castledefenseActive) {
+      const cdLiveWalls = sim.castledefenseWalls.filter(w => w.hp > 0);
+      const cdLiveBuildings = sim.castledefenseBuildings.filter(s => s.hp > 0);
+      const cdAllSolids = cdLiveWalls.concat(cdLiveBuildings);
+      if (bulletHitsWall(b, cdAllSolids)) {
+        // Skada wall/building om bullet är hostile (enemy)
+        if (b.hostile && b.dmg > 0) {
+          for (const w of cdAllSolids) {
+            if (b.x + b.r >= w.x && b.x - b.r <= w.x + w.w &&
+                b.y + b.r >= w.y && b.y - b.r <= w.y + w.h) {
+              w.hp = Math.max(0, w.hp - b.dmg);
+              sim.eventQueue.push({
+                type: w.id && w.id.startsWith('build_') ? 'cd_building_damaged' : 'cd_wall_damaged',
+                id: w.id, hp: w.hp, maxHp: w.maxHp,
+              });
+              if (w.hp <= 0) {
+                sim.eventQueue.push({
+                  type: w.id && w.id.startsWith('build_') ? 'cd_building_destroyed' : 'cd_wall_destroyed',
+                  id: w.id,
+                });
+              }
+              break;
+            }
+          }
+        }
         if (b.explosive && !b.hostile) {
           explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
         }

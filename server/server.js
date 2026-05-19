@@ -3,7 +3,7 @@
 
 const WebSocket = require('ws');
 const http = require('http');
-const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret } = require('./sim/room-sim');
+const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair } = require('./sim/room-sim');
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
@@ -742,6 +742,7 @@ function handleMessage(ws, msg) {
       juggernautMatchDurationSec: msg.juggernautMatchDurationSec,
       battleroyale: msg.battleroyale,
       battleroyaleMatchDurationSec: msg.battleroyaleMatchDurationSec,
+      castledefense: msg.castledefense,
       addBot: !!msg.addBot,
       botCount: Math.max(1, Math.min(7, msg.botCount || 1)),
       botSkill: msg.botSkill || 'normal',
@@ -753,6 +754,7 @@ function handleMessage(ws, msg) {
     if (room.meta) {
       room.meta.started = true;
       if (msg.battleroyale) room.meta.mode = 'battleroyale';
+      else if (msg.castledefense) room.meta.mode = 'castledefense';
       else if (msg.juggernaut) room.meta.mode = 'juggernaut';
       else if (msg.koth) room.meta.mode = 'koth';
       else if (msg.gungame) room.meta.mode = 'gungame';
@@ -903,6 +905,18 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     applyBrDropWeapon(room.sim, ws.id, msg);
+    return;
+  }
+  if (msg.type === 'sim_cd_build') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyCastleDefenseBuild(room.sim, ws.id, msg);
+    return;
+  }
+  if (msg.type === 'sim_cd_repair') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyCastleDefenseRepair(room.sim, ws.id, msg);
     return;
   }
   // v1.376: Granat-throw från klient. Server schemalägger detonation efter

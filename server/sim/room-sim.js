@@ -3,6 +3,7 @@
 
 const { encodeWorldBinary } = require('./wirefmt');
 const { makeEnemy, updateEnemy } = require('./enemies');
+const { makeBoss } = require('./bosses');
 const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy } = require('./bullets');
 const { addBot, tickBots, removeAllBots } = require('./bots');
 const { updateBoss } = require('./bosses');
@@ -16,6 +17,7 @@ const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS } = require('../.
 const { KOTH_ARENA } = require('../../shared/koth-arena');
 const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
 const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
+const { CASTLEDEFENSE_ARENA } = require('../../shared/castledefense-arena');
 const { SpatialGrid } = require('./spatial');
 
 // 45Hz → 60Hz (v1.391): tickar var 16.7ms istället för 22ms. Sparar ~3-6ms
@@ -147,6 +149,24 @@ function createSim(room) {
     _brZoneDmgTick: 0,              // ackumulator för outside-dmg-broadcasts
     _brBroadcastTick: 0,
     _brLootIdCounter: 0,
+    // CASTLE DEFENSE state (co-op endless horde defense)
+    castledefenseActive: false,
+    castledefenseEnded: false,
+    castledefenseStartedAt: 0,
+    castledefenseWave: 0,                  // current wave (0 = pre-start)
+    castledefenseWaveBetweenEndAt: 0,      // ms timestamp för nästa våg-start
+    castledefenseWaveState: 'idle',        // 'idle' | 'between' | 'active'
+    castledefenseCore: null,               // { x, y, r, hp, maxHp }
+    castledefenseWalls: [],                // runtime-kopia av arena.walls med mutable hp
+    castledefenseBuildings: [],            // [{ id, kind, x, y, w, h, hp, maxHp, ownerPid, ...kind-specific }]
+    castledefenseScores: {},               // peerId → kills
+    castledefenseGold: {},                 // peerId → per-match gold (för byggande, ej save.gold)
+    castledefenseDownedPids: [],           // pids som är down (Phase 6)
+    castledefenseRevivedCount: 0,
+    _cdBuildIdCounter: 0,
+    _cdBroadcastTick: 0,
+    _cdWaveSpawnsRemaining: 0,
+    _cdWaveSpawnTimer: 0,
   };
   return sim;
 }
@@ -306,6 +326,13 @@ function tickSim(sim) {
   // BATTLE ROYALE: FFA, no-respawn, krympande zon. Sista överlevare vinner.
   if (sim.battleroyaleActive) {
     tickBattleRoyale(sim, dt, now);
+    sim._tickCount = (sim._tickCount || 0) + 1;
+    if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
+    return;
+  }
+  // CASTLE DEFENSE: co-op endless horde defense. Skydda castle-core mot vågor.
+  if (sim.castledefenseActive) {
+    tickCastleDefense(sim, dt, now);
     sim._tickCount = (sim._tickCount || 0) + 1;
     if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
@@ -2030,6 +2057,574 @@ function endJuggernautMatch(sim, winnerId, reason) {
 // ============================================================
 // FFA, no-respawn. Krympande zon över N min (5/10/15). Loot på marken.
 // Sista överlevare vinner. Bot kan vinna (samma rules).
+// ============================================================
+// CASTLE DEFENSE — co-op endless horde defense
+// ============================================================
+// Spelare försvarar tillsammans ett centralt castle (8 wall-segment + core)
+// mot endless vågor av fiender som spawnar 360° runt utkanten. Bygg + reparera
+// mellan attacker. Boss var 5:e våg.
+
+// Beräkna antal fiender per våg (fas 2 scaling)
+function cdEnemiesForWave(arena, wave) {
+  return arena.waveBaseCount + (wave - 1) * arena.waveScalePerWave;
+}
+
+// Pick enemy-type för current våg. Phase 5: mixad pool per våg-band.
+// Använder existing enemy-typer; sapper-rollen täcks av 'bomber' (suicide-explode),
+// flyer-rollen läggs på 'swarmer'/'dog' med _cdFlyer flag som skippar wall-collision.
+function cdPickEnemyType(wave) {
+  // Pool definieras per våg-band — bombers pushas till våg 10+ från playtest
+  // (50 dmg one-shottar otränat spelare på våg 7 utan warning)
+  let pool;
+  if (wave <= 2) pool = ['grunt', 'grunt', 'grunt', 'runner'];
+  else if (wave <= 4) pool = ['grunt', 'grunt', 'runner', 'runner', 'swordsman'];
+  else if (wave <= 6) pool = ['grunt', 'runner', 'swordsman', 'brute'];
+  else if (wave <= 9) pool = ['grunt', 'runner', 'swordsman', 'brute', 'shooter'];
+  else if (wave <= 12) pool = ['runner', 'brute', 'shooter', 'bomber', 'swarmer', 'soldier'];
+  else pool = ['runner', 'brute', 'shooter', 'bomber', 'swarmer', 'soldier', 'sniper', 'ninja'];
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// Vissa typer agerar som "flyer" (ignorerar walls i castledefense).
+// För variety: 30% av 'swarmer' och 'ninja' markeras som flyers.
+function cdMaybeAssignFlyer(e) {
+  if ((e.type === 'swarmer' || e.type === 'ninja') && Math.random() < 0.35) {
+    e._cdFlyer = true;
+  }
+}
+
+// Boss-rotation per boss-våg (fas 7)
+const CD_BOSS_ROTATION = [
+  'witheredelder', 'ironclad', 'mirroredone', 'ossarius', 'vanguardatlas',
+  'emberoracle', 'blightsovereign', 'buriedcrown', 'lastsovereign',
+];
+
+function cdPickBossKey(wave) {
+  // Wave 5 = idx 0, wave 10 = idx 1, etc. Cycle:as runt om hög våg.
+  const idx = Math.floor(wave / 5) - 1;
+  return CD_BOSS_ROTATION[idx % CD_BOSS_ROTATION.length];
+}
+
+// Per-tick uppdatering av alla aktiva castle-defense buildings.
+// Auto-turret skjuter, traps skadar/slow:ar, repair-station regenererar walls,
+// health-station regenererar spelare.
+function updateCastleDefenseBuildings(sim, dt, nowMs) {
+  for (const b of sim.castledefenseBuildings) {
+    if (b.hp <= 0) continue;
+    const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+    // === AUTO-TURRET ===
+    if (b.kind === 'auto_turret') {
+      if (b._fireCd > 0) b._fireCd -= dt;
+      if (b._fireCd <= 0 && b.range > 0 && b.fireRate > 0) {
+        // Hitta närmsta levande enemy inom range
+        let best = null, bestD = b.range * b.range;
+        for (const e of sim.enemies) {
+          if (e.dead) continue;
+          const dx = e.x - bcx, dy = e.y - bcy;
+          const d2 = dx * dx + dy * dy;
+          if (d2 < bestD) { bestD = d2; best = e; }
+        }
+        if (best) {
+          // Skjut: dmg = (b.dps / b.fireRate) per bullet, bullet hostile=false (våra)
+          const ang = Math.atan2(best.y - bcy, best.x - bcx);
+          const SPEED = 700;
+          sim.bullets.push({
+            x: bcx, y: bcy,
+            vx: Math.cos(ang) * SPEED,
+            vy: Math.sin(ang) * SPEED,
+            dmg: (b.dps / b.fireRate),
+            life: 1.5,
+            r: 3,
+            color: '#3acaff',
+            hostile: false,
+            ownerPid: b.ownerPid,
+            _autoTurret: true,
+          });
+          b._fireCd = 1 / b.fireRate;
+        }
+      }
+    }
+    // === SPIKE TRAP ===
+    else if (b.kind === 'spike_trap' && b.dmgOnPass > 0) {
+      // Skada alla enemies som överlappar denna trap (med per-enemy cooldown)
+      for (const e of sim.enemies) {
+        if (e.dead) continue;
+        if (e.x + e.r < b.x || e.x - e.r > b.x + b.w) continue;
+        if (e.y + e.r < b.y || e.y - e.r > b.y + b.h) continue;
+        e._spikeCdMs = e._spikeCdMs || {};
+        if ((e._spikeCdMs[b.id] || 0) > nowMs) continue;
+        e._spikeCdMs[b.id] = nowMs + 1200;
+        e.hp -= b.dmgOnPass;
+        if (e.hp <= 0) e.dead = true;
+      }
+    }
+    // === SLOW TRAP ===
+    else if (b.kind === 'slow_trap' && b.slowDurSec > 0) {
+      for (const e of sim.enemies) {
+        if (e.dead) continue;
+        if (e.x + e.r < b.x || e.x - e.r > b.x + b.w) continue;
+        if (e.y + e.r < b.y || e.y - e.r > b.y + b.h) continue;
+        const nowSec = nowMs / 1000;
+        e.slowUntil = nowSec + b.slowDurSec;
+        e.slowFactor = b.slowMul;
+      }
+    }
+    // === REPAIR STATION ===
+    else if (b.kind === 'repair_stn' && b.healPerSec > 0 && b.radius > 0) {
+      const r2 = b.radius * b.radius;
+      for (const w of sim.castledefenseWalls) {
+        if (w.hp <= 0 || w.hp >= w.maxHp) continue;
+        const wcx = w.x + w.w / 2, wcy = w.y + w.h / 2;
+        const dx = wcx - bcx, dy = wcy - bcy;
+        if (dx * dx + dy * dy > r2) continue;
+        const heal = b.healPerSec * dt;
+        w.hp = Math.min(w.maxHp, w.hp + heal);
+        // Broadcast med throttling så vi inte spammar 60Hz per wall
+        if (!w._lastHealBroadcast || nowMs - w._lastHealBroadcast > 250) {
+          w._lastHealBroadcast = nowMs;
+          sim.eventQueue.push({ type: 'cd_wall_damaged', id: w.id, hp: w.hp, maxHp: w.maxHp });
+        }
+      }
+      for (const b2 of sim.castledefenseBuildings) {
+        if (b2 === b || b2.hp <= 0 || b2.hp >= b2.maxHp) continue;
+        const b2cx = b2.x + b2.w / 2, b2cy = b2.y + b2.h / 2;
+        const dx = b2cx - bcx, dy = b2cy - bcy;
+        if (dx * dx + dy * dy > r2) continue;
+        b2.hp = Math.min(b2.maxHp, b2.hp + b.healPerSec * dt);
+        if (!b2._lastHealBroadcast || nowMs - b2._lastHealBroadcast > 250) {
+          b2._lastHealBroadcast = nowMs;
+          sim.eventQueue.push({ type: 'cd_building_damaged', id: b2.id, hp: b2.hp, maxHp: b2.maxHp });
+        }
+      }
+    }
+    // === HEALTH STATION ===
+    else if (b.kind === 'health_stn' && b.playerHealPerSec > 0 && b.radius > 0) {
+      const r2 = b.radius * b.radius;
+      for (const [, ws] of sim.room.members) {
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        const ps = ws.playerState;
+        if (ps.hp >= (ps.maxHp || 100)) continue;
+        const dx = ps.x - bcx, dy = ps.y - bcy;
+        if (dx * dx + dy * dy > r2) continue;
+        ps.hp = Math.min(ps.maxHp || 100, ps.hp + b.playerHealPerSec * dt);
+      }
+    }
+    // === MANNED TURRET (fas 7 polish) ===
+    // För nu: passar som ett extra stort wall-segment. Fas 7 lägger till
+    // enter/exit-mekanik + dpsMul när spelare sitter i.
+  }
+}
+
+// === DOWN-STATE + REVIVE-SYSTEM (fas 6) ===
+// Spelare med hp <= 0 går till crawl-state istället för att dö direkt.
+// 30s bleed-out timer. Lagkamrat står över i 5s → revive med 50hp.
+// Bleed-out → real death; respawn vid next wave-start.
+function updateCastleDefenseDownState(sim, dt, nowMs) {
+  const arena = CASTLEDEFENSE_ARENA;
+  // Steg 1: Spelare som just blev "döda" → enter down-state istället
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState) continue;
+    const ps = ws.playerState;
+    if (ps.hp <= 0 && !ps.cdDowned && !ps.cdDownDead) {
+      // Enter down-state
+      ps.cdDowned = true;
+      ps.cdDownStartedAt = nowMs;
+      ps.cdDownReviveProgress = 0;
+      ps.hp = 1; // hold at 1 hp så player_died-detektion ej triggar
+      ps._cdPrevWeapon = ps.weaponId;
+      ps.weaponId = 'knife';
+      ps._cdPrevSpeedMul = ps.speedMul;
+      ps.speedMul = arena.downCrawlSpeedMul || 0.35;
+      // Invulnerable under hela bleed-out — bleed-out timer är danger:n, inte enemies.
+      // Sätts om vid revive (2s grace) eller cdDownDead (respawn-grace).
+      ps.invulnUntil = nowMs + ((arena.downBleedoutSec || 30) * 1000) + 1000;
+      sim.eventQueue.push({
+        type: 'cd_player_downed',
+        peerId: pid,
+        x: Math.round(ps.x), y: Math.round(ps.y),
+      });
+      sim.castledefenseDownedPids = sim.castledefenseDownedPids || [];
+      if (!sim.castledefenseDownedPids.includes(pid)) sim.castledefenseDownedPids.push(pid);
+    }
+  }
+  // Steg 2: Tickar för aktiv down-state — bleed-out + revive
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState || !ws.playerState.cdDowned) continue;
+    const ps = ws.playerState;
+    // Bleed-out timer
+    const elapsedSec = (nowMs - ps.cdDownStartedAt) / 1000;
+    const bleedoutSec = arena.downBleedoutSec || 30;
+    if (elapsedSec >= bleedoutSec) {
+      // Real death (respawn vid next wave)
+      ps.cdDowned = false;
+      ps.cdDownDead = true;
+      ps.hp = 0;
+      sim.eventQueue.push({
+        type: 'cd_player_died_out',
+        peerId: pid,
+      });
+      continue;
+    }
+    // Sök efter lagkamrat inom downReviveRadius för revive
+    const reviveRadius = arena.downReviveRadius || 60;
+    const reviveR2 = reviveRadius * reviveRadius;
+    let reviverPid = null;
+    let reviverWs = null;
+    for (const [pid2, ws2] of sim.room.members) {
+      if (pid2 === pid) continue;
+      if (!ws2.playerState || ws2.playerState.hp <= 0) continue;
+      if (ws2.playerState.cdDowned) continue; // downade kan inte revive
+      const dx = ws2.playerState.x - ps.x;
+      const dy = ws2.playerState.y - ps.y;
+      if (dx * dx + dy * dy < reviveR2) {
+        reviverPid = pid2;
+        reviverWs = ws2;
+        break;
+      }
+    }
+    if (reviverPid) {
+      ps.cdDownReviveProgress = (ps.cdDownReviveProgress || 0) + dt;
+      const reviveSec = arena.downReviveSec || 5;
+      // Broadcast progress event (~5Hz)
+      if (!ps._cdLastReviveBroadcast || nowMs - ps._cdLastReviveBroadcast > 200) {
+        ps._cdLastReviveBroadcast = nowMs;
+        sim.eventQueue.push({
+          type: 'cd_revive_progress',
+          peerId: pid,
+          reviverPid,
+          progress: Math.min(1, ps.cdDownReviveProgress / reviveSec),
+        });
+      }
+      if (ps.cdDownReviveProgress >= reviveSec) {
+        // REVIVED!
+        ps.cdDowned = false;
+        ps.cdDownStartedAt = 0;
+        ps.cdDownReviveProgress = 0;
+        ps.hp = Math.min(ps.maxHp || 100, 50);
+        ps.weaponId = ps._cdPrevWeapon || arena.startWeapon;
+        ps.speedMul = ps._cdPrevSpeedMul || 1.0;
+        ps.invulnUntil = nowMs + 2000;
+        sim.castledefenseRevivedCount += 1;
+        sim.castledefenseDownedPids = (sim.castledefenseDownedPids || []).filter(p => p !== pid);
+        sim.eventQueue.push({
+          type: 'cd_player_revived',
+          peerId: pid,
+          reviverPid,
+        });
+      }
+    } else {
+      // Ingen revives → reset progress
+      if ((ps.cdDownReviveProgress || 0) > 0) {
+        ps.cdDownReviveProgress = Math.max(0, ps.cdDownReviveProgress - dt * 0.5);
+      }
+    }
+  }
+  // Steg 3: Respawn döda spelare vid next wave-start
+  if (sim.castledefenseWaveState === 'active' && sim._cdLastWaveProcessed !== sim.castledefenseWave) {
+    sim._cdLastWaveProcessed = sim.castledefenseWave;
+    // Vid wave-start: alla cdDownDead spelare respawnar vid core
+    for (const [pid, ws] of sim.room.members) {
+      if (!ws.playerState || !ws.playerState.cdDownDead) continue;
+      const ps = ws.playerState;
+      ps.cdDownDead = false;
+      ps.hp = ps.maxHp || 100;
+      ps.x = sim.castledefenseCore ? sim.castledefenseCore.x : arena.centerX;
+      ps.y = sim.castledefenseCore ? sim.castledefenseCore.y : arena.centerY;
+      ps.weaponId = ps._cdPrevWeapon || arena.startWeapon;
+      ps.speedMul = 1.0;
+      ps.invulnUntil = nowMs + 3000;
+      sim.eventQueue.push({
+        type: 'cd_player_respawned',
+        peerId: pid,
+        wave: sim.castledefenseWave,
+      });
+    }
+  }
+}
+
+function tickCastleDefense(sim, dt, now) {
+  const nowMs = Date.now();
+  const arena = CASTLEDEFENSE_ARENA;
+
+  if (sim.castledefenseEnded) return;
+
+  // Bygg alive-walls + buildings för collision-checks
+  const cdLiveWalls = sim.castledefenseWalls.filter(w => w.hp > 0);
+  const cdLiveBuildings = sim.castledefenseBuildings.filter(b => b.hp > 0);
+  const cdAllSolids = cdLiveWalls.concat(cdLiveBuildings);
+
+  // === PLAYER WALL-COLLISION + BOUNDS-CLAMP ===
+  for (const [, ws] of sim.room.members) {
+    if (ws.playerState && ws.playerState.hp > 0) {
+      const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
+      resolveCtfWall(ent, cdAllSolids);
+      ent.x = Math.max(20, Math.min(arena.worldW - 20, ent.x));
+      ent.y = Math.max(20, Math.min(arena.worldH - 20, ent.y));
+      ws.playerState.x = ent.x;
+      ws.playerState.y = ent.y;
+    }
+  }
+
+  // === WAVE STATE MACHINE ===
+  if (sim.castledefenseWaveState === 'between' && nowMs >= sim.castledefenseWaveBetweenEndAt) {
+    // Starta nästa våg
+    sim.castledefenseWaveState = 'active';
+    sim.castledefenseWave += 1;
+    const w = sim.castledefenseWave;
+    const isBoss = w % arena.bossEveryWave === 0;
+    if (isBoss) {
+      // Boss-våg: spawna boss direkt + några minions
+      const bossKey = cdPickBossKey(w);
+      const sp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
+      const coopMul = Math.max(1, sim.room.members.size);
+      const boss = makeBoss(bossKey, sp.x, sp.y, coopMul);
+      if (boss) {
+        boss._idx = sim.nextEnemyIdx++;
+        boss._cdEnemy = true;
+        boss._cdBossWave = w;
+        sim.enemies.push(boss);
+        sim.bossAlive = true;
+        sim.eventQueue.push({
+          type: 'boss_spawned',
+          bossKey,
+          name: boss.name,
+          sub: boss.subtitle,
+        });
+      }
+      // Minions: 3-6 vanliga grunts som backup
+      sim._cdWaveSpawnsRemaining = 3 + Math.floor(w / 5);
+    } else {
+      sim._cdWaveSpawnsRemaining = cdEnemiesForWave(arena, w);
+    }
+    sim._cdWaveSpawnTimer = 0;
+    sim.eventQueue.push({
+      type: 'cd_wave_started',
+      wave: w,
+      enemiesIncoming: sim._cdWaveSpawnsRemaining + (isBoss ? 1 : 0),
+      isBoss,
+    });
+  }
+
+  // === SPAWN ENEMIES (under active-fasen) ===
+  if (sim.castledefenseWaveState === 'active' && sim._cdWaveSpawnsRemaining > 0) {
+    sim._cdWaveSpawnTimer -= dt;
+    if (sim._cdWaveSpawnTimer <= 0 && sim.enemies.length < ENEMY_CAP) {
+      const sp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
+      const type = cdPickEnemyType(sim.castledefenseWave);
+      const e = makeEnemy(type, sp.x, sp.y);
+      e._idx = sim.nextEnemyIdx++;
+      e._cdEnemy = true;
+      cdMaybeAssignFlyer(e);
+      sim.enemies.push(e);
+      sim._cdWaveSpawnsRemaining -= 1;
+      // Spawn-rate: snabbare i senare vågor
+      sim._cdWaveSpawnTimer = Math.max(0.25, 0.7 - sim.castledefenseWave * 0.03)
+        + Math.random() * 0.2;
+    }
+  }
+
+  // === BUILDINGS RUNTIME — auto-turret fire, traps, repair/health stations ===
+  if (sim.castledefenseBuildings.length > 0) {
+    updateCastleDefenseBuildings(sim, dt, nowMs);
+  }
+
+  // === DOWN-STATE + REVIVE (fas 6) ===
+  updateCastleDefenseDownState(sim, dt, nowMs);
+
+  // === ENEMY AI + COLLISION + ATTACK ===
+  const players = buildPlayerList(sim);
+  for (const e of sim.enemies) {
+    if (e.dead) continue;
+    if (e.isBoss) {
+      updateBoss(sim, e, dt, now, players);
+    } else {
+      updateEnemy(e, dt, now, sim, players);
+    }
+    // Bounds-clamp
+    e.x = Math.max(20, Math.min(arena.worldW - 20, e.x));
+    e.y = Math.max(20, Math.min(arena.worldH - 20, e.y));
+    // Wall-collision för enemies (skippa flyers — de ignorerar walls)
+    if (!e._cdFlyer) {
+      resolveCtfWall(e, cdAllSolids);
+    }
+    // Attack-timer
+    if (e._cdAttackCd > 0) e._cdAttackCd -= dt;
+    else e._cdAttackCd = 0;
+    // === ENEMY ATTACK PÅ WALL/CORE ===
+    // Hitta första wall/building i kontakt
+    let attackTarget = null;
+    for (const w of cdAllSolids) {
+      // Circle-vs-AABB: hitta närmsta punkt på rektangeln till enemy-center
+      const cx2 = Math.max(w.x, Math.min(e.x, w.x + w.w));
+      const cy2 = Math.max(w.y, Math.min(e.y, w.y + w.h));
+      const dx2 = e.x - cx2, dy2 = e.y - cy2;
+      if (dx2 * dx2 + dy2 * dy2 < (e.r + 1) * (e.r + 1)) {
+        attackTarget = w;
+        break;
+      }
+    }
+    // Eller core om i kontakt (om enemy lyckats nå inre)
+    if (!attackTarget && sim.castledefenseCore && sim.castledefenseCore.hp > 0) {
+      const core = sim.castledefenseCore;
+      const dx3 = e.x - core.x, dy3 = e.y - core.y;
+      const minD = e.r + core.r + 2;
+      if (dx3 * dx3 + dy3 * dy3 < minD * minD) {
+        attackTarget = core;
+      }
+    }
+    if (attackTarget && e._cdAttackCd <= 0) {
+      const isCore = (attackTarget === sim.castledefenseCore);
+      const isBuild = !!(attackTarget.id && attackTarget.id.startsWith && attackTarget.id.startsWith('build_'));
+      // Damage per attack (grunt=5 baseline)
+      const dmg = e.dmg || 5;
+      attackTarget.hp = Math.max(0, attackTarget.hp - dmg);
+      e._cdAttackCd = 0.8; // attack-cooldown
+      sim.eventQueue.push({
+        type: isCore ? 'cd_core_damaged' : (isBuild ? 'cd_building_damaged' : 'cd_wall_damaged'),
+        id: isCore ? 'core' : attackTarget.id,
+        hp: attackTarget.hp,
+        maxHp: attackTarget.maxHp,
+      });
+      if (attackTarget.hp <= 0) {
+        sim.eventQueue.push({
+          type: isCore ? 'cd_core_destroyed' : (isBuild ? 'cd_building_destroyed' : 'cd_wall_destroyed'),
+          id: isCore ? 'core' : attackTarget.id,
+        });
+      }
+    }
+  }
+
+  // Spatial grid (för bullet-collision)
+  sim.enemyGrid.clear();
+  for (const e of sim.enemies) {
+    if (!e.dead) sim.enemyGrid.insert(e);
+  }
+
+  // Skriv tillbaka playerState efter contact-damage från updateEnemy
+  if (!sim.deadBodies) sim.deadBodies = {};
+  for (const p of players) {
+    if (p._tookDamageFrom) {
+      const ws = sim.room.members.get(p.peerId);
+      if (ws && ws.playerState) {
+        ws.playerState.hp = p.hp;
+        ws.playerState.invulnUntil = p.invulnUntil;
+      }
+    }
+  }
+
+  // === BULLETS ===
+  updateBullets(sim, dt, now);
+
+  // === HAZARDS (gas clouds, flame trails) — för bossar med gas_sniper/avatar powers ===
+  if ((sim.gasClouds && sim.gasClouds.length) || (sim.flameTrails && sim.flameTrails.length)) {
+    updateHazards(sim, dt, now, players);
+  }
+
+  // === CORE HP-CHECK (game over) ===
+  if (sim.castledefenseCore && sim.castledefenseCore.hp <= 0 && !sim.castledefenseEnded) {
+    sim.castledefenseEnded = true;
+    sim.eventQueue.push({
+      type: 'cd_ended',
+      reason: 'core_destroyed',
+      wave: sim.castledefenseWave,
+      survivedSec: Math.round((nowMs - sim.castledefenseStartedAt) / 1000),
+    });
+    return;
+  }
+
+  // === ENEMY DEATH DROP-EVENTS ===
+  if (sim.enemies.some(e => e.dead)) {
+    for (const e of sim.enemies) {
+      if (!e.dead) continue;
+      // Drop pickup (gold etc.) — använd standard pipeline
+      dropFromEnemyDeath(sim, e);
+      sim.eventQueue.push({
+        type: 'enemy_killed',
+        i: e._idx,
+        gold: e.gold || 0,
+        killerPid: e.lastDamagerPid || null,
+        isBoss: !!e.isBoss,
+        isMiniBoss: !!e.isMiniBoss,
+      });
+      // Score + per-match gold-grant
+      if (e.lastDamagerPid) {
+        sim.castledefenseScores[e.lastDamagerPid] = (sim.castledefenseScores[e.lastDamagerPid] || 0) + 1;
+        const goldGain = e.gold || 0;
+        if (goldGain > 0) {
+          // Boss-gold splittas mellan ALLA levande spelare (annars ger 500-3000g till 1 spelare = swingar ekonomi).
+          // Vanliga enemies: bara killer får gold.
+          if (e.isBoss) {
+            const alivePids = [];
+            for (const [pid, ws] of sim.room.members) {
+              if (ws.playerState && ws.playerState.hp > 0) alivePids.push(pid);
+            }
+            const share = alivePids.length > 0 ? Math.floor(goldGain / alivePids.length) : goldGain;
+            for (const pid of alivePids) {
+              sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + share;
+              sim.eventQueue.push({
+                type: 'cd_gold_update', peerId: pid, gold: sim.castledefenseGold[pid], delta: share,
+              });
+            }
+          } else {
+            sim.castledefenseGold[e.lastDamagerPid] = (sim.castledefenseGold[e.lastDamagerPid] || 0) + goldGain;
+            sim.eventQueue.push({
+              type: 'cd_gold_update', peerId: e.lastDamagerPid, gold: sim.castledefenseGold[e.lastDamagerPid], delta: goldGain,
+            });
+          }
+        }
+      }
+    }
+    sim.enemies = sim.enemies.filter(e => !e.dead);
+  }
+
+  // === PICKUPS-UPDATE (gold/HP/ammo) ===
+  updatePickups(sim, dt, now);
+
+  // === WAVE COMPLETE? ===
+  if (sim.castledefenseWaveState === 'active' &&
+      sim._cdWaveSpawnsRemaining <= 0 &&
+      sim.enemies.length === 0) {
+    sim.castledefenseWaveState = 'between';
+    sim.castledefenseWaveBetweenEndAt = nowMs + arena.waveBetweenSec * 1000;
+    const nextWave = sim.castledefenseWave + 1;
+    const nextIsBoss = nextWave % arena.bossEveryWave === 0;
+    sim.eventQueue.push({
+      type: 'cd_wave_complete',
+      wave: sim.castledefenseWave,
+      nextWaveInSec: arena.waveBetweenSec,
+      nextIsBoss,
+      nextWave,
+    });
+    // Wave-clear gold-bonus så player kan bygga inför nästa våg
+    const bonus = (arena.waveBonusBase || 150) + sim.castledefenseWave * (arena.waveBonusPerWave || 30);
+    for (const [pid] of sim.room.members) {
+      sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + bonus;
+      sim.eventQueue.push({
+        type: 'cd_wave_bonus',
+        peerId: pid,
+        gold: bonus,
+        totalGold: sim.castledefenseGold[pid],
+        wave: sim.castledefenseWave,
+      });
+    }
+  }
+
+  // === HEARTBEAT BROADCAST FÖR HUD (varje 500ms) ===
+  if (nowMs - (sim._cdHudBroadcastAt || 0) > 500) {
+    sim._cdHudBroadcastAt = nowMs;
+    sim.eventQueue.push({
+      type: 'cd_hud_update',
+      wave: sim.castledefenseWave,
+      waveState: sim.castledefenseWaveState,
+      enemiesAlive: sim.enemies.length,
+      enemiesIncoming: sim._cdWaveSpawnsRemaining,
+      coreHp: sim.castledefenseCore ? sim.castledefenseCore.hp : 0,
+      coreMaxHp: sim.castledefenseCore ? sim.castledefenseCore.maxHp : 0,
+      waveBetweenEndAt: sim.castledefenseWaveBetweenEndAt,
+    });
+  }
+}
+
 function tickBattleRoyale(sim, dt, now) {
   const nowMs = Date.now();
   const arena = BATTLEROYALE_ARENA;
@@ -2798,6 +3393,24 @@ function startSim(sim, opts) {
   sim._brZoneDmgTick = 0;
   sim._brBroadcastTick = 0;
   sim._brLootIdCounter = 0;
+  // CASTLE DEFENSE reset
+  sim.castledefenseActive = false;
+  sim.castledefenseEnded = false;
+  sim.castledefenseStartedAt = 0;
+  sim.castledefenseWave = 0;
+  sim.castledefenseWaveBetweenEndAt = 0;
+  sim.castledefenseWaveState = 'idle';
+  sim.castledefenseCore = null;
+  sim.castledefenseWalls = [];
+  sim.castledefenseBuildings = [];
+  sim.castledefenseScores = {};
+  sim.castledefenseGold = {};
+  sim.castledefenseDownedPids = [];
+  sim.castledefenseRevivedCount = 0;
+  sim._cdBuildIdCounter = 0;
+  sim._cdBroadcastTick = 0;
+  sim._cdWaveSpawnsRemaining = 0;
+  sim._cdWaveSpawnTimer = 0;
   sim._siegePointAccum = { red: 0, blue: 0 };
   sim.pvpPickups = null;
   sim.bullets = [];
@@ -2834,6 +3447,9 @@ function startSim(sim, opts) {
     if (opts.battleroyale) {
       sim.battleroyaleActive = true;
       sim.battleroyaleMatchDurationSec = opts.battleroyaleMatchDurationSec || BATTLEROYALE_ARENA.defaultMatchDuration;
+    }
+    if (opts.castledefense) {
+      sim.castledefenseActive = true;
     }
   }
   // Bot-spawn: lägg bot(s) som virtuella members INNAN mode-init så loopen tilldelar
@@ -2887,7 +3503,7 @@ function startSim(sim, opts) {
       });
     }
   }
-  console.log('[SIM]', sim.room.code, 'started mode=' + (sim.battleroyaleActive ? 'battleroyale' : (sim.juggernautActive ? 'juggernaut' : (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode)))) + ' diff=' + sim.config.difficulty + (opts && opts.addBot ? ' +bot' : ''));
+  console.log('[SIM]', sim.room.code, 'started mode=' + (sim.castledefenseActive ? 'castledefense' : (sim.battleroyaleActive ? 'battleroyale' : (sim.juggernautActive ? 'juggernaut' : (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode))))) + ' diff=' + sim.config.difficulty + (opts && opts.addBot ? ' +bot' : ''));
   // Anti-mode-leakage: rensa JUG-flaggor från ev. förra match på alla members.
   // Annars kan en spelare som var JUG i förra rundan behålla isJug=true / scaleMul=1.8
   // / speedMul=1.35 / dashCdMs=1000 / maxHp=500 in i nästa mode.
@@ -3391,6 +4007,71 @@ function startSim(sim, opts) {
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
     sim._endBattleRoyaleMatch = endBattleRoyaleMatch;
     sim._handleBattleRoyaleKill = handleBattleRoyaleKill;
+  } else if (sim.castledefenseActive) {
+    // CASTLE DEFENSE init — fasta walls + core + spawn-spelare inne i castle
+    sim.simReadyAt = Date.now() + 5000;
+    const arena = CASTLEDEFENSE_ARENA;
+    // Runtime-kopia av walls så vi kan mutera hp utan att röra arena-konstanten
+    sim.castledefenseWalls = arena.walls.map(w => ({ ...w }));
+    sim.castledefenseCore = { ...arena.core };
+    sim.castledefenseBuildings = [];
+    sim.castledefenseStartedAt = Date.now();
+    sim.castledefenseWave = 0;
+    sim.castledefenseWaveState = 'between';
+    // Första vågen startar efter 10 sek så spelare hinner orientera sig + bygga
+    sim.castledefenseWaveBetweenEndAt = Date.now() + 10000;
+    // Spawn spelare på fasta points inne i castle (max 4 — pickSpreadSpawns roterar)
+    const cdSpawns = pickSpreadSpawns(arena.playerSpawns, sim.room.members.size);
+    let cdIdx = 0;
+    for (const [pid, ws] of sim.room.members) {
+      ws.playerState = ws.playerState || {};
+      const sp = cdSpawns[cdIdx];
+      ws.playerState.x = sp.x;
+      ws.playerState.y = sp.y;
+      ws.playerState.hp = arena.startHp;
+      ws.playerState.maxHp = arena.maxHp;
+      ws.playerState.shield = arena.startShield;
+      ws.playerState.maxShield = arena.maxShield;
+      ws.playerState.invulnUntil = Date.now() + 2000;
+      ws.playerState.weaponId = arena.startWeapon;
+      ws.playerState.isJug = false;
+      ws.playerState.scaleMul = 1.0;
+      ws.playerState.speedMul = 1.0;
+      ws.playerState.dashCdMs = null;
+      ws.tdmRespawnAt = 0;
+      ws.tdmTeam = null; // Co-op (alla är "allies")
+      sim.castledefenseScores[pid] = 0;
+      sim.tdmDeathsByPid[pid] = 0;
+      // Castle Defense gold är per-match (inte save.gold). Lagras på sim per peerId.
+      sim.castledefenseGold = sim.castledefenseGold || {};
+      sim.castledefenseGold[pid] = arena.startGold || 400;
+      cdIdx++;
+    }
+    sim.eventQueue.push({
+      type: 'cd_started',
+      arena: {
+        worldW: arena.worldW,
+        worldH: arena.worldH,
+        name: arena.name,
+        groundColor: arena.groundColor,
+        centerX: arena.centerX,
+        centerY: arena.centerY,
+      },
+      walls: sim.castledefenseWalls.map(w => ({
+        id: w.id, x: w.x, y: w.y, w: w.w, h: w.h, kind: w.kind, hp: w.hp, maxHp: w.maxHp, side: w.side,
+      })),
+      core: { ...sim.castledefenseCore },
+      playerSpawns: arena.playerSpawns,
+      enemySpawns: arena.enemySpawns,
+      buildables: arena.buildables,
+      buildGridSize: arena.buildGridSize,
+      startHp: arena.startHp,
+      maxHp: arena.maxHp,
+      startGold: sim.castledefenseGold,  // {pid: amount}
+      waveBetweenEndAt: sim.castledefenseWaveBetweenEndAt,
+      bossEveryWave: arena.bossEveryWave,
+    });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
   } else {
     loadStage(sim, sim.wave);
   }
@@ -3482,7 +4163,8 @@ function applyPlayerInput(sim, peerId, input) {
   // (= riktig spawn-resync, inte mid-game shield).
   const inPvP = sim.tdmActive || sim.ctfActive || sim.siegeActive ||
                 sim.gungameActive || sim.kothActive ||
-                sim.juggernautActive || sim.battleroyaleActive;
+                sim.juggernautActive || sim.battleroyaleActive ||
+                sim.castledefenseActive;
   if (inPvP && typeof input.x === 'number' && typeof input.y === 'number') {
     const now = Date.now();
     const isInvuln = (ws.playerState.invulnUntil || 0) > now;
@@ -3656,4 +4338,147 @@ function applyLoadStage(sim, peerId, msg) {
   loadStage(sim, wave);
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret };
+// ============================================================
+// CASTLE DEFENSE — build + repair-handlers (client → server)
+// ============================================================
+function applyCastleDefenseBuild(sim, peerId, msg) {
+  if (!sim.castledefenseActive || sim.castledefenseEnded) return;
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  const arena = CASTLEDEFENSE_ARENA;
+  const kind = msg && msg.kind;
+  if (!kind || !arena.buildables[kind]) return;
+  const spec = arena.buildables[kind];
+  const grid = arena.buildGridSize;
+  // Grid-snap server-side (klient kan vara felaktig)
+  const x = Math.floor((+msg.x || 0) / grid) * grid;
+  const y = Math.floor((+msg.y || 0) / grid) * grid;
+  if (x < 20 || y < 20 || x + spec.w > arena.worldW - 20 || y + spec.h > arena.worldH - 20) {
+    sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'out_of_bounds', kind });
+    return;
+  }
+  // Gold-check
+  const playerGold = sim.castledefenseGold[peerId] || 0;
+  if (playerGold < spec.cost) {
+    sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'insufficient_gold', kind });
+    return;
+  }
+  // Overlap-check med walls
+  for (const w of sim.castledefenseWalls) {
+    if (w.hp <= 0) continue;
+    if (x < w.x + w.w && x + spec.w > w.x && y < w.y + w.h && y + spec.h > w.y) {
+      sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_wall', kind });
+      return;
+    }
+  }
+  // Overlap-check med befintliga buildings
+  for (const b of sim.castledefenseBuildings) {
+    if (b.hp <= 0) continue;
+    if (x < b.x + b.w && x + spec.w > b.x && y < b.y + b.h && y + spec.h > b.y) {
+      sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_building', kind });
+      return;
+    }
+  }
+  // Overlap-check med core (circle vs AABB)
+  if (sim.castledefenseCore) {
+    const core = sim.castledefenseCore;
+    const cx2 = Math.max(x, Math.min(core.x, x + spec.w));
+    const cy2 = Math.max(y, Math.min(core.y, y + spec.h));
+    const dxC = core.x - cx2, dyC = core.y - cy2;
+    if (dxC * dxC + dyC * dyC < (core.r + 5) * (core.r + 5)) {
+      sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_core', kind });
+      return;
+    }
+  }
+  // Overlap-check med levande spelare (man får inte bygga på spelare)
+  for (const [, ws2] of sim.room.members) {
+    if (!ws2.playerState || ws2.playerState.hp <= 0) continue;
+    const ps = ws2.playerState;
+    const r = 14;
+    const ccx = Math.max(x, Math.min(ps.x, x + spec.w));
+    const ccy = Math.max(y, Math.min(ps.y, y + spec.h));
+    const ddx = ps.x - ccx, ddy = ps.y - ccy;
+    if (ddx * ddx + ddy * ddy < r * r) {
+      sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_player', kind });
+      return;
+    }
+  }
+  // OK → deducera gold + skapa building
+  sim.castledefenseGold[peerId] = playerGold - spec.cost;
+  sim._cdBuildIdCounter += 1;
+  const building = {
+    id: 'build_' + sim._cdBuildIdCounter,
+    kind, x, y, w: spec.w, h: spec.h,
+    hp: spec.hp, maxHp: spec.hp,
+    ownerPid: peerId,
+    fireRate: spec.fireRate || 0,
+    range: spec.range || 0,
+    dps: spec.dps || 0,
+    dpsMul: spec.dpsMul || 0,
+    dmgOnPass: spec.dmgOnPass || 0,
+    slowMul: spec.slowMul || 1,
+    slowDurSec: spec.slowDurSec || 0,
+    healPerSec: spec.healPerSec || 0,
+    playerHealPerSec: spec.playerHealPerSec || 0,
+    radius: spec.radius || 0,
+    _fireCd: 0,
+    _spikeCd: 0,
+    occupiedByPid: null,
+  };
+  sim.castledefenseBuildings.push(building);
+  sim.eventQueue.push({
+    type: 'cd_building_placed',
+    id: building.id, kind: building.kind,
+    x: building.x, y: building.y, w: building.w, h: building.h,
+    hp: building.hp, maxHp: building.maxHp,
+    ownerPid: peerId,
+    range: building.range, dpsMul: building.dpsMul,
+  });
+  sim.eventQueue.push({
+    type: 'cd_gold_update',
+    peerId, gold: sim.castledefenseGold[peerId], delta: -spec.cost,
+  });
+}
+
+function applyCastleDefenseRepair(sim, peerId, msg) {
+  if (!sim.castledefenseActive || sim.castledefenseEnded) return;
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  const id = msg && msg.id;
+  if (!id) return;
+  let target = null;
+  let isBuild = false;
+  for (const w of sim.castledefenseWalls) {
+    if (w.id === id && w.hp > 0 && w.hp < w.maxHp) { target = w; break; }
+  }
+  if (!target) {
+    for (const b of sim.castledefenseBuildings) {
+      if (b.id === id && b.hp > 0 && b.hp < b.maxHp) { target = b; isBuild = true; break; }
+    }
+  }
+  if (!target) return;
+  // Kontakt-check (spelare måste stå inom 40px)
+  const px = ws.playerState.x, py = ws.playerState.y;
+  const cx2 = Math.max(target.x, Math.min(px, target.x + target.w));
+  const cy2 = Math.max(target.y, Math.min(py, target.y + target.h));
+  const dx2 = px - cx2, dy2 = py - cy2;
+  if (dx2 * dx2 + dy2 * dy2 > 40 * 40) return;
+  const REPAIR_AMOUNT = 80;
+  const REPAIR_COST = 10;
+  if ((sim.castledefenseGold[peerId] || 0) < REPAIR_COST) {
+    sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'insufficient_gold', kind: 'repair' });
+    return;
+  }
+  sim.castledefenseGold[peerId] -= REPAIR_COST;
+  target.hp = Math.min(target.maxHp, target.hp + REPAIR_AMOUNT);
+  sim.eventQueue.push({
+    type: isBuild ? 'cd_building_damaged' : 'cd_wall_damaged',
+    id: target.id, hp: target.hp, maxHp: target.maxHp,
+  });
+  sim.eventQueue.push({
+    type: 'cd_gold_update',
+    peerId, gold: sim.castledefenseGold[peerId], delta: -REPAIR_COST,
+  });
+}
+
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair };

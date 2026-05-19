@@ -7587,6 +7587,323 @@ function drawBrZone() {
   ctx.restore();
 }
 
+// ============================================================
+// CASTLE DEFENSE — render functions (walls, core, buildings, ground, spawn-markers)
+// ============================================================
+function drawCastleDefenseGround() {
+  // Subtilt grid-mönster över ground för att indikera bygg-grid (30×30 cells)
+  if (!state.castledefenseBuildGridSize) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const grid = state.castledefenseBuildGridSize;
+  const startX = Math.floor(cx / grid) * grid - cx;
+  const startY = Math.floor(cy / grid) * grid - cy;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(120, 100, 70, 0.08)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = startX; x < viewW + grid; x += grid) {
+    ctx.moveTo(x + 0.5, 0);
+    ctx.lineTo(x + 0.5, viewH);
+  }
+  for (let y = startY; y < viewH + grid; y += grid) {
+    ctx.moveTo(0, y + 0.5);
+    ctx.lineTo(viewW, y + 0.5);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawCastleDefenseWalls() {
+  if (!state.castledefenseWalls) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  ctx.save();
+  for (const w of state.castledefenseWalls) {
+    if (w.hp <= 0) {
+      // Förstörd — rita ruiner (mörk sten + sprickor)
+      const x = w.x - cx, y = w.y - cy;
+      if (x + w.w < 0 || x > viewW || y + w.h < 0 || y > viewH) continue;
+      ctx.fillStyle = '#2a1e14';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.strokeStyle = '#1a0e08';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+      continue;
+    }
+    const x = w.x - cx, y = w.y - cy;
+    if (x + w.w < 0 || x > viewW || y + w.h < 0 || y > viewH) continue;
+    // HP-procent → färg lerping (full=sten-grå, halvt=brun, lågt=röd-brun)
+    const hpPct = w.hp / w.maxHp;
+    let fillColor = '#6a5a4a';      // full = stengrå
+    let strokeColor = '#3a2a1a';
+    if (hpPct < 0.66) fillColor = '#5a4030';
+    if (hpPct < 0.33) { fillColor = '#5a2020'; strokeColor = '#2a0808'; }
+    ctx.fillStyle = fillColor;
+    ctx.fillRect(x, y, w.w, w.h);
+    // Sten-textur: mörka linjer för "stenblock"-skarvar
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+    // Block-skarvar (varje 40px ungefär)
+    if (w.w > w.h) {
+      // Horisontell wall — vertikala skarvar
+      for (let xx = 40; xx < w.w; xx += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x + xx + 0.5, y);
+        ctx.lineTo(x + xx + 0.5, y + w.h);
+        ctx.stroke();
+      }
+    } else {
+      // Vertikal wall — horisontella skarvar
+      for (let yy = 40; yy < w.h; yy += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, y + yy + 0.5);
+        ctx.lineTo(x + w.w, y + yy + 0.5);
+        ctx.stroke();
+      }
+    }
+    // HP-bar ovanför wall (om skadad)
+    if (hpPct < 1.0) {
+      const barW = Math.max(28, w.w * 0.4);
+      const barX = x + w.w / 2 - barW / 2;
+      const barY = y - 8;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(barX, barY, barW, 4);
+      ctx.fillStyle = hpPct > 0.5 ? '#5aff5a' : (hpPct > 0.25 ? '#ffd54a' : '#ff5a5a');
+      ctx.fillRect(barX, barY, barW * hpPct, 4);
+    }
+  }
+  ctx.restore();
+}
+
+function drawCastleDefenseCore() {
+  if (!state.castledefenseCore) return;
+  const core = state.castledefenseCore;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const x = core.x - cx, y = core.y - cy;
+  if (x < -100 || x > viewW + 100 || y < -100 || y > viewH + 100) return;
+  ctx.save();
+  const t = performance.now() / 1000;
+  const hpPct = core.hp / core.maxHp;
+  // Glow-pulse
+  const pulse = 0.6 + Math.sin(t * 2.5) * 0.4;
+  const glowR = core.r * 1.6;
+  const grad = ctx.createRadialGradient(x, y, core.r * 0.3, x, y, glowR);
+  const glowColor = hpPct > 0.5 ? '255,224,128' : (hpPct > 0.25 ? '255,200,80' : '255,100,80');
+  grad.addColorStop(0, 'rgba(' + glowColor + ',' + (0.5 * pulse) + ')');
+  grad.addColorStop(1, 'rgba(' + glowColor + ',0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(x, y, glowR, 0, Math.PI * 2);
+  ctx.fill();
+  // Core själv — gyllene kristall
+  ctx.fillStyle = hpPct > 0.5 ? '#d4a04a' : (hpPct > 0.25 ? '#c48a2a' : '#a04020');
+  ctx.beginPath();
+  ctx.arc(x, y, core.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1a0a04';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  // Inner shine
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.beginPath();
+  ctx.arc(x - core.r * 0.3, y - core.r * 0.3, core.r * 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // HP-bar ovanför core
+  const barW = 80, barH = 8;
+  const barX = x - barW / 2, barY = y - core.r - 18;
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(barX - 2, barY - 2, barW + 4, barH + 4);
+  ctx.fillStyle = hpPct > 0.5 ? '#5aff5a' : (hpPct > 0.25 ? '#ffd54a' : '#ff5a5a');
+  ctx.fillRect(barX, barY, barW * hpPct, barH);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 10px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText(Math.ceil(core.hp) + ' / ' + core.maxHp, x, barY - 3);
+  ctx.restore();
+}
+
+function drawCastleDefenseBuildings() {
+  if (!state.castledefenseBuildings || !state.castledefenseBuildings.length) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const t = performance.now() / 1000;
+  ctx.save();
+  for (const b of state.castledefenseBuildings) {
+    if (b.hp <= 0) continue;
+    const x = b.x - cx, y = b.y - cy;
+    if (x + b.w < 0 || x > viewW || y + b.h < 0 || y > viewH) continue;
+    const bcx = x + b.w / 2, bcy = y + b.h / 2;
+    // === Per-kind sprite ===
+    if (b.kind === 'wall') {
+      ctx.fillStyle = '#7a6a5a';
+      ctx.fillRect(x, y, b.w, b.h);
+      ctx.strokeStyle = '#3a2a1a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
+    } else if (b.kind === 'auto_turret') {
+      // Bas
+      ctx.fillStyle = '#3a3a4a';
+      ctx.fillRect(x, y, b.w, b.h);
+      ctx.strokeStyle = '#1a1a2a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
+      // Turret-cirkel
+      ctx.fillStyle = '#5a5a8a';
+      ctx.beginPath();
+      ctx.arc(bcx, bcy, b.w / 2 - 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#2a2a4a';
+      ctx.stroke();
+      // Pipa pekar mot närmsta enemy (visuell)
+      let aimAng = -Math.PI / 2;
+      if (state.enemies && state.enemies.length) {
+        let bestD = 1e9;
+        for (const e of state.enemies) {
+          const dx = e.x - (b.x + b.w / 2), dy = e.y - (b.y + b.h / 2);
+          const d2 = dx * dx + dy * dy;
+          if (d2 < bestD) { bestD = d2; aimAng = Math.atan2(dy, dx); }
+        }
+      }
+      ctx.strokeStyle = '#1a1a2a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(bcx, bcy);
+      ctx.lineTo(bcx + Math.cos(aimAng) * (b.w / 2 + 4), bcy + Math.sin(aimAng) * (b.w / 2 + 4));
+      ctx.stroke();
+    } else if (b.kind === 'man_turret') {
+      // Lik auto_turret men större bas + säte
+      ctx.fillStyle = '#5a3a2a';
+      ctx.fillRect(x, y, b.w, b.h);
+      ctx.strokeStyle = '#2a1a0a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
+      ctx.fillStyle = '#8a5a3a';
+      ctx.beginPath();
+      ctx.arc(bcx, bcy, b.w / 2 - 3, 0, Math.PI * 2);
+      ctx.fill();
+      // "S" för seat (placeholder)
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('S', bcx, bcy);
+    } else if (b.kind === 'spike_trap') {
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x, y, b.w, b.h);
+      // Spike-mönster (4 triangles)
+      ctx.fillStyle = '#aa3030';
+      for (let i = 0; i < 3; i++) {
+        for (let j = 0; j < 3; j++) {
+          const sx = x + 5 + i * 10, sy = y + 5 + j * 10;
+          ctx.beginPath();
+          ctx.moveTo(sx, sy + 6);
+          ctx.lineTo(sx + 3, sy);
+          ctx.lineTo(sx + 6, sy + 6);
+          ctx.closePath();
+          ctx.fill();
+        }
+      }
+    } else if (b.kind === 'slow_trap') {
+      // Ice/blue gradient
+      const grd = ctx.createLinearGradient(x, y, x, y + b.h);
+      grd.addColorStop(0, '#8acaff');
+      grd.addColorStop(1, '#3a6a8a');
+      ctx.fillStyle = grd;
+      ctx.fillRect(x, y, b.w, b.h);
+      ctx.strokeStyle = '#5a8acf';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
+      // Snöflinga (placeholder X-asterisk)
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(bcx - 8, bcy); ctx.lineTo(bcx + 8, bcy);
+      ctx.moveTo(bcx, bcy - 8); ctx.lineTo(bcx, bcy + 8);
+      ctx.moveTo(bcx - 6, bcy - 6); ctx.lineTo(bcx + 6, bcy + 6);
+      ctx.moveTo(bcx - 6, bcy + 6); ctx.lineTo(bcx + 6, bcy - 6);
+      ctx.stroke();
+    } else if (b.kind === 'repair_stn') {
+      ctx.fillStyle = '#3a8a4a';
+      ctx.fillRect(x, y, b.w, b.h);
+      ctx.strokeStyle = '#1a4a2a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
+      // Wrench-emoji (om font tillåter — annars kross)
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🔧', bcx, bcy);
+      // Pulse-aura
+      if (b.radius) {
+        const pulse = 0.15 + Math.sin(t * 3) * 0.1;
+        ctx.fillStyle = 'rgba(90,255,90,' + pulse + ')';
+        ctx.beginPath();
+        ctx.arc(bcx, bcy, b.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (b.kind === 'health_stn') {
+      ctx.fillStyle = '#8a3a3a';
+      ctx.fillRect(x, y, b.w, b.h);
+      ctx.strokeStyle = '#4a1a1a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
+      // Cross
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(bcx - 2, y + 5, 4, b.h - 10);
+      ctx.fillRect(x + 5, bcy - 2, b.w - 10, 4);
+      // Pulse-aura
+      if (b.radius) {
+        const pulse = 0.15 + Math.sin(t * 3) * 0.1;
+        ctx.fillStyle = 'rgba(255,90,90,' + pulse + ')';
+        ctx.beginPath();
+        ctx.arc(bcx, bcy, b.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      // Fallback (okänd kind)
+      ctx.fillStyle = '#3a8a4a';
+      ctx.fillRect(x, y, b.w, b.h);
+      ctx.strokeStyle = '#1a4a2a';
+      ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
+    }
+    // HP-bar
+    const hpPct = b.hp / b.maxHp;
+    if (hpPct < 1.0) {
+      const barW = Math.max(20, b.w * 0.6);
+      const barX = x + b.w / 2 - barW / 2;
+      const barY = y - 6;
+      ctx.fillStyle = 'rgba(0,0,0,0.5)';
+      ctx.fillRect(barX, barY, barW, 3);
+      ctx.fillStyle = hpPct > 0.5 ? '#5aff5a' : '#ff5a5a';
+      ctx.fillRect(barX, barY, barW * hpPct, 3);
+    }
+  }
+  ctx.restore();
+}
+
+function drawCastleDefenseSpawnMarkers() {
+  // Subtila pulser vid enemy-spawn-punkter under "between"-fas så spelare
+  // ser var fienden kommer ifrån. Visas inte under aktiv våg.
+  if (!state.castledefenseEnemySpawns || state.castledefenseWaveState !== 'between') return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const t = performance.now() / 1000;
+  const pulse = 0.4 + Math.sin(t * 3) * 0.4;
+  ctx.save();
+  for (const sp of state.castledefenseEnemySpawns) {
+    const x = sp.x - cx, y = sp.y - cy;
+    if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) continue;
+    ctx.fillStyle = 'rgba(255,80,80,' + (0.3 * pulse) + ')';
+    ctx.beginPath();
+    ctx.arc(x, y, 28 + 8 * pulse, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,160,160,' + (0.6 * pulse) + ')';
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 // BATTLE ROYALE — loot på marken. Olika färger/ikoner per tier + kind.
 function drawBrLoot() {
   if (!state.battleroyaleLoot) return;
@@ -12086,7 +12403,7 @@ function toggleCheat(id) {
 // ============================================================
 const GAME_MODES = ['story', 'endless', 'bossrush', 'daily', 'sandbox', 'speedrun', 'survive', 'truck'];
 const DIFFICULTIES = ['casual', 'veteran', 'hardcore', 'insane'];
-const MODE_LABELS = { story: 'STORY', endless: 'ENDLESS', bossrush: 'BOSS RUSH', daily: 'DAILY', sandbox: 'SANDBOX', speedrun: 'SPEEDRUN', survive: 'SURVIVE 5M', truck: '🚚 KONVOJ', newgameplus: 'NG+' };
+const MODE_LABELS = { story: 'STORY', endless: 'ENDLESS', bossrush: 'BOSS RUSH', daily: 'DAILY', sandbox: 'SANDBOX', speedrun: 'SPEEDRUN', survive: 'SURVIVE 5M', truck: '🚚 KONVOJ', castledefense: '🏰 CASTLE DEFENSE', newgameplus: 'NG+' };
 const DIFF_LABELS = { casual: 'CASUAL', veteran: 'VETERAN', hardcore: 'HARDCORE', insane: '💀 INSANE' };
 const DIFF_MULTIPLIERS = {
   casual:   { enemyHp: 0.7, enemyDmg: 0.7, gold: 1.2, shopPrice: 0.85 },
@@ -13163,6 +13480,22 @@ window.addEventListener('keydown', e => {
   if (k === 'q' && !_locked) switchWeapon(-1);
   if (k === 'e' && !_locked) switchWeapon(1);
   if (k === 'r' && state.mode === 'playing' && !_locked) startReload();
+  // Castle Defense build-system: keys 1-7 = build-mode, F = repair, Esc avbryter (hanteras nedan)
+  if (state.castledefenseActive && state.mode === 'playing' && !_locked) {
+    if (typeof CD_BUILDABLE_LIST !== 'undefined') {
+      for (const b of CD_BUILDABLE_LIST) {
+        if (k === b.key) {
+          toggleCdBuildMode(b.kind);
+          e.preventDefault();
+          break;
+        }
+      }
+    }
+    if (k === 'f' && !e.repeat) {
+      tryCdRepair();
+      e.preventDefault();
+    }
+  }
   if (k === 'tab' || e.key === 'Tab') {
     e.preventDefault();
     if (state.mode === 'playing' && !_locked) openWeaponMenu();
@@ -13174,6 +13507,14 @@ window.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape') {
     e.preventDefault();
+    // Castle Defense build-mode → Escape avbryter
+    if (state.castledefenseActive && state.cdBuildMode) {
+      state.cdBuildMode = null;
+      state.cdBuildHoverX = null;
+      state.cdBuildHoverY = null;
+      if (typeof refreshCdBuildSlotStyles === 'function') refreshCdBuildSlotStyles();
+      return;
+    }
     if (state.mode === 'playing') openPause();
     else if (state.mode === 'pause') closePause();
     else if (state.mode === 'weaponmenu') closeWeaponMenu();
@@ -13189,6 +13530,10 @@ canvas.addEventListener('mousemove', e => {
   const r = canvas.getBoundingClientRect();
   input.mouse.x = e.clientX - r.left;
   input.mouse.y = e.clientY - r.top;
+  // Castle Defense build-mode: uppdatera ghost-position
+  if (state.castledefenseActive && state.cdBuildMode && typeof updateCdBuildHover === 'function') {
+    updateCdBuildHover(input.mouse.x, input.mouse.y);
+  }
 });
 function checkMinimapZoomClick(mx, my) {
   if (state.mode !== 'playing') return false;
@@ -13229,6 +13574,12 @@ canvas.addEventListener('mousedown', (e) => {
   const mx = e.clientX - r.left, my = e.clientY - r.top;
   if (checkMinimapZoomClick(mx, my)) return;
   if (checkDebugCornerTap(mx, my)) return; // v1.384: triple-tap top-left
+  // Castle Defense build-mode: vänsterklick placerar bygge istället för att skjuta
+  if (state.castledefenseActive && state.cdBuildMode && e.button === 0) {
+    updateCdBuildHover(mx, my);
+    tryCdPlaceBuilding();
+    return;
+  }
   if (storyDialogActive) {
     const r = canvas.getBoundingClientRect();
     const mx = e.clientX - r.left, my = e.clientY - r.top;
@@ -13817,6 +14168,7 @@ function raycastGrenadeWalls(fromX, fromY, toX, toY) {
   else if (state.gungameActive) walls = state.gungameWalls;
   else if (state.kothActive) walls = state.kothWalls;
   else if (state.juggernautActive) walls = state.juggernautWalls;
+  else if (state.castledefenseActive) walls = state.castledefenseWalls;
   if (!walls || !walls.length) return Infinity;
   const dx = toX - fromX, dy = toY - fromY;
   let nearestT = Infinity;
@@ -17142,6 +17494,252 @@ const Coop = {
         const winnerName = ev.winner === this.myId ? (this.myName || 'Du') : (this.players.get(ev.winner) && this.players.get(ev.winner).name) || 'Spelare';
         showToast('🏆 ' + winnerName + ' VANN LAST HUNT!');
       }
+    } else if (ev.type === 'cd_started') {
+      // CASTLE DEFENSE start. ev: { arena, walls, core, playerSpawns, enemySpawns,
+      // buildables, buildGridSize, startHp, maxHp, waveBetweenEndAt, bossEveryWave }
+      if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
+      if (typeof hideTdmHud === 'function') hideTdmHud();
+      if (typeof hideCtfHud === 'function') hideCtfHud();
+      if (typeof hideSiegeHud === 'function') hideSiegeHud();
+      if (typeof hideGungameHud === 'function') hideGungameHud();
+      if (typeof hideKothHud === 'function') hideKothHud();
+      if (typeof hideJuggernautHud === 'function') hideJuggernautHud();
+      if (typeof hideBrHud === 'function') hideBrHud();
+      this.tdmActive = false; this.ctfActive = false; this.siegeActive = false;
+      this.gungameActive = false; this.kothActive = false; this.juggernautActive = false;
+      this.battleroyaleActive = false;
+      state.tdmActive = false; state.ctfActive = false; state.siegeActive = false;
+      state.gungameActive = false; state.kothActive = false; state.juggernautActive = false;
+      state.battleroyaleActive = false;
+      state.companion = null;
+      state._pendingServerMode = null;
+      this.castledefenseActive = true;
+      state.castledefenseActive = true;
+      state.castledefenseEnded = false;
+      state.castledefenseWalls = ev.walls || [];
+      state.castledefenseCore = ev.core || null;
+      state.castledefenseBuildings = [];
+      state.castledefenseBuildables = ev.buildables || {};
+      state.castledefenseBuildGridSize = ev.buildGridSize || 30;
+      state.castledefenseEnemySpawns = ev.enemySpawns || [];
+      state.castledefensePlayerSpawns = ev.playerSpawns || [];
+      state.castledefenseWave = 0;
+      state.castledefenseWaveState = 'between';
+      state.castledefenseWaveBetweenEndAt = ev.waveBetweenEndAt || (Date.now() + 10000);
+      state.castledefenseBossEveryWave = ev.bossEveryWave || 5;
+      state.castledefenseStartedAt = Date.now();
+      // Initial gold (per-match, ej save.gold)
+      state.castledefenseGold = (ev.startGold && ev.startGold[this.myId]) || 200;
+      state.enemies = []; state.bullets = [];
+      state.bossAlive = false; state.bossIntro = null;
+      state.waveActive = false; state.enemiesToSpawn = 0;
+      state._serverSpawnWaitSince = 0; state._serverWakeToastShown = false;
+      if (ev.arena) {
+        state.customStages = [{
+          id: 'cd_arena', name: ev.arena.name || 'CASTLE KEEP',
+          kind: 'castledefense', worldW: ev.arena.worldW, worldH: ev.arena.worldH,
+          groundColor: ev.arena.groundColor,
+          spawnPos: { x: ev.arena.centerX || 2000, y: ev.arena.centerY || 2000 },
+          goalPos: { x: ev.arena.centerX || 2000, y: ev.arena.centerY || 2000 },
+        }];
+        state.wave = 1;
+        WORLD.w = ev.arena.worldW; WORLD.h = ev.arena.worldH;
+        if (typeof stageState !== 'undefined') {
+          stageState.buildings = []; stageState.decorations = [];
+          stageState.hazards = []; stageState.collectibles = [];
+        }
+      }
+      if (state.player) {
+        state.player.hp = ev.startHp || 100;
+        state.player.maxHp = ev.maxHp || 100;
+        state.player.shield = 0;
+        state.player.maxShield = 0;
+        state.player.invuln = 2;
+        state.player.isJug = false;
+        state.player.scaleMul = 1.0;
+        state.player.speedMul = 1.0;
+        state.player.dashCdMs = null;
+        state.player.spectating = false;
+      }
+      // Synka maxHp på partners
+      for (const [pid, partner] of this.players) {
+        partner.isJug = false;
+        partner.scaleMul = 1.0;
+        partner.maxHp = ev.maxHp || 100;
+      }
+      if (typeof showCastleDefenseHud === 'function') showCastleDefenseHud();
+      if (typeof showCastleDefenseBuildBar === 'function') showCastleDefenseBuildBar();
+      if (typeof showToast === 'function') showToast('🏰 CASTLE DEFENSE — håll ut!');
+      if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('survive');
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
+    } else if (ev.type === 'cd_wave_started') {
+      // { wave, enemiesIncoming }
+      state.castledefenseWave = ev.wave;
+      state.castledefenseWaveState = 'active';
+      state.castledefenseEnemiesIncoming = ev.enemiesIncoming || 0;
+      const isBoss = ev.wave % (state.castledefenseBossEveryWave || 5) === 0;
+      if (typeof showToast === 'function') {
+        showToast(isBoss ? '👹 BOSS-VÅG ' + ev.wave + '!' : '⚔ Våg ' + ev.wave);
+      }
+      if (typeof Audio !== 'undefined' && Audio.waveStart) Audio.waveStart();
+      if (isBoss && typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
+    } else if (ev.type === 'cd_wave_complete') {
+      // { wave, nextWaveInSec, nextIsBoss, nextWave }
+      state.castledefenseWaveState = 'between';
+      state.castledefenseWaveBetweenEndAt = Date.now() + (ev.nextWaveInSec || 8) * 1000;
+      if (typeof showToast === 'function') showToast('✓ Våg ' + ev.wave + ' klar — bygg/repair!');
+      if (ev.nextIsBoss && typeof showToast === 'function') {
+        setTimeout(() => showToast('⚠ BOSS-VÅG om ' + (ev.nextWaveInSec || 8) + 's — förbered!'), 1500);
+      }
+    } else if (ev.type === 'cd_wall_damaged') {
+      // { id, hp, maxHp }
+      if (state.castledefenseWalls) {
+        for (const w of state.castledefenseWalls) {
+          if (w.id === ev.id) { w.hp = ev.hp; break; }
+        }
+      }
+    } else if (ev.type === 'cd_wall_destroyed') {
+      // { id }
+      if (state.castledefenseWalls) {
+        for (const w of state.castledefenseWalls) {
+          if (w.id === ev.id) { w.hp = 0; break; }
+        }
+      }
+      if (typeof showToast === 'function') showToast('⚠ MUR FÖRSTÖRD!');
+      if (typeof triggerShake === 'function') triggerShake(8, 0.4);
+    } else if (ev.type === 'cd_core_damaged') {
+      // { hp, maxHp }
+      if (state.castledefenseCore) {
+        state.castledefenseCore.hp = ev.hp;
+      }
+      if (typeof triggerShake === 'function') triggerShake(4, 0.2);
+    } else if (ev.type === 'cd_building_placed') {
+      // { id, kind, x, y, w, h, hp, maxHp, ownerPid }
+      if (state.castledefenseBuildings) {
+        state.castledefenseBuildings.push({ ...ev });
+      }
+    } else if (ev.type === 'cd_building_damaged') {
+      // { id, hp, maxHp }
+      if (state.castledefenseBuildings) {
+        for (const b of state.castledefenseBuildings) {
+          if (b.id === ev.id) { b.hp = ev.hp; break; }
+        }
+      }
+    } else if (ev.type === 'cd_building_destroyed') {
+      // { id }
+      if (state.castledefenseBuildings) {
+        state.castledefenseBuildings = state.castledefenseBuildings.filter(b => b.id !== ev.id);
+      }
+    } else if (ev.type === 'cd_ended') {
+      // { reason, wave, survivedSec }
+      this.castledefenseActive = false;
+      state.castledefenseActive = false;
+      state.castledefenseEnded = true;
+      if (typeof showToast === 'function') {
+        showToast('💀 CORE FÖRSTÖRD — överlevde våg ' + ev.wave + ' (' + ev.survivedSec + 's)');
+      }
+      if (typeof Audio !== 'undefined' && Audio.gameOver) Audio.gameOver();
+      if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
+      if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
+    } else if (ev.type === 'cd_hud_update') {
+      // { wave, waveState, enemiesAlive, enemiesIncoming, coreHp, coreMaxHp, waveBetweenEndAt }
+      state.castledefenseWave = ev.wave;
+      state.castledefenseWaveState = ev.waveState;
+      state.castledefenseEnemiesAlive = ev.enemiesAlive;
+      state.castledefenseEnemiesIncoming = ev.enemiesIncoming;
+      if (state.castledefenseCore) {
+        state.castledefenseCore.hp = ev.coreHp;
+        state.castledefenseCore.maxHp = ev.coreMaxHp;
+      }
+      state.castledefenseWaveBetweenEndAt = ev.waveBetweenEndAt;
+      if (typeof updateCastleDefenseHud === 'function') updateCastleDefenseHud();
+    } else if (ev.type === 'cd_wave_bonus') {
+      // { peerId, gold, totalGold, wave }
+      if (ev.peerId === this.myId) {
+        state.castledefenseGold = ev.totalGold;
+        if (typeof showToast === 'function') showToast('💰 +' + ev.gold + ' bonus (våg ' + ev.wave + ' klar)');
+      }
+    } else if (ev.type === 'cd_gold_update') {
+      // { peerId, gold, delta }
+      if (ev.peerId === this.myId) {
+        state.castledefenseGold = ev.gold;
+        if (typeof refreshCdBuildSlotStyles === 'function') refreshCdBuildSlotStyles();
+      }
+    } else if (ev.type === 'cd_player_downed') {
+      // { peerId, x, y }
+      if (ev.peerId === this.myId && state.player) {
+        state.player.cdDowned = true;
+        state.player.cdDownStartedAt = Date.now();
+        state.player._cdPrevWeapon = state.player.weaponId;
+        state.player.weaponId = 'knife';
+        state.player.speedMul = 0.35;
+        save.equipped = 'knife';
+        save.weaponId = 'knife';
+        if (typeof showToast === 'function') showToast('💀 DOWN! En lagkamrat måste rädda dig (5s)');
+        if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
+        if (typeof triggerShake === 'function') triggerShake(8, 0.3);
+      } else {
+        const partner = this.players.get(ev.peerId);
+        if (partner) partner.cdDowned = true;
+        if (typeof showToast === 'function') {
+          const name = (partner && partner.name) || 'Lagkamrat';
+          showToast('⚠ ' + name + ' är NER — håll in F nära dem');
+        }
+      }
+    } else if (ev.type === 'cd_revive_progress') {
+      // { peerId, reviverPid, progress (0-1) }
+      if (ev.peerId === this.myId && state.player) {
+        state.player.cdReviveProgress = ev.progress;
+      } else {
+        const partner = this.players.get(ev.peerId);
+        if (partner) partner.cdReviveProgress = ev.progress;
+      }
+    } else if (ev.type === 'cd_player_revived') {
+      // { peerId, reviverPid }
+      if (ev.peerId === this.myId && state.player) {
+        state.player.cdDowned = false;
+        state.player.cdReviveProgress = 0;
+        state.player.speedMul = 1.0;
+        const restored = state.player._cdPrevWeapon || 'rifle';
+        state.player.weaponId = restored;
+        save.equipped = restored;
+        save.weaponId = restored;
+        if (typeof showToast === 'function') showToast('💚 ÅTERUPPLIVAD!');
+        if (typeof Audio !== 'undefined' && Audio.revive) Audio.revive();
+      } else {
+        const partner = this.players.get(ev.peerId);
+        if (partner) { partner.cdDowned = false; partner.cdReviveProgress = 0; }
+      }
+    } else if (ev.type === 'cd_player_died_out') {
+      // { peerId }
+      if (ev.peerId === this.myId && state.player) {
+        state.player.cdDowned = false;
+        state.player.cdDownDead = true;
+        if (typeof showToast === 'function') showToast('💀 BLED OUT — respawn nästa våg');
+      }
+    } else if (ev.type === 'cd_player_respawned') {
+      // { peerId, wave }
+      if (ev.peerId === this.myId && state.player) {
+        state.player.cdDownDead = false;
+        state.player.cdDowned = false;
+        state.player.spectating = false;
+        state.player.invuln = 3;
+        if (typeof showToast === 'function') showToast('♻ RESPAWN — våg ' + ev.wave);
+      }
+    } else if (ev.type === 'cd_build_failed') {
+      // { peerId, reason, kind }
+      if (ev.peerId === this.myId && typeof showToast === 'function') {
+        const reasonMap = {
+          insufficient_gold: 'För lite gold',
+          overlap: 'Krockar med befintligt objekt',
+          overlap_wall: 'Krockar med mur',
+          overlap_building: 'Krockar med byggnad',
+          overlap_core: 'Krockar med core',
+          overlap_player: 'Krockar med spelare',
+          out_of_bounds: 'Utanför kartan',
+        };
+        showToast('❌ ' + (reasonMap[ev.reason] || ev.reason));
+      }
     } else if (ev.type === 'stage_loaded') {
       if (window._debug) console.log('[SIM] stage loaded:', ev.stageName);
     } else if (ev.type === 'countdown_start') {
@@ -18981,9 +19579,9 @@ function renderHostControls() {
   for (const m of ['story', 'endless', 'bossrush', 'survive', 'truck']) {
     const b = document.createElement('button');
     b.textContent = MODE_LABELS[m];
-    if (Coop.config.mode === m && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && !Coop.config.koth && !Coop.config.juggernaut && !Coop.config.battleroyale) b.classList.add('active');
+    if (Coop.config.mode === m && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && !Coop.config.koth && !Coop.config.juggernaut && !Coop.config.battleroyale && !Coop.config.castledefense) b.classList.add('active');
     onTap(b, () => {
-      // Aktivera team-mode + clear alla PvP-flags
+      // Aktivera team-mode + clear alla PvP-flags + castledefense
       Coop.config.tdm = false;
       Coop.config.ctf = false;
       Coop.config.siege = false;
@@ -18991,7 +19589,8 @@ function renderHostControls() {
       Coop.config.koth = false;
       Coop.config.juggernaut = false;
       Coop.config.battleroyale = false;
-      Coop.updateConfig({ mode: m, tdm: false, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false, battleroyale: false });
+      Coop.config.castledefense = false;
+      Coop.updateConfig({ mode: m, tdm: false, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false, battleroyale: false, castledefense: false });
       renderHostControls();
     });
     lobbyModeButtonsEl.appendChild(b);
@@ -19011,6 +19610,31 @@ function renderHostControls() {
   });
   lobbyModeButtonsEl.appendChild(convoyBtn);
 
+  // CASTLE DEFENSE (co-op horde + bygg-system, server-auth)
+  const cdBtn = document.createElement('button');
+  const cdOn = !!Coop.config.castledefense;
+  cdBtn.textContent = '🏰 CASTLE DEFENSE' + (cdOn ? ' ✓' : '');
+  cdBtn.style.cssText = 'background:' + (cdOn ? '#c47a3a' : '#3a2a1a') + ';color:' + (cdOn ? '#fff' : '#c4a47a') + ';margin-top:6px;width:100%;font-size:12px;padding:8px 10px;letter-spacing:1px;font-weight:700;border:1px solid ' + (cdOn ? '#ffd080' : '#5a3a2a') + ';';
+  if (cdOn) cdBtn.classList.add('active');
+  onTap(cdBtn, () => {
+    const newCd = !Coop.config.castledefense;
+    Coop.config.castledefense = newCd;
+    // Mutex med ALLA PvP-modes
+    Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
+    Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
+    Coop.config.battleroyale = false;
+    if (newCd) {
+      Coop.config.serverSim = true;
+    }
+    Coop.updateConfig({
+      castledefense: newCd, tdm: false, ctf: false, siege: false,
+      gungame: false, koth: false, juggernaut: false, battleroyale: false,
+      serverSim: Coop.config.serverSim,
+    });
+    renderHostControls();
+  });
+  lobbyModeButtonsEl.appendChild(cdBtn);
+
   // PvP-rutan: TDM + CTF (mutually exclusive)
   const pvpEl = document.getElementById('lobby-pvp-buttons');
   if (pvpEl) {
@@ -19023,13 +19647,13 @@ function renderHostControls() {
     onTap(tdmBtn, () => {
       const newTdm = !Coop.config.tdm;
       Coop.config.tdm = newTdm;
-      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false;
+      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false;
       if (newTdm) {
         Coop.config.serverSim = true;
         Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
       }
       Coop.updateConfig({
-        tdm: newTdm, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false, battleroyale: false,
+        tdm: newTdm, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false, battleroyale: false, castledefense: false,
         tdmTargetKills: Coop.config.tdmTargetKills,
         serverSim: Coop.config.serverSim,
       });
@@ -19045,13 +19669,13 @@ function renderHostControls() {
     onTap(ctfBtn, () => {
       const newCtf = !Coop.config.ctf;
       Coop.config.ctf = newCtf;
-      Coop.config.tdm = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false;
+      Coop.config.tdm = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false;
       if (newCtf) {
         Coop.config.serverSim = true;
         Coop.config.ctfTargetCaptures = Coop.config.ctfTargetCaptures || 3;
       }
       Coop.updateConfig({
-        ctf: newCtf, tdm: false, siege: false, gungame: false, koth: false, juggernaut: false, battleroyale: false,
+        ctf: newCtf, tdm: false, siege: false, gungame: false, koth: false, juggernaut: false, battleroyale: false, castledefense: false,
         ctfTargetCaptures: Coop.config.ctfTargetCaptures,
         serverSim: Coop.config.serverSim,
       });
@@ -19067,13 +19691,13 @@ function renderHostControls() {
     onTap(siegeBtn, () => {
       const newSiege = !Coop.config.siege;
       Coop.config.siege = newSiege;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false;
       if (newSiege) {
         Coop.config.serverSim = true;
         Coop.config.siegeTargetPoints = Coop.config.siegeTargetPoints || 500;
       }
       Coop.updateConfig({
-        siege: newSiege, tdm: false, ctf: false, gungame: false, koth: false, juggernaut: false, battleroyale: false,
+        siege: newSiege, tdm: false, ctf: false, gungame: false, koth: false, juggernaut: false, battleroyale: false, castledefense: false,
         siegeTargetPoints: Coop.config.siegeTargetPoints,
         serverSim: Coop.config.serverSim,
       });
@@ -19089,10 +19713,10 @@ function renderHostControls() {
     onTap(ggBtn, () => {
       const newGg = !Coop.config.gungame;
       Coop.config.gungame = newGg;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false;
       if (newGg) Coop.config.serverSim = true;
       Coop.updateConfig({
-        gungame: newGg, tdm: false, ctf: false, siege: false, koth: false, juggernaut: false, battleroyale: false,
+        gungame: newGg, tdm: false, ctf: false, siege: false, koth: false, juggernaut: false, battleroyale: false, castledefense: false,
         serverSim: Coop.config.serverSim,
       });
       renderHostControls();
@@ -19107,13 +19731,13 @@ function renderHostControls() {
     onTap(kothBtn, () => {
       const newKoth = !Coop.config.koth;
       Coop.config.koth = newKoth;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false;
       if (newKoth) {
         Coop.config.serverSim = true;
         Coop.config.kothTargetPoints = Coop.config.kothTargetPoints || 100;
       }
       Coop.updateConfig({
-        koth: newKoth, tdm: false, ctf: false, siege: false, gungame: false, juggernaut: false, battleroyale: false,
+        koth: newKoth, tdm: false, ctf: false, siege: false, gungame: false, juggernaut: false, battleroyale: false, castledefense: false,
         kothTargetPoints: Coop.config.kothTargetPoints,
         serverSim: Coop.config.serverSim,
       });
@@ -19129,13 +19753,13 @@ function renderHostControls() {
     onTap(jugBtn, () => {
       const newJug = !Coop.config.juggernaut;
       Coop.config.juggernaut = newJug;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.battleroyale = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.battleroyale = false; Coop.config.castledefense = false;
       if (newJug) {
         Coop.config.serverSim = true;
         Coop.config.juggernautMatchDurationSec = Coop.config.juggernautMatchDurationSec || 360;
       }
       Coop.updateConfig({
-        juggernaut: newJug, tdm: false, ctf: false, siege: false, gungame: false, koth: false, battleroyale: false,
+        juggernaut: newJug, tdm: false, ctf: false, siege: false, gungame: false, koth: false, battleroyale: false, castledefense: false,
         juggernautMatchDurationSec: Coop.config.juggernautMatchDurationSec,
         serverSim: Coop.config.serverSim,
       });
@@ -19152,13 +19776,13 @@ function renderHostControls() {
       const newBr = !Coop.config.battleroyale;
       Coop.config.battleroyale = newBr;
       Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
-      Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
+      Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.castledefense = false;
       if (newBr) {
         Coop.config.serverSim = true;
         Coop.config.battleroyaleMatchDurationSec = Coop.config.battleroyaleMatchDurationSec || 600;
       }
       Coop.updateConfig({
-        battleroyale: newBr, tdm: false, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false,
+        battleroyale: newBr, tdm: false, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false, castledefense: false,
         battleroyaleMatchDurationSec: Coop.config.battleroyaleMatchDurationSec,
         serverSim: Coop.config.serverSim,
       });
@@ -19256,6 +19880,7 @@ function renderLobbyMatchInfo() {
   else if (cfg.koth) modeLabel = '👑 KOTH';
   else if (cfg.juggernaut) modeLabel = '👑 JUGGERNAUT';
   else if (cfg.battleroyale) modeLabel = '🌀 BATTLE ROYALE';
+  else if (cfg.castledefense) modeLabel = '🏰 CASTLE DEFENSE';
   else if (cfg.mode === 'story') modeLabel = '📖 STORY';
   else if (cfg.mode === 'endless') modeLabel = '♾️ ENDLESS';
   else if (cfg.mode === 'bossrush') modeLabel = '👹 BOSSRUSH';
@@ -19278,13 +19903,16 @@ function renderLobbyMatchInfo() {
   else if (cfg.battleroyale) {
     target = 'Last standing';
   }
+  else if (cfg.castledefense) {
+    target = 'Endless · boss var 5:e';
+  }
   if (target) chips.push(`<span class="match-info-chip target">🎯 ${target}</span>`);
   // 3. Konvoj (story-mode only)
   if (cfg.mode === 'story' && cfg.includeConvoy) {
     chips.push(`<span class="match-info-chip">🚚 +KONVOJ</span>`);
   }
   // 4. Svårighet — visas bara för team-modes (PvP har fast svårighet)
-  const isPvP = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth || cfg.juggernaut || cfg.battleroyale);
+  const isPvP = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth || cfg.juggernaut || cfg.battleroyale || cfg.castledefense);
   if (!isPvP) {
     const diff = (cfg.difficulty || 'veteran').toUpperCase();
     chips.push(`<span class="match-info-chip diff">📊 ${diff}</span>`);
@@ -19339,7 +19967,7 @@ function updateLobbyDifficultyVisibility(activeTabOverride) {
     const t = document.querySelector('.lobby-tab.active');
     return t ? t.dataset.tab : 'team';
   })();
-  const isPvPMode = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth);
+  const isPvPMode = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth || cfg.juggernaut || cfg.battleroyale || cfg.castledefense);
   const isPvPTab = activeTab === 'pvp';
   card.classList.toggle('hidden', isPvPMode || isPvPTab);
 }
@@ -19364,6 +19992,7 @@ function updateLobbySectionSuffixes() {
       else if (Coop.config.koth) suffix = ' · 👑 KOTH';
       else if (Coop.config.juggernaut) suffix = ' · 👑 JUG';
       else if (Coop.config.battleroyale) suffix = ' · 🌀 BR';
+      else if (Coop.config.castledefense) suffix = ' · 🏰 CASTLE';
       else if (Coop.config.mode && Coop.config.mode !== 'story') suffix = ' · ' + Coop.config.mode.toUpperCase();
     } else if (containerId === 'lobby-pvp-buttons') {
       if (Coop.config.tdm) suffix = ' · ⚔ TDM';
@@ -19825,6 +20454,9 @@ btnCoopStart.addEventListener('click', () => {
     if (Coop.config.battleroyale) {
       payload.battleroyale = true;
       payload.battleroyaleMatchDurationSec = Coop.config.battleroyaleMatchDurationSec || 600;
+    }
+    if (Coop.config.castledefense) {
+      payload.castledefense = true;
     }
     if (Coop.config.addBot) {
       payload.addBot = true;
@@ -24380,6 +25012,9 @@ document.getElementById('btn-retry').addEventListener('click', () => {
       payload.battleroyale = true;
       payload.battleroyaleMatchDurationSec = Coop.config.battleroyaleMatchDurationSec || 600;
     }
+    if (Coop.config.castledefense) {
+      payload.castledefense = true;
+    }
     if (Coop.config.addBot) {
       payload.addBot = true;
       payload.botTeam = Coop.config.botTeam || 'red';
@@ -24622,6 +25257,8 @@ function actuallyStartGame() {
   // v1.372: ALLTID full BR-state cleanup vid game-start så BR-state inte läcker
   // till sandbox/story/PvP-modes via menu → playing-transitions.
   if (typeof clearBattleroyaleState === 'function') clearBattleroyaleState();
+  // Samma för castle-defense
+  if (typeof clearCastleDefenseState === 'function') clearCastleDefenseState();
   // v1.372: Coop PvP/BR har server-driven mode. Sätt _pendingServerMode-flag
   // så render skippar default-stage tills server-mode-event arriverar (annars
   // syns "original mapen i en sekund" innan BR-stage laddas).
@@ -24629,6 +25266,7 @@ function actuallyStartGame() {
   if (Coop.active && Coop.config) {
     const c = Coop.config;
     if (c.battleroyale) state._pendingServerMode = 'battleroyale';
+    else if (c.castledefense) state._pendingServerMode = 'castledefense';
     else if (c.tdm) state._pendingServerMode = 'tdm';
     else if (c.ctf) state._pendingServerMode = 'ctf';
     else if (c.siege) state._pendingServerMode = 'siege';
@@ -26514,6 +27152,31 @@ function destroyBrEndOverlay() {
   if (o && o.parentNode) o.parentNode.removeChild(o);
 }
 
+// Castle Defense state cleanup — anropas vid mode-exit för att hindra state-läckage
+function clearCastleDefenseState() {
+  state.castledefenseActive = false;
+  state.castledefenseEnded = false;
+  state.castledefenseWalls = null;
+  state.castledefenseCore = null;
+  state.castledefenseBuildings = null;
+  state.castledefenseBuildables = null;
+  state.castledefenseEnemySpawns = null;
+  state.castledefensePlayerSpawns = null;
+  state.castledefenseWave = 0;
+  state.castledefenseWaveState = 'idle';
+  state.castledefenseWaveBetweenEndAt = 0;
+  state.castledefenseEnemiesAlive = 0;
+  state.castledefenseEnemiesIncoming = 0;
+  state.castledefenseGold = 0;
+  state.castledefenseStartedAt = 0;
+  state.cdBuildMode = null;
+  state.cdBuildHoverX = null;
+  state.cdBuildHoverY = null;
+  if (typeof Coop !== 'undefined') Coop.castledefenseActive = false;
+  if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
+  if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
+}
+
 function updateBrHud() {
   if (!state.battleroyaleActive) return;
   // Koordinater-display (debug)
@@ -26698,6 +27361,282 @@ function _startBrHudInterval() {
 }
 function _stopBrHudInterval() {
   if (_brHudInterval) { clearInterval(_brHudInterval); _brHudInterval = null; }
+}
+
+// ============================================================
+// CASTLE DEFENSE HUD
+// ============================================================
+let _cdHudInterval = null;
+function showCastleDefenseHud() {
+  _startCastleDefenseHudInterval();
+  let el = document.getElementById('cd-hud');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'cd-hud';
+    el.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #c47a3a;border-radius:8px;padding:8px 16px;color:#fff;font-family:sans-serif;font-weight:900;letter-spacing:1px;z-index:80;pointer-events:none;display:flex;align-items:center;gap:14px;font-size:14px;text-align:center;';
+    el.innerHTML = '<div><span style="color:#c47a3a;">🏰 VÅG</span> <span id="cd-wave">--</span></div><div style="color:#666;">|</div><div><span style="color:#ff5a5a;">FIENDER:</span> <span id="cd-enemies" style="font-variant-numeric:tabular-nums;">--</span></div><div style="color:#666;">|</div><div><span style="color:#d4a04a;">CORE:</span> <span id="cd-core-hp" style="font-variant-numeric:tabular-nums;">--</span></div><div id="cd-countdown-wrap" style="color:#666;display:none;">|</div><div id="cd-countdown" style="color:#3acaff;display:none;">Nästa: <span id="cd-countdown-sec">--</span>s</div>';
+    document.body.appendChild(el);
+  }
+  el.style.display = 'flex';
+  // Gold-display (bottom-left)
+  let gold = document.getElementById('cd-gold');
+  if (!gold) {
+    gold = document.createElement('div');
+    gold.id = 'cd-gold';
+    gold.style.cssText = 'position:fixed;bottom:max(60px, env(safe-area-inset-bottom));left:max(12px, env(safe-area-inset-left));background:rgba(0,0,0,0.7);border:1px solid #ffd54a;border-radius:6px;padding:6px 10px;color:#ffd54a;font-family:monospace;font-weight:900;font-size:14px;z-index:80;pointer-events:none;letter-spacing:0.5px;';
+    document.body.appendChild(gold);
+  }
+  gold.style.display = 'block';
+  updateCastleDefenseHud();
+}
+function hideCastleDefenseHud() {
+  _stopCastleDefenseHudInterval();
+  const ids = ['cd-hud', 'cd-gold'];
+  for (const id of ids) {
+    const e = document.getElementById(id);
+    if (e && e.parentNode) e.parentNode.removeChild(e);
+  }
+}
+function updateCastleDefenseHud() {
+  if (!state.castledefenseActive) return;
+  const waveEl = document.getElementById('cd-wave');
+  if (waveEl) waveEl.textContent = state.castledefenseWave || 0;
+  const enemiesEl = document.getElementById('cd-enemies');
+  if (enemiesEl) {
+    const alive = state.castledefenseEnemiesAlive || 0;
+    const inc = state.castledefenseEnemiesIncoming || 0;
+    enemiesEl.textContent = inc > 0 ? (alive + ' (+' + inc + ')') : alive;
+  }
+  const coreHpEl = document.getElementById('cd-core-hp');
+  if (coreHpEl && state.castledefenseCore) {
+    const hp = Math.ceil(state.castledefenseCore.hp);
+    const max = state.castledefenseCore.maxHp;
+    coreHpEl.textContent = hp + '/' + max;
+    coreHpEl.style.color = hp / max > 0.5 ? '#5aff5a' : (hp / max > 0.25 ? '#ffd54a' : '#ff5a5a');
+  }
+  const cdWrap = document.getElementById('cd-countdown-wrap');
+  const cdEl = document.getElementById('cd-countdown');
+  const cdSec = document.getElementById('cd-countdown-sec');
+  if (state.castledefenseWaveState === 'between' && state.castledefenseWaveBetweenEndAt) {
+    const secLeft = Math.max(0, Math.ceil((state.castledefenseWaveBetweenEndAt - Date.now()) / 1000));
+    if (cdWrap) cdWrap.style.display = '';
+    if (cdEl) cdEl.style.display = '';
+    if (cdSec) cdSec.textContent = secLeft;
+  } else {
+    if (cdWrap) cdWrap.style.display = 'none';
+    if (cdEl) cdEl.style.display = 'none';
+  }
+  // Gold-display (per-match castledefense gold)
+  const goldEl = document.getElementById('cd-gold');
+  if (goldEl) {
+    goldEl.textContent = '💰 ' + (state.castledefenseGold || 0);
+  }
+}
+function _startCastleDefenseHudInterval() {
+  if (_cdHudInterval) return;
+  _cdHudInterval = setInterval(() => {
+    if (state.castledefenseActive && typeof updateCastleDefenseHud === 'function') updateCastleDefenseHud();
+    else { clearInterval(_cdHudInterval); _cdHudInterval = null; }
+  }, 200);
+}
+function _stopCastleDefenseHudInterval() {
+  if (_cdHudInterval) { clearInterval(_cdHudInterval); _cdHudInterval = null; }
+}
+
+// ============================================================
+// CASTLE DEFENSE — BUILD-SYSTEM (quick-slot UI + ghost preview + place)
+// ============================================================
+// state.cdBuildMode = null | 'wall' | 'auto_turret' | etc.
+// state.cdBuildHoverX/Y = grid-snapped world-coord för current preview
+
+const CD_BUILDABLE_LIST = [
+  { kind: 'wall',        key: '1', icon: '🧱', label: 'Mur',     hint: 'Blockerar fiender + skott' },
+  { kind: 'auto_turret', key: '2', icon: '🔫', label: 'Torn',    hint: 'Auto-skjuter inom 280px' },
+  { kind: 'man_turret',  key: '3', icon: '🎯', label: 'Skytte',  hint: 'Spelare kan sätta sig i (1.5× dmg)' },
+  { kind: 'spike_trap',  key: '4', icon: '🪤', label: 'Spikes',  hint: '30 dmg när fiende passerar' },
+  { kind: 'slow_trap',   key: '5', icon: '🧊', label: 'Slow',    hint: 'Saktar ned fiender 60% i 2s' },
+  { kind: 'repair_stn',  key: '6', icon: '🔧', label: 'Repair',  hint: 'Regenererar närliggande murar' },
+  { kind: 'health_stn',  key: '7', icon: '❤️', label: 'Health',  hint: 'Regenererar spelare i radius' },
+];
+
+function showCastleDefenseBuildBar() {
+  let el = document.getElementById('cd-build-bar');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'cd-build-bar';
+    // På mobile: mindre min-width (45px) + dölj key-hint
+    const isMobile = 'ontouchstart' in window || (navigator.maxTouchPoints > 0);
+    el.style.cssText = 'position:fixed;bottom:max(8px, env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #c47a3a;border-radius:8px;padding:6px 6px;color:#fff;font-family:sans-serif;font-weight:900;letter-spacing:0.5px;z-index:80;display:flex;align-items:center;gap:3px;font-size:10px;text-align:center;max-width:96vw;flex-wrap:nowrap;';
+    for (const b of CD_BUILDABLE_LIST) {
+      const slot = document.createElement('button');
+      slot.dataset.kind = b.kind;
+      slot.dataset.key = b.key;
+      const minW = isMobile ? '44px' : '54px';
+      slot.style.cssText = 'background:#1a1410;border:2px solid #5a3a2a;border-radius:6px;padding:5px 6px;min-width:' + minW + ';cursor:pointer;color:#fff;font-family:inherit;font-weight:inherit;letter-spacing:inherit;font-size:10px;line-height:1.2;display:flex;flex-direction:column;align-items:center;gap:1px;';
+      const cost = (CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[b.kind] && CASTLEDEFENSE_ARENA.buildables[b.kind].cost) || 0;
+      const keyHint = isMobile ? '' : ('<div style="background:#5a3a2a;color:#fff;font-size:8px;padding:1px 4px;border-radius:2px;margin-top:1px;">' + b.key + '</div>');
+      slot.innerHTML = '<div style="font-size:' + (isMobile ? '16' : '18') + 'px;line-height:1;">' + b.icon + '</div>' +
+                       '<div style="opacity:0.9;font-size:9px;">' + b.label + '</div>' +
+                       '<div style="color:#ffd54a;font-size:10px;">' + cost + '</div>' +
+                       keyHint;
+      slot.onclick = (e) => { e.preventDefault(); toggleCdBuildMode(b.kind); };
+      el.appendChild(slot);
+    }
+    document.body.appendChild(el);
+  }
+  el.style.display = 'flex';
+  refreshCdBuildSlotStyles();
+}
+
+function hideCastleDefenseBuildBar() {
+  const el = document.getElementById('cd-build-bar');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+  state.cdBuildMode = null;
+  state.cdBuildHoverX = null;
+  state.cdBuildHoverY = null;
+}
+
+function toggleCdBuildMode(kind) {
+  if (state.cdBuildMode === kind) {
+    state.cdBuildMode = null;
+  } else {
+    state.cdBuildMode = kind;
+  }
+  refreshCdBuildSlotStyles();
+}
+
+function refreshCdBuildSlotStyles() {
+  const el = document.getElementById('cd-build-bar');
+  if (!el) return;
+  const slots = el.querySelectorAll('button[data-kind]');
+  for (const s of slots) {
+    const kind = s.dataset.kind;
+    const active = state.cdBuildMode === kind;
+    const cost = (CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[kind] && CASTLEDEFENSE_ARENA.buildables[kind].cost) || 0;
+    const canAfford = (state.castledefenseGold || 0) >= cost;
+    if (active) {
+      s.style.background = '#c47a3a';
+      s.style.borderColor = '#ffd080';
+    } else if (!canAfford) {
+      s.style.background = '#1a1410';
+      s.style.borderColor = '#3a2a2a';
+      s.style.opacity = '0.5';
+    } else {
+      s.style.background = '#1a1410';
+      s.style.borderColor = '#5a3a2a';
+      s.style.opacity = '1';
+    }
+  }
+}
+
+function tryCdPlaceBuilding() {
+  if (!state.cdBuildMode) return;
+  if (state.cdBuildHoverX == null || state.cdBuildHoverY == null) return;
+  if (!Coop.ws || Coop.ws.readyState !== 1) return;
+  Coop.ws.send(JSON.stringify({
+    type: 'sim_cd_build',
+    kind: state.cdBuildMode,
+    x: state.cdBuildHoverX,
+    y: state.cdBuildHoverY,
+  }));
+}
+
+function tryCdRepair() {
+  // Hitta wall/building i kontakt med spelaren — skicka repair-request
+  if (!state.player || state.player.hp <= 0) return;
+  if (!Coop.ws || Coop.ws.readyState !== 1) return;
+  const px = state.player.x, py = state.player.y;
+  let target = null;
+  // Walls först
+  if (state.castledefenseWalls) {
+    for (const w of state.castledefenseWalls) {
+      if (w.hp <= 0 || w.hp >= w.maxHp) continue;
+      const cx = Math.max(w.x, Math.min(px, w.x + w.w));
+      const cy = Math.max(w.y, Math.min(py, w.y + w.h));
+      const dx = px - cx, dy = py - cy;
+      if (dx * dx + dy * dy < 40 * 40) { target = w; break; }
+    }
+  }
+  if (!target && state.castledefenseBuildings) {
+    for (const b of state.castledefenseBuildings) {
+      if (b.hp <= 0 || b.hp >= b.maxHp) continue;
+      const cx = Math.max(b.x, Math.min(px, b.x + b.w));
+      const cy = Math.max(b.y, Math.min(py, b.y + b.h));
+      const dx = px - cx, dy = py - cy;
+      if (dx * dx + dy * dy < 40 * 40) { target = b; break; }
+    }
+  }
+  if (!target) {
+    if (typeof showToast === 'function') showToast('Inga skadade objekt i närheten');
+    return;
+  }
+  Coop.ws.send(JSON.stringify({ type: 'sim_cd_repair', id: target.id }));
+}
+
+function drawCdBuildGhost() {
+  if (!state.cdBuildMode || state.cdBuildHoverX == null) return;
+  const spec = CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[state.cdBuildMode];
+  if (!spec) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const x = state.cdBuildHoverX - cx;
+  const y = state.cdBuildHoverY - cy;
+  ctx.save();
+  // Kontrollera om position är OK lokalt (visuell feedback)
+  const canAfford = (state.castledefenseGold || 0) >= spec.cost;
+  let canPlace = canAfford;
+  // Overlap-test mot walls och buildings (snabb-feedback)
+  if (canPlace && state.castledefenseWalls) {
+    for (const w of state.castledefenseWalls) {
+      if (w.hp <= 0) continue;
+      if (state.cdBuildHoverX < w.x + w.w && state.cdBuildHoverX + spec.w > w.x &&
+          state.cdBuildHoverY < w.y + w.h && state.cdBuildHoverY + spec.h > w.y) {
+        canPlace = false; break;
+      }
+    }
+  }
+  if (canPlace && state.castledefenseBuildings) {
+    for (const b of state.castledefenseBuildings) {
+      if (b.hp <= 0) continue;
+      if (state.cdBuildHoverX < b.x + b.w && state.cdBuildHoverX + spec.w > b.x &&
+          state.cdBuildHoverY < b.y + b.h && state.cdBuildHoverY + spec.h > b.y) {
+        canPlace = false; break;
+      }
+    }
+  }
+  ctx.globalAlpha = 0.6;
+  ctx.fillStyle = canPlace ? '#3acaff' : '#ff3a3a';
+  ctx.fillRect(x, y, spec.w, spec.h);
+  ctx.strokeStyle = canPlace ? '#fff' : '#ff8080';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 0.5, y + 0.5, spec.w - 1, spec.h - 1);
+  // Range-indikator för auto_turret / man_turret / repair_stn / health_stn
+  if (spec.range || spec.radius) {
+    const r = spec.range || spec.radius;
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = canPlace ? '#3acaff' : '#ff3a3a';
+    ctx.beginPath();
+    ctx.arc(x + spec.w / 2, y + spec.h / 2, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = canPlace ? '#3acaff' : '#ff3a3a';
+    ctx.globalAlpha = 0.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(x + spec.w / 2, y + spec.h / 2, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
+}
+
+// Uppdatera build-hover-position från mouse/touch
+function updateCdBuildHover(screenX, screenY) {
+  if (!state.cdBuildMode) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const worldX = screenX + cx;
+  const worldY = screenY + cy;
+  const grid = state.castledefenseBuildGridSize || 30;
+  state.cdBuildHoverX = Math.floor(worldX / grid) * grid;
+  state.cdBuildHoverY = Math.floor(worldY / grid) * grid;
 }
 
 // drawJuggernautArrows — JUG-spelaren ser off-screen-pilar mot hunters
@@ -39749,6 +40688,15 @@ function render() {
     drawBrZone();
     drawBrOutsideWarning();
   }
+  // CASTLE DEFENSE — walls (med HP-bars) + core + buildings + spawn-markers + ghost-preview
+  if (state.castledefenseActive) {
+    drawCastleDefenseGround();
+    drawCastleDefenseWalls();
+    drawCastleDefenseBuildings();
+    drawCastleDefenseCore();
+    drawCastleDefenseSpawnMarkers();
+    if (typeof drawCdBuildGhost === 'function') drawCdBuildGhost();
+  }
   // GRENADE-render ALLTID PÅ TOPP — efter walls/träd/tak så granaten aldrig hamnar
   // under objekt visuellt. Både landing-reticle (medan holding) + projektiler i flykt.
   if (typeof drawGrenadeReticle === 'function') drawGrenadeReticle();
@@ -41459,6 +42407,13 @@ canvas.addEventListener('touchstart', e => {
     const ty = newTouch.clientY - r.top;
     if (checkMinimapZoomClick(tx, ty)) { e.preventDefault(); return; }
     if (checkDebugCornerTap(tx, ty)) { e.preventDefault(); return; } // v1.384
+    // Castle Defense build-mode på touch: placera bygge vid touch-position
+    if (state.castledefenseActive && state.cdBuildMode && typeof updateCdBuildHover === 'function') {
+      updateCdBuildHover(tx, ty);
+      tryCdPlaceBuilding();
+      e.preventDefault();
+      return;
+    }
     if (storyDialogActive) {
       const b = storyDialogActive.btn;
       if (b && tx >= b.x && tx <= b.x + b.w && ty >= b.y && ty <= b.y + b.h) {
