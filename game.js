@@ -22196,6 +22196,10 @@ function startReload() {
   p.reloading = true;
   p.reloadStart = performance.now();
   Audio.reloadStart();
+  // v1.387: haptic pulse vid reload-start ger spelaren omedelbar bekräftelse
+  // att reload triggade. Innan: ingen feedback förrän reload-ring renderas
+  // (~1 frame senare). Nu: instant respons via vibrationen.
+  if (typeof triggerVibrate === 'function') triggerVibrate(8);
 }
 
 function tryShoot(now) {
@@ -22325,6 +22329,16 @@ function tryShoot(now) {
 
 function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
   if (state.mode !== 'playing') return;
+  // v1.387: camera-recoil — punch kameran ÖVERSTE motsatt fire-direction.
+  // Skapar "feel" av tyngd vid skott. Latency-hiding-bonus: alla micro-delays
+  // i bullet-spawning göms av camera-rörelsen.
+  // Magnitude skalas med dmg: pistol ~1.5px, rifle ~2.5px, sniper ~5px, rocket ~5px.
+  // Pellets (shotgun) ger bonus så det känns som "blast".
+  if (w.dmg && typeof applyShootRecoil === 'function') {
+    let recoilMag = Math.min(7, Math.max(1, w.dmg * 0.06));
+    if (pellets > 1) recoilMag *= Math.sqrt(pellets); // shotgun-känsla
+    applyShootRecoil(p.aimAngle, recoilMag);
+  }
   // Drone-pistol summonar drone (max 1)
   if (w.summonsDrone && (!state.drone || state.drone.dead)) {
     state.drone = {
@@ -27238,6 +27252,10 @@ function updatePlayer(dt, now) {
       p.ammo = effectiveMag(p.weaponId);
       p.reloading = false;
       Audio.reloadDone();
+      // v1.387: tydlig haptic pulse vid reload-complete så spelaren KÄNNER
+      // att vapnet är redo igen (innan blicken hinner registrera reload-ringen
+      // som försvinner). Dubbel-pulse = "click-click"-känsla.
+      if (typeof triggerVibrate === 'function') triggerVibrate(20);
       updateHUD();
       // Rensa reload-ring + reload-complete burst: gnistor + shockwave runt spelaren
       // i vapen-färg så spelaren ser "redo att skjuta igen"
@@ -28716,9 +28734,34 @@ function updateParticles(dt) {
   state.particles = alive;
 }
 
+// v1.387: camera-recoil — kameran "punchar" motsatt fire-direction vid skott
+// och decayar smooth tillbaka. Skapar tyngd-känsla + döljer latency mellan
+// input och bullet-render. Decay ~200ms (0.83^15 ≈ 0.06).
+function applyShootRecoil(angle, magnitude) {
+  if (state.mode !== 'playing') return;
+  state._recoilX = (state._recoilX || 0) - Math.cos(angle) * magnitude;
+  state._recoilY = (state._recoilY || 0) - Math.sin(angle) * magnitude;
+  // Cap så rapid-fire-vapen inte ackumulerar för mycket recoil
+  const maxR = magnitude * 2.2;
+  const r = Math.hypot(state._recoilX, state._recoilY);
+  if (r > maxR) {
+    state._recoilX *= maxR / r;
+    state._recoilY *= maxR / r;
+  }
+}
+
 function updateCamera() {
   state.camera.x = state.player.x - viewW / 2;
   state.camera.y = state.player.y - viewH / 2;
+  // v1.387: camera-recoil offset + decay
+  if (state._recoilX || state._recoilY) {
+    state.camera.x += state._recoilX || 0;
+    state.camera.y += state._recoilY || 0;
+    state._recoilX = (state._recoilX || 0) * 0.83;
+    state._recoilY = (state._recoilY || 0) * 0.83;
+    if (Math.abs(state._recoilX) < 0.05) state._recoilX = 0;
+    if (Math.abs(state._recoilY) < 0.05) state._recoilY = 0;
+  }
   state.camera.x = Math.max(0, Math.min(WORLD.w - viewW, state.camera.x));
   state.camera.y = Math.max(0, Math.min(WORLD.h - viewH, state.camera.y));
   // shake-offset
