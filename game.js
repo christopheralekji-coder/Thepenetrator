@@ -15770,6 +15770,27 @@ const Coop = {
         const p = this.players.get(ev.peerId);
         p.pvpShieldUntil = until;
       }
+    } else if (ev.type === 'grenade_thrown') {
+      // v1.381: server broadcastar grenade-throws så peers ser granaten flyga
+      // + explosion-VFX. Thrower dedupar via ownerPid (har redan local-instans
+      // från throwGrenade — lägg inte till dubbelt).
+      if (ev.ownerPid && ev.ownerPid === this.myId) return;
+      state.grenades = state.grenades || [];
+      state.grenades.push({
+        fromX: ev.fromX, fromY: ev.fromY,
+        toX: ev.toX, toY: ev.toY,
+        startTime: performance.now(),
+        flightTime: ev.flightMs || 800,
+        radius: ev.radius || 85,
+        damage: 0, // peer-visual — ingen lokal damage (server är auth)
+        exploded: false,
+        fadeUntil: 0,
+        ownerId: ev.ownerPid,
+      });
+      // VFX-throw-sound för peers (samma som thrower hör i throwGrenade)
+      if (typeof Audio !== 'undefined' && Audio._tone) {
+        Audio._tone(220, 0.15, 'triangle', 0.3, 0.005, 0.13, 180);
+      }
     } else if (ev.type === 'pvp_hp_changed') {
       // PvP shield + HP-uppdatering efter damage eller pickup.
       // Server-shape: { peerId, hp, shield }

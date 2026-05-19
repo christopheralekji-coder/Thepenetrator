@@ -907,15 +907,28 @@ function handleMessage(ws, msg) {
   }
   // v1.376: Granat-throw från klient. Server schemalägger detonation efter
   // flight-time och kör explode() (med friendly-fire-regler + turret-damage).
+  // v1.381: server pushar grenade_thrown till eventQueue → broadcastas till
+  // alla peers så de ser projektilen + explosion-VFX (tidigare såg motståndare
+  // bara HP-droppet, ingen visuell granat).
   if (msg.type === 'sim_grenade_throw') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     const sim = room.sim;
+    const fromX = Math.max(0, Math.min(20000, +msg.fromX || 0));
+    const fromY = Math.max(0, Math.min(20000, +msg.fromY || 0));
     const toX = Math.max(0, Math.min(20000, +msg.toX || 0));
     const toY = Math.max(0, Math.min(20000, +msg.toY || 0));
     const FLIGHT_MS = 800;
     const RADIUS = 85;
     const DMG = 120;
+    // Broadcast till alla klienter (inkl thrower — thrower dedupar via ownerPid)
+    sim.eventQueue.push({
+      type: 'grenade_thrown',
+      ownerPid: ws.id,
+      fromX, fromY, toX, toY,
+      flightMs: FLIGHT_MS,
+      radius: RADIUS,
+    });
     setTimeout(() => {
       if (!sim || sim._stopped) return;
       const { explode } = require('./sim/bullets');
