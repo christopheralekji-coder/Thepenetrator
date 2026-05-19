@@ -17577,20 +17577,9 @@ const Coop = {
                 if (typeof triggerShake === 'function') triggerShake(6, 0.3);
                 if (typeof Audio !== 'undefined' && Audio.playerHurt) Audio.playerHurt();
                 state.player.flashUntil = performance.now() + 120;
-                // v1.390: Hit-impact-particle vid min position när jag tar
-                // damage. Server's lag-comp kan registrera hit fast bullet
-                // visuellt missade (pga interpolation-paradox). Particle vid
-                // min pos gör damage "synlig" oavsett var bullet flög.
-                if (typeof spawnSparks === 'function') {
-                  spawnSparks(state.player.x, state.player.y, '#ff3a3a', 8, 200);
-                }
-                if (state.particles && state.particles.length < 220) {
-                  state.particles.push({
-                    x: state.player.x, y: state.player.y, vx: 0, vy: 0,
-                    life: 0.2, maxLife: 0.2,
-                    color: 'rgba(255, 60, 60, 0.65)', r: 18, isExplosion: true,
-                  });
-                }
+                // v1.390 hit-impact-particle BORTTAGEN (v1.393) — användaren
+                // tyckte den röda glow:n vid spelarens position blev påträngande
+                // när man tog stryk. Behåller shake + playerHurt + flashUntil.
               }
               // Trigga death-state lokalt om server säger hp=0 (annars uppstår klient/server-divergens
               // där server tror du är död men klient fortsätter spela)
