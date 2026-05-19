@@ -27243,6 +27243,63 @@ function updatePlayer(dt, now) {
   // Auto-aim BORTTAGEN i v1.359 — singleplayer ska kräva manuellt sikte
   // (samma som PvP-modes). Tidigare auto-targetade närmsta fiende vid skott.
 
+  // v1.389: SUBTLE AIM-ASSIST (Phase 3 lag-hiding).
+  // Touch-input på mobil är imprecist + 80ms RTT gör fine-aim svårt. Subtilt
+  // nudge aim toward nearest opponent in aim-cone NÄR spelaren aktivt engagerar
+  // (firing eller joystick-aim aktiv). Kompenserar för input-lag och touch-fel.
+  // Default ON, opt-out via save.aimAssistOff.
+  // Övriga shooters (Brawl Stars, COD Mobile, PUBG Mobile) använder samma trick.
+  if ((input.firing || input.fireJoyActive) && !save.aimAssistOff &&
+      typeof Coop !== 'undefined' && Coop.active && Coop.players) {
+    const inPvP = state.tdmActive || state.ctfActive || state.siegeActive
+               || state.gungameActive || state.kothActive
+               || state.juggernautActive || state.battleroyaleActive;
+    if (inPvP) {
+      const myTeam = (state.tdmActive && Coop.tdmTeams && Coop.tdmTeams[Coop.myId])
+                  || (state.ctfActive && Coop.ctfTeams && Coop.ctfTeams[Coop.myId])
+                  || (state.siegeActive && Coop.siegeTeams && Coop.siegeTeams[Coop.myId])
+                  || null;
+      const iAmJug = !!(state.juggernautActive && p.isJug);
+      const aimDx = Math.cos(p.aimAngle), aimDy = Math.sin(p.aimAngle);
+      let bestPeer = null, bestDot = 0.94; // cos(~20°) cone
+      let bestDist = 0;
+      for (const [pid, peer] of Coop.players) {
+        if (!peer || peer.hp == null || peer.hp <= 0) continue;
+        if (peer.x == null) continue;
+        // Friendly-fire — ingen assist på laget
+        if (myTeam) {
+          const peerTeam = (Coop.tdmTeams && Coop.tdmTeams[pid])
+                        || (Coop.ctfTeams && Coop.ctfTeams[pid])
+                        || (Coop.siegeTeams && Coop.siegeTeams[pid]);
+          if (peerTeam === myTeam) continue;
+        }
+        // Juggernaut: hunter→hunter no assist (kan inte skada varandra)
+        if (state.juggernautActive) {
+          if (!iAmJug && !peer.isJug) continue;
+          if (iAmJug && peer.isJug) continue;
+        }
+        const dx = peer.x - p.x, dy = peer.y - p.y;
+        const d = Math.hypot(dx, dy);
+        if (d < 50 || d > 500) continue; // för nära (no help needed) eller för långt
+        const dot = (aimDx * dx + aimDy * dy) / d;
+        if (dot > bestDot) { bestDot = dot; bestPeer = peer; bestDist = d; }
+      }
+      if (bestPeer) {
+        const targetAngle = Math.atan2(bestPeer.y - p.y, bestPeer.x - p.x);
+        let angDiff = targetAngle - p.aimAngle;
+        while (angDiff > Math.PI) angDiff -= Math.PI * 2;
+        while (angDiff < -Math.PI) angDiff += Math.PI * 2;
+        // Pull-strength: starkast nära (100% vid 100px), svagast långt bort.
+        // Frame-rate-independent via dt-skalning. ~0.5s till full convergence
+        // = subtilt nog att kännas "intuitivt sikte", inte aimbot.
+        const proximityFactor = 1 - (bestDist - 100) / 400; // 1 → 0
+        const pullPerSec = 5 * Math.max(0.1, proximityFactor);
+        const pullThisFrame = Math.min(0.25, dt * pullPerSec);
+        p.aimAngle += angDiff * pullThisFrame;
+      }
+    }
+  }
+
   // reload (med reload-fart-uppgradering)
   if (p.reloading) {
     const w = getWeapon(p.weaponId);
