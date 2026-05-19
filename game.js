@@ -41207,11 +41207,18 @@ function runFrame(dt, now) {
   if (state.mode === 'playing' && state._prevMode !== 'playing') {
     if (typeof resetGrenadesForMatch === 'function') resetGrenadesForMatch();
   }
-  // BR-UI cleanup: när mode TRANSITIONERAR från 'playing' till något annat
-  // (menu/gameover/etc), nuka alla BR-DOM-element OCH full BR-state cleanup
-  // så inget läcker till menu/nästa mode — oavsett vilken exit-path (LOBBY-knapp,
-  // pause-quit, disconnect, etc).
-  if (state._prevMode === 'playing' && state.mode !== 'playing') {
+  // BR-UI cleanup: när mode REACHAR menu/gameover/victory (true match-end),
+  // nuka alla BR-DOM-element OCH full BR-state cleanup så inget läcker till
+  // nästa mode. Triggas oavsett varifrån vi kom (playing→menu, pause→menu, etc).
+  //
+  // v1.392 fix: tidigare triggade detta på ALLA playing→not-playing transitions
+  // INKLUDERAT playing→pause. Resultat: pausa BR-match → settings → återuppta
+  // → state.battleroyaleActive = false → render föll tillbaka till story-stage
+  // (grid floor + EXIT-skylt) eftersom BR-render-grenen aldrig kördes.
+  // Nu: cleanup ENDAST när vi går till menu/gameover/victory (match faktiskt
+  // över), inte pause/shop/weaponmenu (match fortgår).
+  if (state._prevMode !== state.mode &&
+      (state.mode === 'menu' || state.mode === 'gameover' || state.mode === 'victory')) {
     if (typeof clearBattleroyaleState === 'function') clearBattleroyaleState();
     state._pendingServerMode = null;
   }

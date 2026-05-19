@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v391-60hz-tick-broadcast-send';
+const CACHE = 'penetrator-v392-fix-br-state-cleared-on-pause';
 const ASSETS = [
   './',
   './index.html',
