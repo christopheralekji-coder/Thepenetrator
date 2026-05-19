@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v385-lag-hiding-tier1';
+const CACHE = 'penetrator-v386-fix-zero-dmg-predict-on-peer-bullets';
 const ASSETS = [
   './',
   './index.html',

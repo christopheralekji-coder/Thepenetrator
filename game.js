@@ -28410,7 +28410,9 @@ function updateBullets(dt) {
       // (damage-number + spark + crosshair-marker + ljud) utan att vänta på
       // pvp_hp_changed (~50-100ms RTT).
       // v1.385: utökad med crosshair-hit-marker + Audio.hit() + dedup-tag.
-      if (!hit && !b._predictedPvpHit && (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive)) {
+      // v1.386 (bugfix): skippa _visualOnly bullets (peer-broadcasts har dmg=0,
+      // triggade tidigare "0 dmg" damage-number när andras kulor flög nära.
+      if (!hit && !b._predictedPvpHit && !b._visualOnly && (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive)) {
         const myTeam = (state.tdmActive || state.ctfActive || state.siegeActive)
           ? (Coop.tdmTeams && Coop.tdmTeams[Coop.myId]) || (Coop.ctfTeams && Coop.ctfTeams[Coop.myId]) || (Coop.siegeTeams && Coop.siegeTeams[Coop.myId])
           : null;
