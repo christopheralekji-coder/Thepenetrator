@@ -15887,8 +15887,21 @@ const Coop = {
         const dealtShield = Math.max(0, Math.round(prevShield - (ev.shield || 0)));
         const totalDealt = dealtHp + dealtShield;
         if (totalDealt > 0) {
-          // Floating-number i världen vid target
-          if (typeof spawnDamageNumber === 'function') {
+          // v1.385: dedup mot predicted damage-number. Om vi redan visat en
+          // för denna target inom 250ms, skippa server-spawn (annars dubbel).
+          let foundPredicted = false;
+          if (state.particles) {
+            const now = performance.now();
+            for (const pt of state.particles) {
+              if (!pt.isDamageNumber || !pt._predictedTargetPid) continue;
+              if (pt._predictedTargetPid !== ev.peerId) continue;
+              if (now - (pt._predictedAt || 0) > 250) continue;
+              foundPredicted = true;
+              break;
+            }
+          }
+          // Floating-number i världen vid target (bara om ingen prediction redan)
+          if (!foundPredicted && typeof spawnDamageNumber === 'function') {
             spawnDamageNumber(targetX, targetY - 20, totalDealt, false);
           }
           // Off-screen hit-marker: om jag är shooter och target utanför viewport,
@@ -17571,20 +17584,28 @@ const Coop = {
                 enterDeathState();
               }
             }
-            // v1.382: snap till server-position vid stor diskrepans (>300px).
-            // Hanterar spawn-resync: vid match-start är klient-lokal pos stale
-            // (menu-pos) medan server har spawn-pos → snap till spawn så
-            // klient inte fortsätter skicka stale x/y. Också desync-recovery.
-            // v1.383 (post-audit): skippa snap om spectating så vi inte
-            // teleporterar corpse-pos.
+            // v1.382: server-reconciliation för spawn-resync + desync-recovery.
+            // v1.385: smooth lerp för medium-discrepancy (30-300px) istället för
+            // att vara osynlig. Bara HÅRDA snaps (>300px) teleporterar.
+            // Snap-back-känsla försvinner = klient/server-mismatch göms.
             if (this.serverSimActive && state.player && !state.player.spectating
                 && typeof p.x === 'number' && typeof p.y === 'number') {
               const dx = state.player.x - p.x;
               const dy = state.player.y - p.y;
-              if (dx * dx + dy * dy > 90000) { // 300²
+              const dSq = dx * dx + dy * dy;
+              if (dSq > 90000) {
+                // HÅRD SNAP — stor desync (>300px), troligen spawn-resync
                 state.player.x = p.x;
                 state.player.y = p.y;
+              } else if (dSq > 900) {
+                // SOFT LERP — medium desync (30-300px). Lerpa mot server-pos
+                // med 0.15 så over ~5 frames är vi i sync. Spelaren ser inget
+                // snap-back, bara mjuk korrektion.
+                state.player.x += (p.x - state.player.x) * 0.15;
+                state.player.y += (p.y - state.player.y) * 0.15;
               }
+              // dSq <= 900 (30px): client-prediction är close enough, lämna
+              // klient-positionen ifred för smoothest känsla.
             }
             continue;
           }
@@ -28386,25 +28407,57 @@ function updateBullets(dt) {
       }
       // T1A PvP-HIT-PREDICTION: min egen bullet mot Coop.players (motståndare).
       // Server är fortfarande auth för damage, men spelaren ser instant feedback
-      // (damage-number + spark) utan att vänta på pvp_hp_changed (~50ms RTT).
+      // (damage-number + spark + crosshair-marker + ljud) utan att vänta på
+      // pvp_hp_changed (~50-100ms RTT).
+      // v1.385: utökad med crosshair-hit-marker + Audio.hit() + dedup-tag.
       if (!hit && !b._predictedPvpHit && (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive)) {
         const myTeam = (state.tdmActive || state.ctfActive || state.siegeActive)
           ? (Coop.tdmTeams && Coop.tdmTeams[Coop.myId]) || (Coop.ctfTeams && Coop.ctfTeams[Coop.myId]) || (Coop.siegeTeams && Coop.siegeTeams[Coop.myId])
           : null;
+        const iAmJug = !!(state.juggernautActive && state.player && state.player.isJug);
         for (const [pid, partner] of Coop.players) {
           if (partner.hp <= 0) continue;
-          // Friendly-fire av i team-modes
-          if (myTeam && partner.team && partner.team === myTeam) continue;
+          if (partner.x == null) continue;
+          // Friendly-fire av i team-modes (kolla via team-maps + partner.team fallback)
+          if (myTeam) {
+            const partnerTeam = (state.tdmActive && Coop.tdmTeams && Coop.tdmTeams[pid])
+                             || (state.ctfActive && Coop.ctfTeams && Coop.ctfTeams[pid])
+                             || (state.siegeActive && Coop.siegeTeams && Coop.siegeTeams[pid])
+                             || partner.team;
+            if (partnerTeam && partnerTeam === myTeam) continue;
+          }
+          // Juggernaut: hunter→hunter blocked, JUG→JUG kan inte hända
+          if (state.juggernautActive) {
+            const partnerIsJug = !!partner.isJug;
+            if (!iAmJug && !partnerIsJug) continue;
+            if (iAmJug && partnerIsJug) continue;
+          }
           const pdx = partner.x - b.x, pdy = partner.y - b.y;
           const prsum = (partner.r || 14) + (b.r || 4) + 8;
           if (pdx * pdx + pdy * pdy < prsum * prsum) {
             b._predictedPvpHit = true;
-            // Spawn damage-number direkt — server confirmar HP separat
+            // 1. Spawn damage-number direkt + tagga för dedup när server-confirm
+            //    anländer i pvp_hp_changed-handler (annars spawns DUBBELT).
             if (typeof spawnDamageNumber === 'function') {
               spawnDamageNumber(partner.x, partner.y - 20, Math.round(b.dmg), b.crit);
+              const _dn = state.particles[state.particles.length - 1];
+              if (_dn && _dn.isDamageNumber) {
+                _dn._predictedTargetPid = pid;
+                _dn._predictedAt = performance.now();
+              }
             }
+            // 2. Hit-particles vid enemy (sparks)
             if (typeof spawnHitParticles === 'function') spawnHitParticles(partner.x, partner.y, b);
-            // Hit-confirm vibration även i PvP (predicted hit på motståndare)
+            // 3. Hit-marker på crosshair — visuellt feedback i centrum av skärmen
+            //    så spelaren ser "TRÄFF" instant oavsett var fienden är.
+            state._hitMarkerUntil = performance.now() + (b.crit ? 250 : 180);
+            state._hitMarkerCrit = !!b.crit;
+            // 4. Audio confirm-ljud
+            if (typeof Audio !== 'undefined') {
+              if (b.crit && Audio.hitCrit) Audio.hitCrit();
+              else if (Audio.hit) Audio.hit();
+            }
+            // 5. Haptic vibration
             triggerVibrate(b.crit ? 30 : 15);
             if (!b.pierce) { hit = true; break; }
           }
@@ -39616,6 +39669,7 @@ function render() {
   drawOffscreenHitMarkers();
   drawReloadRing();
   drawMiniMap();
+  drawHitMarker(); // v1.385: lag-hiding hit-confirm på crosshair
   drawDebugLatencyOverlay(); // v1.384: net-debug-overlay (togglas via 'L'-key)
   drawAlarmOverlay();
   drawJimmyScreensOverlay();
@@ -40060,6 +40114,45 @@ function drawLightsFlicker() {
 // Andra modes använder default zoom = 1.0 (oförändrat).
 function getCameraZoom() {
   return state.battleroyaleActive ? 0.88 : 1.0;
+}
+
+// v1.385: hit-marker på crosshair — visas instant när min lokala kula
+// predicted-träffar en motståndare. Stort "feel-good"-tricket från CS/Apex/etc.
+// Spelaren ser TRÄFF-bekräftelse i mitten av skärmen utan att vänta på server.
+function drawHitMarker() {
+  if (!state._hitMarkerUntil) return;
+  const remaining = state._hitMarkerUntil - performance.now();
+  if (remaining <= 0) { state._hitMarkerUntil = 0; return; }
+  const totalMs = state._hitMarkerCrit ? 250 : 180;
+  const t = remaining / totalMs;        // 1.0 → 0.0
+  const alpha = Math.min(1, t * 1.5);   // håll alpha hög de första frames
+  const cx = viewW / 2, cy = viewH / 2;
+  // Längden expanderar snabbt sedan stannar — pop-känsla
+  const expand = 1 - Math.pow(1 - (1 - t), 3); // ease-out cubic
+  const inner = 6 + expand * 2;
+  const outer = inner + 6;
+  ctx.save();
+  ctx.strokeStyle = state._hitMarkerCrit
+    ? 'rgba(255, 220, 60, ' + alpha.toFixed(2) + ')'   // gul för crit
+    : 'rgba(255, 80, 80, ' + alpha.toFixed(2) + ')';   // röd för normal
+  ctx.lineWidth = state._hitMarkerCrit ? 2.5 : 2;
+  ctx.lineCap = 'round';
+  // Fyra diagonala streck (X-marker — klassisk hit-confirm-stil)
+  ctx.beginPath();
+  // Övre vänster
+  ctx.moveTo(cx - outer, cy - outer);
+  ctx.lineTo(cx - inner, cy - inner);
+  // Övre höger
+  ctx.moveTo(cx + inner, cy - inner);
+  ctx.lineTo(cx + outer, cy - outer);
+  // Nedre vänster
+  ctx.moveTo(cx - outer, cy + outer);
+  ctx.lineTo(cx - inner, cy + inner);
+  // Nedre höger
+  ctx.moveTo(cx + inner, cy + inner);
+  ctx.lineTo(cx + outer, cy + outer);
+  ctx.stroke();
+  ctx.restore();
 }
 
 // v1.384: net-debug-overlay för att mäta var MS faktiskt tar vägen.

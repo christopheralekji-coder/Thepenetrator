@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v384-latency-debug-overlay';
+const CACHE = 'penetrator-v385-lag-hiding-tier1';
 const ASSETS = [
   './',
   './index.html',

@@ -647,7 +647,14 @@ html, body {
   cursor: pointer;
   touch-action: none;
   box-shadow: 0 4px 12px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.15);
-  transition: transform 0.08s, box-shadow 0.15s;
+  transition: transform 0.08s, box-shadow 0.15s, box-shadow 0.1s;
+}
+/* v1.385: squash-feedback på action-knappar — knappen "trycks in" instant
+   vid tap. Hjärnan registrerar "något händer" innan ens första frame av
+   action-respons renderas. Gratis lag-hiding. */
+.action-btn:active {
+  transform: scale(0.92);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.6), inset 0 2px 6px rgba(0,0,0,0.4);
 }
 /* Vapen/shop-knapp halv storlek — direkt under minimapen (batteriet borttaget).
    Minimap @ top:60 + size 110 = bottom 170 → vapen-knapp top:176 ger ~6px gap.
