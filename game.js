@@ -18073,10 +18073,10 @@ const Coop = {
     if (!this.active || this.inLobby || !state.player) return;
     const now = performance.now();
     // Adaptiv rate: om servern inte hänger med (buffer fylls upp), sakta ner
-    // Default 22ms → 45Hz tick (matchar server-tick så input inte tappar timing).
-    // Höjt från 30Hz för att eliminera ~11ms quantization-lag mot server.
+    // v1.391: Default 17ms → 60Hz client-send (matchar server-tick 60Hz).
+    // Eliminerar ~3-6ms client-side quantization-lag jämfört med 45Hz/22ms.
     const buffered = this.ws ? this.ws.bufferedAmount : 0;
-    const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 22);
+    const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 17);
     // Server-auth mode: ALLA klienter (inkl host) skickar bara position till servern.
     // Visual shots delas fortfarande peer-to-peer via _sendBroadcast så andra ser dina projektiler.
     if (this.serverSimActive) {

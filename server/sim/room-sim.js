@@ -18,18 +18,17 @@ const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
 const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 const { SpatialGrid } = require('./spatial');
 
-// 30Hz → 45Hz: tickar var 22ms istället för 33ms. Halverar input→pixel-delay
-// från server-tick-perspektiv. 1.5× CPU-last, men Node klarar 10k+ ops/tick i
-// god marginal (current load ~10ms/tick på Render free). Vid CPU-tryck kan
-// vi sätta SIM_TICK_HZ env-var lokalt utan ny deploy.
-const TICK_HZ = parseInt(process.env.SIM_TICK_HZ, 10) || 45;
+// 45Hz → 60Hz (v1.391): tickar var 16.7ms istället för 22ms. Sparar ~3-6ms
+// quantization-lag per tick + matchar 60fps-rendering på klient.
+// Server-load är 99% idle (tick avg 0.3-5ms av nuvarande 22ms budget) så
+// 33% mer ticks/sec är trivial cost. Mätbart bättre input→action-feel.
+// Vid CPU-tryck (50+ samtida spelare): sätt SIM_TICK_HZ=45 env-var i Render.
+const TICK_HZ = parseInt(process.env.SIM_TICK_HZ, 10) || 60;
 const TICK_MS = 1000 / TICK_HZ;
-// Broadcast-rate matchar nu tick (45Hz) för minimal input→pixel-delay.
-// Tidigare 30Hz introducerade upp till 22ms dödtid mellan world-snapshots
-// vilket var en stor del av "lagg-känslan" trots OK ping. Per-peer-broadcast
-// kostar mest i deflate; men threshold:256 i server.js skippar deflate för
-// små paket så CPU-impacten är acceptabel även för 8-player-rum.
-const BROADCAST_HZ = parseInt(process.env.SIM_BROADCAST_HZ, 10) || 45;
+// Broadcast-rate matchar tick — minimal input→pixel-delay. Per-peer-broadcast
+// kostar mest i deflate, men threshold:256 skippar för små paket (~32B).
+// Bandwidth: ~2.5KB/s → ~3.3KB/s per peer. Försumbart.
+const BROADCAST_HZ = parseInt(process.env.SIM_BROADCAST_HZ, 10) || 60;
 const BROADCAST_EVERY = Math.max(1, Math.round(TICK_HZ / BROADCAST_HZ));
 const FULL_BROADCAST_MS = 1500;
 const ENEMY_CAP = 80;
