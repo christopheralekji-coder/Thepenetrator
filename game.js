@@ -13151,6 +13151,13 @@ window.addEventListener('keydown', e => {
   input.keys.add(e.key.toLowerCase());
   const k = e.key.toLowerCase();
   checkKonami(k);
+  // v1.384: 'l'-toggle för latency-debug-overlay (alltid tillåtet)
+  if (k === 'l' && !e.repeat) {
+    state._dbgEnabled = !state._dbgEnabled;
+    if (typeof showToast === 'function') {
+      showToast(state._dbgEnabled ? '🛰 LATENCY-DEBUG PÅ' : '🛰 LATENCY-DEBUG AV');
+    }
+  }
   // v1.378: under countdown blockeras ALLA tangenter (rörelse hanteras i updatePlayer)
   const _locked = typeof isInputLocked === 'function' && isInputLocked();
   if (k === 'q' && !_locked) switchWeapon(-1);
@@ -13196,10 +13203,32 @@ function checkMinimapZoomClick(mx, my) {
   return false;
 }
 
+// v1.384: triple-tap i top-vänster hörn → toggle latency-debug-overlay
+let _dbgTapCount = 0, _dbgTapLastT = 0;
+function checkDebugCornerTap(mx, my) {
+  if (state.mode !== 'playing') return false;
+  // 60×60px hörn-zon
+  if (mx > 60 || my > 60) return false;
+  const now = performance.now();
+  if (now - _dbgTapLastT > 600) _dbgTapCount = 0;
+  _dbgTapCount++;
+  _dbgTapLastT = now;
+  if (_dbgTapCount >= 3) {
+    _dbgTapCount = 0;
+    state._dbgEnabled = !state._dbgEnabled;
+    if (typeof showToast === 'function') {
+      showToast(state._dbgEnabled ? '🛰 LATENCY-DEBUG PÅ' : '🛰 LATENCY-DEBUG AV');
+    }
+    return true;
+  }
+  return false;
+}
+
 canvas.addEventListener('mousedown', (e) => {
   const r = canvas.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
   if (checkMinimapZoomClick(mx, my)) return;
+  if (checkDebugCornerTap(mx, my)) return; // v1.384: triple-tap top-left
   if (storyDialogActive) {
     const r = canvas.getBoundingClientRect();
     const mx = e.clientX - r.left, my = e.clientY - r.top;
@@ -15037,13 +15066,32 @@ const Coop = {
       }, 25000);
     };
     this.ws.onmessage = (ev) => {
+      // v1.384: mät packet-size + parse-time för debug-overlay
+      const _t0 = performance.now();
+      let _bytes = 0;
       // Binärt frame → world packet
       if (ev.data instanceof ArrayBuffer) {
+        _bytes = ev.data.byteLength;
         this._handleBinaryFromServer(ev.data);
+        if (state._dbgClient) {
+          state._dbgClient.lastPktBytes = _bytes;
+          state._dbgClient.lastPktAt = _t0;
+          state._dbgClient.parseMsEMA = (state._dbgClient.parseMsEMA || 0) * 0.9 + (performance.now() - _t0) * 0.1;
+          state._dbgClient.pktCount = (state._dbgClient.pktCount || 0) + 1;
+          state._dbgClient.bytesTotal = (state._dbgClient.bytesTotal || 0) + _bytes;
+        }
         return;
       }
+      _bytes = (typeof ev.data === 'string') ? ev.data.length : 0;
       let msg; try { msg = JSON.parse(ev.data); } catch(e){ return; }
       this._handleServerMsg(msg, onConnect, onError);
+      if (state._dbgClient) {
+        state._dbgClient.lastPktBytes = _bytes;
+        state._dbgClient.lastPktAt = _t0;
+        state._dbgClient.parseMsEMA = (state._dbgClient.parseMsEMA || 0) * 0.9 + (performance.now() - _t0) * 0.1;
+        state._dbgClient.pktCount = (state._dbgClient.pktCount || 0) + 1;
+        state._dbgClient.bytesTotal = (state._dbgClient.bytesTotal || 0) + _bytes;
+      }
     };
     this.ws.onerror = (e) => { console.warn('WS error', e); if (onError) onError('Server-fel'); };
     this.ws.onclose = () => {
@@ -15770,6 +15818,15 @@ const Coop = {
         const p = this.players.get(ev.peerId);
         p.pvpShieldUntil = until;
       }
+    } else if (ev.type === 'dbg_stats') {
+      // v1.384: server-side debug-stats för perf-overlay
+      if (!state._dbgServer) state._dbgServer = {};
+      state._dbgServer.tickAvg = ev.tickAvg;
+      state._dbgServer.tickMax = ev.tickMax;
+      state._dbgServer.members = ev.members;
+      state._dbgServer.enemies = ev.enemies;
+      state._dbgServer.bullets = ev.bullets;
+      state._dbgServer.lastUpdateAt = performance.now();
     } else if (ev.type === 'grenade_thrown') {
       // v1.381: server broadcastar grenade-throws så peers ser granaten flyga
       // + explosion-VFX. Thrower dedupar via ownerPid (har redan local-instans
@@ -39559,6 +39616,7 @@ function render() {
   drawOffscreenHitMarkers();
   drawReloadRing();
   drawMiniMap();
+  drawDebugLatencyOverlay(); // v1.384: net-debug-overlay (togglas via 'L'-key)
   drawAlarmOverlay();
   drawJimmyScreensOverlay();
   drawLightsFlicker();
@@ -40002,6 +40060,95 @@ function drawLightsFlicker() {
 // Andra modes använder default zoom = 1.0 (oförändrat).
 function getCameraZoom() {
   return state.battleroyaleActive ? 0.88 : 1.0;
+}
+
+// v1.384: net-debug-overlay för att mäta var MS faktiskt tar vägen.
+// Togglas via 'L'-tangent (Latency) eller genom save.debugOverlay.
+// state._dbgClient initieras vid första render så onmessage kan skriva till den.
+function _dbgEnsureInit() {
+  if (!state._dbgClient) {
+    state._dbgClient = {
+      parseMsEMA: 0, lastPktBytes: 0, pktCount: 0, bytesTotal: 0,
+      _lastBwResetAt: performance.now(),
+      pps: 0, bandwidth: 0, fps: 0, _lastFrameAt: 0,
+    };
+  }
+  if (!state._dbgServer) state._dbgServer = {};
+}
+function _dbgTickFps() {
+  _dbgEnsureInit();
+  const c = state._dbgClient;
+  const now = performance.now();
+  if (c._lastFrameAt) {
+    const dt = now - c._lastFrameAt;
+    if (dt > 0) c.fps = c.fps ? c.fps * 0.92 + (1000 / dt) * 0.08 : (1000 / dt);
+  }
+  c._lastFrameAt = now;
+  // Bandwidth/pps reset var 1s
+  if (now - c._lastBwResetAt > 1000) {
+    c.bandwidth = (c.bytesTotal || 0) / 1024;
+    c.pps = c.pktCount || 0;
+    c.bytesTotal = 0;
+    c.pktCount = 0;
+    c._lastBwResetAt = now;
+  }
+}
+function drawDebugLatencyOverlay() {
+  _dbgTickFps();
+  if (!state._dbgEnabled && !save.debugOverlay) return;
+  const x = 8, y = 8;
+  const w = 226, h = 168;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.82)';
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeStyle = 'rgba(170,58,255,0.7)';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#ffd54a';
+  ctx.fillText('🛰 LATENCY DEBUG (L)', x + 8, y + 6);
+  ctx.font = '10px monospace';
+  let cy = y + 24;
+  const c = state._dbgClient || {};
+  const s = state._dbgServer || {};
+  const line = (label, val, color) => {
+    ctx.fillStyle = color || '#bbb';
+    ctx.fillText(label, x + 8, cy);
+    ctx.fillStyle = color || '#5aff5a';
+    ctx.fillText(val, x + 100, cy);
+    cy += 14;
+  };
+  // RTT (server_ping mätning, lagrad i Coop._serverRtt)
+  const rtt = (typeof Coop !== 'undefined' && Coop._serverRtt) ? Coop._serverRtt : 0;
+  const rttColor = rtt < 50 ? '#5aff5a' : rtt < 120 ? '#ffd54a' : '#ff5a5a';
+  line('RTT (net)', rtt.toFixed(0) + ' ms', rttColor);
+  // Server tick
+  const tickAvg = s.tickAvg || 0, tickMax = s.tickMax || 0;
+  const tickColor = tickAvg < 8 ? '#5aff5a' : tickAvg < 15 ? '#ffd54a' : '#ff5a5a';
+  line('Tick (srv)', tickAvg.toFixed(1) + '/' + tickMax.toFixed(0) + ' ms', tickColor);
+  // Parse-time klient
+  const parseMs = c.parseMsEMA || 0;
+  const parseColor = parseMs < 1 ? '#5aff5a' : parseMs < 3 ? '#ffd54a' : '#ff5a5a';
+  line('Parse (cl)', parseMs.toFixed(2) + ' ms', parseColor);
+  // FPS klient
+  const fps = c.fps || 0;
+  const fpsColor = fps >= 55 ? '#5aff5a' : fps >= 30 ? '#ffd54a' : '#ff5a5a';
+  line('FPS', fps.toFixed(0));
+  // Packets/sec + bandwidth
+  line('Pkts/s in', (c.pps || 0).toFixed(0));
+  line('BW in', (c.bandwidth || 0).toFixed(1) + ' KB/s');
+  line('Last pkt', (c.lastPktBytes || 0) + ' B');
+  line('Room', (s.members || 0) + 'p ' + (s.enemies || 0) + 'e ' + (s.bullets || 0) + 'b');
+  // Total estimerad perceived input-lag
+  const quantSrv = (typeof TICK_HZ !== 'undefined') ? (1000/TICK_HZ/2) : 11;
+  const total = rtt + tickAvg + parseMs + quantSrv + 8 /*render-frame avg*/;
+  const totalColor = total < 80 ? '#5aff5a' : total < 150 ? '#ffd54a' : '#ff5a5a';
+  ctx.fillStyle = '#888';
+  ctx.fillText('────────────', x + 8, cy); cy += 12;
+  line('TOTAL est', total.toFixed(0) + ' ms', totalColor);
+  ctx.restore();
 }
 
 function drawMiniMap() {
@@ -41110,6 +41257,7 @@ canvas.addEventListener('touchstart', e => {
     const tx = newTouch.clientX - r.left;
     const ty = newTouch.clientY - r.top;
     if (checkMinimapZoomClick(tx, ty)) { e.preventDefault(); return; }
+    if (checkDebugCornerTap(tx, ty)) { e.preventDefault(); return; } // v1.384
     if (storyDialogActive) {
       const b = storyDialogActive.btn;
       if (b && tx >= b.x && tx <= b.x + b.w && ty >= b.y && ty <= b.y + b.h) {

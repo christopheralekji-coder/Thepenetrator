@@ -160,6 +160,20 @@ function tickSim(sim) {
   const dt = Math.min(0.1, (now - sim.lastTick) / 1000);
   sim.lastTick = now;
 
+  // v1.384: debug-stats broadcast var 500ms — så klient kan visa server-side
+  // tick-tid i debug-overlay (toggleable via inställning).
+  if (now - (sim._lastDbgBroadcastAt || 0) > 500) {
+    sim._lastDbgBroadcastAt = now;
+    sim.eventQueue.push({
+      type: 'dbg_stats',
+      tickAvg: Math.round((sim._tickMsEMA || 0) * 10) / 10,
+      tickMax: Math.round((sim._tickMsMax || 0) * 10) / 10,
+      members: sim.room.members.size,
+      enemies: (sim.enemies && sim.enemies.length) || 0,
+      bullets: (sim.bullets && sim.bullets.length) || 0,
+    });
+  }
+
   // Lag compensation: snapshot alla spelar-positioner FÖRE tick-logiken så vi
   // kan rewinda upp till 200ms när skott från en laggande klient anländer.
   // Ringbuffer per ws.playerState — håll bara 12 snapshots (~265ms @ 45Hz).
@@ -3389,6 +3403,10 @@ function startSim(sim, opts) {
     const t0 = process.hrtime.bigint();
     try { tickSim(sim); } catch (e) { console.error('sim-tick error:', e.message, e.stack); }
     const elapsedMs = Number(process.hrtime.bigint() - t0) / 1e6;
+    // v1.384: tick-tid EMA + max för debug-overlay
+    sim._tickMsEMA = sim._tickMsEMA == null ? elapsedMs : sim._tickMsEMA * 0.92 + elapsedMs * 0.08;
+    // Max decay: efter 5s utan spike, glömmer servern bort gamla spikes
+    sim._tickMsMax = Math.max((sim._tickMsMax || 0) * 0.995, elapsedMs);
     if (elapsedMs > 16) {
       const now = Date.now();
       if (now - sim._slowTickLogAt > 1000) {
