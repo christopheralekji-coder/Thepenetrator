@@ -3459,18 +3459,21 @@ function applyPlayerInput(sim, peerId, input) {
   // till rimlig max-speed. Klient kan annars skicka godtycklig x/y och teleporta
   // genom väggar eller kringgå CTF_CARRIER_SPEED_MUL (-25% när man bär flagga).
   // v1.382: extended to ALL PvP modes (TDM/CTF/Siege/Gungame/KOTH/JUG/BR).
-  // Tidigare bug: GG/BR/KOTH/JUG saknade clamp → klient's stale local-position
-  // (från menu, t.ex. (0,0)) överskrev serverns spridda spawn-coord → båda
-  // spelare hamnade på (0,0) = "spawnar bredvid varandra".
-  // PLUS spawn-grace: under invuln-period (1.5s post-spawn) ignoreras klient
-  // x/y helt så server-spawnen aldrig kan överskrivas.
+  // v1.383 (post-audit fix): spawn-grace skulle frysa spelaren även under
+  // PvP-shield (3s invuln) och hit-invuln (500ms). FIX: spawn-grace triggar
+  // BARA om både invuln AND klient-pos avviker >500px från server-pos
+  // (= riktig spawn-resync, inte mid-game shield).
   const inPvP = sim.tdmActive || sim.ctfActive || sim.siegeActive ||
                 sim.gungameActive || sim.kothActive ||
                 sim.juggernautActive || sim.battleroyaleActive;
   if (inPvP && typeof input.x === 'number' && typeof input.y === 'number') {
     const now = Date.now();
-    const inSpawnGrace = (ws.playerState.invulnUntil || 0) > now;
-    if (!inSpawnGrace) {
+    const isInvuln = (ws.playerState.invulnUntil || 0) > now;
+    const _dxRaw = input.x - ws.playerState.x;
+    const _dyRaw = input.y - ws.playerState.y;
+    const _isHugeJump = (_dxRaw * _dxRaw + _dyRaw * _dyRaw) > 500 * 500;
+    const isSpawnResync = isInvuln && _isHugeJump;
+    if (!isSpawnResync) {
       const lastT = ws._lastInputT || now;
       const dt = Math.max(0.001, Math.min(0.25, (now - lastT) / 1000));
       ws._lastInputT = now;
@@ -3483,19 +3486,18 @@ function applyPlayerInput(sim, peerId, input) {
         if (isCarrier) maxSpeed *= CTF_CARRIER_SPEED_MUL; // 0.75
       }
       const maxDelta = maxSpeed * dt + 12;
-      const dx = input.x - ws.playerState.x;
-      const dy = input.y - ws.playerState.y;
-      const d = Math.hypot(dx, dy);
+      const d = Math.hypot(_dxRaw, _dyRaw);
       if (d > maxDelta && d > 0) {
         const scale = maxDelta / d;
-        ws.playerState.x += dx * scale;
-        ws.playerState.y += dy * scale;
+        ws.playerState.x += _dxRaw * scale;
+        ws.playerState.y += _dyRaw * scale;
       } else {
         ws.playerState.x = input.x;
         ws.playerState.y = input.y;
       }
     }
-    // Under spawn-grace: ignorera klient x/y, server-spawnen står fast.
+    // isSpawnResync = true: ignorera klient x/y. Server-spawnen står fast,
+    // klient snappar via world-packet (klient-side discrepancy check).
   } else {
     // Non-PvP (coop story etc.): acceptera klient x/y unchecked
     if (typeof input.x === 'number') ws.playerState.x = input.x;
