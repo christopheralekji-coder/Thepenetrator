@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v393-remove-damage-impact-particle';
+const CACHE = 'penetrator-v394-br-match-info';
 const ASSETS = [
   './',
   './index.html',

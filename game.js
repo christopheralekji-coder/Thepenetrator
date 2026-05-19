@@ -19255,6 +19255,7 @@ function renderLobbyMatchInfo() {
   else if (cfg.gungame) modeLabel = '🔫 GUNGAME';
   else if (cfg.koth) modeLabel = '👑 KOTH';
   else if (cfg.juggernaut) modeLabel = '👑 JUGGERNAUT';
+  else if (cfg.battleroyale) modeLabel = '🌀 BATTLE ROYALE';
   else if (cfg.mode === 'story') modeLabel = '📖 STORY';
   else if (cfg.mode === 'endless') modeLabel = '♾️ ENDLESS';
   else if (cfg.mode === 'bossrush') modeLabel = '👹 BOSSRUSH';
@@ -19274,13 +19275,16 @@ function renderLobbyMatchInfo() {
     const min = Math.round(sec / 60);
     target = min + ' min som JUG';
   }
+  else if (cfg.battleroyale) {
+    target = 'Last standing';
+  }
   if (target) chips.push(`<span class="match-info-chip target">🎯 ${target}</span>`);
   // 3. Konvoj (story-mode only)
   if (cfg.mode === 'story' && cfg.includeConvoy) {
     chips.push(`<span class="match-info-chip">🚚 +KONVOJ</span>`);
   }
   // 4. Svårighet — visas bara för team-modes (PvP har fast svårighet)
-  const isPvP = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth || cfg.juggernaut);
+  const isPvP = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth || cfg.juggernaut || cfg.battleroyale);
   if (!isPvP) {
     const diff = (cfg.difficulty || 'veteran').toUpperCase();
     chips.push(`<span class="match-info-chip diff">📊 ${diff}</span>`);
