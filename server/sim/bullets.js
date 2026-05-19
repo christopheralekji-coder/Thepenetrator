@@ -809,27 +809,35 @@ function updateBullets(sim, dt, now) {
         continue;
       }
     }
-    // CASTLE DEFENSE: walls + buildings (allt med hp > 0). Bullets stoppas.
-    // Castle-walls tar damage från enemy-bullets, bullets från spelare passerar inte
-    // (cover). Buildings (manned turret etc.) blockerar också.
+    // CASTLE DEFENSE bullet-wall:
+    // - Hostile bullets (enemies/bosses) stoppas av castle-walls + solida buildings
+    //   och DELAR DAMAGE till wall/building (de attackerar muren).
+    // - Friendly bullets (spelare + auto-turrets) passerar genom egna walls/turrets
+    //   så de når fiender bakom murarna. Annars är auto-turret bakom mur värdelös
+    //   och spelare kan inte skjuta från säkerhet av sin egen castle.
     if (sim.castledefenseActive) {
       const cdLiveWalls = sim.castledefenseWalls.filter(w => w.hp > 0);
       const cdLiveBuildings = sim.castledefenseBuildings.filter(s => s.hp > 0);
-      const cdAllSolids = cdLiveWalls.concat(cdLiveBuildings);
-      if (bulletHitsWall(b, cdAllSolids)) {
+      const cdSolidBuildings = cdLiveBuildings.filter(s =>
+        s.kind === 'wall' || s.kind === 'auto_turret' || s.kind === 'man_turret');
+      // Friendly bullets: ignorera ALL castle-collision. Hostile: stoppas av allt solidt.
+      const cdAllSolids = b.hostile ? cdLiveWalls.concat(cdSolidBuildings) : [];
+      if (cdAllSolids.length > 0 && bulletHitsWall(b, cdAllSolids)) {
         // Skada wall/building om bullet är hostile (enemy)
         if (b.hostile && b.dmg > 0) {
           for (const w of cdAllSolids) {
             if (b.x + b.r >= w.x && b.x - b.r <= w.x + w.w &&
                 b.y + b.r >= w.y && b.y - b.r <= w.y + w.h) {
               w.hp = Math.max(0, w.hp - b.dmg);
+              // Robust check: byggnader har kind != 'castle_wall'
+              const isBuild = w.kind && w.kind !== 'castle_wall';
               sim.eventQueue.push({
-                type: w.id && w.id.startsWith('build_') ? 'cd_building_damaged' : 'cd_wall_damaged',
+                type: isBuild ? 'cd_building_damaged' : 'cd_wall_damaged',
                 id: w.id, hp: w.hp, maxHp: w.maxHp,
               });
               if (w.hp <= 0) {
                 sim.eventQueue.push({
-                  type: w.id && w.id.startsWith('build_') ? 'cd_building_destroyed' : 'cd_wall_destroyed',
+                  type: isBuild ? 'cd_building_destroyed' : 'cd_wall_destroyed',
                   id: w.id,
                 });
               }
@@ -983,6 +991,10 @@ function updateBullets(sim, dt, now) {
     if (b.hostile) {
       for (const [, ws] of sim.room.members) {
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        // v1.395 fix: respektera invulnUntil + cdDowned (annars sniper-bullets
+        // kan instant-killa downade spelare i bleed-out)
+        if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
+        if (ws.playerState.cdDowned) continue;
         const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
         const rsum = 14 + b.r;
         if (dx * dx + dy * dy < rsum * rsum) {

@@ -37,17 +37,19 @@ const CASTLEDEFENSE_ARENA = {
   // Wall är 260px lång, 30px tjock. Varje segment har egen HP (kan repareras).
   // Player kollision via resolveCtfWall (samma format som CTF/BR), så fält {x,y,w,h} krävs.
   // Bullets stoppas via bulletHitsWall.
+  // Layout: N/S walls inset 30px från hörn så W/E walls äger hörn-rutorna.
+  // Förhindrar overlap-jitter när bossar med stor radie pushas i hörnen.
   walls: [
     // NORTH (y:1700) — wall_north_left + wall_north_right, gate vid x:1960-2040
-    { id: 'wall_n_l', x: 1700, y: 1700, w: 260, h: 30, kind: 'castle_wall', hp: 800, maxHp: 800, side: 'north' },
-    { id: 'wall_n_r', x: 2040, y: 1700, w: 260, h: 30, kind: 'castle_wall', hp: 800, maxHp: 800, side: 'north' },
+    { id: 'wall_n_l', x: 1730, y: 1700, w: 230, h: 30, kind: 'castle_wall', hp: 800, maxHp: 800, side: 'north' },
+    { id: 'wall_n_r', x: 2040, y: 1700, w: 230, h: 30, kind: 'castle_wall', hp: 800, maxHp: 800, side: 'north' },
     // SOUTH (y:2270) — gate vid x:1960-2040
-    { id: 'wall_s_l', x: 1700, y: 2270, w: 260, h: 30, kind: 'castle_wall', hp: 800, maxHp: 800, side: 'south' },
-    { id: 'wall_s_r', x: 2040, y: 2270, w: 260, h: 30, kind: 'castle_wall', hp: 800, maxHp: 800, side: 'south' },
-    // WEST (x:1700) — gate vid y:1960-2040
+    { id: 'wall_s_l', x: 1730, y: 2270, w: 230, h: 30, kind: 'castle_wall', hp: 800, maxHp: 800, side: 'south' },
+    { id: 'wall_s_r', x: 2040, y: 2270, w: 230, h: 30, kind: 'castle_wall', hp: 800, maxHp: 800, side: 'south' },
+    // WEST (x:1700) — gate vid y:1960-2040 — äger hörn-cell
     { id: 'wall_w_t', x: 1700, y: 1700, w: 30, h: 260, kind: 'castle_wall', hp: 800, maxHp: 800, side: 'west' },
     { id: 'wall_w_b', x: 1700, y: 2040, w: 30, h: 260, kind: 'castle_wall', hp: 800, maxHp: 800, side: 'west' },
-    // EAST (x:2270) — gate vid y:1960-2040
+    // EAST (x:2270) — gate vid y:1960-2040 — äger hörn-cell
     { id: 'wall_e_t', x: 2270, y: 1700, w: 30, h: 260, kind: 'castle_wall', hp: 800, maxHp: 800, side: 'east' },
     { id: 'wall_e_b', x: 2270, y: 2040, w: 30, h: 260, kind: 'castle_wall', hp: 800, maxHp: 800, side: 'east' },
   ],

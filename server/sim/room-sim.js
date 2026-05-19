@@ -2348,10 +2348,15 @@ function tickCastleDefense(sim, dt, now) {
 
   if (sim.castledefenseEnded) return;
 
-  // Bygg alive-walls + buildings för collision-checks
+  // Bygg alive-walls + buildings för collision-checks.
+  // VIKTIGT: traps (spike/slow) får INTE blockera fienden — de SKADAR vid overlap.
+  // Repair_stn och health_stn är passive auras — också walkable.
+  // Bara walls, auto_turret, man_turret är "solida" (blockerar movement + bullets).
   const cdLiveWalls = sim.castledefenseWalls.filter(w => w.hp > 0);
   const cdLiveBuildings = sim.castledefenseBuildings.filter(b => b.hp > 0);
-  const cdAllSolids = cdLiveWalls.concat(cdLiveBuildings);
+  const cdSolidBuildings = cdLiveBuildings.filter(b =>
+    b.kind === 'wall' || b.kind === 'auto_turret' || b.kind === 'man_turret');
+  const cdAllSolids = cdLiveWalls.concat(cdSolidBuildings);
 
   // === PLAYER WALL-COLLISION + BOUNDS-CLAMP ===
   for (const [, ws] of sim.room.members) {
@@ -2400,7 +2405,7 @@ function tickCastleDefense(sim, dt, now) {
     sim.eventQueue.push({
       type: 'cd_wave_started',
       wave: w,
-      enemiesIncoming: sim._cdWaveSpawnsRemaining + (isBoss ? 1 : 0),
+      enemiesIncoming: sim._cdWaveSpawnsRemaining, // minions kvar att spawna (boss redan ute)
       isBoss,
     });
   }
@@ -2474,7 +2479,8 @@ function tickCastleDefense(sim, dt, now) {
     }
     if (attackTarget && e._cdAttackCd <= 0) {
       const isCore = (attackTarget === sim.castledefenseCore);
-      const isBuild = !!(attackTarget.id && attackTarget.id.startsWith && attackTarget.id.startsWith('build_'));
+      // Robust kind-check: walls har kind='castle_wall', byggnader har kind matching buildable-key
+      const isBuild = !isCore && attackTarget.kind && attackTarget.kind !== 'castle_wall';
       // Damage per attack (grunt=5 baseline)
       const dmg = e.dmg || 5;
       attackTarget.hp = Math.max(0, attackTarget.hp - dmg);
@@ -2538,6 +2544,8 @@ function tickCastleDefense(sim, dt, now) {
       if (!e.dead) continue;
       // Drop pickup (gold etc.) — använd standard pipeline
       dropFromEnemyDeath(sim, e);
+      // Nollställ bossAlive när CD-boss dör (annars läcker flagga vid mode-switch)
+      if (e.isBoss) sim.bossAlive = false;
       sim.eventQueue.push({
         type: 'enemy_killed',
         i: e._idx,
@@ -3411,6 +3419,9 @@ function startSim(sim, opts) {
   sim._cdBroadcastTick = 0;
   sim._cdWaveSpawnsRemaining = 0;
   sim._cdWaveSpawnTimer = 0;
+  sim._cdLastWaveProcessed = -1;   // v1.395 fix: rematch lämnade stale-värde annars
+  sim._cdHudBroadcastAt = 0;
+  sim.bossAlive = false;            // även för CD-bossar — annars läcker till andra modes
   sim._siegePointAccum = { red: 0, blue: 0 };
   sim.pvpPickups = null;
   sim.bullets = [];
@@ -4020,12 +4031,12 @@ function startSim(sim, opts) {
     sim.castledefenseWaveState = 'between';
     // Första vågen startar efter 10 sek så spelare hinner orientera sig + bygga
     sim.castledefenseWaveBetweenEndAt = Date.now() + 10000;
-    // Spawn spelare på fasta points inne i castle (max 4 — pickSpreadSpawns roterar)
+    // Spawn spelare på fasta points inne i castle. Cykla genom 4 punkter om fler spelare.
     const cdSpawns = pickSpreadSpawns(arena.playerSpawns, sim.room.members.size);
     let cdIdx = 0;
     for (const [pid, ws] of sim.room.members) {
       ws.playerState = ws.playerState || {};
-      const sp = cdSpawns[cdIdx];
+      const sp = cdSpawns[cdIdx % cdSpawns.length] || arena.playerSpawns[cdIdx % arena.playerSpawns.length];
       ws.playerState.x = sp.x;
       ws.playerState.y = sp.y;
       ws.playerState.hp = arena.startHp;
@@ -4252,9 +4263,16 @@ function applyShoot(sim, peerId, msg) {
     };
   }
   const ps = ws.playerState;
+  // Castle Defense down-state: bara knife tillåten (server-enforce, annars
+  // kan klient skicka rifle/sniper-shots medan downed).
+  if (ps.cdDowned) {
+    // Tillåt bara knife-shots. Om client försöker skjuta annat → reject.
+    if (msg.weaponId && msg.weaponId !== 'knife') return;
+  }
   // Mounted turret: tvinga rätt vapen-id + position. Annars kan client säga
   // "weaponId: railgun" och få railgun-dmg från turret-position.
   let weaponId = msg.weaponId || ps.weaponId || 'pistol';
+  if (ps.cdDowned) weaponId = 'knife';
   let posX = typeof msg.x === 'number' ? msg.x : ps.x;
   let posY = typeof msg.y === 'number' ? msg.y : ps.y;
   if (ws._mountedSiegeTurretId && sim.siegeTurrets) {

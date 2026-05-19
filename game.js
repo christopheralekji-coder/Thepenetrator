@@ -14154,6 +14154,7 @@ const GRENADE_BLOCKING_WALL_KINDS = new Set([
   'building',            // stora byggnader
   'guardhouse',          // vakthytta
   'shipping_container',  // standalone-containrar
+  'castle_wall',         // castle defense walls + bygda walls (v1.395)
 ]);
 
 // Hitta första cabin/wall-träff längs segmentet (from)→(to). Returnerar t (0..1)
@@ -17529,7 +17530,7 @@ const Coop = {
       state.castledefenseBossEveryWave = ev.bossEveryWave || 5;
       state.castledefenseStartedAt = Date.now();
       // Initial gold (per-match, ej save.gold)
-      state.castledefenseGold = (ev.startGold && ev.startGold[this.myId]) || 200;
+      state.castledefenseGold = (ev.startGold && ev.startGold[this.myId]) || 400;
       state.enemies = []; state.bullets = [];
       state.bossAlive = false; state.bossIntro = null;
       state.waveActive = false; state.enemiesToSpawn = 0;
