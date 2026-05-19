@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v389-tier3-subtle-aim-assist';
+const CACHE = 'penetrator-v390-tighter-interp-target-impact';
 const ASSETS = [
   './',
   './index.html',

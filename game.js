@@ -17577,6 +17577,20 @@ const Coop = {
                 if (typeof triggerShake === 'function') triggerShake(6, 0.3);
                 if (typeof Audio !== 'undefined' && Audio.playerHurt) Audio.playerHurt();
                 state.player.flashUntil = performance.now() + 120;
+                // v1.390: Hit-impact-particle vid min position när jag tar
+                // damage. Server's lag-comp kan registrera hit fast bullet
+                // visuellt missade (pga interpolation-paradox). Particle vid
+                // min pos gör damage "synlig" oavsett var bullet flög.
+                if (typeof spawnSparks === 'function') {
+                  spawnSparks(state.player.x, state.player.y, '#ff3a3a', 8, 200);
+                }
+                if (state.particles && state.particles.length < 220) {
+                  state.particles.push({
+                    x: state.player.x, y: state.player.y, vx: 0, vy: 0,
+                    life: 0.2, maxLife: 0.2,
+                    color: 'rgba(255, 60, 60, 0.65)', r: 18, isExplosion: true,
+                  });
+                }
               }
               // Trigga death-state lokalt om server säger hp=0 (annars uppstår klient/server-divergens
               // där server tror du är död men klient fortsätter spela)
@@ -41298,11 +41312,13 @@ function runFrame(dt, now) {
         updatePickups(dt);
       } else {
         // KLIENT: kör interpolation mot host's positions (smooth).
-        // lerpFactor 12→25: gammal smoothing tog ~220ms att nå 95% av ny target
-        // vilket adderade märkbar input-lag-känsla ovanpå ping. 25 ger ~90ms
-        // istället — fortfarande smooth men reaktivt. Vid större diff (>100px)
-        // = teleport pga respawn/eject, ingen smoothing behövs.
-        const lerpFactor = Math.min(1, dt * 25);
+        // lerpFactor 12→25→35: gammal smoothing tog ~220ms att nå 95% av ny target.
+        // 25 → ~80ms. 35 → ~50ms (v1.390 efter user-feedback "bullets visually
+        // miss target på target's screen"). Tightare lerp = motståndare visas
+        // mer real-time → du siktar på färskare position → mindre visuell
+        // bullet-miss på opponents skärm pga lag-comp/interpolation-paradox.
+        // Trade-off: lite mer stutter vid network-jitter. Acceptabel vid 45Hz.
+        const lerpFactor = Math.min(1, dt * 35);
         for (const e of state.enemies) {
           if (e.targetX === undefined) continue;
           const dxE = e.targetX - e.x, dyE = e.targetY - e.y;
