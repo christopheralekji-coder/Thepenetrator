@@ -17514,6 +17514,18 @@ const Coop = {
                 enterDeathState();
               }
             }
+            // v1.382: snap till server-position vid stor diskrepans (>300px).
+            // Hanterar spawn-resync: vid match-start är klient-lokal pos stale
+            // (menu-pos) medan server har spawn-pos → snap till spawn så
+            // klient inte fortsätter skicka stale x/y. Också desync-recovery.
+            if (this.serverSimActive && state.player && typeof p.x === 'number' && typeof p.y === 'number') {
+              const dx = state.player.x - p.x;
+              const dy = state.player.y - p.y;
+              if (dx * dx + dy * dy > 90000) { // 300²
+                state.player.x = p.x;
+                state.player.y = p.y;
+              }
+            }
             continue;
           }
           if (!peerId) continue;

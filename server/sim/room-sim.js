@@ -3458,37 +3458,46 @@ function applyPlayerInput(sim, peerId, input) {
   // PvP anti-cheat / carrier-slow enforcement: klampa positionsdelta per tick
   // till rimlig max-speed. Klient kan annars skicka godtycklig x/y och teleporta
   // genom väggar eller kringgå CTF_CARRIER_SPEED_MUL (-25% när man bär flagga).
-  // Inkluderar nu siegeActive (saknades innan → kunde teleporta i siege).
-  if ((sim.tdmActive || sim.ctfActive || sim.siegeActive) && typeof input.x === 'number' && typeof input.y === 'number') {
+  // v1.382: extended to ALL PvP modes (TDM/CTF/Siege/Gungame/KOTH/JUG/BR).
+  // Tidigare bug: GG/BR/KOTH/JUG saknade clamp → klient's stale local-position
+  // (från menu, t.ex. (0,0)) överskrev serverns spridda spawn-coord → båda
+  // spelare hamnade på (0,0) = "spawnar bredvid varandra".
+  // PLUS spawn-grace: under invuln-period (1.5s post-spawn) ignoreras klient
+  // x/y helt så server-spawnen aldrig kan överskrivas.
+  const inPvP = sim.tdmActive || sim.ctfActive || sim.siegeActive ||
+                sim.gungameActive || sim.kothActive ||
+                sim.juggernautActive || sim.battleroyaleActive;
+  if (inPvP && typeof input.x === 'number' && typeof input.y === 'number') {
     const now = Date.now();
-    const lastT = ws._lastInputT || now;
-    const dt = Math.max(0.001, Math.min(0.25, (now - lastT) / 1000));
-    ws._lastInputT = now;
-    // Bas-speed 230, adrenalin 1.35×, cheat 2×. Tillåt 2× för säkerhets-margin
-    // (lag-spikes). Carrier i CTF är 0.75× — men late lag kan göra delta större;
-    // ge en generös cap. Server tar slut-snapshot från klient ändå.
-    let maxSpeed = 230 * 2.0;
-    if (sim.ctfActive) {
-      // Kolla om peeren bär en flagga
-      const isCarrier = sim.ctfFlags && (
-        (sim.ctfFlags.red && sim.ctfFlags.red.carrierId === peerId) ||
-        (sim.ctfFlags.blue && sim.ctfFlags.blue.carrierId === peerId)
-      );
-      if (isCarrier) maxSpeed *= CTF_CARRIER_SPEED_MUL; // 0.75
+    const inSpawnGrace = (ws.playerState.invulnUntil || 0) > now;
+    if (!inSpawnGrace) {
+      const lastT = ws._lastInputT || now;
+      const dt = Math.max(0.001, Math.min(0.25, (now - lastT) / 1000));
+      ws._lastInputT = now;
+      let maxSpeed = 230 * 2.0;
+      if (sim.ctfActive) {
+        const isCarrier = sim.ctfFlags && (
+          (sim.ctfFlags.red && sim.ctfFlags.red.carrierId === peerId) ||
+          (sim.ctfFlags.blue && sim.ctfFlags.blue.carrierId === peerId)
+        );
+        if (isCarrier) maxSpeed *= CTF_CARRIER_SPEED_MUL; // 0.75
+      }
+      const maxDelta = maxSpeed * dt + 12;
+      const dx = input.x - ws.playerState.x;
+      const dy = input.y - ws.playerState.y;
+      const d = Math.hypot(dx, dy);
+      if (d > maxDelta && d > 0) {
+        const scale = maxDelta / d;
+        ws.playerState.x += dx * scale;
+        ws.playerState.y += dy * scale;
+      } else {
+        ws.playerState.x = input.x;
+        ws.playerState.y = input.y;
+      }
     }
-    const maxDelta = maxSpeed * dt + 12; // +12 buffer för server-tick-overlap
-    const dx = input.x - ws.playerState.x;
-    const dy = input.y - ws.playerState.y;
-    const d = Math.hypot(dx, dy);
-    if (d > maxDelta && d > 0) {
-      const scale = maxDelta / d;
-      ws.playerState.x += dx * scale;
-      ws.playerState.y += dy * scale;
-    } else {
-      ws.playerState.x = input.x;
-      ws.playerState.y = input.y;
-    }
+    // Under spawn-grace: ignorera klient x/y, server-spawnen står fast.
   } else {
+    // Non-PvP (coop story etc.): acceptera klient x/y unchecked
     if (typeof input.x === 'number') ws.playerState.x = input.x;
     if (typeof input.y === 'number') ws.playerState.y = input.y;
   }

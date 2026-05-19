@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v381-grenade-multiplayer-sync';
+const CACHE = 'penetrator-v382-spawn-sync-bredvid-fix';
 const ASSETS = [
   './',
   './index.html',
