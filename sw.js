@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v387-tier2-camera-recoil-reload-haptics';
+const CACHE = 'penetrator-v388-hitmarker-smaller-shorter';
 const ASSETS = [
   './',
   './index.html',

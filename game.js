@@ -28470,7 +28470,7 @@ function updateBullets(dt) {
             if (typeof spawnHitParticles === 'function') spawnHitParticles(partner.x, partner.y, b);
             // 3. Hit-marker på crosshair — visuellt feedback i centrum av skärmen
             //    så spelaren ser "TRÄFF" instant oavsett var fienden är.
-            state._hitMarkerUntil = performance.now() + (b.crit ? 250 : 180);
+            state._hitMarkerUntil = performance.now() + (b.crit ? 190 : 135);
             state._hitMarkerCrit = !!b.crit;
             // 4. Audio confirm-ljud
             if (typeof Audio !== 'undefined') {
@@ -40163,39 +40163,29 @@ function getCameraZoom() {
 
 // v1.385: hit-marker på crosshair — visas instant när min lokala kula
 // predicted-träffar en motståndare. Stort "feel-good"-tricket från CS/Apex/etc.
-// Spelaren ser TRÄFF-bekräftelse i mitten av skärmen utan att vänta på server.
+// v1.388: storlek + duration nertonad ~25% efter user-feedback "lite väl stor".
 function drawHitMarker() {
   if (!state._hitMarkerUntil) return;
   const remaining = state._hitMarkerUntil - performance.now();
   if (remaining <= 0) { state._hitMarkerUntil = 0; return; }
-  const totalMs = state._hitMarkerCrit ? 250 : 180;
+  const totalMs = state._hitMarkerCrit ? 190 : 135;
   const t = remaining / totalMs;        // 1.0 → 0.0
-  const alpha = Math.min(1, t * 1.5);   // håll alpha hög de första frames
+  const alpha = Math.min(1, t * 1.5);
   const cx = viewW / 2, cy = viewH / 2;
-  // Längden expanderar snabbt sedan stannar — pop-känsla
   const expand = 1 - Math.pow(1 - (1 - t), 3); // ease-out cubic
-  const inner = 6 + expand * 2;
-  const outer = inner + 6;
+  const inner = 4 + expand * 1.5;       // 4-5.5px (var 6-8)
+  const outer = inner + 4;              // 8-9.5px streck-längd 4 (var 6)
   ctx.save();
   ctx.strokeStyle = state._hitMarkerCrit
-    ? 'rgba(255, 220, 60, ' + alpha.toFixed(2) + ')'   // gul för crit
-    : 'rgba(255, 80, 80, ' + alpha.toFixed(2) + ')';   // röd för normal
-  ctx.lineWidth = state._hitMarkerCrit ? 2.5 : 2;
+    ? 'rgba(255, 220, 60, ' + alpha.toFixed(2) + ')'
+    : 'rgba(255, 80, 80, ' + alpha.toFixed(2) + ')';
+  ctx.lineWidth = state._hitMarkerCrit ? 2 : 1.5;
   ctx.lineCap = 'round';
-  // Fyra diagonala streck (X-marker — klassisk hit-confirm-stil)
   ctx.beginPath();
-  // Övre vänster
-  ctx.moveTo(cx - outer, cy - outer);
-  ctx.lineTo(cx - inner, cy - inner);
-  // Övre höger
-  ctx.moveTo(cx + inner, cy - inner);
-  ctx.lineTo(cx + outer, cy - outer);
-  // Nedre vänster
-  ctx.moveTo(cx - outer, cy + outer);
-  ctx.lineTo(cx - inner, cy + inner);
-  // Nedre höger
-  ctx.moveTo(cx + inner, cy + inner);
-  ctx.lineTo(cx + outer, cy + outer);
+  ctx.moveTo(cx - outer, cy - outer); ctx.lineTo(cx - inner, cy - inner);
+  ctx.moveTo(cx + inner, cy - inner); ctx.lineTo(cx + outer, cy - outer);
+  ctx.moveTo(cx - outer, cy + outer); ctx.lineTo(cx - inner, cy + inner);
+  ctx.moveTo(cx + inner, cy + inner); ctx.lineTo(cx + outer, cy + outer);
   ctx.stroke();
   ctx.restore();
 }
