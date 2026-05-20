@@ -8292,7 +8292,24 @@ function drawCastleDefenseBuildings(layer) {
         ctx.fill();
       }
     } else if (b.kind === 'slow_trap') {
-      // === SLOW TRAP — magic ice rune ===
+      // === FROST TOWER — AOE aura + magic ice rune (v1.414) ===
+      // Aura (radius-baserad AOE slow)
+      if (b.radius) {
+        const pulseF = 0.12 + Math.sin(t * 2.5) * 0.08;
+        const auraGrad = ctx.createRadialGradient(bcx, bcy, 0, bcx, bcy, b.radius);
+        auraGrad.addColorStop(0, 'rgba(140,220,255,' + pulseF + ')');
+        auraGrad.addColorStop(1, 'rgba(140,220,255,0)');
+        ctx.fillStyle = auraGrad;
+        ctx.beginPath();
+        ctx.arc(bcx, bcy, b.radius, 0, Math.PI * 2);
+        ctx.fill();
+        // Frost-ring outline
+        ctx.strokeStyle = 'rgba(140,220,255,0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(bcx, bcy, b.radius, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       // Frosted base
       ctx.fillStyle = '#2a4a6a';
       ctx.fillRect(x, y, b.w, b.h);

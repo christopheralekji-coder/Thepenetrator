@@ -2173,13 +2173,16 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
         }
       }
     }
-    // === SLOW TRAP ===
-    else if (b.kind === 'slow_trap' && b.slowDurSec > 0) {
+    // === SLOW TRAP (AOE aura — v1.414) ===
+    // Tidigare overlap-only (slow bara om enemy steg PÅ tile:n). Nu AOE-aura
+    // som slowar ALLA enemies inom radius varje tick.
+    else if (b.kind === 'slow_trap' && b.slowDurSec > 0 && b.radius > 0) {
+      const r2 = b.radius * b.radius;
+      const nowSec = nowMs / 1000;
       for (const e of sim.enemies) {
         if (e.dead) continue;
-        if (e.x + e.r < b.x || e.x - e.r > b.x + b.w) continue;
-        if (e.y + e.r < b.y || e.y - e.r > b.y + b.h) continue;
-        const nowSec = nowMs / 1000;
+        const dx = e.x - bcx, dy = e.y - bcy;
+        if (dx * dx + dy * dy > r2) continue;
         e.slowUntil = nowSec + b.slowDurSec;
         e.slowFactor = b.slowMul;
       }
@@ -5025,8 +5028,11 @@ function applyCastleDefenseUpgrade(sim, peerId, msg) {
   }
   if (base.dps) b.dps = base.dps * (1 + lvl * (mul.dps || 0.25));
   if (base.range) b.range = Math.round(base.range * (1 + lvl * (mul.range || 0.05)));
-  if (base.healPerSec) b.healPerSec = base.healPerSec * (1 + lvl * (mul.heal || 0.2));
-  if (base.playerHealPerSec) b.playerHealPerSec = base.playerHealPerSec * (1 + lvl * (mul.heal || 0.2));
+  // v1.414: per-kind override för heal-scaling (repair_stn har 2.0 = +200%/lvl)
+  const specForHeal = arena.buildables[b.kind] || {};
+  const healScale = specForHeal.healScalePerLvl != null ? specForHeal.healScalePerLvl : (mul.heal || 0.4);
+  if (base.healPerSec) b.healPerSec = base.healPerSec * (1 + lvl * healScale);
+  if (base.playerHealPerSec) b.playerHealPerSec = base.playerHealPerSec * (1 + lvl * healScale);
   if (base.dmgOnPass) b.dmgOnPass = Math.round(base.dmgOnPass * (1 + lvl * (mul.dmg || 0.25)));
   sim.eventQueue.push({
     type: 'cd_building_upgraded',

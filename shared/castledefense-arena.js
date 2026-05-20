@@ -161,8 +161,11 @@ const CASTLEDEFENSE_ARENA = {
     auto_turret: { cost: 700,  hp: 200, w: 30, h: 30, range: 220, dps: 20, fireRate: 2.0 }, // hp 100→200, range 168→220
     man_turret:  { cost: 1200, hp: 350, w: 30, h: 30, range: 300, dpsMul: 2.5 },  // hp 300→350, range 240→300
     spike_trap:  { cost: 200,  hp: 250, w: 30, h: 30, dmgOnPass: 30, killCapacity: 5 },
-    slow_trap:   { cost: 300,  hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2 },
-    repair_stn:  { cost: 500,  hp: 200, w: 30, h: 30, healPerSec: 12, radius: 140 }, // 100→140 (täcker walls + core)
+    // v1.414: slow_trap → AOE aura (radius 140). Slowar ALLA enemies i radius
+    // varje tick (var: bara overlap-tile).
+    slow_trap:   { cost: 300,  hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2, radius: 140 },
+    // v1.414: repair lvl 1 = 1 hp/s (var 12). Steeper scaling: lvl 9 = 19 hp/s.
+    repair_stn:  { cost: 500,  hp: 200, w: 30, h: 30, healPerSec: 1, radius: 140, healScalePerLvl: 2.0 },
     health_stn:  { cost: 600,  hp: 150, w: 30, h: 30, playerHealPerSec: 3, radius: 140 },
   },
   // v1.410: Level-system med EXPONENTIAL cost-scaling (mycket dyrare att maxa).
