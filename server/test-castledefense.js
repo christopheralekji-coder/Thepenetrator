@@ -54,10 +54,11 @@ try {
   startSim(sim, { castledefense: true });
   assert(sim.castledefenseActive === true, 'castledefenseActive should be true');
   assert(sim.castledefenseCore !== null, 'castledefenseCore should be initialized');
-  assert(Array.isArray(sim.castledefenseWalls) && sim.castledefenseWalls.length === 8,
-    'castledefenseWalls should have 8 segments');
+  // v1.397 redesign: ingen pre-built — walls börjar tomt
+  assert(Array.isArray(sim.castledefenseWalls) && sim.castledefenseWalls.length === 0,
+    'castledefenseWalls should be empty (no pre-built in v1.397)');
   assert(sim.castledefenseWaveState === 'between', 'initial waveState should be between');
-  console.log('[OK] castledefenseActive=true, core+walls initialized, waveState=between');
+  console.log('[OK] castledefenseActive=true, core initialized (no pre-built walls), waveState=between');
 } catch (e) {
   console.error('[FAIL] startSim crashed:', e.message);
   console.error(e.stack);

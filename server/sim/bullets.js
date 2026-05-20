@@ -989,6 +989,26 @@ function updateBullets(sim, dt, now) {
     // I aktuell flow: enemy contact-damage hanteras i enemies.js, hostile bullets
     // som flyger måste också kolla mot players.
     if (b.hostile) {
+      // v1.397 Castle Defense: hostile bullets kan också skada CORE.
+      // Kollas FÖRE player-hit så bullets som flyger mot core inte stoppas
+      // av en player som råkar gå förbi (men om player är i vägen + tar damage,
+      // OK — basen bevaras lite).
+      let bulletConsumed = false;
+      if (sim.castledefenseActive && sim.castledefenseCore && sim.castledefenseCore.hp > 0) {
+        const core = sim.castledefenseCore;
+        const dx = core.x - b.x, dy = core.y - b.y;
+        const rsum = core.r + b.r;
+        if (dx * dx + dy * dy < rsum * rsum) {
+          core.hp = Math.max(0, core.hp - b.dmg);
+          sim.eventQueue.push({
+            type: 'cd_core_damaged',
+            hp: core.hp, maxHp: core.maxHp,
+          });
+          bullets.splice(i, 1);
+          bulletConsumed = true;
+        }
+      }
+      if (bulletConsumed) continue;
       for (const [, ws] of sim.room.members) {
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         // v1.395 fix: respektera invulnUntil + cdDowned (annars sniper-bullets

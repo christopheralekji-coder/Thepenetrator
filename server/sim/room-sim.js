@@ -2437,7 +2437,20 @@ function tickCastleDefense(sim, dt, now) {
   updateCastleDefenseDownState(sim, dt, nowMs);
 
   // === ENEMY AI + COLLISION + ATTACK ===
-  const players = buildPlayerList(sim);
+  // v1.397: Fienderna targetar BARA core (basen). Players är osynliga som mål
+  // men kan fortfarande träffas av hostile bullets (ranged enemies skjuter mot
+  // core — om player står i kulbanan tar de skada). Pure tower-defense-känsla.
+  const corePos = sim.castledefenseCore;
+  const fakeCoreTarget = corePos ? [{
+    peerId: '__core__',
+    _isCoreTarget: true,
+    x: corePos.x, y: corePos.y,
+    hp: 99999,                    // immortal från enemy-AI:s perspektiv
+    maxHp: 99999,
+    invulnUntil: 0,
+    r: corePos.r || 60,
+  }] : [];
+  const players = fakeCoreTarget;
   for (const e of sim.enemies) {
     if (e.dead) continue;
     if (e.isBoss) {
@@ -4065,15 +4078,17 @@ function startSim(sim, opts) {
         worldH: arena.worldH,
         name: arena.name,
         groundColor: arena.groundColor,
+        plazaColor: arena.plazaColor,
+        pathColor: arena.pathColor,
+        plazaRadius: arena.plazaRadius,
         centerX: arena.centerX,
         centerY: arena.centerY,
       },
-      walls: sim.castledefenseWalls.map(w => ({
-        id: w.id, x: w.x, y: w.y, w: w.w, h: w.h, kind: w.kind, hp: w.hp, maxHp: w.maxHp, side: w.side,
-      })),
+      walls: [],                          // v1.397: ingen pre-built
       core: { ...sim.castledefenseCore },
       playerSpawns: arena.playerSpawns,
       enemySpawns: arena.enemySpawns,
+      decorations: arena.decorations || [],
       buildables: arena.buildables,
       buildGridSize: arena.buildGridSize,
       startHp: arena.startHp,

@@ -7588,28 +7588,251 @@ function drawBrZone() {
 }
 
 // ============================================================
-// CASTLE DEFENSE — render functions (walls, core, buildings, ground, spawn-markers)
+// CASTLE DEFENSE — render functions (v1.397 rewamp)
 // ============================================================
+// Lager-ordning per frame (botten upp):
+//   1. drawCastleDefenseGround       — gräs + stenvägar + plaza
+//   2. drawCastleDefenseDecorations  — torsorna under spelare (träd-skugga, klippor)
+//   3. drawCastleDefenseWalls         — (tomt, ingen pre-built)
+//   4. drawCastleDefenseBuildings    — auto/man-turret + traps + stations
+//   5. drawCastleDefenseCore          — obelisk-shrine i mitten
+//   6. drawCastleDefenseDecorationsTop — träd-kronor (ovanpå spelare)
+//   7. drawCastleDefenseSpawnMarkers — pulser vid spawn-punkter
+//   8. drawCdBuildGhost                — placement-preview
 function drawCastleDefenseGround() {
-  // Subtilt grid-mönster över ground för att indikera bygg-grid (30×30 cells)
-  if (!state.castledefenseBuildGridSize) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
-  const grid = state.castledefenseBuildGridSize;
-  const startX = Math.floor(cx / grid) * grid - cx;
-  const startY = Math.floor(cy / grid) * grid - cy;
+  const centerX = (state.castledefenseCore && state.castledefenseCore.x) || 2000;
+  const centerY = (state.castledefenseCore && state.castledefenseCore.y) || 2000;
+  const plazaR = state.castledefensePlazaRadius || 220;
+  const pathColor = state.castledefensePathColor || '#6a5a48';
+  const plazaColor = state.castledefensePlazaColor || '#5a5450';
   ctx.save();
-  ctx.strokeStyle = 'rgba(120, 100, 70, 0.08)';
-  ctx.lineWidth = 1;
+  // === STENVÄGAR från enemy-spawnar mot center ===
+  // Linjer drawn med soft falloff så de inte ser tråkiga ut. 60px breda.
+  if (state.castledefenseEnemySpawns) {
+    ctx.strokeStyle = pathColor;
+    ctx.lineWidth = 60;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = 0.45;
+    ctx.beginPath();
+    for (const sp of state.castledefenseEnemySpawns) {
+      const sx = sp.x - cx, sy = sp.y - cy;
+      const ex = centerX - cx, ey = centerY - cy;
+      // Begränsa till plaza-edge (annars överlappar plaza)
+      const dx = ex - sx, dy = ey - sy;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > plazaR) {
+        const t = (d - plazaR + 30) / d;
+        ctx.moveTo(sx, sy);
+        ctx.lineTo(sx + dx * t, sy + dy * t);
+      }
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  // === PLAZA (cirkulär sten-yta runt core) ===
+  const plazaScreenX = centerX - cx, plazaScreenY = centerY - cy;
+  // Yttre ring: ornament-band
+  ctx.fillStyle = '#3a3530';
   ctx.beginPath();
-  for (let x = startX; x < viewW + grid; x += grid) {
-    ctx.moveTo(x + 0.5, 0);
-    ctx.lineTo(x + 0.5, viewH);
+  ctx.arc(plazaScreenX, plazaScreenY, plazaR + 8, 0, Math.PI * 2);
+  ctx.fill();
+  // Huvud-plaza
+  ctx.fillStyle = plazaColor;
+  ctx.beginPath();
+  ctx.arc(plazaScreenX, plazaScreenY, plazaR, 0, Math.PI * 2);
+  ctx.fill();
+  // Tile-mönster: koncentriska cirklar + 8 radiella linjer
+  ctx.strokeStyle = 'rgba(40,35,30,0.5)';
+  ctx.lineWidth = 1.5;
+  for (let r = 40; r < plazaR; r += 40) {
+    ctx.beginPath();
+    ctx.arc(plazaScreenX, plazaScreenY, r, 0, Math.PI * 2);
+    ctx.stroke();
   }
-  for (let y = startY; y < viewH + grid; y += grid) {
-    ctx.moveTo(0, y + 0.5);
-    ctx.lineTo(viewW, y + 0.5);
+  for (let i = 0; i < 8; i++) {
+    const a = i * Math.PI / 4;
+    ctx.beginPath();
+    ctx.moveTo(plazaScreenX, plazaScreenY);
+    ctx.lineTo(plazaScreenX + Math.cos(a) * plazaR, plazaScreenY + Math.sin(a) * plazaR);
+    ctx.stroke();
   }
-  ctx.stroke();
+  // === BUILD-GRID OVERLAY (subtle) ===
+  if (state.cdBuildMode && state.castledefenseBuildGridSize) {
+    // Visa grid bara när i build-mode (annars distrahering)
+    const grid = state.castledefenseBuildGridSize;
+    const startX = Math.floor(cx / grid) * grid - cx;
+    const startY = Math.floor(cy / grid) * grid - cy;
+    ctx.strokeStyle = 'rgba(255, 200, 100, 0.15)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = startX; x < viewW + grid; x += grid) {
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, viewH);
+    }
+    for (let y = startY; y < viewH + grid; y += grid) {
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(viewW, y + 0.5);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Dekorationer på marken (under spelare): rock-shadows, grass-tufts, banner-base
+function drawCastleDefenseDecorationsGround() {
+  if (!state.castledefenseDecorations) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  ctx.save();
+  for (const d of state.castledefenseDecorations) {
+    const x = d.x - cx, y = d.y - cy;
+    if (x < -100 || x > viewW + 100 || y < -100 || y > viewH + 100) continue;
+    if (d.kind === 'rock') {
+      const r = d.r || 22;
+      // Skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath();
+      ctx.ellipse(x + 3, y + 3, r, r * 0.85, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Sten
+      ctx.fillStyle = '#7a7a7a';
+      ctx.beginPath();
+      ctx.ellipse(x, y, r, r * 0.85, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Mörkare nedre del
+      ctx.fillStyle = '#5a5a5a';
+      ctx.beginPath();
+      ctx.ellipse(x, y + r * 0.3, r * 0.9, r * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Highlight
+      ctx.fillStyle = '#aaaaaa';
+      ctx.beginPath();
+      ctx.ellipse(x - r * 0.3, y - r * 0.3, r * 0.4, r * 0.25, 0, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (d.kind === 'grass_tuft') {
+      ctx.strokeStyle = '#5aaa3a';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 4; i++) {
+        const a = (i / 4) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + Math.cos(a) * 6, y - Math.abs(Math.sin(a)) * 8);
+        ctx.stroke();
+      }
+    } else if (d.kind === 'banner') {
+      // Stolp-skugga (banner-render i top-layer)
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.fillRect(x - 2 + 2, y - 4 + 2, 4, 8);
+    } else if (d.kind === 'torch') {
+      // Torch-bas (top är flammen)
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(x, y + 2, 10, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#4a3520';
+      ctx.fillRect(x - 3, y - 8, 6, 12);
+      ctx.fillStyle = '#2a1810';
+      ctx.fillRect(x - 4, y - 10, 8, 3);
+    } else if (d.kind === 'tree') {
+      // Bara trunken här (kronan ovanpå spelare)
+      const r = d.r || 24;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.beginPath();
+      ctx.ellipse(x + 3, y + r * 0.7, r * 0.9, r * 0.4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#3a2515';
+      ctx.fillRect(x - 4, y - 2, 8, r * 0.7);
+    }
+  }
+  ctx.restore();
+}
+
+// Dekorationer ovanpå spelare: träd-kronor, fackel-flammor, banderoller
+function drawCastleDefenseDecorationsTop() {
+  if (!state.castledefenseDecorations) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const t = performance.now() / 1000;
+  ctx.save();
+  for (const d of state.castledefenseDecorations) {
+    const x = d.x - cx, y = d.y - cy;
+    if (x < -100 || x > viewW + 100 || y < -100 || y > viewH + 100) continue;
+    if (d.kind === 'tree') {
+      const r = d.r || 24;
+      // Krona (3 lager) — grön med skugga
+      ctx.fillStyle = '#1a3a1a';
+      ctx.beginPath();
+      ctx.arc(x + 2, y - r * 0.4 + 2, r * 1.05, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#2a6a2a';
+      ctx.beginPath();
+      ctx.arc(x, y - r * 0.4, r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#3a8a3a';
+      ctx.beginPath();
+      ctx.arc(x - r * 0.25, y - r * 0.55, r * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      // Highlight
+      ctx.fillStyle = '#5aaa5a';
+      ctx.beginPath();
+      ctx.arc(x - r * 0.35, y - r * 0.65, r * 0.25, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (d.kind === 'torch') {
+      // Flamma (animerad)
+      const flicker = 1 + Math.sin(t * 12 + d.x) * 0.15;
+      ctx.fillStyle = 'rgba(255,160,40,0.5)';
+      ctx.beginPath();
+      ctx.arc(x, y - 14, 14 * flicker, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffaa30';
+      ctx.beginPath();
+      ctx.ellipse(x, y - 14, 4 * flicker, 8 * flicker, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffd060';
+      ctx.beginPath();
+      ctx.ellipse(x, y - 15, 2 * flicker, 5 * flicker, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffaa';
+      ctx.beginPath();
+      ctx.arc(x, y - 16, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (d.kind === 'banner') {
+      // Stolpe
+      ctx.fillStyle = '#3a2510';
+      ctx.fillRect(x - 1, y - 22, 2, 26);
+      // Tygduk (vajande)
+      const sway = Math.sin(t * 2 + d.x * 0.01) * 1.5;
+      ctx.fillStyle = d.color || '#aa3030';
+      ctx.beginPath();
+      ctx.moveTo(x + 1, y - 22);
+      ctx.lineTo(x + 14 + sway, y - 22);
+      ctx.lineTo(x + 12 + sway, y - 6);
+      ctx.lineTo(x + 1, y - 6);
+      ctx.closePath();
+      ctx.fill();
+      // Detalj på duk: vit symbol
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.fillRect(x + 5 + sway / 2, y - 16, 4, 4);
+    }
+  }
+  ctx.restore();
+}
+
+function drawCastleDefenseWalls() {
+  // v1.397: inga pre-built walls. Player-built walls ritas via drawCastleDefenseBuildings.
+  // Kvar för bakåtkompatibilitet (om ev. legacy walls finns från äldre cd_started-event).
+  if (!state.castledefenseWalls || state.castledefenseWalls.length === 0) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  ctx.save();
+  for (const w of state.castledefenseWalls) {
+    if (w.hp <= 0) continue;
+    const x = w.x - cx, y = w.y - cy;
+    if (x + w.w < 0 || x > viewW || y + w.h < 0 || y > viewH) continue;
+    ctx.fillStyle = '#7a6a5a';
+    ctx.fillRect(x, y, w.w, w.h);
+    ctx.strokeStyle = '#3a2a1a';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+  }
   ctx.restore();
 }
 
@@ -7675,50 +7898,205 @@ function drawCastleDefenseWalls() {
   ctx.restore();
 }
 
+// v1.397: BASEN = ancient obelisk-shrine. Stor + iconisk + animerad.
+// Lager (botten upp):
+//  - Glow-aura (radial gradient)
+//  - Octagonal platform (mörk sten)
+//  - Yttre ring (sten + ornament-band)
+//  - Rune-cirkel (rotating glyphs i blå)
+//  - Obelisk-projektion (vertikal sten-skugga)
+//  - Kristall-core i mitten (pulsing gold/orange)
+//  - HP-bar med namn ovanför
+//  - Particle-sparks som flyger upp
 function drawCastleDefenseCore() {
   if (!state.castledefenseCore) return;
   const core = state.castledefenseCore;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const x = core.x - cx, y = core.y - cy;
-  if (x < -100 || x > viewW + 100 || y < -100 || y > viewH + 100) return;
+  if (x < -200 || x > viewW + 200 || y < -200 || y > viewH + 200) return;
   ctx.save();
   const t = performance.now() / 1000;
   const hpPct = core.hp / core.maxHp;
-  // Glow-pulse
-  const pulse = 0.6 + Math.sin(t * 2.5) * 0.4;
-  const glowR = core.r * 1.6;
-  const grad = ctx.createRadialGradient(x, y, core.r * 0.3, x, y, glowR);
-  const glowColor = hpPct > 0.5 ? '255,224,128' : (hpPct > 0.25 ? '255,200,80' : '255,100,80');
-  grad.addColorStop(0, 'rgba(' + glowColor + ',' + (0.5 * pulse) + ')');
-  grad.addColorStop(1, 'rgba(' + glowColor + ',0)');
-  ctx.fillStyle = grad;
+  const R = core.r;                   // 80px base radius
+  // === LAYER 1: Glow-aura (outer) ===
+  const pulse = 0.7 + Math.sin(t * 2) * 0.3;
+  const glowR = R * 2.4;
+  const glowGrad = ctx.createRadialGradient(x, y, R * 0.5, x, y, glowR);
+  const glowColor = hpPct > 0.5 ? '255,224,140' : (hpPct > 0.25 ? '255,170,80' : '255,80,80');
+  glowGrad.addColorStop(0, 'rgba(' + glowColor + ',' + (0.4 * pulse) + ')');
+  glowGrad.addColorStop(0.5, 'rgba(' + glowColor + ',' + (0.18 * pulse) + ')');
+  glowGrad.addColorStop(1, 'rgba(' + glowColor + ',0)');
+  ctx.fillStyle = glowGrad;
   ctx.beginPath();
   ctx.arc(x, y, glowR, 0, Math.PI * 2);
   ctx.fill();
-  // Core själv — gyllene kristall
-  ctx.fillStyle = hpPct > 0.5 ? '#d4a04a' : (hpPct > 0.25 ? '#c48a2a' : '#a04020');
+  // === LAYER 2: Octagonal stone platform (basen) ===
+  function drawOctagon(cxLocal, cyLocal, radius) {
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2 + Math.PI / 8;
+      const px = cxLocal + Math.cos(ang) * radius;
+      const py = cyLocal + Math.sin(ang) * radius;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
+  // Plattform-skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  drawOctagon(x + 3, y + 5, R * 1.2);
+  ctx.fill();
+  // Yttre platform-ring (mörk granit)
+  ctx.fillStyle = '#2a2520';
+  drawOctagon(x, y, R * 1.2);
+  ctx.fill();
+  // Inner platform-ring (ljusare sten)
+  ctx.fillStyle = '#4a4540';
+  drawOctagon(x, y, R * 1.05);
+  ctx.fill();
+  // Ornament-detaljer på platform (8 punkter vid hörn)
+  ctx.fillStyle = '#1a1510';
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2 + Math.PI / 8;
+    const px = x + Math.cos(ang) * (R * 1.08);
+    const py = y + Math.sin(ang) * (R * 1.08);
+    ctx.beginPath();
+    ctx.arc(px, py, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // === LAYER 3: Rune-cirkel (roterar långsamt) ===
+  const runeRot = t * 0.3;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(runeRot);
+  ctx.strokeStyle = 'rgba(90,202,255,' + (0.6 * pulse) + ')';
+  ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.arc(x, y, core.r, 0, Math.PI * 2);
+  ctx.arc(0, 0, R * 0.9, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, R * 0.7, 0, Math.PI * 2);
+  ctx.stroke();
+  // Glyphs runt rune-cirkeln (kors-symbol var 45°)
+  ctx.fillStyle = 'rgba(140,220,255,' + (0.8 * pulse) + ')';
+  ctx.font = 'bold 14px serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const glyphs = ['✦', '✧', '⟁', '◈', '✦', '✧', '⟁', '◈'];
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2;
+    const gx = Math.cos(ang) * R * 0.8;
+    const gy = Math.sin(ang) * R * 0.8;
+    ctx.fillText(glyphs[i], gx, gy);
+  }
+  ctx.restore();
+  // === LAYER 4: Center crystal cluster ===
+  // Stora crystal-spikes i mitten (4 st)
+  const crystalCol = hpPct > 0.5 ? '#ffd060' : (hpPct > 0.25 ? '#ff9050' : '#ff5040');
+  const crystalCore = hpPct > 0.5 ? '#fff8d0' : (hpPct > 0.25 ? '#ffd060' : '#ff8050');
+  ctx.fillStyle = crystalCol;
+  ctx.strokeStyle = '#1a0a04';
+  ctx.lineWidth = 2;
+  // Outer cluster ring
+  for (let i = 0; i < 6; i++) {
+    const ang = (i / 6) * Math.PI * 2 + t * 0.5;
+    const spX = x + Math.cos(ang) * R * 0.45;
+    const spY = y + Math.sin(ang) * R * 0.45;
+    const tipX = x + Math.cos(ang) * R * 0.65;
+    const tipY = y + Math.sin(ang) * R * 0.65;
+    const widthAng = 0.25;
+    ctx.beginPath();
+    ctx.moveTo(x + Math.cos(ang - widthAng) * R * 0.3, y + Math.sin(ang - widthAng) * R * 0.3);
+    ctx.lineTo(tipX, tipY);
+    ctx.lineTo(x + Math.cos(ang + widthAng) * R * 0.3, y + Math.sin(ang + widthAng) * R * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  // Central crystal-orb
+  const orbR = R * 0.32;
+  const orbGrad = ctx.createRadialGradient(x - orbR * 0.3, y - orbR * 0.3, 0, x, y, orbR);
+  orbGrad.addColorStop(0, '#ffffff');
+  orbGrad.addColorStop(0.4, crystalCore);
+  orbGrad.addColorStop(1, crystalCol);
+  ctx.fillStyle = orbGrad;
+  ctx.beginPath();
+  ctx.arc(x, y, orbR, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = '#1a0a04';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 2;
   ctx.stroke();
   // Inner shine
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.fillStyle = 'rgba(255,255,255,0.7)';
   ctx.beginPath();
-  ctx.arc(x - core.r * 0.3, y - core.r * 0.3, core.r * 0.3, 0, Math.PI * 2);
+  ctx.arc(x - orbR * 0.35, y - orbR * 0.35, orbR * 0.3, 0, Math.PI * 2);
   ctx.fill();
-  // HP-bar ovanför core
-  const barW = 80, barH = 8;
-  const barX = x - barW / 2, barY = y - core.r - 18;
-  ctx.fillStyle = 'rgba(0,0,0,0.6)';
-  ctx.fillRect(barX - 2, barY - 2, barW + 4, barH + 4);
-  ctx.fillStyle = hpPct > 0.5 ? '#5aff5a' : (hpPct > 0.25 ? '#ffd54a' : '#ff5a5a');
-  ctx.fillRect(barX, barY, barW * hpPct, barH);
+  // === LAYER 5: Particle-sparks som stiger upp (3-4 vid varje tick) ===
+  state._cdCoreSparks = state._cdCoreSparks || [];
+  if (Math.random() < 0.4 && state._cdCoreSparks.length < 40) {
+    const ang = Math.random() * Math.PI * 2;
+    const sr = orbR + Math.random() * 8;
+    state._cdCoreSparks.push({
+      x: core.x + Math.cos(ang) * sr,
+      y: core.y + Math.sin(ang) * sr,
+      vx: (Math.random() - 0.5) * 8,
+      vy: -20 - Math.random() * 30,
+      life: 1.0 + Math.random() * 0.8,
+      maxLife: 1.0 + Math.random() * 0.8,
+      color: crystalCore,
+    });
+  }
+  // Update + render sparks
+  for (let i = state._cdCoreSparks.length - 1; i >= 0; i--) {
+    const s = state._cdCoreSparks[i];
+    s.life -= 0.016;
+    s.x += s.vx * 0.016;
+    s.y += s.vy * 0.016;
+    s.vy += 8 * 0.016;
+    if (s.life <= 0) {
+      state._cdCoreSparks.splice(i, 1);
+      continue;
+    }
+    const sa = s.life / s.maxLife;
+    ctx.fillStyle = s.color;
+    ctx.globalAlpha = sa;
+    ctx.beginPath();
+    ctx.arc(s.x - cx, s.y - cy, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // === LAYER 6: HP-bar + namn ovanför ===
+  const barW = 140, barH = 10;
+  const barX = x - barW / 2, barY = y - R - 32;
+  // Namn-label
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold 10px monospace';
+  ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(Math.ceil(core.hp) + ' / ' + core.maxHp, x, barY - 3);
+  ctx.textBaseline = 'alphabetic';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)';
+  ctx.shadowBlur = 3;
+  ctx.fillText('🏛 BASEN', x, barY - 4);
+  ctx.shadowBlur = 0;
+  // HP-bar bakgrund
+  ctx.fillStyle = 'rgba(0,0,0,0.7)';
+  ctx.fillRect(barX - 2, barY - 2, barW + 4, barH + 4);
+  // HP-fill
+  const barCol = hpPct > 0.5 ? '#5aff5a' : (hpPct > 0.25 ? '#ffd54a' : '#ff5a5a');
+  ctx.fillStyle = barCol;
+  ctx.fillRect(barX, barY, barW * hpPct, barH);
+  // Segment-lines (var 25%)
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.lineWidth = 1;
+  for (let i = 1; i < 4; i++) {
+    const sx = barX + (barW * i / 4);
+    ctx.beginPath();
+    ctx.moveTo(sx, barY);
+    ctx.lineTo(sx, barY + barH);
+    ctx.stroke();
+  }
+  // HP-text
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 9px monospace';
+  ctx.fillText(Math.ceil(core.hp) + ' / ' + core.maxHp, x, barY + barH - 1);
   ctx.restore();
 }
 
@@ -7732,132 +8110,299 @@ function drawCastleDefenseBuildings() {
     const x = b.x - cx, y = b.y - cy;
     if (x + b.w < 0 || x > viewW || y + b.h < 0 || y > viewH) continue;
     const bcx = x + b.w / 2, bcy = y + b.h / 2;
-    // === Per-kind sprite ===
+    const hpPct = b.hp / b.maxHp;
+    // Drop-shadow
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(x + 2, y + 3, b.w, b.h);
+    // === Per-kind sprite (detaljerade v1.397) ===
     if (b.kind === 'wall') {
-      ctx.fillStyle = '#7a6a5a';
+      // Stenblock med crenellation (battlements) på top + mortar-linjer
+      const baseCol = hpPct > 0.5 ? '#8a7a68' : (hpPct > 0.25 ? '#7a6048' : '#6a4030');
+      const shadowCol = hpPct > 0.5 ? '#5a4a38' : (hpPct > 0.25 ? '#4a3018' : '#3a1810');
+      const highlightCol = hpPct > 0.5 ? '#a89a88' : (hpPct > 0.25 ? '#988068' : '#886050');
+      // Main block
+      ctx.fillStyle = baseCol;
       ctx.fillRect(x, y, b.w, b.h);
-      ctx.strokeStyle = '#3a2a1a';
+      // Top highlight (3px)
+      ctx.fillStyle = highlightCol;
+      ctx.fillRect(x, y, b.w, 3);
+      // Bottom shadow (3px)
+      ctx.fillStyle = shadowCol;
+      ctx.fillRect(x, y + b.h - 3, b.w, 3);
+      // Mortar pattern: 2 horisontella + 1 vertikal split
+      ctx.fillStyle = shadowCol;
+      ctx.fillRect(x, y + 10, b.w, 1);
+      ctx.fillRect(x, y + 20, b.w, 1);
+      ctx.fillRect(x + 15, y, 1, 10);
+      ctx.fillRect(x + 8, y + 10, 1, 10);
+      ctx.fillRect(x + 22, y + 10, 1, 10);
+      ctx.fillRect(x + 15, y + 20, 1, 10);
+      // Outline
+      ctx.strokeStyle = '#1a0808';
       ctx.lineWidth = 1;
       ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
     } else if (b.kind === 'auto_turret') {
-      // Bas
-      ctx.fillStyle = '#3a3a4a';
-      ctx.fillRect(x, y, b.w, b.h);
-      ctx.strokeStyle = '#1a1a2a';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
-      // Turret-cirkel
-      ctx.fillStyle = '#5a5a8a';
+      // === AUTO-TURRET — stenas med cannon-tower ===
+      // Stenbas (oktagonal)
+      ctx.fillStyle = '#3a3530';
+      ctx.beginPath();
+      ctx.arc(bcx, bcy, b.w / 2 - 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1a1510';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // Inre platta
+      ctx.fillStyle = '#4a4540';
       ctx.beginPath();
       ctx.arc(bcx, bcy, b.w / 2 - 4, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#2a2a4a';
-      ctx.stroke();
-      // Pipa pekar mot närmsta enemy (visuell)
+      // Hitta närmsta enemy för aim
       let aimAng = -Math.PI / 2;
       if (state.enemies && state.enemies.length) {
-        let bestD = 1e9;
+        let bestD = (b.range || 280) * (b.range || 280);
         for (const e of state.enemies) {
           const dx = e.x - (b.x + b.w / 2), dy = e.y - (b.y + b.h / 2);
           const d2 = dx * dx + dy * dy;
           if (d2 < bestD) { bestD = d2; aimAng = Math.atan2(dy, dx); }
         }
       }
-      ctx.strokeStyle = '#1a1a2a';
-      ctx.lineWidth = 3;
+      // Turret-housing (lägre, oval)
+      ctx.save();
+      ctx.translate(bcx, bcy);
+      ctx.rotate(aimAng);
+      // Yttre cannon-housing
+      ctx.fillStyle = '#5a5a6a';
       ctx.beginPath();
-      ctx.moveTo(bcx, bcy);
-      ctx.lineTo(bcx + Math.cos(aimAng) * (b.w / 2 + 4), bcy + Math.sin(aimAng) * (b.w / 2 + 4));
-      ctx.stroke();
-    } else if (b.kind === 'man_turret') {
-      // Lik auto_turret men större bas + säte
-      ctx.fillStyle = '#5a3a2a';
-      ctx.fillRect(x, y, b.w, b.h);
-      ctx.strokeStyle = '#2a1a0a';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
-      ctx.fillStyle = '#8a5a3a';
-      ctx.beginPath();
-      ctx.arc(bcx, bcy, b.w / 2 - 3, 0, Math.PI * 2);
+      ctx.ellipse(0, 0, b.w / 2 - 3, b.w / 3, 0, 0, Math.PI * 2);
       ctx.fill();
-      // "S" för seat (placeholder)
-      ctx.fillStyle = '#ffd54a';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('S', bcx, bcy);
+      ctx.strokeStyle = '#2a2a3a';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      // Cannon barrel
+      ctx.fillStyle = '#3a3a4a';
+      ctx.fillRect(-2, -3, 18, 6);
+      ctx.fillStyle = '#1a1a2a';
+      ctx.fillRect(14, -2, 4, 4);
+      // Crystal eye (glödande)
+      const pulseCrystal = 0.7 + Math.sin(t * 4) * 0.3;
+      ctx.fillStyle = '#3acaff';
+      ctx.globalAlpha = pulseCrystal;
+      ctx.beginPath();
+      ctx.arc(-3, 0, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#aaeaff';
+      ctx.beginPath();
+      ctx.arc(-3, 0, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      // Muzzle-flash om nyss skjutit (b._fireCd nära 0 = just fyrade)
+      // Vi har inte tillgång till server-side _fireCd, men kan approxa med kill-events
+      // — skip för enkelhet i nu, kanske polish senare
+    } else if (b.kind === 'man_turret') {
+      // === MAN-TURRET — stor ballista med säte ===
+      ctx.fillStyle = '#3a2a18';
+      ctx.beginPath();
+      ctx.arc(bcx, bcy, b.w / 2 - 1, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1a0a04';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      // Wood-frame square
+      ctx.fillStyle = '#6a4a28';
+      ctx.fillRect(x + 5, y + 5, b.w - 10, b.h - 10);
+      ctx.strokeStyle = '#3a2a18';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 5.5, y + 5.5, b.w - 11, b.h - 11);
+      // Aim mot närmsta enemy
+      let aimAng = -Math.PI / 2;
+      if (state.enemies && state.enemies.length) {
+        let bestD = (b.range || 400) * (b.range || 400);
+        for (const e of state.enemies) {
+          const dx = e.x - (b.x + b.w / 2), dy = e.y - (b.y + b.h / 2);
+          const d2 = dx * dx + dy * dy;
+          if (d2 < bestD) { bestD = d2; aimAng = Math.atan2(dy, dx); }
+        }
+      }
+      ctx.save();
+      ctx.translate(bcx, bcy);
+      ctx.rotate(aimAng);
+      // Ballista-bolt (stor pil)
+      ctx.fillStyle = '#1a1410';
+      ctx.fillRect(-4, -1, 20, 2);
+      // Pilens fjäder
+      ctx.fillStyle = '#aa8a30';
+      ctx.fillRect(-6, -3, 4, 6);
+      // Pilspets
+      ctx.fillStyle = '#cccccc';
+      ctx.beginPath();
+      ctx.moveTo(16, 0);
+      ctx.lineTo(13, -3);
+      ctx.lineTo(13, 3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+      // Seat-marker (hjul-pattern i hörn)
+      ctx.fillStyle = b.occupiedByPid ? '#ffd54a' : '#5a3a2a';
+      ctx.beginPath();
+      ctx.arc(x + 6, y + 6, 3, 0, Math.PI * 2);
+      ctx.fill();
     } else if (b.kind === 'spike_trap') {
-      ctx.fillStyle = '#2a2a2a';
+      // === SPIKE TRAP — sten-tile med iron-spikes ===
+      ctx.fillStyle = '#1a1410';
       ctx.fillRect(x, y, b.w, b.h);
-      // Spike-mönster (4 triangles)
-      ctx.fillStyle = '#aa3030';
+      // Dark border
+      ctx.fillStyle = '#2a2018';
+      ctx.fillRect(x + 1, y + 1, b.w - 2, b.h - 2);
+      // 9 spikes i 3x3 grid (iron, sharp triangles)
+      ctx.fillStyle = '#aaaaaa';
       for (let i = 0; i < 3; i++) {
         for (let j = 0; j < 3; j++) {
-          const sx = x + 5 + i * 10, sy = y + 5 + j * 10;
+          const sx = x + 7 + i * 8, sy = y + 7 + j * 8;
           ctx.beginPath();
           ctx.moveTo(sx, sy + 6);
-          ctx.lineTo(sx + 3, sy);
+          ctx.lineTo(sx + 3, sy - 1);
           ctx.lineTo(sx + 6, sy + 6);
           ctx.closePath();
           ctx.fill();
+          // Tip highlight
+          ctx.fillStyle = '#dddddd';
+          ctx.beginPath();
+          ctx.moveTo(sx + 3, sy - 1);
+          ctx.lineTo(sx + 2, sy + 2);
+          ctx.lineTo(sx + 4, sy + 2);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = '#aaaaaa';
         }
       }
+      // Blood-stain (subtle)
+      ctx.fillStyle = 'rgba(120,30,30,0.4)';
+      ctx.beginPath();
+      ctx.arc(bcx + 3, bcy + 4, 4, 0, Math.PI * 2);
+      ctx.fill();
     } else if (b.kind === 'slow_trap') {
-      // Ice/blue gradient
-      const grd = ctx.createLinearGradient(x, y, x, y + b.h);
-      grd.addColorStop(0, '#8acaff');
-      grd.addColorStop(1, '#3a6a8a');
-      ctx.fillStyle = grd;
+      // === SLOW TRAP — magic ice rune ===
+      // Frosted base
+      ctx.fillStyle = '#2a4a6a';
       ctx.fillRect(x, y, b.w, b.h);
-      ctx.strokeStyle = '#5a8acf';
+      ctx.strokeStyle = '#1a3a5a';
       ctx.lineWidth = 1;
       ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
-      // Snöflinga (placeholder X-asterisk)
-      ctx.strokeStyle = '#fff';
+      // Glödande rune-cirkel
+      const pulseSlow = 0.6 + Math.sin(t * 2) * 0.4;
+      ctx.strokeStyle = 'rgba(170,230,255,' + pulseSlow + ')';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(bcx - 8, bcy); ctx.lineTo(bcx + 8, bcy);
-      ctx.moveTo(bcx, bcy - 8); ctx.lineTo(bcx, bcy + 8);
-      ctx.moveTo(bcx - 6, bcy - 6); ctx.lineTo(bcx + 6, bcy + 6);
-      ctx.moveTo(bcx - 6, bcy + 6); ctx.lineTo(bcx + 6, bcy - 6);
+      ctx.arc(bcx, bcy, b.w / 2 - 4, 0, Math.PI * 2);
       ctx.stroke();
+      // Inre rune (rotating)
+      ctx.save();
+      ctx.translate(bcx, bcy);
+      ctx.rotate(t * 1.2);
+      ctx.strokeStyle = 'rgba(255,255,255,' + pulseSlow + ')';
+      ctx.lineWidth = 1.5;
+      // 6-spike snowflake
+      for (let i = 0; i < 6; i++) {
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        const a = (i / 6) * Math.PI * 2;
+        ctx.lineTo(Math.cos(a) * 9, Math.sin(a) * 9);
+        ctx.stroke();
+        // Side-branches
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5);
+        ctx.lineTo(Math.cos(a) * 5 + Math.cos(a + 0.5) * 3, Math.sin(a) * 5 + Math.sin(a + 0.5) * 3);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * 5, Math.sin(a) * 5);
+        ctx.lineTo(Math.cos(a) * 5 + Math.cos(a - 0.5) * 3, Math.sin(a) * 5 + Math.sin(a - 0.5) * 3);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // Center crystal
+      ctx.fillStyle = '#aaeeff';
+      ctx.beginPath();
+      ctx.arc(bcx, bcy, 2.5, 0, Math.PI * 2);
+      ctx.fill();
     } else if (b.kind === 'repair_stn') {
-      ctx.fillStyle = '#3a8a4a';
-      ctx.fillRect(x, y, b.w, b.h);
-      ctx.strokeStyle = '#1a4a2a';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
-      // Wrench-emoji (om font tillåter — annars kross)
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('🔧', bcx, bcy);
-      // Pulse-aura
+      // === REPAIR STATION — anvil + green aura ===
+      // Aura
       if (b.radius) {
-        const pulse = 0.15 + Math.sin(t * 3) * 0.1;
-        ctx.fillStyle = 'rgba(90,255,90,' + pulse + ')';
+        const pulseR = 0.12 + Math.sin(t * 3) * 0.08;
+        const auraGrad = ctx.createRadialGradient(bcx, bcy, 0, bcx, bcy, b.radius);
+        auraGrad.addColorStop(0, 'rgba(90,255,90,' + pulseR + ')');
+        auraGrad.addColorStop(1, 'rgba(90,255,90,0)');
+        ctx.fillStyle = auraGrad;
         ctx.beginPath();
         ctx.arc(bcx, bcy, b.radius, 0, Math.PI * 2);
         ctx.fill();
       }
-    } else if (b.kind === 'health_stn') {
-      ctx.fillStyle = '#8a3a3a';
+      // Stenbas
+      ctx.fillStyle = '#3a3a3a';
       ctx.fillRect(x, y, b.w, b.h);
-      ctx.strokeStyle = '#4a1a1a';
+      ctx.strokeStyle = '#1a1a1a';
       ctx.lineWidth = 1;
       ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
-      // Cross
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(bcx - 2, y + 5, 4, b.h - 10);
-      ctx.fillRect(x + 5, bcy - 2, b.w - 10, 4);
-      // Pulse-aura
+      // Anvil (svart järn)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x + 6, y + 10, b.w - 12, 8);
+      ctx.fillRect(x + 3, y + 14, b.w - 6, 4);
+      // Anvil-highlight
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x + 6, y + 10, b.w - 12, 2);
+      // Hammer floating above
+      const hammerY = Math.sin(t * 2) * 2;
+      ctx.fillStyle = '#6a4a28';
+      ctx.fillRect(bcx - 1, y + 3 + hammerY, 2, 6);
+      ctx.fillStyle = '#aaaaaa';
+      ctx.fillRect(bcx - 4, y + 1 + hammerY, 8, 4);
+      // Green spark
+      ctx.fillStyle = '#5aff5a';
+      ctx.globalAlpha = 0.4 + Math.sin(t * 5) * 0.4;
+      ctx.beginPath();
+      ctx.arc(bcx + 5, y + 4 + hammerY, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    } else if (b.kind === 'health_stn') {
+      // === HEALTH STATION — red cross banner ===
+      // Aura
       if (b.radius) {
-        const pulse = 0.15 + Math.sin(t * 3) * 0.1;
-        ctx.fillStyle = 'rgba(255,90,90,' + pulse + ')';
+        const pulseH = 0.15 + Math.sin(t * 2.5) * 0.1;
+        const auraGrad = ctx.createRadialGradient(bcx, bcy, 0, bcx, bcy, b.radius);
+        auraGrad.addColorStop(0, 'rgba(255,90,90,' + pulseH + ')');
+        auraGrad.addColorStop(1, 'rgba(255,90,90,0)');
+        ctx.fillStyle = auraGrad;
         ctx.beginPath();
         ctx.arc(bcx, bcy, b.radius, 0, Math.PI * 2);
         ctx.fill();
+      }
+      // Stenbas
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x, y, b.w, b.h);
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
+      // White banner background
+      ctx.fillStyle = '#f8f8f0';
+      ctx.fillRect(x + 5, y + 4, b.w - 10, b.h - 9);
+      // Red cross
+      ctx.fillStyle = '#cc2020';
+      ctx.fillRect(bcx - 2, y + 7, 4, b.h - 14);
+      ctx.fillRect(x + 8, bcy - 2, b.w - 16, 4);
+      // Banner-edges
+      ctx.strokeStyle = '#aa3030';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 5.5, y + 4.5, b.w - 11, b.h - 10);
+      // Healing particles rising
+      if (Math.random() < 0.3) {
+        state._cdHealParticles = state._cdHealParticles || [];
+        if (state._cdHealParticles.length < 60) {
+          state._cdHealParticles.push({
+            x: b.x + b.w / 2 + (Math.random() - 0.5) * b.w,
+            y: b.y + b.h / 2,
+            life: 1.2,
+          });
+        }
       }
     } else {
       // Fallback (okänd kind)
@@ -7866,8 +8411,7 @@ function drawCastleDefenseBuildings() {
       ctx.strokeStyle = '#1a4a2a';
       ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
     }
-    // HP-bar
-    const hpPct = b.hp / b.maxHp;
+    // HP-bar (hpPct redan deklarerat överst i loopen)
     if (hpPct < 1.0) {
       const barW = Math.max(20, b.w * 0.6);
       const barX = x + b.w / 2 - barW / 2;
@@ -7882,8 +8426,7 @@ function drawCastleDefenseBuildings() {
 }
 
 function drawCastleDefenseSpawnMarkers() {
-  // Subtila pulser vid enemy-spawn-punkter under "between"-fas så spelare
-  // ser var fienden kommer ifrån. Visas inte under aktiv våg.
+  // Pulser vid enemy-spawn-punkter under "between"-fas. Tydlig "hot zone"-känsla.
   if (!state.castledefenseEnemySpawns || state.castledefenseWaveState !== 'between') return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const t = performance.now() / 1000;
@@ -7891,15 +8434,52 @@ function drawCastleDefenseSpawnMarkers() {
   ctx.save();
   for (const sp of state.castledefenseEnemySpawns) {
     const x = sp.x - cx, y = sp.y - cy;
-    if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) continue;
-    ctx.fillStyle = 'rgba(255,80,80,' + (0.3 * pulse) + ')';
+    if (x < -60 || x > viewW + 60 || y < -60 || y > viewH + 60) continue;
+    // Outer pulse
+    ctx.fillStyle = 'rgba(255,80,80,' + (0.25 * pulse) + ')';
     ctx.beginPath();
-    ctx.arc(x, y, 28 + 8 * pulse, 0, Math.PI * 2);
+    ctx.arc(x, y, 36 + 10 * pulse, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = 'rgba(255,160,160,' + (0.6 * pulse) + ')';
+    // Inner glow
+    ctx.fillStyle = 'rgba(255,160,160,' + (0.5 * pulse) + ')';
     ctx.beginPath();
-    ctx.arc(x, y, 12, 0, Math.PI * 2);
+    ctx.arc(x, y, 14, 0, Math.PI * 2);
     ctx.fill();
+    // Warning-X symbol
+    ctx.strokeStyle = '#ff3030';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - 6, y - 6); ctx.lineTo(x + 6, y + 6);
+    ctx.moveTo(x - 6, y + 6); ctx.lineTo(x + 6, y - 6);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Heal-particles från health_stn — stiger upp + faded
+function drawCastleDefenseHealParticles() {
+  if (!state._cdHealParticles || !state._cdHealParticles.length) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  ctx.save();
+  for (let i = state._cdHealParticles.length - 1; i >= 0; i--) {
+    const p = state._cdHealParticles[i];
+    p.y -= 0.6;                 // stigning
+    p.life -= 0.016;
+    if (p.life <= 0) {
+      state._cdHealParticles.splice(i, 1);
+      continue;
+    }
+    const a = p.life / 1.2;
+    ctx.fillStyle = 'rgba(255,150,150,' + a + ')';
+    ctx.beginPath();
+    ctx.arc(p.x - cx, p.y - cy, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Cross-symbol om life > 0.7 (start)
+    if (a > 0.7) {
+      ctx.fillStyle = 'rgba(255,255,255,' + (a - 0.5) + ')';
+      ctx.fillRect(p.x - cx - 0.5, p.y - cy - 2, 1, 4);
+      ctx.fillRect(p.x - cx - 2, p.y - cy - 0.5, 4, 1);
+    }
   }
   ctx.restore();
 }
@@ -17524,6 +18104,11 @@ const Coop = {
       state.castledefenseBuildGridSize = ev.buildGridSize || 30;
       state.castledefenseEnemySpawns = ev.enemySpawns || [];
       state.castledefensePlayerSpawns = ev.playerSpawns || [];
+      state.castledefenseDecorations = ev.decorations || [];
+      state.castledefensePlazaRadius = (ev.arena && ev.arena.plazaRadius) || 220;
+      state.castledefensePlazaColor = (ev.arena && ev.arena.plazaColor) || '#5a5450';
+      state.castledefensePathColor = (ev.arena && ev.arena.pathColor) || '#6a5a48';
+      state.castledefenseGroundColor = (ev.arena && ev.arena.groundColor) || '#2e3e22';
       state.castledefenseWave = 0;
       state.castledefenseWaveState = 'between';
       state.castledefenseWaveBetweenEndAt = ev.waveBetweenEndAt || (Date.now() + 10000);
@@ -27451,13 +28036,13 @@ function _stopCastleDefenseHudInterval() {
 // state.cdBuildHoverX/Y = grid-snapped world-coord för current preview
 
 const CD_BUILDABLE_LIST = [
-  { kind: 'wall',        key: '1', icon: '🧱', label: 'Mur',     hint: 'Blockerar fiender + skott' },
-  { kind: 'auto_turret', key: '2', icon: '🔫', label: 'Torn',    hint: 'Auto-skjuter inom 280px' },
-  { kind: 'man_turret',  key: '3', icon: '🎯', label: 'Skytte',  hint: 'Spelare kan sätta sig i (1.5× dmg)' },
-  { kind: 'spike_trap',  key: '4', icon: '🪤', label: 'Spikes',  hint: '30 dmg när fiende passerar' },
-  { kind: 'slow_trap',   key: '5', icon: '🧊', label: 'Slow',    hint: 'Saktar ned fiender 60% i 2s' },
-  { kind: 'repair_stn',  key: '6', icon: '🔧', label: 'Repair',  hint: 'Regenererar närliggande murar' },
-  { kind: 'health_stn',  key: '7', icon: '❤️', label: 'Health',  hint: 'Regenererar spelare i radius' },
+  { kind: 'wall',        key: '1', icon: '🧱', label: 'MUR',      hint: 'Blockerar fiender + skott' },
+  { kind: 'auto_turret', key: '2', icon: '🗼', label: 'TORN',     hint: 'Auto-skjuter inom 280px' },
+  { kind: 'man_turret',  key: '3', icon: '🏹', label: 'BALLISTA', hint: 'Manned ranged (2.5× dmg)' },
+  { kind: 'spike_trap',  key: '4', icon: '🗡', label: 'SPIKES',   hint: '22 dmg när fiende passerar' },
+  { kind: 'slow_trap',   key: '5', icon: '❄', label: 'FROST',    hint: 'Saktar ned fiender 60% i 2s' },
+  { kind: 'repair_stn',  key: '6', icon: '🛠', label: 'REPAIR',   hint: 'Regenererar närliggande murar' },
+  { kind: 'health_stn',  key: '7', icon: '✚', label: 'HEAL',     hint: 'Regenererar spelare i radius' },
 ];
 
 function showCastleDefenseBuildBar() {
@@ -40689,12 +41274,15 @@ function render() {
     drawBrZone();
     drawBrOutsideWarning();
   }
-  // CASTLE DEFENSE — walls (med HP-bars) + core + buildings + spawn-markers + ghost-preview
+  // CASTLE DEFENSE — full pipeline (v1.397 rewamp)
   if (state.castledefenseActive) {
     drawCastleDefenseGround();
-    drawCastleDefenseWalls();
-    drawCastleDefenseBuildings();
-    drawCastleDefenseCore();
+    drawCastleDefenseDecorationsGround();  // skuggor, stenar, banner-stolpar
+    drawCastleDefenseWalls();               // legacy pre-built (tomt nu)
+    drawCastleDefenseBuildings();           // player-built turret/wall/trap/station
+    drawCastleDefenseCore();                // obelisk-shrine
+    drawCastleDefenseDecorationsTop();      // träd-kronor, fackel-flammor, banderoller
+    drawCastleDefenseHealParticles();       // heal-particles från health_stn
     drawCastleDefenseSpawnMarkers();
     if (typeof drawCdBuildGhost === 'function') drawCdBuildGhost();
   }
