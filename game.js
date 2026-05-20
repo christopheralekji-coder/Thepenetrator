@@ -29475,6 +29475,7 @@ function setupCdBuildRadial(btn) {
   if (!radialEl) return;
   let active = false, pointerId = null;
   let centerX = 0, centerY = 0;
+  let liftedCenterY = 0; // v1.429: lifted center (centerY - 60), updaterad i buildSlots
   let slots = []; // [{ kind, x, y, el, ang }]
   let selectedIdx = -1;
   let sticky = false; // v1.425: true = stannar öppen tills slot/cancel klickas
@@ -29498,15 +29499,14 @@ function setupCdBuildRadial(btn) {
     // X-clamp (slots inte off-screen horisontellt)
     const minCX = SLOT_R + radius, maxCX = W - SLOT_R - radius;
     centerX = Math.max(minCX, Math.min(maxCX, centerX));
-    // v1.409: lyft centerY 60px ovanför knappen för bättre vertikalt avstånd
-    // mellan radial och action-knappar. Cancel-zon ökas till 80px för att
-    // finger-på-knapp fortfarande räknas som cancel.
-    centerY = centerY - 60;
+    // v1.409/v1.429: lyft centerY 60px ovanför knappen — assignar closure-var
+    // istället för att mutera centerY (annars stackade re-render lyftet).
+    liftedCenterY = centerY - 60;
     // Center cancel-zon
     const centerEl = document.createElement('div');
     centerEl.className = 'weapon-radial-center';
     centerEl.style.left = centerX + 'px';
-    centerEl.style.top = centerY + 'px';
+    centerEl.style.top = liftedCenterY + 'px';
     centerEl.textContent = '✕';
     // v1.425: i sticky-mode kan man klicka X för att stänga
     centerEl.style.pointerEvents = 'auto';
@@ -29526,7 +29526,7 @@ function setupCdBuildRadial(btn) {
       repeatEl.className = 'weapon-radial-center';
       const isOn = !!state.cdBuildRepeat;
       repeatEl.style.left = (centerX + 80) + 'px';
-      repeatEl.style.top = centerY + 'px';
+      repeatEl.style.top = liftedCenterY + 'px';
       repeatEl.style.background = isOn ? 'rgba(90,255,210,0.35)' : 'rgba(40,40,50,0.85)';
       repeatEl.style.border = '2px solid ' + (isOn ? '#5affd2' : '#5a5a6a');
       repeatEl.style.color = isOn ? '#5affd2' : '#aaa';
@@ -29571,7 +29571,7 @@ function setupCdBuildRadial(btn) {
       // v1.407: 180° båge OVANFÖR knappen så alla 7 slots syns.
       const angle = N === 1 ? -Math.PI / 2 : -Math.PI + (i / (N - 1)) * Math.PI;
       const sx = centerX + Math.cos(angle) * radius;
-      const sy = centerY + Math.sin(angle) * radius;
+      const sy = liftedCenterY + Math.sin(angle) * radius;
       const el = document.createElement('div');
       el.className = 'weapon-radial-slot';
       if (!canAfford) el.style.opacity = '0.4';
@@ -29633,10 +29633,12 @@ function setupCdBuildRadial(btn) {
 
   function handleMove(clientX, clientY) {
     if (!active) return;
-    const dx = clientX - centerX, dy = clientY - centerY;
+    // v1.429: använd liftedCenterY (slot-positioneringens referens) så cancel-zone
+    // matchar X-cancel-knappens visuella position
+    const dx = clientX - centerX, dy = clientY - liftedCenterY;
     const dist = Math.hypot(dx, dy);
     if (dist < 80) {
-      selectedIdx = -1; // cancel-zone (60px lyft → 80px cancel täcker finger-on-knapp)
+      selectedIdx = -1; // cancel-zone (80px täcker finger-on-knapp + X-cancel)
     } else {
       const ang = Math.atan2(dy, dx);
       let bestIdx = -1, bestDiff = Infinity;
