@@ -134,6 +134,20 @@ const CASTLEDEFENSE_ARENA = {
   // Grenades per cleared wave (v1.401)
   grenadesPerWave: 2,
 
+  // v1.416: 10 Hero perks (unique per spelare — kan inte tas av två)
+  heroPerks: [
+    { id: 'tank',         icon: '🛡', name: 'TANK',         desc: '+50% maxHP · -20% rörelse · -25% melee-dmg' },
+    { id: 'builder',      icon: '🏗', name: 'BUILDER',      desc: '-30% bygg + uppgrade-cost · gratis första wall/wave' },
+    { id: 'gunner',       icon: '💥', name: 'GUNNER',       desc: '+40% vapen-skada · +30% ammo-cap' },
+    { id: 'medic',        icon: '💚', name: 'MEDIC',        desc: 'Auto-regen 2hp/s · revive 2x snabbare · repair-stn +50%' },
+    { id: 'scout',        icon: '⚡', name: 'SCOUT',        desc: '+40% rörelsehastighet · +50% dash-cooldown-reduction' },
+    { id: 'sharpshooter', icon: '🎯', name: 'SHARPSHOOTER', desc: '25% chans crit (2x dmg) · +50% bullet-räckvidd' },
+    { id: 'strategist',   icon: '🧠', name: 'STRATEGIST',   desc: 'Auto-turrets i 250px aura får +35% dmg + range' },
+    { id: 'berserker',    icon: '🔥', name: 'BERSERKER',    desc: 'Vid <50% hp: +1% dmg per saknad hp (max +50%)' },
+    { id: 'looter',       icon: '💰', name: 'LOOTER',       desc: '+60% gold från kills · 10% chans ammo-drop' },
+    { id: 'gambler',      icon: '🎲', name: 'GAMBLER',      desc: '15% chans efter kill: 3x gold / +1 granat / shield-refill' },
+  ],
+
   // === DOWN-STATE (fas 6) ===
   downBleedoutSec: 25,
   downReviveSec: 4,

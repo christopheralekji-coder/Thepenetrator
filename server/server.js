@@ -3,7 +3,7 @@
 
 const WebSocket = require('ws');
 const http = require('http');
-const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefenseInfMoney } = require('./sim/room-sim');
+const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney } = require('./sim/room-sim');
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
@@ -929,6 +929,28 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     applyCastleDefenseSell(room.sim, ws.id, msg);
+    return;
+  }
+  if (msg.type === 'sim_cd_perk') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyCastleDefensePerk(room.sim, ws.id, msg);
+    return;
+  }
+  if (msg.type === 'sim_cd_ping') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    if (!room.sim.castledefenseActive) return;
+    // Throttle per spelare: 1 ping per 1.5s
+    const now = Date.now();
+    if (ws._lastCdPingAt && now - ws._lastCdPingAt < 1500) return;
+    ws._lastCdPingAt = now;
+    room.sim.eventQueue.push({
+      type: 'cd_ping',
+      senderPid: ws.id,
+      x: Math.max(0, Math.min(20000, +msg.x || 0)),
+      y: Math.max(0, Math.min(20000, +msg.y || 0)),
+    });
     return;
   }
   if (msg.type === 'sim_cd_infmoney') {

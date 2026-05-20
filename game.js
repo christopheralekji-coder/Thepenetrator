@@ -8101,6 +8101,21 @@ function drawCastleDefenseCore() {
 }
 
 // layer: 'ground' (flat traps) | 'tall' (walls/turrets/stations) | undefined (all — legacy)
+// v1.416: Tier-bracket från level (1-4) för progressiva visuals
+function cdBuildingTier(level) {
+  if (level >= 7) return 4; // EPIC (level 8-10)
+  if (level >= 4) return 3; // HIGH (level 5-7)
+  if (level >= 2) return 2; // MID (level 3-4)
+  return 1;                 // BASIC (level 1-2)
+}
+// v1.416: Tier-färger för accent + glow
+function cdTierAccent(tier) {
+  if (tier === 4) return { glow: '#ffd54a', accent: '#ffe080', particle: 'rgba(255,213,74,0.5)' };
+  if (tier === 3) return { glow: '#aa5aff', accent: '#cc88ff', particle: 'rgba(180,90,255,0.5)' };
+  if (tier === 2) return { glow: '#5acaff', accent: '#8addff', particle: 'rgba(90,200,255,0.4)' };
+  return { glow: null, accent: null, particle: null };
+}
+
 function drawCastleDefenseBuildings(layer) {
   if (!state.castledefenseBuildings || !state.castledefenseBuildings.length) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
@@ -8123,12 +8138,25 @@ function drawCastleDefenseBuildings(layer) {
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
       ctx.fillRect(x + 2, y + 3, b.w, b.h);
     }
-    // === Per-kind sprite (detaljerade v1.397) ===
+    // v1.416: Tier-bracket från level (1-4) för progressiva visuals
+    const tier = cdBuildingTier(b.level || 0);
+    const tierA = cdTierAccent(tier);
+    // === Per-kind sprite (detaljerade v1.397, tier-progressiv v1.416) ===
     if (b.kind === 'wall') {
       // Stenblock med crenellation (battlements) på top + mortar-linjer
-      const baseCol = hpPct > 0.5 ? '#8a7a68' : (hpPct > 0.25 ? '#7a6048' : '#6a4030');
-      const shadowCol = hpPct > 0.5 ? '#5a4a38' : (hpPct > 0.25 ? '#4a3018' : '#3a1810');
-      const highlightCol = hpPct > 0.5 ? '#a89a88' : (hpPct > 0.25 ? '#988068' : '#886050');
+      // Tier-progression: 1=grå sten, 2=metallisk blå, 3=mörk lila-glow, 4=guld-ornament
+      let baseCol, shadowCol, highlightCol;
+      if (tier === 4) {
+        baseCol = '#aa8a4a'; shadowCol = '#6a4a18'; highlightCol = '#ffd580';
+      } else if (tier === 3) {
+        baseCol = '#5a4a6a'; shadowCol = '#2a1a3a'; highlightCol = '#9a7aba';
+      } else if (tier === 2) {
+        baseCol = '#6a7a8a'; shadowCol = '#3a4a5a'; highlightCol = '#8a9aaa';
+      } else {
+        baseCol = hpPct > 0.5 ? '#8a7a68' : (hpPct > 0.25 ? '#7a6048' : '#6a4030');
+        shadowCol = hpPct > 0.5 ? '#5a4a38' : (hpPct > 0.25 ? '#4a3018' : '#3a1810');
+        highlightCol = hpPct > 0.5 ? '#a89a88' : (hpPct > 0.25 ? '#988068' : '#886050');
+      }
       // Main block
       ctx.fillStyle = baseCol;
       ctx.fillRect(x, y, b.w, b.h);
@@ -8150,6 +8178,21 @@ function drawCastleDefenseBuildings(layer) {
       ctx.strokeStyle = '#1a0808';
       ctx.lineWidth = 1;
       ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
+      // v1.416: Tier 3+ glow-aura. Tier 4 har guld-crown ornament.
+      if (tier >= 3) {
+        const glowPulse = 0.3 + Math.sin(t * 3) * 0.2;
+        ctx.fillStyle = tierA.glow ? (tierA.particle || 'rgba(255,200,80,' + glowPulse + ')') : 'rgba(255,200,80,' + glowPulse + ')';
+        ctx.fillRect(x - 1, y - 1, b.w + 2, 2); // top-glow-band
+      }
+      if (tier === 4) {
+        // Guld-crown corner-ornaments
+        ctx.fillStyle = '#ffd54a';
+        ctx.fillRect(x + 2, y + 1, 3, 3);
+        ctx.fillRect(x + b.w - 5, y + 1, 3, 3);
+        ctx.fillStyle = '#fff8c0';
+        ctx.fillRect(x + 2, y + 1, 1, 1);
+        ctx.fillRect(x + b.w - 5, y + 1, 1, 1);
+      }
     } else if (b.kind === 'auto_turret') {
       // === AUTO-TURRET — stenas med cannon-tower ===
       // Stenbas (oktagonal)
@@ -8205,6 +8248,41 @@ function drawCastleDefenseBuildings(layer) {
       ctx.arc(-3, 0, 1.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
+      // v1.416: Tier 2+ chrome-ring runt bas. Tier 3+ glow-aura. Tier 4 floating crown.
+      if (tier >= 2) {
+        ctx.strokeStyle = tierA.accent;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(bcx, bcy, b.w / 2 - 1, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      if (tier >= 3) {
+        const auraGrad = ctx.createRadialGradient(bcx, bcy, b.w / 2, bcx, bcy, b.w / 2 + 12);
+        const pulseT = 0.3 + Math.sin(t * 3 + b.x * 0.01) * 0.2;
+        auraGrad.addColorStop(0, tierA.particle);
+        auraGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = auraGrad;
+        ctx.globalAlpha = pulseT;
+        ctx.beginPath();
+        ctx.arc(bcx, bcy, b.w / 2 + 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      if (tier === 4) {
+        // Crown ovanpå (floating + spinning)
+        const crownY = bcy - b.w / 2 - 6 + Math.sin(t * 2) * 1.5;
+        ctx.fillStyle = '#ffd54a';
+        ctx.beginPath();
+        ctx.moveTo(bcx - 5, crownY + 4);
+        ctx.lineTo(bcx - 5, crownY);
+        ctx.lineTo(bcx - 3, crownY + 2);
+        ctx.lineTo(bcx, crownY - 2);
+        ctx.lineTo(bcx + 3, crownY + 2);
+        ctx.lineTo(bcx + 5, crownY);
+        ctx.lineTo(bcx + 5, crownY + 4);
+        ctx.closePath();
+        ctx.fill();
+      }
       // v1.415: Muzzle-flash från cd_turret_fired event
       const flash = state._cdTurretFlash && state._cdTurretFlash[b.id];
       if (flash && performance.now() < flash.until) {
@@ -8458,6 +8536,44 @@ function drawCastleDefenseBuildings(layer) {
       ctx.strokeStyle = '#1a4a2a';
       ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
     }
+    // v1.416: GENERIC tier-overlay för man_turret/repair_stn/health_stn/slow_trap
+    // (wall + auto_turret har redan tier-specifika overlays ovan).
+    if (tier >= 2 && (b.kind === 'man_turret' || b.kind === 'repair_stn' || b.kind === 'health_stn' || b.kind === 'slow_trap')) {
+      // Tier 2+: accent-ring runt
+      ctx.strokeStyle = tierA.accent;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x - 1, y - 1, b.w + 2, b.h + 2);
+      if (tier >= 3) {
+        // Pulserande glow
+        const pulseT = 0.25 + Math.sin(t * 3 + b.x * 0.013) * 0.15;
+        ctx.fillStyle = tierA.particle;
+        ctx.globalAlpha = pulseT;
+        ctx.fillRect(x - 4, y - 4, b.w + 8, b.h + 8);
+        ctx.globalAlpha = 1;
+      }
+      if (tier === 4) {
+        // Floating crown ovanpå
+        const crownY = y - 8 + Math.sin(t * 2) * 1.5;
+        ctx.fillStyle = '#ffd54a';
+        ctx.beginPath();
+        ctx.moveTo(bcx - 5, crownY + 4);
+        ctx.lineTo(bcx - 5, crownY);
+        ctx.lineTo(bcx - 3, crownY + 2);
+        ctx.lineTo(bcx, crownY - 2);
+        ctx.lineTo(bcx + 3, crownY + 2);
+        ctx.lineTo(bcx + 5, crownY);
+        ctx.lineTo(bcx + 5, crownY + 4);
+        ctx.closePath();
+        ctx.fill();
+        // Sparkles
+        if (Math.random() < 0.3) {
+          const ang = Math.random() * Math.PI * 2;
+          const dist = b.w / 2 + 6 + Math.random() * 6;
+          ctx.fillStyle = '#fff8c0';
+          ctx.fillRect(bcx + Math.cos(ang) * dist, bcy + Math.sin(ang) * dist, 2, 2);
+        }
+      }
+    }
     // HP-bar — ALLTID synlig men diskret (v1.400). När full = mer transparent.
     const barW = Math.max(20, b.w * 0.7);
     const barX = x + b.w / 2 - barW / 2;
@@ -8511,6 +8627,48 @@ function drawCastleDefenseSpawnMarkers() {
     ctx.moveTo(x - 6, y - 6); ctx.lineTo(x + 6, y + 6);
     ctx.moveTo(x - 6, y + 6); ctx.lineTo(x + 6, y - 6);
     ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// v1.416: Ping-markers — pulserande ring + sender-namn, auto-expire 5s
+function drawCastleDefensePings() {
+  if (!state.castledefensePings || !state.castledefensePings.length) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const now = performance.now();
+  ctx.save();
+  for (let i = state.castledefensePings.length - 1; i >= 0; i--) {
+    const p = state.castledefensePings[i];
+    const elapsed = now - p.createdAt;
+    if (elapsed > p.life) { state.castledefensePings.splice(i, 1); continue; }
+    const lifePct = 1 - elapsed / p.life;
+    const x = p.x - cx, y = p.y - cy;
+    if (x < -100 || x > viewW + 100 || y < -100 || y > viewH + 100) continue;
+    // Pulserande ring som expanderar
+    const t = elapsed / 1000;
+    const pulseR = 18 + (t % 0.8) * 50;
+    const pulseAlpha = Math.max(0, 0.7 - (t % 0.8) / 0.8) * lifePct;
+    ctx.strokeStyle = 'rgba(90,200,255,' + pulseAlpha + ')';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, pulseR, 0, Math.PI * 2);
+    ctx.stroke();
+    // Statisk inre ring
+    ctx.fillStyle = 'rgba(90,200,255,' + (0.5 * lifePct) + ')';
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#5acaff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Sender-namn-label
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(x - 40, y - 30, 80, 16);
+    ctx.fillStyle = '#5acaff';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('📍 ' + p.senderName, x, y - 22);
   }
   ctx.restore();
 }
@@ -14137,6 +14295,10 @@ window.addEventListener('keydown', e => {
       tryCdSell();
       e.preventDefault();
     }
+    if (k === 't' && !e.repeat) {
+      tryCdPing();
+      e.preventDefault();
+    }
   }
   if (k === 'tab' || e.key === 'Tab') {
     e.preventDefault();
@@ -18237,17 +18399,24 @@ const Coop = {
       }
       if (typeof showCastleDefenseHud === 'function') showCastleDefenseHud();
       if (typeof showCastleDefenseBuildBar === 'function') showCastleDefenseBuildBar();
+      // v1.416: Öppna perk-selector overlay vid match-start
+      if (typeof openCdPerkSelector === 'function') {
+        setTimeout(() => openCdPerkSelector(), 500);
+      }
       if (typeof showToast === 'function') showToast('🏰 CASTLE DEFENSE — håll ut!');
       if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('survive');
       if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
     } else if (ev.type === 'cd_wave_started') {
-      // { wave, enemiesIncoming }
+      // { wave, enemiesIncoming, theme, themeLabel }
       state.castledefenseWave = ev.wave;
       state.castledefenseWaveState = 'active';
       state.castledefenseEnemiesIncoming = ev.enemiesIncoming || 0;
+      state.castledefenseActiveTheme = ev.theme || null;
       const isBoss = ev.wave % (state.castledefenseBossEveryWave || 5) === 0;
       if (typeof showToast === 'function') {
-        showToast(isBoss ? '👹 BOSS-VÅG ' + ev.wave + '!' : '⚔ Våg ' + ev.wave);
+        if (isBoss) showToast('👹 BOSS-VÅG ' + ev.wave + '!');
+        else if (ev.themeLabel) showToast(ev.themeLabel + ' — våg ' + ev.wave);
+        else showToast('⚔ Våg ' + ev.wave);
       }
       if (typeof Audio !== 'undefined' && Audio.waveStart) Audio.waveStart();
       if (isBoss && typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
@@ -18255,12 +18424,13 @@ const Coop = {
       // { wave, nextWaveInSec, nextIsBoss, nextWave, nextPool, nextCount, nextBossKey }
       state.castledefenseWaveState = 'between';
       state.castledefenseWaveBetweenEndAt = Date.now() + (ev.nextWaveInSec || 8) * 1000;
-      // v1.415: spara wave-preview för rendering under between-state
+      // v1.415-1.416: spara wave-preview för rendering under between-state
       state.castledefenseNextWave = ev.nextWave;
       state.castledefenseNextPool = ev.nextPool || [];
       state.castledefenseNextCount = ev.nextCount || 0;
       state.castledefenseNextIsBoss = ev.nextIsBoss;
       state.castledefenseNextBossKey = ev.nextBossKey;
+      state.castledefenseNextThemeLabel = ev.nextThemeLabel || null;
       if (typeof showToast === 'function') showToast('✓ Våg ' + ev.wave + ' klar — bygg/repair!');
       if (ev.nextIsBoss && typeof showToast === 'function') {
         setTimeout(() => showToast('⚠ BOSS-VÅG om ' + (ev.nextWaveInSec || 8) + 's — förbered!'), 1500);
@@ -18300,6 +18470,45 @@ const Coop = {
           if (typeof ev.shield === 'number') partner.shield = ev.shield;
         }
       }
+    } else if (ev.type === 'cd_perk_selected') {
+      // { peerId, perkId, allPerks }
+      state.castledefensePerks = ev.allPerks || {};
+      const arena = CASTLEDEFENSE_ARENA;
+      const perk = (arena && arena.heroPerks || []).find(p => p.id === ev.perkId);
+      if (perk && typeof showToast === 'function') {
+        const who = ev.peerId === this.myId ? 'Du valde' : ((this.players.get(ev.peerId) && this.players.get(ev.peerId).name) || 'Spelare') + ' valde';
+        showToast(who + ' ' + perk.icon + ' ' + perk.name);
+      }
+      if (ev.peerId === this.myId && typeof closeCdPerkSelector === 'function') {
+        closeCdPerkSelector();
+      } else if (typeof refreshCdPerkSelector === 'function') {
+        refreshCdPerkSelector();
+      }
+    } else if (ev.type === 'cd_perk_failed') {
+      if (ev.peerId === this.myId && typeof showToast === 'function') {
+        const m = { taken: 'Den perken är tagen av annan spelare', invalid_id: 'Ogiltig perk' };
+        showToast('❌ ' + (m[ev.reason] || ev.reason));
+      }
+    } else if (ev.type === 'cd_gambler_reward') {
+      if (ev.peerId === this.myId) {
+        if (ev.kind === 'gold' && typeof showToast === 'function') showToast('🎲 GAMBLER: 3x GOLD!');
+        else if (ev.kind === 'grenade') {
+          if (typeof setGrenadeCount === 'function' && typeof getGrenadeCount === 'function') setGrenadeCount(getGrenadeCount() + 1);
+          if (typeof showToast === 'function') showToast('🎲 GAMBLER: +1 GRANAT!');
+        } else if (ev.kind === 'shield' && typeof showToast === 'function') showToast('🎲 GAMBLER: SHIELD FULL!');
+      }
+    } else if (ev.type === 'cd_ping') {
+      // { senderPid, x, y }
+      state.castledefensePings = state.castledefensePings || [];
+      const partner = ev.senderPid === this.myId ? null : this.players.get(ev.senderPid);
+      const senderName = ev.senderPid === this.myId ? (this.myName || 'Du') : ((partner && partner.name) || 'Spelare');
+      state.castledefensePings.push({
+        x: ev.x, y: ev.y, senderPid: ev.senderPid,
+        senderName, createdAt: performance.now(), life: 5000,
+      });
+      // Begränsa max 20 aktiva pings
+      if (state.castledefensePings.length > 20) state.castledefensePings.shift();
+      if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
     } else if (ev.type === 'cd_turret_fired') {
       // { id, x, y, ang } — v1.415: muzzle-flash + sound feedback
       if (!state._cdTurretFlash) state._cdTurretFlash = {};
@@ -28220,6 +28429,20 @@ function showCastleDefenseHud() {
     infBtn.onclick = (e) => { e.preventDefault(); tryCdInfMoney(); };
     document.body.appendChild(infBtn);
   }
+  // v1.416: Ping-knapp — alltid synlig, pings vid spelarens position
+  let pingBtn = document.getElementById('cd-ping-btn');
+  if (!pingBtn) {
+    pingBtn = document.createElement('button');
+    pingBtn.id = 'cd-ping-btn';
+    pingBtn.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 270px) !important;bottom:14px !important;top:auto !important;right:auto !important;width:44px !important;height:44px !important;background:radial-gradient(circle at 30% 30%, rgba(90,200,255,0.35), rgba(0,0,0,0.5));border:2px solid #5acaff;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 0 8px rgba(90,200,255,0.2);display:flex;align-items:center;justify-content:center;padding:0;touch-action:manipulation;transition:transform 0.12s ease;';
+    pingBtn.innerHTML = '📍';
+    pingBtn.title = 'Ping (T-key)';
+    pingBtn.onpointerdown = () => { pingBtn.style.transform = 'scale(0.92)'; };
+    pingBtn.onpointerup = () => { pingBtn.style.transform = ''; };
+    pingBtn.onpointerleave = () => { pingBtn.style.transform = ''; };
+    pingBtn.onclick = (e) => { e.preventDefault(); tryCdPing(); };
+    document.body.appendChild(pingBtn);
+  }
   // v1.411: Sell-knapp (visas vid EGEN byggnad i närhet) — separat liten chip
   let sellBtn = document.getElementById('cd-sell-btn');
   if (!sellBtn) {
@@ -28259,7 +28482,7 @@ function showCastleDefenseHud() {
 }
 function hideCastleDefenseHud() {
   _stopCastleDefenseHudInterval();
-  const ids = ['cd-hud', 'cd-wave-preview', 'cd-inf-money', 'cd-action-btn', 'cd-sell-btn'];
+  const ids = ['cd-hud', 'cd-wave-preview', 'cd-inf-money', 'cd-action-btn', 'cd-sell-btn', 'cd-ping-btn'];
   for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
@@ -28307,7 +28530,8 @@ function updateCastleDefenseHud() {
       const cnt = state.castledefenseNextCount || 0;
       const bossPart = state.castledefenseNextIsBoss ? '<span style="color:#ff5a5a;">👹</span>' : '';
       const icons = state.castledefenseNextPool.map(t => iconMap[t] || '⚪').join('');
-      prevEl.innerHTML = '<span style="color:#888;">VÅG ' + w + ':</span> <span>' + icons + '</span><span style="color:#5acaff;">×' + cnt + '</span>' + (bossPart ? ' ' + bossPart : '');
+      const themePart = state.castledefenseNextThemeLabel ? ' <span style="color:#ffd54a;">' + state.castledefenseNextThemeLabel + '</span>' : '';
+      prevEl.innerHTML = '<span style="color:#888;">VÅG ' + w + ':</span> <span>' + icons + '</span><span style="color:#5acaff;">×' + cnt + '</span>' + (bossPart ? ' ' + bossPart : '') + themePart;
       prevEl.style.display = 'flex';
     } else {
       prevEl.style.display = 'none';
@@ -28720,6 +28944,74 @@ function closeCdBuildMenu() {
   if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
 }
 
+// v1.416: Hero-perk selector overlay (10 unique perks per match — bara en spelare per perk)
+function openCdPerkSelector() {
+  if (!state.castledefenseActive) return;
+  // Om jag redan valt perk → öppna inte
+  if (state.castledefensePerks && state.castledefensePerks[Coop.myId]) return;
+  if (document.getElementById('cd-perk-overlay')) return;
+  const overlay = document.createElement('div');
+  overlay.id = 'cd-perk-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:120;display:flex;align-items:center;justify-content:center;font-family:sans-serif;';
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:linear-gradient(180deg,#1a1a2a 0%,#0a0a16 100%);border:3px solid #5acaff;border-radius:14px;padding:18px 22px;max-width:96vw;max-height:92vh;overflow:auto;box-shadow:0 0 60px rgba(90,200,255,0.4);';
+  const header = document.createElement('div');
+  header.style.cssText = 'text-align:center;color:#5acaff;font-weight:900;letter-spacing:2px;font-size:18px;margin-bottom:10px;';
+  header.textContent = '⚔ VÄLJ DIN PERK ⚔';
+  panel.appendChild(header);
+  const subtext = document.createElement('div');
+  subtext.style.cssText = 'text-align:center;color:#888;font-size:11px;margin-bottom:14px;';
+  subtext.textContent = 'Endast EN spelare kan ha varje perk. Välj klokt — det här är din identitet.';
+  panel.appendChild(subtext);
+  const grid = document.createElement('div');
+  const isMobile = 'ontouchstart' in window || (navigator.maxTouchPoints > 0);
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(' + (isMobile ? 2 : 5) + ',1fr);gap:8px;';
+  const arena = CASTLEDEFENSE_ARENA;
+  for (const p of (arena.heroPerks || [])) {
+    const card = document.createElement('button');
+    card.dataset.perkId = p.id;
+    const takenBy = (state.castledefensePerks || {});
+    const isTaken = Object.entries(takenBy).some(([k, v]) => v === p.id);
+    const isMine = takenBy[Coop.myId] === p.id;
+    const dim = isTaken && !isMine;
+    card.style.cssText = 'background:' + (isMine ? '#1a3a3a' : (dim ? '#0a0a16' : '#1a1a2a')) + ';border:2px solid ' + (isMine ? '#5aff5a' : (dim ? '#3a3a3a' : '#5a5a7a')) + ';border-radius:10px;padding:10px 8px;color:#fff;font-family:inherit;cursor:' + (dim ? 'not-allowed' : 'pointer') + ';opacity:' + (dim ? '0.5' : '1') + ';display:flex;flex-direction:column;align-items:center;gap:4px;min-width:130px;transition:transform 0.1s, background 0.15s;text-align:center;';
+    card.innerHTML =
+      '<div style="font-size:32px;line-height:1;">' + p.icon + '</div>' +
+      '<div style="font-weight:900;letter-spacing:1px;font-size:12px;color:' + (isMine ? '#5aff5a' : '#5acaff') + ';">' + p.name + (isMine ? ' ✓' : '') + '</div>' +
+      '<div style="font-size:10px;opacity:0.9;line-height:1.3;color:#bbb;min-height:48px;">' + p.desc + '</div>';
+    card.onclick = (e) => {
+      e.preventDefault();
+      if (dim) return;
+      if (!Coop.ws || Coop.ws.readyState !== 1) return;
+      Coop.ws.send(JSON.stringify({ type: 'sim_cd_perk', perkId: p.id }));
+    };
+    card.onpointerdown = () => { if (!dim) card.style.transform = 'scale(0.96)'; };
+    card.onpointerup = () => { card.style.transform = ''; };
+    card.onpointerleave = () => { card.style.transform = ''; };
+    grid.appendChild(card);
+  }
+  panel.appendChild(grid);
+  // Skip-button
+  const skipBtn = document.createElement('button');
+  skipBtn.style.cssText = 'margin-top:14px;background:#2a2a3a;border:1px solid #5a5a7a;border-radius:8px;padding:8px 16px;color:#aaa;font-family:inherit;font-size:11px;cursor:pointer;display:block;margin-left:auto;margin-right:auto;';
+  skipBtn.textContent = 'Hoppa över (ingen perk)';
+  skipBtn.onclick = (e) => { e.preventDefault(); closeCdPerkSelector(); };
+  panel.appendChild(skipBtn);
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+}
+function closeCdPerkSelector() {
+  const o = document.getElementById('cd-perk-overlay');
+  if (o && o.parentNode) o.parentNode.removeChild(o);
+}
+function refreshCdPerkSelector() {
+  // Stäng + öppna igen för att uppdatera taken-state-färger
+  const o = document.getElementById('cd-perk-overlay');
+  if (!o) return;
+  closeCdPerkSelector();
+  openCdPerkSelector();
+}
+
 // v1.403: HOLD-DRAG-RELEASE radial för bygg-knappen — exakt samma pattern som
 // weapon-radial: pointerdown öppnar, pointermove highlightar, pointerup väljer.
 function setupCdBuildRadial(btn) {
@@ -29005,6 +29297,12 @@ function tryCdSell() {
     return;
   }
   Coop.ws.send(JSON.stringify({ type: 'sim_cd_sell', id: target.id }));
+}
+
+// v1.416: Ping vid spelarens position — broadcastas till alla peers
+function tryCdPing() {
+  if (!state.player || !Coop.ws || Coop.ws.readyState !== 1) return;
+  Coop.ws.send(JSON.stringify({ type: 'sim_cd_ping', x: state.player.x, y: state.player.y }));
 }
 
 // v1.407: DEBUG infinity-money — tappa knappen för +5000 gold
@@ -42178,6 +42476,7 @@ function render() {
     drawCastleDefenseBuildings('tall');        // walls, turrets, stations
     drawCastleDefenseDecorationsTop();         // träd-kronor, fackel-flammor, banderoll-tyg
     drawCastleDefenseHealParticles();          // heal-particles från health_stn
+    if (typeof drawCastleDefensePings === 'function') drawCastleDefensePings();
     if (typeof drawCdBuildGhost === 'function') drawCdBuildGhost();
   }
   // GRENADE-render ALLTID PÅ TOPP — efter walls/träd/tak så granaten aldrig hamnar

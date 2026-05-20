@@ -163,6 +163,7 @@ function createSim(room) {
     castledefenseScores: {},               // peerId → kills
     castledefenseGold: {},                 // peerId → per-match gold (för byggande, ej save.gold)
     castledefenseWeaponTier: {},           // peerId → vapen-tier (0 = pistol, 11 = sledge)
+    castledefensePerks: {},                // peerId → perk-id (10 hero-perks, unik per spelare)
     castledefenseDownedPids: [],           // pids som är down (Phase 6)
     castledefenseRevivedCount: 0,
     _cdBuildIdCounter: 0,
@@ -2071,6 +2072,38 @@ function cdEnemiesForWave(arena, wave) {
   return arena.waveBaseCount + (wave - 1) * arena.waveScalePerWave;
 }
 
+// v1.416: Special wave themes var 3:e wave (skippas vid boss-wave)
+const CD_WAVE_THEMES = ['speed_rush', 'bomb_squad', 'sniper_alley', 'elite', 'horde'];
+function cdGetWaveTheme(wave, arena) {
+  if (wave % (arena.bossEveryWave || 5) === 0) return null;
+  if (wave < 3 || wave % 3 !== 0) return null;
+  const idx = Math.floor(wave / 3) - 1;
+  return CD_WAVE_THEMES[idx % CD_WAVE_THEMES.length];
+}
+function cdGetThemePool(theme) {
+  if (theme === 'speed_rush') return ['runner', 'ninja', 'dog', 'swarmer'];
+  if (theme === 'bomb_squad') return ['bomber', 'bomber', 'grunt', 'grunt'];
+  if (theme === 'sniper_alley') return ['shooter', 'soldier', 'sniper'];
+  return null; // elite/horde använder default-pool
+}
+function cdGetThemeCountMul(theme) {
+  if (theme === 'elite') return 0.55;
+  if (theme === 'horde') return 1.8;
+  return 1.0;
+}
+function cdGetThemeStatMul(theme) {
+  if (theme === 'elite') return { hp: 1.6, dmg: 1.6, gold: 1.8 };
+  return null;
+}
+function cdGetThemeLabel(theme) {
+  if (theme === 'speed_rush') return '⚡ SPEED RUSH';
+  if (theme === 'bomb_squad') return '💣 BOMB SQUAD';
+  if (theme === 'sniper_alley') return '🎯 SNIPER ALLEY';
+  if (theme === 'elite') return '👑 ELITE GUARD';
+  if (theme === 'horde') return '🐝 HORDE';
+  return null;
+}
+
 // v1.415: Returnera enemy-typer som kan spawnas vid en specifik våg (för preview).
 function cdGetWavePool(wave) {
   if (wave <= 2) return ['grunt', 'runner'];
@@ -2127,9 +2160,17 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
     // === AUTO-TURRET ===
     if (b.kind === 'auto_turret') {
       if (b._fireCd > 0) b._fireCd -= dt;
+      // v1.416: STRATEGIST aura — om strategist-player är inom 250px, +35% dmg + range
+      let stratMul = 1.0;
+      for (const [pid, ws] of sim.room.members) {
+        if (sim.castledefensePerks[pid] !== 'strategist') continue;
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        const dxs = ws.playerState.x - bcx, dys = ws.playerState.y - bcy;
+        if (dxs * dxs + dys * dys <= 250 * 250) { stratMul = 1.35; break; }
+      }
+      const effRange = b.range * (stratMul > 1 ? 1.2 : 1);
       if (b._fireCd <= 0 && b.range > 0 && b.fireRate > 0) {
-        // Hitta närmsta levande enemy inom range
-        let best = null, bestD = b.range * b.range;
+        let best = null, bestD = effRange * effRange;
         for (const e of sim.enemies) {
           if (e.dead) continue;
           const dx = e.x - bcx, dy = e.y - bcy;
@@ -2144,7 +2185,7 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
             x: bcx, y: bcy,
             vx: Math.cos(ang) * SPEED,
             vy: Math.sin(ang) * SPEED,
-            dmg: (b.dps / b.fireRate),
+            dmg: (b.dps / b.fireRate) * stratMul, // v1.416: STRATEGIST +35%
             life: 1.5,
             r: 3,
             color: '#3acaff',
@@ -2584,8 +2625,10 @@ function tickCastleDefense(sim, dt, now) {
     sim.castledefenseWave += 1;
     const w = sim.castledefenseWave;
     const isBoss = w % arena.bossEveryWave === 0;
+    // v1.416: special wave-theme (var 3:e wave, skippas vid boss)
+    const theme = cdGetWaveTheme(w, arena);
+    sim._cdActiveTheme = theme;
     if (isBoss) {
-      // Boss-våg: spawna boss direkt + några minions
       const bossKey = cdPickBossKey(w);
       const sp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
       const coopMul = Math.max(1, sim.room.members.size);
@@ -2603,17 +2646,20 @@ function tickCastleDefense(sim, dt, now) {
           sub: boss.subtitle,
         });
       }
-      // Minions: 3-6 vanliga grunts som backup
       sim._cdWaveSpawnsRemaining = 3 + Math.floor(w / 5);
     } else {
-      sim._cdWaveSpawnsRemaining = cdEnemiesForWave(arena, w);
+      const base = cdEnemiesForWave(arena, w);
+      const countMul = cdGetThemeCountMul(theme);
+      sim._cdWaveSpawnsRemaining = Math.max(1, Math.round(base * countMul));
     }
     sim._cdWaveSpawnTimer = 0;
     sim.eventQueue.push({
       type: 'cd_wave_started',
       wave: w,
-      enemiesIncoming: sim._cdWaveSpawnsRemaining, // minions kvar att spawna (boss redan ute)
+      enemiesIncoming: sim._cdWaveSpawnsRemaining,
       isBoss,
+      theme,
+      themeLabel: cdGetThemeLabel(theme),
     });
   }
 
@@ -2622,7 +2668,9 @@ function tickCastleDefense(sim, dt, now) {
     sim._cdWaveSpawnTimer -= dt;
     if (sim._cdWaveSpawnTimer <= 0 && sim.enemies.length < ENEMY_CAP) {
       const sp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
-      const type = cdPickEnemyType(sim.castledefenseWave);
+      // v1.416: theme override pool
+      const themePool = cdGetThemePool(sim._cdActiveTheme);
+      const type = themePool ? themePool[Math.floor(Math.random() * themePool.length)] : cdPickEnemyType(sim.castledefenseWave);
       const e = makeEnemy(type, sp.x, sp.y);
       e._idx = sim.nextEnemyIdx++;
       e._cdEnemy = true;
@@ -2631,10 +2679,16 @@ function tickCastleDefense(sim, dt, now) {
       const cdWaveScale = 1 + (sim.castledefenseWave - 1) * 0.08;
       const cdDiff = cdGetDiffMul(sim.config.difficulty);
       const cdCoop = cdGetCoopMul(sim.room.members.size);
-      e.hp = Math.round(e.hp * cdWaveScale * cdDiff.enemyHp * cdCoop);
+      // v1.416: theme stat-multiplier (ELITE = +60% hp/dmg/gold)
+      const themeStat = cdGetThemeStatMul(sim._cdActiveTheme);
+      const themeHpMul = themeStat ? themeStat.hp : 1.0;
+      const themeDmgMul = themeStat ? themeStat.dmg : 1.0;
+      const themeGoldMul = themeStat ? themeStat.gold : 1.0;
+      e.hp = Math.round(e.hp * cdWaveScale * cdDiff.enemyHp * cdCoop * themeHpMul);
       e.maxHp = e.hp;
-      e.dmg = Math.round(e.dmg * cdWaveScale * cdDiff.enemyDmg * (1 + (cdCoop - 1) * 0.5));
-      if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * cdDiff.enemyDmg);
+      e.dmg = Math.round(e.dmg * cdWaveScale * cdDiff.enemyDmg * (1 + (cdCoop - 1) * 0.5) * themeDmgMul);
+      if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * cdDiff.enemyDmg * themeDmgMul);
+      if (e.gold) e.gold = Math.round(e.gold * themeGoldMul);
       // v1.410: speed-buff för "fast" enemy-typer — gör dem REALA hot. User-feedback
       // "vissa fiender ännu snabbare". runner/ninja/dog/swarmer +35%.
       if (type === 'runner' || type === 'ninja' || type === 'dog' || type === 'swarmer') {
@@ -2657,6 +2711,17 @@ function tickCastleDefense(sim, dt, now) {
   if (sim.castledefenseBuildings.length > 0) {
     sim._cdCoreHealedThisTick = false; // v1.413: reset per tick — cap multi-repair-stack
     updateCastleDefenseBuildings(sim, dt, nowMs);
+  }
+
+  // v1.416: MEDIC auto-regen (2 hp/s) — per-player perk-effect
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState || ws.playerState.hp <= 0 || ws.playerState.cdDowned) continue;
+    if (sim.castledefensePerks[pid] === 'medic') {
+      const maxH = ws.playerState.maxHp || 100;
+      if (ws.playerState.hp < maxH) {
+        ws.playerState.hp = Math.min(maxH, ws.playerState.hp + 2 * dt);
+      }
+    }
   }
 
   // === DOWN-STATE + REVIVE (fas 6) ===
@@ -2995,7 +3060,26 @@ function tickCastleDefense(sim, dt, now) {
       // Score + per-match gold-grant
       if (e.lastDamagerPid) {
         sim.castledefenseScores[e.lastDamagerPid] = (sim.castledefenseScores[e.lastDamagerPid] || 0) + 1;
-        const goldGain = e.gold || 0;
+        // v1.416: LOOTER perk +60% gold, GAMBLER 15% chans bonus
+        const killerPerk = sim.castledefensePerks[e.lastDamagerPid];
+        let goldGain = e.gold || 0;
+        if (killerPerk === 'looter') goldGain = Math.round(goldGain * 1.6);
+        if (killerPerk === 'gambler' && Math.random() < 0.15) {
+          const r = Math.random();
+          if (r < 0.34) {
+            goldGain *= 3;
+            sim.eventQueue.push({ type: 'cd_gambler_reward', peerId: e.lastDamagerPid, kind: 'gold' });
+          } else if (r < 0.67) {
+            sim.eventQueue.push({ type: 'cd_gambler_reward', peerId: e.lastDamagerPid, kind: 'grenade' });
+          } else {
+            const lwsk = sim.room.members.get(e.lastDamagerPid);
+            if (lwsk && lwsk.playerState) {
+              lwsk.playerState.shield = lwsk.playerState.maxShield || 100;
+              sim.eventQueue.push({ type: 'cd_hp_changed', peerId: e.lastDamagerPid, hp: lwsk.playerState.hp, shield: lwsk.playerState.shield });
+              sim.eventQueue.push({ type: 'cd_gambler_reward', peerId: e.lastDamagerPid, kind: 'shield' });
+            }
+          }
+        }
         if (goldGain > 0) {
           // Boss-gold splittas mellan ALLA levande spelare (annars ger 500-3000g till 1 spelare = swingar ekonomi).
           // Vanliga enemies: bara killer får gold.
@@ -3034,19 +3118,18 @@ function tickCastleDefense(sim, dt, now) {
     sim.castledefenseWaveBetweenEndAt = nowMs + arena.waveBetweenSec * 1000;
     const nextWave = sim.castledefenseWave + 1;
     const nextIsBoss = nextWave % arena.bossEveryWave === 0;
-    // v1.415: skicka preview av next wave (enemy-pool + count + boss-info)
-    const nextPool = cdGetWavePool(nextWave);
-    const nextCount = cdEnemiesForWave(arena, nextWave);
+    const nextTheme = cdGetWaveTheme(nextWave, arena);
+    const themePool = cdGetThemePool(nextTheme);
+    const nextPool = themePool || cdGetWavePool(nextWave);
+    const baseCount = cdEnemiesForWave(arena, nextWave);
+    const nextCount = nextIsBoss ? (3 + Math.floor(nextWave / 5) + 1) : Math.round(baseCount * cdGetThemeCountMul(nextTheme));
     const nextBossKey = nextIsBoss ? cdPickBossKey(nextWave) : null;
     sim.eventQueue.push({
       type: 'cd_wave_complete',
       wave: sim.castledefenseWave,
       nextWaveInSec: arena.waveBetweenSec,
-      nextIsBoss,
-      nextWave,
-      nextPool,
-      nextCount,
-      nextBossKey,
+      nextIsBoss, nextWave, nextPool, nextCount, nextBossKey,
+      nextTheme, nextThemeLabel: cdGetThemeLabel(nextTheme),
     });
     // Wave-clear gold-bonus + grenades + shield-regen så player är redo för nästa våg
     const bonus = (arena.waveBonusBase || 150) + sim.castledefenseWave * (arena.waveBonusPerWave || 30);
@@ -3869,6 +3952,7 @@ function startSim(sim, opts) {
   sim.castledefenseScores = {};
   sim.castledefenseGold = {};
   sim.castledefenseWeaponTier = {};
+  sim.castledefensePerks = {};
   sim.castledefenseDownedPids = [];
   sim.castledefenseRevivedCount = 0;
   sim._cdBuildIdCounter = 0;
@@ -4777,6 +4861,22 @@ function applyShoot(sim, peerId, msg) {
     stealthBonus: msg.stealthBonus || 1,
     perks: msg.perks || {}, cheats: msg.cheats || {},
   };
+  // v1.416: Apply CD hero-perk effects to params
+  if (sim.castledefenseActive) {
+    const perk = sim.castledefensePerks[peerId];
+    if (perk === 'gunner') params.dmgMul *= 1.4;
+    if (perk === 'sharpshooter') {
+      params.critChance = Math.max(params.critChance, 0.25);
+      params.bspeedMul *= 1.5;
+    }
+    if (perk === 'berserker') {
+      const hpPct = (ps.hp || 1) / (ps.maxHp || 100);
+      if (hpPct < 0.5) {
+        const bonus = Math.max(0, Math.min(0.5, 1 - 2 * hpPct));
+        params.dmgMul *= (1 + bonus);
+      }
+    }
+  }
   // Melee i PvP-modes: direkt hit-check, ingen bullet spawnas.
   // (Story-mode melee körs lokalt på klient mot state.enemies.)
   const w = require('../../shared/weapons-data').W_BY_ID[weaponId];
@@ -4853,9 +4953,12 @@ function applyCastleDefenseBuild(sim, peerId, msg) {
     sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'out_of_bounds', kind });
     return;
   }
-  // Gold-check
+  // v1.416: BUILDER perk -30% cost
+  const buildPerk = sim.castledefensePerks[peerId];
+  const buildCostMul = buildPerk === 'builder' ? 0.7 : 1.0;
+  const effectiveCost = Math.round(spec.cost * buildCostMul);
   const playerGold = sim.castledefenseGold[peerId] || 0;
-  if (playerGold < spec.cost) {
+  if (playerGold < effectiveCost) {
     sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'insufficient_gold', kind });
     return;
   }
@@ -4915,7 +5018,7 @@ function applyCastleDefenseBuild(sim, peerId, msg) {
     }
   }
   // OK → deducera gold + skapa building
-  sim.castledefenseGold[peerId] = playerGold - spec.cost;
+  sim.castledefenseGold[peerId] = playerGold - effectiveCost;
   sim._cdBuildIdCounter += 1;
   const building = {
     id: 'build_' + sim._cdBuildIdCounter,
@@ -5034,7 +5137,10 @@ function applyCastleDefenseUpgrade(sim, peerId, msg) {
   // v1.410: exponential cost-scaling: baseCost × base × (lvl+1)^exp
   const ucBase = arena.upgradeCostBase || 0.6;
   const ucExp = arena.upgradeCostExp || 1.3;
-  const upgradeCost = Math.round(baseCost * ucBase * Math.pow(curLevel + 1, ucExp));
+  // v1.416: BUILDER perk -30% upgrade-cost
+  const upgPerk = sim.castledefensePerks[peerId];
+  const upgMul = upgPerk === 'builder' ? 0.7 : 1.0;
+  const upgradeCost = Math.round(baseCost * ucBase * Math.pow(curLevel + 1, ucExp) * upgMul);
   const playerGold = sim.castledefenseGold[peerId] || 0;
   if (playerGold < upgradeCost) {
     sim.eventQueue.push({ type: 'cd_upgrade_failed', peerId, id, reason: 'insufficient_gold', cost: upgradeCost });
@@ -5105,6 +5211,51 @@ function applyCastleDefenseSell(sim, peerId, msg) {
   sim.eventQueue.push({ type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: refund });
 }
 
+// v1.416: Hero-perk selection — unik per spelare (rejects duplicate).
+function applyCastleDefensePerk(sim, peerId, msg) {
+  if (!sim.castledefenseActive || sim.castledefenseEnded) return;
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState) return;
+  const perkId = msg && msg.perkId;
+  if (!perkId) return;
+  // Validera mot arena.heroPerks
+  const arena = CASTLEDEFENSE_ARENA;
+  const validPerk = (arena.heroPerks || []).find(p => p.id === perkId);
+  if (!validPerk) {
+    sim.eventQueue.push({ type: 'cd_perk_failed', peerId, reason: 'invalid_id' });
+    return;
+  }
+  // Kolla att inte annan spelare redan har den
+  for (const [otherPid, otherPerk] of Object.entries(sim.castledefensePerks)) {
+    if (otherPid !== peerId && otherPerk === perkId) {
+      sim.eventQueue.push({ type: 'cd_perk_failed', peerId, reason: 'taken', perkId });
+      return;
+    }
+  }
+  // OK — sätt perk + applicera at-start-effekter
+  sim.castledefensePerks[peerId] = perkId;
+  applyCdPerkEffects(ws.playerState, perkId);
+  sim.eventQueue.push({
+    type: 'cd_perk_selected', peerId, perkId,
+    allPerks: { ...sim.castledefensePerks },
+  });
+}
+
+// v1.416: Applicera at-start-effekter för perk (resten är passiva via flags)
+function applyCdPerkEffects(ps, perkId) {
+  if (!ps) return;
+  if (perkId === 'tank') {
+    ps.maxHp = 150;
+    ps.hp = 150;
+    ps.speedMul = (ps.speedMul || 1) * 0.8;
+  } else if (perkId === 'scout') {
+    ps.speedMul = (ps.speedMul || 1) * 1.4;
+  } else if (perkId === 'gunner') {
+    // hanteras i applyShoot via tier-check
+  }
+  // Övriga perks är passiva — read i tick/handlers
+}
+
 // v1.407: DEBUG infinity-money — ger spelaren 5000 gold per call. Tas bort i prod.
 function applyCastleDefenseInfMoney(sim, peerId, msg) {
   if (!sim.castledefenseActive) return;
@@ -5115,4 +5266,4 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefenseInfMoney };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney };
