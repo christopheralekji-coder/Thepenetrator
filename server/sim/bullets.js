@@ -1020,6 +1020,28 @@ function updateBullets(sim, dt, now) {
         // kan instant-killa downade spelare i bleed-out)
         if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
         if (ws.playerState.cdDowned) continue;
+        // v1.423: CD player som står PÅ solid byggnad = immune mot hostile bullets.
+        // Walls = full cover (matchar melee-immune i room-sim.js).
+        if (sim.castledefenseActive && b.hostile) {
+          const psP = ws.playerState;
+          let onSolidB = false;
+          if (sim.castledefenseWalls) {
+            for (const sB of sim.castledefenseWalls) {
+              if (sB.hp <= 0) continue;
+              if (psP.x >= sB.x && psP.x <= sB.x + sB.w &&
+                  psP.y >= sB.y && psP.y <= sB.y + sB.h) { onSolidB = true; break; }
+            }
+          }
+          if (!onSolidB && sim.castledefenseBuildings) {
+            for (const sB of sim.castledefenseBuildings) {
+              if (sB.hp <= 0) continue;
+              if (sB.kind === 'spike_trap' || sB.kind === 'slow_trap') continue;
+              if (psP.x >= sB.x && psP.x <= sB.x + sB.w &&
+                  psP.y >= sB.y && psP.y <= sB.y + sB.h) { onSolidB = true; break; }
+            }
+          }
+          if (onSolidB) continue;
+        }
         const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
         const rsum = 14 + b.r;
         if (dx * dx + dy * dy < rsum * rsum) {

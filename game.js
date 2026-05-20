@@ -8593,6 +8593,56 @@ function drawCastleDefenseBuildings(layer) {
     }
   }
   ctx.restore();
+  // v1.423: Range-rings overlay PASS — ritas EFTER all bygg-render så andra
+  // torn inte täcker ringen (siege/man_turret range = 300 → många walls inom
+  // räckhåll). Bara för det torn player står PÅ (strict AABB).
+  if (layer === 'tall' && state.player) {
+    const px = state.player.x, py = state.player.y;
+    let onBuilding = null;
+    for (const b of state.castledefenseBuildings) {
+      if (b.hp <= 0) continue;
+      if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) {
+        onBuilding = b;
+        break;
+      }
+    }
+    if (onBuilding) {
+      const b = onBuilding;
+      const bcx = (b.x - cx) + b.w / 2;
+      const bcy = (b.y - cy) + b.h / 2;
+      ctx.save();
+      // Range-ring för turrets (auto_turret cyan, man_turret yellow)
+      if (b.range > 0 && (b.kind === 'auto_turret' || b.kind === 'man_turret')) {
+        const ringCol = b.kind === 'man_turret' ? 'rgba(255,200,80,0.65)' : 'rgba(90,200,255,0.65)';
+        ctx.strokeStyle = ringCol;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([7, 5]);
+        ctx.beginPath();
+        ctx.arc(bcx, bcy, b.range, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Inre transparent fill för bättre synlighet
+        ctx.fillStyle = b.kind === 'man_turret' ? 'rgba(255,200,80,0.06)' : 'rgba(90,200,255,0.06)';
+        ctx.beginPath();
+        ctx.arc(bcx, bcy, b.range, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      // Aura-ring för stations (radius-baserade)
+      if (b.radius > 0 && (b.kind === 'repair_stn' || b.kind === 'health_stn' || b.kind === 'slow_trap')) {
+        let auraCol = 'rgba(140,220,255,0.5)';
+        if (b.kind === 'repair_stn') auraCol = 'rgba(90,255,150,0.55)';
+        else if (b.kind === 'health_stn') auraCol = 'rgba(255,90,200,0.55)';
+        ctx.strokeStyle = auraCol;
+        ctx.lineWidth = 2;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.arc(bcx, bcy, b.radius, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.restore();
+    }
+  }
 }
 
 function drawCastleDefenseSpawnMarkers() {
@@ -18618,10 +18668,11 @@ const Coop = {
       if (typeof triggerShake === 'function') triggerShake(8, 0.4);
     } else if (ev.type === 'cd_core_damaged') {
       // { hp, maxHp }
+      // v1.423: ingen skärm-shake vid core-dmg — det blev konstant skakande
+      // när core var lågt HP (per-hit shake stackade). HP-bar + audio räcker.
       if (state.castledefenseCore) {
         state.castledefenseCore.hp = ev.hp;
       }
-      if (typeof triggerShake === 'function') triggerShake(4, 0.2);
     } else if (ev.type === 'cd_hp_changed') {
       // { peerId, hp, shield } — v1.404: sync shield + hp efter dmg
       if (ev.peerId === this.myId && state.player) {
@@ -28690,16 +28741,17 @@ function showCastleDefenseHud() {
     pingBtn.addEventListener('pointercancel', finishDrag);
     document.body.appendChild(pingBtn);
   }
-  // v1.411: Sell-knapp (visas vid EGEN byggnad i närhet) — separat liten chip
+  // v1.411/v1.423: Sell-knapp — placerad BREDVID cd-action-btn (left+200 bottom:14).
+  // Same size (60×60) + samma stå-på-tornet AABB-regel. Strikt synlig bara när
+  // player står på egen sellable byggnad.
   let sellBtn = document.getElementById('cd-sell-btn');
   if (!sellBtn) {
     sellBtn = document.createElement('button');
     sellBtn.id = 'cd-sell-btn';
-    // v1.412: Flyttad till VÄNSTER sida (krockade med fire/shield/bygg-cluster).
-    // Ovanför action-btn (som ligger på vänster-sidan vid bottom:14, left+200).
-    sellBtn.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 215px) !important;bottom:82px !important;top:auto !important;right:auto !important;width:44px !important;height:44px !important;background:radial-gradient(circle at 30% 30%, rgba(255,80,80,0.3), rgba(0,0,0,0.5));border:2px solid #ff6060;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 0 8px rgba(255,80,80,0.2);display:none;align-items:center;justify-content:center;padding:0;touch-action:manipulation;transition:transform 0.12s ease;';
-    sellBtn.innerHTML = '💰';
-    sellBtn.title = 'Sälj egen byggnad (50% refund)';
+    // Position: left+270 bottom:14 (action-btn vid left+200 + 60 width + 10 gap = 270)
+    sellBtn.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 270px) !important;bottom:14px !important;top:auto !important;right:auto !important;width:60px !important;height:60px !important;background:radial-gradient(circle at 30% 30%, rgba(255,80,80,0.3), rgba(0,0,0,0.5));border:2px solid #ff6060;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:24px;box-shadow:0 4px 14px rgba(0,0,0,0.6),inset 0 0 12px rgba(255,80,80,0.15),0 0 0 2px rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;padding:0;touch-action:manipulation;transition:transform 0.12s ease, background 0.2s ease, border-color 0.2s ease;';
+    sellBtn.innerHTML = '<span style="font-size:26px;text-shadow:0 1px 3px rgba(0,0,0,0.7);">💰</span><span id="cd-sell-badge" style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#ff9090;font-size:10px;font-weight:900;padding:2px 7px;border-radius:9px;border:1px solid #ff6060;white-space:nowrap;letter-spacing:0.3px;">SÄLJ</span>';
+    sellBtn.title = 'Sälj egen byggnad (50% refund) — stå PÅ tornet';
     sellBtn.onpointerdown = () => { sellBtn.style.transform = 'scale(0.92)'; };
     sellBtn.onpointerup = () => { sellBtn.style.transform = ''; };
     sellBtn.onpointerleave = () => { sellBtn.style.transform = ''; };
@@ -28870,22 +28922,28 @@ function updateCastleDefenseHud() {
       }
     }
   }
-  // v1.411: Sell-knapp visibility — bara om EGEN byggnad i närhet
+  // v1.411/v1.423: Sell-knapp visibility — bara om player står EXAKT PÅ egen byggnad (strikt AABB)
   const sellBtn = document.getElementById('cd-sell-btn');
   if (sellBtn && state.player) {
     const px = state.player.x, py = state.player.y;
     let foundOwn = false;
+    let refundPreview = 0;
     if (state.castledefenseBuildings) {
       for (const b of state.castledefenseBuildings) {
         if (b.hp <= 0) continue;
         if (b.ownerPid !== Coop.myId) continue;
-        const cx = Math.max(b.x, Math.min(px, b.x + b.w));
-        const cy = Math.max(b.y, Math.min(py, b.y + b.h));
-        const dx = px - cx, dy = py - cy;
-        if (dx * dx + dy * dy < 50 * 50) { foundOwn = true; break; }
+        if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) {
+          foundOwn = true;
+          refundPreview = Math.round((b._totalInvested || 0) * 0.5);
+          break;
+        }
       }
     }
     sellBtn.style.display = foundOwn ? 'flex' : 'none';
+    if (foundOwn) {
+      const badge = document.getElementById('cd-sell-badge');
+      if (badge) badge.textContent = '+' + refundPreview + 'g';
+    }
   }
 }
 function _startCastleDefenseHudInterval() {

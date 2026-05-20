@@ -170,8 +170,8 @@ const CASTLEDEFENSE_ARENA = {
   // Behov av spridning: spelaren ska kunna ha 3-5 maxade torn på wave 20+, inte 1.
   buildables: {
     wall:        { cost: 60,   hp: 250, w: 30, h: 30, hpScalePerLvl: 1.2 },        // 75→60
-    auto_turret: { cost: 550,  hp: 200, w: 30, h: 30, range: 220, dps: 20, fireRate: 2.0 }, // 700→550
-    man_turret:  { cost: 950,  hp: 350, w: 30, h: 30, range: 300, dpsMul: 2.5 },   // 1200→950
+    auto_turret: { cost: 550,  hp: 200, w: 30, h: 30, range: 165, dps: 20, fireRate: 2.0 }, // range 220→165 (-25%)
+    man_turret:  { cost: 950,  hp: 350, w: 30, h: 30, range: 225, dpsMul: 2.5 },   // range 300→225 (-25%)
     spike_trap:  { cost: 160,  hp: 250, w: 30, h: 30, dmgOnPass: 30, killCapacity: 5 }, // 200→160
     slow_trap:   { cost: 250,  hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2, radius: 140 }, // 300→250
     repair_stn:  { cost: 400,  hp: 200, w: 30, h: 30, healPerSec: 1, radius: 140, healScalePerLvl: 2.0 }, // 500→400
