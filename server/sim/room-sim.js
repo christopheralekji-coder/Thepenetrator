@@ -2634,15 +2634,18 @@ function tickCastleDefense(sim, dt, now) {
       const coopMul = Math.max(1, sim.room.members.size);
       const boss = makeBoss(bossKey, sp.x, sp.y, coopMul);
       if (boss) {
-        // v1.418: applicera difficulty på BOSS också (saknades helt — boss
-        // var lika svår på casual som på hardcore). casual extra-rabatt 0.8
-        // ovanpå sin diff-mul så boss inte överraskningskillar nybörjare.
+        // v1.419: BOSS scaling = difficulty × wave-scaling × casual-relief.
+        // Tidigare bug: boss-vågor saknade wave-scaling helt (lika svår på wave 5
+        // som wave 50). cdWaveScale = 1 + (wave-1) × 0.08 ⇒ wave 5 = 1.32×, w10 = 1.72×.
         const bDiff = cdGetDiffMul(sim.config.difficulty);
+        const bWaveScale = 1 + (w - 1) * 0.08;
         const casualBossRelief = sim.config.difficulty === 'casual' ? 0.7 : 1.0;
-        boss.hp = Math.max(1, Math.round(boss.hp * bDiff.enemyHp * casualBossRelief));
+        const totalMul = bDiff.enemyHp * bWaveScale * casualBossRelief;
+        const totalDmgMul = bDiff.enemyDmg * bWaveScale * casualBossRelief;
+        boss.hp = Math.max(1, Math.round(boss.hp * totalMul));
         boss.maxHp = boss.hp;
-        boss.dmg = Math.max(1, Math.round(boss.dmg * bDiff.enemyDmg * casualBossRelief));
-        if (boss.bulletDmg) boss.bulletDmg = Math.max(1, Math.round(boss.bulletDmg * bDiff.enemyDmg * casualBossRelief));
+        boss.dmg = Math.max(1, Math.round(boss.dmg * totalDmgMul));
+        if (boss.bulletDmg) boss.bulletDmg = Math.max(1, Math.round(boss.bulletDmg * totalDmgMul));
         boss._idx = sim.nextEnemyIdx++;
         boss._cdEnemy = true;
         boss._cdBossWave = w;
@@ -2707,8 +2710,9 @@ function tickCastleDefense(sim, dt, now) {
         e.speed = Math.round(e.speed * 1.15);
       }
       e._origSpeed = e.speed;
-      // 50/50 role: attacker (target player) vs siege (target buildings/core)
-      e._cdRole = Math.random() < 0.5 ? 'attacker' : 'siege';
+      // v1.419: 75% siege (attackerar torn/walls) / 25% attacker (jagar player).
+      // Var: 50/50. User-feedback "enemies attackerar sällan mina torn".
+      e._cdRole = Math.random() < 0.25 ? 'attacker' : 'siege';
       sim.enemies.push(e);
       sim._cdWaveSpawnsRemaining -= 1;
       // v1.411: snabbare spawn-rate. Base 0.7→0.45, floor 0.25→0.12.

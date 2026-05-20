@@ -8393,8 +8393,8 @@ function drawCastleDefenseBuildings(layer) {
       }
     } else if (b.kind === 'slow_trap') {
       // === FROST TOWER — AOE aura + magic ice rune (v1.414) ===
-      // v1.417: Tier-progression CHANGES AURA CIRCLE COLOR (var: tile-square ring).
-      if (b.radius) {
+      // v1.419: Aura visas BARA när player står PÅ tornet (matchar turret range-ring).
+      if (b.radius && showRangeRing) {
         // Tier-based aura color
         let auraColor = '140,220,255'; // tier 1 base: ice blue
         let ringColor = 'rgba(140,220,255,0.4)';
@@ -8460,8 +8460,8 @@ function drawCastleDefenseBuildings(layer) {
       ctx.fill();
     } else if (b.kind === 'repair_stn') {
       // === REPAIR STATION — anvil + green aura ===
-      // Aura
-      if (b.radius) {
+      // v1.419: Aura visas BARA när player står PÅ stn (konsistens m. turret/frost)
+      if (b.radius && showRangeRing) {
         const pulseR = 0.12 + Math.sin(t * 3) * 0.08;
         const auraGrad = ctx.createRadialGradient(bcx, bcy, 0, bcx, bcy, b.radius);
         auraGrad.addColorStop(0, 'rgba(90,255,90,' + pulseR + ')');
@@ -8499,8 +8499,8 @@ function drawCastleDefenseBuildings(layer) {
       ctx.globalAlpha = 1;
     } else if (b.kind === 'health_stn') {
       // === HEALTH STATION — red cross banner ===
-      // Aura
-      if (b.radius) {
+      // v1.419: Aura visas BARA när player står PÅ stn (konsistens m. turret/frost)
+      if (b.radius && showRangeRing) {
         const pulseH = 0.15 + Math.sin(t * 2.5) * 0.1;
         const auraGrad = ctx.createRadialGradient(bcx, bcy, 0, bcx, bcy, b.radius);
         auraGrad.addColorStop(0, 'rgba(255,90,90,' + pulseH + ')');
@@ -8623,6 +8623,39 @@ function drawCastleDefenseSpawnMarkers() {
     ctx.moveTo(x - 6, y + 6); ctx.lineTo(x + 6, y - 6);
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+// v1.419: ghost-preview för pin-drag — ritar pin-cursor vid finger-position
+// medan användaren håller pin-knappen + drar. Klart visuell feedback om var
+// pinnen kommer landa.
+function drawCastleDefensePinGhost() {
+  if (!state.castledefenseActive) return;
+  const d = state._cdPinDrag;
+  if (!d || !d.moved) return;
+  ctx.save();
+  const t = performance.now() / 1000;
+  const pulse = 0.5 + Math.sin(t * 4) * 0.3;
+  // Yttre ring
+  ctx.strokeStyle = 'rgba(90,255,210,' + pulse + ')';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(d.x, d.y, 22, 0, Math.PI * 2);
+  ctx.stroke();
+  // Inre fyllning
+  ctx.fillStyle = 'rgba(90,200,255,0.45)';
+  ctx.beginPath();
+  ctx.arc(d.x, d.y, 9, 0, Math.PI * 2);
+  ctx.fill();
+  // Pin-emoji centrerad
+  ctx.font = 'bold 18px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#fff';
+  ctx.shadowColor = '#000';
+  ctx.shadowBlur = 4;
+  ctx.fillText('📍', d.x, d.y);
+  ctx.shadowBlur = 0;
   ctx.restore();
 }
 
@@ -28453,21 +28486,50 @@ function showCastleDefenseHud() {
     infBtn.onclick = (e) => { e.preventDefault(); tryCdInfMoney(); };
     document.body.appendChild(infBtn);
   }
-  // v1.418: Ping-knapp — liten 38×38 (matchar #btn-weapon-menu), placerad till
-  // VÄNSTER om vapenknappen under minimapen. Klick → enter "pin-select-mode" →
-  // nästa tap på map väljer pinnens position. Andra klick avbryter.
+  // v1.418/v1.419: Pin-knapp — 38×38 (matchar vapen-knapp), placerad vänster om
+  // vapenknappen. TVÅ patterns: (1) tap = enter pin-select-mode (next tap placerar),
+  // (2) hold + drag + release = direkt placera vid release-pos (med ghost-preview).
   let pingBtn = document.getElementById('cd-ping-btn');
   if (!pingBtn) {
     pingBtn = document.createElement('button');
     pingBtn.id = 'cd-ping-btn';
-    // Position: top:176 (samma höjd som vapen-knapp), right:56 (12 + 38 + 6 gap)
-    pingBtn.style.cssText = 'position:fixed !important;top:176px !important;right:56px !important;left:auto !important;bottom:auto !important;width:38px !important;height:38px !important;background:radial-gradient(circle at 30% 30%, rgba(90,200,255,0.35), rgba(0,0,0,0.55));border:2px solid #5acaff;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:16px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 0 8px rgba(90,200,255,0.2);display:flex;align-items:center;justify-content:center;padding:0;touch-action:manipulation;transition:transform 0.12s ease, background 0.15s, box-shadow 0.15s;';
+    pingBtn.style.cssText = 'position:fixed !important;top:176px !important;right:56px !important;left:auto !important;bottom:auto !important;width:38px !important;height:38px !important;background:radial-gradient(circle at 30% 30%, rgba(90,200,255,0.35), rgba(0,0,0,0.55));border:2px solid #5acaff;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:16px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 0 8px rgba(90,200,255,0.2);display:flex;align-items:center;justify-content:center;padding:0;touch-action:none;transition:transform 0.12s ease, background 0.15s, box-shadow 0.15s;';
     pingBtn.innerHTML = '📍';
-    pingBtn.title = 'Sätt pin på karta';
-    pingBtn.onpointerdown = () => { pingBtn.style.transform = 'scale(0.9)'; };
-    pingBtn.onpointerup = () => { pingBtn.style.transform = ''; };
-    pingBtn.onpointerleave = () => { pingBtn.style.transform = ''; };
-    pingBtn.onclick = (e) => { e.preventDefault(); toggleCdPinSelectMode(); };
+    pingBtn.title = 'Tap = select-mode · Hold+drag = direkt placera';
+    pingBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      pingBtn.style.transform = 'scale(0.9)';
+      state._cdPinDrag = {
+        startX: e.clientX, startY: e.clientY,
+        x: e.clientX, y: e.clientY,
+        pointerId: e.pointerId,
+        moved: false,
+      };
+      try { pingBtn.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    pingBtn.addEventListener('pointermove', (e) => {
+      const d = state._cdPinDrag;
+      if (!d || d.pointerId !== e.pointerId) return;
+      d.x = e.clientX; d.y = e.clientY;
+      const dx = d.x - d.startX, dy = d.y - d.startY;
+      if (dx * dx + dy * dy > 10 * 10) d.moved = true;
+    });
+    const finishDrag = (e) => {
+      const d = state._cdPinDrag;
+      if (!d || d.pointerId !== e.pointerId) return;
+      pingBtn.style.transform = '';
+      try { pingBtn.releasePointerCapture(e.pointerId); } catch (_) {}
+      state._cdPinDrag = null;
+      if (d.moved) {
+        // Hold+drag+release → placera pin direkt vid release-pos
+        if (typeof placeCdPinAtScreen === 'function') placeCdPinAtScreen(d.x, d.y);
+      } else {
+        // Tap → toggle select-mode
+        toggleCdPinSelectMode();
+      }
+    };
+    pingBtn.addEventListener('pointerup', finishDrag);
+    pingBtn.addEventListener('pointercancel', finishDrag);
     document.body.appendChild(pingBtn);
   }
   // v1.411: Sell-knapp (visas vid EGEN byggnad i närhet) — separat liten chip
@@ -29369,6 +29431,14 @@ function tryCdPing(worldX, worldY) {
 }
 function handleCdPinSelectTap(clientX, clientY) {
   if (!state.cdPinSelectMode || !state.castledefenseActive) return false;
+  const ok = placeCdPinAtScreen(clientX, clientY);
+  if (ok) toggleCdPinSelectMode();
+  return ok;
+}
+// v1.419: placerar pin direkt vid screen-pos (utan att kräva select-mode).
+// Används av hold+drag+release-flow.
+function placeCdPinAtScreen(clientX, clientY) {
+  if (!state.castledefenseActive) return false;
   // Försök först minimap — om tap är inom minimap-rektangeln, översätt minimap→world
   const mm = state._minimapHitbox;
   if (mm && clientX >= mm.x && clientX <= mm.x + mm.w &&
@@ -29377,15 +29447,13 @@ function handleCdPinSelectTap(clientX, clientY) {
     const worldX = (clientX - xf.ox) / xf.scale;
     const worldY = (clientY - xf.oy) / xf.scale;
     tryCdPing(worldX, worldY);
-    toggleCdPinSelectMode();
     return true;
   }
-  // Annars: world-canvas-tap. Lägg till camera-offset.
+  // Annars: world-canvas — lägg till camera-offset.
   if (state.camera) {
     const worldX = clientX + state.camera.x;
     const worldY = clientY + state.camera.y;
     tryCdPing(worldX, worldY);
-    toggleCdPinSelectMode();
     return true;
   }
   return false;
@@ -42575,6 +42643,7 @@ function render() {
     drawCastleDefenseDecorationsTop();         // träd-kronor, fackel-flammor, banderoll-tyg
     drawCastleDefenseHealParticles();          // heal-particles från health_stn
     if (typeof drawCastleDefensePings === 'function') drawCastleDefensePings();
+    if (typeof drawCastleDefensePinGhost === 'function') drawCastleDefensePinGhost();
     if (typeof drawCdBuildGhost === 'function') drawCdBuildGhost();
   }
   // GRENADE-render ALLTID PÅ TOPP — efter walls/träd/tak så granaten aldrig hamnar
@@ -43932,8 +44001,8 @@ function drawOffScreenGoalArrow() {
   const stage = getStage(state.wave);
   if (!stage || stage.isBoss) return;
   if (state.enemiesToSpawn > 0 || state.enemies.length > 0) return;
-  // Inga "UTGÅNG"-pilar i PvP-modes — story-only feature
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive) return;
+  // Inga "UTGÅNG"-pilar i PvP-modes + castledefense — story-only feature
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.castledefenseActive) return;
   const cx = state.camera.x, cy = state.camera.y;
   const gx = stage.goalPos.x - cx, gy = stage.goalPos.y - cy;
   // utanför skärmen?
