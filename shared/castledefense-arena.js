@@ -110,7 +110,28 @@ const CASTLEDEFENSE_ARENA = {
   maxHp: 100,
   startShield: 0,
   maxShield: 0,
-  startWeapon: 'rifle',
+  startWeapon: 'pistol',           // v1.401: börjar med pistol, progresserar via boss-kills
+  startGrenades: 2,                // 2 grenades vid match-start
+
+  // === VAPENPROGRESSION (v1.401) ===
+  // 12 vapen. Start = tier 0 (pistol). Varje boss-kill ger +1 tier.
+  // Plockad ur GG-listan med de svagaste (shuriken, burstpistol, sonic) borttagna.
+  weaponProgression: [
+    'pistol',      // 0 — start
+    'shotgun',     // 1 — boss 1 (wave 5)
+    'revolver',    // 2 — boss 2 (wave 10)
+    'smg',         // 3 — boss 3 (wave 15)
+    'bow',         // 4 — boss 4 (wave 20)
+    'crossbow',    // 5 — boss 5 (wave 25)
+    'rifle',       // 6 — boss 6 (wave 30)
+    'sniper',      // 7 — boss 7 (wave 35)
+    'plasma',      // 8 — boss 8 (wave 40)
+    'minigun',     // 9 — boss 9 (wave 45)
+    'rocket',      // 10 — boss 10 (wave 50)
+    'sledge',      // 11 — boss 11 (wave 55) — final
+  ],
+  // Grenades per cleared wave (v1.401)
+  grenadesPerWave: 2,
 
   // === DOWN-STATE (fas 6) ===
   downBleedoutSec: 25,

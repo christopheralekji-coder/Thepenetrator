@@ -161,6 +161,7 @@ function createSim(room) {
     castledefenseBuildings: [],            // [{ id, kind, x, y, w, h, hp, maxHp, ownerPid, ...kind-specific }]
     castledefenseScores: {},               // peerId → kills
     castledefenseGold: {},                 // peerId → per-match gold (för byggande, ej save.gold)
+    castledefenseWeaponTier: {},           // peerId → vapen-tier (0 = pistol, 11 = sledge)
     castledefenseDownedPids: [],           // pids som är down (Phase 6)
     castledefenseRevivedCount: 0,
     _cdBuildIdCounter: 0,
@@ -2587,6 +2588,9 @@ function tickCastleDefense(sim, dt, now) {
       e._idx = sim.nextEnemyIdx++;
       e._cdEnemy = true;
       cdMaybeAssignFlyer(e);
+      // v1.401: ~50% av enemies går efter player istället för buildings/core.
+      // Bossar har ej role (egen AI). Skapar utmaning + tvingar player att flytta sig.
+      e._cdRole = Math.random() < 0.5 ? 'attacker' : 'siege';
       sim.enemies.push(e);
       sim._cdWaveSpawnsRemaining -= 1;
       // Spawn-rate: snabbare i senare vågor
@@ -2604,14 +2608,21 @@ function tickCastleDefense(sim, dt, now) {
   updateCastleDefenseDownState(sim, dt, nowMs);
 
   // === ENEMY AI + COLLISION + ATTACK ===
-  // v1.400: Fienderna targetar i FÖRSTA HAND närmaste player-built solid building
-  // (väggar/torn/stations). När all defenses förstörda → core. Flyers/bossar går
-  // rakt mot core (de bypassar walls). Ranged går mot nearest building och skjuter
-  // (bullets stoppas av wall → wall tar dmg).
+  // v1.401: Fienderna delas i två roller:
+  //  - 'siege' (50%): targetar närmaste player-built solid building → core
+  //  - 'attacker' (50%): targetar närmaste LEVANDE player → core
+  //  Flyers + bossar går alltid rakt mot core (för dramatik).
   const corePos = sim.castledefenseCore;
   // Pre-compute lista av solida buildings (samma filter som collision)
   const cdSolidsForTarget = cdLiveBuildings.filter(b =>
     b.kind !== 'spike_trap' && b.kind !== 'slow_trap');
+  // Pre-compute alive players (real, not bots — bots are members too)
+  const cdAlivePlayers = [];
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    if (ws.playerState.cdDowned) continue; // downed räknas inte som mål
+    cdAlivePlayers.push({ peerId: pid, x: ws.playerState.x, y: ws.playerState.y });
+  }
   for (const e of sim.enemies) {
     if (e.dead) continue;
     let target;
@@ -2622,6 +2633,34 @@ function tickCastleDefense(sim, dt, now) {
         x: corePos.x, y: corePos.y,
         hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
       } : { x: 2000, y: 2000, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
+    } else if (e._cdRole === 'attacker' && cdAlivePlayers.length > 0) {
+      // Attacker: target nearest alive player
+      let bestPlayer = null, bestPD2 = Infinity;
+      for (const p of cdAlivePlayers) {
+        const dx = p.x - e.x, dy = p.y - e.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < bestPD2) { bestPD2 = d2; bestPlayer = p; }
+      }
+      if (bestPlayer) {
+        // Reset aim om target bytte (annars sniper låser på död spelare)
+        const newTargetId = '__player_' + bestPlayer.peerId;
+        if (e._cdLastTargetId && e._cdLastTargetId !== newTargetId) {
+          e.aiming = false; e.aimAt = 0;
+        }
+        e._cdLastTargetId = newTargetId;
+        target = {
+          peerId: newTargetId, _isCoreTarget: false,
+          x: bestPlayer.x, y: bestPlayer.y,
+          hp: 99999, maxHp: 99999, invulnUntil: 0, r: 14,
+        };
+      } else {
+        // Fallback: core
+        target = corePos ? {
+          peerId: '__core__', _isCoreTarget: true,
+          x: corePos.x, y: corePos.y,
+          hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
+        } : null;
+      }
     } else {
       // Andra fiender: hitta NÄRMSTA player-built solid building som är "på vägen"
       // mot core (filter: building är närmare core än enemy). Annars skulle shooters
@@ -2832,8 +2871,27 @@ function tickCastleDefense(sim, dt, now) {
       if (!e.dead) continue;
       // Drop pickup (gold etc.) — använd standard pipeline
       dropFromEnemyDeath(sim, e);
-      // Nollställ bossAlive när CD-boss dör (annars läcker flagga vid mode-switch)
-      if (e.isBoss) sim.bossAlive = false;
+      // v1.401: Boss-kill = weapon upgrade för ALLA levande spelare
+      if (e.isBoss) {
+        sim.bossAlive = false;
+        const progression = arena.weaponProgression || ['pistol'];
+        for (const [pid, ws] of sim.room.members) {
+          if (!ws.playerState) continue;
+          const oldTier = sim.castledefenseWeaponTier[pid] || 0;
+          const newTier = Math.min(progression.length - 1, oldTier + 1);
+          if (newTier !== oldTier) {
+            sim.castledefenseWeaponTier[pid] = newTier;
+            const newWeapon = progression[newTier];
+            ws.playerState.weaponId = newWeapon;
+            sim.eventQueue.push({
+              type: 'cd_weapon_upgraded',
+              peerId: pid,
+              tier: newTier,
+              weaponId: newWeapon,
+            });
+          }
+        }
+      }
       sim.eventQueue.push({
         type: 'enemy_killed',
         i: e._idx,
@@ -2891,8 +2949,9 @@ function tickCastleDefense(sim, dt, now) {
       nextIsBoss,
       nextWave,
     });
-    // Wave-clear gold-bonus så player kan bygga inför nästa våg
+    // Wave-clear gold-bonus + grenades så player kan bygga + få granater inför nästa våg
     const bonus = (arena.waveBonusBase || 150) + sim.castledefenseWave * (arena.waveBonusPerWave || 30);
+    const grenadeGrant = arena.grenadesPerWave || 2;
     for (const [pid] of sim.room.members) {
       sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + bonus;
       sim.eventQueue.push({
@@ -2900,6 +2959,7 @@ function tickCastleDefense(sim, dt, now) {
         peerId: pid,
         gold: bonus,
         totalGold: sim.castledefenseGold[pid],
+        grenades: grenadeGrant,
         wave: sim.castledefenseWave,
       });
     }
@@ -3701,6 +3761,7 @@ function startSim(sim, opts) {
   sim.castledefenseBuildings = [];
   sim.castledefenseScores = {};
   sim.castledefenseGold = {};
+  sim.castledefenseWeaponTier = {};
   sim.castledefenseDownedPids = [];
   sim.castledefenseRevivedCount = 0;
   sim._cdBuildIdCounter = 0;
@@ -4346,6 +4407,9 @@ function startSim(sim, opts) {
       // Castle Defense gold är per-match (inte save.gold). Lagras på sim per peerId.
       sim.castledefenseGold = sim.castledefenseGold || {};
       sim.castledefenseGold[pid] = arena.startGold || 400;
+      // v1.401: vapen-tier startar på 0 (pistol)
+      sim.castledefenseWeaponTier = sim.castledefenseWeaponTier || {};
+      sim.castledefenseWeaponTier[pid] = 0;
       cdIdx++;
     }
     sim.eventQueue.push({
@@ -4360,6 +4424,9 @@ function startSim(sim, opts) {
         plazaRadius: arena.plazaRadius,
         centerX: arena.centerX,
         centerY: arena.centerY,
+        startWeapon: arena.startWeapon,
+        startGrenades: arena.startGrenades,
+        weaponProgression: arena.weaponProgression,
       },
       walls: [],                          // v1.397: ingen pre-built
       core: { ...sim.castledefenseCore },

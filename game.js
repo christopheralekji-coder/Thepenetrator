@@ -18153,6 +18153,15 @@ const Coop = {
         state.player.speedMul = 1.0;
         state.player.dashCdMs = null;
         state.player.spectating = false;
+        // v1.401: pistol-start + 2 start-granater
+        const cdStartWeapon = (ev.arena && ev.arena.startWeapon) || 'pistol';
+        state.player.weaponId = cdStartWeapon;
+        if (!state._cdOwnedBackup) state._cdOwnedBackup = save.owned ? save.owned.slice() : ['fists'];
+        if (state._cdEquippedBackup === undefined) state._cdEquippedBackup = save.equipped || 'fists';
+        save.owned = ['fists', 'knife', cdStartWeapon];
+        save.equipped = cdStartWeapon;
+        save.weaponId = cdStartWeapon;
+        if (typeof setGrenadeCount === 'function') setGrenadeCount(ev.arena && ev.arena.startGrenades || 2);
       }
       // Synka maxHp på partners
       for (const [pid, partner] of this.players) {
@@ -18267,10 +18276,37 @@ const Coop = {
       state.castledefenseWaveBetweenEndAt = ev.waveBetweenEndAt;
       if (typeof updateCastleDefenseHud === 'function') updateCastleDefenseHud();
     } else if (ev.type === 'cd_wave_bonus') {
-      // { peerId, gold, totalGold, wave }
+      // { peerId, gold, totalGold, grenades, wave }
       if (ev.peerId === this.myId) {
         state.castledefenseGold = ev.totalGold;
-        if (typeof showToast === 'function') showToast('💰 +' + ev.gold + ' bonus (våg ' + ev.wave + ' klar)');
+        // v1.401: + 2 granater per wave
+        if (ev.grenades > 0 && typeof setGrenadeCount === 'function' && typeof getGrenadeCount === 'function') {
+          setGrenadeCount(getGrenadeCount() + ev.grenades);
+        }
+        if (typeof showToast === 'function') {
+          showToast('💰 +' + ev.gold + ' · 💣 +' + (ev.grenades || 0) + ' (våg ' + ev.wave + ' klar)');
+        }
+      }
+    } else if (ev.type === 'cd_weapon_upgraded') {
+      // { peerId, tier, weaponId } — boss-kill upgrade
+      if (ev.peerId === this.myId && state.player) {
+        state.player.weaponId = ev.weaponId;
+        save.equipped = ev.weaponId;
+        save.weaponId = ev.weaponId;
+        if (!Array.isArray(save.owned)) save.owned = ['fists', 'knife'];
+        if (!save.owned.includes(ev.weaponId)) save.owned.push(ev.weaponId);
+        // Reset ammo + reload-state
+        if (typeof W_BY_ID !== 'undefined' && W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) {
+          state.player.ammo = W_BY_ID[ev.weaponId].mag;
+        }
+        state.player.reloading = false;
+        if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+        if (typeof updateHUD === 'function') updateHUD();
+        const wName = (typeof W_BY_ID !== 'undefined' && W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].name) || ev.weaponId;
+        if (typeof showToast === 'function') {
+          showToast('⬆ VAPENUPPGRADERING: ' + wName.toUpperCase() + ' (tier ' + (ev.tier + 1) + ')');
+        }
+        if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
       }
     } else if (ev.type === 'cd_gold_update') {
       // { peerId, gold, delta }
@@ -27792,6 +27828,18 @@ function clearCastleDefenseState() {
   // Remove ev. defeat-overlay
   const defeatOverlay = document.getElementById('cd-defeat-overlay');
   if (defeatOverlay && defeatOverlay.parentNode) defeatOverlay.parentNode.removeChild(defeatOverlay);
+  // v1.401: Restore weapon-state + reset grenades efter CD-match
+  if (state._cdOwnedBackup) {
+    save.owned = state._cdOwnedBackup;
+    state._cdOwnedBackup = null;
+  }
+  if (state._cdEquippedBackup !== undefined) {
+    save.equipped = state._cdEquippedBackup;
+    save.weaponId = state._cdEquippedBackup;
+    state._cdEquippedBackup = undefined;
+  }
+  // Reset grenade-count så CD-grenades inte läcker till nästa mode
+  if (typeof setGrenadeCount === 'function') setGrenadeCount(0);
 }
 
 function updateBrHud() {
@@ -41431,11 +41479,13 @@ function render() {
     if (typeof drawBrCabinInteriors === 'function') drawBrCabinInteriors();
   }
   // CASTLE DEFENSE — EARLY pass (innan player). Ground, dekorationer på marken,
-  // spike/slow-traps (flat objects), spawn-markers. Player kan gå OVANPÅ dessa.
+  // spike/slow-traps (flat objects), spawn-markers, CORE (obelisk på marken).
+  // Player kan gå OVANPÅ dessa visuellt (collision håller dem ändå utanför core).
   if (state.castledefenseActive) {
     drawCastleDefenseGround();
     drawCastleDefenseDecorationsGround();
     drawCastleDefenseBuildings('ground');     // bara spike/slow traps
+    drawCastleDefenseCore();                  // obelisk-shrine (v1.401: under entities)
     drawCastleDefenseSpawnMarkers();
   }
   drawHazards();
@@ -41561,11 +41611,10 @@ function render() {
     drawBrOutsideWarning();
   }
   // CASTLE DEFENSE — LATE pass (efter player). Tall objects + effects.
-  // (Ground-pass ritas tidigare — se early-render-block i runFrame nedan.)
+  // v1.401: CORE flyttad till EARLY pass (ritas under players/enemies) per user-feedback.
   if (state.castledefenseActive) {
     drawCastleDefenseWalls();                  // legacy pre-built (tomt nu)
     drawCastleDefenseBuildings('tall');        // walls, turrets, stations
-    drawCastleDefenseCore();                   // obelisk-shrine
     drawCastleDefenseDecorationsTop();         // träd-kronor, fackel-flammor, banderoll-tyg
     drawCastleDefenseHealParticles();          // heal-particles från health_stn
     if (typeof drawCdBuildGhost === 'function') drawCdBuildGhost();
