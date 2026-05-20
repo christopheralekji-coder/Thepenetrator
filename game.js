@@ -28132,10 +28132,27 @@ function showCastleDefenseHud() {
     infBtn.onclick = (e) => { e.preventDefault(); tryCdInfMoney(); };
     document.body.appendChild(infBtn);
   }
+  // v1.408: kontext-action-knapp (mobile + desktop). Visar "🔧 REPAIR" om
+  // skadad byggnad är nära, annars "⬆ UPGRADE" om full + upgradable, annars dold.
+  let actBtn = document.getElementById('cd-action-btn');
+  if (!actBtn) {
+    actBtn = document.createElement('button');
+    actBtn.id = 'cd-action-btn';
+    // Position: vänster sida bottom, mellan emote och bygg-area
+    actBtn.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 200px) !important;bottom:14px !important;top:auto !important;right:auto !important;width:64px !important;height:52px !important;background:linear-gradient(180deg,#3a8a4a 0%,#1a4a2a 100%);border:2px solid #5aff5a;border-radius:10px;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:10px;line-height:1.1;letter-spacing:0.5px;box-shadow:0 3px 8px rgba(0,0,0,0.5);display:none;flex-direction:column;align-items:center;justify-content:center;padding:0;touch-action:manipulation;';
+    actBtn.innerHTML = '🔧<br><span id="cd-action-label" style="font-size:9px;">REPAIR</span><br><span id="cd-action-cost" style="font-size:9px;color:#ffd54a;">10g</span>';
+    actBtn.onclick = (e) => {
+      e.preventDefault();
+      const mode = actBtn.dataset.mode;
+      if (mode === 'repair') tryCdRepair();
+      else if (mode === 'upgrade') tryCdUpgrade();
+    };
+    document.body.appendChild(actBtn);
+  }
 }
 function hideCastleDefenseHud() {
   _stopCastleDefenseHudInterval();
-  const ids = ['cd-hud', 'cd-inf-money']; // v1.407: + debug-money-knapp
+  const ids = ['cd-hud', 'cd-inf-money', 'cd-action-btn']; // v1.408: + action-btn
   for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
@@ -28171,6 +28188,60 @@ function updateCastleDefenseHud() {
     if (cdEl) cdEl.style.display = 'none';
   }
   // v1.406: gold-display sker i befintliga goldInfo (över minimap) — se updateHUD
+  // v1.408: kontext-action-knapp uppdatering — visa REPAIR om skadad i närhet,
+  // UPGRADE om full+upgradable, annars dölj.
+  const actBtn = document.getElementById('cd-action-btn');
+  if (actBtn && state.player) {
+    const px = state.player.x, py = state.player.y;
+    let damagedTarget = null;
+    let upgradeTarget = null;
+    const checkObj = (obj) => {
+      if (obj.hp <= 0) return null;
+      const cx = Math.max(obj.x, Math.min(px, obj.x + obj.w));
+      const cy = Math.max(obj.y, Math.min(py, obj.y + obj.h));
+      const dx = px - cx, dy = py - cy;
+      if (dx * dx + dy * dy < 50 * 50) return obj;
+      return null;
+    };
+    if (state.castledefenseWalls) {
+      for (const w of state.castledefenseWalls) {
+        if (w.hp >= w.maxHp) continue;
+        if (checkObj(w)) { damagedTarget = w; break; }
+      }
+    }
+    if (state.castledefenseBuildings) {
+      for (const b of state.castledefenseBuildings) {
+        if (!checkObj(b)) continue;
+        if (b.hp < b.maxHp) {
+          if (!damagedTarget) damagedTarget = b;
+        } else if (b.kind !== 'spike_trap' && (b.level || 0) < 9) {
+          if (!upgradeTarget) upgradeTarget = b;
+        }
+      }
+    }
+    const labelEl = document.getElementById('cd-action-label');
+    const costEl = document.getElementById('cd-action-cost');
+    if (damagedTarget) {
+      actBtn.style.display = 'flex';
+      actBtn.dataset.mode = 'repair';
+      actBtn.style.background = 'linear-gradient(180deg,#3a8a4a 0%,#1a4a2a 100%)';
+      actBtn.style.borderColor = '#5aff5a';
+      actBtn.innerHTML = '🔧<br><span style="font-size:9px;">REPAIR</span><br><span style="font-size:9px;color:#ffd54a;">10g</span>';
+    } else if (upgradeTarget) {
+      const arena = CASTLEDEFENSE_ARENA;
+      const baseCost = (arena && arena.buildables[upgradeTarget.kind] && arena.buildables[upgradeTarget.kind].cost) || 0;
+      const upMul = (arena && arena.upgradeCostMul) || 0.4;
+      const lvl = upgradeTarget.level || 0;
+      const cost = Math.round(baseCost * upMul * (lvl + 1));
+      actBtn.style.display = 'flex';
+      actBtn.dataset.mode = 'upgrade';
+      actBtn.style.background = 'linear-gradient(180deg,#3a5aaa 0%,#1a2a6a 100%)';
+      actBtn.style.borderColor = '#5acaff';
+      actBtn.innerHTML = '⬆<br><span style="font-size:9px;">L' + (lvl + 2) + '</span><br><span style="font-size:9px;color:#ffd54a;">' + cost + 'g</span>';
+    } else {
+      actBtn.style.display = 'none';
+    }
+  }
 }
 function _startCastleDefenseHudInterval() {
   if (_cdHudInterval) return;
