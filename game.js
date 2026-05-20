@@ -8205,9 +8205,29 @@ function drawCastleDefenseBuildings(layer) {
       ctx.arc(-3, 0, 1.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-      // Muzzle-flash om nyss skjutit (b._fireCd nära 0 = just fyrade)
-      // Vi har inte tillgång till server-side _fireCd, men kan approxa med kill-events
-      // — skip för enkelhet i nu, kanske polish senare
+      // v1.415: Muzzle-flash från cd_turret_fired event
+      const flash = state._cdTurretFlash && state._cdTurretFlash[b.id];
+      if (flash && performance.now() < flash.until) {
+        const flashAlpha = (flash.until - performance.now()) / 90;
+        ctx.save();
+        ctx.translate(bcx, bcy);
+        ctx.rotate(flash.ang || aimAng);
+        // Bright flash-cone at barrel-tip
+        const flashGrad = ctx.createRadialGradient(b.w / 2 + 6, 0, 0, b.w / 2 + 6, 0, 14);
+        flashGrad.addColorStop(0, 'rgba(255,255,180,' + (flashAlpha * 0.95) + ')');
+        flashGrad.addColorStop(0.4, 'rgba(255,200,80,' + (flashAlpha * 0.6) + ')');
+        flashGrad.addColorStop(1, 'rgba(255,160,40,0)');
+        ctx.fillStyle = flashGrad;
+        ctx.beginPath();
+        ctx.arc(b.w / 2 + 6, 0, 14, 0, Math.PI * 2);
+        ctx.fill();
+        // Inner-bright core
+        ctx.fillStyle = 'rgba(255,255,255,' + (flashAlpha * 0.9) + ')';
+        ctx.beginPath();
+        ctx.arc(b.w / 2 + 4, 0, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
     } else if (b.kind === 'man_turret') {
       // === MAN-TURRET — stor ballista med säte ===
       ctx.fillStyle = '#3a2a18';
@@ -18232,9 +18252,15 @@ const Coop = {
       if (typeof Audio !== 'undefined' && Audio.waveStart) Audio.waveStart();
       if (isBoss && typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
     } else if (ev.type === 'cd_wave_complete') {
-      // { wave, nextWaveInSec, nextIsBoss, nextWave }
+      // { wave, nextWaveInSec, nextIsBoss, nextWave, nextPool, nextCount, nextBossKey }
       state.castledefenseWaveState = 'between';
       state.castledefenseWaveBetweenEndAt = Date.now() + (ev.nextWaveInSec || 8) * 1000;
+      // v1.415: spara wave-preview för rendering under between-state
+      state.castledefenseNextWave = ev.nextWave;
+      state.castledefenseNextPool = ev.nextPool || [];
+      state.castledefenseNextCount = ev.nextCount || 0;
+      state.castledefenseNextIsBoss = ev.nextIsBoss;
+      state.castledefenseNextBossKey = ev.nextBossKey;
       if (typeof showToast === 'function') showToast('✓ Våg ' + ev.wave + ' klar — bygg/repair!');
       if (ev.nextIsBoss && typeof showToast === 'function') {
         setTimeout(() => showToast('⚠ BOSS-VÅG om ' + (ev.nextWaveInSec || 8) + 's — förbered!'), 1500);
@@ -18274,15 +18300,31 @@ const Coop = {
           if (typeof ev.shield === 'number') partner.shield = ev.shield;
         }
       }
+    } else if (ev.type === 'cd_turret_fired') {
+      // { id, x, y, ang } — v1.415: muzzle-flash + sound feedback
+      if (!state._cdTurretFlash) state._cdTurretFlash = {};
+      state._cdTurretFlash[ev.id] = { until: performance.now() + 90, ang: ev.ang };
+      // Subtle audio cue — använd befintlig audio om finns
+      if (typeof Audio !== 'undefined' && Audio.shotSmall) {
+        // Throttle audio så det inte spammar (max 1 ljud per 80ms över alla turrets)
+        const now = performance.now();
+        if (!state._cdLastTurretAudio || now - state._cdLastTurretAudio > 80) {
+          state._cdLastTurretAudio = now;
+          Audio.shotSmall();
+        }
+      }
     } else if (ev.type === 'cd_turret_dmg') {
       // { x, y, dmg } — auto-turret hit ENEMY (visa floating damage-number)
       if (typeof spawnDamageNumber === 'function') {
         spawnDamageNumber(ev.x, ev.y - 20, ev.dmg, false);
       }
     } else if (ev.type === 'cd_building_placed') {
-      // { id, kind, x, y, w, h, hp, maxHp, ownerPid }
+      // { id, kind, x, y, w, h, hp, maxHp, ownerPid, totalInvested }
       if (state.castledefenseBuildings) {
-        state.castledefenseBuildings.push({ ...ev });
+        const newBuilding = { ...ev };
+        // v1.415: normalisera totalInvested → _totalInvested för repair-cost calc
+        if (ev.totalInvested != null) newBuilding._totalInvested = ev.totalInvested;
+        state.castledefenseBuildings.push(newBuilding);
       }
       // v1.403: ägaren får build-mode cleared. Med hold-drag-release radial-pattern
       // (matchar weapon-knappen) krävs ny pointer-hold för nästa placering — så
@@ -18441,7 +18483,7 @@ const Coop = {
         if (typeof showToast === 'function') showToast('♻ RESPAWN — våg ' + ev.wave);
       }
     } else if (ev.type === 'cd_building_upgraded') {
-      // { id, level, peerId, hp, maxHp, dps, range, healPerSec, playerHealPerSec, dmgOnPass, upgradeCost }
+      // { id, level, peerId, hp, maxHp, dps, range, healPerSec, playerHealPerSec, dmgOnPass, upgradeCost, totalInvested }
       if (state.castledefenseBuildings) {
         for (const b of state.castledefenseBuildings) {
           if (b.id === ev.id) {
@@ -18452,6 +18494,7 @@ const Coop = {
             if (typeof ev.healPerSec === 'number') b.healPerSec = ev.healPerSec;
             if (typeof ev.playerHealPerSec === 'number') b.playerHealPerSec = ev.playerHealPerSec;
             if (typeof ev.dmgOnPass === 'number') b.dmgOnPass = ev.dmgOnPass;
+            if (typeof ev.totalInvested === 'number') b._totalInvested = ev.totalInvested;
             break;
           }
         }
@@ -28146,6 +28189,14 @@ function _stopBrHudInterval() {
 let _cdHudInterval = null;
 function showCastleDefenseHud() {
   _startCastleDefenseHudInterval();
+  // v1.415: kompakt wave-preview-pill direkt under scorebar
+  let prevEl = document.getElementById('cd-wave-preview');
+  if (!prevEl) {
+    prevEl = document.createElement('div');
+    prevEl.id = 'cd-wave-preview';
+    prevEl.style.cssText = 'position:fixed;top:calc(max(4px, env(safe-area-inset-top)) + 28px);left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.62);border:1px solid #5acaff;border-radius:10px;padding:2px 10px;color:#fff;font-family:sans-serif;font-size:10px;letter-spacing:0.3px;z-index:80;pointer-events:none;display:none;align-items:center;gap:5px;';
+    document.body.appendChild(prevEl);
+  }
   let el = document.getElementById('cd-hud');
   if (!el) {
     el = document.createElement('div');
@@ -28208,7 +28259,7 @@ function showCastleDefenseHud() {
 }
 function hideCastleDefenseHud() {
   _stopCastleDefenseHudInterval();
-  const ids = ['cd-hud', 'cd-inf-money', 'cd-action-btn', 'cd-sell-btn']; // v1.411: + sell-btn
+  const ids = ['cd-hud', 'cd-wave-preview', 'cd-inf-money', 'cd-action-btn', 'cd-sell-btn'];
   for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
@@ -28244,6 +28295,24 @@ function updateCastleDefenseHud() {
     if (cdEl) cdEl.style.display = 'none';
   }
   // v1.406: gold-display sker i befintliga goldInfo (över minimap) — se updateHUD
+  // v1.415: Wave-preview — visa next wave's enemies under between-state
+  const prevEl = document.getElementById('cd-wave-preview');
+  if (prevEl) {
+    if (state.castledefenseWaveState === 'between' && state.castledefenseNextPool && state.castledefenseNextPool.length > 0) {
+      const iconMap = {
+        grunt: '🧟', runner: '🏃', brute: '🦣', swordsman: '⚔', shooter: '🔫',
+        soldier: '💂', bomber: '💣', swarmer: '🐝', sniper: '🎯', ninja: '🥷',
+      };
+      const w = state.castledefenseNextWave || (state.castledefenseWave + 1);
+      const cnt = state.castledefenseNextCount || 0;
+      const bossPart = state.castledefenseNextIsBoss ? '<span style="color:#ff5a5a;">👹</span>' : '';
+      const icons = state.castledefenseNextPool.map(t => iconMap[t] || '⚪').join('');
+      prevEl.innerHTML = '<span style="color:#888;">VÅG ' + w + ':</span> <span>' + icons + '</span><span style="color:#5acaff;">×' + cnt + '</span>' + (bossPart ? ' ' + bossPart : '');
+      prevEl.style.display = 'flex';
+    } else {
+      prevEl.style.display = 'none';
+    }
+  }
   // v1.408: kontext-action-knapp uppdatering — visa REPAIR om skadad i närhet,
   // UPGRADE om full+upgradable, annars dölj.
   const actBtn = document.getElementById('cd-action-btn');
@@ -28278,15 +28347,22 @@ function updateCastleDefenseHud() {
     const iconEl = document.getElementById('cd-action-icon');
     const badgeEl = document.getElementById('cd-action-badge');
     if (damagedTarget) {
-      if (actBtn.dataset.mode !== 'repair') {
+      // v1.415: Beräkna dynamisk repair-cost = 0.75 × invest × dmgPct
+      const dmgPct = 1 - (damagedTarget.hp / damagedTarget.maxHp);
+      const invested = damagedTarget._totalInvested || 50;
+      const repairCost = Math.max(1, Math.ceil(0.75 * invested * dmgPct));
+      const newMode = 'repair';
+      const newCost = String(repairCost);
+      if (actBtn.dataset.mode !== newMode || actBtn.dataset.repairCost !== newCost) {
         actBtn.style.display = 'flex';
-        actBtn.dataset.mode = 'repair';
+        actBtn.dataset.mode = newMode;
+        actBtn.dataset.repairCost = newCost;
         actBtn.style.background = 'radial-gradient(circle at 30% 30%, rgba(90,255,90,0.25), rgba(0,0,0,0.4))';
         actBtn.style.borderColor = '#5aff5a';
         actBtn.style.boxShadow = '0 4px 14px rgba(0,0,0,0.6),inset 0 0 12px rgba(90,255,90,0.15),0 0 0 2px rgba(0,0,0,0.4)';
         if (iconEl) iconEl.textContent = '🔧';
         if (badgeEl) {
-          badgeEl.textContent = '10g';
+          badgeEl.textContent = repairCost + 'g';
           badgeEl.style.borderColor = '#5aff5a';
         }
       }

@@ -2071,6 +2071,16 @@ function cdEnemiesForWave(arena, wave) {
   return arena.waveBaseCount + (wave - 1) * arena.waveScalePerWave;
 }
 
+// v1.415: Returnera enemy-typer som kan spawnas vid en specifik våg (för preview).
+function cdGetWavePool(wave) {
+  if (wave <= 2) return ['grunt', 'runner'];
+  if (wave <= 4) return ['grunt', 'runner', 'swordsman'];
+  if (wave <= 6) return ['grunt', 'runner', 'swordsman', 'brute'];
+  if (wave <= 9) return ['grunt', 'runner', 'swordsman', 'brute', 'shooter'];
+  if (wave <= 12) return ['runner', 'brute', 'shooter', 'bomber', 'swarmer', 'soldier'];
+  return ['runner', 'brute', 'shooter', 'bomber', 'swarmer', 'soldier', 'sniper', 'ninja'];
+}
+
 // Pick enemy-type för current våg. Phase 5: mixad pool per våg-band.
 // Använder existing enemy-typer; sapper-rollen täcks av 'bomber' (suicide-explode),
 // flyer-rollen läggs på 'swarmer'/'dog' med _cdFlyer flag som skippar wall-collision.
@@ -2143,6 +2153,14 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
             _autoTurret: true,
           });
           b._fireCd = 1 / b.fireRate;
+          // v1.415: emit fire-event så client kan rita muzzle-flash + spela ljud
+          sim.eventQueue.push({
+            type: 'cd_turret_fired',
+            id: b.id,
+            x: Math.round(bcx),
+            y: Math.round(bcy),
+            ang,
+          });
         }
       }
     }
@@ -3016,12 +3034,19 @@ function tickCastleDefense(sim, dt, now) {
     sim.castledefenseWaveBetweenEndAt = nowMs + arena.waveBetweenSec * 1000;
     const nextWave = sim.castledefenseWave + 1;
     const nextIsBoss = nextWave % arena.bossEveryWave === 0;
+    // v1.415: skicka preview av next wave (enemy-pool + count + boss-info)
+    const nextPool = cdGetWavePool(nextWave);
+    const nextCount = cdEnemiesForWave(arena, nextWave);
+    const nextBossKey = nextIsBoss ? cdPickBossKey(nextWave) : null;
     sim.eventQueue.push({
       type: 'cd_wave_complete',
       wave: sim.castledefenseWave,
       nextWaveInSec: arena.waveBetweenSec,
       nextIsBoss,
       nextWave,
+      nextPool,
+      nextCount,
+      nextBossKey,
     });
     // Wave-clear gold-bonus + grenades + shield-regen så player är redo för nästa våg
     const bonus = (arena.waveBonusBase || 150) + sim.castledefenseWave * (arena.waveBonusPerWave || 30);
@@ -4934,6 +4959,7 @@ function applyCastleDefenseBuild(sim, peerId, msg) {
     healPerSec: building.healPerSec,
     playerHealPerSec: building.playerHealPerSec,
     level: building.level || 0,
+    totalInvested: building._totalInvested || spec.cost, // v1.415: för repair-cost-calc
   });
   sim.eventQueue.push({
     type: 'cd_gold_update',
@@ -4964,14 +4990,19 @@ function applyCastleDefenseRepair(sim, peerId, msg) {
   const cy2 = Math.max(target.y, Math.min(py, target.y + target.h));
   const dx2 = px - cx2, dy2 = py - cy2;
   if (dx2 * dx2 + dy2 * dy2 > 40 * 40) return;
-  const REPAIR_AMOUNT = 80;
-  const REPAIR_COST = 10;
+  // v1.415: Repair-cost scaling efter dmg-pct + total invest.
+  // 99% damaged → cost ≈ 0.75 × totalInvested. 1% damaged → cost ≈ 0.0075 × totalInvested.
+  const dmgPct = 1 - (target.hp / target.maxHp);
+  if (dmgPct < 0.01) return; // i princip full hp, ingen reparation behövs
+  const invested = target._totalInvested || 50;
+  const REPAIR_COST = Math.max(1, Math.ceil(0.75 * invested * dmgPct));
   if ((sim.castledefenseGold[peerId] || 0) < REPAIR_COST) {
-    sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'insufficient_gold', kind: 'repair' });
+    sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'insufficient_gold', kind: 'repair', cost: REPAIR_COST });
     return;
   }
   sim.castledefenseGold[peerId] -= REPAIR_COST;
-  target.hp = Math.min(target.maxHp, target.hp + REPAIR_AMOUNT);
+  // FULL HEAL till maxHp (var: +80hp). Mer intuitivt + matchar cost-scaling.
+  target.hp = target.maxHp;
   sim.eventQueue.push({
     type: isBuild ? 'cd_building_damaged' : 'cd_wall_damaged',
     id: target.id, hp: target.hp, maxHp: target.maxHp,
@@ -5041,6 +5072,7 @@ function applyCastleDefenseUpgrade(sim, peerId, msg) {
     healPerSec: b.healPerSec, playerHealPerSec: b.playerHealPerSec,
     dmgOnPass: b.dmgOnPass,
     upgradeCost,
+    totalInvested: b._totalInvested,   // v1.415: updated invest för repair-cost
   });
   sim.eventQueue.push({
     type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: -upgradeCost,
