@@ -140,10 +140,10 @@ const CASTLEDEFENSE_ARENA = {
   downCrawlSpeedMul: 0.5,
   downReviveRadius: 60,
 
-  // === WAVE-SCALING (v1.411: snabbare pacing — kortare paus + snabbare spawn)
-  waveBaseCount: 12,
+  // === WAVE-SCALING (v1.412: balance — wave 1 mindre brutal, paus lite längre)
+  waveBaseCount: 8,                  // 12→8 (wave 1 mindre överväldigande)
   waveScalePerWave: 4,
-  waveBetweenSec: 6,                 // 10→6 (snabbare matches)
+  waveBetweenSec: 8,                 // 6→8 (mer build-tid)
   bossEveryWave: 5,
 
   // === BUILD-SYSTEM ===
@@ -154,14 +154,15 @@ const CASTLEDEFENSE_ARENA = {
   // v1.407: Höjda placement-costs (user-feedback "kosta mycket att lägga dem").
   // Auto-turret 400→700, man-turret 500→1200, repair/health 250/180→500/600.
   buildables: {
-    // v1.411: Wall svag på lvl 1 (150hp) men EXPONENTIAL scaling (hpScalePerLvl 1.2
-    // = +120%/lvl → lvl 9 = 13x = 1950hp). Skiljer från auto-turret som har +50%/lvl.
-    wall:        { cost: 75,   hp: 150, w: 30, h: 30, hpScalePerLvl: 1.2 },
-    auto_turret: { cost: 700,  hp: 100, w: 30, h: 30, range: 168, dps: 20, fireRate: 2.0 },
-    man_turret:  { cost: 1200, hp: 300, w: 30, h: 30, range: 240, dpsMul: 2.5 },
+    // v1.412: balance från playtest-agent — wall lvl 1 dog på en wave, turret nådde
+    // inte plaza-edge, repair-radius täckte inte både walls + core.
+    // Wall: hp = base × (1 + lvl × 1.2). Lvl 0 = 250, lvl 5 = 1750, lvl 9 = 2950.
+    wall:        { cost: 75,   hp: 250, w: 30, h: 30, hpScalePerLvl: 1.2 },
+    auto_turret: { cost: 700,  hp: 200, w: 30, h: 30, range: 220, dps: 20, fireRate: 2.0 }, // hp 100→200, range 168→220
+    man_turret:  { cost: 1200, hp: 350, w: 30, h: 30, range: 300, dpsMul: 2.5 },  // hp 300→350, range 240→300
     spike_trap:  { cost: 200,  hp: 250, w: 30, h: 30, dmgOnPass: 30, killCapacity: 5 },
     slow_trap:   { cost: 300,  hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2 },
-    repair_stn:  { cost: 500,  hp: 200, w: 30, h: 30, healPerSec: 12, radius: 100 },
+    repair_stn:  { cost: 500,  hp: 200, w: 30, h: 30, healPerSec: 12, radius: 140 }, // 100→140 (täcker walls + core)
     health_stn:  { cost: 600,  hp: 150, w: 30, h: 30, playerHealPerSec: 3, radius: 140 },
   },
   // v1.410: Level-system med EXPONENTIAL cost-scaling (mycket dyrare att maxa).

@@ -28156,7 +28156,9 @@ function showCastleDefenseHud() {
   if (!sellBtn) {
     sellBtn = document.createElement('button');
     sellBtn.id = 'cd-sell-btn';
-    sellBtn.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 270px) !important;bottom:14px !important;top:auto !important;right:auto !important;width:44px !important;height:44px !important;background:radial-gradient(circle at 30% 30%, rgba(255,180,80,0.3), rgba(0,0,0,0.5));border:2px solid #ffaa44;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 0 8px rgba(255,180,80,0.15);display:none;align-items:center;justify-content:center;padding:0;touch-action:manipulation;transition:transform 0.12s ease;';
+    // v1.412: Flyttad till VÄNSTER sida (krockade med fire/shield/bygg-cluster).
+    // Ovanför action-btn (som ligger på vänster-sidan vid bottom:14, left+200).
+    sellBtn.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 215px) !important;bottom:82px !important;top:auto !important;right:auto !important;width:44px !important;height:44px !important;background:radial-gradient(circle at 30% 30%, rgba(255,80,80,0.3), rgba(0,0,0,0.5));border:2px solid #ff6060;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 0 8px rgba(255,80,80,0.2);display:none;align-items:center;justify-content:center;padding:0;touch-action:manipulation;transition:transform 0.12s ease;';
     sellBtn.innerHTML = '💰';
     sellBtn.title = 'Sälj egen byggnad (50% refund)';
     sellBtn.onpointerdown = () => { sellBtn.style.transform = 'scale(0.92)'; };
