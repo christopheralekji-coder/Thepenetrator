@@ -28132,8 +28132,26 @@ function updateCastleDefenseHud() {
 function _startCastleDefenseHudInterval() {
   if (_cdHudInterval) return;
   _cdHudInterval = setInterval(() => {
-    if (state.castledefenseActive && typeof updateCastleDefenseHud === 'function') updateCastleDefenseHud();
-    else { clearInterval(_cdHudInterval); _cdHudInterval = null; }
+    // Dölj build-knappen om vi lämnat playing-mode (menu/pause/death/etc)
+    // — annars läcker den till menu-screen.
+    if (state.castledefenseActive && state.mode === 'playing') {
+      if (typeof updateCastleDefenseHud === 'function') updateCastleDefenseHud();
+      const trigger = document.getElementById('cd-build-trigger');
+      if (trigger) trigger.style.display = '';
+    } else {
+      // Inte längre i playing-CD → dölj knappen (men låt clear:as eventually)
+      const trigger = document.getElementById('cd-build-trigger');
+      if (trigger) trigger.style.display = 'none';
+      // Stäng ev. öppen radial
+      const radial = document.getElementById('cd-build-radial');
+      if (radial) { radial.classList.add('hidden'); radial.innerHTML = ''; }
+      // Helt cleanup om castledefenseActive blivit false
+      if (!state.castledefenseActive) {
+        clearInterval(_cdHudInterval);
+        _cdHudInterval = null;
+        if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
+      }
+    }
   }, 200);
 }
 function _stopCastleDefenseHudInterval() {
@@ -28164,9 +28182,10 @@ function showCastleDefenseBuildBar() {
     trigger = document.createElement('button');
     trigger.id = 'cd-build-trigger';
     // BOTTOM-CENTER position (user request) — undviker joystick (vänster) + fire (höger)
-    // Bottom-center MEN lyft 100px för att inte överlappa grenade-knapp (höger sida)
-    trigger.style.cssText = 'position:fixed;bottom:max(110px, calc(env(safe-area-inset-bottom) + 100px));left:50%;transform:translateX(-50%);background:linear-gradient(180deg,#d48a4a 0%,#a45a2a 100%);border:2px solid #ffd080;border-radius:50%;width:72px;height:72px;color:#fff;font-family:sans-serif;font-weight:900;z-index:85;cursor:pointer;font-size:12px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;padding:0;touch-action:none;';
-    trigger.innerHTML = '<span style="font-size:26px;">🔨</span><span>BYGG</span>';
+    // v1.405: Matcha emote-knappen exakt — samma höjd (bottom:14), storlek (52×52),
+    // bara förskjuten höger (left+190 så de inte överlappar emote vid left+130).
+    trigger.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 190px) !important;bottom:14px !important;top:auto !important;right:auto !important;width:52px !important;height:52px !important;background:linear-gradient(180deg,#d48a4a 0%,#a45a2a 100%);border:2px solid #ffd080;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:22px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:0;touch-action:none;';
+    trigger.innerHTML = '🔨';
     document.body.appendChild(trigger);
     setupCdBuildRadial(trigger);
   }
@@ -28438,10 +28457,13 @@ function setupCdBuildRadial(btn) {
     let radius = Math.max(55, minR + 2);
     const maxRadiusFit = Math.min((W - 2 * SLOT_R) / 2 - 4, (H - 2 * SLOT_R) / 2 - 4);
     if (radius > maxRadiusFit) radius = Math.max(50, maxRadiusFit);
+    // v1.405: Klampa BARA X (så slots inte hamnar utanför skärmen horisontellt).
+    // Y skippas: bottom-positionerad knapp ska behålla centerY så finger är i
+    // cancel-zon vid open. Slots under knappen blir off-screen men det är OK —
+    // vapen-menyn tar sig av detta naturligt på top-right.
     const minCX = SLOT_R + radius, maxCX = W - SLOT_R - radius;
-    const minCY = SLOT_R + radius, maxCY = H - SLOT_R - radius;
     centerX = Math.max(minCX, Math.min(maxCX, centerX));
-    centerY = Math.max(minCY, Math.min(maxCY, centerY));
+    // Inget Y-clamp för CD build-radial
     // Center cancel-zon
     const centerEl = document.createElement('div');
     centerEl.className = 'weapon-radial-center';
@@ -28479,12 +28501,12 @@ function setupCdBuildRadial(btn) {
   function open(e) {
     if (!state.castledefenseActive || state.castledefenseEnded) return false;
     if (state.mode !== 'playing') return false;
-    // Center = knappens center, MEN för bottom-positionerad knapp lyft centerY
-    // 130px upp så radial-cirkeln passar ovanför knappen (annars clamping triggar
-    // selection direkt vid open eftersom finger redan utanför cancel-zon).
+    // v1.405: Använd KNAPPENS center exakt — cancel-zon ska vara där fingret är
+    // vid open (= på knappen). buildSlots skippar Y-clamping så slots ovanför
+    // knappen är synliga men centerX/Y matchar knapp-position.
     const r = btn.getBoundingClientRect();
     centerX = r.left + r.width / 2;
-    centerY = r.top + r.height / 2 - 130;
+    centerY = r.top + r.height / 2;
     if (!buildSlots()) return false;
     radialEl.classList.remove('hidden');
     active = true;
