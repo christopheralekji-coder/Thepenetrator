@@ -151,14 +151,28 @@ const CASTLEDEFENSE_ARENA = {
   startGold: 600,                    // 400→600 (mer gold när inget är pre-built)
   waveBonusBase: 180,                // 150→180
   waveBonusPerWave: 35,              // 30→35
+  // v1.407: Höjda placement-costs (user-feedback "kosta mycket att lägga dem").
+  // Auto-turret 400→700, man-turret 500→1200, repair/health 250/180→500/600.
   buildables: {
-    wall:        { cost: 50,  hp: 400,  w: 30, h: 30 },
-    auto_turret: { cost: 400, hp: 140,  w: 30, h: 30, range: 280, dps: 25, fireRate: 2.5 },
-    man_turret:  { cost: 500, hp: 350,  w: 30, h: 30, range: 400, dpsMul: 2.5 },
-    spike_trap:  { cost: 100, hp: 250,  w: 30, h: 30, dmgOnPass: 30, killCapacity: 5 },
-    slow_trap:   { cost: 150, hp: 120,  w: 30, h: 30, slowMul: 0.4, slowDurSec: 2 },
-    repair_stn:  { cost: 180, hp: 200,  w: 30, h: 30, healPerSec: 14, radius: 100 },
-    health_stn:  { cost: 250, hp: 150,  w: 30, h: 30, playerHealPerSec: 12, radius: 140 },
+    wall:        { cost: 75,   hp: 400, w: 30, h: 30 },
+    auto_turret: { cost: 700,  hp: 100, w: 30, h: 30, range: 280, dps: 20, fireRate: 2.0 },
+    man_turret:  { cost: 1200, hp: 300, w: 30, h: 30, range: 400, dpsMul: 2.5 },
+    spike_trap:  { cost: 200,  hp: 250, w: 30, h: 30, dmgOnPass: 30, killCapacity: 5 },
+    slow_trap:   { cost: 300,  hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2 },
+    repair_stn:  { cost: 500,  hp: 200, w: 30, h: 30, healPerSec: 12, radius: 100 },
+    health_stn:  { cost: 600,  hp: 150, w: 30, h: 30, playerHealPerSec: 10, radius: 140 },
+  },
+  // v1.407: Level-system. Varje byggnad kan upgradas 9 ggr (level 0-9 = 10 nivåer).
+  // Upgrade-cost per level = placement_cost × upgradeCostMul.
+  // Stats scalar med level (hp, dps, range, healPerSec etc — exponentiellt-likt).
+  maxBuildLevel: 9,
+  upgradeCostMul: 0.4,
+  upgradeStatMul: {
+    hp:    0.30,    // +30% hp per level
+    dps:   0.25,    // +25% dps per level
+    range: 0.05,    // +5% range per level
+    heal:  0.20,    // +20% healing per level
+    dmg:   0.25,    // +25% dmg (för spike/slow)
   },
 };
 

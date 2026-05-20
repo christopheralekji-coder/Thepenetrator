@@ -8,6 +8,7 @@ const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy } = require('
 const { addBot, tickBots, removeAllBots } = require('./bots');
 const { updateBoss } = require('./bosses');
 const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onWaveComplete, checkBossDeath } = require('./waves');
+const { getDiffMul: cdGetDiffMul, getCoopMultiplier: cdGetCoopMul } = require('../../shared/stages-data');
 const { updatePickups, dropFromEnemyDeath } = require('./pickups');
 const { getStage } = require('../../shared/stages-data');
 const { CTF_ARENA, resolveCtfWall, bulletHitsWall } = require('../../shared/ctf-arena');
@@ -2588,8 +2589,16 @@ function tickCastleDefense(sim, dt, now) {
       e._idx = sim.nextEnemyIdx++;
       e._cdEnemy = true;
       cdMaybeAssignFlyer(e);
-      // v1.401: ~50% av enemies går efter player istället för buildings/core.
-      // Bossar har ej role (egen AI). Skapar utmaning + tvingar player att flytta sig.
+      // v1.407: scale by difficulty + wave + co-op (samma formel som story-mode)
+      const cdWaveScale = 1 + (sim.castledefenseWave - 1) * 0.08;
+      const cdDiff = cdGetDiffMul(sim.config.difficulty);
+      const cdCoop = cdGetCoopMul(sim.room.members.size);
+      e.hp = Math.round(e.hp * cdWaveScale * cdDiff.enemyHp * cdCoop);
+      e.maxHp = e.hp;
+      e.dmg = Math.round(e.dmg * cdWaveScale * cdDiff.enemyDmg * (1 + (cdCoop - 1) * 0.5));
+      if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * cdDiff.enemyDmg);
+      e._origSpeed = e.speed;
+      // 50/50 role: attacker (target player) vs siege (target buildings/core)
       e._cdRole = Math.random() < 0.5 ? 'attacker' : 'siege';
       sim.enemies.push(e);
       sim._cdWaveSpawnsRemaining -= 1;
@@ -4867,6 +4876,13 @@ function applyCastleDefenseBuild(sim, peerId, msg) {
     healPerSec: spec.healPerSec || 0,
     playerHealPerSec: spec.playerHealPerSec || 0,
     radius: spec.radius || 0,
+    level: 0,                     // v1.407: level-system (0-9 = 10 nivåer)
+    _baseCost: spec.cost,         // för upgrade-cost-beräkning
+    _baseStats: {                 // för upgrade-stat-beräkning
+      hp: spec.hp, dps: spec.dps || 0, range: spec.range || 0,
+      healPerSec: spec.healPerSec || 0, playerHealPerSec: spec.playerHealPerSec || 0,
+      dmgOnPass: spec.dmgOnPass || 0, fireRate: spec.fireRate || 0,
+    },
     _fireCd: 0,
     _spikeCd: 0,
     occupiedByPid: null,
@@ -4881,6 +4897,11 @@ function applyCastleDefenseBuild(sim, peerId, msg) {
     hp: building.hp, maxHp: building.maxHp,
     ownerPid: peerId,
     range: building.range, dpsMul: building.dpsMul,
+    // v1.407: skicka radius + healPerSec + playerHealPerSec så klient kan rita aura
+    radius: building.radius,
+    healPerSec: building.healPerSec,
+    playerHealPerSec: building.playerHealPerSec,
+    level: building.level || 0,
   });
   sim.eventQueue.push({
     type: 'cd_gold_update',
@@ -4929,4 +4950,69 @@ function applyCastleDefenseRepair(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair };
+// v1.407: Upgrade existing building. Increments level + scales stats + deducts gold.
+function applyCastleDefenseUpgrade(sim, peerId, msg) {
+  if (!sim.castledefenseActive || sim.castledefenseEnded) return;
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  const arena = CASTLEDEFENSE_ARENA;
+  const id = msg && msg.id;
+  if (!id) return;
+  const b = sim.castledefenseBuildings.find(x => x.id === id && x.hp > 0);
+  if (!b) return;
+  if (b.kind === 'spike_trap') return; // spike-trap är disposable, ingen upgrade
+  const curLevel = b.level || 0;
+  const maxLevel = arena.maxBuildLevel || 9;
+  if (curLevel >= maxLevel) {
+    sim.eventQueue.push({ type: 'cd_upgrade_failed', peerId, id, reason: 'max_level' });
+    return;
+  }
+  const baseCost = b._baseCost || arena.buildables[b.kind].cost;
+  const upgradeCost = Math.round(baseCost * (arena.upgradeCostMul || 0.4) * (curLevel + 1));
+  const playerGold = sim.castledefenseGold[peerId] || 0;
+  if (playerGold < upgradeCost) {
+    sim.eventQueue.push({ type: 'cd_upgrade_failed', peerId, id, reason: 'insufficient_gold', cost: upgradeCost });
+    return;
+  }
+  // OK — deducera + level up
+  sim.castledefenseGold[peerId] = playerGold - upgradeCost;
+  b.level = curLevel + 1;
+  const mul = arena.upgradeStatMul || {};
+  const base = b._baseStats || {};
+  // Skala stats baserat på base × (1 + level × multiplier)
+  const lvl = b.level;
+  if (base.hp) {
+    const newMax = Math.round(base.hp * (1 + lvl * (mul.hp || 0.3)));
+    const hpPct = b.hp / b.maxHp;
+    b.maxHp = newMax;
+    b.hp = Math.round(newMax * hpPct); // bevara hp-pct vid upgrade
+  }
+  if (base.dps) b.dps = base.dps * (1 + lvl * (mul.dps || 0.25));
+  if (base.range) b.range = Math.round(base.range * (1 + lvl * (mul.range || 0.05)));
+  if (base.healPerSec) b.healPerSec = base.healPerSec * (1 + lvl * (mul.heal || 0.2));
+  if (base.playerHealPerSec) b.playerHealPerSec = base.playerHealPerSec * (1 + lvl * (mul.heal || 0.2));
+  if (base.dmgOnPass) b.dmgOnPass = Math.round(base.dmgOnPass * (1 + lvl * (mul.dmg || 0.25)));
+  sim.eventQueue.push({
+    type: 'cd_building_upgraded',
+    id: b.id, level: b.level, peerId,
+    hp: b.hp, maxHp: b.maxHp, dps: b.dps, range: b.range,
+    healPerSec: b.healPerSec, playerHealPerSec: b.playerHealPerSec,
+    dmgOnPass: b.dmgOnPass,
+    upgradeCost,
+  });
+  sim.eventQueue.push({
+    type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: -upgradeCost,
+  });
+}
+
+// v1.407: DEBUG infinity-money — ger spelaren 5000 gold per call. Tas bort i prod.
+function applyCastleDefenseInfMoney(sim, peerId, msg) {
+  if (!sim.castledefenseActive) return;
+  if (!sim.castledefenseGold[peerId]) sim.castledefenseGold[peerId] = 0;
+  sim.castledefenseGold[peerId] += 5000;
+  sim.eventQueue.push({
+    type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: 5000,
+  });
+}
+
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseInfMoney };

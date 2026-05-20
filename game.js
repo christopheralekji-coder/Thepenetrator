@@ -8429,6 +8429,17 @@ function drawCastleDefenseBuildings(layer) {
     ctx.fillStyle = hpPct > 0.5 ? '#5aff5a' : (hpPct > 0.25 ? '#ffd54a' : '#ff5a5a');
     ctx.fillRect(barX, barY, barW * hpPct, 2);
     ctx.globalAlpha = 1;
+    // v1.407: level-display (top-right corner av byggnaden) — bara om level > 0 och kind är upgradable
+    if ((b.level || 0) > 0 && b.kind !== 'spike_trap') {
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'top';
+      ctx.shadowColor = 'rgba(0,0,0,0.9)';
+      ctx.shadowBlur = 2;
+      ctx.fillText('L' + (b.level + 1), x + b.w - 2, y + 1);
+      ctx.shadowBlur = 0;
+    }
   }
   ctx.restore();
 }
@@ -14078,6 +14089,10 @@ window.addEventListener('keydown', e => {
       tryCdRepair();
       e.preventDefault();
     }
+    if (k === 'u' && !e.repeat) {
+      tryCdUpgrade();
+      e.preventDefault();
+    }
   }
   if (k === 'tab' || e.key === 'Tab') {
     e.preventDefault();
@@ -18401,6 +18416,31 @@ const Coop = {
         state.player.invuln = 3;
         if (typeof showToast === 'function') showToast('♻ RESPAWN — våg ' + ev.wave);
       }
+    } else if (ev.type === 'cd_building_upgraded') {
+      // { id, level, peerId, hp, maxHp, dps, range, healPerSec, playerHealPerSec, dmgOnPass, upgradeCost }
+      if (state.castledefenseBuildings) {
+        for (const b of state.castledefenseBuildings) {
+          if (b.id === ev.id) {
+            b.level = ev.level;
+            b.hp = ev.hp; b.maxHp = ev.maxHp;
+            if (typeof ev.dps === 'number') b.dps = ev.dps;
+            if (typeof ev.range === 'number') b.range = ev.range;
+            if (typeof ev.healPerSec === 'number') b.healPerSec = ev.healPerSec;
+            if (typeof ev.playerHealPerSec === 'number') b.playerHealPerSec = ev.playerHealPerSec;
+            if (typeof ev.dmgOnPass === 'number') b.dmgOnPass = ev.dmgOnPass;
+            break;
+          }
+        }
+      }
+      if (ev.peerId === this.myId && typeof showToast === 'function') {
+        showToast('⬆ UPGRADE → Lv ' + (ev.level + 1) + ' (' + ev.upgradeCost + 'g)');
+      }
+    } else if (ev.type === 'cd_upgrade_failed') {
+      // { peerId, id, reason, cost }
+      if (ev.peerId === this.myId && typeof showToast === 'function') {
+        const map = { max_level: 'Max level nått', insufficient_gold: 'För lite gold (' + (ev.cost || '?') + 'g)' };
+        showToast('❌ ' + (map[ev.reason] || ev.reason));
+      }
     } else if (ev.type === 'cd_build_failed') {
       // { peerId, reason, kind }
       if (ev.peerId === this.myId) {
@@ -20652,7 +20692,8 @@ function updateLobbyDifficultyVisibility(activeTabOverride) {
     const t = document.querySelector('.lobby-tab.active');
     return t ? t.dataset.tab : 'team';
   })();
-  const isPvPMode = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth || cfg.juggernaut || cfg.battleroyale || cfg.castledefense);
+  // v1.407: castledefense BORTTAGEN — har egen difficulty-väljare (co-op style)
+  const isPvPMode = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth || cfg.juggernaut || cfg.battleroyale);
   const isPvPTab = activeTab === 'pvp';
   card.classList.toggle('hidden', isPvPMode || isPvPTab);
 }
@@ -28081,10 +28122,20 @@ function showCastleDefenseHud() {
   el.style.display = 'flex';
   // v1.406: Befintlig gold-info (över minimapen) används istället för separat cd-gold
   updateCastleDefenseHud();
+  // v1.407: DEBUG infinity-money knapp (för testning)
+  let infBtn = document.getElementById('cd-inf-money');
+  if (!infBtn) {
+    infBtn = document.createElement('button');
+    infBtn.id = 'cd-inf-money';
+    infBtn.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top));left:max(8px, env(safe-area-inset-left));background:#1a3a1a;border:2px solid #5aff5a;color:#5aff5a;padding:6px 10px;font-family:monospace;font-weight:900;font-size:11px;letter-spacing:1px;border-radius:6px;z-index:80;cursor:pointer;';
+    infBtn.textContent = '💰+5000 (DEBUG)';
+    infBtn.onclick = (e) => { e.preventDefault(); tryCdInfMoney(); };
+    document.body.appendChild(infBtn);
+  }
 }
 function hideCastleDefenseHud() {
   _stopCastleDefenseHudInterval();
-  const ids = ['cd-hud']; // v1.406: cd-gold borttagen — använder befintlig gold-info istället
+  const ids = ['cd-hud', 'cd-inf-money']; // v1.407: + debug-money-knapp
   for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
@@ -28174,9 +28225,9 @@ function showCastleDefenseBuildBar() {
     trigger = document.createElement('button');
     trigger.id = 'cd-build-trigger';
     // BOTTOM-CENTER position (user request) — undviker joystick (vänster) + fire (höger)
-    // v1.406: BOTTOM-CENTER (bottom:14, 52×52 — samma som emote). Centrerad
-    // horisontellt via left:50% + translateX(-50%).
-    trigger.style.cssText = 'position:fixed !important;left:50% !important;transform:translateX(-50%) !important;bottom:14px !important;top:auto !important;right:auto !important;width:52px !important;height:52px !important;background:linear-gradient(180deg,#d48a4a 0%,#a45a2a 100%);border:2px solid #ffd080;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:22px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:0;touch-action:none;';
+    // v1.407: Placerad strax till vänster om shield-knappen (right:147 + 52 + 16 = 215),
+    // röd gradient istället för orange.
+    trigger.style.cssText = 'position:fixed !important;left:auto !important;right:215px !important;transform:none !important;bottom:14px !important;top:auto !important;width:52px !important;height:52px !important;background:linear-gradient(180deg,#d83838 0%,#8a1818 100%);border:2px solid #ff8080;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:22px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:0;touch-action:none;';
     trigger.innerHTML = '🔨';
     document.body.appendChild(trigger);
     setupCdBuildRadial(trigger);
@@ -28467,7 +28518,8 @@ function setupCdBuildRadial(btn) {
       const b = CD_BUILDABLE_LIST[i];
       const cost = (CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[b.kind] && CASTLEDEFENSE_ARENA.buildables[b.kind].cost) || 0;
       const canAfford = (state.castledefenseGold || 0) >= cost;
-      const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
+      // v1.407: 180° båge OVANFÖR knappen så alla 7 slots syns.
+      const angle = N === 1 ? -Math.PI / 2 : -Math.PI + (i / (N - 1)) * Math.PI;
       const sx = centerX + Math.cos(angle) * radius;
       const sy = centerY + Math.sin(angle) * radius;
       const el = document.createElement('div');
@@ -28660,6 +28712,36 @@ function tryCdPlaceBuilding() {
     x: state.cdBuildHoverX,
     y: state.cdBuildHoverY,
   }));
+}
+
+// v1.407: F-knapp = context-action: nära FULL hp byggnad → upgrade, nära skadad → repair
+function tryCdUpgrade() {
+  if (!state.player || state.player.hp <= 0) return;
+  if (!Coop.ws || Coop.ws.readyState !== 1) return;
+  const px = state.player.x, py = state.player.y;
+  let target = null;
+  if (state.castledefenseBuildings) {
+    for (const b of state.castledefenseBuildings) {
+      if (b.hp <= 0) continue;
+      if (b.kind === 'spike_trap') continue; // ej upgradable
+      if ((b.level || 0) >= 9) continue;
+      const cx = Math.max(b.x, Math.min(px, b.x + b.w));
+      const cy = Math.max(b.y, Math.min(py, b.y + b.h));
+      const dx = px - cx, dy = py - cy;
+      if (dx * dx + dy * dy < 50 * 50) { target = b; break; }
+    }
+  }
+  if (!target) {
+    if (typeof showToast === 'function') showToast('Inga uppgraderbara byggnader nära');
+    return;
+  }
+  Coop.ws.send(JSON.stringify({ type: 'sim_cd_upgrade', id: target.id }));
+}
+
+// v1.407: DEBUG infinity-money — tappa knappen för +5000 gold
+function tryCdInfMoney() {
+  if (!Coop.ws || Coop.ws.readyState !== 1) return;
+  Coop.ws.send(JSON.stringify({ type: 'sim_cd_infmoney' }));
 }
 
 function tryCdRepair() {
