@@ -133,7 +133,7 @@ const CASTLEDEFENSE_ARENA = {
     wall:        { cost: 50,  hp: 400,  w: 30, h: 30 },
     auto_turret: { cost: 400, hp: 140,  w: 30, h: 30, range: 280, dps: 25, fireRate: 2.5 },
     man_turret:  { cost: 500, hp: 350,  w: 30, h: 30, range: 400, dpsMul: 2.5 },
-    spike_trap:  { cost: 100, hp: 150,  w: 30, h: 30, dmgOnPass: 22 },
+    spike_trap:  { cost: 100, hp: 250,  w: 30, h: 30, dmgOnPass: 30, killCapacity: 5 },
     slow_trap:   { cost: 150, hp: 120,  w: 30, h: 30, slowMul: 0.4, slowDurSec: 2 },
     repair_stn:  { cost: 180, hp: 200,  w: 30, h: 30, healPerSec: 14, radius: 100 },
     health_stn:  { cost: 250, hp: 150,  w: 30, h: 30, playerHealPerSec: 12, radius: 140 },

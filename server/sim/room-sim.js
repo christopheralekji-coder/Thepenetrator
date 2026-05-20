@@ -2144,9 +2144,8 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
         }
       }
     }
-    // === SPIKE TRAP ===
+    // === SPIKE TRAP === (v1.400: kill-count baserat — efter 3 kills försvinner trapen)
     else if (b.kind === 'spike_trap' && b.dmgOnPass > 0) {
-      // Skada alla enemies som överlappar denna trap (med per-enemy cooldown)
       for (const e of sim.enemies) {
         if (e.dead) continue;
         if (e.x + e.r < b.x || e.x - e.r > b.x + b.w) continue;
@@ -2155,7 +2154,21 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
         if ((e._spikeCdMs[b.id] || 0) > nowMs) continue;
         e._spikeCdMs[b.id] = nowMs + 1200;
         e.hp -= b.dmgOnPass;
-        if (e.hp <= 0) e.dead = true;
+        if (e.hp <= 0) {
+          e.dead = true;
+          // Track kill för spike-trap destruction
+          b._spikeKills = (b._spikeKills || 0) + 1;
+          const cap = 5; // killCapacity från arena-spec
+          // Visual: hp speglar (cap - kills) / cap × maxHp så HP-bar visar uses remaining
+          b.hp = Math.max(0, ((cap - b._spikeKills) / cap) * b.maxHp);
+          sim.eventQueue.push({
+            type: 'cd_building_damaged',
+            id: b.id, hp: b.hp, maxHp: b.maxHp,
+          });
+          if (b._spikeKills >= cap) {
+            sim.eventQueue.push({ type: 'cd_building_destroyed', id: b.id });
+          }
+        }
       }
     }
     // === SLOW TRAP ===
@@ -2498,12 +2511,13 @@ function tickCastleDefense(sim, dt, now) {
     b.kind !== 'spike_trap' && b.kind !== 'slow_trap');
   const cdAllSolids = cdLiveWalls.concat(cdSolidBuildings);
 
-  // === PLAYER WALL-COLLISION + CORE-CIRCLE-COLLISION + BOUNDS-CLAMP ===
+  // === PLAYER COLLISION (v1.400: BARA core blockerar — walls/turrets är passable
+  // för players så de kan springa till frontlinjen, ge gas på fienden, mm.).
   for (const [, ws] of sim.room.members) {
     if (ws.playerState && ws.playerState.hp > 0) {
       const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
-      resolveCtfWall(ent, cdAllSolids);
-      // Core är en CIRKEL — resolveCtfWall hanterar bara AABB. Custom circle-resolve här.
+      // (resolveCtfWall mot cdAllSolids är BORTTAGEN — players passar genom defenses)
+      // Core är en CIRKEL — alltid blockerad.
       if (sim.castledefenseCore && sim.castledefenseCore.hp > 0) {
         const core = sim.castledefenseCore;
         const dx = ent.x - core.x, dy = ent.y - core.y;
@@ -2513,7 +2527,6 @@ function tickCastleDefense(sim, dt, now) {
           ent.x = core.x + (dx / d) * minD;
           ent.y = core.y + (dy / d) * minD;
         } else if (d < 0.01) {
-          // Exakt på center — pusha åt höger
           ent.x = core.x + minD;
         }
       }
@@ -2591,38 +2604,60 @@ function tickCastleDefense(sim, dt, now) {
   updateCastleDefenseDownState(sim, dt, nowMs);
 
   // === ENEMY AI + COLLISION + ATTACK ===
-  // v1.398: Smart pathfinding via flow field. Melee-enemies följer flow mot core
-  // (hittar väg runt walls automatiskt). Ranged enemies går rakt mot core men
-  // stannar vid shoot-range (de skjuter från där de fastnar bakom vägg → bullets
-  // skadar väggen → väggen rasar → de kommer fram).
+  // v1.400: Fienderna targetar i FÖRSTA HAND närmaste player-built solid building
+  // (väggar/torn/stations). När all defenses förstörda → core. Flyers/bossar går
+  // rakt mot core (de bypassar walls). Ranged går mot nearest building och skjuter
+  // (bullets stoppas av wall → wall tar dmg).
   const corePos = sim.castledefenseCore;
-  const flowField = sim._cdFlowField;
+  // Pre-compute lista av solida buildings (samma filter som collision)
+  const cdSolidsForTarget = cdLiveBuildings.filter(b =>
+    b.kind !== 'spike_trap' && b.kind !== 'slow_trap');
   for (const e of sim.enemies) {
     if (e.dead) continue;
     let target;
-    const isRanged = (e.type === 'shooter' || e.type === 'soldier' || e.type === 'sniper');
-    if (isRanged || e.isBoss || e._cdFlyer) {
-      // Direkt mot core (ranged shoots through walls direkt; bossar är för stora
-      // för flow-field; flyers ignorerar walls helt)
+    if (e._cdFlyer || e.isBoss) {
+      // Flyers + bossar: rakt mot core
       target = corePos ? {
         peerId: '__core__', _isCoreTarget: true,
         x: corePos.x, y: corePos.y,
         hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
       } : { x: 2000, y: 2000, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
     } else {
-      // Melee: använd flow field. Synthetic target = nästa cell längs flow.
-      const flow = cdFlowLookup(flowField, e.x, e.y);
-      if (flow && (flow.dx !== 0 || flow.dy !== 0)) {
-        const dirLen = Math.sqrt(flow.dx * flow.dx + flow.dy * flow.dy) || 1;
-        const lookAhead = 120;       // 4 grid-celler ahead
+      // Andra fiender: hitta NÄRMSTA player-built solid building som är "på vägen"
+      // mot core (filter: building är närmare core än enemy). Annars skulle shooters
+      // skjuta walls långt åt sidan istället för core-relaterade defenser.
+      let nearestBuild = null, nearestD2 = Infinity;
+      const dxEC = corePos ? (corePos.x - e.x) : 0;
+      const dyEC = corePos ? (corePos.y - e.y) : 0;
+      const dEC2 = dxEC * dxEC + dyEC * dyEC;
+      for (const b of cdSolidsForTarget) {
+        const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+        // Filter: building måste vara närmare core än enemy (= "på vägen")
+        if (corePos) {
+          const dxBC = bcx - corePos.x, dyBC = bcy - corePos.y;
+          if (dxBC * dxBC + dyBC * dyBC > dEC2) continue;
+        }
+        const dx = bcx - e.x, dy = bcy - e.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < nearestD2) { nearestD2 = d2; nearestBuild = b; }
+      }
+      if (nearestBuild) {
+        // v1.400-fix: om enemy bytte target mid-aim → reset aim-state så sniper
+        // inte slutför lock-on på fel mål
+        const newTargetId = '__target_' + nearestBuild.id;
+        if (e._cdLastTargetId && e._cdLastTargetId !== newTargetId) {
+          e.aiming = false;
+          e.aimAt = 0;
+        }
+        e._cdLastTargetId = newTargetId;
         target = {
-          peerId: '__core_flow__', _isCoreTarget: true,
-          x: e.x + (flow.dx / dirLen) * lookAhead,
-          y: e.y + (flow.dy / dirLen) * lookAhead,
-          hp: 99999, maxHp: 99999, invulnUntil: 0, r: 10,
+          peerId: newTargetId, _isCoreTarget: true,
+          x: nearestBuild.x + nearestBuild.w / 2,
+          y: nearestBuild.y + nearestBuild.h / 2,
+          hp: 99999, maxHp: 99999, invulnUntil: 0, r: 14,
         };
       } else {
-        // Flow saknas (vid core eller unreachable) — gå direkt mot core
+        // Inga defenses kvar → core
         target = corePos ? {
           peerId: '__core__', _isCoreTarget: true,
           x: corePos.x, y: corePos.y,
@@ -2635,6 +2670,29 @@ function tickCastleDefense(sim, dt, now) {
       updateBoss(sim, e, dt, now, players);
     } else {
       updateEnemy(e, dt, now, sim, players);
+    }
+    // v1.400: Melee contact-damage på REAL players (eftersom AI targetar fake-building,
+    // skulle riktiga spelare annars vara osårbara från melee). Skadar player om
+    // enemy överlappar dem + cooldown + respect invuln + cdDowned.
+    if (!e._cdFlyer && (e.dmg || 0) > 0) {
+      if (e._cdPlayerContactCd > 0) e._cdPlayerContactCd -= dt;
+      else e._cdPlayerContactCd = 0;
+      if (e._cdPlayerContactCd <= 0) {
+        for (const [, wsP] of sim.room.members) {
+          if (!wsP.playerState || wsP.playerState.hp <= 0) continue;
+          if (wsP.playerState.cdDowned) continue;
+          const psP = wsP.playerState;
+          if (Date.now() < (psP.invulnUntil || 0)) continue;
+          const ddx = psP.x - e.x, ddy = psP.y - e.y;
+          const rsumP = (e.r || 12) + 14;
+          if (ddx * ddx + ddy * ddy < rsumP * rsumP) {
+            psP.hp = Math.max(0, psP.hp - e.dmg);
+            psP.invulnUntil = Date.now() + 500;
+            e._cdPlayerContactCd = 0.7;
+            break;
+          }
+        }
+      }
     }
     // Bounds-clamp
     e.x = Math.max(20, Math.min(arena.worldW - 20, e.x));
@@ -2662,11 +2720,12 @@ function tickCastleDefense(sim, dt, now) {
     if (e._cdAttackCd > 0) e._cdAttackCd -= dt;
     else e._cdAttackCd = 0;
     // === ENEMY ATTACK PÅ WALL/CORE ===
-    // v1.398-fix: Prioritera mur/turret över support-stations (annars slår de
-    // ner repair-stn istället för väggen som blockerar dem). 2-pass loop.
+    // v1.400 fix: skippa redan-döda targets (mid-tick destruction från attack-loop
+    // skulle annars trigga dubbel destroy-event)
     let attackTarget = null;
     // Pass 1: prioriterade target (walls, turrets — saker som blockerar path)
     for (const w of cdAllSolids) {
+      if (w.hp <= 0) continue;
       if (w.kind !== 'wall' && w.kind !== 'castle_wall' && w.kind !== 'auto_turret' && w.kind !== 'man_turret') continue;
       const cx2 = Math.max(w.x, Math.min(e.x, w.x + w.w));
       const cy2 = Math.max(w.y, Math.min(e.y, w.y + w.h));
@@ -2679,6 +2738,7 @@ function tickCastleDefense(sim, dt, now) {
     // Pass 2: stations (repair/health) bara om inget mur/turret i kontakt
     if (!attackTarget) {
       for (const w of cdAllSolids) {
+        if (w.hp <= 0) continue;
         const cx2 = Math.max(w.x, Math.min(e.x, w.x + w.w));
         const cy2 = Math.max(w.y, Math.min(e.y, w.y + w.h));
         const dx2 = e.x - cx2, dy2 = e.y - cy2;

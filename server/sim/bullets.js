@@ -1389,6 +1389,15 @@ function updateBullets(sim, dt, now) {
         }
         applyBulletEffects(b, e, sim);
         damageEnemy(e, b.dmg, b.crit, b.ownerPid);
+        // v1.400: emit damage-number event för auto-turret bullets så player ser
+        // hur mycket turrets gör (player-bullets visar redan numbers via prediction).
+        if (sim.castledefenseActive && b._autoTurret) {
+          sim.eventQueue.push({
+            type: 'cd_turret_dmg',
+            x: Math.round(e.x), y: Math.round(e.y),
+            dmg: Math.round(b.dmg),
+          });
+        }
         b.hitIds.add(e);
         if (!b.pierce) { hit = true; break; }
       }

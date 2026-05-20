@@ -8257,7 +8257,6 @@ function drawCastleDefenseBuildings(layer) {
       // === SPIKE TRAP — sten-tile med iron-spikes ===
       ctx.fillStyle = '#1a1410';
       ctx.fillRect(x, y, b.w, b.h);
-      // Dark border
       ctx.fillStyle = '#2a2018';
       ctx.fillRect(x + 1, y + 1, b.w - 2, b.h - 2);
       // 9 spikes i 3x3 grid (iron, sharp triangles)
@@ -8271,7 +8270,6 @@ function drawCastleDefenseBuildings(layer) {
           ctx.lineTo(sx + 6, sy + 6);
           ctx.closePath();
           ctx.fill();
-          // Tip highlight
           ctx.fillStyle = '#dddddd';
           ctx.beginPath();
           ctx.moveTo(sx + 3, sy - 1);
@@ -8282,11 +8280,14 @@ function drawCastleDefenseBuildings(layer) {
           ctx.fillStyle = '#aaaaaa';
         }
       }
-      // Blood-stain (subtle)
-      ctx.fillStyle = 'rgba(120,30,30,0.4)';
-      ctx.beginPath();
-      ctx.arc(bcx + 3, bcy + 4, 4, 0, Math.PI * 2);
-      ctx.fill();
+      // Blood-stain visas BARA om traps har använts (hp < maxHp = first kill triggat)
+      if (hpPct < 0.99) {
+        const bloodAlpha = Math.min(0.5, 0.15 + (1 - hpPct) * 0.5);
+        ctx.fillStyle = 'rgba(120,30,30,' + bloodAlpha + ')';
+        ctx.beginPath();
+        ctx.arc(bcx + 3, bcy + 4, 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
     } else if (b.kind === 'slow_trap') {
       // === SLOW TRAP — magic ice rune ===
       // Frosted base
@@ -8417,16 +8418,17 @@ function drawCastleDefenseBuildings(layer) {
       ctx.strokeStyle = '#1a4a2a';
       ctx.strokeRect(x + 0.5, y + 0.5, b.w - 1, b.h - 1);
     }
-    // HP-bar (hpPct redan deklarerat överst i loopen)
-    if (hpPct < 1.0) {
-      const barW = Math.max(20, b.w * 0.6);
-      const barX = x + b.w / 2 - barW / 2;
-      const barY = y - 6;
-      ctx.fillStyle = 'rgba(0,0,0,0.5)';
-      ctx.fillRect(barX, barY, barW, 3);
-      ctx.fillStyle = hpPct > 0.5 ? '#5aff5a' : '#ff5a5a';
-      ctx.fillRect(barX, barY, barW * hpPct, 3);
-    }
+    // HP-bar — ALLTID synlig men diskret (v1.400). När full = mer transparent.
+    const barW = Math.max(20, b.w * 0.7);
+    const barX = x + b.w / 2 - barW / 2;
+    const barY = y - 5;
+    const isFull = hpPct >= 0.99;
+    ctx.globalAlpha = isFull ? 0.2 : 0.95;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(barX, barY, barW, 2);
+    ctx.fillStyle = hpPct > 0.5 ? '#5aff5a' : (hpPct > 0.25 ? '#ffd54a' : '#ff5a5a');
+    ctx.fillRect(barX, barY, barW * hpPct, 2);
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
@@ -18204,10 +18206,28 @@ const Coop = {
         state.castledefenseCore.hp = ev.hp;
       }
       if (typeof triggerShake === 'function') triggerShake(4, 0.2);
+    } else if (ev.type === 'cd_turret_dmg') {
+      // { x, y, dmg } — auto-turret hit ENEMY (visa floating damage-number)
+      if (typeof spawnDamageNumber === 'function') {
+        spawnDamageNumber(ev.x, ev.y - 20, ev.dmg, false);
+      }
     } else if (ev.type === 'cd_building_placed') {
       // { id, kind, x, y, w, h, hp, maxHp, ownerPid }
       if (state.castledefenseBuildings) {
         state.castledefenseBuildings.push({ ...ev });
+      }
+      // v1.400: ägaren får build-mode cleared + menu auto-reopens för nästa placering
+      if (ev.ownerPid === this.myId) {
+        state.cdBuildMode = null;
+        state.cdBuildHoverX = null;
+        state.cdBuildHoverY = null;
+        // Auto-reopen menu efter 80ms — men SKIPPA om menu redan är öppen
+        // (annars triggar openCdBuildMenu's toggle-logik = stänger menyn)
+        setTimeout(() => {
+          if (!state.castledefenseActive || state.castledefenseEnded) return;
+          if (document.getElementById('cd-build-menu-overlay')) return;
+          if (typeof openCdBuildMenu === 'function') openCdBuildMenu();
+        }, 80);
       }
     } else if (ev.type === 'cd_building_damaged') {
       // { id, hp, maxHp }
@@ -18226,12 +18246,14 @@ const Coop = {
       this.castledefenseActive = false;
       state.castledefenseActive = false;
       state.castledefenseEnded = true;
-      if (typeof showToast === 'function') {
-        showToast('💀 CORE FÖRSTÖRD — överlevde våg ' + ev.wave + ' (' + ev.survivedSec + 's)');
-      }
       if (typeof Audio !== 'undefined' && Audio.gameOver) Audio.gameOver();
       if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
       if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
+      if (typeof showCastleDefenseDefeatScreen === 'function') {
+        showCastleDefenseDefeatScreen(ev.wave, ev.survivedSec, ev.reason);
+      } else if (typeof showToast === 'function') {
+        showToast('💀 CORE FÖRSTÖRD — överlevde våg ' + ev.wave + ' (' + ev.survivedSec + 's)');
+      }
     } else if (ev.type === 'cd_hud_update') {
       // { wave, waveState, enemiesAlive, enemiesIncoming, coreHp, coreMaxHp, waveBetweenEndAt }
       state.castledefenseWave = ev.wave;
@@ -27766,6 +27788,10 @@ function clearCastleDefenseState() {
   if (typeof Coop !== 'undefined') Coop.castledefenseActive = false;
   if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
   if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
+  if (typeof closeCdBuildMenu === 'function') closeCdBuildMenu();
+  // Remove ev. defeat-overlay
+  const defeatOverlay = document.getElementById('cd-defeat-overlay');
+  if (defeatOverlay && defeatOverlay.parentNode) defeatOverlay.parentNode.removeChild(defeatOverlay);
 }
 
 function updateBrHud() {
@@ -28091,6 +28117,137 @@ function refreshCdBuildSlotStyles() {
   // bakåtkompatibla event-handlers (cd_gold_update kallar denna).
 }
 
+// v1.400: Renderar mini-sprite i 48×48 canvas — matchar in-world sprite.
+// Används istället för emoji i build-menu-kort.
+function renderBuildIconCanvas(kind) {
+  const c = document.createElement('canvas');
+  c.width = 48; c.height = 48;
+  c.style.cssText = 'display:block;image-rendering:pixelated;';
+  const cc = c.getContext('2d');
+  cc.imageSmoothingEnabled = false;
+  if (kind === 'wall') {
+    cc.fillStyle = '#8a7a68'; cc.fillRect(4, 4, 40, 40);
+    cc.fillStyle = '#a89a88'; cc.fillRect(4, 4, 40, 4);
+    cc.fillStyle = '#5a4a38'; cc.fillRect(4, 40, 40, 4);
+    cc.fillStyle = '#5a4a38';
+    cc.fillRect(4, 16, 40, 1); cc.fillRect(4, 28, 40, 1);
+    cc.fillRect(20, 4, 1, 12); cc.fillRect(12, 17, 1, 11);
+    cc.fillRect(28, 17, 1, 11); cc.fillRect(20, 29, 1, 11);
+    cc.strokeStyle = '#1a0808'; cc.lineWidth = 1;
+    cc.strokeRect(4.5, 4.5, 39, 39);
+  } else if (kind === 'auto_turret') {
+    cc.fillStyle = '#3a3530';
+    cc.beginPath(); cc.arc(24, 24, 20, 0, Math.PI*2); cc.fill();
+    cc.strokeStyle = '#1a1510'; cc.lineWidth = 2; cc.stroke();
+    cc.fillStyle = '#4a4540';
+    cc.beginPath(); cc.arc(24, 24, 16, 0, Math.PI*2); cc.fill();
+    cc.save();
+    cc.translate(24, 24); cc.rotate(-Math.PI/4);
+    cc.fillStyle = '#5a5a6a';
+    cc.beginPath(); cc.ellipse(0, 0, 16, 10, 0, 0, Math.PI*2); cc.fill();
+    cc.strokeStyle = '#2a2a3a'; cc.stroke();
+    cc.fillStyle = '#3a3a4a'; cc.fillRect(-2, -3, 22, 6);
+    cc.fillStyle = '#1a1a2a'; cc.fillRect(18, -2, 4, 4);
+    cc.fillStyle = '#3acaff';
+    cc.beginPath(); cc.arc(-4, 0, 3.5, 0, Math.PI*2); cc.fill();
+    cc.fillStyle = '#aaeaff';
+    cc.beginPath(); cc.arc(-4, 0, 1.5, 0, Math.PI*2); cc.fill();
+    cc.restore();
+  } else if (kind === 'man_turret') {
+    cc.fillStyle = '#3a2a18';
+    cc.beginPath(); cc.arc(24, 24, 20, 0, Math.PI*2); cc.fill();
+    cc.strokeStyle = '#1a0a04'; cc.lineWidth = 2; cc.stroke();
+    cc.fillStyle = '#6a4a28'; cc.fillRect(10, 10, 28, 28);
+    cc.strokeStyle = '#3a2a18';
+    cc.strokeRect(10.5, 10.5, 27, 27);
+    cc.save();
+    cc.translate(24, 24); cc.rotate(-Math.PI/4);
+    cc.fillStyle = '#1a1410'; cc.fillRect(-6, -1.5, 26, 3);
+    cc.fillStyle = '#aa8a30'; cc.fillRect(-8, -4, 5, 8);
+    cc.fillStyle = '#cccccc';
+    cc.beginPath();
+    cc.moveTo(20, 0); cc.lineTo(16, -4); cc.lineTo(16, 4); cc.closePath(); cc.fill();
+    cc.restore();
+    cc.fillStyle = '#ffd54a';
+    cc.beginPath(); cc.arc(13, 13, 4, 0, Math.PI*2); cc.fill();
+  } else if (kind === 'spike_trap') {
+    cc.fillStyle = '#1a1410'; cc.fillRect(4, 4, 40, 40);
+    cc.fillStyle = '#2a2018'; cc.fillRect(6, 6, 36, 36);
+    cc.fillStyle = '#bbbbbb';
+    for (let i = 0; i < 3; i++) {
+      for (let j = 0; j < 3; j++) {
+        const sx = 9 + i*12, sy = 9 + j*12;
+        cc.beginPath();
+        cc.moveTo(sx, sy + 9); cc.lineTo(sx + 4, sy); cc.lineTo(sx + 8, sy + 9);
+        cc.closePath(); cc.fill();
+        cc.fillStyle = '#dddddd';
+        cc.beginPath();
+        cc.moveTo(sx + 4, sy); cc.lineTo(sx + 3, sy + 3); cc.lineTo(sx + 5, sy + 3);
+        cc.closePath(); cc.fill();
+        cc.fillStyle = '#bbbbbb';
+      }
+    }
+    cc.fillStyle = 'rgba(120,30,30,0.4)';
+    cc.beginPath(); cc.arc(28, 26, 6, 0, Math.PI*2); cc.fill();
+  } else if (kind === 'slow_trap') {
+    const grd = cc.createLinearGradient(0, 4, 0, 44);
+    grd.addColorStop(0, '#8acaff'); grd.addColorStop(1, '#3a6a8a');
+    cc.fillStyle = grd; cc.fillRect(4, 4, 40, 40);
+    cc.strokeStyle = '#5a8acf'; cc.strokeRect(4.5, 4.5, 39, 39);
+    cc.strokeStyle = 'rgba(170,230,255,0.8)'; cc.lineWidth = 2;
+    cc.beginPath(); cc.arc(24, 24, 16, 0, Math.PI*2); cc.stroke();
+    cc.strokeStyle = '#fff'; cc.lineWidth = 2;
+    for (let i = 0; i < 6; i++) {
+      const a = (i/6) * Math.PI*2;
+      cc.beginPath();
+      cc.moveTo(24, 24); cc.lineTo(24 + Math.cos(a)*13, 24 + Math.sin(a)*13);
+      cc.stroke();
+      // small branches
+      cc.beginPath();
+      cc.moveTo(24 + Math.cos(a)*8, 24 + Math.sin(a)*8);
+      cc.lineTo(24 + Math.cos(a)*8 + Math.cos(a+0.6)*4, 24 + Math.sin(a)*8 + Math.sin(a+0.6)*4);
+      cc.stroke();
+    }
+    cc.fillStyle = '#aaeeff';
+    cc.beginPath(); cc.arc(24, 24, 4, 0, Math.PI*2); cc.fill();
+  } else if (kind === 'repair_stn') {
+    cc.fillStyle = '#3a3a3a'; cc.fillRect(4, 4, 40, 40);
+    cc.strokeStyle = '#1a1a1a'; cc.strokeRect(4.5, 4.5, 39, 39);
+    // green aura
+    cc.strokeStyle = 'rgba(90,255,90,0.55)'; cc.lineWidth = 2;
+    cc.beginPath(); cc.arc(24, 24, 18, 0, Math.PI*2); cc.stroke();
+    // anvil
+    cc.fillStyle = '#1a1a1a';
+    cc.fillRect(13, 22, 22, 10);
+    cc.fillRect(8, 28, 32, 6);
+    cc.fillStyle = '#3a3a3a'; cc.fillRect(13, 22, 22, 2);
+    // hammer
+    cc.fillStyle = '#6a4a28'; cc.fillRect(23, 8, 2, 8);
+    cc.fillStyle = '#aaaaaa'; cc.fillRect(19, 6, 10, 4);
+    // spark
+    cc.fillStyle = '#5aff5a';
+    cc.beginPath(); cc.arc(32, 12, 2, 0, Math.PI*2); cc.fill();
+  } else if (kind === 'health_stn') {
+    cc.fillStyle = '#3a3a3a'; cc.fillRect(4, 4, 40, 40);
+    cc.strokeStyle = '#1a1a1a'; cc.strokeRect(4.5, 4.5, 39, 39);
+    // red aura
+    cc.strokeStyle = 'rgba(255,90,90,0.55)'; cc.lineWidth = 2;
+    cc.beginPath(); cc.arc(24, 24, 18, 0, Math.PI*2); cc.stroke();
+    // white banner
+    cc.fillStyle = '#f8f8f0'; cc.fillRect(10, 8, 28, 32);
+    // red cross
+    cc.fillStyle = '#cc2020';
+    cc.fillRect(22, 12, 4, 24);
+    cc.fillRect(14, 22, 20, 4);
+    cc.strokeStyle = '#aa3030'; cc.lineWidth = 1;
+    cc.strokeRect(10.5, 8.5, 27, 31);
+  } else {
+    cc.fillStyle = '#3a8a4a'; cc.fillRect(4, 4, 40, 40);
+    cc.strokeStyle = '#1a4a2a'; cc.strokeRect(4.5, 4.5, 39, 39);
+  }
+  return c;
+}
+
 // Öppna byggmeny som popup-overlay (full-screen modal — som weapon-menu)
 function openCdBuildMenu() {
   if (!state.castledefenseActive) return;
@@ -28123,11 +28280,23 @@ function openCdBuildMenu() {
     const borderCol = canAfford ? '#5a3a2a' : '#3a2018';
     const opacity = canAfford ? '1' : '0.5';
     card.style.cssText = 'background:' + bgCol + ';border:2px solid ' + borderCol + ';border-radius:10px;padding:14px 10px;color:#fff;font-family:inherit;cursor:' + (canAfford ? 'pointer' : 'not-allowed') + ';opacity:' + opacity + ';display:flex;flex-direction:column;align-items:center;gap:6px;min-width:110px;transition:transform 0.1s;';
-    card.innerHTML =
-      '<div style="font-size:36px;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,0.5));">' + b.icon + '</div>' +
-      '<div style="font-weight:900;letter-spacing:1px;font-size:13px;color:#ffd080;">' + b.label + '</div>' +
-      '<div style="font-size:11px;opacity:0.85;text-align:center;line-height:1.3;min-height:30px;">' + b.hint + '</div>' +
-      '<div style="background:#3a2a18;color:#ffd54a;font-size:13px;padding:3px 10px;border-radius:4px;font-weight:900;margin-top:2px;">💰 ' + cost + '</div>';
+    // Bygg DOM-struktur så vi kan inserta canvas-ikonen
+    const iconWrap = document.createElement('div');
+    iconWrap.style.cssText = 'width:48px;height:48px;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 2px 2px rgba(0,0,0,0.5));';
+    iconWrap.appendChild(renderBuildIconCanvas(b.kind));
+    card.appendChild(iconWrap);
+    const labelEl = document.createElement('div');
+    labelEl.style.cssText = 'font-weight:900;letter-spacing:1px;font-size:13px;color:#ffd080;';
+    labelEl.textContent = b.label;
+    card.appendChild(labelEl);
+    const hintEl = document.createElement('div');
+    hintEl.style.cssText = 'font-size:11px;opacity:0.85;text-align:center;line-height:1.3;min-height:30px;';
+    hintEl.textContent = b.hint;
+    card.appendChild(hintEl);
+    const costEl = document.createElement('div');
+    costEl.style.cssText = 'background:#3a2a18;color:#ffd54a;font-size:13px;padding:3px 10px;border-radius:4px;font-weight:900;margin-top:2px;';
+    costEl.innerHTML = '💰 ' + cost;
+    card.appendChild(costEl);
     card.onclick = (e) => {
       e.preventDefault();
       if (!canAfford) return;
@@ -28155,6 +28324,73 @@ function openCdBuildMenu() {
 function closeCdBuildMenu() {
   const overlay = document.getElementById('cd-build-menu-overlay');
   if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+}
+
+// v1.400: Defeat-screen när core förstörs. Dramatisk röd overlay med stats + meny-knapp.
+function showCastleDefenseDefeatScreen(wave, survivedSec, reason) {
+  // Stäng ev. öppna popups
+  if (typeof closeCdBuildMenu === 'function') closeCdBuildMenu();
+  let overlay = document.getElementById('cd-defeat-overlay');
+  if (overlay) return;
+  overlay = document.createElement('div');
+  overlay.id = 'cd-defeat-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:radial-gradient(ellipse at center,rgba(60,0,0,0.95) 0%,rgba(0,0,0,0.98) 70%);z-index:200;display:flex;align-items:center;justify-content:center;font-family:sans-serif;animation:cdDefeatFade 0.6s ease-out;';
+  // Animation keyframes injection (one-time)
+  if (!document.getElementById('cd-defeat-style')) {
+    const style = document.createElement('style');
+    style.id = 'cd-defeat-style';
+    style.textContent = '@keyframes cdDefeatFade { from { opacity: 0; } to { opacity: 1; } }' +
+                        '@keyframes cdDefeatPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.05); } }';
+    document.head.appendChild(style);
+  }
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:linear-gradient(180deg,#3a0a0a 0%,#1a0404 100%);border:3px solid #aa3030;border-radius:18px;padding:40px 50px;max-width:92vw;text-align:center;box-shadow:0 0 60px rgba(255,40,40,0.5),inset 0 1px 0 rgba(255,150,150,0.2);';
+  const survSec = Math.max(0, Math.floor(survivedSec || 0));
+  const survMin = Math.floor(survSec / 60), survRem = survSec % 60;
+  const survTxt = survMin > 0 ? (survMin + 'm ' + survRem + 's') : (survRem + 's');
+  panel.innerHTML =
+    '<div style="font-size:88px;line-height:1;margin-bottom:8px;animation:cdDefeatPulse 1.4s ease-in-out infinite;">💀</div>' +
+    '<h1 style="color:#ff4040;font-size:48px;font-weight:900;letter-spacing:6px;margin:0 0 12px 0;text-shadow:0 0 20px rgba(255,40,40,0.6);">DEFEAT</h1>' +
+    '<div style="color:#aaa;font-size:13px;letter-spacing:1px;margin-bottom:24px;">BASEN FÖLL</div>' +
+    '<div style="background:rgba(0,0,0,0.4);border:1px solid #5a2020;border-radius:10px;padding:14px 24px;margin-bottom:24px;color:#fff;">' +
+      '<div style="display:flex;justify-content:space-between;gap:30px;margin-bottom:8px;">' +
+        '<span style="color:#888;letter-spacing:0.5px;font-size:12px;">VÅG NÅDD</span>' +
+        '<span style="color:#ffd54a;font-weight:900;font-size:18px;">' + wave + '</span>' +
+      '</div>' +
+      '<div style="display:flex;justify-content:space-between;gap:30px;">' +
+        '<span style="color:#888;letter-spacing:0.5px;font-size:12px;">ÖVERLEVDE</span>' +
+        '<span style="color:#5acaff;font-weight:900;font-size:18px;">' + survTxt + '</span>' +
+      '</div>' +
+    '</div>' +
+    '<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">' +
+      '<button id="cd-defeat-replay-btn" style="background:linear-gradient(180deg,#3aaa3a 0%,#1a7a1a 100%);border:2px solid #5aff5a;border-radius:10px;padding:12px 22px;color:#fff;font-family:inherit;font-weight:900;letter-spacing:1px;font-size:14px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,0.5);">🔁 SPELA IGEN</button>' +
+      '<button id="cd-defeat-menu-btn" style="background:linear-gradient(180deg,#aa3030 0%,#7a1818 100%);border:2px solid #ff5050;border-radius:10px;padding:12px 22px;color:#fff;font-family:inherit;font-weight:900;letter-spacing:1px;font-size:14px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,0.5);">🔙 MENY</button>' +
+    '</div>';
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  document.getElementById('cd-defeat-menu-btn').onclick = () => {
+    overlay.remove();
+    if (typeof clearCastleDefenseState === 'function') clearCastleDefenseState();
+    const btnMenu = document.getElementById('btn-menu');
+    if (btnMenu) {
+      btnMenu.click();
+    } else {
+      menuScreen.classList.remove('hidden');
+      document.body.classList.add('menu-mode');
+      state.mode = 'menu';
+    }
+  };
+  document.getElementById('cd-defeat-replay-btn').onclick = () => {
+    overlay.remove();
+    if (typeof clearCastleDefenseState === 'function') clearCastleDefenseState();
+    // Trigga restart: actuallyStartGame med samma config (host-only — annars går till meny)
+    if (Coop.isHost && typeof actuallyStartGame === 'function') {
+      setTimeout(() => actuallyStartGame(), 200);
+    } else {
+      const btnMenu = document.getElementById('btn-menu');
+      if (btnMenu) btnMenu.click();
+    }
+  };
 }
 
 function tryCdPlaceBuilding() {
