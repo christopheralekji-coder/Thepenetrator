@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v420-cd-frost-pin-siege-utgang';
+const CACHE = 'penetrator-v421-cd-revive-ui-perk-restore';
 const ASSETS = [
   './',
   './index.html',

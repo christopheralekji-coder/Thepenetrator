@@ -8626,6 +8626,139 @@ function drawCastleDefenseSpawnMarkers() {
   ctx.restore();
 }
 
+// v1.421: visuell feedback för CD down-state. Ritar:
+// 1. Röd vignette + "DOWN" overlay på spelaren själv när cdDowned
+// 2. Bleed-out countdown (sekunder kvar tills död)
+// 3. Revive-progress bar (0→4s)
+// 4. "BLED OUT — vänta nästa våg" overlay vid cdDownDead
+// 5. Partner-marker över downed lagkamrat (röd ! + namn + revive-progress)
+function drawCastleDefenseDownStateUI() {
+  if (!state.castledefenseActive || !state.player) return;
+  const t = performance.now();
+  // === EGEN SPELARE — DOWN-STATE OVERLAY ===
+  if (state.player.cdDowned) {
+    // Röd vignette runt skärm-edge
+    const pulse = 0.45 + Math.sin(t / 280) * 0.15;
+    const grad = ctx.createRadialGradient(viewW / 2, viewH / 2, Math.min(viewW, viewH) * 0.3,
+                                          viewW / 2, viewH / 2, Math.max(viewW, viewH) * 0.7);
+    grad.addColorStop(0, 'rgba(180,0,0,0)');
+    grad.addColorStop(1, 'rgba(180,0,0,' + pulse + ')');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, viewW, viewH);
+    // "DOWN" text top-center
+    const headerY = 90;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    ctx.fillRect(viewW / 2 - 130, headerY - 24, 260, 48);
+    ctx.strokeStyle = '#ff3030';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(viewW / 2 - 130, headerY - 24, 260, 48);
+    ctx.fillStyle = '#ff5a5a';
+    ctx.font = 'bold 22px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    ctx.fillText('💀 DOWN — VÄNTA HJÄLP', viewW / 2, headerY);
+    ctx.restore();
+    // Bleed-out countdown — räknat lokalt från cdDownStartedAt
+    const arena = (typeof CASTLEDEFENSE_ARENA !== 'undefined') ? CASTLEDEFENSE_ARENA : null;
+    const bleedSec = arena ? (arena.downBleedoutSec || 25) : 25;
+    const elapsed = state.player.cdDownStartedAt ? (Date.now() - state.player.cdDownStartedAt) / 1000 : 0;
+    const remaining = Math.max(0, bleedSec - elapsed);
+    const bleedBarY = headerY + 38;
+    const barW = 240, barH = 14;
+    const bx = viewW / 2 - barW / 2;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(bx, bleedBarY, barW, barH);
+    const bleedPct = Math.max(0, remaining / bleedSec);
+    ctx.fillStyle = bleedPct > 0.5 ? '#ff5a5a' : (bleedPct > 0.25 ? '#ffa030' : '#ff2020');
+    ctx.fillRect(bx, bleedBarY, barW * bleedPct, barH);
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(bx, bleedBarY, barW, barH);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+    ctx.fillText('BLEED-OUT ' + remaining.toFixed(1) + 's', viewW / 2, bleedBarY + barH / 2);
+    ctx.restore();
+    // Revive-progress bar (visas när någon räddar)
+    const revP = state.player.cdReviveProgress || 0;
+    if (revP > 0) {
+      const reviveBarY = bleedBarY + barH + 8;
+      ctx.save();
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(bx, reviveBarY, barW, barH);
+      const greenPulse = 0.7 + Math.sin(t / 150) * 0.3;
+      ctx.fillStyle = 'rgba(90,255,90,' + greenPulse + ')';
+      ctx.fillRect(bx, reviveBarY, barW * Math.min(1, revP), barH);
+      ctx.strokeStyle = '#5aff5a';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx, reviveBarY, barW, barH);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+      ctx.fillText('💚 RÄDDAS ' + Math.round(revP * 100) + '%', viewW / 2, reviveBarY + barH / 2);
+      ctx.restore();
+    }
+  }
+  // === EGEN SPELARE — BLED OUT (vänta nästa våg) ===
+  if (state.player.cdDownDead) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, viewW, viewH);
+    ctx.fillStyle = '#ff2020';
+    ctx.font = 'bold 32px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 8;
+    ctx.fillText('💀 BLED OUT', viewW / 2, viewH / 2 - 18);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.fillText('Respawn vid nästa våg', viewW / 2, viewH / 2 + 12);
+    ctx.restore();
+  }
+  // === PARTNER-MARKER över downed lagkamrater ===
+  if (typeof Coop !== 'undefined' && Coop.players) {
+    const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+    for (const [pid, partner] of Coop.players) {
+      if (!partner || pid === Coop.myId) continue;
+      if (!partner.cdDowned || partner.x === undefined) continue;
+      const sx = partner.x - cx, sy = partner.y - cy;
+      if (sx < -60 || sx > viewW + 60 || sy < -60 || sy > viewH + 60) continue;
+      ctx.save();
+      // Pulserande röd ring runt downed partner
+      const ringPulse = 0.6 + Math.sin(t / 200) * 0.4;
+      ctx.strokeStyle = 'rgba(255,40,40,' + ringPulse + ')';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 24 + Math.sin(t / 250) * 3, 0, Math.PI * 2);
+      ctx.stroke();
+      // "DOWN" label ovan
+      ctx.fillStyle = 'rgba(0,0,0,0.8)';
+      ctx.fillRect(sx - 32, sy - 50, 64, 18);
+      ctx.fillStyle = '#ff5a5a';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('💀 DOWN', sx, sy - 41);
+      // Revive-progress bar under label
+      const revP2 = partner.cdReviveProgress || 0;
+      if (revP2 > 0) {
+        ctx.fillStyle = 'rgba(0,0,0,0.8)';
+        ctx.fillRect(sx - 32, sy - 30, 64, 6);
+        ctx.fillStyle = '#5aff5a';
+        ctx.fillRect(sx - 32, sy - 30, 64 * Math.min(1, revP2), 6);
+      }
+      ctx.restore();
+    }
+  }
+}
+
 // v1.419: ghost-preview för pin-drag — ritar pin-cursor vid finger-position
 // medan användaren håller pin-knappen + drar. Klart visuell feedback om var
 // pinnen kommer landa.
@@ -18696,7 +18829,7 @@ const Coop = {
         state.player.speedMul = 0.35;
         save.equipped = 'knife';
         save.weaponId = 'knife';
-        if (typeof showToast === 'function') showToast('💀 DOWN! En lagkamrat måste rädda dig (5s)');
+        if (typeof showToast === 'function') showToast('💀 DOWN! Lagkamrat måste stå nära dig i 4s');
         if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
         if (typeof triggerShake === 'function') triggerShake(8, 0.3);
       } else {
@@ -18704,7 +18837,7 @@ const Coop = {
         if (partner) partner.cdDowned = true;
         if (typeof showToast === 'function') {
           const name = (partner && partner.name) || 'Lagkamrat';
-          showToast('⚠ ' + name + ' är NER — håll in F nära dem');
+          showToast('⚠ ' + name + ' är NER — stå nära för att rädda');
         }
       }
     } else if (ev.type === 'cd_revive_progress') {
@@ -18720,8 +18853,15 @@ const Coop = {
       if (ev.peerId === this.myId && state.player) {
         state.player.cdDowned = false;
         state.player.cdReviveProgress = 0;
-        state.player.speedMul = 1.0;
-        const restored = state.player._cdPrevWeapon || 'rifle';
+        // v1.421: re-applicera perk-speedMul (var hardcoded 1.0 → SCOUT/TANK
+        // förlorade sin speed efter revive)
+        const myPerk = state.castledefensePerks && state.castledefensePerks[this.myId];
+        if (myPerk === 'scout') state.player.speedMul = 1.4;
+        else if (myPerk === 'tank') state.player.speedMul = 0.8;
+        else state.player.speedMul = 1.0;
+        const restored = state.player._cdPrevWeapon
+          || (typeof CASTLEDEFENSE_ARENA !== 'undefined' && CASTLEDEFENSE_ARENA.startWeapon)
+          || 'pistol';
         state.player.weaponId = restored;
         save.equipped = restored;
         save.weaponId = restored;
@@ -18736,7 +18876,13 @@ const Coop = {
       if (ev.peerId === this.myId && state.player) {
         state.player.cdDowned = false;
         state.player.cdDownDead = true;
+        // v1.421: spectating så input/skytte blockas tills respawn
+        state.player.spectating = true;
+        state.player.hp = 0;
         if (typeof showToast === 'function') showToast('💀 BLED OUT — respawn nästa våg');
+      } else {
+        const partner = this.players.get(ev.peerId);
+        if (partner) partner.cdDowned = false;
       }
     } else if (ev.type === 'cd_player_respawned') {
       // { peerId, wave }
@@ -18745,6 +18891,18 @@ const Coop = {
         state.player.cdDowned = false;
         state.player.spectating = false;
         state.player.invuln = 3;
+        // v1.421: restore save.equipped (sattes till 'knife' vid downed → blev kvar)
+        const restoreW = state.player._cdPrevWeapon
+          || (typeof CASTLEDEFENSE_ARENA !== 'undefined' && CASTLEDEFENSE_ARENA.startWeapon)
+          || 'pistol';
+        state.player.weaponId = restoreW;
+        save.equipped = restoreW;
+        save.weaponId = restoreW;
+        // Re-applicera perk speedMul
+        const myPerk = state.castledefensePerks && state.castledefensePerks[this.myId];
+        if (myPerk === 'scout') state.player.speedMul = 1.4;
+        else if (myPerk === 'tank') state.player.speedMul = 0.8;
+        else state.player.speedMul = 1.0;
         if (typeof showToast === 'function') showToast('♻ RESPAWN — våg ' + ev.wave);
       }
     } else if (ev.type === 'cd_building_upgraded') {
@@ -42644,6 +42802,7 @@ function render() {
     drawCastleDefenseHealParticles();          // heal-particles från health_stn
     if (typeof drawCastleDefensePings === 'function') drawCastleDefensePings();
     if (typeof drawCastleDefensePinGhost === 'function') drawCastleDefensePinGhost();
+    if (typeof drawCastleDefenseDownStateUI === 'function') drawCastleDefenseDownStateUI();
     if (typeof drawCdBuildGhost === 'function') drawCdBuildGhost();
   }
   // GRENADE-render ALLTID PÅ TOPP — efter walls/träd/tak så granaten aldrig hamnar
