@@ -8100,20 +8100,26 @@ function drawCastleDefenseCore() {
   ctx.restore();
 }
 
-function drawCastleDefenseBuildings() {
+// layer: 'ground' (flat traps) | 'tall' (walls/turrets/stations) | undefined (all — legacy)
+function drawCastleDefenseBuildings(layer) {
   if (!state.castledefenseBuildings || !state.castledefenseBuildings.length) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const t = performance.now() / 1000;
   ctx.save();
   for (const b of state.castledefenseBuildings) {
     if (b.hp <= 0) continue;
+    const isGroundLayer = (b.kind === 'spike_trap' || b.kind === 'slow_trap');
+    if (layer === 'ground' && !isGroundLayer) continue;
+    if (layer === 'tall' && isGroundLayer) continue;
     const x = b.x - cx, y = b.y - cy;
     if (x + b.w < 0 || x > viewW || y + b.h < 0 || y > viewH) continue;
     const bcx = x + b.w / 2, bcy = y + b.h / 2;
     const hpPct = b.hp / b.maxHp;
-    // Drop-shadow
-    ctx.fillStyle = 'rgba(0,0,0,0.3)';
-    ctx.fillRect(x + 2, y + 3, b.w, b.h);
+    // Drop-shadow (skippa för flat traps — de är redan på marken)
+    if (!isGroundLayer) {
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(x + 2, y + 3, b.w, b.h);
+    }
     // === Per-kind sprite (detaljerade v1.397) ===
     if (b.kind === 'wall') {
       // Stenblock med crenellation (battlements) på top + mortar-linjer
@@ -14060,16 +14066,11 @@ window.addEventListener('keydown', e => {
   if (k === 'q' && !_locked) switchWeapon(-1);
   if (k === 'e' && !_locked) switchWeapon(1);
   if (k === 'r' && state.mode === 'playing' && !_locked) startReload();
-  // Castle Defense build-system: keys 1-7 = build-mode, F = repair, Esc avbryter (hanteras nedan)
+  // Castle Defense: B = öppna/stäng bygg-meny, F = reparera (Esc hanteras nedan)
   if (state.castledefenseActive && state.mode === 'playing' && !_locked) {
-    if (typeof CD_BUILDABLE_LIST !== 'undefined') {
-      for (const b of CD_BUILDABLE_LIST) {
-        if (k === b.key) {
-          toggleCdBuildMode(b.kind);
-          e.preventDefault();
-          break;
-        }
-      }
+    if (k === 'b' && !e.repeat) {
+      if (typeof openCdBuildMenu === 'function') openCdBuildMenu();
+      e.preventDefault();
     }
     if (k === 'f' && !e.repeat) {
       tryCdRepair();
@@ -14087,12 +14088,16 @@ window.addEventListener('keydown', e => {
   }
   if (e.key === 'Escape') {
     e.preventDefault();
-    // Castle Defense build-mode → Escape avbryter
+    // Castle Defense bygg-menu → stäng popup först
+    if (document.getElementById('cd-build-menu-overlay')) {
+      closeCdBuildMenu();
+      return;
+    }
+    // Castle Defense build-mode → Escape avbryter pågående placement
     if (state.castledefenseActive && state.cdBuildMode) {
       state.cdBuildMode = null;
       state.cdBuildHoverX = null;
       state.cdBuildHoverY = null;
-      if (typeof refreshCdBuildSlotStyles === 'function') refreshCdBuildSlotStyles();
       return;
     }
     if (state.mode === 'playing') openPause();
@@ -28045,74 +28050,109 @@ const CD_BUILDABLE_LIST = [
   { kind: 'health_stn',  key: '7', icon: '✚', label: 'HEAL',     hint: 'Regenererar spelare i radius' },
 ];
 
+// v1.398: BYGG-MENY REDESIGN. Istället för always-visible quick-slot bar:
+// trigger-knapp + popup-overlay (samma mönster som weapon-menu / pistol-menyn).
+// Press button/B → popup → tap option → popup closes + build-mode set.
 function showCastleDefenseBuildBar() {
-  let el = document.getElementById('cd-build-bar');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'cd-build-bar';
-    // På mobile: mindre min-width (45px) + dölj key-hint
-    const isMobile = 'ontouchstart' in window || (navigator.maxTouchPoints > 0);
-    el.style.cssText = 'position:fixed;bottom:max(8px, env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #c47a3a;border-radius:8px;padding:6px 6px;color:#fff;font-family:sans-serif;font-weight:900;letter-spacing:0.5px;z-index:80;display:flex;align-items:center;gap:3px;font-size:10px;text-align:center;max-width:96vw;flex-wrap:nowrap;';
-    for (const b of CD_BUILDABLE_LIST) {
-      const slot = document.createElement('button');
-      slot.dataset.kind = b.kind;
-      slot.dataset.key = b.key;
-      const minW = isMobile ? '44px' : '54px';
-      slot.style.cssText = 'background:#1a1410;border:2px solid #5a3a2a;border-radius:6px;padding:5px 6px;min-width:' + minW + ';cursor:pointer;color:#fff;font-family:inherit;font-weight:inherit;letter-spacing:inherit;font-size:10px;line-height:1.2;display:flex;flex-direction:column;align-items:center;gap:1px;';
-      const cost = (CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[b.kind] && CASTLEDEFENSE_ARENA.buildables[b.kind].cost) || 0;
-      const keyHint = isMobile ? '' : ('<div style="background:#5a3a2a;color:#fff;font-size:8px;padding:1px 4px;border-radius:2px;margin-top:1px;">' + b.key + '</div>');
-      slot.innerHTML = '<div style="font-size:' + (isMobile ? '16' : '18') + 'px;line-height:1;">' + b.icon + '</div>' +
-                       '<div style="opacity:0.9;font-size:9px;">' + b.label + '</div>' +
-                       '<div style="color:#ffd54a;font-size:10px;">' + cost + '</div>' +
-                       keyHint;
-      slot.onclick = (e) => { e.preventDefault(); toggleCdBuildMode(b.kind); };
-      el.appendChild(slot);
-    }
-    document.body.appendChild(el);
+  // Trigger-knapp (alltid synlig under CD-match)
+  let trigger = document.getElementById('cd-build-trigger');
+  if (!trigger) {
+    trigger = document.createElement('button');
+    trigger.id = 'cd-build-trigger';
+    trigger.style.cssText = 'position:fixed;bottom:max(72px, calc(env(safe-area-inset-bottom) + 60px));left:50%;transform:translateX(-50%);background:linear-gradient(180deg,#d48a4a 0%,#a45a2a 100%);border:2px solid #ffd080;border-radius:12px;padding:11px 22px;color:#fff;font-family:sans-serif;font-weight:900;letter-spacing:1.5px;z-index:80;cursor:pointer;font-size:14px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);';
+    trigger.innerHTML = '🔨 BYGG <span style="opacity:0.75;font-size:11px;font-weight:700;">(B)</span>';
+    trigger.onclick = (e) => { e.preventDefault(); openCdBuildMenu(); };
+    document.body.appendChild(trigger);
   }
-  el.style.display = 'flex';
-  refreshCdBuildSlotStyles();
+  trigger.style.display = '';
 }
 
 function hideCastleDefenseBuildBar() {
-  const el = document.getElementById('cd-build-bar');
-  if (el && el.parentNode) el.parentNode.removeChild(el);
+  const ids = ['cd-build-bar', 'cd-build-trigger', 'cd-build-menu-overlay'];
+  for (const id of ids) {
+    const e = document.getElementById(id);
+    if (e && e.parentNode) e.parentNode.removeChild(e);
+  }
   state.cdBuildMode = null;
   state.cdBuildHoverX = null;
   state.cdBuildHoverY = null;
 }
 
 function toggleCdBuildMode(kind) {
-  if (state.cdBuildMode === kind) {
-    state.cdBuildMode = null;
-  } else {
-    state.cdBuildMode = kind;
-  }
-  refreshCdBuildSlotStyles();
+  // Behåller kompatibilitet — gör tap på trigger en toggle om buildmode redan == kind
+  if (state.cdBuildMode === kind) state.cdBuildMode = null;
+  else state.cdBuildMode = kind;
 }
 
 function refreshCdBuildSlotStyles() {
-  const el = document.getElementById('cd-build-bar');
-  if (!el) return;
-  const slots = el.querySelectorAll('button[data-kind]');
-  for (const s of slots) {
-    const kind = s.dataset.kind;
-    const active = state.cdBuildMode === kind;
-    const cost = (CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[kind] && CASTLEDEFENSE_ARENA.buildables[kind].cost) || 0;
+  // No-op: gamla quick-slot-baren finns inte längre. Behåller funktion för
+  // bakåtkompatibla event-handlers (cd_gold_update kallar denna).
+}
+
+// Öppna byggmeny som popup-overlay (full-screen modal — som weapon-menu)
+function openCdBuildMenu() {
+  if (!state.castledefenseActive) return;
+  const existing = document.getElementById('cd-build-menu-overlay');
+  if (existing) { closeCdBuildMenu(); return; }
+  const overlay = document.createElement('div');
+  overlay.id = 'cd-build-menu-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:95;display:flex;align-items:center;justify-content:center;font-family:sans-serif;';
+  overlay.onclick = (e) => { if (e.target === overlay) closeCdBuildMenu(); };
+
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:linear-gradient(180deg,#2a1a10 0%,#1a0a04 100%);border:3px solid #c47a3a;border-radius:14px;padding:18px 20px;max-width:96vw;max-height:90vh;overflow:auto;box-shadow:0 8px 32px rgba(0,0,0,0.8);';
+  panel.onclick = (e) => e.stopPropagation();
+
+  const header = document.createElement('div');
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;color:#ffd080;font-weight:900;letter-spacing:1.5px;font-size:18px;';
+  header.innerHTML = '<span>🔨 BYGG-MENY</span><span style="color:#ffd54a;font-size:15px;">💰 ' + (state.castledefenseGold || 0) + '</span>';
+  panel.appendChild(header);
+
+  const isMobile = 'ontouchstart' in window || (navigator.maxTouchPoints > 0);
+  const grid = document.createElement('div');
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(' + (isMobile ? 2 : 4) + ',1fr);gap:10px;';
+
+  for (const b of CD_BUILDABLE_LIST) {
+    const card = document.createElement('button');
+    card.dataset.kind = b.kind;
+    const cost = (CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[b.kind] && CASTLEDEFENSE_ARENA.buildables[b.kind].cost) || 0;
     const canAfford = (state.castledefenseGold || 0) >= cost;
-    if (active) {
-      s.style.background = '#c47a3a';
-      s.style.borderColor = '#ffd080';
-    } else if (!canAfford) {
-      s.style.background = '#1a1410';
-      s.style.borderColor = '#3a2a2a';
-      s.style.opacity = '0.5';
-    } else {
-      s.style.background = '#1a1410';
-      s.style.borderColor = '#5a3a2a';
-      s.style.opacity = '1';
-    }
+    const bgCol = canAfford ? '#2a1a10' : '#1a1008';
+    const borderCol = canAfford ? '#5a3a2a' : '#3a2018';
+    const opacity = canAfford ? '1' : '0.5';
+    card.style.cssText = 'background:' + bgCol + ';border:2px solid ' + borderCol + ';border-radius:10px;padding:14px 10px;color:#fff;font-family:inherit;cursor:' + (canAfford ? 'pointer' : 'not-allowed') + ';opacity:' + opacity + ';display:flex;flex-direction:column;align-items:center;gap:6px;min-width:110px;transition:transform 0.1s;';
+    card.innerHTML =
+      '<div style="font-size:36px;line-height:1;filter:drop-shadow(0 2px 2px rgba(0,0,0,0.5));">' + b.icon + '</div>' +
+      '<div style="font-weight:900;letter-spacing:1px;font-size:13px;color:#ffd080;">' + b.label + '</div>' +
+      '<div style="font-size:11px;opacity:0.85;text-align:center;line-height:1.3;min-height:30px;">' + b.hint + '</div>' +
+      '<div style="background:#3a2a18;color:#ffd54a;font-size:13px;padding:3px 10px;border-radius:4px;font-weight:900;margin-top:2px;">💰 ' + cost + '</div>';
+    card.onclick = (e) => {
+      e.preventDefault();
+      if (!canAfford) return;
+      state.cdBuildMode = b.kind;
+      closeCdBuildMenu();
+      if (typeof showToast === 'function') showToast('🔨 ' + b.label + ' — klick/tap för att placera (Esc = avbryt)');
+    };
+    card.onmousedown = () => { card.style.transform = 'scale(0.96)'; };
+    card.onmouseup = () => { card.style.transform = ''; };
+    card.ontouchstart = () => { card.style.transform = 'scale(0.96)'; };
+    card.ontouchend = () => { card.style.transform = ''; };
+    grid.appendChild(card);
   }
+  panel.appendChild(grid);
+
+  const footer = document.createElement('div');
+  footer.style.cssText = 'margin-top:14px;text-align:center;font-size:11px;color:#888;letter-spacing:0.5px;line-height:1.5;';
+  footer.innerHTML = 'Tap = välj · Esc / Tap utanför = stäng · F vid skadat objekt = reparera (10g/80hp)';
+  panel.appendChild(footer);
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+}
+
+function closeCdBuildMenu() {
+  const overlay = document.getElementById('cd-build-menu-overlay');
+  if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
 }
 
 function tryCdPlaceBuilding() {
@@ -41152,6 +41192,14 @@ function render() {
     // Cabin-INTERIOR (golv + items för stugan jag är inne i) — under player
     if (typeof drawBrCabinInteriors === 'function') drawBrCabinInteriors();
   }
+  // CASTLE DEFENSE — EARLY pass (innan player). Ground, dekorationer på marken,
+  // spike/slow-traps (flat objects), spawn-markers. Player kan gå OVANPÅ dessa.
+  if (state.castledefenseActive) {
+    drawCastleDefenseGround();
+    drawCastleDefenseDecorationsGround();
+    drawCastleDefenseBuildings('ground');     // bara spike/slow traps
+    drawCastleDefenseSpawnMarkers();
+  }
   drawHazards();
   drawCollectibles();
   drawPickups();
@@ -41274,16 +41322,14 @@ function render() {
     drawBrZone();
     drawBrOutsideWarning();
   }
-  // CASTLE DEFENSE — full pipeline (v1.397 rewamp)
+  // CASTLE DEFENSE — LATE pass (efter player). Tall objects + effects.
+  // (Ground-pass ritas tidigare — se early-render-block i runFrame nedan.)
   if (state.castledefenseActive) {
-    drawCastleDefenseGround();
-    drawCastleDefenseDecorationsGround();  // skuggor, stenar, banner-stolpar
-    drawCastleDefenseWalls();               // legacy pre-built (tomt nu)
-    drawCastleDefenseBuildings();           // player-built turret/wall/trap/station
-    drawCastleDefenseCore();                // obelisk-shrine
-    drawCastleDefenseDecorationsTop();      // träd-kronor, fackel-flammor, banderoller
-    drawCastleDefenseHealParticles();       // heal-particles från health_stn
-    drawCastleDefenseSpawnMarkers();
+    drawCastleDefenseWalls();                  // legacy pre-built (tomt nu)
+    drawCastleDefenseBuildings('tall');        // walls, turrets, stations
+    drawCastleDefenseCore();                   // obelisk-shrine
+    drawCastleDefenseDecorationsTop();         // träd-kronor, fackel-flammor, banderoll-tyg
+    drawCastleDefenseHealParticles();          // heal-particles från health_stn
     if (typeof drawCdBuildGhost === 'function') drawCdBuildGhost();
   }
   // GRENADE-render ALLTID PÅ TOPP — efter walls/träd/tak så granaten aldrig hamnar

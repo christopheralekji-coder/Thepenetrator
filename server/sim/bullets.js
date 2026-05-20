@@ -836,6 +836,10 @@ function updateBullets(sim, dt, now) {
                 id: w.id, hp: w.hp, maxHp: w.maxHp,
               });
               if (w.hp <= 0) {
+                // Flow field rebuild trigger när solid struktur faller
+                if (!w.kind || (w.kind !== 'spike_trap' && w.kind !== 'slow_trap')) {
+                  sim._cdFlowDirty = true;
+                }
                 sim.eventQueue.push({
                   type: isBuild ? 'cd_building_destroyed' : 'cd_wall_destroyed',
                   id: w.id,
@@ -1367,8 +1371,9 @@ function updateBullets(sim, dt, now) {
     for (let j = 0; j < nearby.length; j++) {
       const e = nearby[j];
       if (e.dead || b.hitIds.has(e)) continue;
-      // Anti-cheese: explicit long-range allow-list
-      if (ownerPosForCheese && !e.isBoss && !e.isMiniBoss && !_isLong && !b._companion) {
+      // Anti-cheese: explicit long-range allow-list (auto-turrets undantagna — de
+      // är stationära byggnader vars range bestäms av building-spec, inte ägaren)
+      if (ownerPosForCheese && !e.isBoss && !e.isMiniBoss && !_isLong && !b._companion && !b._autoTurret) {
         const ddx = e.x - ownerPosForCheese.x;
         const ddy = e.y - ownerPosForCheese.y;
         const cheeseRange = 700;
