@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v421-cd-revive-ui-perk-restore';
+const CACHE = 'penetrator-v422-cd-wall-immune-balance';
 const ASSETS = [
   './',
   './index.html',

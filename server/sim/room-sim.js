@@ -2072,6 +2072,22 @@ function cdEnemiesForWave(arena, wave) {
   return arena.waveBaseCount + (wave - 1) * arena.waveScalePerWave;
 }
 
+// v1.422: Difficulty-baserad price-multiplier för CD build/upgrade-kostnader.
+// Casual ger -15% rabatt, insane ger +30% surcharge så hårdare mode = mer ekonomiskt
+// tryck (utöver tuffare fiender). Tidigare ingen difference vilket gjorde
+// "casual" mest distinkt på enemy HP/DMG.
+function cdGetDifficultyPriceMul(difficulty) {
+  switch (difficulty) {
+    case 'casual': return 0.85;
+    case 'hardcore': return 1.15;
+    case 'insane': return 1.30;
+    case 'recruit': return 0.90;       // legacy-namnet
+    case 'nightmare': return 1.35;     // legacy-namnet
+    case 'hard': return 1.15;          // legacy-namnet
+    default: return 1.0;                // veteran
+  }
+}
+
 // v1.416: Special wave themes var 3:e wave (skippas vid boss-wave)
 const CD_WAVE_THEMES = ['speed_rush', 'bomb_squad', 'sniper_alley', 'elite', 'horde'];
 function cdGetWaveTheme(wave, arena) {
@@ -2863,6 +2879,15 @@ function tickCastleDefense(sim, dt, now) {
           if (wsP.playerState.cdDowned) continue;
           const psP = wsP.playerState;
           if (Date.now() < (psP.invulnUntil || 0)) continue;
+          // v1.422: Player står PÅ solid byggnad/mur (AABB) → immune mot melee.
+          // Walls ÄR cover — du ska kunna repair/upgrade utan att kontakt-killas.
+          let onSolid = false;
+          for (const sB of cdAllSolids) {
+            if (sB.hp <= 0) continue;
+            if (psP.x >= sB.x && psP.x <= sB.x + sB.w &&
+                psP.y >= sB.y && psP.y <= sB.y + sB.h) { onSolid = true; break; }
+          }
+          if (onSolid) continue;
           const ddx = psP.x - e.x, ddy = psP.y - e.y;
           const rsumP = (e.r || 12) + 14;
           if (ddx * ddx + ddy * ddy < rsumP * rsumP) {
@@ -4970,7 +4995,9 @@ function applyCastleDefenseBuild(sim, peerId, msg) {
   // v1.416: BUILDER perk -30% cost
   const buildPerk = sim.castledefensePerks[peerId];
   const buildCostMul = buildPerk === 'builder' ? 0.7 : 1.0;
-  const effectiveCost = Math.round(spec.cost * buildCostMul);
+  // v1.422: difficulty price-mul (casual=-15%, hardcore=+15%, insane=+30%)
+  const diffPriceMul = cdGetDifficultyPriceMul(sim.config.difficulty);
+  const effectiveCost = Math.max(1, Math.round(spec.cost * buildCostMul * diffPriceMul));
   const playerGold = sim.castledefenseGold[peerId] || 0;
   if (playerGold < effectiveCost) {
     sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'insufficient_gold', kind });
@@ -5154,7 +5181,9 @@ function applyCastleDefenseUpgrade(sim, peerId, msg) {
   // v1.416: BUILDER perk -30% upgrade-cost
   const upgPerk = sim.castledefensePerks[peerId];
   const upgMul = upgPerk === 'builder' ? 0.7 : 1.0;
-  const upgradeCost = Math.round(baseCost * ucBase * Math.pow(curLevel + 1, ucExp) * upgMul);
+  // v1.422: difficulty price-mul (casual=-15%, hardcore=+15%, insane=+30%)
+  const upgDiffPriceMul = cdGetDifficultyPriceMul(sim.config.difficulty);
+  const upgradeCost = Math.max(1, Math.round(baseCost * ucBase * Math.pow(curLevel + 1, ucExp) * upgMul * upgDiffPriceMul));
   const playerGold = sim.castledefenseGold[peerId] || 0;
   if (playerGold < upgradeCost) {
     sim.eventQueue.push({ type: 'cd_upgrade_failed', peerId, id, reason: 'insufficient_gold', cost: upgradeCost });

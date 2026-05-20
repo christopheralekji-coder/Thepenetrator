@@ -28838,10 +28838,14 @@ function updateCastleDefenseHud() {
     } else if (upgradeTarget) {
       const arena = CASTLEDEFENSE_ARENA;
       const baseCost = (arena && arena.buildables[upgradeTarget.kind] && arena.buildables[upgradeTarget.kind].cost) || 0;
-      const ucBase = (arena && arena.upgradeCostBase) || 0.6;
-      const ucExp = (arena && arena.upgradeCostExp) || 1.3;
+      const ucBase = (arena && arena.upgradeCostBase) || 0.5;
+      const ucExp = (arena && arena.upgradeCostExp) || 1.2;
       const lvl = upgradeTarget.level || 0;
-      const cost = Math.round(baseCost * ucBase * Math.pow(lvl + 1, ucExp));
+      // v1.422: applicera BUILDER-perk + difficulty price-mul i preview (matchar server)
+      const myPerk = state.castledefensePerks && state.castledefensePerks[Coop.myId];
+      const perkMul = myPerk === 'builder' ? 0.7 : 1.0;
+      const diffMul = cdGetDifficultyPriceMulClient((Coop && Coop.config && Coop.config.difficulty) || 'veteran');
+      const cost = Math.max(1, Math.round(baseCost * ucBase * Math.pow(lvl + 1, ucExp) * perkMul * diffMul));
       const targetLvl = lvl + 2; // visa NÄSTA level
       if (actBtn.dataset.mode !== 'upgrade' || actBtn.dataset.upgradeId !== upgradeTarget.id || actBtn.dataset.upgradeCost !== String(cost)) {
         actBtn.style.display = 'flex';
@@ -29134,10 +29138,17 @@ function openCdBuildMenu() {
   const grid = document.createElement('div');
   grid.style.cssText = 'display:grid;grid-template-columns:repeat(' + (isMobile ? 2 : 4) + ',1fr);gap:10px;';
 
+  // v1.422: effektiv cost = base × BUILDER-perk × diff-mul
+  const menuMyPerk = state.castledefensePerks && state.castledefensePerks[Coop.myId];
+  const menuPerkMul = menuMyPerk === 'builder' ? 0.7 : 1.0;
+  const menuDiffMul = (typeof cdGetDifficultyPriceMulClient === 'function')
+    ? cdGetDifficultyPriceMulClient((Coop && Coop.config && Coop.config.difficulty) || 'veteran')
+    : 1.0;
   for (const b of CD_BUILDABLE_LIST) {
     const card = document.createElement('button');
     card.dataset.kind = b.kind;
-    const cost = (CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[b.kind] && CASTLEDEFENSE_ARENA.buildables[b.kind].cost) || 0;
+    const baseC = (CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[b.kind] && CASTLEDEFENSE_ARENA.buildables[b.kind].cost) || 0;
+    const cost = Math.max(1, Math.round(baseC * menuPerkMul * menuDiffMul));
     const canAfford = (state.castledefenseGold || 0) >= cost;
     const bgCol = canAfford ? '#2a1a10' : '#1a1008';
     const borderCol = canAfford ? '#5a3a2a' : '#3a2018';
@@ -29319,9 +29330,16 @@ function setupCdBuildRadial(btn) {
     centerEl.style.top = centerY + 'px';
     centerEl.textContent = '✕';
     radialEl.appendChild(centerEl);
+    // v1.422: effektiv cost = base × BUILDER-perk × diff-mul (radial-meny)
+    const radMyPerk = state.castledefensePerks && state.castledefensePerks[Coop.myId];
+    const radPerkMul = radMyPerk === 'builder' ? 0.7 : 1.0;
+    const radDiffMul = (typeof cdGetDifficultyPriceMulClient === 'function')
+      ? cdGetDifficultyPriceMulClient((Coop && Coop.config && Coop.config.difficulty) || 'veteran')
+      : 1.0;
     for (let i = 0; i < N; i++) {
       const b = CD_BUILDABLE_LIST[i];
-      const cost = (CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[b.kind] && CASTLEDEFENSE_ARENA.buildables[b.kind].cost) || 0;
+      const radBaseC = (CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[b.kind] && CASTLEDEFENSE_ARENA.buildables[b.kind].cost) || 0;
+      const cost = Math.max(1, Math.round(radBaseC * radPerkMul * radDiffMul));
       const canAfford = (state.castledefenseGold || 0) >= cost;
       // v1.407: 180° båge OVANFÖR knappen så alla 7 slots syns.
       const angle = N === 1 ? -Math.PI / 2 : -Math.PI + (i / (N - 1)) * Math.PI;
@@ -29505,11 +29523,18 @@ function tryCdPlaceBuilding() {
   if (!state.cdBuildMode) return;
   if (state.cdBuildHoverX == null || state.cdBuildHoverY == null) return;
   if (!Coop.ws || Coop.ws.readyState !== 1) return;
-  // v1.403: predicta gold-deduction client-side så HUD svarar instant. Server's
-  // cd_gold_update reconcilerar exakt värde (eller cd_build_failed → undo).
+  // v1.403/v1.422: predicta effective gold-deduction (BUILDER perk + diff-mul) client-side.
   const spec = CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[state.cdBuildMode];
-  if (spec && (state.castledefenseGold || 0) >= spec.cost) {
-    state.castledefenseGold -= spec.cost;
+  if (spec) {
+    const myPerk = state.castledefensePerks && state.castledefensePerks[Coop.myId];
+    const perkMul = myPerk === 'builder' ? 0.7 : 1.0;
+    const diffMul = (typeof cdGetDifficultyPriceMulClient === 'function')
+      ? cdGetDifficultyPriceMulClient((Coop && Coop.config && Coop.config.difficulty) || 'veteran')
+      : 1.0;
+    const effCost = Math.max(1, Math.round(spec.cost * perkMul * diffMul));
+    if ((state.castledefenseGold || 0) >= effCost) {
+      state.castledefenseGold -= effCost;
+    }
   }
   Coop.ws.send(JSON.stringify({
     type: 'sim_cd_build',
@@ -29520,6 +29545,19 @@ function tryCdPlaceBuilding() {
 }
 
 // v1.407: F-knapp = context-action: nära FULL hp byggnad → upgrade, nära skadad → repair
+// v1.422: client-side price-mul som matchar server (cdGetDifficultyPriceMul)
+function cdGetDifficultyPriceMulClient(diff) {
+  switch (diff) {
+    case 'casual': return 0.85;
+    case 'hardcore': return 1.15;
+    case 'insane': return 1.30;
+    case 'recruit': return 0.90;
+    case 'nightmare': return 1.35;
+    case 'hard': return 1.15;
+    default: return 1.0;
+  }
+}
+
 function tryCdUpgrade() {
   if (!state.player || state.player.hp <= 0) return;
   if (!Coop.ws || Coop.ws.readyState !== 1) return;
@@ -29656,8 +29694,14 @@ function drawCdBuildGhost() {
   const x = state.cdBuildHoverX - cx;
   const y = state.cdBuildHoverY - cy;
   ctx.save();
-  // Kontrollera om position är OK lokalt (visuell feedback)
-  const canAfford = (state.castledefenseGold || 0) >= spec.cost;
+  // v1.422: effective cost = base × BUILDER-perk × diff-mul
+  const myPerkAff = state.castledefensePerks && state.castledefensePerks[Coop.myId];
+  const perkMulAff = myPerkAff === 'builder' ? 0.7 : 1.0;
+  const diffMulAff = (typeof cdGetDifficultyPriceMulClient === 'function')
+    ? cdGetDifficultyPriceMulClient((Coop && Coop.config && Coop.config.difficulty) || 'veteran')
+    : 1.0;
+  const effCostAff = Math.max(1, Math.round(spec.cost * perkMulAff * diffMulAff));
+  const canAfford = (state.castledefenseGold || 0) >= effCostAff;
   let canPlace = canAfford;
   // Overlap-test mot walls och buildings (snabb-feedback)
   if (canPlace && state.castledefenseWalls) {

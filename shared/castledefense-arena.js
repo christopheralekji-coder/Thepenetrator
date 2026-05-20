@@ -165,28 +165,23 @@ const CASTLEDEFENSE_ARENA = {
   startGold: 600,                    // 400→600 (mer gold när inget är pre-built)
   waveBonusBase: 180,                // 150→180
   waveBonusPerWave: 35,              // 30→35
-  // v1.407: Höjda placement-costs (user-feedback "kosta mycket att lägga dem").
-  // Auto-turret 400→700, man-turret 500→1200, repair/health 250/180→500/600.
+  // v1.422: BALANCE-PASS — sänkta base-priser och flackare upgrade-curve.
+  // Tidigare: max ut ETT auto_turret kostade ~34k g (~17-34 vågor). Nu ~21k → ~10-15 vågor.
+  // Behov av spridning: spelaren ska kunna ha 3-5 maxade torn på wave 20+, inte 1.
   buildables: {
-    // v1.412: balance från playtest-agent — wall lvl 1 dog på en wave, turret nådde
-    // inte plaza-edge, repair-radius täckte inte både walls + core.
-    // Wall: hp = base × (1 + lvl × 1.2). Lvl 0 = 250, lvl 5 = 1750, lvl 9 = 2950.
-    wall:        { cost: 75,   hp: 250, w: 30, h: 30, hpScalePerLvl: 1.2 },
-    auto_turret: { cost: 700,  hp: 200, w: 30, h: 30, range: 220, dps: 20, fireRate: 2.0 }, // hp 100→200, range 168→220
-    man_turret:  { cost: 1200, hp: 350, w: 30, h: 30, range: 300, dpsMul: 2.5 },  // hp 300→350, range 240→300
-    spike_trap:  { cost: 200,  hp: 250, w: 30, h: 30, dmgOnPass: 30, killCapacity: 5 },
-    // v1.414: slow_trap → AOE aura (radius 140). Slowar ALLA enemies i radius
-    // varje tick (var: bara overlap-tile).
-    slow_trap:   { cost: 300,  hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2, radius: 140 },
-    // v1.414: repair lvl 1 = 1 hp/s (var 12). Steeper scaling: lvl 9 = 19 hp/s.
-    repair_stn:  { cost: 500,  hp: 200, w: 30, h: 30, healPerSec: 1, radius: 140, healScalePerLvl: 2.0 },
-    health_stn:  { cost: 600,  hp: 150, w: 30, h: 30, playerHealPerSec: 3, radius: 140 },
+    wall:        { cost: 60,   hp: 250, w: 30, h: 30, hpScalePerLvl: 1.2 },        // 75→60
+    auto_turret: { cost: 550,  hp: 200, w: 30, h: 30, range: 220, dps: 20, fireRate: 2.0 }, // 700→550
+    man_turret:  { cost: 950,  hp: 350, w: 30, h: 30, range: 300, dpsMul: 2.5 },   // 1200→950
+    spike_trap:  { cost: 160,  hp: 250, w: 30, h: 30, dmgOnPass: 30, killCapacity: 5 }, // 200→160
+    slow_trap:   { cost: 250,  hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2, radius: 140 }, // 300→250
+    repair_stn:  { cost: 400,  hp: 200, w: 30, h: 30, healPerSec: 1, radius: 140, healScalePerLvl: 2.0 }, // 500→400
+    health_stn:  { cost: 500,  hp: 150, w: 30, h: 30, playerHealPerSec: 3, radius: 140 }, // 600→500
   },
-  // v1.410: Level-system med EXPONENTIAL cost-scaling (mycket dyrare att maxa).
-  // upgradeCost(lvl) = baseCost × upgradeCostBase × (lvl+1)^upgradeCostExp
+  // v1.410/v1.422: Level-system. upgradeCost = baseCost × upgradeCostBase × (lvl+1)^upgradeCostExp
+  // Sänkt från 0.6 × 1.3 (max ~10500g/turret) till 0.5 × 1.2 (max ~5800g/turret).
   maxBuildLevel: 9,
-  upgradeCostBase: 0.6,
-  upgradeCostExp: 1.3,               // > 1 = exponential growth
+  upgradeCostBase: 0.5,              // 0.6→0.5
+  upgradeCostExp: 1.2,               // 1.3→1.2
   // Stats scalar STÖRRE per level (user-feedback "större skillnad")
   upgradeStatMul: {
     hp:    0.50,    // +50% hp/lvl (9 = 5.5x base)
