@@ -20637,7 +20637,8 @@ function renderLobbyMatchInfo() {
     chips.push(`<span class="match-info-chip">🚚 +KONVOJ</span>`);
   }
   // 4. Svårighet — visas bara för team-modes (PvP har fast svårighet)
-  const isPvP = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth || cfg.juggernaut || cfg.battleroyale || cfg.castledefense);
+  // v1.409: castledefense har egen difficulty-väljare så diff-chip ska visas
+  const isPvP = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth || cfg.juggernaut || cfg.battleroyale);
   if (!isPvP) {
     const diff = (cfg.difficulty || 'veteran').toUpperCase();
     chips.push(`<span class="match-info-chip diff">📊 ${diff}</span>`);
@@ -28122,25 +28123,29 @@ function showCastleDefenseHud() {
   el.style.display = 'flex';
   // v1.406: Befintlig gold-info (över minimapen) används istället för separat cd-gold
   updateCastleDefenseHud();
-  // v1.407: DEBUG infinity-money knapp (för testning)
+  // v1.409: DEBUG infinity-money knapp — subtil, top-left, mindre påträngande
   let infBtn = document.getElementById('cd-inf-money');
   if (!infBtn) {
     infBtn = document.createElement('button');
     infBtn.id = 'cd-inf-money';
-    infBtn.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top));left:max(8px, env(safe-area-inset-left));background:#1a3a1a;border:2px solid #5aff5a;color:#5aff5a;padding:6px 10px;font-family:monospace;font-weight:900;font-size:11px;letter-spacing:1px;border-radius:6px;z-index:80;cursor:pointer;';
-    infBtn.textContent = '💰+5000 (DEBUG)';
+    infBtn.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top));left:max(8px, env(safe-area-inset-left));background:rgba(20,40,20,0.85);border:1px solid #5aff5a;color:#5aff5a;padding:4px 8px;font-family:monospace;font-weight:700;font-size:10px;letter-spacing:0.5px;border-radius:14px;z-index:80;cursor:pointer;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0.8;';
+    infBtn.textContent = '💰 +5000';
+    infBtn.title = 'DEBUG: ger 5000 gold';
     infBtn.onclick = (e) => { e.preventDefault(); tryCdInfMoney(); };
     document.body.appendChild(infBtn);
   }
-  // v1.408: kontext-action-knapp (mobile + desktop). Visar "🔧 REPAIR" om
-  // skadad byggnad är nära, annars "⬆ UPGRADE" om full + upgradable, annars dold.
+  // v1.409: Kontext-action-knapp — RUND 60×60 (matchar action-btn-stil), polerad
+  // gradient + ring-effekt + cost-badge. Sublimt animerad scale-in.
   let actBtn = document.getElementById('cd-action-btn');
   if (!actBtn) {
     actBtn = document.createElement('button');
     actBtn.id = 'cd-action-btn';
-    // Position: vänster sida bottom, mellan emote och bygg-area
-    actBtn.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 200px) !important;bottom:14px !important;top:auto !important;right:auto !important;width:64px !important;height:52px !important;background:linear-gradient(180deg,#3a8a4a 0%,#1a4a2a 100%);border:2px solid #5aff5a;border-radius:10px;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:10px;line-height:1.1;letter-spacing:0.5px;box-shadow:0 3px 8px rgba(0,0,0,0.5);display:none;flex-direction:column;align-items:center;justify-content:center;padding:0;touch-action:manipulation;';
-    actBtn.innerHTML = '🔧<br><span id="cd-action-label" style="font-size:9px;">REPAIR</span><br><span id="cd-action-cost" style="font-size:9px;color:#ffd54a;">10g</span>';
+    actBtn.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 200px) !important;bottom:14px !important;top:auto !important;right:auto !important;width:60px !important;height:60px !important;background:radial-gradient(circle at 30% 30%, rgba(90,255,90,0.25), rgba(0,0,0,0.4));border:2px solid #5aff5a;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:24px;box-shadow:0 4px 14px rgba(0,0,0,0.6),inset 0 0 12px rgba(90,255,90,0.15),0 0 0 2px rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;padding:0;touch-action:manipulation;transition:transform 0.12s ease,background 0.2s ease,border-color 0.2s ease;';
+    actBtn.innerHTML = '<span id="cd-action-icon" style="font-size:26px;text-shadow:0 1px 3px rgba(0,0,0,0.7);">🔧</span><span id="cd-action-badge" style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#ffd54a;font-size:10px;font-weight:900;padding:2px 7px;border-radius:9px;border:1px solid #ffd54a;white-space:nowrap;letter-spacing:0.3px;">10g</span>';
+    // Tap-feedback
+    actBtn.onpointerdown = () => { actBtn.style.transform = 'scale(0.92)'; };
+    actBtn.onpointerup = () => { actBtn.style.transform = ''; };
+    actBtn.onpointerleave = () => { actBtn.style.transform = ''; };
     actBtn.onclick = (e) => {
       e.preventDefault();
       const mode = actBtn.dataset.mode;
@@ -28219,27 +28224,49 @@ function updateCastleDefenseHud() {
         }
       }
     }
-    const labelEl = document.getElementById('cd-action-label');
-    const costEl = document.getElementById('cd-action-cost');
+    const iconEl = document.getElementById('cd-action-icon');
+    const badgeEl = document.getElementById('cd-action-badge');
     if (damagedTarget) {
-      actBtn.style.display = 'flex';
-      actBtn.dataset.mode = 'repair';
-      actBtn.style.background = 'linear-gradient(180deg,#3a8a4a 0%,#1a4a2a 100%)';
-      actBtn.style.borderColor = '#5aff5a';
-      actBtn.innerHTML = '🔧<br><span style="font-size:9px;">REPAIR</span><br><span style="font-size:9px;color:#ffd54a;">10g</span>';
+      if (actBtn.dataset.mode !== 'repair') {
+        actBtn.style.display = 'flex';
+        actBtn.dataset.mode = 'repair';
+        actBtn.style.background = 'radial-gradient(circle at 30% 30%, rgba(90,255,90,0.25), rgba(0,0,0,0.4))';
+        actBtn.style.borderColor = '#5aff5a';
+        actBtn.style.boxShadow = '0 4px 14px rgba(0,0,0,0.6),inset 0 0 12px rgba(90,255,90,0.15),0 0 0 2px rgba(0,0,0,0.4)';
+        if (iconEl) iconEl.textContent = '🔧';
+        if (badgeEl) {
+          badgeEl.textContent = '10g';
+          badgeEl.style.borderColor = '#5aff5a';
+        }
+      }
     } else if (upgradeTarget) {
       const arena = CASTLEDEFENSE_ARENA;
       const baseCost = (arena && arena.buildables[upgradeTarget.kind] && arena.buildables[upgradeTarget.kind].cost) || 0;
       const upMul = (arena && arena.upgradeCostMul) || 0.4;
       const lvl = upgradeTarget.level || 0;
       const cost = Math.round(baseCost * upMul * (lvl + 1));
-      actBtn.style.display = 'flex';
-      actBtn.dataset.mode = 'upgrade';
-      actBtn.style.background = 'linear-gradient(180deg,#3a5aaa 0%,#1a2a6a 100%)';
-      actBtn.style.borderColor = '#5acaff';
-      actBtn.innerHTML = '⬆<br><span style="font-size:9px;">L' + (lvl + 2) + '</span><br><span style="font-size:9px;color:#ffd54a;">' + cost + 'g</span>';
+      const targetLvl = lvl + 2; // visa NÄSTA level
+      if (actBtn.dataset.mode !== 'upgrade' || actBtn.dataset.upgradeId !== upgradeTarget.id || actBtn.dataset.upgradeCost !== String(cost)) {
+        actBtn.style.display = 'flex';
+        actBtn.dataset.mode = 'upgrade';
+        actBtn.dataset.upgradeId = upgradeTarget.id;
+        actBtn.dataset.upgradeCost = String(cost);
+        actBtn.style.background = 'radial-gradient(circle at 30% 30%, rgba(90,180,255,0.3), rgba(0,0,0,0.5))';
+        actBtn.style.borderColor = '#5acaff';
+        actBtn.style.boxShadow = '0 4px 14px rgba(0,0,0,0.6),inset 0 0 12px rgba(90,180,255,0.2),0 0 0 2px rgba(0,0,0,0.4)';
+        if (iconEl) iconEl.textContent = '⬆';
+        if (badgeEl) {
+          badgeEl.textContent = 'L' + targetLvl + ' · ' + cost + 'g';
+          badgeEl.style.borderColor = '#5acaff';
+        }
+      }
     } else {
-      actBtn.style.display = 'none';
+      if (actBtn.style.display !== 'none') {
+        actBtn.style.display = 'none';
+        actBtn.dataset.mode = '';
+        actBtn.dataset.upgradeId = '';
+        actBtn.dataset.upgradeCost = '';
+      }
     }
   }
 }
@@ -28566,18 +28593,21 @@ function setupCdBuildRadial(btn) {
     const W = window.innerWidth, H = window.innerHeight;
     const SLOT_R = 36;
     const SLOT_W = 64;
-    const PADDING = 2;
-    const minR = N >= 2 ? (SLOT_W + PADDING) / (2 * Math.sin(Math.PI / N)) : 0;
-    let radius = Math.max(55, minR + 2);
+    const PADDING = 8;
+    // v1.409: För 180°-arc behövs större radius (vinkel-steg = π/(N-1) = π/6 för N=7).
+    // chord = 2*R*sin(angleStep/2). Lös för R med min chord = SLOT_W+PADDING.
+    const angleStep180 = Math.PI / (N - 1);
+    const minR = N >= 2 ? (SLOT_W + PADDING) / (2 * Math.sin(angleStep180 / 2)) : 0;
+    let radius = Math.max(110, minR + 4);
     const maxRadiusFit = Math.min((W - 2 * SLOT_R) / 2 - 4, (H - 2 * SLOT_R) / 2 - 4);
-    if (radius > maxRadiusFit) radius = Math.max(50, maxRadiusFit);
-    // v1.405: Klampa BARA X (så slots inte hamnar utanför skärmen horisontellt).
-    // Y skippas: bottom-positionerad knapp ska behålla centerY så finger är i
-    // cancel-zon vid open. Slots under knappen blir off-screen men det är OK —
-    // vapen-menyn tar sig av detta naturligt på top-right.
+    if (radius > maxRadiusFit) radius = Math.max(80, maxRadiusFit);
+    // X-clamp (slots inte off-screen horisontellt)
     const minCX = SLOT_R + radius, maxCX = W - SLOT_R - radius;
     centerX = Math.max(minCX, Math.min(maxCX, centerX));
-    // Inget Y-clamp för CD build-radial
+    // v1.409: lyft centerY 60px ovanför knappen för bättre vertikalt avstånd
+    // mellan radial och action-knappar. Cancel-zon ökas till 80px för att
+    // finger-på-knapp fortfarande räknas som cancel.
+    centerY = centerY - 60;
     // Center cancel-zon
     const centerEl = document.createElement('div');
     centerEl.className = 'weapon-radial-center';
@@ -28634,8 +28664,8 @@ function setupCdBuildRadial(btn) {
     if (!active) return;
     const dx = clientX - centerX, dy = clientY - centerY;
     const dist = Math.hypot(dx, dy);
-    if (dist < 40) {
-      selectedIdx = -1; // cancel-zone
+    if (dist < 80) {
+      selectedIdx = -1; // cancel-zone (60px lyft → 80px cancel täcker finger-on-knapp)
     } else {
       const ang = Math.atan2(dy, dx);
       let bestIdx = -1, bestDiff = Infinity;
