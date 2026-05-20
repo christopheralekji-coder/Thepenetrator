@@ -2210,12 +2210,15 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
           sim.eventQueue.push({ type: 'cd_building_damaged', id: b2.id, hp: b2.hp, maxHp: b2.maxHp });
         }
       }
-      // v1.410: Repair-station healar nu också CORE (user-feedback "healar inte core").
+      // v1.411: Repair-station healar CORE (extended reach: radius + core.r,
+      // så aura räcker till core-edge även om center är något utanför radius).
       if (sim.castledefenseCore && sim.castledefenseCore.hp > 0 && sim.castledefenseCore.hp < sim.castledefenseCore.maxHp) {
         const core = sim.castledefenseCore;
         const dxc = core.x - bcx, dyc = core.y - bcy;
-        if (dxc * dxc + dyc * dyc <= r2) {
-          core.hp = Math.min(core.maxHp, core.hp + b.healPerSec * dt);
+        const reach = b.radius + core.r;
+        if (dxc * dxc + dyc * dyc <= reach * reach) {
+          // Core får 50% av wall-heal-rate så det inte trivialiserar boss-vågor
+          core.hp = Math.min(core.maxHp, core.hp + b.healPerSec * 0.5 * dt);
           if (!sim._cdCoreLastHealBroadcast || nowMs - sim._cdCoreLastHealBroadcast > 250) {
             sim._cdCoreLastHealBroadcast = nowMs;
             sim.eventQueue.push({ type: 'cd_core_damaged', hp: core.hp, maxHp: core.maxHp });
@@ -2621,9 +2624,9 @@ function tickCastleDefense(sim, dt, now) {
       e._cdRole = Math.random() < 0.5 ? 'attacker' : 'siege';
       sim.enemies.push(e);
       sim._cdWaveSpawnsRemaining -= 1;
-      // Spawn-rate: snabbare i senare vågor
-      sim._cdWaveSpawnTimer = Math.max(0.25, 0.7 - sim.castledefenseWave * 0.03)
-        + Math.random() * 0.2;
+      // v1.411: snabbare spawn-rate. Base 0.7→0.45, floor 0.25→0.12.
+      sim._cdWaveSpawnTimer = Math.max(0.12, 0.45 - sim.castledefenseWave * 0.025)
+        + Math.random() * 0.15;
     }
   }
 
@@ -2654,6 +2657,9 @@ function tickCastleDefense(sim, dt, now) {
   for (const e of sim.enemies) {
     if (e.dead) continue;
     let target;
+    // v1.411: Ranged enemies (shooter/soldier/sniper) ALLTID siege-role — skjuter
+    // mot torn istället för att jaga players. Annars stannar de aldrig vid turrets.
+    const isRangedType = (e.type === 'shooter' || e.type === 'soldier' || e.type === 'sniper');
     if (e._cdFlyer || e.isBoss) {
       // Flyers + bossar: rakt mot core
       target = corePos ? {
@@ -2661,7 +2667,7 @@ function tickCastleDefense(sim, dt, now) {
         x: corePos.x, y: corePos.y,
         hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
       } : { x: 2000, y: 2000, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
-    } else if (e._cdRole === 'attacker' && cdAlivePlayers.length > 0) {
+    } else if (!isRangedType && e._cdRole === 'attacker' && cdAlivePlayers.length > 0) {
       // Attacker: target nearest alive player
       let bestPlayer = null, bestPD2 = Infinity;
       for (const p of cdAlivePlayers) {
@@ -4906,6 +4912,7 @@ function applyCastleDefenseBuild(sim, peerId, msg) {
     _spikeCd: 0,
     occupiedByPid: null,
   };
+  building._totalInvested = spec.cost; // för sell-refund
   sim.castledefenseBuildings.push(building);
   // Solid buildings ändrar pathfinding-grid → rebuild flow field nästa tick
   if (kind !== 'spike_trap' && kind !== 'slow_trap') sim._cdFlowDirty = true;
@@ -4998,16 +5005,20 @@ function applyCastleDefenseUpgrade(sim, peerId, msg) {
   }
   // OK — deducera + level up
   sim.castledefenseGold[peerId] = playerGold - upgradeCost;
+  b._totalInvested = (b._totalInvested || baseCost) + upgradeCost;
   b.level = curLevel + 1;
   const mul = arena.upgradeStatMul || {};
   const base = b._baseStats || {};
   // Skala stats baserat på base × (1 + level × multiplier)
   const lvl = b.level;
   if (base.hp) {
-    const newMax = Math.round(base.hp * (1 + lvl * (mul.hp || 0.3)));
+    // v1.411: per-kind override för hp-scaling (wall får +120%/lvl, andra +50%)
+    const spec = arena.buildables[b.kind] || {};
+    const hpScale = spec.hpScalePerLvl != null ? spec.hpScalePerLvl : (mul.hp || 0.5);
+    const newMax = Math.round(base.hp * (1 + lvl * hpScale));
     const hpPct = b.hp / b.maxHp;
     b.maxHp = newMax;
-    b.hp = Math.round(newMax * hpPct); // bevara hp-pct vid upgrade
+    b.hp = Math.round(newMax * hpPct);
   }
   if (base.dps) b.dps = base.dps * (1 + lvl * (mul.dps || 0.25));
   if (base.range) b.range = Math.round(base.range * (1 + lvl * (mul.range || 0.05)));
@@ -5027,6 +5038,30 @@ function applyCastleDefenseUpgrade(sim, peerId, msg) {
   });
 }
 
+// v1.411: Sälja byggnad — bara owner får sälja, refund = 50% av totalt invest
+function applyCastleDefenseSell(sim, peerId, msg) {
+  if (!sim.castledefenseActive || sim.castledefenseEnded) return;
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState) return;
+  const id = msg && msg.id;
+  if (!id) return;
+  const b = sim.castledefenseBuildings.find(x => x.id === id && x.hp > 0);
+  if (!b) return;
+  // Owner-only
+  if (b.ownerPid !== peerId) {
+    sim.eventQueue.push({ type: 'cd_sell_failed', peerId, id, reason: 'not_owner' });
+    return;
+  }
+  const refund = Math.round((b._totalInvested || 0) * 0.5);
+  sim.castledefenseGold[peerId] = (sim.castledefenseGold[peerId] || 0) + refund;
+  b.hp = 0;
+  // Solid building → flow field dirty
+  if (b.kind !== 'spike_trap' && b.kind !== 'slow_trap') sim._cdFlowDirty = true;
+  sim.eventQueue.push({ type: 'cd_building_sold', id: b.id, peerId, refund });
+  sim.eventQueue.push({ type: 'cd_building_destroyed', id: b.id });
+  sim.eventQueue.push({ type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: refund });
+}
+
 // v1.407: DEBUG infinity-money — ger spelaren 5000 gold per call. Tas bort i prod.
 function applyCastleDefenseInfMoney(sim, peerId, msg) {
   if (!sim.castledefenseActive) return;
@@ -5037,4 +5072,4 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseInfMoney };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefenseInfMoney };

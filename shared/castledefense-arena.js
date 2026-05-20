@@ -140,10 +140,10 @@ const CASTLEDEFENSE_ARENA = {
   downCrawlSpeedMul: 0.5,
   downReviveRadius: 60,
 
-  // === WAVE-SCALING (v1.410: höjda counts — kändes för få fiender)
-  waveBaseCount: 12,                 // 6→12 (dubblerat)
-  waveScalePerWave: 4,               // 2→4 (mer per wave)
-  waveBetweenSec: 10,
+  // === WAVE-SCALING (v1.411: snabbare pacing — kortare paus + snabbare spawn)
+  waveBaseCount: 12,
+  waveScalePerWave: 4,
+  waveBetweenSec: 6,                 // 10→6 (snabbare matches)
   bossEveryWave: 5,
 
   // === BUILD-SYSTEM ===
@@ -154,9 +154,11 @@ const CASTLEDEFENSE_ARENA = {
   // v1.407: Höjda placement-costs (user-feedback "kosta mycket att lägga dem").
   // Auto-turret 400→700, man-turret 500→1200, repair/health 250/180→500/600.
   buildables: {
-    wall:        { cost: 75,   hp: 400, w: 30, h: 30 },
-    auto_turret: { cost: 700,  hp: 100, w: 30, h: 30, range: 280, dps: 20, fireRate: 2.0 },
-    man_turret:  { cost: 1200, hp: 300, w: 30, h: 30, range: 400, dpsMul: 2.5 },
+    // v1.411: Wall svag på lvl 1 (150hp) men EXPONENTIAL scaling (hpScalePerLvl 1.2
+    // = +120%/lvl → lvl 9 = 13x = 1950hp). Skiljer från auto-turret som har +50%/lvl.
+    wall:        { cost: 75,   hp: 150, w: 30, h: 30, hpScalePerLvl: 1.2 },
+    auto_turret: { cost: 700,  hp: 100, w: 30, h: 30, range: 168, dps: 20, fireRate: 2.0 },
+    man_turret:  { cost: 1200, hp: 300, w: 30, h: 30, range: 240, dpsMul: 2.5 },
     spike_trap:  { cost: 200,  hp: 250, w: 30, h: 30, dmgOnPass: 30, killCapacity: 5 },
     slow_trap:   { cost: 300,  hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2 },
     repair_stn:  { cost: 500,  hp: 200, w: 30, h: 30, healPerSec: 12, radius: 100 },

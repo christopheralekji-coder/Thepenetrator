@@ -8108,7 +8108,9 @@ function drawCastleDefenseBuildings(layer) {
   ctx.save();
   for (const b of state.castledefenseBuildings) {
     if (b.hp <= 0) continue;
-    const isGroundLayer = (b.kind === 'spike_trap' || b.kind === 'slow_trap');
+    // v1.411: walls flyttade till ground-layer så de ritas UNDER players.
+    // Collision oförändrad — enemies blockas fortfarande av walls.
+    const isGroundLayer = (b.kind === 'spike_trap' || b.kind === 'slow_trap' || b.kind === 'wall');
     if (layer === 'ground' && !isGroundLayer) continue;
     if (layer === 'tall' && isGroundLayer) continue;
     const x = b.x - cx, y = b.y - cy;
@@ -14093,6 +14095,10 @@ window.addEventListener('keydown', e => {
       tryCdUpgrade();
       e.preventDefault();
     }
+    if (k === 's' && !e.repeat) {
+      tryCdSell();
+      e.preventDefault();
+    }
   }
   if (k === 'tab' || e.key === 'Tab') {
     e.preventDefault();
@@ -18434,6 +18440,16 @@ const Coop = {
       }
       if (ev.peerId === this.myId && typeof showToast === 'function') {
         showToast('⬆ UPGRADE → Lv ' + (ev.level + 1) + ' (' + ev.upgradeCost + 'g)');
+      }
+    } else if (ev.type === 'cd_building_sold') {
+      // { id, peerId, refund }
+      if (ev.peerId === this.myId && typeof showToast === 'function') {
+        showToast('💰 SÅLD — +' + ev.refund + 'g refund');
+      }
+    } else if (ev.type === 'cd_sell_failed') {
+      if (ev.peerId === this.myId && typeof showToast === 'function') {
+        const map = { not_owner: 'Bara ägaren får sälja' };
+        showToast('❌ ' + (map[ev.reason] || ev.reason));
       }
     } else if (ev.type === 'cd_upgrade_failed') {
       // { peerId, id, reason, cost }
@@ -28135,6 +28151,20 @@ function showCastleDefenseHud() {
     infBtn.onclick = (e) => { e.preventDefault(); tryCdInfMoney(); };
     document.body.appendChild(infBtn);
   }
+  // v1.411: Sell-knapp (visas vid EGEN byggnad i närhet) — separat liten chip
+  let sellBtn = document.getElementById('cd-sell-btn');
+  if (!sellBtn) {
+    sellBtn = document.createElement('button');
+    sellBtn.id = 'cd-sell-btn';
+    sellBtn.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 270px) !important;bottom:14px !important;top:auto !important;right:auto !important;width:44px !important;height:44px !important;background:radial-gradient(circle at 30% 30%, rgba(255,180,80,0.3), rgba(0,0,0,0.5));border:2px solid #ffaa44;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 0 8px rgba(255,180,80,0.15);display:none;align-items:center;justify-content:center;padding:0;touch-action:manipulation;transition:transform 0.12s ease;';
+    sellBtn.innerHTML = '💰';
+    sellBtn.title = 'Sälj egen byggnad (50% refund)';
+    sellBtn.onpointerdown = () => { sellBtn.style.transform = 'scale(0.92)'; };
+    sellBtn.onpointerup = () => { sellBtn.style.transform = ''; };
+    sellBtn.onpointerleave = () => { sellBtn.style.transform = ''; };
+    sellBtn.onclick = (e) => { e.preventDefault(); tryCdSell(); };
+    document.body.appendChild(sellBtn);
+  }
   // v1.409: Kontext-action-knapp — RUND 60×60 (matchar action-btn-stil), polerad
   // gradient + ring-effekt + cost-badge. Sublimt animerad scale-in.
   let actBtn = document.getElementById('cd-action-btn');
@@ -28158,7 +28188,7 @@ function showCastleDefenseHud() {
 }
 function hideCastleDefenseHud() {
   _stopCastleDefenseHudInterval();
-  const ids = ['cd-hud', 'cd-inf-money', 'cd-action-btn']; // v1.408: + action-btn
+  const ids = ['cd-hud', 'cd-inf-money', 'cd-action-btn', 'cd-sell-btn']; // v1.411: + sell-btn
   for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
@@ -28270,6 +28300,23 @@ function updateCastleDefenseHud() {
         actBtn.dataset.upgradeCost = '';
       }
     }
+  }
+  // v1.411: Sell-knapp visibility — bara om EGEN byggnad i närhet
+  const sellBtn = document.getElementById('cd-sell-btn');
+  if (sellBtn && state.player) {
+    const px = state.player.x, py = state.player.y;
+    let foundOwn = false;
+    if (state.castledefenseBuildings) {
+      for (const b of state.castledefenseBuildings) {
+        if (b.hp <= 0) continue;
+        if (b.ownerPid !== Coop.myId) continue;
+        const cx = Math.max(b.x, Math.min(px, b.x + b.w));
+        const cy = Math.max(b.y, Math.min(py, b.y + b.h));
+        const dx = px - cx, dy = py - cy;
+        if (dx * dx + dy * dy < 50 * 50) { foundOwn = true; break; }
+      }
+    }
+    sellBtn.style.display = foundOwn ? 'flex' : 'none';
   }
 }
 function _startCastleDefenseHudInterval() {
@@ -28839,6 +28886,29 @@ function tryCdUpgrade() {
     return;
   }
   Coop.ws.send(JSON.stringify({ type: 'sim_cd_upgrade', id: target.id }));
+}
+
+// v1.411: Sälj närmaste EGEN byggnad (owner-only)
+function tryCdSell() {
+  if (!state.player || state.player.hp <= 0) return;
+  if (!Coop.ws || Coop.ws.readyState !== 1) return;
+  const px = state.player.x, py = state.player.y;
+  let target = null;
+  if (state.castledefenseBuildings) {
+    for (const b of state.castledefenseBuildings) {
+      if (b.hp <= 0) continue;
+      if (b.ownerPid !== Coop.myId) continue;
+      const cx = Math.max(b.x, Math.min(px, b.x + b.w));
+      const cy = Math.max(b.y, Math.min(py, b.y + b.h));
+      const dx = px - cx, dy = py - cy;
+      if (dx * dx + dy * dy < 50 * 50) { target = b; break; }
+    }
+  }
+  if (!target) {
+    if (typeof showToast === 'function') showToast('Inga egna byggnader nära');
+    return;
+  }
+  Coop.ws.send(JSON.stringify({ type: 'sim_cd_sell', id: target.id }));
 }
 
 // v1.407: DEBUG infinity-money — tappa knappen för +5000 gold
