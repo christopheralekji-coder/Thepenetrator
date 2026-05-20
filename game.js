@@ -29519,6 +29519,44 @@ function setupCdBuildRadial(btn) {
     });
     centerEl.addEventListener('pointerdown', (e) => { if (sticky) e.stopPropagation(); });
     radialEl.appendChild(centerEl);
+    // v1.428: Repeat-toggle BREDVID X — synlig i sticky-mode så mobile/touch
+    // användare kommer åt repeat-funktionen utan B-key + overlay.
+    if (sticky) {
+      const repeatEl = document.createElement('div');
+      repeatEl.className = 'weapon-radial-center';
+      const isOn = !!state.cdBuildRepeat;
+      repeatEl.style.left = (centerX + 80) + 'px';
+      repeatEl.style.top = centerY + 'px';
+      repeatEl.style.background = isOn ? 'rgba(90,255,210,0.35)' : 'rgba(40,40,50,0.85)';
+      repeatEl.style.border = '2px solid ' + (isOn ? '#5affd2' : '#5a5a6a');
+      repeatEl.style.color = isOn ? '#5affd2' : '#aaa';
+      repeatEl.style.fontSize = '20px';
+      repeatEl.style.boxShadow = isOn ? '0 0 16px rgba(90,255,210,0.7)' : '';
+      repeatEl.style.pointerEvents = 'auto';
+      repeatEl.style.cursor = 'pointer';
+      repeatEl.title = 'Bygg flera i rad';
+      repeatEl.textContent = '🔁';
+      const repeatLabel = document.createElement('div');
+      repeatLabel.style.cssText = 'position:absolute;top:48px;left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;letter-spacing:0.4px;color:' + (isOn ? '#5affd2' : '#888') + ';white-space:nowrap;';
+      repeatLabel.textContent = isOn ? 'REPEAT PÅ' : 'REPEAT';
+      repeatEl.appendChild(repeatLabel);
+      repeatEl.addEventListener('click', (e) => {
+        if (!sticky || !active) return;
+        e.preventDefault();
+        e.stopPropagation();
+        state.cdBuildRepeat = !state.cdBuildRepeat;
+        if (typeof updateCdBuildTriggerVisuals === 'function') updateCdBuildTriggerVisuals();
+        if (typeof showToast === 'function') {
+          showToast(state.cdBuildRepeat ? '🔁 Repeat-mode PÅ — bygg flera i rad' : '🔁 Repeat-mode AV');
+        }
+        // Re-render radial så toggle-styling uppdateras direkt
+        radialEl.innerHTML = '';
+        slots = [];
+        buildSlots();
+      });
+      repeatEl.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
+      radialEl.appendChild(repeatEl);
+    }
     // v1.422: effektiv cost = base × BUILDER-perk × diff-mul (radial-meny)
     const radMyPerk = state.castledefensePerks && state.castledefensePerks[Coop.myId];
     const radPerkMul = radMyPerk === 'builder' ? 0.7 : 1.0;
