@@ -2639,35 +2639,53 @@ function tickCastleDefense(sim, dt, now) {
     // Bounds-clamp
     e.x = Math.max(20, Math.min(arena.worldW - 20, e.x));
     e.y = Math.max(20, Math.min(arena.worldH - 20, e.y));
-    // Wall-collision för enemies (skippa flyers — de ignorerar walls)
+    // Wall-collision för enemies (skippa flyers — de ignorerar walls).
     if (!e._cdFlyer) {
       resolveCtfWall(e, cdAllSolids);
-      // Core circle-collision för fiende också (de stoppas vid core-edge för attack)
-      if (sim.castledefenseCore && sim.castledefenseCore.hp > 0) {
-        const core = sim.castledefenseCore;
-        const dxe = e.x - core.x, dye = e.y - core.y;
-        const de = Math.sqrt(dxe * dxe + dye * dye);
-        const minDe = core.r + e.r;
-        if (de < minDe && de > 0.01) {
-          e.x = core.x + (dxe / de) * minDe;
-          e.y = core.y + (dye / de) * minDe;
-        }
+    }
+    // Core circle-collision för ALLA fiender (även flyers — annars kan de attacka
+    // core från insidan). v1.398-fix: d=0 fallback för enemy också.
+    if (sim.castledefenseCore && sim.castledefenseCore.hp > 0) {
+      const core = sim.castledefenseCore;
+      const dxe = e.x - core.x, dye = e.y - core.y;
+      const de = Math.sqrt(dxe * dxe + dye * dye);
+      const minDe = core.r + e.r;
+      if (de < minDe && de > 0.01) {
+        e.x = core.x + (dxe / de) * minDe;
+        e.y = core.y + (dye / de) * minDe;
+      } else if (de <= 0.01) {
+        // Exakt på center — pusha åt höger
+        e.x = core.x + minDe;
       }
     }
     // Attack-timer
     if (e._cdAttackCd > 0) e._cdAttackCd -= dt;
     else e._cdAttackCd = 0;
     // === ENEMY ATTACK PÅ WALL/CORE ===
-    // Hitta första wall/building i kontakt
+    // v1.398-fix: Prioritera mur/turret över support-stations (annars slår de
+    // ner repair-stn istället för väggen som blockerar dem). 2-pass loop.
     let attackTarget = null;
+    // Pass 1: prioriterade target (walls, turrets — saker som blockerar path)
     for (const w of cdAllSolids) {
-      // Circle-vs-AABB: hitta närmsta punkt på rektangeln till enemy-center
+      if (w.kind !== 'wall' && w.kind !== 'castle_wall' && w.kind !== 'auto_turret' && w.kind !== 'man_turret') continue;
       const cx2 = Math.max(w.x, Math.min(e.x, w.x + w.w));
       const cy2 = Math.max(w.y, Math.min(e.y, w.y + w.h));
       const dx2 = e.x - cx2, dy2 = e.y - cy2;
       if (dx2 * dx2 + dy2 * dy2 < (e.r + 1) * (e.r + 1)) {
         attackTarget = w;
         break;
+      }
+    }
+    // Pass 2: stations (repair/health) bara om inget mur/turret i kontakt
+    if (!attackTarget) {
+      for (const w of cdAllSolids) {
+        const cx2 = Math.max(w.x, Math.min(e.x, w.x + w.w));
+        const cy2 = Math.max(w.y, Math.min(e.y, w.y + w.h));
+        const dx2 = e.x - cx2, dy2 = e.y - cy2;
+        if (dx2 * dx2 + dy2 * dy2 < (e.r + 1) * (e.r + 1)) {
+          attackTarget = w;
+          break;
+        }
       }
     }
     // Eller core om i kontakt (om enemy lyckats nå inre)
@@ -4633,6 +4651,21 @@ function applyCastleDefenseBuild(sim, peerId, msg) {
     if (ddx * ddx + ddy * ddy < r * r) {
       sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_player', kind });
       return;
+    }
+  }
+  // v1.398: Blocka även overlap med levande fiender (annars kan fiende fastna inuti
+  // mur som placeras runt dem — flow-field returnerar då unreachable för cellen).
+  // Bara solida buildings — traps får placeras under fiender (skadar dem).
+  if (kind !== 'spike_trap' && kind !== 'slow_trap') {
+    for (const e of sim.enemies) {
+      if (e.dead) continue;
+      const ccx2 = Math.max(x, Math.min(e.x, x + spec.w));
+      const ccy2 = Math.max(y, Math.min(e.y, y + spec.h));
+      const eddx = e.x - ccx2, eddy = e.y - ccy2;
+      if (eddx * eddx + eddy * eddy < (e.r || 12) * (e.r || 12)) {
+        sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_enemy', kind });
+        return;
+      }
     }
   }
   // OK → deducera gold + skapa building

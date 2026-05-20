@@ -818,8 +818,9 @@ function updateBullets(sim, dt, now) {
     if (sim.castledefenseActive) {
       const cdLiveWalls = sim.castledefenseWalls.filter(w => w.hp > 0);
       const cdLiveBuildings = sim.castledefenseBuildings.filter(s => s.hp > 0);
+      // v1.398 fix: matcha tickCastleDefense — ALLA non-trap är solida
       const cdSolidBuildings = cdLiveBuildings.filter(s =>
-        s.kind === 'wall' || s.kind === 'auto_turret' || s.kind === 'man_turret');
+        s.kind !== 'spike_trap' && s.kind !== 'slow_trap');
       // Friendly bullets: ignorera ALL castle-collision. Hostile: stoppas av allt solidt.
       const cdAllSolids = b.hostile ? cdLiveWalls.concat(cdSolidBuildings) : [];
       if (cdAllSolids.length > 0 && bulletHitsWall(b, cdAllSolids)) {

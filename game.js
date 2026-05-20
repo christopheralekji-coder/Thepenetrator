@@ -28059,8 +28059,10 @@ function showCastleDefenseBuildBar() {
   if (!trigger) {
     trigger = document.createElement('button');
     trigger.id = 'cd-build-trigger';
-    trigger.style.cssText = 'position:fixed;bottom:max(72px, calc(env(safe-area-inset-bottom) + 60px));left:50%;transform:translateX(-50%);background:linear-gradient(180deg,#d48a4a 0%,#a45a2a 100%);border:2px solid #ffd080;border-radius:12px;padding:11px 22px;color:#fff;font-family:sans-serif;font-weight:900;letter-spacing:1.5px;z-index:80;cursor:pointer;font-size:14px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);';
-    trigger.innerHTML = '🔨 BYGG <span style="opacity:0.75;font-size:11px;font-weight:700;">(B)</span>';
+    // Placerad höger om center (mellan core-HP och fire-button) — undviker krock
+    // med joystick (vänster) och fire-button (höger). z-index:85 över HUD.
+    trigger.style.cssText = 'position:fixed;bottom:max(160px, calc(env(safe-area-inset-bottom) + 140px));right:max(20px, env(safe-area-inset-right, 20px));background:linear-gradient(180deg,#d48a4a 0%,#a45a2a 100%);border:2px solid #ffd080;border-radius:50%;width:64px;height:64px;color:#fff;font-family:sans-serif;font-weight:900;z-index:85;cursor:pointer;font-size:11px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;padding:0;';
+    trigger.innerHTML = '<span style="font-size:22px;">🔨</span><span>BYGG</span>';
     trigger.onclick = (e) => { e.preventDefault(); openCdBuildMenu(); };
     document.body.appendChild(trigger);
   }
