@@ -14527,11 +14527,17 @@ window.addEventListener('keydown', e => {
       closeCdBuildMenu();
       return;
     }
-    // Castle Defense build-mode → Escape avbryter pågående placement
-    if (state.castledefenseActive && state.cdBuildMode) {
+    // Castle Defense build-mode → Escape avbryter pågående placement + repeat-mode
+    if (state.castledefenseActive && (state.cdBuildMode || state.cdBuildRepeat)) {
       state.cdBuildMode = null;
       state.cdBuildHoverX = null;
       state.cdBuildHoverY = null;
+      // v1.427: Esc stänger även repeat-mode
+      if (state.cdBuildRepeat) {
+        state.cdBuildRepeat = false;
+        if (typeof updateCdBuildTriggerVisuals === 'function') updateCdBuildTriggerVisuals();
+        if (typeof showToast === 'function') showToast('🔁 Repeat-mode AV');
+      }
       return;
     }
     if (state.mode === 'playing') openPause();
@@ -18804,11 +18810,15 @@ const Coop = {
         if (ev.totalInvested != null) newBuilding._totalInvested = ev.totalInvested;
         state.castledefenseBuildings.push(newBuilding);
       }
-      // v1.403: ägaren får build-mode cleared. Med hold-drag-release radial-pattern
-      // (matchar weapon-knappen) krävs ny pointer-hold för nästa placering — så
-      // ingen auto-reopen. User kan dock spam-bygga via radial: hold-drag-release-tap.
+      // v1.403: ägaren får build-mode cleared efter placement.
+      // v1.427: OM state.cdBuildRepeat → behåll mode + kind, samma byggnad sticky
+      // för nästa tap. Sluta repetera = Esc / tap cd-build-trigger / öppna meny.
       if (ev.ownerPid === this.myId) {
-        state.cdBuildMode = null;
+        if (!state.cdBuildRepeat) {
+          state.cdBuildMode = null;
+        }
+        // Reset hover-koord oavsett (annars hoverar kvar på exakt samma plats
+        // tills next pointermove → ser ut som dubbelt-bygge-feedback).
         state.cdBuildHoverX = null;
         state.cdBuildHoverY = null;
       }
@@ -28493,6 +28503,7 @@ function clearCastleDefenseState() {
   state.cdBuildHoverY = null;
   state.cdPinSelectMode = false;
   state._cdGoldCheatVisible = false;
+  state.cdBuildRepeat = false;
   if (typeof Coop !== 'undefined') Coop.castledefenseActive = false;
   if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
   if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
@@ -29048,15 +29059,43 @@ function showCastleDefenseBuildBar() {
   if (!trigger) {
     trigger = document.createElement('button');
     trigger.id = 'cd-build-trigger';
-    // BOTTOM-CENTER position (user request) — undviker joystick (vänster) + fire (höger)
-    // v1.407: Placerad strax till vänster om shield-knappen (right:147 + 52 + 16 = 215),
-    // röd gradient istället för orange.
     trigger.style.cssText = 'position:fixed !important;left:auto !important;right:215px !important;transform:none !important;bottom:14px !important;top:auto !important;width:52px !important;height:52px !important;background:linear-gradient(180deg,#d83838 0%,#8a1818 100%);border:2px solid #ff8080;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:22px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:0;touch-action:none;';
-    trigger.innerHTML = '🔨';
+    // v1.427: REPEAT-badge — visas när cdBuildRepeat=true. Klickbart för att stänga av.
+    trigger.innerHTML = '🔨<span id="cd-build-repeat-badge" style="display:none;position:absolute;top:-6px;right:-6px;background:#5affd2;color:#0a2018;font-size:10px;font-weight:900;padding:2px 5px;border-radius:8px;border:1.5px solid #0a2018;letter-spacing:0.3px;pointer-events:auto;cursor:pointer;box-shadow:0 0 8px rgba(90,255,210,0.6);">🔁</span>';
     document.body.appendChild(trigger);
     setupCdBuildRadial(trigger);
+    // Badge-klick stänger repeat-mode utan att öppna menyn
+    const badge = document.getElementById('cd-build-repeat-badge');
+    if (badge) {
+      badge.addEventListener('pointerdown', (e) => { e.stopPropagation(); }, { capture: true });
+      badge.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        state.cdBuildRepeat = false;
+        state.cdBuildMode = null;
+        updateCdBuildTriggerVisuals();
+        if (typeof showToast === 'function') showToast('🔁 Repeat-mode AV');
+      });
+    }
   }
   trigger.style.display = '';
+  updateCdBuildTriggerVisuals();
+}
+
+// v1.427: Sync cd-build-trigger visual state med state.cdBuildRepeat.
+function updateCdBuildTriggerVisuals() {
+  const trigger = document.getElementById('cd-build-trigger');
+  if (!trigger) return;
+  const badge = document.getElementById('cd-build-repeat-badge');
+  if (badge) badge.style.display = state.cdBuildRepeat ? 'inline-block' : 'none';
+  // Grön glow runt knappen när repeat-mode aktiv
+  if (state.cdBuildRepeat) {
+    trigger.style.boxShadow = '0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3),0 0 16px rgba(90,255,210,0.7)';
+    trigger.style.borderColor = '#5affd2';
+  } else {
+    trigger.style.boxShadow = '0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3)';
+    trigger.style.borderColor = '#ff8080';
+  }
 }
 
 function hideCastleDefenseBuildBar() {
@@ -29238,9 +29277,37 @@ function openCdBuildMenu() {
   panel.onclick = (e) => e.stopPropagation();
 
   const header = document.createElement('div');
-  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;color:#ffd080;font-weight:900;letter-spacing:1.5px;font-size:18px;';
+  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:#ffd080;font-weight:900;letter-spacing:1.5px;font-size:18px;';
   header.innerHTML = '<span>🔨 BYGG-MENY</span><span style="color:#ffd54a;font-size:15px;">💰 ' + (state.castledefenseGold || 0) + '</span>';
   panel.appendChild(header);
+
+  // v1.427: REPEAT-toggle — bygger samma byggnad upprepade gånger utan att
+  // öppna menyn igen. Esc/tap-build-trigger stänger repeat-mode.
+  const repeatRow = document.createElement('div');
+  repeatRow.style.cssText = 'display:flex;justify-content:center;margin-bottom:14px;';
+  const repeatBtn = document.createElement('button');
+  const refreshRepeatStyle = () => {
+    const on = !!state.cdBuildRepeat;
+    repeatBtn.style.cssText = 'background:' + (on ? 'linear-gradient(180deg,rgba(90,255,210,0.3) 0%,rgba(40,120,90,0.5) 100%)' : 'linear-gradient(180deg,#2a1a10 0%,#1a0a04 100%)') +
+      ';border:2px solid ' + (on ? '#5affd2' : '#5a3a2a') +
+      ';border-radius:10px;padding:8px 16px;color:' + (on ? '#5affd2' : '#aa9080') +
+      ';font-family:inherit;font-weight:900;letter-spacing:0.8px;font-size:12px;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;gap:6px;box-shadow:' +
+      (on ? '0 0 14px rgba(90,255,210,0.4),inset 0 0 8px rgba(90,255,210,0.15)' : '0 2px 6px rgba(0,0,0,0.5)') + ';';
+    repeatBtn.innerHTML = '<span style="font-size:16px;">🔁</span><span>Bygg flera i rad: ' + (on ? 'PÅ' : 'AV') + '</span>';
+  };
+  refreshRepeatStyle();
+  repeatBtn.onclick = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    state.cdBuildRepeat = !state.cdBuildRepeat;
+    refreshRepeatStyle();
+    if (typeof updateCdBuildTriggerVisuals === 'function') updateCdBuildTriggerVisuals();
+    if (typeof showToast === 'function') {
+      showToast(state.cdBuildRepeat ? '🔁 Repeat-mode PÅ — bygg flera i rad' : '🔁 Repeat-mode AV');
+    }
+  };
+  repeatRow.appendChild(repeatBtn);
+  panel.appendChild(repeatRow);
 
   const isMobile = 'ontouchstart' in window || (navigator.maxTouchPoints > 0);
   const grid = document.createElement('div');
@@ -29284,7 +29351,10 @@ function openCdBuildMenu() {
       if (!canAfford) return;
       state.cdBuildMode = b.kind;
       closeCdBuildMenu();
-      if (typeof showToast === 'function') showToast('🔨 ' + b.label + ' — klick/tap för att placera (Esc = avbryt)');
+      if (typeof showToast === 'function') {
+        const repeatTag = state.cdBuildRepeat ? ' [🔁 PÅ]' : '';
+        showToast('🔨 ' + b.label + ' — klick/tap för att placera' + repeatTag);
+      }
     };
     card.onmousedown = () => { card.style.transform = 'scale(0.96)'; };
     card.onmouseup = () => { card.style.transform = ''; };
@@ -29490,7 +29560,10 @@ function setupCdBuildRadial(btn) {
         if (slotCanAfford) {
           state.cdBuildMode = slotKind;
           const blabel = (CD_BUILDABLE_LIST.find(bb => bb.kind === slotKind) || {}).label || slotKind;
-          if (typeof showToast === 'function') showToast('🔨 ' + blabel + ' — tap för att placera (Esc avbryt)');
+          if (typeof showToast === 'function') {
+          const rTag = state.cdBuildRepeat ? ' [🔁 PÅ]' : '';
+          showToast('🔨 ' + blabel + ' — tap för att placera' + rTag);
+        }
         } else {
           if (typeof showToast === 'function') showToast('❌ För lite gold');
         }
@@ -29547,7 +29620,10 @@ function setupCdBuildRadial(btn) {
       if (slot.canAfford) {
         state.cdBuildMode = slot.kind;
         const blabel = (CD_BUILDABLE_LIST.find(b => b.kind === slot.kind) || {}).label || slot.kind;
-        if (typeof showToast === 'function') showToast('🔨 ' + blabel + ' — tap för att placera (Esc avbryt)');
+        if (typeof showToast === 'function') {
+          const rTag = state.cdBuildRepeat ? ' [🔁 PÅ]' : '';
+          showToast('🔨 ' + blabel + ' — tap för att placera' + rTag);
+        }
       } else {
         if (typeof showToast === 'function') showToast('❌ För lite gold');
       }
