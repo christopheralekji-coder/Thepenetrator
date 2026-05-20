@@ -2233,16 +2233,15 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
       }
     }
     // === SLOW TRAP (AOE aura — v1.414) ===
-    // Tidigare overlap-only (slow bara om enemy steg PÅ tile:n). Nu AOE-aura
-    // som slowar ALLA enemies inom radius varje tick.
+    // v1.417: BUG-FIX — slowUntil måste vara i MILLISEKUNDER (matchar updateStatus's
+    // `now` som är Date.now() i ms). Tidigare nowSec gjorde att slow aldrig var aktiv.
     else if (b.kind === 'slow_trap' && b.slowDurSec > 0 && b.radius > 0) {
       const r2 = b.radius * b.radius;
-      const nowSec = nowMs / 1000;
       for (const e of sim.enemies) {
         if (e.dead) continue;
         const dx = e.x - bcx, dy = e.y - bcy;
         if (dx * dx + dy * dy > r2) continue;
-        e.slowUntil = nowSec + b.slowDurSec;
+        e.slowUntil = nowMs + b.slowDurSec * 1000;
         e.slowFactor = b.slowMul;
       }
     }
@@ -2634,6 +2633,15 @@ function tickCastleDefense(sim, dt, now) {
       const coopMul = Math.max(1, sim.room.members.size);
       const boss = makeBoss(bossKey, sp.x, sp.y, coopMul);
       if (boss) {
+        // v1.418: applicera difficulty på BOSS också (saknades helt — boss
+        // var lika svår på casual som på hardcore). casual extra-rabatt 0.8
+        // ovanpå sin diff-mul så boss inte överraskningskillar nybörjare.
+        const bDiff = cdGetDiffMul(sim.config.difficulty);
+        const casualBossRelief = sim.config.difficulty === 'casual' ? 0.7 : 1.0;
+        boss.hp = Math.max(1, Math.round(boss.hp * bDiff.enemyHp * casualBossRelief));
+        boss.maxHp = boss.hp;
+        boss.dmg = Math.max(1, Math.round(boss.dmg * bDiff.enemyDmg * casualBossRelief));
+        if (boss.bulletDmg) boss.bulletDmg = Math.max(1, Math.round(boss.bulletDmg * bDiff.enemyDmg * casualBossRelief));
         boss._idx = sim.nextEnemyIdx++;
         boss._cdEnemy = true;
         boss._cdBossWave = w;
@@ -2678,7 +2686,8 @@ function tickCastleDefense(sim, dt, now) {
       // v1.407: scale by difficulty + wave + co-op (samma formel som story-mode)
       const cdWaveScale = 1 + (sim.castledefenseWave - 1) * 0.08;
       const cdDiff = cdGetDiffMul(sim.config.difficulty);
-      const cdCoop = cdGetCoopMul(sim.room.members.size);
+      // v1.417: STRIKT linear coop-scaling — 2p=2x, 3p=3x, 4p=4x både HP + DMG
+      const cdCoop = Math.max(1, sim.room.members.size);
       // v1.416: theme stat-multiplier (ELITE = +60% hp/dmg/gold)
       const themeStat = cdGetThemeStatMul(sim._cdActiveTheme);
       const themeHpMul = themeStat ? themeStat.hp : 1.0;
@@ -2686,8 +2695,8 @@ function tickCastleDefense(sim, dt, now) {
       const themeGoldMul = themeStat ? themeStat.gold : 1.0;
       e.hp = Math.round(e.hp * cdWaveScale * cdDiff.enemyHp * cdCoop * themeHpMul);
       e.maxHp = e.hp;
-      e.dmg = Math.round(e.dmg * cdWaveScale * cdDiff.enemyDmg * (1 + (cdCoop - 1) * 0.5) * themeDmgMul);
-      if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * cdDiff.enemyDmg * themeDmgMul);
+      e.dmg = Math.round(e.dmg * cdWaveScale * cdDiff.enemyDmg * cdCoop * themeDmgMul);
+      if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * cdDiff.enemyDmg * cdCoop * themeDmgMul);
       if (e.gold) e.gold = Math.round(e.gold * themeGoldMul);
       // v1.410: speed-buff för "fast" enemy-typer — gör dem REALA hot. User-feedback
       // "vissa fiender ännu snabbare". runner/ninja/dog/swarmer +35%.
@@ -5087,12 +5096,13 @@ function applyCastleDefenseRepair(sim, peerId, msg) {
     }
   }
   if (!target) return;
-  // Kontakt-check (spelare måste stå inom 40px)
+  // v1.418: player står invid (≤22px från edge). Collisionen pushar player UT
+  // av byggnadens AABB, så strikt "center inside" går ej. 22px = mjuk men tight.
   const px = ws.playerState.x, py = ws.playerState.y;
-  const cx2 = Math.max(target.x, Math.min(px, target.x + target.w));
-  const cy2 = Math.max(target.y, Math.min(py, target.y + target.h));
-  const dx2 = px - cx2, dy2 = py - cy2;
-  if (dx2 * dx2 + dy2 * dy2 > 40 * 40) return;
+  const cxR = Math.max(target.x, Math.min(px, target.x + target.w));
+  const cyR = Math.max(target.y, Math.min(py, target.y + target.h));
+  const dxR = px - cxR, dyR = py - cyR;
+  if (dxR * dxR + dyR * dyR > 22 * 22) return;
   // v1.415: Repair-cost scaling efter dmg-pct + total invest.
   // 99% damaged → cost ≈ 0.75 × totalInvested. 1% damaged → cost ≈ 0.0075 × totalInvested.
   const dmgPct = 1 - (target.hp / target.maxHp);
@@ -5127,6 +5137,12 @@ function applyCastleDefenseUpgrade(sim, peerId, msg) {
   const b = sim.castledefenseBuildings.find(x => x.id === id && x.hp > 0);
   if (!b) return;
   if (b.kind === 'spike_trap') return; // spike-trap är disposable, ingen upgrade
+  // v1.418: player står invid (≤22px från edge) — matchar klient
+  const upgPx = ws.playerState.x, upgPy = ws.playerState.y;
+  const ucx = Math.max(b.x, Math.min(upgPx, b.x + b.w));
+  const ucy = Math.max(b.y, Math.min(upgPy, b.y + b.h));
+  const udx = upgPx - ucx, udy = upgPy - ucy;
+  if (udx * udx + udy * udy > 22 * 22) return;
   const curLevel = b.level || 0;
   const maxLevel = arena.maxBuildLevel || 9;
   if (curLevel >= maxLevel) {
@@ -5199,6 +5215,15 @@ function applyCastleDefenseSell(sim, peerId, msg) {
   // Owner-only
   if (b.ownerPid !== peerId) {
     sim.eventQueue.push({ type: 'cd_sell_failed', peerId, id, reason: 'not_owner' });
+    return;
+  }
+  // v1.418: player står invid (≤22px från edge) — matchar klient
+  const sellPx = ws.playerState.x, sellPy = ws.playerState.y;
+  const scx = Math.max(b.x, Math.min(sellPx, b.x + b.w));
+  const scy = Math.max(b.y, Math.min(sellPy, b.y + b.h));
+  const sdx = sellPx - scx, sdy = sellPy - scy;
+  if (sdx * sdx + sdy * sdy > 22 * 22) {
+    sim.eventQueue.push({ type: 'cd_sell_failed', peerId, id, reason: 'not_in_range' });
     return;
   }
   const refund = Math.round((b._totalInvested || 0) * 0.5);

@@ -8141,6 +8141,15 @@ function drawCastleDefenseBuildings(layer) {
     // v1.416: Tier-bracket från level (1-4) för progressiva visuals
     const tier = cdBuildingTier(b.level || 0);
     const tierA = cdTierAccent(tier);
+    // v1.418: Range-circle visas när player står invid byggnaden (22px-edge)
+    let showRangeRing = false;
+    if (state.player) {
+      const px = state.player.x, py = state.player.y;
+      const cx = Math.max(b.x, Math.min(px, b.x + b.w));
+      const cy = Math.max(b.y, Math.min(py, b.y + b.h));
+      const ddx = px - cx, ddy = py - cy;
+      if (ddx * ddx + ddy * ddy < 22 * 22) showRangeRing = true;
+    }
     // === Per-kind sprite (detaljerade v1.397, tier-progressiv v1.416) ===
     if (b.kind === 'wall') {
       // Stenblock med crenellation (battlements) på top + mortar-linjer
@@ -8183,15 +8192,6 @@ function drawCastleDefenseBuildings(layer) {
         const glowPulse = 0.3 + Math.sin(t * 3) * 0.2;
         ctx.fillStyle = tierA.glow ? (tierA.particle || 'rgba(255,200,80,' + glowPulse + ')') : 'rgba(255,200,80,' + glowPulse + ')';
         ctx.fillRect(x - 1, y - 1, b.w + 2, 2); // top-glow-band
-      }
-      if (tier === 4) {
-        // Guld-crown corner-ornaments
-        ctx.fillStyle = '#ffd54a';
-        ctx.fillRect(x + 2, y + 1, 3, 3);
-        ctx.fillRect(x + b.w - 5, y + 1, 3, 3);
-        ctx.fillStyle = '#fff8c0';
-        ctx.fillRect(x + 2, y + 1, 1, 1);
-        ctx.fillRect(x + b.w - 5, y + 1, 1, 1);
       }
     } else if (b.kind === 'auto_turret') {
       // === AUTO-TURRET — stenas med cannon-tower ===
@@ -8268,20 +8268,15 @@ function drawCastleDefenseBuildings(layer) {
         ctx.fill();
         ctx.globalAlpha = 1;
       }
-      if (tier === 4) {
-        // Crown ovanpå (floating + spinning)
-        const crownY = bcy - b.w / 2 - 6 + Math.sin(t * 2) * 1.5;
-        ctx.fillStyle = '#ffd54a';
+      // v1.417: Range-ring när player står på tornet
+      if (showRangeRing && b.range) {
+        ctx.strokeStyle = 'rgba(90,200,255,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 4]);
         ctx.beginPath();
-        ctx.moveTo(bcx - 5, crownY + 4);
-        ctx.lineTo(bcx - 5, crownY);
-        ctx.lineTo(bcx - 3, crownY + 2);
-        ctx.lineTo(bcx, crownY - 2);
-        ctx.lineTo(bcx + 3, crownY + 2);
-        ctx.lineTo(bcx + 5, crownY);
-        ctx.lineTo(bcx + 5, crownY + 4);
-        ctx.closePath();
-        ctx.fill();
+        ctx.arc(bcx, bcy, b.range, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
       // v1.415: Muzzle-flash från cd_turret_fired event
       const flash = state._cdTurretFlash && state._cdTurretFlash[b.id];
@@ -8354,6 +8349,16 @@ function drawCastleDefenseBuildings(layer) {
       ctx.beginPath();
       ctx.arc(x + 6, y + 6, 3, 0, Math.PI * 2);
       ctx.fill();
+      // v1.417: Range-ring när player står på tornet
+      if (showRangeRing && b.range) {
+        ctx.strokeStyle = 'rgba(255,200,80,0.5)';
+        ctx.lineWidth = 1.5;
+        ctx.setLineDash([6, 4]);
+        ctx.beginPath();
+        ctx.arc(bcx, bcy, b.range, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
     } else if (b.kind === 'spike_trap') {
       // === SPIKE TRAP — sten-tile med iron-spikes ===
       ctx.fillStyle = '#1a1410';
@@ -8391,19 +8396,25 @@ function drawCastleDefenseBuildings(layer) {
       }
     } else if (b.kind === 'slow_trap') {
       // === FROST TOWER — AOE aura + magic ice rune (v1.414) ===
-      // Aura (radius-baserad AOE slow)
+      // v1.417: Tier-progression CHANGES AURA CIRCLE COLOR (var: tile-square ring).
       if (b.radius) {
+        // Tier-based aura color
+        let auraColor = '140,220,255'; // tier 1 base: ice blue
+        let ringColor = 'rgba(140,220,255,0.4)';
+        if (tier === 2) { auraColor = '90,200,255'; ringColor = 'rgba(90,200,255,0.6)'; }
+        else if (tier === 3) { auraColor = '170,90,255'; ringColor = 'rgba(170,90,255,0.65)'; }
+        else if (tier === 4) { auraColor = '255,213,74'; ringColor = 'rgba(255,213,74,0.7)'; }
         const pulseF = 0.12 + Math.sin(t * 2.5) * 0.08;
         const auraGrad = ctx.createRadialGradient(bcx, bcy, 0, bcx, bcy, b.radius);
-        auraGrad.addColorStop(0, 'rgba(140,220,255,' + pulseF + ')');
-        auraGrad.addColorStop(1, 'rgba(140,220,255,0)');
+        auraGrad.addColorStop(0, 'rgba(' + auraColor + ',' + pulseF + ')');
+        auraGrad.addColorStop(1, 'rgba(' + auraColor + ',0)');
         ctx.fillStyle = auraGrad;
         ctx.beginPath();
         ctx.arc(bcx, bcy, b.radius, 0, Math.PI * 2);
         ctx.fill();
-        // Frost-ring outline
-        ctx.strokeStyle = 'rgba(140,220,255,0.3)';
-        ctx.lineWidth = 1;
+        // Frost-ring outline (tier-färgad)
+        ctx.strokeStyle = ringColor;
+        ctx.lineWidth = tier >= 3 ? 2 : 1;
         ctx.beginPath();
         ctx.arc(bcx, bcy, b.radius, 0, Math.PI * 2);
         ctx.stroke();
@@ -8552,20 +8563,7 @@ function drawCastleDefenseBuildings(layer) {
         ctx.globalAlpha = 1;
       }
       if (tier === 4) {
-        // Floating crown ovanpå
-        const crownY = y - 8 + Math.sin(t * 2) * 1.5;
-        ctx.fillStyle = '#ffd54a';
-        ctx.beginPath();
-        ctx.moveTo(bcx - 5, crownY + 4);
-        ctx.lineTo(bcx - 5, crownY);
-        ctx.lineTo(bcx - 3, crownY + 2);
-        ctx.lineTo(bcx, crownY - 2);
-        ctx.lineTo(bcx + 3, crownY + 2);
-        ctx.lineTo(bcx + 5, crownY);
-        ctx.lineTo(bcx + 5, crownY + 4);
-        ctx.closePath();
-        ctx.fill();
-        // Sparkles
+        // Tier 4: sparkles runt byggnaden (ingen krona — user-feedback)
         if (Math.random() < 0.3) {
           const ang = Math.random() * Math.PI * 2;
           const dist = b.w / 2 + 6 + Math.random() * 6;
@@ -13203,7 +13201,7 @@ const DIFFICULTIES = ['casual', 'veteran', 'hardcore', 'insane'];
 const MODE_LABELS = { story: 'STORY', endless: 'ENDLESS', bossrush: 'BOSS RUSH', daily: 'DAILY', sandbox: 'SANDBOX', speedrun: 'SPEEDRUN', survive: 'SURVIVE 5M', truck: '🚚 KONVOJ', castledefense: '🏰 CASTLE DEFENSE', newgameplus: 'NG+' };
 const DIFF_LABELS = { casual: 'CASUAL', veteran: 'VETERAN', hardcore: 'HARDCORE', insane: '💀 INSANE' };
 const DIFF_MULTIPLIERS = {
-  casual:   { enemyHp: 0.7, enemyDmg: 0.7, gold: 1.2, shopPrice: 0.85 },
+  casual:   { enemyHp: 0.4, enemyDmg: 0.5, gold: 1.3, shopPrice: 0.8 },
   veteran:  { enemyHp: 1.0, enemyDmg: 1.0, gold: 1.0, shopPrice: 1.0 },
   hardcore: { enemyHp: 1.3, enemyDmg: 1.3, gold: 1.0, shopPrice: 1.15 },
   insane:   { enemyHp: 2.5, enemyDmg: 2.0, gold: 1.5, shopPrice: 1.3 },
@@ -14382,6 +14380,10 @@ canvas.addEventListener('mousedown', (e) => {
   const mx = e.clientX - r.left, my = e.clientY - r.top;
   if (checkMinimapZoomClick(mx, my)) return;
   if (checkDebugCornerTap(mx, my)) return; // v1.384: triple-tap top-left
+  // v1.418: Castle Defense pin-select-mode — tap placerar pin på världs- eller minimap-pos
+  if (state.castledefenseActive && state.cdPinSelectMode && e.button === 0) {
+    if (handleCdPinSelectTap(mx, my)) { e.preventDefault && e.preventDefault(); return; }
+  }
   // Castle Defense build-mode: vänsterklick placerar bygge istället för att skjuta
   if (state.castledefenseActive && state.cdBuildMode && e.button === 0) {
     updateCdBuildHover(mx, my);
@@ -18478,6 +18480,26 @@ const Coop = {
       if (perk && typeof showToast === 'function') {
         const who = ev.peerId === this.myId ? 'Du valde' : ((this.players.get(ev.peerId) && this.players.get(ev.peerId).name) || 'Spelare') + ' valde';
         showToast(who + ' ' + perk.icon + ' ' + perk.name);
+      }
+      // v1.417: Applicera TANK + SCOUT effekter på BÅDE self OCH partners
+      // så HP-baren visar rätt fraktion (annars visas TANK-partner som 150/100 = overflow)
+      if (ev.peerId === this.myId && state.player) {
+        if (ev.perkId === 'tank') {
+          state.player.maxHp = 150;
+          state.player.hp = 150;
+          state.player.speedMul = (state.player.speedMul || 1) * 0.8;
+        } else if (ev.perkId === 'scout') {
+          state.player.speedMul = (state.player.speedMul || 1) * 1.4;
+        }
+      } else {
+        const partner = this.players.get(ev.peerId);
+        if (partner) {
+          if (ev.perkId === 'tank') {
+            partner.maxHp = 150;
+            partner.hp = 150;
+          }
+          // SCOUT speed-effekt påverkar bara serverns sim — klient läser pos från snapshot.
+        }
       }
       if (ev.peerId === this.myId && typeof closeCdPerkSelector === 'function') {
         closeCdPerkSelector();
@@ -28185,6 +28207,7 @@ function clearCastleDefenseState() {
   state.cdBuildMode = null;
   state.cdBuildHoverX = null;
   state.cdBuildHoverY = null;
+  state.cdPinSelectMode = false;
   if (typeof Coop !== 'undefined') Coop.castledefenseActive = false;
   if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
   if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
@@ -28429,18 +28452,21 @@ function showCastleDefenseHud() {
     infBtn.onclick = (e) => { e.preventDefault(); tryCdInfMoney(); };
     document.body.appendChild(infBtn);
   }
-  // v1.416: Ping-knapp — alltid synlig, pings vid spelarens position
+  // v1.418: Ping-knapp — liten 38×38 (matchar #btn-weapon-menu), placerad till
+  // VÄNSTER om vapenknappen under minimapen. Klick → enter "pin-select-mode" →
+  // nästa tap på map väljer pinnens position. Andra klick avbryter.
   let pingBtn = document.getElementById('cd-ping-btn');
   if (!pingBtn) {
     pingBtn = document.createElement('button');
     pingBtn.id = 'cd-ping-btn';
-    pingBtn.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 270px) !important;bottom:14px !important;top:auto !important;right:auto !important;width:44px !important;height:44px !important;background:radial-gradient(circle at 30% 30%, rgba(90,200,255,0.35), rgba(0,0,0,0.5));border:2px solid #5acaff;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:18px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 0 8px rgba(90,200,255,0.2);display:flex;align-items:center;justify-content:center;padding:0;touch-action:manipulation;transition:transform 0.12s ease;';
+    // Position: top:176 (samma höjd som vapen-knapp), right:56 (12 + 38 + 6 gap)
+    pingBtn.style.cssText = 'position:fixed !important;top:176px !important;right:56px !important;left:auto !important;bottom:auto !important;width:38px !important;height:38px !important;background:radial-gradient(circle at 30% 30%, rgba(90,200,255,0.35), rgba(0,0,0,0.55));border:2px solid #5acaff;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:16px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 0 8px rgba(90,200,255,0.2);display:flex;align-items:center;justify-content:center;padding:0;touch-action:manipulation;transition:transform 0.12s ease, background 0.15s, box-shadow 0.15s;';
     pingBtn.innerHTML = '📍';
-    pingBtn.title = 'Ping (T-key)';
-    pingBtn.onpointerdown = () => { pingBtn.style.transform = 'scale(0.92)'; };
+    pingBtn.title = 'Sätt pin på karta';
+    pingBtn.onpointerdown = () => { pingBtn.style.transform = 'scale(0.9)'; };
     pingBtn.onpointerup = () => { pingBtn.style.transform = ''; };
     pingBtn.onpointerleave = () => { pingBtn.style.transform = ''; };
-    pingBtn.onclick = (e) => { e.preventDefault(); tryCdPing(); };
+    pingBtn.onclick = (e) => { e.preventDefault(); toggleCdPinSelectMode(); };
     document.body.appendChild(pingBtn);
   }
   // v1.411: Sell-knapp (visas vid EGEN byggnad i närhet) — separat liten chip
@@ -28544,12 +28570,13 @@ function updateCastleDefenseHud() {
     const px = state.player.x, py = state.player.y;
     let damagedTarget = null;
     let upgradeTarget = null;
+    // v1.418: 22px-edge proximity (player kan inte stå PÅ pga collision)
     const checkObj = (obj) => {
       if (obj.hp <= 0) return null;
       const cx = Math.max(obj.x, Math.min(px, obj.x + obj.w));
       const cy = Math.max(obj.y, Math.min(py, obj.y + obj.h));
       const dx = px - cx, dy = py - cy;
-      if (dx * dx + dy * dy < 50 * 50) return obj;
+      if (dx * dx + dy * dy < 22 * 22) return obj;
       return null;
     };
     if (state.castledefenseWalls) {
@@ -28952,21 +28979,28 @@ function openCdPerkSelector() {
   if (document.getElementById('cd-perk-overlay')) return;
   const overlay = document.createElement('div');
   overlay.id = 'cd-perk-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:120;display:flex;align-items:center;justify-content:center;font-family:sans-serif;';
+  overlay.style.cssText = 'position:fixed;inset:0;background:radial-gradient(circle at center,rgba(10,20,40,0.92) 0%,rgba(0,0,0,0.96) 100%);z-index:120;display:flex;align-items:center;justify-content:center;font-family:sans-serif;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);';
   const panel = document.createElement('div');
-  panel.style.cssText = 'background:linear-gradient(180deg,#1a1a2a 0%,#0a0a16 100%);border:3px solid #5acaff;border-radius:14px;padding:18px 22px;max-width:96vw;max-height:92vh;overflow:auto;box-shadow:0 0 60px rgba(90,200,255,0.4);';
+  panel.style.cssText = 'background:linear-gradient(180deg,#1a1a2e 0%,#0a0a18 100%);border:3px solid #5acaff;border-radius:18px;padding:22px 26px;max-width:96vw;max-height:94vh;overflow:auto;box-shadow:0 0 80px rgba(90,200,255,0.5),inset 0 0 40px rgba(90,200,255,0.08);';
   const header = document.createElement('div');
-  header.style.cssText = 'text-align:center;color:#5acaff;font-weight:900;letter-spacing:2px;font-size:18px;margin-bottom:10px;';
+  header.style.cssText = 'text-align:center;color:#5acaff;font-weight:900;letter-spacing:3px;font-size:22px;margin-bottom:6px;text-shadow:0 0 12px rgba(90,200,255,0.7);';
   header.textContent = '⚔ VÄLJ DIN PERK ⚔';
   panel.appendChild(header);
   const subtext = document.createElement('div');
-  subtext.style.cssText = 'text-align:center;color:#888;font-size:11px;margin-bottom:14px;';
-  subtext.textContent = 'Endast EN spelare kan ha varje perk. Välj klokt — det här är din identitet.';
+  subtext.style.cssText = 'text-align:center;color:#9aa;font-size:12px;margin-bottom:18px;letter-spacing:0.5px;';
+  subtext.textContent = 'Endast EN spelare kan ha varje perk — välj din roll i teamet.';
   panel.appendChild(subtext);
   const grid = document.createElement('div');
-  const isMobile = 'ontouchstart' in window || (navigator.maxTouchPoints > 0);
-  grid.style.cssText = 'display:grid;grid-template-columns:repeat(' + (isMobile ? 2 : 5) + ',1fr);gap:8px;';
+  // v1.417: STRIKT 5×2 grid — samma på desktop OCH mobil. Använder responsive
+  // gap+sizing istället för column-count-flip.
+  grid.style.cssText = 'display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;';
   const arena = CASTLEDEFENSE_ARENA;
+  // Färgteman per perk-id för visuell variation
+  const perkAccent = {
+    tank: '#ff8a4a', builder: '#5aff7a', gunner: '#ff5a5a', medic: '#ff5acf',
+    scout: '#5acaff', sharpshooter: '#ffd24a', strategist: '#9a5aff',
+    berserker: '#ff3a3a', looter: '#ffe04a', gambler: '#5affd2'
+  };
   for (const p of (arena.heroPerks || [])) {
     const card = document.createElement('button');
     card.dataset.perkId = p.id;
@@ -28974,27 +29008,42 @@ function openCdPerkSelector() {
     const isTaken = Object.entries(takenBy).some(([k, v]) => v === p.id);
     const isMine = takenBy[Coop.myId] === p.id;
     const dim = isTaken && !isMine;
-    card.style.cssText = 'background:' + (isMine ? '#1a3a3a' : (dim ? '#0a0a16' : '#1a1a2a')) + ';border:2px solid ' + (isMine ? '#5aff5a' : (dim ? '#3a3a3a' : '#5a5a7a')) + ';border-radius:10px;padding:10px 8px;color:#fff;font-family:inherit;cursor:' + (dim ? 'not-allowed' : 'pointer') + ';opacity:' + (dim ? '0.5' : '1') + ';display:flex;flex-direction:column;align-items:center;gap:4px;min-width:130px;transition:transform 0.1s, background 0.15s;text-align:center;';
+    const accent = perkAccent[p.id] || '#5acaff';
+    const borderColor = isMine ? '#5aff5a' : (dim ? '#3a3a4a' : accent);
+    const bgGrad = isMine
+      ? 'linear-gradient(180deg,rgba(60,180,90,0.25) 0%,rgba(20,40,30,0.95) 100%)'
+      : dim
+        ? 'linear-gradient(180deg,#0a0a12 0%,#080810 100%)'
+        : 'linear-gradient(180deg,rgba(40,40,70,0.85) 0%,rgba(18,18,32,0.95) 100%)';
+    card.style.cssText = 'background:' + bgGrad + ';border:2px solid ' + borderColor + ';border-radius:12px;padding:12px 8px 10px;color:#fff;font-family:inherit;cursor:' + (dim ? 'not-allowed' : 'pointer') + ';opacity:' + (dim ? '0.45' : '1') + ';display:flex;flex-direction:column;align-items:center;gap:5px;min-height:148px;transition:transform 0.12s ease, box-shadow 0.15s, border-color 0.15s;text-align:center;position:relative;overflow:hidden;' + (isMine ? 'box-shadow:0 0 22px rgba(90,255,90,0.5),inset 0 0 18px rgba(90,255,90,0.12);' : (dim ? '' : 'box-shadow:0 4px 14px rgba(0,0,0,0.5);'));
+    // Top glow stripe
+    const stripe = '<div style="position:absolute;top:0;left:0;right:0;height:3px;background:' + (isMine ? '#5aff5a' : accent) + ';opacity:' + (dim ? '0.3' : '0.85') + ';"></div>';
     card.innerHTML =
-      '<div style="font-size:32px;line-height:1;">' + p.icon + '</div>' +
-      '<div style="font-weight:900;letter-spacing:1px;font-size:12px;color:' + (isMine ? '#5aff5a' : '#5acaff') + ';">' + p.name + (isMine ? ' ✓' : '') + '</div>' +
-      '<div style="font-size:10px;opacity:0.9;line-height:1.3;color:#bbb;min-height:48px;">' + p.desc + '</div>';
+      stripe +
+      '<div style="font-size:38px;line-height:1;filter:drop-shadow(0 0 8px ' + (isMine ? 'rgba(90,255,90,0.6)' : accent + '88') + ');">' + p.icon + '</div>' +
+      '<div style="font-weight:900;letter-spacing:1.2px;font-size:13px;color:' + (isMine ? '#5aff5a' : accent) + ';text-shadow:0 0 6px ' + (isMine ? 'rgba(90,255,90,0.5)' : accent + '66') + ';">' + p.name + (isMine ? ' ✓' : '') + '</div>' +
+      '<div style="font-size:10.5px;opacity:0.92;line-height:1.35;color:#cbd;min-height:54px;padding:0 2px;">' + p.desc + '</div>' +
+      (dim ? '<div style="position:absolute;bottom:4px;font-size:9px;color:#888;font-style:italic;">TAGEN</div>' : '');
     card.onclick = (e) => {
       e.preventDefault();
       if (dim) return;
       if (!Coop.ws || Coop.ws.readyState !== 1) return;
       Coop.ws.send(JSON.stringify({ type: 'sim_cd_perk', perkId: p.id }));
     };
-    card.onpointerdown = () => { if (!dim) card.style.transform = 'scale(0.96)'; };
+    card.onpointerdown = () => { if (!dim) card.style.transform = 'scale(0.95)'; };
     card.onpointerup = () => { card.style.transform = ''; };
     card.onpointerleave = () => { card.style.transform = ''; };
+    card.onmouseenter = () => { if (!dim && !isMine) { card.style.borderColor = '#fff'; card.style.boxShadow = '0 0 24px ' + accent + '88,0 4px 14px rgba(0,0,0,0.5)'; } };
+    card.onmouseleave = () => { if (!dim && !isMine) { card.style.borderColor = accent; card.style.boxShadow = '0 4px 14px rgba(0,0,0,0.5)'; } };
     grid.appendChild(card);
   }
   panel.appendChild(grid);
   // Skip-button
   const skipBtn = document.createElement('button');
-  skipBtn.style.cssText = 'margin-top:14px;background:#2a2a3a;border:1px solid #5a5a7a;border-radius:8px;padding:8px 16px;color:#aaa;font-family:inherit;font-size:11px;cursor:pointer;display:block;margin-left:auto;margin-right:auto;';
+  skipBtn.style.cssText = 'margin-top:18px;background:linear-gradient(180deg,#33334a 0%,#22222e 100%);border:1px solid #5a5a7a;border-radius:8px;padding:9px 20px;color:#aab;font-family:inherit;font-size:11px;cursor:pointer;display:block;margin-left:auto;margin-right:auto;letter-spacing:0.5px;transition:background 0.15s;';
   skipBtn.textContent = 'Hoppa över (ingen perk)';
+  skipBtn.onmouseenter = () => { skipBtn.style.background = 'linear-gradient(180deg,#44445a 0%,#33333e 100%)'; };
+  skipBtn.onmouseleave = () => { skipBtn.style.background = 'linear-gradient(180deg,#33334a 0%,#22222e 100%)'; };
   skipBtn.onclick = (e) => { e.preventDefault(); closeCdPerkSelector(); };
   panel.appendChild(skipBtn);
   overlay.appendChild(panel);
@@ -29257,20 +29306,24 @@ function tryCdUpgrade() {
   if (!state.player || state.player.hp <= 0) return;
   if (!Coop.ws || Coop.ws.readyState !== 1) return;
   const px = state.player.x, py = state.player.y;
-  let target = null;
+  let target = null, bestD2 = 22 * 22;
   if (state.castledefenseBuildings) {
     for (const b of state.castledefenseBuildings) {
       if (b.hp <= 0) continue;
       if (b.kind === 'spike_trap') continue; // ej upgradable
       if ((b.level || 0) >= 9) continue;
+      // v1.418: stand ADJACENT to building (within 22px of edge). Behövs eftersom
+      // walls/buildings nu blockar player → kan inte stå PÅ byggnaden. 22px tight
+      // nog att target:a rätt torn när flera står tätt; spelarens radius=14.
       const cx = Math.max(b.x, Math.min(px, b.x + b.w));
       const cy = Math.max(b.y, Math.min(py, b.y + b.h));
       const dx = px - cx, dy = py - cy;
-      if (dx * dx + dy * dy < 50 * 50) { target = b; break; }
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; target = b; }
     }
   }
   if (!target) {
-    if (typeof showToast === 'function') showToast('Inga uppgraderbara byggnader nära');
+    if (typeof showToast === 'function') showToast('Ställ dig vid tornet du vill uppgradera');
     return;
   }
   Coop.ws.send(JSON.stringify({ type: 'sim_cd_upgrade', id: target.id }));
@@ -29281,7 +29334,7 @@ function tryCdSell() {
   if (!state.player || state.player.hp <= 0) return;
   if (!Coop.ws || Coop.ws.readyState !== 1) return;
   const px = state.player.x, py = state.player.y;
-  let target = null;
+  let target = null, bestD2 = 22 * 22;
   if (state.castledefenseBuildings) {
     for (const b of state.castledefenseBuildings) {
       if (b.hp <= 0) continue;
@@ -29289,20 +29342,65 @@ function tryCdSell() {
       const cx = Math.max(b.x, Math.min(px, b.x + b.w));
       const cy = Math.max(b.y, Math.min(py, b.y + b.h));
       const dx = px - cx, dy = py - cy;
-      if (dx * dx + dy * dy < 50 * 50) { target = b; break; }
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; target = b; }
     }
   }
   if (!target) {
-    if (typeof showToast === 'function') showToast('Inga egna byggnader nära');
+    if (typeof showToast === 'function') showToast('Ställ dig vid tornet du vill sälja');
     return;
   }
   Coop.ws.send(JSON.stringify({ type: 'sim_cd_sell', id: target.id }));
 }
 
-// v1.416: Ping vid spelarens position — broadcastas till alla peers
-function tryCdPing() {
-  if (!state.player || !Coop.ws || Coop.ws.readyState !== 1) return;
-  Coop.ws.send(JSON.stringify({ type: 'sim_cd_ping', x: state.player.x, y: state.player.y }));
+// v1.418: Ping-system med pin-select-mode. Klick på pin-knapp aktiverar select-mode;
+// nästa tap på världs-canvas ELLER minimap placerar pinnen. Tap på samma knapp igen
+// avbryter. T-key (snabb-ping vid player-pos) finns kvar som fallback.
+function toggleCdPinSelectMode() {
+  if (!state.castledefenseActive) return;
+  state.cdPinSelectMode = !state.cdPinSelectMode;
+  const btn = document.getElementById('cd-ping-btn');
+  if (btn) {
+    if (state.cdPinSelectMode) {
+      btn.style.background = 'radial-gradient(circle at 30% 30%, rgba(90,255,200,0.6), rgba(0,0,0,0.55))';
+      btn.style.borderColor = '#5affd2';
+      btn.style.boxShadow = '0 0 14px rgba(90,255,210,0.7),inset 0 0 8px rgba(90,255,210,0.3)';
+      if (typeof showToast === 'function') showToast('📍 Tryck på kartan eller minimapen');
+    } else {
+      btn.style.background = 'radial-gradient(circle at 30% 30%, rgba(90,200,255,0.35), rgba(0,0,0,0.55))';
+      btn.style.borderColor = '#5acaff';
+      btn.style.boxShadow = '0 3px 10px rgba(0,0,0,0.6),inset 0 0 8px rgba(90,200,255,0.2)';
+    }
+  }
+}
+function tryCdPing(worldX, worldY) {
+  if (!Coop.ws || Coop.ws.readyState !== 1) return;
+  const x = (typeof worldX === 'number') ? worldX : (state.player ? state.player.x : 0);
+  const y = (typeof worldY === 'number') ? worldY : (state.player ? state.player.y : 0);
+  Coop.ws.send(JSON.stringify({ type: 'sim_cd_ping', x, y }));
+}
+function handleCdPinSelectTap(clientX, clientY) {
+  if (!state.cdPinSelectMode || !state.castledefenseActive) return false;
+  // Försök först minimap — om tap är inom minimap-rektangeln, översätt minimap→world
+  const mm = state._minimapHitbox;
+  if (mm && clientX >= mm.x && clientX <= mm.x + mm.w &&
+      clientY >= mm.y && clientY <= mm.y + mm.h && state._cdMinimapXform) {
+    const xf = state._cdMinimapXform;
+    const worldX = (clientX - xf.ox) / xf.scale;
+    const worldY = (clientY - xf.oy) / xf.scale;
+    tryCdPing(worldX, worldY);
+    toggleCdPinSelectMode();
+    return true;
+  }
+  // Annars: world-canvas-tap. Lägg till camera-offset.
+  if (state.camera) {
+    const worldX = clientX + state.camera.x;
+    const worldY = clientY + state.camera.y;
+    tryCdPing(worldX, worldY);
+    toggleCdPinSelectMode();
+    return true;
+  }
+  return false;
 }
 
 // v1.407: DEBUG infinity-money — tappa knappen för +5000 gold
@@ -29312,32 +29410,32 @@ function tryCdInfMoney() {
 }
 
 function tryCdRepair() {
-  // Hitta wall/building i kontakt med spelaren — skicka repair-request
+  // v1.418: closest skadat objekt inom 22px-edge (player kan inte stå PÅ pga collision)
   if (!state.player || state.player.hp <= 0) return;
   if (!Coop.ws || Coop.ws.readyState !== 1) return;
   const px = state.player.x, py = state.player.y;
-  let target = null;
-  // Walls först
+  let target = null, bestD2 = 22 * 22;
+  const check = (obj) => {
+    const cx = Math.max(obj.x, Math.min(px, obj.x + obj.w));
+    const cy = Math.max(obj.y, Math.min(py, obj.y + obj.h));
+    const dx = px - cx, dy = py - cy;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD2) { bestD2 = d2; target = obj; }
+  };
   if (state.castledefenseWalls) {
     for (const w of state.castledefenseWalls) {
       if (w.hp <= 0 || w.hp >= w.maxHp) continue;
-      const cx = Math.max(w.x, Math.min(px, w.x + w.w));
-      const cy = Math.max(w.y, Math.min(py, w.y + w.h));
-      const dx = px - cx, dy = py - cy;
-      if (dx * dx + dy * dy < 40 * 40) { target = w; break; }
+      check(w);
     }
   }
-  if (!target && state.castledefenseBuildings) {
+  if (state.castledefenseBuildings) {
     for (const b of state.castledefenseBuildings) {
       if (b.hp <= 0 || b.hp >= b.maxHp) continue;
-      const cx = Math.max(b.x, Math.min(px, b.x + b.w));
-      const cy = Math.max(b.y, Math.min(py, b.y + b.h));
-      const dx = px - cx, dy = py - cy;
-      if (dx * dx + dy * dy < 40 * 40) { target = b; break; }
+      check(b);
     }
   }
   if (!target) {
-    if (typeof showToast === 'function') showToast('Inga skadade objekt i närheten');
+    if (typeof showToast === 'function') showToast('Ställ dig vid muren/tornet du vill reparera');
     return;
   }
   Coop.ws.send(JSON.stringify({ type: 'sim_cd_repair', id: target.id }));
@@ -29937,6 +30035,37 @@ function updatePlayer(dt, now) {
   }
   if (state.battleroyaleActive && state.battleroyaleWalls && typeof resolveCtfWall === 'function') {
     resolveCtfWall(p, state.battleroyaleWalls);
+  }
+  // v1.418: CASTLE DEFENSE — client-side wall+building collision för att stoppa
+  // rubber-banding. Server gör samma kollision (room-sim.js:2599) men utan klient-
+  // prediction snappade spelaren tillbaka när man "gick över" mur. Matchar serverns
+  // cdAllSolids (alla non-trap buildings + walls). Core är cirkel-collision.
+  if (state.castledefenseActive && typeof resolveCtfWall === 'function') {
+    const solidsCd = [];
+    if (state.castledefenseWalls) {
+      for (const w of state.castledefenseWalls) {
+        if (w.hp > 0) solidsCd.push(w);
+      }
+    }
+    if (state.castledefenseBuildings) {
+      for (const b of state.castledefenseBuildings) {
+        if (b.hp > 0 && b.kind !== 'spike_trap' && b.kind !== 'slow_trap') solidsCd.push(b);
+      }
+    }
+    if (solidsCd.length > 0) resolveCtfWall(p, solidsCd);
+    // Core — cirkel-blockering
+    if (state.castledefenseCore && state.castledefenseCore.hp > 0) {
+      const core = state.castledefenseCore;
+      const dx = p.x - core.x, dy = p.y - core.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const minD = (core.r || 80) + (p.r || 14);
+      if (d < minD && d > 0.01) {
+        p.x = core.x + (dx / d) * minD;
+        p.y = core.y + (dy / d) * minD;
+      } else if (d < 0.01) {
+        p.x = core.x + minD;
+      }
+    }
   }
 
   // sikta: prio fire-joystick (alltid på när fire-knappen hålls), sen mus, sen rörelse.
@@ -43131,6 +43260,8 @@ function drawMiniMap() {
   // funkar för ALL nedanstående rendering (oförändrat API).
   const ox = x0 - worldVx * scale;
   const oy = y0 - worldVy * scale;
+  // v1.418: spara transform så pin-select-mode kan översätta tap→world
+  state._cdMinimapXform = { ox, oy, scale };
 
   // Viewport-culling helper för walls (BR har ~2500, kostsamt att iterera alla)
   const visMinX = worldVx, visMaxX = worldVx + viewWorldSize;
@@ -43511,6 +43642,89 @@ function drawMiniMap() {
       if (c.picked) continue;
       ctx.fillStyle = '#ffd54a';
       ctx.fillRect(ox + c.x * scale - 1, oy + c.y * scale - 1, 3, 3);
+    }
+  }
+  // v1.418: CASTLE DEFENSE — walls + buildings + core + pings på minimap
+  if (state.castledefenseActive) {
+    // Walls — grå rektanglar
+    if (state.castledefenseWalls) {
+      ctx.fillStyle = 'rgba(170,170,180,0.85)';
+      for (const w of state.castledefenseWalls) {
+        if (w.hp <= 0) continue;
+        if (!inMmView(w.x, w.y, w.w, w.h)) continue;
+        ctx.fillRect(ox + w.x * scale, oy + w.y * scale, Math.max(1, w.w * scale), Math.max(1, w.h * scale));
+      }
+    }
+    // Buildings — färg per kind
+    if (state.castledefenseBuildings) {
+      for (const b of state.castledefenseBuildings) {
+        if (b.hp <= 0) continue;
+        if (!inMmView(b.x, b.y, b.w, b.h)) continue;
+        let bc = 'rgba(140,140,150,0.9)';
+        if (b.kind === 'auto_turret') bc = 'rgba(90,200,255,0.95)';
+        else if (b.kind === 'man_turret') bc = 'rgba(255,213,74,0.95)';
+        else if (b.kind === 'spike_trap') bc = 'rgba(255,80,80,0.85)';
+        else if (b.kind === 'slow_trap') bc = 'rgba(170,90,255,0.85)';
+        else if (b.kind === 'repair_stn') bc = 'rgba(90,255,150,0.9)';
+        else if (b.kind === 'health_stn') bc = 'rgba(255,90,200,0.9)';
+        ctx.fillStyle = bc;
+        ctx.fillRect(ox + b.x * scale, oy + b.y * scale, Math.max(2, b.w * scale), Math.max(2, b.h * scale));
+      }
+    }
+    // Core — pulserande gul cirkel
+    if (state.castledefenseCore && state.castledefenseCore.hp > 0) {
+      const core = state.castledefenseCore;
+      const cmx = ox + core.x * scale, cmy = oy + core.y * scale;
+      const corePulse = 0.7 + Math.sin(mmNow / 280) * 0.3;
+      ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 8 * corePulse;
+      ctx.fillStyle = '#ffd54a';
+      ctx.beginPath(); ctx.arc(cmx, cmy, Math.max(3, (core.r || 80) * scale * 0.6), 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
+      // HP-ring runt core
+      const corePct = core.hp / Math.max(1, core.maxHp || 1);
+      ctx.strokeStyle = corePct > 0.5 ? '#5aff5a' : (corePct > 0.25 ? '#ffae3a' : '#ff5a5a');
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(cmx, cmy, Math.max(5, (core.r || 80) * scale * 0.6 + 2), 0, Math.PI * 2 * corePct); ctx.stroke();
+    }
+    // Pings — pulserande blå cirkel
+    if (state.castledefensePings && state.castledefensePings.length) {
+      const nowPing = performance.now();
+      for (const p of state.castledefensePings) {
+        const elapsed = nowPing - p.createdAt;
+        if (elapsed > p.life) continue;
+        const lifePct = 1 - elapsed / p.life;
+        const pmx = ox + p.x * scale, pmy = oy + p.y * scale;
+        const t = elapsed / 1000;
+        const pulseR = 4 + (t % 0.8) * 8;
+        const pulseAlpha = Math.max(0, 0.85 - (t % 0.8) / 0.8) * lifePct;
+        ctx.strokeStyle = 'rgba(90,200,255,' + pulseAlpha + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(pmx, pmy, pulseR, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = 'rgba(90,200,255,' + (0.85 * lifePct) + ')';
+        ctx.beginPath(); ctx.arc(pmx, pmy, 3, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // Pin-select-mode overlay — fade + crosshair text
+    if (state.cdPinSelectMode) {
+      ctx.fillStyle = 'rgba(90,255,210,0.18)';
+      ctx.fillRect(x0, y0, size, size);
+      ctx.strokeStyle = '#5affd2';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.strokeRect(x0 + 2, y0 + 2, size - 4, size - 4);
+      ctx.setLineDash([]);
+    }
+  }
+  // Partners (i CD) — blå dot så man ser var lagkamrater är
+  if (state.castledefenseActive && Coop && Coop.players) {
+    for (const [pid, partner] of Coop.players) {
+      if (!partner || partner.hp <= 0 || partner.x === undefined) continue;
+      if (pid === Coop.myId) continue;
+      const pmx = ox + partner.x * scale, pmy = oy + partner.y * scale;
+      ctx.fillStyle = '#5acaff';
+      ctx.shadowColor = '#5acaff'; ctx.shadowBlur = 5;
+      ctx.beginPath(); ctx.arc(pmx, pmy, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.shadowBlur = 0;
     }
   }
   // spelare (grön)
@@ -44189,6 +44403,11 @@ canvas.addEventListener('touchstart', e => {
     const ty = newTouch.clientY - r.top;
     if (checkMinimapZoomClick(tx, ty)) { e.preventDefault(); return; }
     if (checkDebugCornerTap(tx, ty)) { e.preventDefault(); return; } // v1.384
+    // v1.418: pin-select-mode: tap placerar pin på världs- eller minimap-pos
+    if (state.castledefenseActive && state.cdPinSelectMode &&
+        typeof handleCdPinSelectTap === 'function') {
+      if (handleCdPinSelectTap(tx, ty)) { e.preventDefault(); return; }
+    }
     // Castle Defense build-mode på touch: placera bygge vid touch-position
     if (state.castledefenseActive && state.cdBuildMode && typeof updateCdBuildHover === 'function') {
       updateCdBuildHover(tx, ty);

@@ -171,11 +171,19 @@ function getStage(wave) {
   return STAGES[Math.min(wave - 1, STAGES.length - 1)];
 }
 
+// v1.418: Lagt till casual/hardcore/insane (klient-naming) så server-sim faktiskt
+// applicerar diff-multiplier. Tidigare bug: klient skickade 'casual' men shared
+// kände bara 'recruit/veteran/hard/nightmare' → casual föll tillbaka till veteran
+// (1.0×) → spelarna kände CD som svårare än vad casual borde vara.
+// 'casual' satt extra mjukt (0.4/0.5) per user-feedback "boss för svår på casual".
 const DIFF_MULTIPLIERS = {
-  recruit:  { enemyHp: 0.7, enemyDmg: 0.7 },
-  veteran:  { enemyHp: 1.0, enemyDmg: 1.0 },
-  hard:     { enemyHp: 1.4, enemyDmg: 1.3 },
-  nightmare:{ enemyHp: 1.8, enemyDmg: 1.6 },
+  casual:    { enemyHp: 0.4, enemyDmg: 0.5 },
+  recruit:   { enemyHp: 0.7, enemyDmg: 0.7 },
+  veteran:   { enemyHp: 1.0, enemyDmg: 1.0 },
+  hard:      { enemyHp: 1.4, enemyDmg: 1.3 },
+  hardcore:  { enemyHp: 1.3, enemyDmg: 1.3 },
+  nightmare: { enemyHp: 1.8, enemyDmg: 1.6 },
+  insane:    { enemyHp: 2.5, enemyDmg: 2.0 },
 };
 
 // Helper-funktioner som server (waves.js, enemies.js) använder. Tidigare av misstag
