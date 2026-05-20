@@ -5313,9 +5313,9 @@ function applyCdPerkEffects(ps, perkId) {
 function applyCastleDefenseInfMoney(sim, peerId, msg) {
   if (!sim.castledefenseActive) return;
   if (!sim.castledefenseGold[peerId]) sim.castledefenseGold[peerId] = 0;
-  sim.castledefenseGold[peerId] += 5000;
+  sim.castledefenseGold[peerId] += 10000;
   sim.eventQueue.push({
-    type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: 5000,
+    type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: 10000,
   });
 }
 

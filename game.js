@@ -14588,11 +14588,38 @@ function checkDebugCornerTap(mx, my) {
   return false;
 }
 
+// v1.424: Dubbel-tap bottom-left 60×60-zon för att toggla gold-cheat-knappen.
+// Separat från top-left debug-zone så de inte konflikterar.
+let _cdGoldTapCount = 0;
+let _cdGoldTapLastT = 0;
+function checkCdGoldCornerTap(mx, my) {
+  if (state.mode !== 'playing') return false;
+  if (!state.castledefenseActive) return false;
+  // Bottom-left 70×70px zon (något generösare än top-left för touch)
+  if (mx > 70 || my < viewH - 70) return false;
+  const now = performance.now();
+  if (now - _cdGoldTapLastT > 500) _cdGoldTapCount = 0;
+  _cdGoldTapCount++;
+  _cdGoldTapLastT = now;
+  if (_cdGoldTapCount >= 2) {
+    _cdGoldTapCount = 0;
+    state._cdGoldCheatVisible = !state._cdGoldCheatVisible;
+    const btn = document.getElementById('cd-gold-cheat-btn');
+    if (btn) btn.style.display = state._cdGoldCheatVisible ? 'flex' : 'none';
+    if (typeof showToast === 'function') {
+      showToast(state._cdGoldCheatVisible ? '💰 GOLD-CHEAT PÅ (+10k/klick)' : '💰 GOLD-CHEAT AV');
+    }
+    return true;
+  }
+  return false;
+}
+
 canvas.addEventListener('mousedown', (e) => {
   const r = canvas.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
   if (checkMinimapZoomClick(mx, my)) return;
   if (checkDebugCornerTap(mx, my)) return; // v1.384: triple-tap top-left
+  if (checkCdGoldCornerTap(mx, my)) return; // v1.424: double-tap bottom-left → gold-cheat-knapp
   // v1.418: Castle Defense pin-select-mode — tap placerar pin på världs- eller minimap-pos
   if (state.castledefenseActive && state.cdPinSelectMode && e.button === 0) {
     if (handleCdPinSelectTap(mx, my)) { e.preventDefault && e.preventDefault(); return; }
@@ -28451,6 +28478,7 @@ function clearCastleDefenseState() {
   state.cdBuildHoverX = null;
   state.cdBuildHoverY = null;
   state.cdPinSelectMode = false;
+  state._cdGoldCheatVisible = false;
   if (typeof Coop !== 'undefined') Coop.castledefenseActive = false;
   if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
   if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
@@ -28684,17 +28712,25 @@ function showCastleDefenseHud() {
   el.style.display = 'flex';
   // v1.406: Befintlig gold-info (över minimapen) används istället för separat cd-gold
   updateCastleDefenseHud();
-  // v1.409: DEBUG infinity-money knapp — subtil, top-left, mindre påträngande
-  let infBtn = document.getElementById('cd-inf-money');
-  if (!infBtn) {
-    infBtn = document.createElement('button');
-    infBtn.id = 'cd-inf-money';
-    infBtn.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top));left:max(8px, env(safe-area-inset-left));background:rgba(20,40,20,0.85);border:1px solid #5aff5a;color:#5aff5a;padding:4px 8px;font-family:monospace;font-weight:700;font-size:10px;letter-spacing:0.5px;border-radius:14px;z-index:80;cursor:pointer;backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);opacity:0.8;';
-    infBtn.textContent = '💰 +5000';
-    infBtn.title = 'DEBUG: ger 5000 gold';
-    infBtn.onclick = (e) => { e.preventDefault(); tryCdInfMoney(); };
-    document.body.appendChild(infBtn);
+  // v1.424: Gold-cheat-knapp HIDDEN by default. Dubbel-tap bottom-left för att
+  // visa/dölja. Stylad som de andra runda action-knapparna.
+  let goldBtn = document.getElementById('cd-gold-cheat-btn');
+  if (!goldBtn) {
+    goldBtn = document.createElement('button');
+    goldBtn.id = 'cd-gold-cheat-btn';
+    // Position: vänster:12 bottom:80 (ovanför double-tap-zonen)
+    goldBtn.style.cssText = 'position:fixed !important;left:max(12px, env(safe-area-inset-left, 12px)) !important;bottom:max(80px, calc(env(safe-area-inset-bottom, 0px) + 80px)) !important;right:auto !important;top:auto !important;width:60px !important;height:60px !important;background:radial-gradient(circle at 30% 30%, rgba(255,215,90,0.4), rgba(0,0,0,0.6));border:2px solid #ffd54a;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:80;cursor:pointer;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,0.6),inset 0 0 12px rgba(255,213,74,0.2),0 0 0 2px rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;padding:0;touch-action:manipulation;flex-direction:column;gap:1px;transition:transform 0.12s ease;';
+    goldBtn.innerHTML = '<span style="font-size:22px;line-height:1;">💰</span><span style="font-size:9px;letter-spacing:0.5px;color:#ffd54a;font-weight:900;">+10K</span>';
+    goldBtn.title = 'DEBUG: +10000 gold per klick (dubbel-tap bottom-left för dölja)';
+    goldBtn.onpointerdown = () => { goldBtn.style.transform = 'scale(0.9)'; };
+    goldBtn.onpointerup = () => { goldBtn.style.transform = ''; };
+    goldBtn.onpointerleave = () => { goldBtn.style.transform = ''; };
+    goldBtn.onclick = (e) => { e.preventDefault(); tryCdInfMoney(); };
+    document.body.appendChild(goldBtn);
   }
+  // Migration cleanup: ta bort gamla cd-inf-money om den finns från äldre version
+  const oldInf = document.getElementById('cd-inf-money');
+  if (oldInf && oldInf.parentNode) oldInf.parentNode.removeChild(oldInf);
   // v1.418/v1.419: Pin-knapp — 38×38 (matchar vapen-knapp), placerad vänster om
   // vapenknappen. TVÅ patterns: (1) tap = enter pin-select-mode (next tap placerar),
   // (2) hold + drag + release = direkt placera vid release-pos (med ghost-preview).
@@ -28781,7 +28817,7 @@ function showCastleDefenseHud() {
 }
 function hideCastleDefenseHud() {
   _stopCastleDefenseHudInterval();
-  const ids = ['cd-hud', 'cd-wave-preview', 'cd-inf-money', 'cd-action-btn', 'cd-sell-btn', 'cd-ping-btn'];
+  const ids = ['cd-hud', 'cd-wave-preview', 'cd-inf-money', 'cd-gold-cheat-btn', 'cd-action-btn', 'cd-sell-btn', 'cd-ping-btn'];
   for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
@@ -44702,6 +44738,7 @@ canvas.addEventListener('touchstart', e => {
     const ty = newTouch.clientY - r.top;
     if (checkMinimapZoomClick(tx, ty)) { e.preventDefault(); return; }
     if (checkDebugCornerTap(tx, ty)) { e.preventDefault(); return; } // v1.384
+    if (checkCdGoldCornerTap(tx, ty)) { e.preventDefault(); return; } // v1.424
     // v1.418: pin-select-mode: tap placerar pin på världs- eller minimap-pos
     if (state.castledefenseActive && state.cdPinSelectMode &&
         typeof handleCdPinSelectTap === 'function') {

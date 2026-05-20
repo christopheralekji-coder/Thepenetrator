@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v423-cd-range-sellbtn-noshake';
+const CACHE = 'penetrator-v424-cd-gold-cheat-hidden';
 const ASSETS = [
   './',
   './index.html',
