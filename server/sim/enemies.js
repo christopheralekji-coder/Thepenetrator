@@ -207,7 +207,12 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
       e.dead = true;
     }
   } else if (e.type === 'sniper') {
-    if (d < 500) { e.x -= (dx / d) * e.speed * dt; e.y -= (dy / d) * e.speed * dt; }
+    // v1.425: I CD är sniper aggressivare — approachar till 220px (var: 500px
+    // retreat). Tidigare stannade snipers vid världs-kanten + 500px från
+    // target → osynliga campers. Player ska se dem!
+    const sniperRetreat = e._cdEnemy ? 220 : 500;
+    if (d < sniperRetreat) { e.x -= (dx / d) * e.speed * dt; e.y -= (dy / d) * e.speed * dt; }
+    else { e.x += (dx / d) * e.speed * dt; e.y += (dy / d) * e.speed * dt; }
     if (d < e.shootRange && !e.aiming && now - e.lastShot > e.shootRate) {
       e.aiming = true; e.aimAt = now;
     }

@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v424-cd-gold-cheat-hidden';
+const CACHE = 'penetrator-v425-cd-build-tap-sniper-minimap';
 const ASSETS = [
   './',
   './index.html',

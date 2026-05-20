@@ -29393,6 +29393,7 @@ function setupCdBuildRadial(btn) {
   let centerX = 0, centerY = 0;
   let slots = []; // [{ kind, x, y, el, ang }]
   let selectedIdx = -1;
+  let sticky = false; // v1.425: true = stannar öppen tills slot/cancel klickas
 
   function buildSlots() {
     if (!CD_BUILDABLE_LIST || CD_BUILDABLE_LIST.length === 0) return false;
@@ -29423,6 +29424,16 @@ function setupCdBuildRadial(btn) {
     centerEl.style.left = centerX + 'px';
     centerEl.style.top = centerY + 'px';
     centerEl.textContent = '✕';
+    // v1.425: i sticky-mode kan man klicka X för att stänga
+    centerEl.style.pointerEvents = 'auto';
+    centerEl.style.cursor = 'pointer';
+    centerEl.addEventListener('click', (e) => {
+      if (!sticky || !active) return;
+      e.preventDefault();
+      e.stopPropagation();
+      close(false);
+    });
+    centerEl.addEventListener('pointerdown', (e) => { if (sticky) e.stopPropagation(); });
     radialEl.appendChild(centerEl);
     // v1.422: effektiv cost = base × BUILDER-perk × diff-mul (radial-meny)
     const radMyPerk = state.castledefensePerks && state.castledefensePerks[Coop.myId];
@@ -29453,6 +29464,25 @@ function setupCdBuildRadial(btn) {
         iconCanvas.style.height = '32px';
         wsymbol.appendChild(iconCanvas);
       }
+      // v1.425: slot blir klickbar i sticky-mode
+      el.style.pointerEvents = 'auto';
+      el.style.cursor = canAfford ? 'pointer' : 'not-allowed';
+      const slotKind = b.kind;
+      const slotCanAfford = canAfford;
+      el.addEventListener('click', (ev) => {
+        if (!sticky || !active) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (slotCanAfford) {
+          state.cdBuildMode = slotKind;
+          const blabel = (CD_BUILDABLE_LIST.find(bb => bb.kind === slotKind) || {}).label || slotKind;
+          if (typeof showToast === 'function') showToast('🔨 ' + blabel + ' — tap för att placera (Esc avbryt)');
+        } else {
+          if (typeof showToast === 'function') showToast('❌ För lite gold');
+        }
+        close(false); // close without re-commit (already handled)
+      });
+      el.addEventListener('pointerdown', (ev) => { if (sticky) ev.stopPropagation(); });
       radialEl.appendChild(el);
       slots.push({ kind: b.kind, x: sx, y: sy, el, ang: angle, canAfford });
     }
@@ -29514,35 +29544,101 @@ function setupCdBuildRadial(btn) {
     pointerId = null;
     selectedIdx = -1;
     slots = [];
+    sticky = false;
   }
 
+  // v1.425: Hybrid — TAP (<150ms, no drag) → öppnar STICKY radial (klicka slot)
+  //          HOLD + drag + release → drag-radial (existing).
+  // Delayed-open så snabb tap inte ger flash → öppnar sticky direkt.
+  let openTimer = null;
+  let downStartX = 0, downStartY = 0;
+  let savedPointerId = null;
   btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     e.stopPropagation();
     if (typeof isInputLocked === 'function' && isInputLocked()) return;
-    if (open(e)) {
-      try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+    // Om sticky-radial redan är öppen från tidigare tap → stäng den
+    if (active && sticky) {
+      close(false);
+      return;
     }
+    downStartX = e.clientX; downStartY = e.clientY;
+    savedPointerId = e.pointerId != null ? e.pointerId : 'mouse';
+    if (openTimer) { clearTimeout(openTimer); openTimer = null; }
+    openTimer = setTimeout(() => {
+      openTimer = null;
+      sticky = false;
+      if (open({ pointerId: savedPointerId })) {
+        try { btn.setPointerCapture(savedPointerId); } catch (_) {}
+      }
+    }, 150);
   }, { passive: false });
   const onMove = (e) => {
+    // Under delay-fönstret: om finger rör sig mycket → öppna drag-radial direkt
+    if (openTimer) {
+      if (savedPointerId !== 'mouse' && e.pointerId !== savedPointerId) return;
+      const ddx = e.clientX - downStartX, ddy = e.clientY - downStartY;
+      if (ddx * ddx + ddy * ddy > 14 * 14) {
+        clearTimeout(openTimer);
+        openTimer = null;
+        sticky = false;
+        if (open({ pointerId: savedPointerId })) {
+          try { btn.setPointerCapture(savedPointerId); } catch (_) {}
+          handleMove(e.clientX, e.clientY);
+        }
+      }
+      return;
+    }
     if (!active) return;
+    if (sticky) return; // sticky-mode ignorerar move
     if (pointerId !== 'mouse' && e.pointerId !== pointerId) return;
     handleMove(e.clientX, e.clientY);
   };
   const onUp = (e) => {
+    // Tap (radial öppnades aldrig) → öppna STICKY radial som stannar
+    if (openTimer) {
+      if (savedPointerId !== 'mouse' && e.pointerId !== savedPointerId) return;
+      clearTimeout(openTimer);
+      openTimer = null;
+      sticky = true;
+      if (open({ pointerId: 'sticky' })) {
+        // Ingen pointer-capture i sticky — slots tar emot egna clicks
+      }
+      return;
+    }
     if (!active) return;
+    if (sticky) return; // sticky stänger inte på pointerup
     if (pointerId !== 'mouse' && e.pointerId !== pointerId) return;
     close(true);
   };
-  const onCancel = () => close(false);
+  // v1.425: klick UTANFÖR radial (utan att träffa slot eller knapp) stänger sticky
+  const onWindowClick = (e) => {
+    if (!active || !sticky) return;
+    if (radialEl.contains(e.target)) return;
+    if (btn.contains(e.target)) return;
+    close(false);
+  };
+  window.addEventListener('click', onWindowClick, true);
+  const onCancel = (e) => {
+    if (openTimer) {
+      if (e && savedPointerId !== 'mouse' && e.pointerId !== savedPointerId) return;
+      clearTimeout(openTimer);
+      openTimer = null;
+      return;
+    }
+    if (sticky) return;
+    close(false);
+  };
   window.addEventListener('pointermove', onMove, { passive: false });
   window.addEventListener('pointerup', onUp, { passive: false });
   window.addEventListener('pointercancel', onCancel, { passive: false });
   // Spara så hideCastleDefenseBuildBar kan unregister (annars läcker över matcher)
   btn._cdRadialCleanup = () => {
+    if (openTimer) { clearTimeout(openTimer); openTimer = null; }
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
     window.removeEventListener('pointercancel', onCancel);
+    window.removeEventListener('click', onWindowClick, true);
   };
 }
 
@@ -43565,9 +43661,12 @@ function drawMiniMap() {
   // 1500 → 3500 efter user-feedback att 1500 var för nära). Hus = ~7px,
   // träd ~2px — fortfarande synliga + man ser MYCKET mer av omgivningen.
   // ZOOMED-OUT (big): visa hela kartan.
-  const FOCUS_VIEW_WORLD = 3500;
+  // v1.425: CD när få enemies (≤5) → auto-zoom till full map så stragglers syns.
+  const cdShowAll = state.castledefenseActive && state.enemies.length > 0 && state.enemies.length <= 5;
+  const FOCUS_VIEW_WORLD = state.castledefenseActive ? 4200 : 3500;
   const maxWorld = Math.max(stage.worldW, stage.worldH);
-  const viewWorldSize = FOCUS_VIEW_WORLD + (maxWorld - FOCUS_VIEW_WORLD) * t01;
+  const baseSize = FOCUS_VIEW_WORLD + (maxWorld - FOCUS_VIEW_WORLD) * t01;
+  const viewWorldSize = cdShowAll ? Math.max(baseSize, maxWorld) : baseSize;
   const scale = size / viewWorldSize;
 
   // Center-position lerp: zoomed-in följer spelaren, zoomed-out centrerar världen.
@@ -43946,7 +44045,12 @@ function drawMiniMap() {
     ctx.stroke();
   }
   // fiender (röda prickar). Boss/miniboss pulsar med glow så de sticker ut.
+  // v1.425: CD-specifik förstärkning — minions större, ranged-typer i orange,
+  // pulse när få kvar (≤5) så player ser sista campers vid kanten.
   const mmNow = performance.now();
+  const isCD = !!state.castledefenseActive;
+  const cdEnemyCount = isCD ? state.enemies.length : 0;
+  const cdFewLeft = isCD && cdEnemyCount > 0 && cdEnemyCount <= 5;
   for (const e of state.enemies) {
     const mx = ox + e.x * scale, my = oy + e.y * scale;
     if (e.isBoss) {
@@ -43966,6 +44070,27 @@ function drawMiniMap() {
       ctx.fillStyle = '#ffae3a';
       ctx.beginPath(); ctx.arc(mx, my, 2.5, 0, Math.PI * 2); ctx.fill();
       ctx.shadowBlur = 0;
+    } else if (isCD) {
+      // CD minions — större (2.5px), ranged-typer i orange (lättare hitta campers)
+      const isRanged = (e.type === 'shooter' || e.type === 'soldier' || e.type === 'sniper');
+      const baseCol = isRanged ? '#ffa030' : '#ff5a5a';
+      const dotR = isRanged ? 2.8 : 2.3;
+      // Pulse när få kvar — hjälpa player hitta sista campers
+      if (cdFewLeft) {
+        const pulse = 0.6 + Math.sin(mmNow / 180) * 0.4;
+        ctx.shadowColor = baseCol; ctx.shadowBlur = 8 * pulse;
+        ctx.strokeStyle = `rgba(255,${isRanged ? 180 : 90},${isRanged ? 60 : 90},${pulse})`;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.arc(mx, my, dotR + 2 + pulse * 1.5, 0, Math.PI * 2); ctx.stroke();
+        ctx.fillStyle = baseCol;
+        ctx.beginPath(); ctx.arc(mx, my, dotR, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.fillStyle = baseCol;
+        ctx.shadowColor = baseCol; ctx.shadowBlur = 3;
+        ctx.beginPath(); ctx.arc(mx, my, dotR, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+      }
     } else {
       ctx.fillStyle = '#ff5a5a';
       ctx.beginPath(); ctx.arc(mx, my, 1.5, 0, Math.PI * 2); ctx.fill();
