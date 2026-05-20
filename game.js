@@ -11118,7 +11118,7 @@ function drawCoopPartner() {
     // under — utan gap så det ser ut som en bar). Shield krymper först,
     // sedan HP. I story-coop: bara HP-bar.
     if (p.hp !== undefined) {
-      const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive;
+      const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.castledefenseActive;
       const maxShield = inPvP ? (p.maxShield || state.pvpShieldMax || 100) : 0;
       const hasShield = inPvP && maxShield > 0;
       // Samma barW för alla — JUG ska se ut som vanlig spelare-hp-bar
@@ -18219,6 +18219,19 @@ const Coop = {
         state.castledefenseCore.hp = ev.hp;
       }
       if (typeof triggerShake === 'function') triggerShake(4, 0.2);
+    } else if (ev.type === 'cd_hp_changed') {
+      // { peerId, hp, shield } — v1.404: sync shield + hp efter dmg
+      if (ev.peerId === this.myId && state.player) {
+        if (typeof ev.hp === 'number') state.player.hp = ev.hp;
+        if (typeof ev.shield === 'number') state.player.shield = ev.shield;
+        if (typeof updateHUD === 'function') updateHUD();
+      } else {
+        const partner = this.players.get(ev.peerId);
+        if (partner) {
+          if (typeof ev.hp === 'number') partner.hp = ev.hp;
+          if (typeof ev.shield === 'number') partner.shield = ev.shield;
+        }
+      }
     } else if (ev.type === 'cd_turret_dmg') {
       // { x, y, dmg } — auto-turret hit ENEMY (visa floating damage-number)
       if (typeof spawnDamageNumber === 'function') {
@@ -18386,17 +18399,27 @@ const Coop = {
       }
     } else if (ev.type === 'cd_build_failed') {
       // { peerId, reason, kind }
-      if (ev.peerId === this.myId && typeof showToast === 'function') {
-        const reasonMap = {
-          insufficient_gold: 'För lite gold',
-          overlap: 'Krockar med befintligt objekt',
-          overlap_wall: 'Krockar med mur',
-          overlap_building: 'Krockar med byggnad',
-          overlap_core: 'Krockar med core',
-          overlap_player: 'Krockar med spelare',
-          out_of_bounds: 'Utanför kartan',
-        };
-        showToast('❌ ' + (reasonMap[ev.reason] || ev.reason));
+      if (ev.peerId === this.myId) {
+        // v1.404 — refunda predicted gold-deduction (om vi gjorde en).
+        // Om server avvisade pga gold-brist, predicta hade ej deduceat (gold-check
+        // i tryCdPlaceBuilding skippade), så ingen refund behövs där.
+        if (ev.reason !== 'insufficient_gold' && ev.kind && CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[ev.kind]) {
+          const refund = CASTLEDEFENSE_ARENA.buildables[ev.kind].cost || 0;
+          state.castledefenseGold = (state.castledefenseGold || 0) + refund;
+        }
+        if (typeof showToast === 'function') {
+          const reasonMap = {
+            insufficient_gold: 'För lite gold',
+            overlap: 'Krockar med befintligt objekt',
+            overlap_wall: 'Krockar med mur',
+            overlap_building: 'Krockar med byggnad',
+            overlap_core: 'Krockar med core',
+            overlap_player: 'Krockar med spelare',
+            overlap_enemy: 'Krockar med fiende',
+            out_of_bounds: 'Utanför kartan',
+          };
+          showToast('❌ ' + (reasonMap[ev.reason] || ev.reason));
+        }
       }
     } else if (ev.type === 'stage_loaded') {
       if (window._debug) console.log('[SIM] stage loaded:', ev.stageName);
@@ -28141,7 +28164,8 @@ function showCastleDefenseBuildBar() {
     trigger = document.createElement('button');
     trigger.id = 'cd-build-trigger';
     // BOTTOM-CENTER position (user request) — undviker joystick (vänster) + fire (höger)
-    trigger.style.cssText = 'position:fixed;bottom:max(24px, calc(env(safe-area-inset-bottom) + 20px));left:50%;transform:translateX(-50%);background:linear-gradient(180deg,#d48a4a 0%,#a45a2a 100%);border:2px solid #ffd080;border-radius:50%;width:72px;height:72px;color:#fff;font-family:sans-serif;font-weight:900;z-index:85;cursor:pointer;font-size:12px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;padding:0;touch-action:none;';
+    // Bottom-center MEN lyft 100px för att inte överlappa grenade-knapp (höger sida)
+    trigger.style.cssText = 'position:fixed;bottom:max(110px, calc(env(safe-area-inset-bottom) + 100px));left:50%;transform:translateX(-50%);background:linear-gradient(180deg,#d48a4a 0%,#a45a2a 100%);border:2px solid #ffd080;border-radius:50%;width:72px;height:72px;color:#fff;font-family:sans-serif;font-weight:900;z-index:85;cursor:pointer;font-size:12px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;padding:0;touch-action:none;';
     trigger.innerHTML = '<span style="font-size:26px;">🔨</span><span>BYGG</span>';
     document.body.appendChild(trigger);
     setupCdBuildRadial(trigger);
@@ -28150,10 +28174,21 @@ function showCastleDefenseBuildBar() {
 }
 
 function hideCastleDefenseBuildBar() {
-  const ids = ['cd-build-bar', 'cd-build-trigger', 'cd-build-menu-overlay'];
+  // Cleanup pointer-listeners INNAN element tas bort (annars läcker över matcher)
+  const trigger = document.getElementById('cd-build-trigger');
+  if (trigger && typeof trigger._cdRadialCleanup === 'function') {
+    trigger._cdRadialCleanup();
+  }
+  const ids = ['cd-build-bar', 'cd-build-trigger', 'cd-build-menu-overlay', 'cd-build-radial'];
   for (const id of ids) {
     const e = document.getElementById(id);
-    if (e && e.parentNode) e.parentNode.removeChild(e);
+    if (e && e.parentNode && id !== 'cd-build-radial') {
+      e.parentNode.removeChild(e);
+    } else if (id === 'cd-build-radial' && e) {
+      // Radial-elementet behålls i DOM, bara dölj + clear
+      e.classList.add('hidden');
+      e.innerHTML = '';
+    }
   }
   state.cdBuildMode = null;
   state.cdBuildHoverX = null;
@@ -28444,10 +28479,12 @@ function setupCdBuildRadial(btn) {
   function open(e) {
     if (!state.castledefenseActive || state.castledefenseEnded) return false;
     if (state.mode !== 'playing') return false;
-    // Center = knappens center
+    // Center = knappens center, MEN för bottom-positionerad knapp lyft centerY
+    // 130px upp så radial-cirkeln passar ovanför knappen (annars clamping triggar
+    // selection direkt vid open eftersom finger redan utanför cancel-zon).
     const r = btn.getBoundingClientRect();
     centerX = r.left + r.width / 2;
-    centerY = r.top + r.height / 2;
+    centerY = r.top + r.height / 2 - 130;
     if (!buildSlots()) return false;
     radialEl.classList.remove('hidden');
     active = true;
@@ -28514,9 +28551,16 @@ function setupCdBuildRadial(btn) {
     if (pointerId !== 'mouse' && e.pointerId !== pointerId) return;
     close(true);
   };
+  const onCancel = () => close(false);
   window.addEventListener('pointermove', onMove, { passive: false });
   window.addEventListener('pointerup', onUp, { passive: false });
-  window.addEventListener('pointercancel', () => close(false), { passive: false });
+  window.addEventListener('pointercancel', onCancel, { passive: false });
+  // Spara så hideCastleDefenseBuildBar kan unregister (annars läcker över matcher)
+  btn._cdRadialCleanup = () => {
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onCancel);
+  };
 }
 
 // v1.400: Defeat-screen när core förstörs. Dramatisk röd overlay med stats + meny-knapp.
@@ -28825,7 +28869,7 @@ function updateHUD() {
   // default: om p.maxShield inte är satt (event-handlern hann inte) använd
   // state.pvpShieldMax eller 100 så bar:n ändå visas i PvP.
   if (typeof _shieldBar !== 'undefined' && _shieldBar) {
-    const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive;
+    const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.castledefenseActive;
     if (inPvP) {
       const maxS = p.maxShield || state.pvpShieldMax || 100;
       if (!p.maxShield) p.maxShield = maxS; // backfill så övrig logik funkar

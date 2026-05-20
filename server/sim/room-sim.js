@@ -2739,6 +2739,17 @@ function tickCastleDefense(sim, dt, now) {
             if (remaining > 0) psP.hp = Math.max(0, psP.hp - remaining);
             psP.invulnUntil = Date.now() + 500;
             e._cdPlayerContactCd = 0.7;
+            // v1.404: broadcast hp+shield-ändring så klient ser shield-droppen
+            // Hitta pid via reverse-lookup (psP är ws.playerState)
+            for (const [pidLookup, wsLookup] of sim.room.members) {
+              if (wsLookup.playerState === psP) {
+                sim.eventQueue.push({
+                  type: 'cd_hp_changed', peerId: pidLookup,
+                  hp: psP.hp, shield: psP.shield || 0,
+                });
+                break;
+              }
+            }
             break;
           }
         }

@@ -1031,6 +1031,18 @@ function updateBullets(sim, dt, now) {
             remaining -= absorb;
           }
           if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+          // v1.404: broadcast hp+shield i CD så client uppdaterar UI
+          if (sim.castledefenseActive) {
+            for (const [pidLookup, wsLookup] of sim.room.members) {
+              if (wsLookup === ws) {
+                sim.eventQueue.push({
+                  type: 'cd_hp_changed', peerId: pidLookup,
+                  hp: ws.playerState.hp, shield: ws.playerState.shield || 0,
+                });
+                break;
+              }
+            }
+          }
           bullets.splice(i, 1);
           break;
         }
