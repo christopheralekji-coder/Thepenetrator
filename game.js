@@ -18158,11 +18158,14 @@ const Coop = {
         state.player.dashCdMs = null;
         state.player.spectating = false;
         // v1.401: pistol-start + 2 start-granater
+        // v1.406: ta bort fists+knife från owned i CD så vapen-menyn visar bara
+        // riktiga vapen (knife kvar för downed-state via direkt weaponId-set,
+        // men inte i owned-listan så player kan inte equipa den manuellt).
         const cdStartWeapon = (ev.arena && ev.arena.startWeapon) || 'pistol';
         state.player.weaponId = cdStartWeapon;
         if (!state._cdOwnedBackup) state._cdOwnedBackup = save.owned ? save.owned.slice() : ['fists'];
         if (state._cdEquippedBackup === undefined) state._cdEquippedBackup = save.equipped || 'fists';
-        save.owned = ['fists', 'knife', cdStartWeapon];
+        save.owned = [cdStartWeapon];
         save.equipped = cdStartWeapon;
         save.weaponId = cdStartWeapon;
         if (typeof setGrenadeCount === 'function') setGrenadeCount(ev.arena && ev.arena.startGrenades || 2);
@@ -18314,7 +18317,8 @@ const Coop = {
           state.player.weaponId = ev.weaponId;
           save.equipped = ev.weaponId;
           save.weaponId = ev.weaponId;
-          if (!Array.isArray(save.owned)) save.owned = ['fists', 'knife'];
+          // v1.406: i CD inkluderas inte fists/knife i owned (vapen-menyn skulle visa dem annars)
+          if (!Array.isArray(save.owned)) save.owned = [];
           if (!save.owned.includes(ev.weaponId)) save.owned.push(ev.weaponId);
           if (typeof W_BY_ID !== 'undefined' && W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) {
             state.player.ammo = W_BY_ID[ev.weaponId].mag;
@@ -28075,20 +28079,12 @@ function showCastleDefenseHud() {
     document.body.appendChild(el);
   }
   el.style.display = 'flex';
-  // Gold-display (bottom-left)
-  let gold = document.getElementById('cd-gold');
-  if (!gold) {
-    gold = document.createElement('div');
-    gold.id = 'cd-gold';
-    gold.style.cssText = 'position:fixed;bottom:max(60px, env(safe-area-inset-bottom));left:max(12px, env(safe-area-inset-left));background:rgba(0,0,0,0.7);border:1px solid #ffd54a;border-radius:6px;padding:6px 10px;color:#ffd54a;font-family:monospace;font-weight:900;font-size:14px;z-index:80;pointer-events:none;letter-spacing:0.5px;';
-    document.body.appendChild(gold);
-  }
-  gold.style.display = 'block';
+  // v1.406: Befintlig gold-info (över minimapen) används istället för separat cd-gold
   updateCastleDefenseHud();
 }
 function hideCastleDefenseHud() {
   _stopCastleDefenseHudInterval();
-  const ids = ['cd-hud', 'cd-gold'];
+  const ids = ['cd-hud']; // v1.406: cd-gold borttagen — använder befintlig gold-info istället
   for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
@@ -28123,11 +28119,7 @@ function updateCastleDefenseHud() {
     if (cdWrap) cdWrap.style.display = 'none';
     if (cdEl) cdEl.style.display = 'none';
   }
-  // Gold-display (per-match castledefense gold)
-  const goldEl = document.getElementById('cd-gold');
-  if (goldEl) {
-    goldEl.textContent = '💰 ' + (state.castledefenseGold || 0);
-  }
+  // v1.406: gold-display sker i befintliga goldInfo (över minimap) — se updateHUD
 }
 function _startCastleDefenseHudInterval() {
   if (_cdHudInterval) return;
@@ -28182,9 +28174,9 @@ function showCastleDefenseBuildBar() {
     trigger = document.createElement('button');
     trigger.id = 'cd-build-trigger';
     // BOTTOM-CENTER position (user request) — undviker joystick (vänster) + fire (höger)
-    // v1.405: Matcha emote-knappen exakt — samma höjd (bottom:14), storlek (52×52),
-    // bara förskjuten höger (left+190 så de inte överlappar emote vid left+130).
-    trigger.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 190px) !important;bottom:14px !important;top:auto !important;right:auto !important;width:52px !important;height:52px !important;background:linear-gradient(180deg,#d48a4a 0%,#a45a2a 100%);border:2px solid #ffd080;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:22px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:0;touch-action:none;';
+    // v1.406: BOTTOM-CENTER (bottom:14, 52×52 — samma som emote). Centrerad
+    // horisontellt via left:50% + translateX(-50%).
+    trigger.style.cssText = 'position:fixed !important;left:50% !important;transform:translateX(-50%) !important;bottom:14px !important;top:auto !important;right:auto !important;width:52px !important;height:52px !important;background:linear-gradient(180deg,#d48a4a 0%,#a45a2a 100%);border:2px solid #ffd080;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:22px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:0;touch-action:none;';
     trigger.innerHTML = '🔨';
     document.body.appendChild(trigger);
     setupCdBuildRadial(trigger);
@@ -28925,18 +28917,19 @@ function updateHUD() {
   if (killCountEl) killCountEl.textContent = state.killsThisRun || 0;
   const lvl = getLevel(state.wave);
   waveInfo.textContent = `${state.wave}/${getStageCount()} · ${lvl.name}`;
-  // Gold-info: bounce-anim när värdet förändrats
+  // Gold-info: bounce-anim när värdet förändrats. v1.406: i Castle Defense
+  // visar vi PER-MATCH gold (state.castledefenseGold) istället för save.gold.
+  const curGold = state.castledefenseActive ? (state.castledefenseGold || 0) : save.gold;
   const prevGold = state._hudPrevGold || 0;
-  if (save.gold !== prevGold) {
-    state._hudPrevGold = save.gold;
-    if (save.gold > prevGold && goldInfo) {
+  if (curGold !== prevGold) {
+    state._hudPrevGold = curGold;
+    if (curGold > prevGold && goldInfo) {
       goldInfo.classList.remove('gold-pop');
-      // Force reflow så animationen kan retriggas
       void goldInfo.offsetWidth;
       goldInfo.classList.add('gold-pop');
     }
   }
-  goldInfo.textContent = `💰 ${save.gold}`;
+  goldInfo.textContent = `💰 ${curGold}`;
   // Per-weapon emoji som visuell identitet i HUD. .hud-row.weapon är hidden
   // (ammo visas vid fire-button istället) så vi prependar emoji till ammo-display.
   const wIcon = isRepair ? '🔧' : (p._turretWeapon ? '🛡️' : getWeaponIconHTML(p.weaponId));
@@ -29007,7 +29000,7 @@ let _lastShieldCdSet = -1;
 let _lastShieldVisible = null;
 function updatePvpShieldButton() {
   if (!_btnPvpShield) return;
-  const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive;
+  const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.castledefenseActive;
   if (inPvP !== _lastShieldVisible) {
     _lastShieldVisible = inPvP;
     _btnPvpShield.classList.toggle('hidden', !inPvP);
