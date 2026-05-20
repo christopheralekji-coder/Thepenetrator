@@ -1037,6 +1037,21 @@ html, body {
   -webkit-backdrop-filter: blur(2px);
 }
 #weapon-radial.hidden { display: none; }
+
+/* Castle Defense build-radial — samma styling som weapon-radial */
+#cd-build-radial {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+#cd-build-radial.hidden { display: none; }
 /* Center "cancel"-zon — visuell indikator att släppa här avbryter */
 .weapon-radial-center {
   position: fixed;

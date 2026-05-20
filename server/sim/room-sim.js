@@ -2729,7 +2729,14 @@ function tickCastleDefense(sim, dt, now) {
           const ddx = psP.x - e.x, ddy = psP.y - e.y;
           const rsumP = (e.r || 12) + 14;
           if (ddx * ddx + ddy * ddy < rsumP * rsumP) {
-            psP.hp = Math.max(0, psP.hp - e.dmg);
+            // v1.403: shield absorberar först
+            let remaining = e.dmg;
+            if ((psP.shield || 0) > 0) {
+              const absorb = Math.min(psP.shield, remaining);
+              psP.shield -= absorb;
+              remaining -= absorb;
+            }
+            if (remaining > 0) psP.hp = Math.max(0, psP.hp - remaining);
             psP.invulnUntil = Date.now() + 500;
             e._cdPlayerContactCd = 0.7;
             break;
@@ -2965,17 +2972,25 @@ function tickCastleDefense(sim, dt, now) {
       nextIsBoss,
       nextWave,
     });
-    // Wave-clear gold-bonus + grenades så player kan bygga + få granater inför nästa våg
+    // Wave-clear gold-bonus + grenades + shield-regen så player är redo för nästa våg
     const bonus = (arena.waveBonusBase || 150) + sim.castledefenseWave * (arena.waveBonusPerWave || 30);
     const grenadeGrant = arena.grenadesPerWave || 2;
-    for (const [pid] of sim.room.members) {
+    const shieldRegen = arena.shieldRegenPerWave || 50;
+    for (const [pid, ws] of sim.room.members) {
       sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + bonus;
+      // v1.403: shield regen
+      if (ws.playerState) {
+        const max = ws.playerState.maxShield || arena.maxShield || 100;
+        ws.playerState.shield = Math.min(max, (ws.playerState.shield || 0) + shieldRegen);
+      }
       sim.eventQueue.push({
         type: 'cd_wave_bonus',
         peerId: pid,
         gold: bonus,
         totalGold: sim.castledefenseGold[pid],
         grenades: grenadeGrant,
+        shieldRegen,
+        shield: ws.playerState ? ws.playerState.shield : 0,
         wave: sim.castledefenseWave,
       });
     }

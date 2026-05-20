@@ -108,10 +108,11 @@ const CASTLEDEFENSE_ARENA = {
   // === PLAYER START-STATE ===
   startHp: 100,
   maxHp: 100,
-  startShield: 0,
-  maxShield: 0,
+  startShield: 100,                // v1.403: shield-system (samma som PvP) — skydd mot minions
+  maxShield: 100,
   startWeapon: 'pistol',           // v1.401: börjar med pistol, progresserar via boss-kills
   startGrenades: 2,                // 2 grenades vid match-start
+  shieldRegenPerWave: 50,          // shield återställs +50 per cleared wave
 
   // === VAPENPROGRESSION (v1.401) ===
   // 12 vapen. Start = tier 0 (pistol). Varje boss-kill ger +1 tier.

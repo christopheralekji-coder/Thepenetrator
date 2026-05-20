@@ -18148,8 +18148,9 @@ const Coop = {
       if (state.player) {
         state.player.hp = ev.startHp || 100;
         state.player.maxHp = ev.maxHp || 100;
-        state.player.shield = 0;
-        state.player.maxShield = 0;
+        // v1.403: CD har shield-system (mot minions)
+        state.player.shield = (ev.arena && ev.arena.startShield) != null ? ev.arena.startShield : 100;
+        state.player.maxShield = (ev.arena && ev.arena.maxShield) != null ? ev.arena.maxShield : 100;
         state.player.invuln = 2;
         state.player.isJug = false;
         state.player.scaleMul = 1.0;
@@ -18228,18 +18229,13 @@ const Coop = {
       if (state.castledefenseBuildings) {
         state.castledefenseBuildings.push({ ...ev });
       }
-      // v1.400: ägaren får build-mode cleared + menu auto-reopens för nästa placering
+      // v1.403: ägaren får build-mode cleared. Med hold-drag-release radial-pattern
+      // (matchar weapon-knappen) krävs ny pointer-hold för nästa placering — så
+      // ingen auto-reopen. User kan dock spam-bygga via radial: hold-drag-release-tap.
       if (ev.ownerPid === this.myId) {
         state.cdBuildMode = null;
         state.cdBuildHoverX = null;
         state.cdBuildHoverY = null;
-        // Auto-reopen menu efter 80ms — men SKIPPA om menu redan är öppen
-        // (annars triggar openCdBuildMenu's toggle-logik = stänger menyn)
-        setTimeout(() => {
-          if (!state.castledefenseActive || state.castledefenseEnded) return;
-          if (document.getElementById('cd-build-menu-overlay')) return;
-          if (typeof openCdBuildMenu === 'function') openCdBuildMenu();
-        }, 80);
       }
     } else if (ev.type === 'cd_building_damaged') {
       // { id, hp, maxHp }
@@ -18279,15 +18275,20 @@ const Coop = {
       state.castledefenseWaveBetweenEndAt = ev.waveBetweenEndAt;
       if (typeof updateCastleDefenseHud === 'function') updateCastleDefenseHud();
     } else if (ev.type === 'cd_wave_bonus') {
-      // { peerId, gold, totalGold, grenades, wave }
+      // { peerId, gold, totalGold, grenades, shieldRegen, shield, wave }
       if (ev.peerId === this.myId) {
         state.castledefenseGold = ev.totalGold;
         // v1.401: + 2 granater per wave
         if (ev.grenades > 0 && typeof setGrenadeCount === 'function' && typeof getGrenadeCount === 'function') {
           setGrenadeCount(getGrenadeCount() + ev.grenades);
         }
+        // v1.403: shield regen
+        if (state.player && typeof ev.shield === 'number') {
+          state.player.shield = ev.shield;
+        }
         if (typeof showToast === 'function') {
-          showToast('💰 +' + ev.gold + ' · 💣 +' + (ev.grenades || 0) + ' (våg ' + ev.wave + ' klar)');
+          const shieldTxt = ev.shieldRegen > 0 ? (' · 🛡 +' + ev.shieldRegen) : '';
+          showToast('💰 +' + ev.gold + ' · 💣 +' + (ev.grenades || 0) + shieldTxt + ' (våg ' + ev.wave + ' klar)');
         }
       }
     } else if (ev.type === 'cd_weapon_upgraded') {
@@ -28132,21 +28133,18 @@ const CD_BUILDABLE_LIST = [
   { kind: 'health_stn',  key: '7', icon: '✚', label: 'HEAL',     hint: 'Regenererar spelare i radius' },
 ];
 
-// v1.398: BYGG-MENY REDESIGN. Istället för always-visible quick-slot bar:
-// trigger-knapp + popup-overlay (samma mönster som weapon-menu / pistol-menyn).
-// Press button/B → popup → tap option → popup closes + build-mode set.
+// v1.403: BYGG-KNAPP nu HOLD-DRAG-RELEASE radial (samma mönster som vapen-knapp).
+// Position: bottom-center. Hold = öppna radial, drag = highlight, release = välj kind.
 function showCastleDefenseBuildBar() {
-  // Trigger-knapp (alltid synlig under CD-match)
   let trigger = document.getElementById('cd-build-trigger');
   if (!trigger) {
     trigger = document.createElement('button');
     trigger.id = 'cd-build-trigger';
-    // Placerad höger om center (mellan core-HP och fire-button) — undviker krock
-    // med joystick (vänster) och fire-button (höger). z-index:85 över HUD.
-    trigger.style.cssText = 'position:fixed;bottom:max(160px, calc(env(safe-area-inset-bottom) + 140px));right:max(20px, env(safe-area-inset-right, 20px));background:linear-gradient(180deg,#d48a4a 0%,#a45a2a 100%);border:2px solid #ffd080;border-radius:50%;width:64px;height:64px;color:#fff;font-family:sans-serif;font-weight:900;z-index:85;cursor:pointer;font-size:11px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;padding:0;';
-    trigger.innerHTML = '<span style="font-size:22px;">🔨</span><span>BYGG</span>';
-    trigger.onclick = (e) => { e.preventDefault(); openCdBuildMenu(); };
+    // BOTTOM-CENTER position (user request) — undviker joystick (vänster) + fire (höger)
+    trigger.style.cssText = 'position:fixed;bottom:max(24px, calc(env(safe-area-inset-bottom) + 20px));left:50%;transform:translateX(-50%);background:linear-gradient(180deg,#d48a4a 0%,#a45a2a 100%);border:2px solid #ffd080;border-radius:50%;width:72px;height:72px;color:#fff;font-family:sans-serif;font-weight:900;z-index:85;cursor:pointer;font-size:12px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 1px 0 rgba(255,255,255,0.3);text-shadow:0 1px 2px rgba(0,0,0,0.5);display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.1;padding:0;touch-action:none;';
+    trigger.innerHTML = '<span style="font-size:26px;">🔨</span><span>BYGG</span>';
     document.body.appendChild(trigger);
+    setupCdBuildRadial(trigger);
   }
   trigger.style.display = '';
 }
@@ -28382,6 +28380,145 @@ function closeCdBuildMenu() {
   if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
 }
 
+// v1.403: HOLD-DRAG-RELEASE radial för bygg-knappen — exakt samma pattern som
+// weapon-radial: pointerdown öppnar, pointermove highlightar, pointerup väljer.
+function setupCdBuildRadial(btn) {
+  const radialEl = document.getElementById('cd-build-radial');
+  if (!radialEl) return;
+  let active = false, pointerId = null;
+  let centerX = 0, centerY = 0;
+  let slots = []; // [{ kind, x, y, el, ang }]
+  let selectedIdx = -1;
+
+  function buildSlots() {
+    if (!CD_BUILDABLE_LIST || CD_BUILDABLE_LIST.length === 0) return false;
+    radialEl.innerHTML = '';
+    slots = [];
+    const N = CD_BUILDABLE_LIST.length;
+    const W = window.innerWidth, H = window.innerHeight;
+    const SLOT_R = 36;
+    const SLOT_W = 64;
+    const PADDING = 2;
+    const minR = N >= 2 ? (SLOT_W + PADDING) / (2 * Math.sin(Math.PI / N)) : 0;
+    let radius = Math.max(55, minR + 2);
+    const maxRadiusFit = Math.min((W - 2 * SLOT_R) / 2 - 4, (H - 2 * SLOT_R) / 2 - 4);
+    if (radius > maxRadiusFit) radius = Math.max(50, maxRadiusFit);
+    const minCX = SLOT_R + radius, maxCX = W - SLOT_R - radius;
+    const minCY = SLOT_R + radius, maxCY = H - SLOT_R - radius;
+    centerX = Math.max(minCX, Math.min(maxCX, centerX));
+    centerY = Math.max(minCY, Math.min(maxCY, centerY));
+    // Center cancel-zon
+    const centerEl = document.createElement('div');
+    centerEl.className = 'weapon-radial-center';
+    centerEl.style.left = centerX + 'px';
+    centerEl.style.top = centerY + 'px';
+    centerEl.textContent = '✕';
+    radialEl.appendChild(centerEl);
+    for (let i = 0; i < N; i++) {
+      const b = CD_BUILDABLE_LIST[i];
+      const cost = (CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[b.kind] && CASTLEDEFENSE_ARENA.buildables[b.kind].cost) || 0;
+      const canAfford = (state.castledefenseGold || 0) >= cost;
+      const angle = (i / N) * Math.PI * 2 - Math.PI / 2;
+      const sx = centerX + Math.cos(angle) * radius;
+      const sy = centerY + Math.sin(angle) * radius;
+      const el = document.createElement('div');
+      el.className = 'weapon-radial-slot';
+      if (!canAfford) el.style.opacity = '0.4';
+      el.style.left = sx + 'px';
+      el.style.top = sy + 'px';
+      el.innerHTML = '<div class="wsymbol"></div><div class="wname">' + b.label + '</div><div style="font-size:9px;color:#ffd54a;margin-top:2px;font-weight:900;">' + cost + 'g</div>';
+      // Inject canvas-ikon i .wsymbol
+      const wsymbol = el.querySelector('.wsymbol');
+      if (wsymbol && typeof renderBuildIconCanvas === 'function') {
+        const iconCanvas = renderBuildIconCanvas(b.kind);
+        iconCanvas.style.width = '32px';
+        iconCanvas.style.height = '32px';
+        wsymbol.appendChild(iconCanvas);
+      }
+      radialEl.appendChild(el);
+      slots.push({ kind: b.kind, x: sx, y: sy, el, ang: angle, canAfford });
+    }
+    return true;
+  }
+
+  function open(e) {
+    if (!state.castledefenseActive || state.castledefenseEnded) return false;
+    if (state.mode !== 'playing') return false;
+    // Center = knappens center
+    const r = btn.getBoundingClientRect();
+    centerX = r.left + r.width / 2;
+    centerY = r.top + r.height / 2;
+    if (!buildSlots()) return false;
+    radialEl.classList.remove('hidden');
+    active = true;
+    pointerId = e.pointerId != null ? e.pointerId : 'mouse';
+    selectedIdx = -1;
+    return true;
+  }
+
+  function handleMove(clientX, clientY) {
+    if (!active) return;
+    const dx = clientX - centerX, dy = clientY - centerY;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 40) {
+      selectedIdx = -1; // cancel-zone
+    } else {
+      const ang = Math.atan2(dy, dx);
+      let bestIdx = -1, bestDiff = Infinity;
+      for (let i = 0; i < slots.length; i++) {
+        let diff = Math.abs(((ang - slots[i].ang + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        if (diff < bestDiff) { bestDiff = diff; bestIdx = i; }
+      }
+      selectedIdx = bestIdx;
+    }
+    for (let i = 0; i < slots.length; i++) {
+      slots[i].el.classList.toggle('hover', i === selectedIdx);
+    }
+  }
+
+  function close(commit) {
+    if (!active) return;
+    if (commit && selectedIdx >= 0) {
+      const slot = slots[selectedIdx];
+      if (slot.canAfford) {
+        state.cdBuildMode = slot.kind;
+        const blabel = (CD_BUILDABLE_LIST.find(b => b.kind === slot.kind) || {}).label || slot.kind;
+        if (typeof showToast === 'function') showToast('🔨 ' + blabel + ' — tap för att placera (Esc avbryt)');
+      } else {
+        if (typeof showToast === 'function') showToast('❌ För lite gold');
+      }
+    }
+    radialEl.classList.add('hidden');
+    radialEl.innerHTML = '';
+    active = false;
+    pointerId = null;
+    selectedIdx = -1;
+    slots = [];
+  }
+
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (typeof isInputLocked === 'function' && isInputLocked()) return;
+    if (open(e)) {
+      try { btn.setPointerCapture(e.pointerId); } catch (_) {}
+    }
+  }, { passive: false });
+  const onMove = (e) => {
+    if (!active) return;
+    if (pointerId !== 'mouse' && e.pointerId !== pointerId) return;
+    handleMove(e.clientX, e.clientY);
+  };
+  const onUp = (e) => {
+    if (!active) return;
+    if (pointerId !== 'mouse' && e.pointerId !== pointerId) return;
+    close(true);
+  };
+  window.addEventListener('pointermove', onMove, { passive: false });
+  window.addEventListener('pointerup', onUp, { passive: false });
+  window.addEventListener('pointercancel', () => close(false), { passive: false });
+}
+
 // v1.400: Defeat-screen när core förstörs. Dramatisk röd overlay med stats + meny-knapp.
 function showCastleDefenseDefeatScreen(wave, survivedSec, reason) {
   // Stäng ev. öppna popups
@@ -28453,6 +28590,12 @@ function tryCdPlaceBuilding() {
   if (!state.cdBuildMode) return;
   if (state.cdBuildHoverX == null || state.cdBuildHoverY == null) return;
   if (!Coop.ws || Coop.ws.readyState !== 1) return;
+  // v1.403: predicta gold-deduction client-side så HUD svarar instant. Server's
+  // cd_gold_update reconcilerar exakt värde (eller cd_build_failed → undo).
+  const spec = CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[state.cdBuildMode];
+  if (spec && (state.castledefenseGold || 0) >= spec.cost) {
+    state.castledefenseGold -= spec.cost;
+  }
   Coop.ws.send(JSON.stringify({
     type: 'sim_cd_build',
     kind: state.cdBuildMode,
@@ -34160,8 +34303,8 @@ function drawGoalZone(cx, cy) {
   if (state.enemiesToSpawn > 0 || state.enemies.length > 0) return;
   // PvP-modes använder customStage med goalPos (för spawnPos-symmetri) men
   // har ingen "utgång" — målet är att döda/cappa, inte gå till en plats.
-  // Skippa den gula cirkeln + UTGÅNG-pilen helt i alla PvP-modes.
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive) return;
+  // Skippa den gula cirkeln + UTGÅNG-pilen helt i alla PvP-modes + castledefense.
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.castledefenseActive) return;
   const t = performance.now();
   const pulse = 1 + Math.sin(t/280) * 0.15;
   const gx = stage.goalPos.x - cx;

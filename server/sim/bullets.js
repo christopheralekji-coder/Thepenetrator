@@ -1023,7 +1023,14 @@ function updateBullets(sim, dt, now) {
         const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
         const rsum = 14 + b.r;
         if (dx * dx + dy * dy < rsum * rsum) {
-          ws.playerState.hp = Math.max(0, ws.playerState.hp - b.dmg);
+          // v1.403: shield absorberar först (CD + PvP)
+          let remaining = b.dmg;
+          if ((ws.playerState.shield || 0) > 0) {
+            const absorb = Math.min(ws.playerState.shield, remaining);
+            ws.playerState.shield -= absorb;
+            remaining -= absorb;
+          }
+          if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
           bullets.splice(i, 1);
           break;
         }
