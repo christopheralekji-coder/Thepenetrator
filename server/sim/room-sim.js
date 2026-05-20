@@ -2194,7 +2194,6 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
         if (dx * dx + dy * dy > r2) continue;
         const heal = b.healPerSec * dt;
         w.hp = Math.min(w.maxHp, w.hp + heal);
-        // Broadcast med throttling så vi inte spammar 60Hz per wall
         if (!w._lastHealBroadcast || nowMs - w._lastHealBroadcast > 250) {
           w._lastHealBroadcast = nowMs;
           sim.eventQueue.push({ type: 'cd_wall_damaged', id: w.id, hp: w.hp, maxHp: w.maxHp });
@@ -2209,6 +2208,18 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
         if (!b2._lastHealBroadcast || nowMs - b2._lastHealBroadcast > 250) {
           b2._lastHealBroadcast = nowMs;
           sim.eventQueue.push({ type: 'cd_building_damaged', id: b2.id, hp: b2.hp, maxHp: b2.maxHp });
+        }
+      }
+      // v1.410: Repair-station healar nu också CORE (user-feedback "healar inte core").
+      if (sim.castledefenseCore && sim.castledefenseCore.hp > 0 && sim.castledefenseCore.hp < sim.castledefenseCore.maxHp) {
+        const core = sim.castledefenseCore;
+        const dxc = core.x - bcx, dyc = core.y - bcy;
+        if (dxc * dxc + dyc * dyc <= r2) {
+          core.hp = Math.min(core.maxHp, core.hp + b.healPerSec * dt);
+          if (!sim._cdCoreLastHealBroadcast || nowMs - sim._cdCoreLastHealBroadcast > 250) {
+            sim._cdCoreLastHealBroadcast = nowMs;
+            sim.eventQueue.push({ type: 'cd_core_damaged', hp: core.hp, maxHp: core.maxHp });
+          }
         }
       }
     }
@@ -2513,12 +2524,13 @@ function tickCastleDefense(sim, dt, now) {
     b.kind !== 'spike_trap' && b.kind !== 'slow_trap');
   const cdAllSolids = cdLiveWalls.concat(cdSolidBuildings);
 
-  // === PLAYER COLLISION (v1.400: BARA core blockerar — walls/turrets är passable
-  // för players så de kan springa till frontlinjen, ge gas på fienden, mm.).
+  // === PLAYER COLLISION (v1.410: walls/turrets BLOCKERAR player igen — user-feedback)
   for (const [, ws] of sim.room.members) {
     if (ws.playerState && ws.playerState.hp > 0) {
       const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
-      // (resolveCtfWall mot cdAllSolids är BORTTAGEN — players passar genom defenses)
+      // v1.410: player kan INTE längre gå genom egna walls. Samma collision-set
+      // som enemies (alla solida non-trap buildings).
+      resolveCtfWall(ent, cdAllSolids);
       // Core är en CIRKEL — alltid blockerad.
       if (sim.castledefenseCore && sim.castledefenseCore.hp > 0) {
         const core = sim.castledefenseCore;
@@ -2597,6 +2609,13 @@ function tickCastleDefense(sim, dt, now) {
       e.maxHp = e.hp;
       e.dmg = Math.round(e.dmg * cdWaveScale * cdDiff.enemyDmg * (1 + (cdCoop - 1) * 0.5));
       if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * cdDiff.enemyDmg);
+      // v1.410: speed-buff för "fast" enemy-typer — gör dem REALA hot. User-feedback
+      // "vissa fiender ännu snabbare". runner/ninja/dog/swarmer +35%.
+      if (type === 'runner' || type === 'ninja' || type === 'dog' || type === 'swarmer') {
+        e.speed = Math.round(e.speed * 1.35);
+      } else if (type === 'bomber') {
+        e.speed = Math.round(e.speed * 1.15);
+      }
       e._origSpeed = e.speed;
       // 50/50 role: attacker (target player) vs siege (target buildings/core)
       e._cdRole = Math.random() < 0.5 ? 'attacker' : 'siege';
@@ -4968,7 +4987,10 @@ function applyCastleDefenseUpgrade(sim, peerId, msg) {
     return;
   }
   const baseCost = b._baseCost || arena.buildables[b.kind].cost;
-  const upgradeCost = Math.round(baseCost * (arena.upgradeCostMul || 0.4) * (curLevel + 1));
+  // v1.410: exponential cost-scaling: baseCost × base × (lvl+1)^exp
+  const ucBase = arena.upgradeCostBase || 0.6;
+  const ucExp = arena.upgradeCostExp || 1.3;
+  const upgradeCost = Math.round(baseCost * ucBase * Math.pow(curLevel + 1, ucExp));
   const playerGold = sim.castledefenseGold[peerId] || 0;
   if (playerGold < upgradeCost) {
     sim.eventQueue.push({ type: 'cd_upgrade_failed', peerId, id, reason: 'insufficient_gold', cost: upgradeCost });

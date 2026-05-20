@@ -140,10 +140,10 @@ const CASTLEDEFENSE_ARENA = {
   downCrawlSpeedMul: 0.5,
   downReviveRadius: 60,
 
-  // === WAVE-SCALING ===
-  waveBaseCount: 6,
-  waveScalePerWave: 2,
-  waveBetweenSec: 10,                // 8→10 (mer tid att bygga utan pre-built walls)
+  // === WAVE-SCALING (v1.410: höjda counts — kändes för få fiender)
+  waveBaseCount: 12,                 // 6→12 (dubblerat)
+  waveScalePerWave: 4,               // 2→4 (mer per wave)
+  waveBetweenSec: 10,
   bossEveryWave: 5,
 
   // === BUILD-SYSTEM ===
@@ -160,19 +160,20 @@ const CASTLEDEFENSE_ARENA = {
     spike_trap:  { cost: 200,  hp: 250, w: 30, h: 30, dmgOnPass: 30, killCapacity: 5 },
     slow_trap:   { cost: 300,  hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2 },
     repair_stn:  { cost: 500,  hp: 200, w: 30, h: 30, healPerSec: 12, radius: 100 },
-    health_stn:  { cost: 600,  hp: 150, w: 30, h: 30, playerHealPerSec: 10, radius: 140 },
+    health_stn:  { cost: 600,  hp: 150, w: 30, h: 30, playerHealPerSec: 3, radius: 140 },
   },
-  // v1.407: Level-system. Varje byggnad kan upgradas 9 ggr (level 0-9 = 10 nivåer).
-  // Upgrade-cost per level = placement_cost × upgradeCostMul.
-  // Stats scalar med level (hp, dps, range, healPerSec etc — exponentiellt-likt).
+  // v1.410: Level-system med EXPONENTIAL cost-scaling (mycket dyrare att maxa).
+  // upgradeCost(lvl) = baseCost × upgradeCostBase × (lvl+1)^upgradeCostExp
   maxBuildLevel: 9,
-  upgradeCostMul: 0.4,
+  upgradeCostBase: 0.6,
+  upgradeCostExp: 1.3,               // > 1 = exponential growth
+  // Stats scalar STÖRRE per level (user-feedback "större skillnad")
   upgradeStatMul: {
-    hp:    0.30,    // +30% hp per level
-    dps:   0.25,    // +25% dps per level
-    range: 0.05,    // +5% range per level
-    heal:  0.20,    // +20% healing per level
-    dmg:   0.25,    // +25% dmg (för spike/slow)
+    hp:    0.50,    // +50% hp/lvl (9 = 5.5x base)
+    dps:   0.45,    // +45% dps/lvl
+    range: 0.10,    // +10% range/lvl
+    heal:  0.40,    // +40% healing/lvl
+    dmg:   0.40,    // +40% dmg/lvl
   },
 };
 

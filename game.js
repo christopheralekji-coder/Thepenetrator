@@ -28116,8 +28116,9 @@ function showCastleDefenseHud() {
   if (!el) {
     el = document.createElement('div');
     el.id = 'cd-hud';
-    el.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #c47a3a;border-radius:8px;padding:8px 16px;color:#fff;font-family:sans-serif;font-weight:900;letter-spacing:1px;z-index:80;pointer-events:none;display:flex;align-items:center;gap:14px;font-size:14px;text-align:center;';
-    el.innerHTML = '<div><span style="color:#c47a3a;">🏰 VÅG</span> <span id="cd-wave">--</span></div><div style="color:#666;">|</div><div><span style="color:#ff5a5a;">FIENDER:</span> <span id="cd-enemies" style="font-variant-numeric:tabular-nums;">--</span></div><div style="color:#666;">|</div><div><span style="color:#d4a04a;">CORE:</span> <span id="cd-core-hp" style="font-variant-numeric:tabular-nums;">--</span></div><div id="cd-countdown-wrap" style="color:#666;display:none;">|</div><div id="cd-countdown" style="color:#3acaff;display:none;">Nästa: <span id="cd-countdown-sec">--</span>s</div>';
+    // v1.410: kompaktare HUD — mindre padding/font, ikoner istället för text-labels
+    el.style.cssText = 'position:fixed;top:max(4px, env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.72);border:1px solid #c47a3a;border-radius:14px;padding:3px 10px;color:#fff;font-family:sans-serif;font-weight:700;letter-spacing:0.5px;z-index:80;pointer-events:none;display:flex;align-items:center;gap:8px;font-size:11px;text-align:center;';
+    el.innerHTML = '<span><span style="color:#c47a3a;">🏰</span><span id="cd-wave" style="margin-left:3px;">--</span></span><span style="color:#444;">·</span><span><span style="color:#ff5a5a;">⚔</span><span id="cd-enemies" style="font-variant-numeric:tabular-nums;margin-left:3px;">--</span></span><span style="color:#444;">·</span><span><span style="color:#d4a04a;">🔮</span><span id="cd-core-hp" style="font-variant-numeric:tabular-nums;margin-left:3px;">--</span></span><span id="cd-countdown-wrap" style="color:#444;display:none;">·</span><span id="cd-countdown" style="color:#3acaff;display:none;"><span id="cd-countdown-sec">--</span>s</span>';
     document.body.appendChild(el);
   }
   el.style.display = 'flex';
@@ -28242,9 +28243,10 @@ function updateCastleDefenseHud() {
     } else if (upgradeTarget) {
       const arena = CASTLEDEFENSE_ARENA;
       const baseCost = (arena && arena.buildables[upgradeTarget.kind] && arena.buildables[upgradeTarget.kind].cost) || 0;
-      const upMul = (arena && arena.upgradeCostMul) || 0.4;
+      const ucBase = (arena && arena.upgradeCostBase) || 0.6;
+      const ucExp = (arena && arena.upgradeCostExp) || 1.3;
       const lvl = upgradeTarget.level || 0;
-      const cost = Math.round(baseCost * upMul * (lvl + 1));
+      const cost = Math.round(baseCost * ucBase * Math.pow(lvl + 1, ucExp));
       const targetLvl = lvl + 2; // visa NÄSTA level
       if (actBtn.dataset.mode !== 'upgrade' || actBtn.dataset.upgradeId !== upgradeTarget.id || actBtn.dataset.upgradeCost !== String(cost)) {
         actBtn.style.display = 'flex';
