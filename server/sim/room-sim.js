@@ -2654,7 +2654,11 @@ function tickCastleDefense(sim, dt, now) {
           hp: 99999, maxHp: 99999, invulnUntil: 0, r: 14,
         };
       } else {
-        // Fallback: core
+        // Fallback: core. Uppdatera _cdLastTargetId så aim resetas vid nästa byte.
+        if (e._cdLastTargetId !== '__core__') {
+          e.aiming = false; e.aimAt = 0;
+        }
+        e._cdLastTargetId = '__core__';
         target = corePos ? {
           peerId: '__core__', _isCoreTarget: true,
           x: corePos.x, y: corePos.y,
@@ -2877,6 +2881,7 @@ function tickCastleDefense(sim, dt, now) {
         const progression = arena.weaponProgression || ['pistol'];
         for (const [pid, ws] of sim.room.members) {
           if (!ws.playerState) continue;
+          if (ws._isBot) continue;          // bots skippas — egen AI hanterar inte uppgraderade vapen
           const oldTier = sim.castledefenseWeaponTier[pid] || 0;
           const newTier = Math.min(progression.length - 1, oldTier + 1);
           if (newTier !== oldTier) {
@@ -2888,6 +2893,17 @@ function tickCastleDefense(sim, dt, now) {
               peerId: pid,
               tier: newTier,
               weaponId: newWeapon,
+              maxed: newTier === progression.length - 1,
+            });
+          } else if (oldTier === progression.length - 1) {
+            // Redan på max — emit "maxed"-event så client kan visa feedback
+            sim.eventQueue.push({
+              type: 'cd_weapon_upgraded',
+              peerId: pid,
+              tier: oldTier,
+              weaponId: progression[oldTier],
+              maxed: true,
+              noChange: true,
             });
           }
         }
@@ -4632,6 +4648,18 @@ function applyShoot(sim, peerId, msg) {
   // "weaponId: railgun" och få railgun-dmg från turret-position.
   let weaponId = msg.weaponId || ps.weaponId || 'pistol';
   if (ps.cdDowned) weaponId = 'knife';
+  // v1.401 anti-cheat: Castle Defense — validera mot vapen-tier
+  if (sim.castledefenseActive && msg.weaponId) {
+    const cdArena = CASTLEDEFENSE_ARENA;
+    const tier = sim.castledefenseWeaponTier[peerId] || 0;
+    const allowed = ['fists', 'knife'];
+    const prog = (cdArena && cdArena.weaponProgression) || [];
+    for (let i = 0; i <= tier && i < prog.length; i++) allowed.push(prog[i]);
+    if (!allowed.includes(msg.weaponId)) {
+      // Cheat-försök — fallback till server-side weapon
+      weaponId = ps.weaponId || prog[tier] || 'pistol';
+    }
+  }
   let posX = typeof msg.x === 'number' ? msg.x : ps.x;
   let posY = typeof msg.y === 'number' ? msg.y : ps.y;
   if (ws._mountedSiegeTurretId && sim.siegeTurrets) {

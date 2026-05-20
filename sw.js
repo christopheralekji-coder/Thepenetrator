@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v401-cd-progression';
+const CACHE = 'penetrator-v402-cd-agentfix';
 const ASSETS = [
   './',
   './index.html',

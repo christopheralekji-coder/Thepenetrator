@@ -128,7 +128,7 @@ const CASTLEDEFENSE_ARENA = {
     'plasma',      // 8 — boss 8 (wave 40)
     'minigun',     // 9 — boss 9 (wave 45)
     'rocket',      // 10 — boss 10 (wave 50)
-    'sledge',      // 11 — boss 11 (wave 55) — final
+    'railgun',     // 11 — boss 11 (wave 55) — final, ranged piercing (sledge byttes ut: melee var en straff på final-tier)
   ],
   // Grenades per cleared wave (v1.401)
   grenadesPerWave: 2,

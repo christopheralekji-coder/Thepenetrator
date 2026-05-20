@@ -14617,7 +14617,10 @@ function getGrenadeCount() {
 }
 function setGrenadeCount(n) {
   if (isSandboxMode()) return; // sandbox: ignorera decrement
-  if (state.player) state.player.grenadeCount = Math.max(0, n);
+  // v1.402: cap till 15 — annars stackar de + pickups så grenade blir primary
+  // weapon. Cap håller dem som "panic button".
+  const cap = state.castledefenseActive ? 15 : 99;
+  if (state.player) state.player.grenadeCount = Math.max(0, Math.min(cap, n));
   updateGrenadeBadge();
 }
 function updateGrenadeBadge() {
@@ -18288,25 +18291,30 @@ const Coop = {
         }
       }
     } else if (ev.type === 'cd_weapon_upgraded') {
-      // { peerId, tier, weaponId } — boss-kill upgrade
+      // { peerId, tier, weaponId, maxed, noChange } — boss-kill upgrade
       if (ev.peerId === this.myId && state.player) {
-        state.player.weaponId = ev.weaponId;
-        save.equipped = ev.weaponId;
-        save.weaponId = ev.weaponId;
-        if (!Array.isArray(save.owned)) save.owned = ['fists', 'knife'];
-        if (!save.owned.includes(ev.weaponId)) save.owned.push(ev.weaponId);
-        // Reset ammo + reload-state
-        if (typeof W_BY_ID !== 'undefined' && W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) {
-          state.player.ammo = W_BY_ID[ev.weaponId].mag;
+        if (ev.noChange) {
+          // Redan max-tier — visa "max"-feedback men ändra inget
+          if (typeof showToast === 'function') showToast('💪 MAX-VAPEN! (' + ev.weaponId.toUpperCase() + ')');
+        } else {
+          state.player.weaponId = ev.weaponId;
+          save.equipped = ev.weaponId;
+          save.weaponId = ev.weaponId;
+          if (!Array.isArray(save.owned)) save.owned = ['fists', 'knife'];
+          if (!save.owned.includes(ev.weaponId)) save.owned.push(ev.weaponId);
+          if (typeof W_BY_ID !== 'undefined' && W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) {
+            state.player.ammo = W_BY_ID[ev.weaponId].mag;
+          }
+          state.player.reloading = false;
+          if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+          if (typeof updateHUD === 'function') updateHUD();
+          const wName = (typeof W_BY_ID !== 'undefined' && W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].name) || ev.weaponId;
+          const maxedTxt = ev.maxed ? ' (FINAL!)' : '';
+          if (typeof showToast === 'function') {
+            showToast('⬆ VAPENUPPGRADERING: ' + wName.toUpperCase() + ' (tier ' + (ev.tier + 1) + ')' + maxedTxt);
+          }
+          if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
         }
-        state.player.reloading = false;
-        if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
-        if (typeof updateHUD === 'function') updateHUD();
-        const wName = (typeof W_BY_ID !== 'undefined' && W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].name) || ev.weaponId;
-        if (typeof showToast === 'function') {
-          showToast('⬆ VAPENUPPGRADERING: ' + wName.toUpperCase() + ' (tier ' + (ev.tier + 1) + ')');
-        }
-        if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
       }
     } else if (ev.type === 'cd_gold_update') {
       // { peerId, gold, delta }
