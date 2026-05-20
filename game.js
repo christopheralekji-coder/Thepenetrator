@@ -8141,14 +8141,11 @@ function drawCastleDefenseBuildings(layer) {
     // v1.416: Tier-bracket från level (1-4) för progressiva visuals
     const tier = cdBuildingTier(b.level || 0);
     const tierA = cdTierAccent(tier);
-    // v1.418: Range-circle visas när player står invid byggnaden (22px-edge)
+    // v1.419: Range-ring visas när player står PÅ byggnaden (strikt AABB)
     let showRangeRing = false;
     if (state.player) {
       const px = state.player.x, py = state.player.y;
-      const cx = Math.max(b.x, Math.min(px, b.x + b.w));
-      const cy = Math.max(b.y, Math.min(py, b.y + b.h));
-      const ddx = px - cx, ddy = py - cy;
-      if (ddx * ddx + ddy * ddy < 22 * 22) showRangeRing = true;
+      if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) showRangeRing = true;
     }
     // === Per-kind sprite (detaljerade v1.397, tier-progressiv v1.416) ===
     if (b.kind === 'wall') {
@@ -18481,15 +18478,18 @@ const Coop = {
         const who = ev.peerId === this.myId ? 'Du valde' : ((this.players.get(ev.peerId) && this.players.get(ev.peerId).name) || 'Spelare') + ' valde';
         showToast(who + ' ' + perk.icon + ' ' + perk.name);
       }
-      // v1.417: Applicera TANK + SCOUT effekter på BÅDE self OCH partners
-      // så HP-baren visar rätt fraktion (annars visas TANK-partner som 150/100 = overflow)
+      // v1.419: Absoluta värden (idempotent). Tidigare multiplikation skapade
+      // dubbel-apply om event triggas igen (reconnect / respawn-broadcast).
       if (ev.peerId === this.myId && state.player) {
         if (ev.perkId === 'tank') {
           state.player.maxHp = 150;
           state.player.hp = 150;
-          state.player.speedMul = (state.player.speedMul || 1) * 0.8;
+          state.player.speedMul = 0.8;
         } else if (ev.perkId === 'scout') {
-          state.player.speedMul = (state.player.speedMul || 1) * 1.4;
+          state.player.maxHp = 100;
+          state.player.speedMul = 1.4;
+        } else {
+          state.player.speedMul = 1.0;
         }
       } else {
         const partner = this.players.get(ev.peerId);
@@ -18497,8 +18497,9 @@ const Coop = {
           if (ev.perkId === 'tank') {
             partner.maxHp = 150;
             partner.hp = 150;
+          } else {
+            partner.maxHp = 100;
           }
-          // SCOUT speed-effekt påverkar bara serverns sim — klient läser pos från snapshot.
         }
       }
       if (ev.peerId === this.myId && typeof closeCdPerkSelector === 'function') {
@@ -28570,13 +28571,10 @@ function updateCastleDefenseHud() {
     const px = state.player.x, py = state.player.y;
     let damagedTarget = null;
     let upgradeTarget = null;
-    // v1.418: 22px-edge proximity (player kan inte stå PÅ pga collision)
+    // v1.419: strikt AABB — player står PÅ tornet
     const checkObj = (obj) => {
       if (obj.hp <= 0) return null;
-      const cx = Math.max(obj.x, Math.min(px, obj.x + obj.w));
-      const cy = Math.max(obj.y, Math.min(py, obj.y + obj.h));
-      const dx = px - cx, dy = py - cy;
-      if (dx * dx + dy * dy < 22 * 22) return obj;
+      if (px >= obj.x && px <= obj.x + obj.w && py >= obj.y && py <= obj.y + obj.h) return obj;
       return null;
     };
     if (state.castledefenseWalls) {
@@ -29306,24 +29304,18 @@ function tryCdUpgrade() {
   if (!state.player || state.player.hp <= 0) return;
   if (!Coop.ws || Coop.ws.readyState !== 1) return;
   const px = state.player.x, py = state.player.y;
-  let target = null, bestD2 = 22 * 22;
+  let target = null;
   if (state.castledefenseBuildings) {
     for (const b of state.castledefenseBuildings) {
       if (b.hp <= 0) continue;
       if (b.kind === 'spike_trap') continue; // ej upgradable
       if ((b.level || 0) >= 9) continue;
-      // v1.418: stand ADJACENT to building (within 22px of edge). Behövs eftersom
-      // walls/buildings nu blockar player → kan inte stå PÅ byggnaden. 22px tight
-      // nog att target:a rätt torn när flera står tätt; spelarens radius=14.
-      const cx = Math.max(b.x, Math.min(px, b.x + b.w));
-      const cy = Math.max(b.y, Math.min(py, b.y + b.h));
-      const dx = px - cx, dy = py - cy;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < bestD2) { bestD2 = d2; target = b; }
+      // v1.419: STRIKT AABB — player kan nu gå PÅ tornet, så stå exakt på det
+      if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) { target = b; break; }
     }
   }
   if (!target) {
-    if (typeof showToast === 'function') showToast('Ställ dig vid tornet du vill uppgradera');
+    if (typeof showToast === 'function') showToast('Ställ dig PÅ tornet du vill uppgradera');
     return;
   }
   Coop.ws.send(JSON.stringify({ type: 'sim_cd_upgrade', id: target.id }));
@@ -29334,20 +29326,16 @@ function tryCdSell() {
   if (!state.player || state.player.hp <= 0) return;
   if (!Coop.ws || Coop.ws.readyState !== 1) return;
   const px = state.player.x, py = state.player.y;
-  let target = null, bestD2 = 22 * 22;
+  let target = null;
   if (state.castledefenseBuildings) {
     for (const b of state.castledefenseBuildings) {
       if (b.hp <= 0) continue;
       if (b.ownerPid !== Coop.myId) continue;
-      const cx = Math.max(b.x, Math.min(px, b.x + b.w));
-      const cy = Math.max(b.y, Math.min(py, b.y + b.h));
-      const dx = px - cx, dy = py - cy;
-      const d2 = dx * dx + dy * dy;
-      if (d2 < bestD2) { bestD2 = d2; target = b; }
+      if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) { target = b; break; }
     }
   }
   if (!target) {
-    if (typeof showToast === 'function') showToast('Ställ dig vid tornet du vill sälja');
+    if (typeof showToast === 'function') showToast('Ställ dig PÅ tornet du vill sälja');
     return;
   }
   Coop.ws.send(JSON.stringify({ type: 'sim_cd_sell', id: target.id }));
@@ -29410,32 +29398,25 @@ function tryCdInfMoney() {
 }
 
 function tryCdRepair() {
-  // v1.418: closest skadat objekt inom 22px-edge (player kan inte stå PÅ pga collision)
   if (!state.player || state.player.hp <= 0) return;
   if (!Coop.ws || Coop.ws.readyState !== 1) return;
   const px = state.player.x, py = state.player.y;
-  let target = null, bestD2 = 22 * 22;
-  const check = (obj) => {
-    const cx = Math.max(obj.x, Math.min(px, obj.x + obj.w));
-    const cy = Math.max(obj.y, Math.min(py, obj.y + obj.h));
-    const dx = px - cx, dy = py - cy;
-    const d2 = dx * dx + dy * dy;
-    if (d2 < bestD2) { bestD2 = d2; target = obj; }
-  };
+  let target = null;
+  // v1.419: STRIKT AABB — walls först, sedan buildings
   if (state.castledefenseWalls) {
     for (const w of state.castledefenseWalls) {
       if (w.hp <= 0 || w.hp >= w.maxHp) continue;
-      check(w);
+      if (px >= w.x && px <= w.x + w.w && py >= w.y && py <= w.y + w.h) { target = w; break; }
     }
   }
-  if (state.castledefenseBuildings) {
+  if (!target && state.castledefenseBuildings) {
     for (const b of state.castledefenseBuildings) {
       if (b.hp <= 0 || b.hp >= b.maxHp) continue;
-      check(b);
+      if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) { target = b; break; }
     }
   }
   if (!target) {
-    if (typeof showToast === 'function') showToast('Ställ dig vid muren/tornet du vill reparera');
+    if (typeof showToast === 'function') showToast('Ställ dig PÅ muren/tornet du vill reparera');
     return;
   }
   Coop.ws.send(JSON.stringify({ type: 'sim_cd_repair', id: target.id }));
@@ -29999,8 +29980,11 @@ function updatePlayer(dt, now) {
     const ctfCarrySlow = (state.ctfActive && p.carryingFlag) ? 0.75 : 1;
     // Juggernaut: JUG-spelaren är +35% snabbare (p.speedMul)
     const jugSpeedMul = (state.juggernautActive && p.speedMul) ? p.speedMul : 1;
-    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * dt;
-    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * dt;
+    // v1.419: Castle Defense — SCOUT 1.4×, TANK 0.8× via p.speedMul. Tidigare
+    // ignorerades speedMul helt i CD → SCOUT-perken hade ingen effekt.
+    const cdSpeedMul = (state.castledefenseActive && p.speedMul) ? p.speedMul : 1;
+    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * dt;
+    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * dt;
   }
   // Mounted i CTF/SIEGE-torn: lås position till turret-koord
   if (p._mountedCtfTurretId && state.ctfTurrets && state.ctfTurrets[p._mountedCtfTurretId]) {
@@ -30036,35 +30020,20 @@ function updatePlayer(dt, now) {
   if (state.battleroyaleActive && state.battleroyaleWalls && typeof resolveCtfWall === 'function') {
     resolveCtfWall(p, state.battleroyaleWalls);
   }
-  // v1.418: CASTLE DEFENSE — client-side wall+building collision för att stoppa
-  // rubber-banding. Server gör samma kollision (room-sim.js:2599) men utan klient-
-  // prediction snappade spelaren tillbaka när man "gick över" mur. Matchar serverns
-  // cdAllSolids (alla non-trap buildings + walls). Core är cirkel-collision.
-  if (state.castledefenseActive && typeof resolveCtfWall === 'function') {
-    const solidsCd = [];
-    if (state.castledefenseWalls) {
-      for (const w of state.castledefenseWalls) {
-        if (w.hp > 0) solidsCd.push(w);
-      }
-    }
-    if (state.castledefenseBuildings) {
-      for (const b of state.castledefenseBuildings) {
-        if (b.hp > 0 && b.kind !== 'spike_trap' && b.kind !== 'slow_trap') solidsCd.push(b);
-      }
-    }
-    if (solidsCd.length > 0) resolveCtfWall(p, solidsCd);
-    // Core — cirkel-blockering
-    if (state.castledefenseCore && state.castledefenseCore.hp > 0) {
-      const core = state.castledefenseCore;
-      const dx = p.x - core.x, dy = p.y - core.y;
-      const d = Math.sqrt(dx * dx + dy * dy);
-      const minD = (core.r || 80) + (p.r || 14);
-      if (d < minD && d > 0.01) {
-        p.x = core.x + (dx / d) * minD;
-        p.y = core.y + (dy / d) * minD;
-      } else if (d < 0.01) {
-        p.x = core.x + minD;
-      }
+  // v1.419: CD — player kan GÅ IGENOM walls/buildings (per user-feedback). Bara
+  // CORE blockar (för att inte fastna inuti). Enemies fortsätter blockas server-
+  // side via flow-field. Den här riktningen valdes över "client+server collision
+  // för player" eftersom user vill stå PÅ torn för repair/upgrade/sell.
+  if (state.castledefenseActive && state.castledefenseCore && state.castledefenseCore.hp > 0) {
+    const core = state.castledefenseCore;
+    const dx = p.x - core.x, dy = p.y - core.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    const minD = (core.r || 80) + (p.r || 14);
+    if (d < minD && d > 0.01) {
+      p.x = core.x + (dx / d) * minD;
+      p.y = core.y + (dy / d) * minD;
+    } else if (d < 0.01) {
+      p.x = core.x + minD;
     }
   }
 

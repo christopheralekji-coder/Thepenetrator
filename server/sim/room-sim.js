@@ -2554,11 +2554,14 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
       if (!ws.playerState || !ws.playerState.cdDownDead) continue;
       const ps = ws.playerState;
       ps.cdDownDead = false;
-      ps.hp = ps.maxHp || 100;
       ps.x = sim.castledefenseCore ? sim.castledefenseCore.x : arena.centerX;
       ps.y = sim.castledefenseCore ? sim.castledefenseCore.y : arena.centerY;
       ps.weaponId = ps._cdPrevWeapon || arena.startWeapon;
-      ps.speedMul = 1.0;
+      // v1.419: re-apply perk-effects (annars resettas TANK maxHp + SCOUT speedMul vid respawn)
+      const respawnPerk = sim.castledefensePerks[pid];
+      if (respawnPerk) applyCdPerkEffects(ps, respawnPerk);
+      else { ps.maxHp = ps.maxHp || 100; ps.speedMul = 1.0; }
+      ps.hp = ps.maxHp;
       ps.invulnUntil = nowMs + 3000;
       sim.eventQueue.push({
         type: 'cd_player_respawned',
@@ -2590,14 +2593,12 @@ function tickCastleDefense(sim, dt, now) {
     b.kind !== 'spike_trap' && b.kind !== 'slow_trap');
   const cdAllSolids = cdLiveWalls.concat(cdSolidBuildings);
 
-  // === PLAYER COLLISION (v1.410: walls/turrets BLOCKERAR player igen — user-feedback)
+  // === PLAYER COLLISION (v1.419: player kan GÅ IGENOM walls/buildings för att
+  // stå PÅ tornen för repair/upgrade/sell. Enemies blockas fortfarande via flow-
+  // field nedan. Bara CORE blockar player.)
   for (const [, ws] of sim.room.members) {
     if (ws.playerState && ws.playerState.hp > 0) {
       const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
-      // v1.410: player kan INTE längre gå genom egna walls. Samma collision-set
-      // som enemies (alla solida non-trap buildings).
-      resolveCtfWall(ent, cdAllSolids);
-      // Core är en CIRKEL — alltid blockerad.
       if (sim.castledefenseCore && sim.castledefenseCore.hp > 0) {
         const core = sim.castledefenseCore;
         const dx = ent.x - core.x, dy = ent.y - core.y;
@@ -5096,13 +5097,9 @@ function applyCastleDefenseRepair(sim, peerId, msg) {
     }
   }
   if (!target) return;
-  // v1.418: player står invid (≤22px från edge). Collisionen pushar player UT
-  // av byggnadens AABB, så strikt "center inside" går ej. 22px = mjuk men tight.
+  // v1.419: STRIKT AABB — player kan gå PÅ tornet/muren (ingen collision för player längre)
   const px = ws.playerState.x, py = ws.playerState.y;
-  const cxR = Math.max(target.x, Math.min(px, target.x + target.w));
-  const cyR = Math.max(target.y, Math.min(py, target.y + target.h));
-  const dxR = px - cxR, dyR = py - cyR;
-  if (dxR * dxR + dyR * dyR > 22 * 22) return;
+  if (px < target.x || px > target.x + target.w || py < target.y || py > target.y + target.h) return;
   // v1.415: Repair-cost scaling efter dmg-pct + total invest.
   // 99% damaged → cost ≈ 0.75 × totalInvested. 1% damaged → cost ≈ 0.0075 × totalInvested.
   const dmgPct = 1 - (target.hp / target.maxHp);
@@ -5137,12 +5134,9 @@ function applyCastleDefenseUpgrade(sim, peerId, msg) {
   const b = sim.castledefenseBuildings.find(x => x.id === id && x.hp > 0);
   if (!b) return;
   if (b.kind === 'spike_trap') return; // spike-trap är disposable, ingen upgrade
-  // v1.418: player står invid (≤22px från edge) — matchar klient
+  // v1.419: STRIKT AABB — matchar klient
   const upgPx = ws.playerState.x, upgPy = ws.playerState.y;
-  const ucx = Math.max(b.x, Math.min(upgPx, b.x + b.w));
-  const ucy = Math.max(b.y, Math.min(upgPy, b.y + b.h));
-  const udx = upgPx - ucx, udy = upgPy - ucy;
-  if (udx * udx + udy * udy > 22 * 22) return;
+  if (upgPx < b.x || upgPx > b.x + b.w || upgPy < b.y || upgPy > b.y + b.h) return;
   const curLevel = b.level || 0;
   const maxLevel = arena.maxBuildLevel || 9;
   if (curLevel >= maxLevel) {
@@ -5217,12 +5211,9 @@ function applyCastleDefenseSell(sim, peerId, msg) {
     sim.eventQueue.push({ type: 'cd_sell_failed', peerId, id, reason: 'not_owner' });
     return;
   }
-  // v1.418: player står invid (≤22px från edge) — matchar klient
+  // v1.419: STRIKT AABB — matchar klient
   const sellPx = ws.playerState.x, sellPy = ws.playerState.y;
-  const scx = Math.max(b.x, Math.min(sellPx, b.x + b.w));
-  const scy = Math.max(b.y, Math.min(sellPy, b.y + b.h));
-  const sdx = sellPx - scx, sdy = sellPy - scy;
-  if (sdx * sdx + sdy * sdy > 22 * 22) {
+  if (sellPx < b.x || sellPx > b.x + b.w || sellPy < b.y || sellPy > b.y + b.h) {
     sim.eventQueue.push({ type: 'cd_sell_failed', peerId, id, reason: 'not_in_range' });
     return;
   }
@@ -5267,18 +5258,22 @@ function applyCastleDefensePerk(sim, peerId, msg) {
 }
 
 // v1.416: Applicera at-start-effekter för perk (resten är passiva via flags)
+// v1.419: ABSOLUTA värden (idempotent) — annars multipliceras vid re-event/respawn-reapply.
 function applyCdPerkEffects(ps, perkId) {
   if (!ps) return;
   if (perkId === 'tank') {
     ps.maxHp = 150;
     ps.hp = 150;
-    ps.speedMul = (ps.speedMul || 1) * 0.8;
+    ps.speedMul = 0.8;
   } else if (perkId === 'scout') {
-    ps.speedMul = (ps.speedMul || 1) * 1.4;
-  } else if (perkId === 'gunner') {
-    // hanteras i applyShoot via tier-check
+    ps.maxHp = 100;
+    ps.speedMul = 1.4;
+  } else {
+    // Övriga perks: passiva (gunner/sharpshooter/strategist/berserker/looter/gambler/medic/builder).
+    // Säkerställ default speedMul=1.0 så att eventuell tidigare TANK/SCOUT-värde inte spöker kvar.
+    ps.maxHp = ps.maxHp || 100;
+    ps.speedMul = 1.0;
   }
-  // Övriga perks är passiva — read i tick/handlers
 }
 
 // v1.407: DEBUG infinity-money — ger spelaren 5000 gold per call. Tas bort i prod.
