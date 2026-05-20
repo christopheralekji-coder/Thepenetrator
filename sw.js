@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v425-cd-build-tap-sniper-minimap';
+const CACHE = 'penetrator-v426-cd-gold-hud-sync';
 const ASSETS = [
   './',
   './index.html',

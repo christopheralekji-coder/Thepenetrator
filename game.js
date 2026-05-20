@@ -18641,6 +18641,8 @@ const Coop = {
       }
       if (typeof showCastleDefenseHud === 'function') showCastleDefenseHud();
       if (typeof showCastleDefenseBuildBar === 'function') showCastleDefenseBuildBar();
+      // v1.426: tvinga HUD-refresh vid match-start så goldInfo visar startGold direkt
+      if (typeof updateHUD === 'function') updateHUD();
       // v1.416: Öppna perk-selector overlay vid match-start
       if (typeof openCdPerkSelector === 'function') {
         setTimeout(() => openCdPerkSelector(), 500);
@@ -18859,6 +18861,8 @@ const Coop = {
         if (state.player && typeof ev.shield === 'number') {
           state.player.shield = ev.shield;
         }
+        // v1.426: tvinga HUD-refresh så gold-display uppdateras direkt
+        if (typeof updateHUD === 'function') updateHUD();
         if (typeof showToast === 'function') {
           const shieldTxt = ev.shieldRegen > 0 ? (' · 🛡 +' + ev.shieldRegen) : '';
           showToast('💰 +' + ev.gold + ' · 💣 +' + (ev.grenades || 0) + shieldTxt + ' (våg ' + ev.wave + ' klar)');
@@ -18895,6 +18899,10 @@ const Coop = {
       // { peerId, gold, delta }
       if (ev.peerId === this.myId) {
         state.castledefenseGold = ev.gold;
+        // v1.426: tvinga HUD-refresh — annars syncs goldInfo bara när någon
+        // ANNAN trigger råkar köra updateHUD. Det förklarar varför gold "buggar"
+        // (visar gammalt värde tills HP/weapon/etc-event triggas).
+        if (typeof updateHUD === 'function') updateHUD();
         if (typeof refreshCdBuildSlotStyles === 'function') refreshCdBuildSlotStyles();
       }
     } else if (ev.type === 'cd_player_downed') {
@@ -19022,12 +19030,18 @@ const Coop = {
     } else if (ev.type === 'cd_build_failed') {
       // { peerId, reason, kind }
       if (ev.peerId === this.myId) {
-        // v1.404 — refunda predicted gold-deduction (om vi gjorde en).
-        // Om server avvisade pga gold-brist, predicta hade ej deduceat (gold-check
-        // i tryCdPlaceBuilding skippade), så ingen refund behövs där.
+        // v1.404/v1.426 — refunda predicted gold-deduction (om vi gjorde en).
+        // Måste matcha tryCdPlaceBuilding's prediction = base × perkMul × diffMul.
         if (ev.reason !== 'insufficient_gold' && ev.kind && CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[ev.kind]) {
-          const refund = CASTLEDEFENSE_ARENA.buildables[ev.kind].cost || 0;
+          const baseR = CASTLEDEFENSE_ARENA.buildables[ev.kind].cost || 0;
+          const myPerkR = state.castledefensePerks && state.castledefensePerks[Coop.myId];
+          const perkMulR = myPerkR === 'builder' ? 0.7 : 1.0;
+          const diffMulR = (typeof cdGetDifficultyPriceMulClient === 'function')
+            ? cdGetDifficultyPriceMulClient((Coop && Coop.config && Coop.config.difficulty) || 'veteran')
+            : 1.0;
+          const refund = Math.max(1, Math.round(baseR * perkMulR * diffMulR));
           state.castledefenseGold = (state.castledefenseGold || 0) + refund;
+          if (typeof updateHUD === 'function') updateHUD();
         }
         if (typeof showToast === 'function') {
           const reasonMap = {
@@ -29713,7 +29727,7 @@ function tryCdPlaceBuilding() {
   if (!state.cdBuildMode) return;
   if (state.cdBuildHoverX == null || state.cdBuildHoverY == null) return;
   if (!Coop.ws || Coop.ws.readyState !== 1) return;
-  // v1.403/v1.422: predicta effective gold-deduction (BUILDER perk + diff-mul) client-side.
+  // v1.403/v1.422/v1.426: predicta effective gold-deduction + tvinga HUD-refresh
   const spec = CASTLEDEFENSE_ARENA && CASTLEDEFENSE_ARENA.buildables[state.cdBuildMode];
   if (spec) {
     const myPerk = state.castledefensePerks && state.castledefensePerks[Coop.myId];
@@ -29724,6 +29738,7 @@ function tryCdPlaceBuilding() {
     const effCost = Math.max(1, Math.round(spec.cost * perkMul * diffMul));
     if ((state.castledefenseGold || 0) >= effCost) {
       state.castledefenseGold -= effCost;
+      if (typeof updateHUD === 'function') updateHUD();
     }
   }
   Coop.ws.send(JSON.stringify({
