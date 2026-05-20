@@ -2210,15 +2210,17 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
           sim.eventQueue.push({ type: 'cd_building_damaged', id: b2.id, hp: b2.hp, maxHp: b2.maxHp });
         }
       }
-      // v1.411: Repair-station healar CORE (extended reach: radius + core.r,
-      // så aura räcker till core-edge även om center är något utanför radius).
-      if (sim.castledefenseCore && sim.castledefenseCore.hp > 0 && sim.castledefenseCore.hp < sim.castledefenseCore.maxHp) {
+      // v1.411: Repair-station healar CORE (extended reach: radius + core.r).
+      // v1.413: bara EN repair-stn får heala core per tick (annars stackar
+      // multipla stations linjärt = OP-recipe vid 4-5 stations runt core).
+      if (sim.castledefenseCore && sim.castledefenseCore.hp > 0 && sim.castledefenseCore.hp < sim.castledefenseCore.maxHp && !sim._cdCoreHealedThisTick) {
         const core = sim.castledefenseCore;
         const dxc = core.x - bcx, dyc = core.y - bcy;
         const reach = b.radius + core.r;
         if (dxc * dxc + dyc * dyc <= reach * reach) {
           // Core får 50% av wall-heal-rate så det inte trivialiserar boss-vågor
           core.hp = Math.min(core.maxHp, core.hp + b.healPerSec * 0.5 * dt);
+          sim._cdCoreHealedThisTick = true;
           if (!sim._cdCoreLastHealBroadcast || nowMs - sim._cdCoreLastHealBroadcast > 250) {
             sim._cdCoreLastHealBroadcast = nowMs;
             sim.eventQueue.push({ type: 'cd_core_damaged', hp: core.hp, maxHp: core.maxHp });
@@ -2632,6 +2634,7 @@ function tickCastleDefense(sim, dt, now) {
 
   // === BUILDINGS RUNTIME — auto-turret fire, traps, repair/health stations ===
   if (sim.castledefenseBuildings.length > 0) {
+    sim._cdCoreHealedThisTick = false; // v1.413: reset per tick — cap multi-repair-stack
     updateCastleDefenseBuildings(sim, dt, nowMs);
   }
 
@@ -5042,7 +5045,9 @@ function applyCastleDefenseUpgrade(sim, peerId, msg) {
 function applyCastleDefenseSell(sim, peerId, msg) {
   if (!sim.castledefenseActive || sim.castledefenseEnded) return;
   const ws = sim.room.members.get(peerId);
-  if (!ws || !ws.playerState) return;
+  // v1.413: blockera sell om player är död eller downed (matchar repair/build/upgrade)
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  if (ws.playerState.cdDowned) return;
   const id = msg && msg.id;
   if (!id) return;
   const b = sim.castledefenseBuildings.find(x => x.id === id && x.hp > 0);

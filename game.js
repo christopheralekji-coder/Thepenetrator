@@ -8117,8 +8117,9 @@ function drawCastleDefenseBuildings(layer) {
     if (x + b.w < 0 || x > viewW || y + b.h < 0 || y > viewH) continue;
     const bcx = x + b.w / 2, bcy = y + b.h / 2;
     const hpPct = b.hp / b.maxHp;
-    // Drop-shadow (skippa för flat traps — de är redan på marken)
-    if (!isGroundLayer) {
+    // Drop-shadow (skippa för flat traps — de är redan på marken).
+    // v1.413: wall får drop-shadow trots ground-layer så den ser SOLID ut.
+    if (!isGroundLayer || b.kind === 'wall') {
       ctx.fillStyle = 'rgba(0,0,0,0.3)';
       ctx.fillRect(x + 2, y + 3, b.w, b.h);
     }
