@@ -11482,7 +11482,7 @@ function drawCoopPartner() {
     ctx.translate(_pShoulderX, -3);
     ctx.rotate(partnerAimAngle);
     if (pFacingLeft) ctx.scale(1, -1);
-    const _pArmSkin = partnerCos.skin || '#dca888';
+    const _pArmSkin = partnerCos.skin || '#c08860';
     ctx.fillStyle = _pArmSkin;
     ctx.fillRect(2, -3, 14, 6);
     ctx.strokeStyle = '#0a0a0e';
@@ -37620,16 +37620,17 @@ function drawMuzzleFlash(ctx, weaponTipX, sinceShot, weaponType) {
 function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   if (walkPhase === undefined) walkPhase = 0;
   if (isMoving === undefined) isMoving = false;
-  // v1.465: Realistic skin tone — pink-warm tan, looks like naked flesh
-  const skinBase = cos.skin || '#dca888';
+  // v1.467: Darker, more saturated tan skin (mindre vit-look)
+  const skinBase = cos.skin || '#c08860'; // medium warm tan
   const skin = flash ? '#fff' : skinBase;
-  const skinLight = flash ? '#fff' : lighten(skinBase, 0.20);
-  const skinHi = flash ? '#fff' : lighten(skinBase, 0.35);
-  const skinShadow = flash ? '#fff' : darken(skinBase, 0.28);
-  const skinDeep = flash ? '#fff' : darken(skinBase, 0.50);
-  const skinDeepest = flash ? '#fff' : darken(skinBase, 0.70);
-  const nippleColor = flash ? '#fff' : '#8a4838'; // brownish-pink nipple
-  const cheekColor = flash ? '#fff' : '#c87060';
+  const skinLight = flash ? '#fff' : lighten(skinBase, 0.15);
+  const skinHi = flash ? '#fff' : lighten(skinBase, 0.25);
+  const skinShadow = flash ? '#fff' : darken(skinBase, 0.32);
+  const skinDeep = flash ? '#fff' : darken(skinBase, 0.55);
+  const skinDeepest = flash ? '#fff' : darken(skinBase, 0.75);
+  const stubbleColor = flash ? '#fff' : darken(skinBase, 0.45); // buzz cut stubble
+  const nippleColor = flash ? '#fff' : '#7a3828';
+  const cheekColor = flash ? '#fff' : '#a85040';
   const hair = flash ? '#fff' : (cos.hairColor || '#2a1a0a');
   const hairLight = flash ? '#fff' : lighten(cos.hairColor || '#2a1a0a', 0.42);
   const hairShadow = flash ? '#fff' : darken(cos.hairColor || '#2a1a0a', 0.40);
@@ -37644,169 +37645,198 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   const legSwing = isMoving ? swing * 2 : 0;
   const frontLift = isMoving && swing > 0 ? swing * 1 : 0;
   const backLift = isMoving && swing < 0 ? -swing * 1 : 0;
-  // === HAIR BACK (drawn first, behind head) ===
-  ctx.fillStyle = hair;
-  ctx.beginPath();
-  ctx.moveTo(-6, -16);
-  ctx.quadraticCurveTo(-8, -12, -7, -8);
-  ctx.lineTo(-4, -8);
-  ctx.lineTo(-4, -16);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = hairShadow;
-  ctx.beginPath();
-  ctx.moveTo(-6, -14);
-  ctx.lineTo(-7, -9);
-  ctx.lineTo(-5, -9);
-  ctx.closePath();
-  ctx.fill();
-  // === HEAD (compact oval, ~12 tall) ===
+  // v1.467: HEAD 3/4 view (more frontal) + SNAGGAD (buzz cut, no hair)
+  // === HEAD (rounder, 3/4 angled toward camera) ===
   ctx.fillStyle = skin;
   ctx.beginPath();
-  // Head shape: smooth oval, slight east-protrusion for face
   ctx.moveTo(-4, -19);
-  ctx.quadraticCurveTo(5, -20, 6, -14);  // top-east curve
-  ctx.quadraticCurveTo(7, -11, 5, -8);   // east cheek/jaw
-  ctx.lineTo(2, -7);                      // chin point east
-  ctx.quadraticCurveTo(-2, -7.5, -4, -9); // jaw back to west
-  ctx.quadraticCurveTo(-6, -14, -4, -19); // west head curve
+  ctx.quadraticCurveTo(2, -20.5, 6, -19);   // crown wider/rounder
+  ctx.quadraticCurveTo(8, -15, 7, -11);     // east cheek curve
+  ctx.quadraticCurveTo(6, -8, 4, -7);       // east jaw
+  ctx.lineTo(2, -7);                         // chin point
+  ctx.quadraticCurveTo(-2, -7.5, -4, -9);   // jaw back to west
+  ctx.quadraticCurveTo(-6, -14, -5, -17);   // west cheek
+  ctx.quadraticCurveTo(-5, -19, -4, -19);   // close to crown
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  // Face shadow (west side, away from light)
+  // Face shadow on west side (light from east)
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
-  ctx.moveTo(-4, -18);
-  ctx.quadraticCurveTo(-6, -13, -4, -9);
-  ctx.lineTo(-2, -9);
-  ctx.lineTo(-2, -18);
+  ctx.moveTo(-4, -19);
+  ctx.quadraticCurveTo(-5, -19, -5, -17);
+  ctx.quadraticCurveTo(-6, -14, -4, -9);
+  ctx.lineTo(-1, -9);
+  ctx.lineTo(-1, -19);
   ctx.closePath();
   ctx.fill();
-  // === HAIR TOP (overlapping head crown) ===
-  ctx.fillStyle = hair;
+  // Cheekbone highlight (east, where light hits)
+  ctx.fillStyle = skinLight;
+  ctx.beginPath();
+  ctx.ellipse(5, -13, 2, 1.5, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  // === BUZZ CUT (snaggad) — subtle stubble on top of head ===
+  ctx.fillStyle = stubbleColor;
+  ctx.globalAlpha = 0.55;
   ctx.beginPath();
   ctx.moveTo(-4, -19);
-  ctx.quadraticCurveTo(2, -22, 6, -17);   // hair sweep up east
-  ctx.lineTo(4, -15);                      // hairline
-  ctx.quadraticCurveTo(0, -16.5, -4, -16);
+  ctx.quadraticCurveTo(2, -20.5, 6, -19);
+  ctx.quadraticCurveTo(7, -17, 6, -15);    // hairline east
+  ctx.lineTo(-4, -15);                       // hairline straight (low buzz)
+  ctx.quadraticCurveTo(-5, -17, -4, -19);
   ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Stubble texture dots (sparse, irregular)
+  ctx.fillStyle = stubbleColor;
+  ctx.fillRect(-2, -18, 0.6, 0.6);
+  ctx.fillRect(1, -19, 0.6, 0.6);
+  ctx.fillRect(3, -18, 0.6, 0.6);
+  ctx.fillRect(-1, -17, 0.5, 0.5);
+  ctx.fillRect(2, -17, 0.5, 0.5);
+  ctx.fillRect(4, -17, 0.5, 0.5);
+  ctx.fillRect(-3, -16, 0.5, 0.5);
+  ctx.fillRect(0, -16, 0.5, 0.5);
+  ctx.fillRect(3, -16, 0.5, 0.5);
+  ctx.fillRect(5, -16, 0.5, 0.5);
+  // === EYEBROWS (3/4 view: both visible, near one bigger) ===
+  // Near eyebrow (east, bigger)
+  ctx.fillStyle = stubbleColor;
+  ctx.beginPath();
+  ctx.moveTo(2.5, -14.5);
+  ctx.quadraticCurveTo(4.5, -15, 6, -14.3);
+  ctx.lineTo(6, -13.8);
+  ctx.quadraticCurveTo(4.5, -14.3, 2.5, -13.9);
+  ctx.closePath();
+  ctx.fill();
+  // Far eyebrow (west of nose bridge, smaller — perspective)
+  ctx.fillStyle = stubbleColor;
+  ctx.beginPath();
+  ctx.moveTo(-1, -14);
+  ctx.lineTo(1, -14);
+  ctx.lineTo(1, -13.5);
+  ctx.lineTo(-1, -13.5);
+  ctx.closePath();
+  ctx.fill();
+  // === EYES (3/4 view: both eyes visible, near bigger, far smaller) ===
+  // FAR EYE (left in viewer, smaller, perspective compressed)
+  ctx.fillStyle = '#f4f0e8';
+  ctx.beginPath();
+  ctx.ellipse(0, -13, 0.9, 0.7, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 0.7;
   ctx.stroke();
-  // Hair highlight strand
-  ctx.fillStyle = hairLight;
+  ctx.fillStyle = '#2a4a70';
   ctx.beginPath();
-  ctx.ellipse(0, -19.5, 3, 0.8, 0.2, 0, Math.PI * 2);
+  ctx.arc(0.2, -13, 0.55, 0, Math.PI * 2);
   ctx.fill();
-  // Stray hair strand (small)
-  ctx.fillStyle = hair;
+  ctx.fillStyle = '#000';
   ctx.beginPath();
-  ctx.moveTo(4, -16);
-  ctx.quadraticCurveTo(5, -14, 4.5, -13);
-  ctx.lineTo(4, -14);
-  ctx.closePath();
+  ctx.arc(0.2, -13, 0.25, 0, Math.PI * 2);
   ctx.fill();
-  // === EYEBROW ===
-  ctx.fillStyle = hair;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0.3, -13.3, 0.3, 0.3);
+  // NEAR EYE (east, larger, full perspective)
+  ctx.fillStyle = '#f4f0e8';
   ctx.beginPath();
-  ctx.moveTo(2, -15.5);
-  ctx.quadraticCurveTo(4, -15.8, 5, -15);
-  ctx.lineTo(5, -14.5);
-  ctx.quadraticCurveTo(3.5, -14.8, 2, -14.5);
-  ctx.closePath();
-  ctx.fill();
-  // === EYE (almond shape) ===
-  ctx.fillStyle = '#f4f0e8';  // warm white sclera
-  ctx.beginPath();
-  ctx.ellipse(3.5, -13.5, 1.4, 0.9, 0, 0, Math.PI * 2);
+  ctx.ellipse(4, -13, 1.4, 1, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 0.8;
   ctx.stroke();
-  // Iris
   ctx.fillStyle = '#2a4a70';
   ctx.beginPath();
-  ctx.arc(3.8, -13.5, 0.85, 0, Math.PI * 2);
+  ctx.arc(4.3, -13, 0.85, 0, Math.PI * 2);
   ctx.fill();
-  // Pupil
   ctx.fillStyle = '#000';
   ctx.beginPath();
-  ctx.arc(3.8, -13.5, 0.35, 0, Math.PI * 2);
+  ctx.arc(4.3, -13, 0.4, 0, Math.PI * 2);
   ctx.fill();
-  // Glint
   ctx.fillStyle = '#fff';
-  ctx.fillRect(4, -13.9, 0.5, 0.5);
-  // === NOSE (subtle bridge + tip) ===
-  // Nose bridge highlight
-  ctx.fillStyle = skinHi;
+  ctx.fillRect(4.5, -13.4, 0.5, 0.5);
+  // === NOSE (3/4 view: bridge between eyes + tip + nostril) ===
+  // Nose bridge from forehead down to tip (between the two eyes)
+  ctx.fillStyle = skinLight;
   ctx.beginPath();
-  ctx.moveTo(5, -13);
-  ctx.lineTo(6, -11);
-  ctx.lineTo(5.5, -10);
+  ctx.moveTo(2, -13);                      // bridge top (between eyes)
+  ctx.lineTo(2.5, -10);                    // bridge bottom
+  ctx.lineTo(3.5, -10);
+  ctx.lineTo(3, -13);
   ctx.closePath();
   ctx.fill();
-  // Nose tip shadow
+  // Nose shadow on west side of bridge
+  ctx.fillStyle = skinShadow;
+  ctx.fillRect(1.5, -13, 0.6, 3);
+  // Nose tip (slightly east of bridge)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.moveTo(2.5, -10);
+  ctx.quadraticCurveTo(5, -9.5, 4, -9);
+  ctx.lineTo(2.5, -9.5);
+  ctx.closePath();
+  ctx.fill();
+  // Nose tip shadow (under)
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
-  ctx.moveTo(5.5, -11);
-  ctx.quadraticCurveTo(6.5, -10, 5, -9.5);
-  ctx.lineTo(5, -10.5);
+  ctx.moveTo(2.5, -9.5);
+  ctx.lineTo(4, -9);
+  ctx.lineTo(2.5, -9);
   ctx.closePath();
   ctx.fill();
   // Nostril
   ctx.fillStyle = skinDeep;
-  ctx.fillRect(5, -10, 0.7, 0.4);
-  // === CHEEK BLUSH (subtle warm tint) ===
+  ctx.fillRect(3, -9.2, 0.7, 0.4);
+  // === CHEEK BLUSH (subtle warm tint on near cheek) ===
   ctx.fillStyle = cheekColor;
-  ctx.globalAlpha = 0.35;
+  ctx.globalAlpha = 0.30;
   ctx.beginPath();
-  ctx.ellipse(4, -11, 1.5, 1, 0, 0, Math.PI * 2);
+  ctx.ellipse(5, -11, 1.5, 1, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
-  // === MOUTH (proper upper/lower lip) ===
-  // Lip shadow under
-  ctx.fillStyle = skinShadow;
-  ctx.fillRect(2.5, -8.5, 2.5, 0.5);
-  // Upper lip (smaller)
+  // === MOUTH (3/4 view: proper upper/lower lip) ===
+  // Upper lip
   ctx.fillStyle = lipColor;
   ctx.beginPath();
-  ctx.moveTo(2.5, -9);
-  ctx.quadraticCurveTo(3.5, -9.3, 4.5, -9);
-  ctx.lineTo(4.5, -8.7);
-  ctx.lineTo(2.5, -8.7);
+  ctx.moveTo(1.5, -8.5);
+  ctx.quadraticCurveTo(3, -9, 4.5, -8.5);
+  ctx.lineTo(4.5, -8.2);
+  ctx.lineTo(1.5, -8.2);
   ctx.closePath();
   ctx.fill();
-  // Lower lip (slightly fuller)
+  // Lower lip (fuller, with highlight)
   ctx.fillStyle = lipHi;
   ctx.beginPath();
-  ctx.moveTo(2.5, -8.5);
-  ctx.lineTo(4.7, -8.5);
-  ctx.quadraticCurveTo(4.5, -7.8, 3.5, -7.8);
-  ctx.quadraticCurveTo(2.7, -7.8, 2.5, -8.2);
+  ctx.moveTo(1.5, -8);
+  ctx.lineTo(4.7, -8);
+  ctx.quadraticCurveTo(4.5, -7.3, 3, -7.3);
+  ctx.quadraticCurveTo(1.7, -7.3, 1.5, -7.7);
   ctx.closePath();
   ctx.fill();
-  // Lip parting
+  // Lip parting line
   ctx.strokeStyle = '#400';
   ctx.lineWidth = 0.5;
   ctx.beginPath();
-  ctx.moveTo(2.5, -8.5);
-  ctx.lineTo(4.7, -8.5);
+  ctx.moveTo(1.5, -8.1);
+  ctx.lineTo(4.7, -8.1);
   ctx.stroke();
-  // === EAR (small, west side) ===
+  // Lip shadow under (chin shadow start)
+  ctx.fillStyle = skinShadow;
+  ctx.fillRect(2, -7.2, 2.5, 0.3);
+  // === EAR (small, west side, partially visible in 3/4) ===
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
-  ctx.ellipse(-4, -12, 1, 1.3, 0, 0, Math.PI * 2);
+  ctx.ellipse(-4.5, -12, 0.7, 1.2, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1;
   ctx.stroke();
-  // Inner ear shadow
+  // Inner ear
   ctx.fillStyle = skinDeep;
   ctx.beginPath();
-  ctx.ellipse(-3.8, -12, 0.4, 0.7, 0, 0, Math.PI * 2);
+  ctx.ellipse(-4.3, -12, 0.3, 0.6, 0, 0, Math.PI * 2);
   ctx.fill();
   // === NECK with trapezius slope ===
   ctx.fillStyle = skin;
@@ -38097,7 +38127,7 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
 // v1.466: HANGING arm — hangs at side opposite of shooting arm.
 // When body faces east, hanging arm at west shoulder (behind body, partially hidden).
 function drawHangingArm(ctx, cos, flash, bodyFacingLeft) {
-  const skinBase = cos.skin || '#dca888';
+  const skinBase = cos.skin || '#c08860';
   const armBase = flash ? '#fff' : darken(skinBase, 0.12);
   const armShadow = flash ? '#fff' : darken(skinBase, 0.40);
   const armLight = flash ? '#fff' : lighten(skinBase, 0.10);
@@ -38291,7 +38321,7 @@ function drawPlayer() {
   ctx.translate(_shoulderX, _shoulderY);
   ctx.rotate(p.aimAngle);
   if (_facingLeft) ctx.scale(1, -1);
-  const _armBase = cos.skin || '#dca888';
+  const _armBase = cos.skin || '#c08860';
   const _armLight = flash ? '#fff' : lighten(_armBase, 0.22);
   const _armSkin = flash ? '#fff' : _armBase;
   const _armShadow = flash ? '#fff' : darken(_armBase, 0.30);
