@@ -38603,11 +38603,11 @@ function drawPlayer() {
   ctx.translate(13, 0);
   drawHand(ctx, cos, flash);
   ctx.restore();
-  // WEAPON positioned AT HAND (translate till shoulder + rotate + 13 east = hand)
+  // v1.470: WEAPON grip INSIDE hand (translate 9, inte 13 — så hand wraps weapon)
   ctx.translate(_shoulderX, _shoulderY);
   ctx.rotate(p.aimAngle);
   if (_facingLeft) ctx.scale(1, -1);
-  ctx.translate(13, 0); // to hand position (grip at hand)
+  ctx.translate(9, 0); // weapon grip inside hand area, hand wraps around grip
   ctx.translate(-recoil, 0);
   // SKIP HÄR: hair/glasses/hat/beard är integrerade i sprite-design.
   /* === GAMMAL CANVAS-PRIMITIVE BODY (v1.436) — DEAD CODE BORTTAGEN ===
