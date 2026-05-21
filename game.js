@@ -22247,6 +22247,57 @@ const WARDROBE_PRESETS = [
   { id: 'zombie', name: 'Zombie', wardrobe: { skin: 'gray', hair: 'mullet', shirt: 'urban', pants: 'urban', bandana: 'none' } },
   { id: 'gold_god', name: 'Guld-Gud', wardrobe: { skin: 'gold', hair: 'longBlonde', shirt: 'gold', pants: 'gold', bandana: 'gold' } },
   { id: 'robot', name: 'Robot', wardrobe: { skin: 'silver', hair: 'bald', shirt: 'silver', pants: 'urban', bandana: 'none' } },
+  // v1.485: PARODI-OUTFITS — kända märken med twist
+  { id: 'adibas', name: '🏃 Adibas', wardrobe: {
+      skin: 'tan', hair: 'shortDark', shirt: 'white', pants: 'black',
+      shoes: 'sneakerBlack', hat: 'capRed', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'stubble', eyes: 'default', scars: 'none'
+  } },
+  { id: 'najk', name: '✓ Najk Air', wardrobe: {
+      skin: 'caramel', hair: 'shortDark', shirt: 'black', pants: 'urban',
+      shoes: 'sneakerWhite', hat: 'cap', bandana: 'none',
+      glasses: 'shades', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'guc_cee', name: '💼 Guc-Cee', wardrobe: {
+      skin: 'olive', hair: 'shortDark', shirt: 'green', pants: 'red',
+      shoes: 'dressBlack', hat: 'none', bandana: 'gold',
+      glasses: 'goldframe', cape: 'none', facialHair: 'goatee', eyes: 'hazel', scars: 'none'
+  } },
+  { id: 'loui_witty', name: '👜 Loui Witty', wardrobe: {
+      skin: 'caramel', hair: 'longBrown', shirt: 'desert', pants: 'desert',
+      shoes: 'hikingTan', hat: 'cowboy', bandana: 'orange',
+      glasses: 'aviator', cape: 'none', facialHair: 'fullBeard', eyes: 'amber', scars: 'none'
+  } },
+  { id: 'versass', name: '👑 Versass', wardrobe: {
+      skin: 'tan', hair: 'longBlonde', shirt: 'gold', pants: 'black',
+      shoes: 'goldSneaker', hat: 'crown', bandana: 'gold',
+      glasses: 'goldframe', cape: 'gold', facialHair: 'circleBeard', eyes: 'gold', scars: 'none'
+  } },
+  { id: 'calvin_coolin', name: '🩲 Calvin Cool-in', wardrobe: {
+      skin: 'pale', hair: 'shortDark', shirt: 'white', pants: 'briefs',
+      shoes: 'sneakerWhite', hat: 'none', bandana: 'none',
+      glasses: 'shades', cape: 'none', facialHair: 'none', eyes: 'iceBlue', scars: 'none'
+  } },
+  { id: 'tommy_hellfighter', name: '🇺🇸 Tommy Hellfighter', wardrobe: {
+      skin: 'peach', hair: 'shortBlonde', shirt: 'navy', pants: 'red',
+      shoes: 'sneakerWhite', hat: 'cap', bandana: 'red',
+      glasses: 'aviator', cape: 'none', facialHair: 'mustacheBlonde', eyes: 'blue', scars: 'none'
+  } },
+  { id: 'supreme_pizza', name: '🍕 Supreme Pizza', wardrobe: {
+      skin: 'tan', hair: 'mohawkRed', shirt: 'red', pants: 'jeans',
+      shoes: 'hightopBlue', hat: 'capRed', bandana: 'red',
+      glasses: 'shades', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'tribalLeft'
+  } },
+  { id: 'north_phase', name: '🧥 The North Phase', wardrobe: {
+      skin: 'tan', hair: 'shortGray', shirt: 'tactical', pants: 'tactical',
+      shoes: 'hikingTan', hat: 'beanie', bandana: 'none',
+      glasses: 'skigoggles', cape: 'black', facialHair: 'fullBeardGray', eyes: 'gray', scars: 'cheekScar'
+  } },
+  { id: 'hugo_bossa', name: '🤵 Hugo Bossa', wardrobe: {
+      skin: 'pale', hair: 'shortDark', shirt: 'black', pants: 'black',
+      shoes: 'dressBlack', hat: 'top', bandana: 'white',
+      glasses: 'monocle', cape: 'black', facialHair: 'handlebar', eyes: 'default', scars: 'none'
+  } },
 ];
 let _wardrobeCurrentTab = 'skin';
 let _wardrobeRaf = 0;
