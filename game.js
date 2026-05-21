@@ -37084,42 +37084,71 @@ function drawMeleeCrosshair(p, w, px, py, aimAng, ax, ay, color) {
 //  - Strong silhouette outline
 //  - Minimal facial features (the icon, not anatomy)
 
-const PIXEL_SPRITE_SIZE = 32;
+const PIXEL_SPRITE_SIZE = 48;
 
-// Character facing EAST. Total 32x32 = each line is exactly 32 chars.
+// THE PENETRATOR — 48×48 top-down sprite, character faces EAST.
+// Design: red bandana wrap + accent stripe, dark aviator sunglasses,
+// 5-o'clock stubble, tactical plate carrier with yellow ID patch,
+// mag-pouches with brass buckles, visible weapon held east, combat boots.
+//
+// Palette key:
+//   . = transparent       O = outline (#0a0a0f)
+//   S = skin base         K = skin shadow
+//   R = bandana red       A = bandana accent (yellow stripe)
+//   G = sunglasses dark   W = sunglasses highlight (white reflect)
+//   V = vest base         D = plate carrier dark
+//   Y = yellow accent     M = brass/metal
+//   P = pants             B = boot black     L = boot leather
+//   T = stubble shadow    F = weapon barrel  U = weapon body grey
 const PLAYER_SPRITE = [
-  /*0*/ '................................',
-  /*1*/ '................................',
-  /*2*/ '................................',
-  /*3*/ '.........OOOOOOOO...............',
-  /*4*/ '.......OORRRRRRRROO.............',
-  /*5*/ '......ORRRRRARARRRRO............',
-  /*6*/ '.....ORRRRAARARRRRRRO...........',
-  /*7*/ '.....ORRRAARARRRRRRRO...........',
-  /*8*/ '.....ORRAARARRRRRRRRO...........',
-  /*9*/ '.....ORAARARRRRRRRRSO...........',
-  /*10*/'.....ORAARARRRRRRRSSO...........',
-  /*11*/'.....ORRARARRRRRRSSSO...........',
-  /*12*/'.....ORRRRRRRRRSSSWWO...........',
-  /*13*/'.....OKKRRRRRRSSSSWXO...........',
-  /*14*/'.....OKKKRRRRSSSSSWWO...........',
-  /*15*/'......OKKKKSSSSSSSSO............',
-  /*16*/'.......OOKKSSSSSSO..............',
-  /*17*/'........OOOOOOOOO...............',
-  /*18*/'........OVVVVVVVVO..............',
-  /*19*/'.......OVYVVVVVVYVO.............',
-  /*20*/'......OVVVDDDDDDDVVO............',
-  /*21*/'......OVVDDYYYYYDDVO............',
-  /*22*/'......OVVDDDDDDDDDVOSSGGGGGGG...',
-  /*23*/'......OVVDDDDDDDDDVOSSGGGGGGG...',
-  /*24*/'......OVVDDDDDDDDDVOOOOOOOOOO...',
-  /*25*/'......OVVVVVVVVVVVVO............',
-  /*26*/'.......OVVVVVVVVVVO.............',
-  /*27*/'........OOPPPPPPOO..............',
-  /*28*/'.........OPPPOPPPO..............',
-  /*29*/'.........OPPPOPPPO..............',
-  /*30*/'.........OBBBOBBBO..............',
-  /*31*/'.........OOOOOOOOO..............',
+  /*0*/  '................................................',
+  /*1*/  '................................................',
+  /*2*/  '................................................',
+  /*3*/  '.............OOOOOOOOOOOOOO.....................',
+  /*4*/  '...........OORRRRRRRRRRRRRRO....................',
+  /*5*/  '..........ORRRRRRRRRRRRRRRRRO...................',
+  /*6*/  '.........ORRRRRRRRRRRRRRRRRRO...................',
+  /*7*/  '.........ORAAARRRRRRRRRRRRRRO...................',
+  /*8*/  '.........ORAAARRRRRRRRRRRRRSO...................',
+  /*9*/  '.........ORAAARRRRRRRRRRRRSSO...................',
+  /*10*/ '.........ORAAARRRRRRRRRRRSSSO...................',
+  /*11*/ '.........ORAAARRRRRRRRRSSSSSO...................',
+  /*12*/ '.........ORAAARRRRRRRSSSSSSWO...................',
+  /*13*/ '.........ORAAARRRRRSSSSSGGGGO...................',
+  /*14*/ '.........ORAAARRRRSSSGGGGGWGO...................',
+  /*15*/ '..........ORARRRRSSGGGGGGGGGO...................',
+  /*16*/ '..........OKKRRRSSSGGGGGGGGGO...................',
+  /*17*/ '..........OKKKRSSSSSSGGGGGGO....................',
+  /*18*/ '..........OKKKKSSSSSSSSSSSO.....................',
+  /*19*/ '...........OKTTSSSSSSSSSSO......................',
+  /*20*/ '...........OOTTSSSSSSSSSO.......................',
+  /*21*/ '............OOOSSSSSSSOO........................',
+  /*22*/ '..............OOOOOOOO..........................',
+  /*23*/ '..........OOVVVVVVVVVVVVVVOO....................',
+  /*24*/ '.........OVVYVVVVVVVVVVVVVYVVO..................',
+  /*25*/ '........OVVVVVDDDDDDDDDDDDVVVVO.................',
+  /*26*/ '.......OVVVVVDDDYYYYYYYYYDDDVVVO................',
+  /*27*/ '.......OVVVVVDDDYYYYYYYYYDDDVVVO................',
+  /*28*/ '.......OVVVVVDDDDDDDDDDDDDDDVVVO................',
+  /*29*/ '.......OVVVVVDDMMMDDDDDDDDMMMDVVO...............',
+  /*30*/ '.......OVVVVVDDDDDDDDDDDDDDDDVVOOOO.............',
+  /*31*/ '.......OVVVVVDDMMMDDDDDDDDMMMDVVOSSGGGGGGGGGGGO.',
+  /*32*/ '.......OVVVVVDDDDDDDDDDDDDDDDVVOSSGGFFFFFFFFFFO.',
+  /*33*/ '.......OVVVVVDDMMMDDDDDDDDMMMDVVOOOGGGGGGGGGGGO.',
+  /*34*/ '.......OVVVVVDDDDDDDDDDDDDDDDVVO................',
+  /*35*/ '........OVVVVVVVVVVVVVVVVVVVVVO.................',
+  /*36*/ '........OVVVVVVVVVVVVVVVVVVVVO..................',
+  /*37*/ '.........OOPPPPPPPPPPPPPPPPPOO..................',
+  /*38*/ '.........OPPPMMMMMMMMMMMMMMPPO..................',
+  /*39*/ '.........OPPPPPPPPPPPPPPPPPPPO..................',
+  /*40*/ '..........OPPPPPPPPPPPPPPPPPO...................',
+  /*41*/ '..........OPPPPPPOOOOOPPPPPPO...................',
+  /*42*/ '...........OPPPPOOOOOOPPPPPO....................',
+  /*43*/ '...........OPPPPOOOOOOPPPPPO....................',
+  /*44*/ '...........OBBBBOOOOOOBBBBBOO...................',
+  /*45*/ '...........OBLLLBOOOOOBLLLLBO...................',
+  /*46*/ '...........OBLLLBOOOOOBLLLLBO...................',
+  /*47*/ '...........OOOOOOOOOOOOOOOOOO...................',
 ];
 
 // Walk-cykel variants — bara benen ändras. För enkel start använder vi
