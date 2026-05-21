@@ -11442,138 +11442,210 @@ function drawCoopPartner() {
     const _partnerJugScale = (_partnerIsJug && (p.scaleMul || Coop.juggernautScale)) ? (p.scaleMul || Coop.juggernautScale || 1.4) : 1;
     if (_partnerJugScale !== 1) ctx.scale(_partnerJugScale, _partnerJugScale);
 
-    // v1.434: Partner-rendering uppgraderad till samma kvalitet som drawPlayer.
+    // v1.436: Partner-rendering same outline-style som drawPlayer.
     const skin = _partnerIsJug ? '#4a7a3a' : '#d4a574';
     const skinDark = _partnerIsJug ? '#2e5a26' : '#a07a52';
     const skinHighlight = _partnerIsJug ? '#6a9a5a' : '#e8c094';
     const vest = _partnerIsJug ? '#1a1a14' : color;
-    const vestDark = _partnerIsJug ? '#0a0a08' : darken(color, 0.65);
-    const vestLight = _partnerIsJug ? '#2a2a20' : lighten(color, 0.15);
     const pants = _partnerIsJug ? '#2a1a0a' : '#3a3528';
-    const pantsDark = darken(_partnerIsJug ? '#2a1a0a' : '#3a3528', 0.65);
-    const boot = '#1a1208';
-    const bootLight = '#3a2a18';
     const lightWorldAng = -Math.PI * 0.75;
     const lightLocalAng = lightWorldAng - (p.aimAngle || 0);
     const lightLX = Math.cos(lightLocalAng);
     const lightLY = Math.sin(lightLocalAng);
+    const OUTLINE_COLOR = '#0a0a0f';
+    const W_THIN = 1.4, W_MED = 2.2, W_BOLD = 2.8;
+    const fillStroke = (fc, lw, oc) => {
+      ctx.fillStyle = fc;
+      ctx.fill();
+      ctx.strokeStyle = oc || OUTLINE_COLOR;
+      ctx.lineWidth = lw || W_MED;
+      ctx.lineJoin = 'round';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    };
 
-    // BEN — anatomiskt med boots + knäskydd
+    // ========== LEG-PARAMETERS ==========
     const legSwing = Math.sin(phase);
     const legLift = moved > 0.5 ? Math.max(0, Math.sin(phase)) * 1.4 : 0;
-    const lLegX = -r * 0.55 - legSwing * r * 0.22;
-    const lLegY = -r * 0.42;
-    const rLegX = -r * 0.55 + legSwing * r * 0.22;
-    const rLegY = r * 0.42;
-    ctx.fillStyle = pants;
-    drawRoundedRect(ctx, lLegX, lLegY - r * 0.14, r * 0.50, r * 0.28, 3);
-    drawRoundedRect(ctx, rLegX, rLegY - r * 0.14, r * 0.50, r * 0.28, 3);
-    ctx.fillStyle = pantsDark;
-    ctx.fillRect(lLegX, lLegY + r * 0.06, r * 0.50, r * 0.08);
-    ctx.fillRect(rLegX, rLegY + r * 0.06, r * 0.50, r * 0.08);
-    // Knäskydd
-    ctx.fillStyle = '#1a1a14';
-    ctx.beginPath(); ctx.arc(lLegX + r * 0.32, lLegY, r * 0.13, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(rLegX + r * 0.32, rLegY, r * 0.13, 0, Math.PI * 2); ctx.fill();
-    // Boots
-    const lFootX = lLegX + r * 0.40 - legLift * 1;
-    const rFootX = rLegX + r * 0.40 - legLift * 1;
-    ctx.fillStyle = boot;
-    drawRoundedRect(ctx, lFootX, lLegY - r * 0.10, r * 0.32, r * 0.20, 4);
-    drawRoundedRect(ctx, rFootX, rLegY - r * 0.10, r * 0.32, r * 0.20, 4);
-    ctx.fillStyle = bootLight;
-    ctx.fillRect(lFootX + r * 0.20, lLegY - r * 0.08, r * 0.10, r * 0.06);
-    ctx.fillRect(rFootX + r * 0.20, rLegY - r * 0.08, r * 0.10, r * 0.06);
+    const lLegX = -r * 0.30 - legSwing * r * 0.10;
+    const rLegX = -r * 0.30 + legSwing * r * 0.10;
+    const lLegY = -r * 0.55;
+    const rLegY =  r * 0.55;
 
-    // BÄLTE
-    ctx.fillStyle = '#1a1208';
-    ctx.fillRect(-r * 0.30, -r * 0.50, r * 0.80, r * 0.14);
-    ctx.fillRect(-r * 0.30,  r * 0.36, r * 0.80, r * 0.14);
-
-    // VÄST + plate carrier
-    ctx.fillStyle = vest;
-    ctx.beginPath(); ctx.ellipse(0, 0, r * 1.05, r * 1.35, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = vestDark;
-    ctx.beginPath(); ctx.ellipse(lightLX * r * 0.25, lightLY * r * 0.25, r * 0.55, r * 1.10, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 0.35;
-    ctx.fillStyle = vestLight;
-    ctx.beginPath(); ctx.ellipse(-lightLX * r * 0.6, -lightLY * r * 0.6, r * 0.5, r * 0.9, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
-    // Plate carrier
-    ctx.fillStyle = darken(vest, 0.85);
-    drawRoundedRect(ctx, -r * 0.12, -r * 0.78, r * 0.40, r * 0.52, 3);
-    drawRoundedRect(ctx, -r * 0.12,  r * 0.26, r * 0.40, r * 0.52, 3);
-    // Pouches
-    ctx.fillStyle = '#0e0e0a';
-    for (let i = 0; i < 3; i++) {
-      const off = -r * 0.62 + i * r * 0.18;
-      ctx.fillRect(-r * 0.08, off, r * 0.32, r * 0.13);
-      ctx.fillRect(-r * 0.08, off + r * 0.62, r * 0.32, r * 0.13);
+    // BÅDA BEN
+    for (const [lx, ly] of [[lLegX, lLegY], [rLegX, rLegY]]) {
+      drawRoundedRect(ctx, lx, ly - r * 0.20, r * 0.55, r * 0.40, r * 0.10);
+      fillStroke(pants, W_BOLD);
+      drawRoundedRect(ctx, lx + r * 0.10, ly - r * 0.10, r * 0.32, r * 0.20, r * 0.06);
+      fillStroke(darken(pants, 0.7), W_THIN);
+      drawRoundedRect(ctx, lx + r * 0.10, ly - r * 0.24, r * 0.36, r * 0.16, r * 0.08);
+      fillStroke('#1a1a14', W_MED);
+    }
+    // BOOTS
+    const lFootX = lLegX + r * 0.42;
+    const rFootX = rLegX + r * 0.42;
+    for (const [fx, fy] of [[lFootX, lLegY], [rFootX, rLegY]]) {
+      drawRoundedRect(ctx, fx, fy - r * 0.20, r * 0.50, r * 0.40, r * 0.14);
+      fillStroke('#0a0805', W_BOLD);
+      drawRoundedRect(ctx, fx + r * 0.30, fy - r * 0.18, r * 0.20, r * 0.36, r * 0.10);
+      fillStroke('#1a0e08', W_THIN);
     }
 
-    // AXLAR
-    ctx.fillStyle = skin;
-    ctx.beginPath(); ctx.ellipse(r * 0.0, -r * 1.05, r * 0.50, r * 0.42, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(r * 0.0,  r * 1.05, r * 0.50, r * 0.42, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = skinDark;
-    ctx.beginPath(); ctx.ellipse(-r * 0.18, -r * 1.10, r * 0.24, r * 0.20, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(-r * 0.18,  r * 1.10, r * 0.24, r * 0.20, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 0.45;
-    ctx.fillStyle = skinHighlight;
-    ctx.beginPath(); ctx.ellipse(lightLX * r * 0.15, -r * 1.05 + lightLY * r * 0.08, r * 0.20, r * 0.16, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(lightLX * r * 0.15,  r * 1.05 + lightLY * r * 0.08, r * 0.20, r * 0.16, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
+    // BÄLTE
+    drawRoundedRect(ctx, -r * 0.55, -r * 0.65, r * 1.10, r * 0.20, r * 0.05);
+    fillStroke('#1a0e06', W_MED);
+    drawRoundedRect(ctx, -r * 0.55,  r * 0.45, r * 1.10, r * 0.20, r * 0.05);
+    fillStroke('#1a0e06', W_MED);
 
-    // ARMAR
-    ctx.fillStyle = skin;
-    ctx.beginPath(); ctx.ellipse(r * 0.65, -r * 0.85, r * 0.34, r * 0.30, -0.15, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(r * 0.55,  r * 0.88, r * 0.32, r * 0.28, 0.10, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = skinDark;
-    ctx.beginPath(); ctx.ellipse(r * 0.55, -r * 0.95, r * 0.20, r * 0.12, -0.15, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(r * 0.45,  r * 0.96, r * 0.18, r * 0.10, 0.10, 0, Math.PI * 2); ctx.fill();
-    // Hand-grip
-    ctx.fillStyle = skin;
-    ctx.beginPath(); ctx.ellipse(r * 0.95, -r * 0.55, r * 0.16, r * 0.13, 0, 0, Math.PI * 2); ctx.fill();
-
-    // HALS
-    ctx.fillStyle = darken(skin, 0.55);
-    drawRoundedRect(ctx, -r * 0.02, -r * 0.22, r * 0.40, r * 0.44, 2);
-
-    // HUVUD
-    ctx.fillStyle = skin;
-    ctx.beginPath(); ctx.ellipse(r * 0.25, 0, r * 0.62, r * 0.58, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = skinDark;
-    ctx.beginPath(); ctx.ellipse(r * 0.15 - lightLX * r * 0.18, -lightLY * r * 0.15, r * 0.42, r * 0.40, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 0.55;
-    ctx.fillStyle = skinHighlight;
-    ctx.beginPath(); ctx.ellipse(r * 0.30 + lightLX * r * 0.20, lightLY * r * 0.18, r * 0.18, r * 0.14, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.globalAlpha = 1;
-    // Öron
-    ctx.fillStyle = skinDark;
-    ctx.beginPath(); ctx.ellipse(r * 0.18, -r * 0.55, r * 0.06, r * 0.10, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(r * 0.18,  r * 0.55, r * 0.06, r * 0.10, 0, 0, Math.PI * 2); ctx.fill();
-
-    // BANDANA i partnerns färg
-    ctx.fillStyle = color;
-    ctx.beginPath(); ctx.ellipse(r * 0.20, 0, r * 0.62, r * 0.34, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = darken(color, 0.75);
-    ctx.fillRect(r * 0.12, -r * 0.34, r * 0.08, r * 0.68);
-    // Bandana-svans bakåt
-    const tailWaveP = Math.sin(now / 200) * r * 0.10;
-    ctx.fillStyle = color;
+    // TORSO V-FORMAD
     ctx.beginPath();
-    ctx.moveTo(-r * 0.40, -r * 0.22);
-    ctx.lineTo(-r * 1.20, -r * 0.45 + tailWaveP);
-    ctx.lineTo(-r * 1.10, -r * 0.05 + tailWaveP);
-    ctx.lineTo(-r * 1.20,  r * 0.40 + tailWaveP);
-    ctx.lineTo(-r * 0.40,  r * 0.22);
+    ctx.moveTo(-r * 0.55, -r * 1.20);
+    ctx.lineTo( r * 0.45, -r * 1.10);
+    ctx.quadraticCurveTo(r * 0.55, -r * 0.70, r * 0.45, -r * 0.50);
+    ctx.lineTo( r * 0.35,  r * 0.50);
+    ctx.quadraticCurveTo(r * 0.55, r * 0.70, r * 0.45, r * 1.10);
+    ctx.lineTo(-r * 0.55,  r * 1.20);
+    ctx.quadraticCurveTo(-r * 0.90, 0, -r * 0.55, -r * 1.20);
     ctx.closePath();
-    ctx.fill();
+    fillStroke(vest, W_BOLD);
+    // Chest plate
+    drawRoundedRect(ctx, -r * 0.30, -r * 0.40, r * 0.65, r * 0.80, r * 0.10);
+    fillStroke(darken(vest, 0.75), W_MED);
+    // Pouches
+    for (let i = 0; i < 3; i++) {
+      const py = -r * 0.30 + i * r * 0.22;
+      drawRoundedRect(ctx, -r * 0.18, py, r * 0.30, r * 0.15, r * 0.04);
+      fillStroke('#0a0805', W_THIN);
+    }
 
-    // ÖGON
-    ctx.fillStyle = '#0a0a0a';
-    ctx.beginPath(); ctx.arc(r * 0.55, -r * 0.18, 1.8, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(r * 0.55, r * 0.18, 1.8, 0, Math.PI*2); ctx.fill();
+    // SHOULDERS
+    for (const [sx, sy] of [[-r * 0.05, -r * 1.10], [-r * 0.05, r * 1.10]]) {
+      ctx.beginPath();
+      ctx.arc(sx, sy, r * 0.40, 0, Math.PI * 2);
+      fillStroke(darken(vest, 0.6), W_BOLD);
+    }
+
+    // ARMS (sleeves + underarms)
+    drawRoundedRect(ctx, r * 0.10, -r * 1.30, r * 0.34, r * 0.40, r * 0.10);
+    fillStroke(darken(vest, 0.75), W_MED);
+    drawRoundedRect(ctx, r * 0.10,  r * 0.90, r * 0.34, r * 0.40, r * 0.10);
+    fillStroke(darken(vest, 0.75), W_MED);
+    drawRoundedRect(ctx, r * 0.42, -r * 0.95, r * 0.50, r * 0.30, r * 0.14);
+    fillStroke(skin, W_MED);
+    drawRoundedRect(ctx, r * 0.42,  r * 0.65, r * 0.50, r * 0.30, r * 0.14);
+    fillStroke(skin, W_MED);
+
+    // HANDS
+    ctx.beginPath();
+    ctx.ellipse(r * 1.00, -r * 0.50, r * 0.18, r * 0.15, 0.1, 0, Math.PI * 2);
+    fillStroke(skin, W_MED);
+    ctx.beginPath();
+    ctx.ellipse(r * 0.85, r * 0.35, r * 0.16, r * 0.13, -0.1, 0, Math.PI * 2);
+    fillStroke(skin, W_MED);
+
+    // NECK
+    drawRoundedRect(ctx, r * 0.18, -r * 0.28, r * 0.45, r * 0.56, r * 0.10);
+    fillStroke(darken(skin, 0.55), W_MED);
+
+    // HEAD (stort + outlined)
+    const headR = r * 0.95;
+    const headX = r * 0.75;
+    ctx.beginPath();
+    ctx.ellipse(headX, 0, headR, headR * 0.92, 0, 0, Math.PI * 2);
+    fillStroke(skin, W_BOLD);
+    // Head shadow
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(headX + lightLX * headR * 0.30, lightLY * headR * 0.30, headR * 0.70, headR * 0.65, 0, 0, Math.PI * 2);
+    ctx.fillStyle = skinDark;
+    ctx.globalAlpha = 0.85;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // Head highlight
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(headX - lightLX * headR * 0.35, -lightLY * headR * 0.30, headR * 0.45, headR * 0.30, 0, 0, Math.PI * 2);
+    ctx.fillStyle = skinHighlight;
+    ctx.globalAlpha = 0.45;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // EARS
+    for (const eySign of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(headX - headR * 0.30, eySign * headR * 0.85, r * 0.14, r * 0.20, 0, 0, Math.PI * 2);
+      fillStroke(skin, W_THIN);
+    }
+
+    // BANDANA i partnerns färg (outlined)
+    ctx.beginPath();
+    ctx.ellipse(headX - headR * 0.15, 0, headR * 1.10, headR * 0.85, 0, -Math.PI * 0.50, Math.PI * 0.50);
+    ctx.lineTo(headX - headR * 1.05, -headR * 0.50);
+    ctx.quadraticCurveTo(headX - headR * 1.30, 0, headX - headR * 1.05, headR * 0.50);
+    ctx.closePath();
+    fillStroke(color, W_BOLD);
+    // Accent-stripe
+    drawRoundedRect(ctx, headX - headR * 0.20, -headR * 0.95, r * 0.18, headR * 1.90, r * 0.05);
+    fillStroke(lighten(color, 0.30), W_THIN);
+    // Bandana-knot
+    ctx.beginPath();
+    ctx.arc(headX - headR * 1.05, 0, r * 0.18, 0, Math.PI * 2);
+    fillStroke(color, W_MED);
+    // Bandana-tail
+    const tailWaveP = Math.sin(now / 180) * r * 0.20;
+    ctx.beginPath();
+    ctx.moveTo(headX - headR * 1.00, -r * 0.18);
+    ctx.lineTo(headX - r * 2.20, -r * 0.55 + tailWaveP);
+    ctx.quadraticCurveTo(headX - r * 2.40, tailWaveP, headX - r * 2.25,  r * 0.60 + tailWaveP);
+    ctx.lineTo(headX - headR * 1.00,  r * 0.18);
+    ctx.closePath();
+    fillStroke(color, W_MED);
+
+    // FACE (eyes, brows, nose, mouth)
+    const faceX = headX + headR * 0.40;
+    // Eyebrows
+    for (const ebSign of [-1, 1]) {
+      ctx.save();
+      ctx.translate(faceX - r * 0.05, ebSign * r * 0.30);
+      ctx.rotate(ebSign * 0.35);
+      ctx.beginPath();
+      ctx.moveTo(-r * 0.10, 0);
+      ctx.quadraticCurveTo(0, -r * 0.04, r * 0.14, -r * 0.02);
+      ctx.lineTo(r * 0.14, r * 0.04);
+      ctx.quadraticCurveTo(0, r * 0.02, -r * 0.10, r * 0.06);
+      ctx.closePath();
+      fillStroke('#0a0404', W_THIN);
+      ctx.restore();
+    }
+    // Eyes (outlined)
+    for (const eySign of [-1, 1]) {
+      ctx.beginPath();
+      ctx.ellipse(faceX - r * 0.05, eySign * r * 0.22, r * 0.18, r * 0.14, 0, 0, Math.PI * 2);
+      fillStroke('#fafafa', W_MED);
+      ctx.beginPath();
+      ctx.arc(faceX + r * 0.02, eySign * r * 0.22, r * 0.10, 0, Math.PI * 2);
+      fillStroke('#4a6a8a', W_THIN);
+      ctx.fillStyle = '#0a0a0a';
+      ctx.beginPath(); ctx.arc(faceX + r * 0.04, eySign * r * 0.22, r * 0.05, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(faceX + r * 0.06, eySign * r * 0.20, r * 0.025, 0, Math.PI * 2); ctx.fill();
+    }
+    // Nose
+    ctx.beginPath();
+    ctx.moveTo(faceX + r * 0.35, 0);
+    ctx.lineTo(faceX + r * 0.10, -r * 0.07);
+    ctx.lineTo(faceX + r * 0.10,  r * 0.07);
+    ctx.closePath();
+    fillStroke(skinDark, W_THIN);
+    // Mouth
+    ctx.beginPath();
+    ctx.moveTo(faceX - r * 0.02, -r * 0.05);
+    ctx.quadraticCurveTo(faceX + r * 0.05, r * 0.02, faceX + r * 0.15, -r * 0.03);
+    ctx.lineTo(faceX + r * 0.15, r * 0.03);
+    ctx.quadraticCurveTo(faceX + r * 0.05, r * 0.10, faceX - r * 0.02, r * 0.03);
+    ctx.closePath();
+    fillStroke('#3a1a0a', W_THIN);
 
     // VAPEN — enkelt, baserat på weaponId
     const w = p.weaponId ? W_BY_ID[p.weaponId] : null;
@@ -37047,354 +37119,485 @@ function drawPlayer() {
   }
 
   const r = p.r;
-  // v1.435: COMPLETE REDESIGN — chibi-heroic proportions inspired by Soul Knight /
-  // Brotato / Hotline Miami. Mycket större huvud (1.5× original), synliga
-  // ansikts-features (vita ögon med pupiller, ögonbryn, näsa, mun), tactical
-  // outfit med proper plate carrier, sleeves, holster på höft. Karaktären ska
+  // v1.436: STYLIZED TOP-DOWN COMIC redesign — bold outlines + cel-shading
+  // inspired by Hades / Brawl Stars / Soul Knight. Outlines är 2-3px svarta
+  // konturer runt VARJE större form, vilket transformerar canvas-shapes från
+  // "blobs" till en cohesion karaktär. Cel-shading = 3 toner per kroppsdel
+  // med HÅRDA kanter (inte gradient) som ger illustrerat utseende.
+  //
+  // ÄLDRE KOMMENTAR: Tidigare iterationer (v1.434/v1.435) lade till detaljer
+  // men behöll ellips-baserad rendering = fortfarande "blobs". Outlines är
+  // SINGLE biggest visual change.
   // se MÄNSKLIG ut, inte bara en ellips-blob.
 
-  // ========== SHADOW under feet (3/4 perspective) ==========
-  // (Already drawn outside save-block, OK)
+  // ============================================================
+  // v1.436 STYLIZED TOP-DOWN COMIC — outline + cel-shading
+  // ============================================================
+  // OUTLINE = svart kontur 2-3px runt VARJE större form. Detta är THE
+  // single biggest visuella förändringen — transformerar canvas-shapes
+  // från "blobs" till illustrerat tecknat karaktär.
+  const OUTLINE_COLOR = '#0a0a0f';
+  const W_THIN = 1.4;
+  const W_MED = 2.2;
+  const W_BOLD = 2.8;
+  // Helpers — fyller path och drar outline ovanpå
+  const fillStroke = (fc, lw, oc) => {
+    ctx.fillStyle = flash ? '#fff' : fc;
+    ctx.fill();
+    ctx.strokeStyle = flash ? '#fff' : (oc || OUTLINE_COLOR);
+    ctx.lineWidth = lw || W_MED;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  };
+  // lightLX/lightLY redan deklarerade tidigare i drawPlayer-funktionen
+  // Extra palette
+  const leather = '#1a0e06';
+  const brass = '#c9a040';
 
-  // ========== BEN + BOOTS — kortare chibi-style med tydliga features ==========
+  // ========== LEG-PARAMETERS ==========
   const legSwing = Math.sin(phase);
-  const legLift = moving ? Math.max(0, Math.sin(phase)) * 1.6 : 0;
-  // Cargo-pants med fickor
-  const lLegX = -r * 0.20 - legSwing * r * 0.10;
-  const lLegY = -r * 0.65;
-  const rLegX = -r * 0.20 + legSwing * r * 0.10;
-  const rLegY = r * 0.65;
-  // Lår + skenben i en blob — pants
-  ctx.fillStyle = flash ? '#fff' : pants;
-  drawRoundedRect(ctx, lLegX, lLegY - r * 0.18, r * 0.42, r * 0.36, 5);
-  drawRoundedRect(ctx, rLegX, rLegY - r * 0.18, r * 0.42, r * 0.36, 5);
-  // Cargo-fickor (synliga på ben)
-  ctx.fillStyle = flash ? '#fff' : darken(pants, 0.7);
-  drawRoundedRect(ctx, lLegX + r * 0.08, lLegY - r * 0.12, r * 0.22, r * 0.14, 2);
-  drawRoundedRect(ctx, rLegX + r * 0.08, rLegY - r * 0.12, r * 0.22, r * 0.14, 2);
-  // Pants-shadow (under-sida för djup)
-  ctx.fillStyle = flash ? '#fff' : pantsDark;
-  ctx.fillRect(lLegX, lLegY + r * 0.12, r * 0.42, r * 0.06);
-  ctx.fillRect(rLegX, rLegY + r * 0.12, r * 0.42, r * 0.06);
-  // Tactical knäskydd (svarta + buckles)
-  ctx.fillStyle = flash ? '#fff' : '#0a0a08';
-  drawRoundedRect(ctx, lLegX + r * 0.10, lLegY - r * 0.20, r * 0.26, r * 0.10, 3);
-  drawRoundedRect(ctx, rLegX + r * 0.10, rLegY - r * 0.20, r * 0.26, r * 0.10, 3);
-  ctx.fillStyle = flash ? '#fff' : '#7a5a30';
-  ctx.fillRect(lLegX + r * 0.18, lLegY - r * 0.16, r * 0.10, r * 0.03);
-  ctx.fillRect(rLegX + r * 0.18, rLegY - r * 0.16, r * 0.10, r * 0.03);
-  // BOOTS — combat-style med tå-cap + lacing
-  const lFootX = lLegX + r * 0.30 - legLift * 0.6;
-  const rFootX = rLegX + r * 0.30 - legLift * 0.6;
-  // Lift-skugga (när foten är i luften)
+  const legLift = moving ? Math.max(0, Math.sin(phase)) * 1.4 : 0;
+  const lLegX = -r * 0.30 - legSwing * r * 0.10;
+  const rLegX = -r * 0.30 + legSwing * r * 0.10;
+  const lLegY = -r * 0.55;
+  const rLegY =  r * 0.55;
+
+  // ========== 1. BÅDA BEN (cargo-pants med outlines) ==========
+  // Lår-region
+  for (const [lx, ly] of [[lLegX, lLegY], [rLegX, rLegY]]) {
+    drawRoundedRect(ctx, lx, ly - r * 0.20, r * 0.55, r * 0.40, r * 0.10);
+    fillStroke(pants, W_BOLD);
+    // Cargo-ficka
+    drawRoundedRect(ctx, lx + r * 0.10, ly - r * 0.10, r * 0.32, r * 0.20, r * 0.06);
+    fillStroke(darken(pants, 0.7), W_THIN);
+    // Knäskydd (kontrastfärgad mörk plate)
+    drawRoundedRect(ctx, lx + r * 0.10, ly - r * 0.24, r * 0.36, r * 0.16, r * 0.08);
+    fillStroke('#1a1a14', W_MED);
+    // Knäskydd-glans
+    ctx.fillStyle = flash ? '#fff' : '#3a3a30';
+    ctx.fillRect(lx + r * 0.18, ly - r * 0.20, r * 0.20, r * 0.04);
+  }
+
+  // ========== 2. COMBAT-BOOTS ==========
+  const lFootX = lLegX + r * 0.42;
+  const rFootX = rLegX + r * 0.42;
+  // Lift-skugga om foten är i luften
   if (legLift > 0.3) {
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
     if (legSwing < 0) {
-      ctx.beginPath(); ctx.ellipse(rFootX + r * 0.16, rLegY + r * 0.15, r * 0.18, r * 0.06, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(rFootX + r * 0.16, rLegY + r * 0.18, r * 0.20, r * 0.06, 0, 0, Math.PI * 2); ctx.fill();
     } else {
-      ctx.beginPath(); ctx.ellipse(lFootX + r * 0.16, lLegY + r * 0.15, r * 0.18, r * 0.06, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(lFootX + r * 0.16, lLegY + r * 0.18, r * 0.20, r * 0.06, 0, 0, Math.PI * 2); ctx.fill();
     }
   }
-  // Boot-bas (svart)
-  ctx.fillStyle = flash ? '#fff' : boot;
-  drawRoundedRect(ctx, lFootX, lLegY - r * 0.16, r * 0.40, r * 0.28, 6);
-  drawRoundedRect(ctx, rFootX, rLegY - r * 0.16, r * 0.40, r * 0.28, 6);
-  // Boot-läder (varmare brun-ton överst)
-  ctx.fillStyle = flash ? '#fff' : '#3a2818';
-  drawRoundedRect(ctx, lFootX + r * 0.04, lLegY - r * 0.14, r * 0.32, r * 0.10, 4);
-  drawRoundedRect(ctx, rFootX + r * 0.04, rLegY - r * 0.14, r * 0.32, r * 0.10, 4);
-  // Tå-cap (mörkare svart) + glansig highlight
-  ctx.fillStyle = flash ? '#fff' : '#000';
-  drawRoundedRect(ctx, lFootX + r * 0.24, lLegY - r * 0.12, r * 0.16, r * 0.20, 4);
-  drawRoundedRect(ctx, rFootX + r * 0.24, rLegY - r * 0.12, r * 0.16, r * 0.20, 4);
-  ctx.fillStyle = flash ? '#fff' : '#5a4030';
-  ctx.fillRect(lFootX + r * 0.28, lLegY - r * 0.08, r * 0.08, r * 0.03);
-  ctx.fillRect(rFootX + r * 0.28, rLegY - r * 0.08, r * 0.08, r * 0.03);
-  // Snör-lacing (3 horisontella streck)
-  ctx.strokeStyle = flash ? '#fff' : '#aa8a30';
-  ctx.lineWidth = 0.8;
-  for (let li = 0; li < 3; li++) {
-    const off = -r * 0.05 + li * r * 0.05;
-    ctx.beginPath();
-    ctx.moveTo(lFootX + r * 0.08, lLegY + off); ctx.lineTo(lFootX + r * 0.22, lLegY + off);
-    ctx.moveTo(rFootX + r * 0.08, rLegY + off); ctx.lineTo(rFootX + r * 0.22, rLegY + off);
-    ctx.stroke();
+  for (const [fx, fy, lift] of [[lFootX, lLegY, legSwing > 0 ? legLift : 0], [rFootX, rLegY, legSwing < 0 ? legLift : 0]]) {
+    // Boot-bas
+    drawRoundedRect(ctx, fx, fy - r * 0.20 - lift * 0.5, r * 0.50, r * 0.40, r * 0.14);
+    fillStroke('#0a0805', W_BOLD);
+    // Boot-läder (varmare ton överst)
+    drawRoundedRect(ctx, fx + r * 0.04, fy - r * 0.18 - lift * 0.5, r * 0.40, r * 0.14, r * 0.08);
+    fillStroke('#3a2818', W_THIN);
+    // Tå-cap (mörkare glans)
+    drawRoundedRect(ctx, fx + r * 0.30, fy - r * 0.18 - lift * 0.5, r * 0.20, r * 0.36, r * 0.10);
+    fillStroke('#1a0e08', W_THIN);
+    // Tå-cap highlight (skinande läder)
+    ctx.fillStyle = flash ? '#fff' : '#5a4030';
+    ctx.fillRect(fx + r * 0.36, fy - r * 0.10 - lift * 0.5, r * 0.10, r * 0.05);
+    // Snörnings-rader
+    ctx.strokeStyle = flash ? '#fff' : '#aa8a30';
+    ctx.lineWidth = 1.2;
+    ctx.lineCap = 'round';
+    for (let li = 0; li < 3; li++) {
+      const off = -r * 0.10 + li * r * 0.08;
+      ctx.beginPath();
+      ctx.moveTo(fx + r * 0.10, fy + off - lift * 0.5);
+      ctx.lineTo(fx + r * 0.28, fy + off - lift * 0.5);
+      ctx.stroke();
+    }
   }
 
-  // ========== BÄLTE med stor buckle + holster ==========
-  // Stor läder-bälte
-  ctx.fillStyle = flash ? '#fff' : '#1a0e08';
-  ctx.fillRect(-r * 0.45, -r * 0.55, r * 0.95, r * 0.16);
-  ctx.fillRect(-r * 0.45,  r * 0.39, r * 0.95, r * 0.16);
-  // Buckle (mässing + skugga)
-  ctx.fillStyle = flash ? '#fff' : '#d4a020';
-  drawRoundedRect(ctx, -r * 0.10, -r * 0.52, r * 0.20, r * 0.10, 2);
-  drawRoundedRect(ctx, -r * 0.10,  r * 0.42, r * 0.20, r * 0.10, 2);
-  ctx.fillStyle = flash ? '#fff' : '#7a5a10';
-  ctx.fillRect(-r * 0.10, -r * 0.45, r * 0.20, r * 0.03);
-  ctx.fillRect(-r * 0.10,  r * 0.49, r * 0.20, r * 0.03);
+  // ========== 3. BÄLTE + HOLSTER ==========
+  // Höft-bälte (svart läder)
+  drawRoundedRect(ctx, -r * 0.55, -r * 0.65, r * 1.10, r * 0.20, r * 0.05);
+  fillStroke(leather, W_MED);
+  drawRoundedRect(ctx, -r * 0.55,  r * 0.45, r * 1.10, r * 0.20, r * 0.05);
+  fillStroke(leather, W_MED);
+  // Buckle (mässing)
+  drawRoundedRect(ctx, -r * 0.15, -r * 0.62, r * 0.30, r * 0.14, r * 0.03);
+  fillStroke(brass, W_THIN);
+  drawRoundedRect(ctx, -r * 0.15,  r * 0.48, r * 0.30, r * 0.14, r * 0.03);
+  fillStroke(brass, W_THIN);
+  // Buckle-highlight
+  ctx.fillStyle = flash ? '#fff' : '#f0d060';
+  ctx.fillRect(-r * 0.12, -r * 0.60, r * 0.24, r * 0.03);
+  ctx.fillRect(-r * 0.12,  r * 0.50, r * 0.24, r * 0.03);
   // Holster på off-hand-sidan (Y+)
-  ctx.fillStyle = flash ? '#fff' : '#0a0a06';
-  drawRoundedRect(ctx, -r * 0.25,  r * 0.55, r * 0.30, r * 0.30, 4);
-  // Pistol-grepp som sticker upp
-  ctx.fillStyle = flash ? '#fff' : '#1a1a14';
-  ctx.fillRect(-r * 0.15, r * 0.45, r * 0.12, r * 0.14);
+  drawRoundedRect(ctx, -r * 0.35, r * 0.65, r * 0.45, r * 0.40, r * 0.10);
+  fillStroke('#0a0705', W_MED);
+  // Pistol-grepp i holstern
+  drawRoundedRect(ctx, -r * 0.22, r * 0.50, r * 0.18, r * 0.20, r * 0.04);
+  fillStroke('#1a1a14', W_THIN);
+  ctx.fillStyle = flash ? '#fff' : '#3a3a30';
+  ctx.fillRect(-r * 0.18, r * 0.54, r * 0.08, r * 0.10);
 
-  // ========== TAKTISK PLATE CARRIER — block-form (inte ellips) ==========
-  // Bas-väst som ett "rectangulärt block" — mer mänsklig kropp
-  ctx.fillStyle = flash ? '#fff' : vest;
-  drawRoundedRect(ctx, -r * 0.55, -r * 1.05, r * 1.05, r * 2.10, r * 0.20);
-  // Side-shadow (bortre sida)
-  ctx.fillStyle = flash ? '#fff' : vestDark;
-  drawRoundedRect(ctx, -r * 0.55 + lightLX * r * 0.15, -r * 1.05 + lightLY * r * 0.15,
-                       r * 0.40 - Math.abs(lightLX) * r * 0.08, r * 2.10 - Math.abs(lightLY) * r * 0.08,
-                       r * 0.18);
-  // Top-highlight (mot ljuset)
-  ctx.globalAlpha = 0.35;
-  ctx.fillStyle = flash ? '#fff' : vestLight;
-  drawRoundedRect(ctx, -r * 0.50 - lightLX * r * 0.25, -r * 1.00 - lightLY * r * 0.25,
-                       r * 0.35, r * 0.40, r * 0.15);
+  // ========== 4. TORSO — V-FORMAD plate carrier (heroic silhouette) ==========
+  // Bas-väst i V-form: breda axlar uppe, smalare midja nere
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.55, -r * 1.20);  // top-left (axel)
+  ctx.lineTo( r * 0.45, -r * 1.10);  // top-right (axel front)
+  ctx.quadraticCurveTo(r * 0.55, -r * 0.70, r * 0.45, -r * 0.50);
+  ctx.lineTo( r * 0.35,  r * 0.50);
+  ctx.quadraticCurveTo(r * 0.55, r * 0.70, r * 0.45, r * 1.10);
+  ctx.lineTo(-r * 0.55,  r * 1.20);
+  ctx.quadraticCurveTo(-r * 0.90, 0, -r * 0.55, -r * 1.20);
+  ctx.closePath();
+  fillStroke(vest, W_BOLD);
+  // Cel-shadow på "bortre sida" (mot mörker)
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.55, -r * 1.20);
+  ctx.lineTo(-r * 0.10, -r * 1.15);
+  ctx.lineTo(-r * 0.10,  r * 1.18);
+  ctx.lineTo(-r * 0.55,  r * 1.20);
+  ctx.quadraticCurveTo(-r * 0.90, 0, -r * 0.55, -r * 1.20);
+  ctx.closePath();
+  ctx.fillStyle = flash ? '#fff' : darken(vest, 0.65);
+  ctx.fill();
+  ctx.restore();
+  // Highlight-stripe på fram-edge (mot ljuset)
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo( r * 0.30, -r * 1.10);
+  ctx.quadraticCurveTo(r * 0.50, -r * 0.70, r * 0.40, -r * 0.50);
+  ctx.lineTo( r * 0.32,  r * 0.50);
+  ctx.quadraticCurveTo(r * 0.48, r * 0.70, r * 0.30, r * 1.10);
+  ctx.lineTo( r * 0.40,  r * 1.05);
+  ctx.lineTo( r * 0.40, -r * 1.05);
+  ctx.closePath();
+  ctx.fillStyle = flash ? '#fff' : lighten(vest, 0.15);
+  ctx.globalAlpha = 0.55;
+  ctx.fill();
   ctx.globalAlpha = 1;
+  ctx.restore();
 
-  // Plate carrier — fram och bak-plattor (tydligt synliga)
-  ctx.fillStyle = flash ? '#fff' : darken(vest, 0.8);
-  drawRoundedRect(ctx, -r * 0.40, -r * 0.90, r * 0.75, r * 0.42, r * 0.10);
-  drawRoundedRect(ctx, -r * 0.40,  r * 0.48, r * 0.75, r * 0.42, r * 0.10);
-  // Plate-stitches (kontrast)
+  // ========== 5. CHEST PLATE (visible armor) ==========
+  drawRoundedRect(ctx, -r * 0.30, -r * 0.40, r * 0.65, r * 0.80, r * 0.10);
+  fillStroke(darken(vest, 0.75), W_MED);
+  // Plate-edge mid-line (stitch detalj)
   ctx.fillStyle = flash ? '#fff' : '#0a0a06';
-  ctx.fillRect(-r * 0.20, -r * 0.85, r * 0.04, r * 0.32);
-  ctx.fillRect( r * 0.10, -r * 0.85, r * 0.04, r * 0.32);
-  ctx.fillRect(-r * 0.20,  r * 0.53, r * 0.04, r * 0.32);
-  ctx.fillRect( r * 0.10,  r * 0.53, r * 0.04, r * 0.32);
-  // Mag-pouches (3 rows × 2 plates = 6 totalt)
-  ctx.fillStyle = flash ? '#fff' : '#0a0a06';
-  for (let i = 0; i < 3; i++) {
-    const off = -r * 0.80 + i * r * 0.15;
-    drawRoundedRect(ctx, -r * 0.30, off, r * 0.55, r * 0.12, 2);
-    drawRoundedRect(ctx, -r * 0.30, off + r * 1.36, r * 0.55, r * 0.12, 2);
-  }
-  // Pouch-buckles (mässing)
-  ctx.fillStyle = flash ? '#fff' : '#aa8a30';
-  for (let i = 0; i < 3; i++) {
-    const off = -r * 0.75 + i * r * 0.15;
-    ctx.fillRect(r * 0.15, off, r * 0.06, r * 0.04);
-    ctx.fillRect(r * 0.15, off + r * 1.36, r * 0.06, r * 0.04);
-  }
-  // Velcro patch på bröstet med "ID"-känsla
-  ctx.fillStyle = flash ? '#fff' : '#5a4030';
-  drawRoundedRect(ctx, -r * 0.18, -r * 0.18, r * 0.30, r * 0.36, 2);
-  // ID-streck på patch
-  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
-  ctx.fillRect(-r * 0.14, -r * 0.10, r * 0.22, r * 0.04);
-  ctx.fillRect(-r * 0.14, -r * 0.02, r * 0.14, r * 0.03);
-  ctx.fillRect(-r * 0.14,  r * 0.06, r * 0.18, r * 0.03);
+  ctx.fillRect(r * 0.02, -r * 0.38, r * 0.04, r * 0.76);
+  // Plate-edge horizontal stripes
+  ctx.fillStyle = flash ? '#fff' : darken(vest, 0.5);
+  ctx.fillRect(-r * 0.28, -r * 0.15, r * 0.61, r * 0.03);
+  ctx.fillRect(-r * 0.28,  r * 0.10, r * 0.61, r * 0.03);
 
-  // ========== AXLAR + ARMAR — synliga skjorta-ärmar + handgrepp ==========
-  // Axel-bumps (rund kontur)
-  ctx.fillStyle = flash ? '#fff' : darken(vest, 0.75);
-  ctx.beginPath(); ctx.ellipse(0, -r * 1.05, r * 0.40, r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(0,  r * 1.05, r * 0.40, r * 0.38, 0, 0, Math.PI * 2); ctx.fill();
-  // Axel-patches (insignia)
+  // ========== 6. MAG-POUCHES (3 horisontella på chest) ==========
+  for (let i = 0; i < 3; i++) {
+    const py = -r * 0.30 + i * r * 0.22;
+    drawRoundedRect(ctx, -r * 0.18, py, r * 0.30, r * 0.15, r * 0.04);
+    fillStroke('#0a0805', W_THIN);
+    // Buckle (gold dot)
+    ctx.fillStyle = flash ? '#fff' : brass;
+    ctx.beginPath(); ctx.arc(r * 0.07, py + r * 0.075, r * 0.025, 0, Math.PI * 2); ctx.fill();
+  }
+  // ID-patch (yellow stripe) på bröstet — signature element
+  drawRoundedRect(ctx, -r * 0.12, -r * 0.05, r * 0.20, r * 0.08, r * 0.02);
+  fillStroke('#5a4030', W_THIN);
   ctx.fillStyle = flash ? '#fff' : '#ffd54a';
-  drawRoundedRect(ctx, -r * 0.10, -r * 1.16, r * 0.20, r * 0.10, 2);
-  drawRoundedRect(ctx, -r * 0.10,  r * 1.06, r * 0.20, r * 0.10, 2);
-  // Skjort-ärm (rullad upp synlig)
-  ctx.fillStyle = flash ? '#fff' : vestDark;
-  drawRoundedRect(ctx, r * 0.10, -r * 1.30, r * 0.30, r * 0.30, r * 0.10);
-  drawRoundedRect(ctx, r * 0.10,  r * 1.00, r * 0.30, r * 0.30, r * 0.10);
-  // Underarms — hud, ljust (anatomisk taper)
-  ctx.fillStyle = flash ? '#fff' : skin;
-  ctx.beginPath(); ctx.ellipse(r * 0.55, -r * 0.85, r * 0.28, r * 0.30, -0.15, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(r * 0.55,  r * 0.88, r * 0.28, r * 0.28, 0.10, 0, Math.PI * 2); ctx.fill();
-  // Arm-skugga (under-sidor)
-  ctx.fillStyle = flash ? '#fff' : skinDark;
-  ctx.beginPath(); ctx.ellipse(r * 0.50, -r * 0.92, r * 0.16, r * 0.08, -0.15, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(r * 0.45,  r * 0.96, r * 0.16, r * 0.08, 0.10, 0, Math.PI * 2); ctx.fill();
-  // Tatuering på fram-arm (subtilt)
-  ctx.fillStyle = flash ? '#fff' : skinDark;
-  ctx.fillRect(r * 0.50, -r * 0.78, r * 0.14, r * 0.02);
-  ctx.fillRect(r * 0.55, -r * 0.74, r * 0.10, r * 0.02);
+  ctx.fillRect(-r * 0.10, -r * 0.03, r * 0.16, r * 0.04);
 
-  // HANDS — synliga händer som greppar vapnet
-  // Främre hand (på pistol-grepp/handfattning)
-  ctx.fillStyle = flash ? '#fff' : skin;
-  ctx.beginPath(); ctx.ellipse(r * 0.85, -r * 0.65, r * 0.16, r * 0.14, 0, 0, Math.PI * 2); ctx.fill();
-  // Knogar (small bumps)
+  // ========== 7. AXLAR — rounded shoulder-bumps + insignia ==========
+  for (const [sx, sy] of [[-r * 0.05, -r * 1.10], [-r * 0.05, r * 1.10]]) {
+    // Shoulder pad
+    ctx.beginPath();
+    ctx.arc(sx, sy, r * 0.40, 0, Math.PI * 2);
+    fillStroke(darken(vest, 0.6), W_BOLD);
+    // Highlight på topp (mot ljus)
+    ctx.beginPath();
+    ctx.arc(sx + lightLX * r * 0.10, sy + lightLY * r * 0.10, r * 0.20, 0, Math.PI * 2);
+    ctx.fillStyle = flash ? '#fff' : lighten(vest, 0.10);
+    ctx.globalAlpha = 0.45;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // Gold insignia patch
+    drawRoundedRect(ctx, sx - r * 0.12, sy - r * 0.20, r * 0.24, r * 0.10, 2);
+    fillStroke('#d4a020', W_THIN);
+    // Star på insignia
+    ctx.fillStyle = flash ? '#fff' : '#7a5a10';
+    ctx.beginPath();
+    const sx2 = sx, sy2 = sy - r * 0.15;
+    const pts = 5;
+    for (let i = 0; i < pts * 2; i++) {
+      const ang = -Math.PI / 2 + (i / (pts * 2)) * Math.PI * 2;
+      const rad = i % 2 === 0 ? r * 0.05 : r * 0.025;
+      const xp = sx2 + Math.cos(ang) * rad;
+      const yp = sy2 + Math.sin(ang) * rad;
+      if (i === 0) ctx.moveTo(xp, yp); else ctx.lineTo(xp, yp);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ========== 8. ARMAR + UNDERARMAR (skjorta-ärmar + bare arms) ==========
+  // Övre arm-ärm (skjorta upp till armbåge)
+  drawRoundedRect(ctx, r * 0.10, -r * 1.30, r * 0.34, r * 0.40, r * 0.10);
+  fillStroke(darken(vest, 0.75), W_MED);
+  drawRoundedRect(ctx, r * 0.10,  r * 0.90, r * 0.34, r * 0.40, r * 0.10);
+  fillStroke(darken(vest, 0.75), W_MED);
+  // Ärm-edge (rullad upp linje)
+  ctx.fillStyle = flash ? '#fff' : darken(vest, 0.4);
+  ctx.fillRect(r * 0.10, -r * 0.94, r * 0.34, r * 0.05);
+  ctx.fillRect(r * 0.10,  r * 0.89, r * 0.34, r * 0.05);
+  // Underarms (bare skin)
+  drawRoundedRect(ctx, r * 0.42, -r * 0.95, r * 0.50, r * 0.30, r * 0.14);
+  fillStroke(skin, W_MED);
+  drawRoundedRect(ctx, r * 0.42,  r * 0.65, r * 0.50, r * 0.30, r * 0.14);
+  fillStroke(skin, W_MED);
+  // Underarm-shadow (under-sida)
   ctx.fillStyle = flash ? '#fff' : skinDark;
-  ctx.beginPath(); ctx.arc(r * 0.95, -r * 0.62, r * 0.04, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(r * 0.92, -r * 0.55, r * 0.03, 0, Math.PI * 2); ctx.fill();
-  // Tum-greppe
-  ctx.fillStyle = flash ? '#fff' : skin;
-  ctx.beginPath(); ctx.arc(r * 0.78, -r * 0.55, r * 0.05, 0, Math.PI * 2); ctx.fill();
-  // Bak-hand (på vapen-stock)
-  ctx.fillStyle = flash ? '#fff' : skin;
-  ctx.beginPath(); ctx.ellipse(r * 0.70, -r * 0.20, r * 0.13, r * 0.11, 0, 0, Math.PI * 2); ctx.fill();
-  // Klocka på fram-arm wrist
-  ctx.fillStyle = flash ? '#fff' : '#0a0a08';
-  drawRoundedRect(ctx, r * 0.72, -r * 0.78, r * 0.12, r * 0.08, 2);
+  ctx.fillRect(r * 0.42, -r * 0.71, r * 0.50, r * 0.06);
+  ctx.fillRect(r * 0.42,  r * 0.89, r * 0.50, r * 0.06);
+  // Tattoo (svart streck-detalj på fram-arm)
+  ctx.strokeStyle = flash ? '#fff' : '#0a0408';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.55, -r * 0.85); ctx.lineTo(r * 0.85, -r * 0.85);
+  ctx.moveTo(r * 0.58, -r * 0.78); ctx.lineTo(r * 0.78, -r * 0.78);
+  ctx.stroke();
+
+  // ========== 9. KLOCKA (digital watch på fram-arm wrist) ==========
+  drawRoundedRect(ctx, r * 0.85, -r * 0.92, r * 0.15, r * 0.16, r * 0.03);
+  fillStroke('#0a0a08', W_THIN);
   ctx.fillStyle = flash ? '#fff' : '#5acaff';
-  ctx.fillRect(r * 0.74, -r * 0.76, r * 0.08, r * 0.04);
+  ctx.fillRect(r * 0.87, -r * 0.88, r * 0.11, r * 0.08);
+  ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+  ctx.fillRect(r * 0.89, -r * 0.85, r * 0.07, r * 0.03);
 
-  // ========== HALS ==========
-  ctx.fillStyle = flash ? '#fff' : skinShadow;
-  drawRoundedRect(ctx, r * 0.10, -r * 0.20, r * 0.35, r * 0.40, 4);
-  // Hals-highlight på fram
-  ctx.fillStyle = flash ? '#fff' : skin;
-  ctx.fillRect(r * 0.32, -r * 0.16, r * 0.06, r * 0.32);
-
-  // ========== HUVUD — MYCKET STÖRRE (chibi-heroic) + ANSIKTE ==========
-  // Bas-skull (rundare, mer mänsklig)
-  const headR = r * 0.85;
-  const headX = r * 0.55;
-  ctx.fillStyle = flash ? '#fff' : skin;
-  ctx.beginPath(); ctx.ellipse(headX, 0, headR, headR * 0.95, 0, 0, Math.PI * 2); ctx.fill();
-  // Skugga på huvudet (motsatt ljus)
+  // ========== 10. HÄNDER på vapnet ==========
+  // Fram-hand (på pistol-grepp/foregrip)
+  ctx.beginPath();
+  ctx.ellipse(r * 1.00, -r * 0.50, r * 0.18, r * 0.15, 0.1, 0, Math.PI * 2);
+  fillStroke(skin, W_MED);
+  // Knogar
   ctx.fillStyle = flash ? '#fff' : skinDark;
+  ctx.beginPath(); ctx.arc(r * 1.08, -r * 0.45, r * 0.04, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 1.05, -r * 0.38, r * 0.035, 0, Math.PI * 2); ctx.fill();
+  // Tum-greppe (sticker ut)
+  ctx.beginPath(); ctx.arc(r * 0.90, -r * 0.38, r * 0.06, 0, Math.PI * 2);
+  fillStroke(skin, W_THIN);
+  // Bak-hand (på vapen-stock)
   ctx.beginPath();
-  ctx.ellipse(headX + lightLX * r * 0.25, lightLY * r * 0.25, headR * 0.65, headR * 0.65, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Crown highlight (mot ljuset)
-  ctx.globalAlpha = 0.50;
-  ctx.fillStyle = flash ? '#fff' : skinHighlight;
+  ctx.ellipse(r * 0.85, r * 0.35, r * 0.16, r * 0.13, -0.1, 0, Math.PI * 2);
+  fillStroke(skin, W_MED);
+  ctx.fillStyle = flash ? '#fff' : skinDark;
+  ctx.beginPath(); ctx.arc(r * 0.92, r * 0.40, r * 0.035, 0, Math.PI * 2); ctx.fill();
+
+  // ========== 11. HALS ==========
+  drawRoundedRect(ctx, r * 0.18, -r * 0.28, r * 0.45, r * 0.56, r * 0.10);
+  fillStroke(skinShadow, W_MED);
+  // Hals-highlight
+  ctx.fillStyle = flash ? '#fff' : skin;
+  ctx.fillRect(r * 0.45, -r * 0.22, r * 0.10, r * 0.44);
+
+  // ========== 12. HUVUD — dominant feature, äggform ==========
+  const headR = r * 0.95;
+  const headX = r * 0.75;
+  // Bas-skull (lite äggformad, smalare bak)
   ctx.beginPath();
-  ctx.ellipse(headX - lightLX * r * 0.30, -lightLY * r * 0.25, headR * 0.40, headR * 0.30, 0, 0, Math.PI * 2);
+  ctx.ellipse(headX, 0, headR, headR * 0.92, 0, 0, Math.PI * 2);
+  fillStroke(skin, W_BOLD);
+  // Skugga på bak-sida (motsatt ljuset)
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(headX + lightLX * headR * 0.30, lightLY * headR * 0.30, headR * 0.70, headR * 0.65, 0, 0, Math.PI * 2);
+  ctx.fillStyle = flash ? '#fff' : skinDark;
+  ctx.globalAlpha = 0.85;
   ctx.fill();
   ctx.globalAlpha = 1;
-  // Käke-skugga (under huvudet — antyder kropp)
-  ctx.fillStyle = flash ? '#fff' : skinShadow;
-  ctx.beginPath(); ctx.ellipse(headX - r * 0.20, 0, r * 0.50, r * 0.40, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = flash ? '#fff' : skin;
-  ctx.beginPath(); ctx.ellipse(headX, 0, headR * 0.95, headR * 0.88, 0, 0, Math.PI * 2); ctx.fill();
-  // Öron — utåtstickande
-  ctx.fillStyle = flash ? '#fff' : skin;
-  ctx.beginPath(); ctx.ellipse(headX - r * 0.05, -headR * 0.85, r * 0.10, r * 0.16, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(headX - r * 0.05,  headR * 0.85, r * 0.10, r * 0.16, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = flash ? '#fff' : skinDark;
-  ctx.beginPath(); ctx.ellipse(headX - r * 0.08, -headR * 0.85, r * 0.05, r * 0.08, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(headX - r * 0.08,  headR * 0.85, r * 0.05, r * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  // Crown highlight (mot ljuset)
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(headX - lightLX * headR * 0.35, -lightLY * headR * 0.30, headR * 0.45, headR * 0.30, 0, 0, Math.PI * 2);
+  ctx.fillStyle = flash ? '#fff' : skinHighlight;
+  ctx.globalAlpha = 0.45;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.restore();
 
-  // HÅR (under bandana om båda finns) — uppdaterad till nya huvud-position
+  // ========== 13. ÖRON (utåtstickande) ==========
+  for (const eySign of [-1, 1]) {
+    ctx.beginPath();
+    ctx.ellipse(headX - headR * 0.30, eySign * headR * 0.85, r * 0.14, r * 0.20, 0, 0, Math.PI * 2);
+    fillStroke(skin, W_THIN);
+    // Inner-ear shadow
+    ctx.fillStyle = flash ? '#fff' : skinDark;
+    ctx.beginPath();
+    ctx.ellipse(headX - headR * 0.32, eySign * headR * 0.85, r * 0.06, r * 0.10, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // ========== 14. HÅR (under bandana) ==========
   if (cos.hairStyle && cos.hairStyle !== 'bald') {
     drawHair(ctx, r * 1.4, cos.hairStyle, cos.hairColor || '#1a0a08', flash);
   }
-  // BANDANA — MYCKET tydligare wrap över hela huvudet med remsor
+
+  // ========== 15. BANDANA — Outlined wrap + tail ==========
   if (cos.bandana) {
-    // Bas-bandana över bakdelen av huvudet (sitter som en mössa)
-    ctx.fillStyle = flash ? '#fff' : cos.bandana;
+    // Bas-bandana (huv över top + bak-huvudet)
     ctx.beginPath();
-    ctx.ellipse(headX - r * 0.10, 0, headR * 1.05, headR * 0.80, 0, -Math.PI * 0.55, Math.PI * 0.55);
-    ctx.fill();
-    // Top-shadow på bandana (mot ljuset)
-    ctx.fillStyle = flash ? '#fff' : darken(cos.bandana, 0.7);
+    ctx.ellipse(headX - headR * 0.15, 0, headR * 1.10, headR * 0.85, 0, -Math.PI * 0.50, Math.PI * 0.50);
+    // Stäng path
+    ctx.lineTo(headX - headR * 1.05, -headR * 0.50);
+    ctx.quadraticCurveTo(headX - headR * 1.30, 0, headX - headR * 1.05, headR * 0.50);
+    ctx.closePath();
+    fillStroke(cos.bandana, W_BOLD);
+    // Top-skugga (mörkare på fram-edge)
+    ctx.save();
     ctx.beginPath();
-    ctx.ellipse(headX - r * 0.20, 0, headR * 0.85, headR * 0.65, 0, -Math.PI * 0.4, Math.PI * 0.4);
+    ctx.ellipse(headX - headR * 0.20, 0, headR * 0.95, headR * 0.70, 0, -Math.PI * 0.40, Math.PI * 0.40);
+    ctx.fillStyle = flash ? '#fff' : darken(cos.bandana, 0.70);
+    ctx.globalAlpha = 0.55;
     ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // Accent-stripe (kontrast på pannan)
+    drawRoundedRect(ctx, headX - headR * 0.20, -headR * 0.95, r * 0.18, headR * 1.90, r * 0.05);
+    fillStroke(cos.accent || lighten(cos.bandana, 0.30), W_THIN);
     // Bandana-knot på baksidan
-    ctx.fillStyle = flash ? '#fff' : cos.bandana;
-    ctx.beginPath(); ctx.arc(headX - headR * 0.95, 0, r * 0.15, 0, Math.PI * 2); ctx.fill();
-    // Knot-shadow
-    ctx.fillStyle = flash ? '#fff' : darken(cos.bandana, 0.6);
-    ctx.fillRect(headX - headR * 1.05, -r * 0.04, r * 0.10, r * 0.08);
-    // Bandana-svans bakåt med wave
-    const tailWave = Math.sin(now / 180) * r * 0.18;
-    ctx.fillStyle = flash ? '#fff' : cos.bandana;
     ctx.beginPath();
-    ctx.moveTo(headX - headR * 0.90, -r * 0.18);
-    ctx.lineTo(headX - r * 1.90, -r * 0.50 + tailWave);
-    ctx.lineTo(headX - r * 1.95,  r * 0.00 + tailWave);
-    ctx.lineTo(headX - r * 1.85,  r * 0.55 + tailWave);
-    ctx.lineTo(headX - headR * 0.90,  r * 0.18);
+    ctx.arc(headX - headR * 1.05, 0, r * 0.18, 0, Math.PI * 2);
+    fillStroke(cos.bandana, W_MED);
+    // Tail bakåt (waves dynamically)
+    const tailWave = Math.sin(now / 160) * r * 0.22;
+    ctx.beginPath();
+    ctx.moveTo(headX - headR * 1.00, -r * 0.18);
+    ctx.lineTo(headX - r * 2.20, -r * 0.55 + tailWave);
+    ctx.quadraticCurveTo(headX - r * 2.40, tailWave, headX - r * 2.25,  r * 0.60 + tailWave);
+    ctx.lineTo(headX - headR * 1.00,  r * 0.18);
+    ctx.closePath();
+    fillStroke(cos.bandana, W_MED);
+    // Tail-stripe accent
+    ctx.fillStyle = flash ? '#fff' : (cos.accent || lighten(cos.bandana, 0.25));
+    ctx.beginPath();
+    ctx.moveTo(headX - r * 1.10, -r * 0.05);
+    ctx.lineTo(headX - r * 2.10, -r * 0.10 + tailWave);
+    ctx.lineTo(headX - r * 2.10,  r * 0.15 + tailWave);
+    ctx.lineTo(headX - r * 1.10,  r * 0.10);
     ctx.closePath();
     ctx.fill();
-    // Accent-stripe (kontrastfärg) på pannan
-    ctx.fillStyle = flash ? '#fff' : (cos.accent || lighten(cos.bandana, 0.3));
-    ctx.fillRect(headX - r * 0.10, -headR * 0.95, r * 0.12, headR * 1.9);
   }
 
-  // HÅR-TÅNG som sticker fram under bandana (anteyder hår framifrån)
+  // ========== 16. HÅR-TÅNG som sticker fram (under bandana) ==========
   if (cos.hairStyle && cos.hairStyle !== 'bald') {
     ctx.fillStyle = flash ? '#fff' : (cos.hairColor || '#1a0a08');
-    // Tofs på framsidan
     ctx.beginPath();
-    ctx.ellipse(headX + headR * 0.55, -headR * 0.20, r * 0.10, r * 0.08, 0.3, 0, Math.PI * 2);
+    ctx.ellipse(headX + headR * 0.55, -headR * 0.25, r * 0.12, r * 0.10, 0.3, 0, Math.PI * 2);
     ctx.fill();
     ctx.beginPath();
-    ctx.ellipse(headX + headR * 0.55,  headR * 0.20, r * 0.10, r * 0.08, -0.3, 0, Math.PI * 2);
+    ctx.ellipse(headX + headR * 0.55,  headR * 0.25, r * 0.12, r * 0.10, -0.3, 0, Math.PI * 2);
     ctx.fill();
   }
 
-  // === ANSIKTE — synliga features (3/4 perspective så ansiktet ser framåt) ===
-  const faceX = headX + headR * 0.30; // ansiktet är längst fram i aim-riktning
-  // ÖGONBRYN (angled angry för action hero)
-  ctx.fillStyle = flash ? '#fff' : '#1a0a04';
-  ctx.save();
-  ctx.translate(faceX + r * 0.05, -r * 0.30);
-  ctx.rotate(-0.35);
-  drawRoundedRect(ctx, -r * 0.10, -r * 0.04, r * 0.20, r * 0.07, 2);
-  ctx.restore();
-  ctx.save();
-  ctx.translate(faceX + r * 0.05,  r * 0.30);
-  ctx.rotate(0.35);
-  drawRoundedRect(ctx, -r * 0.10, -r * 0.04, r * 0.20, r * 0.07, 2);
-  ctx.restore();
-  // ÖGON — vita med svart pupil + sclera-glint
-  // Eye-white
-  ctx.fillStyle = flash ? '#fff' : '#fafafa';
-  ctx.beginPath(); ctx.ellipse(faceX, -r * 0.20, r * 0.13, r * 0.10, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(faceX,  r * 0.20, r * 0.13, r * 0.10, 0, 0, Math.PI * 2); ctx.fill();
-  // Pupiller (svart med riktning mot aim)
-  ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
-  ctx.beginPath(); ctx.arc(faceX + r * 0.04, -r * 0.20, r * 0.06, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(faceX + r * 0.04,  r * 0.20, r * 0.06, 0, Math.PI * 2); ctx.fill();
-  // Iris-color (cool steely blue/grey för intensity)
-  ctx.fillStyle = flash ? '#fff' : '#3a5a7a';
-  ctx.beginPath(); ctx.arc(faceX + r * 0.04, -r * 0.20, r * 0.04, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(faceX + r * 0.04,  r * 0.20, r * 0.04, 0, Math.PI * 2); ctx.fill();
-  // Sclera-glint (vit specular dot för liv i ögat)
-  ctx.fillStyle = flash ? '#fff' : '#ffffff';
-  ctx.beginPath(); ctx.arc(faceX + r * 0.07, -r * 0.22, r * 0.02, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(faceX + r * 0.07,  r * 0.22, r * 0.02, 0, Math.PI * 2); ctx.fill();
-  // NÄSA — liten triangle pekande framåt
-  ctx.fillStyle = flash ? '#fff' : skinDark;
+  // ========== 17. ANSIKTE (FACE FEATURES) ==========
+  const faceX = headX + headR * 0.40;
+  // ÖGONBRYN — outlined, angled angry
+  for (const ebSign of [-1, 1]) {
+    ctx.save();
+    ctx.translate(faceX - r * 0.05, ebSign * r * 0.30);
+    ctx.rotate(ebSign * 0.35);
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.10, 0);
+    ctx.quadraticCurveTo(0, -r * 0.04, r * 0.14, -r * 0.02);
+    ctx.lineTo(r * 0.14, r * 0.04);
+    ctx.quadraticCurveTo(0, r * 0.02, -r * 0.10, r * 0.06);
+    ctx.closePath();
+    fillStroke('#0a0404', W_THIN);
+    ctx.restore();
+  }
+  // ÖGON — bold-outlined eyes
+  for (const eySign of [-1, 1]) {
+    // Sclera (vit)
+    ctx.beginPath();
+    ctx.ellipse(faceX - r * 0.05, eySign * r * 0.22, r * 0.18, r * 0.14, 0, 0, Math.PI * 2);
+    fillStroke('#fafafa', W_MED);
+    // Iris (steely-blue)
+    ctx.beginPath();
+    ctx.arc(faceX + r * 0.02, eySign * r * 0.22, r * 0.10, 0, Math.PI * 2);
+    fillStroke('#4a6a8a', W_THIN, '#0a0a0e');
+    // Pupil (svart)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.beginPath(); ctx.arc(faceX + r * 0.04, eySign * r * 0.22, r * 0.05, 0, Math.PI * 2); ctx.fill();
+    // Specular glint
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.beginPath(); ctx.arc(faceX + r * 0.06, eySign * r * 0.20, r * 0.025, 0, Math.PI * 2); ctx.fill();
+  }
+  // NÄSA — triangle-shape pekande framåt
   ctx.beginPath();
-  ctx.moveTo(faceX + r * 0.30, 0);
-  ctx.lineTo(faceX + r * 0.05, -r * 0.05);
-  ctx.lineTo(faceX + r * 0.05,  r * 0.05);
+  ctx.moveTo(faceX + r * 0.35, 0);
+  ctx.lineTo(faceX + r * 0.10, -r * 0.07);
+  ctx.lineTo(faceX + r * 0.10,  r * 0.07);
+  ctx.closePath();
+  fillStroke(skinDark, W_THIN);
+  // Näs-highlight på bron
+  ctx.fillStyle = flash ? '#fff' : skinHighlight;
+  ctx.fillRect(faceX + r * 0.20, -r * 0.02, r * 0.10, r * 0.025);
+  // Nostril-dots
+  ctx.fillStyle = flash ? '#fff' : '#3a1a0a';
+  ctx.beginPath(); ctx.arc(faceX + r * 0.16, -r * 0.04, r * 0.02, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(faceX + r * 0.16,  r * 0.04, r * 0.02, 0, Math.PI * 2); ctx.fill();
+
+  // MUN — outlined grin
+  ctx.beginPath();
+  ctx.moveTo(faceX - r * 0.02, -r * 0.05);
+  ctx.quadraticCurveTo(faceX + r * 0.05, r * 0.02, faceX + r * 0.15, -r * 0.03);
+  ctx.lineTo(faceX + r * 0.15, r * 0.03);
+  ctx.quadraticCurveTo(faceX + r * 0.05, r * 0.10, faceX - r * 0.02, r * 0.03);
+  ctx.closePath();
+  fillStroke('#3a1a0a', W_THIN);
+  // Tand-glint (subtle)
+  ctx.fillStyle = flash ? '#fff' : '#f0e0c0';
+  ctx.fillRect(faceX + r * 0.05, -r * 0.01, r * 0.04, r * 0.02);
+
+  // Mustasch (svart, distinkt)
+  ctx.fillStyle = flash ? '#fff' : '#0a0404';
+  // Vänster del
+  ctx.beginPath();
+  ctx.moveTo(faceX + r * 0.04, -r * 0.10);
+  ctx.quadraticCurveTo(faceX + r * 0.10, -r * 0.05, faceX + r * 0.14, -r * 0.12);
+  ctx.quadraticCurveTo(faceX + r * 0.05, -r * 0.04, faceX - r * 0.04, -r * 0.06);
   ctx.closePath();
   ctx.fill();
-  // Näs-highlight
-  ctx.fillStyle = flash ? '#fff' : skinHighlight;
-  ctx.fillRect(faceX + r * 0.18, -r * 0.02, r * 0.08, r * 0.02);
-  // MUN — subtle grin/serious line
-  ctx.fillStyle = flash ? '#fff' : '#3a1a0a';
+  // Höger del (spegelvänt)
   ctx.beginPath();
-  ctx.ellipse(faceX + r * 0.12, 0, r * 0.10, r * 0.025, 0, 0, Math.PI * 2);
+  ctx.moveTo(faceX + r * 0.04, r * 0.10);
+  ctx.quadraticCurveTo(faceX + r * 0.10, r * 0.05, faceX + r * 0.14, r * 0.12);
+  ctx.quadraticCurveTo(faceX + r * 0.05, r * 0.04, faceX - r * 0.04, r * 0.06);
+  ctx.closePath();
   ctx.fill();
-  // Stubbel/skugga under näsa (5 o'clock shadow)
-  ctx.globalAlpha = 0.25;
-  ctx.fillStyle = flash ? '#fff' : '#1a0a04';
+  // Goatee (kort skägg under hakan)
   ctx.beginPath();
-  ctx.ellipse(faceX + r * 0.10, 0, r * 0.18, r * 0.10, 0, 0, Math.PI * 2);
+  ctx.ellipse(faceX - r * 0.08, 0, r * 0.14, r * 0.18, 0, 0, Math.PI * 2);
+  fillStroke('#0a0404', W_THIN);
+
+  // Stubble shadow (kind/jaw region)
+  ctx.fillStyle = flash ? '#fff' : '#1a0a04';
+  ctx.globalAlpha = 0.20;
+  ctx.beginPath();
+  ctx.ellipse(faceX + r * 0.05, 0, r * 0.30, r * 0.18, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
 
-  // GLASÖGON (ovanpå ögon-nivå)
+  // ========== 18. GLASÖGON (overlay om vald) ==========
   if (cos.glasses && cos.glasses.style && cos.glasses.style !== 'none') {
     drawGlassesInGame(ctx, headX, 0, headR * 0.85, cos.glasses.style, flash ? '#fff' : cos.glasses.color);
   }
 
-  // HATT
+  // ========== 19. HATT (overlay om vald) ==========
   if (cos.hat && cos.hat.style && cos.hat.style !== 'none') {
     drawHatInGame(ctx, headX, 0, headR * 0.85, cos.hat.style, flash ? '#fff' : cos.hat.color);
   }
-
-  // SKÄGG — distinkt mustach + stubble
-  ctx.fillStyle = flash ? '#fff' : '#1a0a04';
-  // Mustasch (med mid-gap)
-  ctx.beginPath(); ctx.ellipse(faceX + r * 0.05, -r * 0.05, r * 0.10, r * 0.05, -0.2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.ellipse(faceX + r * 0.05,  r * 0.05, r * 0.10, r * 0.05, 0.2, 0, Math.PI * 2); ctx.fill();
-  // Goatee
-  ctx.beginPath(); ctx.ellipse(faceX - r * 0.05, 0, r * 0.10, r * 0.16, 0, 0, Math.PI * 2); ctx.fill();
 
   // vapen
   drawPlayerWeapon(p, w, flash, now);
