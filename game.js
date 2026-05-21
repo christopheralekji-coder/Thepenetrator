@@ -37717,84 +37717,87 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.fillRect(0, -16, 0.5, 0.5);
   ctx.fillRect(3, -16, 0.5, 0.5);
   ctx.fillRect(5, -16, 0.5, 0.5);
-  // v1.476: ARG/MILITANT ansikte — angled eyebrows (anger), narrow eyes (stern),
-  // tight mouth (focused frown), scar option (later).
-  // === EYEBROWS — STERN/ANGRY (tilted inward toward nose) ===
+  // v1.477: BIGGER face features — eyes, brows, nose, mouth tydligare visible.
+  // Behåller arg/militant uttryck (angled brows, frown).
+  // === EYEBROWS — thicker + angled (anger) ===
   ctx.fillStyle = stubbleColor;
-  // Near eyebrow (east) — angled DOWN toward nose (anger sign)
+  // Near eyebrow (east) — thicker (height 0.6 var 0.4)
   ctx.beginPath();
-  ctx.moveTo(2.8, -13.6);
-  ctx.lineTo(6, -14.3);
-  ctx.lineTo(6, -13.9);
-  ctx.lineTo(2.8, -13.2);
+  ctx.moveTo(2.5, -13.8);
+  ctx.lineTo(6.2, -14.6);
+  ctx.lineTo(6.2, -13.9);
+  ctx.lineTo(2.5, -13.1);
   ctx.closePath();
   ctx.fill();
-  // Far eyebrow (west) — also angled toward nose
+  // Far eyebrow (west)
   ctx.beginPath();
-  ctx.moveTo(-0.5, -14);
-  ctx.lineTo(1.7, -13.4);
-  ctx.lineTo(1.7, -13.1);
-  ctx.lineTo(-0.5, -13.7);
+  ctx.moveTo(-0.7, -14.2);
+  ctx.lineTo(2, -13.5);
+  ctx.lineTo(2, -12.8);
+  ctx.lineTo(-0.7, -13.5);
   ctx.closePath();
   ctx.fill();
-  // === EYES — NARROW (squinted, focused/stern look) ===
-  // Far eye (west) — squinted
+  // === EYES — BIGGER (1.2x0.7 var 0.85x0.45) ===
+  // Far eye (west)
   ctx.fillStyle = '#f4f0e8';
   ctx.beginPath();
-  ctx.ellipse(0.6, -13, 0.85, 0.45, 0, 0, Math.PI * 2); // shorter height = squinted
+  ctx.ellipse(0.6, -12.7, 1.2, 0.7, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 0.6;
-  ctx.stroke();
-  ctx.fillStyle = '#1a2a40';
-  ctx.beginPath();
-  ctx.arc(0.7, -13, 0.35, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(0.85, -13.15, 0.2, 0.2);
-  // Near eye (east) — squinted, slightly narrower
-  ctx.fillStyle = '#f4f0e8';
-  ctx.beginPath();
-  ctx.ellipse(4.2, -13, 0.85, 0.45, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 0.6;
-  ctx.stroke();
-  ctx.fillStyle = '#1a2a40';
-  ctx.beginPath();
-  ctx.arc(4.3, -13, 0.35, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(4.45, -13.15, 0.2, 0.2);
-  // === NOSE (clean profile) ===
-  ctx.strokeStyle = skin5;
-  ctx.lineWidth = 0.6;
-  ctx.beginPath();
-  ctx.moveTo(2.2, -12);
-  ctx.lineTo(2.5, -10);
-  ctx.stroke();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 0.7;
-  ctx.beginPath();
-  ctx.moveTo(2.5, -10);
-  ctx.quadraticCurveTo(4, -9.5, 3.5, -9.3);
   ctx.stroke();
-  ctx.fillStyle = skin6;
-  ctx.fillRect(3, -9.5, 0.5, 0.4);
-  // === MOUTH — TIGHT FROWN (militant focused look) ===
-  ctx.strokeStyle = lipColor;
+  // Iris+pupil (bigger)
+  ctx.fillStyle = '#1a2a40';
+  ctx.beginPath();
+  ctx.arc(0.8, -12.7, 0.55, 0, Math.PI * 2);
+  ctx.fill();
+  // Eye glint
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(1, -13, 0.35, 0.35);
+  // Near eye (east) — same size
+  ctx.fillStyle = '#f4f0e8';
+  ctx.beginPath();
+  ctx.ellipse(4.3, -12.7, 1.2, 0.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.7;
+  ctx.stroke();
+  ctx.fillStyle = '#1a2a40';
+  ctx.beginPath();
+  ctx.arc(4.4, -12.7, 0.55, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(4.55, -13, 0.35, 0.35);
+  // === NOSE — bigger, more visible ===
+  // Nose bridge shadow line
+  ctx.strokeStyle = skin5;
   ctx.lineWidth = 0.8;
   ctx.beginPath();
-  ctx.moveTo(2, -8.3);
-  ctx.quadraticCurveTo(3.2, -8.5, 4.5, -8.3); // slightly downward curve = serious
+  ctx.moveTo(2.5, -11.5);
+  ctx.lineTo(3, -9.5);
   ctx.stroke();
-  // Subtle lip shading
-  ctx.strokeStyle = darken(lipColor, 0.30);
-  ctx.lineWidth = 0.5;
+  // Nose tip outline curve (bigger)
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.8;
   ctx.beginPath();
-  ctx.moveTo(2, -8);
-  ctx.quadraticCurveTo(3.2, -8.2, 4.5, -8);
+  ctx.moveTo(2.8, -10);
+  ctx.quadraticCurveTo(4.5, -9.5, 4, -9);
   ctx.stroke();
+  // Bigger nostril
+  ctx.fillStyle = skin6;
+  ctx.fillRect(3, -9.3, 0.8, 0.5);
+  // === MOUTH — bigger, frown shape ===
+  ctx.strokeStyle = lipColor;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(1.7, -8.2);
+  ctx.quadraticCurveTo(3.2, -8.4, 4.8, -8.2); // slight downward curve = serious
+  ctx.stroke();
+  // Lower lip subtle (bigger)
+  ctx.fillStyle = lipHi;
+  ctx.beginPath();
+  ctx.ellipse(3.3, -7.7, 1.3, 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
   // === EAR (small, west side, partially visible in 3/4) ===
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
@@ -38008,7 +38011,7 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.quadraticCurveTo(bkX - 3, bkTop + 5, bkX - 2.7, bkTop);
   ctx.closePath();
   ctx.stroke();
-  // Back foot — tunnare outline så foten inte ser svart ut
+  // Back foot — barefoot med tå-bumps
   ctx.fillStyle = skin;
   ctx.beginPath();
   ctx.moveTo(bkX - 1.8, bkTop + 13);
@@ -38017,6 +38020,16 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(bkX + 3, bkTop + 15.5);
   ctx.lineTo(bkX - 1.8, bkTop + 15.5);
   ctx.closePath();
+  ctx.fill();
+  // Back foot toes (smaller than front)
+  ctx.beginPath();
+  ctx.arc(bkX + 3.3, bkTop + 15.3, 0.45, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(bkX + 3.6, bkTop + 15.6, 0.35, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(bkX + 3.4, bkTop + 15.9, 0.3, 0, Math.PI * 2);
   ctx.fill();
   ctx.lineWidth = 0.8;
   ctx.stroke();
@@ -38083,34 +38096,56 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.quadraticCurveTo(frX - 3, frTop + 5, frX - 2.7, frTop);
   ctx.closePath();
   ctx.stroke();
-  // Front foot — heel + toe east
+  // v1.477: BARFOTA med synliga TÅR — ingen skuggning, bara base + tå-detaljer
+  // Foot base (heel + arch + main foot east)
   ctx.fillStyle = skin;
   ctx.beginPath();
   ctx.moveTo(frX - 1.8, frTop + 13);
   ctx.quadraticCurveTo(frX - 2, frTop + 14.5, frX + 1, frTop + 15);
-  ctx.quadraticCurveTo(frX + 3.5, frTop + 14.7, frX + 4, frTop + 15.5);  // toe east
-  ctx.lineTo(frX + 4, frTop + 16);
+  ctx.quadraticCurveTo(frX + 3, frTop + 14.7, frX + 3.5, frTop + 15);
+  ctx.lineTo(frX + 3.5, frTop + 15.8);
   ctx.lineTo(frX - 1.5, frTop + 16);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = skin1;
+  // 5 SYNLIGA TÅR (small bumps east of foot)
+  // Big toe (largest, east-most)
   ctx.beginPath();
-  ctx.moveTo(frX - 1, frTop + 13.5);
-  ctx.lineTo(frX + 2.5, frTop + 14.5);
-  ctx.lineTo(frX + 2.5, frTop + 15);
-  ctx.lineTo(frX - 1, frTop + 14.5);
-  ctx.closePath();
+  ctx.arc(frX + 4, frTop + 15.3, 0.55, 0, Math.PI * 2);
   ctx.fill();
-  // v1.476: Thin foot outline (var 1.5px = för dominerande, fötter såg svarta)
+  // Toe 2
+  ctx.beginPath();
+  ctx.arc(frX + 4.3, frTop + 15.7, 0.4, 0, Math.PI * 2);
+  ctx.fill();
+  // Toe 3
+  ctx.beginPath();
+  ctx.arc(frX + 4.1, frTop + 16, 0.35, 0, Math.PI * 2);
+  ctx.fill();
+  // Toe 4
+  ctx.beginPath();
+  ctx.arc(frX + 3.8, frTop + 16.2, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // Toe 5 (smallest, east-bottom)
+  ctx.beginPath();
+  ctx.arc(frX + 3.5, frTop + 16.3, 0.25, 0, Math.PI * 2);
+  ctx.fill();
+  // Foot outline (thin)
   ctx.strokeStyle = outline;
   ctx.lineWidth = 0.8;
   ctx.beginPath();
   ctx.moveTo(frX - 1.8, frTop + 13);
   ctx.quadraticCurveTo(frX - 2, frTop + 14.5, frX + 1, frTop + 15);
-  ctx.quadraticCurveTo(frX + 3.5, frTop + 14.7, frX + 4, frTop + 15.5);
-  ctx.lineTo(frX + 4, frTop + 16);
+  ctx.quadraticCurveTo(frX + 3, frTop + 14.7, frX + 3.5, frTop + 15);
+  ctx.lineTo(frX + 3.5, frTop + 15.8);
   ctx.lineTo(frX - 1.5, frTop + 16);
   ctx.closePath();
+  ctx.stroke();
+  // Toe outlines (subtle)
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.arc(frX + 4, frTop + 15.3, 0.55, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(frX + 4.3, frTop + 15.7, 0.4, 0, Math.PI * 2);
   ctx.stroke();
 }
 
@@ -38194,32 +38229,18 @@ function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffs
   const armDeep = flash ? '#fff' : darken(skinBase, 0.55);
   const armLight = flash ? '#fff' : lighten(skinBase, 0.10);
   const outline = flash ? '#fff' : '#0a0a0e';
-  // v1.474: hangX ±9 → ±8 (närmare body) + DELTOID muscle ansluter till axel
-  // Throw animation offset shifts hand position vid granat-kast.
+  // v1.477: Hanging arm SKUGGNING BORTTAGEN — bara base + outline + elbow line.
   const hangX = bodyFacingLeft ? 8 : -8;
   const shY = -3;
-  // === DELTOID (shoulder muscle bridge — fyller gap mellan body shoulder & arm) ===
+  // DELTOID (base + outline, no shading)
   ctx.fillStyle = armBase;
   ctx.beginPath();
   ctx.ellipse(hangX + 0.3, shY - 0.5, 3, 2.2, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Deltoid highlight (NE side, light catches)
-  ctx.fillStyle = armLight;
-  ctx.beginPath();
-  ctx.ellipse(hangX + 1, shY - 1.2, 1.5, 0.8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Deltoid shadow (SW, underside)
-  ctx.fillStyle = armShadow;
-  ctx.beginPath();
-  ctx.ellipse(hangX - 0.8, shY + 0.5, 1.2, 1, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Deltoid outline
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.ellipse(hangX + 0.3, shY - 0.5, 3, 2.2, 0, 0, Math.PI * 2);
   ctx.stroke();
-  // === UPPER ARM (taper from deltoid to wrist) ===
+  // UPPER ARM (base + outline only)
   ctx.fillStyle = armBase;
   ctx.beginPath();
   ctx.moveTo(hangX - 1.7, shY);
@@ -38231,31 +38252,8 @@ function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffs
   ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
   ctx.closePath();
   ctx.fill();
-  // West edge shadow (away from NE light)
-  ctx.fillStyle = armShadow;
-  ctx.beginPath();
-  ctx.moveTo(hangX - 1.7, shY);
-  ctx.lineTo(hangX - 0.5, shY);
-  ctx.quadraticCurveTo(hangX - 0.8, shY + 5, hangX - 0.5, shY + 9);
-  ctx.lineTo(hangX - 0.3, shY + 13);
-  ctx.lineTo(hangX - 1.2, shY + 13);
-  ctx.lineTo(hangX - 1.5, shY + 9);
-  ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
-  ctx.closePath();
-  ctx.fill();
-  // Deep shadow på very west edge
-  ctx.fillStyle = armDeep;
-  ctx.fillRect(hangX - 1.6, shY + 1, 0.4, 11);
-  // East edge highlight (light catches arm)
-  ctx.fillStyle = armLight;
-  ctx.fillRect(hangX + 0.8, shY + 1, 0.7, 11);
-  // Bicep peak highlight (mid-arm where bicep bulges)
-  ctx.fillStyle = armLight;
-  ctx.beginPath();
-  ctx.ellipse(hangX + 0.5, shY + 5, 0.6, 1.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Elbow indication (subtle line)
-  ctx.strokeStyle = armDeep;
+  // Elbow line (detail, not shading)
+  ctx.strokeStyle = outline;
   ctx.lineWidth = 0.5;
   ctx.beginPath();
   ctx.moveTo(hangX - 1.4, shY + 7);
@@ -38274,24 +38272,13 @@ function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffs
   ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
   ctx.closePath();
   ctx.stroke();
-  // Hand at bottom (with throw offset för granat-animation)
+  // Hand (base + outline only)
   const handHX = hangX + throwOffsetX;
   const handHY = shY + 14.5 + throwOffsetY;
   ctx.fillStyle = armBase;
   ctx.beginPath();
   ctx.ellipse(handHX, handHY, 2, 1.8, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Hand highlight
-  ctx.fillStyle = armLight;
-  ctx.beginPath();
-  ctx.ellipse(handHX + 0.6, handHY - 0.5, 0.8, 0.6, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Hand bottom shadow
-  ctx.fillStyle = armShadow;
-  ctx.beginPath();
-  ctx.ellipse(handHX - 0.4, handHY + 0.7, 1.2, 0.6, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Hand outline
   ctx.strokeStyle = outline;
   ctx.beginPath();
   ctx.ellipse(handHX, handHY, 2, 1.8, 0, 0, Math.PI * 2);
