@@ -11461,12 +11461,21 @@ function drawCoopPartner() {
       const wc = Math.floor(phase / Math.PI) % 2;
       partnerFrame = wc === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
     }
-    // v1.457: WHOLE sprite rotates for partner
+    // v1.458: Partner body följer RÖRELSE-riktning (calculated från position-delta)
+    const _pMoveDx = p.x - p._prevX;
+    const _pMoveDy = p.y - p._prevY;
+    if (partnerMoving) {
+      p._bodyAngle = Math.atan2(_pMoveDy, _pMoveDx);
+    }
+    if (p._bodyAngle === undefined) p._bodyAngle = partnerAimAngle;
+    const _pBodyAngle = p._bodyAngle;
+    const _pBodyDX = Math.cos(_pBodyAngle);
+    const _pBodyFacingLeft = _pBodyDX < -0.05;
     ctx.imageSmoothingEnabled = false;
     const pNakedCanvas = _getCachedNakedSprite(partnerCos, color, false); // 96x96
     ctx.save();
-    if (pFacingLeft) ctx.scale(-1, 1);
-    const pDisplayAngle = pFacingLeft ? (Math.PI - partnerAimAngle) : partnerAimAngle;
+    if (_pBodyFacingLeft) ctx.scale(-1, 1);
+    const pDisplayAngle = _pBodyFacingLeft ? (Math.PI - _pBodyAngle) : _pBodyAngle;
     ctx.rotate(pDisplayAngle);
     ctx.drawImage(pNakedCanvas, -48, -48, 96, 96);
     ctx.restore();
@@ -37661,20 +37670,40 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.457: WHOLE SPRITE ROTATES (no split). Compact top-down design så
-  // 360° rotation av hela kroppen ser naturligt ut, inte sidles.
-  // Mirror för west-aim håller karaktären orienterad i rätt riktning.
+  // v1.458: BODY följer RÖRELSE-RIKTNING (movement), WEAPON följer AIM separat.
+  //
+  // User explicit feedback: "kroppen ska vara riktad åt hållet man går åt
+  // och ändra riktning när man ändrar riktning. När vapnet rör sig ska
+  // armen röra sig". → body rotation tied to MOVEMENT, weapon to AIM.
+  //
+  // Beräkna rörelse-riktning från input. Spara senaste riktning så kroppen
+  // stannar i den vid stillastående istället för att snäppa tillbaka.
+  let _moveX = (input.moveX || 0);
+  let _moveY = (input.moveY || 0);
+  if (input.keys.has('d')) _moveX += 1;
+  if (input.keys.has('a')) _moveX -= 1;
+  if (input.keys.has('s')) _moveY += 1;
+  if (input.keys.has('w')) _moveY -= 1;
+  const _isMoving = Math.abs(_moveX) + Math.abs(_moveY) > 0.1;
+  if (_isMoving) {
+    p.bodyAngle = Math.atan2(_moveY, _moveX);
+  }
+  // Default body angle = aim direction vid spawn (innan första rörelse)
+  if (p.bodyAngle === undefined) p.bodyAngle = p.aimAngle;
+  const _bodyAngle = p.bodyAngle;
+  const _bodyDX = Math.cos(_bodyAngle);
+  const _bodyFacingLeft = _bodyDX < -0.05;
+  // _facingLeft för vapnet (baseras på AIM, inte body)
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
   ctx.imageSmoothingEnabled = false;
   const nakedCanvas = _getCachedNakedSprite(cos, null, flash); // 96x96 (scale 2)
+  // Body rotates med RÖRELSE-riktning (inte aim)
   ctx.save();
-  if (_facingLeft) ctx.scale(-1, 1);
-  const _displayAngle = _facingLeft ? (Math.PI - p.aimAngle) : p.aimAngle;
-  ctx.rotate(_displayAngle);
-  // Draw whole 96x96 sprite centered (-48, -48). Character content är
-  // centrerad i sprite vid (24, 24) original → (48, 48) i scale-2 canvas.
+  if (_bodyFacingLeft) ctx.scale(-1, 1);
+  const _bodyDisplayAngle = _bodyFacingLeft ? (Math.PI - _bodyAngle) : _bodyAngle;
+  ctx.rotate(_bodyDisplayAngle);
   ctx.drawImage(nakedCanvas, -48, -48, 96, 96);
   ctx.restore();
   // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
