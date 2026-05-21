@@ -4811,6 +4811,34 @@ function stopSim(sim) {
       ws._eventSkips = 0;
     }
   }
+  // v1.432: Rensa SIM-LEVEL state också. Tidigare läckte dessa mellan matcher
+  // om samma sim-objekt reanvändes utan createSim. Defensive — reset till known-good.
+  sim.castledefenseActive = false;
+  sim.castledefenseEnded = false;
+  sim.castledefenseWalls = [];
+  sim.castledefenseBuildings = [];
+  sim.castledefenseCore = null;
+  sim.castledefenseGold = {};
+  sim.castledefenseScores = {};
+  sim.castledefenseWeaponTier = {};
+  sim.castledefensePerks = {};
+  sim.castledefenseDownedPids = [];
+  sim.castledefenseRevivedCount = 0;
+  sim.castledefenseWave = 0;
+  sim.castledefenseWaveState = 'idle';
+  sim.castledefenseWaveBetweenEndAt = 0;
+  sim._cdWaveSpawnsRemaining = 0;
+  sim._cdWaveSpawnTimer = 0;
+  sim._cdActiveTheme = null;
+  sim._cdFlowField = null;
+  sim._cdFlowDirty = true;
+  sim._cdLastWaveProcessed = -1;
+  sim._cdHudBroadcastAt = 0;
+  sim._cdCoreHealedThisTick = false;
+  sim._cdCoreLastHealBroadcast = 0;
+  sim._lastTurretDmgEvtAt = 0;
+  // Drain event-queue så stale events från slut-fas inte broadcastas vid restart
+  if (sim.eventQueue) sim.eventQueue.length = 0;
 }
 
 function applyPlayerInput(sim, peerId, input) {

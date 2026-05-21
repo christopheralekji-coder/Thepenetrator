@@ -14527,8 +14527,8 @@ window.addEventListener('keydown', e => {
       closeCdBuildMenu();
       return;
     }
-    // Castle Defense build-mode → Escape avbryter pågående placement + repeat-mode
-    if (state.castledefenseActive && (state.cdBuildMode || state.cdBuildRepeat)) {
+    // Castle Defense build-mode → Escape avbryter pågående placement + repeat-mode + pin-mode
+    if (state.castledefenseActive && (state.cdBuildMode || state.cdBuildRepeat || state.cdPinSelectMode)) {
       state.cdBuildMode = null;
       state.cdBuildHoverX = null;
       state.cdBuildHoverY = null;
@@ -14537,6 +14537,10 @@ window.addEventListener('keydown', e => {
         state.cdBuildRepeat = false;
         if (typeof updateCdBuildTriggerVisuals === 'function') updateCdBuildTriggerVisuals();
         if (typeof showToast === 'function') showToast('🔁 Repeat-mode AV');
+      }
+      // v1.432: Esc clearar även pin-select-mode (annars dröjer det kvar efter Esc)
+      if (state.cdPinSelectMode && typeof toggleCdPinSelectMode === 'function') {
+        toggleCdPinSelectMode();
       }
       return;
     }
@@ -14594,20 +14598,22 @@ function checkDebugCornerTap(mx, my) {
   return false;
 }
 
-// v1.424: Dubbel-tap bottom-left 60×60-zon för att toggla gold-cheat-knappen.
-// Separat från top-left debug-zone så de inte konflikterar.
+// v1.424/v1.432: 4-tap top-CENTER 80×40-zon för gold-cheat. Tidigare bottom-left
+// kolliderade med joystick (vanlig sprint-tap registrerade som cheat-tap).
+// Top-center är "ingenmansland" + 4 taps istället för 2 = inte triggas av misstag.
 let _cdGoldTapCount = 0;
 let _cdGoldTapLastT = 0;
 function checkCdGoldCornerTap(mx, my) {
   if (state.mode !== 'playing') return false;
   if (!state.castledefenseActive) return false;
-  // Bottom-left 70×70px zon (något generösare än top-left för touch)
-  if (mx > 70 || my < viewH - 70) return false;
+  // Top-center 80×40 zon (mitten av top-edge — ingenmansland)
+  if (my > 40) return false;
+  if (mx < viewW / 2 - 40 || mx > viewW / 2 + 40) return false;
   const now = performance.now();
-  if (now - _cdGoldTapLastT > 500) _cdGoldTapCount = 0;
+  if (now - _cdGoldTapLastT > 400) _cdGoldTapCount = 0;
   _cdGoldTapCount++;
   _cdGoldTapLastT = now;
-  if (_cdGoldTapCount >= 2) {
+  if (_cdGoldTapCount >= 4) {
     _cdGoldTapCount = 0;
     state._cdGoldCheatVisible = !state._cdGoldCheatVisible;
     const btn = document.getElementById('cd-gold-cheat-btn');
@@ -15149,6 +15155,13 @@ function grenadeDown(e) {
   e.stopPropagation();
   if (state.mode !== 'playing' || !state.player || state.player.spectating) return;
   if (typeof isInputLocked === 'function' && isInputLocked()) return;
+  // v1.432: blockera grenade om i cdBuildMode (annars dubbel-input: granat + bygg)
+  if (state.cdBuildMode) {
+    if (typeof showToast === 'function') showToast('🔨 Stäng bygg-mode först (Esc)');
+    return;
+  }
+  // v1.432: blockera om downed/dead (knife only)
+  if (state.player.cdDowned || state.player.cdDownDead) return;
   if (getGrenadeCount() <= 0) {
     if (typeof showToast === 'function') showToast('💣 INGA GRANATER KVAR');
     return;
@@ -18936,6 +18949,13 @@ const Coop = {
         state.player.speedMul = 0.35;
         save.equipped = 'knife';
         save.weaponId = 'knife';
+        // v1.432: rensa build/pin-modes så player inte spammar bygge medan downed
+        state.cdBuildMode = null;
+        state.cdBuildHoverX = null;
+        state.cdBuildHoverY = null;
+        state.cdBuildRepeat = false;
+        state.cdPinSelectMode = false;
+        if (typeof updateCdBuildTriggerVisuals === 'function') updateCdBuildTriggerVisuals();
         if (typeof showToast === 'function') showToast('💀 DOWN! Lagkamrat måste stå nära dig i 4s');
         if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
         if (typeof triggerShake === 'function') triggerShake(8, 0.3);
@@ -28502,6 +28522,7 @@ function clearCastleDefenseState() {
   state.castledefenseBuildables = null;
   state.castledefenseEnemySpawns = null;
   state.castledefensePlayerSpawns = null;
+  state.castledefenseDecorations = null;
   state.castledefenseWave = 0;
   state.castledefenseWaveState = 'idle';
   state.castledefenseWaveBetweenEndAt = 0;
@@ -28515,10 +28536,63 @@ function clearCastleDefenseState() {
   state.cdPinSelectMode = false;
   state._cdGoldCheatVisible = false;
   state.cdBuildRepeat = false;
+  // v1.432: COMPREHENSIVE CD STATE CLEANUP — tidigare läckte 15+ fält mellan
+  // matcher → orsakade "stuck"/frozen/UI-glitches efter restart.
+  state.castledefensePerks = null;
+  state.castledefensePings = null;
+  state.castledefenseRevivedCount = 0;
+  state.castledefenseScores = null;
+  state.castledefenseDownedPids = null;
+  state.castledefenseNextWave = 0;
+  state.castledefenseNextPool = null;
+  state.castledefenseNextCount = 0;
+  state.castledefenseNextIsBoss = false;
+  state.castledefenseNextBossKey = null;
+  state.castledefenseNextTheme = null;
+  state.castledefenseNextThemeLabel = null;
+  state.castledefenseActiveTheme = null;
+  state.castledefenseBossEveryWave = 0;
+  state.castledefenseBuildGridSize = 0;
+  state.castledefensePlazaRadius = 0;
+  state._cdPinDrag = null;
+  state._cdMinimapXform = null;
+  state._cdHealParticles = null;
+  state._cdTurretFlash = null;
+  state._cdLastTurretAudio = 0;
+  state._cdEnemyCache = null;
+  // CRITICAL: rensa state.player CD-flags (annars carryover till nästa match)
+  if (state.player) {
+    state.player.cdDowned = false;
+    state.player.cdDownDead = false;
+    state.player.cdDownStartedAt = 0;
+    state.player.cdReviveProgress = 0;
+    state.player._cdPrevWeapon = null;
+    state.player.spectating = false;
+  }
+  // Rensa partner CD-flags
+  if (typeof Coop !== 'undefined' && Coop.players) {
+    for (const [, partner] of Coop.players) {
+      if (!partner) continue;
+      partner.cdDowned = false;
+      partner.cdDownDead = false;
+      partner.cdReviveProgress = 0;
+    }
+  }
+  // Reset input-flags så hold-fire från döds-ögonblicket inte triggar instant-fire i nästa match
+  if (typeof input !== 'undefined') {
+    if (input.mouse) input.mouse.down = false;
+    input.firing = false;
+    input.fireJoyActive = false;
+  }
+  state.grenadeAim = null;
+  // Reset gold-cheat dubbel-tap räknare (module-level vars)
+  if (typeof _cdGoldTapCount !== 'undefined') _cdGoldTapCount = 0;
+  if (typeof _cdGoldTapLastT !== 'undefined') _cdGoldTapLastT = 0;
   if (typeof Coop !== 'undefined') Coop.castledefenseActive = false;
   if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
   if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
   if (typeof closeCdBuildMenu === 'function') closeCdBuildMenu();
+  if (typeof closeCdPerkSelector === 'function') closeCdPerkSelector();
   // Remove ev. defeat-overlay
   const defeatOverlay = document.getElementById('cd-defeat-overlay');
   if (defeatOverlay && defeatOverlay.parentNode) defeatOverlay.parentNode.removeChild(defeatOverlay);
@@ -29839,10 +29913,16 @@ function showCastleDefenseDefeatScreen(wave, survivedSec, reason) {
   };
   document.getElementById('cd-defeat-replay-btn').onclick = () => {
     overlay.remove();
+    // v1.432: skicka sim_stop FÖRE clear så server avslutar gamla sim:n. Annars
+    // läcker server-side sim.castledefense* state till nästa match.
+    if (Coop && Coop.ws && Coop.ws.readyState === 1) {
+      try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (_) {}
+    }
     if (typeof clearCastleDefenseState === 'function') clearCastleDefenseState();
     // Trigga restart: actuallyStartGame med samma config (host-only — annars går till meny)
     if (Coop.isHost && typeof actuallyStartGame === 'function') {
-      setTimeout(() => actuallyStartGame(), 200);
+      // Längre delay (400ms vs 200) ger server tid att processa sim_stop
+      setTimeout(() => actuallyStartGame(), 400);
     } else {
       const btnMenu = document.getElementById('btn-menu');
       if (btnMenu) btnMenu.click();
