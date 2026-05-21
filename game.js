@@ -22232,8 +22232,9 @@ let _wardrobeAutoSpin = false;
 let _wardrobeDragging = false;
 let _wardrobeDragStartX = 0;
 let _wardrobeDragStartRot = 0;
-// v1.480: NY wardrobe-preview som använder drawNakedBody — matchar EXAKT
-// hur karaktären ser ut in-game (inkl alla overlays: shoes/facialHair/scars/eyes/cape/etc).
+// v1.481: NY wardrobe-preview — använder drawNakedBody för EXAKT in-game look.
+// 3D-rotation: NEVER flat (min scale 0.85) + mirror när rotation passerar bakåt.
+// Directional shadow overlay simulerar dimensionell rörelse.
 function drawWardrobePreviewV2() {
   if (!wardrobePreview) return;
   const c = wardrobePreview.getContext('2d');
@@ -22248,33 +22249,49 @@ function drawWardrobePreviewV2() {
     _wardrobeRotation += 0.018;
     if (_wardrobeRotation > Math.PI * 2) _wardrobeRotation -= Math.PI * 2;
   }
+  // v1.481: NEVER FLAT rotation — använder mirror + subtle compression + side-shadow
+  // istället för cos-scale (som blev platt vid 90°/270°)
   const _rotCos = Math.cos(_wardrobeRotation);
-  const rotScaleX = Math.sign(_rotCos || 1) * Math.max(0.10, Math.abs(_rotCos));
+  const _rotSin = Math.sin(_wardrobeRotation);
+  // Mirror flip när rotation passerat 90°/270° (kroppen vänder bak)
+  const isMirrored = _rotCos < 0;
+  // Subtle horizontal compression (range 0.85 till 1.0) — karaktär ser ut att rotera
+  // men blir aldrig platt. Side-shadow tar över den dimensionella illusionen.
+  const sideAng = Math.abs(_rotSin);              // 0 = front/back, 1 = side
+  const compressionX = 1.0 - sideAng * 0.15;      // min 0.85
+  const mirrorSign = isMirrored ? -1 : 1;
   // Animation
   const breath = Math.sin(t / 720) * 1.5;
   const sway = Math.sin(t / 1100) * 0.04;
-  const cx = W / 2, cy = H * 0.55 + breath;
-  // Ground spotlight (cinematic floor pool)
-  const groundGrad = c.createRadialGradient(cx, cy + 130, 4, cx, cy + 130, 120);
+  // v1.481: scale 7.5 → 6.0 så karaktären får plats i 300×380 canvas.
+  // Character spans drawNakedBody -22 (wizard hat -26) till +16 (feet) eller +22 (cape).
+  // Med scale 6.0: -26*6=-156 till +22*6=+132 = ~288px höjd. Plus padding för text.
+  const scale = 6.0;
+  const cx = W / 2;
+  // Center: top of character at y=cy-156, bottom at cy+132. Canvas H=380.
+  // För att top ska börja vid y=30 (padding) + cy-156=30 → cy=186. Det ger
+  // bottom vid 186+132=318, kvar 62px för shadow + text. Bra balans.
+  const cy = H * 0.50 + breath;
+  // Ground spotlight (under fötter)
+  const groundY = cy + scale * 17;
+  const groundGrad = c.createRadialGradient(cx, groundY, 4, cx, groundY, 95);
   groundGrad.addColorStop(0, 'rgba(170,58,255,0.40)');
   groundGrad.addColorStop(0.5, 'rgba(170,58,255,0.15)');
   groundGrad.addColorStop(1, 'rgba(170,58,255,0)');
   c.fillStyle = groundGrad;
   c.beginPath();
-  c.ellipse(cx, cy + 130, 120, 22, 0, 0, Math.PI * 2);
+  c.ellipse(cx, groundY, 95, 17, 0, 0, Math.PI * 2);
   c.fill();
   // Hård skugga under fötter
-  c.fillStyle = `rgba(0,0,0,${0.55 * Math.max(0.3, Math.abs(_rotCos))})`;
+  c.fillStyle = `rgba(0,0,0,${0.55 * (0.8 + 0.2 * (1 - sideAng))})`;
   c.beginPath();
-  c.ellipse(cx, cy + 130, 48, 11, 0, 0, Math.PI * 2);
+  c.ellipse(cx + (isMirrored ? -3 : 3), groundY, 38, 9, 0, 0, Math.PI * 2);
   c.fill();
-  // Karaktären — scaled upp för att fylla preview
+  // Karaktären
   c.save();
   c.translate(cx, cy);
   c.rotate(sway);
-  c.scale(rotScaleX, 1);
-  // drawNakedBody-koords är -22 till +16 (~38px), skala 7.5x = 285px hög
-  const scale = 7.5;
+  c.scale(mirrorSign * compressionX, 1);
   c.scale(scale, scale);
   const phase = t / 200;
   const moving = false;
@@ -22288,6 +22305,22 @@ function drawWardrobePreviewV2() {
   drawHangingArm(c, cos, flash, false, 0, 0);  // arm at west (hangX=-8)
   // 3. BODY (med alla overlays)
   drawNakedBody(c, cos, flash, phase, moving);
+  // 4. v1.481: Directional shadow för 3D-illusion — heavy shadow på sidan
+  // som "vrider sig bort" från betraktaren. Använder rotation för riktning.
+  if (sideAng > 0.1) {
+    // Side som är i skugga: när _rotSin > 0 → west side (negativ x)
+    // när _rotSin < 0 → east side (positiv x). Båda i body-local space.
+    // Efter mirror är x-riktning samma så ingen flip behövs.
+    const shadowSide = _rotSin > 0 ? -1 : 1; // -1 = västra sidan, 1 = östra
+    const shadowAlpha = sideAng * 0.45;
+    const gradStartX = shadowSide * 10;
+    const gradEndX = -shadowSide * 4;
+    const grad = c.createLinearGradient(gradStartX, 0, gradEndX, 0);
+    grad.addColorStop(0, `rgba(0,0,0,${shadowAlpha})`);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    c.fillStyle = grad;
+    c.fillRect(-12, -27, 24, 50);
+  }
   c.restore();
   // ITEM-VFX (utanför rotation så effekter är stabila)
   const cosVfx = cos.vfx || [];
@@ -38483,83 +38516,118 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
     ctx.fillRect(3.5, -18, 3, 4);
     ctx.globalAlpha = 1;
   } else if (hStyle === 'long') {
-    // Långt hår — flyter bakåt och ner till skuldror
+    // v1.481: Långt hår — flow på SIDES av huvudet (ej över ansiktet)
     ctx.fillStyle = hCol;
-    // Topp + back-flow
+    // 1. Topp/crown (puffy, täcker forehead)
     ctx.beginPath();
     ctx.moveTo(-5, -19);
     ctx.quadraticCurveTo(2, -21.5, 6.5, -19);
-    ctx.quadraticCurveTo(7.5, -15, 6.8, -11);
-    ctx.lineTo(-6, -10);
-    ctx.lineTo(-6, -7);                  // hair down to neck
-    ctx.lineTo(-3, -4);                  // hair flow to shoulder
-    ctx.quadraticCurveTo(-7, -8, -7, -14);
-    ctx.quadraticCurveTo(-7, -18, -5, -19);
+    ctx.quadraticCurveTo(7.5, -16, 7, -13.8);
+    ctx.lineTo(-4.5, -14);
+    ctx.quadraticCurveTo(-6, -16, -5, -19);
     ctx.closePath();
     ctx.fill();
-    // Front bangs (slight fringe)
-    ctx.fillStyle = hCol;
+    // 2. Front bangs (subtila slingor över forehead)
     ctx.beginPath();
-    ctx.moveTo(0, -16);
-    ctx.lineTo(2, -13);
-    ctx.lineTo(5, -13);
-    ctx.lineTo(6, -16);
+    ctx.moveTo(0, -15);
+    ctx.lineTo(1.5, -13);
+    ctx.lineTo(3, -13.5);
+    ctx.lineTo(4, -13);
+    ctx.lineTo(5.5, -14);
+    ctx.lineTo(5, -15.5);
     ctx.closePath();
     ctx.fill();
-    // Highlights
+    // 3. West side flow (bakom west cheek, ner till axel)
+    ctx.beginPath();
+    ctx.moveTo(-5, -18);
+    ctx.lineTo(-7.5, -14);
+    ctx.lineTo(-7.5, -8);
+    ctx.quadraticCurveTo(-6.5, -5, -4, -4);
+    ctx.lineTo(-3, -7);
+    ctx.lineTo(-4, -10);
+    ctx.lineTo(-5, -14);
+    ctx.closePath();
+    ctx.fill();
+    // 4. East side flow (mindre eftersom 3/4 view favoriserar east)
+    ctx.beginPath();
+    ctx.moveTo(6.8, -16);
+    ctx.lineTo(8, -13);
+    ctx.lineTo(8, -9);
+    ctx.lineTo(7, -8);
+    ctx.lineTo(7, -13);
+    ctx.closePath();
+    ctx.fill();
+    // Highlights (vertical streaks for shine)
     ctx.fillStyle = hLight;
-    ctx.fillRect(-6.5, -16, 1, 6);
-    ctx.fillRect(0, -20, 1.5, 1);
-    // Outline
-    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    ctx.fillRect(-7, -15, 0.6, 6);
+    ctx.fillRect(0, -20, 1.8, 0.8);
+    ctx.fillRect(3.5, -19.5, 1.4, 0.7);
+    // Outline (top only)
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
     ctx.beginPath();
     ctx.moveTo(-5, -19);
     ctx.quadraticCurveTo(2, -21.5, 6.5, -19);
     ctx.stroke();
   } else if (hStyle === 'ponytail') {
-    // Kort topp + svans bakåt (västra sidan)
+    // v1.481: Kort topp + ponytail bakåt västra sidan
     ctx.fillStyle = hCol;
+    // Topp/forehead
     ctx.beginPath();
     ctx.moveTo(-4, -19);
     ctx.quadraticCurveTo(2, -21, 6, -19);
-    ctx.quadraticCurveTo(7, -16, 6, -14);
-    ctx.lineTo(-4, -14.5);
+    ctx.quadraticCurveTo(7, -16, 6.5, -13.8);
+    ctx.lineTo(-4.5, -14);
     ctx.quadraticCurveTo(-6, -16, -5, -18.5);
     ctx.closePath();
     ctx.fill();
-    // Ponytail bakåt (west)
-    ctx.fillStyle = hCol;
+    // Bun (där ponytail fäster bakom huvud)
     ctx.beginPath();
-    ctx.ellipse(-6.5, -13, 1.5, 4, -0.3, 0, Math.PI * 2);
+    ctx.arc(-5.5, -16, 1.2, 0, Math.PI * 2);
     ctx.fill();
-    // Ponytail tie (small dark band)
+    // Ponytail bakåt (sticker ut västerut, lutar nedåt)
+    ctx.beginPath();
+    ctx.moveTo(-6, -16);
+    ctx.quadraticCurveTo(-8, -13, -8, -9);
+    ctx.lineTo(-7, -8.5);
+    ctx.quadraticCurveTo(-7, -13, -5.5, -15.5);
+    ctx.closePath();
+    ctx.fill();
+    // Ponytail tie (mörk band runt fäste)
     ctx.fillStyle = hShadow;
-    ctx.fillRect(-7, -16, 1, 0.6);
-    // Highlight
+    ctx.beginPath();
+    ctx.arc(-5.5, -15.5, 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    // Highlights
     ctx.fillStyle = hLight;
-    ctx.fillRect(0, -20, 1.5, 0.8);
+    ctx.fillRect(0, -20, 1.5, 0.7);
+    ctx.fillRect(-7.5, -12, 0.4, 3);
   } else if (hStyle === 'mullet') {
-    // Kort framme + lång bak — business in front, party in back
+    // v1.481: Mullet — business in front, party in back
     ctx.fillStyle = hCol;
-    // Top short
+    // Top short (täcker hela crown + forehead)
     ctx.beginPath();
     ctx.moveTo(-4, -19);
     ctx.quadraticCurveTo(2, -21, 6, -19);
-    ctx.quadraticCurveTo(7, -16, 6, -14);
-    ctx.lineTo(0, -14.5);
-    ctx.quadraticCurveTo(-5, -16, -5, -18.5);
+    ctx.quadraticCurveTo(7, -16, 6.5, -13.8);
+    ctx.lineTo(-4.5, -14);
+    ctx.quadraticCurveTo(-6, -16, -5, -18.5);
     ctx.closePath();
     ctx.fill();
-    // Back long flowing
+    // Back long flowing (west sida, bakom huvud)
     ctx.beginPath();
-    ctx.moveTo(-5, -18);
-    ctx.lineTo(-6.5, -14);
-    ctx.lineTo(-6, -7);
-    ctx.lineTo(-3, -6);
-    ctx.lineTo(-3.5, -10);
-    ctx.lineTo(-4.5, -16);
+    ctx.moveTo(-5, -17);
+    ctx.lineTo(-7, -14);
+    ctx.lineTo(-7, -7);
+    ctx.quadraticCurveTo(-5.5, -5, -3.5, -5);
+    ctx.lineTo(-3, -8);
+    ctx.lineTo(-4, -11);
+    ctx.lineTo(-5, -14);
     ctx.closePath();
     ctx.fill();
+    // Highlights
+    ctx.fillStyle = hLight;
+    ctx.fillRect(-6.5, -13, 0.6, 6);
+    ctx.fillRect(0, -20, 1.5, 0.7);
   }
   // v1.477: BIGGER face features — eyes, brows, nose, mouth tydligare visible.
   // Behåller arg/militant uttryck (angled brows, frown).
@@ -39035,36 +39103,53 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   }
 }
 
-// v1.479: Bandana runt pannan i naked-body koords (y -15 till -13)
+// v1.481: Bandana ovanför ögonbryn (y=-17 till -14.5), undviker eyebrow-overlap
 function drawBandanaOnHead(ctx, color, flash) {
   if (!color) return;
   const col = flash ? '#fff' : color;
   ctx.fillStyle = col;
-  // Bandana stripe runt pannan
+  // Bandana stripe — sitter precis ovanför ögonbryn (eyebrows är y=-13.5 till -14.6)
   ctx.beginPath();
-  ctx.moveTo(-5, -15.5);
-  ctx.quadraticCurveTo(1, -16.5, 7, -15.5);
-  ctx.quadraticCurveTo(7.2, -13.8, 6.5, -13);
-  ctx.lineTo(-4.5, -13);
-  ctx.quadraticCurveTo(-6, -13.8, -5, -15.5);
+  ctx.moveTo(-5, -17);
+  ctx.quadraticCurveTo(1, -18, 7, -17);
+  ctx.quadraticCurveTo(7.2, -15.5, 6.5, -14.8);
+  ctx.lineTo(-4.5, -14.8);
+  ctx.quadraticCurveTo(-6, -15.5, -5, -17);
   ctx.closePath();
   ctx.fill();
-  // Knot at back (west side)
+  // Knot at back (west sida)
   ctx.fillStyle = flash ? '#fff' : darken(color, 0.30);
   ctx.beginPath();
-  ctx.arc(-5.5, -14.3, 1.2, 0, Math.PI * 2);
+  ctx.arc(-5.8, -15.8, 1.3, 0, Math.PI * 2);
   ctx.fill();
   // Trailing ends from knot
   ctx.beginPath();
-  ctx.moveTo(-6.5, -14);
-  ctx.lineTo(-8, -10);
-  ctx.lineTo(-7, -10);
-  ctx.lineTo(-5.5, -13.5);
+  ctx.moveTo(-6.5, -15.5);
+  ctx.lineTo(-8, -11);
+  ctx.lineTo(-7, -11);
+  ctx.lineTo(-5.5, -15);
+  ctx.closePath();
+  ctx.fill();
+  // Second tail
+  ctx.beginPath();
+  ctx.moveTo(-7, -15);
+  ctx.lineTo(-8.5, -12);
+  ctx.lineTo(-7.5, -12);
+  ctx.lineTo(-6.5, -14.8);
   ctx.closePath();
   ctx.fill();
   // Highlight stripe (subtle)
   ctx.fillStyle = flash ? '#fff' : lighten(color, 0.20);
-  ctx.fillRect(-4, -15.2, 9, 0.4);
+  ctx.fillRect(-4, -16.5, 9, 0.4);
+  // Knot detail (X-pattern indicating fabric crease)
+  ctx.strokeStyle = flash ? '#fff' : darken(color, 0.50);
+  ctx.lineWidth = 0.3;
+  ctx.beginPath();
+  ctx.moveTo(-6.5, -16.5); ctx.lineTo(-5, -15.1);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-5, -16.5); ctx.lineTo(-6.5, -15.1);
+  ctx.stroke();
 }
 
 // v1.479: Glasögon på ansiktet i naked-body koords
@@ -39418,149 +39503,290 @@ function drawHatOnHead(ctx, style, color, flash) {
   ctx.restore();
 }
 
-// v1.479: Shirt overlay — täcker torso (y -4 till 9) med t-shirt
+// v1.481: Shirt overlay som FÖLJER torso silhouette EXAKT.
+// Body torso bounds:
+//   y=-4: x=-6..+6 (axlar)
+//   y=0:  x=-8..+8 (bröst, bredast)
+//   y=4:  x=-5..+6 (waist)
+//   y=9:  x=-4..+5 (hip)
+// Shirten ska sitta PÅ kroppen, inte runt om. Hem just över briefs (y=8.5).
 function drawShirtOverlay(ctx, color, flash) {
   const col = flash ? '#fff' : color;
-  const dark = flash ? '#fff' : darken(color, 0.35);
+  const dark = flash ? '#fff' : darken(color, 0.32);
+  const darker = flash ? '#fff' : darken(color, 0.55);
   const light = flash ? '#fff' : lighten(color, 0.22);
   const outline = flash ? '#fff' : '#0a0a0a';
-  // Shirt body — följer torso silhouette + sticker ut för sleeves
+  // === 1. SLEEVES (ritas FÖRST så body överlapper ärm-bas) ===
+  // East sleeve — kort ärm från axel (6,-4) ut till (9,1) ner till (6,4)
   ctx.fillStyle = col;
   ctx.beginPath();
-  ctx.moveTo(-7, -4);                       // västra axel (extends west för sleeve)
-  ctx.lineTo(7, -4);                         // östra axel (extends east för sleeve)
-  ctx.lineTo(8, -1);                         // sleeve cap east
-  ctx.lineTo(6.5, 3);                        // sleeve hem east
-  ctx.lineTo(6.5, 4);                        // armhole
-  ctx.quadraticCurveTo(8, 0.5, 6, -1);      // (skip — drawn outside)
+  ctx.moveTo(5.5, -3.5);
+  ctx.quadraticCurveTo(9.2, -1.5, 9, 2);
+  ctx.lineTo(7.5, 3.8);
   ctx.lineTo(6, 4);
-  ctx.lineTo(5, 9);                          // hem east
-  ctx.lineTo(-4, 9);                         // hem west
-  ctx.lineTo(-5, 4);
-  ctx.quadraticCurveTo(-8, 0, -7, -4);
+  ctx.lineTo(6, -3.5);
   ctx.closePath();
   ctx.fill();
-  // Sleeves (separat — sticker ut östra/västra sidan)
-  ctx.fillStyle = col;
-  // Östra sleeve
+  // West sleeve
   ctx.beginPath();
-  ctx.moveTo(6, -4);
-  ctx.lineTo(9, -1);
-  ctx.lineTo(8, 3);
-  ctx.lineTo(6, 4);
+  ctx.moveTo(-5.5, -3.5);
+  ctx.quadraticCurveTo(-9.2, -1.5, -9, 2);
+  ctx.lineTo(-7.5, 3.8);
+  ctx.lineTo(-6, 4);
+  ctx.lineTo(-6, -3.5);
   ctx.closePath();
   ctx.fill();
-  // Västra sleeve
+  // Sleeve hems (mörk stripe vid armkanten)
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.moveTo(7.5, 3.8); ctx.lineTo(9, 2); ctx.lineTo(9, 2.8);
+  ctx.lineTo(7.6, 4.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-7.5, 3.8); ctx.lineTo(-9, 2); ctx.lineTo(-9, 2.8);
+  ctx.lineTo(-7.6, 4.2);
+  ctx.closePath();
+  ctx.fill();
+  // === 2. TORSO — exakt torso-silhouette med shirt-färg ===
+  ctx.fillStyle = col;
   ctx.beginPath();
   ctx.moveTo(-6, -4);
-  ctx.lineTo(-9, -1);
-  ctx.lineTo(-8, 3);
-  ctx.lineTo(-6, 4);
-  ctx.closePath();
-  ctx.fill();
-  // Neckline (V-cut)
-  ctx.fillStyle = dark;
-  ctx.beginPath();
-  ctx.moveTo(-2, -4);
-  ctx.lineTo(0.5, -1.5);
-  ctx.lineTo(3, -4);
-  ctx.closePath();
-  ctx.fill();
-  // Sleeve hems (darker stripe at end of sleeves)
-  ctx.fillStyle = dark;
-  ctx.fillRect(7, 2.5, 2, 0.7);
-  ctx.fillRect(-9, 2.5, 2, 0.7);
-  // Bottom hem
-  ctx.fillStyle = dark;
-  ctx.fillRect(-4.5, 8.5, 9.5, 0.6);
-  // Subtle light on east side
-  ctx.fillStyle = light;
-  ctx.fillRect(5.5, -2, 0.6, 10);
-  // Outline
-  ctx.strokeStyle = outline; ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(-7, -4);
-  ctx.lineTo(-9, -1);
-  ctx.lineTo(-8, 3);
-  ctx.lineTo(-5, 4);
-  ctx.lineTo(-4, 9);
-  ctx.lineTo(5, 9);
+  ctx.quadraticCurveTo(-8, 0, -5, 4);
+  ctx.lineTo(-4, 8.5);                       // hem just över briefs
+  ctx.lineTo(5, 8.5);
   ctx.lineTo(6, 4);
-  ctx.lineTo(9, 3);
-  ctx.lineTo(8, -1);
-  ctx.lineTo(7, -4);
-  ctx.lineTo(3, -4);
-  ctx.lineTo(0.5, -1.5);
-  ctx.lineTo(-2, -4);
+  ctx.quadraticCurveTo(8, 0, 6, -4);
   ctx.closePath();
+  ctx.fill();
+  // === 3. NECKLINE — rounded crew neck (revealar nacke/collarbone) ===
+  ctx.fillStyle = darker;
+  ctx.beginPath();
+  ctx.moveTo(-2.5, -4);
+  ctx.quadraticCurveTo(0.5, -2, 3, -4);
+  ctx.quadraticCurveTo(2.8, -3.6, 2.5, -3.4);
+  ctx.quadraticCurveTo(0.5, -1.7, -2, -3.4);
+  ctx.quadraticCurveTo(-2.3, -3.6, -2.5, -4);
+  ctx.closePath();
+  ctx.fill();
+  // Collar trim (small lighter stripe)
+  ctx.strokeStyle = dark; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(-2.5, -4);
+  ctx.quadraticCurveTo(0.5, -2, 3, -4);
+  ctx.stroke();
+  // === 4. FABRIC SHADING — west side shadow (light from upper-right) ===
+  ctx.fillStyle = dark;
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.moveTo(-6, -4);
+  ctx.quadraticCurveTo(-8, 0, -5, 4);
+  ctx.lineTo(-4, 8.5);
+  ctx.lineTo(-3, 8.5);
+  ctx.lineTo(-3.5, 4);
+  ctx.quadraticCurveTo(-6, 0, -5, -4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // East rim highlight (very subtle)
+  ctx.fillStyle = light;
+  ctx.globalAlpha = 0.35;
+  ctx.beginPath();
+  ctx.moveTo(6, -4);
+  ctx.quadraticCurveTo(8, 0, 6, 4);
+  ctx.lineTo(5.5, 4);
+  ctx.quadraticCurveTo(7, 0, 5.5, -4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // === 5. FABRIC FOLDS (vertical creases as light fold-lines) ===
+  ctx.strokeStyle = dark; ctx.lineWidth = 0.35;
+  ctx.beginPath();
+  ctx.moveTo(-2.5, 0); ctx.quadraticCurveTo(-3, 4, -2.8, 8);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(3, 0); ctx.quadraticCurveTo(3.3, 4, 3, 8);
+  ctx.stroke();
+  // === 6. HEM LINE (horizontal at bottom) ===
+  ctx.strokeStyle = darker; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-4, 8.5); ctx.lineTo(5, 8.5);
+  ctx.stroke();
+  // === 7. OUTLINE (hela shirt-shape) ===
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  // Torso outline
+  ctx.beginPath();
+  ctx.moveTo(-6, -4);
+  ctx.quadraticCurveTo(-8, 0, -5, 4);
+  ctx.lineTo(-4, 8.5);
+  ctx.lineTo(5, 8.5);
+  ctx.lineTo(6, 4);
+  ctx.quadraticCurveTo(8, 0, 6, -4);
+  ctx.stroke();
+  // Sleeve outlines (only outer edge, inner edge döljs av body)
+  ctx.beginPath();
+  ctx.moveTo(5.5, -3.5);
+  ctx.quadraticCurveTo(9.2, -1.5, 9, 2);
+  ctx.lineTo(7.5, 3.8);
+  ctx.lineTo(6, 4);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-5.5, -3.5);
+  ctx.quadraticCurveTo(-9.2, -1.5, -9, 2);
+  ctx.lineTo(-7.5, 3.8);
+  ctx.lineTo(-6, 4);
   ctx.stroke();
 }
 
-// v1.479: Pants overlay — täcker båda ben från höft till ankel
+// v1.481: Pants overlay som FÖLJER ben-silhouette EXAKT.
+// Leg-shape (drawNakedBody):
+//   moveTo(X-2.7, top); lineTo(X+2.7, top); — hip-bredd 5.4
+//   quadraticCurveTo(X+3, top+5, X+2.2, top+8); — outer thigh, narrows till knee
+//   quadraticCurveTo(X+2.8, top+10, X+2, top+12); — calf bulge
+//   lineTo(X+1.5, top+13); lineTo(X-1.5, top+13); — ankle
+// Pants ska sitta PÅ ben (samma path), med proper waistband + belt + hem.
 function drawPantsOverlay(ctx, color, frX, frTop, bkX, bkTop, flash) {
   const col = flash ? '#fff' : color;
-  const dark = flash ? '#fff' : darken(color, 0.35);
+  const dark = flash ? '#fff' : darken(color, 0.32);
+  const darker = flash ? '#fff' : darken(color, 0.55);
   const light = flash ? '#fff' : lighten(color, 0.18);
   const outline = flash ? '#fff' : '#0a0a0a';
-  // Waistband (covers briefs)
-  ctx.fillStyle = dark;
-  ctx.fillRect(-5.5, 8.5, 12, 2);
-  // BACK LEG pants
+
+  // === 1. HIP/CROTCH — täcker briefs-området (y=9 till 13) ===
   ctx.fillStyle = col;
   ctx.beginPath();
-  ctx.moveTo(bkX - 2.8, bkTop - 1);
-  ctx.lineTo(bkX + 2.8, bkTop - 1);
-  ctx.quadraticCurveTo(bkX + 3.2, bkTop + 5, bkX + 2.4, bkTop + 9);
-  ctx.quadraticCurveTo(bkX + 3, bkTop + 11, bkX + 2.2, bkTop + 13);
-  ctx.lineTo(bkX - 2.2, bkTop + 13);
-  ctx.quadraticCurveTo(bkX - 3, bkTop + 11, bkX - 2.4, bkTop + 9);
-  ctx.quadraticCurveTo(bkX - 3.2, bkTop + 5, bkX - 2.8, bkTop - 1);
+  ctx.moveTo(-5.2, 8.8);
+  ctx.lineTo(6.2, 8.8);
+  ctx.lineTo(6.2, 11.5);
+  ctx.quadraticCurveTo(5.2, 13.2, 3.2, 13);
+  ctx.quadraticCurveTo(0.5, 14, -2.2, 13);
+  ctx.quadraticCurveTo(-4.2, 13.2, -5.2, 11.5);
   ctx.closePath();
   ctx.fill();
-  // Back leg shadow stripe (west)
-  ctx.fillStyle = dark;
-  ctx.fillRect(bkX - 2.5, bkTop + 1, 1, 11);
-  // FRONT LEG pants
+
+  // === 2. WAISTBAND — bredare band ovanpå hip ===
+  ctx.fillStyle = darker;
+  ctx.fillRect(-5.4, 8.2, 11.8, 1.8);
+  // Belt loops (subtle vertical strokes)
+  ctx.fillStyle = darken(col, 0.65);
+  for (const lx of [-4.2, -1.5, 1, 3.8]) {
+    ctx.fillRect(lx, 7.9, 0.5, 0.8);
+  }
+  // Belt buckle (centered, gold)
+  ctx.fillStyle = flash ? '#fff' : '#aa8a3a';
+  ctx.fillRect(-0.7, 8.5, 1.6, 1.2);
+  ctx.fillStyle = flash ? '#fff' : '#5a4520';
+  ctx.fillRect(-0.4, 8.8, 1.0, 0.5);
+
+  // === 3. BACK LEG — exakt leg-silhouette ===
   ctx.fillStyle = col;
   ctx.beginPath();
-  ctx.moveTo(frX - 2.8, frTop - 1);
-  ctx.lineTo(frX + 2.8, frTop - 1);
-  ctx.quadraticCurveTo(frX + 3.2, frTop + 5, frX + 2.4, frTop + 9);
-  ctx.quadraticCurveTo(frX + 3, frTop + 11, frX + 2.2, frTop + 13);
-  ctx.lineTo(frX - 2.2, frTop + 13);
-  ctx.quadraticCurveTo(frX - 3, frTop + 11, frX - 2.4, frTop + 9);
-  ctx.quadraticCurveTo(frX - 3.2, frTop + 5, frX - 2.8, frTop - 1);
+  ctx.moveTo(bkX - 2.7, bkTop);
+  ctx.lineTo(bkX + 2.7, bkTop);
+  ctx.quadraticCurveTo(bkX + 3, bkTop + 5, bkX + 2.2, bkTop + 8);
+  ctx.quadraticCurveTo(bkX + 2.8, bkTop + 10, bkX + 2, bkTop + 12);
+  ctx.lineTo(bkX + 1.8, bkTop + 13);
+  ctx.lineTo(bkX - 1.8, bkTop + 13);
+  ctx.quadraticCurveTo(bkX - 2.8, bkTop + 10, bkX - 2.2, bkTop + 8);
+  ctx.quadraticCurveTo(bkX - 3, bkTop + 5, bkX - 2.7, bkTop);
   ctx.closePath();
   ctx.fill();
-  // Front leg highlight (east)
+  // Inner thigh shadow (west sida — mellan benen)
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.moveTo(bkX - 2.7, bkTop);
+  ctx.lineTo(bkX - 1.7, bkTop);
+  ctx.quadraticCurveTo(bkX - 2, bkTop + 6, bkX - 1.7, bkTop + 12.5);
+  ctx.lineTo(bkX - 2.7, bkTop + 12);
+  ctx.quadraticCurveTo(bkX - 3, bkTop + 6, bkX - 2.7, bkTop);
+  ctx.closePath();
+  ctx.fill();
+  // Hem fold på back leg (mörk stripe just över skor)
+  ctx.fillStyle = darker;
+  ctx.fillRect(bkX - 1.8, bkTop + 12.5, 3.6, 0.6);
+
+  // === 4. FRONT LEG ===
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(frX - 2.7, frTop);
+  ctx.lineTo(frX + 2.7, frTop);
+  ctx.quadraticCurveTo(frX + 3, frTop + 5, frX + 2.2, frTop + 8);
+  ctx.quadraticCurveTo(frX + 2.8, frTop + 10, frX + 2, frTop + 12);
+  ctx.lineTo(frX + 1.8, frTop + 13);
+  ctx.lineTo(frX - 1.8, frTop + 13);
+  ctx.quadraticCurveTo(frX - 2.8, frTop + 10, frX - 2.2, frTop + 8);
+  ctx.quadraticCurveTo(frX - 3, frTop + 5, frX - 2.7, frTop);
+  ctx.closePath();
+  ctx.fill();
+  // East-edge highlight (NE light catches edge)
   ctx.fillStyle = light;
-  ctx.fillRect(frX + 1.5, frTop + 1, 1, 11);
-  // Knee crease (subtle horizontal line)
+  ctx.beginPath();
+  ctx.moveTo(frX + 1.7, frTop + 1);
+  ctx.lineTo(frX + 2.5, frTop + 1);
+  ctx.quadraticCurveTo(frX + 2.8, frTop + 6, frX + 2.5, frTop + 12);
+  ctx.lineTo(frX + 1.7, frTop + 12);
+  ctx.closePath();
+  ctx.fill();
+  // Inner thigh shadow (between legs)
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.moveTo(frX - 2.7, frTop);
+  ctx.lineTo(frX - 1.7, frTop);
+  ctx.quadraticCurveTo(frX - 2, frTop + 6, frX - 1.7, frTop + 12.5);
+  ctx.lineTo(frX - 2.7, frTop + 12);
+  ctx.quadraticCurveTo(frX - 3, frTop + 6, frX - 2.7, frTop);
+  ctx.closePath();
+  ctx.fill();
+  // Knee crease (subtle horizontal curve)
   ctx.strokeStyle = dark; ctx.lineWidth = 0.4;
   ctx.beginPath();
   ctx.moveTo(frX - 2.2, frTop + 8);
-  ctx.lineTo(frX + 2.2, frTop + 8);
+  ctx.quadraticCurveTo(frX, frTop + 8.5, frX + 2.2, frTop + 8);
   ctx.stroke();
-  // Outlines
-  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  // Hem fold på front leg
+  ctx.fillStyle = darker;
+  ctx.fillRect(frX - 1.8, frTop + 12.5, 3.6, 0.6);
+
+  // === 5. CENTER SEAM — vertical line mitt på pants (front center) ===
+  ctx.strokeStyle = dark; ctx.lineWidth = 0.35;
   ctx.beginPath();
-  ctx.moveTo(bkX - 2.8, bkTop - 1);
-  ctx.lineTo(bkX + 2.8, bkTop - 1);
-  ctx.quadraticCurveTo(bkX + 3.2, bkTop + 5, bkX + 2.4, bkTop + 9);
-  ctx.quadraticCurveTo(bkX + 3, bkTop + 11, bkX + 2.2, bkTop + 13);
-  ctx.lineTo(bkX - 2.2, bkTop + 13);
-  ctx.quadraticCurveTo(bkX - 3, bkTop + 11, bkX - 2.4, bkTop + 9);
-  ctx.quadraticCurveTo(bkX - 3.2, bkTop + 5, bkX - 2.8, bkTop - 1);
+  ctx.moveTo(0.5, 10); ctx.lineTo(0.5, 13);
+  ctx.stroke();
+
+  // === 6. OUTLINES (hela pants-shape) ===
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  // Hip outline
+  ctx.beginPath();
+  ctx.moveTo(-5.2, 8.8);
+  ctx.lineTo(6.2, 8.8);
+  ctx.lineTo(6.2, 11.5);
+  ctx.quadraticCurveTo(5.2, 13.2, 3.2, 13);
+  ctx.quadraticCurveTo(0.5, 14, -2.2, 13);
+  ctx.quadraticCurveTo(-4.2, 13.2, -5.2, 11.5);
   ctx.closePath();
   ctx.stroke();
+  // Back leg outline
   ctx.beginPath();
-  ctx.moveTo(frX - 2.8, frTop - 1);
-  ctx.lineTo(frX + 2.8, frTop - 1);
-  ctx.quadraticCurveTo(frX + 3.2, frTop + 5, frX + 2.4, frTop + 9);
-  ctx.quadraticCurveTo(frX + 3, frTop + 11, frX + 2.2, frTop + 13);
-  ctx.lineTo(frX - 2.2, frTop + 13);
-  ctx.quadraticCurveTo(frX - 3, frTop + 11, frX - 2.4, frTop + 9);
-  ctx.quadraticCurveTo(frX - 3.2, frTop + 5, frX - 2.8, frTop - 1);
+  ctx.moveTo(bkX - 2.7, bkTop);
+  ctx.lineTo(bkX + 2.7, bkTop);
+  ctx.quadraticCurveTo(bkX + 3, bkTop + 5, bkX + 2.2, bkTop + 8);
+  ctx.quadraticCurveTo(bkX + 2.8, bkTop + 10, bkX + 2, bkTop + 12);
+  ctx.lineTo(bkX + 1.8, bkTop + 13);
+  ctx.lineTo(bkX - 1.8, bkTop + 13);
+  ctx.quadraticCurveTo(bkX - 2.8, bkTop + 10, bkX - 2.2, bkTop + 8);
+  ctx.quadraticCurveTo(bkX - 3, bkTop + 5, bkX - 2.7, bkTop);
+  ctx.closePath();
+  ctx.stroke();
+  // Front leg outline
+  ctx.beginPath();
+  ctx.moveTo(frX - 2.7, frTop);
+  ctx.lineTo(frX + 2.7, frTop);
+  ctx.quadraticCurveTo(frX + 3, frTop + 5, frX + 2.2, frTop + 8);
+  ctx.quadraticCurveTo(frX + 2.8, frTop + 10, frX + 2, frTop + 12);
+  ctx.lineTo(frX + 1.8, frTop + 13);
+  ctx.lineTo(frX - 1.8, frTop + 13);
+  ctx.quadraticCurveTo(frX - 2.8, frTop + 10, frX - 2.2, frTop + 8);
+  ctx.quadraticCurveTo(frX - 3, frTop + 5, frX - 2.7, frTop);
   ctx.closePath();
   ctx.stroke();
 }
@@ -39573,86 +39799,141 @@ function drawShoeOnFoot(ctx, x, y, style, color, flash, isBack) {
   const outline = flash ? '#fff' : '#0a0a0a';
   ctx.save();
   if (style === 'sneaker') {
-    // Sneaker — låg sko med rubber-sole
+    // v1.481: Sneaker som fit-ar fot-silhouette (heel + ankel + tå-area)
+    // Foot: heel x-1.8, main till x+3.5, toes till x+4.3
     ctx.fillStyle = baseCol;
     ctx.beginPath();
-    ctx.moveTo(x - 2, y);
-    ctx.lineTo(x - 2, y + 2);
-    ctx.quadraticCurveTo(x, y + 3.5, x + 4.5, y + 3.5);
-    ctx.lineTo(x + 4.5, y + 1.5);
-    ctx.quadraticCurveTo(x + 4, y, x + 2, y - 0.2);
+    ctx.moveTo(x - 2, y);                           // heel-top
+    ctx.lineTo(x - 2.2, y + 2);                     // heel-bak
+    ctx.quadraticCurveTo(x - 2, y + 3, x, y + 3.3);// arch
+    ctx.lineTo(x + 4.5, y + 3.3);                   // sole front
+    ctx.quadraticCurveTo(x + 5.2, y + 2.8, x + 5, y + 2);  // toe-tip
+    ctx.quadraticCurveTo(x + 4.5, y + 0.5, x + 2.5, y);   // top of foot
+    ctx.lineTo(x - 2, y);                           // back to heel
     ctx.closePath();
     ctx.fill();
-    // White rubber sole
-    ctx.fillStyle = flash ? '#fff' : '#f0f0f0';
+    // White rubber sole (thicker, mer realistisk)
+    ctx.fillStyle = flash ? '#fff' : '#f4f4f4';
     ctx.beginPath();
-    ctx.moveTo(x - 2, y + 2.6);
-    ctx.lineTo(x + 4.5, y + 2.8);
-    ctx.lineTo(x + 4.5, y + 3.5);
-    ctx.lineTo(x - 2, y + 3.2);
+    ctx.moveTo(x - 2.2, y + 2.6);
+    ctx.lineTo(x + 5, y + 2.4);
+    ctx.lineTo(x + 5, y + 3.3);
+    ctx.lineTo(x - 2, y + 3.3);
     ctx.closePath();
     ctx.fill();
-    // Laces
+    // Toe-cap (slightly rounded)
+    ctx.fillStyle = lighten(baseCol, 0.10);
+    ctx.beginPath();
+    ctx.moveTo(x + 3.5, y + 0.7);
+    ctx.quadraticCurveTo(x + 5, y + 1.5, x + 5, y + 2.5);
+    ctx.lineTo(x + 3.5, y + 2.5);
+    ctx.closePath();
+    ctx.fill();
+    // Laces (X-pattern)
     if (!isBack) {
-      ctx.strokeStyle = flash ? '#fff' : '#ffffff';
-      ctx.lineWidth = 0.5;
+      ctx.strokeStyle = flash ? '#fff' : '#fafafa';
+      ctx.lineWidth = 0.4;
       for (let i = 0; i < 3; i++) {
+        const ly = y + 0.4 + i * 0.7;
         ctx.beginPath();
-        ctx.moveTo(x + 0.5 + i * 0.8, y + 0.5);
-        ctx.lineTo(x + 1.2 + i * 0.8, y + 1.5);
+        ctx.moveTo(x + 0.5, ly); ctx.lineTo(x + 2.5, ly + 0.4);
         ctx.stroke();
       }
+      // Tongue (subtle dark patch)
+      ctx.fillStyle = darken(baseCol, 0.3);
+      ctx.beginPath();
+      ctx.moveTo(x + 0.8, y + 0.2);
+      ctx.lineTo(x + 2.7, y + 0.1);
+      ctx.lineTo(x + 2.5, y + 2.2);
+      ctx.lineTo(x + 0.7, y + 2.4);
+      ctx.closePath();
+      ctx.fill();
     }
     // Outline
-    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
     ctx.beginPath();
     ctx.moveTo(x - 2, y);
-    ctx.lineTo(x - 2, y + 2);
-    ctx.quadraticCurveTo(x, y + 3.5, x + 4.5, y + 3.5);
-    ctx.lineTo(x + 4.5, y + 1.5);
-    ctx.quadraticCurveTo(x + 4, y, x + 2, y - 0.2);
+    ctx.lineTo(x - 2.2, y + 2);
+    ctx.quadraticCurveTo(x - 2, y + 3, x, y + 3.3);
+    ctx.lineTo(x + 4.5, y + 3.3);
+    ctx.quadraticCurveTo(x + 5.2, y + 2.8, x + 5, y + 2);
+    ctx.quadraticCurveTo(x + 4.5, y + 0.5, x + 2.5, y);
+    ctx.lineTo(x - 2, y);
     ctx.closePath();
     ctx.stroke();
   } else if (style === 'boot') {
-    // Combat boot — hög skaft + tjock sula
+    // v1.481: Combat boot — skaft som hugger ankel + foot som fit-ar fot-silhouette
     ctx.fillStyle = baseCol;
-    // Skaft (high cuff)
-    ctx.fillRect(x - 2.2, y - 2, 4.5, 3);
-    // Foot part
+    // Skaft (high cuff) — runt ankel, narrows uppåt
     ctx.beginPath();
-    ctx.moveTo(x - 2.2, y + 1);
-    ctx.lineTo(x - 2.2, y + 2.2);
-    ctx.quadraticCurveTo(x, y + 3.8, x + 4.8, y + 3.8);
-    ctx.lineTo(x + 4.8, y + 1.3);
-    ctx.quadraticCurveTo(x + 4, y, x + 2.3, y);
-    ctx.lineTo(x - 2.2, y + 1);
+    ctx.moveTo(x - 2.3, y - 2.2);
+    ctx.lineTo(x + 2.5, y - 2.2);
+    ctx.lineTo(x + 2.5, y + 1);
+    ctx.lineTo(x - 2.3, y + 1);
     ctx.closePath();
     ctx.fill();
-    // Sole (thick)
-    ctx.fillStyle = shadow;
-    ctx.fillRect(x - 2.2, y + 3, 7, 1);
-    // Laces (zigzag pattern)
+    // Cuff edge (mörk stripe vid top)
+    ctx.fillStyle = darker;
+    ctx.fillRect(x - 2.3, y - 2.2, 4.8, 0.6);
+    // Foot part — fit-ar fot-silhouette (heel till tå)
+    ctx.fillStyle = baseCol;
+    ctx.beginPath();
+    ctx.moveTo(x - 2.3, y + 0.5);                  // heel-back
+    ctx.lineTo(x - 2.5, y + 2.5);                  // heel-down
+    ctx.quadraticCurveTo(x - 2, y + 3.5, x, y + 3.7);
+    ctx.lineTo(x + 4.7, y + 3.7);
+    ctx.quadraticCurveTo(x + 5.4, y + 3, x + 5.2, y + 2);
+    ctx.quadraticCurveTo(x + 4.5, y + 0.5, x + 2.5, y + 0.5);
+    ctx.lineTo(x - 2.3, y + 0.5);
+    ctx.closePath();
+    ctx.fill();
+    // Sole (thick tactical rubber)
+    ctx.fillStyle = darker;
+    ctx.beginPath();
+    ctx.moveTo(x - 2.5, y + 3.2);
+    ctx.lineTo(x + 5.2, y + 3.0);
+    ctx.lineTo(x + 5.2, y + 3.9);
+    ctx.lineTo(x - 2.4, y + 3.9);
+    ctx.closePath();
+    ctx.fill();
+    // Sole tread (mörkare prickar)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    for (let i = -2; i < 5; i++) {
+      ctx.fillRect(x + i * 1.0, y + 3.6, 0.4, 0.3);
+    }
+    // Laces (proper zig-zag)
     if (!isBack) {
       ctx.strokeStyle = flash ? '#fff' : '#aa8a5a';
-      ctx.lineWidth = 0.5;
+      ctx.lineWidth = 0.4;
       for (let i = 0; i < 4; i++) {
+        const ly = y - 2 + i * 0.7;
         ctx.beginPath();
-        ctx.moveTo(x - 1.5, y - 1.8 + i * 0.7);
-        ctx.lineTo(x + 1.8, y - 1.5 + i * 0.7);
+        ctx.moveTo(x - 1.8, ly); ctx.lineTo(x + 2.0, ly);
         ctx.stroke();
+        // X-stitch
+        if (i < 3) {
+          ctx.beginPath();
+          ctx.moveTo(x - 1.5, ly + 0.1); ctx.lineTo(x + 1.8, ly + 0.6);
+          ctx.stroke();
+        }
       }
     }
-    // Outline
-    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
-    ctx.strokeRect(x - 2.2, y - 2, 4.5, 3);
+    // Outlines
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+    // Skaft outline
     ctx.beginPath();
-    ctx.moveTo(x - 2.2, y + 1);
-    ctx.lineTo(x - 2.2, y + 2.2);
-    ctx.quadraticCurveTo(x, y + 3.8, x + 4.8, y + 3.8);
-    ctx.lineTo(x + 4.8, y + 1.3);
-    ctx.quadraticCurveTo(x + 4, y, x + 2.3, y);
-    ctx.lineTo(x - 2.2, y + 1);
-    ctx.closePath();
+    ctx.moveTo(x - 2.3, y - 2.2);
+    ctx.lineTo(x + 2.5, y - 2.2);
+    ctx.lineTo(x + 2.5, y + 1);
+    ctx.stroke();
+    // Foot outline
+    ctx.beginPath();
+    ctx.moveTo(x - 2.3, y + 0.5);
+    ctx.lineTo(x - 2.5, y + 2.5);
+    ctx.quadraticCurveTo(x - 2, y + 3.5, x, y + 3.7);
+    ctx.lineTo(x + 4.7, y + 3.7);
+    ctx.quadraticCurveTo(x + 5.4, y + 3, x + 5.2, y + 2);
+    ctx.quadraticCurveTo(x + 4.5, y + 0.5, x + 2.5, y + 0.5);
     ctx.stroke();
   } else if (style === 'hightop') {
     // High-top — mellan sneaker och boot
