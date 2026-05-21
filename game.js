@@ -12348,6 +12348,17 @@ const WARDROBE = {
   ],
   shirt: [
     { id: 'naked',     name: 'Bar Överkropp', color: null },
+    // v1.486: BRAND-PARODI shirts med logos
+    { id: 'adibas_top',  name: '🏃 Adibas Track', color: '#f0f0f0', brand: 'adibas' },
+    { id: 'najk_hood',   name: '✓ Najk Hood',     color: '#1a1a1a', brand: 'najk' },
+    { id: 'guc_cee_polo',name: '💼 Guc-Cee Polo', color: '#1a4a2a', brand: 'guc_cee' },
+    { id: 'loui_witty_t',name: '👜 Loui Witty T', color: '#5a4030', brand: 'loui_witty' },
+    { id: 'versass_silk',name: '👑 Versass Silk', color: '#0a0a0a', brand: 'versass' },
+    { id: 'calvin_tee',  name: '🩲 Calvin Tee',   color: '#ffffff', brand: 'calvin' },
+    { id: 'tommy_polo',  name: '🇺🇸 Tommy Polo',  color: '#1a2a5a', brand: 'tommy' },
+    { id: 'supreme_box', name: '🍕 Supreme Box',  color: '#aa1818', brand: 'supreme' },
+    { id: 'north_jacket',name: '🧥 N-Phase Jacket',color: '#2a3a2a', brand: 'north' },
+    { id: 'bossa_shirt', name: '🤵 Hugo Bossa',   color: '#0a0a0a', brand: 'bossa' },
     { id: 'black',     name: 'Svart',      color: '#222' },
     { id: 'white',     name: 'Vit',        color: '#cccccc' },
     { id: 'tactical',  name: 'Tactical',   color: '#1a3a1a' },
@@ -13207,6 +13218,7 @@ function getCurrentCostume() {
       facialHair: facialHairO, // {style, color} eller null
       eyes: eyesO,           // {color} eller null
       scars: scarsO,         // {style, color} eller null
+      shirtBrand: shirtO.brand || null, // v1.486: 'adibas'/'najk'/etc eller null
       vfx: vfxList,
     };
     _costumeCache = cos;
@@ -22249,52 +22261,52 @@ const WARDROBE_PRESETS = [
   { id: 'robot', name: 'Robot', wardrobe: { skin: 'silver', hair: 'bald', shirt: 'silver', pants: 'urban', bandana: 'none' } },
   // v1.485: PARODI-OUTFITS — kända märken med twist
   { id: 'adibas', name: '🏃 Adibas', wardrobe: {
-      skin: 'tan', hair: 'shortDark', shirt: 'white', pants: 'black',
+      skin: 'tan', hair: 'shortDark', shirt: 'adibas_top', pants: 'black',
       shoes: 'sneakerBlack', hat: 'capRed', bandana: 'none',
       glasses: 'none', cape: 'none', facialHair: 'stubble', eyes: 'default', scars: 'none'
   } },
   { id: 'najk', name: '✓ Najk Air', wardrobe: {
-      skin: 'caramel', hair: 'shortDark', shirt: 'black', pants: 'urban',
+      skin: 'caramel', hair: 'shortDark', shirt: 'najk_hood', pants: 'urban',
       shoes: 'sneakerWhite', hat: 'cap', bandana: 'none',
       glasses: 'shades', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
   } },
   { id: 'guc_cee', name: '💼 Guc-Cee', wardrobe: {
-      skin: 'olive', hair: 'shortDark', shirt: 'green', pants: 'red',
+      skin: 'olive', hair: 'shortDark', shirt: 'guc_cee_polo', pants: 'red',
       shoes: 'dressBlack', hat: 'none', bandana: 'gold',
       glasses: 'goldframe', cape: 'none', facialHair: 'goatee', eyes: 'hazel', scars: 'none'
   } },
   { id: 'loui_witty', name: '👜 Loui Witty', wardrobe: {
-      skin: 'caramel', hair: 'longBrown', shirt: 'desert', pants: 'desert',
+      skin: 'caramel', hair: 'longBrown', shirt: 'loui_witty_t', pants: 'desert',
       shoes: 'hikingTan', hat: 'cowboy', bandana: 'orange',
       glasses: 'aviator', cape: 'none', facialHair: 'fullBeard', eyes: 'amber', scars: 'none'
   } },
   { id: 'versass', name: '👑 Versass', wardrobe: {
-      skin: 'tan', hair: 'longBlonde', shirt: 'gold', pants: 'black',
+      skin: 'tan', hair: 'longBlonde', shirt: 'versass_silk', pants: 'black',
       shoes: 'goldSneaker', hat: 'crown', bandana: 'gold',
       glasses: 'goldframe', cape: 'gold', facialHair: 'circleBeard', eyes: 'gold', scars: 'none'
   } },
   { id: 'calvin_coolin', name: '🩲 Calvin Cool-in', wardrobe: {
-      skin: 'pale', hair: 'shortDark', shirt: 'white', pants: 'briefs',
+      skin: 'pale', hair: 'shortDark', shirt: 'calvin_tee', pants: 'briefs',
       shoes: 'sneakerWhite', hat: 'none', bandana: 'none',
       glasses: 'shades', cape: 'none', facialHair: 'none', eyes: 'iceBlue', scars: 'none'
   } },
   { id: 'tommy_hellfighter', name: '🇺🇸 Tommy Hellfighter', wardrobe: {
-      skin: 'peach', hair: 'shortBlonde', shirt: 'navy', pants: 'red',
+      skin: 'peach', hair: 'shortBlonde', shirt: 'tommy_polo', pants: 'red',
       shoes: 'sneakerWhite', hat: 'cap', bandana: 'red',
       glasses: 'aviator', cape: 'none', facialHair: 'mustacheBlonde', eyes: 'blue', scars: 'none'
   } },
   { id: 'supreme_pizza', name: '🍕 Supreme Pizza', wardrobe: {
-      skin: 'tan', hair: 'mohawkRed', shirt: 'red', pants: 'jeans',
+      skin: 'tan', hair: 'mohawkRed', shirt: 'supreme_box', pants: 'jeans',
       shoes: 'hightopBlue', hat: 'capRed', bandana: 'red',
       glasses: 'shades', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'tribalLeft'
   } },
   { id: 'north_phase', name: '🧥 The North Phase', wardrobe: {
-      skin: 'tan', hair: 'shortGray', shirt: 'tactical', pants: 'tactical',
+      skin: 'tan', hair: 'shortGray', shirt: 'north_jacket', pants: 'tactical',
       shoes: 'hikingTan', hat: 'beanie', bandana: 'none',
       glasses: 'skigoggles', cape: 'black', facialHair: 'fullBeardGray', eyes: 'gray', scars: 'cheekScar'
   } },
   { id: 'hugo_bossa', name: '🤵 Hugo Bossa', wardrobe: {
-      skin: 'pale', hair: 'shortDark', shirt: 'black', pants: 'black',
+      skin: 'pale', hair: 'shortDark', shirt: 'bossa_shirt', pants: 'black',
       shoes: 'dressBlack', hat: 'top', bandana: 'white',
       glasses: 'monocle', cape: 'black', facialHair: 'handlebar', eyes: 'default', scars: 'none'
   } },
@@ -39186,7 +39198,7 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   }
   // v1.479: SHIRT overlay (täcker torso från axlar till midja)
   if (cos.shirt && cos.shirt !== null) {
-    drawShirtOverlay(ctx, cos.shirt, flash);
+    drawShirtOverlay(ctx, cos.shirt, flash, cos.shirtBrand);
   }
   // v1.479: SHOES overlay (täcker fötter när sko equippad)
   if (cos.shoes && cos.shoes.style && cos.shoes.style !== 'none') {
@@ -39622,7 +39634,7 @@ function drawHatOnHead(ctx, style, color, flash) {
 //   y=4:  x=-5..+6 (waist)
 //   y=9:  x=-4..+5 (hip)
 // Shirten ska sitta PÅ kroppen, inte runt om. Hem just över briefs (y=8.5).
-function drawShirtOverlay(ctx, color, flash) {
+function drawShirtOverlay(ctx, color, flash, brand) {
   const col = flash ? '#fff' : color;
   const dark = flash ? '#fff' : darken(color, 0.32);
   const darker = flash ? '#fff' : darken(color, 0.55);
@@ -39706,6 +39718,172 @@ function drawShirtOverlay(ctx, color, flash) {
   ctx.lineTo(6, 4);
   ctx.quadraticCurveTo(8, 0, 6, -4);
   ctx.stroke();
+  // === 8. v1.486: BRAND LOGO på chest (om brand-shirt equippad) ===
+  if (brand) {
+    drawShirtBrandLogo(ctx, brand, flash);
+  }
+}
+
+// v1.486: Brand-parodi logos på chest area (y=0 till y=5, x=-4 till +4)
+function drawShirtBrandLogo(ctx, brand, flash) {
+  if (brand === 'adibas') {
+    // 3 svarta diagonala stripes (Adidas-stil) på chest
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.save();
+    ctx.translate(0.5, 2.5);
+    ctx.rotate(-0.25);
+    ctx.fillRect(-2.5, -1.8, 0.5, 3.6);
+    ctx.fillRect(-1.2, -1.8, 0.5, 3.6);
+    ctx.fillRect(0.1, -1.8, 0.5, 3.6);
+    ctx.restore();
+  } else if (brand === 'najk') {
+    // Vit swoosh (Nike-stil curved tick) på chest
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(-2.5, 2.5);
+    ctx.quadraticCurveTo(0, 0.8, 3.5, 1.5);
+    ctx.lineTo(3.5, 2.3);
+    ctx.quadraticCurveTo(0, 1.6, -2.2, 3.2);
+    ctx.closePath();
+    ctx.fill();
+    // Drop-shadow på swoosh för pop
+    ctx.strokeStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.lineWidth = 0.2;
+    ctx.beginPath();
+    ctx.moveTo(-2.5, 2.5);
+    ctx.quadraticCurveTo(0, 0.8, 3.5, 1.5);
+    ctx.stroke();
+  } else if (brand === 'guc_cee') {
+    // Guc-Cee horisontella stripes (grön-röd-grön band)
+    ctx.fillStyle = flash ? '#fff' : '#3a8a3a';
+    ctx.fillRect(-5, 1.5, 10, 0.5);
+    ctx.fillStyle = flash ? '#fff' : '#aa1818';
+    ctx.fillRect(-5, 2.1, 10, 0.5);
+    ctx.fillStyle = flash ? '#fff' : '#3a8a3a';
+    ctx.fillRect(-5, 2.7, 10, 0.5);
+    // Liten "GC" monogram-cirkel i mitten
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.beginPath();
+    ctx.arc(0.5, 4.5, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.lineWidth = 0.3;
+    ctx.stroke();
+  } else if (brand === 'loui_witty') {
+    // LV-monogram diamond pattern över hela chest
+    ctx.fillStyle = flash ? '#fff' : '#aa8a3a';
+    for (let yy = 0; yy <= 6; yy += 1.2) {
+      for (let xx = -4; xx <= 4; xx += 1.5) {
+        const ox = (yy % 2.4 === 0) ? 0 : 0.75;
+        // Diamond shape
+        ctx.beginPath();
+        ctx.moveTo(xx + ox, yy);
+        ctx.lineTo(xx + ox + 0.35, yy + 0.45);
+        ctx.lineTo(xx + ox, yy + 0.9);
+        ctx.lineTo(xx + ox - 0.35, yy + 0.45);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+    // Center "LW" badge
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.fillRect(-1.2, 2.5, 2.4, 1.2);
+    ctx.strokeStyle = flash ? '#fff' : '#3a2010';
+    ctx.lineWidth = 0.3;
+    ctx.strokeRect(-1.2, 2.5, 2.4, 1.2);
+  } else if (brand === 'versass') {
+    // Gold Medusa head (cirkel + ray-pattern)
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.shadowColor = flash ? '#fff' : '#ffd54a';
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.arc(0.5, 3, 2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Inner darker circle
+    ctx.fillStyle = flash ? '#fff' : '#aa8a3a';
+    ctx.beginPath();
+    ctx.arc(0.5, 3, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    // Star/sunburst rays
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      const x = 0.5 + Math.cos(ang) * 1.8;
+      const y = 3 + Math.sin(ang) * 1.8;
+      ctx.beginPath();
+      ctx.arc(x, y, 0.25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Center mark (medusa face hint)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(0.2, 2.7, 0.6, 0.6);
+  } else if (brand === 'calvin') {
+    // Calvin minimal text bar — bara två rader svart text-look
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(-2.5, 5.5, 5, 0.5);  // "CALVIN" stripe
+    ctx.fillRect(-1.8, 6.2, 3.6, 0.4); // "KLEIN" stripe
+    // Tiny waistband logo
+    ctx.fillStyle = flash ? '#fff' : '#666666';
+    ctx.fillRect(-2.5, 7, 5, 0.3);
+  } else if (brand === 'tommy') {
+    // Tommy flag-patch (red/white/blue)
+    ctx.strokeStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.lineWidth = 0.3;
+    ctx.fillStyle = flash ? '#fff' : '#aa1818';
+    ctx.fillRect(-2.5, 1.5, 5, 0.9);
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.fillRect(-2.5, 2.4, 5, 0.9);
+    ctx.fillStyle = flash ? '#fff' : '#1a3a8a';
+    ctx.fillRect(-2.5, 3.3, 5, 0.9);
+    ctx.strokeRect(-2.5, 1.5, 5, 2.7);
+    // Tommy "T" detail i mitten
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.fillRect(-0.3, 1.5, 0.6, 2.7);
+  } else if (brand === 'supreme') {
+    // Supreme box logo (red rectangle med vit border)
+    ctx.fillStyle = flash ? '#fff' : '#cc1818';
+    ctx.fillRect(-3.5, 1.5, 7, 2);
+    ctx.strokeStyle = flash ? '#fff' : '#ffffff';
+    ctx.lineWidth = 0.4;
+    ctx.strokeRect(-3.5, 1.5, 7, 2);
+    // White "SUPREME" text-bar (simulering)
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.fillRect(-3, 2.0, 6, 0.5);
+    ctx.fillRect(-2.5, 2.7, 5, 0.4);
+  } else if (brand === 'north') {
+    // North Phase half-dome logo (semicircle + vertical center)
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.beginPath();
+    ctx.arc(0.5, 3, 1.8, Math.PI, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.lineWidth = 0.3;
+    ctx.stroke();
+    // 3 ridges (mountain lines)
+    ctx.beginPath();
+    ctx.moveTo(-0.8, 3); ctx.lineTo(-0.8, 1.3);
+    ctx.moveTo(0.5, 3);  ctx.lineTo(0.5, 1.2);
+    ctx.moveTo(1.8, 3);  ctx.lineTo(1.8, 1.3);
+    ctx.stroke();
+    // "TNP" text strip nedanför
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.fillRect(-1.5, 4, 4, 0.5);
+  } else if (brand === 'bossa') {
+    // Hugo Bossa — minimal silver text-bar
+    ctx.fillStyle = flash ? '#fff' : '#c0c0c0';
+    ctx.fillRect(-3, 2.5, 6, 0.7);
+    // "BOSS" text-look (4 short verticals)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.fillRect(-2.5, 2.6, 0.3, 0.5);
+    ctx.fillRect(-1.5, 2.6, 0.3, 0.5);
+    ctx.fillRect(-0.5, 2.6, 0.3, 0.5);
+    ctx.fillRect(0.5, 2.6, 0.3, 0.5);
+    // Gold accent line below
+    ctx.fillStyle = flash ? '#fff' : '#aa8a3a';
+    ctx.fillRect(-3, 3.3, 6, 0.2);
+  }
 }
 
 // v1.481: Pants overlay som FÖLJER ben-silhouette EXAKT.
