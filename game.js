@@ -11516,7 +11516,7 @@ function drawCoopPartner() {
     }
     // v1.468: Partner — hanging arm + arm shaft BEHIND body, hand AFTER body
     drawHangingArm(ctx, partnerCos, false, _pBodyFacingLeft);
-    // Partner shooting arm SHAFT (behind body)
+    // Partner shooting arm SHAFT (behind body) — v1.484 med sleeve
     {
       const _pShoulderXShaft = _pBodyFacingLeft ? -3 : 3;
       ctx.save();
@@ -11527,14 +11527,39 @@ function drawCoopPartner() {
       const _paLight = lighten(_paBase, 0.22);
       const _paShadow = darken(_paBase, 0.30);
       const _paDeep = darken(_paBase, 0.55);
-      ctx.fillStyle = _paShadow;
-      ctx.fillRect(0, -3, 13, 6);
-      ctx.fillStyle = _paBase;
-      ctx.fillRect(0, -3, 13, 5);
-      ctx.fillStyle = _paLight;
-      ctx.fillRect(0, -3, 13, 2);
-      ctx.fillStyle = _paDeep;
-      ctx.fillRect(7, 1, 6, 1);
+      const _pShirtCol = partnerCos.shirt;
+      const _pHasShirt = _pShirtCol != null;
+      const _pSleeveLen = 8;
+      if (_pHasShirt) {
+        const _psCol = _pShirtCol;
+        const _psLight = lighten(_pShirtCol, 0.20);
+        const _psShadow = darken(_pShirtCol, 0.35);
+        const _psDark = darken(_pShirtCol, 0.55);
+        ctx.fillStyle = _psShadow;
+        ctx.fillRect(0, -3, _pSleeveLen, 6);
+        ctx.fillStyle = _psCol;
+        ctx.fillRect(0, -3, _pSleeveLen, 5);
+        ctx.fillStyle = _psLight;
+        ctx.fillRect(0, -3, _pSleeveLen, 2);
+        ctx.fillStyle = _psDark;
+        ctx.fillRect(_pSleeveLen - 0.6, -3, 0.6, 6);
+        // Forearm skin
+        ctx.fillStyle = _paShadow;
+        ctx.fillRect(_pSleeveLen, -3, 13 - _pSleeveLen, 6);
+        ctx.fillStyle = _paBase;
+        ctx.fillRect(_pSleeveLen, -3, 13 - _pSleeveLen, 5);
+        ctx.fillStyle = _paLight;
+        ctx.fillRect(_pSleeveLen, -3, 13 - _pSleeveLen, 2);
+      } else {
+        ctx.fillStyle = _paShadow;
+        ctx.fillRect(0, -3, 13, 6);
+        ctx.fillStyle = _paBase;
+        ctx.fillRect(0, -3, 13, 5);
+        ctx.fillStyle = _paLight;
+        ctx.fillRect(0, -3, 13, 2);
+        ctx.fillStyle = _paDeep;
+        ctx.fillRect(7, 1, 6, 1);
+      }
       ctx.strokeStyle = '#0a0a0e';
       ctx.lineWidth = 1;
       ctx.strokeRect(0, -3, 13, 6);
@@ -39552,39 +39577,11 @@ function drawShirtOverlay(ctx, color, flash) {
   const darker = flash ? '#fff' : darken(color, 0.55);
   const light = flash ? '#fff' : lighten(color, 0.22);
   const outline = flash ? '#fff' : '#0a0a0a';
-  // === 1. SLEEVES (ritas FÖRST så body överlapper ärm-bas) ===
-  // East sleeve — kort ärm från axel (6,-4) ut till (9,1) ner till (6,4)
-  ctx.fillStyle = col;
-  ctx.beginPath();
-  ctx.moveTo(5.5, -3.5);
-  ctx.quadraticCurveTo(9.2, -1.5, 9, 2);
-  ctx.lineTo(7.5, 3.8);
-  ctx.lineTo(6, 4);
-  ctx.lineTo(6, -3.5);
-  ctx.closePath();
-  ctx.fill();
-  // West sleeve
-  ctx.beginPath();
-  ctx.moveTo(-5.5, -3.5);
-  ctx.quadraticCurveTo(-9.2, -1.5, -9, 2);
-  ctx.lineTo(-7.5, 3.8);
-  ctx.lineTo(-6, 4);
-  ctx.lineTo(-6, -3.5);
-  ctx.closePath();
-  ctx.fill();
-  // Sleeve hems (mörk stripe vid armkanten)
-  ctx.fillStyle = dark;
-  ctx.beginPath();
-  ctx.moveTo(7.5, 3.8); ctx.lineTo(9, 2); ctx.lineTo(9, 2.8);
-  ctx.lineTo(7.6, 4.2);
-  ctx.closePath();
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(-7.5, 3.8); ctx.lineTo(-9, 2); ctx.lineTo(-9, 2.8);
-  ctx.lineTo(-7.6, 4.2);
-  ctx.closePath();
-  ctx.fill();
-  // === 2. TORSO — exakt torso-silhouette med shirt-färg ===
+  // v1.484: FLOATING SLEEVE WINGS BORTTAGNA (var dekorativa floating shapes
+  // som extended till x=±9 men inte alignade med riktiga armarna). Sleeves
+  // renderas nu DIREKT på arm-shafts (drawHangingArm + shooting arm i drawPlayer)
+  // så de FÖLJER armens position (även när aim roterar).
+  // === TORSO — exakt torso-silhouette med shirt-färg ===
   ctx.fillStyle = col;
   ctx.beginPath();
   ctx.moveTo(-6, -4);
@@ -39648,9 +39645,8 @@ function drawShirtOverlay(ctx, color, flash) {
   ctx.beginPath();
   ctx.moveTo(-4, 8.5); ctx.lineTo(5, 8.5);
   ctx.stroke();
-  // === 7. OUTLINE (hela shirt-shape) ===
+  // === 7. OUTLINE (torso-shape only — sleeves har egen outline på armar) ===
   ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
-  // Torso outline
   ctx.beginPath();
   ctx.moveTo(-6, -4);
   ctx.quadraticCurveTo(-8, 0, -5, 4);
@@ -39658,19 +39654,6 @@ function drawShirtOverlay(ctx, color, flash) {
   ctx.lineTo(5, 8.5);
   ctx.lineTo(6, 4);
   ctx.quadraticCurveTo(8, 0, 6, -4);
-  ctx.stroke();
-  // Sleeve outlines (only outer edge, inner edge döljs av body)
-  ctx.beginPath();
-  ctx.moveTo(5.5, -3.5);
-  ctx.quadraticCurveTo(9.2, -1.5, 9, 2);
-  ctx.lineTo(7.5, 3.8);
-  ctx.lineTo(6, 4);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(-5.5, -3.5);
-  ctx.quadraticCurveTo(-9.2, -1.5, -9, 2);
-  ctx.lineTo(-7.5, 3.8);
-  ctx.lineTo(-6, 4);
   ctx.stroke();
 }
 
@@ -40392,41 +40375,60 @@ function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffs
   if (throwOffsetX === undefined) throwOffsetX = 0;
   if (throwOffsetY === undefined) throwOffsetY = 0;
   const skinBase = cos.skin || '#9a6028';
-  // v1.478: armBase = SAME as body skin (no darkening), thin outline för att
-  // arm inte ska se svart ut (outline tog för stor proportion av smal arm).
   const armBase = flash ? '#fff' : skinBase;
   const outline = flash ? '#fff' : '#0a0a0e';
-  // v1.478: Tunnare outlines (0.6 var 1.2) så armen inte ser svart ut
   const hangX = bodyFacingLeft ? 8 : -8;
   const shY = -3;
-  // DELTOID
-  ctx.fillStyle = armBase;
+  // v1.484: SLEEVE — om shirt equippad, paint upper arm + deltoid med shirt-färg
+  const shirtCol = cos.shirt; // null när 'naked'
+  const hasShirt = shirtCol != null;
+  const sleeveCol = flash ? '#fff' : (hasShirt ? shirtCol : armBase);
+  const sleeveDark = flash ? '#fff' : (hasShirt ? darken(shirtCol, 0.40) : darken(skinBase, 0.30));
+  // T-shirt: sleeve covers deltoid + upper arm (shY till shY+5). Forearm bare.
+  const sleeveEndY = shY + 5;
+  // === DELTOID — sleeve color om shirt, annars skin ===
+  ctx.fillStyle = sleeveCol;
   ctx.beginPath();
   ctx.ellipse(hangX + 0.3, shY - 0.5, 3, 2.2, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 0.6;
   ctx.stroke();
-  // UPPER ARM
-  ctx.fillStyle = armBase;
+  // === UPPER ARM (sleeve) === — från shY till sleeveEndY
+  ctx.fillStyle = sleeveCol;
   ctx.beginPath();
   ctx.moveTo(hangX - 1.7, shY);
   ctx.lineTo(hangX + 1.7, shY);
-  ctx.quadraticCurveTo(hangX + 2, shY + 5, hangX + 1.5, shY + 9);
+  ctx.quadraticCurveTo(hangX + 2, shY + 3, hangX + 1.85, sleeveEndY);
+  ctx.lineTo(hangX - 1.85, sleeveEndY);
+  ctx.quadraticCurveTo(hangX - 2, shY + 3, hangX - 1.7, shY);
+  ctx.closePath();
+  ctx.fill();
+  // Sleeve hem (mörk stripe vid där sleeve slutar) — bara om shirt
+  if (hasShirt) {
+    ctx.fillStyle = sleeveDark;
+    ctx.fillRect(hangX - 1.85, sleeveEndY - 0.4, 3.7, 0.4);
+  }
+  // === FOREARM (skin, från sleeveEndY till shY+13) ===
+  ctx.fillStyle = armBase;
+  ctx.beginPath();
+  ctx.moveTo(hangX - 1.85, sleeveEndY);
+  ctx.lineTo(hangX + 1.85, sleeveEndY);
+  ctx.quadraticCurveTo(hangX + 2, shY + 7, hangX + 1.5, shY + 9);
   ctx.lineTo(hangX + 1.2, shY + 13);
   ctx.lineTo(hangX - 1.2, shY + 13);
   ctx.lineTo(hangX - 1.5, shY + 9);
-  ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
+  ctx.quadraticCurveTo(hangX - 2, shY + 7, hangX - 1.85, sleeveEndY);
   ctx.closePath();
   ctx.fill();
-  // Elbow line (subtle, skin shadow color instead of dark outline)
+  // Elbow line (subtle skin shadow)
   ctx.strokeStyle = darken(skinBase, 0.30);
   ctx.lineWidth = 0.4;
   ctx.beginPath();
-  ctx.moveTo(hangX - 1.4, shY + 7);
-  ctx.lineTo(hangX + 1.3, shY + 7);
+  ctx.moveTo(hangX - 1.4, shY + 8);
+  ctx.lineTo(hangX + 1.3, shY + 8);
   ctx.stroke();
-  // Arm outline (tunn)
+  // === ARM OUTLINE (hela arm-shape) ===
   ctx.strokeStyle = outline;
   ctx.lineWidth = 0.6;
   ctx.beginPath();
@@ -40439,7 +40441,7 @@ function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffs
   ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
   ctx.closePath();
   ctx.stroke();
-  // Hand
+  // Hand (always skin)
   const handHX = hangX + throwOffsetX;
   const handHY = shY + 14.5 + throwOffsetY;
   ctx.fillStyle = armBase;
@@ -40601,7 +40603,7 @@ function drawPlayer() {
     }
   }
   drawHangingArm(ctx, cos, flash, _bodyFacingLeft, _throwOffX, _throwOffY);
-  // SHOOTING ARM SHAFT (behind body)
+  // SHOOTING ARM SHAFT (behind body) — v1.484: med sleeve om shirt equippad
   {
     const _shoulderXShaft = _bodyFacingLeft ? -3 : 3;
     const _shoulderYShaft = -3;
@@ -40615,17 +40617,47 @@ function drawPlayer() {
     const _aShadow = flash ? '#fff' : darken(_aBase, 0.30);
     const _aDeep = flash ? '#fff' : darken(_aBase, 0.55);
     const _aOutline = flash ? '#fff' : '#0a0a0e';
-    // Arm shaft only (no hand yet — that goes on top of body)
-    ctx.fillStyle = _aShadow;
-    ctx.fillRect(0, -3, 13, 6);
-    ctx.fillStyle = _aSkin;
-    ctx.fillRect(0, -3, 13, 5);
-    ctx.fillStyle = _aLight;
-    ctx.fillRect(0, -3, 13, 2);
-    // Forearm muscle definition
-    ctx.fillStyle = _aDeep;
-    ctx.fillRect(7, 1, 6, 1);
-    // Outline
+    // v1.484: T-shirt sleeve på upper arm (0 till x=8 i arm-local frame).
+    // Forearm (x=8 till x=13) stays bare skin.
+    const _shirtCol = cos.shirt; // null när naked
+    const _hasShirt = _shirtCol != null;
+    const _sleeveLen = 8; // sleeve covers 0 till 8, forearm 8 till 13
+    if (_hasShirt) {
+      const _sCol = flash ? '#fff' : _shirtCol;
+      const _sLight = flash ? '#fff' : lighten(_shirtCol, 0.20);
+      const _sShadow = flash ? '#fff' : darken(_shirtCol, 0.35);
+      const _sDark = flash ? '#fff' : darken(_shirtCol, 0.55);
+      // Sleeve fill
+      ctx.fillStyle = _sShadow;
+      ctx.fillRect(0, -3, _sleeveLen, 6);
+      ctx.fillStyle = _sCol;
+      ctx.fillRect(0, -3, _sleeveLen, 5);
+      ctx.fillStyle = _sLight;
+      ctx.fillRect(0, -3, _sleeveLen, 2);
+      // Sleeve hem (mörk stripe vid där sleeve slutar)
+      ctx.fillStyle = _sDark;
+      ctx.fillRect(_sleeveLen - 0.6, -3, 0.6, 6);
+      // Forearm (skin) från sleeveLen till 13
+      ctx.fillStyle = _aShadow;
+      ctx.fillRect(_sleeveLen, -3, 13 - _sleeveLen, 6);
+      ctx.fillStyle = _aSkin;
+      ctx.fillRect(_sleeveLen, -3, 13 - _sleeveLen, 5);
+      ctx.fillStyle = _aLight;
+      ctx.fillRect(_sleeveLen, -3, 13 - _sleeveLen, 2);
+      ctx.fillStyle = _aDeep;
+      ctx.fillRect(Math.max(7, _sleeveLen), 1, 13 - Math.max(7, _sleeveLen), 1);
+    } else {
+      // Naked — hela arm är skin
+      ctx.fillStyle = _aShadow;
+      ctx.fillRect(0, -3, 13, 6);
+      ctx.fillStyle = _aSkin;
+      ctx.fillRect(0, -3, 13, 5);
+      ctx.fillStyle = _aLight;
+      ctx.fillRect(0, -3, 13, 2);
+      ctx.fillStyle = _aDeep;
+      ctx.fillRect(7, 1, 6, 1);
+    }
+    // Outline (hela arm)
     ctx.strokeStyle = _aOutline;
     ctx.lineWidth = 1;
     ctx.strokeRect(0, -3, 13, 6);
