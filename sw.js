@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v461-profile-side-view-smaller';
+const CACHE = 'penetrator-v462-canvas-primitives-cleaner';
 const ASSETS = [
   './',
   './index.html',

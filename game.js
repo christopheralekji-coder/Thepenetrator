@@ -11470,12 +11470,10 @@ function drawCoopPartner() {
       p._bodyFacingLeft = Math.cos(partnerAimAngle) < 0;
     }
     const _pBodyFacingLeft = p._bodyFacingLeft;
-    ctx.imageSmoothingEnabled = false;
-    const pNakedCanvas = _getCachedNakedSprite(partnerCos, color, false); // 96x96
-    // Body upright med mirror
+    // v1.462: Canvas primitives för partner
     ctx.save();
     if (_pBodyFacingLeft) ctx.scale(-1, 1);
-    ctx.drawImage(pNakedCanvas, -24, -24, 48, 48);
+    drawNakedBody(ctx, partnerCos, false);
     ctx.restore();
     // Partner arm + hand rotated med aim
     ctx.save();
@@ -37612,6 +37610,198 @@ function drawMuzzleFlash(ctx, weaponTipX, sinceShot, weaponType) {
   ctx.restore();
 }
 
+// v1.462: NAKED CHARACTER drawn via canvas primitives — cleaner än mitt pixel art.
+// Profile view (facing east default). Mirror för west via ctx.scale(-1,1) i caller.
+// Skin tones från cos.skin med lighten/darken för proper shading.
+function drawNakedBody(ctx, cos, flash) {
+  const skin = flash ? '#fff' : (cos.skin || '#c89870');
+  const skinLight = flash ? '#fff' : lighten(cos.skin || '#c89870', 0.18);
+  const skinShadow = flash ? '#fff' : darken(cos.skin || '#c89870', 0.32);
+  const skinDeep = flash ? '#fff' : darken(cos.skin || '#c89870', 0.55);
+  const hair = flash ? '#fff' : (cos.hairColor || '#1a0a08');
+  const hairLight = flash ? '#fff' : lighten(cos.hairColor || '#1a0a08', 0.40);
+  const outline = flash ? '#fff' : '#0a0a0e';
+  const lipColor = flash ? '#fff' : '#7a3a3a';
+  // === HEAD (oval, centered at body-local (0, -16)) ===
+  // Head base (skin)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -16, 7, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Shadow on west (back of head)
+  ctx.fillStyle = skinShadow;
+  ctx.beginPath();
+  ctx.ellipse(-2, -15, 5, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Outline
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(0, -16, 7, 8, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  // === HAIR — covers top + back (west) of head ===
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(-7, -16);
+  ctx.lineTo(-7, -20);
+  ctx.quadraticCurveTo(0, -26, 5, -22);
+  ctx.lineTo(3, -18);
+  ctx.quadraticCurveTo(-2, -16, -7, -16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Hair highlight
+  ctx.fillStyle = hairLight;
+  ctx.beginPath();
+  ctx.ellipse(-1, -22, 3, 1.5, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // === EYE (single, facing east) ===
+  // Eye white
+  ctx.fillStyle = '#fafafa';
+  ctx.beginPath();
+  ctx.ellipse(3, -16, 1.8, 1.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // Iris+pupil
+  ctx.fillStyle = '#1a3050';
+  ctx.beginPath();
+  ctx.arc(3.5, -16, 1, 0, Math.PI * 2);
+  ctx.fill();
+  // Glint
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(4, -16.5, 0.8, 0.8);
+  // === EYEBROW ===
+  ctx.fillStyle = hair;
+  ctx.fillRect(1.5, -19, 3, 1);
+  // === NOSE (small protrusion east) ===
+  ctx.fillStyle = skinShadow;
+  ctx.beginPath();
+  ctx.moveTo(5, -15);
+  ctx.lineTo(7, -13);
+  ctx.lineTo(5, -12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  // === MOUTH ===
+  ctx.fillStyle = lipColor;
+  ctx.beginPath();
+  ctx.ellipse(3, -10, 2, 0.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // === NECK ===
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3, -8, 6, 4);
+  ctx.fillStyle = skinShadow;
+  ctx.fillRect(-3, -6, 6, 2);
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(-3, -8, 6, 4);
+  // === TORSO (profile oval) ===
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, 2, 8, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  // Chest highlight (top-east where light hits)
+  ctx.fillStyle = skinLight;
+  ctx.beginPath();
+  ctx.ellipse(2, -2, 4, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Chest shadow (bottom-east, abs hint)
+  ctx.fillStyle = skinShadow;
+  ctx.beginPath();
+  ctx.ellipse(4, 4, 2.5, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Subtle pec line
+  ctx.strokeStyle = skinDeep;
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(2, -1);
+  ctx.lineTo(5, 2);
+  ctx.stroke();
+  // Subtle ab line
+  ctx.beginPath();
+  ctx.moveTo(3, 3);
+  ctx.lineTo(4, 7);
+  ctx.stroke();
+  // Belly button
+  ctx.fillStyle = skinDeep;
+  ctx.beginPath();
+  ctx.arc(2, 8, 0.7, 0, Math.PI * 2);
+  ctx.fill();
+  // === UNDERWEAR ===
+  // Waistband (elastic, slightly darker white)
+  ctx.fillStyle = flash ? '#fff' : '#dadada';
+  ctx.fillRect(-7, 11, 14, 2);
+  // Main brief
+  ctx.fillStyle = flash ? '#fff' : '#fafafa';
+  ctx.beginPath();
+  ctx.moveTo(-7, 13);
+  ctx.lineTo(7, 13);
+  ctx.lineTo(6, 18);
+  ctx.lineTo(-6, 18);
+  ctx.closePath();
+  ctx.fill();
+  // Brief shadow
+  ctx.fillStyle = flash ? '#fff' : '#c0c0c0';
+  ctx.beginPath();
+  ctx.moveTo(2, 13);
+  ctx.lineTo(7, 13);
+  ctx.lineTo(6, 18);
+  ctx.lineTo(3, 18);
+  ctx.closePath();
+  ctx.fill();
+  // Outline underwear
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-7, 11);
+  ctx.lineTo(7, 11);
+  ctx.lineTo(7, 13);
+  ctx.lineTo(6, 18);
+  ctx.lineTo(-6, 18);
+  ctx.lineTo(-7, 13);
+  ctx.closePath();
+  ctx.stroke();
+  // === LEGS (profile — visible front leg + back leg partially) ===
+  // Back leg (slightly west, behind)
+  ctx.fillStyle = skinShadow;
+  ctx.fillRect(-4, 18, 4, 16);
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(-4, 18, 4, 16);
+  // Front leg (east, more visible)
+  ctx.fillStyle = skin;
+  ctx.fillRect(1, 18, 4, 16);
+  // Front leg highlight (east edge)
+  ctx.fillStyle = skinLight;
+  ctx.fillRect(3, 18, 1.5, 16);
+  // Front leg outline
+  ctx.strokeStyle = outline;
+  ctx.strokeRect(1, 18, 4, 16);
+  // Knee shadow detail
+  ctx.fillStyle = skinShadow;
+  ctx.fillRect(1, 25, 4, 1);
+  // === FEET (small east-pointing ovals) ===
+  // Back foot
+  ctx.fillStyle = skinShadow;
+  ctx.beginPath();
+  ctx.ellipse(-1, 35, 4, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // Front foot (east, slightly bigger)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(4, 35, 4.5, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+}
+
 function drawPlayer() {
   const p = state.player;
   const x = p.x - state.camera.x;
@@ -37720,7 +37910,6 @@ function drawPlayer() {
   if (input.keys.has('a')) _moveX -= 1;
   if (input.keys.has('s')) _moveY += 1;
   if (input.keys.has('w')) _moveY -= 1;
-  // Uppdatera body facing endast vid signifikant horisontell rörelse
   if (Math.abs(_moveX) > 0.05) {
     p.bodyFacingLeft = _moveX < 0;
   }
@@ -37728,16 +37917,13 @@ function drawPlayer() {
     p.bodyFacingLeft = Math.cos(p.aimAngle) < 0;
   }
   const _bodyFacingLeft = p.bodyFacingLeft;
-  // Aim variables för vapen + arm
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
-  ctx.imageSmoothingEnabled = false;
-  const nakedCanvas = _getCachedNakedSprite(cos, null, flash); // 96x96 (scale 2)
-  // Body drawn UPPRÄTT med mirror baserat på movement direction (Brotato-stil)
+  // v1.462: CANVAS PRIMITIVES istället för pixel-art — cleaner, riktig skin-color
   ctx.save();
   if (_bodyFacingLeft) ctx.scale(-1, 1);
-  ctx.drawImage(nakedCanvas, -24, -24, 48, 48);
+  drawNakedBody(ctx, cos, flash);
   ctx.restore();
   // v1.460: ARMS med 3-tons shading (highlight, base, shadow) + knuckles
   ctx.save();
