@@ -11475,7 +11475,7 @@ function drawCoopPartner() {
     // Body upright med mirror
     ctx.save();
     if (_pBodyFacingLeft) ctx.scale(-1, 1);
-    ctx.drawImage(pNakedCanvas, -48, -48, 96, 96);
+    ctx.drawImage(pNakedCanvas, -24, -24, 48, 48);
     ctx.restore();
     // Partner arm + hand rotated med aim
     ctx.save();
@@ -37295,58 +37295,56 @@ const HEAD_TOP_DOWN = [
 //   Rows 33-36: LEGS (skin split med separator)
 //   Rows 37-38: FEET
 const PLAYER_SPRITE_NAKED = [
-  // v1.460 RICH DETAILED — anatomical detail med ~50 colors för rich shading.
-  // 8 skin shades (0,s,S,1,2,3,K,4), 5 hair shades (5,H,6,7,8),
-  // eyes (e=sclera,i=iris,@=pupil,*=glint), lips (b,c),
-  // underwear (U,u,=,+,#), pec/abs/leg muscle definition.
+  // v1.461 SIDE-VIEW PROFILE — facing east. Hair på west (back), face features
+  // (eye, nose, mouth) på east (front). Smaller, classic Brotato profile.
   /* 0*/ '................................................',
   /* 1*/ '................................................',
   /* 2*/ '................................................',
-  /* 3*/ '......................OOOO......................',
-  /* 4*/ '.....................O7HH7O.....................',
-  /* 5*/ '...................O7HH5HH6O....................',
-  /* 6*/ '..................O7HH555HH6O...................',
-  /* 7*/ '.................O7HHH555HHH6O..................',
-  /* 8*/ '................OHHHHHHHHHHHH6O.................',
-  /* 9*/ '...............O5HHHHHHHHHHHHH6O................',
-  /*10*/ '...............OHH5HHsssssHHHHH6O...............',
-  /*11*/ '..............OHHHHss000ssssHH66O...............',
-  /*12*/ '..............OHHHss22ss22sssss6O...............',
-  /*13*/ '..............OHHss@iesse@iessss6O..............',
-  /*14*/ '..............O5sssee*ss*ee*sss66O..............',
-  /*15*/ '..............O0ssss1NNsNN1sssss6O..............',
-  /*16*/ '...............OsssssN2N2ssssss6O...............',
-  /*17*/ '...............O0sssssNNNssssss6O...............',
-  /*18*/ '..............O0sss2bcccb2sssss6O...............',
-  /*19*/ '...............Osssss2bb2sssss6O................',
-  /*20*/ '...............OO0sssNNNsssss0OO................',
-  /*21*/ '..................OOsssss00OO...................',
-  /*22*/ '.....................OsNsO......................',
-  /*23*/ '.....................OsssO......................',
-  /*24*/ '.................OOOO0sss0OOOO..................',
-  /*25*/ '.................OO0ssssssss0OO.................',
-  /*26*/ '...............O0sssssssssssss0O................',
-  /*27*/ '.............O0sssssssssssssssss0O..............',
-  /*28*/ '.............O0ssss2NN22NN2sssss0O..............',
-  /*29*/ '.............O0sssN3N1NN1N3Nsssss0O.............',
-  /*30*/ '.............O0ssssNN3333NNsssss0O..............',
-  /*31*/ '.............O0sssssssNNNsssssss0O..............',
-  /*32*/ '.............O0sssss2NNNNN2ssssss0O.............',
-  /*33*/ '.............O0ssssN1NN1NN1Nsssss0O.............',
-  /*34*/ '.............O0sssss2NN1NN2sssss0O..............',
-  /*35*/ '.............O0ssssN1NN1NN1Nsssss0O.............',
-  /*36*/ '..............O0sssss2*@*ssssss0O...............',
-  /*37*/ '..............O0sssssssssssssss0O...............',
-  /*38*/ '...............OO=##UUUUUUUU##=OO...............',
-  /*39*/ '...............O+uUUUUUUUUUUUUu+O...............',
-  /*40*/ '...............O+UUUUUUUUUUUUUU+O...............',
-  /*41*/ '...............O++UUUUUUUUUUU++OO...............',
-  /*42*/ '................OO+UUUUUUUUU+0O.................',
-  /*43*/ '.................O0sssOOOOsss0O.................',
-  /*44*/ '................O0sssO....Osss0O................',
-  /*45*/ '................O0ssK1O..O1Kss0O................',
-  /*46*/ '................O0sssO....Osss0O................',
-  /*47*/ '..................OOOO....OOOO..................',
+  /* 3*/ '................................................',
+  /* 4*/ '................................................',
+  /* 5*/ '................................................',
+  /* 6*/ '......................OOOO......................',
+  /* 7*/ '....................O7HHHH7O....................',
+  /* 8*/ '...................O7HH55HH6O...................',
+  /* 9*/ '.................O7HHH555HHs6O..................',
+  /*10*/ '.................OHHHHHHHHsss6O.................',
+  /*11*/ '.................OHHHHHHsss22NO.................',
+  /*12*/ '.................OHHHHHss@iesNO.................',
+  /*13*/ '.................OHHHHHss*sssNO.................',
+  /*14*/ '.................OHHHHHHsss2NnO.................',
+  /*15*/ '.................OHHHHHHsssNnnO.................',
+  /*16*/ '.................OHHHHHHHsssbsO.................',
+  /*17*/ '.................OHHHHHHHss2bsO.................',
+  /*18*/ '.................OOHHHHHHsss2sO.................',
+  /*19*/ '..................OOOHHHHHsssO..................',
+  /*20*/ '...................OOOOOsssO....................',
+  /*21*/ '....................OssNNsO.....................',
+  /*22*/ '.....................OssssO.....................',
+  /*23*/ '.................OOO0sssss0OOO..................',
+  /*24*/ '.................O0ssssssssss0O.................',
+  /*25*/ '.................O0sssssss22ssO.................',
+  /*26*/ '.................O0ssssssssN3sO.................',
+  /*27*/ '.................O0sssssssss2sO.................',
+  /*28*/ '.................O0ssssssss2NsO.................',
+  /*29*/ '.................O0sssssssss2sO.................',
+  /*30*/ '.................O0ssssssss2NsO.................',
+  /*31*/ '.................O0sssssssss2sO.................',
+  /*32*/ '.................O0sssssss*@*sO.................',
+  /*33*/ '................O0sssssssssss0O.................',
+  /*34*/ '................O=#UUUUUUUUU#=O.................',
+  /*35*/ '................OuUUUUUUUUUUUuO.................',
+  /*36*/ '................O+UUUUUUUUUUU+O.................',
+  /*37*/ '..................OO+UUUUUU+OO..................',
+  /*38*/ '..................O0sssss0sssO..................',
+  /*39*/ '.................O0sss2sssN3sO..................',
+  /*40*/ '.................O0sssssss2NsO..................',
+  /*41*/ '.................O0sssssssNN2sO.................',
+  /*42*/ '.................O0ssssssssss2O.................',
+  /*43*/ '.................O0ssssssssN2sO.................',
+  /*44*/ '.................Osssssssssss0O.................',
+  /*45*/ '.................OOOOOssssss0OO.................',
+  /*46*/ '..................OOOOOOOOOOO...................',
+  /*47*/ '................................................',
 ];
 
 // Walk-cykel variants — bara benen ändras. För enkel start använder vi
@@ -37486,7 +37484,7 @@ function _getCachedNakedSprite(cos, color, flash) {
   let cached = _nakedSpriteCache.get(key);
   if (cached) return cached;
   const palette = _buildPlayerPalette(cos, color);
-  cached = _renderPixelSpriteToCanvas(PLAYER_SPRITE_NAKED, palette, 2, flash);
+  cached = _renderPixelSpriteToCanvas(PLAYER_SPRITE_NAKED, palette, 1, flash);
   if (_nakedSpriteCache.size > 60) {
     const firstKey = _nakedSpriteCache.keys().next().value;
     _nakedSpriteCache.delete(firstKey);
@@ -37739,7 +37737,7 @@ function drawPlayer() {
   // Body drawn UPPRÄTT med mirror baserat på movement direction (Brotato-stil)
   ctx.save();
   if (_bodyFacingLeft) ctx.scale(-1, 1);
-  ctx.drawImage(nakedCanvas, -48, -48, 96, 96);
+  ctx.drawImage(nakedCanvas, -24, -24, 48, 48);
   ctx.restore();
   // v1.460: ARMS med 3-tons shading (highlight, base, shadow) + knuckles
   ctx.save();
