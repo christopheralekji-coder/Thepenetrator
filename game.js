@@ -37655,15 +37655,9 @@ function drawPlayer() {
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
   // v1.453: COMPLETE TOP-DOWN ROTATION — hela karaktären roterar som en enhet.
-  //
-  // Tidigare iterationer försökte rotera frontvy-sprite (tippas över / sidles)
-  // eller använda lager (head överlay + body överlay) som inte connectade.
-  // Nu: EN sprite designed i top-down view med ALLT (huvud, axlar, armar, kropp,
-  // ben, fötter) som roterar 360° med aim. Yaw rotation i golvplanet.
-  //
-  // Karaktären är naken med endast vita kallingar — outfits via garderob senare.
-  // Pivot vid body-local (0, +3) = höft/midjan (geometric center av kroppen)
-  // så ben/fötter inte svänger orealistiskt långt vid rotation.
+  const _aimX = Math.cos(p.aimAngle);
+  const _aimY = Math.sin(p.aimAngle);
+  const _facingLeft = _aimX < -0.05;
   ctx.save();
   // Pivot vid body center (mellan huvud och ben) för naturlig yaw rotation
   ctx.translate(0, 3);

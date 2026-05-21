@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v453-complete-naked-rotation';
+const CACHE = 'penetrator-v454-fix-undefined-vars';
 const ASSETS = [
   './',
   './index.html',
