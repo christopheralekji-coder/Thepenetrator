@@ -11463,40 +11463,21 @@ function drawCoopPartner() {
     }
     ctx.save();
     if (pFacingLeft) ctx.scale(-1, 1);
-    // v1.449: subtle body-lean
-    const pAimUpDown = Math.atan2(pAimY, Math.max(0.01, Math.abs(pAimX)));
-    const pMaxLean = 0.30;
-    const pBodyLean = Math.max(-pMaxLean, Math.min(pMaxLean, pAimUpDown * 0.7));
-    if (p._bodyRotLerp === undefined) p._bodyRotLerp = 0;
-    p._bodyRotLerp += (pBodyLean - p._bodyRotLerp) * 0.20;
-    ctx.rotate(p._bodyRotLerp);
+    // v1.450: NO body rotation — partner står upprätt
     if (partnerCos.bandana) {
       drawBandanaTail(ctx, partnerCos, color, now, partnerMoving, phase);
     }
     const partnerSprite = _getCachedPlayerSprite(partnerCos, color, 1, false, partnerFrame);
     ctx.drawImage(partnerSprite, -partnerSprite.width / 2, -partnerSprite.height / 2);
     ctx.restore();
-    // v1.449: ROTATING HEAD-ARROW för partner
+    // v1.450: TOP-DOWN HEAD OVERLAY för partner
     {
       ctx.save();
-      ctx.translate(0, -15);
+      ctx.translate(0, -12);
       ctx.rotate(partnerAimAngle);
-      ctx.fillStyle = '#000';
-      ctx.beginPath();
-      ctx.moveTo(8, 0);
-      ctx.lineTo(-3, -5);
-      ctx.lineTo(-1, 0);
-      ctx.lineTo(-3, 5);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillStyle = '#ffd54a';
-      ctx.beginPath();
-      ctx.moveTo(6, 0);
-      ctx.lineTo(-1, -3);
-      ctx.lineTo(0, 0);
-      ctx.lineTo(-1, 3);
-      ctx.closePath();
-      ctx.fill();
+      ctx.imageSmoothingEnabled = false;
+      const pHeadCanvas = _getCachedTopDownHead(partnerCos, color, false);
+      ctx.drawImage(pHeadCanvas, -10, -10);
       ctx.restore();
     }
     // Rotate for partner-weapon
@@ -37241,6 +37222,42 @@ const PLAYER_SPRITE_WALK_B = [
 // Legacy reference (för cache och kompatibilitet)
 const PLAYER_SPRITE = PLAYER_SPRITE_IDLE;
 
+// v1.450: TOP-DOWN HEAD OVERLAY — separat sprite designad ovanifrån som
+// roterar 360° med aim. Ersätter den baked-in face/sunglasses i body-spriten.
+// Default facing east (positive X). När rotated av aimAngle visar facing-
+// direction tydligt. Detta är essensen av "8-directional sprite" — en sprite
+// som via 360° rotation ger korrekt facing for alla riktningar.
+//
+// Palette används från _buildPlayerPalette(). Sprite size 20x20.
+// Layout (default east):
+//   - Outline (O) runt om
+//   - Bandana wrap (Q/R/r/q) — Q highlight på upper-left (NW=light source)
+//   - Accent stripe (A) vertikal (perpendicular to facing direction)
+//   - Sunglasses (G/W/w) på east edge = "front" of head
+//   - Bandana shadow (q) på lower-left (deep shadow på sidan motsatt aim)
+const HEAD_TOP_DOWN = [
+  /* 0*/ '.......OOOOOO.......',
+  /* 1*/ '.....OOQQRRrrrrOO...',
+  /* 2*/ '....OQQRRRRRRRrrrrO.',
+  /* 3*/ '...OQQRRARRRRRRrrrrO',
+  /* 4*/ '..OQRRRARRRRRRRrrrrO',
+  /* 5*/ '..OQRRRARRRRRRRrrrrO',
+  /* 6*/ '.OQRRRRARRRRRGGGGrrO',
+  /* 7*/ '.OQRRRRARRRRGGwwGGrO',
+  /* 8*/ '.OQRRRRARRRRGwWwGGrO',
+  /* 9*/ '.OqRRRRARRRRGwWwGGrO',
+  /*10*/ '.OqRRRRARRRRGGwwGGrO',
+  /*11*/ '.OQRRRRARRRRRGGGGrrO',
+  /*12*/ '..OQRRARRRRRRRrrrrrO',
+  /*13*/ '..OQRRARRRRRRRrrrrrO',
+  /*14*/ '...OQRRRRRRRRRrrrrO.',
+  /*15*/ '....OQQRRRRRRrrrrO..',
+  /*16*/ '.....OOQQRRrrrrOO...',
+  /*17*/ '.......OOOOOO.......',
+  /*18*/ '....................',
+  /*19*/ '....................',
+];
+
 // Walk-cykel variants — bara benen ändras. För enkel start använder vi
 // bara base sprite; lägg till L/R-frames senare för animation.
 
@@ -37319,6 +37336,23 @@ function _renderPixelSpriteToCanvas(sprite, palette, scale, flash) {
     }
   }
   return c;
+}
+
+// v1.450: Cache rendered top-down head per costume
+const _topDownHeadCache = new Map();
+function _getCachedTopDownHead(cos, color, flash) {
+  const key = (color || '') + '|' + (cos.skin || '') + '|' + (cos.bandana || '') + '|' +
+              (cos.accent || '') + '|' + (flash ? 'F' : 'N');
+  let cached = _topDownHeadCache.get(key);
+  if (cached) return cached;
+  const palette = _buildPlayerPalette(cos, color);
+  cached = _renderPixelSpriteToCanvas(HEAD_TOP_DOWN, palette, 1, flash);
+  if (_topDownHeadCache.size > 60) {
+    const firstKey = _topDownHeadCache.keys().next().value;
+    _topDownHeadCache.delete(firstKey);
+  }
+  _topDownHeadCache.set(key, cached);
+  return cached;
 }
 
 // Cache så vi inte re-renderar sprite varje frame
@@ -37536,62 +37570,34 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.449: SUBTLE BODY-LEAN + LARGE ROTATING HEAD-ARROW
+  // v1.450: 8-DIRECTIONAL HEAD via TOP-DOWN OVERLAY
   //
-  // ROOT-CAUSE av min upprepade förvirring: i 2D top-down spel med FRONTVY-
-  // sprite (som vår, med face/glasögon synliga) kan man inte ROTERA kroppen
-  // i 2D-canvas utan att den ser SIDLES ut. True top-down rotation (yaw)
-  // visualiseras i 2D via olika sprite-vyer per riktning (8-directional sprites)
-  // ELLER via redesign till top-down view (huvudet sett uppifrån).
-  //
-  // Utan full sprite-redesign, det bästa kompromisset:
-  // 1. Body roterar SUBTILT (max ±17°) = synligt lean utan sidles
-  // 2. STOR pil-indikator OVANPÅ huvudet som roterar FULLT med aim = visar
-  //    tydligt vart huvudet är vänd. Som en hjälm-framsida eller visir-kant.
+  // Body förblir UPRIGHT (mirror för west, ingen sidles-rotation).
+  // Top-down head sprite (designed ovanifrån) ritas ovanpå body's head-område
+  // och roterar 360° med aim. Detta är essensen av 8-directional rendering:
+  // en sprite per facing-direction, fast via smooth 360° rotation istället.
+  // Body stays vertical (no sidles), head clearly faces enemies.
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
   ctx.save();
   if (_facingLeft) ctx.scale(-1, 1);
-  // Subtle body lean (max ±17°, ej sidles)
-  const _aimUpDown = Math.atan2(_aimY, Math.max(0.01, Math.abs(_aimX)));
-  const _maxBodyLean = 0.30; // ~17° max
-  const _bodyLean = Math.max(-_maxBodyLean, Math.min(_maxBodyLean, _aimUpDown * 0.7));
-  if (p._bodyRotLerp === undefined) p._bodyRotLerp = 0;
-  p._bodyRotLerp += (_bodyLean - p._bodyRotLerp) * 0.20;
-  ctx.rotate(p._bodyRotLerp);
+  // NO body rotation — body står upprätt på marken
   if (cos.bandana) {
     drawBandanaTail(ctx, cos, null, now, moving, phase);
   }
   const spriteCanvas = _getCachedPlayerSprite(cos, null, 1, flash, chosenSprite);
   ctx.drawImage(spriteCanvas, -spriteCanvas.width / 2, -spriteCanvas.height / 2);
   ctx.restore();
-  // v1.449: ROTATING HEAD-ARROW — Stor pil ovanpå huvudet som roterar 360° med
-  // aim. Ritas i world-frame så body kan stå upprätt medan pilen tydligt visar
-  // facing direction. Som en visirkant / hjälmframsida som alltid pekar mot
-  // det karaktären "tittar på".
+  // v1.450: TOP-DOWN HEAD OVERLAY — roterar med aim, döljer body's baked-in face
   {
     ctx.save();
-    ctx.translate(0, -15); // top of head
-    ctx.rotate(p.aimAngle); // pilen roterar med aim
-    // Yttre svart pil-form (triangle pekande höger = aim direction)
-    ctx.fillStyle = flash ? '#fff' : '#000';
-    ctx.beginPath();
-    ctx.moveTo(8, 0);    // tip (i aim direction)
-    ctx.lineTo(-3, -5);  // back-top
-    ctx.lineTo(-1, 0);   // back-mid (notched)
-    ctx.lineTo(-3, 5);   // back-bottom
-    ctx.closePath();
-    ctx.fill();
-    // Inner gul highlight
-    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
-    ctx.beginPath();
-    ctx.moveTo(6, 0);
-    ctx.lineTo(-1, -3);
-    ctx.lineTo(0, 0);
-    ctx.lineTo(-1, 3);
-    ctx.closePath();
-    ctx.fill();
+    ctx.translate(0, -12); // body-local head center
+    ctx.rotate(p.aimAngle); // 360° rotation med aim
+    ctx.imageSmoothingEnabled = false;
+    const headCanvas = _getCachedTopDownHead(cos, null, flash);
+    // HEAD_TOP_DOWN är 20x20, centrera på (10, 10) i sprite-coords
+    ctx.drawImage(headCanvas, -10, -10);
     ctx.restore();
   }
   // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
