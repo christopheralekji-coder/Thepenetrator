@@ -11461,35 +11461,15 @@ function drawCoopPartner() {
       const wc = Math.floor(phase / Math.PI) % 2;
       partnerFrame = wc === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
     }
+    // v1.453: Complete naked sprite rotated with aim för partner
     ctx.save();
-    if (pFacingLeft) ctx.scale(-1, 1);
-    // v1.452: partner body upright + upper body overlay rotating
-    if (partnerCos.bandana) {
-      drawBandanaTail(ctx, partnerCos, color, now, partnerMoving, phase);
-    }
-    const partnerSprite = _getCachedPlayerSprite(partnerCos, color, 1, false, partnerFrame);
-    ctx.drawImage(partnerSprite, -partnerSprite.width / 2, -partnerSprite.height / 2);
+    ctx.translate(0, 3);
+    ctx.rotate(partnerAimAngle);
+    ctx.translate(0, -3);
+    ctx.imageSmoothingEnabled = false;
+    const pNakedCanvas = _getCachedNakedSprite(partnerCos, color, false);
+    ctx.drawImage(pNakedCanvas, -pNakedCanvas.width / 2, -pNakedCanvas.height / 2);
     ctx.restore();
-    // v1.452: TOP-DOWN UPPER BODY OVERLAY för partner
-    {
-      ctx.save();
-      ctx.translate(0, 4);
-      ctx.rotate(partnerAimAngle);
-      ctx.imageSmoothingEnabled = false;
-      const pUpperBodyCanvas = _getCachedTopDownUpperBody(partnerCos, color, false);
-      ctx.drawImage(pUpperBodyCanvas, -12, -7);
-      ctx.restore();
-    }
-    // v1.450: TOP-DOWN HEAD OVERLAY för partner
-    {
-      ctx.save();
-      ctx.translate(0, -12);
-      ctx.rotate(partnerAimAngle);
-      ctx.imageSmoothingEnabled = false;
-      const pHeadCanvas = _getCachedTopDownHead(partnerCos, color, false);
-      ctx.drawImage(pHeadCanvas, -10, -10);
-      ctx.restore();
-    }
     // Rotate for partner-weapon
     ctx.rotate(partnerAimAngle);
     if (pFacingLeft) ctx.scale(1, -1);
@@ -37268,29 +37248,78 @@ const HEAD_TOP_DOWN = [
   /*19*/ '....................',
 ];
 
-// v1.452: TOP-DOWN UPPER BODY OVERLAY — separat sprite designed ovanifrån
-// som visar SHOULDERS + ARMS + VEST PLATE från top-down perspective. Roterar
-// 360° med aim precis som head overlay. Detta är vad user verkligen ville:
-// kroppen ska vända sig så man inte ser den framifrån när man inte siktar fram.
+// v1.453: COMPLETE NAKED SPRITE — true top-down view of entire character.
+// Hela gubben (huvud, axlar, armar, kropp, ben, fötter) ritad ovanifrån
+// i en sprite. Default facing east (positive X). När rotated av aim:
+// HELA karaktären roterar som en enhet i golvplanet (yaw rotation).
 //
-// Default east-facing (positive X). Vid rotation visar olika sidor av kroppen
-// (shoulder-bredd perpendicular to facing, vest-plate centered, arms east).
-// Body's existing sprite (legs+feet+walk-cycle) ritas under och förblir uprigt.
-const UPPER_BODY_TOP_DOWN = [
-  /* 0*/ '......OOOOOOOOOO........',
-  /* 1*/ '....OOFFFFFFFFFFFFOO....',
-  /* 2*/ '...OFFFVVVVVVVVVVVFFFO..',
-  /* 3*/ '..OFFVVVVVVVVVVVVVVFFFs.',
-  /* 4*/ '..OFVVVDDDDDDDDDDDVVFFss',
-  /* 5*/ '..OFVVDDDAAAAAADDDVVFFss',
-  /* 6*/ '..OFVVDDDAAAAAADDDVVFFss',
-  /* 7*/ '..OFVVDDDAAAAAADDDVVFFss',
-  /* 8*/ '..OFVVVDDDDDDDDDDDVVFFss',
-  /* 9*/ '..OFFVVVVVVVVVVVVVVFFFs.',
-  /*10*/ '...OFFFVVVVVVVVVVVFFFO..',
-  /*11*/ '....OOFFFFFFFFFFFFOO....',
-  /*12*/ '......OOOOOOOOOO........',
-  /*13*/ '........................',
+// Karaktären är NAKEN med endast vita kallingar (U). Inga kläder.
+// Outfits kommer via garderob-system senare.
+//
+// Palette chars:
+//   H = hair color (mörk top of head)
+//   s = skin highlight (lighter skin)
+//   S = skin base
+//   U = white underwear (added to palette below)
+//   O = outline
+//
+// Layout (default east-facing):
+//   Rows 15-25: HEAD - hair (H) på west-side (back of head), skin (s/S) på
+//               east-side (face area visible from above)
+//   Rows 26-29: SHOULDERS + EAST ARMS extending east
+//   Row 30:     TORSO narrow
+//   Rows 31-32: UNDERWEAR (U = white band)
+//   Rows 33-36: LEGS (skin split med separator)
+//   Rows 37-38: FEET
+const PLAYER_SPRITE_NAKED = [
+  /* 0*/ '................................................',
+  /* 1*/ '................................................',
+  /* 2*/ '................................................',
+  /* 3*/ '................................................',
+  /* 4*/ '................................................',
+  /* 5*/ '................................................',
+  /* 6*/ '................................................',
+  /* 7*/ '................................................',
+  /* 8*/ '................................................',
+  /* 9*/ '................................................',
+  /*10*/ '................................................',
+  /*11*/ '................................................',
+  /*12*/ '................................................',
+  /*13*/ '................................................',
+  /*14*/ '................................................',
+  /*15*/ '...................OOOOO........................',
+  /*16*/ '..................OHHHHHHO......................',
+  /*17*/ '.................OHHHHHHHHO.....................',
+  /*18*/ '.................OHHHHHHHHO.....................',
+  /*19*/ '.................OHHHHHHsSO.....................',
+  /*20*/ '.................OHHHHHsSSO.....................',
+  /*21*/ '.................OHHHHsSSSO.....................',
+  /*22*/ '.................OHHHHHsSSO.....................',
+  /*23*/ '.................OHHHHHHsSO.....................',
+  /*24*/ '..................OOHHHHHHO.....................',
+  /*25*/ '...................OOOOO........................',
+  /*26*/ '..............OOOSSSSSSSSSOOO...................',
+  /*27*/ '............OssSSSSSSSSSSSSSSssssO..............',
+  /*28*/ '............OssSSSSSSSSSSSSSSssssO..............',
+  /*29*/ '..............OOOSSSSSSSSSOOO...................',
+  /*30*/ '................OOSSSSSSSOO.....................',
+  /*31*/ '.................OUUUUUUUO......................',
+  /*32*/ '.................OUUUUUUUO......................',
+  /*33*/ '..................OSSOSSO.......................',
+  /*34*/ '..................OSSOSSO.......................',
+  /*35*/ '..................OSSOSSO.......................',
+  /*36*/ '..................OSSOSSO.......................',
+  /*37*/ '..................OOSOOSO.......................',
+  /*38*/ '...................OO..OO.......................',
+  /*39*/ '................................................',
+  /*40*/ '................................................',
+  /*41*/ '................................................',
+  /*42*/ '................................................',
+  /*43*/ '................................................',
+  /*44*/ '................................................',
+  /*45*/ '................................................',
+  /*46*/ '................................................',
+  /*47*/ '................................................',
 ];
 
 // Walk-cykel variants — bara benen ändras. För enkel start använder vi
@@ -37348,6 +37377,9 @@ function _buildPlayerPalette(cos, color) {
     'Y': accentBase,                        // Legacy compat
     'H': cos.hairColor || '#1a0a08',
     'X': '#0a0a0a',
+    // v1.453: Underwear (vit) för naked sprite
+    'U': '#fafafa',                         // White underwear (kallingar)
+    'u': '#c8c8c8',                         // Underwear shadow
   };
 }
 
@@ -37390,20 +37422,20 @@ function _getCachedTopDownHead(cos, color, flash) {
   return cached;
 }
 
-// v1.452: Cache rendered top-down upper body per costume
-const _topDownUpperBodyCache = new Map();
-function _getCachedTopDownUpperBody(cos, color, flash) {
-  const key = (color || '') + '|' + (cos.skin || '') + '|' + (cos.shirt || '') + '|' +
-              (cos.accent || '') + '|' + (flash ? 'F' : 'N');
-  let cached = _topDownUpperBodyCache.get(key);
+// v1.453: Cache rendered complete naked sprite per costume (only skin + hair)
+const _nakedSpriteCache = new Map();
+function _getCachedNakedSprite(cos, color, flash) {
+  const key = (color || '') + '|' + (cos.skin || '') + '|' + (cos.hairColor || '') +
+              '|' + (flash ? 'F' : 'N');
+  let cached = _nakedSpriteCache.get(key);
   if (cached) return cached;
   const palette = _buildPlayerPalette(cos, color);
-  cached = _renderPixelSpriteToCanvas(UPPER_BODY_TOP_DOWN, palette, 1, flash);
-  if (_topDownUpperBodyCache.size > 60) {
-    const firstKey = _topDownUpperBodyCache.keys().next().value;
-    _topDownUpperBodyCache.delete(firstKey);
+  cached = _renderPixelSpriteToCanvas(PLAYER_SPRITE_NAKED, palette, 1, flash);
+  if (_nakedSpriteCache.size > 60) {
+    const firstKey = _nakedSpriteCache.keys().next().value;
+    _nakedSpriteCache.delete(firstKey);
   }
-  _topDownUpperBodyCache.set(key, cached);
+  _nakedSpriteCache.set(key, cached);
   return cached;
 }
 
@@ -37622,48 +37654,25 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.452: BODY UPRIGHT + TOP-DOWN UPPER BODY OVERLAY + HEAD OVERLAY
+  // v1.453: COMPLETE TOP-DOWN ROTATION — hela karaktären roterar som en enhet.
   //
-  // Same approach som head overlay applied to body. Body sprite (legs+feet+
-  // walk-cycle) ritas UPRIGHT — inga rotations som tippar kroppen sidles.
-  // Top-down upper-body sprite (shoulders+arms+vest) ritas ovanpå body's
-  // shoulders och roterar 360° med aim. Then head overlay på top of det.
-  // Result: legs walking normalt, upper body+head clearly rotating med aim.
-  const _aimX = Math.cos(p.aimAngle);
-  const _aimY = Math.sin(p.aimAngle);
-  const _facingLeft = _aimX < -0.05;
+  // Tidigare iterationer försökte rotera frontvy-sprite (tippas över / sidles)
+  // eller använda lager (head överlay + body överlay) som inte connectade.
+  // Nu: EN sprite designed i top-down view med ALLT (huvud, axlar, armar, kropp,
+  // ben, fötter) som roterar 360° med aim. Yaw rotation i golvplanet.
+  //
+  // Karaktären är naken med endast vita kallingar — outfits via garderob senare.
+  // Pivot vid body-local (0, +3) = höft/midjan (geometric center av kroppen)
+  // så ben/fötter inte svänger orealistiskt långt vid rotation.
   ctx.save();
-  if (_facingLeft) ctx.scale(-1, 1);
-  // NO body rotation — kropp förblir upright, walk-cycle ren
-  if (cos.bandana) {
-    drawBandanaTail(ctx, cos, null, now, moving, phase);
-  }
-  const spriteCanvas = _getCachedPlayerSprite(cos, null, 1, flash, chosenSprite);
-  ctx.drawImage(spriteCanvas, -spriteCanvas.width / 2, -spriteCanvas.height / 2);
+  // Pivot vid body center (mellan huvud och ben) för naturlig yaw rotation
+  ctx.translate(0, 3);
+  ctx.rotate(p.aimAngle);
+  ctx.translate(0, -3);
+  ctx.imageSmoothingEnabled = false;
+  const nakedCanvas = _getCachedNakedSprite(cos, null, flash);
+  ctx.drawImage(nakedCanvas, -nakedCanvas.width / 2, -nakedCanvas.height / 2);
   ctx.restore();
-  // v1.452: TOP-DOWN UPPER BODY OVERLAY — shoulders/arms/vest rotate 360° med aim
-  // Drawn ovanpå body's existing shoulders region (rows 22-32 i body sprite).
-  // Center at body-local (0, +4) = middle of shoulders/vest area i body sprite.
-  {
-    ctx.save();
-    ctx.translate(0, 4); // upper body center
-    ctx.rotate(p.aimAngle); // 360° rotation med aim
-    ctx.imageSmoothingEnabled = false;
-    const upperBodyCanvas = _getCachedTopDownUpperBody(cos, null, flash);
-    // UPPER_BODY_TOP_DOWN är 24x14, centrera vid (12, 7)
-    ctx.drawImage(upperBodyCanvas, -12, -7);
-    ctx.restore();
-  }
-  // v1.450: TOP-DOWN HEAD OVERLAY — roterar med aim
-  {
-    ctx.save();
-    ctx.translate(0, -12); // body-local head center
-    ctx.rotate(p.aimAngle); // 360° rotation med aim
-    ctx.imageSmoothingEnabled = false;
-    const headCanvas = _getCachedTopDownHead(cos, null, flash);
-    ctx.drawImage(headCanvas, -10, -10);
-    ctx.restore();
-  }
   // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
   ctx.rotate(p.aimAngle);
   // v1.441: när aim är västligt (cos < 0), flippa vapnet vertikalt så det
