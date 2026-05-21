@@ -11461,17 +11461,19 @@ function drawCoopPartner() {
       const wc = Math.floor(phase / Math.PI) % 2;
       partnerFrame = wc === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
     }
-    // v1.455: Split body rendering för partner — ben fast, övre kropp roterar
+    // v1.456: Split body med mirror+rotation + scale-2 för partner
     ctx.imageSmoothingEnabled = false;
-    const pNakedCanvas = _getCachedNakedSprite(partnerCos, color, false);
+    const pNakedCanvas = _getCachedNakedSprite(partnerCos, color, false); // 96x96
     // Underdel fast
-    ctx.drawImage(pNakedCanvas, 0, 31, 48, 8, -24, 7, 48, 8);
-    // Övre kropp roterar
+    ctx.drawImage(pNakedCanvas, 0, 62, 96, 16, -48, 14, 96, 16);
+    // Övre kropp med mirror+rotation
     ctx.save();
-    ctx.translate(0, 6);
-    ctx.rotate(partnerAimAngle);
-    ctx.translate(0, -6);
-    ctx.drawImage(pNakedCanvas, 0, 15, 48, 16, -24, -9, 48, 16);
+    ctx.translate(0, 14);
+    if (pFacingLeft) ctx.scale(-1, 1);
+    const pDisplayAngle = pFacingLeft ? (Math.PI - partnerAimAngle) : partnerAimAngle;
+    ctx.rotate(pDisplayAngle);
+    ctx.translate(0, -14);
+    ctx.drawImage(pNakedCanvas, 0, 30, 96, 32, -48, -18, 96, 32);
     ctx.restore();
     // Rotate for partner-weapon
     ctx.rotate(partnerAimAngle);
@@ -37425,7 +37427,9 @@ function _getCachedTopDownHead(cos, color, flash) {
   return cached;
 }
 
-// v1.453: Cache rendered complete naked sprite per costume (only skin + hair)
+// v1.456: Cache rendered naked sprite at SCALE=2 så karaktären får samma storlek
+// som original IDLE-spriten (original 45 rad innehåll, min naked har 24 rad — scale 2
+// ger 48 rad effektiv storlek).
 const _nakedSpriteCache = new Map();
 function _getCachedNakedSprite(cos, color, flash) {
   const key = (color || '') + '|' + (cos.skin || '') + '|' + (cos.hairColor || '') +
@@ -37433,7 +37437,7 @@ function _getCachedNakedSprite(cos, color, flash) {
   let cached = _nakedSpriteCache.get(key);
   if (cached) return cached;
   const palette = _buildPlayerPalette(cos, color);
-  cached = _renderPixelSpriteToCanvas(PLAYER_SPRITE_NAKED, palette, 1, flash);
+  cached = _renderPixelSpriteToCanvas(PLAYER_SPRITE_NAKED, palette, 2, flash);
   if (_nakedSpriteCache.size > 60) {
     const firstKey = _nakedSpriteCache.keys().next().value;
     _nakedSpriteCache.delete(firstKey);
@@ -37657,30 +37661,29 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.455: SPLIT BODY RENDERING — ben FIXERADE mot marken, övre kropp roterar.
+  // v1.456: SPLIT BODY med MIRROR+ROTATION + SCALE 2 i cache
   //
-  // Tidigare v1.453/454: hela sprite roterade → benen följde aim → karaktären
-  // såg ut att SNURRA i luften, inte stå på marken.
-  //
-  // Nu (Hotline Miami-stil): underdelen (ben + fötter + kallingar) ritas UTAN
-  // rotation — fötterna pekar alltid nedåt på skärmen ("fast mot marken").
-  // Övre kroppen (huvud + axlar + armar + torso) ritas roterad runt höften.
-  // Detta efterliknar hur en riktig människa vrider sig: höften står still,
-  // överkroppen tvistar för att rikta vapen mot mål.
+  // 1. STORLEK FIX: scale=2 i cache → karaktären 2x större = matchar original.
+  //    Source rect 96xN (scale-2 canvas), dest rect 96xN (1:1, ingen nedskalning).
+  // 2. UPP-OCH-NER FIX: mirror för west-aim istället för rotate(180°).
+  //    Display-vinkel = (π - aimAngle) i mirrored frame, alltid inom ±90°.
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
   ctx.imageSmoothingEnabled = false;
-  const nakedCanvas = _getCachedNakedSprite(cos, null, flash);
-  // UNDERDEL (kallingar + ben + fötter) — sprite rows 31-38 — FAST orientering
-  // Source rect: (0, 31, 48, 8). Drawn at body-local y +7 to +15 (= sprite rows)
-  ctx.drawImage(nakedCanvas, 0, 31, 48, 8, -24, 7, 48, 8);
-  // ÖVRE KROPP (huvud + axlar + armar + torso) — sprite rows 15-30 — ROTERAR med aim
+  const nakedCanvas = _getCachedNakedSprite(cos, null, flash); // 96x96
+  // UNDERDEL (kallingar + ben + fötter) — scale-2 rows 62-78 (16 tall)
+  // Dest 96x16 = 1:1 med source, no downscale. y +14 till +30 (2x of original +7 till +15)
+  ctx.drawImage(nakedCanvas, 0, 62, 96, 16, -48, 14, 96, 16);
+  // ÖVRE KROPP — scale-2 rows 30-62 (32 tall). Mirror+rotation håller orientering.
   ctx.save();
-  ctx.translate(0, 6); // pivot vid höften (just under torso)
-  ctx.rotate(p.aimAngle);
-  ctx.translate(0, -6);
-  ctx.drawImage(nakedCanvas, 0, 15, 48, 16, -24, -9, 48, 16);
+  ctx.translate(0, 14); // pivot vid höften (2x of original 7)
+  if (_facingLeft) ctx.scale(-1, 1);
+  const _displayAngle = _facingLeft ? (Math.PI - p.aimAngle) : p.aimAngle;
+  ctx.rotate(_displayAngle);
+  ctx.translate(0, -14);
+  // Dest 96x32, y -18 till +14 (2x of original)
+  ctx.drawImage(nakedCanvas, 0, 30, 96, 32, -48, -18, 96, 32);
   ctx.restore();
   // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
   ctx.rotate(p.aimAngle);
