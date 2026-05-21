@@ -40479,9 +40479,14 @@ function drawPlayer() {
   const skinDark = darken(cos.skin, 0.72);
   const skinShadow = darken(cos.skin, 0.55);
   const skinHighlight = lighten(cos.skin, 0.18);
-  const vest = cos.shirt;
-  const vestDark = darken(cos.shirt, 0.65);
-  const vestLight = lighten(cos.shirt, 0.15);
+  // v1.482 CRITICAL FIX: cos.shirt kan vara null när 'naked' equippad (color: null).
+  // darken(null, ...) → null.replace TypeError → crashar drawPlayer mellan save/restore
+  // → transform stack accumulerar → "screen zoomed in / no inputs"-buggen.
+  // Använd fallback för dessa (de är bara använda i /* DEAD CODE */ block ändå).
+  const _shirtFallback = cos.shirt || '#222';
+  const vest = _shirtFallback;
+  const vestDark = darken(_shirtFallback, 0.65);
+  const vestLight = lighten(_shirtFallback, 0.15);
   const pants = cos.pants || '#3a3528';
   const pantsDark = darken(cos.pants || '#3a3528', 0.65);
   const boot = '#1a1208';
@@ -44391,6 +44396,8 @@ function drawPlayerWeapon(p, w, flash, now) {
 }
 
 function darken(hex, factor) {
+  // v1.482: null-safe guard — null/undefined input → svart return (förhindrar crash)
+  if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return 'rgb(0,0,0)';
   const c = hex.replace('#','');
   const r = (parseInt(c.slice(0,2),16) * factor) | 0;
   const g = (parseInt(c.slice(2,4),16) * factor) | 0;
@@ -44399,6 +44406,8 @@ function darken(hex, factor) {
 }
 // v1.434: lighten — för character-highlights (mot ljuset)
 function lighten(hex, amount) {
+  // v1.482: null-safe guard
+  if (!hex || typeof hex !== 'string' || !hex.startsWith('#')) return 'rgb(255,255,255)';
   const c = hex.replace('#','');
   const r = Math.min(255, parseInt(c.slice(0,2),16) + Math.round(255 * amount));
   const g = Math.min(255, parseInt(c.slice(2,4),16) + Math.round(255 * amount));
