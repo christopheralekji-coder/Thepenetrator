@@ -38224,23 +38224,22 @@ function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffs
   if (throwOffsetX === undefined) throwOffsetX = 0;
   if (throwOffsetY === undefined) throwOffsetY = 0;
   const skinBase = cos.skin || '#9a6028';
-  const armBase = flash ? '#fff' : darken(skinBase, 0.10);
-  const armShadow = flash ? '#fff' : darken(skinBase, 0.32);
-  const armDeep = flash ? '#fff' : darken(skinBase, 0.55);
-  const armLight = flash ? '#fff' : lighten(skinBase, 0.10);
+  // v1.478: armBase = SAME as body skin (no darkening), thin outline för att
+  // arm inte ska se svart ut (outline tog för stor proportion av smal arm).
+  const armBase = flash ? '#fff' : skinBase;
   const outline = flash ? '#fff' : '#0a0a0e';
-  // v1.477: Hanging arm SKUGGNING BORTTAGEN — bara base + outline + elbow line.
+  // v1.478: Tunnare outlines (0.6 var 1.2) så armen inte ser svart ut
   const hangX = bodyFacingLeft ? 8 : -8;
   const shY = -3;
-  // DELTOID (base + outline, no shading)
+  // DELTOID
   ctx.fillStyle = armBase;
   ctx.beginPath();
   ctx.ellipse(hangX + 0.3, shY - 0.5, 3, 2.2, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 0.6;
   ctx.stroke();
-  // UPPER ARM (base + outline only)
+  // UPPER ARM
   ctx.fillStyle = armBase;
   ctx.beginPath();
   ctx.moveTo(hangX - 1.7, shY);
@@ -38252,16 +38251,16 @@ function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffs
   ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
   ctx.closePath();
   ctx.fill();
-  // Elbow line (detail, not shading)
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 0.5;
+  // Elbow line (subtle, skin shadow color instead of dark outline)
+  ctx.strokeStyle = darken(skinBase, 0.30);
+  ctx.lineWidth = 0.4;
   ctx.beginPath();
   ctx.moveTo(hangX - 1.4, shY + 7);
   ctx.lineTo(hangX + 1.3, shY + 7);
   ctx.stroke();
-  // Arm outline
+  // Arm outline (tunn)
   ctx.strokeStyle = outline;
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 0.6;
   ctx.beginPath();
   ctx.moveTo(hangX - 1.7, shY);
   ctx.lineTo(hangX + 1.7, shY);
@@ -38272,7 +38271,7 @@ function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffs
   ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
   ctx.closePath();
   ctx.stroke();
-  // Hand (base + outline only)
+  // Hand
   const handHX = hangX + throwOffsetX;
   const handHY = shY + 14.5 + throwOffsetY;
   ctx.fillStyle = armBase;
@@ -38280,6 +38279,7 @@ function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffs
   ctx.ellipse(handHX, handHY, 2, 1.8, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.6;
   ctx.beginPath();
   ctx.ellipse(handHX, handHY, 2, 1.8, 0, 0, Math.PI * 2);
   ctx.stroke();

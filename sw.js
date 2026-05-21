@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v477-bigger-face-bare-feet-no-arm-shading';
+const CACHE = 'penetrator-v478-arm-not-black-thin-outlines';
 const ASSETS = [
   './',
   './index.html',
