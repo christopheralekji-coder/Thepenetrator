@@ -37086,80 +37086,106 @@ function drawMeleeCrosshair(p, w, px, py, aimAng, ax, ay, color) {
 
 const PIXEL_SPRITE_SIZE = 48;
 
-// THE PENETRATOR — 48×48 TRUE TOP-DOWN sprite (vertikalt symmetrisk).
-// v1.439 fix: tidigare sprite såg ut som "stående figur" — vid 180°-rotation
-// hamnade benen uppåt. Nu designat som karaktär sedd RAKT NEDIFRÅN HIMMELN:
-// bandana-täckt huvuddome, ansikte synligt ÖSTERUT, ARM extending east.
-// Inga ben i sprite — fötterna är dolda under kroppen från ovan.
-// Detta gör att rotation till valfri vinkel ser naturlig ut.
+// THE PENETRATOR v1.440 — STANDING FIGURE design (Brotato-style).
+// VIKTIG ARKITEKTUR: Sprite ritas UTAN rotation (alltid upprätt). Bara
+// VAPNET roterar i sikt-riktning. Detta löser upside-down-problemet samtidigt
+// som vi behåller karaktär-recognizability (man ser en stående gubbe).
 //
-// Sprite är SYMMETRISK över east-west-axeln (row 23-24).
-// Bandanan + ansikte är ASYMMETRISK east-west (face on east).
+// Karaktären står vänd mot kameran (3/4 above-front-perspektiv).
+// Bilateral hand-design: båda händer synliga vid sidor → weapon emerging
+// från right-hand vid aim-east, left-hand vid aim-west = ser naturligt ut.
 //
 // Palette key:
 //   . = transparent       O = outline (#0a0a0f)
-//   S = skin base         K = skin shadow
-//   R = bandana red       A = bandana accent (yellow stripe vertical)
+//   S = skin              K = skin shadow
+//   R = bandana red       A = bandana accent (yellow stripe)
 //   G = sunglasses dark   W = sunglasses white reflect
-//   V = vest base         D = plate carrier dark
+//   V = vest              D = plate carrier dark
 //   Y = yellow accent     M = brass/metal
-//   T = stubble/jaw shadow
+//   T = stubble shadow    P = pants
+//   B = boot black        L = boot leather highlight
 const PLAYER_SPRITE_IDLE = [
   /* 0*/ '................................................',
   /* 1*/ '................................................',
   /* 2*/ '................................................',
   /* 3*/ '................................................',
-  /* 4*/ '..............OOOOOOOOOOOO......................',
-  /* 5*/ '............OORRRRRRRRRRRRROO...................',
-  /* 6*/ '..........OORRRRRRRRRRRRRRRRRO..................',
-  /* 7*/ '.........ORRRRRRRRRRRRRRRRRRRO..................',
-  /* 8*/ '........ORRRRRRRRRRRRRRRRRRRRRO.................',
-  /* 9*/ '........ORRRAARRRRRRRRRRRRRRRRO.................',
-  /*10*/ '.......ORRRRAARRRRRRRRRRRRRRRRO.................',
-  /*11*/ '.......ORRRRAARRRRRRRRRRRRRRSSO.................',
-  /*12*/ '.......ORRRRAARRRRRRRRRRRRRSSSO.................',
-  /*13*/ '.......ORRRRAARRRRRRRRRRRRSSSWO.................',
-  /*14*/ '.......ORRRRAARRRRRRRRRRSSSGGGO.................',
-  /*15*/ '.......ORRRRAARRRRRRRRSSSGGGGGO.................',
-  /*16*/ '.......ORRRRAARRRRRRSSSSGGGWGGO.................',
-  /*17*/ '.......ORRRRAARRRRRSSSSGGGGGGGO.................',
-  /*18*/ '.......ORRRRAARRRRSSSSGGGGGGGGO.................',
-  /*19*/ '.......ORRRRAARRRSSSSSGGGGGGGGO.................',
-  /*20*/ '.......ORRRRAARRRSSSSGGGGGGGGGO.................',
-  /*21*/ '.......ORRRRAARRRSSSSSGGGGGGGGO.................',
-  /*22*/ '.......ORRRRAARRRSSSSSGGGGGGGGOOOO..............',
-  /*23*/ '.......ORRRRAARRRSSSSSGGGGGGGGOSSO..............',
-  /*24*/ '.......ORRRRAARRRSSSSSGGGGGGGGOSSO..............',
-  /*25*/ '.......ORRRRAARRRSSSSSGGGGGGGGOOOO..............',
-  /*26*/ '.......ORRRRAARRRSSSSSGGGGGGGGO.................',
-  /*27*/ '.......ORRRRAARRRSSSSGGGGGGGGGO.................',
-  /*28*/ '.......ORRRRAARRRSSSSSGGGGGGGGO.................',
-  /*29*/ '.......ORRRRAARRRRSSSSGGGGGGGGO.................',
-  /*30*/ '.......ORRRRAARRRRRSSSSGGGGGGGO.................',
-  /*31*/ '.......ORRRRAARRRRRRSSSSGGGWGGO.................',
-  /*32*/ '.......ORRRRAARRRRRRRRSSSGGGGGO.................',
-  /*33*/ '.......ORRRRAARRRRRRRRRRSSSGGGO.................',
-  /*34*/ '.......ORRRRAARRRRRRRRRRRRSSSWO.................',
-  /*35*/ '.......ORRRRAARRRRRRRRRRRRRSSSO.................',
-  /*36*/ '.......ORRRRAARRRRRRRRRRRRRRSSO.................',
-  /*37*/ '.......ORRRRAARRRRRRRRRRRRRRRRO.................',
-  /*38*/ '.......ORRRAARRRRRRRRRRRRRRRRRO.................',
-  /*39*/ '........ORRRRRRRRRRRRRRRRRRRRRO.................',
-  /*40*/ '........ORRRRRRRRRRRRRRRRRRRRO..................',
-  /*41*/ '.........ORRRRRRRRRRRRRRRRRRO...................',
-  /*42*/ '..........OORRRRRRRRRRRRRRRRO...................',
-  /*43*/ '............OORRRRRRRRRRRRROO...................',
-  /*44*/ '..............OOOOOOOOOOOO......................',
-  /*45*/ '................................................',
-  /*46*/ '................................................',
+  /* 4*/ '..................OOOOOOOOOOOO..................',
+  /* 5*/ '.................ORRRRRRRRRRRRO.................',
+  /* 6*/ '................ORRRRRRRRRRRRRRO................',
+  /* 7*/ '................ORRRRRRRRRRRRRRO................',
+  /* 8*/ '................ORRAAAARRRRRRRRO................',
+  /* 9*/ '................ORRAAAARRRRRRRRO................',
+  /*10*/ '................ORRAAAARRRRRRRRO................',
+  /*11*/ '................ORRAAAARRRRRRRRO................',
+  /*12*/ '................ORRAAAARRRRRRRRO................',
+  /*13*/ '................ORRAAAARRRRRRRRO................',
+  /*14*/ '................OSSAAAASSSSSSSSO................',
+  /*15*/ '................OSGGGGGGGGGGGGSO................',
+  /*16*/ '................OSGWGGGGGGGGWGSO................',
+  /*17*/ '................OSGGGGGGGGGGGGSO................',
+  /*18*/ '................OSSSSSSSSSSSSSSO................',
+  /*19*/ '.................OTTSSSSSSSSTTO.................',
+  /*20*/ '..................OOSSSSSSSSOO..................',
+  /*21*/ '...................OOOOOOOOOO...................',
+  /*22*/ '..............OOOVVVVVVVVVVVVOOO................',
+  /*23*/ '.............OVVYVVVVVVVVVVVVYVVO...............',
+  /*24*/ '............OVVVVVDDDDDDDDDDVVVVVO..............',
+  /*25*/ '............OVVVVDDYYYYYYYYYDDVVVO..............',
+  /*26*/ '............OVVVVDDYYYYYYYYYDDVVVO..............',
+  /*27*/ '............OVVVVDDDDDDDDDDDDDVVVO..............',
+  /*28*/ '............OVVVVDDMMMDDDDMMMDDVVO..............',
+  /*29*/ '............OVVVVDDDDDDDDDDDDDDVVO..............',
+  /*30*/ '............OVVVVDDMMMDDDDMMMDDVVO..............',
+  /*31*/ '............OSVVVDDDDDDDDDDDDDDVSO..............',
+  /*32*/ '...........OSSVVVVVVVVVVVVVVVVVSSO..............',
+  /*33*/ '...........OSSOOVVVVVVVVVVVVVVOSSO..............',
+  /*34*/ '............OOOOPPPPPPPPPPPPPPOO................',
+  /*35*/ '...............OPPPPMMMMMMMMPPPPO...............',
+  /*36*/ '...............OPPPPPPPPPPPPPPPPO...............',
+  /*37*/ '...............OPPPPPPPPPPPPPPPPO...............',
+  /*38*/ '...............OPPPPPPOOOOPPPPPPO...............',
+  /*39*/ '...............OPPPPPO....OPPPPPO...............',
+  /*40*/ '...............OPPPPPO....OPPPPPO...............',
+  /*41*/ '...............OPPPPPO....OPPPPPO...............',
+  /*42*/ '...............OBBBBOO....OOBBBBO...............',
+  /*43*/ '...............OBLLLBO....OBLLLLO...............',
+  /*44*/ '...............OBLLLBO....OBLLLLO...............',
+  /*45*/ '..............OOBBBBBO....OBBBBBOO..............',
+  /*46*/ '..............OOOOOOOO....OOOOOOOO..............',
   /*47*/ '................................................',
 ];
 
-// Walk-frame variants — subtle 1-pixel shift of body so character "bobs"
-// while moving. Used in alternating phase during walk cycle.
-// For now: just use IDLE as both frames (will add proper walk-anim later).
-const PLAYER_SPRITE_WALK_A = PLAYER_SPRITE_IDLE;
-const PLAYER_SPRITE_WALK_B = PLAYER_SPRITE_IDLE;
+// Walk-frame A — left foot forward (cols 15-21 lower, cols 26-32 lifted)
+const PLAYER_SPRITE_WALK_A = [
+  // Rows 0-37 identical to IDLE
+  ...PLAYER_SPRITE_IDLE.slice(0, 38),
+  // Modified leg rows (38-47): left leg LOWER (more visible), right leg LIFTED
+  /*38*/ '...............OPPPPPPOOOOPPPPPPO...............',
+  /*39*/ '...............OPPPPPO....OPPPPPO...............',
+  /*40*/ '...............OPPPPPO....OBBBBBO...............',
+  /*41*/ '...............OPPPPPO....OBLLLLO...............',
+  /*42*/ '...............OPPPPPO....OBLLLLO...............',
+  /*43*/ '...............OBBBBOO....OOBBBBO...............',
+  /*44*/ '...............OBLLLBO..........................',
+  /*45*/ '...............OBLLLBO..........................',
+  /*46*/ '..............OOBBBBBO..........................',
+  /*47*/ '................................................',
+];
+
+// Walk-frame B — right foot forward (mirror of WALK_A)
+const PLAYER_SPRITE_WALK_B = [
+  ...PLAYER_SPRITE_IDLE.slice(0, 38),
+  /*38*/ '...............OPPPPPPOOOOPPPPPPO...............',
+  /*39*/ '...............OPPPPPO....OPPPPPO...............',
+  /*40*/ '...............OBBBBBO....OPPPPPO...............',
+  /*41*/ '...............OBLLLBO....OPPPPPO...............',
+  /*42*/ '...............OBLLLBO....OPPPPPO...............',
+  /*43*/ '...............OOBBBBO....OBBBBOO...............',
+  /*44*/ '..........................OBLLLLO...............',
+  /*45*/ '..........................OBLLLLO...............',
+  /*46*/ '..........................OBBBBBOO..............',
+  /*47*/ '................................................',
+];
 
 // Legacy reference (för cache och kompatibilitet)
 const PLAYER_SPRITE = PLAYER_SPRITE_IDLE;
@@ -37220,16 +37246,21 @@ function _renderPixelSpriteToCanvas(sprite, palette, scale, flash) {
 
 // Cache så vi inte re-renderar sprite varje frame
 const _pixelSpriteCache = new Map();
-function _getCachedPlayerSprite(cos, color, scale, flash) {
+function _getCachedPlayerSprite(cos, color, scale, flash, spriteData) {
+  // v1.440: spriteData = vilken frame (IDLE/WALK_A/WALK_B). Default = IDLE.
+  const sprite = spriteData || PLAYER_SPRITE_IDLE;
+  // Skapa frame-id baserat på sprite-array-reference för cache key
+  let frameId = 'I';
+  if (sprite === PLAYER_SPRITE_WALK_A) frameId = 'A';
+  else if (sprite === PLAYER_SPRITE_WALK_B) frameId = 'B';
   const key = (color || '') + '|' + (cos.skin || '') + '|' + (cos.shirt || '') + '|' +
               (cos.bandana || '') + '|' + (cos.accent || '') + '|' + (cos.pants || '') + '|' +
-              (cos.hairColor || '') + '|' + scale + '|' + (flash ? 'F' : 'N');
+              (cos.hairColor || '') + '|' + scale + '|' + (flash ? 'F' : 'N') + '|' + frameId;
   let cached = _pixelSpriteCache.get(key);
   if (cached) return cached;
   const palette = _buildPlayerPalette(cos, color);
-  cached = _renderPixelSpriteToCanvas(PLAYER_SPRITE, palette, scale, flash);
-  if (_pixelSpriteCache.size > 60) {
-    // Evict oldest om cache växer för mycket (color × costume-combos)
+  cached = _renderPixelSpriteToCanvas(sprite, palette, scale, flash);
+  if (_pixelSpriteCache.size > 120) {
     const firstKey = _pixelSpriteCache.keys().next().value;
     _pixelSpriteCache.delete(firstKey);
   }
@@ -37307,12 +37338,15 @@ function drawPlayer() {
   const lightLocalAng = lightWorldAng - p.aimAngle; // i player-local space
   const lightLX = Math.cos(lightLocalAng);
   const lightLY = Math.sin(lightLocalAng);
-  ctx.rotate(p.aimAngle);
+  // v1.440: Sprite ritas UTAN rotation (alltid upprätt). Bara vapnet roterar.
+  // Detta löser "upside-down vid skytte västerut" + bibehåller karaktär-
+  // recognizability. Inspirerat av Brotato / Vampire Survivors approach.
+  // (Tidigare: ctx.rotate(p.aimAngle) här gjorde sprite upside-down.)
   // JUG-scale: rita 1.8× större men behåll p.r för fysik/hitbox
   const _jugScale = (p.scaleMul && p.scaleMul > 1) ? p.scaleMul : 1;
   const breathScale = 1 + breath;
   if (_jugScale !== 1 || breathScale !== 1) ctx.scale(_jugScale * breathScale, _jugScale * breathScale);
-  ctx.translate(-recoil, 0);
+  // v1.440: recoil-translate flyttat nedan, efter rotation (recoil ska vara i aim-riktning)
 
   const cos = getCurrentCostume();
   const skin = cos.skin;
@@ -37338,11 +37372,20 @@ function drawPlayer() {
   // alla shapes är runda → ser ut som "bollar". Pixel-art bypasser detta
   // eftersom pixlar är fyrkanter och vi ritar en designad sprite istället.
   ctx.imageSmoothingEnabled = false;
-  const spriteCanvas = _getCachedPlayerSprite(cos, null, 1, flash);
+  // v1.440: Pick walk-frame baserat på rörelse + walkPhase. Cyklas:
+  // moving → alternates between WALK_A och WALK_B var ~0.5s. Idle = IDLE-frame.
+  let chosenSprite = PLAYER_SPRITE_IDLE;
+  if (moving) {
+    // walkPhase ökar med tiden. Mod 2 ger oss alternering.
+    const walkCycle = Math.floor(phase / Math.PI) % 2;
+    chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
+  }
+  const spriteCanvas = _getCachedPlayerSprite(cos, null, 1, flash, chosenSprite);
   ctx.drawImage(spriteCanvas, -spriteCanvas.width / 2, -spriteCanvas.height / 2);
+  // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
+  ctx.rotate(p.aimAngle);
+  ctx.translate(-recoil, 0);
   // SKIP HÄR: hair/glasses/hat/beard är integrerade i sprite-design.
-  // För overlay-baserad customization (att lägga till hattar) behöver vi
-  // separata hat-sprites. Det kan vi göra senare när pixel-stilen är godkänd.
   /* === GAMMAL CANVAS-PRIMITIVE BODY (v1.436) — DEAD CODE BORTTAGEN ===
 
   // ============================================================
