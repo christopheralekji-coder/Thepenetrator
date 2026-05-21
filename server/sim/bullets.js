@@ -1430,14 +1430,19 @@ function updateBullets(sim, dt, now) {
         }
         applyBulletEffects(b, e, sim);
         damageEnemy(e, b.dmg, b.crit, b.ownerPid);
-        // v1.400: emit damage-number event för auto-turret bullets så player ser
-        // hur mycket turrets gör (player-bullets visar redan numbers via prediction).
+        // v1.400/v1.431: emit damage-number event för auto-turret bullets så player ser
+        // hur mycket turrets gör. Throttle till max 8Hz globalt (purely cosmetic;
+        // för många torn-shots gav 20+ events/sek = backpressure).
         if (sim.castledefenseActive && b._autoTurret) {
-          sim.eventQueue.push({
-            type: 'cd_turret_dmg',
-            x: Math.round(e.x), y: Math.round(e.y),
-            dmg: Math.round(b.dmg),
-          });
+          const _now = Date.now();
+          if (!sim._lastTurretDmgEvtAt || _now - sim._lastTurretDmgEvtAt > 125) {
+            sim._lastTurretDmgEvtAt = _now;
+            sim.eventQueue.push({
+              type: 'cd_turret_dmg',
+              x: Math.round(e.x), y: Math.round(e.y),
+              dmg: Math.round(b.dmg),
+            });
+          }
         }
         b.hitIds.add(e);
         if (!b.pierce) { hit = true; break; }

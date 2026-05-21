@@ -2214,13 +2214,18 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
           });
           b._fireCd = 1 / b.fireRate;
           // v1.415: emit fire-event så client kan rita muzzle-flash + spela ljud
-          sim.eventQueue.push({
-            type: 'cd_turret_fired',
-            id: b.id,
-            x: Math.round(bcx),
-            y: Math.round(bcy),
-            ang,
-          });
+          // v1.431: throttle till max 3Hz per torn så event-volym minskar vid många torn
+          // (tidigare: fireRate=2 = 2Hz per torn × 10 torn = 20 events/sek bara från auto_turret).
+          if (!b._lastFireEvtAt || nowMs - b._lastFireEvtAt > 333) {
+            b._lastFireEvtAt = nowMs;
+            sim.eventQueue.push({
+              type: 'cd_turret_fired',
+              id: b.id,
+              x: Math.round(bcx),
+              y: Math.round(bcy),
+              ang,
+            });
+          }
         }
       }
     }
@@ -2543,6 +2548,15 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
       }
       if (ps.cdDownReviveProgress >= reviveSec) {
         // REVIVED!
+        // v1.431: emit FINAL progress=1.0 i samma batch som cd_player_revived så
+        // BÅDA klienternas progress-bar går till 100% innan revived-eventet
+        // clearar bar:n. Tidigare gick reviver's bar mot 95-100% medan revived's
+        // ofta stannade på sista throttled-värde (~85%) → desync-känsla.
+        sim.eventQueue.push({
+          type: 'cd_revive_progress',
+          peerId: pid, reviverPid,
+          progress: 1.0,
+        });
         ps.cdDowned = false;
         ps.cdDownStartedAt = 0;
         ps.cdDownReviveProgress = 0;
@@ -3791,7 +3805,17 @@ function broadcastWorld(sim, now) {
     const events = sim.eventQueue.splice(0);
     const json = JSON.stringify({ type: 'sim_events', events });
     for (const [, ws] of sim.room.members) {
-      if (ws.readyState === 1) try { ws.send(json); } catch (e) {}
+      if (ws.readyState !== 1) continue;
+      // v1.431: Defensive backpressure — om WS-buffert är > 2MB är klienten så
+      // efter att den är effektivt död. Logga + släpp paketet (skicka inte) men
+      // KICKA INTE — klient kan återhämta sig om de catchar upp.
+      // Critical events (cd_gold_update etc) re-syncs via cd_hud_update var 500ms.
+      if (ws.bufferedAmount > 2 * 1024 * 1024) {
+        console.log('[BACKPRESSURE-SKIP]', ws.id, 'buf=' + ws.bufferedAmount);
+        ws._eventSkips = (ws._eventSkips || 0) + 1;
+        continue;
+      }
+      try { ws.send(json); } catch (e) {}
     }
   }
 
@@ -4639,6 +4663,23 @@ function startSim(sim, opts) {
       ws.playerState.scaleMul = 1.0;
       ws.playerState.speedMul = 1.0;
       ws.playerState.dashCdMs = null;
+      // v1.431: CRITICAL — rensa CD-specifika flags från eventuell tidigare match.
+      // Tidigare: om player slutade en match downed/dead behöll ws.playerState
+      // cdDowned=true → ny match → de var "frozen" + kunde inte styras → upplevdes
+      // som "fast i annan gubbe". Root cause för stuck-together-buggen.
+      ws.playerState.cdDowned = false;
+      ws.playerState.cdDownDead = false;
+      ws.playerState.cdDownStartedAt = 0;
+      ws.playerState.cdDownReviveProgress = 0;
+      ws.playerState._cdLastReviveBroadcast = 0;
+      ws.playerState._cdPrevWeapon = null;
+      ws.playerState._cdPrevSpeedMul = null;
+      ws.playerState._cdPlayerContactCd = 0;
+      ws.playerState.spectating = false;
+      ws.playerState.aim = 0;
+      // Cleara mounted-turret-state från ev. PvP-match
+      ws._mountedCtfTurretId = null;
+      ws._mountedSiegeTurretId = null;
       ws.tdmRespawnAt = 0;
       ws.tdmTeam = null; // Co-op (alla är "allies")
       sim.castledefenseScores[pid] = 0;
@@ -4749,6 +4790,27 @@ function stopSim(sim) {
   }
   // Rensa bots ur room.members så de inte hänger kvar till nästa match
   removeAllBots(sim);
+  // v1.431: Rensa per-WS state som annars läcker över till nästa match.
+  // Tidigare: ws.playerState behöll cdDowned/cdDownDead/mounted-turret-id etc
+  // mellan matcher → ny match började med stale state → stuck/frozen-buggar.
+  if (sim.room && sim.room.members) {
+    for (const [, ws] of sim.room.members) {
+      if (!ws.playerState) continue;
+      ws.playerState.cdDowned = false;
+      ws.playerState.cdDownDead = false;
+      ws.playerState.cdDownStartedAt = 0;
+      ws.playerState.cdDownReviveProgress = 0;
+      ws.playerState._cdLastReviveBroadcast = 0;
+      ws.playerState._cdPrevWeapon = null;
+      ws.playerState._cdPrevSpeedMul = null;
+      ws.playerState._cdPlayerContactCd = 0;
+      ws.playerState.spectating = false;
+      ws.playerState.invulnUntil = 0;
+      ws._mountedCtfTurretId = null;
+      ws._mountedSiegeTurretId = null;
+      ws._eventSkips = 0;
+    }
+  }
 }
 
 function applyPlayerInput(sim, peerId, input) {

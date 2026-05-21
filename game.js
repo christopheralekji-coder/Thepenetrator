@@ -18626,6 +18626,13 @@ const Coop = {
         state.player.speedMul = 1.0;
         state.player.dashCdMs = null;
         state.player.spectating = false;
+        // v1.431: rensa CD-flags från ev. tidigare match — annars carries cdDowned
+        // över → ny match börjar med player frozen/crawl-speed
+        state.player.cdDowned = false;
+        state.player.cdDownDead = false;
+        state.player.cdDownStartedAt = 0;
+        state.player.cdReviveProgress = 0;
+        state.player._cdPrevWeapon = null;
         // v1.401: pistol-start + 2 start-granater
         // v1.406: ta bort fists+knife från owned i CD så vapen-menyn visar bara
         // riktiga vapen (knife kvar för downed-state via direkt weaponId-set,
@@ -18639,11 +18646,15 @@ const Coop = {
         save.weaponId = cdStartWeapon;
         if (typeof setGrenadeCount === 'function') setGrenadeCount(ev.arena && ev.arena.startGrenades || 2);
       }
-      // Synka maxHp på partners
+      // Synka maxHp på partners + rensa CD-flags från ev. tidigare match
       for (const [pid, partner] of this.players) {
         partner.isJug = false;
         partner.scaleMul = 1.0;
         partner.maxHp = ev.maxHp || 100;
+        // v1.431: rensa CD-flags från ev. tidigare match
+        partner.cdDowned = false;
+        partner.cdDownDead = false;
+        partner.cdReviveProgress = 0;
       }
       if (typeof showCastleDefenseHud === 'function') showCastleDefenseHud();
       if (typeof showCastleDefenseBuildBar === 'function') showCastleDefenseBuildBar();
@@ -30625,6 +30636,36 @@ function updatePlayer(dt, now) {
       p.y = core.y + (dy / d) * minD;
     } else if (d < 0.01) {
       p.x = core.x + minD;
+    }
+  }
+  // v1.431: Player-Partner SEPARATION i alla coop-modes. Tidigare hade vi ingen
+  // separation alls → 2 spelare kunde stå PÅ samma pixel → upplevdes som "fast
+  // i annan gubbe". Soft push-apart, ej hård collision (egen pos justeras bara).
+  if (typeof Coop !== 'undefined' && Coop.active && Coop.players) {
+    const pr = p.r || 14;
+    for (const [pid, partner] of Coop.players) {
+      if (!partner || pid === Coop.myId) continue;
+      if (partner.x === undefined || partner.y === undefined) continue;
+      if (partner.hp !== undefined && partner.hp <= 0) continue;
+      if (partner.cdDowned) continue; // downed partners ligger ner, ingen push
+      const pdx = p.x - partner.x, pdy = p.y - partner.y;
+      const pr2 = partner.r || 14;
+      const minD = pr + pr2;
+      const d2 = pdx * pdx + pdy * pdy;
+      if (d2 < minD * minD) {
+        if (d2 > 0.01) {
+          const d = Math.sqrt(d2);
+          const push = (minD - d);
+          // Push ENBART self (partner pushar sig själv på sin klient)
+          p.x += (pdx / d) * push;
+          p.y += (pdy / d) * push;
+        } else {
+          // Exakt samma pos — push åt slumpmässigt håll
+          const a = Math.random() * Math.PI * 2;
+          p.x += Math.cos(a) * minD;
+          p.y += Math.sin(a) * minD;
+        }
+      }
     }
   }
 
