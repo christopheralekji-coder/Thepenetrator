@@ -37689,16 +37689,7 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  // Face shadow on west side (light from east)
-  ctx.fillStyle = skinShadow;
-  ctx.beginPath();
-  ctx.moveTo(-4, -19);
-  ctx.quadraticCurveTo(-5, -19, -5, -17);
-  ctx.quadraticCurveTo(-6, -14, -4, -9);
-  ctx.lineTo(-1, -9);
-  ctx.lineTo(-1, -19);
-  ctx.closePath();
-  ctx.fill();
+  // v1.476: West-side face shadow BORTTAGEN (täckte halva ansiktet)
   // v1.475: FACE shading FÖRENKLAD — skin base + bara subtle west-shadow
   // (det face shadow som redan finns ovan från head shape). Inga forehead-,
   // cheekbone-, brow ridge-, eye socket-, temple-, jaw-, chin-shadings.
@@ -37726,83 +37717,84 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.fillRect(0, -16, 0.5, 0.5);
   ctx.fillRect(3, -16, 0.5, 0.5);
   ctx.fillRect(5, -16, 0.5, 0.5);
-  // v1.475: CLEANER eyes/eyebrows/nose/mouth — proper proportions, less busy
-  // === EYEBROWS (thin clean curves) ===
+  // v1.476: ARG/MILITANT ansikte — angled eyebrows (anger), narrow eyes (stern),
+  // tight mouth (focused frown), scar option (later).
+  // === EYEBROWS — STERN/ANGRY (tilted inward toward nose) ===
   ctx.fillStyle = stubbleColor;
+  // Near eyebrow (east) — angled DOWN toward nose (anger sign)
   ctx.beginPath();
-  ctx.moveTo(2.8, -14.2);
-  ctx.quadraticCurveTo(4.5, -14.6, 6, -13.9);
-  ctx.lineTo(6, -13.6);
-  ctx.quadraticCurveTo(4.5, -14, 2.8, -13.9);
+  ctx.moveTo(2.8, -13.6);
+  ctx.lineTo(6, -14.3);
+  ctx.lineTo(6, -13.9);
+  ctx.lineTo(2.8, -13.2);
   ctx.closePath();
   ctx.fill();
+  // Far eyebrow (west) — also angled toward nose
   ctx.beginPath();
-  ctx.moveTo(-0.5, -13.7);
-  ctx.quadraticCurveTo(0.5, -14.1, 1.7, -13.8);
-  ctx.lineTo(1.7, -13.5);
-  ctx.quadraticCurveTo(0.5, -13.6, -0.5, -13.4);
+  ctx.moveTo(-0.5, -14);
+  ctx.lineTo(1.7, -13.4);
+  ctx.lineTo(1.7, -13.1);
+  ctx.lineTo(-0.5, -13.7);
   ctx.closePath();
   ctx.fill();
-  // === EYES (smaller, cleaner, almond) ===
-  // Far eye (west)
+  // === EYES — NARROW (squinted, focused/stern look) ===
+  // Far eye (west) — squinted
   ctx.fillStyle = '#f4f0e8';
   ctx.beginPath();
-  ctx.ellipse(0.6, -13, 0.9, 0.65, 0, 0, Math.PI * 2);
+  ctx.ellipse(0.6, -13, 0.85, 0.45, 0, 0, Math.PI * 2); // shorter height = squinted
   ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 0.6;
   ctx.stroke();
   ctx.fillStyle = '#1a2a40';
   ctx.beginPath();
-  ctx.arc(0.7, -13, 0.45, 0, Math.PI * 2);
+  ctx.arc(0.7, -13, 0.35, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#fff';
-  ctx.fillRect(0.85, -13.2, 0.25, 0.25);
-  // Near eye (east) — same size
+  ctx.fillRect(0.85, -13.15, 0.2, 0.2);
+  // Near eye (east) — squinted, slightly narrower
   ctx.fillStyle = '#f4f0e8';
   ctx.beginPath();
-  ctx.ellipse(4.2, -13, 0.9, 0.65, 0, 0, Math.PI * 2);
+  ctx.ellipse(4.2, -13, 0.85, 0.45, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 0.6;
   ctx.stroke();
   ctx.fillStyle = '#1a2a40';
   ctx.beginPath();
-  ctx.arc(4.3, -13, 0.45, 0, Math.PI * 2);
+  ctx.arc(4.3, -13, 0.35, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#fff';
-  ctx.fillRect(4.45, -13.2, 0.25, 0.25);
-  // === NOSE (simple subtle profile, between eyes) ===
-  // Just nose shadow line on west of bridge + small nostril
+  ctx.fillRect(4.45, -13.15, 0.2, 0.2);
+  // === NOSE (clean profile) ===
   ctx.strokeStyle = skin5;
   ctx.lineWidth = 0.6;
   ctx.beginPath();
   ctx.moveTo(2.2, -12);
   ctx.lineTo(2.5, -10);
   ctx.stroke();
-  // Nose tip — small subtle bump (just outline curve)
   ctx.strokeStyle = outline;
   ctx.lineWidth = 0.7;
   ctx.beginPath();
   ctx.moveTo(2.5, -10);
   ctx.quadraticCurveTo(4, -9.5, 3.5, -9.3);
   ctx.stroke();
-  // Nostril dot
   ctx.fillStyle = skin6;
   ctx.fillRect(3, -9.5, 0.5, 0.4);
-  // === MOUTH (simple, clean) ===
-  // Lip line (just one stroke)
+  // === MOUTH — TIGHT FROWN (militant focused look) ===
   ctx.strokeStyle = lipColor;
   ctx.lineWidth = 0.8;
   ctx.beginPath();
-  ctx.moveTo(2, -8.5);
-  ctx.quadraticCurveTo(3.2, -8.2, 4.5, -8.5);
+  ctx.moveTo(2, -8.3);
+  ctx.quadraticCurveTo(3.2, -8.5, 4.5, -8.3); // slightly downward curve = serious
   ctx.stroke();
-  // Lower lip subtle fill (highlight)
-  ctx.fillStyle = lipHi;
+  // Subtle lip shading
+  ctx.strokeStyle = darken(lipColor, 0.30);
+  ctx.lineWidth = 0.5;
   ctx.beginPath();
-  ctx.ellipse(3.3, -8.1, 1.1, 0.3, 0, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.moveTo(2, -8);
+  ctx.quadraticCurveTo(3.2, -8.2, 4.5, -8);
+  ctx.stroke();
   // === EAR (small, west side, partially visible in 3/4) ===
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
@@ -37870,33 +37862,67 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  // West-side shadow (light from east)
-  ctx.fillStyle = skinShadow;
+  // v1.476: West-side body shadow BORTTAGEN (täckte halva magen)
+  // v1.476: Features återinförda som SUBTLE LINES (inga fyllda shadow-områden)
+  // Collarbone V-line
+  ctx.strokeStyle = skin5;
+  ctx.lineWidth = 0.7;
   ctx.beginPath();
-  ctx.moveTo(-6, -4);
-  ctx.quadraticCurveTo(-8, 0, -5, 4);
-  ctx.lineTo(-4, 9);
-  ctx.lineTo(-1, 9);
-  ctx.lineTo(-1, -4);
-  ctx.closePath();
-  ctx.fill();
-  // v1.475: BELLY shading SIMPLIFIED — bara pec hint + EN nipple + belly button
-  // East pec subtle highlight
-  ctx.fillStyle = skin1;
+  ctx.moveTo(-4, -3.2);
+  ctx.quadraticCurveTo(0, -2.5, 4, -3.2);
+  ctx.stroke();
+  // Pec divider line (vertical between pecs)
+  ctx.strokeStyle = skin5;
+  ctx.lineWidth = 0.6;
   ctx.beginPath();
-  ctx.ellipse(3, 0, 2.5, 2.3, -0.2, 0, Math.PI * 2);
-  ctx.fill();
-  // West pec subtle shadow (mostly in shadow side)
-  ctx.fillStyle = skin4;
+  ctx.moveTo(0.5, -1.5);
+  ctx.lineTo(0.7, 2.5);
+  ctx.stroke();
+  // Pec underline curves (defines bottom of pecs)
+  ctx.strokeStyle = skin5;
+  ctx.lineWidth = 0.7;
   ctx.beginPath();
-  ctx.ellipse(-2, 0, 2.0, 2.2, 0.2, 0, Math.PI * 2);
-  ctx.fill();
-  // ONE nipple (east pec, west pec is in shadow so no nipple visible)
+  ctx.moveTo(0.5, 2.5);
+  ctx.quadraticCurveTo(3, 3.2, 5, 2.7);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-4, 2.3);
+  ctx.quadraticCurveTo(-2, 3, 0.5, 2.7);
+  ctx.stroke();
+  // Nipples (båda pecs)
   ctx.fillStyle = nippleColor;
   ctx.beginPath();
   ctx.arc(3, 0.8, 0.3, 0, Math.PI * 2);
   ctx.fill();
-  // Belly button (subtle)
+  ctx.beginPath();
+  ctx.arc(-2, 0.8, 0.28, 0, Math.PI * 2);
+  ctx.fill();
+  // Linea alba (vertical center crease through abs)
+  ctx.strokeStyle = skin5;
+  ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(1, 3.8);
+  ctx.lineTo(1.5, 7.5);
+  ctx.stroke();
+  // 6-pack ab cross-lines (3 subtle horizontal creases)
+  ctx.strokeStyle = skin5;
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, 5);
+  ctx.quadraticCurveTo(1.5, 5.3, 4, 5);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-1.5, 6.7);
+  ctx.quadraticCurveTo(1.5, 7, 4, 6.7);
+  ctx.stroke();
+  // Oblique hint (V-line east side)
+  ctx.strokeStyle = skin5;
+  ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(2.5, 8);
+  ctx.lineTo(5.5, 7.5);
+  ctx.stroke();
+  // Belly button (small dark dot)
   ctx.fillStyle = skin5;
   ctx.beginPath();
   ctx.arc(1.5, 7, 0.5, 0, Math.PI * 2);
@@ -37982,7 +38008,7 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.quadraticCurveTo(bkX - 3, bkTop + 5, bkX - 2.7, bkTop);
   ctx.closePath();
   ctx.stroke();
-  // Back foot (matches base skin, wider för thicker proportions)
+  // Back foot — tunnare outline så foten inte ser svart ut
   ctx.fillStyle = skin;
   ctx.beginPath();
   ctx.moveTo(bkX - 1.8, bkTop + 13);
@@ -37992,6 +38018,7 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(bkX - 1.8, bkTop + 15.5);
   ctx.closePath();
   ctx.fill();
+  ctx.lineWidth = 0.8;
   ctx.stroke();
   // FRONT LEG (east, lit) — tjockare med samma muskulösa form som back leg
   const frX = 3 + legSwing;
@@ -38074,8 +38101,9 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(frX - 1, frTop + 14.5);
   ctx.closePath();
   ctx.fill();
-  // v1.475: Foot DETAILS BORTTAGNA — bara base + subtle highlight + outline.
+  // v1.476: Thin foot outline (var 1.5px = för dominerande, fötter såg svarta)
   ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.8;
   ctx.beginPath();
   ctx.moveTo(frX - 1.8, frTop + 13);
   ctx.quadraticCurveTo(frX - 2, frTop + 14.5, frX + 1, frTop + 15);
