@@ -11461,14 +11461,17 @@ function drawCoopPartner() {
       const wc = Math.floor(phase / Math.PI) % 2;
       partnerFrame = wc === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
     }
-    // v1.453: Complete naked sprite rotated with aim för partner
-    ctx.save();
-    ctx.translate(0, 3);
-    ctx.rotate(partnerAimAngle);
-    ctx.translate(0, -3);
+    // v1.455: Split body rendering för partner — ben fast, övre kropp roterar
     ctx.imageSmoothingEnabled = false;
     const pNakedCanvas = _getCachedNakedSprite(partnerCos, color, false);
-    ctx.drawImage(pNakedCanvas, -pNakedCanvas.width / 2, -pNakedCanvas.height / 2);
+    // Underdel fast
+    ctx.drawImage(pNakedCanvas, 0, 31, 48, 8, -24, 7, 48, 8);
+    // Övre kropp roterar
+    ctx.save();
+    ctx.translate(0, 6);
+    ctx.rotate(partnerAimAngle);
+    ctx.translate(0, -6);
+    ctx.drawImage(pNakedCanvas, 0, 15, 48, 16, -24, -9, 48, 16);
     ctx.restore();
     // Rotate for partner-weapon
     ctx.rotate(partnerAimAngle);
@@ -37654,18 +37657,30 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.453: COMPLETE TOP-DOWN ROTATION — hela karaktären roterar som en enhet.
+  // v1.455: SPLIT BODY RENDERING — ben FIXERADE mot marken, övre kropp roterar.
+  //
+  // Tidigare v1.453/454: hela sprite roterade → benen följde aim → karaktären
+  // såg ut att SNURRA i luften, inte stå på marken.
+  //
+  // Nu (Hotline Miami-stil): underdelen (ben + fötter + kallingar) ritas UTAN
+  // rotation — fötterna pekar alltid nedåt på skärmen ("fast mot marken").
+  // Övre kroppen (huvud + axlar + armar + torso) ritas roterad runt höften.
+  // Detta efterliknar hur en riktig människa vrider sig: höften står still,
+  // överkroppen tvistar för att rikta vapen mot mål.
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
-  ctx.save();
-  // Pivot vid body center (mellan huvud och ben) för naturlig yaw rotation
-  ctx.translate(0, 3);
-  ctx.rotate(p.aimAngle);
-  ctx.translate(0, -3);
   ctx.imageSmoothingEnabled = false;
   const nakedCanvas = _getCachedNakedSprite(cos, null, flash);
-  ctx.drawImage(nakedCanvas, -nakedCanvas.width / 2, -nakedCanvas.height / 2);
+  // UNDERDEL (kallingar + ben + fötter) — sprite rows 31-38 — FAST orientering
+  // Source rect: (0, 31, 48, 8). Drawn at body-local y +7 to +15 (= sprite rows)
+  ctx.drawImage(nakedCanvas, 0, 31, 48, 8, -24, 7, 48, 8);
+  // ÖVRE KROPP (huvud + axlar + armar + torso) — sprite rows 15-30 — ROTERAR med aim
+  ctx.save();
+  ctx.translate(0, 6); // pivot vid höften (just under torso)
+  ctx.rotate(p.aimAngle);
+  ctx.translate(0, -6);
+  ctx.drawImage(nakedCanvas, 0, 15, 48, 16, -24, -9, 48, 16);
   ctx.restore();
   // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
   ctx.rotate(p.aimAngle);
