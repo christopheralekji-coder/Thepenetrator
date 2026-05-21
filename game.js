@@ -37636,19 +37636,19 @@ function drawMuzzleFlash(ctx, weaponTipX, sinceShot, weaponType) {
 function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   if (walkPhase === undefined) walkPhase = 0;
   if (isMoving === undefined) isMoving = false;
-  // v1.469: 9-SHADE skin palette för rich form shading + AO + cast shadows.
-  // Light source: upper-east (NE). Highlight on NE, shadow on SW, AO in crevices.
-  const skinBase = cos.skin || '#c08860';
+  // v1.471: DARKER base skin + tighter shade range = more realistic skin tone.
+  // Less extreme highlights (max lighten 0.22, var 0.35) = mindre 'vit' look.
+  const skinBase = cos.skin || '#a8704c'; // medium-dark warm tan (var #c08860)
   const skin = flash ? '#fff' : skinBase;
-  const skin0 = flash ? '#fff' : lighten(skinBase, 0.35);   // PEAK highlight
-  const skin1 = flash ? '#fff' : lighten(skinBase, 0.22);   // Bright light
-  const skin2 = flash ? '#fff' : lighten(skinBase, 0.10);   // Light
+  const skin0 = flash ? '#fff' : lighten(skinBase, 0.22);   // Peak highlight (subtler)
+  const skin1 = flash ? '#fff' : lighten(skinBase, 0.14);   // Bright light
+  const skin2 = flash ? '#fff' : lighten(skinBase, 0.06);   // Light
   // skin (base) = skinBase = mid
-  const skin4 = flash ? '#fff' : darken(skinBase, 0.15);    // Mid-shadow
-  const skin5 = flash ? '#fff' : darken(skinBase, 0.30);    // Shadow
-  const skin6 = flash ? '#fff' : darken(skinBase, 0.50);    // Deep shadow
-  const skin7 = flash ? '#fff' : darken(skinBase, 0.68);    // AO crevices
-  const skin8 = flash ? '#fff' : darken(skinBase, 0.85);    // Darkest cracks
+  const skin4 = flash ? '#fff' : darken(skinBase, 0.12);    // Mid-shadow
+  const skin5 = flash ? '#fff' : darken(skinBase, 0.26);    // Shadow
+  const skin6 = flash ? '#fff' : darken(skinBase, 0.42);    // Deep shadow
+  const skin7 = flash ? '#fff' : darken(skinBase, 0.58);    // AO crevices
+  const skin8 = flash ? '#fff' : darken(skinBase, 0.75);    // Darkest cracks
   // Legacy aliases för existing code compat
   const skinLight = skin1;
   const skinHi = skin0;
@@ -37699,20 +37699,20 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(-1, -19);
   ctx.closePath();
   ctx.fill();
-  // FOREHEAD HIGHLIGHT (NE peak — brightest skin spot)
-  ctx.fillStyle = skin0;
+  // FOREHEAD highlight (subtler — skin1 inte skin0)
+  ctx.fillStyle = skin1;
   ctx.beginPath();
   ctx.ellipse(3, -16, 2.5, 1.5, -0.1, 0, Math.PI * 2);
   ctx.fill();
-  // Cheekbone highlight (east, where light hits)
+  // Cheekbone highlight (east) — skin1 subtle
   ctx.fillStyle = skin1;
   ctx.beginPath();
   ctx.ellipse(5, -13, 2, 1.5, -0.2, 0, Math.PI * 2);
   ctx.fill();
-  // CHEEKBONE PEAK (smaller bright spot on top of cheek)
+  // Cheekbone peak (just slightly brighter, not too white)
   ctx.fillStyle = skin0;
   ctx.beginPath();
-  ctx.ellipse(5.5, -13.5, 1, 0.6, -0.2, 0, Math.PI * 2);
+  ctx.ellipse(5.5, -13.5, 0.6, 0.4, -0.2, 0, Math.PI * 2);
   ctx.fill();
   // BROW RIDGE SHADOW (above eyes, cast from brow)
   ctx.fillStyle = skin6;
@@ -37851,11 +37851,12 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   // Nostril
   ctx.fillStyle = skinDeep;
   ctx.fillRect(3, -9.2, 0.7, 0.4);
-  // === CHEEK BLUSH (subtle warm tint on near cheek) ===
-  ctx.fillStyle = cheekColor;
-  ctx.globalAlpha = 0.30;
+  // v1.471: Cheek blush BORTTAGEN (såg ut som blåmärke).
+  // Bara skin1 highlight på cheek-area för subtle warmth.
+  ctx.fillStyle = skin1;
+  ctx.globalAlpha = 0.5;
   ctx.beginPath();
-  ctx.ellipse(5, -11, 1.5, 1, 0, 0, Math.PI * 2);
+  ctx.ellipse(5, -11, 1.2, 0.8, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
   // === MOUTH (3/4 view: proper upper/lower lip) ===
@@ -37978,14 +37979,14 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.moveTo(-4, -3.7);
   ctx.quadraticCurveTo(0, -3, 4, -3.7);
   ctx.stroke();
-  // === PEC SHADING (multi-layer för 3D form) ===
-  // East pec base (light side)
-  ctx.fillStyle = skin1;
+  // === PEC SHADING (multi-layer för 3D form, dämpade highlights) ===
+  // East pec base (light side, skin2 inte skin1)
+  ctx.fillStyle = skin2;
   ctx.beginPath();
   ctx.ellipse(3, 0, 2.6, 2.6, -0.2, 0, Math.PI * 2);
   ctx.fill();
-  // East pec PEAK highlight (top-east, brightest spot)
-  ctx.fillStyle = skin0;
+  // East pec highlight (skin1 inte skin0 — mer subtle)
+  ctx.fillStyle = skin1;
   ctx.beginPath();
   ctx.ellipse(3.5, -1.2, 1.5, 1, -0.2, 0, Math.PI * 2);
   ctx.fill();
@@ -38044,14 +38045,14 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.moveTo(1, 3.5);
   ctx.lineTo(1.5, 8);
   ctx.stroke();
-  // Upper-east ab (highlight on top)
-  ctx.fillStyle = skin1;
+  // Upper-east ab (mild highlight)
+  ctx.fillStyle = skin2;
   ctx.beginPath();
   ctx.ellipse(2.8, 4.5, 1.2, 0.8, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Upper-east ab highlight peak
-  ctx.fillStyle = skin0;
-  ctx.fillRect(2.8, 4.2, 0.8, 0.4);
+  // Upper-east ab peak (small subtle bright spot)
+  ctx.fillStyle = skin1;
+  ctx.fillRect(2.9, 4.2, 0.5, 0.3);
   // Upper-west ab (in shadow)
   ctx.fillStyle = skin4;
   ctx.beginPath();
@@ -38064,13 +38065,13 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.moveTo(-1.5, 5.3);
   ctx.quadraticCurveTo(1.5, 5.6, 4, 5.3);
   ctx.stroke();
-  // Middle-east ab
-  ctx.fillStyle = skin1;
+  // Middle-east ab (mild)
+  ctx.fillStyle = skin2;
   ctx.beginPath();
   ctx.ellipse(2.8, 6.3, 1.1, 0.8, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = skin0;
-  ctx.fillRect(2.8, 6.0, 0.7, 0.3);
+  ctx.fillStyle = skin1;
+  ctx.fillRect(2.9, 6.0, 0.5, 0.3);
   // Middle-west ab (shadow)
   ctx.fillStyle = skin4;
   ctx.beginPath();
@@ -38107,13 +38108,7 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.fill();
   ctx.fillStyle = skinLight;
   ctx.fillRect(1.6, 7.6, 0.3, 0.3);
-  // === TREASURE TRAIL (subtle line from belly button to underwear) ===
-  ctx.strokeStyle = skinDeep;
-  ctx.lineWidth = 0.4;
-  ctx.beginPath();
-  ctx.moveTo(1.5, 8.2);
-  ctx.lineTo(1.7, 9);
-  ctx.stroke();
+  // v1.471: Treasure trail BORTTAGEN (för subtle att se vid liten skala)
   // === UNDERWEAR (proper brief shape) ===
   // Briefs base — curved shape hugging hips
   ctx.fillStyle = briefBase;
@@ -38153,27 +38148,48 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.quadraticCurveTo(-4, 13, -5, 11);
   ctx.closePath();
   ctx.stroke();
-  // === LEGS — shorter & tapered + walk animation ===
-  // Back leg (west, behind)
+  // === LEGS — balanced shading (båda benen ser ut som ben, inte svart/vit) ===
+  // Back leg — använder skin4 (mid-shadow, inte skin5 som var för mörkt)
   const bkX = -2.5 - legSwing;
   const bkTop = 13 - backLift;
-  ctx.fillStyle = skinShadow;
+  ctx.fillStyle = skin4;
   ctx.beginPath();
   ctx.moveTo(bkX - 2, bkTop);
   ctx.lineTo(bkX + 2, bkTop);
-  ctx.quadraticCurveTo(bkX + 2.3, bkTop + 6, bkX + 1.3, bkTop + 8);   // knee
-  ctx.lineTo(bkX + 1.3, bkTop + 12);                                    // calf
-  ctx.quadraticCurveTo(bkX + 1, bkTop + 13, bkX, bkTop + 13);          // ankle
+  ctx.quadraticCurveTo(bkX + 2.3, bkTop + 6, bkX + 1.3, bkTop + 8);
+  ctx.lineTo(bkX + 1.3, bkTop + 12);
+  ctx.quadraticCurveTo(bkX + 1, bkTop + 13, bkX, bkTop + 13);
   ctx.lineTo(bkX - 1.3, bkTop + 13);
   ctx.quadraticCurveTo(bkX - 1, bkTop + 10, bkX - 1.3, bkTop + 8);
   ctx.quadraticCurveTo(bkX - 2.3, bkTop + 6, bkX - 2, bkTop);
   ctx.closePath();
   ctx.fill();
+  // Back leg subtle highlight (east edge, since light from NE still hits a bit)
+  ctx.fillStyle = skin2;
+  ctx.fillRect(bkX + 0.5, bkTop + 1, 0.8, 11);
+  // Back leg deep shadow on west edge
+  ctx.fillStyle = skin6;
+  ctx.fillRect(bkX - 1.8, bkTop + 1, 0.5, 11);
+  // Back knee shadow
+  ctx.fillStyle = skin6;
+  ctx.beginPath();
+  ctx.ellipse(bkX, bkTop + 8.5, 1, 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(bkX - 2, bkTop);
+  ctx.lineTo(bkX + 2, bkTop);
+  ctx.quadraticCurveTo(bkX + 2.3, bkTop + 6, bkX + 1.3, bkTop + 8);
+  ctx.lineTo(bkX + 1.3, bkTop + 12);
+  ctx.quadraticCurveTo(bkX + 1, bkTop + 13, bkX, bkTop + 13);
+  ctx.lineTo(bkX - 1.3, bkTop + 13);
+  ctx.quadraticCurveTo(bkX - 1, bkTop + 10, bkX - 1.3, bkTop + 8);
+  ctx.quadraticCurveTo(bkX - 2.3, bkTop + 6, bkX - 2, bkTop);
+  ctx.closePath();
   ctx.stroke();
-  // Back foot
-  ctx.fillStyle = skinShadow;
+  // Back foot (skin4 also, balanced)
+  ctx.fillStyle = skin4;
   ctx.beginPath();
   ctx.moveTo(bkX - 1.5, bkTop + 13);
   ctx.quadraticCurveTo(bkX - 2, bkTop + 14.5, bkX + 1, bkTop + 15);
@@ -38183,7 +38199,7 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
-  // Front leg (east, bright)
+  // Front leg — base color (inte skin1 som var för ljust)
   const frX = 2.5 + legSwing;
   const frTop = 13 - frontLift;
   ctx.fillStyle = skin;
@@ -38198,8 +38214,8 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.quadraticCurveTo(frX - 2.3, frTop + 6, frX - 2, frTop);
   ctx.closePath();
   ctx.fill();
-  // Front leg highlight east (3D form)
-  ctx.fillStyle = skin1;
+  // Front leg highlight (east edge — subtle)
+  ctx.fillStyle = skin2;
   ctx.beginPath();
   ctx.moveTo(frX + 1, frTop + 1);
   ctx.quadraticCurveTo(frX + 1.8, frTop + 6, frX + 1, frTop + 8);
@@ -38208,10 +38224,10 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(frX + 0.3, frTop + 1);
   ctx.closePath();
   ctx.fill();
-  // QUADRICEP peak highlight (top of thigh, brightest)
-  ctx.fillStyle = skin0;
-  ctx.fillRect(frX + 0.5, frTop + 2, 1, 4);
-  // INNER THIGH shadow (west edge of front leg)
+  // Quadricep highlight (thinner, subtler — skin1 inte skin0)
+  ctx.fillStyle = skin1;
+  ctx.fillRect(frX + 0.6, frTop + 3, 0.6, 3);
+  // INNER THIGH shadow (west edge)
   ctx.fillStyle = skin5;
   ctx.beginPath();
   ctx.moveTo(frX - 1.5, frTop + 1);
@@ -38221,24 +38237,21 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(frX - 0.5, frTop + 1);
   ctx.closePath();
   ctx.fill();
-  // KNEE CAP highlight (small bright spot)
-  ctx.fillStyle = skin0;
+  // KNEE CAP (subtle highlight, not blown out)
+  ctx.fillStyle = skin1;
   ctx.beginPath();
-  ctx.ellipse(frX + 0.3, frTop + 8, 0.8, 0.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(frX + 0.2, frTop + 8, 0.6, 0.4, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Knee shadow (under kneecap)
-  ctx.fillStyle = skin6;
+  // Knee shadow (under kneecap — softer)
+  ctx.fillStyle = skin5;
   ctx.beginPath();
-  ctx.ellipse(frX, frTop + 9, 1.3, 0.6, 0, 0, Math.PI * 2);
+  ctx.ellipse(frX, frTop + 9, 1.2, 0.5, 0, 0, Math.PI * 2);
   ctx.fill();
-  // CALF BULGE shadow (east-back of calf)
+  // CALF BULGE shadow
   ctx.fillStyle = skin4;
   ctx.beginPath();
   ctx.ellipse(frX + 0.5, frTop + 11, 0.6, 1.5, -0.1, 0, Math.PI * 2);
   ctx.fill();
-  // Calf highlight (front of calf)
-  ctx.fillStyle = skin2;
-  ctx.fillRect(frX - 0.3, frTop + 10, 0.6, 2);
   // Ankle bone (subtle)
   ctx.fillStyle = skin5;
   ctx.fillRect(frX + 0.8, frTop + 12.5, 0.5, 0.4);
