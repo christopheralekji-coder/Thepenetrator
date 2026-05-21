@@ -16537,6 +16537,10 @@ const Coop = {
         }
         if (typeof showToast === 'function') showToast('Kunde inte återansluta — du är frånkopplad.');
       }
+      // v1.433: visa manuell ÅTERANSLUT-knapp om matchen var pågående
+      if (typeof showReconnectButton === 'function' && state.castledefenseActive && this._lastJoinCode) {
+        showReconnectButton(this._lastJoinCode, this._lastAsHost);
+      }
       this.disconnect();
     };
   },
@@ -28513,6 +28517,71 @@ function destroyBrEndOverlay() {
 }
 
 // Castle Defense state cleanup — anropas vid mode-exit för att hindra state-läckage
+// v1.433: Reconnect-knapp — visas top-center om WS-disconnect under aktiv match.
+// Persist till localStorage så även full page-reload (samtal, app-switch) kan visa
+// återanslut-knapp på meny-skärmen.
+function showReconnectButton(joinCode, asHost) {
+  if (!joinCode) return;
+  hideReconnectButton(); // ev. existerande
+  // Persist så reload kan resume
+  try {
+    localStorage.setItem('cdReconnect', JSON.stringify({
+      code: joinCode, asHost: !!asHost, savedAt: Date.now(),
+    }));
+  } catch (_) {}
+  const btn = document.createElement('button');
+  btn.id = 'cd-reconnect-btn';
+  btn.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top, 8px));left:50%;transform:translateX(-50%);z-index:300;background:linear-gradient(180deg,#5acaff 0%,#3a7aaa 100%);border:2px solid #aaeaff;border-radius:10px;padding:10px 18px;color:#fff;font-family:sans-serif;font-weight:900;letter-spacing:0.8px;font-size:13px;cursor:pointer;box-shadow:0 0 24px rgba(90,200,255,0.6),0 4px 12px rgba(0,0,0,0.5);display:flex;align-items:center;gap:8px;animation:cdReconnectPulse 1.6s ease-in-out infinite;';
+  btn.innerHTML = '<span style="font-size:18px;">🔌</span><span>ÅTERANSLUT (' + joinCode + ')</span>';
+  if (!document.getElementById('cd-reconnect-style')) {
+    const s = document.createElement('style');
+    s.id = 'cd-reconnect-style';
+    s.textContent = '@keyframes cdReconnectPulse{0%,100%{box-shadow:0 0 24px rgba(90,200,255,0.6),0 4px 12px rgba(0,0,0,0.5);}50%{box-shadow:0 0 36px rgba(90,200,255,0.9),0 4px 12px rgba(0,0,0,0.5);}}';
+    document.head.appendChild(s);
+  }
+  btn.onclick = () => {
+    btn.disabled = true;
+    btn.innerHTML = '<span style="font-size:18px;">⏳</span><span>ANSLUTER...</span>';
+    if (typeof Coop !== 'undefined' && Coop._connectWS) {
+      Coop.active = true;
+      Coop._intentionalClose = false;
+      Coop._reconnectAttempt = 0;
+      Coop._connectWS(!!asHost, joinCode, () => {
+        // Connected — knappen tas bort av hideReconnectButton via Coop or match-state
+        hideReconnectButton();
+        if (typeof showToast === 'function') showToast('🔌 Återansluten!');
+      }, (err) => {
+        btn.disabled = false;
+        btn.innerHTML = '<span style="font-size:18px;">🔌</span><span>ÅTERANSLUT (' + joinCode + ')</span>';
+        if (typeof showToast === 'function') showToast('Kunde inte ansluta: ' + (err || 'okänt fel'));
+      });
+    }
+  };
+  document.body.appendChild(btn);
+}
+function hideReconnectButton() {
+  const b = document.getElementById('cd-reconnect-btn');
+  if (b && b.parentNode) b.parentNode.removeChild(b);
+  try { localStorage.removeItem('cdReconnect'); } catch (_) {}
+}
+// Auto-show reconnect-knapp efter page-reload om match var aktiv
+function maybeRestoreReconnectButton() {
+  try {
+    const raw = localStorage.getItem('cdReconnect');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (!data || !data.code) { localStorage.removeItem('cdReconnect'); return; }
+    // Auto-expire efter 15 min
+    if (Date.now() - (data.savedAt || 0) > 15 * 60 * 1000) {
+      localStorage.removeItem('cdReconnect');
+      return;
+    }
+    showReconnectButton(data.code, data.asHost);
+  } catch (_) {
+    try { localStorage.removeItem('cdReconnect'); } catch (_) {}
+  }
+}
+
 function clearCastleDefenseState() {
   state.castledefenseActive = false;
   state.castledefenseEnded = false;
@@ -28593,6 +28662,8 @@ function clearCastleDefenseState() {
   if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
   if (typeof closeCdBuildMenu === 'function') closeCdBuildMenu();
   if (typeof closeCdPerkSelector === 'function') closeCdPerkSelector();
+  // v1.433: rensa reconnect-knapp (matchen är slut → ingen återanslutning meningsfull)
+  if (typeof hideReconnectButton === 'function') hideReconnectButton();
   // Remove ev. defeat-overlay
   const defeatOverlay = document.getElementById('cd-defeat-overlay');
   if (defeatOverlay && defeatOverlay.parentNode) defeatOverlay.parentNode.removeChild(defeatOverlay);
@@ -28912,16 +28983,53 @@ function showCastleDefenseHud() {
     actBtn.id = 'cd-action-btn';
     actBtn.style.cssText = 'position:fixed !important;left:calc(max(30px, env(safe-area-inset-left, 30px), env(safe-area-inset-right, 30px)) + 200px) !important;bottom:14px !important;top:auto !important;right:auto !important;width:60px !important;height:60px !important;background:radial-gradient(circle at 30% 30%, rgba(90,255,90,0.25), rgba(0,0,0,0.4));border:2px solid #5aff5a;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:24px;box-shadow:0 4px 14px rgba(0,0,0,0.6),inset 0 0 12px rgba(90,255,90,0.15),0 0 0 2px rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;padding:0;touch-action:manipulation;transition:transform 0.12s ease,background 0.2s ease,border-color 0.2s ease;';
     actBtn.innerHTML = '<span id="cd-action-icon" style="font-size:26px;text-shadow:0 1px 3px rgba(0,0,0,0.7);">🔧</span><span id="cd-action-badge" style="position:absolute;bottom:-6px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#ffd54a;font-size:10px;font-weight:900;padding:2px 7px;border-radius:9px;border:1px solid #ffd54a;white-space:nowrap;letter-spacing:0.3px;">10g</span>';
-    // Tap-feedback
-    actBtn.onpointerdown = () => { actBtn.style.transform = 'scale(0.92)'; };
-    actBtn.onpointerup = () => { actBtn.style.transform = ''; };
-    actBtn.onpointerleave = () => { actBtn.style.transform = ''; };
-    actBtn.onclick = (e) => {
-      e.preventDefault();
-      const mode = actBtn.dataset.mode;
-      if (mode === 'repair') tryCdRepair();
-      else if (mode === 'upgrade') tryCdUpgrade();
+    // v1.433: HOLD-TO-REPEAT — hold action-btn fortsätter upgrade/repair var 220ms
+    // tills released eller out-of-gold. Tidigare: tap för varje level = långsamt
+    // att maxa torn (9 taps + animation = 5+ sek). Hold = 2 sek till max.
+    let actHoldTimer = null;
+    let actHoldMode = null;
+    let actHoldStart = 0;
+    let actFiredOnce = false;
+    const actFire = () => {
+      if (!actHoldMode) return;
+      if (actHoldMode === 'repair') tryCdRepair();
+      else if (actHoldMode === 'upgrade') tryCdUpgrade();
+      actFiredOnce = true;
     };
+    actBtn.onpointerdown = (e) => {
+      e.preventDefault();
+      actBtn.style.transform = 'scale(0.92)';
+      actHoldMode = actBtn.dataset.mode || null;
+      actHoldStart = performance.now();
+      actFiredOnce = false;
+      if (!actHoldMode) return;
+      // Första action direkt (tap-feel). Sedan repeat efter 350ms hold.
+      actFire();
+      actHoldTimer = setTimeout(function repeatTick() {
+        if (!actHoldMode) return;
+        // Re-läs mode varje tick — om byggnaden går från damaged→full bytar btn
+        // till upgrade automatiskt. Lås EJ mode för att tillåta seamless flow.
+        const curMode = actBtn.dataset.mode || null;
+        if (curMode === actHoldMode || (curMode === 'upgrade' && actHoldMode === 'repair')) {
+          actHoldMode = curMode;
+          actFire();
+          actHoldTimer = setTimeout(repeatTick, 220);
+        } else {
+          // Mode changed unexpectedly (target gone) → stoppa
+          actHoldMode = null;
+        }
+      }, 350);
+    };
+    const stopActHold = () => {
+      actBtn.style.transform = '';
+      if (actHoldTimer) { clearTimeout(actHoldTimer); actHoldTimer = null; }
+      actHoldMode = null;
+    };
+    actBtn.onpointerup = stopActHold;
+    actBtn.onpointerleave = stopActHold;
+    actBtn.onpointercancel = stopActHold;
+    // Disable native click (vi har redan kört via onpointerdown)
+    actBtn.onclick = (e) => { e.preventDefault(); };
     document.body.appendChild(actBtn);
   }
 }
@@ -29184,8 +29292,13 @@ function updateCdBuildTriggerVisuals() {
 }
 
 function hideCastleDefenseBuildBar() {
-  // Cleanup pointer-listeners INNAN element tas bort (annars läcker över matcher)
+  // v1.433: stäng aktiv sticky-radial FÖRE cleanup — annars läcker closure-state
+  // (active=true, sticky=true) till nästa match → ghost-event-handling.
   const trigger = document.getElementById('cd-build-trigger');
+  if (trigger && typeof trigger._cdRadialForceClose === 'function') {
+    try { trigger._cdRadialForceClose(); } catch (_) {}
+  }
+  // Cleanup pointer-listeners INNAN element tas bort (annars läcker över matcher)
   if (trigger && typeof trigger._cdRadialCleanup === 'function') {
     trigger._cdRadialCleanup();
   }
@@ -29352,6 +29465,11 @@ function openCdBuildMenu() {
   if (!state.castledefenseActive) return;
   const existing = document.getElementById('cd-build-menu-overlay');
   if (existing) { closeCdBuildMenu(); return; }
+  // v1.433: stäng aktiv sticky-radial först så modaler inte stackar
+  const trig = document.getElementById('cd-build-trigger');
+  if (trig && typeof trig._cdRadialForceClose === 'function') {
+    try { trig._cdRadialForceClose(); } catch (_) {}
+  }
   const overlay = document.createElement('div');
   overlay.id = 'cd-build-menu-overlay';
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.78);z-index:95;display:flex;align-items:center;justify-content:center;font-family:sans-serif;';
@@ -29855,6 +29973,12 @@ function setupCdBuildRadial(btn) {
     window.removeEventListener('pointercancel', onCancel);
     window.removeEventListener('click', onWindowClick, true);
   };
+  // v1.433: expose force-close så hideCastleDefenseBuildBar + openCdBuildMenu kan
+  // stänga aktiv radial mutuellt-exklusivt.
+  btn._cdRadialForceClose = () => {
+    if (openTimer) { clearTimeout(openTimer); openTimer = null; }
+    if (active) close(false);
+  };
 }
 
 // v1.400: Defeat-screen när core förstörs. Dramatisk röd overlay med stats + meny-knapp.
@@ -29894,7 +30018,10 @@ function showCastleDefenseDefeatScreen(wave, survivedSec, reason) {
       '</div>' +
     '</div>' +
     '<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">' +
-      '<button id="cd-defeat-replay-btn" style="background:linear-gradient(180deg,#3aaa3a 0%,#1a7a1a 100%);border:2px solid #5aff5a;border-radius:10px;padding:12px 22px;color:#fff;font-family:inherit;font-weight:900;letter-spacing:1px;font-size:14px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,0.5);">🔁 SPELA IGEN</button>' +
+      // v1.433: bara host ser "SPELA IGEN" — non-host ser passiv väntar-text
+      (Coop.isHost
+        ? '<button id="cd-defeat-replay-btn" style="background:linear-gradient(180deg,#3aaa3a 0%,#1a7a1a 100%);border:2px solid #5aff5a;border-radius:10px;padding:12px 22px;color:#fff;font-family:inherit;font-weight:900;letter-spacing:1px;font-size:14px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,0.5);">🔁 SPELA IGEN</button>'
+        : '<div style="background:rgba(40,40,55,0.6);border:2px solid #5a5a7a;border-radius:10px;padding:12px 22px;color:#aaa;font-family:inherit;font-weight:900;letter-spacing:1px;font-size:14px;">⏳ VÄNTAR PÅ HOST...</div>') +
       '<button id="cd-defeat-menu-btn" style="background:linear-gradient(180deg,#aa3030 0%,#7a1818 100%);border:2px solid #ff5050;border-radius:10px;padding:12px 22px;color:#fff;font-family:inherit;font-weight:900;letter-spacing:1px;font-size:14px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,0.5);">🔙 MENY</button>' +
     '</div>';
   overlay.appendChild(panel);
@@ -29911,23 +30038,23 @@ function showCastleDefenseDefeatScreen(wave, survivedSec, reason) {
       state.mode = 'menu';
     }
   };
-  document.getElementById('cd-defeat-replay-btn').onclick = () => {
-    overlay.remove();
-    // v1.432: skicka sim_stop FÖRE clear så server avslutar gamla sim:n. Annars
-    // läcker server-side sim.castledefense* state till nästa match.
-    if (Coop && Coop.ws && Coop.ws.readyState === 1) {
-      try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (_) {}
-    }
-    if (typeof clearCastleDefenseState === 'function') clearCastleDefenseState();
-    // Trigga restart: actuallyStartGame med samma config (host-only — annars går till meny)
-    if (Coop.isHost && typeof actuallyStartGame === 'function') {
-      // Längre delay (400ms vs 200) ger server tid att processa sim_stop
-      setTimeout(() => actuallyStartGame(), 400);
-    } else {
-      const btnMenu = document.getElementById('btn-menu');
-      if (btnMenu) btnMenu.click();
-    }
-  };
+  const replayBtnEl = document.getElementById('cd-defeat-replay-btn');
+  if (replayBtnEl) {
+    replayBtnEl.onclick = () => {
+      overlay.remove();
+      // v1.432: skicka sim_stop FÖRE clear så server avslutar gamla sim:n.
+      if (Coop && Coop.ws && Coop.ws.readyState === 1) {
+        try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (_) {}
+      }
+      if (typeof clearCastleDefenseState === 'function') clearCastleDefenseState();
+      if (Coop.isHost && typeof actuallyStartGame === 'function') {
+        setTimeout(() => actuallyStartGame(), 400);
+      } else {
+        const btnMenu = document.getElementById('btn-menu');
+        if (btnMenu) btnMenu.click();
+      }
+    };
+  }
 }
 
 function tryCdPlaceBuilding() {
@@ -45141,3 +45268,7 @@ canvas.addEventListener('touchmove',  e => e.preventDefault(), { passive: false 
 
 // Init HUD med default
 updateHUD();
+// v1.433: visa reconnect-knapp om page-reload skedde mitt i CD-match
+if (typeof maybeRestoreReconnectButton === 'function') {
+  setTimeout(maybeRestoreReconnectButton, 300);
+}
