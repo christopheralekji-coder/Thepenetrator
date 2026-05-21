@@ -11463,22 +11463,29 @@ function drawCoopPartner() {
     }
     ctx.save();
     if (pFacingLeft) ctx.scale(-1, 1);
-    // v1.446: partner använder hybrid rotation (mindre vid springa)
+    // v1.447: partner använder hybrid rotation med bumpade factors
     const pAimUpDown = Math.atan2(pAimY, Math.max(0.01, Math.abs(pAimX)));
     if (p._idleRotFactor === undefined) p._idleRotFactor = 1.0;
-    const pTargetIdleFactor = partnerMoving ? 0.22 : 1.0;
+    const pTargetIdleFactor = partnerMoving ? 0.35 : 1.0;
     p._idleRotFactor += (pTargetIdleFactor - p._idleRotFactor) * 0.08;
-    const pMaxBodyRot = 0.87;
+    const pMaxBodyRot = 1.05;
     const pTargetTilt = Math.max(-pMaxBodyRot, Math.min(pMaxBodyRot, pAimUpDown * p._idleRotFactor));
     if (p._bodyRotLerp === undefined) p._bodyRotLerp = 0;
-    p._bodyRotLerp += (pTargetTilt - p._bodyRotLerp) * 0.18;
+    p._bodyRotLerp += (pTargetTilt - p._bodyRotLerp) * 0.22;
     ctx.rotate(p._bodyRotLerp);
-    // v1.443: BANDANA TAIL bakom partner
     if (partnerCos.bandana) {
       drawBandanaTail(ctx, partnerCos, color, now, partnerMoving, phase);
     }
     const partnerSprite = _getCachedPlayerSprite(partnerCos, color, 1, false, partnerFrame);
     ctx.drawImage(partnerSprite, -partnerSprite.width / 2, -partnerSprite.height / 2);
+    // v1.447: same FRONT-MARK indicator för partner
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillRect(4, -3, 2, 2);
+    ctx.fillStyle = '#0a0408';
+    ctx.fillRect(3, -4, 1, 1);
+    ctx.fillRect(6, -4, 1, 1);
+    ctx.fillRect(3, -1, 1, 1);
+    ctx.fillRect(6, -1, 1, 1);
     ctx.restore();
     // Rotate for partner-weapon
     ctx.rotate(partnerAimAngle);
@@ -37532,23 +37539,40 @@ function drawPlayer() {
   ctx.save();
   if (_facingLeft) ctx.scale(-1, 1);
   const _aimUpDown = Math.atan2(_aimY, Math.max(0.01, Math.abs(_aimX)));
-  // Smooth-transition idle-factor: 1.0 = full rot at idle, 0.22 = subtle at run
+  // v1.447: bumped running factor 0.22 → 0.35 så rotation syns även när du springer
   if (p._idleRotFactor === undefined) p._idleRotFactor = 1.0;
-  const _targetIdleFactor = moving ? 0.22 : 1.0;
+  const _targetIdleFactor = moving ? 0.35 : 1.0;
   p._idleRotFactor += (_targetIdleFactor - p._idleRotFactor) * 0.08;
-  const _maxBodyRot = 0.87; // cap ~50°
+  const _maxBodyRot = 1.05; // cap ~60° (was 50°)
   const _targetTilt = Math.max(-_maxBodyRot, Math.min(_maxBodyRot, _aimUpDown * p._idleRotFactor));
-  // Lerp body-rotation för smooth aim-tracking (ingen snap)
   if (p._bodyRotLerp === undefined) p._bodyRotLerp = 0;
-  p._bodyRotLerp += (_targetTilt - p._bodyRotLerp) * 0.18;
+  p._bodyRotLerp += (_targetTilt - p._bodyRotLerp) * 0.22;
   ctx.rotate(p._bodyRotLerp);
   // v1.443: BANDANA TAIL — ritas FÖRE sprite så den ligger bakom karaktären.
-  // Cloth-animation som vajar/flaxar — ger "alive" feel.
   if (cos.bandana) {
     drawBandanaTail(ctx, cos, null, now, moving, phase);
   }
   const spriteCanvas = _getCachedPlayerSprite(cos, null, 1, flash, chosenSprite);
   ctx.drawImage(spriteCanvas, -spriteCanvas.width / 2, -spriteCanvas.height / 2);
+  // v1.447: FRONT-MARK / "NOSE" INDICATOR — gör body-rotation perceptually clear.
+  // ROOT-CAUSE: vår sprite är TOP-DOWN view med SYMMETRISK face (W-pixels vid
+  // kolumn 18 OCH 27 = identiska sunglasses-lenses, samma höger som vänster).
+  // Rotation av sprite-rektangeln kan inte göra face "look toward enemies"
+  // eftersom face-pixlarna ser likadana ut oavsett vinkel. Användaren upplever
+  // "tittar alltid rakt" — det är inte en bug i koden utan i SPRITE-DESIGNEN.
+  //
+  // Fix: 2x2 pixel-overlay vid body-local (4, -3) = upper-right av body i sprite-
+  // frame. Ritas INNAN ctx.restore() = följer body-rotation. När body roterar
+  // mot aim flyttas indikatorn med kroppen → tydlig "facing direction" cue.
+  // Placerad ovanför vapen-Y-line så den inte göms av gun-render.
+  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+  ctx.fillRect(4, -3, 2, 2);
+  // Dark outline för "pop" mot vest-färgen
+  ctx.fillStyle = flash ? '#fff' : '#0a0408';
+  ctx.fillRect(3, -4, 1, 1);
+  ctx.fillRect(6, -4, 1, 1);
+  ctx.fillRect(3, -1, 1, 1);
+  ctx.fillRect(6, -1, 1, 1);
   ctx.restore();
   // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
   ctx.rotate(p.aimAngle);
