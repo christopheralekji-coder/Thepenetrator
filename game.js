@@ -11435,16 +11435,12 @@ function drawCoopPartner() {
 
     ctx.save();
     ctx.translate(x, y + bob);
-    ctx.rotate(p.aimAngle || 0);
-    // JUG-scale + JUG-kostym i juggernaut-mode
-    // Use partnerIsJug (defensiv) som beräknats ovan istället för bara p.isJug
+    // v1.441: Sprite ritas UTAN rotation (alltid upprätt). Bara vapnet roterar.
     const _partnerIsJug = partnerIsJug;
     const _partnerJugScale = (_partnerIsJug && (p.scaleMul || Coop.juggernautScale)) ? (p.scaleMul || Coop.juggernautScale || 1.4) : 1;
     if (_partnerJugScale !== 1) ctx.scale(_partnerJugScale, _partnerJugScale);
 
-    // v1.437: PIXEL-ART partner-rendering — använder samma sprite-system som player
-    // men med partner-färg som vest. Bandana också i partner-färg så de syns
-    // tydligt på avstånd.
+    // v1.437/v1.441: PIXEL-ART partner-rendering med mirror + tilt
     ctx.imageSmoothingEnabled = false;
     const partnerCos = {
       skin: _partnerIsJug ? '#4a7a3a' : '#d4a574',
@@ -11454,8 +11450,27 @@ function drawCoopPartner() {
       pants: _partnerIsJug ? '#2a1a0a' : '#3a3528',
       hairColor: '#1a0a08',
     };
-    const partnerSprite = _getCachedPlayerSprite(partnerCos, color, 1, false);
+    // Pick walk-frame for partner (use partner phase)
+    const partnerAimAngle = p.aimAngle || 0;
+    const pAimX = Math.cos(partnerAimAngle);
+    const pAimY = Math.sin(partnerAimAngle);
+    const pFacingLeft = pAimX < -0.05;
+    const partnerMoving = moved > 0.5;
+    let partnerFrame = PLAYER_SPRITE_IDLE;
+    if (partnerMoving) {
+      const wc = Math.floor(phase / Math.PI) % 2;
+      partnerFrame = wc === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
+    }
+    ctx.save();
+    if (pFacingLeft) ctx.scale(-1, 1);
+    const pBodyTilt = (pFacingLeft ? -pAimY : pAimY) * 0.25;
+    ctx.rotate(pBodyTilt);
+    const partnerSprite = _getCachedPlayerSprite(partnerCos, color, 1, false, partnerFrame);
     ctx.drawImage(partnerSprite, -partnerSprite.width / 2, -partnerSprite.height / 2);
+    ctx.restore();
+    // Rotate for partner-weapon
+    ctx.rotate(partnerAimAngle);
+    if (pFacingLeft) ctx.scale(1, -1);
     /* === GAMMAL CANVAS-PRIMITIVE PARTNER-BODY (v1.436) — DEAD CODE ===
     const skin = _partnerIsJug ? '#4a7a3a' : '#d4a574';
     const skinDark = _partnerIsJug ? '#2e5a26' : '#a07a52';
@@ -37372,18 +37387,32 @@ function drawPlayer() {
   // alla shapes är runda → ser ut som "bollar". Pixel-art bypasser detta
   // eftersom pixlar är fyrkanter och vi ritar en designad sprite istället.
   ctx.imageSmoothingEnabled = false;
-  // v1.440: Pick walk-frame baserat på rörelse + walkPhase. Cyklas:
-  // moving → alternates between WALK_A och WALK_B var ~0.5s. Idle = IDLE-frame.
+  // v1.440: Pick walk-frame baserat på rörelse + walkPhase
   let chosenSprite = PLAYER_SPRITE_IDLE;
   if (moving) {
-    // walkPhase ökar med tiden. Mod 2 ger oss alternering.
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
+  // v1.441: MIRROR + TILT — sprite mirroras horisontellt vid west-aim så
+  // karaktären "tittar på" enemies. Plus liten tilt baserat på vertikal aim-
+  // komponent ger "lite sne" feeling (per user request).
+  const _aimX = Math.cos(p.aimAngle);
+  const _aimY = Math.sin(p.aimAngle);
+  const _facingLeft = _aimX < -0.05;
+  ctx.save();
+  if (_facingLeft) ctx.scale(-1, 1);
+  // Tilt: aimY negative (north-ish) tippar huvud uppåt, positive (south-ish) nedåt.
+  // I mirrored frame: negate så tilt-riktning matchar camera POV.
+  const _bodyTilt = (_facingLeft ? -_aimY : _aimY) * 0.25;
+  ctx.rotate(_bodyTilt);
   const spriteCanvas = _getCachedPlayerSprite(cos, null, 1, flash, chosenSprite);
   ctx.drawImage(spriteCanvas, -spriteCanvas.width / 2, -spriteCanvas.height / 2);
+  ctx.restore();
   // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
   ctx.rotate(p.aimAngle);
+  // v1.441: när aim är västligt (cos < 0), flippa vapnet vertikalt så det
+  // inte hamnar upside-down. Klassiskt 2D-shooter fix.
+  if (_facingLeft) ctx.scale(1, -1);
   ctx.translate(-recoil, 0);
   // SKIP HÄR: hair/glasses/hat/beard är integrerade i sprite-design.
   /* === GAMMAL CANVAS-PRIMITIVE BODY (v1.436) — DEAD CODE BORTTAGEN ===
