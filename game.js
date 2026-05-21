@@ -11442,7 +11442,21 @@ function drawCoopPartner() {
     const _partnerJugScale = (_partnerIsJug && (p.scaleMul || Coop.juggernautScale)) ? (p.scaleMul || Coop.juggernautScale || 1.4) : 1;
     if (_partnerJugScale !== 1) ctx.scale(_partnerJugScale, _partnerJugScale);
 
-    // v1.436: Partner-rendering same outline-style som drawPlayer.
+    // v1.437: PIXEL-ART partner-rendering — använder samma sprite-system som player
+    // men med partner-färg som vest. Bandana också i partner-färg så de syns
+    // tydligt på avstånd.
+    ctx.imageSmoothingEnabled = false;
+    const partnerCos = {
+      skin: _partnerIsJug ? '#4a7a3a' : '#d4a574',
+      shirt: _partnerIsJug ? '#1a1a14' : color,
+      bandana: color,
+      accent: '#ffd54a',
+      pants: _partnerIsJug ? '#2a1a0a' : '#3a3528',
+      hairColor: '#1a0a08',
+    };
+    const partnerSprite = _getCachedPlayerSprite(partnerCos, color, 1, false);
+    ctx.drawImage(partnerSprite, -partnerSprite.width / 2, -partnerSprite.height / 2);
+    /* === GAMMAL CANVAS-PRIMITIVE PARTNER-BODY (v1.436) — DEAD CODE ===
     const skin = _partnerIsJug ? '#4a7a3a' : '#d4a574';
     const skinDark = _partnerIsJug ? '#2e5a26' : '#a07a52';
     const skinHighlight = _partnerIsJug ? '#6a9a5a' : '#e8c094';
@@ -11646,8 +11660,9 @@ function drawCoopPartner() {
     ctx.quadraticCurveTo(faceX + r * 0.05, r * 0.10, faceX - r * 0.02, r * 0.03);
     ctx.closePath();
     fillStroke('#3a1a0a', W_THIN);
+    === SLUT GAMMAL CANVAS-PRIMITIVE PARTNER-BODY === */
 
-    // VAPEN — enkelt, baserat på weaponId
+    // VAPEN — enkelt, baserat på weaponId (overlay ovanpå sprite)
     const w = p.weaponId ? W_BY_ID[p.weaponId] : null;
     const wColor = w && w.color ? w.color : '#1a1a1a';
     ctx.fillStyle = '#1a1a1a';
@@ -37037,6 +37052,163 @@ function drawMeleeCrosshair(p, w, px, py, aimAng, ax, ay, color) {
   ctx.restore();
 }
 
+// ============================================================
+// v1.437 PIXEL-ART CHARACTER SPRITES
+// ============================================================
+// 32×32 top-down sprites inspired by Hotline Miami / Brotato.
+// Character faces EAST (+X in sprite coords).
+//
+// Palette key (one char per pixel):
+//   . = transparent
+//   O = outline (#0a0a0f)
+//   S = skin base
+//   K = skin shadow (darker side)
+//   R = bandana base
+//   A = bandana accent (stripe)
+//   V = vest base (player color or tactical)
+//   D = vest shadow (plate carrier)
+//   P = pants
+//   B = boot black
+//   L = boot leather highlight
+//   W = white (eyes)
+//   X = pupil black
+//   I = iris (steel blue tint)
+//   Y = yellow accent (insignia/ID)
+//   M = brass metal
+//   G = gun grey
+//   H = hair dark
+//
+// Top-down rendering tips applied (from pixel-art best-practices):
+//  - Eyes: 1-2 px dots in upper third of head, shifted toward facing dir
+//  - Top of head lighter, lower body darker (overhead light)
+//  - Strong silhouette outline
+//  - Minimal facial features (the icon, not anatomy)
+
+const PIXEL_SPRITE_SIZE = 32;
+
+// Character facing EAST. Total 32x32 = each line is exactly 32 chars.
+const PLAYER_SPRITE = [
+  /*0*/ '................................',
+  /*1*/ '................................',
+  /*2*/ '................................',
+  /*3*/ '.........OOOOOOOO...............',
+  /*4*/ '.......OORRRRRRRROO.............',
+  /*5*/ '......ORRRRRARARRRRO............',
+  /*6*/ '.....ORRRRAARARRRRRRO...........',
+  /*7*/ '.....ORRRAARARRRRRRRO...........',
+  /*8*/ '.....ORRAARARRRRRRRRO...........',
+  /*9*/ '.....ORAARARRRRRRRRSO...........',
+  /*10*/'.....ORAARARRRRRRRSSO...........',
+  /*11*/'.....ORRARARRRRRRSSSO...........',
+  /*12*/'.....ORRRRRRRRRSSSWWO...........',
+  /*13*/'.....OKKRRRRRRSSSSWXO...........',
+  /*14*/'.....OKKKRRRRSSSSSWWO...........',
+  /*15*/'......OKKKKSSSSSSSSO............',
+  /*16*/'.......OOKKSSSSSSO..............',
+  /*17*/'........OOOOOOOOO...............',
+  /*18*/'........OVVVVVVVVO..............',
+  /*19*/'.......OVYVVVVVVYVO.............',
+  /*20*/'......OVVVDDDDDDDVVO............',
+  /*21*/'......OVVDDYYYYYDDVO............',
+  /*22*/'......OVVDDDDDDDDDVOSSGGGGGGG...',
+  /*23*/'......OVVDDDDDDDDDVOSSGGGGGGG...',
+  /*24*/'......OVVDDDDDDDDDVOOOOOOOOOO...',
+  /*25*/'......OVVVVVVVVVVVVO............',
+  /*26*/'.......OVVVVVVVVVVO.............',
+  /*27*/'........OOPPPPPPOO..............',
+  /*28*/'.........OPPPOPPPO..............',
+  /*29*/'.........OPPPOPPPO..............',
+  /*30*/'.........OBBBOBBBO..............',
+  /*31*/'.........OOOOOOOOO..............',
+];
+
+// Walk-cykel variants — bara benen ändras. För enkel start använder vi
+// bara base sprite; lägg till L/R-frames senare för animation.
+
+// Bygger color-palette från costume + extra konstanta färger
+function _buildPlayerPalette(cos, color) {
+  // color = override för partner (player-färg). Fallback till cos.shirt eller default.
+  const vestBase = color || cos.shirt || '#5a4a30';
+  const skinBase = cos.skin || '#d4a574';
+  const bandanaBase = cos.bandana || '#cc2030';
+  const accentBase = cos.accent || '#ffd54a';
+  const pantsBase = cos.pants || '#2a2618';
+  return {
+    'O': '#0a0a0f',
+    'S': skinBase,
+    'K': darken(skinBase, 0.62),
+    'R': bandanaBase,
+    'A': accentBase,
+    'V': vestBase,
+    'D': darken(vestBase, 0.55),
+    'P': pantsBase,
+    'B': '#0a0805',
+    'L': '#3a2818',
+    'W': '#fafafa',
+    'X': '#0a0a0a',
+    'I': '#4a6a8a',
+    'Y': '#ffd54a',
+    'M': '#c9a040',
+    'G': '#3a3a40',
+    'H': cos.hairColor || '#1a0a08',
+  };
+}
+
+// Renderar ett pixel-sprite-array till en offscreen-canvas. Returnerar canvas.
+function _renderPixelSpriteToCanvas(sprite, palette, scale, flash) {
+  const rows = sprite.length;
+  const cols = sprite[0].length;
+  const c = document.createElement('canvas');
+  c.width = cols * scale;
+  c.height = rows * scale;
+  const cc = c.getContext('2d');
+  cc.imageSmoothingEnabled = false;
+  for (let r = 0; r < rows; r++) {
+    const row = sprite[r];
+    for (let col = 0; col < cols; col++) {
+      const ch = row[col];
+      if (ch === '.' || ch === ' ') continue;
+      const color = flash ? '#fff' : (palette[ch] || '#f0f');
+      cc.fillStyle = color;
+      cc.fillRect(col * scale, r * scale, scale, scale);
+    }
+  }
+  return c;
+}
+
+// Cache så vi inte re-renderar sprite varje frame
+const _pixelSpriteCache = new Map();
+function _getCachedPlayerSprite(cos, color, scale, flash) {
+  const key = (color || '') + '|' + (cos.skin || '') + '|' + (cos.shirt || '') + '|' +
+              (cos.bandana || '') + '|' + (cos.accent || '') + '|' + (cos.pants || '') + '|' +
+              (cos.hairColor || '') + '|' + scale + '|' + (flash ? 'F' : 'N');
+  let cached = _pixelSpriteCache.get(key);
+  if (cached) return cached;
+  const palette = _buildPlayerPalette(cos, color);
+  cached = _renderPixelSpriteToCanvas(PLAYER_SPRITE, palette, scale, flash);
+  if (_pixelSpriteCache.size > 60) {
+    // Evict oldest om cache växer för mycket (color × costume-combos)
+    const firstKey = _pixelSpriteCache.keys().next().value;
+    _pixelSpriteCache.delete(firstKey);
+  }
+  _pixelSpriteCache.set(key, cached);
+  return cached;
+}
+
+// Helper för att rita pixel-sprite vid (x, y) med rotation = aimAngle.
+// Använder cached canvas + ctx.drawImage med rotation.
+function drawPlayerPixelSprite(ctx, x, y, aimAngle, cos, color, scale, flash) {
+  const spriteCanvas = _getCachedPlayerSprite(cos, color, scale, flash);
+  const sw = spriteCanvas.width, sh = spriteCanvas.height;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.translate(x, y);
+  ctx.rotate(aimAngle);
+  // Centrera sprite på (x, y)
+  ctx.drawImage(spriteCanvas, -sw / 2, -sh / 2);
+  ctx.restore();
+}
+
 function drawPlayer() {
   const p = state.player;
   const x = p.x - state.camera.x;
@@ -37118,17 +37290,18 @@ function drawPlayer() {
     drawCapeInGame(ctx, p, cos, flash, now);
   }
 
-  const r = p.r;
-  // v1.436: STYLIZED TOP-DOWN COMIC redesign — bold outlines + cel-shading
-  // inspired by Hades / Brawl Stars / Soul Knight. Outlines är 2-3px svarta
-  // konturer runt VARJE större form, vilket transformerar canvas-shapes från
-  // "blobs" till en cohesion karaktär. Cel-shading = 3 toner per kroppsdel
-  // med HÅRDA kanter (inte gradient) som ger illustrerat utseende.
-  //
-  // ÄLDRE KOMMENTAR: Tidigare iterationer (v1.434/v1.435) lade till detaljer
-  // men behöll ellips-baserad rendering = fortfarande "blobs". Outlines är
-  // SINGLE biggest visual change.
-  // se MÄNSKLIG ut, inte bara en ellips-blob.
+  // v1.437: PIXEL-ART SPRITE-RENDERING — ersätter ~480 rader canvas-primitiver
+  // med en pre-renderad 32×32 pixel-sprite. Tidigare iterationer (v1.434-v1.436)
+  // med stackade ellipser/paths kunde inte uppnå "marknads-kvalitet" eftersom
+  // alla shapes är runda → ser ut som "bollar". Pixel-art bypasser detta
+  // eftersom pixlar är fyrkanter och vi ritar en designad sprite istället.
+  ctx.imageSmoothingEnabled = false;
+  const spriteCanvas = _getCachedPlayerSprite(cos, null, 1, flash);
+  ctx.drawImage(spriteCanvas, -spriteCanvas.width / 2, -spriteCanvas.height / 2);
+  // SKIP HÄR: hair/glasses/hat/beard är integrerade i sprite-design.
+  // För overlay-baserad customization (att lägga till hattar) behöver vi
+  // separata hat-sprites. Det kan vi göra senare när pixel-stilen är godkänd.
+  /* === GAMMAL CANVAS-PRIMITIVE BODY (v1.436) — DEAD CODE BORTTAGEN ===
 
   // ============================================================
   // v1.436 STYLIZED TOP-DOWN COMIC — outline + cel-shading
@@ -37598,6 +37771,7 @@ function drawPlayer() {
   if (cos.hat && cos.hat.style && cos.hat.style !== 'none') {
     drawHatInGame(ctx, headX, 0, headR * 0.85, cos.hat.style, flash ? '#fff' : cos.hat.color);
   }
+  === SLUT GAMMAL CANVAS-PRIMITIVE BODY === */
 
   // vapen
   drawPlayerWeapon(p, w, flash, now);
