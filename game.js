@@ -11461,23 +11461,37 @@ function drawCoopPartner() {
       const wc = Math.floor(phase / Math.PI) % 2;
       partnerFrame = wc === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
     }
-    // v1.458: Partner body följer RÖRELSE-riktning (calculated från position-delta)
+    // v1.459: Partner body upright med mirror baserat på movement-X delta
     const _pMoveDx = p.x - p._prevX;
-    const _pMoveDy = p.y - p._prevY;
-    if (partnerMoving) {
-      p._bodyAngle = Math.atan2(_pMoveDy, _pMoveDx);
+    if (Math.abs(_pMoveDx) > 0.5) {
+      p._bodyFacingLeft = _pMoveDx < 0;
     }
-    if (p._bodyAngle === undefined) p._bodyAngle = partnerAimAngle;
-    const _pBodyAngle = p._bodyAngle;
-    const _pBodyDX = Math.cos(_pBodyAngle);
-    const _pBodyFacingLeft = _pBodyDX < -0.05;
+    if (p._bodyFacingLeft === undefined) {
+      p._bodyFacingLeft = Math.cos(partnerAimAngle) < 0;
+    }
+    const _pBodyFacingLeft = p._bodyFacingLeft;
     ctx.imageSmoothingEnabled = false;
     const pNakedCanvas = _getCachedNakedSprite(partnerCos, color, false); // 96x96
+    // Body upright med mirror
     ctx.save();
     if (_pBodyFacingLeft) ctx.scale(-1, 1);
-    const pDisplayAngle = _pBodyFacingLeft ? (Math.PI - _pBodyAngle) : _pBodyAngle;
-    ctx.rotate(pDisplayAngle);
     ctx.drawImage(pNakedCanvas, -48, -48, 96, 96);
+    ctx.restore();
+    // Partner arm + hand rotated med aim
+    ctx.save();
+    ctx.rotate(partnerAimAngle);
+    if (pFacingLeft) ctx.scale(1, -1);
+    const _pArmSkin = partnerCos.skin || '#c89870';
+    ctx.fillStyle = _pArmSkin;
+    ctx.fillRect(2, -3, 14, 6);
+    ctx.strokeStyle = '#0a0a0e';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(2, -3, 14, 6);
+    ctx.fillStyle = _pArmSkin;
+    ctx.beginPath();
+    ctx.arc(16, 0, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
     // Rotate for partner-weapon
     ctx.rotate(partnerAimAngle);
@@ -37281,48 +37295,47 @@ const HEAD_TOP_DOWN = [
 //   Rows 33-36: LEGS (skin split med separator)
 //   Rows 37-38: FEET
 const PLAYER_SPRITE_NAKED = [
-  // v1.457 COMPACT TOP-DOWN — designad för 360° rotation som EN enhet.
-  // Character content rows 14-35 (22 tall), centrerad vid sprite center (24, 24).
-  // Default east-facing: hair täcker huvudet, skin på east edge = face direction,
-  // shoulders perpendicular till facing, arms österut, underwear+ben+fötter söder.
-  // Compact aspect (22 tall × 23 wide med arms) så rotation inte ger sidles.
+  // v1.459 BROTATO-STIL — upright character WITHOUT arms (drawn separately).
+  // Body sprite ritas UPPRÄTT med endast MIRROR för left/right movement.
+  // Inga arms baked in — armar drawn separately rotated med aim.
+  // Default east-facing: skin face på east-side av head, hair på west.
   /* 0*/ '................................................',
   /* 1*/ '................................................',
   /* 2*/ '................................................',
   /* 3*/ '................................................',
   /* 4*/ '................................................',
   /* 5*/ '................................................',
-  /* 6*/ '................................................',
-  /* 7*/ '................................................',
-  /* 8*/ '................................................',
-  /* 9*/ '................................................',
-  /*10*/ '................................................',
-  /*11*/ '................................................',
-  /*12*/ '................................................',
-  /*13*/ '................................................',
-  /*14*/ '....................OOOOOO......................',
-  /*15*/ '..................OOHHHHHHHHOO..................',
-  /*16*/ '.................OHHHHHHHHHHHHO.................',
-  /*17*/ '................OHHHHHHHHHHHHHHO................',
-  /*18*/ '................OHHHHHHHHHHHHHHO................',
-  /*19*/ '................OHHHHHHHHHHHHHsO................',
-  /*20*/ '..............OOOHHHHHHHHHHHHHsSO...............',
-  /*21*/ '............OssSHHHHHHHHHHHHHHsSsSO.............',
-  /*22*/ '...........OssSHHHHHHHHHHHHHHHHsSsSO............',
-  /*23*/ '...........OssSHHHHHHHHHHHHHHHHsSsSO............',
-  /*24*/ '............OssSHHHHHHHHHHHHHHsSsSO.............',
-  /*25*/ '..............OOOHHHHHHHHHHHHHsSO...............',
-  /*26*/ '................OHHHHHHHHHHHHHsO................',
-  /*27*/ '................OOSSSSSSSSSSSSO.................',
-  /*28*/ '.................OUUUUUUUUUUUUO.................',
-  /*29*/ '.................OUUUUUUUUUUUUO.................',
-  /*30*/ '.................OSSOOOOOOOSSO..................',
-  /*31*/ '.................OSSO.....OSSO..................',
-  /*32*/ '.................OSSO.....OSSO..................',
-  /*33*/ '.................OSSO.....OSSO..................',
-  /*34*/ '.................OOSO.....OSOO..................',
-  /*35*/ '..................OO.......OO...................',
-  /*36*/ '................................................',
+  /* 6*/ '...................OOOOOOOO.....................',  // head top
+  /* 7*/ '.................OOHHHHHHHHHHOO.................',
+  /* 8*/ '................OHHHHHHHHHHHHHHO................',  // hair
+  /* 9*/ '................OHHHHHHHHHHHHHHO................',
+  /*10*/ '................OHHHHHHsSSSSSSSO................',  // face skin east
+  /*11*/ '................OHHHHHsSSSSSSSSO................',
+  /*12*/ '................OHHHHHsSSSSSSSSO................',
+  /*13*/ '................OHHHHHHsSSSSSSSO................',
+  /*14*/ '.................OOSSSSSSSSSSOO.................',  // chin
+  /*15*/ '..................OSSSSSSSSSSO..................',
+  /*16*/ '...............OOOSSSSSSSSSSSSOOO...............',  // shoulders begin
+  /*17*/ '..............OSSSSSSSSSSSSSSSSSO...............',
+  /*18*/ '..............OSSSSSSSSSSSSSSSSSO...............',  // torso
+  /*19*/ '..............OSSSSSSSSSSSSSSSSSO...............',
+  /*20*/ '..............OSSSSSSSSSSSSSSSSSO...............',
+  /*21*/ '..............OSSSSSSSSSSSSSSSSSO...............',
+  /*22*/ '..............OSSSSSSSSSSSSSSSSSO...............',
+  /*23*/ '...............OSSSSSSSSSSSSSSSO................',  // torso narrowing
+  /*24*/ '................OUUUUUUUUUUUUUO.................',  // underwear
+  /*25*/ '................OUUUUUUUUUUUUUO.................',
+  /*26*/ '................OUUUUUUUUUUUUUO.................',
+  /*27*/ '................OOSSSOOOSSSSSSO.................',  // hip/legs split
+  /*28*/ '.................OSSOOOOSSO.....................',
+  /*29*/ '.................OSSO..OSSO.....................',  // legs
+  /*30*/ '.................OSSO..OSSO.....................',
+  /*31*/ '.................OSSO..OSSO.....................',
+  /*32*/ '.................OSSO..OSSO.....................',
+  /*33*/ '.................OSSO..OSSO.....................',
+  /*34*/ '.................OOSO..OSSO.....................',
+  /*35*/ '.................OOSO..OSSO.....................',  // feet
+  /*36*/ '..................OO....OO......................',
   /*37*/ '................................................',
   /*38*/ '................................................',
   /*39*/ '................................................',
@@ -37670,41 +37683,56 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.458: BODY följer RÖRELSE-RIKTNING (movement), WEAPON följer AIM separat.
+  // v1.459: BROTATO-STIL — body UPPRÄTT med endast MIRROR (ingen rotation),
+  // arms drawn separately och roterar med AIM. Karaktären är grundad mot
+  // marken, springer som en riktig människa.
   //
-  // User explicit feedback: "kroppen ska vara riktad åt hållet man går åt
-  // och ändra riktning när man ändrar riktning. När vapnet rör sig ska
-  // armen röra sig". → body rotation tied to MOVEMENT, weapon to AIM.
-  //
-  // Beräkna rörelse-riktning från input. Spara senaste riktning så kroppen
-  // stannar i den vid stillastående istället för att snäppa tillbaka.
+  // Body facing: bestäms av MOVEMENT-X (positive = east, negative = west).
+  // Sparat i p.bodyFacingLeft så det persistent mellan frames.
   let _moveX = (input.moveX || 0);
   let _moveY = (input.moveY || 0);
   if (input.keys.has('d')) _moveX += 1;
   if (input.keys.has('a')) _moveX -= 1;
   if (input.keys.has('s')) _moveY += 1;
   if (input.keys.has('w')) _moveY -= 1;
-  const _isMoving = Math.abs(_moveX) + Math.abs(_moveY) > 0.1;
-  if (_isMoving) {
-    p.bodyAngle = Math.atan2(_moveY, _moveX);
+  // Uppdatera body facing endast vid signifikant horisontell rörelse
+  if (Math.abs(_moveX) > 0.05) {
+    p.bodyFacingLeft = _moveX < 0;
   }
-  // Default body angle = aim direction vid spawn (innan första rörelse)
-  if (p.bodyAngle === undefined) p.bodyAngle = p.aimAngle;
-  const _bodyAngle = p.bodyAngle;
-  const _bodyDX = Math.cos(_bodyAngle);
-  const _bodyFacingLeft = _bodyDX < -0.05;
-  // _facingLeft för vapnet (baseras på AIM, inte body)
+  if (p.bodyFacingLeft === undefined) {
+    p.bodyFacingLeft = Math.cos(p.aimAngle) < 0;
+  }
+  const _bodyFacingLeft = p.bodyFacingLeft;
+  // Aim variables för vapen + arm
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
   ctx.imageSmoothingEnabled = false;
   const nakedCanvas = _getCachedNakedSprite(cos, null, flash); // 96x96 (scale 2)
-  // Body rotates med RÖRELSE-riktning (inte aim)
+  // Body drawn UPPRÄTT med mirror baserat på movement direction (Brotato-stil)
   ctx.save();
   if (_bodyFacingLeft) ctx.scale(-1, 1);
-  const _bodyDisplayAngle = _bodyFacingLeft ? (Math.PI - _bodyAngle) : _bodyAngle;
-  ctx.rotate(_bodyDisplayAngle);
   ctx.drawImage(nakedCanvas, -48, -48, 96, 96);
+  ctx.restore();
+  // ARMS drawn separately, roterar med aim (independent of body facing)
+  // Skin-colored "arm + hand" extending in aim direction från body shoulder
+  ctx.save();
+  ctx.rotate(p.aimAngle);
+  if (_facingLeft) ctx.scale(1, -1);
+  const _armSkin = flash ? '#fff' : (cos.skin || '#c89870');
+  const _armOutline = flash ? '#fff' : '#0a0a0e';
+  // Upper arm (skin-colored rect from shoulder out)
+  ctx.fillStyle = _armSkin;
+  ctx.fillRect(2, -3, 14, 6);
+  ctx.strokeStyle = _armOutline;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(2, -3, 14, 6);
+  // Hand at end of arm (slightly bigger)
+  ctx.fillStyle = _armSkin;
+  ctx.beginPath();
+  ctx.arc(16, 0, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
   ctx.restore();
   // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
   ctx.rotate(p.aimAngle);
