@@ -11465,6 +11465,10 @@ function drawCoopPartner() {
     if (pFacingLeft) ctx.scale(-1, 1);
     const pBodyTilt = (pFacingLeft ? -pAimY : pAimY) * 0.25;
     ctx.rotate(pBodyTilt);
+    // v1.443: BANDANA TAIL bakom partner
+    if (partnerCos.bandana) {
+      drawBandanaTail(ctx, partnerCos, color, now, partnerMoving, phase);
+    }
     const partnerSprite = _getCachedPlayerSprite(partnerCos, color, 1, false, partnerFrame);
     ctx.drawImage(partnerSprite, -partnerSprite.width / 2, -partnerSprite.height / 2);
     ctx.restore();
@@ -37328,6 +37332,87 @@ function drawPlayerPixelSprite(ctx, x, y, aimAngle, cos, color, scale, flash) {
   ctx.restore();
 }
 
+// v1.443: BANDANA TAIL — animerad cloth som vajar bakom karaktären.
+// Ritas FÖRE sprite så den ligger bakom. Färg från costume.
+// Body-local coords: tail trails ALWAYS to -X (since mirror handles direction).
+// Wave-animation baserat på now för "alive" look.
+function drawBandanaTail(ctx, cos, color, now, moving, phase) {
+  const bandanaColor = cos.bandana || color || '#c83030';
+  const bandanaDark = darken(bandanaColor, 0.65);
+  const accentColor = cos.accent || '#f0c020';
+  // Anchor: back of head — sprite top is around y=-22 in 48×48 frame (centered)
+  const baseX = -8;
+  const baseY = -16;
+  // Wave intensity boosts vid rörelse (cloth flutters mer när man springer)
+  const waveAmp = moving ? 2.4 : 1.5;
+  const waveT = now / 160 + (moving ? phase * 0.5 : 0);
+  const segments = 10;
+  const segLen = 2.2;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  for (let i = 0; i < segments; i++) {
+    const seg = i + 1;
+    const segX = baseX - seg * segLen;
+    // Wave: increasing amplitude along tail
+    const wave = Math.sin(waveT + i * 0.55) * (waveAmp + i * 0.35);
+    const segY = baseY + i * 0.3 + wave;
+    const width = Math.max(1, 3 - Math.floor(i / 4));
+    ctx.fillStyle = i % 2 === 0 ? bandanaColor : bandanaDark;
+    ctx.fillRect(Math.round(segX), Math.round(segY), width, width + 1);
+    if (i % 3 === 0 && i > 0) {
+      ctx.fillStyle = accentColor;
+      ctx.fillRect(Math.round(segX), Math.round(segY + 1), 1, 1);
+    }
+  }
+  ctx.restore();
+}
+
+// v1.443: MUZZLE FLASH — bright burst at weapon tip when firing.
+// Pixel-art star-burst pattern in weapon-local coords (assumes ctx is
+// already rotated to aim direction). Fades out over 80ms.
+function drawMuzzleFlash(ctx, weaponTipX, sinceShot, weaponType) {
+  if (weaponType !== 'gun') return;
+  if (sinceShot > 80) return;
+  const intensity = 1 - sinceShot / 80;
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  // Core flash (white-yellow center)
+  const cx = weaponTipX, cy = 0;
+  // Random spike-pattern that varies per ms (looks more "alive")
+  const spikeOffset = Math.floor(sinceShot / 16) % 3; // changes every 16ms
+  // Outer glow (yellow)
+  ctx.fillStyle = 'rgba(255,200,80,' + (0.7 * intensity) + ')';
+  for (let dx = -3; dx <= 3; dx++) {
+    for (let dy = -3; dy <= 3; dy++) {
+      const d = Math.abs(dx) + Math.abs(dy);
+      if (d > 4) continue;
+      if (d === 4 && (dx + dy + spikeOffset) % 2 === 0) continue;
+      ctx.fillRect(cx + dx, cy + dy, 1, 1);
+    }
+  }
+  // Mid flash (bright orange)
+  ctx.fillStyle = 'rgba(255,160,40,' + intensity + ')';
+  for (let dx = -2; dx <= 2; dx++) {
+    for (let dy = -2; dy <= 2; dy++) {
+      if (Math.abs(dx) + Math.abs(dy) > 2) continue;
+      ctx.fillRect(cx + dx, cy + dy, 1, 1);
+    }
+  }
+  // Core (white-hot)
+  ctx.fillStyle = 'rgba(255,255,220,' + intensity + ')';
+  ctx.fillRect(cx - 1, cy - 1, 3, 3);
+  ctx.fillRect(cx, cy - 2, 1, 5);
+  ctx.fillRect(cx - 2, cy, 5, 1);
+  // Spark spokes (4 directions)
+  ctx.fillStyle = 'rgba(255,240,180,' + (0.8 * intensity) + ')';
+  const sparkLen = 4 + spikeOffset;
+  ctx.fillRect(cx + 2, cy, sparkLen, 1);  // forward
+  ctx.fillRect(cx - sparkLen - 1, cy, sparkLen, 1); // backward
+  ctx.fillRect(cx, cy - 3, 1, 2);
+  ctx.fillRect(cx, cy + 2, 1, 2);
+  ctx.restore();
+}
+
 function drawPlayer() {
   const p = state.player;
   const x = p.x - state.camera.x;
@@ -37436,6 +37521,11 @@ function drawPlayer() {
   // I mirrored frame: negate så tilt-riktning matchar camera POV.
   const _bodyTilt = (_facingLeft ? -_aimY : _aimY) * 0.25;
   ctx.rotate(_bodyTilt);
+  // v1.443: BANDANA TAIL — ritas FÖRE sprite så den ligger bakom karaktären.
+  // Cloth-animation som vajar/flaxar — ger "alive" feel.
+  if (cos.bandana) {
+    drawBandanaTail(ctx, cos, null, now, moving, phase);
+  }
   const spriteCanvas = _getCachedPlayerSprite(cos, null, 1, flash, chosenSprite);
   ctx.drawImage(spriteCanvas, -spriteCanvas.width / 2, -spriteCanvas.height / 2);
   ctx.restore();
@@ -37920,6 +38010,13 @@ function drawPlayer() {
 
   // vapen
   drawPlayerWeapon(p, w, flash, now);
+
+  // v1.443: MUZZLE FLASH — ritas EFTER vapen i samma roterade frame.
+  // Tip of weapon ligger ~12-14px till höger om center (i weapon-local space).
+  if (w.type === 'gun' && sinceShot < 80) {
+    const weaponLen = (w.id === 'rocket' || w.id === 'grenade') ? 16 : 13;
+    drawMuzzleFlash(ctx, weaponLen, sinceShot, w.type);
+  }
 
   ctx.restore();
 
