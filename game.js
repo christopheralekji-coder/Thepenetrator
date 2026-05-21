@@ -11473,6 +11473,8 @@ function drawCoopPartner() {
         facialHair: _facialO,
         eyes: _eyesO,
         scars: _scarsO,
+        shirtBrand: (_shirtO && _shirtO.brand) || null, // v1.489: brand-logo support
+        mascot: (_shirtO && _shirtO.mascot) || null,    // v1.489: mascot dispatch
       };
     } else {
       partnerCos = {
@@ -11514,10 +11516,12 @@ function drawCoopPartner() {
         ctx.restore();
       }
     }
+    // v1.489: Skip arms för partner-mascots (samma logik som drawPlayer)
+    const _pSkipArms = !!partnerCos.mascot && partnerCos.mascot !== 'mcdonalds';
     // v1.468: Partner — hanging arm + arm shaft BEHIND body, hand AFTER body
-    drawHangingArm(ctx, partnerCos, false, _pBodyFacingLeft);
+    if (!_pSkipArms) drawHangingArm(ctx, partnerCos, false, _pBodyFacingLeft);
     // Partner shooting arm SHAFT (behind body) — v1.484 med sleeve
-    {
+    if (!_pSkipArms) {
       const _pShoulderXShaft = _pBodyFacingLeft ? -3 : 3;
       ctx.save();
       ctx.translate(_pShoulderXShaft, -3);
@@ -12363,6 +12367,12 @@ const WARDROBE = {
     { id: 'mcdonalds_suit', name: 'McDonalds Uniform', color: '#aa1818', mascot: 'mcdonalds' },
     { id: 'nugget_body',    name: 'Nugget-kostym',     color: '#d4a04a', mascot: 'nugget' },
     { id: 'korv_body',      name: 'Korv-kostym',       color: '#d4a060', mascot: 'korv' },
+    // v1.489: 5 nya mat-mascots
+    { id: 'hamburger_body', name: 'Hamburgare-kostym', color: '#d4a060', mascot: 'hamburger' },
+    { id: 'pizza_body',     name: 'Pizza-kostym',      color: '#cc2818', mascot: 'pizza' },
+    { id: 'banan_body',     name: 'Banan-kostym',      color: '#ffd54a', mascot: 'banan' },
+    { id: 'kiwi_body',      name: 'Kiwi-kostym',       color: '#7aaa3a', mascot: 'kiwi' },
+    { id: 'mango_body',     name: 'Mango-kostym',      color: '#ff9020', mascot: 'mango' },
     { id: 'black',     name: 'Svart',      color: '#222' },
     { id: 'white',     name: 'Vit',        color: '#cccccc' },
     { id: 'tactical',  name: 'Tactical',   color: '#1a3a1a' },
@@ -12583,6 +12593,28 @@ const TIER_RANK = { common: 0, rare: 1, epic: 2, legendary: 3 };
   set('cape', 'wings',    { tier: 'legendary', unlock: () => save.achievements && save.achievements.length >= 15, lore: 'Änglavingar. 15+ achievements.', vfx: 'halo-glow' });
   set('cape', 'flames',   { tier: 'epic', unlock: () => (save.stats && save.stats.totalKills >= 1000), lore: 'Bränn-cape. 1k kills-låst.', vfx: 'aura-red' });
   set('cape', 'tattered', { tier: 'rare', lore: 'Berättar din historia.' });
+})();
+// v1.489: Validera ALLA wardrobe-presets + items vid script-load.
+// Loggar varningar för dangling refs (preset.shirt='foo' men 'foo' saknas i WARDROBE.shirt).
+(function _validateWardrobeAtLoad() {
+  try {
+    const errors = [];
+    if (typeof WARDROBE_PRESETS !== 'undefined' && typeof WARDROBE !== 'undefined') {
+      for (const p of WARDROBE_PRESETS) {
+        for (const [cat, id] of Object.entries(p.wardrobe)) {
+          if (id === 'none') continue;
+          if (!WARDROBE[cat]) { errors.push(`[wardrobe] unknown category '${cat}' in preset '${p.id}'`); continue; }
+          if (!WARDROBE[cat].find(o => o.id === id)) {
+            errors.push(`[wardrobe] preset '${p.id}': ${cat}='${id}' not in WARDROBE.${cat}`);
+          }
+        }
+      }
+    }
+    if (errors.length) {
+      console.warn(`[wardrobe] ${errors.length} validation errors:`);
+      for (const e of errors) console.warn('  ' + e);
+    }
+  } catch (e) { console.warn('[wardrobe] validation crashed:', e.message); }
 })();
 function ensureWardrobe() {
   if (!save.wardrobe) save.wardrobe = {};
@@ -22253,9 +22285,9 @@ const WARDROBE_PRESETS = [
   { id: 'classic_hero', name: 'Klassisk Hjälte', wardrobe: { skin: 'tan', hair: 'shortDark', shirt: 'black', pants: 'khaki', bandana: 'red' } },
   { id: 'urban_ninja', name: 'Urban Ninja', wardrobe: { skin: 'pale', hair: 'longBlack', shirt: 'cyber', pants: 'black', bandana: 'none' } },
   { id: 'punk_rocker', name: 'Punk Rocker', wardrobe: { skin: 'fair', hair: 'mohawkRed', shirt: 'red', pants: 'black', bandana: 'none' } },
-  { id: 'desert_ranger', name: 'Ökenvandrare', wardrobe: { skin: 'tan', hair: 'shortBlonde', shirt: 'desert', pants: 'desert', bandana: 'tan' } },
+  { id: 'desert_ranger', name: 'Ökenvandrare', wardrobe: { skin: 'tan', hair: 'shortBlonde', shirt: 'desert', pants: 'desert', bandana: 'orange' } },
   { id: 'cyber_punk', name: 'Cyberpunk', wardrobe: { skin: 'pink', hair: 'mohawkPink', shirt: 'cyber', pants: 'black', bandana: 'pink' } },
-  { id: 'soldier', name: 'Soldat', wardrobe: { skin: 'olive', hair: 'shortDark', shirt: 'tactical', pants: 'tactical', bandana: 'olive' } },
+  { id: 'soldier', name: 'Soldat', wardrobe: { skin: 'olive', hair: 'shortDark', shirt: 'tactical', pants: 'tactical', bandana: 'green' } },
   { id: 'demon', name: 'Demon', wardrobe: { skin: 'red', hair: 'mohawkBlack', shirt: 'crimson', pants: 'black', bandana: 'red' } },
   { id: 'angel', name: 'Ängel', wardrobe: { skin: 'porcelain', hair: 'whiteLong', shirt: 'white', pants: 'white', bandana: 'gold' } },
   { id: 'biker', name: 'Biker', wardrobe: { skin: 'tan', hair: 'longBrown', shirt: 'black', pants: 'jeans', bandana: 'red' } },
@@ -22328,6 +22360,32 @@ const WARDROBE_PRESETS = [
   } },
   { id: 'korv_med_brod', name: 'Korv med Bröd', wardrobe: {
       skin: 'peach', hair: 'shortDark', shirt: 'korv_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  // v1.489: 5 NYA MAT-MASCOTS (helt generiska mat/frukt-koncept)
+  { id: 'hamburgare', name: 'Hamburgare', wardrobe: {
+      skin: 'peach', hair: 'shortDark', shirt: 'hamburger_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'pizza', name: 'Pizza', wardrobe: {
+      skin: 'tan', hair: 'shortDark', shirt: 'pizza_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'banan', name: 'Banan', wardrobe: {
+      skin: 'fair', hair: 'bald', shirt: 'banan_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'kiwi', name: 'Kiwi', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'kiwi_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'mango', name: 'Mango', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'mango_body', pants: 'briefs',
       shoes: 'none', hat: 'none', bandana: 'none',
       glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
   } },
@@ -22410,9 +22468,12 @@ function drawWardrobePreviewV2() {
   if (cos.cape && cos.cape.style && cos.cape.style !== 'none') {
     drawCapeOnUprightBody(c, cos.cape.style, cos.cape.color, flash, t, moving);
   }
-  // 2. HANGING ARMS — båda hängande (no weapon i wardrobe)
-  drawHangingArm(c, cos, flash, true, 0, 0);   // arm at east (hangX=+8)
-  drawHangingArm(c, cos, flash, false, 0, 0);  // arm at west (hangX=-8)
+  // 2. HANGING ARMS — skip för mascot (har inbyggda stick-armar eller inga)
+  const _previewSkipArms = !!cos.mascot && cos.mascot !== 'mcdonalds';
+  if (!_previewSkipArms) {
+    drawHangingArm(c, cos, flash, true, 0, 0);   // arm at east (hangX=+8)
+    drawHangingArm(c, cos, flash, false, 0, 0);  // arm at west (hangX=-8)
+  }
   // 3. BODY (med alla overlays)
   drawNakedBody(c, cos, flash, phase, moving);
   // 4. v1.481: Directional shadow för 3D-illusion — heavy shadow på sidan
@@ -39013,6 +39074,523 @@ function drawKorvCharacter(ctx, cos, flash, walkPhase, isMoving) {
   ctx.stroke();
 }
 
+// ============================================================
+// v1.489: NYA MAT-MASCOTS — Hamburgare, Pizza, Banan, Kiwi, Mango
+// ============================================================
+
+// HAMBURGARE — staplad burger: top bun + lettuce + tomato + cheese + patty + bottom bun
+function drawHamburgerCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const bunTop       = flash ? '#fff' : '#d4a060';
+  const bunBottom    = flash ? '#fff' : '#aa7a40';
+  const bunHighlight = flash ? '#fff' : '#f0c080';
+  const lettuce      = flash ? '#fff' : '#5aaa30';
+  const lettuceDark  = flash ? '#fff' : '#3a7a1a';
+  const tomato       = flash ? '#fff' : '#dd2818';
+  const tomatoSeed   = flash ? '#fff' : '#ff8a30';
+  const cheese       = flash ? '#fff' : '#ffd54a';
+  const patty        = flash ? '#fff' : '#5a2818';
+  const pattyDark    = flash ? '#fff' : '#3a1a08';
+  const outline      = flash ? '#fff' : '#2a1a05';
+  const skin         = flash ? '#fff' : (cos.skin || '#d4a574');
+  const blackEye     = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // TOP BUN (dome with sesame seeds)
+  ctx.fillStyle = bunTop;
+  ctx.beginPath();
+  ctx.moveTo(-8, -10);
+  ctx.quadraticCurveTo(-9, -16, -3, -18);
+  ctx.quadraticCurveTo(0, -19, 3, -18);
+  ctx.quadraticCurveTo(9, -16, 8, -10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.stroke();
+  // Sesame seeds
+  ctx.fillStyle = bunHighlight;
+  const seeds = [[-5, -15], [-2, -16], [1, -16.5], [4, -15], [6, -13],
+                 [-6, -12], [3, -13], [-3, -13.5]];
+  for (const [sx, sy] of seeds) {
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, 0.5, 0.3, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Bun base shadow
+  ctx.fillStyle = bunBottom;
+  ctx.fillRect(-8, -11, 16, 1);
+  // LETTUCE (wavy green ruffle)
+  ctx.fillStyle = lettuce;
+  ctx.beginPath();
+  ctx.moveTo(-8, -10);
+  for (let x = -8; x <= 8; x += 1) {
+    const wave = Math.sin(x * 1.5) * 0.7;
+    ctx.lineTo(x, -10 + wave);
+  }
+  ctx.lineTo(8, -7);
+  ctx.lineTo(-8, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = lettuceDark;
+  for (const lx of [-6, -3, 0, 3, 6]) ctx.fillRect(lx, -8.5, 0.5, 1);
+  // TOMATO disk
+  ctx.fillStyle = tomato;
+  ctx.fillRect(-7.5, -7, 15, 2);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-7.5, -7, 15, 2);
+  ctx.fillStyle = tomatoSeed;
+  for (const tx of [-5, 0, 4]) ctx.fillRect(tx, -6.5, 0.4, 0.4);
+  // CHEESE (square hanging out at corners + drips)
+  ctx.fillStyle = cheese;
+  ctx.beginPath();
+  ctx.moveTo(-8, -5);
+  ctx.lineTo(8, -5);
+  ctx.lineTo(7.5, -3);
+  ctx.lineTo(-7.5, -3);
+  ctx.closePath();
+  ctx.fill();
+  // Drips
+  ctx.beginPath();
+  ctx.moveTo(-7, -3); ctx.lineTo(-7.5, -1); ctx.lineTo(-6, -2); ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(7, -3); ctx.lineTo(7.5, -1); ctx.lineTo(6, -2); ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  ctx.stroke();
+  // PATTY (dark brown beef with face)
+  ctx.fillStyle = patty;
+  ctx.fillRect(-7.5, -3, 15, 5);
+  ctx.fillStyle = pattyDark;
+  for (const [px, py] of [[-5, -2], [0, -1], [3, -2], [-3, 0], [4, 1], [-4, 1]]) {
+    ctx.fillRect(px, py, 1, 0.5);
+  }
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.strokeRect(-7.5, -3, 15, 5);
+  // FACE on patty
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2, 0, 1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, 0, 1, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-2, 0, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, 0, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-1.7, -0.3, 0.3, 0.3);
+  ctx.fillRect(2.3, -0.3, 0.3, 0.3);
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, 1.5); ctx.quadraticCurveTo(0, 2.2, 1.5, 1.5);
+  ctx.stroke();
+  // BOTTOM BUN
+  ctx.fillStyle = bunBottom;
+  ctx.beginPath();
+  ctx.moveTo(-7, 2);
+  ctx.quadraticCurveTo(-8, 4, -6, 8);
+  ctx.lineTo(6, 8);
+  ctx.quadraticCurveTo(8, 4, 7, 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.stroke();
+  // LEGS (skin)
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 8, 2, 8);
+  ctx.fillRect(2 + legSwing, 8, 2, 8);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 8, 2, 8);
+  ctx.strokeRect(2 + legSwing, 8, 2, 8);
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-2 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(3 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// PIZZA — rund pizza-form med crust, sauce, cheese, pepperoni
+function drawPizzaCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const crust       = flash ? '#fff' : '#d4a060';
+  const crustDark   = flash ? '#fff' : '#aa7a40';
+  const sauce       = flash ? '#fff' : '#cc2818';
+  const cheese      = flash ? '#fff' : '#ffd54a';
+  const cheeseLight = flash ? '#fff' : '#ffe080';
+  const pepperoni   = flash ? '#fff' : '#aa1818';
+  const pepperoniDark = flash ? '#fff' : '#6a0a0a';
+  const outline     = flash ? '#fff' : '#3a1a05';
+  const skin        = flash ? '#fff' : (cos.skin || '#d4a574');
+  const blackEye    = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // CRUST (outer ring)
+  ctx.fillStyle = crust;
+  ctx.beginPath();
+  ctx.arc(0.5, -2, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.stroke();
+  // SAUCE (inner red)
+  ctx.fillStyle = sauce;
+  ctx.beginPath();
+  ctx.arc(0.5, -2, 7.5, 0, Math.PI * 2);
+  ctx.fill();
+  // CRUST inner edge
+  ctx.strokeStyle = crustDark; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.arc(0.5, -2, 7.6, 0, Math.PI * 2);
+  ctx.stroke();
+  // CHEESE BLOBS scattered
+  ctx.fillStyle = cheese;
+  const cheeseBlobs = [
+    [-3, -5, 1.8], [3, -4, 2.0], [0, -1, 2.2], [-4, 1, 1.7], [4, 2, 1.9],
+    [-1, 4, 1.6], [5, -1, 1.4], [-5, -3, 1.6], [2, -5, 1.3], [-2, 2, 1.5]
+  ];
+  for (const [cx, cy, cr] of cheeseBlobs) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Cheese highlights
+  ctx.fillStyle = cheeseLight;
+  for (const [hx, hy] of [[-3, -5.5], [3, -4.5], [-1, 3.5], [4, 1.5]]) {
+    ctx.beginPath();
+    ctx.arc(hx, hy, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // PEPPERONI
+  const pepperoniDots = [[-4, -3], [3, -2], [-1, 1], [5, 1], [-3, 3], [2, 4], [0, -5]];
+  for (const [px, py] of pepperoniDots) {
+    ctx.fillStyle = pepperoni;
+    ctx.beginPath();
+    ctx.arc(px, py, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = pepperoniDark;
+    ctx.beginPath();
+    ctx.arc(px, py, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // FACE on pizza
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-3, -5, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(4, -5, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.3;
+  ctx.beginPath(); ctx.arc(-3, -5, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(4, -5, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-3, -5, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(4, -5, 0.5, 0, Math.PI * 2); ctx.fill();
+  // Big smile arc
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.arc(0.5, -2, 4, Math.PI * 0.15, Math.PI * 0.85);
+  ctx.stroke();
+  // LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 7, 2, 8);
+  ctx.fillRect(2 + legSwing, 7, 2, 8);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 7, 2, 8);
+  ctx.strokeRect(2 + legSwing, 7, 2, 8);
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-2 - legSwing, 15, 2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(3 + legSwing, 15, 2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// BANAN — kurvad gul kropp med brun spets + bruna mogna prickar
+function drawBananaCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const yellow      = flash ? '#fff' : '#ffd54a';
+  const yellowDark  = flash ? '#fff' : '#cca828';
+  const yellowLight = flash ? '#fff' : '#fff088';
+  const brown       = flash ? '#fff' : '#5a3a1a';
+  const tipBrown    = flash ? '#fff' : '#3a2a08';
+  const outline     = flash ? '#fff' : '#2a1a05';
+  const skin        = flash ? '#fff' : (cos.skin || '#d4a574');
+  const blackEye    = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // BANANA BODY (curved C-shape)
+  ctx.fillStyle = yellow;
+  ctx.beginPath();
+  ctx.moveTo(-3, -18);
+  ctx.quadraticCurveTo(-6, -15, -6, -10);
+  ctx.quadraticCurveTo(-7, -3, -5, 4);
+  ctx.quadraticCurveTo(-3, 9, 2, 10);
+  ctx.quadraticCurveTo(6, 9, 7, 4);
+  ctx.quadraticCurveTo(8, -3, 6, -10);
+  ctx.quadraticCurveTo(5, -15, 1, -18);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1.2;
+  ctx.stroke();
+  // Brown tip at top
+  ctx.fillStyle = tipBrown;
+  ctx.beginPath();
+  ctx.ellipse(-1, -18, 2.5, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Brown ripe spots (fixed positions, no random)
+  ctx.fillStyle = brown;
+  for (const [sx, sy, sr] of [[-3, -13, 0.25], [3, -12, 0.4], [-4, -7, 0.3],
+                              [4, -6, 0.2], [-2, -2, 0.5], [3, -1, 0.15],
+                              [-3, 4, 0.35], [4, 4, 0.25]]) {
+    ctx.beginPath();
+    ctx.ellipse(sx, sy, 0.7, 0.4, sr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // West shadow ridge
+  ctx.fillStyle = yellowDark;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-5, -16);
+  ctx.quadraticCurveTo(-6, -10, -6, -3);
+  ctx.quadraticCurveTo(-5, 4, -3, 9);
+  ctx.lineTo(-2, 9);
+  ctx.quadraticCurveTo(-4, 4, -5, -3);
+  ctx.quadraticCurveTo(-5, -10, -4, -16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // East glossy highlight
+  ctx.fillStyle = yellowLight;
+  ctx.globalAlpha = 0.6;
+  ctx.fillRect(4.5, -14, 1, 18);
+  ctx.globalAlpha = 1;
+  // FACE
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-1, -7, 1.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3, -7, 1.2, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.3;
+  ctx.beginPath(); ctx.arc(-1, -7, 1.2, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(3, -7, 1.2, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-1, -7, 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3, -7, 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-0.7, -7.3, 0.3, 0.3);
+  ctx.fillRect(3.3, -7.3, 0.3, 0.3);
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-1, -3); ctx.quadraticCurveTo(1, -1.5, 3, -3);
+  ctx.stroke();
+  // LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-2 - legSwing, 10, 2, 7);
+  ctx.fillRect(2 + legSwing, 10, 2, 7);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-2 - legSwing, 10, 2, 7);
+  ctx.strokeRect(2 + legSwing, 10, 2, 7);
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-1 - legSwing, 17, 2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(3 + legSwing, 17, 2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// KIWI — rund tvärsnitt med fuzzy brun yttre + grön flesh + svarta seeds
+function drawKiwiCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const brown      = flash ? '#fff' : '#8a5a3a';
+  const brownDark  = flash ? '#fff' : '#5a3a20';
+  const green      = flash ? '#fff' : '#7aaa3a';
+  const greenLight = flash ? '#fff' : '#aaca5a';
+  const white      = flash ? '#fff' : '#f4f4e0';
+  const seedBlack  = flash ? '#fff' : '#1a1a0a';
+  const outline    = flash ? '#fff' : '#3a2a08';
+  const skin       = flash ? '#fff' : (cos.skin || '#d4a574');
+  const blackEye   = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // OUTER FUZZY BROWN
+  ctx.fillStyle = brown;
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 8.5, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.stroke();
+  // Fuzzy texture (radial hatches)
+  ctx.strokeStyle = brownDark; ctx.lineWidth = 0.3;
+  for (let ang = 0; ang < Math.PI * 2; ang += 0.32) {
+    const x1 = Math.cos(ang) * 8;
+    const y1 = -3 + Math.sin(ang) * 10.5;
+    const x2 = Math.cos(ang) * 8.4;
+    const y2 = -3 + Math.sin(ang) * 10.8;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+  // INNER GREEN FLESH
+  ctx.fillStyle = green;
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 7, 9.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Lighter green inner
+  ctx.fillStyle = greenLight;
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 5.5, 7.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // WHITE CENTER STAR (10-point star)
+  ctx.fillStyle = white;
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const ang = -Math.PI / 2 + (i / 10) * Math.PI * 2;
+    const r = i % 2 === 0 ? 1.5 : 0.6;
+    const x = Math.cos(ang) * r;
+    const y = -3 + Math.sin(ang) * r;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
+  ctx.fill();
+  // BLACK SEEDS (oval pattern)
+  ctx.fillStyle = seedBlack;
+  for (let i = 0; i < 14; i++) {
+    const ang = (i / 14) * Math.PI * 2;
+    const rx = Math.cos(ang) * 3.5;
+    const ry = -3 + Math.sin(ang) * 4.5;
+    ctx.beginPath();
+    ctx.ellipse(rx, ry, 0.35, 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // FACE on green flesh
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2, -7, 1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -7, 1, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.3;
+  ctx.beginPath(); ctx.arc(-2, -7, 1, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2, -7, 1, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-2, -7, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -7, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -1); ctx.quadraticCurveTo(0, 0, 1.5, -1);
+  ctx.stroke();
+  // LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 8, 2, 8);
+  ctx.fillRect(2 + legSwing, 8, 2, 8);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 8, 2, 8);
+  ctx.strokeRect(2 + legSwing, 8, 2, 8);
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-2 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(3 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// MANGO — oval orange-gul kropp med röd blush + grön stem + leaf
+function drawMangoCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const orange     = flash ? '#fff' : '#ff9020';
+  const yellow     = flash ? '#fff' : '#ffd54a';
+  const red        = flash ? '#fff' : '#dd4020';
+  const orangeDark = flash ? '#fff' : '#aa5010';
+  const yellowHi   = flash ? '#fff' : '#ffe070';
+  const green      = flash ? '#fff' : '#3a8a3a';
+  const greenDark  = flash ? '#fff' : '#1a5a1a';
+  const outline    = flash ? '#fff' : '#5a3a08';
+  const skin       = flash ? '#fff' : (cos.skin || '#d4a574');
+  const blackEye   = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // BASE oval (yellow under)
+  ctx.fillStyle = yellow;
+  ctx.beginPath();
+  ctx.ellipse(0, -2, 7, 10.5, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  // ORANGE main
+  ctx.fillStyle = orange;
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 6.8, 9.5, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  // RED blush top
+  ctx.fillStyle = red;
+  ctx.beginPath();
+  ctx.ellipse(1, -10, 4.5, 3.5, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  // Blend orange over red edges
+  ctx.fillStyle = orange;
+  ctx.globalAlpha = 0.4;
+  ctx.beginPath();
+  ctx.ellipse(1, -8, 4, 3.5, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // OUTLINE
+  ctx.strokeStyle = outline; ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 7, 10.5, 0.1, 0, Math.PI * 2);
+  ctx.stroke();
+  // Shadow west
+  ctx.fillStyle = orangeDark;
+  ctx.globalAlpha = 0.4;
+  ctx.beginPath();
+  ctx.ellipse(-3, -3, 2.5, 8, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Highlight east
+  ctx.fillStyle = yellowHi;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.ellipse(4, -2, 1.3, 6.5, 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // STEM (green)
+  ctx.fillStyle = green;
+  ctx.fillRect(-0.5, -15, 1, 3);
+  // LEAF
+  ctx.fillStyle = green;
+  ctx.beginPath();
+  ctx.moveTo(0, -14);
+  ctx.quadraticCurveTo(3.5, -15.5, 4.5, -12);
+  ctx.quadraticCurveTo(2.5, -13, 0, -13);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = greenDark; ctx.lineWidth = 0.4;
+  ctx.stroke();
+  // Leaf vein
+  ctx.strokeStyle = greenDark; ctx.lineWidth = 0.3;
+  ctx.beginPath();
+  ctx.moveTo(0.5, -13.5); ctx.lineTo(3.5, -12.8);
+  ctx.stroke();
+  // FACE
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2, -5, 1.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -5, 1.2, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.3;
+  ctx.beginPath(); ctx.arc(-2, -5, 1.2, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2.5, -5, 1.2, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-2, -5, 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -5, 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-1.7, -5.3, 0.3, 0.3);
+  ctx.fillRect(2.8, -5.3, 0.3, 0.3);
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-1, -1); ctx.quadraticCurveTo(0.5, 0.5, 2, -1);
+  ctx.stroke();
+  // LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 8, 2, 8);
+  ctx.fillRect(2 + legSwing, 8, 2, 8);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 8, 2, 8);
+  ctx.strokeRect(2 + legSwing, 8, 2, 8);
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-2 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(3 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
 // v1.462: NAKED CHARACTER drawn via canvas primitives — cleaner än mitt pixel art.
 // Profile view (facing east default). Mirror för west via ctx.scale(-1,1) i caller.
 // v1.464: REFINED design — compressed proportions (~50px total instead of 66px),
@@ -39025,6 +39603,11 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   if (cos.mascot === 'mcdonalds') { drawMcDonaldsCharacter(ctx, cos, flash, walkPhase, isMoving); return; }
   if (cos.mascot === 'nugget')    { drawNuggetCharacter(ctx, cos, flash, walkPhase, isMoving);    return; }
   if (cos.mascot === 'korv')      { drawKorvCharacter(ctx, cos, flash, walkPhase, isMoving);      return; }
+  if (cos.mascot === 'hamburger') { drawHamburgerCharacter(ctx, cos, flash, walkPhase, isMoving); return; }
+  if (cos.mascot === 'pizza')     { drawPizzaCharacter(ctx, cos, flash, walkPhase, isMoving);     return; }
+  if (cos.mascot === 'banan')     { drawBananaCharacter(ctx, cos, flash, walkPhase, isMoving);    return; }
+  if (cos.mascot === 'kiwi')      { drawKiwiCharacter(ctx, cos, flash, walkPhase, isMoving);      return; }
+  if (cos.mascot === 'mango')     { drawMangoCharacter(ctx, cos, flash, walkPhase, isMoving);     return; }
   // v1.474: Middle Eastern olive skin tone (var #a8704c = för ljust/pinkish).
   // #9a6028 = warm olive-brown — typisk Mediterranean/Levantine/MENA komplexion.
   const skinBase = cos.skin || '#9a6028';
@@ -41535,9 +42118,10 @@ function drawPlayer() {
       _throwOffY = -6 + k * 6;
     }
   }
-  // v1.487: SKIP separate arms för nugget/korv (mascot har inbyggda armar).
-  // McDonald's = mänsklig karaktär så behåll armar.
-  const _skipArms = cos.mascot === 'nugget' || cos.mascot === 'korv';
+  // v1.489: SKIP separate arms för alla mascots utom McDonald's
+  // (McDonald's är mänsklig clown med riktiga armar; resten har inbyggda stick-armar
+  // eller inga armar alls — separata arm-renders skulle bara störa).
+  const _skipArms = !!cos.mascot && cos.mascot !== 'mcdonalds';
   if (!_skipArms) drawHangingArm(ctx, cos, flash, _bodyFacingLeft, _throwOffX, _throwOffY);
   // SHOOTING ARM SHAFT (behind body) — v1.484: med sleeve om shirt equippad
   if (!_skipArms) {
