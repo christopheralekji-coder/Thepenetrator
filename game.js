@@ -37782,43 +37782,43 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(-1, -13.5);
   ctx.closePath();
   ctx.fill();
-  // === EYES (3/4 view: both eyes visible, near bigger, far smaller) ===
-  // FAR EYE (left in viewer, smaller, perspective compressed)
+  // v1.473: Båda ögon LIKA STORA (var asymmetriskt för 3/4-perspektiv, nu equal)
+  // FAR EYE (west)
   ctx.fillStyle = '#f4f0e8';
   ctx.beginPath();
-  ctx.ellipse(0, -13, 0.9, 0.7, 0, 0, Math.PI * 2);
+  ctx.ellipse(0.3, -13, 1.2, 0.85, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 0.7;
   ctx.stroke();
   ctx.fillStyle = '#2a4a70';
   ctx.beginPath();
-  ctx.arc(0.2, -13, 0.55, 0, Math.PI * 2);
+  ctx.arc(0.5, -13, 0.7, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#000';
   ctx.beginPath();
-  ctx.arc(0.2, -13, 0.25, 0, Math.PI * 2);
+  ctx.arc(0.5, -13, 0.32, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#fff';
-  ctx.fillRect(0.3, -13.3, 0.3, 0.3);
-  // NEAR EYE (east, larger, full perspective)
+  ctx.fillRect(0.6, -13.3, 0.4, 0.4);
+  // NEAR EYE (east) — SAMMA storlek som far eye
   ctx.fillStyle = '#f4f0e8';
   ctx.beginPath();
-  ctx.ellipse(4, -13, 1.4, 1, 0, 0, Math.PI * 2);
+  ctx.ellipse(4, -13, 1.2, 0.85, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
-  ctx.lineWidth = 0.8;
+  ctx.lineWidth = 0.7;
   ctx.stroke();
   ctx.fillStyle = '#2a4a70';
   ctx.beginPath();
-  ctx.arc(4.3, -13, 0.85, 0, Math.PI * 2);
+  ctx.arc(4.2, -13, 0.7, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#000';
   ctx.beginPath();
-  ctx.arc(4.3, -13, 0.4, 0, Math.PI * 2);
+  ctx.arc(4.2, -13, 0.32, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#fff';
-  ctx.fillRect(4.5, -13.4, 0.5, 0.5);
+  ctx.fillRect(4.3, -13.3, 0.4, 0.4);
   // === NOSE (3/4 view: bridge between eyes + tip + nostril) ===
   // Nose bridge from forehead down to tip (between the two eyes)
   ctx.fillStyle = skinLight;
@@ -37859,35 +37859,35 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.ellipse(5, -11, 1.2, 0.8, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
-  // === MOUTH (3/4 view: proper upper/lower lip) ===
+  // v1.473: MUN FLYTTAD UPP ~1px för bättre proportioner i ansiktet
   // Upper lip
   ctx.fillStyle = lipColor;
   ctx.beginPath();
-  ctx.moveTo(1.5, -8.5);
-  ctx.quadraticCurveTo(3, -9, 4.5, -8.5);
-  ctx.lineTo(4.5, -8.2);
-  ctx.lineTo(1.5, -8.2);
+  ctx.moveTo(1.5, -9.5);
+  ctx.quadraticCurveTo(3, -10, 4.5, -9.5);
+  ctx.lineTo(4.5, -9.2);
+  ctx.lineTo(1.5, -9.2);
   ctx.closePath();
   ctx.fill();
   // Lower lip (fuller, with highlight)
   ctx.fillStyle = lipHi;
   ctx.beginPath();
-  ctx.moveTo(1.5, -8);
-  ctx.lineTo(4.7, -8);
-  ctx.quadraticCurveTo(4.5, -7.3, 3, -7.3);
-  ctx.quadraticCurveTo(1.7, -7.3, 1.5, -7.7);
+  ctx.moveTo(1.5, -9);
+  ctx.lineTo(4.7, -9);
+  ctx.quadraticCurveTo(4.5, -8.3, 3, -8.3);
+  ctx.quadraticCurveTo(1.7, -8.3, 1.5, -8.7);
   ctx.closePath();
   ctx.fill();
   // Lip parting line
   ctx.strokeStyle = '#400';
   ctx.lineWidth = 0.5;
   ctx.beginPath();
-  ctx.moveTo(1.5, -8.1);
-  ctx.lineTo(4.7, -8.1);
+  ctx.moveTo(1.5, -9.1);
+  ctx.lineTo(4.7, -9.1);
   ctx.stroke();
   // Lip shadow under (chin shadow start)
   ctx.fillStyle = skinShadow;
-  ctx.fillRect(2, -7.2, 2.5, 0.3);
+  ctx.fillRect(2, -8.2, 2.5, 0.3);
   // === EAR (small, west side, partially visible in 3/4) ===
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
@@ -38028,14 +38028,14 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.quadraticCurveTo(-2, 3.5, -4, 2.5);
   ctx.closePath();
   ctx.fill();
-  // === NIPPLES (small dark dots — male character naked detail) ===
+  // v1.473: NIPPLES MINDRE (radius 0.4/0.35 → 0.25/0.22)
   ctx.fillStyle = nippleColor;
   ctx.beginPath();
-  ctx.arc(3, 1.5, 0.4, 0, Math.PI * 2);  // east nipple (more visible)
+  ctx.arc(3, 1.5, 0.25, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = darken(nippleColor, 0.30);
   ctx.beginPath();
-  ctx.arc(-2, 1.5, 0.35, 0, Math.PI * 2); // west nipple (in shadow)
+  ctx.arc(-2, 1.5, 0.22, 0, Math.PI * 2);
   ctx.fill();
   // === ABS — 4-cube shading med varje ab separat ===
   // Linea alba (vertical center crease)
@@ -38148,124 +38148,119 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.quadraticCurveTo(-4, 13, -5, 11);
   ctx.closePath();
   ctx.stroke();
-  // === LEGS — balanced shading (båda benen ser ut som ben, inte svart/vit) ===
-  // Back leg — använder skin4 (mid-shadow, inte skin5 som var för mörkt)
-  const bkX = -2.5 - legSwing;
+  // v1.473: TJOCKARE och MUSKULÖSA ben + back leg mindre mörk.
+  // Width 4 → 5.4 with calf bulge. Back leg base = skin (samma som front).
+  // BACK LEG (west, behind) — base skin (not skin4 som var för mörkt)
+  const bkX = -3 - legSwing;
   const bkTop = 13 - backLift;
-  ctx.fillStyle = skin4;
+  ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.moveTo(bkX - 2, bkTop);
-  ctx.lineTo(bkX + 2, bkTop);
-  ctx.quadraticCurveTo(bkX + 2.3, bkTop + 6, bkX + 1.3, bkTop + 8);
-  ctx.lineTo(bkX + 1.3, bkTop + 12);
-  ctx.quadraticCurveTo(bkX + 1, bkTop + 13, bkX, bkTop + 13);
-  ctx.lineTo(bkX - 1.3, bkTop + 13);
-  ctx.quadraticCurveTo(bkX - 1, bkTop + 10, bkX - 1.3, bkTop + 8);
-  ctx.quadraticCurveTo(bkX - 2.3, bkTop + 6, bkX - 2, bkTop);
+  ctx.moveTo(bkX - 2.7, bkTop);                                       // hip wide
+  ctx.lineTo(bkX + 2.7, bkTop);
+  ctx.quadraticCurveTo(bkX + 3, bkTop + 5, bkX + 2.2, bkTop + 8);    // thigh-knee
+  ctx.quadraticCurveTo(bkX + 2.8, bkTop + 10, bkX + 2, bkTop + 12);  // calf BULGE
+  ctx.lineTo(bkX + 1.5, bkTop + 13);                                  // ankle
+  ctx.lineTo(bkX - 1.5, bkTop + 13);
+  ctx.quadraticCurveTo(bkX - 2.8, bkTop + 10, bkX - 2.2, bkTop + 8);
+  ctx.quadraticCurveTo(bkX - 3, bkTop + 5, bkX - 2.7, bkTop);
   ctx.closePath();
   ctx.fill();
-  // Back leg subtle highlight (east edge, since light from NE still hits a bit)
+  // Back leg subtle east highlight (NE light catches edge)
   ctx.fillStyle = skin2;
-  ctx.fillRect(bkX + 0.5, bkTop + 1, 0.8, 11);
-  // Back leg deep shadow on west edge
-  ctx.fillStyle = skin6;
-  ctx.fillRect(bkX - 1.8, bkTop + 1, 0.5, 11);
+  ctx.fillRect(bkX + 1.4, bkTop + 1, 1.1, 11);
+  // Back leg west shadow
+  ctx.fillStyle = skin5;
+  ctx.fillRect(bkX - 2.5, bkTop + 1, 1, 11);
   // Back knee shadow
-  ctx.fillStyle = skin6;
+  ctx.fillStyle = skin5;
   ctx.beginPath();
-  ctx.ellipse(bkX, bkTop + 8.5, 1, 0.4, 0, 0, Math.PI * 2);
+  ctx.ellipse(bkX, bkTop + 8.5, 1.5, 0.5, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(bkX - 2, bkTop);
-  ctx.lineTo(bkX + 2, bkTop);
-  ctx.quadraticCurveTo(bkX + 2.3, bkTop + 6, bkX + 1.3, bkTop + 8);
-  ctx.lineTo(bkX + 1.3, bkTop + 12);
-  ctx.quadraticCurveTo(bkX + 1, bkTop + 13, bkX, bkTop + 13);
-  ctx.lineTo(bkX - 1.3, bkTop + 13);
-  ctx.quadraticCurveTo(bkX - 1, bkTop + 10, bkX - 1.3, bkTop + 8);
-  ctx.quadraticCurveTo(bkX - 2.3, bkTop + 6, bkX - 2, bkTop);
+  ctx.moveTo(bkX - 2.7, bkTop);
+  ctx.lineTo(bkX + 2.7, bkTop);
+  ctx.quadraticCurveTo(bkX + 3, bkTop + 5, bkX + 2.2, bkTop + 8);
+  ctx.quadraticCurveTo(bkX + 2.8, bkTop + 10, bkX + 2, bkTop + 12);
+  ctx.lineTo(bkX + 1.5, bkTop + 13);
+  ctx.lineTo(bkX - 1.5, bkTop + 13);
+  ctx.quadraticCurveTo(bkX - 2.8, bkTop + 10, bkX - 2.2, bkTop + 8);
+  ctx.quadraticCurveTo(bkX - 3, bkTop + 5, bkX - 2.7, bkTop);
   ctx.closePath();
   ctx.stroke();
-  // Back foot (skin4 also, balanced)
-  ctx.fillStyle = skin4;
+  // Back foot (matches base skin, wider för thicker proportions)
+  ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.moveTo(bkX - 1.5, bkTop + 13);
-  ctx.quadraticCurveTo(bkX - 2, bkTop + 14.5, bkX + 1, bkTop + 15);
-  ctx.lineTo(bkX + 2.5, bkTop + 15);
-  ctx.lineTo(bkX + 2.5, bkTop + 15.5);
-  ctx.lineTo(bkX - 1.5, bkTop + 15.5);
+  ctx.moveTo(bkX - 1.8, bkTop + 13);
+  ctx.quadraticCurveTo(bkX - 2.3, bkTop + 14.5, bkX + 1.2, bkTop + 15);
+  ctx.lineTo(bkX + 3, bkTop + 15);
+  ctx.lineTo(bkX + 3, bkTop + 15.5);
+  ctx.lineTo(bkX - 1.8, bkTop + 15.5);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
-  // Front leg — base color (inte skin1 som var för ljust)
-  const frX = 2.5 + legSwing;
+  // FRONT LEG (east, lit) — tjockare med samma muskulösa form som back leg
+  const frX = 3 + legSwing;
   const frTop = 13 - frontLift;
   ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.moveTo(frX - 2, frTop);
-  ctx.lineTo(frX + 2, frTop);
-  ctx.quadraticCurveTo(frX + 2.3, frTop + 6, frX + 1.3, frTop + 8);
-  ctx.lineTo(frX + 1.3, frTop + 12);
-  ctx.quadraticCurveTo(frX + 1, frTop + 13, frX, frTop + 13);
-  ctx.lineTo(frX - 1.3, frTop + 13);
-  ctx.quadraticCurveTo(frX - 1, frTop + 10, frX - 1.3, frTop + 8);
-  ctx.quadraticCurveTo(frX - 2.3, frTop + 6, frX - 2, frTop);
+  ctx.moveTo(frX - 2.7, frTop);
+  ctx.lineTo(frX + 2.7, frTop);
+  ctx.quadraticCurveTo(frX + 3, frTop + 5, frX + 2.2, frTop + 8);
+  ctx.quadraticCurveTo(frX + 2.8, frTop + 10, frX + 2, frTop + 12);    // calf bulge
+  ctx.lineTo(frX + 1.5, frTop + 13);
+  ctx.lineTo(frX - 1.5, frTop + 13);
+  ctx.quadraticCurveTo(frX - 2.8, frTop + 10, frX - 2.2, frTop + 8);
+  ctx.quadraticCurveTo(frX - 3, frTop + 5, frX - 2.7, frTop);
   ctx.closePath();
   ctx.fill();
-  // Front leg highlight (east edge — subtle)
+  // Front leg east-edge highlight
   ctx.fillStyle = skin2;
-  ctx.beginPath();
-  ctx.moveTo(frX + 1, frTop + 1);
-  ctx.quadraticCurveTo(frX + 1.8, frTop + 6, frX + 1, frTop + 8);
-  ctx.lineTo(frX + 1, frTop + 12);
-  ctx.lineTo(frX + 0.3, frTop + 12);
-  ctx.lineTo(frX + 0.3, frTop + 1);
-  ctx.closePath();
-  ctx.fill();
-  // Quadricep highlight (thinner, subtler — skin1 inte skin0)
-  ctx.fillStyle = skin1;
-  ctx.fillRect(frX + 0.6, frTop + 3, 0.6, 3);
-  // INNER THIGH shadow (west edge)
-  ctx.fillStyle = skin5;
-  ctx.beginPath();
-  ctx.moveTo(frX - 1.5, frTop + 1);
-  ctx.quadraticCurveTo(frX - 1, frTop + 6, frX - 1.5, frTop + 8);
-  ctx.lineTo(frX - 1.3, frTop + 12);
-  ctx.lineTo(frX - 0.8, frTop + 12);
-  ctx.lineTo(frX - 0.5, frTop + 1);
-  ctx.closePath();
-  ctx.fill();
-  // KNEE CAP (subtle highlight, not blown out)
+  ctx.fillRect(frX + 1.4, frTop + 1, 1.1, 11);
+  // QUADRICEP highlight (thigh muscle bulge)
   ctx.fillStyle = skin1;
   ctx.beginPath();
-  ctx.ellipse(frX + 0.2, frTop + 8, 0.6, 0.4, 0, 0, Math.PI * 2);
+  ctx.ellipse(frX + 0.5, frTop + 4, 1, 2.5, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Knee shadow (under kneecap — softer)
+  // INNER THIGH shadow (west edge — between legs)
+  ctx.fillStyle = skin5;
+  ctx.fillRect(frX - 2.5, frTop + 1, 1, 11);
+  // KNEE CAP (small highlight på kneecap)
+  ctx.fillStyle = skin1;
+  ctx.beginPath();
+  ctx.ellipse(frX + 0.2, frTop + 8, 0.9, 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Knee shadow under
   ctx.fillStyle = skin5;
   ctx.beginPath();
-  ctx.ellipse(frX, frTop + 9, 1.2, 0.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(frX, frTop + 9, 1.7, 0.6, 0, 0, Math.PI * 2);
   ctx.fill();
-  // CALF BULGE shadow
+  // CALF MUSCLE highlight (bulge på back of calf)
+  ctx.fillStyle = skin1;
+  ctx.beginPath();
+  ctx.ellipse(frX + 1, frTop + 11, 0.6, 1.5, -0.1, 0, Math.PI * 2);
+  ctx.fill();
+  // Calf shadow (under bulge)
   ctx.fillStyle = skin4;
   ctx.beginPath();
-  ctx.ellipse(frX + 0.5, frTop + 11, 0.6, 1.5, -0.1, 0, Math.PI * 2);
+  ctx.ellipse(frX - 0.5, frTop + 11, 0.5, 1.3, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Ankle bone (subtle)
-  ctx.fillStyle = skin5;
-  ctx.fillRect(frX + 0.8, frTop + 12.5, 0.5, 0.4);
+  // Ankle bone protrusion
+  ctx.fillStyle = skin4;
+  ctx.fillRect(frX + 1.2, frTop + 12.5, 0.6, 0.5);
+  // Front leg outline (matching tjockare proportioner)
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(frX - 2, frTop);
-  ctx.lineTo(frX + 2, frTop);
-  ctx.quadraticCurveTo(frX + 2.3, frTop + 6, frX + 1.3, frTop + 8);
-  ctx.lineTo(frX + 1.3, frTop + 12);
-  ctx.quadraticCurveTo(frX + 1, frTop + 13, frX, frTop + 13);
-  ctx.lineTo(frX - 1.3, frTop + 13);
-  ctx.quadraticCurveTo(frX - 1, frTop + 10, frX - 1.3, frTop + 8);
-  ctx.quadraticCurveTo(frX - 2.3, frTop + 6, frX - 2, frTop);
+  ctx.moveTo(frX - 2.7, frTop);
+  ctx.lineTo(frX + 2.7, frTop);
+  ctx.quadraticCurveTo(frX + 3, frTop + 5, frX + 2.2, frTop + 8);
+  ctx.quadraticCurveTo(frX + 2.8, frTop + 10, frX + 2, frTop + 12);
+  ctx.lineTo(frX + 1.5, frTop + 13);
+  ctx.lineTo(frX - 1.5, frTop + 13);
+  ctx.quadraticCurveTo(frX - 2.8, frTop + 10, frX - 2.2, frTop + 8);
+  ctx.quadraticCurveTo(frX - 3, frTop + 5, frX - 2.7, frTop);
   ctx.closePath();
   ctx.stroke();
   // Front foot — heel + toe east
