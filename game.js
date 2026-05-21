@@ -11463,7 +11463,8 @@ function drawCoopPartner() {
     }
     ctx.save();
     if (pFacingLeft) ctx.scale(-1, 1);
-    const pBodyTilt = (pFacingLeft ? -pAimY : pAimY) * 0.25;
+    // v1.444: partner roteras mot aim-riktningen (samma som player)
+    const pBodyTilt = (pFacingLeft ? -pAimY : pAimY) * 0.7;
     ctx.rotate(pBodyTilt);
     // v1.443: BANDANA TAIL bakom partner
     if (partnerCos.bandana) {
@@ -37509,17 +37510,19 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.441: MIRROR + TILT — sprite mirroras horisontellt vid west-aim så
-  // karaktären "tittar på" enemies. Plus liten tilt baserat på vertikal aim-
-  // komponent ger "lite sne" feeling (per user request).
+  // v1.441/v1.444: MIRROR + ROTATION — sprite mirroras horisontellt vid west-aim,
+  // sedan ROTERAS kroppen mot aim-riktningen så karaktären VISIBLY faces
+  // enemies istället för att titta rakt in i kameran (per user request).
+  // Coefficient 0.7: max ±40° vid pure vertical aim, ±28° vid diagonals.
+  // Face stannar partially visible — full 90° rotation skulle vrida ansiktet
+  // sideways (vår 3/4-view sprite är inte designad för full top-down rotation).
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
   ctx.save();
   if (_facingLeft) ctx.scale(-1, 1);
-  // Tilt: aimY negative (north-ish) tippar huvud uppåt, positive (south-ish) nedåt.
-  // I mirrored frame: negate så tilt-riktning matchar camera POV.
-  const _bodyTilt = (_facingLeft ? -_aimY : _aimY) * 0.25;
+  // I mirrored frame: negate så rotation-riktning matchar camera POV.
+  const _bodyTilt = (_facingLeft ? -_aimY : _aimY) * 0.7;
   ctx.rotate(_bodyTilt);
   // v1.443: BANDANA TAIL — ritas FÖRE sprite så den ligger bakom karaktären.
   // Cloth-animation som vajar/flaxar — ger "alive" feel.
