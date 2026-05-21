@@ -11470,29 +11470,45 @@ function drawCoopPartner() {
       p._bodyFacingLeft = pFacingLeft;
     }
     const _pBodyFacingLeft = p._bodyFacingLeft;
-    // v1.466: Partner — hanging arm + body + shooting arm vid shoulder
+    // v1.468: Partner — hanging arm + arm shaft BEHIND body, hand AFTER body
     drawHangingArm(ctx, partnerCos, false, _pBodyFacingLeft);
+    // Partner shooting arm SHAFT (behind body)
+    {
+      const _pShoulderXShaft = _pBodyFacingLeft ? -3 : 3;
+      ctx.save();
+      ctx.translate(_pShoulderXShaft, -3);
+      ctx.rotate(partnerAimAngle);
+      if (pFacingLeft) ctx.scale(1, -1);
+      const _paBase = partnerCos.skin || '#c08860';
+      const _paLight = lighten(_paBase, 0.22);
+      const _paShadow = darken(_paBase, 0.30);
+      const _paDeep = darken(_paBase, 0.55);
+      ctx.fillStyle = _paShadow;
+      ctx.fillRect(0, -3, 13, 6);
+      ctx.fillStyle = _paBase;
+      ctx.fillRect(0, -3, 13, 5);
+      ctx.fillStyle = _paLight;
+      ctx.fillRect(0, -3, 13, 2);
+      ctx.fillStyle = _paDeep;
+      ctx.fillRect(7, 1, 6, 1);
+      ctx.strokeStyle = '#0a0a0e';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0, -3, 13, 6);
+      ctx.restore();
+    }
+    // Partner body (covers arm where they overlap)
     ctx.save();
     if (_pBodyFacingLeft) ctx.scale(-1, 1);
     drawNakedBody(ctx, partnerCos, false, p._walkPhase || 0, partnerMoving);
     ctx.restore();
-    // v1.466: Partner shooting arm utgår från front shoulder
+    // v1.468: Partner HAND (after body, proper hand)
     ctx.save();
     const _pShoulderX = _pBodyFacingLeft ? -3 : 3;
     ctx.translate(_pShoulderX, -3);
     ctx.rotate(partnerAimAngle);
     if (pFacingLeft) ctx.scale(1, -1);
-    const _pArmSkin = partnerCos.skin || '#c08860';
-    ctx.fillStyle = _pArmSkin;
-    ctx.fillRect(2, -3, 14, 6);
-    ctx.strokeStyle = '#0a0a0e';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(2, -3, 14, 6);
-    ctx.fillStyle = _pArmSkin;
-    ctx.beginPath();
-    ctx.arc(16, 0, 3, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
+    ctx.translate(13, 0);
+    drawHand(ctx, partnerCos, false);
     ctx.restore();
     // Rotate for partner-weapon
     ctx.rotate(partnerAimAngle);
@@ -38126,6 +38142,75 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
 
 // v1.466: HANGING arm — hangs at side opposite of shooting arm.
 // When body faces east, hanging arm at west shoulder (behind body, partially hidden).
+// v1.468: Proper hand (palm + thumb + knuckles), drawn at local origin
+// East direction = forward toward weapon grip. Hand holds weapon at origin.
+function drawHand(ctx, cos, flash) {
+  const skinBase = cos.skin || '#c08860';
+  const skin = flash ? '#fff' : skinBase;
+  const skinShadow = flash ? '#fff' : darken(skinBase, 0.30);
+  const skinLight = flash ? '#fff' : lighten(skinBase, 0.18);
+  const outline = flash ? '#fff' : '#0a0a0e';
+  // Palm shape (gripping weapon, knuckle-side west, thumb-side east)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.moveTo(-1, -2.5);
+  ctx.lineTo(2, -2.8);
+  ctx.quadraticCurveTo(3.5, -2.5, 3.5, -1);
+  ctx.lineTo(3.5, 1);
+  ctx.quadraticCurveTo(3.5, 2.5, 2, 2.7);
+  ctx.lineTo(-1, 2.5);
+  ctx.closePath();
+  ctx.fill();
+  // Highlight on top
+  ctx.fillStyle = skinLight;
+  ctx.fillRect(-0.5, -2.5, 2.5, 0.6);
+  // Knuckles (3 small bumps in mid-palm)
+  ctx.fillStyle = skinShadow;
+  ctx.fillRect(0.5, -0.5, 0.5, 0.6);
+  ctx.fillRect(1.5, -0.5, 0.5, 0.6);
+  ctx.fillRect(2.5, -0.5, 0.5, 0.6);
+  // Bottom shadow (under-hand)
+  ctx.fillStyle = skinShadow;
+  ctx.beginPath();
+  ctx.moveTo(-1, 1.5);
+  ctx.lineTo(3.5, 1.3);
+  ctx.lineTo(3.5, 2);
+  ctx.quadraticCurveTo(2.5, 2.5, -1, 2.5);
+  ctx.closePath();
+  ctx.fill();
+  // Thumb (sticks out east, gripping weapon top)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.moveTo(2, -2.8);
+  ctx.lineTo(5, -2);          // thumb tip east
+  ctx.lineTo(5, -0.5);
+  ctx.lineTo(3, -1.2);
+  ctx.closePath();
+  ctx.fill();
+  // Thumb highlight
+  ctx.fillStyle = skinLight;
+  ctx.fillRect(2.5, -2.5, 1.5, 0.5);
+  // Outlines
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-1, -2.5);
+  ctx.lineTo(2, -2.8);
+  ctx.quadraticCurveTo(3.5, -2.5, 3.5, -1);
+  ctx.lineTo(3.5, 1);
+  ctx.quadraticCurveTo(3.5, 2.5, 2, 2.7);
+  ctx.lineTo(-1, 2.5);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(2, -2.8);
+  ctx.lineTo(5, -2);
+  ctx.lineTo(5, -0.5);
+  ctx.lineTo(3, -1.2);
+  ctx.closePath();
+  ctx.stroke();
+}
+
 function drawHangingArm(ctx, cos, flash, bodyFacingLeft) {
   const skinBase = cos.skin || '#c08860';
   const armBase = flash ? '#fff' : darken(skinBase, 0.12);
@@ -38229,12 +38314,12 @@ function drawPlayer() {
     });
   }
 
-  // v1.434: SKUGGA i två lager för djup — mjuk yttre + skarpare inre
-  // Skuggan offseteras subtilt mot solens riktning (åt nedre-höger).
+  // v1.468: SKUGGA — y-offset ökat så skuggan hamnar VID FÖTTERNA.
+  // Karaktären sträcker sig från y-22 (top) till y+29 (fötter). Skuggan vid y+29.
   ctx.fillStyle = 'rgba(0,0,0,0.18)';
-  ctx.beginPath(); ctx.ellipse(x + 5, y + p.r * 1.15, p.r * 1.7, p.r * 0.55, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + 5, y + p.r * 2.05, p.r * 1.5, p.r * 0.45, 0, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.beginPath(); ctx.ellipse(x + 3, y + p.r * 1.10, p.r * 1.25, p.r * 0.42, 0, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x + 3, y + p.r * 2.0, p.r * 1.1, p.r * 0.35, 0, 0, Math.PI*2); ctx.fill();
 
   ctx.save();
   ctx.translate(x, y + bob);
@@ -38306,69 +38391,60 @@ function drawPlayer() {
     p.bodyFacingLeft = _facingLeft;
   }
   const _bodyFacingLeft = p.bodyFacingLeft;
-  // v1.466: Hanging arm BEFORE body (visible at side, partially behind body),
-  // then body, then shooting arm AFTER body (in front, attached at front shoulder).
+  // v1.468: Render order — hanging arm + SHOOTING ARM SHAFT before body
+  // (arm bakom kroppen). Hand + weapon ritas AFTER body (synliga på top).
   drawHangingArm(ctx, cos, flash, _bodyFacingLeft);
+  // SHOOTING ARM SHAFT (behind body)
+  {
+    const _shoulderXShaft = _bodyFacingLeft ? -3 : 3;
+    const _shoulderYShaft = -3;
+    ctx.save();
+    ctx.translate(_shoulderXShaft, _shoulderYShaft);
+    ctx.rotate(p.aimAngle);
+    if (_facingLeft) ctx.scale(1, -1);
+    const _aBase = cos.skin || '#c08860';
+    const _aLight = flash ? '#fff' : lighten(_aBase, 0.22);
+    const _aSkin = flash ? '#fff' : _aBase;
+    const _aShadow = flash ? '#fff' : darken(_aBase, 0.30);
+    const _aDeep = flash ? '#fff' : darken(_aBase, 0.55);
+    const _aOutline = flash ? '#fff' : '#0a0a0e';
+    // Arm shaft only (no hand yet — that goes on top of body)
+    ctx.fillStyle = _aShadow;
+    ctx.fillRect(0, -3, 13, 6);
+    ctx.fillStyle = _aSkin;
+    ctx.fillRect(0, -3, 13, 5);
+    ctx.fillStyle = _aLight;
+    ctx.fillRect(0, -3, 13, 2);
+    // Forearm muscle definition
+    ctx.fillStyle = _aDeep;
+    ctx.fillRect(7, 1, 6, 1);
+    // Outline
+    ctx.strokeStyle = _aOutline;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(0, -3, 13, 6);
+    ctx.restore();
+  }
+  // BODY (covers part of arm where they overlap)
   ctx.save();
   if (_bodyFacingLeft) ctx.scale(-1, 1);
   drawNakedBody(ctx, cos, flash, phase, moving);
   ctx.restore();
-  // v1.466: SHOOTING ARM utgår från FRONT SHOULDER (inte body center).
-  // Offset till shoulder före rotation så armen är vid sidan av kroppen.
-  ctx.save();
+  // v1.468: HAND + WEAPON (after body, visible on top).
+  // Båda transformeras till hand position så vapnet hålls i handen.
   const _shoulderX = _bodyFacingLeft ? -3 : 3;
   const _shoulderY = -3;
+  ctx.save();
   ctx.translate(_shoulderX, _shoulderY);
   ctx.rotate(p.aimAngle);
   if (_facingLeft) ctx.scale(1, -1);
-  const _armBase = cos.skin || '#c08860';
-  const _armLight = flash ? '#fff' : lighten(_armBase, 0.22);
-  const _armSkin = flash ? '#fff' : _armBase;
-  const _armShadow = flash ? '#fff' : darken(_armBase, 0.30);
-  const _armDeepShadow = flash ? '#fff' : darken(_armBase, 0.55);
-  const _armOutline = flash ? '#fff' : '#0a0a0e';
-  // Upper arm — 3D shading (shadow bottom, base, highlight top)
-  ctx.fillStyle = _armShadow;
-  ctx.fillRect(2, -3, 14, 6);
-  ctx.fillStyle = _armSkin;
-  ctx.fillRect(2, -3, 14, 5);
-  ctx.fillStyle = _armLight;
-  ctx.fillRect(2, -3, 14, 2);
-  // Forearm muscle definition (subtle shadow stripe)
-  ctx.fillStyle = _armDeepShadow;
-  ctx.fillRect(9, 1, 7, 1);
-  // Arm outline
-  ctx.strokeStyle = _armOutline;
-  ctx.lineWidth = 1;
-  ctx.strokeRect(2, -3, 14, 6);
-  // Hand — circle with 3-tone shading
-  ctx.fillStyle = _armShadow;
-  ctx.beginPath();
-  ctx.arc(16, 1, 3.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = _armSkin;
-  ctx.beginPath();
-  ctx.arc(16, 0, 3.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = _armLight;
-  ctx.beginPath();
-  ctx.arc(15, -1, 2, 0, Math.PI * 2);
-  ctx.fill();
-  // Knuckle dots
-  ctx.fillStyle = _armDeepShadow;
-  ctx.fillRect(17, 1, 1, 1);
-  ctx.fillRect(18, 0, 1, 1);
-  // Hand outline
-  ctx.strokeStyle = _armOutline;
-  ctx.beginPath();
-  ctx.arc(16, 0, 3.5, 0, Math.PI * 2);
-  ctx.stroke();
+  ctx.translate(13, 0);
+  drawHand(ctx, cos, flash);
   ctx.restore();
-  // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
+  // WEAPON positioned AT HAND (translate till shoulder + rotate + 13 east = hand)
+  ctx.translate(_shoulderX, _shoulderY);
   ctx.rotate(p.aimAngle);
-  // v1.441: när aim är västligt (cos < 0), flippa vapnet vertikalt så det
-  // inte hamnar upside-down. Klassiskt 2D-shooter fix.
   if (_facingLeft) ctx.scale(1, -1);
+  ctx.translate(13, 0); // to hand position (grip at hand)
   ctx.translate(-recoil, 0);
   // SKIP HÄR: hair/glasses/hat/beard är integrerade i sprite-design.
   /* === GAMMAL CANVAS-PRIMITIVE BODY (v1.436) — DEAD CODE BORTTAGEN ===
