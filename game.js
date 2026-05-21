@@ -38388,66 +38388,90 @@ function drawHand(ctx, cos, flash) {
 }
 
 function drawHangingArm(ctx, cos, flash, bodyFacingLeft) {
-  const skinBase = cos.skin || '#c08860';
-  const armBase = flash ? '#fff' : darken(skinBase, 0.12);
-  const armShadow = flash ? '#fff' : darken(skinBase, 0.40);
+  const skinBase = cos.skin || '#a8704c';
+  const armBase = flash ? '#fff' : darken(skinBase, 0.10);
+  const armShadow = flash ? '#fff' : darken(skinBase, 0.32);
+  const armDeep = flash ? '#fff' : darken(skinBase, 0.55);
   const armLight = flash ? '#fff' : lighten(skinBase, 0.10);
   const outline = flash ? '#fff' : '#0a0a0e';
-  // Hanging arm at OPPOSITE shoulder from shooting arm
-  const hangX = bodyFacingLeft ? 4 : -4; // outside body silhouette
+  // v1.472b: Arm vid ±9 (utanför body silhouette) + thicker (width 3.4 var 2.6).
+  // Tydligt synlig vid sidan av body, hänger ner till hip-level.
+  const hangX = bodyFacingLeft ? 9 : -9;
   const shY = -3;
-  // Upper arm (slight bicep curve)
+  // Upper arm shape (taper from shoulder → wrist)
   ctx.fillStyle = armBase;
   ctx.beginPath();
-  ctx.moveTo(hangX - 1.3, shY);
-  ctx.lineTo(hangX + 1.3, shY);
-  ctx.quadraticCurveTo(hangX + 1.6, shY + 5, hangX + 1.2, shY + 9);
-  ctx.lineTo(hangX + 1, shY + 13);
-  ctx.lineTo(hangX - 1, shY + 13);
-  ctx.lineTo(hangX - 1.2, shY + 9);
-  ctx.quadraticCurveTo(hangX - 1.6, shY + 5, hangX - 1.3, shY);
+  ctx.moveTo(hangX - 1.7, shY);
+  ctx.lineTo(hangX + 1.7, shY);
+  ctx.quadraticCurveTo(hangX + 2, shY + 5, hangX + 1.5, shY + 9);    // bicep curve
+  ctx.lineTo(hangX + 1.2, shY + 13);                                  // forearm taper
+  ctx.lineTo(hangX - 1.2, shY + 13);
+  ctx.lineTo(hangX - 1.5, shY + 9);
+  ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
   ctx.closePath();
   ctx.fill();
-  // Shadow on west edge of arm
+  // West edge shadow (away from NE light)
   ctx.fillStyle = armShadow;
   ctx.beginPath();
-  ctx.moveTo(hangX - 1.3, shY);
+  ctx.moveTo(hangX - 1.7, shY);
   ctx.lineTo(hangX - 0.5, shY);
-  ctx.quadraticCurveTo(hangX - 0.7, shY + 5, hangX - 0.4, shY + 9);
+  ctx.quadraticCurveTo(hangX - 0.8, shY + 5, hangX - 0.5, shY + 9);
   ctx.lineTo(hangX - 0.3, shY + 13);
-  ctx.lineTo(hangX - 1, shY + 13);
-  ctx.lineTo(hangX - 1.2, shY + 9);
-  ctx.quadraticCurveTo(hangX - 1.6, shY + 5, hangX - 1.3, shY);
+  ctx.lineTo(hangX - 1.2, shY + 13);
+  ctx.lineTo(hangX - 1.5, shY + 9);
+  ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
   ctx.closePath();
   ctx.fill();
-  // Highlight on east edge of arm
+  // Deep shadow på very west edge
+  ctx.fillStyle = armDeep;
+  ctx.fillRect(hangX - 1.6, shY + 1, 0.4, 11);
+  // East edge highlight (light catches arm)
   ctx.fillStyle = armLight;
-  ctx.fillRect(hangX + 0.5, shY + 1, 0.8, 11);
-  // Outline
+  ctx.fillRect(hangX + 0.8, shY + 1, 0.7, 11);
+  // Bicep peak highlight (mid-arm where bicep bulges)
+  ctx.fillStyle = armLight;
+  ctx.beginPath();
+  ctx.ellipse(hangX + 0.5, shY + 5, 0.6, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Elbow indication (subtle line)
+  ctx.strokeStyle = armDeep;
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(hangX - 1.4, shY + 7);
+  ctx.lineTo(hangX + 1.3, shY + 7);
+  ctx.stroke();
+  // Arm outline
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.moveTo(hangX - 1.3, shY);
-  ctx.lineTo(hangX + 1.3, shY);
-  ctx.quadraticCurveTo(hangX + 1.6, shY + 5, hangX + 1.2, shY + 9);
-  ctx.lineTo(hangX + 1, shY + 13);
-  ctx.lineTo(hangX - 1, shY + 13);
-  ctx.lineTo(hangX - 1.2, shY + 9);
-  ctx.quadraticCurveTo(hangX - 1.6, shY + 5, hangX - 1.3, shY);
+  ctx.moveTo(hangX - 1.7, shY);
+  ctx.lineTo(hangX + 1.7, shY);
+  ctx.quadraticCurveTo(hangX + 2, shY + 5, hangX + 1.5, shY + 9);
+  ctx.lineTo(hangX + 1.2, shY + 13);
+  ctx.lineTo(hangX - 1.2, shY + 13);
+  ctx.lineTo(hangX - 1.5, shY + 9);
+  ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
   ctx.closePath();
   ctx.stroke();
-  // Hand at bottom (fist hanging)
+  // Hand at bottom — bigger, more visible (oval not circle)
   ctx.fillStyle = armBase;
   ctx.beginPath();
-  ctx.arc(hangX, shY + 14, 1.8, 0, Math.PI * 2);
+  ctx.ellipse(hangX, shY + 14.5, 2, 1.8, 0, 0, Math.PI * 2);
   ctx.fill();
+  // Hand highlight
   ctx.fillStyle = armLight;
   ctx.beginPath();
-  ctx.arc(hangX + 0.5, shY + 13.5, 0.8, 0, Math.PI * 2);
+  ctx.ellipse(hangX + 0.6, shY + 14, 0.8, 0.6, 0, 0, Math.PI * 2);
   ctx.fill();
+  // Hand bottom shadow
+  ctx.fillStyle = armShadow;
+  ctx.beginPath();
+  ctx.ellipse(hangX - 0.4, shY + 15.2, 1.2, 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Hand outline
   ctx.strokeStyle = outline;
   ctx.beginPath();
-  ctx.arc(hangX, shY + 14, 1.8, 0, Math.PI * 2);
+  ctx.ellipse(hangX, shY + 14.5, 2, 1.8, 0, 0, Math.PI * 2);
   ctx.stroke();
 }
 
@@ -38616,11 +38640,13 @@ function drawPlayer() {
   ctx.translate(13, 0);
   drawHand(ctx, cos, flash);
   ctx.restore();
-  // v1.470: WEAPON grip INSIDE hand (translate 9, inte 13 — så hand wraps weapon)
+  // v1.472: Weapon translate 9 → 5 (weapon mer västerut, mindre 'framför handen').
+  // Weapon spans now +5 to +18 east of shoulder, hand at +13. Weapon barrel
+  // just sticks out 2-3 pixels past hand east. Hand grips middle of weapon.
   ctx.translate(_shoulderX, _shoulderY);
   ctx.rotate(p.aimAngle);
   if (_facingLeft) ctx.scale(1, -1);
-  ctx.translate(9, 0); // weapon grip inside hand area, hand wraps around grip
+  ctx.translate(5, 0);
   ctx.translate(-recoil, 0);
   // SKIP HÄR: hair/glasses/hat/beard är integrerade i sprite-design.
   /* === GAMMAL CANVAS-PRIMITIVE BODY (v1.436) — DEAD CODE BORTTAGEN ===
