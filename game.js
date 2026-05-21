@@ -37699,46 +37699,9 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(-1, -19);
   ctx.closePath();
   ctx.fill();
-  // FOREHEAD highlight (subtler — skin1 inte skin0)
-  ctx.fillStyle = skin1;
-  ctx.beginPath();
-  ctx.ellipse(3, -16, 2.5, 1.5, -0.1, 0, Math.PI * 2);
-  ctx.fill();
-  // Cheekbone highlight (east) — skin1 subtle
-  ctx.fillStyle = skin1;
-  ctx.beginPath();
-  ctx.ellipse(5, -13, 2, 1.5, -0.2, 0, Math.PI * 2);
-  ctx.fill();
-  // Cheekbone peak (just slightly brighter, not too white)
-  ctx.fillStyle = skin0;
-  ctx.beginPath();
-  ctx.ellipse(5.5, -13.5, 0.6, 0.4, -0.2, 0, Math.PI * 2);
-  ctx.fill();
-  // BROW RIDGE SHADOW (above eyes, cast from brow)
-  ctx.fillStyle = skin6;
-  ctx.fillRect(0, -14.2, 1.5, 0.5);
-  ctx.fillRect(2.5, -14.2, 3, 0.5);
-  // EYE SOCKET SHADOW (subtle, around eyes)
-  ctx.fillStyle = skin5;
-  ctx.beginPath();
-  ctx.ellipse(0.3, -12.7, 1.2, 0.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(4.2, -12.7, 1.6, 0.6, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // TEMPLE SHADOW (west of forehead)
-  ctx.fillStyle = skin5;
-  ctx.beginPath();
-  ctx.ellipse(-3, -16, 1.5, 1.2, 0.3, 0, Math.PI * 2);
-  ctx.fill();
-  // JAW SHADOW (under jawline, cast)
-  ctx.fillStyle = skin6;
-  ctx.fillRect(0, -7.8, 4.5, 0.4);
-  // CHIN HIGHLIGHT (subtle catch-light on chin point)
-  ctx.fillStyle = skin1;
-  ctx.beginPath();
-  ctx.ellipse(3, -7.5, 0.8, 0.4, 0, 0, Math.PI * 2);
-  ctx.fill();
+  // v1.475: FACE shading FÖRENKLAD — skin base + bara subtle west-shadow
+  // (det face shadow som redan finns ovan från head shape). Inga forehead-,
+  // cheekbone-, brow ridge-, eye socket-, temple-, jaw-, chin-shadings.
   // === BUZZ CUT (snaggad) — subtle stubble on top of head ===
   ctx.fillStyle = stubbleColor;
   ctx.globalAlpha = 0.55;
@@ -37763,131 +37726,83 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.fillRect(0, -16, 0.5, 0.5);
   ctx.fillRect(3, -16, 0.5, 0.5);
   ctx.fillRect(5, -16, 0.5, 0.5);
-  // === EYEBROWS (3/4 view: both visible, near one bigger) ===
-  // Near eyebrow (east, bigger)
+  // v1.475: CLEANER eyes/eyebrows/nose/mouth — proper proportions, less busy
+  // === EYEBROWS (thin clean curves) ===
   ctx.fillStyle = stubbleColor;
   ctx.beginPath();
-  ctx.moveTo(2.5, -14.5);
-  ctx.quadraticCurveTo(4.5, -15, 6, -14.3);
-  ctx.lineTo(6, -13.8);
-  ctx.quadraticCurveTo(4.5, -14.3, 2.5, -13.9);
+  ctx.moveTo(2.8, -14.2);
+  ctx.quadraticCurveTo(4.5, -14.6, 6, -13.9);
+  ctx.lineTo(6, -13.6);
+  ctx.quadraticCurveTo(4.5, -14, 2.8, -13.9);
   ctx.closePath();
   ctx.fill();
-  // Far eyebrow (west of nose bridge, smaller — perspective)
-  ctx.fillStyle = stubbleColor;
   ctx.beginPath();
-  ctx.moveTo(-1, -14);
-  ctx.lineTo(1, -14);
-  ctx.lineTo(1, -13.5);
-  ctx.lineTo(-1, -13.5);
+  ctx.moveTo(-0.5, -13.7);
+  ctx.quadraticCurveTo(0.5, -14.1, 1.7, -13.8);
+  ctx.lineTo(1.7, -13.5);
+  ctx.quadraticCurveTo(0.5, -13.6, -0.5, -13.4);
   ctx.closePath();
   ctx.fill();
-  // v1.473: Båda ögon LIKA STORA (var asymmetriskt för 3/4-perspektiv, nu equal)
-  // FAR EYE (west)
+  // === EYES (smaller, cleaner, almond) ===
+  // Far eye (west)
   ctx.fillStyle = '#f4f0e8';
   ctx.beginPath();
-  ctx.ellipse(0.3, -13, 1.2, 0.85, 0, 0, Math.PI * 2);
+  ctx.ellipse(0.6, -13, 0.9, 0.65, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
-  ctx.lineWidth = 0.7;
+  ctx.lineWidth = 0.6;
   ctx.stroke();
-  ctx.fillStyle = '#2a4a70';
+  ctx.fillStyle = '#1a2a40';
   ctx.beginPath();
-  ctx.arc(0.5, -13, 0.7, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#000';
-  ctx.beginPath();
-  ctx.arc(0.5, -13, 0.32, 0, Math.PI * 2);
+  ctx.arc(0.7, -13, 0.45, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#fff';
-  ctx.fillRect(0.6, -13.3, 0.4, 0.4);
-  // NEAR EYE (east) — SAMMA storlek som far eye
+  ctx.fillRect(0.85, -13.2, 0.25, 0.25);
+  // Near eye (east) — same size
   ctx.fillStyle = '#f4f0e8';
   ctx.beginPath();
-  ctx.ellipse(4, -13, 1.2, 0.85, 0, 0, Math.PI * 2);
+  ctx.ellipse(4.2, -13, 0.9, 0.65, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
-  ctx.lineWidth = 0.7;
+  ctx.lineWidth = 0.6;
   ctx.stroke();
-  ctx.fillStyle = '#2a4a70';
+  ctx.fillStyle = '#1a2a40';
   ctx.beginPath();
-  ctx.arc(4.2, -13, 0.7, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#000';
-  ctx.beginPath();
-  ctx.arc(4.2, -13, 0.32, 0, Math.PI * 2);
+  ctx.arc(4.3, -13, 0.45, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = '#fff';
-  ctx.fillRect(4.3, -13.3, 0.4, 0.4);
-  // === NOSE (3/4 view: bridge between eyes + tip + nostril) ===
-  // Nose bridge from forehead down to tip (between the two eyes)
-  ctx.fillStyle = skinLight;
+  ctx.fillRect(4.45, -13.2, 0.25, 0.25);
+  // === NOSE (simple subtle profile, between eyes) ===
+  // Just nose shadow line on west of bridge + small nostril
+  ctx.strokeStyle = skin5;
+  ctx.lineWidth = 0.6;
   ctx.beginPath();
-  ctx.moveTo(2, -13);                      // bridge top (between eyes)
-  ctx.lineTo(2.5, -10);                    // bridge bottom
-  ctx.lineTo(3.5, -10);
-  ctx.lineTo(3, -13);
-  ctx.closePath();
-  ctx.fill();
-  // Nose shadow on west side of bridge
-  ctx.fillStyle = skinShadow;
-  ctx.fillRect(1.5, -13, 0.6, 3);
-  // Nose tip (slightly east of bridge)
-  ctx.fillStyle = skin;
+  ctx.moveTo(2.2, -12);
+  ctx.lineTo(2.5, -10);
+  ctx.stroke();
+  // Nose tip — small subtle bump (just outline curve)
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.7;
   ctx.beginPath();
   ctx.moveTo(2.5, -10);
-  ctx.quadraticCurveTo(5, -9.5, 4, -9);
-  ctx.lineTo(2.5, -9.5);
-  ctx.closePath();
-  ctx.fill();
-  // Nose tip shadow (under)
-  ctx.fillStyle = skinShadow;
+  ctx.quadraticCurveTo(4, -9.5, 3.5, -9.3);
+  ctx.stroke();
+  // Nostril dot
+  ctx.fillStyle = skin6;
+  ctx.fillRect(3, -9.5, 0.5, 0.4);
+  // === MOUTH (simple, clean) ===
+  // Lip line (just one stroke)
+  ctx.strokeStyle = lipColor;
+  ctx.lineWidth = 0.8;
   ctx.beginPath();
-  ctx.moveTo(2.5, -9.5);
-  ctx.lineTo(4, -9);
-  ctx.lineTo(2.5, -9);
-  ctx.closePath();
-  ctx.fill();
-  // Nostril
-  ctx.fillStyle = skinDeep;
-  ctx.fillRect(3, -9.2, 0.7, 0.4);
-  // v1.471: Cheek blush BORTTAGEN (såg ut som blåmärke).
-  // Bara skin1 highlight på cheek-area för subtle warmth.
-  ctx.fillStyle = skin1;
-  ctx.globalAlpha = 0.5;
-  ctx.beginPath();
-  ctx.ellipse(5, -11, 1.2, 0.8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.globalAlpha = 1;
-  // v1.473: MUN FLYTTAD UPP ~1px för bättre proportioner i ansiktet
-  // Upper lip
-  ctx.fillStyle = lipColor;
-  ctx.beginPath();
-  ctx.moveTo(1.5, -9.5);
-  ctx.quadraticCurveTo(3, -10, 4.5, -9.5);
-  ctx.lineTo(4.5, -9.2);
-  ctx.lineTo(1.5, -9.2);
-  ctx.closePath();
-  ctx.fill();
-  // Lower lip (fuller, with highlight)
+  ctx.moveTo(2, -8.5);
+  ctx.quadraticCurveTo(3.2, -8.2, 4.5, -8.5);
+  ctx.stroke();
+  // Lower lip subtle fill (highlight)
   ctx.fillStyle = lipHi;
   ctx.beginPath();
-  ctx.moveTo(1.5, -9);
-  ctx.lineTo(4.7, -9);
-  ctx.quadraticCurveTo(4.5, -8.3, 3, -8.3);
-  ctx.quadraticCurveTo(1.7, -8.3, 1.5, -8.7);
-  ctx.closePath();
+  ctx.ellipse(3.3, -8.1, 1.1, 0.3, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Lip parting line
-  ctx.strokeStyle = '#400';
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  ctx.moveTo(1.5, -9.1);
-  ctx.lineTo(4.7, -9.1);
-  ctx.stroke();
-  // Lip shadow under (chin shadow start)
-  ctx.fillStyle = skinShadow;
-  ctx.fillRect(2, -8.2, 2.5, 0.3);
   // === EAR (small, west side, partially visible in 3/4) ===
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
@@ -37965,149 +37880,27 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(-1, -4);
   ctx.closePath();
   ctx.fill();
-  // === COLLARBONE (subtle V-line at top of chest) ===
-  ctx.strokeStyle = skinDeep;
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(-4, -3.2);
-  ctx.quadraticCurveTo(0, -2.5, 4, -3.2);
-  ctx.stroke();
-  // Collarbone highlight (thin line above the shadow)
-  ctx.strokeStyle = skinHi;
-  ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  ctx.moveTo(-4, -3.7);
-  ctx.quadraticCurveTo(0, -3, 4, -3.7);
-  ctx.stroke();
-  // === PEC SHADING (multi-layer för 3D form, dämpade highlights) ===
-  // East pec base (light side, skin2 inte skin1)
-  ctx.fillStyle = skin2;
-  ctx.beginPath();
-  ctx.ellipse(3, 0, 2.6, 2.6, -0.2, 0, Math.PI * 2);
-  ctx.fill();
-  // East pec highlight (skin1 inte skin0 — mer subtle)
+  // v1.475: BELLY shading SIMPLIFIED — bara pec hint + EN nipple + belly button
+  // East pec subtle highlight
   ctx.fillStyle = skin1;
   ctx.beginPath();
-  ctx.ellipse(3.5, -1.2, 1.5, 1, -0.2, 0, Math.PI * 2);
+  ctx.ellipse(3, 0, 2.5, 2.3, -0.2, 0, Math.PI * 2);
   ctx.fill();
-  // East pec mid-shadow (lower-west of pec)
+  // West pec subtle shadow (mostly in shadow side)
   ctx.fillStyle = skin4;
   ctx.beginPath();
-  ctx.ellipse(1.8, 1.2, 1.3, 1.4, 0.3, 0, Math.PI * 2);
+  ctx.ellipse(-2, 0, 2.0, 2.2, 0.2, 0, Math.PI * 2);
   ctx.fill();
-  // West pec (mostly in shadow, less visible)
-  ctx.fillStyle = skin4;
-  ctx.beginPath();
-  ctx.ellipse(-2, 0, 2.2, 2.3, 0.2, 0, Math.PI * 2);
-  ctx.fill();
-  // West pec highlight (subtle)
-  ctx.fillStyle = skin2;
-  ctx.beginPath();
-  ctx.ellipse(-2, -0.8, 1.5, 1, 0.2, 0, Math.PI * 2);
-  ctx.fill();
-  // INTER-PEC CLEFT (deep shadow center)
-  ctx.fillStyle = skin7;
-  ctx.beginPath();
-  ctx.ellipse(0.6, 0.5, 0.4, 1.5, 0.05, 0, Math.PI * 2);
-  ctx.fill();
-  // PEC UNDERLINE shadow (cast on upper abs)
-  ctx.fillStyle = skin6;
-  ctx.beginPath();
-  ctx.moveTo(0, 2.5);
-  ctx.quadraticCurveTo(3, 3.4, 5, 2.7);
-  ctx.lineTo(5, 3.4);
-  ctx.quadraticCurveTo(3, 4, 0, 3.2);
-  ctx.closePath();
-  ctx.fill();
-  // West pec underline
-  ctx.fillStyle = skin6;
-  ctx.beginPath();
-  ctx.moveTo(-4, 2);
-  ctx.quadraticCurveTo(-2, 3, 0, 2.8);
-  ctx.lineTo(0, 3.3);
-  ctx.quadraticCurveTo(-2, 3.5, -4, 2.5);
-  ctx.closePath();
-  ctx.fill();
-  // v1.473: NIPPLES MINDRE (radius 0.4/0.35 → 0.25/0.22)
+  // ONE nipple (east pec, west pec is in shadow so no nipple visible)
   ctx.fillStyle = nippleColor;
   ctx.beginPath();
-  ctx.arc(3, 1.5, 0.25, 0, Math.PI * 2);
+  ctx.arc(3, 0.8, 0.3, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = darken(nippleColor, 0.30);
+  // Belly button (subtle)
+  ctx.fillStyle = skin5;
   ctx.beginPath();
-  ctx.arc(-2, 1.5, 0.22, 0, Math.PI * 2);
+  ctx.arc(1.5, 7, 0.5, 0, Math.PI * 2);
   ctx.fill();
-  // === ABS — 4-cube shading med varje ab separat ===
-  // Linea alba (vertical center crease)
-  ctx.strokeStyle = skin6;
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(1, 3.5);
-  ctx.lineTo(1.5, 8);
-  ctx.stroke();
-  // Upper-east ab (mild highlight)
-  ctx.fillStyle = skin2;
-  ctx.beginPath();
-  ctx.ellipse(2.8, 4.5, 1.2, 0.8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Upper-east ab peak (small subtle bright spot)
-  ctx.fillStyle = skin1;
-  ctx.fillRect(2.9, 4.2, 0.5, 0.3);
-  // Upper-west ab (in shadow)
-  ctx.fillStyle = skin4;
-  ctx.beginPath();
-  ctx.ellipse(-0.3, 4.5, 1, 0.8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Horizontal crease between upper and middle ab (deep shadow)
-  ctx.strokeStyle = skin7;
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(-1.5, 5.3);
-  ctx.quadraticCurveTo(1.5, 5.6, 4, 5.3);
-  ctx.stroke();
-  // Middle-east ab (mild)
-  ctx.fillStyle = skin2;
-  ctx.beginPath();
-  ctx.ellipse(2.8, 6.3, 1.1, 0.8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = skin1;
-  ctx.fillRect(2.9, 6.0, 0.5, 0.3);
-  // Middle-west ab (shadow)
-  ctx.fillStyle = skin4;
-  ctx.beginPath();
-  ctx.ellipse(-0.3, 6.3, 0.9, 0.7, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Lower crease
-  ctx.strokeStyle = skin7;
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(-1.5, 7);
-  ctx.quadraticCurveTo(1.5, 7.3, 4, 7);
-  ctx.stroke();
-  // === OBLIQUES (side abs, V-shape) ===
-  ctx.fillStyle = skin4;
-  ctx.beginPath();
-  ctx.ellipse(5, 7, 1, 2.5, -0.25, 0, Math.PI * 2);
-  ctx.fill();
-  // Oblique highlight (subtle)
-  ctx.fillStyle = skin2;
-  ctx.beginPath();
-  ctx.ellipse(5.2, 6.5, 0.5, 1.5, -0.25, 0, Math.PI * 2);
-  ctx.fill();
-  // Inguinal crease (hip-thigh line on east side)
-  ctx.strokeStyle = skin7;
-  ctx.lineWidth = 0.7;
-  ctx.beginPath();
-  ctx.moveTo(2, 8.5);
-  ctx.lineTo(5.5, 8);
-  ctx.stroke();
-  // === BELLY BUTTON ===
-  ctx.fillStyle = skinDeepest;
-  ctx.beginPath();
-  ctx.arc(1.5, 7.5, 0.7, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = skinLight;
-  ctx.fillRect(1.6, 7.6, 0.3, 0.3);
   // v1.471: Treasure trail BORTTAGEN (för subtle att se vid liten skala)
   // === UNDERWEAR (proper brief shape) ===
   // Briefs base — curved shape hugging hips
@@ -38281,25 +38074,7 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(frX - 1, frTop + 14.5);
   ctx.closePath();
   ctx.fill();
-  // TOE SEPARATIONS (subtle vertical lines suggesting toes)
-  ctx.strokeStyle = skin6;
-  ctx.lineWidth = 0.4;
-  ctx.beginPath();
-  ctx.moveTo(frX + 2.5, frTop + 14.8);
-  ctx.lineTo(frX + 2.5, frTop + 15.8);
-  ctx.moveTo(frX + 3.2, frTop + 15);
-  ctx.lineTo(frX + 3.2, frTop + 15.8);
-  ctx.moveTo(frX + 3.7, frTop + 15.2);
-  ctx.lineTo(frX + 3.7, frTop + 15.8);
-  ctx.stroke();
-  // ARCH shadow (under foot mid)
-  ctx.fillStyle = skin5;
-  ctx.fillRect(frX - 0.5, frTop + 15.5, 2.5, 0.5);
-  // HEEL shadow (west side)
-  ctx.fillStyle = skin6;
-  ctx.beginPath();
-  ctx.ellipse(frX - 1.5, frTop + 14.5, 0.5, 0.7, 0, 0, Math.PI * 2);
-  ctx.fill();
+  // v1.475: Foot DETAILS BORTTAGNA — bara base + subtle highlight + outline.
   ctx.strokeStyle = outline;
   ctx.beginPath();
   ctx.moveTo(frX - 1.8, frTop + 13);
