@@ -11463,19 +11463,23 @@ function drawCoopPartner() {
     }
     ctx.save();
     if (pFacingLeft) ctx.scale(-1, 1);
-    // v1.451: partner body lean ±30° + head overlay
-    const pAimUpDown = Math.atan2(pAimY, Math.max(0.01, Math.abs(pAimX)));
-    const pMaxBodyRot = 0.52;
-    const pBodyRot = Math.max(-pMaxBodyRot, Math.min(pMaxBodyRot, pAimUpDown * 0.6));
-    if (p._bodyRotLerp === undefined) p._bodyRotLerp = 0;
-    p._bodyRotLerp += (pBodyRot - p._bodyRotLerp) * 0.22;
-    ctx.rotate(p._bodyRotLerp);
+    // v1.452: partner body upright + upper body overlay rotating
     if (partnerCos.bandana) {
       drawBandanaTail(ctx, partnerCos, color, now, partnerMoving, phase);
     }
     const partnerSprite = _getCachedPlayerSprite(partnerCos, color, 1, false, partnerFrame);
     ctx.drawImage(partnerSprite, -partnerSprite.width / 2, -partnerSprite.height / 2);
     ctx.restore();
+    // v1.452: TOP-DOWN UPPER BODY OVERLAY för partner
+    {
+      ctx.save();
+      ctx.translate(0, 4);
+      ctx.rotate(partnerAimAngle);
+      ctx.imageSmoothingEnabled = false;
+      const pUpperBodyCanvas = _getCachedTopDownUpperBody(partnerCos, color, false);
+      ctx.drawImage(pUpperBodyCanvas, -12, -7);
+      ctx.restore();
+    }
     // v1.450: TOP-DOWN HEAD OVERLAY för partner
     {
       ctx.save();
@@ -37264,6 +37268,31 @@ const HEAD_TOP_DOWN = [
   /*19*/ '....................',
 ];
 
+// v1.452: TOP-DOWN UPPER BODY OVERLAY — separat sprite designed ovanifrån
+// som visar SHOULDERS + ARMS + VEST PLATE från top-down perspective. Roterar
+// 360° med aim precis som head overlay. Detta är vad user verkligen ville:
+// kroppen ska vända sig så man inte ser den framifrån när man inte siktar fram.
+//
+// Default east-facing (positive X). Vid rotation visar olika sidor av kroppen
+// (shoulder-bredd perpendicular to facing, vest-plate centered, arms east).
+// Body's existing sprite (legs+feet+walk-cycle) ritas under och förblir uprigt.
+const UPPER_BODY_TOP_DOWN = [
+  /* 0*/ '......OOOOOOOOOO........',
+  /* 1*/ '....OOFFFFFFFFFFFFOO....',
+  /* 2*/ '...OFFFVVVVVVVVVVVFFFO..',
+  /* 3*/ '..OFFVVVVVVVVVVVVVVFFFs.',
+  /* 4*/ '..OFVVVDDDDDDDDDDDVVFFss',
+  /* 5*/ '..OFVVDDDAAAAAADDDVVFFss',
+  /* 6*/ '..OFVVDDDAAAAAADDDVVFFss',
+  /* 7*/ '..OFVVDDDAAAAAADDDVVFFss',
+  /* 8*/ '..OFVVVDDDDDDDDDDDVVFFss',
+  /* 9*/ '..OFFVVVVVVVVVVVVVVFFFs.',
+  /*10*/ '...OFFFVVVVVVVVVVVFFFO..',
+  /*11*/ '....OOFFFFFFFFFFFFOO....',
+  /*12*/ '......OOOOOOOOOO........',
+  /*13*/ '........................',
+];
+
 // Walk-cykel variants — bara benen ändras. För enkel start använder vi
 // bara base sprite; lägg till L/R-frames senare för animation.
 
@@ -37358,6 +37387,23 @@ function _getCachedTopDownHead(cos, color, flash) {
     _topDownHeadCache.delete(firstKey);
   }
   _topDownHeadCache.set(key, cached);
+  return cached;
+}
+
+// v1.452: Cache rendered top-down upper body per costume
+const _topDownUpperBodyCache = new Map();
+function _getCachedTopDownUpperBody(cos, color, flash) {
+  const key = (color || '') + '|' + (cos.skin || '') + '|' + (cos.shirt || '') + '|' +
+              (cos.accent || '') + '|' + (flash ? 'F' : 'N');
+  let cached = _topDownUpperBodyCache.get(key);
+  if (cached) return cached;
+  const palette = _buildPlayerPalette(cos, color);
+  cached = _renderPixelSpriteToCanvas(UPPER_BODY_TOP_DOWN, palette, 1, flash);
+  if (_topDownUpperBodyCache.size > 60) {
+    const firstKey = _topDownUpperBodyCache.keys().next().value;
+    _topDownUpperBodyCache.delete(firstKey);
+  }
+  _topDownUpperBodyCache.set(key, cached);
   return cached;
 }
 
@@ -37576,42 +37622,45 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.451: BODY-LEAN + HEAD OVERLAY = synlig kropp-rotation utan sidles
+  // v1.452: BODY UPRIGHT + TOP-DOWN UPPER BODY OVERLAY + HEAD OVERLAY
   //
-  // Sweet spot mellan tidigare iterationer:
-  //   v1.447 ±60° → user: "sidles"
-  //   v1.449 ±17° → user: "still position"
-  //   v1.450  0°  → user: "kroppen faced rakt mot skärmen"
-  // → ±30° är level där body visibly roterar utan att tippa över.
-  //
-  // Kombinerat med head overlay (360° rotation) ger detta tydligt "body
-  // rotates with aim" utan att karaktären ligger på marken.
+  // Same approach som head overlay applied to body. Body sprite (legs+feet+
+  // walk-cycle) ritas UPRIGHT — inga rotations som tippar kroppen sidles.
+  // Top-down upper-body sprite (shoulders+arms+vest) ritas ovanpå body's
+  // shoulders och roterar 360° med aim. Then head overlay på top of det.
+  // Result: legs walking normalt, upper body+head clearly rotating med aim.
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
   ctx.save();
   if (_facingLeft) ctx.scale(-1, 1);
-  // Body rotation: ±30° cap, lerped smooth
-  const _aimUpDown = Math.atan2(_aimY, Math.max(0.01, Math.abs(_aimX)));
-  const _maxBodyRot = 0.52; // ~30°
-  const _bodyRot = Math.max(-_maxBodyRot, Math.min(_maxBodyRot, _aimUpDown * 0.6));
-  if (p._bodyRotLerp === undefined) p._bodyRotLerp = 0;
-  p._bodyRotLerp += (_bodyRot - p._bodyRotLerp) * 0.22;
-  ctx.rotate(p._bodyRotLerp);
+  // NO body rotation — kropp förblir upright, walk-cycle ren
   if (cos.bandana) {
     drawBandanaTail(ctx, cos, null, now, moving, phase);
   }
   const spriteCanvas = _getCachedPlayerSprite(cos, null, 1, flash, chosenSprite);
   ctx.drawImage(spriteCanvas, -spriteCanvas.width / 2, -spriteCanvas.height / 2);
   ctx.restore();
-  // v1.450: TOP-DOWN HEAD OVERLAY — roterar med aim, döljer body's baked-in face
+  // v1.452: TOP-DOWN UPPER BODY OVERLAY — shoulders/arms/vest rotate 360° med aim
+  // Drawn ovanpå body's existing shoulders region (rows 22-32 i body sprite).
+  // Center at body-local (0, +4) = middle of shoulders/vest area i body sprite.
+  {
+    ctx.save();
+    ctx.translate(0, 4); // upper body center
+    ctx.rotate(p.aimAngle); // 360° rotation med aim
+    ctx.imageSmoothingEnabled = false;
+    const upperBodyCanvas = _getCachedTopDownUpperBody(cos, null, flash);
+    // UPPER_BODY_TOP_DOWN är 24x14, centrera vid (12, 7)
+    ctx.drawImage(upperBodyCanvas, -12, -7);
+    ctx.restore();
+  }
+  // v1.450: TOP-DOWN HEAD OVERLAY — roterar med aim
   {
     ctx.save();
     ctx.translate(0, -12); // body-local head center
     ctx.rotate(p.aimAngle); // 360° rotation med aim
     ctx.imageSmoothingEnabled = false;
     const headCanvas = _getCachedTopDownHead(cos, null, flash);
-    // HEAD_TOP_DOWN är 20x20, centrera på (10, 10) i sprite-coords
     ctx.drawImage(headCanvas, -10, -10);
     ctx.restore();
   }
