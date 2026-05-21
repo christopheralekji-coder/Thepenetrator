@@ -37295,58 +37295,58 @@ const HEAD_TOP_DOWN = [
 //   Rows 33-36: LEGS (skin split med separator)
 //   Rows 37-38: FEET
 const PLAYER_SPRITE_NAKED = [
-  // v1.459 BROTATO-STIL — upright character WITHOUT arms (drawn separately).
-  // Body sprite ritas UPPRÄTT med endast MIRROR för left/right movement.
-  // Inga arms baked in — armar drawn separately rotated med aim.
-  // Default east-facing: skin face på east-side av head, hair på west.
+  // v1.460 RICH DETAILED — anatomical detail med ~50 colors för rich shading.
+  // 8 skin shades (0,s,S,1,2,3,K,4), 5 hair shades (5,H,6,7,8),
+  // eyes (e=sclera,i=iris,@=pupil,*=glint), lips (b,c),
+  // underwear (U,u,=,+,#), pec/abs/leg muscle definition.
   /* 0*/ '................................................',
   /* 1*/ '................................................',
   /* 2*/ '................................................',
-  /* 3*/ '................................................',
-  /* 4*/ '................................................',
-  /* 5*/ '................................................',
-  /* 6*/ '...................OOOOOOOO.....................',  // head top
-  /* 7*/ '.................OOHHHHHHHHHHOO.................',
-  /* 8*/ '................OHHHHHHHHHHHHHHO................',  // hair
-  /* 9*/ '................OHHHHHHHHHHHHHHO................',
-  /*10*/ '................OHHHHHHsSSSSSSSO................',  // face skin east
-  /*11*/ '................OHHHHHsSSSSSSSSO................',
-  /*12*/ '................OHHHHHsSSSSSSSSO................',
-  /*13*/ '................OHHHHHHsSSSSSSSO................',
-  /*14*/ '.................OOSSSSSSSSSSOO.................',  // chin
-  /*15*/ '..................OSSSSSSSSSSO..................',
-  /*16*/ '...............OOOSSSSSSSSSSSSOOO...............',  // shoulders begin
-  /*17*/ '..............OSSSSSSSSSSSSSSSSSO...............',
-  /*18*/ '..............OSSSSSSSSSSSSSSSSSO...............',  // torso
-  /*19*/ '..............OSSSSSSSSSSSSSSSSSO...............',
-  /*20*/ '..............OSSSSSSSSSSSSSSSSSO...............',
-  /*21*/ '..............OSSSSSSSSSSSSSSSSSO...............',
-  /*22*/ '..............OSSSSSSSSSSSSSSSSSO...............',
-  /*23*/ '...............OSSSSSSSSSSSSSSSO................',  // torso narrowing
-  /*24*/ '................OUUUUUUUUUUUUUO.................',  // underwear
-  /*25*/ '................OUUUUUUUUUUUUUO.................',
-  /*26*/ '................OUUUUUUUUUUUUUO.................',
-  /*27*/ '................OOSSSOOOSSSSSSO.................',  // hip/legs split
-  /*28*/ '.................OSSOOOOSSO.....................',
-  /*29*/ '.................OSSO..OSSO.....................',  // legs
-  /*30*/ '.................OSSO..OSSO.....................',
-  /*31*/ '.................OSSO..OSSO.....................',
-  /*32*/ '.................OSSO..OSSO.....................',
-  /*33*/ '.................OSSO..OSSO.....................',
-  /*34*/ '.................OOSO..OSSO.....................',
-  /*35*/ '.................OOSO..OSSO.....................',  // feet
-  /*36*/ '..................OO....OO......................',
-  /*37*/ '................................................',
-  /*38*/ '................................................',
-  /*39*/ '................................................',
-  /*40*/ '................................................',
-  /*41*/ '................................................',
-  /*42*/ '................................................',
-  /*43*/ '................................................',
-  /*44*/ '................................................',
-  /*45*/ '................................................',
-  /*46*/ '................................................',
-  /*47*/ '................................................',
+  /* 3*/ '......................OOOO......................',
+  /* 4*/ '.....................O7HH7O.....................',
+  /* 5*/ '...................O7HH5HH6O....................',
+  /* 6*/ '..................O7HH555HH6O...................',
+  /* 7*/ '.................O7HHH555HHH6O..................',
+  /* 8*/ '................OHHHHHHHHHHHH6O.................',
+  /* 9*/ '...............O5HHHHHHHHHHHHH6O................',
+  /*10*/ '...............OHH5HHsssssHHHHH6O...............',
+  /*11*/ '..............OHHHHss000ssssHH66O...............',
+  /*12*/ '..............OHHHss22ss22sssss6O...............',
+  /*13*/ '..............OHHss@iesse@iessss6O..............',
+  /*14*/ '..............O5sssee*ss*ee*sss66O..............',
+  /*15*/ '..............O0ssss1NNsNN1sssss6O..............',
+  /*16*/ '...............OsssssN2N2ssssss6O...............',
+  /*17*/ '...............O0sssssNNNssssss6O...............',
+  /*18*/ '..............O0sss2bcccb2sssss6O...............',
+  /*19*/ '...............Osssss2bb2sssss6O................',
+  /*20*/ '...............OO0sssNNNsssss0OO................',
+  /*21*/ '..................OOsssss00OO...................',
+  /*22*/ '.....................OsNsO......................',
+  /*23*/ '.....................OsssO......................',
+  /*24*/ '.................OOOO0sss0OOOO..................',
+  /*25*/ '.................OO0ssssssss0OO.................',
+  /*26*/ '...............O0sssssssssssss0O................',
+  /*27*/ '.............O0sssssssssssssssss0O..............',
+  /*28*/ '.............O0ssss2NN22NN2sssss0O..............',
+  /*29*/ '.............O0sssN3N1NN1N3Nsssss0O.............',
+  /*30*/ '.............O0ssssNN3333NNsssss0O..............',
+  /*31*/ '.............O0sssssssNNNsssssss0O..............',
+  /*32*/ '.............O0sssss2NNNNN2ssssss0O.............',
+  /*33*/ '.............O0ssssN1NN1NN1Nsssss0O.............',
+  /*34*/ '.............O0sssss2NN1NN2sssss0O..............',
+  /*35*/ '.............O0ssssN1NN1NN1Nsssss0O.............',
+  /*36*/ '..............O0sssss2*@*ssssss0O...............',
+  /*37*/ '..............O0sssssssssssssss0O...............',
+  /*38*/ '...............OO=##UUUUUUUU##=OO...............',
+  /*39*/ '...............O+uUUUUUUUUUUUUu+O...............',
+  /*40*/ '...............O+UUUUUUUUUUUUUU+O...............',
+  /*41*/ '...............O++UUUUUUUUUUU++OO...............',
+  /*42*/ '................OO+UUUUUUUUU+0O.................',
+  /*43*/ '.................O0sssOOOOsss0O.................',
+  /*44*/ '................O0sssO....Osss0O................',
+  /*45*/ '................O0ssK1O..O1Kss0O................',
+  /*46*/ '................O0sssO....Osss0O................',
+  /*47*/ '..................OOOO....OOOO..................',
 ];
 
 // Walk-cykel variants — bara benen ändras. För enkel start använder vi
@@ -37407,6 +37407,33 @@ function _buildPlayerPalette(cos, color) {
     // v1.453: Underwear (vit) för naked sprite
     'U': '#fafafa',                         // White underwear (kallingar)
     'u': '#c8c8c8',                         // Underwear shadow
+    // v1.460: ~50 colors total för rich shading av naken karaktär
+    // Skin tones (8 levels)
+    '0': lighten(skinBase, 0.32),           // Skin brightest highlight
+    '1': darken(skinBase, 0.15),            // Skin mid-shadow
+    '2': darken(skinBase, 0.32),            // Skin darker shadow
+    '3': darken(skinBase, 0.55),            // Skin deep shadow
+    '4': darken(skinBase, 0.78),            // Skin darkest (near outline)
+    // Hair tones (5 levels)
+    '5': lighten(cos.hairColor || '#1a0a08', 0.45),  // Hair brightest highlight
+    '6': darken(cos.hairColor || '#1a0a08', 0.20),   // Hair mid-shadow
+    '7': darken(cos.hairColor || '#1a0a08', 0.50),   // Hair deep shadow
+    '8': '#000604',                                   // Hair darkest
+    // Eye details
+    'e': '#f0f4fa',                         // Eye sclera (white-blue)
+    'i': '#3a5070',                         // Iris base (steel blue)
+    '@': '#0a0a0c',                         // Pupil
+    '*': '#ffffff',                         // Eye glint (bright white)
+    // Lip details
+    'b': '#7a3a3a',                         // Lip base
+    'c': '#a85a50',                         // Lip highlight
+    'g': '#3a0a0a',                         // Lip deep shadow (mouth open)
+    // Underwear details (5 levels)
+    '=': '#ffffff',                         // Underwear elastic highlight
+    '+': '#9a9aaa',                         // Underwear shadow
+    '#': '#6a6a7a',                         // Elastic dark band
+    // Misc
+    'o': '#1a1a22',                         // Lighter outline (for highlights edge)
   };
 }
 
@@ -37714,24 +37741,51 @@ function drawPlayer() {
   if (_bodyFacingLeft) ctx.scale(-1, 1);
   ctx.drawImage(nakedCanvas, -48, -48, 96, 96);
   ctx.restore();
-  // ARMS drawn separately, roterar med aim (independent of body facing)
-  // Skin-colored "arm + hand" extending in aim direction från body shoulder
+  // v1.460: ARMS med 3-tons shading (highlight, base, shadow) + knuckles
   ctx.save();
   ctx.rotate(p.aimAngle);
   if (_facingLeft) ctx.scale(1, -1);
-  const _armSkin = flash ? '#fff' : (cos.skin || '#c89870');
+  const _armBase = cos.skin || '#c89870';
+  const _armLight = flash ? '#fff' : lighten(_armBase, 0.22);
+  const _armSkin = flash ? '#fff' : _armBase;
+  const _armShadow = flash ? '#fff' : darken(_armBase, 0.30);
+  const _armDeepShadow = flash ? '#fff' : darken(_armBase, 0.55);
   const _armOutline = flash ? '#fff' : '#0a0a0e';
-  // Upper arm (skin-colored rect from shoulder out)
-  ctx.fillStyle = _armSkin;
+  // Upper arm — 3D shading (shadow bottom, base, highlight top)
+  ctx.fillStyle = _armShadow;
   ctx.fillRect(2, -3, 14, 6);
+  ctx.fillStyle = _armSkin;
+  ctx.fillRect(2, -3, 14, 5);
+  ctx.fillStyle = _armLight;
+  ctx.fillRect(2, -3, 14, 2);
+  // Forearm muscle definition (subtle shadow stripe)
+  ctx.fillStyle = _armDeepShadow;
+  ctx.fillRect(9, 1, 7, 1);
+  // Arm outline
   ctx.strokeStyle = _armOutline;
   ctx.lineWidth = 1;
   ctx.strokeRect(2, -3, 14, 6);
-  // Hand at end of arm (slightly bigger)
+  // Hand — circle with 3-tone shading
+  ctx.fillStyle = _armShadow;
+  ctx.beginPath();
+  ctx.arc(16, 1, 3.5, 0, Math.PI * 2);
+  ctx.fill();
   ctx.fillStyle = _armSkin;
   ctx.beginPath();
-  ctx.arc(16, 0, 3, 0, Math.PI * 2);
+  ctx.arc(16, 0, 3.5, 0, Math.PI * 2);
   ctx.fill();
+  ctx.fillStyle = _armLight;
+  ctx.beginPath();
+  ctx.arc(15, -1, 2, 0, Math.PI * 2);
+  ctx.fill();
+  // Knuckle dots
+  ctx.fillStyle = _armDeepShadow;
+  ctx.fillRect(17, 1, 1, 1);
+  ctx.fillRect(18, 0, 1, 1);
+  // Hand outline
+  ctx.strokeStyle = _armOutline;
+  ctx.beginPath();
+  ctx.arc(16, 0, 3.5, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
   // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
