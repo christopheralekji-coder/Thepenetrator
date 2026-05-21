@@ -11463,8 +11463,10 @@ function drawCoopPartner() {
     }
     ctx.save();
     if (pFacingLeft) ctx.scale(-1, 1);
-    // v1.444: partner roteras mot aim-riktningen (samma som player)
-    const pBodyTilt = (pFacingLeft ? -pAimY : pAimY) * 0.7;
+    // v1.445: partner roteras mot aim med atan2-baserad face-aim formula
+    const pAimUpDown = Math.atan2(pAimY, Math.max(0.01, Math.abs(pAimX)));
+    const pMaxBodyRot = 1.31;
+    const pBodyTilt = Math.max(-pMaxBodyRot, Math.min(pMaxBodyRot, pAimUpDown));
     ctx.rotate(pBodyTilt);
     // v1.443: BANDANA TAIL bakom partner
     if (partnerCos.bandana) {
@@ -37510,19 +37512,27 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.441/v1.444: MIRROR + ROTATION — sprite mirroras horisontellt vid west-aim,
-  // sedan ROTERAS kroppen mot aim-riktningen så karaktären VISIBLY faces
-  // enemies istället för att titta rakt in i kameran (per user request).
-  // Coefficient 0.7: max ±40° vid pure vertical aim, ±28° vid diagonals.
-  // Face stannar partially visible — full 90° rotation skulle vrida ansiktet
-  // sideways (vår 3/4-view sprite är inte designad för full top-down rotation).
+  // v1.445: MIRROR + FACE-AIM ROTATION — sprite mirroras horisontellt vid
+  // west-aim, sedan roterar kroppen så att facen pekar MOT aim-riktningen.
+  //
+  // Tidigare (v1.441-v1.444) hade två bug-fel:
+  //   1) sign-flip (_facingLeft ? -_aimY : _aimY) gav FEL rotationsriktning
+  //      i mirrored frame — kroppen vred sig BORT från aim istället för mot.
+  //   2) sin-baserad (_aimY * coeff) → vid horisontellt aim blev rotationen
+  //      ~0 oavsett coefficient, så användaren såg ingen ändring.
+  //
+  // Nu: atan2(aimY, abs(aimX)) ger den faktiska vinkel-komponenten ovanför/under
+  // horisonten, EXAKT vad vi ska rotera. Ingen sign-flip nödvändig — formeln
+  // funkar identiskt i mirrored och non-mirrored frame (mirror sköter X-flip
+  // separately). Capped vid ±75° så face inte försvinner helt vid pure vertical.
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
   ctx.save();
   if (_facingLeft) ctx.scale(-1, 1);
-  // I mirrored frame: negate så rotation-riktning matchar camera POV.
-  const _bodyTilt = (_facingLeft ? -_aimY : _aimY) * 0.7;
+  const _aimUpDown = Math.atan2(_aimY, Math.max(0.01, Math.abs(_aimX)));
+  const _maxBodyRot = 1.31; // ~75°
+  const _bodyTilt = Math.max(-_maxBodyRot, Math.min(_maxBodyRot, _aimUpDown));
   ctx.rotate(_bodyTilt);
   // v1.443: BANDANA TAIL — ritas FÖRE sprite så den ligger bakom karaktären.
   // Cloth-animation som vajar/flaxar — ger "alive" feel.
