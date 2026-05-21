@@ -12278,6 +12278,7 @@ const WARDROBE = {
     { id: 'mulletGreen',  name: 'Mullet Grön', style: 'mullet',   color: '#5aff5a' },
   ],
   shirt: [
+    { id: 'naked',     name: 'Bar Överkropp', color: null },
     { id: 'black',     name: 'Svart',      color: '#222' },
     { id: 'white',     name: 'Vit',        color: '#cccccc' },
     { id: 'tactical',  name: 'Tactical',   color: '#1a3a1a' },
@@ -12297,6 +12298,7 @@ const WARDROBE = {
     { id: 'navy',      name: 'Mörk Blå',   color: '#1a2a4a' },
   ],
   pants: [
+    { id: 'briefs',  name: 'Bara Kalsonger', color: null },
     { id: 'khaki',   name: 'Khaki',     color: '#3a3528' },
     { id: 'black',   name: 'Svarta',    color: '#1a1a1a' },
     { id: 'jeans',   name: 'Jeans',     color: '#2a3a5a' },
@@ -12367,6 +12369,37 @@ const WARDROBE = {
     { id: 'tattered',  name: 'Sönderriven', style: 'tattered', color: '#3a3a3a' },
     { id: 'wings',     name: 'Vingar',    style: 'wings',    color: '#eeeeee' },
     { id: 'flames',    name: 'Eld',       style: 'flames',   color: '#ff5a14' },
+  ],
+  // v1.479 NEW: SHOES — 12 designs from barefoot till legendary
+  shoes: [
+    { id: 'none',       name: 'Barfota',         style: 'none',     color: null },
+    { id: 'sneakerWhite',name: 'Sneakers Vita',  style: 'sneaker',  color: '#f0f0f0' },
+    { id: 'sneakerBlack',name: 'Sneakers Svarta',style: 'sneaker',  color: '#222222' },
+    { id: 'combatBoot', name: 'Combat-stövlar',  style: 'boot',     color: '#1a1208' },
+    { id: 'runningRed', name: 'Running Röda',    style: 'sneaker',  color: '#cc3030' },
+    { id: 'hightopBlue',name: 'High-tops Blå',   style: 'hightop',  color: '#2244aa' },
+    { id: 'sandals',    name: 'Sandaler',        style: 'sandal',   color: '#7a5530' },
+    { id: 'dressBlack', name: 'Finskor Svarta',  style: 'dress',    color: '#0a0a0a' },
+    { id: 'hikingTan',  name: 'Vandringsskor',   style: 'boot',     color: '#7a5a30' },
+    { id: 'tacticalOlive',name: 'Tactical Stövlar', style: 'boot',  color: '#3a4a26' },
+    { id: 'wrestling',  name: 'Brottarskor',     style: 'sneaker',  color: '#cccccc' },
+    { id: 'goldSneaker',name: 'Guld Sneakers',   style: 'sneaker',  color: '#ffd54a' },
+    { id: 'cyberBoot',  name: 'Cyber-stövlar',   style: 'boot',     color: '#1a3a5a' },
+  ],
+  // v1.479 NEW: FACIAL HAIR — 11 designs
+  facialHair: [
+    { id: 'none',       name: 'Slätrakad',       style: 'none',     color: null },
+    { id: 'stubble',    name: 'Stubb',           style: 'stubble',  color: '#1a0a08' },
+    { id: 'mustache',   name: 'Mustasch',        style: 'mustache', color: '#1a0a08' },
+    { id: 'mustacheBlonde',name: 'Mustasch Blond', style: 'mustache', color: '#d4b478' },
+    { id: 'goatee',     name: 'Hak-skägg',       style: 'goatee',   color: '#1a0a08' },
+    { id: 'goateeRed',  name: 'Hak-skägg Rött',  style: 'goatee',   color: '#aa3a3a' },
+    { id: 'soulPatch',  name: 'Soul Patch',      style: 'soulpatch',color: '#1a0a08' },
+    { id: 'fullBeard',  name: 'Helskägg',        style: 'fullbeard',color: '#1a0a08' },
+    { id: 'fullBeardGray',name: 'Helskägg Grått',style: 'fullbeard',color: '#888888' },
+    { id: 'goatBeard',  name: 'Bock-skägg',      style: 'goatbeard',color: '#1a0a08' },
+    { id: 'circleBeard',name: 'Cirkelskägg',     style: 'circle',   color: '#1a0a08' },
+    { id: 'handlebar',  name: 'Mustasch Krullad',style: 'handlebar',color: '#5a2a0a' },
   ],
 };
 
@@ -12445,6 +12478,8 @@ function ensureWardrobe() {
   if (!w.glasses) w.glasses = 'none';
   if (!w.hat)     w.hat = 'none';
   if (!w.cape)    w.cape = 'none';
+  if (!w.shoes)   w.shoes = 'none';
+  if (!w.facialHair) w.facialHair = 'none';
   if (!w.tints)   w.tints = { shirtHue: 0, pantsHue: 0 };
   // Lock-validation: om equippad item nu är låst (t.ex. NG+-reset eller achievement
   // wipe), defaulta tillbaka till första (alltid common, alltid unlocked).
@@ -13038,13 +13073,15 @@ function getCurrentCostume() {
     const glassesO = w.glasses ? getWardrobeOpt('glasses', w.glasses) : null;
     const hatO = w.hat ? getWardrobeOpt('hat', w.hat) : null;
     const capeO = w.cape ? getWardrobeOpt('cape', w.cape) : null;
+    const shoesO = w.shoes ? getWardrobeOpt('shoes', w.shoes) : null;
+    const facialHairO = w.facialHair ? getWardrobeOpt('facialHair', w.facialHair) : null;
     // HSL hue-tinting på shirt/pants
     const tints = w.tints || {};
     const tShirt = tints.shirtHue ? applyHueShift(shirtO.color, tints.shirtHue) : shirtO.color;
     const tPants = tints.pantsHue ? applyHueShift(pantsO.color, tints.pantsHue) : pantsO.color;
     // Item-VFX: hitta legendary/epic items med .vfx-property
     const vfxList = [];
-    for (const cat of ['skin','hair','shirt','pants','bandana','glasses','hat','cape']) {
+    for (const cat of ['skin','hair','shirt','pants','bandana','glasses','hat','cape','shoes','facialHair']) {
       const opt = w[cat] ? WARDROBE[cat] && WARDROBE[cat].find(o => o.id === w[cat]) : null;
       if (opt && opt.vfx) vfxList.push(opt.vfx);
     }
@@ -13060,6 +13097,8 @@ function getCurrentCostume() {
       glasses: glassesO,
       hat: hatO,
       cape: capeO,
+      shoes: shoesO,         // {style, color} eller null
+      facialHair: facialHairO, // {style, color} eller null
       vfx: vfxList,
     };
     _costumeCache = cos;
@@ -22082,7 +22121,7 @@ const wardrobeScreen = document.getElementById('wardrobe-screen');
 const wardrobeTabsEl = document.getElementById('wardrobe-tabs');
 const wardrobeOptsEl = document.getElementById('wardrobe-options');
 const wardrobePreview = document.getElementById('wardrobe-preview');
-const WARDROBE_CAT_LABELS = { preset: '✨ Outfits', skin: '🧑 Hud', hair: '🧔 Ansiktshår', glasses: '👓 Glasögon', hat: '🎩 Hatt', shirt: '👕 Väst', pants: '👖 Byxor', bandana: '🪢 Bandana', cape: '🦸 Cape', tint: '🎨 Färg-tint' };
+const WARDROBE_CAT_LABELS = { preset: '✨ Outfits', skin: '🧑 Hud', hair: '💇 Hår', facialHair: '🧔 Ansiktshår', glasses: '👓 Glasögon', hat: '🎩 Hatt', shirt: '👕 Tröja', pants: '👖 Byxor', shoes: '👟 Skor', bandana: '🪢 Bandana', cape: '🦸 Cape', tint: '🎨 Färg-tint' };
 
 // Pre-set outfit-kombinationer — applicerar alla 5 categories i ett klick
 const WARDROBE_PRESETS = [
@@ -22104,6 +22143,12 @@ const WARDROBE_PRESETS = [
 let _wardrobeCurrentTab = 'skin';
 let _wardrobeRaf = 0;
 let _wardrobeAnimStart = 0;
+// v1.479: 360° rotation state — användare kan dra för att rotera, eller auto-spin
+let _wardrobeRotation = 0; // radians (0 = framifrån, π = bakifrån via mirror)
+let _wardrobeAutoSpin = false;
+let _wardrobeDragging = false;
+let _wardrobeDragStartX = 0;
+let _wardrobeDragStartRot = 0;
 function drawWardrobePreview() {
   if (!wardrobePreview) return;
   const c = wardrobePreview.getContext('2d');
@@ -22149,10 +22194,20 @@ function drawWardrobePreview() {
   c.ellipse(cx + tiltX * 0.5, cy + 78, 36, 9, 0, 0, Math.PI * 2);
   c.fill();
 
-  // Save context, apply idle-sway rotation around chest pivot
+  // v1.479: Auto-spin uppdaterar rotation om enabled (kontinuerlig 360-roll)
+  if (_wardrobeAutoSpin && !_wardrobeDragging) {
+    _wardrobeRotation += 0.018; // ~2.5s per varv
+    if (_wardrobeRotation > Math.PI * 2) _wardrobeRotation -= Math.PI * 2;
+  }
+  // 360-rotation X-scale: front (1), side (0), back (-1, mirrored)
+  // Clampa till min 0.08 så karaktären aldrig blir helt osynlig
+  const _rotCos = Math.cos(_wardrobeRotation);
+  const rotScaleX = Math.sign(_rotCos || 1) * Math.max(0.08, Math.abs(_rotCos));
+  // Save context, apply idle-sway rotation around chest pivot + 360-rotation
   c.save();
   c.translate(cx, cy);
   c.rotate(sway);
+  c.scale(rotScaleX, 1);
 
   // Body proportions (skala upp jämfört med gamla 26×36)
   const bodyW = 32, bodyH = 46;
@@ -22431,7 +22486,7 @@ function showWardrobeEquipFeedback(cardEl, label) {
 }
 function renderWardrobeTabs() {
   wardrobeTabsEl.innerHTML = '';
-  for (const cat of ['preset','skin','hair','glasses','hat','shirt','pants','bandana','cape','tint']) {
+  for (const cat of ['preset','skin','hair','facialHair','glasses','hat','shirt','pants','shoes','bandana','cape','tint']) {
     const btn = document.createElement('button');
     btn.className = 'small-btn' + (cat === _wardrobeCurrentTab ? ' active' : '');
     btn.textContent = WARDROBE_CAT_LABELS[cat];
@@ -22581,6 +22636,166 @@ function drawWardrobeCardThumb(canvas, cat, opt, ctxSkin) {
       // Dolt huvud framme
       c.fillStyle = ctxSkin || '#d4a574';
       c.beginPath(); c.arc(cx, cy - 8, 6, 0, Math.PI * 2); c.fill();
+    }
+  } else if (cat === 'shoes') {
+    // Mini-skor thumbnail
+    if (opt.style === 'none') {
+      c.fillStyle = '#3a3a3a';
+      c.strokeStyle = '#888';
+      c.lineWidth = 2;
+      c.setLineDash([4, 3]);
+      c.beginPath(); c.arc(cx, cy, W * 0.32, 0, Math.PI * 2); c.stroke();
+      c.setLineDash([]);
+      c.fillStyle = '#888';
+      c.font = 'bold 14px sans-serif';
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('🦶', cx, cy + 1);
+    } else {
+      // Bara skor (utan ben)
+      const col = opt.color || '#222';
+      if (opt.style === 'boot') {
+        c.fillStyle = col;
+        c.fillRect(cx - 10, cy - 8, 8, 12);
+        c.fillRect(cx - 12, cy + 4, 14, 4);
+        c.fillStyle = darken(col, 0.5);
+        c.fillRect(cx - 12, cy + 7, 14, 2);
+        // Snörning
+        c.strokeStyle = '#aa8a5a'; c.lineWidth = 0.6;
+        for (let i = 0; i < 4; i++) {
+          c.beginPath();
+          c.moveTo(cx - 9, cy - 7 + i * 2.5);
+          c.lineTo(cx - 3, cy - 7 + i * 2.5);
+          c.stroke();
+        }
+      } else if (opt.style === 'sneaker') {
+        c.fillStyle = col;
+        c.beginPath();
+        c.moveTo(cx - 12, cy + 4);
+        c.lineTo(cx + 8, cy + 4);
+        c.lineTo(cx + 8, cy - 1);
+        c.quadraticCurveTo(cx + 4, cy - 6, cx - 4, cy - 4);
+        c.lineTo(cx - 12, cy - 2);
+        c.closePath();
+        c.fill();
+        c.fillStyle = '#f0f0f0';
+        c.fillRect(cx - 12, cy + 4, 20, 3);
+      } else if (opt.style === 'hightop') {
+        c.fillStyle = col;
+        c.fillRect(cx - 12, cy - 4, 20, 8);
+        c.fillStyle = '#f0f0f0';
+        c.fillRect(cx - 12, cy + 4, 20, 3);
+        c.fillStyle = '#fff';
+        c.beginPath(); c.arc(cx - 2, cy, 1.5, 0, Math.PI * 2); c.fill();
+      } else if (opt.style === 'sandal') {
+        c.fillStyle = col;
+        c.fillRect(cx - 12, cy + 4, 20, 3);
+        c.strokeStyle = col; c.lineWidth = 1.8;
+        c.beginPath();
+        c.moveTo(cx - 8, cy + 4); c.lineTo(cx + 4, cy - 4);
+        c.moveTo(cx - 4, cy + 4); c.lineTo(cx + 6, cy - 6);
+        c.stroke();
+      } else if (opt.style === 'dress') {
+        c.fillStyle = col;
+        c.beginPath();
+        c.moveTo(cx - 12, cy);
+        c.lineTo(cx - 12, cy + 4);
+        c.quadraticCurveTo(cx - 8, cy + 6, cx + 10, cy + 5);
+        c.quadraticCurveTo(cx + 12, cy + 3, cx + 11, cy + 1);
+        c.quadraticCurveTo(cx + 6, cy - 1, cx - 12, cy);
+        c.closePath();
+        c.fill();
+        // Glans
+        c.fillStyle = lighten(col, 0.4);
+        c.fillRect(cx - 6, cy + 1, 8, 0.8);
+      }
+    }
+  } else if (cat === 'facialHair') {
+    // Ansikte med facial hair
+    if (opt.style === 'none') {
+      c.fillStyle = '#3a3a3a';
+      c.strokeStyle = '#888';
+      c.lineWidth = 2;
+      c.setLineDash([4, 3]);
+      c.beginPath(); c.arc(cx, cy, W * 0.32, 0, Math.PI * 2); c.stroke();
+      c.setLineDash([]);
+      c.fillStyle = '#888';
+      c.font = 'bold 14px sans-serif';
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('✕', cx, cy + 1);
+    } else {
+      // Huvud
+      c.fillStyle = ctxSkin || '#d4a574';
+      c.beginPath(); c.arc(cx, cy, W * 0.34, 0, Math.PI * 2); c.fill();
+      // Ögon (små prickar för referens)
+      c.fillStyle = '#0a0a0a';
+      c.beginPath(); c.arc(cx - 4, cy - 3, 1, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(cx + 4, cy - 3, 1, 0, Math.PI * 2); c.fill();
+      // Mun-position för referens
+      c.strokeStyle = '#5a2a2a'; c.lineWidth = 0.8;
+      c.beginPath(); c.moveTo(cx - 2, cy + 3); c.lineTo(cx + 2, cy + 3); c.stroke();
+      // Facial hair
+      const fc = opt.color || '#1a0a08';
+      c.fillStyle = fc;
+      if (opt.style === 'stubble') {
+        c.globalAlpha = 0.6;
+        for (let i = 0; i < 20; i++) {
+          c.fillRect(cx - 7 + (i * 0.7), cy + 1 + (i % 3) * 0.7, 0.5, 0.5);
+        }
+        c.globalAlpha = 1;
+      } else if (opt.style === 'mustache' || opt.style === 'handlebar') {
+        c.beginPath();
+        c.moveTo(cx - 5, cy + 1);
+        c.quadraticCurveTo(cx, cy - 1, cx + 5, cy + 1);
+        c.lineTo(cx + 4, cy + 2.5);
+        c.quadraticCurveTo(cx, cy + 1, cx - 4, cy + 2.5);
+        c.closePath();
+        c.fill();
+        if (opt.style === 'handlebar') {
+          c.beginPath(); c.arc(cx - 5, cy + 0.5, 1, 0, Math.PI * 2); c.fill();
+          c.beginPath(); c.arc(cx + 5, cy + 0.5, 1, 0, Math.PI * 2); c.fill();
+        }
+      } else if (opt.style === 'goatee') {
+        c.fillRect(cx - 2, cy + 4, 4, 4);
+      } else if (opt.style === 'soulpatch') {
+        c.fillRect(cx - 1, cy + 4, 2, 2);
+      } else if (opt.style === 'fullbeard') {
+        c.beginPath();
+        c.moveTo(cx - 9, cy);
+        c.quadraticCurveTo(cx - 11, cy + 6, cx, cy + 9);
+        c.quadraticCurveTo(cx + 11, cy + 6, cx + 9, cy);
+        c.lineTo(cx + 5, cy + 1);
+        c.quadraticCurveTo(cx, cy + 2, cx - 5, cy + 1);
+        c.closePath();
+        c.fill();
+      } else if (opt.style === 'goatbeard') {
+        c.beginPath();
+        c.moveTo(cx - 3, cy + 3);
+        c.lineTo(cx + 3, cy + 3);
+        c.lineTo(cx + 1, cy + 10);
+        c.lineTo(cx - 1, cy + 10);
+        c.closePath();
+        c.fill();
+        // Mini mustasch
+        c.beginPath();
+        c.moveTo(cx - 4, cy + 1);
+        c.quadraticCurveTo(cx, cy - 0.5, cx + 4, cy + 1);
+        c.lineTo(cx + 3, cy + 2);
+        c.lineTo(cx - 3, cy + 2);
+        c.closePath();
+        c.fill();
+      } else if (opt.style === 'circle') {
+        // Mustache + goatee circle
+        c.beginPath();
+        c.moveTo(cx - 4, cy + 1);
+        c.quadraticCurveTo(cx, cy - 0.5, cx + 4, cy + 1);
+        c.lineTo(cx + 3, cy + 2);
+        c.lineTo(cx - 3, cy + 2);
+        c.closePath();
+        c.fill();
+        c.fillRect(cx - 3, cy + 2, 1.2, 4);
+        c.fillRect(cx + 2, cy + 2, 1.2, 4);
+        c.fillRect(cx - 3, cy + 5, 6, 3);
+      }
     }
   }
 }
@@ -22931,6 +23146,46 @@ if (_btnWardrobeReset) _btnWardrobeReset.addEventListener('click', resetWardrobe
 const _btnWardrobePhoto = document.getElementById('btn-wardrobe-photo');
 if (_btnWardrobePhoto) _btnWardrobePhoto.addEventListener('click', takeWardrobePhoto);
 bindWardrobeSlotHandlers();
+// v1.479: Touch/mouse drag på wardrobe-preview för 360° rotation
+if (wardrobePreview) {
+  const _startDrag = (clientX) => {
+    _wardrobeDragging = true;
+    _wardrobeAutoSpin = false;
+    _wardrobeDragStartX = clientX;
+    _wardrobeDragStartRot = _wardrobeRotation;
+  };
+  const _moveDrag = (clientX) => {
+    if (!_wardrobeDragging) return;
+    const dx = clientX - _wardrobeDragStartX;
+    // 250px drag = 1 hel rotation
+    _wardrobeRotation = _wardrobeDragStartRot + (dx / 250) * Math.PI * 2;
+    // Normalisera till 0..2π
+    while (_wardrobeRotation < 0) _wardrobeRotation += Math.PI * 2;
+    while (_wardrobeRotation >= Math.PI * 2) _wardrobeRotation -= Math.PI * 2;
+  };
+  const _endDrag = () => { _wardrobeDragging = false; };
+  // Mouse
+  wardrobePreview.addEventListener('mousedown', (e) => { _startDrag(e.clientX); e.preventDefault(); });
+  window.addEventListener('mousemove', (e) => _moveDrag(e.clientX));
+  window.addEventListener('mouseup', _endDrag);
+  // Touch
+  wardrobePreview.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) { _startDrag(e.touches[0].clientX); e.preventDefault(); }
+  }, { passive: false });
+  wardrobePreview.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 1) { _moveDrag(e.touches[0].clientX); e.preventDefault(); }
+  }, { passive: false });
+  wardrobePreview.addEventListener('touchend', _endDrag);
+  // Double-click/tap = toggla auto-spin
+  let _lastTap = 0;
+  wardrobePreview.addEventListener('click', () => {
+    const now = performance.now();
+    if (now - _lastTap < 350) {
+      _wardrobeAutoSpin = !_wardrobeAutoSpin;
+    }
+    _lastTap = now;
+  });
+}
 
 // ============ PHOTO BOOTH ============
 function takeWardrobePhoto() {
@@ -37629,6 +37884,133 @@ function drawMuzzleFlash(ctx, weaponTipX, sinceShot, weaponType) {
   ctx.restore();
 }
 
+// v1.479: Cape som hänger BAKOM den upprätta kroppen. Frame är samma som
+// drawNakedBody: x ~-8 till +8, y -22 till +20. Cape går från axlar (y=-4) ner.
+function drawCapeOnUprightBody(ctx, style, color, flash, now, moving) {
+  const wave = Math.sin((now || 0) / 350) * (moving ? 2.4 : 1.2);
+  const trailDown = moving ? 22 : 19;
+  const col = flash ? '#fff' : (color || '#aa1818');
+  const dark = flash ? '#fff' : darken(color || '#aa1818', 0.45);
+  const outline = flash ? '#fff' : '#0a0a0a';
+  ctx.save();
+  if (style === 'cape') {
+    // Trapets-cape: smal vid axlar, bredare neråt
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-6, -4);                              // axel-väst
+    ctx.lineTo(6, -4);                                // axel-öst
+    ctx.lineTo(8 + wave, trailDown);                  // hem-öst
+    ctx.lineTo(-8 - wave, trailDown);                 // hem-väst
+    ctx.closePath();
+    ctx.fill();
+    // Mitten-fold (mörk stripe)
+    ctx.fillStyle = dark;
+    ctx.beginPath();
+    ctx.moveTo(-1.5, -4);
+    ctx.lineTo(1.5, -4);
+    ctx.lineTo(2 + wave * 0.4, trailDown);
+    ctx.lineTo(-2 - wave * 0.4, trailDown);
+    ctx.closePath();
+    ctx.fill();
+    // Outline
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-6, -4);
+    ctx.lineTo(6, -4);
+    ctx.lineTo(8 + wave, trailDown);
+    ctx.lineTo(-8 - wave, trailDown);
+    ctx.closePath();
+    ctx.stroke();
+  } else if (style === 'rainbow') {
+    const colors = ['#ff3a3a', '#ff8a3a', '#ffd54a', '#5aff5a', '#3acaff', '#aa3aff'];
+    const segs = colors.length;
+    for (let i = 0; i < segs; i++) {
+      const t0 = -6 + 12 * (i / segs);
+      const t1 = -6 + 12 * ((i + 1) / segs);
+      const b0 = -8 - wave + (16 + wave * 2) * (i / segs);
+      const b1 = -8 - wave + (16 + wave * 2) * ((i + 1) / segs);
+      ctx.fillStyle = flash ? '#fff' : colors[i];
+      ctx.beginPath();
+      ctx.moveTo(t0, -4);
+      ctx.lineTo(t1, -4);
+      ctx.lineTo(b1, trailDown);
+      ctx.lineTo(b0, trailDown);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (style === 'flames') {
+    // Jagged flame-edges
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-6, -4);
+    ctx.lineTo(6, -4);
+    for (let i = 6; i >= -6; i -= 2) {
+      const flick = (i % 4 === 0 ? -3 : -6) + Math.sin((now || 0) / 150 + i) * 2;
+      ctx.lineTo(i + wave * 0.3, trailDown + flick);
+    }
+    ctx.closePath();
+    ctx.fill();
+    // Hot core
+    ctx.fillStyle = flash ? '#fff' : '#ffae3a';
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.ellipse(0, trailDown - 5, 4, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  } else if (style === 'tattered') {
+    // Trasiga kanter
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-6, -4);
+    ctx.lineTo(6, -4);
+    for (let i = 6; i >= -6; i -= 1.5) {
+      const torn = (i % 3 === 0) ? trailDown - 4 : trailDown - (i % 4) * 1.5;
+      ctx.lineTo(i + wave * 0.3, torn);
+    }
+    ctx.closePath();
+    ctx.fill();
+    // Hål
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.beginPath(); ctx.ellipse(-2, 7, 1.2, 1.5, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(3, 12, 1.4, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+  } else if (style === 'wings') {
+    // Två vinge-blades på axlarna
+    ctx.fillStyle = col;
+    for (const side of [-1, 1]) {
+      ctx.save();
+      ctx.translate(side * 5, -3);
+      ctx.rotate(side * (0.25 + Math.sin((now || 0) / 400) * 0.05));
+      // Vinge-blade
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(side * 9, 4, side * 12, 16);
+      ctx.quadraticCurveTo(side * 6, 14, 0, 8);
+      ctx.closePath();
+      ctx.fill();
+      // Fjäder-linjer
+      ctx.strokeStyle = dark; ctx.lineWidth = 0.4;
+      for (let i = 1; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(0, i * 2);
+        ctx.lineTo(side * (4 + i * 2), 5 + i * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  } else {
+    // Default: trapets-cape (basic style för okända varianter)
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-6, -4);
+    ctx.lineTo(6, -4);
+    ctx.lineTo(8 + wave, trailDown);
+    ctx.lineTo(-8 - wave, trailDown);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
 // v1.462: NAKED CHARACTER drawn via canvas primitives — cleaner än mitt pixel art.
 // Profile view (facing east default). Mirror för west via ctx.scale(-1,1) i caller.
 // v1.464: REFINED design — compressed proportions (~50px total instead of 66px),
@@ -37693,30 +38075,166 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   // v1.475: FACE shading FÖRENKLAD — skin base + bara subtle west-shadow
   // (det face shadow som redan finns ovan från head shape). Inga forehead-,
   // cheekbone-, brow ridge-, eye socket-, temple-, jaw-, chin-shadings.
-  // === BUZZ CUT (snaggad) — subtle stubble on top of head ===
-  ctx.fillStyle = stubbleColor;
-  ctx.globalAlpha = 0.55;
-  ctx.beginPath();
-  ctx.moveTo(-4, -19);
-  ctx.quadraticCurveTo(2, -20.5, 6, -19);
-  ctx.quadraticCurveTo(7, -17, 6, -15);    // hairline east
-  ctx.lineTo(-4, -15);                       // hairline straight (low buzz)
-  ctx.quadraticCurveTo(-5, -17, -4, -19);
-  ctx.closePath();
-  ctx.fill();
-  ctx.globalAlpha = 1;
-  // Stubble texture dots (sparse, irregular)
-  ctx.fillStyle = stubbleColor;
-  ctx.fillRect(-2, -18, 0.6, 0.6);
-  ctx.fillRect(1, -19, 0.6, 0.6);
-  ctx.fillRect(3, -18, 0.6, 0.6);
-  ctx.fillRect(-1, -17, 0.5, 0.5);
-  ctx.fillRect(2, -17, 0.5, 0.5);
-  ctx.fillRect(4, -17, 0.5, 0.5);
-  ctx.fillRect(-3, -16, 0.5, 0.5);
-  ctx.fillRect(0, -16, 0.5, 0.5);
-  ctx.fillRect(3, -16, 0.5, 0.5);
-  ctx.fillRect(5, -16, 0.5, 0.5);
+  // v1.479: HAIR system — om hair-style equipped, rendera den; annars buzz cut
+  const hStyle = cos.hairStyle || 'bald';
+  const hCol = flash ? '#fff' : (cos.hairColor || stubbleColor);
+  const hShadow = flash ? '#fff' : darken(cos.hairColor || '#2a1a0a', 0.40);
+  const hLight = flash ? '#fff' : lighten(cos.hairColor || '#2a1a0a', 0.22);
+  if (hStyle === 'bald') {
+    // BUZZ CUT (snaggad) — subtle stubble on top of head
+    ctx.fillStyle = stubbleColor;
+    ctx.globalAlpha = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(-4, -19);
+    ctx.quadraticCurveTo(2, -20.5, 6, -19);
+    ctx.quadraticCurveTo(7, -17, 6, -15);
+    ctx.lineTo(-4, -15);
+    ctx.quadraticCurveTo(-5, -17, -4, -19);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // Stubble dots
+    ctx.fillStyle = stubbleColor;
+    ctx.fillRect(-2, -18, 0.6, 0.6);
+    ctx.fillRect(1, -19, 0.6, 0.6);
+    ctx.fillRect(3, -18, 0.6, 0.6);
+    ctx.fillRect(-1, -17, 0.5, 0.5);
+    ctx.fillRect(2, -17, 0.5, 0.5);
+    ctx.fillRect(4, -17, 0.5, 0.5);
+    ctx.fillRect(-3, -16, 0.5, 0.5);
+    ctx.fillRect(0, -16, 0.5, 0.5);
+    ctx.fillRect(3, -16, 0.5, 0.5);
+    ctx.fillRect(5, -16, 0.5, 0.5);
+  } else if (hStyle === 'short') {
+    // Kort hår — täcker övre delen av huvudet
+    ctx.fillStyle = hCol;
+    ctx.beginPath();
+    ctx.moveTo(-4, -19);
+    ctx.quadraticCurveTo(2, -21, 6, -19);
+    ctx.quadraticCurveTo(7.2, -16, 6.5, -13.5);
+    ctx.lineTo(2, -14);                // hairline forward
+    ctx.lineTo(-4, -14.5);
+    ctx.quadraticCurveTo(-6, -16, -5, -18.5);
+    ctx.closePath();
+    ctx.fill();
+    // Subtle highlight on crown
+    ctx.fillStyle = hLight;
+    ctx.beginPath();
+    ctx.ellipse(2, -19, 2.5, 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-4, -19);
+    ctx.quadraticCurveTo(2, -21, 6, -19);
+    ctx.quadraticCurveTo(7.2, -16, 6.5, -13.5);
+    ctx.stroke();
+  } else if (hStyle === 'mohawk') {
+    // Mohawk — vertikal stripe mitt på huvudet
+    ctx.fillStyle = hCol;
+    ctx.beginPath();
+    ctx.moveTo(0, -19);
+    ctx.lineTo(0, -22.5);
+    ctx.lineTo(3, -22.8);
+    ctx.lineTo(3.5, -19);
+    ctx.lineTo(3, -16);
+    ctx.lineTo(0.5, -16);
+    ctx.closePath();
+    ctx.fill();
+    // Spikes
+    ctx.beginPath();
+    ctx.moveTo(0.5, -22.5);
+    ctx.lineTo(0.8, -24);
+    ctx.lineTo(1.3, -22.7);
+    ctx.lineTo(1.8, -24.2);
+    ctx.lineTo(2.3, -22.7);
+    ctx.lineTo(2.7, -24);
+    ctx.lineTo(3, -22.5);
+    ctx.fill();
+    // Sides shaved (stubble effect)
+    ctx.fillStyle = stubbleColor;
+    ctx.globalAlpha = 0.4;
+    ctx.fillRect(-4, -18, 4, 4);
+    ctx.fillRect(3.5, -18, 3, 4);
+    ctx.globalAlpha = 1;
+  } else if (hStyle === 'long') {
+    // Långt hår — flyter bakåt och ner till skuldror
+    ctx.fillStyle = hCol;
+    // Topp + back-flow
+    ctx.beginPath();
+    ctx.moveTo(-5, -19);
+    ctx.quadraticCurveTo(2, -21.5, 6.5, -19);
+    ctx.quadraticCurveTo(7.5, -15, 6.8, -11);
+    ctx.lineTo(-6, -10);
+    ctx.lineTo(-6, -7);                  // hair down to neck
+    ctx.lineTo(-3, -4);                  // hair flow to shoulder
+    ctx.quadraticCurveTo(-7, -8, -7, -14);
+    ctx.quadraticCurveTo(-7, -18, -5, -19);
+    ctx.closePath();
+    ctx.fill();
+    // Front bangs (slight fringe)
+    ctx.fillStyle = hCol;
+    ctx.beginPath();
+    ctx.moveTo(0, -16);
+    ctx.lineTo(2, -13);
+    ctx.lineTo(5, -13);
+    ctx.lineTo(6, -16);
+    ctx.closePath();
+    ctx.fill();
+    // Highlights
+    ctx.fillStyle = hLight;
+    ctx.fillRect(-6.5, -16, 1, 6);
+    ctx.fillRect(0, -20, 1.5, 1);
+    // Outline
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-5, -19);
+    ctx.quadraticCurveTo(2, -21.5, 6.5, -19);
+    ctx.stroke();
+  } else if (hStyle === 'ponytail') {
+    // Kort topp + svans bakåt (västra sidan)
+    ctx.fillStyle = hCol;
+    ctx.beginPath();
+    ctx.moveTo(-4, -19);
+    ctx.quadraticCurveTo(2, -21, 6, -19);
+    ctx.quadraticCurveTo(7, -16, 6, -14);
+    ctx.lineTo(-4, -14.5);
+    ctx.quadraticCurveTo(-6, -16, -5, -18.5);
+    ctx.closePath();
+    ctx.fill();
+    // Ponytail bakåt (west)
+    ctx.fillStyle = hCol;
+    ctx.beginPath();
+    ctx.ellipse(-6.5, -13, 1.5, 4, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Ponytail tie (small dark band)
+    ctx.fillStyle = hShadow;
+    ctx.fillRect(-7, -16, 1, 0.6);
+    // Highlight
+    ctx.fillStyle = hLight;
+    ctx.fillRect(0, -20, 1.5, 0.8);
+  } else if (hStyle === 'mullet') {
+    // Kort framme + lång bak — business in front, party in back
+    ctx.fillStyle = hCol;
+    // Top short
+    ctx.beginPath();
+    ctx.moveTo(-4, -19);
+    ctx.quadraticCurveTo(2, -21, 6, -19);
+    ctx.quadraticCurveTo(7, -16, 6, -14);
+    ctx.lineTo(0, -14.5);
+    ctx.quadraticCurveTo(-5, -16, -5, -18.5);
+    ctx.closePath();
+    ctx.fill();
+    // Back long flowing
+    ctx.beginPath();
+    ctx.moveTo(-5, -18);
+    ctx.lineTo(-6.5, -14);
+    ctx.lineTo(-6, -7);
+    ctx.lineTo(-3, -6);
+    ctx.lineTo(-3.5, -10);
+    ctx.lineTo(-4.5, -16);
+    ctx.closePath();
+    ctx.fill();
+  }
   // v1.477: BIGGER face features — eyes, brows, nose, mouth tydligare visible.
   // Behåller arg/militant uttryck (angled brows, frown).
   // === EYEBROWS — thicker + angled (anger) ===
@@ -38139,14 +38657,828 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(frX - 1.5, frTop + 16);
   ctx.closePath();
   ctx.stroke();
-  // Toe outlines (subtle)
-  ctx.lineWidth = 0.5;
+  // Toe outlines (subtle) — bara om barfota
+  if (!cos.shoes || !cos.shoes.style || cos.shoes.style === 'none') {
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.arc(frX + 4, frTop + 15.3, 0.55, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(frX + 4.3, frTop + 15.7, 0.4, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // v1.479: PANTS overlay (täcker ben från höft till ankel)
+  if (cos.pants && cos.pants !== null && cos.pants !== '#') {
+    drawPantsOverlay(ctx, cos.pants, frX, frTop, bkX, bkTop, flash);
+  }
+  // v1.479: SHIRT overlay (täcker torso från axlar till midja)
+  if (cos.shirt && cos.shirt !== null) {
+    drawShirtOverlay(ctx, cos.shirt, flash);
+  }
+  // v1.479: SHOES overlay (täcker fötter när sko equippad)
+  if (cos.shoes && cos.shoes.style && cos.shoes.style !== 'none') {
+    drawShoeOnFoot(ctx, frX, frTop + 13, cos.shoes.style, cos.shoes.color, flash, false); // front (lit)
+    drawShoeOnFoot(ctx, bkX, bkTop + 13, cos.shoes.style, cos.shoes.color, flash, true);  // back (dimmer)
+  }
+  // v1.479: FACIAL HAIR overlay (på underdel av ansikte)
+  if (cos.facialHair && cos.facialHair.style && cos.facialHair.style !== 'none') {
+    drawFacialHair(ctx, cos.facialHair.style, cos.facialHair.color, flash);
+  }
+  // v1.479: BANDANA overlay — runt pannan (y ~-15 till -13)
+  if (cos.bandana) {
+    drawBandanaOnHead(ctx, cos.bandana, flash);
+  }
+  // v1.479: GLASSES overlay — på ögonen (y ~-12.7)
+  if (cos.glasses && cos.glasses.style && cos.glasses.style !== 'none') {
+    drawGlassesOnFace(ctx, cos.glasses.style, cos.glasses.color, flash);
+  }
+  // v1.479: HAT overlay — på toppen av huvudet
+  if (cos.hat && cos.hat.style && cos.hat.style !== 'none') {
+    drawHatOnHead(ctx, cos.hat.style, cos.hat.color, flash);
+  }
+}
+
+// v1.479: Bandana runt pannan i naked-body koords (y -15 till -13)
+function drawBandanaOnHead(ctx, color, flash) {
+  if (!color) return;
+  const col = flash ? '#fff' : color;
+  ctx.fillStyle = col;
+  // Bandana stripe runt pannan
   ctx.beginPath();
-  ctx.arc(frX + 4, frTop + 15.3, 0.55, 0, Math.PI * 2);
+  ctx.moveTo(-5, -15.5);
+  ctx.quadraticCurveTo(1, -16.5, 7, -15.5);
+  ctx.quadraticCurveTo(7.2, -13.8, 6.5, -13);
+  ctx.lineTo(-4.5, -13);
+  ctx.quadraticCurveTo(-6, -13.8, -5, -15.5);
+  ctx.closePath();
+  ctx.fill();
+  // Knot at back (west side)
+  ctx.fillStyle = flash ? '#fff' : darken(color, 0.30);
+  ctx.beginPath();
+  ctx.arc(-5.5, -14.3, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+  // Trailing ends from knot
+  ctx.beginPath();
+  ctx.moveTo(-6.5, -14);
+  ctx.lineTo(-8, -10);
+  ctx.lineTo(-7, -10);
+  ctx.lineTo(-5.5, -13.5);
+  ctx.closePath();
+  ctx.fill();
+  // Highlight stripe (subtle)
+  ctx.fillStyle = flash ? '#fff' : lighten(color, 0.20);
+  ctx.fillRect(-4, -15.2, 9, 0.4);
+}
+
+// v1.479: Glasögon på ansiktet i naked-body koords
+// Ögon: vänster (west) på x=0.6 y=-12.7, höger (east) på x=4.3 y=-12.7
+function drawGlassesOnFace(ctx, style, color, flash) {
+  const col = flash ? '#fff' : (color || '#0a0a0a');
+  ctx.fillStyle = col;
+  ctx.strokeStyle = col;
+  if (style === 'shades') {
+    // Två rektangulära linser
+    ctx.fillRect(-0.7, -13.4, 2.5, 1.4);
+    ctx.fillRect(3.0, -13.4, 2.5, 1.4);
+    // Bridge
+    ctx.fillRect(1.8, -13.0, 1.2, 0.4);
+  } else if (style === 'aviator') {
+    // Tear-drop linser
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.ellipse(0.7, -12.6, 1.5, 1.0, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(4.3, -12.6, 1.5, 1.0, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = col + 'aa';
+    ctx.beginPath();
+    ctx.ellipse(0.7, -12.6, 1.3, 0.85, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(4.3, -12.6, 1.3, 0.85, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Bridge
+    ctx.strokeStyle = col; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(2.2, -12.8); ctx.lineTo(2.8, -12.8);
+    ctx.stroke();
+  } else if (style === 'round') {
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.arc(0.7, -12.6, 1.2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(4.3, -12.6, 1.2, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(1.9, -12.6); ctx.lineTo(3.1, -12.6);
+    ctx.stroke();
+  } else if (style === 'visor') {
+    // Cyber-visor — bred stripe över ögonen
+    ctx.shadowColor = col; ctx.shadowBlur = 4;
+    ctx.fillRect(-1, -13.2, 7, 1.2);
+    ctx.shadowBlur = 0;
+    // Light reflection
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillRect(-0.5, -13.0, 1.5, 0.3);
+  } else if (style === 'monocle') {
+    // Bara en lins på höger öga (east)
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.arc(4.3, -12.6, 1.3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = col + '50';
+    ctx.beginPath();
+    ctx.arc(4.3, -12.6, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Chain
+    ctx.strokeStyle = col; ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(5.6, -12.0);
+    ctx.lineTo(6.5, -9);
+    ctx.stroke();
+  }
+}
+
+// v1.479: Hatt på toppen av huvudet i naked-body koords
+// Huvudtopp y ~-19/-20. Mitt-x = 1.
+function drawHatOnHead(ctx, style, color, flash) {
+  const col = flash ? '#fff' : (color || '#222');
+  const dark = flash ? '#fff' : darken(color || '#222', 0.50);
+  const light = flash ? '#fff' : lighten(color || '#222', 0.30);
+  const outline = flash ? '#fff' : '#0a0a0a';
+  ctx.save();
+  if (style === 'beanie') {
+    // Stickad mössa — kupol över hela huvudet
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-5.5, -16);
+    ctx.quadraticCurveTo(-6, -21, 1, -22.5);
+    ctx.quadraticCurveTo(7.5, -21, 7, -16);
+    ctx.lineTo(-5.5, -16);
+    ctx.closePath();
+    ctx.fill();
+    // Cuff (folded edge)
+    ctx.fillStyle = dark;
+    ctx.fillRect(-5.5, -16, 12.5, 1);
+    // Pom-pom
+    ctx.fillStyle = flash ? '#fff' : '#f4f4f4';
+    ctx.beginPath();
+    ctx.arc(1, -23.2, 1.0, 0, Math.PI * 2);
+    ctx.fill();
+    // Knit-stripes
+    ctx.strokeStyle = dark; ctx.lineWidth = 0.4;
+    for (let i = -5; i < 7; i += 1.5) {
+      ctx.beginPath();
+      ctx.moveTo(i, -16); ctx.lineTo(i + 0.3, -21);
+      ctx.stroke();
+    }
+    // Outline
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-5.5, -16);
+    ctx.quadraticCurveTo(-6, -21, 1, -22.5);
+    ctx.quadraticCurveTo(7.5, -21, 7, -16);
+    ctx.stroke();
+  } else if (style === 'cap') {
+    // Baseball-cap — kupol + brim east
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-5, -16);
+    ctx.quadraticCurveTo(-5.5, -21, 1, -22);
+    ctx.quadraticCurveTo(6.5, -21, 6, -16);
+    ctx.lineTo(-5, -16);
+    ctx.closePath();
+    ctx.fill();
+    // Brim sticking east-forward
+    ctx.fillStyle = dark;
+    ctx.beginPath();
+    ctx.moveTo(2, -16.5);
+    ctx.lineTo(10, -16);
+    ctx.lineTo(10, -15);
+    ctx.lineTo(2, -15.5);
+    ctx.closePath();
+    ctx.fill();
+    // Logo dot
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.fillRect(0, -19, 1, 1);
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-5, -16);
+    ctx.quadraticCurveTo(-5.5, -21, 1, -22);
+    ctx.quadraticCurveTo(6.5, -21, 6, -16);
+    ctx.stroke();
+  } else if (style === 'helmet') {
+    // Stridshjälm — bred rund + chinstrap
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-6, -14);
+    ctx.quadraticCurveTo(-7, -22, 1, -23);
+    ctx.quadraticCurveTo(8, -22, 7, -14);
+    ctx.lineTo(-6, -14);
+    ctx.closePath();
+    ctx.fill();
+    // Visir-band
+    ctx.fillStyle = dark;
+    ctx.fillRect(-6, -15.5, 13, 1.5);
+    // Helmet stripe (top)
+    ctx.fillStyle = light;
+    ctx.fillRect(0.5, -22.5, 1, 7);
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-6, -14);
+    ctx.quadraticCurveTo(-7, -22, 1, -23);
+    ctx.quadraticCurveTo(8, -22, 7, -14);
+    ctx.stroke();
+  } else if (style === 'cowboy') {
+    // Cowboy-hatt — kupol + bred brim
+    ctx.fillStyle = col;
+    // Kupol
+    ctx.beginPath();
+    ctx.moveTo(-3, -17);
+    ctx.quadraticCurveTo(-3.5, -22, 1, -23);
+    ctx.quadraticCurveTo(5.5, -22, 5, -17);
+    ctx.lineTo(-3, -17);
+    ctx.closePath();
+    ctx.fill();
+    // Bred brim
+    ctx.beginPath();
+    ctx.ellipse(1, -16.5, 9, 1.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Hat-band (mörkare)
+    ctx.fillStyle = dark;
+    ctx.fillRect(-3, -17.5, 8, 0.7);
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.ellipse(1, -16.5, 9, 1.4, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (style === 'crown') {
+    // Krona — 5 spikar
+    ctx.fillStyle = col;
+    ctx.shadowColor = col; ctx.shadowBlur = 5;
+    ctx.beginPath();
+    ctx.moveTo(-4, -17);
+    ctx.lineTo(-3, -22);
+    ctx.lineTo(-1.5, -18.5);
+    ctx.lineTo(0, -23);
+    ctx.lineTo(1.5, -18.5);
+    ctx.lineTo(3, -23);
+    ctx.lineTo(4.5, -18.5);
+    ctx.lineTo(5.5, -22);
+    ctx.lineTo(6, -17);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Gems
+    ctx.fillStyle = flash ? '#fff' : '#ff3a3a';
+    ctx.beginPath();
+    ctx.arc(0, -19, 0.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#3acaff';
+    ctx.beginPath();
+    ctx.arc(3, -19, 0.5, 0, Math.PI * 2); ctx.fill();
+  } else if (style === 'halo') {
+    // Gloria — gul ring ovanför huvudet
+    ctx.strokeStyle = col; ctx.lineWidth = 1.2;
+    ctx.shadowColor = col; ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.ellipse(1, -22, 4, 0.8, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  } else if (style === 'horns') {
+    // Horn — två böjda horn
+    ctx.fillStyle = col;
+    // Vänster horn
+    ctx.beginPath();
+    ctx.moveTo(-3, -18);
+    ctx.quadraticCurveTo(-5, -21, -4.5, -23);
+    ctx.lineTo(-3.5, -22);
+    ctx.quadraticCurveTo(-3, -20, -2, -18);
+    ctx.closePath();
+    ctx.fill();
+    // Höger horn
+    ctx.beginPath();
+    ctx.moveTo(5, -18);
+    ctx.quadraticCurveTo(7, -21, 6.5, -23);
+    ctx.lineTo(5.5, -22);
+    ctx.quadraticCurveTo(5, -20, 4, -18);
+    ctx.closePath();
+    ctx.fill();
+  } else if (style === 'top') {
+    // Cylinderhatt
+    ctx.fillStyle = col;
+    ctx.fillRect(-2.5, -25, 7, 6);
+    // Brim
+    ctx.beginPath();
+    ctx.ellipse(1, -19, 6.5, 0.8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Hatband (röd stripe)
+    ctx.fillStyle = flash ? '#fff' : '#aa1818';
+    ctx.fillRect(-2.5, -20, 7, 1);
+    // Top-shape highlight
+    ctx.fillStyle = light;
+    ctx.fillRect(-1, -25, 1, 5);
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    ctx.strokeRect(-2.5, -25, 7, 6);
+  } else if (style === 'wizard') {
+    // Trollkarls-hatt (spetsig)
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-4, -18);
+    ctx.lineTo(1, -26);
+    ctx.lineTo(6, -18);
+    ctx.closePath();
+    ctx.fill();
+    // Slim brim
+    ctx.beginPath();
+    ctx.ellipse(1, -18, 6.5, 0.7, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Stars
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.font = 'bold 4px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('✦', 0, -21);
+    ctx.fillText('✦', 2, -23);
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(-4, -18);
+    ctx.lineTo(1, -26);
+    ctx.lineTo(6, -18);
+    ctx.closePath();
+    ctx.stroke();
+  } else if (style === 'pumpkin') {
+    // Pumpa-hjälm
+    ctx.fillStyle = col;
+    ctx.shadowColor = '#ff7a14'; ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.arc(1, -20, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Stripes vertikalt (pumpa-ribbor)
+    ctx.strokeStyle = dark; ctx.lineWidth = 0.4;
+    for (let i = -3; i <= 5; i += 2) {
+      ctx.beginPath();
+      ctx.moveTo(i, -24); ctx.lineTo(i, -16);
+      ctx.stroke();
+    }
+    // Stem
+    ctx.fillStyle = flash ? '#fff' : '#3a2a08';
+    ctx.fillRect(0.5, -25.5, 1, 1.5);
+    // Glödande ögon
+    ctx.fillStyle = flash ? '#fff' : '#ffae3a';
+    ctx.beginPath();
+    ctx.arc(-1, -20, 0.6, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(3, -20, 0.6, 0, Math.PI * 2); ctx.fill();
+  } else if (style === 'santa') {
+    // Tomtekåpa
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-4, -17);
+    ctx.lineTo(7, -23);
+    ctx.lineTo(7, -17);
+    ctx.closePath();
+    ctx.fill();
+    // White trim
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.fillRect(-4, -18, 11, 1.2);
+    // Pom-pom
+    ctx.beginPath();
+    ctx.arc(7, -23, 1.0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// v1.479: Shirt overlay — täcker torso (y -4 till 9) med t-shirt
+function drawShirtOverlay(ctx, color, flash) {
+  const col = flash ? '#fff' : color;
+  const dark = flash ? '#fff' : darken(color, 0.35);
+  const light = flash ? '#fff' : lighten(color, 0.22);
+  const outline = flash ? '#fff' : '#0a0a0a';
+  // Shirt body — följer torso silhouette + sticker ut för sleeves
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(-7, -4);                       // västra axel (extends west för sleeve)
+  ctx.lineTo(7, -4);                         // östra axel (extends east för sleeve)
+  ctx.lineTo(8, -1);                         // sleeve cap east
+  ctx.lineTo(6.5, 3);                        // sleeve hem east
+  ctx.lineTo(6.5, 4);                        // armhole
+  ctx.quadraticCurveTo(8, 0.5, 6, -1);      // (skip — drawn outside)
+  ctx.lineTo(6, 4);
+  ctx.lineTo(5, 9);                          // hem east
+  ctx.lineTo(-4, 9);                         // hem west
+  ctx.lineTo(-5, 4);
+  ctx.quadraticCurveTo(-8, 0, -7, -4);
+  ctx.closePath();
+  ctx.fill();
+  // Sleeves (separat — sticker ut östra/västra sidan)
+  ctx.fillStyle = col;
+  // Östra sleeve
+  ctx.beginPath();
+  ctx.moveTo(6, -4);
+  ctx.lineTo(9, -1);
+  ctx.lineTo(8, 3);
+  ctx.lineTo(6, 4);
+  ctx.closePath();
+  ctx.fill();
+  // Västra sleeve
+  ctx.beginPath();
+  ctx.moveTo(-6, -4);
+  ctx.lineTo(-9, -1);
+  ctx.lineTo(-8, 3);
+  ctx.lineTo(-6, 4);
+  ctx.closePath();
+  ctx.fill();
+  // Neckline (V-cut)
+  ctx.fillStyle = dark;
+  ctx.beginPath();
+  ctx.moveTo(-2, -4);
+  ctx.lineTo(0.5, -1.5);
+  ctx.lineTo(3, -4);
+  ctx.closePath();
+  ctx.fill();
+  // Sleeve hems (darker stripe at end of sleeves)
+  ctx.fillStyle = dark;
+  ctx.fillRect(7, 2.5, 2, 0.7);
+  ctx.fillRect(-9, 2.5, 2, 0.7);
+  // Bottom hem
+  ctx.fillStyle = dark;
+  ctx.fillRect(-4.5, 8.5, 9.5, 0.6);
+  // Subtle light on east side
+  ctx.fillStyle = light;
+  ctx.fillRect(5.5, -2, 0.6, 10);
+  // Outline
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(-7, -4);
+  ctx.lineTo(-9, -1);
+  ctx.lineTo(-8, 3);
+  ctx.lineTo(-5, 4);
+  ctx.lineTo(-4, 9);
+  ctx.lineTo(5, 9);
+  ctx.lineTo(6, 4);
+  ctx.lineTo(9, 3);
+  ctx.lineTo(8, -1);
+  ctx.lineTo(7, -4);
+  ctx.lineTo(3, -4);
+  ctx.lineTo(0.5, -1.5);
+  ctx.lineTo(-2, -4);
+  ctx.closePath();
+  ctx.stroke();
+}
+
+// v1.479: Pants overlay — täcker båda ben från höft till ankel
+function drawPantsOverlay(ctx, color, frX, frTop, bkX, bkTop, flash) {
+  const col = flash ? '#fff' : color;
+  const dark = flash ? '#fff' : darken(color, 0.35);
+  const light = flash ? '#fff' : lighten(color, 0.18);
+  const outline = flash ? '#fff' : '#0a0a0a';
+  // Waistband (covers briefs)
+  ctx.fillStyle = dark;
+  ctx.fillRect(-5.5, 8.5, 12, 2);
+  // BACK LEG pants
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(bkX - 2.8, bkTop - 1);
+  ctx.lineTo(bkX + 2.8, bkTop - 1);
+  ctx.quadraticCurveTo(bkX + 3.2, bkTop + 5, bkX + 2.4, bkTop + 9);
+  ctx.quadraticCurveTo(bkX + 3, bkTop + 11, bkX + 2.2, bkTop + 13);
+  ctx.lineTo(bkX - 2.2, bkTop + 13);
+  ctx.quadraticCurveTo(bkX - 3, bkTop + 11, bkX - 2.4, bkTop + 9);
+  ctx.quadraticCurveTo(bkX - 3.2, bkTop + 5, bkX - 2.8, bkTop - 1);
+  ctx.closePath();
+  ctx.fill();
+  // Back leg shadow stripe (west)
+  ctx.fillStyle = dark;
+  ctx.fillRect(bkX - 2.5, bkTop + 1, 1, 11);
+  // FRONT LEG pants
+  ctx.fillStyle = col;
+  ctx.beginPath();
+  ctx.moveTo(frX - 2.8, frTop - 1);
+  ctx.lineTo(frX + 2.8, frTop - 1);
+  ctx.quadraticCurveTo(frX + 3.2, frTop + 5, frX + 2.4, frTop + 9);
+  ctx.quadraticCurveTo(frX + 3, frTop + 11, frX + 2.2, frTop + 13);
+  ctx.lineTo(frX - 2.2, frTop + 13);
+  ctx.quadraticCurveTo(frX - 3, frTop + 11, frX - 2.4, frTop + 9);
+  ctx.quadraticCurveTo(frX - 3.2, frTop + 5, frX - 2.8, frTop - 1);
+  ctx.closePath();
+  ctx.fill();
+  // Front leg highlight (east)
+  ctx.fillStyle = light;
+  ctx.fillRect(frX + 1.5, frTop + 1, 1, 11);
+  // Knee crease (subtle horizontal line)
+  ctx.strokeStyle = dark; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(frX - 2.2, frTop + 8);
+  ctx.lineTo(frX + 2.2, frTop + 8);
+  ctx.stroke();
+  // Outlines
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(bkX - 2.8, bkTop - 1);
+  ctx.lineTo(bkX + 2.8, bkTop - 1);
+  ctx.quadraticCurveTo(bkX + 3.2, bkTop + 5, bkX + 2.4, bkTop + 9);
+  ctx.quadraticCurveTo(bkX + 3, bkTop + 11, bkX + 2.2, bkTop + 13);
+  ctx.lineTo(bkX - 2.2, bkTop + 13);
+  ctx.quadraticCurveTo(bkX - 3, bkTop + 11, bkX - 2.4, bkTop + 9);
+  ctx.quadraticCurveTo(bkX - 3.2, bkTop + 5, bkX - 2.8, bkTop - 1);
+  ctx.closePath();
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(frX + 4.3, frTop + 15.7, 0.4, 0, Math.PI * 2);
+  ctx.moveTo(frX - 2.8, frTop - 1);
+  ctx.lineTo(frX + 2.8, frTop - 1);
+  ctx.quadraticCurveTo(frX + 3.2, frTop + 5, frX + 2.4, frTop + 9);
+  ctx.quadraticCurveTo(frX + 3, frTop + 11, frX + 2.2, frTop + 13);
+  ctx.lineTo(frX - 2.2, frTop + 13);
+  ctx.quadraticCurveTo(frX - 3, frTop + 11, frX - 2.4, frTop + 9);
+  ctx.quadraticCurveTo(frX - 3.2, frTop + 5, frX - 2.8, frTop - 1);
+  ctx.closePath();
   ctx.stroke();
+}
+
+// v1.479: Sko-rendering (overlay efter foot drawn). Positioneras vid ankel (x, y).
+function drawShoeOnFoot(ctx, x, y, style, color, flash, isBack) {
+  const baseCol = flash ? '#fff' : (color || '#222');
+  const shadow = flash ? '#fff' : darken(baseCol, 0.45);
+  const highlight = flash ? '#fff' : lighten(baseCol, 0.30);
+  const outline = flash ? '#fff' : '#0a0a0a';
+  ctx.save();
+  if (style === 'sneaker') {
+    // Sneaker — låg sko med rubber-sole
+    ctx.fillStyle = baseCol;
+    ctx.beginPath();
+    ctx.moveTo(x - 2, y);
+    ctx.lineTo(x - 2, y + 2);
+    ctx.quadraticCurveTo(x, y + 3.5, x + 4.5, y + 3.5);
+    ctx.lineTo(x + 4.5, y + 1.5);
+    ctx.quadraticCurveTo(x + 4, y, x + 2, y - 0.2);
+    ctx.closePath();
+    ctx.fill();
+    // White rubber sole
+    ctx.fillStyle = flash ? '#fff' : '#f0f0f0';
+    ctx.beginPath();
+    ctx.moveTo(x - 2, y + 2.6);
+    ctx.lineTo(x + 4.5, y + 2.8);
+    ctx.lineTo(x + 4.5, y + 3.5);
+    ctx.lineTo(x - 2, y + 3.2);
+    ctx.closePath();
+    ctx.fill();
+    // Laces
+    if (!isBack) {
+      ctx.strokeStyle = flash ? '#fff' : '#ffffff';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5 + i * 0.8, y + 0.5);
+        ctx.lineTo(x + 1.2 + i * 0.8, y + 1.5);
+        ctx.stroke();
+      }
+    }
+    // Outline
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(x - 2, y);
+    ctx.lineTo(x - 2, y + 2);
+    ctx.quadraticCurveTo(x, y + 3.5, x + 4.5, y + 3.5);
+    ctx.lineTo(x + 4.5, y + 1.5);
+    ctx.quadraticCurveTo(x + 4, y, x + 2, y - 0.2);
+    ctx.closePath();
+    ctx.stroke();
+  } else if (style === 'boot') {
+    // Combat boot — hög skaft + tjock sula
+    ctx.fillStyle = baseCol;
+    // Skaft (high cuff)
+    ctx.fillRect(x - 2.2, y - 2, 4.5, 3);
+    // Foot part
+    ctx.beginPath();
+    ctx.moveTo(x - 2.2, y + 1);
+    ctx.lineTo(x - 2.2, y + 2.2);
+    ctx.quadraticCurveTo(x, y + 3.8, x + 4.8, y + 3.8);
+    ctx.lineTo(x + 4.8, y + 1.3);
+    ctx.quadraticCurveTo(x + 4, y, x + 2.3, y);
+    ctx.lineTo(x - 2.2, y + 1);
+    ctx.closePath();
+    ctx.fill();
+    // Sole (thick)
+    ctx.fillStyle = shadow;
+    ctx.fillRect(x - 2.2, y + 3, 7, 1);
+    // Laces (zigzag pattern)
+    if (!isBack) {
+      ctx.strokeStyle = flash ? '#fff' : '#aa8a5a';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i < 4; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x - 1.5, y - 1.8 + i * 0.7);
+        ctx.lineTo(x + 1.8, y - 1.5 + i * 0.7);
+        ctx.stroke();
+      }
+    }
+    // Outline
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    ctx.strokeRect(x - 2.2, y - 2, 4.5, 3);
+    ctx.beginPath();
+    ctx.moveTo(x - 2.2, y + 1);
+    ctx.lineTo(x - 2.2, y + 2.2);
+    ctx.quadraticCurveTo(x, y + 3.8, x + 4.8, y + 3.8);
+    ctx.lineTo(x + 4.8, y + 1.3);
+    ctx.quadraticCurveTo(x + 4, y, x + 2.3, y);
+    ctx.lineTo(x - 2.2, y + 1);
+    ctx.closePath();
+    ctx.stroke();
+  } else if (style === 'hightop') {
+    // High-top — mellan sneaker och boot
+    ctx.fillStyle = baseCol;
+    ctx.fillRect(x - 2, y - 1, 4.5, 2);
+    ctx.beginPath();
+    ctx.moveTo(x - 2, y + 1);
+    ctx.lineTo(x - 2, y + 2.2);
+    ctx.quadraticCurveTo(x, y + 3.5, x + 4.5, y + 3.5);
+    ctx.lineTo(x + 4.5, y + 1.5);
+    ctx.quadraticCurveTo(x + 4, y, x + 2.5, y);
+    ctx.lineTo(x - 2, y + 1);
+    ctx.closePath();
+    ctx.fill();
+    // White sole
+    ctx.fillStyle = flash ? '#fff' : '#f0f0f0';
+    ctx.fillRect(x - 2, y + 2.8, 6.5, 0.8);
+    // Star logo (Converse-style)
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.beginPath();
+    ctx.arc(x + 1, y + 0.3, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    ctx.strokeRect(x - 2, y - 1, 4.5, 2);
+  } else if (style === 'sandal') {
+    // Sandal — visa fot men med rem
+    ctx.fillStyle = baseCol;
+    // Sula
+    ctx.beginPath();
+    ctx.moveTo(x - 2, y + 2.5);
+    ctx.lineTo(x + 4.5, y + 2.7);
+    ctx.lineTo(x + 4.5, y + 3.5);
+    ctx.lineTo(x - 2, y + 3.3);
+    ctx.closePath();
+    ctx.fill();
+    // Remmar (X-mönster)
+    ctx.strokeStyle = baseCol;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(x - 1, y + 2.5);
+    ctx.lineTo(x + 3, y + 1);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 1, y + 2.5);
+    ctx.lineTo(x + 3.5, y + 0.5);
+    ctx.stroke();
+  } else if (style === 'dress') {
+    // Finsko — slank, glansig, pointy toe
+    ctx.fillStyle = baseCol;
+    ctx.beginPath();
+    ctx.moveTo(x - 2, y + 0.5);
+    ctx.lineTo(x - 2, y + 2.5);
+    ctx.quadraticCurveTo(x, y + 3.5, x + 5, y + 3.3);
+    ctx.quadraticCurveTo(x + 5.5, y + 2.5, x + 5, y + 1.5);
+    ctx.quadraticCurveTo(x + 4, y + 0.5, x + 2, y + 0.3);
+    ctx.closePath();
+    ctx.fill();
+    // Shine
+    ctx.fillStyle = highlight;
+    ctx.fillRect(x, y + 1, 3, 0.4);
+    // Outline
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(x - 2, y + 0.5);
+    ctx.lineTo(x - 2, y + 2.5);
+    ctx.quadraticCurveTo(x, y + 3.5, x + 5, y + 3.3);
+    ctx.quadraticCurveTo(x + 5.5, y + 2.5, x + 5, y + 1.5);
+    ctx.quadraticCurveTo(x + 4, y + 0.5, x + 2, y + 0.3);
+    ctx.closePath();
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// v1.479: Facial hair (mustache, beard, goatee, etc) — overlay på underdel av ansikte
+// Ansikte: y -7 till -19, mun på y=-8, haka på y=-7 ungefär. Skägg = under mun.
+function drawFacialHair(ctx, style, color, flash) {
+  const col = flash ? '#fff' : (color || '#1a0a08');
+  ctx.fillStyle = col;
+  ctx.strokeStyle = col;
+  if (style === 'stubble') {
+    // Tunna prickar runt haka och mustasch-område
+    ctx.globalAlpha = 0.6;
+    for (let i = 0; i < 14; i++) {
+      const sx = -2 + (i * 0.5);
+      const sy = -7.5 - (i % 3) * 0.5;
+      ctx.fillRect(sx, sy, 0.4, 0.4);
+    }
+    ctx.globalAlpha = 1;
+  } else if (style === 'mustache') {
+    // Tjock mustasch ovanför mun (mun: y=-8.2, mustasch y=-9)
+    ctx.beginPath();
+    ctx.moveTo(1.5, -9);
+    ctx.quadraticCurveTo(2.5, -9.6, 3.3, -9.4);
+    ctx.quadraticCurveTo(4.2, -9.6, 5.2, -9);
+    ctx.lineTo(5.0, -8.5);
+    ctx.quadraticCurveTo(4.2, -8.7, 3.3, -8.5);
+    ctx.quadraticCurveTo(2.5, -8.7, 1.7, -8.5);
+    ctx.closePath();
+    ctx.fill();
+  } else if (style === 'handlebar') {
+    // Krullad mustasch med curly ends
+    ctx.beginPath();
+    ctx.moveTo(1.2, -9);
+    ctx.quadraticCurveTo(2.5, -9.8, 3.3, -9.5);
+    ctx.quadraticCurveTo(4.2, -9.8, 5.5, -9);
+    ctx.lineTo(5.3, -8.5);
+    ctx.quadraticCurveTo(4.2, -8.8, 3.3, -8.5);
+    ctx.quadraticCurveTo(2.5, -8.8, 1.4, -8.5);
+    ctx.closePath();
+    ctx.fill();
+    // Curl-ends
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.arc(1.2, -9.3, 0.4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(5.5, -9.3, 0.4, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (style === 'goatee') {
+    // Liten hak-skägg under mun
+    ctx.beginPath();
+    ctx.moveTo(2.5, -7.8);
+    ctx.lineTo(4.5, -7.8);
+    ctx.lineTo(4.2, -6.5);
+    ctx.lineTo(2.8, -6.5);
+    ctx.closePath();
+    ctx.fill();
+  } else if (style === 'soulpatch') {
+    // Liten patch under läpp (1x1)
+    ctx.fillRect(3.0, -7.6, 1.0, 0.7);
+  } else if (style === 'fullbeard') {
+    // Helskägg — täcker hela hakan + sidkinder
+    ctx.beginPath();
+    ctx.moveTo(-3, -9);
+    ctx.quadraticCurveTo(-3.5, -8, -3, -7);
+    ctx.lineTo(-2, -6);
+    ctx.quadraticCurveTo(0, -5, 3, -5.5);
+    ctx.quadraticCurveTo(5, -6, 5.5, -7.5);
+    ctx.lineTo(5.2, -9);
+    ctx.quadraticCurveTo(4.5, -9.2, 3.5, -9);
+    ctx.quadraticCurveTo(2, -9, 0.5, -9);
+    ctx.quadraticCurveTo(-1, -9.2, -3, -9);
+    ctx.closePath();
+    ctx.fill();
+    // Mustasch på toppen (förlängning)
+    ctx.beginPath();
+    ctx.moveTo(1.5, -9);
+    ctx.quadraticCurveTo(3.3, -9.5, 5.2, -9);
+    ctx.lineTo(5.2, -8.4);
+    ctx.lineTo(1.5, -8.4);
+    ctx.closePath();
+    ctx.fill();
+  } else if (style === 'goatbeard') {
+    // Spetsigt bock-skägg (lång under hakan)
+    ctx.beginPath();
+    ctx.moveTo(2, -7.5);
+    ctx.lineTo(5, -7.5);
+    ctx.lineTo(4.5, -5);
+    ctx.lineTo(3.2, -4);
+    ctx.lineTo(2.5, -5);
+    ctx.closePath();
+    ctx.fill();
+    // Mustasch ovanför
+    ctx.beginPath();
+    ctx.moveTo(2, -9);
+    ctx.quadraticCurveTo(3.5, -9.4, 5, -9);
+    ctx.lineTo(4.8, -8.5);
+    ctx.lineTo(2.2, -8.5);
+    ctx.closePath();
+    ctx.fill();
+  } else if (style === 'circle') {
+    // Cirkelskägg (mustasch+goatee förenat)
+    // Mustasch
+    ctx.beginPath();
+    ctx.moveTo(1.7, -9);
+    ctx.quadraticCurveTo(3.3, -9.5, 5, -9);
+    ctx.lineTo(5, -8.4);
+    ctx.lineTo(1.7, -8.4);
+    ctx.closePath();
+    ctx.fill();
+    // Sido-stripes ner till goatee
+    ctx.fillRect(1.7, -8.4, 0.5, 1.5);
+    ctx.fillRect(4.5, -8.4, 0.5, 1.5);
+    // Goatee under
+    ctx.beginPath();
+    ctx.moveTo(2.2, -7.5);
+    ctx.lineTo(4.8, -7.5);
+    ctx.lineTo(4.5, -6);
+    ctx.lineTo(2.5, -6);
+    ctx.closePath();
+    ctx.fill();
+  }
 }
 
 // v1.466: HANGING arm — hangs at side opposite of shooting arm.
@@ -38364,9 +39696,12 @@ function drawPlayer() {
   const boot = '#1a1208';
   const bootLight = '#3a2a18';
 
-  // CAPE (bakom allt annat — ritas först i rotated frame)
+  // CAPE (bakom allt annat — ritas först i UPPRÄTT frame v1.479)
   if (cos.cape && cos.cape.style && cos.cape.style !== 'none') {
-    drawCapeInGame(ctx, p, cos, flash, now);
+    ctx.save();
+    if (p.bodyFacingLeft) ctx.scale(-1, 1);
+    drawCapeOnUprightBody(ctx, cos.cape.style, cos.cape.color, flash, now, moving);
+    ctx.restore();
   }
 
   // v1.437: PIXEL-ART SPRITE-RENDERING — ersätter ~480 rader canvas-primitiver
