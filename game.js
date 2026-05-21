@@ -11470,10 +11470,10 @@ function drawCoopPartner() {
       p._bodyFacingLeft = Math.cos(partnerAimAngle) < 0;
     }
     const _pBodyFacingLeft = p._bodyFacingLeft;
-    // v1.462: Canvas primitives för partner
+    // v1.463: Canvas primitives + walk animation för partner
     ctx.save();
     if (_pBodyFacingLeft) ctx.scale(-1, 1);
-    drawNakedBody(ctx, partnerCos, false);
+    drawNakedBody(ctx, partnerCos, false, p._walkPhase || 0, partnerMoving);
     ctx.restore();
     // Partner arm + hand rotated med aim
     ctx.save();
@@ -37612,16 +37612,25 @@ function drawMuzzleFlash(ctx, weaponTipX, sinceShot, weaponType) {
 
 // v1.462: NAKED CHARACTER drawn via canvas primitives — cleaner än mitt pixel art.
 // Profile view (facing east default). Mirror för west via ctx.scale(-1,1) i caller.
-// Skin tones från cos.skin med lighten/darken för proper shading.
-function drawNakedBody(ctx, cos, flash) {
+// v1.463: Skin tones från cos.skin + walk-animation parameters
+function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
+  if (walkPhase === undefined) walkPhase = 0;
+  if (isMoving === undefined) isMoving = false;
   const skin = flash ? '#fff' : (cos.skin || '#c89870');
   const skinLight = flash ? '#fff' : lighten(cos.skin || '#c89870', 0.18);
+  const skinHi = flash ? '#fff' : lighten(cos.skin || '#c89870', 0.32);
   const skinShadow = flash ? '#fff' : darken(cos.skin || '#c89870', 0.32);
   const skinDeep = flash ? '#fff' : darken(cos.skin || '#c89870', 0.55);
   const hair = flash ? '#fff' : (cos.hairColor || '#1a0a08');
   const hairLight = flash ? '#fff' : lighten(cos.hairColor || '#1a0a08', 0.40);
+  const hairShadow = flash ? '#fff' : darken(cos.hairColor || '#1a0a08', 0.35);
   const outline = flash ? '#fff' : '#0a0a0e';
-  const lipColor = flash ? '#fff' : '#7a3a3a';
+  const lipColor = flash ? '#fff' : '#8a3838';
+  const lipHi = flash ? '#fff' : '#b85858';
+  // Walk-cycle offsets: legs swing forward/back based on phase
+  const legSwing = isMoving ? Math.sin(walkPhase) * 2.5 : 0;
+  const frontLift = isMoving && Math.sin(walkPhase) > 0 ? Math.sin(walkPhase) * 1.2 : 0;
+  const backLift = isMoving && Math.sin(walkPhase) < 0 ? -Math.sin(walkPhase) * 1.2 : 0;
   // === HEAD (oval, centered at body-local (0, -16)) ===
   // Head base (skin)
   ctx.fillStyle = skin;
@@ -37766,39 +37775,109 @@ function drawNakedBody(ctx, cos, flash) {
   ctx.lineTo(-7, 13);
   ctx.closePath();
   ctx.stroke();
-  // === LEGS (profile — visible front leg + back leg partially) ===
-  // Back leg (slightly west, behind)
-  ctx.fillStyle = skinShadow;
-  ctx.fillRect(-4, 18, 4, 16);
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(-4, 18, 4, 16);
-  // Front leg (east, more visible)
-  ctx.fillStyle = skin;
-  ctx.fillRect(1, 18, 4, 16);
-  // Front leg highlight (east edge)
-  ctx.fillStyle = skinLight;
-  ctx.fillRect(3, 18, 1.5, 16);
-  // Front leg outline
-  ctx.strokeStyle = outline;
-  ctx.strokeRect(1, 18, 4, 16);
-  // Knee shadow detail
-  ctx.fillStyle = skinShadow;
-  ctx.fillRect(1, 25, 4, 1);
-  // === FEET (small east-pointing ovals) ===
-  // Back foot
+  // === LEGS — tapered shape + walk-cycle animation ===
+  // Back leg (west, drawn first behind front)
+  const bkX = -3 - legSwing;     // shifts west when swinging back
+  const bkTop = 18 - backLift;   // lifts when stepping
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
-  ctx.ellipse(-1, 35, 4, 1.5, 0, 0, Math.PI * 2);
+  // Thigh wide → knee → calf taper to ankle
+  ctx.moveTo(bkX - 2, bkTop);
+  ctx.lineTo(bkX + 2, bkTop);
+  ctx.quadraticCurveTo(bkX + 2.5, bkTop + 8, bkX + 1.5, bkTop + 10);  // knee bulge
+  ctx.lineTo(bkX + 1.5, bkTop + 16);  // calf
+  ctx.quadraticCurveTo(bkX + 1, bkTop + 17, bkX, bkTop + 17);  // ankle narrow
+  ctx.lineTo(bkX - 1.5, bkTop + 17);
+  ctx.quadraticCurveTo(bkX - 1, bkTop + 12, bkX - 1.5, bkTop + 10);
+  ctx.quadraticCurveTo(bkX - 2.5, bkTop + 8, bkX - 2, bkTop);
+  ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  // Front foot (east, slightly bigger)
+  // Back foot — heel back, toe east
+  ctx.fillStyle = skinShadow;
+  ctx.beginPath();
+  ctx.moveTo(bkX - 2, bkTop + 17);
+  ctx.quadraticCurveTo(bkX - 2.5, bkTop + 18.5, bkX + 1, bkTop + 19);  // foot top
+  ctx.lineTo(bkX + 3, bkTop + 19);  // toe east
+  ctx.lineTo(bkX + 3, bkTop + 20);
+  ctx.lineTo(bkX - 1.5, bkTop + 20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Front leg (east, more visible — bright)
+  const frX = 3 + legSwing;
+  const frTop = 18 - frontLift;
   ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.ellipse(4, 35, 4.5, 2, 0, 0, Math.PI * 2);
+  ctx.moveTo(frX - 2, frTop);
+  ctx.lineTo(frX + 2, frTop);
+  ctx.quadraticCurveTo(frX + 2.5, frTop + 8, frX + 1.5, frTop + 10);
+  ctx.lineTo(frX + 1.5, frTop + 16);
+  ctx.quadraticCurveTo(frX + 1, frTop + 17, frX, frTop + 17);
+  ctx.lineTo(frX - 1.5, frTop + 17);
+  ctx.quadraticCurveTo(frX - 1, frTop + 12, frX - 1.5, frTop + 10);
+  ctx.quadraticCurveTo(frX - 2.5, frTop + 8, frX - 2, frTop);
+  ctx.closePath();
   ctx.fill();
+  // Front leg highlight east edge (3D form)
+  ctx.fillStyle = skinLight;
+  ctx.beginPath();
+  ctx.moveTo(frX + 1, frTop + 1);
+  ctx.quadraticCurveTo(frX + 2, frTop + 8, frX + 1, frTop + 10);
+  ctx.lineTo(frX + 1, frTop + 16);
+  ctx.lineTo(frX + 0.3, frTop + 16);
+  ctx.lineTo(frX + 0.3, frTop + 1);
+  ctx.closePath();
+  ctx.fill();
+  // Knee detail (shadow under)
+  ctx.fillStyle = skinShadow;
+  ctx.beginPath();
+  ctx.ellipse(frX, frTop + 10.5, 1.5, 0.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Front leg outline
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(frX - 2, frTop);
+  ctx.lineTo(frX + 2, frTop);
+  ctx.quadraticCurveTo(frX + 2.5, frTop + 8, frX + 1.5, frTop + 10);
+  ctx.lineTo(frX + 1.5, frTop + 16);
+  ctx.quadraticCurveTo(frX + 1, frTop + 17, frX, frTop + 17);
+  ctx.lineTo(frX - 1.5, frTop + 17);
+  ctx.quadraticCurveTo(frX - 1, frTop + 12, frX - 1.5, frTop + 10);
+  ctx.quadraticCurveTo(frX - 2.5, frTop + 8, frX - 2, frTop);
+  ctx.closePath();
+  ctx.stroke();
+  // Front foot — heel + arch + toe pointing east
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.moveTo(frX - 2, frTop + 17);
+  ctx.quadraticCurveTo(frX - 2.5, frTop + 19, frX + 1, frTop + 19.5);  // arch
+  ctx.quadraticCurveTo(frX + 4, frTop + 19, frX + 4.5, frTop + 20);  // toe east
+  ctx.lineTo(frX + 4.5, frTop + 21);
+  ctx.lineTo(frX - 1.5, frTop + 21);
+  ctx.closePath();
+  ctx.fill();
+  // Foot highlight (top)
+  ctx.fillStyle = skinLight;
+  ctx.beginPath();
+  ctx.moveTo(frX - 1, frTop + 18);
+  ctx.lineTo(frX + 3, frTop + 19);
+  ctx.lineTo(frX + 3, frTop + 19.5);
+  ctx.lineTo(frX - 1, frTop + 19);
+  ctx.closePath();
+  ctx.fill();
+  // Foot outline
+  ctx.strokeStyle = outline;
+  ctx.beginPath();
+  ctx.moveTo(frX - 2, frTop + 17);
+  ctx.quadraticCurveTo(frX - 2.5, frTop + 19, frX + 1, frTop + 19.5);
+  ctx.quadraticCurveTo(frX + 4, frTop + 19, frX + 4.5, frTop + 20);
+  ctx.lineTo(frX + 4.5, frTop + 21);
+  ctx.lineTo(frX - 1.5, frTop + 21);
+  ctx.closePath();
   ctx.stroke();
 }
 
@@ -37920,10 +37999,10 @@ function drawPlayer() {
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
-  // v1.462: CANVAS PRIMITIVES istället för pixel-art — cleaner, riktig skin-color
+  // v1.463: Canvas primitives + walk animation (phase + moving passed)
   ctx.save();
   if (_bodyFacingLeft) ctx.scale(-1, 1);
-  drawNakedBody(ctx, cos, flash);
+  drawNakedBody(ctx, cos, flash, phase, moving);
   ctx.restore();
   // v1.460: ARMS med 3-tons shading (highlight, base, shadow) + knuckles
   ctx.save();
