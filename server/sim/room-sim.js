@@ -536,6 +536,9 @@ function buildPlayerList(sim) {
       peerId: pid,
       x: ps.x, y: ps.y,
       hp: ps.hp != null ? ps.hp : 100,
+      // v1.430: inkludera aim + weaponId så broadcast-player-array har dem
+      aim: typeof ps.aim === 'number' ? ps.aim : 0,
+      weaponId: ps.weaponId || 'fists',
       invulnUntil: ps.invulnUntil || 0,
       r: 14,
       _wsRef: ws, // refs för companion-aggro-AI + damage-event-routing
@@ -3765,11 +3768,17 @@ function broadcastWorld(sim, now) {
   // mappades till partner-slot → "kompis-gubbe följer dig hela tiden".
   const players = buildPlayerList(sim);
   const realPlayers = players.filter(p => !p._isCompanion);
+  // v1.430: BUGFIX — aim + weapon var hardcoded `a: 0, w: 'fists'` → ALLA
+  // partners verkade peka åt höger med fists. Server tog emot aim korrekt men
+  // använde inte ws.playerState.aim/weaponId i broadcast. Använd nu p.aim
+  // (set från input.aim i applyPlayerInput) + p.weaponId.
   const allPlayers = realPlayers.map((p, i) => ({
     c: i,
     x: Math.round(p.x), y: Math.round(p.y),
     hp: Math.round(p.hp),
-    a: 0, w: 'fists', rT: 0,
+    a: typeof p.aim === 'number' ? p.aim : 0,
+    w: p.weaponId || 'fists',
+    rT: Math.round(p.reviveTimer || 0),
   }));
 
   // Drain event-queue. Batch ALLA events i ett enda 'sim_events'-meddelande per
