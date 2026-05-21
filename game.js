@@ -37617,13 +37617,16 @@ function drawMuzzleFlash(ctx, weaponTipX, sinceShot, weaponType) {
 function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   if (walkPhase === undefined) walkPhase = 0;
   if (isMoving === undefined) isMoving = false;
-  const skinBase = cos.skin || '#d4a070'; // warmer default skin
+  // v1.465: Realistic skin tone — pink-warm tan, looks like naked flesh
+  const skinBase = cos.skin || '#dca888';
   const skin = flash ? '#fff' : skinBase;
-  const skinLight = flash ? '#fff' : lighten(skinBase, 0.18);
-  const skinHi = flash ? '#fff' : lighten(skinBase, 0.32);
-  const skinShadow = flash ? '#fff' : darken(skinBase, 0.30);
-  const skinDeep = flash ? '#fff' : darken(skinBase, 0.55);
-  const cheekColor = flash ? '#fff' : '#c87050'; // pink cheek hint
+  const skinLight = flash ? '#fff' : lighten(skinBase, 0.20);
+  const skinHi = flash ? '#fff' : lighten(skinBase, 0.35);
+  const skinShadow = flash ? '#fff' : darken(skinBase, 0.28);
+  const skinDeep = flash ? '#fff' : darken(skinBase, 0.50);
+  const skinDeepest = flash ? '#fff' : darken(skinBase, 0.70);
+  const nippleColor = flash ? '#fff' : '#8a4838'; // brownish-pink nipple
+  const cheekColor = flash ? '#fff' : '#c87060';
   const hair = flash ? '#fff' : (cos.hairColor || '#2a1a0a');
   const hairLight = flash ? '#fff' : lighten(cos.hairColor || '#2a1a0a', 0.42);
   const hairShadow = flash ? '#fff' : darken(cos.hairColor || '#2a1a0a', 0.40);
@@ -37807,12 +37810,12 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.beginPath();
   ctx.moveTo(-3, -7);
   ctx.lineTo(3, -7);
-  ctx.quadraticCurveTo(4, -5, 5, -4);   // trapezius east slope
+  ctx.quadraticCurveTo(4, -5, 5, -4);
   ctx.lineTo(-5, -4);
-  ctx.quadraticCurveTo(-4, -5, -3, -7); // trap west slope
+  ctx.quadraticCurveTo(-4, -5, -3, -7);
   ctx.closePath();
   ctx.fill();
-  // Neck shadow under chin
+  // Neck shadow under chin (cast shadow)
   ctx.fillStyle = skinDeep;
   ctx.fillRect(-3, -7, 6, 1);
   // Neck west shadow
@@ -37825,6 +37828,13 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.quadraticCurveTo(-4, -5, -3, -7);
   ctx.closePath();
   ctx.fill();
+  // v1.465: ADAM'S APPLE (subtle male anatomy)
+  ctx.fillStyle = skinShadow;
+  ctx.beginPath();
+  ctx.arc(1.5, -5.5, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = skinLight;
+  ctx.fillRect(1.6, -5.7, 0.3, 0.2);
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
@@ -37838,19 +37848,18 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   // === TORSO V-taper (broad shoulders → narrower waist) ===
   ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.moveTo(-6, -4);   // west shoulder
-  ctx.quadraticCurveTo(-8, 0, -5, 4);  // ribcage curve west
-  ctx.lineTo(-4, 9);     // waist narrowing
+  ctx.moveTo(-6, -4);
+  ctx.quadraticCurveTo(-8, 0, -5, 4);
+  ctx.lineTo(-4, 9);
   ctx.lineTo(5, 9);
   ctx.lineTo(6, 4);
-  ctx.quadraticCurveTo(8, 0, 6, -4);   // ribcage east
+  ctx.quadraticCurveTo(8, 0, 6, -4);
   ctx.closePath();
   ctx.fill();
-  // Torso outline
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  // West side shadow (away from east light)
+  // West-side shadow (light from east)
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
   ctx.moveTo(-6, -4);
@@ -37860,42 +37869,87 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(-1, -4);
   ctx.closePath();
   ctx.fill();
-  // Chest highlight (east-top, light from east)
+  // === COLLARBONE (subtle V-line at top of chest) ===
+  ctx.strokeStyle = skinDeep;
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(-4, -3.2);
+  ctx.quadraticCurveTo(0, -2.5, 4, -3.2);
+  ctx.stroke();
+  // Collarbone highlight (thin line above the shadow)
+  ctx.strokeStyle = skinHi;
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-4, -3.7);
+  ctx.quadraticCurveTo(0, -3, 4, -3.7);
+  ctx.stroke();
+  // === PEC HIGHLIGHTS (left + right pec separately) ===
+  // East pec (visible side, brighter)
   ctx.fillStyle = skinLight;
   ctx.beginPath();
-  ctx.moveTo(3, -3);
-  ctx.quadraticCurveTo(6, -2, 6, 1);
-  ctx.lineTo(4, 3);
-  ctx.closePath();
+  ctx.ellipse(3, 0, 2.5, 2.5, -0.2, 0, Math.PI * 2);
   ctx.fill();
-  // Pec line shadow under chest
+  // West pec (less visible in profile, slightly darker)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(-2, 0, 2.2, 2.3, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  // Pec divider line (subtle shadow between pecs)
+  ctx.strokeStyle = skinDeep;
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(0.5, -1.5);
+  ctx.lineTo(0.7, 2.5);
+  ctx.stroke();
+  // Pec underline (shadow at bottom of pecs)
   ctx.fillStyle = skinDeep;
   ctx.beginPath();
-  ctx.moveTo(3, 2);
-  ctx.quadraticCurveTo(5, 3, 6, 4);
-  ctx.lineTo(4, 4);
-  ctx.quadraticCurveTo(3, 3, 3, 2);
+  ctx.moveTo(0, 2.5);
+  ctx.quadraticCurveTo(3, 3.2, 5, 2.8);
+  ctx.lineTo(5, 3.3);
+  ctx.quadraticCurveTo(3, 3.7, 0, 3);
   ctx.closePath();
   ctx.fill();
-  // Subtle ab vertical line
-  ctx.strokeStyle = skinDeep;
-  ctx.lineWidth = 0.6;
+  // === NIPPLES (small dark dots — male character naked detail) ===
+  ctx.fillStyle = nippleColor;
   ctx.beginPath();
-  ctx.moveTo(3, 3.5);
-  ctx.lineTo(3.5, 8);
+  ctx.arc(3, 1.5, 0.4, 0, Math.PI * 2);  // east nipple (more visible)
+  ctx.fill();
+  ctx.fillStyle = darken(nippleColor, 0.30);
+  ctx.beginPath();
+  ctx.arc(-2, 1.5, 0.35, 0, Math.PI * 2); // west nipple (in shadow)
+  ctx.fill();
+  // === ABS VERTICAL LINE (subtle) ===
+  ctx.strokeStyle = skinDeep;
+  ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(1, 3.5);
+  ctx.lineTo(1.5, 7);
   ctx.stroke();
-  // Oblique muscle shadow (side abs)
+  // Horizontal ab line (one subtle ab division)
+  ctx.beginPath();
+  ctx.moveTo(-1, 5);
+  ctx.quadraticCurveTo(1.5, 5.3, 4, 5);
+  ctx.stroke();
+  // === OBLIQUES (side ab muscle) ===
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
-  ctx.ellipse(5, 6, 1.2, 2.5, -0.2, 0, Math.PI * 2);
+  ctx.ellipse(5, 6.5, 1, 2, -0.2, 0, Math.PI * 2);
   ctx.fill();
-  // Belly button (subtle dot with highlight)
-  ctx.fillStyle = skinDeep;
+  // === BELLY BUTTON ===
+  ctx.fillStyle = skinDeepest;
   ctx.beginPath();
-  ctx.arc(2.5, 7, 0.6, 0, Math.PI * 2);
+  ctx.arc(1.5, 7.5, 0.7, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = skinLight;
-  ctx.fillRect(2.6, 7.1, 0.3, 0.3);
+  ctx.fillRect(1.6, 7.6, 0.3, 0.3);
+  // === TREASURE TRAIL (subtle line from belly button to underwear) ===
+  ctx.strokeStyle = skinDeep;
+  ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(1.5, 8.2);
+  ctx.lineTo(1.7, 9);
+  ctx.stroke();
   // === UNDERWEAR (proper brief shape) ===
   // Briefs base — curved shape hugging hips
   ctx.fillStyle = briefBase;
