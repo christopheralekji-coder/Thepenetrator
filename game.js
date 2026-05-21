@@ -11461,19 +11461,14 @@ function drawCoopPartner() {
       const wc = Math.floor(phase / Math.PI) % 2;
       partnerFrame = wc === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
     }
-    // v1.456: Split body med mirror+rotation + scale-2 för partner
+    // v1.457: WHOLE sprite rotates for partner
     ctx.imageSmoothingEnabled = false;
     const pNakedCanvas = _getCachedNakedSprite(partnerCos, color, false); // 96x96
-    // Underdel fast
-    ctx.drawImage(pNakedCanvas, 0, 62, 96, 16, -48, 14, 96, 16);
-    // Övre kropp med mirror+rotation
     ctx.save();
-    ctx.translate(0, 14);
     if (pFacingLeft) ctx.scale(-1, 1);
     const pDisplayAngle = pFacingLeft ? (Math.PI - partnerAimAngle) : partnerAimAngle;
     ctx.rotate(pDisplayAngle);
-    ctx.translate(0, -14);
-    ctx.drawImage(pNakedCanvas, 0, 30, 96, 32, -48, -18, 96, 32);
+    ctx.drawImage(pNakedCanvas, -48, -48, 96, 96);
     ctx.restore();
     // Rotate for partner-weapon
     ctx.rotate(partnerAimAngle);
@@ -37277,6 +37272,11 @@ const HEAD_TOP_DOWN = [
 //   Rows 33-36: LEGS (skin split med separator)
 //   Rows 37-38: FEET
 const PLAYER_SPRITE_NAKED = [
+  // v1.457 COMPACT TOP-DOWN — designad för 360° rotation som EN enhet.
+  // Character content rows 14-35 (22 tall), centrerad vid sprite center (24, 24).
+  // Default east-facing: hair täcker huvudet, skin på east edge = face direction,
+  // shoulders perpendicular till facing, arms österut, underwear+ben+fötter söder.
+  // Compact aspect (22 tall × 23 wide med arms) så rotation inte ger sidles.
   /* 0*/ '................................................',
   /* 1*/ '................................................',
   /* 2*/ '................................................',
@@ -37291,31 +37291,31 @@ const PLAYER_SPRITE_NAKED = [
   /*11*/ '................................................',
   /*12*/ '................................................',
   /*13*/ '................................................',
-  /*14*/ '................................................',
-  /*15*/ '...................OOOOO........................',
-  /*16*/ '..................OHHHHHHO......................',
-  /*17*/ '.................OHHHHHHHHO.....................',
-  /*18*/ '.................OHHHHHHHHO.....................',
-  /*19*/ '.................OHHHHHHsSO.....................',
-  /*20*/ '.................OHHHHHsSSO.....................',
-  /*21*/ '.................OHHHHsSSSO.....................',
-  /*22*/ '.................OHHHHHsSSO.....................',
-  /*23*/ '.................OHHHHHHsSO.....................',
-  /*24*/ '..................OOHHHHHHO.....................',
-  /*25*/ '...................OOOOO........................',
-  /*26*/ '..............OOOSSSSSSSSSOOO...................',
-  /*27*/ '............OssSSSSSSSSSSSSSSssssO..............',
-  /*28*/ '............OssSSSSSSSSSSSSSSssssO..............',
-  /*29*/ '..............OOOSSSSSSSSSOOO...................',
-  /*30*/ '................OOSSSSSSSOO.....................',
-  /*31*/ '.................OUUUUUUUO......................',
-  /*32*/ '.................OUUUUUUUO......................',
-  /*33*/ '..................OSSOSSO.......................',
-  /*34*/ '..................OSSOSSO.......................',
-  /*35*/ '..................OSSOSSO.......................',
-  /*36*/ '..................OSSOSSO.......................',
-  /*37*/ '..................OOSOOSO.......................',
-  /*38*/ '...................OO..OO.......................',
+  /*14*/ '....................OOOOOO......................',
+  /*15*/ '..................OOHHHHHHHHOO..................',
+  /*16*/ '.................OHHHHHHHHHHHHO.................',
+  /*17*/ '................OHHHHHHHHHHHHHHO................',
+  /*18*/ '................OHHHHHHHHHHHHHHO................',
+  /*19*/ '................OHHHHHHHHHHHHHsO................',
+  /*20*/ '..............OOOHHHHHHHHHHHHHsSO...............',
+  /*21*/ '............OssSHHHHHHHHHHHHHHsSsSO.............',
+  /*22*/ '...........OssSHHHHHHHHHHHHHHHHsSsSO............',
+  /*23*/ '...........OssSHHHHHHHHHHHHHHHHsSsSO............',
+  /*24*/ '............OssSHHHHHHHHHHHHHHsSsSO.............',
+  /*25*/ '..............OOOHHHHHHHHHHHHHsSO...............',
+  /*26*/ '................OHHHHHHHHHHHHHsO................',
+  /*27*/ '................OOSSSSSSSSSSSSO.................',
+  /*28*/ '.................OUUUUUUUUUUUUO.................',
+  /*29*/ '.................OUUUUUUUUUUUUO.................',
+  /*30*/ '.................OSSOOOOOOOSSO..................',
+  /*31*/ '.................OSSO.....OSSO..................',
+  /*32*/ '.................OSSO.....OSSO..................',
+  /*33*/ '.................OSSO.....OSSO..................',
+  /*34*/ '.................OOSO.....OSOO..................',
+  /*35*/ '..................OO.......OO...................',
+  /*36*/ '................................................',
+  /*37*/ '................................................',
+  /*38*/ '................................................',
   /*39*/ '................................................',
   /*40*/ '................................................',
   /*41*/ '................................................',
@@ -37661,29 +37661,21 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.456: SPLIT BODY med MIRROR+ROTATION + SCALE 2 i cache
-  //
-  // 1. STORLEK FIX: scale=2 i cache → karaktären 2x större = matchar original.
-  //    Source rect 96xN (scale-2 canvas), dest rect 96xN (1:1, ingen nedskalning).
-  // 2. UPP-OCH-NER FIX: mirror för west-aim istället för rotate(180°).
-  //    Display-vinkel = (π - aimAngle) i mirrored frame, alltid inom ±90°.
+  // v1.457: WHOLE SPRITE ROTATES (no split). Compact top-down design så
+  // 360° rotation av hela kroppen ser naturligt ut, inte sidles.
+  // Mirror för west-aim håller karaktären orienterad i rätt riktning.
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
   ctx.imageSmoothingEnabled = false;
-  const nakedCanvas = _getCachedNakedSprite(cos, null, flash); // 96x96
-  // UNDERDEL (kallingar + ben + fötter) — scale-2 rows 62-78 (16 tall)
-  // Dest 96x16 = 1:1 med source, no downscale. y +14 till +30 (2x of original +7 till +15)
-  ctx.drawImage(nakedCanvas, 0, 62, 96, 16, -48, 14, 96, 16);
-  // ÖVRE KROPP — scale-2 rows 30-62 (32 tall). Mirror+rotation håller orientering.
+  const nakedCanvas = _getCachedNakedSprite(cos, null, flash); // 96x96 (scale 2)
   ctx.save();
-  ctx.translate(0, 14); // pivot vid höften (2x of original 7)
   if (_facingLeft) ctx.scale(-1, 1);
   const _displayAngle = _facingLeft ? (Math.PI - p.aimAngle) : p.aimAngle;
   ctx.rotate(_displayAngle);
-  ctx.translate(0, -14);
-  // Dest 96x32, y -18 till +14 (2x of original)
-  ctx.drawImage(nakedCanvas, 0, 30, 96, 32, -48, -18, 96, 32);
+  // Draw whole 96x96 sprite centered (-48, -48). Character content är
+  // centrerad i sprite vid (24, 24) original → (48, 48) i scale-2 canvas.
+  ctx.drawImage(nakedCanvas, -48, -48, 96, 96);
   ctx.restore();
   // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
   ctx.rotate(p.aimAngle);
