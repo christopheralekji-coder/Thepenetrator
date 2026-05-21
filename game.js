@@ -37636,9 +37636,9 @@ function drawMuzzleFlash(ctx, weaponTipX, sinceShot, weaponType) {
 function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   if (walkPhase === undefined) walkPhase = 0;
   if (isMoving === undefined) isMoving = false;
-  // v1.471: DARKER base skin + tighter shade range = more realistic skin tone.
-  // Less extreme highlights (max lighten 0.22, var 0.35) = mindre 'vit' look.
-  const skinBase = cos.skin || '#a8704c'; // medium-dark warm tan (var #c08860)
+  // v1.474: Middle Eastern olive skin tone (var #a8704c = för ljust/pinkish).
+  // #9a6028 = warm olive-brown — typisk Mediterranean/Levantine/MENA komplexion.
+  const skinBase = cos.skin || '#9a6028';
   const skin = flash ? '#fff' : skinBase;
   const skin0 = flash ? '#fff' : lighten(skinBase, 0.22);   // Peak highlight (subtler)
   const skin1 = flash ? '#fff' : lighten(skinBase, 0.14);   // Bright light
@@ -38382,24 +38382,47 @@ function drawHand(ctx, cos, flash) {
   ctx.stroke();
 }
 
-function drawHangingArm(ctx, cos, flash, bodyFacingLeft) {
-  const skinBase = cos.skin || '#a8704c';
+function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffsetY) {
+  if (throwOffsetX === undefined) throwOffsetX = 0;
+  if (throwOffsetY === undefined) throwOffsetY = 0;
+  const skinBase = cos.skin || '#9a6028';
   const armBase = flash ? '#fff' : darken(skinBase, 0.10);
   const armShadow = flash ? '#fff' : darken(skinBase, 0.32);
   const armDeep = flash ? '#fff' : darken(skinBase, 0.55);
   const armLight = flash ? '#fff' : lighten(skinBase, 0.10);
   const outline = flash ? '#fff' : '#0a0a0e';
-  // v1.472b: Arm vid ±9 (utanför body silhouette) + thicker (width 3.4 var 2.6).
-  // Tydligt synlig vid sidan av body, hänger ner till hip-level.
-  const hangX = bodyFacingLeft ? 9 : -9;
+  // v1.474: hangX ±9 → ±8 (närmare body) + DELTOID muscle ansluter till axel
+  // Throw animation offset shifts hand position vid granat-kast.
+  const hangX = bodyFacingLeft ? 8 : -8;
   const shY = -3;
-  // Upper arm shape (taper from shoulder → wrist)
+  // === DELTOID (shoulder muscle bridge — fyller gap mellan body shoulder & arm) ===
+  ctx.fillStyle = armBase;
+  ctx.beginPath();
+  ctx.ellipse(hangX + 0.3, shY - 0.5, 3, 2.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Deltoid highlight (NE side, light catches)
+  ctx.fillStyle = armLight;
+  ctx.beginPath();
+  ctx.ellipse(hangX + 1, shY - 1.2, 1.5, 0.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Deltoid shadow (SW, underside)
+  ctx.fillStyle = armShadow;
+  ctx.beginPath();
+  ctx.ellipse(hangX - 0.8, shY + 0.5, 1.2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Deltoid outline
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.ellipse(hangX + 0.3, shY - 0.5, 3, 2.2, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  // === UPPER ARM (taper from deltoid to wrist) ===
   ctx.fillStyle = armBase;
   ctx.beginPath();
   ctx.moveTo(hangX - 1.7, shY);
   ctx.lineTo(hangX + 1.7, shY);
-  ctx.quadraticCurveTo(hangX + 2, shY + 5, hangX + 1.5, shY + 9);    // bicep curve
-  ctx.lineTo(hangX + 1.2, shY + 13);                                  // forearm taper
+  ctx.quadraticCurveTo(hangX + 2, shY + 5, hangX + 1.5, shY + 9);
+  ctx.lineTo(hangX + 1.2, shY + 13);
   ctx.lineTo(hangX - 1.2, shY + 13);
   ctx.lineTo(hangX - 1.5, shY + 9);
   ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
@@ -38448,25 +38471,27 @@ function drawHangingArm(ctx, cos, flash, bodyFacingLeft) {
   ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
   ctx.closePath();
   ctx.stroke();
-  // Hand at bottom — bigger, more visible (oval not circle)
+  // Hand at bottom (with throw offset för granat-animation)
+  const handHX = hangX + throwOffsetX;
+  const handHY = shY + 14.5 + throwOffsetY;
   ctx.fillStyle = armBase;
   ctx.beginPath();
-  ctx.ellipse(hangX, shY + 14.5, 2, 1.8, 0, 0, Math.PI * 2);
+  ctx.ellipse(handHX, handHY, 2, 1.8, 0, 0, Math.PI * 2);
   ctx.fill();
   // Hand highlight
   ctx.fillStyle = armLight;
   ctx.beginPath();
-  ctx.ellipse(hangX + 0.6, shY + 14, 0.8, 0.6, 0, 0, Math.PI * 2);
+  ctx.ellipse(handHX + 0.6, handHY - 0.5, 0.8, 0.6, 0, 0, Math.PI * 2);
   ctx.fill();
   // Hand bottom shadow
   ctx.fillStyle = armShadow;
   ctx.beginPath();
-  ctx.ellipse(hangX - 0.4, shY + 15.2, 1.2, 0.6, 0, 0, Math.PI * 2);
+  ctx.ellipse(handHX - 0.4, handHY + 0.7, 1.2, 0.6, 0, 0, Math.PI * 2);
   ctx.fill();
   // Hand outline
   ctx.strokeStyle = outline;
   ctx.beginPath();
-  ctx.ellipse(hangX, shY + 14.5, 2, 1.8, 0, 0, Math.PI * 2);
+  ctx.ellipse(handHX, handHY, 2, 1.8, 0, 0, Math.PI * 2);
   ctx.stroke();
 }
 
@@ -38586,9 +38611,30 @@ function drawPlayer() {
     p.bodyFacingLeft = _facingLeft;
   }
   const _bodyFacingLeft = p.bodyFacingLeft;
-  // v1.468: Render order — hanging arm + SHOOTING ARM SHAFT before body
-  // (arm bakom kroppen). Hand + weapon ritas AFTER body (synliga på top).
-  drawHangingArm(ctx, cos, flash, _bodyFacingLeft);
+  // v1.474: Grenade-throw animation med hanging hand (annan hand än shooting).
+  // När grenade fyrats av, hanging hand swingar fram, sedan tillbaka.
+  let _throwOffX = 0, _throwOffY = 0;
+  const _isGrenade = w && w.id === 'grenade';
+  if (_isGrenade && sinceShot < 320) {
+    const t = sinceShot / 320; // 0 → 1
+    if (t < 0.25) {
+      // Prep: hand drar in mot midjan
+      const k = t / 0.25;
+      _throwOffX = -k * 3 * (_bodyFacingLeft ? -1 : 1);
+      _throwOffY = -k * 2;
+    } else if (t < 0.55) {
+      // Throw: hand swingar fram + uppåt
+      const k = (t - 0.25) / 0.30;
+      _throwOffX = (-3 + k * 11) * (_bodyFacingLeft ? -1 : 1);
+      _throwOffY = -2 - k * 4;
+    } else {
+      // Follow-through: tillbaka till hanging
+      const k = (t - 0.55) / 0.45;
+      _throwOffX = (8 - k * 8) * (_bodyFacingLeft ? -1 : 1);
+      _throwOffY = -6 + k * 6;
+    }
+  }
+  drawHangingArm(ctx, cos, flash, _bodyFacingLeft, _throwOffX, _throwOffY);
   // SHOOTING ARM SHAFT (behind body)
   {
     const _shoulderXShaft = _bodyFacingLeft ? -3 : 3;
