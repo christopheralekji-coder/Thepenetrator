@@ -37119,55 +37119,60 @@ const PIXEL_SPRITE_SIZE = 48;
 //   Y = yellow accent     M = brass/metal
 //   T = stubble shadow    P = pants
 //   B = boot black        L = boot leather highlight
+// v1.442 PROFESSIONAL — hand-placed shading med 20+ palette colors.
+// Light from upper-LEFT → highlights på NW, shadows på SE.
+// Q=bandana hi, R=base, r=shadow, q=deep | s=skin hi, S=base, K=shadow, N=deep
+// F=vest hi, V=base, E=mid-shadow, v=deep | D=plate, d=plate deep
+// I=brass hi, M=base, m=shadow | L=boot leather hi, l=mid, B=deep
 const PLAYER_SPRITE_IDLE = [
   /* 0*/ '................................................',
   /* 1*/ '................................................',
   /* 2*/ '................................................',
-  /* 3*/ '................................................',
-  /* 4*/ '..................OOOOOOOOOOOO..................',
-  /* 5*/ '.................ORRRRRRRRRRRRO.................',
-  /* 6*/ '................ORRRRRRRRRRRRRRO................',
-  /* 7*/ '................ORRRRRRRRRRRRRRO................',
-  /* 8*/ '................ORRAAAARRRRRRRRO................',
-  /* 9*/ '................ORRAAAARRRRRRRRO................',
-  /*10*/ '................ORRAAAARRRRRRRRO................',
-  /*11*/ '................ORRAAAARRRRRRRRO................',
-  /*12*/ '................ORRAAAARRRRRRRRO................',
-  /*13*/ '................ORRAAAARRRRRRRRO................',
-  /*14*/ '................OSSAAAASSSSSSSSO................',
+  /* 3*/ '..................OOOOOOOOOOOO..................',
+  /* 4*/ '.................OQQRRRRRRRRrrO.................',
+  /* 5*/ '................OQQQRRRRRRRRrrrO................',
+  /* 6*/ '................OQQRRRRRRRRRRrrO................',
+  /* 7*/ '................OQQRRARRRRRRRrrO................',
+  /* 8*/ '................OQRRAARRRRRRRrrO................',
+  /* 9*/ '................OQRRAARRRRRRRRrO................',
+  /*10*/ '................OQRRAARRRRRRRRrO................',
+  /*11*/ '................OQRRAARRRRRRRRrO................',
+  /*12*/ '................OQRRAARRRRRRRRrO................',
+  /*13*/ '................OQrRAARRRRRRRrqO................',
+  /*14*/ '................OnssAAssSSSSSSnO................',
   /*15*/ '................OSGGGGGGGGGGGGSO................',
-  /*16*/ '................OSGWGGGGGGGGWGSO................',
-  /*17*/ '................OSGGGGGGGGGGGGSO................',
-  /*18*/ '................OSSSSSSSSSSSSSSO................',
-  /*19*/ '.................OTTSSSSSSSSTTO.................',
-  /*20*/ '..................OOSSSSSSSSOO..................',
-  /*21*/ '...................OOOOOOOOOO...................',
-  /*22*/ '..............OOOVVVVVVVVVVVVOOO................',
-  /*23*/ '.............OVVYVVVVVVVVVVVVYVVO...............',
-  /*24*/ '............OVVVVVDDDDDDDDDDVVVVVO..............',
-  /*25*/ '............OVVVVDDYYYYYYYYYDDVVVO..............',
-  /*26*/ '............OVVVVDDYYYYYYYYYDDVVVO..............',
-  /*27*/ '............OVVVVDDDDDDDDDDDDDVVVO..............',
-  /*28*/ '............OVVVVDDMMMDDDDMMMDDVVO..............',
-  /*29*/ '............OVVVVDDDDDDDDDDDDDDVVO..............',
-  /*30*/ '............OVVVVDDMMMDDDDMMMDDVVO..............',
-  /*31*/ '............OSVVVDDDDDDDDDDDDDDVSO..............',
-  /*32*/ '...........OSSVVVVVVVVVVVVVVVVVSSO..............',
-  /*33*/ '...........OSSOOVVVVVVVVVVVVVVOSSO..............',
-  /*34*/ '............OOOOPPPPPPPPPPPPPPOO................',
-  /*35*/ '...............OPPPPMMMMMMMMPPPPO...............',
-  /*36*/ '...............OPPPPPPPPPPPPPPPPO...............',
-  /*37*/ '...............OPPPPPPPPPPPPPPPPO...............',
-  /*38*/ '...............OPPPPPPOOOOPPPPPPO...............',
-  /*39*/ '...............OPPPPPO....OPPPPPO...............',
-  /*40*/ '...............OPPPPPO....OPPPPPO...............',
-  /*41*/ '...............OPPPPPO....OPPPPPO...............',
-  /*42*/ '...............OBBBBOO....OOBBBBO...............',
-  /*43*/ '...............OBLLLBO....OBLLLLO...............',
-  /*44*/ '...............OBLLLBO....OBLLLLO...............',
-  /*45*/ '..............OOBBBBBO....OBBBBBOO..............',
-  /*46*/ '..............OOOOOOOO....OOOOOOOO..............',
-  /*47*/ '................................................',
+  /*16*/ '................OSGwGGGGGGGGwGSO................',
+  /*17*/ '................OSGWGGGGGGGGWGSO................',
+  /*18*/ '................OSGGGGGGGGGGGGSO................',
+  /*19*/ '................OSSSSSSSSSSSSSKO................',
+  /*20*/ '.................OKTTSsSSsSTTKO.................',
+  /*21*/ '..................ONKSSSSSSKNO..................',
+  /*22*/ '...................OOOKKKKOOO...................',
+  /*23*/ '..............OOOOFVVVVVVVVVVOOOO...............',
+  /*24*/ '.............OFFFFVVVMMVVMMVVVVVO...............',
+  /*25*/ '............OFFFVVVVDDDDDDDDDVVVVO..............',
+  /*26*/ '............OFFVVVDDDAAAAAADDVVVVO..............',
+  /*27*/ '............OFFVVVDDDAAAAAADDVVVVO..............',
+  /*28*/ '............OFFVVVDDDDDDDDDDDDVVVO..............',
+  /*29*/ '............OFFVVVDDImmDDDDImmDDVO..............',
+  /*30*/ '............OFFVVVDDdMMDDDDdMMDDVO..............',
+  /*31*/ '............OFFVVVDDImmDDDDImmDDVO..............',
+  /*32*/ '............OsFVVVDDdMMDDDDdMMDDVO..............',
+  /*33*/ '............OSsFVVVDDDDDDDDDDDDVEO..............',
+  /*34*/ '...........OSSsvVVVVVVVVVVVVVVVvSO..............',
+  /*35*/ '...........OOSSSvvvvvvvvvvvvvvvvSO..............',
+  /*36*/ '............OOOPPPPPPPPPPPPPPPOOO...............',
+  /*37*/ '...............OPfPIMMMMMMMmPPPO................',
+  /*38*/ '...............OfPPPPPPPPPPPPPPO................',
+  /*39*/ '...............OPPPPPpPPPPpPPPPO................',
+  /*40*/ '...............OPPPPPpOOOOpPPPPO................',
+  /*41*/ '...............OPPPPpO....OpPPPO................',
+  /*42*/ '...............OPPPPpO....OpPPPO................',
+  /*43*/ '...............OPPPPpO....OpPPPO................',
+  /*44*/ '...............OLLlBBO....OBBlLLO...............',
+  /*45*/ '...............OLLLlBO....OBlLLLO...............',
+  /*46*/ '...............OLLLlBO....OBlLLLO...............',
+  /*47*/ '...............OOLLLLOO..OOLLLLOO...............',
 ];
 
 // Walk-frame A — left foot forward (cols 15-21 lower, cols 26-32 lifted)
@@ -37208,32 +37213,58 @@ const PLAYER_SPRITE = PLAYER_SPRITE_IDLE;
 // Walk-cykel variants — bara benen ändras. För enkel start använder vi
 // bara base sprite; lägg till L/R-frames senare för animation.
 
-// Bygger color-palette från costume + extra konstanta färger
+// v1.442: Professional pixel-art palette med 3-4 toner per material.
+// Ljus kommer från upper-left → highlights NW, shadows SE.
 function _buildPlayerPalette(cos, color) {
-  // color = override för partner (player-färg). Fallback till cos.shirt eller default.
-  const vestBase = color || cos.shirt || '#5a4a30';
-  const skinBase = cos.skin || '#d4a574';
-  const bandanaBase = cos.bandana || '#cc2030';
-  const accentBase = cos.accent || '#ffd54a';
-  const pantsBase = cos.pants || '#2a2618';
+  const vestBase = color || cos.shirt || '#4a5a3a';
+  const skinBase = cos.skin || '#c89870';
+  const bandanaBase = cos.bandana || '#c83030';
+  const accentBase = cos.accent || '#f0c020';
+  const pantsBase = cos.pants || '#2a2418';
   return {
-    'O': '#0a0a0f',
-    'S': skinBase,
-    'K': darken(skinBase, 0.62),
-    'R': bandanaBase,
-    'A': accentBase,
-    'V': vestBase,
-    'D': darken(vestBase, 0.55),
-    'P': pantsBase,
-    'B': '#0a0805',
-    'L': '#3a2818',
-    'W': '#fafafa',
-    'X': '#0a0a0a',
-    'I': '#4a6a8a',
-    'Y': '#ffd54a',
-    'M': '#c9a040',
-    'G': '#3a3a40',
+    'O': '#0a0a0e',                         // Outline (near-black)
+    'n': '#1a0e08',                         // Deep shadow / hair under bandana
+    // Skin — 4 toner för djup
+    's': lighten(skinBase, 0.15),           // Skin highlight (upper)
+    'S': skinBase,                          // Skin base
+    'K': darken(skinBase, 0.62),            // Skin shadow
+    'N': darken(skinBase, 0.40),            // Skin deep shadow (under jaw)
+    // Bandana — 4 toner
+    'Q': lighten(bandanaBase, 0.18),        // Bandana highlight
+    'R': bandanaBase,                       // Bandana base
+    'r': darken(bandanaBase, 0.65),         // Bandana shadow
+    'q': darken(bandanaBase, 0.45),         // Bandana deep shadow
+    'A': accentBase,                        // Accent stripe gold
+    'a': darken(accentBase, 0.60),          // Accent shadow
+    // Sunglasses — 3 toner
+    'G': '#0a0a14',                         // Sunglasses dark
+    'W': '#5070a0',                         // Sunglasses reflection (blue-grey)
+    'w': '#d8e8f8',                         // Sunglasses white glint
+    // Vest — 4 toner
+    'F': lighten(vestBase, 0.20),           // Vest highlight (top-left)
+    'V': vestBase,                          // Vest base
+    'v': darken(vestBase, 0.55),            // Vest shadow
+    'E': darken(vestBase, 0.35),            // Vest mid-shadow
+    // Plate carrier — 3 toner
+    'D': darken(vestBase, 0.75),            // Plate base (dark)
+    'd': '#080806',                         // Plate deep shadow
+    // Brass/metal
+    'M': '#d0a838',                         // Brass mid
+    'm': '#785818',                         // Brass shadow
+    'I': '#f0d060',                         // Brass highlight
+    // Pants
+    'P': pantsBase,                         // Pants base
+    'p': darken(pantsBase, 0.60),           // Pants shadow
+    'f': lighten(pantsBase, 0.20),          // Pants highlight
+    // Boots
+    'B': '#0a0805',                         // Boot deep black
+    'l': '#3a2818',                         // Boot leather mid
+    'L': '#5a3820',                         // Boot leather highlight
+    // Stubble + misc
+    'T': '#1a0a06',                         // Stubble shadow
+    'Y': accentBase,                        // Legacy compat
     'H': cos.hairColor || '#1a0a08',
+    'X': '#0a0a0a',
   };
 }
 
