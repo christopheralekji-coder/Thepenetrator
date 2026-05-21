@@ -11463,11 +11463,16 @@ function drawCoopPartner() {
     }
     ctx.save();
     if (pFacingLeft) ctx.scale(-1, 1);
-    // v1.445: partner roteras mot aim med atan2-baserad face-aim formula
+    // v1.446: partner använder hybrid rotation (mindre vid springa)
     const pAimUpDown = Math.atan2(pAimY, Math.max(0.01, Math.abs(pAimX)));
-    const pMaxBodyRot = 1.31;
-    const pBodyTilt = Math.max(-pMaxBodyRot, Math.min(pMaxBodyRot, pAimUpDown));
-    ctx.rotate(pBodyTilt);
+    if (p._idleRotFactor === undefined) p._idleRotFactor = 1.0;
+    const pTargetIdleFactor = partnerMoving ? 0.22 : 1.0;
+    p._idleRotFactor += (pTargetIdleFactor - p._idleRotFactor) * 0.08;
+    const pMaxBodyRot = 0.87;
+    const pTargetTilt = Math.max(-pMaxBodyRot, Math.min(pMaxBodyRot, pAimUpDown * p._idleRotFactor));
+    if (p._bodyRotLerp === undefined) p._bodyRotLerp = 0;
+    p._bodyRotLerp += (pTargetTilt - p._bodyRotLerp) * 0.18;
+    ctx.rotate(p._bodyRotLerp);
     // v1.443: BANDANA TAIL bakom partner
     if (partnerCos.bandana) {
       drawBandanaTail(ctx, partnerCos, color, now, partnerMoving, phase);
@@ -37512,28 +37517,31 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.445: MIRROR + FACE-AIM ROTATION — sprite mirroras horisontellt vid
-  // west-aim, sedan roterar kroppen så att facen pekar MOT aim-riktningen.
+  // v1.446: MIRROR + HYBRID FACE-AIM ROTATION
+  // Branschstandard för sidovy-sprites i top-down (Realm of the Mad God-stil):
+  //   - Stillastående: full rotation mot aim (tydligt "vänd mot enemies")
+  //   - Springer: kropp nästan upprätt (walk-animation läsbar)
+  //   - Smooth lerp mellan target-rotationer så det inte snapper
   //
-  // Tidigare (v1.441-v1.444) hade två bug-fel:
-  //   1) sign-flip (_facingLeft ? -_aimY : _aimY) gav FEL rotationsriktning
-  //      i mirrored frame — kroppen vred sig BORT från aim istället för mot.
-  //   2) sin-baserad (_aimY * coeff) → vid horisontellt aim blev rotationen
-  //      ~0 oavsett coefficient, så användaren såg ingen ändring.
-  //
-  // Nu: atan2(aimY, abs(aimX)) ger den faktiska vinkel-komponenten ovanför/under
-  // horisonten, EXAKT vad vi ska rotera. Ingen sign-flip nödvändig — formeln
-  // funkar identiskt i mirrored och non-mirrored frame (mirror sköter X-flip
-  // separately). Capped vid ±75° så face inte försvinner helt vid pure vertical.
+  // Vår sprite är 3/4-view (vi ser ansiktet) så full rotation under run-animation
+  // ger "springer sidles" - benen swingar i fel riktning relativt skärm. Genom
+  // att minska rotation till ~22% vid rörelse stannar walk-cycle läsbar.
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
   ctx.save();
   if (_facingLeft) ctx.scale(-1, 1);
   const _aimUpDown = Math.atan2(_aimY, Math.max(0.01, Math.abs(_aimX)));
-  const _maxBodyRot = 1.31; // ~75°
-  const _bodyTilt = Math.max(-_maxBodyRot, Math.min(_maxBodyRot, _aimUpDown));
-  ctx.rotate(_bodyTilt);
+  // Smooth-transition idle-factor: 1.0 = full rot at idle, 0.22 = subtle at run
+  if (p._idleRotFactor === undefined) p._idleRotFactor = 1.0;
+  const _targetIdleFactor = moving ? 0.22 : 1.0;
+  p._idleRotFactor += (_targetIdleFactor - p._idleRotFactor) * 0.08;
+  const _maxBodyRot = 0.87; // cap ~50°
+  const _targetTilt = Math.max(-_maxBodyRot, Math.min(_maxBodyRot, _aimUpDown * p._idleRotFactor));
+  // Lerp body-rotation för smooth aim-tracking (ingen snap)
+  if (p._bodyRotLerp === undefined) p._bodyRotLerp = 0;
+  p._bodyRotLerp += (_targetTilt - p._bodyRotLerp) * 0.18;
+  ctx.rotate(p._bodyRotLerp);
   // v1.443: BANDANA TAIL — ritas FÖRE sprite så den ligger bakom karaktären.
   // Cloth-animation som vajar/flaxar — ger "alive" feel.
   if (cos.bandana) {
