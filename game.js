@@ -11461,13 +11461,13 @@ function drawCoopPartner() {
       const wc = Math.floor(phase / Math.PI) % 2;
       partnerFrame = wc === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
     }
-    // v1.459: Partner body upright med mirror baserat på movement-X delta
-    const _pMoveDx = p.x - p._prevX;
-    if (Math.abs(_pMoveDx) > 0.5) {
-      p._bodyFacingLeft = _pMoveDx < 0;
+    // v1.464: Partner body följer AIM-direction (samma som player)
+    const _pAimXVal = Math.cos(partnerAimAngle);
+    if (Math.abs(_pAimXVal) > 0.15) {
+      p._bodyFacingLeft = _pAimXVal < 0;
     }
     if (p._bodyFacingLeft === undefined) {
-      p._bodyFacingLeft = Math.cos(partnerAimAngle) < 0;
+      p._bodyFacingLeft = pFacingLeft;
     }
     const _pBodyFacingLeft = p._bodyFacingLeft;
     // v1.463: Canvas primitives + walk animation för partner
@@ -37612,271 +37612,427 @@ function drawMuzzleFlash(ctx, weaponTipX, sinceShot, weaponType) {
 
 // v1.462: NAKED CHARACTER drawn via canvas primitives — cleaner än mitt pixel art.
 // Profile view (facing east default). Mirror för west via ctx.scale(-1,1) i caller.
-// v1.463: Skin tones från cos.skin + walk-animation parameters
+// v1.464: REFINED design — compressed proportions (~50px total instead of 66px),
+// cleaner anatomy, better face, proper underwear shape, polished overall.
 function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   if (walkPhase === undefined) walkPhase = 0;
   if (isMoving === undefined) isMoving = false;
-  const skin = flash ? '#fff' : (cos.skin || '#c89870');
-  const skinLight = flash ? '#fff' : lighten(cos.skin || '#c89870', 0.18);
-  const skinHi = flash ? '#fff' : lighten(cos.skin || '#c89870', 0.32);
-  const skinShadow = flash ? '#fff' : darken(cos.skin || '#c89870', 0.32);
-  const skinDeep = flash ? '#fff' : darken(cos.skin || '#c89870', 0.55);
-  const hair = flash ? '#fff' : (cos.hairColor || '#1a0a08');
-  const hairLight = flash ? '#fff' : lighten(cos.hairColor || '#1a0a08', 0.40);
-  const hairShadow = flash ? '#fff' : darken(cos.hairColor || '#1a0a08', 0.35);
+  const skinBase = cos.skin || '#d4a070'; // warmer default skin
+  const skin = flash ? '#fff' : skinBase;
+  const skinLight = flash ? '#fff' : lighten(skinBase, 0.18);
+  const skinHi = flash ? '#fff' : lighten(skinBase, 0.32);
+  const skinShadow = flash ? '#fff' : darken(skinBase, 0.30);
+  const skinDeep = flash ? '#fff' : darken(skinBase, 0.55);
+  const cheekColor = flash ? '#fff' : '#c87050'; // pink cheek hint
+  const hair = flash ? '#fff' : (cos.hairColor || '#2a1a0a');
+  const hairLight = flash ? '#fff' : lighten(cos.hairColor || '#2a1a0a', 0.42);
+  const hairShadow = flash ? '#fff' : darken(cos.hairColor || '#2a1a0a', 0.40);
   const outline = flash ? '#fff' : '#0a0a0e';
-  const lipColor = flash ? '#fff' : '#8a3838';
-  const lipHi = flash ? '#fff' : '#b85858';
-  // Walk-cycle offsets: legs swing forward/back based on phase
-  const legSwing = isMoving ? Math.sin(walkPhase) * 2.5 : 0;
-  const frontLift = isMoving && Math.sin(walkPhase) > 0 ? Math.sin(walkPhase) * 1.2 : 0;
-  const backLift = isMoving && Math.sin(walkPhase) < 0 ? -Math.sin(walkPhase) * 1.2 : 0;
-  // === HEAD (oval, centered at body-local (0, -16)) ===
-  // Head base (skin)
-  ctx.fillStyle = skin;
-  ctx.beginPath();
-  ctx.ellipse(0, -16, 7, 8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Shadow on west (back of head)
-  ctx.fillStyle = skinShadow;
-  ctx.beginPath();
-  ctx.ellipse(-2, -15, 5, 6, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Outline
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.ellipse(0, -16, 7, 8, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  // === HAIR — covers top + back (west) of head ===
+  const lipColor = flash ? '#fff' : '#7a3838';
+  const lipHi = flash ? '#fff' : '#a85050';
+  const briefBase = flash ? '#fff' : '#f0f0f0';
+  const briefShadow = flash ? '#fff' : '#b8b8b8';
+  const briefBand = flash ? '#fff' : '#8a8a8a';
+  // Walk-cycle (smaller amplitude för subtle natural walk)
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  const frontLift = isMoving && swing > 0 ? swing * 1 : 0;
+  const backLift = isMoving && swing < 0 ? -swing * 1 : 0;
+  // === HAIR BACK (drawn first, behind head) ===
   ctx.fillStyle = hair;
   ctx.beginPath();
-  ctx.moveTo(-7, -16);
-  ctx.lineTo(-7, -20);
-  ctx.quadraticCurveTo(0, -26, 5, -22);
-  ctx.lineTo(3, -18);
-  ctx.quadraticCurveTo(-2, -16, -7, -16);
+  ctx.moveTo(-6, -16);
+  ctx.quadraticCurveTo(-8, -12, -7, -8);
+  ctx.lineTo(-4, -8);
+  ctx.lineTo(-4, -16);
   ctx.closePath();
   ctx.fill();
-  ctx.stroke();
-  // Hair highlight
-  ctx.fillStyle = hairLight;
+  ctx.fillStyle = hairShadow;
   ctx.beginPath();
-  ctx.ellipse(-1, -22, 3, 1.5, 0.3, 0, Math.PI * 2);
+  ctx.moveTo(-6, -14);
+  ctx.lineTo(-7, -9);
+  ctx.lineTo(-5, -9);
+  ctx.closePath();
   ctx.fill();
-  // === EYE (single, facing east) ===
-  // Eye white
-  ctx.fillStyle = '#fafafa';
+  // === HEAD (compact oval, ~12 tall) ===
+  ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.ellipse(3, -16, 1.8, 1.2, 0, 0, Math.PI * 2);
+  // Head shape: smooth oval, slight east-protrusion for face
+  ctx.moveTo(-4, -19);
+  ctx.quadraticCurveTo(5, -20, 6, -14);  // top-east curve
+  ctx.quadraticCurveTo(7, -11, 5, -8);   // east cheek/jaw
+  ctx.lineTo(2, -7);                      // chin point east
+  ctx.quadraticCurveTo(-2, -7.5, -4, -9); // jaw back to west
+  ctx.quadraticCurveTo(-6, -14, -4, -19); // west head curve
+  ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = outline;
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1.5;
   ctx.stroke();
-  // Iris+pupil
-  ctx.fillStyle = '#1a3050';
+  // Face shadow (west side, away from light)
+  ctx.fillStyle = skinShadow;
   ctx.beginPath();
-  ctx.arc(3.5, -16, 1, 0, Math.PI * 2);
+  ctx.moveTo(-4, -18);
+  ctx.quadraticCurveTo(-6, -13, -4, -9);
+  ctx.lineTo(-2, -9);
+  ctx.lineTo(-2, -18);
+  ctx.closePath();
+  ctx.fill();
+  // === HAIR TOP (overlapping head crown) ===
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(-4, -19);
+  ctx.quadraticCurveTo(2, -22, 6, -17);   // hair sweep up east
+  ctx.lineTo(4, -15);                      // hairline
+  ctx.quadraticCurveTo(0, -16.5, -4, -16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  // Hair highlight strand
+  ctx.fillStyle = hairLight;
+  ctx.beginPath();
+  ctx.ellipse(0, -19.5, 3, 0.8, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  // Stray hair strand (small)
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(4, -16);
+  ctx.quadraticCurveTo(5, -14, 4.5, -13);
+  ctx.lineTo(4, -14);
+  ctx.closePath();
+  ctx.fill();
+  // === EYEBROW ===
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(2, -15.5);
+  ctx.quadraticCurveTo(4, -15.8, 5, -15);
+  ctx.lineTo(5, -14.5);
+  ctx.quadraticCurveTo(3.5, -14.8, 2, -14.5);
+  ctx.closePath();
+  ctx.fill();
+  // === EYE (almond shape) ===
+  ctx.fillStyle = '#f4f0e8';  // warm white sclera
+  ctx.beginPath();
+  ctx.ellipse(3.5, -13.5, 1.4, 0.9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.8;
+  ctx.stroke();
+  // Iris
+  ctx.fillStyle = '#2a4a70';
+  ctx.beginPath();
+  ctx.arc(3.8, -13.5, 0.85, 0, Math.PI * 2);
+  ctx.fill();
+  // Pupil
+  ctx.fillStyle = '#000';
+  ctx.beginPath();
+  ctx.arc(3.8, -13.5, 0.35, 0, Math.PI * 2);
   ctx.fill();
   // Glint
   ctx.fillStyle = '#fff';
-  ctx.fillRect(4, -16.5, 0.8, 0.8);
-  // === EYEBROW ===
-  ctx.fillStyle = hair;
-  ctx.fillRect(1.5, -19, 3, 1);
-  // === NOSE (small protrusion east) ===
+  ctx.fillRect(4, -13.9, 0.5, 0.5);
+  // === NOSE (subtle bridge + tip) ===
+  // Nose bridge highlight
+  ctx.fillStyle = skinHi;
+  ctx.beginPath();
+  ctx.moveTo(5, -13);
+  ctx.lineTo(6, -11);
+  ctx.lineTo(5.5, -10);
+  ctx.closePath();
+  ctx.fill();
+  // Nose tip shadow
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
-  ctx.moveTo(5, -15);
-  ctx.lineTo(7, -13);
-  ctx.lineTo(5, -12);
+  ctx.moveTo(5.5, -11);
+  ctx.quadraticCurveTo(6.5, -10, 5, -9.5);
+  ctx.lineTo(5, -10.5);
   ctx.closePath();
+  ctx.fill();
+  // Nostril
+  ctx.fillStyle = skinDeep;
+  ctx.fillRect(5, -10, 0.7, 0.4);
+  // === CHEEK BLUSH (subtle warm tint) ===
+  ctx.fillStyle = cheekColor;
+  ctx.globalAlpha = 0.35;
+  ctx.beginPath();
+  ctx.ellipse(4, -11, 1.5, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // === MOUTH (proper upper/lower lip) ===
+  // Lip shadow under
+  ctx.fillStyle = skinShadow;
+  ctx.fillRect(2.5, -8.5, 2.5, 0.5);
+  // Upper lip (smaller)
+  ctx.fillStyle = lipColor;
+  ctx.beginPath();
+  ctx.moveTo(2.5, -9);
+  ctx.quadraticCurveTo(3.5, -9.3, 4.5, -9);
+  ctx.lineTo(4.5, -8.7);
+  ctx.lineTo(2.5, -8.7);
+  ctx.closePath();
+  ctx.fill();
+  // Lower lip (slightly fuller)
+  ctx.fillStyle = lipHi;
+  ctx.beginPath();
+  ctx.moveTo(2.5, -8.5);
+  ctx.lineTo(4.7, -8.5);
+  ctx.quadraticCurveTo(4.5, -7.8, 3.5, -7.8);
+  ctx.quadraticCurveTo(2.7, -7.8, 2.5, -8.2);
+  ctx.closePath();
+  ctx.fill();
+  // Lip parting
+  ctx.strokeStyle = '#400';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(2.5, -8.5);
+  ctx.lineTo(4.7, -8.5);
+  ctx.stroke();
+  // === EAR (small, west side) ===
+  ctx.fillStyle = skinShadow;
+  ctx.beginPath();
+  ctx.ellipse(-4, -12, 1, 1.3, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1;
   ctx.stroke();
-  // === MOUTH ===
-  ctx.fillStyle = lipColor;
-  ctx.beginPath();
-  ctx.ellipse(3, -10, 2, 0.8, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // === NECK ===
-  ctx.fillStyle = skin;
-  ctx.fillRect(-3, -8, 6, 4);
-  ctx.fillStyle = skinShadow;
-  ctx.fillRect(-3, -6, 6, 2);
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(-3, -8, 6, 4);
-  // === TORSO (profile oval) ===
-  ctx.fillStyle = skin;
-  ctx.beginPath();
-  ctx.ellipse(0, 2, 8, 10, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-  // Chest highlight (top-east where light hits)
-  ctx.fillStyle = skinLight;
-  ctx.beginPath();
-  ctx.ellipse(2, -2, 4, 3, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Chest shadow (bottom-east, abs hint)
-  ctx.fillStyle = skinShadow;
-  ctx.beginPath();
-  ctx.ellipse(4, 4, 2.5, 5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Subtle pec line
-  ctx.strokeStyle = skinDeep;
-  ctx.lineWidth = 0.8;
-  ctx.beginPath();
-  ctx.moveTo(2, -1);
-  ctx.lineTo(5, 2);
-  ctx.stroke();
-  // Subtle ab line
-  ctx.beginPath();
-  ctx.moveTo(3, 3);
-  ctx.lineTo(4, 7);
-  ctx.stroke();
-  // Belly button
+  // Inner ear shadow
   ctx.fillStyle = skinDeep;
   ctx.beginPath();
-  ctx.arc(2, 8, 0.7, 0, Math.PI * 2);
+  ctx.ellipse(-3.8, -12, 0.4, 0.7, 0, 0, Math.PI * 2);
   ctx.fill();
-  // === UNDERWEAR ===
-  // Waistband (elastic, slightly darker white)
-  ctx.fillStyle = flash ? '#fff' : '#dadada';
-  ctx.fillRect(-7, 11, 14, 2);
-  // Main brief
-  ctx.fillStyle = flash ? '#fff' : '#fafafa';
+  // === NECK with trapezius slope ===
+  ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.moveTo(-7, 13);
-  ctx.lineTo(7, 13);
-  ctx.lineTo(6, 18);
-  ctx.lineTo(-6, 18);
+  ctx.moveTo(-3, -7);
+  ctx.lineTo(3, -7);
+  ctx.quadraticCurveTo(4, -5, 5, -4);   // trapezius east slope
+  ctx.lineTo(-5, -4);
+  ctx.quadraticCurveTo(-4, -5, -3, -7); // trap west slope
   ctx.closePath();
   ctx.fill();
-  // Brief shadow
-  ctx.fillStyle = flash ? '#fff' : '#c0c0c0';
+  // Neck shadow under chin
+  ctx.fillStyle = skinDeep;
+  ctx.fillRect(-3, -7, 6, 1);
+  // Neck west shadow
+  ctx.fillStyle = skinShadow;
   ctx.beginPath();
-  ctx.moveTo(2, 13);
-  ctx.lineTo(7, 13);
-  ctx.lineTo(6, 18);
-  ctx.lineTo(3, 18);
+  ctx.moveTo(-3, -7);
+  ctx.lineTo(-1, -7);
+  ctx.lineTo(-2, -4);
+  ctx.lineTo(-5, -4);
+  ctx.quadraticCurveTo(-4, -5, -3, -7);
   ctx.closePath();
   ctx.fill();
-  // Outline underwear
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(-7, 11);
-  ctx.lineTo(7, 11);
-  ctx.lineTo(7, 13);
-  ctx.lineTo(6, 18);
-  ctx.lineTo(-6, 18);
-  ctx.lineTo(-7, 13);
+  ctx.moveTo(-3, -7);
+  ctx.lineTo(3, -7);
+  ctx.quadraticCurveTo(4, -5, 5, -4);
+  ctx.lineTo(-5, -4);
+  ctx.quadraticCurveTo(-4, -5, -3, -7);
   ctx.closePath();
   ctx.stroke();
-  // === LEGS — tapered shape + walk-cycle animation ===
-  // Back leg (west, drawn first behind front)
-  const bkX = -3 - legSwing;     // shifts west when swinging back
-  const bkTop = 18 - backLift;   // lifts when stepping
+  // === TORSO V-taper (broad shoulders → narrower waist) ===
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.moveTo(-6, -4);   // west shoulder
+  ctx.quadraticCurveTo(-8, 0, -5, 4);  // ribcage curve west
+  ctx.lineTo(-4, 9);     // waist narrowing
+  ctx.lineTo(5, 9);
+  ctx.lineTo(6, 4);
+  ctx.quadraticCurveTo(8, 0, 6, -4);   // ribcage east
+  ctx.closePath();
+  ctx.fill();
+  // Torso outline
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // West side shadow (away from east light)
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
-  // Thigh wide → knee → calf taper to ankle
+  ctx.moveTo(-6, -4);
+  ctx.quadraticCurveTo(-8, 0, -5, 4);
+  ctx.lineTo(-4, 9);
+  ctx.lineTo(-1, 9);
+  ctx.lineTo(-1, -4);
+  ctx.closePath();
+  ctx.fill();
+  // Chest highlight (east-top, light from east)
+  ctx.fillStyle = skinLight;
+  ctx.beginPath();
+  ctx.moveTo(3, -3);
+  ctx.quadraticCurveTo(6, -2, 6, 1);
+  ctx.lineTo(4, 3);
+  ctx.closePath();
+  ctx.fill();
+  // Pec line shadow under chest
+  ctx.fillStyle = skinDeep;
+  ctx.beginPath();
+  ctx.moveTo(3, 2);
+  ctx.quadraticCurveTo(5, 3, 6, 4);
+  ctx.lineTo(4, 4);
+  ctx.quadraticCurveTo(3, 3, 3, 2);
+  ctx.closePath();
+  ctx.fill();
+  // Subtle ab vertical line
+  ctx.strokeStyle = skinDeep;
+  ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(3, 3.5);
+  ctx.lineTo(3.5, 8);
+  ctx.stroke();
+  // Oblique muscle shadow (side abs)
+  ctx.fillStyle = skinShadow;
+  ctx.beginPath();
+  ctx.ellipse(5, 6, 1.2, 2.5, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  // Belly button (subtle dot with highlight)
+  ctx.fillStyle = skinDeep;
+  ctx.beginPath();
+  ctx.arc(2.5, 7, 0.6, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = skinLight;
+  ctx.fillRect(2.6, 7.1, 0.3, 0.3);
+  // === UNDERWEAR (proper brief shape) ===
+  // Briefs base — curved shape hugging hips
+  ctx.fillStyle = briefBase;
+  ctx.beginPath();
+  ctx.moveTo(-5, 9);
+  ctx.lineTo(6, 9);
+  ctx.lineTo(6, 11);
+  ctx.quadraticCurveTo(5, 13, 3, 13);   // east leg hole curve
+  ctx.quadraticCurveTo(0, 14, -2, 13);  // crotch dip
+  ctx.quadraticCurveTo(-4, 13, -5, 11); // west leg hole curve
+  ctx.closePath();
+  ctx.fill();
+  // Elastic waistband (darker stripe on top)
+  ctx.fillStyle = briefBand;
+  ctx.fillRect(-5, 9, 11, 1.5);
+  // Waistband highlight (very top edge)
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-5, 9, 11, 0.5);
+  // Brief shadow under (cast)
+  ctx.fillStyle = briefShadow;
+  ctx.beginPath();
+  ctx.moveTo(2, 11);
+  ctx.lineTo(6, 11);
+  ctx.quadraticCurveTo(5, 13, 3, 13);
+  ctx.lineTo(2, 12.5);
+  ctx.closePath();
+  ctx.fill();
+  // Outline briefs
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-5, 9);
+  ctx.lineTo(6, 9);
+  ctx.lineTo(6, 11);
+  ctx.quadraticCurveTo(5, 13, 3, 13);
+  ctx.quadraticCurveTo(0, 14, -2, 13);
+  ctx.quadraticCurveTo(-4, 13, -5, 11);
+  ctx.closePath();
+  ctx.stroke();
+  // === LEGS — shorter & tapered + walk animation ===
+  // Back leg (west, behind)
+  const bkX = -2.5 - legSwing;
+  const bkTop = 13 - backLift;
+  ctx.fillStyle = skinShadow;
+  ctx.beginPath();
   ctx.moveTo(bkX - 2, bkTop);
   ctx.lineTo(bkX + 2, bkTop);
-  ctx.quadraticCurveTo(bkX + 2.5, bkTop + 8, bkX + 1.5, bkTop + 10);  // knee bulge
-  ctx.lineTo(bkX + 1.5, bkTop + 16);  // calf
-  ctx.quadraticCurveTo(bkX + 1, bkTop + 17, bkX, bkTop + 17);  // ankle narrow
-  ctx.lineTo(bkX - 1.5, bkTop + 17);
-  ctx.quadraticCurveTo(bkX - 1, bkTop + 12, bkX - 1.5, bkTop + 10);
-  ctx.quadraticCurveTo(bkX - 2.5, bkTop + 8, bkX - 2, bkTop);
+  ctx.quadraticCurveTo(bkX + 2.3, bkTop + 6, bkX + 1.3, bkTop + 8);   // knee
+  ctx.lineTo(bkX + 1.3, bkTop + 12);                                    // calf
+  ctx.quadraticCurveTo(bkX + 1, bkTop + 13, bkX, bkTop + 13);          // ankle
+  ctx.lineTo(bkX - 1.3, bkTop + 13);
+  ctx.quadraticCurveTo(bkX - 1, bkTop + 10, bkX - 1.3, bkTop + 8);
+  ctx.quadraticCurveTo(bkX - 2.3, bkTop + 6, bkX - 2, bkTop);
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
   ctx.stroke();
-  // Back foot — heel back, toe east
+  // Back foot
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
-  ctx.moveTo(bkX - 2, bkTop + 17);
-  ctx.quadraticCurveTo(bkX - 2.5, bkTop + 18.5, bkX + 1, bkTop + 19);  // foot top
-  ctx.lineTo(bkX + 3, bkTop + 19);  // toe east
-  ctx.lineTo(bkX + 3, bkTop + 20);
-  ctx.lineTo(bkX - 1.5, bkTop + 20);
+  ctx.moveTo(bkX - 1.5, bkTop + 13);
+  ctx.quadraticCurveTo(bkX - 2, bkTop + 14.5, bkX + 1, bkTop + 15);
+  ctx.lineTo(bkX + 2.5, bkTop + 15);
+  ctx.lineTo(bkX + 2.5, bkTop + 15.5);
+  ctx.lineTo(bkX - 1.5, bkTop + 15.5);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
-  // Front leg (east, more visible — bright)
-  const frX = 3 + legSwing;
-  const frTop = 18 - frontLift;
+  // Front leg (east, bright)
+  const frX = 2.5 + legSwing;
+  const frTop = 13 - frontLift;
   ctx.fillStyle = skin;
   ctx.beginPath();
   ctx.moveTo(frX - 2, frTop);
   ctx.lineTo(frX + 2, frTop);
-  ctx.quadraticCurveTo(frX + 2.5, frTop + 8, frX + 1.5, frTop + 10);
-  ctx.lineTo(frX + 1.5, frTop + 16);
-  ctx.quadraticCurveTo(frX + 1, frTop + 17, frX, frTop + 17);
-  ctx.lineTo(frX - 1.5, frTop + 17);
-  ctx.quadraticCurveTo(frX - 1, frTop + 12, frX - 1.5, frTop + 10);
-  ctx.quadraticCurveTo(frX - 2.5, frTop + 8, frX - 2, frTop);
+  ctx.quadraticCurveTo(frX + 2.3, frTop + 6, frX + 1.3, frTop + 8);
+  ctx.lineTo(frX + 1.3, frTop + 12);
+  ctx.quadraticCurveTo(frX + 1, frTop + 13, frX, frTop + 13);
+  ctx.lineTo(frX - 1.3, frTop + 13);
+  ctx.quadraticCurveTo(frX - 1, frTop + 10, frX - 1.3, frTop + 8);
+  ctx.quadraticCurveTo(frX - 2.3, frTop + 6, frX - 2, frTop);
   ctx.closePath();
   ctx.fill();
-  // Front leg highlight east edge (3D form)
+  // Front leg highlight east (3D)
   ctx.fillStyle = skinLight;
   ctx.beginPath();
   ctx.moveTo(frX + 1, frTop + 1);
-  ctx.quadraticCurveTo(frX + 2, frTop + 8, frX + 1, frTop + 10);
-  ctx.lineTo(frX + 1, frTop + 16);
-  ctx.lineTo(frX + 0.3, frTop + 16);
+  ctx.quadraticCurveTo(frX + 1.8, frTop + 6, frX + 1, frTop + 8);
+  ctx.lineTo(frX + 1, frTop + 12);
+  ctx.lineTo(frX + 0.3, frTop + 12);
   ctx.lineTo(frX + 0.3, frTop + 1);
   ctx.closePath();
   ctx.fill();
-  // Knee detail (shadow under)
+  // Knee shadow
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
-  ctx.ellipse(frX, frTop + 10.5, 1.5, 0.8, 0, 0, Math.PI * 2);
+  ctx.ellipse(frX, frTop + 8.5, 1.3, 0.6, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Front leg outline
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(frX - 2, frTop);
   ctx.lineTo(frX + 2, frTop);
-  ctx.quadraticCurveTo(frX + 2.5, frTop + 8, frX + 1.5, frTop + 10);
-  ctx.lineTo(frX + 1.5, frTop + 16);
-  ctx.quadraticCurveTo(frX + 1, frTop + 17, frX, frTop + 17);
-  ctx.lineTo(frX - 1.5, frTop + 17);
-  ctx.quadraticCurveTo(frX - 1, frTop + 12, frX - 1.5, frTop + 10);
-  ctx.quadraticCurveTo(frX - 2.5, frTop + 8, frX - 2, frTop);
+  ctx.quadraticCurveTo(frX + 2.3, frTop + 6, frX + 1.3, frTop + 8);
+  ctx.lineTo(frX + 1.3, frTop + 12);
+  ctx.quadraticCurveTo(frX + 1, frTop + 13, frX, frTop + 13);
+  ctx.lineTo(frX - 1.3, frTop + 13);
+  ctx.quadraticCurveTo(frX - 1, frTop + 10, frX - 1.3, frTop + 8);
+  ctx.quadraticCurveTo(frX - 2.3, frTop + 6, frX - 2, frTop);
   ctx.closePath();
   ctx.stroke();
-  // Front foot — heel + arch + toe pointing east
+  // Front foot — heel + toe east
   ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.moveTo(frX - 2, frTop + 17);
-  ctx.quadraticCurveTo(frX - 2.5, frTop + 19, frX + 1, frTop + 19.5);  // arch
-  ctx.quadraticCurveTo(frX + 4, frTop + 19, frX + 4.5, frTop + 20);  // toe east
-  ctx.lineTo(frX + 4.5, frTop + 21);
-  ctx.lineTo(frX - 1.5, frTop + 21);
+  ctx.moveTo(frX - 1.8, frTop + 13);
+  ctx.quadraticCurveTo(frX - 2, frTop + 14.5, frX + 1, frTop + 15);
+  ctx.quadraticCurveTo(frX + 3.5, frTop + 14.7, frX + 4, frTop + 15.5);  // toe east
+  ctx.lineTo(frX + 4, frTop + 16);
+  ctx.lineTo(frX - 1.5, frTop + 16);
   ctx.closePath();
   ctx.fill();
-  // Foot highlight (top)
   ctx.fillStyle = skinLight;
   ctx.beginPath();
-  ctx.moveTo(frX - 1, frTop + 18);
-  ctx.lineTo(frX + 3, frTop + 19);
-  ctx.lineTo(frX + 3, frTop + 19.5);
-  ctx.lineTo(frX - 1, frTop + 19);
+  ctx.moveTo(frX - 1, frTop + 13.5);
+  ctx.lineTo(frX + 2.5, frTop + 14.5);
+  ctx.lineTo(frX + 2.5, frTop + 15);
+  ctx.lineTo(frX - 1, frTop + 14.5);
   ctx.closePath();
   ctx.fill();
-  // Foot outline
   ctx.strokeStyle = outline;
   ctx.beginPath();
-  ctx.moveTo(frX - 2, frTop + 17);
-  ctx.quadraticCurveTo(frX - 2.5, frTop + 19, frX + 1, frTop + 19.5);
-  ctx.quadraticCurveTo(frX + 4, frTop + 19, frX + 4.5, frTop + 20);
-  ctx.lineTo(frX + 4.5, frTop + 21);
-  ctx.lineTo(frX - 1.5, frTop + 21);
+  ctx.moveTo(frX - 1.8, frTop + 13);
+  ctx.quadraticCurveTo(frX - 2, frTop + 14.5, frX + 1, frTop + 15);
+  ctx.quadraticCurveTo(frX + 3.5, frTop + 14.7, frX + 4, frTop + 15.5);
+  ctx.lineTo(frX + 4, frTop + 16);
+  ctx.lineTo(frX - 1.5, frTop + 16);
   ctx.closePath();
   ctx.stroke();
 }
@@ -37983,22 +38139,20 @@ function drawPlayer() {
   //
   // Body facing: bestäms av MOVEMENT-X (positive = east, negative = west).
   // Sparat i p.bodyFacingLeft så det persistent mellan frames.
-  let _moveX = (input.moveX || 0);
-  let _moveY = (input.moveY || 0);
-  if (input.keys.has('d')) _moveX += 1;
-  if (input.keys.has('a')) _moveX -= 1;
-  if (input.keys.has('s')) _moveY += 1;
-  if (input.keys.has('w')) _moveY -= 1;
-  if (Math.abs(_moveX) > 0.05) {
-    p.bodyFacingLeft = _moveX < 0;
-  }
-  if (p.bodyFacingLeft === undefined) {
-    p.bodyFacingLeft = Math.cos(p.aimAngle) < 0;
-  }
-  const _bodyFacingLeft = p.bodyFacingLeft;
+  // v1.464: Body följer AIM-direction (inte movement). När du siktar åt
+  // höger faces body east, när du siktar väster faces body west. Body
+  // skiftar automatiskt med vapnet.
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
+  // Body facing baserat på aim (när aim har horisontell komponent)
+  if (Math.abs(_aimX) > 0.15) {
+    p.bodyFacingLeft = _aimX < 0;
+  }
+  if (p.bodyFacingLeft === undefined) {
+    p.bodyFacingLeft = _facingLeft;
+  }
+  const _bodyFacingLeft = p.bodyFacingLeft;
   // v1.463: Canvas primitives + walk animation (phase + moving passed)
   ctx.save();
   if (_bodyFacingLeft) ctx.scale(-1, 1);
