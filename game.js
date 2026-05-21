@@ -37086,70 +37086,83 @@ function drawMeleeCrosshair(p, w, px, py, aimAng, ax, ay, color) {
 
 const PIXEL_SPRITE_SIZE = 48;
 
-// THE PENETRATOR — 48×48 top-down sprite, character faces EAST.
-// Design: red bandana wrap + accent stripe, dark aviator sunglasses,
-// 5-o'clock stubble, tactical plate carrier with yellow ID patch,
-// mag-pouches with brass buckles, visible weapon held east, combat boots.
+// THE PENETRATOR — 48×48 TRUE TOP-DOWN sprite (vertikalt symmetrisk).
+// v1.439 fix: tidigare sprite såg ut som "stående figur" — vid 180°-rotation
+// hamnade benen uppåt. Nu designat som karaktär sedd RAKT NEDIFRÅN HIMMELN:
+// bandana-täckt huvuddome, ansikte synligt ÖSTERUT, ARM extending east.
+// Inga ben i sprite — fötterna är dolda under kroppen från ovan.
+// Detta gör att rotation till valfri vinkel ser naturlig ut.
+//
+// Sprite är SYMMETRISK över east-west-axeln (row 23-24).
+// Bandanan + ansikte är ASYMMETRISK east-west (face on east).
 //
 // Palette key:
 //   . = transparent       O = outline (#0a0a0f)
 //   S = skin base         K = skin shadow
-//   R = bandana red       A = bandana accent (yellow stripe)
-//   G = sunglasses dark   W = sunglasses highlight (white reflect)
+//   R = bandana red       A = bandana accent (yellow stripe vertical)
+//   G = sunglasses dark   W = sunglasses white reflect
 //   V = vest base         D = plate carrier dark
 //   Y = yellow accent     M = brass/metal
-//   P = pants             B = boot black     L = boot leather
-//   T = stubble shadow    F = weapon barrel  U = weapon body grey
-const PLAYER_SPRITE = [
-  /*0*/  '................................................',
-  /*1*/  '................................................',
-  /*2*/  '................................................',
-  /*3*/  '.............OOOOOOOOOOOOOO.....................',
-  /*4*/  '...........OORRRRRRRRRRRRRRO....................',
-  /*5*/  '..........ORRRRRRRRRRRRRRRRRO...................',
-  /*6*/  '.........ORRRRRRRRRRRRRRRRRRO...................',
-  /*7*/  '.........ORAAARRRRRRRRRRRRRRO...................',
-  /*8*/  '.........ORAAARRRRRRRRRRRRRSO...................',
-  /*9*/  '.........ORAAARRRRRRRRRRRRSSO...................',
-  /*10*/ '.........ORAAARRRRRRRRRRRSSSO...................',
-  /*11*/ '.........ORAAARRRRRRRRRSSSSSO...................',
-  /*12*/ '.........ORAAARRRRRRRSSSSSSWO...................',
-  /*13*/ '.........ORAAARRRRRSSSSSGGGGO...................',
-  /*14*/ '.........ORAAARRRRSSSGGGGGWGO...................',
-  /*15*/ '..........ORARRRRSSGGGGGGGGGO...................',
-  /*16*/ '..........OKKRRRSSSGGGGGGGGGO...................',
-  /*17*/ '..........OKKKRSSSSSSGGGGGGO....................',
-  /*18*/ '..........OKKKKSSSSSSSSSSSO.....................',
-  /*19*/ '...........OKTTSSSSSSSSSSO......................',
-  /*20*/ '...........OOTTSSSSSSSSSO.......................',
-  /*21*/ '............OOOSSSSSSSOO........................',
-  /*22*/ '..............OOOOOOOO..........................',
-  /*23*/ '..........OOVVVVVVVVVVVVVVOO....................',
-  /*24*/ '.........OVVYVVVVVVVVVVVVVYVVO..................',
-  /*25*/ '........OVVVVVDDDDDDDDDDDDVVVVO.................',
-  /*26*/ '.......OVVVVVDDDYYYYYYYYYDDDVVVO................',
-  /*27*/ '.......OVVVVVDDDYYYYYYYYYDDDVVVO................',
-  /*28*/ '.......OVVVVVDDDDDDDDDDDDDDDVVVO................',
-  /*29*/ '.......OVVVVVDDMMMDDDDDDDDMMMDVVO...............',
-  /*30*/ '.......OVVVVVDDDDDDDDDDDDDDDDVVOOOO.............',
-  /*31*/ '.......OVVVVVDDMMMDDDDDDDDMMMDVVOSSGGGGGGGGGGGO.',
-  /*32*/ '.......OVVVVVDDDDDDDDDDDDDDDDVVOSSGGFFFFFFFFFFO.',
-  /*33*/ '.......OVVVVVDDMMMDDDDDDDDMMMDVVOOOGGGGGGGGGGGO.',
-  /*34*/ '.......OVVVVVDDDDDDDDDDDDDDDDVVO................',
-  /*35*/ '........OVVVVVVVVVVVVVVVVVVVVVO.................',
-  /*36*/ '........OVVVVVVVVVVVVVVVVVVVVO..................',
-  /*37*/ '.........OOPPPPPPPPPPPPPPPPPOO..................',
-  /*38*/ '.........OPPPMMMMMMMMMMMMMMPPO..................',
-  /*39*/ '.........OPPPPPPPPPPPPPPPPPPPO..................',
-  /*40*/ '..........OPPPPPPPPPPPPPPPPPO...................',
-  /*41*/ '..........OPPPPPPOOOOOPPPPPPO...................',
-  /*42*/ '...........OPPPPOOOOOOPPPPPO....................',
-  /*43*/ '...........OPPPPOOOOOOPPPPPO....................',
-  /*44*/ '...........OBBBBOOOOOOBBBBBOO...................',
-  /*45*/ '...........OBLLLBOOOOOBLLLLBO...................',
-  /*46*/ '...........OBLLLBOOOOOBLLLLBO...................',
-  /*47*/ '...........OOOOOOOOOOOOOOOOOO...................',
+//   T = stubble/jaw shadow
+const PLAYER_SPRITE_IDLE = [
+  /* 0*/ '................................................',
+  /* 1*/ '................................................',
+  /* 2*/ '................................................',
+  /* 3*/ '................................................',
+  /* 4*/ '..............OOOOOOOOOOOO......................',
+  /* 5*/ '............OORRRRRRRRRRRRROO...................',
+  /* 6*/ '..........OORRRRRRRRRRRRRRRRRO..................',
+  /* 7*/ '.........ORRRRRRRRRRRRRRRRRRRO..................',
+  /* 8*/ '........ORRRRRRRRRRRRRRRRRRRRRO.................',
+  /* 9*/ '........ORRRAARRRRRRRRRRRRRRRRO.................',
+  /*10*/ '.......ORRRRAARRRRRRRRRRRRRRRRO.................',
+  /*11*/ '.......ORRRRAARRRRRRRRRRRRRRSSO.................',
+  /*12*/ '.......ORRRRAARRRRRRRRRRRRRSSSO.................',
+  /*13*/ '.......ORRRRAARRRRRRRRRRRRSSSWO.................',
+  /*14*/ '.......ORRRRAARRRRRRRRRRSSSGGGO.................',
+  /*15*/ '.......ORRRRAARRRRRRRRSSSGGGGGO.................',
+  /*16*/ '.......ORRRRAARRRRRRSSSSGGGWGGO.................',
+  /*17*/ '.......ORRRRAARRRRRSSSSGGGGGGGO.................',
+  /*18*/ '.......ORRRRAARRRRSSSSGGGGGGGGO.................',
+  /*19*/ '.......ORRRRAARRRSSSSSGGGGGGGGO.................',
+  /*20*/ '.......ORRRRAARRRSSSSGGGGGGGGGO.................',
+  /*21*/ '.......ORRRRAARRRSSSSSGGGGGGGGO.................',
+  /*22*/ '.......ORRRRAARRRSSSSSGGGGGGGGOOOO..............',
+  /*23*/ '.......ORRRRAARRRSSSSSGGGGGGGGOSSO..............',
+  /*24*/ '.......ORRRRAARRRSSSSSGGGGGGGGOSSO..............',
+  /*25*/ '.......ORRRRAARRRSSSSSGGGGGGGGOOOO..............',
+  /*26*/ '.......ORRRRAARRRSSSSSGGGGGGGGO.................',
+  /*27*/ '.......ORRRRAARRRSSSSGGGGGGGGGO.................',
+  /*28*/ '.......ORRRRAARRRSSSSSGGGGGGGGO.................',
+  /*29*/ '.......ORRRRAARRRRSSSSGGGGGGGGO.................',
+  /*30*/ '.......ORRRRAARRRRRSSSSGGGGGGGO.................',
+  /*31*/ '.......ORRRRAARRRRRRSSSSGGGWGGO.................',
+  /*32*/ '.......ORRRRAARRRRRRRRSSSGGGGGO.................',
+  /*33*/ '.......ORRRRAARRRRRRRRRRSSSGGGO.................',
+  /*34*/ '.......ORRRRAARRRRRRRRRRRRSSSWO.................',
+  /*35*/ '.......ORRRRAARRRRRRRRRRRRRSSSO.................',
+  /*36*/ '.......ORRRRAARRRRRRRRRRRRRRSSO.................',
+  /*37*/ '.......ORRRRAARRRRRRRRRRRRRRRRO.................',
+  /*38*/ '.......ORRRAARRRRRRRRRRRRRRRRRO.................',
+  /*39*/ '........ORRRRRRRRRRRRRRRRRRRRRO.................',
+  /*40*/ '........ORRRRRRRRRRRRRRRRRRRRO..................',
+  /*41*/ '.........ORRRRRRRRRRRRRRRRRRO...................',
+  /*42*/ '..........OORRRRRRRRRRRRRRRRO...................',
+  /*43*/ '............OORRRRRRRRRRRRROO...................',
+  /*44*/ '..............OOOOOOOOOOOO......................',
+  /*45*/ '................................................',
+  /*46*/ '................................................',
+  /*47*/ '................................................',
 ];
+
+// Walk-frame variants — subtle 1-pixel shift of body so character "bobs"
+// while moving. Used in alternating phase during walk cycle.
+// For now: just use IDLE as both frames (will add proper walk-anim later).
+const PLAYER_SPRITE_WALK_A = PLAYER_SPRITE_IDLE;
+const PLAYER_SPRITE_WALK_B = PLAYER_SPRITE_IDLE;
+
+// Legacy reference (för cache och kompatibilitet)
+const PLAYER_SPRITE = PLAYER_SPRITE_IDLE;
 
 // Walk-cykel variants — bara benen ändras. För enkel start använder vi
 // bara base sprite; lägg till L/R-frames senare för animation.
