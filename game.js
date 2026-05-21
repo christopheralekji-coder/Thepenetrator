@@ -11463,7 +11463,13 @@ function drawCoopPartner() {
     }
     ctx.save();
     if (pFacingLeft) ctx.scale(-1, 1);
-    // v1.450: NO body rotation — partner står upprätt
+    // v1.451: partner body lean ±30° + head overlay
+    const pAimUpDown = Math.atan2(pAimY, Math.max(0.01, Math.abs(pAimX)));
+    const pMaxBodyRot = 0.52;
+    const pBodyRot = Math.max(-pMaxBodyRot, Math.min(pMaxBodyRot, pAimUpDown * 0.6));
+    if (p._bodyRotLerp === undefined) p._bodyRotLerp = 0;
+    p._bodyRotLerp += (pBodyRot - p._bodyRotLerp) * 0.22;
+    ctx.rotate(p._bodyRotLerp);
     if (partnerCos.bandana) {
       drawBandanaTail(ctx, partnerCos, color, now, partnerMoving, phase);
     }
@@ -37570,19 +37576,28 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.450: 8-DIRECTIONAL HEAD via TOP-DOWN OVERLAY
+  // v1.451: BODY-LEAN + HEAD OVERLAY = synlig kropp-rotation utan sidles
   //
-  // Body förblir UPRIGHT (mirror för west, ingen sidles-rotation).
-  // Top-down head sprite (designed ovanifrån) ritas ovanpå body's head-område
-  // och roterar 360° med aim. Detta är essensen av 8-directional rendering:
-  // en sprite per facing-direction, fast via smooth 360° rotation istället.
-  // Body stays vertical (no sidles), head clearly faces enemies.
+  // Sweet spot mellan tidigare iterationer:
+  //   v1.447 ±60° → user: "sidles"
+  //   v1.449 ±17° → user: "still position"
+  //   v1.450  0°  → user: "kroppen faced rakt mot skärmen"
+  // → ±30° är level där body visibly roterar utan att tippa över.
+  //
+  // Kombinerat med head overlay (360° rotation) ger detta tydligt "body
+  // rotates with aim" utan att karaktären ligger på marken.
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
   ctx.save();
   if (_facingLeft) ctx.scale(-1, 1);
-  // NO body rotation — body står upprätt på marken
+  // Body rotation: ±30° cap, lerped smooth
+  const _aimUpDown = Math.atan2(_aimY, Math.max(0.01, Math.abs(_aimX)));
+  const _maxBodyRot = 0.52; // ~30°
+  const _bodyRot = Math.max(-_maxBodyRot, Math.min(_maxBodyRot, _aimUpDown * 0.6));
+  if (p._bodyRotLerp === undefined) p._bodyRotLerp = 0;
+  p._bodyRotLerp += (_bodyRot - p._bodyRotLerp) * 0.22;
+  ctx.rotate(p._bodyRotLerp);
   if (cos.bandana) {
     drawBandanaTail(ctx, cos, null, now, moving, phase);
   }
