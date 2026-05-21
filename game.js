@@ -40284,169 +40284,310 @@ function drawShirtOverlay(ctx, color, flash, brand) {
   }
 }
 
-// v1.486: Brand-parodi logos på chest area (y=0 till y=5, x=-4 till +4)
+// v1.488: Brand-parodi logos — markant förbättrade som PARODI (med synlig
+// parodi-text + märkesfärger + distinkta former). Tydligt skild från
+// trademark-original eftersom exakt kopiering = varumärkesintrång.
 function drawShirtBrandLogo(ctx, brand, flash) {
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   if (brand === 'adibas') {
-    // 3 svarta diagonala stripes (Adidas-stil) på chest
-    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
+    // ADIBAS — 3 svarta stripes + triangle-badge + namn
+    const black = flash ? '#fff' : '#0a0a0a';
+    // 3 diagonala stripes (klassiskt athletic-grepp)
+    ctx.fillStyle = black;
     ctx.save();
-    ctx.translate(0.5, 2.5);
-    ctx.rotate(-0.25);
-    ctx.fillRect(-2.5, -1.8, 0.5, 3.6);
-    ctx.fillRect(-1.2, -1.8, 0.5, 3.6);
-    ctx.fillRect(0.1, -1.8, 0.5, 3.6);
+    ctx.translate(0.3, 3);
+    ctx.rotate(-0.28);
+    ctx.fillRect(-2.8, -3, 0.55, 6.5);
+    ctx.fillRect(-1.5, -3, 0.55, 6.5);
+    ctx.fillRect(-0.2, -3, 0.55, 6.5);
     ctx.restore();
-  } else if (brand === 'najk') {
-    // Vit swoosh (Nike-stil curved tick) på chest
-    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    // Triangle-stack badge (3 staplade trianglar uppåt)
+    ctx.fillStyle = black;
     ctx.beginPath();
-    ctx.moveTo(-2.5, 2.5);
-    ctx.quadraticCurveTo(0, 0.8, 3.5, 1.5);
-    ctx.lineTo(3.5, 2.3);
-    ctx.quadraticCurveTo(0, 1.6, -2.2, 3.2);
+    ctx.moveTo(-2.2, -0.5);
+    ctx.lineTo(2.2, -0.5);
+    ctx.lineTo(0, -2.5);
     ctx.closePath();
     ctx.fill();
-    // Drop-shadow på swoosh för pop
-    ctx.strokeStyle = flash ? '#fff' : '#0a0a0a';
-    ctx.lineWidth = 0.2;
+    // ADIBAS-text
+    ctx.font = 'bold 1.6px sans-serif';
+    ctx.fillStyle = black;
+    ctx.fillText('ADIBAS', 0, 7.3);
+  } else if (brand === 'najk') {
+    // NAJK — angular checkmark (INTE swoosh-kurva) + namn + tagline
+    const white = flash ? '#fff' : '#ffffff';
+    // Bold angular check (skarpa kanter, polygon)
+    ctx.fillStyle = white;
     ctx.beginPath();
-    ctx.moveTo(-2.5, 2.5);
-    ctx.quadraticCurveTo(0, 0.8, 3.5, 1.5);
-    ctx.stroke();
-  } else if (brand === 'guc_cee') {
-    // Guc-Cee horisontella stripes (grön-röd-grön band)
-    ctx.fillStyle = flash ? '#fff' : '#3a8a3a';
-    ctx.fillRect(-5, 1.5, 10, 0.5);
-    ctx.fillStyle = flash ? '#fff' : '#aa1818';
-    ctx.fillRect(-5, 2.1, 10, 0.5);
-    ctx.fillStyle = flash ? '#fff' : '#3a8a3a';
-    ctx.fillRect(-5, 2.7, 10, 0.5);
-    // Liten "GC" monogram-cirkel i mitten
-    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
-    ctx.beginPath();
-    ctx.arc(0.5, 4.5, 0.8, 0, Math.PI * 2);
+    ctx.moveTo(-3.2, 1.8);
+    ctx.lineTo(-1.5, 3.4);
+    ctx.lineTo(3.4, -1.0);
+    ctx.lineTo(4.0, -0.3);
+    ctx.lineTo(-1.4, 4.4);
+    ctx.lineTo(-3.7, 2.4);
+    ctx.closePath();
     ctx.fill();
     ctx.strokeStyle = flash ? '#fff' : '#0a0a0a';
+    ctx.lineWidth = 0.2;
+    ctx.stroke();
+    // NAJK-text bold
+    ctx.font = 'bold 1.7px sans-serif';
+    ctx.fillStyle = white;
+    ctx.fillText('NAJK', 0.2, 6.5);
+    ctx.font = 'italic bold 1.0px sans-serif';
+    ctx.fillText('JUST DO ID', 0.2, 7.8);
+  } else if (brand === 'guc_cee') {
+    // GUC-CEE — webbing-band (grön-röd-grön) + GC-badge + namn
+    const green = flash ? '#fff' : '#1a6a2a';
+    const red = flash ? '#fff' : '#aa1818';
+    const gold = flash ? '#fff' : '#ffd54a';
+    const darkOutline = flash ? '#fff' : '#3a2010';
+    // 3-färgs webbing
+    ctx.fillStyle = green;
+    ctx.fillRect(-5.5, 1.4, 11, 0.55);
+    ctx.fillStyle = red;
+    ctx.fillRect(-5.5, 1.95, 11, 0.75);
+    ctx.fillStyle = green;
+    ctx.fillRect(-5.5, 2.7, 11, 0.55);
+    // Cirkulär GC-badge
+    ctx.fillStyle = gold;
+    ctx.beginPath();
+    ctx.arc(0.5, 4.6, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = darkOutline;
     ctx.lineWidth = 0.3;
     ctx.stroke();
+    // GC-text inuti
+    ctx.font = 'bold 1.5px serif';
+    ctx.fillStyle = darkOutline;
+    ctx.fillText('GC', 0.5, 4.7);
+    // GUCCEE under
+    ctx.font = 'bold 1.3px serif';
+    ctx.fillStyle = green;
+    ctx.fillText('GUCCEE', 0.5, 7);
   } else if (brand === 'loui_witty') {
-    // v1.487: Reducerat diamond-pattern (var 36 paths, nu 12 = mindre lag)
-    ctx.fillStyle = flash ? '#fff' : '#aa8a3a';
+    // LOUI WITTY — diamond-pattern + LW-badge + namn
+    const gold = flash ? '#fff' : '#cca050';
+    const goldDark = flash ? '#fff' : '#8a6a30';
+    // 13 diamonds (geometriskt mönster — generic, ej trademark)
+    ctx.fillStyle = gold;
     const dPos = [
-      [-3, 0.5], [0, 0.5], [3, 0.5],
-      [-1.5, 2], [1.5, 2],
-      [-3, 3.5], [0, 3.5], [3, 3.5],
-      [-1.5, 5], [1.5, 5],
-      [-3, 6.5], [3, 6.5],
+      [-3.5, 0], [0, 0], [3.5, 0],
+      [-1.8, 1.5], [1.8, 1.5],
+      [-3.5, 5.5], [0, 5.5], [3.5, 5.5],
+      [-1.8, 7], [1.8, 7],
+      [-3.5, -1.5], [3.5, -1.5],
     ];
     for (const [xx, yy] of dPos) {
       ctx.beginPath();
       ctx.moveTo(xx, yy);
-      ctx.lineTo(xx + 0.4, yy + 0.5);
-      ctx.lineTo(xx, yy + 1);
-      ctx.lineTo(xx - 0.4, yy + 0.5);
+      ctx.lineTo(xx + 0.5, yy + 0.65);
+      ctx.lineTo(xx, yy + 1.3);
+      ctx.lineTo(xx - 0.5, yy + 0.65);
       ctx.closePath();
       ctx.fill();
     }
-    // Center "LW" badge
-    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
-    ctx.fillRect(-1.2, 2.5, 2.4, 1.2);
+    // Center LW-badge (gold-square med text)
+    ctx.fillStyle = goldDark;
+    ctx.fillRect(-1.8, 2.7, 3.6, 1.7);
     ctx.strokeStyle = flash ? '#fff' : '#3a2010';
     ctx.lineWidth = 0.3;
-    ctx.strokeRect(-1.2, 2.5, 2.4, 1.2);
+    ctx.strokeRect(-1.8, 2.7, 3.6, 1.7);
+    ctx.font = 'bold 1.5px serif';
+    ctx.fillStyle = gold;
+    ctx.fillText('LW', 0, 3.6);
+    // LOUI WITTY-text
+    ctx.font = 'bold 1.0px serif';
+    ctx.fillStyle = gold;
+    ctx.fillText('LOUI WITTY', 0, 8.3);
   } else if (brand === 'versass') {
-    // Gold Medusa head (cirkel + ray-pattern)
-    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    // VERSASS — gold medallion med sun-rays (ej Medusa) + Greek key + namn
+    const gold = flash ? '#fff' : '#ffd54a';
+    const goldDark = flash ? '#fff' : '#aa8a30';
+    const black = flash ? '#fff' : '#0a0a0a';
+    // Outer ring med glow
     ctx.shadowColor = flash ? '#fff' : '#ffd54a';
     ctx.shadowBlur = 4;
+    ctx.fillStyle = gold;
     ctx.beginPath();
-    ctx.arc(0.5, 3, 2, 0, Math.PI * 2);
+    ctx.arc(0.5, 3.5, 2.4, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
-    // Inner darker circle
-    ctx.fillStyle = flash ? '#fff' : '#aa8a3a';
+    // Inner ring
+    ctx.fillStyle = goldDark;
     ctx.beginPath();
-    ctx.arc(0.5, 3, 1.4, 0, Math.PI * 2);
+    ctx.arc(0.5, 3.5, 1.7, 0, Math.PI * 2);
     ctx.fill();
-    // Star/sunburst rays
-    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
-    for (let i = 0; i < 8; i++) {
-      const ang = (i / 8) * Math.PI * 2;
-      const x = 0.5 + Math.cos(ang) * 1.8;
-      const y = 3 + Math.sin(ang) * 1.8;
+    // 12 sun-rays runt outer
+    ctx.fillStyle = gold;
+    for (let i = 0; i < 12; i++) {
+      const ang = (i / 12) * Math.PI * 2;
+      const x = 0.5 + Math.cos(ang) * 2.15;
+      const y = 3.5 + Math.sin(ang) * 2.15;
       ctx.beginPath();
-      ctx.arc(x, y, 0.25, 0, Math.PI * 2);
+      ctx.arc(x, y, 0.22, 0, Math.PI * 2);
       ctx.fill();
     }
-    // Center mark (medusa face hint)
-    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
-    ctx.fillRect(0.2, 2.7, 0.6, 0.6);
+    // Center "V"
+    ctx.font = 'bold 2.0px serif';
+    ctx.fillStyle = gold;
+    ctx.fillText('V', 0.5, 3.7);
+    // VERSASS-text
+    ctx.font = 'bold 1.2px serif';
+    ctx.fillStyle = gold;
+    ctx.fillText('VERSASS', 0.5, 7.3);
   } else if (brand === 'calvin') {
-    // Calvin minimal text bar — bara två rader svart text-look
-    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
-    ctx.fillRect(-2.5, 5.5, 5, 0.5);  // "CALVIN" stripe
-    ctx.fillRect(-1.8, 6.2, 3.6, 0.4); // "KLEIN" stripe
-    // Tiny waistband logo
-    ctx.fillStyle = flash ? '#fff' : '#666666';
-    ctx.fillRect(-2.5, 7, 5, 0.3);
+    // CALVIN COOL-IN — minimal black/white text + waistband
+    const black = flash ? '#fff' : '#0a0a0a';
+    const white = flash ? '#fff' : '#ffffff';
+    // Waistband (svart band med "Calvin Cool-in" text)
+    ctx.fillStyle = black;
+    ctx.fillRect(-4.5, 6, 9, 1.6);
+    ctx.font = 'bold 1.2px sans-serif';
+    ctx.fillStyle = white;
+    ctx.fillText('Calvin Cool-in', 0, 6.8);
+    // Minimal "cc" chest mark
+    ctx.font = 'bold 2.0px serif';
+    ctx.fillStyle = black;
+    ctx.fillText('cc', 0, 3);
   } else if (brand === 'tommy') {
-    // Tommy flag-patch (red/white/blue)
-    ctx.strokeStyle = flash ? '#fff' : '#0a0a0a';
+    // TOMMY — RWB stripe-patch + "TOMMY" badge + stars
+    const red = flash ? '#fff' : '#cc1818';
+    const white = flash ? '#fff' : '#ffffff';
+    const blue = flash ? '#fff' : '#1a3a8a';
+    const black = flash ? '#fff' : '#0a0a0a';
+    // 3 horisontella stripes
+    ctx.fillStyle = red;
+    ctx.fillRect(-3, 1.3, 6, 1.0);
+    ctx.fillStyle = white;
+    ctx.fillRect(-3, 2.3, 6, 1.0);
+    ctx.fillStyle = blue;
+    ctx.fillRect(-3, 3.3, 6, 1.0);
+    ctx.strokeStyle = black;
     ctx.lineWidth = 0.3;
-    ctx.fillStyle = flash ? '#fff' : '#aa1818';
-    ctx.fillRect(-2.5, 1.5, 5, 0.9);
-    ctx.fillStyle = flash ? '#fff' : '#ffffff';
-    ctx.fillRect(-2.5, 2.4, 5, 0.9);
-    ctx.fillStyle = flash ? '#fff' : '#1a3a8a';
-    ctx.fillRect(-2.5, 3.3, 5, 0.9);
-    ctx.strokeRect(-2.5, 1.5, 5, 2.7);
-    // Tommy "T" detail i mitten
-    ctx.fillStyle = flash ? '#fff' : '#ffffff';
-    ctx.fillRect(-0.3, 1.5, 0.6, 2.7);
-  } else if (brand === 'supreme') {
-    // Supreme box logo (red rectangle med vit border)
-    ctx.fillStyle = flash ? '#fff' : '#cc1818';
-    ctx.fillRect(-3.5, 1.5, 7, 2);
-    ctx.strokeStyle = flash ? '#fff' : '#ffffff';
-    ctx.lineWidth = 0.4;
-    ctx.strokeRect(-3.5, 1.5, 7, 2);
-    // White "SUPREME" text-bar (simulering)
-    ctx.fillStyle = flash ? '#fff' : '#ffffff';
-    ctx.fillRect(-3, 2.0, 6, 0.5);
-    ctx.fillRect(-2.5, 2.7, 5, 0.4);
-  } else if (brand === 'north') {
-    // North Phase half-dome logo (semicircle + vertical center)
-    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.strokeRect(-3, 1.3, 6, 3.0);
+    // Liten vit stjärna på blå sektion
+    ctx.fillStyle = white;
     ctx.beginPath();
-    ctx.arc(0.5, 3, 1.8, Math.PI, 0);
+    for (let i = 0; i < 5; i++) {
+      const ang = -Math.PI / 2 + (i / 5) * Math.PI * 2;
+      const ax = 0 + Math.cos(ang) * 0.4;
+      const ay = 3.8 + Math.sin(ang) * 0.4;
+      if (i === 0) ctx.moveTo(ax, ay);
+      else ctx.lineTo(ax, ay);
+    }
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = flash ? '#fff' : '#0a0a0a';
+    // TOMMY-text under
+    ctx.font = 'bold 1.5px sans-serif';
+    ctx.fillStyle = blue;
+    ctx.fillText('TOMMY', 0, 5.8);
+  } else if (brand === 'supreme') {
+    // SUPREME PIZZA — röd box med italic text (clearly pizza-parody)
+    const red = flash ? '#fff' : '#cc1818';
+    const redDark = flash ? '#fff' : '#8a0a0a';
+    const white = flash ? '#fff' : '#ffffff';
+    // Red box med vit border
+    ctx.fillStyle = red;
+    ctx.fillRect(-3.5, 1.5, 7, 2.5);
+    ctx.strokeStyle = white;
+    ctx.lineWidth = 0.4;
+    ctx.strokeRect(-3.5, 1.5, 7, 2.5);
+    // Inner shadow
+    ctx.fillStyle = redDark;
+    ctx.fillRect(-3.3, 3.6, 6.6, 0.4);
+    // "Supreme Pizza" text (italic bold)
+    ctx.font = 'italic bold 1.5px sans-serif';
+    ctx.fillStyle = white;
+    ctx.fillText('Supreme', 0, 2.4);
+    ctx.font = 'italic bold 1.0px sans-serif';
+    ctx.fillText('PIZZA', 0, 3.5);
+    // Liten pizza-slice ikon under
+    ctx.fillStyle = flash ? '#fff' : '#ffae3a';
+    ctx.beginPath();
+    ctx.moveTo(0, 5);
+    ctx.lineTo(-1.3, 6.8);
+    ctx.lineTo(1.3, 6.8);
+    ctx.closePath();
+    ctx.fill();
+    // Pepperoni-prickar
+    ctx.fillStyle = flash ? '#fff' : '#cc1818';
+    ctx.beginPath(); ctx.arc(-0.4, 6.2, 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0.4, 6.5, 0.2, 0, Math.PI * 2); ctx.fill();
+  } else if (brand === 'north') {
+    // THE NORTH PHASE — 3 mountain peaks + namn (distinkt från half-dome)
+    const white = flash ? '#fff' : '#ffffff';
+    const black = flash ? '#fff' : '#0a0a0a';
+    const red = flash ? '#fff' : '#cc3a3a';
+    // 3 trianglar (berg-peaks)
+    ctx.fillStyle = white;
+    ctx.beginPath();
+    ctx.moveTo(-3.2, 4.2);
+    ctx.lineTo(-1.5, 1.5);
+    ctx.lineTo(0, 4.2);
+    ctx.lineTo(1.5, 0.8);
+    ctx.lineTo(3.2, 4.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = black;
     ctx.lineWidth = 0.3;
     ctx.stroke();
-    // 3 ridges (mountain lines)
+    // Röda snöleder på toppen av middle peak
+    ctx.fillStyle = red;
     ctx.beginPath();
-    ctx.moveTo(-0.8, 3); ctx.lineTo(-0.8, 1.3);
-    ctx.moveTo(0.5, 3);  ctx.lineTo(0.5, 1.2);
-    ctx.moveTo(1.8, 3);  ctx.lineTo(1.8, 1.3);
-    ctx.stroke();
-    // "TNP" text strip nedanför
-    ctx.fillStyle = flash ? '#fff' : '#ffffff';
-    ctx.fillRect(-1.5, 4, 4, 0.5);
+    ctx.moveTo(1.5, 0.8);
+    ctx.lineTo(1.0, 1.8);
+    ctx.lineTo(2.0, 1.8);
+    ctx.closePath();
+    ctx.fill();
+    // Smaller peak snow
+    ctx.beginPath();
+    ctx.moveTo(-1.5, 1.5);
+    ctx.lineTo(-1.9, 2.3);
+    ctx.lineTo(-1.1, 2.3);
+    ctx.closePath();
+    ctx.fill();
+    // NORTH PHASE-text
+    ctx.font = 'bold 1.1px sans-serif';
+    ctx.fillStyle = white;
+    ctx.fillText('THE NORTH', 0, 5.4);
+    ctx.fillText('PHASE', 0, 6.6);
   } else if (brand === 'bossa') {
-    // Hugo Bossa — minimal silver text-bar
-    ctx.fillStyle = flash ? '#fff' : '#c0c0c0';
-    ctx.fillRect(-3, 2.5, 6, 0.7);
-    // "BOSS" text-look (4 short verticals)
-    ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
-    ctx.fillRect(-2.5, 2.6, 0.3, 0.5);
-    ctx.fillRect(-1.5, 2.6, 0.3, 0.5);
-    ctx.fillRect(-0.5, 2.6, 0.3, 0.5);
-    ctx.fillRect(0.5, 2.6, 0.3, 0.5);
+    // HUGO BOSSA — silver bar + namn-text + gold accent
+    const silver = flash ? '#fff' : '#c8c8c8';
+    const black = flash ? '#fff' : '#0a0a0a';
+    const gold = flash ? '#fff' : '#aa8a3a';
+    // Silver bar bakgrund
+    ctx.fillStyle = silver;
+    ctx.fillRect(-4, 2.3, 8, 1.7);
+    // Inner darker
+    ctx.fillStyle = flash ? '#fff' : '#666666';
+    ctx.fillRect(-3.8, 2.5, 7.6, 1.3);
+    // HUGO BOSSA-text
+    ctx.font = 'bold 1.5px sans-serif';
+    ctx.fillStyle = silver;
+    ctx.fillText('HUGO BOSSA', 0, 3.3);
     // Gold accent line below
-    ctx.fillStyle = flash ? '#fff' : '#aa8a3a';
-    ctx.fillRect(-3, 3.3, 6, 0.2);
+    ctx.fillStyle = gold;
+    ctx.fillRect(-4, 4.2, 8, 0.3);
+    // Coat-of-arms detail (small shield)
+    ctx.fillStyle = gold;
+    ctx.beginPath();
+    ctx.moveTo(0, 5);
+    ctx.lineTo(0.7, 5.3);
+    ctx.lineTo(0.5, 6.2);
+    ctx.lineTo(0, 6.5);
+    ctx.lineTo(-0.5, 6.2);
+    ctx.lineTo(-0.7, 5.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = black;
+    ctx.lineWidth = 0.2;
+    ctx.stroke();
   }
+  ctx.restore();
 }
 
 // v1.481: Pants overlay som FÖLJER ben-silhouette EXAKT.
