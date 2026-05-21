@@ -11463,30 +11463,42 @@ function drawCoopPartner() {
     }
     ctx.save();
     if (pFacingLeft) ctx.scale(-1, 1);
-    // v1.447: partner använder hybrid rotation med bumpade factors
+    // v1.449: subtle body-lean
     const pAimUpDown = Math.atan2(pAimY, Math.max(0.01, Math.abs(pAimX)));
-    if (p._idleRotFactor === undefined) p._idleRotFactor = 1.0;
-    const pTargetIdleFactor = partnerMoving ? 0.35 : 1.0;
-    p._idleRotFactor += (pTargetIdleFactor - p._idleRotFactor) * 0.08;
-    const pMaxBodyRot = 1.05;
-    const pTargetTilt = Math.max(-pMaxBodyRot, Math.min(pMaxBodyRot, pAimUpDown * p._idleRotFactor));
+    const pMaxLean = 0.30;
+    const pBodyLean = Math.max(-pMaxLean, Math.min(pMaxLean, pAimUpDown * 0.7));
     if (p._bodyRotLerp === undefined) p._bodyRotLerp = 0;
-    p._bodyRotLerp += (pTargetTilt - p._bodyRotLerp) * 0.22;
+    p._bodyRotLerp += (pBodyLean - p._bodyRotLerp) * 0.20;
     ctx.rotate(p._bodyRotLerp);
     if (partnerCos.bandana) {
       drawBandanaTail(ctx, partnerCos, color, now, partnerMoving, phase);
     }
     const partnerSprite = _getCachedPlayerSprite(partnerCos, color, 1, false, partnerFrame);
     ctx.drawImage(partnerSprite, -partnerSprite.width / 2, -partnerSprite.height / 2);
-    // v1.447: same FRONT-MARK indicator för partner
-    ctx.fillStyle = '#ffd54a';
-    ctx.fillRect(4, -3, 2, 2);
-    ctx.fillStyle = '#0a0408';
-    ctx.fillRect(3, -4, 1, 1);
-    ctx.fillRect(6, -4, 1, 1);
-    ctx.fillRect(3, -1, 1, 1);
-    ctx.fillRect(6, -1, 1, 1);
     ctx.restore();
+    // v1.449: ROTATING HEAD-ARROW för partner
+    {
+      ctx.save();
+      ctx.translate(0, -15);
+      ctx.rotate(partnerAimAngle);
+      ctx.fillStyle = '#000';
+      ctx.beginPath();
+      ctx.moveTo(8, 0);
+      ctx.lineTo(-3, -5);
+      ctx.lineTo(-1, 0);
+      ctx.lineTo(-3, 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#ffd54a';
+      ctx.beginPath();
+      ctx.moveTo(6, 0);
+      ctx.lineTo(-1, -3);
+      ctx.lineTo(0, 0);
+      ctx.lineTo(-1, 3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
     // Rotate for partner-weapon
     ctx.rotate(partnerAimAngle);
     if (pFacingLeft) ctx.scale(1, -1);
@@ -37524,56 +37536,64 @@ function drawPlayer() {
     const walkCycle = Math.floor(phase / Math.PI) % 2;
     chosenSprite = walkCycle === 0 ? PLAYER_SPRITE_WALK_A : PLAYER_SPRITE_WALK_B;
   }
-  // v1.446: MIRROR + HYBRID FACE-AIM ROTATION
-  // Branschstandard för sidovy-sprites i top-down (Realm of the Mad God-stil):
-  //   - Stillastående: full rotation mot aim (tydligt "vänd mot enemies")
-  //   - Springer: kropp nästan upprätt (walk-animation läsbar)
-  //   - Smooth lerp mellan target-rotationer så det inte snapper
+  // v1.449: SUBTLE BODY-LEAN + LARGE ROTATING HEAD-ARROW
   //
-  // Vår sprite är 3/4-view (vi ser ansiktet) så full rotation under run-animation
-  // ger "springer sidles" - benen swingar i fel riktning relativt skärm. Genom
-  // att minska rotation till ~22% vid rörelse stannar walk-cycle läsbar.
+  // ROOT-CAUSE av min upprepade förvirring: i 2D top-down spel med FRONTVY-
+  // sprite (som vår, med face/glasögon synliga) kan man inte ROTERA kroppen
+  // i 2D-canvas utan att den ser SIDLES ut. True top-down rotation (yaw)
+  // visualiseras i 2D via olika sprite-vyer per riktning (8-directional sprites)
+  // ELLER via redesign till top-down view (huvudet sett uppifrån).
+  //
+  // Utan full sprite-redesign, det bästa kompromisset:
+  // 1. Body roterar SUBTILT (max ±17°) = synligt lean utan sidles
+  // 2. STOR pil-indikator OVANPÅ huvudet som roterar FULLT med aim = visar
+  //    tydligt vart huvudet är vänd. Som en hjälm-framsida eller visir-kant.
   const _aimX = Math.cos(p.aimAngle);
   const _aimY = Math.sin(p.aimAngle);
   const _facingLeft = _aimX < -0.05;
   ctx.save();
   if (_facingLeft) ctx.scale(-1, 1);
+  // Subtle body lean (max ±17°, ej sidles)
   const _aimUpDown = Math.atan2(_aimY, Math.max(0.01, Math.abs(_aimX)));
-  // v1.447: bumped running factor 0.22 → 0.35 så rotation syns även när du springer
-  if (p._idleRotFactor === undefined) p._idleRotFactor = 1.0;
-  const _targetIdleFactor = moving ? 0.35 : 1.0;
-  p._idleRotFactor += (_targetIdleFactor - p._idleRotFactor) * 0.08;
-  const _maxBodyRot = 1.05; // cap ~60° (was 50°)
-  const _targetTilt = Math.max(-_maxBodyRot, Math.min(_maxBodyRot, _aimUpDown * p._idleRotFactor));
+  const _maxBodyLean = 0.30; // ~17° max
+  const _bodyLean = Math.max(-_maxBodyLean, Math.min(_maxBodyLean, _aimUpDown * 0.7));
   if (p._bodyRotLerp === undefined) p._bodyRotLerp = 0;
-  p._bodyRotLerp += (_targetTilt - p._bodyRotLerp) * 0.22;
+  p._bodyRotLerp += (_bodyLean - p._bodyRotLerp) * 0.20;
   ctx.rotate(p._bodyRotLerp);
-  // v1.443: BANDANA TAIL — ritas FÖRE sprite så den ligger bakom karaktären.
   if (cos.bandana) {
     drawBandanaTail(ctx, cos, null, now, moving, phase);
   }
   const spriteCanvas = _getCachedPlayerSprite(cos, null, 1, flash, chosenSprite);
   ctx.drawImage(spriteCanvas, -spriteCanvas.width / 2, -spriteCanvas.height / 2);
-  // v1.447: FRONT-MARK / "NOSE" INDICATOR — gör body-rotation perceptually clear.
-  // ROOT-CAUSE: vår sprite är TOP-DOWN view med SYMMETRISK face (W-pixels vid
-  // kolumn 18 OCH 27 = identiska sunglasses-lenses, samma höger som vänster).
-  // Rotation av sprite-rektangeln kan inte göra face "look toward enemies"
-  // eftersom face-pixlarna ser likadana ut oavsett vinkel. Användaren upplever
-  // "tittar alltid rakt" — det är inte en bug i koden utan i SPRITE-DESIGNEN.
-  //
-  // Fix: 2x2 pixel-overlay vid body-local (4, -3) = upper-right av body i sprite-
-  // frame. Ritas INNAN ctx.restore() = följer body-rotation. När body roterar
-  // mot aim flyttas indikatorn med kroppen → tydlig "facing direction" cue.
-  // Placerad ovanför vapen-Y-line så den inte göms av gun-render.
-  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
-  ctx.fillRect(4, -3, 2, 2);
-  // Dark outline för "pop" mot vest-färgen
-  ctx.fillStyle = flash ? '#fff' : '#0a0408';
-  ctx.fillRect(3, -4, 1, 1);
-  ctx.fillRect(6, -4, 1, 1);
-  ctx.fillRect(3, -1, 1, 1);
-  ctx.fillRect(6, -1, 1, 1);
   ctx.restore();
+  // v1.449: ROTATING HEAD-ARROW — Stor pil ovanpå huvudet som roterar 360° med
+  // aim. Ritas i world-frame så body kan stå upprätt medan pilen tydligt visar
+  // facing direction. Som en visirkant / hjälmframsida som alltid pekar mot
+  // det karaktären "tittar på".
+  {
+    ctx.save();
+    ctx.translate(0, -15); // top of head
+    ctx.rotate(p.aimAngle); // pilen roterar med aim
+    // Yttre svart pil-form (triangle pekande höger = aim direction)
+    ctx.fillStyle = flash ? '#fff' : '#000';
+    ctx.beginPath();
+    ctx.moveTo(8, 0);    // tip (i aim direction)
+    ctx.lineTo(-3, -5);  // back-top
+    ctx.lineTo(-1, 0);   // back-mid (notched)
+    ctx.lineTo(-3, 5);   // back-bottom
+    ctx.closePath();
+    ctx.fill();
+    // Inner gul highlight
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.beginPath();
+    ctx.moveTo(6, 0);
+    ctx.lineTo(-1, -3);
+    ctx.lineTo(0, 0);
+    ctx.lineTo(-1, 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
   // NU rotera för vapen — vapnet roterar i sikt-riktning runt player center
   ctx.rotate(p.aimAngle);
   // v1.441: när aim är västligt (cos < 0), flippa vapnet vertikalt så det
