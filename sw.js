@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v433-reconnect-fastupgrade-final4';
+const CACHE = 'penetrator-v434-character-redesign-premium';
 const ASSETS = [
   './',
   './index.html',
