@@ -11470,16 +11470,19 @@ function drawCoopPartner() {
       p._bodyFacingLeft = pFacingLeft;
     }
     const _pBodyFacingLeft = p._bodyFacingLeft;
-    // v1.463: Canvas primitives + walk animation för partner
+    // v1.466: Partner — hanging arm + body + shooting arm vid shoulder
+    drawHangingArm(ctx, partnerCos, false, _pBodyFacingLeft);
     ctx.save();
     if (_pBodyFacingLeft) ctx.scale(-1, 1);
     drawNakedBody(ctx, partnerCos, false, p._walkPhase || 0, partnerMoving);
     ctx.restore();
-    // Partner arm + hand rotated med aim
+    // v1.466: Partner shooting arm utgår från front shoulder
     ctx.save();
+    const _pShoulderX = _pBodyFacingLeft ? -3 : 3;
+    ctx.translate(_pShoulderX, -3);
     ctx.rotate(partnerAimAngle);
     if (pFacingLeft) ctx.scale(1, -1);
-    const _pArmSkin = partnerCos.skin || '#c89870';
+    const _pArmSkin = partnerCos.skin || '#dca888';
     ctx.fillStyle = _pArmSkin;
     ctx.fillRect(2, -3, 14, 6);
     ctx.strokeStyle = '#0a0a0e';
@@ -38091,6 +38094,72 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.stroke();
 }
 
+// v1.466: HANGING arm — hangs at side opposite of shooting arm.
+// When body faces east, hanging arm at west shoulder (behind body, partially hidden).
+function drawHangingArm(ctx, cos, flash, bodyFacingLeft) {
+  const skinBase = cos.skin || '#dca888';
+  const armBase = flash ? '#fff' : darken(skinBase, 0.12);
+  const armShadow = flash ? '#fff' : darken(skinBase, 0.40);
+  const armLight = flash ? '#fff' : lighten(skinBase, 0.10);
+  const outline = flash ? '#fff' : '#0a0a0e';
+  // Hanging arm at OPPOSITE shoulder from shooting arm
+  const hangX = bodyFacingLeft ? 4 : -4; // outside body silhouette
+  const shY = -3;
+  // Upper arm (slight bicep curve)
+  ctx.fillStyle = armBase;
+  ctx.beginPath();
+  ctx.moveTo(hangX - 1.3, shY);
+  ctx.lineTo(hangX + 1.3, shY);
+  ctx.quadraticCurveTo(hangX + 1.6, shY + 5, hangX + 1.2, shY + 9);
+  ctx.lineTo(hangX + 1, shY + 13);
+  ctx.lineTo(hangX - 1, shY + 13);
+  ctx.lineTo(hangX - 1.2, shY + 9);
+  ctx.quadraticCurveTo(hangX - 1.6, shY + 5, hangX - 1.3, shY);
+  ctx.closePath();
+  ctx.fill();
+  // Shadow on west edge of arm
+  ctx.fillStyle = armShadow;
+  ctx.beginPath();
+  ctx.moveTo(hangX - 1.3, shY);
+  ctx.lineTo(hangX - 0.5, shY);
+  ctx.quadraticCurveTo(hangX - 0.7, shY + 5, hangX - 0.4, shY + 9);
+  ctx.lineTo(hangX - 0.3, shY + 13);
+  ctx.lineTo(hangX - 1, shY + 13);
+  ctx.lineTo(hangX - 1.2, shY + 9);
+  ctx.quadraticCurveTo(hangX - 1.6, shY + 5, hangX - 1.3, shY);
+  ctx.closePath();
+  ctx.fill();
+  // Highlight on east edge of arm
+  ctx.fillStyle = armLight;
+  ctx.fillRect(hangX + 0.5, shY + 1, 0.8, 11);
+  // Outline
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(hangX - 1.3, shY);
+  ctx.lineTo(hangX + 1.3, shY);
+  ctx.quadraticCurveTo(hangX + 1.6, shY + 5, hangX + 1.2, shY + 9);
+  ctx.lineTo(hangX + 1, shY + 13);
+  ctx.lineTo(hangX - 1, shY + 13);
+  ctx.lineTo(hangX - 1.2, shY + 9);
+  ctx.quadraticCurveTo(hangX - 1.6, shY + 5, hangX - 1.3, shY);
+  ctx.closePath();
+  ctx.stroke();
+  // Hand at bottom (fist hanging)
+  ctx.fillStyle = armBase;
+  ctx.beginPath();
+  ctx.arc(hangX, shY + 14, 1.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = armLight;
+  ctx.beginPath();
+  ctx.arc(hangX + 0.5, shY + 13.5, 0.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.beginPath();
+  ctx.arc(hangX, shY + 14, 1.8, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
 function drawPlayer() {
   const p = state.player;
   const x = p.x - state.camera.x;
@@ -38207,16 +38276,22 @@ function drawPlayer() {
     p.bodyFacingLeft = _facingLeft;
   }
   const _bodyFacingLeft = p.bodyFacingLeft;
-  // v1.463: Canvas primitives + walk animation (phase + moving passed)
+  // v1.466: Hanging arm BEFORE body (visible at side, partially behind body),
+  // then body, then shooting arm AFTER body (in front, attached at front shoulder).
+  drawHangingArm(ctx, cos, flash, _bodyFacingLeft);
   ctx.save();
   if (_bodyFacingLeft) ctx.scale(-1, 1);
   drawNakedBody(ctx, cos, flash, phase, moving);
   ctx.restore();
-  // v1.460: ARMS med 3-tons shading (highlight, base, shadow) + knuckles
+  // v1.466: SHOOTING ARM utgår från FRONT SHOULDER (inte body center).
+  // Offset till shoulder före rotation så armen är vid sidan av kroppen.
   ctx.save();
+  const _shoulderX = _bodyFacingLeft ? -3 : 3;
+  const _shoulderY = -3;
+  ctx.translate(_shoulderX, _shoulderY);
   ctx.rotate(p.aimAngle);
   if (_facingLeft) ctx.scale(1, -1);
-  const _armBase = cos.skin || '#c89870';
+  const _armBase = cos.skin || '#dca888';
   const _armLight = flash ? '#fff' : lighten(_armBase, 0.22);
   const _armSkin = flash ? '#fff' : _armBase;
   const _armShadow = flash ? '#fff' : darken(_armBase, 0.30);
