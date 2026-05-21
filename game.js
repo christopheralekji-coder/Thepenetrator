@@ -38687,36 +38687,72 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   if (isGlowEye) ctx.shadowBlur = 0;
   ctx.fillStyle = '#fff';
   ctx.fillRect(4.55, -13, 0.35, 0.35);
-  // === NOSE — bigger, more visible ===
-  // Nose bridge shadow line
+  // v1.483: NÄSA + MUN — fixad proportion. Innan: mun vid y=-8.2/-7.7 (chin y=-7)
+  // = munnen satt PÅ hakan. Nu: face thirds-rule (eyes till chin = 5.7 units):
+  //   Nose tip: 1/3 ner = y=-10.8
+  //   Mouth:    2/3 ner = y=-8.9
+  //   Chin:     y=-7
+  // === NOSE — kompakt, 3D-definierad, korrekt position ===
+  // Bridge highlight line (smooth shadow på nasal bridge)
   ctx.strokeStyle = skin5;
-  ctx.lineWidth = 0.8;
+  ctx.lineWidth = 0.6;
   ctx.beginPath();
-  ctx.moveTo(2.5, -11.5);
-  ctx.lineTo(3, -9.5);
+  ctx.moveTo(2.6, -12.0);
+  ctx.lineTo(3.0, -10.8);
   ctx.stroke();
-  // Nose tip outline curve (bigger)
+  // Bridge highlight (east-side, mot ljuset)
+  ctx.fillStyle = skin1;
+  ctx.fillRect(3.4, -11.8, 0.35, 1.2);
+  // Nose tip (rounded form)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.moveTo(2.8, -10.8);
+  ctx.quadraticCurveTo(4.3, -10.7, 4.4, -10.0);
+  ctx.lineTo(4.0, -9.8);
+  ctx.quadraticCurveTo(3.3, -10.0, 2.9, -10.3);
+  ctx.closePath();
+  ctx.fill();
+  // Nose tip outline (delicate curve)
   ctx.strokeStyle = outline;
-  ctx.lineWidth = 0.8;
+  ctx.lineWidth = 0.6;
   ctx.beginPath();
-  ctx.moveTo(2.8, -10);
-  ctx.quadraticCurveTo(4.5, -9.5, 4, -9);
+  ctx.moveTo(2.8, -10.8);
+  ctx.quadraticCurveTo(4.3, -10.7, 4.4, -10.0);
+  ctx.lineTo(4.0, -9.8);
   ctx.stroke();
-  // Bigger nostril
+  // Nostril (small dark ellipse, not too big)
   ctx.fillStyle = skin6;
-  ctx.fillRect(3, -9.3, 0.8, 0.5);
-  // === MOUTH — bigger, frown shape ===
-  ctx.strokeStyle = lipColor;
-  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(1.7, -8.2);
-  ctx.quadraticCurveTo(3.2, -8.4, 4.8, -8.2); // slight downward curve = serious
+  ctx.ellipse(3.6, -10.05, 0.4, 0.22, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Subtle shadow under nose (above mouth, separating)
+  ctx.fillStyle = skin5;
+  ctx.fillRect(3.0, -9.5, 1.0, 0.3);
+  // === MOUTH — properly positioned at face mid-lower (y=-9.2 to -8.7) ===
+  // Upper lip line (subtle frown for militant expression)
+  ctx.strokeStyle = lipColor;
+  ctx.lineWidth = 0.9;
+  ctx.beginPath();
+  ctx.moveTo(1.8, -9.0);
+  ctx.quadraticCurveTo(3.2, -9.2, 4.7, -9.0); // slight downward = serious
   ctx.stroke();
-  // Lower lip subtle (bigger)
+  // Lower lip (bigger volume, distinct from chin)
   ctx.fillStyle = lipHi;
   ctx.beginPath();
-  ctx.ellipse(3.3, -7.7, 1.3, 0.4, 0, 0, Math.PI * 2);
+  ctx.ellipse(3.2, -8.6, 1.2, 0.38, 0, 0, Math.PI * 2);
   ctx.fill();
+  // Lip outline (subtle definition)
+  ctx.strokeStyle = darken(lipColor, 0.65);
+  ctx.lineWidth = 0.3;
+  ctx.beginPath();
+  ctx.ellipse(3.2, -8.6, 1.2, 0.38, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  // Shadow under lower lip (separating mouth from chin)
+  ctx.fillStyle = skin5;
+  ctx.beginPath();
+  ctx.moveTo(2.2, -8.2);
+  ctx.quadraticCurveTo(3.2, -8.0, 4.3, -8.2);
+  ctx.stroke();
   // === EAR (small, west side, partially visible in 3/4) ===
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
@@ -40154,119 +40190,128 @@ function drawScarsOnFace(ctx, style, color, flash) {
 // v1.479: Facial hair (mustache, beard, goatee, etc) — overlay på underdel av ansikte
 // Ansikte: y -7 till -19, mun på y=-8, haka på y=-7 ungefär. Skägg = under mun.
 function drawFacialHair(ctx, style, color, flash) {
+  // v1.483: Justerade alla positions efter mouth/nose fix.
+  // Nu: nose y=-12 till -10, mouth y=-9.2 till -8.7, chin y=-7
+  //   → mustasch: y=-9.8 till -9.3 (mellan näsa & mun)
+  //   → goatee:   y=-8.5 till -7   (mellan mun & hakspets)
+  //   → fullbeard: y=-9.5 till -5  (täcker mustach + hakszone + neck)
   const col = flash ? '#fff' : (color || '#1a0a08');
   ctx.fillStyle = col;
   ctx.strokeStyle = col;
   if (style === 'stubble') {
-    // Tunna prickar runt haka och mustasch-område
+    // Stubb-prickar över hela haka + ovanför mustach
     ctx.globalAlpha = 0.6;
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < 16; i++) {
       const sx = -2 + (i * 0.5);
-      const sy = -7.5 - (i % 3) * 0.5;
+      const sy = -8 - (i % 3) * 0.5;
       ctx.fillRect(sx, sy, 0.4, 0.4);
+    }
+    // Mustach-stubb
+    for (let i = 0; i < 8; i++) {
+      ctx.fillRect(1.8 + i * 0.4, -9.5 - (i % 2) * 0.3, 0.3, 0.3);
     }
     ctx.globalAlpha = 1;
   } else if (style === 'mustache') {
-    // Tjock mustasch ovanför mun (mun: y=-8.2, mustasch y=-9)
+    // Mustach OVANFÖR munnen (mun y=-9.0). Sits mellan näsa och mun.
     ctx.beginPath();
-    ctx.moveTo(1.5, -9);
-    ctx.quadraticCurveTo(2.5, -9.6, 3.3, -9.4);
-    ctx.quadraticCurveTo(4.2, -9.6, 5.2, -9);
-    ctx.lineTo(5.0, -8.5);
-    ctx.quadraticCurveTo(4.2, -8.7, 3.3, -8.5);
-    ctx.quadraticCurveTo(2.5, -8.7, 1.7, -8.5);
+    ctx.moveTo(1.6, -9.7);
+    ctx.quadraticCurveTo(2.6, -10.2, 3.3, -10.0);
+    ctx.quadraticCurveTo(4.2, -10.2, 5.0, -9.7);
+    ctx.lineTo(4.8, -9.2);
+    ctx.quadraticCurveTo(4.2, -9.4, 3.3, -9.2);
+    ctx.quadraticCurveTo(2.5, -9.4, 1.8, -9.2);
     ctx.closePath();
     ctx.fill();
   } else if (style === 'handlebar') {
-    // Krullad mustasch med curly ends
+    // Krullad mustach (samma höjd som mustache + krullar)
     ctx.beginPath();
-    ctx.moveTo(1.2, -9);
-    ctx.quadraticCurveTo(2.5, -9.8, 3.3, -9.5);
-    ctx.quadraticCurveTo(4.2, -9.8, 5.5, -9);
-    ctx.lineTo(5.3, -8.5);
-    ctx.quadraticCurveTo(4.2, -8.8, 3.3, -8.5);
-    ctx.quadraticCurveTo(2.5, -8.8, 1.4, -8.5);
+    ctx.moveTo(1.3, -9.7);
+    ctx.quadraticCurveTo(2.5, -10.4, 3.3, -10.1);
+    ctx.quadraticCurveTo(4.2, -10.4, 5.3, -9.7);
+    ctx.lineTo(5.1, -9.2);
+    ctx.quadraticCurveTo(4.2, -9.4, 3.3, -9.2);
+    ctx.quadraticCurveTo(2.5, -9.4, 1.5, -9.2);
     ctx.closePath();
     ctx.fill();
     // Curl-ends
-    ctx.lineWidth = 0.6;
+    ctx.lineWidth = 0.5;
     ctx.beginPath();
-    ctx.arc(1.2, -9.3, 0.4, 0, Math.PI * 2);
+    ctx.arc(1.3, -9.9, 0.35, 0, Math.PI * 2);
     ctx.stroke();
     ctx.beginPath();
-    ctx.arc(5.5, -9.3, 0.4, 0, Math.PI * 2);
+    ctx.arc(5.3, -9.9, 0.35, 0, Math.PI * 2);
     ctx.stroke();
   } else if (style === 'goatee') {
-    // Liten hak-skägg under mun
+    // Hak-skägg UNDER munnen (mun bottom y=-8.5). Sits mellan mun och chin.
     ctx.beginPath();
-    ctx.moveTo(2.5, -7.8);
-    ctx.lineTo(4.5, -7.8);
-    ctx.lineTo(4.2, -6.5);
-    ctx.lineTo(2.8, -6.5);
+    ctx.moveTo(2.5, -8.3);
+    ctx.lineTo(4.5, -8.3);
+    ctx.lineTo(4.2, -7);
+    ctx.lineTo(2.8, -7);
     ctx.closePath();
     ctx.fill();
   } else if (style === 'soulpatch') {
-    // Liten patch under läpp (1x1)
-    ctx.fillRect(3.0, -7.6, 1.0, 0.7);
+    // Liten patch precis under läpp (mun bottom y=-8.5)
+    ctx.fillRect(3.0, -8.3, 1.0, 0.7);
   } else if (style === 'fullbeard') {
-    // Helskägg — täcker hela hakan + sidkinder
+    // Helskägg — täcker hakan + sidkinder + ner till nacke
     ctx.beginPath();
-    ctx.moveTo(-3, -9);
+    ctx.moveTo(-3, -9.5);
     ctx.quadraticCurveTo(-3.5, -8, -3, -7);
-    ctx.lineTo(-2, -6);
-    ctx.quadraticCurveTo(0, -5, 3, -5.5);
-    ctx.quadraticCurveTo(5, -6, 5.5, -7.5);
-    ctx.lineTo(5.2, -9);
-    ctx.quadraticCurveTo(4.5, -9.2, 3.5, -9);
-    ctx.quadraticCurveTo(2, -9, 0.5, -9);
-    ctx.quadraticCurveTo(-1, -9.2, -3, -9);
+    ctx.lineTo(-2, -5.5);
+    ctx.quadraticCurveTo(1, -4.5, 3, -5);
+    ctx.quadraticCurveTo(5, -5.5, 5.5, -7.5);
+    ctx.lineTo(5.3, -9.5);
+    ctx.quadraticCurveTo(4.5, -9.7, 3.5, -9.5);
+    ctx.quadraticCurveTo(2, -9.5, 0.5, -9.5);
+    ctx.quadraticCurveTo(-1, -9.7, -3, -9.5);
     ctx.closePath();
     ctx.fill();
-    // Mustasch på toppen (förlängning)
+    // Mustach-stripe (ovanför mun)
     ctx.beginPath();
-    ctx.moveTo(1.5, -9);
-    ctx.quadraticCurveTo(3.3, -9.5, 5.2, -9);
-    ctx.lineTo(5.2, -8.4);
-    ctx.lineTo(1.5, -8.4);
+    ctx.moveTo(1.6, -9.7);
+    ctx.quadraticCurveTo(3.3, -10.2, 5.0, -9.7);
+    ctx.lineTo(5.0, -9.2);
+    ctx.lineTo(1.6, -9.2);
     ctx.closePath();
     ctx.fill();
   } else if (style === 'goatbeard') {
-    // Spetsigt bock-skägg (lång under hakan)
+    // Spetsigt bock-skägg (under hakan)
     ctx.beginPath();
-    ctx.moveTo(2, -7.5);
-    ctx.lineTo(5, -7.5);
+    ctx.moveTo(2, -8);
+    ctx.lineTo(5, -8);
     ctx.lineTo(4.5, -5);
     ctx.lineTo(3.2, -4);
     ctx.lineTo(2.5, -5);
     ctx.closePath();
     ctx.fill();
-    // Mustasch ovanför
+    // Mustach ovanför
     ctx.beginPath();
-    ctx.moveTo(2, -9);
-    ctx.quadraticCurveTo(3.5, -9.4, 5, -9);
-    ctx.lineTo(4.8, -8.5);
-    ctx.lineTo(2.2, -8.5);
+    ctx.moveTo(2, -9.7);
+    ctx.quadraticCurveTo(3.5, -10.1, 5, -9.7);
+    ctx.lineTo(4.8, -9.2);
+    ctx.lineTo(2.2, -9.2);
     ctx.closePath();
     ctx.fill();
   } else if (style === 'circle') {
-    // Cirkelskägg (mustasch+goatee förenat)
-    // Mustasch
+    // Cirkelskägg (mustach + goatee förenade via sidostripes)
+    // Mustach
     ctx.beginPath();
-    ctx.moveTo(1.7, -9);
-    ctx.quadraticCurveTo(3.3, -9.5, 5, -9);
-    ctx.lineTo(5, -8.4);
-    ctx.lineTo(1.7, -8.4);
+    ctx.moveTo(1.7, -9.7);
+    ctx.quadraticCurveTo(3.3, -10.2, 5, -9.7);
+    ctx.lineTo(5, -9.2);
+    ctx.lineTo(1.7, -9.2);
     ctx.closePath();
     ctx.fill();
-    // Sido-stripes ner till goatee
-    ctx.fillRect(1.7, -8.4, 0.5, 1.5);
-    ctx.fillRect(4.5, -8.4, 0.5, 1.5);
+    // Sido-stripes (vänster + höger, runt munnen)
+    ctx.fillRect(1.7, -9.2, 0.5, 1.5);
+    ctx.fillRect(4.5, -9.2, 0.5, 1.5);
     // Goatee under
     ctx.beginPath();
-    ctx.moveTo(2.2, -7.5);
-    ctx.lineTo(4.8, -7.5);
-    ctx.lineTo(4.5, -6);
-    ctx.lineTo(2.5, -6);
+    ctx.moveTo(2.2, -8.3);
+    ctx.lineTo(4.8, -8.3);
+    ctx.lineTo(4.5, -6.5);
+    ctx.lineTo(2.5, -6.5);
     ctx.closePath();
     ctx.fill();
   }
