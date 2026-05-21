@@ -11442,14 +11442,48 @@ function drawCoopPartner() {
 
     // v1.437/v1.441: PIXEL-ART partner-rendering med mirror + tilt
     ctx.imageSmoothingEnabled = false;
-    const partnerCos = {
-      skin: _partnerIsJug ? '#4a7a3a' : '#d4a574',
-      shirt: _partnerIsJug ? '#1a1a14' : color,
-      bandana: color,
-      accent: '#ffd54a',
-      pants: _partnerIsJug ? '#2a1a0a' : '#3a3528',
-      hairColor: '#1a0a08',
-    };
+    // v1.480: Bygg partnerCos från p.wardrobe om tillgängligt så partner får
+    // shoes/hair/hat/glasses/bandana/shirt/pants/facialHair/eyes/scars-overlays.
+    let partnerCos;
+    if (!_partnerIsJug && p.wardrobe) {
+      const pw = p.wardrobe;
+      const _po = (cat, id) => (WARDROBE[cat] && WARDROBE[cat].find(o => o.id === id)) || (WARDROBE[cat] && WARDROBE[cat][0]);
+      const _skinO = _po('skin', pw.skin);
+      const _hairO = _po('hair', pw.hair);
+      const _shirtO = _po('shirt', pw.shirt);
+      const _pantsO = _po('pants', pw.pants);
+      const _bandanaO = _po('bandana', pw.bandana);
+      const _glassesO = pw.glasses ? _po('glasses', pw.glasses) : null;
+      const _hatO = pw.hat ? _po('hat', pw.hat) : null;
+      const _shoesO = pw.shoes ? _po('shoes', pw.shoes) : null;
+      const _facialO = pw.facialHair ? _po('facialHair', pw.facialHair) : null;
+      const _eyesO = pw.eyes ? _po('eyes', pw.eyes) : null;
+      const _scarsO = pw.scars ? _po('scars', pw.scars) : null;
+      partnerCos = {
+        skin: (_skinO && _skinO.color) || '#d4a574',
+        shirt: _shirtO ? _shirtO.color : color,
+        bandana: _bandanaO ? _bandanaO.color : color,
+        accent: '#ffd54a',
+        pants: _pantsO ? _pantsO.color : '#3a3528',
+        hairStyle: _hairO ? _hairO.style : 'bald',
+        hairColor: _hairO ? _hairO.color : '#1a0a08',
+        glasses: _glassesO,
+        hat: _hatO,
+        shoes: _shoesO,
+        facialHair: _facialO,
+        eyes: _eyesO,
+        scars: _scarsO,
+      };
+    } else {
+      partnerCos = {
+        skin: _partnerIsJug ? '#4a7a3a' : '#d4a574',
+        shirt: _partnerIsJug ? '#1a1a14' : color,
+        bandana: color,
+        accent: '#ffd54a',
+        pants: _partnerIsJug ? '#2a1a0a' : '#3a3528',
+        hairColor: '#1a0a08',
+      };
+    }
     // Pick walk-frame for partner (use partner phase)
     const partnerAimAngle = p.aimAngle || 0;
     const pAimX = Math.cos(partnerAimAngle);
@@ -11470,6 +11504,16 @@ function drawCoopPartner() {
       p._bodyFacingLeft = pFacingLeft;
     }
     const _pBodyFacingLeft = p._bodyFacingLeft;
+    // v1.480: Partner CAPE (om equippad) bakom allt annat
+    if (p.wardrobe && p.wardrobe.cape && p.wardrobe.cape !== 'none') {
+      const _pCapeOpt = WARDROBE.cape && WARDROBE.cape.find(o => o.id === p.wardrobe.cape);
+      if (_pCapeOpt && _pCapeOpt.style !== 'none') {
+        ctx.save();
+        if (_pBodyFacingLeft) ctx.scale(-1, 1);
+        drawCapeOnUprightBody(ctx, _pCapeOpt.style, _pCapeOpt.color, false, performance.now(), partnerMoving);
+        ctx.restore();
+      }
+    }
     // v1.468: Partner — hanging arm + arm shaft BEHIND body, hand AFTER body
     drawHangingArm(ctx, partnerCos, false, _pBodyFacingLeft);
     // Partner shooting arm SHAFT (behind body)
@@ -12339,6 +12383,9 @@ const WARDROBE = {
     { id: 'goldframe', name: 'Guld-Glasögon', style: 'round',    color: '#ffd54a' },
     { id: 'monocle',   name: 'Monokel',       style: 'monocle',  color: '#aa8a3a' },
     { id: 'tactical',  name: 'Tactical-Visir',style: 'visor',    color: '#5a8a3a' },
+    { id: 'skigoggles',name: 'Skidglasögon',  style: 'goggles',  color: '#aa1818' },
+    { id: 'eyepatch',  name: 'Ögonlapp',      style: 'eyepatch', color: '#0a0a0a' },
+    { id: 'cyberRed',  name: 'Cyber-visir (Röd)',style:'visor',  color: '#ff3a3a' },
   ],
   hat: [
     { id: 'none',      name: 'Ingen',         style: 'none',     color: null },
@@ -12385,6 +12432,36 @@ const WARDROBE = {
     { id: 'wrestling',  name: 'Brottarskor',     style: 'sneaker',  color: '#cccccc' },
     { id: 'goldSneaker',name: 'Guld Sneakers',   style: 'sneaker',  color: '#ffd54a' },
     { id: 'cyberBoot',  name: 'Cyber-stövlar',   style: 'boot',     color: '#1a3a5a' },
+  ],
+  // v1.480 NEW: EYES — ögon-färg (override default mörka iris)
+  eyes: [
+    { id: 'default', name: 'Mörkbrun (standard)', color: '#1a2a40' },
+    { id: 'blue',    name: 'Blå',         color: '#2244aa' },
+    { id: 'iceBlue', name: 'Isblå',       color: '#7acaff' },
+    { id: 'green',   name: 'Gröna',       color: '#3a8a3a' },
+    { id: 'hazel',   name: 'Hasselnöt',   color: '#7a5a30' },
+    { id: 'amber',   name: 'Bärnsten',    color: '#aa8a2a' },
+    { id: 'gray',    name: 'Grå',         color: '#7a7a8a' },
+    { id: 'violet',  name: 'Violett',     color: '#7a3aaa' },
+    { id: 'red',     name: 'Demonröd',    color: '#aa1a1a' },
+    { id: 'gold',    name: 'Guld',        color: '#ffd54a' },
+    { id: 'cyber',   name: 'Cyber-cyan',  color: '#3acaff' },
+    { id: 'glowing', name: 'Lysande Vit', color: '#f4f4f4' },
+  ],
+  // v1.480 NEW: SCARS / FACIAL MARKS — ansiktsmodifiering
+  scars: [
+    { id: 'none',       name: 'Inga',           style: 'none' },
+    { id: 'eyeScar',    name: 'Ögon-ärr',        style: 'eyeScar',  color: '#a85040' },
+    { id: 'cheekScar',  name: 'Kind-ärr',        style: 'cheekScar',color: '#a85040' },
+    { id: 'crossScar',  name: 'Kors-ärr',        style: 'crossScar',color: '#a85040' },
+    { id: 'noseRing',   name: 'Nos-ring',        style: 'noseRing', color: '#aaaaaa' },
+    { id: 'tribalLeft', name: 'Tribal-tatuering (V)', style: 'tribalLeft', color: '#1a1a1a' },
+    { id: 'tribalRight',name: 'Tribal-tatuering (H)', style: 'tribalRight',color: '#1a1a1a' },
+    { id: 'teardrop',   name: 'Tår-tatuering',   style: 'teardrop', color: '#1a1a1a' },
+    { id: 'warpaintRed',name: 'Krigsmålning Röd',style: 'warpaint', color: '#aa1818' },
+    { id: 'warpaintBlue',name:'Krigsmålning Blå',style: 'warpaint', color: '#1a3a8a' },
+    { id: 'cybernetic', name: 'Cybernetiskt Implantat', style: 'cybernetic', color: '#3acaff' },
+    { id: 'thirdEye',   name: 'Tredje Ögat',     style: 'thirdEye', color: '#aa3aff' },
   ],
   // v1.479 NEW: FACIAL HAIR — 11 designs
   facialHair: [
@@ -12480,6 +12557,8 @@ function ensureWardrobe() {
   if (!w.cape)    w.cape = 'none';
   if (!w.shoes)   w.shoes = 'none';
   if (!w.facialHair) w.facialHair = 'none';
+  if (!w.eyes)    w.eyes = 'default';
+  if (!w.scars)   w.scars = 'none';
   if (!w.tints)   w.tints = { shirtHue: 0, pantsHue: 0 };
   // Lock-validation: om equippad item nu är låst (t.ex. NG+-reset eller achievement
   // wipe), defaulta tillbaka till första (alltid common, alltid unlocked).
@@ -13075,13 +13154,15 @@ function getCurrentCostume() {
     const capeO = w.cape ? getWardrobeOpt('cape', w.cape) : null;
     const shoesO = w.shoes ? getWardrobeOpt('shoes', w.shoes) : null;
     const facialHairO = w.facialHair ? getWardrobeOpt('facialHair', w.facialHair) : null;
+    const eyesO = w.eyes ? getWardrobeOpt('eyes', w.eyes) : null;
+    const scarsO = w.scars ? getWardrobeOpt('scars', w.scars) : null;
     // HSL hue-tinting på shirt/pants
     const tints = w.tints || {};
     const tShirt = tints.shirtHue ? applyHueShift(shirtO.color, tints.shirtHue) : shirtO.color;
     const tPants = tints.pantsHue ? applyHueShift(pantsO.color, tints.pantsHue) : pantsO.color;
     // Item-VFX: hitta legendary/epic items med .vfx-property
     const vfxList = [];
-    for (const cat of ['skin','hair','shirt','pants','bandana','glasses','hat','cape','shoes','facialHair']) {
+    for (const cat of ['skin','hair','shirt','pants','bandana','glasses','hat','cape','shoes','facialHair','eyes','scars']) {
       const opt = w[cat] ? WARDROBE[cat] && WARDROBE[cat].find(o => o.id === w[cat]) : null;
       if (opt && opt.vfx) vfxList.push(opt.vfx);
     }
@@ -13099,6 +13180,8 @@ function getCurrentCostume() {
       cape: capeO,
       shoes: shoesO,         // {style, color} eller null
       facialHair: facialHairO, // {style, color} eller null
+      eyes: eyesO,           // {color} eller null
+      scars: scarsO,         // {style, color} eller null
       vfx: vfxList,
     };
     _costumeCache = cos;
@@ -22121,7 +22204,7 @@ const wardrobeScreen = document.getElementById('wardrobe-screen');
 const wardrobeTabsEl = document.getElementById('wardrobe-tabs');
 const wardrobeOptsEl = document.getElementById('wardrobe-options');
 const wardrobePreview = document.getElementById('wardrobe-preview');
-const WARDROBE_CAT_LABELS = { preset: '✨ Outfits', skin: '🧑 Hud', hair: '💇 Hår', facialHair: '🧔 Ansiktshår', glasses: '👓 Glasögon', hat: '🎩 Hatt', shirt: '👕 Tröja', pants: '👖 Byxor', shoes: '👟 Skor', bandana: '🪢 Bandana', cape: '🦸 Cape', tint: '🎨 Färg-tint' };
+const WARDROBE_CAT_LABELS = { preset: '✨ Outfits', skin: '🧑 Hud', hair: '💇 Hår', facialHair: '🧔 Ansiktshår', eyes: '👁 Ögon', scars: '🩹 Ärr/Tatueringar', glasses: '👓 Glasögon', hat: '🎩 Hatt', shirt: '👕 Tröja', pants: '👖 Byxor', shoes: '👟 Skor', bandana: '🪢 Bandana', cape: '🦸 Cape', tint: '🎨 Färg-tint' };
 
 // Pre-set outfit-kombinationer — applicerar alla 5 categories i ett klick
 const WARDROBE_PRESETS = [
@@ -22149,7 +22232,147 @@ let _wardrobeAutoSpin = false;
 let _wardrobeDragging = false;
 let _wardrobeDragStartX = 0;
 let _wardrobeDragStartRot = 0;
+// v1.480: NY wardrobe-preview som använder drawNakedBody — matchar EXAKT
+// hur karaktären ser ut in-game (inkl alla overlays: shoes/facialHair/scars/eyes/cape/etc).
+function drawWardrobePreviewV2() {
+  if (!wardrobePreview) return;
+  const c = wardrobePreview.getContext('2d');
+  const W = wardrobePreview.width, H = wardrobePreview.height;
+  c.clearRect(0, 0, W, H);
+  ensureWardrobe();
+  invalidateCostumeCache(); // se senaste wardrobe-ändring direkt
+  const cos = getCurrentCostume();
+  const t = performance.now() - _wardrobeAnimStart;
+  // Auto-spin uppdaterar rotation om enabled
+  if (_wardrobeAutoSpin && !_wardrobeDragging) {
+    _wardrobeRotation += 0.018;
+    if (_wardrobeRotation > Math.PI * 2) _wardrobeRotation -= Math.PI * 2;
+  }
+  const _rotCos = Math.cos(_wardrobeRotation);
+  const rotScaleX = Math.sign(_rotCos || 1) * Math.max(0.10, Math.abs(_rotCos));
+  // Animation
+  const breath = Math.sin(t / 720) * 1.5;
+  const sway = Math.sin(t / 1100) * 0.04;
+  const cx = W / 2, cy = H * 0.55 + breath;
+  // Ground spotlight (cinematic floor pool)
+  const groundGrad = c.createRadialGradient(cx, cy + 130, 4, cx, cy + 130, 120);
+  groundGrad.addColorStop(0, 'rgba(170,58,255,0.40)');
+  groundGrad.addColorStop(0.5, 'rgba(170,58,255,0.15)');
+  groundGrad.addColorStop(1, 'rgba(170,58,255,0)');
+  c.fillStyle = groundGrad;
+  c.beginPath();
+  c.ellipse(cx, cy + 130, 120, 22, 0, 0, Math.PI * 2);
+  c.fill();
+  // Hård skugga under fötter
+  c.fillStyle = `rgba(0,0,0,${0.55 * Math.max(0.3, Math.abs(_rotCos))})`;
+  c.beginPath();
+  c.ellipse(cx, cy + 130, 48, 11, 0, 0, Math.PI * 2);
+  c.fill();
+  // Karaktären — scaled upp för att fylla preview
+  c.save();
+  c.translate(cx, cy);
+  c.rotate(sway);
+  c.scale(rotScaleX, 1);
+  // drawNakedBody-koords är -22 till +16 (~38px), skala 7.5x = 285px hög
+  const scale = 7.5;
+  c.scale(scale, scale);
+  const phase = t / 200;
+  const moving = false;
+  const flash = false;
+  // 1. CAPE (bakom allt)
+  if (cos.cape && cos.cape.style && cos.cape.style !== 'none') {
+    drawCapeOnUprightBody(c, cos.cape.style, cos.cape.color, flash, t, moving);
+  }
+  // 2. HANGING ARMS — båda hängande (no weapon i wardrobe)
+  drawHangingArm(c, cos, flash, true, 0, 0);   // arm at east (hangX=+8)
+  drawHangingArm(c, cos, flash, false, 0, 0);  // arm at west (hangX=-8)
+  // 3. BODY (med alla overlays)
+  drawNakedBody(c, cos, flash, phase, moving);
+  c.restore();
+  // ITEM-VFX (utanför rotation så effekter är stabila)
+  const cosVfx = cos.vfx || [];
+  if (cosVfx.length) {
+    const vfxT = t;
+    c.save();
+    c.translate(cx, cy);
+    for (const fx of cosVfx) {
+      if (fx === 'aura-red') {
+        const pulse = 0.5 + Math.sin(vfxT / 400) * 0.5;
+        const grad = c.createRadialGradient(0, -40, 20, 0, -40, 160);
+        grad.addColorStop(0, `rgba(255, 30, 30, ${0.20 * pulse})`);
+        grad.addColorStop(1, 'rgba(255, 30, 30, 0)');
+        c.fillStyle = grad;
+        c.fillRect(-160, -200, 320, 360);
+      } else if (fx === 'shimmer-gold') {
+        for (let i = 0; i < 4; i++) {
+          const ang = (vfxT / 600 + i * Math.PI * 2 / 4) % (Math.PI * 2);
+          const sx = Math.cos(ang) * 60, sy = -60 + Math.sin(ang) * 90;
+          c.fillStyle = '#ffd54a';
+          c.shadowColor = '#ffd54a'; c.shadowBlur = 12;
+          c.beginPath(); c.arc(sx, sy, 2.2, 0, Math.PI * 2); c.fill();
+        }
+        c.shadowBlur = 0;
+      } else if (fx === 'glow-cyan') {
+        const pulse = 0.5 + Math.sin(vfxT / 300) * 0.5;
+        const grad = c.createRadialGradient(0, -40, 10, 0, -40, 140);
+        grad.addColorStop(0, `rgba(60, 200, 255, ${0.25 * pulse})`);
+        grad.addColorStop(1, 'rgba(60, 200, 255, 0)');
+        c.fillStyle = grad;
+        c.fillRect(-140, -180, 280, 320);
+      } else if (fx === 'rainbow') {
+        const hue = (vfxT / 4) % 360;
+        const grad = c.createRadialGradient(0, -40, 15, 0, -40, 150);
+        grad.addColorStop(0, `hsla(${hue}, 100%, 60%, 0.28)`);
+        grad.addColorStop(1, 'transparent');
+        c.fillStyle = grad;
+        c.fillRect(-150, -200, 300, 350);
+      } else if (fx === 'halo-glow') {
+        const pulse = 0.6 + Math.sin(vfxT / 500) * 0.4;
+        c.strokeStyle = `rgba(255, 235, 136, ${pulse})`;
+        c.lineWidth = 4;
+        c.shadowColor = '#ffeb88'; c.shadowBlur = 24;
+        c.beginPath();
+        c.ellipse(0, -180, 50, 8, 0, 0, Math.PI * 2);
+        c.stroke();
+        c.shadowBlur = 0;
+      } else if (fx === 'pumpkin-glow') {
+        const pulse = 0.7 + Math.sin(vfxT / 200) * 0.3;
+        const grad = c.createRadialGradient(0, -150, 5, 0, -150, 60);
+        grad.addColorStop(0, `rgba(255, 140, 30, ${0.55 * pulse})`);
+        grad.addColorStop(1, 'rgba(255, 140, 30, 0)');
+        c.fillStyle = grad;
+        c.fillRect(-60, -210, 120, 120);
+      } else if (fx === 'snow') {
+        for (let i = 0; i < 10; i++) {
+          const fy = ((vfxT / 4 + i * 50) % 320) - 180;
+          const fx2 = (i * 19 % 140) - 70;
+          c.fillStyle = 'rgba(255,255,255,0.75)';
+          c.beginPath(); c.arc(fx2, fy, 1.8, 0, Math.PI * 2); c.fill();
+        }
+      }
+    }
+    c.restore();
+  }
+  // RIM-LIGHT (gradient overlay)
+  const rim = c.createLinearGradient(0, 0, 0, H);
+  rim.addColorStop(0, 'rgba(255,255,255,0.05)');
+  rim.addColorStop(0.5, 'rgba(255,255,255,0)');
+  rim.addColorStop(1, 'rgba(170,58,255,0.10)');
+  c.fillStyle = rim;
+  c.fillRect(0, 0, W, H);
+  // Rotation-indicator (subtilt nere) — visa nuvarande rotation vinkel
+  const degrees = Math.round((_wardrobeRotation * 180 / Math.PI) % 360);
+  c.fillStyle = 'rgba(255,255,255,0.35)';
+  c.font = '10px monospace';
+  c.textAlign = 'center';
+  c.fillText(`${_wardrobeAutoSpin ? '🔁 ' : ''}${degrees}°  ${_wardrobeDragging ? '✋' : '↔'} drag/dubbelklick`, cx, H - 8);
+}
+
 function drawWardrobePreview() {
+  return drawWardrobePreviewV2();
+}
+
+function drawWardrobePreviewOLD_UNUSED() {
   if (!wardrobePreview) return;
   const c = wardrobePreview.getContext('2d');
   const W = wardrobePreview.width, H = wardrobePreview.height;
@@ -22486,7 +22709,7 @@ function showWardrobeEquipFeedback(cardEl, label) {
 }
 function renderWardrobeTabs() {
   wardrobeTabsEl.innerHTML = '';
-  for (const cat of ['preset','skin','hair','facialHair','glasses','hat','shirt','pants','shoes','bandana','cape','tint']) {
+  for (const cat of ['preset','skin','hair','facialHair','eyes','scars','glasses','hat','shirt','pants','shoes','bandana','cape','tint']) {
     const btn = document.createElement('button');
     btn.className = 'small-btn' + (cat === _wardrobeCurrentTab ? ' active' : '');
     btn.textContent = WARDROBE_CAT_LABELS[cat];
@@ -22707,6 +22930,109 @@ function drawWardrobeCardThumb(canvas, cat, opt, ctxSkin) {
         // Glans
         c.fillStyle = lighten(col, 0.4);
         c.fillRect(cx - 6, cy + 1, 8, 0.8);
+      }
+    }
+  } else if (cat === 'eyes') {
+    // Ansikte med ögon i vald färg
+    c.fillStyle = ctxSkin || '#d4a574';
+    c.beginPath(); c.arc(cx, cy, W * 0.36, 0, Math.PI * 2); c.fill();
+    // Ögonvitor
+    c.fillStyle = '#f4f0e8';
+    c.beginPath(); c.ellipse(cx - 5, cy - 1, 4, 2.5, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(cx + 5, cy - 1, 4, 2.5, 0, 0, Math.PI * 2); c.fill();
+    // Iris i vald färg
+    const isGlow = opt.id === 'glowing' || opt.id === 'cyber' || opt.id === 'red';
+    if (isGlow) { c.shadowColor = opt.color; c.shadowBlur = 6; }
+    c.fillStyle = opt.color;
+    c.beginPath(); c.arc(cx - 5, cy - 1, 2, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + 5, cy - 1, 2, 0, Math.PI * 2); c.fill();
+    if (isGlow) c.shadowBlur = 0;
+    // Pupiller
+    c.fillStyle = '#0a0a0a';
+    c.beginPath(); c.arc(cx - 5, cy - 1, 0.9, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.arc(cx + 5, cy - 1, 0.9, 0, Math.PI * 2); c.fill();
+  } else if (cat === 'scars') {
+    if (opt.style === 'none') {
+      c.fillStyle = '#3a3a3a';
+      c.strokeStyle = '#888';
+      c.lineWidth = 2;
+      c.setLineDash([4, 3]);
+      c.beginPath(); c.arc(cx, cy, W * 0.32, 0, Math.PI * 2); c.stroke();
+      c.setLineDash([]);
+      c.fillStyle = '#888';
+      c.font = 'bold 14px sans-serif';
+      c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('✕', cx, cy + 1);
+    } else {
+      // Ansikte
+      c.fillStyle = ctxSkin || '#d4a574';
+      c.beginPath(); c.arc(cx, cy, W * 0.36, 0, Math.PI * 2); c.fill();
+      // Ögon (referens)
+      c.fillStyle = '#0a0a0a';
+      c.beginPath(); c.arc(cx - 4, cy - 3, 1, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(cx + 4, cy - 3, 1, 0, Math.PI * 2); c.fill();
+      const sc = opt.color || '#a85040';
+      c.fillStyle = sc;
+      c.strokeStyle = sc;
+      if (opt.style === 'eyeScar') {
+        c.lineWidth = 1.2;
+        c.beginPath();
+        c.moveTo(cx + 2, cy - 8); c.lineTo(cx + 6, cy + 2);
+        c.stroke();
+      } else if (opt.style === 'cheekScar') {
+        c.lineWidth = 1.2;
+        c.beginPath();
+        c.moveTo(cx + 2, cy + 4); c.lineTo(cx + 8, cy + 5);
+        c.stroke();
+      } else if (opt.style === 'crossScar') {
+        c.lineWidth = 1.2;
+        c.beginPath();
+        c.moveTo(cx - 2, cy - 5); c.lineTo(cx + 6, cy + 3); c.stroke();
+        c.beginPath();
+        c.moveTo(cx + 6, cy - 5); c.lineTo(cx - 2, cy + 3); c.stroke();
+      } else if (opt.style === 'noseRing') {
+        c.beginPath(); c.arc(cx + 1, cy + 2, 1.5, 0, Math.PI * 2); c.fill();
+      } else if (opt.style === 'tribalLeft') {
+        c.beginPath();
+        c.moveTo(cx - 8, cy - 4);
+        c.lineTo(cx - 4, cy - 2);
+        c.lineTo(cx - 5, cy + 4);
+        c.lineTo(cx - 8, cy + 2);
+        c.closePath(); c.fill();
+      } else if (opt.style === 'tribalRight') {
+        c.beginPath();
+        c.moveTo(cx + 8, cy - 4);
+        c.lineTo(cx + 4, cy - 2);
+        c.lineTo(cx + 5, cy + 4);
+        c.lineTo(cx + 8, cy + 2);
+        c.closePath(); c.fill();
+      } else if (opt.style === 'teardrop') {
+        c.beginPath();
+        c.moveTo(cx + 4, cy + 1);
+        c.quadraticCurveTo(cx + 5, cy + 4, cx + 4, cy + 5);
+        c.quadraticCurveTo(cx + 3, cy + 4, cx + 4, cy + 1);
+        c.closePath(); c.fill();
+      } else if (opt.style === 'warpaint') {
+        c.globalAlpha = 0.85;
+        c.fillRect(cx - 8, cy - 3, 16, 2);
+        c.fillRect(cx - 7, cy + 2, 14, 1.5);
+        c.globalAlpha = 1;
+      } else if (opt.style === 'cybernetic') {
+        c.shadowColor = sc; c.shadowBlur = 5;
+        c.fillRect(cx + 3, cy - 4, 6, 1);
+        c.fillRect(cx + 3, cy - 3, 1, 6);
+        c.fillRect(cx + 8, cy - 3, 1, 6);
+        c.shadowBlur = 0;
+        c.fillStyle = '#fff';
+        c.beginPath(); c.arc(cx + 5, cy, 0.7, 0, Math.PI * 2); c.fill();
+        c.beginPath(); c.arc(cx + 7, cy, 0.7, 0, Math.PI * 2); c.fill();
+      } else if (opt.style === 'thirdEye') {
+        c.fillStyle = '#f4f0e8';
+        c.beginPath(); c.ellipse(cx, cy - 8, 2.5, 1.4, 0, 0, Math.PI * 2); c.fill();
+        c.shadowColor = sc; c.shadowBlur = 6;
+        c.fillStyle = sc;
+        c.beginPath(); c.arc(cx, cy - 8, 1.1, 0, Math.PI * 2); c.fill();
+        c.shadowBlur = 0;
       }
     }
   } else if (cat === 'facialHair') {
@@ -38256,6 +38582,9 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.closePath();
   ctx.fill();
   // === EYES — BIGGER (1.2x0.7 var 0.85x0.45) ===
+  // v1.480: Eye color från cos.eyes
+  const irisCol = flash ? '#fff' : (cos.eyes && cos.eyes.color ? cos.eyes.color : '#1a2a40');
+  const isGlowEye = cos.eyes && (cos.eyes.id === 'glowing' || cos.eyes.id === 'cyber' || cos.eyes.id === 'red');
   // Far eye (west)
   ctx.fillStyle = '#f4f0e8';
   ctx.beginPath();
@@ -38265,10 +38594,12 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineWidth = 0.7;
   ctx.stroke();
   // Iris+pupil (bigger)
-  ctx.fillStyle = '#1a2a40';
+  if (isGlowEye) { ctx.shadowColor = irisCol; ctx.shadowBlur = 3; }
+  ctx.fillStyle = irisCol;
   ctx.beginPath();
   ctx.arc(0.8, -12.7, 0.55, 0, Math.PI * 2);
   ctx.fill();
+  if (isGlowEye) ctx.shadowBlur = 0;
   // Eye glint
   ctx.fillStyle = '#fff';
   ctx.fillRect(1, -13, 0.35, 0.35);
@@ -38280,10 +38611,12 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.strokeStyle = outline;
   ctx.lineWidth = 0.7;
   ctx.stroke();
-  ctx.fillStyle = '#1a2a40';
+  if (isGlowEye) { ctx.shadowColor = irisCol; ctx.shadowBlur = 3; }
+  ctx.fillStyle = irisCol;
   ctx.beginPath();
   ctx.arc(4.4, -12.7, 0.55, 0, Math.PI * 2);
   ctx.fill();
+  if (isGlowEye) ctx.shadowBlur = 0;
   ctx.fillStyle = '#fff';
   ctx.fillRect(4.55, -13, 0.35, 0.35);
   // === NOSE — bigger, more visible ===
@@ -38684,6 +39017,10 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   if (cos.facialHair && cos.facialHair.style && cos.facialHair.style !== 'none') {
     drawFacialHair(ctx, cos.facialHair.style, cos.facialHair.color, flash);
   }
+  // v1.480: SCARS / FACIAL MARKS
+  if (cos.scars && cos.scars.style && cos.scars.style !== 'none') {
+    drawScarsOnFace(ctx, cos.scars.style, cos.scars.color, flash);
+  }
   // v1.479: BANDANA overlay — runt pannan (y ~-15 till -13)
   if (cos.bandana) {
     drawBandanaOnHead(ctx, cos.bandana, flash);
@@ -38797,6 +39134,36 @@ function drawGlassesOnFace(ctx, style, color, flash) {
     ctx.beginPath();
     ctx.moveTo(5.6, -12.0);
     ctx.lineTo(6.5, -9);
+    ctx.stroke();
+  } else if (style === 'goggles') {
+    // Skidglasögon — bred ovale lins som täcker båda ögon
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.ellipse(2.5, -12.6, 4.2, 1.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Strap runt huvudet (subtil)
+    ctx.fillRect(-1, -13.5, 0.6, 1.5);
+    ctx.fillRect(6.1, -13.5, 0.6, 1.5);
+    // Linsreflex
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.fillRect(0.5, -13.0, 1.5, 0.5);
+    ctx.fillRect(4.0, -13.0, 1.5, 0.5);
+  } else if (style === 'eyepatch') {
+    // Ögonlapp på east eye + rem runt huvudet
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.ellipse(4.3, -12.6, 1.6, 1.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Strap
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(2.8, -13.5);
+    ctx.lineTo(-2, -16);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(5.7, -13.5);
+    ctx.lineTo(7, -16);
     ctx.stroke();
   }
 }
@@ -39356,6 +39723,149 @@ function drawShoeOnFoot(ctx, x, y, style, color, flash, isBack) {
     ctx.quadraticCurveTo(x + 4, y + 0.5, x + 2, y + 0.3);
     ctx.closePath();
     ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// v1.480: Scars/tattoos/face mods overlayed on face.
+// Face: x -5..+7, y -19..-7. Eyes y=-12.7. Cheek y=-11..-10.
+function drawScarsOnFace(ctx, style, color, flash) {
+  const col = flash ? '#fff' : (color || '#a85040');
+  ctx.save();
+  if (style === 'eyeScar') {
+    // Diagonal scar through east eye
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(3.5, -14.5);
+    ctx.lineTo(5.0, -11);
+    ctx.stroke();
+    // Stitch marks (thinner perpendicular)
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 3; i++) {
+      const px = 3.8 + i * 0.4;
+      const py = -14 + i * 1.1;
+      ctx.beginPath();
+      ctx.moveTo(px - 0.3, py - 0.3);
+      ctx.lineTo(px + 0.3, py + 0.3);
+      ctx.stroke();
+    }
+  } else if (style === 'cheekScar') {
+    // Horizontal scar on east cheek
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(4.5, -10.5);
+    ctx.lineTo(6.5, -10);
+    ctx.stroke();
+    // Stitches
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 4; i++) {
+      const px = 4.7 + i * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(px, -10.7);
+      ctx.lineTo(px, -10.0);
+      ctx.stroke();
+    }
+  } else if (style === 'crossScar') {
+    // Cross-shape scar (badass)
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(2.5, -14);
+    ctx.lineTo(5.5, -10.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(5.5, -14);
+    ctx.lineTo(2.5, -10.5);
+    ctx.stroke();
+  } else if (style === 'noseRing') {
+    // Silver/gold ring through nose
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(4.0, -9, 0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.arc(4.0, -9, 0.45, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (style === 'tribalLeft') {
+    // Tribal-pattern på vänster sida av ansiktet (west cheek)
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-3.5, -14);
+    ctx.lineTo(-2, -13);
+    ctx.lineTo(-2.5, -11);
+    ctx.lineTo(-3.5, -11.5);
+    ctx.closePath();
+    ctx.fill();
+    // Curl
+    ctx.beginPath();
+    ctx.moveTo(-2, -11);
+    ctx.lineTo(-1.5, -10);
+    ctx.lineTo(-2.2, -10);
+    ctx.closePath();
+    ctx.fill();
+  } else if (style === 'tribalRight') {
+    // Tribal-pattern på höger sida av ansiktet (east cheek)
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(5.5, -14);
+    ctx.lineTo(7, -13);
+    ctx.lineTo(6.5, -11);
+    ctx.lineTo(5.5, -11.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(6.5, -11);
+    ctx.lineTo(7, -10);
+    ctx.lineTo(6.3, -10);
+    ctx.closePath();
+    ctx.fill();
+  } else if (style === 'teardrop') {
+    // Tear-tatuering under east eye (gangster style)
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(4.3, -11.5);
+    ctx.quadraticCurveTo(4.5, -10.5, 4.3, -10);
+    ctx.quadraticCurveTo(4.1, -10.5, 4.3, -11.5);
+    ctx.closePath();
+    ctx.fill();
+  } else if (style === 'warpaint') {
+    // Två horisontella streck över hela ansiktet
+    ctx.fillStyle = col;
+    ctx.globalAlpha = 0.8;
+    ctx.fillRect(-4, -13, 11, 1.2);
+    ctx.fillRect(-3.5, -10, 10, 0.8);
+    ctx.globalAlpha = 1;
+  } else if (style === 'cybernetic') {
+    // Cybernetiskt implantat på east cheek (cyber-style)
+    ctx.fillStyle = col;
+    ctx.shadowColor = col; ctx.shadowBlur = 4;
+    ctx.fillRect(5, -13, 2, 0.5);
+    ctx.fillRect(5, -12, 0.5, 2);
+    ctx.fillRect(6.5, -12, 0.5, 2);
+    ctx.shadowBlur = 0;
+    // Lysande prickar
+    ctx.fillStyle = flash ? '#fff' : '#fff';
+    ctx.beginPath(); ctx.arc(5.5, -10.5, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6.5, -10.5, 0.3, 0, Math.PI * 2); ctx.fill();
+  } else if (style === 'thirdEye') {
+    // Tredje ögat mitt på pannan (mystic)
+    ctx.fillStyle = '#f4f0e8';
+    ctx.beginPath();
+    ctx.ellipse(2.5, -15.5, 0.9, 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 0.4;
+    ctx.stroke();
+    // Iris
+    ctx.shadowColor = col; ctx.shadowBlur = 3;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(2.5, -15.5, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
   }
   ctx.restore();
 }
