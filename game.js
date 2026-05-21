@@ -12349,16 +12349,20 @@ const WARDROBE = {
   shirt: [
     { id: 'naked',     name: 'Bar Överkropp', color: null },
     // v1.486: BRAND-PARODI shirts med logos
-    { id: 'adibas_top',  name: '🏃 Adibas Track', color: '#f0f0f0', brand: 'adibas' },
-    { id: 'najk_hood',   name: '✓ Najk Hood',     color: '#1a1a1a', brand: 'najk' },
-    { id: 'guc_cee_polo',name: '💼 Guc-Cee Polo', color: '#1a4a2a', brand: 'guc_cee' },
-    { id: 'loui_witty_t',name: '👜 Loui Witty T', color: '#5a4030', brand: 'loui_witty' },
-    { id: 'versass_silk',name: '👑 Versass Silk', color: '#0a0a0a', brand: 'versass' },
-    { id: 'calvin_tee',  name: '🩲 Calvin Tee',   color: '#ffffff', brand: 'calvin' },
-    { id: 'tommy_polo',  name: '🇺🇸 Tommy Polo',  color: '#1a2a5a', brand: 'tommy' },
-    { id: 'supreme_box', name: '🍕 Supreme Box',  color: '#aa1818', brand: 'supreme' },
-    { id: 'north_jacket',name: '🧥 N-Phase Jacket',color: '#2a3a2a', brand: 'north' },
-    { id: 'bossa_shirt', name: '🤵 Hugo Bossa',   color: '#0a0a0a', brand: 'bossa' },
+    { id: 'adibas_top',  name: 'Adibas Track', color: '#f0f0f0', brand: 'adibas' },
+    { id: 'najk_hood',   name: 'Najk Hood',     color: '#1a1a1a', brand: 'najk' },
+    { id: 'guc_cee_polo',name: 'Guc-Cee Polo', color: '#1a4a2a', brand: 'guc_cee' },
+    { id: 'loui_witty_t',name: 'Loui Witty T', color: '#5a4030', brand: 'loui_witty' },
+    { id: 'versass_silk',name: 'Versass Silk', color: '#0a0a0a', brand: 'versass' },
+    { id: 'calvin_tee',  name: 'Calvin Tee',   color: '#ffffff', brand: 'calvin' },
+    { id: 'tommy_polo',  name: 'Tommy Polo',  color: '#1a2a5a', brand: 'tommy' },
+    { id: 'supreme_box', name: 'Supreme Box',  color: '#aa1818', brand: 'supreme' },
+    { id: 'north_jacket',name: 'N-Phase Jacket',color: '#2a3a2a', brand: 'north' },
+    { id: 'bossa_shirt', name: 'Hugo Bossa',   color: '#0a0a0a', brand: 'bossa' },
+    // v1.487: MASCOT shirts (triggar full custom-body render)
+    { id: 'mcdonalds_suit', name: 'McDonalds Uniform', color: '#aa1818', mascot: 'mcdonalds' },
+    { id: 'nugget_body',    name: 'Nugget-kostym',     color: '#d4a04a', mascot: 'nugget' },
+    { id: 'korv_body',      name: 'Korv-kostym',       color: '#d4a060', mascot: 'korv' },
     { id: 'black',     name: 'Svart',      color: '#222' },
     { id: 'white',     name: 'Vit',        color: '#cccccc' },
     { id: 'tactical',  name: 'Tactical',   color: '#1a3a1a' },
@@ -13219,6 +13223,7 @@ function getCurrentCostume() {
       eyes: eyesO,           // {color} eller null
       scars: scarsO,         // {style, color} eller null
       shirtBrand: shirtO.brand || null, // v1.486: 'adibas'/'najk'/etc eller null
+      mascot: shirtO.mascot || null,    // v1.487: 'mcdonalds'/'nugget'/'korv' eller null
       vfx: vfxList,
     };
     _costumeCache = cos;
@@ -22260,55 +22265,71 @@ const WARDROBE_PRESETS = [
   { id: 'gold_god', name: 'Guld-Gud', wardrobe: { skin: 'gold', hair: 'longBlonde', shirt: 'gold', pants: 'gold', bandana: 'gold' } },
   { id: 'robot', name: 'Robot', wardrobe: { skin: 'silver', hair: 'bald', shirt: 'silver', pants: 'urban', bandana: 'none' } },
   // v1.485: PARODI-OUTFITS — kända märken med twist
-  { id: 'adibas', name: '🏃 Adibas', wardrobe: {
+  { id: 'adibas', name: 'Adibas', wardrobe: {
       skin: 'tan', hair: 'shortDark', shirt: 'adibas_top', pants: 'black',
       shoes: 'sneakerBlack', hat: 'capRed', bandana: 'none',
       glasses: 'none', cape: 'none', facialHair: 'stubble', eyes: 'default', scars: 'none'
   } },
-  { id: 'najk', name: '✓ Najk Air', wardrobe: {
+  { id: 'najk', name: 'Najk Air', wardrobe: {
       skin: 'caramel', hair: 'shortDark', shirt: 'najk_hood', pants: 'urban',
       shoes: 'sneakerWhite', hat: 'cap', bandana: 'none',
       glasses: 'shades', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
   } },
-  { id: 'guc_cee', name: '💼 Guc-Cee', wardrobe: {
+  { id: 'guc_cee', name: 'Guc-Cee', wardrobe: {
       skin: 'olive', hair: 'shortDark', shirt: 'guc_cee_polo', pants: 'red',
       shoes: 'dressBlack', hat: 'none', bandana: 'gold',
       glasses: 'goldframe', cape: 'none', facialHair: 'goatee', eyes: 'hazel', scars: 'none'
   } },
-  { id: 'loui_witty', name: '👜 Loui Witty', wardrobe: {
+  { id: 'loui_witty', name: 'Loui Witty', wardrobe: {
       skin: 'caramel', hair: 'longBrown', shirt: 'loui_witty_t', pants: 'desert',
       shoes: 'hikingTan', hat: 'cowboy', bandana: 'orange',
       glasses: 'aviator', cape: 'none', facialHair: 'fullBeard', eyes: 'amber', scars: 'none'
   } },
-  { id: 'versass', name: '👑 Versass', wardrobe: {
+  { id: 'versass', name: 'Versass', wardrobe: {
       skin: 'tan', hair: 'longBlonde', shirt: 'versass_silk', pants: 'black',
       shoes: 'goldSneaker', hat: 'crown', bandana: 'gold',
       glasses: 'goldframe', cape: 'gold', facialHair: 'circleBeard', eyes: 'gold', scars: 'none'
   } },
-  { id: 'calvin_coolin', name: '🩲 Calvin Cool-in', wardrobe: {
+  { id: 'calvin_coolin', name: 'Calvin Cool-in', wardrobe: {
       skin: 'pale', hair: 'shortDark', shirt: 'calvin_tee', pants: 'briefs',
       shoes: 'sneakerWhite', hat: 'none', bandana: 'none',
       glasses: 'shades', cape: 'none', facialHair: 'none', eyes: 'iceBlue', scars: 'none'
   } },
-  { id: 'tommy_hellfighter', name: '🇺🇸 Tommy Hellfighter', wardrobe: {
+  { id: 'tommy_hellfighter', name: 'Tommy Hellfighter', wardrobe: {
       skin: 'peach', hair: 'shortBlonde', shirt: 'tommy_polo', pants: 'red',
       shoes: 'sneakerWhite', hat: 'cap', bandana: 'red',
       glasses: 'aviator', cape: 'none', facialHair: 'mustacheBlonde', eyes: 'blue', scars: 'none'
   } },
-  { id: 'supreme_pizza', name: '🍕 Supreme Pizza', wardrobe: {
+  { id: 'supreme_pizza', name: 'Supreme Pizza', wardrobe: {
       skin: 'tan', hair: 'mohawkRed', shirt: 'supreme_box', pants: 'jeans',
       shoes: 'hightopBlue', hat: 'capRed', bandana: 'red',
       glasses: 'shades', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'tribalLeft'
   } },
-  { id: 'north_phase', name: '🧥 The North Phase', wardrobe: {
+  { id: 'north_phase', name: 'The North Phase', wardrobe: {
       skin: 'tan', hair: 'shortGray', shirt: 'north_jacket', pants: 'tactical',
       shoes: 'hikingTan', hat: 'beanie', bandana: 'none',
       glasses: 'skigoggles', cape: 'black', facialHair: 'fullBeardGray', eyes: 'gray', scars: 'cheekScar'
   } },
-  { id: 'hugo_bossa', name: '🤵 Hugo Bossa', wardrobe: {
+  { id: 'hugo_bossa', name: 'Hugo Bossa', wardrobe: {
       skin: 'pale', hair: 'shortDark', shirt: 'bossa_shirt', pants: 'black',
       shoes: 'dressBlack', hat: 'top', bandana: 'white',
       glasses: 'monocle', cape: 'black', facialHair: 'handlebar', eyes: 'default', scars: 'none'
+  } },
+  // v1.487: 3 MASCOT-KOSTYMER — full custom render (ej bara overlays)
+  { id: 'ronald_mcdonalds', name: 'Ronald MCDonalds', wardrobe: {
+      skin: 'pale', hair: 'mohawkRed', shirt: 'mcdonalds_suit', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'iceBlue', scars: 'none'
+  } },
+  { id: 'chicken_nugget', name: 'Chicken Nugget', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'nugget_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'korv_med_brod', name: 'Korv med Bröd', wardrobe: {
+      skin: 'peach', hair: 'shortDark', shirt: 'korv_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
   } },
 ];
 let _wardrobeCurrentTab = 'skin';
@@ -22329,7 +22350,8 @@ function drawWardrobePreviewV2() {
   const W = wardrobePreview.width, H = wardrobePreview.height;
   c.clearRect(0, 0, W, H);
   ensureWardrobe();
-  invalidateCostumeCache(); // se senaste wardrobe-ändring direkt
+  // v1.487: invalidateCostumeCache flyttad till click-handlers (var per-frame
+  // här = 60 rebuilds/sek = enormt CPU-svinn → lag-buggen)
   const cos = getCurrentCostume();
   const t = performance.now() - _wardrobeAnimStart;
   // Auto-spin uppdaterar rotation om enabled
@@ -23328,6 +23350,7 @@ function renderWardrobeOptions() {
       card.appendChild(name);
       card.addEventListener('click', () => {
         Object.assign(save.wardrobe, preset.wardrobe);
+        invalidateCostumeCache(); // v1.487: invalidera bara vid click
         persist();
         Audio.purchase();
         renderWardrobeOptions();
@@ -23390,6 +23413,7 @@ function renderWardrobeOptions() {
       }
       if (save.wardrobe[cat] === opt.id) return;
       save.wardrobe[cat] = opt.id;
+      invalidateCostumeCache(); // v1.487: invalidera vid click
       persist();
       Audio.uiClick();
       renderWardrobeOptions();
@@ -38458,6 +38482,537 @@ function drawCapeOnUprightBody(ctx, style, color, flash, now, moving) {
   ctx.restore();
 }
 
+// ============================================================
+// v1.487: MASCOT CHARACTERS — full custom render (Ronald, Nugget, Korv)
+// ============================================================
+// Ritar Ronald McDonald — clown med vit ansiktsmålning, röd mun/näsa/hår
+// + gul jumpsuit med röda vertikala stripes + stora röda skor
+function drawMcDonaldsCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const yellow      = flash ? '#fff' : '#ffd54a';
+  const yellowDark  = flash ? '#fff' : '#cc9018';
+  const red         = flash ? '#fff' : '#cc1818';
+  const redDark     = flash ? '#fff' : '#8a0a0a';
+  const white       = flash ? '#fff' : '#f8f8f8';
+  const blackEye    = flash ? '#fff' : '#0a0a0a';
+  const outline     = flash ? '#fff' : '#0a0a0a';
+  const skinPale    = flash ? '#fff' : '#f4d4a8';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // === HEAD shape (vit ansiktsmålning över hela ansiktet) ===
+  ctx.fillStyle = white;
+  ctx.beginPath();
+  ctx.moveTo(-4, -19);
+  ctx.quadraticCurveTo(2, -20.5, 6, -19);
+  ctx.quadraticCurveTo(8, -15, 7, -11);
+  ctx.quadraticCurveTo(6, -8, 4, -7);
+  ctx.lineTo(2, -7);
+  ctx.quadraticCurveTo(-2, -7.5, -4, -9);
+  ctx.quadraticCurveTo(-6, -14, -5, -17);
+  ctx.quadraticCurveTo(-5, -19, -4, -19);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // === RED CURLY WIG (5 puffs runt huvudet) ===
+  const curls = [[-2, -21, 2.5], [2.5, -22, 2.8], [5.5, -20.5, 2.4],
+                 [-6, -17, 2.2], [8, -15, 2.2]];
+  ctx.fillStyle = red;
+  for (const [cx, cy, cr] of curls) {
+    ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
+  }
+  // Curl highlights (mer volym)
+  ctx.fillStyle = flash ? '#fff' : '#ff5a5a';
+  ctx.beginPath(); ctx.arc(-1, -21, 0.8, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3.5, -22, 1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(6.5, -20, 0.8, 0, Math.PI * 2); ctx.fill();
+  // Curl outlines
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.6;
+  for (const [cx, cy, cr] of curls) {
+    ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.stroke();
+  }
+  // === BIG CARTOON EYES ===
+  ctx.fillStyle = white;
+  ctx.beginPath(); ctx.ellipse(0.5, -13, 1.6, 1.1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6; ctx.stroke();
+  ctx.beginPath(); ctx.ellipse(4.5, -13, 1.6, 1.1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.stroke();
+  // Iris (svart pupill)
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(0.6, -13, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(4.6, -13, 0.7, 0, Math.PI * 2); ctx.fill();
+  // Eye glints
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0.9, -13.4, 0.4, 0.4);
+  ctx.fillRect(4.9, -13.4, 0.4, 0.4);
+  // === RED CLOWN NOSE (rund röd boll) ===
+  ctx.fillStyle = red;
+  ctx.beginPath(); ctx.arc(2.5, -10, 1.4, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.arc(2.5, -10, 1.4, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = flash ? '#fff' : '#ff8a8a';
+  ctx.beginPath(); ctx.arc(2.0, -10.4, 0.5, 0, Math.PI * 2); ctx.fill();
+  // === BIG RED CLOWN SMILE (krets-kurva, ej platt linje) ===
+  ctx.fillStyle = red;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -8.5);
+  ctx.quadraticCurveTo(2.5, -5, 6.5, -8.5);
+  ctx.quadraticCurveTo(2.5, -7, -1.5, -8.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -8.5);
+  ctx.quadraticCurveTo(2.5, -5, 6.5, -8.5);
+  ctx.stroke();
+  // Lip highlight (vit liten reflektion)
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0.5, -7.5, 1.5, 0.4);
+  // === NECK (skin) ===
+  ctx.fillStyle = skinPale;
+  ctx.beginPath();
+  ctx.moveTo(-3, -7); ctx.lineTo(3, -7);
+  ctx.quadraticCurveTo(4, -5, 5, -4);
+  ctx.lineTo(-5, -4);
+  ctx.quadraticCurveTo(-4, -5, -3, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // === TORSO (gul jumpsuit) ===
+  ctx.fillStyle = yellow;
+  ctx.beginPath();
+  ctx.moveTo(-6, -4);
+  ctx.quadraticCurveTo(-8, 0, -5, 4);
+  ctx.lineTo(-4, 13);
+  ctx.lineTo(5, 13);
+  ctx.lineTo(6, 4);
+  ctx.quadraticCurveTo(8, 0, 6, -4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // === RED VERTICAL STRIPES på torso (klassisk clown-pattern) ===
+  ctx.fillStyle = red;
+  for (let i = -5; i <= 5; i += 2.5) {
+    ctx.fillRect(i, -3.5, 0.9, 16);
+  }
+  // === BIG "M" LOGO på chest (gul mot röd stripe) ===
+  ctx.strokeStyle = yellow;
+  ctx.lineWidth = 1.4;
+  ctx.lineJoin = 'miter';
+  ctx.beginPath();
+  ctx.moveTo(-1.8, 4.5); ctx.lineTo(-1.8, 0.5);
+  ctx.lineTo(0.3, 2.8); ctx.lineTo(2.4, 0.5);
+  ctx.lineTo(2.4, 4.5);
+  ctx.stroke();
+  // M outline
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.4;
+  ctx.stroke();
+  // === LEGS (gul + röda stripes) ===
+  const bkX = -3 - legSwing;
+  const bkTop = 13;
+  const frX = 3 + legSwing;
+  const frTop = 13;
+  // Back leg
+  ctx.fillStyle = yellow;
+  ctx.beginPath();
+  ctx.moveTo(bkX - 2.7, bkTop);
+  ctx.lineTo(bkX + 2.7, bkTop);
+  ctx.quadraticCurveTo(bkX + 3, bkTop + 5, bkX + 2.2, bkTop + 8);
+  ctx.quadraticCurveTo(bkX + 2.8, bkTop + 10, bkX + 2, bkTop + 12);
+  ctx.lineTo(bkX + 1.5, bkTop + 13);
+  ctx.lineTo(bkX - 1.5, bkTop + 13);
+  ctx.quadraticCurveTo(bkX - 2.8, bkTop + 10, bkX - 2.2, bkTop + 8);
+  ctx.quadraticCurveTo(bkX - 3, bkTop + 5, bkX - 2.7, bkTop);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1.2;
+  ctx.stroke();
+  ctx.fillStyle = red;
+  ctx.fillRect(bkX - 2, bkTop, 0.6, 13);
+  ctx.fillRect(bkX, bkTop, 0.6, 13);
+  ctx.fillRect(bkX + 1.4, bkTop, 0.6, 13);
+  // Front leg
+  ctx.fillStyle = yellow;
+  ctx.beginPath();
+  ctx.moveTo(frX - 2.7, frTop);
+  ctx.lineTo(frX + 2.7, frTop);
+  ctx.quadraticCurveTo(frX + 3, frTop + 5, frX + 2.2, frTop + 8);
+  ctx.quadraticCurveTo(frX + 2.8, frTop + 10, frX + 2, frTop + 12);
+  ctx.lineTo(frX + 1.5, frTop + 13);
+  ctx.lineTo(frX - 1.5, frTop + 13);
+  ctx.quadraticCurveTo(frX - 2.8, frTop + 10, frX - 2.2, frTop + 8);
+  ctx.quadraticCurveTo(frX - 3, frTop + 5, frX - 2.7, frTop);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = red;
+  ctx.fillRect(frX - 2, frTop, 0.6, 13);
+  ctx.fillRect(frX, frTop, 0.6, 13);
+  ctx.fillRect(frX + 1.4, frTop, 0.6, 13);
+  // === GIANT RED CLOWN SHOES (oversized, sticker ut framåt) ===
+  // Back foot
+  ctx.fillStyle = red;
+  ctx.beginPath();
+  ctx.moveTo(bkX - 2.8, bkTop + 13);
+  ctx.lineTo(bkX - 2, bkTop + 17);
+  ctx.quadraticCurveTo(bkX + 2, bkTop + 18, bkX + 6, bkTop + 17);
+  ctx.lineTo(bkX + 6, bkTop + 14);
+  ctx.lineTo(bkX + 2, bkTop + 13);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.8;
+  ctx.stroke();
+  // White sole stripe
+  ctx.fillStyle = white;
+  ctx.fillRect(bkX - 2.5, bkTop + 16.5, 8.5, 0.8);
+  // Front foot
+  ctx.fillStyle = red;
+  ctx.beginPath();
+  ctx.moveTo(frX - 2.8, frTop + 13);
+  ctx.lineTo(frX - 2, frTop + 17);
+  ctx.quadraticCurveTo(frX + 2, frTop + 18, frX + 7, frTop + 17);
+  ctx.lineTo(frX + 7, frTop + 14);
+  ctx.lineTo(frX + 2, frTop + 13);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = white;
+  ctx.fillRect(frX - 2.5, frTop + 16.5, 9.5, 0.8);
+  // Shoe highlight
+  ctx.fillStyle = flash ? '#fff' : '#ff5a5a';
+  ctx.fillRect(frX + 1, frTop + 14, 4, 0.5);
+}
+
+// Ritar en CHICKEN NUGGET — irregulär oval gyllene-brun form, bumpy outline,
+// litet face, stick-arms och stick-legs som sticker ut
+function drawNuggetCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const nuggetGold    = flash ? '#fff' : '#d4a04a';
+  const nuggetCrust   = flash ? '#fff' : '#aa7a30';
+  const nuggetShadow  = flash ? '#fff' : '#7a5a20';
+  const nuggetLight   = flash ? '#fff' : '#f0c060';
+  const outline       = flash ? '#fff' : '#3a2a0a';
+  const blackEye      = flash ? '#fff' : '#0a0a0a';
+  const stickColor    = flash ? '#fff' : '#5a3a20';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 1.5 : 0;
+  // === NUGGET BODY (irregulär oval med bumpy outline) ===
+  ctx.fillStyle = nuggetGold;
+  ctx.beginPath();
+  ctx.moveTo(-7, -13);
+  ctx.quadraticCurveTo(-9, -10, -8, -6);
+  ctx.lineTo(-9, -2);
+  ctx.quadraticCurveTo(-8.5, 2, -8, 5);
+  ctx.lineTo(-7, 8);
+  ctx.quadraticCurveTo(-5, 11, -2, 12);
+  ctx.lineTo(2, 12);
+  ctx.quadraticCurveTo(5, 11, 7, 8);
+  ctx.lineTo(8, 5);
+  ctx.quadraticCurveTo(8.5, 2, 8, -2);
+  ctx.lineTo(9, -6);
+  ctx.quadraticCurveTo(8, -10, 7, -13);
+  ctx.lineTo(4, -14);
+  ctx.quadraticCurveTo(0, -15, -4, -14);
+  ctx.lineTo(-7, -13);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.4;
+  ctx.stroke();
+  // === BUMPY CRUST TEXTURE (små brödsmulor över hela) ===
+  ctx.fillStyle = nuggetCrust;
+  const bumps = [[-5, -10], [-2, -12], [3, -11], [6, -8], [-7, -4], [4, -5],
+                 [-3, -3], [2, -1], [-5, 2], [5, 3], [-2, 6], [3, 7],
+                 [-6, -8], [0, -9], [7, -3], [-4, 5], [1, 9], [-1, -6],
+                 [6, 5], [-3, 9]];
+  for (const [bx, by] of bumps) {
+    ctx.beginPath();
+    ctx.ellipse(bx, by, 0.7, 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Lighter highlights (skiner som friterad mat)
+  ctx.fillStyle = nuggetLight;
+  const hls = [[-4, -10], [3, -9], [-2, -2], [4, 0], [-3, 6], [5, -6]];
+  for (const [hx, hy] of hls) {
+    ctx.beginPath();
+    ctx.ellipse(hx, hy, 0.6, 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // === SHADOW under-side ===
+  ctx.fillStyle = nuggetShadow;
+  ctx.globalAlpha = 0.35;
+  ctx.beginPath();
+  ctx.moveTo(-7, 6);
+  ctx.quadraticCurveTo(-5, 11, -2, 12);
+  ctx.lineTo(2, 12);
+  ctx.quadraticCurveTo(5, 11, 7, 8);
+  ctx.lineTo(8, 5);
+  ctx.quadraticCurveTo(5, 8, 0, 8.5);
+  ctx.quadraticCurveTo(-5, 8, -7, 6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // === FACE (cute kawaii face) ===
+  // Big eyes
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-2.2, -5, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.2, -5, 1.1, 0, Math.PI * 2); ctx.fill();
+  // Eye highlights (gör dem kawaii)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-1.9, -5.4, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -5.4, 0.4, 0, Math.PI * 2); ctx.fill();
+  // Small smile (kawaii open mouth)
+  ctx.strokeStyle = blackEye;
+  ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -1.5);
+  ctx.quadraticCurveTo(0, 0, 1.5, -1.5);
+  ctx.stroke();
+  // Cheek blush
+  ctx.fillStyle = flash ? '#fff' : '#ff9090';
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath(); ctx.arc(-4.5, -2.5, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(4.5, -2.5, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+  // === STICK ARMS (skinny limbs poking out, in walk-cycle) ===
+  const armSwing = isMoving ? swing * 1.5 : 0;
+  ctx.strokeStyle = stickColor;
+  ctx.lineWidth = 1.4;
+  ctx.lineCap = 'round';
+  // Left arm
+  ctx.beginPath();
+  ctx.moveTo(-7.5, -1);
+  ctx.lineTo(-11, 2 - armSwing);
+  ctx.stroke();
+  // Right arm
+  ctx.beginPath();
+  ctx.moveTo(7.5, -1);
+  ctx.lineTo(11, 2 + armSwing);
+  ctx.stroke();
+  // Hands (dots)
+  ctx.fillStyle = stickColor;
+  ctx.beginPath(); ctx.arc(-11, 2 - armSwing, 1.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(11, 2 + armSwing, 1.2, 0, Math.PI * 2); ctx.fill();
+  // === STICK LEGS (poking out from bottom) ===
+  ctx.strokeStyle = stickColor;
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(-3 - legSwing, 11);
+  ctx.lineTo(-3 - legSwing, 18);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(3 + legSwing, 11);
+  ctx.lineTo(3 + legSwing, 18);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  // Small feet (black dots)
+  ctx.fillStyle = stickColor;
+  ctx.beginPath();
+  ctx.ellipse(-3 - legSwing, 19, 1.8, 0.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(3 + legSwing, 19, 1.8, 0.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// Ritar en KORV MED BRÖD — bun bredvid sausage + mustard + ketchup
+// Sausage sticker ut top och visas i mitten av buns
+function drawKorvCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const bunColor      = flash ? '#fff' : '#d4a060';
+  const bunShadow     = flash ? '#fff' : '#aa7a40';
+  const bunHighlight  = flash ? '#fff' : '#f0c080';
+  const sausageColor  = flash ? '#fff' : '#c44830';
+  const sausageDark   = flash ? '#fff' : '#8a2818';
+  const sausageLight  = flash ? '#fff' : '#e85a40';
+  const mustardColor  = flash ? '#fff' : '#ffd54a';
+  const ketchupColor  = flash ? '#fff' : '#cc2020';
+  const outline       = flash ? '#fff' : '#3a2010';
+  const skinColor     = flash ? '#fff' : (cos.skin || '#d4a574');
+  const blackEye      = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // === SAUSAGE END (på toppen, sticker ut ovanför bun) ===
+  ctx.fillStyle = sausageColor;
+  ctx.beginPath();
+  ctx.ellipse(1, -17, 3, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Sausage shadow på övre delen
+  ctx.fillStyle = sausageDark;
+  ctx.beginPath();
+  ctx.ellipse(-0.5, -17, 1.2, 3.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Sausage highlight east
+  ctx.fillStyle = sausageLight;
+  ctx.beginPath();
+  ctx.ellipse(2.5, -17, 0.6, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Sausage outline
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.ellipse(1, -17, 3, 4, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  // === BUN LEFT/WEST (vänster halva av brödet) ===
+  ctx.fillStyle = bunColor;
+  ctx.beginPath();
+  ctx.moveTo(-8, -12);
+  ctx.quadraticCurveTo(-10, -7, -9, 0);
+  ctx.lineTo(-8, 7);
+  ctx.quadraticCurveTo(-6, 11, -3, 11);
+  ctx.lineTo(-2, 8);
+  ctx.lineTo(-2, -10);
+  ctx.quadraticCurveTo(-5, -14, -8, -12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  // Bun shadow (west sida)
+  ctx.fillStyle = bunShadow;
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.moveTo(-8, -12);
+  ctx.quadraticCurveTo(-10, -7, -9, 0);
+  ctx.lineTo(-8, 7);
+  ctx.lineTo(-7, 6);
+  ctx.lineTo(-7, -3);
+  ctx.lineTo(-8, -11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Sesame seeds på bun (small lighter dots)
+  ctx.fillStyle = bunHighlight;
+  ctx.beginPath(); ctx.ellipse(-5, -9, 0.5, 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-7, -6, 0.5, 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-4, -3, 0.5, 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-6, 2, 0.5, 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-5, 5, 0.5, 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  // === BUN RIGHT/EAST (höger halva av brödet) ===
+  ctx.fillStyle = bunColor;
+  ctx.beginPath();
+  ctx.moveTo(8, -12);
+  ctx.quadraticCurveTo(10, -7, 9, 0);
+  ctx.lineTo(8, 7);
+  ctx.quadraticCurveTo(6, 11, 3, 11);
+  ctx.lineTo(4, 8);
+  ctx.lineTo(4, -10);
+  ctx.quadraticCurveTo(5, -14, 8, -12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  // Bun highlight east (mot ljuset)
+  ctx.fillStyle = bunHighlight;
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.moveTo(8, -12);
+  ctx.lineTo(9, -7);
+  ctx.lineTo(8, 4);
+  ctx.lineTo(7, -3);
+  ctx.lineTo(7, -11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Sesame seeds east
+  ctx.fillStyle = flash ? '#fff' : '#ffe0a0';
+  ctx.beginPath(); ctx.ellipse(6, -9, 0.5, 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7, -5, 0.5, 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(5, -2, 0.5, 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(7, 3, 0.5, 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(6, 6, 0.5, 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  // === SAUSAGE (mittsektionen mellan bun halvor) ===
+  ctx.fillStyle = sausageColor;
+  ctx.beginPath();
+  ctx.moveTo(-3, -13);
+  ctx.lineTo(5, -13);
+  ctx.lineTo(5, 9);
+  ctx.quadraticCurveTo(1, 11, -3, 9);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Sausage shadow west
+  ctx.fillStyle = sausageDark;
+  ctx.globalAlpha = 0.55;
+  ctx.fillRect(-3, -12, 1.5, 22);
+  ctx.globalAlpha = 1;
+  // Sausage highlight east
+  ctx.fillStyle = sausageLight;
+  ctx.fillRect(3.5, -12, 1, 22);
+  // === MUSTARD ZIGZAG (gul streck på sausage) ===
+  ctx.fillStyle = mustardColor;
+  ctx.beginPath();
+  ctx.moveTo(-2.5, -10);
+  ctx.lineTo(-1, -12);
+  ctx.lineTo(0, -10);
+  ctx.lineTo(1.5, -12);
+  ctx.lineTo(3, -10);
+  ctx.lineTo(4.5, -12);
+  ctx.lineTo(4.5, -8);
+  ctx.lineTo(-2.5, -8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = flash ? '#fff' : '#aa8a20';
+  ctx.lineWidth = 0.3;
+  ctx.stroke();
+  // === KETCHUP DRIZZLE (röd kurva på sausage) ===
+  ctx.strokeStyle = ketchupColor;
+  ctx.lineWidth = 1.2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-2, -2);
+  ctx.quadraticCurveTo(0, 0, 1, -1.5);
+  ctx.quadraticCurveTo(3, 2, 4, 0);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  // === FACE peeking out — small eyes på sidorna av bunet ===
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-5.5, -8, 0.8, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(6.5, -8, 0.8, 0, Math.PI * 2); ctx.fill();
+  // Eye glints
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-5.3, -8.3, 0.3, 0.3);
+  ctx.fillRect(6.7, -8.3, 0.3, 0.3);
+  // Small smile på sausage mitt
+  ctx.strokeStyle = flash ? '#fff' : '#5a1a08';
+  ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, 4);
+  ctx.quadraticCurveTo(1, 5, 2, 4);
+  ctx.stroke();
+  // === LEGS (skinny ben sticker ut nederifrån) ===
+  // Back leg
+  ctx.fillStyle = skinColor;
+  ctx.fillRect(-3 - legSwing, 11, 2.2, 5.5);
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 11, 2.2, 5.5);
+  // Front leg
+  ctx.fillStyle = skinColor;
+  ctx.fillRect(2 + legSwing, 11, 2.2, 5.5);
+  ctx.strokeRect(2 + legSwing, 11, 2.2, 5.5);
+  // Feet (svarta små skor)
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-1.9 - legSwing, 17, 2.2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(3.1 + legSwing, 17, 2.2, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline;
+  ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.ellipse(-1.9 - legSwing, 17, 2.2, 1, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(3.1 + legSwing, 17, 2.2, 1, 0, 0, Math.PI * 2);
+  ctx.stroke();
+}
+
 // v1.462: NAKED CHARACTER drawn via canvas primitives — cleaner än mitt pixel art.
 // Profile view (facing east default). Mirror för west via ctx.scale(-1,1) i caller.
 // v1.464: REFINED design — compressed proportions (~50px total instead of 66px),
@@ -38465,6 +39020,11 @@ function drawCapeOnUprightBody(ctx, style, color, flash, now, moving) {
 function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   if (walkPhase === undefined) walkPhase = 0;
   if (isMoving === undefined) isMoving = false;
+  // v1.487: MASCOT-DISPATCH — om en mascot-shirt är equippad, rendera helt
+  // custom karaktär istället för normalt naken-body
+  if (cos.mascot === 'mcdonalds') { drawMcDonaldsCharacter(ctx, cos, flash, walkPhase, isMoving); return; }
+  if (cos.mascot === 'nugget')    { drawNuggetCharacter(ctx, cos, flash, walkPhase, isMoving);    return; }
+  if (cos.mascot === 'korv')      { drawKorvCharacter(ctx, cos, flash, walkPhase, isMoving);      return; }
   // v1.474: Middle Eastern olive skin tone (var #a8704c = för ljust/pinkish).
   // #9a6028 = warm olive-brown — typisk Mediterranean/Levantine/MENA komplexion.
   const skinBase = cos.skin || '#9a6028';
@@ -39770,20 +40330,23 @@ function drawShirtBrandLogo(ctx, brand, flash) {
     ctx.lineWidth = 0.3;
     ctx.stroke();
   } else if (brand === 'loui_witty') {
-    // LV-monogram diamond pattern över hela chest
+    // v1.487: Reducerat diamond-pattern (var 36 paths, nu 12 = mindre lag)
     ctx.fillStyle = flash ? '#fff' : '#aa8a3a';
-    for (let yy = 0; yy <= 6; yy += 1.2) {
-      for (let xx = -4; xx <= 4; xx += 1.5) {
-        const ox = (yy % 2.4 === 0) ? 0 : 0.75;
-        // Diamond shape
-        ctx.beginPath();
-        ctx.moveTo(xx + ox, yy);
-        ctx.lineTo(xx + ox + 0.35, yy + 0.45);
-        ctx.lineTo(xx + ox, yy + 0.9);
-        ctx.lineTo(xx + ox - 0.35, yy + 0.45);
-        ctx.closePath();
-        ctx.fill();
-      }
+    const dPos = [
+      [-3, 0.5], [0, 0.5], [3, 0.5],
+      [-1.5, 2], [1.5, 2],
+      [-3, 3.5], [0, 3.5], [3, 3.5],
+      [-1.5, 5], [1.5, 5],
+      [-3, 6.5], [3, 6.5],
+    ];
+    for (const [xx, yy] of dPos) {
+      ctx.beginPath();
+      ctx.moveTo(xx, yy);
+      ctx.lineTo(xx + 0.4, yy + 0.5);
+      ctx.lineTo(xx, yy + 1);
+      ctx.lineTo(xx - 0.4, yy + 0.5);
+      ctx.closePath();
+      ctx.fill();
     }
     // Center "LW" badge
     ctx.fillStyle = flash ? '#fff' : '#ffd54a';
@@ -40831,9 +41394,12 @@ function drawPlayer() {
       _throwOffY = -6 + k * 6;
     }
   }
-  drawHangingArm(ctx, cos, flash, _bodyFacingLeft, _throwOffX, _throwOffY);
+  // v1.487: SKIP separate arms för nugget/korv (mascot har inbyggda armar).
+  // McDonald's = mänsklig karaktär så behåll armar.
+  const _skipArms = cos.mascot === 'nugget' || cos.mascot === 'korv';
+  if (!_skipArms) drawHangingArm(ctx, cos, flash, _bodyFacingLeft, _throwOffX, _throwOffY);
   // SHOOTING ARM SHAFT (behind body) — v1.484: med sleeve om shirt equippad
-  {
+  if (!_skipArms) {
     const _shoulderXShaft = _bodyFacingLeft ? -3 : 3;
     const _shoulderYShaft = -3;
     ctx.save();
