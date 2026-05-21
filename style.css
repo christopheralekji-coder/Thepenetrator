@@ -2785,7 +2785,15 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   max-width: min(80vw, 320px);
   height: auto;
   aspect-ratio: 300 / 380;
+  /* v1.490: touch-action: none så drag-rotation funkar på iOS utan att
+     parent-overlay scrollar samtidigt */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
+/* v1.490: wardrobe-screen + options ska tillåta vertical scroll (pan-y) */
+#wardrobe-screen { touch-action: pan-y; }
+#wardrobe-options { touch-action: pan-y; }
 /* SLOTS */
 #wardrobe-slots {
   background: linear-gradient(180deg, rgba(30,15,40,0.7), rgba(15,5,20,0.7));
@@ -2811,8 +2819,9 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   margin-bottom: 6px;
 }
 .ward-slot {
-  width: 56px;
-  height: 36px;
+  /* v1.490: bumpat från 56x36 → 64x48 för Apple HIG-touch (44pt min) */
+  width: 64px;
+  height: 48px;
   border-radius: 6px;
   background: rgba(0,0,0,0.5);
   border: 1px dashed rgba(170,58,255,0.4);
@@ -2881,11 +2890,24 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
 #wardrobe-tabs {
   display: flex;
   gap: 4px;
-  flex-wrap: wrap;
+  /* v1.490: horisontell scroll-rad istället för wrap. 14 tabs i wrap åt halva
+     skärmen på 360px viewport. Nu kan användaren scrolla horisontellt. */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
   justify-content: flex-start;
   position: relative;
   z-index: 2;
   pointer-events: auto;
+  padding-bottom: 4px;
+}
+#wardrobe-tabs button {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  min-height: 36px !important;
 }
 #wardrobe-tabs button {
   padding: 7px 12px !important;
@@ -2990,6 +3012,14 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   flex-wrap: wrap;
   max-width: 980px;
   width: 100%;
+  /* v1.490: Safe-area padding-bottom så TILLBAKA-knapp inte sitter mot
+     iPhone home-indicator. Sticky position så action-bar alltid syns. */
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));
+  padding-top: 12px;
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(180deg, transparent 0%, rgba(8,4,6,0.92) 25%, rgba(8,4,6,0.96) 100%);
+  z-index: 5;
 }
 #wardrobe-actionbar .medium-btn {
   padding: 10px 18px;
@@ -3147,8 +3177,11 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
     linear-gradient(180deg, rgba(60,30,10,0.98), rgba(15,5,5,0.98));
 }
 .ward-info-close {
+  /* v1.490: 44x44 touch-target (Apple HIG min). Var 28x28 = svår att träffa. */
   position: absolute;
-  top: 8px; right: 12px;
+  top: 4px; right: 4px;
+  width: 44px;
+  height: 44px;
   background: none;
   border: none;
   color: #aaa;
@@ -3157,6 +3190,9 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   padding: 0;
   line-height: 1;
   font-weight: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .ward-info-close:hover { color: #fff; }
 .ward-info-canvas {

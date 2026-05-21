@@ -23708,8 +23708,21 @@ if (wardrobePreview) {
     if (e.touches.length === 1) { _moveDrag(e.touches[0].clientX); e.preventDefault(); }
   }, { passive: false });
   wardrobePreview.addEventListener('touchend', _endDrag);
-  // Double-click/tap = toggla auto-spin
+  // v1.490: Window-level touchend + touchcancel — annars hänger drag-state
+  // om finger lyfts utanför viewport eller iOS-call avbryter touch
+  window.addEventListener('touchend', _endDrag);
+  window.addEventListener('touchcancel', _endDrag);
+  // Double-tap = toggla auto-spin. iOS preventDefault på touchstart blockerar
+  // synthetic click, så double-tap-logiken sätts i touchstart istället.
   let _lastTap = 0;
+  wardrobePreview.addEventListener('touchstart', (e) => {
+    const now = performance.now();
+    if (now - _lastTap < 350) {
+      _wardrobeAutoSpin = !_wardrobeAutoSpin;
+    }
+    _lastTap = now;
+  }, { passive: true });
+  // Click som fallback för desktop
   wardrobePreview.addEventListener('click', () => {
     const now = performance.now();
     if (now - _lastTap < 350) {
@@ -41331,6 +41344,7 @@ function drawShoeOnFoot(ctx, x, y, style, color, flash, isBack) {
   const baseCol = flash ? '#fff' : (color || '#222');
   const shadow = flash ? '#fff' : darken(baseCol, 0.45);
   const highlight = flash ? '#fff' : lighten(baseCol, 0.30);
+  const darker = flash ? '#fff' : darken(baseCol, 0.65);  // v1.490 CRITICAL FIX: var odeklarerad
   const outline = flash ? '#fff' : '#0a0a0a';
   ctx.save();
   if (style === 'sneaker') {
@@ -42189,23 +42203,24 @@ function drawPlayer() {
   drawNakedBody(ctx, cos, flash, phase, moving);
   ctx.restore();
   // v1.468: HAND + WEAPON (after body, visible on top).
-  // Båda transformeras till hand position så vapnet hålls i handen.
+  // v1.490: För mascots utan armar (nugget/banan/etc) flyttas hand+weapon NÄRMARE
+  // body så vapnet inte flyter 10px utanför silhuetten (looked like a bug).
   const _shoulderX = _bodyFacingLeft ? -3 : 3;
   const _shoulderY = -3;
+  const _handTranslate = _skipArms ? 5 : 13;   // mascot: vid body-edge (8 world), normal: 13
+  const _weaponTranslate = _skipArms ? 0 : 5;  // mascot: vid shoulder, normal: 5
   ctx.save();
   ctx.translate(_shoulderX, _shoulderY);
   ctx.rotate(p.aimAngle);
   if (_facingLeft) ctx.scale(1, -1);
-  ctx.translate(13, 0);
+  ctx.translate(_handTranslate, 0);
   drawHand(ctx, cos, flash);
   ctx.restore();
   // v1.472: Weapon translate 9 → 5 (weapon mer västerut, mindre 'framför handen').
-  // Weapon spans now +5 to +18 east of shoulder, hand at +13. Weapon barrel
-  // just sticks out 2-3 pixels past hand east. Hand grips middle of weapon.
   ctx.translate(_shoulderX, _shoulderY);
   ctx.rotate(p.aimAngle);
   if (_facingLeft) ctx.scale(1, -1);
-  ctx.translate(5, 0);
+  ctx.translate(_weaponTranslate, 0);
   ctx.translate(-recoil, 0);
   // SKIP HÄR: hair/glasses/hat/beard är integrerade i sprite-design.
   /* === GAMMAL CANVAS-PRIMITIVE BODY (v1.436) — DEAD CODE BORTTAGEN ===
