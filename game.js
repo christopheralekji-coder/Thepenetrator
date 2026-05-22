@@ -24165,7 +24165,9 @@ function renderWardrobeOptions() {
       return card;
     };
     // Klassificera presets (sub-tab UI flyttat till renderWardrobeTabs i v1.510)
-    const groups = { classic: [], brand: [], mascot: [], hero: [], myth: [] };
+    // v1.515: BUGFIX — 'fruit' key saknades, så fruit-presets föll tillbaka till
+    // groups.classic = non-frukter syntes i FRUKTER-tab.
+    const groups = { classic: [], brand: [], mascot: [], fruit: [], hero: [], myth: [] };
     for (const p of WARDROBE_PRESETS) {
       const cat2 = presetCategory(p);
       (groups[cat2] || groups.classic).push(p);
@@ -40202,23 +40204,48 @@ function drawBananaCharacter(ctx, cos, flash, walkPhase, isMoving) {
   ctx.globalAlpha = 0.6;
   ctx.fillRect(4.5, -14, 1, 18);
   ctx.globalAlpha = 1;
-  // FACE
+  // FACE — v1.515 GOOFY/SILLY personality (excited big eyes + tongue out + blush)
+  // Big bouncy eyes
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(-1, -7, 1.2, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(3, -7, 1.2, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.3;
-  ctx.beginPath(); ctx.arc(-1, -7, 1.2, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(3, -7, 1.2, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-1, -7, 1.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3, -7, 1.3, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
+  ctx.beginPath(); ctx.arc(-1, -7, 1.3, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(3, -7, 1.3, 0, Math.PI * 2); ctx.stroke();
   ctx.fillStyle = blackEye;
-  ctx.beginPath(); ctx.arc(-1, -7, 0.55, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(3, -7, 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-1, -7, 0.6, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3, -7, 0.6, 0, Math.PI * 2); ctx.fill();
+  // BIG sparkly glints (excited)
   ctx.fillStyle = '#fff';
-  ctx.fillRect(-0.7, -7.3, 0.3, 0.3);
-  ctx.fillRect(3.3, -7.3, 0.3, 0.3);
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  ctx.fillRect(-0.8, -7.4, 0.5, 0.5);
+  ctx.fillRect(3.2, -7.4, 0.5, 0.5);
+  ctx.fillRect(-1.4, -6.5, 0.25, 0.25);
+  ctx.fillRect(2.7, -6.5, 0.25, 0.25);
+  // OPEN LAUGHING MOUTH with TONGUE OUT
+  ctx.fillStyle = '#0a0a0a';
   ctx.beginPath();
-  ctx.moveTo(-1, -3); ctx.quadraticCurveTo(1, -1.5, 3, -3);
+  ctx.ellipse(1, -3, 1.5, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Pink tongue sticking out below
+  ctx.fillStyle = '#ff7090';
+  ctx.beginPath();
+  ctx.ellipse(1, -2.2, 1.0, 0.8, 0, 0, Math.PI);
+  ctx.closePath(); ctx.fill();
+  // Tongue line detail
+  ctx.strokeStyle = '#cc4060'; ctx.lineWidth = 0.3;
+  ctx.beginPath();
+  ctx.moveTo(1, -2.4); ctx.lineTo(1, -1.6);
   ctx.stroke();
+  // BLUSH SPOTS (pink cheeks)
+  ctx.fillStyle = '#ff8aaa';
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.ellipse(-2.5, -5, 0.9, 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(4.5, -5, 0.9, 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
   // LEGS
   ctx.fillStyle = skin;
   ctx.fillRect(-2 - legSwing, 10, 2, 7);
@@ -40300,19 +40327,31 @@ function drawKiwiCharacter(ctx, cos, flash, walkPhase, isMoving) {
     ctx.ellipse(rx, ry, 0.35, 0.5, 0, 0, Math.PI * 2);
     ctx.fill();
   }
-  // FACE on green flesh
+  // FACE — v1.515 SURPRISED/CURIOUS (BIG round amazed eyes + O-mouth + raised brows)
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(-2, -7, 1, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2, -7, 1, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.3;
-  ctx.beginPath(); ctx.arc(-2, -7, 1, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(2, -7, 1, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-2, -7, 1.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -7, 1.4, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.4;
+  ctx.beginPath(); ctx.arc(-2, -7, 1.4, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2, -7, 1.4, 0, Math.PI * 2); ctx.stroke();
+  // Small pupils (creates amazed wide-eyed look)
   ctx.fillStyle = blackEye;
-  ctx.beginPath(); ctx.arc(-2, -7, 0.45, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2, -7, 0.45, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.arc(-2, -7, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -7, 0.5, 0, Math.PI * 2); ctx.fill();
+  // Eye sparkles
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-1.7, -7.3, 0.4, 0.4);
+  ctx.fillRect(2.3, -7.3, 0.4, 0.4);
+  // Raised eyebrows (high up, surprised)
+  ctx.fillStyle = blackEye;
+  ctx.fillRect(-3, -9.5, 2, 0.5);
+  ctx.fillRect(1, -9.5, 2, 0.5);
+  // O-shape MOUTH (oh!)
+  ctx.fillStyle = '#3a0a08';
   ctx.beginPath();
-  ctx.moveTo(-1.5, -1); ctx.quadraticCurveTo(0, 0, 1.5, -1);
+  ctx.arc(0, -2, 0.9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.4;
   ctx.stroke();
   // LEGS
   ctx.fillStyle = skin;
@@ -40403,23 +40442,41 @@ function drawMangoCharacter(ctx, cos, flash, walkPhase, isMoving) {
   ctx.beginPath();
   ctx.moveTo(0.5, -13.5); ctx.lineTo(3.5, -12.8);
   ctx.stroke();
-  // FACE
+  // FACE — v1.515 LAID-BACK/CHILL (half-closed eyes + lopsided smile + tropical vibe)
+  // Eye whites
   ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.arc(-2, -5, 1.2, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(2.5, -5, 1.2, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = blackEye; ctx.lineWidth = 0.3;
   ctx.beginPath(); ctx.arc(-2, -5, 1.2, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath(); ctx.arc(2.5, -5, 1.2, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = blackEye;
-  ctx.beginPath(); ctx.arc(-2, -5, 0.55, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.5, -5, 0.55, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(-1.7, -5.3, 0.3, 0.3);
-  ctx.fillRect(2.8, -5.3, 0.3, 0.3);
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  // Half-closed bottom-eyelids (chill/relaxed look)
+  ctx.fillStyle = orangeDark || '#cc5a10';
   ctx.beginPath();
-  ctx.moveTo(-1, -1); ctx.quadraticCurveTo(0.5, 0.5, 2, -1);
+  ctx.arc(-2, -5, 1.2, 0, Math.PI);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.arc(2.5, -5, 1.2, 0, Math.PI);
+  ctx.closePath(); ctx.fill();
+  // Heavy lower eyelid lines
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-3, -5); ctx.lineTo(-1, -5);
+  ctx.moveTo(1.5, -5); ctx.lineTo(3.5, -5);
   ctx.stroke();
+  // Small upper pupils visible (just dots above lid line)
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-2, -5.3, 0.35, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -5.3, 0.35, 0, Math.PI * 2); ctx.fill();
+  // LOPSIDED CHILL SMILE (one corner up, one slight)
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(-1, -0.5);
+  ctx.quadraticCurveTo(0.5, 1, 2.5, -0.8);
+  ctx.stroke();
+  // Tiny tongue-tip showing (relaxed)
+  ctx.fillStyle = '#ff7090';
+  ctx.fillRect(0.8, -0.1, 0.5, 0.4);
   // LEGS
   ctx.fillStyle = skin;
   ctx.fillRect(-3 - legSwing, 8, 2, 8);
@@ -40916,102 +40973,185 @@ function drawCashewCharacter(ctx, cos, flash, walkPhase, isMoving) {
 // Alla i 35-unit coord-system (top y~-19, feet y=16) — skalas 1.4x av drawNakedBody.
 // ============================================================
 
-// ANANAS — yellow oval med diamond-pattern crosshatch + spiky green crown
+// ANANAS — v1.515 REDESIGN: layered crown, pineapple-tapered body, discrete
+// diamond pattern (ej crosshatch), regal/proud face (half-lidded + mustache lines)
 function drawPineappleCharacter(ctx, cos, flash, walkPhase, isMoving) {
   const yellow      = flash ? '#fff' : '#ffd54a';
   const yellowDark  = flash ? '#fff' : '#cc9818';
   const yellowLite  = flash ? '#fff' : '#fff088';
   const brownPat    = flash ? '#fff' : '#aa6a18';
+  const brownDk     = flash ? '#fff' : '#7a4a08';
   const green       = flash ? '#fff' : '#3a8a3a';
   const greenDark   = flash ? '#fff' : '#1a5a1a';
   const greenLite   = flash ? '#fff' : '#5aaa3a';
   const skin        = flash ? '#fff' : (cos.skin || '#d4a574');
   const outline     = flash ? '#fff' : '#3a1a05';
   const blackEye    = flash ? '#fff' : '#0a0a0a';
+  const eyebrowCol  = flash ? '#fff' : '#7a4a08';
   const swing = Math.sin(walkPhase);
   const legSwing = isMoving ? swing * 2 : 0;
-  // SPIKY GREEN CROWN (toppen — leaves sticker ut åt alla håll)
-  ctx.fillStyle = green;
+  // === LAYERED LEAFY CROWN — 9 leaves med curves + veins ===
+  // BACK layer (mörkast green, outermost leaves)
+  ctx.fillStyle = greenDark;
   for (const [bx, by, tx, ty, w] of [
-    [-3, -10, -5, -19, 1.5],
-    [-1, -10.5, -2, -20.5, 1.4],
-    [1, -10.5, 1, -21, 1.4],
-    [3, -10, 4, -20, 1.4],
-    [-4.5, -10, -7, -16, 1.2],
-    [4.5, -10, 7, -16, 1.2],
-    [0, -10, 0, -22, 1.3],
+    [-5, -10, -7.5, -16, 1.2],
+    [5, -10, 7.5, -16, 1.2],
+    [-4, -10, -6, -19, 1.3],
+    [4, -10, 6, -19, 1.3],
   ]) {
     ctx.beginPath();
     ctx.moveTo(bx - w, by);
-    ctx.lineTo(tx, ty);
-    ctx.lineTo(bx + w, by);
+    ctx.quadraticCurveTo(bx + (tx - bx) * 0.4, by - 4, tx, ty);
+    ctx.quadraticCurveTo(bx + (tx - bx) * 0.6 + 0.3, by - 4, bx + w, by);
     ctx.closePath();
     ctx.fill();
   }
-  // Leaf shadows (mörkare insidor)
-  ctx.fillStyle = greenDark;
+  // MID layer (medium green)
+  ctx.fillStyle = green;
+  for (const [bx, by, tx, ty, w] of [
+    [-2.5, -10.5, -3.5, -20, 1.4],
+    [2.5, -10.5, 3.5, -20, 1.4],
+    [-1, -11, -1.8, -21.5, 1.3],
+    [1, -11, 1.8, -21.5, 1.3],
+  ]) {
+    ctx.beginPath();
+    ctx.moveTo(bx - w, by);
+    ctx.quadraticCurveTo(bx + (tx - bx) * 0.4, by - 5, tx, ty);
+    ctx.quadraticCurveTo(bx + (tx - bx) * 0.6 + 0.3, by - 5, bx + w, by);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // TOP leaf (tallest center, ljusast)
+  ctx.fillStyle = greenLite;
+  ctx.beginPath();
+  ctx.moveTo(-1.3, -11);
+  ctx.quadraticCurveTo(-0.5, -18, 0, -22.5);
+  ctx.quadraticCurveTo(0.5, -18, 1.3, -11);
+  ctx.closePath();
+  ctx.fill();
+  // Leaf veins (centerlines)
+  ctx.strokeStyle = greenDark; ctx.lineWidth = 0.3;
   for (const [bx, by, tx, ty] of [
-    [-3, -10, -5, -19],
-    [1, -10.5, 1, -21],
-    [-4.5, -10, -7, -16],
+    [-5, -10, -7.5, -16], [5, -10, 7.5, -16],
+    [-4, -10, -6, -19], [4, -10, 6, -19],
+    [-2.5, -10.5, -3.5, -20], [2.5, -10.5, 3.5, -20],
+    [-1, -11, -1.8, -21.5], [1, -11, 1.8, -21.5],
+    [0, -11, 0, -22.5],
   ]) {
     ctx.beginPath();
     ctx.moveTo(bx, by);
     ctx.lineTo(tx, ty);
-    ctx.lineTo(bx + 0.4, by - 0.2);
-    ctx.closePath();
-    ctx.fill();
+    ctx.stroke();
   }
-  // BODY (yellow oval pineapple)
+  // === BODY — pineapple-shaped (wider top, slightly tapered) ===
   ctx.fillStyle = yellow;
   ctx.beginPath();
-  ctx.ellipse(0, -1, 8, 10, 0, 0, Math.PI * 2);
+  ctx.moveTo(-8, -8);
+  ctx.quadraticCurveTo(-9.5, -3, -8.5, 2);
+  ctx.quadraticCurveTo(-7.5, 7, -4, 8);
+  ctx.lineTo(4, 8);
+  ctx.quadraticCurveTo(7.5, 7, 8.5, 2);
+  ctx.quadraticCurveTo(9.5, -3, 8, -8);
+  ctx.quadraticCurveTo(0, -10, -8, -8);
+  ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = outline; ctx.lineWidth = 1;
   ctx.stroke();
-  // DIAMOND PATTERN — crosshatch lines (pineapple's iconic look)
-  ctx.strokeStyle = brownPat; ctx.lineWidth = 0.4;
-  for (let i = -3; i <= 3; i++) {
-    ctx.beginPath();
-    ctx.moveTo(-7 + i * 1.2, -8); ctx.lineTo(-1 + i * 1.2, 6);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(7 - i * 1.2, -8); ctx.lineTo(1 - i * 1.2, 6);
-    ctx.stroke();
+  // === DISCRETE DIAMOND PATTERN (NOT crosshatch — proper pineapple texture) ===
+  ctx.strokeStyle = brownPat; ctx.lineWidth = 0.35;
+  // Rows of diamonds, alternating offset per row
+  const diamondRows = [
+    { y: -6, offset: 0 },
+    { y: -3, offset: 1.5 },
+    { y: 0, offset: 0 },
+    { y: 3, offset: 1.5 },
+    { y: 6, offset: 0 },
+  ];
+  for (const row of diamondRows) {
+    for (let col = -2; col <= 2; col++) {
+      const x = col * 3 + row.offset - 0.7;
+      // Skip diamonds outside body silhouette (rough check)
+      const maxXForY = 7.5 - Math.abs(row.y) * 0.25;
+      if (Math.abs(x) > maxXForY) continue;
+      // Diamond outline
+      ctx.beginPath();
+      ctx.moveTo(x, row.y - 1.1);
+      ctx.lineTo(x + 1.4, row.y);
+      ctx.lineTo(x, row.y + 1.1);
+      ctx.lineTo(x - 1.4, row.y);
+      ctx.closePath();
+      ctx.stroke();
+      // Small dark bump in center (signature pineapple eye)
+      ctx.fillStyle = brownDk;
+      ctx.beginPath();
+      ctx.arc(x, row.y, 0.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
-  // Diamond bumps (small dots at intersections)
-  ctx.fillStyle = brownPat;
-  for (const [bx, by] of [[-3, -5], [0, -5], [3, -5], [-3, -1], [0, -1], [3, -1], [-3, 3], [0, 3], [3, 3]]) {
-    ctx.beginPath();
-    ctx.arc(bx, by, 0.4, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  // East-side highlight
+  // East-side body highlight (sheen)
   ctx.fillStyle = yellowLite;
-  ctx.globalAlpha = 0.35;
+  ctx.globalAlpha = 0.4;
   ctx.beginPath();
-  ctx.ellipse(3, -2, 2, 4, -0.3, 0, Math.PI * 2);
+  ctx.ellipse(4.5, -1, 1.5, 5, -0.2, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
-  // FACE on body
+  // === FACE — REGAL/PROUD personality ===
+  // White sclera
   ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.arc(-2.5, -3, 1.1, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(2.5, -3, 1.1, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
   ctx.beginPath(); ctx.arc(-2.5, -3, 1.1, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath(); ctx.arc(2.5, -3, 1.1, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = blackEye;
-  ctx.beginPath(); ctx.arc(-2.3, -3, 0.5, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.7, -3, 0.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(-2, -3.3, 0.3, 0.3);
-  ctx.fillRect(3, -3.3, 0.3, 0.3);
-  // Big smile
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.7;
+  // HALF-LIDDED EYELIDS (top half covered = haughty look)
+  ctx.fillStyle = yellow;
   ctx.beginPath();
-  ctx.arc(0, -0.5, 2, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.arc(-2.5, -3, 1.1, Math.PI, 0);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.arc(2.5, -3, 1.1, Math.PI, 0);
+  ctx.closePath(); ctx.fill();
+  // Eyelid line (heavy lash line)
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.55;
+  ctx.beginPath();
+  ctx.moveTo(-3.6, -3); ctx.lineTo(-1.4, -3);
+  ctx.moveTo(1.4, -3); ctx.lineTo(3.6, -3);
   ctx.stroke();
-  // LEGS
+  // Pupils (only lower half visible)
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-2.3, -2.6, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.7, -2.6, 0.45, 0, Math.PI * 2); ctx.fill();
+  // Glints
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-2.1, -2.8, 0.25, 0.25);
+  ctx.fillRect(2.9, -2.8, 0.25, 0.25);
+  // RAISED EYEBROWS (proud, arched, brown)
+  ctx.fillStyle = eyebrowCol;
+  ctx.beginPath();
+  ctx.moveTo(-3.8, -4.5);
+  ctx.quadraticCurveTo(-2.5, -5.2, -1.2, -4.8);
+  ctx.lineTo(-1.2, -4.3);
+  ctx.quadraticCurveTo(-2.5, -4.7, -3.8, -4.0);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(3.8, -4.5);
+  ctx.quadraticCurveTo(2.5, -5.2, 1.2, -4.8);
+  ctx.lineTo(1.2, -4.3);
+  ctx.quadraticCurveTo(2.5, -4.7, 3.8, -4.0);
+  ctx.closePath(); ctx.fill();
+  // SMUG SMALL SMILE (closed mouth, slight upturn)
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.65;
+  ctx.beginPath();
+  ctx.moveTo(-1.4, -0.2);
+  ctx.quadraticCurveTo(0, 0.3, 1.4, -0.2);
+  ctx.stroke();
+  // TINY MUSTACHE-LIKE LINES (regal touch)
+  ctx.strokeStyle = brownPat; ctx.lineWidth = 0.35;
+  ctx.beginPath();
+  ctx.moveTo(-1.2, -0.8); ctx.lineTo(-0.5, -1);
+  ctx.moveTo(1.2, -0.8); ctx.lineTo(0.5, -1);
+  ctx.stroke();
+  // === LEGS ===
   ctx.fillStyle = skin;
   ctx.fillRect(-3 - legSwing, 8, 2.2, 7);
   ctx.fillRect(0.8 + legSwing, 8, 2.2, 7);
@@ -41093,23 +41233,34 @@ function drawDragonfruitCharacter(ctx, cos, flash, walkPhase, isMoving) {
     ctx.arc(sx, sy, 0.35, 0, Math.PI * 2);
     ctx.fill();
   }
-  // FACE on upper body
+  // FACE — v1.515 ALIEN STARE (HUGE round eyes + tiny dot pupils + mini-O mouth + 3rd eye)
+  // Huge alien eyes (much bigger än standard)
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(-2.5, -8, 1.1, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.5, -8, 1.1, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = blackSeed; ctx.lineWidth = 0.35;
-  ctx.beginPath(); ctx.arc(-2.5, -8, 1.1, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(2.5, -8, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-2.5, -8, 1.7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -8, 1.7, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2.5, -8, 1.7, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackSeed; ctx.lineWidth = 0.4;
+  ctx.beginPath(); ctx.arc(-2.5, -8, 1.7, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2.5, -8, 1.7, 0, Math.PI * 2); ctx.stroke();
+  // TINY pupil dots (creates wide alien stare)
   ctx.fillStyle = blackSeed;
-  ctx.beginPath(); ctx.arc(-2.3, -8, 0.5, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.7, -8, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-2.3, -8, 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.7, -8, 0.3, 0, Math.PI * 2); ctx.fill();
+  // Big eye sparkles (otherworldly shine)
   ctx.fillStyle = '#fff';
-  ctx.fillRect(-2, -8.3, 0.3, 0.3);
-  ctx.fillRect(3, -8.3, 0.3, 0.3);
-  // Stoic alien expression (small mouth)
-  ctx.strokeStyle = blackSeed; ctx.lineWidth = 0.6;
+  ctx.fillRect(-3, -8.8, 0.6, 0.6);
+  ctx.fillRect(2, -8.8, 0.6, 0.6);
+  // THIRD EYE dot on forehead (alien vibe)
+  ctx.fillStyle = pinkDark;
+  ctx.beginPath(); ctx.arc(0, -10.5, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-0.1, -10.7, 0.2, 0.2);
+  // TINY O mouth (mystified)
+  ctx.fillStyle = '#3a0a2a';
   ctx.beginPath();
-  ctx.moveTo(-1, -5.5); ctx.lineTo(1, -5.5);
+  ctx.arc(0, -5.5, 0.55, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = blackSeed; ctx.lineWidth = 0.3;
   ctx.stroke();
   // LEGS
   ctx.fillStyle = skin;
@@ -41198,21 +41349,55 @@ function drawDurianCharacter(ctx, cos, flash, walkPhase, isMoving) {
   ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
   ctx.beginPath(); ctx.arc(-2.5, -5, 1.1, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath(); ctx.arc(2.5, -5, 1.1, 0, Math.PI * 2); ctx.stroke();
-  // X-eyes (passed out from own smell)
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.45;
+  // X-eyes (v1.515 ENHANCED — passed out + tongue + sweat drops för stink-comedy)
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.5;
   ctx.beginPath();
-  ctx.moveTo(-3.2, -5.7); ctx.lineTo(-1.8, -4.3);
-  ctx.moveTo(-3.2, -4.3); ctx.lineTo(-1.8, -5.7);
-  ctx.moveTo(1.8, -5.7); ctx.lineTo(3.2, -4.3);
-  ctx.moveTo(1.8, -4.3); ctx.lineTo(3.2, -5.7);
+  ctx.moveTo(-3.3, -5.8); ctx.lineTo(-1.7, -4.2);
+  ctx.moveTo(-3.3, -4.2); ctx.lineTo(-1.7, -5.8);
+  ctx.moveTo(1.7, -5.8); ctx.lineTo(3.3, -4.2);
+  ctx.moveTo(1.7, -4.2); ctx.lineTo(3.3, -5.8);
   ctx.stroke();
-  // Mouth (worried "o")
+  // Open mouth med PINK TONGUE STICKING OUT (queasy)
   ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
   ctx.beginPath();
-  ctx.arc(0, -2, 0.9, 0, Math.PI * 2);
-  ctx.stroke();
+  ctx.arc(0, -2, 1.0, 0, Math.PI);
+  ctx.closePath();
   ctx.fillStyle = '#3a0a08';
-  ctx.beginPath(); ctx.arc(0, -2, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.fill();
+  ctx.stroke();
+  // Tongue hanging out
+  ctx.fillStyle = '#ff7090';
+  ctx.beginPath();
+  ctx.moveTo(-0.7, -1.5);
+  ctx.quadraticCurveTo(0, 0.5, 0.7, -1.5);
+  ctx.quadraticCurveTo(0.3, -0.8, 0, -1);
+  ctx.quadraticCurveTo(-0.3, -0.8, -0.7, -1.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#cc4060'; ctx.lineWidth = 0.3;
+  ctx.beginPath();
+  ctx.moveTo(0, -1.2); ctx.lineTo(0, 0.2);
+  ctx.stroke();
+  // SWEAT DROPS (3 around head - signature stink comedy)
+  ctx.fillStyle = '#7accea';
+  ctx.shadowColor = '#5aaaca'; ctx.shadowBlur = 2;
+  // Sweat drop 1 (above east temple)
+  ctx.beginPath();
+  ctx.moveTo(7, -10);
+  ctx.quadraticCurveTo(6.5, -8.5, 7, -7.5);
+  ctx.quadraticCurveTo(7.5, -8.5, 7, -10);
+  ctx.closePath(); ctx.fill();
+  // Sweat drop 2 (above west temple)
+  ctx.beginPath();
+  ctx.moveTo(-7, -10);
+  ctx.quadraticCurveTo(-7.5, -8.5, -7, -7.5);
+  ctx.quadraticCurveTo(-6.5, -8.5, -7, -10);
+  ctx.closePath(); ctx.fill();
+  // Small sweat splash
+  ctx.beginPath();
+  ctx.arc(0, -13, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
   // LEGS
   ctx.fillStyle = skin;
   ctx.fillRect(-3 - legSwing, 8, 2.2, 7);
@@ -41293,23 +41478,58 @@ function drawCoconutCharacter(ctx, cos, flash, walkPhase, isMoving) {
   ctx.lineTo(0, 4.5);
   ctx.closePath();
   ctx.fill();
-  // FACE
+  // FACE — v1.515 TOUGH/GRUFF (slit narrow eyes + angry V-brows + grimace med teeth)
+  // Narrow slit eyes (squinty/tough)
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(-2.5, -5, 1.1, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.5, -5, 1.1, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
-  ctx.beginPath(); ctx.arc(-2.5, -5, 1.1, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(2.5, -5, 1.1, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = blackEye;
-  ctx.beginPath(); ctx.arc(-2.3, -5, 0.5, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.7, -5, 0.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(-2, -5.3, 0.3, 0.3);
-  ctx.fillRect(3, -5.3, 0.3, 0.3);
-  // Tough/hard expression
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.65;
   ctx.beginPath();
-  ctx.moveTo(-1.5, -1.5); ctx.lineTo(1.5, -1.5);
+  ctx.ellipse(-2.5, -5, 1.1, 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(2.5, -5, 1.1, 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.ellipse(-2.5, -5, 1.1, 0.4, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(2.5, -5, 1.1, 0.4, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  // Small intense pupils
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-2.5, -5, 0.35, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -5, 0.35, 0, Math.PI * 2); ctx.fill();
+  // ANGRY V-EYEBROWS (thick, dramatic angle - inner LOW outer HIGH)
+  ctx.fillStyle = brownDark;
+  ctx.beginPath();
+  ctx.moveTo(-3.8, -7);
+  ctx.lineTo(-1.0, -5.7);
+  ctx.lineTo(-1.0, -5.2);
+  ctx.lineTo(-3.8, -6.5);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(3.8, -7);
+  ctx.lineTo(1.0, -5.7);
+  ctx.lineTo(1.0, -5.2);
+  ctx.lineTo(3.8, -6.5);
+  ctx.closePath(); ctx.fill();
+  // GRIMACE mouth (downturned med clenched teeth visible)
+  ctx.fillStyle = '#3a0a08';
+  ctx.beginPath();
+  ctx.moveTo(-2, -1.5);
+  ctx.quadraticCurveTo(0, -0.3, 2, -1.5);
+  ctx.lineTo(2, -1);
+  ctx.quadraticCurveTo(0, 0.2, -2, -1);
+  ctx.closePath(); ctx.fill();
+  // Clenched teeth (white lines)
+  ctx.fillStyle = '#fff';
+  for (const tx of [-1.3, -0.5, 0.3, 1.1]) {
+    ctx.fillRect(tx, -1.3, 0.5, 0.5);
+  }
+  // Outline lips
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(-2, -1.5);
+  ctx.quadraticCurveTo(0, -0.3, 2, -1.5);
   ctx.stroke();
   // LEGS
   ctx.fillStyle = skin;
@@ -41412,23 +41632,47 @@ function drawPomegranateCharacter(ctx, cos, flash, walkPhase, isMoving) {
     ctx.arc(sx - 0.2, sy - 0.2, 0.2, 0, Math.PI * 2);
     ctx.fill();
   }
-  // FACE
+  // FACE — v1.515 WISE/REGAL (half-closed elegant eyes + arched thin brows + subtle smile + beauty mark)
+  // Sclera
   ctx.fillStyle = '#fff';
   ctx.beginPath(); ctx.arc(-2.5, -6, 1.1, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.arc(2.5, -6, 1.1, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
   ctx.beginPath(); ctx.arc(-2.5, -6, 1.1, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath(); ctx.arc(2.5, -6, 1.1, 0, Math.PI * 2); ctx.stroke();
+  // Wise half-closed eyelids (top half covered, elegant gaze)
+  ctx.fillStyle = redDark;
+  ctx.beginPath(); ctx.arc(-2.5, -6, 1.1, Math.PI, Math.PI * 1.85);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -6, 1.1, Math.PI * 1.15, 0);
+  ctx.closePath(); ctx.fill();
+  // Pupils (visible only in lower portion)
   ctx.fillStyle = blackEye;
-  ctx.beginPath(); ctx.arc(-2.3, -6, 0.5, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.7, -6, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-2.3, -5.7, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.7, -5.7, 0.45, 0, Math.PI * 2); ctx.fill();
+  // Tiny refined glints
   ctx.fillStyle = '#fff';
-  ctx.fillRect(-2, -6.3, 0.3, 0.3);
-  ctx.fillRect(3, -6.3, 0.3, 0.3);
-  // Smile
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  ctx.fillRect(-2.1, -5.9, 0.2, 0.2);
+  ctx.fillRect(2.9, -5.9, 0.2, 0.2);
+  // Arched thin elegant eyebrows
+  ctx.strokeStyle = redDark; ctx.lineWidth = 0.5;
+  ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(-1, -3); ctx.quadraticCurveTo(0, -2, 1, -3);
+  ctx.moveTo(-3.7, -7.7);
+  ctx.quadraticCurveTo(-2.5, -8.4, -1.4, -7.6);
+  ctx.moveTo(1.4, -7.6);
+  ctx.quadraticCurveTo(2.5, -8.4, 3.7, -7.7);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  // BEAUTY MARK (small dark dot near west eye - aristocratic touch)
+  ctx.fillStyle = redDark;
+  ctx.beginPath();
+  ctx.arc(-3.8, -4.2, 0.25, 0, Math.PI * 2);
+  ctx.fill();
+  // Subtle warm refined smile
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.55;
+  ctx.beginPath();
+  ctx.moveTo(-1.3, -3); ctx.quadraticCurveTo(0, -2.4, 1.3, -3.2);
   ctx.stroke();
   // LEGS
   ctx.fillStyle = skin;
@@ -41493,24 +41737,62 @@ function drawStarfruitCharacter(ctx, cos, flash, walkPhase, isMoving) {
   ctx.closePath();
   ctx.fill();
   ctx.globalAlpha = 1;
-  // FACE (in center of star)
+  // FACE — v1.515 SHOWBIZ STAR (★-shaped pupils + huge laughing mouth + raised excited brows)
+  // Eye whites
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(-1.8, -3.5, 1.0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(1.8, -3.5, 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-1.8, -3.5, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1.8, -3.5, 1.1, 0, Math.PI * 2); ctx.fill();
   ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
-  ctx.beginPath(); ctx.arc(-1.8, -3.5, 1.0, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(1.8, -3.5, 1.0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-1.8, -3.5, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(1.8, -3.5, 1.1, 0, Math.PI * 2); ctx.stroke();
+  // ★-SHAPED PUPILS (5-point star — showbiz signature!)
   ctx.fillStyle = blackEye;
-  ctx.beginPath(); ctx.arc(-1.6, -3.5, 0.45, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.0, -3.5, 0.45, 0, Math.PI * 2); ctx.fill();
+  for (const cx of [-1.8, 1.8]) {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const ang = -Math.PI / 2 + (i / 10) * Math.PI * 2;
+      const rad = (i % 2 === 0) ? 0.6 : 0.25;
+      const sx = cx + Math.cos(ang) * rad;
+      const sy = -3.5 + Math.sin(ang) * rad;
+      if (i === 0) ctx.moveTo(sx, sy);
+      else ctx.lineTo(sx, sy);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Bright eye glints
   ctx.fillStyle = '#fff';
-  ctx.fillRect(-1.4, -3.8, 0.25, 0.25);
-  ctx.fillRect(2.2, -3.8, 0.25, 0.25);
-  // Sparkly happy smile
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  ctx.fillRect(-1.5, -3.9, 0.3, 0.3);
+  ctx.fillRect(2.1, -3.9, 0.3, 0.3);
+  // Raised excited eyebrows (high up, V-down-pointing for excitement)
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.5;
+  ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.arc(0, -1.5, 1.5, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.moveTo(-3, -5.5);
+  ctx.lineTo(-1, -5);
+  ctx.moveTo(1, -5);
+  ctx.lineTo(3, -5.5);
   ctx.stroke();
+  ctx.lineCap = 'butt';
+  // HUGE LAUGHING MOUTH (showbiz smile med tongue)
+  ctx.fillStyle = '#3a0a08';
+  ctx.beginPath();
+  ctx.moveTo(-2.3, -1.7);
+  ctx.quadraticCurveTo(0, 1, 2.3, -1.7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // White teeth row (top)
+  ctx.fillStyle = '#fff';
+  for (const tx of [-1.7, -1.0, -0.3, 0.4, 1.1]) {
+    ctx.fillRect(tx, -1.6, 0.5, 0.5);
+  }
+  // Pink tongue at bottom
+  ctx.fillStyle = '#ff7090';
+  ctx.beginPath();
+  ctx.ellipse(0, 0.2, 1.2, 0.5, 0, 0, Math.PI);
+  ctx.closePath(); ctx.fill();
   // Sparkles around star (extra shine)
   ctx.fillStyle = starLite;
   ctx.shadowColor = '#ffff80'; ctx.shadowBlur = 3;
@@ -41593,24 +41875,56 @@ function drawPricklypearCharacter(ctx, cos, flash, walkPhase, isMoving) {
   ctx.beginPath();
   ctx.arc(0, -13, 0.5, 0, Math.PI * 2);
   ctx.fill();
-  // FACE
+  // FACE — v1.515 SMUG REBEL (asymmetric eyes + ONE raised brow + smirk + scar)
+  // Eye whites — east eye SLIGHTLY LARGER (raised-brow effect)
   ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(-2.5, -6, 1.0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.5, -6, 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-2.5, -6, 0.9, 0, Math.PI * 2); ctx.fill();    // west smaller
+  ctx.beginPath(); ctx.arc(2.5, -6, 1.2, 0, Math.PI * 2); ctx.fill();     // east bigger
   ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
-  ctx.beginPath(); ctx.arc(-2.5, -6, 1.0, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(2.5, -6, 1.0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(-2.5, -6, 0.9, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2.5, -6, 1.2, 0, Math.PI * 2); ctx.stroke();
+  // Pupils — west looking sideways, east staring
   ctx.fillStyle = blackEye;
-  ctx.beginPath(); ctx.arc(-2.3, -6, 0.45, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.7, -6, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-2.1, -5.9, 0.4, 0, Math.PI * 2); ctx.fill();   // looking east
+  ctx.beginPath(); ctx.arc(2.6, -6, 0.55, 0, Math.PI * 2); ctx.fill();
+  // Glints
   ctx.fillStyle = '#fff';
-  ctx.fillRect(-2, -6.3, 0.3, 0.3);
-  ctx.fillRect(3, -6.3, 0.3, 0.3);
-  // Smug/cocky smirk
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  ctx.fillRect(-1.9, -6.1, 0.25, 0.25);
+  ctx.fillRect(2.9, -6.3, 0.3, 0.3);
+  // ASYMMETRIC EYEBROWS — west flat, east HIGH (raised = skeptical/cocky)
+  ctx.fillStyle = blackEye;
+  ctx.fillRect(-3.4, -7.2, 1.7, 0.4);  // west: flat low
+  ctx.beginPath();                       // east: raised + arched
+  ctx.moveTo(1.5, -8.2);
+  ctx.quadraticCurveTo(2.7, -8.7, 3.7, -7.8);
+  ctx.lineTo(3.5, -7.5);
+  ctx.quadraticCurveTo(2.7, -8.3, 1.7, -7.8);
+  ctx.closePath(); ctx.fill();
+  // SCAR through west eyebrow (tough rebel touch)
+  ctx.strokeStyle = '#aa5050'; ctx.lineWidth = 0.5;
   ctx.beginPath();
-  ctx.moveTo(-1.5, -3); ctx.quadraticCurveTo(0, -2.5, 1.5, -3.3);
+  ctx.moveTo(-3.6, -7.8);
+  ctx.lineTo(-2.4, -6.4);
   ctx.stroke();
+  // Scar highlight
+  ctx.strokeStyle = '#ddaaaa'; ctx.lineWidth = 0.25;
+  ctx.beginPath();
+  ctx.moveTo(-3.55, -7.75);
+  ctx.lineTo(-2.35, -6.35);
+  ctx.stroke();
+  // SMUG SMIRK (asymmetric — east higher)
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.65;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -3);
+  ctx.quadraticCurveTo(0, -2.3, 1.5, -3.5);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  // Small dimple at east mouth corner
+  ctx.fillStyle = pinkDark;
+  ctx.beginPath();
+  ctx.arc(1.7, -3.3, 0.2, 0, Math.PI * 2);
+  ctx.fill();
   // LEGS
   ctx.fillStyle = skin;
   ctx.fillRect(-3 - legSwing, 8, 2.2, 7);
@@ -41680,23 +41994,58 @@ function drawOliveCharacter(ctx, cos, flash, walkPhase, isMoving) {
   // Pimento highlight
   ctx.fillStyle = '#ff5a30';
   ctx.fillRect(-0.5, -11, 1, 0.4);
-  // FACE (eyes BELOW the pimento)
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(-2.5, -6, 1.0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.5, -6, 1.0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
-  ctx.beginPath(); ctx.arc(-2.5, -6, 1.0, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(2.5, -6, 1.0, 0, Math.PI * 2); ctx.stroke();
-  ctx.fillStyle = blackEye;
-  ctx.beginPath(); ctx.arc(-2.3, -6, 0.45, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.7, -6, 0.45, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(-2, -6.3, 0.3, 0.3);
-  ctx.fillRect(3, -6.3, 0.3, 0.3);
-  // Classic smile
+  // FACE — v1.515 REFINED GENTLEMAN (closed ^_^ happy squint + cheek dots + tiny mustache)
+  // CLOSED HAPPY-SQUINT EYES (^_^ shape — Mediterranean refined vibe)
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.55;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  // West eye (^)
+  ctx.moveTo(-3.4, -5.8);
+  ctx.quadraticCurveTo(-2.5, -6.5, -1.6, -5.8);
+  // East eye (^)
+  ctx.moveTo(1.6, -5.8);
+  ctx.quadraticCurveTo(2.5, -6.5, 3.4, -5.8);
+  ctx.stroke();
+  // Small eyelashes (sweet detail)
+  ctx.lineWidth = 0.3;
+  ctx.beginPath();
+  ctx.moveTo(-3.5, -6.0); ctx.lineTo(-3.7, -6.3);
+  ctx.moveTo(-1.5, -6.0); ctx.lineTo(-1.3, -6.3);
+  ctx.moveTo(1.5, -6.0); ctx.lineTo(1.3, -6.3);
+  ctx.moveTo(3.5, -6.0); ctx.lineTo(3.7, -6.3);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  // CHEEK BLUSH DOTS (sweet rosy cheeks)
+  ctx.fillStyle = '#ff9a8a';
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath();
+  ctx.ellipse(-4, -4.5, 0.7, 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(4, -4.5, 0.7, 0.4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // ELEGANT SMILE med teeth-line
   ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
   ctx.beginPath();
-  ctx.moveTo(-1.5, -2.5); ctx.quadraticCurveTo(0, -1.5, 1.5, -2.5);
+  ctx.moveTo(-1.5, -2.8);
+  ctx.quadraticCurveTo(0, -1.4, 1.5, -2.8);
+  ctx.stroke();
+  // Tiny mouth-corner dimples
+  ctx.fillStyle = oliveDark;
+  ctx.beginPath(); ctx.arc(-1.5, -2.7, 0.15, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1.5, -2.7, 0.15, 0, Math.PI * 2); ctx.fill();
+  // TINY HANDLEBAR MUSTACHE under the pimento (gentleman touch)
+  ctx.strokeStyle = '#3a2008'; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-2, -3.5);
+  ctx.quadraticCurveTo(0, -3.8, 2, -3.5);
+  ctx.stroke();
+  // Tiny mustache curls at ends
+  ctx.beginPath();
+  ctx.arc(-2.2, -3.5, 0.3, Math.PI * 0.2, Math.PI * 1.2);
+  ctx.moveTo(2.2, -3.5);
+  ctx.arc(2.2, -3.5, 0.3, Math.PI * 1.8, Math.PI * 0.8);
   ctx.stroke();
   // LEGS
   ctx.fillStyle = skin;
