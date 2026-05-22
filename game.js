@@ -12387,6 +12387,19 @@ const WARDROBE = {
     { id: 'prison_shirt',   name: 'Fängelse-tröja',    color: '#ff7a14', brand: 'prison' },
     { id: 'police_shirt',   name: 'Polis-uniform',     color: '#1a2a5a', brand: 'police' },
     { id: 'fire_shirt',     name: 'Brandman-jacka',    color: '#8a1818', brand: 'fire' },
+    // v1.498: 12 ELEMENT-KNIGHTS — generiska medieval fantasy-arketyper (ej Marvel-derivatives)
+    { id: 'hero_pyro',      name: 'Cinder Knight',     color: '#aa2818', brand: 'h_pyro' },
+    { id: 'hero_frost',     name: 'Frost Knight',      color: '#2a6aaa', brand: 'h_frost' },
+    { id: 'hero_storm',     name: 'Storm Knight',      color: '#3a2a6a', brand: 'h_storm' },
+    { id: 'hero_shadow',    name: 'Night Knight',      color: '#0a0a1a', brand: 'h_shadow' },
+    { id: 'hero_sun',       name: 'Sun Knight',        color: '#ffc848', brand: 'h_sun' },
+    { id: 'hero_cyber',     name: 'Steel Knight',      color: '#7a8a9a', brand: 'h_cyber' },
+    { id: 'hero_earth',     name: 'Stone Knight',      color: '#6a4a2a', brand: 'h_earth' },
+    { id: 'hero_wind',      name: 'Sky Knight',        color: '#5aaadd', brand: 'h_wind' },
+    { id: 'hero_wild',      name: 'Wild Knight',       color: '#2a5a2a', brand: 'h_wild' },
+    { id: 'hero_arcane',    name: 'Spell Knight',      color: '#5a2aaa', brand: 'h_arcane' },
+    { id: 'hero_void',      name: 'Star Knight',       color: '#0a1a4a', brand: 'h_void' },
+    { id: 'hero_knight',    name: 'Crimson Knight',    color: '#8a1a1a', brand: 'h_knight' },
     { id: 'black',     name: 'Svart',      color: '#222' },
     { id: 'white',     name: 'Vit',        color: '#cccccc' },
     { id: 'tactical',  name: 'Tactical',   color: '#1a3a1a' },
@@ -12685,12 +12698,16 @@ function getWardrobeOpt(cat, id) {
 }
 
 // v1.491: Klassificera preset baserat på shirt-property (brand/mascot/classic)
+// v1.498: Lägg till 'hero' för h_*-brand-prefix (Element Knights)
 function presetCategory(preset) {
   const shirtId = preset.wardrobe && preset.wardrobe.shirt;
   if (!shirtId) return 'classic';
   const shirt = WARDROBE.shirt.find(s => s.id === shirtId);
   if (shirt && shirt.mascot) return 'mascot';
-  if (shirt && shirt.brand) return 'brand';
+  if (shirt && shirt.brand) {
+    if (shirt.brand.startsWith('h_')) return 'hero';
+    return 'brand';
+  }
   return 'classic';
 }
 
@@ -22418,6 +22435,67 @@ const WARDROBE_PRESETS = [
       shoes: 'combatBoot', hat: 'helmet', bandana: 'none',
       glasses: 'none', cape: 'none', facialHair: 'fullBeard', eyes: 'default', scars: 'none'
   } },
+  // v1.498: 12 ELEMENT-KNIGHTS — generiska medieval fantasy hero-arketyper
+  { id: 'knight_cinder', name: 'Cinder Knight', wardrobe: {
+      skin: 'tan', hair: 'shortRed', shirt: 'hero_pyro', pants: 'black',
+      shoes: 'combatBoot', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'red', facialHair: 'goatee', eyes: 'amber', scars: 'eyeScar'
+  } },
+  { id: 'knight_frost', name: 'Frost Knight', wardrobe: {
+      skin: 'pale', hair: 'whiteLong', shirt: 'hero_frost', pants: 'black',
+      shoes: 'combatBoot', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'royal', facialHair: 'fullBeardGray', eyes: 'iceBlue', scars: 'none'
+  } },
+  { id: 'knight_storm', name: 'Storm Knight', wardrobe: {
+      skin: 'fair', hair: 'shortGray', shirt: 'hero_storm', pants: 'black',
+      shoes: 'combatBoot', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'purple', facialHair: 'stubble', eyes: 'violet', scars: 'none'
+  } },
+  { id: 'knight_night', name: 'Night Knight', wardrobe: {
+      skin: 'pale', hair: 'shortDark', shirt: 'hero_shadow', pants: 'black',
+      shoes: 'combatBoot', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'black', facialHair: 'goatee', eyes: 'red', scars: 'none'
+  } },
+  { id: 'knight_sun', name: 'Sun Knight', wardrobe: {
+      skin: 'tan', hair: 'longBlonde', shirt: 'hero_sun', pants: 'black',
+      shoes: 'goldSneaker', hat: 'none', bandana: 'gold',
+      glasses: 'none', cape: 'gold', facialHair: 'none', eyes: 'gold', scars: 'none'
+  } },
+  { id: 'knight_steel', name: 'Steel Knight', wardrobe: {
+      skin: 'pale', hair: 'bald', shirt: 'hero_cyber', pants: 'tactical',
+      shoes: 'cyberBoot', hat: 'none', bandana: 'none',
+      glasses: 'cyber', cape: 'none', facialHair: 'none', eyes: 'cyber', scars: 'cybernetic'
+  } },
+  { id: 'knight_stone', name: 'Stone Knight', wardrobe: {
+      skin: 'caramel', hair: 'longBrown', shirt: 'hero_earth', pants: 'desert',
+      shoes: 'hikingTan', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'green', facialHair: 'fullBeard', eyes: 'hazel', scars: 'cheekScar'
+  } },
+  { id: 'knight_sky', name: 'Sky Knight', wardrobe: {
+      skin: 'fair', hair: 'shortBlonde', shirt: 'hero_wind', pants: 'white',
+      shoes: 'sneakerWhite', hat: 'none', bandana: 'cyan',
+      glasses: 'none', cape: 'royal', facialHair: 'none', eyes: 'iceBlue', scars: 'none'
+  } },
+  { id: 'knight_wild', name: 'Wild Knight', wardrobe: {
+      skin: 'tan', hair: 'mulletGreen', shirt: 'hero_wild', pants: 'olive',
+      shoes: 'combatBoot', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'green', facialHair: 'fullBeard', eyes: 'green', scars: 'tribalRight'
+  } },
+  { id: 'knight_spell', name: 'Spell Knight', wardrobe: {
+      skin: 'pale', hair: 'longPurple', shirt: 'hero_arcane', pants: 'black',
+      shoes: 'dressBlack', hat: 'wizard', bandana: 'none',
+      glasses: 'none', cape: 'purple', facialHair: 'goatBeard', eyes: 'violet', scars: 'thirdEye'
+  } },
+  { id: 'knight_star', name: 'Star Knight', wardrobe: {
+      skin: 'tan', hair: 'whiteLong', shirt: 'hero_void', pants: 'black',
+      shoes: 'cyberBoot', hat: 'none', bandana: 'none',
+      glasses: 'cyber', cape: 'rainbow', facialHair: 'none', eyes: 'glowing', scars: 'none'
+  } },
+  { id: 'knight_crimson', name: 'Crimson Knight', wardrobe: {
+      skin: 'fair', hair: 'shortDark', shirt: 'hero_knight', pants: 'black',
+      shoes: 'combatBoot', hat: 'helmet', bandana: 'none',
+      glasses: 'none', cape: 'crimson', facialHair: 'fullBeard', eyes: 'default', scars: 'crossScar'
+  } },
   // v1.485: PARODI-OUTFITS — kända märken med twist
   { id: 'adibas', name: 'Adibas', wardrobe: {
       skin: 'tan', hair: 'shortDark', shirt: 'adibas_top', pants: 'black',
@@ -23588,19 +23666,20 @@ function renderWardrobeOptions() {
       return card;
     };
     // Klassificera presets
-    const groups = { classic: [], brand: [], mascot: [] };
+    const groups = { classic: [], brand: [], mascot: [], hero: [] };
     for (const p of WARDROBE_PRESETS) {
       const cat2 = presetCategory(p);
       (groups[cat2] || groups.classic).push(p);
     }
     // v1.493: Sub-tab BAR — klickbara knappar istället för långa sektioner.
-    // Bara aktiv sub-tabs items renderas (slipper scroll).
+    // v1.498: Lägg till 'hero' (RIDDARE) för Element-Knights
     const subTabBar = document.createElement('div');
     subTabBar.className = 'ward-subtab-bar';
     const subTabs = [
       { id: 'classic', label: 'KLASSIKER', count: groups.classic.length },
       { id: 'brand',   label: 'MÄRKEN',    count: groups.brand.length },
       { id: 'mascot',  label: 'KOSTYMER',  count: groups.mascot.length },
+      { id: 'hero',    label: 'RIDDARE',   count: groups.hero.length },
     ];
     for (const sub of subTabs) {
       const btn = document.createElement('button');
@@ -42324,6 +42403,450 @@ function drawShirtBrandLogo(ctx, brand, flash) {
     ctx.font = 'bold 1.0px sans-serif';
     ctx.fillStyle = dark;
     ctx.fillText('FIRE', 0, 5.45);
+  } else if (brand === 'h_pyro') {
+    // CINDER KNIGHT — orange flame emblem (3 tongues)
+    ctx.fillStyle = flash ? '#fff' : '#ff8a30';
+    ctx.shadowColor = '#ff5a10'; ctx.shadowBlur = 3;
+    ctx.beginPath();
+    // Center large tongue
+    ctx.moveTo(0.5, 5);
+    ctx.quadraticCurveTo(-1.5, 3, -0.5, 0);
+    ctx.quadraticCurveTo(1, -1, 1.5, 1);
+    ctx.quadraticCurveTo(2.5, 3, 0.5, 5);
+    ctx.closePath();
+    ctx.fill();
+    // West tongue (smaller)
+    ctx.beginPath();
+    ctx.moveTo(-2, 5);
+    ctx.quadraticCurveTo(-3.5, 3, -2.5, 1);
+    ctx.quadraticCurveTo(-1.5, 1.5, -2, 5);
+    ctx.closePath();
+    ctx.fill();
+    // East tongue (smaller)
+    ctx.beginPath();
+    ctx.moveTo(3, 5);
+    ctx.quadraticCurveTo(4.5, 3, 3.5, 1);
+    ctx.quadraticCurveTo(2.5, 1.5, 3, 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Inner hot core
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.beginPath();
+    ctx.moveTo(0.5, 4.5);
+    ctx.quadraticCurveTo(-0.5, 3, 0.5, 1.5);
+    ctx.quadraticCurveTo(1.5, 3, 0.5, 4.5);
+    ctx.closePath();
+    ctx.fill();
+  } else if (brand === 'h_frost') {
+    // FROST KNIGHT — 6-point geometric snowflake
+    ctx.strokeStyle = flash ? '#fff' : '#e0f0ff';
+    ctx.shadowColor = '#a0d0ff'; ctx.shadowBlur = 3;
+    ctx.lineWidth = 0.5;
+    ctx.lineCap = 'round';
+    const cxF = 0.5, cyF = 2.5;
+    // 6 arms från center
+    for (let i = 0; i < 6; i++) {
+      const ang = (i / 6) * Math.PI * 2;
+      const dx = Math.cos(ang) * 2.5;
+      const dy = Math.sin(ang) * 2.5;
+      ctx.beginPath();
+      ctx.moveTo(cxF, cyF);
+      ctx.lineTo(cxF + dx, cyF + dy);
+      ctx.stroke();
+      // Side branches (2 per arm)
+      const bx = cxF + Math.cos(ang) * 1.5;
+      const by = cyF + Math.sin(ang) * 1.5;
+      const bxd1 = Math.cos(ang + 0.6) * 0.7;
+      const byd1 = Math.sin(ang + 0.6) * 0.7;
+      const bxd2 = Math.cos(ang - 0.6) * 0.7;
+      const byd2 = Math.sin(ang - 0.6) * 0.7;
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + bxd1, by + byd1);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bx, by);
+      ctx.lineTo(bx + bxd2, by + byd2);
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
+    ctx.shadowBlur = 0;
+    // Center dot
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.beginPath();
+    ctx.arc(cxF, cyF, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (brand === 'h_storm') {
+    // STORM KNIGHT — storm cloud + 3 raindrops
+    ctx.fillStyle = flash ? '#fff' : '#aaaaaa';
+    // Cloud (3-bump puffy shape)
+    ctx.beginPath();
+    ctx.arc(-2, 1.5, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, 0.8, 1.8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(2.5, 1.3, 1.6, 0, Math.PI * 2); ctx.fill();
+    // Cloud base (rectangle)
+    ctx.fillRect(-3, 1.5, 6, 1);
+    // 3 raindrops (light blue)
+    ctx.fillStyle = flash ? '#fff' : '#7accff';
+    for (const [dx, dy] of [[-2, 4], [0.5, 5], [2.5, 4]]) {
+      ctx.beginPath();
+      ctx.moveTo(dx, dy);
+      ctx.quadraticCurveTo(dx + 0.5, dy + 1.2, dx, dy + 1.7);
+      ctx.quadraticCurveTo(dx - 0.5, dy + 1.2, dx, dy);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // Outline
+    ctx.strokeStyle = flash ? '#fff' : '#4a4a4a';
+    ctx.lineWidth = 0.3;
+    ctx.stroke();
+  } else if (brand === 'h_shadow') {
+    // NIGHT KNIGHT — crescent moon + small stars
+    ctx.fillStyle = flash ? '#fff' : '#c8c8e0';
+    ctx.shadowColor = '#aaaaff'; ctx.shadowBlur = 2;
+    // Crescent moon (outer arc - inner arc)
+    ctx.beginPath();
+    ctx.arc(0.5, 2.5, 2.2, Math.PI * 0.2, Math.PI * 1.6, false);
+    ctx.arc(1.2, 2.5, 1.8, Math.PI * 1.5, Math.PI * 0.3, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // 3 small stars runt månen
+    ctx.fillStyle = flash ? '#fff' : '#ffeb88';
+    for (const [sx, sy, sr] of [[3.5, 0.5, 0.35], [4.5, 3, 0.3], [-2.5, 4.5, 0.32]]) {
+      // 4-point star (simple)
+      ctx.beginPath();
+      ctx.moveTo(sx, sy - sr);
+      ctx.lineTo(sx + sr * 0.4, sy - sr * 0.4);
+      ctx.lineTo(sx + sr, sy);
+      ctx.lineTo(sx + sr * 0.4, sy + sr * 0.4);
+      ctx.lineTo(sx, sy + sr);
+      ctx.lineTo(sx - sr * 0.4, sy + sr * 0.4);
+      ctx.lineTo(sx - sr, sy);
+      ctx.lineTo(sx - sr * 0.4, sy - sr * 0.4);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (brand === 'h_sun') {
+    // SUN KNIGHT — sun disk + 8 rays
+    ctx.fillStyle = flash ? '#fff' : '#ff8a10';
+    ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 4;
+    const cxS = 0.5, cyS = 2.5;
+    // 8 rays
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      const x1 = cxS + Math.cos(ang) * 1.6;
+      const y1 = cyS + Math.sin(ang) * 1.6;
+      const x2 = cxS + Math.cos(ang) * 3;
+      const y2 = cyS + Math.sin(ang) * 3;
+      const perpX = -Math.sin(ang) * 0.4;
+      const perpY = Math.cos(ang) * 0.4;
+      ctx.beginPath();
+      ctx.moveTo(x1 + perpX, y1 + perpY);
+      ctx.lineTo(x2, y2);
+      ctx.lineTo(x1 - perpX, y1 - perpY);
+      ctx.closePath();
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    // Center sun disk
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.beginPath();
+    ctx.arc(cxS, cyS, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    // Inner highlight
+    ctx.fillStyle = flash ? '#fff' : '#fff088';
+    ctx.beginPath();
+    ctx.arc(cxS - 0.3, cyS - 0.3, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (brand === 'h_cyber') {
+    // STEEL KNIGHT — hex grid + diamond center
+    const cyan = flash ? '#fff' : '#3acaff';
+    const cyanDark = flash ? '#fff' : '#1a6a8a';
+    // Hex grid pattern (7 hexes: 1 center + 6 around)
+    ctx.strokeStyle = cyan;
+    ctx.lineWidth = 0.35;
+    const hexR = 0.9;
+    const drawHex = (cx, cy) => {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const ang = i * Math.PI / 3;
+        const x = cx + Math.cos(ang) * hexR;
+        const y = cy + Math.sin(ang) * hexR;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.stroke();
+    };
+    drawHex(0.5, 2.5);
+    for (let i = 0; i < 6; i++) {
+      const ang = i * Math.PI / 3;
+      const cx = 0.5 + Math.cos(ang) * hexR * 1.7;
+      const cy = 2.5 + Math.sin(ang) * hexR * 1.7;
+      drawHex(cx, cy);
+    }
+    // Center diamond (blue gem)
+    ctx.fillStyle = cyan;
+    ctx.shadowColor = cyan; ctx.shadowBlur = 3;
+    ctx.beginPath();
+    ctx.moveTo(0.5, 1.5);
+    ctx.lineTo(1.5, 2.5);
+    ctx.lineTo(0.5, 3.5);
+    ctx.lineTo(-0.5, 2.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Diamond highlight
+    ctx.fillStyle = flash ? '#fff' : '#a0e8ff';
+    ctx.fillRect(0.2, 2.2, 0.4, 0.4);
+  } else if (brand === 'h_earth') {
+    // STONE KNIGHT — 3-peak mountain + horizontal crack
+    ctx.fillStyle = flash ? '#fff' : '#8a6a40';
+    // 3 triangle peaks
+    ctx.beginPath();
+    ctx.moveTo(-3, 5);
+    ctx.lineTo(-1.5, 1);
+    ctx.lineTo(0, 4);
+    ctx.lineTo(1.5, 0.5);
+    ctx.lineTo(3, 4.5);
+    ctx.lineTo(4, 5);
+    ctx.lineTo(-3, 5);
+    ctx.closePath();
+    ctx.fill();
+    // Snow caps (lighter)
+    ctx.fillStyle = flash ? '#fff' : '#dac6a0';
+    ctx.beginPath();
+    ctx.moveTo(-1.5, 1);
+    ctx.lineTo(-1.1, 1.8);
+    ctx.lineTo(-1.9, 1.8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(1.5, 0.5);
+    ctx.lineTo(1.1, 1.3);
+    ctx.lineTo(1.9, 1.3);
+    ctx.closePath();
+    ctx.fill();
+    // Horizontal crack/fissure line
+    ctx.strokeStyle = flash ? '#fff' : '#3a2a08';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(-3, 3.5);
+    ctx.lineTo(-1, 3.3);
+    ctx.lineTo(0.5, 3.6);
+    ctx.lineTo(2.5, 3.3);
+    ctx.lineTo(4, 3.6);
+    ctx.stroke();
+    // Outline
+    ctx.strokeStyle = flash ? '#fff' : '#3a2a08';
+    ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(-3, 5);
+    ctx.lineTo(-1.5, 1);
+    ctx.lineTo(0, 4);
+    ctx.lineTo(1.5, 0.5);
+    ctx.lineTo(3, 4.5);
+    ctx.stroke();
+  } else if (brand === 'h_wind') {
+    // SKY KNIGHT — stylized spread wing (east-pointing)
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.shadowColor = '#aaccff'; ctx.shadowBlur = 2;
+    // Wing outline — feathered shape extending east
+    ctx.beginPath();
+    ctx.moveTo(-2, 2.5);                   // wing base
+    ctx.quadraticCurveTo(-1, 0.5, 1, 1);   // top feathers up
+    ctx.quadraticCurveTo(3, 0.8, 4.5, 1.8);// long top feathers
+    ctx.lineTo(4, 2.5);                     // tip
+    ctx.quadraticCurveTo(3, 3.2, 2, 3.5);  // bottom edge
+    ctx.quadraticCurveTo(0, 4, -1, 4.2);   // bottom feathers
+    ctx.quadraticCurveTo(-2, 3.5, -2, 2.5);// back to base
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Feather separation lines
+    ctx.strokeStyle = flash ? '#fff' : '#aaccdd';
+    ctx.lineWidth = 0.3;
+    for (let i = 0; i < 4; i++) {
+      const t = (i + 1) / 5;
+      const sx = -2 + 6.5 * t;
+      const sy1 = 1.5 + t * 0.5;
+      const sy2 = 3 + t * 0.7;
+      ctx.beginPath();
+      ctx.moveTo(sx, sy1);
+      ctx.lineTo(sx + 0.3, sy2);
+      ctx.stroke();
+    }
+    // Outline
+    ctx.strokeStyle = flash ? '#fff' : '#5a8aaa';
+    ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(-2, 2.5);
+    ctx.quadraticCurveTo(-1, 0.5, 1, 1);
+    ctx.quadraticCurveTo(3, 0.8, 4.5, 1.8);
+    ctx.lineTo(4, 2.5);
+    ctx.quadraticCurveTo(3, 3.2, 2, 3.5);
+    ctx.quadraticCurveTo(0, 4, -1, 4.2);
+    ctx.quadraticCurveTo(-2, 3.5, -2, 2.5);
+    ctx.closePath();
+    ctx.stroke();
+  } else if (brand === 'h_wild') {
+    // WILD KNIGHT — wolf head silhouette (profile, east-facing)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(-3, 4);                      // bottom jaw
+    ctx.lineTo(-3, 2);                      // neck/back
+    ctx.quadraticCurveTo(-3, 0.5, -1.5, 0);// head top back
+    ctx.lineTo(-1, -0.5);                   // ear 1 base
+    ctx.lineTo(-0.3, -1.5);                 // ear 1 tip
+    ctx.lineTo(0.3, -0.7);                  // ear 1 valley
+    ctx.lineTo(1, -1.5);                    // ear 2 tip
+    ctx.lineTo(1.5, -0.5);                  // ear 2 base
+    ctx.quadraticCurveTo(2.5, 0.5, 3.5, 1.5);// head top to snout
+    ctx.lineTo(4.5, 2);                     // snout tip
+    ctx.lineTo(4, 2.8);                     // snout under
+    ctx.lineTo(2.5, 3);                     // mouth corner
+    ctx.lineTo(1.5, 4);                     // jaw
+    ctx.closePath();
+    ctx.fill();
+    // Eye (small white dot)
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.beginPath();
+    ctx.arc(2, 1.5, 0.25, 0, Math.PI * 2);
+    ctx.fill();
+    // Snout/nose tip (small dot)
+    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.beginPath();
+    ctx.arc(4.2, 2.2, 0.25, 0, Math.PI * 2);
+    ctx.fill();
+    // Mouth line (subtle)
+    ctx.strokeStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.lineWidth = 0.2;
+    ctx.beginPath();
+    ctx.moveTo(2.5, 2.8);
+    ctx.lineTo(3.8, 2.6);
+    ctx.stroke();
+  } else if (brand === 'h_arcane') {
+    // SPELL KNIGHT — spiral + center star
+    ctx.strokeStyle = flash ? '#fff' : '#ffd54a';
+    ctx.lineWidth = 0.5;
+    ctx.lineCap = 'round';
+    // 5-coil spiral
+    const cxA = 0.5, cyA = 2.5;
+    ctx.beginPath();
+    let firstPoint = true;
+    for (let t = 0; t < 5 * Math.PI; t += 0.15) {
+      const r = 0.2 + t * 0.18;
+      const x = cxA + Math.cos(t) * r;
+      const y = cyA + Math.sin(t) * r;
+      if (firstPoint) { ctx.moveTo(x, y); firstPoint = false; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    // Center 5-point star (gold)
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 3;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const ang = -Math.PI / 2 + (i / 10) * Math.PI * 2;
+      const r = i % 2 === 0 ? 0.5 : 0.2;
+      const x = cxA + Math.cos(ang) * r;
+      const y = cyA + Math.sin(ang) * r;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  } else if (brand === 'h_void') {
+    // STAR KNIGHT — galaxy 2-arm spiral + stars
+    const cxV = 0.5, cyV = 2.5;
+    // 2-arm spiral (lighter color)
+    ctx.strokeStyle = flash ? '#fff' : '#aaaacc';
+    ctx.lineWidth = 0.4;
+    ctx.lineCap = 'round';
+    // First arm
+    ctx.beginPath();
+    let first = true;
+    for (let t = 0; t < 2.5 * Math.PI; t += 0.2) {
+      const r = 0.3 + t * 0.4;
+      const x = cxV + Math.cos(t) * r;
+      const y = cyV + Math.sin(t) * r;
+      if (first) { ctx.moveTo(x, y); first = false; }
+      else ctx.lineTo(x, y);
+      if (r > 2.5) break;
+    }
+    ctx.stroke();
+    // Second arm (opposite)
+    ctx.beginPath();
+    first = true;
+    for (let t = 0; t < 2.5 * Math.PI; t += 0.2) {
+      const r = 0.3 + t * 0.4;
+      const x = cxV + Math.cos(t + Math.PI) * r;
+      const y = cyV + Math.sin(t + Math.PI) * r;
+      if (first) { ctx.moveTo(x, y); first = false; }
+      else ctx.lineTo(x, y);
+      if (r > 2.5) break;
+    }
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    // Center bright core
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.arc(cxV, cyV, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // 4 small stars scattered around
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    for (const [sx, sy] of [[-2.5, 0.5], [3.5, 0.8], [-2, 5], [3.8, 4.5]]) {
+      ctx.beginPath();
+      ctx.arc(sx, sy, 0.25, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (brand === 'h_knight') {
+    // CRIMSON KNIGHT — heraldic teardrop shield + Latin cross
+    const silver = flash ? '#fff' : '#c8c8c8';
+    const silverDark = flash ? '#fff' : '#7a7a7a';
+    const gold = flash ? '#fff' : '#ffd54a';
+    // Shield outline (teardrop/heraldic shape)
+    ctx.fillStyle = silver;
+    ctx.beginPath();
+    ctx.moveTo(-2.5, 0);
+    ctx.lineTo(2.5, 0);
+    ctx.lineTo(2.5, 2);
+    ctx.quadraticCurveTo(2, 4.5, 0, 5.5);
+    ctx.quadraticCurveTo(-2, 4.5, -2.5, 2);
+    ctx.closePath();
+    ctx.fill();
+    // Shield outline
+    ctx.strokeStyle = flash ? '#fff' : '#3a3a3a';
+    ctx.lineWidth = 0.4;
+    ctx.stroke();
+    // Shield inner border (silver dark)
+    ctx.strokeStyle = silverDark;
+    ctx.lineWidth = 0.25;
+    ctx.beginPath();
+    ctx.moveTo(-2.0, 0.3);
+    ctx.lineTo(2.0, 0.3);
+    ctx.lineTo(2.0, 2);
+    ctx.quadraticCurveTo(1.6, 4.2, 0, 5.0);
+    ctx.quadraticCurveTo(-1.6, 4.2, -2.0, 2);
+    ctx.closePath();
+    ctx.stroke();
+    // Latin cross (NOT round-star)
+    ctx.fillStyle = gold;
+    // Vertical bar
+    ctx.fillRect(-0.4, 1, 0.8, 3.5);
+    // Horizontal bar (upper third of vertical)
+    ctx.fillRect(-1.5, 2, 3, 0.8);
+    // Cross outline
+    ctx.strokeStyle = flash ? '#fff' : '#aa7a08';
+    ctx.lineWidth = 0.2;
+    ctx.strokeRect(-0.4, 1, 0.8, 3.5);
+    ctx.strokeRect(-1.5, 2, 3, 0.8);
   }
   ctx.restore();
 }
