@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v508-fast-split-layout-no-scroll';
+const CACHE = 'penetrator-v509-layout-fills-viewport-footer-below';
 const ASSETS = [
   './',
   './index.html',

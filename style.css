@@ -2749,30 +2749,37 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
     radial-gradient(ellipse at 25% 50%, rgba(170,58,255,0.18) 0%, transparent 50%),
     radial-gradient(ellipse at 75% 60%, rgba(255,213,74,0.10) 0%, transparent 55%),
     linear-gradient(180deg, rgba(20,10,30,0.95) 0%, rgba(0,0,0,0.97) 50%, rgba(15,5,25,0.95) 100%);
-  /* v1.508: FAST SPLIT-LAYOUT — screen scrollas EJ. Flex column med 3 sektioner:
-     header (top) | layout flex:1 (preview left + menu right) | footer (slots+actionbar).
-     Endast #wardrobe-options scrollar internt. Preview rör sig ALDRIG. */
+  /* v1.509: SCREEN scrollas igen. Layout fyller hela visible viewport (calc 100dvh -
+     header) så preview+menu = hela "första sidan". Footer (slots+buttons) hamnar
+     UNDER visible area, scrolla ner för att se. */
   padding: max(12px, env(safe-area-inset-top, 12px)) max(16px, env(safe-area-inset-right, 16px)) max(12px, env(safe-area-inset-bottom, 12px)) max(16px, env(safe-area-inset-left, 16px));
   box-sizing: border-box;
-  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 #wardrobe-screen::before,
 #wardrobe-screen::after {
   display: none;
 }
 #wardrobe-layout {
-  /* v1.508: FAST 2-COLUMN MAIN-AREA — preview vänster, menu höger. Flex:1 så det
-     fyller mellan header och footer. Inget scroll här. */
+  /* v1.509: FYLLER VISIBLE VIEWPORT — min-height så preview+menu täcker hela
+     "första sidan" innan footer börjar. 100dvh - 90px subtraherar header zone
+     (h2 + menu-sub + screen padding-top). */
   display: grid;
   grid-template-columns: minmax(110px, 0.85fr) minmax(150px, 1.15fr);
   gap: 10px;
   width: 100%;
   max-width: 980px;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
+  min-height: calc(100dvh - 90px);
+  flex-shrink: 0;
   align-items: stretch;
   margin-bottom: 0;
+}
+/* Fallback för browsers utan dvh-stöd (~Safari <15.4) */
+@supports not (height: 100dvh) {
+  #wardrobe-layout { min-height: calc(100vh - 90px); }
 }
 /* PREVIEW-KOLUMN (vänstra halvan, FAST positionerad i grid) */
 #wardrobe-preview-wrap {
