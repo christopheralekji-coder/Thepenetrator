@@ -12656,6 +12656,85 @@ function isWardrobeUnlocked(opt) {
 function getWardrobeOpt(cat, id) {
   return WARDROBE[cat].find(o => o.id === id) || WARDROBE[cat][0];
 }
+
+// v1.491: Klassificera preset baserat på shirt-property (brand/mascot/classic)
+function presetCategory(preset) {
+  const shirtId = preset.wardrobe && preset.wardrobe.shirt;
+  if (!shirtId) return 'classic';
+  const shirt = WARDROBE.shirt.find(s => s.id === shirtId);
+  if (shirt && shirt.mascot) return 'mascot';
+  if (shirt && shirt.brand) return 'brand';
+  return 'classic';
+}
+
+// v1.491: State för Ångra — sparar wardrobe före preset-apply
+let _wardrobeUndoState = null;
+
+// v1.491: Rendera FAKTISK mini-character i preset-thumb (44x44 canvas).
+// Använder drawNakedBody-pipeline scaled ner = ser ut som karaktären i preview.
+// För mascots: dispatchas direkt till draw{X}Character via cos.mascot.
+function drawPresetThumbCanvas(canvas, preset) {
+  const c = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  c.clearRect(0, 0, W, H);
+  // Bygg cos från preset.wardrobe
+  const _o = (cat, id) => (WARDROBE[cat] && WARDROBE[cat].find(o => o.id === id))
+                       || (WARDROBE[cat] && WARDROBE[cat][0]);
+  const skinO  = _o('skin',  preset.wardrobe.skin);
+  const hairO  = _o('hair',  preset.wardrobe.hair);
+  const shirtO = _o('shirt', preset.wardrobe.shirt);
+  const pantsO = _o('pants', preset.wardrobe.pants);
+  const bandanaO = _o('bandana', preset.wardrobe.bandana);
+  const glassesO = preset.wardrobe.glasses ? _o('glasses', preset.wardrobe.glasses) : null;
+  const hatO     = preset.wardrobe.hat ? _o('hat', preset.wardrobe.hat) : null;
+  const capeO    = preset.wardrobe.cape ? _o('cape', preset.wardrobe.cape) : null;
+  const shoesO   = preset.wardrobe.shoes ? _o('shoes', preset.wardrobe.shoes) : null;
+  const facialO  = preset.wardrobe.facialHair ? _o('facialHair', preset.wardrobe.facialHair) : null;
+  const eyesO    = preset.wardrobe.eyes ? _o('eyes', preset.wardrobe.eyes) : null;
+  const scarsO   = preset.wardrobe.scars ? _o('scars', preset.wardrobe.scars) : null;
+  const cos = {
+    skin: (skinO && skinO.color) || '#d4a574',
+    shirt: shirtO && shirtO.color != null ? shirtO.color : null,
+    bandana: bandanaO ? bandanaO.color : null,
+    pants: pantsO && pantsO.color != null ? pantsO.color : null,
+    hairStyle: hairO ? hairO.style : 'bald',
+    hairColor: hairO ? hairO.color : '#1a0a08',
+    glasses: glassesO,
+    hat: hatO,
+    cape: capeO,
+    shoes: shoesO,
+    facialHair: facialO,
+    eyes: eyesO,
+    scars: scarsO,
+    shirtBrand: (shirtO && shirtO.brand) || null,
+    mascot: (shirtO && shirtO.mascot) || null,
+  };
+  // Mini-render: skala ner till ~1.2x (drawNakedBody coords -22 till +20 → 50 units;
+  // canvas 44px → scale 44/50 = 0.88. Centrum vid (W/2, H*0.55).
+  c.save();
+  c.translate(W / 2, H * 0.55);
+  c.scale(0.85, 0.85);
+  try {
+    // Cape behind
+    if (cos.cape && cos.cape.style !== 'none') {
+      drawCapeOnUprightBody(c, cos.cape.style, cos.cape.color, false, 0, false);
+    }
+    // Arms only för non-mascot
+    const skipArms = !!cos.mascot && cos.mascot !== 'mcdonalds';
+    if (!skipArms) {
+      drawHangingArm(c, cos, false, true, 0, 0);
+      drawHangingArm(c, cos, false, false, 0, 0);
+    }
+    drawNakedBody(c, cos, false, 0, false);
+  } catch (e) {
+    // Fallback om något kraschar — visa solid färg
+    c.restore();
+    c.fillStyle = (shirtO && shirtO.color) || (skinO && skinO.color) || '#888';
+    c.fillRect(0, 0, W, H);
+    return;
+  }
+  c.restore();
+}
 // Rita hår-frisyr på spelarens huvud (i karaktärens roterade frame)
 function drawHair(ctx2, r, style, color, flash) {
   if (style === 'bald') return;
@@ -23389,36 +23468,57 @@ function renderWardrobeOptions() {
     return;
   }
   if (cat === 'preset') {
-    for (const preset of WARDROBE_PRESETS) {
+    // v1.491: SUB-GRUPPER — Klassiker / Märken / Kostymer i tydliga sektioner.
+    // Hjälpare för att bygga preset-card (samma för alla sub-grupper).
+    const buildPresetCard = (preset) => {
       const card = document.createElement('div');
       card.className = 'ward-card';
-      const sk = WARDROBE.skin.find(o => o.id === preset.wardrobe.skin) || WARDROBE.skin[0];
       const sh = WARDROBE.shirt.find(o => o.id === preset.wardrobe.shirt) || WARDROBE.shirt[0];
-      const ha = WARDROBE.hair.find(o => o.id === preset.wardrobe.hair) || WARDROBE.hair[0];
-      const ba = WARDROBE.bandana.find(o => o.id === preset.wardrobe.bandana) || WARDROBE.bandana[0];
       const thumb = document.createElement('div');
       thumb.className = 'ward-thumb';
-      thumb.style.background = `linear-gradient(135deg, ${sh.color}, ${sk.color})`;
-      thumb.innerHTML = `
-        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
-          <div style="width:18px;height:18px;border-radius:50%;background:${sk.color};border:2px solid ${ba.color || '#222'};box-shadow:inset 0 -2px 0 ${ha.color || '#222'};"></div>
-        </div>
-      `;
+      // v1.491: Använd CANVAS thumbnail (44x44) som renderar faktisk mini-character.
+      // Innan: bara 4-färg gradient = bananen syntes inte. Nu: full preview.
+      const thumbCanvas = document.createElement('canvas');
+      thumbCanvas.width = 44; thumbCanvas.height = 44;
+      thumbCanvas.style.cssText = 'position:absolute;inset:0;';
+      thumb.appendChild(thumbCanvas);
+      drawPresetThumbCanvas(thumbCanvas, preset);
       card.appendChild(thumb);
       const name = document.createElement('div');
       name.className = 'ward-name';
       name.textContent = preset.name;
       card.appendChild(name);
       card.addEventListener('click', () => {
+        // v1.491: Spara nuvarande wardrobe FÖRE apply — ångra-knapp kan rulla tillbaka
+        _wardrobeUndoState = JSON.parse(JSON.stringify(save.wardrobe));
         Object.assign(save.wardrobe, preset.wardrobe);
-        invalidateCostumeCache(); // v1.487: invalidera bara vid click
+        invalidateCostumeCache();
         persist();
         Audio.purchase();
         renderWardrobeOptions();
-        showWardrobeEquipFeedback(card, '✨ ' + preset.name.toUpperCase());
+        if (typeof refreshWardrobeUndoButton === 'function') refreshWardrobeUndoButton();
+        showWardrobeEquipFeedback(card, preset.name.toUpperCase());
       });
-      wardrobeOptsEl.appendChild(card);
+      return card;
+    };
+    // Klassificera presets
+    const groups = { classic: [], brand: [], mascot: [] };
+    for (const p of WARDROBE_PRESETS) {
+      const cat2 = presetCategory(p);
+      (groups[cat2] || groups.classic).push(p);
     }
+    // Bygg sektioner med rubriker
+    const buildSection = (title, list) => {
+      if (!list.length) return;
+      const header = document.createElement('div');
+      header.className = 'ward-section-header';
+      header.textContent = title;
+      wardrobeOptsEl.appendChild(header);
+      for (const p of list) wardrobeOptsEl.appendChild(buildPresetCard(p));
+    };
+    buildSection('KLASSIKER',  groups.classic);
+    buildSection('MÄRKEN',     groups.brand);
+    buildSection('KOSTYMER',   groups.mascot);
     return;
   }
 
@@ -23613,11 +23713,15 @@ function bindWardrobeSlotHandlers() {
 
 // ============ RANDOMIZE & RESET ============
 function randomizeWardrobe() {
+  // v1.491: Spara undo-state + exkludera mascots (var oönskat att slumpa hamburger)
+  _wardrobeUndoState = JSON.parse(JSON.stringify(save.wardrobe));
   const cats = ['skin', 'hair', 'shirt', 'pants', 'bandana'];
   for (const cat of cats) {
-    const opts = WARDROBE[cat];
+    let opts = WARDROBE[cat];
+    if (cat === 'shirt') opts = opts.filter(s => !s.mascot); // skip mascots i shuffle
     save.wardrobe[cat] = opts[Math.floor(Math.random() * opts.length)].id;
   }
+  invalidateCostumeCache();
   persist();
   if (wardrobePreview) {
     wardrobePreview.classList.remove('randomizing');
@@ -23627,13 +23731,18 @@ function randomizeWardrobe() {
   }
   Audio.purchase();
   renderWardrobeOptions();
+  if (typeof refreshWardrobeUndoButton === 'function') refreshWardrobeUndoButton();
   showWardrobeEquipFeedback(null, '🎲 SLUMPAT');
 }
 function resetWardrobe() {
+  // v1.491: Spara undo-state innan reset
+  _wardrobeUndoState = JSON.parse(JSON.stringify(save.wardrobe));
   save.wardrobe = { skin: 'tan', hair: 'shortDark', shirt: 'black', pants: 'khaki', bandana: 'black' };
+  invalidateCostumeCache();
   persist();
   Audio.uiClick();
   renderWardrobeOptions();
+  if (typeof refreshWardrobeUndoButton === 'function') refreshWardrobeUndoButton();
   showWardrobeEquipFeedback(null, '↺ ÅTERSTÄLLT');
 }
 
@@ -23675,6 +23784,27 @@ const _btnWardrobeRandom = document.getElementById('btn-wardrobe-random');
 if (_btnWardrobeRandom) _btnWardrobeRandom.addEventListener('click', randomizeWardrobe);
 const _btnWardrobeReset = document.getElementById('btn-wardrobe-reset');
 if (_btnWardrobeReset) _btnWardrobeReset.addEventListener('click', resetWardrobe);
+// v1.491: Ångra-knapp — rullar tillbaka senaste preset/randomize-apply
+const _btnWardrobeUndo = document.getElementById('btn-wardrobe-undo');
+function undoWardrobeChange() {
+  if (!_wardrobeUndoState) return;
+  // Swap: gör aktuell till "redo" så man kan toggla, men för simplicitet bara restore
+  save.wardrobe = JSON.parse(JSON.stringify(_wardrobeUndoState));
+  _wardrobeUndoState = null;
+  invalidateCostumeCache();
+  persist();
+  Audio.uiClick();
+  if (typeof renderWardrobeOptions === 'function') renderWardrobeOptions();
+  refreshWardrobeUndoButton();
+  showWardrobeEquipFeedback(null, '↶ ÅNGRAT');
+}
+function refreshWardrobeUndoButton() {
+  if (_btnWardrobeUndo) {
+    if (_wardrobeUndoState) _btnWardrobeUndo.removeAttribute('disabled');
+    else _btnWardrobeUndo.setAttribute('disabled', 'disabled');
+  }
+}
+if (_btnWardrobeUndo) _btnWardrobeUndo.addEventListener('click', undoWardrobeChange);
 const _btnWardrobePhoto = document.getElementById('btn-wardrobe-photo');
 if (_btnWardrobePhoto) _btnWardrobePhoto.addEventListener('click', takeWardrobePhoto);
 bindWardrobeSlotHandlers();

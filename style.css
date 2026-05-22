@@ -3021,6 +3021,29 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   background: linear-gradient(180deg, transparent 0%, rgba(8,4,6,0.92) 25%, rgba(8,4,6,0.96) 100%);
   z-index: 5;
 }
+/* v1.491: Disabled-state för undo-knapp (sätts via [disabled] attribute) */
+#wardrobe-actionbar .medium-btn[disabled] {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+  pointer-events: none;
+}
+/* v1.491: Preset sub-group section header */
+.ward-section-header {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 2.5px;
+  color: rgba(255,213,74,0.85);
+  text-transform: uppercase;
+  padding: 12px 4px 6px;
+  border-bottom: 1px solid rgba(170,58,255,0.30);
+  margin-top: 4px;
+  background: linear-gradient(90deg, rgba(170,58,255,0.18) 0%, transparent 60%);
+  border-radius: 4px;
+  padding-left: 10px;
+}
+.ward-section-header:first-child { margin-top: 0; }
 #wardrobe-actionbar .medium-btn {
   padding: 10px 18px;
   font-size: 13px;
