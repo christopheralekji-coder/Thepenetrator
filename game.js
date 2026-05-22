@@ -22470,15 +22470,14 @@ const wardrobeScreen = document.getElementById('wardrobe-screen');
 const wardrobeTabsEl = document.getElementById('wardrobe-tabs');
 const wardrobeOptsEl = document.getElementById('wardrobe-options');
 const wardrobePreview = document.getElementById('wardrobe-preview');
-// v1.505: SHORTER labels för sub-tabs (group-label ger context, så sub kan vara compact)
-const WARDROBE_CAT_LABELS = { preset: 'Outfits', skin: 'Hud', hair: 'Stil', facialHair: 'Skägg', eyes: 'Ögonfärg', eyeShape: 'Ögonform', eyebrows: 'Ögonbryn', nose: 'Näsa', mouth: 'Mun', scars: 'Ärr', glasses: 'Glasögon', hat: 'Hatt', shirt: 'Tröja', pants: 'Byxor', shoes: 'Skor', bandana: 'Bandana', cape: 'Cape', tint: 'Färg-tint' };
-// v1.505: TOP-LEVEL GROUPS — hierarkisk struktur (5 grupper istället för 18 flata tabs)
+// v1.506: SHORTER labels — group-label ger context. Tint borttaget från UI.
+const WARDROBE_CAT_LABELS = { preset: 'Outfits', skin: 'Hud', hair: 'Frisyr', facialHair: 'Skägg', eyes: 'Ögonfärg', eyeShape: 'Ögonform', eyebrows: 'Ögonbryn', nose: 'Näsa', mouth: 'Mun', scars: 'Ärr', glasses: 'Glasögon', hat: 'Hatt', shirt: 'Tröja', pants: 'Byxor', shoes: 'Skor', bandana: 'Bandana', cape: 'Cape' };
+// v1.506: 3 GRUPPER — radikal simplifiering. KROPP (allt på personen, inkl hår) + KLÄDER (allt
+// som tas på, inkl hat/glasögon). Tint borttagen helt.
 const WARDROBE_GROUPS = [
-  { id: 'preset',      label: '⭐ OUTFITS',    cats: ['preset'] },
-  { id: 'face',        label: '🧑 ANSIKTE',    cats: ['skin', 'eyes', 'eyeShape', 'eyebrows', 'nose', 'mouth', 'scars'] },
-  { id: 'hair',        label: '💇 HÅR',         cats: ['hair', 'facialHair'] },
-  { id: 'outfit',      label: '👕 OUTFIT',      cats: ['shirt', 'pants', 'shoes', 'bandana', 'cape', 'tint'] },
-  { id: 'accessories', label: '🎩 TILLBEHÖR',  cats: ['hat', 'glasses'] },
+  { id: 'preset',  label: '⭐ OUTFITS', cats: ['preset'] },
+  { id: 'body',    label: '🧍 KROPP',   cats: ['skin', 'hair', 'facialHair', 'eyes', 'eyeShape', 'eyebrows', 'nose', 'mouth', 'scars'] },
+  { id: 'clothes', label: '👕 KLÄDER',  cats: ['shirt', 'pants', 'shoes', 'hat', 'glasses', 'bandana', 'cape'] },
 ];
 function getWardrobeGroupForCat(cat) {
   for (const g of WARDROBE_GROUPS) {

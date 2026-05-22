@@ -2749,11 +2749,16 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
     radial-gradient(ellipse at 25% 50%, rgba(170,58,255,0.18) 0%, transparent 50%),
     radial-gradient(ellipse at 75% 60%, rgba(255,213,74,0.10) 0%, transparent 55%),
     linear-gradient(180deg, rgba(20,10,30,0.95) 0%, rgba(0,0,0,0.97) 50%, rgba(15,5,25,0.95) 100%);
-  /* iPhone Dynamic Island / notch — respektera safe-area åt alla håll så panelen
-     inte hamnar under island i landscape eller under home-indicator i portrait. */
-  padding: max(16px, env(safe-area-inset-top, 16px)) max(20px, env(safe-area-inset-right, 20px)) max(16px, env(safe-area-inset-bottom, 16px)) max(20px, env(safe-area-inset-left, 20px));
+  /* v1.506: FLEX-COLUMN layout — content scrollar inuti #wardrobe-layout, actionbar
+     fast nederst utan sticky. Override .overlay's overflow-y:auto för att hindra
+     screen-level scroll. Padding-bottom 0 så actionbar nuddar viewport-bottom. */
+  padding: max(16px, env(safe-area-inset-top, 16px)) max(20px, env(safe-area-inset-right, 20px)) 0 max(20px, env(safe-area-inset-left, 20px));
   box-sizing: border-box;
-  overflow-y: auto;
+  overflow: hidden;
+}
+#wardrobe-screen::before,
+#wardrobe-screen::after {
+  display: none;
 }
 #wardrobe-layout {
   display: grid;
@@ -2763,6 +2768,11 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   width: 100%;
   margin-bottom: 12px;
   align-items: start;
+  /* v1.506: Scrollar internt (screen är overflow:hidden), actionbar bottom-anchored */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 /* PREVIEW-KOLUMN */
 #wardrobe-preview-wrap {
@@ -3010,16 +3020,23 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  max-width: 980px;
   width: 100%;
-  /* v1.490: Safe-area padding-bottom så TILLBAKA-knapp inte sitter mot
-     iPhone home-indicator. Sticky position så action-bar alltid syns. */
-  padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));
-  padding-top: 12px;
-  position: sticky;
-  bottom: 0;
-  background: linear-gradient(180deg, transparent 0%, rgba(8,4,6,0.92) 25%, rgba(8,4,6,0.96) 100%);
+  /* v1.506: FAST nederst — inte sticky längre. Är sista flex-child i #wardrobe-screen
+     (som är overflow:hidden flex-column), så actionbar nuddar viewport-bottom.
+     SOLID bg + border-top + shadow = klart "under content" inte flytande. */
+  padding: 12px 16px max(12px, env(safe-area-inset-bottom, 12px)) 16px;
+  position: static;
+  bottom: auto;
+  background: linear-gradient(180deg, rgba(18,10,28,0.98) 0%, rgba(8,4,6,1) 100%);
+  border-top: 2px solid rgba(170,58,255,0.50);
+  box-shadow: 0 -8px 24px rgba(0,0,0,0.65);
+  box-sizing: border-box;
+  flex-shrink: 0;
   z-index: 5;
+  /* Extend out till screen edges (cancel screen-padding via negativ margin).
+     OBS: min() inte max() — vi vill ha MEST NEGATIVA värdet. */
+  margin-left: min(-20px, calc(-1 * env(safe-area-inset-left, 20px)));
+  margin-right: min(-20px, calc(-1 * env(safe-area-inset-right, 20px)));
 }
 /* v1.491: Disabled-state för undo-knapp (sätts via [disabled] attribute) */
 #wardrobe-actionbar .medium-btn[disabled] {
