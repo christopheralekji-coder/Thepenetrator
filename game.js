@@ -43278,6 +43278,8 @@ function drawJunglekidCharacter(ctx, cos, flash, walkPhase, isMoving) {
 
 // VÄNLIG BJÖRN (Kipling Baloo 1894 - sloth bear, PD)
 function drawBearCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  // v1.516: FIX — body ritades efter head så body täckte muzzle/mun.
+  // Korrekt z-order: BODY först, sedan LEGS, sedan HEAD/FACE på topp.
   const furBrown = flash ? '#fff' : '#5a3818';
   const furDk = flash ? '#fff' : '#3a2008';
   const furLite = flash ? '#fff' : '#7a5028';
@@ -43286,63 +43288,7 @@ function drawBearCharacter(ctx, cos, flash, walkPhase, isMoving) {
   const outline = flash ? '#fff' : '#1a0a04';
   const swing = Math.sin(walkPhase);
   const legSwing = isMoving ? swing * 2 : 0;
-  // HEAD (round bear head)
-  ctx.fillStyle = furBrown;
-  ctx.beginPath();
-  ctx.ellipse(0, -13, 5.5, 5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
-  ctx.stroke();
-  // Round ears on top
-  ctx.fillStyle = furBrown;
-  ctx.beginPath();
-  ctx.arc(-4, -17, 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(4, -17, 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
-  ctx.beginPath(); ctx.arc(-4, -17, 2, 0, Math.PI * 2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(4, -17, 2, 0, Math.PI * 2); ctx.stroke();
-  // Inner ears
-  ctx.fillStyle = furDk;
-  ctx.beginPath();
-  ctx.arc(-4, -17, 1, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.arc(4, -17, 1, 0, Math.PI * 2);
-  ctx.fill();
-  // Muzzle (lighter beige)
-  ctx.fillStyle = muzzle;
-  ctx.beginPath();
-  ctx.ellipse(0, -10, 3, 2.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
-  ctx.stroke();
-  // Nose (black)
-  ctx.fillStyle = claw;
-  ctx.beginPath();
-  ctx.ellipse(0, -10.5, 1, 0.7, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Mouth
-  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
-  ctx.beginPath();
-  ctx.moveTo(0, -9.5);
-  ctx.lineTo(0, -8.5);
-  ctx.moveTo(0, -8.5);
-  ctx.quadraticCurveTo(-1, -8, -1.5, -8.5);
-  ctx.moveTo(0, -8.5);
-  ctx.quadraticCurveTo(1, -8, 1.5, -8.5);
-  ctx.stroke();
-  // EYES (friendly black bear eyes)
-  ctx.fillStyle = claw;
-  ctx.beginPath(); ctx.arc(-2.5, -13.5, 0.7, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(2.5, -13.5, 0.7, 0, Math.PI * 2); ctx.fill();
-  // Eye glints
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(-2.7, -13.7, 0.3, 0.3);
-  ctx.fillRect(2.3, -13.7, 0.3, 0.3);
-  // BODY (big rounded furry)
+  // === 1. BODY först (back layer) ===
   ctx.fillStyle = furBrown;
   ctx.beginPath();
   ctx.ellipse(0, -1, 7, 9, 0, 0, Math.PI * 2);
@@ -43352,16 +43298,16 @@ function drawBearCharacter(ctx, cos, flash, walkPhase, isMoving) {
   // Belly (lighter fur)
   ctx.fillStyle = furLite;
   ctx.beginPath();
-  ctx.ellipse(0, 1, 3.5, 5, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 2, 3.5, 5, 0, 0, Math.PI * 2);
   ctx.fill();
   // Shaggy fur texture (clumps)
   ctx.fillStyle = furDk;
-  for (const [fx, fy] of [[-5, -3], [5, -3], [-5, 2], [5, 2], [-4, -5], [4, -5]]) {
+  for (const [fx, fy] of [[-5, -2], [5, -2], [-5, 3], [5, 3], [-4, -5], [4, -5]]) {
     ctx.beginPath();
     ctx.arc(fx, fy, 0.7, 0, Math.PI * 2);
     ctx.fill();
   }
-  // ARM stubs visible (paws)
+  // === 2. ARMS/PAWS (sides of body) ===
   ctx.fillStyle = furBrown;
   ctx.beginPath();
   ctx.arc(-7, 2, 2, 0, Math.PI * 2);
@@ -43372,7 +43318,7 @@ function drawBearCharacter(ctx, cos, flash, walkPhase, isMoving) {
   ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
   ctx.beginPath(); ctx.arc(-7, 2, 2, 0, Math.PI * 2); ctx.stroke();
   ctx.beginPath(); ctx.arc(7, 2, 2, 0, Math.PI * 2); ctx.stroke();
-  // CLAWS on paws
+  // Paw claws
   ctx.fillStyle = claw;
   for (const x of [-7.8, -7, -6.2]) {
     ctx.beginPath();
@@ -43390,7 +43336,7 @@ function drawBearCharacter(ctx, cos, flash, walkPhase, isMoving) {
     ctx.closePath();
     ctx.fill();
   }
-  // LEGS (short and stubby)
+  // === 3. LEGS (under body) ===
   ctx.fillStyle = furBrown;
   ctx.fillRect(-3 - legSwing, 7, 2.5, 8);
   ctx.fillRect(0.5 + legSwing, 7, 2.5, 8);
@@ -43421,6 +43367,60 @@ function drawBearCharacter(ctx, cos, flash, walkPhase, isMoving) {
     ctx.closePath();
     ctx.fill();
   }
+  // === 4. HEAD (TOP LAYER — overlaps body slightly för natural look) ===
+  ctx.fillStyle = furBrown;
+  ctx.beginPath();
+  ctx.ellipse(0, -13, 5.5, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Round ears on top of head
+  ctx.fillStyle = furBrown;
+  ctx.beginPath(); ctx.arc(-4, -17, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(4, -17, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.arc(-4, -17, 2, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(4, -17, 2, 0, Math.PI * 2); ctx.stroke();
+  // Inner ears (dark)
+  ctx.fillStyle = furDk;
+  ctx.beginPath(); ctx.arc(-4, -17, 1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(4, -17, 1, 0, Math.PI * 2); ctx.fill();
+  // === 5. FACE on head (eyes, muzzle, nose, mouth) ===
+  // Friendly black eyes (på upper-head area)
+  ctx.fillStyle = claw;
+  ctx.beginPath(); ctx.arc(-2.5, -14, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -14, 0.7, 0, Math.PI * 2); ctx.fill();
+  // Eye glints
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-2.7, -14.2, 0.3, 0.3);
+  ctx.fillRect(2.3, -14.2, 0.3, 0.3);
+  // Muzzle (lighter beige — on lower head area, NOT covered by body now)
+  ctx.fillStyle = muzzle;
+  ctx.beginPath();
+  ctx.ellipse(0, -11, 3, 2.3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // Black nose tip
+  ctx.fillStyle = claw;
+  ctx.beginPath();
+  ctx.ellipse(0, -12, 1, 0.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Nose highlight
+  ctx.fillStyle = '#5a4030';
+  ctx.fillRect(-0.3, -12.3, 0.4, 0.3);
+  // Mouth (Y-shape — central line + smile curves)
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(0, -11.3);
+  ctx.lineTo(0, -10.3);
+  ctx.moveTo(0, -10.3);
+  ctx.quadraticCurveTo(-0.8, -9.9, -1.3, -10.2);
+  ctx.moveTo(0, -10.3);
+  ctx.quadraticCurveTo(0.8, -9.9, 1.3, -10.2);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
 }
 
 // DJUNGELTIGER (Kipling Shere Khan 1894 - PD)
@@ -44072,160 +44072,277 @@ function drawGenieCharacter(ctx, cos, flash, walkPhase, isMoving) {
 
 // TOMTEN (Swedish folk gnome - PD, NOT Coca-Cola Santa)
 function drawGnomeCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  // v1.516: REDESIGN — symmetric tall hat, pom-pom firmly på spetsen, kortare beard
+  // som inte täcker hela kroppen, synlig arm med lantern, cleaner proportions.
   const hatRed = flash ? '#fff' : '#aa1828';
   const hatRedDk = flash ? '#fff' : '#6a0818';
-  const trim = flash ? '#fff' : '#f0e8d0';
+  const hatRedLi = flash ? '#fff' : '#dd3848';
+  const trim = flash ? '#fff' : '#f4f0e0';
   const beard = flash ? '#fff' : '#fafad8';
   const beardSh = flash ? '#fff' : '#ccc8ba';
-  const clothesGray = flash ? '#fff' : '#6a6868';
-  const clothesDk = flash ? '#fff' : '#3a3838';
-  const nose = flash ? '#fff' : '#cc7050';
+  const clothesGray = flash ? '#fff' : '#5a5858';
+  const clothesDk = flash ? '#fff' : '#2a2828';
+  const clothesLi = flash ? '#fff' : '#7a7878';
+  const nose = flash ? '#fff' : '#dd6850';
+  const noseHi = flash ? '#fff' : '#ffaa90';
   const skin = flash ? '#fff' : '#e8c898';
   const boot = flash ? '#fff' : '#3a2008';
   const lantern = flash ? '#fff' : '#ffd54a';
+  const lanternBody = flash ? '#fff' : '#aa8a3a';
   const outline = flash ? '#fff' : '#1a0a04';
   const swing = Math.sin(walkPhase);
   const legSwing = isMoving ? swing * 2 : 0;
-  // TALL RED POINTED HAT (signature)
-  ctx.fillStyle = hatRed;
+  // === 1. BODY first (gray coat) — under everything else ===
+  ctx.fillStyle = clothesGray;
   ctx.beginPath();
-  ctx.moveTo(-5, -14);
-  ctx.quadraticCurveTo(-3, -22, -1, -23);  // bends slightly
-  ctx.lineTo(1, -23);
-  ctx.quadraticCurveTo(3, -22, 5, -14);
+  ctx.moveTo(-5.5, -8);
+  ctx.quadraticCurveTo(-7, -3, -6, 5);
+  ctx.lineTo(6, 5);
+  ctx.quadraticCurveTo(7, -3, 5.5, -8);
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
   ctx.stroke();
-  // Hat shadow (mörkare insida)
-  ctx.fillStyle = hatRedDk;
+  // Coat shadow on west side
+  ctx.fillStyle = clothesDk;
+  ctx.globalAlpha = 0.45;
   ctx.beginPath();
-  ctx.moveTo(-5, -14);
-  ctx.quadraticCurveTo(-3, -22, -1, -23);
-  ctx.lineTo(0, -22);
-  ctx.quadraticCurveTo(-2, -18, -3, -14);
+  ctx.moveTo(-5.5, -8);
+  ctx.quadraticCurveTo(-7, -3, -6, 5);
+  ctx.lineTo(-3, 5);
+  ctx.quadraticCurveTo(-4, -3, -3, -8);
   ctx.closePath();
   ctx.fill();
-  // White trim at hat base
-  ctx.fillStyle = trim;
-  ctx.fillRect(-5, -14.5, 10, 1.5);
-  // White pom-pom at tip
-  ctx.fillStyle = trim;
-  ctx.beginPath();
-  ctx.arc(1.5, -23, 1.2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = beardSh;
-  ctx.beginPath();
-  ctx.arc(2, -22.5, 0.5, 0, Math.PI * 2);
-  ctx.fill();
-  // FACE (mostly covered by beard, just nose + eyes visible)
+  ctx.globalAlpha = 1;
+  // Coat highlight east
+  ctx.fillStyle = clothesLi;
+  ctx.globalAlpha = 0.35;
+  ctx.fillRect(4, -7, 1.5, 11);
+  ctx.globalAlpha = 1;
+  // === 2. LEATHER BELT (visible across waist) ===
+  ctx.fillStyle = boot;
+  ctx.fillRect(-6, 1, 12, 1.2);
+  // Gold belt buckle (square med inset)
+  ctx.fillStyle = '#ffd54a';
+  ctx.fillRect(-1, 0.6, 2, 2);
+  ctx.strokeStyle = '#7a5a18'; ctx.lineWidth = 0.4;
+  ctx.strokeRect(-1, 0.6, 2, 2);
+  ctx.fillStyle = '#aa8a2a';
+  ctx.fillRect(-0.3, 1.0, 0.6, 1.2);
+  // === 3. ARMS (visible på båda sidor av body) ===
+  // West arm (hanging by side)
+  ctx.fillStyle = clothesGray;
+  ctx.fillRect(-7, -5, 2, 6);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-7, -5, 2, 6);
+  // West hand (skin)
   ctx.fillStyle = skin;
   ctx.beginPath();
-  ctx.ellipse(0, -11, 3.5, 3, 0, 0, Math.PI * 2);
+  ctx.arc(-6, 1.5, 1.1, 0, Math.PI * 2);
   ctx.fill();
-  // Big rosy nose (signature gnome feature)
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  ctx.stroke();
+  // East arm (slightly raised, holding lantern)
+  ctx.fillStyle = clothesGray;
+  ctx.beginPath();
+  ctx.moveTo(5, -5);
+  ctx.lineTo(7, -5);
+  ctx.lineTo(8, 1);
+  ctx.lineTo(6, 1);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // East hand (gripping lantern handle)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.arc(7.5, 1.5, 1.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  ctx.stroke();
+  // === 4. LANTERN held in east hand ===
+  // Lantern handle (above hand)
+  ctx.strokeStyle = '#888'; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.arc(7.5, -0.5, 1.5, Math.PI, 0);
+  ctx.stroke();
+  // Lantern body (rectangular cage)
+  ctx.fillStyle = lanternBody;
+  ctx.fillRect(6.3, 1.5, 2.4, 3);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  ctx.strokeRect(6.3, 1.5, 2.4, 3);
+  // Lantern glass center (glow)
+  ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 5;
+  ctx.fillStyle = lantern;
+  ctx.fillRect(6.6, 2, 1.8, 2.2);
+  ctx.shadowBlur = 0;
+  // Lantern cage bars
+  ctx.strokeStyle = lanternBody; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(7.5, 1.5); ctx.lineTo(7.5, 4.5);
+  ctx.stroke();
+  // Lantern base
+  ctx.fillStyle = lanternBody;
+  ctx.fillRect(6.0, 4.3, 3.0, 0.5);
+  // === 5. SHORT LEGS (stubby) ===
+  ctx.fillStyle = clothesGray;
+  ctx.fillRect(-3 - legSwing, 5, 2.5, 7);
+  ctx.fillRect(0.5 + legSwing, 5, 2.5, 7);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 5, 2.5, 7);
+  ctx.strokeRect(0.5 + legSwing, 5, 2.5, 7);
+  // === 6. LEATHER BOOTS med signature toe-curl ===
+  ctx.fillStyle = boot;
+  // West boot — body + curled toe
+  ctx.beginPath();
+  ctx.moveTo(-3.2 - legSwing, 12);
+  ctx.lineTo(-3.2 - legSwing, 15.5);
+  ctx.quadraticCurveTo(-3.7 - legSwing, 16.5, -2 - legSwing, 16.5);
+  ctx.lineTo(0 - legSwing, 16.5);
+  ctx.quadraticCurveTo(-0.2 - legSwing, 15, -0.5 - legSwing, 14);  // upward curl tip
+  ctx.lineTo(-0.5 - legSwing, 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // East boot
+  ctx.beginPath();
+  ctx.moveTo(3.2 + legSwing, 12);
+  ctx.lineTo(3.2 + legSwing, 15.5);
+  ctx.quadraticCurveTo(3.7 + legSwing, 16.5, 2 + legSwing, 16.5);
+  ctx.lineTo(0 + legSwing, 16.5);
+  ctx.quadraticCurveTo(0.2 + legSwing, 15, 0.5 + legSwing, 14);  // upward curl tip
+  ctx.lineTo(0.5 + legSwing, 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Boot buckle highlights (gold)
+  ctx.fillStyle = '#ffd54a';
+  ctx.fillRect(-2.5 - legSwing, 13, 1.5, 0.4);
+  ctx.fillRect(1 + legSwing, 13, 1.5, 0.4);
+  // === 7. FACE — visible above body ===
+  // Skin face (round chubby)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -11, 4, 3.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // Big rosy nose (signature gnome feature — DOMINANT)
   ctx.fillStyle = nose;
   ctx.beginPath();
-  ctx.ellipse(0, -10, 2, 1.5, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, -10, 2.2, 1.7, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = '#aa5040'; ctx.lineWidth = 0.4;
   ctx.stroke();
-  // Highlight on nose
-  ctx.fillStyle = '#ffaa90';
-  ctx.fillRect(-0.5, -10.5, 0.5, 0.4);
-  // Small eyes peeking out from under hat
+  ctx.fillStyle = noseHi;
+  ctx.beginPath();
+  ctx.ellipse(-0.5, -10.5, 0.7, 0.3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Small twinkling eyes (peeking under hat brim)
   ctx.fillStyle = '#0a0a0a';
-  ctx.beginPath(); ctx.arc(-1.8, -12, 0.4, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(1.8, -12, 0.4, 0, Math.PI * 2); ctx.fill();
-  // Eye glints
+  ctx.beginPath(); ctx.arc(-2.2, -12.2, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.2, -12.2, 0.5, 0, Math.PI * 2); ctx.fill();
+  // Eye glints (sparkly cheerful)
   ctx.fillStyle = '#fff';
-  ctx.fillRect(-1.9, -12.2, 0.2, 0.2);
-  ctx.fillRect(1.7, -12.2, 0.2, 0.2);
-  // LONG WHITE BEARD covering most of face
+  ctx.fillRect(-2.4, -12.5, 0.3, 0.3);
+  ctx.fillRect(2.0, -12.5, 0.3, 0.3);
+  // === 8. SHORT WHITE BEARD (under nose, NOT covering whole body) ===
   ctx.fillStyle = beard;
   ctx.beginPath();
-  ctx.moveTo(-4, -10);
-  ctx.quadraticCurveTo(-5, -7, -4, -3);
-  ctx.lineTo(-3, 2);
-  ctx.lineTo(-2, 5);
-  ctx.lineTo(0, 6);
-  ctx.lineTo(2, 5);
-  ctx.lineTo(3, 2);
-  ctx.lineTo(4, -3);
-  ctx.quadraticCurveTo(5, -7, 4, -10);
-  ctx.lineTo(2, -9);
-  ctx.quadraticCurveTo(0, -8.5, -2, -9);
+  ctx.moveTo(-3.5, -9);                       // start under cheek east
+  ctx.quadraticCurveTo(-4, -7, -3.5, -4);     // flow down west side
+  ctx.lineTo(-3, -2);                          // narrow toward bottom
+  ctx.lineTo(-1, -1);
+  ctx.lineTo(0, -0.5);                         // beard point
+  ctx.lineTo(1, -1);
+  ctx.lineTo(3, -2);
+  ctx.lineTo(3.5, -4);                         // east side
+  ctx.quadraticCurveTo(4, -7, 3.5, -9);
+  ctx.lineTo(2, -8.5);
+  ctx.quadraticCurveTo(0, -8, -2, -8.5);       // under nose
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
   ctx.stroke();
   // Beard texture (wavy strands)
   ctx.strokeStyle = beardSh; ctx.lineWidth = 0.3;
-  for (const sy of [-7, -4, -1, 2]) {
+  for (const sy of [-6, -4, -2]) {
     ctx.beginPath();
-    ctx.moveTo(-3, sy);
-    ctx.quadraticCurveTo(0, sy + 0.5, 3, sy);
+    ctx.moveTo(-2.5, sy);
+    ctx.quadraticCurveTo(0, sy + 0.4, 2.5, sy);
     ctx.stroke();
   }
-  // GRAY CLOTHES (not red Santa)
-  ctx.fillStyle = clothesGray;
+  // Mustache curls under nose (visible part)
+  ctx.fillStyle = beard;
   ctx.beginPath();
-  ctx.moveTo(-6, -2);
-  ctx.lineTo(-7, 5);
-  ctx.lineTo(7, 5);
-  ctx.lineTo(6, -2);
+  ctx.ellipse(-1.5, -8.7, 0.8, 0.4, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.5, -8.7, 0.8, 0.4, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  // === 9. TALL POINTED RED HAT — symmetric (TOP layer) ===
+  ctx.fillStyle = hatRed;
+  ctx.beginPath();
+  ctx.moveTo(-5.5, -13);
+  // Tip slightly bent forward east for folk-gnome style
+  ctx.quadraticCurveTo(-3, -20, 0, -23);
+  ctx.quadraticCurveTo(2, -22.5, 3, -22);     // bend at tip
+  ctx.quadraticCurveTo(4, -18, 5.5, -13);
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
   ctx.stroke();
-  // Brown leather belt
-  ctx.fillStyle = boot;
-  ctx.fillRect(-6, 1, 12, 1);
-  // Gold buckle
-  ctx.fillStyle = '#ffd54a';
-  ctx.fillRect(-0.8, 0.7, 1.6, 1.6);
-  ctx.strokeStyle = '#aa8a2a'; ctx.lineWidth = 0.3;
-  ctx.strokeRect(-0.8, 0.7, 1.6, 1.6);
-  // SMALL LANTERN in hand (east side)
-  ctx.fillStyle = lantern;
-  ctx.shadowColor = lantern; ctx.shadowBlur = 4;
-  ctx.fillRect(7, 0, 2, 2.5);
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = boot; ctx.lineWidth = 0.4;
-  ctx.strokeRect(7, 0, 2, 2.5);
-  // Lantern handle
-  ctx.strokeStyle = '#aaa'; ctx.lineWidth = 0.5;
+  // Hat west-side shadow (volym)
+  ctx.fillStyle = hatRedDk;
   ctx.beginPath();
-  ctx.arc(8, -1, 1, 0, Math.PI);
+  ctx.moveTo(-5.5, -13);
+  ctx.quadraticCurveTo(-3, -20, 0, -23);
+  ctx.lineTo(-1, -21);
+  ctx.quadraticCurveTo(-2.5, -17, -3.5, -13);
+  ctx.closePath();
+  ctx.fill();
+  // Hat east-side highlight
+  ctx.fillStyle = hatRedLi;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -23);
+  ctx.quadraticCurveTo(2, -22.5, 3, -22);
+  ctx.lineTo(3, -19);
+  ctx.lineTo(1, -20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // White FURRY trim at hat base (bumpy edge)
+  ctx.fillStyle = trim;
+  ctx.beginPath();
+  ctx.moveTo(-5.5, -13);
+  for (let xi = -5.5; xi <= 5.5; xi += 0.7) {
+    const bump = -14 - Math.abs(Math.sin(xi * 1.4) * 0.3);
+    ctx.lineTo(xi, bump);
+  }
+  ctx.lineTo(5.5, -13);
+  ctx.lineTo(5.5, -12.5);
+  ctx.lineTo(-5.5, -12.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#bbbbaa'; ctx.lineWidth = 0.3;
   ctx.stroke();
-  // SHORT LEGS (stubby gnome legs)
-  ctx.fillStyle = clothesGray;
-  ctx.fillRect(-3 - legSwing, 5, 2.5, 6);
-  ctx.fillRect(0.5 + legSwing, 5, 2.5, 6);
-  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
-  ctx.strokeRect(-3 - legSwing, 5, 2.5, 6);
-  ctx.strokeRect(0.5 + legSwing, 5, 2.5, 6);
-  // BROWN LEATHER BOOTS (bigger than feet)
-  ctx.fillStyle = boot;
+  // POM-POM AT TIP (firmly attached)
+  ctx.fillStyle = trim;
   ctx.beginPath();
-  ctx.ellipse(-1.75 - legSwing, 14, 2.5, 1.3, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath();
-  ctx.ellipse(1.75 + legSwing, 14, 2.5, 1.3, 0, 0, Math.PI * 2); ctx.fill();
-  // Toe-curl up (folk gnome style)
-  ctx.beginPath();
-  ctx.moveTo(-3 - legSwing, 14);
-  ctx.quadraticCurveTo(-4 - legSwing, 15, -3 - legSwing, 16);
-  ctx.lineTo(-1 - legSwing, 16);
-  ctx.lineTo(-1 - legSwing, 14);
-  ctx.closePath();
+  ctx.arc(3, -22, 1.3, 0, Math.PI * 2);
   ctx.fill();
+  ctx.strokeStyle = '#bbbbaa'; ctx.lineWidth = 0.3;
+  ctx.stroke();
+  // Pom-pom shadow (mörkare på baksida)
+  ctx.fillStyle = beardSh;
   ctx.beginPath();
-  ctx.moveTo(0.5 + legSwing, 14);
-  ctx.lineTo(0.5 + legSwing, 16);
-  ctx.lineTo(2.5 + legSwing, 16);
-  ctx.quadraticCurveTo(3.5 + legSwing, 15, 2.5 + legSwing, 14);
-  ctx.closePath();
+  ctx.arc(3.4, -21.7, 0.6, 0, Math.PI * 2);
   ctx.fill();
+  // Pom-pom highlight
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(2.4, -22.5, 0.4, 0.4);
 }
 
 // v1.462: NAKED CHARACTER drawn via canvas primitives — cleaner än mitt pixel art.
