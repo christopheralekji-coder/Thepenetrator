@@ -11535,18 +11535,21 @@ function drawCoopPartner() {
       ctx.translate(_pShoulderXShaft, -3);
       ctx.rotate(partnerAimAngle);
       if (pFacingLeft) ctx.scale(1, -1);
-      const _paBase = partnerCos.skin || '#c08860';
-      const _paLight = lighten(_paBase, 0.22);
-      const _paShadow = darken(_paBase, 0.30);
-      const _paDeep = darken(_paBase, 0.55);
-      const _pShirtCol = partnerCos.shirt;
-      const _pHasShirt = _pShirtCol != null;
+      // v1.519: Mascot-style override.
+      const _pmStyle = partnerCos.mascot && MASCOT_ARM_STYLES[partnerCos.mascot];
+      const _paBase = _pmStyle ? _pmStyle.base : (partnerCos.skin || '#c08860');
+      const _paLight = _pmStyle ? _pmStyle.light : lighten(_paBase, 0.22);
+      const _paShadow = _pmStyle ? _pmStyle.dark : darken(_paBase, 0.30);
+      const _paDeep = _pmStyle ? darken(_pmStyle.dark, 0.35) : darken(_paBase, 0.55);
+      const _paOutline = _pmStyle ? _pmStyle.outline : '#0a0a0e';
+      const _pSleeveSrc = _pmStyle ? _pmStyle.sleeve : partnerCos.shirt;
+      const _pHasShirt = _pSleeveSrc != null;
       const _pSleeveLen = 8;
       if (_pHasShirt) {
-        const _psCol = _pShirtCol;
-        const _psLight = lighten(_pShirtCol, 0.20);
-        const _psShadow = darken(_pShirtCol, 0.35);
-        const _psDark = darken(_pShirtCol, 0.55);
+        const _psCol = _pSleeveSrc;
+        const _psLight = lighten(_pSleeveSrc, 0.20);
+        const _psShadow = darken(_pSleeveSrc, 0.35);
+        const _psDark = darken(_pSleeveSrc, 0.55);
         ctx.fillStyle = _psShadow;
         ctx.fillRect(0, -3, _pSleeveLen, 6);
         ctx.fillStyle = _psCol;
@@ -11572,7 +11575,7 @@ function drawCoopPartner() {
         ctx.fillStyle = _paDeep;
         ctx.fillRect(7, 1, 6, 1);
       }
-      ctx.strokeStyle = '#0a0a0e';
+      ctx.strokeStyle = _paOutline;
       ctx.lineWidth = 1;
       ctx.strokeRect(0, -3, 13, 6);
       ctx.restore();
@@ -12797,6 +12800,124 @@ const FRUIT_MASCOTS = new Set([
   // v1.517: carrot/broccoli/cashew flyttade hit (var KOSTYMER innan)
   'carrot', 'broccoli', 'cashew',
 ]);
+
+// v1.519: Skräddarsydda armar per mascot — varje karaktär får arm-färger
+// och accent som matchar deras unika design (pels/skal/skin/robe etc).
+// `base`/`dark`/`light`/`outline` = arm-färger. `sleeve` = ärm-overlay (om null
+// används base som hel arm utan ärm). `accent` = 'claws'|'stripes'|'spots'|
+// 'spikes'|'fuzzy'|'icing'|'wood'|null — ritas ovanpå arm.
+const MASCOT_ARM_STYLES = {
+  // BRAND-mascots
+  mcdonalds:   { base: '#ffd54a', dark: '#cca828', light: '#fff088', outline: '#3a2a08', sleeve: '#ff2020', accent: null },
+  nugget:      { base: '#5a3a20', dark: '#3a2410', light: '#7a5a40', outline: '#1a0a05', sleeve: null,     accent: 'stick' },
+  korv:        { base: '#c44830', dark: '#8a2818', light: '#e85a40', outline: '#3a2010', sleeve: '#d4a060', accent: null },
+  hamburger:   { base: '#aa6840', dark: '#7a4a20', light: '#d4884a', outline: '#3a2010', sleeve: '#d4a060', accent: null },
+  pizza:       { base: '#d4a060', dark: '#aa7a40', light: '#f0c080', outline: '#3a2010', sleeve: '#cc2020', accent: null },
+  // FRUKTER — fruit-flesh-färg per
+  banan:       { base: '#ffd54a', dark: '#cca828', light: '#fff088', outline: '#2a1a05', sleeve: null,     accent: 'spots' },
+  kiwi:        { base: '#8a5a3a', dark: '#5a3a20', light: '#aa7a4a', outline: '#3a2010', sleeve: null,     accent: 'fuzzy' },
+  mango:       { base: '#ff9020', dark: '#cc5810', light: '#ffd54a', outline: '#5a3008', sleeve: null,     accent: null },
+  pencil:      { base: '#ffd54a', dark: '#cca828', light: '#fff088', outline: '#3a2a08', sleeve: null,     accent: 'wood' },
+  broccoli:    { base: '#aaca7a', dark: '#7aaa4a', light: '#cce0aa', outline: '#2a4a08', sleeve: null,     accent: 'stick' },
+  carrot:      { base: '#ff8a30', dark: '#cc5810', light: '#ffb060', outline: '#5a3008', sleeve: null,     accent: 'stick' },
+  cashew:      { base: '#d4c090', dark: '#a08a60', light: '#f0e0b8', outline: '#5a4020', sleeve: null,     accent: null },
+  pineapple:   { base: '#ffc830', dark: '#cc8a10', light: '#ffe070', outline: '#5a3a08', sleeve: null,     accent: 'spikes' },
+  dragonfruit: { base: '#ff5a8a', dark: '#cc2050', light: '#ffaadd', outline: '#5a1030', sleeve: null,     accent: null },
+  durian:      { base: '#aa8a3a', dark: '#7a5a20', light: '#ccaa6a', outline: '#3a2a08', sleeve: null,     accent: 'spikes' },
+  coconut:     { base: '#5a3818', dark: '#3a2008', light: '#7a5028', outline: '#1a0a04', sleeve: null,     accent: 'fuzzy' },
+  pomegranate: { base: '#cc2030', dark: '#8a0a10', light: '#ff5050', outline: '#3a0a10', sleeve: null,     accent: null },
+  starfruit:   { base: '#ffd54a', dark: '#cca828', light: '#fff088', outline: '#5a3008', sleeve: null,     accent: null },
+  pricklypear: { base: '#5aaa3a', dark: '#3a7a1a', light: '#7aca5a', outline: '#2a4a08', sleeve: null,     accent: 'spikes' },
+  olive:       { base: '#5a6a2a', dark: '#3a4a18', light: '#7a8a3a', outline: '#1a2a08', sleeve: null,     accent: null },
+  // PD/folklore-karaktärer
+  sailor:      { base: '#d4a574', dark: '#9a6840', light: '#f0c090', outline: '#0a0a0a', sleeve: '#1a3a8a', accent: null },
+  vampire:     { base: '#e8d8c8', dark: '#a89888', light: '#f8f0e0', outline: '#0a0a14', sleeve: '#0a0a14', accent: null },
+  hunchback:   { base: '#d4a574', dark: '#9a6840', light: '#f0c090', outline: '#0a0a0a', sleeve: '#5a4030', accent: null },
+  jungleman:   { base: '#aa7a4a', dark: '#7a5028', light: '#d4a574', outline: '#1a0a04', sleeve: null,     accent: null },
+  peterpan:    { base: '#d4a574', dark: '#9a6840', light: '#f0c090', outline: '#0a0a0a', sleeve: '#3a7a1a', accent: null },
+  pirate:      { base: '#d4a574', dark: '#9a6840', light: '#f0c090', outline: '#0a0a0a', sleeve: '#8a4a1a', accent: null },
+  fairy:       { base: '#f0d0a0', dark: '#c0a070', light: '#fff0d0', outline: '#5a3a14', sleeve: '#ffaad0', accent: null },
+  puppet:      { base: '#d4a574', dark: '#9a6840', light: '#f0c090', outline: '#5a3008', sleeve: '#cc2020', accent: 'wood' },
+  junglekid:   { base: '#aa7a4a', dark: '#7a5028', light: '#d4a574', outline: '#1a0a04', sleeve: null,     accent: null },
+  bear:        { base: '#5a3818', dark: '#3a2008', light: '#7a5028', outline: '#1a0a04', sleeve: null,     accent: 'claws' },
+  tiger:       { base: '#ff8a30', dark: '#cc5a10', light: '#ffaa50', outline: '#1a0a04', sleeve: null,     accent: 'stripes' },
+  gingerbread: { base: '#aa6840', dark: '#7a4a20', light: '#d4884a', outline: '#3a2010', sleeve: null,     accent: 'icing' },
+  arabprince:  { base: '#d4a574', dark: '#9a6840', light: '#f0c090', outline: '#0a0a0a', sleeve: '#ffd54a', accent: null },
+  genie:       { base: '#7a5aaa', dark: '#5a3a8a', light: '#9a7aca', outline: '#1a0a14', sleeve: '#ffd54a', accent: null },
+  gnome:       { base: '#d4a574', dark: '#9a6840', light: '#f0c090', outline: '#0a0a0a', sleeve: '#aa1a1a', accent: null },
+  tomten:      { base: '#d4a574', dark: '#9a6840', light: '#f0c090', outline: '#0a0a0a', sleeve: '#aa1a1a', accent: null },
+};
+
+// Ritar accent-overlay på en arm-region (klor/spikes/spots/etc).
+// (hangX, shY) = arm-shoulder, armEndY = botten av forearm.
+function drawArmAccent(ctx, accent, hangX, shY, armEndY, style) {
+  if (!accent) return;
+  const armW = 1.85;
+  if (accent === 'claws') {
+    ctx.fillStyle = style.outline;
+    for (let i = -1; i <= 1; i++) {
+      ctx.beginPath();
+      ctx.moveTo(hangX + i * 0.7, armEndY + 1);
+      ctx.lineTo(hangX + i * 0.7 - 0.25, armEndY + 2);
+      ctx.lineTo(hangX + i * 0.7 + 0.25, armEndY + 2);
+      ctx.closePath(); ctx.fill();
+    }
+  } else if (accent === 'stripes') {
+    ctx.fillStyle = style.outline;
+    for (const yOff of [2, 5, 8, 11]) {
+      ctx.fillRect(hangX - armW, shY + yOff, armW * 2, 0.5);
+    }
+  } else if (accent === 'spots') {
+    ctx.fillStyle = '#5a3a1a';
+    for (const [sx, sy] of [[0.3, 3], [-0.5, 7], [0.5, 10]]) {
+      ctx.beginPath();
+      ctx.ellipse(hangX + sx, shY + sy, 0.4, 0.25, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (accent === 'spikes') {
+    ctx.fillStyle = style.outline;
+    for (const yOff of [3, 7, 11]) {
+      ctx.beginPath();
+      ctx.moveTo(hangX - armW, shY + yOff);
+      ctx.lineTo(hangX - armW - 0.8, shY + yOff - 0.3);
+      ctx.lineTo(hangX - armW, shY + yOff + 0.5);
+      ctx.closePath(); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(hangX + armW, shY + yOff);
+      ctx.lineTo(hangX + armW + 0.8, shY + yOff - 0.3);
+      ctx.lineTo(hangX + armW, shY + yOff + 0.5);
+      ctx.closePath(); ctx.fill();
+    }
+  } else if (accent === 'fuzzy') {
+    ctx.fillStyle = style.dark;
+    for (const [fx, fy] of [[-1.5, 2], [1.5, 4], [-1.3, 6], [1.2, 8], [-1.4, 10]]) {
+      ctx.beginPath();
+      ctx.arc(hangX + fx, shY + fy, 0.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (accent === 'wood') {
+    // Wood-grain lines
+    ctx.strokeStyle = style.dark; ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(hangX - 0.5, shY + 1); ctx.lineTo(hangX - 0.5, armEndY);
+    ctx.moveTo(hangX + 0.3, shY + 2); ctx.lineTo(hangX + 0.3, armEndY - 1);
+    ctx.stroke();
+  } else if (accent === 'stick') {
+    // Tunnare stick-arm — rita en mörk smal stripe i mitten
+    ctx.fillStyle = style.dark;
+    ctx.fillRect(hangX - 0.3, shY, 0.6, armEndY - shY);
+  } else if (accent === 'icing') {
+    // White icing zigzag
+    ctx.strokeStyle = '#f4f0e0'; ctx.lineWidth = 0.5; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(hangX - 1.2, shY + 3);
+    ctx.lineTo(hangX + 1.2, shY + 4.5);
+    ctx.lineTo(hangX - 1.2, shY + 6);
+    ctx.lineTo(hangX + 1.2, shY + 7.5);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+  }
+}
 function presetCategory(preset) {
   const shirtId = preset.wardrobe && preset.wardrobe.shirt;
   if (!shirtId) return 'classic';
@@ -49899,11 +50020,13 @@ function drawMouth(ctx, style, lipColor, lipHi, skin5, flash) {
 // v1.468: Proper hand (palm + thumb + knuckles), drawn at local origin
 // East direction = forward toward weapon grip. Hand holds weapon at origin.
 function drawHand(ctx, cos, flash) {
-  const skinBase = cos.skin || '#c08860';
+  // v1.519: Mascot-style override så hand matchar arm-färg.
+  const _hmStyle = cos.mascot && MASCOT_ARM_STYLES[cos.mascot];
+  const skinBase = _hmStyle ? _hmStyle.base : (cos.skin || '#c08860');
   const skin = flash ? '#fff' : skinBase;
-  const skinShadow = flash ? '#fff' : darken(skinBase, 0.30);
-  const skinLight = flash ? '#fff' : lighten(skinBase, 0.18);
-  const outline = flash ? '#fff' : '#0a0a0e';
+  const skinShadow = flash ? '#fff' : (_hmStyle ? _hmStyle.dark : darken(skinBase, 0.30));
+  const skinLight = flash ? '#fff' : (_hmStyle ? _hmStyle.light : lighten(skinBase, 0.18));
+  const outline = flash ? '#fff' : (_hmStyle ? _hmStyle.outline : '#0a0a0e');
   // Palm shape (gripping weapon, knuckle-side west, thumb-side east)
   ctx.fillStyle = skin;
   ctx.beginPath();
@@ -49968,16 +50091,22 @@ function drawHand(ctx, cos, flash) {
 function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffsetY) {
   if (throwOffsetX === undefined) throwOffsetX = 0;
   if (throwOffsetY === undefined) throwOffsetY = 0;
-  const skinBase = cos.skin || '#9a6028';
+  // v1.519: Mascot-specifik palette + accent — varje karaktär får arm-färger
+  // som matchar deras design. Non-mascot använder cos.skin som default.
+  const mascotStyle = cos.mascot && MASCOT_ARM_STYLES[cos.mascot];
+  const skinBase = mascotStyle ? mascotStyle.base : (cos.skin || '#9a6028');
   const armBase = flash ? '#fff' : skinBase;
-  const outline = flash ? '#fff' : '#0a0a0e';
+  const outline = flash ? '#fff' : (mascotStyle ? mascotStyle.outline : '#0a0a0e');
   const hangX = bodyFacingLeft ? 8 : -8;
   const shY = -3;
   // v1.484: SLEEVE — om shirt equippad, paint upper arm + deltoid med shirt-färg
+  // v1.519: mascot.sleeve override (om null = bare arm).
   const shirtCol = cos.shirt; // null när 'naked'
   const hasShirt = shirtCol != null;
-  const sleeveCol = flash ? '#fff' : (hasShirt ? shirtCol : armBase);
-  const sleeveDark = flash ? '#fff' : (hasShirt ? darken(shirtCol, 0.40) : darken(skinBase, 0.30));
+  const sleeveSource = mascotStyle ? mascotStyle.sleeve : (hasShirt ? shirtCol : null);
+  const showSleeve = sleeveSource != null;
+  const sleeveCol = flash ? '#fff' : (showSleeve ? sleeveSource : armBase);
+  const sleeveDark = flash ? '#fff' : (showSleeve ? darken(sleeveSource, 0.40) : darken(skinBase, 0.30));
   // T-shirt: sleeve covers deltoid + upper arm (shY till shY+5). Forearm bare.
   const sleeveEndY = shY + 5;
   // === DELTOID — sleeve color om shirt, annars skin ===
@@ -49998,8 +50127,8 @@ function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffs
   ctx.quadraticCurveTo(hangX - 2, shY + 3, hangX - 1.7, shY);
   ctx.closePath();
   ctx.fill();
-  // Sleeve hem (mörk stripe vid där sleeve slutar) — bara om shirt
-  if (hasShirt) {
+  // Sleeve hem (mörk stripe vid där sleeve slutar) — bara om sleeve visas
+  if (showSleeve) {
     ctx.fillStyle = sleeveDark;
     ctx.fillRect(hangX - 1.85, sleeveEndY - 0.4, 3.7, 0.4);
   }
@@ -50035,7 +50164,11 @@ function drawHangingArm(ctx, cos, flash, bodyFacingLeft, throwOffsetX, throwOffs
   ctx.quadraticCurveTo(hangX - 2, shY + 5, hangX - 1.7, shY);
   ctx.closePath();
   ctx.stroke();
-  // Hand (always skin)
+  // v1.519: Accent overlay (claws/stripes/spots/spikes/fuzzy/wood/stick/icing)
+  if (mascotStyle && mascotStyle.accent && !flash) {
+    drawArmAccent(ctx, mascotStyle.accent, hangX, shY, shY + 13, mascotStyle);
+  }
+  // Hand (matchar arm-färg)
   const handHX = hangX + throwOffsetX;
   const handHY = shY + 14.5 + throwOffsetY;
   ctx.fillStyle = armBase;
@@ -50218,22 +50351,27 @@ function drawPlayer() {
     ctx.translate(_shoulderXShaft, _shoulderYShaft);
     ctx.rotate(p.aimAngle);
     if (_facingLeft) ctx.scale(1, -1);
-    const _aBase = cos.skin || '#c08860';
-    const _aLight = flash ? '#fff' : lighten(_aBase, 0.22);
+    // v1.519: Mascot-style override för shooting arm.
+    const _mStyle = cos.mascot && MASCOT_ARM_STYLES[cos.mascot];
+    const _aBase = _mStyle ? _mStyle.base : (cos.skin || '#c08860');
+    const _aLight = flash ? '#fff' : (_mStyle ? _mStyle.light : lighten(_aBase, 0.22));
     const _aSkin = flash ? '#fff' : _aBase;
-    const _aShadow = flash ? '#fff' : darken(_aBase, 0.30);
-    const _aDeep = flash ? '#fff' : darken(_aBase, 0.55);
-    const _aOutline = flash ? '#fff' : '#0a0a0e';
+    const _aShadow = flash ? '#fff' : (_mStyle ? _mStyle.dark : darken(_aBase, 0.30));
+    const _aDeep = flash ? '#fff' : (_mStyle ? darken(_mStyle.dark, 0.35) : darken(_aBase, 0.55));
+    const _aOutline = flash ? '#fff' : (_mStyle ? _mStyle.outline : '#0a0a0e');
     // v1.484: T-shirt sleeve på upper arm (0 till x=8 i arm-local frame).
     // Forearm (x=8 till x=13) stays bare skin.
+    // v1.519: mascot.sleeve overrides shirt-baserad sleeve.
     const _shirtCol = cos.shirt; // null när naked
-    const _hasShirt = _shirtCol != null;
+    const _sleeveSrc = _mStyle ? _mStyle.sleeve : (_shirtCol);
+    const _hasShirt = _sleeveSrc != null;
+    const _shirtCol2 = _sleeveSrc; // använd som sleeve-färg
     const _sleeveLen = 8; // sleeve covers 0 till 8, forearm 8 till 13
     if (_hasShirt) {
-      const _sCol = flash ? '#fff' : _shirtCol;
-      const _sLight = flash ? '#fff' : lighten(_shirtCol, 0.20);
-      const _sShadow = flash ? '#fff' : darken(_shirtCol, 0.35);
-      const _sDark = flash ? '#fff' : darken(_shirtCol, 0.55);
+      const _sCol = flash ? '#fff' : _shirtCol2;
+      const _sLight = flash ? '#fff' : lighten(_shirtCol2, 0.20);
+      const _sShadow = flash ? '#fff' : darken(_shirtCol2, 0.35);
+      const _sDark = flash ? '#fff' : darken(_shirtCol2, 0.55);
       // Sleeve fill
       ctx.fillStyle = _sShadow;
       ctx.fillRect(0, -3, _sleeveLen, 6);
