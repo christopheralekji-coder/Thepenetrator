@@ -12392,6 +12392,22 @@ const WARDROBE = {
     { id: 'starfruit_body', name: 'Stjärnfrukt-kostym',color: '#caea30', mascot: 'starfruit' },
     { id: 'pricklypear_body',name: 'Kaktusfikon-kostym',color: '#ff5a70', mascot: 'pricklypear' },
     { id: 'olive_body',     name: 'Oliv-kostym',       color: '#5a7a2a', mascot: 'olive' },
+    // v1.514: 14 nya PD/folktale-karaktärer (Steamboat Willie skippad - gråzon)
+    { id: 'sailor_body',    name: 'Sjöman',            color: '#1a3a8a', mascot: 'sailor' },
+    { id: 'vampire_body',   name: 'Vampyr-greve',      color: '#0a0a14', mascot: 'vampire' },
+    { id: 'hunchback_body', name: 'Klockringare',      color: '#5a3818', mascot: 'hunchback' },
+    { id: 'jungleman_body', name: 'Djungelmannen',     color: '#7a3818', mascot: 'jungleman' },
+    { id: 'peterpan_body',  name: 'Pojken som flyger', color: '#3a7a3a', mascot: 'peterpan' },
+    { id: 'pirate_body',    name: 'Kapten Krok',       color: '#aa1818', mascot: 'pirate' },
+    { id: 'fairy_body',     name: 'Liten Fé',          color: '#5aca7a', mascot: 'fairy' },
+    { id: 'puppet_body',    name: 'Trädockan',         color: '#aa6a30', mascot: 'puppet' },
+    { id: 'junglekid_body', name: 'Djungelpojken',     color: '#7a4818', mascot: 'junglekid' },
+    { id: 'bear_body',      name: 'Vänlig Björn',      color: '#7a4a28', mascot: 'bear' },
+    { id: 'tiger_body',     name: 'Djungeltiger',      color: '#ff8a30', mascot: 'tiger' },
+    { id: 'gingerbread_body',name: 'Pepparkaksgubben', color: '#aa6a30', mascot: 'gingerbread' },
+    { id: 'arabprince_body',name: 'Arabisk Prins',     color: '#aa7a1a', mascot: 'arabprince' },
+    { id: 'genie_body',     name: 'Anden',             color: '#7a3aaa', mascot: 'genie' },
+    { id: 'gnome_body',     name: 'Tomten',            color: '#aa1828', mascot: 'gnome' },
     // v1.497: 3 yrkesoutfits (profession brands)
     { id: 'prison_shirt',   name: 'Fängelse-tröja',    color: '#ff7a14', brand: 'prison' },
     { id: 'police_shirt',   name: 'Polis-uniform',     color: '#1a2a5a', brand: 'police' },
@@ -12764,11 +12780,19 @@ function getWardrobeOpt(cat, id) {
 // v1.491: Klassificera preset baserat på shirt-property (brand/mascot/classic)
 // v1.498: Lägg till 'hero' för h_*-brand-prefix (Element Knights)
 // v1.499: Lägg till 'myth' för m_*-brand-prefix (Mytologiska figurer)
+// v1.514: Frukter-arketyper får egen sub-tab (separerade från KOSTYMER)
+const FRUIT_MASCOTS = new Set([
+  'banan', 'kiwi', 'mango', 'pineapple', 'dragonfruit', 'durian',
+  'coconut', 'pomegranate', 'starfruit', 'pricklypear', 'olive',
+]);
 function presetCategory(preset) {
   const shirtId = preset.wardrobe && preset.wardrobe.shirt;
   if (!shirtId) return 'classic';
   const shirt = WARDROBE.shirt.find(s => s.id === shirtId);
-  if (shirt && shirt.mascot) return 'mascot';
+  if (shirt && shirt.mascot) {
+    if (FRUIT_MASCOTS.has(shirt.mascot)) return 'fruit';
+    return 'mascot';
+  }
   if (shirt && shirt.brand) {
     if (shirt.brand.startsWith('h_')) return 'hero';
     if (shirt.brand.startsWith('m_')) return 'myth';
@@ -22837,6 +22861,22 @@ const WARDROBE_PRESETS = [
       shoes: 'none', hat: 'none', bandana: 'none',
       glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
   } },
+  // v1.514: 15 PD/folktale-karaktärer
+  { id: 'sailor', name: 'Sjöman', wardrobe: { skin: 'tan', hair: 'bald', shirt: 'sailor_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none' } },
+  { id: 'vampire', name: 'Vampyr-greve', wardrobe: { skin: 'porcelain', hair: 'bald', shirt: 'vampire_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'red', scars: 'none' } },
+  { id: 'hunchback', name: 'Klockringare', wardrobe: { skin: 'tan', hair: 'bald', shirt: 'hunchback_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none' } },
+  { id: 'jungleman', name: 'Djungelmannen', wardrobe: { skin: 'tan', hair: 'bald', shirt: 'jungleman_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'green', scars: 'none' } },
+  { id: 'peterpan', name: 'Peter Pan', wardrobe: { skin: 'fair', hair: 'bald', shirt: 'peterpan_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'green', scars: 'none' } },
+  { id: 'pirate', name: 'Kapten Krok', wardrobe: { skin: 'fair', hair: 'bald', shirt: 'pirate_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none' } },
+  { id: 'fairy', name: 'Liten Fé', wardrobe: { skin: 'porcelain', hair: 'bald', shirt: 'fairy_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'blue', scars: 'none' } },
+  { id: 'puppet', name: 'Trädockan', wardrobe: { skin: 'tan', hair: 'bald', shirt: 'puppet_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none' } },
+  { id: 'junglekid', name: 'Djungelpojken', wardrobe: { skin: 'caramel', hair: 'bald', shirt: 'junglekid_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none' } },
+  { id: 'bear', name: 'Vänlig Björn', wardrobe: { skin: 'tan', hair: 'bald', shirt: 'bear_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none' } },
+  { id: 'tiger', name: 'Djungeltiger', wardrobe: { skin: 'tan', hair: 'bald', shirt: 'tiger_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'amber', scars: 'none' } },
+  { id: 'gingerbread', name: 'Pepparkaksgubben', wardrobe: { skin: 'tan', hair: 'bald', shirt: 'gingerbread_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none' } },
+  { id: 'arabprince', name: 'Arabisk Prins', wardrobe: { skin: 'caramel', hair: 'bald', shirt: 'arabprince_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none' } },
+  { id: 'genie', name: 'Anden', wardrobe: { skin: 'tan', hair: 'bald', shirt: 'genie_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'gold', scars: 'none' } },
+  { id: 'gnome', name: 'Tomten', wardrobe: { skin: 'fair', hair: 'bald', shirt: 'gnome_body', pants: 'briefs', shoes: 'none', hat: 'none', bandana: 'none', glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none' } },
 ];
 let _wardrobeCurrentTab = 'preset';
 let _wardrobeCurrentGroup = 'preset'; // v1.505: top-level grupp (preset/face/hair/outfit/accessories)
@@ -23421,6 +23461,7 @@ function renderWardrobeTabs() {
       { id: 'classic', label: 'KLASSIKER' },
       { id: 'brand',   label: 'MÄRKEN' },
       { id: 'mascot',  label: 'KOSTYMER' },
+      { id: 'fruit',   label: 'FRUKTER' },     // v1.514: ny sub-tab för 11 frukter
       { id: 'hero',    label: 'RIDDARE' },
       { id: 'myth',    label: 'MYTOLOGI' },
     ];
@@ -24413,7 +24454,7 @@ function stripWardrobe() {
   _wardrobeUndoState = JSON.parse(JSON.stringify(save.wardrobe));
   // KROPP: tillbaka till default
   save.wardrobe.skin = 'olive';
-  save.wardrobe.hair = 'shortDark';
+  save.wardrobe.hair = 'bald';        // v1.514: skallig (var shortDark)
   save.wardrobe.facialHair = 'none';
   save.wardrobe.eyes = 'default';       // INTE glowing/cyber/red (de hade glow-effekt)
   save.wardrobe.eyeShape = 'classic';
@@ -41671,6 +41712,2173 @@ function drawOliveCharacter(ctx, cos, flash, walkPhase, isMoving) {
   ctx.ellipse(1.9 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
 }
 
+// ============================================================
+// v1.514: 15 NYA PUBLIC-DOMAIN / FOLKTALE-KARAKTÄRER
+// Alla baserade på ORIGINAL PD-källor (ej Disney/film-adaptioner)
+// ============================================================
+
+// SJÖMAN (Popeye 1929 archetype - PD sedan 2025)
+function drawSailorCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const skin = flash ? '#fff' : '#d4a574';
+  const skinHi = flash ? '#fff' : '#f0c090';
+  const skinSh = flash ? '#fff' : '#9a6840';
+  const shirtBlue = flash ? '#fff' : '#1a3a8a';
+  const shirtDk = flash ? '#fff' : '#0a1a4a';
+  const hatWhite = flash ? '#fff' : '#f4f0e0';
+  const pipeBrown = flash ? '#fff' : '#5a3818';
+  const pipeBowl = flash ? '#fff' : '#3a2008';
+  const anchor = flash ? '#fff' : '#1a1a4a';
+  const outline = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // SAILOR HAT (vit med svart band)
+  ctx.fillStyle = hatWhite;
+  ctx.beginPath();
+  ctx.ellipse(0, -17, 6.5, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-5, -15);
+  ctx.quadraticCurveTo(-5, -20, 0, -20.5);
+  ctx.quadraticCurveTo(5, -20, 5, -15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.stroke();
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(-5.5, -15.8, 11, 0.6);
+  // HEAD (bald with squinty eye - typical chad-sailor archetype)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -12, 5, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Strong chin/jaw bulge
+  ctx.fillStyle = skinSh;
+  ctx.beginPath();
+  ctx.ellipse(0, -9, 2.5, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Eyes (one squinting closed, one open)
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(-2.5, -13, 1.2, 0.3);  // closed eye line
+  ctx.beginPath();  // open eye
+  ctx.arc(2, -13, 0.7, 0, Math.PI * 2);
+  ctx.fill();
+  // PIPE in corner of mouth (corn cob style)
+  ctx.fillStyle = pipeBowl;
+  ctx.fillRect(2, -10.5, 1.8, 1.3);
+  ctx.fillStyle = pipeBrown;
+  ctx.fillRect(3.5, -10.2, 2, 0.5);  // stem
+  // Smoke wisps
+  ctx.strokeStyle = '#bbb'; ctx.lineWidth = 0.5;
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(4, -11.5);
+  ctx.quadraticCurveTo(5, -13, 4.5, -14.5);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+  // SHIRT (navy blue with white sailor collar)
+  ctx.fillStyle = shirtBlue;
+  ctx.beginPath();
+  ctx.moveTo(-6, -8);
+  ctx.quadraticCurveTo(-8, -3, -6, 5);
+  ctx.lineTo(6, 5);
+  ctx.quadraticCurveTo(8, -3, 6, -8);
+  ctx.closePath();
+  ctx.fill();
+  // Sailor collar (white triangle at neck)
+  ctx.fillStyle = hatWhite;
+  ctx.beginPath();
+  ctx.moveTo(-3, -8);
+  ctx.lineTo(0, -3);
+  ctx.lineTo(3, -8);
+  ctx.closePath();
+  ctx.fill();
+  // BULGING FOREARMS (signature) — visible at sides of body
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(-7.5, 0, 3, 4, 0, 0, Math.PI * 2);  // west forearm bulge
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(7.5, 0, 3, 4, 0, 0, Math.PI * 2);  // east forearm bulge
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.ellipse(-7.5, 0, 3, 4, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(7.5, 0, 3, 4, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  // Anchor tattoo on east forearm
+  ctx.fillStyle = anchor;
+  ctx.fillRect(7.2, -0.5, 0.4, 2.5);
+  ctx.fillRect(6.5, 1.5, 1.8, 0.4);
+  ctx.beginPath();
+  ctx.arc(7.4, 2.2, 0.8, 0, Math.PI);
+  ctx.stroke();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(-6, -8);
+  ctx.quadraticCurveTo(-8, -3, -6, 5);
+  ctx.lineTo(6, 5);
+  ctx.quadraticCurveTo(8, -3, 6, -8);
+  ctx.closePath();
+  ctx.stroke();
+  // White pants
+  ctx.fillStyle = hatWhite;
+  ctx.fillRect(-3 - legSwing, 5, 2.5, 10);
+  ctx.fillRect(0.5 + legSwing, 5, 2.5, 10);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 5, 2.5, 10);
+  ctx.strokeRect(0.5 + legSwing, 5, 2.5, 10);
+  // Black shoes
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath();
+  ctx.ellipse(-1.75 - legSwing, 16, 2.2, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.75 + legSwing, 16, 2.2, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// VAMPYR-GREVE (Stoker Dracula 1897 archetype - long PD)
+function drawVampireCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const skin = flash ? '#fff' : '#e8d8c8';
+  const skinSh = flash ? '#fff' : '#a89888';
+  const hair = flash ? '#fff' : '#0a0a14';
+  const coat = flash ? '#fff' : '#0a0a14';
+  const coatSh = flash ? '#fff' : '#000000';
+  const capeRed = flash ? '#fff' : '#8a0a18';
+  const shirtWhite = flash ? '#fff' : '#f4f0e0';
+  const redEye = flash ? '#fff' : '#cc1818';
+  const fangs = flash ? '#fff' : '#f0e0d0';
+  const outline = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // CAPE behind (high collar visible above head)
+  ctx.fillStyle = coatSh;
+  ctx.beginPath();
+  ctx.moveTo(-8, -19);
+  ctx.lineTo(-9, -7);
+  ctx.lineTo(-7, 8);
+  ctx.lineTo(7, 8);
+  ctx.lineTo(9, -7);
+  ctx.lineTo(8, -19);
+  ctx.quadraticCurveTo(4, -22, 0, -22);
+  ctx.quadraticCurveTo(-4, -22, -8, -19);
+  ctx.closePath();
+  ctx.fill();
+  // Cape red interior visible at edges
+  ctx.fillStyle = capeRed;
+  ctx.beginPath();
+  ctx.moveTo(-7, -16);
+  ctx.lineTo(-8, -7);
+  ctx.lineTo(-6, 5);
+  ctx.lineTo(-5, 5);
+  ctx.lineTo(-7, -7);
+  ctx.lineTo(-6, -16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(7, -16);
+  ctx.lineTo(8, -7);
+  ctx.lineTo(6, 5);
+  ctx.lineTo(5, 5);
+  ctx.lineTo(7, -7);
+  ctx.lineTo(6, -16);
+  ctx.closePath();
+  ctx.fill();
+  // HEAD (pale white)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -13, 4.5, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Sharp cheekbones
+  ctx.fillStyle = skinSh;
+  ctx.fillRect(-4, -12, 1, 1.5);
+  ctx.fillRect(3, -12, 1, 1.5);
+  // BLACK WIDOW'S PEAK HAIR (slicked back)
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(-4.5, -16);
+  ctx.quadraticCurveTo(0, -19, 4.5, -16);
+  ctx.lineTo(4, -14);
+  ctx.lineTo(0, -15.5);  // widow's peak point
+  ctx.lineTo(-4, -14);
+  ctx.closePath();
+  ctx.fill();
+  // Hair flowing back
+  ctx.beginPath();
+  ctx.moveTo(-4, -16);
+  ctx.lineTo(-5, -10);
+  ctx.lineTo(-3.5, -11);
+  ctx.lineTo(-3.5, -16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(4, -16);
+  ctx.lineTo(5, -10);
+  ctx.lineTo(3.5, -11);
+  ctx.lineTo(3.5, -16);
+  ctx.closePath();
+  ctx.fill();
+  // RED EYES with glow
+  ctx.shadowColor = redEye; ctx.shadowBlur = 3;
+  ctx.fillStyle = redEye;
+  ctx.beginPath(); ctx.arc(-2, -13, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -13, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Black eyebrows (sharp angled)
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(-3.5, -14.5);
+  ctx.lineTo(-0.8, -13.8);
+  ctx.lineTo(-3, -13.6);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(3.5, -14.5);
+  ctx.lineTo(0.8, -13.8);
+  ctx.lineTo(3, -13.6);
+  ctx.closePath();
+  ctx.fill();
+  // Slight evil grin with FANGS
+  ctx.strokeStyle = '#3a0a18'; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -10);
+  ctx.quadraticCurveTo(0, -9.5, 1.5, -10);
+  ctx.stroke();
+  // Fangs (two pointed)
+  ctx.fillStyle = fangs;
+  ctx.beginPath();
+  ctx.moveTo(-1, -9.8); ctx.lineTo(-0.8, -9); ctx.lineTo(-0.5, -9.8);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(0.5, -9.8); ctx.lineTo(0.8, -9); ctx.lineTo(1, -9.8);
+  ctx.closePath(); ctx.fill();
+  // BODY (formal coat with high collar)
+  ctx.fillStyle = coat;
+  ctx.beginPath();
+  ctx.moveTo(-6, -7);
+  ctx.lineTo(-7, 5);
+  ctx.lineTo(7, 5);
+  ctx.lineTo(6, -7);
+  ctx.closePath();
+  ctx.fill();
+  // High collar (red interior peeking)
+  ctx.fillStyle = capeRed;
+  ctx.beginPath();
+  ctx.moveTo(-3.5, -8);
+  ctx.lineTo(-4, -5);
+  ctx.lineTo(4, -5);
+  ctx.lineTo(3.5, -8);
+  ctx.closePath();
+  ctx.fill();
+  // White ruffled shirt visible at chest
+  ctx.fillStyle = shirtWhite;
+  ctx.beginPath();
+  ctx.moveTo(-2, -5);
+  ctx.lineTo(-2.5, 4);
+  ctx.lineTo(2.5, 4);
+  ctx.lineTo(2, -5);
+  ctx.closePath();
+  ctx.fill();
+  // Shirt ruffles
+  ctx.strokeStyle = '#aaa'; ctx.lineWidth = 0.3;
+  for (const y of [-3, -1, 1, 3]) {
+    ctx.beginPath();
+    ctx.moveTo(-2, y);
+    ctx.quadraticCurveTo(0, y + 0.5, 2, y);
+    ctx.stroke();
+  }
+  // Medallion (gold pendant)
+  ctx.fillStyle = '#ffd54a';
+  ctx.beginPath();
+  ctx.arc(0, 0, 0.8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#aa8a2a'; ctx.lineWidth = 0.3;
+  ctx.stroke();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(-6, -7);
+  ctx.lineTo(-7, 5);
+  ctx.lineTo(7, 5);
+  ctx.lineTo(6, -7);
+  ctx.closePath();
+  ctx.stroke();
+  // BLACK LEGS
+  ctx.fillStyle = coat;
+  ctx.fillRect(-3 - legSwing, 5, 2.5, 10);
+  ctx.fillRect(0.5 + legSwing, 5, 2.5, 10);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 5, 2.5, 10);
+  ctx.strokeRect(0.5 + legSwing, 5, 2.5, 10);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath();
+  ctx.ellipse(-1.75 - legSwing, 16, 2.2, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.75 + legSwing, 16, 2.2, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// KLOCKRINGARE (Hugo Quasimodo 1831 archetype - long PD)
+function drawHunchbackCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const skin = flash ? '#fff' : (cos.skin || '#c08858');
+  const skinSh = flash ? '#fff' : '#7a4818';
+  const hair = flash ? '#fff' : '#3a2008';
+  const tunicBrown = flash ? '#fff' : '#5a3818';
+  const tunicDk = flash ? '#fff' : '#3a2008';
+  const belt = flash ? '#fff' : '#2a1a08';
+  const outline = flash ? '#fff' : '#1a0a04';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // HUNCHED RIGHT SHOULDER (signature posture)
+  ctx.fillStyle = tunicBrown;
+  ctx.beginPath();
+  ctx.moveTo(-5, -3);
+  ctx.lineTo(-6, 5);
+  ctx.lineTo(6, 5);
+  ctx.lineTo(7, -3);
+  ctx.lineTo(8, -8);  // hunched east shoulder higher
+  ctx.lineTo(3, -9);
+  ctx.lineTo(-3, -7);
+  ctx.lineTo(-5, -3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Hump (shoulder bulge)
+  ctx.fillStyle = tunicDk;
+  ctx.beginPath();
+  ctx.ellipse(6, -7, 2.5, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Belt rope
+  ctx.fillStyle = belt;
+  ctx.fillRect(-5, 0, 11, 1);
+  // HEAD (tilted slightly, asymmetric)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(-1, -13, 5, 5, 0, 0, Math.PI * 2);  // head slightly offset west
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Disheveled hair (messy brown)
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(-5, -17);
+  ctx.quadraticCurveTo(-1, -19, 4, -17);
+  ctx.lineTo(4, -14);
+  ctx.quadraticCurveTo(2, -12, -1, -13);
+  ctx.quadraticCurveTo(-4, -13, -5, -15);
+  ctx.closePath();
+  ctx.fill();
+  // Stray hair tufts
+  for (const [hx, hy] of [[-3, -18], [0, -19.5], [3, -18], [4.5, -16]]) {
+    ctx.beginPath();
+    ctx.arc(hx, hy, 1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Asymmetric eyes (one droopy, one normal)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(-3, -13, 1, 0.9, 0, 0, Math.PI * 2);  // larger droopy west eye
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.5, -13, 0.7, 0.5, 0, 0, Math.PI * 2);  // smaller east eye
+  ctx.fill();
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath(); ctx.arc(-3, -12.7, 0.5, 0, Math.PI * 2); ctx.fill();  // pupil
+  ctx.beginPath(); ctx.arc(1.5, -13, 0.35, 0, Math.PI * 2); ctx.fill();
+  // Big nose
+  ctx.fillStyle = skinSh;
+  ctx.beginPath();
+  ctx.ellipse(-1, -10.5, 1, 1.3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Sad mouth
+  ctx.strokeStyle = '#3a0a08'; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-2.5, -8);
+  ctx.quadraticCurveTo(-1, -7.5, 0.5, -8);
+  ctx.stroke();
+  // BARE LEGS (peasant)
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 5, 2.5, 10);
+  ctx.fillRect(0.5 + legSwing, 5, 2.5, 10);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 5, 2.5, 10);
+  ctx.strokeRect(0.5 + legSwing, 5, 2.5, 10);
+  // Worn brown shoes
+  ctx.fillStyle = belt;
+  ctx.beginPath();
+  ctx.ellipse(-1.75 - legSwing, 16, 2.2, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.75 + legSwing, 16, 2.2, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// DJUNGELMANNEN (Burroughs Tarzan 1912 archetype - early books PD)
+function drawJunglemanCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const skin = flash ? '#fff' : '#c08858';
+  const skinHi = flash ? '#fff' : '#e0b888';
+  const skinSh = flash ? '#fff' : '#8a5828';
+  const hair = flash ? '#fff' : '#2a1408';
+  const loincloth = flash ? '#fff' : '#5a3818';
+  const loinDk = flash ? '#fff' : '#3a2008';
+  const outline = flash ? '#fff' : '#1a0a04';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // HEAD
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -14, 4.5, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // LONG WILD HAIR (shoulder-length brown)
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(-5, -16);
+  ctx.lineTo(-6, -7);
+  ctx.lineTo(-4, -8);
+  ctx.lineTo(-3, -17);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(5, -16);
+  ctx.lineTo(6, -7);
+  ctx.lineTo(4, -8);
+  ctx.lineTo(3, -17);
+  ctx.closePath();
+  ctx.fill();
+  // Hair top
+  ctx.beginPath();
+  ctx.moveTo(-4.5, -17);
+  ctx.quadraticCurveTo(0, -20, 4.5, -17);
+  ctx.lineTo(4, -15);
+  ctx.lineTo(-4, -15);
+  ctx.closePath();
+  ctx.fill();
+  // Eyes (intense)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2, -14, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -14, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#3a4a2a';
+  ctx.beginPath(); ctx.arc(-2, -14, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -14, 0.4, 0, Math.PI * 2); ctx.fill();
+  // Stern brow
+  ctx.fillStyle = hair;
+  ctx.fillRect(-3.5, -15.5, 2.2, 0.5);
+  ctx.fillRect(1.3, -15.5, 2.2, 0.5);
+  // Strong jaw
+  ctx.fillStyle = skinSh;
+  ctx.fillRect(-2.5, -11, 5, 0.4);
+  // Mouth (determined)
+  ctx.strokeStyle = '#3a1a08'; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -11.5); ctx.lineTo(1.5, -11.5);
+  ctx.stroke();
+  // MUSCULAR CHEST (bare)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.moveTo(-6, -8);
+  ctx.quadraticCurveTo(-8, -2, -6, 5);
+  ctx.lineTo(6, 5);
+  ctx.quadraticCurveTo(8, -2, 6, -8);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Pec definition
+  ctx.strokeStyle = skinSh; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -5); ctx.lineTo(0, -1);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-4, -3); ctx.quadraticCurveTo(-2, -2, 0, -3);
+  ctx.moveTo(0, -3); ctx.quadraticCurveTo(2, -2, 4, -3);
+  ctx.stroke();
+  // Abs
+  ctx.strokeStyle = skinSh; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(0, 0); ctx.lineTo(0, 4);
+  ctx.moveTo(-2.5, 1.5); ctx.lineTo(2.5, 1.5);
+  ctx.moveTo(-2.5, 3); ctx.lineTo(2.5, 3);
+  ctx.stroke();
+  // Highlights
+  ctx.fillStyle = skinHi;
+  ctx.globalAlpha = 0.5;
+  ctx.fillRect(-3, -6, 2, 1.5);
+  ctx.fillRect(1, -6, 2, 1.5);
+  ctx.globalAlpha = 1;
+  // LOINCLOTH (brown animal hide)
+  ctx.fillStyle = loincloth;
+  ctx.beginPath();
+  ctx.moveTo(-5, 5);
+  ctx.lineTo(-6, 8);
+  ctx.lineTo(-4, 10);
+  ctx.lineTo(4, 10);
+  ctx.lineTo(6, 8);
+  ctx.lineTo(5, 5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.stroke();
+  // Loincloth detail
+  ctx.fillStyle = loinDk;
+  ctx.fillRect(-1, 7, 2, 3);
+  // BARE LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 10, 2.5, 5);
+  ctx.fillRect(0.5 + legSwing, 10, 2.5, 5);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 10, 2.5, 5);
+  ctx.strokeRect(0.5 + legSwing, 10, 2.5, 5);
+  // Bare feet
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(-1.75 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.75 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.ellipse(-1.75 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(1.75 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.stroke();
+}
+
+// POJKEN SOM FLYGER (Barrie Peter Pan 1904 archetype - PD)
+function drawPeterpanCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const skin = flash ? '#fff' : '#e0b888';
+  const skinSh = flash ? '#fff' : '#a87848';
+  const hair = flash ? '#fff' : '#aa6818';
+  const tunic = flash ? '#fff' : '#3a7a3a';
+  const tunicLite = flash ? '#fff' : '#5aaa5a';
+  const tunicDk = flash ? '#fff' : '#1a4a1a';
+  const featherRed = flash ? '#fff' : '#cc1818';
+  const belt = flash ? '#fff' : '#5a3818';
+  const tights = flash ? '#fff' : '#5aaa5a';
+  const outline = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // GREEN POINTED HAT (with red feather)
+  ctx.fillStyle = tunic;
+  ctx.beginPath();
+  ctx.moveTo(-5, -16);
+  ctx.lineTo(0, -22);
+  ctx.lineTo(5, -16);
+  ctx.lineTo(4, -15);
+  ctx.lineTo(-4, -15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.stroke();
+  // Red feather
+  ctx.fillStyle = featherRed;
+  ctx.beginPath();
+  ctx.moveTo(2, -21);
+  ctx.quadraticCurveTo(5, -24, 7, -22);
+  ctx.quadraticCurveTo(5, -20, 2, -19);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#8a0a0a'; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(2, -21); ctx.lineTo(6.5, -22);
+  ctx.stroke();
+  // HEAD
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -12, 4, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.stroke();
+  // Reddish-brown hair sticking out at sides
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(-4, -14);
+  ctx.lineTo(-5, -11);
+  ctx.lineTo(-3.5, -11);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(4, -14);
+  ctx.lineTo(5, -11);
+  ctx.lineTo(3.5, -11);
+  ctx.closePath();
+  ctx.fill();
+  // Pointed ears (slight elvish)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.moveTo(-4, -12);
+  ctx.lineTo(-5, -11.5);
+  ctx.lineTo(-4, -10.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(4, -12);
+  ctx.lineTo(5, -11.5);
+  ctx.lineTo(4, -10.5);
+  ctx.closePath();
+  ctx.fill();
+  // Cheerful eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-1.5, -12, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1.5, -12, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#1a3a1a';
+  ctx.beginPath(); ctx.arc(-1.3, -12, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1.7, -12, 0.4, 0, Math.PI * 2); ctx.fill();
+  // Small mischievous smile
+  ctx.strokeStyle = '#3a2010'; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -9.5);
+  ctx.quadraticCurveTo(0, -8.8, 1.5, -9.5);
+  ctx.stroke();
+  // GREEN TUNIC with zigzag bottom
+  ctx.fillStyle = tunic;
+  ctx.beginPath();
+  ctx.moveTo(-5, -7);
+  ctx.lineTo(-6, 4);
+  // Zigzag bottom
+  ctx.lineTo(-4, 6);
+  ctx.lineTo(-2, 4);
+  ctx.lineTo(0, 6);
+  ctx.lineTo(2, 4);
+  ctx.lineTo(4, 6);
+  ctx.lineTo(6, 4);
+  ctx.lineTo(5, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.stroke();
+  // Brown belt
+  ctx.fillStyle = belt;
+  ctx.fillRect(-6, 0, 12, 1);
+  // Belt buckle
+  ctx.fillStyle = '#ffd54a';
+  ctx.fillRect(-0.8, -0.2, 1.6, 1.4);
+  // Small dagger at belt
+  ctx.fillStyle = '#aaaacc';
+  ctx.fillRect(3, 1, 0.4, 2);
+  ctx.fillStyle = belt;
+  ctx.fillRect(2.8, 1, 0.8, 0.5);
+  // Tunic highlight
+  ctx.fillStyle = tunicLite;
+  ctx.globalAlpha = 0.5;
+  ctx.fillRect(-3, -6, 2, 4);
+  ctx.globalAlpha = 1;
+  // GREEN LEGGINGS
+  ctx.fillStyle = tights;
+  ctx.fillRect(-3 - legSwing, 5, 2.5, 10);
+  ctx.fillRect(0.5 + legSwing, 5, 2.5, 10);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 5, 2.5, 10);
+  ctx.strokeRect(0.5 + legSwing, 5, 2.5, 10);
+  // Brown ankle boots
+  ctx.fillStyle = belt;
+  ctx.beginPath();
+  ctx.ellipse(-1.75 - legSwing, 16, 2.2, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.75 + legSwing, 16, 2.2, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// KAPTEN KROK (Barrie Captain Hook 1904 archetype - PD)
+function drawPirateCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const skin = flash ? '#fff' : '#d4a574';
+  const hair = flash ? '#fff' : '#0a0a0a';
+  const coat = flash ? '#fff' : '#aa1818';
+  const coatDk = flash ? '#fff' : '#6a0a08';
+  const gold = flash ? '#fff' : '#ffd54a';
+  const lace = flash ? '#fff' : '#f4f0e0';
+  const hookSilver = flash ? '#fff' : '#cccccc';
+  const hatBlack = flash ? '#fff' : '#0a0a0a';
+  const outline = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // TRICORN HAT (black)
+  ctx.fillStyle = hatBlack;
+  ctx.beginPath();
+  ctx.moveTo(-7, -16);
+  ctx.lineTo(-5, -22);
+  ctx.lineTo(0, -23);
+  ctx.lineTo(5, -22);
+  ctx.lineTo(7, -16);
+  ctx.lineTo(5, -15);
+  ctx.lineTo(-5, -15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Hat gold trim
+  ctx.fillStyle = gold;
+  ctx.fillRect(-6, -16.5, 12, 0.5);
+  // Red feather on hat
+  ctx.fillStyle = '#cc1818';
+  ctx.beginPath();
+  ctx.moveTo(-4, -22);
+  ctx.lineTo(-2, -25);
+  ctx.lineTo(0, -23);
+  ctx.closePath();
+  ctx.fill();
+  // HEAD
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -12, 4.5, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Long curled black hair coming out from under hat
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(-5, -14);
+  ctx.lineTo(-6, -8);
+  ctx.quadraticCurveTo(-5, -7, -3, -8);
+  ctx.lineTo(-3.5, -14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(5, -14);
+  ctx.lineTo(6, -8);
+  ctx.quadraticCurveTo(5, -7, 3, -8);
+  ctx.lineTo(3.5, -14);
+  ctx.closePath();
+  ctx.fill();
+  // Eyes (narrow, menacing)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.ellipse(-2, -12, 0.9, 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(2, -12, 0.9, 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath(); ctx.arc(-2, -12, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -12, 0.4, 0, Math.PI * 2); ctx.fill();
+  // CURLED MUSTACHE
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(-2.5, -10.5);
+  ctx.quadraticCurveTo(0, -11, 2.5, -10.5);
+  ctx.quadraticCurveTo(3.5, -10.8, 4, -11.5);
+  ctx.quadraticCurveTo(3, -10.2, 2.5, -10);
+  ctx.quadraticCurveTo(0, -10.2, -2.5, -10);
+  ctx.quadraticCurveTo(-3, -10.2, -4, -11.5);
+  ctx.quadraticCurveTo(-3.5, -10.8, -2.5, -10.5);
+  ctx.closePath();
+  ctx.fill();
+  // Curled mustache tip-curls
+  ctx.beginPath();
+  ctx.arc(-4, -11, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.arc(4, -11, 0.5, 0, Math.PI * 2); ctx.fill();
+  // Small goatee
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(-1, -8);
+  ctx.lineTo(1, -8);
+  ctx.lineTo(0.5, -7);
+  ctx.lineTo(-0.5, -7);
+  ctx.closePath();
+  ctx.fill();
+  // RED COAT
+  ctx.fillStyle = coat;
+  ctx.beginPath();
+  ctx.moveTo(-6, -7);
+  ctx.lineTo(-7, 5);
+  ctx.lineTo(7, 5);
+  ctx.lineTo(6, -7);
+  ctx.closePath();
+  ctx.fill();
+  // White lacy collar
+  ctx.fillStyle = lace;
+  ctx.beginPath();
+  ctx.moveTo(-3, -7);
+  ctx.quadraticCurveTo(-3.5, -5, -3, -3);
+  ctx.lineTo(3, -3);
+  ctx.quadraticCurveTo(3.5, -5, 3, -7);
+  ctx.closePath();
+  ctx.fill();
+  // Lace ruffles
+  ctx.strokeStyle = '#aaa'; ctx.lineWidth = 0.3;
+  for (const y of [-6, -5, -4]) {
+    ctx.beginPath();
+    ctx.moveTo(-3, y);
+    ctx.quadraticCurveTo(0, y + 0.5, 3, y);
+    ctx.stroke();
+  }
+  // Gold buttons (3 down center)
+  ctx.fillStyle = gold;
+  for (const by of [-3, 0, 3]) {
+    ctx.beginPath();
+    ctx.arc(0, by, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.moveTo(-6, -7);
+  ctx.lineTo(-7, 5);
+  ctx.lineTo(7, 5);
+  ctx.lineTo(6, -7);
+  ctx.closePath();
+  ctx.stroke();
+  // HOOK (left hand — west side, very visible)
+  ctx.strokeStyle = hookSilver; ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-9, 0);
+  ctx.quadraticCurveTo(-11, 2, -10, 4);
+  ctx.quadraticCurveTo(-8, 5, -8, 3);
+  ctx.stroke();
+  // Hook glint
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-10.3, 1, 0.4, 1);
+  // BLACK BREECHES
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(-3 - legSwing, 5, 2.5, 10);
+  ctx.fillRect(0.5 + legSwing, 5, 2.5, 10);
+  // Black boots
+  ctx.beginPath();
+  ctx.ellipse(-1.75 - legSwing, 16, 2.5, 1.4, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.75 + legSwing, 16, 2.5, 1.4, 0, 0, Math.PI * 2); ctx.fill();
+  // Gold buckles on boots
+  ctx.fillStyle = gold;
+  ctx.fillRect(-2.5 - legSwing, 15, 1.5, 0.4);
+  ctx.fillRect(1 + legSwing, 15, 1.5, 0.4);
+}
+
+// LITEN FÉ (Barrie Tinker Bell 1904 archetype - PD)
+function drawFairyCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const skin = flash ? '#fff' : '#f0d4a8';
+  const dress = flash ? '#fff' : '#5aaa3a';
+  const dressDk = flash ? '#fff' : '#3a7a1a';
+  const dressLite = flash ? '#fff' : '#aada6a';
+  const hair = flash ? '#fff' : '#e8c878';
+  const wingCol = flash ? '#fff' : '#aaffea';
+  const sparkle = flash ? '#fff' : '#ffeb88';
+  const outline = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // WINGS BEHIND (translucent sparkly)
+  ctx.fillStyle = wingCol;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.ellipse(-5, -5, 4, 6, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(5, -5, 4, 6, 0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(-4, 1, 3, 4, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(4, 1, 3, 4, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = '#5aaaca'; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.ellipse(-5, -5, 4, 6, -0.3, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(5, -5, 4, 6, 0.3, 0, Math.PI * 2);
+  ctx.stroke();
+  // Wing detail (vein lines)
+  ctx.strokeStyle = '#7accea'; ctx.lineWidth = 0.3;
+  ctx.beginPath();
+  ctx.moveTo(-5, -8); ctx.lineTo(-5, 0);
+  ctx.moveTo(5, -8); ctx.lineTo(5, 0);
+  ctx.stroke();
+  // Pixie dust sparkles
+  ctx.fillStyle = sparkle;
+  ctx.shadowColor = sparkle; ctx.shadowBlur = 3;
+  for (const [sx, sy] of [[-8, -8], [8, -8], [-7, 5], [7, 5], [0, -16]]) {
+    ctx.beginPath(); ctx.arc(sx, sy, 0.5, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+  // HEAD
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -12, 4, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.stroke();
+  // BLONDE HAIR IN BUN
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(-4, -15);
+  ctx.quadraticCurveTo(0, -18, 4, -15);
+  ctx.lineTo(3, -13);
+  ctx.lineTo(-3, -13);
+  ctx.closePath();
+  ctx.fill();
+  // Bun on top
+  ctx.beginPath();
+  ctx.arc(0, -19, 2.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#aa8848'; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.arc(0, -19, 2.2, 0, Math.PI * 2);
+  ctx.stroke();
+  // Hair texture (lines on bun)
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2;
+    ctx.moveTo(Math.cos(a) * 0.5, -19 + Math.sin(a) * 0.5);
+    ctx.lineTo(Math.cos(a) * 2, -19 + Math.sin(a) * 2);
+  }
+  ctx.stroke();
+  // Big bright eyes (cute fairy)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-1.5, -12, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1.5, -12, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#1a4a7a';
+  ctx.beginPath(); ctx.arc(-1.5, -12, 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1.5, -12, 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-1.2, -12.3, 0.3, 0.3);
+  ctx.fillRect(1.7, -12.3, 0.3, 0.3);
+  // Tiny smile
+  ctx.strokeStyle = '#cc5070'; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-1, -9.5);
+  ctx.quadraticCurveTo(0, -9, 1, -9.5);
+  ctx.stroke();
+  // GREEN LEAF DRESS (signature)
+  ctx.fillStyle = dress;
+  ctx.beginPath();
+  ctx.moveTo(-5, -7);
+  // Jagged leaf-like bottom
+  ctx.lineTo(-6, 0);
+  ctx.lineTo(-5, 3);
+  ctx.lineTo(-4, 5);
+  ctx.lineTo(-2, 3);
+  ctx.lineTo(0, 5);
+  ctx.lineTo(2, 3);
+  ctx.lineTo(4, 5);
+  ctx.lineTo(5, 3);
+  ctx.lineTo(6, 0);
+  ctx.lineTo(5, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // Leaf veins on dress
+  ctx.strokeStyle = dressDk; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(0, -6); ctx.lineTo(0, 4);
+  ctx.moveTo(0, -3); ctx.lineTo(-3, -1);
+  ctx.moveTo(0, -3); ctx.lineTo(3, -1);
+  ctx.moveTo(0, 0); ctx.lineTo(-2.5, 2);
+  ctx.moveTo(0, 0); ctx.lineTo(2.5, 2);
+  ctx.stroke();
+  // Highlights
+  ctx.fillStyle = dressLite;
+  ctx.globalAlpha = 0.5;
+  ctx.fillRect(-3, -5, 1.5, 2);
+  ctx.globalAlpha = 1;
+  // BARE TINY LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-2 - legSwing * 0.5, 5, 1.5, 8);
+  ctx.fillRect(0.5 + legSwing * 0.5, 5, 1.5, 8);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  ctx.strokeRect(-2 - legSwing * 0.5, 5, 1.5, 8);
+  ctx.strokeRect(0.5 + legSwing * 0.5, 5, 1.5, 8);
+  // Tiny green shoes
+  ctx.fillStyle = dressDk;
+  ctx.beginPath();
+  ctx.ellipse(-1.25 - legSwing * 0.5, 15, 1.5, 0.8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.25 + legSwing * 0.5, 15, 1.5, 0.8, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// TRÄDOCKAN (Collodi Pinocchio 1883 - PD wooden puppet)
+function drawPuppetCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const wood = flash ? '#fff' : '#d4a060';
+  const woodLite = flash ? '#fff' : '#e8c080';
+  const woodDk = flash ? '#fff' : '#9a6a30';
+  const woodJoint = flash ? '#fff' : '#5a3818';
+  const shirtRed = flash ? '#fff' : '#cc2818';
+  const shirtCream = flash ? '#fff' : '#f0e0a0';
+  const conePaper = flash ? '#fff' : '#f4f0e0';
+  const conePaint = flash ? '#fff' : '#7a2010';
+  const outline = flash ? '#fff' : '#3a1a04';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // PAPER-CONE HAT (original Collodi description)
+  ctx.fillStyle = conePaper;
+  ctx.beginPath();
+  ctx.moveTo(-4, -16);
+  ctx.lineTo(0, -22);
+  ctx.lineTo(4, -16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.stroke();
+  // Cone painted detail
+  ctx.fillStyle = conePaint;
+  ctx.beginPath();
+  ctx.moveTo(-3, -17);
+  ctx.lineTo(0, -20.5);
+  ctx.lineTo(3, -17);
+  ctx.lineTo(2, -16.5);
+  ctx.lineTo(-2, -16.5);
+  ctx.closePath();
+  ctx.fill();
+  // HEAD (wooden round)
+  ctx.fillStyle = wood;
+  ctx.beginPath();
+  ctx.ellipse(0, -12, 4.5, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Wood grain texture
+  ctx.strokeStyle = woodDk; ctx.lineWidth = 0.25;
+  ctx.beginPath();
+  ctx.moveTo(-3, -14); ctx.quadraticCurveTo(-3.5, -11, -3, -10);
+  ctx.moveTo(3, -14); ctx.quadraticCurveTo(3.5, -11, 3, -10);
+  ctx.stroke();
+  // Wood joint at neck
+  ctx.fillStyle = woodJoint;
+  ctx.fillRect(-1.5, -7.5, 3, 0.4);
+  // LONG POINTED WOODEN NOSE (signature feature!)
+  ctx.fillStyle = wood;
+  ctx.beginPath();
+  ctx.moveTo(0, -11);
+  ctx.lineTo(8, -11);  // very long!
+  ctx.lineTo(8.5, -10.5);
+  ctx.lineTo(0, -10.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.stroke();
+  ctx.fillStyle = woodLite;
+  ctx.fillRect(0.5, -11, 7, 0.2);
+  // Round wooden eyes
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2, -13, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -13, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  ctx.beginPath(); ctx.arc(-2, -13, 0.7, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2, -13, 0.7, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath(); ctx.arc(-2, -13, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -13, 0.4, 0, Math.PI * 2); ctx.fill();
+  // Painted simple smile
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-1, -9);
+  ctx.quadraticCurveTo(0, -8.5, 1, -9);
+  ctx.stroke();
+  // BODY (red striped shirt — Collodi described striped)
+  ctx.fillStyle = shirtRed;
+  ctx.beginPath();
+  ctx.moveTo(-5, -7);
+  ctx.lineTo(-5.5, 4);
+  ctx.lineTo(5.5, 4);
+  ctx.lineTo(5, -7);
+  ctx.closePath();
+  ctx.fill();
+  // Vertical stripes (Collodi's original described striped)
+  ctx.fillStyle = shirtCream;
+  for (const sx of [-3.5, -1, 1.5, 4]) {
+    ctx.fillRect(sx, -7, 1, 11);
+  }
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-5, -7);
+  ctx.lineTo(-5.5, 4);
+  ctx.lineTo(5.5, 4);
+  ctx.lineTo(5, -7);
+  ctx.closePath();
+  ctx.stroke();
+  // Wood joint at hips
+  ctx.fillStyle = woodJoint;
+  ctx.fillRect(-5, 4, 11, 0.5);
+  // WOODEN LEGS with joints
+  ctx.fillStyle = wood;
+  ctx.fillRect(-3 - legSwing, 5, 2.2, 10);
+  ctx.fillRect(0.8 + legSwing, 5, 2.2, 10);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 5, 2.2, 10);
+  ctx.strokeRect(0.8 + legSwing, 5, 2.2, 10);
+  // Knee joint marks
+  ctx.fillStyle = woodJoint;
+  ctx.fillRect(-3 - legSwing, 9.5, 2.2, 0.4);
+  ctx.fillRect(0.8 + legSwing, 9.5, 2.2, 0.4);
+  // Wooden feet (block shapes)
+  ctx.fillStyle = woodDk;
+  ctx.fillRect(-3.2 - legSwing, 15, 2.6, 1.5);
+  ctx.fillRect(0.6 + legSwing, 15, 2.6, 1.5);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  ctx.strokeRect(-3.2 - legSwing, 15, 2.6, 1.5);
+  ctx.strokeRect(0.6 + legSwing, 15, 2.6, 1.5);
+}
+
+// DJUNGELPOJKEN (Kipling Mowgli 1894 - PD)
+function drawJunglekidCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const skin = flash ? '#fff' : '#9a5828';
+  const skinSh = flash ? '#fff' : '#5a3010';
+  const skinHi = flash ? '#fff' : '#ba7838';
+  const hair = flash ? '#fff' : '#1a0a04';
+  const loinRed = flash ? '#fff' : '#aa1818';
+  const loinDk = flash ? '#fff' : '#6a0a08';
+  const knife = flash ? '#fff' : '#aaaacc';
+  const outline = flash ? '#fff' : '#1a0a04';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // HEAD
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -13, 4.5, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // MESSY BLACK HAIR
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.moveTo(-5, -17);
+  ctx.quadraticCurveTo(-3, -19, 0, -19);
+  ctx.quadraticCurveTo(3, -19, 5, -17);
+  ctx.lineTo(4, -14);
+  ctx.lineTo(2, -16);
+  ctx.lineTo(0, -14.5);
+  ctx.lineTo(-2, -16);
+  ctx.lineTo(-4, -14);
+  ctx.closePath();
+  ctx.fill();
+  // Stray hairs sticking up
+  for (const [hx, hy] of [[-3, -19], [0, -20], [3, -19]]) {
+    ctx.beginPath();
+    ctx.arc(hx, hy, 0.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // EYES (alert, wild)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2, -13, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -13, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#3a1808';
+  ctx.beginPath(); ctx.arc(-2, -13, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -13, 0.45, 0, Math.PI * 2); ctx.fill();
+  // Determined eyebrows
+  ctx.fillStyle = hair;
+  ctx.fillRect(-3.2, -14.5, 1.8, 0.5);
+  ctx.fillRect(1.4, -14.5, 1.8, 0.5);
+  // Small confident smile
+  ctx.strokeStyle = '#3a1808'; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-1, -10);
+  ctx.quadraticCurveTo(0, -9.5, 1, -10);
+  ctx.stroke();
+  // MUSCULAR BARE TORSO (young, athletic)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.moveTo(-5, -7);
+  ctx.quadraticCurveTo(-7, -2, -5, 5);
+  ctx.lineTo(5, 5);
+  ctx.quadraticCurveTo(7, -2, 5, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Body muscle definition
+  ctx.strokeStyle = skinSh; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(0, -5); ctx.lineTo(0, 3);
+  ctx.moveTo(-3, -3); ctx.quadraticCurveTo(0, -2, 3, -3);
+  ctx.moveTo(-2, 0); ctx.lineTo(2, 0);
+  ctx.stroke();
+  // Highlight
+  ctx.fillStyle = skinHi;
+  ctx.globalAlpha = 0.4;
+  ctx.fillRect(-2, -6, 1.5, 2);
+  ctx.globalAlpha = 1;
+  // RED LOINCLOTH
+  ctx.fillStyle = loinRed;
+  ctx.beginPath();
+  ctx.moveTo(-5, 5);
+  ctx.lineTo(-5, 9);
+  ctx.lineTo(-3, 11);
+  ctx.lineTo(3, 11);
+  ctx.lineTo(5, 9);
+  ctx.lineTo(5, 5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.stroke();
+  ctx.fillStyle = loinDk;
+  ctx.fillRect(-5, 5, 10, 0.6);  // belt
+  // KNIFE at belt
+  ctx.fillStyle = knife;
+  ctx.fillRect(3.5, 6, 0.5, 2.5);
+  ctx.fillStyle = '#5a3818';
+  ctx.fillRect(3.3, 5.5, 0.9, 0.8);
+  // BARE LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-2.5 - legSwing, 11, 2.2, 4);
+  ctx.fillRect(0.3 + legSwing, 11, 2.2, 4);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  ctx.strokeRect(-2.5 - legSwing, 11, 2.2, 4);
+  ctx.strokeRect(0.3 + legSwing, 11, 2.2, 4);
+  // Bare feet
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(-1.4 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.4 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.ellipse(-1.4 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath();
+  ctx.ellipse(1.4 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.stroke();
+}
+
+// VÄNLIG BJÖRN (Kipling Baloo 1894 - sloth bear, PD)
+function drawBearCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const furBrown = flash ? '#fff' : '#5a3818';
+  const furDk = flash ? '#fff' : '#3a2008';
+  const furLite = flash ? '#fff' : '#7a5028';
+  const muzzle = flash ? '#fff' : '#aa8858';
+  const claw = flash ? '#fff' : '#1a0a04';
+  const outline = flash ? '#fff' : '#1a0a04';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // HEAD (round bear head)
+  ctx.fillStyle = furBrown;
+  ctx.beginPath();
+  ctx.ellipse(0, -13, 5.5, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Round ears on top
+  ctx.fillStyle = furBrown;
+  ctx.beginPath();
+  ctx.arc(-4, -17, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(4, -17, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.arc(-4, -17, 2, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(4, -17, 2, 0, Math.PI * 2); ctx.stroke();
+  // Inner ears
+  ctx.fillStyle = furDk;
+  ctx.beginPath();
+  ctx.arc(-4, -17, 1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(4, -17, 1, 0, Math.PI * 2);
+  ctx.fill();
+  // Muzzle (lighter beige)
+  ctx.fillStyle = muzzle;
+  ctx.beginPath();
+  ctx.ellipse(0, -10, 3, 2.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // Nose (black)
+  ctx.fillStyle = claw;
+  ctx.beginPath();
+  ctx.ellipse(0, -10.5, 1, 0.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Mouth
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -9.5);
+  ctx.lineTo(0, -8.5);
+  ctx.moveTo(0, -8.5);
+  ctx.quadraticCurveTo(-1, -8, -1.5, -8.5);
+  ctx.moveTo(0, -8.5);
+  ctx.quadraticCurveTo(1, -8, 1.5, -8.5);
+  ctx.stroke();
+  // EYES (friendly black bear eyes)
+  ctx.fillStyle = claw;
+  ctx.beginPath(); ctx.arc(-2.5, -13.5, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -13.5, 0.7, 0, Math.PI * 2); ctx.fill();
+  // Eye glints
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-2.7, -13.7, 0.3, 0.3);
+  ctx.fillRect(2.3, -13.7, 0.3, 0.3);
+  // BODY (big rounded furry)
+  ctx.fillStyle = furBrown;
+  ctx.beginPath();
+  ctx.ellipse(0, -1, 7, 9, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Belly (lighter fur)
+  ctx.fillStyle = furLite;
+  ctx.beginPath();
+  ctx.ellipse(0, 1, 3.5, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Shaggy fur texture (clumps)
+  ctx.fillStyle = furDk;
+  for (const [fx, fy] of [[-5, -3], [5, -3], [-5, 2], [5, 2], [-4, -5], [4, -5]]) {
+    ctx.beginPath();
+    ctx.arc(fx, fy, 0.7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // ARM stubs visible (paws)
+  ctx.fillStyle = furBrown;
+  ctx.beginPath();
+  ctx.arc(-7, 2, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(7, 2, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.beginPath(); ctx.arc(-7, 2, 2, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(7, 2, 2, 0, Math.PI * 2); ctx.stroke();
+  // CLAWS on paws
+  ctx.fillStyle = claw;
+  for (const x of [-7.8, -7, -6.2]) {
+    ctx.beginPath();
+    ctx.moveTo(x, 3.5);
+    ctx.lineTo(x - 0.2, 4.5);
+    ctx.lineTo(x + 0.2, 4.5);
+    ctx.closePath();
+    ctx.fill();
+  }
+  for (const x of [6.2, 7, 7.8]) {
+    ctx.beginPath();
+    ctx.moveTo(x, 3.5);
+    ctx.lineTo(x - 0.2, 4.5);
+    ctx.lineTo(x + 0.2, 4.5);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // LEGS (short and stubby)
+  ctx.fillStyle = furBrown;
+  ctx.fillRect(-3 - legSwing, 7, 2.5, 8);
+  ctx.fillRect(0.5 + legSwing, 7, 2.5, 8);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 7, 2.5, 8);
+  ctx.strokeRect(0.5 + legSwing, 7, 2.5, 8);
+  // Bear feet (rounded)
+  ctx.fillStyle = furDk;
+  ctx.beginPath();
+  ctx.ellipse(-1.75 - legSwing, 16, 2.3, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.75 + legSwing, 16, 2.3, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+  // Foot claws
+  ctx.fillStyle = claw;
+  for (const x of [-2.8, -1.8, -0.8]) {
+    ctx.beginPath();
+    ctx.moveTo(x - legSwing, 17);
+    ctx.lineTo(x - legSwing - 0.2, 17.5);
+    ctx.lineTo(x - legSwing + 0.2, 17.5);
+    ctx.closePath();
+    ctx.fill();
+  }
+  for (const x of [0.8, 1.8, 2.8]) {
+    ctx.beginPath();
+    ctx.moveTo(x + legSwing, 17);
+    ctx.lineTo(x + legSwing - 0.2, 17.5);
+    ctx.lineTo(x + legSwing + 0.2, 17.5);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+// DJUNGELTIGER (Kipling Shere Khan 1894 - PD)
+function drawTigerCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const orange = flash ? '#fff' : '#ff8a30';
+  const orangeDk = flash ? '#fff' : '#cc5a10';
+  const orangeLite = flash ? '#fff' : '#ffaa50';
+  const black = flash ? '#fff' : '#0a0a0a';
+  const white = flash ? '#fff' : '#f4f0e0';
+  const yellowEye = flash ? '#fff' : '#ffd54a';
+  const fang = flash ? '#fff' : '#f0e0c0';
+  const outline = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // HEAD (large tiger head)
+  ctx.fillStyle = orange;
+  ctx.beginPath();
+  ctx.ellipse(0, -13, 6, 5.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Pointed ears
+  ctx.fillStyle = orange;
+  ctx.beginPath();
+  ctx.moveTo(-5, -17);
+  ctx.lineTo(-3, -19);
+  ctx.lineTo(-3, -16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(5, -17);
+  ctx.lineTo(3, -19);
+  ctx.lineTo(3, -16);
+  ctx.closePath();
+  ctx.fill();
+  // Inner ears (black)
+  ctx.fillStyle = black;
+  ctx.beginPath();
+  ctx.moveTo(-4.5, -17);
+  ctx.lineTo(-3.5, -18);
+  ctx.lineTo(-3.5, -16.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(4.5, -17);
+  ctx.lineTo(3.5, -18);
+  ctx.lineTo(3.5, -16.5);
+  ctx.closePath();
+  ctx.fill();
+  // BLACK STRIPES on head
+  ctx.fillStyle = black;
+  for (const [x, y, w] of [[-5, -15, 1.5], [-4, -12, 1.2], [4, -15, 1.5], [4, -12, 1.2]]) {
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x + w, y + 0.5);
+    ctx.lineTo(x + w, y + 1);
+    ctx.lineTo(x, y + 0.7);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // White muzzle
+  ctx.fillStyle = white;
+  ctx.beginPath();
+  ctx.ellipse(0, -10, 3, 2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // FIERCE YELLOW EYES
+  ctx.fillStyle = yellowEye;
+  ctx.beginPath();
+  ctx.ellipse(-2.5, -13.5, 1, 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(2.5, -13.5, 1, 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Vertical slit pupils
+  ctx.fillStyle = black;
+  ctx.fillRect(-2.7, -14.1, 0.3, 1.2);
+  ctx.fillRect(2.4, -14.1, 0.3, 1.2);
+  // Black eyebrow stripes
+  ctx.fillStyle = black;
+  ctx.fillRect(-3.5, -15, 2, 0.5);
+  ctx.fillRect(1.5, -15, 2, 0.5);
+  // Black nose
+  ctx.fillStyle = black;
+  ctx.beginPath();
+  ctx.ellipse(0, -11, 0.8, 0.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Snarl mouth with FANGS
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-1, -9.5);
+  ctx.quadraticCurveTo(0, -8.5, 1, -9.5);
+  ctx.moveTo(0, -8.5);
+  ctx.lineTo(0, -8);
+  ctx.stroke();
+  // Fangs
+  ctx.fillStyle = fang;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -9); ctx.lineTo(-1, -8); ctx.lineTo(-0.8, -9);
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(0.8, -9); ctx.lineTo(1, -8); ctx.lineTo(1.5, -9);
+  ctx.closePath(); ctx.fill();
+  // Whiskers (4 each side)
+  ctx.strokeStyle = '#3a2010'; ctx.lineWidth = 0.3;
+  for (const dy of [-0.5, 0, 0.5]) {
+    ctx.beginPath();
+    ctx.moveTo(-3, -10 + dy); ctx.lineTo(-6, -10 + dy - 0.5);
+    ctx.moveTo(3, -10 + dy); ctx.lineTo(6, -10 + dy - 0.5);
+    ctx.stroke();
+  }
+  // BODY (orange tiger torso)
+  ctx.fillStyle = orange;
+  ctx.beginPath();
+  ctx.moveTo(-6, -7);
+  ctx.quadraticCurveTo(-8, -2, -6, 5);
+  ctx.lineTo(6, 5);
+  ctx.quadraticCurveTo(8, -2, 6, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // BODY STRIPES
+  ctx.fillStyle = black;
+  for (const [bx, by, bw] of [[-5, -5, 2], [-5, -2, 2], [-5, 1, 2], [3, -5, 2], [3, -2, 2], [3, 1, 2]]) {
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(bx + bw, by + 0.5);
+    ctx.lineTo(bx + bw, by + 1.2);
+    ctx.lineTo(bx, by + 0.7);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // White belly
+  ctx.fillStyle = white;
+  ctx.beginPath();
+  ctx.ellipse(0, 1, 2.5, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  ctx.stroke();
+  // LEGS (orange with stripes)
+  ctx.fillStyle = orange;
+  ctx.fillRect(-3 - legSwing, 5, 2.5, 10);
+  ctx.fillRect(0.5 + legSwing, 5, 2.5, 10);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 5, 2.5, 10);
+  ctx.strokeRect(0.5 + legSwing, 5, 2.5, 10);
+  // Leg stripes
+  ctx.fillStyle = black;
+  for (const y of [7, 10, 13]) {
+    ctx.fillRect(-3 - legSwing, y, 2.5, 0.5);
+    ctx.fillRect(0.5 + legSwing, y, 2.5, 0.5);
+  }
+  // Tiger paws (orange with black claws)
+  ctx.fillStyle = orangeDk;
+  ctx.beginPath();
+  ctx.ellipse(-1.75 - legSwing, 16, 2.5, 1.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.75 + legSwing, 16, 2.5, 1.3, 0, 0, Math.PI * 2); ctx.fill();
+  // Claws
+  ctx.fillStyle = black;
+  for (const x of [-2.8, -1.8, -0.8]) {
+    ctx.beginPath();
+    ctx.moveTo(x - legSwing, 17);
+    ctx.lineTo(x - legSwing - 0.2, 17.6);
+    ctx.lineTo(x - legSwing + 0.2, 17.6);
+    ctx.closePath();
+    ctx.fill();
+  }
+  for (const x of [0.8, 1.8, 2.8]) {
+    ctx.beginPath();
+    ctx.moveTo(x + legSwing, 17);
+    ctx.lineTo(x + legSwing - 0.2, 17.6);
+    ctx.lineTo(x + legSwing + 0.2, 17.6);
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+// PEPPARKAKSGUBBEN (folk tale - PD)
+function drawGingerbreadCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const ginger = flash ? '#fff' : '#aa6a30';
+  const gingerLite = flash ? '#fff' : '#ca8a50';
+  const gingerDk = flash ? '#fff' : '#7a4a18';
+  const icing = flash ? '#fff' : '#fafad8';
+  const gumdrop = flash ? '#fff' : '#cc1818';
+  const gumdropBl = flash ? '#fff' : '#1a5acc';
+  const black = flash ? '#fff' : '#0a0a0a';
+  const outline = flash ? '#fff' : '#5a2a08';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // GINGERBREAD HEAD (round cookie)
+  ctx.fillStyle = ginger;
+  ctx.beginPath();
+  ctx.arc(0, -13, 5.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // White icing edges around head (frosting border)
+  ctx.strokeStyle = icing; ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.arc(0, -13, 5, 0, Math.PI * 2);
+  ctx.stroke();
+  // Icing dots around head
+  ctx.fillStyle = icing;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * 5, -13 + Math.sin(a) * 5, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // White icing eyes
+  ctx.fillStyle = icing;
+  ctx.beginPath();
+  ctx.arc(-2, -14, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(2, -14, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+  // Black pupil dots
+  ctx.fillStyle = black;
+  ctx.beginPath();
+  ctx.arc(-2, -14, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(2, -14, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  // Frosting smile
+  ctx.strokeStyle = icing; ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.arc(0, -11.5, 2.5, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.stroke();
+  // Tiny cinnamon dot nose
+  ctx.fillStyle = gingerDk;
+  ctx.beginPath();
+  ctx.arc(0, -12.5, 0.4, 0, Math.PI * 2);
+  ctx.fill();
+  // BODY (gingerbread cookie shape — wider at shoulders, narrower at waist)
+  ctx.fillStyle = ginger;
+  ctx.beginPath();
+  ctx.moveTo(-5, -7);
+  // Wide arm bumps
+  ctx.lineTo(-7, -5);
+  ctx.lineTo(-7.5, -2);
+  ctx.lineTo(-5, 0);
+  ctx.lineTo(-5, 5);
+  ctx.lineTo(5, 5);
+  ctx.lineTo(5, 0);
+  ctx.lineTo(7.5, -2);
+  ctx.lineTo(7, -5);
+  ctx.lineTo(5, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // White icing edges on body (frosting trim)
+  ctx.strokeStyle = icing; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-4.5, -6.5);
+  ctx.lineTo(-6.5, -5);
+  ctx.lineTo(-7, -2);
+  ctx.lineTo(-4.5, 0);
+  ctx.lineTo(-4.5, 4.5);
+  ctx.lineTo(4.5, 4.5);
+  ctx.lineTo(4.5, 0);
+  ctx.lineTo(7, -2);
+  ctx.lineTo(6.5, -5);
+  ctx.lineTo(4.5, -6.5);
+  ctx.stroke();
+  // GUMDROP BUTTONS (3 down chest, alternating colors)
+  ctx.fillStyle = gumdrop;
+  ctx.beginPath();
+  ctx.arc(0, -4, 0.9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#6a0a08'; ctx.lineWidth = 0.3;
+  ctx.stroke();
+  ctx.fillStyle = gumdropBl;
+  ctx.beginPath();
+  ctx.arc(0, -1, 0.9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#0a2a8a'; ctx.lineWidth = 0.3;
+  ctx.stroke();
+  ctx.fillStyle = '#3a8a3a';
+  ctx.beginPath();
+  ctx.arc(0, 2, 0.9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#1a5a1a'; ctx.lineWidth = 0.3;
+  ctx.stroke();
+  // Button highlights (icing dots on each gumdrop)
+  ctx.fillStyle = icing;
+  ctx.fillRect(-0.3, -4.3, 0.3, 0.3);
+  ctx.fillRect(-0.3, -1.3, 0.3, 0.3);
+  ctx.fillRect(-0.3, 1.7, 0.3, 0.3);
+  // LEGS (stubby gingerbread legs)
+  ctx.fillStyle = ginger;
+  ctx.fillRect(-3.5 - legSwing, 5, 3, 9);
+  ctx.fillRect(0.5 + legSwing, 5, 3, 9);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3.5 - legSwing, 5, 3, 9);
+  ctx.strokeRect(0.5 + legSwing, 5, 3, 9);
+  // Icing on legs (zigzag pattern)
+  ctx.strokeStyle = icing; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-3.3 - legSwing, 7); ctx.lineTo(-0.8 - legSwing, 8);
+  ctx.lineTo(-3.3 - legSwing, 9); ctx.lineTo(-0.8 - legSwing, 10);
+  ctx.moveTo(0.7 + legSwing, 7); ctx.lineTo(3.2 + legSwing, 8);
+  ctx.lineTo(0.7 + legSwing, 9); ctx.lineTo(3.2 + legSwing, 10);
+  ctx.stroke();
+  // Gingerbread feet (extended)
+  ctx.fillStyle = gingerDk;
+  ctx.beginPath();
+  ctx.ellipse(-2 - legSwing, 16, 2.5, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(2 + legSwing, 16, 2.5, 1.2, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// ARABISK PRINS (1001 Nights Aladdin - ancient PD)
+function drawArabprinceCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const skin = flash ? '#fff' : '#c08858';
+  const skinSh = flash ? '#fff' : '#8a5828';
+  const hair = flash ? '#fff' : '#0a0a08';
+  const turban = flash ? '#fff' : '#f4f0e0';
+  const turbanSh = flash ? '#fff' : '#aaa898';
+  const vest = flash ? '#fff' : '#5a3018';
+  const vestPattern = flash ? '#fff' : '#aa7a1a';
+  const shirt = flash ? '#fff' : '#e8d8a8';
+  const pants = flash ? '#fff' : '#cc5a18';
+  const pantsDk = flash ? '#fff' : '#8a3a08';
+  const gold = flash ? '#fff' : '#ffd54a';
+  const outline = flash ? '#fff' : '#1a0a04';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // TURBAN (white wrapped)
+  ctx.fillStyle = turban;
+  ctx.beginPath();
+  ctx.ellipse(0, -17, 6, 3.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.stroke();
+  // Turban wrap lines
+  ctx.strokeStyle = turbanSh; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(-5, -18.5); ctx.quadraticCurveTo(0, -17, 5, -18.5);
+  ctx.moveTo(-5.5, -17); ctx.quadraticCurveTo(0, -15.5, 5.5, -17);
+  ctx.stroke();
+  // Gold gem on turban
+  ctx.fillStyle = gold;
+  ctx.beginPath();
+  ctx.ellipse(0, -19, 0.8, 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#aa8a2a'; ctx.lineWidth = 0.3;
+  ctx.stroke();
+  // HEAD
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -12, 4.5, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Black hair peeking out at sides
+  ctx.fillStyle = hair;
+  ctx.beginPath();
+  ctx.arc(-4, -13, 1.2, Math.PI * 0.3, Math.PI * 0.9);
+  ctx.lineTo(-3, -10);
+  ctx.lineTo(-3.5, -14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(4, -13, 1.2, Math.PI * 1.1, Math.PI * 1.7);
+  ctx.lineTo(3, -10);
+  ctx.lineTo(3.5, -14);
+  ctx.closePath();
+  ctx.fill();
+  // Eyes (dark brown)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2, -12.5, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -12.5, 0.7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#3a2008';
+  ctx.beginPath(); ctx.arc(-2, -12.5, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -12.5, 0.4, 0, Math.PI * 2); ctx.fill();
+  // Confident smile
+  ctx.strokeStyle = '#3a1a08'; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -10);
+  ctx.quadraticCurveTo(0, -9.3, 1.5, -10);
+  ctx.stroke();
+  // SHIRT (loose cream)
+  ctx.fillStyle = shirt;
+  ctx.beginPath();
+  ctx.moveTo(-6, -7);
+  ctx.quadraticCurveTo(-7.5, 0, -6, 5);
+  ctx.lineTo(6, 5);
+  ctx.quadraticCurveTo(7.5, 0, 6, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.stroke();
+  // VEST (sleeveless brown with pattern)
+  ctx.fillStyle = vest;
+  ctx.beginPath();
+  ctx.moveTo(-5, -7);
+  ctx.lineTo(-5, 4);
+  ctx.lineTo(-2, 4);
+  ctx.lineTo(-2, -6);
+  ctx.lineTo(-1, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(5, -7);
+  ctx.lineTo(5, 4);
+  ctx.lineTo(2, 4);
+  ctx.lineTo(2, -6);
+  ctx.lineTo(1, -7);
+  ctx.closePath();
+  ctx.fill();
+  // Vest gold pattern (diamonds)
+  ctx.fillStyle = vestPattern;
+  for (const [px, py] of [[-3.5, -4], [-3.5, -1], [-3.5, 2], [3.5, -4], [3.5, -1], [3.5, 2]]) {
+    ctx.beginPath();
+    ctx.moveTo(px, py - 0.5);
+    ctx.lineTo(px + 0.5, py);
+    ctx.lineTo(px, py + 0.5);
+    ctx.lineTo(px - 0.5, py);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(-5, -7);
+  ctx.lineTo(-5, 4);
+  ctx.moveTo(5, -7);
+  ctx.lineTo(5, 4);
+  ctx.stroke();
+  // Gold belt
+  ctx.fillStyle = gold;
+  ctx.fillRect(-6, 4, 12, 1);
+  ctx.strokeStyle = '#aa8a2a'; ctx.lineWidth = 0.3;
+  ctx.strokeRect(-6, 4, 12, 1);
+  // BAGGY PANTS (orange/red)
+  ctx.fillStyle = pants;
+  ctx.beginPath();
+  ctx.moveTo(-5, 5);
+  ctx.quadraticCurveTo(-6 - legSwing, 9, -4 - legSwing, 13);
+  ctx.lineTo(-2 - legSwing, 13);
+  ctx.lineTo(-1, 9);
+  ctx.lineTo(1, 9);
+  ctx.lineTo(2 + legSwing, 13);
+  ctx.lineTo(4 + legSwing, 13);
+  ctx.quadraticCurveTo(6 + legSwing, 9, 5, 5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // Pants pattern
+  ctx.strokeStyle = pantsDk; ctx.lineWidth = 0.3;
+  ctx.beginPath();
+  ctx.moveTo(-4, 8); ctx.lineTo(-3, 12);
+  ctx.moveTo(4, 8); ctx.lineTo(3, 12);
+  ctx.stroke();
+  // Bare ankles
+  ctx.fillStyle = skin;
+  ctx.fillRect(-2.5 - legSwing, 13, 1.5, 2);
+  ctx.fillRect(1 + legSwing, 13, 1.5, 2);
+  // CURLED-TOE GOLDEN SLIPPERS (signature)
+  ctx.fillStyle = gold;
+  ctx.beginPath();
+  ctx.moveTo(-3 - legSwing, 15);
+  ctx.lineTo(-3 - legSwing, 17);
+  ctx.lineTo(0 - legSwing, 17);
+  ctx.lineTo(0.5 - legSwing, 16);
+  ctx.quadraticCurveTo(0.5 - legSwing, 15, -0.5 - legSwing, 15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(3 + legSwing, 15);
+  ctx.lineTo(3 + legSwing, 17);
+  ctx.lineTo(0 + legSwing, 17);
+  ctx.lineTo(-0.5 + legSwing, 16);
+  ctx.quadraticCurveTo(-0.5 + legSwing, 15, 0.5 + legSwing, 15);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#aa8a2a'; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(-3 - legSwing, 15);
+  ctx.lineTo(-3 - legSwing, 17);
+  ctx.lineTo(0 - legSwing, 17);
+  ctx.lineTo(0.5 - legSwing, 16);
+  ctx.quadraticCurveTo(0.5 - legSwing, 15, -0.5 - legSwing, 15);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(3 + legSwing, 15);
+  ctx.lineTo(3 + legSwing, 17);
+  ctx.lineTo(0 + legSwing, 17);
+  ctx.lineTo(-0.5 + legSwing, 16);
+  ctx.quadraticCurveTo(-0.5 + legSwing, 15, 0.5 + legSwing, 15);
+  ctx.stroke();
+}
+
+// ANDEN (1001 Nights Genie - ancient PD, NOT Disney design)
+function drawGenieCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const purple = flash ? '#fff' : '#7a3aaa';
+  const purpleLite = flash ? '#fff' : '#9a5aca';
+  const purpleDk = flash ? '#fff' : '#4a1a7a';
+  const turban = flash ? '#fff' : '#f4d040';
+  const turbanSh = flash ? '#fff' : '#aa9018';
+  const skin = flash ? '#fff' : '#7a3aaa';
+  const eyeYellow = flash ? '#fff' : '#ffeb88';
+  const gold = flash ? '#fff' : '#ffd54a';
+  const outline = flash ? '#fff' : '#3a0a4a';
+  const swing = Math.sin(walkPhase);
+  const wisp = Math.sin(walkPhase * 1.3);
+  // Mystical aura behind
+  ctx.fillStyle = purple;
+  ctx.globalAlpha = 0.25;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, 9, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // GOLD TURBAN
+  ctx.fillStyle = turban;
+  ctx.beginPath();
+  ctx.ellipse(0, -17, 6, 3.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.stroke();
+  // Turban wrap
+  ctx.strokeStyle = turbanSh; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(-5, -18); ctx.quadraticCurveTo(0, -16.5, 5, -18);
+  ctx.stroke();
+  // Purple gem on turban
+  ctx.fillStyle = purpleDk;
+  ctx.beginPath();
+  ctx.ellipse(0, -19, 0.8, 0.7, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // HEAD (purple skin, mystical)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -12, 4.5, 4.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Highlight on head
+  ctx.fillStyle = purpleLite;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.ellipse(-1.5, -14, 1.5, 1, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // GLOWING YELLOW EYES
+  ctx.shadowColor = eyeYellow; ctx.shadowBlur = 3;
+  ctx.fillStyle = eyeYellow;
+  ctx.beginPath(); ctx.arc(-2, -12.5, 0.8, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, -12.5, 0.8, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // CURLED HANDLEBAR MUSTACHE
+  ctx.fillStyle = outline;
+  ctx.beginPath();
+  ctx.moveTo(-2, -10);
+  ctx.quadraticCurveTo(0, -9.5, 2, -10);
+  ctx.quadraticCurveTo(3, -10.3, 4, -11);
+  ctx.quadraticCurveTo(3, -9.7, 2, -9.5);
+  ctx.quadraticCurveTo(0, -9.2, -2, -9.5);
+  ctx.quadraticCurveTo(-3, -9.7, -4, -11);
+  ctx.quadraticCurveTo(-3, -10.3, -2, -10);
+  ctx.closePath();
+  ctx.fill();
+  // Mustache curl tips
+  ctx.beginPath(); ctx.arc(-4, -10.7, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(4, -10.7, 0.5, 0, Math.PI * 2); ctx.fill();
+  // Earring (gold hoop)
+  ctx.strokeStyle = gold; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.arc(4.5, -11, 0.7, 0, Math.PI * 2);
+  ctx.stroke();
+  // ARMS CROSSED (signature genie pose)
+  // Left arm crossing
+  ctx.fillStyle = purple;
+  ctx.beginPath();
+  ctx.moveTo(-6, -7);
+  ctx.lineTo(-7, -3);
+  ctx.lineTo(-4, -2);
+  ctx.lineTo(3, -1);
+  ctx.lineTo(4, -4);
+  ctx.lineTo(-5, -7);
+  ctx.closePath();
+  ctx.fill();
+  // Right arm crossing over
+  ctx.beginPath();
+  ctx.moveTo(6, -7);
+  ctx.lineTo(7, -3);
+  ctx.lineTo(4, -2);
+  ctx.lineTo(-3, -1);
+  ctx.lineTo(-4, -4);
+  ctx.lineTo(5, -7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  // Gold bands on arms
+  ctx.fillStyle = gold;
+  ctx.fillRect(-7, -3.5, 1.5, 0.6);
+  ctx.fillRect(5.5, -3.5, 1.5, 0.6);
+  // BODY (chest)
+  ctx.fillStyle = purple;
+  ctx.beginPath();
+  ctx.moveTo(-5, -1);
+  ctx.lineTo(-6, 5);
+  ctx.lineTo(6, 5);
+  ctx.lineTo(5, -1);
+  ctx.closePath();
+  ctx.fill();
+  // Gold belt
+  ctx.fillStyle = gold;
+  ctx.fillRect(-6, 4, 12, 1);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-5, -1);
+  ctx.lineTo(-6, 5);
+  ctx.lineTo(6, 5);
+  ctx.lineTo(5, -1);
+  ctx.closePath();
+  ctx.stroke();
+  // WISP TAIL (instead of legs)
+  ctx.fillStyle = purple;
+  ctx.beginPath();
+  ctx.moveTo(-5, 5);
+  ctx.quadraticCurveTo(-7 + wisp, 9, -5 + wisp, 13);
+  ctx.quadraticCurveTo(-3, 15, 0 + wisp, 17);
+  ctx.quadraticCurveTo(3, 15, 5 + wisp, 13);
+  ctx.quadraticCurveTo(7 - wisp, 9, 5, 5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // Smokey wisp dots tail-end
+  ctx.fillStyle = purpleLite;
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  ctx.arc(-2 + wisp, 16, 0.6, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.arc(2 - wisp, 16, 0.6, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+  // Wisp highlights (smokey effect)
+  ctx.fillStyle = purpleLite;
+  ctx.globalAlpha = 0.4;
+  ctx.fillRect(-3, 7, 1, 6);
+  ctx.fillRect(2, 7, 1, 6);
+  ctx.globalAlpha = 1;
+}
+
+// TOMTEN (Swedish folk gnome - PD, NOT Coca-Cola Santa)
+function drawGnomeCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const hatRed = flash ? '#fff' : '#aa1828';
+  const hatRedDk = flash ? '#fff' : '#6a0818';
+  const trim = flash ? '#fff' : '#f0e8d0';
+  const beard = flash ? '#fff' : '#fafad8';
+  const beardSh = flash ? '#fff' : '#ccc8ba';
+  const clothesGray = flash ? '#fff' : '#6a6868';
+  const clothesDk = flash ? '#fff' : '#3a3838';
+  const nose = flash ? '#fff' : '#cc7050';
+  const skin = flash ? '#fff' : '#e8c898';
+  const boot = flash ? '#fff' : '#3a2008';
+  const lantern = flash ? '#fff' : '#ffd54a';
+  const outline = flash ? '#fff' : '#1a0a04';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // TALL RED POINTED HAT (signature)
+  ctx.fillStyle = hatRed;
+  ctx.beginPath();
+  ctx.moveTo(-5, -14);
+  ctx.quadraticCurveTo(-3, -22, -1, -23);  // bends slightly
+  ctx.lineTo(1, -23);
+  ctx.quadraticCurveTo(3, -22, 5, -14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Hat shadow (mörkare insida)
+  ctx.fillStyle = hatRedDk;
+  ctx.beginPath();
+  ctx.moveTo(-5, -14);
+  ctx.quadraticCurveTo(-3, -22, -1, -23);
+  ctx.lineTo(0, -22);
+  ctx.quadraticCurveTo(-2, -18, -3, -14);
+  ctx.closePath();
+  ctx.fill();
+  // White trim at hat base
+  ctx.fillStyle = trim;
+  ctx.fillRect(-5, -14.5, 10, 1.5);
+  // White pom-pom at tip
+  ctx.fillStyle = trim;
+  ctx.beginPath();
+  ctx.arc(1.5, -23, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = beardSh;
+  ctx.beginPath();
+  ctx.arc(2, -22.5, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  // FACE (mostly covered by beard, just nose + eyes visible)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.ellipse(0, -11, 3.5, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Big rosy nose (signature gnome feature)
+  ctx.fillStyle = nose;
+  ctx.beginPath();
+  ctx.ellipse(0, -10, 2, 1.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#aa5040'; ctx.lineWidth = 0.4;
+  ctx.stroke();
+  // Highlight on nose
+  ctx.fillStyle = '#ffaa90';
+  ctx.fillRect(-0.5, -10.5, 0.5, 0.4);
+  // Small eyes peeking out from under hat
+  ctx.fillStyle = '#0a0a0a';
+  ctx.beginPath(); ctx.arc(-1.8, -12, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1.8, -12, 0.4, 0, Math.PI * 2); ctx.fill();
+  // Eye glints
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-1.9, -12.2, 0.2, 0.2);
+  ctx.fillRect(1.7, -12.2, 0.2, 0.2);
+  // LONG WHITE BEARD covering most of face
+  ctx.fillStyle = beard;
+  ctx.beginPath();
+  ctx.moveTo(-4, -10);
+  ctx.quadraticCurveTo(-5, -7, -4, -3);
+  ctx.lineTo(-3, 2);
+  ctx.lineTo(-2, 5);
+  ctx.lineTo(0, 6);
+  ctx.lineTo(2, 5);
+  ctx.lineTo(3, 2);
+  ctx.lineTo(4, -3);
+  ctx.quadraticCurveTo(5, -7, 4, -10);
+  ctx.lineTo(2, -9);
+  ctx.quadraticCurveTo(0, -8.5, -2, -9);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.stroke();
+  // Beard texture (wavy strands)
+  ctx.strokeStyle = beardSh; ctx.lineWidth = 0.3;
+  for (const sy of [-7, -4, -1, 2]) {
+    ctx.beginPath();
+    ctx.moveTo(-3, sy);
+    ctx.quadraticCurveTo(0, sy + 0.5, 3, sy);
+    ctx.stroke();
+  }
+  // GRAY CLOTHES (not red Santa)
+  ctx.fillStyle = clothesGray;
+  ctx.beginPath();
+  ctx.moveTo(-6, -2);
+  ctx.lineTo(-7, 5);
+  ctx.lineTo(7, 5);
+  ctx.lineTo(6, -2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Brown leather belt
+  ctx.fillStyle = boot;
+  ctx.fillRect(-6, 1, 12, 1);
+  // Gold buckle
+  ctx.fillStyle = '#ffd54a';
+  ctx.fillRect(-0.8, 0.7, 1.6, 1.6);
+  ctx.strokeStyle = '#aa8a2a'; ctx.lineWidth = 0.3;
+  ctx.strokeRect(-0.8, 0.7, 1.6, 1.6);
+  // SMALL LANTERN in hand (east side)
+  ctx.fillStyle = lantern;
+  ctx.shadowColor = lantern; ctx.shadowBlur = 4;
+  ctx.fillRect(7, 0, 2, 2.5);
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = boot; ctx.lineWidth = 0.4;
+  ctx.strokeRect(7, 0, 2, 2.5);
+  // Lantern handle
+  ctx.strokeStyle = '#aaa'; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.arc(8, -1, 1, 0, Math.PI);
+  ctx.stroke();
+  // SHORT LEGS (stubby gnome legs)
+  ctx.fillStyle = clothesGray;
+  ctx.fillRect(-3 - legSwing, 5, 2.5, 6);
+  ctx.fillRect(0.5 + legSwing, 5, 2.5, 6);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 5, 2.5, 6);
+  ctx.strokeRect(0.5 + legSwing, 5, 2.5, 6);
+  // BROWN LEATHER BOOTS (bigger than feet)
+  ctx.fillStyle = boot;
+  ctx.beginPath();
+  ctx.ellipse(-1.75 - legSwing, 14, 2.5, 1.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.75 + legSwing, 14, 2.5, 1.3, 0, 0, Math.PI * 2); ctx.fill();
+  // Toe-curl up (folk gnome style)
+  ctx.beginPath();
+  ctx.moveTo(-3 - legSwing, 14);
+  ctx.quadraticCurveTo(-4 - legSwing, 15, -3 - legSwing, 16);
+  ctx.lineTo(-1 - legSwing, 16);
+  ctx.lineTo(-1 - legSwing, 14);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(0.5 + legSwing, 14);
+  ctx.lineTo(0.5 + legSwing, 16);
+  ctx.lineTo(2.5 + legSwing, 16);
+  ctx.quadraticCurveTo(3.5 + legSwing, 15, 2.5 + legSwing, 14);
+  ctx.closePath();
+  ctx.fill();
+}
+
 // v1.462: NAKED CHARACTER drawn via canvas primitives — cleaner än mitt pixel art.
 // Profile view (facing east default). Mirror för west via ctx.scale(-1,1) i caller.
 // v1.464: REFINED design — compressed proportions (~50px total instead of 66px),
@@ -41710,6 +43918,22 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
     else if (cos.mascot === 'starfruit')   drawStarfruitCharacter(ctx, cos, flash, walkPhase, isMoving);
     else if (cos.mascot === 'pricklypear') drawPricklypearCharacter(ctx, cos, flash, walkPhase, isMoving);
     else if (cos.mascot === 'olive')       drawOliveCharacter(ctx, cos, flash, walkPhase, isMoving);
+    // v1.514: 15 PD/folktale-karaktärer
+    else if (cos.mascot === 'sailor')      drawSailorCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'vampire')     drawVampireCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'hunchback')   drawHunchbackCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'jungleman')   drawJunglemanCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'peterpan')    drawPeterpanCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'pirate')      drawPirateCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'fairy')       drawFairyCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'puppet')      drawPuppetCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'junglekid')   drawJunglekidCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'bear')        drawBearCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'tiger')       drawTigerCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'gingerbread') drawGingerbreadCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'arabprince')  drawArabprinceCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'genie')       drawGenieCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'gnome')       drawGnomeCharacter(ctx, cos, flash, walkPhase, isMoving);
     ctx.restore();
     return;
   }
@@ -53090,6 +55314,223 @@ function drawMascotBullet(ctx, x, y, b, mascot) {
     ctx.fillStyle = '#ff5a30';
     ctx.fillRect(-r * 0.15, -r * 0.15, r * 0.3, r * 0.1);
     ctx.restore();
+  } else if (mascot === 'sailor') {
+    // Liten ankare-projektil
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.fillStyle = '#1a1a4a';
+    ctx.fillRect(-r * 0.2, -r * 1.2, r * 0.4, r * 2.4);
+    ctx.fillRect(-r * 0.8, -r * 1.4, r * 1.6, r * 0.3);
+    ctx.beginPath();
+    ctx.arc(0, r * 0.8, r * 0.7, 0, Math.PI);
+    ctx.lineWidth = r * 0.25;
+    ctx.strokeStyle = '#1a1a4a'; ctx.stroke();
+    ctx.restore();
+  } else if (mascot === 'vampire') {
+    // Bloddroppe
+    ctx.fillStyle = '#cc1818';
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 1.3);
+    ctx.quadraticCurveTo(x - r * 0.8, y, x - r * 0.6, y + r * 0.8);
+    ctx.quadraticCurveTo(x, y + r * 1.3, x + r * 0.6, y + r * 0.8);
+    ctx.quadraticCurveTo(x + r * 0.8, y, x, y - r * 1.3);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#ff5a5a';
+    ctx.beginPath();
+    ctx.arc(x - r * 0.2, y + r * 0.3, r * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (mascot === 'hunchback') {
+    // Liten kyrkklocka
+    ctx.fillStyle = '#aa8a2a';
+    ctx.beginPath();
+    ctx.moveTo(x - r * 1.0, y + r * 0.5);
+    ctx.quadraticCurveTo(x - r * 1.0, y - r * 0.8, x, y - r * 1.0);
+    ctx.quadraticCurveTo(x + r * 1.0, y - r * 0.8, x + r * 1.0, y + r * 0.5);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#8a6a1a';
+    ctx.fillRect(x - r * 1.1, y + r * 0.4, r * 2.2, r * 0.3);
+    // Clapper
+    ctx.fillStyle = '#5a4818';
+    ctx.beginPath(); ctx.arc(x, y + r * 0.9, r * 0.3, 0, Math.PI * 2); ctx.fill();
+  } else if (mascot === 'jungleman') {
+    // Liten kniv (jaktkniv)
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.fillStyle = '#aaaacc';
+    ctx.beginPath();
+    ctx.moveTo(r * 1.5, 0);
+    ctx.lineTo(-r * 0.5, -r * 0.4);
+    ctx.lineTo(-r * 0.5, r * 0.4);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#5a3818';
+    ctx.fillRect(-r * 1.5, -r * 0.4, r * 1.0, r * 0.8);
+    ctx.restore();
+  } else if (mascot === 'peterpan') {
+    // Älvstoft + grön glow
+    ctx.shadowColor = '#5aff5a'; ctx.shadowBlur = 4;
+    ctx.fillStyle = '#5aaa3a';
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Sparkle
+    ctx.fillStyle = '#ffeb88';
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a) * r * 1.3, y + Math.sin(a) * r * 1.3, r * 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (mascot === 'pirate') {
+    // Liten kanonkula (svart med fuse)
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Fuse + spark
+    ctx.strokeStyle = '#8a3008'; ctx.lineWidth = r * 0.2;
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 1.2);
+    ctx.quadraticCurveTo(x + r * 0.5, y - r * 1.8, x + r * 0.7, y - r * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#ffd54a';
+    ctx.shadowColor = '#ff8a08'; ctx.shadowBlur = 3;
+    ctx.beginPath();
+    ctx.arc(x + r * 0.7, y - r * 2, r * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+  } else if (mascot === 'fairy') {
+    // Älvstoft-sparkles
+    ctx.shadowColor = '#ffeb88'; ctx.shadowBlur = 4;
+    ctx.fillStyle = '#ffeb88';
+    // Center star (4-point)
+    ctx.beginPath();
+    ctx.moveTo(x, y - r * 1.3); ctx.lineTo(x + r * 0.3, y - r * 0.3);
+    ctx.lineTo(x + r * 1.3, y); ctx.lineTo(x + r * 0.3, y + r * 0.3);
+    ctx.lineTo(x, y + r * 1.3); ctx.lineTo(x - r * 0.3, y + r * 0.3);
+    ctx.lineTo(x - r * 1.3, y); ctx.lineTo(x - r * 0.3, y - r * 0.3);
+    ctx.closePath(); ctx.fill();
+    ctx.shadowBlur = 0;
+  } else if (mascot === 'puppet') {
+    // Trä-splinter / pinocchio nos-bit
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.fillStyle = '#d4a060';
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.5, -r * 0.3);
+    ctx.lineTo(r * 1.5, 0);
+    ctx.lineTo(-r * 1.5, r * 0.3);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#5a3818'; ctx.lineWidth = 0.3;
+    ctx.stroke();
+    ctx.restore();
+  } else if (mascot === 'junglekid') {
+    // Liten dolkar-knife (likt jungleman men mindre)
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.fillStyle = '#aaaacc';
+    ctx.beginPath();
+    ctx.moveTo(r * 1.3, 0);
+    ctx.lineTo(-r * 0.3, -r * 0.3);
+    ctx.lineTo(-r * 0.3, r * 0.3);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#5a3818';
+    ctx.fillRect(-r * 1.2, -r * 0.3, r * 0.9, r * 0.6);
+    ctx.restore();
+  } else if (mascot === 'bear') {
+    // Liten fisk (Baloo gillar fisk)
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.fillStyle = '#7aaaca';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.2, r * 0.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Tail
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.2, 0);
+    ctx.lineTo(-r * 1.8, -r * 0.5);
+    ctx.lineTo(-r * 1.8, r * 0.5);
+    ctx.closePath(); ctx.fill();
+    // Eye
+    ctx.fillStyle = '#0a0a0a';
+    ctx.beginPath(); ctx.arc(r * 0.6, -r * 0.2, r * 0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else if (mascot === 'tiger') {
+    // Klo-mark (3 svartla streck)
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = r * 0.35;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.3, -r * 0.5); ctx.lineTo(r * 1.0, -r * 0.5);
+    ctx.moveTo(-r * 1.3, 0); ctx.lineTo(r * 1.2, 0);
+    ctx.moveTo(-r * 1.3, r * 0.5); ctx.lineTo(r * 1.0, r * 0.5);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    ctx.restore();
+  } else if (mascot === 'gingerbread') {
+    // Liten gumdrop-godis
+    ctx.fillStyle = '#cc1818';
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fafad8';
+    ctx.beginPath(); ctx.arc(x - r * 0.4, y - r * 0.4, r * 0.3, 0, Math.PI * 2); ctx.fill();
+    // Sugar sparkles
+    ctx.fillRect(x + r * 0.3, y - r * 0.5, 0.4, 0.4);
+    ctx.fillRect(x - r * 0.6, y + r * 0.4, 0.4, 0.4);
+    ctx.fillRect(x + r * 0.5, y + r * 0.3, 0.4, 0.4);
+  } else if (mascot === 'arabprince') {
+    // Magic-lampa form
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    ctx.fillStyle = '#ffd54a';
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.3, 0, r * 1.0, r * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Spout
+    ctx.beginPath();
+    ctx.moveTo(r * 0.7, -r * 0.3);
+    ctx.lineTo(r * 1.5, -r * 0.5);
+    ctx.lineTo(r * 1.5, 0);
+    ctx.lineTo(r * 0.7, r * 0.1);
+    ctx.closePath(); ctx.fill();
+    // Handle
+    ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = r * 0.2;
+    ctx.beginPath();
+    ctx.arc(-r * 1.0, -r * 0.3, r * 0.4, Math.PI * 0.2, Math.PI * 1.5);
+    ctx.stroke();
+    // Highlight
+    ctx.fillStyle = '#ffeb88';
+    ctx.fillRect(-r * 0.5, -r * 0.3, r * 0.5, r * 0.1);
+    ctx.restore();
+  } else if (mascot === 'genie') {
+    // Magisk wisp/smoke-puff
+    ctx.shadowColor = '#aa3aff'; ctx.shadowBlur = 4;
+    ctx.fillStyle = '#7a3aaa';
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#9a5aca';
+    ctx.beginPath();
+    ctx.arc(x + r * 0.3, y - r * 0.3, r * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Yellow center sparkle
+    ctx.fillStyle = '#ffeb88';
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (mascot === 'gnome') {
+    // Liten snöflinga
+    ctx.strokeStyle = '#aaffff'; ctx.lineWidth = r * 0.2;
+    ctx.shadowColor = '#aaeaff'; ctx.shadowBlur = 3;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + Math.cos(a) * r * 1.3, y + Math.sin(a) * r * 1.3);
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // Center dot
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.3, 0, Math.PI * 2);
+    ctx.fill();
   }
 }
 
