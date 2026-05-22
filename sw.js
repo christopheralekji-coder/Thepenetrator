@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v506-wardrobe-3-grupper-actionbar-fix';
+const CACHE = 'penetrator-v507-sticky-preview-actionbar-natural-bottom';
 const ASSETS = [
   './',
   './index.html',

@@ -2749,30 +2749,23 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
     radial-gradient(ellipse at 25% 50%, rgba(170,58,255,0.18) 0%, transparent 50%),
     radial-gradient(ellipse at 75% 60%, rgba(255,213,74,0.10) 0%, transparent 55%),
     linear-gradient(180deg, rgba(20,10,30,0.95) 0%, rgba(0,0,0,0.97) 50%, rgba(15,5,25,0.95) 100%);
-  /* v1.506: FLEX-COLUMN layout — content scrollar inuti #wardrobe-layout, actionbar
-     fast nederst utan sticky. Override .overlay's overflow-y:auto för att hindra
-     screen-level scroll. Padding-bottom 0 så actionbar nuddar viewport-bottom. */
-  padding: max(16px, env(safe-area-inset-top, 16px)) max(20px, env(safe-area-inset-right, 20px)) 0 max(20px, env(safe-area-inset-left, 20px));
+  /* v1.507: SCREEN scrollar igen — actionbar är vanlig sista child (statiskt på menu-bottom).
+     PREVIEW sticky inom sin column så användaren ser gubben medan options scrollas. */
+  padding: max(16px, env(safe-area-inset-top, 16px)) max(20px, env(safe-area-inset-right, 20px)) max(16px, env(safe-area-inset-bottom, 16px)) max(20px, env(safe-area-inset-left, 20px));
   box-sizing: border-box;
-  overflow: hidden;
-}
-#wardrobe-screen::before,
-#wardrobe-screen::after {
-  display: none;
+  overflow-y: auto;
 }
 #wardrobe-layout {
+  /* v1.507: SIDE-BY-SIDE grid — preview left, controls right. Båda synliga
+     samtidigt så användaren slipper scrolla upp-och-ner för att se gubben.
+     På mobile portrait blir preview liten men fortfarande synlig sticky. */
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 20px;
+  grid-template-columns: minmax(140px, 0.85fr) 1.4fr;
+  gap: 14px;
   max-width: 980px;
   width: 100%;
   margin-bottom: 12px;
   align-items: start;
-  /* v1.506: Scrollar internt (screen är overflow:hidden), actionbar bottom-anchored */
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
 }
 /* PREVIEW-KOLUMN */
 #wardrobe-preview-wrap {
@@ -2780,6 +2773,11 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  /* v1.507: STICKY-TOP — preview följer med när options scrollas så användaren
+     alltid ser gubben i realtid när de väljer alternativ. */
+  position: sticky;
+  top: 0;
+  z-index: 4;
 }
 #wardrobe-preview {
   background:
@@ -2792,7 +2790,9 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
     0 8px 28px rgba(170,58,255,0.25),
     inset 0 1px 0 rgba(255,255,255,0.08);
   display: block;
-  max-width: min(80vw, 320px);
+  /* v1.507: width 100% av sin grid-column (140-255px på mobile), max 320px på desktop */
+  width: 100%;
+  max-width: 320px;
   height: auto;
   aspect-ratio: 300 / 380;
   /* v1.490: touch-action: none så drag-rotation funkar på iOS utan att
@@ -3021,22 +3021,16 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   justify-content: center;
   flex-wrap: wrap;
   width: 100%;
-  /* v1.506: FAST nederst — inte sticky längre. Är sista flex-child i #wardrobe-screen
-     (som är overflow:hidden flex-column), så actionbar nuddar viewport-bottom.
-     SOLID bg + border-top + shadow = klart "under content" inte flytande. */
-  padding: 12px 16px max(12px, env(safe-area-inset-bottom, 12px)) 16px;
+  max-width: 980px;
+  /* v1.507: Sista child i menu-content, scrollas naturligt till botten av menyn.
+     Inte sticky/fixed — användaren scrollar för att se den. Visuell border-top
+     för separation från slots ovanför. */
+  padding: 16px 8px 12px;
+  margin-top: 8px;
   position: static;
-  bottom: auto;
-  background: linear-gradient(180deg, rgba(18,10,28,0.98) 0%, rgba(8,4,6,1) 100%);
-  border-top: 2px solid rgba(170,58,255,0.50);
-  box-shadow: 0 -8px 24px rgba(0,0,0,0.65);
+  background: transparent;
+  border-top: 2px solid rgba(170,58,255,0.30);
   box-sizing: border-box;
-  flex-shrink: 0;
-  z-index: 5;
-  /* Extend out till screen edges (cancel screen-padding via negativ margin).
-     OBS: min() inte max() — vi vill ha MEST NEGATIVA värdet. */
-  margin-left: min(-20px, calc(-1 * env(safe-area-inset-left, 20px)));
-  margin-right: min(-20px, calc(-1 * env(safe-area-inset-right, 20px)));
 }
 /* v1.491: Disabled-state för undo-knapp (sätts via [disabled] attribute) */
 #wardrobe-actionbar .medium-btn[disabled] {
