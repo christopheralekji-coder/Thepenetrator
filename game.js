@@ -12581,6 +12581,43 @@ const WARDROBE = {
     { id: 'viking',     name: 'Vikingskägg',     style: 'viking',   color: '#5a2a0a' },
     { id: 'vikingGray', name: 'Vikingskägg Grått',style: 'viking',  color: '#888888' },
   ],
+  // v1.504: FACIAL FEATURES — skräddarsy ansiktet (nose, eyeShape, eyebrows, mouth)
+  nose: [
+    { id: 'classic',   name: 'Klassisk',       style: 'classic' },
+    { id: 'small',     name: 'Liten Knapp',    style: 'small' },
+    { id: 'aquiline',  name: 'Romersk',        style: 'aquiline' },
+    { id: 'wide',      name: 'Bred',           style: 'wide' },
+    { id: 'narrow',    name: 'Smal',           style: 'narrow' },
+    { id: 'upturned',  name: 'Pixie (uppåt)',  style: 'upturned' },
+    { id: 'hooked',    name: 'Örn-näsa',       style: 'hooked' },
+  ],
+  eyeShape: [
+    { id: 'classic',   name: 'Klassisk',       style: 'classic' },
+    { id: 'round',     name: 'Stora Runda',    style: 'round' },
+    { id: 'narrow',    name: 'Smala/Squint',   style: 'narrow' },
+    { id: 'almond',    name: 'Mandel',         style: 'almond' },
+    { id: 'droopy',    name: 'Trötta',         style: 'droopy' },
+    { id: 'sharp',     name: 'Skarpa/Katt',    style: 'sharp' },
+    { id: 'big',       name: 'Anime',          style: 'big' },
+  ],
+  eyebrows: [
+    { id: 'classic',   name: 'Klassisk',       style: 'classic' },
+    { id: 'thin',      name: 'Tunna',          style: 'thin' },
+    { id: 'bushy',     name: 'Yviga',          style: 'bushy' },
+    { id: 'arched',    name: 'Böjda Upp',      style: 'arched' },
+    { id: 'flat',      name: 'Raka',           style: 'flat' },
+    { id: 'angled',    name: 'Arga (V-form)',  style: 'angled' },
+    { id: 'unibrow',   name: 'Enbryn',         style: 'unibrow' },
+  ],
+  mouth: [
+    { id: 'classic',   name: 'Klassisk',       style: 'classic' },
+    { id: 'neutral',   name: 'Neutral',        style: 'neutral' },
+    { id: 'smirk',     name: 'Smirk',          style: 'smirk' },
+    { id: 'frown',     name: 'Sur',            style: 'frown' },
+    { id: 'thin',      name: 'Tunna Läppar',   style: 'thin' },
+    { id: 'full',      name: 'Fyllig',         style: 'full' },
+    { id: 'open',      name: 'Öppen (visa tänder)', style: 'open' },
+  ],
 };
 
 // ============================================================
@@ -12684,6 +12721,11 @@ function ensureWardrobe() {
   if (!w.facialHair) w.facialHair = 'none';
   if (!w.eyes)    w.eyes = 'default';
   if (!w.scars)   w.scars = 'none';
+  // v1.504: facial features — alla default 'classic' (matchar tidigare hardcoded look)
+  if (!w.nose)     w.nose = 'classic';
+  if (!w.eyeShape) w.eyeShape = 'classic';
+  if (!w.eyebrows) w.eyebrows = 'classic';
+  if (!w.mouth)    w.mouth = 'classic';
   if (!w.tints)   w.tints = { shirtHue: 0, pantsHue: 0 };
   // Lock-validation: om equippad item nu är låst (t.ex. NG+-reset eller achievement
   // wipe), defaulta tillbaka till första (alltid common, alltid unlocked).
@@ -13366,6 +13408,11 @@ function getCurrentCostume() {
     const facialHairO = w.facialHair ? getWardrobeOpt('facialHair', w.facialHair) : null;
     const eyesO = w.eyes ? getWardrobeOpt('eyes', w.eyes) : null;
     const scarsO = w.scars ? getWardrobeOpt('scars', w.scars) : null;
+    // v1.504: facial features
+    const noseO = w.nose ? getWardrobeOpt('nose', w.nose) : null;
+    const eyeShapeO = w.eyeShape ? getWardrobeOpt('eyeShape', w.eyeShape) : null;
+    const eyebrowsO = w.eyebrows ? getWardrobeOpt('eyebrows', w.eyebrows) : null;
+    const mouthO = w.mouth ? getWardrobeOpt('mouth', w.mouth) : null;
     // HSL hue-tinting på shirt/pants
     const tints = w.tints || {};
     const tShirt = tints.shirtHue ? applyHueShift(shirtO.color, tints.shirtHue) : shirtO.color;
@@ -13394,6 +13441,11 @@ function getCurrentCostume() {
       scars: scarsO,         // {style, color} eller null
       shirtBrand: shirtO.brand || null, // v1.486: 'adibas'/'najk'/etc eller null
       mascot: shirtO.mascot || null,    // v1.487: 'mcdonalds'/'nugget'/'korv' eller null
+      // v1.504: facial feature-styles (default 'classic' om saknas)
+      noseStyle: noseO ? noseO.style : 'classic',
+      eyeShapeStyle: eyeShapeO ? eyeShapeO.style : 'classic',
+      eyebrowsStyle: eyebrowsO ? eyebrowsO.style : 'classic',
+      mouthStyle: mouthO ? mouthO.style : 'classic',
       vfx: vfxList,
     };
     _costumeCache = cos;
@@ -22418,7 +22470,7 @@ const wardrobeScreen = document.getElementById('wardrobe-screen');
 const wardrobeTabsEl = document.getElementById('wardrobe-tabs');
 const wardrobeOptsEl = document.getElementById('wardrobe-options');
 const wardrobePreview = document.getElementById('wardrobe-preview');
-const WARDROBE_CAT_LABELS = { preset: '✨ Outfits', skin: '🧑 Hud', hair: '💇 Hår', facialHair: '🧔 Ansiktshår', eyes: '👁 Ögon', scars: '🩹 Ärr/Tatueringar', glasses: '👓 Glasögon', hat: '🎩 Hatt', shirt: '👕 Tröja', pants: '👖 Byxor', shoes: '👟 Skor', bandana: '🪢 Bandana', cape: '🦸 Cape', tint: '🎨 Färg-tint' };
+const WARDROBE_CAT_LABELS = { preset: '✨ Outfits', skin: '🧑 Hud', hair: '💇 Hår', facialHair: '🧔 Ansiktshår', eyes: '👁 Ögon', eyeShape: '👀 Ögonform', eyebrows: '🤨 Ögonbryn', nose: '👃 Näsa', mouth: '👄 Mun', scars: '🩹 Ärr/Tatueringar', glasses: '👓 Glasögon', hat: '🎩 Hatt', shirt: '👕 Tröja', pants: '👖 Byxor', shoes: '👟 Skor', bandana: '🪢 Bandana', cape: '🦸 Cape', tint: '🎨 Färg-tint' };
 
 // Pre-set outfit-kombinationer — applicerar alla 5 categories i ett klick
 const WARDROBE_PRESETS = [
@@ -23234,7 +23286,7 @@ function showWardrobeEquipFeedback(cardEl, label) {
 }
 function renderWardrobeTabs() {
   wardrobeTabsEl.innerHTML = '';
-  for (const cat of ['preset','skin','hair','facialHair','eyes','scars','glasses','hat','shirt','pants','shoes','bandana','cape','tint']) {
+  for (const cat of ['preset','skin','hair','facialHair','eyes','eyeShape','eyebrows','nose','mouth','scars','glasses','hat','shirt','pants','shoes','bandana','cape','tint']) {
     const btn = document.createElement('button');
     btn.className = 'small-btn' + (cat === _wardrobeCurrentTab ? ' active' : '');
     btn.textContent = WARDROBE_CAT_LABELS[cat];
@@ -23647,6 +23699,177 @@ function drawWardrobeCardThumb(canvas, cat, opt, ctxSkin) {
         c.fillRect(cx + 2, cy + 2, 1.2, 4);
         c.fillRect(cx - 3, cy + 5, 6, 3);
       }
+    }
+  } else if (cat === 'nose' || cat === 'eyeShape' || cat === 'eyebrows' || cat === 'mouth') {
+    // v1.504: facial feature thumbnails — minimalist face + highlighted feature
+    // Face circle bas
+    c.fillStyle = ctxSkin || '#d4a574';
+    c.beginPath(); c.arc(cx, cy, W * 0.36, 0, Math.PI * 2); c.fill();
+    // Subtle face shadow
+    c.fillStyle = darken(ctxSkin || '#d4a574', 0.20);
+    c.globalAlpha = 0.25;
+    c.beginPath(); c.arc(cx + 2, cy + 1, W * 0.32, -0.5, 1.5); c.fill();
+    c.globalAlpha = 1;
+    // Position-reference markers (vissa features behöver kontext)
+    // Mini eyes (ej för eyeShape)
+    if (cat !== 'eyeShape') {
+      c.fillStyle = '#f4f0e8';
+      c.beginPath(); c.ellipse(cx - 4, cy - 1, 2.0, 1.2, 0, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.ellipse(cx + 4, cy - 1, 2.0, 1.2, 0, 0, Math.PI * 2); c.fill();
+      c.fillStyle = '#1a2a40';
+      c.beginPath(); c.arc(cx - 4, cy - 1, 1.0, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(cx + 4, cy - 1, 1.0, 0, Math.PI * 2); c.fill();
+    }
+    if (cat === 'nose') {
+      // Highlight NOSE feature med opt.style
+      const s = opt.style;
+      c.fillStyle = darken(ctxSkin || '#d4a574', 0.25);
+      if (s === 'classic') {
+        // Standard nose triangle
+        c.beginPath(); c.moveTo(cx, cy + 1); c.lineTo(cx + 1.5, cy + 4); c.lineTo(cx - 1.5, cy + 4); c.closePath(); c.fill();
+        c.fillStyle = '#5a3018'; c.fillRect(cx - 0.5, cy + 3.5, 1.5, 0.8);
+      } else if (s === 'small') {
+        c.beginPath(); c.arc(cx, cy + 3, 1.5, 0, Math.PI * 2); c.fill();
+        c.fillStyle = '#5a3018'; c.fillRect(cx - 0.4, cy + 3, 0.8, 0.5);
+      } else if (s === 'aquiline') {
+        // Prominent bump bridge
+        c.beginPath();
+        c.moveTo(cx - 1, cy - 2); c.quadraticCurveTo(cx, cy + 1, cx, cy + 4);
+        c.lineTo(cx + 2, cy + 4); c.quadraticCurveTo(cx + 0.5, cy + 0, cx, cy - 2);
+        c.closePath(); c.fill();
+      } else if (s === 'wide') {
+        c.beginPath();
+        c.moveTo(cx - 2.5, cy + 4); c.quadraticCurveTo(cx, cy - 1, cx + 2.5, cy + 4);
+        c.closePath(); c.fill();
+        c.fillStyle = '#5a3018';
+        c.fillRect(cx - 1.4, cy + 3.5, 1.0, 0.6);
+        c.fillRect(cx + 0.4, cy + 3.5, 1.0, 0.6);
+      } else if (s === 'narrow') {
+        c.beginPath();
+        c.moveTo(cx, cy - 1); c.lineTo(cx + 0.8, cy + 4); c.lineTo(cx - 0.8, cy + 4); c.closePath(); c.fill();
+      } else if (s === 'upturned') {
+        c.beginPath();
+        c.moveTo(cx, cy + 1); c.quadraticCurveTo(cx + 2, cy + 5, cx + 1.5, cy + 3);
+        c.lineTo(cx - 1.5, cy + 3); c.quadraticCurveTo(cx - 2, cy + 5, cx, cy + 1);
+        c.closePath(); c.fill();
+        c.fillStyle = '#5a3018'; c.fillRect(cx - 0.8, cy + 3.2, 1.6, 0.5);
+      } else if (s === 'hooked') {
+        c.beginPath();
+        c.moveTo(cx - 1.5, cy - 2); c.quadraticCurveTo(cx + 1, cy + 3, cx + 2.5, cy + 4);
+        c.quadraticCurveTo(cx + 1, cy + 5, cx + 0.5, cy + 4);
+        c.lineTo(cx, cy + 3); c.lineTo(cx - 0.5, cy - 2); c.closePath(); c.fill();
+      }
+    } else if (cat === 'eyeShape') {
+      // Highlight EYES (förstorade, centrerade)
+      const s = opt.style;
+      let rx = 3.5, ry = 1.5, rot = 0;
+      if (s === 'round') { rx = 3.0; ry = 2.5; }
+      else if (s === 'narrow') { rx = 4.0; ry = 0.9; }
+      else if (s === 'almond') { rx = 3.5; ry = 1.8; rot = 0.2; }
+      else if (s === 'droopy') { rx = 3.5; ry = 1.8; rot = -0.2; }
+      else if (s === 'sharp') { rx = 4.0; ry = 1.4; rot = 0.2; }
+      else if (s === 'big') { rx = 3.5; ry = 2.8; }
+      // West eye
+      c.fillStyle = '#f4f0e8';
+      c.beginPath(); c.ellipse(cx - 5, cy, rx, ry, s === 'droopy' ? -rot : rot, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = '#0a0a0a'; c.lineWidth = 0.7; c.stroke();
+      // East eye
+      c.beginPath(); c.ellipse(cx + 5, cy, rx, ry, s === 'almond' || s === 'sharp' ? -rot : rot, 0, Math.PI * 2); c.fill();
+      c.stroke();
+      // Iris
+      c.fillStyle = '#1a2a40';
+      const irisR = (s === 'big' || s === 'round') ? 1.4 : 1.0;
+      c.beginPath(); c.arc(cx - 5, cy, irisR, 0, Math.PI * 2); c.fill();
+      c.beginPath(); c.arc(cx + 5, cy, irisR, 0, Math.PI * 2); c.fill();
+      if (s === 'sharp') {
+        // Slit pupils
+        c.fillStyle = '#0a0a0a';
+        c.fillRect(cx - 5.2, cy - 1.0, 0.4, 2.0);
+        c.fillRect(cx + 4.8, cy - 1.0, 0.4, 2.0);
+      }
+    } else if (cat === 'eyebrows') {
+      // Highlight EYEBROWS över eyes
+      const s = opt.style;
+      c.fillStyle = '#2a1a08';
+      if (s === 'classic') {
+        c.fillRect(cx - 7, cy - 5, 4, 1.6);
+        c.fillRect(cx + 3, cy - 5, 4, 1.6);
+      } else if (s === 'thin') {
+        c.fillRect(cx - 7, cy - 4.5, 4, 0.7);
+        c.fillRect(cx + 3, cy - 4.5, 4, 0.7);
+      } else if (s === 'bushy') {
+        c.fillRect(cx - 8, cy - 5.5, 5, 2.2);
+        c.fillRect(cx + 3, cy - 5.5, 5, 2.2);
+        // Stray fibers
+        for (let i = 0; i < 3; i++) {
+          c.fillRect(cx - 7 + i * 1.5, cy - 6, 0.4, 0.8);
+          c.fillRect(cx + 4 + i * 1.5, cy - 6, 0.4, 0.8);
+        }
+      } else if (s === 'arched') {
+        c.beginPath();
+        c.moveTo(cx - 7, cy - 4);
+        c.quadraticCurveTo(cx - 5, cy - 6.5, cx - 3, cy - 4.5);
+        c.lineTo(cx - 3, cy - 3.5);
+        c.quadraticCurveTo(cx - 5, cy - 5.5, cx - 7, cy - 3);
+        c.closePath(); c.fill();
+        c.beginPath();
+        c.moveTo(cx + 3, cy - 4.5);
+        c.quadraticCurveTo(cx + 5, cy - 6.5, cx + 7, cy - 4);
+        c.lineTo(cx + 7, cy - 3);
+        c.quadraticCurveTo(cx + 5, cy - 5.5, cx + 3, cy - 3.5);
+        c.closePath(); c.fill();
+      } else if (s === 'flat') {
+        c.fillRect(cx - 7, cy - 4.5, 4, 1.3);
+        c.fillRect(cx + 3, cy - 4.5, 4, 1.3);
+      } else if (s === 'angled') {
+        c.beginPath();
+        c.moveTo(cx - 7, cy - 5.5); c.lineTo(cx - 3, cy - 3.5);
+        c.lineTo(cx - 3, cy - 2.5); c.lineTo(cx - 7, cy - 4.5);
+        c.closePath(); c.fill();
+        c.beginPath();
+        c.moveTo(cx + 3, cy - 3.5); c.lineTo(cx + 7, cy - 5.5);
+        c.lineTo(cx + 7, cy - 4.5); c.lineTo(cx + 3, cy - 2.5);
+        c.closePath(); c.fill();
+      } else if (s === 'unibrow') {
+        c.fillRect(cx - 8, cy - 5, 16, 1.6);
+      }
+    } else if (cat === 'mouth') {
+      // Highlight MOUTH
+      const s = opt.style;
+      c.strokeStyle = '#5a2a2a'; c.lineWidth = 1.4;
+      c.lineCap = 'round';
+      if (s === 'classic') {
+        c.beginPath(); c.moveTo(cx - 3, cy + 5); c.quadraticCurveTo(cx, cy + 4.3, cx + 3, cy + 5); c.stroke();
+      } else if (s === 'neutral') {
+        c.beginPath(); c.moveTo(cx - 3, cy + 5); c.lineTo(cx + 3, cy + 5); c.stroke();
+      } else if (s === 'smirk') {
+        c.beginPath(); c.moveTo(cx - 3, cy + 5.3); c.quadraticCurveTo(cx, cy + 5.0, cx + 2, cy + 4.5); c.quadraticCurveTo(cx + 3, cy + 4.0, cx + 3.5, cy + 3.8); c.stroke();
+      } else if (s === 'frown') {
+        c.beginPath(); c.moveTo(cx - 3, cy + 4.5); c.quadraticCurveTo(cx, cy + 5.7, cx + 3, cy + 4.5); c.stroke();
+      } else if (s === 'thin') {
+        c.lineWidth = 0.7;
+        c.beginPath(); c.moveTo(cx - 2.5, cy + 5); c.lineTo(cx + 2.5, cy + 5); c.stroke();
+      } else if (s === 'full') {
+        c.fillStyle = '#7a3a3a';
+        c.beginPath();
+        c.moveTo(cx - 3, cy + 4.5); c.quadraticCurveTo(cx, cy + 3.5, cx + 3, cy + 4.5);
+        c.lineTo(cx + 3, cy + 5); c.quadraticCurveTo(cx, cy + 4.5, cx - 3, cy + 5);
+        c.closePath(); c.fill();
+        c.fillStyle = '#aa5050';
+        c.beginPath();
+        c.moveTo(cx - 3, cy + 5.5); c.quadraticCurveTo(cx, cy + 7.0, cx + 3, cy + 5.5);
+        c.lineTo(cx + 3, cy + 5); c.quadraticCurveTo(cx, cy + 5.5, cx - 3, cy + 5);
+        c.closePath(); c.fill();
+      } else if (s === 'open') {
+        c.beginPath(); c.moveTo(cx - 3, cy + 4.5); c.quadraticCurveTo(cx, cy + 5.3, cx + 3, cy + 4.5); c.stroke();
+        // Teeth
+        c.fillStyle = '#f4f0e8';
+        c.fillRect(cx - 2.5, cy + 5.0, 1.0, 1.5);
+        c.fillRect(cx - 1.0, cy + 5.0, 1.0, 1.5);
+        c.fillRect(cx + 0.5, cy + 5.0, 1.0, 1.5);
+        c.fillRect(cx + 2.0, cy + 5.0, 1.0, 1.5);
+      }
+      c.lineCap = 'butt';
     }
   }
 }
@@ -40948,137 +41171,27 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   ctx.closePath();
   ctx.fill();
   ctx.globalAlpha = 1;
-  // === EYEBROWS — tjockare (0.7 → 1.0) + bushier för manligt utseende ===
-  ctx.fillStyle = stubbleColor;
-  // East eyebrow (närmaste, mer prominent)
-  ctx.beginPath();
-  ctx.moveTo(2.5, -13.9);
-  ctx.lineTo(6.3, -14.9);
-  ctx.lineTo(6.4, -13.7);
-  ctx.lineTo(2.5, -12.9);
-  ctx.closePath();
-  ctx.fill();
-  // Brow texture (bushy fibrer)
-  ctx.fillRect(3.2, -14.3, 0.3, 0.3);
-  ctx.fillRect(4.0, -14.5, 0.3, 0.3);
-  ctx.fillRect(4.8, -14.6, 0.3, 0.3);
-  ctx.fillRect(5.5, -14.5, 0.3, 0.3);
-  // West eyebrow (i 3/4 view bara halvt synlig — fortfarande tjock)
-  ctx.beginPath();
-  ctx.moveTo(-0.8, -14.4);
-  ctx.lineTo(2, -13.4);
-  ctx.lineTo(2, -12.6);
-  ctx.lineTo(-0.8, -13.6);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillRect(0.5, -13.9, 0.3, 0.3);
-  ctx.fillRect(1.2, -13.7, 0.3, 0.3);
-  // v1.493: EYES — smalare/squinter för manligt utseende (1.2x0.7 → 1.0x0.5)
-  // Mindre "anime-big-eyes" känsla, mer serious/militant look
+  // === v1.504: EYEBROWS — dispatch by cos.eyebrowsStyle ===
+  drawEyebrows(ctx, cos.eyebrowsStyle, stubbleColor, flash);
+  // === v1.504: EYES — dispatch by cos.eyeShapeStyle (form + iris-color från cos.eyes) ===
   const irisCol = flash ? '#fff' : (cos.eyes && cos.eyes.color ? cos.eyes.color : '#1a2a40');
   const isGlowEye = cos.eyes && (cos.eyes.id === 'glowing' || cos.eyes.id === 'cyber' || cos.eyes.id === 'red');
-  // Far eye (west)
-  ctx.fillStyle = '#f4f0e8';
-  ctx.beginPath();
-  ctx.ellipse(0.7, -12.6, 1.0, 0.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 0.6;
-  ctx.stroke();
-  // Iris+pupil
-  if (isGlowEye) { ctx.shadowColor = irisCol; ctx.shadowBlur = 3; }
-  ctx.fillStyle = irisCol;
-  ctx.beginPath();
-  ctx.arc(0.85, -12.6, 0.45, 0, Math.PI * 2);
-  ctx.fill();
-  if (isGlowEye) ctx.shadowBlur = 0;
-  // Eye glint
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(1, -12.85, 0.3, 0.3);
-  // Near eye (east) — same narrow size
-  ctx.fillStyle = '#f4f0e8';
-  ctx.beginPath();
-  ctx.ellipse(4.3, -12.6, 1.0, 0.5, 0, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 0.6;
-  ctx.stroke();
-  if (isGlowEye) { ctx.shadowColor = irisCol; ctx.shadowBlur = 3; }
-  ctx.fillStyle = irisCol;
-  ctx.beginPath();
-  ctx.arc(4.4, -12.6, 0.45, 0, Math.PI * 2);
-  ctx.fill();
-  if (isGlowEye) ctx.shadowBlur = 0;
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(4.55, -12.85, 0.3, 0.3);
-  // v1.493: Lower eyelid line — under ögat, ger trött/serious blick (manligt)
-  ctx.strokeStyle = skin5;
-  ctx.lineWidth = 0.35;
-  ctx.beginPath();
-  ctx.moveTo(-0.2, -12.1);
-  ctx.lineTo(1.6, -12.1);
-  ctx.moveTo(3.4, -12.1);
-  ctx.lineTo(5.2, -12.1);
-  ctx.stroke();
-  // v1.483: NÄSA + MUN — fixad proportion. Innan: mun vid y=-8.2/-7.7 (chin y=-7)
-  // = munnen satt PÅ hakan. Nu: face thirds-rule (eyes till chin = 5.7 units):
-  //   Nose tip: 1/3 ner = y=-10.8
-  //   Mouth:    2/3 ner = y=-8.9
-  //   Chin:     y=-7
-  // === NOSE — kompakt, 3D-definierad, korrekt position ===
-  // Bridge highlight line (smooth shadow på nasal bridge)
-  ctx.strokeStyle = skin5;
-  ctx.lineWidth = 0.6;
-  ctx.beginPath();
-  ctx.moveTo(2.6, -12.0);
-  ctx.lineTo(3.0, -10.8);
-  ctx.stroke();
-  // Bridge highlight (east-side, mot ljuset)
-  ctx.fillStyle = skin1;
-  ctx.fillRect(3.4, -11.8, 0.35, 1.2);
-  // Nose tip (rounded form)
-  ctx.fillStyle = skin;
-  ctx.beginPath();
-  ctx.moveTo(2.8, -10.8);
-  ctx.quadraticCurveTo(4.3, -10.7, 4.4, -10.0);
-  ctx.lineTo(4.0, -9.8);
-  ctx.quadraticCurveTo(3.3, -10.0, 2.9, -10.3);
-  ctx.closePath();
-  ctx.fill();
-  // Nose tip outline (delicate curve)
-  ctx.strokeStyle = outline;
-  ctx.lineWidth = 0.6;
-  ctx.beginPath();
-  ctx.moveTo(2.8, -10.8);
-  ctx.quadraticCurveTo(4.3, -10.7, 4.4, -10.0);
-  ctx.lineTo(4.0, -9.8);
-  ctx.stroke();
-  // Nostril (small dark ellipse, not too big)
-  ctx.fillStyle = skin6;
-  ctx.beginPath();
-  ctx.ellipse(3.6, -10.05, 0.4, 0.22, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Subtle shadow under nose (above mouth, separating)
-  ctx.fillStyle = skin5;
-  ctx.fillRect(3.0, -9.5, 1.0, 0.3);
-  // v1.493: MUN — mindre + rakare för manligt utseende (innan: ellipse 1.2x0.38
-  // = fyllig "feminin" lower lip). Nu: kort linje + thin lower lip.
-  ctx.strokeStyle = darken(lipColor, 0.30);
-  ctx.lineWidth = 0.85;
-  ctx.beginPath();
-  ctx.moveTo(2.0, -9.0);
-  ctx.quadraticCurveTo(3.2, -9.15, 4.5, -9.0);
-  ctx.stroke();
-  // Lower lip — TUNN linje istället för fyllig ellipse
-  ctx.strokeStyle = lipColor;
-  ctx.lineWidth = 0.55;
-  ctx.beginPath();
-  ctx.moveTo(2.2, -8.65);
-  ctx.quadraticCurveTo(3.3, -8.5, 4.3, -8.65);
-  ctx.stroke();
-  // Shadow under lower lip (skapar separation från haka)
-  ctx.fillStyle = skin5;
-  ctx.fillRect(2.4, -8.25, 1.9, 0.25);
+  drawEyes(ctx, cos.eyeShapeStyle, irisCol, isGlowEye, outline);
+  // Lower eyelid line — under ögat (ger trött/serious blick, skippa för 'big'/'round' eye-shapes)
+  if (cos.eyeShapeStyle !== 'big' && cos.eyeShapeStyle !== 'round') {
+    ctx.strokeStyle = skin5;
+    ctx.lineWidth = 0.35;
+    ctx.beginPath();
+    ctx.moveTo(-0.2, -12.1);
+    ctx.lineTo(1.6, -12.1);
+    ctx.moveTo(3.4, -12.1);
+    ctx.lineTo(5.2, -12.1);
+    ctx.stroke();
+  }
+  // === v1.504: NOSE — dispatch by cos.noseStyle ===
+  drawNose(ctx, cos.noseStyle, { skin, skin1, skin5, skin6 }, outline);
+  // === v1.504: MOUTH — dispatch by cos.mouthStyle ===
+  drawMouth(ctx, cos.mouthStyle, lipColor, lipHi, skin5, flash);
   // v1.493: PERMANENT JAW STUBBLE — subtila prickar längs hakan, alltid synlig
   // (även utan 'stubble' facial hair equipped). Ger MAN-look till bare-faced
   ctx.fillStyle = stubbleColor;
@@ -45026,6 +45139,520 @@ function drawFacialHair(ctx, style, color, flash) {
     ctx.fillRect(-0.5, 0.2, 2.5, 0.4);  // mittringen
     ctx.fillStyle = flash ? '#fff' : darken(color || '#5a2a0a', 0.7);
     ctx.fillRect(-0.5, 0.2, 2.5, 0.15);
+  }
+}
+
+// ============================================================
+// v1.504: FACIAL FEATURE CUSTOMIZATION — nose, eyeShape, eyebrows, mouth
+// Face-anatomi referens (3/4 view): hairline y=-14.2, brows y=-13.9 to -14.9,
+// east eye (4.3,-12.6), west eye (0.7,-12.6), nose tip (4.4,-10), nostril (3.6,-10.05),
+// mouth y=-9 to -8, chin y=-7. Face axes: x=-5 (west) till x=7.5 (east, varies med y).
+// ============================================================
+
+function drawEyebrows(ctx, style, color, flash) {
+  // Color = stubbleColor (skin5 darken) som passas in från drawNakedBody
+  const col = flash ? '#fff' : color;
+  ctx.fillStyle = col;
+  ctx.strokeStyle = col;
+  if (!style || style === 'classic') {
+    // Original thick chevron brows + bushy fibers
+    ctx.beginPath();
+    ctx.moveTo(2.5, -13.9); ctx.lineTo(6.3, -14.9);
+    ctx.lineTo(6.4, -13.7); ctx.lineTo(2.5, -12.9);
+    ctx.closePath(); ctx.fill();
+    ctx.fillRect(3.2, -14.3, 0.3, 0.3); ctx.fillRect(4.0, -14.5, 0.3, 0.3);
+    ctx.fillRect(4.8, -14.6, 0.3, 0.3); ctx.fillRect(5.5, -14.5, 0.3, 0.3);
+    ctx.beginPath();
+    ctx.moveTo(-0.8, -14.4); ctx.lineTo(2, -13.4);
+    ctx.lineTo(2, -12.6); ctx.lineTo(-0.8, -13.6);
+    ctx.closePath(); ctx.fill();
+    ctx.fillRect(0.5, -13.9, 0.3, 0.3); ctx.fillRect(1.2, -13.7, 0.3, 0.3);
+  } else if (style === 'thin') {
+    // Tunna pencil-brows (line-strokes)
+    ctx.lineWidth = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(2.7, -13.7);
+    ctx.quadraticCurveTo(4.5, -14.3, 6.2, -14.4);
+    ctx.moveTo(-0.6, -14.0);
+    ctx.quadraticCurveTo(0.8, -13.7, 2.0, -13.4);
+    ctx.stroke();
+  } else if (style === 'bushy') {
+    // Extra tjocka + fluffy texture
+    // East brow (large trapezoid)
+    ctx.beginPath();
+    ctx.moveTo(2.3, -13.7);
+    ctx.quadraticCurveTo(4.5, -15.3, 6.5, -14.4);
+    ctx.lineTo(6.6, -13.3);
+    ctx.quadraticCurveTo(4.5, -13.3, 2.3, -12.6);
+    ctx.closePath(); ctx.fill();
+    // Many fiber dots
+    for (let i = 0; i < 8; i++) {
+      const fx = 2.6 + i * 0.5;
+      const fy = -14.0 - Math.sin(i * 0.8) * 0.6;
+      ctx.fillRect(fx, fy, 0.36, 0.36);
+    }
+    // Stray brow-hairs sticking up
+    ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(3.5, -14.7); ctx.lineTo(3.6, -15.2);
+    ctx.moveTo(4.5, -14.9); ctx.lineTo(4.7, -15.4);
+    ctx.moveTo(5.5, -14.8); ctx.lineTo(5.6, -15.3);
+    ctx.stroke();
+    // West brow
+    ctx.beginPath();
+    ctx.moveTo(-1.0, -14.2);
+    ctx.quadraticCurveTo(0.5, -14.6, 2.1, -13.3);
+    ctx.lineTo(2.1, -12.5);
+    ctx.quadraticCurveTo(0.5, -13.4, -1.0, -13.4);
+    ctx.closePath(); ctx.fill();
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(-0.4 + i * 0.55, -13.8 - Math.cos(i) * 0.4, 0.32, 0.32);
+    }
+  } else if (style === 'arched') {
+    // Böjda upp — curve uppåt i mitten (klassisk "raised brow")
+    ctx.beginPath();
+    ctx.moveTo(2.5, -13.6);
+    ctx.quadraticCurveTo(4.3, -15.4, 6.3, -14.1);
+    ctx.lineTo(6.3, -13.5);
+    ctx.quadraticCurveTo(4.3, -14.7, 2.5, -12.9);
+    ctx.closePath(); ctx.fill();
+    // Few subtle fiber dots
+    ctx.fillRect(3.5, -14.2, 0.25, 0.25);
+    ctx.fillRect(4.5, -14.6, 0.25, 0.25);
+    ctx.fillRect(5.4, -14.3, 0.25, 0.25);
+    // West (mirror arch)
+    ctx.beginPath();
+    ctx.moveTo(-0.7, -14.0);
+    ctx.quadraticCurveTo(0.6, -14.7, 2.0, -13.3);
+    ctx.lineTo(2.0, -12.8);
+    ctx.quadraticCurveTo(0.6, -14.1, -0.7, -13.4);
+    ctx.closePath(); ctx.fill();
+  } else if (style === 'flat') {
+    // Helt horisontella rektangulära brows
+    ctx.fillRect(2.5, -14.4, 3.9, 0.65);
+    ctx.fillRect(-0.8, -13.95, 2.85, 0.55);
+    // Subtle texture
+    ctx.fillStyle = darken(color || '#1a0a08', 0.30);
+    ctx.fillRect(3.5, -14.2, 0.3, 0.3);
+    ctx.fillRect(4.7, -14.2, 0.3, 0.3);
+    ctx.fillRect(5.6, -14.2, 0.3, 0.3);
+  } else if (style === 'angled') {
+    // Arga (V-form) — inner corners LÄGRE (mot näsa) än outer
+    // East brow tilts DOWN mot mitten (inner=west, outer=east)
+    ctx.beginPath();
+    ctx.moveTo(2.5, -13.2);                 // inner-west (low)
+    ctx.lineTo(6.3, -14.9);                 // outer-east (high)
+    ctx.lineTo(6.4, -14.2);                 // outer-east bottom
+    ctx.lineTo(2.5, -12.5);                 // inner-west bottom
+    ctx.closePath(); ctx.fill();
+    // West brow tilts UP outward (inner=east, outer=west — wait foreshortened)
+    // För west sida av face: outer=west, inner=east. Outer ska vara LÅG, inner HÖG.
+    ctx.beginPath();
+    ctx.moveTo(-0.8, -13.4);                // outer-west (low på 3/4-vyn pga foreshortening)
+    ctx.lineTo(2.0, -13.3);                 // inner-east (samma höjd ungefär)
+    ctx.lineTo(2.0, -12.7);
+    ctx.lineTo(-0.8, -12.8);
+    ctx.closePath(); ctx.fill();
+    // Texture
+    ctx.fillRect(3.5, -13.7, 0.3, 0.3);
+    ctx.fillRect(4.5, -14.1, 0.3, 0.3);
+    ctx.fillRect(5.5, -14.5, 0.3, 0.3);
+  } else if (style === 'unibrow') {
+    // Enbryn — fortsätter över näsroten
+    // Main connection band
+    ctx.beginPath();
+    ctx.moveTo(-0.8, -14.3);
+    ctx.quadraticCurveTo(2.3, -14.5, 6.4, -14.8);
+    ctx.lineTo(6.5, -13.6);
+    ctx.quadraticCurveTo(2.3, -13.3, -0.8, -13.4);
+    ctx.closePath(); ctx.fill();
+    // Bridge solid fill (mellan brows över nose)
+    ctx.fillRect(1.6, -14.2, 1.2, 0.7);
+    // Many fiber dots
+    for (let i = 0; i < 9; i++) {
+      const fx = -0.3 + i * 0.78;
+      const fy = -14.0 - (i % 2) * 0.3;
+      ctx.fillRect(fx, fy, 0.32, 0.32);
+    }
+  }
+}
+
+function drawEyes(ctx, shape, irisCol, isGlowEye, outline) {
+  // Renderar BÄDA ögonen baserat på shape-style. Hanterar 3/4 view rotation per öga.
+  const drawSingleEye = (cx, cy, isWest) => {
+    let rx = 1.0, ry = 0.5, rotation = 0;
+    let irisR = 0.45;
+    let irisOffset = (!shape || shape === 'classic') ? 0.15 : 0;
+    if (shape === 'round') { rx = 0.95; ry = 0.75; irisR = 0.55; }
+    else if (shape === 'narrow') { rx = 1.1; ry = 0.3; irisR = 0.38; }
+    else if (shape === 'almond') { rx = 1.05; ry = 0.55; rotation = isWest ? 0.18 : -0.18; }
+    else if (shape === 'droopy') { rx = 1.05; ry = 0.55; rotation = isWest ? -0.18 : 0.18; }
+    else if (shape === 'sharp') { rx = 1.15; ry = 0.4; rotation = isWest ? 0.20 : -0.20; }
+    else if (shape === 'big') { rx = 1.15; ry = 0.95; irisR = 0.65; }
+    // Sclera (white)
+    ctx.fillStyle = '#f4f0e8';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy, rx, ry, rotation, 0, Math.PI * 2);
+    ctx.fill();
+    // Outline
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 0.6;
+    ctx.stroke();
+    // Iris+pupil
+    if (isGlowEye) { ctx.shadowColor = irisCol; ctx.shadowBlur = 3; }
+    ctx.fillStyle = irisCol;
+    const ix = cx + irisOffset;
+    ctx.beginPath();
+    ctx.arc(ix, cy, irisR, 0, Math.PI * 2);
+    ctx.fill();
+    if (isGlowEye) ctx.shadowBlur = 0;
+    // Sharp/cat — slit pupil
+    if (shape === 'sharp') {
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(ix - 0.08, cy - 0.28, 0.16, 0.56);
+    }
+    // Glint (på iris för att simulera ljus-reflex)
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(ix + 0.15, cy - 0.25, 0.3, 0.3);
+  };
+  drawSingleEye(0.7, -12.6, true);
+  drawSingleEye(4.3, -12.6, false);
+}
+
+function drawNose(ctx, style, skinPalette, outline) {
+  const { skin, skin1, skin5, skin6 } = skinPalette;
+  if (!style || style === 'classic') {
+    // Original — bridge shadow + highlight + rounded tip + nostril + under-shadow
+    ctx.strokeStyle = skin5; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(2.6, -12.0); ctx.lineTo(3.0, -10.8);
+    ctx.stroke();
+    ctx.fillStyle = skin1;
+    ctx.fillRect(3.4, -11.8, 0.35, 1.2);
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.moveTo(2.8, -10.8);
+    ctx.quadraticCurveTo(4.3, -10.7, 4.4, -10.0);
+    ctx.lineTo(4.0, -9.8);
+    ctx.quadraticCurveTo(3.3, -10.0, 2.9, -10.3);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(2.8, -10.8);
+    ctx.quadraticCurveTo(4.3, -10.7, 4.4, -10.0);
+    ctx.lineTo(4.0, -9.8);
+    ctx.stroke();
+    ctx.fillStyle = skin6;
+    ctx.beginPath();
+    ctx.ellipse(3.6, -10.05, 0.4, 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = skin5;
+    ctx.fillRect(3.0, -9.5, 1.0, 0.3);
+  } else if (style === 'small') {
+    // Liten knapp-näsa — mindre, kompakt
+    ctx.strokeStyle = skin5; ctx.lineWidth = 0.45;
+    ctx.beginPath();
+    ctx.moveTo(2.9, -11.4); ctx.lineTo(3.1, -10.5);
+    ctx.stroke();
+    ctx.fillStyle = skin1;
+    ctx.fillRect(3.5, -11.2, 0.25, 0.7);
+    // Round button-tip
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.ellipse(3.55, -10.15, 0.75, 0.45, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.55;
+    ctx.beginPath();
+    ctx.arc(3.55, -10.15, 0.7, Math.PI * 0.1, Math.PI * 0.9);
+    ctx.stroke();
+    ctx.fillStyle = skin6;
+    ctx.beginPath();
+    ctx.ellipse(3.55, -9.95, 0.3, 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = skin5;
+    ctx.fillRect(3.1, -9.6, 0.9, 0.22);
+  } else if (style === 'aquiline') {
+    // Romersk — prominent bridge med slight bump
+    ctx.strokeStyle = skin5; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(2.5, -12.3);
+    ctx.quadraticCurveTo(2.7, -11.5, 2.9, -11.0);
+    ctx.lineTo(3.1, -10.5);
+    ctx.stroke();
+    ctx.fillStyle = skin1;
+    ctx.fillRect(3.4, -12.1, 0.35, 1.5);
+    // Slim downward tip
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.moveTo(2.9, -10.5);
+    ctx.quadraticCurveTo(4.4, -10.4, 4.5, -9.5);
+    ctx.lineTo(4.0, -9.3);
+    ctx.quadraticCurveTo(3.3, -9.7, 2.9, -10.1);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(2.9, -10.5);
+    ctx.quadraticCurveTo(4.4, -10.4, 4.5, -9.5);
+    ctx.lineTo(4.0, -9.3);
+    ctx.stroke();
+    ctx.fillStyle = skin6;
+    ctx.beginPath();
+    ctx.ellipse(3.6, -9.7, 0.35, 0.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = skin5;
+    ctx.fillRect(3.0, -9.1, 1.1, 0.3);
+  } else if (style === 'wide') {
+    // Bred näsa — bredare tip, större nostriller (2 synliga)
+    ctx.strokeStyle = skin5; ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(2.5, -11.8); ctx.lineTo(2.9, -10.7);
+    ctx.stroke();
+    ctx.fillStyle = skin1;
+    ctx.fillRect(3.3, -11.6, 0.5, 1.0);
+    // Wide tip
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.moveTo(2.5, -10.5);
+    ctx.quadraticCurveTo(4.6, -10.4, 4.7, -9.5);
+    ctx.lineTo(4.2, -9.3);
+    ctx.quadraticCurveTo(2.9, -9.5, 2.5, -10.0);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(2.5, -10.5);
+    ctx.quadraticCurveTo(4.6, -10.4, 4.7, -9.5);
+    ctx.lineTo(4.2, -9.3);
+    ctx.stroke();
+    // 2 nostriller (bred näsa visar bägge)
+    ctx.fillStyle = skin6;
+    ctx.beginPath();
+    ctx.ellipse(3.7, -9.75, 0.5, 0.28, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(2.9, -9.9, 0.25, 0.18, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = skin5;
+    ctx.fillRect(2.6, -9.1, 1.6, 0.3);
+  } else if (style === 'narrow') {
+    // Smal näsa — slim bridge, liten tip
+    ctx.strokeStyle = skin5; ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(2.9, -12.0); ctx.lineTo(3.1, -10.6);
+    ctx.stroke();
+    ctx.fillStyle = skin1;
+    ctx.fillRect(3.45, -11.8, 0.22, 1.2);
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.moveTo(3.0, -10.6);
+    ctx.quadraticCurveTo(4.2, -10.55, 4.3, -9.95);
+    ctx.lineTo(3.95, -9.8);
+    ctx.quadraticCurveTo(3.4, -10.0, 3.1, -10.3);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(3.0, -10.6);
+    ctx.quadraticCurveTo(4.2, -10.55, 4.3, -9.95);
+    ctx.lineTo(3.95, -9.8);
+    ctx.stroke();
+    ctx.fillStyle = skin6;
+    ctx.beginPath();
+    ctx.ellipse(3.65, -10.05, 0.26, 0.15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = skin5;
+    ctx.fillRect(3.15, -9.55, 0.75, 0.22);
+  } else if (style === 'upturned') {
+    // Pixie — tip pekar UPP, kortare bridge
+    ctx.strokeStyle = skin5; ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(2.7, -11.4); ctx.lineTo(3.0, -10.6);
+    ctx.stroke();
+    ctx.fillStyle = skin1;
+    ctx.fillRect(3.35, -11.2, 0.32, 0.7);
+    // Upturned tip — tip-up så nostril syns underifrån
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.moveTo(2.8, -10.5);
+    ctx.quadraticCurveTo(3.8, -10.7, 4.2, -10.5);
+    ctx.lineTo(4.0, -10.0);
+    ctx.quadraticCurveTo(3.3, -10.2, 2.8, -10.2);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(2.8, -10.5);
+    ctx.quadraticCurveTo(3.8, -10.7, 4.2, -10.5);
+    ctx.lineTo(4.0, -10.0);
+    ctx.stroke();
+    // Nostril (större eftersom upturned visar underifrån)
+    ctx.fillStyle = skin6;
+    ctx.beginPath();
+    ctx.ellipse(3.5, -10.05, 0.42, 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = skin5;
+    ctx.fillRect(3.1, -9.75, 0.9, 0.22);
+  } else if (style === 'hooked') {
+    // Örn/hawk — markant hookad tip, downcurve
+    ctx.strokeStyle = skin5; ctx.lineWidth = 0.7;
+    ctx.beginPath();
+    ctx.moveTo(2.4, -12.3);
+    ctx.quadraticCurveTo(2.8, -11.0, 3.4, -10.0);
+    ctx.stroke();
+    ctx.fillStyle = skin1;
+    ctx.fillRect(3.3, -12.0, 0.4, 1.8);
+    // Sharp hooked tip
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.moveTo(3.1, -10.0);
+    ctx.quadraticCurveTo(4.5, -10.3, 4.8, -9.4);
+    ctx.quadraticCurveTo(4.5, -8.8, 3.9, -8.95);
+    ctx.lineTo(3.7, -9.2);
+    ctx.quadraticCurveTo(3.3, -9.6, 3.1, -9.85);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(3.1, -10.0);
+    ctx.quadraticCurveTo(4.5, -10.3, 4.8, -9.4);
+    ctx.quadraticCurveTo(4.5, -8.8, 3.9, -8.95);
+    ctx.stroke();
+    ctx.fillStyle = skin6;
+    ctx.beginPath();
+    ctx.ellipse(3.7, -9.5, 0.32, 0.16, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = skin5;
+    ctx.fillRect(3.0, -9.05, 1.0, 0.3);
+  }
+}
+
+function drawMouth(ctx, style, lipColor, lipHi, skin5, flash) {
+  const lipDark = flash ? '#fff' : darken(lipColor, 0.30);
+  const lipBase = flash ? '#fff' : lipColor;
+  if (!style || style === 'classic') {
+    ctx.strokeStyle = lipDark; ctx.lineWidth = 0.85;
+    ctx.beginPath();
+    ctx.moveTo(2.0, -9.0);
+    ctx.quadraticCurveTo(3.2, -9.15, 4.5, -9.0);
+    ctx.stroke();
+    ctx.strokeStyle = lipBase; ctx.lineWidth = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(2.2, -8.65);
+    ctx.quadraticCurveTo(3.3, -8.5, 4.3, -8.65);
+    ctx.stroke();
+    ctx.fillStyle = skin5;
+    ctx.fillRect(2.4, -8.25, 1.9, 0.25);
+  } else if (style === 'neutral') {
+    // Straight horizontal line
+    ctx.strokeStyle = lipDark; ctx.lineWidth = 0.85;
+    ctx.beginPath();
+    ctx.moveTo(2.0, -9.0); ctx.lineTo(4.5, -9.0);
+    ctx.stroke();
+    ctx.strokeStyle = lipBase; ctx.lineWidth = 0.45;
+    ctx.beginPath();
+    ctx.moveTo(2.2, -8.7); ctx.lineTo(4.3, -8.7);
+    ctx.stroke();
+    ctx.fillStyle = skin5;
+    ctx.fillRect(2.4, -8.3, 1.9, 0.25);
+  } else if (style === 'smirk') {
+    // Asymmetric — east-sida uppåt
+    ctx.strokeStyle = lipDark; ctx.lineWidth = 0.85;
+    ctx.beginPath();
+    ctx.moveTo(2.0, -8.85);
+    ctx.quadraticCurveTo(3.2, -8.95, 4.0, -9.2);
+    ctx.quadraticCurveTo(4.4, -9.3, 4.6, -9.45);
+    ctx.stroke();
+    ctx.strokeStyle = lipBase; ctx.lineWidth = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(2.2, -8.5);
+    ctx.quadraticCurveTo(3.2, -8.6, 4.2, -8.85);
+    ctx.stroke();
+    // Subtle east-corner dimple
+    ctx.fillStyle = skin5;
+    ctx.fillRect(4.4, -9.3, 0.25, 0.25);
+    ctx.fillRect(2.4, -8.2, 1.7, 0.22);
+  } else if (style === 'frown') {
+    // Sur — nedåt-curve
+    ctx.strokeStyle = lipDark; ctx.lineWidth = 0.85;
+    ctx.beginPath();
+    ctx.moveTo(2.0, -9.15);
+    ctx.quadraticCurveTo(3.2, -8.8, 4.5, -9.15);
+    ctx.stroke();
+    ctx.strokeStyle = lipBase; ctx.lineWidth = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(2.2, -8.8);
+    ctx.quadraticCurveTo(3.3, -8.55, 4.3, -8.8);
+    ctx.stroke();
+    ctx.fillStyle = skin5;
+    ctx.fillRect(2.4, -8.4, 1.9, 0.25);
+  } else if (style === 'thin') {
+    // Tunn linje (knappt synliga läppar)
+    ctx.strokeStyle = lipDark; ctx.lineWidth = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(2.1, -8.85);
+    ctx.quadraticCurveTo(3.2, -8.95, 4.4, -8.85);
+    ctx.stroke();
+    ctx.fillStyle = skin5;
+    ctx.fillRect(2.4, -8.55, 1.7, 0.2);
+  } else if (style === 'full') {
+    // Fyllig — visible 3D-lips (filled shapes)
+    // Upper lip (filled shape — Cupid's bow)
+    ctx.fillStyle = lipDark;
+    ctx.beginPath();
+    ctx.moveTo(2.0, -9.0);
+    ctx.quadraticCurveTo(2.7, -9.3, 3.0, -9.1);
+    ctx.lineTo(3.3, -9.25);
+    ctx.lineTo(3.6, -9.1);
+    ctx.quadraticCurveTo(4.0, -9.3, 4.5, -9.0);
+    ctx.lineTo(4.5, -8.75);
+    ctx.quadraticCurveTo(3.3, -8.95, 2.0, -8.75);
+    ctx.closePath();
+    ctx.fill();
+    // Lower lip (thicker filled shape)
+    ctx.fillStyle = lipBase;
+    ctx.beginPath();
+    ctx.moveTo(2.2, -8.5);
+    ctx.quadraticCurveTo(3.3, -8.1, 4.3, -8.5);
+    ctx.lineTo(4.2, -8.7);
+    ctx.quadraticCurveTo(3.3, -8.5, 2.3, -8.7);
+    ctx.closePath();
+    ctx.fill();
+    // Highlight on lower lip
+    ctx.fillStyle = flash ? '#fff' : lighten(lipColor, 0.4);
+    ctx.fillRect(2.9, -8.3, 1.4, 0.18);
+    // Shadow
+    ctx.fillStyle = skin5;
+    ctx.fillRect(2.4, -8.0, 1.9, 0.25);
+  } else if (style === 'open') {
+    // Öppen — visa tänder i springa
+    ctx.strokeStyle = lipDark; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(2.0, -9.05);
+    ctx.quadraticCurveTo(3.2, -9.2, 4.5, -9.05);
+    ctx.stroke();
+    // Inner mouth (dark)
+    ctx.fillStyle = '#3a0a08';
+    ctx.beginPath();
+    ctx.moveTo(2.4, -8.95);
+    ctx.quadraticCurveTo(3.3, -8.6, 4.2, -8.95);
+    ctx.quadraticCurveTo(3.3, -8.85, 2.4, -8.95);
+    ctx.closePath();
+    ctx.fill();
+    // Teeth (4 små vita rektanglar)
+    ctx.fillStyle = '#f4f0e8';
+    ctx.fillRect(2.85, -8.85, 0.32, 0.22);
+    ctx.fillRect(3.2, -8.88, 0.32, 0.22);
+    ctx.fillRect(3.55, -8.88, 0.32, 0.22);
+    ctx.fillRect(3.9, -8.85, 0.32, 0.22);
+    // Tooth gaps (thin shadow lines mellan tänder)
+    ctx.fillStyle = '#aa8a70';
+    ctx.fillRect(3.2, -8.85, 0.04, 0.18);
+    ctx.fillRect(3.55, -8.85, 0.04, 0.18);
+    ctx.fillRect(3.9, -8.85, 0.04, 0.18);
+    // Lower lip
+    ctx.strokeStyle = lipBase; ctx.lineWidth = 0.55;
+    ctx.beginPath();
+    ctx.moveTo(2.3, -8.5);
+    ctx.quadraticCurveTo(3.3, -8.35, 4.3, -8.5);
+    ctx.stroke();
+    ctx.fillStyle = skin5;
+    ctx.fillRect(2.4, -8.1, 1.9, 0.25);
   }
 }
 
