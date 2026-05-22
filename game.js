@@ -50349,9 +50349,384 @@ function drawHpBar(e, x, y) {
   }
 }
 
+// v1.500: MASCOT BULLETS — themed projectiles som matchar player's mascot-kostym.
+// Kallas från drawBullet via dispatch när player har mascot equippad.
+// Excluderar: rocket/grenade/blackhole (måste behålla distinkt look för gameplay).
+const _MASCOT_BULLET_SKIP_STYLES = new Set(['rocket', 'grenade', 'blackhole', 'pullwhip']);
+function drawMascotBullet(ctx, x, y, b, mascot) {
+  const r = b.r || 4;
+  const ang = Math.atan2(b.vy, b.vx);
+  if (mascot === 'mcdonalds') {
+    // FRENCH FRY — gold stick med salt-prickar (rotated)
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillRect(-r * 1.8, -r * 0.35, r * 3.6, r * 0.7);
+    // Cooked edges (darker tips)
+    ctx.fillStyle = '#cc9018';
+    ctx.fillRect(-r * 1.8, -r * 0.35, r * 0.3, r * 0.7);
+    ctx.fillRect(r * 1.5, -r * 0.35, r * 0.3, r * 0.7);
+    // Salt sprinkles
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(-r * 0.8, -r * 0.2, 0.4, 0.4);
+    ctx.fillRect(r * 0.5, -r * 0.1, 0.4, 0.4);
+    ctx.fillRect(r * 0, r * 0.1, 0.4, 0.4);
+    ctx.restore();
+  } else if (mascot === 'nugget') {
+    // GOLDEN-BROWN NUGGET BLOB med bumpy outline
+    ctx.fillStyle = '#d4a04a';
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.4 + x, -r * 0.6 + y);
+    ctx.lineTo(-r * 0.8 + x, -r * 1.1 + y);
+    ctx.lineTo(r * 0.4 + x, -r * 1.2 + y);
+    ctx.lineTo(r * 1.3 + x, -r * 0.5 + y);
+    ctx.lineTo(r * 1.4 + x, r * 0.4 + y);
+    ctx.lineTo(r * 0.5 + x, r * 1.1 + y);
+    ctx.lineTo(-r * 0.7 + x, r * 1.2 + y);
+    ctx.lineTo(-r * 1.4 + x, r * 0.5 + y);
+    ctx.closePath();
+    ctx.fill();
+    // Crust texture-dots
+    ctx.fillStyle = '#aa7a30';
+    ctx.fillRect(x - r * 0.5, y - r * 0.4, 0.4, 0.4);
+    ctx.fillRect(x + r * 0.3, y - r * 0.2, 0.4, 0.4);
+    ctx.fillRect(x - r * 0.2, y + r * 0.5, 0.4, 0.4);
+    // Light highlight
+    ctx.fillStyle = '#f0c060';
+    ctx.fillRect(x - r * 0.6, y - r * 0.7, 0.5, 0.3);
+  } else if (mascot === 'korv') {
+    // MINI HOT DOG — röd sausage med mustard zigzag (rotated)
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    // Sausage
+    ctx.fillStyle = '#c44830';
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.6, -r * 0.5);
+    ctx.quadraticCurveTo(-r * 1.9, 0, -r * 1.6, r * 0.5);
+    ctx.lineTo(r * 1.6, r * 0.5);
+    ctx.quadraticCurveTo(r * 1.9, 0, r * 1.6, -r * 0.5);
+    ctx.closePath();
+    ctx.fill();
+    // Highlight stripe
+    ctx.fillStyle = '#e85a40';
+    ctx.fillRect(-r * 1.5, -r * 0.3, r * 3, r * 0.2);
+    // Mustard zigzag
+    ctx.strokeStyle = '#ffd54a';
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.3, -r * 0.1);
+    ctx.lineTo(-r * 0.5, r * 0.2);
+    ctx.lineTo(r * 0.2, -r * 0.2);
+    ctx.lineTo(r * 1.2, r * 0.1);
+    ctx.stroke();
+    ctx.restore();
+  } else if (mascot === 'hamburger') {
+    // MINI BURGER — top bun + patty + bottom bun stack
+    // Top bun (dome)
+    ctx.fillStyle = '#d4a060';
+    ctx.beginPath();
+    ctx.arc(x, y - r * 0.2, r * 1.4, Math.PI, 0);
+    ctx.closePath();
+    ctx.fill();
+    // Sesame seeds
+    ctx.fillStyle = '#f0c080';
+    ctx.fillRect(x - r * 0.5, y - r * 0.9, 0.4, 0.3);
+    ctx.fillRect(x + r * 0.2, y - r * 1.1, 0.4, 0.3);
+    // Lettuce (green wavy edge)
+    ctx.fillStyle = '#5aaa30';
+    ctx.fillRect(x - r * 1.4, y - r * 0.2, r * 2.8, r * 0.25);
+    // Patty (dark middle)
+    ctx.fillStyle = '#5a2818';
+    ctx.fillRect(x - r * 1.3, y, r * 2.6, r * 0.5);
+    // Cheese dripping
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillRect(x - r * 1.4, y - r * 0.05, r * 0.4, r * 0.3);
+    ctx.fillRect(x + r * 1.0, y - r * 0.05, r * 0.4, r * 0.3);
+    // Bottom bun
+    ctx.fillStyle = '#aa7a40';
+    ctx.beginPath();
+    ctx.arc(x, y + r * 0.5, r * 1.3, 0, Math.PI);
+    ctx.closePath();
+    ctx.fill();
+  } else if (mascot === 'pizza') {
+    // PIZZA SLICE — triangle med sauce + cheese + pepperoni (rotated, tip forward)
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    // Crust (back of slice — vid pointy end)
+    ctx.fillStyle = '#d4a060';
+    ctx.beginPath();
+    ctx.moveTo(r * 2.2, 0);
+    ctx.lineTo(-r * 1.2, -r * 1.4);
+    ctx.lineTo(-r * 1.2, r * 1.4);
+    ctx.closePath();
+    ctx.fill();
+    // Sauce (slightly smaller red)
+    ctx.fillStyle = '#cc2818';
+    ctx.beginPath();
+    ctx.moveTo(r * 1.8, 0);
+    ctx.lineTo(-r * 0.9, -r * 1.1);
+    ctx.lineTo(-r * 0.9, r * 1.1);
+    ctx.closePath();
+    ctx.fill();
+    // Cheese blobs
+    ctx.fillStyle = '#ffd54a';
+    ctx.beginPath(); ctx.arc(r * 0.5, -r * 0.4, r * 0.35, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-r * 0.3, r * 0.4, r * 0.4, 0, Math.PI * 2); ctx.fill();
+    // Pepperoni
+    ctx.fillStyle = '#aa1818';
+    ctx.beginPath(); ctx.arc(r * 0.8, r * 0.3, r * 0.35, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-r * 0.5, -r * 0.4, r * 0.3, 0, Math.PI * 2); ctx.fill();
+    // Pepperoni inner darker
+    ctx.fillStyle = '#6a0a0a';
+    ctx.beginPath(); ctx.arc(r * 0.8, r * 0.3, r * 0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  } else if (mascot === 'banan') {
+    // MINI BANANA — yellow curved C med brun tip
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    // Body (curved C-shape)
+    ctx.fillStyle = '#ffd54a';
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.8, r * 0.4);
+    ctx.quadraticCurveTo(0, -r * 1.5, r * 1.8, r * 0.4);
+    ctx.quadraticCurveTo(r * 1.5, r * 0.7, r * 0.8, r * 0.3);
+    ctx.quadraticCurveTo(0, -r * 0.5, -r * 0.8, r * 0.3);
+    ctx.quadraticCurveTo(-r * 1.5, r * 0.7, -r * 1.8, r * 0.4);
+    ctx.closePath();
+    ctx.fill();
+    // Shadow ridge (darker yellow inner)
+    ctx.fillStyle = '#cca828';
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.5, r * 0.45);
+    ctx.quadraticCurveTo(0, -r * 0.3, r * 1.5, r * 0.45);
+    ctx.lineTo(r * 1.2, r * 0.55);
+    ctx.quadraticCurveTo(0, -r * 0.1, -r * 1.2, r * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    // Brown tip (west end)
+    ctx.fillStyle = '#3a2a08';
+    ctx.beginPath();
+    ctx.ellipse(-r * 1.7, r * 0.4, r * 0.3, r * 0.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Brown spot (ripeness)
+    ctx.fillStyle = '#5a3a1a';
+    ctx.beginPath();
+    ctx.arc(r * 0.3, r * 0.1, r * 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  } else if (mascot === 'kiwi') {
+    // KIWI SLICE — circle med fuzzy brown outer + green flesh + white star + seeds
+    // Brown fuzzy outer
+    ctx.fillStyle = '#8a5a3a';
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Green flesh
+    ctx.fillStyle = '#7aaa3a';
+    ctx.beginPath();
+    ctx.arc(x, y, r * 1.25, 0, Math.PI * 2);
+    ctx.fill();
+    // Lighter green inner
+    ctx.fillStyle = '#aaca5a';
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.85, 0, Math.PI * 2);
+    ctx.fill();
+    // White center star (5-point)
+    ctx.fillStyle = '#f4f4e0';
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (i / 10) * Math.PI * 2;
+      const rad = i % 2 === 0 ? r * 0.5 : r * 0.2;
+      const sx = x + Math.cos(a) * rad;
+      const sy = y + Math.sin(a) * rad;
+      if (i === 0) ctx.moveTo(sx, sy);
+      else ctx.lineTo(sx, sy);
+    }
+    ctx.closePath();
+    ctx.fill();
+    // Black seeds (6 in oval)
+    ctx.fillStyle = '#1a1a0a';
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.ellipse(x + Math.cos(a) * r * 0.95, y + Math.sin(a) * r * 0.95, 0.3, 0.5, a, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (mascot === 'mango') {
+    // MANGO — orange teardrop med red blush + green stem
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    // Yellow base
+    ctx.fillStyle = '#ffd54a';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.5, r * 1.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Orange overlay
+    ctx.fillStyle = '#ff9020';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.35, r * 1.0, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Red blush (top-back)
+    ctx.fillStyle = '#dd4020';
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.6, -r * 0.3, r * 0.6, r * 0.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Highlight (east)
+    ctx.fillStyle = '#ffe070';
+    ctx.fillRect(r * 0.6, -r * 0.4, r * 0.4, r * 0.6);
+    // Green stem (east tip)
+    ctx.fillStyle = '#3a8a3a';
+    ctx.fillRect(r * 1.3, -r * 0.25, r * 0.4, r * 0.5);
+    ctx.restore();
+  } else if (mascot === 'pencil') {
+    // WOOD SPLINTER — yellow stick + graphite tip + pink eraser
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    // Pink eraser (back)
+    ctx.fillStyle = '#ff8a9a';
+    ctx.fillRect(-r * 1.9, -r * 0.3, r * 0.5, r * 0.6);
+    // Silver ferrule
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillRect(-r * 1.4, -r * 0.3, r * 0.2, r * 0.6);
+    // Yellow body
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillRect(-r * 1.2, -r * 0.3, r * 2.2, r * 0.6);
+    // Yellow edge highlight
+    ctx.fillStyle = '#fff088';
+    ctx.fillRect(-r * 1.2, -r * 0.3, r * 2.2, 0.2);
+    // Wood point (tan)
+    ctx.fillStyle = '#cca878';
+    ctx.beginPath();
+    ctx.moveTo(r * 1.0, -r * 0.3);
+    ctx.lineTo(r * 1.8, 0);
+    ctx.lineTo(r * 1.0, r * 0.3);
+    ctx.closePath();
+    ctx.fill();
+    // Graphite tip (sharp dark point)
+    ctx.fillStyle = '#1a1a1a';
+    ctx.beginPath();
+    ctx.moveTo(r * 1.5, -r * 0.15);
+    ctx.lineTo(r * 2.1, 0);
+    ctx.lineTo(r * 1.5, r * 0.15);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  } else if (mascot === 'broccoli') {
+    // MINI BROCCOLI FLORET — green cloud puff med darker bumps
+    ctx.fillStyle = '#5aaa3a';
+    // 4 puffs (cluster)
+    ctx.beginPath(); ctx.arc(x - r * 0.5, y - r * 0.4, r * 0.7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + r * 0.5, y - r * 0.4, r * 0.7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y - r * 0.7, r * 0.7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y - r * 0.1, r * 0.8, 0, Math.PI * 2); ctx.fill();
+    // Lighter highlights (3 small)
+    ctx.fillStyle = '#7aca5a';
+    ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.6, r * 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + r * 0.3, y - r * 0.5, r * 0.2, 0, Math.PI * 2); ctx.fill();
+    // Darker depth-bumps
+    ctx.fillStyle = '#3a7a1a';
+    ctx.fillRect(x + r * 0.1, y - r * 0.3, 0.3, 0.3);
+    ctx.fillRect(x - r * 0.4, y - r * 0.1, 0.3, 0.3);
+    // Light green stalk (small, below)
+    ctx.fillStyle = '#aaca7a';
+    ctx.fillRect(x - r * 0.3, y + r * 0.3, r * 0.6, r * 0.5);
+  } else if (mascot === 'carrot') {
+    // MINI CARROT — orange triangle + green leafy back
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    // Orange body (tip forward east)
+    ctx.fillStyle = '#ff8a30';
+    ctx.beginPath();
+    ctx.moveTo(r * 1.8, 0);              // tip
+    ctx.lineTo(-r * 0.8, -r * 0.9);     // back top
+    ctx.lineTo(-r * 0.8, r * 0.9);      // back bottom
+    ctx.closePath();
+    ctx.fill();
+    // East-side highlight (sheen)
+    ctx.fillStyle = '#ffb060';
+    ctx.beginPath();
+    ctx.moveTo(r * 1.5, -r * 0.15);
+    ctx.lineTo(-r * 0.5, -r * 0.6);
+    ctx.lineTo(-r * 0.5, -r * 0.3);
+    ctx.lineTo(r * 1.5, 0.05);
+    ctx.closePath();
+    ctx.fill();
+    // Horizontal ridges
+    ctx.strokeStyle = '#cc5810';
+    ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.5, -r * 0.4); ctx.lineTo(r * 0.5, r * 0.4);
+    ctx.moveTo(r * 0, -r * 0.55); ctx.lineTo(r * 0, r * 0.55);
+    ctx.stroke();
+    // Green leafy back (3 leaves)
+    ctx.fillStyle = '#3a7a1a';
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.8, -r * 0.4);
+    ctx.lineTo(-r * 2.0, -r * 0.8);
+    ctx.lineTo(-r * 1.2, -r * 0.2);
+    ctx.lineTo(-r * 2.0, 0);
+    ctx.lineTo(-r * 1.2, r * 0.2);
+    ctx.lineTo(-r * 2.0, r * 0.8);
+    ctx.lineTo(-r * 0.8, r * 0.4);
+    ctx.closePath();
+    ctx.fill();
+    // Leaf highlights
+    ctx.fillStyle = '#5aaa3a';
+    ctx.fillRect(-r * 1.6, -r * 0.6, 0.3, 0.3);
+    ctx.fillRect(-r * 1.7, 0, 0.3, 0.3);
+    ctx.fillRect(-r * 1.6, r * 0.6, 0.3, 0.3);
+    ctx.restore();
+  } else if (mascot === 'cashew') {
+    // MINI CASHEW — kidney/C-shape beige med shadow + highlight
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    // Main C-shape
+    ctx.fillStyle = '#d4c090';
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.4, -r * 0.4);
+    ctx.quadraticCurveTo(-r * 0.2, -r * 1.3, r * 1.4, -r * 0.4);
+    ctx.quadraticCurveTo(r * 0.8, 0, r * 1.4, r * 0.4);
+    ctx.quadraticCurveTo(-r * 0.2, r * 1.3, -r * 1.4, r * 0.4);
+    ctx.quadraticCurveTo(-r * 0.8, 0, -r * 1.4, -r * 0.4);
+    ctx.closePath();
+    ctx.fill();
+    // Top highlight
+    ctx.fillStyle = '#f0e0b8';
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.0, -r * 0.6);
+    ctx.quadraticCurveTo(0, -r * 1.0, r * 1.0, -r * 0.6);
+    ctx.quadraticCurveTo(0, -r * 0.8, -r * 1.0, -r * 0.6);
+    ctx.closePath();
+    ctx.fill();
+    // Indent shadow (subtle)
+    ctx.fillStyle = '#a08a60';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 0.5, r * 0.15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 function drawBullet(b) {
   const x = b.x - state.camera.x;
   const y = b.y - state.camera.y;
+  // v1.500: MASCOT BULLET DISPATCH — themed projectiles när player har mascot
+  // (skip rocket/grenade/blackhole/pullwhip pga gameplay-clarity)
+  if (!b.hostile && state.player && !_MASCOT_BULLET_SKIP_STYLES.has(b.style)) {
+    const cos = getCurrentCostume();
+    if (cos.mascot) {
+      drawMascotBullet(ctx, x, y, b, cos.mascot);
+      return;
+    }
+  }
   // stil-baserad rendering för specialvapen
   if (b.style === 'flame') {
     // Trail bakåt (3 mindre färg-prickar med fade)
