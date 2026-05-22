@@ -21991,10 +21991,12 @@ function updateLobbySectionSuffixes() {
 // Render mini-character (32×40) av en wardrobe på en canvas. Mycket simpel — bara
 // huvud + kropp + cape + hatt så det syns vem som är vem i lobby.
 function drawMiniWardrobeAvatar(canvas, wardrobe) {
+  // v1.511: Använder samma drawNakedBody-pipeline som wardrobe-preview, så lobby-
+  // avataren reflekterar EXAKT samma kostym/face-features/mascot som spelaren har.
   const c = canvas.getContext('2d');
   c.clearRect(0, 0, canvas.width, canvas.height);
   if (!wardrobe) {
-    // Tom outline
+    // Tom outline (placeholder för partner utan wardrobe-data ännu)
     c.strokeStyle = 'rgba(170,58,255,0.4)';
     c.lineWidth = 1.5;
     c.setLineDash([3, 2]);
@@ -22006,46 +22008,77 @@ function drawMiniWardrobeAvatar(canvas, wardrobe) {
     c.fillText('?', canvas.width / 2, canvas.height / 2 + 4);
     return;
   }
-  const skinOpt = WARDROBE.skin.find(o => o.id === wardrobe.skin) || WARDROBE.skin[0];
-  const hairOpt = WARDROBE.hair.find(o => o.id === wardrobe.hair) || WARDROBE.hair[0];
-  const shirtOpt = WARDROBE.shirt.find(o => o.id === wardrobe.shirt) || WARDROBE.shirt[0];
-  const bandanaOpt = WARDROBE.bandana.find(o => o.id === wardrobe.bandana) || WARDROBE.bandana[0];
-  const hatOpt = wardrobe.hat ? WARDROBE.hat.find(o => o.id === wardrobe.hat) : null;
-  const capeOpt = wardrobe.cape ? WARDROBE.cape.find(o => o.id === wardrobe.cape) : null;
+  // Bygg cos från wardrobe-data (samma struktur som getCurrentCostume för konsekvent
+  // rendering med all face-features + mascots + brand-logos).
+  const _po = (cat, id) => (WARDROBE[cat] && WARDROBE[cat].find(o => o.id === id)) || (WARDROBE[cat] && WARDROBE[cat][0]);
+  const skinO = _po('skin', wardrobe.skin);
+  const hairO = _po('hair', wardrobe.hair);
+  const shirtO = _po('shirt', wardrobe.shirt);
+  const pantsO = _po('pants', wardrobe.pants);
+  const bandanaO = _po('bandana', wardrobe.bandana);
+  const glassesO = wardrobe.glasses ? _po('glasses', wardrobe.glasses) : null;
+  const hatO = wardrobe.hat ? _po('hat', wardrobe.hat) : null;
+  const capeO = wardrobe.cape ? _po('cape', wardrobe.cape) : null;
+  const shoesO = wardrobe.shoes ? _po('shoes', wardrobe.shoes) : null;
+  const facialHairO = wardrobe.facialHair ? _po('facialHair', wardrobe.facialHair) : null;
+  const eyesO = wardrobe.eyes ? _po('eyes', wardrobe.eyes) : null;
+  const scarsO = wardrobe.scars ? _po('scars', wardrobe.scars) : null;
+  const noseO = wardrobe.nose ? _po('nose', wardrobe.nose) : null;
+  const eyeShapeO = wardrobe.eyeShape ? _po('eyeShape', wardrobe.eyeShape) : null;
+  const eyebrowsO = wardrobe.eyebrows ? _po('eyebrows', wardrobe.eyebrows) : null;
+  const mouthO = wardrobe.mouth ? _po('mouth', wardrobe.mouth) : null;
   const tints = wardrobe.tints || {};
-  const shirtC = tints.shirtHue ? applyHueShift(shirtOpt.color, tints.shirtHue) : shirtOpt.color;
-  const cx = canvas.width / 2, cy = canvas.height / 2 + 6;
-  // Cape bakom
-  if (capeOpt && capeOpt.style !== 'none') {
-    drawCape(c, cx, cy + 2, 8, 14, capeOpt.style, capeOpt.color, performance.now());
+  const tShirt = (tints.shirtHue && shirtO && shirtO.color) ? applyHueShift(shirtO.color, tints.shirtHue) : (shirtO ? shirtO.color : null);
+  const tPants = (tints.pantsHue && pantsO && pantsO.color) ? applyHueShift(pantsO.color, tints.pantsHue) : (pantsO ? pantsO.color : null);
+  const cos = {
+    skin: (skinO && skinO.color) || '#d4a574',
+    shirt: tShirt,
+    bandana: bandanaO ? bandanaO.color : null,
+    accent: '#aa1818',
+    pants: tPants,
+    hairStyle: hairO ? hairO.style : 'bald',
+    hairColor: hairO ? hairO.color : '#1a0a08',
+    glasses: glassesO,
+    hat: hatO,
+    cape: capeO,
+    shoes: shoesO,
+    facialHair: facialHairO,
+    eyes: eyesO,
+    scars: scarsO,
+    shirtBrand: (shirtO && shirtO.brand) || null,
+    mascot: (shirtO && shirtO.mascot) || null,
+    noseStyle: noseO ? noseO.style : 'classic',
+    eyeShapeStyle: eyeShapeO ? eyeShapeO.style : 'classic',
+    eyebrowsStyle: eyebrowsO ? eyebrowsO.style : 'classic',
+    mouthStyle: mouthO ? mouthO.style : 'classic',
+  };
+  // Render: scale + translate så hela karaktären (hair-top y=-23 → foot y=+29 = 52 units)
+  // får plats centrerat i canvas. Arms sträcker ut till ±10 = 20 units wide.
+  const W = canvas.width, H = canvas.height;
+  const scale = Math.min(W / 20, H / 52) * 0.92;
+  const cx = W / 2;
+  const cy = H / 2 - 3 * scale; // shift up så hela karaktären (inkl ben+fötter) får plats
+  c.save();
+  c.translate(cx, cy);
+  c.scale(scale, scale);
+  c.imageSmoothingEnabled = true;
+  // 1. Cape bakom allt (om equippad)
+  if (cos.cape && cos.cape.style && cos.cape.style !== 'none' && typeof drawCapeOnUprightBody === 'function') {
+    try { drawCapeOnUprightBody(c, cos.cape.style, cos.cape.color, false, performance.now(), false); } catch(e) {}
   }
-  // Kropp
-  c.fillStyle = shirtC;
-  c.beginPath(); c.ellipse(cx, cy + 2, 8, 11, 0, 0, Math.PI * 2); c.fill();
-  // Huvud
-  c.fillStyle = skinOpt.color;
-  c.beginPath(); c.arc(cx, cy - 9, 6, 0, Math.PI * 2); c.fill();
-  // Hår (om har)
-  if (hairOpt && hairOpt.style !== 'bald') {
-    c.save();
-    c.translate(cx, cy - 9);
-    c.rotate(-Math.PI / 2);
-    drawHair(c, 6, hairOpt.style, hairOpt.color, false);
-    c.restore();
+  // 2. Hanging arms (skip för mascot — samma logik som drawPlayer)
+  const skipArms = !!cos.mascot && cos.mascot !== 'mcdonalds';
+  if (!skipArms && typeof drawHangingArm === 'function') {
+    try {
+      drawHangingArm(c, cos, false, true, 0, 0);   // east arm (hangX=+8)
+      drawHangingArm(c, cos, false, false, 0, 0);  // west arm (hangX=-8)
+    } catch(e) {}
   }
-  // Bandana
-  if (bandanaOpt && bandanaOpt.color) {
-    c.fillStyle = bandanaOpt.color;
-    c.beginPath(); c.ellipse(cx, cy - 11, 7, 2.5, 0, 0, Math.PI * 2); c.fill();
-  }
-  // Hatt
-  if (hatOpt && hatOpt.style !== 'none') {
-    drawHat(c, cx, cy - 9, 6, hatOpt.style, hatOpt.color);
-  }
-  // Ögon
-  c.fillStyle = '#0a0a0a';
-  c.beginPath(); c.arc(cx - 2, cy - 9, 0.8, 0, Math.PI * 2); c.fill();
-  c.beginPath(); c.arc(cx + 2, cy - 9, 0.8, 0, Math.PI * 2); c.fill();
+  // 3. Body (drawNakedBody renderar internt: head + face-features + torso +
+  //    shirt-overlay + pants-overlay + shoes-overlay + facialHair + scars +
+  //    glasses + hat + mascot-dispatch)
+  try { drawNakedBody(c, cos, false, 0, false); } catch(e) {}
+  c.restore();
 }
 
 function renderLobbyPlayers(players) {
