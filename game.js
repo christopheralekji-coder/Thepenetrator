@@ -12378,6 +12378,11 @@ const WARDROBE = {
     { id: 'banan_body',     name: 'Banan-kostym',      color: '#ffd54a', mascot: 'banan' },
     { id: 'kiwi_body',      name: 'Kiwi-kostym',       color: '#7aaa3a', mascot: 'kiwi' },
     { id: 'mango_body',     name: 'Mango-kostym',      color: '#ff9020', mascot: 'mango' },
+    // v1.496: 4 nya mat/objekt-mascots
+    { id: 'pencil_body',    name: 'Blyertspenna-kostym',color: '#ffd54a', mascot: 'pencil' },
+    { id: 'broccoli_body',  name: 'Broccoli-kostym',   color: '#5aaa3a', mascot: 'broccoli' },
+    { id: 'carrot_body',    name: 'Morot-kostym',      color: '#ff8a30', mascot: 'carrot' },
+    { id: 'cashew_body',    name: 'Cashew-kostym',     color: '#d4c090', mascot: 'cashew' },
     { id: 'black',     name: 'Svart',      color: '#222' },
     { id: 'white',     name: 'Vit',        color: '#cccccc' },
     { id: 'tactical',  name: 'Tactical',   color: '#1a3a1a' },
@@ -22482,6 +22487,27 @@ const WARDROBE_PRESETS = [
   } },
   { id: 'mango', name: 'Mango', wardrobe: {
       skin: 'tan', hair: 'bald', shirt: 'mango_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  // v1.496: 4 nya mat/objekt-mascots
+  { id: 'pencil', name: 'Blyertspenna', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'pencil_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'broccoli', name: 'Broccoli', wardrobe: {
+      skin: 'fair', hair: 'bald', shirt: 'broccoli_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'carrot', name: 'Morot', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'carrot_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'cashew', name: 'Cashew', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'cashew_body', pants: 'briefs',
       shoes: 'none', hat: 'none', bandana: 'none',
       glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
   } },
@@ -39787,6 +39813,478 @@ function drawMangoCharacter(ctx, cos, flash, walkPhase, isMoving) {
   ctx.fill();
 }
 
+// ============================================================
+// v1.496: PENCIL/BROCCOLI/CARROT/CASHEW — 4 nya mat/objekt-mascots
+// ============================================================
+
+// PENCIL (Blyertspenna) — gul hexagonal kropp + rosa rubber + sharpened tip
+function drawPencilCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const yellow      = flash ? '#fff' : '#ffd54a';
+  const yellowDark  = flash ? '#fff' : '#cca828';
+  const yellowLight = flash ? '#fff' : '#fff088';
+  const pink        = flash ? '#fff' : '#ff8a9a';
+  const pinkDark    = flash ? '#fff' : '#cc5070';
+  const silver      = flash ? '#fff' : '#aaaaaa';
+  const silverDark  = flash ? '#fff' : '#5a5a5a';
+  const wood        = flash ? '#fff' : '#cca878';
+  const woodDark    = flash ? '#fff' : '#7a5a30';
+  const graphite    = flash ? '#fff' : '#2a2a2a';
+  const outline     = flash ? '#fff' : '#3a2a08';
+  const blackEye    = flash ? '#fff' : '#0a0a0a';
+  const stickColor  = flash ? '#fff' : '#5a3a20';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 1.2 : 0;
+  // ERASER (rosa cap)
+  ctx.fillStyle = pink;
+  ctx.beginPath();
+  ctx.moveTo(-2.3, -16);
+  ctx.quadraticCurveTo(-2.5, -18.5, -0.5, -18.8);
+  ctx.lineTo(0.5, -18.8);
+  ctx.quadraticCurveTo(2.5, -18.5, 2.3, -16);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.8;
+  ctx.stroke();
+  // Eraser shadow (under-side)
+  ctx.fillStyle = pinkDark;
+  ctx.fillRect(-2.3, -16.5, 4.6, 0.5);
+  // Eraser highlight
+  ctx.fillStyle = flash ? '#fff' : '#ffb5c0';
+  ctx.fillRect(-1.5, -18.3, 1, 1.5);
+  // METAL BAND (silver ferrule)
+  ctx.fillStyle = silver;
+  ctx.fillRect(-2.4, -16, 4.8, 1.5);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.strokeRect(-2.4, -16, 4.8, 1.5);
+  // Rivets/lines on ferrule
+  ctx.fillStyle = silverDark;
+  ctx.fillRect(-2.4, -15.5, 4.8, 0.2);
+  ctx.fillRect(-2.4, -15.0, 4.8, 0.2);
+  // YELLOW HEXAGONAL BODY
+  ctx.fillStyle = yellow;
+  ctx.beginPath();
+  ctx.moveTo(-2.4, -14.5);
+  ctx.lineTo(2.4, -14.5);
+  ctx.lineTo(2.4, 5);
+  ctx.lineTo(-2.4, 5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.8;
+  ctx.stroke();
+  // Hexagonal edges (vertical lines on body)
+  ctx.strokeStyle = yellowDark; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -14.5); ctx.lineTo(-1.5, 5);
+  ctx.moveTo(0, -14.5); ctx.lineTo(0, 5);
+  ctx.moveTo(1.5, -14.5); ctx.lineTo(1.5, 5);
+  ctx.stroke();
+  // East-side highlight
+  ctx.fillStyle = yellowLight;
+  ctx.fillRect(1.8, -14, 0.5, 18);
+  // FACE on body
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-1, -4, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1, -4, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-1, -4, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1, -4, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-0.7, -4.3, 0.3, 0.3);
+  ctx.fillRect(1.3, -4.3, 0.3, 0.3);
+  // Smile
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-0.7, -2); ctx.quadraticCurveTo(0, -1, 0.7, -2);
+  ctx.stroke();
+  // WOOD CONE (lower body taper)
+  ctx.fillStyle = wood;
+  ctx.beginPath();
+  ctx.moveTo(-2.4, 5);
+  ctx.lineTo(2.4, 5);
+  ctx.lineTo(0.7, 9);
+  ctx.lineTo(-0.7, 9);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+  ctx.stroke();
+  // Wood grain lines
+  ctx.strokeStyle = woodDark; ctx.lineWidth = 0.3;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, 6); ctx.lineTo(-0.5, 8.5);
+  ctx.moveTo(0, 6); ctx.lineTo(0, 8.5);
+  ctx.moveTo(1.5, 6); ctx.lineTo(0.5, 8.5);
+  ctx.stroke();
+  // GRAPHITE TIP (sharp point)
+  ctx.fillStyle = graphite;
+  ctx.beginPath();
+  ctx.moveTo(-0.7, 9);
+  ctx.lineTo(0.7, 9);
+  ctx.lineTo(0, 11.5);
+  ctx.closePath();
+  ctx.fill();
+  // Tip highlight
+  ctx.strokeStyle = silver; ctx.lineWidth = 0.3;
+  ctx.beginPath();
+  ctx.moveTo(-0.3, 9.5); ctx.lineTo(0, 11);
+  ctx.stroke();
+  // STICK ARMS (sticker ut från sidor)
+  const armSwing = isMoving ? swing * 1.5 : 0;
+  ctx.strokeStyle = stickColor; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-2.4, -2);
+  ctx.lineTo(-5.5, 1 - armSwing);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(2.4, -2);
+  ctx.lineTo(5.5, 1 + armSwing);
+  ctx.stroke();
+  // Hands
+  ctx.fillStyle = stickColor;
+  ctx.beginPath(); ctx.arc(-5.5, 1 - armSwing, 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(5.5, 1 + armSwing, 1.0, 0, Math.PI * 2); ctx.fill();
+  // STICK LEGS — pencil-tipen är där fötterna går (men vi har riktiga ben på sidor)
+  ctx.strokeStyle = stickColor; ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-2 - legSwing, 11.5);
+  ctx.lineTo(-2 - legSwing, 16);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(2 + legSwing, 11.5);
+  ctx.lineTo(2 + legSwing, 16);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  // Feet
+  ctx.fillStyle = stickColor;
+  ctx.beginPath();
+  ctx.ellipse(-2 - legSwing, 17, 1.8, 0.8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(2 + legSwing, 17, 1.8, 0.8, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// BROCCOLI — grön flower head + light green stalk
+function drawBroccoliCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const greenDark   = flash ? '#fff' : '#3a7a1a';
+  const greenMid    = flash ? '#fff' : '#5aaa3a';
+  const greenLight  = flash ? '#fff' : '#7aca5a';
+  const stalkGreen  = flash ? '#fff' : '#aaca7a';
+  const stalkDark   = flash ? '#fff' : '#7aaa4a';
+  const outline     = flash ? '#fff' : '#2a4a08';
+  const blackEye    = flash ? '#fff' : '#0a0a0a';
+  const stickColor  = flash ? '#fff' : '#5a3a20';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 1.5 : 0;
+  // FLOWER HEAD — multiple cloudy bumps (broccoli florets)
+  // Main base
+  ctx.fillStyle = greenMid;
+  ctx.beginPath();
+  ctx.ellipse(0, -11, 8, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Florets (multiple bumps)
+  const florets = [
+    [-6, -13, 2.5], [-3, -16, 3.0], [0, -17, 3.2],
+    [3, -16, 2.8], [6, -13.5, 2.6],
+    [-5, -10, 2.4], [-1, -10, 2.5], [3.5, -10, 2.4],
+    [5.5, -8, 2.0], [-5.5, -8, 2.0]
+  ];
+  ctx.fillStyle = greenMid;
+  for (const [fx, fy, fr] of florets) {
+    ctx.beginPath();
+    ctx.arc(fx, fy, fr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Texture variation (lighter bumps)
+  ctx.fillStyle = greenLight;
+  for (const [hx, hy, hr] of [[-2, -17, 1.0], [2, -16, 0.8], [-4, -12, 0.7],
+                              [4, -12, 0.7], [0, -13, 0.8]]) {
+    ctx.beginPath();
+    ctx.arc(hx, hy, hr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Darker shadow bumps (depth)
+  ctx.fillStyle = greenDark;
+  for (const [dx, dy] of [[-4, -10], [3, -10], [-1, -8], [4, -8]]) {
+    ctx.beginPath();
+    ctx.arc(dx, dy, 0.7, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Outline runt flower
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.ellipse(0, -11, 8, 6, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  // STALK (light green column)
+  ctx.fillStyle = stalkGreen;
+  ctx.beginPath();
+  ctx.moveTo(-2.5, -6);
+  ctx.lineTo(2.5, -6);
+  ctx.lineTo(2.5, 10);
+  ctx.quadraticCurveTo(0, 11, -2.5, 10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+  ctx.stroke();
+  // Stalk ridges (vertical detail)
+  ctx.fillStyle = stalkDark;
+  ctx.fillRect(-2, -5, 0.4, 14);
+  ctx.fillRect(-0.2, -5, 0.4, 14);
+  ctx.fillRect(1.6, -5, 0.4, 14);
+  // FACE on stalk
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-1, 0, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1, 0, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-1, 0, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1, 0, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-0.7, -0.3, 0.3, 0.3);
+  ctx.fillRect(1.3, -0.3, 0.3, 0.3);
+  // Smile
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-1, 2.5); ctx.quadraticCurveTo(0, 3.5, 1, 2.5);
+  ctx.stroke();
+  // STICK LEGS
+  ctx.strokeStyle = stickColor; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-1.5 - legSwing, 10.5);
+  ctx.lineTo(-1.5 - legSwing, 16);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(1.5 + legSwing, 10.5);
+  ctx.lineTo(1.5 + legSwing, 16);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  ctx.fillStyle = stickColor;
+  ctx.beginPath();
+  ctx.ellipse(-1.5 - legSwing, 17, 1.8, 0.8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.5 + legSwing, 17, 1.8, 0.8, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// CARROT — orange tapered cone + green leafy top
+function drawCarrotCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const orange      = flash ? '#fff' : '#ff8a30';
+  const orangeDark  = flash ? '#fff' : '#cc5810';
+  const orangeLight = flash ? '#fff' : '#ffb060';
+  const greenDark   = flash ? '#fff' : '#3a7a1a';
+  const greenLight  = flash ? '#fff' : '#5aaa3a';
+  const outline     = flash ? '#fff' : '#5a3008';
+  const blackEye    = flash ? '#fff' : '#0a0a0a';
+  const stickColor  = flash ? '#fff' : '#5a3a20';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 1.5 : 0;
+  // LEAFY TOP — 5 långa pointed leaves
+  ctx.fillStyle = greenDark;
+  const leaves = [
+    [-3, -10, -4.5, -18, -2, -16],     // far west leaf
+    [-1.5, -10, -1, -19, 0, -17],      // west-center
+    [0.5, -10, 1, -20, 2.5, -18],      // center-east
+    [2.5, -10, 4, -18.5, 3.5, -16.5],  // east-center
+    [4, -10, 5.5, -17, 5, -15]         // far east
+  ];
+  for (const [bx, by, tx, ty, mx, my] of leaves) {
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.quadraticCurveTo(mx, my, tx, ty);
+    ctx.quadraticCurveTo(mx + 1, my + 1, bx + 1, by);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Leaf highlights (lighter green on tops)
+  ctx.fillStyle = greenLight;
+  for (const [tx, ty] of [[-4.5, -18], [-1, -19], [1, -20], [4, -18.5], [5.5, -17]]) {
+    ctx.beginPath();
+    ctx.arc(tx, ty, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // CARROT BODY — orange tapered cone (top wide, bottom point)
+  ctx.fillStyle = orange;
+  ctx.beginPath();
+  ctx.moveTo(-5, -10);
+  ctx.lineTo(5, -10);
+  ctx.lineTo(2, 4);                  // narrowing
+  ctx.lineTo(0.5, 9);                // tip-narrow
+  ctx.lineTo(-0.5, 11);              // pointed tip
+  ctx.lineTo(-2, 4);                 // narrowing west
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1.0;
+  ctx.stroke();
+  // HORIZONTAL RIDGES (carrot texture)
+  ctx.strokeStyle = orangeDark; ctx.lineWidth = 0.4;
+  for (const ry of [-7, -4, -1, 2, 5, 7]) {
+    const ratio = (ry - (-10)) / (11 - (-10)); // 0 at top, 1 at bottom
+    const halfW = 5 * (1 - ratio * 0.85);
+    ctx.beginPath();
+    ctx.moveTo(-halfW, ry);
+    ctx.quadraticCurveTo(0, ry + 0.4, halfW, ry);
+    ctx.stroke();
+  }
+  // East-side highlight (sheen)
+  ctx.fillStyle = orangeLight;
+  ctx.beginPath();
+  ctx.moveTo(3, -9);
+  ctx.lineTo(4, -9);
+  ctx.lineTo(1.5, 3);
+  ctx.lineTo(0.8, 3);
+  ctx.closePath();
+  ctx.fill();
+  // FACE on body
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-1.5, -5, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1.5, -5, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-1.5, -5, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1.5, -5, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-1.2, -5.3, 0.3, 0.3);
+  ctx.fillRect(1.8, -5.3, 0.3, 0.3);
+  // Smile
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-1, -2); ctx.quadraticCurveTo(0, -1, 1, -2);
+  ctx.stroke();
+  // STICK ARMS
+  const armSwing = isMoving ? swing * 1.5 : 0;
+  ctx.strokeStyle = stickColor; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-4, -6);
+  ctx.lineTo(-6.5, -3 - armSwing);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(4, -6);
+  ctx.lineTo(6.5, -3 + armSwing);
+  ctx.stroke();
+  ctx.fillStyle = stickColor;
+  ctx.beginPath(); ctx.arc(-6.5, -3 - armSwing, 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(6.5, -3 + armSwing, 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.lineCap = 'butt';
+  // Carrot tip serves as bottom — no separate legs needed.
+  // But for walk-cycle illusion, add subtle leg-stubs.
+  ctx.strokeStyle = stickColor; ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-1 - legSwing * 0.5, 11.5);
+  ctx.lineTo(-1.5 - legSwing * 0.5, 14);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(0.5 + legSwing * 0.5, 11.5);
+  ctx.lineTo(1 + legSwing * 0.5, 14);
+  ctx.stroke();
+  // Feet
+  ctx.fillStyle = stickColor;
+  ctx.beginPath();
+  ctx.ellipse(-1.5 - legSwing * 0.5, 14.5, 1.4, 0.7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1 + legSwing * 0.5, 14.5, 1.4, 0.7, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// CASHEW — kidney/C-curved shape, beige nut with face
+function drawCashewCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const beige       = flash ? '#fff' : '#d4c090';
+  const beigeDark   = flash ? '#fff' : '#a08a60';
+  const beigeLight  = flash ? '#fff' : '#f0e0b8';
+  const outline     = flash ? '#fff' : '#5a4020';
+  const blackEye    = flash ? '#fff' : '#0a0a0a';
+  const stickColor  = flash ? '#fff' : '#5a3a20';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 1.5 : 0;
+  // CASHEW BODY — C-curve / kidney bean shape, facing east
+  ctx.fillStyle = beige;
+  ctx.beginPath();
+  // Outer curve (east side, convex)
+  ctx.moveTo(-2, -10);
+  ctx.quadraticCurveTo(4, -10, 6, -5);
+  ctx.quadraticCurveTo(7, 0, 6, 5);
+  ctx.quadraticCurveTo(4, 10, -2, 10);
+  // Inner curve (west side, concave — the kidney indent)
+  ctx.quadraticCurveTo(-6, 8, -7, 5);
+  ctx.quadraticCurveTo(-5, 3, -4, 0);          // pinch inward
+  ctx.quadraticCurveTo(-5, -3, -7, -5);
+  ctx.quadraticCurveTo(-6, -8, -2, -10);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1.0;
+  ctx.stroke();
+  // East-side highlight (mot ljuset)
+  ctx.fillStyle = beigeLight;
+  ctx.beginPath();
+  ctx.moveTo(4, -7);
+  ctx.quadraticCurveTo(6, -4, 6, 3);
+  ctx.lineTo(5, 3);
+  ctx.quadraticCurveTo(5, -3, 3.5, -6);
+  ctx.closePath();
+  ctx.fill();
+  // West indent shadow (gör kidney-shape tydlig)
+  ctx.fillStyle = beigeDark;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(-7, -3);
+  ctx.quadraticCurveTo(-5, 0, -7, 3);
+  ctx.lineTo(-6, 3);
+  ctx.quadraticCurveTo(-4, 0, -6, -3);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Subtle surface texture (small lighter spots)
+  ctx.fillStyle = beigeLight;
+  for (const [tx, ty] of [[2, -5], [4, 2], [1, 6], [-3, -7], [-1, 8]]) {
+    ctx.beginPath();
+    ctx.ellipse(tx, ty, 0.5, 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // FACE on east-side (visible portion of cashew)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(0, -3, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3, -3, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(0, -3, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3, -3, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0.3, -3.3, 0.3, 0.3);
+  ctx.fillRect(3.3, -3.3, 0.3, 0.3);
+  // Smile
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.5;
+  ctx.beginPath();
+  ctx.moveTo(0.5, 0); ctx.quadraticCurveTo(1.5, 1, 2.5, 0);
+  ctx.stroke();
+  // Tiny blush cheeks
+  ctx.fillStyle = flash ? '#fff' : '#ff9090';
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath(); ctx.arc(-2, -1, 0.6, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(5, -1, 0.6, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+  // STICK ARMS
+  const armSwing = isMoving ? swing * 1.5 : 0;
+  ctx.strokeStyle = stickColor; ctx.lineWidth = 1.3; ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-6, 1);
+  ctx.lineTo(-9, 4 - armSwing);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(6, 0);
+  ctx.lineTo(9, 3 + armSwing);
+  ctx.stroke();
+  ctx.fillStyle = stickColor;
+  ctx.beginPath(); ctx.arc(-9, 4 - armSwing, 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(9, 3 + armSwing, 1.0, 0, Math.PI * 2); ctx.fill();
+  // STICK LEGS
+  ctx.strokeStyle = stickColor; ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(-2 - legSwing, 10);
+  ctx.lineTo(-2 - legSwing, 15);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(2 + legSwing, 10);
+  ctx.lineTo(2 + legSwing, 15);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  ctx.fillStyle = stickColor;
+  ctx.beginPath();
+  ctx.ellipse(-2 - legSwing, 16, 1.8, 0.8, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(2 + legSwing, 16, 1.8, 0.8, 0, 0, Math.PI * 2); ctx.fill();
+}
+
 // v1.462: NAKED CHARACTER drawn via canvas primitives — cleaner än mitt pixel art.
 // Profile view (facing east default). Mirror för west via ctx.scale(-1,1) i caller.
 // v1.464: REFINED design — compressed proportions (~50px total instead of 66px),
@@ -39804,6 +40302,10 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   if (cos.mascot === 'banan')     { drawBananaCharacter(ctx, cos, flash, walkPhase, isMoving);    return; }
   if (cos.mascot === 'kiwi')      { drawKiwiCharacter(ctx, cos, flash, walkPhase, isMoving);      return; }
   if (cos.mascot === 'mango')     { drawMangoCharacter(ctx, cos, flash, walkPhase, isMoving);     return; }
+  if (cos.mascot === 'pencil')    { drawPencilCharacter(ctx, cos, flash, walkPhase, isMoving);    return; }
+  if (cos.mascot === 'broccoli')  { drawBroccoliCharacter(ctx, cos, flash, walkPhase, isMoving);  return; }
+  if (cos.mascot === 'carrot')    { drawCarrotCharacter(ctx, cos, flash, walkPhase, isMoving);    return; }
+  if (cos.mascot === 'cashew')    { drawCashewCharacter(ctx, cos, flash, walkPhase, isMoving);    return; }
   // v1.474: Middle Eastern olive skin tone (var #a8704c = för ljust/pinkish).
   // #9a6028 = warm olive-brown — typisk Mediterranean/Levantine/MENA komplexion.
   const skinBase = cos.skin || '#9a6028';
