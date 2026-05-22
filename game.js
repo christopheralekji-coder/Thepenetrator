@@ -39862,30 +39862,76 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   const hShadow = flash ? '#fff' : darken(cos.hairColor || '#2a1a0a', 0.40);
   const hLight = flash ? '#fff' : lighten(cos.hairColor || '#2a1a0a', 0.22);
   if (hStyle === 'bald') {
-    // BUZZ CUT (snaggad) — subtle stubble on top of head
-    ctx.fillStyle = stubbleColor;
-    ctx.globalAlpha = 0.55;
+    // v1.494: FÖRBÄTTRAD SNAGGAD/BUZZ CUT — tätare stubble + crown shading
+    // + sharp hairline + sideburn. Innan: 10 uniformerade dots på 0.55 alpha
+    // wash = ser ut som ingen frisyr.
+    const dotDark = flash ? '#fff' : darken(skinBase, 0.55);
+    // 1. SCALP TINT — subtil mörk wash över hela hair-zone
+    ctx.fillStyle = dotDark;
+    ctx.globalAlpha = 0.35;
     ctx.beginPath();
-    ctx.moveTo(-4, -19);
-    ctx.quadraticCurveTo(2, -20.5, 6, -19);
-    ctx.quadraticCurveTo(7, -17, 6, -15);
-    ctx.lineTo(-4, -15);
-    ctx.quadraticCurveTo(-5, -17, -4, -19);
+    ctx.moveTo(-4.5, -19);
+    ctx.quadraticCurveTo(2, -20.8, 6.5, -19);
+    ctx.quadraticCurveTo(7.8, -16, 6.5, -13.8);
+    ctx.lineTo(-4, -14);
+    ctx.quadraticCurveTo(-5.5, -16.5, -4.5, -19);
     ctx.closePath();
     ctx.fill();
     ctx.globalAlpha = 1;
-    // Stubble dots
-    ctx.fillStyle = stubbleColor;
-    ctx.fillRect(-2, -18, 0.6, 0.6);
-    ctx.fillRect(1, -19, 0.6, 0.6);
-    ctx.fillRect(3, -18, 0.6, 0.6);
-    ctx.fillRect(-1, -17, 0.5, 0.5);
-    ctx.fillRect(2, -17, 0.5, 0.5);
-    ctx.fillRect(4, -17, 0.5, 0.5);
-    ctx.fillRect(-3, -16, 0.5, 0.5);
-    ctx.fillRect(0, -16, 0.5, 0.5);
-    ctx.fillRect(3, -16, 0.5, 0.5);
-    ctx.fillRect(5, -16, 0.5, 0.5);
+    // 2. CENTER CROWN — något mörkare patch där hår är tjockast (top)
+    ctx.fillStyle = dotDark;
+    ctx.globalAlpha = 0.22;
+    ctx.beginPath();
+    ctx.ellipse(2, -19, 3.5, 1.0, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // 3. DENSE STUBBLE DOTS — varierade storlekar (0.28-0.4) för organisk look
+    ctx.fillStyle = dotDark;
+    const dots = [
+      // Top crown row
+      [-3, -18.5, 0.35], [-1.6, -19, 0.4], [0, -19.3, 0.35],
+      [1.4, -19.4, 0.38], [2.8, -19.2, 0.35], [4.2, -18.7, 0.38], [5.5, -18.3, 0.32],
+      // Upper-mid scalp
+      [-3.6, -17.6, 0.32], [-2.1, -17.9, 0.36], [-0.6, -18.1, 0.34],
+      [0.9, -18.3, 0.38], [2.3, -18.2, 0.32], [3.8, -18, 0.36], [5.3, -17.6, 0.34],
+      // Mid scalp
+      [-3.7, -16.5, 0.34], [-2.2, -16.7, 0.3], [-0.7, -16.9, 0.36],
+      [0.8, -17.1, 0.32], [2.2, -17.1, 0.38], [3.7, -16.9, 0.34], [5.2, -16.6, 0.36],
+      [6.3, -16, 0.3],
+      // Lower scalp
+      [-3.5, -15.5, 0.32], [-2, -15.7, 0.36], [-0.5, -15.9, 0.32],
+      [1, -16, 0.34], [2.5, -16, 0.38], [4, -15.9, 0.34], [5.5, -15.6, 0.32],
+      // Hairline region (subtle, fading out)
+      [-3, -14.8, 0.28], [-1.5, -14.9, 0.32], [0, -15, 0.28],
+      [1.5, -15, 0.32], [3, -15, 0.28], [4.5, -14.9, 0.32], [6, -14.7, 0.28],
+    ];
+    for (const [dx, dy, dr] of dots) {
+      ctx.fillRect(dx, dy, dr, dr);
+    }
+    // 4. SHARP HAIRLINE — tunn linje vid hair-edge för att definiera buzz
+    ctx.strokeStyle = dotDark;
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 0.45;
+    ctx.beginPath();
+    ctx.moveTo(-4, -14);
+    ctx.quadraticCurveTo(1, -13.7, 6.3, -14);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    // 5. EAST SIDEBURN — stubble sträcker ner past hairline vid east temple
+    ctx.fillStyle = dotDark;
+    ctx.globalAlpha = 0.65;
+    ctx.fillRect(6.5, -13.5, 0.4, 0.4);
+    ctx.fillRect(6.7, -12.8, 0.32, 0.32);
+    ctx.fillRect(6.5, -12.1, 0.36, 0.36);
+    ctx.fillRect(6.3, -11.4, 0.3, 0.3);
+    ctx.globalAlpha = 1;
+    // 6. WEST SIDEBURN (mindre synlig i 3/4 view men finns)
+    ctx.fillStyle = dotDark;
+    ctx.globalAlpha = 0.50;
+    ctx.fillRect(-5.2, -13.5, 0.3, 0.3);
+    ctx.fillRect(-5.4, -12.7, 0.28, 0.28);
+    ctx.fillRect(-5.2, -11.8, 0.32, 0.32);
+    ctx.globalAlpha = 1;
   } else if (hStyle === 'short') {
     // Kort hår — täcker övre delen av huvudet
     ctx.fillStyle = hCol;
