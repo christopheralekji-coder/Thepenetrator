@@ -23300,8 +23300,9 @@ function showWardrobeEquipFeedback(cardEl, label) {
   }, 900);
 }
 function renderWardrobeTabs() {
-  // v1.508: HIERARCHICAL TABS — använder CSS-klasser istället för inline-styles
-  // så #wardrobe-tabs button-!important inte blockar.
+  // v1.510: UNIFIED 2-row tab-area för ALLA grupper. För preset-gruppen renderas
+  // dess interna Klassiker/Märken/Kostymer/Riddare/Mytologi i sub-row (var inuti
+  // options innan, gjorde Outfits inkonsekvent med Kropp/Kläder).
   wardrobeTabsEl.innerHTML = '';
   const expectedGroup = getWardrobeGroupForCat(_wardrobeCurrentTab);
   if (_wardrobeCurrentGroup !== expectedGroup) _wardrobeCurrentGroup = expectedGroup;
@@ -23325,11 +23326,35 @@ function renderWardrobeTabs() {
     groupRow.appendChild(btn);
   }
   wrap.appendChild(groupRow);
-  // ROW 2: Sub-cats (visas bara om gruppen har >1 sub-cat)
+  // ROW 2: Sub-row för selected grupp
   const currentGroup = WARDROBE_GROUPS.find(g => g.id === _wardrobeCurrentGroup);
-  if (currentGroup && currentGroup.cats.length > 1) {
-    const subRow = document.createElement('div');
-    subRow.className = 'ward-tab-sub-row';
+  const subRow = document.createElement('div');
+  subRow.className = 'ward-tab-sub-row';
+  if (currentGroup && currentGroup.id === 'preset') {
+    // SPECIAL: Outfits-gruppens sub-row = preset-filter (Klassiker/Märken/etc)
+    const presetSubs = [
+      { id: 'classic', label: 'KLASSIKER' },
+      { id: 'brand',   label: 'MÄRKEN' },
+      { id: 'mascot',  label: 'KOSTYMER' },
+      { id: 'hero',    label: 'RIDDARE' },
+      { id: 'myth',    label: 'MYTOLOGI' },
+    ];
+    for (const sub of presetSubs) {
+      const btn = document.createElement('button');
+      btn.className = 'ward-sub-btn' + (sub.id === _wardrobePresetSubTab ? ' active' : '');
+      btn.textContent = sub.label;
+      btn.addEventListener('click', () => {
+        if (_wardrobePresetSubTab === sub.id) return;
+        _wardrobePresetSubTab = sub.id;
+        Audio.uiClick();
+        renderWardrobeTabs();
+        renderWardrobeOptions();
+      });
+      subRow.appendChild(btn);
+    }
+    wrap.appendChild(subRow);
+  } else if (currentGroup && currentGroup.cats.length > 1) {
+    // Standard multi-cat sub-row för Kropp/Kläder
     for (const cat of currentGroup.cats) {
       const btn = document.createElement('button');
       btn.className = 'ward-sub-btn' + (cat === _wardrobeCurrentTab ? ' active' : '');
@@ -24013,39 +24038,13 @@ function renderWardrobeOptions() {
       });
       return card;
     };
-    // Klassificera presets
+    // Klassificera presets (sub-tab UI flyttat till renderWardrobeTabs i v1.510)
     const groups = { classic: [], brand: [], mascot: [], hero: [], myth: [] };
     for (const p of WARDROBE_PRESETS) {
       const cat2 = presetCategory(p);
       (groups[cat2] || groups.classic).push(p);
     }
-    // v1.493: Sub-tab BAR — klickbara knappar istället för långa sektioner.
-    // v1.498: Lägg till 'hero' (RIDDARE) för Element-Knights
-    // v1.499: Lägg till 'myth' (MYTOLOGI) för mytologiska figurer
-    const subTabBar = document.createElement('div');
-    subTabBar.className = 'ward-subtab-bar';
-    const subTabs = [
-      { id: 'classic', label: 'KLASSIKER', count: groups.classic.length },
-      { id: 'brand',   label: 'MÄRKEN',    count: groups.brand.length },
-      { id: 'mascot',  label: 'KOSTYMER',  count: groups.mascot.length },
-      { id: 'hero',    label: 'RIDDARE',   count: groups.hero.length },
-      { id: 'myth',    label: 'MYTOLOGI',  count: groups.myth.length },
-    ];
-    for (const sub of subTabs) {
-      const btn = document.createElement('button');
-      btn.className = 'ward-subtab-btn' + (sub.id === _wardrobePresetSubTab ? ' active' : '');
-      btn.innerHTML = `<span class="ward-subtab-label">${sub.label}</span>` +
-                      `<span class="ward-subtab-count">${sub.count}</span>`;
-      btn.addEventListener('click', () => {
-        if (_wardrobePresetSubTab === sub.id) return;
-        _wardrobePresetSubTab = sub.id;
-        Audio.uiClick();
-        renderWardrobeOptions();
-      });
-      subTabBar.appendChild(btn);
-    }
-    wardrobeOptsEl.appendChild(subTabBar);
-    // Rendera BARA items för aktiv sub-tab
+    // Rendera BARA items för aktiv sub-tab (filtreringen sköts av _wardrobePresetSubTab)
     const activeList = groups[_wardrobePresetSubTab] || groups.classic;
     for (const p of activeList) wardrobeOptsEl.appendChild(buildPresetCard(p));
     return;
@@ -24315,6 +24314,28 @@ const _btnWardrobeRandom = document.getElementById('btn-wardrobe-random');
 if (_btnWardrobeRandom) _btnWardrobeRandom.addEventListener('click', randomizeWardrobe);
 const _btnWardrobeReset = document.getElementById('btn-wardrobe-reset');
 if (_btnWardrobeReset) _btnWardrobeReset.addEventListener('click', resetWardrobe);
+// v1.510: TA AV ALLT — kläder/accessoarer → 'none', behåller skin/hair/face-features
+function stripWardrobe() {
+  ensureWardrobe();
+  _wardrobeUndoState = JSON.parse(JSON.stringify(save.wardrobe));
+  save.wardrobe.shirt = 'naked';      // bar överkropp
+  save.wardrobe.pants = 'briefs';     // bara kalsonger
+  save.wardrobe.shoes = 'none';
+  save.wardrobe.hat = 'none';
+  save.wardrobe.glasses = 'none';
+  save.wardrobe.bandana = 'none';
+  save.wardrobe.cape = 'none';
+  save.wardrobe.facialHair = 'none';
+  // Behåller: skin, hair, eyes, eyeShape, eyebrows, nose, mouth, scars
+  invalidateCostumeCache();
+  persist();
+  Audio.uiClick();
+  if (typeof renderWardrobeOptions === 'function') renderWardrobeOptions();
+  if (typeof refreshWardrobeUndoButton === 'function') refreshWardrobeUndoButton();
+  showWardrobeEquipFeedback(null, '🩲 NAKEN');
+}
+const _btnWardrobeStrip = document.getElementById('btn-wardrobe-strip');
+if (_btnWardrobeStrip) _btnWardrobeStrip.addEventListener('click', stripWardrobe);
 // v1.491: Ångra-knapp — rullar tillbaka senaste preset/randomize-apply
 const _btnWardrobeUndo = document.getElementById('btn-wardrobe-undo');
 function undoWardrobeChange() {

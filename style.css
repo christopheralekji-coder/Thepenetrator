@@ -2764,22 +2764,26 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   display: none;
 }
 #wardrobe-layout {
-  /* v1.509: FYLLER VISIBLE VIEWPORT — min-height så preview+menu täcker hela
-     "första sidan" innan footer börjar. 100dvh - 90px subtraherar header zone
-     (h2 + menu-sub + screen padding-top). */
+  /* v1.510: FIXED HÖJD (height, ej min-height). Med min-height kunde controls'
+     natural-size (60+ shirt-cards = 2400px) växa grid-rad → preview-canvas
+     hamnade centrerad i tall column = osynlig.
+     grid-template-rows:1fr tvingar raden att vara exakt layout-höjd.
+     overflow:hidden hindrar children från att läcka ut visuellt. */
   display: grid;
   grid-template-columns: minmax(110px, 0.85fr) minmax(150px, 1.15fr);
+  grid-template-rows: 1fr;
   gap: 10px;
   width: 100%;
   max-width: 980px;
-  min-height: calc(100dvh - 90px);
+  height: calc(100dvh - 90px);
   flex-shrink: 0;
   align-items: stretch;
+  overflow: hidden;
   margin-bottom: 0;
 }
 /* Fallback för browsers utan dvh-stöd (~Safari <15.4) */
 @supports not (height: 100dvh) {
-  #wardrobe-layout { min-height: calc(100vh - 90px); }
+  #wardrobe-layout { height: calc(100vh - 90px); }
 }
 /* PREVIEW-KOLUMN (vänstra halvan, FAST positionerad i grid) */
 #wardrobe-preview-wrap {
@@ -3124,7 +3128,7 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   border-top: none;
   box-sizing: border-box;
 }
-#wardrobe-actionbar .big-btn { grid-column: 1 / -1; }
+/* v1.510: TILLBAKA delar nu rad 3 med TA AV ALLT (var grid-column:1/-1) */
 /* v1.491: Disabled-state för undo-knapp (sätts via [disabled] attribute) */
 #wardrobe-actionbar .medium-btn[disabled] {
   opacity: 0.35;
