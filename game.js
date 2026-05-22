@@ -12400,6 +12400,19 @@ const WARDROBE = {
     { id: 'hero_arcane',    name: 'Spell Knight',      color: '#5a2aaa', brand: 'h_arcane' },
     { id: 'hero_void',      name: 'Star Knight',       color: '#0a1a4a', brand: 'h_void' },
     { id: 'hero_knight',    name: 'Crimson Knight',    color: '#8a1a1a', brand: 'h_knight' },
+    // v1.499: 12 MYTOLOGISKA FIGURER från 8 kulturer (alla public domain)
+    { id: 'myth_zeus',      name: 'Zeus',              color: '#f0e8c8', brand: 'm_zeus' },
+    { id: 'myth_poseidon',  name: 'Poseidon',          color: '#1a4a7a', brand: 'm_poseidon' },
+    { id: 'myth_hercules',  name: 'Hercules',          color: '#a06a3a', brand: 'm_hercules' },
+    { id: 'myth_thor',      name: 'Thor (Nordisk)',    color: '#8a2818', brand: 'm_thor' },
+    { id: 'myth_valkyria',  name: 'Valkyria',          color: '#c8c8d0', brand: 'm_valkyria' },
+    { id: 'myth_anubis',    name: 'Anubis',            color: '#0a0a1a', brand: 'm_anubis' },
+    { id: 'myth_pharaoh',   name: 'Farao',             color: '#ccae40', brand: 'm_pharaoh' },
+    { id: 'myth_kitsune',   name: 'Kitsune',           color: '#f8f0e8', brand: 'm_kitsune' },
+    { id: 'myth_oni',       name: 'Oni',               color: '#8a1818', brand: 'm_oni' },
+    { id: 'myth_quetz',     name: 'Quetzalcoatl',      color: '#1a8a5a', brand: 'm_quetz' },
+    { id: 'myth_druid',     name: 'Druid',             color: '#2a5a2a', brand: 'm_druid' },
+    { id: 'myth_hanuman',   name: 'Hanuman',           color: '#cc5818', brand: 'm_hanuman' },
     { id: 'black',     name: 'Svart',      color: '#222' },
     { id: 'white',     name: 'Vit',        color: '#cccccc' },
     { id: 'tactical',  name: 'Tactical',   color: '#1a3a1a' },
@@ -12699,6 +12712,7 @@ function getWardrobeOpt(cat, id) {
 
 // v1.491: Klassificera preset baserat på shirt-property (brand/mascot/classic)
 // v1.498: Lägg till 'hero' för h_*-brand-prefix (Element Knights)
+// v1.499: Lägg till 'myth' för m_*-brand-prefix (Mytologiska figurer)
 function presetCategory(preset) {
   const shirtId = preset.wardrobe && preset.wardrobe.shirt;
   if (!shirtId) return 'classic';
@@ -12706,6 +12720,7 @@ function presetCategory(preset) {
   if (shirt && shirt.mascot) return 'mascot';
   if (shirt && shirt.brand) {
     if (shirt.brand.startsWith('h_')) return 'hero';
+    if (shirt.brand.startsWith('m_')) return 'myth';
     return 'brand';
   }
   return 'classic';
@@ -22496,6 +22511,67 @@ const WARDROBE_PRESETS = [
       shoes: 'combatBoot', hat: 'helmet', bandana: 'none',
       glasses: 'none', cape: 'crimson', facialHair: 'fullBeard', eyes: 'default', scars: 'crossScar'
   } },
+  // v1.499: 12 MYTOLOGISKA FIGURER (alla public domain från olika kulturer)
+  { id: 'myth_zeus', name: 'Zeus', wardrobe: {
+      skin: 'fair', hair: 'whiteLong', shirt: 'myth_zeus', pants: 'white',
+      shoes: 'sandals', hat: 'none', bandana: 'gold',
+      glasses: 'none', cape: 'gold', facialHair: 'fullBeardGray', eyes: 'blue', scars: 'none'
+  } },
+  { id: 'myth_poseidon', name: 'Poseidon', wardrobe: {
+      skin: 'tan', hair: 'whiteLong', shirt: 'myth_poseidon', pants: 'jeans',
+      shoes: 'sandals', hat: 'none', bandana: 'cyan',
+      glasses: 'none', cape: 'royal', facialHair: 'fullBeardGray', eyes: 'iceBlue', scars: 'none'
+  } },
+  { id: 'myth_hercules', name: 'Hercules', wardrobe: {
+      skin: 'caramel', hair: 'longBrown', shirt: 'myth_hercules', pants: 'desert',
+      shoes: 'sandals', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'fullBeard', eyes: 'amber', scars: 'crossScar'
+  } },
+  { id: 'myth_thor', name: 'Thor (Nordisk)', wardrobe: {
+      skin: 'fair', hair: 'shortRed', shirt: 'myth_thor', pants: 'black',
+      shoes: 'combatBoot', hat: 'helmet', bandana: 'none',
+      glasses: 'none', cape: 'red', facialHair: 'fullBeard', eyes: 'blue', scars: 'eyeScar'
+  } },
+  { id: 'myth_valkyria', name: 'Valkyria', wardrobe: {
+      skin: 'pale', hair: 'longBlonde', shirt: 'myth_valkyria', pants: 'black',
+      shoes: 'combatBoot', hat: 'helmet', bandana: 'white',
+      glasses: 'none', cape: 'wings', facialHair: 'none', eyes: 'iceBlue', scars: 'none'
+  } },
+  { id: 'myth_anubis', name: 'Anubis', wardrobe: {
+      skin: 'caramel', hair: 'bald', shirt: 'myth_anubis', pants: 'black',
+      shoes: 'sandals', hat: 'none', bandana: 'gold',
+      glasses: 'none', cape: 'black', facialHair: 'none', eyes: 'gold', scars: 'tribalRight'
+  } },
+  { id: 'myth_pharaoh', name: 'Farao', wardrobe: {
+      skin: 'caramel', hair: 'bald', shirt: 'myth_pharaoh', pants: 'gold',
+      shoes: 'goldSneaker', hat: 'crown', bandana: 'none',
+      glasses: 'none', cape: 'gold', facialHair: 'none', eyes: 'gold', scars: 'none'
+  } },
+  { id: 'myth_kitsune', name: 'Kitsune', wardrobe: {
+      skin: 'pale', hair: 'longBlonde', shirt: 'myth_kitsune', pants: 'red',
+      shoes: 'sandals', hat: 'none', bandana: 'red',
+      glasses: 'none', cape: 'red', facialHair: 'none', eyes: 'amber', scars: 'cheekScar'
+  } },
+  { id: 'myth_oni', name: 'Oni', wardrobe: {
+      skin: 'red', hair: 'longBlack', shirt: 'myth_oni', pants: 'black',
+      shoes: 'combatBoot', hat: 'horns', bandana: 'none',
+      glasses: 'none', cape: 'black', facialHair: 'fullBeard', eyes: 'red', scars: 'crossScar'
+  } },
+  { id: 'myth_quetz', name: 'Quetzalcoatl', wardrobe: {
+      skin: 'caramel', hair: 'longBlack', shirt: 'myth_quetz', pants: 'olive',
+      shoes: 'sandals', hat: 'none', bandana: 'gold',
+      glasses: 'none', cape: 'rainbow', facialHair: 'none', eyes: 'gold', scars: 'tribalLeft'
+  } },
+  { id: 'myth_druid', name: 'Druid', wardrobe: {
+      skin: 'fair', hair: 'longBrown', shirt: 'myth_druid', pants: 'olive',
+      shoes: 'hikingTan', hat: 'wizard', bandana: 'none',
+      glasses: 'none', cape: 'green', facialHair: 'fullBeardGray', eyes: 'green', scars: 'none'
+  } },
+  { id: 'myth_hanuman', name: 'Hanuman', wardrobe: {
+      skin: 'caramel', hair: 'shortDark', shirt: 'myth_hanuman', pants: 'red',
+      shoes: 'sandals', hat: 'crown', bandana: 'gold',
+      glasses: 'none', cape: 'red', facialHair: 'none', eyes: 'amber', scars: 'none'
+  } },
   // v1.485: PARODI-OUTFITS — kända märken med twist
   { id: 'adibas', name: 'Adibas', wardrobe: {
       skin: 'tan', hair: 'shortDark', shirt: 'adibas_top', pants: 'black',
@@ -23666,13 +23742,14 @@ function renderWardrobeOptions() {
       return card;
     };
     // Klassificera presets
-    const groups = { classic: [], brand: [], mascot: [], hero: [] };
+    const groups = { classic: [], brand: [], mascot: [], hero: [], myth: [] };
     for (const p of WARDROBE_PRESETS) {
       const cat2 = presetCategory(p);
       (groups[cat2] || groups.classic).push(p);
     }
     // v1.493: Sub-tab BAR — klickbara knappar istället för långa sektioner.
     // v1.498: Lägg till 'hero' (RIDDARE) för Element-Knights
+    // v1.499: Lägg till 'myth' (MYTOLOGI) för mytologiska figurer
     const subTabBar = document.createElement('div');
     subTabBar.className = 'ward-subtab-bar';
     const subTabs = [
@@ -23680,6 +23757,7 @@ function renderWardrobeOptions() {
       { id: 'brand',   label: 'MÄRKEN',    count: groups.brand.length },
       { id: 'mascot',  label: 'KOSTYMER',  count: groups.mascot.length },
       { id: 'hero',    label: 'RIDDARE',   count: groups.hero.length },
+      { id: 'myth',    label: 'MYTOLOGI',  count: groups.myth.length },
     ];
     for (const sub of subTabs) {
       const btn = document.createElement('button');
@@ -42847,6 +42925,788 @@ function drawShirtBrandLogo(ctx, brand, flash) {
     ctx.lineWidth = 0.2;
     ctx.strokeRect(-0.4, 1, 0.8, 3.5);
     ctx.strokeRect(-1.5, 2, 3, 0.8);
+  } else if (brand === 'm_zeus') {
+    // ZEUS — gyllene blixt + liten moln-pyramid
+    const gold = flash ? '#fff' : '#ffd54a';
+    const goldDark = flash ? '#fff' : '#aa8a20';
+    const cloud = flash ? '#fff' : '#dddde0';
+    // Liten moln-formation överst
+    ctx.fillStyle = cloud;
+    ctx.beginPath();
+    ctx.arc(-2, 0.5, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, -0.2, 1.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(2, 0.5, 1, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(-2, 0.5, 4, 0.5);
+    // Lightning bolt (zigzag)
+    ctx.fillStyle = gold;
+    ctx.shadowColor = gold; ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.moveTo(0.5, 1);
+    ctx.lineTo(-1.3, 2.8);
+    ctx.lineTo(0.3, 2.8);
+    ctx.lineTo(-1, 5.5);
+    ctx.lineTo(2, 2.5);
+    ctx.lineTo(0.5, 2.5);
+    ctx.lineTo(1.8, 1);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Outline
+    ctx.strokeStyle = goldDark; ctx.lineWidth = 0.3;
+    ctx.stroke();
+  } else if (brand === 'm_poseidon') {
+    // POSEIDON — silver treudd + vågor under
+    const silver = flash ? '#fff' : '#c8c8d0';
+    const silverDark = flash ? '#fff' : '#5a5a6a';
+    const wave = flash ? '#fff' : '#5acaff';
+    // Treudd 3-prongs
+    ctx.fillStyle = silver;
+    // Center prong (longest)
+    ctx.fillRect(0.2, -0.2, 0.5, 3);
+    ctx.beginPath();
+    ctx.moveTo(0.45, -1.5);
+    ctx.lineTo(0.1, -0.2);
+    ctx.lineTo(0.8, -0.2);
+    ctx.closePath();
+    ctx.fill();
+    // Left prong
+    ctx.beginPath();
+    ctx.moveTo(-1.3, -1);
+    ctx.lineTo(-1.0, -0.2);
+    ctx.lineTo(-1.6, -0.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillRect(-1.4, -0.2, 0.5, 1.5);
+    // Right prong
+    ctx.beginPath();
+    ctx.moveTo(2.2, -1);
+    ctx.lineTo(1.9, -0.2);
+    ctx.lineTo(2.5, -0.2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillRect(1.9, -0.2, 0.5, 1.5);
+    // Connecting bar
+    ctx.fillRect(-1.6, 0.5, 4.1, 0.5);
+    // Handle (long down to waist)
+    ctx.fillRect(0.2, 2.8, 0.5, 3);
+    // Handle outline
+    ctx.strokeStyle = silverDark; ctx.lineWidth = 0.2;
+    ctx.strokeRect(0.2, 2.8, 0.5, 3);
+    // Waves below
+    ctx.strokeStyle = wave; ctx.lineWidth = 0.5;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const wy = 6.5 + i * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(-3, wy);
+      ctx.quadraticCurveTo(-1.5, wy - 0.4, 0, wy);
+      ctx.quadraticCurveTo(1.5, wy + 0.4, 3, wy);
+      ctx.stroke();
+    }
+    ctx.lineCap = 'butt';
+  } else if (brand === 'm_hercules') {
+    // HERCULES — lejonhuvud silhouette + klubb crossed bakom
+    const club = flash ? '#fff' : '#6a4a20';
+    const clubDark = flash ? '#fff' : '#3a2a10';
+    const lion = flash ? '#fff' : '#ffae3a';
+    const lionDark = flash ? '#fff' : '#aa6a10';
+    // Wooden club (crossed diagonal bakom)
+    ctx.save();
+    ctx.strokeStyle = club; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-3, 5);
+    ctx.lineTo(3, -0.5);
+    ctx.stroke();
+    // Club head (wider end)
+    ctx.fillStyle = club;
+    ctx.beginPath();
+    ctx.arc(3, -0.5, 1.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = clubDark; ctx.lineWidth = 0.2;
+    ctx.stroke();
+    // Club spikes (knots)
+    ctx.fillStyle = clubDark;
+    ctx.fillRect(2.5, -1.3, 0.4, 0.4);
+    ctx.fillRect(3.2, -0.3, 0.4, 0.4);
+    ctx.fillRect(2.7, 0.3, 0.3, 0.3);
+    ctx.lineCap = 'butt';
+    ctx.restore();
+    // Lion head profile (mane + face)
+    ctx.fillStyle = lion;
+    ctx.shadowColor = lionDark; ctx.shadowBlur = 2;
+    // Mane (irregular outer ring)
+    ctx.beginPath();
+    ctx.arc(0, 2.5, 2.6, 0, Math.PI * 2);
+    ctx.fill();
+    // Mane tufts
+    for (let i = 0; i < 8; i++) {
+      const ang = (i / 8) * Math.PI * 2;
+      const tx = Math.cos(ang) * 2.6;
+      const ty = 2.5 + Math.sin(ang) * 2.6;
+      ctx.beginPath();
+      ctx.arc(tx, ty, 0.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+    // Face (lighter inner)
+    ctx.fillStyle = lionDark;
+    ctx.beginPath();
+    ctx.arc(0, 2.5, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Eyes
+    ctx.fillStyle = flash ? '#fff' : '#1a0a08';
+    ctx.beginPath(); ctx.arc(-0.6, 2.2, 0.25, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0.6, 2.2, 0.25, 0, Math.PI * 2); ctx.fill();
+    // Nose
+    ctx.fillRect(-0.25, 2.6, 0.5, 0.3);
+    // Mouth line
+    ctx.strokeStyle = flash ? '#fff' : '#1a0a08';
+    ctx.lineWidth = 0.2;
+    ctx.beginPath();
+    ctx.moveTo(-0.3, 3.2); ctx.lineTo(0.3, 3.2);
+    ctx.stroke();
+  } else if (brand === 'm_thor') {
+    // THOR (Nordisk mytologi) — Mjolnir (kort handle, bred huvud — traditionell Norse)
+    const ironGray = flash ? '#fff' : '#5a5a6a';
+    const ironLight = flash ? '#fff' : '#9aa0aa';
+    const ironDark = flash ? '#fff' : '#2a2a3a';
+    const goldDetail = flash ? '#fff' : '#ffd54a';
+    // Hammer head (bred och kort — traditionell Mjolnir)
+    ctx.fillStyle = ironGray;
+    ctx.beginPath();
+    ctx.moveTo(-3, 0);
+    ctx.lineTo(3, 0);
+    ctx.lineTo(3.3, 0.8);
+    ctx.lineTo(3, 2);
+    ctx.lineTo(-3, 2);
+    ctx.lineTo(-3.3, 0.8);
+    ctx.closePath();
+    ctx.fill();
+    // Hammer head highlight
+    ctx.fillStyle = ironLight;
+    ctx.fillRect(-2.8, 0.2, 5.6, 0.4);
+    // Hammer head outline
+    ctx.strokeStyle = ironDark; ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(-3, 0);
+    ctx.lineTo(3, 0);
+    ctx.lineTo(3.3, 0.8);
+    ctx.lineTo(3, 2);
+    ctx.lineTo(-3, 2);
+    ctx.lineTo(-3.3, 0.8);
+    ctx.closePath();
+    ctx.stroke();
+    // Runic decorations på huvud (3 små runor)
+    ctx.fillStyle = goldDetail;
+    // Symbolic runes (generic geometric)
+    ctx.fillRect(-1.8, 0.8, 0.3, 0.5);
+    ctx.fillRect(-2, 1.0, 0.7, 0.2);
+    ctx.fillRect(-0.2, 0.8, 0.3, 0.5);
+    ctx.fillRect(-0.3, 1.1, 0.5, 0.2);
+    ctx.fillRect(1.5, 0.8, 0.3, 0.5);
+    ctx.fillRect(1.3, 1.0, 0.7, 0.2);
+    // Short handle (down to chest mid)
+    ctx.fillStyle = ironGray;
+    ctx.fillRect(-0.4, 2, 0.8, 3.5);
+    // Handle wrappings (leather grip lines)
+    ctx.strokeStyle = ironDark; ctx.lineWidth = 0.25;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-0.4, 2.5 + i * 0.7);
+      ctx.lineTo(0.4, 2.5 + i * 0.7);
+      ctx.stroke();
+    }
+    // Pommel (rounded end of handle)
+    ctx.fillStyle = ironLight;
+    ctx.beginPath();
+    ctx.arc(0, 5.8, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = ironDark; ctx.lineWidth = 0.2;
+    ctx.stroke();
+  } else if (brand === 'm_valkyria') {
+    // VALKYRIA — spread vingar + svärd vertikalt centrerat
+    const silver = flash ? '#fff' : '#dde0e8';
+    const silverDark = flash ? '#fff' : '#7a7a8a';
+    const gold = flash ? '#fff' : '#ffd54a';
+    // Sword (vertikal mitt på chest)
+    ctx.fillStyle = silver;
+    ctx.fillRect(-0.3, 0, 0.6, 5);  // blade
+    ctx.fillStyle = gold;
+    ctx.fillRect(-1.3, 0, 2.6, 0.5);  // crossguard
+    ctx.fillStyle = silverDark;
+    ctx.fillRect(-0.4, -1, 0.8, 1);    // pommel
+    ctx.fillStyle = gold;
+    ctx.beginPath();
+    ctx.arc(0, -1.2, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    // Outline
+    ctx.strokeStyle = silverDark; ctx.lineWidth = 0.2;
+    ctx.strokeRect(-0.3, 0, 0.6, 5);
+    ctx.beginPath();
+    ctx.moveTo(0, 5);
+    ctx.lineTo(-0.3, 4.7);
+    ctx.lineTo(0.3, 4.7);
+    ctx.closePath();
+    ctx.fill();
+    // Spread vingar — vänster
+    ctx.fillStyle = silver;
+    ctx.beginPath();
+    ctx.moveTo(-1.5, 1);
+    ctx.quadraticCurveTo(-4, 0.5, -5.5, 2);
+    ctx.quadraticCurveTo(-4.5, 3, -3, 2.5);
+    ctx.lineTo(-1.5, 1.5);
+    ctx.closePath();
+    ctx.fill();
+    // Vänster vinge feather details
+    ctx.strokeStyle = silverDark; ctx.lineWidth = 0.25;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-1.5 - i * 0.8, 1.3);
+      ctx.lineTo(-2.5 - i * 0.8, 2.2);
+      ctx.stroke();
+    }
+    // Spread vingar — höger
+    ctx.fillStyle = silver;
+    ctx.beginPath();
+    ctx.moveTo(1.5, 1);
+    ctx.quadraticCurveTo(4, 0.5, 5.5, 2);
+    ctx.quadraticCurveTo(4.5, 3, 3, 2.5);
+    ctx.lineTo(1.5, 1.5);
+    ctx.closePath();
+    ctx.fill();
+    // Höger vinge feather details
+    ctx.strokeStyle = silverDark;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(1.5 + i * 0.8, 1.3);
+      ctx.lineTo(2.5 + i * 0.8, 2.2);
+      ctx.stroke();
+    }
+    // Vingar outline
+    ctx.strokeStyle = silverDark; ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(-1.5, 1);
+    ctx.quadraticCurveTo(-4, 0.5, -5.5, 2);
+    ctx.quadraticCurveTo(-4.5, 3, -3, 2.5);
+    ctx.lineTo(-1.5, 1.5);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(1.5, 1);
+    ctx.quadraticCurveTo(4, 0.5, 5.5, 2);
+    ctx.quadraticCurveTo(4.5, 3, 3, 2.5);
+    ctx.lineTo(1.5, 1.5);
+    ctx.stroke();
+  } else if (brand === 'm_anubis') {
+    // ANUBIS — jackal head profile (traditionell egyptisk ikon) + gold trim
+    const gold = flash ? '#fff' : '#ffd54a';
+    const goldDark = flash ? '#fff' : '#aa8a30';
+    const black = flash ? '#fff' : '#0a0a14';
+    // Jackal head silhouette (facing east, pointed ears + long snout)
+    ctx.fillStyle = black;
+    ctx.beginPath();
+    ctx.moveTo(-2.5, 5);                   // neck bottom
+    ctx.lineTo(-2.5, 3);                    // neck back
+    ctx.quadraticCurveTo(-2.5, 1, -1, 0.5); // head top back
+    ctx.lineTo(-0.8, -0.5);                 // ear 1 base
+    ctx.lineTo(-0.3, -1.8);                 // ear 1 tip (pointy)
+    ctx.lineTo(0.5, -0.5);                  // ear 1 valley
+    ctx.lineTo(1.3, -1.8);                  // ear 2 tip (pointy)
+    ctx.lineTo(1.8, -0.5);                  // ear 2 base
+    ctx.quadraticCurveTo(3, 0.5, 4.5, 1.5); // forehead to snout
+    ctx.lineTo(5.5, 2.3);                   // snout extended
+    ctx.lineTo(4.5, 3);                     // snout under
+    ctx.lineTo(2.5, 3.2);                   // mouth corner
+    ctx.lineTo(1.8, 4);                     // jaw
+    ctx.lineTo(2, 5);                       // neck front
+    ctx.closePath();
+    ctx.fill();
+    // Gold trim around head
+    ctx.strokeStyle = gold; ctx.lineWidth = 0.35;
+    ctx.shadowColor = gold; ctx.shadowBlur = 2;
+    ctx.beginPath();
+    ctx.moveTo(-2.5, 3);
+    ctx.quadraticCurveTo(-2.5, 1, -1, 0.5);
+    ctx.lineTo(-0.8, -0.5);
+    ctx.lineTo(-0.3, -1.8);
+    ctx.lineTo(0.5, -0.5);
+    ctx.lineTo(1.3, -1.8);
+    ctx.lineTo(1.8, -0.5);
+    ctx.quadraticCurveTo(3, 0.5, 4.5, 1.5);
+    ctx.lineTo(5.5, 2.3);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // Eye (golden Egyptian style — almond shape)
+    ctx.fillStyle = gold;
+    ctx.beginPath();
+    ctx.ellipse(2.3, 1.5, 0.6, 0.35, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = black;
+    ctx.beginPath();
+    ctx.arc(2.3, 1.5, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Egyptian eye-liner extending east (kohl line)
+    ctx.strokeStyle = gold; ctx.lineWidth = 0.25;
+    ctx.beginPath();
+    ctx.moveTo(2.9, 1.5);
+    ctx.lineTo(3.5, 1.3);
+    ctx.stroke();
+    // Snout tip (small lighter spot)
+    ctx.fillStyle = goldDark;
+    ctx.beginPath();
+    ctx.arc(5.3, 2.2, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (brand === 'm_pharaoh') {
+    // FARAO — Horus-öga / Eye of Ra (traditionell egyptisk sakral symbol)
+    const gold = flash ? '#fff' : '#ffd54a';
+    const goldDark = flash ? '#fff' : '#aa8a30';
+    const dark = flash ? '#fff' : '#1a1a2a';
+    const white = flash ? '#fff' : '#f8f0e0';
+    ctx.shadowColor = gold; ctx.shadowBlur = 3;
+    // Eye main almond shape (large)
+    ctx.fillStyle = white;
+    ctx.beginPath();
+    ctx.ellipse(0.5, 2.5, 3, 1.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Eye outline (thick gold)
+    ctx.strokeStyle = gold; ctx.lineWidth = 0.4;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    // Inner iris (large dark center)
+    ctx.fillStyle = dark;
+    ctx.beginPath();
+    ctx.arc(0.5, 2.5, 1, 0, Math.PI * 2);
+    ctx.fill();
+    // Pupil
+    ctx.fillStyle = flash ? '#fff' : '#000000';
+    ctx.beginPath();
+    ctx.arc(0.5, 2.5, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+    // Eye glint
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0.6, 2.3, 0.3, 0.3);
+    // Eye-of-Horus signature lines:
+    // 1) Eyebrow above
+    ctx.fillStyle = gold;
+    ctx.beginPath();
+    ctx.moveTo(-2.5, 0.8);
+    ctx.quadraticCurveTo(0.5, 0.2, 3.5, 0.8);
+    ctx.lineTo(3.5, 1.2);
+    ctx.quadraticCurveTo(0.5, 0.7, -2.5, 1.2);
+    ctx.closePath();
+    ctx.fill();
+    // 2) Tear-drop / spiral under eye (signature feature)
+    ctx.strokeStyle = gold; ctx.lineWidth = 0.5;
+    ctx.lineCap = 'round';
+    // Vertical line (drop)
+    ctx.beginPath();
+    ctx.moveTo(0.5, 3.9);
+    ctx.lineTo(0.5, 5);
+    ctx.stroke();
+    // Spiral curl
+    ctx.beginPath();
+    ctx.moveTo(0.5, 5);
+    ctx.quadraticCurveTo(1.5, 5.5, 2, 5);
+    ctx.quadraticCurveTo(2.5, 4, 1.5, 4);
+    ctx.stroke();
+    // 3) Horizontal extension (cheek line)
+    ctx.beginPath();
+    ctx.moveTo(2.5, 3.7);
+    ctx.lineTo(4, 3.5);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+  } else if (brand === 'm_kitsune') {
+    // KITSUNE — räv-ansikte med 3 svansar fanning out (traditionell japansk folklore)
+    const orange = flash ? '#fff' : '#ff6a18';
+    const orangeDark = flash ? '#fff' : '#aa3a08';
+    const white = flash ? '#fff' : '#f8f0e0';
+    const black = flash ? '#fff' : '#0a0a0a';
+    // 3 svansar fanning ut bakåt (drawn first så face överlappar)
+    ctx.fillStyle = orange;
+    // Center tail (rakt upp)
+    ctx.beginPath();
+    ctx.moveTo(0, -0.5);
+    ctx.quadraticCurveTo(-0.5, -3, 0, -3.5);
+    ctx.quadraticCurveTo(0.5, -3, 0, -0.5);
+    ctx.closePath();
+    ctx.fill();
+    // Vänster svans
+    ctx.beginPath();
+    ctx.moveTo(-1, 0);
+    ctx.quadraticCurveTo(-3, -2, -3, -3);
+    ctx.quadraticCurveTo(-2, -2.5, -1, 0);
+    ctx.closePath();
+    ctx.fill();
+    // Höger svans
+    ctx.beginPath();
+    ctx.moveTo(1, 0);
+    ctx.quadraticCurveTo(3, -2, 3, -3);
+    ctx.quadraticCurveTo(2, -2.5, 1, 0);
+    ctx.closePath();
+    ctx.fill();
+    // White tail tips (traditionell kitsune-marker)
+    ctx.fillStyle = white;
+    ctx.beginPath();
+    ctx.arc(0.1, -3.4, 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(-3, -2.9, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(3, -2.9, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Räv-ansikte (triangular shape)
+    ctx.fillStyle = orange;
+    ctx.beginPath();
+    ctx.moveTo(-2, 1);                      // east ear base
+    ctx.lineTo(-2.5, -0.5);                 // east ear tip
+    ctx.lineTo(-1, 0.8);                    // valley
+    ctx.lineTo(1, 0.8);                     // valley
+    ctx.lineTo(2.5, -0.5);                  // west ear tip
+    ctx.lineTo(2, 1);                       // west ear base
+    ctx.quadraticCurveTo(2.5, 3, 0, 4);     // snout point
+    ctx.quadraticCurveTo(-2.5, 3, -2, 1);   // back to start
+    ctx.closePath();
+    ctx.fill();
+    // Inner ear (lighter)
+    ctx.fillStyle = white;
+    ctx.beginPath();
+    ctx.moveTo(-2, 0.7);
+    ctx.lineTo(-2.3, -0.2);
+    ctx.lineTo(-1.5, 0.7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(2, 0.7);
+    ctx.lineTo(2.3, -0.2);
+    ctx.lineTo(1.5, 0.7);
+    ctx.closePath();
+    ctx.fill();
+    // Face white markings
+    ctx.fillStyle = white;
+    ctx.beginPath();
+    ctx.moveTo(-1, 1.5);
+    ctx.lineTo(0, 3.5);
+    ctx.lineTo(1, 1.5);
+    ctx.lineTo(0, 1.8);
+    ctx.closePath();
+    ctx.fill();
+    // Eyes (sharp slits)
+    ctx.fillStyle = black;
+    ctx.beginPath();
+    ctx.ellipse(-0.8, 2, 0.4, 0.18, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0.8, 2, 0.4, 0.18, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Nose
+    ctx.beginPath();
+    ctx.arc(0, 3.5, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (brand === 'm_oni') {
+    // ONI — japansk demon-mask med 2 horn + skarpa tänder
+    const red = flash ? '#fff' : '#cc1818';
+    const redDark = flash ? '#fff' : '#5a0a0a';
+    const black = flash ? '#fff' : '#0a0a0a';
+    const yellow = flash ? '#fff' : '#ffd54a';
+    const white = flash ? '#fff' : '#f8f0e0';
+    // Demon-mask (round red face)
+    ctx.fillStyle = red;
+    ctx.beginPath();
+    ctx.arc(0.5, 2.5, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Mask shadow (cheekbone shadows)
+    ctx.fillStyle = redDark;
+    ctx.beginPath();
+    ctx.arc(-1.3, 3.2, 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(2.3, 3.2, 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    // Horn 1 (vänster)
+    ctx.fillStyle = black;
+    ctx.beginPath();
+    ctx.moveTo(-1.8, 1);
+    ctx.lineTo(-2.5, -1);
+    ctx.lineTo(-1, 0.5);
+    ctx.closePath();
+    ctx.fill();
+    // Horn 2 (höger)
+    ctx.beginPath();
+    ctx.moveTo(2.8, 1);
+    ctx.lineTo(3.5, -1);
+    ctx.lineTo(2, 0.5);
+    ctx.closePath();
+    ctx.fill();
+    // Horn highlights (lighter at base)
+    ctx.fillStyle = redDark;
+    ctx.beginPath();
+    ctx.moveTo(-1.8, 0.7);
+    ctx.lineTo(-2, 0);
+    ctx.lineTo(-1.2, 0.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(2.8, 0.7);
+    ctx.lineTo(3, 0);
+    ctx.lineTo(2.2, 0.5);
+    ctx.closePath();
+    ctx.fill();
+    // Glowing yellow eyes (angry)
+    ctx.shadowColor = yellow; ctx.shadowBlur = 3;
+    ctx.fillStyle = yellow;
+    ctx.beginPath();
+    ctx.arc(-0.5, 2, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(1.5, 2, 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Slit pupils
+    ctx.fillStyle = black;
+    ctx.fillRect(-0.55, 1.8, 0.1, 0.4);
+    ctx.fillRect(1.45, 1.8, 0.1, 0.4);
+    // Snarling mouth (open with fangs)
+    ctx.fillStyle = black;
+    ctx.beginPath();
+    ctx.moveTo(-1, 3.5);
+    ctx.quadraticCurveTo(0.5, 4.5, 2, 3.5);
+    ctx.lineTo(1.7, 4);
+    ctx.quadraticCurveTo(0.5, 4.2, -0.7, 4);
+    ctx.closePath();
+    ctx.fill();
+    // White fangs (4 visible)
+    ctx.fillStyle = white;
+    ctx.beginPath();
+    ctx.moveTo(-0.6, 3.7); ctx.lineTo(-0.4, 4.2); ctx.lineTo(-0.2, 3.7);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(0.3, 3.7); ctx.lineTo(0.5, 4.2); ctx.lineTo(0.7, 3.7);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(1.0, 3.7); ctx.lineTo(1.2, 4.2); ctx.lineTo(1.4, 3.7);
+    ctx.closePath(); ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(-1.3, 3.7); ctx.lineTo(-1.1, 4.2); ctx.lineTo(-0.9, 3.7);
+    ctx.closePath(); ctx.fill();
+  } else if (brand === 'm_quetz') {
+    // QUETZALCOATL — coiled feathered serpent (traditionell aztekisk ikon)
+    const green = flash ? '#fff' : '#2acaaa';
+    const greenDark = flash ? '#fff' : '#1a6a5a';
+    const yellow = flash ? '#fff' : '#ffd54a';
+    const red = flash ? '#fff' : '#aa3a3a';
+    const turquoise = flash ? '#fff' : '#5aeacc';
+    // Spiral serpent body — 2.5 coils
+    ctx.strokeStyle = green; ctx.lineWidth = 1.2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    let firstQ = true;
+    for (let t = 0; t < 3 * Math.PI; t += 0.15) {
+      const r = 0.5 + t * 0.25;
+      if (r > 2.8) break;
+      const sx = 0.5 + Math.cos(t) * r;
+      const sy = 2.5 + Math.sin(t) * r;
+      if (firstQ) { ctx.moveTo(sx, sy); firstQ = false; }
+      else ctx.lineTo(sx, sy);
+    }
+    ctx.stroke();
+    // Feathered crest (zigzag along spiral)
+    ctx.strokeStyle = turquoise; ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    firstQ = true;
+    for (let t = 0; t < 3 * Math.PI; t += 0.4) {
+      const r = 0.5 + t * 0.25;
+      if (r > 2.8) break;
+      const sx = 0.5 + Math.cos(t) * (r + 0.6);
+      const sy = 2.5 + Math.sin(t) * (r + 0.6);
+      if (firstQ) { ctx.moveTo(sx, sy); firstQ = false; }
+      else ctx.lineTo(sx, sy);
+    }
+    ctx.stroke();
+    ctx.lineCap = 'butt';
+    // Serpent head (at end of spiral, outer)
+    ctx.fillStyle = green;
+    ctx.beginPath();
+    ctx.ellipse(3.2, 4.5, 1.0, 0.6, -0.5, 0, Math.PI * 2);
+    ctx.fill();
+    // Yellow eye on head
+    ctx.fillStyle = yellow;
+    ctx.beginPath();
+    ctx.arc(3.4, 4.2, 0.25, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#000000';
+    ctx.beginPath();
+    ctx.arc(3.4, 4.2, 0.12, 0, Math.PI * 2);
+    ctx.fill();
+    // Forked red tongue
+    ctx.strokeStyle = red; ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(4, 4.6);
+    ctx.lineTo(4.5, 5);
+    ctx.moveTo(4, 4.6);
+    ctx.lineTo(4.5, 5.2);
+    ctx.stroke();
+    // Center spiral dot (core)
+    ctx.fillStyle = yellow;
+    ctx.beginPath();
+    ctx.arc(0.5, 2.5, 0.35, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (brand === 'm_druid') {
+    // DRUID — eklöv wreath + vertikal stav med kristall
+    const leafGreen = flash ? '#fff' : '#4a8a3a';
+    const leafDark = flash ? '#fff' : '#2a5a1a';
+    const wood = flash ? '#fff' : '#6a4a2a';
+    const crystal = flash ? '#fff' : '#aaeacc';
+    const crystalGlow = flash ? '#fff' : '#5acaaa';
+    // Vertical staff (mitt på chest)
+    ctx.fillStyle = wood;
+    ctx.fillRect(-0.3, 0, 0.6, 5.5);
+    ctx.strokeStyle = leafDark; ctx.lineWidth = 0.2;
+    ctx.strokeRect(-0.3, 0, 0.6, 5.5);
+    // Wood-grain detail
+    ctx.fillStyle = leafDark;
+    ctx.fillRect(-0.1, 1, 0.1, 0.3);
+    ctx.fillRect(-0.15, 2.5, 0.1, 0.4);
+    ctx.fillRect(0.05, 3.8, 0.1, 0.3);
+    // Crystal on top of staff
+    ctx.fillStyle = crystal;
+    ctx.shadowColor = crystalGlow; ctx.shadowBlur = 4;
+    ctx.beginPath();
+    ctx.moveTo(0, -1.5);
+    ctx.lineTo(0.8, 0);
+    ctx.lineTo(0, 0.5);
+    ctx.lineTo(-0.8, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Crystal highlight
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(-0.2, -1);
+    ctx.lineTo(0.1, -0.5);
+    ctx.lineTo(-0.1, 0);
+    ctx.closePath();
+    ctx.fill();
+    // Wreath of oak leaves runt staff (8 leaves)
+    const leafPositions = [
+      [-2, 1.5, -0.4],   // [x, y, rotation]
+      [-2.5, 3, -0.2],
+      [-2, 4.5, 0],
+      [-1, 5.5, 0.3],
+      [1, 5.5, -0.3],
+      [2, 4.5, 0],
+      [2.5, 3, 0.2],
+      [2, 1.5, 0.4],
+    ];
+    for (const [lx, ly, lr] of leafPositions) {
+      ctx.save();
+      ctx.translate(lx, ly);
+      ctx.rotate(lr);
+      // Leaf shape (oak-like with lobes)
+      ctx.fillStyle = leafGreen;
+      ctx.beginPath();
+      ctx.moveTo(0, -0.8);
+      ctx.quadraticCurveTo(0.4, -0.6, 0.6, -0.3);
+      ctx.quadraticCurveTo(0.4, -0.2, 0.5, 0);
+      ctx.quadraticCurveTo(0.3, 0.1, 0.5, 0.3);
+      ctx.quadraticCurveTo(0.3, 0.5, 0.4, 0.7);
+      ctx.lineTo(0, 0.9);
+      ctx.lineTo(-0.4, 0.7);
+      ctx.quadraticCurveTo(-0.3, 0.5, -0.5, 0.3);
+      ctx.quadraticCurveTo(-0.3, 0.1, -0.5, 0);
+      ctx.quadraticCurveTo(-0.4, -0.2, -0.6, -0.3);
+      ctx.quadraticCurveTo(-0.4, -0.6, 0, -0.8);
+      ctx.closePath();
+      ctx.fill();
+      // Leaf vein (vertical center)
+      ctx.strokeStyle = leafDark; ctx.lineWidth = 0.15;
+      ctx.beginPath();
+      ctx.moveTo(0, -0.7);
+      ctx.lineTo(0, 0.8);
+      ctx.stroke();
+      ctx.restore();
+    }
+  } else if (brand === 'm_hanuman') {
+    // HANUMAN — ape-ansikte profile + gada (mace) traditional hindu iconography
+    const orange = flash ? '#fff' : '#ff8a30';
+    const orangeDark = flash ? '#fff' : '#aa4a10';
+    const black = flash ? '#fff' : '#0a0a0a';
+    const gold = flash ? '#fff' : '#ffd54a';
+    const skin = flash ? '#fff' : '#c8a070';
+    // Gada (mace) — vertikal weapon västra sida
+    ctx.fillStyle = orangeDark;
+    ctx.fillRect(-3.5, 1, 0.5, 4);  // handle
+    // Mace head (round bulb top)
+    ctx.fillStyle = gold;
+    ctx.beginPath();
+    ctx.arc(-3.25, 0, 0.9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = orangeDark; ctx.lineWidth = 0.3;
+    ctx.stroke();
+    // Mace spikes/decorations
+    ctx.fillStyle = orangeDark;
+    ctx.fillRect(-3.5, -0.4, 0.5, 0.3);
+    ctx.fillRect(-3.5, 0.1, 0.5, 0.3);
+    // Mace pommel
+    ctx.fillStyle = gold;
+    ctx.beginPath();
+    ctx.arc(-3.25, 5.2, 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    // Monkey face profile (facing east, takes east-side of chest)
+    ctx.fillStyle = orange;
+    // Head outline (heart-shaped profile)
+    ctx.beginPath();
+    ctx.moveTo(-1, 3);                       // jaw bottom
+    ctx.quadraticCurveTo(-1.5, 1, -0.5, 0.5);// back of head
+    ctx.lineTo(-0.2, -0.5);                  // top crown
+    ctx.quadraticCurveTo(1, -0.8, 2, 0);     // forehead/east top
+    ctx.lineTo(2.8, 1);                      // brow ridge
+    ctx.lineTo(3.5, 1.5);                    // east cheek
+    ctx.lineTo(4.2, 2.5);                    // snout out
+    ctx.lineTo(4, 3.3);                      // mouth corner
+    ctx.lineTo(3, 4);                        // jaw east
+    ctx.lineTo(0, 4.3);                      // jaw under
+    ctx.closePath();
+    ctx.fill();
+    // Skin patches (light face area)
+    ctx.fillStyle = skin;
+    ctx.beginPath();
+    ctx.ellipse(2.5, 2, 1.2, 1.5, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    // Gold crown headpiece (king of monkeys)
+    ctx.fillStyle = gold;
+    ctx.shadowColor = gold; ctx.shadowBlur = 2;
+    ctx.beginPath();
+    ctx.moveTo(-0.5, 0.3);
+    ctx.lineTo(-0.2, -1.3);                  // spike 1
+    ctx.lineTo(0.3, -0.3);
+    ctx.lineTo(0.7, -1.5);                   // spike 2 (center, tallest)
+    ctx.lineTo(1.2, -0.3);
+    ctx.lineTo(1.6, -1.3);                   // spike 3
+    ctx.lineTo(2, 0.3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Eye
+    ctx.fillStyle = black;
+    ctx.beginPath();
+    ctx.arc(2.5, 1.8, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    // Eye glint
+    ctx.fillStyle = gold;
+    ctx.fillRect(2.6, 1.6, 0.15, 0.15);
+    // Nose (dog-like nostrils)
+    ctx.fillStyle = black;
+    ctx.beginPath();
+    ctx.arc(4, 2.5, 0.25, 0, Math.PI * 2);
+    ctx.fill();
+    // Mouth line
+    ctx.strokeStyle = orangeDark; ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(2.8, 3.4);
+    ctx.lineTo(3.8, 3.3);
+    ctx.stroke();
   }
   ctx.restore();
 }
