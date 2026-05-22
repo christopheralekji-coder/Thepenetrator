@@ -11516,14 +11516,22 @@ function drawCoopPartner() {
         ctx.restore();
       }
     }
-    // v1.489: Skip arms för partner-mascots (samma logik som drawPlayer)
-    const _pSkipArms = !!partnerCos.mascot && partnerCos.mascot !== 'mcdonalds';
+    // v1.518: Skip arms ENDAST för mascots med egna armar (mcdonalds, cashew, etc).
+    // Övriga mascots ska ha synliga armar (en hängande + en skjutande).
+    const PARTNER_MASCOTS_WITH_OWN_ARMS = new Set(['mcdonalds', 'cashew', 'genie', 'gnome', 'bear', 'tiger']);
+    const _pSkipArms = !!partnerCos.mascot && PARTNER_MASCOTS_WITH_OWN_ARMS.has(partnerCos.mascot);
+    const _pScaledMascot = !!partnerCos.mascot && partnerCos.mascot !== 'mcdonalds' && !_pSkipArms;
     // v1.468: Partner — hanging arm + arm shaft BEHIND body, hand AFTER body
-    if (!_pSkipArms) drawHangingArm(ctx, partnerCos, false, _pBodyFacingLeft);
+    if (!_pSkipArms) {
+      if (_pScaledMascot) { ctx.save(); ctx.translate(0, 6); ctx.scale(1.4, 1.4); }
+      drawHangingArm(ctx, partnerCos, false, _pBodyFacingLeft);
+      if (_pScaledMascot) { ctx.restore(); }
+    }
     // Partner shooting arm SHAFT (behind body) — v1.484 med sleeve
     if (!_pSkipArms) {
       const _pShoulderXShaft = _pBodyFacingLeft ? -3 : 3;
       ctx.save();
+      if (_pScaledMascot) { ctx.translate(0, 6); ctx.scale(1.4, 1.4); }
       ctx.translate(_pShoulderXShaft, -3);
       ctx.rotate(partnerAimAngle);
       if (pFacingLeft) ctx.scale(1, -1);
@@ -11576,14 +11584,16 @@ function drawCoopPartner() {
     ctx.restore();
     // v1.468: Partner HAND (after body, proper hand)
     ctx.save();
+    if (_pScaledMascot) { ctx.translate(0, 6); ctx.scale(1.4, 1.4); }
     const _pShoulderX = _pBodyFacingLeft ? -3 : 3;
     ctx.translate(_pShoulderX, -3);
     ctx.rotate(partnerAimAngle);
     if (pFacingLeft) ctx.scale(1, -1);
-    ctx.translate(13, 0);
+    ctx.translate(_pSkipArms ? 5 : 13, 0);
     drawHand(ctx, partnerCos, false);
     ctx.restore();
-    // Rotate for partner-weapon
+    // Rotate for partner-weapon (med scale för mascot så weapon hamnar vid arm-tip)
+    if (_pScaledMascot) { ctx.translate(0, 6); ctx.scale(1.4, 1.4); }
     ctx.rotate(partnerAimAngle);
     if (pFacingLeft) ctx.scale(1, -1);
     /* === GAMMAL CANVAS-PRIMITIVE PARTNER-BODY (v1.436) — DEAD CODE ===
@@ -12855,11 +12865,15 @@ function drawPresetThumbCanvas(canvas, preset) {
     if (cos.cape && cos.cape.style !== 'none') {
       drawCapeOnUprightBody(c, cos.cape.style, cos.cape.color, false, 0, false);
     }
-    // Arms only för non-mascot
-    const skipArms = !!cos.mascot && cos.mascot !== 'mcdonalds';
+    // v1.518: Skip arms ENDAST för mascots med egna armar
+    const MINI_MASCOTS_WITH_OWN_ARMS = new Set(['mcdonalds', 'cashew', 'genie', 'gnome', 'bear', 'tiger']);
+    const skipArms = !!cos.mascot && MINI_MASCOTS_WITH_OWN_ARMS.has(cos.mascot);
+    const _miniScaled = !!cos.mascot && cos.mascot !== 'mcdonalds' && !skipArms;
     if (!skipArms) {
+      if (_miniScaled) { c.save(); c.translate(0, 6); c.scale(1.4, 1.4); }
       drawHangingArm(c, cos, false, true, 0, 0);
       drawHangingArm(c, cos, false, false, 0, 0);
+      if (_miniScaled) { c.restore(); }
     }
     drawNakedBody(c, cos, false, 0, false);
   } catch (e) {
@@ -22101,12 +22115,16 @@ function drawMiniWardrobeAvatar(canvas, wardrobe) {
   if (cos.cape && cos.cape.style && cos.cape.style !== 'none' && typeof drawCapeOnUprightBody === 'function') {
     try { drawCapeOnUprightBody(c, cos.cape.style, cos.cape.color, false, performance.now(), false); } catch(e) {}
   }
-  // 2. Hanging arms (skip för mascot — samma logik som drawPlayer)
-  const skipArms = !!cos.mascot && cos.mascot !== 'mcdonalds';
+  // 2. Hanging arms (v1.518: skip ENDAST för mascots med egna armar)
+  const LOBBY_MASCOTS_WITH_OWN_ARMS = new Set(['mcdonalds', 'cashew', 'genie', 'gnome', 'bear', 'tiger']);
+  const skipArms = !!cos.mascot && LOBBY_MASCOTS_WITH_OWN_ARMS.has(cos.mascot);
+  const _lobbyScaled = !!cos.mascot && cos.mascot !== 'mcdonalds' && !skipArms;
   if (!skipArms && typeof drawHangingArm === 'function') {
     try {
+      if (_lobbyScaled) { c.save(); c.translate(0, 6); c.scale(1.4, 1.4); }
       drawHangingArm(c, cos, false, true, 0, 0);   // east arm (hangX=+8)
       drawHangingArm(c, cos, false, false, 0, 0);  // west arm (hangX=-8)
+      if (_lobbyScaled) { c.restore(); }
     } catch(e) {}
   }
   // 3. Body (drawNakedBody renderar internt: head + face-features + torso +
@@ -22960,11 +22978,15 @@ function drawWardrobePreviewV2() {
   if (cos.cape && cos.cape.style && cos.cape.style !== 'none') {
     drawCapeOnUprightBody(c, cos.cape.style, cos.cape.color, flash, t, moving);
   }
-  // 2. HANGING ARMS — skip för mascot (har inbyggda stick-armar eller inga)
-  const _previewSkipArms = !!cos.mascot && cos.mascot !== 'mcdonalds';
+  // 2. HANGING ARMS (v1.518: skip ENDAST för mascots med egna armar)
+  const PREVIEW_MASCOTS_WITH_OWN_ARMS = new Set(['mcdonalds', 'cashew', 'genie', 'gnome', 'bear', 'tiger']);
+  const _previewSkipArms = !!cos.mascot && PREVIEW_MASCOTS_WITH_OWN_ARMS.has(cos.mascot);
+  const _previewScaled = !!cos.mascot && cos.mascot !== 'mcdonalds' && !_previewSkipArms;
   if (!_previewSkipArms) {
+    if (_previewScaled) { c.save(); c.translate(0, 6); c.scale(1.4, 1.4); }
     drawHangingArm(c, cos, flash, true, 0, 0);   // arm at east (hangX=+8)
     drawHangingArm(c, cos, flash, false, 0, 0);  // arm at west (hangX=-8)
+    if (_previewScaled) { c.restore(); }
   }
   // 3. BODY (med alla overlays)
   drawNakedBody(c, cos, flash, phase, moving);
@@ -50174,16 +50196,25 @@ function drawPlayer() {
       _throwOffY = -6 + k * 6;
     }
   }
-  // v1.489: SKIP separate arms för alla mascots utom McDonald's
-  // (McDonald's är mänsklig clown med riktiga armar; resten har inbyggda stick-armar
-  // eller inga armar alls — separata arm-renders skulle bara störa).
-  const _skipArms = !!cos.mascot && cos.mascot !== 'mcdonalds';
-  if (!_skipArms) drawHangingArm(ctx, cos, flash, _bodyFacingLeft, _throwOffX, _throwOffY);
+  // v1.518: ENABLE ARMS för alla mascots (var skipped förut). Bara mascots med
+  // EGNA inbyggda iconic-arms skippar external arms (cashew=sticks, genie=crossed,
+  // gnome=lantern-arms, mcdonalds=humanoid arms, bear+tiger=animal-paws).
+  const MASCOTS_WITH_OWN_ARMS = new Set(['mcdonalds', 'cashew', 'genie', 'gnome', 'bear', 'tiger']);
+  const _skipArms = !!cos.mascot && MASCOTS_WITH_OWN_ARMS.has(cos.mascot);
+  // För mascots som är skalade (1.4x + translate(0,6)) behöver arms också scalas
+  // så de syns vid rätt position på den större kroppen
+  const _scaledMascot = !!cos.mascot && cos.mascot !== 'mcdonalds' && !_skipArms;
+  if (!_skipArms) {
+    if (_scaledMascot) { ctx.save(); ctx.translate(0, 6); ctx.scale(1.4, 1.4); }
+    drawHangingArm(ctx, cos, flash, _bodyFacingLeft, _throwOffX, _throwOffY);
+    if (_scaledMascot) { ctx.restore(); }
+  }
   // SHOOTING ARM SHAFT (behind body) — v1.484: med sleeve om shirt equippad
   if (!_skipArms) {
     const _shoulderXShaft = _bodyFacingLeft ? -3 : 3;
     const _shoulderYShaft = -3;
     ctx.save();
+    if (_scaledMascot) { ctx.translate(0, 6); ctx.scale(1.4, 1.4); }
     ctx.translate(_shoulderXShaft, _shoulderYShaft);
     ctx.rotate(p.aimAngle);
     if (_facingLeft) ctx.scale(1, -1);
@@ -50245,13 +50276,14 @@ function drawPlayer() {
   drawNakedBody(ctx, cos, flash, phase, moving);
   ctx.restore();
   // v1.468: HAND + WEAPON (after body, visible on top).
-  // v1.490: För mascots utan armar (nugget/banan/etc) flyttas hand+weapon NÄRMARE
-  // body så vapnet inte flyter 10px utanför silhuetten (looked like a bug).
+  // v1.518: För scalede mascots wrappas hand+weapon i samma 1.4x scale så de
+  // hamnar vid armens slut korrekt och har proportionell storlek mot body.
   const _shoulderX = _bodyFacingLeft ? -3 : 3;
   const _shoulderY = -3;
-  const _handTranslate = _skipArms ? 5 : 13;   // mascot: vid body-edge (8 world), normal: 13
-  const _weaponTranslate = _skipArms ? 0 : 5;  // mascot: vid shoulder, normal: 5
+  const _handTranslate = _skipArms ? 5 : 13;   // mascot-only-arms: vid body-edge, normal: 13
+  const _weaponTranslate = _skipArms ? 0 : 5;
   ctx.save();
+  if (_scaledMascot) { ctx.translate(0, 6); ctx.scale(1.4, 1.4); }
   ctx.translate(_shoulderX, _shoulderY);
   ctx.rotate(p.aimAngle);
   if (_facingLeft) ctx.scale(1, -1);
@@ -50259,6 +50291,7 @@ function drawPlayer() {
   drawHand(ctx, cos, flash);
   ctx.restore();
   // v1.472: Weapon translate 9 → 5 (weapon mer västerut, mindre 'framför handen').
+  if (_scaledMascot) { ctx.translate(0, 6); ctx.scale(1.4, 1.4); }
   ctx.translate(_shoulderX, _shoulderY);
   ctx.rotate(p.aimAngle);
   if (_facingLeft) ctx.scale(1, -1);
