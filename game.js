@@ -23300,29 +23300,24 @@ function showWardrobeEquipFeedback(cardEl, label) {
   }, 900);
 }
 function renderWardrobeTabs() {
-  // v1.505: HIERARCHICAL — 2 rader: top-level grupper + sub-cats för selected grupp
+  // v1.508: HIERARCHICAL TABS — använder CSS-klasser istället för inline-styles
+  // så #wardrobe-tabs button-!important inte blockar.
   wardrobeTabsEl.innerHTML = '';
-  // Sync grupp med tab om mismatch (säkerhet om _wardrobeCurrentTab sätts av annan kod)
   const expectedGroup = getWardrobeGroupForCat(_wardrobeCurrentTab);
   if (_wardrobeCurrentGroup !== expectedGroup) _wardrobeCurrentGroup = expectedGroup;
-  // Wrap container för 2-row layout
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'display:flex;flex-direction:column;gap:6px;width:100%;';
-  // ROW 1: Top-level groups (5 BIG buttons)
+  wrap.className = 'ward-tab-wrap';
+  // ROW 1: Top-level groups
   const groupRow = document.createElement('div');
-  groupRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;justify-content:center;padding:0 4px;';
+  groupRow.className = 'ward-tab-group-row';
   for (const g of WARDROBE_GROUPS) {
     const btn = document.createElement('button');
-    const isActive = g.id === _wardrobeCurrentGroup;
-    btn.className = 'small-btn';
-    btn.style.cssText = 'padding:8px 13px;font-size:12px;font-weight:900;letter-spacing:0.5px;border-radius:8px;' + (isActive
-      ? 'background:linear-gradient(135deg,#aa3aff 0%,#7a2acc 100%);color:#fff;box-shadow:0 0 14px rgba(170,58,255,0.55);border:1px solid #cc7aff;'
-      : 'background:rgba(40,30,60,0.55);color:#bbb;border:1px solid rgba(170,58,255,0.20);');
+    btn.className = 'ward-group-btn' + (g.id === _wardrobeCurrentGroup ? ' active' : '');
     btn.textContent = g.label;
     btn.addEventListener('click', () => {
       if (_wardrobeCurrentGroup === g.id) return;
       _wardrobeCurrentGroup = g.id;
-      _wardrobeCurrentTab = g.cats[0]; // hoppa till första sub-cat i nya gruppen
+      _wardrobeCurrentTab = g.cats[0];
       Audio.uiClick();
       renderWardrobeTabs();
       renderWardrobeOptions();
@@ -23334,14 +23329,10 @@ function renderWardrobeTabs() {
   const currentGroup = WARDROBE_GROUPS.find(g => g.id === _wardrobeCurrentGroup);
   if (currentGroup && currentGroup.cats.length > 1) {
     const subRow = document.createElement('div');
-    subRow.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;justify-content:center;padding:2px 4px 0;border-top:1px solid rgba(170,58,255,0.15);';
+    subRow.className = 'ward-tab-sub-row';
     for (const cat of currentGroup.cats) {
       const btn = document.createElement('button');
-      const isActive = cat === _wardrobeCurrentTab;
-      btn.className = 'small-btn' + (isActive ? ' active' : '');
-      btn.style.cssText = 'padding:5px 10px;font-size:11px;font-weight:600;border-radius:6px;' + (isActive
-        ? 'background:rgba(170,58,255,0.30);color:#fff;border:1px solid #aa3aff;'
-        : 'background:rgba(20,15,30,0.5);color:#aaa;border:1px solid rgba(170,58,255,0.12);');
+      btn.className = 'ward-sub-btn' + (cat === _wardrobeCurrentTab ? ' active' : '');
       btn.textContent = WARDROBE_CAT_LABELS[cat];
       btn.addEventListener('click', () => {
         _wardrobeCurrentTab = cat;

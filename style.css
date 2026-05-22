@@ -2749,35 +2749,42 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
     radial-gradient(ellipse at 25% 50%, rgba(170,58,255,0.18) 0%, transparent 50%),
     radial-gradient(ellipse at 75% 60%, rgba(255,213,74,0.10) 0%, transparent 55%),
     linear-gradient(180deg, rgba(20,10,30,0.95) 0%, rgba(0,0,0,0.97) 50%, rgba(15,5,25,0.95) 100%);
-  /* v1.507: SCREEN scrollar igen — actionbar är vanlig sista child (statiskt på menu-bottom).
-     PREVIEW sticky inom sin column så användaren ser gubben medan options scrollas. */
-  padding: max(16px, env(safe-area-inset-top, 16px)) max(20px, env(safe-area-inset-right, 20px)) max(16px, env(safe-area-inset-bottom, 16px)) max(20px, env(safe-area-inset-left, 20px));
+  /* v1.508: FAST SPLIT-LAYOUT — screen scrollas EJ. Flex column med 3 sektioner:
+     header (top) | layout flex:1 (preview left + menu right) | footer (slots+actionbar).
+     Endast #wardrobe-options scrollar internt. Preview rör sig ALDRIG. */
+  padding: max(12px, env(safe-area-inset-top, 12px)) max(16px, env(safe-area-inset-right, 16px)) max(12px, env(safe-area-inset-bottom, 12px)) max(16px, env(safe-area-inset-left, 16px));
   box-sizing: border-box;
-  overflow-y: auto;
+  overflow: hidden;
+}
+#wardrobe-screen::before,
+#wardrobe-screen::after {
+  display: none;
 }
 #wardrobe-layout {
-  /* v1.507: SIDE-BY-SIDE grid — preview left, controls right. Båda synliga
-     samtidigt så användaren slipper scrolla upp-och-ner för att se gubben.
-     På mobile portrait blir preview liten men fortfarande synlig sticky. */
+  /* v1.508: FAST 2-COLUMN MAIN-AREA — preview vänster, menu höger. Flex:1 så det
+     fyller mellan header och footer. Inget scroll här. */
   display: grid;
-  grid-template-columns: minmax(140px, 0.85fr) 1.4fr;
-  gap: 14px;
-  max-width: 980px;
+  grid-template-columns: minmax(110px, 0.85fr) minmax(150px, 1.15fr);
+  gap: 10px;
   width: 100%;
-  margin-bottom: 12px;
-  align-items: start;
+  max-width: 980px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  align-items: stretch;
+  margin-bottom: 0;
 }
-/* PREVIEW-KOLUMN */
+/* PREVIEW-KOLUMN (vänstra halvan, FAST positionerad i grid) */
 #wardrobe-preview-wrap {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  /* v1.507: STICKY-TOP — preview följer med när options scrollas så användaren
-     alltid ser gubben i realtid när de väljer alternativ. */
-  position: sticky;
-  top: 0;
-  z-index: 4;
+  justify-content: center;
+  gap: 8px;
+  /* v1.508: INTE sticky. Layout är overflow:hidden så cellen rör sig inte. */
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
 }
 #wardrobe-preview {
   background:
@@ -2790,10 +2797,12 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
     0 8px 28px rgba(170,58,255,0.25),
     inset 0 1px 0 rgba(255,255,255,0.08);
   display: block;
-  /* v1.507: width 100% av sin grid-column (140-255px på mobile), max 320px på desktop */
-  width: 100%;
-  max-width: 320px;
+  /* v1.508: fyller sin grid-cell (preview-wrap). max-height så preview inte
+     overflowar cellen vertikalt. aspect-ratio behåller proportioner. */
+  width: auto;
+  max-width: 100%;
   height: auto;
+  max-height: 100%;
   aspect-ratio: 300 / 380;
   /* v1.490: touch-action: none så drag-rotation funkar på iOS utan att
      parent-overlay scrollar samtidigt */
@@ -2809,9 +2818,11 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   background: linear-gradient(180deg, rgba(30,15,40,0.7), rgba(15,5,20,0.7));
   border: 1px solid rgba(170,58,255,0.3);
   border-radius: 10px;
-  padding: 8px 10px;
+  padding: 6px 8px;
   width: 100%;
-  max-width: 300px;
+  /* v1.508: fyller hela vänster footer-cell, ingen max-width-cap */
+  max-width: none;
+  box-sizing: border-box;
 }
 .ward-slot-label {
   font-size: 10px;
@@ -2891,28 +2902,26 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
 
 /* CONTROLS-KOLUMN */
 #wardrobe-controls {
+  /* v1.508: höger-halvan av layout. Flex-column där tabs är fast och options
+     scrollar internt. min-height:0 + overflow:hidden krävs för flex-child scroll. */
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
-  max-width: 540px;
+  min-height: 0;
+  overflow: hidden;
 }
 #wardrobe-tabs {
-  display: flex;
-  gap: 4px;
-  /* v1.490: horisontell scroll-rad istället för wrap. 14 tabs i wrap åt halva
-     skärmen på 360px viewport. Nu kan användaren scrolla horisontellt. */
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
-  scrollbar-width: thin;
-  justify-content: flex-start;
+  /* v1.508: containerar 2-row hierarki via .ward-tab-wrap inuti. Flex-shrink:0
+     i parent (#wardrobe-controls) flex-column. Inget intern scroll längre eftersom
+     wrap har naturlig wrap-behavior. */
+  flex-shrink: 0;
+  display: block;
+  width: 100%;
   position: relative;
   z-index: 2;
   pointer-events: auto;
-  padding-bottom: 4px;
+  padding-bottom: 2px;
 }
 #wardrobe-tabs button {
   flex: 0 0 auto;
@@ -2939,11 +2948,74 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   border-color: #ffd54a !important;
   box-shadow: 0 2px 10px rgba(170,58,255,0.5);
 }
+/* v1.508: NYA TAB-KLASSER för 2-row hierarki — overrides #wardrobe-tabs button-default */
+.ward-tab-wrap {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 5px !important;
+  width: 100% !important;
+}
+.ward-tab-group-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 4px !important;
+  justify-content: center !important;
+  padding: 0 2px !important;
+}
+.ward-tab-sub-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 3px !important;
+  justify-content: center !important;
+  padding: 2px 2px 0 !important;
+  border-top: 1px solid rgba(170,58,255,0.18) !important;
+}
+#wardrobe-tabs button.ward-group-btn {
+  padding: 7px 11px !important;
+  font-size: 12px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.4px !important;
+  border-radius: 7px !important;
+}
+#wardrobe-tabs button.ward-group-btn:not(.active) {
+  background: rgba(30,20,45,0.7) !important;
+  color: #bbb !important;
+  border: 1px solid rgba(170,58,255,0.20) !important;
+  box-shadow: none !important;
+}
+#wardrobe-tabs button.ward-group-btn.active {
+  background: linear-gradient(135deg, #aa3aff 0%, #7a2acc 100%) !important;
+  color: #fff !important;
+  border: 1px solid #cc7aff !important;
+  box-shadow: 0 0 12px rgba(170,58,255,0.55) !important;
+}
+#wardrobe-tabs button.ward-sub-btn {
+  padding: 4px 8px !important;
+  font-size: 10.5px !important;
+  font-weight: 600 !important;
+  border-radius: 5px !important;
+  min-height: 26px !important;
+}
+#wardrobe-tabs button.ward-sub-btn:not(.active) {
+  background: rgba(15,10,25,0.55) !important;
+  color: #aaa !important;
+  border: 1px solid rgba(170,58,255,0.10) !important;
+  box-shadow: none !important;
+}
+#wardrobe-tabs button.ward-sub-btn.active {
+  background: rgba(170,58,255,0.30) !important;
+  color: #fff !important;
+  border: 1px solid #aa3aff !important;
+  box-shadow: 0 0 8px rgba(170,58,255,0.35) !important;
+}
 #wardrobe-options {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
-  gap: 8px;
-  max-height: 56vh;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+  /* v1.508: flex:1 så det fyller controls-cell, overflow:auto för intern scroll.
+     Borttagit max-height:56vh som låste höjden. */
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   padding: 4px;
   position: relative;
@@ -3014,24 +3086,38 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   100% { transform: scale(1); box-shadow: 0 0 14px rgba(255,213,74,0.4); }
 }
 /* ACTION-BAR */
-#wardrobe-actionbar {
-  display: flex;
+/* v1.508: FOOTER = grid 2-col (slots vänster, actionbar höger). Fast nederst i
+   wardrobe-screen via flex-shrink:0. Inget scroll här. */
+#wardrobe-footer {
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: minmax(110px, 0.85fr) minmax(150px, 1.15fr);
   gap: 10px;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
   width: 100%;
   max-width: 980px;
-  /* v1.507: Sista child i menu-content, scrollas naturligt till botten av menyn.
-     Inte sticky/fixed — användaren scrollar för att se den. Visuell border-top
-     för separation från slots ovanför. */
-  padding: 16px 8px 12px;
-  margin-top: 8px;
+  padding-top: 8px;
+  margin-top: 6px;
+  border-top: 2px solid rgba(170,58,255,0.35);
+  align-items: stretch;
+}
+
+#wardrobe-actionbar {
+  /* v1.508: HÖGRA cellen i footer. 2-col grid med TILLBAKA full-width nederst
+     så vi får 3 rader istället för 5 = kompaktare footer-höjd. */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  align-items: stretch;
+  justify-content: stretch;
+  width: 100%;
+  padding: 0;
+  margin: 0;
   position: static;
   background: transparent;
-  border-top: 2px solid rgba(170,58,255,0.30);
+  border-top: none;
   box-sizing: border-box;
 }
+#wardrobe-actionbar .big-btn { grid-column: 1 / -1; }
 /* v1.491: Disabled-state för undo-knapp (sätts via [disabled] attribute) */
 #wardrobe-actionbar .medium-btn[disabled] {
   opacity: 0.35;
@@ -3105,18 +3191,21 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   letter-spacing: 0.5px;
 }
 #wardrobe-actionbar .medium-btn {
-  padding: 10px 18px;
-  font-size: 13px;
-  letter-spacing: 1px;
+  /* v1.508: kompakt knapp för smal högra footer-cell */
+  padding: 7px 8px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
   min-width: 0;
+  width: 100%;
   background: linear-gradient(135deg, rgba(170,58,255,0.85), rgba(80,20,140,0.9));
   border: 2px solid rgba(255,213,74,0.4);
   color: #fff;
-  border-radius: 8px;
+  border-radius: 6px;
   cursor: pointer;
   margin: 0;
   font-weight: 800;
   transition: all 0.15s;
+  box-sizing: border-box;
 }
 #wardrobe-actionbar .medium-btn:hover {
   filter: brightness(1.15);
@@ -3125,9 +3214,12 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
 }
 #wardrobe-actionbar .medium-btn:active { transform: translateY(0); }
 #wardrobe-actionbar .big-btn {
-  padding: 10px 28px;
-  font-size: 14px;
-  min-width: 180px;
+  /* v1.508: TILLBAKA i kompakt cell — full bredd, lite större font */
+  padding: 9px 8px;
+  font-size: 12px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 /* Random-anim på preview när slumpa-knappen triggas */
 #wardrobe-preview.randomizing {
@@ -3350,33 +3442,25 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
 }
 #ward-equip-toast.show { transform: translateX(0); }
 
-/* Mobil/landscape — kollapsa till en kolumn */
+/* v1.508: Mobile — BEHÅLL side-by-side, krymp bara värden */
 @media (max-width: 720px), (max-height: 540px) and (orientation: landscape) {
   #wardrobe-layout {
-    grid-template-columns: 1fr;
-    gap: 10px;
+    /* Behåll 2-col, justera proportioner och min-widths för smala skärmar */
+    grid-template-columns: minmax(100px, 0.8fr) minmax(135px, 1.2fr);
+    gap: 8px;
+  }
+  #wardrobe-footer {
+    grid-template-columns: minmax(100px, 0.8fr) minmax(135px, 1.2fr);
+    gap: 8px;
   }
   #wardrobe-preview-wrap {
-    flex-direction: row;
-    gap: 10px;
-    align-items: center;
-    flex-wrap: wrap;
-    justify-content: center;
+    /* Quad alignment kvar — INTE row flex-wrap som bröt grid */
+    flex-direction: column;
   }
-  #wardrobe-preview {
-    max-width: 220px;
-  }
-  #wardrobe-slots {
-    flex: 1 1 200px;
-    max-width: 280px;
-  }
-  #wardrobe-controls {
-    max-width: 100%;
-  }
-  #wardrobe-options {
-    max-height: 36vh;
-  }
-  #wardrobe-screen > #wardrobe-sub { font-size: 11px; }
+  #wardrobe-screen > #wardrobe-sub { font-size: 10px; margin-bottom: 4px !important; }
+  #wardrobe-screen > h2 { font-size: 16px; margin-bottom: 2px; }
+  #wardrobe-actionbar .medium-btn { padding: 5px 4px; font-size: 9.5px; }
+  #wardrobe-actionbar .big-btn { padding: 7px 4px; font-size: 10.5px; }
 }
 
 /* Animerad bakgrundsskugga på meny + scan-lines för retro-futuristisk känsla */
@@ -4316,10 +4400,12 @@ button, .shop-item, .player-row, .pet-card {
      content rinner uppifrån, knappen blir alltid synlig längst ner. */
   #ach-grid, #shop-items, #shop-upgrades, #shop-perks,
   #weapon-menu-grid, #cheats-grid, #costumes-grid,
-  #companions-grid, #wardrobe-options {
+  #companions-grid {
     max-height: 45vh !important;
     overflow-y: auto;
   }
+  /* v1.508: #wardrobe-options EJ längre max-height-capped i landscape eftersom
+     den nya flex:1-layouten redan begränsar höjden via parent. */
   /* Outfits/Costumes: visa flera cards per rad i landscape istället för 1-1.5.
      150px min ger 5-6 kolumner på 852px viewport (bättre thumb-density). */
   #costumes-grid {
