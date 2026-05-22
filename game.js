@@ -12349,6 +12349,11 @@ const WARDROBE = {
     { id: 'mullet',       name: 'Mullet',      style: 'mullet',   color: '#5a2a0a' },
     { id: 'mulletBlonde', name: 'Mullet Blond',style: 'mullet',   color: '#d4b478' },
     { id: 'mulletGreen',  name: 'Mullet Grön', style: 'mullet',   color: '#5aff5a' },
+    // v1.495: 4 nya hair-items för diversitet
+    { id: 'afroBlack',    name: 'Afro Svart',  style: 'afro',     color: '#0a0a0a' },
+    { id: 'afroBrown',    name: 'Afro Brunt',  style: 'afro',     color: '#3a1a0a' },
+    { id: 'dreadsBlack',  name: 'Dreads Svart',style: 'dreads',   color: '#1a0a08' },
+    { id: 'dreadsBlonde', name: 'Dreads Blond',style: 'dreads',   color: '#d4b478' },
   ],
   shirt: [
     { id: 'naked',     name: 'Bar Överkropp', color: null },
@@ -12436,6 +12441,8 @@ const WARDROBE = {
     { id: 'skigoggles',name: 'Skidglasögon',  style: 'goggles',  color: '#aa1818' },
     { id: 'eyepatch',  name: 'Ögonlapp',      style: 'eyepatch', color: '#0a0a0a' },
     { id: 'cyberRed',  name: 'Cyber-visir (Röd)',style:'visor',  color: '#ff3a3a' },
+    // v1.495: Reading glasses
+    { id: 'halfrim',   name: 'Läsglasögon',   style: 'halfrim',  color: '#5a3a08' },
   ],
   hat: [
     { id: 'none',      name: 'Ingen',         style: 'none',     color: null },
@@ -12452,6 +12459,9 @@ const WARDROBE = {
     // Seasonal
     { id: 'pumpkin',   name: 'Pumpa',         style: 'pumpkin',  color: '#ff7a14' },
     { id: 'santa',     name: 'Tomtekåpa',     style: 'santa',    color: '#aa1818' },
+    // v1.495: Casual headwear
+    { id: 'bucket',    name: 'Bucket-Hatt',   style: 'bucket',   color: '#5a4a26' },
+    { id: 'headband',  name: 'Pannband',      style: 'headband', color: '#aa1818' },
   ],
   cape: [
     { id: 'none',      name: 'Ingen',     style: 'none',     color: null },
@@ -12482,6 +12492,8 @@ const WARDROBE = {
     { id: 'wrestling',  name: 'Brottarskor',     style: 'sneaker',  color: '#cccccc' },
     { id: 'goldSneaker',name: 'Guld Sneakers',   style: 'sneaker',  color: '#ffd54a' },
     { id: 'cyberBoot',  name: 'Cyber-stövlar',   style: 'boot',     color: '#1a3a5a' },
+    // v1.495: Casual flip-flop
+    { id: 'flipflop',   name: 'Flip-flops',      style: 'flipflop', color: '#3a8a3a' },
   ],
   // v1.480 NEW: EYES — ögon-färg (override default mörka iris)
   eyes: [
@@ -12512,6 +12524,8 @@ const WARDROBE = {
     { id: 'warpaintBlue',name:'Krigsmålning Blå',style: 'warpaint', color: '#1a3a8a' },
     { id: 'cybernetic', name: 'Cybernetiskt Implantat', style: 'cybernetic', color: '#3acaff' },
     { id: 'thirdEye',   name: 'Tredje Ögat',     style: 'thirdEye', color: '#aa3aff' },
+    // v1.495: Sutured/stickad ärr (surgical-style)
+    { id: 'sutured',    name: 'Stickat Ärr',     style: 'sutured',  color: '#a85040' },
   ],
   // v1.479 NEW: FACIAL HAIR — 11 designs
   facialHair: [
@@ -12527,6 +12541,9 @@ const WARDROBE = {
     { id: 'goatBeard',  name: 'Bock-skägg',      style: 'goatbeard',color: '#1a0a08' },
     { id: 'circleBeard',name: 'Cirkelskägg',     style: 'circle',   color: '#1a0a08' },
     { id: 'handlebar',  name: 'Mustasch Krullad',style: 'handlebar',color: '#5a2a0a' },
+    // v1.495: Långt vikingskägg
+    { id: 'viking',     name: 'Vikingskägg',     style: 'viking',   color: '#5a2a0a' },
+    { id: 'vikingGray', name: 'Vikingskägg Grått',style: 'viking',  color: '#888888' },
   ],
 };
 
@@ -39862,19 +39879,21 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   const hShadow = flash ? '#fff' : darken(cos.hairColor || '#2a1a0a', 0.40);
   const hLight = flash ? '#fff' : lighten(cos.hairColor || '#2a1a0a', 0.22);
   if (hStyle === 'bald') {
-    // v1.494: FÖRBÄTTRAD SNAGGAD/BUZZ CUT — tätare stubble + crown shading
-    // + sharp hairline + sideburn. Innan: 10 uniformerade dots på 0.55 alpha
-    // wash = ser ut som ingen frisyr.
+    // v1.495: BUZZ CUT med path som FÖLJER head-silhouette EXAKT
+    // (v1.494 hade extrapunkter som stack ut 0.5 units utanför head-curves)
+    // Head crown: moveTo(-4,-19); quadraticCurveTo(2,-20.5,6,-19);
+    // Head east: quadraticCurveTo(8,-15,7.5,-11);
+    // Head west: quadraticCurveTo(-6,-14,-5,-17); quadraticCurveTo(-5,-19,-4,-19);
     const dotDark = flash ? '#fff' : darken(skinBase, 0.55);
-    // 1. SCALP TINT — subtil mörk wash över hela hair-zone
+    // 1. SCALP TINT — path matchar head crown + cheek curves exakt
     ctx.fillStyle = dotDark;
-    ctx.globalAlpha = 0.35;
+    ctx.globalAlpha = 0.38;
     ctx.beginPath();
-    ctx.moveTo(-4.5, -19);
-    ctx.quadraticCurveTo(2, -20.8, 6.5, -19);
-    ctx.quadraticCurveTo(7.8, -16, 6.5, -13.8);
-    ctx.lineTo(-4, -14);
-    ctx.quadraticCurveTo(-5.5, -16.5, -4.5, -19);
+    ctx.moveTo(-4, -19);                            // match head start
+    ctx.quadraticCurveTo(2, -20.5, 6, -19);          // EXACT head crown
+    ctx.quadraticCurveTo(7.5, -17, 7, -14.2);        // following east cheek
+    ctx.lineTo(-4, -14.2);                           // hairline straight
+    ctx.quadraticCurveTo(-5.5, -16.5, -4, -19);      // back up west cheek
     ctx.closePath();
     ctx.fill();
     ctx.globalAlpha = 1;
@@ -40096,6 +40115,98 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
     ctx.fillStyle = hLight;
     ctx.fillRect(-6.5, -13, 0.6, 6);
     ctx.fillRect(0, -20, 1.5, 0.7);
+  } else if (hStyle === 'afro') {
+    // v1.495: AFRO — stor puffy rund form runt huvudet
+    ctx.fillStyle = hCol;
+    // Stor rund cloud-shape (täcker hela top)
+    ctx.beginPath();
+    ctx.ellipse(1, -19, 8, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Sidopuffar för organisk look (clouds)
+    ctx.beginPath(); ctx.arc(-6, -17, 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-4, -21, 2.8, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, -22.5, 3.0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(4, -22, 2.9, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(7.5, -20, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(8.5, -16, 2.4, 0, Math.PI * 2); ctx.fill();
+    // Sidor (mot kinder)
+    ctx.beginPath(); ctx.arc(-6.5, -14, 2.0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(8.5, -13, 2.0, 0, Math.PI * 2); ctx.fill();
+    // Texture-spots (lighter highlights för volym)
+    ctx.fillStyle = hLight;
+    for (const [hx, hy, hr] of [[0, -22, 0.8], [4, -21, 0.7], [-3, -19, 0.6],
+                                [7, -17, 0.7], [-5, -16, 0.5], [2, -17, 0.6]]) {
+      ctx.beginPath(); ctx.arc(hx, hy, hr, 0, Math.PI * 2); ctx.fill();
+    }
+    // Curly texture (small dark dots for definition)
+    ctx.fillStyle = hShadow;
+    for (const [dx, dy] of [[-4, -20], [3, -22], [-2, -18], [6, -19], [1, -16],
+                            [-5, -15], [7, -16], [-3, -22], [5, -20]]) {
+      ctx.beginPath(); ctx.arc(dx, dy, 0.4, 0, Math.PI * 2); ctx.fill();
+    }
+    // Outline runt afro
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.ellipse(1, -19, 8, 5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (hStyle === 'dreads') {
+    // v1.495: DREADLOCKS — tjocka rep-liknande strängar
+    ctx.fillStyle = hCol;
+    // Top crown (basis-yta)
+    ctx.beginPath();
+    ctx.moveTo(-5, -19);
+    ctx.quadraticCurveTo(2, -21, 6.5, -19);
+    ctx.quadraticCurveTo(7.5, -16, 7, -14);
+    ctx.lineTo(-4.5, -14);
+    ctx.quadraticCurveTo(-6, -16, -5, -19);
+    ctx.closePath();
+    ctx.fill();
+    // 7 dreads — tjocka rope-like strängar i olika riktningar
+    const dreads = [
+      // [startX, startY, endX, endY, width]
+      [-6, -17, -7.5, -9, 1.2],   // west-side-down
+      [-4, -19, -6, -6, 1.3],     // far-west-long
+      [-1, -20, -2.5, -4, 1.4],   // mid-west-very-long
+      [2, -21, 1, -5, 1.5],       // center-very-long
+      [4, -20.5, 4.5, -5, 1.4],   // east-long
+      [6, -19, 7.5, -6, 1.3],     // far-east-long
+      [7, -17, 8.5, -9, 1.2],     // east-side-down
+    ];
+    ctx.fillStyle = hCol;
+    for (const [sx, sy, ex, ey, w] of dreads) {
+      // Rope-shape: tjock linje med subtle taper
+      ctx.beginPath();
+      const angle = Math.atan2(ey - sy, ex - sx);
+      const perpX = Math.cos(angle + Math.PI / 2) * w / 2;
+      const perpY = Math.sin(angle + Math.PI / 2) * w / 2;
+      ctx.moveTo(sx + perpX, sy + perpY);
+      ctx.lineTo(ex + perpX * 0.7, ey + perpY * 0.7);
+      ctx.lineTo(ex - perpX * 0.7, ey - perpY * 0.7);
+      ctx.lineTo(sx - perpX, sy - perpY);
+      ctx.closePath();
+      ctx.fill();
+      // Knot/coil texture på dreden (small bumps)
+      ctx.strokeStyle = hShadow;
+      ctx.lineWidth = 0.3;
+      for (let t = 0.2; t < 1; t += 0.25) {
+        const mx = sx + (ex - sx) * t;
+        const my = sy + (ey - sy) * t;
+        ctx.beginPath();
+        ctx.moveTo(mx + perpX * 0.5, my + perpY * 0.5);
+        ctx.lineTo(mx - perpX * 0.5, my - perpY * 0.5);
+        ctx.stroke();
+      }
+      // Tip darker (dread-end)
+      ctx.fillStyle = hShadow;
+      ctx.beginPath();
+      ctx.arc(ex, ey, w * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = hCol;
+    }
+    // Highlights på top
+    ctx.fillStyle = hLight;
+    ctx.fillRect(0, -20, 1.5, 0.7);
+    ctx.fillRect(3, -19.5, 1.2, 0.6);
   }
   // v1.493: MANLIGT BROW RIDGE — heavier eyebrows + subtle shadow ovanför ögon
   // Brow ridge shadow (forehead → brow line) — ger djup till panna, manligare
@@ -40793,6 +40904,42 @@ function drawGlassesOnFace(ctx, style, color, flash) {
     ctx.moveTo(5.7, -13.5);
     ctx.lineTo(7, -16);
     ctx.stroke();
+  } else if (style === 'halfrim') {
+    // v1.495: Läsglasögon (browline / half-rim style) — tjock top + thin bottom
+    // Tjock övre frame
+    ctx.fillStyle = col;
+    ctx.fillRect(-0.7, -13.4, 2.4, 0.4);  // west lens top
+    ctx.fillRect(3.0, -13.4, 2.4, 0.4);   // east lens top
+    // Bridge mellan linser
+    ctx.fillRect(1.7, -13.2, 1.3, 0.3);
+    // Tunn nedre frame
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 0.35;
+    // West lens bottom curve
+    ctx.beginPath();
+    ctx.moveTo(-0.7, -13.0);
+    ctx.quadraticCurveTo(0.5, -11.7, 1.7, -13.0);
+    ctx.stroke();
+    // East lens bottom curve
+    ctx.beginPath();
+    ctx.moveTo(3.0, -13.0);
+    ctx.quadraticCurveTo(4.2, -11.7, 5.4, -13.0);
+    ctx.stroke();
+    // Lens reflection (subtle)
+    ctx.fillStyle = 'rgba(255,255,255,0.20)';
+    ctx.beginPath();
+    ctx.ellipse(0.5, -12.6, 0.7, 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(4.2, -12.6, 0.7, 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Temple arms (visible past frame)
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 0.35;
+    ctx.beginPath();
+    ctx.moveTo(5.4, -13.3);
+    ctx.lineTo(6.5, -13.0);
+    ctx.stroke();
   }
 }
 
@@ -40976,30 +41123,77 @@ function drawHatOnHead(ctx, style, color, flash) {
     ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
     ctx.strokeRect(-2.5, -25, 7, 6);
   } else if (style === 'wizard') {
-    // Trollkarls-hatt (spetsig)
+    // v1.495: Trollkarls-hatt POLISHED — proper 5-point stars + crescent moon + slight cone curve
+    // Hat cone — slightly curved (mer wizardy än rak triangel)
     ctx.fillStyle = col;
     ctx.beginPath();
     ctx.moveTo(-4, -18);
-    ctx.lineTo(1, -26);
-    ctx.lineTo(6, -18);
+    ctx.quadraticCurveTo(-2.5, -22, 0.5, -26);     // curve to tip
+    ctx.lineTo(1.5, -26);
+    ctx.quadraticCurveTo(4, -22, 6, -18);          // curve down east
     ctx.closePath();
     ctx.fill();
-    // Slim brim
-    ctx.beginPath();
-    ctx.ellipse(1, -18, 6.5, 0.7, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Stars
-    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
-    ctx.font = 'bold 4px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('✦', 0, -21);
-    ctx.fillText('✦', 2, -23);
-    ctx.strokeStyle = outline; ctx.lineWidth = 0.7;
+    // Cone shadow (highlight on east side, west darker)
+    ctx.fillStyle = darken(col, 0.30);
     ctx.beginPath();
     ctx.moveTo(-4, -18);
-    ctx.lineTo(1, -26);
-    ctx.lineTo(6, -18);
+    ctx.quadraticCurveTo(-2.5, -22, 0.5, -26);
+    ctx.lineTo(0.5, -24);
+    ctx.quadraticCurveTo(-1.5, -21, -2, -18);
+    ctx.closePath();
+    ctx.fill();
+    // Hatband (mörkare stripe vid brim)
+    ctx.fillStyle = darken(col, 0.50);
+    ctx.fillRect(-4, -18.5, 10, 1.0);
+    // Buckle on hatband (centered)
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.fillRect(0.5, -18.4, 1.2, 0.8);
+    ctx.strokeStyle = darken(col, 0.70); ctx.lineWidth = 0.2;
+    ctx.strokeRect(0.5, -18.4, 1.2, 0.8);
+    // Brim ellipse
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.ellipse(1, -17.7, 6.8, 0.9, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Brim highlight
+    ctx.fillStyle = lighten(col, 0.20);
+    ctx.fillRect(-4, -18, 10, 0.3);
+    // 3 PROPER 5-POINT STARS (canvas paths istället för ✦ text)
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 2;
+    const drawStar = (cx, cy, r) => {
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const ang = -Math.PI / 2 + (i / 10) * Math.PI * 2;
+        const rad = (i % 2 === 0) ? r : r * 0.45;
+        const sx = cx + Math.cos(ang) * rad;
+        const sy = cy + Math.sin(ang) * rad;
+        if (i === 0) ctx.moveTo(sx, sy);
+        else ctx.lineTo(sx, sy);
+      }
+      ctx.closePath();
+      ctx.fill();
+    };
+    drawStar(-1, -20.5, 0.7);   // west star
+    drawStar(3, -22.5, 0.6);    // upper-east star
+    drawStar(1, -24, 0.5);      // top star (smallest, near tip)
+    ctx.shadowBlur = 0;
+    // CRESCENT MOON detail på cone (subtle)
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 2;
+    ctx.beginPath();
+    ctx.arc(-2, -19.5, 0.8, Math.PI * 0.2, Math.PI * 1.4, false);
+    ctx.arc(-1.7, -19.5, 0.6, Math.PI * 1.3, Math.PI * 0.3, true);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Hat outline
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(-4, -18);
+    ctx.quadraticCurveTo(-2.5, -22, 0.5, -26);
+    ctx.lineTo(1.5, -26);
+    ctx.quadraticCurveTo(4, -22, 6, -18);
     ctx.closePath();
     ctx.stroke();
   } else if (style === 'pumpkin') {
@@ -41042,6 +41236,71 @@ function drawHatOnHead(ctx, style, color, flash) {
     ctx.beginPath();
     ctx.arc(7, -23, 1.0, 0, Math.PI * 2);
     ctx.fill();
+  } else if (style === 'bucket') {
+    // v1.495: Bucket-hatt — cylindrisk krona + droopy brim runt om
+    ctx.fillStyle = col;
+    // Krona (low cylindrical)
+    ctx.beginPath();
+    ctx.moveTo(-4.5, -18);
+    ctx.quadraticCurveTo(1, -22, 6.5, -18);
+    ctx.lineTo(6.5, -15);
+    ctx.lineTo(-4.5, -15);
+    ctx.closePath();
+    ctx.fill();
+    // Wide brim (down all around) — east + west extensions
+    ctx.beginPath();
+    ctx.moveTo(-7, -15.5);
+    ctx.lineTo(9, -15.5);
+    ctx.lineTo(9, -13.5);
+    ctx.lineTo(7.5, -13);
+    ctx.lineTo(-5.5, -13);
+    ctx.lineTo(-7, -13.5);
+    ctx.closePath();
+    ctx.fill();
+    // Stitching detail (dark line around brim)
+    ctx.strokeStyle = dark; ctx.lineWidth = 0.4;
+    ctx.beginPath();
+    ctx.moveTo(-6.5, -14.3); ctx.lineTo(8.5, -14.3);
+    ctx.stroke();
+    // Crown band/seam
+    ctx.fillStyle = dark;
+    ctx.fillRect(-4.5, -15.8, 11, 0.5);
+    // Outline
+    ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(-4.5, -18);
+    ctx.quadraticCurveTo(1, -22, 6.5, -18);
+    ctx.stroke();
+  } else if (style === 'headband') {
+    // v1.495: Pannband — tunn färgstripe runt pannan
+    ctx.fillStyle = col;
+    // Front-band
+    ctx.beginPath();
+    ctx.moveTo(-4.5, -16);
+    ctx.quadraticCurveTo(1, -16.8, 6.8, -16);
+    ctx.lineTo(6.8, -14.5);
+    ctx.lineTo(-4.5, -14.5);
+    ctx.closePath();
+    ctx.fill();
+    // Knot at back (west sida)
+    ctx.fillStyle = darken(color || '#aa1818', 0.30);
+    ctx.beginPath();
+    ctx.arc(-5.5, -15, 1.1, 0, Math.PI * 2);
+    ctx.fill();
+    // Trailing ends
+    ctx.beginPath();
+    ctx.moveTo(-6.2, -14.7);
+    ctx.lineTo(-7.5, -11);
+    ctx.lineTo(-6.5, -11);
+    ctx.lineTo(-5.5, -14.5);
+    ctx.closePath();
+    ctx.fill();
+    // Highlight stripe (subtle)
+    ctx.fillStyle = lighten(color || '#aa1818', 0.20);
+    ctx.fillRect(-3.5, -15.7, 9, 0.4);
+    // Center accent (some band-designs have a logo/dot)
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.fillRect(0.5, -15.4, 1, 0.6);
   }
   ctx.restore();
 }
@@ -41816,6 +42075,39 @@ function drawShoeOnFoot(ctx, x, y, style, color, flash, isBack) {
     ctx.quadraticCurveTo(x + 4, y + 0.5, x + 2, y + 0.3);
     ctx.closePath();
     ctx.stroke();
+  } else if (style === 'flipflop') {
+    // v1.495: Flip-flops — tunn sula + Y-strap (toe thong)
+    // Tunn sula
+    ctx.fillStyle = baseCol;
+    ctx.beginPath();
+    ctx.moveTo(x - 2, y + 2.5);
+    ctx.quadraticCurveTo(x, y + 3.4, x + 4.5, y + 3.3);
+    ctx.lineTo(x + 4.5, y + 3.7);
+    ctx.quadraticCurveTo(x, y + 4, x - 2, y + 3.2);
+    ctx.closePath();
+    ctx.fill();
+    // Sole-edge outline (darker)
+    ctx.fillStyle = darker;
+    ctx.fillRect(x - 2, y + 3.6, 6.5, 0.3);
+    // Y-strap (toe thong + foot strap)
+    ctx.strokeStyle = darken(baseCol, 0.40);
+    ctx.lineWidth = 0.7;
+    ctx.lineCap = 'round';
+    // Toe thong (mellan stortå och tå 2)
+    ctx.beginPath();
+    ctx.moveTo(x + 3.5, y + 3.0);
+    ctx.lineTo(x + 3.2, y + 2.0);
+    ctx.stroke();
+    // Y branches
+    ctx.beginPath();
+    ctx.moveTo(x + 3.2, y + 2.0);
+    ctx.lineTo(x + 1.5, y + 2.7);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x + 3.2, y + 2.0);
+    ctx.lineTo(x + 4.7, y + 2.7);
+    ctx.stroke();
+    ctx.lineCap = 'butt';
   }
   ctx.restore();
 }
@@ -41959,6 +42251,48 @@ function drawScarsOnFace(ctx, style, color, flash) {
     ctx.arc(2.5, -15.5, 0.4, 0, Math.PI * 2);
     ctx.fill();
     ctx.shadowBlur = 0;
+  } else if (style === 'sutured') {
+    // v1.495: STICKAT ÄRR — lång diagonal line med tvärgående stitches
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 0.5;
+    // Huvudärr (diagonal från forehead till cheek)
+    ctx.beginPath();
+    ctx.moveTo(2, -14.5);
+    ctx.lineTo(6, -9.5);
+    ctx.stroke();
+    // Tvärgående stitches (perpendicular små streck längs ärret)
+    ctx.lineWidth = 0.35;
+    const stitches = 6;
+    for (let i = 0; i < stitches; i++) {
+      const t = (i + 0.5) / stitches;
+      // Punkt längs huvudärret
+      const px = 2 + (6 - 2) * t;
+      const py = -14.5 + (-9.5 - (-14.5)) * t;
+      // Perpendicular direction (rotated 90°)
+      const ang = Math.atan2(-9.5 - (-14.5), 6 - 2) + Math.PI / 2;
+      const dx = Math.cos(ang) * 0.45;
+      const dy = Math.sin(ang) * 0.45;
+      ctx.beginPath();
+      ctx.moveTo(px - dx, py - dy);
+      ctx.lineTo(px + dx, py + dy);
+      ctx.stroke();
+    }
+    // Knot-dots vid varje stitch-ände för Frankenstein-look
+    ctx.fillStyle = col;
+    for (let i = 0; i < stitches; i++) {
+      const t = (i + 0.5) / stitches;
+      const px = 2 + (6 - 2) * t;
+      const py = -14.5 + (-9.5 - (-14.5)) * t;
+      const ang = Math.atan2(-9.5 - (-14.5), 6 - 2) + Math.PI / 2;
+      const dx = Math.cos(ang) * 0.45;
+      const dy = Math.sin(ang) * 0.45;
+      ctx.beginPath();
+      ctx.arc(px + dx, py + dy, 0.12, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(px - dx, py - dy, 0.12, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   ctx.restore();
 }
@@ -42090,6 +42424,58 @@ function drawFacialHair(ctx, style, color, flash) {
     ctx.lineTo(2.5, -6.5);
     ctx.closePath();
     ctx.fill();
+  } else if (style === 'viking') {
+    // v1.495: VIKINGSKÄGG — långt helskägg som hänger ner till bröstet
+    // Mustach på toppen
+    ctx.beginPath();
+    ctx.moveTo(1.5, -9.8);
+    ctx.quadraticCurveTo(3.3, -10.4, 5.2, -9.8);
+    ctx.lineTo(5.0, -9.2);
+    ctx.lineTo(1.7, -9.2);
+    ctx.closePath();
+    ctx.fill();
+    // Huvudkropp av skägget (täcker hela hakan + sidor + ner till bröst)
+    ctx.beginPath();
+    ctx.moveTo(-3, -9.5);
+    ctx.quadraticCurveTo(-4, -8, -3.5, -6);
+    ctx.lineTo(-3.5, -3);                  // ner längs nacken
+    ctx.quadraticCurveTo(-3, 0, -2, 2);    // lower beard
+    ctx.lineTo(-1, 3);                      // pointed tip 1
+    ctx.lineTo(0.5, 2);                     // braid notch
+    ctx.lineTo(1.5, 3.5);                   // pointed tip 2 (lower)
+    ctx.lineTo(3, 2);                       // braid notch
+    ctx.lineTo(4, 3);                       // pointed tip 3
+    ctx.quadraticCurveTo(5, 1, 5.5, -2);   // back up east side
+    ctx.lineTo(5.5, -5);
+    ctx.quadraticCurveTo(6, -7.5, 5.5, -9.5);
+    ctx.quadraticCurveTo(4, -9.5, 2.5, -9.5);
+    ctx.quadraticCurveTo(1, -9.5, -0.5, -9.5);
+    ctx.quadraticCurveTo(-2, -9.5, -3, -9.5);
+    ctx.closePath();
+    ctx.fill();
+    // Braid lines (3 vertikala stripes som suggererar flätat skägg)
+    ctx.strokeStyle = darken(color || '#5a2a0a', 0.40);
+    ctx.lineWidth = 0.3;
+    for (const bx of [-1, 1, 3]) {
+      ctx.beginPath();
+      ctx.moveTo(bx, -7);
+      ctx.lineTo(bx + 0.3, 1.5);
+      ctx.stroke();
+    }
+    // Horisontella braid-knots
+    ctx.strokeStyle = darken(color || '#5a2a0a', 0.55);
+    ctx.lineWidth = 0.4;
+    for (const by of [-4, -1, 1.5]) {
+      ctx.beginPath();
+      ctx.moveTo(-2.5, by);
+      ctx.lineTo(5, by);
+      ctx.stroke();
+    }
+    // Gold/silver braid-band rings
+    ctx.fillStyle = flash ? '#fff' : '#aa8a3a';
+    ctx.fillRect(-0.5, 0.2, 2.5, 0.4);  // mittringen
+    ctx.fillStyle = flash ? '#fff' : darken(color || '#5a2a0a', 0.7);
+    ctx.fillRect(-0.5, 0.2, 2.5, 0.15);
   }
 }
 
