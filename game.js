@@ -12383,6 +12383,15 @@ const WARDROBE = {
     { id: 'broccoli_body',  name: 'Broccoli-kostym',   color: '#5aaa3a', mascot: 'broccoli' },
     { id: 'carrot_body',    name: 'Morot-kostym',      color: '#ff8a30', mascot: 'carrot' },
     { id: 'cashew_body',    name: 'Cashew-kostym',     color: '#d4c090', mascot: 'cashew' },
+    // v1.513: 8 nya exotiska frukt-mascots (Gigachad/Pepe/Doge skippade pga IP)
+    { id: 'pineapple_body', name: 'Ananas-kostym',     color: '#ffd54a', mascot: 'pineapple' },
+    { id: 'dragonfruit_body',name: 'Drakfrukt-kostym', color: '#ff5aaa', mascot: 'dragonfruit' },
+    { id: 'durian_body',    name: 'Durian-kostym',     color: '#caa820', mascot: 'durian' },
+    { id: 'coconut_body',   name: 'Kokosnöt-kostym',   color: '#7a4a20', mascot: 'coconut' },
+    { id: 'pomegranate_body',name: 'Granatäpple-kostym',color: '#aa1828', mascot: 'pomegranate' },
+    { id: 'starfruit_body', name: 'Stjärnfrukt-kostym',color: '#caea30', mascot: 'starfruit' },
+    { id: 'pricklypear_body',name: 'Kaktusfikon-kostym',color: '#ff5a70', mascot: 'pricklypear' },
+    { id: 'olive_body',     name: 'Oliv-kostym',       color: '#5a7a2a', mascot: 'olive' },
     // v1.497: 3 yrkesoutfits (profession brands)
     { id: 'prison_shirt',   name: 'Fängelse-tröja',    color: '#ff7a14', brand: 'prison' },
     { id: 'police_shirt',   name: 'Polis-uniform',     color: '#1a2a5a', brand: 'police' },
@@ -22784,6 +22793,47 @@ const WARDROBE_PRESETS = [
   } },
   { id: 'cashew', name: 'Cashew', wardrobe: {
       skin: 'tan', hair: 'bald', shirt: 'cashew_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  // v1.513: 8 nya exotiska frukt-outfits
+  { id: 'pineapple', name: 'Ananas', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'pineapple_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'dragonfruit', name: 'Drakfrukt', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'dragonfruit_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'durian', name: 'Durian', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'durian_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'coconut', name: 'Kokosnöt', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'coconut_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'pomegranate', name: 'Granatäpple', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'pomegranate_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'starfruit', name: 'Stjärnfrukt', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'starfruit_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'pricklypear', name: 'Kaktusfikon', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'pricklypear_body', pants: 'briefs',
+      shoes: 'none', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
+  } },
+  { id: 'olive', name: 'Oliv', wardrobe: {
+      skin: 'tan', hair: 'bald', shirt: 'olive_body', pants: 'briefs',
       shoes: 'none', hat: 'none', bandana: 'none',
       glasses: 'none', cape: 'none', facialHair: 'none', eyes: 'default', scars: 'none'
   } },
@@ -40817,6 +40867,810 @@ function drawCashewCharacter(ctx, cos, flash, walkPhase, isMoving) {
   ctx.ellipse(2 + legSwing, 16, 1.8, 0.8, 0, 0, Math.PI * 2); ctx.fill();
 }
 
+// ============================================================
+// v1.513: 8 NYA EXOTISKA FRUKT-MASCOTS
+// Design: pineapple (taggig krona), dragonfruit (alien-look), durian (taggig+stink-lines),
+// coconut (hårig+ögon-hål), pomegranate (kalkblad+frön), starfruit (5-stjärna),
+// pricklypear (taggig outsider), olive (klassisk med pimento)
+// Alla i 35-unit coord-system (top y~-19, feet y=16) — skalas 1.4x av drawNakedBody.
+// ============================================================
+
+// ANANAS — yellow oval med diamond-pattern crosshatch + spiky green crown
+function drawPineappleCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const yellow      = flash ? '#fff' : '#ffd54a';
+  const yellowDark  = flash ? '#fff' : '#cc9818';
+  const yellowLite  = flash ? '#fff' : '#fff088';
+  const brownPat    = flash ? '#fff' : '#aa6a18';
+  const green       = flash ? '#fff' : '#3a8a3a';
+  const greenDark   = flash ? '#fff' : '#1a5a1a';
+  const greenLite   = flash ? '#fff' : '#5aaa3a';
+  const skin        = flash ? '#fff' : (cos.skin || '#d4a574');
+  const outline     = flash ? '#fff' : '#3a1a05';
+  const blackEye    = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // SPIKY GREEN CROWN (toppen — leaves sticker ut åt alla håll)
+  ctx.fillStyle = green;
+  for (const [bx, by, tx, ty, w] of [
+    [-3, -10, -5, -19, 1.5],
+    [-1, -10.5, -2, -20.5, 1.4],
+    [1, -10.5, 1, -21, 1.4],
+    [3, -10, 4, -20, 1.4],
+    [-4.5, -10, -7, -16, 1.2],
+    [4.5, -10, 7, -16, 1.2],
+    [0, -10, 0, -22, 1.3],
+  ]) {
+    ctx.beginPath();
+    ctx.moveTo(bx - w, by);
+    ctx.lineTo(tx, ty);
+    ctx.lineTo(bx + w, by);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Leaf shadows (mörkare insidor)
+  ctx.fillStyle = greenDark;
+  for (const [bx, by, tx, ty] of [
+    [-3, -10, -5, -19],
+    [1, -10.5, 1, -21],
+    [-4.5, -10, -7, -16],
+  ]) {
+    ctx.beginPath();
+    ctx.moveTo(bx, by);
+    ctx.lineTo(tx, ty);
+    ctx.lineTo(bx + 0.4, by - 0.2);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // BODY (yellow oval pineapple)
+  ctx.fillStyle = yellow;
+  ctx.beginPath();
+  ctx.ellipse(0, -1, 8, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.stroke();
+  // DIAMOND PATTERN — crosshatch lines (pineapple's iconic look)
+  ctx.strokeStyle = brownPat; ctx.lineWidth = 0.4;
+  for (let i = -3; i <= 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-7 + i * 1.2, -8); ctx.lineTo(-1 + i * 1.2, 6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(7 - i * 1.2, -8); ctx.lineTo(1 - i * 1.2, 6);
+    ctx.stroke();
+  }
+  // Diamond bumps (small dots at intersections)
+  ctx.fillStyle = brownPat;
+  for (const [bx, by] of [[-3, -5], [0, -5], [3, -5], [-3, -1], [0, -1], [3, -1], [-3, 3], [0, 3], [3, 3]]) {
+    ctx.beginPath();
+    ctx.arc(bx, by, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // East-side highlight
+  ctx.fillStyle = yellowLite;
+  ctx.globalAlpha = 0.35;
+  ctx.beginPath();
+  ctx.ellipse(3, -2, 2, 4, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // FACE on body
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2.5, -3, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -3, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
+  ctx.beginPath(); ctx.arc(-2.5, -3, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2.5, -3, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-2.3, -3, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.7, -3, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-2, -3.3, 0.3, 0.3);
+  ctx.fillRect(3, -3.3, 0.3, 0.3);
+  // Big smile
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.7;
+  ctx.beginPath();
+  ctx.arc(0, -0.5, 2, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.stroke();
+  // LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 8, 2.2, 7);
+  ctx.fillRect(0.8 + legSwing, 8, 2.2, 7);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 8, 2.2, 7);
+  ctx.strokeRect(0.8 + legSwing, 8, 2.2, 7);
+  // FEET
+  ctx.fillStyle = flash ? '#fff' : '#3a2010';
+  ctx.beginPath();
+  ctx.ellipse(-1.9 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.9 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// DRAKFRUKT — pink/red oval med green pointed scales sticker ut, alien-look
+function drawDragonfruitCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const pink       = flash ? '#fff' : '#ff5aaa';
+  const pinkDark   = flash ? '#fff' : '#cc2a7a';
+  const pinkLite   = flash ? '#fff' : '#ff8aca';
+  const green      = flash ? '#fff' : '#5aaa3a';
+  const greenLite  = flash ? '#fff' : '#7aca5a';
+  const white      = flash ? '#fff' : '#f4f0e0';
+  const blackSeed  = flash ? '#fff' : '#0a0a0a';
+  const skin       = flash ? '#fff' : (cos.skin || '#d4a574');
+  const outline    = flash ? '#fff' : '#3a0a2a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // BODY (pink/magenta oval)
+  ctx.fillStyle = pink;
+  ctx.beginPath();
+  ctx.ellipse(0, -4, 8, 12, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.stroke();
+  // GREEN POINTED SCALES sticking out (alien dragon-look)
+  ctx.fillStyle = green;
+  for (const [bx, by, tx, ty] of [
+    [-7, -8, -10, -10],
+    [-7, 0, -10, -1],
+    [-6, 5, -9, 6],
+    [7, -8, 10, -10],
+    [7, 0, 10, -1],
+    [6, 5, 9, 6],
+    [-3, -15, -4, -19],
+    [3, -15, 4, -19],
+    [-1, -16, -1, -20],
+    [1, -16, 1, -20.5],
+  ]) {
+    ctx.beginPath();
+    ctx.moveTo(bx, by - 1.5);
+    ctx.lineTo(tx, ty);
+    ctx.lineTo(bx, by + 1.5);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Scale shadows (mörkare baksidan)
+  ctx.fillStyle = pinkDark;
+  for (const [bx, by] of [[-7, -8], [-7, 0], [-6, 5], [7, -8], [7, 0], [6, 5]]) {
+    ctx.beginPath();
+    ctx.ellipse(bx, by, 1, 1.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Pink highlight (east side)
+  ctx.fillStyle = pinkLite;
+  ctx.globalAlpha = 0.4;
+  ctx.beginPath();
+  ctx.ellipse(3, -5, 2, 5, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // WHITE INTERIOR PATCH visible (showing flesh — alien vibe)
+  ctx.fillStyle = white;
+  ctx.beginPath();
+  ctx.ellipse(0, 1, 4, 5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // BLACK SEEDS scattered in white area
+  ctx.fillStyle = blackSeed;
+  for (const [sx, sy] of [[-2, -1], [1, -1], [-1, 1], [2, 1], [-2, 3], [1, 3], [0, 0], [-3, 0], [3, 0]]) {
+    ctx.beginPath();
+    ctx.arc(sx, sy, 0.35, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // FACE on upper body
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2.5, -8, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -8, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackSeed; ctx.lineWidth = 0.35;
+  ctx.beginPath(); ctx.arc(-2.5, -8, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2.5, -8, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = blackSeed;
+  ctx.beginPath(); ctx.arc(-2.3, -8, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.7, -8, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-2, -8.3, 0.3, 0.3);
+  ctx.fillRect(3, -8.3, 0.3, 0.3);
+  // Stoic alien expression (small mouth)
+  ctx.strokeStyle = blackSeed; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-1, -5.5); ctx.lineTo(1, -5.5);
+  ctx.stroke();
+  // LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 9, 2.2, 6);
+  ctx.fillRect(0.8 + legSwing, 9, 2.2, 6);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 9, 2.2, 6);
+  ctx.strokeRect(0.8 + legSwing, 9, 2.2, 6);
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-1.9 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.9 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// DURIAN — spiky greenish-yellow body med stink-lines (comedy gold)
+function drawDurianCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const durianBody = flash ? '#fff' : '#caa820';
+  const durianDark = flash ? '#fff' : '#8a7818';
+  const durianLite = flash ? '#fff' : '#eac848';
+  const spikeColor = flash ? '#fff' : '#5a4a08';
+  const stinkColor = flash ? '#fff' : 'rgba(120, 180, 100, 0.55)';
+  const skin       = flash ? '#fff' : (cos.skin || '#d4a574');
+  const outline    = flash ? '#fff' : '#2a1808';
+  const blackEye   = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // BODY (round/oval with thorny silhouette)
+  ctx.fillStyle = durianBody;
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 8, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // MANY SPIKES sticking out i alla riktningar (durians iconic spikar)
+  ctx.fillStyle = durianBody;
+  ctx.strokeStyle = spikeColor; ctx.lineWidth = 0.3;
+  const spikes = [];
+  for (let i = 0; i < 20; i++) {
+    const ang = (i / 20) * Math.PI * 2;
+    const bx = Math.cos(ang) * 7;
+    const by = -3 + Math.sin(ang) * 9;
+    const tx = Math.cos(ang) * 9.5;
+    const ty = -3 + Math.sin(ang) * 11.5;
+    spikes.push([bx, by, tx, ty, ang]);
+  }
+  for (const [bx, by, tx, ty, ang] of spikes) {
+    const perp1x = -Math.sin(ang) * 1.0;
+    const perp1y = Math.cos(ang) * 1.0;
+    ctx.beginPath();
+    ctx.moveTo(bx - perp1x, by - perp1y);
+    ctx.lineTo(tx, ty);
+    ctx.lineTo(bx + perp1x, by + perp1y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  // Body outline
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 8, 10, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  // Texture (cross-hatch shading)
+  ctx.strokeStyle = durianDark; ctx.lineWidth = 0.25;
+  for (let i = -2; i <= 2; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-5 + i, -8); ctx.lineTo(-1 + i, 4);
+    ctx.stroke();
+  }
+  // STINK LINES (comedy waves rising up from durian)
+  ctx.strokeStyle = stinkColor; ctx.lineWidth = 1.2;
+  for (const [sx, baseY] of [[-3.5, -14], [0.5, -15], [4, -14]]) {
+    ctx.beginPath();
+    ctx.moveTo(sx, baseY);
+    ctx.quadraticCurveTo(sx + 1, baseY - 1, sx, baseY - 2.5);
+    ctx.quadraticCurveTo(sx - 1, baseY - 4, sx, baseY - 5.5);
+    ctx.stroke();
+  }
+  // Stink "lines" small detail dots
+  ctx.fillStyle = stinkColor;
+  ctx.beginPath(); ctx.arc(-3.5, -19, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(0.5, -20, 0.4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(4, -19, 0.4, 0, Math.PI * 2); ctx.fill();
+  // FACE (between spikes — exhausted/pained expression for comedy)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2.5, -5, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -5, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
+  ctx.beginPath(); ctx.arc(-2.5, -5, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2.5, -5, 1.1, 0, Math.PI * 2); ctx.stroke();
+  // X-eyes (passed out from own smell)
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.45;
+  ctx.beginPath();
+  ctx.moveTo(-3.2, -5.7); ctx.lineTo(-1.8, -4.3);
+  ctx.moveTo(-3.2, -4.3); ctx.lineTo(-1.8, -5.7);
+  ctx.moveTo(1.8, -5.7); ctx.lineTo(3.2, -4.3);
+  ctx.moveTo(1.8, -4.3); ctx.lineTo(3.2, -5.7);
+  ctx.stroke();
+  // Mouth (worried "o")
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.arc(0, -2, 0.9, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#3a0a08';
+  ctx.beginPath(); ctx.arc(0, -2, 0.7, 0, Math.PI * 2); ctx.fill();
+  // LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 8, 2.2, 7);
+  ctx.fillRect(0.8 + legSwing, 8, 2.2, 7);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 8, 2.2, 7);
+  ctx.strokeRect(0.8 + legSwing, 8, 2.2, 7);
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-1.9 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.9 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// KOKOSNÖT — brun hårig oval med 3 "ögon"-hål (coconuts naturliga marks)
+function drawCoconutCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const brown      = flash ? '#fff' : '#7a4a20';
+  const brownDark  = flash ? '#fff' : '#4a2810';
+  const brownLite  = flash ? '#fff' : '#9a6a40';
+  const brownHair  = flash ? '#fff' : '#3a1a08';
+  const whiteFlesh = flash ? '#fff' : '#f0e8d0';
+  const skin       = flash ? '#fff' : (cos.skin || '#d4a574');
+  const outline    = flash ? '#fff' : '#1a0a04';
+  const blackEye   = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // BODY (round/oval brown)
+  ctx.fillStyle = brown;
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 8, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // HAIRY TEXTURE — many small fiber-lines
+  ctx.strokeStyle = brownHair; ctx.lineWidth = 0.3;
+  for (let i = 0; i < 40; i++) {
+    const ang = (i / 40) * Math.PI * 2;
+    const r1 = 6.5 + (i % 3) * 0.3;
+    const r2 = 7.8 + (i % 4) * 0.4;
+    const x1 = Math.cos(ang) * r1;
+    const y1 = -3 + Math.sin(ang) * r1 * (10/8);
+    const x2 = Math.cos(ang) * r2;
+    const y2 = -3 + Math.sin(ang) * r2 * (10/8);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+  // Body outline
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 8, 10, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  // East-side highlight (sheen)
+  ctx.fillStyle = brownLite;
+  ctx.globalAlpha = 0.35;
+  ctx.beginPath();
+  ctx.ellipse(3, -5, 2, 5, -0.3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // 3 COCONUT "EYES" (naturliga circular spots on coconut top)
+  ctx.fillStyle = brownDark;
+  ctx.beginPath(); ctx.arc(-3, -9, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, -10, 0.9, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(3, -9, 0.9, 0, Math.PI * 2); ctx.fill();
+  // CRACK med white flesh visible
+  ctx.strokeStyle = brownDark; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-4, 2);
+  ctx.lineTo(-2.5, 3);
+  ctx.lineTo(-1, 1.5);
+  ctx.lineTo(1.5, 3.5);
+  ctx.lineTo(4, 2);
+  ctx.stroke();
+  // White flesh sliver showing
+  ctx.fillStyle = whiteFlesh;
+  ctx.beginPath();
+  ctx.moveTo(-2.5, 3);
+  ctx.lineTo(-1, 1.5);
+  ctx.lineTo(1.5, 3.5);
+  ctx.lineTo(0, 4.5);
+  ctx.closePath();
+  ctx.fill();
+  // FACE
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2.5, -5, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -5, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
+  ctx.beginPath(); ctx.arc(-2.5, -5, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2.5, -5, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-2.3, -5, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.7, -5, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-2, -5.3, 0.3, 0.3);
+  ctx.fillRect(3, -5.3, 0.3, 0.3);
+  // Tough/hard expression
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.65;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -1.5); ctx.lineTo(1.5, -1.5);
+  ctx.stroke();
+  // LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 8, 2.2, 7);
+  ctx.fillRect(0.8 + legSwing, 8, 2.2, 7);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 8, 2.2, 7);
+  ctx.strokeRect(0.8 + legSwing, 8, 2.2, 7);
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-1.9 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.9 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// GRANATÄPPLE — röd round body med crown calyx + section visning av frön
+function drawPomegranateCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const red       = flash ? '#fff' : '#aa1828';
+  const redDark   = flash ? '#fff' : '#6a0818';
+  const redLite   = flash ? '#fff' : '#dd4848';
+  const seedRed   = flash ? '#fff' : '#cc1010';
+  const seedHi    = flash ? '#fff' : '#ff5050';
+  const calyx     = flash ? '#fff' : '#4a2a08';
+  const skin      = flash ? '#fff' : (cos.skin || '#d4a574');
+  const outline   = flash ? '#fff' : '#2a0408';
+  const blackEye  = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // BODY (red round)
+  ctx.fillStyle = red;
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 8, 10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.stroke();
+  // Dark shading (vertical streaks)
+  ctx.strokeStyle = redDark; ctx.lineWidth = 0.5;
+  for (const lx of [-5, -3, 3, 5]) {
+    ctx.beginPath();
+    ctx.moveTo(lx, -10);
+    ctx.lineTo(lx + 0.5, 6);
+    ctx.stroke();
+  }
+  // East-side highlight
+  ctx.fillStyle = redLite;
+  ctx.globalAlpha = 0.4;
+  ctx.beginPath();
+  ctx.ellipse(3, -5, 2, 5, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // CROWN CALYX (5 spikes on top — pomegranates iconic feature)
+  ctx.fillStyle = calyx;
+  for (const [bx, by, tx, ty] of [
+    [-3, -11, -3.5, -14],
+    [-1, -11.5, -1.2, -15],
+    [1, -11.5, 1.2, -15],
+    [3, -11, 3.5, -14],
+    [0, -12, 0, -16],
+  ]) {
+    ctx.beginPath();
+    ctx.moveTo(bx - 0.7, by);
+    ctx.lineTo(tx, ty);
+    ctx.lineTo(bx + 0.7, by);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.4;
+  for (const [bx, by, tx, ty] of [
+    [-3, -11, -3.5, -14],
+    [0, -12, 0, -16],
+    [3, -11, 3.5, -14],
+  ]) {
+    ctx.beginPath();
+    ctx.moveTo(bx - 0.7, by);
+    ctx.lineTo(tx, ty);
+    ctx.lineTo(bx + 0.7, by);
+    ctx.stroke();
+  }
+  // SECTION CUT visande seeds (revealed interior)
+  ctx.fillStyle = '#f0e0c0';  // membrane
+  ctx.beginPath();
+  ctx.moveTo(-4.5, 1);
+  ctx.quadraticCurveTo(0, 4, 4.5, 1);
+  ctx.lineTo(4, 5);
+  ctx.quadraticCurveTo(0, 7, -4, 5);
+  ctx.closePath();
+  ctx.fill();
+  // SEEDS (red drops) scattered in section
+  ctx.fillStyle = seedRed;
+  for (const [sx, sy] of [[-3, 2], [-1.5, 2.5], [0, 2.3], [1.5, 2.5], [3, 2],
+                          [-2, 3.5], [0, 3.8], [2, 3.5], [-1, 5], [1, 5]]) {
+    ctx.beginPath();
+    ctx.arc(sx, sy, 0.65, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Seed highlights
+  ctx.fillStyle = seedHi;
+  for (const [sx, sy] of [[-3, 2], [0, 2.3], [3, 2], [0, 3.8]]) {
+    ctx.beginPath();
+    ctx.arc(sx - 0.2, sy - 0.2, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // FACE
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2.5, -6, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -6, 1.1, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
+  ctx.beginPath(); ctx.arc(-2.5, -6, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2.5, -6, 1.1, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-2.3, -6, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.7, -6, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-2, -6.3, 0.3, 0.3);
+  ctx.fillRect(3, -6.3, 0.3, 0.3);
+  // Smile
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-1, -3); ctx.quadraticCurveTo(0, -2, 1, -3);
+  ctx.stroke();
+  // LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 8, 2.2, 7);
+  ctx.fillRect(0.8 + legSwing, 8, 2.2, 7);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 8, 2.2, 7);
+  ctx.strokeRect(0.8 + legSwing, 8, 2.2, 7);
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-1.9 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.9 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// STJÄRNFRUKT — 5-point star body, yellow-green
+function drawStarfruitCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const starColor   = flash ? '#fff' : '#caea30';
+  const starDark    = flash ? '#fff' : '#8aaa10';
+  const starLite    = flash ? '#fff' : '#eaffa0';
+  const skin        = flash ? '#fff' : (cos.skin || '#d4a574');
+  const outline     = flash ? '#fff' : '#3a4a08';
+  const blackEye    = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // STAR BODY (5-point star)
+  ctx.fillStyle = starColor;
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const ang = -Math.PI / 2 + (i / 10) * Math.PI * 2;
+    const r = (i % 2 === 0) ? 10 : 4;
+    const sx = Math.cos(ang) * r;
+    const sy = -3 + Math.sin(ang) * r;
+    if (i === 0) ctx.moveTo(sx, sy);
+    else ctx.lineTo(sx, sy);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.stroke();
+  // Inner star outline (showing 5-segments)
+  ctx.strokeStyle = starDark; ctx.lineWidth = 0.5;
+  for (let i = 0; i < 5; i++) {
+    const ang = -Math.PI / 2 + (i / 5) * Math.PI * 2;
+    const x = Math.cos(ang) * 9.5;
+    const y = -3 + Math.sin(ang) * 9.5;
+    ctx.beginPath();
+    ctx.moveTo(0, -3); ctx.lineTo(x, y);
+    ctx.stroke();
+  }
+  // Center pentagon highlight
+  ctx.fillStyle = starLite;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const ang = -Math.PI / 2 + (i / 5) * Math.PI * 2 + Math.PI / 5;
+    const sx = Math.cos(ang) * 3;
+    const sy = -3 + Math.sin(ang) * 3;
+    if (i === 0) ctx.moveTo(sx, sy);
+    else ctx.lineTo(sx, sy);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // FACE (in center of star)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-1.8, -3.5, 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(1.8, -3.5, 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
+  ctx.beginPath(); ctx.arc(-1.8, -3.5, 1.0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(1.8, -3.5, 1.0, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-1.6, -3.5, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.0, -3.5, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-1.4, -3.8, 0.25, 0.25);
+  ctx.fillRect(2.2, -3.8, 0.25, 0.25);
+  // Sparkly happy smile
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.arc(0, -1.5, 1.5, 0.15 * Math.PI, 0.85 * Math.PI);
+  ctx.stroke();
+  // Sparkles around star (extra shine)
+  ctx.fillStyle = starLite;
+  ctx.shadowColor = '#ffff80'; ctx.shadowBlur = 3;
+  for (const [sx, sy] of [[-7, -10], [7, -10], [-8, 3], [8, 3]]) {
+    ctx.beginPath();
+    ctx.arc(sx, sy, 0.4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+  // LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 7, 2.2, 8);
+  ctx.fillRect(0.8 + legSwing, 7, 2.2, 8);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 7, 2.2, 8);
+  ctx.strokeRect(0.8 + legSwing, 7, 2.2, 8);
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-1.9 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.9 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// KAKTUSFIKON — pink-red oval body med many tiny spines (taggig outsider)
+function drawPricklypearCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const pinkRed   = flash ? '#fff' : '#ff5a70';
+  const pinkDark  = flash ? '#fff' : '#cc2030';
+  const pinkLite  = flash ? '#fff' : '#ff8aa0';
+  const spineCol  = flash ? '#fff' : '#3a1018';
+  const green     = flash ? '#fff' : '#3a7a3a';
+  const skin      = flash ? '#fff' : (cos.skin || '#d4a574');
+  const outline   = flash ? '#fff' : '#3a0a18';
+  const blackEye  = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // BODY (pink-red oval, slightly elongated)
+  ctx.fillStyle = pinkRed;
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 7, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.stroke();
+  // East-side highlight
+  ctx.fillStyle = pinkLite;
+  ctx.globalAlpha = 0.35;
+  ctx.beginPath();
+  ctx.ellipse(2.5, -5, 1.8, 5, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Pink shadow lines (subtle vertical streaks)
+  ctx.strokeStyle = pinkDark; ctx.lineWidth = 0.3;
+  for (const lx of [-4, -2, 2, 4]) {
+    ctx.beginPath();
+    ctx.moveTo(lx, -10);
+    ctx.lineTo(lx + 0.5, 6);
+    ctx.stroke();
+  }
+  // MANY TINY SPINES all over body (signature feature)
+  ctx.fillStyle = spineCol;
+  ctx.strokeStyle = spineCol; ctx.lineWidth = 0.25;
+  for (let i = 0; i < 30; i++) {
+    const angle = (i / 30) * Math.PI * 2 + (i % 3) * 0.2;
+    const dist = 4 + (i % 4);
+    const sx = Math.cos(angle) * dist;
+    const sy = -3 + Math.sin(angle) * dist * 1.4;
+    // Small star-burst cluster
+    ctx.beginPath();
+    ctx.moveTo(sx - 0.25, sy); ctx.lineTo(sx + 0.25, sy);
+    ctx.moveTo(sx, sy - 0.25); ctx.lineTo(sx, sy + 0.25);
+    ctx.moveTo(sx - 0.18, sy - 0.18); ctx.lineTo(sx + 0.18, sy + 0.18);
+    ctx.moveTo(sx - 0.18, sy + 0.18); ctx.lineTo(sx + 0.18, sy - 0.18);
+    ctx.stroke();
+  }
+  // Green flower-tuft on top
+  ctx.fillStyle = green;
+  ctx.beginPath();
+  ctx.ellipse(0, -13, 1.5, 0.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = pinkDark;
+  ctx.beginPath();
+  ctx.arc(0, -13, 0.5, 0, Math.PI * 2);
+  ctx.fill();
+  // FACE
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2.5, -6, 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -6, 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
+  ctx.beginPath(); ctx.arc(-2.5, -6, 1.0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2.5, -6, 1.0, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-2.3, -6, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.7, -6, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-2, -6.3, 0.3, 0.3);
+  ctx.fillRect(3, -6.3, 0.3, 0.3);
+  // Smug/cocky smirk
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -3); ctx.quadraticCurveTo(0, -2.5, 1.5, -3.3);
+  ctx.stroke();
+  // LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 8, 2.2, 7);
+  ctx.fillRect(0.8 + legSwing, 8, 2.2, 7);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 8, 2.2, 7);
+  ctx.strokeRect(0.8 + legSwing, 8, 2.2, 7);
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-1.9 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.9 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+}
+
+// OLIV — grön oval body med tiny leaf + red pimento (classic look)
+function drawOliveCharacter(ctx, cos, flash, walkPhase, isMoving) {
+  const oliveGreen  = flash ? '#fff' : '#5a7a2a';
+  const oliveDark   = flash ? '#fff' : '#3a5a1a';
+  const oliveLite   = flash ? '#fff' : '#8aaa4a';
+  const leafGreen   = flash ? '#fff' : '#7aca3a';
+  const pimento     = flash ? '#fff' : '#dd2818';
+  const pimentoDark = flash ? '#fff' : '#aa1010';
+  const skin        = flash ? '#fff' : (cos.skin || '#d4a574');
+  const outline     = flash ? '#fff' : '#1a3008';
+  const blackEye    = flash ? '#fff' : '#0a0a0a';
+  const swing = Math.sin(walkPhase);
+  const legSwing = isMoving ? swing * 2 : 0;
+  // BODY (olive oval)
+  ctx.fillStyle = oliveGreen;
+  ctx.beginPath();
+  ctx.ellipse(0, -3, 7, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = outline; ctx.lineWidth = 1;
+  ctx.stroke();
+  // East-side highlight (olive sheen)
+  ctx.fillStyle = oliveLite;
+  ctx.globalAlpha = 0.45;
+  ctx.beginPath();
+  ctx.ellipse(2.5, -5, 1.8, 5, -0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // Subtle vertical shading
+  ctx.strokeStyle = oliveDark; ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(-4, -10); ctx.lineTo(-4, 5);
+  ctx.moveTo(4, -10); ctx.lineTo(4, 5);
+  ctx.stroke();
+  // TINY LEAF + STEM on top
+  ctx.fillStyle = '#3a2008';
+  ctx.fillRect(-0.3, -14, 0.6, 1.5);
+  // Leaf
+  ctx.fillStyle = leafGreen;
+  ctx.beginPath();
+  ctx.ellipse(1.5, -15, 1.5, 0.6, 0.4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = oliveDark; ctx.lineWidth = 0.3;
+  ctx.beginPath();
+  ctx.moveTo(0, -14.5); ctx.lineTo(3, -15.5);
+  ctx.stroke();
+  // RED PIMENTO (classic stuffed olive look) — visible på top-front
+  ctx.fillStyle = pimento;
+  ctx.beginPath();
+  ctx.ellipse(0, -10.5, 2, 1.2, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = pimentoDark; ctx.lineWidth = 0.3;
+  ctx.stroke();
+  // Pimento highlight
+  ctx.fillStyle = '#ff5a30';
+  ctx.fillRect(-0.5, -11, 1, 0.4);
+  // FACE (eyes BELOW the pimento)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-2.5, -6, 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.5, -6, 1.0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.35;
+  ctx.beginPath(); ctx.arc(-2.5, -6, 1.0, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(2.5, -6, 1.0, 0, Math.PI * 2); ctx.stroke();
+  ctx.fillStyle = blackEye;
+  ctx.beginPath(); ctx.arc(-2.3, -6, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(2.7, -6, 0.45, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-2, -6.3, 0.3, 0.3);
+  ctx.fillRect(3, -6.3, 0.3, 0.3);
+  // Classic smile
+  ctx.strokeStyle = blackEye; ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(-1.5, -2.5); ctx.quadraticCurveTo(0, -1.5, 1.5, -2.5);
+  ctx.stroke();
+  // LEGS
+  ctx.fillStyle = skin;
+  ctx.fillRect(-3 - legSwing, 8, 2.2, 7);
+  ctx.fillRect(0.8 + legSwing, 8, 2.2, 7);
+  ctx.strokeStyle = outline; ctx.lineWidth = 0.5;
+  ctx.strokeRect(-3 - legSwing, 8, 2.2, 7);
+  ctx.strokeRect(0.8 + legSwing, 8, 2.2, 7);
+  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  ctx.beginPath();
+  ctx.ellipse(-1.9 - legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(1.9 + legSwing, 16, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+}
+
 // v1.462: NAKED CHARACTER drawn via canvas primitives — cleaner än mitt pixel art.
 // Profile view (facing east default). Mirror för west via ctx.scale(-1,1) i caller.
 // v1.464: REFINED design — compressed proportions (~50px total instead of 66px),
@@ -40847,6 +41701,15 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
     else if (cos.mascot === 'broccoli')  drawBroccoliCharacter(ctx, cos, flash, walkPhase, isMoving);
     else if (cos.mascot === 'carrot')    drawCarrotCharacter(ctx, cos, flash, walkPhase, isMoving);
     else if (cos.mascot === 'cashew')    drawCashewCharacter(ctx, cos, flash, walkPhase, isMoving);
+    // v1.513: 8 nya exotiska frukter
+    else if (cos.mascot === 'pineapple')   drawPineappleCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'dragonfruit') drawDragonfruitCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'durian')      drawDurianCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'coconut')     drawCoconutCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'pomegranate') drawPomegranateCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'starfruit')   drawStarfruitCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'pricklypear') drawPricklypearCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'olive')       drawOliveCharacter(ctx, cos, flash, walkPhase, isMoving);
     ctx.restore();
     return;
   }
@@ -52059,6 +52922,173 @@ function drawMascotBullet(ctx, x, y, b, mascot) {
     ctx.beginPath();
     ctx.ellipse(0, 0, r * 0.5, r * 0.15, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+  } else if (mascot === 'pineapple') {
+    // Pineapple chunk — yellow med diamond pattern
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    ctx.fillStyle = '#ffd54a';
+    ctx.fillRect(-r * 1.2, -r * 0.8, r * 2.4, r * 1.6);
+    // Diamond pattern crosshatch
+    ctx.strokeStyle = '#aa6a18'; ctx.lineWidth = 0.3;
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.2, -r * 0.5); ctx.lineTo(r * 1.2, r * 0.5);
+    ctx.moveTo(-r * 1.2, r * 0.5); ctx.lineTo(r * 1.2, -r * 0.5);
+    ctx.stroke();
+    // Green leaf hint top
+    ctx.fillStyle = '#3a8a3a';
+    ctx.fillRect(-r * 0.3, -r * 1.2, r * 0.6, r * 0.5);
+    ctx.restore();
+  } else if (mascot === 'dragonfruit') {
+    // Dragonfruit slice — pink ring + white center + black seeds
+    ctx.fillStyle = '#ff5aaa';
+    ctx.beginPath(); ctx.arc(x, y, r * 1.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f4f0e0';
+    ctx.beginPath(); ctx.arc(x, y, r * 0.9, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#0a0a0a';
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(a) * r * 0.5, y + Math.sin(a) * r * 0.5, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (mascot === 'durian') {
+    // Spiky durian ball — yellow med thorns sticking out
+    ctx.fillStyle = '#caa820';
+    ctx.beginPath(); ctx.arc(x, y, r * 1.2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#5a4a08'; ctx.lineWidth = 0.35;
+    ctx.fillStyle = '#caa820';
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 + ang;
+      const bx = x + Math.cos(a) * r * 1.1;
+      const by = y + Math.sin(a) * r * 1.1;
+      const tx = x + Math.cos(a) * r * 1.7;
+      const ty = y + Math.sin(a) * r * 1.7;
+      const perpX = -Math.sin(a) * r * 0.18;
+      const perpY = Math.cos(a) * r * 0.18;
+      ctx.beginPath();
+      ctx.moveTo(bx - perpX, by - perpY);
+      ctx.lineTo(tx, ty);
+      ctx.lineTo(bx + perpX, by + perpY);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  } else if (mascot === 'coconut') {
+    // Coconut chunk — brown hairy + white flesh
+    ctx.fillStyle = '#7a4a20';
+    ctx.beginPath(); ctx.arc(x, y, r * 1.3, 0, Math.PI * 2); ctx.fill();
+    // Hairy texture (radial lines)
+    ctx.strokeStyle = '#3a1a08'; ctx.lineWidth = 0.25;
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * r * 1.1, y + Math.sin(a) * r * 1.1);
+      ctx.lineTo(x + Math.cos(a) * r * 1.5, y + Math.sin(a) * r * 1.5);
+      ctx.stroke();
+    }
+    // White flesh inner ring
+    ctx.fillStyle = '#f0e8d0';
+    ctx.beginPath(); ctx.arc(x, y, r * 0.7, 0, Math.PI * 2); ctx.fill();
+    // 3 dark eyes (signature coconut marks)
+    ctx.fillStyle = '#3a1a08';
+    ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.25, r * 0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + r * 0.35, y - r * 0.25, r * 0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y + r * 0.3, r * 0.15, 0, Math.PI * 2); ctx.fill();
+  } else if (mascot === 'pomegranate') {
+    // Pomegranate seed cluster — flera röda droppar i en gruppform
+    ctx.fillStyle = '#aa1828';
+    ctx.beginPath(); ctx.arc(x, y, r * 1.3, 0, Math.PI * 2); ctx.fill();
+    // Seeds (5 small red drops inside)
+    ctx.fillStyle = '#cc1010';
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2;
+      const sx = x + Math.cos(a) * r * 0.6;
+      const sy = y + Math.sin(a) * r * 0.6;
+      ctx.beginPath();
+      ctx.arc(sx, sy, r * 0.28, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Seed highlights
+    ctx.fillStyle = '#ff5050';
+    for (let i = 0; i < 7; i += 2) {
+      const a = (i / 7) * Math.PI * 2;
+      const sx = x + Math.cos(a) * r * 0.6;
+      const sy = y + Math.sin(a) * r * 0.6;
+      ctx.beginPath();
+      ctx.arc(sx - 0.15, sy - 0.15, r * 0.1, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Crown calyx (top)
+    ctx.fillStyle = '#4a2a08';
+    ctx.fillRect(x - r * 0.2, y - r * 1.4, r * 0.4, r * 0.3);
+  } else if (mascot === 'starfruit') {
+    // Starfruit slice — 5-point star
+    ctx.fillStyle = '#caea30';
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + (i / 10) * Math.PI * 2 + ang;
+      const rad = (i % 2 === 0) ? r * 1.4 : r * 0.6;
+      const sx = x + Math.cos(a) * rad;
+      const sy = y + Math.sin(a) * rad;
+      if (i === 0) ctx.moveTo(sx, sy);
+      else ctx.lineTo(sx, sy);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#8aaa10'; ctx.lineWidth = 0.4;
+    ctx.stroke();
+    // Center highlight
+    ctx.fillStyle = '#eaffa0';
+    ctx.beginPath(); ctx.arc(x, y, r * 0.4, 0, Math.PI * 2); ctx.fill();
+  } else if (mascot === 'pricklypear') {
+    // Spiky pink ball — fiercely thorny
+    ctx.fillStyle = '#ff5a70';
+    ctx.beginPath(); ctx.arc(x, y, r * 1.2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3a1018'; ctx.lineWidth = 0.3;
+    // Many tiny spines all over
+    for (let i = 0; i < 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      const sx = x + Math.cos(a) * r * 0.8;
+      const sy = y + Math.sin(a) * r * 0.8;
+      ctx.beginPath();
+      ctx.moveTo(sx - 0.2, sy); ctx.lineTo(sx + 0.2, sy);
+      ctx.moveTo(sx, sy - 0.2); ctx.lineTo(sx, sy + 0.2);
+      ctx.stroke();
+    }
+    // Outer spines
+    for (let i = 0; i < 10; i++) {
+      const a = (i / 10) * Math.PI * 2 + 0.31;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * r * 1.1, y + Math.sin(a) * r * 1.1);
+      ctx.lineTo(x + Math.cos(a) * r * 1.5, y + Math.sin(a) * r * 1.5);
+      ctx.stroke();
+    }
+    // Green flower-tip
+    ctx.fillStyle = '#3a7a3a';
+    ctx.beginPath(); ctx.arc(x, y, r * 0.3, 0, Math.PI * 2); ctx.fill();
+  } else if (mascot === 'olive') {
+    // Olive — green oval med red pimento
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(ang);
+    ctx.fillStyle = '#5a7a2a';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 1.5, r * 1.0, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1a3008'; ctx.lineWidth = 0.4;
+    ctx.stroke();
+    // Highlight stripe
+    ctx.fillStyle = '#8aaa4a';
+    ctx.fillRect(-r * 1.2, -r * 0.6, r * 2.4, r * 0.25);
+    // Red pimento (signature stuffed olive look)
+    ctx.fillStyle = '#dd2818';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 0.5, r * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ff5a30';
+    ctx.fillRect(-r * 0.15, -r * 0.15, r * 0.3, r * 0.1);
     ctx.restore();
   }
 }
