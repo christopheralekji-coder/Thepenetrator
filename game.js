@@ -22510,29 +22510,27 @@ function drawWardrobePreviewV2() {
   // Animation
   const breath = Math.sin(t / 720) * 1.5;
   const sway = Math.sin(t / 1100) * 0.04;
-  // v1.481: scale 7.5 → 6.0 så karaktären får plats i 300×380 canvas.
-  // Character spans drawNakedBody -22 (wizard hat -26) till +16 (feet) eller +22 (cape).
-  // Med scale 6.0: -26*6=-156 till +22*6=+132 = ~288px höjd. Plus padding för text.
-  const scale = 6.0;
+  // v1.492: Canvas är nu 600x760 (2x) för @3x iPhone sharpness.
+  // dprMul = W/300 ger 1 vid gamla 300w, 2 vid nya 600w. All absolute pixels
+  // skalas via dprMul så samma visuella resultat oavsett canvas storlek.
+  const dprMul = W / 300;
+  const scale = 6.0 * dprMul;
   const cx = W / 2;
-  // Center: top of character at y=cy-156, bottom at cy+132. Canvas H=380.
-  // För att top ska börja vid y=30 (padding) + cy-156=30 → cy=186. Det ger
-  // bottom vid 186+132=318, kvar 62px för shadow + text. Bra balans.
-  const cy = H * 0.50 + breath;
-  // Ground spotlight (under fötter)
+  const cy = H * 0.50 + breath * dprMul;
+  // Ground spotlight (under fötter) — skalas med dprMul
   const groundY = cy + scale * 17;
-  const groundGrad = c.createRadialGradient(cx, groundY, 4, cx, groundY, 95);
+  const groundGrad = c.createRadialGradient(cx, groundY, 4 * dprMul, cx, groundY, 95 * dprMul);
   groundGrad.addColorStop(0, 'rgba(170,58,255,0.40)');
   groundGrad.addColorStop(0.5, 'rgba(170,58,255,0.15)');
   groundGrad.addColorStop(1, 'rgba(170,58,255,0)');
   c.fillStyle = groundGrad;
   c.beginPath();
-  c.ellipse(cx, groundY, 95, 17, 0, 0, Math.PI * 2);
+  c.ellipse(cx, groundY, 95 * dprMul, 17 * dprMul, 0, 0, Math.PI * 2);
   c.fill();
   // Hård skugga under fötter
   c.fillStyle = `rgba(0,0,0,${0.55 * (0.8 + 0.2 * (1 - sideAng))})`;
   c.beginPath();
-  c.ellipse(cx + (isMirrored ? -3 : 3), groundY, 38, 9, 0, 0, Math.PI * 2);
+  c.ellipse(cx + (isMirrored ? -3 : 3) * dprMul, groundY, 38 * dprMul, 9 * dprMul, 0, 0, Math.PI * 2);
   c.fill();
   // Karaktären
   c.save();
@@ -22578,6 +22576,7 @@ function drawWardrobePreviewV2() {
     const vfxT = t;
     c.save();
     c.translate(cx, cy);
+    c.scale(dprMul, dprMul); // v1.492: VFX coords absolute → scale med canvas DPR
     for (const fx of cosVfx) {
       if (fx === 'aura-red') {
         const pulse = 0.5 + Math.sin(vfxT / 400) * 0.5;
@@ -22643,12 +22642,34 @@ function drawWardrobePreviewV2() {
   rim.addColorStop(1, 'rgba(170,58,255,0.10)');
   c.fillStyle = rim;
   c.fillRect(0, 0, W, H);
-  // Rotation-indicator (subtilt nere) — visa nuvarande rotation vinkel
+  // v1.492: Rotation-indicator MER prominent (var nästan osynlig grå text)
+  // Pill-shaped pill med tydlig kontrast + drag-arrow ikon
   const degrees = Math.round((_wardrobeRotation * 180 / Math.PI) % 360);
-  c.fillStyle = 'rgba(255,255,255,0.35)';
-  c.font = '10px monospace';
+  c.save();
+  const pillW = 130 * dprMul, pillH = 22 * dprMul;
+  const pillX = cx - pillW / 2, pillY = H - pillH - 8 * dprMul;
+  c.fillStyle = 'rgba(170,58,255,0.30)';
+  c.beginPath();
+  // Rounded rect
+  if (c.roundRect) {
+    c.roundRect(pillX, pillY, pillW, pillH, pillH / 2);
+  } else {
+    c.rect(pillX, pillY, pillW, pillH);
+  }
+  c.fill();
+  c.strokeStyle = 'rgba(255,213,74,0.45)';
+  c.lineWidth = 1 * dprMul;
+  c.stroke();
+  // Text inside pill
+  c.fillStyle = 'rgba(255,255,255,0.95)';
+  c.font = `bold ${11 * dprMul}px sans-serif`;
   c.textAlign = 'center';
-  c.fillText(`${_wardrobeAutoSpin ? '🔁 ' : ''}${degrees}°  ${_wardrobeDragging ? '✋' : '↔'} drag/dubbelklick`, cx, H - 8);
+  c.textBaseline = 'middle';
+  const hint = _wardrobeAutoSpin ? '🔁 SNURRAR' :
+               _wardrobeDragging ? `✋ ${degrees}°` :
+               '↔ DRA / DUBBELKLICK';
+  c.fillText(hint, cx, pillY + pillH / 2);
+  c.restore();
 }
 
 function drawWardrobePreview() {

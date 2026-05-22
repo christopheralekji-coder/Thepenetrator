@@ -3121,16 +3121,17 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
 
 /* INFO-knapp */
 .ward-info-btn {
+  /* v1.492: bumpat från 16x16 → 28x28 för touch-target */
   position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 16px;
-  height: 16px;
+  bottom: 4px;
+  right: 4px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  background: rgba(0,0,0,0.6);
-  border: 1px solid rgba(255,213,74,0.5);
+  background: rgba(0,0,0,0.7);
+  border: 1.5px solid rgba(255,213,74,0.6);
   color: #ffd54a;
-  font-size: 10px;
+  font-size: 14px;
   font-weight: 900;
   cursor: pointer;
   display: flex;
