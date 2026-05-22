@@ -12383,6 +12383,10 @@ const WARDROBE = {
     { id: 'broccoli_body',  name: 'Broccoli-kostym',   color: '#5aaa3a', mascot: 'broccoli' },
     { id: 'carrot_body',    name: 'Morot-kostym',      color: '#ff8a30', mascot: 'carrot' },
     { id: 'cashew_body',    name: 'Cashew-kostym',     color: '#d4c090', mascot: 'cashew' },
+    // v1.497: 3 yrkesoutfits (profession brands)
+    { id: 'prison_shirt',   name: 'Fängelse-tröja',    color: '#ff7a14', brand: 'prison' },
+    { id: 'police_shirt',   name: 'Polis-uniform',     color: '#1a2a5a', brand: 'police' },
+    { id: 'fire_shirt',     name: 'Brandman-jacka',    color: '#8a1818', brand: 'fire' },
     { id: 'black',     name: 'Svart',      color: '#222' },
     { id: 'white',     name: 'Vit',        color: '#cccccc' },
     { id: 'tactical',  name: 'Tactical',   color: '#1a3a1a' },
@@ -12403,6 +12407,7 @@ const WARDROBE = {
   ],
   pants: [
     { id: 'briefs',  name: 'Bara Kalsonger', color: null },
+    { id: 'prison_pants', name: 'Fängelse-byxor', color: '#ff7a14' },
     { id: 'khaki',   name: 'Khaki',     color: '#3a3528' },
     { id: 'black',   name: 'Svarta',    color: '#1a1a1a' },
     { id: 'jeans',   name: 'Jeans',     color: '#2a3a5a' },
@@ -22397,6 +22402,22 @@ const WARDROBE_PRESETS = [
   { id: 'zombie', name: 'Zombie', wardrobe: { skin: 'gray', hair: 'mullet', shirt: 'urban', pants: 'urban', bandana: 'none' } },
   { id: 'gold_god', name: 'Guld-Gud', wardrobe: { skin: 'gold', hair: 'longBlonde', shirt: 'gold', pants: 'gold', bandana: 'gold' } },
   { id: 'robot', name: 'Robot', wardrobe: { skin: 'silver', hair: 'bald', shirt: 'silver', pants: 'urban', bandana: 'none' } },
+  // v1.497: 3 yrkesoutfits (generiska profession-arketyper)
+  { id: 'prisoner', name: 'Fängelsekille', wardrobe: {
+      skin: 'tan', hair: 'shortDark', shirt: 'prison_shirt', pants: 'prison_pants',
+      shoes: 'sneakerWhite', hat: 'none', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'stubble', eyes: 'default', scars: 'cheekScar'
+  } },
+  { id: 'police', name: 'Polis', wardrobe: {
+      skin: 'fair', hair: 'shortDark', shirt: 'police_shirt', pants: 'black',
+      shoes: 'dressBlack', hat: 'cap', bandana: 'none',
+      glasses: 'shades', cape: 'none', facialHair: 'mustache', eyes: 'blue', scars: 'none'
+  } },
+  { id: 'firefighter', name: 'Brandman', wardrobe: {
+      skin: 'tan', hair: 'shortDark', shirt: 'fire_shirt', pants: 'red',
+      shoes: 'combatBoot', hat: 'helmet', bandana: 'none',
+      glasses: 'none', cape: 'none', facialHair: 'fullBeard', eyes: 'default', scars: 'none'
+  } },
   // v1.485: PARODI-OUTFITS — kända märken med twist
   { id: 'adibas', name: 'Adibas', wardrobe: {
       skin: 'tan', hair: 'shortDark', shirt: 'adibas_top', pants: 'black',
@@ -42206,6 +42227,103 @@ function drawShirtBrandLogo(ctx, brand, flash) {
     ctx.strokeStyle = black;
     ctx.lineWidth = 0.2;
     ctx.stroke();
+  } else if (brand === 'prison') {
+    // v1.497: FÄNGELSE-UNIFORM — horisontella svarta stripes + number plaque
+    const black = flash ? '#fff' : '#0a0a0a';
+    // 4 horisontella black stripes över chest
+    ctx.fillStyle = black;
+    ctx.fillRect(-6, -2, 12, 0.7);
+    ctx.fillRect(-6, 0, 12, 0.7);
+    ctx.fillRect(-6, 2, 12, 0.7);
+    ctx.fillRect(-6, 4, 12, 0.7);
+    // Number plaque (vit rektangel med svart text)
+    ctx.fillStyle = flash ? '#fff' : '#ffffff';
+    ctx.fillRect(-2, 5.5, 4, 2);
+    ctx.strokeStyle = black; ctx.lineWidth = 0.3;
+    ctx.strokeRect(-2, 5.5, 4, 2);
+    ctx.font = 'bold 1.4px monospace';
+    ctx.fillStyle = black;
+    ctx.fillText('0517', 0, 6.6);
+  } else if (brand === 'police') {
+    // v1.497: POLIS-UNIFORM — gold star badge + button-row + name tag
+    const gold = flash ? '#fff' : '#ffd54a';
+    const goldDark = flash ? '#fff' : '#aa8a30';
+    const dark = flash ? '#fff' : '#0a0a0a';
+    const lightBlue = flash ? '#fff' : '#3a5a8a';
+    // Yoke/collar (lighter blue at shoulders)
+    ctx.fillStyle = lightBlue;
+    ctx.fillRect(-6, -3.5, 12, 1);
+    // Tie strip down center
+    ctx.fillStyle = dark;
+    ctx.fillRect(-0.3, -2, 0.6, 6);
+    // Gold star badge (5-point) på east chest
+    ctx.fillStyle = gold;
+    ctx.shadowColor = gold; ctx.shadowBlur = 2;
+    ctx.beginPath();
+    const cxStar = -3, cyStar = 1;
+    for (let i = 0; i < 10; i++) {
+      const ang = -Math.PI / 2 + (i / 10) * Math.PI * 2;
+      const r = (i % 2 === 0) ? 1.6 : 0.7;
+      const sx = cxStar + Math.cos(ang) * r;
+      const sy = cyStar + Math.sin(ang) * r;
+      if (i === 0) ctx.moveTo(sx, sy); else ctx.lineTo(sx, sy);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Badge inner
+    ctx.fillStyle = goldDark;
+    ctx.beginPath();
+    ctx.arc(cxStar, cyStar, 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    // 4 buttons column på west sidan
+    ctx.fillStyle = gold;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.arc(2, -1.5 + i * 1.8, 0.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Name-tag (silver rectangle)
+    ctx.fillStyle = flash ? '#fff' : '#c8c8c8';
+    ctx.fillRect(1, 5.5, 3, 1);
+    ctx.strokeStyle = dark; ctx.lineWidth = 0.2;
+    ctx.strokeRect(1, 5.5, 3, 1);
+    ctx.font = 'bold 0.9px sans-serif';
+    ctx.fillStyle = dark;
+    ctx.fillText('POLICE', 2.5, 6);
+  } else if (brand === 'fire') {
+    // v1.497: BRANDMAN-JACKA — yellow reflective stripe + suspender straps
+    const yellow = flash ? '#fff' : '#ffd54a';
+    const yellowBright = flash ? '#fff' : '#fff088';
+    const dark = flash ? '#fff' : '#3a0a0a';
+    // Vertikala suspender-stripes (yellow Y-strap looking)
+    ctx.fillStyle = yellow;
+    ctx.fillRect(-4, -3, 1.2, 8);   // west suspender
+    ctx.fillRect(2.8, -3, 1.2, 8);  // east suspender
+    // Horizontal reflective chest stripe (signature firefighter)
+    ctx.fillStyle = yellow;
+    ctx.fillRect(-6, 1.5, 12, 1.2);
+    // Reflective highlight på stripe (lighter band)
+    ctx.fillStyle = yellowBright;
+    ctx.fillRect(-6, 1.7, 12, 0.4);
+    // Dark borders runt reflective stripe
+    ctx.fillStyle = dark;
+    ctx.fillRect(-6, 1.3, 12, 0.25);
+    ctx.fillRect(-6, 2.7, 12, 0.25);
+    // Second reflective stripe lower (often 2 stripes)
+    ctx.fillStyle = yellow;
+    ctx.fillRect(-6, 5, 12, 0.8);
+    ctx.fillStyle = yellowBright;
+    ctx.fillRect(-6, 5.1, 12, 0.3);
+    // Buckle / clasp center
+    ctx.fillStyle = flash ? '#fff' : '#aaaaaa';
+    ctx.fillRect(-0.7, -1, 1.4, 1.0);
+    ctx.strokeStyle = dark; ctx.lineWidth = 0.2;
+    ctx.strokeRect(-0.7, -1, 1.4, 1.0);
+    // "FIRE" text on lower stripe
+    ctx.font = 'bold 1.0px sans-serif';
+    ctx.fillStyle = dark;
+    ctx.fillText('FIRE', 0, 5.45);
   }
   ctx.restore();
 }
