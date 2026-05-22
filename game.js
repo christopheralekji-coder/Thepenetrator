@@ -50352,10 +50352,18 @@ function drawHpBar(e, x, y) {
 // v1.500: MASCOT BULLETS — themed projectiles som matchar player's mascot-kostym.
 // Kallas från drawBullet via dispatch när player har mascot equippad.
 // Excluderar: rocket/grenade/blackhole (måste behålla distinkt look för gameplay).
-const _MASCOT_BULLET_SKIP_STYLES = new Set(['rocket', 'grenade', 'blackhole', 'pullwhip']);
+// Skip-list: behåll distinkt look där gameplay/visual identity är kritisk.
+// rocket/grenade = explosiver, blackhole = pull-orb, pullwhip = grappling,
+// railgun = laser-beam (ej diskret bullet), boomerang = returnerar (visuell ID matters).
+const _MASCOT_BULLET_SKIP_STYLES = new Set(['rocket', 'grenade', 'blackhole', 'pullwhip', 'railgun', 'boomerang']);
 function drawMascotBullet(ctx, x, y, b, mascot) {
   const r = b.r || 4;
   const ang = Math.atan2(b.vy, b.vx);
+  // v1.501: subtle dark halo för visibility mot ljusa bakgrunder (sand/sten/snö).
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.beginPath();
+  ctx.arc(x, y, r * 2.0, 0, Math.PI * 2);
+  ctx.fill();
   if (mascot === 'mcdonalds') {
     // FRENCH FRY — gold stick med salt-prickar (rotated)
     ctx.save();
@@ -50451,37 +50459,47 @@ function drawMascotBullet(ctx, x, y, b, mascot) {
     ctx.closePath();
     ctx.fill();
   } else if (mascot === 'pizza') {
-    // PIZZA SLICE — triangle med sauce + cheese + pepperoni (rotated, tip forward)
+    // PIZZA SLICE — sauce-tip + crust endast vid wide back-edge (rotated, tip forward east)
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(ang);
-    // Crust (back of slice — vid pointy end)
-    ctx.fillStyle = '#d4a060';
-    ctx.beginPath();
-    ctx.moveTo(r * 2.2, 0);
-    ctx.lineTo(-r * 1.2, -r * 1.4);
-    ctx.lineTo(-r * 1.2, r * 1.4);
-    ctx.closePath();
-    ctx.fill();
-    // Sauce (slightly smaller red)
+    // Sauce/cheese base — hela triangeln röd ut till tipen
     ctx.fillStyle = '#cc2818';
     ctx.beginPath();
-    ctx.moveTo(r * 1.8, 0);
-    ctx.lineTo(-r * 0.9, -r * 1.1);
-    ctx.lineTo(-r * 0.9, r * 1.1);
+    ctx.moveTo(r * 2.2, 0);              // tip east
+    ctx.lineTo(-r * 1.2, -r * 1.4);     // back top
+    ctx.lineTo(-r * 1.2, r * 1.4);      // back bottom
     ctx.closePath();
     ctx.fill();
-    // Cheese blobs
-    ctx.fillStyle = '#ffd54a';
-    ctx.beginPath(); ctx.arc(r * 0.5, -r * 0.4, r * 0.35, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(-r * 0.3, r * 0.4, r * 0.4, 0, Math.PI * 2); ctx.fill();
-    // Pepperoni
+    // Crust — endast wide back-edge (rounded bump)
+    ctx.fillStyle = '#d4a060';
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.2, -r * 1.4);
+    ctx.quadraticCurveTo(-r * 1.8, 0, -r * 1.2, r * 1.4);
+    ctx.lineTo(-r * 0.7, r * 1.0);
+    ctx.quadraticCurveTo(-r * 1.0, 0, -r * 0.7, -r * 1.0);
+    ctx.closePath();
+    ctx.fill();
+    // Crust top-shine
+    ctx.fillStyle = '#f0c080';
+    ctx.beginPath();
+    ctx.moveTo(-r * 1.2, -r * 1.2);
+    ctx.quadraticCurveTo(-r * 1.6, -r * 0.4, -r * 1.2, r * 0.4);
+    ctx.lineTo(-r * 1.0, r * 0.4);
+    ctx.quadraticCurveTo(-r * 1.4, -r * 0.4, -r * 1.0, -r * 1.2);
+    ctx.closePath();
+    ctx.fill();
+    // Cheese blobs (yellow, on sauce)
+    ctx.fillStyle = '#ffe070';
+    ctx.beginPath(); ctx.arc(r * 0.8, -r * 0.4, r * 0.35, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(r * 0.2, r * 0.5, r * 0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-r * 0.5, -r * 0.3, r * 0.3, 0, Math.PI * 2); ctx.fill();
+    // Pepperoni (red disk)
     ctx.fillStyle = '#aa1818';
-    ctx.beginPath(); ctx.arc(r * 0.8, r * 0.3, r * 0.35, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(-r * 0.5, -r * 0.4, r * 0.3, 0, Math.PI * 2); ctx.fill();
-    // Pepperoni inner darker
+    ctx.beginPath(); ctx.arc(r * 0.3, -r * 0.1, r * 0.4, 0, Math.PI * 2); ctx.fill();
+    // Pepperoni inner darker dot
     ctx.fillStyle = '#6a0a0a';
-    ctx.beginPath(); ctx.arc(r * 0.8, r * 0.3, r * 0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(r * 0.3, -r * 0.1, r * 0.15, 0, Math.PI * 2); ctx.fill();
     ctx.restore();
   } else if (mascot === 'banan') {
     // MINI BANANA — yellow curved C med brun tip
@@ -50519,45 +50537,39 @@ function drawMascotBullet(ctx, x, y, b, mascot) {
     ctx.fill();
     ctx.restore();
   } else if (mascot === 'kiwi') {
-    // KIWI SLICE — circle med fuzzy brown outer + green flesh + white star + seeds
-    // Brown fuzzy outer
+    // KIWI SLICE — concentric ringer + klar centrum-disk + 8 frön
+    // Brown fuzzy outer skin
     ctx.fillStyle = '#8a5a3a';
     ctx.beginPath();
     ctx.arc(x, y, r * 1.5, 0, Math.PI * 2);
     ctx.fill();
-    // Green flesh
+    // Green flesh (mid-ring)
     ctx.fillStyle = '#7aaa3a';
     ctx.beginPath();
-    ctx.arc(x, y, r * 1.25, 0, Math.PI * 2);
+    ctx.arc(x, y, r * 1.3, 0, Math.PI * 2);
     ctx.fill();
-    // Lighter green inner
+    // Lighter green inner-ring
     ctx.fillStyle = '#aaca5a';
     ctx.beginPath();
     ctx.arc(x, y, r * 0.85, 0, Math.PI * 2);
     ctx.fill();
-    // White center star (5-point)
+    // White center disc (tydlig "kärna")
     ctx.fillStyle = '#f4f4e0';
     ctx.beginPath();
-    for (let i = 0; i < 10; i++) {
-      const a = -Math.PI / 2 + (i / 10) * Math.PI * 2;
-      const rad = i % 2 === 0 ? r * 0.5 : r * 0.2;
-      const sx = x + Math.cos(a) * rad;
-      const sy = y + Math.sin(a) * rad;
-      if (i === 0) ctx.moveTo(sx, sy);
-      else ctx.lineTo(sx, sy);
-    }
-    ctx.closePath();
+    ctx.arc(x, y, r * 0.4, 0, Math.PI * 2);
     ctx.fill();
-    // Black seeds (6 in oval)
+    // Black seeds (8 i ring kring centrum-disken)
     ctx.fillStyle = '#1a1a0a';
     for (let i = 0; i < 8; i++) {
       const a = (i / 8) * Math.PI * 2;
+      const sx = x + Math.cos(a) * r * 0.7;
+      const sy = y + Math.sin(a) * r * 0.7;
       ctx.beginPath();
-      ctx.ellipse(x + Math.cos(a) * r * 0.95, y + Math.sin(a) * r * 0.95, 0.3, 0.5, a, 0, Math.PI * 2);
+      ctx.ellipse(sx, sy, r * 0.12, r * 0.22, a, 0, Math.PI * 2);
       ctx.fill();
     }
   } else if (mascot === 'mango') {
-    // MANGO — orange teardrop med red blush + green stem
+    // MANGO — orange teardrop med red blush forward + green stem på baksidan
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(ang);
@@ -50571,17 +50583,24 @@ function drawMascotBullet(ctx, x, y, b, mascot) {
     ctx.beginPath();
     ctx.ellipse(0, 0, r * 1.35, r * 1.0, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Red blush (top-back)
+    // Red blush (forward/east — pointing direction)
     ctx.fillStyle = '#dd4020';
     ctx.beginPath();
-    ctx.ellipse(-r * 0.6, -r * 0.3, r * 0.6, r * 0.5, 0, 0, Math.PI * 2);
+    ctx.ellipse(r * 0.5, -r * 0.2, r * 0.6, r * 0.55, 0, 0, Math.PI * 2);
     ctx.fill();
-    // Highlight (east)
+    // Highlight (top sheen)
     ctx.fillStyle = '#ffe070';
-    ctx.fillRect(r * 0.6, -r * 0.4, r * 0.4, r * 0.6);
-    // Green stem (east tip)
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.2, -r * 0.5, r * 0.5, r * 0.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Green stem (back/west — trailing direction)
     ctx.fillStyle = '#3a8a3a';
-    ctx.fillRect(r * 1.3, -r * 0.25, r * 0.4, r * 0.5);
+    ctx.fillRect(-r * 1.7, -r * 0.2, r * 0.4, r * 0.4);
+    // Tiny leaf on stem
+    ctx.fillStyle = '#5aaa3a';
+    ctx.beginPath();
+    ctx.ellipse(-r * 1.5, -r * 0.5, r * 0.3, r * 0.15, -0.4, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
   } else if (mascot === 'pencil') {
     // WOOD SPLINTER — yellow stick + graphite tip + pink eraser
@@ -50658,7 +50677,7 @@ function drawMascotBullet(ctx, x, y, b, mascot) {
     ctx.lineTo(r * 1.5, 0.05);
     ctx.closePath();
     ctx.fill();
-    // Horizontal ridges
+    // Cross-section ridges (perpendikulärt mot längden)
     ctx.strokeStyle = '#cc5810';
     ctx.lineWidth = 0.3;
     ctx.beginPath();
