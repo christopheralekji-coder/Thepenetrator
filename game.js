@@ -22470,6 +22470,7 @@ const WARDROBE_PRESETS = [
   } },
 ];
 let _wardrobeCurrentTab = 'skin';
+let _wardrobePresetSubTab = 'classic'; // v1.493: 'classic' | 'brand' | 'mascot'
 let _wardrobeRaf = 0;
 let _wardrobeAnimStart = 0;
 // v1.479: 360° rotation state — användare kan dra för att rotera, eller auto-spin
@@ -23528,18 +23529,32 @@ function renderWardrobeOptions() {
       const cat2 = presetCategory(p);
       (groups[cat2] || groups.classic).push(p);
     }
-    // Bygg sektioner med rubriker
-    const buildSection = (title, list) => {
-      if (!list.length) return;
-      const header = document.createElement('div');
-      header.className = 'ward-section-header';
-      header.textContent = title;
-      wardrobeOptsEl.appendChild(header);
-      for (const p of list) wardrobeOptsEl.appendChild(buildPresetCard(p));
-    };
-    buildSection('KLASSIKER',  groups.classic);
-    buildSection('MÄRKEN',     groups.brand);
-    buildSection('KOSTYMER',   groups.mascot);
+    // v1.493: Sub-tab BAR — klickbara knappar istället för långa sektioner.
+    // Bara aktiv sub-tabs items renderas (slipper scroll).
+    const subTabBar = document.createElement('div');
+    subTabBar.className = 'ward-subtab-bar';
+    const subTabs = [
+      { id: 'classic', label: 'KLASSIKER', count: groups.classic.length },
+      { id: 'brand',   label: 'MÄRKEN',    count: groups.brand.length },
+      { id: 'mascot',  label: 'KOSTYMER',  count: groups.mascot.length },
+    ];
+    for (const sub of subTabs) {
+      const btn = document.createElement('button');
+      btn.className = 'ward-subtab-btn' + (sub.id === _wardrobePresetSubTab ? ' active' : '');
+      btn.innerHTML = `<span class="ward-subtab-label">${sub.label}</span>` +
+                      `<span class="ward-subtab-count">${sub.count}</span>`;
+      btn.addEventListener('click', () => {
+        if (_wardrobePresetSubTab === sub.id) return;
+        _wardrobePresetSubTab = sub.id;
+        Audio.uiClick();
+        renderWardrobeOptions();
+      });
+      subTabBar.appendChild(btn);
+    }
+    wardrobeOptsEl.appendChild(subTabBar);
+    // Rendera BARA items för aktiv sub-tab
+    const activeList = groups[_wardrobePresetSubTab] || groups.classic;
+    for (const p of activeList) wardrobeOptsEl.appendChild(buildPresetCard(p));
     return;
   }
 
@@ -39808,22 +39823,34 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   const legSwing = isMoving ? swing * 2 : 0;
   const frontLift = isMoving && swing > 0 ? swing * 1 : 0;
   const backLift = isMoving && swing < 0 ? -swing * 1 : 0;
-  // v1.467: HEAD 3/4 view (more frontal) + SNAGGAD (buzz cut, no hair)
-  // === HEAD (rounder, 3/4 angled toward camera) ===
+  // v1.493: MANLIGT ANSIKTE — squarer jaw, wider chin base
+  // (innan: chin pekade som en spets vid (2,-7) = för feminint)
+  // Nu: jaw transition (6,-7.5)→(5,-7) (east), flat chin base till (-1,-7),
+  // sedan jaw transition (-3,-7.3)→(-4,-9) (west). Bredare, kantigare.
   ctx.fillStyle = skin;
   ctx.beginPath();
   ctx.moveTo(-4, -19);
-  ctx.quadraticCurveTo(2, -20.5, 6, -19);   // crown wider/rounder
-  ctx.quadraticCurveTo(8, -15, 7, -11);     // east cheek curve
-  ctx.quadraticCurveTo(6, -8, 4, -7);       // east jaw
-  ctx.lineTo(2, -7);                         // chin point
-  ctx.quadraticCurveTo(-2, -7.5, -4, -9);   // jaw back to west
+  ctx.quadraticCurveTo(2, -20.5, 6, -19);   // crown
+  ctx.quadraticCurveTo(8, -15, 7.5, -11);   // east cheek (bredare)
+  ctx.lineTo(7, -9);                         // east cheekbone definition
+  ctx.lineTo(6, -7.5);                       // east jaw corner
+  ctx.lineTo(5, -7);                         // east chin corner
+  ctx.lineTo(-1, -7);                        // FLAT chin base (manlig haka)
+  ctx.lineTo(-3, -7.3);                      // west chin corner
+  ctx.quadraticCurveTo(-5, -9, -5, -11);    // west jaw square
   ctx.quadraticCurveTo(-6, -14, -5, -17);   // west cheek
-  ctx.quadraticCurveTo(-5, -19, -4, -19);   // close to crown
+  ctx.quadraticCurveTo(-5, -19, -4, -19);   // close
   ctx.closePath();
   ctx.fill();
   ctx.strokeStyle = outline;
   ctx.lineWidth = 1.5;
+  ctx.stroke();
+  // v1.493: JAW DEFINITION — subtle line från cheekbone till chin (manligare)
+  ctx.strokeStyle = skin5;
+  ctx.lineWidth = 0.4;
+  ctx.beginPath();
+  ctx.moveTo(6.5, -10);
+  ctx.lineTo(5.5, -7.5);
   ctx.stroke();
   // v1.476: West-side face shadow BORTTAGEN (täckte halva ansiktet)
   // v1.475: FACE shading FÖRENKLAD — skin base + bara subtle west-shadow
@@ -40024,64 +40051,90 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
     ctx.fillRect(-6.5, -13, 0.6, 6);
     ctx.fillRect(0, -20, 1.5, 0.7);
   }
-  // v1.477: BIGGER face features — eyes, brows, nose, mouth tydligare visible.
-  // Behåller arg/militant uttryck (angled brows, frown).
-  // === EYEBROWS — thicker + angled (anger) ===
+  // v1.493: MANLIGT BROW RIDGE — heavier eyebrows + subtle shadow ovanför ögon
+  // Brow ridge shadow (forehead → brow line) — ger djup till panna, manligare
+  ctx.fillStyle = skin5;
+  ctx.globalAlpha = 0.45;
+  ctx.beginPath();
+  ctx.moveTo(-1, -15);
+  ctx.quadraticCurveTo(3, -14.5, 6.5, -15);
+  ctx.lineTo(6.5, -14.2);
+  ctx.quadraticCurveTo(3, -13.8, -1, -14.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  // === EYEBROWS — tjockare (0.7 → 1.0) + bushier för manligt utseende ===
   ctx.fillStyle = stubbleColor;
-  // Near eyebrow (east) — thicker (height 0.6 var 0.4)
+  // East eyebrow (närmaste, mer prominent)
   ctx.beginPath();
-  ctx.moveTo(2.5, -13.8);
-  ctx.lineTo(6.2, -14.6);
-  ctx.lineTo(6.2, -13.9);
-  ctx.lineTo(2.5, -13.1);
+  ctx.moveTo(2.5, -13.9);
+  ctx.lineTo(6.3, -14.9);
+  ctx.lineTo(6.4, -13.7);
+  ctx.lineTo(2.5, -12.9);
   ctx.closePath();
   ctx.fill();
-  // Far eyebrow (west)
+  // Brow texture (bushy fibrer)
+  ctx.fillRect(3.2, -14.3, 0.3, 0.3);
+  ctx.fillRect(4.0, -14.5, 0.3, 0.3);
+  ctx.fillRect(4.8, -14.6, 0.3, 0.3);
+  ctx.fillRect(5.5, -14.5, 0.3, 0.3);
+  // West eyebrow (i 3/4 view bara halvt synlig — fortfarande tjock)
   ctx.beginPath();
-  ctx.moveTo(-0.7, -14.2);
-  ctx.lineTo(2, -13.5);
-  ctx.lineTo(2, -12.8);
-  ctx.lineTo(-0.7, -13.5);
+  ctx.moveTo(-0.8, -14.4);
+  ctx.lineTo(2, -13.4);
+  ctx.lineTo(2, -12.6);
+  ctx.lineTo(-0.8, -13.6);
   ctx.closePath();
   ctx.fill();
-  // === EYES — BIGGER (1.2x0.7 var 0.85x0.45) ===
-  // v1.480: Eye color från cos.eyes
+  ctx.fillRect(0.5, -13.9, 0.3, 0.3);
+  ctx.fillRect(1.2, -13.7, 0.3, 0.3);
+  // v1.493: EYES — smalare/squinter för manligt utseende (1.2x0.7 → 1.0x0.5)
+  // Mindre "anime-big-eyes" känsla, mer serious/militant look
   const irisCol = flash ? '#fff' : (cos.eyes && cos.eyes.color ? cos.eyes.color : '#1a2a40');
   const isGlowEye = cos.eyes && (cos.eyes.id === 'glowing' || cos.eyes.id === 'cyber' || cos.eyes.id === 'red');
   // Far eye (west)
   ctx.fillStyle = '#f4f0e8';
   ctx.beginPath();
-  ctx.ellipse(0.6, -12.7, 1.2, 0.7, 0, 0, Math.PI * 2);
+  ctx.ellipse(0.7, -12.6, 1.0, 0.5, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
-  ctx.lineWidth = 0.7;
+  ctx.lineWidth = 0.6;
   ctx.stroke();
-  // Iris+pupil (bigger)
+  // Iris+pupil
   if (isGlowEye) { ctx.shadowColor = irisCol; ctx.shadowBlur = 3; }
   ctx.fillStyle = irisCol;
   ctx.beginPath();
-  ctx.arc(0.8, -12.7, 0.55, 0, Math.PI * 2);
+  ctx.arc(0.85, -12.6, 0.45, 0, Math.PI * 2);
   ctx.fill();
   if (isGlowEye) ctx.shadowBlur = 0;
   // Eye glint
   ctx.fillStyle = '#fff';
-  ctx.fillRect(1, -13, 0.35, 0.35);
-  // Near eye (east) — same size
+  ctx.fillRect(1, -12.85, 0.3, 0.3);
+  // Near eye (east) — same narrow size
   ctx.fillStyle = '#f4f0e8';
   ctx.beginPath();
-  ctx.ellipse(4.3, -12.7, 1.2, 0.7, 0, 0, Math.PI * 2);
+  ctx.ellipse(4.3, -12.6, 1.0, 0.5, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = outline;
-  ctx.lineWidth = 0.7;
+  ctx.lineWidth = 0.6;
   ctx.stroke();
   if (isGlowEye) { ctx.shadowColor = irisCol; ctx.shadowBlur = 3; }
   ctx.fillStyle = irisCol;
   ctx.beginPath();
-  ctx.arc(4.4, -12.7, 0.55, 0, Math.PI * 2);
+  ctx.arc(4.4, -12.6, 0.45, 0, Math.PI * 2);
   ctx.fill();
   if (isGlowEye) ctx.shadowBlur = 0;
   ctx.fillStyle = '#fff';
-  ctx.fillRect(4.55, -13, 0.35, 0.35);
+  ctx.fillRect(4.55, -12.85, 0.3, 0.3);
+  // v1.493: Lower eyelid line — under ögat, ger trött/serious blick (manligt)
+  ctx.strokeStyle = skin5;
+  ctx.lineWidth = 0.35;
+  ctx.beginPath();
+  ctx.moveTo(-0.2, -12.1);
+  ctx.lineTo(1.6, -12.1);
+  ctx.moveTo(3.4, -12.1);
+  ctx.lineTo(5.2, -12.1);
+  ctx.stroke();
   // v1.483: NÄSA + MUN — fixad proportion. Innan: mun vid y=-8.2/-7.7 (chin y=-7)
   // = munnen satt PÅ hakan. Nu: face thirds-rule (eyes till chin = 5.7 units):
   //   Nose tip: 1/3 ner = y=-10.8
@@ -40123,31 +40176,44 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   // Subtle shadow under nose (above mouth, separating)
   ctx.fillStyle = skin5;
   ctx.fillRect(3.0, -9.5, 1.0, 0.3);
-  // === MOUTH — properly positioned at face mid-lower (y=-9.2 to -8.7) ===
-  // Upper lip line (subtle frown for militant expression)
+  // v1.493: MUN — mindre + rakare för manligt utseende (innan: ellipse 1.2x0.38
+  // = fyllig "feminin" lower lip). Nu: kort linje + thin lower lip.
+  ctx.strokeStyle = darken(lipColor, 0.30);
+  ctx.lineWidth = 0.85;
+  ctx.beginPath();
+  ctx.moveTo(2.0, -9.0);
+  ctx.quadraticCurveTo(3.2, -9.15, 4.5, -9.0);
+  ctx.stroke();
+  // Lower lip — TUNN linje istället för fyllig ellipse
   ctx.strokeStyle = lipColor;
-  ctx.lineWidth = 0.9;
+  ctx.lineWidth = 0.55;
   ctx.beginPath();
-  ctx.moveTo(1.8, -9.0);
-  ctx.quadraticCurveTo(3.2, -9.2, 4.7, -9.0); // slight downward = serious
+  ctx.moveTo(2.2, -8.65);
+  ctx.quadraticCurveTo(3.3, -8.5, 4.3, -8.65);
   ctx.stroke();
-  // Lower lip (bigger volume, distinct from chin)
-  ctx.fillStyle = lipHi;
-  ctx.beginPath();
-  ctx.ellipse(3.2, -8.6, 1.2, 0.38, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Lip outline (subtle definition)
-  ctx.strokeStyle = darken(lipColor, 0.65);
-  ctx.lineWidth = 0.3;
-  ctx.beginPath();
-  ctx.ellipse(3.2, -8.6, 1.2, 0.38, 0, 0, Math.PI * 2);
-  ctx.stroke();
-  // Shadow under lower lip (separating mouth from chin)
+  // Shadow under lower lip (skapar separation från haka)
   ctx.fillStyle = skin5;
-  ctx.beginPath();
-  ctx.moveTo(2.2, -8.2);
-  ctx.quadraticCurveTo(3.2, -8.0, 4.3, -8.2);
-  ctx.stroke();
+  ctx.fillRect(2.4, -8.25, 1.9, 0.25);
+  // v1.493: PERMANENT JAW STUBBLE — subtila prickar längs hakan, alltid synlig
+  // (även utan 'stubble' facial hair equipped). Ger MAN-look till bare-faced
+  ctx.fillStyle = stubbleColor;
+  ctx.globalAlpha = 0.4;
+  // Chin line (under lower lip till haka-basen)
+  for (let i = 0; i < 8; i++) {
+    const sx = 0.5 + (i * 0.55);
+    const sy = -7.8 + ((i % 2) * 0.2);
+    ctx.fillRect(sx, sy, 0.32, 0.32);
+  }
+  // East jaw (vid jawline 5,-7 till 6,-7.5)
+  ctx.fillRect(5.3, -8.2, 0.32, 0.32);
+  ctx.fillRect(5.7, -7.8, 0.32, 0.32);
+  ctx.fillRect(4.7, -8.5, 0.32, 0.32);
+  // Above upper lip (mustasch-zone)
+  ctx.fillRect(2.3, -9.55, 0.3, 0.28);
+  ctx.fillRect(3.0, -9.55, 0.3, 0.28);
+  ctx.fillRect(3.7, -9.55, 0.3, 0.28);
+  ctx.fillRect(4.4, -9.55, 0.3, 0.28);
+  ctx.globalAlpha = 1;
   // === EAR (small, west side, partially visible in 3/4) ===
   ctx.fillStyle = skinShadow;
   ctx.beginPath();
