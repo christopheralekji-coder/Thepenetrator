@@ -11595,7 +11595,9 @@ function drawCoopPartner() {
     ctx.translate(_pSkipArms ? 5 : 13, 0);
     drawHand(ctx, partnerCos, false);
     ctx.restore();
-    // Rotate for partner-weapon (med scale för mascot så weapon hamnar vid arm-tip)
+    // v1.520: Wrap weapon-transform i save/restore så ackumulerad scale inte
+    // läcker till framtida draw-calls (latent risk noterat i coop-review).
+    ctx.save();
     if (_pScaledMascot) { ctx.translate(0, 6); ctx.scale(1.4, 1.4); }
     ctx.rotate(partnerAimAngle);
     if (pFacingLeft) ctx.scale(1, -1);
@@ -11812,6 +11814,7 @@ function drawCoopPartner() {
     ctx.fillRect(r * 0.6, -r * 0.18, r * 1.4, r * 0.22);
     ctx.fillStyle = wColor;
     ctx.fillRect(r * 0.6, -r * 0.10, r * 0.6, r * 0.10);
+    ctx.restore();  // v1.520: stäng weapon-transform-save
 
     ctx.restore();
 
