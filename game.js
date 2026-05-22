@@ -22837,7 +22837,9 @@ function drawWardrobePreviewV2() {
   const dprMul = W / 300;
   const scale = 6.0 * dprMul;
   const cx = W / 2;
-  const cy = H * 0.50 + breath * dprMul;
+  // v1.512: cy höjt från 0.50 till 0.42 så fötterna inte täcks av actionbar/footer
+  // under preview-canvasen. Lämnar mer margin under karaktären.
+  const cy = H * 0.42 + breath * dprMul;
   // Ground spotlight (under fötter) — skalas med dprMul
   const groundY = cy + scale * 17;
   const groundGrad = c.createRadialGradient(cx, groundY, 4 * dprMul, cx, groundY, 95 * dprMul);
@@ -24084,7 +24086,14 @@ function renderWardrobeOptions() {
   }
 
   const current = save.wardrobe[cat];
-  for (const opt of WARDROBE[cat]) {
+  // v1.512: Filtrera bort brand-shirts (mcdonalds_suit, adibas_top, nugget_body, etc) +
+  // mascot-shirts från Kläder-tabben. De ska BARA väljas som hela outfits via Outfits-fliken.
+  // Behåller bara basic shirts (color-based: black, white, red, jeans, etc.) + 'naked'.
+  let optList = WARDROBE[cat];
+  if (cat === 'shirt') {
+    optList = optList.filter(o => !o.brand && !o.mascot);
+  }
+  for (const opt of optList) {
     const tier = opt.tier || 'common';
     const isLocked = !isWardrobeUnlocked(opt);
     const card = document.createElement('div');
@@ -24347,25 +24356,37 @@ const _btnWardrobeRandom = document.getElementById('btn-wardrobe-random');
 if (_btnWardrobeRandom) _btnWardrobeRandom.addEventListener('click', randomizeWardrobe);
 const _btnWardrobeReset = document.getElementById('btn-wardrobe-reset');
 if (_btnWardrobeReset) _btnWardrobeReset.addEventListener('click', resetWardrobe);
-// v1.510: TA AV ALLT — kläder/accessoarer → 'none', behåller skin/hair/face-features
+// v1.512: TA AV ALLT — TOTAL RESET till original gubbe med oliv hud. Inkluderar
+// scars/eyes/glow/face-features = allt tillbaka till klassikst default.
 function stripWardrobe() {
   ensureWardrobe();
   _wardrobeUndoState = JSON.parse(JSON.stringify(save.wardrobe));
-  save.wardrobe.shirt = 'naked';      // bar överkropp
-  save.wardrobe.pants = 'briefs';     // bara kalsonger
+  // KROPP: tillbaka till default
+  save.wardrobe.skin = 'olive';
+  save.wardrobe.hair = 'shortDark';
+  save.wardrobe.facialHair = 'none';
+  save.wardrobe.eyes = 'default';       // INTE glowing/cyber/red (de hade glow-effekt)
+  save.wardrobe.eyeShape = 'classic';
+  save.wardrobe.eyebrows = 'classic';
+  save.wardrobe.nose = 'classic';
+  save.wardrobe.mouth = 'classic';
+  save.wardrobe.scars = 'none';         // tar bort ärr/tatueringar
+  // KLÄDER: helt nakna utom underwear
+  save.wardrobe.shirt = 'naked';
+  save.wardrobe.pants = 'briefs';
   save.wardrobe.shoes = 'none';
   save.wardrobe.hat = 'none';
   save.wardrobe.glasses = 'none';
   save.wardrobe.bandana = 'none';
   save.wardrobe.cape = 'none';
-  save.wardrobe.facialHair = 'none';
-  // Behåller: skin, hair, eyes, eyeShape, eyebrows, nose, mouth, scars
+  // Reset tints så ingen hue-shift på shirt/pants
+  save.wardrobe.tints = { shirtHue: 0, pantsHue: 0 };
   invalidateCostumeCache();
   persist();
   Audio.uiClick();
   if (typeof renderWardrobeOptions === 'function') renderWardrobeOptions();
   if (typeof refreshWardrobeUndoButton === 'function') refreshWardrobeUndoButton();
-  showWardrobeEquipFeedback(null, '🩲 NAKEN');
+  showWardrobeEquipFeedback(null, '🩲 ORIGINAL');
 }
 const _btnWardrobeStrip = document.getElementById('btn-wardrobe-strip');
 if (_btnWardrobeStrip) _btnWardrobeStrip.addEventListener('click', stripWardrobe);
@@ -40805,18 +40826,30 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   if (isMoving === undefined) isMoving = false;
   // v1.487: MASCOT-DISPATCH — om en mascot-shirt är equippad, rendera helt
   // custom karaktär istället för normalt naken-body
-  if (cos.mascot === 'mcdonalds') { drawMcDonaldsCharacter(ctx, cos, flash, walkPhase, isMoving); return; }
-  if (cos.mascot === 'nugget')    { drawNuggetCharacter(ctx, cos, flash, walkPhase, isMoving);    return; }
-  if (cos.mascot === 'korv')      { drawKorvCharacter(ctx, cos, flash, walkPhase, isMoving);      return; }
-  if (cos.mascot === 'hamburger') { drawHamburgerCharacter(ctx, cos, flash, walkPhase, isMoving); return; }
-  if (cos.mascot === 'pizza')     { drawPizzaCharacter(ctx, cos, flash, walkPhase, isMoving);     return; }
-  if (cos.mascot === 'banan')     { drawBananaCharacter(ctx, cos, flash, walkPhase, isMoving);    return; }
-  if (cos.mascot === 'kiwi')      { drawKiwiCharacter(ctx, cos, flash, walkPhase, isMoving);      return; }
-  if (cos.mascot === 'mango')     { drawMangoCharacter(ctx, cos, flash, walkPhase, isMoving);     return; }
-  if (cos.mascot === 'pencil')    { drawPencilCharacter(ctx, cos, flash, walkPhase, isMoving);    return; }
-  if (cos.mascot === 'broccoli')  { drawBroccoliCharacter(ctx, cos, flash, walkPhase, isMoving);  return; }
-  if (cos.mascot === 'carrot')    { drawCarrotCharacter(ctx, cos, flash, walkPhase, isMoving);    return; }
-  if (cos.mascot === 'cashew')    { drawCashewCharacter(ctx, cos, flash, walkPhase, isMoving);    return; }
+  if (cos.mascot) {
+    // v1.512: Alla mascot-funktioner använder mindre coord-system (top y=-19, feet y=16
+    // = 35 units) medan default-karaktären är y=-20 till y=29 = 49 units. Detta gjorde
+    // att mascots kändes ~30% mindre in-game. Wrap dispatch med uniform scale + downward
+    // translate så mascot-feet landar på samma y som default-feet.
+    // Math: feet*scale + ty = 29. För feet=16, scale=1.4 → ty = 29-22.4 = 6.6.
+    ctx.save();
+    ctx.translate(0, 6);
+    ctx.scale(1.4, 1.4);
+    if (cos.mascot === 'mcdonalds') drawMcDonaldsCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'nugget')    drawNuggetCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'korv')      drawKorvCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'hamburger') drawHamburgerCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'pizza')     drawPizzaCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'banan')     drawBananaCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'kiwi')      drawKiwiCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'mango')     drawMangoCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'pencil')    drawPencilCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'broccoli')  drawBroccoliCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'carrot')    drawCarrotCharacter(ctx, cos, flash, walkPhase, isMoving);
+    else if (cos.mascot === 'cashew')    drawCashewCharacter(ctx, cos, flash, walkPhase, isMoving);
+    ctx.restore();
+    return;
+  }
   // v1.474: Middle Eastern olive skin tone (var #a8704c = för ljust/pinkish).
   // #9a6028 = warm olive-brown — typisk Mediterranean/Levantine/MENA komplexion.
   const skinBase = cos.skin || '#9a6028';
