@@ -15891,7 +15891,9 @@ if (save.feedback) {
 // CANVAS / RESIZE
 // ============================================================
 const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
+// v1.571: let (inte const) så texture-baking kan temporary swap till offscreen-ctx
+let ctx = canvas.getContext('2d');
+const _mainCtx = ctx; // referens till main-context för säker restore
 let DPR = Math.min(window.devicePixelRatio || 1, 2);
 let viewW = 0, viewH = 0;
 
@@ -16146,6 +16148,173 @@ function _releaseEnemySprite(s) {
   _pixiEnemySpritePool.push(s);
 }
 
+// ============================================================
+// v1.571: PRE-BAKED ENEMY TEXTURES
+// Återanvänder EXAKT existerande Canvas2D draw-kod (drawHumanEnemy/drawDog/
+// drawRobot/MINIBOSS_DRAW) via temporary ctx-swap. Resultat: pixel-identical
+// rendering med kamouflage, kevlar, ammo-pouches, M4-gevär, hjälm-band,
+// taktiska sights, allt som finns i Canvas2D-versionen — men som GPU-textures.
+// ============================================================
+
+const _ENEMY_BAKE_LIST = [
+  { type: 'grunt',    r: 18, color: '#4a5a30' },
+  { type: 'runner',   r: 14, color: '#5a4a30' },
+  { type: 'healer',   r: 18, color: '#3a8a4a' },
+  { type: 'summoner', r: 20, color: '#5a2a7a' },
+  { type: 'bomber',   r: 18, color: '#7a3030' },
+  { type: 'sniper',   r: 16, color: '#3a4a26' },
+  { type: 'swarmer',  r: 12, color: '#5a3a2a' },
+  { type: 'dog',      r: 14, color: '#6a4a2a' },
+  { type: 'robot',    r: 18, color: '#5a5a6a' },
+  { type: 'ninja',    r: 16, color: '#1a1a2a' },
+  { type: 'brute',    r: 24, color: '#6a4030' },
+  { type: 'tank',     r: 26, color: '#3a5a8a' },
+  { type: 'shooter',  r: 18, color: '#5acaff' },
+  { type: 'soldier',  r: 18, color: '#5a8a3a' },
+];
+
+const _MINIBOSS_BAKE_LIST = [
+  'caster', 'tank_charger', 'cloaker', 'brute_charger',
+  'plasma', 'jetpack', 'gas_sniper', 'shielder', 'avatar',
+];
+
+// Track baked radius per type så vi kan scala sprite vid runtime
+const _ENEMY_BAKE_RADIUS = {};
+
+function _bakeEnemyTexture(type, opts) {
+  if (typeof PIXI === 'undefined') return null;
+  if (typeof document === 'undefined') return null;
+  const r = opts.r || 18;
+  const size = Math.ceil(r * 5);
+  const offCanvas = document.createElement('canvas');
+  offCanvas.width = size;
+  offCanvas.height = size;
+  const offCtx = offCanvas.getContext('2d');
+  if (!offCtx) return null;
+
+  const mockE = {
+    r: r,
+    type: type,
+    color: opts.color || '#888',
+    facing: 0,
+    walkAccum: 0,
+    walkPhase: 0,
+    contactCd: 1.0,
+    flashUntil: 0,
+    fuse: 1.0,
+    aiming: false,
+    isBoss: false,
+    isMiniBoss: !!opts.miniPower,
+    miniPower: opts.miniPower || null,
+    miniIntensity: 0.6,
+    name: '',
+    stageAccent: '#7a5aaa',
+    stageEdge: '#aaff5a',
+    x: 0, y: 0,
+  };
+
+  // Temporary ctx swap till offscreen
+  const savedCtx = ctx;
+  ctx = offCtx;
+  try {
+    offCtx.save();
+    offCtx.translate(size / 2, size / 2);
+    if (mockE.isMiniBoss && typeof MINIBOSS_DRAW !== 'undefined' && MINIBOSS_DRAW[mockE.miniPower]) {
+      MINIBOSS_DRAW[mockE.miniPower](mockE, false, 0, 0, false);
+    } else if (type === 'dog' && typeof drawDog === 'function') {
+      drawDog(mockE, false, 0);
+    } else if (type === 'robot' && typeof drawRobot === 'function') {
+      drawRobot(mockE, false, 0, 0);
+    } else if (typeof drawHumanEnemy === 'function') {
+      drawHumanEnemy(mockE, false, 0, 0);
+    }
+    offCtx.restore();
+  } catch (err) {
+    console.warn('[Pixi-bake] fail for', type, opts.miniPower || '', err.message);
+  } finally {
+    ctx = savedCtx;
+  }
+
+  try {
+    const tex = PIXI.Texture.from(offCanvas);
+    _ENEMY_BAKE_RADIUS[opts.key || type] = r;
+    return tex;
+  } catch (err) {
+    console.warn('[Pixi-bake] PIXI.Texture.from fail for', type, err.message);
+    return null;
+  }
+}
+
+function _bakeFallbackTexture() {
+  if (typeof PIXI === 'undefined' || typeof document === 'undefined') return null;
+  const c = document.createElement('canvas');
+  c.width = c.height = 80;
+  const cx = c.getContext('2d');
+  cx.fillStyle = 'rgba(0,0,0,0.4)';
+  cx.beginPath(); cx.ellipse(42, 44, 16, 6, 0, 0, Math.PI*2); cx.fill();
+  cx.fillStyle = '#aa3030';
+  cx.beginPath(); cx.arc(40, 40, 14, 0, Math.PI*2); cx.fill();
+  cx.strokeStyle = '#0a0a0a'; cx.lineWidth = 1.5;
+  cx.beginPath(); cx.arc(40, 40, 14, 0, Math.PI*2); cx.stroke();
+  return PIXI.Texture.from(c);
+}
+
+function bakeAllEnemyTextures() {
+  if (pixiState.enemyTextures && Object.keys(pixiState.enemyTextures).length > 0) return;
+  pixiState.enemyTextures = {};
+  for (const item of _ENEMY_BAKE_LIST) {
+    const tex = _bakeEnemyTexture(item.type, { ...item, key: item.type });
+    if (tex) pixiState.enemyTextures[item.type] = tex;
+  }
+  for (const power of _MINIBOSS_BAKE_LIST) {
+    const key = 'mb_' + power;
+    const tex = _bakeEnemyTexture('grunt', { r: 24, color: '#aa3a3a', miniPower: power, key });
+    if (tex) pixiState.enemyTextures[key] = tex;
+  }
+  if (!pixiState.enemyTextures.grunt) {
+    pixiState.enemyTextures.grunt = _bakeFallbackTexture();
+    _ENEMY_BAKE_RADIUS.grunt = 18;
+  }
+  pixiState.enemyTexturesBaked = true;
+  console.log('[Pixi] enemy textures baked:', Object.keys(pixiState.enemyTextures).length);
+}
+
+const _pixiEnemySpritePoolByType = {};
+
+function _getEnemyTextureKey(e) {
+  if (e.isMiniBoss && e.miniPower) return 'mb_' + e.miniPower;
+  return e.type || 'grunt';
+}
+
+function _acquireEnemySpriteForType(e) {
+  if (typeof PIXI === 'undefined') return null;
+  if (!pixiState.enemyTexturesBaked) bakeAllEnemyTextures();
+  const key = _getEnemyTextureKey(e);
+  let pool = _pixiEnemySpritePoolByType[key];
+  if (!pool) pool = _pixiEnemySpritePoolByType[key] = [];
+  if (pool.length > 0) {
+    const s = pool.pop();
+    s.visible = true;
+    s.alpha = 1;
+    return s;
+  }
+  const tex = (pixiState.enemyTextures && (pixiState.enemyTextures[key] || pixiState.enemyTextures.grunt))
+    || _bakeFallbackTexture();
+  if (!tex) return null;
+  const s = new PIXI.Sprite(tex);
+  s.anchor.set(0.5);
+  s._typeKey = key;
+  return s;
+}
+
+function _releaseEnemySpriteForType(s) {
+  if (!s) return;
+  s.visible = false;
+  const key = s._typeKey || 'grunt';
+  if (!_pixiEnemySpritePoolByType[key]) _pixiEnemySpritePoolByType[key] = [];
+  _pixiEnemySpritePoolByType[key].push(s);
+}
+
 // Behåll createPixiEnemyTextures för bakåtkompat (anropas men gör inget nu)
 function createPixiEnemyTextures() {
   // No-op i iter 1 (Graphics används istället för Texture). Iter 2 fyller denna.
@@ -16339,7 +16508,7 @@ function syncPixiEnemies() {
     if (pixiState.sprites.enemies && pixiState.sprites.enemies.size > 0) {
       for (const [, s] of pixiState.sprites.enemies) {
         if (s.parent) s.parent.removeChild(s);
-        _releaseEnemySprite(s);
+        _releaseEnemySpriteForType(s);
       }
       pixiState.sprites.enemies.clear();
     }
@@ -16366,8 +16535,16 @@ function syncPixiEnemies() {
     }
     seenIds.add(id);
     let sprite = pixiState.sprites.enemies.get(id);
+    const wantKey = _getEnemyTextureKey(e);
+    if (sprite && sprite._typeKey !== wantKey) {
+      // Type changed (mini-boss spawn på existing id) — replace sprite
+      if (sprite.parent) sprite.parent.removeChild(sprite);
+      _releaseEnemySpriteForType(sprite);
+      pixiState.sprites.enemies.delete(id);
+      sprite = null;
+    }
     if (!sprite) {
-      sprite = _acquireEnemySprite();
+      sprite = _acquireEnemySpriteForType(e);
       if (!sprite) { d.skippedNullSprite++; continue; }
       container.addChild(sprite);
       pixiState.sprites.enemies.set(id, sprite);
@@ -16377,33 +16554,25 @@ function syncPixiEnemies() {
     }
     sprite.visible = true;
     sprite.position.set(e.x, e.y);
-    sprite.scale.set(1, 1);
+    // Scale: matcha runtime-radius mot bakerings-radius (textur baked vid r=18, etc)
+    const bakeR = _ENEMY_BAKE_RADIUS[wantKey] || 18;
+    const scale = (e.r || bakeR) / bakeR;
+    sprite.scale.set(scale, scale);
+    // Rotation: enemy facing — sprite-textur är baked facing-right (rad 0)
+    sprite.rotation = e.facing || 0;
     sprite.alpha = 1;
-    if (e.isBoss || e.isMiniBoss) {
-      sprite.tint = 0xffd54a;
+    // Flash via tint istället för texture-swap (billigare, samma visuell effekt)
+    const nowFlash = performance.now();
+    if (e.flashUntil && e.flashUntil > nowFlash) {
+      sprite.tint = 0xff8080;
     } else {
-      switch (e.type) {
-        case 'runner':    sprite.tint = 0xff8a3a; break;
-        case 'ninja':     sprite.tint = 0x9a5aff; break;
-        case 'brute':     sprite.tint = 0x6a4030; break;
-        case 'tank':      sprite.tint = 0x3a5a8a; break;
-        case 'shooter':   sprite.tint = 0x5acaff; break;
-        case 'sniper':    sprite.tint = 0xaaaaff; break;
-        case 'soldier':   sprite.tint = 0x5a8a3a; break;
-        case 'healer':    sprite.tint = 0x5aff8a; break;
-        case 'summoner':  sprite.tint = 0xff5aff; break;
-        case 'bomber':    sprite.tint = 0xff3a3a; break;
-        case 'dog':       sprite.tint = 0xaa5a30; break;
-        case 'swarmer':   sprite.tint = 0xffeb3b; break;
-        case 'robot':     sprite.tint = 0xcccccc; break;
-        default:          sprite.tint = 0xffffff;
-      }
+      sprite.tint = 0xffffff; // ingen tint — textur har redan rätt färg
     }
   }
   for (const [id, sprite] of pixiState.sprites.enemies) {
     if (!seenIds.has(id)) {
       if (sprite.parent) sprite.parent.removeChild(sprite);
-      _releaseEnemySprite(sprite);
+      _releaseEnemySpriteForType(sprite);
       pixiState.sprites.enemies.delete(id);
       d.spritesRemoved++;
     }
@@ -61606,11 +61775,14 @@ function runFrame(dt, now) {
     if (typeof tickSurvivorsPerkEffects === 'function') tickSurvivorsPerkEffects(dt);
   }
   // v1.559/v1.560: AKTIVERA PIXI-RENDERING I ALLA PLAYING-MODES
-  // Particles aktiverat efter v1.560 defensive-fixes.
-  // v1.569: ALLA pipelines aktiva (efter try-catch-fix i v1.568).
+  // v1.571: BULLETS ROLLBACK till Canvas2D — bullets har per-frame animation
+  // (flame-jitter, tesla-zigzag, plasma-trails) som pre-baking dödar. Behåller
+  // Canvas2D-renderingen för bullets (forlust ~10 FPS @ 2000+ bullets, men det
+  // är extrem-situation). Enemies använder nu pre-baked textures via Canvas2D-
+  // draw-funktioner = pixel-identical militär-grafik.
   if (state.mode === 'playing' && pixiState && pixiState.ready) {
     pixiState.enemiesEnabled = true;
-    pixiState.bulletsEnabled = true;
+    pixiState.bulletsEnabled = false; // v1.571 ROLLBACK — Canvas2D ritar bullets
     pixiState.particlesEnabled = true;
     pixiState.vfxEnabled = true;
   } else if (pixiState) {
