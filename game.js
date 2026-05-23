@@ -12171,8 +12171,8 @@ const WEAPONS = [
     desc: 'Slungar fiender. Stor knockback.' },
   { id: 'whip',       name: 'Kedjepiska',       type: 'melee', price: 850,  dmg: 38,  rate: 380, range: 96, color: '#5a4a30', style: 'whip',
     desc: 'Lång räckvidd, snabb. Träffar tidigt.' },
-  { id: 'sledge',     name: 'Slägga',           type: 'melee', price: 1100, dmg: 100, rate: 780, range: 52, color: '#6a6a6a', style: 'sledge',
-    desc: 'Massivt enhandshugg. Långsam men förödande.' },
+  { id: 'sledge',     name: 'Slägga',           type: 'melee', price: 1100, dmg: 100, rate: 780, range: 52, color: '#6a6a6a', style: 'sledge', speedMul: 0.9,
+    desc: 'Massivt enhandshugg. Långsam men förödande. -10% rörelse.' },
   { id: 'katana',     name: 'Katana',           type: 'melee', price: 1300, dmg: 88,  rate: 360, range: 70, color: '#e6e6f0',
     desc: 'Mästarvapen. Hög DPS, lång räckvidd.' },
   { id: 'energysword',name: 'Energi-svärd',     type: 'melee', price: 1700, dmg: 120, rate: 340, range: 78, color: '#ff8a3a', style: 'energysword', pierce: true,
@@ -32795,8 +32795,11 @@ function updatePlayer(dt, now) {
     // v1.419: Castle Defense — SCOUT 1.4×, TANK 0.8× via p.speedMul. Tidigare
     // ignorerades speedMul helt i CD → SCOUT-perken hade ingen effekt.
     const cdSpeedMul = (state.castledefenseActive && p.speedMul) ? p.speedMul : 1;
-    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * dt;
-    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * dt;
+    // v1.522: Weapon-specifik speedMul (t.ex. sledge -10% som trade-off för 1-hit kill)
+    const _wEq = p.weaponId && W_BY_ID[p.weaponId];
+    const weaponSpeedMul = (_wEq && _wEq.speedMul) ? _wEq.speedMul : 1;
+    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * dt;
+    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * dt;
   }
   // Mounted i CTF/SIEGE-torn: lås position till turret-koord
   if (p._mountedCtfTurretId && state.ctfTurrets && state.ctfTurrets[p._mountedCtfTurretId]) {

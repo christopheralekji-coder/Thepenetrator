@@ -93,27 +93,27 @@ const GUNGAME_ARENA = {
   ],
 };
 
-// 15-vapen-progression. Stigande tier: pistols → mid-guns → precision → power → final melee.
-// START med pistol (var knife — för svag/frustrerande att ta sig från noll med).
-// Sledge kvar som final-tier humiliation. Kill med melee → ev. demotion av offret.
+// v1.522: 15-vapen-progression — användardesignad ordning. START med kastkniv.
+// Sledge kvar som final-tier humiliation + speedMul 0.9 (movement -10%) som
+// trade-off för 1-hit kill-melee. Kill med melee → ev. demotion av offret.
 // Demotion-floor: när offret är på tier ≥ 9 (level 10+) kan de INTE demoteras
 // under tier 9 — annars hopplöst grind efter att ha klivit sig upp i late-game.
 const GUNGAME_WEAPONS = [
-  'pistol',      // 1  — START (basic gun, ersätter knife — knife var för frustrerande)
-  'shuriken',    // 2  — rapid throwing
-  'shotgun',     // 3  — close-range power
-  'revolver',    // 4  — heavy pistol
-  'burstpistol', // 5  — 3-burst
-  'smg',         // 6  — auto-fire
-  'bow',         // 7  — precision
-  'crossbow',    // 8  — heavier precision (NY — slot mellan bow och rifle)
-  'rifle',       // 9  — standard auto
-  'sonic',       // 10 — knockback gun (level 10 = demotion-floor)
-  'sniper',      // 11 — one-shot precision
-  'plasma',      // 12 — high-dmg
+  'throwknife',  // 1  — START (Kastkniv)
+  'pistol',      // 2  — basic gun
+  'revolver',    // 3  — heavy pistol
+  'burstpistol', // 4  — 3-burst
+  'shotgun',     // 5  — close-range power
+  'shuriken',    // 6  — rapid throwing + burn
+  'smg',         // 7  — auto-fire
+  'crossbow',    // 8  — pierce precision
+  'sniper',      // 9  — one-shot precision (level 10 = demotion-floor)
+  'rifle',       // 10 — standard auto
+  'plasma',      // 11 — high-dmg
+  'rocket',      // 12 — explosive AoE
   'minigun',     // 13 — heavy auto
-  'rocket',      // 14 — explosive
-  'sledge',      // 15 — FINAL melee humiliation (TUNG)
+  'flame',       // 14 — burn DoT close-range
+  'sledge',      // 15 — FINAL melee 1-hit kill (TUNG — -10% movement speed)
 ];
 
 // Demotion-floor: vid death med melee, om offret är på tier >= GUNGAME_DEMOTE_FLOOR
