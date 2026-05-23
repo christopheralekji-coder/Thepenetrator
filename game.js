@@ -20665,13 +20665,22 @@ const Coop = {
         state.survivorsStartT = Date.now();
         state.survivorsMatchDurationMs = (_isStresstest ? 3600 : (this.config.survivorsDurationSec || 1200)) * 1000;
       }
-      // v1.537/v1.543: STRESS-TEST aktiverar diag + spawn-HUD + PIXI enemies-overlay
+      // v1.537/v1.543/v1.546: STRESS-TEST aktiverar diag + spawn-HUD + PIXI overlay,
+      // OCH städar bort alla perks-element så de inte hänger kvar från tidigare match.
       if (_isStresstest) {
         window._pixiDiag = true;
         if (typeof showToast === 'function') showToast('🧪 STRESS-TEST AKTIV');
         if (typeof showStresstestHud === 'function') showStresstestHud();
-        // Enable Pixi-enemy-overlay (röda cirklar ovanpå Canvas2D-enemies)
         if (pixiState) pixiState.enemiesEnabled = true;
+        // Explicit cleanup av ev. perks-state från tidigare match
+        state.survivorsPerks = [];
+        state.survivorsPerkOverlayOn = false;
+        state.survivorsNextPerkAt = Date.now() + 9999999; // aldrig
+        state._survivorsPerkChoices = null;
+        const _perkOverlay = document.getElementById('survivors-perk-overlay');
+        if (_perkOverlay) _perkOverlay.style.display = 'none';
+        const _perkBar = document.getElementById('survivors-perks-bar');
+        if (_perkBar) _perkBar.style.display = 'none';
       } else {
         if (pixiState) pixiState.enemiesEnabled = false;
       }
