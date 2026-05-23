@@ -16003,12 +16003,15 @@ async function initPixiFoundation() {
     pixiState.containers.world = new PIXI.Container();
     pixiState.containers.world.label = 'world';
     app.stage.addChild(pixiState.containers.world);
-    pixiState.containers.enemies = new PIXI.Container();
-    pixiState.containers.enemies.label = 'enemies';
-    pixiState.containers.world.addChild(pixiState.containers.enemies);
+    // v1.552: ENEMIES OVANPÅ BULLETS — bullets är små projektiler (5px) som ska
+    // synas men inte täcka enemies. Add-order = render-order, så bullets först
+    // = ritas underst, enemies sist = ritas överst.
     pixiState.containers.bullets = new PIXI.Container();
     pixiState.containers.bullets.label = 'bullets';
     pixiState.containers.world.addChild(pixiState.containers.bullets);
+    pixiState.containers.enemies = new PIXI.Container();
+    pixiState.containers.enemies.label = 'enemies';
+    pixiState.containers.world.addChild(pixiState.containers.enemies);
     pixiState.containers.vfx = new PIXI.Container();
     pixiState.containers.vfx.label = 'vfx';
     pixiState.containers.world.addChild(pixiState.containers.vfx);
@@ -16148,14 +16151,15 @@ function createPixiEnemyTextures() {
   // No-op i iter 1 (Graphics används istället för Texture). Iter 2 fyller denna.
 }
 
-// Per-frame sync: matcha enemy-state till sprite-state. Kallas från
-// renderPixiFrame innan PIXI render.
+// v1.552: Index-baserad sync (samma som bullets) — undviker ID-uppslag-problem
+// där _i kanske saknas eller är inkonsekvent från server-broadcast.
 function syncPixiEnemies() {
   if (!pixiState.ready || !pixiState.enemiesEnabled) {
     // Om disabled: städa alla sprites
-    if (pixiState.sprites.enemies.size > 0) {
-      for (const [, s] of pixiState.sprites.enemies) {
-        if (s.parent) s.parent.removeChild(s);
+    if (pixiState.containers.enemies && pixiState.containers.enemies.children.length > 0) {
+      const arr = pixiState.containers.enemies.children.slice();
+      for (const s of arr) {
+        pixiState.containers.enemies.removeChild(s);
         _releaseEnemySprite(s);
       }
       pixiState.sprites.enemies.clear();
@@ -16163,38 +16167,29 @@ function syncPixiEnemies() {
     return;
   }
   const enemies = state.enemies || [];
-  const seenIds = new Set();
-  // Update existing + add new
-  for (const e of enemies) {
-    if (!e || e.dead || e.hp <= 0) continue;
-    // v1.544: fix — `||` failade när _idx eller _i = 0. Använd != null-check.
-    const id = (e._idx != null) ? e._idx : (e._i != null ? e._i : null);
-    if (id == null) continue;
-    seenIds.add(id);
-    let sprite = pixiState.sprites.enemies.get(id);
-    if (!sprite) {
-      sprite = _acquireEnemySprite();
-      if (!sprite) continue;
-      pixiState.containers.enemies.addChild(sprite);
-      pixiState.sprites.enemies.set(id, sprite);
-    }
-    sprite.position.set(e.x, e.y);
-    // Scale baserat på enemy.r vs texture-radius 14
-    const scale = (e.r || 14) / 14;
-    sprite.scale.set(scale, scale);
-    // Boss = större + gul tint
-    if (e.isBoss) {
-      sprite.tint = 0xffd54a;
-    } else {
-      sprite.tint = 0xffffff;
-    }
+  const container = pixiState.containers.enemies;
+  // Säkerställ tillräckligt med sprites
+  while (container.children.length < enemies.length) {
+    const s = _acquireEnemySprite();
+    if (!s) break;
+    container.addChild(s);
   }
-  // Remove sprites för enemies som inte längre finns
-  for (const [id, sprite] of pixiState.sprites.enemies) {
-    if (!seenIds.has(id)) {
-      if (sprite.parent) sprite.parent.removeChild(sprite);
-      _releaseEnemySprite(sprite);
-      pixiState.sprites.enemies.delete(id);
+  // Uppdatera position + visibility per index
+  for (let i = 0; i < container.children.length; i++) {
+    const s = container.children[i];
+    if (i < enemies.length) {
+      const e = enemies[i];
+      if (e && !e.dead && (e.hp == null || e.hp > 0)) {
+        s.visible = true;
+        s.position.set(e.x, e.y);
+        const scale = (e.r || 14) / 14;
+        s.scale.set(scale, scale);
+        s.tint = e.isBoss ? 0xffd54a : 0xffffff;
+      } else {
+        s.visible = false;
+      }
+    } else {
+      s.visible = false;
     }
   }
 }
@@ -16377,7 +16372,7 @@ function updatePixiDiagOverlay() {
     `<div>Enemies: ${enemiesCount} Bullets: ${bulletsCount}</div>` +
     `<div>Particles: ${particlesCount}</div>` +
     `<div>Sprites: ${pixiSprites} Stage: ${stageChildren}</div>` +
-    `<div>Pixi enemies: ${pixiState.ready ? pixiState.sprites.enemies.size : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'}</div>` +
+    `<div>Pixi enemies: ${pixiState.ready && pixiState.containers.enemies ? pixiState.containers.enemies.children.filter(c=>c.visible).length : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'}</div>` +
     `<div>Pixi bullets: ${pixiState.ready && pixiState.containers.bullets ? pixiState.containers.bullets.children.filter(c=>c.visible).length : 0}${pixiState.bulletsEnabled ? ' ✓' : ' off'}</div>` +
     `<div>StressTest: ${state.stresstestActive ? '✓' : '✗'} CfgST: ${Coop && Coop.config && Coop.config.stresstest ? '✓' : '✗'}</div>` +
     `<div>SurvActive: ${state.survivorsActive ? '✓' : '✗'}</div>` +
