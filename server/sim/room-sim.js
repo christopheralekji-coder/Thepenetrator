@@ -19,6 +19,7 @@ const { KOTH_ARENA } = require('../../shared/koth-arena');
 const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
 const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 const { CASTLEDEFENSE_ARENA } = require('../../shared/castledefense-arena');
+const { SURVIVORS_ARENA } = require('../../shared/survivors-arena');
 const { SpatialGrid } = require('./spatial');
 
 // 45Hz → 60Hz (v1.391): tickar var 16.7ms istället för 22ms. Sparar ~3-6ms
@@ -2611,6 +2612,39 @@ function tickCastleDefense(sim, dt, now) {
 
   if (sim.castledefenseEnded) return;
 
+  // v1.526: SURVIVORS-RUN iteration 2 — time-based win + lose-conditions.
+  // Tracka match-start på första survivors-tick. Vid 1200s elapsed → survivors_win.
+  // Vid alla players döda → survivors_lose.
+  if (sim.survivorsActive) {
+    if (!sim.survivorsStartT) sim.survivorsStartT = nowMs;
+    const matchDurationMs = (typeof SURVIVORS_ARENA !== 'undefined' && SURVIVORS_ARENA.matchDurationSec * 1000) || 1200000;
+    const elapsedMs = nowMs - sim.survivorsStartT;
+    if (elapsedMs >= matchDurationMs) {
+      sim.castledefenseEnded = true;
+      sim.eventQueue.push({
+        type: 'survivors_win',
+        survivedSec: Math.round(elapsedMs / 1000),
+      });
+      return;
+    }
+    // Lose-check: alla real players döda/downed
+    let anyAlive = false;
+    for (const [, ws] of sim.room.members) {
+      if (ws._isBot) continue;
+      if (ws.playerState && ws.playerState.hp > 0 && !ws.playerState.cdDowned) {
+        anyAlive = true; break;
+      }
+    }
+    if (!anyAlive && sim.room.members.size > 0) {
+      sim.castledefenseEnded = true;
+      sim.eventQueue.push({
+        type: 'survivors_lose',
+        survivedSec: Math.round(elapsedMs / 1000),
+      });
+      return;
+    }
+  }
+
   // === FLOW FIELD: bygg/rebygg om dirty ===
   if (sim._cdFlowDirty || !sim._cdFlowField) {
     sim._cdFlowField = buildCdFlowField(sim);
@@ -3055,7 +3089,8 @@ function tickCastleDefense(sim, dt, now) {
   }
 
   // === CORE HP-CHECK (game over) ===
-  if (sim.castledefenseCore && sim.castledefenseCore.hp <= 0 && !sim.castledefenseEnded) {
+  // v1.526: Skippas helt i survivors-mode (ingen core att förstöra).
+  if (!sim.survivorsActive && sim.castledefenseCore && sim.castledefenseCore.hp <= 0 && !sim.castledefenseEnded) {
     sim.castledefenseEnded = true;
     sim.eventQueue.push({
       type: 'cd_ended',
@@ -3073,7 +3108,9 @@ function tickCastleDefense(sim, dt, now) {
       // Drop pickup (gold etc.) — använd standard pipeline
       dropFromEnemyDeath(sim, e);
       // v1.401: Boss-kill = weapon upgrade för ALLA levande spelare
-      if (e.isBoss) {
+      // v1.526: Hoppa över i survivors-mode (perk-progression sker via perk-val,
+      // inte boss-kills). Iteration 3 implementerar perk-selection.
+      if (e.isBoss && !sim.survivorsActive) {
         sim.bossAlive = false;
         const progression = arena.weaponProgression || ['pistol'];
         for (const [pid, ws] of sim.room.members) {
@@ -4645,6 +4682,12 @@ function startSim(sim, opts) {
     // Runtime-kopia av walls så vi kan mutera hp utan att röra arena-konstanten
     sim.castledefenseWalls = arena.walls.map(w => ({ ...w }));
     sim.castledefenseCore = { ...arena.core };
+    // v1.526: SURVIVORS-RUN — core är immun mot skada (ingen core att försvara).
+    if (sim.survivorsActive) {
+      sim.castledefenseCore.hp = Infinity;
+      sim.castledefenseCore.maxHp = Infinity;
+      sim.survivorsStartT = Date.now();
+    }
     sim.castledefenseBuildings = [];
     sim.castledefenseStartedAt = Date.now();
     sim.castledefenseWave = 0;

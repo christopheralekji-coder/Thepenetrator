@@ -19465,11 +19465,13 @@ const Coop = {
         partner.cdReviveProgress = 0;
       }
       if (typeof showCastleDefenseHud === 'function') showCastleDefenseHud();
-      if (typeof showCastleDefenseBuildBar === 'function') showCastleDefenseBuildBar();
+      // v1.526: SURVIVORS-RUN — ingen bygg-bar (inget byggsystem i denna mode).
+      if (!_isSurvivors && typeof showCastleDefenseBuildBar === 'function') showCastleDefenseBuildBar();
       // v1.426: tvinga HUD-refresh vid match-start så goldInfo visar startGold direkt
       if (typeof updateHUD === 'function') updateHUD();
-      // v1.416: Öppna perk-selector overlay vid match-start
-      if (typeof openCdPerkSelector === 'function') {
+      // v1.416: Öppna perk-selector overlay vid match-start (CD-perks, inte survivors-perks)
+      // v1.526: SURVIVORS-RUN har inte CD-perk-systemet (egna perks kommer iter 3).
+      if (!_isSurvivors && typeof openCdPerkSelector === 'function') {
         setTimeout(() => openCdPerkSelector(), 500);
       }
       if (typeof showToast === 'function') showToast('🏰 CASTLE DEFENSE — håll ut!');
@@ -19665,6 +19667,31 @@ const Coop = {
         showCastleDefenseDefeatScreen(ev.wave, ev.survivedSec, ev.reason);
       } else if (typeof showToast === 'function') {
         showToast('💀 CORE FÖRSTÖRD — överlevde våg ' + ev.wave + ' (' + ev.survivedSec + 's)');
+      }
+    } else if (ev.type === 'survivors_win') {
+      // v1.526: { survivedSec } — spelaren överlevde 20 min
+      this.castledefenseActive = false;
+      state.castledefenseActive = false;
+      state.castledefenseEnded = true;
+      state.survivorsActive = false;
+      state.survivorsEnded = true;
+      if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
+      if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
+      if (typeof showToast === 'function') {
+        showToast('☠️ SURVIVORS-RUN VUNNEN — du överlevde 20 min!');
+      }
+    } else if (ev.type === 'survivors_lose') {
+      // v1.526: { survivedSec } — alla players döda
+      this.castledefenseActive = false;
+      state.castledefenseActive = false;
+      state.castledefenseEnded = true;
+      state.survivorsActive = false;
+      state.survivorsEnded = true;
+      if (typeof Audio !== 'undefined' && Audio.gameOver) Audio.gameOver();
+      if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
+      if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
+      if (typeof showToast === 'function') {
+        showToast('💀 ALLA SPELARE NER — överlevde ' + ev.survivedSec + 's');
       }
     } else if (ev.type === 'cd_hud_update') {
       // { wave, waveState, enemiesAlive, enemiesIncoming, coreHp, coreMaxHp, waveBetweenEndAt }
