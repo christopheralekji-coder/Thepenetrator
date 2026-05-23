@@ -16224,16 +16224,19 @@ function updatePixiDiagOverlay() {
     canvasZ = window.getComputedStyle(pixiState.canvas).zIndex;
     stageChildren = pixiState.app.stage.children.length;
   }
+  const camX = Math.round(state.camera ? state.camera.x : 0);
+  const camY = Math.round(state.camera ? state.camera.y : 0);
+  const worldX = pixiState.ready && pixiState.containers.world ? Math.round(pixiState.containers.world.position.x) : 0;
+  const worldY = pixiState.ready && pixiState.containers.world ? Math.round(pixiState.containers.world.position.y) : 0;
   el.innerHTML = `<div>FPS: ${_pixiDiagState.fps}</div>` +
     `<div>Pixi: ${pixiState.diagFrameTime.toFixed(1)}ms</div>` +
-    `<div>Enemies: ${enemiesCount}</div>` +
-    `<div>Bullets: ${bulletsCount}</div>` +
+    `<div>Enemies: ${enemiesCount} Bullets: ${bulletsCount}</div>` +
     `<div>Particles: ${particlesCount}</div>` +
-    `<div>World sprites: ${pixiSprites}</div>` +
-    `<div>Stage children: ${stageChildren}</div>` +
-    `<div>Canvas DOM: ${canvasInDom}</div>` +
+    `<div>Sprites: ${pixiSprites} Stage: ${stageChildren}</div>` +
+    `<div>Canvas DOM: ${canvasInDom} z:${canvasZ}</div>` +
     `<div>Canvas size: ${canvasSize}</div>` +
-    `<div>Canvas z: ${canvasZ}</div>` +
+    `<div>Cam: ${camX},${camY}</div>` +
+    `<div>World: ${worldX},${worldY}</div>` +
     `<div>Pixi ready: ${pixiState.ready ? '✓' : '✗'}</div>`;
 }
 window.addEventListener('orientationchange', () => setTimeout(resize, 100));
