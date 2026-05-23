@@ -7839,7 +7839,13 @@ function _survPointInObstacle(x, y, obstacles) {
 }
 
 function applySurvivorsObstacleCollision() {
-  if (!state.survivorsActive || !state._survArenaCache) return;
+  if (!state.survivorsActive) return;
+  // v1.579: Eager-init cache om den inte är skapad än — annars körs collision
+  // före första render-frame och obstacles[] är tom = enemies går igenom
+  if (!state._survArenaCache && typeof _ensureSurvivorsArenaCache === 'function') {
+    _ensureSurvivorsArenaCache();
+  }
+  if (!state._survArenaCache) return;
   const obstacles = state._survArenaCache.obstacles;
   if (!obstacles || obstacles.length === 0) return;
   // Player
@@ -7885,22 +7891,68 @@ function drawSurvivorsArenaGround() {
   const cache = _ensureSurvivorsArenaCache();
   ctx.save();
 
-  // === BAS-MARK (mörk askfärg) ===
-  // Tile-pattern via subtle noise-rect
+  // === BAS-MARK (organisk, ej rutig) — v1.579 ===
+  // Grundlager: mörk askfärg
   ctx.fillStyle = '#1a1410';
   ctx.fillRect(0, 0, viewW, viewH);
-  // Lite ljusare områden (random noise patches) för depth — bara culled patches
-  ctx.fillStyle = 'rgba(60, 45, 35, 0.18)';
-  const patchSize = 100;
-  const psX = Math.floor(cx / patchSize) * patchSize - cx;
-  const psY = Math.floor(cy / patchSize) * patchSize - cy;
-  for (let x = psX; x < viewW + patchSize; x += patchSize) {
-    for (let y = psY; y < viewH + patchSize; y += patchSize) {
-      const wx = x + cx, wy = y + cy;
-      // Pseudo-noise via xor-hash
-      if (((wx * 73856093) ^ (wy * 19349663)) & 0x40) {
-        ctx.fillRect(x, y, patchSize - 2, patchSize - 2);
-      }
+  // ORGANISK noise via ELLIPSER med random storlek/position (inte rutor)
+  // Flera lager för depth. Hash-baserat seed så det är deterministiskt per worldpos.
+  // Stora dimma-fläckar (mjuka, transparenta)
+  ctx.fillStyle = 'rgba(50, 38, 30, 0.22)';
+  const blobSize = 180;
+  const blobOffX = Math.floor(cx / blobSize) * blobSize - cx - blobSize;
+  const blobOffY = Math.floor(cy / blobSize) * blobSize - cy - blobSize;
+  for (let bx = blobOffX; bx < viewW + blobSize * 2; bx += blobSize) {
+    for (let by = blobOffY; by < viewH + blobSize * 2; by += blobSize) {
+      const wx = bx + cx, wy = by + cy;
+      // 2 hash-värden för x/y-jitter + storlek/skip
+      const h1 = ((wx * 73856093) ^ (wy * 19349663)) >>> 0;
+      const h2 = ((wx * 83492791) ^ (wy * 49979693)) >>> 0;
+      if ((h1 & 0xff) > 180) continue; // skip ~30% för spridning
+      const jx = ((h1 >> 8) & 0xff) / 255 * blobSize * 0.8 - blobSize * 0.4;
+      const jy = ((h2 >> 8) & 0xff) / 255 * blobSize * 0.8 - blobSize * 0.4;
+      const r1 = 50 + ((h1 >> 16) & 0xff) / 255 * 80;
+      const r2 = 40 + ((h2 >> 16) & 0xff) / 255 * 70;
+      ctx.beginPath();
+      ctx.ellipse(bx + jx, by + jy, r1, r2, ((h1 >> 24) & 0xff) / 255 * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // Mindre ljusare prickar (sten-fragment, ash-partiklar)
+  ctx.fillStyle = 'rgba(80, 65, 50, 0.18)';
+  const dotSize = 60;
+  const dotOffX = Math.floor(cx / dotSize) * dotSize - cx;
+  const dotOffY = Math.floor(cy / dotSize) * dotSize - cy;
+  for (let dx = dotOffX; dx < viewW + dotSize; dx += dotSize) {
+    for (let dy = dotOffY; dy < viewH + dotSize; dy += dotSize) {
+      const wx = dx + cx, wy = dy + cy;
+      const h = ((wx * 41281 + wy * 73529) ^ ((wx + wy) * 13)) >>> 0;
+      if ((h & 0xff) > 90) continue;
+      const jx = ((h >> 8) & 0xff) / 255 * dotSize - dotSize / 2;
+      const jy = ((h >> 16) & 0xff) / 255 * dotSize - dotSize / 2;
+      const r = 4 + ((h >> 24) & 0x1f) / 31 * 8;
+      ctx.beginPath();
+      ctx.arc(dx + jx, dy + jy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // Mörka skugg-fläckar för djup
+  ctx.fillStyle = 'rgba(8, 5, 3, 0.30)';
+  const shadowSize = 220;
+  const shOffX = Math.floor(cx / shadowSize) * shadowSize - cx - shadowSize;
+  const shOffY = Math.floor(cy / shadowSize) * shadowSize - cy - shadowSize;
+  for (let sx = shOffX; sx < viewW + shadowSize * 2; sx += shadowSize) {
+    for (let sy = shOffY; sy < viewH + shadowSize * 2; sy += shadowSize) {
+      const wx = sx + cx, wy = sy + cy;
+      const h = ((wx * 31379 + wy * 51217) ^ ((wx - wy) * 19)) >>> 0;
+      if ((h & 0xff) > 70) continue;
+      const jx = ((h >> 8) & 0xff) / 255 * shadowSize * 0.6 - shadowSize * 0.3;
+      const jy = ((h >> 16) & 0xff) / 255 * shadowSize * 0.6 - shadowSize * 0.3;
+      const r1 = 70 + ((h >> 24) & 0x7f) / 127 * 60;
+      const r2 = 60 + (((h >> 12) & 0x7f)) / 127 * 50;
+      ctx.beginPath();
+      ctx.ellipse(sx + jx, sy + jy, r1, r2, h / 100 * Math.PI, 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 
@@ -12773,7 +12825,7 @@ function updatePickups(dt) {
       state._magnetTrailAccum = (state._magnetTrailAccum || 0) + dt;
       if (state._magnetTrailAccum > 0.045 && state.particles.length < 220) {
         state._magnetTrailAccum = 0;
-        const trailColors = { hp: '#5aff5a', ammo: '#ffae3a', gold: '#ffd54a', temp_dmg: '#ff5a3a' };
+        const trailColors = { hp: '#5aff5a', shield: '#3acaff', ammo: '#ffae3a', gold: '#ffd54a', temp_dmg: '#ff5a3a' };
         state.particles.push({
           x: pk.x, y: pk.y, vx: 0, vy: 0,
           isTrail: true, color: trailColors[pk.type] || '#fff',
@@ -12785,7 +12837,7 @@ function updatePickups(dt) {
       pk.dead = true;
       Audio.goldPickup();
       // Pickup-collect burst — färgad shockwave + 4 sparks i samma färg
-      const burstColor = pk.type === 'hp' ? '#5aff5a' : pk.type === 'ammo' ? '#ffae3a' : pk.type === 'gold' ? '#ffd54a' : '#ff5a3a';
+      const burstColor = pk.type === 'hp' ? '#5aff5a' : pk.type === 'shield' ? '#3acaff' : pk.type === 'ammo' ? '#ffae3a' : pk.type === 'gold' ? '#ffd54a' : '#ff5a3a';
       spawnShockwave(pk.x, pk.y, 6, 36, burstColor, 0.28, 2);
       spawnSparks(pk.x, pk.y, burstColor, 5, 220);
       // Om partner picked it up, skicka event
@@ -12796,6 +12848,11 @@ function updatePickups(dt) {
       if (pk.type === 'hp') {
         p.hp = Math.min(p.maxHp, p.hp + 30);
         showFloatingText(pk.x, pk.y, '+30 HP', '#5aff5a');
+      } else if (pk.type === 'shield') {
+        // v1.579: shield-pickup för survivors-mode (blå bar)
+        const max = p.maxShield || 100;
+        p.shield = Math.min(max, (p.shield || 0) + 35);
+        showFloatingText(pk.x, pk.y, '+35 SHIELD', '#3acaff');
       } else if (pk.type === 'ammo') {
         const w = getWeapon(p.weaponId);
         if (w.mag) {
@@ -12861,6 +12918,20 @@ function drawPickups() {
       ctx.shadowColor = '#5aff5a'; ctx.shadowBlur = 6;
       ctx.fillRect(x - 5, y - 2, 10, 4);
       ctx.fillRect(x - 2, y - 5, 4, 10);
+      ctx.shadowBlur = 0;
+    } else if (pk.type === 'shield') {
+      // v1.579: shield-pickup ikon (blå sköld)
+      ctx.fillStyle = '#3acaff';
+      ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(x, y - 7);
+      ctx.lineTo(x + 5, y - 4);
+      ctx.lineTo(x + 5, y + 2);
+      ctx.quadraticCurveTo(x, y + 7, x, y + 7);
+      ctx.quadraticCurveTo(x, y + 7, x - 5, y + 2);
+      ctx.lineTo(x - 5, y - 4);
+      ctx.closePath();
+      ctx.fill();
       ctx.shadowBlur = 0;
     } else if (pk.type === 'ammo') {
       ctx.fillStyle = '#ffae3a';
@@ -15206,15 +15277,27 @@ function updateSurvivorsPerksBar() {
     ">${p.icon}${p.stack > 1 ? `<span style="position:absolute;bottom:-4px;right:-4px;background:#1a1a1a;color:${rc.text};font-size:9px;font-weight:900;padding:1px 4px;border-radius:8px;border:1px solid ${rc.border};">×${p.stack}</span>` : ''}</div>`;
   }).join('');
   bar.style.display = 'flex';
-  // v1.531: Touch-tooltip — visa perk-info i 2s när man håller ned på en ikon
+  // v1.579: Toggle-tooltip — tryck visar, tryck IGEN på samma ikon döljer
   bar.querySelectorAll('.surv-perk-icon').forEach(ic => {
     ic.addEventListener('pointerdown', (e) => {
       e.preventDefault();
       const name = ic.getAttribute('data-name') || '';
       const desc = ic.getAttribute('data-desc') || '';
-      showSurvivorsPerkTooltip(name, desc);
+      toggleSurvivorsPerkTooltip(name, desc);
     });
   });
+}
+
+function toggleSurvivorsPerkTooltip(name, desc) {
+  const tip = document.getElementById('survivors-perk-tooltip');
+  // Om tooltip visas och för SAMMA perk → dölj
+  if (tip && tip.style.display === 'block' && tip._currentName === name) {
+    tip.style.display = 'none';
+    tip._currentName = null;
+    clearTimeout(state._survivorsTooltipTimeout);
+    return;
+  }
+  showSurvivorsPerkTooltip(name, desc);
 }
 
 function showSurvivorsPerkTooltip(name, desc) {
@@ -15227,9 +15310,10 @@ function showSurvivorsPerkTooltip(name, desc) {
   }
   tip.innerHTML = `<div style="font-weight:900;color:#ffd54a;margin-bottom:3px;">${name}</div><div style="font-size:10px;color:#cccccc;">${desc}</div>`;
   tip.style.display = 'block';
+  tip._currentName = name; // v1.579: track current perk för toggle-logic
   clearTimeout(state._survivorsTooltipTimeout);
   state._survivorsTooltipTimeout = setTimeout(() => {
-    if (tip) tip.style.display = 'none';
+    if (tip) { tip.style.display = 'none'; tip._currentName = null; }
   }, 3500);
 }
 
@@ -29346,10 +29430,25 @@ function killEnemy(e) {
   if (p && hasPerk('vampire')) {
     p.hp = Math.min(p.maxHp, p.hp + 3);
   }
-  // v1.577: SURVIVORS — inga drops alls (HP/ammo/gold/temp_dmg). Belöningen
-  // är pengar (gold) som ges direkt via goldGained ovan + perks-systemet.
-  if (!state.survivorsActive) {
-    // Drop-chans (mer från större fiender)
+  // v1.579: SURVIVORS — bara HP + shield-drops (inga pengar/ammo/temp_dmg).
+  // Pengar ges direkt via goldGained-counter (instant, ingen pickup).
+  if (state.survivorsActive) {
+    const dropChance = e.isBoss ? 1.0 : (e.gold > 15 ? 0.22 : 0.10);
+    if (Math.random() < dropChance) {
+      const r = Math.random();
+      if (e.isBoss) {
+        // Boss droppar både hp + shield
+        spawnPickup(e.x - 18, e.y, 'hp');
+        spawnPickup(e.x + 18, e.y, 'shield');
+        spawnPickup(e.x, e.y + 18, 'hp');
+      } else if (r < 0.6) {
+        spawnPickup(e.x, e.y, 'hp');
+      } else {
+        spawnPickup(e.x, e.y, 'shield');
+      }
+    }
+  } else {
+    // Drop-chans (mer från större fiender) — STANDARD CD/story-mode
     const dropChance = e.isBoss ? 1.0 : (e.gold > 15 ? 0.18 : 0.08);
     if (Math.random() < dropChance) {
       const r = Math.random();
@@ -35330,7 +35429,10 @@ function updatePlayer(dt, now) {
   // CORE blockar (för att inte fastna inuti). Enemies fortsätter blockas server-
   // side via flow-field. Den här riktningen valdes över "client+server collision
   // för player" eftersom user vill stå PÅ torn för repair/upgrade/sell.
-  if (state.castledefenseActive && state.castledefenseCore && state.castledefenseCore.hp > 0) {
+  // v1.579: I SURVIVORS-mode är core bara visuell dekoration — player kan gå
+  // igenom altaret (server-sim rad 2720 sätter samma). Annars fastnar player
+  // vid center vilket gör att enemies klusterar runt center = ser ut som "går mot mitten".
+  if (state.castledefenseActive && !state.survivorsActive && state.castledefenseCore && state.castledefenseCore.hp > 0) {
     const core = state.castledefenseCore;
     const dx = p.x - core.x, dy = p.y - core.y;
     const d = Math.sqrt(dx * dx + dy * dy);
