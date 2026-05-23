@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v568-renderer-crash-trap';
+const CACHE = 'penetrator-v569-vfx-final-test';
 const ASSETS = [
   './',
   './index.html',

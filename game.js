@@ -61602,12 +61602,12 @@ function runFrame(dt, now) {
   }
   // v1.559/v1.560: AKTIVERA PIXI-RENDERING I ALLA PLAYING-MODES
   // Particles aktiverat efter v1.560 defensive-fixes.
-  // v1.567: Aktivera particles (men INTE vfx) för att isolera vilken som kraschade.
+  // v1.569: ALLA pipelines aktiva (efter try-catch-fix i v1.568).
   if (state.mode === 'playing' && pixiState && pixiState.ready) {
     pixiState.enemiesEnabled = true;
     pixiState.bulletsEnabled = true;
     pixiState.particlesEnabled = true;
-    pixiState.vfxEnabled = false; // disabled — testa particles först
+    pixiState.vfxEnabled = true;
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;
