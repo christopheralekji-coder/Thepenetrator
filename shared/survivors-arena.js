@@ -146,6 +146,35 @@ const SURVIVORS_ARENA = {
       effect: { type: 'thorns', value: 8 } },
     { id: 'p_regen_x', rarity: 'purple', icon: '💚', name: 'REGEN II',          desc: '+5 HP/sek',
       effect: { type: 'regen',  value: 5 } },
+
+    // === v1.530: 7 nya lila game-changers ===
+    { id: 'p_speed_mega', rarity: 'purple', icon: '⚡', name: 'BLIXTSNABB',       desc: '+40% rörelse',
+      effect: { type: 'speed',   value: 0.40 } },
+    { id: 'p_dash_1s',    rarity: 'purple', icon: '💨', name: 'DASH 1S',          desc: 'Dash cooldown sänkt till 1 sekund',
+      effect: { type: 'dashCd',  value: 1.0 } },
+    { id: 'p_revive',     rarity: 'purple', icon: '✨', name: 'ANDRA CHANS',      desc: 'Återupplivas 1× med 1 HP',
+      effect: { type: 'revive',  value: 1 } },
+    { id: 'p_lifesteal_x',rarity: 'purple', icon: '🩸', name: 'LIFESTEAL II',     desc: '+6% av dmg → HP',
+      effect: { type: 'lifesteal', value: 0.06 } },
+    { id: 'p_double',     rarity: 'purple', icon: '🔫', name: 'DUBBELSKOTT',      desc: '+1 kula per skott',
+      effect: { type: 'multishot', value: 1 } },
+    { id: 'p_triple',     rarity: 'purple', icon: '🎆', name: 'TRIPPELSKOTT',     desc: '+2 kulor per skott',
+      effect: { type: 'multishot', value: 2 } },
+    { id: 'p_grow',       rarity: 'purple', icon: '🦣', name: 'GROW',             desc: '+25% storlek + +25% maxHP',
+      effect: { type: 'grow',    value: 0.25 } },
+
+    // === HOMING-KEDJA (4 raritys, skalande styrka) ===
+    // Användarens spec: svag → lite bättre → lite bättre → lite bättre. Tier 4
+    // ska INTE auto-träffa utan bara hjälpa "rejält". Värdet är homing-strength
+    // 0.04-0.18 (bullet velocity-adjustment per frame mot närmaste fiende).
+    { id: 'g_homing',     rarity: 'gray',   icon: '🎯', name: 'HOMING I',         desc: 'Kulor styr svagt mot fiender',
+      effect: { type: 'homing',  value: 0.04 } },
+    { id: 'gn_homing',    rarity: 'green',  icon: '🎯', name: 'HOMING II',        desc: 'Kulor styr lite bättre',
+      effect: { type: 'homing',  value: 0.08 } },
+    { id: 'b_homing',     rarity: 'blue',   icon: '🎯', name: 'HOMING III',       desc: 'Kulor styr starkare',
+      effect: { type: 'homing',  value: 0.13 } },
+    { id: 'p_homing',     rarity: 'purple', icon: '🎯', name: 'HOMING IV',        desc: 'Kulor styr rejält (men träffar inte 100%)',
+      effect: { type: 'homing',  value: 0.18 } },
   ],
 
   // === ENEMY-CAP / DIFFICULTY ===

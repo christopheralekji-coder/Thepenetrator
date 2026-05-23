@@ -14662,6 +14662,14 @@ function selectSurvivorsPerk(perk) {
     state.player.maxHp = (state.player.maxHp || 100) + perk.effect.value;
     state.player.hp = state.player.maxHp;
   }
+  // v1.530: GROW-perk — +25% storlek + +25% maxHP per stack
+  if (perk.effect.type === 'grow' && state.player) {
+    const m = 1 + perk.effect.value;
+    state.player.r = (state.player.r || 14) * m;
+    const oldMax = state.player.maxHp || 100;
+    state.player.maxHp = oldMax * m;
+    state.player.hp = Math.min(state.player.maxHp, state.player.hp + (state.player.maxHp - oldMax));
+  }
   if (typeof showToast === 'function') showToast('✨ ' + perk.icon + ' ' + perk.name);
   if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
   closeSurvivorsPerkOverlay();
@@ -14820,6 +14828,7 @@ function resetSurvivorsPerks() {
   state.survivorsKills = 0;
   // v1.529: reset arena-cache så ash-particles + decorations regenereras vid ny match
   state._survArenaCache = null;
+  state.survivorsReviveUsed = false;
   const el = document.getElementById('survivors-perk-overlay');
   if (el) el.style.display = 'none';
   const bar = document.getElementById('survivors-perks-bar');
@@ -15754,6 +15763,11 @@ function tryDash() {
     cdMs = 0;
   } else {
     cdMs = (state.juggernautActive && p.isJug && p.dashCdMs) ? p.dashCdMs : DASH_COOLDOWN_MS;
+    // v1.530: SURVIVORS-RUN "DASH 1S"-perk sänker cooldown till 1000ms (eller summa av stacks)
+    if (state.survivorsActive && typeof getSurvivorsPerkSum === 'function') {
+      const dashCdPerk = getSurvivorsPerkSum('dashCd');
+      if (dashCdPerk > 0) cdMs = Math.min(cdMs, 1000); // perk-värdet är 1.0s
+    }
   }
   if (!p || p.dashUntil > _now || p.dashCdAt > _now - cdMs) return;
   const mx = input.moveX || (input.keys.has('w') ? 0 : 0) + (input.keys.has('s') ? 0 : 0);
@@ -27931,7 +27945,21 @@ function damagePlayer(amount, source) {
   state.dmgFlashUntil = performance.now() + 180;
   spawnShockwave(p.x, p.y, 8, 32, '#ff3a3a', 0.25, 2);
   if (p.hp <= 0) {
-    // Andra chans perk
+    // v1.530: SURVIVORS-RUN "ANDRA CHANS"-perk — återupplivas med 1 HP en gång per match
+    if (state.survivorsActive && typeof getSurvivorsPerkSum === 'function' && getSurvivorsPerkSum('revive') > 0 && !state.survivorsReviveUsed) {
+      state.survivorsReviveUsed = true;
+      p.hp = 1;
+      p.invuln = 3.0;
+      if (typeof Audio !== 'undefined' && Audio.revive) Audio.revive();
+      p.flashUntil = performance.now() + 600;
+      state.particles.push({
+        x: p.x, y: p.y, vx: 0, vy: 0, life: 0.7, color: '#aa5aff', r: 100, isExplosion: true,
+      });
+      if (typeof showToast === 'function') showToast('✨ ANDRA CHANS — 1 HP kvar!');
+      if (typeof updateHUD === 'function') updateHUD();
+      return;
+    }
+    // Andra chans perk (story-mode upgrade)
     if (p.reviveAvailable) {
       p.reviveAvailable = false;
       p.hp = p.maxHp * 0.5;
@@ -34608,9 +34636,39 @@ function updateBullets(dt) {
   state._bulletTrailAccum = (state._bulletTrailAccum || 0) + dt;
   const emitTrails = state._bulletTrailAccum > 0.033;
   if (emitTrails) state._bulletTrailAccum = 0;
+  // v1.530: SURVIVORS-RUN homing-perks — bullet-styrning mot närmaste fiende.
+  // Aggregera homing-styrka från perks (0.04 svag → 0.18 rejäl). Värdet är fraction
+  // av bullet-velocity som rotateras mot target per tick.
+  const _survHoming = (state.survivorsActive && typeof getSurvivorsPerkSum === 'function')
+    ? getSurvivorsPerkSum('homing') : 0;
   for (const b of state.bullets) {
     // Spara förra positionen för swept-collision (bulletHitsWall i CTF)
     b._prevX = b.x; b._prevY = b.y;
+    // v1.530: Homing-justering — pre-step bara för player-bullets
+    if (_survHoming > 0 && !b.hostile && !b.dead && state.enemies && state.enemies.length > 0) {
+      // Hitta närmaste levande enemy inom 350px
+      let best = null, bestD2 = 350 * 350;
+      for (const e of state.enemies) {
+        if (!e || e.dead || e.hp <= 0) continue;
+        const dx = e.x - b.x, dy = e.y - b.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < bestD2) { bestD2 = d2; best = e; }
+      }
+      if (best) {
+        // Lerp velocity-direction mot target. Strength = _survHoming (0.04-0.18).
+        const speed = Math.hypot(b.vx, b.vy) || 1;
+        const dx = best.x - b.x, dy = best.y - b.y;
+        const d = Math.sqrt(dx * dx + dy * dy) || 1;
+        const targetVx = (dx / d) * speed;
+        const targetVy = (dy / d) * speed;
+        b.vx += (targetVx - b.vx) * _survHoming;
+        b.vy += (targetVy - b.vy) * _survHoming;
+        // Normalize tillbaka till orig speed så bullets inte saktar in/snabbar upp
+        const newSpeed = Math.hypot(b.vx, b.vy) || 1;
+        b.vx = (b.vx / newSpeed) * speed;
+        b.vy = (b.vy / newSpeed) * speed;
+      }
+    }
     b.x += b.vx * dt;
     b.y += b.vy * dt;
     b.life -= dt;
