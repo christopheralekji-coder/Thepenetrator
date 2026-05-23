@@ -16172,22 +16172,32 @@ function _releaseParticleSprite(s) {
 }
 
 function _parseColorToTint(color) {
-  if (typeof color !== 'string') return 0xffffff;
-  // Hex: '#ff5a3a' → 0xff5a3a
-  if (color[0] === '#') {
-    return parseInt(color.slice(1), 16) || 0xffffff;
+  try {
+    if (color == null || typeof color !== 'string') return 0xffffff;
+    if (color[0] === '#') {
+      const hex = color.slice(1);
+      // Hantera 3-siffriga (#fff) och 6-siffriga (#ffffff)
+      if (hex.length === 3) {
+        const r = parseInt(hex[0] + hex[0], 16);
+        const g = parseInt(hex[1] + hex[1], 16);
+        const b = parseInt(hex[2] + hex[2], 16);
+        if (isNaN(r) || isNaN(g) || isNaN(b)) return 0xffffff;
+        return (r << 16) | (g << 8) | b;
+      }
+      const v = parseInt(hex.slice(0, 6), 16);
+      return isNaN(v) ? 0xffffff : v;
+    }
+    const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (m) return ((+m[1]) << 16) | ((+m[2]) << 8) | (+m[3]);
+    return 0xffffff;
+  } catch (_) {
+    return 0xffffff;
   }
-  // rgba(R,G,B,A) eller rgb()
-  const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
-  if (m) {
-    return ((+m[1]) << 16) | ((+m[2]) << 8) | (+m[3]);
-  }
-  return 0xffffff;
 }
 
 function syncPixiParticles() {
-  if (!pixiState.ready || !pixiState.particlesEnabled) {
-    if (pixiState.containers.particles && pixiState.containers.particles.children.length > 0) {
+  if (!pixiState.ready || !pixiState.particlesEnabled || !pixiState.containers.particles) {
+    if (pixiState.ready && pixiState.containers.particles && pixiState.containers.particles.children.length > 0) {
       const arr = pixiState.containers.particles.children.slice();
       for (const s of arr) {
         pixiState.containers.particles.removeChild(s);
@@ -16198,29 +16208,36 @@ function syncPixiParticles() {
   }
   const particles = state.particles || [];
   const container = pixiState.containers.particles;
-  // Vi skippar special-particles (damage-numbers/explosions/etc) eftersom de har
-  // Canvas2D-specifik rendering (text/shockwave). Bara "vanliga" cirkel-particles.
   let visIdx = 0;
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
-    if (!p || p.isFootprint || p.isBloodPool || p.isExplosion || p.isDamageNumber || p.isCritText || p.isChatter || p.isSlash || p.isLightning) continue;
-    if (visIdx >= container.children.length) {
-      const s = _acquireParticleSprite();
+    // v1.560: defensive null/special-check per partikel
+    if (!p) continue;
+    if (p.isFootprint || p.isBloodPool || p.isExplosion || p.isDamageNumber || p.isCritText || p.isChatter || p.isSlash || p.isLightning || p.isBulletTrail) continue;
+    if (typeof p.x !== 'number' || typeof p.y !== 'number') continue;
+    if (isNaN(p.x) || isNaN(p.y)) continue;
+    try {
+      if (visIdx >= container.children.length) {
+        const s = _acquireParticleSprite();
+        if (!s) break;
+        container.addChild(s);
+      }
+      const s = container.children[visIdx];
       if (!s) break;
-      container.addChild(s);
-    }
-    const s = container.children[visIdx];
-    s.visible = true;
-    s.position.set(p.x, p.y);
-    const r = p.r || 3;
-    s.scale.set(r / 3, r / 3);
-    s.alpha = Math.max(0, Math.min(1, p.life || 1));
-    s.tint = _parseColorToTint(p.color);
-    visIdx++;
+      s.visible = true;
+      s.position.set(p.x, p.y);
+      const r = (typeof p.r === 'number' && p.r > 0) ? p.r : 3;
+      const scale = r / 3;
+      s.scale.set(scale, scale);
+      const life = (typeof p.life === 'number') ? Math.max(0, Math.min(1, p.life)) : 1;
+      s.alpha = life;
+      s.tint = _parseColorToTint(p.color);
+      visIdx++;
+    } catch (_) { /* hoppa över denna partikel om något kraschar */ }
   }
   // Hide unused
   for (let i = visIdx; i < container.children.length; i++) {
-    container.children[i].visible = false;
+    if (container.children[i]) container.children[i].visible = false;
   }
 }
 
@@ -61446,15 +61463,13 @@ function runFrame(dt, now) {
     if (typeof checkSurvivorsPerkTrigger === 'function') checkSurvivorsPerkTrigger();
     if (typeof tickSurvivorsPerkEffects === 'function') tickSurvivorsPerkEffects(dt);
   }
-  // v1.559: AKTIVERA PIXI-RENDERING I ALLA PLAYING-MODES (var: bara stresstest).
-  // Nu får alla spelare prestanda-vinsten — CD wave 20-crash potentiellt löst.
-  // Particles fortfarande off (kraschar — fix i v1.560).
+  // v1.559/v1.560: AKTIVERA PIXI-RENDERING I ALLA PLAYING-MODES
+  // Particles aktiverat efter v1.560 defensive-fixes.
   if (state.mode === 'playing' && pixiState && pixiState.ready) {
     pixiState.enemiesEnabled = true;
     pixiState.bulletsEnabled = true;
-    // particlesEnabled = false tills syncPixiParticles fixad
+    pixiState.particlesEnabled = true;
   } else if (pixiState) {
-    // Mode 'menu' / 'gameover' / etc → disable pipeline för att frigöra GPU
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;
     pixiState.particlesEnabled = false;
