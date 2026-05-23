@@ -4076,6 +4076,12 @@ function startSim(sim, opts) {
     if (opts.castledefense) {
       sim.castledefenseActive = true;
     }
+    // v1.525: SURVIVORS-RUN iteration 1 — återanvänder CD-sim som bas.
+    // Iteration 2+ kommer ta bort byggsystem och göra time-based match-end.
+    if (opts.survivors) {
+      sim.castledefenseActive = true;
+      sim.survivorsActive = true;
+    }
   }
   // Bot-spawn: lägg bot(s) som virtuella members INNAN mode-init så loopen tilldelar
   // dem team + spawn-pos precis som riktiga spelare. Pre-set team respekteras

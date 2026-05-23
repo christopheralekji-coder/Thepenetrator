@@ -19376,6 +19376,14 @@ const Coop = {
       this.castledefenseActive = true;
       state.castledefenseActive = true;
       state.castledefenseEnded = false;
+      // v1.525: SURVIVORS-RUN delar sim med CD iteration 1 — markera om vi är i
+      // survivors-mode så HUD/labels kan visa annorlunda.
+      const _isSurvivors = !!(this.config && this.config.survivors);
+      state.survivorsActive = _isSurvivors;
+      if (_isSurvivors) {
+        state.survivorsStartT = Date.now();
+        state.survivorsMatchDurationMs = (window.SURVIVORS_ARENA && SURVIVORS_ARENA.matchDurationSec * 1000) || 1200000;
+      }
       state.castledefenseWalls = ev.walls || [];
       state.castledefenseCore = ev.core || null;
       state.castledefenseBuildings = [];
@@ -21718,7 +21726,7 @@ function renderHostControls() {
   for (const m of ['story']) {
     const b = document.createElement('button');
     b.textContent = MODE_LABELS[m];
-    if (Coop.config.mode === m && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && !Coop.config.koth && !Coop.config.juggernaut && !Coop.config.battleroyale && !Coop.config.castledefense) b.classList.add('active');
+    if (Coop.config.mode === m && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && !Coop.config.koth && !Coop.config.juggernaut && !Coop.config.battleroyale && !Coop.config.castledefense && !Coop.config.survivors) b.classList.add('active');
     onTap(b, () => {
       // Aktivera team-mode + clear alla PvP-flags + castledefense
       Coop.config.tdm = false;
@@ -21729,7 +21737,8 @@ function renderHostControls() {
       Coop.config.juggernaut = false;
       Coop.config.battleroyale = false;
       Coop.config.castledefense = false;
-      Coop.updateConfig({ mode: m, tdm: false, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false, battleroyale: false, castledefense: false });
+      Coop.config.survivors = false;
+      Coop.updateConfig({ mode: m, tdm: false, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false, battleroyale: false, castledefense: false, survivors: false });
       renderHostControls();
     });
     lobbyModeButtonsEl.appendChild(b);
@@ -21748,18 +21757,42 @@ function renderHostControls() {
     // Mutex med ALLA PvP-modes
     Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
     Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
-    Coop.config.battleroyale = false;
+    Coop.config.battleroyale = false; Coop.config.survivors = false;
     if (newCd) {
       Coop.config.serverSim = true;
     }
     Coop.updateConfig({
       castledefense: newCd, tdm: false, ctf: false, siege: false,
-      gungame: false, koth: false, juggernaut: false, battleroyale: false,
+      gungame: false, koth: false, juggernaut: false, battleroyale: false, survivors: false,
       serverSim: Coop.config.serverSim,
     });
     renderHostControls();
   });
   lobbyModeButtonsEl.appendChild(cdBtn);
+
+  // v1.525: SURVIVORS-RUN (co-op survival 20 min, roguelite perks, server-auth)
+  const survBtn = document.createElement('button');
+  const survOn = !!Coop.config.survivors;
+  survBtn.textContent = '☠️ SURVIVORS-RUN' + (survOn ? ' ✓' : '');
+  survBtn.style.cssText = 'background:' + (survOn ? '#5a3aff' : '#1a1a3a') + ';color:' + (survOn ? '#fff' : '#9a8aff') + ';margin-top:6px;width:100%;font-size:12px;padding:8px 10px;letter-spacing:1px;font-weight:700;border:1px solid ' + (survOn ? '#aa8aff' : '#3a2a5a') + ';';
+  if (survOn) survBtn.classList.add('active');
+  onTap(survBtn, () => {
+    const newSurv = !Coop.config.survivors;
+    Coop.config.survivors = newSurv;
+    Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
+    Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
+    Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
+    if (newSurv) {
+      Coop.config.serverSim = true;
+    }
+    Coop.updateConfig({
+      survivors: newSurv, castledefense: false, tdm: false, ctf: false, siege: false,
+      gungame: false, koth: false, juggernaut: false, battleroyale: false,
+      serverSim: Coop.config.serverSim,
+    });
+    renderHostControls();
+  });
+  lobbyModeButtonsEl.appendChild(survBtn);
 
   // PvP-rutan: TDM + CTF (mutually exclusive)
   const pvpEl = document.getElementById('lobby-pvp-buttons');
@@ -21773,7 +21806,7 @@ function renderHostControls() {
     onTap(tdmBtn, () => {
       const newTdm = !Coop.config.tdm;
       Coop.config.tdm = newTdm;
-      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false;
+      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
       if (newTdm) {
         Coop.config.serverSim = true;
         Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
@@ -21795,7 +21828,7 @@ function renderHostControls() {
     onTap(ctfBtn, () => {
       const newCtf = !Coop.config.ctf;
       Coop.config.ctf = newCtf;
-      Coop.config.tdm = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false;
+      Coop.config.tdm = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
       if (newCtf) {
         Coop.config.serverSim = true;
         Coop.config.ctfTargetCaptures = Coop.config.ctfTargetCaptures || 3;
@@ -21817,7 +21850,7 @@ function renderHostControls() {
     onTap(siegeBtn, () => {
       const newSiege = !Coop.config.siege;
       Coop.config.siege = newSiege;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
       if (newSiege) {
         Coop.config.serverSim = true;
         Coop.config.siegeTargetPoints = Coop.config.siegeTargetPoints || 500;
@@ -21839,7 +21872,7 @@ function renderHostControls() {
     onTap(ggBtn, () => {
       const newGg = !Coop.config.gungame;
       Coop.config.gungame = newGg;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
       if (newGg) Coop.config.serverSim = true;
       Coop.updateConfig({
         gungame: newGg, tdm: false, ctf: false, siege: false, koth: false, juggernaut: false, battleroyale: false, castledefense: false,
@@ -21857,7 +21890,7 @@ function renderHostControls() {
     onTap(kothBtn, () => {
       const newKoth = !Coop.config.koth;
       Coop.config.koth = newKoth;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
       if (newKoth) {
         Coop.config.serverSim = true;
         Coop.config.kothTargetPoints = Coop.config.kothTargetPoints || 100;
@@ -21879,7 +21912,7 @@ function renderHostControls() {
     onTap(jugBtn, () => {
       const newJug = !Coop.config.juggernaut;
       Coop.config.juggernaut = newJug;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.battleroyale = false; Coop.config.castledefense = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
       if (newJug) {
         Coop.config.serverSim = true;
         Coop.config.juggernautMatchDurationSec = Coop.config.juggernautMatchDurationSec || 360;
@@ -21902,7 +21935,7 @@ function renderHostControls() {
       const newBr = !Coop.config.battleroyale;
       Coop.config.battleroyale = newBr;
       Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
-      Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.castledefense = false;
+      Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.castledefense = false; Coop.config.survivors = false;
       if (newBr) {
         Coop.config.serverSim = true;
         Coop.config.battleroyaleMatchDurationSec = Coop.config.battleroyaleMatchDurationSec || 600;
@@ -22007,6 +22040,7 @@ function renderLobbyMatchInfo() {
   else if (cfg.juggernaut) modeLabel = '👑 JUGGERNAUT';
   else if (cfg.battleroyale) modeLabel = '🌀 BATTLE ROYALE';
   else if (cfg.castledefense) modeLabel = '🏰 CASTLE DEFENSE';
+  else if (cfg.survivors) modeLabel = '☠️ SURVIVORS-RUN';
   else if (cfg.mode === 'story') modeLabel = '📖 STORY';
   // v1.524: endless/bossrush/survive/truck-labels borttagna
   else modeLabel = (cfg.mode || 'STORY').toUpperCase();
@@ -22028,6 +22062,9 @@ function renderLobbyMatchInfo() {
   }
   else if (cfg.castledefense) {
     target = 'Endless · boss var 5:e';
+  }
+  else if (cfg.survivors) {
+    target = 'Överlev 20 min';
   }
   if (target) chips.push(`<span class="match-info-chip target">🎯 ${target}</span>`);
   // v1.524: Konvoj-chip borttagen (truck mode removed).
@@ -22616,6 +22653,9 @@ btnCoopStart.addEventListener('click', () => {
     }
     if (Coop.config.castledefense) {
       payload.castledefense = true;
+    }
+    if (Coop.config.survivors) {
+      payload.survivors = true;
     }
     if (Coop.config.addBot) {
       payload.addBot = true;
@@ -28341,6 +28381,9 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     if (Coop.config.castledefense) {
       payload.castledefense = true;
     }
+    if (Coop.config.survivors) {
+      payload.survivors = true;
+    }
     if (Coop.config.addBot) {
       payload.addBot = true;
       payload.botTeam = Coop.config.botTeam || 'red';
@@ -30989,7 +31032,24 @@ function hideCastleDefenseHud() {
 function updateCastleDefenseHud() {
   if (!state.castledefenseActive) return;
   const waveEl = document.getElementById('cd-wave');
-  if (waveEl) waveEl.textContent = state.castledefenseWave || 0;
+  // v1.525: I survivors-mode visa timer (MM:SS countdown) istället för wave-count.
+  if (waveEl) {
+    if (state.survivorsActive && state.survivorsStartT) {
+      const totalMs = state.survivorsMatchDurationMs || 1200000;
+      const elapsed = Date.now() - state.survivorsStartT;
+      const remainMs = Math.max(0, totalMs - elapsed);
+      const mm = Math.floor(remainMs / 60000);
+      const ss = Math.floor((remainMs % 60000) / 1000);
+      waveEl.textContent = mm + ':' + (ss < 10 ? '0' : '') + ss;
+      // Match-end vid 0:00 (klient-side, broadcast kommer iteration 2)
+      if (remainMs <= 0 && !state.survivorsEnded) {
+        state.survivorsEnded = true;
+        if (typeof showToast === 'function') showToast('☠️ SURVIVORS-RUN VUNNEN — du överlevde 20 min!');
+      }
+    } else {
+      waveEl.textContent = state.castledefenseWave || 0;
+    }
+  }
   const enemiesEl = document.getElementById('cd-enemies');
   if (enemiesEl) {
     const alive = state.castledefenseEnemiesAlive || 0;

@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v524-remove-6-sp-modes';
+const CACHE = 'penetrator-v525-survivors-run-iter1';
 const ASSETS = [
   './',
   './index.html',
@@ -16,6 +16,7 @@ const ASSETS = [
   './shared/juggernaut-arena.js',
   './shared/battleroyale-arena.js',
   './shared/castledefense-arena.js',
+  './shared/survivors-arena.js',
 ];
 
 self.addEventListener('install', e => {
