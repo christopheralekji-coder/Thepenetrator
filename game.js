@@ -16558,7 +16558,12 @@ function syncPixiEnemies() {
     const bakeR = _ENEMY_BAKE_RADIUS[wantKey] || 18;
     const scale = (e.r || bakeR) / bakeR;
     sprite.scale.set(scale, scale);
-    // Rotation: enemy facing — sprite-textur är baked facing-right (rad 0)
+    // v1.572: Beräkna facing (drawEnemy gjorde det förut men Canvas2D-pathen
+    // skippas nu eftersom Pixi-enemies är ON). Replikera same logik här.
+    if (state.player && typeof state.player.x === 'number' && !e.isBoss) {
+      e.facing = Math.atan2(state.player.y - e.y, state.player.x - e.x);
+    }
+    // Rotation: sprite-textur baked facing-right (vinkel 0)
     sprite.rotation = e.facing || 0;
     sprite.alpha = 1;
     // Flash via tint istället för texture-swap (billigare, samma visuell effekt)
