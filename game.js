@@ -16195,6 +16195,68 @@ function _parseColorToTint(color) {
   }
 }
 
+// v1.562: VFX-pool för explosions/shockwaves. Snabb-fade ring-graphics.
+const _pixiVfxSpritePool = [];
+function _acquireVfxSprite() {
+  if (_pixiVfxSpritePool.length > 0) {
+    const s = _pixiVfxSpritePool.pop();
+    s.visible = true;
+    return s;
+  }
+  if (typeof PIXI === 'undefined') return null;
+  // En vit ring som tintar för olika explosion-typer
+  const g = new PIXI.Graphics();
+  g.circle(0, 0, 20).fill({ color: 0xffffff, alpha: 0.7 });
+  return g;
+}
+function _releaseVfxSprite(s) {
+  if (!s) return;
+  s.visible = false;
+  _pixiVfxSpritePool.push(s);
+}
+
+function syncPixiVfx() {
+  if (!pixiState.ready || !pixiState.vfxEnabled || !pixiState.containers.vfx) {
+    if (pixiState.ready && pixiState.containers.vfx && pixiState.containers.vfx.children.length > 0) {
+      const arr = pixiState.containers.vfx.children.slice();
+      for (const s of arr) {
+        pixiState.containers.vfx.removeChild(s);
+        _releaseVfxSprite(s);
+      }
+    }
+    return;
+  }
+  const particles = state.particles || [];
+  const container = pixiState.containers.vfx;
+  let visIdx = 0;
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    if (!p || !p.isExplosion) continue;
+    if (typeof p.x !== 'number' || typeof p.y !== 'number') continue;
+    if (isNaN(p.x) || isNaN(p.y)) continue;
+    try {
+      if (visIdx >= container.children.length) {
+        const s = _acquireVfxSprite();
+        if (!s) break;
+        container.addChild(s);
+      }
+      const s = container.children[visIdx];
+      if (!s) break;
+      s.visible = true;
+      s.position.set(p.x, p.y);
+      const r = (typeof p.r === 'number' && p.r > 0) ? p.r : 20;
+      s.scale.set(r / 20, r / 20);
+      const life = (typeof p.life === 'number') ? Math.max(0, Math.min(1, p.life)) : 1;
+      s.alpha = life * 0.7;
+      s.tint = _parseColorToTint(p.color);
+      visIdx++;
+    } catch (_) {}
+  }
+  for (let i = visIdx; i < container.children.length; i++) {
+    if (container.children[i]) container.children[i].visible = false;
+  }
+}
+
 function syncPixiParticles() {
   if (!pixiState.ready || !pixiState.particlesEnabled || !pixiState.containers.particles) {
     if (pixiState.ready && pixiState.containers.particles && pixiState.containers.particles.children.length > 0) {
@@ -16322,6 +16384,7 @@ function renderPixiFrame() {
   try { syncPixiEnemies(); } catch (e) { console.error('[Pixi] enemies sync fail:', e); }
   try { syncPixiBullets(); } catch (e) { console.error('[Pixi] bullets sync fail:', e); }
   try { if (typeof syncPixiParticles === 'function') syncPixiParticles(); } catch (e) { console.error('[Pixi] particles sync fail:', e); }
+  try { if (typeof syncPixiVfx === 'function') syncPixiVfx(); } catch (e) { console.error('[Pixi] vfx sync fail:', e); }
   // Manuell render (vi pausade Pixi's ticker så vi kontrollerar timing)
   pixiState.app.renderer.render(pixiState.app.stage);
   pixiState.diagFrameTime = performance.now() - t0;
@@ -59927,10 +59990,13 @@ function render() {
     drawParticle(p);
   }
   // Explosions (toppmost) — viewport-cull
-  for (const p of state.particles) {
-    if (!p.isExplosion) continue;
-    if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
-    drawParticle(p);
+  // v1.562: SKIP om Pixi-VFX aktivt
+  if (!(pixiState && pixiState.vfxEnabled)) {
+    for (const p of state.particles) {
+      if (!p.isExplosion) continue;
+      if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
+      drawParticle(p);
+    }
   }
   // === END WORLD-RENDERING (zoom) ===
   // HUD/overlays ritas i screen-space, utan zoom-transform.
@@ -61489,10 +61555,12 @@ function runFrame(dt, now) {
     pixiState.enemiesEnabled = true;
     pixiState.bulletsEnabled = true;
     pixiState.particlesEnabled = true;
+    pixiState.vfxEnabled = true;
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;
     pixiState.particlesEnabled = false;
+    pixiState.vfxEnabled = false;
   }
   // BR-UI cleanup: när mode REACHAR menu/gameover/victory (true match-end),
   // nuka alla BR-DOM-element OCH full BR-state cleanup så inget läcker till
