@@ -20,6 +20,7 @@ const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
 const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 const { CASTLEDEFENSE_ARENA } = require('../../shared/castledefense-arena');
 const { SURVIVORS_ARENA } = require('../../shared/survivors-arena');
+const { BOSS_CONFIGS } = require('../../shared/boss-configs');
 const { SpatialGrid } = require('./spatial');
 
 // 45Hz → 60Hz (v1.391): tickar var 16.7ms istället för 22ms. Sparar ~3-6ms
@@ -2606,6 +2607,37 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
   }
 }
 
+// v1.528: SURVIVORS-RUN mini-boss-spawn — kallas vid 4/8/12/16 min elapsed.
+// Random boss-key från BOSS_CONFIGS, skalad efter elapsed time.
+function spawnSurvivorsMiniBoss(sim) {
+  const bossKeys = Object.keys(BOSS_CONFIGS);
+  if (bossKeys.length === 0) return;
+  const key = bossKeys[Math.floor(Math.random() * bossKeys.length)];
+  const arena = CASTLEDEFENSE_ARENA;
+  // Spawna 700px från center i random direction
+  const ang = Math.random() * Math.PI * 2;
+  const dist = 700;
+  const sx = arena.centerX + Math.cos(ang) * dist;
+  const sy = arena.centerY + Math.sin(ang) * dist;
+  const coopMul = Math.max(1, sim.room.members.size);
+  const boss = makeBoss(key, sx, sy, coopMul);
+  if (!boss) return;
+  // Time-baserad scaling: +15% HP/dmg per minute elapsed
+  const elapsedMin = (Date.now() - (sim.survivorsStartT || Date.now())) / 60000;
+  const timeMul = 1 + elapsedMin * 0.15;
+  boss.hp = Math.max(1, Math.round(boss.hp * timeMul));
+  boss.maxHp = boss.hp;
+  boss.dmg = Math.max(1, Math.round(boss.dmg * timeMul));
+  boss._idx = sim.nextEnemyIdx++;
+  sim.enemies.push(boss);
+  sim.eventQueue.push({
+    type: 'survivors_miniboss_spawn',
+    bossKey: boss.bossKey,
+    name: boss.name,
+    elapsedSec: Math.round((Date.now() - sim.survivorsStartT) / 1000),
+  });
+}
+
 function tickCastleDefense(sim, dt, now) {
   const nowMs = Date.now();
   const arena = CASTLEDEFENSE_ARENA;
@@ -2613,8 +2645,7 @@ function tickCastleDefense(sim, dt, now) {
   if (sim.castledefenseEnded) return;
 
   // v1.526: SURVIVORS-RUN iteration 2 — time-based win + lose-conditions.
-  // Tracka match-start på första survivors-tick. Vid 1200s elapsed → survivors_win.
-  // Vid alla players döda → survivors_lose.
+  // v1.528: iter 4 — mini-boss-spawn var 4 min.
   if (sim.survivorsActive) {
     if (!sim.survivorsStartT) sim.survivorsStartT = nowMs;
     const matchDurationMs = (typeof SURVIVORS_ARENA !== 'undefined' && SURVIVORS_ARENA.matchDurationSec * 1000) || 1200000;
@@ -2642,6 +2673,15 @@ function tickCastleDefense(sim, dt, now) {
         survivedSec: Math.round(elapsedMs / 1000),
       });
       return;
+    }
+    // v1.528: Mini-boss-spawn var 4 min (240s) — vid 4, 8, 12, 16 min
+    const miniBossInterval = (SURVIVORS_ARENA && SURVIVORS_ARENA.miniBossEverySec) || 240;
+    const elapsedSec = elapsedMs / 1000;
+    const expectedMiniBosses = Math.floor(elapsedSec / miniBossInterval);
+    sim.survivorsMiniBossesSpawned = sim.survivorsMiniBossesSpawned || 0;
+    if (expectedMiniBosses > sim.survivorsMiniBossesSpawned) {
+      spawnSurvivorsMiniBoss(sim);
+      sim.survivorsMiniBossesSpawned = expectedMiniBosses;
     }
   }
 

@@ -14419,6 +14419,7 @@ function resetSurvivorsPerks() {
   state.survivorsNextPerkAt = null;
   state.survivorsPerkOverlayOn = false;
   state._survivorsPerkChoices = null;
+  state.survivorsKills = 0;
   const el = document.getElementById('survivors-perk-overlay');
   if (el) el.style.display = 'none';
   const bar = document.getElementById('survivors-perks-bar');
@@ -19936,8 +19937,17 @@ const Coop = {
       } else if (typeof showToast === 'function') {
         showToast('💀 CORE FÖRSTÖRD — överlevde våg ' + ev.wave + ' (' + ev.survivedSec + 's)');
       }
+    } else if (ev.type === 'survivors_miniboss_spawn') {
+      // v1.528: { bossKey, name, elapsedSec } — mini-boss spawnad
+      if (typeof showToast === 'function') {
+        showToast('⚠️ MINI-BOSS: ' + (ev.name || 'OKÄND'));
+      }
+      if (typeof Audio !== 'undefined' && Audio.bossSpawn) Audio.bossSpawn();
+      else if (typeof Audio !== 'undefined' && Audio.alert) Audio.alert();
     } else if (ev.type === 'survivors_win') {
-      // v1.526: { survivedSec } — spelaren överlevde 20 min
+      // v1.526/v1.528: { survivedSec } — spelaren överlevde 20 min
+      const kills = state.survivorsKills || 0;
+      const perksCount = (state.survivorsPerks || []).length;
       this.castledefenseActive = false;
       state.castledefenseActive = false;
       state.castledefenseEnded = true;
@@ -19947,10 +19957,12 @@ const Coop = {
       if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
       if (typeof resetSurvivorsPerks === 'function') resetSurvivorsPerks();
       if (typeof showToast === 'function') {
-        showToast('☠️ SURVIVORS-RUN VUNNEN — du överlevde 20 min!');
+        showToast('☠️ SURVIVORS-RUN VUNNEN! · ' + kills + ' kills · ' + perksCount + ' perks');
       }
     } else if (ev.type === 'survivors_lose') {
-      // v1.526: { survivedSec } — alla players döda
+      // v1.526/v1.528: { survivedSec } — alla players döda
+      const kills = state.survivorsKills || 0;
+      const perksCount = (state.survivorsPerks || []).length;
       this.castledefenseActive = false;
       state.castledefenseActive = false;
       state.castledefenseEnded = true;
@@ -19961,7 +19973,7 @@ const Coop = {
       if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
       if (typeof resetSurvivorsPerks === 'function') resetSurvivorsPerks();
       if (typeof showToast === 'function') {
-        showToast('💀 ALLA SPELARE NER — överlevde ' + ev.survivedSec + 's');
+        showToast('💀 NER PÅ ' + ev.survivedSec + 's · ' + kills + ' kills · ' + perksCount + ' perks');
       }
     } else if (ev.type === 'cd_hud_update') {
       // { wave, waveState, enemiesAlive, enemiesIncoming, coreHp, coreMaxHp, waveBetweenEndAt }
@@ -20267,6 +20279,10 @@ const Coop = {
       state.killsThisRun = (state.killsThisRun || 0) + 1;
       save.stats.totalKills = (save.stats.totalKills || 0) + 1;
       if (ev.isBoss) save.stats.bossKills = (save.stats.bossKills || 0) + 1;
+      // v1.528: SURVIVORS-RUN kill-counter
+      if (state.survivorsActive) {
+        state.survivorsKills = (state.survivorsKills || 0) + 1;
+      }
       // Coop leaderboard-tracking: server skickar killerPid, attribuera till rätt
       // spelare så coop_board visar rätt kills (var fast på 0 tidigare).
       if (this.serverSimActive && ev.killerPid) {
@@ -31365,9 +31381,14 @@ function updateCastleDefenseHud() {
   }
   const enemiesEl = document.getElementById('cd-enemies');
   if (enemiesEl) {
-    const alive = state.castledefenseEnemiesAlive || 0;
-    const inc = state.castledefenseEnemiesIncoming || 0;
-    enemiesEl.textContent = inc > 0 ? (alive + ' (+' + inc + ')') : alive;
+    // v1.528: I survivors-mode visa kills istället för alive-count
+    if (state.survivorsActive) {
+      enemiesEl.textContent = '💀 ' + (state.survivorsKills || 0);
+    } else {
+      const alive = state.castledefenseEnemiesAlive || 0;
+      const inc = state.castledefenseEnemiesIncoming || 0;
+      enemiesEl.textContent = inc > 0 ? (alive + ' (+' + inc + ')') : alive;
+    }
   }
   const coreHpEl = document.getElementById('cd-core-hp');
   if (coreHpEl && state.castledefenseCore) {
