@@ -16012,17 +16012,17 @@ async function initPixiFoundation() {
     pixiState.containers.enemies = new PIXI.Container();
     pixiState.containers.enemies.label = 'enemies';
     pixiState.containers.world.addChild(pixiState.containers.enemies);
-    pixiState.containers.vfx = new PIXI.Container();
-    pixiState.containers.vfx.label = 'vfx';
-    pixiState.containers.world.addChild(pixiState.containers.vfx);
-    // ParticleContainer (snabbare än Container för partiklar, kräver samma texture)
-    if (PIXI.ParticleContainer) {
-      pixiState.containers.particles = new PIXI.ParticleContainer({
-        dynamicProperties: { position: true, scale: true, rotation: true, color: true },
-      });
+    // v1.557: Particles-container (regular Container — ParticleContainer i v8 har
+    // restriktivare API, regular Container med batchade sprites är pålitligt).
+    if (!pixiState.containers.particles) {
+      pixiState.containers.particles = new PIXI.Container();
       pixiState.containers.particles.label = 'particles';
       pixiState.containers.world.addChild(pixiState.containers.particles);
     }
+    pixiState.containers.vfx = new PIXI.Container();
+    pixiState.containers.vfx.label = 'vfx';
+    pixiState.containers.world.addChild(pixiState.containers.vfx);
+    // v1.557: Regular Container för particles (ParticleContainer i v8 har restriktiv API).
     // Pause Pixi's egen ticker — vi anropar render() från vår game-loop istället
     app.ticker.autoStart = false;
     app.ticker.stop();
@@ -16149,6 +16149,81 @@ function createPixiEnemyTextures() {
   // No-op i iter 1 (Graphics används istället för Texture). Iter 2 fyller denna.
 }
 
+// v1.557: PARTICLES-migration — index-baserad sync (snabbast eftersom particles
+// är många och saknar stable ID). Pre-render en enkel vit cirkel-texture, tint
+// för färg-variation.
+const _pixiParticleSpritePool = [];
+function _acquireParticleSprite() {
+  if (_pixiParticleSpritePool.length > 0) {
+    const s = _pixiParticleSpritePool.pop();
+    s.visible = true;
+    return s;
+  }
+  if (typeof PIXI === 'undefined') return null;
+  // Enkel cirkel — tint sätts per partikel
+  const g = new PIXI.Graphics();
+  g.circle(0, 0, 3).fill({ color: 0xffffff, alpha: 1.0 });
+  return g;
+}
+function _releaseParticleSprite(s) {
+  if (!s) return;
+  s.visible = false;
+  _pixiParticleSpritePool.push(s);
+}
+
+function _parseColorToTint(color) {
+  if (typeof color !== 'string') return 0xffffff;
+  // Hex: '#ff5a3a' → 0xff5a3a
+  if (color[0] === '#') {
+    return parseInt(color.slice(1), 16) || 0xffffff;
+  }
+  // rgba(R,G,B,A) eller rgb()
+  const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (m) {
+    return ((+m[1]) << 16) | ((+m[2]) << 8) | (+m[3]);
+  }
+  return 0xffffff;
+}
+
+function syncPixiParticles() {
+  if (!pixiState.ready || !pixiState.particlesEnabled) {
+    if (pixiState.containers.particles && pixiState.containers.particles.children.length > 0) {
+      const arr = pixiState.containers.particles.children.slice();
+      for (const s of arr) {
+        pixiState.containers.particles.removeChild(s);
+        _releaseParticleSprite(s);
+      }
+    }
+    return;
+  }
+  const particles = state.particles || [];
+  const container = pixiState.containers.particles;
+  // Vi skippar special-particles (damage-numbers/explosions/etc) eftersom de har
+  // Canvas2D-specifik rendering (text/shockwave). Bara "vanliga" cirkel-particles.
+  let visIdx = 0;
+  for (let i = 0; i < particles.length; i++) {
+    const p = particles[i];
+    if (!p || p.isFootprint || p.isBloodPool || p.isExplosion || p.isDamageNumber || p.isCritText || p.isChatter || p.isSlash || p.isLightning) continue;
+    if (visIdx >= container.children.length) {
+      const s = _acquireParticleSprite();
+      if (!s) break;
+      container.addChild(s);
+    }
+    const s = container.children[visIdx];
+    s.visible = true;
+    s.position.set(p.x, p.y);
+    const r = p.r || 3;
+    s.scale.set(r / 3, r / 3);
+    s.alpha = Math.max(0, Math.min(1, p.life || 1));
+    s.tint = _parseColorToTint(p.color);
+    visIdx++;
+  }
+  // Hide unused
+  for (let i = visIdx; i < container.children.length; i++) {
+    container.children[i].visible = false;
+  }
+}
+
 // v1.556: REVERT till v1.548-FUNGERANDE pattern. v1.554 hade syntax-bug
 // (variabler arr/enemies/world var inte declared i scope efter edit) → tyst
 // JS-fail → inga sprites uppdaterades. Den buggen orsakade allt vi sett.
@@ -16208,6 +16283,8 @@ function renderPixiFrame() {
   syncPixiEnemies();
   // v1.550: Sync bullet-sprites till state.bullets (bara om bulletsEnabled)
   syncPixiBullets();
+  // v1.557: Sync particle-sprites till state.particles
+  if (typeof syncPixiParticles === 'function') syncPixiParticles();
   // Manuell render (vi pausade Pixi's ticker så vi kontrollerar timing)
   pixiState.app.renderer.render(pixiState.app.stage);
   pixiState.diagFrameTime = performance.now() - t0;
@@ -16383,6 +16460,7 @@ function updatePixiDiagOverlay() {
     `<div>Sprites: ${pixiSprites} Stage: ${stageChildren}</div>` +
     `<div>Pixi enemies: ${pixiState.ready && pixiState.sprites.enemies ? pixiState.sprites.enemies.size : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'}</div>` +
     `<div>Pixi bullets: ${pixiState.ready && pixiState.containers.bullets ? pixiState.containers.bullets.children.filter(c=>c.visible).length : 0}${pixiState.bulletsEnabled ? ' ✓' : ' off'}</div>` +
+    `<div>Pixi particles: ${pixiState.ready && pixiState.containers.particles ? pixiState.containers.particles.children.filter(c=>c.visible).length : 0}${pixiState.particlesEnabled ? ' ✓' : ' off'}</div>` +
     `<div>StressTest: ${state.stresstestActive ? '✓' : '✗'} CfgST: ${Coop && Coop.config && Coop.config.stresstest ? '✓' : '✗'}</div>` +
     `<div>SurvActive: ${state.survivorsActive ? '✓' : '✗'}</div>` +
     `<div>Canvas DOM: ${canvasInDom} z:${canvasZ}</div>` +
@@ -20776,7 +20854,8 @@ const Coop = {
         if (typeof showStresstestHud === 'function') showStresstestHud();
         if (pixiState) {
           pixiState.enemiesEnabled = true;
-          pixiState.bulletsEnabled = true; // v1.550
+          pixiState.bulletsEnabled = true;
+          pixiState.particlesEnabled = true; // v1.557
         }
         // v1.548: Stage-marker borttagen (pipeline verifierad i v1.547).
         // Röda enemy-overlays räcker som visuell bekräftelse.
@@ -20793,6 +20872,7 @@ const Coop = {
         if (pixiState) {
           pixiState.enemiesEnabled = false;
           pixiState.bulletsEnabled = false;
+          pixiState.particlesEnabled = false;
         }
       }
       state.castledefenseWalls = ev.walls || [];
@@ -59653,10 +59733,13 @@ function render() {
     drawParticle(p);
   }
   // Mid layer: vanliga partiklar — viewport-cull (hot: 200+ items)
-  for (const p of state.particles) {
-    if (p.isExplosion || p.isFootprint || p.isBloodPool || p.isDamageNumber || p.isCritText || p.isChatter) continue;
-    if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
-    drawParticle(p);
+  // v1.557: SKIP Canvas2D-rendering om Pixi-particles aktivt
+  if (!(pixiState && pixiState.particlesEnabled)) {
+    for (const p of state.particles) {
+      if (p.isExplosion || p.isFootprint || p.isBloodPool || p.isDamageNumber || p.isCritText || p.isChatter) continue;
+      if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
+      drawParticle(p);
+    }
   }
   // Entities — v1.548: SKIP drawEnemy om Pixi-overlay aktivt (= första prestanda-vinsten)
   if (!(pixiState && pixiState.enemiesEnabled)) {
@@ -61367,9 +61450,10 @@ function runFrame(dt, now) {
   // Var bug: flags fastnade i true efter stresstest → Canvas2D skippades i
   // vanliga modes, men Pixi-sprites finns ej för dessa → tom skärm.
   if (state.mode === 'playing' && !state.stresstestActive && pixiState) {
-    if (pixiState.enemiesEnabled || pixiState.bulletsEnabled) {
+    if (pixiState.enemiesEnabled || pixiState.bulletsEnabled || pixiState.particlesEnabled) {
       pixiState.enemiesEnabled = false;
       pixiState.bulletsEnabled = false;
+      pixiState.particlesEnabled = false;
     }
   }
   // BR-UI cleanup: när mode REACHAR menu/gameover/victory (true match-end),
