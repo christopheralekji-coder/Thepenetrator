@@ -16282,7 +16282,8 @@ function syncPixiParticles() {
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
     if (!p) { pd.skipped++; continue; }
-    if (p.isFootprint || p.isBloodPool || p.isExplosion || p.isDamageNumber || p.isCritText || p.isChatter || p.isSlash || p.isLightning || p.isBulletTrail) { pd.skipped++; continue; }
+    // v1.570: skip alla special-types — de har Canvas2D-specifik rendering
+    if (p.isFootprint || p.isBloodPool || p.isExplosion || p.isDamageNumber || p.isCritText || p.isChatter || p.isSlash || p.isLightning || p.isBulletTrail || p.isShockwave || p.isMuzzleFlash || p.isTrail || p.isChainLightning) { pd.skipped++; continue; }
     if (typeof p.x !== 'number' || typeof p.y !== 'number') { pd.skipped++; continue; }
     if (isNaN(p.x) || isNaN(p.y)) { pd.skipped++; continue; }
     try {
@@ -59884,13 +59885,17 @@ function render() {
     drawParticle(p);
   }
   // Mid layer: vanliga partiklar — viewport-cull (hot: 200+ items)
-  // v1.557: SKIP Canvas2D-rendering om Pixi-particles aktivt
-  if (!(pixiState && pixiState.particlesEnabled)) {
-    for (const p of state.particles) {
-      if (p.isExplosion || p.isFootprint || p.isBloodPool || p.isDamageNumber || p.isCritText || p.isChatter) continue;
-      if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
-      drawParticle(p);
+  // v1.570: HYBRID — om Pixi-particles aktivt, rita ENDAST special-types
+  // (shockwave/muzzleflash/trail/lightning) här. Pixi tar generic-particles.
+  for (const p of state.particles) {
+    if (p.isExplosion || p.isFootprint || p.isBloodPool || p.isDamageNumber || p.isCritText || p.isChatter) continue;
+    if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
+    const isSpecial = p.isShockwave || p.isMuzzleFlash || p.isTrail || p.isSlash || p.isLightning || p.isBulletTrail || p.isChainLightning;
+    // Om Pixi-particles aktivt → rita BARA special. Annars rita allt.
+    if (pixiState && pixiState.particlesEnabled) {
+      if (!isSpecial) continue;
     }
+    drawParticle(p);
   }
   // Entities — v1.548: SKIP drawEnemy om Pixi-overlay aktivt (= första prestanda-vinsten)
   if (!(pixiState && pixiState.enemiesEnabled)) {
