@@ -7599,6 +7599,402 @@ function drawBrZone() {
 //   6. drawCastleDefenseDecorationsTop — träd-kronor (ovanpå spelare)
 //   7. drawCastleDefenseSpawnMarkers — pulser vid spawn-punkter
 //   8. drawCdBuildGhost                — placement-preview
+// ============================================================
+// SURVIVORS-RUN ÖDESLAND-arena (v1.529)
+// ============================================================
+// Post-apokalyptisk askfält. Mörk askfärg + glödande sprickor + brända träd
+// + ruin-fragment. Procedurellt placerade dekorationer (deterministisk seed).
+// Pulserande central altar istället för CD's obelisk.
+
+// Deterministic RNG från en seed (samma karta varje gång)
+function _survRng(seed) {
+  let s = (seed * 2654435761) | 0;
+  return function() {
+    s = (s * 1664525 + 1013904223) | 0;
+    return ((s >>> 0) % 100000) / 100000;
+  };
+}
+
+// Cache decorations + cracks så vi inte recomputerar varje frame
+function _ensureSurvivorsArenaCache() {
+  if (state._survArenaCache) return state._survArenaCache;
+  const rng = _survRng(42); // fixed seed = samma ÖDESLAND varje match
+  const cx = 2000, cy = 2000; // CD-arena center
+  const cache = {
+    cracks: [],      // glödande sprickor i marken
+    ruins: [],       // ruin-väggar/pelare
+    burntTrees: [],  // brända träd
+    rubble: [],      // sten-skräp
+    torches: [],     // övergivna torch-stativ
+  };
+  // 14 stora sprickor som strålar ut från center
+  for (let i = 0; i < 14; i++) {
+    const ang = (i / 14) * Math.PI * 2 + (rng() - 0.5) * 0.3;
+    const startD = 250 + rng() * 100;
+    const endD = startD + 400 + rng() * 600;
+    const width = 8 + rng() * 12;
+    cache.cracks.push({
+      x1: cx + Math.cos(ang) * startD,
+      y1: cy + Math.sin(ang) * startD,
+      x2: cx + Math.cos(ang + (rng() - 0.5) * 0.4) * endD,
+      y2: cy + Math.sin(ang + (rng() - 0.5) * 0.4) * endD,
+      width: width,
+      pulsePhase: rng() * Math.PI * 2,
+    });
+  }
+  // 50 ruin-väggar (random placering, undvik center 300px)
+  for (let i = 0; i < 50; i++) {
+    let x, y, d;
+    let tries = 0;
+    do {
+      x = rng() * 4000;
+      y = rng() * 4000;
+      const dx = x - cx, dy = y - cy;
+      d = Math.sqrt(dx * dx + dy * dy);
+      tries++;
+    } while (d < 280 && tries < 20);
+    cache.ruins.push({
+      x: x,
+      y: y,
+      w: 30 + rng() * 50,
+      h: 12 + rng() * 8,
+      rot: rng() * Math.PI,
+      decay: 0.5 + rng() * 0.5, // 0.5-1.0 hp-look
+    });
+  }
+  // 35 brända träd
+  for (let i = 0; i < 35; i++) {
+    let x, y, d;
+    let tries = 0;
+    do {
+      x = rng() * 4000;
+      y = rng() * 4000;
+      const dx = x - cx, dy = y - cy;
+      d = Math.sqrt(dx * dx + dy * dy);
+      tries++;
+    } while (d < 320 && tries < 20);
+    cache.burntTrees.push({
+      x: x,
+      y: y,
+      h: 25 + rng() * 35,
+      lean: (rng() - 0.5) * 0.4,
+      brokenAt: 0.4 + rng() * 0.5,
+    });
+  }
+  // 80 sten-skräp
+  for (let i = 0; i < 80; i++) {
+    cache.rubble.push({
+      x: rng() * 4000,
+      y: rng() * 4000,
+      r: 3 + rng() * 6,
+      shade: rng() * 0.3,
+    });
+  }
+  // 8 torch-stativ runt plaza (vid 250px radius)
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    cache.torches.push({
+      x: cx + Math.cos(a) * 250,
+      y: cy + Math.sin(a) * 250,
+      flamePhase: i * 0.7,
+    });
+  }
+  state._survArenaCache = cache;
+  return cache;
+}
+
+function drawSurvivorsArenaGround() {
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const centerX = 2000, centerY = 2000;
+  const plazaR = 200;
+  const now = performance.now();
+  const t = now / 1000;
+  const cache = _ensureSurvivorsArenaCache();
+  ctx.save();
+
+  // === BAS-MARK (mörk askfärg) ===
+  // Tile-pattern via subtle noise-rect
+  ctx.fillStyle = '#1a1410';
+  ctx.fillRect(0, 0, viewW, viewH);
+  // Lite ljusare områden (random noise patches) för depth — bara culled patches
+  ctx.fillStyle = 'rgba(60, 45, 35, 0.18)';
+  const patchSize = 100;
+  const psX = Math.floor(cx / patchSize) * patchSize - cx;
+  const psY = Math.floor(cy / patchSize) * patchSize - cy;
+  for (let x = psX; x < viewW + patchSize; x += patchSize) {
+    for (let y = psY; y < viewH + patchSize; y += patchSize) {
+      const wx = x + cx, wy = y + cy;
+      // Pseudo-noise via xor-hash
+      if (((wx * 73856093) ^ (wy * 19349663)) & 0x40) {
+        ctx.fillRect(x, y, patchSize - 2, patchSize - 2);
+      }
+    }
+  }
+
+  // === GLÖDANDE SPRICKOR ===
+  // Varje spricka är en linje med glow + inner-yellow-hot core
+  for (const c of cache.cracks) {
+    const x1 = c.x1 - cx, y1 = c.y1 - cy;
+    const x2 = c.x2 - cx, y2 = c.y2 - cy;
+    // Cull check
+    if (Math.min(x1, x2) > viewW || Math.max(x1, x2) < 0 || Math.min(y1, y2) > viewH || Math.max(y1, y2) < 0) continue;
+    const pulse = 0.7 + 0.3 * Math.sin(t * 1.5 + c.pulsePhase);
+    // Outer red glow
+    ctx.strokeStyle = `rgba(255, 60, 20, ${0.18 * pulse})`;
+    ctx.lineWidth = c.width * 3;
+    ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    // Mid orange
+    ctx.strokeStyle = `rgba(255, 120, 30, ${0.45 * pulse})`;
+    ctx.lineWidth = c.width * 1.5;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    // Inner yellow-hot
+    ctx.strokeStyle = `rgba(255, 220, 90, ${0.85 * pulse})`;
+    ctx.lineWidth = c.width * 0.4;
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    // Dark border (cracked-edge effekt)
+    ctx.strokeStyle = 'rgba(10, 5, 0, 0.6)';
+    ctx.lineWidth = c.width + 1;
+    ctx.beginPath();
+    ctx.moveTo(x1 + 0.5, y1 - 0.5); ctx.lineTo(x2 + 0.5, y2 - 0.5);
+    ctx.globalCompositeOperation = 'source-over';
+  }
+  ctx.lineCap = 'butt';
+
+  // === PLAZA (obsidian-platta) ===
+  const plazaScreenX = centerX - cx, plazaScreenY = centerY - cy;
+  // Yttre ring: glödande ornament
+  const outerPulse = 0.6 + 0.4 * Math.sin(t * 0.8);
+  const outerGrad = ctx.createRadialGradient(plazaScreenX, plazaScreenY, plazaR - 20, plazaScreenX, plazaScreenY, plazaR + 25);
+  outerGrad.addColorStop(0, 'rgba(60, 40, 30, 0)');
+  outerGrad.addColorStop(0.6, `rgba(255, 120, 50, ${0.3 * outerPulse})`);
+  outerGrad.addColorStop(1, 'rgba(255, 100, 30, 0)');
+  ctx.fillStyle = outerGrad;
+  ctx.beginPath();
+  ctx.arc(plazaScreenX, plazaScreenY, plazaR + 30, 0, Math.PI * 2);
+  ctx.fill();
+  // Huvud-plaza (mörk obsidian)
+  ctx.fillStyle = '#1a0e0a';
+  ctx.beginPath();
+  ctx.arc(plazaScreenX, plazaScreenY, plazaR, 0, Math.PI * 2);
+  ctx.fill();
+  // Obsidian-tekstur: röda ådror som radial linjer
+  ctx.strokeStyle = 'rgba(120, 40, 20, 0.7)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 16; i++) {
+    const a = i * Math.PI / 8 + t * 0.05;
+    const r1 = 30 + (i % 3) * 25;
+    const r2 = plazaR - 10 + (i % 5) * 4;
+    ctx.beginPath();
+    ctx.moveTo(plazaScreenX + Math.cos(a) * r1, plazaScreenY + Math.sin(a) * r1);
+    ctx.lineTo(plazaScreenX + Math.cos(a) * r2, plazaScreenY + Math.sin(a) * r2);
+    ctx.stroke();
+  }
+  // Inner concentric cracks
+  ctx.strokeStyle = 'rgba(80, 25, 10, 0.6)';
+  ctx.lineWidth = 1;
+  for (let r = 50; r < plazaR - 20; r += 40) {
+    ctx.beginPath();
+    ctx.arc(plazaScreenX, plazaScreenY, r, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // Central altar-glow (pulserande)
+  const altarPulse = 0.7 + 0.3 * Math.sin(t * 2);
+  const altarGrad = ctx.createRadialGradient(plazaScreenX, plazaScreenY, 0, plazaScreenX, plazaScreenY, 80);
+  altarGrad.addColorStop(0, `rgba(255, 200, 90, ${0.85 * altarPulse})`);
+  altarGrad.addColorStop(0.4, `rgba(255, 130, 40, ${0.5 * altarPulse})`);
+  altarGrad.addColorStop(1, 'rgba(255, 60, 10, 0)');
+  ctx.fillStyle = altarGrad;
+  ctx.beginPath();
+  ctx.arc(plazaScreenX, plazaScreenY, 80, 0, Math.PI * 2);
+  ctx.fill();
+  // Cracked altar-platta i mitten
+  ctx.fillStyle = '#3a1a0a';
+  ctx.beginPath();
+  ctx.arc(plazaScreenX, plazaScreenY, 35, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = `rgba(255, 180, 60, ${altarPulse})`;
+  ctx.lineWidth = 2;
+  // Pentagram-spår på altaret
+  for (let i = 0; i < 5; i++) {
+    const a = i * 2 * Math.PI / 5 - Math.PI / 2;
+    const x1 = plazaScreenX + Math.cos(a) * 28;
+    const y1 = plazaScreenY + Math.sin(a) * 28;
+    const a2 = ((i + 2) % 5) * 2 * Math.PI / 5 - Math.PI / 2;
+    const x2 = plazaScreenX + Math.cos(a2) * 28;
+    const y2 = plazaScreenY + Math.sin(a2) * 28;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  // === STEN-SKRÄP (sprid över marken) ===
+  for (const r of cache.rubble) {
+    const x = r.x - cx, y = r.y - cy;
+    if (x < -20 || x > viewW + 20 || y < -20 || y > viewH + 20) continue;
+    ctx.fillStyle = `rgba(${50 + r.shade * 60}, ${40 + r.shade * 40}, ${30 + r.shade * 30}, 0.85)`;
+    ctx.beginPath();
+    ctx.arc(x, y, r.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+  }
+
+  // === RUIN-VÄGGAR (broken stones) ===
+  for (const r of cache.ruins) {
+    const x = r.x - cx, y = r.y - cy;
+    if (x < -50 || x > viewW + 50 || y < -50 || y > viewH + 50) continue;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(r.rot);
+    // Skugga
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(-r.w / 2 + 3, -r.h / 2 + 4, r.w, r.h);
+    // Wall-bas
+    ctx.fillStyle = '#4a3a2a';
+    ctx.fillRect(-r.w / 2, -r.h / 2, r.w, r.h);
+    // Highlight top
+    ctx.fillStyle = '#6a5a40';
+    ctx.fillRect(-r.w / 2, -r.h / 2, r.w, 3);
+    // Cracks
+    ctx.strokeStyle = '#1a0a05';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(-r.w / 2 + r.w * 0.3, -r.h / 2);
+    ctx.lineTo(-r.w / 2 + r.w * 0.3 + 4, r.h / 2);
+    ctx.moveTo(-r.w / 2 + r.w * 0.7, -r.h / 2);
+    ctx.lineTo(-r.w / 2 + r.w * 0.7 - 3, r.h / 2);
+    ctx.stroke();
+    // Decay edge — irregular top
+    ctx.fillStyle = '#1a0e08';
+    const segments = 4;
+    for (let s = 0; s < segments; s++) {
+      const sx = -r.w / 2 + s * (r.w / segments);
+      const sw = r.w / segments;
+      const sh = (1 - r.decay) * 8;
+      ctx.fillRect(sx, -r.h / 2 - sh, sw - 1, sh);
+    }
+    ctx.restore();
+  }
+
+  // === BRÄNDA TRÄD ===
+  for (const tree of cache.burntTrees) {
+    const x = tree.x - cx, y = tree.y - cy;
+    if (x < -30 || x > viewW + 30 || y < -50 || y > viewH + 30) continue;
+    // Skugga
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.beginPath();
+    ctx.ellipse(x + 5, y + 5, tree.h * 0.3, tree.h * 0.15, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Stamm (broken at brokenAt)
+    const trunkH = tree.h * tree.brokenAt;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(tree.lean);
+    ctx.fillStyle = '#1a0e05';
+    ctx.fillRect(-2, -trunkH, 4, trunkH);
+    // Charred highlight
+    ctx.fillStyle = '#3a200a';
+    ctx.fillRect(-2, -trunkH, 1.5, trunkH);
+    // Top broken edge
+    ctx.fillStyle = '#5a3015';
+    ctx.beginPath();
+    ctx.moveTo(-2, -trunkH);
+    ctx.lineTo(0, -trunkH - 3);
+    ctx.lineTo(2, -trunkH);
+    ctx.closePath();
+    ctx.fill();
+    // Brutna gren-stubbar
+    if (tree.brokenAt > 0.5) {
+      ctx.fillStyle = '#1a0e05';
+      ctx.fillRect(-5, -trunkH + 5, 3, 1.5);
+      ctx.fillRect(2, -trunkH + 10, 3, 1.5);
+    }
+    ctx.restore();
+  }
+
+  // === TORCH-STATIV (övergivna brinnande facklor runt plaza) ===
+  for (const torch of cache.torches) {
+    const x = torch.x - cx, y = torch.y - cy;
+    if (x < -30 || x > viewW + 30 || y < -50 || y > viewH + 30) continue;
+    // Stativ-stång
+    ctx.fillStyle = '#2a1a10';
+    ctx.fillRect(x - 1.5, y - 14, 3, 16);
+    // Bowl
+    ctx.fillStyle = '#3a2a18';
+    ctx.beginPath();
+    ctx.ellipse(x, y - 15, 5, 2.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Flame (animerad)
+    const flame = 0.8 + 0.2 * Math.sin(t * 6 + torch.flamePhase);
+    const flameH = 12 * flame;
+    // Outer red glow
+    const flameGrad = ctx.createRadialGradient(x, y - 15 - flameH * 0.4, 0, x, y - 15 - flameH * 0.4, 20);
+    flameGrad.addColorStop(0, `rgba(255, 200, 90, ${0.7 * flame})`);
+    flameGrad.addColorStop(0.5, `rgba(255, 100, 30, ${0.3 * flame})`);
+    flameGrad.addColorStop(1, 'rgba(255, 50, 10, 0)');
+    ctx.fillStyle = flameGrad;
+    ctx.beginPath();
+    ctx.arc(x, y - 15 - flameH * 0.4, 20, 0, Math.PI * 2);
+    ctx.fill();
+    // Flame-shape (teardrop)
+    ctx.fillStyle = `rgba(255, 180, 60, ${flame})`;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 15);
+    ctx.quadraticCurveTo(x - 3, y - 15 - flameH * 0.5, x, y - 15 - flameH);
+    ctx.quadraticCurveTo(x + 3, y - 15 - flameH * 0.5, x, y - 15);
+    ctx.fill();
+    // Inner hot core
+    ctx.fillStyle = `rgba(255, 250, 200, ${0.9 * flame})`;
+    ctx.beginPath();
+    ctx.ellipse(x, y - 15 - flameH * 0.4, 1.5, flameH * 0.3, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// Ash particles + vignette — kallas EFTER spelare/enemies (top layer)
+function drawSurvivorsArenaAmbient() {
+  if (!state.survivorsActive) return;
+  const t = performance.now() / 1000;
+  ctx.save();
+  // Fallande aska — semi-transparent particles ovanpå allt
+  // 30 deterministisk-positionerade snöflingor som drifter ner
+  const cache = state._survArenaCache;
+  if (cache) {
+    if (!cache.ash) {
+      const rng = _survRng(1337);
+      cache.ash = [];
+      for (let i = 0; i < 60; i++) {
+        cache.ash.push({
+          x: rng() * viewW,
+          y: rng() * (viewH + 40),
+          r: 0.7 + rng() * 1.4,
+          speed: 6 + rng() * 12,
+          phase: rng() * Math.PI * 2,
+        });
+      }
+    }
+    ctx.fillStyle = 'rgba(180, 150, 130, 0.45)';
+    for (const a of cache.ash) {
+      const yPos = ((a.y + t * a.speed) % (viewH + 40));
+      const xWobble = Math.sin(t * 0.8 + a.phase) * 12;
+      ctx.beginPath();
+      ctx.arc(a.x + xWobble, yPos, a.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // Vignette: mörkare hörn för "post-apocalyptic" feel
+  const vignette = ctx.createRadialGradient(viewW / 2, viewH / 2, viewH * 0.4, viewW / 2, viewH / 2, viewH * 0.8);
+  vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+  vignette.addColorStop(1, 'rgba(20, 5, 0, 0.55)');
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, viewW, viewH);
+  ctx.restore();
+}
+
 function drawCastleDefenseGround() {
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const centerX = (state.castledefenseCore && state.castledefenseCore.x) || 2000;
@@ -14358,7 +14754,9 @@ function updateSurvivorsPerksBar() {
   if (!bar) {
     bar = document.createElement('div');
     bar.id = 'survivors-perks-bar';
-    bar.style.cssText = 'position:fixed;left:max(12px, env(safe-area-inset-left, 12px));bottom:max(160px, calc(env(safe-area-inset-bottom, 0px) + 160px));z-index:60;display:flex;flex-wrap:wrap;gap:4px;max-width:200px;pointer-events:none;';
+    // v1.529: Flyttad från bottom-left till bottom-center. Joystick + fire-knapp
+    // är på sidorna, så center-bottom är "fri zon" — perfekt för perk-rad.
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:max(8px, env(safe-area-inset-bottom, 8px));z-index:60;display:flex;flex-wrap:wrap;gap:4px;max-width:60vw;justify-content:center;pointer-events:none;background:rgba(0,0,0,0.5);padding:5px 8px;border-radius:10px;border:1px solid rgba(170,58,255,0.3);';
     document.body.appendChild(bar);
   }
   const perks = state.survivorsPerks || [];
@@ -14420,6 +14818,8 @@ function resetSurvivorsPerks() {
   state.survivorsPerkOverlayOn = false;
   state._survivorsPerkChoices = null;
   state.survivorsKills = 0;
+  // v1.529: reset arena-cache så ash-particles + decorations regenereras vid ny match
+  state._survArenaCache = null;
   const el = document.getElementById('survivors-perk-overlay');
   if (el) el.style.display = 'none';
   const bar = document.getElementById('survivors-perks-bar');
@@ -58286,11 +58686,19 @@ function render() {
   // spike/slow-traps (flat objects), spawn-markers, CORE (obelisk på marken).
   // Player kan gå OVANPÅ dessa visuellt (collision håller dem ändå utanför core).
   if (state.castledefenseActive) {
-    drawCastleDefenseGround();
-    drawCastleDefenseDecorationsGround();
-    drawCastleDefenseBuildings('ground');     // bara spike/slow traps
-    drawCastleDefenseCore();                  // obelisk-shrine (v1.401: under entities)
-    drawCastleDefenseSpawnMarkers();
+    // v1.529: I survivors-mode rendera ÖDESLAND-arena istället för CD's plaza
+    if (state.survivorsActive) {
+      drawSurvivorsArenaGround();
+      // Skip core (ingen synlig obelisk i ÖDESLAND — altaret är centrum)
+      // Skip buildings (inga byggnader i survivors)
+      // Skip spawn-markers (enemies spawnar dynamiskt)
+    } else {
+      drawCastleDefenseGround();
+      drawCastleDefenseDecorationsGround();
+      drawCastleDefenseBuildings('ground');     // bara spike/slow traps
+      drawCastleDefenseCore();                  // obelisk-shrine (v1.401: under entities)
+      drawCastleDefenseSpawnMarkers();
+    }
   }
   drawHazards();
   drawCollectibles();
@@ -58417,14 +58825,20 @@ function render() {
   // CASTLE DEFENSE — LATE pass (efter player). Tall objects + effects.
   // v1.401: CORE flyttad till EARLY pass (ritas under players/enemies) per user-feedback.
   if (state.castledefenseActive) {
-    drawCastleDefenseWalls();                  // legacy pre-built (tomt nu)
-    drawCastleDefenseBuildings('tall');        // walls, turrets, stations
-    drawCastleDefenseDecorationsTop();         // träd-kronor, fackel-flammor, banderoll-tyg
-    drawCastleDefenseHealParticles();          // heal-particles från health_stn
-    if (typeof drawCastleDefensePings === 'function') drawCastleDefensePings();
-    if (typeof drawCastleDefensePinGhost === 'function') drawCastleDefensePinGhost();
-    if (typeof drawCastleDefenseDownStateUI === 'function') drawCastleDefenseDownStateUI();
-    if (typeof drawCdBuildGhost === 'function') drawCdBuildGhost();
+    if (state.survivorsActive) {
+      // v1.529: ÖDESLAND har inga buildings/walls/trees-on-top, men ash + vignette top-layer
+      if (typeof drawCastleDefenseDownStateUI === 'function') drawCastleDefenseDownStateUI();
+      drawSurvivorsArenaAmbient();
+    } else {
+      drawCastleDefenseWalls();                  // legacy pre-built (tomt nu)
+      drawCastleDefenseBuildings('tall');        // walls, turrets, stations
+      drawCastleDefenseDecorationsTop();         // träd-kronor, fackel-flammor, banderoll-tyg
+      drawCastleDefenseHealParticles();          // heal-particles från health_stn
+      if (typeof drawCastleDefensePings === 'function') drawCastleDefensePings();
+      if (typeof drawCastleDefensePinGhost === 'function') drawCastleDefensePinGhost();
+      if (typeof drawCastleDefenseDownStateUI === 'function') drawCastleDefenseDownStateUI();
+      if (typeof drawCdBuildGhost === 'function') drawCdBuildGhost();
+    }
   }
   // GRENADE-render ALLTID PÅ TOPP — efter walls/träd/tak så granaten aldrig hamnar
   // under objekt visuellt. Både landing-reticle (medan holding) + projektiler i flykt.
