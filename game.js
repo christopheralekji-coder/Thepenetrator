@@ -16087,6 +16087,73 @@ const _pixiDiagState = { lastFpsT: 0, frames: 0, fps: 0 };
 // 4-tap top-right toggle (matchar CD gold-cheat-mönstret)
 let _pixiDiagTapCount = 0;
 let _pixiDiagTapLastT = 0;
+// v1.537: STRESS-TEST spawn-helpers. Knappar i HUD låter spelaren spawna
+// extra enemies/bullets/particles för prestanda-testning.
+function spawnStresstestEnemies(count) {
+  if (!state.stresstestActive) return;
+  const p = state.player;
+  if (!p) return;
+  if (Coop.active && Coop.ws && Coop.ws.readyState === 1) {
+    // Server-side spawn via sim_stresstest message
+    Coop.ws.send(JSON.stringify({ type: 'sim_stresstest', action: 'enemies', count }));
+  }
+  if (typeof showToast === 'function') showToast('+' + count + ' enemies');
+}
+function spawnStresstestParticles(count) {
+  if (!state.stresstestActive || !state.player) return;
+  const p = state.player;
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2;
+    const s = 80 + Math.random() * 200;
+    state.particles.push({
+      x: p.x, y: p.y,
+      vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+      life: 0.6 + Math.random() * 0.8,
+      color: '#' + Math.floor(Math.random() * 16777215).toString(16),
+      r: 2 + Math.random() * 3,
+    });
+  }
+  if (typeof showToast === 'function') showToast('+' + count + ' partiklar');
+}
+function spawnStresstestBullets(count) {
+  if (!state.stresstestActive || !state.player) return;
+  const p = state.player;
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2;
+    state.bullets.push({
+      x: p.x, y: p.y,
+      vx: Math.cos(a) * 400, vy: Math.sin(a) * 400,
+      dmg: 1, life: 2, r: 4, color: '#ffeb3b',
+      hostile: false, pierce: false,
+    });
+  }
+  if (typeof showToast === 'function') showToast('+' + count + ' bullets');
+}
+
+function showStresstestHud() {
+  if (!state.stresstestActive) return;
+  let bar = document.getElementById('stresstest-hud');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'stresstest-hud';
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:max(80px, env(safe-area-inset-bottom, 80px));z-index:60;display:flex;gap:6px;background:rgba(0,0,0,0.7);padding:6px 8px;border-radius:8px;border:1px solid #5aff5a;';
+    bar.innerHTML = `
+      <button id="st-spawn-e" style="background:#5a3a3a;color:#fff;border:1px solid #ff5a5a;padding:8px 12px;border-radius:6px;font-weight:900;font-size:11px;cursor:pointer;letter-spacing:0.5px;">+20 ⚔</button>
+      <button id="st-spawn-b" style="background:#3a3a5a;color:#fff;border:1px solid #5acaff;padding:8px 12px;border-radius:6px;font-weight:900;font-size:11px;cursor:pointer;letter-spacing:0.5px;">+50 ●</button>
+      <button id="st-spawn-p" style="background:#5a3a5a;color:#fff;border:1px solid #ff5aff;padding:8px 12px;border-radius:6px;font-weight:900;font-size:11px;cursor:pointer;letter-spacing:0.5px;">+200 ✨</button>
+    `;
+    document.body.appendChild(bar);
+    document.getElementById('st-spawn-e').addEventListener('click', () => spawnStresstestEnemies(20));
+    document.getElementById('st-spawn-b').addEventListener('click', () => spawnStresstestBullets(50));
+    document.getElementById('st-spawn-p').addEventListener('click', () => spawnStresstestParticles(200));
+  }
+  bar.style.display = 'flex';
+}
+function hideStresstestHud() {
+  const bar = document.getElementById('stresstest-hud');
+  if (bar) bar.style.display = 'none';
+}
+
 function checkPixiDiagCornerTap(mx, my) {
   // Top-right 90x90-zon
   if (mx < viewW - 90 || my > 90) return false;
@@ -20514,13 +20581,20 @@ const Coop = {
       // v1.525: SURVIVORS-RUN delar sim med CD iteration 1 — markera om vi är i
       // survivors-mode så HUD/labels kan visa annorlunda.
       const _isSurvivors = !!(this.config && this.config.survivors);
-      state.survivorsActive = _isSurvivors;
+      const _isStresstest = !!(this.config && this.config.stresstest);
+      state.survivorsActive = _isSurvivors || _isStresstest;
+      state.stresstestActive = _isStresstest;
       // v1.531: body-class för CSS-override (toast-position under shield)
-      document.body.classList.toggle('survivors-mode', _isSurvivors);
-      if (_isSurvivors) {
+      document.body.classList.toggle('survivors-mode', state.survivorsActive);
+      if (state.survivorsActive) {
         state.survivorsStartT = Date.now();
-        // v1.531: Använd lobby-vald duration (10/20/30 min)
-        state.survivorsMatchDurationMs = (this.config.survivorsDurationSec || 1200) * 1000;
+        state.survivorsMatchDurationMs = (_isStresstest ? 3600 : (this.config.survivorsDurationSec || 1200)) * 1000;
+      }
+      // v1.537: STRESS-TEST aktiverar diag-overlay automatiskt + spawn-HUD
+      if (_isStresstest) {
+        window._pixiDiag = true;
+        if (typeof showToast === 'function') showToast('🧪 STRESS-TEST AKTIV');
+        if (typeof showStresstestHud === 'function') showStresstestHud();
       }
       state.castledefenseWalls = ev.walls || [];
       state.castledefenseCore = ev.core || null;
@@ -22961,6 +23035,30 @@ function renderHostControls() {
   });
   lobbyModeButtonsEl.appendChild(cdBtn);
 
+  // v1.537: STRESS-TEST mode (minimal arena för PixiJS + multiplayer-testning)
+  const stressBtn = document.createElement('button');
+  const stressOn = !!Coop.config.stresstest;
+  stressBtn.textContent = '🧪 STRESS-TEST' + (stressOn ? ' ✓' : '');
+  stressBtn.style.cssText = 'background:' + (stressOn ? '#5aff5a' : '#1a3a1a') + ';color:' + (stressOn ? '#000' : '#5aff5a') + ';margin-top:6px;width:100%;font-size:12px;padding:8px 10px;letter-spacing:1px;font-weight:700;border:1px solid ' + (stressOn ? '#aaffaa' : '#3a5a3a') + ';';
+  if (stressOn) stressBtn.classList.add('active');
+  onTap(stressBtn, () => {
+    const newStress = !Coop.config.stresstest;
+    Coop.config.stresstest = newStress;
+    Coop.config.survivors = false; Coop.config.castledefense = false;
+    Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
+    Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
+    Coop.config.battleroyale = false;
+    if (newStress) Coop.config.serverSim = true;
+    Coop.updateConfig({
+      stresstest: newStress, survivors: false, castledefense: false,
+      tdm: false, ctf: false, siege: false,
+      gungame: false, koth: false, juggernaut: false, battleroyale: false,
+      serverSim: Coop.config.serverSim,
+    });
+    renderHostControls();
+  });
+  lobbyModeButtonsEl.appendChild(stressBtn);
+
   // v1.525: SURVIVORS-RUN (co-op survival 20 min, roguelite perks, server-auth)
   const survBtn = document.createElement('button');
   const survOn = !!Coop.config.survivors;
@@ -22973,13 +23071,13 @@ function renderHostControls() {
     // v1.532 FIX: ta bort survivors=false från mutex-raden (dödade self-state)
     Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
     Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
-    Coop.config.battleroyale = false; Coop.config.castledefense = false;
+    Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.stresstest = false;
     if (newSurv) {
       Coop.config.serverSim = true;
     }
     Coop.updateConfig({
       survivors: newSurv, castledefense: false, tdm: false, ctf: false, siege: false,
-      gungame: false, koth: false, juggernaut: false, battleroyale: false,
+      gungame: false, koth: false, juggernaut: false, battleroyale: false, stresstest: false,
       serverSim: Coop.config.serverSim,
     });
     renderHostControls();
@@ -23018,7 +23116,7 @@ function renderHostControls() {
     onTap(tdmBtn, () => {
       const newTdm = !Coop.config.tdm;
       Coop.config.tdm = newTdm;
-      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
+      Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false; Coop.config.stresstest = false;
       if (newTdm) {
         Coop.config.serverSim = true;
         Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
@@ -23040,7 +23138,7 @@ function renderHostControls() {
     onTap(ctfBtn, () => {
       const newCtf = !Coop.config.ctf;
       Coop.config.ctf = newCtf;
-      Coop.config.tdm = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
+      Coop.config.tdm = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false; Coop.config.stresstest = false;
       if (newCtf) {
         Coop.config.serverSim = true;
         Coop.config.ctfTargetCaptures = Coop.config.ctfTargetCaptures || 3;
@@ -23062,7 +23160,7 @@ function renderHostControls() {
     onTap(siegeBtn, () => {
       const newSiege = !Coop.config.siege;
       Coop.config.siege = newSiege;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false; Coop.config.stresstest = false;
       if (newSiege) {
         Coop.config.serverSim = true;
         Coop.config.siegeTargetPoints = Coop.config.siegeTargetPoints || 500;
@@ -23084,7 +23182,7 @@ function renderHostControls() {
     onTap(ggBtn, () => {
       const newGg = !Coop.config.gungame;
       Coop.config.gungame = newGg;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false; Coop.config.stresstest = false;
       if (newGg) Coop.config.serverSim = true;
       Coop.updateConfig({
         gungame: newGg, tdm: false, ctf: false, siege: false, koth: false, juggernaut: false, battleroyale: false, castledefense: false,
@@ -23102,7 +23200,7 @@ function renderHostControls() {
     onTap(kothBtn, () => {
       const newKoth = !Coop.config.koth;
       Coop.config.koth = newKoth;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false; Coop.config.stresstest = false;
       if (newKoth) {
         Coop.config.serverSim = true;
         Coop.config.kothTargetPoints = Coop.config.kothTargetPoints || 100;
@@ -23124,7 +23222,7 @@ function renderHostControls() {
     onTap(jugBtn, () => {
       const newJug = !Coop.config.juggernaut;
       Coop.config.juggernaut = newJug;
-      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
+      Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false; Coop.config.stresstest = false;
       if (newJug) {
         Coop.config.serverSim = true;
         Coop.config.juggernautMatchDurationSec = Coop.config.juggernautMatchDurationSec || 360;
@@ -23252,6 +23350,7 @@ function renderLobbyMatchInfo() {
   else if (cfg.juggernaut) modeLabel = '👑 JUGGERNAUT';
   else if (cfg.battleroyale) modeLabel = '🌀 BATTLE ROYALE';
   else if (cfg.castledefense) modeLabel = '🏰 CASTLE DEFENSE';
+  else if (cfg.stresstest) modeLabel = '🧪 STRESS-TEST';
   else if (cfg.survivors) modeLabel = '☠️ SURVIVORS-RUN';
   else if (cfg.mode === 'story') modeLabel = '📖 STORY';
   // v1.524: endless/bossrush/survive/truck-labels borttagna
@@ -23274,6 +23373,9 @@ function renderLobbyMatchInfo() {
   }
   else if (cfg.castledefense) {
     target = 'Endless · boss var 5:e';
+  }
+  else if (cfg.stresstest) {
+    target = 'Performance-test';
   }
   else if (cfg.survivors) {
     target = 'Överlev 20 min';
@@ -23869,6 +23971,9 @@ btnCoopStart.addEventListener('click', () => {
     if (Coop.config.survivors) {
       payload.survivors = true;
       payload.survivorsDurationSec = Coop.config.survivorsDurationSec || 1200;
+    }
+    if (Coop.config.stresstest) {
+      payload.stresstest = true;
     }
     if (Coop.config.addBot) {
       payload.addBot = true;
@@ -29678,6 +29783,9 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     if (Coop.config.survivors) {
       payload.survivors = true;
       payload.survivorsDurationSec = Coop.config.survivorsDurationSec || 1200;
+    }
+    if (Coop.config.stresstest) {
+      payload.stresstest = true;
     }
     if (Coop.config.addBot) {
       payload.addBot = true;
@@ -59315,7 +59423,11 @@ function render() {
   // Player kan gå OVANPÅ dessa visuellt (collision håller dem ändå utanför core).
   if (state.castledefenseActive) {
     // v1.529: I survivors-mode rendera ÖDESLAND-arena istället för CD's plaza
-    if (state.survivorsActive) {
+    if (state.stresstestActive) {
+      // v1.537: STRESS-TEST — bara grå platt bakgrund, ingen dekor
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(0, 0, viewW, viewH);
+    } else if (state.survivorsActive) {
       drawSurvivorsArenaGround();
       // Skip core (ingen synlig obelisk i ÖDESLAND — altaret är centrum)
       // Skip buildings (inga byggnader i survivors)
@@ -59453,7 +59565,10 @@ function render() {
   // CASTLE DEFENSE — LATE pass (efter player). Tall objects + effects.
   // v1.401: CORE flyttad till EARLY pass (ritas under players/enemies) per user-feedback.
   if (state.castledefenseActive) {
-    if (state.survivorsActive) {
+    if (state.stresstestActive) {
+      // v1.537: Stresstest — inga overlays, bara basic down-state-UI
+      if (typeof drawCastleDefenseDownStateUI === 'function') drawCastleDefenseDownStateUI();
+    } else if (state.survivorsActive) {
       // v1.529: ÖDESLAND har inga buildings/walls/trees-on-top, men ash + vignette top-layer
       if (typeof drawCastleDefenseDownStateUI === 'function') drawCastleDefenseDownStateUI();
       drawSurvivorsArenaAmbient();

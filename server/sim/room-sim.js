@@ -4205,6 +4205,13 @@ function startSim(sim, opts) {
       sim.survivorsActive = true;
       sim.survivorsDurationSec = opts.survivorsDurationSec || 1200;
     }
+    // v1.537: STRESS-TEST aktiverar survivors-pipeline + stresstest-flag
+    if (opts.stresstest) {
+      sim.castledefenseActive = true;
+      sim.survivorsActive = true;
+      sim.stresstestActive = true;
+      sim.survivorsDurationSec = 3600; // 60 min så vi inte trippas av timeout
+    }
   }
   // Bot-spawn: lägg bot(s) som virtuella members INNAN mode-init så loopen tilldelar
   // dem team + spawn-pos precis som riktiga spelare. Pre-set team respekteras

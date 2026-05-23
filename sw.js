@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v536-pixi-canvas-on-top';
+const CACHE = 'penetrator-v537-stresstest-mode';
 const ASSETS = [
   './',
   './index.html',

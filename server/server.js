@@ -745,6 +745,7 @@ function handleMessage(ws, msg) {
       castledefense: msg.castledefense,
       survivors: msg.survivors,
       survivorsDurationSec: msg.survivorsDurationSec,
+      stresstest: msg.stresstest,
       addBot: !!msg.addBot,
       botCount: Math.max(1, Math.min(7, msg.botCount || 1)),
       botSkill: msg.botSkill || 'normal',
@@ -960,6 +961,31 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     applyCastleDefenseInfMoney(room.sim, ws.id, msg);
+    return;
+  }
+  // v1.537: STRESS-TEST spawn-handler (klient klickar +20 ENEMIES etc)
+  if (msg.type === 'sim_stresstest') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim || !room.sim.stresstestActive) return;
+    if (msg.action === 'enemies') {
+      const sim = room.sim;
+      const count = Math.max(1, Math.min(100, +msg.count || 20));
+      const ws2 = sim.room.members.get(ws.id);
+      if (!ws2 || !ws2.playerState) return;
+      const px = ws2.playerState.x, py = ws2.playerState.y;
+      const { makeEnemy } = require('./sim/enemies');
+      const types = ['grunt', 'runner', 'brute'];
+      for (let i = 0; i < count; i++) {
+        const a = Math.random() * Math.PI * 2;
+        const dist = 400 + Math.random() * 300;
+        const ex = px + Math.cos(a) * dist;
+        const ey = py + Math.sin(a) * dist;
+        const t = types[Math.floor(Math.random() * types.length)];
+        const e = makeEnemy(t, ex, ey);
+        e._idx = sim.nextEnemyIdx++;
+        sim.enemies.push(e);
+      }
+    }
     return;
   }
   // v1.376: Granat-throw från klient. Server schemalägger detonation efter
