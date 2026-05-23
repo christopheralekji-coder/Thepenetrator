@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v576-bake-fallback';
+const CACHE = 'penetrator-v577-survivors-hud-loot';
 const ASSETS = [
   './',
   './index.html',

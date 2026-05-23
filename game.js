@@ -28950,10 +28950,12 @@ function killEnemy(e) {
     spawnShockwave(e.x, e.y, e.r * 1.2, e.r * 5, '#ffae3a', 0.45, 3);
     setTimeout(() => spawnShockwave(e.x, e.y, e.r, e.r * 8, '#ff5a3a', 0.5, 2), 150);
     spawnSparks(e.x, e.y, '#ffae3a', 12, 300);
-    // Bonus pickup
-    spawnPickup(e.x - 25, e.y, 'hp');
-    spawnPickup(e.x + 25, e.y, 'ammo');
-    spawnPickup(e.x, e.y + 25, 'temp_dmg');
+    // v1.577: SURVIVORS skippar bonus-pickups (inga drops, bara pengar/perks)
+    if (!state.survivorsActive) {
+      spawnPickup(e.x - 25, e.y, 'hp');
+      spawnPickup(e.x + 25, e.y, 'ammo');
+      spawnPickup(e.x, e.y + 25, 'temp_dmg');
+    }
   }
   // Vapen-XP — det vapen som var equippat när fienden dog
   if (p && p.weaponId) {
@@ -29011,26 +29013,29 @@ function killEnemy(e) {
   if (p && hasPerk('vampire')) {
     p.hp = Math.min(p.maxHp, p.hp + 3);
   }
-  // Drop-chans (mer från större fiender)
-  const dropChance = e.isBoss ? 1.0 : (e.gold > 15 ? 0.18 : 0.08);
-  if (Math.random() < dropChance) {
-    const r = Math.random();
-    let type;
-    if (e.isBoss) {
-      // Boss droppar alltid temp_dmg + extra
-      spawnPickup(e.x - 20, e.y, 'temp_dmg');
-      spawnPickup(e.x + 20, e.y, 'hp');
-      spawnPickup(e.x, e.y + 20, 'ammo');
-    } else if (p && p.hp / p.maxHp < 0.5 && r < 0.4) {
-      type = 'hp';
-    } else if (r < 0.3 && p && p.weaponId !== 'fists') {
-      type = 'ammo';
-    } else if (r < 0.7) {
-      type = 'gold';
-    } else {
-      type = 'temp_dmg';
+  // v1.577: SURVIVORS — inga drops alls (HP/ammo/gold/temp_dmg). Belöningen
+  // är pengar (gold) som ges direkt via goldGained ovan + perks-systemet.
+  if (!state.survivorsActive) {
+    // Drop-chans (mer från större fiender)
+    const dropChance = e.isBoss ? 1.0 : (e.gold > 15 ? 0.18 : 0.08);
+    if (Math.random() < dropChance) {
+      const r = Math.random();
+      let type;
+      if (e.isBoss) {
+        spawnPickup(e.x - 20, e.y, 'temp_dmg');
+        spawnPickup(e.x + 20, e.y, 'hp');
+        spawnPickup(e.x, e.y + 20, 'ammo');
+      } else if (p && p.hp / p.maxHp < 0.5 && r < 0.4) {
+        type = 'hp';
+      } else if (r < 0.3 && p && p.weaponId !== 'fists') {
+        type = 'ammo';
+      } else if (r < 0.7) {
+        type = 'gold';
+      } else {
+        type = 'temp_dmg';
+      }
+      if (type) spawnPickup(e.x, e.y, type);
     }
-    if (type) spawnPickup(e.x, e.y, type);
   }
   // Kraftbrand — sprid burn till närmsta fiende
   if (hasPerk('firespread') && e.burnUntil && performance.now() < e.burnUntil) {
@@ -33008,7 +33013,7 @@ function showCastleDefenseHud() {
     el.id = 'cd-hud';
     // v1.410: kompaktare HUD — mindre padding/font, ikoner istället för text-labels
     el.style.cssText = 'position:fixed;top:max(4px, env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.72);border:1px solid #c47a3a;border-radius:14px;padding:3px 10px;color:#fff;font-family:sans-serif;font-weight:700;letter-spacing:0.5px;z-index:80;pointer-events:none;display:flex;align-items:center;gap:8px;font-size:11px;text-align:center;';
-    el.innerHTML = '<span><span style="color:#c47a3a;">🏰</span><span id="cd-wave" style="margin-left:3px;">--</span></span><span style="color:#444;">·</span><span><span style="color:#ff5a5a;">⚔</span><span id="cd-enemies" style="font-variant-numeric:tabular-nums;margin-left:3px;">--</span></span><span style="color:#444;">·</span><span><span style="color:#d4a04a;">🔮</span><span id="cd-core-hp" style="font-variant-numeric:tabular-nums;margin-left:3px;">--</span></span><span id="cd-countdown-wrap" style="color:#444;display:none;">·</span><span id="cd-countdown" style="color:#3acaff;display:none;"><span id="cd-countdown-sec">--</span>s</span>';
+    el.innerHTML = '<span><span style="color:#c47a3a;">🏰</span><span id="cd-wave" style="margin-left:3px;">--</span></span><span style="color:#444;">·</span><span><span style="color:#ff5a5a;">⚔</span><span id="cd-enemies" style="font-variant-numeric:tabular-nums;margin-left:3px;">--</span></span><span id="cd-core-slot-sep" style="color:#444;">·</span><span id="cd-core-slot"><span style="color:#d4a04a;">🔮</span><span id="cd-core-hp" style="font-variant-numeric:tabular-nums;margin-left:3px;">--</span></span><span id="cd-countdown-wrap" style="color:#444;display:none;">·</span><span id="cd-countdown" style="color:#3acaff;display:none;"><span id="cd-countdown-sec">--</span>s</span>';
     document.body.appendChild(el);
   }
   el.style.display = 'flex';
@@ -33194,12 +33199,23 @@ function updateCastleDefenseHud() {
       enemiesEl.textContent = inc > 0 ? (alive + ' (+' + inc + ')') : alive;
     }
   }
-  const coreHpEl = document.getElementById('cd-core-hp');
-  if (coreHpEl && state.castledefenseCore) {
-    const hp = Math.ceil(state.castledefenseCore.hp);
-    const max = state.castledefenseCore.maxHp;
-    coreHpEl.textContent = hp + '/' + max;
-    coreHpEl.style.color = hp / max > 0.5 ? '#5aff5a' : (hp / max > 0.25 ? '#ffd54a' : '#ff5a5a');
+  // v1.577: Tower-HP slot DÖLJS i survivors-mode (tornet är inte målet där —
+  // enemies ska attackera players, inte tornet)
+  const coreSlot = document.getElementById('cd-core-slot');
+  const coreSep = document.getElementById('cd-core-slot-sep');
+  if (state.survivorsActive) {
+    if (coreSlot) coreSlot.style.display = 'none';
+    if (coreSep) coreSep.style.display = 'none';
+  } else {
+    if (coreSlot) coreSlot.style.display = '';
+    if (coreSep) coreSep.style.display = '';
+    const coreHpEl = document.getElementById('cd-core-hp');
+    if (coreHpEl && state.castledefenseCore) {
+      const hp = Math.ceil(state.castledefenseCore.hp);
+      const max = state.castledefenseCore.maxHp;
+      coreHpEl.textContent = hp + '/' + max;
+      coreHpEl.style.color = hp / max > 0.5 ? '#5aff5a' : (hp / max > 0.25 ? '#ffd54a' : '#ff5a5a');
+    }
   }
   const cdWrap = document.getElementById('cd-countdown-wrap');
   const cdEl = document.getElementById('cd-countdown');
@@ -61910,6 +61926,16 @@ function runFrame(dt, now) {
   if (state.mode === 'playing' && state._prevMode !== 'playing') {
     if (typeof resetGrenadesForMatch === 'function') resetGrenadesForMatch();
     if (typeof resetSurvivorsPerks === 'function') resetSurvivorsPerks();
+  }
+  // v1.577: Hide survivors-only DOM-element när mode !== 'playing' (förhindrar
+  // perks-bar/perk-overlay/shop-backdrop från att läcka till menyn).
+  if (state.mode !== 'playing') {
+    const bar = document.getElementById('survivors-perks-bar');
+    if (bar && bar.style.display !== 'none') bar.style.display = 'none';
+    const overlay = document.getElementById('survivors-perk-overlay');
+    if (overlay && overlay.style.display !== 'none') overlay.style.display = 'none';
+    const shop = document.getElementById('survivors-shop-backdrop');
+    if (shop && shop.style.display !== 'none') shop.style.display = 'none';
   }
   // v1.527: SURVIVORS-RUN perk-trigger + regen + thorns
   if (state.mode === 'playing' && state.survivorsActive) {
