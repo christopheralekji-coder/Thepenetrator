@@ -16073,6 +16073,109 @@ if (typeof PIXI !== 'undefined') {
   });
 }
 
+// v1.543: PRE-RENDER ENEMY TEXTURES — engångs-init, cachas sedan. Använder
+// OffscreenCanvas + Canvas2D-API för att rita en placeholder-enemy och
+// konverterar till PIXI.Texture. Iter 2 byter placeholder mot riktiga
+// enemy-grafik (kopierar från drawHumanEnemy/drawDog/drawRobot).
+function createPixiEnemyTextures() {
+  if (!pixiState.ready || typeof PIXI === 'undefined') return;
+  if (pixiState.textures.enemy_placeholder) return; // redan skapad
+  // Placeholder: röd cirkel med vit border, 36×36 (matchar typisk enemy.r ~14 + outline)
+  const size = 40;
+  const off = (typeof OffscreenCanvas !== 'undefined')
+    ? new OffscreenCanvas(size, size)
+    : (() => { const c = document.createElement('canvas'); c.width = size; c.height = size; return c; })();
+  const octx = off.getContext('2d');
+  // Skugga
+  octx.fillStyle = 'rgba(0,0,0,0.45)';
+  octx.beginPath(); octx.ellipse(size/2 + 2, size/2 + 2, 14, 14, 0, 0, Math.PI*2); octx.fill();
+  // Body
+  octx.fillStyle = '#cc3030';
+  octx.beginPath(); octx.arc(size/2, size/2, 14, 0, Math.PI*2); octx.fill();
+  octx.strokeStyle = '#ffffff';
+  octx.lineWidth = 2;
+  octx.stroke();
+  // Inner glow
+  octx.fillStyle = 'rgba(255,80,80,0.4)';
+  octx.beginPath(); octx.arc(size/2, size/2, 8, 0, Math.PI*2); octx.fill();
+  try {
+    pixiState.textures.enemy_placeholder = PIXI.Texture.from(off);
+    console.log('[PixiJS] enemy_placeholder texture created');
+  } catch (e) {
+    console.error('[PixiJS] kunde inte skapa enemy-texture:', e);
+  }
+}
+
+// Sprite-pool: återanvänd Sprite-objekt för enemies så vi slipper GC-pauser.
+const _pixiEnemySpritePool = [];
+function _acquireEnemySprite() {
+  if (_pixiEnemySpritePool.length > 0) {
+    const s = _pixiEnemySpritePool.pop();
+    s.visible = true;
+    return s;
+  }
+  if (!pixiState.textures.enemy_placeholder) return null;
+  const s = new PIXI.Sprite(pixiState.textures.enemy_placeholder);
+  s.anchor.set(0.5);
+  return s;
+}
+function _releaseEnemySprite(s) {
+  if (!s) return;
+  s.visible = false;
+  _pixiEnemySpritePool.push(s);
+}
+
+// Per-frame sync: matcha enemy-state till sprite-state. Kallas från
+// renderPixiFrame innan PIXI render.
+function syncPixiEnemies() {
+  if (!pixiState.ready || !pixiState.enemiesEnabled) {
+    // Om disabled: städa alla sprites
+    if (pixiState.sprites.enemies.size > 0) {
+      for (const [, s] of pixiState.sprites.enemies) {
+        if (s.parent) s.parent.removeChild(s);
+        _releaseEnemySprite(s);
+      }
+      pixiState.sprites.enemies.clear();
+    }
+    return;
+  }
+  if (!pixiState.textures.enemy_placeholder) createPixiEnemyTextures();
+  const enemies = state.enemies || [];
+  const seenIds = new Set();
+  // Update existing + add new
+  for (const e of enemies) {
+    if (!e || e.dead || e.hp <= 0) continue;
+    const id = e._idx || e._i;
+    if (id == null) continue;
+    seenIds.add(id);
+    let sprite = pixiState.sprites.enemies.get(id);
+    if (!sprite) {
+      sprite = _acquireEnemySprite();
+      if (!sprite) continue;
+      pixiState.containers.enemies.addChild(sprite);
+      pixiState.sprites.enemies.set(id, sprite);
+    }
+    sprite.position.set(e.x, e.y);
+    // Scale baserat på enemy.r vs texture-radius 14
+    const scale = (e.r || 14) / 14;
+    sprite.scale.set(scale, scale);
+    // Boss = större + gul tint
+    if (e.isBoss) {
+      sprite.tint = 0xffd54a;
+    } else {
+      sprite.tint = 0xffffff;
+    }
+  }
+  // Remove sprites för enemies som inte längre finns
+  for (const [id, sprite] of pixiState.sprites.enemies) {
+    if (!seenIds.has(id)) {
+      if (sprite.parent) sprite.parent.removeChild(sprite);
+      _releaseEnemySprite(sprite);
+      pixiState.sprites.enemies.delete(id);
+    }
+  }
+}
+
 // Per-frame Pixi-render. Kallas från huvud-game-loop EFTER state-update men
 // FÖRE Canvas2D-render så Pixi-lagret ritas underst.
 function renderPixiFrame() {
@@ -16086,6 +16189,8 @@ function renderPixiFrame() {
     const s = 1 + 0.18 * Math.sin(dt);
     pixiState._pocPulse.circle.scale.set(s, s);
   }
+  // v1.543: Sync enemy-sprites till state.enemies
+  syncPixiEnemies();
   // Manuell render (vi pausade Pixi's ticker så vi kontrollerar timing)
   pixiState.app.renderer.render(pixiState.app.stage);
   pixiState.diagFrameTime = performance.now() - t0;
@@ -16236,6 +16341,7 @@ function updatePixiDiagOverlay() {
     `<div>Enemies: ${enemiesCount} Bullets: ${bulletsCount}</div>` +
     `<div>Particles: ${particlesCount}</div>` +
     `<div>Sprites: ${pixiSprites} Stage: ${stageChildren}</div>` +
+    `<div>Pixi enemies: ${pixiState.ready ? pixiState.sprites.enemies.size : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'}</div>` +
     `<div>Canvas DOM: ${canvasInDom} z:${canvasZ}</div>` +
     `<div>Canvas size: ${canvasSize}</div>` +
     `<div>Cam: ${camX},${camY}</div>` +
@@ -20619,11 +20725,15 @@ const Coop = {
         state.survivorsStartT = Date.now();
         state.survivorsMatchDurationMs = (_isStresstest ? 3600 : (this.config.survivorsDurationSec || 1200)) * 1000;
       }
-      // v1.537: STRESS-TEST aktiverar diag-overlay automatiskt + spawn-HUD
+      // v1.537/v1.543: STRESS-TEST aktiverar diag + spawn-HUD + PIXI enemies-overlay
       if (_isStresstest) {
         window._pixiDiag = true;
         if (typeof showToast === 'function') showToast('🧪 STRESS-TEST AKTIV');
         if (typeof showStresstestHud === 'function') showStresstestHud();
+        // Enable Pixi-enemy-overlay (röda cirklar ovanpå Canvas2D-enemies)
+        if (pixiState) pixiState.enemiesEnabled = true;
+      } else {
+        if (pixiState) pixiState.enemiesEnabled = false;
       }
       state.castledefenseWalls = ev.walls || [];
       state.castledefenseCore = ev.core || null;
