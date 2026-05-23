@@ -61446,15 +61446,18 @@ function runFrame(dt, now) {
     if (typeof checkSurvivorsPerkTrigger === 'function') checkSurvivorsPerkTrigger();
     if (typeof tickSurvivorsPerkEffects === 'function') tickSurvivorsPerkEffects(dt);
   }
-  // v1.551: SAFETY — säkerställ att Pixi-flags ENDAST är true i stresstest.
-  // Var bug: flags fastnade i true efter stresstest → Canvas2D skippades i
-  // vanliga modes, men Pixi-sprites finns ej för dessa → tom skärm.
-  if (state.mode === 'playing' && !state.stresstestActive && pixiState) {
-    if (pixiState.enemiesEnabled || pixiState.bulletsEnabled || pixiState.particlesEnabled) {
-      pixiState.enemiesEnabled = false;
-      pixiState.bulletsEnabled = false;
-      pixiState.particlesEnabled = false;
-    }
+  // v1.559: AKTIVERA PIXI-RENDERING I ALLA PLAYING-MODES (var: bara stresstest).
+  // Nu får alla spelare prestanda-vinsten — CD wave 20-crash potentiellt löst.
+  // Particles fortfarande off (kraschar — fix i v1.560).
+  if (state.mode === 'playing' && pixiState && pixiState.ready) {
+    pixiState.enemiesEnabled = true;
+    pixiState.bulletsEnabled = true;
+    // particlesEnabled = false tills syncPixiParticles fixad
+  } else if (pixiState) {
+    // Mode 'menu' / 'gameover' / etc → disable pipeline för att frigöra GPU
+    pixiState.enemiesEnabled = false;
+    pixiState.bulletsEnabled = false;
+    pixiState.particlesEnabled = false;
   }
   // BR-UI cleanup: när mode REACHAR menu/gameover/victory (true match-end),
   // nuka alla BR-DOM-element OCH full BR-state cleanup så inget läcker till
