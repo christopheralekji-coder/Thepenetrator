@@ -16260,6 +16260,11 @@ function syncPixiVfx() {
 }
 
 function syncPixiParticles() {
+  // v1.567: Debug-counters
+  pixiState._partDebug = pixiState._partDebug || { rendered: 0, skipped: 0, errors: 0, total: 0 };
+  const pd = pixiState._partDebug;
+  pd.rendered = 0; pd.skipped = 0; pd.errors = 0; pd.total = 0;
+
   if (!pixiState.ready || !pixiState.particlesEnabled || !pixiState.containers.particles) {
     if (pixiState.ready && pixiState.containers.particles && pixiState.containers.particles.children.length > 0) {
       const arr = pixiState.containers.particles.children.slice();
@@ -16271,15 +16276,15 @@ function syncPixiParticles() {
     return;
   }
   const particles = state.particles || [];
+  pd.total = particles.length;
   const container = pixiState.containers.particles;
   let visIdx = 0;
   for (let i = 0; i < particles.length; i++) {
     const p = particles[i];
-    // v1.560: defensive null/special-check per partikel
-    if (!p) continue;
-    if (p.isFootprint || p.isBloodPool || p.isExplosion || p.isDamageNumber || p.isCritText || p.isChatter || p.isSlash || p.isLightning || p.isBulletTrail) continue;
-    if (typeof p.x !== 'number' || typeof p.y !== 'number') continue;
-    if (isNaN(p.x) || isNaN(p.y)) continue;
+    if (!p) { pd.skipped++; continue; }
+    if (p.isFootprint || p.isBloodPool || p.isExplosion || p.isDamageNumber || p.isCritText || p.isChatter || p.isSlash || p.isLightning || p.isBulletTrail) { pd.skipped++; continue; }
+    if (typeof p.x !== 'number' || typeof p.y !== 'number') { pd.skipped++; continue; }
+    if (isNaN(p.x) || isNaN(p.y)) { pd.skipped++; continue; }
     try {
       if (visIdx >= container.children.length) {
         const s = _acquireParticleSprite();
@@ -16297,9 +16302,9 @@ function syncPixiParticles() {
       s.alpha = life;
       s.tint = _parseColorToTint(p.color);
       visIdx++;
-    } catch (_) { /* hoppa över denna partikel om något kraschar */ }
+      pd.rendered++;
+    } catch (_) { pd.errors++; }
   }
-  // Hide unused
   for (let i = visIdx; i < container.children.length; i++) {
     if (container.children[i]) container.children[i].visible = false;
   }
@@ -16598,6 +16603,7 @@ function updatePixiDiagOverlay() {
     `<div style="color:#90ff90;font-size:9px;">Enemies-container ch:${pixiState.containers.enemies ? pixiState.containers.enemies.children.length : 0}</div>` : '') +
     `<div>Pixi bullets: ${pixiState.ready && pixiState.containers.bullets ? pixiState.containers.bullets.children.filter(c=>c.visible).length : 0}${pixiState.bulletsEnabled ? ' ✓' : ' off'}</div>` +
     `<div>Pixi particles: ${pixiState.ready && pixiState.containers.particles ? pixiState.containers.particles.children.filter(c=>c.visible).length : 0}${pixiState.particlesEnabled ? ' ✓' : ' off'}</div>` +
+    (pixiState._partDebug ? `<div style="color:#90c0ff;font-size:9px;">part total:${pixiState._partDebug.total} rend:${pixiState._partDebug.rendered} skip:${pixiState._partDebug.skipped} err:${pixiState._partDebug.errors}</div>` : '') +
     `<div>StressTest: ${state.stresstestActive ? '✓' : '✗'} CfgST: ${Coop && Coop.config && Coop.config.stresstest ? '✓' : '✗'}</div>` +
     `<div>SurvActive: ${state.survivorsActive ? '✓' : '✗'}</div>` +
     `<div>Canvas DOM: ${canvasInDom} z:${canvasZ}</div>` +
@@ -61588,14 +61594,12 @@ function runFrame(dt, now) {
   }
   // v1.559/v1.560: AKTIVERA PIXI-RENDERING I ALLA PLAYING-MODES
   // Particles aktiverat efter v1.560 defensive-fixes.
-  // v1.564: SAFETY — particles + vfx pipelines disabled tills crash-debug klart.
-  // Användaren rapporterade tom skärm efter v1.560 + v1.562 (particles/vfx
-  // pipelines aktiva). Enemies + bullets är safe och ger största vinsten.
+  // v1.567: Aktivera particles (men INTE vfx) för att isolera vilken som kraschade.
   if (state.mode === 'playing' && pixiState && pixiState.ready) {
     pixiState.enemiesEnabled = true;
     pixiState.bulletsEnabled = true;
-    pixiState.particlesEnabled = false;
-    pixiState.vfxEnabled = false;
+    pixiState.particlesEnabled = true;
+    pixiState.vfxEnabled = false; // disabled — testa particles först
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;

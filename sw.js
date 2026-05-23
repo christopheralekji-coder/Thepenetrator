@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v566-deep-debug-mode';
+const CACHE = 'penetrator-v567-particles-isolated-test';
 const ASSETS = [
   './',
   './index.html',
