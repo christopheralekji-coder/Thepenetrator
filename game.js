@@ -16045,6 +16045,73 @@ if (typeof PIXI !== 'undefined') {
   });
 }
 
+// v1.550: BULLETS-MIGRATION — sprite-pool för bullets, index-baserad matching
+// (bullets har ingen stable ID). Pre-render en gul cirkel-bullet, tint för
+// färg-variation.
+const _pixiBulletSpritePool = [];
+function _acquireBulletSprite() {
+  if (_pixiBulletSpritePool.length > 0) {
+    const s = _pixiBulletSpritePool.pop();
+    s.visible = true;
+    return s;
+  }
+  if (typeof PIXI === 'undefined') return null;
+  const g = new PIXI.Graphics();
+  // Bullet: gul cirkel med glow + vit kärna (klassisk projektil-look)
+  g.circle(0, 0, 5).fill({ color: 0xffeb3b, alpha: 0.4 });
+  g.circle(0, 0, 3).fill({ color: 0xffffff, alpha: 1.0 });
+  return g;
+}
+function _releaseBulletSprite(s) {
+  if (!s) return;
+  s.visible = false;
+  _pixiBulletSpritePool.push(s);
+}
+
+// Per-frame sync: index-baserad eftersom bullets saknar stable ID. Snabbare
+// än Map-lookup för 1000+ bullets.
+function syncPixiBullets() {
+  if (!pixiState.ready || !pixiState.bulletsEnabled) {
+    // Cleanup om disabled
+    if (pixiState.ready && pixiState.containers.bullets.children.length > 0) {
+      const arr = pixiState.containers.bullets.children.slice();
+      for (const s of arr) {
+        pixiState.containers.bullets.removeChild(s);
+        _releaseBulletSprite(s);
+      }
+    }
+    return;
+  }
+  const bullets = state.bullets || [];
+  const container = pixiState.containers.bullets;
+  // Säkerställ tillräckligt med sprites
+  while (container.children.length < bullets.length) {
+    const s = _acquireBulletSprite();
+    if (!s) break;
+    container.addChild(s);
+  }
+  // Uppdatera position + visibility
+  for (let i = 0; i < container.children.length; i++) {
+    const s = container.children[i];
+    if (i < bullets.length) {
+      const b = bullets[i];
+      if (b && !b.dead) {
+        s.visible = true;
+        s.position.set(b.x, b.y);
+        // Skala baserat på bullet.r (default 5)
+        const scale = (b.r || 5) / 5;
+        s.scale.set(scale, scale);
+        // Tint: röd för hostile, normal för player
+        s.tint = b.hostile ? 0xff3030 : 0xffffff;
+      } else {
+        s.visible = false;
+      }
+    } else {
+      s.visible = false;
+    }
+  }
+}
+
 // v1.544: ENEMY SPRITES via PIXI.Graphics — mer pålitligt på iOS WebGL än
 // Texture+Sprite. För iter 1 ritar vi en enkel cirkel direkt. Iter 2 kommer
 // pre-rendera riktiga textures via WebGL render-to-texture.
@@ -16141,6 +16208,8 @@ function renderPixiFrame() {
   pixiState.containers.world.position.set(-state.camera.x, -state.camera.y);
   // v1.543: Sync enemy-sprites till state.enemies (bara om enemiesEnabled)
   syncPixiEnemies();
+  // v1.550: Sync bullet-sprites till state.bullets (bara om bulletsEnabled)
+  syncPixiBullets();
   // Manuell render (vi pausade Pixi's ticker så vi kontrollerar timing)
   pixiState.app.renderer.render(pixiState.app.stage);
   pixiState.diagFrameTime = performance.now() - t0;
@@ -16309,6 +16378,7 @@ function updatePixiDiagOverlay() {
     `<div>Particles: ${particlesCount}</div>` +
     `<div>Sprites: ${pixiSprites} Stage: ${stageChildren}</div>` +
     `<div>Pixi enemies: ${pixiState.ready ? pixiState.sprites.enemies.size : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'}</div>` +
+    `<div>Pixi bullets: ${pixiState.ready && pixiState.containers.bullets ? pixiState.containers.bullets.children.filter(c=>c.visible).length : 0}${pixiState.bulletsEnabled ? ' ✓' : ' off'}</div>` +
     `<div>StressTest: ${state.stresstestActive ? '✓' : '✗'} CfgST: ${Coop && Coop.config && Coop.config.stresstest ? '✓' : '✗'}</div>` +
     `<div>SurvActive: ${state.survivorsActive ? '✓' : '✗'}</div>` +
     `<div>Canvas DOM: ${canvasInDom} z:${canvasZ}</div>` +
@@ -20700,7 +20770,10 @@ const Coop = {
         window._pixiDiag = true;
         if (typeof showToast === 'function') showToast('🧪 STRESS-TEST AKTIV');
         if (typeof showStresstestHud === 'function') showStresstestHud();
-        if (pixiState) pixiState.enemiesEnabled = true;
+        if (pixiState) {
+          pixiState.enemiesEnabled = true;
+          pixiState.bulletsEnabled = true; // v1.550
+        }
         // v1.548: Stage-marker borttagen (pipeline verifierad i v1.547).
         // Röda enemy-overlays räcker som visuell bekräftelse.
         // Explicit cleanup av ev. perks-state från tidigare match
@@ -20713,7 +20786,10 @@ const Coop = {
         const _perkBar = document.getElementById('survivors-perks-bar');
         if (_perkBar) _perkBar.style.display = 'none';
       } else {
-        if (pixiState) pixiState.enemiesEnabled = false;
+        if (pixiState) {
+          pixiState.enemiesEnabled = false;
+          pixiState.bulletsEnabled = false;
+        }
       }
       state.castledefenseWalls = ev.walls || [];
       state.castledefenseCore = ev.core || null;
@@ -59611,9 +59687,12 @@ function render() {
   drawCompanion();
   if (state.truck) drawTruck();
   // Bullets — viewport-cull sparar 5-15% bullet-render vid burst-fire
-  for (const b of state.bullets) {
-    if (b.x < _cullL || b.x > _cullR || b.y < _cullT || b.y > _cullB) continue;
-    drawBullet(b);
+  // v1.550: SKIP Canvas2D-render om Pixi-bullets aktivt
+  if (!(pixiState && pixiState.bulletsEnabled)) {
+    for (const b of state.bullets) {
+      if (b.x < _cullL || b.x > _cullR || b.y < _cullT || b.y > _cullB) continue;
+      drawBullet(b);
+    }
   }
   // CTF walls + flag-stands + dropped/carried flags (ovanpå entities men under HUD)
   if (state.ctfActive) {
