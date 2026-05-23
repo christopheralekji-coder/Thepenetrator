@@ -16277,7 +16277,27 @@ function syncPixiEnemies() {
     sprite.position.set(e.x, e.y);
     sprite.scale.set(1, 1);
     sprite.alpha = 1;
-    sprite.tint = e.isBoss ? 0xffd54a : 0xffffff;
+    // v1.561: Typ-specifik tint för visuell variation. Boss = gul.
+    if (e.isBoss || e.isMiniBoss) {
+      sprite.tint = 0xffd54a;
+    } else {
+      switch (e.type) {
+        case 'runner':    sprite.tint = 0xff8a3a; break; // orange
+        case 'ninja':     sprite.tint = 0x9a5aff; break; // lila
+        case 'brute':     sprite.tint = 0x6a4030; break; // mörk-brun
+        case 'tank':      sprite.tint = 0x3a5a8a; break; // mörk-blå
+        case 'shooter':   sprite.tint = 0x5acaff; break; // ljus-blå
+        case 'sniper':    sprite.tint = 0xaaaaff; break; // ljus-lila
+        case 'soldier':   sprite.tint = 0x5a8a3a; break; // grön
+        case 'healer':    sprite.tint = 0x5aff8a; break; // ljus-grön
+        case 'summoner':  sprite.tint = 0xff5aff; break; // magenta
+        case 'bomber':    sprite.tint = 0xff3a3a; break; // röd
+        case 'dog':       sprite.tint = 0xaa5a30; break; // brun
+        case 'swarmer':   sprite.tint = 0xffeb3b; break; // gul
+        case 'robot':     sprite.tint = 0xcccccc; break; // grå
+        default:          sprite.tint = 0xffffff;        // vit fallback (=grunt)
+      }
+    }
   }
   // Remove döda enemies
   for (const [id, sprite] of pixiState.sprites.enemies) {
