@@ -16055,11 +16055,18 @@ function _acquireEnemySprite() {
     return s;
   }
   if (typeof PIXI === 'undefined') return null;
-  // PIXI.Graphics — ritas en gång, sedan bara position-uppdatering per frame
+  // v1.548: Mer detaljerad placeholder — body + inner glow + outline.
+  // Iter 3 byter mot pre-rendered typ-specifika textures (grunt/runner/brute).
   const g = new PIXI.Graphics();
-  g.circle(0, 0, 14).fill({ color: 0xff3030, alpha: 0.95 });
-  g.circle(0, 0, 14).stroke({ width: 2.5, color: 0xffffff });
-  g.circle(0, 0, 6).fill({ color: 0xff8080, alpha: 0.7 });
+  // Shadow
+  g.ellipse(2, 3, 14, 8).fill({ color: 0x000000, alpha: 0.4 });
+  // Body med radial-feel (två lager)
+  g.circle(0, 0, 14).fill({ color: 0xaa2020, alpha: 0.95 });
+  g.circle(0, 0, 10).fill({ color: 0xcc4040, alpha: 0.9 });
+  // Inner hot spot
+  g.circle(-2, -2, 5).fill({ color: 0xff8080, alpha: 0.85 });
+  // Outline
+  g.circle(0, 0, 14).stroke({ width: 1.5, color: 0x0a0a0a });
   return g;
 }
 const _pixiEnemySpritePool = [];
@@ -20694,23 +20701,8 @@ const Coop = {
         if (typeof showToast === 'function') showToast('🧪 STRESS-TEST AKTIV');
         if (typeof showStresstestHud === 'function') showStresstestHud();
         if (pixiState) pixiState.enemiesEnabled = true;
-        // v1.547: Lägg en STAGE-LEVEL grön cirkel mitt på skärmen som GARANTERAT
-        // syns om Pixi-canvas renderar. Om denna inte syns: pixi-canvas är dolt.
-        if (pixiState && pixiState.app && !document.getElementById('__pixi_stress_marker_added')) {
-          try {
-            const marker = new PIXI.Graphics();
-            marker.circle(0, 0, 30).fill({ color: 0x00ff00, alpha: 0.9 });
-            marker.circle(0, 0, 30).stroke({ width: 4, color: 0x000000 });
-            marker.position.set(viewW / 2, viewH / 2);
-            marker.label = '__pixi_stress_marker';
-            pixiState.app.stage.addChild(marker);
-            // Marker-flag i DOM så vi inte adderar två (vid match-restart)
-            const flag = document.createElement('div');
-            flag.id = '__pixi_stress_marker_added';
-            flag.style.display = 'none';
-            document.body.appendChild(flag);
-          } catch (e) { console.error('[PixiJS] marker-skapande fel:', e); }
-        }
+        // v1.548: Stage-marker borttagen (pipeline verifierad i v1.547).
+        // Röda enemy-overlays räcker som visuell bekräftelse.
         // Explicit cleanup av ev. perks-state från tidigare match
         state.survivorsPerks = [];
         state.survivorsPerkOverlayOn = false;
@@ -59585,8 +59577,10 @@ function render() {
     if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
     drawParticle(p);
   }
-  // Entities
-  for (const e of state.enemies) drawEnemy(e);
+  // Entities — v1.548: SKIP drawEnemy om Pixi-overlay aktivt (= första prestanda-vinsten)
+  if (!(pixiState && pixiState.enemiesEnabled)) {
+    for (const e of state.enemies) drawEnemy(e);
+  }
   drawDeadBody();
   // TDM/CTF: rita team-ringar UNDER spelarna så de syns på avstånd
   if (state.tdmActive && Coop.tdmTeams) drawTdmTeamRings();
