@@ -226,9 +226,11 @@ function tickSim(sim) {
     sim.eventQueue.push({ type: 'countdown_end' });
   }
 
-  if (sim.enemies.length > ENEMY_CAP) {
+  // v1.539: STRESS-TEST höjer cap drastiskt (500 vs 80) så vi KAN testa lager
+  const _enemyCap = sim.stresstestActive ? 500 : ENEMY_CAP;
+  if (sim.enemies.length > _enemyCap) {
     const boss = sim.enemies.find(e => e.isBoss);
-    sim.enemies = sim.enemies.slice(-ENEMY_CAP);
+    sim.enemies = sim.enemies.slice(-_enemyCap);
     if (boss && !sim.enemies.includes(boss)) sim.enemies.push(boss);
   }
 
@@ -345,7 +347,7 @@ function tickSim(sim) {
   // Wave-spawn: spawnEnemyAtEdge
   if (sim.waveActive && sim.enemiesToSpawn > 0 && !timeStopped) {
     sim.spawnTimer -= dt;
-    if (sim.spawnTimer <= 0 && sim.enemies.length < ENEMY_CAP) {
+    if (sim.spawnTimer <= 0 && sim.enemies.length < (sim.stresstestActive ? 500 : ENEMY_CAP)) {
       const stage = getStage(sim.wave);
       const players = buildPlayerList(sim);
       const beforeCount = sim.enemies.length;
@@ -2798,7 +2800,7 @@ function tickCastleDefense(sim, dt, now) {
   // === SPAWN ENEMIES (under active-fasen) ===
   if (sim.castledefenseWaveState === 'active' && sim._cdWaveSpawnsRemaining > 0) {
     sim._cdWaveSpawnTimer -= dt;
-    if (sim._cdWaveSpawnTimer <= 0 && sim.enemies.length < ENEMY_CAP) {
+    if (sim._cdWaveSpawnTimer <= 0 && sim.enemies.length < (sim.stresstestActive ? 500 : ENEMY_CAP)) {
       const sp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
       // v1.416: theme override pool
       const themePool = cdGetThemePool(sim._cdActiveTheme);

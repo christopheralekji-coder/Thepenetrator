@@ -35329,7 +35329,7 @@ function applyBulletEffects(target, b) {
 function updateBullets(dt) {
   const p = state.player;
   // Hård cap mot infinite-skott (t.ex. cheats + minigun)
-  if (state.bullets.length > 300) {
+  if (state.bullets.length > (state.stresstestActive ? 2000 : 300)) {
     state.bullets.splice(0, state.bullets.length - 300);
   }
   // Trail-counter: pusha trail-partikel var ~33ms (max 30/s per bullet) så
@@ -35929,7 +35929,9 @@ function updateParticles(dt) {
   // Cap totala partiklar — lägre cap i coop så frame-budget håller med
   // nätverk-overhead. Coop med 4 spelare har 4× input-events + multi-bullet
   // broadcasts → mer CPU upptaget, lägre partikel-budget för render-headroom.
-  const particleCap = (Coop && Coop.active && Coop.players && Coop.players.size > 0) ? 180 : 250;
+  // v1.539: STRESS-TEST höjer cap till 2000 så vi kan testa partikel-prestanda
+  const particleCap = state.stresstestActive ? 2000
+    : ((Coop && Coop.active && Coop.players && Coop.players.size > 0) ? 180 : 250);
   if (state.particles.length > particleCap) {
     const removed = state.particles.splice(0, state.particles.length - particleCap);
     for (const p of removed) recycleParticle(p);
