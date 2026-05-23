@@ -16419,12 +16419,18 @@ function renderPixiFrame() {
   // v1.558: Wrap varje sync i try-catch så en crash inte stoppar render.
   // Var bug i v1.557: syncPixiParticles kraschade → renderer.render() körs aldrig
   // → hela skärmen tom.
-  try { syncPixiEnemies(); } catch (e) { console.error('[Pixi] enemies sync fail:', e); }
-  try { syncPixiBullets(); } catch (e) { console.error('[Pixi] bullets sync fail:', e); }
-  try { if (typeof syncPixiParticles === 'function') syncPixiParticles(); } catch (e) { console.error('[Pixi] particles sync fail:', e); }
-  try { if (typeof syncPixiVfx === 'function') syncPixiVfx(); } catch (e) { console.error('[Pixi] vfx sync fail:', e); }
-  // Manuell render (vi pausade Pixi's ticker så vi kontrollerar timing)
-  pixiState.app.renderer.render(pixiState.app.stage);
+  try { syncPixiEnemies(); } catch (e) { console.error('[Pixi] enemies sync fail:', e); pixiState._lastError = 'enem:' + (e.message || e); }
+  try { syncPixiBullets(); } catch (e) { console.error('[Pixi] bullets sync fail:', e); pixiState._lastError = 'bull:' + (e.message || e); }
+  try { if (typeof syncPixiParticles === 'function') syncPixiParticles(); } catch (e) { console.error('[Pixi] particles sync fail:', e); pixiState._lastError = 'part:' + (e.message || e); }
+  try { if (typeof syncPixiVfx === 'function') syncPixiVfx(); } catch (e) { console.error('[Pixi] vfx sync fail:', e); pixiState._lastError = 'vfx:' + (e.message || e); }
+  // v1.568: Wrap renderer.render i try-catch så crash här inte stoppar pipelinen
+  try {
+    pixiState.app.renderer.render(pixiState.app.stage);
+    pixiState._renderCount = (pixiState._renderCount || 0) + 1;
+  } catch (e) {
+    console.error('[Pixi] renderer.render fail:', e);
+    pixiState._lastError = 'render:' + (e.message || e);
+  }
   pixiState.diagFrameTime = performance.now() - t0;
 }
 
@@ -16604,6 +16610,8 @@ function updatePixiDiagOverlay() {
     `<div>Pixi bullets: ${pixiState.ready && pixiState.containers.bullets ? pixiState.containers.bullets.children.filter(c=>c.visible).length : 0}${pixiState.bulletsEnabled ? ' ✓' : ' off'}</div>` +
     `<div>Pixi particles: ${pixiState.ready && pixiState.containers.particles ? pixiState.containers.particles.children.filter(c=>c.visible).length : 0}${pixiState.particlesEnabled ? ' ✓' : ' off'}</div>` +
     (pixiState._partDebug ? `<div style="color:#90c0ff;font-size:9px;">part total:${pixiState._partDebug.total} rend:${pixiState._partDebug.rendered} skip:${pixiState._partDebug.skipped} err:${pixiState._partDebug.errors}</div>` : '') +
+    `<div style="color:#ffff80;font-size:9px;">renders:${pixiState._renderCount || 0}</div>` +
+    (pixiState._lastError ? `<div style="color:#ff5050;font-size:9px;max-width:200px;word-break:break-all;">ERR: ${pixiState._lastError}</div>` : '') +
     `<div>StressTest: ${state.stresstestActive ? '✓' : '✗'} CfgST: ${Coop && Coop.config && Coop.config.stresstest ? '✓' : '✗'}</div>` +
     `<div>SurvActive: ${state.survivorsActive ? '✓' : '✗'}</div>` +
     `<div>Canvas DOM: ${canvasInDom} z:${canvasZ}</div>` +
