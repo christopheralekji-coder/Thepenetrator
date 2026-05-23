@@ -16032,6 +16032,15 @@ async function initPixiFoundation() {
     app.ticker.stop();
     pixiState.ready = true;
     console.log('[PixiJS] Foundation init klar — v' + PIXI.VERSION + ', resolution', DPR);
+    // v1.573: Trigger texture-bake AFTER full Pixi-readiness + JS-load complete
+    // (delay = säkrar att MINIBOSS_DRAW + draw-funktionerna är declared)
+    setTimeout(() => {
+      try {
+        if (typeof bakeAllEnemyTextures === 'function') bakeAllEnemyTextures();
+      } catch (err) {
+        console.warn('[Pixi] initial bake error:', err.message);
+      }
+    }, 250);
 
     // v1.548: PERMANENT diagnostic — när window._pixiAlwaysVisible = true
     // ritas en STOR rosa stage-cirkel mitt på skärmen i ALLA modes.
@@ -16192,14 +16201,15 @@ function _bakeEnemyTexture(type, opts) {
   const offCtx = offCanvas.getContext('2d');
   if (!offCtx) return null;
 
+  const walkPhase = opts.walkPhase || 0;
   const mockE = {
     r: r,
     type: type,
     color: opts.color || '#888',
     facing: 0,
-    walkAccum: 0,
-    walkPhase: 0,
-    contactCd: 1.0,
+    walkAccum: walkPhase,    // v1.573: styr ben-position för walk-cycle frame
+    walkPhase: walkPhase,
+    contactCd: walkPhase !== 0 ? 0 : 1.0, // moving om walkPhase != 0
     flashUntil: 0,
     fuse: 1.0,
     aiming: false,
@@ -16260,23 +16270,52 @@ function _bakeFallbackTexture() {
 }
 
 function bakeAllEnemyTextures() {
-  if (pixiState.enemyTextures && Object.keys(pixiState.enemyTextures).length > 0) return;
-  pixiState.enemyTextures = {};
+  // v1.573: Guard mot för-tidig bake — om Pixi inte är ready än, skip + retry senare
+  if (typeof PIXI === 'undefined') return;
+  if (!pixiState.ready) {
+    console.warn('[Pixi-bake] skipped — pixi not ready, retry on next call');
+    return;
+  }
+  if (pixiState.enemyTexturesBaked) return;
+  if (!pixiState.enemyTextures) pixiState.enemyTextures = {};
+
+  let bakedCount = 0;
+  let expected = 0;
+
+  // v1.573: Bake 2 frames per type för walk-cycle animation
+  // Frame _a: phase=0 (vänster ben fram), Frame _b: phase=π (höger ben fram)
   for (const item of _ENEMY_BAKE_LIST) {
-    const tex = _bakeEnemyTexture(item.type, { ...item, key: item.type });
-    if (tex) pixiState.enemyTextures[item.type] = tex;
+    for (const frame of ['a', 'b']) {
+      expected++;
+      const key = item.type + '_' + frame;
+      if (pixiState.enemyTextures[key]) { bakedCount++; continue; }
+      const phase = frame === 'a' ? 0 : Math.PI;
+      const tex = _bakeEnemyTexture(item.type, { ...item, key, walkPhase: phase });
+      if (tex) { pixiState.enemyTextures[key] = tex; bakedCount++; }
+    }
   }
   for (const power of _MINIBOSS_BAKE_LIST) {
-    const key = 'mb_' + power;
-    const tex = _bakeEnemyTexture('grunt', { r: 24, color: '#aa3a3a', miniPower: power, key });
-    if (tex) pixiState.enemyTextures[key] = tex;
+    for (const frame of ['a', 'b']) {
+      expected++;
+      const key = 'mb_' + power + '_' + frame;
+      if (pixiState.enemyTextures[key]) { bakedCount++; continue; }
+      const phase = frame === 'a' ? 0 : Math.PI;
+      const tex = _bakeEnemyTexture('grunt', { r: 24, color: '#aa3a3a', miniPower: power, key, walkPhase: phase });
+      if (tex) { pixiState.enemyTextures[key] = tex; bakedCount++; }
+    }
   }
-  if (!pixiState.enemyTextures.grunt) {
-    pixiState.enemyTextures.grunt = _bakeFallbackTexture();
+  if (!pixiState.enemyTextures.grunt_a) {
+    pixiState.enemyTextures.grunt_a = _bakeFallbackTexture();
     _ENEMY_BAKE_RADIUS.grunt = 18;
   }
-  pixiState.enemyTexturesBaked = true;
-  console.log('[Pixi] enemy textures baked:', Object.keys(pixiState.enemyTextures).length);
+
+  if (bakedCount >= expected) {
+    pixiState.enemyTexturesBaked = true;
+    console.log('[Pixi] enemy textures fully baked:', bakedCount, '/', expected);
+  } else {
+    console.warn('[Pixi-bake] partial bake:', bakedCount, '/', expected, '— will retry on next sync');
+    pixiState.enemyTexturesBaked = false; // tillåt retry
+  }
 }
 
 const _pixiEnemySpritePoolByType = {};
@@ -16289,21 +16328,25 @@ function _getEnemyTextureKey(e) {
 function _acquireEnemySpriteForType(e) {
   if (typeof PIXI === 'undefined') return null;
   if (!pixiState.enemyTexturesBaked) bakeAllEnemyTextures();
-  const key = _getEnemyTextureKey(e);
-  let pool = _pixiEnemySpritePoolByType[key];
-  if (!pool) pool = _pixiEnemySpritePoolByType[key] = [];
+  const baseKey = _getEnemyTextureKey(e);
+  let pool = _pixiEnemySpritePoolByType[baseKey];
+  if (!pool) pool = _pixiEnemySpritePoolByType[baseKey] = [];
   if (pool.length > 0) {
     const s = pool.pop();
     s.visible = true;
     s.alpha = 1;
     return s;
   }
-  const tex = (pixiState.enemyTextures && (pixiState.enemyTextures[key] || pixiState.enemyTextures.grunt))
-    || _bakeFallbackTexture();
+  // v1.573: textures är _a / _b (walk-cycle frames). Start med _a
+  const tex = (pixiState.enemyTextures && (
+    pixiState.enemyTextures[baseKey + '_a'] ||
+    pixiState.enemyTextures.grunt_a ||
+    pixiState.enemyTextures.grunt
+  )) || _bakeFallbackTexture();
   if (!tex) return null;
   const s = new PIXI.Sprite(tex);
   s.anchor.set(0.5);
-  s._typeKey = key;
+  s._typeKey = baseKey;
   return s;
 }
 
@@ -16556,8 +16599,7 @@ function syncPixiEnemies() {
     sprite.position.set(e.x, e.y);
     // Scale: matcha runtime-radius mot bakerings-radius (textur baked vid r=18, etc)
     const bakeR = _ENEMY_BAKE_RADIUS[wantKey] || 18;
-    const scale = (e.r || bakeR) / bakeR;
-    sprite.scale.set(scale, scale);
+    const baseScale = (e.r || bakeR) / bakeR;
     // v1.572: Beräkna facing (drawEnemy gjorde det förut men Canvas2D-pathen
     // skippas nu eftersom Pixi-enemies är ON). Replikera same logik här.
     if (state.player && typeof state.player.x === 'number' && !e.isBoss) {
@@ -16566,13 +16608,19 @@ function syncPixiEnemies() {
     // Rotation: sprite-textur baked facing-right (vinkel 0)
     sprite.rotation = e.facing || 0;
     sprite.alpha = 1;
-    // Flash via tint istället för texture-swap (billigare, samma visuell effekt)
+    // v1.573: WALK-CYCLE — accumulate phase + swap texture mellan _a och _b
+    if (e.walkAccum == null) e.walkAccum = e.walkPhase || 0;
+    const moving = !e.contactCd || e.contactCd < 0.3;
+    e.walkAccum += moving ? 0.18 : 0.04;
+    const frame = (Math.sin(e.walkAccum) > 0) ? 'a' : 'b';
+    const walkTex = pixiState.enemyTextures && pixiState.enemyTextures[wantKey + '_' + frame];
+    if (walkTex && sprite.texture !== walkTex) sprite.texture = walkTex;
+    // v1.573: DEATH-FLASH — scale-pulse + djupare tint under flashUntil
     const nowFlash = performance.now();
-    if (e.flashUntil && e.flashUntil > nowFlash) {
-      sprite.tint = 0xff8080;
-    } else {
-      sprite.tint = 0xffffff; // ingen tint — textur har redan rätt färg
-    }
+    const flashing = e.flashUntil && e.flashUntil > nowFlash;
+    const pulse = flashing ? 1.18 : 1.0;
+    sprite.scale.set(baseScale * pulse, baseScale * pulse);
+    sprite.tint = flashing ? 0xff3030 : 0xffffff;
   }
   for (const [id, sprite] of pixiState.sprites.enemies) {
     if (!seenIds.has(id)) {
@@ -17918,6 +17966,21 @@ function detonateGrenade(g) {
   if (typeof spawnSparks === 'function') {
     spawnSparks(g.toX, g.toY, '#ffaa30', 24, 260);
     spawnSparks(g.toX, g.toY, '#ff5a20', 12, 200);
+  }
+  // v1.573: ELDBOLL — snabb-fade orange/röd blob på explosion-centrum (AAA-känsla)
+  if (state.particles && state.particles.length < 800) {
+    for (let i = 0; i < 6; i++) {
+      state.particles.push({
+        x: g.toX + (Math.random() - 0.5) * 14,
+        y: g.toY + (Math.random() - 0.5) * 14,
+        vx: 0, vy: 0,
+        life: 0.22 + Math.random() * 0.18,
+        maxLife: 0.4,
+        r: 16 + Math.random() * 18,
+        color: i < 2 ? '#ffeb3b' : (i < 4 ? '#ff8a30' : '#ff3a14'),
+        isExplosion: true,
+      });
+    }
   }
   // Smoke-puff
   if (state.particles && state.particles.length < 800) {
