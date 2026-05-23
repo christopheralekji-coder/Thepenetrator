@@ -67,9 +67,9 @@ const SURVIVORS_ARENA = {
   // 4 raritys: gray/green/blue/purple. Tier-rates skiftar med elapsed time så
   // late-game känns kraftfullt (mer lila).
   perkSelectionIntervalSec: 60,
-  firstPerkOfferAtSec: 30,           // första perk-val 30s in (inte direkt)
-  perkChoicesPerSelection: 6,        // v1.531: 6 val (var 3)
-  perkAutoPickTimeoutSec: 15,        // om spelaren inte väljer på 15s → auto-pick första
+  firstPerkOfferAtSec: 15,           // v1.532: 15s (var 30s — för länge att vänta)
+  perkChoicesPerSelection: 6,
+  perkAutoPickTimeoutSec: 15,
 
   // Rarity-färger (centraliserade så HUD/overlay matchar)
   rarityColors: {
@@ -79,10 +79,10 @@ const SURVIVORS_ARENA = {
     purple: { border: '#a855f7', glow: 'rgba(168,85,247,0.65)',  bgFrom: '#3a1a5a', bgTo: '#1f0a3a', text: '#d0a0ff' },
   },
 
-  // v1.531: FAST rarity-rates oavsett tid (var time-baserat). Användarens spec:
-  // "Drop chansen ska alltid vara samma och inte baserar på tid".
+  // v1.531/v1.532: FAST rarity-rates oavsett tid. Höjt purple från 7% till 12%
+  // (balance-audit: bara 1.4 purple per match annars — game-changers för sällsynta).
   // [grayRate, greenRate, blueRate, purpleRate], summa = 1.0
-  rarityRatesFixed: [0.45, 0.30, 0.18, 0.07],
+  rarityRatesFixed: [0.38, 0.30, 0.20, 0.12],
   // (Legacy time-baserad behållen för bakåtkompat men används inte längre)
   rarityRatesByMinute: [
     { until: 99, rates: [0.45, 0.30, 0.18, 0.07] },

@@ -12531,7 +12531,8 @@ const COOP_STORY_WEAPON_UNLOCKS = {
   // Stage 6+: alla 6 låsta, ingen ytterligare unlock
 };
 function isCoopStoryMode() {
-  return Coop.active && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && !Coop.config.koth && (Coop.config.mode === 'story' || !Coop.config.mode);
+  // v1.532: exkludera juggernaut/battleroyale/castledefense/survivors (var bugg)
+  return Coop.active && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && !Coop.config.koth && !Coop.config.juggernaut && !Coop.config.battleroyale && !Coop.config.castledefense && !Coop.config.survivors && (Coop.config.mode === 'story' || !Coop.config.mode);
 }
 function coopStoryUnlockedThroughWave(wave) {
   const unlocked = ['fists'];
@@ -14582,14 +14583,20 @@ function rollSurvivorsRarity(elapsedSec) {
   return 'gray';
 }
 
-// v1.531: Returnerar 6 unika perks (var 3). Försöker undvika dupletter inom val.
+// v1.531/v1.532: Returnerar 6 unika perks. Filtrerar bort perks spelaren REDAN
+// har (samma id) — användarens spec: "kan inte få samma ability i specifik nivå
+// igen". Stacking sker via olika tiers (gray DMG I + green DMG II samtidigt).
 function rollSurvivorsPerks(elapsedSec) {
   const arena = (typeof SURVIVORS_ARENA !== 'undefined') ? SURVIVORS_ARENA : null;
   if (!arena || !arena.perks) return [];
   const choices = [];
   const seenIds = new Set();
+  // Lägg redan-ägda perk-ids i seen för att exkludera dem från val
+  if (state.survivorsPerks) {
+    for (const sp of state.survivorsPerks) seenIds.add(sp.perkId);
+  }
   const targetCount = (arena.perkChoicesPerSelection || 6);
-  for (let attempt = 0; attempt < 60 && choices.length < targetCount; attempt++) {
+  for (let attempt = 0; attempt < 100 && choices.length < targetCount; attempt++) {
     const rarity = rollSurvivorsRarity(elapsedSec);
     const pool = arena.perks.filter(p => p.rarity === rarity && !seenIds.has(p.id));
     if (pool.length === 0) {
@@ -14658,13 +14665,13 @@ function selectSurvivorsPerk(perk) {
     state.player.maxHp = (state.player.maxHp || 100) + perk.effect.value;
     state.player.hp = state.player.maxHp;
   }
-  // v1.530: GROW-perk — +25% storlek + +25% maxHP per stack
+  // v1.530/v1.532: GROW-perk — +25% storlek + +25% maxHP + FULL HEAL (för
+  // konsekvens med andra HP-perks som gn_hp/b_hp/g_hp gör full heal).
   if (perk.effect.type === 'grow' && state.player) {
     const m = 1 + perk.effect.value;
     state.player.r = (state.player.r || 14) * m;
-    const oldMax = state.player.maxHp || 100;
-    state.player.maxHp = oldMax * m;
-    state.player.hp = Math.min(state.player.maxHp, state.player.hp + (state.player.maxHp - oldMax));
+    state.player.maxHp = (state.player.maxHp || 100) * m;
+    state.player.hp = state.player.maxHp;
   }
   if (typeof showToast === 'function') showToast('✨ ' + perk.icon + ' ' + perk.name);
   if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
@@ -14729,10 +14736,15 @@ function renderSurvivorsPerkOverlay() {
 function checkSurvivorsPerkTrigger() {
   if (!state.survivorsActive) return;
   const now = Date.now();
-  // Auto-pick om timeout
+  // Auto-pick om timeout. v1.532: välj HÖGSTA rarity (var first = ofta gray).
   if (state.survivorsPerkOverlayOn && now >= state.survivorsPerkAutoPickAt) {
-    const first = (state._survivorsPerkChoices || [])[0];
-    if (first) selectSurvivorsPerk(first);
+    const choices = state._survivorsPerkChoices || [];
+    const order = { gray: 0, green: 1, blue: 2, purple: 3 };
+    let best = choices[0];
+    for (const c of choices) {
+      if ((order[c.rarity] || 0) > (order[(best && best.rarity) || 'gray'] || 0)) best = c;
+    }
+    if (best) selectSurvivorsPerk(best);
     return;
   }
   // Initiera nextPerkAt om inte satt
@@ -14809,7 +14821,7 @@ function showSurvivorsPerkTooltip(name, desc) {
   clearTimeout(state._survivorsTooltipTimeout);
   state._survivorsTooltipTimeout = setTimeout(() => {
     if (tip) tip.style.display = 'none';
-  }, 2000);
+  }, 3500);
 }
 
 // Tick-baserad effekt-applicering: regen + thorns. Kallas från runFrame varje frame.
@@ -14858,6 +14870,8 @@ const SURVIVORS_SHOP_WEAPONS = [
 
 function openSurvivorsWeaponShop() {
   if (!state.survivorsActive) return;
+  // v1.532: blockera om spelaren är död/downed (var bug — kunde köpa när nere)
+  if (!state.player || state.player.hp <= 0) return;
   let el = document.getElementById('survivors-shop-overlay');
   if (!el) {
     el = document.createElement('div');
@@ -14869,12 +14883,16 @@ function openSurvivorsWeaponShop() {
 }
 
 function renderSurvivorsWeaponShop(el) {
-  const gold = save.gold || 0;
+  // v1.532: Använd MATCH-gold (state.castledefenseGold) inte save.gold (permanent
+  // meta-currency). Annars dränerar shop spelarens progression.
+  const gold = state.castledefenseGold || 0;
   const equipped = (state.player && state.player.weaponId) || 'pistol';
+  // Ägda vapen trackas per match istället för permanent i save.owned
+  state.survivorsOwnedWeapons = state.survivorsOwnedWeapons || ['pistol'];
   const cardsHtml = SURVIVORS_SHOP_WEAPONS.map(w => {
     const canAfford = gold >= w.cost;
     const isEquipped = equipped === w.id;
-    const owned = (save.owned || []).includes(w.id);
+    const owned = state.survivorsOwnedWeapons.includes(w.id);
     const isPurchased = owned || w.cost === 0;
     let bg, border, status;
     if (isEquipped) { bg = '#2a4a18'; border = '#5aff5a'; status = '✓ AKTIV'; }
@@ -14914,16 +14932,18 @@ function closeSurvivorsWeaponShop() {
 }
 
 function trySurvivorsWeaponBuy(weaponId, cost) {
-  const owned = (save.owned || []).includes(weaponId) || cost === 0;
+  // v1.532: MATCH-gold (state.castledefenseGold) inte save.gold. Server-side
+  // sync görs via sim_cd_buy_weapon (TODO iter 8). För nu: klient-local dec.
+  state.survivorsOwnedWeapons = state.survivorsOwnedWeapons || ['pistol'];
+  const owned = state.survivorsOwnedWeapons.includes(weaponId) || cost === 0;
   if (!owned) {
-    if ((save.gold || 0) < cost) {
+    const matchGold = state.castledefenseGold || 0;
+    if (matchGold < cost) {
       if (typeof showToast === 'function') showToast('🔒 OTILLRÄCKLIGT GOLD');
       return;
     }
-    save.gold -= cost;
-    save.owned = save.owned || [];
-    if (!save.owned.includes(weaponId)) save.owned.push(weaponId);
-    if (typeof persist === 'function') persist();
+    state.castledefenseGold = matchGold - cost;
+    if (!state.survivorsOwnedWeapons.includes(weaponId)) state.survivorsOwnedWeapons.push(weaponId);
     if (typeof showToast === 'function') showToast('💰 KÖPT: ' + weaponId.toUpperCase());
     if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
   }
@@ -14945,6 +14965,8 @@ function resetSurvivorsPerks() {
   // v1.529: reset arena-cache så ash-particles + decorations regenereras vid ny match
   state._survArenaCache = null;
   state.survivorsReviveUsed = false;
+  // v1.532: reset survivors-shop-owned så man börjar varje match med bara pistol
+  state.survivorsOwnedWeapons = ['pistol'];
   const el = document.getElementById('survivors-perk-overlay');
   if (el) el.style.display = 'none';
   const bar = document.getElementById('survivors-perks-bar');
@@ -16191,6 +16213,8 @@ let _cdGoldTapLastT = 0;
 function checkCdGoldCornerTap(mx, my) {
   if (state.mode !== 'playing') return false;
   if (!state.castledefenseActive) return false;
+  // v1.532: Exkludera survivors (delar castledefenseActive-flag men har egen gold-economy)
+  if (state.survivorsActive) return false;
   // Bottom-left 70×70 zon
   if (mx > 70) return false;
   if (my < viewH - 70) return false;
@@ -22635,9 +22659,10 @@ function renderHostControls() {
   onTap(survBtn, () => {
     const newSurv = !Coop.config.survivors;
     Coop.config.survivors = newSurv;
+    // v1.532 FIX: ta bort survivors=false från mutex-raden (dödade self-state)
     Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
     Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
-    Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false;
+    Coop.config.battleroyale = false; Coop.config.castledefense = false;
     if (newSurv) {
       Coop.config.serverSim = true;
     }
@@ -27198,9 +27223,11 @@ function tryShoot(now) {
   state.weaponUsage[w.id] = (state.weaponUsage[w.id] || 0) + 1;
   if (state.weaponsUsedThisStage) state.weaponsUsedThisStage.add(w.id);
   let pellets = w.pellets || 1;
-  // v1.527: SURVIVORS-RUN multishot-perk adderar extra kulor per skott (stack-bar)
+  // v1.527/v1.532: SURVIVORS-RUN multishot-perk. CAP +4 extra (balance-audit:
+  // unbounded multishot + shotgun blir 12+ pellets = för OP).
   if (state.survivorsActive) {
-    pellets += getSurvivorsPerkSum('multishot');
+    const extraPellets = Math.min(4, getSurvivorsPerkSum('multishot'));
+    pellets += extraPellets;
   }
   const burstCount = w.burstCount || 1;
   const burstDelay = w.burstDelay || 0;
@@ -30015,6 +30042,32 @@ function getEndingType() {
 
 function renderCoopBoardHTML(rows) {
   const trophies = ['🥇','🥈','🥉','🎖','🎖','🎖','🎖','🎖'];
+  // v1.532: Survivors-mode har egen scoreboard-layout
+  const isSurvivors = !!state.survivorsActive || (rows[0] && rows[0]._survivorsMode);
+  if (isSurvivors) {
+    const survivedSec = state.survivorsStartT
+      ? Math.round((Date.now() - state.survivorsStartT) / 1000)
+      : 0;
+    const mm = Math.floor(survivedSec / 60);
+    const ss = survivedSec % 60;
+    return `<div id="coop-board-placeholder" style="margin-top:14px;padding:12px;background:rgba(170,58,255,0.12);border:1px solid rgba(170,58,255,0.4);border-radius:10px;">
+      <div style="font-weight:bold;color:#d0a0ff;margin-bottom:8px;letter-spacing:1px;">☠️ SURVIVORS LEADERBOARD · ${mm}:${ss.toString().padStart(2,'0')}</div>
+      <div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;font-size:12px;color:#cccccc;padding:0 6px 4px;border-bottom:1px solid rgba(170,58,255,0.2);">
+        <div></div><div>SPELARE</div><div>KILLS</div><div>PERKS</div><div>DÖD</div>
+      </div>
+      ${rows.map((r, i) => {
+        const isMe = r.peerId === Coop.myId;
+        return `<div style="display:grid;grid-template-columns:auto 1fr auto auto auto;gap:8px;font-size:13px;padding:5px 6px;${isMe ? 'color:#ffd54a;background:rgba(255,213,74,0.08);border-radius:4px;' : ''}">
+          <span>${trophies[i] || '·'}</span>
+          <span>${r.name}</span>
+          <span><b>${r.kills}</b></span>
+          <span>${r.perksCount != null ? r.perksCount : '—'}</span>
+          <span style="color:${r.deaths > 0 ? '#ff7a7a' : '#888'};">${r.deaths}</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+  // Default CD/PvP/Story-scoreboard
   return `<div id="coop-board-placeholder" style="margin-top:14px;padding:10px;background:rgba(170,58,255,0.1);border:1px solid rgba(170,58,255,0.3);border-radius:8px;">
     <div style="font-weight:bold;color:#aa3aff;margin-bottom:6px;">🏆 CO-OP LEADERBOARD</div>
     ${rows.map((r, i) => {
@@ -30074,12 +30127,16 @@ function endGame(victory) {
   let coopBoard = '';
   if (Coop.active) {
     if (Coop.isHost) {
+      const isSurv = !!state.survivorsActive;
+      const myPerksCount = (state.survivorsPerks || []).length;
       const rows = [{
         name: (Coop.myName || 'Host') + ' 👑',
         peerId: Coop.myId,
-        kills: state.hostKills || 0,
+        kills: isSurv ? (state.survivorsKills || 0) : (state.hostKills || 0),
         bossKills: state.hostBossKills || 0,
         deaths: state.hostDeaths || 0,
+        perksCount: isSurv ? myPerksCount : null,
+        _survivorsMode: isSurv,
       }];
       for (const [pid, p] of Coop.players) {
         rows.push({
@@ -30088,6 +30145,8 @@ function endGame(victory) {
           kills: p.kills || 0,
           bossKills: p.bossKills || 0,
           deaths: p.deaths || 0,
+          perksCount: isSurv ? (p.perksCount || 0) : null,
+          _survivorsMode: isSurv,
         });
       }
       rows.sort((a, b) => b.kills - a.kills);
