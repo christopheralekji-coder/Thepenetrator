@@ -20672,6 +20672,23 @@ const Coop = {
         if (typeof showToast === 'function') showToast('🧪 STRESS-TEST AKTIV');
         if (typeof showStresstestHud === 'function') showStresstestHud();
         if (pixiState) pixiState.enemiesEnabled = true;
+        // v1.547: Lägg en STAGE-LEVEL grön cirkel mitt på skärmen som GARANTERAT
+        // syns om Pixi-canvas renderar. Om denna inte syns: pixi-canvas är dolt.
+        if (pixiState && pixiState.app && !document.getElementById('__pixi_stress_marker_added')) {
+          try {
+            const marker = new PIXI.Graphics();
+            marker.circle(0, 0, 30).fill({ color: 0x00ff00, alpha: 0.9 });
+            marker.circle(0, 0, 30).stroke({ width: 4, color: 0x000000 });
+            marker.position.set(viewW / 2, viewH / 2);
+            marker.label = '__pixi_stress_marker';
+            pixiState.app.stage.addChild(marker);
+            // Marker-flag i DOM så vi inte adderar två (vid match-restart)
+            const flag = document.createElement('div');
+            flag.id = '__pixi_stress_marker_added';
+            flag.style.display = 'none';
+            document.body.appendChild(flag);
+          } catch (e) { console.error('[PixiJS] marker-skapande fel:', e); }
+        }
         // Explicit cleanup av ev. perks-state från tidigare match
         state.survivorsPerks = [];
         state.survivorsPerkOverlayOn = false;

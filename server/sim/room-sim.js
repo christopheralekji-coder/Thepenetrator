@@ -3050,7 +3050,8 @@ function tickCastleDefense(sim, dt, now) {
     }
     // Core circle-collision för ALLA fiender (även flyers — annars kan de attacka
     // core från insidan). v1.398-fix: d=0 fallback för enemy också.
-    if (sim.castledefenseCore && sim.castledefenseCore.hp > 0) {
+    // v1.547: I stress-test + survivors är core bara dekoration — disable enemy-collision
+    if (sim.castledefenseCore && sim.castledefenseCore.hp > 0 && !sim.survivorsActive && !sim.stresstestActive) {
       const core = sim.castledefenseCore;
       const dxe = e.x - core.x, dye = e.y - core.y;
       const de = Math.sqrt(dxe * dxe + dye * dye);
