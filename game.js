@@ -32848,33 +32848,24 @@ function updatePlayer(dt, now) {
       p.x = core.x + minD;
     }
   }
-  // v1.431: Player-Partner SEPARATION i alla coop-modes. Tidigare hade vi ingen
-  // separation alls → 2 spelare kunde stå PÅ samma pixel → upplevdes som "fast
-  // i annan gubbe". Soft push-apart, ej hård collision (egen pos justeras bara).
+  // v1.431/v1.521: Player-Partner ANTI-OVERLAP. v1.431 hade aggressiv push
+  // (minD=28px = pr+pr2) som blockerade walk-through helt — varje frame
+  // pushades player ut till radius-kanten → kändes som "lag" eller "vägg".
+  // v1.521: Bara jitter-apart vid EXAKT pixel-overlap (d < 1px), så coop-
+  // partners kan gå igenom varandra fritt men inte fastna på samma pixel.
   if (typeof Coop !== 'undefined' && Coop.active && Coop.players) {
-    const pr = p.r || 14;
     for (const [pid, partner] of Coop.players) {
       if (!partner || pid === Coop.myId) continue;
       if (partner.x === undefined || partner.y === undefined) continue;
       if (partner.hp !== undefined && partner.hp <= 0) continue;
-      if (partner.cdDowned) continue; // downed partners ligger ner, ingen push
+      if (partner.cdDowned) continue;
       const pdx = p.x - partner.x, pdy = p.y - partner.y;
-      const pr2 = partner.r || 14;
-      const minD = pr + pr2;
       const d2 = pdx * pdx + pdy * pdy;
-      if (d2 < minD * minD) {
-        if (d2 > 0.01) {
-          const d = Math.sqrt(d2);
-          const push = (minD - d);
-          // Push ENBART self (partner pushar sig själv på sin klient)
-          p.x += (pdx / d) * push;
-          p.y += (pdy / d) * push;
-        } else {
-          // Exakt samma pos — push åt slumpmässigt håll
-          const a = Math.random() * Math.PI * 2;
-          p.x += Math.cos(a) * minD;
-          p.y += Math.sin(a) * minD;
-        }
+      if (d2 < 1) {
+        // Exakt overlap — jitter ut åt slumpmässigt håll så de inte hänger sig
+        const a = Math.random() * Math.PI * 2;
+        p.x += Math.cos(a) * 2;
+        p.y += Math.sin(a) * 2;
       }
     }
   }

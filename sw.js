@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v520-coop-weapon-transform-isolated';
+const CACHE = 'penetrator-v521-coop-walk-through-partner';
 const ASSETS = [
   './',
   './index.html',
