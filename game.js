@@ -16125,18 +16125,12 @@ function _acquireEnemySprite() {
     return s;
   }
   if (typeof PIXI === 'undefined') return null;
-  // v1.548: Mer detaljerad placeholder — body + inner glow + outline.
-  // Iter 3 byter mot pre-rendered typ-specifika textures (grunt/runner/brute).
+  // v1.553: Förenklad till EXAKT samma pattern som bullets (som fungerar).
+  // Komplex Graphics med ellipse + multi-circle + stroke verkade ge iOS WebGL-
+  // rendering-bug där sprites räknades men inte ritades.
   const g = new PIXI.Graphics();
-  // Shadow
-  g.ellipse(2, 3, 14, 8).fill({ color: 0x000000, alpha: 0.4 });
-  // Body med radial-feel (två lager)
-  g.circle(0, 0, 14).fill({ color: 0xaa2020, alpha: 0.95 });
-  g.circle(0, 0, 10).fill({ color: 0xcc4040, alpha: 0.9 });
-  // Inner hot spot
-  g.circle(-2, -2, 5).fill({ color: 0xff8080, alpha: 0.85 });
-  // Outline
-  g.circle(0, 0, 14).stroke({ width: 1.5, color: 0x0a0a0a });
+  g.circle(0, 0, 16).fill({ color: 0xcc3030, alpha: 0.95 });
+  g.circle(0, 0, 8).fill({ color: 0xff8080, alpha: 1.0 });
   return g;
 }
 const _pixiEnemySpritePool = [];
@@ -16181,9 +16175,9 @@ function syncPixiEnemies() {
       const e = enemies[i];
       if (e && !e.dead && (e.hp == null || e.hp > 0)) {
         s.visible = true;
-        s.position.set(e.x, e.y);
-        const scale = (e.r || 14) / 14;
-        s.scale.set(scale, scale);
+        s.position.set(e.x || 0, e.y || 0);
+        // v1.553: scale=1 hardcoded (var bug: e.r kunde vara NaN/0 → osynlig)
+        s.scale.set(1, 1);
         s.tint = e.isBoss ? 0xffd54a : 0xffffff;
       } else {
         s.visible = false;
@@ -16267,15 +16261,21 @@ function showStresstestHud() {
     bar = document.createElement('div');
     bar.id = 'stresstest-hud';
     bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:max(80px, env(safe-area-inset-bottom, 80px));z-index:60;display:flex;gap:6px;background:rgba(0,0,0,0.7);padding:6px 8px;border-radius:8px;border:1px solid #5aff5a;';
+    // v1.553: touch-action:manipulation + pointer-events så knapptryck inte
+    // konsumerar joystick-touch. Använder pointerdown (snabbare än click på mobil).
     bar.innerHTML = `
-      <button id="st-spawn-e" style="background:#5a3a3a;color:#fff;border:1px solid #ff5a5a;padding:8px 12px;border-radius:6px;font-weight:900;font-size:11px;cursor:pointer;letter-spacing:0.5px;">+20 ⚔</button>
-      <button id="st-spawn-b" style="background:#3a3a5a;color:#fff;border:1px solid #5acaff;padding:8px 12px;border-radius:6px;font-weight:900;font-size:11px;cursor:pointer;letter-spacing:0.5px;">+50 ●</button>
-      <button id="st-spawn-p" style="background:#5a3a5a;color:#fff;border:1px solid #ff5aff;padding:8px 12px;border-radius:6px;font-weight:900;font-size:11px;cursor:pointer;letter-spacing:0.5px;">+200 ✨</button>
+      <button id="st-spawn-e" style="background:#5a3a3a;color:#fff;border:1px solid #ff5a5a;padding:8px 12px;border-radius:6px;font-weight:900;font-size:11px;cursor:pointer;letter-spacing:0.5px;touch-action:manipulation;">+20 ⚔</button>
+      <button id="st-spawn-b" style="background:#3a3a5a;color:#fff;border:1px solid #5acaff;padding:8px 12px;border-radius:6px;font-weight:900;font-size:11px;cursor:pointer;letter-spacing:0.5px;touch-action:manipulation;">+50 ●</button>
+      <button id="st-spawn-p" style="background:#5a3a5a;color:#fff;border:1px solid #ff5aff;padding:8px 12px;border-radius:6px;font-weight:900;font-size:11px;cursor:pointer;letter-spacing:0.5px;touch-action:manipulation;">+200 ✨</button>
     `;
     document.body.appendChild(bar);
-    document.getElementById('st-spawn-e').addEventListener('click', () => spawnStresstestEnemies(20));
-    document.getElementById('st-spawn-b').addEventListener('click', () => spawnStresstestBullets(50));
-    document.getElementById('st-spawn-p').addEventListener('click', () => spawnStresstestParticles(200));
+    // pointerdown istället för click → snabbare respons + fungerar parallellt med joystick-touch
+    const handlerE = (e) => { e.stopPropagation(); spawnStresstestEnemies(20); };
+    const handlerB = (e) => { e.stopPropagation(); spawnStresstestBullets(50); };
+    const handlerP = (e) => { e.stopPropagation(); spawnStresstestParticles(200); };
+    document.getElementById('st-spawn-e').addEventListener('pointerdown', handlerE);
+    document.getElementById('st-spawn-b').addEventListener('pointerdown', handlerB);
+    document.getElementById('st-spawn-p').addEventListener('pointerdown', handlerP);
   }
   bar.style.display = 'flex';
 }
