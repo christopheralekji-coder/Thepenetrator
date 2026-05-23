@@ -16126,16 +16126,16 @@ function _acquireEnemySprite() {
     return s;
   }
   if (typeof PIXI === 'undefined') return null;
-  // v1.555: ULTRATHINK — switcha från PIXI.Graphics till PIXI.Sprite med
-  // Texture.WHITE (1x1 inbyggd vit texture). Sprite är garanterat enklare än
-  // Graphics i Pixi v8 — om DETTA inte syns, är det djupare WebGL-bug, inte
-  // Graphics-rendering-bug.
-  const s = new PIXI.Sprite(PIXI.Texture.WHITE);
-  s.tint = 0xff00ff;
-  s.anchor.set(0.5);
-  s.width = 60;
-  s.height = 60;
-  return s;
+  // v1.556: REVERTAR till EXAKT v1.548-pattern — användaren rapporterade att
+  // röda cirklar SYNS i v1.548. Något efter det bröt det. Replikerar v1.548:
+  // shadow-ellips + 2-layer body + inner hot spot + outline.
+  const g = new PIXI.Graphics();
+  g.ellipse(2, 3, 14, 8).fill({ color: 0x000000, alpha: 0.4 });
+  g.circle(0, 0, 14).fill({ color: 0xaa2020, alpha: 0.95 });
+  g.circle(0, 0, 10).fill({ color: 0xcc4040, alpha: 0.9 });
+  g.circle(-2, -2, 5).fill({ color: 0xff8080, alpha: 0.85 });
+  g.circle(0, 0, 14).stroke({ width: 1.5, color: 0x0a0a0a });
+  return g;
 }
 const _pixiEnemySpritePool = [];
 function _releaseEnemySprite(s) {
@@ -16149,44 +16149,50 @@ function createPixiEnemyTextures() {
   // No-op i iter 1 (Graphics används istället för Texture). Iter 2 fyller denna.
 }
 
-// v1.554: ULTRATHINK debug — enemies läggs DIREKT på world (inte i sub-container)
-// för att utesluta sub-container-bug. Bullets fungerar i sin sub-container; om
-// enemies också fungerar direkt på world, är enemies-sub-container trasig.
-// Sprites trackas via egen array istället för container.children.
-if (!pixiState._enemySpriteArray) pixiState._enemySpriteArray = [];
+// v1.556: REVERT till v1.548-FUNGERANDE pattern. v1.554 hade syntax-bug
+// (variabler arr/enemies/world var inte declared i scope efter edit) → tyst
+// JS-fail → inga sprites uppdaterades. Den buggen orsakade allt vi sett.
+// Map-baserad sync med sub-container, EXAKT som v1.548 där det fungerade.
 function syncPixiEnemies() {
   if (!pixiState.ready || !pixiState.enemiesEnabled) {
     // Cleanup
-    for (const s of pixiState._enemySpriteArray) {
-      if (s.parent) s.parent.removeChild(s);
-      _releaseEnemySprite(s);
+    if (pixiState.sprites.enemies && pixiState.sprites.enemies.size > 0) {
+      for (const [, s] of pixiState.sprites.enemies) {
+        if (s.parent) s.parent.removeChild(s);
+        _releaseEnemySprite(s);
+      }
+      pixiState.sprites.enemies.clear();
     }
-    pixiState._enemySpriteArray.length = 0;
     return;
   }
-  // Säkerställ tillräckligt med sprites (direkt på world)
-  while (arr.length < enemies.length) {
-    const s = _acquireEnemySprite();
-    if (!s) break;
-    world.addChild(s);
-    arr.push(s);
+  if (!pixiState.sprites.enemies) pixiState.sprites.enemies = new Map();
+  const enemies = state.enemies || [];
+  const container = pixiState.containers.enemies;
+  const seenIds = new Set();
+  for (const e of enemies) {
+    if (!e || e.dead || (e.hp != null && e.hp <= 0)) continue;
+    const id = (e._idx != null) ? e._idx : (e._i != null ? e._i : null);
+    if (id == null) continue;
+    seenIds.add(id);
+    let sprite = pixiState.sprites.enemies.get(id);
+    if (!sprite) {
+      sprite = _acquireEnemySprite();
+      if (!sprite) continue;
+      container.addChild(sprite);
+      pixiState.sprites.enemies.set(id, sprite);
+    }
+    sprite.visible = true;
+    sprite.position.set(e.x, e.y);
+    sprite.scale.set(1, 1);
+    sprite.alpha = 1;
+    sprite.tint = e.isBoss ? 0xffd54a : 0xffffff;
   }
-  // Uppdatera position + visibility per index
-  for (let i = 0; i < arr.length; i++) {
-    const s = arr[i];
-    if (i < enemies.length) {
-      const e = enemies[i];
-      if (e && !e.dead && (e.hp == null || e.hp > 0)) {
-        s.visible = true;
-        s.position.set(e.x || 0, e.y || 0);
-        s.scale.set(1, 1);
-        s.alpha = 1;
-        s.tint = e.isBoss ? 0xffd54a : 0xffffff;
-      } else {
-        s.visible = false;
-      }
-    } else {
-      s.visible = false;
+  // Remove döda enemies
+  for (const [id, sprite] of pixiState.sprites.enemies) {
+    if (!seenIds.has(id)) {
+      if (sprite.parent) sprite.parent.removeChild(sprite);
+      _releaseEnemySprite(sprite);
+      pixiState.sprites.enemies.delete(id);
     }
   }
 }
@@ -16375,7 +16381,7 @@ function updatePixiDiagOverlay() {
     `<div>Enemies: ${enemiesCount} Bullets: ${bulletsCount}</div>` +
     `<div>Particles: ${particlesCount}</div>` +
     `<div>Sprites: ${pixiSprites} Stage: ${stageChildren}</div>` +
-    `<div>Pixi enemies: ${pixiState.ready && pixiState._enemySpriteArray ? pixiState._enemySpriteArray.filter(s=>s.visible).length : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'}</div>` +
+    `<div>Pixi enemies: ${pixiState.ready && pixiState.sprites.enemies ? pixiState.sprites.enemies.size : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'}</div>` +
     `<div>Pixi bullets: ${pixiState.ready && pixiState.containers.bullets ? pixiState.containers.bullets.children.filter(c=>c.visible).length : 0}${pixiState.bulletsEnabled ? ' ✓' : ' off'}</div>` +
     `<div>StressTest: ${state.stresstestActive ? '✓' : '✗'} CfgST: ${Coop && Coop.config && Coop.config.stresstest ? '✓' : '✗'}</div>` +
     `<div>SurvActive: ${state.survivorsActive ? '✓' : '✗'}</div>` +
