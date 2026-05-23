@@ -16566,11 +16566,28 @@ function syncPixiEnemies() {
     const e0 = enemies[0];
     d.firstEnemyData = `t=${e0.type || '?'} x=${Math.round(e0.x || 0)} y=${Math.round(e0.y || 0)} _i=${e0._i} _idx=${e0._idx} hp=${e0.hp} dead=${!!e0.dead}`;
   }
+  // v1.574: Cache minimap-hitbox för screen-coord overlap-check (Pixi-canvas
+  // ligger ovan Canvas2D inkl minimapen — utan denna check täcker minions minimap)
+  const _mb = state._minimapHitbox;
   for (let idx = 0; idx < enemies.length; idx++) {
     const e = enemies[idx];
     if (!e) { d.skippedNullEnemy++; continue; }
     if (e.dead) { d.skippedDead++; continue; }
     if (e.hp != null && e.hp <= 0) { d.skippedHpZero++; continue; }
+    // v1.574: Bossar renderas via Canvas2D (drawBossSoldier är phase-baserad,
+    // för komplex för pre-baked sprites). Ta bort ev. Pixi-sprite om existerande.
+    if (e.isBoss) {
+      let bossId = (e._idx != null) ? e._idx : (e._i != null ? e._i : e._pixiId);
+      if (bossId != null) {
+        const bs = pixiState.sprites.enemies.get(bossId);
+        if (bs) {
+          if (bs.parent) bs.parent.removeChild(bs);
+          _releaseEnemySpriteForType(bs);
+          pixiState.sprites.enemies.delete(bossId);
+        }
+      }
+      continue;
+    }
     let id = (e._idx != null) ? e._idx : (e._i != null ? e._i : null);
     if (id == null) {
       if (e._pixiId == null) e._pixiId = ('p_' + (++pixiState._lastPixiId));
@@ -16594,6 +16611,16 @@ function syncPixiEnemies() {
       d.spritesCreated++;
     } else {
       d.spritesUpdated++;
+    }
+    // v1.574: Minimap-overlap — hide Pixi-sprite när enemy är inom minimap-hitbox
+    // (screen-coord). Sprite stays i pool, bara visibility off.
+    if (_mb) {
+      const sx = e.x - state.camera.x;
+      const sy = e.y - state.camera.y;
+      if (sx >= _mb.x && sx <= _mb.x + _mb.w && sy >= _mb.y && sy <= _mb.y + _mb.h) {
+        sprite.visible = false;
+        continue;
+      }
     }
     sprite.visible = true;
     sprite.position.set(e.x, e.y);
@@ -60135,8 +60162,48 @@ function render() {
     drawParticle(p);
   }
   // Entities — v1.548: SKIP drawEnemy om Pixi-overlay aktivt (= första prestanda-vinsten)
+  // v1.574: HYBRID — Pixi ritar minions/mini-bosses (kropp), Canvas2D ritar:
+  // (a) bossar (full body — drawBossSoldier för phase-baserad rendering)
+  // (b) HP-bars för alla enemies
+  // (c) Mini-boss namn-tag + pulsande glow-ring
   if (!(pixiState && pixiState.enemiesEnabled)) {
     for (const e of state.enemies) drawEnemy(e);
+  } else {
+    const _nowOverlay = performance.now();
+    for (const e of state.enemies) {
+      if (!e || e.dead) continue;
+      const sx = e.x - state.camera.x;
+      const sy = e.y - state.camera.y;
+      const margin = (e.r || 18) * 3;
+      if (sx < -margin || sx > viewW + margin || sy < -margin || sy > viewH + margin) continue;
+      if (e.isBoss) {
+        drawEnemy(e); // full boss-render (drawBossSoldier + drawBossTelegraph + HP-bar)
+        continue;
+      }
+      // HP-bar för minions och mini-bosses
+      if (typeof drawHpBar === 'function') drawHpBar(e, sx, sy);
+      // Mini-boss extra: namn-tag + glow-ring
+      if (e.isMiniBoss) {
+        const ringColor = e.stageEdge || '#ffd54a';
+        ctx.save();
+        const tagY = Math.max(20, sy - e.r - 22);
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+        ctx.fillText(e.name || 'MINI-BOSS', sx, tagY);
+        ctx.shadowBlur = 0;
+        const pulse = 0.7 + Math.sin(_nowOverlay / 280) * 0.3;
+        ctx.strokeStyle = ringColor;
+        ctx.lineWidth = 1.5 + (e.miniIntensity || 0.5) * 1.5;
+        ctx.globalAlpha = 0.45 * pulse;
+        ctx.beginPath();
+        ctx.arc(sx, sy, e.r * (1.15 + 0.05 * Math.sin(_nowOverlay / 350)), 0, Math.PI*2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
+    }
   }
   drawDeadBody();
   // TDM/CTF: rita team-ringar UNDER spelarna så de syns på avstånd
@@ -61853,6 +61920,11 @@ function runFrame(dt, now) {
     pixiState.bulletsEnabled = false; // v1.571 ROLLBACK — Canvas2D ritar bullets
     pixiState.particlesEnabled = true;
     pixiState.vfxEnabled = true;
+    // v1.574: Extra säkerhets-bake vid game-start — fixar reload-buggen där
+    // initial bake misslyckas tyst (kanske MINIBOSS_DRAW inte fully init än)
+    if (!pixiState.enemyTexturesBaked && typeof bakeAllEnemyTextures === 'function') {
+      bakeAllEnemyTextures();
+    }
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;
