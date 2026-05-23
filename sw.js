@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v564-rollback-particles-vfx';
+const CACHE = 'penetrator-v565-enemy-id-fallback';
 const ASSETS = [
   './',
   './index.html',

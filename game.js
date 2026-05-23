@@ -15971,6 +15971,8 @@ const pixiState = {
   // Diagnostic
   diagFrameTime: 0,
   diagPixiDrawCalls: 0,
+  // v1.565: counter för klient-side-spawn enemy-IDs (Story-mode utan server)
+  _lastPixiId: 0,
 };
 
 async function initPixiFoundation() {
@@ -16323,10 +16325,17 @@ function syncPixiEnemies() {
   const enemies = state.enemies || [];
   const container = pixiState.containers.enemies;
   const seenIds = new Set();
-  for (const e of enemies) {
+  // v1.565: array-index fallback för enemies utan _idx/_i (Story-mode, klient-
+  // side spawn). Använd e._pixiId om finns, annars assign vid första syncen.
+  for (let idx = 0; idx < enemies.length; idx++) {
+    const e = enemies[idx];
     if (!e || e.dead || (e.hp != null && e.hp <= 0)) continue;
-    const id = (e._idx != null) ? e._idx : (e._i != null ? e._i : null);
-    if (id == null) continue;
+    let id = (e._idx != null) ? e._idx : (e._i != null ? e._i : null);
+    if (id == null) {
+      // Tilldela stabil pixi-id om enemy saknar server-ID
+      if (e._pixiId == null) e._pixiId = ('p_' + (++pixiState._lastPixiId));
+      id = e._pixiId;
+    }
     seenIds.add(id);
     let sprite = pixiState.sprites.enemies.get(id);
     if (!sprite) {
