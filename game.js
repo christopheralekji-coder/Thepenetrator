@@ -14697,6 +14697,8 @@ function getSurvivorsPerkSum(type) {
 // Öppna perk-selection-overlay med 3 random val.
 function openSurvivorsPerkOverlay() {
   if (!state.survivorsActive) return;
+  // v1.548: Extra safe-guard — om stresstest aktiv, ALDRIG öppna perks
+  if (state.stresstestActive) return;
   if (state.survivorsPerkOverlayOn) return;
   const elapsedSec = state.survivorsStartT ? (Date.now() - state.survivorsStartT) / 1000 : 0;
   const choices = rollSurvivorsPerks(elapsedSec);
@@ -16024,9 +16026,10 @@ async function initPixiFoundation() {
     pixiState.ready = true;
     console.log('[PixiJS] Foundation init klar — v' + PIXI.VERSION + ', resolution', DPR);
 
-    // v1.545: PoC-debug-objekt borttagna (stage-rect + world-cirkel + text).
-    // Pipeline är verifierad via stress-test enemy-overlay nu. Inga
-    // synliga PIXI-objekt i sandbox/story/CD längre.
+    // v1.548: PERMANENT diagnostic — när window._pixiAlwaysVisible = true
+    // ritas en STOR rosa stage-cirkel mitt på skärmen i ALLA modes.
+    // Aktiveras via 4-tap top-right (samma som diag-toggle).
+    pixiState._alwaysVisibleMarker = null;
   } catch (err) {
     console.error('[PixiJS] init misslyckades:', err);
     pixiState.ready = false;
@@ -16220,6 +16223,23 @@ function checkPixiDiagCornerTap(mx, my) {
   if (_pixiDiagTapCount >= 4) {
     _pixiDiagTapCount = 0;
     window._pixiDiag = !window._pixiDiag;
+    // v1.548: Toggle stor rosa pixi-marker mitt på skärmen för att VERIFIERA
+    // att Pixi-canvas alls syns. Bound till diag-toggle.
+    if (pixiState && pixiState.ready && pixiState.app) {
+      try {
+        if (window._pixiDiag && !pixiState._alwaysVisibleMarker) {
+          const m = new PIXI.Graphics();
+          m.circle(0, 0, 80).fill({ color: 0xff00ff, alpha: 0.75 });
+          m.circle(0, 0, 80).stroke({ width: 6, color: 0xffff00 });
+          m.position.set(viewW / 2, viewH / 2);
+          pixiState.app.stage.addChild(m);
+          pixiState._alwaysVisibleMarker = m;
+        } else if (!window._pixiDiag && pixiState._alwaysVisibleMarker) {
+          pixiState.app.stage.removeChild(pixiState._alwaysVisibleMarker);
+          pixiState._alwaysVisibleMarker = null;
+        }
+      } catch (e) { console.error('[PixiJS] marker error:', e); }
+    }
     if (typeof showToast === 'function') {
       showToast(window._pixiDiag ? '🔧 DIAG PÅ' : '🔧 DIAG AV');
     }
@@ -16282,6 +16302,8 @@ function updatePixiDiagOverlay() {
     `<div>Particles: ${particlesCount}</div>` +
     `<div>Sprites: ${pixiSprites} Stage: ${stageChildren}</div>` +
     `<div>Pixi enemies: ${pixiState.ready ? pixiState.sprites.enemies.size : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'}</div>` +
+    `<div>StressTest: ${state.stresstestActive ? '✓' : '✗'} CfgST: ${Coop && Coop.config && Coop.config.stresstest ? '✓' : '✗'}</div>` +
+    `<div>SurvActive: ${state.survivorsActive ? '✓' : '✗'}</div>` +
     `<div>Canvas DOM: ${canvasInDom} z:${canvasZ}</div>` +
     `<div>Canvas size: ${canvasSize}</div>` +
     `<div>Cam: ${camX},${camY}</div>` +

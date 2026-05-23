@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v547-core-walkthrough-pixi-marker';
+const CACHE = 'penetrator-v548-diag-toggle-marker';
 const ASSETS = [
   './',
   './index.html',
