@@ -7955,11 +7955,82 @@ function drawSurvivorsArenaGround() {
   ctx.restore();
 }
 
+// v1.533: Mini-boss-indicator (pekande pil mot off-screen boss i 4s)
+function drawSurvivorsBossIndicator() {
+  if (!state.survivorsActive || !state.survivorsBossIndicator) return;
+  const indicator = state.survivorsBossIndicator;
+  const elapsed = performance.now() - indicator.startT;
+  if (elapsed > 4000) { state.survivorsBossIndicator = null; return; }
+  const fade = 1 - (elapsed / 4000);
+  // Boss-pos i screen-coords
+  const bx = indicator.x - state.camera.x;
+  const by = indicator.y - state.camera.y;
+  // Beräkna vinkel från center till boss
+  const cx = viewW / 2, cy = viewH / 2;
+  const ang = Math.atan2(by - cy, bx - cx);
+  // Place arrow vid skärm-edge (offset från center i ang-direction, max ~70% av halv-screen)
+  const margin = 60;
+  const halfW = viewW / 2 - margin;
+  const halfH = viewH / 2 - margin;
+  const cosA = Math.cos(ang), sinA = Math.sin(ang);
+  const scale = Math.min(halfW / Math.abs(cosA || 0.001), halfH / Math.abs(sinA || 0.001));
+  const ax = cx + cosA * scale;
+  const ay = cy + sinA * scale;
+  // Rita pil
+  ctx.save();
+  ctx.translate(ax, ay);
+  ctx.rotate(ang);
+  ctx.globalAlpha = fade * (0.7 + 0.3 * Math.sin(performance.now() / 100));
+  // Pulserande röd pil
+  ctx.fillStyle = '#ff3a3a';
+  ctx.strokeStyle = '#ffd54a';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(20, 0);
+  ctx.lineTo(-12, -12);
+  ctx.lineTo(-6, 0);
+  ctx.lineTo(-12, 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  // Text "BOSS" under pilen
+  ctx.rotate(-ang); // un-rotate så text är horisontell
+  ctx.fillStyle = '#ff5a5a';
+  ctx.font = '900 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('⚠️ ' + indicator.name, 0, 30);
+  ctx.restore();
+}
+
 // Ash particles + vignette — kallas EFTER spelare/enemies (top layer)
 function drawSurvivorsArenaAmbient() {
   if (!state.survivorsActive) return;
   const t = performance.now() / 1000;
   ctx.save();
+  // v1.533: THORNS visuell aura — pulserande röd ring runt spelaren när perk aktiv
+  if (typeof getSurvivorsPerkSum === 'function' && state.player && state.player.hp > 0) {
+    const thornsDps = getSurvivorsPerkSum('thorns');
+    if (thornsDps > 0) {
+      const px = state.player.x - state.camera.x;
+      const py = state.player.y - state.camera.y;
+      const pulse = 0.5 + 0.3 * Math.sin(t * 4);
+      // Outer fading ring
+      const auraGrad = ctx.createRadialGradient(px, py, 70, px, py, 105);
+      auraGrad.addColorStop(0, 'rgba(255, 60, 60, 0)');
+      auraGrad.addColorStop(0.7, `rgba(255, 80, 50, ${0.18 * pulse})`);
+      auraGrad.addColorStop(1, 'rgba(255, 50, 30, 0)');
+      ctx.fillStyle = auraGrad;
+      ctx.beginPath();
+      ctx.arc(px, py, 105, 0, Math.PI * 2);
+      ctx.fill();
+      // Inner ring outline
+      ctx.strokeStyle = `rgba(255, 80, 80, ${0.4 * pulse})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(px, py, 100, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+  }
   // Fallande aska — semi-transparent particles ovanpå allt
   // 30 deterministisk-positionerade snöflingor som drifter ner
   const cache = state._survArenaCache;
@@ -14872,6 +14943,18 @@ function openSurvivorsWeaponShop() {
   if (!state.survivorsActive) return;
   // v1.532: blockera om spelaren är död/downed (var bug — kunde köpa när nere)
   if (!state.player || state.player.hp <= 0) return;
+  // v1.533: Backdrop som täcker hela skärmen, klick utanför stänger shoppen
+  let backdrop = document.getElementById('survivors-shop-backdrop');
+  if (!backdrop) {
+    backdrop = document.createElement('div');
+    backdrop.id = 'survivors-shop-backdrop';
+    backdrop.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.3);z-index:79;cursor:pointer;';
+    backdrop.addEventListener('click', (e) => {
+      if (e.target === backdrop) closeSurvivorsWeaponShop();
+    });
+    document.body.appendChild(backdrop);
+  }
+  backdrop.style.display = 'block';
   let el = document.getElementById('survivors-shop-overlay');
   if (!el) {
     el = document.createElement('div');
@@ -14929,6 +15012,8 @@ function renderSurvivorsWeaponShop(el) {
 function closeSurvivorsWeaponShop() {
   const el = document.getElementById('survivors-shop-overlay');
   if (el) el.style.display = 'none';
+  const backdrop = document.getElementById('survivors-shop-backdrop');
+  if (backdrop) backdrop.style.display = 'none';
 }
 
 function trySurvivorsWeaponBuy(weaponId, cost) {
@@ -20503,12 +20588,19 @@ const Coop = {
         showToast('💀 CORE FÖRSTÖRD — överlevde våg ' + ev.wave + ' (' + ev.survivedSec + 's)');
       }
     } else if (ev.type === 'survivors_miniboss_spawn') {
-      // v1.528: { bossKey, name, elapsedSec } — mini-boss spawnad
+      // v1.528/v1.533: { bossKey, name, elapsedSec, x, y } — mini-boss spawnad
       if (typeof showToast === 'function') {
         showToast('⚠️ MINI-BOSS: ' + (ev.name || 'OKÄND'));
       }
       if (typeof Audio !== 'undefined' && Audio.bossSpawn) Audio.bossSpawn();
       else if (typeof Audio !== 'undefined' && Audio.alert) Audio.alert();
+      // v1.533: Spara indicator-data så pilen kan ritas i 4s
+      if (typeof ev.x === 'number' && typeof ev.y === 'number') {
+        state.survivorsBossIndicator = {
+          x: ev.x, y: ev.y, name: ev.name || 'BOSS',
+          startT: performance.now(),
+        };
+      }
     } else if (ev.type === 'survivors_win') {
       document.body.classList.remove('survivors-mode');
       // v1.526/v1.528: { survivedSec } — spelaren överlevde 20 min
@@ -27372,7 +27464,7 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
     state.bullets.push({
       x: spawnX, y: spawnY,
       vx: Math.cos(ang)*speed, vy: Math.sin(ang)*speed,
-      dmg: w.dmg * (p.dmgMul || 1) * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 3 : 1) * ultDmgMul * weaponLevelDmgBonus(w.id) * (state.survivorsActive ? (1 + getSurvivorsPerkSum('dmg')) : 1),
+      dmg: w.dmg * (p.dmgMul || 1) * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 3 : 1) * ultDmgMul * weaponLevelDmgBonus(w.id) * (state.survivorsActive ? ((1 + getSurvivorsPerkSum('dmg')) * (getSurvivorsPerkSum('berserker') > 0 && p.hp < p.maxHp * 0.5 ? (1 + Math.min(0.5, (1 - p.hp / p.maxHp))) : 1)) : 1),
       life: w.style === 'flame' ? 0.5 : (w.style === 'boomerang' ? 2.5 : 1.6),
       r: isCrit ? 5 : (w.style === 'flame' ? 6 : 4),
       color: (isCrit || isHead || cheatChozza) ? '#ffeb3b' : w.color,
@@ -27549,6 +27641,55 @@ function damageEnemy(e, dmg, isCrit) {
     const lifestealPct = getSurvivorsPerkSum('lifesteal');
     if (lifestealPct > 0) {
       state.player.hp = Math.min(state.player.maxHp, state.player.hp + dmg * lifestealPct);
+    }
+  }
+  // v1.533: SURVIVORS-RUN synergy-perk hooks
+  if (state.survivorsActive && !e.dead && e.hp > 0) {
+    // EXECUTIONER — instakill om <10% HP (ej boss)
+    if (!e.isBoss && getSurvivorsPerkSum('executioner') > 0 && e.maxHp > 0 && (e.hp / e.maxHp) < 0.10) {
+      e.hp = 0;
+    }
+    // FROST — slow 60% i 1s
+    const frostDur = getSurvivorsPerkSum('frost');
+    if (frostDur > 0) {
+      e.slowUntil = performance.now() + frostDur * 1000;
+      e.slowFactor = 0.4;
+      if (e._origSpeed && e.speed > e._origSpeed * 0.4) e.speed = e._origSpeed * 0.4;
+    }
+    // FIRE — burn DoT 3 dmg/s i 4s
+    const burnDps = getSurvivorsPerkSum('fire');
+    if (burnDps > 0) {
+      e.burnUntil = performance.now() + 4000;
+      e.burnDps = Math.max(e.burnDps || 0, burnDps);
+    }
+    // EXPLODING — AoE vid hit
+    const explDmg = getSurvivorsPerkSum('exploding');
+    if (explDmg > 0 && typeof explode === 'function') {
+      explode(e.x, e.y, 60, explDmg, true);
+    }
+    // CHAIN LIGHTNING — studsa till närmaste enemy inom 150px med 50% dmg
+    if (getSurvivorsPerkSum('chain') > 0 && state.enemies && !e._chainSource) {
+      let best = null, bestD2 = 150 * 150;
+      for (const e2 of state.enemies) {
+        if (e2 === e || !e2 || e2.dead || e2.hp <= 0) continue;
+        const dx = e2.x - e.x, dy = e2.y - e.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < bestD2) { bestD2 = d2; best = e2; }
+      }
+      if (best) {
+        const chainDmg = dmg * 0.5;
+        best.hp -= chainDmg;
+        best.flashUntil = performance.now() + 80;
+        best._chainSource = true; // förhindra infinity-loop
+        // Visuell chain-blixt
+        state.particles.push({
+          x: e.x, y: e.y, vx: 0, vy: 0,
+          targetX: best.x, targetY: best.y,
+          life: 0.18, color: '#ffeb3b', r: 2,
+          isChainLightning: true,
+        });
+        setTimeout(() => { if (best) best._chainSource = false; }, 100);
+      }
     }
   }
   // Stagger — stora träffar staggar fienden 0.5s
@@ -59097,6 +59238,8 @@ function render() {
       // v1.529: ÖDESLAND har inga buildings/walls/trees-on-top, men ash + vignette top-layer
       if (typeof drawCastleDefenseDownStateUI === 'function') drawCastleDefenseDownStateUI();
       drawSurvivorsArenaAmbient();
+      // v1.533: Boss-spawn-indicator pil (4s)
+      if (typeof drawSurvivorsBossIndicator === 'function') drawSurvivorsBossIndicator();
     } else {
       drawCastleDefenseWalls();                  // legacy pre-built (tomt nu)
       drawCastleDefenseBuildings('tall');        // walls, turrets, stations

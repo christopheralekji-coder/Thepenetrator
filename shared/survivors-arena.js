@@ -181,6 +181,20 @@ const SURVIVORS_ARENA = {
       effect: { type: 'homing',  value: 0.13 } },
     { id: 'p_homing',     rarity: 'purple', icon: '🎯', name: 'HOMING IV',        desc: 'Kulor styr rejält (men träffar inte 100%)',
       effect: { type: 'homing',  value: 0.18 } },
+
+    // === v1.533: 6 SYNERGY-PERKS (build-defining) ===
+    { id: 'p_exploding', rarity: 'purple', icon: '💣', name: 'EXPLODERANDE',     desc: 'Kulor exploderar vid hit (25 AoE-dmg, 60px radius)',
+      effect: { type: 'exploding', value: 25 } },
+    { id: 'b_frost',     rarity: 'blue',   icon: '❄️', name: 'FROST-SKOTT',       desc: 'Träffade fiender saktas 60% i 1 sek',
+      effect: { type: 'frost',     value: 1.0 } },
+    { id: 'p_fire',      rarity: 'purple', icon: '🔥', name: 'ELDSTRÖM',          desc: 'Träffade fiender brinner 3 dmg/s i 4 sek',
+      effect: { type: 'fire',      value: 3 } },
+    { id: 'p_chain',     rarity: 'purple', icon: '⚡', name: 'CHAIN LIGHTNING',   desc: 'Kulor studsar till närmaste fiende (50% dmg, 150px)',
+      effect: { type: 'chain',     value: 1 } },
+    { id: 'b_berserker', rarity: 'blue',   icon: '🩸', name: 'BERSERKER',         desc: 'Vid HP<50%: upp till +50% dmg (skalat med saknad HP)',
+      effect: { type: 'berserker', value: 1 } },
+    { id: 'p_executioner', rarity: 'purple', icon: '☠️', name: 'EXECUTIONER',     desc: 'Instakill fiender <10% HP (inte bossar)',
+      effect: { type: 'executioner', value: 1 } },
   ],
 
   // === ENEMY-CAP / DIFFICULTY ===

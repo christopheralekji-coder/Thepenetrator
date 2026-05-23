@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v532-bug-audit-fixes';
+const CACHE = 'penetrator-v533-synergy-perks-pixi-ready';
 const ASSETS = [
   './',
   './index.html',

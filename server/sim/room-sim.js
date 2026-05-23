@@ -2607,12 +2607,21 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
   }
 }
 
-// v1.528: SURVIVORS-RUN mini-boss-spawn — kallas vid 4/8/12/16 min elapsed.
-// Random boss-key från BOSS_CONFIGS, skalad efter elapsed time.
+// v1.528/v1.533: SURVIVORS-RUN mini-boss-spawn — kallas vid 4/8/12/16 min elapsed.
+// Shufflad lista garanterar OLIKA bossar per match (var random med replacement).
 function spawnSurvivorsMiniBoss(sim) {
-  const bossKeys = Object.keys(BOSS_CONFIGS);
-  if (bossKeys.length === 0) return;
-  const key = bossKeys[Math.floor(Math.random() * bossKeys.length)];
+  // Lazy-init shuffled queue per match
+  if (!sim.survivorsBossQueue || sim.survivorsBossQueue.length === 0) {
+    const keys = Object.keys(BOSS_CONFIGS);
+    // Fisher-Yates shuffle
+    for (let i = keys.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [keys[i], keys[j]] = [keys[j], keys[i]];
+    }
+    sim.survivorsBossQueue = keys;
+  }
+  const key = sim.survivorsBossQueue.shift();
+  if (!key) return;
   const arena = CASTLEDEFENSE_ARENA;
   // Spawna 700px från center i random direction
   const ang = Math.random() * Math.PI * 2;
@@ -2635,6 +2644,8 @@ function spawnSurvivorsMiniBoss(sim) {
     bossKey: boss.bossKey,
     name: boss.name,
     elapsedSec: Math.round((Date.now() - sim.survivorsStartT) / 1000),
+    x: boss.x,
+    y: boss.y,
   });
 }
 
@@ -2817,6 +2828,16 @@ function tickCastleDefense(sim, dt, now) {
         e.speed = Math.round(e.speed * 1.35);
       } else if (type === 'bomber') {
         e.speed = Math.round(e.speed * 1.15);
+      }
+      // v1.533: SURVIVORS-RUN late-game spike — efter 60% av matchen, +30% speed
+      // och +20% dmg så det inte plateaur vid enemy-cap.
+      if (sim.survivorsActive && sim.survivorsStartT) {
+        const survElapsed = Date.now() - sim.survivorsStartT;
+        const survDur = (sim.survivorsDurationSec || 1200) * 1000;
+        if (survElapsed > survDur * 0.6) {
+          e.speed = Math.round(e.speed * 1.3);
+          e.dmg = Math.round(e.dmg * 1.2);
+        }
       }
       e._origSpeed = e.speed;
       // v1.419: 75% siege (attackerar torn/walls) / 25% attacker (jagar player).
@@ -3236,6 +3257,20 @@ function tickCastleDefense(sim, dt, now) {
               sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + share;
               sim.eventQueue.push({
                 type: 'cd_gold_update', peerId: pid, gold: sim.castledefenseGold[pid], delta: share,
+              });
+            }
+          } else if (sim.survivorsActive) {
+            // v1.533: SURVIVORS-RUN — vanlig kill splittas också mellan alla levande
+            // (skillnad mot CD där bara killer får gold). Coop-spec från playtest-audit.
+            const survAlive = [];
+            for (const [pid, ws] of sim.room.members) {
+              if (ws.playerState && ws.playerState.hp > 0) survAlive.push(pid);
+            }
+            const survShare = survAlive.length > 0 ? Math.floor(goldGain / survAlive.length) : goldGain;
+            for (const pid of survAlive) {
+              sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + survShare;
+              sim.eventQueue.push({
+                type: 'cd_gold_update', peerId: pid, gold: sim.castledefenseGold[pid], delta: survShare,
               });
             }
           } else {
