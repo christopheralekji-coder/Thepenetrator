@@ -110,30 +110,23 @@ const CASTLEDEFENSE_ARENA = {
   maxHp: 100,
   startShield: 100,                // v1.403: shield-system (samma som PvP) — skydd mot minions
   maxShield: 100,
-  startWeapon: 'throwknife',       // v1.522: börjar med kastkniv (synkad med GG)
+  startWeapon: 'pistol',           // v1.523: börjar med pistol (CD-specifik ordning)
   startGrenades: 2,                // 2 grenades vid match-start
   shieldRegenPerWave: 50,          // shield återställs +50 per cleared wave
 
-  // === VAPENPROGRESSION (v1.522) ===
-  // 15 vapen — synkad med GunGame-progression. Start = tier 0 (throwknife).
-  // Varje boss-kill ger +1 tier. 15 tiers = 14 boss-kills för max.
-  // Sledge (final) ger -10% movement speed (1-hit kill trade-off).
+  // === VAPENPROGRESSION (v1.523) ===
+  // 9 vapen — användardesignad CD-specifik ordning. Start = pistol.
+  // Varje boss-kill ger +1 tier. 8 boss-kills (var 5:e wave) = max på wave 40.
   weaponProgression: [
-    'throwknife',  // 0  — start
-    'pistol',      // 1  — boss 1 (wave 5)
-    'revolver',    // 2  — boss 2 (wave 10)
-    'burstpistol', // 3  — boss 3 (wave 15)
-    'shotgun',     // 4  — boss 4 (wave 20)
-    'shuriken',    // 5  — boss 5 (wave 25)
-    'smg',         // 6  — boss 6 (wave 30)
-    'crossbow',    // 7  — boss 7 (wave 35)
-    'sniper',      // 8  — boss 8 (wave 40)
-    'rifle',       // 9  — boss 9 (wave 45)
-    'plasma',      // 10 — boss 10 (wave 50)
-    'rocket',      // 11 — boss 11 (wave 55)
-    'minigun',     // 12 — boss 12 (wave 60)
-    'flame',       // 13 — boss 13 (wave 65)
-    'sledge',      // 14 — FINAL boss 14 (wave 70) — 1-hit melee, -10% movement
+    'pistol',      // 0 — start (Gun)
+    'shotgun',     // 1 — boss 1 (wave 5)
+    'burstpistol', // 2 — boss 2 (wave 10)
+    'shuriken',    // 3 — boss 3 (wave 15)
+    'smg',         // 4 — boss 4 (wave 20)
+    'plasma',      // 5 — boss 5 (wave 25)
+    'rocket',      // 6 — boss 6 (wave 30)
+    'flame',       // 7 — boss 7 (wave 35)
+    'minigun',     // 8 — FINAL boss 8 (wave 40)
   ],
   // Grenades per cleared wave (v1.401)
   grenadesPerWave: 2,

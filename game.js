@@ -12190,8 +12190,8 @@ const WEAPONS = [
     desc: 'Tung kalibervapen. Hög dmg per skott.' },
   { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 540,  dmg: 20,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 3,
     desc: 'Tre snabba skott per tryck. Hög burst-dmg.' },
-  { id: 'shotgun',    name: 'Hagelgevär',       type: 'gun',   price: 600,  dmg: 16,  rate: 760, speed: 700, mag: 6,  reload: 1900, spread: 0.32, pellets: 6, color: '#ff6b3d',
-    desc: 'Sex hagel per skott. Förödande på nära håll.' },
+  { id: 'shotgun',    name: 'Hagelgevär',       type: 'gun',   price: 600,  dmg: 22,  rate: 620, speed: 760, mag: 8,  reload: 1700, spread: 0.30, pellets: 8, color: '#ff6b3d',
+    desc: 'Åtta hagel per skott. Förödande på nära håll.' },
   { id: 'bow',        name: 'Compoundbåge',     type: 'gun',   price: 800,  dmg: 90,  rate: 540, speed: 950, mag: 1,  reload: 500,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true,
     desc: 'Pierce. Snabb reload. Perfekt aim krävs.' },
   { id: 'smg',        name: 'Kpist',            type: 'gun',   price: 800,  dmg: 14,  rate: 95,  speed: 740, mag: 30, reload: 1500, spread: 0.07, color: '#88ccff',
@@ -15378,17 +15378,17 @@ function checkDebugCornerTap(mx, my) {
   return false;
 }
 
-// v1.424/v1.432: 4-tap top-CENTER 80×40-zon för gold-cheat. Tidigare bottom-left
-// kolliderade med joystick (vanlig sprint-tap registrerade som cheat-tap).
-// Top-center är "ingenmansland" + 4 taps istället för 2 = inte triggas av misstag.
+// v1.523: 4-tap BOTTOM-LEFT 70×70-zon för gold-cheat (var top-center i v1.432).
+// Användaren ville tillbaka till bottom-left + 4 taps räcker för att joystick
+// inte ska trigga av misstag (4 snabba taps inom 400ms är osannolikt vid sprint).
 let _cdGoldTapCount = 0;
 let _cdGoldTapLastT = 0;
 function checkCdGoldCornerTap(mx, my) {
   if (state.mode !== 'playing') return false;
   if (!state.castledefenseActive) return false;
-  // Top-center 80×40 zon (mitten av top-edge — ingenmansland)
-  if (my > 40) return false;
-  if (mx < viewW / 2 - 40 || mx > viewW / 2 + 40) return false;
+  // Bottom-left 70×70 zon
+  if (mx > 70) return false;
+  if (my < viewH - 70) return false;
   const now = performance.now();
   if (now - _cdGoldTapLastT > 400) _cdGoldTapCount = 0;
   _cdGoldTapCount++;
@@ -15399,7 +15399,7 @@ function checkCdGoldCornerTap(mx, my) {
     const btn = document.getElementById('cd-gold-cheat-btn');
     if (btn) btn.style.display = state._cdGoldCheatVisible ? 'flex' : 'none';
     if (typeof showToast === 'function') {
-      showToast(state._cdGoldCheatVisible ? '💰 GOLD-CHEAT PÅ (+10k/klick)' : '💰 GOLD-CHEAT AV');
+      showToast(state._cdGoldCheatVisible ? '💰 GOLD-CHEAT PÅ (+100k/klick)' : '💰 GOLD-CHEAT AV');
     }
     return true;
   }
@@ -30904,8 +30904,8 @@ function showCastleDefenseHud() {
     goldBtn.id = 'cd-gold-cheat-btn';
     // Position: vänster:12 bottom:80 (ovanför double-tap-zonen)
     goldBtn.style.cssText = 'position:fixed !important;left:max(12px, env(safe-area-inset-left, 12px)) !important;bottom:max(80px, calc(env(safe-area-inset-bottom, 0px) + 80px)) !important;right:auto !important;top:auto !important;width:60px !important;height:60px !important;background:radial-gradient(circle at 30% 30%, rgba(255,215,90,0.4), rgba(0,0,0,0.6));border:2px solid #ffd54a;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:80;cursor:pointer;font-size:14px;box-shadow:0 4px 14px rgba(0,0,0,0.6),inset 0 0 12px rgba(255,213,74,0.2),0 0 0 2px rgba(0,0,0,0.4);display:none;align-items:center;justify-content:center;padding:0;touch-action:manipulation;flex-direction:column;gap:1px;transition:transform 0.12s ease;';
-    goldBtn.innerHTML = '<span style="font-size:22px;line-height:1;">💰</span><span style="font-size:9px;letter-spacing:0.5px;color:#ffd54a;font-weight:900;">+10K</span>';
-    goldBtn.title = 'DEBUG: +10000 gold per klick (dubbel-tap bottom-left för dölja)';
+    goldBtn.innerHTML = '<span style="font-size:22px;line-height:1;">💰</span><span style="font-size:9px;letter-spacing:0.5px;color:#ffd54a;font-weight:900;">+100K</span>';
+    goldBtn.title = 'DEBUG: +100000 gold per klick (4-tap bottom-left för dölja)';
     goldBtn.onpointerdown = () => { goldBtn.style.transform = 'scale(0.9)'; };
     goldBtn.onpointerup = () => { goldBtn.style.transform = ''; };
     goldBtn.onpointerleave = () => { goldBtn.style.transform = ''; };
