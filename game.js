@@ -16011,7 +16011,9 @@ async function initPixiFoundation() {
     // none så touch går genom till Canvas2D-input. När enemies migreras kommer
     // Pixi-sprites vara den enda renderingen för dessa entiteter.
     app.canvas.id = 'pixi-canvas';
-    app.canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2;pointer-events:none;';
+    // v1.576: background:transparent säkerställer att Pixi-canvas inte täcker
+    // Canvas2D vid första frame innan render() applicerar backgroundAlpha=0
+    app.canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2;pointer-events:none;background:transparent;';
     document.body.appendChild(app.canvas);
 
     // Containers
@@ -16852,7 +16854,7 @@ function updatePixiDiagOverlay() {
     `<div>Enemies: ${enemiesCount} Bullets: ${bulletsCount}</div>` +
     `<div>Particles: ${particlesCount}</div>` +
     `<div>Sprites: ${pixiSprites} Stage: ${stageChildren}</div>` +
-    `<div>Pixi enemies: ${pixiState.ready && pixiState.sprites.enemies ? pixiState.sprites.enemies.size : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'}</div>` +
+    `<div>Pixi enemies: ${pixiState.ready && pixiState.sprites.enemies ? pixiState.sprites.enemies.size : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'} bake:${pixiState.enemyTexturesBaked ? 'OK' : 'NO'}</div>` +
     (pixiState._debug ? `<div style="color:#ff9090;font-size:9px;">created:${pixiState._debug.spritesCreated} upd:${pixiState._debug.spritesUpdated} rm:${pixiState._debug.spritesRemoved}</div>` +
     `<div style="color:#ff9090;font-size:9px;">skip null:${pixiState._debug.skippedNullEnemy} dead:${pixiState._debug.skippedDead} hp0:${pixiState._debug.skippedHpZero} noSprite:${pixiState._debug.skippedNullSprite}</div>` +
     `<div style="color:#ffaa90;font-size:9px;max-width:200px;word-break:break-all;">E0: ${pixiState._debug.firstEnemyData || 'none'}</div>` +
@@ -61921,15 +61923,17 @@ function runFrame(dt, now) {
   // är extrem-situation). Enemies använder nu pre-baked textures via Canvas2D-
   // draw-funktioner = pixel-identical militär-grafik.
   if (state.mode === 'playing' && pixiState && pixiState.ready) {
-    pixiState.enemiesEnabled = true;
-    pixiState.bulletsEnabled = true; // v1.575 — re-aktiverat, perf-vinst > generic visuals
+    // Bullets/particles/VFX behöver ingen pre-bake (PIXI.Graphics-sprites)
+    pixiState.bulletsEnabled = true;
     pixiState.particlesEnabled = true;
     pixiState.vfxEnabled = true;
-    // v1.574: Extra säkerhets-bake vid game-start — fixar reload-buggen där
-    // initial bake misslyckas tyst (kanske MINIBOSS_DRAW inte fully init än)
+    // v1.576: Enemies kräver baked textures — Canvas2D-fallback om bake inte klart.
+    // Detta löser "första load efter update visar inga enemies"-buggen där bake
+    // misslyckas partiellt men enemiesEnabled var ändå true → invisible Pixi-sprites.
     if (!pixiState.enemyTexturesBaked && typeof bakeAllEnemyTextures === 'function') {
       bakeAllEnemyTextures();
     }
+    pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked;
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;
