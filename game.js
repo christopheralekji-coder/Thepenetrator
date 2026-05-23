@@ -15986,12 +15986,13 @@ async function initPixiFoundation() {
     });
     pixiState.app = app;
     pixiState.canvas = app.canvas;
-    // Placera pixi-canvas i DOM under main canvas. z-index så Canvas2D är ovanpå.
+    // v1.536: Pixi-canvas placeras OVANPÅ Canvas2D (z-index 2). Canvas2D fyller
+    // viewport med world+UI så Pixi måste vara ovan för att synas. pointer-events:
+    // none så touch går genom till Canvas2D-input. När enemies migreras kommer
+    // Pixi-sprites vara den enda renderingen för dessa entiteter.
     app.canvas.id = 'pixi-canvas';
-    app.canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;';
-    canvas.style.zIndex = '1';  // Canvas2D ovanpå
-    canvas.style.position = canvas.style.position || 'fixed';
-    document.body.insertBefore(app.canvas, canvas);
+    app.canvas.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2;pointer-events:none;';
+    document.body.appendChild(app.canvas);
 
     // Containers
     pixiState.containers.world = new PIXI.Container();
@@ -16126,7 +16127,16 @@ function updatePixiDiagOverlay() {
   const enemiesCount = (state.enemies || []).length;
   const bulletsCount = (state.bullets || []).length;
   const particlesCount = (state.particles || []).length;
-  const pixiSprites = pixiState.ready ? pixiState.containers.world.children.reduce((sum, c) => sum + (c.children ? c.children.length : 1), 0) : 0;
+  // v1.536: Räkna alla objekt rekursivt i world-container (graphics, text, sprites)
+  let pixiSprites = 0;
+  if (pixiState.ready && pixiState.containers.world) {
+    const stack = [...pixiState.containers.world.children];
+    while (stack.length) {
+      const c = stack.pop();
+      pixiSprites++;
+      if (c.children && c.children.length) stack.push(...c.children);
+    }
+  }
   el.style.display = 'block';
   el.innerHTML = `<div>FPS: ${_pixiDiagState.fps}</div>` +
     `<div>Pixi: ${pixiState.diagFrameTime.toFixed(1)}ms</div>` +
