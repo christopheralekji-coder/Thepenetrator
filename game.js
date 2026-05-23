@@ -16021,30 +16021,38 @@ async function initPixiFoundation() {
     pixiState.ready = true;
     console.log('[PixiJS] Foundation init klar — v' + PIXI.VERSION + ', resolution', DPR);
 
-    // Proof-of-concept: stor synlig cirkel i världs-koord 2000,2000 (mitten av
-    // CD/Survivors). Pulserar via Pixi-ticker så användaren ser att den lever.
-    // Tas bort i v1.535 när riktiga enemies-sprites körs.
+    // v1.538: PoC med 2 test-objekt — STAGE-level + WORLD-level
+    // Stage-rect ritas i screen-koord (top-left hörn), oberoende av camera.
+    // Om denna inte syns: Pixi-canvas är inte i DOM eller dolt av CSS.
     if (window.PIXI_TEST_CIRCLE !== false) {
+      // STAGE-LEVEL test: stor grön rektangel i top-right (10% av skärmen)
+      // Helt oberoende av camera/world. SYNS ALLTID om Pixi alls renderar.
+      const stageRect = new PIXI.Graphics();
+      stageRect.rect(0, 0, 80, 80).fill({ color: 0x00ff00, alpha: 0.9 });
+      stageRect.rect(0, 0, 80, 80).stroke({ width: 3, color: 0xffffff });
+      stageRect.position.set(viewW - 100, 120);
+      stageRect.label = '__pixi_stage_rect';
+      app.stage.addChild(stageRect);
+
+      // WORLD-LEVEL test: cirkel vid (2000, 2000)
       const test = new PIXI.Graphics();
-      test.circle(0, 0, 40).fill({ color: 0xff5aff, alpha: 0.85 });
-      test.circle(0, 0, 40).stroke({ width: 3, color: 0xffffff });
+      test.circle(0, 0, 60).fill({ color: 0xff5aff, alpha: 0.9 });
+      test.circle(0, 0, 60).stroke({ width: 4, color: 0xffffff });
       test.position.set(2000, 2000);
       test.label = '__pixi_test_circle';
       pixiState.containers.world.addChild(test);
-      // Pulserande "PIXI ✓"-text under cirkeln
       if (PIXI.Text) {
         try {
           const lbl = new PIXI.Text({
             text: 'PIXI ✓',
-            style: { fontFamily: 'sans-serif', fontSize: 18, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x000000, width: 4 } },
+            style: { fontFamily: 'sans-serif', fontSize: 22, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x000000, width: 5 } },
           });
           lbl.anchor.set(0.5, 0);
-          lbl.position.set(2000, 2050);
+          lbl.position.set(2000, 2070);
           lbl.label = '__pixi_test_label';
           pixiState.containers.world.addChild(lbl);
         } catch (_) {}
       }
-      // Pulse-loop (i game-loop, inte Pixi-ticker så vi delar tids-källa)
       pixiState._pocPulse = { circle: test, t0: performance.now() };
     }
   } catch (err) {
@@ -16205,12 +16213,27 @@ function updatePixiDiagOverlay() {
     }
   }
   el.style.display = 'block';
+  // v1.538: utökad diag — visar Pixi canvas DOM-status + storlek + stage-info
+  let canvasInDom = '✗';
+  let canvasSize = 'n/a';
+  let canvasZ = 'n/a';
+  let stageChildren = 0;
+  if (pixiState.ready && pixiState.canvas) {
+    canvasInDom = document.body.contains(pixiState.canvas) ? '✓' : '✗';
+    canvasSize = pixiState.canvas.width + 'x' + pixiState.canvas.height;
+    canvasZ = window.getComputedStyle(pixiState.canvas).zIndex;
+    stageChildren = pixiState.app.stage.children.length;
+  }
   el.innerHTML = `<div>FPS: ${_pixiDiagState.fps}</div>` +
     `<div>Pixi: ${pixiState.diagFrameTime.toFixed(1)}ms</div>` +
     `<div>Enemies: ${enemiesCount}</div>` +
     `<div>Bullets: ${bulletsCount}</div>` +
     `<div>Particles: ${particlesCount}</div>` +
-    `<div>Pixi sprites: ${pixiSprites}</div>` +
+    `<div>World sprites: ${pixiSprites}</div>` +
+    `<div>Stage children: ${stageChildren}</div>` +
+    `<div>Canvas DOM: ${canvasInDom}</div>` +
+    `<div>Canvas size: ${canvasSize}</div>` +
+    `<div>Canvas z: ${canvasZ}</div>` +
     `<div>Pixi ready: ${pixiState.ready ? '✓' : '✗'}</div>`;
 }
 window.addEventListener('orientationchange', () => setTimeout(resize, 100));
