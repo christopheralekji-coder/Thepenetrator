@@ -14806,6 +14806,8 @@ function renderSurvivorsPerkOverlay() {
 // Kallas i game-loop varje frame. Hanterar selection-trigger + auto-pick-timeout.
 function checkSurvivorsPerkTrigger() {
   if (!state.survivorsActive) return;
+  // v1.542: STRESS-TEST skippar perks — bara rå prestanda-test
+  if (state.stresstestActive) return;
   const now = Date.now();
   // Auto-pick om timeout. v1.532: välj HÖGSTA rarity (var first = ofta gray).
   if (state.survivorsPerkOverlayOn && now >= state.survivorsPerkAutoPickAt) {
@@ -14831,7 +14833,8 @@ function checkSurvivorsPerkTrigger() {
 
 // Uppdaterar HUD-bar med aktiva perks (bottom-left ovanför joystick).
 function updateSurvivorsPerksBar() {
-  if (!state.survivorsActive) {
+  // v1.542: STRESS-TEST har ingen perks-bar
+  if (!state.survivorsActive || state.stresstestActive) {
     const old = document.getElementById('survivors-perks-bar');
     if (old) old.style.display = 'none';
     return;
