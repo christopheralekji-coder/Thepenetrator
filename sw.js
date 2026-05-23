@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v544-pixi-graphics-fallback';
+const CACHE = 'penetrator-v545-remove-pixi-poc-debug';
 const ASSETS = [
   './',
   './index.html',

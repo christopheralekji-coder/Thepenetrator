@@ -16024,40 +16024,9 @@ async function initPixiFoundation() {
     pixiState.ready = true;
     console.log('[PixiJS] Foundation init klar — v' + PIXI.VERSION + ', resolution', DPR);
 
-    // v1.538: PoC med 2 test-objekt — STAGE-level + WORLD-level
-    // Stage-rect ritas i screen-koord (top-left hörn), oberoende av camera.
-    // Om denna inte syns: Pixi-canvas är inte i DOM eller dolt av CSS.
-    if (window.PIXI_TEST_CIRCLE !== false) {
-      // STAGE-LEVEL test: stor grön rektangel i top-right (10% av skärmen)
-      // Helt oberoende av camera/world. SYNS ALLTID om Pixi alls renderar.
-      const stageRect = new PIXI.Graphics();
-      stageRect.rect(0, 0, 80, 80).fill({ color: 0x00ff00, alpha: 0.9 });
-      stageRect.rect(0, 0, 80, 80).stroke({ width: 3, color: 0xffffff });
-      stageRect.position.set(viewW - 100, 120);
-      stageRect.label = '__pixi_stage_rect';
-      app.stage.addChild(stageRect);
-
-      // WORLD-LEVEL test: cirkel vid (2000, 2000)
-      const test = new PIXI.Graphics();
-      test.circle(0, 0, 60).fill({ color: 0xff5aff, alpha: 0.9 });
-      test.circle(0, 0, 60).stroke({ width: 4, color: 0xffffff });
-      test.position.set(2000, 2000);
-      test.label = '__pixi_test_circle';
-      pixiState.containers.world.addChild(test);
-      if (PIXI.Text) {
-        try {
-          const lbl = new PIXI.Text({
-            text: 'PIXI ✓',
-            style: { fontFamily: 'sans-serif', fontSize: 22, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x000000, width: 5 } },
-          });
-          lbl.anchor.set(0.5, 0);
-          lbl.position.set(2000, 2070);
-          lbl.label = '__pixi_test_label';
-          pixiState.containers.world.addChild(lbl);
-        } catch (_) {}
-      }
-      pixiState._pocPulse = { circle: test, t0: performance.now() };
-    }
+    // v1.545: PoC-debug-objekt borttagna (stage-rect + world-cirkel + text).
+    // Pipeline är verifierad via stress-test enemy-overlay nu. Inga
+    // synliga PIXI-objekt i sandbox/story/CD längre.
   } catch (err) {
     console.error('[PixiJS] init misslyckades:', err);
     pixiState.ready = false;
@@ -16160,13 +16129,7 @@ function renderPixiFrame() {
   const t0 = performance.now();
   // Camera-follow: world-container offsetas så sprites i world-koord syns rätt
   pixiState.containers.world.position.set(-state.camera.x, -state.camera.y);
-  // Pulserande PoC-cirkel (visual confirmation att Pixi renderar)
-  if (pixiState._pocPulse && pixiState._pocPulse.circle) {
-    const dt = (performance.now() - pixiState._pocPulse.t0) / 600;
-    const s = 1 + 0.18 * Math.sin(dt);
-    pixiState._pocPulse.circle.scale.set(s, s);
-  }
-  // v1.543: Sync enemy-sprites till state.enemies
+  // v1.543: Sync enemy-sprites till state.enemies (bara om enemiesEnabled)
   syncPixiEnemies();
   // Manuell render (vi pausade Pixi's ticker så vi kontrollerar timing)
   pixiState.app.renderer.render(pixiState.app.stage);
