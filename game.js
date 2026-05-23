@@ -7621,46 +7621,135 @@ function _ensureSurvivorsArenaCache() {
   const rng = _survRng(42); // fixed seed = samma ÖDESLAND varje match
   const cx = 2000, cy = 2000; // CD-arena center
   const cache = {
-    cracks: [],      // glödande sprickor i marken
-    ruins: [],       // ruin-väggar/pelare
-    burntTrees: [],  // brända träd
-    rubble: [],      // sten-skräp
-    torches: [],     // övergivna torch-stativ
+    // v1.578: cracks BORTA (användaren gillar inte "strecken")
+    walls: [],       // taktiska bunker-walls (renamed från ruins, mer detaljrika)
+    vehicles: [],    // 8 fordon-wrak
+    pillars: [],     // 15 betong-pelare
+    sandbags: [],    // 20 sandbag-bunkers
+    burntTrees: [],
+    rubble: [],
+    torches: [],
+    obstacles: [],   // unified list för collision (alla blocking obstacles)
   };
-  // 14 stora sprickor som strålar ut från center
-  for (let i = 0; i < 14; i++) {
-    const ang = (i / 14) * Math.PI * 2 + (rng() - 0.5) * 0.3;
-    const startD = 250 + rng() * 100;
-    const endD = startD + 400 + rng() * 600;
-    const width = 8 + rng() * 12;
-    cache.cracks.push({
-      x1: cx + Math.cos(ang) * startD,
-      y1: cy + Math.sin(ang) * startD,
-      x2: cx + Math.cos(ang + (rng() - 0.5) * 0.4) * endD,
-      y2: cy + Math.sin(ang + (rng() - 0.5) * 0.4) * endD,
-      width: width,
-      pulsePhase: rng() * Math.PI * 2,
-    });
-  }
-  // 50 ruin-väggar (random placering, undvik center 300px)
-  for (let i = 0; i < 50; i++) {
-    let x, y, d;
+  // v1.578: 70 taktiska väggar i KLUSTER så det blir riktiga gömställen
+  // Kluster: ett "bunker"-läge har 2-4 väggar i L/U/T-form
+  const clusterCount = 22;
+  for (let ci = 0; ci < clusterCount; ci++) {
+    // Hitta giltig plats för kluster (undvik center 320px + andra kluster 200px)
+    let bx, by;
     let tries = 0;
     do {
-      x = rng() * 4000;
-      y = rng() * 4000;
-      const dx = x - cx, dy = y - cy;
+      bx = 200 + rng() * 3600;
+      by = 200 + rng() * 3600;
+      const dx = bx - cx, dy = by - cy;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d < 320) { tries++; continue; }
+      // Check overlap med existing kluster
+      let overlap = false;
+      for (const w of cache.walls) {
+        const ddx = w.x - bx, ddy = w.y - by;
+        if (ddx * ddx + ddy * ddy < 200 * 200) { overlap = true; break; }
+      }
+      if (!overlap) break;
+      tries++;
+    } while (tries < 30);
+    // Bestäm cluster-shape (L, U, eller line)
+    const shape = Math.floor(rng() * 3); // 0=L, 1=U, 2=line
+    const rot = rng() * Math.PI * 2;
+    const baseLen = 60 + rng() * 50;
+    const wallH = 20 + rng() * 6;
+    const segments = shape === 0 ? 2 : (shape === 1 ? 3 : (2 + Math.floor(rng() * 2)));
+    for (let s = 0; s < segments; s++) {
+      // L-form: 2 walls i 90° vinkel. U-form: 3 walls. Line: 2-3 i rad.
+      let sx, sy, sRot;
+      if (shape === 0) {
+        // L-form
+        const armA = s * Math.PI / 2;
+        sx = bx + Math.cos(rot + armA) * baseLen * 0.5;
+        sy = by + Math.sin(rot + armA) * baseLen * 0.5;
+        sRot = rot + armA + Math.PI / 2;
+      } else if (shape === 1) {
+        // U-form
+        if (s === 0) { sx = bx; sy = by; sRot = rot; }
+        else if (s === 1) { sx = bx + Math.cos(rot + Math.PI/2) * baseLen; sy = by + Math.sin(rot + Math.PI/2) * baseLen; sRot = rot + Math.PI; }
+        else { sx = bx + Math.cos(rot - Math.PI/2) * baseLen; sy = by + Math.sin(rot - Math.PI/2) * baseLen; sRot = rot + Math.PI; }
+      } else {
+        // Line
+        sx = bx + Math.cos(rot) * (s - segments / 2) * (baseLen + 10);
+        sy = by + Math.sin(rot) * (s - segments / 2) * (baseLen + 10);
+        sRot = rot + Math.PI / 2;
+      }
+      cache.walls.push({
+        x: sx, y: sy,
+        w: baseLen + rng() * 20,
+        h: wallH,
+        rot: sRot,
+        decay: 0.6 + rng() * 0.4,
+        seed: rng(),
+      });
+      cache.obstacles.push({ kind: 'wall', x: sx, y: sy, w: baseLen + 20, h: wallH + 4, r: Math.max(baseLen, wallH) / 2 + 8 });
+    }
+  }
+  // v1.578: 8 fordon-wrak (jeepar, lastbil-vrak)
+  for (let i = 0; i < 8; i++) {
+    let vx, vy, d;
+    let tries = 0;
+    do {
+      vx = 300 + rng() * 3400;
+      vy = 300 + rng() * 3400;
+      const dx = vx - cx, dy = vy - cy;
       d = Math.sqrt(dx * dx + dy * dy);
       tries++;
-    } while (d < 280 && tries < 20);
-    cache.ruins.push({
-      x: x,
-      y: y,
-      w: 30 + rng() * 50,
-      h: 12 + rng() * 8,
-      rot: rng() * Math.PI,
-      decay: 0.5 + rng() * 0.5, // 0.5-1.0 hp-look
+    } while (d < 380 && tries < 20);
+    const isLarge = rng() > 0.5;
+    cache.vehicles.push({
+      x: vx, y: vy,
+      w: isLarge ? 70 : 50,
+      h: isLarge ? 36 : 28,
+      rot: rng() * Math.PI * 2,
+      kind: isLarge ? 'truck' : 'jeep',
+      burn: rng() > 0.3, // brinnande
+      flamePhase: rng() * Math.PI * 2,
+      seed: rng(),
     });
+    cache.obstacles.push({ kind: 'vehicle', x: vx, y: vy, w: isLarge ? 75 : 55, h: isLarge ? 40 : 32, r: (isLarge ? 75 : 55) / 2 + 4 });
+  }
+  // v1.578: 15 betong-pelare (cylindriska, hårda att gå förbi)
+  for (let i = 0; i < 15; i++) {
+    let px, py, d;
+    let tries = 0;
+    do {
+      px = 250 + rng() * 3500;
+      py = 250 + rng() * 3500;
+      const dx = px - cx, dy = py - cy;
+      d = Math.sqrt(dx * dx + dy * dy);
+      tries++;
+    } while (d < 340 && tries < 20);
+    const r = 14 + rng() * 8;
+    cache.pillars.push({ x: px, y: py, r: r, cracks: rng(), seed: rng() });
+    cache.obstacles.push({ kind: 'pillar', x: px, y: py, w: r * 2, h: r * 2, r: r + 4, isCircle: true });
+  }
+  // v1.578: 20 sandbag-bunkers (kort vägg, taktiskt cover)
+  for (let i = 0; i < 20; i++) {
+    let sx, sy, d;
+    let tries = 0;
+    do {
+      sx = 300 + rng() * 3400;
+      sy = 300 + rng() * 3400;
+      const dx = sx - cx, dy = sy - cy;
+      d = Math.sqrt(dx * dx + dy * dy);
+      tries++;
+    } while (d < 360 && tries < 20);
+    const len = 28 + rng() * 30;
+    cache.sandbags.push({
+      x: sx, y: sy,
+      len: len,
+      h: 16,
+      rot: rng() * Math.PI * 2,
+      bags: 3 + Math.floor(rng() * 3),
+      seed: rng(),
+    });
+    cache.obstacles.push({ kind: 'sandbag', x: sx, y: sy, w: len + 8, h: 20, r: len / 2 + 6 });
   }
   // 35 brända träd
   for (let i = 0; i < 35; i++) {
@@ -7703,6 +7792,90 @@ function _ensureSurvivorsArenaCache() {
   return cache;
 }
 
+// v1.578: COLLISION HELPERS för survivors-obstacles
+// AABB-baserat med padding för approximation av roterade walls. Pillars är cirklar.
+function _survResolveCollision(ent, entR, obstacles) {
+  for (const ob of obstacles) {
+    if (ob.isCircle) {
+      const dx = ent.x - ob.x, dy = ent.y - ob.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const minD = ob.r + entR;
+      if (d < minD && d > 0.01) {
+        ent.x = ob.x + (dx / d) * minD;
+        ent.y = ob.y + (dy / d) * minD;
+      } else if (d < 0.01) {
+        ent.x = ob.x + minD; // avoid divide-by-zero
+      }
+    } else {
+      const halfW = ob.w / 2 + entR;
+      const halfH = ob.h / 2 + entR;
+      const dx = ent.x - ob.x;
+      const dy = ent.y - ob.y;
+      if (Math.abs(dx) < halfW && Math.abs(dy) < halfH) {
+        const ovX = halfW - Math.abs(dx);
+        const ovY = halfH - Math.abs(dy);
+        if (ovX < ovY) {
+          ent.x = ob.x + (dx >= 0 ? halfW : -halfW);
+        } else {
+          ent.y = ob.y + (dy >= 0 ? halfH : -halfH);
+        }
+      }
+    }
+  }
+}
+
+function _survPointInObstacle(x, y, obstacles) {
+  for (const ob of obstacles) {
+    if (ob.isCircle) {
+      const dx = x - ob.x, dy = y - ob.y;
+      if (dx * dx + dy * dy < ob.r * ob.r) return true;
+    } else {
+      const halfW = ob.w / 2;
+      const halfH = ob.h / 2;
+      if (Math.abs(x - ob.x) < halfW && Math.abs(y - ob.y) < halfH) return true;
+    }
+  }
+  return false;
+}
+
+function applySurvivorsObstacleCollision() {
+  if (!state.survivorsActive || !state._survArenaCache) return;
+  const obstacles = state._survArenaCache.obstacles;
+  if (!obstacles || obstacles.length === 0) return;
+  // Player
+  if (state.player && !state.player.dead) {
+    _survResolveCollision(state.player, state.player.r || 14, obstacles);
+  }
+  // Coop partners
+  if (typeof Coop !== 'undefined' && Coop.players) {
+    for (const [, partner] of Coop.players) {
+      if (partner && typeof partner.x === 'number' && partner.hp > 0) {
+        _survResolveCollision(partner, 14, obstacles);
+      }
+    }
+  }
+  // Enemies — alla utom bossar (de ska kunna gå igenom för pacing)
+  if (state.enemies) {
+    for (const e of state.enemies) {
+      if (!e || e.dead || e.isBoss) continue;
+      _survResolveCollision(e, e.r || 14, obstacles);
+    }
+  }
+  // Bullets — blockas av obstacles (både player + hostile)
+  if (state.bullets) {
+    for (const b of state.bullets) {
+      if (!b || b.dead) continue;
+      if (_survPointInObstacle(b.x, b.y, obstacles)) {
+        b.dead = true;
+        // Spawn liten impact-sparks för feedback
+        if (typeof spawnSparks === 'function') {
+          spawnSparks(b.x, b.y, b.color || '#888', 3, 80);
+        }
+      }
+    }
+  }
+}
+
 function drawSurvivorsArenaGround() {
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const centerX = 2000, centerY = 2000;
@@ -7731,35 +7904,7 @@ function drawSurvivorsArenaGround() {
     }
   }
 
-  // === GLÖDANDE SPRICKOR ===
-  // Varje spricka är en linje med glow + inner-yellow-hot core
-  for (const c of cache.cracks) {
-    const x1 = c.x1 - cx, y1 = c.y1 - cy;
-    const x2 = c.x2 - cx, y2 = c.y2 - cy;
-    // Cull check
-    if (Math.min(x1, x2) > viewW || Math.max(x1, x2) < 0 || Math.min(y1, y2) > viewH || Math.max(y1, y2) < 0) continue;
-    const pulse = 0.7 + 0.3 * Math.sin(t * 1.5 + c.pulsePhase);
-    // Outer red glow
-    ctx.strokeStyle = `rgba(255, 60, 20, ${0.18 * pulse})`;
-    ctx.lineWidth = c.width * 3;
-    ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-    // Mid orange
-    ctx.strokeStyle = `rgba(255, 120, 30, ${0.45 * pulse})`;
-    ctx.lineWidth = c.width * 1.5;
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-    // Inner yellow-hot
-    ctx.strokeStyle = `rgba(255, 220, 90, ${0.85 * pulse})`;
-    ctx.lineWidth = c.width * 0.4;
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
-    // Dark border (cracked-edge effekt)
-    ctx.strokeStyle = 'rgba(10, 5, 0, 0.6)';
-    ctx.lineWidth = c.width + 1;
-    ctx.beginPath();
-    ctx.moveTo(x1 + 0.5, y1 - 0.5); ctx.lineTo(x2 + 0.5, y2 - 0.5);
-    ctx.globalCompositeOperation = 'source-over';
-  }
-  ctx.lineCap = 'butt';
+  // v1.578: glödande sprickor BORTA (användaren gillade inte strecken)
 
   // === PLAZA (obsidian-platta) ===
   const plazaScreenX = centerX - cx, plazaScreenY = centerY - cy;
@@ -7841,39 +7986,227 @@ function drawSurvivorsArenaGround() {
     ctx.stroke();
   }
 
-  // === RUIN-VÄGGAR (broken stones) ===
-  for (const r of cache.ruins) {
+  // === v1.578: TAKTISKA VÄGGAR (concrete bunker-walls, gömställen) ===
+  for (const r of cache.walls) {
     const x = r.x - cx, y = r.y - cy;
-    if (x < -50 || x > viewW + 50 || y < -50 || y > viewH + 50) continue;
+    if (x < -80 || x > viewW + 80 || y < -80 || y > viewH + 80) continue;
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(r.rot);
-    // Skugga
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-    ctx.fillRect(-r.w / 2 + 3, -r.h / 2 + 4, r.w, r.h);
-    // Wall-bas
-    ctx.fillStyle = '#4a3a2a';
+    // Skugga (mjuk, off-set)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(-r.w / 2 + 4, -r.h / 2 + 5, r.w, r.h);
+    // Bas-betong (gradient mörk → ljus topp)
+    const grad = ctx.createLinearGradient(0, -r.h / 2, 0, r.h / 2);
+    grad.addColorStop(0, '#7a7268');
+    grad.addColorStop(0.4, '#5a5048');
+    grad.addColorStop(1, '#3a3028');
+    ctx.fillStyle = grad;
     ctx.fillRect(-r.w / 2, -r.h / 2, r.w, r.h);
-    // Highlight top
-    ctx.fillStyle = '#6a5a40';
-    ctx.fillRect(-r.w / 2, -r.h / 2, r.w, 3);
-    // Cracks
-    ctx.strokeStyle = '#1a0a05';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(-r.w / 2 + r.w * 0.3, -r.h / 2);
-    ctx.lineTo(-r.w / 2 + r.w * 0.3 + 4, r.h / 2);
-    ctx.moveTo(-r.w / 2 + r.w * 0.7, -r.h / 2);
-    ctx.lineTo(-r.w / 2 + r.w * 0.7 - 3, r.h / 2);
-    ctx.stroke();
-    // Decay edge — irregular top
-    ctx.fillStyle = '#1a0e08';
-    const segments = 4;
+    // Top highlight (ljust kant)
+    ctx.fillStyle = '#8a8278';
+    ctx.fillRect(-r.w / 2, -r.h / 2, r.w, 2);
+    // Riv-skår (vertikala mörka linjer)
+    ctx.fillStyle = 'rgba(20, 12, 8, 0.7)';
+    const stripes = Math.floor(r.w / 14);
+    for (let s = 0; s < stripes; s++) {
+      const sx = -r.w / 2 + s * 14 + 4;
+      ctx.fillRect(sx, -r.h / 2, 0.8, r.h);
+    }
+    // Skotthål (random baserat på seed)
+    ctx.fillStyle = '#1a1008';
+    for (let h = 0; h < 4; h++) {
+      const hx = ((r.seed * 7 + h * 13) % 1) * r.w - r.w / 2;
+      const hy = ((r.seed * 11 + h * 17) % 1) * r.h - r.h / 2;
+      ctx.beginPath();
+      ctx.arc(hx, hy, 1.5 + ((r.seed * 3 + h) % 1) * 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // Decay edge — irregular top (krossade kant-segment)
+    ctx.fillStyle = '#1a1208';
+    const segments = 5;
     for (let s = 0; s < segments; s++) {
       const sx = -r.w / 2 + s * (r.w / segments);
       const sw = r.w / segments;
-      const sh = (1 - r.decay) * 8;
+      const sh = (1 - r.decay) * 7 + ((r.seed * 5 + s) % 1) * 3;
       ctx.fillRect(sx, -r.h / 2 - sh, sw - 1, sh);
+    }
+    // Highlight på krossade kanten
+    ctx.fillStyle = 'rgba(140, 130, 120, 0.5)';
+    for (let s = 0; s < segments; s++) {
+      const sx = -r.w / 2 + s * (r.w / segments);
+      const sw = r.w / segments;
+      const sh = (1 - r.decay) * 7 + ((r.seed * 5 + s) % 1) * 3;
+      ctx.fillRect(sx, -r.h / 2 - sh, sw - 1, 1);
+    }
+    ctx.restore();
+  }
+
+  // === v1.578: FORDON-WRAK (jeepar + lastbilar, brinnande) ===
+  for (const v of cache.vehicles) {
+    const x = v.x - cx, y = v.y - cy;
+    if (x < -80 || x > viewW + 80 || y < -80 || y > viewH + 80) continue;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(v.rot);
+    // Skugga
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+    ctx.fillRect(-v.w / 2 + 4, -v.h / 2 + 5, v.w, v.h);
+    // Chassi (mörk metallisk olivgrön)
+    const chassiGrad = ctx.createLinearGradient(0, -v.h / 2, 0, v.h / 2);
+    chassiGrad.addColorStop(0, '#3a3a28');
+    chassiGrad.addColorStop(0.5, '#2a2a18');
+    chassiGrad.addColorStop(1, '#1a1a0a');
+    ctx.fillStyle = chassiGrad;
+    ctx.fillRect(-v.w / 2, -v.h / 2, v.w, v.h);
+    // Brända marker (mörka fläckar)
+    ctx.fillStyle = '#0a0a08';
+    ctx.fillRect(-v.w / 2 + 4, -v.h / 4, v.w * 0.3, v.h * 0.5);
+    ctx.fillRect(v.w * 0.15, -v.h / 3, v.w * 0.2, v.h * 0.4);
+    // Hjul (svarta cirklar vid kanter)
+    ctx.fillStyle = '#0a0a0a';
+    const wheelR = v.h * 0.18;
+    ctx.beginPath(); ctx.arc(-v.w * 0.35, -v.h / 2, wheelR, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(v.w * 0.35, -v.h / 2, wheelR, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-v.w * 0.35, v.h / 2, wheelR, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(v.w * 0.35, v.h / 2, wheelR, 0, Math.PI * 2); ctx.fill();
+    // Kabin (i mitten, ljusare för relief)
+    ctx.fillStyle = '#4a4a3a';
+    if (v.kind === 'truck') {
+      ctx.fillRect(-v.w * 0.45, -v.h * 0.35, v.w * 0.25, v.h * 0.7);
+    } else {
+      ctx.fillRect(-v.w * 0.15, -v.h * 0.32, v.w * 0.3, v.h * 0.64);
+    }
+    // Trasiga fönster (svart)
+    ctx.fillStyle = '#000';
+    if (v.kind === 'truck') {
+      ctx.fillRect(-v.w * 0.42, -v.h * 0.28, v.w * 0.18, v.h * 0.20);
+    } else {
+      ctx.fillRect(-v.w * 0.10, -v.h * 0.25, v.w * 0.20, v.h * 0.18);
+    }
+    // Rost-streck
+    ctx.strokeStyle = '#5a3a18';
+    ctx.lineWidth = 0.8;
+    for (let l = 0; l < 4; l++) {
+      const ly = -v.h / 2 + ((v.seed * 7 + l * 5) % 1) * v.h;
+      ctx.beginPath();
+      ctx.moveTo(-v.w / 2, ly);
+      ctx.lineTo(-v.w / 2 + 8 + ((v.seed * 3 + l) % 1) * 12, ly);
+      ctx.stroke();
+    }
+    ctx.restore();
+    // Brinnande effect ovanpå (om burning)
+    if (v.burn) {
+      const flame = 0.7 + 0.3 * Math.sin(t * 5 + v.flamePhase);
+      const flameH = 18 * flame;
+      const flameGrad = ctx.createRadialGradient(x, y - flameH * 0.3, 0, x, y - flameH * 0.3, 30);
+      flameGrad.addColorStop(0, `rgba(255, 200, 80, ${0.7 * flame})`);
+      flameGrad.addColorStop(0.5, `rgba(255, 100, 30, ${0.4 * flame})`);
+      flameGrad.addColorStop(1, 'rgba(255, 50, 10, 0)');
+      ctx.fillStyle = flameGrad;
+      ctx.beginPath();
+      ctx.arc(x, y - flameH * 0.3, 30, 0, Math.PI * 2);
+      ctx.fill();
+      // Rök ovanpå
+      ctx.fillStyle = `rgba(50, 40, 35, ${0.35 * flame})`;
+      ctx.beginPath();
+      ctx.arc(x + Math.sin(t * 0.4 + v.flamePhase) * 4, y - flameH - 8, 16, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // === v1.578: BETONG-PELARE (cylindriska, hard cover) ===
+  for (const p of cache.pillars) {
+    const x = p.x - cx, y = p.y - cy;
+    if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) continue;
+    // Skugga (ellipse på marken)
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.beginPath();
+    ctx.ellipse(x + 4, y + 5, p.r * 1.1, p.r * 0.4, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // Pelarkropp (cirkel med gradient)
+    const pillarGrad = ctx.createRadialGradient(x - p.r * 0.3, y - p.r * 0.3, 0, x, y, p.r);
+    pillarGrad.addColorStop(0, '#a89888');
+    pillarGrad.addColorStop(0.6, '#685848');
+    pillarGrad.addColorStop(1, '#382818');
+    ctx.fillStyle = pillarGrad;
+    ctx.beginPath();
+    ctx.arc(x, y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+    // Dark outline
+    ctx.strokeStyle = '#1a1008';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Sprickor (radial linjer)
+    ctx.strokeStyle = 'rgba(30, 20, 10, 0.7)';
+    ctx.lineWidth = 0.8;
+    for (let cr = 0; cr < 3; cr++) {
+      const ang = (cr / 3) * Math.PI * 2 + p.seed * Math.PI;
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(ang) * p.r * 0.4, y + Math.sin(ang) * p.r * 0.4);
+      ctx.lineTo(x + Math.cos(ang + 0.3) * p.r * 0.9, y + Math.sin(ang + 0.3) * p.r * 0.9);
+      ctx.stroke();
+    }
+    // Topp-highlight (subtle inner cirkel)
+    ctx.fillStyle = 'rgba(180, 170, 160, 0.3)';
+    ctx.beginPath();
+    ctx.arc(x - p.r * 0.25, y - p.r * 0.25, p.r * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // === v1.578: SANDBAG-BUNKERS (taktiska kort-cover) ===
+  for (const sb of cache.sandbags) {
+    const x = sb.x - cx, y = sb.y - cy;
+    if (x < -60 || x > viewW + 60 || y < -60 || y > viewH + 60) continue;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(sb.rot);
+    // Skugga
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+    ctx.fillRect(-sb.len / 2 + 3, -sb.h / 2 + 4, sb.len, sb.h);
+    // Rita varje sandbag (säck) i raden
+    const bagW = sb.len / sb.bags;
+    for (let b = 0; b < sb.bags; b++) {
+      const bx = -sb.len / 2 + b * bagW + bagW / 2;
+      // Säck (rundad rektangel via 2 cirklar + rect)
+      ctx.fillStyle = '#8a7050';
+      ctx.beginPath();
+      ctx.ellipse(bx, 0, bagW * 0.45, sb.h * 0.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Highlight top
+      ctx.fillStyle = '#a89070';
+      ctx.beginPath();
+      ctx.ellipse(bx - bagW * 0.15, -sb.h * 0.2, bagW * 0.25, sb.h * 0.25, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Söm-linje
+      ctx.strokeStyle = '#5a4028';
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(bx - bagW * 0.4, -sb.h * 0.05);
+      ctx.lineTo(bx + bagW * 0.4, -sb.h * 0.05);
+      ctx.stroke();
+      // Random dirty patches
+      if ((sb.seed * 7 + b * 3) % 1 > 0.5) {
+        ctx.fillStyle = 'rgba(50, 35, 20, 0.5)';
+        ctx.beginPath();
+        ctx.arc(bx + (((sb.seed * 5 + b) % 1) - 0.5) * bagW * 0.5, sb.h * 0.1, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    // Andra raden ovanpå (lite mindre)
+    if (sb.bags >= 3) {
+      const bagW2 = sb.len * 0.7 / (sb.bags - 1);
+      for (let b = 0; b < sb.bags - 1; b++) {
+        const bx = -sb.len * 0.35 + b * bagW2 + bagW2 / 2;
+        ctx.fillStyle = '#7a6042';
+        ctx.beginPath();
+        ctx.ellipse(bx, -sb.h * 0.6, bagW2 * 0.4, sb.h * 0.4, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#9a8060';
+        ctx.beginPath();
+        ctx.ellipse(bx - bagW2 * 0.1, -sb.h * 0.75, bagW2 * 0.18, sb.h * 0.18, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.restore();
   }
@@ -62076,6 +62409,11 @@ function runFrame(dt, now) {
         if (!countdownActive) updateEnemies(dt, now);
         updateHazards(dt);
         updatePickups(dt);
+        // v1.578: SURVIVORS — obstacle-collision (väggar/fordon/pelare/sandbags)
+        // Resolveras EFTER movement så push-out fungerar mot färska positioner
+        if (typeof applySurvivorsObstacleCollision === 'function') {
+          applySurvivorsObstacleCollision();
+        }
       } else {
         // KLIENT: kör interpolation mot host's positions (smooth).
         // lerpFactor 12→25→35: gammal smoothing tog ~220ms att nå 95% av ny target.
