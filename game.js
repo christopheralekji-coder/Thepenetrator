@@ -15894,6 +15894,9 @@ const canvas = document.getElementById('game');
 // v1.571: let (inte const) så texture-baking kan temporary swap till offscreen-ctx
 let ctx = canvas.getContext('2d');
 const _mainCtx = ctx; // referens till main-context för säker restore
+// v1.575: HUD-canvas (z-index:3) för minimap + HUD-element som ska ligga ovan Pixi-sprites
+const hudCanvas = document.getElementById('hud-canvas');
+const hudCtx = hudCanvas ? hudCanvas.getContext('2d') : null;
 let DPR = Math.min(window.devicePixelRatio || 1, 2);
 let viewW = 0, viewH = 0;
 
@@ -15937,6 +15940,14 @@ function resize() {
   // v1.534: PixiJS canvas — match Canvas2D-storlek så de täcker viewport identiskt
   if (pixiState && pixiState.app && pixiState.app.renderer) {
     pixiState.app.renderer.resize(viewW, viewH);
+  }
+  // v1.575: HUD-canvas måste matcha viewport för att minimap ska rendera korrekt
+  if (hudCanvas && hudCtx) {
+    hudCanvas.width = Math.floor(viewW * DPR);
+    hudCanvas.height = Math.floor(viewH * DPR);
+    hudCanvas.style.width = viewW + 'px';
+    hudCanvas.style.height = viewH + 'px';
+    hudCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
   }
 }
 
@@ -16566,9 +16577,8 @@ function syncPixiEnemies() {
     const e0 = enemies[0];
     d.firstEnemyData = `t=${e0.type || '?'} x=${Math.round(e0.x || 0)} y=${Math.round(e0.y || 0)} _i=${e0._i} _idx=${e0._idx} hp=${e0.hp} dead=${!!e0.dead}`;
   }
-  // v1.574: Cache minimap-hitbox för screen-coord overlap-check (Pixi-canvas
-  // ligger ovan Canvas2D inkl minimapen — utan denna check täcker minions minimap)
-  const _mb = state._minimapHitbox;
+  // v1.575: Minimap-cull BORTTAGEN — minimap renderas nu på hud-canvas (z:3)
+  // ovan Pixi (z:2), så sprites under minimap är osynliga automatiskt
   for (let idx = 0; idx < enemies.length; idx++) {
     const e = enemies[idx];
     if (!e) { d.skippedNullEnemy++; continue; }
@@ -16611,16 +16621,6 @@ function syncPixiEnemies() {
       d.spritesCreated++;
     } else {
       d.spritesUpdated++;
-    }
-    // v1.574: Minimap-overlap — hide Pixi-sprite när enemy är inom minimap-hitbox
-    // (screen-coord). Sprite stays i pool, bara visibility off.
-    if (_mb) {
-      const sx = e.x - state.camera.x;
-      const sy = e.y - state.camera.y;
-      if (sx >= _mb.x && sx <= _mb.x + _mb.w && sy >= _mb.y && sy <= _mb.y + _mb.h) {
-        sprite.visible = false;
-        continue;
-      }
     }
     sprite.visible = true;
     sprite.position.set(e.x, e.y);
@@ -60034,6 +60034,8 @@ function drawToast() {
 
 function render() {
   ctx.clearRect(0, 0, viewW, viewH);
+  // v1.575: Clear hud-canvas (ovan Pixi) varje frame — minimap/boss-HUD ritas hit
+  if (hudCtx) hudCtx.clearRect(0, 0, viewW, viewH);
   if (state.mode === 'menu' || !state.player) return;
 
   // v1.372: Server-driven coop-mode startas. Skipa default-stage-rendering
@@ -60182,17 +60184,11 @@ function render() {
       }
       // HP-bar för minions och mini-bosses
       if (typeof drawHpBar === 'function') drawHpBar(e, sx, sy);
-      // Mini-boss extra: namn-tag + glow-ring
+      // v1.575: Mini-boss namn-tag bortagen från denna loop — drawHpBar (ovan)
+      // ritar redan "⚠ name" via line 58081. Bara pulsande glow-ring kvar här.
       if (e.isMiniBoss) {
         const ringColor = e.stageEdge || '#ffd54a';
         ctx.save();
-        const tagY = Math.max(20, sy - e.r - 22);
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold 11px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
-        ctx.fillText(e.name || 'MINI-BOSS', sx, tagY);
-        ctx.shadowBlur = 0;
         const pulse = 0.7 + Math.sin(_nowOverlay / 280) * 0.3;
         ctx.strokeStyle = ringColor;
         ctx.lineWidth = 1.5 + (e.miniIntensity || 0.5) * 1.5;
@@ -60366,7 +60362,16 @@ function render() {
   drawOffScreenGoalArrow();
   drawOffscreenHitMarkers();
   drawReloadRing();
-  drawMiniMap();
+  // v1.575: Minimap renderas till hud-canvas (z-index:3) så Pixi-sprites (z:2)
+  // inte täcker den. Ctx-swap eftersom drawMiniMap använder global ctx.
+  if (hudCtx) {
+    const _savedCtx = ctx;
+    ctx = hudCtx;
+    try { drawMiniMap(); } catch (e) { console.warn('[hudCtx] minimap fail:', e.message); }
+    ctx = _savedCtx;
+  } else {
+    drawMiniMap();
+  }
   drawHitMarker(); // v1.385: lag-hiding hit-confirm på crosshair
   drawDebugLatencyOverlay(); // v1.384: net-debug-overlay (togglas via 'L'-key)
   drawAlarmOverlay();
@@ -61917,7 +61922,7 @@ function runFrame(dt, now) {
   // draw-funktioner = pixel-identical militär-grafik.
   if (state.mode === 'playing' && pixiState && pixiState.ready) {
     pixiState.enemiesEnabled = true;
-    pixiState.bulletsEnabled = false; // v1.571 ROLLBACK — Canvas2D ritar bullets
+    pixiState.bulletsEnabled = true; // v1.575 — re-aktiverat, perf-vinst > generic visuals
     pixiState.particlesEnabled = true;
     pixiState.vfxEnabled = true;
     // v1.574: Extra säkerhets-bake vid game-start — fixar reload-buggen där

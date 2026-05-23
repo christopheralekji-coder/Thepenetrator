@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v574-boss-hp-minimap';
+const CACHE = 'penetrator-v575-hud-canvas';
 const ASSETS = [
   './',
   './index.html',
