@@ -15927,6 +15927,171 @@ function resize() {
   canvas.style.width = viewW + 'px';
   canvas.style.height = viewH + 'px';
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  // v1.534: PixiJS canvas — match Canvas2D-storlek så de täcker viewport identiskt
+  if (pixiState && pixiState.app && pixiState.app.renderer) {
+    pixiState.app.renderer.resize(viewW, viewH);
+  }
+}
+
+// ============================================================
+// PIXIJS FOUNDATION (v1.534)
+// ============================================================
+// Hybrid Canvas2D + PixiJS-arkitektur. Pixi-canvas placeras UNDER befintlig
+// Canvas2D-canvas (lägre z-index). Inkrementell migration: enemies → bullets
+// → particles → player → HUD. Varje lager har egen toggle för rollback.
+//
+// Coordinate-system: PixiJS stage följer state.camera via stage.position.
+// Sprites är i världs-koordinater (samma som enemies.x/y).
+
+const pixiState = {
+  app: null,
+  canvas: null,
+  ready: false,
+  containers: {
+    world: null,      // root world-container (camera-followed)
+    enemies: null,    // alla enemy-sprites
+    bullets: null,    // alla bullet-sprites
+    particles: null,  // ParticleContainer för partiklar (snabbast)
+    vfx: null,        // explosioner, shockwaves, etc.
+  },
+  sprites: {
+    enemies: new Map(),  // enemy._idx -> Sprite
+    bullets: new Map(),  // bullet-id -> Sprite
+  },
+  textures: {},         // pre-renderade textures per enemy-typ etc.
+  enabled: false,       // master toggle (off tills v1.535 enemies-migration verifierad)
+  enemiesEnabled: false,
+  bulletsEnabled: false,
+  particlesEnabled: false,
+  // Diagnostic
+  diagFrameTime: 0,
+  diagPixiDrawCalls: 0,
+};
+
+async function initPixiFoundation() {
+  if (typeof PIXI === 'undefined') {
+    console.warn('[PixiJS] PIXI inte tillgänglig — foundation skippad');
+    return;
+  }
+  try {
+    const app = new PIXI.Application();
+    await app.init({
+      width: viewW,
+      height: viewH,
+      backgroundAlpha: 0,         // transparent — Canvas2D underst ritar background
+      antialias: true,
+      resolution: DPR,
+      autoDensity: true,
+      preference: 'webgl',
+    });
+    pixiState.app = app;
+    pixiState.canvas = app.canvas;
+    // Placera pixi-canvas i DOM under main canvas. z-index så Canvas2D är ovanpå.
+    app.canvas.id = 'pixi-canvas';
+    app.canvas.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;';
+    canvas.style.zIndex = '1';  // Canvas2D ovanpå
+    canvas.style.position = canvas.style.position || 'fixed';
+    document.body.insertBefore(app.canvas, canvas);
+
+    // Containers
+    pixiState.containers.world = new PIXI.Container();
+    pixiState.containers.world.label = 'world';
+    app.stage.addChild(pixiState.containers.world);
+    pixiState.containers.enemies = new PIXI.Container();
+    pixiState.containers.enemies.label = 'enemies';
+    pixiState.containers.world.addChild(pixiState.containers.enemies);
+    pixiState.containers.bullets = new PIXI.Container();
+    pixiState.containers.bullets.label = 'bullets';
+    pixiState.containers.world.addChild(pixiState.containers.bullets);
+    pixiState.containers.vfx = new PIXI.Container();
+    pixiState.containers.vfx.label = 'vfx';
+    pixiState.containers.world.addChild(pixiState.containers.vfx);
+    // ParticleContainer (snabbare än Container för partiklar, kräver samma texture)
+    if (PIXI.ParticleContainer) {
+      pixiState.containers.particles = new PIXI.ParticleContainer({
+        dynamicProperties: { position: true, scale: true, rotation: true, color: true },
+      });
+      pixiState.containers.particles.label = 'particles';
+      pixiState.containers.world.addChild(pixiState.containers.particles);
+    }
+    // Pause Pixi's egen ticker — vi anropar render() från vår game-loop istället
+    app.ticker.autoStart = false;
+    app.ticker.stop();
+    pixiState.ready = true;
+    console.log('[PixiJS] Foundation init klar — v' + PIXI.VERSION + ', resolution', DPR);
+
+    // Proof-of-concept: rita en test-cirkel i världs-koord 2000,2000 (mitten av CD/Survivors)
+    // Tas bort i v1.535 när riktiga enemies-sprites körs
+    if (window.PIXI_TEST_CIRCLE !== false) {
+      const test = new PIXI.Graphics();
+      test.circle(0, 0, 20).fill(0xff5aff);
+      test.position.set(2000, 2000);
+      test.label = '__pixi_test_circle';
+      pixiState.containers.world.addChild(test);
+    }
+  } catch (err) {
+    console.error('[PixiJS] init misslyckades:', err);
+    pixiState.ready = false;
+  }
+}
+
+// Initiera när PIXI är tillgänglig (CDN kan ladda async)
+if (typeof PIXI !== 'undefined') {
+  initPixiFoundation();
+} else {
+  window.addEventListener('load', () => {
+    if (typeof PIXI !== 'undefined') initPixiFoundation();
+  });
+}
+
+// Per-frame Pixi-render. Kallas från huvud-game-loop EFTER state-update men
+// FÖRE Canvas2D-render så Pixi-lagret ritas underst.
+function renderPixiFrame() {
+  if (!pixiState.ready || !pixiState.app) return;
+  const t0 = performance.now();
+  // Camera-follow: world-container offsetas så sprites i world-koord syns rätt
+  pixiState.containers.world.position.set(-state.camera.x, -state.camera.y);
+  // Manuell render (vi pausade Pixi's ticker så vi kontrollerar timing)
+  pixiState.app.renderer.render(pixiState.app.stage);
+  pixiState.diagFrameTime = performance.now() - t0;
+}
+
+// v1.534: Diagnostic-overlay (FPS + Pixi-frametime). Toggle via window._pixiDiag.
+// Aktivera i console: window._pixiDiag = true. Hjälper mäta förbättring per
+// migration-iter.
+const _pixiDiagState = { lastFpsT: 0, frames: 0, fps: 0 };
+function updatePixiDiagOverlay() {
+  if (!window._pixiDiag) {
+    const el = document.getElementById('pixi-diag-overlay');
+    if (el) el.style.display = 'none';
+    return;
+  }
+  let el = document.getElementById('pixi-diag-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'pixi-diag-overlay';
+    el.style.cssText = 'position:fixed;top:8px;right:8px;z-index:2000;background:rgba(0,0,0,0.75);color:#5aff5a;padding:5px 10px;border-radius:5px;border:1px solid #5aff5a;font:700 11px monospace;line-height:1.5;pointer-events:none;letter-spacing:0.5px;';
+    document.body.appendChild(el);
+  }
+  const now = performance.now();
+  _pixiDiagState.frames++;
+  if (now - _pixiDiagState.lastFpsT > 500) {
+    _pixiDiagState.fps = Math.round((_pixiDiagState.frames * 1000) / (now - _pixiDiagState.lastFpsT));
+    _pixiDiagState.frames = 0;
+    _pixiDiagState.lastFpsT = now;
+  }
+  const enemiesCount = (state.enemies || []).length;
+  const bulletsCount = (state.bullets || []).length;
+  const particlesCount = (state.particles || []).length;
+  const pixiSprites = pixiState.ready ? pixiState.containers.world.children.reduce((sum, c) => sum + (c.children ? c.children.length : 1), 0) : 0;
+  el.style.display = 'block';
+  el.innerHTML = `<div>FPS: ${_pixiDiagState.fps}</div>` +
+    `<div>Pixi: ${pixiState.diagFrameTime.toFixed(1)}ms</div>` +
+    `<div>Enemies: ${enemiesCount}</div>` +
+    `<div>Bullets: ${bulletsCount}</div>` +
+    `<div>Particles: ${particlesCount}</div>` +
+    `<div>Pixi sprites: ${pixiSprites}</div>` +
+    `<div>Pixi ready: ${pixiState.ready ? '✓' : '✗'}</div>`;
 }
 window.addEventListener('orientationchange', () => setTimeout(resize, 100));
 if (window.visualViewport) {
@@ -61065,6 +61230,10 @@ function runFrame(dt, now) {
   updateGungameButtonLayout();
 
   render();
+  // v1.534: PixiJS-render efter Canvas2D. Pixi-canvas är under Canvas2D
+  // (z-index 0 vs 1) men båda måste anropas per frame för att uppdateras.
+  if (typeof renderPixiFrame === 'function') renderPixiFrame();
+  if (typeof updatePixiDiagOverlay === 'function') updatePixiDiagOverlay();
 }
 
 requestAnimationFrame(loop);
