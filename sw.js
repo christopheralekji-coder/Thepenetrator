@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v540-camera-diag';
+const CACHE = 'penetrator-v541-nojekyll-pages-fix';
 const ASSETS = [
   './',
   './index.html',
