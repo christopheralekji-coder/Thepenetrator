@@ -11960,7 +11960,9 @@ function updatePickups(dt) {
     const dx = nearest.ref.x - pk.x, dy = nearest.ref.y - pk.y;
     const d = nearestD;
     // Magnet mot närmsta spelare. MagnetJamlo-cheat = oändlig räckvidd
-    const magnetRange = isCheatActive('magnet') ? 99999 : 110;
+    // v1.527: SURVIVORS-RUN magnet-perk ökar pickup-radius
+    const _survMagnetBonus = (state.survivorsActive ? (1 + getSurvivorsPerkSum('magnet')) : 1);
+    const magnetRange = isCheatActive('magnet') ? 99999 : (110 * _survMagnetBonus);
     if (d < magnetRange) pk.magnetized = true;
     if (pk.magnetized && d > 0) {
       const speed = Math.min(600, 200 + (1 - d/magnetRange) * 300);
@@ -14156,6 +14158,272 @@ const CHEATS = [
     color: '#ff3a3a',
   },
 ];
+
+// ============================================================
+// SURVIVORS-RUN PERK-SYSTEM (v1.527 iteration 3)
+// ============================================================
+// 20 perks i 4 raritys. Var 60s öppnas overlay med 3 random val. Stack-bara.
+// Effekter aggregeras via getSurvivorsPerkSum() och hookas in i bullet-spawn,
+// fire-rate, max-hp, speed, regen-tick, lifesteal-on-damage, crit-roll.
+//
+// State:
+//   state.survivorsPerks         — array av { perkId, rarity, type, value }
+//   state.survivorsNextPerkAt    — timestamp för nästa overlay-trigger
+//   state.survivorsPerkOverlayOn — boolean, true medan overlay visas
+//   state.survivorsPerkAutoPickAt — timestamp för auto-pick om timeout
+
+// Roll en rarity baserat på elapsed match-time. Returnerar 'gray'|'green'|'blue'|'purple'.
+function rollSurvivorsRarity(elapsedSec) {
+  const arena = (typeof SURVIVORS_ARENA !== 'undefined') ? SURVIVORS_ARENA : null;
+  if (!arena || !arena.rarityRatesByMinute) return 'gray';
+  const elapsedMin = elapsedSec / 60;
+  let rates = arena.rarityRatesByMinute[arena.rarityRatesByMinute.length - 1].rates;
+  for (const band of arena.rarityRatesByMinute) {
+    if (elapsedMin < band.until) { rates = band.rates; break; }
+  }
+  // rates = [grayRate, greenRate, blueRate, purpleRate], summa = 1.0
+  const roll = Math.random();
+  let acc = 0;
+  const labels = ['gray', 'green', 'blue', 'purple'];
+  for (let i = 0; i < 4; i++) {
+    acc += rates[i];
+    if (roll < acc) return labels[i];
+  }
+  return 'gray';
+}
+
+// Returnerar 3 unika perks (med rarity) som val. Försöker undvika dupletter inom samma val.
+function rollSurvivorsPerks(elapsedSec) {
+  const arena = (typeof SURVIVORS_ARENA !== 'undefined') ? SURVIVORS_ARENA : null;
+  if (!arena || !arena.perks) return [];
+  const choices = [];
+  const seenIds = new Set();
+  for (let attempt = 0; attempt < 30 && choices.length < 3; attempt++) {
+    const rarity = rollSurvivorsRarity(elapsedSec);
+    const pool = arena.perks.filter(p => p.rarity === rarity && !seenIds.has(p.id));
+    if (pool.length === 0) {
+      // Fallback till valfri rarity om pool tom (undvik infinite loop)
+      const allPool = arena.perks.filter(p => !seenIds.has(p.id));
+      if (allPool.length === 0) break;
+      const pick = allPool[Math.floor(Math.random() * allPool.length)];
+      choices.push(pick); seenIds.add(pick.id);
+      continue;
+    }
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    choices.push(pick); seenIds.add(pick.id);
+  }
+  return choices;
+}
+
+// Aggregera alla aktiva perks av en viss effect.type. Returnerar summan av values.
+function getSurvivorsPerkSum(type) {
+  if (!state.survivorsPerks || state.survivorsPerks.length === 0) return 0;
+  let sum = 0;
+  for (const p of state.survivorsPerks) {
+    if (p.type === type) sum += p.value;
+  }
+  return sum;
+}
+
+// Öppna perk-selection-overlay med 3 random val.
+function openSurvivorsPerkOverlay() {
+  if (!state.survivorsActive) return;
+  if (state.survivorsPerkOverlayOn) return;
+  const elapsedSec = state.survivorsStartT ? (Date.now() - state.survivorsStartT) / 1000 : 0;
+  const choices = rollSurvivorsPerks(elapsedSec);
+  if (choices.length === 0) return;
+  state.survivorsPerkOverlayOn = true;
+  state.survivorsPerkAutoPickAt = Date.now() + ((SURVIVORS_ARENA && SURVIVORS_ARENA.perkAutoPickTimeoutSec * 1000) || 15000);
+  state._survivorsPerkChoices = choices;
+  // Invincibility under val
+  if (state.player) state.player.invulnUntil = Math.max(state.player.invulnUntil || 0, state.survivorsPerkAutoPickAt + 200);
+  renderSurvivorsPerkOverlay();
+}
+
+function closeSurvivorsPerkOverlay() {
+  state.survivorsPerkOverlayOn = false;
+  state._survivorsPerkChoices = null;
+  const el = document.getElementById('survivors-perk-overlay');
+  if (el) el.style.display = 'none';
+  // Sätt nästa trigger
+  const interval = (SURVIVORS_ARENA && SURVIVORS_ARENA.perkSelectionIntervalSec * 1000) || 60000;
+  state.survivorsNextPerkAt = Date.now() + interval;
+}
+
+function selectSurvivorsPerk(perk) {
+  if (!perk) return;
+  state.survivorsPerks = state.survivorsPerks || [];
+  state.survivorsPerks.push({
+    perkId: perk.id,
+    rarity: perk.rarity,
+    type: perk.effect.type,
+    value: perk.effect.value,
+    icon: perk.icon,
+    name: perk.name,
+  });
+  // Special-handling för HP-perks: bump maxHp + heal till full
+  if (perk.effect.type === 'hp' && state.player) {
+    state.player.maxHp = (state.player.maxHp || 100) + perk.effect.value;
+    state.player.hp = state.player.maxHp;
+  }
+  if (typeof showToast === 'function') showToast('✨ ' + perk.icon + ' ' + perk.name);
+  if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
+  closeSurvivorsPerkOverlay();
+  if (typeof updateSurvivorsPerksBar === 'function') updateSurvivorsPerksBar();
+}
+
+function renderSurvivorsPerkOverlay() {
+  let el = document.getElementById('survivors-perk-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'survivors-perk-overlay';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;padding:20px;box-sizing:border-box;';
+    document.body.appendChild(el);
+  }
+  const choices = state._survivorsPerkChoices || [];
+  const arena = (typeof SURVIVORS_ARENA !== 'undefined') ? SURVIVORS_ARENA : null;
+  const rarityColors = (arena && arena.rarityColors) || {};
+  const cardsHtml = choices.map((perk, idx) => {
+    const rc = rarityColors[perk.rarity] || rarityColors.gray;
+    const tier = perk.rarity.toUpperCase();
+    return `
+      <div class="surv-perk-card" data-idx="${idx}" style="
+        flex:1;min-width:180px;max-width:260px;
+        padding:18px 14px;margin:0;
+        background:linear-gradient(160deg, ${rc.bgFrom}, ${rc.bgTo});
+        border:3px solid ${rc.border};
+        border-radius:14px;
+        box-shadow:0 0 20px ${rc.glow}, inset 0 0 30px rgba(0,0,0,0.3);
+        cursor:pointer;
+        transition:transform 0.15s ease, box-shadow 0.2s ease;
+        display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;
+        color:#fff;
+      ">
+        <div style="font-size:42px;line-height:1;">${perk.icon}</div>
+        <div style="font-size:16px;font-weight:900;letter-spacing:1px;color:${rc.text};text-shadow:0 1px 3px rgba(0,0,0,0.6);">${perk.name}</div>
+        <div style="font-size:11px;color:#cccccc;line-height:1.4;min-height:30px;">${perk.desc}</div>
+        <div style="margin-top:auto;font-size:10px;font-weight:900;letter-spacing:2px;color:${rc.border};padding:4px 10px;background:rgba(0,0,0,0.5);border-radius:4px;">${tier}</div>
+      </div>
+    `;
+  }).join('');
+  el.innerHTML = `
+    <h2 style="color:#ffd54a;font-size:24px;letter-spacing:3px;margin:0 0 6px 0;text-shadow:0 2px 8px rgba(0,0,0,0.8);">VÄLJ EN PERK</h2>
+    <div style="color:#aaaaaa;font-size:12px;margin-bottom:24px;">Auto-pick om 15s</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;width:100%;max-width:900px;">${cardsHtml}</div>
+  `;
+  el.style.display = 'flex';
+  // Klick-handler
+  el.querySelectorAll('.surv-perk-card').forEach(card => {
+    card.addEventListener('pointerdown', () => { card.style.transform = 'scale(0.96)'; });
+    card.addEventListener('pointerup', () => { card.style.transform = ''; });
+    card.addEventListener('pointerleave', () => { card.style.transform = ''; });
+    card.addEventListener('click', (e) => {
+      e.preventDefault();
+      const idx = parseInt(card.getAttribute('data-idx'));
+      const pick = (state._survivorsPerkChoices || [])[idx];
+      if (pick) selectSurvivorsPerk(pick);
+    });
+  });
+}
+
+// Kallas i game-loop varje frame. Hanterar selection-trigger + auto-pick-timeout.
+function checkSurvivorsPerkTrigger() {
+  if (!state.survivorsActive) return;
+  const now = Date.now();
+  // Auto-pick om timeout
+  if (state.survivorsPerkOverlayOn && now >= state.survivorsPerkAutoPickAt) {
+    const first = (state._survivorsPerkChoices || [])[0];
+    if (first) selectSurvivorsPerk(first);
+    return;
+  }
+  // Initiera nextPerkAt om inte satt
+  if (!state.survivorsNextPerkAt && state.survivorsStartT) {
+    const firstOfferSec = (SURVIVORS_ARENA && SURVIVORS_ARENA.firstPerkOfferAtSec) || 30;
+    state.survivorsNextPerkAt = state.survivorsStartT + firstOfferSec * 1000;
+  }
+  // Trigga overlay om dags
+  if (!state.survivorsPerkOverlayOn && state.survivorsNextPerkAt && now >= state.survivorsNextPerkAt) {
+    openSurvivorsPerkOverlay();
+  }
+}
+
+// Uppdaterar HUD-bar med aktiva perks (bottom-left ovanför joystick).
+function updateSurvivorsPerksBar() {
+  if (!state.survivorsActive) {
+    const old = document.getElementById('survivors-perks-bar');
+    if (old) old.style.display = 'none';
+    return;
+  }
+  let bar = document.getElementById('survivors-perks-bar');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.id = 'survivors-perks-bar';
+    bar.style.cssText = 'position:fixed;left:max(12px, env(safe-area-inset-left, 12px));bottom:max(160px, calc(env(safe-area-inset-bottom, 0px) + 160px));z-index:60;display:flex;flex-wrap:wrap;gap:4px;max-width:200px;pointer-events:none;';
+    document.body.appendChild(bar);
+  }
+  const perks = state.survivorsPerks || [];
+  // Aggregera per perkId så vi visar stack-count
+  const counts = {};
+  for (const p of perks) {
+    if (!counts[p.perkId]) counts[p.perkId] = { ...p, stack: 0 };
+    counts[p.perkId].stack++;
+  }
+  const arena = (typeof SURVIVORS_ARENA !== 'undefined') ? SURVIVORS_ARENA : null;
+  const rarityColors = (arena && arena.rarityColors) || {};
+  bar.innerHTML = Object.values(counts).map(p => {
+    const rc = rarityColors[p.rarity] || rarityColors.gray;
+    return `<div title="${p.name} ×${p.stack}" style="
+      width:30px;height:30px;border-radius:6px;
+      background:linear-gradient(160deg, ${rc.bgFrom}, ${rc.bgTo});
+      border:1.5px solid ${rc.border};
+      box-shadow:0 0 6px ${rc.glow};
+      display:flex;align-items:center;justify-content:center;
+      font-size:16px;line-height:1;position:relative;
+    ">${p.icon}${p.stack > 1 ? `<span style="position:absolute;bottom:-3px;right:-3px;background:#1a1a1a;color:${rc.text};font-size:9px;font-weight:900;padding:1px 4px;border-radius:8px;border:1px solid ${rc.border};">×${p.stack}</span>` : ''}</div>`;
+  }).join('');
+  bar.style.display = 'flex';
+}
+
+// Tick-baserad effekt-applicering: regen + thorns. Kallas från runFrame varje frame.
+function tickSurvivorsPerkEffects(dt) {
+  if (!state.survivorsActive || !state.player) return;
+  const p = state.player;
+  if (p.hp <= 0) return;
+  // REGEN
+  const regenPerSec = getSurvivorsPerkSum('regen');
+  if (regenPerSec > 0 && p.hp < p.maxHp) {
+    p.hp = Math.min(p.maxHp, p.hp + regenPerSec * dt);
+  }
+  // THORNS — dmg till fiender inom 100px
+  const thornsDps = getSurvivorsPerkSum('thorns');
+  if (thornsDps > 0 && state.enemies && state.enemies.length > 0) {
+    const r2 = 100 * 100;
+    for (const e of state.enemies) {
+      if (!e || e.dead || e.hp <= 0) continue;
+      const dx = e.x - p.x, dy = e.y - p.y;
+      if (dx * dx + dy * dy <= r2) {
+        const dmg = thornsDps * dt;
+        if (typeof applyDmgToEnemy === 'function') {
+          applyDmgToEnemy(e, dmg, false, p);
+        } else {
+          e.hp -= dmg;
+          if (e.hp <= 0) e.dead = true;
+        }
+      }
+    }
+  }
+}
+
+function resetSurvivorsPerks() {
+  state.survivorsPerks = [];
+  state.survivorsNextPerkAt = null;
+  state.survivorsPerkOverlayOn = false;
+  state._survivorsPerkChoices = null;
+  const el = document.getElementById('survivors-perk-overlay');
+  if (el) el.style.display = 'none';
+  const bar = document.getElementById('survivors-perks-bar');
+  if (bar) bar.style.display = 'none';
+}
 
 function ensureCheats() {
   if (!save.cheatsUnlocked) save.cheatsUnlocked = 0;
@@ -19677,6 +19945,7 @@ const Coop = {
       state.survivorsEnded = true;
       if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
       if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
+      if (typeof resetSurvivorsPerks === 'function') resetSurvivorsPerks();
       if (typeof showToast === 'function') {
         showToast('☠️ SURVIVORS-RUN VUNNEN — du överlevde 20 min!');
       }
@@ -19690,6 +19959,7 @@ const Coop = {
       if (typeof Audio !== 'undefined' && Audio.gameOver) Audio.gameOver();
       if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
       if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
+      if (typeof resetSurvivorsPerks === 'function') resetSurvivorsPerks();
       if (typeof showToast === 'function') {
         showToast('💀 ALLA SPELARE NER — överlevde ' + ev.survivedSec + 's');
       }
@@ -26260,7 +26530,9 @@ function tryShoot(now) {
   // Stark-melee perk + Glas-kanon fire-rate bonus (15% snabbare alla vapen)
   const meleeMul = (w.type === 'melee' && hasPerk('fastmelee')) ? 0.70 : 1;
   const glasscannonMul = hasPerk('glasscannon') ? 0.85 : 1;
-  if (now - p.lastShot < w.rate * meleeMul * glasscannonMul) return;
+  // v1.527: SURVIVORS-RUN fire-rate-perks (stack-bara): rate-cooldown / (1 + sumOfRatePerks)
+  const survRateMul = state.survivorsActive ? (1 / (1 + getSurvivorsPerkSum('rate'))) : 1;
+  if (now - p.lastShot < w.rate * meleeMul * glasscannonMul * survRateMul) return;
 
   // Adrenalin perk
   const adrenaline = hasPerk('adrenalin') && p.hp < p.maxHp * 0.3;
@@ -26345,7 +26617,11 @@ function tryShoot(now) {
   state.weaponUsage = state.weaponUsage || {};
   state.weaponUsage[w.id] = (state.weaponUsage[w.id] || 0) + 1;
   if (state.weaponsUsedThisStage) state.weaponsUsedThisStage.add(w.id);
-  const pellets = w.pellets || 1;
+  let pellets = w.pellets || 1;
+  // v1.527: SURVIVORS-RUN multishot-perk adderar extra kulor per skott (stack-bar)
+  if (state.survivorsActive) {
+    pellets += getSurvivorsPerkSum('multishot');
+  }
   const burstCount = w.burstCount || 1;
   const burstDelay = w.burstDelay || 0;
   // Burst-token: setTimeouts kollar att samma vapen fortfarande är equipped + samma run pågår.
@@ -26467,7 +26743,10 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
     const spread = (Math.random() - 0.5) * 2 * (w.spread || 0);
     const ang = p.aimAngle + spread;
     const speed = w.speed * (p.bspeedMul || 1) * speedBonus;
-    const isCrit = cheatChozza ? true : Math.random() < (p.critChance || 0);
+    // v1.527: SURVIVORS-RUN crit-perks (blue) adderas till base critChance.
+    const _survCritBonus = state.survivorsActive ? getSurvivorsPerkSum('crit') : 0;
+    const _totalCritChance = Math.min(0.95, (p.critChance || 0) + _survCritBonus);
+    const isCrit = cheatChozza ? true : Math.random() < _totalCritChance;
     const isHead = hasPerk('headshot') && Math.random() < 0.15;
     // Spawn-position: pip-mynningen (player.r + muzzleOff) i aim-riktning.
     let spawnX = p.x + Math.cos(p.aimAngle) * (p.r + muzzleOff);
@@ -26486,12 +26765,12 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
     state.bullets.push({
       x: spawnX, y: spawnY,
       vx: Math.cos(ang)*speed, vy: Math.sin(ang)*speed,
-      dmg: w.dmg * (p.dmgMul || 1) * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 3 : 1) * ultDmgMul * weaponLevelDmgBonus(w.id),
+      dmg: w.dmg * (p.dmgMul || 1) * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 3 : 1) * ultDmgMul * weaponLevelDmgBonus(w.id) * (state.survivorsActive ? (1 + getSurvivorsPerkSum('dmg')) : 1),
       life: w.style === 'flame' ? 0.5 : (w.style === 'boomerang' ? 2.5 : 1.6),
       r: isCrit ? 5 : (w.style === 'flame' ? 6 : 4),
       color: (isCrit || isHead || cheatChozza) ? '#ffeb3b' : w.color,
       hostile: false,
-      pierce: cheatPen || cheatUlt || !!w.pierce,
+      pierce: cheatPen || cheatUlt || !!w.pierce || (state.survivorsActive && getSurvivorsPerkSum('pierce') > 0),
       explosive: (w.explosive || 0) * (p.explMul || 1),
       crit: isCrit || isHead,
       _isHeadshot: isHead,  // separat flag så vi kan visa distinct HEADSHOT-popup vid hit
@@ -26658,6 +26937,13 @@ function damageEnemy(e, dmg, isCrit) {
   }
   e.hp -= dmg;
   e.flashUntil = performance.now() + 80;
+  // v1.527: SURVIVORS-RUN lifesteal — % av damage dealt blir HP till player
+  if (state.survivorsActive && state.player && state.player.hp > 0) {
+    const lifestealPct = getSurvivorsPerkSum('lifesteal');
+    if (lifestealPct > 0) {
+      state.player.hp = Math.min(state.player.maxHp, state.player.hp + dmg * lifestealPct);
+    }
+  }
   // Stagger — stora träffar staggar fienden 0.5s
   if (dmg > 50 && !e.isBoss) {
     e.staggerUntil = performance.now() + 500;
@@ -32827,8 +33113,10 @@ function updatePlayer(dt, now) {
     // v1.522: Weapon-specifik speedMul (t.ex. sledge -10% som trade-off för 1-hit kill)
     const _wEq = p.weaponId && W_BY_ID[p.weaponId];
     const weaponSpeedMul = (_wEq && _wEq.speedMul) ? _wEq.speedMul : 1;
-    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * dt;
-    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * dt;
+    // v1.527: SURVIVORS-RUN perk-speed (stack-bar, summa av alla speed-perks)
+    const survSpeedMul = state.survivorsActive ? (1 + getSurvivorsPerkSum('speed')) : 1;
+    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * dt;
+    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * dt;
   }
   // Mounted i CTF/SIEGE-torn: lås position till turret-koord
   if (p._mountedCtfTurretId && state.ctfTurrets && state.ctfTurrets[p._mountedCtfTurretId]) {
@@ -32983,7 +33271,9 @@ function updatePlayer(dt, now) {
   // reload (med reload-fart-uppgradering)
   if (p.reloading) {
     const w = getWeapon(p.weaponId);
-    const total = w.reload * (p.reloadMul || 1);
+    // v1.527: SURVIVORS-RUN reload-perks (stack-bara, -X% reload-tid)
+    const survReloadMul = state.survivorsActive ? Math.max(0.2, 1 - getSurvivorsPerkSum('reload')) : 1;
+    const total = w.reload * (p.reloadMul || 1) * survReloadMul;
     const elapsed = now - p.reloadStart;
     if (elapsed >= total) {
       p.ammo = effectiveMag(p.weaponId);
@@ -33952,7 +34242,9 @@ function updateBullets(dt) {
       }
     }
     // Studsskott-perk: studsa en gång på världs-kanten
-    if (!b.hostile && hasPerk('ricochet') && !b.bounced) {
+    // v1.527: SURVIVORS-RUN ricochet-perk (purple) ger samma bounce
+    const _hasRico = hasPerk('ricochet') || (state.survivorsActive && getSurvivorsPerkSum('ricochet') > 0);
+    if (!b.hostile && _hasRico && !b.bounced) {
       let bounced = false;
       if (b.x < 0) { b.vx = Math.abs(b.vx); b.x = 1; bounced = true; }
       if (b.x > WORLD.w) { b.vx = -Math.abs(b.vx); b.x = WORLD.w - 1; bounced = true; }
@@ -59677,6 +59969,12 @@ function runFrame(dt, now) {
   // ändrar inte mode, så det räknas inte som ny match.
   if (state.mode === 'playing' && state._prevMode !== 'playing') {
     if (typeof resetGrenadesForMatch === 'function') resetGrenadesForMatch();
+    if (typeof resetSurvivorsPerks === 'function') resetSurvivorsPerks();
+  }
+  // v1.527: SURVIVORS-RUN perk-trigger + regen + thorns
+  if (state.mode === 'playing' && state.survivorsActive) {
+    if (typeof checkSurvivorsPerkTrigger === 'function') checkSurvivorsPerkTrigger();
+    if (typeof tickSurvivorsPerkEffects === 'function') tickSurvivorsPerkEffects(dt);
   }
   // BR-UI cleanup: när mode REACHAR menu/gameover/victory (true match-end),
   // nuka alla BR-DOM-element OCH full BR-state cleanup så inget läcker till

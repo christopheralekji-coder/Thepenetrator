@@ -62,23 +62,90 @@ const SURVIVORS_ARENA = {
   startGrenades: 2,
   grenadesPerMinute: 1,             // +1 granat var minute (för mid-game flexibilitet)
 
-  // === PERK-SYSTEM (iteration 2 implementerar selection UI + applicering) ===
+  // === PERK-SYSTEM (v1.527 iteration 3) ===
   // Var 60s erbjuds 3 random val. Stack-bara (samma perk kan tas flera ggr).
+  // 4 raritys: gray/green/blue/purple. Tier-rates skiftar med elapsed time så
+  // late-game känns kraftfullt (mer lila).
   perkSelectionIntervalSec: 60,
+  firstPerkOfferAtSec: 30,           // första perk-val 30s in (inte direkt)
   perkChoicesPerSelection: 3,
+  perkAutoPickTimeoutSec: 15,        // om spelaren inte väljer på 15s → auto-pick första
+
+  // Rarity-färger (centraliserade så HUD/overlay matchar)
+  rarityColors: {
+    gray:   { border: '#9a9a9a', glow: 'rgba(154,154,154,0.4)',  bgFrom: '#2a2a2a', bgTo: '#1a1a1a', text: '#cccccc' },
+    green:  { border: '#4ade80', glow: 'rgba(74,222,128,0.5)',   bgFrom: '#1a4a2a', bgTo: '#0a2a18', text: '#7ef0a0' },
+    blue:   { border: '#3b82f6', glow: 'rgba(59,130,246,0.55)',  bgFrom: '#1a3a6a', bgTo: '#0a1f4a', text: '#7aaaff' },
+    purple: { border: '#a855f7', glow: 'rgba(168,85,247,0.65)',  bgFrom: '#3a1a5a', bgTo: '#1f0a3a', text: '#d0a0ff' },
+  },
+
+  // Rarity-rates skiftar över tid. Format: [grayRate, greenRate, blueRate, purpleRate]
+  // Tier-bands per minute-bracket (sum = 1.0 per band).
+  rarityRatesByMinute: [
+    // 0-5 min  — early game: mest grå, sällsynt lila
+    { until: 5,  rates: [0.60, 0.30, 0.08, 0.02] },
+    // 5-10 min — mid game: balans
+    { until: 10, rates: [0.40, 0.35, 0.18, 0.07] },
+    // 10-15 min — late mid: bättre tiers
+    { until: 15, rates: [0.25, 0.35, 0.27, 0.13] },
+    // 15-20 min — end game: many epics
+    { until: 20, rates: [0.15, 0.25, 0.35, 0.25] },
+  ],
+
+  // PERK POOL (20 perks). effect.type är hook-typ, effect.value är effekt-styrka.
+  // Stack-bara: alla. Samma perk tagen 3x stackar 3x värdet (utom max-cap i hooks).
   perks: [
-    { id: 'fire_rate',    icon: '⚡', name: 'SNABBARE ELDDOP',  desc: '+15% fire rate (stackbar)' },
-    { id: 'damage',       icon: '💥', name: 'MER SKADA',         desc: '+20% vapen-skada (stackbar)' },
-    { id: 'max_hp',       icon: '❤️', name: 'TJOCKARE',           desc: '+25 maxHP + full heal (stackbar)' },
-    { id: 'speed',        icon: '👟', name: 'SNABBARE',          desc: '+10% rörelsehastighet (stackbar)' },
-    { id: 'magnet',       icon: '🧲', name: 'MAGNET',            desc: '+50% gold/ammo-pickup-radius (stackbar)' },
-    { id: 'crit',         icon: '🎯', name: 'KRITISK',           desc: '+10% kritisk-chans (stackbar, max 60%)' },
-    { id: 'pierce',       icon: '🏹', name: 'PIERCE',            desc: 'Alla kulor pierce första fienden (stackbar = +1 pierce)' },
-    { id: 'lifesteal',    icon: '🩸', name: 'LIFESTEAL',         desc: '+2% av dmg → HP (stackbar)' },
-    { id: 'regen',        icon: '💚', name: 'REGEN',             desc: '+1 HP/sek (stackbar)' },
-    { id: 'ammo_cap',     icon: '🔫', name: 'STORT MAGASIN',     desc: '+30% mag-storlek (stackbar)' },
-    { id: 'reload',       icon: '🔄', name: 'SNABB OMLADDNING',  desc: '-20% reload-tid (stackbar)' },
-    { id: 'thorns',       icon: '🌵', name: 'THORNS',            desc: 'Fiender tar 5 dmg/sek om de är inom 100px (stackbar)' },
+    // === GRÅ (Common) — basala stat-bumpar ===
+    { id: 'g_dmg',     rarity: 'gray',   icon: '💥', name: 'SKADA',          desc: '+10% vapen-skada',
+      effect: { type: 'dmg',    value: 0.10 } },
+    { id: 'g_rate',    rarity: 'gray',   icon: '⚡', name: 'FIRE RATE',      desc: '+10% eldhastighet',
+      effect: { type: 'rate',   value: 0.10 } },
+    { id: 'g_hp',      rarity: 'gray',   icon: '❤️', name: 'TJOCKARE',       desc: '+20 maxHP + full heal',
+      effect: { type: 'hp',     value: 20 } },
+    { id: 'g_speed',   rarity: 'gray',   icon: '👟', name: 'SNABBARE',       desc: '+8% rörelse',
+      effect: { type: 'speed',  value: 0.08 } },
+
+    // === GRÖN (Uncommon) — bättre basics + utility ===
+    { id: 'gn_dmg',    rarity: 'green',  icon: '💥', name: 'SKADA II',        desc: '+20% vapen-skada',
+      effect: { type: 'dmg',    value: 0.20 } },
+    { id: 'gn_rate',   rarity: 'green',  icon: '⚡', name: 'FIRE RATE II',    desc: '+20% eldhastighet',
+      effect: { type: 'rate',   value: 0.20 } },
+    { id: 'gn_hp',     rarity: 'green',  icon: '❤️', name: 'TJOCKARE II',     desc: '+50 maxHP + full heal',
+      effect: { type: 'hp',     value: 50 } },
+    { id: 'gn_speed',  rarity: 'green',  icon: '👟', name: 'SNABBARE II',     desc: '+15% rörelse',
+      effect: { type: 'speed',  value: 0.15 } },
+    { id: 'gn_reload', rarity: 'green',  icon: '🔄', name: 'OMLADDNING',      desc: '−20% reload-tid',
+      effect: { type: 'reload', value: 0.20 } },
+    { id: 'gn_magnet', rarity: 'green',  icon: '🧲', name: 'MAGNET',          desc: '+60% pickup-radius',
+      effect: { type: 'magnet', value: 0.60 } },
+
+    // === BLÅ (Rare) — gameplay-affecting ===
+    { id: 'b_dmg',     rarity: 'blue',   icon: '💥', name: 'SKADA III',        desc: '+35% vapen-skada',
+      effect: { type: 'dmg',    value: 0.35 } },
+    { id: 'b_rate',    rarity: 'blue',   icon: '⚡', name: 'FIRE RATE III',    desc: '+35% eldhastighet',
+      effect: { type: 'rate',   value: 0.35 } },
+    { id: 'b_hp',      rarity: 'blue',   icon: '❤️', name: 'TJOCKARE III',     desc: '+100 maxHP + full heal',
+      effect: { type: 'hp',     value: 100 } },
+    { id: 'b_crit',    rarity: 'blue',   icon: '🎯', name: 'KRITISK',          desc: '+15% kritisk-chans (2× dmg)',
+      effect: { type: 'crit',   value: 0.15 } },
+    { id: 'b_lifesteal', rarity: 'blue', icon: '🩸', name: 'LIFESTEAL',        desc: '+3% av dmg → HP',
+      effect: { type: 'lifesteal', value: 0.03 } },
+    { id: 'b_regen',   rarity: 'blue',   icon: '💚', name: 'REGEN',            desc: '+2 HP/sek',
+      effect: { type: 'regen',  value: 2 } },
+
+    // === LILA (Epic) — game-changers ===
+    { id: 'p_dmg',     rarity: 'purple', icon: '💥', name: 'OBLITERATE',       desc: '+60% vapen-skada',
+      effect: { type: 'dmg',    value: 0.60 } },
+    { id: 'p_pierce',  rarity: 'purple', icon: '🏹', name: 'PIERCE',           desc: 'Kulor träffar +1 fiende (stackbar)',
+      effect: { type: 'pierce', value: 1 } },
+    { id: 'p_ricochet', rarity: 'purple', icon: '↩️', name: 'RICOCHET',         desc: 'Kulor studsar 2 ggr (stackbar)',
+      effect: { type: 'ricochet', value: 2 } },
+    { id: 'p_multishot', rarity: 'purple', icon: '🎆', name: 'MULTISHOT',       desc: '+1 extra kula per skott',
+      effect: { type: 'multishot', value: 1 } },
+    { id: 'p_thorns',  rarity: 'purple', icon: '🌵', name: 'THORNS',            desc: '8 dmg/sek till fiender inom 100px',
+      effect: { type: 'thorns', value: 8 } },
+    { id: 'p_regen_x', rarity: 'purple', icon: '💚', name: 'REGEN II',          desc: '+5 HP/sek',
+      effect: { type: 'regen',  value: 5 } },
   ],
 
   // === ENEMY-CAP / DIFFICULTY ===
