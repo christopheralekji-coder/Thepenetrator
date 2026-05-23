@@ -16279,12 +16279,12 @@ function renderPixiFrame() {
   const t0 = performance.now();
   // Camera-follow: world-container offsetas så sprites i world-koord syns rätt
   pixiState.containers.world.position.set(-state.camera.x, -state.camera.y);
-  // v1.543: Sync enemy-sprites till state.enemies (bara om enemiesEnabled)
-  syncPixiEnemies();
-  // v1.550: Sync bullet-sprites till state.bullets (bara om bulletsEnabled)
-  syncPixiBullets();
-  // v1.557: Sync particle-sprites till state.particles
-  if (typeof syncPixiParticles === 'function') syncPixiParticles();
+  // v1.558: Wrap varje sync i try-catch så en crash inte stoppar render.
+  // Var bug i v1.557: syncPixiParticles kraschade → renderer.render() körs aldrig
+  // → hela skärmen tom.
+  try { syncPixiEnemies(); } catch (e) { console.error('[Pixi] enemies sync fail:', e); }
+  try { syncPixiBullets(); } catch (e) { console.error('[Pixi] bullets sync fail:', e); }
+  try { if (typeof syncPixiParticles === 'function') syncPixiParticles(); } catch (e) { console.error('[Pixi] particles sync fail:', e); }
   // Manuell render (vi pausade Pixi's ticker så vi kontrollerar timing)
   pixiState.app.renderer.render(pixiState.app.stage);
   pixiState.diagFrameTime = performance.now() - t0;
@@ -20855,7 +20855,7 @@ const Coop = {
         if (pixiState) {
           pixiState.enemiesEnabled = true;
           pixiState.bulletsEnabled = true;
-          pixiState.particlesEnabled = true; // v1.557
+          pixiState.particlesEnabled = false; // v1.558: tillfälligt off tills syncPixiParticles fixad
         }
         // v1.548: Stage-marker borttagen (pipeline verifierad i v1.547).
         // Röda enemy-overlays räcker som visuell bekräftelse.
