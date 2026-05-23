@@ -16126,12 +16126,16 @@ function _acquireEnemySprite() {
     return s;
   }
   if (typeof PIXI === 'undefined') return null;
-  // v1.554: HUGE debug-sprite — massiv lila cirkel med vit border, 50px radius.
-  // Om dessa inte syns trots 100 i containern: rendering-pipeline har bug.
-  const g = new PIXI.Graphics();
-  g.circle(0, 0, 50).fill({ color: 0xff00ff, alpha: 1.0 });
-  g.circle(0, 0, 50).stroke({ width: 6, color: 0xffffff });
-  return g;
+  // v1.555: ULTRATHINK — switcha från PIXI.Graphics till PIXI.Sprite med
+  // Texture.WHITE (1x1 inbyggd vit texture). Sprite är garanterat enklare än
+  // Graphics i Pixi v8 — om DETTA inte syns, är det djupare WebGL-bug, inte
+  // Graphics-rendering-bug.
+  const s = new PIXI.Sprite(PIXI.Texture.WHITE);
+  s.tint = 0xff00ff;
+  s.anchor.set(0.5);
+  s.width = 60;
+  s.height = 60;
+  return s;
 }
 const _pixiEnemySpritePool = [];
 function _releaseEnemySprite(s) {
