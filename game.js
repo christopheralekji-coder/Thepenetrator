@@ -16073,56 +16073,33 @@ if (typeof PIXI !== 'undefined') {
   });
 }
 
-// v1.543: PRE-RENDER ENEMY TEXTURES — engångs-init, cachas sedan. Använder
-// OffscreenCanvas + Canvas2D-API för att rita en placeholder-enemy och
-// konverterar till PIXI.Texture. Iter 2 byter placeholder mot riktiga
-// enemy-grafik (kopierar från drawHumanEnemy/drawDog/drawRobot).
-function createPixiEnemyTextures() {
-  if (!pixiState.ready || typeof PIXI === 'undefined') return;
-  if (pixiState.textures.enemy_placeholder) return; // redan skapad
-  // Placeholder: röd cirkel med vit border, 36×36 (matchar typisk enemy.r ~14 + outline)
-  const size = 40;
-  const off = (typeof OffscreenCanvas !== 'undefined')
-    ? new OffscreenCanvas(size, size)
-    : (() => { const c = document.createElement('canvas'); c.width = size; c.height = size; return c; })();
-  const octx = off.getContext('2d');
-  // Skugga
-  octx.fillStyle = 'rgba(0,0,0,0.45)';
-  octx.beginPath(); octx.ellipse(size/2 + 2, size/2 + 2, 14, 14, 0, 0, Math.PI*2); octx.fill();
-  // Body
-  octx.fillStyle = '#cc3030';
-  octx.beginPath(); octx.arc(size/2, size/2, 14, 0, Math.PI*2); octx.fill();
-  octx.strokeStyle = '#ffffff';
-  octx.lineWidth = 2;
-  octx.stroke();
-  // Inner glow
-  octx.fillStyle = 'rgba(255,80,80,0.4)';
-  octx.beginPath(); octx.arc(size/2, size/2, 8, 0, Math.PI*2); octx.fill();
-  try {
-    pixiState.textures.enemy_placeholder = PIXI.Texture.from(off);
-    console.log('[PixiJS] enemy_placeholder texture created');
-  } catch (e) {
-    console.error('[PixiJS] kunde inte skapa enemy-texture:', e);
-  }
-}
-
-// Sprite-pool: återanvänd Sprite-objekt för enemies så vi slipper GC-pauser.
-const _pixiEnemySpritePool = [];
+// v1.544: ENEMY SPRITES via PIXI.Graphics — mer pålitligt på iOS WebGL än
+// Texture+Sprite. För iter 1 ritar vi en enkel cirkel direkt. Iter 2 kommer
+// pre-rendera riktiga textures via WebGL render-to-texture.
 function _acquireEnemySprite() {
   if (_pixiEnemySpritePool.length > 0) {
     const s = _pixiEnemySpritePool.pop();
     s.visible = true;
     return s;
   }
-  if (!pixiState.textures.enemy_placeholder) return null;
-  const s = new PIXI.Sprite(pixiState.textures.enemy_placeholder);
-  s.anchor.set(0.5);
-  return s;
+  if (typeof PIXI === 'undefined') return null;
+  // PIXI.Graphics — ritas en gång, sedan bara position-uppdatering per frame
+  const g = new PIXI.Graphics();
+  g.circle(0, 0, 14).fill({ color: 0xff3030, alpha: 0.95 });
+  g.circle(0, 0, 14).stroke({ width: 2.5, color: 0xffffff });
+  g.circle(0, 0, 6).fill({ color: 0xff8080, alpha: 0.7 });
+  return g;
 }
+const _pixiEnemySpritePool = [];
 function _releaseEnemySprite(s) {
   if (!s) return;
   s.visible = false;
   _pixiEnemySpritePool.push(s);
+}
+
+// Behåll createPixiEnemyTextures för bakåtkompat (anropas men gör inget nu)
+function createPixiEnemyTextures() {
+  // No-op i iter 1 (Graphics används istället för Texture). Iter 2 fyller denna.
 }
 
 // Per-frame sync: matcha enemy-state till sprite-state. Kallas från
@@ -16139,13 +16116,13 @@ function syncPixiEnemies() {
     }
     return;
   }
-  if (!pixiState.textures.enemy_placeholder) createPixiEnemyTextures();
   const enemies = state.enemies || [];
   const seenIds = new Set();
   // Update existing + add new
   for (const e of enemies) {
     if (!e || e.dead || e.hp <= 0) continue;
-    const id = e._idx || e._i;
+    // v1.544: fix — `||` failade när _idx eller _i = 0. Använd != null-check.
+    const id = (e._idx != null) ? e._idx : (e._i != null ? e._i : null);
     if (id == null) continue;
     seenIds.add(id);
     let sprite = pixiState.sprites.enemies.get(id);
