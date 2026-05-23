@@ -16122,15 +16122,15 @@ function _acquireEnemySprite() {
   if (_pixiEnemySpritePool.length > 0) {
     const s = _pixiEnemySpritePool.pop();
     s.visible = true;
+    s.alpha = 1;
     return s;
   }
   if (typeof PIXI === 'undefined') return null;
-  // v1.553: Förenklad till EXAKT samma pattern som bullets (som fungerar).
-  // Komplex Graphics med ellipse + multi-circle + stroke verkade ge iOS WebGL-
-  // rendering-bug där sprites räknades men inte ritades.
+  // v1.554: HUGE debug-sprite — massiv lila cirkel med vit border, 50px radius.
+  // Om dessa inte syns trots 100 i containern: rendering-pipeline har bug.
   const g = new PIXI.Graphics();
-  g.circle(0, 0, 16).fill({ color: 0xcc3030, alpha: 0.95 });
-  g.circle(0, 0, 8).fill({ color: 0xff8080, alpha: 1.0 });
+  g.circle(0, 0, 50).fill({ color: 0xff00ff, alpha: 1.0 });
+  g.circle(0, 0, 50).stroke({ width: 6, color: 0xffffff });
   return g;
 }
 const _pixiEnemySpritePool = [];
@@ -16145,39 +16145,38 @@ function createPixiEnemyTextures() {
   // No-op i iter 1 (Graphics används istället för Texture). Iter 2 fyller denna.
 }
 
-// v1.552: Index-baserad sync (samma som bullets) — undviker ID-uppslag-problem
-// där _i kanske saknas eller är inkonsekvent från server-broadcast.
+// v1.554: ULTRATHINK debug — enemies läggs DIREKT på world (inte i sub-container)
+// för att utesluta sub-container-bug. Bullets fungerar i sin sub-container; om
+// enemies också fungerar direkt på world, är enemies-sub-container trasig.
+// Sprites trackas via egen array istället för container.children.
+if (!pixiState._enemySpriteArray) pixiState._enemySpriteArray = [];
 function syncPixiEnemies() {
   if (!pixiState.ready || !pixiState.enemiesEnabled) {
-    // Om disabled: städa alla sprites
-    if (pixiState.containers.enemies && pixiState.containers.enemies.children.length > 0) {
-      const arr = pixiState.containers.enemies.children.slice();
-      for (const s of arr) {
-        pixiState.containers.enemies.removeChild(s);
-        _releaseEnemySprite(s);
-      }
-      pixiState.sprites.enemies.clear();
+    // Cleanup
+    for (const s of pixiState._enemySpriteArray) {
+      if (s.parent) s.parent.removeChild(s);
+      _releaseEnemySprite(s);
     }
+    pixiState._enemySpriteArray.length = 0;
     return;
   }
-  const enemies = state.enemies || [];
-  const container = pixiState.containers.enemies;
-  // Säkerställ tillräckligt med sprites
-  while (container.children.length < enemies.length) {
+  // Säkerställ tillräckligt med sprites (direkt på world)
+  while (arr.length < enemies.length) {
     const s = _acquireEnemySprite();
     if (!s) break;
-    container.addChild(s);
+    world.addChild(s);
+    arr.push(s);
   }
   // Uppdatera position + visibility per index
-  for (let i = 0; i < container.children.length; i++) {
-    const s = container.children[i];
+  for (let i = 0; i < arr.length; i++) {
+    const s = arr[i];
     if (i < enemies.length) {
       const e = enemies[i];
       if (e && !e.dead && (e.hp == null || e.hp > 0)) {
         s.visible = true;
         s.position.set(e.x || 0, e.y || 0);
-        // v1.553: scale=1 hardcoded (var bug: e.r kunde vara NaN/0 → osynlig)
         s.scale.set(1, 1);
+        s.alpha = 1;
         s.tint = e.isBoss ? 0xffd54a : 0xffffff;
       } else {
         s.visible = false;
@@ -16372,7 +16371,7 @@ function updatePixiDiagOverlay() {
     `<div>Enemies: ${enemiesCount} Bullets: ${bulletsCount}</div>` +
     `<div>Particles: ${particlesCount}</div>` +
     `<div>Sprites: ${pixiSprites} Stage: ${stageChildren}</div>` +
-    `<div>Pixi enemies: ${pixiState.ready && pixiState.containers.enemies ? pixiState.containers.enemies.children.filter(c=>c.visible).length : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'}</div>` +
+    `<div>Pixi enemies: ${pixiState.ready && pixiState._enemySpriteArray ? pixiState._enemySpriteArray.filter(s=>s.visible).length : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'}</div>` +
     `<div>Pixi bullets: ${pixiState.ready && pixiState.containers.bullets ? pixiState.containers.bullets.children.filter(c=>c.visible).length : 0}${pixiState.bulletsEnabled ? ' ✓' : ' off'}</div>` +
     `<div>StressTest: ${state.stresstestActive ? '✓' : '✗'} CfgST: ${Coop && Coop.config && Coop.config.stresstest ? '✓' : '✗'}</div>` +
     `<div>SurvActive: ${state.survivorsActive ? '✓' : '✗'}</div>` +
