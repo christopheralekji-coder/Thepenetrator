@@ -61359,6 +61359,15 @@ function runFrame(dt, now) {
     if (typeof checkSurvivorsPerkTrigger === 'function') checkSurvivorsPerkTrigger();
     if (typeof tickSurvivorsPerkEffects === 'function') tickSurvivorsPerkEffects(dt);
   }
+  // v1.551: SAFETY — säkerställ att Pixi-flags ENDAST är true i stresstest.
+  // Var bug: flags fastnade i true efter stresstest → Canvas2D skippades i
+  // vanliga modes, men Pixi-sprites finns ej för dessa → tom skärm.
+  if (state.mode === 'playing' && !state.stresstestActive && pixiState) {
+    if (pixiState.enemiesEnabled || pixiState.bulletsEnabled) {
+      pixiState.enemiesEnabled = false;
+      pixiState.bulletsEnabled = false;
+    }
+  }
   // BR-UI cleanup: när mode REACHAR menu/gameover/victory (true match-end),
   // nuka alla BR-DOM-element OCH full BR-state cleanup så inget läcker till
   // nästa mode. Triggas oavsett varifrån vi kom (playing→menu, pause→menu, etc).
