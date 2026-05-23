@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v548-diag-toggle-marker';
+const CACHE = 'penetrator-v549-perks-fix-godmode-cap1500';
 const ASSETS = [
   './',
   './index.html',

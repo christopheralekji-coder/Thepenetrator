@@ -20796,13 +20796,14 @@ const Coop = {
         partner.cdReviveProgress = 0;
       }
       if (typeof showCastleDefenseHud === 'function') showCastleDefenseHud();
-      // v1.526: SURVIVORS-RUN — ingen bygg-bar (inget byggsystem i denna mode).
-      if (!_isSurvivors && typeof showCastleDefenseBuildBar === 'function') showCastleDefenseBuildBar();
+      // v1.526/v1.549: SURVIVORS + STRESSTEST — ingen bygg-bar
+      if (!_isSurvivors && !_isStresstest && typeof showCastleDefenseBuildBar === 'function') showCastleDefenseBuildBar();
       // v1.426: tvinga HUD-refresh vid match-start så goldInfo visar startGold direkt
       if (typeof updateHUD === 'function') updateHUD();
-      // v1.416: Öppna perk-selector overlay vid match-start (CD-perks, inte survivors-perks)
-      // v1.526: SURVIVORS-RUN har inte CD-perk-systemet (egna perks kommer iter 3).
-      if (!_isSurvivors && typeof openCdPerkSelector === 'function') {
+      // v1.549 FIX: CD-perk-selector skippas i SURVIVORS + STRESSTEST (denna var
+      // bugg: stresstest hade Coop.config.survivors=false så perks-overlay
+      // öppnade trots att vi tror vi är i survivors-pipeline)
+      if (!_isSurvivors && !_isStresstest && typeof openCdPerkSelector === 'function') {
         setTimeout(() => openCdPerkSelector(), 500);
       }
       if (typeof showToast === 'function') showToast('🏰 CASTLE DEFENSE — håll ut!');

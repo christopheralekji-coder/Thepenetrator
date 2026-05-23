@@ -351,6 +351,12 @@ function applyContactDamage(e, p, sim) {
       }
       p.hp = c.hp; // för konsistent return-state
     } else {
+      // v1.549: STRESSTEST gör spelaren odödlig (pure prestanda-test, ingen död)
+      if (sim && sim.stresstestActive) {
+        p.invulnUntil = now + 500;
+        e.contactCd = 0.6;
+        return;
+      }
       // v1.531: Shield absorberar damage först (var bug: damage gick direkt på HP)
       let dmgRemaining = e.dmg;
       if (p.shield && p.shield > 0) {
