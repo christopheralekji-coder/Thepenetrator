@@ -744,6 +744,7 @@ function handleMessage(ws, msg) {
       battleroyaleMatchDurationSec: msg.battleroyaleMatchDurationSec,
       castledefense: msg.castledefense,
       survivors: msg.survivors,
+      survivorsDurationSec: msg.survivorsDurationSec,
       addBot: !!msg.addBot,
       botCount: Math.max(1, Math.min(7, msg.botCount || 1)),
       botSkill: msg.botSkill || 'normal',

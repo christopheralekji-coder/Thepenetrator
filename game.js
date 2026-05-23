@@ -14568,16 +14568,10 @@ const CHEATS = [
 //   state.survivorsPerkOverlayOn — boolean, true medan overlay visas
 //   state.survivorsPerkAutoPickAt — timestamp för auto-pick om timeout
 
-// Roll en rarity baserat på elapsed match-time. Returnerar 'gray'|'green'|'blue'|'purple'.
+// v1.531: Fasta rarity-rates oavsett tid. Returnerar 'gray'|'green'|'blue'|'purple'.
 function rollSurvivorsRarity(elapsedSec) {
   const arena = (typeof SURVIVORS_ARENA !== 'undefined') ? SURVIVORS_ARENA : null;
-  if (!arena || !arena.rarityRatesByMinute) return 'gray';
-  const elapsedMin = elapsedSec / 60;
-  let rates = arena.rarityRatesByMinute[arena.rarityRatesByMinute.length - 1].rates;
-  for (const band of arena.rarityRatesByMinute) {
-    if (elapsedMin < band.until) { rates = band.rates; break; }
-  }
-  // rates = [grayRate, greenRate, blueRate, purpleRate], summa = 1.0
+  const rates = (arena && arena.rarityRatesFixed) || [0.45, 0.30, 0.18, 0.07];
   const roll = Math.random();
   let acc = 0;
   const labels = ['gray', 'green', 'blue', 'purple'];
@@ -14588,13 +14582,14 @@ function rollSurvivorsRarity(elapsedSec) {
   return 'gray';
 }
 
-// Returnerar 3 unika perks (med rarity) som val. Försöker undvika dupletter inom samma val.
+// v1.531: Returnerar 6 unika perks (var 3). Försöker undvika dupletter inom val.
 function rollSurvivorsPerks(elapsedSec) {
   const arena = (typeof SURVIVORS_ARENA !== 'undefined') ? SURVIVORS_ARENA : null;
   if (!arena || !arena.perks) return [];
   const choices = [];
   const seenIds = new Set();
-  for (let attempt = 0; attempt < 30 && choices.length < 3; attempt++) {
+  const targetCount = (arena.perkChoicesPerSelection || 6);
+  for (let attempt = 0; attempt < 60 && choices.length < targetCount; attempt++) {
     const rarity = rollSurvivorsRarity(elapsedSec);
     const pool = arena.perks.filter(p => p.rarity === rarity && !seenIds.has(p.id));
     if (pool.length === 0) {
@@ -14656,6 +14651,7 @@ function selectSurvivorsPerk(perk) {
     value: perk.effect.value,
     icon: perk.icon,
     name: perk.name,
+    desc: perk.desc,
   });
   // Special-handling för HP-perks: bump maxHp + heal till full
   if (perk.effect.type === 'hp' && state.player) {
@@ -14681,7 +14677,9 @@ function renderSurvivorsPerkOverlay() {
   if (!el) {
     el = document.createElement('div');
     el.id = 'survivors-perk-overlay';
-    el.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:1000;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:sans-serif;padding:20px;box-sizing:border-box;';
+    // v1.531: Kompakt + transparent + input-pass-through så skjut/spring fortsätter.
+    // pointer-events:none på container, pointer-events:auto på cards.
+    el.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(10,5,20,0.55);backdrop-filter:blur(4px);z-index:55;font-family:sans-serif;padding:12px;box-sizing:border-box;border-radius:14px;border:1px solid rgba(170,58,255,0.4);box-shadow:0 0 30px rgba(170,58,255,0.3);pointer-events:none;max-width:min(560px, 92vw);';
     document.body.appendChild(el);
   }
   const choices = state._survivorsPerkChoices || [];
@@ -14689,36 +14687,33 @@ function renderSurvivorsPerkOverlay() {
   const rarityColors = (arena && arena.rarityColors) || {};
   const cardsHtml = choices.map((perk, idx) => {
     const rc = rarityColors[perk.rarity] || rarityColors.gray;
-    const tier = perk.rarity.toUpperCase();
     return `
       <div class="surv-perk-card" data-idx="${idx}" style="
-        flex:1;min-width:180px;max-width:260px;
-        padding:18px 14px;margin:0;
+        padding:8px 6px;
         background:linear-gradient(160deg, ${rc.bgFrom}, ${rc.bgTo});
-        border:3px solid ${rc.border};
-        border-radius:14px;
-        box-shadow:0 0 20px ${rc.glow}, inset 0 0 30px rgba(0,0,0,0.3);
+        border:2px solid ${rc.border};
+        border-radius:9px;
+        box-shadow:0 0 8px ${rc.glow}, inset 0 0 10px rgba(0,0,0,0.4);
         cursor:pointer;
-        transition:transform 0.15s ease, box-shadow 0.2s ease;
-        display:flex;flex-direction:column;align-items:center;text-align:center;gap:8px;
-        color:#fff;
+        pointer-events:auto;
+        transition:transform 0.12s ease;
+        display:flex;flex-direction:column;align-items:center;text-align:center;gap:3px;
+        color:#fff;min-height:96px;
       ">
-        <div style="font-size:42px;line-height:1;">${perk.icon}</div>
-        <div style="font-size:16px;font-weight:900;letter-spacing:1px;color:${rc.text};text-shadow:0 1px 3px rgba(0,0,0,0.6);">${perk.name}</div>
-        <div style="font-size:11px;color:#cccccc;line-height:1.4;min-height:30px;">${perk.desc}</div>
-        <div style="margin-top:auto;font-size:10px;font-weight:900;letter-spacing:2px;color:${rc.border};padding:4px 10px;background:rgba(0,0,0,0.5);border-radius:4px;">${tier}</div>
+        <div style="font-size:22px;line-height:1;">${perk.icon}</div>
+        <div style="font-size:10px;font-weight:900;letter-spacing:0.5px;color:${rc.text};line-height:1.1;">${perk.name}</div>
+        <div style="font-size:9px;color:#cccccc;line-height:1.2;flex:1;">${perk.desc}</div>
       </div>
     `;
   }).join('');
   el.innerHTML = `
-    <h2 style="color:#ffd54a;font-size:24px;letter-spacing:3px;margin:0 0 6px 0;text-shadow:0 2px 8px rgba(0,0,0,0.8);">VÄLJ EN PERK</h2>
-    <div style="color:#aaaaaa;font-size:12px;margin-bottom:24px;">Auto-pick om 15s</div>
-    <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;width:100%;max-width:900px;">${cardsHtml}</div>
+    <div style="color:#ffd54a;font-size:13px;letter-spacing:2px;text-align:center;margin-bottom:8px;font-weight:900;text-shadow:0 1px 3px rgba(0,0,0,0.8);">VÄLJ PERK · auto 15s</div>
+    <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;">${cardsHtml}</div>
   `;
-  el.style.display = 'flex';
+  el.style.display = 'block';
   // Klick-handler
   el.querySelectorAll('.surv-perk-card').forEach(card => {
-    card.addEventListener('pointerdown', () => { card.style.transform = 'scale(0.96)'; });
+    card.addEventListener('pointerdown', () => { card.style.transform = 'scale(0.94)'; });
     card.addEventListener('pointerup', () => { card.style.transform = ''; });
     card.addEventListener('pointerleave', () => { card.style.transform = ''; });
     card.addEventListener('click', (e) => {
@@ -14762,9 +14757,9 @@ function updateSurvivorsPerksBar() {
   if (!bar) {
     bar = document.createElement('div');
     bar.id = 'survivors-perks-bar';
-    // v1.529: Flyttad från bottom-left till bottom-center. Joystick + fire-knapp
-    // är på sidorna, så center-bottom är "fri zon" — perfekt för perk-rad.
-    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:max(8px, env(safe-area-inset-bottom, 8px));z-index:60;display:flex;flex-wrap:wrap;gap:4px;max-width:60vw;justify-content:center;pointer-events:none;background:rgba(0,0,0,0.5);padding:5px 8px;border-radius:10px;border:1px solid rgba(170,58,255,0.3);';
+    // v1.531: Transparent bar (ingen bakgrund/padding/border). Ikoner har egen
+    // rarity-border. pointer-events:auto på ikoner så touch triggar tooltip.
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:max(8px, env(safe-area-inset-bottom, 8px));z-index:60;display:flex;flex-wrap:wrap;gap:4px;max-width:70vw;justify-content:center;pointer-events:none;';
     document.body.appendChild(bar);
   }
   const perks = state.survivorsPerks || [];
@@ -14778,16 +14773,43 @@ function updateSurvivorsPerksBar() {
   const rarityColors = (arena && arena.rarityColors) || {};
   bar.innerHTML = Object.values(counts).map(p => {
     const rc = rarityColors[p.rarity] || rarityColors.gray;
-    return `<div title="${p.name} ×${p.stack}" style="
-      width:30px;height:30px;border-radius:6px;
+    const tooltipText = (p.name + ' ×' + p.stack).replace(/"/g, '&quot;');
+    return `<div class="surv-perk-icon" data-name="${tooltipText}" data-desc="${(p.desc || '').replace(/"/g, '&quot;')}" style="
+      width:34px;height:34px;border-radius:7px;
       background:linear-gradient(160deg, ${rc.bgFrom}, ${rc.bgTo});
-      border:1.5px solid ${rc.border};
+      border:2px solid ${rc.border};
       box-shadow:0 0 6px ${rc.glow};
       display:flex;align-items:center;justify-content:center;
-      font-size:16px;line-height:1;position:relative;
-    ">${p.icon}${p.stack > 1 ? `<span style="position:absolute;bottom:-3px;right:-3px;background:#1a1a1a;color:${rc.text};font-size:9px;font-weight:900;padding:1px 4px;border-radius:8px;border:1px solid ${rc.border};">×${p.stack}</span>` : ''}</div>`;
+      font-size:18px;line-height:1;position:relative;
+      pointer-events:auto;cursor:pointer;
+    ">${p.icon}${p.stack > 1 ? `<span style="position:absolute;bottom:-4px;right:-4px;background:#1a1a1a;color:${rc.text};font-size:9px;font-weight:900;padding:1px 4px;border-radius:8px;border:1px solid ${rc.border};">×${p.stack}</span>` : ''}</div>`;
   }).join('');
   bar.style.display = 'flex';
+  // v1.531: Touch-tooltip — visa perk-info i 2s när man håller ned på en ikon
+  bar.querySelectorAll('.surv-perk-icon').forEach(ic => {
+    ic.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const name = ic.getAttribute('data-name') || '';
+      const desc = ic.getAttribute('data-desc') || '';
+      showSurvivorsPerkTooltip(name, desc);
+    });
+  });
+}
+
+function showSurvivorsPerkTooltip(name, desc) {
+  let tip = document.getElementById('survivors-perk-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'survivors-perk-tooltip';
+    tip.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:62px;background:rgba(10,5,20,0.92);border:1px solid rgba(170,58,255,0.6);border-radius:8px;padding:8px 14px;color:#fff;font-family:sans-serif;font-size:12px;z-index:65;pointer-events:none;max-width:80vw;text-align:center;box-shadow:0 0 14px rgba(170,58,255,0.4);';
+    document.body.appendChild(tip);
+  }
+  tip.innerHTML = `<div style="font-weight:900;color:#ffd54a;margin-bottom:3px;">${name}</div><div style="font-size:10px;color:#cccccc;">${desc}</div>`;
+  tip.style.display = 'block';
+  clearTimeout(state._survivorsTooltipTimeout);
+  state._survivorsTooltipTimeout = setTimeout(() => {
+    if (tip) tip.style.display = 'none';
+  }, 2000);
 }
 
 // Tick-baserad effekt-applicering: regen + thorns. Kallas från runFrame varje frame.
@@ -14818,6 +14840,100 @@ function tickSurvivorsPerkEffects(dt) {
       }
     }
   }
+}
+
+// v1.531: SURVIVORS-RUN vapen-shop — kompakt overlay (PvP-stil). 9 CD-vapen
+// med skalande pris. Klick köper via gold + equipar direkt.
+const SURVIVORS_SHOP_WEAPONS = [
+  { id: 'pistol',      cost: 0,    label: 'PISTOL' },
+  { id: 'shotgun',     cost: 200,  label: 'HAGEL' },
+  { id: 'burstpistol', cost: 500,  label: 'BURST' },
+  { id: 'shuriken',    cost: 800,  label: 'STJÄRNOR' },
+  { id: 'smg',         cost: 1200, label: 'KPIST' },
+  { id: 'plasma',      cost: 1800, label: 'PLASMA' },
+  { id: 'rocket',      cost: 2500, label: 'ROCKET' },
+  { id: 'flame',       cost: 3500, label: 'ELDKASTARE' },
+  { id: 'minigun',     cost: 5000, label: 'MINIGUN' },
+];
+
+function openSurvivorsWeaponShop() {
+  if (!state.survivorsActive) return;
+  let el = document.getElementById('survivors-shop-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'survivors-shop-overlay';
+    el.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(10,5,20,0.92);backdrop-filter:blur(6px);z-index:80;border-radius:14px;border:1px solid rgba(170,58,255,0.5);padding:14px;box-shadow:0 0 30px rgba(170,58,255,0.4);max-width:min(560px, 92vw);font-family:sans-serif;';
+    document.body.appendChild(el);
+  }
+  renderSurvivorsWeaponShop(el);
+}
+
+function renderSurvivorsWeaponShop(el) {
+  const gold = save.gold || 0;
+  const equipped = (state.player && state.player.weaponId) || 'pistol';
+  const cardsHtml = SURVIVORS_SHOP_WEAPONS.map(w => {
+    const canAfford = gold >= w.cost;
+    const isEquipped = equipped === w.id;
+    const owned = (save.owned || []).includes(w.id);
+    const isPurchased = owned || w.cost === 0;
+    let bg, border, status;
+    if (isEquipped) { bg = '#2a4a18'; border = '#5aff5a'; status = '✓ AKTIV'; }
+    else if (isPurchased) { bg = '#1a2a4a'; border = '#5aaaff'; status = 'ÄGD'; }
+    else if (canAfford) { bg = '#3a1a5a'; border = '#aa5aff'; status = '💰 ' + w.cost; }
+    else { bg = '#2a1a1a'; border = '#5a3a3a'; status = '🔒 ' + w.cost; }
+    return `<div class="surv-shop-card" data-id="${w.id}" data-cost="${w.cost}" style="
+      padding:8px;background:${bg};border:2px solid ${border};border-radius:8px;
+      cursor:pointer;display:flex;flex-direction:column;gap:3px;
+      align-items:center;text-align:center;color:#fff;
+      transition:transform 0.1s ease;
+    ">
+      <div style="font-size:11px;font-weight:900;letter-spacing:0.5px;">${w.label}</div>
+      <div style="font-size:10px;color:#cccccc;">${status}</div>
+    </div>`;
+  }).join('');
+  el.innerHTML = `
+    <div style="color:#ffd54a;font-size:14px;letter-spacing:2px;text-align:center;margin-bottom:8px;font-weight:900;">VAPEN-SHOP · 💰 ${gold}</div>
+    <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;">${cardsHtml}</div>
+    <button id="surv-shop-close" style="margin-top:10px;width:100%;background:#3a2a4a;color:#fff;border:1px solid #5a3a6a;padding:8px;border-radius:6px;font-weight:900;cursor:pointer;">STÄNG</button>
+  `;
+  el.style.display = 'block';
+  el.querySelectorAll('.surv-shop-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      e.preventDefault();
+      const id = card.getAttribute('data-id');
+      const cost = parseInt(card.getAttribute('data-cost'));
+      trySurvivorsWeaponBuy(id, cost);
+    });
+  });
+  document.getElementById('surv-shop-close').addEventListener('click', closeSurvivorsWeaponShop);
+}
+
+function closeSurvivorsWeaponShop() {
+  const el = document.getElementById('survivors-shop-overlay');
+  if (el) el.style.display = 'none';
+}
+
+function trySurvivorsWeaponBuy(weaponId, cost) {
+  const owned = (save.owned || []).includes(weaponId) || cost === 0;
+  if (!owned) {
+    if ((save.gold || 0) < cost) {
+      if (typeof showToast === 'function') showToast('🔒 OTILLRÄCKLIGT GOLD');
+      return;
+    }
+    save.gold -= cost;
+    save.owned = save.owned || [];
+    if (!save.owned.includes(weaponId)) save.owned.push(weaponId);
+    if (typeof persist === 'function') persist();
+    if (typeof showToast === 'function') showToast('💰 KÖPT: ' + weaponId.toUpperCase());
+    if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+  }
+  // Equipa direkt
+  if (state.player) state.player.weaponId = weaponId;
+  if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
+  if (typeof updateHUD === 'function') updateHUD();
+  // Re-render shop med uppdaterad status
+  const el = document.getElementById('survivors-shop-overlay');
+  if (el) renderSurvivorsWeaponShop(el);
 }
 
 function resetSurvivorsPerks() {
@@ -15763,10 +15879,13 @@ function tryDash() {
     cdMs = 0;
   } else {
     cdMs = (state.juggernautActive && p.isJug && p.dashCdMs) ? p.dashCdMs : DASH_COOLDOWN_MS;
-    // v1.530: SURVIVORS-RUN "DASH 1S"-perk sänker cooldown till 1000ms (eller summa av stacks)
-    if (state.survivorsActive && typeof getSurvivorsPerkSum === 'function') {
-      const dashCdPerk = getSurvivorsPerkSum('dashCd');
-      if (dashCdPerk > 0) cdMs = Math.min(cdMs, 1000); // perk-värdet är 1.0s
+    // v1.531: SURVIVORS-RUN dash-perks i 4 nivåer — använd LÄGSTA cd-värde av alla aktiva perks
+    if (state.survivorsActive && state.survivorsPerks) {
+      let lowestDashCd = cdMs;
+      for (const sp of state.survivorsPerks) {
+        if (sp.type === 'dashCd' && sp.value < lowestDashCd) lowestDashCd = sp.value;
+      }
+      cdMs = lowestDashCd;
     }
   }
   if (!p || p.dashUntil > _now || p.dashCdAt > _now - cdMs) return;
@@ -17201,6 +17320,11 @@ let prevModeBeforeWeaponMenu = 'playing';
 
 function openWeaponMenu() {
   if (state.mode !== 'playing') return;
+  // v1.531: SURVIVORS-RUN — visa kompakt shop istället för full-screen meny
+  if (state.survivorsActive) {
+    openSurvivorsWeaponShop();
+    return;
+  }
   // GUNGAME: vapen styrs av server via tier-promotion — spelaren får inte
   // välja vapen själv. Visa en kort toast istället.
   if (state.gungameActive) {
@@ -20063,9 +20187,12 @@ const Coop = {
       // survivors-mode så HUD/labels kan visa annorlunda.
       const _isSurvivors = !!(this.config && this.config.survivors);
       state.survivorsActive = _isSurvivors;
+      // v1.531: body-class för CSS-override (toast-position under shield)
+      document.body.classList.toggle('survivors-mode', _isSurvivors);
       if (_isSurvivors) {
         state.survivorsStartT = Date.now();
-        state.survivorsMatchDurationMs = (window.SURVIVORS_ARENA && SURVIVORS_ARENA.matchDurationSec * 1000) || 1200000;
+        // v1.531: Använd lobby-vald duration (10/20/30 min)
+        state.survivorsMatchDurationMs = (this.config.survivorsDurationSec || 1200) * 1000;
       }
       state.castledefenseWalls = ev.walls || [];
       state.castledefenseCore = ev.core || null;
@@ -20359,6 +20486,7 @@ const Coop = {
       if (typeof Audio !== 'undefined' && Audio.bossSpawn) Audio.bossSpawn();
       else if (typeof Audio !== 'undefined' && Audio.alert) Audio.alert();
     } else if (ev.type === 'survivors_win') {
+      document.body.classList.remove('survivors-mode');
       // v1.526/v1.528: { survivedSec } — spelaren överlevde 20 min
       const kills = state.survivorsKills || 0;
       const perksCount = (state.survivorsPerks || []).length;
@@ -20375,6 +20503,7 @@ const Coop = {
       }
     } else if (ev.type === 'survivors_lose') {
       // v1.526/v1.528: { survivedSec } — alla players döda
+      document.body.classList.remove('survivors-mode');
       const kills = state.survivorsKills || 0;
       const perksCount = (state.survivorsPerks || []).length;
       this.castledefenseActive = false;
@@ -22521,6 +22650,26 @@ function renderHostControls() {
   });
   lobbyModeButtonsEl.appendChild(survBtn);
 
+  // v1.531: SURVIVORS duration-toggle (10/20/30 min) — bara synlig om survivors aktiv
+  if (Coop.config.survivors) {
+    const survDurEl = document.createElement('div');
+    survDurEl.style.cssText = 'display:flex;gap:4px;margin-top:4px;width:100%;';
+    const currentDur = Coop.config.survivorsDurationSec || 1200;
+    for (const opt of [{ s: 600, label: '10 MIN' }, { s: 1200, label: '20 MIN' }, { s: 1800, label: '30 MIN' }]) {
+      const b = document.createElement('button');
+      const isOn = currentDur === opt.s;
+      b.textContent = opt.label;
+      b.style.cssText = 'flex:1;background:' + (isOn ? '#5a3aff' : '#1a1a3a') + ';color:' + (isOn ? '#fff' : '#9a8aff') + ';font-size:11px;padding:6px 8px;font-weight:700;letter-spacing:1px;border:1px solid ' + (isOn ? '#aa8aff' : '#3a2a5a') + ';border-radius:4px;cursor:pointer;';
+      onTap(b, () => {
+        Coop.config.survivorsDurationSec = opt.s;
+        Coop.updateConfig({ survivorsDurationSec: opt.s });
+        renderHostControls();
+      });
+      survDurEl.appendChild(b);
+    }
+    lobbyModeButtonsEl.appendChild(survDurEl);
+  }
+
   // PvP-rutan: TDM + CTF (mutually exclusive)
   const pvpEl = document.getElementById('lobby-pvp-buttons');
   if (pvpEl) {
@@ -23383,6 +23532,7 @@ btnCoopStart.addEventListener('click', () => {
     }
     if (Coop.config.survivors) {
       payload.survivors = true;
+      payload.survivorsDurationSec = Coop.config.survivorsDurationSec || 1200;
     }
     if (Coop.config.addBot) {
       payload.addBot = true;
@@ -29140,6 +29290,7 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     }
     if (Coop.config.survivors) {
       payload.survivors = true;
+      payload.survivorsDurationSec = Coop.config.survivorsDurationSec || 1200;
     }
     if (Coop.config.addBot) {
       payload.addBot = true;

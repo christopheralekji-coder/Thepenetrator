@@ -68,7 +68,7 @@ const SURVIVORS_ARENA = {
   // late-game känns kraftfullt (mer lila).
   perkSelectionIntervalSec: 60,
   firstPerkOfferAtSec: 30,           // första perk-val 30s in (inte direkt)
-  perkChoicesPerSelection: 3,
+  perkChoicesPerSelection: 6,        // v1.531: 6 val (var 3)
   perkAutoPickTimeoutSec: 15,        // om spelaren inte väljer på 15s → auto-pick första
 
   // Rarity-färger (centraliserade så HUD/overlay matchar)
@@ -79,17 +79,13 @@ const SURVIVORS_ARENA = {
     purple: { border: '#a855f7', glow: 'rgba(168,85,247,0.65)',  bgFrom: '#3a1a5a', bgTo: '#1f0a3a', text: '#d0a0ff' },
   },
 
-  // Rarity-rates skiftar över tid. Format: [grayRate, greenRate, blueRate, purpleRate]
-  // Tier-bands per minute-bracket (sum = 1.0 per band).
+  // v1.531: FAST rarity-rates oavsett tid (var time-baserat). Användarens spec:
+  // "Drop chansen ska alltid vara samma och inte baserar på tid".
+  // [grayRate, greenRate, blueRate, purpleRate], summa = 1.0
+  rarityRatesFixed: [0.45, 0.30, 0.18, 0.07],
+  // (Legacy time-baserad behållen för bakåtkompat men används inte längre)
   rarityRatesByMinute: [
-    // 0-5 min  — early game: mest grå, sällsynt lila
-    { until: 5,  rates: [0.60, 0.30, 0.08, 0.02] },
-    // 5-10 min — mid game: balans
-    { until: 10, rates: [0.40, 0.35, 0.18, 0.07] },
-    // 10-15 min — late mid: bättre tiers
-    { until: 15, rates: [0.25, 0.35, 0.27, 0.13] },
-    // 15-20 min — end game: many epics
-    { until: 20, rates: [0.15, 0.25, 0.35, 0.25] },
+    { until: 99, rates: [0.45, 0.30, 0.18, 0.07] },
   ],
 
   // PERK POOL (20 perks). effect.type är hook-typ, effect.value är effekt-styrka.
@@ -150,8 +146,7 @@ const SURVIVORS_ARENA = {
     // === v1.530: 7 nya lila game-changers ===
     { id: 'p_speed_mega', rarity: 'purple', icon: '⚡', name: 'BLIXTSNABB',       desc: '+40% rörelse',
       effect: { type: 'speed',   value: 0.40 } },
-    { id: 'p_dash_1s',    rarity: 'purple', icon: '💨', name: 'DASH 1S',          desc: 'Dash cooldown sänkt till 1 sekund',
-      effect: { type: 'dashCd',  value: 1.0 } },
+    // (p_dash_1s flyttad till 4-tier dash-kedja nedan, v1.531)
     { id: 'p_revive',     rarity: 'purple', icon: '✨', name: 'ANDRA CHANS',      desc: 'Återupplivas 1× med 1 HP',
       effect: { type: 'revive',  value: 1 } },
     { id: 'p_lifesteal_x',rarity: 'purple', icon: '🩸', name: 'LIFESTEAL II',     desc: '+6% av dmg → HP',
@@ -162,6 +157,17 @@ const SURVIVORS_ARENA = {
       effect: { type: 'multishot', value: 2 } },
     { id: 'p_grow',       rarity: 'purple', icon: '🦣', name: 'GROW',             desc: '+25% storlek + +25% maxHP',
       effect: { type: 'grow',    value: 0.25 } },
+
+    // === DASH-KEDJA (4 raritys, skalande cooldown-reduktion) ===
+    // Default dash-cooldown = 3000ms. Perk-värdet är RAW cooldown i ms efter perk.
+    { id: 'g_dash',       rarity: 'gray',   icon: '💨', name: 'DASH I',           desc: 'Dash cooldown 2.5s (var 3s)',
+      effect: { type: 'dashCd',  value: 2500 } },
+    { id: 'gn_dash',      rarity: 'green',  icon: '💨', name: 'DASH II',          desc: 'Dash cooldown 2s',
+      effect: { type: 'dashCd',  value: 2000 } },
+    { id: 'b_dash',       rarity: 'blue',   icon: '💨', name: 'DASH III',         desc: 'Dash cooldown 1.5s',
+      effect: { type: 'dashCd',  value: 1500 } },
+    { id: 'p_dash',       rarity: 'purple', icon: '💨', name: 'DASH IV',          desc: 'Dash cooldown 1s',
+      effect: { type: 'dashCd',  value: 1000 } },
 
     // === HOMING-KEDJA (4 raritys, skalande styrka) ===
     // Användarens spec: svag → lite bättre → lite bättre → lite bättre. Tier 4

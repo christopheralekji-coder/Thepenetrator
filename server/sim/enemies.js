@@ -351,7 +351,16 @@ function applyContactDamage(e, p, sim) {
       }
       p.hp = c.hp; // för konsistent return-state
     } else {
-      p.hp = Math.max(0, p.hp - e.dmg);
+      // v1.531: Shield absorberar damage först (var bug: damage gick direkt på HP)
+      let dmgRemaining = e.dmg;
+      if (p.shield && p.shield > 0) {
+        const absorbed = Math.min(dmgRemaining, p.shield);
+        p.shield -= absorbed;
+        dmgRemaining -= absorbed;
+      }
+      if (dmgRemaining > 0) {
+        p.hp = Math.max(0, p.hp - dmgRemaining);
+      }
       p._tookDamageFrom = e;
       p.invulnUntil = now + 500;  // 500ms invuln efter hit (samma som klient)
     }

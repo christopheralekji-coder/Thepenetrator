@@ -2648,7 +2648,8 @@ function tickCastleDefense(sim, dt, now) {
   // v1.528: iter 4 — mini-boss-spawn var 4 min.
   if (sim.survivorsActive) {
     if (!sim.survivorsStartT) sim.survivorsStartT = nowMs;
-    const matchDurationMs = (typeof SURVIVORS_ARENA !== 'undefined' && SURVIVORS_ARENA.matchDurationSec * 1000) || 1200000;
+    // v1.531: Match-duration från lobby-val (10/20/30 min) eller fallback 20 min
+    const matchDurationMs = (sim.survivorsDurationSec || 1200) * 1000;
     const elapsedMs = nowMs - sim.survivorsStartT;
     if (elapsedMs >= matchDurationMs) {
       sim.castledefenseEnded = true;
@@ -2703,10 +2704,11 @@ function tickCastleDefense(sim, dt, now) {
   // === PLAYER COLLISION (v1.419: player kan GÅ IGENOM walls/buildings för att
   // stå PÅ tornen för repair/upgrade/sell. Enemies blockas fortfarande via flow-
   // field nedan. Bara CORE blockar player.)
+  // v1.531: I SURVIVORS-mode är altaret bara dekoration — player kan gå igenom.
   for (const [, ws] of sim.room.members) {
     if (ws.playerState && ws.playerState.hp > 0) {
       const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
-      if (sim.castledefenseCore && sim.castledefenseCore.hp > 0) {
+      if (sim.castledefenseCore && sim.castledefenseCore.hp > 0 && !sim.survivorsActive) {
         const core = sim.castledefenseCore;
         const dx = ent.x - core.x, dy = ent.y - core.y;
         const d = Math.sqrt(dx * dx + dy * dy);
@@ -2870,7 +2872,15 @@ function tickCastleDefense(sim, dt, now) {
     // v1.411: Ranged enemies (shooter/soldier/sniper) ALLTID siege-role — skjuter
     // mot torn istället för att jaga players. Annars stannar de aldrig vid turrets.
     const isRangedType = (e.type === 'shooter' || e.type === 'soldier' || e.type === 'sniper');
-    if (e._cdFlyer || e.isBoss) {
+    // v1.531: SURVIVORS-RUN — ALLA enemies målar altaret (centern), inte player.
+    // Defense-stil: spelaren försvarar centret från anstormning.
+    if (sim.survivorsActive) {
+      target = corePos ? {
+        peerId: '__core__', _isCoreTarget: true,
+        x: corePos.x, y: corePos.y,
+        hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
+      } : { x: 2000, y: 2000, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
+    } else if (e._cdFlyer || e.isBoss) {
       // Flyers + bossar: rakt mot core
       target = corePos ? {
         peerId: '__core__', _isCoreTarget: true,
@@ -4158,6 +4168,7 @@ function startSim(sim, opts) {
     if (opts.survivors) {
       sim.castledefenseActive = true;
       sim.survivorsActive = true;
+      sim.survivorsDurationSec = opts.survivorsDurationSec || 1200;
     }
   }
   // Bot-spawn: lägg bot(s) som virtuella members INNAN mode-init så loopen tilldelar

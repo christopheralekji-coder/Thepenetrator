@@ -429,6 +429,10 @@ html, body {
   pointer-events: none;
   max-width: 240px;
 }
+/* v1.531: I survivors-mode, hamna under shield-bar (shield ligger ~36-50px höjd) */
+body.survivors-mode #hud-toast-stack {
+  top: max(90px, calc(env(safe-area-inset-top, 0px) + 84px));
+}
 .hud-toast-row {
   background: linear-gradient(90deg, rgba(0,0,0,0.85), rgba(20,15,25,0.7));
   border-left: 3px solid #ffd54a;
