@@ -16310,8 +16310,26 @@ function syncPixiParticles() {
 // JS-fail → inga sprites uppdaterades. Den buggen orsakade allt vi sett.
 // Map-baserad sync med sub-container, EXAKT som v1.548 där det fungerade.
 function syncPixiEnemies() {
+  // v1.566: DEDIKERAD DEBUG — räkna varje fas av syncen så vi ser exakt var
+  // det failar.
+  pixiState._debug = pixiState._debug || {
+    skippedNullEnemy: 0,
+    skippedDead: 0,
+    skippedHpZero: 0,
+    skippedNullId: 0,
+    skippedNullSprite: 0,
+    spritesCreated: 0,
+    spritesUpdated: 0,
+    spritesRemoved: 0,
+    firstEnemyData: '',
+  };
+  const d = pixiState._debug;
+  // Reset per-frame counters
+  d.skippedNullEnemy = 0; d.skippedDead = 0; d.skippedHpZero = 0;
+  d.skippedNullId = 0; d.skippedNullSprite = 0;
+  d.spritesCreated = 0; d.spritesUpdated = 0; d.spritesRemoved = 0;
+
   if (!pixiState.ready || !pixiState.enemiesEnabled) {
-    // Cleanup
     if (pixiState.sprites.enemies && pixiState.sprites.enemies.size > 0) {
       for (const [, s] of pixiState.sprites.enemies) {
         if (s.parent) s.parent.removeChild(s);
@@ -16325,14 +16343,18 @@ function syncPixiEnemies() {
   const enemies = state.enemies || [];
   const container = pixiState.containers.enemies;
   const seenIds = new Set();
-  // v1.565: array-index fallback för enemies utan _idx/_i (Story-mode, klient-
-  // side spawn). Använd e._pixiId om finns, annars assign vid första syncen.
+  // Capture first enemy's data för debug
+  if (enemies.length > 0 && enemies[0]) {
+    const e0 = enemies[0];
+    d.firstEnemyData = `t=${e0.type || '?'} x=${Math.round(e0.x || 0)} y=${Math.round(e0.y || 0)} _i=${e0._i} _idx=${e0._idx} hp=${e0.hp} dead=${!!e0.dead}`;
+  }
   for (let idx = 0; idx < enemies.length; idx++) {
     const e = enemies[idx];
-    if (!e || e.dead || (e.hp != null && e.hp <= 0)) continue;
+    if (!e) { d.skippedNullEnemy++; continue; }
+    if (e.dead) { d.skippedDead++; continue; }
+    if (e.hp != null && e.hp <= 0) { d.skippedHpZero++; continue; }
     let id = (e._idx != null) ? e._idx : (e._i != null ? e._i : null);
     if (id == null) {
-      // Tilldela stabil pixi-id om enemy saknar server-ID
       if (e._pixiId == null) e._pixiId = ('p_' + (++pixiState._lastPixiId));
       id = e._pixiId;
     }
@@ -16340,42 +16362,44 @@ function syncPixiEnemies() {
     let sprite = pixiState.sprites.enemies.get(id);
     if (!sprite) {
       sprite = _acquireEnemySprite();
-      if (!sprite) continue;
+      if (!sprite) { d.skippedNullSprite++; continue; }
       container.addChild(sprite);
       pixiState.sprites.enemies.set(id, sprite);
+      d.spritesCreated++;
+    } else {
+      d.spritesUpdated++;
     }
     sprite.visible = true;
     sprite.position.set(e.x, e.y);
     sprite.scale.set(1, 1);
     sprite.alpha = 1;
-    // v1.561: Typ-specifik tint för visuell variation. Boss = gul.
     if (e.isBoss || e.isMiniBoss) {
       sprite.tint = 0xffd54a;
     } else {
       switch (e.type) {
-        case 'runner':    sprite.tint = 0xff8a3a; break; // orange
-        case 'ninja':     sprite.tint = 0x9a5aff; break; // lila
-        case 'brute':     sprite.tint = 0x6a4030; break; // mörk-brun
-        case 'tank':      sprite.tint = 0x3a5a8a; break; // mörk-blå
-        case 'shooter':   sprite.tint = 0x5acaff; break; // ljus-blå
-        case 'sniper':    sprite.tint = 0xaaaaff; break; // ljus-lila
-        case 'soldier':   sprite.tint = 0x5a8a3a; break; // grön
-        case 'healer':    sprite.tint = 0x5aff8a; break; // ljus-grön
-        case 'summoner':  sprite.tint = 0xff5aff; break; // magenta
-        case 'bomber':    sprite.tint = 0xff3a3a; break; // röd
-        case 'dog':       sprite.tint = 0xaa5a30; break; // brun
-        case 'swarmer':   sprite.tint = 0xffeb3b; break; // gul
-        case 'robot':     sprite.tint = 0xcccccc; break; // grå
-        default:          sprite.tint = 0xffffff;        // vit fallback (=grunt)
+        case 'runner':    sprite.tint = 0xff8a3a; break;
+        case 'ninja':     sprite.tint = 0x9a5aff; break;
+        case 'brute':     sprite.tint = 0x6a4030; break;
+        case 'tank':      sprite.tint = 0x3a5a8a; break;
+        case 'shooter':   sprite.tint = 0x5acaff; break;
+        case 'sniper':    sprite.tint = 0xaaaaff; break;
+        case 'soldier':   sprite.tint = 0x5a8a3a; break;
+        case 'healer':    sprite.tint = 0x5aff8a; break;
+        case 'summoner':  sprite.tint = 0xff5aff; break;
+        case 'bomber':    sprite.tint = 0xff3a3a; break;
+        case 'dog':       sprite.tint = 0xaa5a30; break;
+        case 'swarmer':   sprite.tint = 0xffeb3b; break;
+        case 'robot':     sprite.tint = 0xcccccc; break;
+        default:          sprite.tint = 0xffffff;
       }
     }
   }
-  // Remove döda enemies
   for (const [id, sprite] of pixiState.sprites.enemies) {
     if (!seenIds.has(id)) {
       if (sprite.parent) sprite.parent.removeChild(sprite);
       _releaseEnemySprite(sprite);
       pixiState.sprites.enemies.delete(id);
+      d.spritesRemoved++;
     }
   }
 }
@@ -16568,6 +16592,10 @@ function updatePixiDiagOverlay() {
     `<div>Particles: ${particlesCount}</div>` +
     `<div>Sprites: ${pixiSprites} Stage: ${stageChildren}</div>` +
     `<div>Pixi enemies: ${pixiState.ready && pixiState.sprites.enemies ? pixiState.sprites.enemies.size : 0}${pixiState.enemiesEnabled ? ' ✓' : ' off'}</div>` +
+    (pixiState._debug ? `<div style="color:#ff9090;font-size:9px;">created:${pixiState._debug.spritesCreated} upd:${pixiState._debug.spritesUpdated} rm:${pixiState._debug.spritesRemoved}</div>` +
+    `<div style="color:#ff9090;font-size:9px;">skip null:${pixiState._debug.skippedNullEnemy} dead:${pixiState._debug.skippedDead} hp0:${pixiState._debug.skippedHpZero} noSprite:${pixiState._debug.skippedNullSprite}</div>` +
+    `<div style="color:#ffaa90;font-size:9px;max-width:200px;word-break:break-all;">E0: ${pixiState._debug.firstEnemyData || 'none'}</div>` +
+    `<div style="color:#90ff90;font-size:9px;">Enemies-container ch:${pixiState.containers.enemies ? pixiState.containers.enemies.children.length : 0}</div>` : '') +
     `<div>Pixi bullets: ${pixiState.ready && pixiState.containers.bullets ? pixiState.containers.bullets.children.filter(c=>c.visible).length : 0}${pixiState.bulletsEnabled ? ' ✓' : ' off'}</div>` +
     `<div>Pixi particles: ${pixiState.ready && pixiState.containers.particles ? pixiState.containers.particles.children.filter(c=>c.visible).length : 0}${pixiState.particlesEnabled ? ' ✓' : ' off'}</div>` +
     `<div>StressTest: ${state.stresstestActive ? '✓' : '✗'} CfgST: ${Coop && Coop.config && Coop.config.stresstest ? '✓' : '✗'}</div>` +
