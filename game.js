@@ -61551,11 +61551,14 @@ function runFrame(dt, now) {
   }
   // v1.559/v1.560: AKTIVERA PIXI-RENDERING I ALLA PLAYING-MODES
   // Particles aktiverat efter v1.560 defensive-fixes.
+  // v1.564: SAFETY — particles + vfx pipelines disabled tills crash-debug klart.
+  // Användaren rapporterade tom skärm efter v1.560 + v1.562 (particles/vfx
+  // pipelines aktiva). Enemies + bullets är safe och ger största vinsten.
   if (state.mode === 'playing' && pixiState && pixiState.ready) {
     pixiState.enemiesEnabled = true;
     pixiState.bulletsEnabled = true;
-    pixiState.particlesEnabled = true;
-    pixiState.vfxEnabled = true;
+    pixiState.particlesEnabled = false;
+    pixiState.vfxEnabled = false;
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;
