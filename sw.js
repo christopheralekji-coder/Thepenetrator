@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v523-cd-order-shotgun-buff-cheat-btn';
+const CACHE = 'penetrator-v524-remove-6-sp-modes';
 const ASSETS = [
   './',
   './index.html',

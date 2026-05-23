@@ -14189,7 +14189,10 @@ function toggleCheat(id) {
 // ============================================================
 // GAME MODES + DIFFICULTY
 // ============================================================
-const GAME_MODES = ['story', 'endless', 'bossrush', 'daily', 'sandbox', 'speedrun', 'survive', 'truck'];
+// v1.524: Endless/Bossrush/Daily/Speedrun/Survive/Truck borttagna.
+// Vi behåller Story + Sandbox (sandbox = dev-tool, alla vapen + obegränsat gold).
+// Nya modes (Survivors-Run, Hunted, Heist, Infiltration) byggs in när de är klara.
+const GAME_MODES = ['story', 'sandbox'];
 const DIFFICULTIES = ['casual', 'veteran', 'hardcore', 'insane'];
 const MODE_LABELS = { story: 'STORY', endless: 'ENDLESS', bossrush: 'BOSS RUSH', daily: 'DAILY', sandbox: 'SANDBOX', speedrun: 'SPEEDRUN', survive: 'SURVIVE 5M', truck: '🚚 KONVOJ', castledefense: '🏰 CASTLE DEFENSE', newgameplus: 'NG+' };
 const DIFF_LABELS = { casual: 'CASUAL', veteran: 'VETERAN', hardcore: 'HARDCORE', insane: '💀 INSANE' };
@@ -17226,7 +17229,7 @@ const Coop = {
   MAX_PLAYERS: 8,
   onLobbyChange: null,
   onConfigChange: null,
-  config: { difficulty: 'veteran', mode: 'story', cheats: {}, includeConvoy: false, serverSim: true },
+  config: { difficulty: 'veteran', mode: 'story', cheats: {}, serverSim: true },
   serverSimActive: false,  // sätts till true av sim_started, false av sim_stopped/disconnect
   randomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -21187,23 +21190,15 @@ function stopBrowsingPublicRooms() {
   }
 }
 function modeIcon(mode) {
+  // v1.524: endless/bossrush/survive/speedrun/daily borttagna.
   if (mode === 'tdm') return '⚔️';
   if (mode === 'ctf') return '🚩';
-  if (mode === 'bossrush') return '👑';
-  if (mode === 'endless') return '∞';
-  if (mode === 'survive') return '⏱';
-  if (mode === 'speedrun') return '⚡';
-  if (mode === 'daily') return '📅';
   return '🎮';
 }
 function modeLabel(mode) {
+  // v1.524: endless/bossrush/survive/speedrun/daily borttagna.
   if (mode === 'tdm') return 'TDM';
   if (mode === 'ctf') return 'CTF';
-  if (mode === 'bossrush') return 'Boss Rush';
-  if (mode === 'endless') return 'Endless';
-  if (mode === 'survive') return 'Survive';
-  if (mode === 'speedrun') return 'Speedrun';
-  if (mode === 'daily') return 'Daily';
   return 'Story';
 }
 let _publicRoomsLastList = [];
@@ -21718,9 +21713,9 @@ function renderHostControls() {
     });
     lobbyDiffButtonsEl.appendChild(b);
   }
-  // Mode (story/endless/bossrush/survive/truck) — clear PvP-flags så switching funkar
+  // v1.524: Bara story (endless/bossrush/survive/truck borttagna) — clear PvP-flags så switching funkar
   lobbyModeButtonsEl.innerHTML = '';
-  for (const m of ['story', 'endless', 'bossrush', 'survive', 'truck']) {
+  for (const m of ['story']) {
     const b = document.createElement('button');
     b.textContent = MODE_LABELS[m];
     if (Coop.config.mode === m && !Coop.config.tdm && !Coop.config.ctf && !Coop.config.siege && !Coop.config.gungame && !Coop.config.koth && !Coop.config.juggernaut && !Coop.config.battleroyale && !Coop.config.castledefense) b.classList.add('active');
@@ -21739,20 +21734,7 @@ function renderHostControls() {
     });
     lobbyModeButtonsEl.appendChild(b);
   }
-  // Convoy-toggle (visas ALLTID, men markerar tydligt om Story-mode krävs)
-  const convoyBtn = document.createElement('button');
-  const inStory = Coop.config.mode === 'story';
-  const isOn = !!Coop.config.includeConvoy;
-  convoyBtn.textContent = '🚚 LÄGG TILL KONVOJ' + (isOn ? ' ✓' : '');
-  convoyBtn.style.cssText = 'background:' + (isOn ? '#aa3aff' : (inStory ? '#444' : '#222')) + ';margin-top:6px;width:100%;font-size:12px;padding:6px 10px;color:' + (inStory ? '#fff' : '#666') + ';';
-  convoyBtn.title = inStory ? 'Lägg till truck-konvoj efter story → 11 banor totalt' : 'Endast i Story-mode';
-  if (!inStory) convoyBtn.disabled = true;
-  onTap(convoyBtn, () => {
-    if (!inStory) { showToast('Bara i Story-mode'); return; }
-    Coop.updateConfig({ includeConvoy: !Coop.config.includeConvoy });
-    renderHostControls();
-  });
-  lobbyModeButtonsEl.appendChild(convoyBtn);
+  // v1.524: Convoy/truck borttagen — ingen knapp.
 
   // CASTLE DEFENSE (co-op horde + bygg-system, server-auth)
   const cdBtn = document.createElement('button');
@@ -22026,10 +22008,7 @@ function renderLobbyMatchInfo() {
   else if (cfg.battleroyale) modeLabel = '🌀 BATTLE ROYALE';
   else if (cfg.castledefense) modeLabel = '🏰 CASTLE DEFENSE';
   else if (cfg.mode === 'story') modeLabel = '📖 STORY';
-  else if (cfg.mode === 'endless') modeLabel = '♾️ ENDLESS';
-  else if (cfg.mode === 'bossrush') modeLabel = '👹 BOSSRUSH';
-  else if (cfg.mode === 'survive') modeLabel = '🛡 SURVIVE';
-  else if (cfg.mode === 'truck') modeLabel = '🚚 TRUCK';
+  // v1.524: endless/bossrush/survive/truck-labels borttagna
   else modeLabel = (cfg.mode || 'STORY').toUpperCase();
   chips.push(`<span class="match-info-chip mode">${modeLabel}</span>`);
   // 2. Target-chip (vad krävs för vinst i aktiv mode)
@@ -22051,10 +22030,7 @@ function renderLobbyMatchInfo() {
     target = 'Endless · boss var 5:e';
   }
   if (target) chips.push(`<span class="match-info-chip target">🎯 ${target}</span>`);
-  // 3. Konvoj (story-mode only)
-  if (cfg.mode === 'story' && cfg.includeConvoy) {
-    chips.push(`<span class="match-info-chip">🚚 +KONVOJ</span>`);
-  }
+  // v1.524: Konvoj-chip borttagen (truck mode removed).
   // 4. Svårighet — visas bara för team-modes (PvP har fast svårighet)
   // v1.409: castledefense har egen difficulty-väljare så diff-chip ska visas
   const isPvP = !!(cfg.tdm || cfg.ctf || cfg.siege || cfg.gungame || cfg.koth || cfg.juggernaut || cfg.battleroyale);
@@ -25107,17 +25083,11 @@ function refreshModeButtons() {
   }
 }
 btnMode.addEventListener('click', () => {
+  // v1.524: Endless/Bossrush locked-check borttagen — inga modes är låsta längre.
   const cur = getMode();
   let idx = GAME_MODES.indexOf(cur);
-  const hasWins = save.stats && save.stats.wins > 0;
-  // Cykla till nästa upplåsta läge (skippa locked)
-  for (let tries = 0; tries < GAME_MODES.length; tries++) {
-    idx = (idx + 1) % GAME_MODES.length;
-    const candidate = GAME_MODES[idx];
-    if ((candidate === 'endless' || candidate === 'bossrush') && !hasWins) continue;
-    save.mode = candidate;
-    break;
-  }
+  idx = (idx + 1) % GAME_MODES.length;
+  save.mode = GAME_MODES[idx];
   persist();
   refreshModeButtons();
   Audio.uiClick();
@@ -27788,22 +27758,10 @@ function onWaveComplete() {
   state.waveActive = false;
   save.wave = Math.max(save.wave, state.wave + 1);
   save.highWave = Math.max(save.highWave || 1, state.wave);
-  // Per-mode records — separerade så endless wave 50 inte raderar story stage 9 etc
-  if (!save.records) save.records = { endless: 0, bossrush: 0, speedrun: 0, survive: 0, daily: {} };
-  const m = getMode();
-  if (m === 'endless') save.records.endless = Math.max(save.records.endless || 0, state.wave);
-  else if (m === 'bossrush') save.records.bossrush = Math.max(save.records.bossrush || 0, state.wave);
-  else if (m === 'survive') {
-    const elapsed = state.surviveStart ? Math.round((performance.now() - state.surviveStart) / 1000) : 0;
-    save.records.survive = Math.max(save.records.survive || 0, elapsed);
-  } else if (m === 'speedrun' && state.wave >= STAGES.length) {
-    const elapsed = state.speedrunStart ? Math.round((performance.now() - state.speedrunStart) / 1000) : 0;
-    if (!save.records.speedrun || elapsed < save.records.speedrun) save.records.speedrun = elapsed;
-  } else if (m === 'daily') {
-    const today = new Date();
-    const key = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-    save.records.daily[key] = { won: state.wave >= STAGES.length };
-  }
+  // v1.524: Mode-records för endless/bossrush/survive/speedrun/daily borttagna
+  // tillsammans med modes. Save.records lämnas intakt för bakåtkompatibilitet
+  // (gamla saves kan ha records.endless etc, ignoreras).
+  if (!save.records) save.records = {};
   Audio.zoneClear();
   // Wave-complete fanfare — gyllene shockwaves + sparks runt spelaren så stage-clear känns belönande
   if (state.player) {
@@ -27819,8 +27777,9 @@ function onWaveComplete() {
   if (Coop.active && Coop.isHost) {
     Coop.broadcast({ type: 'event', event: 'stage_complete' });
   }
-  // Boss rush: extra gold per boss
-  if (getMode() === 'bossrush') {
+  // v1.524: Boss rush gold-bonus borttagen (mode removed). Behåll variabel
+  // för code-flöde — gold = 0 så ingen påverkan.
+  if (false) {
     const bonus = state.wave * 100;
     save.gold += bonus;
     state.goldThisRun += bonus;
@@ -27980,8 +27939,8 @@ function closeShop() {
   // och ändå vara fullt återställd nästa stage. Nu 75% heal i story så väl-spelade
   // bossar känns belönande, men ger fortfarande generös buffer.
   // Endless/Bossrush/Survive: 45% — pressar resurser hårdare.
-  const reducedHealModes = ['endless', 'bossrush', 'survive'];
-  const healFrac = reducedHealModes.indexOf(getMode()) >= 0 ? 0.45 : 0.75;
+  // v1.524: reducedHealModes (endless/bossrush/survive) borttagna med modes.
+  const healFrac = 0.75;
   state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.player.maxHp * healFrac);
   state.player.ammo = getWeapon(state.player.weaponId).mag || 0;
   state.player.reloading = false;
@@ -28707,13 +28666,9 @@ function actuallyStartGame() {
   // Setup custom stages for game mode
   state.customStages = null;
   const mode = getMode();
-  if (mode === 'bossrush') {
-    state.customStages = buildBossRushStages();
-  } else if (mode === 'endless') {
-    state.customStages = buildEndlessStages();
-  } else if (mode === 'daily') {
-    state.customStages = buildDailyStages();
-  } else if (mode === 'sandbox') {
+  // v1.524: bossrush/endless/daily/speedrun/survive/truck-modes borttagna.
+  // Bara story + sandbox kvar.
+  if (mode === 'sandbox') {
     state.customStages = buildSandboxStages();
     // Sandbox: ge alla vapen + obegränsat med pengar TEMPORÄRT.
     // Snapshot persistas till localStorage så tab-crash/page-reload inte
@@ -28728,23 +28683,10 @@ function actuallyStartGame() {
     save.owned = [...new Set([...save.owned, ...WEAPONS.map(w => w.id)])];
     save.gold = 999999;  // Sandbox = obegränsat — köp allt
     if (typeof showToast === 'function') showToast('🏖 SANDBOX — alla vapen + obegränsat gold');
-  } else if (mode === 'speedrun') {
-    state.customStages = STAGES; // samma som story men trackar tid
-    state.speedrunStart = performance.now();
-  } else if (mode === 'survive') {
-    state.customStages = buildSurviveStages();
-    state.surviveStart = performance.now();
-  } else if (mode === 'truck') {
-    state.customStages = buildTruckStages();
   }
-  // Rensa speedrun/survive-state om vi startar en ANNAN mode — annars läckte
-  // drawModeTimer in stale timer i story/PvP. (Klockan med "00:00.00"-emoji)
-  if (mode !== 'speedrun') state.speedrunStart = null;
-  if (mode !== 'survive') state.surviveStart = null;
-  // Coop story + convoy-tillägg = story-stages + truck-stages (11 totalt)
-  if (Coop.active && Coop.config && Coop.config.includeConvoy && mode === 'story') {
-    state.customStages = [...STAGES, ...buildTruckStages()];
-  }
+  // Speedrun/survive timer-state alltid null nu (modes borttagna).
+  state.speedrunStart = null;
+  state.surviveStart = null;
   // Tutorial första gången
   // Per-mode tutorial: visa tutorial-panel första gången varje mode startas
   // (samma generic content men ger användaren chans att läsa kontroller igen).
@@ -34535,10 +34477,10 @@ function buildStageLayout(stage) {
   fn(stage);
   // Lägg till 5 dog tags på slump-positioner (deterministiskt per stage).
   // Daily-mod 'bonus_drops' = 2× dog tags (10 istället för 5).
-  if (getMode() === 'story' || getMode() === 'daily') {
+  if (getMode() === 'story') {
     const r = rngFor(stage, 100);
-    const dailyMod = state.dailyModifier ? state.dailyModifier.id : null;
-    const dogTagCount = dailyMod === 'bonus_drops' ? 10 : 5;
+    // v1.524: daily-mode borttagen → bonus_drops-modifier oapplicerbar
+    const dogTagCount = 5;
     for (let i = 0; i < dogTagCount; i++) {
       let placed = false;
       for (let tries = 0; tries < 30 && !placed; tries++) {
