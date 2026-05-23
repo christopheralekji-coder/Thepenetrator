@@ -16020,14 +16020,31 @@ async function initPixiFoundation() {
     pixiState.ready = true;
     console.log('[PixiJS] Foundation init klar — v' + PIXI.VERSION + ', resolution', DPR);
 
-    // Proof-of-concept: rita en test-cirkel i världs-koord 2000,2000 (mitten av CD/Survivors)
-    // Tas bort i v1.535 när riktiga enemies-sprites körs
+    // Proof-of-concept: stor synlig cirkel i världs-koord 2000,2000 (mitten av
+    // CD/Survivors). Pulserar via Pixi-ticker så användaren ser att den lever.
+    // Tas bort i v1.535 när riktiga enemies-sprites körs.
     if (window.PIXI_TEST_CIRCLE !== false) {
       const test = new PIXI.Graphics();
-      test.circle(0, 0, 20).fill(0xff5aff);
+      test.circle(0, 0, 40).fill({ color: 0xff5aff, alpha: 0.85 });
+      test.circle(0, 0, 40).stroke({ width: 3, color: 0xffffff });
       test.position.set(2000, 2000);
       test.label = '__pixi_test_circle';
       pixiState.containers.world.addChild(test);
+      // Pulserande "PIXI ✓"-text under cirkeln
+      if (PIXI.Text) {
+        try {
+          const lbl = new PIXI.Text({
+            text: 'PIXI ✓',
+            style: { fontFamily: 'sans-serif', fontSize: 18, fill: 0xffffff, fontWeight: '900', stroke: { color: 0x000000, width: 4 } },
+          });
+          lbl.anchor.set(0.5, 0);
+          lbl.position.set(2000, 2050);
+          lbl.label = '__pixi_test_label';
+          pixiState.containers.world.addChild(lbl);
+        } catch (_) {}
+      }
+      // Pulse-loop (i game-loop, inte Pixi-ticker så vi delar tids-källa)
+      pixiState._pocPulse = { circle: test, t0: performance.now() };
     }
   } catch (err) {
     console.error('[PixiJS] init misslyckades:', err);
@@ -16051,15 +16068,41 @@ function renderPixiFrame() {
   const t0 = performance.now();
   // Camera-follow: world-container offsetas så sprites i world-koord syns rätt
   pixiState.containers.world.position.set(-state.camera.x, -state.camera.y);
+  // Pulserande PoC-cirkel (visual confirmation att Pixi renderar)
+  if (pixiState._pocPulse && pixiState._pocPulse.circle) {
+    const dt = (performance.now() - pixiState._pocPulse.t0) / 600;
+    const s = 1 + 0.18 * Math.sin(dt);
+    pixiState._pocPulse.circle.scale.set(s, s);
+  }
   // Manuell render (vi pausade Pixi's ticker så vi kontrollerar timing)
   pixiState.app.renderer.render(pixiState.app.stage);
   pixiState.diagFrameTime = performance.now() - t0;
 }
 
-// v1.534: Diagnostic-overlay (FPS + Pixi-frametime). Toggle via window._pixiDiag.
-// Aktivera i console: window._pixiDiag = true. Hjälper mäta förbättring per
-// migration-iter.
+// v1.534/v1.535: Diagnostic-overlay (FPS + Pixi-frametime). Toggle via 4-tap
+// top-right hörn (mobil-vänligt — ingen DevTools behövs). I console: även
+// window._pixiDiag = true funkar.
 const _pixiDiagState = { lastFpsT: 0, frames: 0, fps: 0 };
+// 4-tap top-right toggle (matchar CD gold-cheat-mönstret)
+let _pixiDiagTapCount = 0;
+let _pixiDiagTapLastT = 0;
+function checkPixiDiagCornerTap(mx, my) {
+  // Top-right 90x90-zon
+  if (mx < viewW - 90 || my > 90) return false;
+  const now = performance.now();
+  if (now - _pixiDiagTapLastT > 500) _pixiDiagTapCount = 0;
+  _pixiDiagTapCount++;
+  _pixiDiagTapLastT = now;
+  if (_pixiDiagTapCount >= 4) {
+    _pixiDiagTapCount = 0;
+    window._pixiDiag = !window._pixiDiag;
+    if (typeof showToast === 'function') {
+      showToast(window._pixiDiag ? '🔧 DIAG PÅ' : '🔧 DIAG AV');
+    }
+    return true;
+  }
+  return false;
+}
 function updatePixiDiagOverlay() {
   if (!window._pixiDiag) {
     const el = document.getElementById('pixi-diag-overlay');
@@ -16491,6 +16534,7 @@ canvas.addEventListener('mousedown', (e) => {
   if (checkMinimapZoomClick(mx, my)) return;
   if (checkDebugCornerTap(mx, my)) return; // v1.384: triple-tap top-left
   if (checkCdGoldCornerTap(mx, my)) return; // v1.424: double-tap bottom-left → gold-cheat-knapp
+  if (typeof checkPixiDiagCornerTap === 'function' && checkPixiDiagCornerTap(mx, my)) return; // v1.535: 4-tap top-right → pixi-diag
   // v1.418: Castle Defense pin-select-mode — tap placerar pin på världs- eller minimap-pos
   if (state.castledefenseActive && state.cdPinSelectMode && e.button === 0) {
     if (handleCdPinSelectTap(mx, my)) { e.preventDefault && e.preventDefault(); return; }
