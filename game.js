@@ -7848,6 +7848,10 @@ function applySurvivorsObstacleCollision() {
   if (!state._survArenaCache) return;
   const obstacles = state._survArenaCache.obstacles;
   if (!obstacles || obstacles.length === 0) return;
+  // v1.580: DEBUG counter — visas i diag-overlay så vi ser om funktionen körs
+  state._survCollisionStats = state._survCollisionStats || { calls: 0, obstacleCount: 0, enemiesResolved: 0, bulletsBlocked: 0 };
+  state._survCollisionStats.calls++;
+  state._survCollisionStats.obstacleCount = obstacles.length;
   // Player
   if (state.player && !state.player.dead) {
     _survResolveCollision(state.player, state.player.r || 14, obstacles);
@@ -7864,7 +7868,9 @@ function applySurvivorsObstacleCollision() {
   if (state.enemies) {
     for (const e of state.enemies) {
       if (!e || e.dead || e.isBoss) continue;
+      const beforeX = e.x, beforeY = e.y;
       _survResolveCollision(e, e.r || 14, obstacles);
+      if (e.x !== beforeX || e.y !== beforeY) state._survCollisionStats.enemiesResolved++;
     }
   }
   // Bullets — blockas av obstacles (både player + hostile)
@@ -7873,6 +7879,7 @@ function applySurvivorsObstacleCollision() {
       if (!b || b.dead) continue;
       if (_survPointInObstacle(b.x, b.y, obstacles)) {
         b.dead = true;
+        state._survCollisionStats.bulletsBlocked++;
         // Spawn liten impact-sparks för feedback
         if (typeof spawnSparks === 'function') {
           spawnSparks(b.x, b.y, b.color || '#888', 3, 80);
@@ -8338,6 +8345,25 @@ function drawSurvivorsArenaGround() {
   }
 
   ctx.restore();
+  // v1.580: DEBUG — rita röda rektanglar runt alla obstacles när diag är aktiv
+  // så användaren ser exakt var collision-boxar är + om de finns på kartan
+  if (window._pixiDiag && cache.obstacles) {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255, 80, 80, 0.7)';
+    ctx.lineWidth = 1.5;
+    for (const ob of cache.obstacles) {
+      const ox = ob.x - cx, oy = ob.y - cy;
+      if (ox < -60 || ox > viewW + 60 || oy < -60 || oy > viewH + 60) continue;
+      if (ob.isCircle) {
+        ctx.beginPath();
+        ctx.arc(ox, oy, ob.r, 0, Math.PI * 2);
+        ctx.stroke();
+      } else {
+        ctx.strokeRect(ox - ob.w / 2, oy - ob.h / 2, ob.w, ob.h);
+      }
+    }
+    ctx.restore();
+  }
 }
 
 // v1.533: Mini-boss-indicator (pekande pil mot off-screen boss i 4s)
@@ -17283,6 +17309,8 @@ function updatePixiDiagOverlay() {
     (pixiState._lastError ? `<div style="color:#ff5050;font-size:9px;max-width:200px;word-break:break-all;">ERR: ${pixiState._lastError}</div>` : '') +
     `<div>StressTest: ${state.stresstestActive ? '✓' : '✗'} CfgST: ${Coop && Coop.config && Coop.config.stresstest ? '✓' : '✗'}</div>` +
     `<div>SurvActive: ${state.survivorsActive ? '✓' : '✗'}</div>` +
+    (state.survivorsActive ? `<div style="color:#aaffaa;font-size:9px;">CoopHost:${Coop.isHost?'Y':'N'} SrvSim:${Coop.serverSimActive?'Y':'N'} Obst:${(state._survArenaCache&&state._survArenaCache.obstacles)?state._survArenaCache.obstacles.length:0}</div>` +
+    `<div style="color:#aaffaa;font-size:9px;">CollCalls:${(state._survCollisionStats&&state._survCollisionStats.calls)||0} EnRes:${(state._survCollisionStats&&state._survCollisionStats.enemiesResolved)||0} BlkBlk:${(state._survCollisionStats&&state._survCollisionStats.bulletsBlocked)||0}</div>` : '') +
     `<div>Canvas DOM: ${canvasInDom} z:${canvasZ}</div>` +
     `<div>Canvas size: ${canvasSize}</div>` +
     `<div>Cam: ${camX},${camY}</div>` +
