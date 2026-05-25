@@ -73,10 +73,10 @@ const SURVIVORS_ARENA = {
 
   // Rarity-färger (centraliserade så HUD/overlay matchar)
   rarityColors: {
-    gray:   { border: '#9a9a9a', glow: 'rgba(154,154,154,0.4)',  bgFrom: '#2a2a2a', bgTo: '#1a1a1a', text: '#cccccc' },
-    green:  { border: '#4ade80', glow: 'rgba(74,222,128,0.5)',   bgFrom: '#1a4a2a', bgTo: '#0a2a18', text: '#7ef0a0' },
-    blue:   { border: '#3b82f6', glow: 'rgba(59,130,246,0.55)',  bgFrom: '#1a3a6a', bgTo: '#0a1f4a', text: '#7aaaff' },
-    purple: { border: '#a855f7', glow: 'rgba(168,85,247,0.65)',  bgFrom: '#3a1a5a', bgTo: '#1f0a3a', text: '#d0a0ff' },
+    gray:   { border: '#cccccc', glow: 'rgba(200,200,200,0.6)',  bgFrom: '#5a5a5a', bgTo: '#3a3a3a', text: '#ffffff' },
+    green:  { border: '#5aff8a', glow: 'rgba(90,255,138,0.7)',   bgFrom: '#3a9a4a', bgTo: '#1a5a28', text: '#ffffff' },
+    blue:   { border: '#5acaff', glow: 'rgba(90,202,255,0.7)',   bgFrom: '#3a7aca', bgTo: '#1a4a8a', text: '#ffffff' },
+    purple: { border: '#c878ff', glow: 'rgba(200,120,255,0.75)', bgFrom: '#7a3aaa', bgTo: '#4a1a7a', text: '#ffffff' },
   },
 
   // v1.531/v1.532: FAST rarity-rates oavsett tid. Höjt purple från 7% till 12%

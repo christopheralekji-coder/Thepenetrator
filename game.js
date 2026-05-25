@@ -7871,15 +7871,8 @@ function applySurvivorsObstacleCollision() {
       }
     }
   }
-  // Enemies — alla utom bossar (de ska kunna gå igenom för pacing)
-  if (state.enemies) {
-    for (const e of state.enemies) {
-      if (!e || e.dead || e.isBoss) continue;
-      const beforeX = e.x, beforeY = e.y;
-      _survResolveCollision(e, e.r || 14, obstacles);
-      if (e.x !== beforeX || e.y !== beforeY) state._survCollisionStats.enemiesResolved++;
-    }
-  }
+  // v1.602: ENEMIES går nu genom obstacles — de fastnade och samlades vid walls.
+  // Endast player + bullets blockas. Player får cover, enemies attackerar fritt.
   // Bullets — blockas av obstacles (både player + hostile)
   if (state.bullets) {
     for (const b of state.bullets) {
