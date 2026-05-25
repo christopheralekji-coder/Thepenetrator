@@ -52,7 +52,8 @@ const HEIST_ARENA = {
 
   // === MATCH-CONFIG ===
   matchDurationSec:    720,    // 12 min total
-  stealthPhaseMaxSec:  240,    // 4 min innan auto-alarm
+  stealthPhaseMaxSec:  180,    // v1.625: 3 min (var 4) — för få mandatory actions
+  alarmPhaseMaxSec:    480,    // v1.625: 8 min cap — förhindrar match-lock
   drillDurationSec:    120,    // 2 min valv-drill
   extractDurationSec:  60,     // 1 min extract-fönster
 

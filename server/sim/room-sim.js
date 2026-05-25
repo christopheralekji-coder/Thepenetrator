@@ -4000,8 +4000,21 @@ function tickHeist(sim, dt, nowMs) {
       _heistTransitionPhase(sim, 'alarm', sim.heistAlarmTriggered ? 'triggered' : 'timeout', nowMs);
     }
   } else if (sim.heistPhase === 'alarm') {
-    // v1.620: Drill progress KRÄVER spelar-närvaro vid drill-spot.
-    // Tidigare auto-progressed → spelaren kunde sitta i ett hörn och vinna.
+    // v1.625: ALARM-FAS TIMEOUT (8 min) — förhindrar match-lock om ingen drillar
+    const alarmMaxMs = (arena.alarmPhaseMaxSec || 480) * 1000;
+    if (phaseElapsedMs >= alarmMaxMs) {
+      sim.heistEnded = true;
+      sim.heistActive = false;
+      sim.eventQueue.push({
+        type: 'heist_lose',
+        reason: 'alarm_timeout',
+        lootValue: sim.heistLootValue || 0,
+        elapsedSec: Math.round(elapsedMs / 1000),
+      });
+      return;
+    }
+    // v1.620/v1.625: Drill kräver player-närvaro OCH inga cops inom 80px
+    // → positional gameplay: "håll cops borta från drill" istället för "stand still"
     const drillSpot = arena.drillSpot || { x: 2000, y: 1920, r: 40 };
     const drillR2 = (drillSpot.r || 40) * (drillSpot.r || 40);
     let playerOnDrill = false;
@@ -4011,12 +4024,21 @@ function tickHeist(sim, dt, nowMs) {
       const dy = ws.playerState.y - drillSpot.y;
       if (dx * dx + dy * dy < drillR2) { playerOnDrill = true; break; }
     }
-    sim.heistDrilling = playerOnDrill;
-    if (playerOnDrill && sim.heistDrillProgress < 1.0) {
-      // Drill progressar baserat på dt + arena.drillDurationSec
+    // Check om cop inom 80px av drill (pause-radius)
+    let copNearDrill = false;
+    const copPauseR2 = 80 * 80;
+    if (sim.enemies && sim.enemies.length > 0) {
+      for (const e of sim.enemies) {
+        if (!e || e.dead) continue;
+        const dx = e.x - drillSpot.x, dy = e.y - drillSpot.y;
+        if (dx * dx + dy * dy < copPauseR2) { copNearDrill = true; break; }
+      }
+    }
+    sim.heistDrilling = playerOnDrill && !copNearDrill;
+    sim.heistDrillBlocked = copNearDrill;
+    if (sim.heistDrilling && sim.heistDrillProgress < 1.0) {
       const drillDurMs = (arena.drillDurationSec || 120) * 1000;
       sim.heistDrillProgress = Math.min(1.0, sim.heistDrillProgress + (dt * 1000 / drillDurMs));
-      // När drill klar: unlock vault-door
       if (sim.heistDrillProgress >= 1.0 && !sim.heistVaultUnlocked) {
         sim.heistVaultUnlocked = true;
         sim.eventQueue.push({ type: 'heist_vault_unlocked' });
@@ -4061,9 +4083,15 @@ function tickHeist(sim, dt, nowMs) {
     }
   }
 
-  // === v1.621: CAMERA-DETECTION (cone → alarm efter 2s exponering) ===
+  // === v1.621/v1.625: CAMERA-DETECTION per-camera timer (fix shared-timer-bug) ===
+  // Tidigare delade alla kameror EN timer per spelare → timer leakade mellan
+  // kameror. Nu per-(player, cam) via ws._heistCamDetect[camId].
   if (sim.heistPhase === 'stealth') {
-    let anyPlayerInCone = false;
+    for (const [, ws] of sim.room.members) {
+      if (!ws.playerState) continue;
+      ws._heistCamDetect = ws._heistCamDetect || {};
+      ws._heistCamSeenThisTick = {};
+    }
     for (const cam of (arena.cameras || [])) {
       if (sim.heistDisabledCameras && sim.heistDisabledCameras[cam.id]) continue;
       const camRange2 = (cam.range || 250) * (cam.range || 250);
@@ -4071,7 +4099,6 @@ function tickHeist(sim, dt, nowMs) {
       const dir = cam.dir || 0;
       for (const [, ws] of sim.room.members) {
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
-        // v1.624: HACKER-role är osynlig för kameror
         if (ws._heistCameraImmune) continue;
         const dx = ws.playerState.x - cam.x;
         const dy = ws.playerState.y - cam.y;
@@ -4082,21 +4109,25 @@ function tickHeist(sim, dt, nowMs) {
         while (angDiff > Math.PI) angDiff -= 2 * Math.PI;
         while (angDiff < -Math.PI) angDiff += 2 * Math.PI;
         if (Math.abs(angDiff) > cone) continue;
-        // PLAYER IN CONE
-        if (!ws._heistCamDetectStart) ws._heistCamDetectStart = nowMs;
-        anyPlayerInCone = true;
-        if (nowMs - ws._heistCamDetectStart > 2000) {
+        // v1.625: Också LOS-check så kameran inte ser genom väggar
+        if (_heistLineBlockedByWall(cam.x, cam.y, ws.playerState.x, ws.playerState.y, arena)) continue;
+        // PLAYER IN CONE — per-(player, cam) timer
+        if (!ws._heistCamDetect[cam.id]) ws._heistCamDetect[cam.id] = nowMs;
+        ws._heistCamSeenThisTick[cam.id] = true;
+        if (nowMs - ws._heistCamDetect[cam.id] > 2000) {
           sim.heistAlarmTriggered = true;
           sim.eventQueue.push({ type: 'heist_camera_detect', camId: cam.id });
         }
-        break; // detected by this cam — räcker
       }
     }
-    // Decay timers om ingen i cone
-    if (!anyPlayerInCone) {
-      for (const [, ws] of sim.room.members) {
-        if (ws._heistCamDetectStart && nowMs - ws._heistCamDetectStart > 500) {
-          ws._heistCamDetectStart = 0;
+    // Decay per-camera-per-player om ej sedd denna tick
+    for (const [, ws] of sim.room.members) {
+      if (!ws._heistCamDetect) continue;
+      for (const camId in ws._heistCamDetect) {
+        if (!ws._heistCamSeenThisTick || !ws._heistCamSeenThisTick[camId]) {
+          if (nowMs - ws._heistCamDetect[camId] > 500) {
+            delete ws._heistCamDetect[camId];
+          }
         }
       }
     }
@@ -4241,6 +4272,7 @@ function tickHeist(sim, dt, nowMs) {
       phaseElapsedSec: Math.round(phaseElapsedMs / 1000),
       drillProgress: sim.heistDrillProgress || 0,
       drilling: !!sim.heistDrilling,
+      drillBlocked: !!sim.heistDrillBlocked,
       lootValue: sim.heistLootValue || 0,
       lootBaggedCount: Object.keys(sim.heistLootBagged || {}).length,
       lootBagged: Object.keys(sim.heistLootBagged || {}),  // ID-lista
@@ -4315,18 +4347,17 @@ function _heistTickCivilian(npc, dt, nowMs, sim, players, arena) {
       npc.y += (dy / d) * (npc.speed * 0.3) * dt;
       npc.facing = Math.atan2(dy, dx);
     }
-    // Detect player med vapen draget (något annat än fists eller pistol)
+    // Detect player med vapen draget — kräver LOS (line-of-sight via walls)
     for (const p of players) {
       const pdx = p.x - npc.x, pdy = p.y - npc.y;
-      if (pdx * pdx + pdy * pdy < 180 * 180) {
-        // I stealth-fasen: alla vapen utom 'fists' triggar panik
-        if (p.weaponId !== 'fists') {
-          npc.state = 'panic';
-          npc._panicTarget = _heistNearestExit(npc.x, npc.y, arena);
-          sim.eventQueue.push({ type: 'heist_civilian_panic', npcId: npc.id, x: npc.x, y: npc.y });
-          break;
-        }
-      }
+      if (pdx * pdx + pdy * pdy >= 180 * 180) continue;
+      if (p.weaponId === 'fists') continue;
+      // v1.625: LOS-check — wall mellan civilian och player → ingen panik
+      if (_heistLineBlockedByWall(npc.x, npc.y, p.x, p.y, arena)) continue;
+      npc.state = 'panic';
+      npc._panicTarget = _heistNearestExit(npc.x, npc.y, arena);
+      sim.eventQueue.push({ type: 'heist_civilian_panic', npcId: npc.id, x: npc.x, y: npc.y });
+      break;
     }
   } else if (npc.state === 'panic') {
     // Spring mot närmaste exit
@@ -4371,7 +4402,7 @@ function _heistTickGuard(npc, dt, nowMs, sim, players, arena) {
       npc.y += (dy / d) * npc.speed * dt;
       npc.facing = Math.atan2(dy, dx);
     }
-    // Vision-cone check
+    // Vision-cone check — kräver LOS (wall blockerar)
     for (const p of players) {
       const pdx = p.x - npc.x, pdy = p.y - npc.y;
       const d2 = pdx * pdx + pdy * pdy;
@@ -4381,9 +4412,11 @@ function _heistTickGuard(npc, dt, nowMs, sim, players, arena) {
       while (angDiff > Math.PI) angDiff -= 2 * Math.PI;
       while (angDiff < -Math.PI) angDiff += 2 * Math.PI;
       if (Math.abs(angDiff) > npc.cone) continue;
+      // v1.625: LOS-check så guard inte ser genom väggar
+      if (_heistLineBlockedByWall(npc.x, npc.y, p.x, p.y, arena)) continue;
       // Player seen!
       npc.state = 'alert';
-      npc._alertUntil = nowMs + 1500; // 1.5s innan alarm triggas
+      npc._alertUntil = nowMs + 1500;
       npc._alertTarget = { x: p.x, y: p.y };
       sim.eventQueue.push({ type: 'heist_guard_alert', guardId: npc.id });
       break;
@@ -4405,8 +4438,52 @@ function _heistTickGuard(npc, dt, nowMs, sim, players, arena) {
 }
 
 function _heistNearestExit(x, y, arena) {
-  // Front-door är primary exit för civilians
-  return { x: 2000, y: 3500 };
+  // v1.625: välj närmaste exit av front/back (om back är låst, default front)
+  const exits = [{ x: 2000, y: 3500, id: 'front' }];
+  if (arena && arena.extractZones && arena.extractZones.back) {
+    exits.push({ x: 1950, y: 600, id: 'back' });
+  }
+  let best = exits[0], bestD2 = Infinity;
+  for (const e of exits) {
+    const dx = e.x - x, dy = e.y - y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD2) { bestD2 = d2; best = e; }
+  }
+  return best;
+}
+
+// v1.625: Liang-Barsky line-vs-AABB — true om wall mellan (x0,y0) och (x1,y1)
+function _heistLineBlockedByWall(x0, y0, x1, y1, arena) {
+  if (!arena || !arena.walls) return false;
+  const dx = x1 - x0, dy = y1 - y0;
+  for (const w of arena.walls) {
+    // Skip non-wall types (counter/pillar är lågt cover, blockerar inte LOS)
+    if (w.kind !== 'wall' && w.kind !== 'wall_vault') continue;
+    let tMin = 0, tMax = 1;
+    const checks = [
+      { p: -dx, q: x0 - w.x },
+      { p:  dx, q: w.x + w.w - x0 },
+      { p: -dy, q: y0 - w.y },
+      { p:  dy, q: w.y + w.h - y0 },
+    ];
+    let blocked = true;
+    for (const c of checks) {
+      if (c.p === 0) {
+        if (c.q < 0) { blocked = false; break; }
+      } else {
+        const t = c.q / c.p;
+        if (c.p < 0) {
+          if (t > tMax) { blocked = false; break; }
+          if (t > tMin) tMin = t;
+        } else {
+          if (t < tMin) { blocked = false; break; }
+          if (t < tMax) tMax = t;
+        }
+      }
+    }
+    if (blocked && tMin <= tMax) return true;
+  }
+  return false;
 }
 
 // När alarm triggas: konvertera guards till regular enemies så police-AI tar över
@@ -5625,7 +5702,10 @@ function startSim(sim, opts) {
       ws._heistLockpickDoorId = null;
       ws._heistLockpickFinishesAt = 0;
       ws._heistCamDetectStart = 0;
+      ws._heistCamDetect = {}; // v1.625: per-cam timer
+      ws._heistCamSeenThisTick = {};
       ws._heistMedicRegenAccum = 0;
+      ws._heistCameraImmune = false; // återställs i role-block om Hacker
       // v1.622: ROLE-effekter
       const role = (sim.heistRoles && sim.heistRoles[pid]) || 'hacker';
       ws._heistRole = role;

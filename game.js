@@ -16608,6 +16608,31 @@ const Audio = {
     this._tone(160, 0.6, 'sawtooth', 0.3, 0.05, 0.5, 80);
     this._noise(0.8, 0.3, { type: 'lowpass', freq: 200 });
   },
+  // v1.625: HEIST audio cues
+  heistAlarmBell() {
+    // Klassiskt alarm-bell — dubbel-puls
+    this._tone(700, 0.2, 'square', 0.4, 0.005, 0.18, 1100);
+    setTimeout(() => this._tone(700, 0.2, 'square', 0.4, 0.005, 0.18, 1100), 220);
+    setTimeout(() => this._tone(700, 0.2, 'square', 0.4, 0.005, 0.18, 1100), 440);
+  },
+  heistSiren() {
+    if (!this._throttle('heistSiren', 600)) return;
+    // Wail-effekt: pitch-sweep upp + ner
+    this._tone(440, 0.3, 'sawtooth', 0.25, 0.05, 0.25, 880);
+    setTimeout(() => this._tone(880, 0.3, 'sawtooth', 0.25, 0.05, 0.25, 440), 280);
+  },
+  heistCameraDetect() {
+    if (!this._throttle('heistCamDetect', 400)) return;
+    // Elektronisk "blip" stigande pitch — signaler "du blir detekterad"
+    this._tone(1200, 0.05, 'sine', 0.2, 0.001, 0.04);
+    setTimeout(() => this._tone(1600, 0.05, 'sine', 0.2, 0.001, 0.04), 80);
+    setTimeout(() => this._tone(2000, 0.05, 'sine', 0.2, 0.001, 0.04), 160);
+  },
+  heistDrillBuzz() {
+    if (!this._throttle('heistDrillBuzz', 100)) return;
+    // Konstant drill-buzz (loop-känsla)
+    this._tone(220, 0.1, 'sawtooth', 0.1, 0.001, 0.08, 50);
+  },
   bossPhase() {
     this._tone(110, 0.3, 'square', 0.4, 0.005, 0.25, 55);
     this._tone(440, 0.2, 'sawtooth', 0.2, 0.005, 0.18, 220);
@@ -23096,13 +23121,15 @@ const Coop = {
       state.heistPhaseStartT = Date.now();
       if (ev.phase === 'alarm') {
         if (typeof showToast === 'function') showToast('🚨 ALARM! Drilla valvet + bagga loot.');
-        if (typeof Audio !== 'undefined' && Audio.alert) Audio.alert();
+        // v1.625: alarm-bell ljud
+        if (typeof Audio !== 'undefined' && Audio.heistAlarmBell) Audio.heistAlarmBell();
         if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
         if (typeof triggerShake === 'function') triggerShake(10, 0.8);
       } else if (ev.phase === 'extract') {
         if (typeof showToast === 'function') showToast('🚐 EXTRACT — kom till getaway-van inom 60s!');
-        if (typeof Audio !== 'undefined' && Audio.bossSpawn) Audio.bossSpawn();
+        if (typeof Audio !== 'undefined' && Audio.heistSiren) Audio.heistSiren();
         if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
+        if (typeof triggerShake === 'function') triggerShake(8, 0.5);
       }
       if (typeof updateHeistHud === 'function') updateHeistHud();
     } else if (ev.type === 'heist_hud') {
@@ -23112,6 +23139,7 @@ const Coop = {
       state.heistPhaseElapsedSec = ev.phaseElapsedSec;
       state.heistDrillProgress = ev.drillProgress;
       state.heistDrilling = !!ev.drilling;
+      state.heistDrillBlocked = !!ev.drillBlocked;
       state.heistLootValue = ev.lootValue;
       state.heistLootBaggedCount = ev.lootBaggedCount;
       state.heistLootBagged = {};
@@ -23166,8 +23194,14 @@ const Coop = {
     } else if (ev.type === 'heist_camera_detect') {
       if (typeof showToast === 'function') showToast('🚨 KAMERA SÅG DIG!');
       if (typeof triggerShake === 'function') triggerShake(10, 0.5);
+      if (typeof Audio !== 'undefined' && Audio.heistCameraDetect) Audio.heistCameraDetect();
     } else if (ev.type === 'heist_police_wave') {
       if (typeof showToast === 'function') showToast('🚓 POLISER ANLÄNDER · ' + (ev.count || 0) + ' enheter');
+      if (typeof Audio !== 'undefined' && Audio.heistSiren) Audio.heistSiren();
+    } else if (ev.type === 'heist_loot_alarm') {
+      // v1.625: stealth-bagging av drawers/safe triggar alarm
+      if (typeof showToast === 'function') showToast('🚨 STÖLD UPPTÄCKT — alarm!');
+      if (typeof Audio !== 'undefined' && Audio.heistAlarmBell) Audio.heistAlarmBell();
     } else if (ev.type === 'heist_npcs') {
       // { npcs: [{id, t (type), st (subType), x, y, s (state), f (facing), cn (cone), rg (range)}] }
       state.heistNPCs = ev.npcs || [];
@@ -32394,10 +32428,33 @@ document.getElementById('btn-menu').addEventListener('click', () => {
   state.survivorsActive = false;
   state.survivorsEnded = false;
   document.body.classList.remove('survivors-mode');
-  // v1.619: HEIST cleanup
+  // v1.619/v1.625: HEIST komplett state-cleanup
   if (typeof hideHeistHud === 'function') hideHeistHud();
   state.heistActive = false;
   state.heistEnded = false;
+  state.heistPhase = null;
+  state.heistArena = null;
+  state.heistWalls = null;
+  state.heistDoors = null;
+  state.heistDecorations = null;
+  state.heistCameras = null;
+  state.heistHackTerminals = null;
+  state.heistLootSpots = null;
+  state.heistNPCs = null;
+  state.heistDroppedBags = null;
+  state.heistLootBagged = {};
+  state.heistHackedTerminals = {};
+  state.heistDisabledCameras = {};
+  state.heistUnlockedDoors = {};
+  state.heistVaultUnlocked = false;
+  state.heistMyBagsCarrying = 0;
+  state.heistMyBagsValue = 0;
+  state.heistMyLockpickEnd = 0;
+  state.heistMyLockpickDoorId = null;
+  state.heistDrillProgress = 0;
+  state.heistDrilling = false;
+  state.heistDrillBlocked = false;
+  state.heistLootValue = 0;
   document.body.classList.remove('heist-mode');
   if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
   refreshModeButtons();
@@ -35135,16 +35192,25 @@ function getHeistContextAction() {
     }
   }
 
-  // LOOT (under alarm + vault unlocked för vault-loot)
-  if (phase === 'alarm' && state.heistLootSpots) {
+  // v1.625: LOOT — non-vault loot (drawers/safe) baggable i ALLA fases (alarm-trigger
+  // i stealth). Vault-loot kräver alarm/extract + unlocked vault.
+  if (phase !== 'ended' && state.heistLootSpots) {
     for (const loot of state.heistLootSpots) {
       if (state.heistLootBagged && state.heistLootBagged[loot.id]) continue;
       const dx = px - loot.x, dy = py - loot.y;
       if (dx * dx + dy * dy < 60 * 60) {
-        // Vault-loot kräver unlocked vault
         const isVaultLoot = (loot.kind === 'cash_stack' || loot.kind === 'gold_stack');
-        if (isVaultLoot && !state.heistVaultUnlocked) continue;
-        return { label: '💰 BAGGA $' + (loot.value || 0).toLocaleString(), action: 'bag_loot', lootId: loot.id };
+        if (isVaultLoot) {
+          // Vault — kräver alarm/extract + unlocked
+          if (phase !== 'alarm' && phase !== 'extract') continue;
+          if (!state.heistVaultUnlocked) continue;
+        }
+        // Visuell varning för stealth-bagging
+        const warning = (phase === 'stealth' && !isVaultLoot) ? ' ⚠' : '';
+        return {
+          label: '💰 BAGGA $' + (loot.value || 0).toLocaleString() + warning,
+          action: 'bag_loot', lootId: loot.id,
+        };
       }
     }
   }
@@ -35269,12 +35335,27 @@ function updateHeistHud() {
     phaseEl.textContent = '🚨 ALARM';
     phaseEl.style.borderColor = '#ff5050';
     phaseEl.style.color = '#ff8080';
-    if (objEl) objEl.textContent = 'Drilla valvet · Bagga loot · Försvar mot polis';
+    if (objEl) {
+      // v1.625: indikera drill-blocked-state
+      if (state.heistDrillBlocked) {
+        objEl.textContent = '⛔ COPS BLOCKERAR DRILL · rensa zonen!';
+        objEl.style.color = '#ff8080';
+      } else {
+        objEl.textContent = 'Drilla valvet · Bagga loot · Försvar mot polis';
+        objEl.style.color = '#fff';
+      }
+    }
   } else if (phase === 'extract') {
     phaseEl.textContent = '🚐 EXTRACT';
     phaseEl.style.borderColor = '#5aff5a';
     phaseEl.style.color = '#5aff8a';
-    if (objEl) objEl.textContent = 'Få ut säckarna till getaway-van!';
+    // v1.625: countdown i objective-text
+    const extractDur = (state.heistArena && state.heistArena.extractDurationSec) || 60;
+    const remain = Math.max(0, extractDur - (state.heistPhaseElapsedSec || 0));
+    if (objEl) {
+      objEl.textContent = '🚐 ' + remain + 's KVAR — kom till van!';
+      objEl.style.color = remain < 10 ? '#ff5050' : '#fff';
+    }
   }
   // Timer
   const sec = state.heistElapsedSec || 0;

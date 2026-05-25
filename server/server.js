@@ -975,15 +975,28 @@ function handleMessage(ws, msg) {
       const lootId = String(msg.lootId || '');
       const loot = HEIST_ARENA.lootSpots.find(l => l.id === lootId);
       if (!loot) return;
-      // Måste vara i alarm- eller extract-fas
-      if (sim.heistPhase !== 'alarm' && sim.heistPhase !== 'extract') return;
+      // v1.625: Stealth-accessible loot — cash drawers + manager safe kan baggas
+      // i stealth också. Vault-loot (cash_stack/gold_stack) kräver alarm + drill.
+      const isVaultLoot = (loot.kind === 'cash_stack' || loot.kind === 'gold_stack');
+      if (isVaultLoot) {
+        // Vault-loot kräver alarm/extract + unlocked vault
+        if (sim.heistPhase !== 'alarm' && sim.heistPhase !== 'extract') return;
+        if (!sim.heistVaultUnlocked) return;
+      } else {
+        // Drawers + safe kan baggas i alla phases (inkl stealth för risky-reward)
+        if (sim.heistPhase === 'ended') return;
+      }
       // Inte redan bagged
       if (sim.heistLootBagged[lootId]) return;
       // Range-check (60px radius)
       const dx = ps.x - loot.x, dy = ps.y - loot.y;
       if (dx * dx + dy * dy > 60 * 60) return;
-      // Vault-loot kräver att valvet är upplåst (drill klar)
-      if ((loot.kind === 'cash_stack' || loot.kind === 'gold_stack') && !sim.heistVaultUnlocked) return;
+      // v1.625: Stealth-bagging av cash_drawer/manager_safe = INSTANT ALARM
+      // (du kan inte stjäla framför cashier utan att de märker det)
+      if (!isVaultLoot && sim.heistPhase === 'stealth') {
+        sim.heistAlarmTriggered = true;
+        sim.eventQueue.push({ type: 'heist_loot_alarm', lootKind: loot.kind });
+      }
       // v1.621: Bag → carry-weight på spelaren (säkras vid extract-van)
       // v1.624: Använd faktisk loot.weight per typ (0.05-0.40) istället för flat 0.10
       sim.heistLootBagged[lootId] = true;
