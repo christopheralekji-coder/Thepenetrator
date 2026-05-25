@@ -127,33 +127,42 @@ const HEIST_ARENA = {
     { x: 3150, y: 1075, w: 225,  h: 25, kind: 'wall' },
 
     // ============ ROW 2 (y=1100-1700) — NET CLOSET | VAULT OUTER | SECURITY ============
-    // NETWORK CLOSET east wall (x=900, y=1100-1500) — hidden door at y=1400-1475
-    { x: 900,  y: 1100, w: 25,   h: 300, kind: 'wall' },
-    { x: 900,  y: 1475, w: 25,   h: 25,  kind: 'wall' },
-    // NETWORK CLOSET south wall (y=1475, x=620-900) — door at x=720-800
-    { x: 625,  y: 1475, w: 95,   h: 25, kind: 'wall' },
-    { x: 800,  y: 1475, w: 100,  h: 25, kind: 'wall' },
-    // VAULT OUTER walls already extend from inner (x=1300, x=2700, going down)
+    // NETWORK CLOSET east wall (x=900, y=1100-1500)
+    { x: 900,  y: 1100, w: 25,   h: 400, kind: 'wall' },
+    // NETWORK CLOSET south wall (y=1500, x=620-900) — door at x=720-800
+    { x: 625,  y: 1500, w: 95,   h: 25, kind: 'wall' },
+    { x: 800,  y: 1500, w: 100,  h: 25, kind: 'wall' },
+    // Service corridor mellan storage (Row 1) och vault (Row 2) — vägg vid x=1075-1300
+    // för att tjäna som inre korridor north of net-closet east-wall.
+    // Storage east wall (x=1075) går till y=1075. Vid x=1100-1300 i Row 1 saknas
+    // wall — det är öppen "corridor" till Row 2. Vi lämnar öppen för stealth-route.
+    // VAULT OUTER walls
     { x: 1300, y: 1100, w: 25,   h: 575, kind: 'wall_vault' }, // west
     { x: 2675, y: 1100, w: 25,   h: 575, kind: 'wall_vault' }, // east
-    // VAULT OUTER south wall (y=1675, x=1300-2700) door x=1900-2100 (outer-vault, drillable)
+    // VAULT OUTER south wall (y=1675, x=1300-2700) door x=1900-2100 (drillable)
     { x: 1325, y: 1675, w: 575,  h: 25, kind: 'wall_vault' },
     { x: 2100, y: 1675, w: 575,  h: 25, kind: 'wall_vault' },
+    // v1.629: SECURITY NORTH WALL (y=1100, x=2750-3375) — SAKNADES tidigare
+    { x: 2750, y: 1100, w: 625,  h: 25, kind: 'wall' },
     // SECURITY west wall (x=2750, y=1100-1675)
     { x: 2750, y: 1100, w: 25,   h: 575, kind: 'wall' },
-    // SECURITY south wall (y=1675, x=2750-3380) door x=2950-3030 (lockpickable)
-    { x: 2775, y: 1675, w: 175,  h: 25, kind: 'wall' },
+    // SECURITY south wall (y=1675, x=2750-3375) door x=2950-3030 (lockpickable)
+    // v1.629: Startade på 2775, lämnade 25px gap — fixat till 2750
+    { x: 2750, y: 1675, w: 200,  h: 25, kind: 'wall' },
     { x: 3030, y: 1675, w: 345,  h: 25, kind: 'wall' },
 
     // ============ ROW 3 (y=1700-2000) — SERVER | HALLWAY | MANAGER RECEPTION ============
-    // SERVER north wall (y=1500, x=620-1100) door x=820-900 (open)
-    // (already covered in NETWORK CLOSET south split — but server needs separate wall north)
-    // Actually network-closet south = server north. We've split. OK.
+    // v1.629: SERVER ROOM walls — fullt enclosed
     // SERVER east wall (x=1100, y=1500-2000) door x=1100, y=1800-1880
-    { x: 1100, y: 1500, w: 25,   h: 275, kind: 'wall' },
+    { x: 1100, y: 1500, w: 25,   h: 300, kind: 'wall' },
     { x: 1100, y: 1880, w: 25,   h: 95,  kind: 'wall' },
     // SERVER south wall (y=1975, x=620-1100)
     { x: 625,  y: 1975, w: 475,  h: 25, kind: 'wall' },
+    // v1.629: Täta Row 1 / Row 2 boundary mellan rum (annars läcker rummen ihop)
+    // Mellan storage-east och vault-inner-west (x=1075-1300, y=1075-1100)
+    { x: 1100, y: 1075, w: 200,  h: 25, kind: 'wall' },
+    // Mellan vault-inner-east och locker-west (x=2700-2925, y=1075-1100)
+    { x: 2700, y: 1075, w: 225,  h: 25, kind: 'wall' },
     // HALLWAY west/east already from vault-outer down to 1975
     { x: 1300, y: 1700, w: 25,   h: 275, kind: 'wall' }, // west cont.
     { x: 2675, y: 1700, w: 25,   h: 275, kind: 'wall' }, // east cont.

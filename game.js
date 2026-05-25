@@ -70048,6 +70048,162 @@ function drawMiniMap() {
       ctx.fillRect(ox + c.x * scale - 1, oy + c.y * scale - 1, 3, 3);
     }
   }
+  // v1.629: HEIST — komplett minimap-rendering (walls + doors + rooms + loot + cameras + NPCs)
+  if (state.heistActive) {
+    // ROOM FLOORS — färgade rektanglar per rum (subtila bakgrundsfärger)
+    const rooms = [
+      { x: 620,  y: 720,  w: 480, h: 355, c: 'rgba(60,55,40,0.6)' },     // storage
+      { x: 1300, y: 720,  w: 1400, h: 355, c: 'rgba(40,30,20,0.8)' },    // vault inner (DARK)
+      { x: 2900, y: 720,  w: 480, h: 355, c: 'rgba(80,80,80,0.6)' },     // locker
+      { x: 620,  y: 1100, w: 280, h: 400, c: 'rgba(40,70,100,0.6)' },    // network closet
+      { x: 1300, y: 1100, w: 1400, h: 575, c: 'rgba(80,60,30,0.7)' },    // vault outer
+      { x: 2750, y: 1100, w: 630, h: 575, c: 'rgba(80,30,30,0.6)' },     // security
+      { x: 620,  y: 1500, w: 480, h: 475, c: 'rgba(40,70,100,0.6)' },    // server
+      { x: 1300, y: 1700, w: 1400, h: 275, c: 'rgba(170,140,100,0.5)' }, // hallway
+      { x: 2750, y: 1700, w: 630, h: 700, c: 'rgba(140,60,80,0.5)' },    // manager office
+      { x: 620,  y: 2000, w: 680, h: 400, c: 'rgba(120,90,60,0.5)' },    // break room
+      { x: 1300, y: 2000, w: 400, h: 400, c: 'rgba(70,70,100,0.5)' },    // conference
+      { x: 1700, y: 2000, w: 400, h: 400, c: 'rgba(170,140,100,0.4)' },  // CENTRAL CORRIDOR
+      { x: 2100, y: 2000, w: 600, h: 400, c: 'rgba(120,130,150,0.5)' },  // toilet
+      { x: 1300, y: 2450, w: 1380, h: 250, c: 'rgba(170,140,100,0.5)' }, // behind-counter
+      { x: 620,  y: 2700, w: 2760, h: 400, c: 'rgba(190,160,120,0.4)' }, // main lobby
+      { x: 620,  y: 3100, w: 2760, h: 200, c: 'rgba(140,110,80,0.4)' },  // reception
+    ];
+    for (const r of rooms) {
+      if (!inMmView(r.x, r.y, r.w, r.h)) continue;
+      ctx.fillStyle = r.c;
+      ctx.fillRect(ox + r.x * scale, oy + r.y * scale, r.w * scale, r.h * scale);
+    }
+    // WALLS — solid mörk-grå
+    if (state.heistWalls) {
+      ctx.fillStyle = 'rgba(40,40,50,0.95)';
+      for (const w of state.heistWalls) {
+        if (!inMmView(w.x, w.y, w.w, w.h)) continue;
+        ctx.fillRect(ox + w.x * scale, oy + w.y * scale, Math.max(1, w.w * scale), Math.max(1, w.h * scale));
+      }
+    }
+    // DOORS — färgade efter status
+    if (state.heistDoors) {
+      for (const d of state.heistDoors) {
+        if (!inMmView(d.x, d.y, d.w, d.h)) continue;
+        let dc = '#7a5a3a'; // normal
+        if (d.kind === 'vault_door') dc = d.locked ? '#5a3030' : '#5acaff';
+        else if (d.locked && d.lockpickable) dc = '#aa7030';
+        else if (d.locked) dc = '#5a3030';
+        ctx.fillStyle = dc;
+        ctx.fillRect(ox + d.x * scale, oy + d.y * scale, Math.max(2, d.w * scale), Math.max(2, d.h * scale));
+      }
+    }
+    // EXTRACT ZONES — pulserande grön
+    if (state.heistArena && state.heistArena.extractZones) {
+      const ezPulse = 0.5 + 0.5 * Math.sin(mmNow / 350);
+      for (const k of Object.keys(state.heistArena.extractZones)) {
+        const ez = state.heistArena.extractZones[k];
+        if (!ez) continue;
+        if (ez.locked && k !== 'front' && !(state.heistBackExtractUnlocked || (state.heistUnlockedDoors && state.heistUnlockedDoors[k === 'back' ? 'back' : 'loading']))) {
+          ctx.fillStyle = 'rgba(120,90,40,0.4)'; // låst — orange
+        } else {
+          ctx.fillStyle = 'rgba(90,255,138,' + (0.3 + ezPulse * 0.3) + ')';
+        }
+        ctx.fillRect(ox + ez.x * scale, oy + ez.y * scale, ez.w * scale, ez.h * scale);
+      }
+    }
+    // CAMERAS — röd punkt + vision-cone (om enabled)
+    if (state.heistCameras) {
+      for (const cam of state.heistCameras) {
+        const cmx = ox + cam.x * scale, cmy = oy + cam.y * scale;
+        const disabled = state.heistDisabledCameras && state.heistDisabledCameras[cam.id];
+        // Vision-cone (subtle på minimap)
+        if (!disabled && cam.range && cam.cone) {
+          ctx.fillStyle = 'rgba(255,48,48,0.12)';
+          ctx.beginPath();
+          ctx.moveTo(cmx, cmy);
+          ctx.arc(cmx, cmy, cam.range * scale, cam.dir - cam.cone, cam.dir + cam.cone);
+          ctx.closePath();
+          ctx.fill();
+        }
+        ctx.fillStyle = disabled ? '#5aff5a' : '#ff3030';
+        ctx.beginPath(); ctx.arc(cmx, cmy, 2, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // HACK-TERMINALS — cyan dots, grön om hackad
+    if (state.heistHackTerminals) {
+      for (const term of state.heistHackTerminals) {
+        const tmx = ox + term.x * scale, tmy = oy + term.y * scale;
+        const hacked = state.heistHackedTerminals && state.heistHackedTerminals[term.id];
+        ctx.fillStyle = hacked ? '#5aff5a' : '#5acaff';
+        ctx.fillRect(tmx - 2, tmy - 2, 4, 4);
+        if (term.master) {
+          ctx.strokeStyle = '#ffd54a';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(tmx - 3, tmy - 3, 6, 6);
+        }
+      }
+    }
+    // LOOT-SPOTS — gold dots, mörkare om bagged
+    if (state.heistLootSpots) {
+      for (const loot of state.heistLootSpots) {
+        const lmx = ox + loot.x * scale, lmy = oy + loot.y * scale;
+        const bagged = state.heistLootBagged && state.heistLootBagged[loot.id];
+        if (bagged) {
+          ctx.fillStyle = 'rgba(100,80,30,0.5)';
+          ctx.beginPath(); ctx.arc(lmx, lmy, 1.5, 0, Math.PI * 2); ctx.fill();
+        } else {
+          const isMega = loot.kind === 'gold_mega_stack';
+          ctx.fillStyle = isMega ? '#ffd54a' : (loot.kind === 'gold_stack' ? '#ffae3a' : '#5aff8a');
+          ctx.beginPath(); ctx.arc(lmx, lmy, isMega ? 3 : 2, 0, Math.PI * 2); ctx.fill();
+          if (isMega) {
+            const lootPulse = 0.6 + 0.4 * Math.sin(mmNow / 250);
+            ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 6 * lootPulse;
+            ctx.beginPath(); ctx.arc(lmx, lmy, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+        }
+      }
+    }
+    // DROPPED BAGS — pulserande grön
+    if (state.heistDroppedBags) {
+      const bagPulse = 0.6 + 0.4 * Math.sin(mmNow / 300);
+      for (const bag of state.heistDroppedBags) {
+        const bmx = ox + bag.x * scale, bmy = oy + bag.y * scale;
+        ctx.fillStyle = 'rgba(90,255,138,' + bagPulse + ')';
+        ctx.fillRect(bmx - 2, bmy - 2, 4, 4);
+      }
+    }
+    // DRILL SPOT — orange X
+    if (state.heistArena && state.heistArena.drillSpot) {
+      const ds = state.heistArena.drillSpot;
+      const dmx = ox + ds.x * scale, dmy = oy + ds.y * scale;
+      ctx.strokeStyle = '#ff8a3a'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(dmx - 4, dmy - 4); ctx.lineTo(dmx + 4, dmy + 4);
+      ctx.moveTo(dmx + 4, dmy - 4); ctx.lineTo(dmx - 4, dmy + 4);
+      ctx.stroke();
+    }
+    // INNER DRILL SPOT
+    if (state.heistArena && state.heistArena.drillSpotInner) {
+      const ds = state.heistArena.drillSpotInner;
+      const dmx = ox + ds.x * scale, dmy = oy + ds.y * scale;
+      ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(dmx - 4, dmy - 4); ctx.lineTo(dmx + 4, dmy + 4);
+      ctx.moveTo(dmx + 4, dmy - 4); ctx.lineTo(dmx - 4, dmy + 4);
+      ctx.stroke();
+    }
+    // NPCs — civilians blå, guards orange
+    if (state.heistNPCs) {
+      for (const n of state.heistNPCs) {
+        const nmx = ox + n.x * scale, nmy = oy + n.y * scale;
+        if (n.t === 'civilian') {
+          ctx.fillStyle = n.s === 'panic' ? '#ff8a3a' : (n.s === 'hostage' ? '#5aff8a' : '#5acaff');
+        } else if (n.t === 'guard') {
+          ctx.fillStyle = n.s === 'alert' ? '#ff5050' : '#ffae3a';
+        }
+        ctx.beginPath(); ctx.arc(nmx, nmy, 1.5, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
   // v1.418: CASTLE DEFENSE — walls + buildings + core + pings på minimap
   if (state.castledefenseActive) {
     // Walls — grå rektanglar
