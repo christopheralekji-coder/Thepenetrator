@@ -57219,11 +57219,28 @@ function _drawBossMilitaryBase(e, flash, now, phase, opts) {
 
 // THE WITHERED ELDER — VETERAN forest-commander (military med druid-power signatures)
 BOSS_DRAW.witheredelder = function(e, flash, now, phase, moving) {
-  const base = _drawBossMilitaryBase(e, flash, now, phase, {
-    pants: '#3a4426', pantsDark: '#1a2410',
-    shirt: '#4a5a30', armor: '#1a2418', armorLight: '#2a3a1c',
-    buckle: '#9aff5a',
-  });
+  // v1.590 DEBUG: cyan square DIREKT (ej via _drawBossMilitaryBase).
+  // Om cyan syns men inte pink-ring → _drawBossMilitaryBase kraschar.
+  ctx.fillStyle = '#00ffff';
+  ctx.shadowColor = '#00ffff';
+  ctx.shadowBlur = 20;
+  ctx.fillRect(-e.r * 2.2, -e.r * 2.2, e.r * 0.6, e.r * 0.6);
+  ctx.shadowBlur = 0;
+  let base;
+  try {
+    base = _drawBossMilitaryBase(e, flash, now, phase, {
+      pants: '#3a4426', pantsDark: '#1a2410',
+      shirt: '#4a5a30', armor: '#1a2418', armorLight: '#2a3a1c',
+      buckle: '#9aff5a',
+    });
+  } catch (err) {
+    // Om kraschar — visa orange marker
+    ctx.fillStyle = '#ff8800';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('ERR:' + (err.message || err).slice(0, 30), 0, -e.r * 3.0);
+    base = { r: e.r };
+  }
   const r = base.r;
   const glow = '#5aff8a';
   const accent = '#aaff5a';
