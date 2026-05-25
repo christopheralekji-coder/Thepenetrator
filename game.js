@@ -7799,35 +7799,50 @@ function _ensureSurvivorsArenaCache() {
   return cache;
 }
 
-// v1.578: COLLISION HELPERS för survivors-obstacles
-// AABB-baserat med padding för approximation av roterade walls. Pillars är cirklar.
+// v1.604: COLLISION baserat på proven CTF-pattern (shared/ctf-arena.js)
+// Walls i top-left + width/height format. Per-axis min-push.
+// Iterativ resolving (3 passes) för att fixa multi-obstacle-överlapp.
 function _survResolveCollision(ent, entR, obstacles) {
-  for (const ob of obstacles) {
-    if (ob.isCircle) {
-      const dx = ent.x - ob.x, dy = ent.y - ob.y;
-      const d = Math.sqrt(dx * dx + dy * dy);
-      const minD = ob.r + entR;
-      if (d < minD && d > 0.01) {
-        ent.x = ob.x + (dx / d) * minD;
-        ent.y = ob.y + (dy / d) * minD;
-      } else if (d < 0.01) {
-        ent.x = ob.x + minD; // avoid divide-by-zero
-      }
-    } else {
-      const halfW = ob.w / 2 + entR;
-      const halfH = ob.h / 2 + entR;
-      const dx = ent.x - ob.x;
-      const dy = ent.y - ob.y;
-      if (Math.abs(dx) < halfW && Math.abs(dy) < halfH) {
-        const ovX = halfW - Math.abs(dx);
-        const ovY = halfH - Math.abs(dy);
-        if (ovX < ovY) {
-          ent.x = ob.x + (dx >= 0 ? halfW : -halfW);
-        } else {
-          ent.y = ob.y + (dy >= 0 ? halfH : -halfH);
+  // 3 passes — fixar oscillation när entity överlappar flera obstacles samtidigt
+  for (let pass = 0; pass < 3; pass++) {
+    let anyOverlap = false;
+    for (const ob of obstacles) {
+      if (ob.isCircle) {
+        // Circle (pillars) — push out along radial direction
+        const dx = ent.x - ob.x, dy = ent.y - ob.y;
+        const d = Math.sqrt(dx * dx + dy * dy);
+        const minD = ob.r + entR;
+        if (d < minD) {
+          anyOverlap = true;
+          if (d > 0.01) {
+            ent.x = ob.x + (dx / d) * minD;
+            ent.y = ob.y + (dy / d) * minD;
+          } else {
+            ent.x = ob.x + minD;
+          }
         }
+      } else {
+        // AABB (walls/vehicles/sandbags) — CTF-style per-axis min-push
+        // Konvertera center-coords till top-left format
+        const wx = ob.x - ob.w / 2;
+        const wy = ob.y - ob.h / 2;
+        // Overlap-check (entity som cirkel, wall som AABB)
+        if (ent.x + entR < wx || ent.x - entR > wx + ob.w ||
+            ent.y + entR < wy || ent.y - entR > wy + ob.h) continue;
+        anyOverlap = true;
+        // Per-axis push-out (samma som resolveCtfWall)
+        const pushLeft = (ent.x + entR) - wx;          // push left if positive
+        const pushRight = (wx + ob.w) - (ent.x - entR); // push right
+        const pushTop = (ent.y + entR) - wy;            // push up
+        const pushBot = (wy + ob.h) - (ent.y - entR);   // push down
+        const minPush = Math.min(pushLeft, pushRight, pushTop, pushBot);
+        if (minPush === pushLeft)       ent.x -= pushLeft;
+        else if (minPush === pushRight) ent.x += pushRight;
+        else if (minPush === pushTop)   ent.y -= pushTop;
+        else                            ent.y += pushBot;
       }
     }
+    if (!anyOverlap) break; // no more overlaps — done
   }
 }
 
@@ -7837,9 +7852,9 @@ function _survPointInObstacle(x, y, obstacles) {
       const dx = x - ob.x, dy = y - ob.y;
       if (dx * dx + dy * dy < ob.r * ob.r) return true;
     } else {
-      const halfW = ob.w / 2;
-      const halfH = ob.h / 2;
-      if (Math.abs(x - ob.x) < halfW && Math.abs(y - ob.y) < halfH) return true;
+      const wx = ob.x - ob.w / 2;
+      const wy = ob.y - ob.h / 2;
+      if (x >= wx && x <= wx + ob.w && y >= wy && y <= wy + ob.h) return true;
     }
   }
   return false;
@@ -68154,7 +68169,10 @@ function runFrame(dt, now) {
       updateStageAmbient(dt);
 
       // I server-auth mode beter sig host som klient (server kör sim)
-      let isCoopClient = Coop.active && (!Coop.isHost || Coop.serverSimActive);
+      // v1.604: SURVIVORS forcerar klient-sim — server saknar obstacle-data och
+      // player-position-sync verkar oförutsägbar → enemies path mot fel target.
+      // Klient-sim ger korrekt findNearestPlayer + walls fungerar.
+      let isCoopClient = Coop.active && (!Coop.isHost || Coop.serverSimActive) && !state.survivorsActive;
 
       // SAFETY: Om server-sim är på men servern inte spawnar enemies på 40s,
       // fallback till host-mode. 40s är medvetet hög så Render free-tier
@@ -68228,11 +68246,8 @@ function runFrame(dt, now) {
         if (!countdownActive) updateEnemies(dt, now);
         updateHazards(dt);
         updatePickups(dt);
-        // v1.578: SURVIVORS — obstacle-collision (väggar/fordon/pelare/sandbags)
-        // Resolveras EFTER movement så push-out fungerar mot färska positioner
-        if (typeof applySurvivorsObstacleCollision === 'function') {
-          applySurvivorsObstacleCollision();
-        }
+        // v1.604: SURVIVORS-collision flyttad UTANFÖR host/client-branch (kör alltid)
+        // Tidigare här + utanför = DUBBEL CALL = "fastnar i luften"-bugg
       } else {
         // KLIENT: kör interpolation mot host's positions (smooth).
         // lerpFactor 12→25→35: gammal smoothing tog ~220ms att nå 95% av ny target.

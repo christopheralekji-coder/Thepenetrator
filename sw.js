@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v603-collision-drops-rates';
+const CACHE = 'penetrator-v604-collision-rewrite-klient-sim';
 const ASSETS = [
   './',
   './index.html',
