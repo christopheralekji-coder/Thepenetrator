@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v619-heist-iter1-bank-map';
+const CACHE = 'penetrator-v620-heist-iter1.5-playable';
 const ASSETS = [
   './',
   './index.html',

@@ -959,6 +959,65 @@ function handleMessage(ws, msg) {
     });
     return;
   }
+  // v1.620: HEIST actions — bag loot, start drill (alarm trigger), hack terminal
+  if (msg.type === 'sim_heist_action') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    const sim = room.sim;
+    if (!sim.heistActive || sim.heistEnded) return;
+    const { HEIST_ARENA } = require('../shared/heist-arena');
+    const action = String(msg.action || '');
+    const ps = ws.playerState;
+    if (!ps || ps.hp <= 0) return;
+
+    if (action === 'bag_loot') {
+      const lootId = String(msg.lootId || '');
+      const loot = HEIST_ARENA.lootSpots.find(l => l.id === lootId);
+      if (!loot) return;
+      // Måste vara i alarm-fas
+      if (sim.heistPhase !== 'alarm') return;
+      // Inte redan bagged
+      if (sim.heistLootBagged[lootId]) return;
+      // Range-check (60px radius)
+      const dx = ps.x - loot.x, dy = ps.y - loot.y;
+      if (dx * dx + dy * dy > 60 * 60) return;
+      // Vault-loot kräver att valvet är upplåst (drill klar)
+      if ((loot.kind === 'cash_stack' || loot.kind === 'gold_stack') && !sim.heistVaultUnlocked) return;
+      // Markera bagged + ge värde
+      sim.heistLootBagged[lootId] = true;
+      sim.heistLootValue = (sim.heistLootValue || 0) + (loot.value || 0);
+      sim.eventQueue.push({
+        type: 'heist_loot_bagged',
+        lootId,
+        baggerPid: ws.id,
+        value: loot.value,
+        totalValue: sim.heistLootValue,
+      });
+    } else if (action === 'start_drill') {
+      // Triggar alarm-fas omedelbart om i stealth
+      if (sim.heistPhase === 'stealth') {
+        sim.heistAlarmTriggered = true;
+        // Phase-byte sker i nästa tick
+      }
+    } else if (action === 'hack_terminal') {
+      const termId = String(msg.terminalId || '');
+      const term = HEIST_ARENA.hackTerminals.find(t => t.id === termId);
+      if (!term) return;
+      const dx = ps.x - term.x, dy = ps.y - term.y;
+      if (dx * dx + dy * dy > 50 * 50) return;
+      sim.heistHackedTerminals = sim.heistHackedTerminals || {};
+      if (sim.heistHackedTerminals[termId]) return;
+      sim.heistHackedTerminals[termId] = true;
+      sim.heistDisabledCameras = sim.heistDisabledCameras || {};
+      for (const camId of (term.disables || [])) sim.heistDisabledCameras[camId] = true;
+      sim.eventQueue.push({
+        type: 'heist_terminal_hacked',
+        terminalId: termId,
+        disabledCameras: term.disables,
+      });
+    }
+    return;
+  }
   // v1.607: SURVIVORS shop-buy — validera + dra gold + ge weapon
   if (msg.type === 'sim_survivors_buy') {
     const room = rooms.get(ws.roomCode);

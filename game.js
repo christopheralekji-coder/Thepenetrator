@@ -8686,20 +8686,31 @@ function drawHeistWalls() {
   }
   // === DOORS (visuella, ren färg per typ) ===
   if (state.heistDoors) {
+    const tPulse = performance.now();
     for (const d of state.heistDoors) {
       const x = d.x - cx, y = d.y - cy;
       if (x + d.w < 0 || x > viewW || y + d.h < 0 || y > viewH) continue;
       let col = '#aa7a3a';
-      if (d.kind === 'vault_door') col = d.locked ? '#5a4a3a' : '#ffae3a';
-      else if (d.kind === 'back_door') col = d.locked ? '#3a2a2a' : '#7a5a3a';
+      if (d.kind === 'vault_door') {
+        if (d.locked) col = '#5a4a3a';
+        else col = '#5acaff'; // unlocked = blå glow
+      } else if (d.kind === 'back_door') col = d.locked ? '#3a2a2a' : '#7a5a3a';
       else if (d.kind === 'main_door') col = '#aa8a5a';
       else if (d.kind === 'side_door') col = '#7a5a4a';
       ctx.fillStyle = col;
       ctx.fillRect(x, y, d.w, d.h);
-      // Lock-indicator
+      // Lock-indicator (röd när låst)
       if (d.locked) {
         ctx.fillStyle = '#ff5050';
         ctx.fillRect(x + d.w / 2 - 3, y + d.h / 2 - 3, 6, 6);
+      } else if (d.kind === 'vault_door') {
+        // Unlocked vault — pulserande blå glow
+        const p = 0.5 + 0.5 * Math.sin(tPulse / 300);
+        ctx.shadowColor = '#5acaff';
+        ctx.shadowBlur = 12 + p * 8;
+        ctx.fillStyle = 'rgba(90,202,255,' + (0.4 + p * 0.4) + ')';
+        ctx.fillRect(x - 2, y - 2, d.w + 4, d.h + 4);
+        ctx.shadowBlur = 0;
       }
     }
   }
@@ -8708,17 +8719,124 @@ function drawHeistWalls() {
 function drawHeistDecorations() {
   if (!state.heistDecorations) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const t = performance.now();
+  const pulse = 0.7 + 0.3 * Math.sin(t / 250);
+
+  // Bagged loot-IDs för "tom"-rendering
+  const bagged = state.heistLootBagged || {};
+  const baggedKindAt = {};
+  if (state.heistLootSpots) {
+    for (const loot of state.heistLootSpots) {
+      if (bagged[loot.id]) baggedKindAt[loot.x + '_' + loot.y] = true;
+    }
+  }
+
   for (const dec of state.heistDecorations) {
     const x = dec.x - cx, y = dec.y - cy;
     if (x < -60 || x > viewW + 60 || y < -60 || y > viewH + 60) continue;
+    // Tom-rendering om denna decoration matchar bagged loot
+    if (baggedKindAt[dec.x + '_' + dec.y]) {
+      // Rita "tom" stack (mörkare grå)
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x - 22, y - 8, 44, 14);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 22, y - 8, 44, 3);
+      continue;
+    }
     _drawHeistDecoration(dec.kind, x, y);
   }
-  // Cameras (visuella med vision-cone)
+
+  // === Loot-pulse-glow under alarm-fasen ===
+  if (state.heistPhase === 'alarm' && state.heistLootSpots) {
+    for (const loot of state.heistLootSpots) {
+      if (bagged[loot.id]) continue;
+      const isVaultLoot = (loot.kind === 'cash_stack' || loot.kind === 'gold_stack');
+      if (isVaultLoot && !state.heistVaultUnlocked) continue;
+      const x = loot.x - cx, y = loot.y - cy;
+      if (x < -60 || x > viewW + 60 || y < -60 || y > viewH + 60) continue;
+      // Pulsande gul ring
+      ctx.strokeStyle = 'rgba(255,213,74,' + (0.4 + pulse * 0.4) + ')';
+      ctx.lineWidth = 2 + pulse * 1.5;
+      ctx.beginPath();
+      ctx.arc(x, y, 28 + pulse * 4, 0, Math.PI * 2);
+      ctx.stroke();
+      // $-tag ovan
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#000';
+      ctx.shadowBlur = 4;
+      ctx.fillText('$' + (loot.value || 0), x, y - 25);
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  // === Drill-glow vid drill-spot under alarm ===
+  if (state.heistPhase === 'alarm' && state.heistArena && state.heistArena.drillSpot) {
+    const ds = state.heistArena.drillSpot;
+    const x = ds.x - cx, y = ds.y - cy;
+    if (x > -100 && x < viewW + 100 && y > -100 && y < viewH + 100) {
+      const drilling = !!state.heistDrilling;
+      const prog = state.heistDrillProgress || 0;
+      // Outer pulse-ring
+      ctx.strokeStyle = drilling ? 'rgba(255,80,30,' + (0.6 + pulse * 0.4) + ')' : 'rgba(255,140,60,0.4)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(x, y, (ds.r || 40) + (drilling ? pulse * 6 : 0), 0, Math.PI * 2);
+      ctx.stroke();
+      // Progress-arc
+      ctx.strokeStyle = '#ffae3a';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(x, y, (ds.r || 40) - 6, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+      ctx.stroke();
+      // Drill-icon i mitten (roterande om drilling)
+      ctx.save();
+      ctx.translate(x, y);
+      if (drilling) ctx.rotate(t / 150);
+      ctx.fillStyle = '#ff5a3a';
+      ctx.fillRect(-3, -16, 6, 24);
+      ctx.fillStyle = '#aaa';
+      ctx.fillRect(-6, -20, 12, 6);
+      ctx.restore();
+      // Procent-text
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+      ctx.fillText(Math.round(prog * 100) + '%', x, y + 50);
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  // === Extract-zone-glow under extract-fas ===
+  if (state.heistPhase === 'extract' && state.heistArena && state.heistArena.extractZones) {
+    const ez = state.heistArena.extractZones.front;
+    if (ez) {
+      const x = (ez.x + ez.w / 2) - cx, y = (ez.y + ez.h / 2) - cy;
+      if (x > -150 && x < viewW + 150 && y > -150 && y < viewH + 150) {
+        ctx.strokeStyle = 'rgba(90,255,138,' + (0.5 + pulse * 0.5) + ')';
+        ctx.lineWidth = 4;
+        ctx.strokeRect(x - ez.w / 2, y - ez.h / 2, ez.w, ez.h);
+        // ARROW pekande på van
+        ctx.fillStyle = '#5aff8a';
+        ctx.font = 'bold 14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+        ctx.fillText('🚐 EXTRACT', x, y - ez.h / 2 - 8);
+        ctx.shadowBlur = 0;
+      }
+    }
+  }
+
+  // Cameras (visuella med vision-cone) — skip om hackad
   if (state.heistCameras) {
     for (const cam of state.heistCameras) {
       const x = cam.x - cx, y = cam.y - cy;
       if (x < -150 || x > viewW + 150 || y < -150 || y > viewH + 150) continue;
-      _drawHeistCamera(cam, x, y);
+      // Visa "OFF"-marker om hackad
+      const hacked = state.heistHackedTerminals && Object.keys(state.heistHackedTerminals).length > 0;
+      _drawHeistCamera(cam, x, y, hacked);
     }
   }
   // Hack-terminals
@@ -8726,7 +8844,8 @@ function drawHeistDecorations() {
     for (const term of state.heistHackTerminals) {
       const x = term.x - cx, y = term.y - cy;
       if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) continue;
-      _drawHeistTerminal(term, x, y);
+      const hacked = state.heistHackedTerminals && state.heistHackedTerminals[term.id];
+      _drawHeistTerminal(term, x, y, hacked);
     }
   }
 }
@@ -8911,14 +9030,18 @@ function _drawHeistDecoration(kind, x, y) {
   }
 }
 
-function _drawHeistCamera(cam, sx, sy) {
-  // Kamera-bas (svart med röd LED)
+function _drawHeistCamera(cam, sx, sy, allHacked) {
+  // Specifik hackad-check via state.heistDisabledCameras
+  const disabled = allHacked || (state.heistDisabledCameras && state.heistDisabledCameras[cam.id]);
+  // Kamera-bas (svart)
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(sx - 6, sy - 6, 12, 12);
-  ctx.fillStyle = '#ff3030';
+  // LED — röd = aktiv, grön = hackad/off
+  ctx.fillStyle = disabled ? '#3a8a3a' : '#ff3030';
   ctx.beginPath();
   ctx.arc(sx + 2, sy, 2, 0, Math.PI * 2);
   ctx.fill();
+  if (disabled) return; // ingen vision-cone om off
   // Vision-cone (transparent röd)
   ctx.fillStyle = 'rgba(255,48,48,0.12)';
   ctx.strokeStyle = 'rgba(255,48,48,0.4)';
@@ -8934,18 +9057,18 @@ function _drawHeistCamera(cam, sx, sy) {
   ctx.stroke();
 }
 
-function _drawHeistTerminal(term, sx, sy) {
+function _drawHeistTerminal(term, sx, sy, hacked) {
   // Hack-terminal (kompakt skärm + tangentbord)
   ctx.fillStyle = '#1a1a2a';
   ctx.fillRect(sx - 10, sy - 14, 20, 28);
-  // Skärm med "kod"-mönster
-  ctx.fillStyle = '#0a3a0a';
+  // Skärm: grön när aktiv, mörk när hackad
+  ctx.fillStyle = hacked ? '#1a3a1a' : '#0a3a0a';
   ctx.fillRect(sx - 8, sy - 12, 16, 14);
-  ctx.fillStyle = '#5aff5a';
+  ctx.fillStyle = hacked ? '#5a8a5a' : '#5aff5a';
   ctx.font = '5px monospace';
   ctx.textAlign = 'left';
-  ctx.fillText('1010', sx - 7, sy - 6);
-  ctx.fillText('0110', sx - 7, sy - 1);
+  ctx.fillText(hacked ? 'OFFLINE' : '1010', sx - 7, sy - 6);
+  if (!hacked) ctx.fillText('0110', sx - 7, sy - 1);
   // Keyboard
   ctx.fillStyle = '#3a3a3a';
   ctx.fillRect(sx - 8, sy + 4, 16, 8);
@@ -22811,14 +22934,47 @@ const Coop = {
       }
       if (typeof updateHeistHud === 'function') updateHeistHud();
     } else if (ev.type === 'heist_hud') {
-      // { phase, elapsedSec, phaseElapsedSec, drillProgress, lootValue, lootBaggedCount }
+      // { phase, elapsedSec, phaseElapsedSec, drillProgress, drilling, lootValue, lootBaggedCount, lootBagged, vaultUnlocked }
       state.heistPhase = ev.phase;
       state.heistElapsedSec = ev.elapsedSec;
       state.heistPhaseElapsedSec = ev.phaseElapsedSec;
       state.heistDrillProgress = ev.drillProgress;
+      state.heistDrilling = !!ev.drilling;
       state.heistLootValue = ev.lootValue;
       state.heistLootBaggedCount = ev.lootBaggedCount;
+      state.heistLootBagged = {};
+      if (Array.isArray(ev.lootBagged)) {
+        for (const id of ev.lootBagged) state.heistLootBagged[id] = true;
+      }
+      state.heistVaultUnlocked = !!ev.vaultUnlocked;
+      // Uppdatera door-collision: vault unlocks gör att den inte blockerar
+      if (state.heistDoors && state.heistVaultUnlocked) {
+        for (const d of state.heistDoors) {
+          if (d.id === 'vault') d.locked = false;
+        }
+      }
       if (typeof updateHeistHud === 'function') updateHeistHud();
+    } else if (ev.type === 'heist_loot_bagged') {
+      // { lootId, baggerPid, value, totalValue }
+      state.heistLootBagged = state.heistLootBagged || {};
+      state.heistLootBagged[ev.lootId] = true;
+      state.heistLootValue = ev.totalValue;
+      if (typeof showToast === 'function') showToast('💰 BAGGED · $' + (ev.value || 0).toLocaleString());
+      if (typeof Audio !== 'undefined' && Audio.goldPickup) Audio.goldPickup();
+    } else if (ev.type === 'heist_vault_unlocked') {
+      // Vault door unlocked!
+      if (state.heistDoors) {
+        for (const d of state.heistDoors) {
+          if (d.id === 'vault') d.locked = false;
+        }
+      }
+      if (typeof showToast === 'function') showToast('🔓 VALV ÖPPNAT — säckar väntar!');
+      if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
+      if (typeof triggerShake === 'function') triggerShake(8, 0.4);
+    } else if (ev.type === 'heist_terminal_hacked') {
+      state.heistHackedTerminals = state.heistHackedTerminals || {};
+      state.heistHackedTerminals[ev.terminalId] = true;
+      if (typeof showToast === 'function') showToast('💻 TERMINAL HACKAD · kameror ner');
     } else if (ev.type === 'heist_win') {
       // { lootValue, elapsedSec }
       document.body.classList.remove('heist-mode');
@@ -34624,10 +34780,119 @@ function showHeistHud() {
 function hideHeistHud() {
   const hud = document.getElementById('heist-hud');
   if (hud) hud.style.display = 'none';
+  const aBtn = document.getElementById('heist-action-btn');
+  if (aBtn) aBtn.style.display = 'none';
+}
+
+// v1.620: Action-knapp för mobil — kontekstuell (drill/bag/hack/extract)
+function ensureHeistActionBtn() {
+  let btn = document.getElementById('heist-action-btn');
+  if (btn) return btn;
+  btn = document.createElement('button');
+  btn.id = 'heist-action-btn';
+  btn.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:max(150px, calc(env(safe-area-inset-bottom, 0px) + 150px));z-index:62;background:rgba(20,8,2,0.92);border:3px solid #ffae3a;border-radius:14px;padding:12px 22px;color:#ffd54a;font-family:sans-serif;font-weight:900;font-size:14px;letter-spacing:1.5px;box-shadow:0 0 18px rgba(255,174,58,0.5);cursor:pointer;display:none;text-shadow:0 1px 2px #000;pointer-events:auto;';
+  btn.textContent = 'ACTION';
+  document.body.appendChild(btn);
+  // v1.613-pattern: touchstart + click med debounce
+  let _tapped = false;
+  const doAction = (e) => {
+    if (_tapped) return;
+    _tapped = true;
+    if (e && e.cancelable) e.preventDefault();
+    if (e && e.stopPropagation) e.stopPropagation();
+    triggerHeistAction();
+    setTimeout(() => { _tapped = false; }, 400);
+  };
+  btn.addEventListener('touchstart', doAction, { passive: false });
+  btn.addEventListener('mousedown', doAction);
+  return btn;
+}
+
+function getHeistContextAction() {
+  // Returnerar { label, action, ...extra } för närliggande interaktion, eller null.
+  if (!state.heistActive || !state.player) return null;
+  const px = state.player.x, py = state.player.y;
+  const phase = state.heistPhase || 'stealth';
+
+  // EXTRACT phase + i extract-zone = "EXTRACT"
+  if (phase === 'extract' && state.heistArena && state.heistArena.extractZones) {
+    const ez = state.heistArena.extractZones.front;
+    if (ez && Math.abs(px - (ez.x + ez.w / 2)) < ez.w / 2 + 40 &&
+            Math.abs(py - (ez.y + ez.h / 2)) < ez.h / 2 + 40) {
+      return { label: '🚐 EXTRACT', action: null }; // automatic vid timeout
+    }
+  }
+
+  // DRILL-spot (alarm phase): visa drill-progress + "DRILL" om i range
+  const drillSpot = (state.heistArena && state.heistArena.drillSpot) || { x: 2000, y: 1920, r: 40 };
+  const dDx = px - drillSpot.x, dDy = py - drillSpot.y;
+  const dDist2 = dDx * dDx + dDy * dDy;
+  if (dDist2 < (drillSpot.r || 40) * (drillSpot.r || 40)) {
+    if (phase === 'stealth') {
+      return { label: '🔨 STARTA DRILL', action: 'start_drill' };
+    } else if (phase === 'alarm') {
+      const pct = Math.round((state.heistDrillProgress || 0) * 100);
+      return { label: '🔨 DRILLING ' + pct + '%', action: null };
+    }
+  }
+
+  // LOOT (under alarm + vault unlocked för vault-loot)
+  if (phase === 'alarm' && state.heistLootSpots) {
+    for (const loot of state.heistLootSpots) {
+      if (state.heistLootBagged && state.heistLootBagged[loot.id]) continue;
+      const dx = px - loot.x, dy = py - loot.y;
+      if (dx * dx + dy * dy < 60 * 60) {
+        // Vault-loot kräver unlocked vault
+        const isVaultLoot = (loot.kind === 'cash_stack' || loot.kind === 'gold_stack');
+        if (isVaultLoot && !state.heistVaultUnlocked) continue;
+        return { label: '💰 BAGGA $' + (loot.value || 0).toLocaleString(), action: 'bag_loot', lootId: loot.id };
+      }
+    }
+  }
+
+  // HACK-TERMINAL (under stealth)
+  if (phase === 'stealth' && state.heistHackTerminals) {
+    for (const term of state.heistHackTerminals) {
+      if (state.heistHackedTerminals && state.heistHackedTerminals[term.id]) continue;
+      const dx = px - term.x, dy = py - term.y;
+      if (dx * dx + dy * dy < 50 * 50) {
+        return { label: '💻 HACKA TERMINAL', action: 'hack_terminal', terminalId: term.id };
+      }
+    }
+  }
+
+  return null;
+}
+
+function triggerHeistAction() {
+  const ctx = getHeistContextAction();
+  if (!ctx || !ctx.action) return;
+  if (!Coop.active || !Coop.ws || Coop.ws.readyState !== 1) return;
+  const msg = { type: 'sim_heist_action', action: ctx.action };
+  if (ctx.lootId) msg.lootId = ctx.lootId;
+  if (ctx.terminalId) msg.terminalId = ctx.terminalId;
+  try { Coop.ws.send(JSON.stringify(msg)); } catch (_) {}
+  if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
+  // Visuell quick-feedback
+  const btn = document.getElementById('heist-action-btn');
+  if (btn) {
+    btn.style.transform = 'translateX(-50%) scale(0.92)';
+    setTimeout(() => { if (btn) btn.style.transform = 'translateX(-50%)'; }, 120);
+  }
 }
 
 function updateHeistHud() {
   if (!state.heistActive) return;
+  // Action-knapp visibility uppdateras varje HUD-tick
+  const aBtn = ensureHeistActionBtn();
+  const ctx = getHeistContextAction();
+  if (ctx) {
+    aBtn.style.display = 'block';
+    aBtn.textContent = ctx.label;
+    aBtn.style.opacity = ctx.action ? '1' : '0.7';
+  } else {
+    aBtn.style.display = 'none';
+  }
   const phaseEl = document.getElementById('heist-phase');
   const timerEl = document.getElementById('heist-timer');
   const objEl = document.getElementById('heist-objective');
@@ -69115,6 +69380,11 @@ function runFrame(dt, now) {
   if (state.mode === 'playing' && state.survivorsActive) {
     if (typeof checkSurvivorsPerkTrigger === 'function') checkSurvivorsPerkTrigger();
     if (typeof tickSurvivorsPerkEffects === 'function') tickSurvivorsPerkEffects(dt);
+  }
+  // v1.620: HEIST — uppdatera action-knapp varje frame (visibility + label
+  // beror på player-position som ändras varje frame; server HUD-broadcast var 500ms räcker inte)
+  if (state.mode === 'playing' && state.heistActive) {
+    if (typeof updateHeistHud === 'function') updateHeistHud();
   }
   // v1.559/v1.560: AKTIVERA PIXI-RENDERING I ALLA PLAYING-MODES
   // v1.571: BULLETS ROLLBACK till Canvas2D — bullets har per-frame animation

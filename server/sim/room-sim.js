@@ -3993,16 +3993,36 @@ function tickHeist(sim, dt, nowMs) {
 
   // === PHASE STATE-MACHINE ===
   if (sim.heistPhase === 'stealth') {
-    // Auto-alarm vid timeout (iter 1: ingen camera-detect-AI än)
+    // Auto-alarm vid timeout (4 min) ELLER om en player triggat det manuellt
+    // (drill-start, kill-civilian, etc — sätter sim.heistAlarmTriggered = true)
     const stealthMaxMs = (arena.stealthPhaseMaxSec || 240) * 1000;
-    if (phaseElapsedMs >= stealthMaxMs) {
-      _heistTransitionPhase(sim, 'alarm', 'timeout', nowMs);
+    if (sim.heistAlarmTriggered || phaseElapsedMs >= stealthMaxMs) {
+      _heistTransitionPhase(sim, 'alarm', sim.heistAlarmTriggered ? 'triggered' : 'timeout', nowMs);
     }
   } else if (sim.heistPhase === 'alarm') {
-    // ALARM-fasen: drill, bagga loot, försvara mot polis-vågor.
-    // Iter 1: simulera drill via tid + auto-progress (ingen player-på-drill-detection än)
-    sim.heistDrillProgress = Math.min(1, phaseElapsedMs / ((arena.drillDurationSec || 120) * 1000));
-    // När drill klar + minst en loot bagged → extract phase
+    // v1.620: Drill progress KRÄVER spelar-närvaro vid drill-spot.
+    // Tidigare auto-progressed → spelaren kunde sitta i ett hörn och vinna.
+    const drillSpot = arena.drillSpot || { x: 2000, y: 1920, r: 40 };
+    const drillR2 = (drillSpot.r || 40) * (drillSpot.r || 40);
+    let playerOnDrill = false;
+    for (const [, ws] of sim.room.members) {
+      if (!ws.playerState || ws.playerState.hp <= 0) continue;
+      const dx = ws.playerState.x - drillSpot.x;
+      const dy = ws.playerState.y - drillSpot.y;
+      if (dx * dx + dy * dy < drillR2) { playerOnDrill = true; break; }
+    }
+    sim.heistDrilling = playerOnDrill;
+    if (playerOnDrill && sim.heistDrillProgress < 1.0) {
+      // Drill progressar baserat på dt + arena.drillDurationSec
+      const drillDurMs = (arena.drillDurationSec || 120) * 1000;
+      sim.heistDrillProgress = Math.min(1.0, sim.heistDrillProgress + (dt * 1000 / drillDurMs));
+      // När drill klar: unlock vault-door
+      if (sim.heistDrillProgress >= 1.0 && !sim.heistVaultUnlocked) {
+        sim.heistVaultUnlocked = true;
+        sim.eventQueue.push({ type: 'heist_vault_unlocked' });
+      }
+    }
+    // Trigga extract-fas när drill klar + minst en loot bagged
     if (sim.heistDrillProgress >= 1.0 && Object.keys(sim.heistLootBagged).length > 0) {
       _heistTransitionPhase(sim, 'extract', 'drill_done', nowMs);
     }
@@ -4050,8 +4070,11 @@ function tickHeist(sim, dt, nowMs) {
       elapsedSec: Math.round(elapsedMs / 1000),
       phaseElapsedSec: Math.round(phaseElapsedMs / 1000),
       drillProgress: sim.heistDrillProgress || 0,
+      drilling: !!sim.heistDrilling,
       lootValue: sim.heistLootValue || 0,
       lootBaggedCount: Object.keys(sim.heistLootBagged || {}).length,
+      lootBagged: Object.keys(sim.heistLootBagged || {}),  // ID-lista
+      vaultUnlocked: !!sim.heistVaultUnlocked,
     });
   }
 }
