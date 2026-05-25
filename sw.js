@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v605-obb-walls-server-ai-fix';
+const CACHE = 'penetrator-v606-no-gold-timewaves-miniboss';
 const ASSETS = [
   './',
   './index.html',

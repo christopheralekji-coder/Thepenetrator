@@ -2633,12 +2633,16 @@ function spawnSurvivorsMiniBoss(sim) {
   const coopMul = Math.max(1, sim.room.members.size);
   const boss = makeBoss(key, sx, sy, coopMul);
   if (!boss) return;
-  // Time-baserad scaling: +15% HP/dmg per minute elapsed
+  // v1.606: Mini-bossar ska INTE vara svårare än vanliga CD-bossar.
+  // Base = 60% av regular boss, time-scale +5%/min (var +15% = för stark late).
+  // Resultat: vid 4 min ~0.72×, 16 min ~1.08× regular boss. Mini-boss känns
+  // som ett hot men inte överväldigande — perks ska räcka.
   const elapsedMin = (Date.now() - (sim.survivorsStartT || Date.now())) / 60000;
-  const timeMul = 1 + elapsedMin * 0.15;
-  boss.hp = Math.max(1, Math.round(boss.hp * timeMul));
+  const baseMul = 0.6;
+  const timeMul = 1 + elapsedMin * 0.05;
+  boss.hp = Math.max(1, Math.round(boss.hp * baseMul * timeMul));
   boss.maxHp = boss.hp;
-  boss.dmg = Math.max(1, Math.round(boss.dmg * timeMul));
+  boss.dmg = Math.max(1, Math.round(boss.dmg * baseMul * timeMul));
   boss._idx = sim.nextEnemyIdx++;
   sim.enemies.push(boss);
   sim.eventQueue.push({
@@ -2697,6 +2701,38 @@ function tickCastleDefense(sim, dt, now) {
       spawnSurvivorsMiniBoss(sim);
       sim.survivorsMiniBossesSpawned = expectedMiniBosses;
     }
+
+    // v1.606: TIME-BASED wave-scheduler — var 25s spawn ny batch oavsett om
+    // förra wavens minions är döda. Tidigare kill-baserat = långsamt om man
+    // missade en sniper i hörn. Nu: konstant press, vågorna stackar.
+    const survArena = SURVIVORS_ARENA || {};
+    const waveIntervalMs = (survArena.waveIntervalSec || 25) * 1000;
+    const waveBase = survArena.waveBaseCount || 6;
+    const waveScalePerMin = survArena.waveScalePerMinute || 3;
+    if (!sim._survNextWaveAt) {
+      sim._survNextWaveAt = sim.survivorsStartT + 1500; // första vågen 1.5s in
+    }
+    if (nowMs >= sim._survNextWaveAt) {
+      sim._survNextWaveAt = nowMs + waveIntervalMs;
+      sim.castledefenseWave += 1;
+      sim.castledefenseWaveState = 'active'; // håll alltid active i survivors
+      const survElapsedMin = elapsedMs / 60000;
+      const batchCount = Math.round(waveBase + survElapsedMin * waveScalePerMin);
+      // Stacka på befintliga remaining så waves overlappar
+      sim._cdWaveSpawnsRemaining = (sim._cdWaveSpawnsRemaining || 0) + batchCount;
+      sim._cdWaveSpawnTimer = 0;
+      // Theme: skippa boss-vågor i survivors (mini-bossar hanteras separat)
+      const survTheme = cdGetWaveTheme(sim.castledefenseWave, arena);
+      sim._cdActiveTheme = survTheme;
+      sim.eventQueue.push({
+        type: 'cd_wave_started',
+        wave: sim.castledefenseWave,
+        enemiesIncoming: sim._cdWaveSpawnsRemaining,
+        isBoss: false,
+        theme: survTheme,
+        themeLabel: cdGetThemeLabel(survTheme),
+      });
+    }
   }
 
   // === FLOW FIELD: bygg/rebygg om dirty ===
@@ -2741,7 +2777,8 @@ function tickCastleDefense(sim, dt, now) {
   }
 
   // === WAVE STATE MACHINE ===
-  if (sim.castledefenseWaveState === 'between' && nowMs >= sim.castledefenseWaveBetweenEndAt) {
+  // v1.606: SURVIVORS har egen time-based scheduler ovanför — skippa CD:s state-machine
+  if (!sim.survivorsActive && sim.castledefenseWaveState === 'between' && nowMs >= sim.castledefenseWaveBetweenEndAt) {
     // Starta nästa våg
     sim.castledefenseWaveState = 'active';
     sim.castledefenseWave += 1;
@@ -2810,7 +2847,12 @@ function tickCastleDefense(sim, dt, now) {
       e._cdEnemy = true;
       cdMaybeAssignFlyer(e);
       // v1.407: scale by difficulty + wave + co-op (samma formel som story-mode)
-      const cdWaveScale = 1 + (sim.castledefenseWave - 1) * 0.08;
+      // v1.606: SURVIVORS — wave-counter växer snabbt (time-based), så vi
+      // skalar via elapsed-time istället för wave-number (+10%/min) så det
+      // inte blir orimligt tankigt vid wave 30+.
+      const cdWaveScale = sim.survivorsActive && sim.survivorsStartT
+        ? (1 + ((Date.now() - sim.survivorsStartT) / 60000) * 0.10)
+        : (1 + (sim.castledefenseWave - 1) * 0.08);
       const cdDiff = cdGetDiffMul(sim.config.difficulty);
       // v1.417: STRIKT linear coop-scaling — 2p=2x, 3p=3x, 4p=4x både HP + DMG
       const cdCoop = Math.max(1, sim.room.members.size);
@@ -3250,7 +3292,9 @@ function tickCastleDefense(sim, dt, now) {
         sim.castledefenseScores[e.lastDamagerPid] = (sim.castledefenseScores[e.lastDamagerPid] || 0) + 1;
         // v1.416: LOOTER perk +60% gold, GAMBLER 15% chans bonus
         const killerPerk = sim.castledefensePerks[e.lastDamagerPid];
-        let goldGain = e.gold || 0;
+        // v1.606: SURVIVORS — INGEN gold-flow alls. Pickup-icons är dolda (v1.603),
+        // så gold ska inte flöda silently heller. Perks är progression.
+        let goldGain = sim.survivorsActive ? 0 : (e.gold || 0);
         if (killerPerk === 'looter') goldGain = Math.round(goldGain * 1.6);
         if (killerPerk === 'gambler' && Math.random() < 0.15) {
           const r = Math.random();
@@ -3313,7 +3357,10 @@ function tickCastleDefense(sim, dt, now) {
   updatePickups(sim, dt, now);
 
   // === WAVE COMPLETE? ===
-  if (sim.castledefenseWaveState === 'active' &&
+  // v1.606: SURVIVORS skippar wave-complete — vågorna är time-based och stackar.
+  // Ingen "between"-fas. Ingen gold-bonus heller (survivors har inget gold).
+  if (!sim.survivorsActive &&
+      sim.castledefenseWaveState === 'active' &&
       sim._cdWaveSpawnsRemaining <= 0 &&
       sim.enemies.length === 0) {
     sim.castledefenseWaveState = 'between';
@@ -4852,7 +4899,8 @@ function startSim(sim, opts) {
       sim.tdmDeathsByPid[pid] = 0;
       // Castle Defense gold är per-match (inte save.gold). Lagras på sim per peerId.
       sim.castledefenseGold = sim.castledefenseGold || {};
-      sim.castledefenseGold[pid] = arena.startGold || 400;
+      // v1.606: SURVIVORS startar med 0 gold — ingen shop, perks är progression
+      sim.castledefenseGold[pid] = opts.survivors ? 0 : (arena.startGold || 400);
       // v1.401: vapen-tier startar på 0 (pistol)
       sim.castledefenseWeaponTier = sim.castledefenseWeaponTier || {};
       sim.castledefenseWeaponTier[pid] = 0;
