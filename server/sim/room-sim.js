@@ -4071,6 +4071,8 @@ function tickHeist(sim, dt, nowMs) {
       const dir = cam.dir || 0;
       for (const [, ws] of sim.room.members) {
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        // v1.624: HACKER-role är osynlig för kameror
+        if (ws._heistCameraImmune) continue;
         const dx = ws.playerState.x - cam.x;
         const dy = ws.playerState.y - cam.y;
         const d2 = dx * dx + dy * dy;
@@ -4111,8 +4113,9 @@ function tickHeist(sim, dt, nowMs) {
     if (ws._heistMedicRegenAccum >= 1.0) {
       ws._heistMedicRegenAccum = 0;
       const max = ws.playerState.maxHp || 100;
+      const regen = ws._heistMedicRegenRate || 6; // v1.624: 6 HP/s base, 8 solo
       if (ws.playerState.hp < max) {
-        ws.playerState.hp = Math.min(max, ws.playerState.hp + 2);
+        ws.playerState.hp = Math.min(max, ws.playerState.hp + regen);
         sim.eventQueue.push({
           type: 'cd_hp_changed', peerId: pid,
           hp: ws.playerState.hp, shield: ws.playerState.shield,
@@ -4189,6 +4192,7 @@ function tickHeist(sim, dt, nowMs) {
           sim.heistLootValue = (sim.heistLootValue || 0) + value;
           ws._heistBagsCarrying = 0;
           ws._heistBagsValue = 0;
+          ws._heistBagsWeight = 0;
           ps.speedMul = 1.0;
           sim.eventQueue.push({
             type: 'heist_bags_secured',
@@ -4822,6 +4826,29 @@ function startSim(sim, opts) {
   sim._cdHudBroadcastAt = 0;
   sim._cdFlowField = null;          // pathfinding flow field (recomputed on first tick + on building changes)
   sim._cdFlowDirty = true;          // force first-tick build
+  // v1.624: HEIST reset — annars läcker drillProgress=1, vault-unlocked, etc till nästa match
+  sim.heistActive = false;
+  sim.heistEnded = false;
+  sim.heistPhase = 'stealth';
+  sim.heistStartT = 0;
+  sim.heistPhaseStartT = 0;
+  sim.heistLootBagged = {};
+  sim.heistLootValue = 0;
+  sim.heistDrillProgress = 0;
+  sim.heistDrilling = false;
+  sim.heistAlarmTriggered = false;
+  sim.heistVaultUnlocked = false;
+  sim.heistNPCs = [];
+  sim.heistRoles = {};
+  sim.heistDroppedBags = [];
+  sim.heistHackedTerminals = {};
+  sim.heistDisabledCameras = {};
+  sim.heistUnlockedDoors = {};
+  sim.heistBackExtractUnlocked = false;
+  sim._heistNextPoliceAt = 0;
+  sim._heistNextBagId = 1;
+  sim._heistHudBroadcastAt = 0;
+  sim._heistNpcBroadcastAt = 0;
   sim.bossAlive = false;            // även för CD-bossar — annars läcker till andra modes
   sim._siegePointAccum = { red: 0, blue: 0 };
   sim.pvpPickups = null;
@@ -5591,26 +5618,38 @@ function startSim(sim, opts) {
       ws._heistLootCarrying = null;
       ws._heistBagsCarrying = 0;
       ws._heistBagsValue = 0;
+      ws._heistBagsWeight = 0;
+      // v1.624 BUG5 fix: rensa alla heist-state-flags på ws så förra matchens
+      // mid-lockpick inte ger instant-unlock-exploit
+      ws._heistLockpickStart = 0;
+      ws._heistLockpickDoorId = null;
+      ws._heistLockpickFinishesAt = 0;
+      ws._heistCamDetectStart = 0;
+      ws._heistMedicRegenAccum = 0;
       // v1.622: ROLE-effekter
       const role = (sim.heistRoles && sim.heistRoles[pid]) || 'hacker';
       ws._heistRole = role;
       if (role === 'tank') {
+        // v1.624 balance: -10% (var -20%) — bagging redan straffar speed mycket
         ws.playerState.maxHp = Math.round((arena.maxHp || 100) * 1.5);
         ws.playerState.hp = ws.playerState.maxHp;
-        ws.playerState.speedMul = 0.8;
+        ws.playerState.speedMul = 0.9;
       } else if (role === 'medic') {
+        // v1.624 balance: +6 HP/s base (var +2), skalas till +8 om solo
         ws.playerState.maxHp = arena.maxHp || 100;
         ws.playerState.hp = ws.playerState.maxHp;
-        ws._heistMedicRegenAccum = 0; // +2 HP/s passiv regen tickas i tickHeist
+        ws._heistMedicRegenAccum = 0;
+        ws._heistMedicRegenRate = sim.room.members.size <= 1 ? 8 : 6;
       } else if (role === 'hacker') {
-        // -50% hack-tid hanteras i action-handler
+        // v1.624 balance: Hacker = immun mot camera-detect (annars dominerad av Rogue)
         ws.playerState.maxHp = arena.maxHp || 100;
         ws.playerState.hp = ws.playerState.maxHp;
+        ws._heistCameraImmune = true;
       } else if (role === 'rogue') {
-        // Tysta kills + 2× lockpick (iter 4-features)
-        ws.playerState.maxHp = arena.maxHp || 100;
+        // v1.624 balance: -10% maxHP som tradeoff för silent-kill + +10% speed
+        ws.playerState.maxHp = Math.round((arena.maxHp || 100) * 0.9);
         ws.playerState.hp = ws.playerState.maxHp;
-        ws.playerState.speedMul = 1.1; // lite snabbare för stealth
+        ws.playerState.speedMul = 1.1;
       }
       hIdx++;
     }

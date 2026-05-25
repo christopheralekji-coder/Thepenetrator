@@ -8857,14 +8857,13 @@ function drawHeistDecorations() {
     }
   }
 
-  // Cameras (visuella med vision-cone) — skip om hackad
+  // Cameras (visuella med vision-cone) — per-camera disabled-check
   if (state.heistCameras) {
     for (const cam of state.heistCameras) {
       const x = cam.x - cx, y = cam.y - cy;
       if (x < -150 || x > viewW + 150 || y < -150 || y > viewH + 150) continue;
-      // Visa "OFF"-marker om hackad
-      const hacked = state.heistHackedTerminals && Object.keys(state.heistHackedTerminals).length > 0;
-      _drawHeistCamera(cam, x, y, hacked);
+      // v1.624 fix C2: per-camera disabled (var: alla av om ENS en terminal hackad)
+      _drawHeistCamera(cam, x, y, false);
     }
   }
   // Hack-terminals
@@ -23228,6 +23227,11 @@ const Coop = {
     } else if (ev.type === 'heist_terminal_hacked') {
       state.heistHackedTerminals = state.heistHackedTerminals || {};
       state.heistHackedTerminals[ev.terminalId] = true;
+      // v1.624 fix C2: per-camera disabled-map (var: visual "alla av" så fort EN terminal)
+      state.heistDisabledCameras = state.heistDisabledCameras || {};
+      for (const camId of (ev.disabledCameras || [])) {
+        state.heistDisabledCameras[camId] = true;
+      }
       if (typeof showToast === 'function') showToast('💻 TERMINAL HACKAD · kameror ner');
     } else if (ev.type === 'heist_win') {
       // { lootValue, elapsedSec }
@@ -25489,10 +25493,10 @@ function renderHostControls() {
     roleEl.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px;width:100%;';
     const myRole = (Coop.config.heistMyRole) || 'hacker';
     const roles = [
-      { id: 'hacker', icon: '💻', name: 'HACKER', desc: '−50% hack-tid' },
-      { id: 'tank',   icon: '🛡️', name: 'TANK',   desc: '+50% HP, −20% rörelse' },
-      { id: 'medic',  icon: '💊', name: 'MEDIC',  desc: '+2 HP/s passiv regen' },
-      { id: 'rogue',  icon: '🗡️', name: 'ROGUE',  desc: '+10% snabbare i stealth' },
+      { id: 'hacker', icon: '💻', name: 'HACKER', desc: 'Osynlig för kameror' },
+      { id: 'tank',   icon: '🛡️', name: 'TANK',   desc: '+50% HP, −10% rörelse' },
+      { id: 'medic',  icon: '💊', name: 'MEDIC',  desc: '+6 HP/s regen (+8 solo)' },
+      { id: 'rogue',  icon: '🗡️', name: 'ROGUE',  desc: '+10% speed, silent-kill, −10% HP' },
     ];
     for (const role of roles) {
       const b = document.createElement('button');
@@ -35083,7 +35087,9 @@ function ensureHeistActionBtn() {
   if (btn) return btn;
   btn = document.createElement('button');
   btn.id = 'heist-action-btn';
-  btn.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:max(150px, calc(env(safe-area-inset-bottom, 0px) + 150px));z-index:62;background:rgba(20,8,2,0.92);border:3px solid #ffae3a;border-radius:14px;padding:12px 22px;color:#ffd54a;font-family:sans-serif;font-weight:900;font-size:14px;letter-spacing:1.5px;box-shadow:0 0 18px rgba(255,174,58,0.5);cursor:pointer;display:none;text-shadow:0 1px 2px #000;pointer-events:auto;';
+  // v1.624 fix: bottom 150→200 + min-width + tabular-nums så knappen inte krockar
+  // med fire-cluster (right:58, bottom:58, grenade upp till bottom:180)
+  btn.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:max(200px, calc(env(safe-area-inset-bottom, 0px) + 200px));z-index:62;background:rgba(20,8,2,0.92);border:3px solid #ffae3a;border-radius:14px;padding:12px 22px;color:#ffd54a;font-family:sans-serif;font-weight:900;font-size:14px;letter-spacing:1.5px;box-shadow:0 0 18px rgba(255,174,58,0.5);cursor:pointer;display:none;text-shadow:0 1px 2px #000;pointer-events:auto;min-width:140px;max-width:80vw;white-space:nowrap;font-variant-numeric:tabular-nums;';
   btn.textContent = 'ACTION';
   document.body.appendChild(btn);
   // v1.613-pattern: touchstart + click med debounce
@@ -35222,6 +35228,8 @@ function triggerHeistAction() {
   const msg = { type: 'sim_heist_action', action: ctx.action };
   if (ctx.lootId) msg.lootId = ctx.lootId;
   if (ctx.terminalId) msg.terminalId = ctx.terminalId;
+  if (ctx.npcId) msg.npcId = ctx.npcId;       // v1.624 fix C1: intimidate/silent-kill
+  if (ctx.doorId) msg.doorId = ctx.doorId;     // v1.624 fix C1: lockpick
   try { Coop.ws.send(JSON.stringify(msg)); } catch (_) {}
   if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
   // Visuell quick-feedback
@@ -37089,9 +37097,11 @@ function updatePlayer(dt, now) {
     const weaponSpeedMul = (_wEq && _wEq.speedMul) ? _wEq.speedMul : 1;
     // v1.527: SURVIVORS-RUN perk-speed (stack-bar, summa av alla speed-perks)
     const survSpeedMul = state.survivorsActive ? (1 + getSurvivorsPerkSum('speed')) : 1;
-    // v1.621: HEIST bag-carry-weight — varje säck saktar 10%, cap vid 0.4
+    // v1.621/v1.624: HEIST bag-carry-weight — server-baserad, klient approximerar
+    // via avg 0.15/bag (server använder exakt loot.weight). Server p.speedMul är
+    // sannings-källan — denna klient-mul är extra-säkerhet om server lags.
     const heistCarryMul = (state.heistActive && state.heistMyBagsCarrying > 0)
-      ? Math.max(0.4, 1 - 0.10 * state.heistMyBagsCarrying) : 1;
+      ? Math.max(0.4, 1 - 0.15 * state.heistMyBagsCarrying) : 1;
     p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * dt;
     p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * dt;
   }

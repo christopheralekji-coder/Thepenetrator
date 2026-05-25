@@ -70,19 +70,22 @@ const HEIST_ARENA = {
   ],
 
   // === SCALING (multipliers baserat på antal spelare) ===
-  // Police-vågor + civilians + guards skalar linjärt med player-count.
-  // 1p = 1.0×, 4p = 2.0×, 8p = 3.0× (sub-linear scaling så coop inte blir för enkelt)
+  // v1.624: höjt policeMulPerPlayer 0.25 → 0.55 så 8p inte är trivialt.
+  // 1p = 1.0×, 4p = 2.65×, 8p = 4.85× (mer linjär)
+  // Guard/loot/civilian scaling oimplementerat (data dead, lämnat för framtida iter).
   scaling: {
-    policeMulPerPlayer: 0.25,     // 1p=1.0, 4p=1.75, 8p=2.75
-    guardMulPerPlayer:  0.10,     // 1p=1.0, 4p=1.30, 8p=1.70
-    lootMulPerPlayer:   0.15,     // mer loot om fler spelare (extra stacks spawnar)
-    civilianMulPerPlayer: 0.05,   // marginal mer civilians (max 13 totalt vid 8p)
+    policeMulPerPlayer: 0.55,     // 1p=1.0, 4p=2.65, 8p=4.85
+    guardMulPerPlayer:  0.10,     // UNUSED iter 4
+    lootMulPerPlayer:   0.15,     // UNUSED iter 4
+    civilianMulPerPlayer: 0.05,   // UNUSED iter 4
   },
 
   // Player start-state
   startHp: 100, maxHp: 100,
   startShield: 0, maxShield: 100,
-  startWeapon: 'pistol',       // start tyst — silenced pistol-känsla
+  // v1.624: start med 'fists' så civilians inte instant-panikar (stealth-möjligt).
+  // Player byter till pistol via vapen-menyn när alarm triggas (eller manuellt).
+  startWeapon: 'fists',
   startGrenades: 0,            // ingen granat i stealth-fas
 
   // === EXTRACTION ZONES ===

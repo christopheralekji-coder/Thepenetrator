@@ -985,12 +985,14 @@ function handleMessage(ws, msg) {
       // Vault-loot kräver att valvet är upplåst (drill klar)
       if ((loot.kind === 'cash_stack' || loot.kind === 'gold_stack') && !sim.heistVaultUnlocked) return;
       // v1.621: Bag → carry-weight på spelaren (säkras vid extract-van)
+      // v1.624: Använd faktisk loot.weight per typ (0.05-0.40) istället för flat 0.10
       sim.heistLootBagged[lootId] = true;
       ws._heistBagsCarrying = (ws._heistBagsCarrying || 0) + 1;
       ws._heistBagsValue = (ws._heistBagsValue || 0) + (loot.value || 0);
-      // Applicera carry-weight på player speedMul
-      // 1 bag = -10%, 5 bags = -50%, cap vid 0.4 (60% slow)
-      ps.speedMul = Math.max(0.4, 1 - 0.10 * ws._heistBagsCarrying);
+      ws._heistBagsWeight = (ws._heistBagsWeight || 0) + (loot.weight || 0.10);
+      // SpeedMul baseras på summan av loot.weight (gold = 0.40, cash drawer = 0.05)
+      // Cap vid 0.4 (60% slow) så player aldrig fastnar helt
+      ps.speedMul = Math.max(0.4, 1 - ws._heistBagsWeight);
       sim.eventQueue.push({
         type: 'heist_loot_bagged',
         lootId,
@@ -1005,15 +1007,16 @@ function handleMessage(ws, msg) {
       if (ws._heistBagsCarrying > 0) {
         sim.heistDroppedBags = sim.heistDroppedBags || [];
         sim._heistNextBagId = sim._heistNextBagId || 1;
-        // Splittra carrying-värde över N bag-objekt
+        // v1.624 BUG3 fix: lägg remainder på första bag så ingen $ förloras
         const perBagValue = Math.floor(ws._heistBagsValue / ws._heistBagsCarrying);
+        const remainder = ws._heistBagsValue - (perBagValue * ws._heistBagsCarrying);
         for (let i = 0; i < ws._heistBagsCarrying; i++) {
           const bagId = 'bg' + (sim._heistNextBagId++);
           sim.heistDroppedBags.push({
             id: bagId,
             x: ps.x + (Math.random() - 0.5) * 30,
             y: ps.y + (Math.random() - 0.5) * 30,
-            value: perBagValue,
+            value: perBagValue + (i === 0 ? remainder : 0),
             droppedBy: ws.id,
           });
         }
@@ -1023,6 +1026,7 @@ function handleMessage(ws, msg) {
         });
         ws._heistBagsCarrying = 0;
         ws._heistBagsValue = 0;
+        ws._heistBagsWeight = 0;
         ps.speedMul = 1.0;
       }
     } else if (action === 'start_drill') {
@@ -1061,7 +1065,9 @@ function handleMessage(ws, msg) {
       const bag = sim.heistDroppedBags.splice(nearestIdx, 1)[0];
       ws._heistBagsCarrying = (ws._heistBagsCarrying || 0) + 1;
       ws._heistBagsValue = (ws._heistBagsValue || 0) + bag.value;
-      ps.speedMul = Math.max(0.4, 1 - 0.10 * ws._heistBagsCarrying);
+      // v1.624: använd genomsnitts-weight (vi vet inte ursprungs-loot.kind), default 0.15
+      ws._heistBagsWeight = (ws._heistBagsWeight || 0) + 0.15;
+      ps.speedMul = Math.max(0.4, 1 - ws._heistBagsWeight);
       sim.eventQueue.push({
         type: 'heist_bag_picked',
         peerId: ws.id, bagId: bag.id, value: bag.value,

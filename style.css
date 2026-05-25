@@ -433,6 +433,19 @@ html, body {
 body.survivors-mode #hud-toast-stack {
   top: max(90px, calc(env(safe-area-inset-top, 0px) + 84px));
 }
+/* v1.624: I heist-mode, hamna under stora HUD-stacken (phase + timer + objective + stats + drill) */
+body.heist-mode #hud-toast-stack {
+  top: max(170px, calc(env(safe-area-inset-top, 0px) + 160px));
+}
+/* v1.624: Heist HUD anpassningar för landscape (smala viewports = DI på toppen) */
+@media (orientation: landscape) and (max-height: 500px) {
+  #heist-hud {
+    top: max(18px, env(safe-area-inset-top, 0px)) !important;
+  }
+  #heist-action-btn {
+    bottom: max(110px, calc(env(safe-area-inset-bottom, 0px) + 100px)) !important;
+  }
+}
 .hud-toast-row {
   background: linear-gradient(90deg, rgba(0,0,0,0.85), rgba(20,15,25,0.7));
   border-left: 3px solid #ffd54a;
