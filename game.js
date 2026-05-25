@@ -68281,12 +68281,19 @@ function runFrame(dt, now) {
     pixiState.particlesEnabled = true;
     pixiState.vfxEnabled = true;
     // v1.576: Enemies kräver baked textures — Canvas2D-fallback om bake inte klart.
-    // Detta löser "första load efter update visar inga enemies"-buggen där bake
-    // misslyckas partiellt men enemiesEnabled var ändå true → invisible Pixi-sprites.
     if (!pixiState.enemyTexturesBaked && typeof bakeAllEnemyTextures === 'function') {
       bakeAllEnemyTextures();
     }
-    pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked;
+    // v1.609: GPU TEXTURE-UPLOAD warmup. PIXI.Texture.from() returnerar texture
+    // SYNKRONT men GPU-upload sker async. Första matchen efter JS-update har kall
+    // GPU-context → uploads tar längre tid → Pixi-sprites blir osynliga första
+    // sekunderna (enemies finns men syns inte). Force Canvas2D-fallback första
+    // 1.5s av varje match så enemies ALLTID syns från frame 1.
+    if (!state._pixiWarmupUntil || state._prevMode !== 'playing') {
+      state._pixiWarmupUntil = (now || performance.now()) + 1500;
+    }
+    const _warmupActive = (now || performance.now()) < state._pixiWarmupUntil;
+    pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked && !_warmupActive;
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;

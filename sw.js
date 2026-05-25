@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v608-tap-hpbar-deathflash-12perks';
+const CACHE = 'penetrator-v609-pixi-gpu-warmup-1500ms';
 const ASSETS = [
   './',
   './index.html',
