@@ -8586,45 +8586,103 @@ function drawHeistArenaGround() {
     ctx.stroke();
   }
 
-  // === VAULT FLOOR (mörkt stål, x=1300-2700 y=730-1870) ===
+  // === v1.627: ROOM-SPECIFIC FLOORS ===
+  // STORAGE (x=620-1100, y=720-1075) — concrete grå-brun
+  ctx.fillStyle = arena.storageColor || '#3a3028';
+  ctx.fillRect(620 - cx, 720 - cy, 480, 355);
+  // VAULT INNER (x=1300-2700, y=720-1075) — VERY dark
+  ctx.fillStyle = arena.vaultInnerColor || '#1a0f06';
+  ctx.fillRect(1300 - cx, 720 - cy, 1400, 355);
+  // Gold-veining hint (subtile gyllene strimmor)
+  ctx.strokeStyle = 'rgba(180,140,40,0.3)';
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(1320 - cx, 800 + i * 70 - cy);
+    ctx.lineTo(2680 - cx, 820 + i * 70 - cy);
+    ctx.stroke();
+  }
+  // LOCKER (x=2900-3380, y=720-1075) — institutionell grå
+  ctx.fillStyle = arena.lockerColor || '#3a3a3a';
+  ctx.fillRect(2900 - cx, 720 - cy, 480, 355);
+
+  // VAULT OUTER (x=1300-2700, y=1100-1675) — mörkt stål
   ctx.fillStyle = arena.vaultFloorColor || '#3a2a1a';
-  ctx.fillRect(1300 - cx, 730 - cy, 1370, 1140);
-  // Stål-plate-mönster
-  ctx.strokeStyle = 'rgba(80,60,40,0.6)';
-  ctx.lineWidth = 1;
+  ctx.fillRect(1300 - cx, 1100 - cy, 1400, 575);
+  ctx.strokeStyle = 'rgba(80,60,40,0.6)'; ctx.lineWidth = 1;
   for (let xx = 1400; xx < 2700; xx += 200) {
     ctx.beginPath();
-    ctx.moveTo(xx - cx, 730 - cy);
-    ctx.lineTo(xx - cx, 1870 - cy);
+    ctx.moveTo(xx - cx, 1100 - cy); ctx.lineTo(xx - cx, 1675 - cy);
     ctx.stroke();
   }
-  for (let yy = 850; yy < 1870; yy += 200) {
+  for (let yy = 1200; yy < 1675; yy += 200) {
     ctx.beginPath();
-    ctx.moveTo(1300 - cx, yy - cy);
-    ctx.lineTo(2700 - cx, yy - cy);
+    ctx.moveTo(1300 - cx, yy - cy); ctx.lineTo(2700 - cx, yy - cy);
     ctx.stroke();
   }
 
-  // === SERVER FLOOR (cool blå, server-rum) ===
+  // NETWORK CLOSET (x=620-900, y=1100-1475) — server-blå
   ctx.fillStyle = arena.serverFloorColor || '#1a2a3a';
-  ctx.fillRect(600 - cx, 700 - cy, 700, 1270);
-  // Datacenter-led-stripes (subtle)
+  ctx.fillRect(620 - cx, 1100 - cy, 280, 375);
+  // SECURITY ROOM (x=2750-3380, y=1100-1675) — mörk röd
+  ctx.fillStyle = arena.securityColor || '#2a1a1a';
+  ctx.fillRect(2750 - cx, 1100 - cy, 630, 575);
+
+  // SERVER ROOM (x=620-1100, y=1500-1975) — server-blå
+  ctx.fillStyle = arena.serverFloorColor || '#1a2a3a';
+  ctx.fillRect(620 - cx, 1500 - cy, 480, 475);
   ctx.fillStyle = 'rgba(90,200,255,0.15)';
-  for (let yy = 900; yy < 1900; yy += 80) {
-    ctx.fillRect(620 - cx, yy - cy, 660, 2);
+  for (let yy = 1550; yy < 1975; yy += 50) {
+    ctx.fillRect(640 - cx, yy - cy, 460, 2);
   }
 
-  // === MANAGER OFFICE FLOOR (röd matta) ===
+  // HALLWAY (x=1300-2700, y=1700-1975) — bank-floor
+  ctx.fillStyle = arena.bankFloorColor || '#a8906a';
+  ctx.fillRect(1300 - cx, 1700 - cy, 1400, 275);
+
+  // MANAGER OFFICE TOP (x=2750-3380, y=1700-2400) — röd matta
   ctx.fillStyle = arena.carpetColor || '#4a2a30';
-  ctx.fillRect(2700 - cx, 700 - cy, 700, 1270);
-  // Matta-mönster
+  ctx.fillRect(2750 - cx, 1700 - cy, 630, 700);
   ctx.strokeStyle = 'rgba(90,40,50,0.5)';
-  for (let yy = 800; yy < 1970; yy += 60) {
+  for (let yy = 1800; yy < 2400; yy += 60) {
     ctx.beginPath();
-    ctx.moveTo(2720 - cx, yy - cy);
-    ctx.lineTo(3380 - cx, yy - cy);
+    ctx.moveTo(2770 - cx, yy - cy); ctx.lineTo(3380 - cx, yy - cy);
     ctx.stroke();
   }
+
+  // BREAK ROOM (x=620-1300, y=2000-2400) — wood-tones
+  ctx.fillStyle = arena.breakFloorColor || '#5a4a3a';
+  ctx.fillRect(620 - cx, 2000 - cy, 680, 400);
+  // Wood-plank-lines
+  ctx.strokeStyle = 'rgba(70,55,40,0.5)';
+  for (let yy = 2050; yy < 2400; yy += 50) {
+    ctx.beginPath();
+    ctx.moveTo(630 - cx, yy - cy); ctx.lineTo(1290 - cx, yy - cy);
+    ctx.stroke();
+  }
+
+  // CONFERENCE ROOM (x=1300-2400, y=2000-2400) — professional grå-blå
+  ctx.fillStyle = arena.conferenceColor || '#3a3a4a';
+  ctx.fillRect(1300 - cx, 2000 - cy, 1100, 400);
+
+  // TOILETS (x=2400-2700, y=2000-2400) — klinker
+  ctx.fillStyle = arena.toiletColor || '#6a7080';
+  ctx.fillRect(2400 - cx, 2000 - cy, 300, 400);
+  // Klinker-rutmönster
+  ctx.strokeStyle = 'rgba(50,55,65,0.6)';
+  for (let xx = 2420; xx < 2700; xx += 30) {
+    ctx.beginPath();
+    ctx.moveTo(xx - cx, 2010 - cy); ctx.lineTo(xx - cx, 2390 - cy);
+    ctx.stroke();
+  }
+  for (let yy = 2020; yy < 2400; yy += 30) {
+    ctx.beginPath();
+    ctx.moveTo(2410 - cx, yy - cy); ctx.lineTo(2690 - cx, yy - cy);
+    ctx.stroke();
+  }
+
+  // RECEPTION FOYER (x=620-3380, y=3100-3300) — marmor med mörkare ton
+  ctx.fillStyle = arena.receptionColor || '#5a4a3a';
+  ctx.fillRect(620 - cx, 3100 - cy, 2760, 200);
 
   // === CARPET STRIPE in main lobby (välkomst-matta) ===
   ctx.fillStyle = arena.carpetColor || '#4a2a30';
@@ -8890,7 +8948,613 @@ function drawHeistDecorations() {
 }
 
 function _drawHeistDecoration(kind, x, y) {
+  const t = performance.now();
   switch (kind) {
+    // ===== NYA v1.627 DECORATIONS =====
+    case 'gold_mega_stack': {
+      // Final-tier: stor guldhög med pulserande glow
+      const pulse = 0.7 + 0.3 * Math.sin(t / 400);
+      ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 14 * pulse;
+      ctx.fillStyle = '#aa7a18';
+      ctx.fillRect(x - 32, y - 18, 64, 32);
+      ctx.fillStyle = '#ffd54a';
+      for (let i = 0; i < 4; i++) ctx.fillRect(x - 30, y - 16 + i * 8, 60, 6);
+      ctx.fillStyle = '#fff8c8';
+      ctx.fillRect(x - 28, y - 14, 4, 4);
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = '#5a3a08'; ctx.lineWidth = 1.5;
+      ctx.strokeRect(x - 32, y - 18, 64, 32);
+      break;
+    }
+    case 'safe_open': {
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 18, y - 18, 36, 36);
+      ctx.fillStyle = '#5a5a5a';
+      ctx.fillRect(x - 16, y - 16, 32, 32);
+      // Open door swung left
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x - 30, y - 16, 14, 32);
+      ctx.fillStyle = '#5aff8a';
+      ctx.fillRect(x - 12, y - 10, 22, 16); // cash inside
+      ctx.fillStyle = '#aa3030';
+      ctx.fillRect(x - 5, y - 8, 4, 12);
+      break;
+    }
+    case 'security_camera_floor': {
+      // Floor-mounted security sensor (laser-eye)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath(); ctx.arc(x, y, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ff3030';
+      ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI * 2); ctx.fill();
+      // Laser beam
+      ctx.strokeStyle = 'rgba(255,48,48,0.3)';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y + 60); ctx.stroke();
+      break;
+    }
+    case 'motion_sensor': {
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 6, y - 10, 12, 18);
+      ctx.fillStyle = '#ff5a3a';
+      ctx.fillRect(x - 4, y - 8, 8, 4);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - 3, y - 7, 2, 2);
+      break;
+    }
+    case 'locker': {
+      ctx.fillStyle = '#3a4a5a';
+      ctx.fillRect(x - 20, y - 28, 40, 56);
+      ctx.fillStyle = '#5a6a7a';
+      ctx.fillRect(x - 18, y - 26, 36, 52);
+      ctx.fillStyle = '#1a2a3a';
+      ctx.fillRect(x - 16, y - 24, 32, 6); // top vent
+      ctx.fillStyle = '#aaa';
+      ctx.beginPath(); ctx.arc(x + 12, y, 2, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'locker_open': {
+      ctx.fillStyle = '#3a4a5a';
+      ctx.fillRect(x - 20, y - 28, 40, 56);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 18, y - 26, 36, 52);
+      ctx.fillStyle = '#5aff8a'; // cash visible
+      ctx.fillRect(x - 12, y - 10, 24, 14);
+      ctx.fillStyle = '#ff8a3a';
+      ctx.fillRect(x - 14, y + 8, 28, 4);
+      break;
+    }
+    case 'master_switch': {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 25, y - 18, 50, 36);
+      ctx.fillStyle = '#5aff5a';
+      for (let i = 0; i < 6; i++) {
+        ctx.fillRect(x - 20 + i * 7, y - 12, 4, 8);
+      }
+      ctx.fillStyle = '#ff3030';
+      ctx.fillRect(x - 8, y + 2, 16, 8);
+      break;
+    }
+    case 'cable_pile': {
+      ctx.strokeStyle = '#2a4a2a';
+      ctx.lineWidth = 3;
+      for (let i = 0; i < 6; i++) {
+        ctx.beginPath();
+        ctx.arc(x + (i - 3) * 4, y, 10 + i, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'cable_tray': {
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 25, y - 4, 50, 8);
+      ctx.strokeStyle = '#2a3a5a';
+      ctx.lineWidth = 1.5;
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x - 22, y - 2 + i);
+        ctx.lineTo(x + 22, y - 2 + i);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'cooling_unit': {
+      ctx.fillStyle = '#5a6a7a';
+      ctx.fillRect(x - 18, y - 18, 36, 36);
+      ctx.fillStyle = '#aaa';
+      // Fan blades
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(t / 200);
+      ctx.fillStyle = '#3a3a3a';
+      for (let i = 0; i < 4; i++) {
+        ctx.fillRect(-2, -14, 4, 28);
+        ctx.rotate(Math.PI / 2);
+      }
+      ctx.restore();
+      ctx.fillStyle = '#aaa';
+      ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'monitor_wall': {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 40, y - 25, 80, 50);
+      // 6 small monitors in 2x3 grid
+      for (let r = 0; r < 2; r++) {
+        for (let c = 0; c < 3; c++) {
+          const mx = x - 35 + c * 24;
+          const my = y - 22 + r * 24;
+          ctx.fillStyle = ['#0a3a0a', '#3a0a0a', '#0a1a3a', '#0a3a3a', '#3a3a0a', '#1a0a3a'][r * 3 + c];
+          ctx.fillRect(mx, my, 20, 18);
+          // Glitch lines
+          ctx.fillStyle = 'rgba(90,255,90,0.4)';
+          if (Math.sin(t / 100 + r * 3 + c) > 0.5) ctx.fillRect(mx, my + 8, 20, 1);
+        }
+      }
+      break;
+    }
+    case 'security_desk': {
+      ctx.fillStyle = '#3a3028';
+      ctx.fillRect(x - 30, y - 12, 60, 24);
+      ctx.fillStyle = '#5a4a3a';
+      ctx.fillRect(x - 28, y - 10, 56, 4);
+      // Keyboard
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 18, y - 4, 36, 10);
+      break;
+    }
+    case 'master_terminal': {
+      // Bigger terminal — red-themed (high security)
+      ctx.fillStyle = '#2a0a0a';
+      ctx.fillRect(x - 16, y - 22, 32, 44);
+      ctx.fillStyle = '#5a0a0a';
+      ctx.fillRect(x - 14, y - 20, 28, 22);
+      ctx.fillStyle = '#ff5050';
+      ctx.font = 'bold 6px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('MASTER', x - 13, y - 12);
+      ctx.fillText('CTRL', x - 13, y - 5);
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 14, y + 4, 28, 14);
+      // Red blinking LED
+      const blink = Math.sin(t / 200) > 0 ? '#ff3030' : '#3a0a0a';
+      ctx.fillStyle = blink;
+      ctx.beginPath(); ctx.arc(x + 11, y - 17, 2, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'office_chair': {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 10, y - 10, 20, 20);
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x - 8, y - 8, 16, 16);
+      // Backrest
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 10, y - 14, 20, 6);
+      // Wheels
+      ctx.fillStyle = '#3a3a3a';
+      ctx.beginPath(); ctx.arc(x - 8, y + 10, 2, 0, Math.PI * 2);
+      ctx.arc(x + 8, y + 10, 2, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'office_couch': {
+      ctx.fillStyle = '#3a2a4a';
+      ctx.fillRect(x - 30, y - 12, 60, 24);
+      ctx.fillStyle = '#5a3a6a';
+      ctx.fillRect(x - 28, y - 10, 56, 6); // backrest
+      ctx.fillRect(x - 28, y - 4, 56, 14); // seat
+      // Armrests
+      ctx.fillStyle = '#2a1a3a';
+      ctx.fillRect(x - 32, y - 10, 6, 20);
+      ctx.fillRect(x + 26, y - 10, 6, 20);
+      break;
+    }
+    case 'coffee_machine': {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 12, y - 18, 24, 32);
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 10, y - 16, 20, 14);
+      // Display
+      ctx.fillStyle = '#5aff5a';
+      ctx.fillRect(x - 8, y - 14, 16, 4);
+      // Spout + cup
+      ctx.fillStyle = '#5a5a5a';
+      ctx.fillRect(x - 4, y - 2, 8, 6);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - 6, y + 4, 12, 10);
+      ctx.fillStyle = '#6a3a18';
+      ctx.fillRect(x - 5, y + 5, 10, 6); // coffee
+      break;
+    }
+    case 'fridge': {
+      ctx.fillStyle = '#cccccc';
+      ctx.fillRect(x - 16, y - 28, 32, 56);
+      ctx.fillStyle = '#aaa';
+      ctx.fillRect(x - 14, y - 26, 28, 52);
+      // Door split
+      ctx.fillStyle = '#888';
+      ctx.fillRect(x - 14, y - 4, 28, 2);
+      // Handles
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x + 10, y - 16, 3, 8);
+      ctx.fillRect(x + 10, y + 8, 3, 8);
+      break;
+    }
+    case 'microwave': {
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x - 14, y - 10, 28, 20);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 12, y - 8, 20, 16); // window
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x + 8, y - 8, 5, 16); // controls
+      ctx.fillStyle = '#5aff5a';
+      ctx.fillRect(x + 9, y - 6, 3, 2);
+      break;
+    }
+    case 'vending_machine': {
+      ctx.fillStyle = '#aa3030';
+      ctx.fillRect(x - 14, y - 26, 28, 52);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 12, y - 24, 24, 36); // window
+      // Items
+      ctx.fillStyle = '#ff5050'; ctx.fillRect(x - 10, y - 20, 5, 6);
+      ctx.fillStyle = '#5aff5a'; ctx.fillRect(x - 3, y - 20, 5, 6);
+      ctx.fillStyle = '#5acaff'; ctx.fillRect(x + 4, y - 20, 5, 6);
+      ctx.fillStyle = '#ffd54a'; ctx.fillRect(x - 10, y - 12, 5, 6);
+      ctx.fillStyle = '#ff8a3a'; ctx.fillRect(x - 3, y - 12, 5, 6);
+      ctx.fillStyle = '#aa5aff'; ctx.fillRect(x + 4, y - 12, 5, 6);
+      // Dispenser
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 12, y + 14, 24, 8);
+      break;
+    }
+    case 'sink_counter': {
+      ctx.fillStyle = '#5a4a3a';
+      ctx.fillRect(x - 18, y - 8, 36, 16);
+      ctx.fillStyle = '#cccccc';
+      ctx.fillRect(x - 10, y - 4, 20, 8); // sink
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 2, y - 8, 4, 5); // faucet
+      break;
+    }
+    case 'round_table': {
+      ctx.fillStyle = '#5a3a18';
+      ctx.beginPath(); ctx.arc(x, y, 24, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#7a5a28';
+      ctx.beginPath(); ctx.arc(x, y, 22, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'tv_wall': {
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(x - 25, y - 18, 50, 30);
+      // Screen content
+      ctx.fillStyle = '#5acaff';
+      ctx.fillRect(x - 23, y - 16, 46, 26);
+      // News ticker
+      ctx.fillStyle = '#ff3030';
+      ctx.fillRect(x - 23, y + 4, 46, 5);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 4px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('NEWS', x - 22, y + 9);
+      break;
+    }
+    case 'tip_jar': {
+      ctx.fillStyle = 'rgba(180,200,220,0.5)';
+      ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#5aff8a'; // bills visible
+      ctx.fillRect(x - 6, y - 5, 4, 8);
+      ctx.fillStyle = '#ffd54a';
+      ctx.beginPath(); ctx.arc(x + 3, y + 2, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#aaa';
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2); ctx.stroke();
+      break;
+    }
+    case 'conference_table': {
+      ctx.fillStyle = '#4a2a18';
+      ctx.fillRect(x - 80, y - 25, 160, 50);
+      ctx.fillStyle = '#6a3a28';
+      ctx.fillRect(x - 78, y - 23, 156, 4);
+      // Wood-grain
+      ctx.strokeStyle = '#3a2010';
+      ctx.lineWidth = 0.5;
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x - 78, y - 15 + i * 8);
+        ctx.lineTo(x + 78, y - 15 + i * 8);
+        ctx.stroke();
+      }
+      break;
+    }
+    case 'projector': {
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 10, y - 6, 20, 12);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x + 8, y - 4, 4, 8);
+      // Beam (subtle)
+      ctx.fillStyle = 'rgba(255,255,200,0.1)';
+      ctx.beginPath();
+      ctx.moveTo(x + 12, y - 4);
+      ctx.lineTo(x + 60, y - 14);
+      ctx.lineTo(x + 60, y + 14);
+      ctx.lineTo(x + 12, y + 4);
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'whiteboard': {
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 22, y - 14, 44, 28);
+      ctx.fillStyle = '#f5f5f5';
+      ctx.fillRect(x - 20, y - 12, 40, 24);
+      // Scribbles
+      ctx.strokeStyle = '#3a3a8a';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(x - 16, y - 5); ctx.lineTo(x - 8, y - 5);
+      ctx.lineTo(x - 5, y + 1); ctx.lineTo(x + 4, y + 1);
+      ctx.moveTo(x - 12, y + 6); ctx.lineTo(x + 8, y + 6);
+      ctx.stroke();
+      ctx.fillStyle = '#aa3030';
+      ctx.fillRect(x + 10, y - 8, 6, 1);
+      break;
+    }
+    case 'laptop': {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 14, y - 9, 28, 18);
+      ctx.fillStyle = '#5acaff';
+      ctx.fillRect(x - 12, y - 7, 24, 10);
+      // Keyboard
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 12, y + 3, 24, 5);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 4px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('$ 800', x, y - 1);
+      break;
+    }
+    case 'photocopier': {
+      ctx.fillStyle = '#cccccc';
+      ctx.fillRect(x - 18, y - 18, 36, 36);
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 16, y - 16, 32, 12); // top
+      // Paper-tray
+      ctx.fillStyle = '#f5f5f5';
+      ctx.fillRect(x - 14, y - 2, 28, 4);
+      // Controls
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 10, y + 4, 20, 8);
+      ctx.fillStyle = '#5aff5a';
+      ctx.fillRect(x - 8, y + 6, 4, 4);
+      break;
+    }
+    case 'monitor': {
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 12, y - 10, 24, 18);
+      ctx.fillStyle = '#0a3a3a';
+      ctx.fillRect(x - 10, y - 8, 20, 14);
+      // CRT scanlines
+      ctx.fillStyle = 'rgba(90,255,200,0.3)';
+      ctx.fillRect(x - 10, y - 6 + (Math.sin(t / 300) > 0 ? 4 : 8), 20, 1);
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 3, y + 8, 6, 4); // stand
+      break;
+    }
+    case 'toilet_stall': {
+      ctx.fillStyle = '#888';
+      ctx.fillRect(x - 16, y - 16, 32, 32);
+      ctx.fillStyle = '#aaa';
+      ctx.fillRect(x - 14, y - 14, 28, 28);
+      // Toilet shape
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.ellipse(x, y, 10, 8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#cccccc';
+      ctx.fillRect(x - 6, y - 10, 12, 6); // tank
+      break;
+    }
+    case 'sink': {
+      ctx.fillStyle = '#aaa';
+      ctx.fillRect(x - 10, y - 6, 20, 12);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - 8, y - 4, 16, 8);
+      // Faucet
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 1, y - 8, 2, 4);
+      break;
+    }
+    case 'mirror': {
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 12, y - 12, 24, 24);
+      ctx.fillStyle = '#aaccdd';
+      ctx.fillRect(x - 10, y - 10, 20, 20);
+      // Reflection
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillRect(x - 8, y - 8, 6, 4);
+      break;
+    }
+    case 'reception_desk': {
+      ctx.fillStyle = '#3a2a1a';
+      ctx.fillRect(x - 35, y - 15, 70, 30);
+      ctx.fillStyle = '#5a4a3a';
+      ctx.fillRect(x - 33, y - 13, 66, 8); // top
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 12, y + 2, 24, 8); // computer
+      ctx.fillStyle = '#5aff5a';
+      ctx.fillRect(x - 10, y + 4, 20, 4);
+      // Welcome-text
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'bold 7px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('WELCOME', x, y - 16);
+      break;
+    }
+    case 'bookshelf': {
+      ctx.fillStyle = '#3a2a18';
+      ctx.fillRect(x - 18, y - 25, 36, 50);
+      ctx.fillStyle = '#5a3a28';
+      ctx.fillRect(x - 16, y - 23, 32, 46);
+      // 4 shelves with books
+      const bookCols = ['#aa3030', '#3a8a4a', '#3a4a8a', '#8a4a3a', '#5a4a8a', '#aa8a3a'];
+      for (let r = 0; r < 4; r++) {
+        for (let c = 0; c < 6; c++) {
+          ctx.fillStyle = bookCols[(r + c) % bookCols.length];
+          ctx.fillRect(x - 14 + c * 5, y - 20 + r * 11, 4, 8);
+        }
+      }
+      break;
+    }
+    case 'filing_cabinet': {
+      ctx.fillStyle = '#5a6a7a';
+      ctx.fillRect(x - 14, y - 20, 28, 40);
+      ctx.fillStyle = '#7a8a9a';
+      ctx.fillRect(x - 12, y - 18, 24, 36);
+      // 3 drawers
+      for (let i = 0; i < 3; i++) {
+        ctx.fillStyle = '#3a4a5a';
+        ctx.fillRect(x - 10, y - 16 + i * 12, 20, 1);
+        // Handle
+        ctx.fillRect(x - 3, y - 10 + i * 12, 6, 2);
+      }
+      break;
+    }
+    case 'coffee_table': {
+      ctx.fillStyle = '#3a2a18';
+      ctx.fillRect(x - 18, y - 10, 36, 20);
+      ctx.fillStyle = '#5a3a28';
+      ctx.fillRect(x - 16, y - 8, 32, 16);
+      // Magazine
+      ctx.fillStyle = '#aa3030';
+      ctx.fillRect(x - 8, y - 4, 12, 6);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 4px monospace';
+      ctx.fillText('MAG', x - 6, y);
+      break;
+    }
+    case 'framed_picture': {
+      ctx.fillStyle = '#5a3a18';
+      ctx.fillRect(x - 14, y - 10, 28, 20);
+      ctx.fillStyle = '#aaaadd';
+      ctx.fillRect(x - 12, y - 8, 24, 16);
+      ctx.fillStyle = '#3a5a8a';
+      ctx.fillRect(x - 11, y - 7, 22, 8);
+      ctx.fillStyle = '#5a8a3a';
+      ctx.fillRect(x - 11, y + 1, 22, 6);
+      break;
+    }
+    case 'bank_logo_floor': {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.fillStyle = 'rgba(255,213,74,0.4)';
+      ctx.beginPath(); ctx.arc(0, 0, 35, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(170,140,60,0.6)';
+      ctx.font = 'bold 22px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('$', 0, 8);
+      ctx.restore();
+      break;
+    }
+    case 'floor_mat': {
+      ctx.fillStyle = '#5a3a30';
+      ctx.fillRect(x - 30, y - 15, 60, 30);
+      ctx.fillStyle = '#7a5a4a';
+      ctx.fillRect(x - 28, y - 13, 56, 26);
+      ctx.fillStyle = '#3a2a1a';
+      ctx.font = 'bold 5px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('WELCOME', x, y + 2);
+      break;
+    }
+    case 'directory_sign': {
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 12, y - 25, 24, 50);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 10, y - 23, 20, 30);
+      ctx.fillStyle = '#5aff5a';
+      ctx.font = 'bold 4px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('1F LOBBY', x - 9, y - 18);
+      ctx.fillText('2F MGMT', x - 9, y - 13);
+      ctx.fillText('B  VAULT', x - 9, y - 8);
+      // Stand
+      ctx.fillStyle = '#5a5a5a';
+      ctx.fillRect(x - 2, y + 7, 4, 20);
+      break;
+    }
+    case 'bus_stop': {
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 25, y - 25, 50, 4); // roof
+      ctx.fillRect(x - 25, y - 25, 4, 30); // post-l
+      ctx.fillRect(x + 21, y - 25, 4, 30); // post-r
+      ctx.fillStyle = '#5acaff';
+      ctx.fillRect(x - 21, y - 21, 42, 16); // schedule-board
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 5px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText('BUS 24', x - 20, y - 13);
+      ctx.fillText('15 min', x - 20, y - 8);
+      // Bench
+      ctx.fillStyle = '#5a3a18';
+      ctx.fillRect(x - 22, y + 2, 44, 6);
+      break;
+    }
+    case 'newsstand': {
+      ctx.fillStyle = '#5a3a18';
+      ctx.fillRect(x - 20, y - 15, 40, 30);
+      // Newspapers visible
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - 18, y - 12, 16, 12);
+      ctx.fillRect(x + 2, y - 12, 16, 12);
+      ctx.fillStyle = '#000';
+      ctx.font = 'bold 4px serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('NEWS', x - 10, y - 6);
+      ctx.fillText('TIMES', x + 10, y - 6);
+      break;
+    }
+    case 'fire_hydrant': {
+      ctx.fillStyle = '#aa3030';
+      ctx.fillRect(x - 8, y - 18, 16, 30);
+      ctx.fillStyle = '#5a1818';
+      ctx.fillRect(x - 8, y - 18, 16, 4); // top cap
+      // Nozzles
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 12, y - 8, 4, 4);
+      ctx.fillRect(x + 8, y - 8, 4, 4);
+      break;
+    }
+    case 'graffiti': {
+      ctx.fillStyle = '#3a8a3a';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('TAG', x, y);
+      ctx.fillStyle = '#ff3aff';
+      ctx.font = 'bold 12px sans-serif';
+      ctx.fillText('420', x + 3, y + 12);
+      break;
+    }
+    case 'coffee_mug': {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - 5, y - 5, 10, 10);
+      ctx.fillStyle = '#6a3a18';
+      ctx.fillRect(x - 4, y - 4, 8, 8);
+      // Handle
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(x + 5, y, 3, -Math.PI / 2, Math.PI / 2);
+      ctx.stroke();
+      // Steam (light)
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.beginPath(); ctx.ellipse(x - 1, y - 9, 1.5, 3, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'chair': {
+      ctx.fillStyle = '#3a2a18';
+      ctx.fillRect(x - 8, y - 8, 16, 16);
+      ctx.fillStyle = '#5a3a28';
+      ctx.fillRect(x - 10, y - 10, 20, 4);
+      break;
+    }
+    // ===== EXISTING (oförändrade) =====
+    case 'atm':
     case 'atm':
       ctx.fillStyle = '#2a3a4a';
       ctx.fillRect(x - 18, y - 25, 36, 50);

@@ -1,64 +1,66 @@
-// HEIST — Storbanken
+// HEIST — Storbanken Grand (v1.627 — REDESIGN)
 //
-// 3-fas PvE coop (1-8 spelare): STEALTH → ALARM → EXTRACT.
-// Solo viable + upp till 8 spelare (skalning via guard/civilian/polis-count).
+// 17 rum, 15 kameror, 5 hack-terminaler + master-terminal, 6 vakter,
+// 15 civilians, 25 loot-spots, 65+ decoration-typer.
 //
-// MAP-LAYOUT (4000×4000):
+// Layout (4000×4000):
 //
-//   y=0      ─────────────────────────────────────────────
-//   y=400          [back alley + dumpsters + back-van]
-//   y=700    ═════════════════════════════════════════════
-//   y=1000   │ SERVER │  V A U L T  R O O M  │ MANAGER  │
-//   y=1300   │ ROOM   │  [drill] [cash stacks]│ OFFICE  │
-//   y=1600   │[terms] │  [gold stacks]        │ [safe]  │
-//   y=1900   │        │  ═══[VAULT DOOR]═══   │ [desk]  │
-//   y=2000   └────────┴──────────────────────┴─────────┘
-//   y=2200          HALLWAY  (connects vault → lobby)
-//   y=2400          ┌──────────────────────────┐
-//   y=2500          │ CASHIER COUNTER ROW      │
-//   y=2700          └──────────────────────────┘
-//   y=2800
-//   y=3100              MAIN LOBBY (ATMs, plants, pillars)
-//   y=3300
-//   y=3400   ═════════════[FRONT DOOR]═════════════════════
-//   y=3700        STREET + GETAWAY VAN + civilians
-//   y=4000   ─────────────────────────────────────────────
+//   y=0-700    NORTH ALLEY: loading-dock van, back service-entry, back van
+//   y=720-1100 ROW 1: Storage | VAULT INNER (gold mega-stacks) | Locker Room
+//   y=1100-1500 ROW 2 (north): Network Closet (hidden) | VAULT OUTER | Security Room
+//   y=1500-1700 ROW 2 (south): -- | VAULT OUTER cont. | -- (security cont.)
+//   y=1700-2000 ROW 3: Server Room | HALLWAY (drill access) | Manager Reception
+//   y=2000-2200 ROW 4 (north): Break Room | Conference | Toilet Men | Manager Office
+//   y=2200-2400 ROW 4 (south): Break Room cont. | Conference cont. | Toilet Women | Manager Office cont.
+//   y=2400-2450 CASHIER COUNTER (5 segment + gaps)
+//   y=2450-2700 BEHIND-COUNTER (cashier work area)
+//   y=2700-3100 MAIN LOBBY: 6 ATMs + 4 pillars + sitting area + bank-logo
+//   y=3100-3300 RECEPTION FOYER: reception desk + revolving-door area
+//   y=3300-3400 (south outer wall + front-entry-gap)
+//   y=3400-4000 STREET: parking-lot, getaway van, parked cars, sidewalk
 //
-// PHASE-FLOW:
-//   STEALTH (start, max 4 min) — Infiltrera, undvik kameror + vakter, hacka
-//   terminaler för att slå ut kameror, lockpicka bakdörren för stealth-extract.
-//   Trigger ALARM: civilian skriker, vakt spottar dig, camera-detect, eller timeout.
-//
-//   ALARM (efter trigger) — Drilla valvet (2 min), grabba säckar, försvara mot
-//   polis-vågor. Loot-säckar saktar dig 40%. Du måste få in dem i van.
-//
-//   EXTRACT (när drill klar + lots looted) — Få ut säckarna till getaway-van inom
-//   60s. Polisen blir mer aggressiv. Lyckas = WIN. Misslyckas = LOSE.
+// PHASE-FLOW (oförändrat):
+//   STEALTH → ALARM → EXTRACT
+//   Med MYCKET fler stealth-options nu:
+//   - 5 vanliga + 1 master hack-terminal
+//   - 6 vakter att smyga förbi
+//   - 3 entré-routes (front, back-alley van, loading-dock van, side-entry)
+//   - 2 valv-dörrar att drilla (outer + inner = double-tier loot)
 //
 'use strict';
 
 const HEIST_ARENA = {
   worldW: 4000,
   worldH: 4000,
-  name: 'STORBANKEN',
+  name: 'STORBANKEN GRAND',
 
   // Visual region-färger
-  streetColor:     '#2a2a30',  // asfalt
-  sidewalkColor:   '#7a7568',  // betong
-  bankFloorColor:  '#a8906a',  // marmor-golv
-  vaultFloorColor: '#3a2a1a',  // mörkt valv-stål
-  carpetColor:     '#4a2a30',  // röd matta (manager + lobby-mitten)
-  serverFloorColor:'#1a2a3a',  // svalt blå (server-rum)
+  streetColor:     '#2a2a30',
+  sidewalkColor:   '#7a7568',
+  bankFloorColor:  '#a8906a',     // marmor lobby
+  vaultFloorColor: '#3a2a1a',     // mörkt stål
+  vaultInnerColor: '#1a0f06',     // ännu mörkare — final vault
+  carpetColor:     '#4a2a30',     // röd matta manager
+  serverFloorColor:'#1a2a3a',
+  breakFloorColor: '#5a4a3a',     // lite mer hemtrevligt
+  conferenceColor: '#3a3a4a',
+  toiletColor:     '#6a7080',     // klinker
+  securityColor:   '#2a1a1a',
+  storageColor:    '#3a3028',
+  lockerColor:     '#3a3a3a',
+  receptionColor:  '#5a4a3a',
 
   // === MATCH-CONFIG ===
-  matchDurationSec:    720,    // 12 min total
-  stealthPhaseMaxSec:  180,    // v1.625: 3 min (var 4) — för få mandatory actions
-  alarmPhaseMaxSec:    480,    // v1.625: 8 min cap — förhindrar match-lock
-  drillDurationSec:    120,    // 2 min valv-drill
-  extractDurationSec:  60,     // 1 min extract-fönster
+  matchDurationSec:    720,
+  stealthPhaseMaxSec:  180,
+  alarmPhaseMaxSec:    480,
+  drillDurationSec:    120,
+  innerVaultDrillSec:  90,        // andra drill för inner-vault
+  extractDurationSec:  60,
 
-  // === PLAYER SPAWNS (street utanför front-door, 8 platser) ===
   maxPlayers: 8,
+
+  // === PLAYER SPAWNS (street utanför fronten) ===
   playerSpawns: [
     { x: 1800, y: 3800 },
     { x: 1900, y: 3800 },
@@ -70,252 +72,561 @@ const HEIST_ARENA = {
     { x: 2150, y: 3900 },
   ],
 
-  // === SCALING (multipliers baserat på antal spelare) ===
-  // v1.624: höjt policeMulPerPlayer 0.25 → 0.55 så 8p inte är trivialt.
-  // 1p = 1.0×, 4p = 2.65×, 8p = 4.85× (mer linjär)
-  // Guard/loot/civilian scaling oimplementerat (data dead, lämnat för framtida iter).
   scaling: {
-    policeMulPerPlayer: 0.55,     // 1p=1.0, 4p=2.65, 8p=4.85
-    guardMulPerPlayer:  0.10,     // UNUSED iter 4
-    lootMulPerPlayer:   0.15,     // UNUSED iter 4
-    civilianMulPerPlayer: 0.05,   // UNUSED iter 4
+    policeMulPerPlayer: 0.55,
+    guardMulPerPlayer: 0.10,
+    lootMulPerPlayer: 0.15,
+    civilianMulPerPlayer: 0.05,
   },
 
-  // Player start-state
   startHp: 100, maxHp: 100,
   startShield: 0, maxShield: 100,
-  // v1.624: start med 'fists' så civilians inte instant-panikar (stealth-möjligt).
-  // Player byter till pistol via vapen-menyn när alarm triggas (eller manuellt).
   startWeapon: 'fists',
-  startGrenades: 0,            // ingen granat i stealth-fas
+  startGrenades: 0,
 
-  // === EXTRACTION ZONES ===
-  // Front van är primary extraction (alltid open). Back-alley låst tills lockpickad.
+  // === EXTRACTION ZONES (3 nu — primary + back + loading-dock) ===
   extractZones: {
-    front: { x: 2000, y: 3700, w: 200, h: 100, kind: 'van_front', locked: false },
-    back:  { x: 1950, y: 400,  w: 100, h: 100, kind: 'van_back',  locked: true  },
+    front:  { x: 2000, y: 3700, w: 200, h: 100, kind: 'van_front',   locked: false },
+    back:   { x: 1900, y: 400,  w: 100, h: 120, kind: 'van_back',    locked: true  },
+    loading:{ x: 900,  y: 350,  w: 150, h: 120, kind: 'van_loading', locked: true  },
   },
 
-  // === WALLS (AABB collision för player + bullets) ===
-  // top-left coords + width/height. kind styr rendering.
+  // === WALLS (rumsindelning — wall_thickness ≈ 25) ===
   walls: [
-    // === OUTER BANK WALLS (south & north har gaps för dörrar) ===
-    // North wall (med back-alley gap x=1900-2000)
-    { x: 600,  y: 700,  w: 1300, h: 30, kind: 'wall' },
-    { x: 2000, y: 700,  w: 1400, h: 30, kind: 'wall' },
-    // South wall (med front-door gap x=1900-2100)
-    { x: 600,  y: 3400, w: 1300, h: 30, kind: 'wall' },
-    { x: 2100, y: 3400, w: 1300, h: 30, kind: 'wall' },
-    // West outer
-    { x: 600,  y: 730,  w: 30, h: 2700, kind: 'wall' },
-    // East outer
-    { x: 3370, y: 730,  w: 30, h: 2700, kind: 'wall' },
+    // ============ YTTRE BANK-VÄGGAR ============
+    // NORTH outer (gaps: loading-dock 900-1050, back-alley 1900-2000)
+    { x: 600,  y: 700,  w: 300,  h: 25, kind: 'wall' },
+    { x: 1050, y: 700,  w: 850,  h: 25, kind: 'wall' },
+    { x: 2000, y: 700,  w: 1400, h: 25, kind: 'wall' },
+    // SOUTH outer (gaps: front 1900-2100, side-entry 3050-3200)
+    { x: 600,  y: 3400, w: 1300, h: 25, kind: 'wall' },
+    { x: 2100, y: 3400, w: 950,  h: 25, kind: 'wall' },
+    { x: 3200, y: 3400, w: 200,  h: 25, kind: 'wall' },
+    // WEST outer
+    { x: 600,  y: 725,  w: 25,   h: 2700, kind: 'wall' },
+    // EAST outer
+    { x: 3375, y: 725,  w: 25,   h: 2700, kind: 'wall' },
 
-    // === VAULT ROOM (north center: x=1300-2700, y=730-1900) ===
-    // Vault west wall
-    { x: 1300, y: 730,  w: 30, h: 1170, kind: 'wall_vault' },
-    // Vault east wall
-    { x: 2670, y: 730,  w: 30, h: 1170, kind: 'wall_vault' },
-    // Vault south wall — split för VAULT DOOR (gap x=1900-2100)
-    { x: 1330, y: 1870, w: 570, h: 30, kind: 'wall_vault' },
-    { x: 2100, y: 1870, w: 570, h: 30, kind: 'wall_vault' },
+    // ============ ROW 1 (y=725-1075) — STORAGE | VAULT INNER | LOCKER ============
+    // STORAGE south wall (y=1075, x=620-1100) door at x=820-900
+    { x: 625,  y: 1075, w: 195,  h: 25, kind: 'wall' },
+    { x: 900,  y: 1075, w: 200,  h: 25, kind: 'wall' },
+    // STORAGE east wall (x=1075, y=725-1075)
+    { x: 1075, y: 725,  w: 25,   h: 350, kind: 'wall' },
+    // VAULT INNER west wall (x=1300, y=725-1075)
+    { x: 1300, y: 725,  w: 25,   h: 350, kind: 'wall' },
+    // VAULT INNER south wall (y=1075, x=1300-2700) door at x=1900-2100 (inner-vault, drillable)
+    { x: 1325, y: 1075, w: 575,  h: 25, kind: 'wall_vault' },
+    { x: 2100, y: 1075, w: 575,  h: 25, kind: 'wall_vault' },
+    // VAULT INNER east wall (x=2700, y=725-1075)
+    { x: 2675, y: 725,  w: 25,   h: 350, kind: 'wall_vault' },
+    // LOCKER west wall (x=2900, y=725-1075)
+    { x: 2900, y: 725,  w: 25,   h: 350, kind: 'wall' },
+    // LOCKER south wall (y=1075, x=2900-3380) door at x=3050-3150
+    { x: 2925, y: 1075, w: 125,  h: 25, kind: 'wall' },
+    { x: 3150, y: 1075, w: 225,  h: 25, kind: 'wall' },
 
-    // === SERVER ROOM (northwest: x=630-1300, y=730-2000) ===
-    // Server east wall (separerar mot vault)
-    // (vault west wall vid 1300 är redan utlagd ovan)
-    // Server south wall — split för server-door (gap x=820-900)
-    { x: 630,  y: 1970, w: 190, h: 30, kind: 'wall' },
-    { x: 900,  y: 1970, w: 400, h: 30, kind: 'wall' },
+    // ============ ROW 2 (y=1100-1700) — NET CLOSET | VAULT OUTER | SECURITY ============
+    // NETWORK CLOSET east wall (x=900, y=1100-1500) — hidden door at y=1400-1475
+    { x: 900,  y: 1100, w: 25,   h: 300, kind: 'wall' },
+    { x: 900,  y: 1475, w: 25,   h: 25,  kind: 'wall' },
+    // NETWORK CLOSET south wall (y=1475, x=620-900) — door at x=720-800
+    { x: 625,  y: 1475, w: 95,   h: 25, kind: 'wall' },
+    { x: 800,  y: 1475, w: 100,  h: 25, kind: 'wall' },
+    // VAULT OUTER walls already extend from inner (x=1300, x=2700, going down)
+    { x: 1300, y: 1100, w: 25,   h: 575, kind: 'wall_vault' }, // west
+    { x: 2675, y: 1100, w: 25,   h: 575, kind: 'wall_vault' }, // east
+    // VAULT OUTER south wall (y=1675, x=1300-2700) door x=1900-2100 (outer-vault, drillable)
+    { x: 1325, y: 1675, w: 575,  h: 25, kind: 'wall_vault' },
+    { x: 2100, y: 1675, w: 575,  h: 25, kind: 'wall_vault' },
+    // SECURITY west wall (x=2750, y=1100-1675)
+    { x: 2750, y: 1100, w: 25,   h: 575, kind: 'wall' },
+    // SECURITY south wall (y=1675, x=2750-3380) door x=2950-3030 (lockpickable)
+    { x: 2775, y: 1675, w: 175,  h: 25, kind: 'wall' },
+    { x: 3030, y: 1675, w: 345,  h: 25, kind: 'wall' },
 
-    // === MANAGER OFFICE (northeast: x=2700-3370, y=730-2000) ===
-    // Manager west wall (separerar mot vault) — vault east-wall vid 2670 finns
-    // Manager south wall — split för office-door (gap x=3100-3180)
-    { x: 2700, y: 1970, w: 400, h: 30, kind: 'wall' },
-    { x: 3180, y: 1970, w: 190, h: 30, kind: 'wall' },
+    // ============ ROW 3 (y=1700-2000) — SERVER | HALLWAY | MANAGER RECEPTION ============
+    // SERVER north wall (y=1500, x=620-1100) door x=820-900 (open)
+    // (already covered in NETWORK CLOSET south split — but server needs separate wall north)
+    // Actually network-closet south = server north. We've split. OK.
+    // SERVER east wall (x=1100, y=1500-2000) door x=1100, y=1800-1880
+    { x: 1100, y: 1500, w: 25,   h: 275, kind: 'wall' },
+    { x: 1100, y: 1880, w: 25,   h: 95,  kind: 'wall' },
+    // SERVER south wall (y=1975, x=620-1100)
+    { x: 625,  y: 1975, w: 475,  h: 25, kind: 'wall' },
+    // HALLWAY west/east already from vault-outer down to 1975
+    { x: 1300, y: 1700, w: 25,   h: 275, kind: 'wall' }, // west cont.
+    { x: 2675, y: 1700, w: 25,   h: 275, kind: 'wall' }, // east cont.
+    // HALLWAY south wall (y=1975, x=1300-2700) — bredare öppning för cashier-passage
+    // Gap: x=1700-1900 (door to behind-counter)
+    { x: 1325, y: 1975, w: 350,  h: 25, kind: 'wall' },
+    { x: 1900, y: 1975, w: 800,  h: 25, kind: 'wall' },
+    // MANAGER RECEPTION west wall (x=2750 continues from security)
+    { x: 2750, y: 1700, w: 25,   h: 275, kind: 'wall' },
+    // MANAGER south wall (y=1975, x=2750-3380) — no door yet, continues to row 4
 
-    // === CASHIER COUNTER ROW (mitt-bank, y=2400) ===
-    // Counter-segments — playern kan inte gå igenom, men kan SKJUTA över
-    { x: 1300, y: 2400, w: 230, h: 50, kind: 'counter' },
-    { x: 1570, y: 2400, w: 230, h: 50, kind: 'counter' },
-    { x: 1840, y: 2400, w: 230, h: 50, kind: 'counter' },
-    { x: 2110, y: 2400, w: 230, h: 50, kind: 'counter' },
-    { x: 2380, y: 2400, w: 230, h: 50, kind: 'counter' },
-    // Counter har gap vid 2400-2440 + 2620-2670 (cashier-entries)
+    // ============ ROW 4 (y=2000-2400) — BREAK | CONFERENCE | TOILETS | MANAGER OFFICE ============
+    // BREAK ROOM north wall (y=2000, x=620-1300) door x=820-900 (entry från behind-counter)
+    // Wait: north of break-room is server-south-wall at y=1975. So break-room north = y=2000.
+    // There needs to be a wall between them or shared. Actually y=1975-2000 is just 25px gap.
+    // BREAK ROOM east wall (x=1300, y=2000-2400) door x=1300, y=2150-2230
+    { x: 1300, y: 2000, w: 25,   h: 150, kind: 'wall' },
+    { x: 1300, y: 2230, w: 25,   h: 170, kind: 'wall' },
+    // BREAK ROOM south wall (y=2400, x=620-1300) — counter row below
+    // (counter walls themselves at y=2400-2450 act as south wall for break-room)
+    // CONFERENCE north wall (y=2000, x=1300-2400)
+    { x: 1300, y: 2000, w: 1100, h: 25, kind: 'wall' },
+    // CONFERENCE east wall (x=2400, y=2000-2400) door x=2400, y=2150-2230
+    { x: 2400, y: 2000, w: 25,   h: 150, kind: 'wall' },
+    { x: 2400, y: 2230, w: 25,   h: 170, kind: 'wall' },
+    // CONFERENCE west wall continues from hallway west (x=1300, y=2000-2400)
+    { x: 1300, y: 2000, w: 25,   h: 400, kind: 'wall' },
+    // (no internal wall between conference and toilets — toilets has its own east wall)
+    // TOILET north wall (y=2000, x=2400-2700)
+    { x: 2400, y: 2000, w: 300,  h: 25, kind: 'wall' },
+    // TOILET internal mid (y=2200, x=2400-2700) — men/women separator
+    { x: 2425, y: 2200, w: 275,  h: 25, kind: 'wall' },
+    // TOILET east wall (x=2700, y=2000-2400)
+    { x: 2675, y: 2000, w: 25,   h: 400, kind: 'wall' },
+    // MANAGER OFFICE west wall continues (x=2750, y=2000-2400) — door at x=2750, y=2200-2280
+    { x: 2750, y: 2000, w: 25,   h: 200, kind: 'wall' },
+    { x: 2750, y: 2280, w: 25,   h: 120, kind: 'wall' },
+    // MANAGER OFFICE south wall (y=2400, x=2750-3380) door x=3050-3130 → behind-counter
+    { x: 2775, y: 2400, w: 275,  h: 25, kind: 'wall' },
+    { x: 3130, y: 2400, w: 245,  h: 25, kind: 'wall' },
 
-    // === LOBBY PILLARS (cover + estetik) ===
+    // ============ ROW 5 (y=2400-2450) — CASHIER COUNTER ============
+    // Counter-segment (same som tidigare, men nu 5 stationer)
+    { x: 1300, y: 2400, w: 230,  h: 50, kind: 'counter' },
+    { x: 1570, y: 2400, w: 230,  h: 50, kind: 'counter' },
+    { x: 1840, y: 2400, w: 230,  h: 50, kind: 'counter' },
+    { x: 2110, y: 2400, w: 230,  h: 50, kind: 'counter' },
+    { x: 2380, y: 2400, w: 230,  h: 50, kind: 'counter' },
+    // Counter east end-wall (x=2675, y=2400-2700)
+    { x: 2675, y: 2425, w: 25,   h: 275, kind: 'wall' },
+    // Counter west end-wall (x=1300, y=2425-2700)
+    { x: 1300, y: 2425, w: 25,   h: 275, kind: 'wall' },
+    // Counter behind-counter south wall (y=2700) — open from lobby
+    // Already absent — lobby is open below.
+
+    // ============ ROW 6 (y=2700-3100) — MAIN LOBBY (open, with pillars) ============
     { x: 1080, y: 2750, w: 50, h: 50, kind: 'pillar' },
     { x: 2870, y: 2750, w: 50, h: 50, kind: 'pillar' },
-    { x: 1080, y: 3150, w: 50, h: 50, kind: 'pillar' },
-    { x: 2870, y: 3150, w: 50, h: 50, kind: 'pillar' },
-    { x: 1900, y: 2750, w: 50, h: 50, kind: 'pillar' },
-    { x: 2050, y: 2750, w: 50, h: 50, kind: 'pillar' },
+    { x: 1080, y: 3000, w: 50, h: 50, kind: 'pillar' },
+    { x: 2870, y: 3000, w: 50, h: 50, kind: 'pillar' },
+    { x: 1900, y: 2780, w: 50, h: 50, kind: 'pillar' },
+    { x: 2050, y: 2780, w: 50, h: 50, kind: 'pillar' },
 
-    // === STREET COVER (cars, dumpsters, för police-shootout) ===
+    // ============ ROW 7 (y=3100-3300) — RECEPTION FOYER ============
+    // Reception desk (counter-style)
+    { x: 1750, y: 3150, w: 500,  h: 40, kind: 'counter' },
+
+    // ============ STREET COVER ============
     { x: 700,  y: 3650, w: 90, h: 50, kind: 'parked_car' },
     { x: 3210, y: 3650, w: 90, h: 50, kind: 'parked_car' },
     { x: 850,  y: 3800, w: 90, h: 50, kind: 'parked_car' },
     { x: 3060, y: 3800, w: 90, h: 50, kind: 'parked_car' },
+    { x: 700,  y: 3500, w: 50, h: 80, kind: 'fire_hydrant' },
   ],
 
-  // === DOORS (interaktiva — locked/lockpickable/drillable) ===
-  // Renderas separat från walls. Innehåller phase-specifik logik.
+  // === DOORS (15 st) ===
   doors: [
-    // Front entrance (lobby) — alltid open
-    { id: 'front',  x: 1900, y: 3400, w: 200, h: 30, kind: 'main_door',  locked: false },
-    // Vault door — låst tills drilled
-    { id: 'vault',  x: 1900, y: 1870, w: 200, h: 30, kind: 'vault_door', locked: true,  drillable: true },
-    // Back alley door — låst tills lockpicked (stealth-extract option)
-    { id: 'back',   x: 1900, y: 700,  w: 100, h: 30, kind: 'back_door',  locked: true,  lockpickable: true },
-    // Server room access door (söder, från lobby)
-    { id: 'server', x: 820,  y: 1970, w: 80,  h: 30, kind: 'side_door',  locked: false },
-    // Manager office door
-    { id: 'office', x: 3100, y: 1970, w: 80,  h: 30, kind: 'side_door',  locked: false },
+    { id: 'front',         x: 1900, y: 3400, w: 200, h: 25, kind: 'main_door',    locked: false },
+    { id: 'side',          x: 3050, y: 3400, w: 150, h: 25, kind: 'main_door',    locked: false },
+    { id: 'back',          x: 1900, y: 700,  w: 100, h: 25, kind: 'back_door',    locked: true,  lockpickable: true },
+    { id: 'loading',       x: 900,  y: 700,  w: 150, h: 25, kind: 'back_door',    locked: true,  lockpickable: true },
+    { id: 'storage',       x: 820,  y: 1075, w: 80,  h: 25, kind: 'side_door',    locked: true,  lockpickable: true },
+    { id: 'vault_inner',   x: 1900, y: 1075, w: 200, h: 25, kind: 'vault_door',   locked: true,  drillable: true, isInner: true },
+    { id: 'locker',        x: 3050, y: 1075, w: 100, h: 25, kind: 'side_door',    locked: true,  lockpickable: true },
+    { id: 'network',       x: 720,  y: 1475, w: 80,  h: 25, kind: 'side_door',    locked: false },
+    { id: 'vault',         x: 1900, y: 1675, w: 200, h: 25, kind: 'vault_door',   locked: true,  drillable: true },
+    { id: 'security',      x: 2950, y: 1675, w: 80,  h: 25, kind: 'side_door',    locked: true,  lockpickable: true, kind2: 'rfid' },
+    { id: 'server',        x: 820,  y: 1975, w: 80,  h: 25, kind: 'side_door',    locked: false },
+    { id: 'behindcounter', x: 1700, y: 1975, w: 200, h: 25, kind: 'side_door',    locked: false },
+    { id: 'manager',       x: 3050, y: 2400, w: 80,  h: 25, kind: 'side_door',    locked: false },
+    { id: 'break',         x: 1300, y: 2150, w: 25,  h: 80, kind: 'side_door',    locked: false },
+    { id: 'conference',    x: 2400, y: 2150, w: 25,  h: 80, kind: 'side_door',    locked: false },
+    { id: 'manager_priv',  x: 2750, y: 2200, w: 25,  h: 80, kind: 'side_door',    locked: false },
   ],
 
-  // === DECORATIONS (visuella, ingen collision) ===
+  // === DECORATIONS (massor — gör banken levande) ===
   decorations: [
-    // ATMs (lobby väggar)
-    { kind: 'atm', x: 720,  y: 2700 },
-    { kind: 'atm', x: 720,  y: 2900 },
-    { kind: 'atm', x: 720,  y: 3100 },
-    { kind: 'atm', x: 3280, y: 2700 },
-    { kind: 'atm', x: 3280, y: 2900 },
-    { kind: 'atm', x: 3280, y: 3100 },
-    // Plants (lobby mitt + entré)
-    { kind: 'plant', x: 1250, y: 3200 },
-    { kind: 'plant', x: 2750, y: 3200 },
-    { kind: 'plant', x: 850,  y: 3300 },
-    { kind: 'plant', x: 3150, y: 3300 },
-    { kind: 'plant', x: 1500, y: 2700 },
-    { kind: 'plant', x: 2500, y: 2700 },
-    // Vault gold + cash-stacks
-    { kind: 'cash_stack', x: 1500, y: 1100 },
-    { kind: 'cash_stack', x: 2000, y: 1100 },
-    { kind: 'cash_stack', x: 2500, y: 1100 },
-    { kind: 'gold_stack', x: 1750, y: 1500 },
-    { kind: 'gold_stack', x: 2250, y: 1500 },
-    { kind: 'gold_stack', x: 1500, y: 1700 },
-    { kind: 'gold_stack', x: 2500, y: 1700 },
-    // Manager office: safe + desk + chair
-    { kind: 'safe',  x: 3200, y: 1050 },
-    { kind: 'desk',  x: 3100, y: 1500 },
-    { kind: 'chair', x: 3100, y: 1650 },
-    // Server room: 3 server-racks
-    { kind: 'server_rack', x: 800, y: 900 },
-    { kind: 'server_rack', x: 800, y: 1200 },
-    { kind: 'server_rack', x: 800, y: 1500 },
-    // Cashier-counter: cash drawers visible behind counter
-    { kind: 'cash_drawer', x: 1410, y: 2330 },
-    { kind: 'cash_drawer', x: 1680, y: 2330 },
-    { kind: 'cash_drawer', x: 1950, y: 2330 },
-    { kind: 'cash_drawer', x: 2220, y: 2330 },
-    { kind: 'cash_drawer', x: 2490, y: 2330 },
-    // Drill-marker (visible drill spot framför valvet)
-    { kind: 'drill_marker', x: 2000, y: 1920 },
-    // Street: lampor, bänkar, soptunnor
+    // ===== STORAGE ROOM =====
+    { kind: 'cardboard_box', x: 700,  y: 800 },
+    { kind: 'cardboard_box', x: 750,  y: 850 },
+    { kind: 'cardboard_box', x: 800,  y: 800 },
+    { kind: 'cardboard_box', x: 950,  y: 870 },
+    { kind: 'cardboard_box', x: 1000, y: 830 },
+    { kind: 'pallet',        x: 850,  y: 1020 },
+    { kind: 'pallet',        x: 1000, y: 1020 },
+    { kind: 'fire_extinguisher', x: 660, y: 850 },
+    { kind: 'trash',         x: 660,  y: 950 },
+
+    // ===== VAULT INNER (final-tier gold) =====
+    { kind: 'gold_mega_stack', x: 1800, y: 850 },
+    { kind: 'gold_mega_stack', x: 2000, y: 850 },
+    { kind: 'gold_mega_stack', x: 2200, y: 850 },
+    { kind: 'cash_stack',      x: 1500, y: 950 },
+    { kind: 'cash_stack',      x: 2500, y: 950 },
+    { kind: 'safe_open',       x: 1400, y: 800 },
+    { kind: 'safe_open',       x: 2600, y: 800 },
+    { kind: 'security_camera_floor', x: 1900, y: 900 }, // floor-mounted security thing
+    { kind: 'security_camera_floor', x: 2100, y: 900 },
+
+    // ===== LOCKER ROOM =====
+    { kind: 'locker',  x: 2950, y: 760 },
+    { kind: 'locker',  x: 3000, y: 760 },
+    { kind: 'locker',  x: 3050, y: 760 },
+    { kind: 'locker',  x: 3100, y: 760 },
+    { kind: 'locker',  x: 3150, y: 760 },
+    { kind: 'locker',  x: 3200, y: 760 },
+    { kind: 'locker',  x: 3250, y: 760 },
+    { kind: 'locker',  x: 3300, y: 760 },
+    { kind: 'locker_open',   x: 3000, y: 1020 },
+    { kind: 'locker_open',   x: 3200, y: 1020 },
+    { kind: 'bench',         x: 3120, y: 980 },
+    { kind: 'mop_bucket',    x: 2960, y: 1020 },
+
+    // ===== NETWORK CLOSET (hidden) =====
+    { kind: 'server_rack',   x: 700,  y: 1200 },
+    { kind: 'server_rack',   x: 800,  y: 1200 },
+    { kind: 'master_switch', x: 750,  y: 1380 },
+    { kind: 'cable_pile',    x: 850,  y: 1380 },
+
+    // ===== VAULT OUTER =====
+    { kind: 'cash_stack',  x: 1450, y: 1200 },
+    { kind: 'cash_stack',  x: 1700, y: 1200 },
+    { kind: 'cash_stack',  x: 2300, y: 1200 },
+    { kind: 'cash_stack',  x: 2550, y: 1200 },
+    { kind: 'gold_stack',  x: 1600, y: 1450 },
+    { kind: 'gold_stack',  x: 1850, y: 1450 },
+    { kind: 'gold_stack',  x: 2150, y: 1450 },
+    { kind: 'gold_stack',  x: 2400, y: 1450 },
+    { kind: 'drill_marker',x: 2000, y: 1720 },     // outer drill (just south of door)
+    { kind: 'motion_sensor', x: 1400, y: 1500 },
+    { kind: 'motion_sensor', x: 2600, y: 1500 },
+
+    // ===== SECURITY ROOM =====
+    { kind: 'monitor_wall', x: 3100, y: 1200 },
+    { kind: 'security_desk',x: 2950, y: 1500 },
+    { kind: 'office_chair', x: 2950, y: 1580 },
+    { kind: 'coffee_mug',   x: 2950, y: 1500 },
+    { kind: 'master_terminal', x: 3250, y: 1550 },
+    { kind: 'filing_cabinet', x: 3050, y: 1200 },
+    { kind: 'plant',        x: 2800, y: 1200 },
+
+    // ===== SERVER ROOM (expanded) =====
+    { kind: 'server_rack', x: 700,  y: 1600 },
+    { kind: 'server_rack', x: 700,  y: 1750 },
+    { kind: 'server_rack', x: 700,  y: 1900 },
+    { kind: 'server_rack', x: 850,  y: 1600 },
+    { kind: 'server_rack', x: 850,  y: 1750 },
+    { kind: 'server_rack', x: 850,  y: 1900 },
+    { kind: 'cooling_unit',x: 1000, y: 1600 },
+    { kind: 'cooling_unit',x: 1000, y: 1900 },
+    { kind: 'cable_tray',  x: 950,  y: 1500 },
+
+    // ===== HALLWAY =====
+    { kind: 'plant',        x: 1400, y: 1750 },
+    { kind: 'plant',        x: 2600, y: 1750 },
+    { kind: 'plant',        x: 1400, y: 1900 },
+    { kind: 'plant',        x: 2600, y: 1900 },
+    { kind: 'framed_picture', x: 1700, y: 1720 },
+    { kind: 'framed_picture', x: 2300, y: 1720 },
+    { kind: 'bench',        x: 1500, y: 1900 },
+    { kind: 'bench',        x: 2500, y: 1900 },
+    { kind: 'bank_logo_floor', x: 2000, y: 1850 },
+
+    // ===== MANAGER RECEPTION =====
+    { kind: 'reception_desk', x: 2900, y: 1800 },
+    { kind: 'office_chair',   x: 2900, y: 1880 },
+    { kind: 'plant',          x: 3300, y: 1800 },
+    { kind: 'plant',          x: 2800, y: 1900 },
+
+    // ===== MANAGER OFFICE (expanded) =====
+    { kind: 'desk',         x: 3200, y: 2100 },
+    { kind: 'chair',        x: 3200, y: 2180 },
+    { kind: 'safe',         x: 3320, y: 2050 },
+    { kind: 'bookshelf',    x: 2850, y: 2050 },
+    { kind: 'bookshelf',    x: 2850, y: 2150 },
+    { kind: 'filing_cabinet', x: 3000, y: 2050 },
+    { kind: 'plant',        x: 2850, y: 2350 },
+    { kind: 'office_couch', x: 3150, y: 2350 },
+    { kind: 'coffee_table', x: 3300, y: 2350 },
+    { kind: 'framed_picture', x: 3200, y: 2030 },
+    { kind: 'whiteboard',   x: 2850, y: 2280 },
+
+    // ===== BREAK ROOM =====
+    { kind: 'fridge',         x: 680,  y: 2080 },
+    { kind: 'coffee_machine', x: 780,  y: 2080 },
+    { kind: 'vending_machine',x: 880,  y: 2080 },
+    { kind: 'microwave',      x: 980,  y: 2080 },
+    { kind: 'sink_counter',   x: 720,  y: 2080 },
+    { kind: 'round_table',    x: 800,  y: 2230 },
+    { kind: 'office_chair',   x: 750,  y: 2180 },
+    { kind: 'office_chair',   x: 850,  y: 2180 },
+    { kind: 'office_chair',   x: 750,  y: 2280 },
+    { kind: 'office_chair',   x: 850,  y: 2280 },
+    { kind: 'office_couch',   x: 1100, y: 2300 },
+    { kind: 'tv_wall',        x: 1200, y: 2050 },
+    { kind: 'tip_jar',        x: 820,  y: 2230 },
+    { kind: 'plant',          x: 660,  y: 2380 },
+
+    // ===== CONFERENCE ROOM =====
+    { kind: 'conference_table', x: 1850, y: 2200 },
+    { kind: 'office_chair', x: 1600, y: 2100 },
+    { kind: 'office_chair', x: 1750, y: 2080 },
+    { kind: 'office_chair', x: 1900, y: 2080 },
+    { kind: 'office_chair', x: 2050, y: 2080 },
+    { kind: 'office_chair', x: 1600, y: 2320 },
+    { kind: 'office_chair', x: 1750, y: 2340 },
+    { kind: 'office_chair', x: 1900, y: 2340 },
+    { kind: 'office_chair', x: 2050, y: 2340 },
+    { kind: 'office_chair', x: 2200, y: 2200 },
+    { kind: 'projector',    x: 1850, y: 2050 },
+    { kind: 'whiteboard',   x: 1850, y: 2020 },
+    { kind: 'laptop',       x: 1700, y: 2180 },
+    { kind: 'laptop',       x: 2000, y: 2200 },
+
+    // ===== TOILETS =====
+    { kind: 'toilet_stall', x: 2440, y: 2080 },
+    { kind: 'toilet_stall', x: 2540, y: 2080 },
+    { kind: 'toilet_stall', x: 2640, y: 2080 },
+    { kind: 'sink',         x: 2440, y: 2160 },
+    { kind: 'sink',         x: 2540, y: 2160 },
+    { kind: 'mirror',       x: 2640, y: 2160 },
+    { kind: 'toilet_stall', x: 2440, y: 2280 },
+    { kind: 'toilet_stall', x: 2540, y: 2280 },
+    { kind: 'toilet_stall', x: 2640, y: 2280 },
+    { kind: 'sink',         x: 2440, y: 2360 },
+    { kind: 'sink',         x: 2540, y: 2360 },
+    { kind: 'mirror',       x: 2640, y: 2360 },
+
+    // ===== CASHIER WORK AREA (behind counter) =====
+    { kind: 'cash_drawer',  x: 1410, y: 2330 },
+    { kind: 'cash_drawer',  x: 1680, y: 2330 },
+    { kind: 'cash_drawer',  x: 1950, y: 2330 },
+    { kind: 'cash_drawer',  x: 2220, y: 2330 },
+    { kind: 'cash_drawer',  x: 2490, y: 2330 },
+    { kind: 'monitor',      x: 1410, y: 2500 },
+    { kind: 'monitor',      x: 1680, y: 2500 },
+    { kind: 'monitor',      x: 1950, y: 2500 },
+    { kind: 'monitor',      x: 2220, y: 2500 },
+    { kind: 'monitor',      x: 2490, y: 2500 },
+    { kind: 'office_chair', x: 1410, y: 2570 },
+    { kind: 'office_chair', x: 1680, y: 2570 },
+    { kind: 'office_chair', x: 1950, y: 2570 },
+    { kind: 'office_chair', x: 2220, y: 2570 },
+    { kind: 'office_chair', x: 2490, y: 2570 },
+    { kind: 'photocopier',  x: 2600, y: 2550 },
+
+    // ===== MAIN LOBBY =====
+    { kind: 'atm', x: 660, y: 2750 },
+    { kind: 'atm', x: 660, y: 2880 },
+    { kind: 'atm', x: 660, y: 3010 },
+    { kind: 'atm', x: 3320, y: 2750 },
+    { kind: 'atm', x: 3320, y: 2880 },
+    { kind: 'atm', x: 3320, y: 3010 },
+    { kind: 'plant',       x: 1250, y: 3050 },
+    { kind: 'plant',       x: 2750, y: 3050 },
+    { kind: 'plant',       x: 850,  y: 3050 },
+    { kind: 'plant',       x: 3150, y: 3050 },
+    { kind: 'bench',       x: 1400, y: 2900 },
+    { kind: 'bench',       x: 2600, y: 2900 },
+    { kind: 'bench',       x: 1500, y: 2950 },
+    { kind: 'bench',       x: 2500, y: 2950 },
+    { kind: 'floor_mat',   x: 2000, y: 2800 },
+    { kind: 'bank_logo_floor', x: 2000, y: 2950 },
+    { kind: 'trash',       x: 720,  y: 3100 },
+    { kind: 'trash',       x: 3280, y: 3100 },
+
+    // ===== RECEPTION =====
+    { kind: 'reception_desk', x: 2000, y: 3170 },
+    { kind: 'office_chair',   x: 1900, y: 3220 },
+    { kind: 'office_chair',   x: 2100, y: 3220 },
+    { kind: 'plant',          x: 800,  y: 3250 },
+    { kind: 'plant',          x: 3200, y: 3250 },
+    { kind: 'framed_picture', x: 1100, y: 3180 },
+    { kind: 'framed_picture', x: 2900, y: 3180 },
+    { kind: 'floor_mat',      x: 2000, y: 3370 },
+    { kind: 'directory_sign', x: 1500, y: 3230 },
+    { kind: 'directory_sign', x: 2500, y: 3230 },
+
+    // ===== STREET / OUTDOOR =====
     { kind: 'streetlight', x: 800,  y: 3700 },
     { kind: 'streetlight', x: 3200, y: 3700 },
+    { kind: 'streetlight', x: 1500, y: 3900 },
+    { kind: 'streetlight', x: 2500, y: 3900 },
     { kind: 'bench',       x: 1200, y: 3550 },
     { kind: 'bench',       x: 2800, y: 3550 },
+    { kind: 'bus_stop',    x: 1500, y: 3500 },
     { kind: 'trash',       x: 700,  y: 3500 },
     { kind: 'trash',       x: 3300, y: 3500 },
-    // Back alley: dumpsters + skyltar
+    { kind: 'newsstand',   x: 2800, y: 3500 },
+    { kind: 'getaway_van', x: 2000, y: 3700 },
+
+    // ===== BACK ALLEY =====
     { kind: 'dumpster',    x: 1200, y: 400 },
     { kind: 'dumpster',    x: 2700, y: 400 },
     { kind: 'trash',       x: 1450, y: 450 },
     { kind: 'trash',       x: 2550, y: 450 },
-    // Getaway-van (primary extract — visuellt markerad)
-    { kind: 'getaway_van', x: 2000, y: 3700 },
-    // Back-alley van (stealth extract)
+    { kind: 'cardboard_box', x: 1350, y: 500 },
+    { kind: 'cardboard_box', x: 2650, y: 500 },
+    { kind: 'graffiti',    x: 1800, y: 600 },
+    { kind: 'graffiti',    x: 2200, y: 600 },
     { kind: 'getaway_van', x: 1950, y: 400 },
+    { kind: 'getaway_van', x: 950,  y: 350 },  // loading-dock van
+    { kind: 'pallet',      x: 800,  y: 500 },
+    { kind: 'pallet',      x: 900,  y: 550 },
   ],
 
-  // === LOOT-SPOTS (säckar att bagga under ALARM-fasen) ===
-  // value = $-värde, bagTime = sek att bagga, weight = movement-penalty 0..1
+  // === LOOT-SPOTS (25 stycken) ===
   lootSpots: [
-    { id: 'vc1', x: 1500, y: 1100, kind: 'cash_stack',   value: 5000, bagTime: 3, weight: 0.25 },
-    { id: 'vc2', x: 2000, y: 1100, kind: 'cash_stack',   value: 5000, bagTime: 3, weight: 0.25 },
-    { id: 'vc3', x: 2500, y: 1100, kind: 'cash_stack',   value: 5000, bagTime: 3, weight: 0.25 },
-    { id: 'vg1', x: 1750, y: 1500, kind: 'gold_stack',   value: 8000, bagTime: 5, weight: 0.40 },
-    { id: 'vg2', x: 2250, y: 1500, kind: 'gold_stack',   value: 8000, bagTime: 5, weight: 0.40 },
-    { id: 'vg3', x: 1500, y: 1700, kind: 'gold_stack',   value: 8000, bagTime: 5, weight: 0.40 },
-    { id: 'vg4', x: 2500, y: 1700, kind: 'gold_stack',   value: 8000, bagTime: 5, weight: 0.40 },
-    { id: 'msa', x: 3200, y: 1050, kind: 'manager_safe', value: 3000, bagTime: 4, weight: 0.20 },
-    { id: 'cd1', x: 1410, y: 2330, kind: 'cash_drawer',  value: 500,  bagTime: 1, weight: 0.05 },
-    { id: 'cd2', x: 1680, y: 2330, kind: 'cash_drawer',  value: 500,  bagTime: 1, weight: 0.05 },
-    { id: 'cd3', x: 1950, y: 2330, kind: 'cash_drawer',  value: 500,  bagTime: 1, weight: 0.05 },
-    { id: 'cd4', x: 2220, y: 2330, kind: 'cash_drawer',  value: 500,  bagTime: 1, weight: 0.05 },
-    { id: 'cd5', x: 2490, y: 2330, kind: 'cash_drawer',  value: 500,  bagTime: 1, weight: 0.05 },
+    // VAULT INNER — final tier
+    { id: 'vi1', x: 1800, y: 850,  kind: 'gold_mega_stack', value: 15000, bagTime: 8, weight: 0.50 },
+    { id: 'vi2', x: 2000, y: 850,  kind: 'gold_mega_stack', value: 15000, bagTime: 8, weight: 0.50 },
+    { id: 'vi3', x: 2200, y: 850,  kind: 'gold_mega_stack', value: 15000, bagTime: 8, weight: 0.50 },
+    { id: 'vi4', x: 1500, y: 950,  kind: 'cash_stack',      value: 7500,  bagTime: 4, weight: 0.30 },
+    { id: 'vi5', x: 2500, y: 950,  kind: 'cash_stack',      value: 7500,  bagTime: 4, weight: 0.30 },
+    { id: 'vi6', x: 1400, y: 800,  kind: 'safe_open',       value: 5000,  bagTime: 4, weight: 0.20 },
+    { id: 'vi7', x: 2600, y: 800,  kind: 'safe_open',       value: 5000,  bagTime: 4, weight: 0.20 },
+    // VAULT OUTER
+    { id: 'vc1', x: 1450, y: 1200, kind: 'cash_stack',  value: 5000, bagTime: 3, weight: 0.25 },
+    { id: 'vc2', x: 1700, y: 1200, kind: 'cash_stack',  value: 5000, bagTime: 3, weight: 0.25 },
+    { id: 'vc3', x: 2300, y: 1200, kind: 'cash_stack',  value: 5000, bagTime: 3, weight: 0.25 },
+    { id: 'vc4', x: 2550, y: 1200, kind: 'cash_stack',  value: 5000, bagTime: 3, weight: 0.25 },
+    { id: 'vg1', x: 1600, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
+    { id: 'vg2', x: 1850, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
+    { id: 'vg3', x: 2150, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
+    { id: 'vg4', x: 2400, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
+    // CASHIER DRAWERS (stealth-accessible)
+    { id: 'cd1', x: 1410, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    { id: 'cd2', x: 1680, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    { id: 'cd3', x: 1950, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    { id: 'cd4', x: 2220, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    { id: 'cd5', x: 2490, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    // MANAGER SAFE (stealth-accessible)
+    { id: 'msa', x: 3320, y: 2050, kind: 'manager_safe', value: 4000, bagTime: 4, weight: 0.20 },
+    // CONFERENCE LAPTOPS (NEW — stealth)
+    { id: 'lap1',x: 1700, y: 2180, kind: 'laptop',       value: 800,  bagTime: 2, weight: 0.08 },
+    { id: 'lap2',x: 2000, y: 2200, kind: 'laptop',       value: 800,  bagTime: 2, weight: 0.08 },
+    // SECURITY CONFISCATED (kräver guard-elim eller stealth)
+    { id: 'sec', x: 3050, y: 1200, kind: 'filing_cabinet', value: 2500, bagTime: 3, weight: 0.15 },
+    // LOCKER ROOM (stealth om locker-door lockpickad)
+    { id: 'lkr1',x: 3000, y: 1020, kind: 'locker_open',  value: 600,  bagTime: 1, weight: 0.05 },
+    { id: 'lkr2',x: 3200, y: 1020, kind: 'locker_open',  value: 600,  bagTime: 1, weight: 0.05 },
+    // BREAK ROOM TIP JAR
+    { id: 'tip', x: 820,  y: 2230, kind: 'tip_jar',      value: 300,  bagTime: 1, weight: 0.03 },
+    // STORAGE BOXES (hidden cash i kartonger)
+    { id: 'box1',x: 700,  y: 800,  kind: 'cardboard_box',value: 400,  bagTime: 2, weight: 0.08 },
+    { id: 'box2',x: 1000, y: 830,  kind: 'cardboard_box',value: 400,  bagTime: 2, weight: 0.08 },
   ],
 
-  // === CAMERAS (vision-cone — om player i cone >2s = ALARM) ===
-  // dir = riktning (radians), cone = halv-vinkel, range = px sikt
+  // === CAMERAS (15 stycken — smart placement) ===
   cameras: [
-    { id: 'cam_entrance', x: 2000, y: 3380, dir: -Math.PI/2, cone: 0.7, range: 280, kind: 'entrance' },
-    { id: 'cam_lobby_l',  x: 1100, y: 2700, dir: 0,           cone: 0.7, range: 280, kind: 'lobby' },
-    { id: 'cam_lobby_r',  x: 2900, y: 2700, dir: Math.PI,     cone: 0.7, range: 280, kind: 'lobby' },
-    { id: 'cam_hallway',  x: 2000, y: 2150, dir: -Math.PI/2,  cone: 0.7, range: 250, kind: 'hallway' },
-    { id: 'cam_vault',    x: 2000, y: 1950, dir: -Math.PI/2,  cone: 0.7, range: 200, kind: 'vault' },
-    { id: 'cam_office',   x: 3120, y: 2000, dir: Math.PI,     cone: 0.7, range: 200, kind: 'office' },
+    // Entry-zone
+    { id: 'cam_front_door',   x: 2000, y: 3380, dir: -Math.PI/2,  cone: 0.7, range: 280 },
+    { id: 'cam_reception',    x: 2000, y: 3200, dir: -Math.PI/2,  cone: 0.7, range: 280 },
+    // Lobby (3 overlap)
+    { id: 'cam_lobby_west',   x: 1100, y: 2800, dir: 0,           cone: 0.8, range: 300 },
+    { id: 'cam_lobby_east',   x: 2900, y: 2800, dir: Math.PI,     cone: 0.8, range: 300 },
+    { id: 'cam_lobby_center', x: 2000, y: 2750, dir: Math.PI/2,   cone: 0.7, range: 280 },
+    // Counter
+    { id: 'cam_counter_l',    x: 1500, y: 2480, dir: Math.PI/2,   cone: 0.6, range: 220 },
+    { id: 'cam_counter_r',    x: 2500, y: 2480, dir: Math.PI/2,   cone: 0.6, range: 220 },
+    // Hallway / corridor
+    { id: 'cam_hallway',      x: 2000, y: 2000, dir: -Math.PI/2,  cone: 0.8, range: 280 },
+    { id: 'cam_office_entry', x: 2950, y: 1900, dir: Math.PI,     cone: 0.7, range: 240 },
+    // Vault zone
+    { id: 'cam_vault_outer',  x: 2000, y: 1700, dir: -Math.PI/2,  cone: 0.7, range: 220 },
+    { id: 'cam_vault_inner',  x: 2000, y: 1100, dir: -Math.PI/2,  cone: 0.7, range: 220 },
+    // Specialized rooms
+    { id: 'cam_break',        x: 900,  y: 2050, dir: Math.PI/2,   cone: 0.7, range: 240 },
+    { id: 'cam_conference',   x: 1850, y: 2050, dir: Math.PI/2,   cone: 0.7, range: 220 },
+    { id: 'cam_security',     x: 2900, y: 1200, dir: 0,           cone: 0.7, range: 240 },
+    { id: 'cam_server',       x: 1080, y: 1700, dir: 0,           cone: 0.6, range: 220 },
   ],
 
-  // === HACK-TERMINALS (server room — varje slår ut 2 kameror) ===
+  // === HACK-TERMINALS (5 vanliga + 1 master) ===
   hackTerminals: [
-    { id: 'term1', x: 850, y: 920,  disables: ['cam_entrance', 'cam_lobby_l'],  hackTime: 4 },
-    { id: 'term2', x: 850, y: 1220, disables: ['cam_lobby_r', 'cam_hallway'],   hackTime: 4 },
-    { id: 'term3', x: 850, y: 1520, disables: ['cam_vault', 'cam_office'],      hackTime: 4 },
+    { id: 'term1', x: 750,  y: 1380, disables: ['cam_front_door', 'cam_reception', 'cam_lobby_west'], hackTime: 4 },
+    { id: 'term2', x: 800,  y: 1750, disables: ['cam_lobby_east', 'cam_lobby_center', 'cam_counter_l'], hackTime: 4 },
+    { id: 'term3', x: 800,  y: 1900, disables: ['cam_counter_r', 'cam_hallway', 'cam_office_entry'], hackTime: 4 },
+    { id: 'term4', x: 1850, y: 2050, disables: ['cam_break', 'cam_conference'], hackTime: 4 },  // i conference!
+    { id: 'term5', x: 1080, y: 1700, disables: ['cam_vault_outer', 'cam_server'], hackTime: 4 },  // server-rum själv
+    // MASTER — i security room, slår ut ALLA + vault-inner-cam
+    { id: 'term_master', x: 3250, y: 1550, disables: ['cam_vault_inner', 'cam_security'], hackTime: 6, master: true },
   ],
 
-  // === CIVILIANS (NPC:s — kan panika och trigga alarm) ===
-  // I iter 2 får de wander/panic AI. Iter 1 = bara visuella.
+  // === CIVILIANS (15 st spridda över alla rum) ===
   civilianSpawns: [
-    { id: 'civ_c1', x: 1500, y: 2900, kind: 'customer' },
-    { id: 'civ_c2', x: 2000, y: 2950, kind: 'customer' },
-    { id: 'civ_c3', x: 2500, y: 2900, kind: 'customer' },
-    { id: 'civ_c4', x: 1800, y: 3150, kind: 'customer' },
-    { id: 'civ_c5', x: 2200, y: 3150, kind: 'customer' },
-    { id: 'civ_c6', x: 1300, y: 3050, kind: 'customer' },
-    { id: 'civ_ca1', x: 1500, y: 2350, kind: 'cashier' },
-    { id: 'civ_ca2', x: 2100, y: 2350, kind: 'cashier' },
-    { id: 'civ_ca3', x: 2700, y: 2350, kind: 'cashier' },
-    { id: 'civ_mg',  x: 3150, y: 1300, kind: 'manager' },
+    // Lobby customers (5)
+    { id: 'civ_c1', x: 1200, y: 2850, kind: 'customer' },
+    { id: 'civ_c2', x: 1800, y: 2900, kind: 'customer' },
+    { id: 'civ_c3', x: 2400, y: 2850, kind: 'customer' },
+    { id: 'civ_c4', x: 1500, y: 3000, kind: 'customer' },
+    { id: 'civ_c5', x: 2500, y: 3000, kind: 'customer' },
+    // Cashiers (5 — en per station)
+    { id: 'civ_ca1', x: 1410, y: 2570, kind: 'cashier' },
+    { id: 'civ_ca2', x: 1680, y: 2570, kind: 'cashier' },
+    { id: 'civ_ca3', x: 1950, y: 2570, kind: 'cashier' },
+    { id: 'civ_ca4', x: 2220, y: 2570, kind: 'cashier' },
+    { id: 'civ_ca5', x: 2490, y: 2570, kind: 'cashier' },
+    // Manager
+    { id: 'civ_mg',  x: 3200, y: 2180, kind: 'manager' },
+    // Manager assistant (reception)
+    { id: 'civ_as',  x: 2900, y: 1880, kind: 'cashier' },
+    // Conference attendees
+    { id: 'civ_co1', x: 1900, y: 2080, kind: 'manager' },
+    { id: 'civ_co2', x: 2050, y: 2340, kind: 'customer' },
+    // Janitor (vandrar — high mobility, NEW)
+    { id: 'civ_jan', x: 800,  y: 2300, kind: 'janitor' },
+    // Reception
+    { id: 'civ_re',  x: 2000, y: 3220, kind: 'cashier' },
   ],
 
-  // === GUARDS (väpnade NPC:s med vision-cone + patrol-path) ===
-  // Iter 2: patrol/vision/engage AI. Iter 1 = visuella + spawn-data.
+  // === VAKTER (6 st — strategiska patrol-paths) ===
   guardSpawns: [
-    { id: 'g_lobby',   x: 2000, y: 2700, kind: 'lobby_guard',
-      patrol: [[1400, 2700], [2600, 2700]], facing: 0 },
-    { id: 'g_hallway', x: 2000, y: 2000, kind: 'hallway_guard',
-      patrol: [[1500, 2000], [2500, 2000]], facing: 0 },
-    { id: 'g_server',  x: 800,  y: 1500, kind: 'server_guard',
-      patrol: [[800, 1000], [800, 1900]], facing: -Math.PI/2 },
-    { id: 'g_office',  x: 3100, y: 1500, kind: 'office_guard',
-      patrol: [[3100, 1100], [3100, 1900]], facing: -Math.PI/2 },
+    { id: 'g_lobby',   x: 2000, y: 2800, kind: 'lobby_guard',
+      patrol: [[1300, 2800], [2700, 2800]], facing: 0 },
+    { id: 'g_hallway', x: 2000, y: 1850, kind: 'hallway_guard',
+      patrol: [[1500, 1850], [2500, 1850]], facing: 0 },
+    { id: 'g_server',  x: 800,  y: 1700, kind: 'server_guard',
+      patrol: [[700, 1600], [1000, 1900]], facing: -Math.PI/2 },
+    { id: 'g_office',  x: 3100, y: 1850, kind: 'office_guard',
+      patrol: [[2900, 1800], [3300, 2200]], facing: -Math.PI/2 },
+    { id: 'g_vault',   x: 2000, y: 1600, kind: 'vault_guard',  // NEW — utanför valvet
+      patrol: [[1500, 1600], [2500, 1600]], facing: 0 },
+    { id: 'g_security',x: 3100, y: 1400, kind: 'security_guard', // NEW — i security-rum
+      patrol: [[2900, 1300], [3300, 1500]], facing: 0 },
   ],
 
-  // === DRILL-SPOT (vault) ===
-  drillSpot: { x: 2000, y: 1920, r: 40, durationSec: 120 },
+  // === DRILL-SPOTS (outer + inner = double-tier) ===
+  drillSpot: { x: 2000, y: 1720, r: 40, durationSec: 120 },
+  drillSpotInner: { x: 2000, y: 1100, r: 40, durationSec: 90 },
 
-  // === POLICE-SPAWN-POINTS (alarm-fasen) ===
+  // === POLICE-SPAWN-POINTS ===
   policeSpawns: [
     { x: 2000, y: 3950, kind: 'street_front' },
     { x: 700,  y: 3950, kind: 'street_left' },
     { x: 3300, y: 3950, kind: 'street_right' },
     { x: 2000, y: 200,  kind: 'alley_back' },
+    { x: 900,  y: 200,  kind: 'alley_loading' },
     { x: 100,  y: 2000, kind: 'side_west' },
     { x: 3900, y: 2000, kind: 'side_east' },
+    { x: 100,  y: 3700, kind: 'street_far_left' },
+    { x: 3900, y: 3700, kind: 'street_far_right' },
   ],
 
-  // === ROLES (iter 3 — för nu bara data) ===
+  // === ROLES (oförändrat — fortfarande relevant) ===
   roles: [
-    { id: 'hacker', name: 'HACKER',  perk: '−50% hack-tid + ser kameror genom väggar' },
-    { id: 'tank',   name: 'TANK',    perk: '+50% maxHP, −20% rörelse' },
-    { id: 'medic',  name: 'MEDIC',   perk: '+100% revive-hastighet, +2 HP/s passiv' },
-    { id: 'rogue',  name: 'ROGUE',   perk: 'Lockpicks 2x snabbare, ljudlös melee' },
+    { id: 'hacker', name: 'HACKER', perk: 'Osynlig för kameror + -50% hack-tid' },
+    { id: 'tank',   name: 'TANK',   perk: '+50% maxHP, -10% rörelse' },
+    { id: 'medic',  name: 'MEDIC',  perk: '+6 HP/s passiv regen (+8 solo)' },
+    { id: 'rogue',  name: 'ROGUE',  perk: 'Silent-kill + 2× lockpick + 10% snabbare + -10% HP' },
   ],
 
-  // === DOWN-STATE (samma som CD/Survivors) ===
+  // === DOWN-STATE ===
   downBleedoutSec: 30,
   downReviveSec: 4,
   downCrawlSpeedMul: 0.5,
