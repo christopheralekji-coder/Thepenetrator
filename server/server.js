@@ -747,6 +747,7 @@ function handleMessage(ws, msg) {
       survivorsDurationSec: msg.survivorsDurationSec,
       stresstest: msg.stresstest,
       heist: msg.heist,
+      heistRoles: msg.heistRoles,
       addBot: !!msg.addBot,
       botCount: Math.max(1, Math.min(7, msg.botCount || 1)),
       botSkill: msg.botSkill || 'normal',

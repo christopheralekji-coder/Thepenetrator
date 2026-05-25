@@ -4100,6 +4100,27 @@ function tickHeist(sim, dt, nowMs) {
     }
   }
 
+  // === v1.622: NPC tick (civilians + guards) ===
+  _heistTickNPCs(sim, dt, nowMs, arena);
+
+  // === v1.622: MEDIC-role passiv regen (+2 HP/s) ===
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    if (ws._heistRole !== 'medic') continue;
+    ws._heistMedicRegenAccum = (ws._heistMedicRegenAccum || 0) + dt;
+    if (ws._heistMedicRegenAccum >= 1.0) {
+      ws._heistMedicRegenAccum = 0;
+      const max = ws.playerState.maxHp || 100;
+      if (ws.playerState.hp < max) {
+        ws.playerState.hp = Math.min(max, ws.playerState.hp + 2);
+        sim.eventQueue.push({
+          type: 'cd_hp_changed', peerId: pid,
+          hp: ws.playerState.hp, shield: ws.playerState.shield,
+        });
+      }
+    }
+  }
+
   // === v1.621: POLICE-VÅGOR under alarm-fas ===
   if (sim.heistPhase === 'alarm') {
     if (!sim._heistNextPoliceAt) sim._heistNextPoliceAt = nowMs + 5000; // första vågen 5s in i alarm
@@ -4203,6 +4224,173 @@ function tickHeist(sim, dt, nowMs) {
       carrying,  // { pid: { count, value } }
     });
   }
+  // === v1.622: NPC-broadcast (var 200ms = 5Hz för positionssync) ===
+  if (nowMs - (sim._heistNpcBroadcastAt || 0) > 200) {
+    sim._heistNpcBroadcastAt = nowMs;
+    const npcs = [];
+    for (const n of (sim.heistNPCs || [])) {
+      if (n.dead) continue;
+      npcs.push({
+        id: n.id, t: n.type, st: n.subType,
+        x: Math.round(n.x), y: Math.round(n.y),
+        s: n.state, f: Math.round(n.facing * 100) / 100,
+        cn: n.cone || 0, rg: n.range || 0,
+      });
+    }
+    sim.eventQueue.push({ type: 'heist_npcs', npcs });
+  }
+}
+
+// v1.622: HEIST NPC tick — civilians + guards
+function _heistTickNPCs(sim, dt, nowMs, arena) {
+  if (!sim.heistNPCs) return;
+  // Bygg quick player-list för range-checks
+  const players = [];
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    players.push({
+      peerId: pid,
+      x: ws.playerState.x, y: ws.playerState.y,
+      weaponId: ws.playerState.weaponId || 'pistol',
+      _wsRef: ws,
+    });
+  }
+  for (const npc of sim.heistNPCs) {
+    if (npc.dead) continue;
+    if (npc.type === 'civilian') _heistTickCivilian(npc, dt, nowMs, sim, players, arena);
+    else if (npc.type === 'guard') _heistTickGuard(npc, dt, nowMs, sim, players, arena);
+  }
+}
+
+function _heistTickCivilian(npc, dt, nowMs, sim, players, arena) {
+  if (npc.state === 'idle' && sim.heistPhase === 'stealth') {
+    // Wander runt home-position
+    if (!npc._wanderTarget || nowMs > (npc._wanderUntil || 0)) {
+      npc._wanderTarget = {
+        x: npc.hx + (Math.random() - 0.5) * 80,
+        y: npc.hy + (Math.random() - 0.5) * 60,
+      };
+      npc._wanderUntil = nowMs + 3000 + Math.random() * 4000;
+    }
+    const dx = npc._wanderTarget.x - npc.x;
+    const dy = npc._wanderTarget.y - npc.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d > 4) {
+      npc.x += (dx / d) * (npc.speed * 0.3) * dt;
+      npc.y += (dy / d) * (npc.speed * 0.3) * dt;
+      npc.facing = Math.atan2(dy, dx);
+    }
+    // Detect player med vapen draget (något annat än fists eller pistol)
+    for (const p of players) {
+      const pdx = p.x - npc.x, pdy = p.y - npc.y;
+      if (pdx * pdx + pdy * pdy < 180 * 180) {
+        // I stealth-fasen: alla vapen utom 'fists' triggar panik
+        if (p.weaponId !== 'fists') {
+          npc.state = 'panic';
+          npc._panicTarget = _heistNearestExit(npc.x, npc.y, arena);
+          sim.eventQueue.push({ type: 'heist_civilian_panic', npcId: npc.id, x: npc.x, y: npc.y });
+          break;
+        }
+      }
+    }
+  } else if (npc.state === 'panic') {
+    // Spring mot närmaste exit
+    if (!npc._panicTarget) npc._panicTarget = _heistNearestExit(npc.x, npc.y, arena);
+    const dx = npc._panicTarget.x - npc.x;
+    const dy = npc._panicTarget.y - npc.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 40) {
+      // Reached exit → trigger alarm
+      npc.state = 'escaped';
+      npc.dead = true;
+      if (sim.heistPhase === 'stealth') {
+        sim.heistAlarmTriggered = true;
+        sim.eventQueue.push({ type: 'heist_civilian_escaped', npcId: npc.id });
+      }
+    } else {
+      // Snabbare under panik
+      npc.x += (dx / d) * npc.speed * 1.8 * dt;
+      npc.y += (dy / d) * npc.speed * 1.8 * dt;
+      npc.facing = Math.atan2(dy, dx);
+    }
+  }
+}
+
+function _heistTickGuard(npc, dt, nowMs, sim, players, arena) {
+  // Bara aktiva i stealth-fas. Vid alarm: konverteras till enemies.
+  if (sim.heistPhase !== 'stealth') return;
+  if (npc.state === 'patrol') {
+    if (!npc.patrolPoints || npc.patrolPoints.length === 0) return;
+    const target = npc.patrolPoints[npc.patrolIdx];
+    const dx = target[0] - npc.x, dy = target[1] - npc.y;
+    const d = Math.sqrt(dx * dx + dy * dy);
+    if (d < 8) {
+      // Pause vid waypoint, sen byt
+      if (!npc._patrolPauseUntil) npc._patrolPauseUntil = nowMs + 1200;
+      if (nowMs > npc._patrolPauseUntil) {
+        npc.patrolIdx = (npc.patrolIdx + 1) % npc.patrolPoints.length;
+        npc._patrolPauseUntil = 0;
+      }
+    } else {
+      npc.x += (dx / d) * npc.speed * dt;
+      npc.y += (dy / d) * npc.speed * dt;
+      npc.facing = Math.atan2(dy, dx);
+    }
+    // Vision-cone check
+    for (const p of players) {
+      const pdx = p.x - npc.x, pdy = p.y - npc.y;
+      const d2 = pdx * pdx + pdy * pdy;
+      if (d2 > npc.range * npc.range) continue;
+      const angTo = Math.atan2(pdy, pdx);
+      let angDiff = angTo - npc.facing;
+      while (angDiff > Math.PI) angDiff -= 2 * Math.PI;
+      while (angDiff < -Math.PI) angDiff += 2 * Math.PI;
+      if (Math.abs(angDiff) > npc.cone) continue;
+      // Player seen!
+      npc.state = 'alert';
+      npc._alertUntil = nowMs + 1500; // 1.5s innan alarm triggas
+      npc._alertTarget = { x: p.x, y: p.y };
+      sim.eventQueue.push({ type: 'heist_guard_alert', guardId: npc.id });
+      break;
+    }
+  } else if (npc.state === 'alert') {
+    // Stå still och titta på senast sedda position
+    if (npc._alertTarget) {
+      const dx = npc._alertTarget.x - npc.x;
+      const dy = npc._alertTarget.y - npc.y;
+      npc.facing = Math.atan2(dy, dx);
+    }
+    if (nowMs > (npc._alertUntil || 0)) {
+      // Bekräfta sight + trigga alarm
+      sim.heistAlarmTriggered = true;
+      sim.eventQueue.push({ type: 'heist_guard_alarm', guardId: npc.id });
+      npc.state = 'patrol'; // återgår, men alarm har triggats
+    }
+  }
+}
+
+function _heistNearestExit(x, y, arena) {
+  // Front-door är primary exit för civilians
+  return { x: 2000, y: 3500 };
+}
+
+// När alarm triggas: konvertera guards till regular enemies så police-AI tar över
+function _heistConvertGuardsToEnemies(sim) {
+  if (!sim.heistNPCs) return;
+  for (const npc of sim.heistNPCs) {
+    if (npc.type !== 'guard' || npc.dead) continue;
+    const e = makeEnemy('soldier', npc.x, npc.y);
+    if (!e) continue;
+    e._idx = sim.nextEnemyIdx++;
+    e._heistCop = true;
+    e._cdEnemy = true;
+    e._cdRole = 'attacker';
+    e._origSpeed = e.speed;
+    e.hp = npc.hp;
+    e.maxHp = npc.maxHp;
+    sim.enemies.push(e);
+    npc.dead = true;
+  }
 }
 
 // v1.621: Spawna en polis-våg från random arena.policeSpawns
@@ -4245,6 +4433,10 @@ function _heistTransitionPhase(sim, newPhase, reason, nowMs) {
     phase: newPhase,
     reason,
   });
+  // v1.622: vid stealth → alarm, konvertera alla guards till enemies
+  if (newPhase === 'alarm' && typeof _heistConvertGuardsToEnemies === 'function') {
+    _heistConvertGuardsToEnemies(sim);
+  }
 }
 
 function endBattleRoyaleMatch(sim, winnerId, reason) {
@@ -4665,6 +4857,30 @@ function startSim(sim, opts) {
       sim.heistDrillProgress = 0;            // 0..1 vault drill
       sim.heistDrilling = false;             // någon spelare på drill-spot
       sim.heistEnded = false;
+      sim.heistRoles = opts.heistRoles || {}; // { peerId: 'hacker'|'tank'|'medic'|'rogue' }
+      // v1.622: NPC-init (civilians + guards) — startposition från arena-data
+      sim.heistNPCs = [];
+      let nidx = 1;
+      for (const cs of (HEIST_ARENA.civilianSpawns || [])) {
+        sim.heistNPCs.push({
+          id: 'civ' + (nidx++), type: 'civilian', subType: cs.kind || 'customer',
+          x: cs.x, y: cs.y, hx: cs.x, hy: cs.y,
+          state: 'idle', stateUntil: 0,
+          facing: Math.random() * Math.PI * 2,
+          speed: 100, hp: 30, maxHp: 30, dead: false,
+        });
+      }
+      for (const gs of (HEIST_ARENA.guardSpawns || [])) {
+        sim.heistNPCs.push({
+          id: 'g' + (nidx++), type: 'guard', subType: gs.kind || 'lobby_guard',
+          x: gs.x, y: gs.y, hx: gs.x, hy: gs.y,
+          state: 'patrol', stateUntil: 0,
+          facing: gs.facing || 0,
+          speed: 70, hp: 60, maxHp: 60, dead: false,
+          patrolPoints: gs.patrol || [[gs.x, gs.y]], patrolIdx: 0,
+          cone: 0.7, range: 200,
+        });
+      }
     }
   }
   // Bot-spawn: lägg bot(s) som virtuella members INNAN mode-init så loopen tilldelar
@@ -5339,8 +5555,32 @@ function startSim(sim, opts) {
       ws.playerState.cdDowned = false;
       ws.playerState.cdDownDead = false;
       ws.playerState.spectating = false;
+      ws.playerState.speedMul = 1.0;
       ws.tdmTeam = null; // Co-op
-      ws._heistLootCarrying = null; // ingen säck initialt
+      ws._heistLootCarrying = null;
+      ws._heistBagsCarrying = 0;
+      ws._heistBagsValue = 0;
+      // v1.622: ROLE-effekter
+      const role = (sim.heistRoles && sim.heistRoles[pid]) || 'hacker';
+      ws._heistRole = role;
+      if (role === 'tank') {
+        ws.playerState.maxHp = Math.round((arena.maxHp || 100) * 1.5);
+        ws.playerState.hp = ws.playerState.maxHp;
+        ws.playerState.speedMul = 0.8;
+      } else if (role === 'medic') {
+        ws.playerState.maxHp = arena.maxHp || 100;
+        ws.playerState.hp = ws.playerState.maxHp;
+        ws._heistMedicRegenAccum = 0; // +2 HP/s passiv regen tickas i tickHeist
+      } else if (role === 'hacker') {
+        // -50% hack-tid hanteras i action-handler
+        ws.playerState.maxHp = arena.maxHp || 100;
+        ws.playerState.hp = ws.playerState.maxHp;
+      } else if (role === 'rogue') {
+        // Tysta kills + 2× lockpick (iter 4-features)
+        ws.playerState.maxHp = arena.maxHp || 100;
+        ws.playerState.hp = ws.playerState.maxHp;
+        ws.playerState.speedMul = 1.1; // lite snabbare för stealth
+      }
       hIdx++;
     }
     sim.eventQueue.push({

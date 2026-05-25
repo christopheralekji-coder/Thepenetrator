@@ -9074,6 +9074,128 @@ function _drawHeistTerminal(term, sx, sy, hacked) {
   ctx.fillRect(sx - 8, sy + 4, 16, 8);
 }
 
+// v1.622: HEIST NPCs (civilians + guards) — server broadcastar position/state
+function drawHeistNPCs() {
+  if (!state.heistNPCs) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const t = performance.now();
+  for (const n of state.heistNPCs) {
+    const sx = n.x - cx, sy = n.y - cy;
+    if (sx < -60 || sx > viewW + 60 || sy < -60 || sy > viewH + 60) continue;
+    if (n.t === 'civilian') _drawHeistCivilian(n, sx, sy, t);
+    else if (n.t === 'guard') _drawHeistGuard(n, sx, sy, t);
+  }
+}
+
+function _drawHeistCivilian(n, sx, sy, t) {
+  // Civilian humanoid — färg per subtyp
+  const subType = n.st || 'customer';
+  let shirtCol = '#3a5a8a'; // customer = blå
+  if (subType === 'cashier') shirtCol = '#aa3030'; // röd uniform
+  else if (subType === 'manager') shirtCol = '#1a1a1a'; // svart kostym
+  const panic = n.s === 'panic';
+  ctx.save();
+  ctx.translate(sx, sy);
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath(); ctx.ellipse(2, 14, 16, 5, 0, 0, Math.PI * 2); ctx.fill();
+  // Ben (small bobbing om panic = springer fortare)
+  const bob = panic ? Math.abs(Math.sin(t / 80)) * 3 : Math.abs(Math.sin(t / 200)) * 1;
+  ctx.fillStyle = '#1a1a2a';
+  ctx.fillRect(-6, 4 - bob, 5, 12);
+  ctx.fillRect(1, 4 + bob, 5, 12);
+  // Skor
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(-7, 14 - bob, 7, 4);
+  ctx.fillRect(0, 14 + bob, 7, 4);
+  // Kropp (skjorta)
+  ctx.fillStyle = shirtCol;
+  ctx.fillRect(-7, -8, 14, 14);
+  // Huvud (skin)
+  ctx.fillStyle = '#d8a878';
+  ctx.beginPath(); ctx.arc(0, -14, 7, 0, Math.PI * 2); ctx.fill();
+  // Hår (mörkare)
+  ctx.fillStyle = '#3a2a18';
+  ctx.beginPath(); ctx.arc(0, -16, 7, Math.PI * 1.1, Math.PI * 1.9); ctx.fill();
+  // Panic-indikator (😱 ovanför)
+  if (panic) {
+    ctx.fillStyle = '#ffeb3b';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    const float = Math.sin(t / 150) * 2;
+    ctx.fillText('😱', 0, -25 + float);
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+}
+
+function _drawHeistGuard(n, sx, sy, t) {
+  // Guard humanoid — uniform + vision-cone
+  ctx.save();
+  // Vision-cone (rita FÖRST så humanoid hamnar ovanpå)
+  if (n.rg && n.cn) {
+    const isAlert = n.s === 'alert';
+    ctx.fillStyle = isAlert ? 'rgba(255,80,30,0.18)' : 'rgba(255,213,74,0.10)';
+    ctx.strokeStyle = isAlert ? 'rgba(255,80,30,0.5)' : 'rgba(255,213,74,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.arc(sx, sy, n.rg, n.f - n.cn, n.f + n.cn);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.translate(sx, sy);
+  // Skugga
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.beginPath(); ctx.ellipse(2, 14, 17, 5, 0, 0, Math.PI * 2); ctx.fill();
+  // Walking bob
+  const bob = Math.abs(Math.sin(t / 150)) * 2;
+  // Ben (mörk uniform)
+  ctx.fillStyle = '#1a1a2a';
+  ctx.fillRect(-6, 4 - bob, 5, 13);
+  ctx.fillRect(1, 4 + bob, 5, 13);
+  // Stövlar
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(-7, 15 - bob, 7, 4);
+  ctx.fillRect(0, 15 + bob, 7, 4);
+  // Kropp (uniform-blå)
+  ctx.fillStyle = '#2a4a6a';
+  ctx.fillRect(-8, -8, 16, 14);
+  // Bälte (med pistol-holster)
+  ctx.fillStyle = '#1a0a08';
+  ctx.fillRect(-8, 2, 16, 3);
+  ctx.fillStyle = '#3a3a3a';
+  ctx.fillRect(4, 1, 3, 5); // holster
+  // Huvud
+  ctx.fillStyle = '#d8a878';
+  ctx.beginPath(); ctx.arc(0, -14, 7, 0, Math.PI * 2); ctx.fill();
+  // Hatt (mörk uniform-hatt)
+  ctx.fillStyle = '#1a2a3a';
+  ctx.beginPath();
+  ctx.moveTo(-8, -16);
+  ctx.lineTo(8, -16);
+  ctx.lineTo(6, -20);
+  ctx.lineTo(-6, -20);
+  ctx.closePath();
+  ctx.fill();
+  // Badge på hatten
+  ctx.fillStyle = '#ffd54a';
+  ctx.fillRect(-2, -19, 4, 2);
+  // Alert-indikator ovanför
+  if (n.s === 'alert') {
+    ctx.fillStyle = '#ff5050';
+    ctx.font = 'bold 16px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    const float = Math.sin(t / 100) * 3;
+    ctx.fillText('❗', 0, -28 + float);
+    ctx.shadowBlur = 0;
+  }
+  ctx.restore();
+}
+
 function drawCastleDefenseGround() {
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const centerX = (state.castledefenseCore && state.castledefenseCore.x) || 2000;
@@ -22988,6 +23110,20 @@ const Coop = {
       if (typeof triggerShake === 'function') triggerShake(10, 0.5);
     } else if (ev.type === 'heist_police_wave') {
       if (typeof showToast === 'function') showToast('🚓 POLISER ANLÄNDER · ' + (ev.count || 0) + ' enheter');
+    } else if (ev.type === 'heist_npcs') {
+      // { npcs: [{id, t (type), st (subType), x, y, s (state), f (facing), cn (cone), rg (range)}] }
+      state.heistNPCs = ev.npcs || [];
+    } else if (ev.type === 'heist_civilian_panic') {
+      // Civilian började panika — visuell warning
+      if (typeof showToast === 'function') showToast('😱 CIVILIAN PANIKAR');
+    } else if (ev.type === 'heist_civilian_escaped') {
+      if (typeof showToast === 'function') showToast('🚨 CIVILIAN FLYDDE — ALARM!');
+    } else if (ev.type === 'heist_guard_alert') {
+      // Vakt såg dig — kort warning
+      if (typeof showToast === 'function') showToast('👁️ VAKT SÅG DIG — Göm dig!');
+      if (typeof triggerShake === 'function') triggerShake(5, 0.3);
+    } else if (ev.type === 'heist_guard_alarm') {
+      if (typeof showToast === 'function') showToast('🚨 VAKT TRIGGADE ALARM!');
     } else if (ev.type === 'heist_vault_unlocked') {
       // Vault door unlocked!
       if (state.heistDoors) {
@@ -25256,6 +25392,35 @@ function renderHostControls() {
   });
   lobbyModeButtonsEl.appendChild(heistBtn);
 
+  // v1.622: HEIST role-picker — bara synlig om heist aktiv
+  if (Coop.config.heist) {
+    const roleEl = document.createElement('div');
+    roleEl.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px;width:100%;';
+    const myRole = (Coop.config.heistMyRole) || 'hacker';
+    const roles = [
+      { id: 'hacker', icon: '💻', name: 'HACKER', desc: '−50% hack-tid' },
+      { id: 'tank',   icon: '🛡️', name: 'TANK',   desc: '+50% HP, −20% rörelse' },
+      { id: 'medic',  icon: '💊', name: 'MEDIC',  desc: '+2 HP/s passiv regen' },
+      { id: 'rogue',  icon: '🗡️', name: 'ROGUE',  desc: '+10% snabbare i stealth' },
+    ];
+    for (const role of roles) {
+      const b = document.createElement('button');
+      const isOn = myRole === role.id;
+      b.innerHTML = role.icon + ' <b>' + role.name + '</b><br><span style="font-size:9px;opacity:0.8;">' + role.desc + '</span>';
+      b.style.cssText = 'background:' + (isOn ? '#ff9a3a' : '#2a1a08') + ';color:' + (isOn ? '#000' : '#ffae5a') + ';font-size:11px;padding:6px 8px;font-weight:700;letter-spacing:0.5px;border:1px solid ' + (isOn ? '#ffd54a' : '#5a3a18') + ';border-radius:4px;cursor:pointer;line-height:1.2;';
+      onTap(b, () => {
+        Coop.config.heistMyRole = role.id;
+        // Spara per-spelare i heistRoles-map
+        Coop.config.heistRoles = Coop.config.heistRoles || {};
+        Coop.config.heistRoles[Coop.myId] = role.id;
+        Coop.updateConfig({ heistRoles: Coop.config.heistRoles });
+        renderHostControls();
+      });
+      roleEl.appendChild(b);
+    }
+    lobbyModeButtonsEl.appendChild(roleEl);
+  }
+
   // v1.531: SURVIVORS duration-toggle (10/20/30 min) — bara synlig om survivors aktiv
   if (Coop.config.survivors) {
     const survDurEl = document.createElement('div');
@@ -26146,6 +26311,11 @@ btnCoopStart.addEventListener('click', () => {
     }
     if (Coop.config.stresstest) {
       payload.stresstest = true;
+    }
+    // v1.622: HEIST + heistRoles (per-spelare role-map)
+    if (Coop.config.heist) {
+      payload.heist = true;
+      payload.heistRoles = Coop.config.heistRoles || {};
     }
     if (Coop.config.addBot) {
       payload.addBot = true;
@@ -32096,6 +32266,11 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     }
     if (Coop.config.stresstest) {
       payload.stresstest = true;
+    }
+    // v1.622: HEIST + heistRoles (per-spelare role-map)
+    if (Coop.config.heist) {
+      payload.heist = true;
+      payload.heistRoles = Coop.config.heistRoles || {};
     }
     if (Coop.config.addBot) {
       payload.addBot = true;
@@ -67572,6 +67747,7 @@ function render() {
   if (state.heistActive) {
     drawHeistArenaGround();
     drawHeistDecorations();
+    if (typeof drawHeistNPCs === 'function') drawHeistNPCs();
   }
   drawHazards();
   drawCollectibles();
