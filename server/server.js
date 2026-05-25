@@ -974,8 +974,8 @@ function handleMessage(ws, msg) {
       const lootId = String(msg.lootId || '');
       const loot = HEIST_ARENA.lootSpots.find(l => l.id === lootId);
       if (!loot) return;
-      // Måste vara i alarm-fas
-      if (sim.heistPhase !== 'alarm') return;
+      // Måste vara i alarm- eller extract-fas
+      if (sim.heistPhase !== 'alarm' && sim.heistPhase !== 'extract') return;
       // Inte redan bagged
       if (sim.heistLootBagged[lootId]) return;
       // Range-check (60px radius)
@@ -983,16 +983,33 @@ function handleMessage(ws, msg) {
       if (dx * dx + dy * dy > 60 * 60) return;
       // Vault-loot kräver att valvet är upplåst (drill klar)
       if ((loot.kind === 'cash_stack' || loot.kind === 'gold_stack') && !sim.heistVaultUnlocked) return;
-      // Markera bagged + ge värde
+      // v1.621: Bag → carry-weight på spelaren (säkras vid extract-van)
       sim.heistLootBagged[lootId] = true;
-      sim.heistLootValue = (sim.heistLootValue || 0) + (loot.value || 0);
+      ws._heistBagsCarrying = (ws._heistBagsCarrying || 0) + 1;
+      ws._heistBagsValue = (ws._heistBagsValue || 0) + (loot.value || 0);
+      // Applicera carry-weight på player speedMul
+      // 1 bag = -10%, 5 bags = -50%, cap vid 0.4 (60% slow)
+      ps.speedMul = Math.max(0.4, 1 - 0.10 * ws._heistBagsCarrying);
       sim.eventQueue.push({
         type: 'heist_loot_bagged',
         lootId,
         baggerPid: ws.id,
         value: loot.value,
-        totalValue: sim.heistLootValue,
+        bagsCarrying: ws._heistBagsCarrying,
+        bagsValue: ws._heistBagsValue,
       });
+    } else if (action === 'drop_bags') {
+      // v1.621: Drop alla bags på nuvarande position (förlust om man inte plockar upp)
+      // Iter 2: drop = säckarna försvinner. Iter 3: drop = fysiska bag-objekt.
+      if (ws._heistBagsCarrying > 0) {
+        sim.eventQueue.push({
+          type: 'heist_bags_dropped',
+          peerId: ws.id, bagsDropped: ws._heistBagsCarrying, value: ws._heistBagsValue,
+        });
+        ws._heistBagsCarrying = 0;
+        ws._heistBagsValue = 0;
+        ps.speedMul = 1.0;
+      }
     } else if (action === 'start_drill') {
       // Triggar alarm-fas omedelbart om i stealth
       if (sim.heistPhase === 'stealth') {

@@ -4061,9 +4061,134 @@ function tickHeist(sim, dt, nowMs) {
     }
   }
 
+  // === v1.621: CAMERA-DETECTION (cone → alarm efter 2s exponering) ===
+  if (sim.heistPhase === 'stealth') {
+    let anyPlayerInCone = false;
+    for (const cam of (arena.cameras || [])) {
+      if (sim.heistDisabledCameras && sim.heistDisabledCameras[cam.id]) continue;
+      const camRange2 = (cam.range || 250) * (cam.range || 250);
+      const cone = cam.cone || 0.7;
+      const dir = cam.dir || 0;
+      for (const [, ws] of sim.room.members) {
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        const dx = ws.playerState.x - cam.x;
+        const dy = ws.playerState.y - cam.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > camRange2) continue;
+        const angToPlayer = Math.atan2(dy, dx);
+        let angDiff = angToPlayer - dir;
+        while (angDiff > Math.PI) angDiff -= 2 * Math.PI;
+        while (angDiff < -Math.PI) angDiff += 2 * Math.PI;
+        if (Math.abs(angDiff) > cone) continue;
+        // PLAYER IN CONE
+        if (!ws._heistCamDetectStart) ws._heistCamDetectStart = nowMs;
+        anyPlayerInCone = true;
+        if (nowMs - ws._heistCamDetectStart > 2000) {
+          sim.heistAlarmTriggered = true;
+          sim.eventQueue.push({ type: 'heist_camera_detect', camId: cam.id });
+        }
+        break; // detected by this cam — räcker
+      }
+    }
+    // Decay timers om ingen i cone
+    if (!anyPlayerInCone) {
+      for (const [, ws] of sim.room.members) {
+        if (ws._heistCamDetectStart && nowMs - ws._heistCamDetectStart > 500) {
+          ws._heistCamDetectStart = 0;
+        }
+      }
+    }
+  }
+
+  // === v1.621: POLICE-VÅGOR under alarm-fas ===
+  if (sim.heistPhase === 'alarm') {
+    if (!sim._heistNextPoliceAt) sim._heistNextPoliceAt = nowMs + 5000; // första vågen 5s in i alarm
+    if (nowMs >= sim._heistNextPoliceAt) {
+      sim._heistNextPoliceAt = nowMs + 20000; // var 20s
+      _heistSpawnPoliceWave(sim, arena, nowMs);
+    }
+  } else if (sim.heistPhase === 'extract') {
+    // Mer aggressivt under extract — police var 12s
+    if (!sim._heistNextPoliceAt) sim._heistNextPoliceAt = nowMs + 3000;
+    if (nowMs >= sim._heistNextPoliceAt) {
+      sim._heistNextPoliceAt = nowMs + 12000;
+      _heistSpawnPoliceWave(sim, arena, nowMs);
+    }
+  }
+
+  // === v1.621: ENEMY-AI (cops targetar nearest player via updateEnemy) ===
+  if (sim.enemies && sim.enemies.length > 0) {
+    const heistPlayers = [];
+    for (const [pid, ws] of sim.room.members) {
+      if (!ws.playerState || ws.playerState.hp <= 0) continue;
+      heistPlayers.push({
+        peerId: pid, _isCoreTarget: false,
+        x: ws.playerState.x, y: ws.playerState.y,
+        hp: 99999, maxHp: 99999, invulnUntil: ws.playerState.invulnUntil || 0,
+        r: 14, _wsRef: ws,
+      });
+    }
+    if (heistPlayers.length > 0) {
+      for (const e of sim.enemies) {
+        if (!e || e.dead) continue;
+        updateEnemy(e, dt, nowMs, sim, heistPlayers);
+      }
+    }
+    // Cleanup dead enemies + broadcast kills
+    let killedAny = false;
+    for (const e of sim.enemies) {
+      if (e.dead && !e._heistKillBroadcast) {
+        e._heistKillBroadcast = true;
+        killedAny = true;
+        sim.eventQueue.push({
+          type: 'enemy_killed',
+          i: e._idx, gold: 0, killerPid: e.lastDamagerPid || null,
+          isBoss: false, isMiniBoss: false, x: e.x, y: e.y,
+        });
+      }
+    }
+    if (killedAny) sim.enemies = sim.enemies.filter(e => !e.dead);
+  }
+
+  // === v1.621: EXTRACT-VAN SECURE (bags secured när player i extract-zon) ===
+  if (sim.heistPhase === 'extract' || sim.heistPhase === 'alarm') {
+    const ez = arena.extractZones && arena.extractZones.front;
+    if (ez) {
+      for (const [pid, ws] of sim.room.members) {
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        const ps = ws.playerState;
+        const dx = ps.x - (ez.x + ez.w / 2);
+        const dy = ps.y - (ez.y + ez.h / 2);
+        if (Math.abs(dx) > ez.w / 2 + 40 || Math.abs(dy) > ez.h / 2 + 40) continue;
+        // I extract-zon — secure alla carrying bags
+        const carrying = ws._heistBagsCarrying || 0;
+        const value = ws._heistBagsValue || 0;
+        if (carrying > 0) {
+          sim.heistLootValue = (sim.heistLootValue || 0) + value;
+          ws._heistBagsCarrying = 0;
+          ws._heistBagsValue = 0;
+          // Återställ speedMul
+          ps.speedMul = 1.0;
+          sim.eventQueue.push({
+            type: 'heist_bags_secured',
+            peerId: pid, bagsSecured: carrying, value, totalValue: sim.heistLootValue,
+          });
+        }
+      }
+    }
+  }
+
   // === HUD-broadcast (var 500ms) ===
   if (nowMs - (sim._heistHudBroadcastAt || 0) > 500) {
     sim._heistHudBroadcastAt = nowMs;
+    // Per-player carrying-data (klient slår upp egen pid)
+    const carrying = {};
+    for (const [pid, ws] of sim.room.members) {
+      if (ws._heistBagsCarrying) carrying[pid] = {
+        count: ws._heistBagsCarrying,
+        value: ws._heistBagsValue || 0,
+      };
+    }
     sim.eventQueue.push({
       type: 'heist_hud',
       phase: sim.heistPhase,
@@ -4075,7 +4200,40 @@ function tickHeist(sim, dt, nowMs) {
       lootBaggedCount: Object.keys(sim.heistLootBagged || {}).length,
       lootBagged: Object.keys(sim.heistLootBagged || {}),  // ID-lista
       vaultUnlocked: !!sim.heistVaultUnlocked,
+      carrying,  // { pid: { count, value } }
     });
+  }
+}
+
+// v1.621: Spawna en polis-våg från random arena.policeSpawns
+function _heistSpawnPoliceWave(sim, arena, nowMs) {
+  if (!arena.policeSpawns || arena.policeSpawns.length === 0) return;
+  const playerCount = Math.max(1, sim.room.members.size);
+  const scaling = arena.scaling || {};
+  const policeMul = 1 + ((playerCount - 1) * (scaling.policeMulPerPlayer || 0.25));
+  const baseCount = 3 + Math.floor(Math.random() * 3); // 3-5
+  const totalCount = Math.round(baseCount * policeMul);
+  const enemyCap = 120;
+  let spawned = 0;
+  for (let i = 0; i < totalCount && sim.enemies.length < enemyCap; i++) {
+    const sp = arena.policeSpawns[Math.floor(Math.random() * arena.policeSpawns.length)];
+    // Variera spawn-pos ±50px så hela vågen inte ligger på exakt samma punkt
+    const sx = sp.x + (Math.random() - 0.5) * 80;
+    const sy = sp.y + (Math.random() - 0.5) * 80;
+    // Random soldier/shooter mix för variation
+    const type = Math.random() < 0.3 ? 'shooter' : 'soldier';
+    const e = makeEnemy(type, sx, sy);
+    if (!e) continue;
+    e._idx = sim.nextEnemyIdx++;
+    e._heistCop = true;
+    e._cdEnemy = true; // re-use CD-tagging för hit-detection-paths
+    e._cdRole = 'attacker'; // chase player, not core
+    e._origSpeed = e.speed;
+    sim.enemies.push(e);
+    spawned++;
+  }
+  if (spawned > 0) {
+    sim.eventQueue.push({ type: 'heist_police_wave', count: spawned });
   }
 }
 

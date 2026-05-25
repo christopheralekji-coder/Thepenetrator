@@ -22934,7 +22934,7 @@ const Coop = {
       }
       if (typeof updateHeistHud === 'function') updateHeistHud();
     } else if (ev.type === 'heist_hud') {
-      // { phase, elapsedSec, phaseElapsedSec, drillProgress, drilling, lootValue, lootBaggedCount, lootBagged, vaultUnlocked }
+      // { phase, elapsedSec, phaseElapsedSec, drillProgress, drilling, lootValue, lootBaggedCount, lootBagged, vaultUnlocked, carrying }
       state.heistPhase = ev.phase;
       state.heistElapsedSec = ev.elapsedSec;
       state.heistPhaseElapsedSec = ev.phaseElapsedSec;
@@ -22947,6 +22947,10 @@ const Coop = {
         for (const id of ev.lootBagged) state.heistLootBagged[id] = true;
       }
       state.heistVaultUnlocked = !!ev.vaultUnlocked;
+      // v1.621: per-player bag-carrying
+      const myCarry = ev.carrying && ev.carrying[this.myId];
+      state.heistMyBagsCarrying = myCarry ? (myCarry.count || 0) : 0;
+      state.heistMyBagsValue = myCarry ? (myCarry.value || 0) : 0;
       // Uppdatera door-collision: vault unlocks gör att den inte blockerar
       if (state.heistDoors && state.heistVaultUnlocked) {
         for (const d of state.heistDoors) {
@@ -22955,12 +22959,35 @@ const Coop = {
       }
       if (typeof updateHeistHud === 'function') updateHeistHud();
     } else if (ev.type === 'heist_loot_bagged') {
-      // { lootId, baggerPid, value, totalValue }
+      // { lootId, baggerPid, value, bagsCarrying, bagsValue }
       state.heistLootBagged = state.heistLootBagged || {};
       state.heistLootBagged[ev.lootId] = true;
-      state.heistLootValue = ev.totalValue;
-      if (typeof showToast === 'function') showToast('💰 BAGGED · $' + (ev.value || 0).toLocaleString());
+      if (ev.baggerPid === this.myId) {
+        state.heistMyBagsCarrying = ev.bagsCarrying || 0;
+        state.heistMyBagsValue = ev.bagsValue || 0;
+      }
+      if (typeof showToast === 'function') showToast('💰 BAGGED · $' + (ev.value || 0).toLocaleString() + ' — Spring till van!');
       if (typeof Audio !== 'undefined' && Audio.goldPickup) Audio.goldPickup();
+    } else if (ev.type === 'heist_bags_secured') {
+      // { peerId, bagsSecured, value, totalValue }
+      if (ev.peerId === this.myId) {
+        state.heistMyBagsCarrying = 0;
+        state.heistMyBagsValue = 0;
+      }
+      state.heistLootValue = ev.totalValue;
+      if (typeof showToast === 'function') showToast('✅ SÄKRAT · ' + ev.bagsSecured + ' säckar · $' + (ev.value || 0).toLocaleString());
+      if (typeof Audio !== 'undefined' && Audio.victory) Audio.victory();
+    } else if (ev.type === 'heist_bags_dropped') {
+      if (ev.peerId === this.myId) {
+        state.heistMyBagsCarrying = 0;
+        state.heistMyBagsValue = 0;
+      }
+      if (typeof showToast === 'function') showToast('💔 ' + ev.bagsDropped + ' säckar tappade');
+    } else if (ev.type === 'heist_camera_detect') {
+      if (typeof showToast === 'function') showToast('🚨 KAMERA SÅG DIG!');
+      if (typeof triggerShake === 'function') triggerShake(10, 0.5);
+    } else if (ev.type === 'heist_police_wave') {
+      if (typeof showToast === 'function') showToast('🚓 POLISER ANLÄNDER · ' + (ev.count || 0) + ' enheter');
     } else if (ev.type === 'heist_vault_unlocked') {
       // Vault door unlocked!
       if (state.heistDoors) {
@@ -34861,6 +34888,11 @@ function getHeistContextAction() {
     }
   }
 
+  // DROP SÄCKAR — om carrying och inget annat action-mål
+  if ((state.heistMyBagsCarrying || 0) > 0) {
+    return { label: '💔 DROPPA SÄCKAR', action: 'drop_bags' };
+  }
+
   return null;
 }
 
@@ -34922,12 +34954,18 @@ function updateHeistHud() {
   const mm = Math.floor(sec / 60);
   const ss = sec % 60;
   timerEl.textContent = mm + ':' + (ss < 10 ? '0' : '') + ss;
-  // Loot-stats (visa under alarm/extract)
+  // Loot-stats (visa under alarm/extract) — secured + carrying
   if (statsEl) {
     if (phase === 'alarm' || phase === 'extract') {
       statsEl.style.display = 'block';
-      statsEl.textContent = '💰 $' + (state.heistLootValue || 0).toLocaleString() +
-        ' · ' + (state.heistLootBaggedCount || 0) + ' säckar';
+      const secured = state.heistLootValue || 0;
+      const carrying = state.heistMyBagsCarrying || 0;
+      const carrValue = state.heistMyBagsValue || 0;
+      let txt = '✅ $' + secured.toLocaleString();
+      if (carrying > 0) {
+        txt += ' · 🎒 ' + carrying + ' säckar ($' + carrValue.toLocaleString() + ')';
+      }
+      statsEl.textContent = txt;
     } else {
       statsEl.style.display = 'none';
     }
@@ -36732,8 +36770,11 @@ function updatePlayer(dt, now) {
     const weaponSpeedMul = (_wEq && _wEq.speedMul) ? _wEq.speedMul : 1;
     // v1.527: SURVIVORS-RUN perk-speed (stack-bar, summa av alla speed-perks)
     const survSpeedMul = state.survivorsActive ? (1 + getSurvivorsPerkSum('speed')) : 1;
-    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * dt;
-    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * dt;
+    // v1.621: HEIST bag-carry-weight — varje säck saktar 10%, cap vid 0.4
+    const heistCarryMul = (state.heistActive && state.heistMyBagsCarrying > 0)
+      ? Math.max(0.4, 1 - 0.10 * state.heistMyBagsCarrying) : 1;
+    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * dt;
+    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * dt;
   }
   // Mounted i CTF/SIEGE-torn: lås position till turret-koord
   if (p._mountedCtfTurretId && state.ctfTurrets && state.ctfTurrets[p._mountedCtfTurretId]) {
