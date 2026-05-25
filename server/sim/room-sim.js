@@ -2714,6 +2714,27 @@ function tickCastleDefense(sim, dt, now) {
       spawnSurvivorsMiniBoss(sim);
       sim.survivorsMiniBossesSpawned = expectedMiniBosses;
     }
+    // v1.610: SLOW SHIELD-REGEN — 4 shield/s när man inte tagit skada de senaste 3s.
+    // Broadcastar cd_hp_changed var 1s så HUD reflekterar regen.
+    sim._survShieldRegenAccum = (sim._survShieldRegenAccum || 0) + dt;
+    if (sim._survShieldRegenAccum >= 1.0) {
+      sim._survShieldRegenAccum = 0;
+      for (const [pid, ws] of sim.room.members) {
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        const ps = ws.playerState;
+        const sinceHit = ps.invulnUntil ? (nowMs - (ps.invulnUntil - 150)) : 99999;
+        const sinceHitMs = ps._lastDamageAt ? (nowMs - ps._lastDamageAt) : 99999;
+        if (sinceHitMs < 3000) continue;
+        const maxSh = ps.maxShield || 100;
+        if ((ps.shield || 0) < maxSh) {
+          ps.shield = Math.min(maxSh, (ps.shield || 0) + 4);
+          sim.eventQueue.push({
+            type: 'cd_hp_changed', peerId: pid,
+            hp: ps.hp, shield: ps.shield,
+          });
+        }
+      }
+    }
 
     // v1.606: TIME-BASED wave-scheduler — var 25s spawn ny batch oavsett om
     // förra wavens minions är döda. Tidigare kill-baserat = långsamt om man
@@ -2728,7 +2749,7 @@ function tickCastleDefense(sim, dt, now) {
     if (nowMs >= sim._survNextWaveAt) {
       sim._survNextWaveAt = nowMs + waveIntervalMs;
       // v1.607: Wave-bonus gold INNAN nästa wave startar (utom första wave).
-      // Skalar med wave-nummer: 80 base + 20/wave.
+      // v1.610: + shield-regen (50% av max) per wave så shield faktiskt fungerar.
       if (sim.castledefenseWave > 0) {
         const waveBonus = 80 + sim.castledefenseWave * 20;
         for (const [pid, ws] of sim.room.members) {
@@ -2737,6 +2758,14 @@ function tickCastleDefense(sim, dt, now) {
           sim.eventQueue.push({
             type: 'cd_gold_update', peerId: pid,
             gold: sim.castledefenseGold[pid], delta: waveBonus,
+          });
+          // Shield-regen (50% av maxShield) per wave-tick
+          const maxSh = ws.playerState.maxShield || 100;
+          const shRegen = Math.round(maxSh * 0.5);
+          ws.playerState.shield = Math.min(maxSh, (ws.playerState.shield || 0) + shRegen);
+          sim.eventQueue.push({
+            type: 'cd_hp_changed', peerId: pid,
+            hp: ws.playerState.hp, shield: ws.playerState.shield,
           });
         }
       }

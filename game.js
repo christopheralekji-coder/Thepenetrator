@@ -15435,11 +15435,11 @@ function tickSurvivorsPerkEffects(dt) {
         }
       }
     }
-    // Visuell pulsande ring kring player (1× per ~250ms för att inte spam:a partiklar)
-    if (!state._lastZonePulseAt || performance.now() - state._lastZonePulseAt > 250) {
+    // Visuell pulsande ring kring player (1× per 500ms — undvik particle-spam)
+    if (!state._lastZonePulseAt || performance.now() - state._lastZonePulseAt > 500) {
       state._lastZonePulseAt = performance.now();
       if (typeof spawnShockwave === 'function') {
-        spawnShockwave(p.x, p.y, 170, 195, 'rgba(170,90,255,0.45)', 0.4, 1);
+        spawnShockwave(p.x, p.y, 170, 195, 'rgba(170,90,255,0.45)', 0.5, 1);
       }
     }
   }
@@ -15585,10 +15585,21 @@ function resetSurvivorsPerks() {
   state.survivorsPhoenixUsed = false; // v1.608
   // v1.532: reset survivors-shop-owned så man börjar varje match med bara pistol
   state.survivorsOwnedWeapons = ['pistol'];
-  const el = document.getElementById('survivors-perk-overlay');
-  if (el) el.style.display = 'none';
-  const bar = document.getElementById('survivors-perks-bar');
-  if (bar) bar.style.display = 'none';
+  // v1.610: total DOM-cleanup — alla survivors-overlay-element döljs så de inte
+  // läker till menyn efter match-end. Innefattar perk-overlay, perks-bar,
+  // shop-overlay, shop-backdrop, perk-tooltip.
+  const cleanupIds = [
+    'survivors-perk-overlay',
+    'survivors-perks-bar',
+    'survivors-shop-overlay',
+    'survivors-shop-backdrop',
+    'survivors-perk-tooltip',
+  ];
+  for (const id of cleanupIds) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  }
+  state.survivorsBossIndicator = null;
 }
 
 function ensureCheats() {
@@ -22539,34 +22550,28 @@ const Coop = {
       }
     } else if (ev.type === 'enemy_killed') {
       // v1.608: Triggera death-animation INNAN removal — röd blink 250ms + partiklar.
-      // Tidigare: enemy försvann direkt utan visuell feedback från server-kills.
+      // v1.610: Removal sker nu i frame-loop (sweepDeadEnemies) istället för setTimeout
+      // → undviker pile-up av setTimeouts vid mass-kill = jämnare frame-rate.
       if (typeof ev.i === 'number') {
         const dyingEnemy = state.enemies.find(e => e._i === ev.i);
         if (dyingEnemy) {
           const _now = performance.now();
           dyingEnemy.flashUntil = _now + 250;
           dyingEnemy._deathAnimUntil = _now + 250;
-          dyingEnemy.hp = 0; // visa tom HP-bar
-          // Death-partiklar
+          dyingEnemy.hp = 0;
           if (typeof spawnParticles === 'function') {
             spawnParticles(dyingEnemy.x, dyingEnemy.y, dyingEnemy.color || '#aa3a3a', 8, 160);
           }
           if (typeof spawnSparks === 'function') {
             spawnSparks(dyingEnemy.x, dyingEnemy.y, '#ff5a5a', 4, 200);
           }
-          // Blod-puddel
           state.particles = state.particles || [];
           state.particles.push({
             x: dyingEnemy.x, y: dyingEnemy.y, vx: 0, vy: 0, life: 3.0,
             color: 'rgba(80,0,0,0.7)', r: dyingEnemy.r * 0.85, isBloodPool: true,
           });
-          // Schemalägg removal efter death-flash
-          setTimeout(() => {
-            state.enemies = state.enemies.filter(e => e._i !== ev.i);
-            if (state._enemyCache) delete state._enemyCache[ev.i];
-          }, 260);
+          // Removal hanteras av sweepDeadEnemies() varje frame
         } else {
-          // Fallback: enemy redan borta (kan hända vid race med full-broadcast)
           if (state._enemyCache) delete state._enemyCache[ev.i];
         }
       }
@@ -31233,6 +31238,11 @@ document.getElementById('btn-menu').addEventListener('click', () => {
   menuScreen.classList.remove('hidden');
   document.body.classList.add('menu-mode');
   state.mode = 'menu';
+  // v1.610: hard cleanup av survivors-DOM så scoreboard/perks/shop inte läker
+  if (typeof resetSurvivorsPerks === 'function') resetSurvivorsPerks();
+  state.survivorsActive = false;
+  state.survivorsEnded = false;
+  document.body.classList.remove('survivors-mode');
   if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
   refreshModeButtons();
 });
@@ -67709,25 +67719,32 @@ function drawMiniMap() {
       ctx.beginPath(); ctx.arc(mx, my, 2.5, 0, Math.PI * 2); ctx.fill();
       ctx.shadowBlur = 0;
     } else if (isCD) {
-      // CD minions — större (2.5px), ranged-typer i orange (lättare hitta campers)
-      const isRanged = (e.type === 'shooter' || e.type === 'soldier' || e.type === 'sniper');
-      const baseCol = isRanged ? '#ffa030' : '#ff5a5a';
-      const dotR = isRanged ? 2.8 : 2.3;
-      // Pulse när få kvar — hjälpa player hitta sista campers
-      if (cdFewLeft) {
-        const pulse = 0.6 + Math.sin(mmNow / 180) * 0.4;
-        ctx.shadowColor = baseCol; ctx.shadowBlur = 8 * pulse;
-        ctx.strokeStyle = `rgba(255,${isRanged ? 180 : 90},${isRanged ? 60 : 90},${pulse})`;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(mx, my, dotR + 2 + pulse * 1.5, 0, Math.PI * 2); ctx.stroke();
-        ctx.fillStyle = baseCol;
-        ctx.beginPath(); ctx.arc(mx, my, dotR, 0, Math.PI * 2); ctx.fill();
-        ctx.shadowBlur = 0;
+      // v1.610: SURVIVORS — enkla statiska dots utan shadow/pulse/glow.
+      // Användaren tycker det räcker att de syns; flicker var distraherande.
+      if (state.survivorsActive) {
+        ctx.fillStyle = '#ff5a5a';
+        ctx.beginPath(); ctx.arc(mx, my, 2.2, 0, Math.PI * 2); ctx.fill();
       } else {
-        ctx.fillStyle = baseCol;
-        ctx.shadowColor = baseCol; ctx.shadowBlur = 3;
-        ctx.beginPath(); ctx.arc(mx, my, dotR, 0, Math.PI * 2); ctx.fill();
-        ctx.shadowBlur = 0;
+        // CD minions — större (2.5px), ranged-typer i orange (lättare hitta campers)
+        const isRanged = (e.type === 'shooter' || e.type === 'soldier' || e.type === 'sniper');
+        const baseCol = isRanged ? '#ffa030' : '#ff5a5a';
+        const dotR = isRanged ? 2.8 : 2.3;
+        // Pulse när få kvar — hjälpa player hitta sista campers
+        if (cdFewLeft) {
+          const pulse = 0.6 + Math.sin(mmNow / 180) * 0.4;
+          ctx.shadowColor = baseCol; ctx.shadowBlur = 8 * pulse;
+          ctx.strokeStyle = `rgba(255,${isRanged ? 180 : 90},${isRanged ? 60 : 90},${pulse})`;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath(); ctx.arc(mx, my, dotR + 2 + pulse * 1.5, 0, Math.PI * 2); ctx.stroke();
+          ctx.fillStyle = baseCol;
+          ctx.beginPath(); ctx.arc(mx, my, dotR, 0, Math.PI * 2); ctx.fill();
+          ctx.shadowBlur = 0;
+        } else {
+          ctx.fillStyle = baseCol;
+          ctx.shadowColor = baseCol; ctx.shadowBlur = 3;
+          ctx.beginPath(); ctx.arc(mx, my, dotR, 0, Math.PI * 2); ctx.fill();
+          ctx.shadowBlur = 0;
+        }
       }
     } else {
       ctx.fillStyle = '#ff5a5a';
@@ -68256,13 +68273,37 @@ function runFrame(dt, now) {
   }
   // v1.577: Hide survivors-only DOM-element när mode !== 'playing' (förhindrar
   // perks-bar/perk-overlay/shop-backdrop från att läcka till menyn).
+  // v1.610: Också shop-overlay + tooltip + indicator.
   if (state.mode !== 'playing') {
-    const bar = document.getElementById('survivors-perks-bar');
-    if (bar && bar.style.display !== 'none') bar.style.display = 'none';
-    const overlay = document.getElementById('survivors-perk-overlay');
-    if (overlay && overlay.style.display !== 'none') overlay.style.display = 'none';
-    const shop = document.getElementById('survivors-shop-backdrop');
-    if (shop && shop.style.display !== 'none') shop.style.display = 'none';
+    const survIds = [
+      'survivors-perks-bar', 'survivors-perk-overlay',
+      'survivors-shop-backdrop', 'survivors-shop-overlay',
+      'survivors-perk-tooltip',
+    ];
+    for (const id of survIds) {
+      const el = document.getElementById(id);
+      if (el && el.style.display !== 'none') el.style.display = 'none';
+    }
+  }
+  // v1.610: SWEEP DEAD ENEMIES — frame-baserad cleanup istället för setTimeout.
+  // Vid mass-kill (explosion/zone-aura) pile-ade setTimeouts upp och orsakade
+  // micro-stutter när JS-engine handlade event-queue. Single sweep per frame
+  // är O(N) men har platt overhead.
+  if (state.enemies && state.enemies.length > 0) {
+    const sweepNow = now || performance.now();
+    let needsSweep = false;
+    for (const e of state.enemies) {
+      if (e._deathAnimUntil && sweepNow >= e._deathAnimUntil) { needsSweep = true; break; }
+    }
+    if (needsSweep) {
+      state.enemies = state.enemies.filter(e => {
+        if (e._deathAnimUntil && sweepNow >= e._deathAnimUntil) {
+          if (state._enemyCache && e._i != null) delete state._enemyCache[e._i];
+          return false;
+        }
+        return true;
+      });
+    }
   }
   // v1.527: SURVIVORS-RUN perk-trigger + regen + thorns
   if (state.mode === 'playing' && state.survivorsActive) {

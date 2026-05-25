@@ -368,7 +368,11 @@ function applyContactDamage(e, p, sim) {
         p.hp = Math.max(0, p.hp - dmgRemaining);
       }
       p._tookDamageFrom = e;
-      p.invulnUntil = now + 500;  // 500ms invuln efter hit (samma som klient)
+      p._lastDamageAt = now;
+      // v1.610: SURVIVORS sänker invuln 500→150ms så 20 enemies kan döda dig på
+      // rimlig tid. Tidigare: 500ms blockerade alla andra enemies → 1 hit/0.5s
+      // oavsett hur många runt dig = 15-20s att dö trots omringning.
+      p.invulnUntil = now + (sim && sim.survivorsActive ? 150 : 500);
     }
     e.contactCd = 0.6;
   }
