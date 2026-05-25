@@ -57236,23 +57236,18 @@ function _drawBossMilitaryBase(e, flash, now, phase, opts) {
 
 // THE WITHERED ELDER — VETERAN forest-commander (military med druid-power signatures)
 BOSS_DRAW.witheredelder = function(e, flash, now, phase, moving) {
-  // v1.591 DEBUG: GIGANTISK röd ruta som täcker hela boss-området.
-  // Om denna syns ÄR detta min funktion. Om inte syns — körs INTE alls.
-  ctx.save();
-  ctx.fillStyle = '#ff0000';
-  ctx.globalAlpha = 0.8;
-  ctx.fillRect(-e.r * 3, -e.r * 3, e.r * 6, e.r * 6);
-  // Plus stor gul text I MITTEN
-  ctx.globalAlpha = 1;
-  ctx.fillStyle = '#ffff00';
-  ctx.font = 'bold 24px sans-serif';
+  // v1.593 EXTREME-DEBUG: BARA en HUGE solid VIT cirkel istället för boss.
+  // INGEN annan rendering, INGEN save/restore. Om vit cirkel syns där boss ska vara → funktion KÖR.
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(0, 0, e.r * 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  // Plus stor svart text
+  ctx.fillStyle = '#000000';
+  ctx.font = 'bold 18px sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText('v1.591', 0, 0);
-  ctx.fillText('WITHERED', 0, 26);
-  ctx.restore();
-  // Original-debug cyan
-  ctx.fillStyle = '#00ffff';
-  ctx.fillRect(-e.r * 2.2, -e.r * 2.2, e.r * 0.6, e.r * 0.6);
+  ctx.fillText('v1.593', 0, 5);
+  return; // skippa rest av funktion för isolerad test
   let base;
   try {
     base = _drawBossMilitaryBase(e, flash, now, phase, {
