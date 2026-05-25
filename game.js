@@ -60153,198 +60153,498 @@ function drawHumanEnemy(e, flash, now, phase) {
 }
 
 function drawDog(e, flash, phase) {
-  const swing = Math.sin(phase * 1.2);
-  const tailWag = Math.sin(phase * 1.5) * 0.4;
+  // v1.585 SIDE-VIEW: K-9 unit Belgian Malinois med tactical vest, body horizontal facing right
+  const r = e.r;
+  const swing = Math.sin(phase * 1.4);
+  const tailWag = Math.sin(phase * 2) * 0.5;
+  const baseFur = flash ? '#fff' : '#7a5a2a';     // tan-brown fur
+  const furDark = flash ? '#fff' : '#3a2a14';     // dark muzzle/back
+  const furLight = flash ? '#fff' : '#a07840';    // belly
+  const black = flash ? '#fff' : '#0a0808';
 
-  // ben (4 st, alternerar)
-  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.5);
-  // främre ben
-  ctx.fillRect(e.r * 0.55 + swing*3, -e.r * 0.85, e.r * 0.18, e.r * 0.3);
-  ctx.fillRect(e.r * 0.55 - swing*3,  e.r * 0.55, e.r * 0.18, e.r * 0.3);
-  // bakre ben
-  ctx.fillRect(-e.r * 0.95 - swing*3, -e.r * 0.85, e.r * 0.20, e.r * 0.3);
-  ctx.fillRect(-e.r * 0.95 + swing*3,  e.r * 0.55, e.r * 0.20, e.r * 0.3);
+  // BAK-BEN (back two legs — running cycle, behind further)
+  // Back-back leg (further from viewer)
+  ctx.fillStyle = furDark;
+  ctx.fillRect(-r * 0.95 + swing * r * 0.18, r * 0.10, r * 0.18, r * 0.55);
+  // Back paw
+  ctx.fillStyle = black;
+  ctx.fillRect(-r * 0.98 + swing * r * 0.18, r * 0.62, r * 0.24, r * 0.10);
+  // Back-front leg (closer to viewer)
+  ctx.fillStyle = baseFur;
+  ctx.fillRect(-r * 0.70 - swing * r * 0.18, r * 0.10, r * 0.20, r * 0.58);
+  ctx.fillStyle = black;
+  ctx.fillRect(-r * 0.73 - swing * r * 0.18, r * 0.65, r * 0.26, r * 0.10);
 
-  // muskulös avlång body
-  ctx.fillStyle = flash ? '#fff' : e.color;
-  ctx.beginPath(); ctx.ellipse(0, 0, e.r * 1.4, e.r * 0.75, 0, 0, Math.PI*2); ctx.fill();
-  // body shading (mörk under-/baksida)
-  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
-  ctx.beginPath(); ctx.ellipse(-e.r*0.3, 0, e.r * 1.0, e.r * 0.55, 0, 0, Math.PI*2); ctx.fill();
-  // ryggrad-strimma (ljusare)
-  ctx.fillStyle = flash ? '#fff' : darken(e.color, 1.2);
-  ctx.fillRect(-e.r*1.2, -3, e.r*2.2, 1);
+  // FRAM-BEN (front two legs)
+  // Far front-leg
+  ctx.fillStyle = furDark;
+  ctx.fillRect(r * 0.65 - swing * r * 0.18, r * 0.05, r * 0.18, r * 0.60);
+  ctx.fillStyle = black;
+  ctx.fillRect(r * 0.62 - swing * r * 0.18, r * 0.62, r * 0.24, r * 0.10);
+  // Near front-leg (closer)
+  ctx.fillStyle = baseFur;
+  ctx.fillRect(r * 0.85 + swing * r * 0.18, r * 0.05, r * 0.20, r * 0.62);
+  ctx.fillStyle = black;
+  ctx.fillRect(r * 0.82 + swing * r * 0.18, r * 0.65, r * 0.26, r * 0.10);
 
-  // huvud (framåt, kantigt doberman-look)
-  ctx.fillStyle = flash ? '#fff' : e.color;
-  ctx.beginPath(); ctx.ellipse(e.r * 1.1, 0, e.r * 0.55, e.r * 0.50, 0, 0, Math.PI*2); ctx.fill();
-  // kindbenen (framträdande)
-  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.7);
-  ctx.beginPath(); ctx.arc(e.r * 1.20, -e.r * 0.30, e.r * 0.20, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(e.r * 1.20,  e.r * 0.30, e.r * 0.20, 0, Math.PI*2); ctx.fill();
-  // nos (mörk)
-  ctx.fillStyle = flash ? '#fff' : '#0a0a0a';
-  ctx.beginPath(); ctx.arc(e.r * 1.55, 0, e.r * 0.18, 0, Math.PI*2); ctx.fill();
-  // näsa-tryne
+  // BODY (long horizontal — muscular hound shape)
+  ctx.fillStyle = baseFur;
+  ctx.beginPath();
+  ctx.ellipse(0, -r * 0.10, r * 1.20, r * 0.42, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Belly (lighter)
+  ctx.fillStyle = furLight;
+  ctx.beginPath();
+  ctx.ellipse(0, r * 0.05, r * 1.05, r * 0.18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Back darker stripe (German Shepherd black saddle)
+  ctx.fillStyle = furDark;
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.10, -r * 0.30, r * 0.90, r * 0.15, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // TACTICAL K-9 VEST (military camo over body)
+  ctx.fillStyle = flash ? '#fff' : '#2a3418';
+  ctx.fillRect(-r * 0.60, -r * 0.36, r * 1.10, r * 0.40);
+  // Vest seam (top edge)
+  ctx.fillStyle = flash ? '#fff' : '#1a2010';
+  ctx.fillRect(-r * 0.60, -r * 0.36, r * 1.10, 2);
+  // Camo-spots on vest
+  ctx.fillStyle = flash ? '#fff' : '#3a4a26';
+  ctx.beginPath(); ctx.arc(-r * 0.30, -r * 0.18, r * 0.10, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.10, -r * 0.22, r * 0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.30, -r * 0.10, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  // K-9 PATCH (yellow with "K9")
+  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+  ctx.fillRect(-r * 0.10, -r * 0.30, r * 0.20, r * 0.14);
   ctx.fillStyle = flash ? '#fff' : '#000';
-  ctx.beginPath(); ctx.arc(e.r * 1.65, 0, 3, 0, Math.PI*2); ctx.fill();
-  // munnen öppen, tänder synliga (gomvisning)
-  ctx.fillStyle = flash ? '#fff' : '#5a0a0a';
-  ctx.beginPath();
-  ctx.moveTo(e.r * 1.40, -e.r * 0.15);
-  ctx.lineTo(e.r * 1.65, -e.r * 0.05);
-  ctx.lineTo(e.r * 1.65,  e.r * 0.05);
-  ctx.lineTo(e.r * 1.40,  e.r * 0.15);
-  ctx.closePath(); ctx.fill();
-  // tänder
-  ctx.fillStyle = '#fff';
-  ctx.fillRect(e.r * 1.50, -e.r * 0.10, 2, 4);
-  ctx.fillRect(e.r * 1.55, -e.r * 0.04, 2, 3);
-  ctx.fillRect(e.r * 1.55,  e.r * 0.01, 2, 3);
-  ctx.fillRect(e.r * 1.50,  e.r * 0.06, 2, 4);
-
-  // öron (spetsiga, doberman-cropped)
-  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
-  ctx.beginPath();
-  ctx.moveTo(e.r * 0.95, -e.r * 0.40);
-  ctx.lineTo(e.r * 0.95 + 4, -e.r * 0.85);
-  ctx.lineTo(e.r * 1.05, -e.r * 0.30);
-  ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(e.r * 0.95,  e.r * 0.40);
-  ctx.lineTo(e.r * 0.95 + 4,  e.r * 0.85);
-  ctx.lineTo(e.r * 1.05,  e.r * 0.30);
-  ctx.fill();
-
-  // GLÖDANDE RÖDA ÖGON
-  ctx.fillStyle = '#ff3a3a';
-  ctx.shadowColor = '#ff3a3a'; ctx.shadowBlur = 6;
-  ctx.beginPath(); ctx.arc(e.r * 1.15, -e.r * 0.20, 2.5, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(e.r * 1.15,  e.r * 0.20, 2.5, 0, Math.PI*2); ctx.fill();
+  ctx.font = 'bold 6px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('K9', 0, -r * 0.19);
+  // Vest straps (buckle on side)
+  ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+  ctx.fillRect(r * 0.35, -r * 0.36, r * 0.06, r * 0.40);
+  // Buckle (gold)
+  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+  ctx.fillRect(r * 0.36, -r * 0.18, r * 0.04, r * 0.04);
+  // Camera-mount on vest (top)
+  ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+  ctx.fillRect(-r * 0.20, -r * 0.42, r * 0.12, r * 0.08);
+  // Camera-lens (small red dot)
+  ctx.fillStyle = '#ff2020';
+  ctx.shadowColor = '#ff2020';
+  ctx.shadowBlur = 4;
+  ctx.beginPath(); ctx.arc(-r * 0.14, -r * 0.38, 1.5, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
 
-  // TAKTISK HALSBAND med taggar
-  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
+  // NECK + COLLAR (military tactical)
+  // Neck
+  ctx.fillStyle = baseFur;
   ctx.beginPath();
-  ctx.ellipse(e.r * 0.60, 0, e.r * 0.18, e.r * 0.55, 0, 0, Math.PI*2);
+  ctx.moveTo(r * 1.00, -r * 0.40);
+  ctx.lineTo(r * 1.20, -r * 0.50);
+  ctx.lineTo(r * 1.30, -r * 0.20);
+  ctx.lineTo(r * 1.10, 0);
+  ctx.closePath();
   ctx.fill();
-  // taggar på halsbandet
-  ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
-  for (let i = 0; i < 6; i++) {
-    const a = i / 6 * Math.PI - Math.PI/2;
-    const tx = e.r * 0.60 + Math.cos(a) * e.r * 0.18;
-    const ty = Math.sin(a) * e.r * 0.55;
+  // COLLAR (thick black tactical)
+  ctx.fillStyle = black;
+  ctx.fillRect(r * 1.00, -r * 0.40, r * 0.18, r * 0.20);
+  // Collar studs
+  ctx.fillStyle = flash ? '#fff' : '#7a7a7a';
+  for (let i = 0; i < 3; i++) {
     ctx.beginPath();
-    ctx.moveTo(tx, ty);
-    ctx.lineTo(tx + Math.cos(a) * 6, ty + Math.sin(a) * 6);
-    ctx.lineTo(tx - Math.sin(a) * 2, ty + Math.cos(a) * 2);
+    ctx.arc(r * 1.04 + i * r * 0.06, -r * 0.30, 1.5, 0, Math.PI * 2);
     ctx.fill();
   }
+  // Dog-tag hanging
+  ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
+  ctx.fillRect(r * 1.05, -r * 0.18, r * 0.06, r * 0.10);
+  ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+  ctx.fillRect(r * 1.05, -r * 0.15, r * 0.06, 1);
 
-  // svans (taggad doberman docked)
+  // HEAD (forward, German Shepherd elongated muzzle)
+  ctx.fillStyle = baseFur;
+  ctx.beginPath();
+  ctx.ellipse(r * 1.40, -r * 0.42, r * 0.32, r * 0.30, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Skull (top of head darker)
+  ctx.fillStyle = furDark;
+  ctx.beginPath();
+  ctx.ellipse(r * 1.32, -r * 0.55, r * 0.24, r * 0.16, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // MUZZLE (long protruding forward)
+  ctx.fillStyle = baseFur;
+  ctx.beginPath();
+  ctx.moveTo(r * 1.60, -r * 0.50);
+  ctx.lineTo(r * 1.92, -r * 0.45);
+  ctx.lineTo(r * 1.92, -r * 0.28);
+  ctx.lineTo(r * 1.60, -r * 0.30);
+  ctx.closePath();
+  ctx.fill();
+  // Muzzle-top (darker)
+  ctx.fillStyle = furDark;
+  ctx.fillRect(r * 1.62, -r * 0.50, r * 0.30, r * 0.08);
+  // NOSE (wet black tip)
+  ctx.fillStyle = black;
+  ctx.beginPath();
+  ctx.ellipse(r * 1.92, -r * 0.40, r * 0.06, r * 0.05, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Nose-highlight (wet)
+  ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+  ctx.fillRect(r * 1.90, -r * 0.42, 2, 1.5);
+
+  // MOUTH (snarl — bared teeth visible)
+  ctx.fillStyle = flash ? '#fff' : '#3a0a0a';
+  ctx.beginPath();
+  ctx.moveTo(r * 1.62, -r * 0.30);
+  ctx.lineTo(r * 1.88, -r * 0.25);
+  ctx.lineTo(r * 1.84, -r * 0.20);
+  ctx.lineTo(r * 1.60, -r * 0.24);
+  ctx.closePath();
+  ctx.fill();
+  // TEETH (bared canines)
+  ctx.fillStyle = flash ? '#fff' : '#e6e6e0';
+  ctx.beginPath();
+  ctx.moveTo(r * 1.68, -r * 0.28); ctx.lineTo(r * 1.70, -r * 0.22); ctx.lineTo(r * 1.72, -r * 0.28); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r * 1.74, -r * 0.27); ctx.lineTo(r * 1.76, -r * 0.21); ctx.lineTo(r * 1.78, -r * 0.27); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r * 1.80, -r * 0.27); ctx.lineTo(r * 1.82, -r * 0.21); ctx.lineTo(r * 1.84, -r * 0.27); ctx.fill();
+  // Tongue (small pink visible)
+  ctx.fillStyle = flash ? '#fff' : '#ff6080';
+  ctx.fillRect(r * 1.72, -r * 0.22, r * 0.10, r * 0.04);
+
+  // EYES (intense yellow K-9)
+  ctx.fillStyle = flash ? '#fff' : '#1a0e08';
+  ctx.beginPath(); ctx.arc(r * 1.50, -r * 0.50, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffd54a';
+  ctx.shadowColor = '#ffd54a';
+  ctx.shadowBlur = 4;
+  ctx.fillRect(r * 1.48, -r * 0.51, r * 0.04, r * 0.03);
+  ctx.shadowBlur = 0;
+
+  // EARS (erect German Shepherd-style — TWO visible, near + far)
+  // Far ear (behind)
+  ctx.fillStyle = furDark;
+  ctx.beginPath();
+  ctx.moveTo(r * 1.18, -r * 0.65);
+  ctx.lineTo(r * 1.22, -r * 0.92);
+  ctx.lineTo(r * 1.32, -r * 0.55);
+  ctx.closePath();
+  ctx.fill();
+  // Near ear
+  ctx.fillStyle = baseFur;
+  ctx.beginPath();
+  ctx.moveTo(r * 1.28, -r * 0.68);
+  ctx.lineTo(r * 1.34, -r * 0.96);
+  ctx.lineTo(r * 1.46, -r * 0.58);
+  ctx.closePath();
+  ctx.fill();
+  // Inner ear (pink)
+  ctx.fillStyle = flash ? '#fff' : '#7a3030';
+  ctx.beginPath();
+  ctx.moveTo(r * 1.33, -r * 0.72);
+  ctx.lineTo(r * 1.35, -r * 0.88);
+  ctx.lineTo(r * 1.42, -r * 0.62);
+  ctx.closePath();
+  ctx.fill();
+
+  // TAIL (back, wagging — slight angle up for alert posture)
   ctx.save();
-  ctx.translate(-e.r * 1.30, 0);
-  ctx.rotate(tailWag);
-  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
-  ctx.fillRect(0, -3, e.r * 0.30, 6);
+  ctx.translate(-r * 1.20, -r * 0.10);
+  ctx.rotate(tailWag - 0.3);
+  ctx.fillStyle = baseFur;
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.30, 0, r * 0.30, r * 0.10, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Tail tip (darker)
+  ctx.fillStyle = furDark;
+  ctx.beginPath();
+  ctx.ellipse(-r * 0.50, 0, r * 0.12, r * 0.06, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
 function drawRobot(e, flash, now, phase) {
-  const swing = Math.sin(phase);
-  // BEN — bipedala metallben
+  // v1.585 SIDE-VIEW: Combat drone — bipedal mech med cyclops, minigun-arm, exposed wires
+  const r = e.r;
+  const swing = Math.sin(phase) * 0.3; // mechanical stiff walk
+  const metalLight = flash ? '#fff' : '#7a7a88';
+  const metalMid = flash ? '#fff' : '#5a5a68';
+  const metalDark = flash ? '#fff' : '#2a2a34';
+  const metalDeep = flash ? '#fff' : '#1a1a22';
+
+  // LEGS — articulated mech legs med hydraulics
+  const legBackX = -r * 0.16 + swing * r * 0.15;
+  const legFrontX = r * 0.06 - swing * r * 0.15;
+  // Back leg (further)
+  // Upper thigh
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(legBackX - r * 0.12, r * 0.30, r * 0.24, r * 0.36);
+  // Knee-joint (cylindrical hydraulic)
+  ctx.fillStyle = metalMid;
+  ctx.beginPath(); ctx.arc(legBackX, r * 0.66, r * 0.10, 0, Math.PI * 2); ctx.fill();
+  // Joint highlight
+  ctx.fillStyle = metalLight;
+  ctx.beginPath(); ctx.arc(legBackX - r * 0.03, r * 0.63, r * 0.04, 0, Math.PI * 2); ctx.fill();
+  // Lower shin
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(legBackX - r * 0.10, r * 0.66, r * 0.20, r * 0.40);
+  // Hydraulic-piston (red cylinder behind shin)
   ctx.fillStyle = flash ? '#fff' : '#3a3a44';
-  ctx.fillRect(-e.r*0.95 + swing*3, -e.r*0.65, e.r*0.30, e.r*0.40);
-  ctx.fillRect(-e.r*0.95 - swing*3,  e.r*0.25, e.r*0.30, e.r*0.40);
-  // fot-plate
-  ctx.fillStyle = flash ? '#fff' : '#1a1a22';
-  ctx.fillRect(-e.r*0.95 + swing*3, -e.r*0.30, e.r*0.30, e.r*0.10);
-  ctx.fillRect(-e.r*0.95 - swing*3,  e.r*0.55, e.r*0.30, e.r*0.10);
-  // led-glow på knäet
+  ctx.fillRect(legBackX - r * 0.14, r * 0.50, r * 0.04, r * 0.30);
+  // Foot-pad
+  ctx.fillStyle = metalDeep;
+  ctx.fillRect(legBackX - r * 0.16, r * 1.04, r * 0.32, r * 0.14);
+
+  // Front leg (closer, more vivid)
+  ctx.fillStyle = metalMid;
+  ctx.fillRect(legFrontX - r * 0.12, r * 0.30, r * 0.24, r * 0.36);
+  ctx.fillStyle = metalLight;
+  ctx.beginPath(); ctx.arc(legFrontX, r * 0.66, r * 0.12, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = '#3acaff';
-  ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 4;
-  ctx.fillRect(-e.r*0.85 + swing*3, -e.r*0.30, 4, 3);
-  ctx.fillRect(-e.r*0.85 - swing*3,  e.r*0.50, 4, 3);
+  ctx.shadowColor = '#3acaff';
+  ctx.shadowBlur = 6;
+  ctx.beginPath(); ctx.arc(legFrontX, r * 0.66, r * 0.04, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
-
-  // HUVUDKROPP (hexagonal mecha-look)
-  ctx.fillStyle = flash ? '#fff' : e.color;
-  ctx.beginPath();
-  ctx.moveTo(-e.r*0.6, -e.r*0.95); ctx.lineTo(e.r*0.95, -e.r*0.85);
-  ctx.lineTo(e.r*1.05, 0); ctx.lineTo(e.r*0.95, e.r*0.85);
-  ctx.lineTo(-e.r*0.6, e.r*0.95); ctx.lineTo(-e.r*0.95, 0);
-  ctx.closePath(); ctx.fill();
-
-  // panel-linjer
-  ctx.strokeStyle = flash ? '#fff' : darken(e.color, 0.5);
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(-e.r*0.6, 0); ctx.lineTo(e.r*0.95, 0);
-  ctx.moveTo(e.r*0.40, -e.r*0.85); ctx.lineTo(e.r*0.40, e.r*0.85);
-  ctx.stroke();
-
-  // CENTRAL BLÅ ENERGY-CORE
-  const corePulse = 0.85 + Math.sin(now/200) * 0.15;
-  ctx.fillStyle = '#3acaff';
-  ctx.shadowColor = '#3acaff'; ctx.shadowBlur = 12;
-  ctx.beginPath(); ctx.arc(-e.r*0.10, 0, e.r*0.18 * corePulse, 0, Math.PI*2); ctx.fill();
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#fff';
-  ctx.beginPath(); ctx.arc(-e.r*0.10, 0, e.r*0.06, 0, Math.PI*2); ctx.fill();
-
-  // axlar
-  ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
-  ctx.beginPath(); ctx.arc(0, -e.r*0.95, e.r*0.30, 0, Math.PI*2); ctx.fill();
-  ctx.beginPath(); ctx.arc(0,  e.r*0.95, e.r*0.30, 0, Math.PI*2); ctx.fill();
-
-  // VÄNSTER ARM — vapen-mounted
-  ctx.fillStyle = flash ? '#fff' : '#5a5a64';
-  ctx.fillRect(e.r*0.7, e.r*0.65, e.r*0.95, e.r*0.40);
-  // mynning
-  ctx.fillStyle = flash ? '#fff' : '#1a1a1a';
-  ctx.fillRect(e.r*1.55, e.r*0.75, 6, e.r*0.20);
-  // glow när nyligen sköt (från lastShot)
-  if (now - (e.lastShot || 0) < 200) {
-    ctx.fillStyle = `rgba(255,200,80,${0.8 - (now - (e.lastShot || 0))/250})`;
-    ctx.beginPath(); ctx.arc(e.r*1.65, e.r*0.85, 8, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = metalMid;
+  ctx.fillRect(legFrontX - r * 0.10, r * 0.66, r * 0.20, r * 0.40);
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(legFrontX - r * 0.16, r * 1.04, r * 0.32, r * 0.14);
+  // Foot-grip (bottom traction)
+  ctx.fillStyle = flash ? '#fff' : '#0a0a14';
+  for (let i = 0; i < 4; i++) {
+    ctx.fillRect(legFrontX - r * 0.14 + i * r * 0.08, r * 1.15, r * 0.06, 2);
   }
-  // HÖGER ARM — klo
-  ctx.fillStyle = flash ? '#fff' : '#5a5a64';
-  ctx.fillRect(e.r*0.7, -e.r*1.05, e.r*0.55, e.r*0.40);
-  // klo
-  ctx.fillStyle = flash ? '#fff' : '#3a3a44';
+
+  // PELVIS / HIP-PLATE
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(-r * 0.32, r * 0.22, r * 0.64, r * 0.16);
+  // Hip-rivets
+  ctx.fillStyle = flash ? '#fff' : '#9a9aaa';
+  ctx.beginPath(); ctx.arc(-r * 0.24, r * 0.30, 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.24, r * 0.30, 1.5, 0, Math.PI * 2); ctx.fill();
+
+  // TORSO — modular angular mech-body
+  // Lower torso (boxy)
+  ctx.fillStyle = metalMid;
+  ctx.fillRect(-r * 0.36, -r * 0.20, r * 0.72, r * 0.48);
+  // Upper torso (chest, broader)
+  ctx.fillStyle = metalLight;
   ctx.beginPath();
-  ctx.moveTo(e.r*1.25, -e.r*1.0); ctx.lineTo(e.r*1.50, -e.r*1.10);
-  ctx.lineTo(e.r*1.50, -e.r*0.85); ctx.lineTo(e.r*1.25, -e.r*0.65);
+  ctx.moveTo(-r * 0.42, -r * 0.65);
+  ctx.lineTo(r * 0.42, -r * 0.65);
+  ctx.lineTo(r * 0.50, -r * 0.20);
+  ctx.lineTo(-r * 0.50, -r * 0.20);
+  ctx.closePath();
+  ctx.fill();
+  // Chest-plate detail (vertical sections)
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(-r * 0.04, -r * 0.60, r * 0.08, r * 0.40);
+  ctx.fillRect(-r * 0.30, -r * 0.60, 2, r * 0.40);
+  ctx.fillRect(r * 0.28, -r * 0.60, 2, r * 0.40);
+
+  // POWER-CORE — large blue energy on chest (signature)
+  const corePulse = 0.85 + Math.sin(now / 200) * 0.15;
+  ctx.fillStyle = '#3acaff';
+  ctx.shadowColor = '#3acaff';
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.arc(0, -r * 0.35, r * 0.16 * corePulse, 0, Math.PI * 2);
+  ctx.fill();
+  // Core inner (white hot)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(0, -r * 0.35, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Core rim (metal frame)
+  ctx.strokeStyle = metalLight;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(0, -r * 0.35, r * 0.16, 0, Math.PI * 2); ctx.stroke();
+
+  // RIB-COOLING-VENTS (horizontal slots på chest)
+  ctx.fillStyle = metalDeep;
+  for (let i = 0; i < 3; i++) {
+    ctx.fillRect(r * 0.15, -r * 0.50 + i * r * 0.10, r * 0.20, 2);
+  }
+  // Red status-light
+  ctx.fillStyle = '#ff3030';
+  ctx.shadowColor = '#ff3030';
+  ctx.shadowBlur = 4;
+  ctx.fillRect(r * 0.36, -r * 0.42, r * 0.04, r * 0.04);
+  ctx.shadowBlur = 0;
+
+  // BACK SHOULDER + arm (clawed manipulator)
+  ctx.fillStyle = metalDark;
+  ctx.beginPath();
+  ctx.arc(-r * 0.46, -r * 0.55, r * 0.16, 0, Math.PI * 2);
+  ctx.fill();
+  // Back-arm (mechanical claw arm)
+  ctx.fillStyle = metalMid;
+  ctx.fillRect(-r * 0.20, -r * 0.40, r * 0.16, r * 0.52);
+  // Elbow-joint
+  ctx.fillStyle = metalLight;
+  ctx.beginPath(); ctx.arc(-r * 0.12, r * 0.12, r * 0.07, 0, Math.PI * 2); ctx.fill();
+  // Wrist-claw (3 fingers)
+  ctx.fillStyle = metalDark;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.18, r * 0.20);
+  ctx.lineTo(-r * 0.10, r * 0.40);
+  ctx.lineTo(-r * 0.04, r * 0.20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.20, r * 0.20);
+  ctx.lineTo(-r * 0.22, r * 0.42);
+  ctx.lineTo(-r * 0.14, r * 0.30);
+  ctx.closePath();
   ctx.fill();
 
-  // HUVUD/SCANNER (centralt fram)
-  ctx.fillStyle = flash ? '#fff' : '#1a1a22';
-  ctx.beginPath(); ctx.ellipse(e.r*0.55, 0, e.r*0.30, e.r*0.30, 0, 0, Math.PI*2); ctx.fill();
-  // cyclops scanner-öga
-  const scanX = Math.sin(now/300) * e.r * 0.10;
-  ctx.fillStyle = '#ff3a3a';
-  ctx.shadowColor = '#ff3a3a'; ctx.shadowBlur = 10;
-  ctx.fillRect(e.r*0.45 + scanX, -e.r*0.06, e.r*0.20, e.r*0.12);
+  // FRONT SHOULDER (massive pauldron)
+  ctx.fillStyle = metalLight;
+  ctx.beginPath();
+  ctx.arc(r * 0.42, -r * 0.58, r * 0.20, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = metalDark;
+  ctx.beginPath(); ctx.arc(r * 0.42, -r * 0.58, r * 0.20, 1.2 * Math.PI, 0.3 * Math.PI); ctx.fill();
+  // Pauldron-vent
+  ctx.fillStyle = '#3acaff';
+  ctx.shadowColor = '#3acaff';
+  ctx.shadowBlur = 4;
+  ctx.fillRect(r * 0.36, -r * 0.66, r * 0.12, 2);
   ctx.shadowBlur = 0;
 
-  // ANTENN med röd blinkare
-  ctx.strokeStyle = flash ? '#fff' : '#3a3a44';
+  // FRONT ARM — MOUNTED MINIGUN (signature weapon)
+  // Upper arm
+  ctx.fillStyle = metalMid;
+  ctx.fillRect(r * 0.28, -r * 0.40, r * 0.18, r * 0.42);
+  // Elbow
+  ctx.fillStyle = metalLight;
+  ctx.beginPath(); ctx.arc(r * 0.36, r * 0.04, r * 0.08, 0, Math.PI * 2); ctx.fill();
+  // Forearm med MINIGUN-mount
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(r * 0.26, r * 0.04, r * 0.22, r * 0.18);
+  // MINIGUN BARREL-CLUSTER (6 rotating barrels)
+  ctx.fillStyle = metalDeep;
+  ctx.fillRect(r * 0.46, -r * 0.08, r * 0.60, r * 0.32);
+  // 6 barrels (vertical line of dots)
+  ctx.fillStyle = flash ? '#fff' : '#0a0a14';
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    ctx.arc(r * 1.02, -r * 0.05 + i * r * 0.05, r * 0.025, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Minigun shroud (silver casing)
+  ctx.fillStyle = metalLight;
+  ctx.beginPath(); ctx.arc(r * 0.50, r * 0.08, r * 0.12, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = metalDark;
+  ctx.beginPath(); ctx.arc(r * 0.50, r * 0.08, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  // Ammo-feed belt (linkar till body)
+  ctx.fillStyle = flash ? '#fff' : '#3a3a44';
+  ctx.fillRect(r * 0.34, r * 0.12, r * 0.16, r * 0.20);
+  // Bullets in belt (yellow)
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.fillRect(r * 0.36 + i * r * 0.04, r * 0.14, r * 0.02, r * 0.04);
+  }
+  // Muzzle-glow när nyligen sköt
+  if (now - (e.lastShot || 0) < 200) {
+    const muzzleA = 0.8 - (now - (e.lastShot || 0)) / 250;
+    ctx.fillStyle = `rgba(255,200,80,${muzzleA})`;
+    ctx.shadowColor = '#ffae3a';
+    ctx.shadowBlur = 12;
+    ctx.beginPath(); ctx.arc(r * 1.10, r * 0.06, r * 0.16, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // NECK (slim mech-neck)
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(-r * 0.08, -r * 0.78, r * 0.16, r * 0.16);
+  // Neck-cables (exposed hydraulic)
+  ctx.strokeStyle = metalDeep;
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.06 + i * r * 0.06, -r * 0.78);
+    ctx.lineTo(-r * 0.06 + i * r * 0.06, -r * 0.65);
+    ctx.stroke();
+  }
+
+  // HEAD — angular mech head
+  ctx.fillStyle = metalLight;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.20, -r * 0.85);
+  ctx.lineTo(r * 0.20, -r * 0.85);
+  ctx.lineTo(r * 0.26, -r * 1.08);
+  ctx.lineTo(-r * 0.26, -r * 1.08);
+  ctx.closePath();
+  ctx.fill();
+  // Head-shadow (bak)
+  ctx.fillStyle = metalDark;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.20, -r * 0.85);
+  ctx.lineTo(-r * 0.13, -r * 0.85);
+  ctx.lineTo(-r * 0.19, -r * 1.08);
+  ctx.lineTo(-r * 0.26, -r * 1.08);
+  ctx.closePath();
+  ctx.fill();
+  // CYCLOPS RED EYE (single horizontal slit scanning)
+  const scanX = Math.sin(now / 300) * r * 0.08;
+  ctx.fillStyle = '#1a0a14';
+  ctx.fillRect(-r * 0.18, -r * 1.02, r * 0.36, r * 0.10);
+  ctx.fillStyle = '#ff2020';
+  ctx.shadowColor = '#ff2020';
+  ctx.shadowBlur = 10;
+  ctx.fillRect(-r * 0.12 + scanX, -r * 1.00, r * 0.20, r * 0.06);
+  // Eye-core (hot white)
+  ctx.fillStyle = '#ffaaaa';
+  ctx.fillRect(-r * 0.04 + scanX, -r * 0.99, r * 0.08, r * 0.04);
+  ctx.shadowBlur = 0;
+  // Head-vent (top)
+  ctx.fillStyle = metalDeep;
+  ctx.fillRect(-r * 0.12, -r * 1.08, r * 0.24, 3);
+
+  // ANTENNA med blinkande röd
+  ctx.strokeStyle = metalDark;
   ctx.lineWidth = 2;
-  ctx.beginPath(); ctx.moveTo(-e.r*0.4, -e.r*0.85); ctx.lineTo(-e.r*0.6, -e.r*1.30); ctx.stroke();
-  const blink = Math.sin(now/200) > 0;
-  ctx.fillStyle = blink ? '#ff3a3a' : '#5a1010';
-  if (blink) { ctx.shadowColor = '#ff3a3a'; ctx.shadowBlur = 8; }
-  ctx.beginPath(); ctx.arc(-e.r*0.6, -e.r*1.30, 3, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r * 0.20, -r * 1.08);
+  ctx.lineTo(r * 0.30, -r * 1.40);
+  ctx.stroke();
+  const blink = Math.sin(now / 200) > 0;
+  if (blink) {
+    ctx.fillStyle = '#ff3a3a';
+    ctx.shadowColor = '#ff3a3a';
+    ctx.shadowBlur = 10;
+  } else {
+    ctx.fillStyle = flash ? '#fff' : '#5a1010';
+  }
+  ctx.beginPath(); ctx.arc(r * 0.30, -r * 1.40, r * 0.05, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
-
-  // hydraulkablar
-  ctx.strokeStyle = flash ? '#fff' : '#1a1a22';
+  // Secondary antenna (shorter, left)
+  ctx.strokeStyle = metalDark;
   ctx.lineWidth = 1.5;
   ctx.beginPath();
-  ctx.moveTo(-e.r*0.6, -e.r*0.7); ctx.lineTo(-e.r*0.4, -e.r*0.4);
-  ctx.moveTo(-e.r*0.6,  e.r*0.7); ctx.lineTo(-e.r*0.4,  e.r*0.4);
+  ctx.moveTo(-r * 0.18, -r * 1.08);
+  ctx.lineTo(-r * 0.22, -r * 1.26);
   ctx.stroke();
+
+  // EXPOSED WIRES at joints (sparking detail)
+  ctx.strokeStyle = flash ? '#fff' : '#aa6020';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.34, -r * 0.10); ctx.lineTo(-r * 0.40, r * 0.05);
+  ctx.moveTo(r * 0.32, r * 0.10); ctx.lineTo(r * 0.28, r * 0.20);
+  ctx.stroke();
+  // Spark dots (occasional)
+  if (Math.sin(now / 150 + r) > 0.7) {
+    ctx.fillStyle = '#ffd54a';
+    ctx.shadowColor = '#ffd54a';
+    ctx.shadowBlur = 4;
+    ctx.beginPath(); ctx.arc(-r * 0.40, r * 0.05, 1.5, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
 }
 
 function drawHpBar(e, x, y) {
