@@ -17038,9 +17038,10 @@ function syncPixiEnemies() {
     if (!e) { d.skippedNullEnemy++; continue; }
     if (e.dead) { d.skippedDead++; continue; }
     if (e.hp != null && e.hp <= 0) { d.skippedHpZero++; continue; }
-    // v1.574: Bossar renderas via Canvas2D (drawBossSoldier är phase-baserad,
-    // för komplex för pre-baked sprites). Ta bort ev. Pixi-sprite om existerande.
-    if (e.isBoss) {
+    // v1.574: Bossar renderas via Canvas2D (drawBossSoldier är phase-baserad).
+    // v1.599: MINI-BOSSAR också via Canvas2D — bake-textures är suddiga vid scale-up,
+    // Canvas2D ritar dem direkt med MINIBOSS_DRAW[power] = pixel-skarpa.
+    if (e.isBoss || e.isMiniBoss) {
       let bossId = (e._idx != null) ? e._idx : (e._i != null ? e._i : e._pixiId);
       if (bossId != null) {
         const bs = pixiState.sprites.enemies.get(bossId);
@@ -30350,8 +30351,9 @@ function spawnMiniBoss(stage, idx) {
   e.maxHp = e.hp;
   e.dmg = Math.round(e.dmg * (m.dmgMul || 1.5) * scale * diff.enemyDmg * ngpMul);
   if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * (m.dmgMul || 1.5));
-  // v1.598: mini-bossar mellan minions och bossar — scale 1.4 → 1.7
-  e.r = Math.round(e.r * (m.scale || 1.7));
+  // v1.599: mini-bossar mellan minions (16-22) och bossar (32-46) — scale 1.3
+  // För brute(22)*1.3=29, ninja(12)*1.3=16 → mini-boss r ~16-30 = klart mellan storlek
+  e.r = Math.round(e.r * (m.scale || 1.3));
   e.speed = Math.round(e.speed * 1.1);
   e._origSpeed = e.speed;
   e.gold = m.gold || 100;
@@ -66328,16 +66330,16 @@ function render() {
       const sy = e.y - state.camera.y;
       const margin = (e.r || 18) * 3;
       if (sx < -margin || sx > viewW + margin || sy < -margin || sy > viewH + margin) continue;
-      if (e.isBoss) {
-        drawEnemy(e); // full boss-render (drawBossSoldier + drawBossTelegraph + HP-bar)
-        // v1.581: Showcase-label även för bossar (frysta showcase-enemies)
+      // v1.599: bossar OCH mini-bossar via Canvas2D drawEnemy (Pixi-textures är suddiga)
+      if (e.isBoss || e.isMiniBoss) {
+        drawEnemy(e);
         if (e._showcaseLabel) {
           ctx.save();
-          ctx.fillStyle = '#ffd54a';
-          ctx.font = 'bold 11px sans-serif';
+          ctx.fillStyle = e.isBoss ? '#ffd54a' : '#fff';
+          ctx.font = 'bold ' + (e.isBoss ? 11 : 10) + 'px sans-serif';
           ctx.textAlign = 'center';
           ctx.shadowColor = '#000'; ctx.shadowBlur = 5;
-          const labelY = Math.max(14, sy - (e.r || 14) - 52);
+          const labelY = Math.max(14, sy - (e.r || 14) - (e.isBoss ? 52 : 42));
           ctx.fillText(e._showcaseLabel, sx, labelY);
           ctx.shadowBlur = 0;
           ctx.restore();
