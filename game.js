@@ -16876,30 +16876,41 @@ function bakeAllEnemyTextures() {
   }
 }
 
-// v1.612: Tvinga GPU-upload av baked textures synkront via primer-pass.
-// Skapar ett dolt PIXI.Container med Sprites för varje texture, kör en render-call,
-// raderar containern. WebGL's texImage2D är synkron så efter render() är alla
-// textures uppladda till GPU och redo att användas av riktiga sprites.
+// v1.617: KONVERTERA canvas-textures → GPU-native render-textures.
+// PIXI.Texture.from(canvas) skapar en CanvasSource där GPU-upload sker ASYNC
+// vid första riktiga draw. På mobile-GPUs (Adreno/Mali) kan upload ta flera
+// frames → osynliga sprites första matchen.
+//
+// FIX: Använd renderer.generateTexture(sprite) som RENDERAR sprite till en
+// RenderTexture (GPU-native). Detta tvingar synkron upload via renderer'ns
+// egen pipeline — exakt samma path som PIXI.Graphics (bullets) använder och
+// fungerar pålitligt. Returnerad render-texture är garanterat på GPU.
 function _primeGpuTextureUploads() {
   if (typeof PIXI === 'undefined') return;
   if (!pixiState || !pixiState.ready || !pixiState.app || !pixiState.enemyTextures) return;
-  const primer = new PIXI.Container();
-  primer.label = 'gpu-prime';
+  const renderer = pixiState.app.renderer;
+  const converted = {};
+  let count = 0;
   for (const key in pixiState.enemyTextures) {
-    const tex = pixiState.enemyTextures[key];
-    if (!tex) continue;
-    const sprite = new PIXI.Sprite(tex);
-    sprite.x = -10000; // off-screen så det inte syns
-    sprite.y = -10000;
-    sprite.alpha = 0;
-    primer.addChild(sprite);
+    const canvasTex = pixiState.enemyTextures[key];
+    if (!canvasTex) continue;
+    try {
+      // Skapa en temporär sprite från canvas-texturen
+      const tempSprite = new PIXI.Sprite(canvasTex);
+      // Rendera sprite till en GPU-native render-texture
+      // renderer.generateTexture är synkron och tvingar GPU-upload omedelbart
+      const gpuTex = renderer.generateTexture(tempSprite);
+      converted[key] = gpuTex;
+      tempSprite.destroy({ children: false, texture: false });
+      count++;
+    } catch (e) {
+      // Behåll canvas-texturen som fallback om konvertering failed
+      converted[key] = canvasTex;
+      console.warn('[Pixi] generateTexture fail for', key, e.message);
+    }
   }
-  pixiState.app.stage.addChild(primer);
-  // Force render → triggar gl.texImage2D för alla textures synkront
-  try { pixiState.app.renderer.render(pixiState.app.stage); } catch (_) {}
-  pixiState.app.stage.removeChild(primer);
-  primer.destroy({ children: true });
-  console.log('[Pixi] GPU texture-uploads primed for', Object.keys(pixiState.enemyTextures).length, 'textures');
+  pixiState.enemyTextures = converted;
+  console.log('[Pixi] GPU-native textures converted:', count);
 }
 
 const _pixiEnemySpritePoolByType = {};
@@ -68438,12 +68449,10 @@ function runFrame(dt, now) {
   // Canvas2D-renderingen för bullets (forlust ~10 FPS @ 2000+ bullets, men det
   // är extrem-situation). Enemies använder nu pre-baked textures via Canvas2D-
   // draw-funktioner = pixel-identical militär-grafik.
-  // v1.615 BUGFIX: sätt warmup INNAN pixiState.ready-checken. Tidigare hamnade
-  // warmup-settern inuti pixiState.ready-blocket, vilket missade första matchen
-  // efter deploy där Pixi-init är async och ready=false på frame 1 (då mode just
-  // blev 'playing'). Nästa frame är prevMode='playing' → setter triggade aldrig.
+  // v1.615 BUGFIX: sätt warmup INNAN pixiState.ready-checken så dual-render
+  // fungerar även när Pixi inte är ready på första frame av match.
   if (state.mode === 'playing' && state._prevMode !== 'playing') {
-    state._pixiWarmupUntil = (now || performance.now()) + 5000; // 5s safety
+    state._pixiWarmupUntil = (now || performance.now()) + 5000;
   }
   if (state.mode === 'playing' && pixiState && pixiState.ready) {
     // Bullets/particles/VFX behöver ingen pre-bake (PIXI.Graphics-sprites)

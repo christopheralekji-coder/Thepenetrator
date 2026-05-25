@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v616-stresstest-no-wavespawn';
+const CACHE = 'penetrator-v618-rendertexture-gpu-native';
 const ASSETS = [
   './',
   './index.html',
