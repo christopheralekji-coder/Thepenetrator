@@ -61480,12 +61480,9 @@ function drawEnemy(e) {
 
   ctx.restore();
   drawHpBar(e, x, y);
-  // Mini-boss extra: visa namn ovanför + glow-ring runt kroppen
+  // v1.600: Mini-boss namn-tag bevarad, glow-ring BORTTAGEN per user-request
   if (e.isMiniBoss) {
-    // Använd stageEdge (ljusare) för ring så den syns mot mörka stage-bgs
-    const ringColor = e.stageEdge || '#ffd54a';
     ctx.save();
-    // Namn-tag — clamp top-Y så den inte klipps off-screen
     const tagY = Math.max(20, y - e.r - 22);
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 11px sans-serif';
@@ -61493,14 +61490,6 @@ function drawEnemy(e) {
     ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
     ctx.fillText(e.name || 'MINI-BOSS', x, tagY);
     ctx.shadowBlur = 0;
-    // Pulsande ring (intensity-baserad)
-    const pulse = 0.7 + Math.sin(now / 280) * 0.3;
-    ctx.strokeStyle = ringColor;
-    ctx.lineWidth = 1.5 + e.miniIntensity * 1.5;
-    ctx.globalAlpha = 0.45 * pulse;
-    ctx.beginPath(); ctx.arc(x, y, e.r * (1.15 + 0.05 * Math.sin(now / 350)), 0, Math.PI*2);
-    ctx.stroke();
-    ctx.globalAlpha = 1;
     ctx.restore();
   }
 }
@@ -66360,21 +66349,8 @@ function render() {
         ctx.shadowBlur = 0;
         ctx.restore();
       }
-      // v1.575: Mini-boss namn-tag bortagen från denna loop — drawHpBar (ovan)
-      // ritar redan "⚠ name" via line 58081. Bara pulsande glow-ring kvar här.
-      if (e.isMiniBoss) {
-        const ringColor = e.stageEdge || '#ffd54a';
-        ctx.save();
-        const pulse = 0.7 + Math.sin(_nowOverlay / 280) * 0.3;
-        ctx.strokeStyle = ringColor;
-        ctx.lineWidth = 1.5 + (e.miniIntensity || 0.5) * 1.5;
-        ctx.globalAlpha = 0.45 * pulse;
-        ctx.beginPath();
-        ctx.arc(sx, sy, e.r * (1.15 + 0.05 * Math.sin(_nowOverlay / 350)), 0, Math.PI*2);
-        ctx.stroke();
-        ctx.globalAlpha = 1;
-        ctx.restore();
-      }
+      // v1.600: Mini-boss glow-ring BORTTAGEN per user-request. drawHpBar ritar
+      // redan "⚠ name" som indikator. Bara HP-bar + namn räcker som signaling.
     }
   }
   drawDeadBody();

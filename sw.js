@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v599-miniboss-canvas2d';
+const CACHE = 'penetrator-v600-no-miniboss-rings';
 const ASSETS = [
   './',
   './index.html',
