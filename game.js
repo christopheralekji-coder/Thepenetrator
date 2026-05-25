@@ -57070,8 +57070,10 @@ function drawBossSoldier(e, x, y, flash) {
 
   ctx.save();
   ctx.translate(x, y + bob);
-  ctx.rotate(e.facing);
-  // Boss-specifik teckning
+  // v1.586: BOSSAR ritas i SIDE-VIEW (upright sprite, mirroras horizontalt).
+  // Boss-specifik teckning ritas facing-right; flip vid facing-left.
+  const facingLeft = Math.abs(e.facing) > Math.PI / 2;
+  if (facingLeft) ctx.scale(-1, 1);
   const drawFn = BOSS_DRAW[e.bossKey] || drawBossDefault;
   drawFn(e, flash, now, phase, moving);
   ctx.restore();
@@ -57114,6 +57116,622 @@ function drawBossDefault(e, flash, now, phase, moving) {
   ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
   ctx.beginPath(); ctx.arc(r * 0.3, 0, r * 0.55, 0, Math.PI*2); ctx.fill();
 }
+
+// ============================================================
+// v1.586: 9 UNIKA BOSS-DESIGNS i SIDE-VIEW (3 per push)
+// ============================================================
+
+// THE WITHERED ELDER — Skogens sista röst. Druid-king med antlers, vines, glowing nature
+BOSS_DRAW.witheredelder = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  const swing = Math.sin(phase) * 0.4;
+  const skin = flash ? '#fff' : '#d0c8a8';   // pale ancient skin
+  const skinDark = flash ? '#fff' : '#5a4828';
+  const robe = flash ? '#fff' : '#1a2818';
+  const robeDark = flash ? '#fff' : '#0a1408';
+  const glow = '#5aff8a';
+  const accent = '#aaff5a';
+  const wood = flash ? '#fff' : '#3a1a08';
+  const moss = flash ? '#fff' : '#3a5a18';
+
+  // LEGS — robe draping
+  ctx.fillStyle = robeDark;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.45, r * 0.20);
+  ctx.lineTo(-r * 0.65 + swing * r * 0.15, r * 1.45);
+  ctx.lineTo(r * 0.65 - swing * r * 0.15, r * 1.45);
+  ctx.lineTo(r * 0.45, r * 0.20);
+  ctx.closePath();
+  ctx.fill();
+  // Robe-bottom fringe (decay-tatters)
+  ctx.fillStyle = '#0a0a04';
+  for (let i = 0; i < 8; i++) {
+    const tx = -r * 0.62 + i * r * 0.16;
+    ctx.beginPath();
+    ctx.moveTo(tx, r * 1.45);
+    ctx.lineTo(tx + r * 0.06, r * 1.55);
+    ctx.lineTo(tx + r * 0.12, r * 1.45);
+    ctx.fill();
+  }
+  // VINES creeping up the robe
+  ctx.strokeStyle = moss;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.30, r * 1.40);
+  ctx.bezierCurveTo(-r * 0.50, r * 0.90, -r * 0.20, r * 0.60, -r * 0.40, r * 0.20);
+  ctx.stroke();
+  // Vine-leaves
+  ctx.fillStyle = accent;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 4;
+  ctx.beginPath(); ctx.ellipse(-r * 0.42, r * 0.50, 4, 6, -0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(-r * 0.30, r * 1.00, 5, 7, 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // TORSO — wooden armor/bark-like over robe
+  ctx.fillStyle = wood;
+  ctx.fillRect(-r * 0.50, -r * 0.70, r * 1.00, r * 0.95);
+  // Bark-texture (vertical grooves)
+  ctx.fillStyle = '#2a1004';
+  for (let i = 0; i < 5; i++) {
+    ctx.fillRect(-r * 0.48 + i * r * 0.20, -r * 0.70, 2, r * 0.95);
+  }
+  // Moss patches on armor
+  ctx.fillStyle = moss;
+  ctx.beginPath(); ctx.ellipse(-r * 0.20, -r * 0.30, r * 0.18, r * 0.10, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(r * 0.25, r * 0.05, r * 0.16, r * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+  // Glowing nature-runes on chest
+  ctx.fillStyle = accent;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 8;
+  ctx.fillRect(-r * 0.05, -r * 0.40, r * 0.10, r * 0.10);
+  ctx.fillRect(-r * 0.10, -r * 0.20, r * 0.20, 3);
+  ctx.fillRect(r * 0.02, -r * 0.10, 3, r * 0.16);
+  ctx.shadowBlur = 0;
+
+  // NECK
+  ctx.fillStyle = skinDark;
+  ctx.fillRect(-r * 0.12, -r * 0.82, r * 0.24, r * 0.16);
+
+  // BACK ARM
+  ctx.fillStyle = wood;
+  ctx.fillRect(-r * 0.30, -r * 0.55, r * 0.20, r * 0.70);
+  ctx.fillStyle = skinDark;
+  ctx.beginPath(); ctx.arc(-r * 0.20, r * 0.20, r * 0.14, 0, Math.PI * 2); ctx.fill();
+
+  // GREAT-STAFF (held behind/diagonal) — gnarled wood med glowing crystal
+  ctx.strokeStyle = wood;
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.50, r * 1.30);
+  ctx.bezierCurveTo(-r * 0.60, r * 0.50, -r * 0.30, -r * 0.60, -r * 0.45, -r * 1.30);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  // Bark-knot details on staff
+  ctx.fillStyle = '#1a0a04';
+  ctx.beginPath(); ctx.arc(-r * 0.55, r * 0.80, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-r * 0.40, r * 0.10, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  // CRYSTAL on top of staff (massive glowing)
+  ctx.fillStyle = accent;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 18;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.45, -r * 1.30);
+  ctx.lineTo(-r * 0.60, -r * 1.55);
+  ctx.lineTo(-r * 0.45, -r * 1.85);
+  ctx.lineTo(-r * 0.30, -r * 1.55);
+  ctx.closePath();
+  ctx.fill();
+  // Crystal-core (white-hot)
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.45, -r * 1.45);
+  ctx.lineTo(-r * 0.52, -r * 1.58);
+  ctx.lineTo(-r * 0.45, -r * 1.72);
+  ctx.lineTo(-r * 0.38, -r * 1.58);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // Wrapped vines on staff-top
+  ctx.fillStyle = moss;
+  ctx.beginPath();
+  ctx.arc(-r * 0.45, -r * 1.28, r * 0.08, 0, Math.PI * 2);
+  ctx.fill();
+
+  // FRONT ARM (extended forward, palm-out commanding)
+  ctx.fillStyle = wood;
+  ctx.fillRect(r * 0.10, -r * 0.50, r * 0.20, r * 0.60);
+  // Forearm vines
+  ctx.strokeStyle = moss;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.14, -r * 0.40);
+  ctx.lineTo(r * 0.26, r * 0.00);
+  ctx.stroke();
+  // Hand outstretched
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(r * 0.22, r * 0.18, r * 0.14, 0, Math.PI * 2); ctx.fill();
+  // Glowing palm-orb (signature nature-power)
+  ctx.fillStyle = accent;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 14;
+  const orbPulse = 0.85 + Math.sin(now / 200) * 0.15;
+  ctx.beginPath(); ctx.arc(r * 0.40, r * 0.20, r * 0.12 * orbPulse, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(r * 0.40, r * 0.20, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // HEAD — ancient gaunt face
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(0, -r * 1.02, r * 0.32, 0, Math.PI * 2); ctx.fill();
+  // Sunken cheeks (jaw-shadow)
+  ctx.fillStyle = skinDark;
+  ctx.beginPath(); ctx.arc(r * 0.10, -r * 0.92, r * 0.16, 0, Math.PI); ctx.fill();
+  // Wrinkles
+  ctx.strokeStyle = skinDark;
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.04, -r * 1.10); ctx.lineTo(r * 0.16, -r * 1.06);
+  ctx.moveTo(r * 0.04, -r * 1.04); ctx.lineTo(r * 0.18, -r * 1.00);
+  ctx.stroke();
+  // Long white BEARD (druid-style hanging)
+  ctx.fillStyle = flash ? '#fff' : '#e0e0d0';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.10, -r * 0.92);
+  ctx.lineTo(-r * 0.20, -r * 0.30);
+  ctx.lineTo(r * 0.04, -r * 0.20);
+  ctx.lineTo(r * 0.20, -r * 0.92);
+  ctx.closePath();
+  ctx.fill();
+  // Beard-shading
+  ctx.fillStyle = flash ? '#fff' : '#c0c0b0';
+  ctx.fillRect(-r * 0.18, -r * 0.50, r * 0.04, r * 0.30);
+
+  // GLOWING GREEN EYES
+  ctx.fillStyle = accent;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 10;
+  ctx.fillRect(r * 0.06, -r * 1.10, r * 0.10, r * 0.05);
+  // Inner eye-glow
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(r * 0.10, -r * 1.10, r * 0.04, r * 0.03);
+  ctx.shadowBlur = 0;
+
+  // ANTLERS — massive crown of horns extending up + back (signature)
+  ctx.strokeStyle = wood;
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  // Back antler (larger)
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.10, -r * 1.28);
+  ctx.bezierCurveTo(-r * 0.40, -r * 1.50, -r * 0.55, -r * 1.75, -r * 0.30, -r * 2.10);
+  ctx.stroke();
+  // Back antler-branches
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.40, -r * 1.50); ctx.lineTo(-r * 0.65, -r * 1.62);
+  ctx.moveTo(-r * 0.55, -r * 1.75); ctx.lineTo(-r * 0.80, -r * 1.75);
+  ctx.moveTo(-r * 0.40, -r * 1.92); ctx.lineTo(-r * 0.60, -r * 2.05);
+  ctx.stroke();
+  // Front antler
+  ctx.beginPath();
+  ctx.moveTo(r * 0.16, -r * 1.28);
+  ctx.bezierCurveTo(r * 0.45, -r * 1.50, r * 0.60, -r * 1.75, r * 0.35, -r * 2.10);
+  ctx.stroke();
+  // Front antler-branches
+  ctx.beginPath();
+  ctx.moveTo(r * 0.45, -r * 1.50); ctx.lineTo(r * 0.70, -r * 1.62);
+  ctx.moveTo(r * 0.60, -r * 1.75); ctx.lineTo(r * 0.85, -r * 1.75);
+  ctx.moveTo(r * 0.45, -r * 1.92); ctx.lineTo(r * 0.65, -r * 2.05);
+  ctx.stroke();
+  ctx.lineCap = 'butt';
+  // Glowing-leaf accents on antler-tips
+  ctx.fillStyle = accent;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 6;
+  ctx.beginPath(); ctx.arc(-r * 0.65, -r * 1.62, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-r * 0.80, -r * 1.75, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.70, -r * 1.62, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.85, -r * 1.75, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-r * 0.30, -r * 2.10, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.35, -r * 2.10, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+};
+
+// IRONCLAD HARBINGER — pansrad rosthärlighet. Heavy mech-warrior med massive hammer
+BOSS_DRAW.ironclad = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  const swing = Math.sin(phase) * 0.3;
+  const iron = flash ? '#fff' : '#5a3018';
+  const ironDark = flash ? '#fff' : '#2a1410';
+  const ironLight = flash ? '#fff' : '#8a5028';
+  const rust = flash ? '#fff' : '#a04020';
+  const ember = '#ff7a3a';
+  const emberGlow = '#ffae5a';
+
+  // LEGS — massive armored greaves
+  const legBackX = -r * 0.22 + swing * r * 0.15;
+  const legFrontX = r * 0.08 - swing * r * 0.15;
+  ctx.fillStyle = ironDark;
+  ctx.fillRect(legBackX - r * 0.16, r * 0.30, r * 0.32, r * 0.82);
+  ctx.fillStyle = iron;
+  ctx.fillRect(legFrontX - r * 0.16, r * 0.30, r * 0.32, r * 0.82);
+  // Rust-stains on plates
+  ctx.fillStyle = rust;
+  ctx.fillRect(legBackX - r * 0.10, r * 0.50, r * 0.08, r * 0.20);
+  ctx.fillRect(legFrontX - r * 0.05, r * 0.70, r * 0.10, r * 0.18);
+  // Knee-spikes (jagged)
+  ctx.fillStyle = ironLight;
+  ctx.beginPath();
+  ctx.moveTo(legFrontX - r * 0.18, r * 0.70);
+  ctx.lineTo(legFrontX, r * 0.55);
+  ctx.lineTo(legFrontX + r * 0.18, r * 0.70);
+  ctx.closePath();
+  ctx.fill();
+  // Massive boots (sabaton plates)
+  ctx.fillStyle = ironDark;
+  ctx.fillRect(legBackX - r * 0.20, r * 1.12, r * 0.40, r * 0.26);
+  ctx.fillRect(legFrontX - r * 0.20, r * 1.12, r * 0.40, r * 0.26);
+  ctx.fillStyle = iron;
+  ctx.fillRect(legBackX - r * 0.20, r * 1.12, r * 0.40, r * 0.05);
+  ctx.fillRect(legFrontX - r * 0.20, r * 1.12, r * 0.40, r * 0.05);
+
+  // PELVIS-SKIRT (chain-mail)
+  ctx.fillStyle = ironDark;
+  ctx.fillRect(-r * 0.50, r * 0.05, r * 1.00, r * 0.30);
+  // Mail-dots
+  ctx.fillStyle = ironLight;
+  for (let i = 0; i < 6; i++) {
+    for (let j = 0; j < 2; j++) {
+      ctx.beginPath();
+      ctx.arc(-r * 0.40 + i * r * 0.16, r * 0.14 + j * r * 0.10, 1.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // TORSO — MASSIVE BREASTPLATE
+  ctx.fillStyle = iron;
+  ctx.fillRect(-r * 0.55, -r * 0.60, r * 1.10, r * 0.80);
+  // Center vertical seam
+  ctx.fillStyle = ironDark;
+  ctx.fillRect(-r * 0.02, -r * 0.60, 4, r * 0.80);
+  // Plate-sections (horizontal)
+  ctx.fillStyle = ironDark;
+  ctx.fillRect(-r * 0.55, -r * 0.30, r * 1.10, 3);
+  ctx.fillRect(-r * 0.55, r * 0.00, r * 1.10, 3);
+  // RUST PATCHES (heavy)
+  ctx.fillStyle = rust;
+  ctx.beginPath(); ctx.arc(-r * 0.30, -r * 0.40, r * 0.14, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.30, r * 0.10, r * 0.12, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#6a2818';
+  ctx.beginPath(); ctx.arc(-r * 0.30, -r * 0.40, r * 0.08, 0, Math.PI * 2); ctx.fill();
+  // EMBER-GLOW cracks (lava-like) across chest
+  ctx.fillStyle = ember;
+  ctx.shadowColor = emberGlow;
+  ctx.shadowBlur = 8;
+  ctx.fillRect(-r * 0.40, -r * 0.20, r * 0.14, 3);
+  ctx.fillRect(-r * 0.22, -r * 0.10, r * 0.18, 2);
+  ctx.fillRect(r * 0.10, -r * 0.25, r * 0.20, 2);
+  ctx.shadowBlur = 0;
+  // Rivets (large 4-corner)
+  ctx.fillStyle = ironLight;
+  ctx.beginPath(); ctx.arc(-r * 0.45, -r * 0.50, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.45, -r * 0.50, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-r * 0.45, r * 0.10, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.45, r * 0.10, 3, 0, Math.PI * 2); ctx.fill();
+
+  // SHOULDER-PAULDRONS (massive spiked)
+  ctx.fillStyle = ironDark;
+  ctx.beginPath(); ctx.arc(-r * 0.55, -r * 0.55, r * 0.22, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.55, -r * 0.55, r * 0.22, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = iron;
+  ctx.beginPath(); ctx.arc(-r * 0.55, -r * 0.55, r * 0.22, 1.2 * Math.PI, 0.3 * Math.PI); ctx.fill();
+  // Pauldron spikes (3 each)
+  ctx.fillStyle = ironLight;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(r * 0.42 + i * r * 0.10, -r * 0.78);
+    ctx.lineTo(r * 0.48 + i * r * 0.10, -r * 0.95);
+    ctx.lineTo(r * 0.54 + i * r * 0.10, -r * 0.78);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // NECK (armored gorget)
+  ctx.fillStyle = ironDark;
+  ctx.fillRect(-r * 0.16, -r * 0.78, r * 0.32, r * 0.20);
+  // Gorget-rings
+  ctx.fillStyle = ironLight;
+  ctx.fillRect(-r * 0.16, -r * 0.72, r * 0.32, 2);
+  ctx.fillRect(-r * 0.16, -r * 0.66, r * 0.32, 2);
+
+  // BACK ARM (holding shield arm)
+  ctx.fillStyle = iron;
+  ctx.fillRect(-r * 0.25, -r * 0.40, r * 0.20, r * 0.62);
+
+  // FRONT ARM — wielding hammer
+  ctx.fillStyle = iron;
+  ctx.fillRect(r * 0.10, -r * 0.35, r * 0.22, r * 0.55);
+  ctx.fillStyle = ironDark;
+  ctx.fillRect(r * 0.10, -r * 0.10, r * 0.22, r * 0.05);
+
+  // MASSIVE WAR-HAMMER (signature weapon)
+  // Shaft (long, vertical)
+  ctx.fillStyle = flash ? '#fff' : '#3a1808';
+  ctx.fillRect(r * 0.22, -r * 1.30, r * 0.10, r * 1.60);
+  // Shaft-grip wrap
+  ctx.fillStyle = '#1a0a04';
+  for (let i = 0; i < 6; i++) {
+    ctx.fillRect(r * 0.22, -r * 0.30 + i * r * 0.10, r * 0.10, 2);
+  }
+  // HAMMER-HEAD (massive cube up top)
+  ctx.fillStyle = ironDark;
+  ctx.fillRect(-r * 0.10, -r * 1.55, r * 0.74, r * 0.40);
+  // Hammer-face highlight
+  ctx.fillStyle = ironLight;
+  ctx.fillRect(-r * 0.10, -r * 1.55, r * 0.74, r * 0.06);
+  // Hammer ember-cracks
+  ctx.fillStyle = ember;
+  ctx.shadowColor = emberGlow;
+  ctx.shadowBlur = 10;
+  ctx.fillRect(r * 0.00, -r * 1.40, r * 0.18, 3);
+  ctx.fillRect(r * 0.30, -r * 1.30, r * 0.20, 3);
+  ctx.shadowBlur = 0;
+  // Spikes på hammer
+  ctx.fillStyle = ironLight;
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.05 + i * r * 0.20, -r * 1.55);
+    ctx.lineTo(0 + i * r * 0.20, -r * 1.75);
+    ctx.lineTo(r * 0.05 + i * r * 0.20, -r * 1.55);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // HEAD — full helmet (no face visible — pure intimidation)
+  ctx.fillStyle = ironDark;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.32, -r * 0.85);
+  ctx.lineTo(r * 0.32, -r * 0.85);
+  ctx.lineTo(r * 0.36, -r * 1.20);
+  ctx.lineTo(0, -r * 1.40);
+  ctx.lineTo(-r * 0.36, -r * 1.20);
+  ctx.closePath();
+  ctx.fill();
+  // Helmet-highlight
+  ctx.fillStyle = iron;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.10, -r * 1.38);
+  ctx.lineTo(r * 0.30, -r * 1.18);
+  ctx.lineTo(r * 0.20, -r * 0.95);
+  ctx.lineTo(-r * 0.05, -r * 1.15);
+  ctx.closePath();
+  ctx.fill();
+  // T-SHAPED EYE-SLIT (knight-helm style)
+  ctx.fillStyle = '#000';
+  ctx.fillRect(-r * 0.22, -r * 1.10, r * 0.44, r * 0.06);
+  ctx.fillRect(-r * 0.04, -r * 1.16, r * 0.08, r * 0.20);
+  // GLOWING EMBER EYES inside slit
+  ctx.fillStyle = ember;
+  ctx.shadowColor = emberGlow;
+  ctx.shadowBlur = 10;
+  ctx.fillRect(-r * 0.14, -r * 1.08, r * 0.08, r * 0.04);
+  ctx.fillRect(r * 0.06, -r * 1.08, r * 0.08, r * 0.04);
+  ctx.shadowBlur = 0;
+  // Horn on top (single brutal)
+  ctx.fillStyle = ironLight;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.06, -r * 1.40);
+  ctx.lineTo(0, -r * 1.70);
+  ctx.lineTo(r * 0.06, -r * 1.40);
+  ctx.closePath();
+  ctx.fill();
+};
+
+// THE MIRRORED ONE — spegel-illusion. Fragmented mirror-figure med floating shards
+BOSS_DRAW.mirroredone = function(e, flash, now, phase, moving) {
+  const r = e.r;
+  const swing = Math.sin(phase) * 0.5;
+  const mirror = flash ? '#fff' : '#3acaff';
+  const mirrorDark = flash ? '#fff' : '#1a4a78';
+  const purple = flash ? '#fff' : '#aa5aff';
+  const purpleGlow = '#cc8aff';
+  const ghost = flash ? '#fff' : '#7a9aff';
+  const dark = flash ? '#fff' : '#0a1430';
+
+  // LEGS — fragmented translucent (ghostly)
+  const legBackX = -r * 0.14 + swing * r * 0.18;
+  const legFrontX = r * 0.04 - swing * r * 0.18;
+  // Lower legs fade-out (illusory)
+  ctx.globalAlpha = 0.7;
+  ctx.fillStyle = dark;
+  ctx.fillRect(legBackX - r * 0.11, r * 0.40, r * 0.22, r * 0.70);
+  ctx.fillStyle = mirrorDark;
+  ctx.fillRect(legFrontX - r * 0.11, r * 0.40, r * 0.22, r * 0.70);
+  ctx.globalAlpha = 0.4;
+  // Bottom fade
+  ctx.fillStyle = mirror;
+  ctx.fillRect(legBackX - r * 0.11, r * 1.00, r * 0.22, r * 0.20);
+  ctx.fillRect(legFrontX - r * 0.11, r * 1.00, r * 0.22, r * 0.20);
+  ctx.globalAlpha = 1.0;
+
+  // TORSO — Crystalline armor (geometric mirror-plates)
+  ctx.fillStyle = mirrorDark;
+  ctx.fillRect(-r * 0.40, -r * 0.65, r * 0.80, r * 1.05);
+  // MIRROR-PLATES (overlapping reflective fragments)
+  ctx.fillStyle = mirror;
+  // Plate 1 (top-left)
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.35, -r * 0.60);
+  ctx.lineTo(-r * 0.05, -r * 0.55);
+  ctx.lineTo(-r * 0.10, -r * 0.20);
+  ctx.lineTo(-r * 0.40, -r * 0.25);
+  ctx.closePath();
+  ctx.fill();
+  // Reflection on plate 1 (lighter)
+  ctx.fillStyle = '#cce8ff';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.35, -r * 0.60);
+  ctx.lineTo(-r * 0.20, -r * 0.55);
+  ctx.lineTo(-r * 0.25, -r * 0.40);
+  ctx.closePath();
+  ctx.fill();
+  // Plate 2 (top-right)
+  ctx.fillStyle = mirror;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.05, -r * 0.55);
+  ctx.lineTo(r * 0.35, -r * 0.60);
+  ctx.lineTo(r * 0.40, -r * 0.20);
+  ctx.lineTo(r * 0.08, -r * 0.20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#cce8ff';
+  ctx.beginPath();
+  ctx.moveTo(r * 0.20, -r * 0.55);
+  ctx.lineTo(r * 0.30, -r * 0.58);
+  ctx.lineTo(r * 0.28, -r * 0.42);
+  ctx.closePath();
+  ctx.fill();
+  // Plate 3 (lower)
+  ctx.fillStyle = mirror;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.40, -r * 0.15);
+  ctx.lineTo(r * 0.40, -r * 0.15);
+  ctx.lineTo(r * 0.35, r * 0.30);
+  ctx.lineTo(-r * 0.35, r * 0.30);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#cce8ff';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.30, -r * 0.10);
+  ctx.lineTo(r * 0.00, -r * 0.10);
+  ctx.lineTo(-r * 0.10, r * 0.10);
+  ctx.closePath();
+  ctx.fill();
+  // Mirror-edges (dark lines between fragments)
+  ctx.strokeStyle = dark;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 0.55); ctx.lineTo(0, -r * 0.20);
+  ctx.moveTo(-r * 0.40, -r * 0.17); ctx.lineTo(r * 0.40, -r * 0.17);
+  ctx.stroke();
+  // PURPLE GLOWING CRACKS through center
+  ctx.strokeStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 8;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.30, -r * 0.60);
+  ctx.lineTo(-r * 0.10, -r * 0.20);
+  ctx.lineTo(r * 0.05, r * 0.10);
+  ctx.lineTo(r * 0.30, r * 0.40);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // FLOATING MIRROR-SHARDS around body (signature)
+  const shardT = now / 800;
+  for (let i = 0; i < 5; i++) {
+    const a = i * Math.PI * 2 / 5 + shardT;
+    const sx = Math.cos(a) * r * 1.4;
+    const sy = Math.sin(a) * r * 1.1 - r * 0.3;
+    const rot = a + Math.PI / 4;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(rot);
+    ctx.fillStyle = mirror;
+    ctx.shadowColor = purpleGlow;
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.10);
+    ctx.lineTo(r * 0.08, 0);
+    ctx.lineTo(0, r * 0.10);
+    ctx.lineTo(-r * 0.08, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#fafaff';
+    ctx.fillRect(-r * 0.02, -r * 0.06, 2, r * 0.10);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // NECK (slim, dark)
+  ctx.fillStyle = mirrorDark;
+  ctx.fillRect(-r * 0.10, -r * 0.78, r * 0.20, r * 0.16);
+
+  // ARMS — fragmented + mirror-armor
+  ctx.fillStyle = mirrorDark;
+  ctx.fillRect(-r * 0.18, -r * 0.50, r * 0.18, r * 0.70);
+  ctx.fillStyle = mirror;
+  ctx.fillRect(r * 0.04, -r * 0.50, r * 0.18, r * 0.70);
+  // Front hand — translucent
+  ctx.globalAlpha = 0.6;
+  ctx.fillStyle = '#cce8ff';
+  ctx.beginPath(); ctx.arc(r * 0.12, r * 0.24, r * 0.12, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1.0;
+  // Back-arm gauntlet
+  ctx.fillStyle = mirror;
+  ctx.beginPath(); ctx.arc(-r * 0.10, r * 0.22, r * 0.10, 0, Math.PI * 2); ctx.fill();
+
+  // HEAD — Mirrored mask (no real face)
+  // Head shape
+  ctx.fillStyle = mirror;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.30, -r * 0.90);
+  ctx.lineTo(r * 0.30, -r * 0.90);
+  ctx.lineTo(r * 0.32, -r * 1.20);
+  ctx.lineTo(0, -r * 1.30);
+  ctx.lineTo(-r * 0.32, -r * 1.20);
+  ctx.closePath();
+  ctx.fill();
+  // Mirror reflection on mask
+  ctx.fillStyle = '#cce8ff';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.20, -r * 0.95);
+  ctx.lineTo(r * 0.10, -r * 0.95);
+  ctx.lineTo(0, -r * 1.20);
+  ctx.closePath();
+  ctx.fill();
+  // Mask-cracks (purple-glowing fissures)
+  ctx.strokeStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 6;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 1.30);
+  ctx.lineTo(-r * 0.06, -r * 1.10);
+  ctx.lineTo(r * 0.04, -r * 1.00);
+  ctx.lineTo(-r * 0.02, -r * 0.92);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  // GHOSTLY DUPLICATE EYE (signature — two eyes offset, ghosting)
+  // Real eye
+  ctx.fillStyle = '#000';
+  ctx.fillRect(r * 0.05, -r * 1.10, r * 0.10, r * 0.06);
+  // Ghost-duplicate eye (offset)
+  ctx.globalAlpha = 0.5;
+  ctx.fillStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 6;
+  ctx.fillRect(r * 0.10, -r * 1.06, r * 0.10, r * 0.06);
+  ctx.globalAlpha = 1.0;
+  ctx.shadowBlur = 0;
+
+  // CROWN of mirror-fragments
+  ctx.fillStyle = mirror;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 4;
+  for (let i = 0; i < 5; i++) {
+    const cx = -r * 0.24 + i * r * 0.12;
+    ctx.beginPath();
+    ctx.moveTo(cx, -r * 1.25);
+    ctx.lineTo(cx + r * 0.04, -r * 1.45 - (i % 2) * r * 0.10);
+    ctx.lineTo(cx + r * 0.08, -r * 1.25);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+};
+
 
 // 1) JIMMYS LIKVAKARE — rebellpräst, kåpa, stav med skalle, giftflaskor
 BOSS_DRAW.likvakare = function(e, flash, now, phase, moving) {
