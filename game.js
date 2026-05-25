@@ -57075,6 +57075,17 @@ function drawBossSoldier(e, x, y, flash) {
   const facingLeft = Math.abs(e.facing) > Math.PI / 2;
   if (facingLeft) ctx.scale(-1, 1);
   const drawFn = BOSS_DRAW[e.bossKey] || drawBossDefault;
+  // v1.589 DEBUG: visa key + vilken funktion som väljs ovanför boss
+  ctx.save();
+  ctx.fillStyle = '#ff00ff';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#000';
+  ctx.shadowBlur = 4;
+  const _bdInfo = 'KEY:' + (e.bossKey || 'undef') + ' FN:' + (BOSS_DRAW[e.bossKey] ? 'CUSTOM' : 'DEFAULT');
+  ctx.fillText(_bdInfo, 0, -e.r * 2.5);
+  ctx.shadowBlur = 0;
+  ctx.restore();
   drawFn(e, flash, now, phase, moving);
   ctx.restore();
 
@@ -57111,6 +57122,13 @@ const SIDE_VIEW_ENEMY_TYPES = new Set([
 // Hjälp: rita en stor militär kropp som bas (kropp + huvud), sen specialiseringar ovanpå
 function drawBossDefault(e, flash, now, phase, moving) {
   const r = e.r;
+  // v1.589 DEBUG: YELLOW marker så vi ser om drawBossDefault körs istället för min custom
+  ctx.strokeStyle = '#ffff00';
+  ctx.lineWidth = 5;
+  ctx.shadowColor = '#ffff00';
+  ctx.shadowBlur = 14;
+  ctx.beginPath(); ctx.arc(0, 0, r * 2.2, 0, Math.PI * 2); ctx.stroke();
+  ctx.shadowBlur = 0;
   ctx.fillStyle = flash ? '#fff' : e.color;
   ctx.beginPath(); ctx.ellipse(0, 0, r * 1.0, r * 1.4, 0, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
