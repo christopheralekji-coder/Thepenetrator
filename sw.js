@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v618-rendertexture-gpu-native';
+const CACHE = 'penetrator-v619-heist-iter1-bank-map';
 const ASSETS = [
   './',
   './index.html',
@@ -17,6 +17,7 @@ const ASSETS = [
   './shared/battleroyale-arena.js',
   './shared/castledefense-arena.js',
   './shared/survivors-arena.js',
+  './shared/heist-arena.js',
 ];
 
 self.addEventListener('install', e => {

@@ -746,6 +746,7 @@ function handleMessage(ws, msg) {
       survivors: msg.survivors,
       survivorsDurationSec: msg.survivorsDurationSec,
       stresstest: msg.stresstest,
+      heist: msg.heist,
       addBot: !!msg.addBot,
       botCount: Math.max(1, Math.min(7, msg.botCount || 1)),
       botSkill: msg.botSkill || 'normal',
@@ -757,6 +758,7 @@ function handleMessage(ws, msg) {
     if (room.meta) {
       room.meta.started = true;
       if (msg.battleroyale) room.meta.mode = 'battleroyale';
+      else if (msg.heist) room.meta.mode = 'heist';
       else if (msg.survivors) room.meta.mode = 'survivors';
       else if (msg.castledefense) room.meta.mode = 'castledefense';
       else if (msg.juggernaut) room.meta.mode = 'juggernaut';

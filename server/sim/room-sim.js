@@ -20,6 +20,7 @@ const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
 const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 const { CASTLEDEFENSE_ARENA } = require('../../shared/castledefense-arena');
 const { SURVIVORS_ARENA } = require('../../shared/survivors-arena');
+const { HEIST_ARENA } = require('../../shared/heist-arena');
 const { BOSS_CONFIGS } = require('../../shared/boss-configs');
 const { SpatialGrid } = require('./spatial');
 
@@ -340,6 +341,13 @@ function tickSim(sim) {
   // CASTLE DEFENSE: co-op endless horde defense. Skydda castle-core mot vågor.
   if (sim.castledefenseActive) {
     tickCastleDefense(sim, dt, now);
+    sim._tickCount = (sim._tickCount || 0) + 1;
+    if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
+    return;
+  }
+  // v1.619: HEIST — 3-fas bank-rån (stealth → alarm → extract)
+  if (sim.heistActive) {
+    tickHeist(sim, dt, now);
     sim._tickCount = (sim._tickCount || 0) + 1;
     if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
@@ -3938,6 +3946,126 @@ function initBrLoot(sim) {
   return loot;
 }
 
+// =================================================================
+// v1.619: HEIST — 3-fas bank-rån (stealth → alarm → extract)
+// =================================================================
+// Iter 1: foundation. Phase-timer + match-end-conditions. Camera-AI,
+// guard-patrols, civilian-panic, drill, police-vågor kommer i iter 2-4.
+function tickHeist(sim, dt, nowMs) {
+  if (sim.heistEnded) return;
+  const arena = HEIST_ARENA;
+  const matchDurMs = (arena.matchDurationSec || 720) * 1000;
+  const elapsedMs = nowMs - sim.heistStartT;
+  const phaseElapsedMs = nowMs - sim.heistPhaseStartT;
+
+  // === MATCH-TIMEOUT (säkerhets-cap, även om phase-flow brakar) ===
+  if (elapsedMs >= matchDurMs) {
+    sim.heistEnded = true;
+    sim.heistActive = false;
+    sim.eventQueue.push({
+      type: 'heist_lose',
+      reason: 'timeout',
+      lootValue: sim.heistLootValue || 0,
+      elapsedSec: Math.round(elapsedMs / 1000),
+    });
+    return;
+  }
+
+  // === LOSE-CHECK: alla real players döda/downed ===
+  let anyAlive = false;
+  for (const [, ws] of sim.room.members) {
+    if (ws._isBot) continue;
+    if (ws.playerState && ws.playerState.hp > 0 && !ws.playerState.cdDowned) {
+      anyAlive = true; break;
+    }
+  }
+  if (!anyAlive && sim.room.members.size > 0) {
+    sim.heistEnded = true;
+    sim.heistActive = false;
+    sim.eventQueue.push({
+      type: 'heist_lose',
+      reason: 'all_dead',
+      lootValue: sim.heistLootValue || 0,
+      elapsedSec: Math.round(elapsedMs / 1000),
+    });
+    return;
+  }
+
+  // === PHASE STATE-MACHINE ===
+  if (sim.heistPhase === 'stealth') {
+    // Auto-alarm vid timeout (iter 1: ingen camera-detect-AI än)
+    const stealthMaxMs = (arena.stealthPhaseMaxSec || 240) * 1000;
+    if (phaseElapsedMs >= stealthMaxMs) {
+      _heistTransitionPhase(sim, 'alarm', 'timeout', nowMs);
+    }
+  } else if (sim.heistPhase === 'alarm') {
+    // ALARM-fasen: drill, bagga loot, försvara mot polis-vågor.
+    // Iter 1: simulera drill via tid + auto-progress (ingen player-på-drill-detection än)
+    sim.heistDrillProgress = Math.min(1, phaseElapsedMs / ((arena.drillDurationSec || 120) * 1000));
+    // När drill klar + minst en loot bagged → extract phase
+    if (sim.heistDrillProgress >= 1.0 && Object.keys(sim.heistLootBagged).length > 0) {
+      _heistTransitionPhase(sim, 'extract', 'drill_done', nowMs);
+    }
+  } else if (sim.heistPhase === 'extract') {
+    // EXTRACT: spelaren måste komma till getaway-van inom 60s.
+    // Iter 1: auto-win vid timeout-success för testing.
+    const extractMaxMs = (arena.extractDurationSec || 60) * 1000;
+    if (phaseElapsedMs >= extractMaxMs) {
+      // Vid timeout — kolla om någon spelare är i extract-zone
+      const ez = arena.extractZones.front;
+      let anyInZone = false;
+      for (const [, ws] of sim.room.members) {
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        const dx = ws.playerState.x - (ez.x + ez.w / 2);
+        const dy = ws.playerState.y - (ez.y + ez.h / 2);
+        if (Math.abs(dx) < ez.w / 2 + 40 && Math.abs(dy) < ez.h / 2 + 40) {
+          anyInZone = true; break;
+        }
+      }
+      sim.heistEnded = true;
+      sim.heistActive = false;
+      if (anyInZone) {
+        sim.eventQueue.push({
+          type: 'heist_win',
+          lootValue: sim.heistLootValue || 0,
+          elapsedSec: Math.round(elapsedMs / 1000),
+        });
+      } else {
+        sim.eventQueue.push({
+          type: 'heist_lose',
+          reason: 'extract_timeout',
+          lootValue: sim.heistLootValue || 0,
+          elapsedSec: Math.round(elapsedMs / 1000),
+        });
+      }
+    }
+  }
+
+  // === HUD-broadcast (var 500ms) ===
+  if (nowMs - (sim._heistHudBroadcastAt || 0) > 500) {
+    sim._heistHudBroadcastAt = nowMs;
+    sim.eventQueue.push({
+      type: 'heist_hud',
+      phase: sim.heistPhase,
+      elapsedSec: Math.round(elapsedMs / 1000),
+      phaseElapsedSec: Math.round(phaseElapsedMs / 1000),
+      drillProgress: sim.heistDrillProgress || 0,
+      lootValue: sim.heistLootValue || 0,
+      lootBaggedCount: Object.keys(sim.heistLootBagged || {}).length,
+    });
+  }
+}
+
+function _heistTransitionPhase(sim, newPhase, reason, nowMs) {
+  sim.heistPhase = newPhase;
+  sim.heistPhaseStartT = nowMs;
+  sim.eventQueue.push({
+    type: 'heist_phase_change',
+    phase: newPhase,
+    reason,
+  });
+}
+
 function endBattleRoyaleMatch(sim, winnerId, reason) {
   if (sim.battleroyaleEnded) return;
   sim.battleroyaleEnded = true;
@@ -4344,6 +4472,18 @@ function startSim(sim, opts) {
       sim.survivorsActive = true;
       sim.stresstestActive = true;
       sim.survivorsDurationSec = 3600; // 60 min så vi inte trippas av timeout
+    }
+    // v1.619: HEIST iteration 1 — egen mode med phase state-machine (stealth → alarm → extract)
+    if (opts.heist) {
+      sim.heistActive = true;
+      sim.heistPhase = 'stealth';            // 'stealth' | 'alarm' | 'extract' | 'ended'
+      sim.heistStartT = Date.now();
+      sim.heistPhaseStartT = Date.now();
+      sim.heistLootBagged = {};              // { lootId: true } när bagged
+      sim.heistLootValue = 0;                // total $ value bagged
+      sim.heistDrillProgress = 0;            // 0..1 vault drill
+      sim.heistDrilling = false;             // någon spelare på drill-spot
+      sim.heistEnded = false;
     }
   }
   // Bot-spawn: lägg bot(s) som virtuella members INNAN mode-init så loopen tilldelar
@@ -4998,6 +5138,65 @@ function startSim(sim, opts) {
       bossEveryWave: arena.bossEveryWave,
     });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+  } else if (sim.heistActive) {
+    // v1.619: HEIST init — bank-rån. Player spawnar utanför front-door.
+    sim.simReadyAt = Date.now() + 3000;
+    const arena = HEIST_ARENA;
+    // Spawn alla players på street utanför banken
+    let hIdx = 0;
+    for (const [pid, ws] of sim.room.members) {
+      if (!ws.playerState) continue;
+      const spawn = arena.playerSpawns[hIdx % arena.playerSpawns.length];
+      ws.playerState.x = spawn.x;
+      ws.playerState.y = spawn.y;
+      ws.playerState.hp = arena.startHp || 100;
+      ws.playerState.maxHp = arena.maxHp || 100;
+      ws.playerState.shield = arena.startShield || 0;
+      ws.playerState.maxShield = arena.maxShield || 100;
+      ws.playerState.weaponId = arena.startWeapon || 'pistol';
+      ws.playerState.invulnUntil = Date.now() + 3000;
+      ws.playerState.cdDowned = false;
+      ws.playerState.cdDownDead = false;
+      ws.playerState.spectating = false;
+      ws.tdmTeam = null; // Co-op
+      ws._heistLootCarrying = null; // ingen säck initialt
+      hIdx++;
+    }
+    sim.eventQueue.push({
+      type: 'heist_started',
+      arena: {
+        worldW: arena.worldW,
+        worldH: arena.worldH,
+        name: arena.name,
+        streetColor: arena.streetColor,
+        sidewalkColor: arena.sidewalkColor,
+        bankFloorColor: arena.bankFloorColor,
+        vaultFloorColor: arena.vaultFloorColor,
+        carpetColor: arena.carpetColor,
+        serverFloorColor: arena.serverFloorColor,
+        matchDurationSec: arena.matchDurationSec,
+        stealthPhaseMaxSec: arena.stealthPhaseMaxSec,
+        drillDurationSec: arena.drillDurationSec,
+        extractDurationSec: arena.extractDurationSec,
+        startWeapon: arena.startWeapon,
+        startHp: arena.startHp,
+        maxHp: arena.maxHp,
+        startShield: arena.startShield,
+        maxShield: arena.maxShield,
+        extractZones: arena.extractZones,
+        drillSpot: arena.drillSpot,
+      },
+      walls: arena.walls,
+      doors: arena.doors,
+      decorations: arena.decorations,
+      cameras: arena.cameras,
+      hackTerminals: arena.hackTerminals,
+      civilianSpawns: arena.civilianSpawns,
+      guardSpawns: arena.guardSpawns,
+      lootSpots: arena.lootSpots,
+      playerSpawns: arena.playerSpawns,
+    });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: 3000 });
   } else {
     loadStage(sim, sim.wave);
   }

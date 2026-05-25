@@ -8508,6 +8508,449 @@ function drawSurvivorsArenaAmbient() {
   ctx.restore();
 }
 
+// =================================================================
+// v1.619: HEIST — render-funktioner (ground, walls, decorations, HUD)
+// =================================================================
+function drawHeistArenaGround() {
+  if (!state.heistArena) return;
+  const arena = state.heistArena;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  // === STREET (outdoor area, syd) ===
+  ctx.fillStyle = arena.streetColor || '#2a2a30';
+  ctx.fillRect(0 - cx, 3400 - cy, arena.worldW, arena.worldH - 3400);
+  // Asfalt-detaljer (sprickor)
+  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 12; i++) {
+    const lx = 200 + (i * 320) - cx;
+    if (lx < -50 || lx > viewW + 50) continue;
+    ctx.beginPath();
+    ctx.moveTo(lx, 3500 - cy);
+    ctx.lineTo(lx + 20, 3700 - cy);
+    ctx.lineTo(lx + 5, 3900 - cy);
+    ctx.stroke();
+  }
+  // Lane-streck (gula linjer)
+  ctx.fillStyle = '#ffae3a';
+  for (let i = 0; i < 10; i++) {
+    const lx = 400 + i * 400 - cx;
+    if (lx < -50 || lx > viewW + 50) continue;
+    ctx.fillRect(lx, 3700 - cy, 60, 6);
+  }
+
+  // === ALLEY (outdoor area, norr) ===
+  ctx.fillStyle = arena.streetColor || '#2a2a30';
+  ctx.fillRect(0 - cx, 0 - cy, arena.worldW, 700);
+  // Smutsig asfalt-detaljer
+  ctx.fillStyle = 'rgba(60,40,20,0.4)';
+  for (let i = 0; i < 8; i++) {
+    const lx = 150 + i * 480 - cx;
+    const ly = 200 + (i % 3) * 150 - cy;
+    if (lx < -50 || lx > viewW + 50) continue;
+    ctx.beginPath();
+    ctx.ellipse(lx, ly, 40, 25, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // === SIDEWALK (sidor om banken) ===
+  ctx.fillStyle = arena.sidewalkColor || '#7a7568';
+  // Vänster sidewalk
+  ctx.fillRect(0 - cx, 700 - cy, 600, 2700);
+  // Höger sidewalk
+  ctx.fillRect(3400 - cx, 700 - cy, arena.worldW - 3400, 2700);
+  // Sidewalk-rutmönster (subtle)
+  ctx.strokeStyle = 'rgba(80,75,68,0.5)';
+  ctx.lineWidth = 1;
+  for (let y = 700; y < 3400; y += 100) {
+    ctx.beginPath();
+    ctx.moveTo(0 - cx, y - cy);
+    ctx.lineTo(600 - cx, y - cy);
+    ctx.moveTo(3400 - cx, y - cy);
+    ctx.lineTo(arena.worldW - cx, y - cy);
+    ctx.stroke();
+  }
+
+  // === BANK FLOOR (marble, x=600-3400 y=700-3400) ===
+  ctx.fillStyle = arena.bankFloorColor || '#a8906a';
+  ctx.fillRect(600 - cx, 700 - cy, 2800, 2700);
+  // Marmor-ådror (subtle)
+  ctx.strokeStyle = 'rgba(150,130,100,0.4)';
+  ctx.lineWidth = 1.5;
+  for (let i = 0; i < 6; i++) {
+    const yy = 800 + i * 450 - cy;
+    ctx.beginPath();
+    ctx.moveTo(700 - cx, yy);
+    for (let xj = 0; xj < 6; xj++) {
+      ctx.lineTo(700 + (xj + 1) * 450 - cx + Math.sin(xj * 0.7) * 15, yy + Math.cos(xj * 0.9) * 10);
+    }
+    ctx.stroke();
+  }
+
+  // === VAULT FLOOR (mörkt stål, x=1300-2700 y=730-1870) ===
+  ctx.fillStyle = arena.vaultFloorColor || '#3a2a1a';
+  ctx.fillRect(1300 - cx, 730 - cy, 1370, 1140);
+  // Stål-plate-mönster
+  ctx.strokeStyle = 'rgba(80,60,40,0.6)';
+  ctx.lineWidth = 1;
+  for (let xx = 1400; xx < 2700; xx += 200) {
+    ctx.beginPath();
+    ctx.moveTo(xx - cx, 730 - cy);
+    ctx.lineTo(xx - cx, 1870 - cy);
+    ctx.stroke();
+  }
+  for (let yy = 850; yy < 1870; yy += 200) {
+    ctx.beginPath();
+    ctx.moveTo(1300 - cx, yy - cy);
+    ctx.lineTo(2700 - cx, yy - cy);
+    ctx.stroke();
+  }
+
+  // === SERVER FLOOR (cool blå, server-rum) ===
+  ctx.fillStyle = arena.serverFloorColor || '#1a2a3a';
+  ctx.fillRect(600 - cx, 700 - cy, 700, 1270);
+  // Datacenter-led-stripes (subtle)
+  ctx.fillStyle = 'rgba(90,200,255,0.15)';
+  for (let yy = 900; yy < 1900; yy += 80) {
+    ctx.fillRect(620 - cx, yy - cy, 660, 2);
+  }
+
+  // === MANAGER OFFICE FLOOR (röd matta) ===
+  ctx.fillStyle = arena.carpetColor || '#4a2a30';
+  ctx.fillRect(2700 - cx, 700 - cy, 700, 1270);
+  // Matta-mönster
+  ctx.strokeStyle = 'rgba(90,40,50,0.5)';
+  for (let yy = 800; yy < 1970; yy += 60) {
+    ctx.beginPath();
+    ctx.moveTo(2720 - cx, yy - cy);
+    ctx.lineTo(3380 - cx, yy - cy);
+    ctx.stroke();
+  }
+
+  // === CARPET STRIPE in main lobby (välkomst-matta) ===
+  ctx.fillStyle = arena.carpetColor || '#4a2a30';
+  ctx.fillRect(1700 - cx, 3000 - cy, 600, 400);
+  ctx.strokeStyle = 'rgba(255,213,74,0.6)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(1700 - cx, 3000 - cy, 600, 400);
+}
+
+function drawHeistWalls() {
+  if (!state.heistWalls) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  for (const w of state.heistWalls) {
+    const x = w.x - cx, y = w.y - cy;
+    // Viewport-cull
+    if (x + w.w < 0 || x > viewW || y + w.h < 0 || y > viewH) continue;
+    if (w.kind === 'wall_vault') {
+      // Tjock stål-vägg
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.fillStyle = '#5a5a5a';
+      ctx.fillRect(x + 2, y + 2, w.w - 4, w.h - 4);
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, w.w, w.h);
+    } else if (w.kind === 'counter') {
+      // Bank-counter (trä-yta med ljus topp)
+      ctx.fillStyle = '#4a2a1a';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.fillStyle = '#6a3a2a';
+      ctx.fillRect(x, y, w.w, 8); // ljus topp
+      ctx.strokeStyle = '#2a1a0a';
+      ctx.strokeRect(x, y, w.w, w.h);
+    } else if (w.kind === 'pillar') {
+      // Marmor-pelare (med highlight)
+      ctx.fillStyle = '#aaa098';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.fillStyle = '#ccc4b4';
+      ctx.fillRect(x + 2, y + 2, w.w - 4, 4);
+    } else if (w.kind === 'parked_car') {
+      // Bil (cover utomhus)
+      ctx.fillStyle = '#2a4a6a';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.fillStyle = '#5a8aaa';
+      ctx.fillRect(x + 8, y + 4, w.w - 16, w.h - 12); // fönster
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 4, y + 4, 6, w.h - 8); // hjul vänster
+      ctx.fillRect(x + w.w - 2, y + 4, 6, w.h - 8); // hjul höger
+    } else {
+      // Standard bank-vägg
+      ctx.fillStyle = '#8a7a6a';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.fillStyle = '#aa9a8a';
+      ctx.fillRect(x + 1, y + 1, w.w - 2, 3); // highlight upptill
+      ctx.strokeStyle = '#4a3a2a';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, w.w, w.h);
+    }
+  }
+  // === DOORS (visuella, ren färg per typ) ===
+  if (state.heistDoors) {
+    for (const d of state.heistDoors) {
+      const x = d.x - cx, y = d.y - cy;
+      if (x + d.w < 0 || x > viewW || y + d.h < 0 || y > viewH) continue;
+      let col = '#aa7a3a';
+      if (d.kind === 'vault_door') col = d.locked ? '#5a4a3a' : '#ffae3a';
+      else if (d.kind === 'back_door') col = d.locked ? '#3a2a2a' : '#7a5a3a';
+      else if (d.kind === 'main_door') col = '#aa8a5a';
+      else if (d.kind === 'side_door') col = '#7a5a4a';
+      ctx.fillStyle = col;
+      ctx.fillRect(x, y, d.w, d.h);
+      // Lock-indicator
+      if (d.locked) {
+        ctx.fillStyle = '#ff5050';
+        ctx.fillRect(x + d.w / 2 - 3, y + d.h / 2 - 3, 6, 6);
+      }
+    }
+  }
+}
+
+function drawHeistDecorations() {
+  if (!state.heistDecorations) return;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  for (const dec of state.heistDecorations) {
+    const x = dec.x - cx, y = dec.y - cy;
+    if (x < -60 || x > viewW + 60 || y < -60 || y > viewH + 60) continue;
+    _drawHeistDecoration(dec.kind, x, y);
+  }
+  // Cameras (visuella med vision-cone)
+  if (state.heistCameras) {
+    for (const cam of state.heistCameras) {
+      const x = cam.x - cx, y = cam.y - cy;
+      if (x < -150 || x > viewW + 150 || y < -150 || y > viewH + 150) continue;
+      _drawHeistCamera(cam, x, y);
+    }
+  }
+  // Hack-terminals
+  if (state.heistHackTerminals) {
+    for (const term of state.heistHackTerminals) {
+      const x = term.x - cx, y = term.y - cy;
+      if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) continue;
+      _drawHeistTerminal(term, x, y);
+    }
+  }
+}
+
+function _drawHeistDecoration(kind, x, y) {
+  switch (kind) {
+    case 'atm':
+      ctx.fillStyle = '#2a3a4a';
+      ctx.fillRect(x - 18, y - 25, 36, 50);
+      ctx.fillStyle = '#5acaff';
+      ctx.fillRect(x - 14, y - 20, 28, 18); // skärm
+      ctx.fillStyle = '#1a2a3a';
+      ctx.fillRect(x - 14, y + 2, 28, 16); // keypad
+      ctx.fillStyle = '#aaa';
+      ctx.fillRect(x - 10, y + 20, 20, 3); // kort-slot
+      break;
+    case 'plant':
+      ctx.fillStyle = '#5a3a18';
+      ctx.fillRect(x - 14, y - 4, 28, 14); // kruka
+      ctx.fillStyle = '#3a8a3a';
+      ctx.beginPath();
+      ctx.arc(x, y - 14, 18, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#5aaa5a';
+      ctx.beginPath();
+      ctx.arc(x - 6, y - 18, 9, 0, Math.PI * 2);
+      ctx.arc(x + 8, y - 16, 11, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'cash_stack':
+      // Stack av kontanter (gröna sedlar)
+      ctx.fillStyle = '#1a4a2a';
+      ctx.fillRect(x - 22, y - 10, 44, 20);
+      ctx.strokeStyle = '#3a7a4a';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 5; i++) {
+        ctx.beginPath();
+        ctx.moveTo(x - 22, y - 10 + i * 4);
+        ctx.lineTo(x + 22, y - 10 + i * 4);
+        ctx.stroke();
+      }
+      ctx.fillStyle = '#5aff8a';
+      ctx.fillRect(x - 5, y - 3, 10, 6); // $-symbol
+      break;
+    case 'gold_stack':
+      // Stack av guldtackor
+      ctx.fillStyle = '#aa7a18';
+      ctx.fillRect(x - 24, y - 12, 48, 24);
+      ctx.fillStyle = '#ffd54a';
+      for (let i = 0; i < 3; i++) {
+        ctx.fillRect(x - 22, y - 10 + i * 8, 44, 6);
+      }
+      ctx.strokeStyle = '#5a3a08';
+      ctx.strokeRect(x - 24, y - 12, 48, 24);
+      break;
+    case 'safe':
+      // Manager-safe (litet kassaskåp)
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 20, y - 20, 40, 40);
+      ctx.fillStyle = '#5a5a5a';
+      ctx.fillRect(x - 18, y - 18, 36, 36);
+      // Lock-ratt
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#aaa';
+      ctx.beginPath();
+      ctx.arc(x, y, 7, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    case 'desk':
+      // Manager-skrivbord
+      ctx.fillStyle = '#5a3a18';
+      ctx.fillRect(x - 35, y - 15, 70, 30);
+      ctx.fillStyle = '#7a5a28';
+      ctx.fillRect(x - 33, y - 13, 66, 4);
+      // Dator på skrivbordet
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 12, y - 10, 24, 14);
+      ctx.fillStyle = '#3a5a8a';
+      ctx.fillRect(x - 10, y - 8, 20, 10);
+      break;
+    case 'chair':
+      ctx.fillStyle = '#3a2a18';
+      ctx.fillRect(x - 8, y - 8, 16, 16);
+      ctx.fillStyle = '#5a3a28';
+      ctx.fillRect(x - 10, y - 10, 20, 4);
+      break;
+    case 'server_rack':
+      // Server-rack (svart med blinkande LEDs)
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(x - 18, y - 22, 36, 44);
+      // LEDs
+      const blink = (performance.now() / 200) % 4 < 2;
+      ctx.fillStyle = blink ? '#5aff5a' : '#3a8a3a';
+      for (let i = 0; i < 5; i++) {
+        ctx.fillRect(x - 14, y - 18 + i * 8, 4, 3);
+        ctx.fillRect(x - 6, y - 18 + i * 8, 4, 3);
+      }
+      // Strömindikator (röd)
+      ctx.fillStyle = '#ff3030';
+      ctx.fillRect(x + 8, y - 18, 6, 3);
+      break;
+    case 'cash_drawer':
+      // Kassa-låda (bakom counter)
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 15, y - 8, 30, 16);
+      ctx.fillStyle = '#5a5a5a';
+      ctx.fillRect(x - 13, y - 6, 26, 12);
+      ctx.fillStyle = '#5aff8a';
+      ctx.fillRect(x - 8, y - 2, 16, 5); // pengar synligt
+      break;
+    case 'drill_marker':
+      // X-markering för drill-spot
+      ctx.strokeStyle = '#ff3030';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(x - 18, y - 18);
+      ctx.lineTo(x + 18, y + 18);
+      ctx.moveTo(x + 18, y - 18);
+      ctx.lineTo(x - 18, y + 18);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(255,48,48,0.3)';
+      ctx.beginPath();
+      ctx.arc(x, y, 24, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'streetlight':
+      // Gatlykta
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 3, y - 30, 6, 50);
+      ctx.fillStyle = '#ffd54a';
+      ctx.beginPath();
+      ctx.arc(x, y - 30, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,213,74,0.2)';
+      ctx.beginPath();
+      ctx.arc(x, y - 30, 24, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'bench':
+      ctx.fillStyle = '#5a3a18';
+      ctx.fillRect(x - 20, y - 4, 40, 8);
+      ctx.fillStyle = '#3a2a08';
+      ctx.fillRect(x - 18, y + 4, 4, 8);
+      ctx.fillRect(x + 14, y + 4, 4, 8);
+      break;
+    case 'trash':
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x - 8, y - 14, 16, 22);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 8, y - 14, 16, 4);
+      break;
+    case 'dumpster':
+      ctx.fillStyle = '#2a4a2a';
+      ctx.fillRect(x - 25, y - 15, 50, 30);
+      ctx.fillStyle = '#3a6a3a';
+      ctx.fillRect(x - 25, y - 17, 50, 3); // lock
+      break;
+    case 'getaway_van':
+      // Svart van — primary extraction
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(x - 50, y - 25, 100, 50);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 48, y - 23, 96, 46);
+      // Vindruta
+      ctx.fillStyle = '#3a5a8a';
+      ctx.fillRect(x + 25, y - 20, 22, 40);
+      // Hjul
+      ctx.fillStyle = '#1a1a1a';
+      ctx.beginPath();
+      ctx.arc(x - 30, y + 25, 8, 0, Math.PI * 2);
+      ctx.arc(x + 30, y + 25, 8, 0, Math.PI * 2);
+      ctx.fill();
+      // "GETAWAY"-text
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'bold 8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🚐', x - 12, y + 4);
+      break;
+  }
+}
+
+function _drawHeistCamera(cam, sx, sy) {
+  // Kamera-bas (svart med röd LED)
+  ctx.fillStyle = '#1a1a1a';
+  ctx.fillRect(sx - 6, sy - 6, 12, 12);
+  ctx.fillStyle = '#ff3030';
+  ctx.beginPath();
+  ctx.arc(sx + 2, sy, 2, 0, Math.PI * 2);
+  ctx.fill();
+  // Vision-cone (transparent röd)
+  ctx.fillStyle = 'rgba(255,48,48,0.12)';
+  ctx.strokeStyle = 'rgba(255,48,48,0.4)';
+  ctx.lineWidth = 1;
+  const cone = cam.cone || 0.7;
+  const range = cam.range || 250;
+  const dir = cam.dir || 0;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.arc(sx, sy, range, dir - cone, dir + cone);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+function _drawHeistTerminal(term, sx, sy) {
+  // Hack-terminal (kompakt skärm + tangentbord)
+  ctx.fillStyle = '#1a1a2a';
+  ctx.fillRect(sx - 10, sy - 14, 20, 28);
+  // Skärm med "kod"-mönster
+  ctx.fillStyle = '#0a3a0a';
+  ctx.fillRect(sx - 8, sy - 12, 16, 14);
+  ctx.fillStyle = '#5aff5a';
+  ctx.font = '5px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('1010', sx - 7, sy - 6);
+  ctx.fillText('0110', sx - 7, sy - 1);
+  // Keyboard
+  ctx.fillStyle = '#3a3a3a';
+  ctx.fillRect(sx - 8, sy + 4, 16, 8);
+}
+
 function drawCastleDefenseGround() {
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const centerX = (state.castledefenseCore && state.castledefenseCore.x) || 2000;
@@ -22301,6 +22744,106 @@ const Coop = {
       if (typeof showToast === 'function') {
         showToast('💀 NER PÅ ' + ev.survivedSec + 's · ' + kills + ' kills · ' + perksCount + ' perks');
       }
+    } else if (ev.type === 'heist_started') {
+      // v1.619: HEIST mode-start. Server skickar all arena-data.
+      this.heistActive = true;
+      state.heistActive = true;
+      state.heistEnded = false;
+      state.heistPhase = 'stealth';
+      state.heistStartT = Date.now();
+      state.heistArena = ev.arena;
+      state.heistWalls = ev.walls || [];
+      state.heistDoors = ev.doors || [];
+      state.heistDecorations = ev.decorations || [];
+      state.heistCameras = ev.cameras || [];
+      state.heistHackTerminals = ev.hackTerminals || [];
+      state.heistCivilianSpawns = ev.civilianSpawns || [];
+      state.heistGuardSpawns = ev.guardSpawns || [];
+      state.heistLootSpots = ev.lootSpots || [];
+      state.heistLootValue = 0;
+      state.heistDrillProgress = 0;
+      state.heistLootBaggedCount = 0;
+      // Använd arena-config för world-size
+      if (ev.arena) {
+        state.customStages = [{
+          id: 'heist_arena', name: ev.arena.name || 'STORBANKEN',
+          kind: 'heist', worldW: ev.arena.worldW, worldH: ev.arena.worldH,
+          spawnPos: { x: 2000, y: 3800 },
+          goalPos: { x: 2000, y: 3700 },
+        }];
+        state.wave = 1;
+        WORLD.w = ev.arena.worldW; WORLD.h = ev.arena.worldH;
+        if (typeof stageState !== 'undefined') {
+          stageState.buildings = []; stageState.decorations = [];
+          stageState.hazards = []; stageState.collectibles = [];
+        }
+      }
+      // Spawn player at first spawn-point
+      if (state.player && ev.playerSpawns && ev.playerSpawns.length > 0) {
+        const sp = ev.playerSpawns[0];
+        state.player.x = sp.x;
+        state.player.y = sp.y;
+        state.player.hp = ev.arena.startHp || 100;
+        state.player.maxHp = ev.arena.maxHp || 100;
+        state.player.shield = ev.arena.startShield || 0;
+        state.player.maxShield = ev.arena.maxShield || 100;
+        state.player.weaponId = ev.arena.startWeapon || 'pistol';
+        state.player.invuln = 3;
+      }
+      document.body.classList.add('heist-mode');
+      if (typeof showHeistHud === 'function') showHeistHud();
+      if (typeof showToast === 'function') showToast('💰 HEIST — STEALTH-FAS. Smyg in i banken.');
+      if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('survive');
+      if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('ambient');
+    } else if (ev.type === 'heist_phase_change') {
+      // { phase, reason } — server signalerar fas-byte
+      state.heistPhase = ev.phase;
+      state.heistPhaseStartT = Date.now();
+      if (ev.phase === 'alarm') {
+        if (typeof showToast === 'function') showToast('🚨 ALARM! Drilla valvet + bagga loot.');
+        if (typeof Audio !== 'undefined' && Audio.alert) Audio.alert();
+        if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
+        if (typeof triggerShake === 'function') triggerShake(10, 0.8);
+      } else if (ev.phase === 'extract') {
+        if (typeof showToast === 'function') showToast('🚐 EXTRACT — kom till getaway-van inom 60s!');
+        if (typeof Audio !== 'undefined' && Audio.bossSpawn) Audio.bossSpawn();
+        if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
+      }
+      if (typeof updateHeistHud === 'function') updateHeistHud();
+    } else if (ev.type === 'heist_hud') {
+      // { phase, elapsedSec, phaseElapsedSec, drillProgress, lootValue, lootBaggedCount }
+      state.heistPhase = ev.phase;
+      state.heistElapsedSec = ev.elapsedSec;
+      state.heistPhaseElapsedSec = ev.phaseElapsedSec;
+      state.heistDrillProgress = ev.drillProgress;
+      state.heistLootValue = ev.lootValue;
+      state.heistLootBaggedCount = ev.lootBaggedCount;
+      if (typeof updateHeistHud === 'function') updateHeistHud();
+    } else if (ev.type === 'heist_win') {
+      // { lootValue, elapsedSec }
+      document.body.classList.remove('heist-mode');
+      this.heistActive = false;
+      state.heistActive = false;
+      state.heistEnded = true;
+      if (typeof hideHeistHud === 'function') hideHeistHud();
+      if (typeof Audio !== 'undefined' && Audio.victory) Audio.victory();
+      if (typeof showToast === 'function') {
+        showToast('💰 HEIST VUNNEN! · $' + (ev.lootValue || 0).toLocaleString() + ' · ' + ev.elapsedSec + 's');
+      }
+    } else if (ev.type === 'heist_lose') {
+      // { reason, lootValue, elapsedSec }
+      document.body.classList.remove('heist-mode');
+      this.heistActive = false;
+      state.heistActive = false;
+      state.heistEnded = true;
+      if (typeof hideHeistHud === 'function') hideHeistHud();
+      if (typeof Audio !== 'undefined' && Audio.gameOver) Audio.gameOver();
+      if (typeof showToast === 'function') {
+        const reasonTxt = ev.reason === 'all_dead' ? 'ALLA DÖDA' :
+                          ev.reason === 'extract_timeout' ? 'EXTRACT TIMEOUT' :
+                          ev.reason === 'timeout' ? 'TID UTE' : 'MISSLYCKAD';
+        showToast('💀 HEIST FAILED — ' + reasonTxt + ' · $' + (ev.lootValue || 0).toLocaleString());
+      }
     } else if (ev.type === 'cd_hud_update') {
       // { wave, waveState, enemiesAlive, enemiesIncoming, coreHp, coreMaxHp, waveBetweenEndAt }
       state.castledefenseWave = ev.wave;
@@ -24439,12 +24982,14 @@ function renderHostControls() {
     Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
     Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
     Coop.config.battleroyale = false; Coop.config.survivors = false;
+    Coop.config.heist = false;
     if (newCd) {
       Coop.config.serverSim = true;
     }
     Coop.updateConfig({
       castledefense: newCd, tdm: false, ctf: false, siege: false,
-      gungame: false, koth: false, juggernaut: false, battleroyale: false, survivors: false,
+      gungame: false, koth: false, juggernaut: false, battleroyale: false,
+      survivors: false, heist: false,
       serverSim: Coop.config.serverSim,
     });
     renderHostControls();
@@ -24463,12 +25008,13 @@ function renderHostControls() {
     Coop.config.survivors = false; Coop.config.castledefense = false;
     Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
     Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
-    Coop.config.battleroyale = false;
+    Coop.config.battleroyale = false; Coop.config.heist = false;
     if (newStress) Coop.config.serverSim = true;
     Coop.updateConfig({
       stresstest: newStress, survivors: false, castledefense: false,
       tdm: false, ctf: false, siege: false,
       gungame: false, koth: false, juggernaut: false, battleroyale: false,
+      heist: false,
       serverSim: Coop.config.serverSim,
     });
     renderHostControls();
@@ -24488,17 +25034,44 @@ function renderHostControls() {
     Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
     Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
     Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.stresstest = false;
+    Coop.config.heist = false;
     if (newSurv) {
       Coop.config.serverSim = true;
     }
     Coop.updateConfig({
       survivors: newSurv, castledefense: false, tdm: false, ctf: false, siege: false,
       gungame: false, koth: false, juggernaut: false, battleroyale: false, stresstest: false,
+      heist: false,
       serverSim: Coop.config.serverSim,
     });
     renderHostControls();
   });
   lobbyModeButtonsEl.appendChild(survBtn);
+
+  // v1.619: HEIST — 3-fas bank-rån (stealth → alarm → extract), 1-8 spelare
+  const heistBtn = document.createElement('button');
+  const heistOn = !!Coop.config.heist;
+  heistBtn.textContent = '💰 HEIST' + (heistOn ? ' ✓' : '');
+  heistBtn.style.cssText = 'background:' + (heistOn ? '#ff9a3a' : '#3a2a18') + ';color:' + (heistOn ? '#000' : '#ffae5a') + ';margin-top:6px;width:100%;font-size:12px;padding:8px 10px;letter-spacing:1px;font-weight:700;border:1px solid ' + (heistOn ? '#ffd54a' : '#6a4a28') + ';';
+  if (heistOn) heistBtn.classList.add('active');
+  onTap(heistBtn, () => {
+    const newHeist = !Coop.config.heist;
+    Coop.config.heist = newHeist;
+    // Mutex med alla andra coop-modes
+    Coop.config.tdm = false; Coop.config.ctf = false; Coop.config.siege = false;
+    Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false;
+    Coop.config.battleroyale = false; Coop.config.castledefense = false;
+    Coop.config.stresstest = false; Coop.config.survivors = false;
+    if (newHeist) Coop.config.serverSim = true;
+    Coop.updateConfig({
+      heist: newHeist, survivors: false, castledefense: false,
+      tdm: false, ctf: false, siege: false,
+      gungame: false, koth: false, juggernaut: false, battleroyale: false, stresstest: false,
+      serverSim: Coop.config.serverSim,
+    });
+    renderHostControls();
+  });
+  lobbyModeButtonsEl.appendChild(heistBtn);
 
   // v1.531: SURVIVORS duration-toggle (10/20/30 min) — bara synlig om survivors aktiv
   if (Coop.config.survivors) {
@@ -31368,6 +31941,11 @@ document.getElementById('btn-menu').addEventListener('click', () => {
   state.survivorsActive = false;
   state.survivorsEnded = false;
   document.body.classList.remove('survivors-mode');
+  // v1.619: HEIST cleanup
+  if (typeof hideHeistHud === 'function') hideHeistHud();
+  state.heistActive = false;
+  state.heistEnded = false;
+  document.body.classList.remove('heist-mode');
   if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
   refreshModeButtons();
 });
@@ -34023,6 +34601,83 @@ function hideCastleDefenseHud() {
     if (e && e.parentNode) e.parentNode.removeChild(e);
   }
 }
+
+// =================================================================
+// v1.619: HEIST HUD — phase + timer + objectives + loot
+// =================================================================
+function showHeistHud() {
+  let hud = document.getElementById('heist-hud');
+  if (hud) { hud.style.display = 'flex'; updateHeistHud(); return; }
+  hud = document.createElement('div');
+  hud.id = 'heist-hud';
+  hud.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top, 8px));left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;font-family:sans-serif;text-align:center;';
+  hud.innerHTML =
+    '<div id="heist-phase" style="background:rgba(10,5,2,0.85);border:2px solid #ffae3a;border-radius:8px;padding:6px 14px;color:#ffd54a;font-weight:900;letter-spacing:2px;font-size:13px;text-shadow:0 1px 3px #000;">STEALTH</div>' +
+    '<div id="heist-timer" style="background:rgba(10,5,2,0.7);border:1px solid #5a3a18;border-radius:6px;padding:3px 10px;color:#ffae3a;font-weight:900;font-size:11px;letter-spacing:1px;">00:00</div>' +
+    '<div id="heist-objective" style="background:rgba(10,5,2,0.7);border:1px solid #5a3a18;border-radius:6px;padding:4px 10px;color:#fff;font-size:10px;max-width:80vw;letter-spacing:0.5px;">Smyg in via fronten</div>' +
+    '<div id="heist-stats" style="background:rgba(10,5,2,0.7);border:1px solid #5a3a18;border-radius:6px;padding:3px 10px;color:#5aff8a;font-weight:900;font-size:11px;display:none;">💰 $0</div>' +
+    '<div id="heist-drill" style="background:rgba(10,5,2,0.7);border:1px solid #5a3a18;border-radius:6px;padding:3px 10px;color:#ff8a3a;font-weight:900;font-size:11px;display:none;">DRILL 0%</div>';
+  document.body.appendChild(hud);
+  updateHeistHud();
+}
+
+function hideHeistHud() {
+  const hud = document.getElementById('heist-hud');
+  if (hud) hud.style.display = 'none';
+}
+
+function updateHeistHud() {
+  if (!state.heistActive) return;
+  const phaseEl = document.getElementById('heist-phase');
+  const timerEl = document.getElementById('heist-timer');
+  const objEl = document.getElementById('heist-objective');
+  const statsEl = document.getElementById('heist-stats');
+  const drillEl = document.getElementById('heist-drill');
+  if (!phaseEl || !timerEl) return;
+  // Phase-label + färg
+  const phase = state.heistPhase || 'stealth';
+  if (phase === 'stealth') {
+    phaseEl.textContent = '🤫 STEALTH';
+    phaseEl.style.borderColor = '#5acaff';
+    phaseEl.style.color = '#5acaff';
+    if (objEl) objEl.textContent = 'Smyg in via fronten · Undvik kameror + vakter';
+  } else if (phase === 'alarm') {
+    phaseEl.textContent = '🚨 ALARM';
+    phaseEl.style.borderColor = '#ff5050';
+    phaseEl.style.color = '#ff8080';
+    if (objEl) objEl.textContent = 'Drilla valvet · Bagga loot · Försvar mot polis';
+  } else if (phase === 'extract') {
+    phaseEl.textContent = '🚐 EXTRACT';
+    phaseEl.style.borderColor = '#5aff5a';
+    phaseEl.style.color = '#5aff8a';
+    if (objEl) objEl.textContent = 'Få ut säckarna till getaway-van!';
+  }
+  // Timer
+  const sec = state.heistElapsedSec || 0;
+  const mm = Math.floor(sec / 60);
+  const ss = sec % 60;
+  timerEl.textContent = mm + ':' + (ss < 10 ? '0' : '') + ss;
+  // Loot-stats (visa under alarm/extract)
+  if (statsEl) {
+    if (phase === 'alarm' || phase === 'extract') {
+      statsEl.style.display = 'block';
+      statsEl.textContent = '💰 $' + (state.heistLootValue || 0).toLocaleString() +
+        ' · ' + (state.heistLootBaggedCount || 0) + ' säckar';
+    } else {
+      statsEl.style.display = 'none';
+    }
+  }
+  // Drill-progress (under alarm)
+  if (drillEl) {
+    if (phase === 'alarm') {
+      drillEl.style.display = 'block';
+      const pct = Math.round((state.heistDrillProgress || 0) * 100);
+      drillEl.textContent = '🔨 DRILL ' + pct + '%';
+    } else {
+      drillEl.style.display = 'none';
+    }
+  }
+}
 function updateCastleDefenseHud() {
   if (!state.castledefenseActive) return;
   const waveEl = document.getElementById('cd-wave');
@@ -35848,6 +36503,15 @@ function updatePlayer(dt, now) {
   }
   if (state.battleroyaleActive && state.battleroyaleWalls && typeof resolveCtfWall === 'function') {
     resolveCtfWall(p, state.battleroyaleWalls);
+  }
+  // v1.619: HEIST — bank-walls + doors blockerar player (locked doors blockerar)
+  if (state.heistActive && state.heistWalls && typeof resolveCtfWall === 'function') {
+    resolveCtfWall(p, state.heistWalls);
+    if (state.heistDoors) {
+      // Lock-status: bara locked doors blockerar
+      const lockedDoors = state.heistDoors.filter(d => d.locked);
+      if (lockedDoors.length > 0) resolveCtfWall(p, lockedDoors);
+    }
   }
   // v1.419: CD — player kan GÅ IGENOM walls/buildings (per user-feedback). Bara
   // CORE blockar (för att inte fastna inuti). Enemies fortsätter blockas server-
@@ -66598,6 +67262,11 @@ function render() {
       drawCastleDefenseSpawnMarkers();
     }
   }
+  // v1.619: HEIST — bank-rän rendering (ground + decorations under entities)
+  if (state.heistActive) {
+    drawHeistArenaGround();
+    drawHeistDecorations();
+  }
   drawHazards();
   drawCollectibles();
   drawPickups();
@@ -66722,6 +67391,10 @@ function render() {
     drawCtfFlags();
     drawCtfReturnHold();
     drawCtfStolenFlagAlert();
+  }
+  // v1.619: HEIST — walls + doors ovanpå entities men under HUD
+  if (state.heistActive) {
+    drawHeistWalls();
   }
   // TDM walls (cover-crates + pillar) — samma render som CTF walls
   if (state.tdmActive && state.tdmWalls) drawPvpWalls(state.tdmWalls);
