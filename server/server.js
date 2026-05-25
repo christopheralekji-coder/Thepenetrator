@@ -1000,9 +1000,23 @@ function handleMessage(ws, msg) {
         bagsValue: ws._heistBagsValue,
       });
     } else if (action === 'drop_bags') {
-      // v1.621: Drop alla bags på nuvarande position (förlust om man inte plockar upp)
-      // Iter 2: drop = säckarna försvinner. Iter 3: drop = fysiska bag-objekt.
+      // v1.623: Drop = fysiska bag-objekt i världen vid spelarens position
+      // Andra spelare (eller du själv) kan plocka upp dem senare
       if (ws._heistBagsCarrying > 0) {
+        sim.heistDroppedBags = sim.heistDroppedBags || [];
+        sim._heistNextBagId = sim._heistNextBagId || 1;
+        // Splittra carrying-värde över N bag-objekt
+        const perBagValue = Math.floor(ws._heistBagsValue / ws._heistBagsCarrying);
+        for (let i = 0; i < ws._heistBagsCarrying; i++) {
+          const bagId = 'bg' + (sim._heistNextBagId++);
+          sim.heistDroppedBags.push({
+            id: bagId,
+            x: ps.x + (Math.random() - 0.5) * 30,
+            y: ps.y + (Math.random() - 0.5) * 30,
+            value: perBagValue,
+            droppedBy: ws.id,
+          });
+        }
         sim.eventQueue.push({
           type: 'heist_bags_dropped',
           peerId: ws.id, bagsDropped: ws._heistBagsCarrying, value: ws._heistBagsValue,
@@ -1017,6 +1031,100 @@ function handleMessage(ws, msg) {
         sim.heistAlarmTriggered = true;
         // Phase-byte sker i nästa tick
       }
+    } else if (action === 'intimidate_civilian') {
+      // v1.623: Hostage-system — make civilian a hostage (no panic, no alarm-trigger)
+      // Kräver: nära civilian (60px), vapen = 'fists' (NO weapon drawn)
+      if (ps.weaponId !== 'fists') return;
+      const npcId = String(msg.npcId || '');
+      const npc = (sim.heistNPCs || []).find(n => n.id === npcId && n.type === 'civilian');
+      if (!npc || npc.dead) return;
+      const dx = ps.x - npc.x, dy = ps.y - npc.y;
+      if (dx * dx + dy * dy > 60 * 60) return;
+      // Toggle hostage-state
+      npc.state = 'hostage';
+      npc._hostageBy = ws.id;
+      sim.eventQueue.push({
+        type: 'heist_civilian_hostage',
+        npcId, by: ws.id,
+      });
+    } else if (action === 'pickup_bag') {
+      // v1.623: Plocka upp närmaste dropped bag (50px range)
+      if (!sim.heistDroppedBags || sim.heistDroppedBags.length === 0) return;
+      let nearestIdx = -1, nearestD2 = 50 * 50;
+      for (let i = 0; i < sim.heistDroppedBags.length; i++) {
+        const b = sim.heistDroppedBags[i];
+        const dx = ps.x - b.x, dy = ps.y - b.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < nearestD2) { nearestD2 = d2; nearestIdx = i; }
+      }
+      if (nearestIdx < 0) return;
+      const bag = sim.heistDroppedBags.splice(nearestIdx, 1)[0];
+      ws._heistBagsCarrying = (ws._heistBagsCarrying || 0) + 1;
+      ws._heistBagsValue = (ws._heistBagsValue || 0) + bag.value;
+      ps.speedMul = Math.max(0.4, 1 - 0.10 * ws._heistBagsCarrying);
+      sim.eventQueue.push({
+        type: 'heist_bag_picked',
+        peerId: ws.id, bagId: bag.id, value: bag.value,
+        bagsCarrying: ws._heistBagsCarrying, bagsValue: ws._heistBagsValue,
+      });
+    } else if (action === 'lockpick_door') {
+      // v1.623: Back-door lockpicking
+      const doorId = String(msg.doorId || 'back');
+      const door = HEIST_ARENA.doors.find(d => d.id === doorId);
+      if (!door || !door.lockpickable) return;
+      sim.heistUnlockedDoors = sim.heistUnlockedDoors || {};
+      if (sim.heistUnlockedDoors[doorId]) return;
+      // Range-check (60px från door-center)
+      const dcx = door.x + door.w / 2, dcy = door.y + door.h / 2;
+      const dx = ps.x - dcx, dy = ps.y - dcy;
+      if (dx * dx + dy * dy > 60 * 60) return;
+      // Lockpick-tid: 6s normal, 3s för Rogue
+      const role = ws._heistRole || 'hacker';
+      const pickTime = role === 'rogue' ? 3000 : 6000;
+      const now = Date.now();
+      if (!ws._heistLockpickStart || ws._heistLockpickDoorId !== doorId) {
+        ws._heistLockpickStart = now;
+        ws._heistLockpickDoorId = doorId;
+        ws._heistLockpickFinishesAt = now + pickTime;
+        sim.eventQueue.push({
+          type: 'heist_lockpick_start',
+          peerId: ws.id, doorId, pickTimeMs: pickTime,
+        });
+        return;
+      }
+      // Andra tap = check completion
+      if (now >= ws._heistLockpickFinishesAt) {
+        sim.heistUnlockedDoors[doorId] = true;
+        if (door.kind === 'back_door') {
+          // Unlock back-extract van
+          if (HEIST_ARENA.extractZones && HEIST_ARENA.extractZones.back) {
+            sim.heistBackExtractUnlocked = true;
+          }
+        }
+        sim.eventQueue.push({
+          type: 'heist_door_unlocked',
+          peerId: ws.id, doorId,
+        });
+        ws._heistLockpickStart = 0;
+        ws._heistLockpickDoorId = null;
+      }
+    } else if (action === 'silent_kill') {
+      // v1.623: Rogue-only silent-melee mot guard — ingen alarm, guard dör
+      if (ws._heistRole !== 'rogue') return;
+      if (sim.heistPhase !== 'stealth') return;
+      // Melee-vapen krävs (fists/knife/melee-types)
+      const meleeWeapons = ['fists', 'knife', 'knuckles', 'bat', 'machete'];
+      if (!meleeWeapons.includes(ps.weaponId)) return;
+      const npcId = String(msg.npcId || '');
+      const npc = (sim.heistNPCs || []).find(n => n.id === npcId && n.type === 'guard' && !n.dead);
+      if (!npc) return;
+      const dx = ps.x - npc.x, dy = ps.y - npc.y;
+      if (dx * dx + dy * dy > 40 * 40) return; // close-range only
+      npc.dead = true;
+      sim.eventQueue.push({
+        type: 'heist_guard_silent_kill',
+        guardId: npcId, by: ws.id,
+      });
     } else if (action === 'hack_terminal') {
       const termId = String(msg.terminalId || '');
       const term = HEIST_ARENA.hackTerminals.find(t => t.id === termId);

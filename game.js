@@ -8809,6 +8809,34 @@ function drawHeistDecorations() {
     }
   }
 
+  // === v1.623: Dropped loot-bags på marken ===
+  if (state.heistDroppedBags && state.heistDroppedBags.length > 0) {
+    for (const bag of state.heistDroppedBags) {
+      const bx = bag.x - cx, by = bag.y - cy;
+      if (bx < -40 || bx > viewW + 40 || by < -40 || by > viewH + 40) continue;
+      // Säck-skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath();
+      ctx.ellipse(bx + 2, by + 8, 12, 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+      // Säck-kropp (mörk-grön)
+      ctx.fillStyle = '#2a4a2a';
+      ctx.fillRect(bx - 12, by - 8, 24, 18);
+      ctx.fillStyle = '#3a6a3a';
+      ctx.fillRect(bx - 10, by - 6, 20, 4);
+      // $-symbol
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('$', bx, by + 5);
+      // Pulserande glow
+      const bagPulse = 0.5 + 0.5 * Math.sin(t / 300);
+      ctx.strokeStyle = 'rgba(90,255,138,' + (0.3 + bagPulse * 0.3) + ')';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(bx - 13, by - 9, 26, 20);
+    }
+  }
+
   // === Extract-zone-glow under extract-fas ===
   if (state.heistPhase === 'extract' && state.heistArena && state.heistArena.extractZones) {
     const ez = state.heistArena.extractZones.front;
@@ -9094,11 +9122,34 @@ function _drawHeistCivilian(n, sx, sy, t) {
   if (subType === 'cashier') shirtCol = '#aa3030'; // röd uniform
   else if (subType === 'manager') shirtCol = '#1a1a1a'; // svart kostym
   const panic = n.s === 'panic';
+  const hostage = n.s === 'hostage';
   ctx.save();
   ctx.translate(sx, sy);
   // Skugga
   ctx.fillStyle = 'rgba(0,0,0,0.4)';
   ctx.beginPath(); ctx.ellipse(2, 14, 16, 5, 0, 0, Math.PI * 2); ctx.fill();
+  if (hostage) {
+    // Sittande/krypande hostage — kompakt + händer på huvudet
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(-8, 8, 16, 4); // ben hopfällda
+    ctx.fillStyle = shirtCol;
+    ctx.fillRect(-7, -2, 14, 12); // hopkrupet body
+    ctx.fillStyle = '#d8a878';
+    ctx.beginPath(); ctx.arc(0, -8, 7, 0, Math.PI * 2); ctx.fill();
+    // Händer på huvudet
+    ctx.fillStyle = '#d8a878';
+    ctx.fillRect(-9, -14, 4, 5);
+    ctx.fillRect(5, -14, 4, 5);
+    // 🙏 ovanför
+    ctx.fillStyle = '#aaffaa';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+    ctx.fillText('🙏', 0, -22);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    return;
+  }
   // Ben (small bobbing om panic = springer fortare)
   const bob = panic ? Math.abs(Math.sin(t / 80)) * 3 : Math.abs(Math.sin(t / 200)) * 1;
   ctx.fillStyle = '#1a1a2a';
@@ -23073,6 +23124,14 @@ const Coop = {
       const myCarry = ev.carrying && ev.carrying[this.myId];
       state.heistMyBagsCarrying = myCarry ? (myCarry.count || 0) : 0;
       state.heistMyBagsValue = myCarry ? (myCarry.value || 0) : 0;
+      // v1.623: dropped bags + unlocked doors
+      state.heistDroppedBags = ev.droppedBags || [];
+      state.heistUnlockedDoors = ev.unlockedDoors || {};
+      if (state.heistDoors && state.heistUnlockedDoors) {
+        for (const d of state.heistDoors) {
+          if (state.heistUnlockedDoors[d.id]) d.locked = false;
+        }
+      }
       // Uppdatera door-collision: vault unlocks gör att den inte blockerar
       if (state.heistDoors && state.heistVaultUnlocked) {
         for (const d of state.heistDoors) {
@@ -23124,6 +23183,38 @@ const Coop = {
       if (typeof triggerShake === 'function') triggerShake(5, 0.3);
     } else if (ev.type === 'heist_guard_alarm') {
       if (typeof showToast === 'function') showToast('🚨 VAKT TRIGGADE ALARM!');
+    } else if (ev.type === 'heist_civilian_hostage') {
+      if (typeof showToast === 'function') showToast('🙏 HOSTAGE TAGEN');
+    } else if (ev.type === 'heist_guard_silent_kill') {
+      if (typeof showToast === 'function') showToast('🗡️ TYST KILL · vakt eliminerad');
+      if (typeof Audio !== 'undefined' && Audio.hit) Audio.hit();
+    } else if (ev.type === 'heist_bag_picked') {
+      if (ev.peerId === this.myId) {
+        state.heistMyBagsCarrying = ev.bagsCarrying || 0;
+        state.heistMyBagsValue = ev.bagsValue || 0;
+      }
+      if (typeof showToast === 'function') showToast('🎒 PLOCKADE UPP · $' + (ev.value || 0).toLocaleString());
+    } else if (ev.type === 'heist_bag_secured_loose') {
+      // En dropped bag säkrades direkt (låg i extract-zon)
+      state.heistLootValue = ev.totalValue || 0;
+    } else if (ev.type === 'heist_lockpick_start') {
+      // { peerId, doorId, pickTimeMs }
+      if (ev.peerId === this.myId) {
+        state.heistMyLockpickEnd = performance.now() + (ev.pickTimeMs || 6000);
+        state.heistMyLockpickDoorId = ev.doorId;
+      }
+    } else if (ev.type === 'heist_door_unlocked') {
+      // { peerId, doorId }
+      state.heistUnlockedDoors = state.heistUnlockedDoors || {};
+      state.heistUnlockedDoors[ev.doorId] = true;
+      if (state.heistDoors) {
+        for (const d of state.heistDoors) if (d.id === ev.doorId) d.locked = false;
+      }
+      if (ev.peerId === this.myId) {
+        state.heistMyLockpickEnd = 0;
+        state.heistMyLockpickDoorId = null;
+      }
+      if (typeof showToast === 'function') showToast('🔓 DÖRR DYRKAD · alt-extract öppen');
     } else if (ev.type === 'heist_vault_unlocked') {
       // Vault door unlocked!
       if (state.heistDoors) {
@@ -35059,6 +35150,59 @@ function getHeistContextAction() {
       const dx = px - term.x, dy = py - term.y;
       if (dx * dx + dy * dy < 50 * 50) {
         return { label: '💻 HACKA TERMINAL', action: 'hack_terminal', terminalId: term.id };
+      }
+    }
+  }
+
+  // v1.623: PICKUP DROPPED BAG (50px range, any phase där det finns bags)
+  if (state.heistDroppedBags && state.heistDroppedBags.length > 0) {
+    for (const bag of state.heistDroppedBags) {
+      const dx = px - bag.x, dy = py - bag.y;
+      if (dx * dx + dy * dy < 50 * 50) {
+        return { label: '🎒 PLOCKA UPP $' + (bag.value || 0).toLocaleString(), action: 'pickup_bag' };
+      }
+    }
+  }
+
+  // v1.623: INTIMIDATE CIVILIAN (no weapon drawn + nära civilian)
+  const myWeapon = (state.player && state.player.weaponId) || 'pistol';
+  if (phase === 'stealth' && myWeapon === 'fists' && state.heistNPCs) {
+    for (const n of state.heistNPCs) {
+      if (n.t !== 'civilian' || n.s === 'hostage') continue;
+      const dx = px - n.x, dy = py - n.y;
+      if (dx * dx + dy * dy < 60 * 60) {
+        return { label: '🙏 INTIMIDATE', action: 'intimidate_civilian', npcId: n.id };
+      }
+    }
+  }
+
+  // v1.623: SILENT-KILL (Rogue + melee + nära guard i stealth)
+  const myRole = (Coop.config && Coop.config.heistRoles && Coop.config.heistRoles[Coop.myId]) || 'hacker';
+  const meleeWeapons = ['fists', 'knife', 'knuckles', 'bat', 'machete'];
+  if (phase === 'stealth' && myRole === 'rogue' && meleeWeapons.includes(myWeapon) && state.heistNPCs) {
+    for (const n of state.heistNPCs) {
+      if (n.t !== 'guard') continue;
+      const dx = px - n.x, dy = py - n.y;
+      if (dx * dx + dy * dy < 40 * 40) {
+        return { label: '🗡️ TYST KILL', action: 'silent_kill', npcId: n.id };
+      }
+    }
+  }
+
+  // v1.623: LOCKPICK BACK-DOOR
+  if (state.heistDoors) {
+    for (const d of state.heistDoors) {
+      if (!d.lockpickable) continue;
+      if (state.heistUnlockedDoors && state.heistUnlockedDoors[d.id]) continue;
+      const dcx = d.x + d.w / 2, dcy = d.y + d.h / 2;
+      const ddx = px - dcx, ddy = py - dcy;
+      if (ddx * ddx + ddy * ddy < 60 * 60) {
+        // Visa progress om pågående
+        if (state.heistMyLockpickEnd && state.heistMyLockpickEnd > performance.now()) {
+          const rem = Math.ceil((state.heistMyLockpickEnd - performance.now()) / 1000);
+          return { label: '🔓 DYRKAR ' + rem + 's...', action: 'lockpick_door', doorId: d.id };
+        }
+        return { label: '🔓 DYRKA LÅS', action: 'lockpick_door', doorId: d.id };
       }
     }
   }

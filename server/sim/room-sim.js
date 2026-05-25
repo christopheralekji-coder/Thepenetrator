@@ -4171,24 +4171,24 @@ function tickHeist(sim, dt, nowMs) {
     if (killedAny) sim.enemies = sim.enemies.filter(e => !e.dead);
   }
 
-  // === v1.621: EXTRACT-VAN SECURE (bags secured när player i extract-zon) ===
+  // === v1.621/v1.623: EXTRACT-VAN SECURE (bags secured när player i extract-zon)
+  // v1.623: Också secura fysiska dropped-bags som ligger i extract-zonen
   if (sim.heistPhase === 'extract' || sim.heistPhase === 'alarm') {
-    const ez = arena.extractZones && arena.extractZones.front;
-    if (ez) {
+    const checkZone = (ez) => {
+      if (!ez) return;
+      // Säkra spelar-carrying bags
       for (const [pid, ws] of sim.room.members) {
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         const ps = ws.playerState;
         const dx = ps.x - (ez.x + ez.w / 2);
         const dy = ps.y - (ez.y + ez.h / 2);
         if (Math.abs(dx) > ez.w / 2 + 40 || Math.abs(dy) > ez.h / 2 + 40) continue;
-        // I extract-zon — secure alla carrying bags
         const carrying = ws._heistBagsCarrying || 0;
         const value = ws._heistBagsValue || 0;
         if (carrying > 0) {
           sim.heistLootValue = (sim.heistLootValue || 0) + value;
           ws._heistBagsCarrying = 0;
           ws._heistBagsValue = 0;
-          // Återställ speedMul
           ps.speedMul = 1.0;
           sim.eventQueue.push({
             type: 'heist_bags_secured',
@@ -4196,7 +4196,27 @@ function tickHeist(sim, dt, nowMs) {
           });
         }
       }
-    }
+      // Säkra fysiska dropped-bags som ligger i zonen
+      if (sim.heistDroppedBags && sim.heistDroppedBags.length > 0) {
+        const remaining = [];
+        for (const bag of sim.heistDroppedBags) {
+          const dx = bag.x - (ez.x + ez.w / 2);
+          const dy = bag.y - (ez.y + ez.h / 2);
+          if (Math.abs(dx) < ez.w / 2 + 40 && Math.abs(dy) < ez.h / 2 + 40) {
+            sim.heistLootValue = (sim.heistLootValue || 0) + bag.value;
+            sim.eventQueue.push({
+              type: 'heist_bag_secured_loose',
+              bagId: bag.id, value: bag.value, totalValue: sim.heistLootValue,
+            });
+          } else {
+            remaining.push(bag);
+          }
+        }
+        sim.heistDroppedBags = remaining;
+      }
+    };
+    checkZone(arena.extractZones && arena.extractZones.front);
+    if (sim.heistBackExtractUnlocked) checkZone(arena.extractZones && arena.extractZones.back);
   }
 
   // === HUD-broadcast (var 500ms) ===
@@ -4222,6 +4242,12 @@ function tickHeist(sim, dt, nowMs) {
       lootBagged: Object.keys(sim.heistLootBagged || {}),  // ID-lista
       vaultUnlocked: !!sim.heistVaultUnlocked,
       carrying,  // { pid: { count, value } }
+      // v1.623: fysiska dropped bags
+      droppedBags: (sim.heistDroppedBags || []).map(b => ({
+        id: b.id, x: Math.round(b.x), y: Math.round(b.y), value: b.value,
+      })),
+      backExtractUnlocked: !!sim.heistBackExtractUnlocked,
+      unlockedDoors: sim.heistUnlockedDoors || {},
     });
   }
   // === v1.622: NPC-broadcast (var 200ms = 5Hz för positionssync) ===
@@ -4263,6 +4289,11 @@ function _heistTickNPCs(sim, dt, nowMs, arena) {
 }
 
 function _heistTickCivilian(npc, dt, nowMs, sim, players, arena) {
+  // v1.623: HOSTAGE-state — civilian sitter still, ingen panik, ingen alarm-trigger
+  if (npc.state === 'hostage') {
+    // Stå still; om alarm triggas av annan källa, hostages bara stannar
+    return;
+  }
   if (npc.state === 'idle' && sim.heistPhase === 'stealth') {
     // Wander runt home-position
     if (!npc._wanderTarget || nowMs > (npc._wanderUntil || 0)) {
