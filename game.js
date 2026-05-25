@@ -8702,51 +8702,98 @@ function drawHeistArenaGround() {
 function drawHeistWalls() {
   if (!state.heistWalls) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  // v1.631: PASS 1 — DROP-SHADOWS under alla walls (gör dem 3D)
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
   for (const w of state.heistWalls) {
     const x = w.x - cx, y = w.y - cy;
-    // Viewport-cull
+    if (x + w.w < 0 || x > viewW || y + w.h < 0 || y > viewH) continue;
+    if (w.kind === 'parked_car' || w.kind === 'fire_hydrant') continue;
+    ctx.fillRect(x + 4, y + 5, w.w, w.h);
+  }
+  // PASS 2 — actual walls (HÖGKONTRAST mot bank-floor)
+  for (const w of state.heistWalls) {
+    const x = w.x - cx, y = w.y - cy;
     if (x + w.w < 0 || x > viewW || y + w.h < 0 || y > viewH) continue;
     if (w.kind === 'wall_vault') {
-      // Tjock stål-vägg
-      ctx.fillStyle = '#3a3a3a';
+      // Stål-vägg — mörkt grafit med rivets
+      ctx.fillStyle = '#1a1a1c';
       ctx.fillRect(x, y, w.w, w.h);
-      ctx.fillStyle = '#5a5a5a';
+      ctx.fillStyle = '#4a4a52';
       ctx.fillRect(x + 2, y + 2, w.w - 4, w.h - 4);
-      ctx.strokeStyle = '#1a1a1a';
+      ctx.fillStyle = '#6a6a72';
+      ctx.fillRect(x + 2, y + 2, w.w - 4, 3); // top highlight
+      // Rivets
+      ctx.fillStyle = '#1a1a1c';
+      if (w.w > w.h) {
+        for (let rx = x + 8; rx < x + w.w - 6; rx += 24) {
+          ctx.fillRect(rx, y + (w.h >> 1) - 1, 3, 3);
+        }
+      } else {
+        for (let ry = y + 8; ry < y + w.h - 6; ry += 24) {
+          ctx.fillRect(x + (w.w >> 1) - 1, ry, 3, 3);
+        }
+      }
+      ctx.strokeStyle = '#000';
       ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, w.w, w.h);
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
     } else if (w.kind === 'counter') {
-      // Bank-counter (trä-yta med ljus topp)
-      ctx.fillStyle = '#4a2a1a';
+      // Bank-counter (mahogny)
+      ctx.fillStyle = '#2a1810';
       ctx.fillRect(x, y, w.w, w.h);
-      ctx.fillStyle = '#6a3a2a';
-      ctx.fillRect(x, y, w.w, 8); // ljus topp
-      ctx.strokeStyle = '#2a1a0a';
-      ctx.strokeRect(x, y, w.w, w.h);
-    } else if (w.kind === 'pillar') {
-      // Marmor-pelare (med highlight)
-      ctx.fillStyle = '#aaa098';
-      ctx.fillRect(x, y, w.w, w.h);
-      ctx.fillStyle = '#ccc4b4';
-      ctx.fillRect(x + 2, y + 2, w.w - 4, 4);
-    } else if (w.kind === 'parked_car') {
-      // Bil (cover utomhus)
-      ctx.fillStyle = '#2a4a6a';
-      ctx.fillRect(x, y, w.w, w.h);
-      ctx.fillStyle = '#5a8aaa';
-      ctx.fillRect(x + 8, y + 4, w.w - 16, w.h - 12); // fönster
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(x - 4, y + 4, 6, w.h - 8); // hjul vänster
-      ctx.fillRect(x + w.w - 2, y + 4, 6, w.h - 8); // hjul höger
-    } else {
-      // Standard bank-vägg
-      ctx.fillStyle = '#8a7a6a';
-      ctx.fillRect(x, y, w.w, w.h);
-      ctx.fillStyle = '#aa9a8a';
-      ctx.fillRect(x + 1, y + 1, w.w - 2, 3); // highlight upptill
-      ctx.strokeStyle = '#4a3a2a';
+      ctx.fillStyle = '#5a3220';
+      ctx.fillRect(x + 1, y + 1, w.w - 2, w.h - 2);
+      ctx.fillStyle = '#8a5a3a';
+      ctx.fillRect(x, y, w.w, 5); // glänsande topp
+      ctx.strokeStyle = '#1a0a05';
       ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, w.w, w.h);
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+    } else if (w.kind === 'pillar') {
+      // Marmor-pelare med highlight
+      ctx.fillStyle = '#1a1815';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.fillStyle = '#bcb4a8';
+      ctx.fillRect(x + 2, y + 2, w.w - 4, w.h - 4);
+      ctx.fillStyle = '#e0d8c8';
+      ctx.fillRect(x + 3, y + 3, w.w - 6, 5);
+    } else if (w.kind === 'parked_car') {
+      ctx.fillStyle = '#1a2a3a';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.fillStyle = '#3a5a7a';
+      ctx.fillRect(x + 2, y + 2, w.w - 4, w.h - 4);
+      ctx.fillStyle = '#7aaadc';
+      ctx.fillRect(x + 8, y + 4, w.w - 16, w.h - 12);
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(x - 4, y + 4, 6, w.h - 8);
+      ctx.fillRect(x + w.w - 2, y + 4, 6, w.h - 8);
+    } else if (w.kind === 'fire_hydrant') {
+      ctx.fillStyle = '#7a1010';
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.fillStyle = '#cc2a2a';
+      ctx.fillRect(x + 2, y + 2, w.w - 4, w.h - 4);
+    } else {
+      // Standard bank-vägg — DARK MAHOGANY/STONE för kontrast mot bank-floor
+      ctx.fillStyle = '#1a1208';                          // svart bas
+      ctx.fillRect(x, y, w.w, w.h);
+      ctx.fillStyle = '#3a2a1a';                          // mörk mahogny
+      ctx.fillRect(x + 1, y + 1, w.w - 2, w.h - 2);
+      ctx.fillStyle = '#5a4030';                          // medel-trä
+      ctx.fillRect(x + 2, y + 2, w.w - 4, w.h - 4);
+      ctx.fillStyle = '#7a5a40';                          // top-highlight (catches light)
+      ctx.fillRect(x + 2, y + 2, w.w - 4, 4);
+      // Wall-panel-lines (horisontellt om wall är vertikal, vice versa)
+      ctx.fillStyle = '#2a1a10';
+      if (w.h > w.w) {
+        for (let ly = y + 50; ly < y + w.h - 5; ly += 80) {
+          ctx.fillRect(x + 2, ly, w.w - 4, 1);
+        }
+      } else {
+        for (let lx = x + 80; lx < x + w.w - 5; lx += 100) {
+          ctx.fillRect(lx, y + 2, 1, w.h - 4);
+        }
+      }
+      ctx.strokeStyle = '#000';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
     }
   }
   // === DOORS (visuella, ren färg per typ) ===
@@ -70087,12 +70134,12 @@ function drawMiniMap() {
       ctx.fillStyle = r.c;
       ctx.fillRect(ox + r.x * scale, oy + r.y * scale, r.w * scale, r.h * scale);
     }
-    // WALLS — solid mörk-grå
+    // WALLS — solid SVART för max-kontrast på minimap (v1.631)
     if (state.heistWalls) {
-      ctx.fillStyle = 'rgba(40,40,50,0.95)';
+      ctx.fillStyle = 'rgba(10,8,5,1.0)';
       for (const w of state.heistWalls) {
         if (!inMmView(w.x, w.y, w.w, w.h)) continue;
-        ctx.fillRect(ox + w.x * scale, oy + w.y * scale, Math.max(1, w.w * scale), Math.max(1, w.h * scale));
+        ctx.fillRect(ox + w.x * scale, oy + w.y * scale, Math.max(2, w.w * scale), Math.max(2, w.h * scale));
       }
     }
     // DOORS — färgade efter status
