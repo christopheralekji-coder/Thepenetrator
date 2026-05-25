@@ -28,6 +28,7 @@ const BOSS_CONFIGS = {
   blightsovereign: { name: 'BLIGHT SOVEREIGN',      subtitle: 'Härskaren av allt som ruttnar',           hp: 6900, speed: 145, dmg: 54, r: 26, color: '#1a3a28', accent: '#9aff5a', glow: '#5affae', ai: 'final_combo', powerSet: ['gas_sniper','cloaker','caster'],         gold: 1500 },
   buriedcrown:     { name: 'THE BURIED CROWN',      subtitle: 'Begravd, men aldrig död',                  hp: 7700, speed: 115, dmg: 64, r: 32, color: '#1a1a2a', accent: '#ffd54a', glow: '#ff3a3a', ai: 'final_combo', powerSet: ['brute_charger','shielder','plasma'],     gold: 1800 },
   lastsovereign:   { name: 'THE LAST SOVEREIGN',    subtitle: 'Den sista på sin tron — du tar nästa.',    hp: 9500, speed: 155, dmg: 72, r: 36, color: '#3a0a14', accent: '#aa3aff', glow: '#ff1a1a', ai: 'final_combo', powerSet: ['avatar','jetpack','gas_sniper'],         gold: 3000 },
+  thewarden:       { name: 'THE WARDEN',            subtitle: 'Den som bevakar de dödas portar',          hp: 11000, speed: 105, dmg: 78, r: 38, color: '#1a1a14', accent: '#7a6a3a', glow: '#ffd54a', ai: 'final_combo', powerSet: ['shielder','brute_charger','cloaker'],   gold: 4500 },
 };
 
 /**

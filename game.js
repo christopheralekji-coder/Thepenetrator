@@ -304,6 +304,13 @@ const BOSS_CONFIGS = {
     color: '#3a0a14', accent: '#aa3aff', glow: '#ff1a1a',
     ai: 'final_combo', powerSet: ['avatar', 'jetpack', 'gas_sniper'], gold: 3000,
   },
+  // v1.596: 10:e SECRET BOSS. Powers: shielder + brute_charger + cloaker
+  thewarden: {
+    name: 'THE WARDEN', subtitle: 'Den som bevakar de dödas portar',
+    hp: 11000, speed: 105, dmg: 78, r: 38,
+    color: '#1a1a14', accent: '#7a6a3a', glow: '#ffd54a',
+    ai: 'final_combo', powerSet: ['shielder', 'brute_charger', 'cloaker'], gold: 4500,
+  },
 };
 function getBossConfig(key) { return BOSS_CONFIGS[key]; }
 
@@ -17201,7 +17208,7 @@ function spawnEnemyShowcase() {
   });
 
   // BOSSES (9 — större spacing pga radius)
-  const bossKeys = ['witheredelder', 'ironclad', 'mirroredone', 'ossarius', 'vanguardatlas', 'emberoracle', 'blightsovereign', 'buriedcrown', 'lastsovereign'];
+  const bossKeys = ['witheredelder', 'ironclad', 'mirroredone', 'ossarius', 'vanguardatlas', 'emberoracle', 'blightsovereign', 'buriedcrown', 'lastsovereign', 'thewarden'];
   const miniRows = Math.ceil(miniPowers.length / cols);
   const bossBaseY = miniBaseY + miniRows * spacingY + 220;
   const bossSpacingX = 180;
@@ -58261,6 +58268,1644 @@ BOSS_DRAW.mirroredone = function(e, flash, now, phase, moving) {
   ctx.shadowBlur = 0;
 };
 
+// ============================================================
+// v1.596: BOSSAR 4-10 — alla MILITÄRA elite-commanders med djup karaktär
+// ============================================================
+
+// 4. GENERAL OSSARIUS — Death-officer med skull-face + gold-trim ceremonial uniform
+BOSS_DRAW.ossarius = function(e, flash, now, phase, moving) {
+  const base = _drawBossMilitaryBase(e, flash, now, phase, {
+    pants: '#1a2210', pantsDark: '#0a1208',
+    shirt: '#2a3a18', armor: '#1a1a08', armorLight: '#3a3210',
+    buckle: '#ffd54a',
+  });
+  const r = base.r;
+  const gold = flash ? '#fff' : '#ffd54a';
+  const goldDark = flash ? '#fff' : '#a07a18';
+  const bone = flash ? '#fff' : '#e0d8c0';
+  const boneDark = flash ? '#fff' : '#8a7858';
+  const greenDark = flash ? '#fff' : '#1a2418';
+
+  // CEREMONIAL GREATCOAT (dark green med gold trim)
+  ctx.fillStyle = greenDark;
+  ctx.fillRect(-r * 0.55, -r * 0.30, r * 1.10, r * 1.10);
+  // Coat-collar (high, golden)
+  ctx.fillStyle = gold;
+  ctx.fillRect(-r * 0.32, -r * 0.70, r * 0.64, r * 0.12);
+  ctx.fillStyle = goldDark;
+  ctx.fillRect(-r * 0.32, -r * 0.60, r * 0.64, 2);
+  // Coat lapels (V-shape med gold trim)
+  ctx.fillStyle = '#1a1a04';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.25, -r * 0.45);
+  ctx.lineTo(0, r * 0.15);
+  ctx.lineTo(r * 0.25, -r * 0.45);
+  ctx.lineTo(r * 0.20, -r * 0.50);
+  ctx.lineTo(0, r * 0.05);
+  ctx.lineTo(-r * 0.20, -r * 0.50);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = gold;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.22, -r * 0.45); ctx.lineTo(0, r * 0.15);
+  ctx.moveTo(r * 0.22, -r * 0.45); ctx.lineTo(0, r * 0.15);
+  ctx.stroke();
+
+  // GOLDEN EPAULETTES (massive shoulders med fringe)
+  ctx.fillStyle = gold;
+  ctx.beginPath(); ctx.ellipse(-r * 0.55, -r * 0.55, r * 0.22, r * 0.10, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(r * 0.55, -r * 0.55, r * 0.22, r * 0.10, 0, 0, Math.PI * 2); ctx.fill();
+  // Epaulette-fringe (dangling threads)
+  for (let i = 0; i < 5; i++) {
+    const ex = r * 0.50 + i * r * 0.05;
+    ctx.strokeStyle = goldDark;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(ex - r * 0.10, -r * 0.50);
+    ctx.lineTo(ex - r * 0.10, -r * 0.30);
+    ctx.stroke();
+  }
+
+  // BONE-STAR MEDALS on chest (5 pointed bone-stars instead of metal)
+  for (let m = 0; m < 3; m++) {
+    const mx = -r * 0.40 + m * r * 0.18;
+    const my = -r * 0.22;
+    ctx.fillStyle = bone;
+    ctx.shadowColor = '#000';
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a1 = -Math.PI / 2 + i * Math.PI * 2 / 5;
+      const a2 = a1 + Math.PI / 5;
+      if (i === 0) ctx.moveTo(mx + Math.cos(a1) * 5, my + Math.sin(a1) * 5);
+      else ctx.lineTo(mx + Math.cos(a1) * 5, my + Math.sin(a1) * 5);
+      ctx.lineTo(mx + Math.cos(a2) * 2.5, my + Math.sin(a2) * 2.5);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    // Star-center dot
+    ctx.fillStyle = boneDark;
+    ctx.beginPath(); ctx.arc(mx, my, 1.5, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // CHAIN OF SKULLS hanging from belt (signature)
+  ctx.strokeStyle = goldDark;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.30, r * 0.22);
+  ctx.bezierCurveTo(-r * 0.20, r * 0.45, r * 0.10, r * 0.42, r * 0.30, r * 0.22);
+  ctx.stroke();
+  // 3 small skulls hanging
+  for (let s = 0; s < 3; s++) {
+    const t = (s + 1) / 4;
+    const skX = -r * 0.30 + t * r * 0.60;
+    const skY = r * 0.42 + Math.sin(t * Math.PI) * r * 0.04;
+    ctx.fillStyle = bone;
+    ctx.beginPath(); ctx.arc(skX, skY, r * 0.06, 0, Math.PI * 2); ctx.fill();
+    // Eye sockets
+    ctx.fillStyle = '#0a0a08';
+    ctx.fillRect(skX - 2, skY - 1, 1.5, 1.5);
+    ctx.fillRect(skX + 1, skY - 1, 1.5, 1.5);
+  }
+
+  // BACK ARM (holds service pistol holstered)
+  ctx.fillStyle = greenDark;
+  ctx.fillRect(-r * 0.25, -r * 0.30, r * 0.20, r * 0.70);
+  // Pistol holster
+  ctx.fillStyle = '#1a0a04';
+  ctx.fillRect(-r * 0.26, r * 0.20, r * 0.18, r * 0.18);
+  ctx.fillStyle = '#3a2a18';
+  ctx.fillRect(-r * 0.22, r * 0.16, r * 0.10, r * 0.08);
+
+  // CEREMONIAL SABER (curved golden blade — front hand)
+  // Front arm
+  ctx.fillStyle = greenDark;
+  ctx.fillRect(r * 0.04, -r * 0.30, r * 0.18, r * 0.55);
+  // Hand
+  ctx.fillStyle = boneDark;
+  ctx.beginPath(); ctx.arc(r * 0.12, r * 0.20, r * 0.13, 0, Math.PI * 2); ctx.fill();
+  // Saber hilt (gold)
+  ctx.fillStyle = gold;
+  ctx.fillRect(r * 0.10, r * 0.05, r * 0.06, r * 0.20);
+  // Hilt-guard (cross-piece)
+  ctx.fillStyle = goldDark;
+  ctx.fillRect(r * 0.02, -r * 0.02, r * 0.22, r * 0.04);
+  // Pommel (skull-shaped)
+  ctx.fillStyle = bone;
+  ctx.beginPath(); ctx.arc(r * 0.13, r * 0.30, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#0a0a08';
+  ctx.fillRect(r * 0.11, r * 0.30, 2, 2);
+  ctx.fillRect(r * 0.14, r * 0.30, 2, 2);
+  // CURVED SABER BLADE
+  ctx.fillStyle = '#e6e6f0';
+  ctx.beginPath();
+  ctx.moveTo(r * 0.10, r * 0.00);
+  ctx.quadraticCurveTo(r * 0.35, -r * 0.70, r * 0.14, -r * 1.35);
+  ctx.lineTo(r * 0.20, -r * 1.35);
+  ctx.quadraticCurveTo(r * 0.42, -r * 0.70, r * 0.16, r * 0.00);
+  ctx.closePath();
+  ctx.fill();
+  // Blade edge glint
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.11, r * 0.00);
+  ctx.quadraticCurveTo(r * 0.36, -r * 0.70, r * 0.14, -r * 1.32);
+  ctx.stroke();
+  // Gold etching on blade
+  ctx.fillStyle = gold;
+  ctx.beginPath(); ctx.arc(r * 0.25, -r * 0.60, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.22, -r * 0.95, 2, 0, Math.PI * 2); ctx.fill();
+
+  // HEAD — SKULL FACE (no skin!)
+  ctx.fillStyle = bone;
+  ctx.beginPath(); ctx.arc(0, -r * 0.95, r * 0.30, 0, Math.PI * 2); ctx.fill();
+  // Skull jaw (lower)
+  ctx.fillStyle = boneDark;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.16, -r * 0.85);
+  ctx.lineTo(-r * 0.14, -r * 0.68);
+  ctx.lineTo(r * 0.16, -r * 0.68);
+  ctx.lineTo(r * 0.18, -r * 0.85);
+  ctx.closePath();
+  ctx.fill();
+  // Teeth (rows)
+  ctx.fillStyle = bone;
+  for (let t = 0; t < 6; t++) {
+    ctx.fillRect(-r * 0.14 + t * r * 0.05, -r * 0.78, r * 0.04, r * 0.06);
+  }
+  // Teeth-shadows
+  ctx.fillStyle = '#0a0a08';
+  for (let t = 0; t < 5; t++) {
+    ctx.fillRect(-r * 0.10 + t * r * 0.05, -r * 0.78, 1, r * 0.06);
+  }
+  // EYE SOCKETS (large hollow)
+  ctx.fillStyle = '#0a0a04';
+  ctx.beginPath(); ctx.arc(-r * 0.08, -r * 1.00, r * 0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.10, -r * 1.00, r * 0.08, 0, Math.PI * 2); ctx.fill();
+  // GLOWING ORANGE EYES inside sockets
+  ctx.fillStyle = '#ff8a30';
+  ctx.shadowColor = '#ffd54a';
+  ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.arc(-r * 0.08, -r * 1.00, r * 0.04, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.10, -r * 1.00, r * 0.04, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Nasal cavity (skull)
+  ctx.fillStyle = '#0a0a04';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.02, -r * 0.92);
+  ctx.lineTo(-r * 0.04, -r * 0.80);
+  ctx.lineTo(r * 0.04, -r * 0.80);
+  ctx.lineTo(r * 0.02, -r * 0.92);
+  ctx.closePath();
+  ctx.fill();
+
+  // OFFICER CAP (peaked, military-style med golden eagle/skull emblem)
+  ctx.fillStyle = '#0a0a04';
+  ctx.fillRect(-r * 0.34, -r * 1.18, r * 0.68, r * 0.10);
+  // Cap-crown (rounded dome)
+  ctx.fillStyle = '#1a1a04';
+  ctx.beginPath();
+  ctx.ellipse(0, -r * 1.22, r * 0.34, r * 0.18, 0, Math.PI, 0);
+  ctx.fill();
+  // Cap-band (gold trim)
+  ctx.fillStyle = gold;
+  ctx.fillRect(-r * 0.34, -r * 1.10, r * 0.68, r * 0.04);
+  // GOLDEN SKULL EMBLEM on cap (signature)
+  ctx.fillStyle = gold;
+  ctx.shadowColor = '#ffd54a';
+  ctx.shadowBlur = 4;
+  ctx.beginPath(); ctx.arc(0, -r * 1.18, r * 0.08, 0, Math.PI * 2); ctx.fill();
+  // Skull eye-sockets on emblem
+  ctx.fillStyle = '#0a0a04';
+  ctx.fillRect(-r * 0.04, -r * 1.20, 2, 2);
+  ctx.fillRect(r * 0.02, -r * 1.20, 2, 2);
+  ctx.shadowBlur = 0;
+  // Visor (peaked-cap visor sticking forward)
+  ctx.fillStyle = '#1a1a04';
+  ctx.fillRect(r * 0.12, -r * 1.08, r * 0.28, r * 0.06);
+  // Visor edge (gold)
+  ctx.fillStyle = goldDark;
+  ctx.fillRect(r * 0.12, -r * 1.02, r * 0.28, 1);
+};
+
+// 5. VANGUARD ATLAS — HALF-MAN HALF-MECHANICAL combat-augmented commander
+BOSS_DRAW.vanguardatlas = function(e, flash, now, phase, moving) {
+  const base = _drawBossMilitaryBase(e, flash, now, phase, {
+    pants: '#2a3a44', pantsDark: '#1a2030',
+    shirt: '#3a4a54', armor: '#1a2434', armorLight: '#3a4a5a',
+    buckle: '#5acaff',
+  });
+  const r = base.r;
+  const metal = flash ? '#fff' : '#7a7a88';
+  const metalDark = flash ? '#fff' : '#3a3a48';
+  const metalDeep = flash ? '#fff' : '#1a1a24';
+  const cyan = '#5acaff';
+  const cyanGlow = '#9aeaff';
+  const skin = flash ? '#fff' : '#c89870';
+  const skinDark = flash ? '#fff' : '#8a6242';
+
+  // BACK SIDE IS MECHANICAL — exposed metal plates med wires
+  // (Eftersom sprite mirroras vid facing-left, "back" är vänster side i canvas-coord)
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(-r * 0.55, -r * 0.55, r * 0.30, r * 0.95);
+  // Mech-plates (3 horisontella)
+  ctx.fillStyle = metal;
+  for (let i = 0; i < 3; i++) {
+    ctx.fillRect(-r * 0.55, -r * 0.50 + i * r * 0.30, r * 0.30, 2);
+  }
+  // Exposed wiring on mech-side
+  ctx.strokeStyle = '#ffae3a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.50, -r * 0.45); ctx.lineTo(-r * 0.40, -r * 0.20);
+  ctx.moveTo(-r * 0.48, -r * 0.10); ctx.lineTo(-r * 0.38, r * 0.10);
+  ctx.stroke();
+  // Mech-rivets
+  ctx.fillStyle = metalDeep;
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath(); ctx.arc(-r * 0.48, -r * 0.40 + i * r * 0.22, 1.5, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // CENTRAL POWER-CORE on chest (cyan glow)
+  const corePulse = 0.85 + Math.sin(now / 200) * 0.15;
+  ctx.fillStyle = cyan;
+  ctx.shadowColor = cyanGlow;
+  ctx.shadowBlur = 14;
+  ctx.beginPath(); ctx.arc(-r * 0.05, -r * 0.20, r * 0.14 * corePulse, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(-r * 0.05, -r * 0.20, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Core-rim (silver)
+  ctx.strokeStyle = metal;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(-r * 0.05, -r * 0.20, r * 0.14, 0, Math.PI * 2); ctx.stroke();
+  // Cables radiating from core
+  ctx.strokeStyle = metalDark;
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.10, -r * 0.30); ctx.lineTo(-r * 0.30, -r * 0.50);
+  ctx.moveTo(r * 0.05, -r * 0.30); ctx.lineTo(r * 0.25, -r * 0.50);
+  ctx.moveTo(-r * 0.05, -r * 0.05); ctx.lineTo(-r * 0.05, r * 0.20);
+  ctx.stroke();
+
+  // GENERATOR BACKPACK (large mech-pack with cooling-fins)
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(-r * 0.62, -r * 0.40, r * 0.18, r * 0.70);
+  // Cooling fins (horizontal slats)
+  ctx.fillStyle = metalDeep;
+  for (let i = 0; i < 6; i++) {
+    ctx.fillRect(-r * 0.62, -r * 0.36 + i * r * 0.10, r * 0.18, 2);
+  }
+  // Backpack-LED (red status)
+  ctx.fillStyle = '#ff3030';
+  ctx.shadowColor = '#ff3030'; ctx.shadowBlur = 4;
+  ctx.fillRect(-r * 0.56, -r * 0.32, r * 0.04, r * 0.04);
+  ctx.shadowBlur = 0;
+
+  // FRONT SIDE IS HUMAN (visible right side) — uniform + skin
+  // Uniform plate covering human side
+  ctx.fillStyle = flash ? '#fff' : '#2a3a44';
+  ctx.fillRect(-r * 0.25, -r * 0.55, r * 0.55, r * 0.95);
+  // Insignia patches
+  ctx.fillStyle = cyan;
+  ctx.fillRect(r * 0.05, -r * 0.45, r * 0.10, r * 0.08);
+  ctx.fillStyle = goldDark2(cyan);  // helper would be better, but inline
+  // Just use a manual darker shade
+  ctx.fillStyle = '#3a8aaa';
+  ctx.fillRect(r * 0.05, -r * 0.40, r * 0.10, 2);
+
+  // HUMAN BACK-ARM (left in canvas coord, behind torso)
+  ctx.fillStyle = flash ? '#fff' : '#2a3a44';
+  ctx.fillRect(-r * 0.20, -r * 0.30, r * 0.18, r * 0.60);
+  ctx.fillStyle = skinDark;
+  ctx.beginPath(); ctx.arc(-r * 0.11, r * 0.22, r * 0.13, 0, Math.PI * 2); ctx.fill();
+
+  // FRONT (RIGHT) ARM IS MECH — PLASMA CANNON
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(r * 0.10, -r * 0.40, r * 0.22, r * 0.45);
+  // Elbow-joint
+  ctx.fillStyle = metal;
+  ctx.beginPath(); ctx.arc(r * 0.20, r * 0.06, r * 0.12, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = cyan;
+  ctx.shadowColor = cyanGlow; ctx.shadowBlur = 4;
+  ctx.beginPath(); ctx.arc(r * 0.20, r * 0.06, r * 0.04, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // PLASMA CANNON (large mech-mounted weapon)
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(r * 0.10, r * 0.06, r * 0.20, r * 0.20);
+  // Cannon-barrel
+  ctx.fillStyle = metalDeep;
+  ctx.fillRect(r * 0.30, r * 0.08, r * 0.70, r * 0.16);
+  // Barrel-coils (4 cyan rings around barrel)
+  for (let i = 0; i < 4; i++) {
+    ctx.strokeStyle = cyan;
+    ctx.shadowColor = cyanGlow; ctx.shadowBlur = 6;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(r * 0.40 + i * r * 0.16, r * 0.16, r * 0.10, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+  // Cannon-muzzle (glowing cyan)
+  ctx.fillStyle = cyan;
+  ctx.shadowColor = cyanGlow; ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.arc(r * 1.05, r * 0.16, r * 0.10, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(r * 1.05, r * 0.16, r * 0.04, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // NECK (mostly mech)
+  ctx.fillStyle = metalDark;
+  ctx.fillRect(-r * 0.14, -r * 0.78, r * 0.28, r * 0.18);
+  // Neck-tubes (cables)
+  ctx.strokeStyle = '#ff8a30';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.10, -r * 0.78); ctx.lineTo(-r * 0.10, -r * 0.62);
+  ctx.moveTo(0, -r * 0.78); ctx.lineTo(0, -r * 0.62);
+  ctx.moveTo(r * 0.10, -r * 0.78); ctx.lineTo(r * 0.10, -r * 0.62);
+  ctx.stroke();
+
+  // HEAD — HALF HUMAN / HALF ROBOTIC
+  // Skull base
+  ctx.fillStyle = metalDark;
+  ctx.beginPath(); ctx.arc(0, -r * 0.95, r * 0.32, 0, Math.PI * 2); ctx.fill();
+  // HUMAN HALF (right side of face, +X)
+  ctx.fillStyle = skin;
+  ctx.beginPath();
+  ctx.arc(0, -r * 0.95, r * 0.32, -Math.PI / 2, Math.PI / 2);
+  ctx.lineTo(0, -r * 0.63);
+  ctx.closePath();
+  ctx.fill();
+  // Human jaw shadow
+  ctx.fillStyle = skinDark;
+  ctx.beginPath(); ctx.arc(r * 0.10, -r * 0.78, r * 0.10, 0, Math.PI); ctx.fill();
+  // SCAR across face
+  ctx.strokeStyle = '#7a3018';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.05, -r * 1.10);
+  ctx.lineTo(r * 0.05, -r * 0.65);
+  ctx.stroke();
+  // Human eye (intense)
+  ctx.fillStyle = '#1a1a14';
+  ctx.fillRect(r * 0.10, -r * 1.04, r * 0.08, r * 0.04);
+  // Eye highlight
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(r * 0.14, -r * 1.03, 1, 1);
+  // Eyebrow
+  ctx.fillStyle = '#3a1a08';
+  ctx.fillRect(r * 0.08, -r * 1.10, r * 0.10, 2);
+
+  // MECH HALF (left side of face, -X)
+  // Mech-plate edge (vertical seam)
+  ctx.fillStyle = metal;
+  ctx.fillRect(-r * 0.02, -r * 1.20, 2, r * 0.50);
+  // Red optical lens
+  ctx.fillStyle = '#ff2020';
+  ctx.shadowColor = '#ff2020';
+  ctx.shadowBlur = 10;
+  ctx.fillRect(-r * 0.20, -r * 1.04, r * 0.12, r * 0.06);
+  ctx.fillStyle = '#ffaaaa';
+  ctx.fillRect(-r * 0.16, -r * 1.03, r * 0.04, 2);
+  ctx.shadowBlur = 0;
+  // Mech-jaw (angular metal)
+  ctx.fillStyle = metalDark;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.32, -r * 0.80);
+  ctx.lineTo(-r * 0.02, -r * 0.65);
+  ctx.lineTo(-r * 0.02, -r * 0.85);
+  ctx.lineTo(-r * 0.30, -r * 0.92);
+  ctx.closePath();
+  ctx.fill();
+  // Mech-rivets på jaw
+  ctx.fillStyle = '#5a5a68';
+  ctx.beginPath(); ctx.arc(-r * 0.20, -r * 0.78, 1.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(-r * 0.12, -r * 0.74, 1.5, 0, Math.PI * 2); ctx.fill();
+
+  // ANTENNA on mech-half (small, blinking)
+  ctx.strokeStyle = metalDark;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.22, -r * 1.20); ctx.lineTo(-r * 0.28, -r * 1.42);
+  ctx.stroke();
+  const blink = Math.sin(now / 250) > 0;
+  if (blink) {
+    ctx.fillStyle = '#ff3a3a';
+    ctx.shadowColor = '#ff3a3a';
+    ctx.shadowBlur = 6;
+    ctx.beginPath(); ctx.arc(-r * 0.28, -r * 1.42, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+};
+
+// helper for inline shading (used by emberoracle etc) — only declare once
+function goldDark2(hex) {
+  // dummy that returns input (we use manual shades inline)
+  return hex;
+}
+
+// 6. EMBER ORACLE — Female pyromancer-officer med flamethrower + jetpack
+BOSS_DRAW.emberoracle = function(e, flash, now, phase, moving) {
+  const base = _drawBossMilitaryBase(e, flash, now, phase, {
+    pants: '#3a0a14', pantsDark: '#1a0408',
+    shirt: '#5a1a14', armor: '#1a0a08', armorLight: '#3a1a0a',
+    buckle: '#ff5a30',
+  });
+  const r = base.r;
+  const ember = '#ff5a30';
+  const emberGlow = '#ffae3a';
+  const gold = flash ? '#fff' : '#ffae3a';
+  const red = flash ? '#fff' : '#7a1818';
+  const skin = flash ? '#fff' : '#d0a888';
+  const hairRed = flash ? '#fff' : '#aa3a14';
+
+  // HOODED COMBAT-COAT (dark red, knee-length)
+  ctx.fillStyle = red;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.55, -r * 0.20);
+  ctx.lineTo(-r * 0.70, r * 1.40);
+  ctx.lineTo(r * 0.50, r * 1.40);
+  ctx.lineTo(r * 0.55, -r * 0.20);
+  ctx.lineTo(r * 0.45, r * 0.20);
+  ctx.lineTo(-r * 0.45, r * 0.20);
+  ctx.closePath();
+  ctx.fill();
+  // Coat-shadow (back side)
+  ctx.fillStyle = '#3a0a08';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.55, -r * 0.20);
+  ctx.lineTo(-r * 0.62, r * 1.20);
+  ctx.lineTo(-r * 0.45, r * 1.40);
+  ctx.lineTo(-r * 0.40, r * 0.20);
+  ctx.lineTo(-r * 0.45, -r * 0.20);
+  ctx.closePath();
+  ctx.fill();
+  // EMBER-STITCHING (glowing lines)
+  ctx.strokeStyle = ember;
+  ctx.shadowColor = emberGlow;
+  ctx.shadowBlur = 8;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.40, r * 0.30);
+  ctx.lineTo(-r * 0.50, r * 1.20);
+  ctx.moveTo(r * 0.20, r * 0.30);
+  ctx.lineTo(r * 0.30, r * 1.20);
+  ctx.moveTo(-r * 0.20, r * 0.60);
+  ctx.lineTo(-r * 0.30, r * 1.30);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // TORSO armor underneath coat (black plate-carrier med fire-runes)
+  ctx.fillStyle = '#1a0808';
+  ctx.fillRect(-r * 0.42, -r * 0.55, r * 0.84, r * 0.78);
+  // Fire-runes glowing on chest
+  ctx.fillStyle = ember;
+  ctx.shadowColor = emberGlow;
+  ctx.shadowBlur = 10;
+  ctx.fillRect(-r * 0.10, -r * 0.42, r * 0.20, r * 0.05);
+  ctx.fillRect(-r * 0.05, -r * 0.30, r * 0.10, r * 0.05);
+  ctx.fillRect(-r * 0.10, -r * 0.18, r * 0.20, r * 0.05);
+  ctx.shadowBlur = 0;
+  // Plate edge (gold)
+  ctx.fillStyle = gold;
+  ctx.fillRect(-r * 0.42, -r * 0.55, r * 0.84, r * 0.04);
+
+  // JETPACK on back (large with flame-thrusters)
+  ctx.fillStyle = '#3a1808';
+  ctx.fillRect(-r * 0.55, -r * 0.50, r * 0.18, r * 0.70);
+  // Jetpack fuel-tanks (cylindrical)
+  ctx.fillStyle = '#1a0a04';
+  ctx.fillRect(-r * 0.55, -r * 0.50, r * 0.08, r * 0.70);
+  ctx.fillStyle = '#5a1a08';
+  ctx.fillRect(-r * 0.45, -r * 0.50, r * 0.08, r * 0.70);
+  // Tank rings
+  ctx.fillStyle = gold;
+  ctx.fillRect(-r * 0.55, -r * 0.40, r * 0.18, 2);
+  ctx.fillRect(-r * 0.55, -r * 0.10, r * 0.18, 2);
+  ctx.fillRect(-r * 0.55, r * 0.10, r * 0.18, 2);
+  // FLAME-THRUSTERS (animated flames from jetpack base)
+  const flameH = r * 0.30 + Math.sin(now / 80) * 4;
+  // Outer flame
+  ctx.fillStyle = `rgba(255, 80, 30, ${0.8})`;
+  ctx.shadowColor = ember;
+  ctx.shadowBlur = 16;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.50, r * 0.30);
+  ctx.lineTo(-r * 0.55, r * 0.30 + flameH);
+  ctx.lineTo(-r * 0.40, r * 0.30 + flameH * 0.7);
+  ctx.closePath();
+  ctx.fill();
+  // Inner hot flame
+  ctx.fillStyle = '#ffeb3b';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.48, r * 0.30);
+  ctx.lineTo(-r * 0.50, r * 0.30 + flameH * 0.6);
+  ctx.lineTo(-r * 0.44, r * 0.30 + flameH * 0.5);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // BACK ARM
+  ctx.fillStyle = red;
+  ctx.fillRect(-r * 0.20, -r * 0.30, r * 0.16, r * 0.55);
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(-r * 0.12, r * 0.22, r * 0.10, 0, Math.PI * 2); ctx.fill();
+
+  // FRONT ARM — holds FLAMETHROWER
+  ctx.fillStyle = red;
+  ctx.fillRect(r * 0.04, -r * 0.30, r * 0.16, r * 0.55);
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(r * 0.10, r * 0.22, r * 0.10, 0, Math.PI * 2); ctx.fill();
+
+  // FLAMETHROWER (large, military-style)
+  // Body of flamethrower
+  ctx.fillStyle = '#1a0a04';
+  ctx.fillRect(r * 0.05, -r * 0.05, r * 0.40, r * 0.18);
+  // Fuel-feed tube
+  ctx.fillStyle = ember;
+  ctx.shadowColor = emberGlow; ctx.shadowBlur = 4;
+  ctx.fillRect(r * 0.10, -r * 0.04, r * 0.25, r * 0.02);
+  ctx.shadowBlur = 0;
+  // Barrel (slim, long)
+  ctx.fillStyle = '#0a0a04';
+  ctx.fillRect(r * 0.45, -r * 0.02, r * 0.50, r * 0.10);
+  // Ignition (pilot flame at tip)
+  const igPulse = 0.85 + Math.sin(now / 150) * 0.15;
+  ctx.fillStyle = '#ffeb3b';
+  ctx.shadowColor = emberGlow;
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.arc(r * 1.00, r * 0.04, r * 0.06 * igPulse, 0, Math.PI * 2);
+  ctx.fill();
+  // Inner hot core
+  ctx.fillStyle = '#fff';
+  ctx.beginPath(); ctx.arc(r * 1.00, r * 0.04, r * 0.03, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Trigger-grip
+  ctx.fillStyle = '#3a1a08';
+  ctx.fillRect(r * 0.12, r * 0.13, r * 0.08, r * 0.10);
+
+  // FLOATING FIRE-PARTICLES around boss (signature)
+  for (let i = 0; i < 5; i++) {
+    const t = (now / 600 + i / 5) % 1;
+    const fx = Math.cos(t * Math.PI * 2 + i) * r * 1.3;
+    const fy = Math.sin(t * Math.PI * 2 + i) * r * 1.0 - r * 0.2;
+    ctx.fillStyle = ember;
+    ctx.shadowColor = emberGlow;
+    ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.arc(fx, fy, 2.5, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+
+  // NECK
+  ctx.fillStyle = skin;
+  ctx.fillRect(-r * 0.08, -r * 0.72, r * 0.16, r * 0.16);
+
+  // HEAD — female face (slim feminine)
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(0, -r * 0.88, r * 0.26, 0, Math.PI * 2); ctx.fill();
+  // Lipstick (red lips)
+  ctx.fillStyle = '#a02828';
+  ctx.fillRect(r * 0.10, -r * 0.78, r * 0.10, 2);
+  // GLOWING RED EYES
+  ctx.fillStyle = ember;
+  ctx.shadowColor = emberGlow;
+  ctx.shadowBlur = 12;
+  ctx.fillRect(r * 0.06, -r * 0.95, r * 0.10, r * 0.05);
+  // Eye highlight
+  ctx.fillStyle = '#ffeb3b';
+  ctx.fillRect(r * 0.10, -r * 0.94, r * 0.04, r * 0.03);
+  ctx.shadowBlur = 0;
+
+  // LONG RED HAIR flowing under hood
+  ctx.fillStyle = hairRed;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.20, -r * 0.85);
+  ctx.bezierCurveTo(-r * 0.40, -r * 0.50, -r * 0.35, r * 0.00, -r * 0.20, r * 0.30);
+  ctx.lineTo(-r * 0.05, r * 0.25);
+  ctx.bezierCurveTo(-r * 0.20, -r * 0.10, -r * 0.20, -r * 0.50, -r * 0.10, -r * 0.85);
+  ctx.closePath();
+  ctx.fill();
+  // Hair shading
+  ctx.fillStyle = '#7a1808';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.30, -r * 0.30);
+  ctx.bezierCurveTo(-r * 0.40, -r * 0.00, -r * 0.30, r * 0.20, -r * 0.20, r * 0.25);
+  ctx.lineTo(-r * 0.25, r * 0.10);
+  ctx.bezierCurveTo(-r * 0.32, -r * 0.10, -r * 0.32, -r * 0.20, -r * 0.30, -r * 0.30);
+  ctx.closePath();
+  ctx.fill();
+
+  // HOOD covering top of head (dark red)
+  ctx.fillStyle = '#3a0a08';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.40, -r * 0.78);
+  ctx.quadraticCurveTo(-r * 0.46, -r * 1.20, 0, -r * 1.28);
+  ctx.quadraticCurveTo(r * 0.46, -r * 1.20, r * 0.40, -r * 0.78);
+  ctx.lineTo(r * 0.20, -r * 0.78);
+  ctx.bezierCurveTo(r * 0.30, -r * 1.10, -r * 0.30, -r * 1.10, -r * 0.20, -r * 0.78);
+  ctx.closePath();
+  ctx.fill();
+  // Hood-trim (ember-glow)
+  ctx.strokeStyle = ember;
+  ctx.shadowColor = emberGlow; ctx.shadowBlur = 6;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.40, -r * 0.80);
+  ctx.quadraticCurveTo(-r * 0.46, -r * 1.20, 0, -r * 1.28);
+  ctx.quadraticCurveTo(r * 0.46, -r * 1.20, r * 0.40, -r * 0.80);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+};
+
+// 7. BLIGHT SOVEREIGN — Hazmat war-commander med gas-mask + toxic vials
+BOSS_DRAW.blightsovereign = function(e, flash, now, phase, moving) {
+  const base = _drawBossMilitaryBase(e, flash, now, phase, {
+    pants: '#1a2a18', pantsDark: '#0a1408',
+    shirt: '#2a3a20', armor: '#1a3a28', armorLight: '#3a5a3a',
+    buckle: '#9aff5a',
+  });
+  const r = base.r;
+  const toxic = '#9aff5a';
+  const toxicGlow = '#5affae';
+  const toxicDeep = flash ? '#fff' : '#2a4a18';
+  const hazmat = flash ? '#fff' : '#3a5a2a';
+  const rubber = flash ? '#fff' : '#1a2a14';
+
+  // HAZMAT-PLATE on torso (thick rubber over plate-carrier)
+  ctx.fillStyle = rubber;
+  ctx.fillRect(-r * 0.50, -r * 0.55, r * 1.00, r * 0.85);
+  // Hazmat-seams (rubber stitching)
+  ctx.fillStyle = '#0a1208';
+  ctx.fillRect(-r * 0.50, -r * 0.30, r * 1.00, 2);
+  ctx.fillRect(-r * 0.50, r * 0.00, r * 1.00, 2);
+  // BIOHAZARD SYMBOL on chest (large yellow trefoil)
+  ctx.fillStyle = '#ffd54a';
+  ctx.shadowColor = '#ffae3a';
+  ctx.shadowBlur = 4;
+  for (let i = 0; i < 3; i++) {
+    const a = -Math.PI / 2 + i * Math.PI * 2 / 3;
+    const px = Math.cos(a) * r * 0.18;
+    const py = -r * 0.20 + Math.sin(a) * r * 0.18;
+    ctx.beginPath();
+    ctx.arc(px, py, r * 0.10, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = '#0a0a08';
+  ctx.beginPath(); ctx.arc(0, -r * 0.20, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // 6 TOXIC VIALS on bandolier
+  ctx.fillStyle = '#1a0a08';
+  ctx.fillRect(-r * 0.50, r * 0.10, r * 1.00, r * 0.12);
+  for (let i = 0; i < 6; i++) {
+    const vx = -r * 0.42 + i * r * 0.16;
+    // Vial body
+    ctx.fillStyle = '#3a3a3a';
+    ctx.fillRect(vx, r * 0.04, r * 0.10, r * 0.20);
+    // Toxic liquid inside (green glow)
+    ctx.fillStyle = toxic;
+    ctx.shadowColor = toxicGlow;
+    ctx.shadowBlur = 6;
+    ctx.fillRect(vx + 1, r * 0.08, r * 0.10 - 2, r * 0.14);
+    ctx.shadowBlur = 0;
+    // Vial-cap (gold)
+    ctx.fillStyle = '#a07a18';
+    ctx.fillRect(vx, r * 0.02, r * 0.10, r * 0.03);
+  }
+
+  // TOXIN-TANK (large green canister på rygg)
+  ctx.fillStyle = '#1a3a18';
+  ctx.fillRect(-r * 0.60, -r * 0.45, r * 0.16, r * 0.80);
+  // Tank fluid-window (visible liquid level)
+  ctx.fillStyle = toxic;
+  ctx.shadowColor = toxicGlow;
+  ctx.shadowBlur = 10;
+  ctx.fillRect(-r * 0.56, -r * 0.30, r * 0.08, r * 0.50);
+  ctx.shadowBlur = 0;
+  // Tank rings
+  ctx.fillStyle = '#0a1a08';
+  ctx.fillRect(-r * 0.60, -r * 0.20, r * 0.16, 2);
+  ctx.fillRect(-r * 0.60, r * 0.10, r * 0.16, 2);
+  // Tank-cap (top)
+  ctx.fillStyle = '#3a4a18';
+  ctx.fillRect(-r * 0.60, -r * 0.48, r * 0.16, r * 0.06);
+  // Hose from tank to mask
+  ctx.strokeStyle = '#3a4a18';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.52, -r * 0.46);
+  ctx.bezierCurveTo(-r * 0.40, -r * 0.70, -r * 0.20, -r * 0.85, -r * 0.10, -r * 0.85);
+  ctx.stroke();
+
+  // BACK ARM (sleeve)
+  ctx.fillStyle = rubber;
+  ctx.fillRect(-r * 0.22, -r * 0.40, r * 0.18, r * 0.65);
+
+  // FRONT ARM (holds gas-launcher)
+  ctx.fillStyle = rubber;
+  ctx.fillRect(r * 0.04, -r * 0.40, r * 0.18, r * 0.55);
+  // Hazmat glove
+  ctx.fillStyle = '#0a1208';
+  ctx.beginPath(); ctx.arc(r * 0.12, r * 0.20, r * 0.13, 0, Math.PI * 2); ctx.fill();
+
+  // GAS-LAUNCHER (modified sniper rifle med vial-feed)
+  const gunY = -r * 0.05;
+  // Stock
+  ctx.fillStyle = '#3a3a30';
+  ctx.fillRect(-r * 0.42, gunY - r * 0.04, r * 0.30, r * 0.18);
+  // Receiver
+  ctx.fillStyle = '#1a1a14';
+  ctx.fillRect(-r * 0.12, gunY - r * 0.06, r * 0.30, r * 0.20);
+  // VIAL-FEED on top (3 toxic vials)
+  for (let i = 0; i < 3; i++) {
+    const vx = -r * 0.10 + i * r * 0.08;
+    ctx.fillStyle = toxic;
+    ctx.shadowColor = toxicGlow; ctx.shadowBlur = 6;
+    ctx.fillRect(vx, gunY - r * 0.20, r * 0.06, r * 0.14);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#a07a18';
+    ctx.fillRect(vx, gunY - r * 0.21, r * 0.06, 2);
+  }
+  // Barrel
+  ctx.fillStyle = '#0a0a08';
+  ctx.fillRect(r * 0.18, gunY - r * 0.02, r * 0.60, r * 0.10);
+  // Muzzle med green-mist glow
+  ctx.fillStyle = toxic;
+  ctx.shadowColor = toxicGlow; ctx.shadowBlur = 10;
+  ctx.beginPath(); ctx.arc(r * 0.78, gunY + r * 0.03, r * 0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Scope
+  ctx.fillStyle = '#1a1a14';
+  ctx.fillRect(r * 0.00, gunY - r * 0.30, r * 0.18, r * 0.10);
+  ctx.fillStyle = toxic;
+  ctx.beginPath(); ctx.arc(r * 0.16, gunY - r * 0.25, r * 0.04, 0, Math.PI * 2); ctx.fill();
+
+  // NECK
+  ctx.fillStyle = rubber;
+  ctx.fillRect(-r * 0.14, -r * 0.75, r * 0.28, r * 0.15);
+
+  // ELABORATE GAS-MASK (no human face visible)
+  // Mask-base (dark rubber)
+  ctx.fillStyle = '#0a1408';
+  ctx.beginPath();
+  ctx.ellipse(0, -r * 0.95, r * 0.34, r * 0.34, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Mask-shape (angular)
+  ctx.fillStyle = '#1a2410';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.30, -r * 0.90);
+  ctx.lineTo(-r * 0.20, -r * 1.20);
+  ctx.lineTo(r * 0.20, -r * 1.20);
+  ctx.lineTo(r * 0.30, -r * 0.90);
+  ctx.lineTo(r * 0.20, -r * 0.60);
+  ctx.lineTo(-r * 0.20, -r * 0.60);
+  ctx.closePath();
+  ctx.fill();
+  // GLOWING GREEN EYE-LENSES (round goggles)
+  ctx.fillStyle = '#0a0a04';
+  ctx.beginPath(); ctx.arc(-r * 0.10, -r * 1.00, r * 0.10, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.10, -r * 1.00, r * 0.10, 0, Math.PI * 2); ctx.fill();
+  // Lens-glow inside
+  ctx.fillStyle = toxic;
+  ctx.shadowColor = toxicGlow;
+  ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.arc(-r * 0.10, -r * 1.00, r * 0.07, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.10, -r * 1.00, r * 0.07, 0, Math.PI * 2); ctx.fill();
+  // Lens-reflection (white highlight)
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(-r * 0.12, -r * 1.02, 2, 2);
+  ctx.fillRect(r * 0.08, -r * 1.02, 2, 2);
+  ctx.shadowBlur = 0;
+  // FILTERS (3 large cylinders on right side of mask — signature)
+  for (let f = 0; f < 3; f++) {
+    const fx = r * 0.25 + f * r * 0.12;
+    const fy = -r * 0.70 + f * r * 0.10;
+    ctx.fillStyle = '#3a4a18';
+    ctx.fillRect(fx, fy, r * 0.10, r * 0.20);
+    ctx.fillStyle = '#1a2a08';
+    ctx.fillRect(fx, fy + r * 0.05, r * 0.10, r * 0.02);
+    ctx.fillRect(fx, fy + r * 0.13, r * 0.10, r * 0.02);
+    // Filter-vent holes
+    ctx.fillStyle = '#000';
+    ctx.fillRect(fx + 2, fy + r * 0.18, 1.5, 1.5);
+    ctx.fillRect(fx + 5, fy + r * 0.18, 1.5, 1.5);
+  }
+  // EXHALE-WISP from filters (animated green mist)
+  const exhalePulse = 0.5 + Math.sin(now / 300) * 0.5;
+  if (exhalePulse > 0.3) {
+    ctx.fillStyle = `rgba(154, 255, 90, ${0.4 * exhalePulse})`;
+    ctx.beginPath();
+    ctx.arc(r * 0.55, -r * 0.40, r * 0.10, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // TOXIC GREEN AURA around feet (pulsing)
+  const auraPulse = 0.7 + Math.sin(now / 350) * 0.3;
+  ctx.fillStyle = `rgba(90, 255, 174, ${0.25 * auraPulse})`;
+  ctx.beginPath();
+  ctx.ellipse(0, r * 1.30, r * 1.20 * auraPulse, r * 0.30, 0, 0, Math.PI * 2);
+  ctx.fill();
+};
+
+// 8. BURIED CROWN — Undead-king military commander, dirt-caked, ancient
+BOSS_DRAW.buriedcrown = function(e, flash, now, phase, moving) {
+  const base = _drawBossMilitaryBase(e, flash, now, phase, {
+    pants: '#3a2818', pantsDark: '#1a1208',
+    shirt: '#2a1a14', armor: '#1a0a08', armorLight: '#3a2018',
+    buckle: '#ffd54a',
+  });
+  const r = base.r;
+  const dirt = flash ? '#fff' : '#3a2a18';
+  const dirtDark = flash ? '#fff' : '#1a1208';
+  const skin = flash ? '#fff' : '#a08870';
+  const skinDark = flash ? '#fff' : '#5a4030';
+  const royalDark = flash ? '#fff' : '#1a0a14';
+  const royalGold = flash ? '#fff' : '#a07a18';
+  const bloodRed = '#3a0a08';
+
+  // ROYAL COAT (dark blue-purple med gold trim, mud-stained)
+  ctx.fillStyle = royalDark;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.55, -r * 0.20);
+  ctx.lineTo(-r * 0.65, r * 1.40);
+  ctx.lineTo(r * 0.50, r * 1.40);
+  ctx.lineTo(r * 0.55, -r * 0.20);
+  ctx.closePath();
+  ctx.fill();
+  // Gold trim down center
+  ctx.fillStyle = royalGold;
+  ctx.fillRect(-r * 0.03, -r * 0.20, r * 0.06, r * 1.40);
+  // GOLD BUTTONS down coat
+  for (let i = 0; i < 5; i++) {
+    ctx.fillStyle = royalGold;
+    ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 2;
+    ctx.beginPath(); ctx.arc(0, r * 0.10 + i * r * 0.22, r * 0.04, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+  }
+  // DIRT/MUD STREAKS on coat (signature)
+  ctx.fillStyle = dirt;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.55, r * 0.40);
+  ctx.lineTo(-r * 0.20, r * 1.20);
+  ctx.lineTo(-r * 0.15, r * 1.30);
+  ctx.lineTo(-r * 0.40, r * 0.40);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = dirtDark;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.10, r * 0.60);
+  ctx.lineTo(r * 0.30, r * 1.30);
+  ctx.lineTo(r * 0.40, r * 1.30);
+  ctx.lineTo(r * 0.20, r * 0.60);
+  ctx.closePath();
+  ctx.fill();
+  // Mud-splatter blobs
+  for (let i = 0; i < 8; i++) {
+    ctx.fillStyle = dirt;
+    const bx = -r * 0.50 + (i * r * 0.16) % r * 1.00;
+    const by = r * 0.10 + ((i * 7) % 10) * r * 0.10;
+    ctx.beginPath(); ctx.arc(bx, by, 2 + (i % 3), 0, Math.PI * 2); ctx.fill();
+  }
+
+  // CHEST INSIGNIA (royal crest, tarnished)
+  ctx.fillStyle = royalGold;
+  ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 4;
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 0.45);
+  ctx.lineTo(-r * 0.10, -r * 0.30);
+  ctx.lineTo(-r * 0.06, -r * 0.20);
+  ctx.lineTo(r * 0.06, -r * 0.20);
+  ctx.lineTo(r * 0.10, -r * 0.30);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = bloodRed;
+  ctx.fillRect(-r * 0.02, -r * 0.35, r * 0.04, r * 0.10);
+
+  // ROOT-VINES wrapped around limbs (signaling 'buried')
+  ctx.strokeStyle = '#2a1a08';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.20, r * 0.50);
+  ctx.bezierCurveTo(-r * 0.35, r * 0.80, -r * 0.25, r * 1.10, -r * 0.30, r * 1.40);
+  ctx.moveTo(r * 0.20, r * 0.40);
+  ctx.bezierCurveTo(r * 0.30, r * 0.75, r * 0.30, r * 1.10, r * 0.25, r * 1.40);
+  ctx.stroke();
+  // Small leaves on vines
+  ctx.fillStyle = '#3a4a18';
+  ctx.beginPath(); ctx.ellipse(-r * 0.32, r * 0.95, 3, 5, -0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(r * 0.30, r * 0.85, 3, 5, 0.3, 0, Math.PI * 2); ctx.fill();
+
+  // EXPOSED BONES poking through fabric (decay-spots)
+  ctx.fillStyle = '#e0d8c0';
+  ctx.fillRect(r * 0.22, r * 0.20, r * 0.04, r * 0.08);
+  ctx.fillRect(-r * 0.34, r * 0.50, r * 0.04, r * 0.08);
+
+  // BACK ARM
+  ctx.fillStyle = royalDark;
+  ctx.fillRect(-r * 0.22, -r * 0.40, r * 0.20, r * 0.65);
+  // Dirt-streak on arm
+  ctx.fillStyle = dirt;
+  ctx.fillRect(-r * 0.22, r * 0.05, r * 0.20, r * 0.15);
+
+  // FRONT ARM (holds ROYAL SCEPTER)
+  ctx.fillStyle = royalDark;
+  ctx.fillRect(r * 0.06, -r * 0.30, r * 0.18, r * 0.55);
+  ctx.fillStyle = skinDark;
+  ctx.beginPath(); ctx.arc(r * 0.14, r * 0.20, r * 0.12, 0, Math.PI * 2); ctx.fill();
+
+  // ROYAL SCEPTER (long staff med ruby orb)
+  ctx.fillStyle = royalGold;
+  ctx.fillRect(r * 0.12, -r * 1.20, r * 0.06, r * 1.30);
+  // Scepter shaft texture
+  ctx.strokeStyle = '#5a3818';
+  ctx.lineWidth = 0.6;
+  for (let i = 0; i < 6; i++) {
+    ctx.beginPath();
+    ctx.moveTo(r * 0.12, -r * 1.00 + i * r * 0.18);
+    ctx.lineTo(r * 0.18, -r * 1.00 + i * r * 0.18);
+    ctx.stroke();
+  }
+  // RUBY ORB on top
+  ctx.fillStyle = '#aa0808';
+  ctx.shadowColor = '#ff2020';
+  ctx.shadowBlur = 14;
+  ctx.beginPath(); ctx.arc(r * 0.15, -r * 1.32, r * 0.10, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ff6060';
+  ctx.beginPath(); ctx.arc(r * 0.13, -r * 1.34, r * 0.04, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Ruby cradle (gold prongs)
+  ctx.fillStyle = royalGold;
+  for (let p = 0; p < 4; p++) {
+    const pa = -Math.PI / 2 + p * Math.PI * 2 / 4;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.15 + Math.cos(pa) * r * 0.08, -r * 1.32 + Math.sin(pa) * r * 0.08);
+    ctx.lineTo(r * 0.15 + Math.cos(pa) * r * 0.12, -r * 1.32 + Math.sin(pa) * r * 0.12);
+    ctx.lineTo(r * 0.15 + Math.cos(pa + 0.3) * r * 0.10, -r * 1.32 + Math.sin(pa + 0.3) * r * 0.10);
+    ctx.fill();
+  }
+
+  // NECK
+  ctx.fillStyle = skinDark;
+  ctx.fillRect(-r * 0.10, -r * 0.78, r * 0.20, r * 0.16);
+
+  // HEAD — pale gaunt undead face
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(0, -r * 0.96, r * 0.30, 0, Math.PI * 2); ctx.fill();
+  // Hollow cheeks
+  ctx.fillStyle = skinDark;
+  ctx.beginPath(); ctx.arc(r * 0.10, -r * 0.85, r * 0.12, 0, Math.PI); ctx.fill();
+  // EARTH SMUDGES on face
+  ctx.fillStyle = dirtDark;
+  ctx.beginPath(); ctx.arc(-r * 0.08, -r * 0.92, r * 0.04, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.20, -r * 0.78, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  // GLOWING RED EYES (dead-but-alive)
+  ctx.fillStyle = '#ff3030';
+  ctx.shadowColor = '#ff5050';
+  ctx.shadowBlur = 12;
+  ctx.fillRect(r * 0.06, -r * 1.04, r * 0.10, r * 0.05);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(r * 0.10, -r * 1.03, 1, 1);
+  ctx.shadowBlur = 0;
+  // BLOOD-MARKS dried (corner of mouth + forehead)
+  ctx.fillStyle = bloodRed;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.18, -r * 0.75);
+  ctx.lineTo(r * 0.20, -r * 0.65);
+  ctx.lineTo(r * 0.22, -r * 0.75);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r * 0.05, -r * 1.12);
+  ctx.lineTo(r * 0.08, -r * 1.05);
+  ctx.fill();
+
+  // BLACKENED IRON CROWN med RED GEMSTONE (signature)
+  // Crown band
+  ctx.fillStyle = '#1a0a08';
+  ctx.fillRect(-r * 0.30, -r * 1.25, r * 0.60, r * 0.10);
+  // Crown spikes (5)
+  for (let s = 0; s < 5; s++) {
+    const sx = -r * 0.24 + s * r * 0.12;
+    ctx.beginPath();
+    ctx.moveTo(sx, -r * 1.25);
+    ctx.lineTo(sx + r * 0.04, -r * 1.50 - (s === 2 ? r * 0.10 : 0));
+    ctx.lineTo(sx + r * 0.08, -r * 1.25);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Central RED GEMSTONE on crown
+  ctx.fillStyle = '#aa0808';
+  ctx.shadowColor = '#ff2020';
+  ctx.shadowBlur = 12;
+  ctx.beginPath(); ctx.arc(0, -r * 1.18, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ff6060';
+  ctx.beginPath(); ctx.arc(-r * 0.01, -r * 1.20, r * 0.02, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Crown rust streaks
+  ctx.fillStyle = '#5a2010';
+  ctx.fillRect(-r * 0.10, -r * 1.20, 1, r * 0.05);
+  ctx.fillRect(r * 0.10, -r * 1.22, 1, r * 0.04);
+
+  // FLOATING DIRT-PARTICLES around boss
+  for (let i = 0; i < 4; i++) {
+    const t = (now / 1200 + i / 4) % 1;
+    const dx = Math.cos(t * Math.PI * 2 + i) * r * 1.2;
+    const dy = -r * 0.5 + Math.sin(t * Math.PI * 3) * r * 0.3 + t * r * 0.4;
+    ctx.fillStyle = dirt;
+    ctx.beginPath(); ctx.arc(dx, dy, 1.5, 0, Math.PI * 2); ctx.fill();
+  }
+};
+
+// 9. THE LAST SOVEREIGN — Supreme imperial commander, dark purple, twin swords, regal
+BOSS_DRAW.lastsovereign = function(e, flash, now, phase, moving) {
+  const base = _drawBossMilitaryBase(e, flash, now, phase, {
+    pants: '#1a0814', pantsDark: '#0a040a',
+    shirt: '#1a0a14', armor: '#0a0408', armorLight: '#3a1a44',
+    buckle: '#ffd54a',
+  });
+  const r = base.r;
+  const purple = '#aa3aff';
+  const purpleGlow = '#cc8aff';
+  const gold = flash ? '#fff' : '#ffd54a';
+  const goldDark = flash ? '#fff' : '#a07a18';
+  const royal = flash ? '#fff' : '#1a0a14';
+  const royalLight = flash ? '#fff' : '#3a1a44';
+
+  // IMPERIAL CAPE flowing behind (long purple)
+  ctx.fillStyle = '#1a0828';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.55, -r * 0.55);
+  ctx.lineTo(-r * 0.85, r * 1.40);
+  ctx.lineTo(-r * 0.40, r * 1.45);
+  ctx.lineTo(-r * 0.30, -r * 0.50);
+  ctx.closePath();
+  ctx.fill();
+  // Cape inner-light (purple velvet sheen)
+  ctx.fillStyle = '#2a0e3a';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.50, -r * 0.50);
+  ctx.lineTo(-r * 0.70, r * 1.30);
+  ctx.lineTo(-r * 0.55, r * 1.35);
+  ctx.lineTo(-r * 0.35, -r * 0.45);
+  ctx.closePath();
+  ctx.fill();
+  // Cape gold-trim border
+  ctx.strokeStyle = gold;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.55, -r * 0.55);
+  ctx.lineTo(-r * 0.85, r * 1.40);
+  ctx.stroke();
+  // Imperial eagle pattern on cape
+  ctx.fillStyle = gold;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.55, r * 0.40);
+  ctx.lineTo(-r * 0.65, r * 0.50);
+  ctx.lineTo(-r * 0.55, r * 0.55);
+  ctx.lineTo(-r * 0.50, r * 0.50);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.60, r * 0.80);
+  ctx.lineTo(-r * 0.70, r * 0.90);
+  ctx.lineTo(-r * 0.60, r * 0.95);
+  ctx.lineTo(-r * 0.55, r * 0.90);
+  ctx.closePath();
+  ctx.fill();
+
+  // BLACK CEREMONIAL PLATE-ARMOR (massive, gold+purple trim)
+  ctx.fillStyle = royal;
+  ctx.fillRect(-r * 0.55, -r * 0.55, r * 1.10, r * 0.85);
+  // Armor seams (vertical center)
+  ctx.fillStyle = goldDark;
+  ctx.fillRect(-r * 0.02, -r * 0.55, 4, r * 0.85);
+  // Plate-sections (horizontal)
+  ctx.fillStyle = royalLight;
+  ctx.fillRect(-r * 0.55, -r * 0.30, r * 1.10, 4);
+  ctx.fillRect(-r * 0.55, r * 0.00, r * 1.10, 4);
+  // GOLD TRIM ALONG EDGES
+  ctx.strokeStyle = gold;
+  ctx.lineWidth = 2.5;
+  ctx.strokeRect(-r * 0.55, -r * 0.55, r * 1.10, r * 0.85);
+
+  // MASSIVE IMPERIAL EAGLE EMBLEM on chest
+  ctx.fillStyle = gold;
+  ctx.shadowColor = '#ffd54a';
+  ctx.shadowBlur = 6;
+  // Eagle body
+  ctx.beginPath();
+  ctx.moveTo(0, -r * 0.40);
+  ctx.lineTo(-r * 0.05, -r * 0.20);
+  ctx.lineTo(0, -r * 0.10);
+  ctx.lineTo(r * 0.05, -r * 0.20);
+  ctx.closePath();
+  ctx.fill();
+  // Eagle wings (spread)
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.05, -r * 0.30);
+  ctx.lineTo(-r * 0.30, -r * 0.25);
+  ctx.lineTo(-r * 0.20, -r * 0.18);
+  ctx.lineTo(-r * 0.05, -r * 0.22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r * 0.05, -r * 0.30);
+  ctx.lineTo(r * 0.30, -r * 0.25);
+  ctx.lineTo(r * 0.20, -r * 0.18);
+  ctx.lineTo(r * 0.05, -r * 0.22);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // Eagle head detail
+  ctx.fillStyle = goldDark;
+  ctx.beginPath(); ctx.arc(0, -r * 0.40, 3, 0, Math.PI * 2); ctx.fill();
+
+  // SHOULDER PAULDRONS (massive black + gold spikes)
+  ctx.fillStyle = royal;
+  ctx.beginPath(); ctx.arc(-r * 0.55, -r * 0.50, r * 0.22, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.55, -r * 0.50, r * 0.22, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = gold;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(-r * 0.55, -r * 0.50, r * 0.22, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(r * 0.55, -r * 0.50, r * 0.22, 0, Math.PI * 2); ctx.stroke();
+  // Pauldron gold-spike tops
+  ctx.fillStyle = gold;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.45, -r * 0.70);
+  ctx.lineTo(r * 0.55, -r * 0.90);
+  ctx.lineTo(r * 0.65, -r * 0.70);
+  ctx.closePath();
+  ctx.fill();
+
+  // BACK ARM (holds twin-sword 1)
+  ctx.fillStyle = royal;
+  ctx.fillRect(-r * 0.25, -r * 0.40, r * 0.22, r * 0.65);
+  // Gauntlet (gold)
+  ctx.fillStyle = goldDark;
+  ctx.beginPath(); ctx.arc(-r * 0.14, r * 0.22, r * 0.13, 0, Math.PI * 2); ctx.fill();
+
+  // FRONT ARM (holds twin-sword 2)
+  ctx.fillStyle = royal;
+  ctx.fillRect(r * 0.04, -r * 0.40, r * 0.22, r * 0.65);
+  ctx.fillStyle = goldDark;
+  ctx.beginPath(); ctx.arc(r * 0.14, r * 0.22, r * 0.13, 0, Math.PI * 2); ctx.fill();
+
+  // TWIN CEREMONIAL SWORDS (one per hand)
+  // Back-sword (diagonal up-left)
+  ctx.save();
+  ctx.translate(-r * 0.14, r * 0.20);
+  ctx.rotate(-0.4);
+  // Hilt
+  ctx.fillStyle = goldDark;
+  ctx.fillRect(-r * 0.04, -r * 0.20, r * 0.08, r * 0.18);
+  // Cross-guard
+  ctx.fillStyle = gold;
+  ctx.fillRect(-r * 0.10, -r * 0.22, r * 0.20, r * 0.04);
+  // Blade (purple-glow)
+  ctx.fillStyle = '#e6e6f0';
+  ctx.fillRect(-r * 0.03, -r * 1.10, r * 0.06, r * 0.88);
+  // Purple-glow runes on blade
+  ctx.fillStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 8;
+  ctx.fillRect(-r * 0.02, -r * 1.00, r * 0.04, r * 0.04);
+  ctx.fillRect(-r * 0.02, -r * 0.80, r * 0.04, r * 0.04);
+  ctx.fillRect(-r * 0.02, -r * 0.60, r * 0.04, r * 0.04);
+  ctx.fillRect(-r * 0.02, -r * 0.40, r * 0.04, r * 0.04);
+  ctx.shadowBlur = 0;
+  // Blade-tip
+  ctx.fillStyle = '#fafaff';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.03, -r * 1.10);
+  ctx.lineTo(0, -r * 1.20);
+  ctx.lineTo(r * 0.03, -r * 1.10);
+  ctx.fill();
+  ctx.restore();
+  // Front-sword (diagonal up-right)
+  ctx.save();
+  ctx.translate(r * 0.14, r * 0.20);
+  ctx.rotate(0.4);
+  ctx.fillStyle = goldDark;
+  ctx.fillRect(-r * 0.04, -r * 0.20, r * 0.08, r * 0.18);
+  ctx.fillStyle = gold;
+  ctx.fillRect(-r * 0.10, -r * 0.22, r * 0.20, r * 0.04);
+  ctx.fillStyle = '#e6e6f0';
+  ctx.fillRect(-r * 0.03, -r * 1.10, r * 0.06, r * 0.88);
+  ctx.fillStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 8;
+  ctx.fillRect(-r * 0.02, -r * 1.00, r * 0.04, r * 0.04);
+  ctx.fillRect(-r * 0.02, -r * 0.80, r * 0.04, r * 0.04);
+  ctx.fillRect(-r * 0.02, -r * 0.60, r * 0.04, r * 0.04);
+  ctx.fillRect(-r * 0.02, -r * 0.40, r * 0.04, r * 0.04);
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fafaff';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.03, -r * 1.10);
+  ctx.lineTo(0, -r * 1.20);
+  ctx.lineTo(r * 0.03, -r * 1.10);
+  ctx.fill();
+  ctx.restore();
+
+  // HIGH GOLD COLLAR (regal)
+  ctx.fillStyle = gold;
+  ctx.fillRect(-r * 0.20, -r * 0.78, r * 0.40, r * 0.18);
+  ctx.fillStyle = goldDark;
+  ctx.fillRect(-r * 0.20, -r * 0.62, r * 0.40, 3);
+  // Collar gems
+  ctx.fillStyle = purple;
+  ctx.shadowColor = purpleGlow; ctx.shadowBlur = 4;
+  ctx.beginPath(); ctx.arc(-r * 0.10, -r * 0.70, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, -r * 0.70, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.10, -r * 0.70, 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // HEAD — imperial commander face (mature, intimidating)
+  ctx.fillStyle = flash ? '#fff' : '#c89870';
+  ctx.beginPath(); ctx.arc(0, -r * 0.95, r * 0.30, 0, Math.PI * 2); ctx.fill();
+  // Strong jaw
+  ctx.fillStyle = flash ? '#fff' : '#8a6242';
+  ctx.beginPath(); ctx.arc(r * 0.06, -r * 0.78, r * 0.14, 0, Math.PI); ctx.fill();
+  // Imperial well-groomed BEARD
+  ctx.fillStyle = flash ? '#fff' : '#1a0808';
+  ctx.beginPath();
+  ctx.ellipse(r * 0.02, -r * 0.74, r * 0.20, r * 0.10, 0, 0, Math.PI);
+  ctx.fill();
+  // Mustache
+  ctx.fillStyle = flash ? '#fff' : '#0a0408';
+  ctx.fillRect(0, -r * 0.82, r * 0.18, 3);
+  // GLOWING PURPLE EYES
+  ctx.fillStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 12;
+  ctx.fillRect(r * 0.06, -r * 1.04, r * 0.10, r * 0.05);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(r * 0.10, -r * 1.03, 1.5, 1.5);
+  ctx.shadowBlur = 0;
+
+  // GOLD TIKA with RUBY on forehead (signature)
+  ctx.fillStyle = gold;
+  ctx.shadowColor = '#ffd54a';
+  ctx.shadowBlur = 5;
+  ctx.beginPath(); ctx.arc(r * 0.08, -r * 1.16, r * 0.04, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#aa0808';
+  ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 6;
+  ctx.beginPath(); ctx.arc(r * 0.08, -r * 1.16, r * 0.02, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // IMPERIAL CROWN — towering golden crown med multiple jewels
+  ctx.fillStyle = gold;
+  ctx.shadowColor = '#ffd54a';
+  ctx.shadowBlur = 6;
+  // Crown band
+  ctx.fillRect(-r * 0.32, -r * 1.24, r * 0.64, r * 0.10);
+  // Crown front-flange
+  ctx.fillRect(-r * 0.32, -r * 1.14, r * 0.64, r * 0.04);
+  // Crown spikes (7, alternating heights, central tallest)
+  for (let s = 0; s < 7; s++) {
+    const sx = -r * 0.28 + s * r * 0.09;
+    const sh = s === 3 ? r * 0.36 : (s === 2 || s === 4 ? r * 0.26 : r * 0.18);
+    ctx.beginPath();
+    ctx.moveTo(sx - r * 0.03, -r * 1.24);
+    ctx.lineTo(sx, -r * 1.24 - sh);
+    ctx.lineTo(sx + r * 0.03, -r * 1.24);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Crown JEWELS on spikes (purple + ruby)
+  ctx.fillStyle = purple;
+  ctx.shadowColor = purpleGlow; ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.arc(0, -r * 1.50, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#aa0808';
+  ctx.shadowColor = '#ff2020';
+  ctx.beginPath(); ctx.arc(-r * 0.10, -r * 1.42, r * 0.03, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.10, -r * 1.42, r * 0.03, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // DEEP PURPLE AURA around boss (signature)
+  const auraPulse = 0.6 + Math.sin(now / 400) * 0.4;
+  ctx.fillStyle = `rgba(170, 58, 255, ${0.18 * auraPulse})`;
+  ctx.beginPath();
+  ctx.arc(0, 0, r * 1.8 * auraPulse, 0, Math.PI * 2);
+  ctx.fill();
+};
+
+// 10. THE WARDEN — SECRET BOSS — Massive prison-warden, chains + keys + brutal
+BOSS_DRAW.thewarden = function(e, flash, now, phase, moving) {
+  const base = _drawBossMilitaryBase(e, flash, now, phase, {
+    pants: '#0a0a08', pantsDark: '#000',
+    shirt: '#1a1a14', armor: '#0a0a04', armorLight: '#3a3a28',
+    buckle: '#7a6a3a',
+  });
+  const r = base.r;
+  const iron = flash ? '#fff' : '#3a3a28';
+  const ironDark = flash ? '#fff' : '#1a1a08';
+  const black = flash ? '#fff' : '#0a0a04';
+  const goldBrass = flash ? '#fff' : '#7a6a3a';
+  const goldBrassLight = flash ? '#fff' : '#aa9a4a';
+
+  // BLACK WARDEN-UNIFORM (oversized, heavy)
+  ctx.fillStyle = black;
+  ctx.fillRect(-r * 0.55, -r * 0.55, r * 1.10, r * 0.85);
+  // Iron-rivet plates (4 corners + center)
+  ctx.fillStyle = iron;
+  ctx.fillRect(-r * 0.55, -r * 0.55, r * 0.12, r * 0.10);  // top-left
+  ctx.fillRect(r * 0.43, -r * 0.55, r * 0.12, r * 0.10);   // top-right
+  ctx.fillRect(-r * 0.55, r * 0.18, r * 0.12, r * 0.10);   // bottom-left
+  ctx.fillRect(r * 0.43, r * 0.18, r * 0.12, r * 0.10);    // bottom-right
+  ctx.fillRect(-r * 0.10, -r * 0.10, r * 0.20, r * 0.15);  // center
+
+  // RIVETS on uniform (lots of them)
+  ctx.fillStyle = goldBrass;
+  for (let i = 0; i < 12; i++) {
+    const rx = -r * 0.50 + (i % 4) * r * 0.30;
+    const ry = -r * 0.50 + Math.floor(i / 4) * r * 0.30;
+    ctx.beginPath(); ctx.arc(rx, ry, 1.5, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // PADLOCKS attached to armor (3 visible)
+  for (let p = 0; p < 3; p++) {
+    const px = -r * 0.30 + p * r * 0.30;
+    const py = -r * 0.20 + (p === 1 ? r * 0.20 : 0);
+    // Lock body
+    ctx.fillStyle = iron;
+    ctx.fillRect(px, py, r * 0.14, r * 0.16);
+    // Lock-shackle (U shape)
+    ctx.strokeStyle = ironDark;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(px + r * 0.07, py - r * 0.02, r * 0.06, Math.PI, 0);
+    ctx.stroke();
+    // Keyhole
+    ctx.fillStyle = '#000';
+    ctx.beginPath(); ctx.arc(px + r * 0.07, py + r * 0.08, 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillRect(px + r * 0.06, py + r * 0.08, 2, 4);
+  }
+
+  // IRON COLLAR around neck (signature)
+  ctx.fillStyle = ironDark;
+  ctx.fillRect(-r * 0.22, -r * 0.78, r * 0.44, r * 0.18);
+  // Collar studs
+  ctx.fillStyle = goldBrass;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.arc(-r * 0.18 + i * r * 0.09, -r * 0.70, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  // Collar central skull
+  ctx.fillStyle = '#e0d8c0';
+  ctx.beginPath(); ctx.arc(0, -r * 0.68, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.fillRect(-r * 0.025, -r * 0.70, 1.5, 1.5);
+  ctx.fillRect(r * 0.015, -r * 0.70, 1.5, 1.5);
+
+  // HANGING CHAINS from belt (multiple, long)
+  ctx.strokeStyle = ironDark;
+  ctx.lineWidth = 2;
+  for (let c = 0; c < 4; c++) {
+    const cx = -r * 0.40 + c * r * 0.26;
+    ctx.beginPath();
+    ctx.moveTo(cx, r * 0.20);
+    ctx.bezierCurveTo(cx + Math.sin(now / 400 + c) * 4, r * 0.50, cx + Math.sin(now / 400 + c + 1) * 4, r * 0.80, cx, r * 1.00);
+    ctx.stroke();
+    // Chain-links (small circles along chain)
+    for (let l = 0; l < 6; l++) {
+      const lt = l / 5;
+      const ly = r * 0.20 + lt * r * 0.80;
+      ctx.fillStyle = iron;
+      ctx.beginPath();
+      ctx.arc(cx + Math.sin(now / 400 + c + lt) * 4 * lt, ly, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  // CHAIN-LOOP (large hanging from belt)
+  ctx.strokeStyle = ironDark;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(r * 0.30, r * 0.40, r * 0.16, 0, Math.PI * 2);
+  ctx.stroke();
+  // Loop-links
+  for (let l = 0; l < 8; l++) {
+    const a = l * Math.PI * 2 / 8;
+    const lx = r * 0.30 + Math.cos(a) * r * 0.16;
+    const ly = r * 0.40 + Math.sin(a) * r * 0.16;
+    ctx.fillStyle = iron;
+    ctx.beginPath(); ctx.arc(lx, ly, 2, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // KEYS hanging from belt (3-4 keys, brass)
+  for (let k = 0; k < 4; k++) {
+    const kx = -r * 0.50 + k * r * 0.10;
+    const ky = r * 0.30 + (k % 2) * r * 0.10;
+    // Key shaft
+    ctx.fillStyle = goldBrass;
+    ctx.fillRect(kx, ky, r * 0.04, r * 0.20);
+    // Key bow (round top)
+    ctx.beginPath();
+    ctx.arc(kx + r * 0.02, ky, r * 0.04, 0, Math.PI * 2);
+    ctx.fill();
+    // Key teeth
+    ctx.fillRect(kx, ky + r * 0.16, r * 0.06, r * 0.02);
+    ctx.fillRect(kx, ky + r * 0.10, r * 0.06, r * 0.02);
+    // Brass highlight
+    ctx.fillStyle = goldBrassLight;
+    ctx.fillRect(kx + 1, ky, 1, r * 0.20);
+  }
+
+  // BACK ARM (hangande LANTERN)
+  ctx.fillStyle = black;
+  ctx.fillRect(-r * 0.26, -r * 0.40, r * 0.22, r * 0.62);
+  // LANTERN held aloft (signature — prison-corridor light)
+  ctx.fillStyle = iron;
+  ctx.fillRect(-r * 0.45, -r * 0.10, r * 0.16, r * 0.20);
+  // Lantern-frame (iron grid)
+  ctx.strokeStyle = ironDark;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(-r * 0.45, -r * 0.10, r * 0.16, r * 0.20);
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.37, -r * 0.10); ctx.lineTo(-r * 0.37, r * 0.10);
+  ctx.stroke();
+  // Lantern-flame (warm yellow)
+  const flamePulse = 0.7 + Math.sin(now / 100) * 0.3;
+  ctx.fillStyle = '#ffae3a';
+  ctx.shadowColor = '#ffd54a';
+  ctx.shadowBlur = 14 * flamePulse;
+  ctx.beginPath();
+  ctx.arc(-r * 0.37, -r * 0.00, r * 0.05 * flamePulse, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(-r * 0.37, -r * 0.00, r * 0.02, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // Lantern handle (small ring at top)
+  ctx.strokeStyle = ironDark;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(-r * 0.37, -r * 0.15, r * 0.04, 0, Math.PI);
+  ctx.stroke();
+  // Chain from arm to lantern
+  ctx.strokeStyle = ironDark;
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.15, -r * 0.30);
+  ctx.lineTo(-r * 0.37, -r * 0.15);
+  ctx.stroke();
+
+  // FRONT ARM (massive MACE)
+  ctx.fillStyle = black;
+  ctx.fillRect(r * 0.04, -r * 0.40, r * 0.22, r * 0.55);
+  // Gauntlet
+  ctx.fillStyle = ironDark;
+  ctx.beginPath(); ctx.arc(r * 0.14, r * 0.20, r * 0.15, 0, Math.PI * 2); ctx.fill();
+
+  // MASSIVE FLAIL-MACE (chain-flail med spiked ball)
+  // Shaft
+  ctx.fillStyle = '#3a1808';
+  ctx.fillRect(r * 0.12, -r * 0.30, r * 0.08, r * 0.55);
+  // Shaft-grip
+  ctx.strokeStyle = ironDark;
+  ctx.lineWidth = 0.8;
+  for (let i = 0; i < 4; i++) {
+    ctx.beginPath();
+    ctx.moveTo(r * 0.12, -r * 0.20 + i * r * 0.12);
+    ctx.lineTo(r * 0.20, -r * 0.20 + i * r * 0.12);
+    ctx.stroke();
+  }
+  // CHAIN from shaft (top) to spiked-ball
+  const swingY = Math.sin(now / 800) * 0.2;
+  ctx.strokeStyle = ironDark;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.16, -r * 0.30);
+  ctx.lineTo(r * 0.16 + swingY * r * 0.4, -r * 1.10);
+  ctx.stroke();
+  // Chain-links
+  for (let l = 0; l < 5; l++) {
+    const lt = (l + 1) / 6;
+    const lcx = r * 0.16 + swingY * r * 0.4 * lt;
+    const lcy = -r * 0.30 - lt * r * 0.80;
+    ctx.fillStyle = iron;
+    ctx.beginPath(); ctx.arc(lcx, lcy, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = ironDark;
+    ctx.beginPath(); ctx.arc(lcx, lcy, 1.5, 0, Math.PI * 2); ctx.fill();
+  }
+  // SPIKED BALL (massive, intimidating)
+  const ballX = r * 0.16 + swingY * r * 0.4;
+  const ballY = -r * 1.15;
+  ctx.fillStyle = ironDark;
+  ctx.beginPath(); ctx.arc(ballX, ballY, r * 0.18, 0, Math.PI * 2); ctx.fill();
+  // Spikes (8 around ball)
+  for (let s = 0; s < 8; s++) {
+    const sa = s * Math.PI * 2 / 8;
+    const spx1 = ballX + Math.cos(sa) * r * 0.18;
+    const spy1 = ballY + Math.sin(sa) * r * 0.18;
+    const spx2 = ballX + Math.cos(sa) * r * 0.30;
+    const spy2 = ballY + Math.sin(sa) * r * 0.30;
+    ctx.fillStyle = iron;
+    ctx.beginPath();
+    ctx.moveTo(ballX + Math.cos(sa + 0.15) * r * 0.16, ballY + Math.sin(sa + 0.15) * r * 0.16);
+    ctx.lineTo(spx2, spy2);
+    ctx.lineTo(ballX + Math.cos(sa - 0.15) * r * 0.16, ballY + Math.sin(sa - 0.15) * r * 0.16);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Ball-highlight
+  ctx.fillStyle = iron;
+  ctx.beginPath(); ctx.arc(ballX - r * 0.05, ballY - r * 0.05, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  // BLOODSTAINS on spikes
+  ctx.fillStyle = '#5a0a08';
+  ctx.beginPath();
+  ctx.arc(ballX + r * 0.18, ballY - r * 0.10, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(ballX - r * 0.15, ballY + r * 0.12, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // HEAD — brutal warden face
+  ctx.fillStyle = flash ? '#fff' : '#8a6242';
+  ctx.beginPath(); ctx.arc(0, -r * 0.96, r * 0.30, 0, Math.PI * 2); ctx.fill();
+  // Stubble (heavy, almost beard)
+  ctx.fillStyle = '#1a0a04';
+  for (let i = 0; i < 18; i++) {
+    ctx.fillRect(-r * 0.20 + (i % 6) * r * 0.06, -r * 0.80 + Math.floor(i / 6) * 3, 1, 1);
+  }
+  // SCAR across forehead (massive)
+  ctx.strokeStyle = '#5a0a08';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.10, -r * 1.10);
+  ctx.lineTo(r * 0.18, -r * 0.85);
+  ctx.stroke();
+  // EYE-PATCH (over left eye — signature)
+  ctx.fillStyle = black;
+  ctx.fillRect(-r * 0.18, -r * 1.10, r * 0.16, r * 0.10);
+  ctx.strokeStyle = ironDark;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.18, -r * 1.05);
+  ctx.lineTo(-r * 0.28, -r * 1.05);
+  ctx.moveTo(-r * 0.18, -r * 1.05);
+  ctx.lineTo(-r * 0.28, -r * 0.90);
+  ctx.stroke();
+  // Single visible eye (intense)
+  ctx.fillStyle = '#1a0a04';
+  ctx.fillRect(r * 0.10, -r * 1.04, r * 0.08, r * 0.04);
+  ctx.fillStyle = '#ffae3a';
+  ctx.shadowColor = '#ffae3a'; ctx.shadowBlur = 4;
+  ctx.fillRect(r * 0.12, -r * 1.03, r * 0.04, 2);
+  ctx.shadowBlur = 0;
+  // Eyebrow (thick angry)
+  ctx.fillStyle = '#0a0408';
+  ctx.fillRect(r * 0.08, -r * 1.12, r * 0.12, 3);
+  // Mouth (snarl med visible chipped tooth)
+  ctx.fillStyle = '#3a0a08';
+  ctx.fillRect(r * 0.05, -r * 0.78, r * 0.16, r * 0.04);
+  ctx.fillStyle = '#cccccc';
+  ctx.fillRect(r * 0.10, -r * 0.78, 2, 3);
+
+  // BLACK WARDEN-HOOD/COWL (heavy with iron rim)
+  ctx.fillStyle = black;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.40, -r * 0.85);
+  ctx.quadraticCurveTo(-r * 0.50, -r * 1.30, 0, -r * 1.36);
+  ctx.quadraticCurveTo(r * 0.50, -r * 1.30, r * 0.40, -r * 0.85);
+  ctx.lineTo(r * 0.30, -r * 0.85);
+  ctx.bezierCurveTo(r * 0.40, -r * 1.20, -r * 0.40, -r * 1.20, -r * 0.30, -r * 0.85);
+  ctx.closePath();
+  ctx.fill();
+  // Hood iron rim
+  ctx.strokeStyle = goldBrass;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.40, -r * 0.85);
+  ctx.quadraticCurveTo(-r * 0.50, -r * 1.30, 0, -r * 1.36);
+  ctx.quadraticCurveTo(r * 0.50, -r * 1.30, r * 0.40, -r * 0.85);
+  ctx.stroke();
+  // Iron studs along hood
+  ctx.fillStyle = goldBrass;
+  for (let i = 0; i < 7; i++) {
+    const ha = -Math.PI / 2 + (i - 3) * 0.3;
+    const hx = Math.cos(ha) * r * 0.42;
+    const hy = -r * 1.18 + Math.sin(ha + Math.PI / 2) * r * 0.15;
+    ctx.beginPath(); ctx.arc(hx, hy, 1.5, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // SKULL EMBLEM på hood (large brass)
+  ctx.fillStyle = goldBrass;
+  ctx.shadowColor = goldBrassLight; ctx.shadowBlur = 4;
+  ctx.beginPath(); ctx.arc(0, -r * 1.25, r * 0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#000';
+  ctx.fillRect(-r * 0.04, -r * 1.28, 2, 2);
+  ctx.fillRect(r * 0.02, -r * 1.28, 2, 2);
+  ctx.shadowBlur = 0;
+};
+
 // MIRROREDONE (OLD fantasy version)
 BOSS_DRAW._mirroredone_old = function(e, flash, now, phase, moving) {
   const r = e.r;
@@ -58968,17 +60613,9 @@ BOSS_DRAW.gravgravaren = function(e, flash, now, phase, moving) {
   }
 };
 
-// Alias gamla bossnames till nya så befintliga BOSS_DRAW-funktioner används.
-// Defensiv: skippa alias om source-funktion saknas (utvecklare-skydd).
-// v1.595: witheredelder/ironclad/mirroredone har egen militära design — alias REMOVED för dem.
-const _bossAliases = {
-  ossarius:        'avrattare',
-  vanguardatlas:   'kottkvarn',
-  emberoracle:     'askmakare',
-  blightsovereign: 'lungrivare',
-  buriedcrown:     'skallsprackare',
-  lastsovereign:   'gravgravaren',
-};
+// v1.596: ALLA 9 bossar har nu egna militära designs.
+// Alias-mekanism behålls tom som safety-net för framtida boss-keys utan rendering.
+const _bossAliases = {};
 for (const [newKey, srcKey] of Object.entries(_bossAliases)) {
   if (typeof BOSS_DRAW[srcKey] === 'function') {
     BOSS_DRAW[newKey] = BOSS_DRAW[srcKey];
