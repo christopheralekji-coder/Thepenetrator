@@ -68438,6 +68438,13 @@ function runFrame(dt, now) {
   // Canvas2D-renderingen för bullets (forlust ~10 FPS @ 2000+ bullets, men det
   // är extrem-situation). Enemies använder nu pre-baked textures via Canvas2D-
   // draw-funktioner = pixel-identical militär-grafik.
+  // v1.615 BUGFIX: sätt warmup INNAN pixiState.ready-checken. Tidigare hamnade
+  // warmup-settern inuti pixiState.ready-blocket, vilket missade första matchen
+  // efter deploy där Pixi-init är async och ready=false på frame 1 (då mode just
+  // blev 'playing'). Nästa frame är prevMode='playing' → setter triggade aldrig.
+  if (state.mode === 'playing' && state._prevMode !== 'playing') {
+    state._pixiWarmupUntil = (now || performance.now()) + 5000; // 5s safety
+  }
   if (state.mode === 'playing' && pixiState && pixiState.ready) {
     // Bullets/particles/VFX behöver ingen pre-bake (PIXI.Graphics-sprites)
     pixiState.bulletsEnabled = true;
@@ -68447,13 +68454,6 @@ function runFrame(dt, now) {
       bakeAllEnemyTextures();
     }
     pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked;
-    // v1.614: SÄTT WARMUP-FÖNSTER (3s) när match startar. Dual-render
-    // (Canvas2D + Pixi) aktiveras under denna period så enemies SYNS säkert
-    // även om Pixi-textures inte hunnit till GPU än. Efter 3s antar vi GPU är
-    // warm → bara Pixi → full prestandavinst.
-    if (state._prevMode !== 'playing') {
-      state._pixiWarmupUntil = (now || performance.now()) + 3000;
-    }
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;
