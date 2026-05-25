@@ -8586,97 +8586,104 @@ function drawHeistArenaGround() {
     ctx.stroke();
   }
 
-  // === v1.627: ROOM-SPECIFIC FLOORS ===
-  // STORAGE (x=620-1100, y=720-1075) — concrete grå-brun
+  // === v1.630: ROOM-SPECIFIC FLOORS — 3×3 grid + Row 4 service ===
+  // Left column (x=625-1275): Storage / Network / Server / Break
+  // Center column (x=1300-2675): Vault-Inner / Vault-Outer / Hallway / [Conference + Central + Toilet]
+  // Right column (x=2700-3375): Locker / Security / Manager-Top / Manager-Bot
+
+  // ─── ROW 1 ───────────────────────────────────────────────
+  // STORAGE (x=625-1275)
   ctx.fillStyle = arena.storageColor || '#3a3028';
-  ctx.fillRect(620 - cx, 720 - cy, 480, 355);
-  // VAULT INNER (x=1300-2700, y=720-1075) — VERY dark
+  ctx.fillRect(625 - cx, 725 - cy, 650, 350);
+  // VAULT INNER (x=1300-2675)
   ctx.fillStyle = arena.vaultInnerColor || '#1a0f06';
-  ctx.fillRect(1300 - cx, 720 - cy, 1400, 355);
-  // Gold-veining hint (subtile gyllene strimmor)
+  ctx.fillRect(1300 - cx, 725 - cy, 1375, 350);
   ctx.strokeStyle = 'rgba(180,140,40,0.3)';
   for (let i = 0; i < 4; i++) {
     ctx.beginPath();
     ctx.moveTo(1320 - cx, 800 + i * 70 - cy);
-    ctx.lineTo(2680 - cx, 820 + i * 70 - cy);
+    ctx.lineTo(2660 - cx, 820 + i * 70 - cy);
     ctx.stroke();
   }
-  // LOCKER (x=2900-3380, y=720-1075) — institutionell grå
+  // LOCKER (x=2700-3375)
   ctx.fillStyle = arena.lockerColor || '#3a3a3a';
-  ctx.fillRect(2900 - cx, 720 - cy, 480, 355);
+  ctx.fillRect(2700 - cx, 725 - cy, 675, 350);
 
-  // VAULT OUTER (x=1300-2700, y=1100-1675) — mörkt stål
+  // ─── ROW 2 ───────────────────────────────────────────────
+  // NETWORK CLOSET (x=625-1275, y=1100-1675) — server-blå med floor-vents
+  ctx.fillStyle = arena.serverFloorColor || '#1a2a3a';
+  ctx.fillRect(625 - cx, 1100 - cy, 650, 575);
+  ctx.fillStyle = 'rgba(90,200,255,0.12)';
+  for (let yy = 1140; yy < 1675; yy += 50) {
+    ctx.fillRect(640 - cx, yy - cy, 620, 2);
+  }
+  // VAULT OUTER (x=1300-2675, y=1100-1675) — mörkt stål-grid
   ctx.fillStyle = arena.vaultFloorColor || '#3a2a1a';
-  ctx.fillRect(1300 - cx, 1100 - cy, 1400, 575);
+  ctx.fillRect(1300 - cx, 1100 - cy, 1375, 575);
   ctx.strokeStyle = 'rgba(80,60,40,0.6)'; ctx.lineWidth = 1;
-  for (let xx = 1400; xx < 2700; xx += 200) {
+  for (let xx = 1400; xx < 2675; xx += 200) {
     ctx.beginPath();
     ctx.moveTo(xx - cx, 1100 - cy); ctx.lineTo(xx - cx, 1675 - cy);
     ctx.stroke();
   }
   for (let yy = 1200; yy < 1675; yy += 200) {
     ctx.beginPath();
-    ctx.moveTo(1300 - cx, yy - cy); ctx.lineTo(2700 - cx, yy - cy);
+    ctx.moveTo(1300 - cx, yy - cy); ctx.lineTo(2675 - cx, yy - cy);
     ctx.stroke();
   }
-
-  // NETWORK CLOSET (x=620-900, y=1100-1475) — server-blå
-  ctx.fillStyle = arena.serverFloorColor || '#1a2a3a';
-  ctx.fillRect(620 - cx, 1100 - cy, 280, 375);
-  // SECURITY ROOM (x=2750-3380, y=1100-1675) — mörk röd
+  // SECURITY (x=2700-3375, y=1100-1675) — mörk röd
   ctx.fillStyle = arena.securityColor || '#2a1a1a';
-  ctx.fillRect(2750 - cx, 1100 - cy, 630, 575);
+  ctx.fillRect(2700 - cx, 1100 - cy, 675, 575);
 
-  // SERVER ROOM (x=620-1100, y=1500-1975) — server-blå
+  // ─── ROW 3 ───────────────────────────────────────────────
+  // SERVER (x=625-1275, y=1700-1975)
   ctx.fillStyle = arena.serverFloorColor || '#1a2a3a';
-  ctx.fillRect(620 - cx, 1500 - cy, 480, 475);
+  ctx.fillRect(625 - cx, 1700 - cy, 650, 275);
   ctx.fillStyle = 'rgba(90,200,255,0.15)';
-  for (let yy = 1550; yy < 1975; yy += 50) {
-    ctx.fillRect(640 - cx, yy - cy, 460, 2);
+  for (let yy = 1730; yy < 1975; yy += 50) {
+    ctx.fillRect(640 - cx, yy - cy, 620, 2);
   }
-
-  // HALLWAY (x=1300-2700, y=1700-1975) — bank-floor
+  // HALLWAY (x=1300-2675, y=1700-1975) — bank-floor extension
   ctx.fillStyle = arena.bankFloorColor || '#a8906a';
-  ctx.fillRect(1300 - cx, 1700 - cy, 1400, 275);
-
-  // MANAGER OFFICE TOP (x=2750-3380, y=1700-2400) — röd matta
+  ctx.fillRect(1300 - cx, 1700 - cy, 1375, 275);
+  // MANAGER TOP (x=2700-3375, y=1700-2400) — röd matta hela vägen ner till counter
   ctx.fillStyle = arena.carpetColor || '#4a2a30';
-  ctx.fillRect(2750 - cx, 1700 - cy, 630, 700);
+  ctx.fillRect(2700 - cx, 1700 - cy, 675, 700);
   ctx.strokeStyle = 'rgba(90,40,50,0.5)';
-  for (let yy = 1800; yy < 2400; yy += 60) {
+  for (let yy = 1780; yy < 2400; yy += 60) {
     ctx.beginPath();
-    ctx.moveTo(2770 - cx, yy - cy); ctx.lineTo(3380 - cx, yy - cy);
+    ctx.moveTo(2720 - cx, yy - cy); ctx.lineTo(3375 - cx, yy - cy);
     ctx.stroke();
   }
 
-  // BREAK ROOM (x=620-1300, y=2000-2400) — wood-tones
+  // ─── ROW 4 ───────────────────────────────────────────────
+  // BREAK ROOM (x=625-1275, y=2000-2400) — wood-tones
   ctx.fillStyle = arena.breakFloorColor || '#5a4a3a';
-  ctx.fillRect(620 - cx, 2000 - cy, 680, 400);
-  // Wood-plank-lines
+  ctx.fillRect(625 - cx, 2000 - cy, 650, 400);
   ctx.strokeStyle = 'rgba(70,55,40,0.5)';
   for (let yy = 2050; yy < 2400; yy += 50) {
     ctx.beginPath();
-    ctx.moveTo(630 - cx, yy - cy); ctx.lineTo(1290 - cx, yy - cy);
+    ctx.moveTo(640 - cx, yy - cy); ctx.lineTo(1265 - cx, yy - cy);
     ctx.stroke();
   }
-
-  // CONFERENCE ROOM (x=1300-2400, y=2000-2400) — professional grå-blå
+  // CONFERENCE (x=1300-1675, y=2000-2400) — professional grå-blå
   ctx.fillStyle = arena.conferenceColor || '#3a3a4a';
-  ctx.fillRect(1300 - cx, 2000 - cy, 1100, 400);
-
-  // TOILETS (x=2400-2700, y=2000-2400) — klinker
+  ctx.fillRect(1300 - cx, 2000 - cy, 375, 400);
+  // CENTRAL CORRIDOR (x=1700-2100, y=2000-2400) — bank-floor through-path
+  ctx.fillStyle = arena.bankFloorColor || '#a8906a';
+  ctx.fillRect(1700 - cx, 2000 - cy, 400, 400);
+  // TOILET (x=2125-2675, y=2000-2400) — klinker
   ctx.fillStyle = arena.toiletColor || '#6a7080';
-  ctx.fillRect(2400 - cx, 2000 - cy, 300, 400);
-  // Klinker-rutmönster
+  ctx.fillRect(2125 - cx, 2000 - cy, 550, 400);
   ctx.strokeStyle = 'rgba(50,55,65,0.6)';
-  for (let xx = 2420; xx < 2700; xx += 30) {
+  for (let xx = 2155; xx < 2675; xx += 30) {
     ctx.beginPath();
     ctx.moveTo(xx - cx, 2010 - cy); ctx.lineTo(xx - cx, 2390 - cy);
     ctx.stroke();
   }
-  for (let yy = 2020; yy < 2400; yy += 30) {
+  for (let yy = 2030; yy < 2400; yy += 30) {
     ctx.beginPath();
-    ctx.moveTo(2410 - cx, yy - cy); ctx.lineTo(2690 - cx, yy - cy);
+    ctx.moveTo(2135 - cx, yy - cy); ctx.lineTo(2670 - cx, yy - cy);
     ctx.stroke();
   }
 
@@ -70051,23 +70058,29 @@ function drawMiniMap() {
   // v1.629: HEIST — komplett minimap-rendering (walls + doors + rooms + loot + cameras + NPCs)
   if (state.heistActive) {
     // ROOM FLOORS — färgade rektanglar per rum (subtila bakgrundsfärger)
+    // v1.630: 3-column grid (Left/Center/Right) + Row 4 service-floor
     const rooms = [
-      { x: 620,  y: 720,  w: 480, h: 355, c: 'rgba(60,55,40,0.6)' },     // storage
-      { x: 1300, y: 720,  w: 1400, h: 355, c: 'rgba(40,30,20,0.8)' },    // vault inner (DARK)
-      { x: 2900, y: 720,  w: 480, h: 355, c: 'rgba(80,80,80,0.6)' },     // locker
-      { x: 620,  y: 1100, w: 280, h: 400, c: 'rgba(40,70,100,0.6)' },    // network closet
-      { x: 1300, y: 1100, w: 1400, h: 575, c: 'rgba(80,60,30,0.7)' },    // vault outer
-      { x: 2750, y: 1100, w: 630, h: 575, c: 'rgba(80,30,30,0.6)' },     // security
-      { x: 620,  y: 1500, w: 480, h: 475, c: 'rgba(40,70,100,0.6)' },    // server
-      { x: 1300, y: 1700, w: 1400, h: 275, c: 'rgba(170,140,100,0.5)' }, // hallway
-      { x: 2750, y: 1700, w: 630, h: 700, c: 'rgba(140,60,80,0.5)' },    // manager office
-      { x: 620,  y: 2000, w: 680, h: 400, c: 'rgba(120,90,60,0.5)' },    // break room
-      { x: 1300, y: 2000, w: 400, h: 400, c: 'rgba(70,70,100,0.5)' },    // conference
-      { x: 1700, y: 2000, w: 400, h: 400, c: 'rgba(170,140,100,0.4)' },  // CENTRAL CORRIDOR
-      { x: 2100, y: 2000, w: 600, h: 400, c: 'rgba(120,130,150,0.5)' },  // toilet
-      { x: 1300, y: 2450, w: 1380, h: 250, c: 'rgba(170,140,100,0.5)' }, // behind-counter
-      { x: 620,  y: 2700, w: 2760, h: 400, c: 'rgba(190,160,120,0.4)' }, // main lobby
-      { x: 620,  y: 3100, w: 2760, h: 200, c: 'rgba(140,110,80,0.4)' },  // reception
+      // Row 1 (y=725-1075)
+      { x: 625,  y: 725,  w: 650,  h: 350, c: 'rgba(60,55,40,0.6)' },    // storage
+      { x: 1300, y: 725,  w: 1375, h: 350, c: 'rgba(40,30,20,0.8)' },    // vault inner
+      { x: 2700, y: 725,  w: 675,  h: 350, c: 'rgba(80,80,80,0.6)' },    // locker
+      // Row 2 (y=1100-1675)
+      { x: 625,  y: 1100, w: 650,  h: 575, c: 'rgba(40,70,100,0.6)' },   // network closet
+      { x: 1300, y: 1100, w: 1375, h: 575, c: 'rgba(80,60,30,0.7)' },    // vault outer
+      { x: 2700, y: 1100, w: 675,  h: 575, c: 'rgba(80,30,30,0.6)' },    // security
+      // Row 3 (y=1700-1975)
+      { x: 625,  y: 1700, w: 650,  h: 275, c: 'rgba(40,70,100,0.6)' },   // server
+      { x: 1300, y: 1700, w: 1375, h: 275, c: 'rgba(170,140,100,0.5)' }, // hallway
+      { x: 2700, y: 1700, w: 675,  h: 700, c: 'rgba(140,60,80,0.5)' },   // manager (top+bot)
+      // Row 4 (y=2000-2400)
+      { x: 625,  y: 2000, w: 650,  h: 400, c: 'rgba(120,90,60,0.5)' },   // break room
+      { x: 1300, y: 2000, w: 375,  h: 400, c: 'rgba(70,70,100,0.5)' },   // conference
+      { x: 1700, y: 2000, w: 400,  h: 400, c: 'rgba(170,140,100,0.4)' }, // central corridor
+      { x: 2125, y: 2000, w: 550,  h: 400, c: 'rgba(120,130,150,0.5)' }, // toilet
+      // Below counter
+      { x: 1300, y: 2450, w: 1375, h: 250, c: 'rgba(170,140,100,0.5)' }, // behind-counter
+      { x: 625,  y: 2700, w: 2750, h: 400, c: 'rgba(190,160,120,0.4)' }, // main lobby
+      { x: 625,  y: 3100, w: 2750, h: 200, c: 'rgba(140,110,80,0.4)' },  // reception
     ];
     for (const r of rooms) {
       if (!inMmView(r.x, r.y, r.w, r.h)) continue;

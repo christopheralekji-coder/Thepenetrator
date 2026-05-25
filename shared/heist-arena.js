@@ -91,147 +91,156 @@ const HEIST_ARENA = {
     loading:{ x: 900,  y: 350,  w: 150, h: 120, kind: 'van_loading', locked: true  },
   },
 
-  // === WALLS (rumsindelning — wall_thickness ≈ 25) ===
+  // === WALLS — v1.630 KOMPLETT OMSKRIVNING ===
+  // Konvention: Alla rum delar väggar via abutment (back-to-back, ingen gap).
+  // 9 rum i ett 3×3-grid (Storage/Network/Server | Vault-Inner/Outer/Hallway | Locker/Security/Manager).
+  // Plus Row 4-suite (Break/Conf/Corridor/Toilet/MgrBot) som "service floor".
+  // Wall thickness 25.
   walls: [
     // ============ YTTRE BANK-VÄGGAR ============
     // NORTH outer (gaps: loading-dock 900-1050, back-alley 1900-2000)
-    { x: 600,  y: 700,  w: 300,  h: 25, kind: 'wall' },
-    { x: 1050, y: 700,  w: 850,  h: 25, kind: 'wall' },
-    { x: 2000, y: 700,  w: 1400, h: 25, kind: 'wall' },
+    { x: 600,  y: 700,  w: 300,  h: 25, kind: 'wall' },     // 600-900
+    { x: 1050, y: 700,  w: 850,  h: 25, kind: 'wall' },     // 1050-1900
+    { x: 2000, y: 700,  w: 1400, h: 25, kind: 'wall' },     // 2000-3400
     // SOUTH outer (gaps: front 1900-2100, side-entry 3050-3200)
     { x: 600,  y: 3400, w: 1300, h: 25, kind: 'wall' },
     { x: 2100, y: 3400, w: 950,  h: 25, kind: 'wall' },
     { x: 3200, y: 3400, w: 200,  h: 25, kind: 'wall' },
-    // WEST outer
+    // WEST outer + EAST outer
     { x: 600,  y: 725,  w: 25,   h: 2700, kind: 'wall' },
-    // EAST outer
     { x: 3375, y: 725,  w: 25,   h: 2700, kind: 'wall' },
 
-    // ============ ROW 1 (y=725-1075) — STORAGE | VAULT INNER | LOCKER ============
-    // STORAGE south wall (y=1075, x=620-1100) door at x=820-900
-    { x: 625,  y: 1075, w: 195,  h: 25, kind: 'wall' },
-    { x: 900,  y: 1075, w: 200,  h: 25, kind: 'wall' },
-    // STORAGE east wall (x=1075, y=725-1075)
-    { x: 1075, y: 725,  w: 25,   h: 350, kind: 'wall' },
-    // VAULT INNER west wall (x=1300, y=725-1075)
-    { x: 1300, y: 725,  w: 25,   h: 350, kind: 'wall' },
-    // VAULT INNER south wall (y=1075, x=1300-2700) door at x=1900-2100 (inner-vault, drillable)
-    { x: 1325, y: 1075, w: 575,  h: 25, kind: 'wall_vault' },
-    { x: 2100, y: 1075, w: 575,  h: 25, kind: 'wall_vault' },
-    // VAULT INNER east wall (x=2700, y=725-1075)
-    { x: 2675, y: 725,  w: 25,   h: 350, kind: 'wall_vault' },
-    // LOCKER west wall (x=2900, y=725-1075)
-    { x: 2900, y: 725,  w: 25,   h: 350, kind: 'wall' },
-    // LOCKER south wall (y=1075, x=2900-3380) door at x=3050-3150
-    { x: 2925, y: 1075, w: 125,  h: 25, kind: 'wall' },
-    { x: 3150, y: 1075, w: 225,  h: 25, kind: 'wall' },
+    // ============ ROW 1 (y=725-1075) STORAGE | VAULT INNER | LOCKER ============
+    // STORAGE (x=625-1275) — east wall touches vault-inner-west via abutment
+    //   East wall (x=1275-1300, y=725-1075)
+    { x: 1275, y: 725, w: 25, h: 350, kind: 'wall' },
+    //   South wall (y=1075-1100, x=625-1275) door 820-920 → storage→network
+    { x: 625,  y: 1075, w: 195, h: 25, kind: 'wall' },     // 625-820
+    { x: 920,  y: 1075, w: 355, h: 25, kind: 'wall' },     // 920-1275
 
-    // ============ ROW 2 (y=1100-1700) — NET CLOSET | VAULT OUTER | SECURITY ============
-    // NETWORK CLOSET east wall (x=900, y=1100-1500)
-    { x: 900,  y: 1100, w: 25,   h: 400, kind: 'wall' },
-    // NETWORK CLOSET south wall (y=1500, x=620-900) — door at x=720-800
-    { x: 625,  y: 1500, w: 95,   h: 25, kind: 'wall' },
-    { x: 800,  y: 1500, w: 100,  h: 25, kind: 'wall' },
-    // Service corridor mellan storage (Row 1) och vault (Row 2) — vägg vid x=1075-1300
-    // för att tjäna som inre korridor north of net-closet east-wall.
-    // Storage east wall (x=1075) går till y=1075. Vid x=1100-1300 i Row 1 saknas
-    // wall — det är öppen "corridor" till Row 2. Vi lämnar öppen för stealth-route.
-    // VAULT OUTER walls
-    { x: 1300, y: 1100, w: 25,   h: 575, kind: 'wall_vault' }, // west
-    { x: 2675, y: 1100, w: 25,   h: 575, kind: 'wall_vault' }, // east
-    // VAULT OUTER south wall (y=1675, x=1300-2700) door x=1900-2100 (drillable)
-    { x: 1325, y: 1675, w: 575,  h: 25, kind: 'wall_vault' },
-    { x: 2100, y: 1675, w: 575,  h: 25, kind: 'wall_vault' },
-    // v1.629: SECURITY NORTH WALL (y=1100, x=2750-3375) — SAKNADES tidigare
-    { x: 2750, y: 1100, w: 625,  h: 25, kind: 'wall' },
-    // SECURITY west wall (x=2750, y=1100-1675)
-    { x: 2750, y: 1100, w: 25,   h: 575, kind: 'wall' },
-    // SECURITY south wall (y=1675, x=2750-3375) door x=2950-3030 (lockpickable)
-    // v1.629: Startade på 2775, lämnade 25px gap — fixat till 2750
-    { x: 2750, y: 1675, w: 200,  h: 25, kind: 'wall' },
-    { x: 3030, y: 1675, w: 345,  h: 25, kind: 'wall' },
+    // VAULT INNER (x=1300-2675) — center, biggest room
+    //   West wall (x=1300-1325, y=725-1075)
+    { x: 1300, y: 725, w: 25, h: 350, kind: 'wall_vault' },
+    //   East wall (x=2675-2700, y=725-1075)
+    { x: 2675, y: 725, w: 25, h: 350, kind: 'wall_vault' },
+    //   South wall (y=1075-1100) door 1900-2100 (INNER-VAULT-DRILL)
+    { x: 1325, y: 1075, w: 575, h: 25, kind: 'wall_vault' },
+    { x: 2100, y: 1075, w: 575, h: 25, kind: 'wall_vault' },
 
-    // ============ ROW 3 (y=1700-2000) — SERVER | HALLWAY | MANAGER RECEPTION ============
-    // v1.629: SERVER ROOM walls — fullt enclosed
-    // SERVER east wall (x=1100, y=1500-2000) door x=1100, y=1800-1880
-    { x: 1100, y: 1500, w: 25,   h: 300, kind: 'wall' },
-    { x: 1100, y: 1880, w: 25,   h: 95,  kind: 'wall' },
-    // SERVER south wall (y=1975, x=620-1100)
-    { x: 625,  y: 1975, w: 475,  h: 25, kind: 'wall' },
-    // v1.629: Täta Row 1 / Row 2 boundary mellan rum (annars läcker rummen ihop)
-    // Mellan storage-east och vault-inner-west (x=1075-1300, y=1075-1100)
-    { x: 1100, y: 1075, w: 200,  h: 25, kind: 'wall' },
-    // Mellan vault-inner-east och locker-west (x=2700-2925, y=1075-1100)
-    { x: 2700, y: 1075, w: 225,  h: 25, kind: 'wall' },
-    // HALLWAY west/east already from vault-outer down to 1975
-    { x: 1300, y: 1700, w: 25,   h: 275, kind: 'wall' }, // west cont.
-    { x: 2675, y: 1700, w: 25,   h: 275, kind: 'wall' }, // east cont.
-    // HALLWAY south wall (y=1975, x=1300-2700) — central gap x=1700-2100 (matchar Row 4 corridor)
-    { x: 1325, y: 1975, w: 350,  h: 25, kind: 'wall' },  // 1325-1675
-    { x: 2100, y: 1975, w: 575,  h: 25, kind: 'wall' },  // 2100-2675
-    // MANAGER RECEPTION west wall (x=2750 continues from security)
-    { x: 2750, y: 1700, w: 25,   h: 275, kind: 'wall' },
-    // MANAGER south wall (y=1975, x=2750-3380) — no door yet, continues to row 4
+    // LOCKER (x=2700-3375)
+    //   West wall (x=2700-2725, y=725-1075) touches vault-inner-east
+    { x: 2700, y: 725, w: 25, h: 350, kind: 'wall' },
+    //   South wall (y=1075-1100, x=2700-3375) door 3050-3150 → locker→security
+    { x: 2725, y: 1075, w: 325, h: 25, kind: 'wall' },     // 2725-3050
+    { x: 3150, y: 1075, w: 225, h: 25, kind: 'wall' },     // 3150-3375
 
-    // ============ ROW 4 (y=2000-2400) — BREAK | CONFERENCE | CENTRAL CORRIDOR | TOILETS | MANAGER ============
-    // KRITISKT: central corridor x=1700-2100 är ÖPPEN (player passerar hallway→counter)
-    // BREAK ROOM (x=620-1300, y=2000-2400)
-    //   - North wall (y=2000, x=620-1300)
-    { x: 625,  y: 2000, w: 675,  h: 25, kind: 'wall' },
-    //   - East wall (x=1300, y=2000-2400) med door y=2150-2230
-    { x: 1300, y: 2000, w: 25,   h: 150, kind: 'wall' },
-    { x: 1300, y: 2230, w: 25,   h: 170, kind: 'wall' },
-    // CONFERENCE ROOM (x=1300-1700, y=2000-2400)
-    //   - North wall (y=2000, x=1300-1700)
-    { x: 1300, y: 2000, w: 400,  h: 25, kind: 'wall' },
-    //   - East wall (x=1700, y=2000-2400) med door y=2150-2230 (conference → central corridor)
-    { x: 1700, y: 2000, w: 25,   h: 150, kind: 'wall' },
-    { x: 1700, y: 2230, w: 25,   h: 170, kind: 'wall' },
-    // CENTRAL CORRIDOR (x=1700-2100, y=2000-2400) — NO walls! Through-path.
-    // North-gap: hallway-south-wall har gap här (1700-1900) — men nu utökar vi
-    // till x=1700-2100 så hela centralen är öppen från hallway:
-    // (Vi måste UPPDATERA hallway-south-wall för att utöka gapet)
-    // South-gap: counter har gap här (1900-2100) — see counter below.
-    // TOILETS (x=2100-2700, y=2000-2400)
-    //   - North wall (y=2000, x=2100-2700)
-    { x: 2100, y: 2000, w: 600,  h: 25, kind: 'wall' },
-    //   - West wall (x=2100, y=2000-2400) med door y=2150-2230 (toilet → central)
-    { x: 2100, y: 2000, w: 25,   h: 150, kind: 'wall' },
-    { x: 2100, y: 2230, w: 25,   h: 170, kind: 'wall' },
-    //   - East wall (x=2700, y=2000-2400)
-    { x: 2675, y: 2000, w: 25,   h: 400, kind: 'wall' },
-    //   - Internal mid (y=2200, x=2100-2700) men/women separator
-    { x: 2125, y: 2200, w: 550,  h: 25, kind: 'wall' },
-    //   - South wall (y=2400, x=2100-2700)
-    { x: 2125, y: 2400, w: 575,  h: 25, kind: 'wall' },
-    // MANAGER OFFICE west wall (x=2750, y=2000-2400) med door y=2200-2280
-    { x: 2750, y: 2000, w: 25,   h: 200, kind: 'wall' },
-    { x: 2750, y: 2280, w: 25,   h: 120, kind: 'wall' },
-    // MANAGER OFFICE south wall (y=2400, x=2750-3380) med door x=3050-3130 → behind-counter
-    { x: 2775, y: 2400, w: 275,  h: 25, kind: 'wall' },
-    { x: 3130, y: 2400, w: 245,  h: 25, kind: 'wall' },
-    // BREAK ROOM south wall (y=2400, x=620-1300)
-    { x: 625,  y: 2400, w: 675,  h: 25, kind: 'wall' },
-    // CONFERENCE south wall (y=2400, x=1300-1700)
-    { x: 1300, y: 2400, w: 400,  h: 25, kind: 'wall' },
+    // ============ ROW 2 (y=1100-1675) NETWORK | VAULT OUTER | SECURITY ============
+    // NETWORK CLOSET (x=625-1275) — full width like storage above
+    //   East wall (x=1275-1300, y=1100-1675)
+    { x: 1275, y: 1100, w: 25, h: 575, kind: 'wall' },
+    //   South wall (y=1675-1700, x=625-1275) door 820-920 → network→server
+    { x: 625,  y: 1675, w: 195, h: 25, kind: 'wall' },
+    { x: 920,  y: 1675, w: 355, h: 25, kind: 'wall' },
 
-    // ============ ROW 5 (y=2400-2450) — CASHIER COUNTER med stor central-gap ============
-    // 6 kortare segments, central gap (1900-2100) för player-passage
-    { x: 1300, y: 2400, w: 200,  h: 50, kind: 'counter' },  // 1300-1500
-    { x: 1550, y: 2400, w: 150,  h: 50, kind: 'counter' },  // 1550-1700
-    { x: 1750, y: 2400, w: 150,  h: 50, kind: 'counter' },  // 1750-1900
-    // GAP 1900-2100 (CENTRAL CORRIDOR) — player walks through here
-    { x: 2100, y: 2400, w: 150,  h: 50, kind: 'counter' },  // 2100-2250
-    { x: 2300, y: 2400, w: 150,  h: 50, kind: 'counter' },  // 2300-2450
-    { x: 2500, y: 2400, w: 150,  h: 50, kind: 'counter' },  // 2500-2650
-    // Counter east end-wall (x=2675, y=2400-2700)
-    { x: 2675, y: 2425, w: 25,   h: 275, kind: 'wall' },
-    // Counter west end-wall (x=1300, y=2425-2700)
-    { x: 1300, y: 2425, w: 25,   h: 275, kind: 'wall' },
-    // Counter behind-counter south wall (y=2700) — open from lobby
-    // Already absent — lobby is open below.
+    // VAULT OUTER (x=1300-2675)
+    //   West (x=1300-1325, y=1100-1675)
+    { x: 1300, y: 1100, w: 25, h: 575, kind: 'wall_vault' },
+    //   East (x=2675-2700, y=1100-1675)
+    { x: 2675, y: 1100, w: 25, h: 575, kind: 'wall_vault' },
+    //   South (y=1675-1700) door 1900-2100 (OUTER-VAULT-DRILL)
+    { x: 1325, y: 1675, w: 575, h: 25, kind: 'wall_vault' },
+    { x: 2100, y: 1675, w: 575, h: 25, kind: 'wall_vault' },
 
-    // ============ ROW 6 (y=2700-3100) — MAIN LOBBY (open, with pillars) ============
+    // SECURITY (x=2700-3375) — matches locker above
+    //   West (x=2700-2725, y=1100-1675)
+    { x: 2700, y: 1100, w: 25, h: 575, kind: 'wall' },
+    //   North (y=1100-1125, x=2700-3375) — gap 3050-3150 matches locker-door above
+    { x: 2725, y: 1100, w: 325, h: 25, kind: 'wall' },     // 2725-3050 (left of locker-door)
+    { x: 3150, y: 1100, w: 225, h: 25, kind: 'wall' },     // 3150-3375 (right of locker-door)
+    //   South (y=1675-1700, x=2700-3375) door 2900-3000 (lockpickable)
+    { x: 2725, y: 1675, w: 175, h: 25, kind: 'wall' },     // 2725-2900
+    { x: 3000, y: 1675, w: 375, h: 25, kind: 'wall' },     // 3000-3375
+
+    // ============ ROW 3 (y=1700-1975) SERVER | HALLWAY | MANAGER TOP ============
+    // SERVER (x=625-1275)
+    //   East (x=1275-1300, y=1700-1975) door 1800-1880 → server↔hallway
+    { x: 1275, y: 1700, w: 25, h: 100, kind: 'wall' },     // 1700-1800
+    { x: 1275, y: 1880, w: 25, h: 95,  kind: 'wall' },     // 1880-1975
+    //   South (y=1975-2000, x=625-1275) door 820-920 → server↔break
+    { x: 625,  y: 1975, w: 195, h: 25, kind: 'wall' },     // 625-820
+    { x: 920,  y: 1975, w: 355, h: 25, kind: 'wall' },     // 920-1275
+
+    // HALLWAY (x=1300-2675)
+    //   West (x=1300-1325, y=1700-1975)
+    { x: 1300, y: 1700, w: 25, h: 275, kind: 'wall' },
+    //   East (x=2675-2700, y=1700-1975)
+    { x: 2675, y: 1700, w: 25, h: 275, kind: 'wall' },
+    //   South (y=1975-2000) central gap x=1700-2100
+    { x: 1325, y: 1975, w: 375, h: 25, kind: 'wall' },     // 1325-1700
+    { x: 2100, y: 1975, w: 575, h: 25, kind: 'wall' },     // 2100-2675
+
+    // MANAGER TOP (x=2700-3375, y=1700-2400) — extends down through Row 4
+    //   West (x=2700-2725, y=1700-2400) door 2200-2280
+    { x: 2700, y: 1700, w: 25, h: 500, kind: 'wall' },     // 1700-2200
+    { x: 2700, y: 2280, w: 25, h: 120, kind: 'wall' },     // 2280-2400
+
+    // ============ ROW 4 (y=2000-2400) BREAK | CONF | CORRIDOR | TOILET | MGR BOT ============
+    // BREAK (x=625-1275, full width)
+    //   North (y=2000-2025, x=625-1275)
+    { x: 625, y: 2000, w: 650, h: 25, kind: 'wall' },
+    //   East (x=1275-1300, y=2000-2400) door 2150-2230
+    { x: 1275, y: 2000, w: 25, h: 150, kind: 'wall' },     // 2000-2150
+    { x: 1275, y: 2230, w: 25, h: 170, kind: 'wall' },     // 2230-2400
+    //   South (y=2400-2425, x=625-1275)
+    { x: 625, y: 2400, w: 650, h: 25, kind: 'wall' },
+
+    // CONFERENCE (x=1300-1675)
+    //   West (x=1300-1325, y=2000-2400) door 2150-2230 (matches break-east door)
+    { x: 1300, y: 2000, w: 25, h: 150, kind: 'wall' },     // 2000-2150
+    { x: 1300, y: 2230, w: 25, h: 170, kind: 'wall' },     // 2230-2400
+    //   East (x=1675-1700, y=2000-2400) door 2150-2230 → conf↔central
+    { x: 1675, y: 2000, w: 25, h: 150, kind: 'wall' },
+    { x: 1675, y: 2230, w: 25, h: 170, kind: 'wall' },
+    //   North (y=2000-2025, x=1325-1675)
+    { x: 1325, y: 2000, w: 350, h: 25, kind: 'wall' },
+    //   South (y=2400-2425, x=1325-1675)
+    { x: 1325, y: 2400, w: 350, h: 25, kind: 'wall' },
+
+    // CENTRAL CORRIDOR (x=1700-2100, y=2000-2400) — OPEN through-path. No walls.
+
+    // TOILET (x=2125-2675)
+    //   West (x=2100-2125, y=2000-2400) door 2150-2230 → central↔toilet
+    { x: 2100, y: 2000, w: 25, h: 150, kind: 'wall' },
+    { x: 2100, y: 2230, w: 25, h: 170, kind: 'wall' },
+    //   East (x=2675-2700, y=2000-2400)
+    { x: 2675, y: 2000, w: 25, h: 400, kind: 'wall' },
+    //   North (y=2000-2025, x=2125-2675)
+    { x: 2125, y: 2000, w: 550, h: 25, kind: 'wall' },
+    //   South (y=2400-2425, x=2125-2675)
+    { x: 2125, y: 2400, w: 550, h: 25, kind: 'wall' },
+    //   Internal mid (y=2200-2225, x=2125-2675) men/women
+    { x: 2125, y: 2200, w: 550, h: 25, kind: 'wall' },
+
+    // MANAGER BOT (x=2700-3375, y=2000-2400) — continues from Top
+    //   South (y=2400-2425, x=2700-3375) door 3050-3150
+    { x: 2725, y: 2400, w: 325, h: 25, kind: 'wall' },     // 2725-3050
+    { x: 3150, y: 2400, w: 225, h: 25, kind: 'wall' },     // 3150-3375
+
+    // ============ ROW 5 (y=2400-2450) CASHIER COUNTER ============
+    // 6 segments, central gap 1900-2100
+    { x: 1325, y: 2400, w: 175, h: 50, kind: 'counter' },  // 1325-1500
+    { x: 1550, y: 2400, w: 150, h: 50, kind: 'counter' },  // 1550-1700
+    { x: 1750, y: 2400, w: 150, h: 50, kind: 'counter' },  // 1750-1900
+    // GAP 1900-2100 (central corridor through)
+    { x: 2100, y: 2400, w: 150, h: 50, kind: 'counter' },  // 2100-2250
+    { x: 2300, y: 2400, w: 150, h: 50, kind: 'counter' },  // 2300-2450
+    { x: 2500, y: 2400, w: 175, h: 50, kind: 'counter' },  // 2500-2675
+
+    // BEHIND-COUNTER side walls (x=1300, x=2675, y=2425-2700)
+    { x: 1300, y: 2425, w: 25, h: 275, kind: 'wall' },
+    { x: 2675, y: 2425, w: 25, h: 275, kind: 'wall' },
+
+    // ============ ROW 6 (y=2700-3100) MAIN LOBBY (open) — pillars only ============
     { x: 1080, y: 2750, w: 50, h: 50, kind: 'pillar' },
     { x: 2870, y: 2750, w: 50, h: 50, kind: 'pillar' },
     { x: 1080, y: 3000, w: 50, h: 50, kind: 'pillar' },
@@ -239,9 +248,8 @@ const HEIST_ARENA = {
     { x: 1900, y: 2780, w: 50, h: 50, kind: 'pillar' },
     { x: 2050, y: 2780, w: 50, h: 50, kind: 'pillar' },
 
-    // ============ ROW 7 (y=3100-3300) — RECEPTION FOYER ============
-    // Reception desk (counter-style)
-    { x: 1750, y: 3150, w: 500,  h: 40, kind: 'counter' },
+    // ============ ROW 7 (y=3100-3300) RECEPTION ============
+    { x: 1750, y: 3150, w: 500, h: 40, kind: 'counter' },
 
     // ============ STREET COVER ============
     { x: 700,  y: 3650, w: 90, h: 50, kind: 'parked_car' },
@@ -257,18 +265,19 @@ const HEIST_ARENA = {
     { id: 'side',          x: 3050, y: 3400, w: 150, h: 25, kind: 'main_door',    locked: false },
     { id: 'back',          x: 1900, y: 700,  w: 100, h: 25, kind: 'back_door',    locked: true,  lockpickable: true },
     { id: 'loading',       x: 900,  y: 700,  w: 150, h: 25, kind: 'back_door',    locked: true,  lockpickable: true },
-    { id: 'storage',       x: 820,  y: 1075, w: 80,  h: 25, kind: 'side_door',    locked: true,  lockpickable: true },
+    { id: 'storage',       x: 820,  y: 1075, w: 100, h: 25, kind: 'side_door',    locked: true,  lockpickable: true },
     { id: 'vault_inner',   x: 1900, y: 1075, w: 200, h: 25, kind: 'vault_door',   locked: true,  drillable: true, isInner: true },
     { id: 'locker',        x: 3050, y: 1075, w: 100, h: 25, kind: 'side_door',    locked: true,  lockpickable: true },
-    { id: 'network',       x: 720,  y: 1475, w: 80,  h: 25, kind: 'side_door',    locked: false },
+    { id: 'network',       x: 820,  y: 1675, w: 100, h: 25, kind: 'side_door',    locked: false },
     { id: 'vault',         x: 1900, y: 1675, w: 200, h: 25, kind: 'vault_door',   locked: true,  drillable: true },
-    { id: 'security',      x: 2950, y: 1675, w: 80,  h: 25, kind: 'side_door',    locked: true,  lockpickable: true, kind2: 'rfid' },
-    { id: 'server',        x: 820,  y: 1975, w: 80,  h: 25, kind: 'side_door',    locked: false },
-    { id: 'behindcounter', x: 1700, y: 1975, w: 200, h: 25, kind: 'side_door',    locked: false },
-    { id: 'manager',       x: 3050, y: 2400, w: 80,  h: 25, kind: 'side_door',    locked: false },
-    { id: 'break',         x: 1300, y: 2150, w: 25,  h: 80, kind: 'side_door',    locked: false },
-    { id: 'conference',    x: 2400, y: 2150, w: 25,  h: 80, kind: 'side_door',    locked: false },
-    { id: 'manager_priv',  x: 2750, y: 2200, w: 25,  h: 80, kind: 'side_door',    locked: false },
+    { id: 'security',      x: 2900, y: 1675, w: 100, h: 25, kind: 'side_door',    locked: true,  lockpickable: true, kind2: 'rfid' },
+    { id: 'server',        x: 820,  y: 1975, w: 100, h: 25, kind: 'side_door',    locked: false },
+    { id: 'behindcounter', x: 1700, y: 1975, w: 400, h: 25, kind: 'side_door',    locked: false },
+    { id: 'manager',       x: 3050, y: 2400, w: 100, h: 25, kind: 'side_door',    locked: false },
+    { id: 'break',         x: 1275, y: 2150, w: 50,  h: 80, kind: 'side_door',    locked: false },
+    { id: 'conf_corridor', x: 1675, y: 2150, w: 50,  h: 80, kind: 'side_door',    locked: false },
+    { id: 'toilet',        x: 2100, y: 2150, w: 50,  h: 80, kind: 'side_door',    locked: false },
+    { id: 'manager_priv',  x: 2700, y: 2200, w: 50,  h: 80, kind: 'side_door',    locked: false },
   ],
 
   // === DECORATIONS (massor — gör banken levande) ===
