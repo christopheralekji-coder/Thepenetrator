@@ -17138,6 +17138,84 @@ let _pixiDiagTapCount = 0;
 let _pixiDiagTapLastT = 0;
 // v1.537: STRESS-TEST spawn-helpers. Knappar i HUD låter spelaren spawna
 // extra enemies/bullets/particles för prestanda-testning.
+// v1.581: SHOWCASE-spawn — lägger ut alla enemy/miniboss/boss-types organiserat
+// i grid på arenan. Alla frysta (e._frozen = true) så de inte rör sig eller attackerar.
+// Används i stresstest-mode för enemy-revamp-arbete.
+function spawnEnemyShowcase() {
+  if (!state.player) return;
+  // Rensa befintliga enemies så grid är ren
+  state.enemies = (state.enemies || []).filter(e => e.isBoss || e.isMiniBoss);
+  if (state.enemies.length > 0) state.enemies = [];
+
+  const baseX = state.player.x;
+  const baseY = state.player.y + 280;
+  const cols = 7;
+  const spacingX = 110, spacingY = 140;
+
+  // STANDARD ENEMIES (14)
+  const standard = ['grunt', 'runner', 'brute', 'shooter', 'ninja', 'swordsman', 'soldier', 'robot', 'dog', 'healer', 'summoner', 'bomber', 'sniper', 'swarmer'];
+  let standardRows = 0;
+  standard.forEach((type, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    if (row + 1 > standardRows) standardRows = row + 1;
+    const x = baseX - (cols - 1) * spacingX / 2 + col * spacingX;
+    const y = baseY + row * spacingY;
+    const e = makeEnemy(type, x, y);
+    e._frozen = true;
+    e._showcaseLabel = type.toUpperCase();
+    e._idx = (state.nextEnemyIdx = (state.nextEnemyIdx || 0) + 1);
+    state.enemies.push(e);
+  });
+
+  // MINI-BOSSES (9 powers)
+  const miniPowers = ['caster', 'tank_charger', 'cloaker', 'brute_charger', 'plasma', 'jetpack', 'gas_sniper', 'shielder', 'avatar'];
+  const miniBaseY = baseY + standardRows * spacingY + 120;
+  miniPowers.forEach((power, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    const x = baseX - (cols - 1) * spacingX / 2 + col * spacingX;
+    const y = miniBaseY + row * spacingY;
+    const e = makeEnemy('brute', x, y);
+    e._frozen = true;
+    e.isMiniBoss = true;
+    e.miniPower = power;
+    e.miniIntensity = 0.6;
+    e.r = Math.round(e.r * 1.4);
+    e.hp = e.maxHp = 300;
+    e.name = power.toUpperCase().replace(/_/g, ' ');
+    e.stageAccent = '#7a5aaa';
+    e.stageEdge = '#aaff5a';
+    e.stageBg = '#3a2a44';
+    e._showcaseLabel = 'MB: ' + e.name;
+    e._idx = (state.nextEnemyIdx = (state.nextEnemyIdx || 0) + 1);
+    state.enemies.push(e);
+  });
+
+  // BOSSES (9 — större spacing pga radius)
+  const bossKeys = ['witheredelder', 'ironclad', 'mirroredone', 'ossarius', 'vanguardatlas', 'emberoracle', 'blightsovereign', 'buriedcrown', 'lastsovereign'];
+  const miniRows = Math.ceil(miniPowers.length / cols);
+  const bossBaseY = miniBaseY + miniRows * spacingY + 220;
+  const bossSpacingX = 180;
+  const bossSpacingY = 200;
+  const bossCols = 5;
+  bossKeys.forEach((key, i) => {
+    const col = i % bossCols, row = Math.floor(i / bossCols);
+    const x = baseX - (bossCols - 1) * bossSpacingX / 2 + col * bossSpacingX;
+    const y = bossBaseY + row * bossSpacingY;
+    const boss = (typeof makeBoss === 'function') ? makeBoss(key, x, y) : null;
+    if (boss) {
+      boss._frozen = true;
+      boss._showcaseLabel = 'BOSS: ' + (boss.name || key);
+      boss._idx = (state.nextEnemyIdx = (state.nextEnemyIdx || 0) + 1);
+      state.enemies.push(boss);
+    }
+  });
+
+  if (typeof showToast === 'function') {
+    const total = standard.length + miniPowers.length + bossKeys.length;
+    showToast('🎭 SHOWCASE — ' + total + ' enemy-types (frysta)');
+  }
+}
+
 function spawnStresstestEnemies(count) {
   if (!state.stresstestActive) return;
   const p = state.player;
@@ -21712,9 +21790,14 @@ const Coop = {
       // v1.537/v1.543/v1.546: STRESS-TEST aktiverar diag + spawn-HUD + PIXI overlay,
       // OCH städar bort alla perks-element så de inte hänger kvar från tidigare match.
       if (_isStresstest) {
-        window._pixiDiag = true;
-        if (typeof showToast === 'function') showToast('🧪 STRESS-TEST AKTIV');
+        // v1.581: diag inte längre auto-på — användaren toggle:ar med 4-tap top-right
+        if (typeof showToast === 'function') showToast('🧪 STRESS-TEST AKTIV — Showcase-mode');
         if (typeof showStresstestHud === 'function') showStresstestHud();
+        // v1.581: Spawna alla enemy-types organiserat på arenan (frysta)
+        // Delay 600ms för att låta player + arena initialiseras
+        setTimeout(() => {
+          if (typeof spawnEnemyShowcase === 'function') spawnEnemyShowcase();
+        }, 600);
         if (pixiState) {
           pixiState.enemiesEnabled = true;
           pixiState.bulletsEnabled = true;
@@ -35643,6 +35726,8 @@ function updateEnemies(dt, now) {
   }
   for (const e of state.enemies) {
     if (e.dead) continue;
+    // v1.581: Frysta enemies (showcase-mode) rör sig inte och attackerar inte
+    if (e._frozen) continue;
     // Per-enemy target: närmsta levande spelare (inkl coop partners)
     const _ti = getNearestAlivePlayer(e.x, e.y);
     let p = _ti.ref;
@@ -60661,10 +60746,34 @@ function render() {
       if (sx < -margin || sx > viewW + margin || sy < -margin || sy > viewH + margin) continue;
       if (e.isBoss) {
         drawEnemy(e); // full boss-render (drawBossSoldier + drawBossTelegraph + HP-bar)
+        // v1.581: Showcase-label även för bossar (frysta showcase-enemies)
+        if (e._showcaseLabel) {
+          ctx.save();
+          ctx.fillStyle = '#ffd54a';
+          ctx.font = 'bold 11px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.shadowColor = '#000'; ctx.shadowBlur = 5;
+          const labelY = Math.max(14, sy - (e.r || 14) - 52);
+          ctx.fillText(e._showcaseLabel, sx, labelY);
+          ctx.shadowBlur = 0;
+          ctx.restore();
+        }
         continue;
       }
       // HP-bar för minions och mini-bosses
       if (typeof drawHpBar === 'function') drawHpBar(e, sx, sy);
+      // v1.581: Showcase-label ovanför enemy (visar typ-namn för enemy-revamp-arbete)
+      if (e._showcaseLabel) {
+        ctx.save();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+        const labelY = Math.max(14, sy - (e.r || 14) - 38);
+        ctx.fillText(e._showcaseLabel, sx, labelY);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      }
       // v1.575: Mini-boss namn-tag bortagen från denna loop — drawHpBar (ovan)
       // ritar redan "⚠ name" via line 58081. Bara pulsande glow-ring kvar här.
       if (e.isMiniBoss) {
