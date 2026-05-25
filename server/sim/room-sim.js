@@ -2706,11 +2706,12 @@ function tickCastleDefense(sim, dt, now) {
       return;
     }
     // v1.528: Mini-boss-spawn var 4 min (240s) — vid 4, 8, 12, 16 min
+    // v1.616: HOPPAS i stresstest — showcase ska vara stilla utan spawn-flow
     const miniBossInterval = (SURVIVORS_ARENA && SURVIVORS_ARENA.miniBossEverySec) || 240;
     const elapsedSec = elapsedMs / 1000;
     const expectedMiniBosses = Math.floor(elapsedSec / miniBossInterval);
     sim.survivorsMiniBossesSpawned = sim.survivorsMiniBossesSpawned || 0;
-    if (expectedMiniBosses > sim.survivorsMiniBossesSpawned) {
+    if (!sim.stresstestActive && expectedMiniBosses > sim.survivorsMiniBossesSpawned) {
       spawnSurvivorsMiniBoss(sim);
       sim.survivorsMiniBossesSpawned = expectedMiniBosses;
     }
@@ -2739,6 +2740,8 @@ function tickCastleDefense(sim, dt, now) {
     // v1.606: TIME-BASED wave-scheduler — var 25s spawn ny batch oavsett om
     // förra wavens minions är döda. Tidigare kill-baserat = långsamt om man
     // missade en sniper i hörn. Nu: konstant press, vågorna stackar.
+    // v1.616: HOPPAS i stresstest — showcase ska vara stillastående grupp,
+    // inte spammas över med wave-spawnade enemies som drabbar player.
     const survArena = SURVIVORS_ARENA || {};
     const waveIntervalMs = (survArena.waveIntervalSec || 25) * 1000;
     const waveBase = survArena.waveBaseCount || 6;
@@ -2746,7 +2749,7 @@ function tickCastleDefense(sim, dt, now) {
     if (!sim._survNextWaveAt) {
       sim._survNextWaveAt = sim.survivorsStartT + 1500; // första vågen 1.5s in
     }
-    if (nowMs >= sim._survNextWaveAt) {
+    if (!sim.stresstestActive && nowMs >= sim._survNextWaveAt) {
       sim._survNextWaveAt = nowMs + waveIntervalMs;
       // v1.607: Wave-bonus gold INNAN nästa wave startar (utom första wave).
       // v1.610: + shield-regen (50% av max) per wave så shield faktiskt fungerar.
