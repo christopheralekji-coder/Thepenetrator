@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v610-cleanup-shield-invuln-minimap-stutter';
+const CACHE = 'penetrator-v611-canvas2d-enemies-weaponmenu-shop';
 const ASSETS = [
   './',
   './index.html',

@@ -19019,11 +19019,11 @@ let prevModeBeforeWeaponMenu = 'playing';
 
 function openWeaponMenu() {
   if (state.mode !== 'playing') return;
-  // v1.531: SURVIVORS-RUN — visa kompakt shop istället för full-screen meny
-  if (state.survivorsActive) {
-    openSurvivorsWeaponShop();
-    return;
-  }
+  // v1.611: SURVIVORS-RUN — använder NU samma full-screen weapon-menu som story,
+  // bara att unowned vapen visas som köp-kort med pris. Klick på ägt vapen
+  // equipar; klick på olåst köper via server.
+  // (Tidigare öppnades en separat compact shop-overlay; användaren ville ha
+  // shoppen integrerad i vapen-menyn.)
   // GUNGAME: vapen styrs av server via tier-promotion — spelaren får inte
   // välja vapen själv. Visa en kort toast istället.
   if (state.gungameActive) {
@@ -28802,6 +28802,73 @@ function updateFireButtonIcon() {
 
 function renderWeaponMenu() {
   weaponMenuGrid.innerHTML = '';
+  // v1.611: SURVIVORS shop-integration — visa ALLA 15 GG-vapen som korten,
+  // unowned → köp-knapp (server-authoritative buy), owned → equip vid klick.
+  if (state.survivorsActive && typeof SURVIVORS_SHOP_WEAPONS !== 'undefined') {
+    const matchGold = state.castledefenseGold || 0;
+    state.survivorsOwnedWeapons = state.survivorsOwnedWeapons || ['pistol'];
+    const equippedSurv = (state.player && state.player.weaponId) || 'pistol';
+    // Gold-header
+    const goldHeader = document.createElement('div');
+    goldHeader.style.cssText = 'grid-column:1/-1;text-align:center;padding:8px;color:#ffd54a;font-weight:900;font-size:16px;letter-spacing:1px;border-bottom:1px solid rgba(170,58,255,0.3);margin-bottom:8px;';
+    goldHeader.innerHTML = '💰 ' + matchGold + ' GOLD';
+    weaponMenuGrid.appendChild(goldHeader);
+    for (const sw of SURVIVORS_SHOP_WEAPONS) {
+      const w = WEAPONS.find(x => x.id === sw.id);
+      if (!w) continue;
+      const cat = weaponCategory(w);
+      const owned = state.survivorsOwnedWeapons.includes(sw.id) || sw.cost === 0;
+      const equipped = equippedSurv === sw.id;
+      const canAfford = matchGold >= sw.cost;
+      const div = document.createElement('div');
+      div.className = 'wmenu-item' + (equipped ? ' equipped' : '');
+      if (!owned && !canAfford) div.style.opacity = '0.55';
+      // stat-bars
+      const dmgMax = w.type === 'melee' ? 100 : 200;
+      const dmgPct = Math.min(1, w.dmg * (w.pellets || 1) / dmgMax);
+      const fireRate = Math.min(1, (60000 / w.rate) / 12);
+      const ros = w.type === 'melee' ? Math.min(1, (w.range || 40) / 100) : Math.min(1, (w.speed || 800) / 1500);
+      const stats = '<div class="stat-bar"><span class="label">Skada</span><div class="bar"><div class="bar-fill" style="width:' + (dmgPct*100) + '%"></div></div></div>' +
+        '<div class="stat-bar"><span class="label">Snabbhet</span><div class="bar"><div class="bar-fill" style="width:' + (fireRate*100) + '%"></div></div></div>' +
+        '<div class="stat-bar"><span class="label">' + (w.type === 'melee' ? 'Räckv' : 'Hast') + '</span><div class="bar"><div class="bar-fill" style="width:' + (ros*100) + '%"></div></div></div>';
+      const tags = [];
+      if (w.pierce) tags.push('🎯');
+      if (w.explosive) tags.push('💥');
+      if (w.burn) tags.push('🔥');
+      if (w.chain) tags.push('⚡');
+      if (w.slow) tags.push('❄');
+      if (w.knockback) tags.push('💢');
+      let statusBadge = '';
+      if (equipped) statusBadge = '<div class="equipped-badge">✓</div>';
+      else if (owned) statusBadge = '<div style="position:absolute;top:6px;right:6px;background:#1a3a4a;color:#5aaaff;padding:2px 6px;border-radius:4px;font-size:9px;font-weight:900;">ÄGD</div>';
+      else if (canAfford) statusBadge = '<div style="position:absolute;top:6px;right:6px;background:#3a1a5a;color:#d0a0ff;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:900;">💰 ' + sw.cost + '</div>';
+      else statusBadge = '<div style="position:absolute;top:6px;right:6px;background:#2a1a1a;color:#7a5050;padding:2px 6px;border-radius:4px;font-size:11px;font-weight:900;">🔒 ' + sw.cost + '</div>';
+      div.innerHTML = statusBadge +
+        '<div class="wname">' + (sw.label || w.name) + '</div>' +
+        '<span class="wtype ' + cat + '">' + cat.toUpperCase() + '</span>' +
+        stats +
+        (tags.length ? '<div style="margin-top:6px;font-size:14px;letter-spacing:3px;">' + tags.join(' ') + '</div>' : '');
+      div.addEventListener('click', () => {
+        if (owned) {
+          // Equipa
+          if (state.player) state.player.weaponId = sw.id;
+          if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
+          renderWeaponMenu();
+          if (typeof updateHUD === 'function') updateHUD();
+        } else if (canAfford) {
+          // Köp via server
+          if (typeof trySurvivorsWeaponBuy === 'function') {
+            trySurvivorsWeaponBuy(sw.id, sw.cost);
+            renderWeaponMenu();
+          }
+        } else {
+          if (typeof showToast === 'function') showToast('🔒 OTILLRÄCKLIGT GOLD (' + matchGold + '/' + sw.cost + ')');
+        }
+      });
+      weaponMenuGrid.appendChild(div);
+    }
+    return;
+  }
   // bara ägda vapen, sorterade efter typ + pris
   const owned = WEAPONS.filter(w => save.owned.includes(w.id));
   owned.sort((a, b) => {
@@ -68321,20 +68388,19 @@ function runFrame(dt, now) {
     pixiState.bulletsEnabled = true;
     pixiState.particlesEnabled = true;
     pixiState.vfxEnabled = true;
-    // v1.576: Enemies kräver baked textures — Canvas2D-fallback om bake inte klart.
-    if (!pixiState.enemyTexturesBaked && typeof bakeAllEnemyTextures === 'function') {
-      bakeAllEnemyTextures();
+    // v1.611: SURVIVORS använder ALLTID Canvas2D för enemies. Pixi-texture-uploads
+    // är async till GPU och första matchen efter en deploy hade kalla GPU-context →
+    // osynliga enemies första sekunderna. Canvas2D är 100% reliable. Performance-
+    // diff är minimal eftersom enemy-cap är 120, inte 1500 som stresstest.
+    if (state.survivorsActive) {
+      pixiState.enemiesEnabled = false;
+    } else {
+      // v1.576: Enemies kräver baked textures — Canvas2D-fallback om bake inte klart.
+      if (!pixiState.enemyTexturesBaked && typeof bakeAllEnemyTextures === 'function') {
+        bakeAllEnemyTextures();
+      }
+      pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked;
     }
-    // v1.609: GPU TEXTURE-UPLOAD warmup. PIXI.Texture.from() returnerar texture
-    // SYNKRONT men GPU-upload sker async. Första matchen efter JS-update har kall
-    // GPU-context → uploads tar längre tid → Pixi-sprites blir osynliga första
-    // sekunderna (enemies finns men syns inte). Force Canvas2D-fallback första
-    // 1.5s av varje match så enemies ALLTID syns från frame 1.
-    if (!state._pixiWarmupUntil || state._prevMode !== 'playing') {
-      state._pixiWarmupUntil = (now || performance.now()) + 1500;
-    }
-    const _warmupActive = (now || performance.now()) < state._pixiWarmupUntil;
-    pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked && !_warmupActive;
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;
