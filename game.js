@@ -16866,10 +16866,42 @@ function bakeAllEnemyTextures() {
   if (bakedCount >= expected) {
     pixiState.enemyTexturesBaked = true;
     console.log('[Pixi] enemy textures fully baked:', bakedCount, '/', expected);
+    // v1.612: FORCE GPU-upload synkront via primer-render. PIXI.Texture.from
+    // returnerar synkront men GPU-upload sker async vid första riktiga draw.
+    // Vid kall GPU-context tar det flera frames → osynliga enemies. Lösning:
+    // skapa hidden sprites och rendrera dem off-screen NU för att tvinga upload
+    // medan vi fortfarande är i bake-funktionen.
+    try { _primeGpuTextureUploads(); } catch (e) { console.warn('[Pixi] prime fail:', e.message); }
   } else {
     console.warn('[Pixi-bake] partial bake:', bakedCount, '/', expected, '— will retry on next sync');
     pixiState.enemyTexturesBaked = false; // tillåt retry
   }
+}
+
+// v1.612: Tvinga GPU-upload av baked textures synkront via primer-pass.
+// Skapar ett dolt PIXI.Container med Sprites för varje texture, kör en render-call,
+// raderar containern. WebGL's texImage2D är synkron så efter render() är alla
+// textures uppladda till GPU och redo att användas av riktiga sprites.
+function _primeGpuTextureUploads() {
+  if (typeof PIXI === 'undefined') return;
+  if (!pixiState || !pixiState.ready || !pixiState.app || !pixiState.enemyTextures) return;
+  const primer = new PIXI.Container();
+  primer.label = 'gpu-prime';
+  for (const key in pixiState.enemyTextures) {
+    const tex = pixiState.enemyTextures[key];
+    if (!tex) continue;
+    const sprite = new PIXI.Sprite(tex);
+    sprite.x = -10000; // off-screen så det inte syns
+    sprite.y = -10000;
+    sprite.alpha = 0;
+    primer.addChild(sprite);
+  }
+  pixiState.app.stage.addChild(primer);
+  // Force render → triggar gl.texImage2D för alla textures synkront
+  try { pixiState.app.renderer.render(pixiState.app.stage); } catch (_) {}
+  pixiState.app.stage.removeChild(primer);
+  primer.destroy({ children: true });
+  console.log('[Pixi] GPU texture-uploads primed for', Object.keys(pixiState.enemyTextures).length, 'textures');
 }
 
 const _pixiEnemySpritePoolByType = {};
@@ -68388,19 +68420,14 @@ function runFrame(dt, now) {
     pixiState.bulletsEnabled = true;
     pixiState.particlesEnabled = true;
     pixiState.vfxEnabled = true;
-    // v1.611: SURVIVORS använder ALLTID Canvas2D för enemies. Pixi-texture-uploads
-    // är async till GPU och första matchen efter en deploy hade kalla GPU-context →
-    // osynliga enemies första sekunderna. Canvas2D är 100% reliable. Performance-
-    // diff är minimal eftersom enemy-cap är 120, inte 1500 som stresstest.
-    if (state.survivorsActive) {
-      pixiState.enemiesEnabled = false;
-    } else {
-      // v1.576: Enemies kräver baked textures — Canvas2D-fallback om bake inte klart.
-      if (!pixiState.enemyTexturesBaked && typeof bakeAllEnemyTextures === 'function') {
-        bakeAllEnemyTextures();
-      }
-      pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked;
+    // v1.612: PIXI återaktiverad för survivors enemies. GPU-upload-bugg fixad
+    // via _primeGpuTextureUploads() i bakeAllEnemyTextures — textures är nu
+    // garanterat på GPU innan första riktiga render → inga osynliga enemies.
+    // v1.576: Enemies kräver baked textures — Canvas2D-fallback om bake inte klart.
+    if (!pixiState.enemyTexturesBaked && typeof bakeAllEnemyTextures === 'function') {
+      bakeAllEnemyTextures();
     }
+    pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked;
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;

@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v611-canvas2d-enemies-weaponmenu-shop';
+const CACHE = 'penetrator-v612-gpu-prime-pixi-reenabled';
 const ASSETS = [
   './',
   './index.html',
