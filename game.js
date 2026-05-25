@@ -57075,40 +57075,7 @@ function drawBossSoldier(e, x, y, flash) {
   const facingLeft = Math.abs(e.facing) > Math.PI / 2;
   if (facingLeft) ctx.scale(-1, 1);
   const drawFn = BOSS_DRAW[e.bossKey] || drawBossDefault;
-  // v1.589 DEBUG: visa key + vilken funktion som väljs ovanför boss
-  ctx.save();
-  ctx.fillStyle = '#ff00ff';
-  ctx.font = 'bold 12px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.shadowColor = '#000';
-  ctx.shadowBlur = 4;
-  const _bdInfo = 'KEY:' + (e.bossKey || 'undef') + ' FN:' + (BOSS_DRAW[e.bossKey] ? 'CUSTOM' : 'DEFAULT');
-  ctx.fillText(_bdInfo, 0, -e.r * 2.5);
-  // v1.594 DEBUG: visa första 50 tecknen av drawFn-body — vad körs FAKTISKT?
-  const _drawFnStr = String(drawFn).replace(/\s+/g, ' ').slice(0, 50);
-  ctx.font = 'bold 9px monospace';
-  ctx.fillStyle = '#ffff00';
-  ctx.fillText(_drawFnStr, 0, -e.r * 2.0);
-  ctx.shadowBlur = 0;
-  ctx.restore();
-  // v1.592 DEBUG: GRÖN ruta FÖRE drawFn — om syns, drawBossSoldier kom hit
-  ctx.fillStyle = '#00ff00';
-  ctx.fillRect(-e.r * 1.5, -e.r * 1.5, e.r * 0.4, e.r * 0.4);
-  try {
-    drawFn(e, flash, now, phase, moving);
-    // v1.592: BLÅ ruta EFTER drawFn — om syns, drawFn returnade utan exception
-    ctx.fillStyle = '#0080ff';
-    ctx.fillRect(e.r * 1.1, -e.r * 1.5, e.r * 0.4, e.r * 0.4);
-  } catch (err) {
-    // v1.592: ORANGE text med exact felmeddelandet om drawFn kraschade
-    ctx.fillStyle = '#ff8800';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
-    const _msg = err && err.message ? err.message : (err + '');
-    ctx.fillText('EXC:' + _msg.slice(0, 40), 0, -e.r * 3.2);
-    ctx.shadowBlur = 0;
-  }
+  drawFn(e, flash, now, phase, moving);
   ctx.restore();
 
   // charge laddar upp glow
@@ -57144,13 +57111,6 @@ const SIDE_VIEW_ENEMY_TYPES = new Set([
 // Hjälp: rita en stor militär kropp som bas (kropp + huvud), sen specialiseringar ovanpå
 function drawBossDefault(e, flash, now, phase, moving) {
   const r = e.r;
-  // v1.589 DEBUG: YELLOW marker så vi ser om drawBossDefault körs istället för min custom
-  ctx.strokeStyle = '#ffff00';
-  ctx.lineWidth = 5;
-  ctx.shadowColor = '#ffff00';
-  ctx.shadowBlur = 14;
-  ctx.beginPath(); ctx.arc(0, 0, r * 2.2, 0, Math.PI * 2); ctx.stroke();
-  ctx.shadowBlur = 0;
   ctx.fillStyle = flash ? '#fff' : e.color;
   ctx.beginPath(); ctx.ellipse(0, 0, r * 1.0, r * 1.4, 0, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = flash ? '#fff' : darken(e.color, 0.6);
@@ -57168,24 +57128,6 @@ function drawBossDefault(e, flash, now, phase, moving) {
 
 // Helper för boss-baseline: military body skeleton (legs + torso + plate + head)
 function _drawBossMilitaryBase(e, flash, now, phase, opts) {
-  // v1.588 DEBUG MARKER — pink pulse-ring + text så vi ser om denna kod körs alls
-  const _markerR = e.r * 2.0;
-  const _markerPulse = 0.8 + Math.sin(now / 200) * 0.2;
-  ctx.strokeStyle = '#ff00ff';
-  ctx.lineWidth = 4;
-  ctx.shadowColor = '#ff00ff';
-  ctx.shadowBlur = 16;
-  ctx.beginPath();
-  ctx.arc(0, 0, _markerR * _markerPulse, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#ff00ff';
-  ctx.font = 'bold 14px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.shadowColor = '#000';
-  ctx.shadowBlur = 4;
-  ctx.fillText('v1.588 ' + (e.bossKey || '?'), 0, -e.r * 2.2);
-  ctx.shadowBlur = 0;
   const r = e.r;
   const swing = Math.sin(phase) * 0.35;
   const fc = opts.faceColor || '#c89870';      // skin
@@ -57241,18 +57183,6 @@ function _drawBossMilitaryBase(e, flash, now, phase, opts) {
 
 // THE WITHERED ELDER — VETERAN forest-commander (military med druid-power signatures)
 BOSS_DRAW.witheredelder = function(e, flash, now, phase, moving) {
-  // v1.593 EXTREME-DEBUG: BARA en HUGE solid VIT cirkel istället för boss.
-  // INGEN annan rendering, INGEN save/restore. Om vit cirkel syns där boss ska vara → funktion KÖR.
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  ctx.arc(0, 0, e.r * 2.5, 0, Math.PI * 2);
-  ctx.fill();
-  // Plus stor svart text
-  ctx.fillStyle = '#000000';
-  ctx.font = 'bold 18px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('v1.593', 0, 5);
-  return; // skippa rest av funktion för isolerad test
   let base;
   try {
     base = _drawBossMilitaryBase(e, flash, now, phase, {
@@ -59040,10 +58970,8 @@ BOSS_DRAW.gravgravaren = function(e, flash, now, phase, moving) {
 
 // Alias gamla bossnames till nya så befintliga BOSS_DRAW-funktioner används.
 // Defensiv: skippa alias om source-funktion saknas (utvecklare-skydd).
+// v1.595: witheredelder/ironclad/mirroredone har egen militära design — alias REMOVED för dem.
 const _bossAliases = {
-  witheredelder:   'likvakare',
-  ironclad:        'benkrossare',
-  mirroredone:     'strypare',
   ossarius:        'avrattare',
   vanguardatlas:   'kottkvarn',
   emberoracle:     'askmakare',
