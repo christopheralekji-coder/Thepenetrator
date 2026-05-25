@@ -66615,9 +66615,16 @@ function render() {
   // (a) bossar (full body — drawBossSoldier för phase-baserad rendering)
   // (b) HP-bars för alla enemies
   // (c) Mini-boss namn-tag + pulsande glow-ring
-  if (!(pixiState && pixiState.enemiesEnabled)) {
+  // v1.614: MOBILE-FIRST safety-net. Första 3s av varje match renderar vi enemies
+  // via BÅDA Pixi OCH Canvas2D (dual-render). Om Pixi misslyckas (GPU-upload-race)
+  // syns enemies ändå via Canvas2D. Efter 3s antar vi Pixi är warm → tar bort
+  // dual-render för perf. Pixi-prestandavinst behålls för långa matcher.
+  const _dualRenderActive = state.mode === 'playing' &&
+    state._pixiWarmupUntil && performance.now() < state._pixiWarmupUntil;
+  if (!(pixiState && pixiState.enemiesEnabled) || _dualRenderActive) {
     for (const e of state.enemies) drawEnemy(e);
-  } else {
+  }
+  if (pixiState && pixiState.enemiesEnabled) {
     const _nowOverlay = performance.now();
     for (const e of state.enemies) {
       if (!e || e.dead) continue;
@@ -66627,7 +66634,8 @@ function render() {
       if (sx < -margin || sx > viewW + margin || sy < -margin || sy > viewH + margin) continue;
       // v1.599: bossar OCH mini-bossar via Canvas2D drawEnemy (Pixi-textures är suddiga)
       if (e.isBoss || e.isMiniBoss) {
-        drawEnemy(e);
+        // v1.614: hoppa om Canvas2D-fallback redan ritat (dual-render) — annars dubbel-draw
+        if (!_dualRenderActive) drawEnemy(e);
         if (e._showcaseLabel) {
           ctx.save();
           ctx.fillStyle = e.isBoss ? '#ffd54a' : '#fff';
@@ -68435,14 +68443,17 @@ function runFrame(dt, now) {
     pixiState.bulletsEnabled = true;
     pixiState.particlesEnabled = true;
     pixiState.vfxEnabled = true;
-    // v1.612: PIXI återaktiverad för survivors enemies. GPU-upload-bugg fixad
-    // via _primeGpuTextureUploads() i bakeAllEnemyTextures — textures är nu
-    // garanterat på GPU innan första riktiga render → inga osynliga enemies.
-    // v1.576: Enemies kräver baked textures — Canvas2D-fallback om bake inte klart.
     if (!pixiState.enemyTexturesBaked && typeof bakeAllEnemyTextures === 'function') {
       bakeAllEnemyTextures();
     }
     pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked;
+    // v1.614: SÄTT WARMUP-FÖNSTER (3s) när match startar. Dual-render
+    // (Canvas2D + Pixi) aktiveras under denna period så enemies SYNS säkert
+    // även om Pixi-textures inte hunnit till GPU än. Efter 3s antar vi GPU är
+    // warm → bara Pixi → full prestandavinst.
+    if (state._prevMode !== 'playing') {
+      state._pixiWarmupUntil = (now || performance.now()) + 3000;
+    }
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;

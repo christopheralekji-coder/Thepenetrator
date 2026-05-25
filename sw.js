@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v613-mobile-tap-buy-optimistic';
+const CACHE = 'penetrator-v614-dual-render-3s-warmup';
 const ASSETS = [
   './',
   './index.html',
