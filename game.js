@@ -22959,7 +22959,11 @@ const Coop = {
         state.bullets = ownBullets.concat(hostileFromHost);
       }
       if (data.pickups) {
-        state.pickups = data.pickups.map(p => ({ x: p.x, y: p.y, type: p.t, life: 25, vx:0, vy:0, magnetized: false }));
+        // v1.603: SURVIVORS — endast HP + shield drops. Filter bort gold/ammo/temp_dmg från server-broadcast.
+        const allowedTypes = state.survivorsActive ? new Set(['hp', 'shield']) : null;
+        state.pickups = data.pickups
+          .filter(p => !allowedTypes || allowedTypes.has(p.t))
+          .map(p => ({ x: p.x, y: p.y, type: p.t, life: 25, vx:0, vy:0, magnetized: false }));
       }
       if (data.gs) {
         state.wave = data.gs.w;
@@ -68306,6 +68310,11 @@ function runFrame(dt, now) {
             state._jugHeartbeatTimer = 0;
           }
         }
+      }
+      // v1.603: SURVIVORS obstacle-collision — ALLTID kör (även för coop-klient / server-sim).
+      // Var tidigare bara i HOST-branch vilket gjorde att klient + server-sim-mode lät väggar passera.
+      if (state.survivorsActive && typeof applySurvivorsObstacleCollision === 'function') {
+        applySurvivorsObstacleCollision();
       }
       // ApokalypsJamlo cheat — meteor var 8:e sekund
       if (state.player && isCheatActive('apocalypse')) {

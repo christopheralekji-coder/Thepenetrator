@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v602-perks-enemy-path';
+const CACHE = 'penetrator-v603-collision-drops-rates';
 const ASSETS = [
   './',
   './index.html',

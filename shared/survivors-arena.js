@@ -82,7 +82,8 @@ const SURVIVORS_ARENA = {
   // v1.531/v1.532: FAST rarity-rates oavsett tid. Höjt purple från 7% till 12%
   // (balance-audit: bara 1.4 purple per match annars — game-changers för sällsynta).
   // [grayRate, greenRate, blueRate, purpleRate], summa = 1.0
-  rarityRatesFixed: [0.38, 0.30, 0.20, 0.12],
+  // v1.603: per user-request — gray 50%, green 30%, blue 15%, purple 5%
+  rarityRatesFixed: [0.50, 0.30, 0.15, 0.05],
   // (Legacy time-baserad behållen för bakåtkompat men används inte längre)
   rarityRatesByMinute: [
     { until: 99, rates: [0.45, 0.30, 0.18, 0.07] },
