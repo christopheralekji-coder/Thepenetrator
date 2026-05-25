@@ -16622,12 +16622,13 @@ function _releaseEnemySprite(s) {
 // ============================================================
 
 const _ENEMY_BAKE_LIST = [
-  { type: 'grunt',    r: 18, color: '#4a5a30' },
-  { type: 'runner',   r: 14, color: '#5a4a30' },
+  // v1.583: side-view types har större bake-radius för mer detalj
+  { type: 'grunt',    r: 22, color: '#4a5a30' },
+  { type: 'runner',   r: 18, color: '#5a4a30' },
   { type: 'healer',   r: 18, color: '#3a8a4a' },
   { type: 'summoner', r: 20, color: '#5a2a7a' },
-  { type: 'bomber',   r: 18, color: '#7a3030' },
-  { type: 'sniper',   r: 16, color: '#3a4a26' },
+  { type: 'bomber',   r: 20, color: '#7a3030' },
+  { type: 'sniper',   r: 20, color: '#3a4a26' },
   { type: 'swarmer',  r: 12, color: '#5a3a2a' },
   { type: 'dog',      r: 14, color: '#6a4a2a' },
   { type: 'robot',    r: 18, color: '#5a5a6a' },
@@ -17557,9 +17558,9 @@ function makeEnemy(type, x, y) {
     facing: 0,
     walkPhase: Math.random() * Math.PI * 2,
   };
-  // grunt = standard soldat (default)
-  if (type === 'grunt')    { base.color = '#5a6a3a'; base.accent = '#1a1a1a'; }
-  if (type === 'runner')   { base.r = 10; base.hp = 14; base.maxHp = 14; base.speed = 170; base.dmg = 8;  base.color = '#3a2a1a'; base.accent = '#000'; base.gold = 8; }
+  // grunt = standard soldat (default) — v1.583: större för bättre detalj-synlighet
+  if (type === 'grunt')    { base.r = 16; base.color = '#5a6a3a'; base.accent = '#1a1a1a'; }
+  if (type === 'runner')   { base.r = 14; base.hp = 14; base.maxHp = 14; base.speed = 170; base.dmg = 8;  base.color = '#3a2a1a'; base.accent = '#000'; base.gold = 8; }
   if (type === 'brute')    { base.r = 19; base.hp = 70; base.maxHp = 70; base.speed = 70;  base.dmg = 18; base.color = '#5a2828'; base.accent = '#3a1010'; base.gold = 14; }
   if (type === 'shooter')  { base.r = 12; base.hp = 22; base.maxHp = 22; base.speed = 75;  base.dmg = 0;  base.color = '#3a3a5a'; base.accent = '#1a1a2a'; base.gold = 12; base.shootRange = 360; base.shootRate = 1400; base.bulletSpeed = 360; base.bulletDmg = 9; }
   // nya typer
@@ -17571,8 +17572,8 @@ function makeEnemy(type, x, y) {
   // === 5 NYA FIENDETYPER ===
   if (type === 'healer')   { base.r = 11; base.hp = 26; base.maxHp = 26; base.speed = 80;  base.dmg = 0; base.color = '#3a5a2a'; base.accent = '#9aff5a'; base.gold = 20; base.healAt = 0; }
   if (type === 'summoner') { base.r = 12; base.hp = 32; base.maxHp = 32; base.speed = 70;  base.dmg = 0; base.color = '#3a1a44'; base.accent = '#aa3aff'; base.gold = 25; base.summonAt = 0; }
-  if (type === 'bomber')   { base.r = 10; base.hp = 18; base.maxHp = 18; base.speed = 200; base.dmg = 50; base.color = '#7a2a1a'; base.accent = '#ff3a14'; base.gold = 14; base.fuse = 0; }
-  if (type === 'sniper')   { base.r = 11; base.hp = 22; base.maxHp = 22; base.speed = 60;  base.dmg = 0; base.color = '#1a2a18'; base.accent = '#ff3a3a'; base.gold = 22; base.shootRange = 700; base.shootRate = 2200; base.bulletSpeed = 900; base.bulletDmg = 35; base.aimAt = 0; }
+  if (type === 'bomber')   { base.r = 14; base.hp = 18; base.maxHp = 18; base.speed = 200; base.dmg = 50; base.color = '#7a2a1a'; base.accent = '#ff3a14'; base.gold = 14; base.fuse = 0; }
+  if (type === 'sniper')   { base.r = 15; base.hp = 22; base.maxHp = 22; base.speed = 60;  base.dmg = 0; base.color = '#1a2a18'; base.accent = '#ff3a3a'; base.gold = 22; base.shootRange = 700; base.shootRate = 2200; base.bulletSpeed = 900; base.bulletDmg = 35; base.aimAt = 0; }
   if (type === 'swarmer')  { base.r = 7;  base.hp = 6;  base.maxHp = 6;  base.speed = 260; base.dmg = 6; base.color = '#5a3a1a'; base.accent = '#ff8a3a'; base.gold = 3; }
   return base;
 }
@@ -58219,6 +58220,27 @@ function drawHumanEnemy(e, flash, now, phase) {
       ctx.fillRect(r * 0.06, -r * 0.90, r * 0.04, r * 0.04);
       ctx.shadowBlur = 0;
     }
+    // SWEAT-DROPS på balaclava (intensitet ökar med fuse)
+    if (e.fuse > 0.05) {
+      ctx.fillStyle = flash ? '#fff' : '#9accff';
+      ctx.beginPath(); ctx.arc(r * 0.16, -r * 0.80, 1.2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(-r * 0.20, -r * 0.75, 1.0, 0, Math.PI * 2); ctx.fill();
+    }
+    // HELMET-SILHOUETTE under balaclava (visible behind/under)
+    ctx.fillStyle = flash ? '#fff' : '#1a1410';
+    ctx.fillRect(-r * 0.32, -r * 1.10, r * 0.64, r * 0.06);
+    // TACTICAL KNIFE strapped till baklåret
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.fillRect(-r * 0.32, r * 0.50, r * 0.06, r * 0.20);
+    ctx.fillStyle = flash ? '#fff' : '#bccad0';
+    ctx.fillRect(-r * 0.30, r * 0.66, r * 0.02, r * 0.10);
+    // VEST CHEST-STRAP (horizontal buckle holding vest)
+    ctx.fillStyle = flash ? '#fff' : '#3a3028';
+    ctx.fillRect(-r * 0.48, r * 0.18, r * 0.96, r * 0.06);
+    // EXTRA POUCHES nedanför C4-blocks (ammo/detonator-equipment)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.fillRect(-r * 0.36, r * 0.24, r * 0.20, r * 0.12);
+    ctx.fillRect(r * 0.16, r * 0.24, r * 0.20, r * 0.12);
     return;
   }
   if (e.type === 'sniper') {
@@ -58333,9 +58355,28 @@ function drawHumanEnemy(e, flash, now, phase) {
     // HEAD
     ctx.fillStyle = flash ? '#fff' : skin;
     ctx.beginPath(); ctx.arc(0, -r * 0.88, r * 0.30, 0, Math.PI * 2); ctx.fill();
+    // CAMO FACE-PAINT — green stripes under eye + on cheek
+    ctx.fillStyle = flash ? '#fff' : '#1a2410';
+    ctx.fillRect(r * 0.04, -r * 0.85, r * 0.16, r * 0.04);
+    ctx.fillRect(r * 0.08, -r * 0.78, r * 0.12, r * 0.04);
+    ctx.fillStyle = flash ? '#fff' : '#3a4a26';
+    ctx.fillRect(r * 0.06, -r * 0.90, r * 0.10, 1.5);
     // Eye (focused)
     ctx.fillStyle = flash ? '#fff' : '#1a1a10';
-    ctx.fillRect(r * 0.08, -r * 0.92, r * 0.08, 2.5);
+    ctx.fillRect(r * 0.10, -r * 0.94, r * 0.08, 2.5);
+    // Throat-mic (subtle near ear)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.fillRect(-r * 0.25, -r * 0.78, r * 0.06, r * 0.05);
+    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.fillRect(-r * 0.22, -r * 0.78, 1.5, 1.5);
+    // SPOTTER-SCOPE hängande från necken (utskick på vänster sida)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+    ctx.fillRect(-r * 0.42, -r * 0.30, r * 0.10, r * 0.20);
+    ctx.fillStyle = flash ? '#fff' : '#3acaff';
+    ctx.beginPath(); ctx.arc(-r * 0.37, -r * 0.32, r * 0.04, 0, Math.PI * 2); ctx.fill();
+    // RANGE-CARD pocket på vest
+    ctx.fillStyle = flash ? '#fff' : '#3a4a26';
+    ctx.fillRect(-r * 0.30, -r * 0.40, r * 0.16, r * 0.12);
 
     // BOONIE-HAT med ghillie-tofs
     ctx.fillStyle = flash ? '#fff' : '#1a2412';
@@ -58387,144 +58428,312 @@ function drawHumanEnemy(e, flash, now, phase) {
   }
 
   if (e.type === 'grunt') {
-    // v1.582 SIDE-VIEW: Standard infanterist, kamouflage + kevlar + M4. Facing right.
+    // v1.583 SIDE-VIEW DEEP DETAIL: Standard infanterist med full battle-gear
     const r = e.r;
     const swing = Math.sin(phase);
-    // LEGS — cargo pants med knäskydd (walk-cycle)
+
+    // LEGS — cargo pants med thigh-pocket + knee-pads + boots med laces
     const legBackX = -r * 0.18 + swing * r * 0.25;
     const legFrontX = r * 0.05 - swing * r * 0.25;
-    // Back leg
-    ctx.fillStyle = flash ? '#fff' : '#2a3a18';
+    // Back leg shadow first (depth)
+    ctx.fillStyle = flash ? '#fff' : '#15200a';
     ctx.fillRect(legBackX - r * 0.14, r * 0.30, r * 0.28, r * 0.85);
-    // Front leg
+    // Front leg main color
     ctx.fillStyle = flash ? '#fff' : '#3a4426';
     ctx.fillRect(legFrontX - r * 0.14, r * 0.30, r * 0.28, r * 0.85);
-    // Kamouflage-stänk på byxor
+    // Pant-creases (vertical seams)
+    ctx.fillStyle = flash ? '#fff' : '#2a3418';
+    ctx.fillRect(legFrontX, r * 0.32, 1, r * 0.78);
+    // Thigh-pocket (front leg)
+    ctx.fillStyle = flash ? '#fff' : '#2a3418';
+    ctx.fillRect(legFrontX - r * 0.13, r * 0.50, r * 0.18, r * 0.22);
+    ctx.fillStyle = flash ? '#fff' : '#1a2010';
+    ctx.fillRect(legFrontX - r * 0.13, r * 0.50, r * 0.18, 1.5);
+    // Camo-stänk på byxor (woodland pattern)
     ctx.fillStyle = flash ? '#fff' : '#1a2410';
-    ctx.fillRect(legFrontX - r * 0.10, r * 0.55, r * 0.12, r * 0.18);
-    ctx.fillRect(legBackX - r * 0.08, r * 0.70, r * 0.10, r * 0.14);
-    // Knäskydd (kneepads)
-    ctx.fillStyle = flash ? '#fff' : '#0a0a08';
-    ctx.fillRect(legBackX - r * 0.16, r * 0.75, r * 0.32, r * 0.16);
-    ctx.fillRect(legFrontX - r * 0.16, r * 0.75, r * 0.32, r * 0.16);
-    // Combat boots (svarta, ankel-höjd)
-    ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+    ctx.fillRect(legFrontX - r * 0.10, r * 0.78, r * 0.10, r * 0.10);
+    ctx.fillRect(legBackX - r * 0.08, r * 0.62, r * 0.08, r * 0.10);
+    ctx.fillRect(legBackX - r * 0.10, r * 0.95, r * 0.12, r * 0.08);
+    // Knäskydd (tactical kneepads med straps)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a06';
+    ctx.fillRect(legBackX - r * 0.16, r * 0.78, r * 0.32, r * 0.16);
+    ctx.fillRect(legFrontX - r * 0.16, r * 0.78, r * 0.32, r * 0.16);
+    // Knee-strap (horizontal seam)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.fillRect(legBackX - r * 0.16, r * 0.86, r * 0.32, 1.5);
+    ctx.fillRect(legFrontX - r * 0.16, r * 0.86, r * 0.32, 1.5);
+    // Combat boots
+    ctx.fillStyle = flash ? '#fff' : '#0a0808';
     ctx.fillRect(legBackX - r * 0.18, r * 1.15, r * 0.42, r * 0.26);
     ctx.fillRect(legFrontX - r * 0.18, r * 1.15, r * 0.42, r * 0.26);
-    // Boot-shine (subtle highlight)
-    ctx.fillStyle = flash ? '#fff' : '#1a1a18';
-    ctx.fillRect(legBackX - r * 0.16, r * 1.18, r * 0.30, 2);
-    ctx.fillRect(legFrontX - r * 0.16, r * 1.18, r * 0.30, 2);
+    // Boot laces (4 horizontal lines)
+    ctx.strokeStyle = flash ? '#fff' : '#3a2a18';
+    ctx.lineWidth = 0.6;
+    for (let i = 0; i < 4; i++) {
+      const ly = r * 1.18 + i * r * 0.06;
+      ctx.beginPath();
+      ctx.moveTo(legFrontX - r * 0.10, ly);
+      ctx.lineTo(legFrontX + r * 0.20, ly);
+      ctx.stroke();
+    }
+    // Boot-tip highlight (gleam)
+    ctx.fillStyle = flash ? '#fff' : '#2a2828';
+    ctx.fillRect(legFrontX + r * 0.06, r * 1.36, r * 0.16, 2);
 
-    // TORSO — olive shirt under väst
-    ctx.fillStyle = flash ? '#fff' : '#4a5a30';
-    ctx.fillRect(-r * 0.45, -r * 0.55, r * 0.90, r * 0.95);
+    // BELT — tactical med buckle
+    ctx.fillStyle = flash ? '#fff' : '#1a1208';
+    ctx.fillRect(-r * 0.45, r * 0.28, r * 0.90, r * 0.10);
+    ctx.fillStyle = flash ? '#fff' : '#5a4030';
+    ctx.fillRect(-r * 0.06, r * 0.29, r * 0.12, r * 0.08);
+
+    // TORSO — olive shirt
+    ctx.fillStyle = flash ? '#fff' : '#3a4426';
+    ctx.fillRect(-r * 0.46, -r * 0.58, r * 0.92, r * 0.98);
+    // Torso shadow (back-side)
+    ctx.fillStyle = flash ? '#fff' : '#2a3220';
+    ctx.fillRect(-r * 0.46, -r * 0.58, r * 0.10, r * 0.98);
+    // Shirt-collar (visible at neck)
+    ctx.fillStyle = flash ? '#fff' : '#2a3418';
+    ctx.fillRect(-r * 0.18, -r * 0.65, r * 0.36, r * 0.10);
     // Kamouflage-mönster på shirt
-    ctx.fillStyle = flash ? '#fff' : '#3a4626';
-    ctx.beginPath(); ctx.arc(-r * 0.20, -r * 0.30, r * 0.14, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(r * 0.15, -r * 0.05, r * 0.12, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(-r * 0.08, r * 0.20, r * 0.10, 0, Math.PI * 2); ctx.fill();
-    // KEVLAR-VÄST (mörkgrön, över shirt, central)
+    ctx.fillStyle = flash ? '#fff' : '#5a6a3a';
+    ctx.beginPath(); ctx.arc(-r * 0.20, -r * 0.30, r * 0.10, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(r * 0.18, -r * 0.10, r * 0.09, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#1a2410';
+    ctx.beginPath(); ctx.arc(-r * 0.08, r * 0.25, r * 0.08, 0, Math.PI * 2); ctx.fill();
+
+    // KEVLAR PLATE-CARRIER — modern military design
     ctx.fillStyle = flash ? '#fff' : '#1a2418';
-    ctx.fillRect(-r * 0.42, -r * 0.45, r * 0.84, r * 0.82);
-    // Vest-highlight (top edge)
+    ctx.fillRect(-r * 0.42, -r * 0.48, r * 0.84, r * 0.78);
+    // Vest top highlight (shoulder edge)
     ctx.fillStyle = flash ? '#fff' : '#2a3424';
-    ctx.fillRect(-r * 0.42, -r * 0.45, r * 0.84, r * 0.06);
-    // Ammo-pouches (3 stycken i en rad)
+    ctx.fillRect(-r * 0.42, -r * 0.48, r * 0.84, r * 0.04);
+    // Vest dark side (back-side shadow)
+    ctx.fillStyle = flash ? '#fff' : '#0a1208';
+    ctx.fillRect(-r * 0.42, -r * 0.48, r * 0.08, r * 0.78);
+    // Vest seams (vertical center seam)
     ctx.fillStyle = flash ? '#fff' : '#0a0a08';
-    ctx.fillRect(-r * 0.34, -r * 0.20, r * 0.18, r * 0.22);
-    ctx.fillRect(-r * 0.10, -r * 0.20, r * 0.18, r * 0.22);
-    ctx.fillRect(r * 0.14, -r * 0.20, r * 0.18, r * 0.22);
-    // Pouch-flikar (lighter)
+    ctx.fillRect(-r * 0.02, -r * 0.48, 1, r * 0.78);
+    // SHOULDER-STRAPS (kevlar straps over shoulder)
     ctx.fillStyle = flash ? '#fff' : '#1a1a14';
-    ctx.fillRect(-r * 0.34, -r * 0.20, r * 0.18, r * 0.04);
-    ctx.fillRect(-r * 0.10, -r * 0.20, r * 0.18, r * 0.04);
-    ctx.fillRect(r * 0.14, -r * 0.20, r * 0.18, r * 0.04);
+    ctx.fillRect(-r * 0.18, -r * 0.65, r * 0.10, r * 0.20);
+    // Buckle on strap
+    ctx.fillStyle = flash ? '#fff' : '#3a3028';
+    ctx.fillRect(-r * 0.16, -r * 0.55, r * 0.06, r * 0.04);
+
+    // AMMO-POUCHES (4 stacked + 2 i bredd)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a06';
+    ctx.fillRect(-r * 0.36, -r * 0.22, r * 0.16, r * 0.22);
+    ctx.fillRect(-r * 0.18, -r * 0.22, r * 0.16, r * 0.22);
+    ctx.fillRect(r * 0.02, -r * 0.22, r * 0.16, r * 0.22);
+    ctx.fillRect(r * 0.20, -r * 0.22, r * 0.16, r * 0.22);
+    // Pouch-flikar (lighter top)
+    ctx.fillStyle = flash ? '#fff' : '#2a2418';
+    ctx.fillRect(-r * 0.36, -r * 0.22, r * 0.16, r * 0.05);
+    ctx.fillRect(-r * 0.18, -r * 0.22, r * 0.16, r * 0.05);
+    ctx.fillRect(r * 0.02, -r * 0.22, r * 0.16, r * 0.05);
+    ctx.fillRect(r * 0.20, -r * 0.22, r * 0.16, r * 0.05);
+    // Pouch-velcro-strap (small black strip)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(-r * 0.36 + i * r * 0.18, -r * 0.10, r * 0.16, 1);
+    }
+    // GRENADE on vest (low-right)
+    ctx.fillStyle = flash ? '#fff' : '#1a2418';
+    ctx.beginPath(); ctx.arc(r * 0.30, r * 0.12, r * 0.06, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#3a4424';
+    ctx.fillRect(r * 0.28, r * 0.05, r * 0.04, r * 0.03);
+    // RADIO på övre vänster (rectangular antenna)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+    ctx.fillRect(-r * 0.30, -r * 0.45, r * 0.10, r * 0.16);
+    ctx.fillStyle = flash ? '#fff' : '#3a3028';
+    ctx.fillRect(-r * 0.27, -r * 0.55, 1.5, r * 0.10);
 
     // NECK
     ctx.fillStyle = flash ? '#fff' : skinDark;
-    ctx.fillRect(-r * 0.10, -r * 0.70, r * 0.20, r * 0.18);
+    ctx.fillRect(-r * 0.10, -r * 0.72, r * 0.20, r * 0.16);
+    // Neck-shadow
+    ctx.fillStyle = flash ? '#fff' : '#5a3a26';
+    ctx.fillRect(-r * 0.10, -r * 0.64, r * 0.20, r * 0.03);
 
-    // BACK ARM (further away, mostly behind body) — holds rifle stock
-    ctx.fillStyle = flash ? '#fff' : '#3a4626';
-    ctx.fillRect(-r * 0.18, -r * 0.40, r * 0.18, r * 0.55);
-    // Glove (skin/dark)
-    ctx.fillStyle = flash ? '#fff' : skinDark;
-    ctx.beginPath(); ctx.arc(-r * 0.09, r * 0.15, r * 0.11, 0, Math.PI * 2); ctx.fill();
-
-    // M4 RIFLE — held horizontally pointing right
-    const gunY = -r * 0.12;
-    // Stock (mörk plast)
-    ctx.fillStyle = flash ? '#fff' : '#1a1a18';
-    ctx.fillRect(-r * 0.40, gunY - r * 0.05, r * 0.35, r * 0.18);
-    // Receiver
-    ctx.fillStyle = flash ? '#fff' : '#2a2a28';
-    ctx.fillRect(-r * 0.05, gunY - r * 0.06, r * 0.45, r * 0.20);
-    // Magazine
-    ctx.fillStyle = flash ? '#fff' : '#1a1a18';
-    ctx.fillRect(r * 0.05, gunY + r * 0.14, r * 0.16, r * 0.30);
-    // Barrel (slim, long)
-    ctx.fillStyle = flash ? '#fff' : '#0a0a08';
-    ctx.fillRect(r * 0.40, gunY - r * 0.02, r * 0.85, r * 0.10);
-    // Front sight
-    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
-    ctx.fillRect(r * 1.15, gunY - r * 0.12, r * 0.08, r * 0.14);
-    // Rear sight + scope mount
-    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
-    ctx.fillRect(r * 0.10, gunY - r * 0.14, r * 0.18, r * 0.08);
-    // Optic (kort scope ovanpå)
-    ctx.fillStyle = flash ? '#fff' : '#1a1a18';
-    ctx.fillRect(r * 0.18, gunY - r * 0.20, r * 0.20, r * 0.08);
-
-    // FRONT ARM (closer, holds the grip) — armor sleeve + glove
-    ctx.fillStyle = flash ? '#fff' : '#3a4626';
-    ctx.fillRect(r * 0.00, -r * 0.35, r * 0.16, r * 0.50);
-    // Glove (dark tactical)
-    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
-    ctx.beginPath(); ctx.arc(r * 0.08, r * 0.12, r * 0.11, 0, Math.PI * 2); ctx.fill();
-
-    // HEAD — skin, jaw-line subtle
-    ctx.fillStyle = flash ? '#fff' : skin;
-    ctx.beginPath(); ctx.arc(0, -r * 0.90, r * 0.32, 0, Math.PI * 2); ctx.fill();
-    // Jaw shadow
-    ctx.fillStyle = flash ? '#fff' : skinDark;
-    ctx.beginPath(); ctx.arc(-r * 0.05, -r * 0.78, r * 0.12, 0, Math.PI); ctx.fill();
-    // Eye (profile — facing right)
-    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
-    ctx.fillRect(r * 0.06, -r * 0.95, r * 0.08, 2.5);
-    // Eyebrow
-    ctx.fillStyle = flash ? '#fff' : '#1a0e08';
-    ctx.fillRect(r * 0.05, -r * 1.02, r * 0.10, 1.5);
-    // Ear (back of head profile)
-    ctx.fillStyle = flash ? '#fff' : skinDark;
-    ctx.beginPath(); ctx.arc(-r * 0.22, -r * 0.88, r * 0.08, 0, Math.PI * 2); ctx.fill();
-
-    // TAKTISK HJÄLM — olive med detaljer
-    // Helmet dome
-    ctx.fillStyle = flash ? '#fff' : '#2a3418';
-    ctx.beginPath();
-    ctx.ellipse(0, -r * 1.05, r * 0.42, r * 0.32, 0, Math.PI, 0);
-    ctx.fill();
-    // Helmet brim (back + sides)
-    ctx.fillRect(-r * 0.36, -r * 1.05, r * 0.72, r * 0.10);
-    // Helmet shading (darker bottom-edge)
+    // BACK ARM (behind torso) — sleeve + glove
+    ctx.fillStyle = flash ? '#fff' : '#2a3220';
+    ctx.fillRect(-r * 0.20, -r * 0.42, r * 0.18, r * 0.58);
+    // Arm-elbow patch
     ctx.fillStyle = flash ? '#fff' : '#1a2010';
-    ctx.fillRect(-r * 0.36, -r * 0.97, r * 0.72, r * 0.04);
-    // Helmet highlight (top reflection)
-    ctx.fillStyle = flash ? '#fff' : '#3a4424';
-    ctx.beginPath();
-    ctx.ellipse(-r * 0.08, -r * 1.20, r * 0.24, r * 0.12, 0, Math.PI, 0);
-    ctx.fill();
-    // Helmet strap (chin)
-    ctx.strokeStyle = flash ? '#fff' : '#0a0a08';
+    ctx.fillRect(-r * 0.20, -r * 0.18, r * 0.18, r * 0.10);
+    ctx.fillStyle = flash ? '#fff' : skinDark;
+    ctx.beginPath(); ctx.arc(-r * 0.10, r * 0.18, r * 0.12, 0, Math.PI * 2); ctx.fill();
+
+    // M4 RIFLE — full tactical setup
+    const gunY = -r * 0.10;
+    // Sling-strap (from shoulder to gun)
+    ctx.strokeStyle = flash ? '#fff' : '#1a1208';
     ctx.lineWidth = 1.2;
     ctx.beginPath();
-    ctx.moveTo(-r * 0.30, -r * 1.05);
-    ctx.lineTo(-r * 0.10, -r * 0.70);
+    ctx.moveTo(-r * 0.15, -r * 0.55);
+    ctx.lineTo(r * 0.20, gunY + r * 0.05);
     ctx.stroke();
+    // Stock (collapsible, mörk polymer)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.fillRect(-r * 0.42, gunY - r * 0.04, r * 0.32, r * 0.16);
+    // Stock-cheek-rest (small upper piece)
+    ctx.fillStyle = flash ? '#fff' : '#2a2a24';
+    ctx.fillRect(-r * 0.42, gunY - r * 0.08, r * 0.28, r * 0.06);
+    // Buffer-tube (cylinder behind receiver)
+    ctx.fillStyle = flash ? '#fff' : '#2a2a24';
+    ctx.fillRect(-r * 0.12, gunY - r * 0.02, r * 0.08, r * 0.10);
+    // Receiver (upper + lower)
+    ctx.fillStyle = flash ? '#fff' : '#2a2a28';
+    ctx.fillRect(-r * 0.05, gunY - r * 0.06, r * 0.40, r * 0.20);
+    // Trigger-guard area
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.fillRect(r * 0.08, gunY + r * 0.10, r * 0.10, r * 0.06);
+    // Magazine (curved STANAG)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.beginPath();
+    ctx.moveTo(r * 0.05, gunY + r * 0.14);
+    ctx.lineTo(r * 0.22, gunY + r * 0.14);
+    ctx.lineTo(r * 0.24, gunY + r * 0.42);
+    ctx.lineTo(r * 0.07, gunY + r * 0.42);
+    ctx.closePath();
+    ctx.fill();
+    // Mag-rib lines
+    ctx.strokeStyle = flash ? '#fff' : '#3a3028';
+    ctx.lineWidth = 0.5;
+    for (let i = 1; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(r * 0.08, gunY + r * 0.14 + i * r * 0.07);
+      ctx.lineTo(r * 0.23, gunY + r * 0.14 + i * r * 0.07);
+      ctx.stroke();
+    }
+    // Barrel (longer with hand-guard)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.fillRect(r * 0.35, gunY - r * 0.04, r * 0.45, r * 0.16);
+    // Hand-guard rib
+    ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+    for (let i = 0; i < 4; i++) {
+      ctx.fillRect(r * 0.38 + i * r * 0.10, gunY - r * 0.04, 1, r * 0.16);
+    }
+    // Barrel-tip (slimmer)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+    ctx.fillRect(r * 0.80, gunY - r * 0.01, r * 0.55, r * 0.10);
+    // Suppressor/muzzle (tjockare slut)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.fillRect(r * 1.30, gunY - r * 0.04, r * 0.10, r * 0.16);
+    // Front sight (utskick)
+    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.fillRect(r * 1.20, gunY - r * 0.14, r * 0.06, r * 0.14);
+    // RDS/ACOG optic ovan
+    ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+    ctx.fillRect(r * 0.10, gunY - r * 0.18, r * 0.25, r * 0.12);
+    // Optic-lens (rödprick reflektion)
+    ctx.fillStyle = flash ? '#fff' : '#ff3a3a';
+    ctx.beginPath(); ctx.arc(r * 0.32, gunY - r * 0.13, r * 0.025, 0, Math.PI * 2); ctx.fill();
+    // Picatinny-rail dots
+    ctx.fillStyle = flash ? '#fff' : '#3a3028';
+    for (let i = 0; i < 5; i++) {
+      ctx.fillRect(-r * 0.02 + i * r * 0.08, gunY - r * 0.08, 1.5, 1.5);
+    }
+
+    // FRONT ARM — armor sleeve + tactical glove
+    ctx.fillStyle = flash ? '#fff' : '#3a4426';
+    ctx.fillRect(r * 0.00, -r * 0.38, r * 0.16, r * 0.52);
+    // Elbow-pad
+    ctx.fillStyle = flash ? '#fff' : '#1a2010';
+    ctx.fillRect(r * 0.00, -r * 0.14, r * 0.16, r * 0.08);
+    // Glove (svart tactical)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+    ctx.beginPath(); ctx.arc(r * 0.08, r * 0.15, r * 0.12, 0, Math.PI * 2); ctx.fill();
+    // Glove-knuckle details
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.fillRect(r * 0.04, r * 0.10, r * 0.10, 1.5);
+
+    // HEAD — skin med mer skuggning
+    ctx.fillStyle = flash ? '#fff' : skin;
+    ctx.beginPath(); ctx.arc(0, -r * 0.90, r * 0.30, 0, Math.PI * 2); ctx.fill();
+    // Jaw-shadow (under chin)
+    ctx.fillStyle = flash ? '#fff' : skinDark;
+    ctx.beginPath(); ctx.ellipse(-r * 0.04, -r * 0.75, r * 0.16, r * 0.06, 0, 0, Math.PI); ctx.fill();
+    // Nose ridge (subtle)
+    ctx.fillStyle = flash ? '#fff' : skinDark;
+    ctx.fillRect(r * 0.18, -r * 0.90, 1.5, r * 0.10);
+    // Eye (focused gaze)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.fillRect(r * 0.10, -r * 0.94, r * 0.08, r * 0.04);
+    // Eye-white catchlight
+    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.fillRect(r * 0.14, -r * 0.93, 1, 1);
+    // Eyebrow (intense)
+    ctx.fillStyle = flash ? '#fff' : '#1a0e08';
+    ctx.fillRect(r * 0.08, -r * 1.00, r * 0.10, 2);
+    // Cheekbone-shading
+    ctx.fillStyle = flash ? '#fff' : skinDark;
+    ctx.beginPath(); ctx.arc(r * 0.20, -r * 0.84, r * 0.08, 0, Math.PI * 2); ctx.fill();
+    // Stubble (5 o'clock shadow)
+    ctx.fillStyle = flash ? '#fff' : '#5a3a26';
+    for (let i = 0; i < 6; i++) {
+      ctx.fillRect(r * 0.05 + (i % 3) * 3, -r * 0.74 + Math.floor(i / 3) * 2, 1, 1);
+    }
+    // Ear
+    ctx.fillStyle = flash ? '#fff' : skinDark;
+    ctx.beginPath(); ctx.arc(-r * 0.22, -r * 0.88, r * 0.07, 0, Math.PI * 2); ctx.fill();
+    // Ear-canal
+    ctx.fillStyle = flash ? '#fff' : '#5a3a26';
+    ctx.fillRect(-r * 0.24, -r * 0.89, 2, 2);
+
+    // TAKTISK HJÄLM — modern combat helmet med tons av detalj
+    // Helmet shadow under brim
+    ctx.fillStyle = flash ? '#fff' : '#0a1208';
+    ctx.fillRect(-r * 0.32, -r * 1.02, r * 0.64, r * 0.04);
+    // Main dome
+    ctx.fillStyle = flash ? '#fff' : '#2a3418';
+    ctx.beginPath();
+    ctx.ellipse(0, -r * 1.08, r * 0.42, r * 0.34, 0, Math.PI, 0);
+    ctx.fill();
+    // Helmet camo-cover (subtle pattern)
+    ctx.fillStyle = flash ? '#fff' : '#3a4424';
+    ctx.beginPath(); ctx.arc(-r * 0.10, -r * 1.20, r * 0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(r * 0.15, -r * 1.15, r * 0.07, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#1a2410';
+    ctx.beginPath(); ctx.arc(r * 0.05, -r * 1.25, r * 0.06, 0, Math.PI * 2); ctx.fill();
+    // Helmet brim
+    ctx.fillStyle = flash ? '#fff' : '#2a3418';
+    ctx.fillRect(-r * 0.36, -r * 1.08, r * 0.72, r * 0.10);
+    // Helmet bottom-shadow
+    ctx.fillStyle = flash ? '#fff' : '#1a2010';
+    ctx.fillRect(-r * 0.36, -r * 1.02, r * 0.72, r * 0.04);
+    // Helmet rim-light (top edge)
+    ctx.fillStyle = flash ? '#fff' : '#5a6a3a';
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.05, -r * 1.32, r * 0.18, r * 0.08, 0, Math.PI, 0);
+    ctx.fill();
+    // CHIN-STRAP
+    ctx.strokeStyle = flash ? '#fff' : '#0a0a08';
+    ctx.lineWidth = 1.3;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.32, -r * 1.05);
+    ctx.lineTo(-r * 0.14, -r * 0.74);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(r * 0.30, -r * 1.05);
+    ctx.lineTo(r * 0.18, -r * 0.74);
+    ctx.stroke();
+    // Chin-buckle
+    ctx.fillStyle = flash ? '#fff' : '#3a3028';
+    ctx.fillRect(-r * 0.18, -r * 0.72, r * 0.04, r * 0.04);
     // NVG-mount på pannan
-    ctx.fillStyle = flash ? '#fff' : '#1a1a18';
-    ctx.fillRect(-r * 0.06, -r * 1.12, r * 0.14, r * 0.06);
+    ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+    ctx.fillRect(-r * 0.08, -r * 1.18, r * 0.18, r * 0.10);
+    // NVG-screw
+    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.beginPath(); ctx.arc(r * 0.02, -r * 1.13, r * 0.025, 0, Math.PI * 2); ctx.fill();
+    // Side-rail mount
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.fillRect(-r * 0.42, -r * 1.10, r * 0.06, r * 0.06);
+    // IR-strobe (small light on helmet rear)
+    ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+    ctx.fillRect(-r * 0.38, -r * 1.18, r * 0.04, r * 0.04);
   }
   else if (e.type === 'runner') {
     // v1.582 SIDE-VIEW: Lätt spaning — khaki/sand, cap, machete, chest-rig
@@ -58639,6 +58848,80 @@ function drawHumanEnemy(e, flash, now, phase) {
     // Visor underside
     ctx.fillStyle = flash ? '#fff' : '#1a0e08';
     ctx.fillRect(r * 0.10, -r * 0.98, r * 0.30, 1.5);
+
+    // === v1.583 EXTRA DETALJ för runner ===
+    // DOG-TAGS hanging från halsen
+    ctx.strokeStyle = flash ? '#fff' : '#3a3028';
+    ctx.lineWidth = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.05, -r * 0.65);
+    ctx.lineTo(r * 0.02, -r * 0.40);
+    ctx.stroke();
+    ctx.fillStyle = flash ? '#fff' : '#bccad0';
+    ctx.fillRect(-r * 0.02, -r * 0.42, r * 0.10, r * 0.07);
+    // Dog-tag-stamp (etched detail)
+    ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+    ctx.fillRect(0, -r * 0.40, r * 0.06, 1);
+    ctx.fillRect(0, -r * 0.38, r * 0.06, 1);
+
+    // COMPASS på chest-rig (vänster)
+    ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+    ctx.beginPath(); ctx.arc(-r * 0.25, -r * 0.08, r * 0.08, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#bccad0';
+    ctx.beginPath(); ctx.arc(-r * 0.25, -r * 0.08, r * 0.05, 0, Math.PI * 2); ctx.fill();
+    // Compass-needle (red)
+    ctx.fillStyle = flash ? '#fff' : '#ff3a3a';
+    ctx.fillRect(-r * 0.255, -r * 0.10, 1, r * 0.04);
+
+    // TACTICAL KNIFE på höger sida av rig
+    ctx.fillStyle = flash ? '#fff' : '#1a0e08';
+    ctx.fillRect(r * 0.26, r * 0.00, r * 0.06, r * 0.22);
+    ctx.fillStyle = flash ? '#fff' : '#bccad0';
+    ctx.fillRect(r * 0.27, r * 0.18, r * 0.04, r * 0.10);
+    // Knife-handle wrap
+    ctx.strokeStyle = flash ? '#fff' : '#3a2818';
+    ctx.lineWidth = 0.5;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.moveTo(r * 0.26, r * 0.02 + i * r * 0.04);
+      ctx.lineTo(r * 0.32, r * 0.02 + i * r * 0.04);
+      ctx.stroke();
+    }
+
+    // WATER-BOTTLE/canteen på höger sida av belt
+    ctx.fillStyle = flash ? '#fff' : '#3a2818';
+    ctx.fillRect(r * 0.18, r * 0.28, r * 0.16, r * 0.20);
+    ctx.fillStyle = flash ? '#fff' : '#1a0e08';
+    ctx.fillRect(r * 0.18, r * 0.28, r * 0.16, r * 0.04);
+    // Bottle cap
+    ctx.fillStyle = flash ? '#fff' : '#5a4030';
+    ctx.fillRect(r * 0.22, r * 0.26, r * 0.08, r * 0.04);
+
+    // BELT med buckle (visible mellan torso och pants)
+    ctx.fillStyle = flash ? '#fff' : '#1a0a08';
+    ctx.fillRect(-r * 0.40, r * 0.32, r * 0.80, r * 0.08);
+    ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
+    ctx.fillRect(-r * 0.04, r * 0.32, r * 0.10, r * 0.08);
+
+    // SWEAT-BAND på huvud (between hair och cap) — desert-style
+    ctx.fillStyle = flash ? '#fff' : '#5a4030';
+    ctx.fillRect(-r * 0.28, -r * 0.78, r * 0.54, r * 0.05);
+
+    // SCAR på kind (battle-hardened veteran)
+    ctx.strokeStyle = flash ? '#fff' : '#7a4030';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(r * 0.18, -r * 0.86);
+    ctx.lineTo(r * 0.22, -r * 0.74);
+    ctx.stroke();
+
+    // BREATH/PUFF effect framför mun (sprint = breathing hard)
+    if (Math.sin(now / 200) > 0.6) {
+      ctx.fillStyle = flash ? '#fff' : 'rgba(220,230,235,0.4)';
+      ctx.beginPath();
+      ctx.arc(r * 0.34, -r * 0.78, r * 0.05, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
   else if (e.type === 'brute') {
     // Tung — full body armor, riot-hjälm, hagelgevär
