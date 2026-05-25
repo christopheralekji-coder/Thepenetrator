@@ -2895,14 +2895,35 @@ function tickCastleDefense(sim, dt, now) {
     // v1.411: Ranged enemies (shooter/soldier/sniper) ALLTID siege-role — skjuter
     // mot torn istället för att jaga players. Annars stannar de aldrig vid turrets.
     const isRangedType = (e.type === 'shooter' || e.type === 'soldier' || e.type === 'sniper');
-    // v1.531: SURVIVORS-RUN — ALLA enemies målar altaret (centern), inte player.
-    // Defense-stil: spelaren försvarar centret från anstormning.
+    // v1.605: SURVIVORS-RUN — enemies målar NÄRMASTE player (Vampire Survivors-stil).
+    // Tidigare målade alla core (centern) vilket gjorde att spelaren kunde stå
+    // i utkanten och bara skjuta — ingen press. Nu chasear de DIG.
+    // Fallback till core om inga players levande (mellan respawns).
     if (sim.survivorsActive) {
-      target = corePos ? {
-        peerId: '__core__', _isCoreTarget: true,
-        x: corePos.x, y: corePos.y,
-        hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
-      } : { x: 2000, y: 2000, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
+      let bestPlayer = null, bestPD2 = Infinity;
+      for (const p of cdAlivePlayers) {
+        const dx = p.x - e.x, dy = p.y - e.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < bestPD2) { bestPD2 = d2; bestPlayer = p; }
+      }
+      if (bestPlayer) {
+        const newTargetId = '__player_' + bestPlayer.peerId;
+        if (e._cdLastTargetId && e._cdLastTargetId !== newTargetId) {
+          e.aiming = false; e.aimAt = 0;
+        }
+        e._cdLastTargetId = newTargetId;
+        target = {
+          peerId: newTargetId, _isCoreTarget: false,
+          x: bestPlayer.x, y: bestPlayer.y,
+          hp: 99999, maxHp: 99999, invulnUntil: 0, r: 14,
+        };
+      } else {
+        target = corePos ? {
+          peerId: '__core__', _isCoreTarget: true,
+          x: corePos.x, y: corePos.y,
+          hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
+        } : { x: 2000, y: 2000, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
+      }
     } else if (e._cdFlyer || e.isBoss) {
       // Flyers + bossar: rakt mot core
       target = corePos ? {

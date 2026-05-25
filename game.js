@@ -7686,15 +7686,17 @@ function _ensureSurvivorsArenaCache() {
         sy = by + Math.sin(rot) * (s - segments / 2) * (baseLen + 10);
         sRot = rot + Math.PI / 2;
       }
+      const wallW = baseLen + rng() * 20;
       cache.walls.push({
         x: sx, y: sy,
-        w: baseLen + rng() * 20,
+        w: wallW,
         h: wallH,
         rot: sRot,
         decay: 0.6 + rng() * 0.4,
         seed: rng(),
       });
-      cache.obstacles.push({ kind: 'wall', x: sx, y: sy, w: baseLen + 20, h: wallH + 4, r: Math.max(baseLen, wallH) / 2 + 8 });
+      // v1.605: obstacle matchar visual rect + rot (OBB-collision i _survResolveCollision)
+      cache.obstacles.push({ kind: 'wall', x: sx, y: sy, w: wallW, h: wallH, rot: sRot });
     }
   }
   // v1.578: 8 fordon-wrak (jeepar, lastbil-vrak)
@@ -7709,17 +7711,20 @@ function _ensureSurvivorsArenaCache() {
       tries++;
     } while (d < 380 && tries < 20);
     const isLarge = rng() > 0.5;
+    const vehW = isLarge ? 70 : 50;
+    const vehH = isLarge ? 36 : 28;
+    const vehRot = rng() * Math.PI * 2;
     cache.vehicles.push({
       x: vx, y: vy,
-      w: isLarge ? 70 : 50,
-      h: isLarge ? 36 : 28,
-      rot: rng() * Math.PI * 2,
+      w: vehW,
+      h: vehH,
+      rot: vehRot,
       kind: isLarge ? 'truck' : 'jeep',
-      burn: rng() > 0.3, // brinnande
+      burn: rng() > 0.3,
       flamePhase: rng() * Math.PI * 2,
       seed: rng(),
     });
-    cache.obstacles.push({ kind: 'vehicle', x: vx, y: vy, w: isLarge ? 75 : 55, h: isLarge ? 40 : 32, r: (isLarge ? 75 : 55) / 2 + 4 });
+    cache.obstacles.push({ kind: 'vehicle', x: vx, y: vy, w: vehW, h: vehH, rot: vehRot });
   }
   // v1.578: 15 betong-pelare (cylindriska, hårda att gå förbi)
   for (let i = 0; i < 15; i++) {
@@ -7748,15 +7753,16 @@ function _ensureSurvivorsArenaCache() {
       tries++;
     } while (d < 360 && tries < 20);
     const len = 28 + rng() * 30;
+    const sbRot = rng() * Math.PI * 2;
     cache.sandbags.push({
       x: sx, y: sy,
       len: len,
       h: 16,
-      rot: rng() * Math.PI * 2,
+      rot: sbRot,
       bags: 3 + Math.floor(rng() * 3),
       seed: rng(),
     });
-    cache.obstacles.push({ kind: 'sandbag', x: sx, y: sy, w: len + 8, h: 20, r: len / 2 + 6 });
+    cache.obstacles.push({ kind: 'sandbag', x: sx, y: sy, w: len, h: 16, rot: sbRot });
   }
   // 35 brända träd
   for (let i = 0; i < 35; i++) {
@@ -7799,16 +7805,14 @@ function _ensureSurvivorsArenaCache() {
   return cache;
 }
 
-// v1.604: COLLISION baserat på proven CTF-pattern (shared/ctf-arena.js)
-// Walls i top-left + width/height format. Per-axis min-push.
-// Iterativ resolving (3 passes) för att fixa multi-obstacle-överlapp.
+// v1.605: COLLISION med OBB (Oriented Bounding Box) — walls/sandbags/vehicles
+// kan vara roterade och rendering matchar collision-shape nu.
+// Push-out görs i obstaclets lokala (roterade) frame, sen translateras tillbaka.
 function _survResolveCollision(ent, entR, obstacles) {
-  // 3 passes — fixar oscillation när entity överlappar flera obstacles samtidigt
   for (let pass = 0; pass < 3; pass++) {
     let anyOverlap = false;
     for (const ob of obstacles) {
       if (ob.isCircle) {
-        // Circle (pillars) — push out along radial direction
         const dx = ent.x - ob.x, dy = ent.y - ob.y;
         const d = Math.sqrt(dx * dx + dy * dy);
         const minD = ob.r + entR;
@@ -7822,27 +7826,36 @@ function _survResolveCollision(ent, entR, obstacles) {
           }
         }
       } else {
-        // AABB (walls/vehicles/sandbags) — CTF-style per-axis min-push
-        // Konvertera center-coords till top-left format
-        const wx = ob.x - ob.w / 2;
-        const wy = ob.y - ob.h / 2;
-        // Overlap-check (entity som cirkel, wall som AABB)
-        if (ent.x + entR < wx || ent.x - entR > wx + ob.w ||
-            ent.y + entR < wy || ent.y - entR > wy + ob.h) continue;
+        // OBB — transformera entity till obstaclets lokala frame
+        const rot = ob.rot || 0;
+        const dx = ent.x - ob.x, dy = ent.y - ob.y;
+        const cs = Math.cos(-rot), sn = Math.sin(-rot);
+        const lx = dx * cs - dy * sn;
+        const ly = dx * sn + dy * cs;
+        const halfW = ob.w / 2;
+        const halfH = ob.h / 2;
+        // Overlap-check i lokal frame
+        if (lx + entR < -halfW || lx - entR > halfW ||
+            ly + entR < -halfH || ly - entR > halfH) continue;
         anyOverlap = true;
-        // Per-axis push-out (samma som resolveCtfWall)
-        const pushLeft = (ent.x + entR) - wx;          // push left if positive
-        const pushRight = (wx + ob.w) - (ent.x - entR); // push right
-        const pushTop = (ent.y + entR) - wy;            // push up
-        const pushBot = (wy + ob.h) - (ent.y - entR);   // push down
+        // Per-axis push-out i lokal frame
+        const pushRight = halfW - (lx - entR);
+        const pushLeft  = (lx + entR) - (-halfW);
+        const pushBot   = halfH - (ly - entR);
+        const pushTop   = (ly + entR) - (-halfH);
         const minPush = Math.min(pushLeft, pushRight, pushTop, pushBot);
-        if (minPush === pushLeft)       ent.x -= pushLeft;
-        else if (minPush === pushRight) ent.x += pushRight;
-        else if (minPush === pushTop)   ent.y -= pushTop;
-        else                            ent.y += pushBot;
+        let nlx = lx, nly = ly;
+        if (minPush === pushLeft)       nlx = lx - pushLeft;
+        else if (minPush === pushRight) nlx = lx + pushRight;
+        else if (minPush === pushTop)   nly = ly - pushTop;
+        else                            nly = ly + pushBot;
+        // Rotera tillbaka till world
+        const cs2 = Math.cos(rot), sn2 = Math.sin(rot);
+        ent.x = ob.x + nlx * cs2 - nly * sn2;
+        ent.y = ob.y + nlx * sn2 + nly * cs2;
       }
     }
-    if (!anyOverlap) break; // no more overlaps — done
+    if (!anyOverlap) break;
   }
 }
 
@@ -7852,9 +7865,12 @@ function _survPointInObstacle(x, y, obstacles) {
       const dx = x - ob.x, dy = y - ob.y;
       if (dx * dx + dy * dy < ob.r * ob.r) return true;
     } else {
-      const wx = ob.x - ob.w / 2;
-      const wy = ob.y - ob.h / 2;
-      if (x >= wx && x <= wx + ob.w && y >= wy && y <= wy + ob.h) return true;
+      const rot = ob.rot || 0;
+      const dx = x - ob.x, dy = y - ob.y;
+      const cs = Math.cos(-rot), sn = Math.sin(-rot);
+      const lx = dx * cs - dy * sn;
+      const ly = dx * sn + dy * cs;
+      if (Math.abs(lx) <= ob.w / 2 && Math.abs(ly) <= ob.h / 2) return true;
     }
   }
   return false;
@@ -68169,10 +68185,11 @@ function runFrame(dt, now) {
       updateStageAmbient(dt);
 
       // I server-auth mode beter sig host som klient (server kör sim)
-      // v1.604: SURVIVORS forcerar klient-sim — server saknar obstacle-data och
-      // player-position-sync verkar oförutsägbar → enemies path mot fel target.
-      // Klient-sim ger korrekt findNearestPlayer + walls fungerar.
-      let isCoopClient = Coop.active && (!Coop.isHost || Coop.serverSimActive) && !state.survivorsActive;
+      // v1.605: SURVIVORS — reverterat v1.604:s force-klient-sim. Den orsakade
+      // dubbel AI (server + klient) som visade enemies på fel positioner / inte
+      // alls. Server är authoritative; klient ska enbart interpolera. Server-
+      // sidan har nu uppdaterad AI som målar nearest player (inte core).
+      let isCoopClient = Coop.active && (!Coop.isHost || Coop.serverSimActive);
 
       // SAFETY: Om server-sim är på men servern inte spawnar enemies på 40s,
       // fallback till host-mode. 40s är medvetet hög så Render free-tier

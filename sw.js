@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v604-collision-rewrite-klient-sim';
+const CACHE = 'penetrator-v605-obb-walls-server-ai-fix';
 const ASSETS = [
   './',
   './index.html',
