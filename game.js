@@ -57121,8 +57121,292 @@ function drawBossDefault(e, flash, now, phase, moving) {
 // v1.586: 9 UNIKA BOSS-DESIGNS i SIDE-VIEW (3 per push)
 // ============================================================
 
-// THE WITHERED ELDER — Skogens sista röst. Druid-king med antlers, vines, glowing nature
+// ============================================================
+// v1.587: MILITÄRA elite-commander bossar — matchar minions baseline-stil
+// Boss-tier features (medals, oversized armor, power-signatures).
+// ============================================================
+
+// Helper för boss-baseline: military body skeleton (legs + torso + plate + head)
+function _drawBossMilitaryBase(e, flash, now, phase, opts) {
+  const r = e.r;
+  const swing = Math.sin(phase) * 0.35;
+  const fc = opts.faceColor || '#c89870';      // skin
+  const fcDark = opts.faceColorDark || '#8a6242';
+  const armor = opts.armor || '#1a2418';        // dark plate
+  const armorLight = opts.armorLight || '#3a4626';
+  const pants = opts.pants || '#3a4426';
+  const pantsDark = opts.pantsDark || '#2a3418';
+  const boots = opts.boots || '#0a0a08';
+  const shirt = opts.shirt || '#4a5a30';
+
+  // LEGS (military stance)
+  const legBackX = -r * 0.20 + swing * r * 0.20;
+  const legFrontX = r * 0.08 - swing * r * 0.20;
+  ctx.fillStyle = flash ? '#fff' : pantsDark;
+  ctx.fillRect(legBackX - r * 0.16, r * 0.20, r * 0.32, r * 0.95);
+  ctx.fillStyle = flash ? '#fff' : pants;
+  ctx.fillRect(legFrontX - r * 0.16, r * 0.20, r * 0.32, r * 0.95);
+  // Heavy combat boots
+  ctx.fillStyle = flash ? '#fff' : boots;
+  ctx.fillRect(legBackX - r * 0.20, r * 1.12, r * 0.42, r * 0.30);
+  ctx.fillRect(legFrontX - r * 0.20, r * 1.12, r * 0.42, r * 0.30);
+  // Tactical knee-plates
+  ctx.fillStyle = flash ? '#fff' : '#0a0a06';
+  ctx.fillRect(legBackX - r * 0.18, r * 0.75, r * 0.36, r * 0.16);
+  ctx.fillRect(legFrontX - r * 0.18, r * 0.75, r * 0.36, r * 0.16);
+  // Belt
+  ctx.fillStyle = flash ? '#fff' : '#1a0a04';
+  ctx.fillRect(-r * 0.50, r * 0.16, r * 1.00, r * 0.08);
+  // Buckle (boss-grade rank)
+  ctx.fillStyle = flash ? '#fff' : (opts.buckle || '#ffd54a');
+  ctx.fillRect(-r * 0.08, r * 0.16, r * 0.16, r * 0.08);
+
+  // TORSO base (military shirt)
+  ctx.fillStyle = flash ? '#fff' : shirt;
+  ctx.fillRect(-r * 0.50, -r * 0.65, r * 1.00, r * 0.85);
+  // Plate-carrier (oversized for boss)
+  ctx.fillStyle = flash ? '#fff' : armor;
+  ctx.fillRect(-r * 0.55, -r * 0.55, r * 1.10, r * 0.80);
+  // Plate top-highlight
+  ctx.fillStyle = flash ? '#fff' : armorLight;
+  ctx.fillRect(-r * 0.55, -r * 0.55, r * 1.10, r * 0.06);
+  // Plate dark shadow-side
+  ctx.fillStyle = flash ? '#fff' : '#0a1208';
+  ctx.fillRect(-r * 0.55, -r * 0.55, r * 0.10, r * 0.80);
+
+  // NECK
+  ctx.fillStyle = flash ? '#fff' : fcDark;
+  ctx.fillRect(-r * 0.13, -r * 0.80, r * 0.26, r * 0.18);
+
+  return { r, swing, fc, fcDark, armor, armorLight };
+}
+
+// THE WITHERED ELDER — VETERAN forest-commander (military med druid-power signatures)
 BOSS_DRAW.witheredelder = function(e, flash, now, phase, moving) {
+  const base = _drawBossMilitaryBase(e, flash, now, phase, {
+    pants: '#3a4426', pantsDark: '#1a2410',
+    shirt: '#4a5a30', armor: '#1a2418', armorLight: '#2a3a1c',
+    buckle: '#9aff5a',
+  });
+  const r = base.r;
+  const glow = '#5aff8a';
+  const accent = '#aaff5a';
+
+  // RIBBONS/MEDALS on chest (officer-rank)
+  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+  ctx.fillRect(-r * 0.40, -r * 0.40, r * 0.10, r * 0.20);  // gold bar
+  ctx.fillStyle = flash ? '#fff' : '#cc2020';
+  ctx.fillRect(-r * 0.40, -r * 0.18, r * 0.10, r * 0.14);  // red ribbon
+  ctx.fillStyle = flash ? '#fff' : '#3acaff';
+  ctx.fillRect(-r * 0.28, -r * 0.40, r * 0.08, r * 0.12);  // blue medal
+  // Star medal (5-point bronze)
+  ctx.fillStyle = flash ? '#fff' : '#c47a3a';
+  ctx.shadowColor = '#ffd54a';
+  ctx.shadowBlur = 4;
+  const sx = -r * 0.22, sy = -r * 0.22;
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const a1 = -Math.PI / 2 + i * Math.PI * 2 / 5;
+    const a2 = a1 + Math.PI / 5;
+    if (i === 0) ctx.moveTo(sx + Math.cos(a1) * 5, sy + Math.sin(a1) * 5);
+    else ctx.lineTo(sx + Math.cos(a1) * 5, sy + Math.sin(a1) * 5);
+    ctx.lineTo(sx + Math.cos(a2) * 2, sy + Math.sin(a2) * 2);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // X-CROSSED BANDOLIERS (signature officer-look)
+  ctx.strokeStyle = flash ? '#fff' : '#3a1a08';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.50, -r * 0.50); ctx.lineTo(r * 0.50, r * 0.20);
+  ctx.moveTo(r * 0.50, -r * 0.50); ctx.lineTo(-r * 0.50, r * 0.20);
+  ctx.stroke();
+  // Bandolier-pouches (ammo)
+  ctx.fillStyle = flash ? '#fff' : '#1a0a04';
+  for (let i = 0; i < 3; i++) {
+    const t = (i + 1) / 4;
+    ctx.fillRect(-r * 0.50 + t * r * 1.00, -r * 0.50 + t * r * 0.70, r * 0.10, r * 0.06);
+  }
+
+  // BACK ARM
+  ctx.fillStyle = flash ? '#fff' : '#1a2410';
+  ctx.fillRect(-r * 0.22, -r * 0.45, r * 0.20, r * 0.70);
+  ctx.fillStyle = flash ? '#fff' : base.fcDark;
+  ctx.beginPath(); ctx.arc(-r * 0.12, r * 0.20, r * 0.13, 0, Math.PI * 2); ctx.fill();
+
+  // POWER-SIGNATURE: glowing nature-orbs hanging from belt (caster-power)
+  ctx.fillStyle = accent;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 10;
+  for (let i = 0; i < 3; i++) {
+    const ox = -r * 0.30 + i * r * 0.30;
+    const oy = r * 0.30 + Math.sin(now / 400 + i) * 3;
+    ctx.beginPath();
+    ctx.arc(ox, oy, r * 0.06, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  // MASSIVE COMMANDER COAT/cape behind (officer-grade, knee-length)
+  ctx.fillStyle = flash ? '#fff' : '#1a2410';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.55, -r * 0.30);
+  ctx.lineTo(-r * 0.80, r * 0.40);
+  ctx.lineTo(-r * 0.75, r * 1.30);
+  ctx.lineTo(-r * 0.50, r * 1.40);
+  ctx.lineTo(-r * 0.40, r * 0.50);
+  ctx.lineTo(-r * 0.50, -r * 0.20);
+  ctx.closePath();
+  ctx.fill();
+  // Coat-shadow
+  ctx.fillStyle = flash ? '#fff' : '#0a1408';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.55, -r * 0.30);
+  ctx.lineTo(-r * 0.65, r * 0.40);
+  ctx.lineTo(-r * 0.62, r * 1.30);
+  ctx.lineTo(-r * 0.50, r * 1.40);
+  ctx.lineTo(-r * 0.50, -r * 0.20);
+  ctx.closePath();
+  ctx.fill();
+
+  // ASSAULT RIFLE med GRENADE LAUNCHER (signature heavy weapon)
+  const gunY = -r * 0.05;
+  ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+  // Stock
+  ctx.fillRect(-r * 0.40, gunY - r * 0.04, r * 0.32, r * 0.18);
+  // Receiver
+  ctx.fillStyle = flash ? '#fff' : '#2a2a24';
+  ctx.fillRect(-r * 0.08, gunY - r * 0.06, r * 0.42, r * 0.20);
+  // Barrel
+  ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+  ctx.fillRect(r * 0.34, gunY - r * 0.02, r * 0.80, r * 0.10);
+  // GRENADE LAUNCHER (M203-style under barrel)
+  ctx.fillStyle = flash ? '#fff' : '#2a2418';
+  ctx.fillRect(r * 0.34, gunY + r * 0.10, r * 0.60, r * 0.10);
+  // Launcher-muzzle (40mm thick)
+  ctx.fillStyle = flash ? '#fff' : '#1a1410';
+  ctx.beginPath(); ctx.arc(r * 0.94, gunY + r * 0.15, r * 0.07, 0, Math.PI * 2); ctx.fill();
+  // Magazine (curved)
+  ctx.fillStyle = flash ? '#fff' : '#1a1a14';
+  ctx.beginPath();
+  ctx.moveTo(r * 0.00, gunY + r * 0.14);
+  ctx.quadraticCurveTo(r * 0.06, gunY + r * 0.36, r * 0.18, gunY + r * 0.40);
+  ctx.lineTo(r * 0.16, gunY + r * 0.14);
+  ctx.closePath();
+  ctx.fill();
+  // ACOG optic
+  ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+  ctx.fillRect(r * 0.08, gunY - r * 0.20, r * 0.26, r * 0.14);
+  ctx.fillStyle = accent;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 4;
+  ctx.beginPath(); ctx.arc(r * 0.30, gunY - r * 0.13, r * 0.03, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // FRONT ARM holding gun
+  ctx.fillStyle = flash ? '#fff' : '#3a4426';
+  ctx.fillRect(r * 0.02, -r * 0.40, r * 0.16, r * 0.56);
+  ctx.fillStyle = flash ? '#fff' : '#0a0a08';
+  ctx.beginPath(); ctx.arc(r * 0.10, r * 0.16, r * 0.13, 0, Math.PI * 2); ctx.fill();
+
+  // HEAD — OLD VETERAN face (wrinkled, weathered)
+  ctx.fillStyle = flash ? '#fff' : '#c89870';
+  ctx.beginPath(); ctx.arc(0, -r * 0.96, r * 0.30, 0, Math.PI * 2); ctx.fill();
+  // Sunken cheek (jaw shadow)
+  ctx.fillStyle = flash ? '#fff' : '#8a6242';
+  ctx.beginPath(); ctx.ellipse(r * 0.04, -r * 0.82, r * 0.16, r * 0.06, 0, 0, Math.PI); ctx.fill();
+  // Wrinkles (forehead + cheek)
+  ctx.strokeStyle = flash ? '#fff' : '#5a3a26';
+  ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.04, -r * 1.08); ctx.lineTo(r * 0.18, -r * 1.06);
+  ctx.moveTo(r * 0.04, -r * 1.02); ctx.lineTo(r * 0.20, -r * 0.98);
+  ctx.moveTo(r * 0.18, -r * 0.92); ctx.lineTo(r * 0.24, -r * 0.84);
+  ctx.stroke();
+  // GREEN CAMO FACE-PAINT stripes (under eyes)
+  ctx.fillStyle = flash ? '#fff' : '#1a2410';
+  ctx.fillRect(r * 0.04, -r * 0.88, r * 0.16, r * 0.04);
+  ctx.fillStyle = flash ? '#fff' : '#3a4a26';
+  ctx.fillRect(r * 0.08, -r * 0.82, r * 0.10, r * 0.03);
+  // Long WHITE COMMANDER BEARD
+  ctx.fillStyle = flash ? '#fff' : '#e0e0d0';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.10, -r * 0.90);
+  ctx.lineTo(-r * 0.18, -r * 0.50);
+  ctx.lineTo(r * 0.06, -r * 0.40);
+  ctx.lineTo(r * 0.18, -r * 0.90);
+  ctx.closePath();
+  ctx.fill();
+  // Beard-shading
+  ctx.fillStyle = flash ? '#fff' : '#c0c0b0';
+  ctx.fillRect(-r * 0.16, -r * 0.70, r * 0.04, r * 0.24);
+
+  // GLOWING GREEN EYES (supernatural mark)
+  ctx.fillStyle = accent;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 10;
+  ctx.fillRect(r * 0.08, -r * 1.05, r * 0.08, r * 0.05);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(r * 0.10, -r * 1.04, r * 0.04, r * 0.03);
+  ctx.shadowBlur = 0;
+
+  // TACTICAL OFFICER HELMET med ANTLER-INSIGNIA (small, military-grade)
+  ctx.fillStyle = flash ? '#fff' : '#1a2418';
+  ctx.beginPath();
+  ctx.ellipse(0, -r * 1.16, r * 0.40, r * 0.32, 0, Math.PI, 0);
+  ctx.fill();
+  ctx.fillRect(-r * 0.36, -r * 1.16, r * 0.72, r * 0.10);
+  // Helmet camo-patches
+  ctx.fillStyle = flash ? '#fff' : '#3a4a26';
+  ctx.beginPath(); ctx.arc(-r * 0.10, -r * 1.30, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.12, -r * 1.25, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  // OFFICER STAR on helmet
+  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+  ctx.shadowColor = '#ffd54a';
+  ctx.shadowBlur = 5;
+  const hsx = 0, hsy = -r * 1.28;
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const a1 = -Math.PI / 2 + i * Math.PI * 2 / 5;
+    const a2 = a1 + Math.PI / 5;
+    if (i === 0) ctx.moveTo(hsx + Math.cos(a1) * 5, hsy + Math.sin(a1) * 5);
+    else ctx.lineTo(hsx + Math.cos(a1) * 5, hsy + Math.sin(a1) * 5);
+    ctx.lineTo(hsx + Math.cos(a2) * 2.5, hsy + Math.sin(a2) * 2.5);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // Helmet-strap
+  ctx.strokeStyle = flash ? '#fff' : '#0a0a08';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.30, -r * 1.15); ctx.lineTo(-r * 0.14, -r * 0.80);
+  ctx.stroke();
+
+  // ANTLER-INSIGNIA on top of helmet (small, decorative — power-signature)
+  ctx.strokeStyle = flash ? '#fff' : '#3a2410';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.08, -r * 1.48);
+  ctx.lineTo(-r * 0.20, -r * 1.65);
+  ctx.moveTo(-r * 0.14, -r * 1.55); ctx.lineTo(-r * 0.26, -r * 1.55);
+  ctx.moveTo(r * 0.08, -r * 1.48);
+  ctx.lineTo(r * 0.20, -r * 1.65);
+  ctx.moveTo(r * 0.14, -r * 1.55); ctx.lineTo(r * 0.26, -r * 1.55);
+  ctx.stroke();
+  // Antler-tip glow
+  ctx.fillStyle = accent;
+  ctx.shadowColor = glow;
+  ctx.shadowBlur = 4;
+  ctx.beginPath(); ctx.arc(-r * 0.20, -r * 1.65, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.20, -r * 1.65, 2, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+};
+
+// THE WITHERED ELDER (ORIGINAL fantasy version) — replaced by military version above
+BOSS_DRAW._witheredelder_old = function(e, flash, now, phase, moving) {
   const r = e.r;
   const swing = Math.sin(phase) * 0.4;
   const skin = flash ? '#fff' : '#d0c8a8';   // pale ancient skin
@@ -57338,8 +57622,209 @@ BOSS_DRAW.witheredelder = function(e, flash, now, phase, moving) {
   ctx.shadowBlur = 0;
 };
 
-// IRONCLAD HARBINGER — pansrad rosthärlighet. Heavy mech-warrior med massive hammer
+// IRONCLAD HARBINGER — HEAVY ASSAULT OFFICER military med oversized armor + sledgehammer
 BOSS_DRAW.ironclad = function(e, flash, now, phase, moving) {
+  const base = _drawBossMilitaryBase(e, flash, now, phase, {
+    pants: '#3a2018', pantsDark: '#1a0a08',
+    shirt: '#3a2018', armor: '#2a1410', armorLight: '#5a3018',
+    buckle: '#ff7a3a',
+  });
+  const r = base.r;
+  const rust = flash ? '#fff' : '#a04020';
+  const ember = '#ff7a3a';
+  const emberGlow = '#ffae5a';
+  const iron = flash ? '#fff' : '#5a3018';
+  const ironDark = flash ? '#fff' : '#2a1410';
+
+  // OVERSIZED RIVETED CERAMIC-PLATES på plate-carrier (boss-tier heavy armor)
+  ctx.fillStyle = flash ? '#fff' : ironDark;
+  // 6 thick ceramic-plates over the vest
+  for (let i = 0; i < 3; i++) {
+    for (let j = 0; j < 2; j++) {
+      const px = -r * 0.42 + i * r * 0.30;
+      const py = -r * 0.50 + j * r * 0.36;
+      ctx.fillRect(px, py, r * 0.26, r * 0.28);
+      // Plate-highlight
+      ctx.fillStyle = flash ? '#fff' : '#5a3028';
+      ctx.fillRect(px, py, r * 0.26, 3);
+      ctx.fillStyle = ironDark;
+      // Rivets in corners
+      ctx.fillStyle = flash ? '#fff' : '#1a0a04';
+      ctx.beginPath(); ctx.arc(px + 3, py + 3, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px + r * 0.26 - 3, py + 3, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px + 3, py + r * 0.28 - 3, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px + r * 0.26 - 3, py + r * 0.28 - 3, 1.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = ironDark;
+    }
+  }
+  // RUST STREAKS streaming down (battle-worn signature)
+  ctx.fillStyle = rust;
+  ctx.fillRect(-r * 0.30, -r * 0.40, r * 0.05, r * 0.50);
+  ctx.fillRect(r * 0.20, -r * 0.20, r * 0.04, r * 0.35);
+  ctx.fillRect(-r * 0.05, r * 0.00, r * 0.03, r * 0.20);
+  // Heavier rust patches
+  ctx.fillStyle = flash ? '#fff' : '#6a2010';
+  ctx.beginPath(); ctx.arc(-r * 0.30, -r * 0.10, r * 0.08, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.15, r * 0.05, r * 0.06, 0, Math.PI * 2); ctx.fill();
+
+  // EMBER-GLOW CRACKS (signature — energy bleeding through armor)
+  ctx.fillStyle = ember;
+  ctx.shadowColor = emberGlow;
+  ctx.shadowBlur = 10;
+  ctx.fillRect(-r * 0.42, -r * 0.20, r * 0.20, 3);
+  ctx.fillRect(-r * 0.10, -r * 0.30, r * 0.18, 2);
+  ctx.fillRect(r * 0.25, r * 0.15, r * 0.16, 2);
+  ctx.fillRect(-r * 0.20, r * 0.10, r * 0.10, 2);
+  ctx.shadowBlur = 0;
+
+  // SHOULDER PAULDRONS (massive spiked)
+  ctx.fillStyle = ironDark;
+  ctx.beginPath(); ctx.arc(-r * 0.55, -r * 0.50, r * 0.20, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.55, -r * 0.50, r * 0.20, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = iron;
+  ctx.beginPath(); ctx.arc(-r * 0.55, -r * 0.50, r * 0.20, 1.2 * Math.PI, 0.3 * Math.PI); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.55, -r * 0.50, r * 0.20, 1.2 * Math.PI, 0.3 * Math.PI); ctx.fill();
+  // Pauldron spikes
+  ctx.fillStyle = flash ? '#fff' : '#7a4028';
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(r * 0.42 + i * r * 0.10, -r * 0.72);
+    ctx.lineTo(r * 0.48 + i * r * 0.10, -r * 0.88);
+    ctx.lineTo(r * 0.54 + i * r * 0.10, -r * 0.72);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // BELT-MOUNTED THERMAL GRENADES (4 hanging)
+  ctx.fillStyle = flash ? '#fff' : '#2a1410';
+  for (let i = 0; i < 4; i++) {
+    ctx.fillRect(-r * 0.36 + i * r * 0.20, r * 0.22, r * 0.10, r * 0.16);
+    // Grenade pin
+    ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+    ctx.fillRect(-r * 0.34 + i * r * 0.20, r * 0.22, r * 0.02, r * 0.04);
+    ctx.fillStyle = '#2a1410';
+  }
+
+  // BACK ARM
+  ctx.fillStyle = ironDark;
+  ctx.fillRect(-r * 0.25, -r * 0.40, r * 0.22, r * 0.65);
+
+  // FRONT ARM (heavy gauntlet)
+  ctx.fillStyle = flash ? '#fff' : iron;
+  ctx.fillRect(r * 0.05, -r * 0.40, r * 0.22, r * 0.60);
+  // Gauntlet (large knuckles)
+  ctx.fillStyle = flash ? '#fff' : '#1a0a04';
+  ctx.beginPath(); ctx.arc(r * 0.16, r * 0.22, r * 0.16, 0, Math.PI * 2); ctx.fill();
+  // Knuckle-spikes
+  ctx.fillStyle = flash ? '#fff' : '#7a4028';
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.moveTo(r * 0.08 + i * r * 0.06, r * 0.10);
+    ctx.lineTo(r * 0.11 + i * r * 0.06, r * 0.02);
+    ctx.lineTo(r * 0.14 + i * r * 0.06, r * 0.10);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // MILITARY SLEDGEHAMMER (signature — not fantasy hammer, real combat sledge)
+  // Wrapped grip shaft
+  ctx.fillStyle = flash ? '#fff' : '#3a1808';
+  ctx.fillRect(r * 0.22, -r * 1.20, r * 0.08, r * 1.30);
+  // Grip wrap
+  ctx.strokeStyle = flash ? '#fff' : '#1a0a04';
+  ctx.lineWidth = 0.6;
+  for (let i = 0; i < 8; i++) {
+    ctx.beginPath();
+    ctx.moveTo(r * 0.22, -r * 0.20 + i * r * 0.08);
+    ctx.lineTo(r * 0.30, -r * 0.20 + i * r * 0.08);
+    ctx.stroke();
+  }
+  // SLEDGEHAMMER HEAD — steel cylinder med tapered ends (military combat sledge)
+  ctx.fillStyle = flash ? '#fff' : '#3a3a44';
+  ctx.fillRect(-r * 0.10, -r * 1.42, r * 0.60, r * 0.34);
+  // Head highlight (metallic)
+  ctx.fillStyle = flash ? '#fff' : '#7a7a88';
+  ctx.fillRect(-r * 0.10, -r * 1.42, r * 0.60, 4);
+  // Head bevels (tapered edges)
+  ctx.fillStyle = ironDark;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.10, -r * 1.42); ctx.lineTo(-r * 0.20, -r * 1.30); ctx.lineTo(-r * 0.10, -r * 1.18);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r * 0.50, -r * 1.42); ctx.lineTo(r * 0.60, -r * 1.30); ctx.lineTo(r * 0.50, -r * 1.18);
+  ctx.fill();
+  // Hammer ember-cracks
+  ctx.fillStyle = ember;
+  ctx.shadowColor = emberGlow;
+  ctx.shadowBlur = 8;
+  ctx.fillRect(r * 0.00, -r * 1.32, r * 0.20, 2);
+  ctx.fillRect(r * 0.25, -r * 1.36, r * 0.20, 2);
+  ctx.shadowBlur = 0;
+  // Hammer hand-grip ring
+  ctx.fillStyle = flash ? '#fff' : '#7a4028';
+  ctx.fillRect(r * 0.20, r * 0.10, r * 0.12, r * 0.05);
+
+  // HEAD — FULL TACTICAL HELMET (no face visible)
+  ctx.fillStyle = flash ? '#fff' : ironDark;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.34, -r * 0.85);
+  ctx.lineTo(r * 0.34, -r * 0.85);
+  ctx.lineTo(r * 0.38, -r * 1.18);
+  ctx.lineTo(0, -r * 1.36);
+  ctx.lineTo(-r * 0.38, -r * 1.18);
+  ctx.closePath();
+  ctx.fill();
+  // Helmet highlight
+  ctx.fillStyle = flash ? '#fff' : iron;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.10, -r * 1.34);
+  ctx.lineTo(r * 0.32, -r * 1.14);
+  ctx.lineTo(r * 0.20, -r * 0.95);
+  ctx.lineTo(-r * 0.10, -r * 1.12);
+  ctx.closePath();
+  ctx.fill();
+  // RUST patches on helmet
+  ctx.fillStyle = rust;
+  ctx.beginPath(); ctx.arc(-r * 0.20, -r * 1.05, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.18, -r * 1.20, r * 0.04, 0, Math.PI * 2); ctx.fill();
+  // T-SHAPED EYE-SLIT
+  ctx.fillStyle = '#000';
+  ctx.fillRect(-r * 0.22, -r * 1.08, r * 0.44, r * 0.06);
+  ctx.fillRect(-r * 0.04, -r * 1.14, r * 0.08, r * 0.20);
+  // GLOWING EMBER EYES inside slit
+  ctx.fillStyle = ember;
+  ctx.shadowColor = emberGlow;
+  ctx.shadowBlur = 12;
+  ctx.fillRect(-r * 0.14, -r * 1.06, r * 0.08, r * 0.04);
+  ctx.fillRect(r * 0.06, -r * 1.06, r * 0.08, r * 0.04);
+  ctx.shadowBlur = 0;
+  // BREATHING-VENT under slit (gas-mask feel)
+  ctx.fillStyle = ironDark;
+  ctx.fillRect(-r * 0.10, -r * 0.96, r * 0.20, r * 0.10);
+  // Vent-holes
+  ctx.fillStyle = '#000';
+  for (let i = 0; i < 4; i++) {
+    ctx.fillRect(-r * 0.08 + i * r * 0.05, -r * 0.92, 2, 2);
+  }
+  // SINGLE BRUTAL HORN on helmet
+  ctx.fillStyle = flash ? '#fff' : '#7a4028';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.06, -r * 1.36);
+  ctx.lineTo(0, -r * 1.62);
+  ctx.lineTo(r * 0.06, -r * 1.36);
+  ctx.closePath();
+  ctx.fill();
+  // RANK INSIGNIA (3 chevrons med stars) — sergeant-major-grade
+  ctx.strokeStyle = flash ? '#fff' : '#ffd54a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.10, -r * 1.20); ctx.lineTo(-r * 0.04, -r * 1.16); ctx.lineTo(r * 0.02, -r * 1.20);
+  ctx.moveTo(-r * 0.10, -r * 1.24); ctx.lineTo(-r * 0.04, -r * 1.20); ctx.lineTo(r * 0.02, -r * 1.24);
+  ctx.stroke();
+};
+
+// IRONCLAD (OLD fantasy version)
+BOSS_DRAW._ironclad_old = function(e, flash, now, phase, moving) {
   const r = e.r;
   const swing = Math.sin(phase) * 0.3;
   const iron = flash ? '#fff' : '#5a3018';
@@ -57528,8 +58013,246 @@ BOSS_DRAW.ironclad = function(e, flash, now, phase, moving) {
   ctx.fill();
 };
 
-// THE MIRRORED ONE — spegel-illusion. Fragmented mirror-figure med floating shards
+// THE MIRRORED ONE — STEALTH PHANTOM-OPERATOR military med mirror-tech + plasma-rifle
 BOSS_DRAW.mirroredone = function(e, flash, now, phase, moving) {
+  const base = _drawBossMilitaryBase(e, flash, now, phase, {
+    pants: '#0a0a0a', pantsDark: '#000',
+    shirt: '#1a1a22', armor: '#0a0a14', armorLight: '#3acaff',
+    boots: '#000', buckle: '#aa5aff',
+  });
+  const r = base.r;
+  const mirror = flash ? '#fff' : '#3acaff';
+  const purple = flash ? '#fff' : '#aa5aff';
+  const purpleGlow = '#cc8aff';
+  const cyan = flash ? '#fff' : '#5acaff';
+
+  // MIRROR-FINISH CHEST-PLATE (signature reflective armor)
+  ctx.fillStyle = mirror;
+  ctx.fillRect(-r * 0.50, -r * 0.50, r * 1.00, r * 0.70);
+  // Reflection highlight (gradient effect via 2 shades)
+  ctx.fillStyle = flash ? '#fff' : '#9aeaff';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.50, -r * 0.50);
+  ctx.lineTo(-r * 0.20, -r * 0.45);
+  ctx.lineTo(-r * 0.20, r * 0.15);
+  ctx.lineTo(-r * 0.50, r * 0.20);
+  ctx.closePath();
+  ctx.fill();
+  // Plate seams
+  ctx.strokeStyle = flash ? '#fff' : '#0a1a30';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.50, -r * 0.20); ctx.lineTo(r * 0.50, -r * 0.20);
+  ctx.moveTo(0, -r * 0.50); ctx.lineTo(0, r * 0.20);
+  ctx.stroke();
+  // PURPLE GLOWING CIRCUIT-LINES (tech-magic signature)
+  ctx.strokeStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 8;
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.40, -r * 0.40);
+  ctx.lineTo(-r * 0.20, -r * 0.20);
+  ctx.lineTo(r * 0.10, -r * 0.20);
+  ctx.lineTo(r * 0.30, r * 0.05);
+  ctx.stroke();
+  // Circuit-nodes
+  ctx.fillStyle = purple;
+  ctx.beginPath(); ctx.arc(-r * 0.20, -r * 0.20, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.10, -r * 0.20, 3, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // CLOAKING-DEVICE on belt (purple glow — cloaker power signature)
+  ctx.fillStyle = flash ? '#fff' : '#1a0a20';
+  ctx.fillRect(r * 0.10, r * 0.18, r * 0.20, r * 0.10);
+  ctx.fillStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 10;
+  const cloakPulse = 0.7 + Math.sin(now / 250) * 0.3;
+  ctx.fillRect(r * 0.14, r * 0.22, r * 0.12, r * 0.04 * cloakPulse);
+  ctx.shadowBlur = 0;
+
+  // PLASMA-CANISTER on hip (plasma power)
+  ctx.fillStyle = flash ? '#fff' : '#2a1a30';
+  ctx.fillRect(-r * 0.30, r * 0.18, r * 0.14, r * 0.16);
+  ctx.fillStyle = cyan;
+  ctx.shadowColor = cyan;
+  ctx.shadowBlur = 6;
+  ctx.fillRect(-r * 0.28, r * 0.22, r * 0.10, r * 0.04);
+  ctx.shadowBlur = 0;
+
+  // 5 FLOATING MIRROR-SHARDS orbiting (signature)
+  const shardT = now / 800;
+  for (let i = 0; i < 5; i++) {
+    const a = i * Math.PI * 2 / 5 + shardT;
+    const sx = Math.cos(a) * r * 1.4;
+    const sy = Math.sin(a) * r * 0.9 - r * 0.3;
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(a + Math.PI / 4);
+    ctx.fillStyle = mirror;
+    ctx.shadowColor = purpleGlow;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.moveTo(0, -r * 0.10);
+    ctx.lineTo(r * 0.08, 0);
+    ctx.lineTo(0, r * 0.10);
+    ctx.lineTo(-r * 0.08, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#fafaff';
+    ctx.fillRect(-r * 0.02, -r * 0.06, 2, r * 0.10);
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  // X-CROSSED tactical-straps (officer rank)
+  ctx.strokeStyle = flash ? '#fff' : '#1a0a20';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.45, -r * 0.50); ctx.lineTo(r * 0.45, r * 0.10);
+  ctx.moveTo(r * 0.45, -r * 0.50); ctx.lineTo(-r * 0.45, r * 0.10);
+  ctx.stroke();
+
+  // BACK ARM (stealth-suit)
+  ctx.fillStyle = flash ? '#fff' : '#0a0a14';
+  ctx.fillRect(-r * 0.22, -r * 0.40, r * 0.18, r * 0.65);
+
+  // PLASMA-RIFLE held forward (signature weapon)
+  const gunY = -r * 0.05;
+  // Body
+  ctx.fillStyle = flash ? '#fff' : '#1a1a30';
+  ctx.fillRect(-r * 0.05, gunY - r * 0.08, r * 0.50, r * 0.22);
+  // Stock
+  ctx.fillStyle = flash ? '#fff' : '#0a0a14';
+  ctx.fillRect(-r * 0.40, gunY - r * 0.04, r * 0.36, r * 0.18);
+  // PLASMA-COIL (visible energy chamber)
+  ctx.fillStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.arc(r * 0.20, gunY + r * 0.04, r * 0.10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(r * 0.20, gunY + r * 0.04, r * 0.04, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  // Coil-rings
+  ctx.strokeStyle = mirror;
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 3; i++) {
+    ctx.beginPath();
+    ctx.arc(r * 0.20, gunY + r * 0.04, r * 0.10 + i * 2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // Barrel (slim)
+  ctx.fillStyle = flash ? '#fff' : '#2a2a44';
+  ctx.fillRect(r * 0.45, gunY + r * 0.00, r * 0.60, r * 0.08);
+  // Muzzle (purple glow)
+  ctx.fillStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 8;
+  ctx.beginPath(); ctx.arc(r * 1.05, gunY + r * 0.04, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Optic
+  ctx.fillStyle = flash ? '#fff' : '#0a0a14';
+  ctx.fillRect(r * 0.04, gunY - r * 0.18, r * 0.18, r * 0.12);
+  ctx.fillStyle = cyan;
+  ctx.shadowColor = cyan;
+  ctx.shadowBlur = 4;
+  ctx.fillRect(r * 0.08, gunY - r * 0.14, r * 0.10, 3);
+  ctx.shadowBlur = 0;
+
+  // FRONT ARM
+  ctx.fillStyle = flash ? '#fff' : '#1a1a22';
+  ctx.fillRect(r * 0.02, -r * 0.38, r * 0.14, r * 0.54);
+  ctx.fillStyle = flash ? '#fff' : '#000';
+  ctx.beginPath(); ctx.arc(r * 0.08, r * 0.14, r * 0.11, 0, Math.PI * 2); ctx.fill();
+
+  // TACTICAL KNIFE strapped to chest
+  ctx.fillStyle = flash ? '#fff' : '#1a0a14';
+  ctx.fillRect(r * 0.32, -r * 0.40, r * 0.04, r * 0.18);
+  ctx.fillStyle = flash ? '#fff' : '#bccad0';
+  ctx.fillRect(r * 0.33, -r * 0.30, r * 0.02, r * 0.10);
+
+  // HEAD — FULL TACTICAL MASK med MIRROR-VISOR
+  ctx.fillStyle = flash ? '#fff' : '#0a0a14';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.30, -r * 0.85);
+  ctx.lineTo(r * 0.30, -r * 0.85);
+  ctx.lineTo(r * 0.34, -r * 1.16);
+  ctx.lineTo(0, -r * 1.28);
+  ctx.lineTo(-r * 0.34, -r * 1.16);
+  ctx.closePath();
+  ctx.fill();
+  // MIRROR-VISOR (reflective full-face)
+  ctx.fillStyle = mirror;
+  ctx.fillRect(-r * 0.25, -r * 1.10, r * 0.50, r * 0.18);
+  // Visor reflection-gradient
+  ctx.fillStyle = '#cce8ff';
+  ctx.beginPath();
+  ctx.moveTo(-r * 0.25, -r * 1.10);
+  ctx.lineTo(-r * 0.05, -r * 1.10);
+  ctx.lineTo(-r * 0.15, -r * 0.92);
+  ctx.closePath();
+  ctx.fill();
+  // Visor edge-frame (purple-glow tech)
+  ctx.strokeStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 6;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(-r * 0.25, -r * 1.10, r * 0.50, r * 0.18);
+  ctx.shadowBlur = 0;
+  // GHOST-DUPLICATE EYE-GLOW visible THROUGH visor (signature)
+  ctx.fillStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 10;
+  ctx.fillRect(-r * 0.10, -r * 1.04, r * 0.06, r * 0.04);
+  // Ghost-duplicate (offset)
+  ctx.globalAlpha = 0.5;
+  ctx.fillRect(-r * 0.05, -r * 1.00, r * 0.06, r * 0.04);
+  ctx.globalAlpha = 1.0;
+  ctx.fillRect(r * 0.06, -r * 1.04, r * 0.06, r * 0.04);
+  ctx.globalAlpha = 0.5;
+  ctx.fillRect(r * 0.11, -r * 1.00, r * 0.06, r * 0.04);
+  ctx.globalAlpha = 1.0;
+  ctx.shadowBlur = 0;
+  // Helmet-mount-rails (sides)
+  ctx.fillStyle = flash ? '#fff' : '#1a0a20';
+  ctx.fillRect(-r * 0.36, -r * 1.10, r * 0.04, r * 0.18);
+  ctx.fillRect(r * 0.32, -r * 1.10, r * 0.04, r * 0.18);
+  // BREATHING-FILTER (lower mask)
+  ctx.fillStyle = flash ? '#fff' : '#0a0a14';
+  ctx.fillRect(-r * 0.12, -r * 0.92, r * 0.24, r * 0.10);
+  // Filter-holes
+  ctx.fillStyle = flash ? '#fff' : purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 4;
+  for (let i = 0; i < 5; i++) {
+    ctx.beginPath();
+    ctx.arc(-r * 0.10 + i * r * 0.05, -r * 0.87, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+  // Tactical-antenna (small)
+  ctx.strokeStyle = flash ? '#fff' : '#1a0a20';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(r * 0.20, -r * 1.20);
+  ctx.lineTo(r * 0.28, -r * 1.42);
+  ctx.stroke();
+  ctx.fillStyle = purple;
+  ctx.shadowColor = purpleGlow;
+  ctx.shadowBlur = 4;
+  ctx.beginPath();
+  ctx.arc(r * 0.28, -r * 1.42, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+};
+
+// MIRROREDONE (OLD fantasy version)
+BOSS_DRAW._mirroredone_old = function(e, flash, now, phase, moving) {
   const r = e.r;
   const swing = Math.sin(phase) * 0.5;
   const mirror = flash ? '#fff' : '#3acaff';
