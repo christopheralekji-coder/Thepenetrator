@@ -8809,6 +8809,18 @@ function drawHeistDecorations() {
     }
   }
 
+  // === v1.626: LIGHTS-OUT VFX när alla 6 kameror hackade ===
+  // Pulserande röd över hela banken — visuellt signalerar "ditt blackout-window".
+  if (state.heistDisabledCameras && state.heistCameras) {
+    const disabledCount = Object.keys(state.heistDisabledCameras).length;
+    if (disabledCount >= 6) {
+      const v = 0.10 + 0.10 * Math.sin(t / 600);
+      ctx.fillStyle = 'rgba(180,40,40,' + v + ')';
+      // Bara över bank-byggnaden (inte street)
+      ctx.fillRect(600 - cx, 700 - cy, 2800, 2700);
+    }
+  }
+
   // === v1.623: Dropped loot-bags på marken ===
   if (state.heistDroppedBags && state.heistDroppedBags.length > 0) {
     for (const bag of state.heistDroppedBags) {
@@ -23154,6 +23166,8 @@ const Coop = {
       // v1.623: dropped bags + unlocked doors
       state.heistDroppedBags = ev.droppedBags || [];
       state.heistUnlockedDoors = ev.unlockedDoors || {};
+      // v1.626: cease-fire remaining
+      state.heistCeasefireMs = ev.ceasefireRemainMs || 0;
       if (state.heistDoors && state.heistUnlockedDoors) {
         for (const d of state.heistDoors) {
           if (state.heistUnlockedDoors[d.id]) d.locked = false;
@@ -23218,6 +23232,10 @@ const Coop = {
       if (typeof showToast === 'function') showToast('🚨 VAKT TRIGGADE ALARM!');
     } else if (ev.type === 'heist_civilian_hostage') {
       if (typeof showToast === 'function') showToast('🙏 HOSTAGE TAGEN');
+    } else if (ev.type === 'heist_hostage_released') {
+      // v1.626: hostage släppt → cease-fire aktiv
+      if (typeof showToast === 'function') showToast('🕊️ CEASE-FIRE · ' + Math.round((ev.ceasefireMs || 10000) / 1000) + 's lugn');
+      if (typeof Audio !== 'undefined' && Audio.victory) Audio.victory();
     } else if (ev.type === 'heist_guard_silent_kill') {
       if (typeof showToast === 'function') showToast('🗡️ TYST KILL · vakt eliminerad');
       if (typeof Audio !== 'undefined' && Audio.hit) Audio.hit();
@@ -23268,28 +23286,35 @@ const Coop = {
       }
       if (typeof showToast === 'function') showToast('💻 TERMINAL HACKAD · kameror ner');
     } else if (ev.type === 'heist_win') {
-      // { lootValue, elapsedSec }
+      // { lootValue, elapsedSec, scoreboard }
       document.body.classList.remove('heist-mode');
       this.heistActive = false;
       state.heistActive = false;
       state.heistEnded = true;
       if (typeof hideHeistHud === 'function') hideHeistHud();
       if (typeof Audio !== 'undefined' && Audio.victory) Audio.victory();
-      if (typeof showToast === 'function') {
+      // v1.626: visa scoreboard-overlay
+      if (typeof showHeistEndOverlay === 'function') {
+        showHeistEndOverlay(true, ev);
+      } else if (typeof showToast === 'function') {
         showToast('💰 HEIST VUNNEN! · $' + (ev.lootValue || 0).toLocaleString() + ' · ' + ev.elapsedSec + 's');
       }
     } else if (ev.type === 'heist_lose') {
-      // { reason, lootValue, elapsedSec }
+      // { reason, lootValue, elapsedSec, scoreboard }
       document.body.classList.remove('heist-mode');
       this.heistActive = false;
       state.heistActive = false;
       state.heistEnded = true;
       if (typeof hideHeistHud === 'function') hideHeistHud();
       if (typeof Audio !== 'undefined' && Audio.gameOver) Audio.gameOver();
-      if (typeof showToast === 'function') {
+      // v1.626: visa scoreboard-overlay
+      if (typeof showHeistEndOverlay === 'function') {
+        showHeistEndOverlay(false, ev);
+      } else if (typeof showToast === 'function') {
         const reasonTxt = ev.reason === 'all_dead' ? 'ALLA DÖDA' :
                           ev.reason === 'extract_timeout' ? 'EXTRACT TIMEOUT' :
-                          ev.reason === 'timeout' ? 'TID UTE' : 'MISSLYCKAD';
+                          ev.reason === 'timeout' ? 'TID UTE' :
+                          ev.reason === 'alarm_timeout' ? 'INGEN DRILL' : 'MISSLYCKAD';
         showToast('💀 HEIST FAILED — ' + reasonTxt + ' · $' + (ev.lootValue || 0).toLocaleString());
       }
     } else if (ev.type === 'cd_hud_update') {
@@ -35138,6 +35163,74 @@ function hideHeistHud() {
   if (aBtn) aBtn.style.display = 'none';
 }
 
+// v1.626: End-match scoreboard overlay (win/lose med per-player stats)
+function showHeistEndOverlay(victory, ev) {
+  let overlay = document.getElementById('heist-end-overlay');
+  if (overlay) overlay.remove();
+  overlay = document.createElement('div');
+  overlay.id = 'heist-end-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:200;background:radial-gradient(ellipse at center,' +
+    (victory ? 'rgba(20,60,30,0.96)' : 'rgba(60,10,10,0.96)') +
+    ' 0%,rgba(0,0,0,0.98) 80%);display:flex;align-items:center;justify-content:center;' +
+    'font-family:sans-serif;animation:heistEndFade 0.5s ease-out;';
+  // Animation keyframes one-shot
+  if (!document.getElementById('heist-end-style')) {
+    const st = document.createElement('style');
+    st.id = 'heist-end-style';
+    st.textContent = '@keyframes heistEndFade{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}';
+    document.head.appendChild(st);
+  }
+  const reasonTxt = ev.reason === 'all_dead' ? 'ALLA DÖDA' :
+                    ev.reason === 'extract_timeout' ? 'EXTRACT TIMEOUT' :
+                    ev.reason === 'timeout' ? 'MATCH TIMEOUT' :
+                    ev.reason === 'alarm_timeout' ? 'INGEN DRILL' : '';
+  const elapsed = ev.elapsedSec || 0;
+  const mm = Math.floor(elapsed / 60), ss = elapsed % 60;
+  const elapsedTxt = mm + 'm ' + ss + 's';
+  const titleColor = victory ? '#5aff5a' : '#ff5050';
+  const title = victory ? '💰 HEIST LYCKAD' : '💀 HEIST MISSLYCKAD';
+  // Bygg scoreboard-rows
+  const rows = ev.scoreboard || [];
+  const trophies = ['🥇','🥈','🥉','🎖','🎖','🎖','🎖','🎖'];
+  const rowsHtml = rows.map((r, i) => {
+    const roleIcon = { hacker:'💻', tank:'🛡️', medic:'💊', rogue:'🗡️' }[r.role] || '👤';
+    const isMe = r.peerId === Coop.myId;
+    return '<div style="display:grid;grid-template-columns:auto 1fr auto auto auto auto;gap:8px;font-size:13px;padding:6px 8px;' +
+      (isMe ? 'color:#ffd54a;background:rgba(255,213,74,0.10);border-radius:6px;' : 'color:#cccccc;') + '">' +
+      '<span>' + (trophies[i] || '·') + '</span>' +
+      '<span><b>' + r.name + '</b> ' + roleIcon + '</span>' +
+      '<span title="Säkrat">💰 $' + (r.secured || 0).toLocaleString() + '</span>' +
+      '<span title="Säckar">🎒 ' + (r.bags || 0) + '</span>' +
+      '<span title="Hostages">🙏 ' + (r.hostages || 0) + '</span>' +
+      '<span title="Status">' + (r.alive ? '✓' : '💀') + '</span>' +
+      '</div>';
+  }).join('');
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:linear-gradient(180deg,#1a0f08 0%,#0a0604 100%);border:3px solid ' +
+    titleColor + ';border-radius:18px;padding:30px 36px;max-width:92vw;min-width:min(420px, 92vw);' +
+    'box-shadow:0 0 60px ' + titleColor + '40,inset 0 1px 0 rgba(255,255,255,0.1);text-align:center;';
+  panel.innerHTML =
+    '<div style="font-size:48px;line-height:1;margin-bottom:6px;">' + (victory ? '💰' : '💀') + '</div>' +
+    '<h1 style="color:' + titleColor + ';font-size:30px;font-weight:900;letter-spacing:3px;margin:0 0 10px 0;text-shadow:0 0 20px ' + titleColor + '60;">' + title + '</h1>' +
+    (reasonTxt ? '<div style="color:#aaa;font-size:12px;letter-spacing:1px;margin-bottom:14px;">' + reasonTxt + '</div>' : '') +
+    '<div style="display:flex;justify-content:space-around;background:rgba(0,0,0,0.5);border-radius:10px;padding:12px;margin-bottom:18px;">' +
+      '<div><div style="color:#888;font-size:11px;letter-spacing:1px;">TOTAL LOOT</div><div style="color:#ffd54a;font-size:22px;font-weight:900;">$' + (ev.lootValue || 0).toLocaleString() + '</div></div>' +
+      '<div><div style="color:#888;font-size:11px;letter-spacing:1px;">TID</div><div style="color:#5acaff;font-size:22px;font-weight:900;">' + elapsedTxt + '</div></div>' +
+    '</div>' +
+    '<div style="background:rgba(0,0,0,0.4);border-radius:10px;padding:8px;margin-bottom:18px;">' +
+      '<div style="color:#888;font-size:11px;letter-spacing:1px;margin-bottom:6px;">SCOREBOARD</div>' +
+      rowsHtml +
+    '</div>' +
+    '<button id="heist-end-menu-btn" style="background:' + titleColor + ';color:#000;border:none;border-radius:10px;padding:12px 30px;font-family:inherit;font-weight:900;letter-spacing:2px;font-size:14px;cursor:pointer;box-shadow:0 3px 8px rgba(0,0,0,0.5);">🔙 MENY</button>';
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+  document.getElementById('heist-end-menu-btn').onclick = () => {
+    overlay.remove();
+    const btnMenu = document.getElementById('btn-menu');
+    if (btnMenu) btnMenu.click();
+  };
+}
+
 // v1.620: Action-knapp för mobil — kontekstuell (drill/bag/hack/extract)
 function ensureHeistActionBtn() {
   let btn = document.getElementById('heist-action-btn');
@@ -35236,13 +35329,18 @@ function getHeistContextAction() {
     }
   }
 
-  // v1.623: INTIMIDATE CIVILIAN (no weapon drawn + nära civilian)
+  // v1.623: INTIMIDATE CIVILIAN (no weapon drawn + nära civilian, stealth)
+  // v1.626: RELEASE HOSTAGE (alarm/extract) → 10s cease-fire
   const myWeapon = (state.player && state.player.weaponId) || 'pistol';
-  if (phase === 'stealth' && myWeapon === 'fists' && state.heistNPCs) {
+  if (state.heistNPCs) {
     for (const n of state.heistNPCs) {
-      if (n.t !== 'civilian' || n.s === 'hostage') continue;
+      if (n.t !== 'civilian') continue;
       const dx = px - n.x, dy = py - n.y;
-      if (dx * dx + dy * dy < 60 * 60) {
+      if (dx * dx + dy * dy >= 60 * 60) continue;
+      if (n.s === 'hostage' && (phase === 'alarm' || phase === 'extract')) {
+        return { label: '🙏 SLÄPP HOSTAGE · 10s lugn', action: 'release_hostage', npcId: n.id };
+      }
+      if (phase === 'stealth' && myWeapon === 'fists' && n.s !== 'hostage') {
         return { label: '🙏 INTIMIDATE', action: 'intimidate_civilian', npcId: n.id };
       }
     }
@@ -35336,8 +35434,12 @@ function updateHeistHud() {
     phaseEl.style.borderColor = '#ff5050';
     phaseEl.style.color = '#ff8080';
     if (objEl) {
-      // v1.625: indikera drill-blocked-state
-      if (state.heistDrillBlocked) {
+      // v1.626: cease-fire indikator har högsta prio
+      if (state.heistCeasefireMs > 0) {
+        const s = Math.ceil(state.heistCeasefireMs / 1000);
+        objEl.textContent = '🕊️ CEASE-FIRE · ' + s + 's KVAR';
+        objEl.style.color = '#5aff8a';
+      } else if (state.heistDrillBlocked) {
         objEl.textContent = '⛔ COPS BLOCKERAR DRILL · rensa zonen!';
         objEl.style.color = '#ff8080';
       } else {

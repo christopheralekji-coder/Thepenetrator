@@ -3967,6 +3967,7 @@ function tickHeist(sim, dt, nowMs) {
       reason: 'timeout',
       lootValue: sim.heistLootValue || 0,
       elapsedSec: Math.round(elapsedMs / 1000),
+      scoreboard: _heistBuildScoreboard(sim),
     });
     return;
   }
@@ -3987,6 +3988,7 @@ function tickHeist(sim, dt, nowMs) {
       reason: 'all_dead',
       lootValue: sim.heistLootValue || 0,
       elapsedSec: Math.round(elapsedMs / 1000),
+      scoreboard: _heistBuildScoreboard(sim),
     });
     return;
   }
@@ -4010,6 +4012,7 @@ function tickHeist(sim, dt, nowMs) {
         reason: 'alarm_timeout',
         lootValue: sim.heistLootValue || 0,
         elapsedSec: Math.round(elapsedMs / 1000),
+        scoreboard: _heistBuildScoreboard(sim),
       });
       return;
     }
@@ -4037,7 +4040,8 @@ function tickHeist(sim, dt, nowMs) {
     sim.heistDrilling = playerOnDrill && !copNearDrill;
     sim.heistDrillBlocked = copNearDrill;
     if (sim.heistDrilling && sim.heistDrillProgress < 1.0) {
-      const drillDurMs = (arena.drillDurationSec || 120) * 1000;
+      // v1.626: difficulty-skalad drill-tid
+      const drillDurMs = (arena.drillDurationSec || 120) * 1000 * _heistDifficultyMul(sim).drillTime;
       sim.heistDrillProgress = Math.min(1.0, sim.heistDrillProgress + (dt * 1000 / drillDurMs));
       if (sim.heistDrillProgress >= 1.0 && !sim.heistVaultUnlocked) {
         sim.heistVaultUnlocked = true;
@@ -4071,6 +4075,7 @@ function tickHeist(sim, dt, nowMs) {
           type: 'heist_win',
           lootValue: sim.heistLootValue || 0,
           elapsedSec: Math.round(elapsedMs / 1000),
+          scoreboard: _heistBuildScoreboard(sim),
         });
       } else {
         sim.eventQueue.push({
@@ -4078,6 +4083,7 @@ function tickHeist(sim, dt, nowMs) {
           reason: 'extract_timeout',
           lootValue: sim.heistLootValue || 0,
           elapsedSec: Math.round(elapsedMs / 1000),
+          scoreboard: _heistBuildScoreboard(sim),
         });
       }
     }
@@ -4114,7 +4120,9 @@ function tickHeist(sim, dt, nowMs) {
         // PLAYER IN CONE — per-(player, cam) timer
         if (!ws._heistCamDetect[cam.id]) ws._heistCamDetect[cam.id] = nowMs;
         ws._heistCamSeenThisTick[cam.id] = true;
-        if (nowMs - ws._heistCamDetect[cam.id] > 2000) {
+        // v1.626: difficulty-skalad camera-grace (1000-3000ms)
+        const camGrace = _heistDifficultyMul(sim).cameraGraceMs;
+        if (nowMs - ws._heistCamDetect[cam.id] > camGrace) {
           sim.heistAlarmTriggered = true;
           sim.eventQueue.push({ type: 'heist_camera_detect', camId: cam.id });
         }
@@ -4155,14 +4163,15 @@ function tickHeist(sim, dt, nowMs) {
     }
   }
 
-  // === v1.621: POLICE-VÅGOR under alarm-fas ===
-  if (sim.heistPhase === 'alarm') {
+  // === v1.621: POLICE-VÅGOR under alarm-fas (skippas under cease-fire) ===
+  const ceasefireActive = (sim.heistCeasefireUntil || 0) > nowMs;
+  if (sim.heistPhase === 'alarm' && !ceasefireActive) {
     if (!sim._heistNextPoliceAt) sim._heistNextPoliceAt = nowMs + 5000; // första vågen 5s in i alarm
     if (nowMs >= sim._heistNextPoliceAt) {
       sim._heistNextPoliceAt = nowMs + 20000; // var 20s
       _heistSpawnPoliceWave(sim, arena, nowMs);
     }
-  } else if (sim.heistPhase === 'extract') {
+  } else if (sim.heistPhase === 'extract' && !ceasefireActive) {
     // Mer aggressivt under extract — police var 12s
     if (!sim._heistNextPoliceAt) sim._heistNextPoliceAt = nowMs + 3000;
     if (nowMs >= sim._heistNextPoliceAt) {
@@ -4172,7 +4181,8 @@ function tickHeist(sim, dt, nowMs) {
   }
 
   // === v1.621: ENEMY-AI (cops targetar nearest player via updateEnemy) ===
-  if (sim.enemies && sim.enemies.length > 0) {
+  // v1.626: Under cease-fire FRYSER cops — ingen rörelse, inget skytte
+  if (sim.enemies && sim.enemies.length > 0 && !ceasefireActive) {
     const heistPlayers = [];
     for (const [pid, ws] of sim.room.members) {
       if (!ws.playerState || ws.playerState.hp <= 0) continue;
@@ -4221,6 +4231,9 @@ function tickHeist(sim, dt, nowMs) {
         const value = ws._heistBagsValue || 0;
         if (carrying > 0) {
           sim.heistLootValue = (sim.heistLootValue || 0) + value;
+          // v1.626: per-player scoreboard-tracking
+          ws._heistStatSecured = (ws._heistStatSecured || 0) + value;
+          ws._heistStatBags = (ws._heistStatBags || 0) + carrying;
           ws._heistBagsCarrying = 0;
           ws._heistBagsValue = 0;
           ws._heistBagsWeight = 0;
@@ -4284,6 +4297,8 @@ function tickHeist(sim, dt, nowMs) {
       })),
       backExtractUnlocked: !!sim.heistBackExtractUnlocked,
       unlockedDoors: sim.heistUnlockedDoors || {},
+      // v1.626: cease-fire remaining ms
+      ceasefireRemainMs: Math.max(0, (sim.heistCeasefireUntil || 0) - nowMs),
     });
   }
   // === v1.622: NPC-broadcast (var 200ms = 5Hz för positionssync) ===
@@ -4300,6 +4315,22 @@ function tickHeist(sim, dt, nowMs) {
       });
     }
     sim.eventQueue.push({ type: 'heist_npcs', npcs });
+  }
+}
+
+// v1.626: HEIST difficulty-multipliers (matchar CD-pattern)
+function _heistDifficultyMul(sim) {
+  const d = (sim && sim.config && sim.config.difficulty) || 'veteran';
+  // [policeCount, copHP, copDmg, drillTime, cameraGraceMs, playerHpMul]
+  switch (d) {
+    case 'casual':    return { policeCount: 0.5, copHp: 0.7, copDmg: 0.6, drillTime: 0.7, cameraGraceMs: 3000, playerHp: 1.5 };
+    case 'recruit':   return { policeCount: 0.7, copHp: 0.85, copDmg: 0.8, drillTime: 0.85, cameraGraceMs: 2500, playerHp: 1.2 };
+    case 'veteran':   return { policeCount: 1.0, copHp: 1.0, copDmg: 1.0, drillTime: 1.0, cameraGraceMs: 2000, playerHp: 1.0 };
+    case 'hard':      return { policeCount: 1.2, copHp: 1.15, copDmg: 1.15, drillTime: 1.15, cameraGraceMs: 1700, playerHp: 0.9 };
+    case 'hardcore':  return { policeCount: 1.3, copHp: 1.2, copDmg: 1.2, drillTime: 1.2, cameraGraceMs: 1500, playerHp: 0.85 };
+    case 'nightmare': return { policeCount: 1.5, copHp: 1.4, copDmg: 1.3, drillTime: 1.35, cameraGraceMs: 1200, playerHp: 0.75 };
+    case 'insane':    return { policeCount: 1.6, copHp: 1.6, copDmg: 1.5, drillTime: 1.5, cameraGraceMs: 1000, playerHp: 0.6 };
+    default:          return { policeCount: 1.0, copHp: 1.0, copDmg: 1.0, drillTime: 1.0, cameraGraceMs: 2000, playerHp: 1.0 };
   }
 }
 
@@ -4331,7 +4362,31 @@ function _heistTickCivilian(npc, dt, nowMs, sim, players, arena) {
     return;
   }
   if (npc.state === 'idle' && sim.heistPhase === 'stealth') {
-    // Wander runt home-position
+    // v1.626: Cashier-patrol — lämnar counter var ~30s i ~10s (break-window)
+    // Detta öppnar ett window för stealth-player att smyga genom counter-gap utan
+    // att triggera panik. Bara cashier-typ får den här rörelsen.
+    const isCashier = npc.subType === 'cashier';
+    if (isCashier && !npc._cashierBreakUntil) {
+      // Initiera break-schedule
+      npc._cashierNextBreakAt = nowMs + 25000 + Math.random() * 10000;
+    }
+    if (isCashier && nowMs > (npc._cashierNextBreakAt || 0)) {
+      npc._cashierBreakUntil = nowMs + 10000;
+      npc._cashierNextBreakAt = nowMs + 35000 + Math.random() * 10000;
+      // Walk to a "break room" position (söder om counter, lobby-zon)
+      npc._wanderTarget = {
+        x: npc.hx + (Math.random() - 0.5) * 200,
+        y: npc.hy + 400 + Math.random() * 150,
+      };
+      npc._wanderUntil = nowMs + 12000;
+    }
+    if (isCashier && npc._cashierBreakUntil && nowMs > npc._cashierBreakUntil) {
+      // Back to counter
+      npc._cashierBreakUntil = 0;
+      npc._wanderTarget = { x: npc.hx, y: npc.hy };
+      npc._wanderUntil = nowMs + 8000;
+    }
+    // Wander runt home-position (default + break-rörelse)
     if (!npc._wanderTarget || nowMs > (npc._wanderUntil || 0)) {
       npc._wanderTarget = {
         x: npc.hx + (Math.random() - 0.5) * 80,
@@ -4343,8 +4398,10 @@ function _heistTickCivilian(npc, dt, nowMs, sim, players, arena) {
     const dy = npc._wanderTarget.y - npc.y;
     const d = Math.sqrt(dx * dx + dy * dy);
     if (d > 4) {
-      npc.x += (dx / d) * (npc.speed * 0.3) * dt;
-      npc.y += (dy / d) * (npc.speed * 0.3) * dt;
+      // Snabbare när på break-walk (target långt iväg)
+      const speedMul = npc._cashierBreakUntil ? 0.6 : 0.3;
+      npc.x += (dx / d) * (npc.speed * speedMul) * dt;
+      npc.y += (dy / d) * (npc.speed * speedMul) * dt;
       npc.facing = Math.atan2(dy, dx);
     }
     // Detect player med vapen draget — kräver LOS (line-of-sight via walls)
@@ -4506,13 +4563,15 @@ function _heistConvertGuardsToEnemies(sim) {
 }
 
 // v1.621: Spawna en polis-våg från random arena.policeSpawns
+// v1.626: Difficulty-skalning (casual=0.5x, veteran=1.0x, hardcore=1.3x, insane=1.6x)
 function _heistSpawnPoliceWave(sim, arena, nowMs) {
   if (!arena.policeSpawns || arena.policeSpawns.length === 0) return;
   const playerCount = Math.max(1, sim.room.members.size);
   const scaling = arena.scaling || {};
   const policeMul = 1 + ((playerCount - 1) * (scaling.policeMulPerPlayer || 0.25));
+  const diffMul = _heistDifficultyMul(sim).policeCount;
   const baseCount = 3 + Math.floor(Math.random() * 3); // 3-5
-  const totalCount = Math.round(baseCount * policeMul);
+  const totalCount = Math.max(1, Math.round(baseCount * policeMul * diffMul));
   const enemyCap = 120;
   let spawned = 0;
   for (let i = 0; i < totalCount && sim.enemies.length < enemyCap; i++) {
@@ -4528,6 +4587,12 @@ function _heistSpawnPoliceWave(sim, arena, nowMs) {
     e._heistCop = true;
     e._cdEnemy = true; // re-use CD-tagging för hit-detection-paths
     e._cdRole = 'attacker'; // chase player, not core
+    // v1.626: Difficulty-scaling på cop-stats
+    const dm = _heistDifficultyMul(sim);
+    e.hp = Math.max(1, Math.round(e.hp * dm.copHp));
+    e.maxHp = e.hp;
+    e.dmg = Math.max(1, Math.round(e.dmg * dm.copDmg));
+    if (e.bulletDmg) e.bulletDmg = Math.max(1, Math.round(e.bulletDmg * dm.copDmg));
     e._origSpeed = e.speed;
     sim.enemies.push(e);
     spawned++;
@@ -4535,6 +4600,25 @@ function _heistSpawnPoliceWave(sim, arena, nowMs) {
   if (spawned > 0) {
     sim.eventQueue.push({ type: 'heist_police_wave', count: spawned });
   }
+}
+
+// v1.626: bygger per-player scoreboard för end-match-event
+function _heistBuildScoreboard(sim) {
+  const rows = [];
+  for (const [pid, ws] of sim.room.members) {
+    if (ws._isBot) continue;
+    rows.push({
+      peerId: pid,
+      name: ws.name || 'Player',
+      role: ws._heistRole || 'hacker',
+      secured: ws._heistStatSecured || 0,
+      bags: ws._heistStatBags || 0,
+      hostages: ws._heistStatHostages || 0,
+      alive: !!(ws.playerState && ws.playerState.hp > 0),
+    });
+  }
+  rows.sort((a, b) => b.secured - a.secured);
+  return rows;
 }
 
 function _heistTransitionPhase(sim, newPhase, reason, nowMs) {
@@ -4922,6 +5006,7 @@ function startSim(sim, opts) {
   sim.heistDisabledCameras = {};
   sim.heistUnlockedDoors = {};
   sim.heistBackExtractUnlocked = false;
+  sim.heistCeasefireUntil = 0;
   sim._heistNextPoliceAt = 0;
   sim._heistNextBagId = 1;
   sim._heistHudBroadcastAt = 0;
@@ -5709,25 +5794,25 @@ function startSim(sim, opts) {
       // v1.622: ROLE-effekter
       const role = (sim.heistRoles && sim.heistRoles[pid]) || 'hacker';
       ws._heistRole = role;
+      // v1.626: Difficulty HP-skalning appliceras OVANPÅ role
+      const _diffHpMul = _heistDifficultyMul(sim).playerHp;
       if (role === 'tank') {
         // v1.624 balance: -10% (var -20%) — bagging redan straffar speed mycket
-        ws.playerState.maxHp = Math.round((arena.maxHp || 100) * 1.5);
+        ws.playerState.maxHp = Math.round((arena.maxHp || 100) * 1.5 * _diffHpMul);
         ws.playerState.hp = ws.playerState.maxHp;
         ws.playerState.speedMul = 0.9;
       } else if (role === 'medic') {
         // v1.624 balance: +6 HP/s base (var +2), skalas till +8 om solo
-        ws.playerState.maxHp = arena.maxHp || 100;
+        ws.playerState.maxHp = Math.round((arena.maxHp || 100) * _diffHpMul);
         ws.playerState.hp = ws.playerState.maxHp;
         ws._heistMedicRegenAccum = 0;
         ws._heistMedicRegenRate = sim.room.members.size <= 1 ? 8 : 6;
       } else if (role === 'hacker') {
-        // v1.624 balance: Hacker = immun mot camera-detect (annars dominerad av Rogue)
-        ws.playerState.maxHp = arena.maxHp || 100;
+        ws.playerState.maxHp = Math.round((arena.maxHp || 100) * _diffHpMul);
         ws.playerState.hp = ws.playerState.maxHp;
         ws._heistCameraImmune = true;
       } else if (role === 'rogue') {
-        // v1.624 balance: -10% maxHP som tradeoff för silent-kill + +10% speed
-        ws.playerState.maxHp = Math.round((arena.maxHp || 100) * 0.9);
+        ws.playerState.maxHp = Math.round((arena.maxHp || 100) * 0.9 * _diffHpMul);
         ws.playerState.hp = ws.playerState.maxHp;
         ws.playerState.speedMul = 1.1;
       }

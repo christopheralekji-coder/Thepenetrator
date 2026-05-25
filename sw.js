@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v625-heist-round2-depth-fixes';
+const CACHE = 'penetrator-v626-heist-round3-hostage-difficulty-scoreboard';
 const ASSETS = [
   './',
   './index.html',

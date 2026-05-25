@@ -1127,6 +1127,33 @@ function handleMessage(ws, msg) {
         ws._heistLockpickStart = 0;
         ws._heistLockpickDoorId = null;
       }
+    } else if (action === 'release_hostage') {
+      // v1.626: Hostage-trade — släpp hostage civilian → 10s cease-fire från polisen
+      // (de skjuter inte och inga nya våg-spawns under perioden)
+      if (sim.heistPhase !== 'alarm' && sim.heistPhase !== 'extract') return;
+      const npcId = String(msg.npcId || '');
+      const npc = (sim.heistNPCs || []).find(n =>
+        n.id === npcId && n.type === 'civilian' && n.state === 'hostage' && !n.dead);
+      if (!npc) return;
+      const dx = ps.x - npc.x, dy = ps.y - npc.y;
+      if (dx * dx + dy * dy > 60 * 60) return;
+      // Cease-fire 10s från nu (eller +5s om redan aktiv)
+      const now = Date.now();
+      sim.heistCeasefireUntil = Math.max(sim.heistCeasefireUntil || 0, now) + 10000;
+      // Hostage springer iväg (panic → exit)
+      npc.state = 'panic';
+      npc._panicTarget = { x: 2000, y: 3500 };
+      // Push wave-spawn till efter cease-fire
+      if (sim._heistNextPoliceAt && sim._heistNextPoliceAt < sim.heistCeasefireUntil) {
+        sim._heistNextPoliceAt = sim.heistCeasefireUntil + 1000;
+      }
+      // v1.626: scoreboard tracking
+      ws._heistStatHostages = (ws._heistStatHostages || 0) + 1;
+      sim.eventQueue.push({
+        type: 'heist_hostage_released',
+        npcId, by: ws.id,
+        ceasefireMs: sim.heistCeasefireUntil - now,
+      });
     } else if (action === 'silent_kill') {
       // v1.623: Rogue-only silent-melee mot guard — ingen alarm, guard dör
       if (ws._heistRole !== 'rogue') return;
