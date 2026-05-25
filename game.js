@@ -15543,8 +15543,10 @@ function closeSurvivorsWeaponShop() {
 }
 
 function trySurvivorsWeaponBuy(weaponId, cost) {
-  // v1.607: Server-authoritative shop-buy. Klient skickar sim_survivors_buy,
-  // server validerar gold + dra + skickar cd_gold_update + survivors_weapon_bought.
+  // v1.613: OPTIMISTIC client-side update + server-validation. Klient subtraherar
+  // gold lokalt direkt (snabb feedback), skickar sim_survivors_buy till server.
+  // Server validerar + broadcastar cd_gold_update (kan rätta klientens värde om
+  // server hade annat värde). Detta fungerar oavsett om server är på senaste version.
   state.survivorsOwnedWeapons = state.survivorsOwnedWeapons || ['pistol'];
   const owned = state.survivorsOwnedWeapons.includes(weaponId) || cost === 0;
   if (!owned) {
@@ -15553,24 +15555,20 @@ function trySurvivorsWeaponBuy(weaponId, cost) {
       if (typeof showToast === 'function') showToast('🔒 OTILLRÄCKLIGT GOLD');
       return;
     }
-    // Skicka till server — server validerar igen + drar gold + broadcast
-    if (Coop.active && Coop.serverSimActive && Coop.ws && Coop.ws.readyState === WebSocket.OPEN) {
-      Coop.ws.send(JSON.stringify({ type: 'sim_survivors_buy', weaponId, cost }));
-    } else {
-      // Offline-fallback: dra lokalt
-      state.castledefenseGold = matchGold - cost;
+    // Optimistic local update
+    state.castledefenseGold = matchGold - cost;
+    state.survivorsOwnedWeapons.push(weaponId);
+    // Skicka till server (om uppe) — server bekräftar via cd_gold_update
+    if (Coop.active && Coop.ws && Coop.ws.readyState === 1) {
+      try { Coop.ws.send(JSON.stringify({ type: 'sim_survivors_buy', weaponId, cost })); } catch (_) {}
     }
-    if (!state.survivorsOwnedWeapons.includes(weaponId)) state.survivorsOwnedWeapons.push(weaponId);
-    if (typeof showToast === 'function') showToast('💰 KÖPT: ' + weaponId.toUpperCase());
+    if (typeof showToast === 'function') showToast('💰 KÖPT: ' + (weaponId || '').toUpperCase());
     if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
   }
   // Equipa direkt
   if (state.player) state.player.weaponId = weaponId;
   if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
   if (typeof updateHUD === 'function') updateHUD();
-  // Re-render shop med uppdaterad status
-  const el = document.getElementById('survivors-shop-overlay');
-  if (el) renderSurvivorsWeaponShop(el);
 }
 
 function resetSurvivorsPerks() {
@@ -28880,22 +28878,39 @@ function renderWeaponMenu() {
         '<span class="wtype ' + cat + '">' + cat.toUpperCase() + '</span>' +
         stats +
         (tags.length ? '<div style="margin-top:6px;font-size:14px;letter-spacing:3px;">' + tags.join(' ') + '</div>' : '');
-      div.addEventListener('click', () => {
+      // v1.613: MOBILE-FIRST tap-handler. Använder onTap (touchstart + click)
+      // istället för bara 'click' — fungerar snabbare och mer pålitligt på mobil.
+      // 'click'-event på mobil har 300ms-delay + kan slukas av page-scroll-detection.
+      const onBuyOrEquip = (e) => {
+        if (e && e.cancelable) e.preventDefault();
+        if (e && e.stopPropagation) e.stopPropagation();
         if (owned) {
           // Equipa
           if (state.player) state.player.weaponId = sw.id;
           if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
-          renderWeaponMenu();
           if (typeof updateHUD === 'function') updateHUD();
+          renderWeaponMenu();
         } else if (canAfford) {
-          // Köp via server
           if (typeof trySurvivorsWeaponBuy === 'function') {
             trySurvivorsWeaponBuy(sw.id, sw.cost);
-            renderWeaponMenu();
           }
+          renderWeaponMenu();
         } else {
           if (typeof showToast === 'function') showToast('🔒 OTILLRÄCKLIGT GOLD (' + matchGold + '/' + sw.cost + ')');
         }
+      };
+      let _tapped = false;
+      div.addEventListener('touchstart', (e) => {
+        if (_tapped) return;
+        _tapped = true;
+        onBuyOrEquip(e);
+        setTimeout(() => { _tapped = false; }, 400);
+      }, { passive: false });
+      div.addEventListener('click', (e) => {
+        if (_tapped) return;
+        _tapped = true;
+        onBuyOrEquip(e);
+        setTimeout(() => { _tapped = false; }, 400);
       });
       weaponMenuGrid.appendChild(div);
     }

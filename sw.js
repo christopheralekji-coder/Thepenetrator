@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v612-gpu-prime-pixi-reenabled';
+const CACHE = 'penetrator-v613-mobile-tap-buy-optimistic';
 const ASSETS = [
   './',
   './index.html',
