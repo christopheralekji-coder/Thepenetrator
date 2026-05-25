@@ -57086,7 +57086,24 @@ function drawBossSoldier(e, x, y, flash) {
   ctx.fillText(_bdInfo, 0, -e.r * 2.5);
   ctx.shadowBlur = 0;
   ctx.restore();
-  drawFn(e, flash, now, phase, moving);
+  // v1.592 DEBUG: GRÖN ruta FÖRE drawFn — om syns, drawBossSoldier kom hit
+  ctx.fillStyle = '#00ff00';
+  ctx.fillRect(-e.r * 1.5, -e.r * 1.5, e.r * 0.4, e.r * 0.4);
+  try {
+    drawFn(e, flash, now, phase, moving);
+    // v1.592: BLÅ ruta EFTER drawFn — om syns, drawFn returnade utan exception
+    ctx.fillStyle = '#0080ff';
+    ctx.fillRect(e.r * 1.1, -e.r * 1.5, e.r * 0.4, e.r * 0.4);
+  } catch (err) {
+    // v1.592: ORANGE text med exact felmeddelandet om drawFn kraschade
+    ctx.fillStyle = '#ff8800';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+    const _msg = err && err.message ? err.message : (err + '');
+    ctx.fillText('EXC:' + _msg.slice(0, 40), 0, -e.r * 3.2);
+    ctx.shadowBlur = 0;
+  }
   ctx.restore();
 
   // charge laddar upp glow
