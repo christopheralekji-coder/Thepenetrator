@@ -157,51 +157,64 @@ const HEIST_ARENA = {
     // HALLWAY west/east already from vault-outer down to 1975
     { x: 1300, y: 1700, w: 25,   h: 275, kind: 'wall' }, // west cont.
     { x: 2675, y: 1700, w: 25,   h: 275, kind: 'wall' }, // east cont.
-    // HALLWAY south wall (y=1975, x=1300-2700) — bredare öppning för cashier-passage
-    // Gap: x=1700-1900 (door to behind-counter)
-    { x: 1325, y: 1975, w: 350,  h: 25, kind: 'wall' },
-    { x: 1900, y: 1975, w: 800,  h: 25, kind: 'wall' },
+    // HALLWAY south wall (y=1975, x=1300-2700) — central gap x=1700-2100 (matchar Row 4 corridor)
+    { x: 1325, y: 1975, w: 350,  h: 25, kind: 'wall' },  // 1325-1675
+    { x: 2100, y: 1975, w: 575,  h: 25, kind: 'wall' },  // 2100-2675
     // MANAGER RECEPTION west wall (x=2750 continues from security)
     { x: 2750, y: 1700, w: 25,   h: 275, kind: 'wall' },
     // MANAGER south wall (y=1975, x=2750-3380) — no door yet, continues to row 4
 
-    // ============ ROW 4 (y=2000-2400) — BREAK | CONFERENCE | TOILETS | MANAGER OFFICE ============
-    // BREAK ROOM north wall (y=2000, x=620-1300) door x=820-900 (entry från behind-counter)
-    // Wait: north of break-room is server-south-wall at y=1975. So break-room north = y=2000.
-    // There needs to be a wall between them or shared. Actually y=1975-2000 is just 25px gap.
-    // BREAK ROOM east wall (x=1300, y=2000-2400) door x=1300, y=2150-2230
+    // ============ ROW 4 (y=2000-2400) — BREAK | CONFERENCE | CENTRAL CORRIDOR | TOILETS | MANAGER ============
+    // KRITISKT: central corridor x=1700-2100 är ÖPPEN (player passerar hallway→counter)
+    // BREAK ROOM (x=620-1300, y=2000-2400)
+    //   - North wall (y=2000, x=620-1300)
+    { x: 625,  y: 2000, w: 675,  h: 25, kind: 'wall' },
+    //   - East wall (x=1300, y=2000-2400) med door y=2150-2230
     { x: 1300, y: 2000, w: 25,   h: 150, kind: 'wall' },
     { x: 1300, y: 2230, w: 25,   h: 170, kind: 'wall' },
-    // BREAK ROOM south wall (y=2400, x=620-1300) — counter row below
-    // (counter walls themselves at y=2400-2450 act as south wall for break-room)
-    // CONFERENCE north wall (y=2000, x=1300-2400)
-    { x: 1300, y: 2000, w: 1100, h: 25, kind: 'wall' },
-    // CONFERENCE east wall (x=2400, y=2000-2400) door x=2400, y=2150-2230
-    { x: 2400, y: 2000, w: 25,   h: 150, kind: 'wall' },
-    { x: 2400, y: 2230, w: 25,   h: 170, kind: 'wall' },
-    // CONFERENCE west wall continues from hallway west (x=1300, y=2000-2400)
-    { x: 1300, y: 2000, w: 25,   h: 400, kind: 'wall' },
-    // (no internal wall between conference and toilets — toilets has its own east wall)
-    // TOILET north wall (y=2000, x=2400-2700)
-    { x: 2400, y: 2000, w: 300,  h: 25, kind: 'wall' },
-    // TOILET internal mid (y=2200, x=2400-2700) — men/women separator
-    { x: 2425, y: 2200, w: 275,  h: 25, kind: 'wall' },
-    // TOILET east wall (x=2700, y=2000-2400)
+    // CONFERENCE ROOM (x=1300-1700, y=2000-2400)
+    //   - North wall (y=2000, x=1300-1700)
+    { x: 1300, y: 2000, w: 400,  h: 25, kind: 'wall' },
+    //   - East wall (x=1700, y=2000-2400) med door y=2150-2230 (conference → central corridor)
+    { x: 1700, y: 2000, w: 25,   h: 150, kind: 'wall' },
+    { x: 1700, y: 2230, w: 25,   h: 170, kind: 'wall' },
+    // CENTRAL CORRIDOR (x=1700-2100, y=2000-2400) — NO walls! Through-path.
+    // North-gap: hallway-south-wall har gap här (1700-1900) — men nu utökar vi
+    // till x=1700-2100 så hela centralen är öppen från hallway:
+    // (Vi måste UPPDATERA hallway-south-wall för att utöka gapet)
+    // South-gap: counter har gap här (1900-2100) — see counter below.
+    // TOILETS (x=2100-2700, y=2000-2400)
+    //   - North wall (y=2000, x=2100-2700)
+    { x: 2100, y: 2000, w: 600,  h: 25, kind: 'wall' },
+    //   - West wall (x=2100, y=2000-2400) med door y=2150-2230 (toilet → central)
+    { x: 2100, y: 2000, w: 25,   h: 150, kind: 'wall' },
+    { x: 2100, y: 2230, w: 25,   h: 170, kind: 'wall' },
+    //   - East wall (x=2700, y=2000-2400)
     { x: 2675, y: 2000, w: 25,   h: 400, kind: 'wall' },
-    // MANAGER OFFICE west wall continues (x=2750, y=2000-2400) — door at x=2750, y=2200-2280
+    //   - Internal mid (y=2200, x=2100-2700) men/women separator
+    { x: 2125, y: 2200, w: 550,  h: 25, kind: 'wall' },
+    //   - South wall (y=2400, x=2100-2700)
+    { x: 2125, y: 2400, w: 575,  h: 25, kind: 'wall' },
+    // MANAGER OFFICE west wall (x=2750, y=2000-2400) med door y=2200-2280
     { x: 2750, y: 2000, w: 25,   h: 200, kind: 'wall' },
     { x: 2750, y: 2280, w: 25,   h: 120, kind: 'wall' },
-    // MANAGER OFFICE south wall (y=2400, x=2750-3380) door x=3050-3130 → behind-counter
+    // MANAGER OFFICE south wall (y=2400, x=2750-3380) med door x=3050-3130 → behind-counter
     { x: 2775, y: 2400, w: 275,  h: 25, kind: 'wall' },
     { x: 3130, y: 2400, w: 245,  h: 25, kind: 'wall' },
+    // BREAK ROOM south wall (y=2400, x=620-1300)
+    { x: 625,  y: 2400, w: 675,  h: 25, kind: 'wall' },
+    // CONFERENCE south wall (y=2400, x=1300-1700)
+    { x: 1300, y: 2400, w: 400,  h: 25, kind: 'wall' },
 
-    // ============ ROW 5 (y=2400-2450) — CASHIER COUNTER ============
-    // Counter-segment (same som tidigare, men nu 5 stationer)
-    { x: 1300, y: 2400, w: 230,  h: 50, kind: 'counter' },
-    { x: 1570, y: 2400, w: 230,  h: 50, kind: 'counter' },
-    { x: 1840, y: 2400, w: 230,  h: 50, kind: 'counter' },
-    { x: 2110, y: 2400, w: 230,  h: 50, kind: 'counter' },
-    { x: 2380, y: 2400, w: 230,  h: 50, kind: 'counter' },
+    // ============ ROW 5 (y=2400-2450) — CASHIER COUNTER med stor central-gap ============
+    // 6 kortare segments, central gap (1900-2100) för player-passage
+    { x: 1300, y: 2400, w: 200,  h: 50, kind: 'counter' },  // 1300-1500
+    { x: 1550, y: 2400, w: 150,  h: 50, kind: 'counter' },  // 1550-1700
+    { x: 1750, y: 2400, w: 150,  h: 50, kind: 'counter' },  // 1750-1900
+    // GAP 1900-2100 (CENTRAL CORRIDOR) — player walks through here
+    { x: 2100, y: 2400, w: 150,  h: 50, kind: 'counter' },  // 2100-2250
+    { x: 2300, y: 2400, w: 150,  h: 50, kind: 'counter' },  // 2300-2450
+    { x: 2500, y: 2400, w: 150,  h: 50, kind: 'counter' },  // 2500-2650
     // Counter east end-wall (x=2675, y=2400-2700)
     { x: 2675, y: 2425, w: 25,   h: 275, kind: 'wall' },
     // Counter west end-wall (x=1300, y=2425-2700)
@@ -402,23 +415,23 @@ const HEIST_ARENA = {
     { kind: 'sink',         x: 2540, y: 2360 },
     { kind: 'mirror',       x: 2640, y: 2360 },
 
-    // ===== CASHIER WORK AREA (behind counter) =====
-    { kind: 'cash_drawer',  x: 1410, y: 2330 },
-    { kind: 'cash_drawer',  x: 1680, y: 2330 },
-    { kind: 'cash_drawer',  x: 1950, y: 2330 },
-    { kind: 'cash_drawer',  x: 2220, y: 2330 },
-    { kind: 'cash_drawer',  x: 2490, y: 2330 },
-    { kind: 'monitor',      x: 1410, y: 2500 },
-    { kind: 'monitor',      x: 1680, y: 2500 },
-    { kind: 'monitor',      x: 1950, y: 2500 },
-    { kind: 'monitor',      x: 2220, y: 2500 },
-    { kind: 'monitor',      x: 2490, y: 2500 },
-    { kind: 'office_chair', x: 1410, y: 2570 },
-    { kind: 'office_chair', x: 1680, y: 2570 },
-    { kind: 'office_chair', x: 1950, y: 2570 },
-    { kind: 'office_chair', x: 2220, y: 2570 },
-    { kind: 'office_chair', x: 2490, y: 2570 },
-    { kind: 'photocopier',  x: 2600, y: 2550 },
+    // ===== CASHIER WORK AREA (behind counter) — aligned med nya 6-segment counter =====
+    { kind: 'cash_drawer',  x: 1400, y: 2330 },
+    { kind: 'cash_drawer',  x: 1625, y: 2330 },
+    { kind: 'cash_drawer',  x: 1825, y: 2330 },
+    { kind: 'cash_drawer',  x: 2375, y: 2330 },
+    { kind: 'cash_drawer',  x: 2575, y: 2330 },
+    { kind: 'monitor',      x: 1400, y: 2500 },
+    { kind: 'monitor',      x: 1625, y: 2500 },
+    { kind: 'monitor',      x: 1825, y: 2500 },
+    { kind: 'monitor',      x: 2375, y: 2500 },
+    { kind: 'monitor',      x: 2575, y: 2500 },
+    { kind: 'office_chair', x: 1400, y: 2570 },
+    { kind: 'office_chair', x: 1625, y: 2570 },
+    { kind: 'office_chair', x: 1825, y: 2570 },
+    { kind: 'office_chair', x: 2375, y: 2570 },
+    { kind: 'office_chair', x: 2575, y: 2570 },
+    { kind: 'photocopier',  x: 2600, y: 2620 },
 
     // ===== MAIN LOBBY =====
     { kind: 'atm', x: 660, y: 2750 },
@@ -499,12 +512,12 @@ const HEIST_ARENA = {
     { id: 'vg2', x: 1850, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
     { id: 'vg3', x: 2150, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
     { id: 'vg4', x: 2400, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
-    // CASHIER DRAWERS (stealth-accessible)
-    { id: 'cd1', x: 1410, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
-    { id: 'cd2', x: 1680, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
-    { id: 'cd3', x: 1950, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
-    { id: 'cd4', x: 2220, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
-    { id: 'cd5', x: 2490, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    // CASHIER DRAWERS (stealth-accessible) — aligned med nya counter-positioner
+    { id: 'cd1', x: 1400, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    { id: 'cd2', x: 1625, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    { id: 'cd3', x: 1825, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    { id: 'cd4', x: 2375, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    { id: 'cd5', x: 2575, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
     // MANAGER SAFE (stealth-accessible)
     { id: 'msa', x: 3320, y: 2050, kind: 'manager_safe', value: 4000, bagTime: 4, weight: 0.20 },
     // CONFERENCE LAPTOPS (NEW — stealth)
@@ -566,12 +579,12 @@ const HEIST_ARENA = {
     { id: 'civ_c3', x: 2400, y: 2850, kind: 'customer' },
     { id: 'civ_c4', x: 1500, y: 3000, kind: 'customer' },
     { id: 'civ_c5', x: 2500, y: 3000, kind: 'customer' },
-    // Cashiers (5 — en per station)
-    { id: 'civ_ca1', x: 1410, y: 2570, kind: 'cashier' },
-    { id: 'civ_ca2', x: 1680, y: 2570, kind: 'cashier' },
-    { id: 'civ_ca3', x: 1950, y: 2570, kind: 'cashier' },
-    { id: 'civ_ca4', x: 2220, y: 2570, kind: 'cashier' },
-    { id: 'civ_ca5', x: 2490, y: 2570, kind: 'cashier' },
+    // Cashiers (5 — en per station, central-gap förblir öppen)
+    { id: 'civ_ca1', x: 1400, y: 2570, kind: 'cashier' },
+    { id: 'civ_ca2', x: 1625, y: 2570, kind: 'cashier' },
+    { id: 'civ_ca3', x: 1825, y: 2570, kind: 'cashier' },
+    { id: 'civ_ca4', x: 2375, y: 2570, kind: 'cashier' },
+    { id: 'civ_ca5', x: 2575, y: 2570, kind: 'cashier' },
     // Manager
     { id: 'civ_mg',  x: 3200, y: 2180, kind: 'manager' },
     // Manager assistant (reception)
