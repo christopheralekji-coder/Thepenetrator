@@ -57128,6 +57128,24 @@ function drawBossDefault(e, flash, now, phase, moving) {
 
 // Helper för boss-baseline: military body skeleton (legs + torso + plate + head)
 function _drawBossMilitaryBase(e, flash, now, phase, opts) {
+  // v1.588 DEBUG MARKER — pink pulse-ring + text så vi ser om denna kod körs alls
+  const _markerR = e.r * 2.0;
+  const _markerPulse = 0.8 + Math.sin(now / 200) * 0.2;
+  ctx.strokeStyle = '#ff00ff';
+  ctx.lineWidth = 4;
+  ctx.shadowColor = '#ff00ff';
+  ctx.shadowBlur = 16;
+  ctx.beginPath();
+  ctx.arc(0, 0, _markerR * _markerPulse, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#ff00ff';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.shadowColor = '#000';
+  ctx.shadowBlur = 4;
+  ctx.fillText('v1.588 ' + (e.bossKey || '?'), 0, -e.r * 2.2);
+  ctx.shadowBlur = 0;
   const r = e.r;
   const swing = Math.sin(phase) * 0.35;
   const fc = opts.faceColor || '#c89870';      // skin
