@@ -3314,6 +3314,8 @@ function tickCastleDefense(sim, dt, now) {
         killerPid: e.lastDamagerPid || null,
         isBoss: !!e.isBoss,
         isMiniBoss: !!e.isMiniBoss,
+        // v1.608: skicka pos för klient-side death-flash + kill-explode-perk
+        x: e.x, y: e.y,
       });
       // Score + per-match gold-grant
       if (e.lastDamagerPid) {

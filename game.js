@@ -15207,6 +15207,16 @@ function selectSurvivorsPerk(perk) {
     state.player.maxHp = (state.player.maxHp || 100) * m;
     state.player.hp = state.player.maxHp;
   }
+  // v1.608: SHIELD-perk — bump maxShield + ladda full
+  if (perk.effect.type === 'shield' && state.player) {
+    state.player.maxShield = (state.player.maxShield || 100) + perk.effect.value;
+    state.player.shield = state.player.maxShield;
+  }
+  // v1.608: GRENADE-perk — +1 granat direkt + permanent max-bump via stack
+  if (perk.effect.type === 'grenade' && typeof setGrenadeCount === 'function') {
+    const curGren = (typeof state.grenades === 'number') ? state.grenades : 2;
+    setGrenadeCount(curGren + perk.effect.value);
+  }
   if (typeof showToast === 'function') showToast('✨ ' + perk.icon + ' ' + perk.name);
   if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
   closeSurvivorsPerkOverlay();
@@ -15252,17 +15262,23 @@ function renderSurvivorsPerkOverlay() {
     <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;">${cardsHtml}</div>
   `;
   el.style.display = 'block';
-  // Klick-handler
+  // v1.608: touchstart-baserad pick så multi-touch fungerar — player kan tappa
+  // perk-card MEDAN joystick hålls. Tidigare 'click' event krävde pointerdown+up
+  // på samma element vilket ofta kanske felade när finger #2 tappade kortet.
   el.querySelectorAll('.surv-perk-card').forEach(card => {
-    card.addEventListener('pointerdown', () => { card.style.transform = 'scale(0.94)'; });
-    card.addEventListener('pointerup', () => { card.style.transform = ''; });
-    card.addEventListener('pointerleave', () => { card.style.transform = ''; });
-    card.addEventListener('click', (e) => {
-      e.preventDefault();
+    let _picked = false;
+    const pick = (e) => {
+      if (_picked) return;
+      if (e && e.cancelable) e.preventDefault();
+      if (e && e.stopPropagation) e.stopPropagation();
+      _picked = true;
+      card.style.transform = 'scale(0.94)';
       const idx = parseInt(card.getAttribute('data-idx'));
-      const pick = (state._survivorsPerkChoices || [])[idx];
-      if (pick) selectSurvivorsPerk(pick);
-    });
+      const pickPerk = (state._survivorsPerkChoices || [])[idx];
+      if (pickPerk) selectSurvivorsPerk(pickPerk);
+    };
+    card.addEventListener('touchstart', pick, { passive: false });
+    card.addEventListener('mousedown', pick);
   });
 }
 
@@ -15399,6 +15415,31 @@ function tickSurvivorsPerkEffects(dt) {
           e.hp -= dmg;
           if (e.hp <= 0) e.dead = true;
         }
+      }
+    }
+  }
+  // v1.608: ZONE-aura — större radie (180px) + 12 dmg/s. Visuell ring kring player.
+  const zoneDps = getSurvivorsPerkSum('zone');
+  if (zoneDps > 0 && state.enemies && state.enemies.length > 0) {
+    const zr2 = 180 * 180;
+    for (const e of state.enemies) {
+      if (!e || e.dead || e.hp <= 0) continue;
+      const dx = e.x - p.x, dy = e.y - p.y;
+      if (dx * dx + dy * dy <= zr2) {
+        const dmg = zoneDps * dt;
+        if (typeof applyDmgToEnemy === 'function') {
+          applyDmgToEnemy(e, dmg, false, p);
+        } else {
+          e.hp -= dmg;
+          if (e.hp <= 0) e.dead = true;
+        }
+      }
+    }
+    // Visuell pulsande ring kring player (1× per ~250ms för att inte spam:a partiklar)
+    if (!state._lastZonePulseAt || performance.now() - state._lastZonePulseAt > 250) {
+      state._lastZonePulseAt = performance.now();
+      if (typeof spawnShockwave === 'function') {
+        spawnShockwave(p.x, p.y, 170, 195, 'rgba(170,90,255,0.45)', 0.4, 1);
       }
     }
   }
@@ -15541,6 +15582,7 @@ function resetSurvivorsPerks() {
   // v1.529: reset arena-cache så ash-particles + decorations regenereras vid ny match
   state._survArenaCache = null;
   state.survivorsReviveUsed = false;
+  state.survivorsPhoenixUsed = false; // v1.608
   // v1.532: reset survivors-shop-owned så man börjar varje match med bara pistol
   state.survivorsOwnedWeapons = ['pistol'];
   const el = document.getElementById('survivors-perk-overlay');
@@ -22496,10 +22538,37 @@ const Coop = {
         if (typeof showToast === 'function') showToast('💚 Partner återupplivad!');
       }
     } else if (ev.type === 'enemy_killed') {
-      // Ta bort dead enemy ur state.enemies direkt (annars syns "ghost"-enemy 1.5s till nästa full-broadcast)
+      // v1.608: Triggera death-animation INNAN removal — röd blink 250ms + partiklar.
+      // Tidigare: enemy försvann direkt utan visuell feedback från server-kills.
       if (typeof ev.i === 'number') {
-        state.enemies = state.enemies.filter(e => e._i !== ev.i);
-        if (state._enemyCache) delete state._enemyCache[ev.i];
+        const dyingEnemy = state.enemies.find(e => e._i === ev.i);
+        if (dyingEnemy) {
+          const _now = performance.now();
+          dyingEnemy.flashUntil = _now + 250;
+          dyingEnemy._deathAnimUntil = _now + 250;
+          dyingEnemy.hp = 0; // visa tom HP-bar
+          // Death-partiklar
+          if (typeof spawnParticles === 'function') {
+            spawnParticles(dyingEnemy.x, dyingEnemy.y, dyingEnemy.color || '#aa3a3a', 8, 160);
+          }
+          if (typeof spawnSparks === 'function') {
+            spawnSparks(dyingEnemy.x, dyingEnemy.y, '#ff5a5a', 4, 200);
+          }
+          // Blod-puddel
+          state.particles = state.particles || [];
+          state.particles.push({
+            x: dyingEnemy.x, y: dyingEnemy.y, vx: 0, vy: 0, life: 3.0,
+            color: 'rgba(80,0,0,0.7)', r: dyingEnemy.r * 0.85, isBloodPool: true,
+          });
+          // Schemalägg removal efter death-flash
+          setTimeout(() => {
+            state.enemies = state.enemies.filter(e => e._i !== ev.i);
+            if (state._enemyCache) delete state._enemyCache[ev.i];
+          }, 260);
+        } else {
+          // Fallback: enemy redan borta (kan hända vid race med full-broadcast)
+          if (state._enemyCache) delete state._enemyCache[ev.i];
+        }
       }
       // Gold-share + kill-credit
       if (ev.gold > 0) {
@@ -22514,6 +22583,17 @@ const Coop = {
       // v1.528: SURVIVORS-RUN kill-counter
       if (state.survivorsActive) {
         state.survivorsKills = (state.survivorsKills || 0) + 1;
+        // v1.608: KILL-REGEN / KILL-SHIELD / KILL-EXPLODE perks
+        if (typeof getSurvivorsPerkSum === 'function' && state.player) {
+          const krHp = getSurvivorsPerkSum('killregen');
+          if (krHp > 0) state.player.hp = Math.min(state.player.maxHp || 100, state.player.hp + krHp);
+          const ksSh = getSurvivorsPerkSum('killshield');
+          if (ksSh > 0) state.player.shield = Math.min(state.player.maxShield || 100, (state.player.shield || 0) + ksSh);
+          const keD = getSurvivorsPerkSum('killexplode');
+          if (keD > 0 && typeof ev.x === 'number' && typeof ev.y === 'number' && typeof explode === 'function') {
+            explode(ev.x, ev.y, 100, keD, true);
+          }
+        }
       }
       // Coop leaderboard-tracking: server skickar killerPid, attribuera till rätt
       // spelare så coop_board visar rätt kills (var fast på 0 tidigare).
@@ -22984,9 +23064,15 @@ const Coop = {
           }
         }
         // Vid full broadcast: ta bort enemies som inte längre finns på server
+        // v1.608: behåll enemies som är i death-flash-animation (250ms)
         if (data.full) {
           const liveIndices = new Set(data.enemies.map(e => e.i));
-          state.enemies = state.enemies.filter(e => e._i === undefined || liveIndices.has(e._i));
+          const _nowFb = performance.now();
+          state.enemies = state.enemies.filter(e =>
+            e._i === undefined ||
+            liveIndices.has(e._i) ||
+            (e._deathAnimUntil && e._deathAnimUntil > _nowFb)
+          );
           for (const i in cache) if (!liveIndices.has(parseInt(i))) delete cache[i];
         }
       }
@@ -29879,6 +29965,21 @@ function damagePlayer(amount, source) {
   if (p.spectating) return;
   // Mountad på turret = osårbar (bara trucken tar skada)
   if (p._mountedTurretId) return;
+  // v1.608: SURVIVORS DODGE-perk — chans att helt undvika skada
+  if (state.survivorsActive && typeof getSurvivorsPerkSum === 'function') {
+    const dodgeChance = getSurvivorsPerkSum('dodge');
+    if (dodgeChance > 0 && Math.random() < dodgeChance) {
+      // Visuell feedback: vit shockwave + toast
+      if (typeof spawnShockwave === 'function') {
+        spawnShockwave(p.x, p.y, 4, 24, '#ffffff', 0.2, 1);
+      }
+      p.invuln = 0.15;
+      return;
+    }
+    // RESIST-perk — reducera inkommande skada
+    const resist = getSurvivorsPerkSum('resist');
+    if (resist > 0) amount = amount * Math.max(0.2, 1 - resist);
+  }
   // Track senaste damage-källa för death-feedback ("du dog från X")
   if (source) state._lastDamageSource = source;
   p.hp -= amount;
@@ -29891,6 +29992,23 @@ function damagePlayer(amount, source) {
   state.dmgFlashUntil = performance.now() + 180;
   spawnShockwave(p.x, p.y, 8, 32, '#ff3a3a', 0.25, 2);
   if (p.hp <= 0) {
+    // v1.608: SURVIVORS PHOENIX-perk — vid död explodera + revive med 50% HP
+    if (state.survivorsActive && typeof getSurvivorsPerkSum === 'function'
+        && getSurvivorsPerkSum('phoenix') > 0 && !state.survivorsPhoenixUsed) {
+      state.survivorsPhoenixUsed = true;
+      p.hp = Math.round((p.maxHp || 100) * 0.5);
+      p.invuln = 3.0;
+      if (typeof explode === 'function') explode(p.x, p.y, 250, 300, true);
+      if (typeof triggerShake === 'function') triggerShake(20, 0.6);
+      if (typeof Audio !== 'undefined' && Audio.revive) Audio.revive();
+      p.flashUntil = performance.now() + 800;
+      state.particles.push({
+        x: p.x, y: p.y, vx: 0, vy: 0, life: 1.0, color: '#ff6a3a', r: 200, isExplosion: true,
+      });
+      if (typeof showToast === 'function') showToast('🔥 FENIX! — 50% HP ÅTERSTÄLLD');
+      if (typeof updateHUD === 'function') updateHUD();
+      return;
+    }
     // v1.530: SURVIVORS-RUN "ANDRA CHANS"-perk — återupplivas med 1 HP en gång per match
     if (state.survivorsActive && typeof getSurvivorsPerkSum === 'function' && getSurvivorsPerkSum('revive') > 0 && !state.survivorsReviveUsed) {
       state.survivorsReviveUsed = true;
@@ -64267,7 +64385,9 @@ function drawRobot(e, flash, now, phase) {
 }
 
 function drawHpBar(e, x, y) {
-  if (e.hp < e.maxHp || e.isBoss || e.isMiniBoss) {
+  // v1.608: SURVIVORS — alltid visa HP-bar (även full HP) så user ser threat-level.
+  const alwaysShow = !!state.survivorsActive;
+  if (alwaysShow || e.hp < e.maxHp || e.isBoss || e.isMiniBoss) {
     const w = e.isBoss ? 80 : (e.isMiniBoss ? 60 : 28);
     const h = e.isBoss ? 6 : (e.isMiniBoss ? 5 : 4);
     ctx.fillStyle = 'rgba(0,0,0,0.6)';

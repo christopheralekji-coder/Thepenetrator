@@ -197,6 +197,39 @@ const SURVIVORS_ARENA = {
       effect: { type: 'berserker', value: 1 } },
     { id: 'p_executioner', rarity: 'purple', icon: '☠️', name: 'EXECUTIONER',     desc: 'Instakill fiender <10% HP (inte bossar)',
       effect: { type: 'executioner', value: 1 } },
+
+    // === v1.608: NYA PERKS (12 st över 4 rariteter) ===
+    // GRÅ — basic stat-bumpar
+    { id: 'g_shield',    rarity: 'gray',   icon: '🛡️', name: 'PANSAR',           desc: '+20 maxShield + full ladda',
+      effect: { type: 'shield',  value: 20 } },
+    { id: 'g_dodge',     rarity: 'gray',   icon: '🌪️', name: 'UNDVIKA',          desc: '5% chans att undvika all skada',
+      effect: { type: 'dodge',   value: 0.05 } },
+    { id: 'g_grenade',   rarity: 'gray',   icon: '💥', name: 'EXTRA GRANAT',     desc: '+1 max-granater + ge en nu',
+      effect: { type: 'grenade', value: 1 } },
+
+    // GRÖN — bättre + utility
+    { id: 'gn_shield',   rarity: 'green',  icon: '🛡️', name: 'PANSAR II',        desc: '+50 maxShield + full ladda',
+      effect: { type: 'shield',  value: 50 } },
+    { id: 'gn_dodge',    rarity: 'green',  icon: '🌪️', name: 'UNDVIKA II',       desc: '10% chans att undvika all skada',
+      effect: { type: 'dodge',   value: 0.10 } },
+    { id: 'gn_resist',   rarity: 'green',  icon: '🪨', name: 'MOTSTÅNDSKRAFT',   desc: '−12% all inkommande skada',
+      effect: { type: 'resist',  value: 0.12 } },
+
+    // BLÅ — gameplay
+    { id: 'b_dodge',     rarity: 'blue',   icon: '🌪️', name: 'UNDVIKA III',      desc: '18% chans att undvika all skada',
+      effect: { type: 'dodge',   value: 0.18 } },
+    { id: 'b_killregen', rarity: 'blue',   icon: '💉', name: 'KILL-REGEN',       desc: 'Varje kill ger +4 HP',
+      effect: { type: 'killregen', value: 4 } },
+    { id: 'b_killshield',rarity: 'blue',   icon: '🔋', name: 'KILL-SHIELD',      desc: 'Varje kill ger +3 shield',
+      effect: { type: 'killshield', value: 3 } },
+
+    // LILA — game-changers
+    { id: 'p_phoenix',   rarity: 'purple', icon: '🔥', name: 'FENIX',            desc: 'Vid död: explodera (300 dmg, 250px) + 50% HP. Engångs.',
+      effect: { type: 'phoenix', value: 1 } },
+    { id: 'p_zone',      rarity: 'purple', icon: '⚡', name: 'STORM-AURA',       desc: 'Permanent 12 dmg/s till fiender inom 180px',
+      effect: { type: 'zone',    value: 12 } },
+    { id: 'p_killexpl',  rarity: 'purple', icon: '💥', name: 'KEDJEDÖD',         desc: 'Dödade fiender exploderar (40 dmg, 100px radie)',
+      effect: { type: 'killexplode', value: 40 } },
   ],
 
   // === ENEMY-CAP / DIFFICULTY ===
