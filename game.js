@@ -244,70 +244,70 @@ const BOSS_CONFIGS = {
   // Stage 1 — Forest. Powers: caster + tank_charger + cloaker
   witheredelder: {
     name: 'THE WITHERED ELDER', subtitle: 'Skogens sista röst',
-    hp: 3500, speed: 130, dmg: 48, r: 30,
+    hp: 3500, speed: 130, dmg: 48, r: 38,
     color: '#1a3018', accent: '#aaff5a', glow: '#5aff8a',
     ai: 'final_combo', powerSet: ['caster', 'tank_charger', 'cloaker'], gold: 500,
   },
   // Stage 2 — Perimeter. Powers: brute_charger + gas_sniper + shielder
   ironclad: {
     name: 'IRONCLAD HARBINGER', subtitle: 'Pansrad rosthärlighet',
-    hp: 4200, speed: 110, dmg: 56, r: 32,
+    hp: 4200, speed: 110, dmg: 56, r: 40,
     color: '#3a2018', accent: '#ff7a3a', glow: '#ffae5a',
     ai: 'final_combo', powerSet: ['brute_charger', 'gas_sniper', 'shielder'], gold: 650,
   },
   // Stage 3 — Lobby. Powers: cloaker + caster + plasma
   mirroredone: {
     name: 'THE MIRRORED ONE', subtitle: 'Den som ser ditt ansikte i varje glas',
-    hp: 4600, speed: 170, dmg: 46, r: 24,
+    hp: 4600, speed: 170, dmg: 46, r: 32,
     color: '#1a1a30', accent: '#5acaff', glow: '#aa5aff',
     ai: 'final_combo', powerSet: ['cloaker', 'caster', 'plasma'], gold: 750,
   },
   // Stage 4 — Barracks. Powers: brute_charger + tank_charger + avatar
   ossarius: {
     name: 'GENERAL OSSARIUS', subtitle: 'Order i benhuset, kaos i ditt huvud',
-    hp: 5400, speed: 130, dmg: 60, r: 34,
+    hp: 5400, speed: 130, dmg: 60, r: 42,
     color: '#3a2a18', accent: '#ffd54a', glow: '#ff7a30',
     ai: 'final_combo', powerSet: ['brute_charger', 'tank_charger', 'avatar'], gold: 950,
   },
   // Stage 5 — Hangar. Powers: plasma + gas_sniper + avatar
   vanguardatlas: {
     name: 'VANGUARD ATLAS', subtitle: 'Maskinen som glömde att den var en man',
-    hp: 5800, speed: 140, dmg: 56, r: 32,
+    hp: 5800, speed: 140, dmg: 56, r: 40,
     color: '#2a3a44', accent: '#3acaff', glow: '#5affaa',
     ai: 'final_combo', powerSet: ['plasma', 'gas_sniper', 'avatar'], gold: 1100,
   },
   // Stage 6 — Depot. Powers: caster + jetpack + avatar
   emberoracle: {
     name: 'THE EMBER ORACLE', subtitle: 'Hon ser askan av allt du älskat',
-    hp: 6300, speed: 175, dmg: 58, r: 28,
+    hp: 6300, speed: 175, dmg: 58, r: 36,
     color: '#3a0a14', accent: '#ff5a30', glow: '#ffae3a',
     ai: 'final_combo', powerSet: ['caster', 'jetpack', 'avatar'], gold: 1300,
   },
   // Stage 7 — Cargo. Powers: gas_sniper + cloaker + caster
   blightsovereign: {
     name: 'BLIGHT SOVEREIGN', subtitle: 'Härskaren av allt som ruttnar',
-    hp: 6900, speed: 145, dmg: 54, r: 26,
+    hp: 6900, speed: 145, dmg: 54, r: 34,
     color: '#1a3a28', accent: '#9aff5a', glow: '#5affae',
     ai: 'final_combo', powerSet: ['gas_sniper', 'cloaker', 'caster'], gold: 1500,
   },
   // Stage 8 — Bunker. Powers: brute_charger + shielder + plasma
   buriedcrown: {
     name: 'THE BURIED CROWN', subtitle: 'Begravd, men aldrig död',
-    hp: 7700, speed: 115, dmg: 64, r: 32,
+    hp: 7700, speed: 115, dmg: 64, r: 40,
     color: '#1a1a2a', accent: '#ffd54a', glow: '#ff3a3a',
     ai: 'final_combo', powerSet: ['brute_charger', 'shielder', 'plasma'], gold: 1800,
   },
   // Stage 9 — Command. Powers: avatar + jetpack + gas_sniper
   lastsovereign: {
     name: 'THE LAST SOVEREIGN', subtitle: 'Den sista på sin tron — du tar nästa.',
-    hp: 9500, speed: 155, dmg: 72, r: 36,
+    hp: 9500, speed: 155, dmg: 72, r: 44,
     color: '#3a0a14', accent: '#aa3aff', glow: '#ff1a1a',
     ai: 'final_combo', powerSet: ['avatar', 'jetpack', 'gas_sniper'], gold: 3000,
   },
   // v1.596: 10:e SECRET BOSS. Powers: shielder + brute_charger + cloaker
   thewarden: {
     name: 'THE WARDEN', subtitle: 'Den som bevakar de dödas portar',
-    hp: 11000, speed: 105, dmg: 78, r: 38,
+    hp: 11000, speed: 105, dmg: 78, r: 46,
     color: '#1a1a14', accent: '#7a6a3a', glow: '#ffd54a',
     ai: 'final_combo', powerSet: ['shielder', 'brute_charger', 'cloaker'], gold: 4500,
   },
@@ -16765,7 +16765,7 @@ function bakeAllEnemyTextures() {
       const key = 'mb_' + power + '_' + frame;
       if (pixiState.enemyTextures[key]) { bakedCount++; continue; }
       const phase = frame === 'a' ? 0 : Math.PI;
-      const tex = _bakeEnemyTexture('grunt', { r: 24, color: '#aa3a3a', miniPower: power, key, walkPhase: phase });
+      const tex = _bakeEnemyTexture('grunt', { r: 32, color: '#aa3a3a', miniPower: power, key, walkPhase: phase });
       if (tex) { pixiState.enemyTextures[key] = tex; bakedCount++; }
     }
   }
@@ -30350,7 +30350,8 @@ function spawnMiniBoss(stage, idx) {
   e.maxHp = e.hp;
   e.dmg = Math.round(e.dmg * (m.dmgMul || 1.5) * scale * diff.enemyDmg * ngpMul);
   if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * (m.dmgMul || 1.5));
-  e.r = Math.round(e.r * (m.scale || 1.4));
+  // v1.598: mini-bossar mellan minions och bossar — scale 1.4 → 1.7
+  e.r = Math.round(e.r * (m.scale || 1.7));
   e.speed = Math.round(e.speed * 1.1);
   e._origSpeed = e.speed;
   e.gold = m.gold || 100;
@@ -63607,217 +63608,328 @@ function drawHumanEnemy(e, flash, now, phase) {
 }
 
 function drawDog(e, flash, phase) {
-  // v1.585 SIDE-VIEW: K-9 unit Belgian Malinois med tactical vest, body horizontal facing right
+  // v1.598 PITBULL — stockier, broader head, cropped ears, heavy military combat-vest
   const r = e.r;
-  const swing = Math.sin(phase * 1.4);
-  const tailWag = Math.sin(phase * 2) * 0.5;
-  const baseFur = flash ? '#fff' : '#7a5a2a';     // tan-brown fur
-  const furDark = flash ? '#fff' : '#3a2a14';     // dark muzzle/back
-  const furLight = flash ? '#fff' : '#a07840';    // belly
-  const black = flash ? '#fff' : '#0a0808';
+  const swing = Math.sin(phase * 1.6);
+  const tailWag = Math.sin(phase * 2.5) * 0.3;
+  // Brindle pitbull coloring (brown med dark stripes)
+  const baseFur = flash ? '#fff' : '#7a4a28';     // brindle base
+  const furDark = flash ? '#fff' : '#3a2010';     // dark stripes/back
+  const furLight = flash ? '#fff' : '#aa7848';    // light tan belly
+  const stripeColor = flash ? '#fff' : '#2a1408'; // brindle stripes
+  const black = flash ? '#fff' : '#0a0604';
 
-  // BAK-BEN (back two legs — running cycle, behind further)
-  // Back-back leg (further from viewer)
+  // BAK-BEN (back two legs — SHORTER + THICKER pitbull-style)
+  // Back-back leg (further)
   ctx.fillStyle = furDark;
-  ctx.fillRect(-r * 0.95 + swing * r * 0.18, r * 0.10, r * 0.18, r * 0.55);
+  ctx.fillRect(-r * 0.80 + swing * r * 0.14, r * 0.15, r * 0.22, r * 0.50);
   // Back paw
   ctx.fillStyle = black;
-  ctx.fillRect(-r * 0.98 + swing * r * 0.18, r * 0.62, r * 0.24, r * 0.10);
-  // Back-front leg (closer to viewer)
+  ctx.fillRect(-r * 0.84 + swing * r * 0.14, r * 0.60, r * 0.30, r * 0.12);
+  // Back-front leg
   ctx.fillStyle = baseFur;
-  ctx.fillRect(-r * 0.70 - swing * r * 0.18, r * 0.10, r * 0.20, r * 0.58);
+  ctx.fillRect(-r * 0.55 - swing * r * 0.14, r * 0.15, r * 0.24, r * 0.52);
   ctx.fillStyle = black;
-  ctx.fillRect(-r * 0.73 - swing * r * 0.18, r * 0.65, r * 0.26, r * 0.10);
+  ctx.fillRect(-r * 0.59 - swing * r * 0.14, r * 0.62, r * 0.32, r * 0.12);
+  // Combat-booties (tactical paw-protection — military signature)
+  ctx.fillStyle = flash ? '#fff' : '#2a1a08';
+  ctx.fillRect(-r * 0.86 + swing * r * 0.14, r * 0.65, r * 0.34, r * 0.05);
+  ctx.fillRect(-r * 0.61 - swing * r * 0.14, r * 0.68, r * 0.36, r * 0.05);
 
-  // FRAM-BEN (front two legs)
+  // FRAM-BEN (front legs — MUSCULAR + WIDER than Shepherd, characteristic pitbull stance)
   // Far front-leg
   ctx.fillStyle = furDark;
-  ctx.fillRect(r * 0.65 - swing * r * 0.18, r * 0.05, r * 0.18, r * 0.60);
+  ctx.fillRect(r * 0.55 - swing * r * 0.14, r * 0.10, r * 0.24, r * 0.55);
   ctx.fillStyle = black;
-  ctx.fillRect(r * 0.62 - swing * r * 0.18, r * 0.62, r * 0.24, r * 0.10);
-  // Near front-leg (closer)
+  ctx.fillRect(r * 0.51 - swing * r * 0.14, r * 0.60, r * 0.32, r * 0.12);
+  // Near front-leg
   ctx.fillStyle = baseFur;
-  ctx.fillRect(r * 0.85 + swing * r * 0.18, r * 0.05, r * 0.20, r * 0.62);
+  ctx.fillRect(r * 0.80 + swing * r * 0.14, r * 0.10, r * 0.26, r * 0.57);
   ctx.fillStyle = black;
-  ctx.fillRect(r * 0.82 + swing * r * 0.18, r * 0.65, r * 0.26, r * 0.10);
+  ctx.fillRect(r * 0.76 + swing * r * 0.14, r * 0.62, r * 0.34, r * 0.12);
+  // Combat-booties front paws
+  ctx.fillStyle = flash ? '#fff' : '#2a1a08';
+  ctx.fillRect(r * 0.51 - swing * r * 0.14, r * 0.65, r * 0.34, r * 0.05);
+  ctx.fillRect(r * 0.78 + swing * r * 0.14, r * 0.68, r * 0.36, r * 0.05);
+  // Muscle-definition på front-legs (signature pitbull)
+  ctx.fillStyle = stripeColor;
+  ctx.fillRect(r * 0.82 + swing * r * 0.14, r * 0.20, 2, r * 0.15);
+  ctx.fillRect(r * 0.58 - swing * r * 0.14, r * 0.20, 2, r * 0.15);
 
-  // BODY (long horizontal — muscular hound shape)
+  // BODY (STOCKIER, MORE MUSCULAR — wider barrel-chest)
   ctx.fillStyle = baseFur;
   ctx.beginPath();
-  ctx.ellipse(0, -r * 0.10, r * 1.20, r * 0.42, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, -r * 0.05, r * 1.10, r * 0.50, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Belly (lighter)
+  // Belly (lighter, lower-slung)
   ctx.fillStyle = furLight;
   ctx.beginPath();
-  ctx.ellipse(0, r * 0.05, r * 1.05, r * 0.18, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, r * 0.18, r * 0.95, r * 0.20, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Back darker stripe (German Shepherd black saddle)
+  // Back saddle (darker shading)
   ctx.fillStyle = furDark;
   ctx.beginPath();
-  ctx.ellipse(-r * 0.10, -r * 0.30, r * 0.90, r * 0.15, 0, 0, Math.PI * 2);
+  ctx.ellipse(-r * 0.10, -r * 0.28, r * 0.80, r * 0.16, 0, 0, Math.PI * 2);
   ctx.fill();
-
-  // TACTICAL K-9 VEST (military camo over body)
-  ctx.fillStyle = flash ? '#fff' : '#2a3418';
-  ctx.fillRect(-r * 0.60, -r * 0.36, r * 1.10, r * 0.40);
-  // Vest seam (top edge)
-  ctx.fillStyle = flash ? '#fff' : '#1a2010';
-  ctx.fillRect(-r * 0.60, -r * 0.36, r * 1.10, 2);
-  // Camo-spots on vest
-  ctx.fillStyle = flash ? '#fff' : '#3a4a26';
-  ctx.beginPath(); ctx.arc(-r * 0.30, -r * 0.18, r * 0.10, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(r * 0.10, -r * 0.22, r * 0.08, 0, Math.PI * 2); ctx.fill();
-  ctx.beginPath(); ctx.arc(r * 0.30, -r * 0.10, r * 0.06, 0, Math.PI * 2); ctx.fill();
-  // K-9 PATCH (yellow with "K9")
-  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
-  ctx.fillRect(-r * 0.10, -r * 0.30, r * 0.20, r * 0.14);
-  ctx.fillStyle = flash ? '#fff' : '#000';
-  ctx.font = 'bold 6px sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('K9', 0, -r * 0.19);
-  // Vest straps (buckle on side)
-  ctx.fillStyle = flash ? '#fff' : '#1a1a14';
-  ctx.fillRect(r * 0.35, -r * 0.36, r * 0.06, r * 0.40);
-  // Buckle (gold)
-  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
-  ctx.fillRect(r * 0.36, -r * 0.18, r * 0.04, r * 0.04);
-  // Camera-mount on vest (top)
-  ctx.fillStyle = flash ? '#fff' : '#1a1a14';
-  ctx.fillRect(-r * 0.20, -r * 0.42, r * 0.12, r * 0.08);
-  // Camera-lens (small red dot)
-  ctx.fillStyle = '#ff2020';
-  ctx.shadowColor = '#ff2020';
-  ctx.shadowBlur = 4;
-  ctx.beginPath(); ctx.arc(-r * 0.14, -r * 0.38, 1.5, 0, Math.PI * 2); ctx.fill();
-  ctx.shadowBlur = 0;
-
-  // NECK + COLLAR (military tactical)
-  // Neck
-  ctx.fillStyle = baseFur;
-  ctx.beginPath();
-  ctx.moveTo(r * 1.00, -r * 0.40);
-  ctx.lineTo(r * 1.20, -r * 0.50);
-  ctx.lineTo(r * 1.30, -r * 0.20);
-  ctx.lineTo(r * 1.10, 0);
-  ctx.closePath();
-  ctx.fill();
-  // COLLAR (thick black tactical)
-  ctx.fillStyle = black;
-  ctx.fillRect(r * 1.00, -r * 0.40, r * 0.18, r * 0.20);
-  // Collar studs
-  ctx.fillStyle = flash ? '#fff' : '#7a7a7a';
-  for (let i = 0; i < 3; i++) {
+  // BRINDLE STRIPES (signature pitbull pattern) — vertical dark slashes on body
+  ctx.fillStyle = stripeColor;
+  for (let i = 0; i < 5; i++) {
+    const sx = -r * 0.60 + i * r * 0.28;
     ctx.beginPath();
-    ctx.arc(r * 1.04 + i * r * 0.06, -r * 0.30, 1.5, 0, Math.PI * 2);
+    ctx.ellipse(sx, -r * 0.10, r * 0.04, r * 0.30, 0.1, 0, Math.PI * 2);
     ctx.fill();
   }
-  // Dog-tag hanging
-  ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
-  ctx.fillRect(r * 1.05, -r * 0.18, r * 0.06, r * 0.10);
-  ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
-  ctx.fillRect(r * 1.05, -r * 0.15, r * 0.06, 1);
-
-  // HEAD (forward, German Shepherd elongated muzzle)
-  ctx.fillStyle = baseFur;
-  ctx.beginPath();
-  ctx.ellipse(r * 1.40, -r * 0.42, r * 0.32, r * 0.30, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Skull (top of head darker)
+  // Muscle-bulge på shoulders (pitbull signature)
   ctx.fillStyle = furDark;
   ctx.beginPath();
-  ctx.ellipse(r * 1.32, -r * 0.55, r * 0.24, r * 0.16, 0, 0, Math.PI * 2);
+  ctx.arc(r * 0.55, -r * 0.20, r * 0.20, 0, Math.PI * 2);
   ctx.fill();
-
-  // MUZZLE (long protruding forward)
+  // Shoulder highlight
   ctx.fillStyle = baseFur;
   ctx.beginPath();
-  ctx.moveTo(r * 1.60, -r * 0.50);
-  ctx.lineTo(r * 1.92, -r * 0.45);
-  ctx.lineTo(r * 1.92, -r * 0.28);
-  ctx.lineTo(r * 1.60, -r * 0.30);
-  ctx.closePath();
+  ctx.arc(r * 0.60, -r * 0.25, r * 0.10, 0, Math.PI * 2);
   ctx.fill();
-  // Muzzle-top (darker)
-  ctx.fillStyle = furDark;
-  ctx.fillRect(r * 1.62, -r * 0.50, r * 0.30, r * 0.08);
-  // NOSE (wet black tip)
-  ctx.fillStyle = black;
+  // BATTLE SCAR on flank (signature war-dog)
+  ctx.strokeStyle = '#5a2010';
+  ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.ellipse(r * 1.92, -r * 0.40, r * 0.06, r * 0.05, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Nose-highlight (wet)
-  ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
-  ctx.fillRect(r * 1.90, -r * 0.42, 2, 1.5);
+  ctx.moveTo(-r * 0.20, -r * 0.05);
+  ctx.lineTo(-r * 0.05, r * 0.15);
+  ctx.stroke();
 
-  // MOUTH (snarl — bared teeth visible)
-  ctx.fillStyle = flash ? '#fff' : '#3a0a0a';
-  ctx.beginPath();
-  ctx.moveTo(r * 1.62, -r * 0.30);
-  ctx.lineTo(r * 1.88, -r * 0.25);
-  ctx.lineTo(r * 1.84, -r * 0.20);
-  ctx.lineTo(r * 1.60, -r * 0.24);
-  ctx.closePath();
-  ctx.fill();
-  // TEETH (bared canines)
-  ctx.fillStyle = flash ? '#fff' : '#e6e6e0';
-  ctx.beginPath();
-  ctx.moveTo(r * 1.68, -r * 0.28); ctx.lineTo(r * 1.70, -r * 0.22); ctx.lineTo(r * 1.72, -r * 0.28); ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(r * 1.74, -r * 0.27); ctx.lineTo(r * 1.76, -r * 0.21); ctx.lineTo(r * 1.78, -r * 0.27); ctx.fill();
-  ctx.beginPath();
-  ctx.moveTo(r * 1.80, -r * 0.27); ctx.lineTo(r * 1.82, -r * 0.21); ctx.lineTo(r * 1.84, -r * 0.27); ctx.fill();
-  // Tongue (small pink visible)
-  ctx.fillStyle = flash ? '#fff' : '#ff6080';
-  ctx.fillRect(r * 1.72, -r * 0.22, r * 0.10, r * 0.04);
-
-  // EYES (intense yellow K-9)
-  ctx.fillStyle = flash ? '#fff' : '#1a0e08';
-  ctx.beginPath(); ctx.arc(r * 1.50, -r * 0.50, r * 0.05, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#ffd54a';
-  ctx.shadowColor = '#ffd54a';
-  ctx.shadowBlur = 4;
-  ctx.fillRect(r * 1.48, -r * 0.51, r * 0.04, r * 0.03);
+  // HEAVY COMBAT-VEST (military working dog body-armor med plates)
+  // Vest base (dark grey-green, heavier than K-9)
+  ctx.fillStyle = flash ? '#fff' : '#2a2a1a';
+  ctx.fillRect(-r * 0.55, -r * 0.42, r * 1.05, r * 0.48);
+  // Vest body-plate panels (rigid armor sections)
+  ctx.fillStyle = flash ? '#fff' : '#1a1a0a';
+  ctx.fillRect(-r * 0.40, -r * 0.38, r * 0.30, r * 0.40);
+  ctx.fillRect(0, -r * 0.38, r * 0.30, r * 0.40);
+  // Panel-edges (gold seams)
+  ctx.fillStyle = flash ? '#fff' : '#7a6028';
+  ctx.fillRect(-r * 0.40, -r * 0.38, r * 0.30, 2);
+  ctx.fillRect(0, -r * 0.38, r * 0.30, 2);
+  // Camo over remaining vest
+  ctx.fillStyle = flash ? '#fff' : '#3a4a26';
+  ctx.beginPath(); ctx.arc(-r * 0.48, -r * 0.20, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 0.42, -r * 0.18, r * 0.06, 0, Math.PI * 2); ctx.fill();
+  // MWD PATCH (Military Working Dog — yellow with red text)
+  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+  ctx.fillRect(-r * 0.16, -r * 0.32, r * 0.32, r * 0.14);
+  ctx.fillStyle = flash ? '#fff' : '#aa0808';
+  ctx.font = 'bold 7px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('MWD', 0, -r * 0.21);
+  // RANK CHEVRONS on vest (3 stars)
+  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+  for (let s = 0; s < 3; s++) {
+    const sx = r * 0.20 + s * r * 0.10;
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a1 = -Math.PI / 2 + i * Math.PI * 2 / 5;
+      const a2 = a1 + Math.PI / 5;
+      if (i === 0) ctx.moveTo(sx + Math.cos(a1) * 2.5, -r * 0.06 + Math.sin(a1) * 2.5);
+      else ctx.lineTo(sx + Math.cos(a1) * 2.5, -r * 0.06 + Math.sin(a1) * 2.5);
+      ctx.lineTo(sx + Math.cos(a2) * 1.2, -r * 0.06 + Math.sin(a2) * 1.2);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+  // Vest straps (heavy buckles)
+  ctx.fillStyle = flash ? '#fff' : '#0a0a04';
+  ctx.fillRect(r * 0.35, -r * 0.42, r * 0.08, r * 0.48);
+  // Gold buckle
+  ctx.fillStyle = flash ? '#fff' : '#ffd54a';
+  ctx.fillRect(r * 0.36, -r * 0.18, r * 0.06, r * 0.06);
+  // AMMO-POUCHES on vest sides
+  ctx.fillStyle = flash ? '#fff' : '#1a1a0a';
+  ctx.fillRect(-r * 0.55, -r * 0.10, r * 0.12, r * 0.16);
+  ctx.fillRect(r * 0.43, -r * 0.10, r * 0.12, r * 0.16);
+  // Camera+laser-pointer combo on vest top
+  ctx.fillStyle = flash ? '#fff' : '#0a0a04';
+  ctx.fillRect(-r * 0.20, -r * 0.48, r * 0.14, r * 0.08);
+  ctx.fillStyle = '#ff2020';
+  ctx.shadowColor = '#ff2020';
+  ctx.shadowBlur = 6;
+  ctx.beginPath(); ctx.arc(-r * 0.10, -r * 0.44, 2, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
 
-  // EARS (erect German Shepherd-style — TWO visible, near + far)
-  // Far ear (behind)
-  ctx.fillStyle = furDark;
-  ctx.beginPath();
-  ctx.moveTo(r * 1.18, -r * 0.65);
-  ctx.lineTo(r * 1.22, -r * 0.92);
-  ctx.lineTo(r * 1.32, -r * 0.55);
-  ctx.closePath();
-  ctx.fill();
-  // Near ear
+  // THICK MUSCULAR NECK (pitbull signature)
   ctx.fillStyle = baseFur;
   ctx.beginPath();
-  ctx.moveTo(r * 1.28, -r * 0.68);
-  ctx.lineTo(r * 1.34, -r * 0.96);
-  ctx.lineTo(r * 1.46, -r * 0.58);
+  ctx.moveTo(r * 0.95, -r * 0.40);
+  ctx.lineTo(r * 1.10, -r * 0.55);
+  ctx.lineTo(r * 1.30, -r * 0.20);
+  ctx.lineTo(r * 1.10, r * 0.05);
   ctx.closePath();
   ctx.fill();
-  // Inner ear (pink)
+  // Neck-shadow (under jaw)
+  ctx.fillStyle = furDark;
+  ctx.fillRect(r * 1.00, -r * 0.05, r * 0.20, r * 0.06);
+  // SPIKED COMBAT-COLLAR (bite-resistant, heavy)
+  ctx.fillStyle = black;
+  ctx.fillRect(r * 0.95, -r * 0.40, r * 0.30, r * 0.22);
+  // Collar metal edge
+  ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+  ctx.fillRect(r * 0.95, -r * 0.40, r * 0.30, 2);
+  ctx.fillRect(r * 0.95, -r * 0.20, r * 0.30, 2);
+  // SPIKES on collar (signature attack-dog)
+  ctx.fillStyle = flash ? '#fff' : '#bccad0';
+  for (let s = 0; s < 5; s++) {
+    const sx = r * 0.98 + s * r * 0.06;
+    ctx.beginPath();
+    ctx.moveTo(sx, -r * 0.40);
+    ctx.lineTo(sx + r * 0.02, -r * 0.52);
+    ctx.lineTo(sx + r * 0.04, -r * 0.40);
+    ctx.closePath();
+    ctx.fill();
+  }
+  // DOG-TAG hanging from collar (twin tags clinking)
+  ctx.strokeStyle = flash ? '#fff' : '#5a5a5a';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath();
+  ctx.moveTo(r * 1.05, -r * 0.18); ctx.lineTo(r * 1.05, -r * 0.05);
+  ctx.stroke();
+  ctx.fillStyle = flash ? '#fff' : '#bcc8d0';
+  ctx.fillRect(r * 1.02, -r * 0.05, r * 0.06, r * 0.10);
+  // Tag-stamp
+  ctx.fillStyle = flash ? '#fff' : '#5a5a5a';
+  ctx.fillRect(r * 1.03, -r * 0.02, r * 0.04, 1);
+  ctx.fillRect(r * 1.03, r * 0.00, r * 0.04, 1);
+
+  // PITBULL HEAD — LARGE BROAD SKULL (signature distinguishing feature)
+  ctx.fillStyle = baseFur;
+  ctx.beginPath();
+  ctx.ellipse(r * 1.42, -r * 0.42, r * 0.34, r * 0.32, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // SKULL-TOP (broader, more square than Shepherd)
+  ctx.fillStyle = furDark;
+  ctx.beginPath();
+  ctx.ellipse(r * 1.40, -r * 0.55, r * 0.30, r * 0.16, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // CHEEK MUSCLE BULGE (pitbull jaw-power signature)
+  ctx.fillStyle = furDark;
+  ctx.beginPath();
+  ctx.arc(r * 1.50, -r * 0.32, r * 0.12, 0, Math.PI * 2);
+  ctx.fill();
+  // Head-stripes (brindle pattern)
+  ctx.fillStyle = stripeColor;
+  ctx.fillRect(r * 1.30, -r * 0.62, 2, r * 0.18);
+  ctx.fillRect(r * 1.42, -r * 0.66, 2, r * 0.20);
+  ctx.fillRect(r * 1.54, -r * 0.60, 2, r * 0.18);
+
+  // SHORT BOXY MUZZLE (NOT elongated like Shepherd — pitbull signature)
+  ctx.fillStyle = baseFur;
+  ctx.fillRect(r * 1.62, -r * 0.42, r * 0.22, r * 0.22);
+  // Muzzle-top (darker, broader)
+  ctx.fillStyle = furDark;
+  ctx.fillRect(r * 1.62, -r * 0.42, r * 0.22, r * 0.08);
+  // BLACK NOSE (large, square-ish)
+  ctx.fillStyle = black;
+  ctx.fillRect(r * 1.80, -r * 0.38, r * 0.08, r * 0.08);
+  // Nose-highlight (wet shine)
+  ctx.fillStyle = flash ? '#fff' : '#3a3a3a';
+  ctx.fillRect(r * 1.82, -r * 0.37, 2, 2);
+
+  // SNARL MOUTH (wide pitbull-mouth med massive teeth)
+  ctx.fillStyle = flash ? '#fff' : '#3a0a0a';
+  ctx.fillRect(r * 1.62, -r * 0.24, r * 0.22, r * 0.06);
+  // MASSIVE CANINES (pitbull-tier)
+  ctx.fillStyle = flash ? '#fff' : '#e6e6e0';
+  // Front upper canines (large)
+  ctx.beginPath();
+  ctx.moveTo(r * 1.66, -r * 0.24); ctx.lineTo(r * 1.68, -r * 0.16); ctx.lineTo(r * 1.70, -r * 0.24);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r * 1.78, -r * 0.24); ctx.lineTo(r * 1.80, -r * 0.16); ctx.lineTo(r * 1.82, -r * 0.24);
+  ctx.fill();
+  // Small teeth between canines
+  ctx.fillRect(r * 1.72, -r * 0.22, 1.5, 4);
+  ctx.fillRect(r * 1.75, -r * 0.22, 1.5, 4);
+  // Lower canines (smaller, peeking up)
+  ctx.beginPath();
+  ctx.moveTo(r * 1.70, -r * 0.18); ctx.lineTo(r * 1.71, -r * 0.22); ctx.lineTo(r * 1.72, -r * 0.18);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(r * 1.76, -r * 0.18); ctx.lineTo(r * 1.77, -r * 0.22); ctx.lineTo(r * 1.78, -r * 0.18);
+  ctx.fill();
+  // Tongue (small visible)
+  ctx.fillStyle = flash ? '#fff' : '#ff6080';
+  ctx.fillRect(r * 1.73, -r * 0.20, r * 0.06, r * 0.03);
+  // Drool drip (intimidating)
+  ctx.fillStyle = flash ? '#fff' : 'rgba(200,220,230,0.7)';
+  ctx.beginPath();
+  ctx.ellipse(r * 1.85, -r * 0.16, 1, 3, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // INTENSE EYES (orange-red angry pitbull eyes)
+  ctx.fillStyle = flash ? '#fff' : '#1a0a04';
+  ctx.beginPath(); ctx.arc(r * 1.50, -r * 0.48, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ff7a30';
+  ctx.shadowColor = '#ffae3a';
+  ctx.shadowBlur = 6;
+  ctx.fillRect(r * 1.48, -r * 0.49, r * 0.04, r * 0.03);
+  ctx.shadowBlur = 0;
+  // Angry-eyebrow (small dark ridge over eye)
+  ctx.fillStyle = stripeColor;
+  ctx.fillRect(r * 1.46, -r * 0.55, r * 0.08, 2);
+
+  // CROPPED EARS (short triangular — pitbull-style, NOT erect tall Shepherd ears)
+  // Near ear
+  ctx.fillStyle = furDark;
+  ctx.beginPath();
+  ctx.moveTo(r * 1.32, -r * 0.62);
+  ctx.lineTo(r * 1.40, -r * 0.78);
+  ctx.lineTo(r * 1.48, -r * 0.60);
+  ctx.closePath();
+  ctx.fill();
+  // Far ear (slightly behind, smaller)
+  ctx.fillStyle = stripeColor;
+  ctx.beginPath();
+  ctx.moveTo(r * 1.24, -r * 0.62);
+  ctx.lineTo(r * 1.28, -r * 0.74);
+  ctx.lineTo(r * 1.36, -r * 0.58);
+  ctx.closePath();
+  ctx.fill();
+  // Inner ear (pink, small)
   ctx.fillStyle = flash ? '#fff' : '#7a3030';
   ctx.beginPath();
-  ctx.moveTo(r * 1.33, -r * 0.72);
-  ctx.lineTo(r * 1.35, -r * 0.88);
-  ctx.lineTo(r * 1.42, -r * 0.62);
+  ctx.moveTo(r * 1.36, -r * 0.66);
+  ctx.lineTo(r * 1.40, -r * 0.72);
+  ctx.lineTo(r * 1.44, -r * 0.62);
   ctx.closePath();
   ctx.fill();
 
-  // TAIL (back, wagging — slight angle up for alert posture)
+  // TACTICAL GOGGLES on forehead (military gear)
+  ctx.fillStyle = '#1a1a14';
+  ctx.fillRect(r * 1.20, -r * 0.62, r * 0.36, r * 0.10);
+  // Goggle-lenses (amber-glow)
+  ctx.fillStyle = '#ffae3a';
+  ctx.shadowColor = '#ffd54a';
+  ctx.shadowBlur = 4;
+  ctx.beginPath(); ctx.arc(r * 1.32, -r * 0.57, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(r * 1.46, -r * 0.57, r * 0.05, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowBlur = 0;
+  // Goggle-strap (around head)
+  ctx.fillStyle = '#3a2810';
+  ctx.fillRect(r * 1.22, -r * 0.50, r * 0.04, r * 0.18);
+  ctx.fillRect(r * 1.52, -r * 0.50, r * 0.04, r * 0.18);
+
+  // SHORT THICK TAIL (pitbull-style, NOT long flowing)
   ctx.save();
-  ctx.translate(-r * 1.20, -r * 0.10);
-  ctx.rotate(tailWag - 0.3);
+  ctx.translate(-r * 1.05, -r * 0.10);
+  ctx.rotate(tailWag - 0.2);
   ctx.fillStyle = baseFur;
-  ctx.beginPath();
-  ctx.ellipse(-r * 0.30, 0, r * 0.30, r * 0.10, 0, 0, Math.PI * 2);
-  ctx.fill();
-  // Tail tip (darker)
+  ctx.fillRect(-r * 0.30, -r * 0.06, r * 0.32, r * 0.12);
+  // Tail tip (rounded)
   ctx.fillStyle = furDark;
   ctx.beginPath();
-  ctx.ellipse(-r * 0.50, 0, r * 0.12, r * 0.06, 0, 0, Math.PI * 2);
+  ctx.arc(-r * 0.32, 0, r * 0.07, 0, Math.PI * 2);
   ctx.fill();
+  // Brindle stripes på tail
+  ctx.fillStyle = stripeColor;
+  ctx.fillRect(-r * 0.20, -r * 0.06, 2, r * 0.12);
+  ctx.fillRect(-r * 0.08, -r * 0.06, 2, r * 0.12);
   ctx.restore();
 }
 
