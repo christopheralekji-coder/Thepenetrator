@@ -48,10 +48,11 @@ const SURVIVORS_ARENA = {
   // === WAVE-SCALING ===
   // Spawn-takt baserad på elapsed time istället för wave-count.
   // Wave-event var 25s. Antal enemies per wave skalar med tid.
-  waveIntervalSec: 25,              // 25s mellan vågor (mer aggressivt än CD's 30s+pause)
-  waveBaseCount: 6,                 // wave 0 (start): 6 enemies
-  waveScalePerMinute: 3,            // +3 enemies per minut spelad
-  enemyCapForWave: 80,              // max samtidiga enemies på fältet
+  // v1.607: tätare vågor + fler enemies per wave. Time-based + overlap.
+  waveIntervalSec: 22,              // 22s mellan vågor (var 25s)
+  waveBaseCount: 12,                // wave 0: 12 enemies (var 6)
+  waveScalePerMinute: 6,            // +6/min (var 3) — så late-game blir riktigt intensivt
+  enemyCapForWave: 120,             // höjt cap så vågor kan stacka (var 80)
 
   // === PLAYER START-STATE ===
   startHp: 100,
@@ -67,7 +68,7 @@ const SURVIVORS_ARENA = {
   // 4 raritys: gray/green/blue/purple. Tier-rates skiftar med elapsed time så
   // late-game känns kraftfullt (mer lila).
   perkSelectionIntervalSec: 60,
-  firstPerkOfferAtSec: 15,           // v1.532: 15s (var 30s — för länge att vänta)
+  firstPerkOfferAtSec: 1,            // v1.607: första perken pop UP DIREKT vid match-start
   perkChoicesPerSelection: 6,
   perkAutoPickTimeoutSec: 15,
 

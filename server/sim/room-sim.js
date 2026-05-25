@@ -2670,9 +2670,22 @@ function tickCastleDefense(sim, dt, now) {
     const elapsedMs = nowMs - sim.survivorsStartT;
     if (elapsedMs >= matchDurationMs) {
       sim.castledefenseEnded = true;
+      // v1.607: Match-end-bonus: 1000 gold per overlevande spelare (för meta-progression)
+      const survivors = [];
+      for (const [pid, ws] of sim.room.members) {
+        if (ws.playerState && ws.playerState.hp > 0) {
+          sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + 1000;
+          sim.eventQueue.push({
+            type: 'cd_gold_update', peerId: pid,
+            gold: sim.castledefenseGold[pid], delta: 1000,
+          });
+          survivors.push(pid);
+        }
+      }
       sim.eventQueue.push({
         type: 'survivors_win',
         survivedSec: Math.round(elapsedMs / 1000),
+        survivors,
       });
       return;
     }
@@ -2714,6 +2727,19 @@ function tickCastleDefense(sim, dt, now) {
     }
     if (nowMs >= sim._survNextWaveAt) {
       sim._survNextWaveAt = nowMs + waveIntervalMs;
+      // v1.607: Wave-bonus gold INNAN nästa wave startar (utom första wave).
+      // Skalar med wave-nummer: 80 base + 20/wave.
+      if (sim.castledefenseWave > 0) {
+        const waveBonus = 80 + sim.castledefenseWave * 20;
+        for (const [pid, ws] of sim.room.members) {
+          if (!ws.playerState || ws.playerState.hp <= 0) continue;
+          sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + waveBonus;
+          sim.eventQueue.push({
+            type: 'cd_gold_update', peerId: pid,
+            gold: sim.castledefenseGold[pid], delta: waveBonus,
+          });
+        }
+      }
       sim.castledefenseWave += 1;
       sim.castledefenseWaveState = 'active'; // håll alltid active i survivors
       const survElapsedMin = elapsedMs / 60000;
@@ -2837,7 +2863,9 @@ function tickCastleDefense(sim, dt, now) {
   // === SPAWN ENEMIES (under active-fasen) ===
   if (sim.castledefenseWaveState === 'active' && sim._cdWaveSpawnsRemaining > 0) {
     sim._cdWaveSpawnTimer -= dt;
-    if (sim._cdWaveSpawnTimer <= 0 && sim.enemies.length < (sim.stresstestActive ? 1500 : ENEMY_CAP)) {
+    // v1.607: SURVIVORS höjt cap (120) så waves kan stacka. Stresstest 1500.
+    const _spawnCap = sim.stresstestActive ? 1500 : (sim.survivorsActive ? 120 : ENEMY_CAP);
+    if (sim._cdWaveSpawnTimer <= 0 && sim.enemies.length < _spawnCap) {
       const sp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
       // v1.416: theme override pool
       const themePool = cdGetThemePool(sim._cdActiveTheme);
@@ -3292,9 +3320,9 @@ function tickCastleDefense(sim, dt, now) {
         sim.castledefenseScores[e.lastDamagerPid] = (sim.castledefenseScores[e.lastDamagerPid] || 0) + 1;
         // v1.416: LOOTER perk +60% gold, GAMBLER 15% chans bonus
         const killerPerk = sim.castledefensePerks[e.lastDamagerPid];
-        // v1.606: SURVIVORS — INGEN gold-flow alls. Pickup-icons är dolda (v1.603),
-        // så gold ska inte flöda silently heller. Perks är progression.
-        let goldGain = sim.survivorsActive ? 0 : (e.gold || 0);
+        // v1.607: SURVIVORS får gold från kills igen (för shop). Drops förblir bara
+        // hp/shield visuellt — gold delas direkt till killer/team utan pickup-icon.
+        let goldGain = e.gold || 0;
         if (killerPerk === 'looter') goldGain = Math.round(goldGain * 1.6);
         if (killerPerk === 'gambler' && Math.random() < 0.15) {
           const r = Math.random();
@@ -4899,8 +4927,8 @@ function startSim(sim, opts) {
       sim.tdmDeathsByPid[pid] = 0;
       // Castle Defense gold är per-match (inte save.gold). Lagras på sim per peerId.
       sim.castledefenseGold = sim.castledefenseGold || {};
-      // v1.606: SURVIVORS startar med 0 gold — ingen shop, perks är progression
-      sim.castledefenseGold[pid] = opts.survivors ? 0 : (arena.startGold || 400);
+      // v1.607: SURVIVORS startar med 100 gold (knappt nog för billigt vapen)
+      sim.castledefenseGold[pid] = opts.survivors ? 100 : (arena.startGold || 400);
       // v1.401: vapen-tier startar på 0 (pistol)
       sim.castledefenseWeaponTier = sim.castledefenseWeaponTier || {};
       sim.castledefenseWeaponTier[pid] = 0;

@@ -957,6 +957,33 @@ function handleMessage(ws, msg) {
     });
     return;
   }
+  // v1.607: SURVIVORS shop-buy — validera + dra gold + ge weapon
+  if (msg.type === 'sim_survivors_buy') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    const sim = room.sim;
+    if (!sim.survivorsActive) return;
+    const wid = String(msg.weaponId || '');
+    const cost = Math.max(0, Math.min(99999, parseInt(msg.cost) || 0));
+    const gold = sim.castledefenseGold[ws.id] || 0;
+    if (gold < cost) return; // not enough gold (silent — klient visar UI-error)
+    sim.castledefenseGold[ws.id] = gold - cost;
+    sim.castledefenseOwnedWeapons = sim.castledefenseOwnedWeapons || {};
+    sim.castledefenseOwnedWeapons[ws.id] = sim.castledefenseOwnedWeapons[ws.id] || ['pistol'];
+    if (!sim.castledefenseOwnedWeapons[ws.id].includes(wid)) {
+      sim.castledefenseOwnedWeapons[ws.id].push(wid);
+    }
+    if (ws.playerState) ws.playerState.weaponId = wid;
+    sim.eventQueue.push({
+      type: 'cd_gold_update', peerId: ws.id,
+      gold: sim.castledefenseGold[ws.id], delta: -cost,
+    });
+    sim.eventQueue.push({
+      type: 'survivors_weapon_bought', peerId: ws.id,
+      weaponId: wid,
+    });
+    return;
+  }
   if (msg.type === 'sim_cd_infmoney') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;

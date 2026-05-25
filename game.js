@@ -15404,18 +15404,24 @@ function tickSurvivorsPerkEffects(dt) {
   }
 }
 
-// v1.531: SURVIVORS-RUN vapen-shop — kompakt overlay (PvP-stil). 9 CD-vapen
-// med skalande pris. Klick köper via gold + equipar direkt.
+// v1.607: SURVIVORS-shop med ALLA 15 GG-vapen. Dyr progression — späarsa gold
+// från kills + wave-bonuses + match-end bonus. Pistol gratis, sledge final-tier.
 const SURVIVORS_SHOP_WEAPONS = [
-  { id: 'pistol',      cost: 0,    label: 'PISTOL' },
-  { id: 'shotgun',     cost: 200,  label: 'HAGEL' },
-  { id: 'burstpistol', cost: 500,  label: 'BURST' },
-  { id: 'shuriken',    cost: 800,  label: 'STJÄRNOR' },
-  { id: 'smg',         cost: 1200, label: 'KPIST' },
-  { id: 'plasma',      cost: 1800, label: 'PLASMA' },
-  { id: 'rocket',      cost: 2500, label: 'ROCKET' },
-  { id: 'flame',       cost: 3500, label: 'ELDKASTARE' },
-  { id: 'minigun',     cost: 5000, label: 'MINIGUN' },
+  { id: 'pistol',      cost: 0,     label: 'PISTOL' },
+  { id: 'throwknife',  cost: 300,   label: 'KASTKNIV' },
+  { id: 'revolver',    cost: 700,   label: 'REVOLVER' },
+  { id: 'burstpistol', cost: 1200,  label: 'BURST' },
+  { id: 'shotgun',     cost: 1800,  label: 'HAGEL' },
+  { id: 'shuriken',    cost: 2500,  label: 'STJÄRNOR' },
+  { id: 'smg',         cost: 3500,  label: 'KPIST' },
+  { id: 'crossbow',    cost: 4500,  label: 'ARMBORST' },
+  { id: 'sniper',      cost: 6000,  label: 'SNIPER' },
+  { id: 'rifle',       cost: 7500,  label: 'GEVÄR' },
+  { id: 'plasma',      cost: 9500,  label: 'PLASMA' },
+  { id: 'rocket',      cost: 12000, label: 'ROCKET' },
+  { id: 'minigun',     cost: 15000, label: 'MINIGUN' },
+  { id: 'flame',       cost: 18000, label: 'ELDKASTARE' },
+  { id: 'sledge',      cost: 25000, label: 'SLAGGA' },
 ];
 
 function openSurvivorsWeaponShop() {
@@ -15473,7 +15479,7 @@ function renderSurvivorsWeaponShop(el) {
   }).join('');
   el.innerHTML = `
     <div style="color:#ffd54a;font-size:14px;letter-spacing:2px;text-align:center;margin-bottom:8px;font-weight:900;">VAPEN-SHOP · 💰 ${gold}</div>
-    <div style="display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;">${cardsHtml}</div>
+    <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:5px;max-height:60vh;overflow-y:auto;">${cardsHtml}</div>
     <button id="surv-shop-close" style="margin-top:10px;width:100%;background:#3a2a4a;color:#fff;border:1px solid #5a3a6a;padding:8px;border-radius:6px;font-weight:900;cursor:pointer;">STÄNG</button>
   `;
   el.style.display = 'block';
@@ -15496,8 +15502,8 @@ function closeSurvivorsWeaponShop() {
 }
 
 function trySurvivorsWeaponBuy(weaponId, cost) {
-  // v1.532: MATCH-gold (state.castledefenseGold) inte save.gold. Server-side
-  // sync görs via sim_cd_buy_weapon (TODO iter 8). För nu: klient-local dec.
+  // v1.607: Server-authoritative shop-buy. Klient skickar sim_survivors_buy,
+  // server validerar gold + dra + skickar cd_gold_update + survivors_weapon_bought.
   state.survivorsOwnedWeapons = state.survivorsOwnedWeapons || ['pistol'];
   const owned = state.survivorsOwnedWeapons.includes(weaponId) || cost === 0;
   if (!owned) {
@@ -15506,7 +15512,13 @@ function trySurvivorsWeaponBuy(weaponId, cost) {
       if (typeof showToast === 'function') showToast('🔒 OTILLRÄCKLIGT GOLD');
       return;
     }
-    state.castledefenseGold = matchGold - cost;
+    // Skicka till server — server validerar igen + drar gold + broadcast
+    if (Coop.active && Coop.serverSimActive && Coop.ws && Coop.ws.readyState === WebSocket.OPEN) {
+      Coop.ws.send(JSON.stringify({ type: 'sim_survivors_buy', weaponId, cost }));
+    } else {
+      // Offline-fallback: dra lokalt
+      state.castledefenseGold = matchGold - cost;
+    }
     if (!state.survivorsOwnedWeapons.includes(weaponId)) state.survivorsOwnedWeapons.push(weaponId);
     if (typeof showToast === 'function') showToast('💰 KÖPT: ' + weaponId.toUpperCase());
     if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
@@ -35760,10 +35772,11 @@ function updatePlayer(dt, now) {
 }
 
 function updateEnemies(dt, now) {
-  // Hård cap mot för mycket fiender på en gång (truck-mode: högre cap för intensitet)
-  const cap = state.truck ? 120 : 80;
+  // Hård cap mot för mycket fiender på en gång
+  // v1.607: SURVIVORS höjt till 120 (matchar server) så enemies inte culls bort
+  const cap = state.survivorsActive ? 120 : (state.truck ? 120 : 80);
   if (state.enemies.length > cap) {
-    // Behåll bossen om den finns + 80 senaste
+    // Behåll bossen om den finns + senaste
     const boss = state.enemies.find(e => e.isBoss);
     state.enemies = state.enemies.slice(-cap);
     if (boss && !state.enemies.includes(boss)) state.enemies.push(boss);
@@ -68091,8 +68104,19 @@ function drawBossIntro() {
 // ============================================================
 // MAIN LOOP
 // ============================================================
+// v1.607: 30 FPS cap för mobil — halverar CPU/GPU-load = mindre värme/batteri.
+// requestAnimationFrame körs ~60Hz men vi skippar varannan frame om < FRAME_MS gått.
+const TARGET_FPS = 30;
+const FRAME_MS = 1000 / TARGET_FPS;
 let lastTime = performance.now();
+let _lastFrameAt = lastTime;
 function loop(now) {
+  const sinceLast = now - _lastFrameAt;
+  if (sinceLast < FRAME_MS - 1) {
+    requestAnimationFrame(loop);
+    return;
+  }
+  _lastFrameAt = now;
   const dt = Math.min(0.05, (now - lastTime) / 1000);
   lastTime = now;
   // Frame-counter för cache-invalidation (getCurrentCostume etc)
