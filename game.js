@@ -57084,6 +57084,11 @@ function drawBossSoldier(e, x, y, flash) {
   ctx.shadowBlur = 4;
   const _bdInfo = 'KEY:' + (e.bossKey || 'undef') + ' FN:' + (BOSS_DRAW[e.bossKey] ? 'CUSTOM' : 'DEFAULT');
   ctx.fillText(_bdInfo, 0, -e.r * 2.5);
+  // v1.594 DEBUG: visa första 50 tecknen av drawFn-body — vad körs FAKTISKT?
+  const _drawFnStr = String(drawFn).replace(/\s+/g, ' ').slice(0, 50);
+  ctx.font = 'bold 9px monospace';
+  ctx.fillStyle = '#ffff00';
+  ctx.fillText(_drawFnStr, 0, -e.r * 2.0);
   ctx.shadowBlur = 0;
   ctx.restore();
   // v1.592 DEBUG: GRÖN ruta FÖRE drawFn — om syns, drawBossSoldier kom hit
