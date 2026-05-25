@@ -17096,9 +17096,10 @@ function syncPixiEnemies() {
     }
     sprite.alpha = 1;
     // v1.573: WALK-CYCLE — accumulate phase + swap texture mellan _a och _b
+    // v1.601: bumped idle 0.04→0.15 så Pixi-rendered enemies ALLTID animerar synligt
     if (e.walkAccum == null) e.walkAccum = e.walkPhase || 0;
     const moving = !e.contactCd || e.contactCd < 0.3;
-    e.walkAccum += moving ? 0.18 : 0.04;
+    e.walkAccum += moving ? 0.22 : 0.15;
     const frame = (Math.sin(e.walkAccum) > 0) ? 'a' : 'b';
     const walkTex = pixiState.enemyTextures && pixiState.enemyTextures[wantKey + '_' + frame];
     if (walkTex && sprite.texture !== walkTex) sprite.texture = walkTex;
@@ -57051,7 +57052,8 @@ function drawBossSoldier(e, x, y, flash) {
 
   const moving = e.smoothSpeed > 0.3;
   if (e.walkAccum === undefined) e.walkAccum = 0;
-  e.walkAccum += (moving ? e.smoothSpeed * 0.18 : 0.012);
+  // v1.601: bumped idle 0.012→0.12 så bossar har synlig idle-animation
+  e.walkAccum += (moving ? e.smoothSpeed * 0.18 : 0.12);
   const phase = e.walkAccum;
   const bob = (moving ? 4 : 1.0) * Math.sin(phase);
 
@@ -61447,9 +61449,10 @@ function drawEnemy(e) {
   const p = state.player;
   if (p) e.facing = Math.atan2(p.y - e.y, p.x - e.x);
   // walk-cycle
+  // v1.601: bumped idle 0.04→0.15 — synlig animation även för stillastående enemies
   if (e.walkAccum === undefined) e.walkAccum = e.walkPhase || 0;
   const moving = !e.contactCd || e.contactCd < 0.3;
-  e.walkAccum += moving ? 0.18 : 0.04;
+  e.walkAccum += moving ? 0.22 : 0.15;
   const phase = e.walkAccum;
   const bob = Math.abs(Math.sin(phase)) * 1.4;
 
@@ -63647,45 +63650,63 @@ function drawDog(e, flash, phase) {
   ctx.fillRect(r * 0.82 + swing * r * 0.14, r * 0.20, 2, r * 0.15);
   ctx.fillRect(r * 0.58 - swing * r * 0.14, r * 0.20, 2, r * 0.15);
 
-  // BODY (STOCKIER, MORE MUSCULAR — wider barrel-chest)
+  // BODY — KOMPAKT pitbull (kortare + djupare bröst, mindre avlång)
+  // Ratio width:height nu ~1.4:1 (var 2.2:1 = för avlång)
   ctx.fillStyle = baseFur;
   ctx.beginPath();
-  ctx.ellipse(0, -r * 0.05, r * 1.10, r * 0.50, 0, 0, Math.PI * 2);
+  // Asymmetrisk form: bredare framöver (chest), smalare baktill
+  ctx.moveTo(-r * 0.65, -r * 0.20);
+  ctx.bezierCurveTo(-r * 0.75, -r * 0.10, -r * 0.75, r * 0.20, -r * 0.65, r * 0.30);
+  ctx.lineTo(r * 0.50, r * 0.35);
+  ctx.bezierCurveTo(r * 0.75, r * 0.30, r * 0.80, -r * 0.10, r * 0.65, -r * 0.30);
+  ctx.lineTo(-r * 0.30, -r * 0.35);
+  ctx.bezierCurveTo(-r * 0.55, -r * 0.30, -r * 0.65, -r * 0.25, -r * 0.65, -r * 0.20);
+  ctx.closePath();
   ctx.fill();
-  // Belly (lighter, lower-slung)
+  // DEEP CHEST (pitbull-signature — dropped chest under body)
+  ctx.fillStyle = baseFur;
+  ctx.beginPath();
+  ctx.ellipse(r * 0.20, r * 0.25, r * 0.42, r * 0.30, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // Belly (lighter, kort)
   ctx.fillStyle = furLight;
   ctx.beginPath();
-  ctx.ellipse(0, r * 0.18, r * 0.95, r * 0.20, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, r * 0.30, r * 0.55, r * 0.15, 0, 0, Math.PI * 2);
   ctx.fill();
-  // Back saddle (darker shading)
+  // Back saddle (darker shading över ryggen)
   ctx.fillStyle = furDark;
   ctx.beginPath();
-  ctx.ellipse(-r * 0.10, -r * 0.28, r * 0.80, r * 0.16, 0, 0, Math.PI * 2);
+  ctx.ellipse(-r * 0.05, -r * 0.25, r * 0.55, r * 0.12, 0, 0, Math.PI * 2);
   ctx.fill();
-  // BRINDLE STRIPES (signature pitbull pattern) — vertical dark slashes on body
+  // BRINDLE STRIPES (vertikala tigerstreck — pitbull signature)
   ctx.fillStyle = stripeColor;
-  for (let i = 0; i < 5; i++) {
-    const sx = -r * 0.60 + i * r * 0.28;
+  for (let i = 0; i < 4; i++) {
+    const sx = -r * 0.30 + i * r * 0.25;
     ctx.beginPath();
-    ctx.ellipse(sx, -r * 0.10, r * 0.04, r * 0.30, 0.1, 0, Math.PI * 2);
+    ctx.ellipse(sx, -r * 0.05, r * 0.05, r * 0.25, 0.08, 0, Math.PI * 2);
     ctx.fill();
   }
-  // Muscle-bulge på shoulders (pitbull signature)
+  // MASSIVE SHOULDER MUSCLE (pitbull's most distinctive feature)
   ctx.fillStyle = furDark;
   ctx.beginPath();
-  ctx.arc(r * 0.55, -r * 0.20, r * 0.20, 0, Math.PI * 2);
+  ctx.ellipse(r * 0.40, -r * 0.05, r * 0.26, r * 0.30, 0, 0, Math.PI * 2);
   ctx.fill();
   // Shoulder highlight
   ctx.fillStyle = baseFur;
   ctx.beginPath();
-  ctx.arc(r * 0.60, -r * 0.25, r * 0.10, 0, Math.PI * 2);
+  ctx.ellipse(r * 0.45, -r * 0.15, r * 0.14, r * 0.16, 0, 0, Math.PI * 2);
   ctx.fill();
-  // BATTLE SCAR on flank (signature war-dog)
+  // Lighter shoulder-sheen
+  ctx.fillStyle = furLight;
+  ctx.beginPath();
+  ctx.ellipse(r * 0.50, -r * 0.22, r * 0.07, r * 0.08, 0, 0, Math.PI * 2);
+  ctx.fill();
+  // BATTLE SCAR på flanken
   ctx.strokeStyle = '#5a2010';
   ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.moveTo(-r * 0.20, -r * 0.05);
-  ctx.lineTo(-r * 0.05, r * 0.15);
+  ctx.moveTo(-r * 0.15, -r * 0.05);
+  ctx.lineTo(0, r * 0.15);
   ctx.stroke();
 
   // HEAVY COMBAT-VEST (military working dog body-armor med plates)
@@ -63745,13 +63766,13 @@ function drawDog(e, flash, phase) {
   ctx.beginPath(); ctx.arc(-r * 0.10, -r * 0.44, 2, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
 
-  // THICK MUSCULAR NECK (pitbull signature)
+  // THICK MUSCULAR NECK (pitbull signature — kortare och tjockare)
   ctx.fillStyle = baseFur;
   ctx.beginPath();
-  ctx.moveTo(r * 0.95, -r * 0.40);
-  ctx.lineTo(r * 1.10, -r * 0.55);
-  ctx.lineTo(r * 1.30, -r * 0.20);
-  ctx.lineTo(r * 1.10, r * 0.05);
+  ctx.moveTo(r * 0.65, -r * 0.30);
+  ctx.lineTo(r * 0.85, -r * 0.45);
+  ctx.lineTo(r * 1.05, -r * 0.20);
+  ctx.lineTo(r * 0.90, r * 0.05);
   ctx.closePath();
   ctx.fill();
   // Neck-shadow (under jaw)
