@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v164-heist-cops-killable-walls-v1.641';
+const SERVER_VERSION = 'v165-heist-ingame-role-picker-v1.643';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -1186,6 +1186,31 @@ function handleMessage(ws, msg) {
         type: 'heist_terminal_hacked',
         terminalId: termId,
         disabledCameras: term.disables,
+      });
+    } else if (action === 'pick_role') {
+      // v1.642: In-game role-pick. Tillåtet en gång per match. Stealth-fas
+      // krävs så fördelar inte kan bytas mitt under intense extract-fight.
+      if (ws._heistRoleLocked) return;
+      if (sim.heistPhase !== 'stealth') return;
+      const role = String(msg.role || 'hacker');
+      const validRoles = ['hacker', 'tank', 'medic', 'rogue'];
+      if (validRoles.indexOf(role) < 0) return;
+      // Anropa server-helpern (room-sim.js) via sim-export. Fallback: kräv require.
+      const { _heistApplyRole } = require('./sim/room-sim');
+      if (typeof _heistApplyRole === 'function') {
+        _heistApplyRole(ws, role, sim, HEIST_ARENA);
+      } else {
+        ws._heistRole = role;
+      }
+      ws._heistRoleLocked = true;
+      // Spegla in sim.heistRoles så framtida re-spawn använder rätt role
+      sim.heistRoles = sim.heistRoles || {};
+      sim.heistRoles[ws.id] = role;
+      sim.eventQueue.push({
+        type: 'heist_role_picked',
+        peerId: ws.id, role,
+        hp: ws.playerState.hp, maxHp: ws.playerState.maxHp,
+        speedMul: ws.playerState.speedMul,
       });
     }
     return;

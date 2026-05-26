@@ -4619,6 +4619,46 @@ function _heistResolveWalls(actor, arena) {
   }
 }
 
+// v1.642: Applicera heist-role-effekter på ws. Återanvänds av både match-init
+// (lobby-default 'hacker' om ej picked) och in-game role-picker (sim_heist_action
+// type='pick_role'). Resetterar fält så re-apply inte stackar.
+function _heistApplyRole(ws, role, sim, arena) {
+  if (!ws || !ws.playerState) return;
+  const validRoles = ['hacker', 'tank', 'medic', 'rogue'];
+  if (validRoles.indexOf(role) < 0) role = 'hacker';
+  // Reset role-specifika fält så re-apply är idempotent
+  ws.playerState.speedMul = 1.0;
+  ws._heistCameraImmune = false;
+  ws._heistMedicRegenRate = 0;
+  ws._heistMedicRegenAccum = 0;
+  ws._heistRole = role;
+  const _diffHpMul = _heistDifficultyMul(sim).playerHp;
+  const baseMax = (arena && arena.maxHp) || 100;
+  if (role === 'tank') {
+    ws.playerState.maxHp = Math.round(baseMax * 1.5 * _diffHpMul);
+    ws.playerState.speedMul = 0.9;
+  } else if (role === 'medic') {
+    ws.playerState.maxHp = Math.round(baseMax * _diffHpMul);
+    ws._heistMedicRegenRate = sim.room.members.size <= 1 ? 8 : 6;
+  } else if (role === 'hacker') {
+    ws.playerState.maxHp = Math.round(baseMax * _diffHpMul);
+    ws._heistCameraImmune = true;
+  } else if (role === 'rogue') {
+    ws.playerState.maxHp = Math.round(baseMax * 0.9 * _diffHpMul);
+    ws.playerState.speedMul = 1.1;
+  }
+  // Re-clamp HP mot ny maxHp (om sänkt) + topp upp om höjt
+  ws.playerState.hp = Math.min(ws.playerState.hp || baseMax, ws.playerState.maxHp);
+  if (ws.playerState.hp < ws.playerState.maxHp && !ws._heistRoleLocked) {
+    // Före lock: topp upp full HP (lobby/start-of-match)
+    ws.playerState.hp = ws.playerState.maxHp;
+  }
+  // Återapplicera bag-carry-weight ovanpå role-speed (rogue + bags = slow + 10%)
+  if (ws._heistBagsWeight) {
+    ws.playerState.speedMul *= Math.max(0.4, 1 - ws._heistBagsWeight);
+  }
+}
+
 // När alarm triggas: konvertera guards till regular enemies så police-AI tar över
 function _heistConvertGuardsToEnemies(sim) {
   if (!sim.heistNPCs) return;
@@ -5867,31 +5907,12 @@ function startSim(sim, opts) {
       ws._heistCamSeenThisTick = {};
       ws._heistMedicRegenAccum = 0;
       ws._heistCameraImmune = false; // återställs i role-block om Hacker
-      // v1.622: ROLE-effekter
+      // v1.642: Match-start = lås av (in-game-picker öppnas på klient). Om lobby
+      // hade role förvald (legacy / quick-pick) appliceras den; annars defaultar
+      // helpern till 'hacker' och spelaren får ändra in-game.
+      ws._heistRoleLocked = false;
       const role = (sim.heistRoles && sim.heistRoles[pid]) || 'hacker';
-      ws._heistRole = role;
-      // v1.626: Difficulty HP-skalning appliceras OVANPÅ role
-      const _diffHpMul = _heistDifficultyMul(sim).playerHp;
-      if (role === 'tank') {
-        // v1.624 balance: -10% (var -20%) — bagging redan straffar speed mycket
-        ws.playerState.maxHp = Math.round((arena.maxHp || 100) * 1.5 * _diffHpMul);
-        ws.playerState.hp = ws.playerState.maxHp;
-        ws.playerState.speedMul = 0.9;
-      } else if (role === 'medic') {
-        // v1.624 balance: +6 HP/s base (var +2), skalas till +8 om solo
-        ws.playerState.maxHp = Math.round((arena.maxHp || 100) * _diffHpMul);
-        ws.playerState.hp = ws.playerState.maxHp;
-        ws._heistMedicRegenAccum = 0;
-        ws._heistMedicRegenRate = sim.room.members.size <= 1 ? 8 : 6;
-      } else if (role === 'hacker') {
-        ws.playerState.maxHp = Math.round((arena.maxHp || 100) * _diffHpMul);
-        ws.playerState.hp = ws.playerState.maxHp;
-        ws._heistCameraImmune = true;
-      } else if (role === 'rogue') {
-        ws.playerState.maxHp = Math.round((arena.maxHp || 100) * 0.9 * _diffHpMul);
-        ws.playerState.hp = ws.playerState.maxHp;
-        ws.playerState.speedMul = 1.1;
-      }
+      _heistApplyRole(ws, role, sim, arena);
       hIdx++;
     }
     sim.eventQueue.push({
@@ -6625,4 +6646,4 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole };

@@ -24717,6 +24717,21 @@ const Coop = {
       if (typeof showToast === 'function') showToast('💰 HEIST — STEALTH-FAS. Smyg in i banken.');
       if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('survive');
       if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('ambient');
+      // v1.642: Visa in-game role-picker (ersätter lobby-pickern). Auto-pick HACKER
+      // efter 15s om spelaren inte väljer. Picker visas över countdown-fasen.
+      if (typeof showHeistRolePicker === 'function') showHeistRolePicker();
+    } else if (ev.type === 'heist_role_picked') {
+      // v1.642: Server bekräftar role-pick + skickar uppdaterade HP/speedMul.
+      // Synka klient-side player-state så HUD visar rätt direkt.
+      if (ev.peerId === Coop.myId && state.player) {
+        if (typeof ev.maxHp === 'number') state.player.maxHp = ev.maxHp;
+        if (typeof ev.hp === 'number') state.player.hp = ev.hp;
+        if (typeof ev.speedMul === 'number') state.player.speedMul = ev.speedMul;
+      }
+      // Lagra alla peers' roller så framtida HUD/scoreboard har koll
+      Coop.config = Coop.config || {};
+      Coop.config.heistRoles = Coop.config.heistRoles || {};
+      Coop.config.heistRoles[ev.peerId] = ev.role;
     } else if (ev.type === 'heist_phase_change') {
       // { phase, reason } — server signalerar fas-byte
       state.heistPhase = ev.phase;
@@ -27162,33 +27177,14 @@ function renderHostControls() {
   });
   lobbyModeButtonsEl.appendChild(heistBtn);
 
-  // v1.622: HEIST role-picker — bara synlig om heist aktiv
+  // v1.642: Lobby role-picker BORTTAGEN — roller väljs nu in-game via
+  // showHeistRolePicker() (overlay vid heist_started). Lobby visar bara
+  // en informativ rad istället så spelaren vet vad som kommer.
   if (Coop.config.heist) {
-    const roleEl = document.createElement('div');
-    roleEl.style.cssText = 'display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:4px;width:100%;';
-    const myRole = (Coop.config.heistMyRole) || 'hacker';
-    const roles = [
-      { id: 'hacker', icon: '💻', name: 'HACKER', desc: 'Osynlig för kameror' },
-      { id: 'tank',   icon: '🛡️', name: 'TANK',   desc: '+50% HP, −10% rörelse' },
-      { id: 'medic',  icon: '💊', name: 'MEDIC',  desc: '+6 HP/s regen (+8 solo)' },
-      { id: 'rogue',  icon: '🗡️', name: 'ROGUE',  desc: '+10% speed, silent-kill, −10% HP' },
-    ];
-    for (const role of roles) {
-      const b = document.createElement('button');
-      const isOn = myRole === role.id;
-      b.innerHTML = role.icon + ' <b>' + role.name + '</b><br><span style="font-size:9px;opacity:0.8;">' + role.desc + '</span>';
-      b.style.cssText = 'background:' + (isOn ? '#ff9a3a' : '#2a1a08') + ';color:' + (isOn ? '#000' : '#ffae5a') + ';font-size:11px;padding:6px 8px;font-weight:700;letter-spacing:0.5px;border:1px solid ' + (isOn ? '#ffd54a' : '#5a3a18') + ';border-radius:4px;cursor:pointer;line-height:1.2;';
-      onTap(b, () => {
-        Coop.config.heistMyRole = role.id;
-        // Spara per-spelare i heistRoles-map
-        Coop.config.heistRoles = Coop.config.heistRoles || {};
-        Coop.config.heistRoles[Coop.myId] = role.id;
-        Coop.updateConfig({ heistRoles: Coop.config.heistRoles });
-        renderHostControls();
-      });
-      roleEl.appendChild(b);
-    }
-    lobbyModeButtonsEl.appendChild(roleEl);
+    const infoEl = document.createElement('div');
+    infoEl.style.cssText = 'background:rgba(255,174,58,0.10);border:1px dashed #5a3a18;border-radius:6px;padding:6px 10px;margin-top:4px;color:#ffae5a;font-size:10px;letter-spacing:0.5px;line-height:1.4;width:100%;text-align:center;';
+    infoEl.innerHTML = '💼 Du väljer roll <b>in-game</b> (Hacker / Tank / Medic / Rogue)';
+    lobbyModeButtonsEl.appendChild(infoEl);
   }
 
   // v1.531: SURVIVORS duration-toggle (10/20/30 min) — bara synlig om survivors aktiv
@@ -36783,6 +36779,90 @@ function hideHeistHud() {
   if (posEl) posEl.style.display = 'none';
   const stack = document.getElementById('hud-toast-stack');
   if (stack) { while (stack.firstChild) stack.removeChild(stack.firstChild); }
+  // v1.642: rensa role-picker om den var öppen (match avslutad)
+  hideHeistRolePicker();
+}
+
+// v1.642: In-game role-picker overlay — visas vid match-start (heist_started),
+// 15s auto-pick HACKER om spelaren inte väljer. Skickar 'pick_role'-action till
+// server som re-applicerar HP/speed/role-effekter (server-auth).
+function showHeistRolePicker() {
+  if (document.getElementById('heist-role-picker')) return;
+  // Default-pick fallback: lobby-config eller 'hacker'
+  const defaultRole = (Coop && Coop.config && Coop.config.heistMyRole) || 'hacker';
+  const overlay = document.createElement('div');
+  overlay.id = 'heist-role-picker';
+  overlay.style.cssText = 'position:fixed;inset:0;z-index:250;background:radial-gradient(ellipse at center,rgba(40,20,5,0.96) 0%,rgba(0,0,0,0.98) 80%);display:flex;align-items:center;justify-content:center;font-family:sans-serif;padding:max(12px, env(safe-area-inset-top, 12px)) max(12px, env(safe-area-inset-right, 12px)) max(12px, env(safe-area-inset-bottom, 12px)) max(12px, env(safe-area-inset-left, 12px));';
+  const roles = [
+    { id: 'hacker', icon: '💻', name: 'HACKER', desc: 'Osynlig för kameror', tint: '#5acaff' },
+    { id: 'tank',   icon: '🛡️', name: 'TANK',   desc: '+50% HP, −10% rörelse', tint: '#ff7a3a' },
+    { id: 'medic',  icon: '💊', name: 'MEDIC',  desc: '+6 HP/s regen (+8 solo)', tint: '#5aff8a' },
+    { id: 'rogue',  icon: '🗡️', name: 'ROGUE',  desc: '+10% speed, silent-kill, −10% HP', tint: '#aa5aff' },
+  ];
+  const cardsHtml = roles.map(r =>
+    '<button data-role="' + r.id + '" class="heist-role-card" style="background:linear-gradient(180deg,#1a0f08 0%,#0a0604 100%);border:2px solid ' + r.tint + ';color:#fff;border-radius:14px;padding:18px 14px;font-family:inherit;cursor:pointer;text-align:center;box-shadow:0 0 24px ' + r.tint + '30;transition:transform 0.1s,box-shadow 0.1s;">' +
+      '<div style="font-size:42px;line-height:1;margin-bottom:8px;">' + r.icon + '</div>' +
+      '<div style="color:' + r.tint + ';font-weight:900;letter-spacing:2px;font-size:15px;margin-bottom:6px;">' + r.name + '</div>' +
+      '<div style="color:#bbb;font-size:11px;line-height:1.3;">' + r.desc + '</div>' +
+    '</button>'
+  ).join('');
+  overlay.innerHTML =
+    '<div style="background:linear-gradient(180deg,#1a0f08 0%,#0a0604 100%);border:3px solid #ffae3a;border-radius:18px;padding:24px 22px;max-width:560px;width:96vw;box-shadow:0 0 60px rgba(255,174,58,0.25);">' +
+      '<div style="font-size:38px;line-height:1;text-align:center;margin-bottom:4px;">💰</div>' +
+      '<h2 style="color:#ffd54a;text-align:center;font-size:20px;font-weight:900;letter-spacing:3px;margin:0 0 4px 0;">VÄLJ DIN ROLL</h2>' +
+      '<div style="color:#aaa;text-align:center;font-size:11px;letter-spacing:1px;margin-bottom:14px;">Stealth-fas — låses efter pick</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' + cardsHtml + '</div>' +
+      '<div style="color:#888;text-align:center;font-size:11px;letter-spacing:1px;margin-top:14px;">Auto-pick <b style="color:#ffae3a;">' + defaultRole.toUpperCase() + '</b> om <span id="heist-role-countdown" style="color:#fff;font-weight:900;">15</span>s</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  // Bind tap-handlers
+  for (const btn of overlay.querySelectorAll('.heist-role-card')) {
+    const handler = () => {
+      const role = btn.getAttribute('data-role');
+      pickHeistRole(role);
+    };
+    btn.addEventListener('click', handler, { passive: true });
+    btn.addEventListener('touchend', (e) => { e.preventDefault(); handler(); });
+  }
+  // Auto-pick countdown
+  state._heistRolePickerStartedAt = performance.now();
+  state._heistRolePickerAutoPickRole = defaultRole;
+  state._heistRolePickerIntervalId = setInterval(() => {
+    const elapsed = (performance.now() - state._heistRolePickerStartedAt) / 1000;
+    const remain = Math.max(0, Math.ceil(15 - elapsed));
+    const cdEl = document.getElementById('heist-role-countdown');
+    if (cdEl) cdEl.textContent = String(remain);
+    if (remain <= 0) pickHeistRole(state._heistRolePickerAutoPickRole || 'hacker');
+  }, 250);
+}
+
+function hideHeistRolePicker() {
+  const overlay = document.getElementById('heist-role-picker');
+  if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+  if (state._heistRolePickerIntervalId) {
+    clearInterval(state._heistRolePickerIntervalId);
+    state._heistRolePickerIntervalId = null;
+  }
+}
+
+function pickHeistRole(role) {
+  if (!role) role = 'hacker';
+  if (Coop.active && Coop.ws && Coop.ws.readyState === 1) {
+    try {
+      Coop.ws.send(JSON.stringify({ type: 'sim_heist_action', action: 'pick_role', role }));
+    } catch (_) {}
+  }
+  // Spara lokalt så HUD/UI vet rollen direkt (server bekräftar via heist_role_picked-event)
+  Coop.config = Coop.config || {};
+  Coop.config.heistMyRole = role;
+  Coop.config.heistRoles = Coop.config.heistRoles || {};
+  Coop.config.heistRoles[Coop.myId] = role;
+  hideHeistRolePicker();
+  if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
+  if (typeof showToast === 'function') {
+    const icon = { hacker:'💻', tank:'🛡️', medic:'💊', rogue:'🗡️' }[role] || '👤';
+    showToast(icon + ' Roll vald: ' + role.toUpperCase());
+  }
 }
 
 // v1.626: End-match scoreboard overlay (win/lose med per-player stats)
