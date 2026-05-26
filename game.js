@@ -8700,7 +8700,12 @@ function drawHeistArenaGround() {
 }
 
 function drawHeistWalls() {
-  if (!state.heistWalls) return;
+  // v1.635: FALLBACK — använd lokal HEIST_ARENA om server inte skickar walls
+  if ((!state.heistWalls || state.heistWalls.length === 0) &&
+      typeof window !== 'undefined' && window.HEIST_ARENA && window.HEIST_ARENA.walls) {
+    state.heistWalls = window.HEIST_ARENA.walls;
+  }
+  if (!state.heistWalls || state.heistWalls.length === 0) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   // v1.631: PASS 1 — DROP-SHADOWS under alla walls (gör dem 3D)
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -8830,7 +8835,13 @@ function drawHeistWalls() {
 }
 
 function drawHeistDecorations() {
-  if (!state.heistDecorations) return;
+  // v1.635: FALLBACK — om server inte skickar decorations, använd lokal HEIST_ARENA.
+  // Detta täcker stale server, paket-loss, eller mid-match-deploy-issues.
+  if ((!state.heistDecorations || state.heistDecorations.length === 0) &&
+      typeof window !== 'undefined' && window.HEIST_ARENA && window.HEIST_ARENA.decorations) {
+    state.heistDecorations = window.HEIST_ARENA.decorations;
+  }
+  if (!state.heistDecorations || state.heistDecorations.length === 0) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const t = performance.now();
   const pulse = 0.7 + 0.3 * Math.sin(t / 250);
@@ -24359,14 +24370,26 @@ const Coop = {
       state.heistPhase = 'stealth';
       state.heistStartT = Date.now();
       state.heistArena = ev.arena;
-      state.heistWalls = ev.walls || [];
-      state.heistDoors = ev.doors || [];
-      state.heistDecorations = ev.decorations || [];
-      state.heistCameras = ev.cameras || [];
-      state.heistHackTerminals = ev.hackTerminals || [];
-      state.heistCivilianSpawns = ev.civilianSpawns || [];
-      state.heistGuardSpawns = ev.guardSpawns || [];
-      state.heistLootSpots = ev.lootSpots || [];
+      // v1.635: PREFER LOCAL HEIST_ARENA om den har MER data (täcker stale server)
+      const local = (typeof window !== 'undefined') ? window.HEIST_ARENA : null;
+      const pick = (serverArr, localArr) => {
+        if (!serverArr || serverArr.length === 0) return localArr || [];
+        if (localArr && localArr.length > serverArr.length) return localArr;
+        return serverArr;
+      };
+      state.heistWalls = pick(ev.walls, local && local.walls);
+      state.heistDoors = pick(ev.doors, local && local.doors);
+      state.heistDecorations = pick(ev.decorations, local && local.decorations);
+      state.heistCameras = pick(ev.cameras, local && local.cameras);
+      state.heistHackTerminals = pick(ev.hackTerminals, local && local.hackTerminals);
+      state.heistCivilianSpawns = pick(ev.civilianSpawns, local && local.civilianSpawns);
+      state.heistGuardSpawns = pick(ev.guardSpawns, local && local.guardSpawns);
+      state.heistLootSpots = pick(ev.lootSpots, local && local.lootSpots);
+      // Merge in extractZones också om server inte skickar bra data
+      if (local && local.extractZones && state.heistArena &&
+          (!state.heistArena.extractZones || Object.keys(state.heistArena.extractZones).length < Object.keys(local.extractZones).length)) {
+        state.heistArena.extractZones = local.extractZones;
+      }
       state.heistLootValue = 0;
       state.heistDrillProgress = 0;
       state.heistLootBaggedCount = 0;
@@ -36514,8 +36537,8 @@ function ensureHeistActionBtn() {
   btn.id = 'heist-action-btn';
   // v1.624 fix: bottom 150→200 + min-width + tabular-nums så knappen inte krockar
   // med fire-cluster (right:58, bottom:58, grenade upp till bottom:180)
-  // v1.634: flyttad från center → top-right (var mitt över spelaren — extremt störande)
-  btn.style.cssText = 'position:fixed;right:max(12px, env(safe-area-inset-right, 12px));top:max(120px, calc(env(safe-area-inset-top, 0px) + 120px));z-index:62;background:rgba(20,8,2,0.88);border:2px solid #ffae3a;border-radius:10px;padding:7px 14px;color:#ffd54a;font-family:sans-serif;font-weight:900;font-size:11px;letter-spacing:1px;box-shadow:0 0 12px rgba(255,174,58,0.4);cursor:pointer;display:none;text-shadow:0 1px 2px #000;pointer-events:auto;min-width:100px;max-width:55vw;white-space:nowrap;font-variant-numeric:tabular-nums;';
+  // v1.635: TINY bottom-center (user-request: "mycket mycket mindre + längst ner")
+  btn.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:max(8px, env(safe-area-inset-bottom, 0px));z-index:62;background:rgba(20,8,2,0.85);border:1.5px solid #ffae3a;border-radius:6px;padding:3px 8px;color:#ffd54a;font-family:sans-serif;font-weight:700;font-size:9px;letter-spacing:0.5px;cursor:pointer;display:none;text-shadow:0 1px 1px #000;pointer-events:auto;min-width:60px;max-width:45vw;white-space:nowrap;font-variant-numeric:tabular-nums;';
   btn.textContent = 'ACTION';
   document.body.appendChild(btn);
   // v1.613-pattern: touchstart + click med debounce
@@ -36531,6 +36554,58 @@ function ensureHeistActionBtn() {
   btn.addEventListener('touchstart', doAction, { passive: false });
   btn.addEventListener('mousedown', doAction);
   return btn;
+}
+
+// v1.635: Position-indicator i heist (top-center). User kan ge exakta
+// koordinater på var det fattas väggar.
+function ensureHeistPosIndicator() {
+  let el = document.getElementById('heist-pos-indicator');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'heist-pos-indicator';
+    el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:max(8px, env(safe-area-inset-top, 0px));z-index:65;background:rgba(0,0,0,0.7);border:1px solid #5aff8a;border-radius:5px;padding:3px 8px;color:#5aff8a;font-family:monospace;font-weight:700;font-size:10px;letter-spacing:0.5px;text-shadow:0 1px 1px #000;pointer-events:none;display:none;font-variant-numeric:tabular-nums;';
+    document.body.appendChild(el);
+  }
+  return el;
+}
+function updateHeistPosIndicator() {
+  const el = ensureHeistPosIndicator();
+  if (!state.heistActive || !state.player) {
+    el.style.display = 'none';
+    return;
+  }
+  const x = Math.round(state.player.x);
+  const y = Math.round(state.player.y);
+  // Vilket rum är spelaren i?
+  let room = 'OUTDOOR';
+  if (y >= 700 && y <= 3400 && x >= 600 && x <= 3400) {
+    if (y < 1075) {
+      if (x < 1275) room = 'STORAGE';
+      else if (x < 2675) room = 'VAULT-INNER';
+      else room = 'LOCKER';
+    } else if (y < 1675) {
+      if (x < 1275) room = 'NETWORK';
+      else if (x < 2675) room = 'VAULT-OUTER';
+      else room = 'SECURITY';
+    } else if (y < 1975) {
+      if (x < 1275) room = 'SERVER';
+      else if (x < 2675) room = 'HALLWAY';
+      else room = 'MANAGER';
+    } else if (y < 2400) {
+      if (x < 1275) room = 'BREAK';
+      else if (x < 1675) room = 'CONFERENCE';
+      else if (x < 2100) room = 'CORRIDOR';
+      else if (x < 2675) room = 'TOILET';
+      else room = 'MANAGER';
+    } else if (y < 2700) room = 'BEHIND-COUNTER';
+    else if (y < 3100) room = 'LOBBY';
+    else room = 'RECEPTION';
+  } else if (y < 700) room = 'BACK-ALLEY';
+  else if (y > 3400) room = 'STREET';
+  // Decoration-count för debug
+  const decoCount = state.heistDecorations ? state.heistDecorations.length : 0;
+  el.textContent = `X:${x} Y:${y} · ${room} · D:${decoCount}`;
+  el.style.display = 'block';
 }
 
 function getHeistContextAction() {
@@ -36693,6 +36768,8 @@ function triggerHeistAction() {
 
 function updateHeistHud() {
   if (!state.heistActive) return;
+  // v1.635: Position-indicator + decoration-count i top-center
+  updateHeistPosIndicator();
   // Action-knapp visibility uppdateras varje HUD-tick
   const aBtn = ensureHeistActionBtn();
   const ctx = getHeistContextAction();
