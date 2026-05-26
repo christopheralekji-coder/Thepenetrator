@@ -182,14 +182,14 @@ const HEIST_ARENA = {
     { x: 2100, y: 1975, w: 575, h: 25, kind: 'wall' },     // 2100-2675
 
     // MANAGER TOP (x=2700-3375, y=1700-2400) — extends down through Row 4
-    //   West (x=2700-2725, y=1700-2400) door 2200-2280
-    { x: 2700, y: 1700, w: 25, h: 500, kind: 'wall' },     // 1700-2200
-    { x: 2700, y: 2280, w: 25, h: 120, kind: 'wall' },     // 2280-2400
+    //   West (x=2700-2725, y=1700-2400) SOLID — v1.638: dörren ledde in i toilet-east wall
+    { x: 2700, y: 1700, w: 25, h: 700, kind: 'wall' },     // helsolid 1700-2400
 
     // ============ ROW 4 (y=2000-2400) BREAK | CONF | CORRIDOR | TOILET | MGR BOT ============
     // BREAK (x=625-1275, full width)
-    //   North (y=2000-2025, x=625-1275)
-    { x: 625, y: 2000, w: 650, h: 25, kind: 'wall' },
+    //   North (y=2000-2025, x=625-1275) — v1.638: gap 820-920 så server↔break funkar
+    { x: 625, y: 2000, w: 195, h: 25, kind: 'wall' },     // 625-820
+    { x: 920, y: 2000, w: 355, h: 25, kind: 'wall' },     // 920-1275
     //   East (x=1275-1300, y=2000-2400) door 2150-2230
     { x: 1275, y: 2000, w: 25, h: 150, kind: 'wall' },     // 2000-2150
     { x: 1275, y: 2230, w: 25, h: 170, kind: 'wall' },     // 2230-2400
@@ -279,7 +279,7 @@ const HEIST_ARENA = {
     { id: 'break',         x: 1275, y: 2150, w: 50,  h: 80, kind: 'side_door',    locked: false },
     { id: 'conf_corridor', x: 1675, y: 2150, w: 50,  h: 80, kind: 'side_door',    locked: false },
     { id: 'toilet',        x: 2100, y: 2150, w: 50,  h: 80, kind: 'side_door',    locked: false },
-    { id: 'manager_priv',  x: 2700, y: 2200, w: 50,  h: 80, kind: 'side_door',    locked: false },
+    // manager_priv door BORTTAGEN (v1.638) — ledde till blocked toilet-east-wall
   ],
 
   // === DECORATIONS (v1.636 PROPER REWRITE — inga floor-skräp, allt har syfte) ===

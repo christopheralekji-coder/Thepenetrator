@@ -19,6 +19,7 @@ const { KOTH_ARENA } = require('../../shared/koth-arena');
 const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
 const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 const { CASTLEDEFENSE_ARENA } = require('../../shared/castledefense-arena');
+const { HEIST_ARENA } = require('../../shared/heist-arena');
 
 // PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
 // Sniper nerf: 130→95 (fortfarande 2-shot genom shield+hp men inte instant).
@@ -764,6 +765,14 @@ function updateBullets(sim, dt, now) {
     }
     // PvP: wall-collision. Skott dör vid wall-hit så cover faktiskt skyddar.
     if (sim.ctfActive && bulletHitsWall(b, CTF_ARENA.walls)) {
+      if (b.explosive && !b.hostile) {
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+      }
+      bullets.splice(i, 1);
+      continue;
+    }
+    // v1.638: HEIST — police-skott måste stoppas av bank-väggar (annars fastnar de)
+    if (sim.heistActive && bulletHitsWall(b, HEIST_ARENA.walls)) {
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
       }

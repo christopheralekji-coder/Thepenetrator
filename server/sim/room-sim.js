@@ -4159,6 +4159,9 @@ function tickHeist(sim, dt, nowMs) {
     }
   }
 
+  // === v1.638: BULLET-tick (var saknad — police-skott fastnade i luften!) ===
+  updateBullets(sim, dt, nowMs);
+
   // === v1.622: NPC tick (civilians + guards) ===
   _heistTickNPCs(sim, dt, nowMs, arena);
 

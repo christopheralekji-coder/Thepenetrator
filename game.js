@@ -9408,25 +9408,67 @@ function _drawHeistDecoration(kind, x, y) {
       break;
     }
     case 'toilet_stall': {
-      ctx.fillStyle = '#888';
-      ctx.fillRect(x - 16, y - 16, 32, 32);
-      ctx.fillStyle = '#aaa';
-      ctx.fillRect(x - 14, y - 14, 28, 28);
-      // Toilet shape
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.ellipse(x, y, 10, 8, 0, 0, Math.PI * 2); ctx.fill();
+      // v1.638: proper bås med vägg + toalett-stol + cistern + spol-knapp
+      // Bås-vägg (mörk-grå metall)
+      ctx.fillStyle = '#3a3a40';
+      ctx.fillRect(x - 18, y - 20, 36, 40);
+      // Innervägg (ljus klinker)
       ctx.fillStyle = '#cccccc';
-      ctx.fillRect(x - 6, y - 10, 12, 6); // tank
+      ctx.fillRect(x - 16, y - 18, 32, 36);
+      // Klinker-fog
+      ctx.strokeStyle = '#9a9a9a'; ctx.lineWidth = 0.5;
+      for (let i = -14; i <= 14; i += 6) {
+        ctx.beginPath(); ctx.moveTo(x - 16, y + i); ctx.lineTo(x + 16, y + i); ctx.stroke();
+      }
+      // Toilett-cistern (bakåt)
+      ctx.fillStyle = '#e8e8e8';
+      ctx.fillRect(x - 9, y - 14, 18, 10);
+      ctx.strokeStyle = '#888'; ctx.lineWidth = 1;
+      ctx.strokeRect(x - 9, y - 14, 18, 10);
+      // Spol-knapp
+      ctx.fillStyle = '#aaaaaa';
+      ctx.beginPath(); ctx.arc(x, y - 9, 2, 0, Math.PI * 2); ctx.fill();
+      // Toilett-stol (skål)
+      ctx.fillStyle = '#fafafa';
+      ctx.beginPath(); ctx.ellipse(x, y + 4, 11, 9, 0, 0, Math.PI * 2); ctx.fill();
+      // Sits-ring
+      ctx.fillStyle = '#e0e0e0';
+      ctx.beginPath(); ctx.ellipse(x, y + 4, 11, 9, 0, 0, Math.PI * 2); ctx.stroke();
+      // Insidan (öppning)
+      ctx.fillStyle = '#5a7a9a';
+      ctx.beginPath(); ctx.ellipse(x, y + 5, 7, 5, 0, 0, Math.PI * 2); ctx.fill();
+      // Toilett-pappershållare på vägg (höger)
+      ctx.fillStyle = '#888';
+      ctx.fillRect(x + 12, y, 4, 5);
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(x + 14, y + 2, 2, 0, Math.PI * 2); ctx.fill();
       break;
     }
     case 'sink': {
-      ctx.fillStyle = '#aaa';
-      ctx.fillRect(x - 10, y - 6, 20, 12);
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(x - 8, y - 4, 16, 8);
-      // Faucet
-      ctx.fillStyle = '#3a3a3a';
-      ctx.fillRect(x - 1, y - 8, 2, 4);
+      // v1.638: proper handfat med kran + tvål + spegel
+      // Vägg-monterad bas (mörkt klinker)
+      ctx.fillStyle = '#5a5560';
+      ctx.fillRect(x - 14, y - 10, 28, 20);
+      // Handfat-skål
+      ctx.fillStyle = '#dadada';
+      ctx.fillRect(x - 12, y - 8, 24, 16);
+      ctx.fillStyle = '#fafafa';
+      ctx.beginPath(); ctx.ellipse(x, y, 10, 5, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#7a8a9a';
+      ctx.beginPath(); ctx.ellipse(x, y, 7, 3, 0, 0, Math.PI * 2); ctx.fill();
+      // Kran (krom)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 1, y - 12, 2, 6);
+      ctx.fillStyle = '#cccccc';
+      ctx.fillRect(x - 3, y - 13, 6, 2);
+      // Vatten-droppe under
+      ctx.fillStyle = '#5acaff';
+      ctx.fillRect(x, y - 6, 1, 2);
+      // Tvål-dispenser (höger)
+      ctx.fillStyle = '#3a5a8a';
+      ctx.fillRect(x + 9, y - 9, 4, 8);
+      ctx.fillStyle = '#aacaff';
+      ctx.fillRect(x + 10, y - 8, 2, 4);
       break;
     }
     case 'mirror': {
@@ -9799,46 +9841,64 @@ function _drawHeistDecoration(kind, x, y) {
       ctx.fillText('🚐', x - 12, y + 4);
       ctx.textAlign = 'left';
       break;
-    // ===== v1.636 PROPER FURNITURE (workstations, wall-ATMs) =====
+    // ===== v1.636/638 PROPER FURNITURE (workstations, wall-ATMs) =====
     case 'workstation': {
-      // Full computer-station: desk + monitor + keyboard + mouse + mousepad + papers
-      // Desk surface
-      ctx.fillStyle = '#2a1810';
-      ctx.fillRect(x - 24, y - 14, 48, 28);
+      // v1.638: STÖRRE — 76x36 (var 48x28). Långt office-skrivbord.
+      // Desk surface (mahogny)
+      ctx.fillStyle = '#1a0a05';
+      ctx.fillRect(x - 38, y - 18, 76, 36);
       ctx.fillStyle = '#5a3820';
-      ctx.fillRect(x - 23, y - 13, 46, 26);
+      ctx.fillRect(x - 37, y - 17, 74, 34);
       ctx.fillStyle = '#7a5028';
-      ctx.fillRect(x - 23, y - 13, 46, 3);  // wood-grain highlight
-      // Monitor (bak på skrivbord)
+      ctx.fillRect(x - 37, y - 17, 74, 4); // wood-grain highlight top
+      // Skrivbordsspår mitt på (panel-uppdelning)
+      ctx.strokeStyle = '#3a1a08'; ctx.lineWidth = 0.5;
+      ctx.beginPath(); ctx.moveTo(x - 35, y - 10); ctx.lineTo(x + 35, y - 10); ctx.stroke();
+      // Monitor (bak på skrivbord) — större
       ctx.fillStyle = '#0a0a0a';
-      ctx.fillRect(x - 12, y - 12, 24, 14);
+      ctx.fillRect(x - 15, y - 16, 30, 18);
       ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(x - 11, y - 11, 22, 12);
+      ctx.fillRect(x - 14, y - 15, 28, 16);
       ctx.fillStyle = '#5acaff';
-      ctx.fillRect(x - 10, y - 10, 20, 10); // screen glow
+      ctx.fillRect(x - 13, y - 14, 26, 14);  // screen glow
+      // UI-detalj på skärm
+      ctx.fillStyle = '#1a3a5a';
+      ctx.fillRect(x - 12, y - 13, 24, 2);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - 10, y - 9, 1, 1);
+      ctx.fillRect(x - 6, y - 7, 8, 1);
       // Monitor stand
       ctx.fillStyle = '#1a1a1a';
       ctx.fillRect(x - 3, y + 2, 6, 3);
-      ctx.fillRect(x - 6, y + 4, 12, 2);
-      // Keyboard
+      ctx.fillRect(x - 8, y + 5, 16, 2);
+      // Tangentbord (bredare)
       ctx.fillStyle = '#2a2a2a';
-      ctx.fillRect(x - 14, y + 7, 22, 4);
+      ctx.fillRect(x - 18, y + 9, 32, 6);
       ctx.fillStyle = '#4a4a4a';
-      for (let i = 0; i < 8; i++) ctx.fillRect(x - 13 + i * 3, y + 8, 2, 2);
-      // Mouse + pad
+      for (let i = 0; i < 11; i++) ctx.fillRect(x - 17 + i * 3, y + 10, 2, 2);
+      ctx.fillRect(x - 17, y + 13, 32, 1);
+      // Mus + musmatta
       ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(x + 10, y + 7, 8, 5);   // mousepad
+      ctx.fillRect(x + 16, y + 9, 9, 6); // mousepad
       ctx.fillStyle = '#dadada';
-      ctx.fillRect(x + 12, y + 8, 4, 3);   // mouse
-      // Papers stack (vänster)
+      ctx.fillRect(x + 18, y + 10, 5, 4); // mouse
+      ctx.fillStyle = '#5a5a5a';
+      ctx.fillRect(x + 19, y + 10, 1, 2); // mouse wheel
+      // Pappersstack (vänster)
       ctx.fillStyle = '#fafafa';
-      ctx.fillRect(x - 22, y + 6, 6, 5);
+      ctx.fillRect(x - 35, y + 7, 8, 7);
       ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(x - 21, y + 7, 4, 1);
-      ctx.fillRect(x - 21, y + 9, 4, 1);
+      ctx.fillRect(x - 34, y + 8, 6, 1);
+      ctx.fillRect(x - 34, y + 10, 6, 1);
+      ctx.fillRect(x - 34, y + 12, 6, 1);
+      // Kaffemugg (höger om mus)
+      ctx.fillStyle = '#aa3a3a';
+      ctx.fillRect(x + 27, y + 4, 6, 8);
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x + 28, y + 5, 4, 2);
       // Outline
       ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 1;
-      ctx.strokeRect(x - 24, y - 14, 48, 28);
+      ctx.strokeRect(x - 38, y - 18, 76, 36);
       break;
     }
     case 'wall_atm_w': {
@@ -10158,28 +10218,100 @@ function _drawHeistDecoration(kind, x, y) {
 function _drawHeistCamera(cam, sx, sy, allHacked) {
   // Specifik hackad-check via state.heistDisabledCameras
   const disabled = allHacked || (state.heistDisabledCameras && state.heistDisabledCameras[cam.id]);
+  // v1.638: SWEEPING camera-dir — deterministisk per-cam baserat på cam.id-hash + tid
+  // Resultat: kameror sveper höger/vänster istället för att stå still.
+  let camDir = cam.dir || 0;
+  if (!disabled) {
+    // Hash från cam.id för phase-offset (varje kamera börjar olika)
+    let h = 0;
+    const id = cam.id || '';
+    for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0;
+    const phase = (h % 1000) / 1000 * Math.PI * 2;
+    const t = performance.now();
+    // Sweep ± 0.5 rad över 4.5s cykel
+    const sweepAmp = cam.sweepAmp != null ? cam.sweepAmp : 0.5;
+    const sweepPeriod = cam.sweepPeriod != null ? cam.sweepPeriod : 4500;
+    camDir += Math.sin(t / sweepPeriod * Math.PI * 2 + phase) * sweepAmp;
+  }
   // Kamera-bas (svart)
   ctx.fillStyle = '#1a1a1a';
   ctx.fillRect(sx - 6, sy - 6, 12, 12);
+  // Linjeindikator där kameran "tittar"
+  if (!disabled) {
+    ctx.strokeStyle = 'rgba(255,48,48,0.9)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + Math.cos(camDir) * 8, sy + Math.sin(camDir) * 8);
+    ctx.stroke();
+  }
   // LED — röd = aktiv, grön = hackad/off
   ctx.fillStyle = disabled ? '#3a8a3a' : '#ff3030';
   ctx.beginPath();
   ctx.arc(sx + 2, sy, 2, 0, Math.PI * 2);
   ctx.fill();
-  if (disabled) return; // ingen vision-cone om off
-  // Vision-cone (transparent röd)
-  ctx.fillStyle = 'rgba(255,48,48,0.12)';
-  ctx.strokeStyle = 'rgba(255,48,48,0.4)';
-  ctx.lineWidth = 1;
+  if (disabled) return;
+  // v1.638: WALL-CLIPPED vision-cone (var: cone gick igenom väggar)
+  // Raycast: 24 strålar, varje stoppar vid första väggen
   const cone = cam.cone || 0.7;
   const range = cam.range || 250;
-  const dir = cam.dir || 0;
+  const cx2 = Math.round(state.camera.x), cy2 = Math.round(state.camera.y);
+  const camWorldX = cam.x, camWorldY = cam.y;
+  const RAYS = 24;
+  const points = [{ x: sx, y: sy }];
+  const walls = state.heistWalls || [];
+  for (let i = 0; i <= RAYS; i++) {
+    const a = camDir - cone + (cone * 2 * i / RAYS);
+    const dx = Math.cos(a), dy = Math.sin(a);
+    let bestT = range;
+    // Test mot alla relevanta walls (cull mot range-box)
+    const minX = camWorldX - range, maxX = camWorldX + range;
+    const minY = camWorldY - range, maxY = camWorldY + range;
+    for (const w of walls) {
+      if (w.x + w.w < minX || w.x > maxX || w.y + w.h < minY || w.y > maxY) continue;
+      // Bara solid walls blockerar — räkning, pelare, counter blockerar också
+      if (w.kind !== 'wall' && w.kind !== 'wall_vault' && w.kind !== 'pillar' && w.kind !== 'counter') continue;
+      // Liang-Barsky ray vs AABB
+      const t = _rayBoxHit(camWorldX, camWorldY, dx, dy, w.x, w.y, w.w, w.h, range);
+      if (t > 0 && t < bestT) bestT = t;
+    }
+    const ex = sx + dx * bestT;
+    const ey = sy + dy * bestT;
+    points.push({ x: ex, y: ey });
+  }
+  ctx.fillStyle = 'rgba(255,48,48,0.10)';
+  ctx.strokeStyle = 'rgba(255,48,48,0.4)';
+  ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.moveTo(sx, sy);
-  ctx.arc(sx, sy, range, dir - cone, dir + cone);
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+}
+
+// Ray vs AABB intersection (returns t along ray to first hit, or Infinity)
+function _rayBoxHit(rx, ry, rdx, rdy, bx, by, bw, bh, maxT) {
+  let tMin = 0, tMax = maxT;
+  if (Math.abs(rdx) < 1e-9) {
+    if (rx < bx || rx > bx + bw) return Infinity;
+  } else {
+    let t1 = (bx - rx) / rdx, t2 = (bx + bw - rx) / rdx;
+    if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+    if (t1 > tMin) tMin = t1;
+    if (t2 < tMax) tMax = t2;
+    if (tMin > tMax) return Infinity;
+  }
+  if (Math.abs(rdy) < 1e-9) {
+    if (ry < by || ry > by + bh) return Infinity;
+  } else {
+    let t1 = (by - ry) / rdy, t2 = (by + bh - ry) / rdy;
+    if (t1 > t2) { const tmp = t1; t1 = t2; t2 = tmp; }
+    if (t1 > tMin) tMin = t1;
+    if (t2 < tMax) tMax = t2;
+    if (tMin > tMax) return Infinity;
+  }
+  return tMin > 0 ? tMin : Infinity;
 }
 
 function _drawHeistTerminal(term, sx, sy, hacked) {
@@ -36619,7 +36751,8 @@ function showHeistHud() {
   if (hud) { hud.style.display = 'flex'; updateHeistHud(); return; }
   hud = document.createElement('div');
   hud.id = 'heist-hud';
-  hud.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top, 8px));left:50%;transform:translateX(-50%);z-index:60;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;font-family:sans-serif;text-align:center;';
+  // v1.638: flyttad till VÄNSTRA sidan (var center) — user-feedback
+  hud.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top, 8px));left:max(8px, env(safe-area-inset-left, 8px));z-index:60;display:flex;flex-direction:column;align-items:flex-start;gap:4px;pointer-events:none;font-family:sans-serif;text-align:left;';
   hud.innerHTML =
     '<div id="heist-phase" style="background:rgba(10,5,2,0.85);border:2px solid #ffae3a;border-radius:8px;padding:6px 14px;color:#ffd54a;font-weight:900;letter-spacing:2px;font-size:13px;text-shadow:0 1px 3px #000;">STEALTH</div>' +
     '<div id="heist-timer" style="background:rgba(10,5,2,0.7);border:1px solid #5a3a18;border-radius:6px;padding:3px 10px;color:#ffae3a;font-weight:900;font-size:11px;letter-spacing:1px;">00:00</div>' +
@@ -36635,6 +36768,11 @@ function hideHeistHud() {
   if (hud) hud.style.display = 'none';
   const aBtn = document.getElementById('heist-action-btn');
   if (aBtn) aBtn.style.display = 'none';
+  // v1.638: göm också position-indicator + clear toast-stack
+  const posEl = document.getElementById('heist-pos-indicator');
+  if (posEl) posEl.style.display = 'none';
+  const stack = document.getElementById('hud-toast-stack');
+  if (stack) { while (stack.firstChild) stack.removeChild(stack.firstChild); }
 }
 
 // v1.626: End-match scoreboard overlay (win/lose med per-player stats)
@@ -36739,14 +36877,16 @@ function ensureHeistPosIndicator() {
   if (!el) {
     el = document.createElement('div');
     el.id = 'heist-pos-indicator';
-    el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:max(8px, env(safe-area-inset-top, 0px));z-index:65;background:rgba(0,0,0,0.7);border:1px solid #5aff8a;border-radius:5px;padding:3px 8px;color:#5aff8a;font-family:monospace;font-weight:700;font-size:10px;letter-spacing:0.5px;text-shadow:0 1px 1px #000;pointer-events:none;display:none;font-variant-numeric:tabular-nums;';
+    // v1.638: flyttad till VÄNSTRA sidan (var center — täckte fas-banner)
+    el.style.cssText = 'position:fixed;left:max(8px, env(safe-area-inset-left, 0px));top:max(50%, calc(env(safe-area-inset-top, 0px) + 50%));transform:translateY(-50%);z-index:65;background:rgba(0,0,0,0.6);border:1px solid #5aff8a;border-radius:4px;padding:2px 6px;color:#5aff8a;font-family:monospace;font-weight:700;font-size:9px;letter-spacing:0.3px;text-shadow:0 1px 1px #000;pointer-events:none;display:none;font-variant-numeric:tabular-nums;';
     document.body.appendChild(el);
   }
   return el;
 }
 function updateHeistPosIndicator() {
   const el = ensureHeistPosIndicator();
-  if (!state.heistActive || !state.player) {
+  // v1.638: göm också när mode != playing (var visible i meny)
+  if (!state.heistActive || !state.player || state.mode !== 'playing') {
     el.style.display = 'none';
     return;
   }

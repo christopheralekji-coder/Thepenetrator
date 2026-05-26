@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v637b-heist-crash-fix-redeploy';
+const CACHE = 'penetrator-v638-heist-bigfix';
 const ASSETS = [
   './',
   './index.html',
