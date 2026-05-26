@@ -9797,7 +9797,128 @@ function _drawHeistDecoration(kind, x, y) {
       ctx.fillText('🚐', x - 12, y + 4);
       ctx.textAlign = 'left';
       break;
-    // ===== v1.634 HEIST DECORATIONS (flyttade hit från fel funktion) =====
+    // ===== v1.636 PROPER FURNITURE (workstations, wall-ATMs) =====
+    case 'workstation': {
+      // Full computer-station: desk + monitor + keyboard + mouse + mousepad + papers
+      // Desk surface
+      ctx.fillStyle = '#2a1810';
+      ctx.fillRect(x - 24, y - 14, 48, 28);
+      ctx.fillStyle = '#5a3820';
+      ctx.fillRect(x - 23, y - 13, 46, 26);
+      ctx.fillStyle = '#7a5028';
+      ctx.fillRect(x - 23, y - 13, 46, 3);  // wood-grain highlight
+      // Monitor (bak på skrivbord)
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(x - 12, y - 12, 24, 14);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 11, y - 11, 22, 12);
+      ctx.fillStyle = '#5acaff';
+      ctx.fillRect(x - 10, y - 10, 20, 10); // screen glow
+      // Monitor stand
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 3, y + 2, 6, 3);
+      ctx.fillRect(x - 6, y + 4, 12, 2);
+      // Keyboard
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x - 14, y + 7, 22, 4);
+      ctx.fillStyle = '#4a4a4a';
+      for (let i = 0; i < 8; i++) ctx.fillRect(x - 13 + i * 3, y + 8, 2, 2);
+      // Mouse + pad
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x + 10, y + 7, 8, 5);   // mousepad
+      ctx.fillStyle = '#dadada';
+      ctx.fillRect(x + 12, y + 8, 4, 3);   // mouse
+      // Papers stack (vänster)
+      ctx.fillStyle = '#fafafa';
+      ctx.fillRect(x - 22, y + 6, 6, 5);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 21, y + 7, 4, 1);
+      ctx.fillRect(x - 21, y + 9, 4, 1);
+      // Outline
+      ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 1;
+      ctx.strokeRect(x - 24, y - 14, 48, 28);
+      break;
+    }
+    case 'wall_atm_w': {
+      // ATM mot väst-vägg (screen faces east, RIGHT)
+      // Wall-mount bakgrund
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(x - 6, y - 22, 22, 44);
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x - 5, y - 21, 20, 42);
+      // ATM body (utskjutande från vägg)
+      ctx.fillStyle = '#1a3a1a';
+      ctx.fillRect(x - 2, y - 18, 16, 36);
+      ctx.fillStyle = '#2a5a2a';
+      ctx.fillRect(x - 1, y - 17, 14, 34);
+      // Screen (facing east)
+      ctx.fillStyle = '#5acaff';
+      ctx.fillRect(x + 1, y - 14, 10, 12);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 5px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('ATM', x + 6, y - 7);
+      ctx.fillText('$', x + 6, y - 2);
+      // Keypad
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x + 1, y + 2, 10, 8);
+      ctx.fillStyle = '#5a5a5a';
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++)
+        ctx.fillRect(x + 2 + c * 3, y + 3 + r * 2, 2, 1);
+      // Card slot
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x + 4, y + 11, 6, 1);
+      // Cash dispenser slot
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x + 3, y + 14, 8, 2);
+      ctx.textAlign = 'left';
+      break;
+    }
+    case 'wall_atm_e': {
+      // ATM mot öst-vägg (screen faces west, LEFT) — spegelvänd
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(x - 16, y - 22, 22, 44);
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x - 15, y - 21, 20, 42);
+      ctx.fillStyle = '#1a3a1a';
+      ctx.fillRect(x - 14, y - 18, 16, 36);
+      ctx.fillStyle = '#2a5a2a';
+      ctx.fillRect(x - 13, y - 17, 14, 34);
+      // Screen (facing west)
+      ctx.fillStyle = '#5acaff';
+      ctx.fillRect(x - 11, y - 14, 10, 12);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 5px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('ATM', x - 6, y - 7);
+      ctx.fillText('$', x - 6, y - 2);
+      // Keypad
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 11, y + 2, 10, 8);
+      ctx.fillStyle = '#5a5a5a';
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++)
+        ctx.fillRect(x - 10 + c * 3, y + 3 + r * 2, 2, 1);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 10, y + 11, 6, 1);
+      ctx.fillRect(x - 11, y + 14, 8, 2);
+      ctx.textAlign = 'left';
+      break;
+    }
+    case 'desk_paper': {
+      // Bara skrivbord med papper/mapp (för konferens-sittplatser)
+      ctx.fillStyle = '#5a3820';
+      ctx.fillRect(x - 14, y - 10, 28, 20);
+      ctx.fillStyle = '#7a5028';
+      ctx.fillRect(x - 14, y - 10, 28, 3);
+      ctx.fillStyle = '#fafafa';
+      ctx.fillRect(x - 8, y - 4, 12, 8);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 7, y - 2, 10, 1);
+      ctx.fillRect(x - 7, y, 10, 1);
+      ctx.strokeStyle = '#0a0a0a'; ctx.lineWidth = 1;
+      ctx.strokeRect(x - 14, y - 10, 28, 20);
+      break;
+    }
     case 'cardboard_box': {
       ctx.fillStyle = '#3a2818'; ctx.fillRect(x - 14, y - 12, 28, 24);
       ctx.fillStyle = '#8a5a30'; ctx.fillRect(x - 12, y - 10, 24, 20);
