@@ -4225,6 +4225,9 @@ function tickHeist(sim, dt, nowMs) {
     if (heistPlayers.length > 0) {
       for (const e of sim.enemies) {
         if (!e || e.dead) continue;
+        // v1.644: spara prev-pos så _heistResolveWalls vet vilken sida av väggen
+        // actor kom från (förhindrar tunnel-through vid stor dt)
+        e._prevX = e.x; e._prevY = e.y;
         updateEnemy(e, dt, nowMs, sim, heistPlayers);
         // v1.641: blockera cops mot väggar — annars går de rakt igenom banken
         _heistResolveWalls(e, arena);
@@ -4399,6 +4402,8 @@ function _heistTickCivilian(npc, dt, nowMs, sim, players, arena) {
     // Stå still; om alarm triggas av annan källa, hostages bara stannar
     return;
   }
+  // v1.644: spara prev-pos för tunnel-resistent wall-resolve
+  npc._prevX = npc.x; npc._prevY = npc.y;
   if (npc.state === 'idle' && sim.heistPhase === 'stealth') {
     // v1.626: Cashier-patrol — lämnar counter var ~30s i ~10s (break-window)
     // Detta öppnar ett window för stealth-player att smyga genom counter-gap utan
@@ -4482,6 +4487,8 @@ function _heistTickCivilian(npc, dt, nowMs, sim, players, arena) {
 function _heistTickGuard(npc, dt, nowMs, sim, players, arena) {
   // Bara aktiva i stealth-fas. Vid alarm: konverteras till enemies.
   if (sim.heistPhase !== 'stealth') return;
+  // v1.644: spara prev-pos för tunnel-resistent wall-resolve
+  npc._prevX = npc.x; npc._prevY = npc.y;
   if (npc.state === 'patrol') {
     if (!npc.patrolPoints || npc.patrolPoints.length === 0) return;
     const target = npc.patrolPoints[npc.patrolIdx];
@@ -4588,6 +4595,9 @@ function _heistLineBlockedByWall(x0, y0, x1, y1, arena) {
 // v1.641: circle-vs-AABB push-out så NPCs/cops inte går igenom väggar.
 // Samma wall-set som LOS-checken (kind='wall' eller 'wall_vault'). Counters/pillars
 // behåller bullet-through-cover-pattern — de pushar inte heller actorn.
+// v1.644: Tunnel-skydd. Om actor center hamnar INUTI en tunn vägg (h=25), använd
+// actor._prevX/_prevY som referens för att välja vilken kant att pusha till —
+// annars kan "närmaste kant"-fallbacken pusha actor IGENOM väggen till andra sidan.
 function _heistResolveWalls(actor, arena) {
   if (!arena || !arena.walls) return;
   const r = actor.r || 14;
@@ -4604,16 +4614,29 @@ function _heistResolveWalls(actor, arena) {
         actor.x += (dx / d) * push;
         actor.y += (dy / d) * push;
       } else {
-        // Center inuti rect — pusha ut längs närmsta kant
-        const dl = actor.x - w.x;
-        const dright = (w.x + w.w) - actor.x;
-        const dtop = actor.y - w.y;
-        const dbot = (w.y + w.h) - actor.y;
-        const minEdge = Math.min(dl, dright, dtop, dbot);
-        if (minEdge === dl) actor.x = w.x - r;
-        else if (minEdge === dright) actor.x = w.x + w.w + r;
-        else if (minEdge === dtop) actor.y = w.y - r;
-        else actor.y = w.y + w.h + r;
+        // Center inuti rect — använd prev pos om finns för att välja rätt sida
+        const px = (typeof actor._prevX === 'number') ? actor._prevX : actor.x;
+        const py = (typeof actor._prevY === 'number') ? actor._prevY : actor.y;
+        const wasLeftOf = px < w.x;
+        const wasRightOf = px > w.x + w.w;
+        const wasAbove = py < w.y;
+        const wasBelow = py > w.y + w.h;
+        if (wasLeftOf)        actor.x = w.x - r;
+        else if (wasRightOf)  actor.x = w.x + w.w + r;
+        else if (wasAbove)    actor.y = w.y - r;
+        else if (wasBelow)    actor.y = w.y + w.h + r;
+        else {
+          // Fallback: ingen prev-info → pusha till närmaste kant
+          const dl = actor.x - w.x;
+          const dright = (w.x + w.w) - actor.x;
+          const dtop = actor.y - w.y;
+          const dbot = (w.y + w.h) - actor.y;
+          const minEdge = Math.min(dl, dright, dtop, dbot);
+          if (minEdge === dl) actor.x = w.x - r;
+          else if (minEdge === dright) actor.x = w.x + w.w + r;
+          else if (minEdge === dtop) actor.y = w.y - r;
+          else actor.y = w.y + w.h + r;
+        }
       }
     }
   }

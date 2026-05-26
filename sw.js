@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v643-heist-ingame-role-picker';
+const CACHE = 'penetrator-v644-heist-client-bullet-walls-tunnel-fix';
 const ASSETS = [
   './',
   './index.html',

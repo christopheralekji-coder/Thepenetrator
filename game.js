@@ -24669,6 +24669,7 @@ const Coop = {
         return serverArr;
       };
       state.heistWalls = pick(ev.walls, local && local.walls);
+      state._heistBulletWalls = null; // v1.644: invalidera cache så filter byggs om mot nya walls
       state.heistDoors = pick(ev.doors, local && local.doors);
       state.heistDecorations = pick(ev.decorations, local && local.decorations);
       state.heistCameras = pick(ev.cameras, local && local.cameras);
@@ -40308,6 +40309,20 @@ function updateBullets(dt) {
       // BR: skippa walls med passThroughBullets-flag (fönster) — bullets passerar igenom
       const brSolidWalls = state.battleroyaleWalls.filter(w => !w.passThroughBullets);
       if (bulletHitsWall(b, brSolidWalls)) {
+        if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
+        if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
+        b.dead = true;
+        continue;
+      }
+    }
+    // v1.644: HEIST — klient-side bullet wall-collision (saknades helt, så
+    // bullets renderades genom väggar trots att server killade dem på vägg).
+    // Filtrera till SOLIDA väggar (kind='wall'/'wall_vault') — counters/pillars
+    // är knähögt cover man ska kunna skjuta över. Speglar bullets.js:803-816.
+    if (state.heistActive && state.heistWalls && typeof bulletHitsWall === 'function') {
+      const heistSolidWalls = state._heistBulletWalls || (state._heistBulletWalls =
+        state.heistWalls.filter(w => w.kind === 'wall' || w.kind === 'wall_vault'));
+      if (bulletHitsWall(b, heistSolidWalls)) {
         if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
         if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
         b.dead = true;
