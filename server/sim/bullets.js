@@ -89,7 +89,7 @@ function damageEnemy(e, dmg, isCrit, fromPid) {
 function applyMelee(sim, p, weaponId, params) {
   const w = W_BY_ID[weaponId];
   if (!w || w.type !== 'melee') return;
-  // Bara PvP-modes — story melee hanteras lokalt på klient
+  // PvP-modes hanteras nedan. v1.640: HEIST också (co-op vs server-AI police/guards)
   const inGungame = !!sim.gungameActive && !sim.gungameEnded;
   const inTdm = !!sim.tdmActive && !sim.tdmEnded;
   const inCtf = !!sim.ctfActive && !sim.ctfEnded;
@@ -97,7 +97,34 @@ function applyMelee(sim, p, weaponId, params) {
   const inKoth = !!sim.kothActive && !sim.kothEnded;
   const inJug = !!sim.juggernautActive && !sim.juggernautEnded;
   const inBr = !!sim.battleroyaleActive && !sim.battleroyaleEnded;
-  if (!inGungame && !inTdm && !inCtf && !inSiege && !inKoth && !inJug && !inBr) return;
+  const inHeist = !!sim.heistActive && !sim.heistEnded;
+  if (!inGungame && !inTdm && !inCtf && !inSiege && !inKoth && !inJug && !inBr && !inHeist) return;
+
+  // HEIST melee: damage enemies (police/guards) inom range
+  if (inHeist) {
+    const range = w.range || 40;
+    const dmgMul = params.dmgMul || 1;
+    const baseDmg = (w.dmg || 25) * dmgMul;
+    for (const e of sim.enemies) {
+      if (e.dead) continue;
+      const dx = e.x - p.x, dy = e.y - p.y;
+      const d2 = dx * dx + dy * dy;
+      const r = range + (e.r || 14);
+      if (d2 > r * r) continue;
+      // Cone-check: enemy ska vara i aim-riktningen (90° cone)
+      const a = Math.atan2(dy, dx);
+      let da = a - p.aimAngle;
+      while (da > Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      if (Math.abs(da) > Math.PI / 2) continue;
+      const died = damageEnemy(e, baseDmg, false, p.peerId);
+      if (died) {
+        // Emit enemy_killed event så klient ser kill-bekräftelse
+        sim.eventQueue.push({ type: 'enemy_killed', i: e._idx, killerPid: p.peerId });
+      }
+    }
+    return;
+  }
 
   const ownerWs = sim.room.members.get(p.peerId);
   if (!ownerWs) return;
@@ -771,13 +798,21 @@ function updateBullets(sim, dt, now) {
       bullets.splice(i, 1);
       continue;
     }
-    // v1.638: HEIST — police-skott måste stoppas av bank-väggar (annars fastnar de)
-    if (sim.heistActive && bulletHitsWall(b, HEIST_ARENA.walls)) {
-      if (b.explosive && !b.hostile) {
-        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+    // v1.638/640: HEIST — bara faktiska VÄGGAR blockerar skott (inte counters/pillars
+    // som är knähögt cover du ska kunna skjuta över)
+    if (sim.heistActive) {
+      if (!HEIST_ARENA._bulletWalls) {
+        HEIST_ARENA._bulletWalls = HEIST_ARENA.walls.filter(w =>
+          w.kind === 'wall' || w.kind === 'wall_vault'
+        );
       }
-      bullets.splice(i, 1);
-      continue;
+      if (bulletHitsWall(b, HEIST_ARENA._bulletWalls)) {
+        if (b.explosive && !b.hostile) {
+          explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+        }
+        bullets.splice(i, 1);
+        continue;
+      }
     }
     if (sim.tdmActive && bulletHitsWall(b, TDM_ARENA.walls)) {
       if (b.explosive && !b.hostile) {
