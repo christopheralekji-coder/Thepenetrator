@@ -8973,22 +8973,24 @@ function drawHeistDecorations() {
     }
   }
 
-  // === Extract-zone-glow under extract-fas ===
+  // === Extract-zone-glow under extract-fas (v1.637: itererar ALLA zones) ===
   if (state.heistPhase === 'extract' && state.heistArena && state.heistArena.extractZones) {
-    const ez = state.heistArena.extractZones.front;
-    if (ez) {
+    const zones = state.heistArena.extractZones;
+    for (const k of Object.keys(zones)) {
+      const ez = zones[k];
+      if (!ez) continue;
       const x = (ez.x + ez.w / 2) - cx, y = (ez.y + ez.h / 2) - cy;
       if (x > -150 && x < viewW + 150 && y > -150 && y < viewH + 150) {
         ctx.strokeStyle = 'rgba(90,255,138,' + (0.5 + pulse * 0.5) + ')';
         ctx.lineWidth = 4;
         ctx.strokeRect(x - ez.w / 2, y - ez.h / 2, ez.w, ez.h);
-        // ARROW pekande på van
         ctx.fillStyle = '#5aff8a';
         ctx.font = 'bold 14px sans-serif';
         ctx.textAlign = 'center';
         ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
         ctx.fillText('🚐 EXTRACT', x, y - ez.h / 2 - 8);
         ctx.shadowBlur = 0;
+        ctx.textAlign = 'left';
       }
     }
   }
@@ -10198,15 +10200,41 @@ function _drawHeistTerminal(term, sx, sy, hacked) {
 }
 
 // v1.622: HEIST NPCs (civilians + guards) — server broadcastar position/state
+// v1.637: LERP mellan prev/current för smooth movement (var hackigt vid 10Hz)
 function drawHeistNPCs() {
   if (!state.heistNPCs) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const t = performance.now();
+  const interval = state._heistNpcInterval || 100;
   for (const n of state.heistNPCs) {
-    const sx = n.x - cx, sy = n.y - cy;
+    // Interpolation factor: 0..1+ baserat på time-since-update / expected-interval
+    const since = n._updateAt ? (t - n._updateAt) : interval;
+    // Lerp men cap vid 1.15 för subtil extrapolation (mindre stutter på sista frames)
+    let f = since / interval;
+    if (f > 1.15) f = 1.15;
+    if (f < 0) f = 0;
+    const prevX = (n._prevX != null) ? n._prevX : n.x;
+    const prevY = (n._prevY != null) ? n._prevY : n.y;
+    const prevF = (n._prevF != null) ? n._prevF : (n.f || 0);
+    const rx = prevX + (n.x - prevX) * f;
+    const ry = prevY + (n.y - prevY) * f;
+    // Facing-lerp: shortest-arc rotation
+    let df = (n.f || 0) - prevF;
+    while (df > Math.PI) df -= Math.PI * 2;
+    while (df < -Math.PI) df += Math.PI * 2;
+    const rf = prevF + df * f;
+    // Spara renderad position så nästa update kan interpolera FROM här
+    n._renderX = rx; n._renderY = ry; n._renderF = rf;
+    // Temporärt sätt n.f för render-funktionerna (de läser den)
+    const origF = n.f;
+    n.f = rf;
+    const sx = rx - cx, sy = ry - cy;
+    n.f = origF; // restore omedelbart efter render-call
     if (sx < -60 || sx > viewW + 60 || sy < -60 || sy > viewH + 60) continue;
+    n.f = rf;
     if (n.t === 'civilian') _drawHeistCivilian(n, sx, sy, t);
     else if (n.t === 'guard') _drawHeistGuard(n, sx, sy, t);
+    n.f = origF;
   }
 }
 
@@ -24519,8 +24547,9 @@ const Coop = {
         state.customStages = [{
           id: 'heist_arena', name: ev.arena.name || 'STORBANKEN',
           kind: 'heist', worldW: ev.arena.worldW, worldH: ev.arena.worldH,
-          spawnPos: { x: 2000, y: 3800 },
-          goalPos: { x: 2000, y: 3700 },
+          // v1.637: spawn längre ut (var 3800, för nära banken)
+          spawnPos: { x: 2000, y: 3950 },
+          goalPos: { x: 1950, y: 450 },  // back-alley van (extract)
         }];
         state.wave = 1;
         WORLD.w = ev.arena.worldW; WORLD.h = ev.arena.worldH;
@@ -24636,8 +24665,34 @@ const Coop = {
       if (typeof showToast === 'function') showToast('🚨 STÖLD UPPTÄCKT — alarm!');
       if (typeof Audio !== 'undefined' && Audio.heistAlarmBell) Audio.heistAlarmBell();
     } else if (ev.type === 'heist_npcs') {
-      // { npcs: [{id, t (type), st (subType), x, y, s (state), f (facing), cn (cone), rg (range)}] }
-      state.heistNPCs = ev.npcs || [];
+      // v1.637: NPC INTERPOLATION — sparar PREV-position + timestamp, render lerp:ar
+      const newNpcs = ev.npcs || [];
+      const oldMap = {};
+      if (state.heistNPCs) for (const n of state.heistNPCs) oldMap[n.id] = n;
+      const nowMs = performance.now();
+      for (const n of newNpcs) {
+        const old = oldMap[n.id];
+        if (old) {
+          // Sätt PREV = senast renderade position (kan vara mitt i interp)
+          n._prevX = (old._renderX != null) ? old._renderX : old.x;
+          n._prevY = (old._renderY != null) ? old._renderY : old.y;
+          n._prevF = (old._renderF != null) ? old._renderF : (old.f || 0);
+        } else {
+          // Första gången vi ser denna NPC — ingen interpolation
+          n._prevX = n.x; n._prevY = n.y; n._prevF = n.f || 0;
+        }
+        n._updateAt = nowMs;
+      }
+      state.heistNPCs = newNpcs;
+      // Estimera tick-interval (default 100ms = 10Hz NPC-broadcast)
+      if (state._heistNpcLastUpdate) {
+        const delta = nowMs - state._heistNpcLastUpdate;
+        if (delta > 30 && delta < 500) {
+          state._heistNpcInterval = state._heistNpcInterval ?
+            state._heistNpcInterval * 0.7 + delta * 0.3 : delta;
+        }
+      }
+      state._heistNpcLastUpdate = nowMs;
     } else if (ev.type === 'heist_civilian_panic') {
       // Civilian började panika — visuell warning
       if (typeof showToast === 'function') showToast('😱 CIVILIAN PANIKAR');

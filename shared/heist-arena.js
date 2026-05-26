@@ -60,16 +60,18 @@ const HEIST_ARENA = {
 
   maxPlayers: 8,
 
-  // === PLAYER SPAWNS (street utanför fronten) ===
+  // === PLAYER SPAWNS — v1.637: längre ut på gatan (var y=3800, för nära banken)
+  // Bank south wall är vid y=3400. Spawn vid y=3950 = 550px söder om banken.
+  // Clearly OUTSIDE — player ser hela bank-fasaden framför sig.
   playerSpawns: [
-    { x: 1800, y: 3800 },
-    { x: 1900, y: 3800 },
-    { x: 2000, y: 3800 },
-    { x: 2100, y: 3800 },
-    { x: 2200, y: 3800 },
-    { x: 1850, y: 3900 },
-    { x: 2050, y: 3900 },
-    { x: 2150, y: 3900 },
+    { x: 1750, y: 3950 },
+    { x: 1850, y: 3950 },
+    { x: 1950, y: 3950 },
+    { x: 2050, y: 3950 },
+    { x: 2150, y: 3950 },
+    { x: 2250, y: 3950 },
+    { x: 1850, y: 3870 },
+    { x: 2150, y: 3870 },
   ],
 
   scaling: {

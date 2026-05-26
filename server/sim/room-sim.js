@@ -338,16 +338,30 @@ function tickSim(sim) {
     if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
   }
-  // CASTLE DEFENSE: co-op endless horde defense. Skydda castle-core mot vågor.
-  if (sim.castledefenseActive) {
-    tickCastleDefense(sim, dt, now);
+  // v1.637: HEIST HAR ABSOLUT PRIORITET — kollas FÖRE cd så cd-minions inte
+  // kan spawna under heist-match (var bug: cd-flag leakade in i heist → minions
+  // dök upp vilket gjorde matchen ospelbar).
+  if (sim.heistActive) {
+    // Defensiv: tvinga AV alla andra mode-flags så ingen leak kan ske
+    sim.castledefenseActive = false;
+    sim.survivorsActive = false;
+    sim.waveActive = false;
+    sim.battleroyaleActive = false;
+    sim.juggernautActive = false;
+    sim.tdmActive = false;
+    sim.ctfActive = false;
+    sim.siegeActive = false;
+    sim.gungameActive = false;
+    sim.kothActive = false;
+    sim.enemiesToSpawn = 0;
+    tickHeist(sim, dt, now);
     sim._tickCount = (sim._tickCount || 0) + 1;
     if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
   }
-  // v1.619: HEIST — 3-fas bank-rån (stealth → alarm → extract)
-  if (sim.heistActive) {
-    tickHeist(sim, dt, now);
+  // CASTLE DEFENSE: co-op endless horde defense. Skydda castle-core mot vågor.
+  if (sim.castledefenseActive) {
+    tickCastleDefense(sim, dt, now);
     sim._tickCount = (sim._tickCount || 0) + 1;
     if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
@@ -4054,19 +4068,23 @@ function tickHeist(sim, dt, nowMs) {
     }
   } else if (sim.heistPhase === 'extract') {
     // EXTRACT: spelaren måste komma till getaway-van inom 60s.
-    // Iter 1: auto-win vid timeout-success för testing.
     const extractMaxMs = (arena.extractDurationSec || 60) * 1000;
     if (phaseElapsedMs >= extractMaxMs) {
-      // Vid timeout — kolla om någon spelare är i extract-zone
-      const ez = arena.extractZones.front;
+      // v1.637: iterate ALL extract zones (front borttagen i v1.634 — server kraschade)
       let anyInZone = false;
-      for (const [, ws] of sim.room.members) {
-        if (!ws.playerState || ws.playerState.hp <= 0) continue;
-        const dx = ws.playerState.x - (ez.x + ez.w / 2);
-        const dy = ws.playerState.y - (ez.y + ez.h / 2);
-        if (Math.abs(dx) < ez.w / 2 + 40 && Math.abs(dy) < ez.h / 2 + 40) {
-          anyInZone = true; break;
+      const zones = arena.extractZones || {};
+      for (const k of Object.keys(zones)) {
+        const ez = zones[k];
+        if (!ez) continue;
+        for (const [, ws] of sim.room.members) {
+          if (!ws.playerState || ws.playerState.hp <= 0) continue;
+          const dx = ws.playerState.x - (ez.x + ez.w / 2);
+          const dy = ws.playerState.y - (ez.y + ez.h / 2);
+          if (Math.abs(dx) < ez.w / 2 + 40 && Math.abs(dy) < ez.h / 2 + 40) {
+            anyInZone = true; break;
+          }
         }
+        if (anyInZone) break;
       }
       sim.heistEnded = true;
       sim.heistActive = false;
@@ -4263,8 +4281,15 @@ function tickHeist(sim, dt, nowMs) {
         sim.heistDroppedBags = remaining;
       }
     };
-    checkZone(arena.extractZones && arena.extractZones.front);
-    if (sim.heistBackExtractUnlocked) checkZone(arena.extractZones && arena.extractZones.back);
+    // v1.637: iterera ALLA extract-zones (front borttagen)
+    if (arena.extractZones) {
+      for (const k of Object.keys(arena.extractZones)) {
+        const ez = arena.extractZones[k];
+        if (!ez) continue;
+        if (ez.locked && !(k === 'back' && sim.heistBackExtractUnlocked) && !(sim.heistUnlockedDoors && sim.heistUnlockedDoors[k])) continue;
+        checkZone(ez);
+      }
+    }
   }
 
   // === HUD-broadcast (var 500ms) ===
