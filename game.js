@@ -8771,17 +8771,17 @@ function drawHeistWalls() {
       ctx.fillStyle = '#cc2a2a';
       ctx.fillRect(x + 2, y + 2, w.w - 4, w.h - 4);
     } else {
-      // Standard bank-vägg — DARK MAHOGANY/STONE för kontrast mot bank-floor
-      ctx.fillStyle = '#1a1208';                          // svart bas
+      // Standard bank-vägg — MEDIUM-STONE för kontrast mot ALLA floors (ljus + mörk)
+      ctx.fillStyle = '#5a4838';                          // medel-stone base
       ctx.fillRect(x, y, w.w, w.h);
-      ctx.fillStyle = '#3a2a1a';                          // mörk mahogny
+      ctx.fillStyle = '#8a7458';                          // ljus-stone insida
       ctx.fillRect(x + 1, y + 1, w.w - 2, w.h - 2);
-      ctx.fillStyle = '#5a4030';                          // medel-trä
-      ctx.fillRect(x + 2, y + 2, w.w - 4, w.h - 4);
-      ctx.fillStyle = '#7a5a40';                          // top-highlight (catches light)
-      ctx.fillRect(x + 2, y + 2, w.w - 4, 4);
-      // Wall-panel-lines (horisontellt om wall är vertikal, vice versa)
-      ctx.fillStyle = '#2a1a10';
+      ctx.fillStyle = '#aa9070';                          // top-highlight (catches light)
+      ctx.fillRect(x + 1, y + 1, w.w - 2, 5);
+      ctx.fillStyle = '#3a2a1a';                          // dark inner-band för djup
+      ctx.fillRect(x + 1, y + w.h - 5, w.w - 2, 4);
+      // Wall-panel-lines (textur)
+      ctx.fillStyle = '#3a2a1a';
       if (w.h > w.w) {
         for (let ly = y + 50; ly < y + w.h - 5; ly += 80) {
           ctx.fillRect(x + 2, ly, w.w - 4, 1);
@@ -8791,9 +8791,10 @@ function drawHeistWalls() {
           ctx.fillRect(lx, y + 2, 1, w.h - 4);
         }
       }
-      ctx.strokeStyle = '#000';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x + 0.5, y + 0.5, w.w - 1, w.h - 1);
+      // KRAFTIG svart outline (gör väggar synliga mot ALLA floor-färger)
+      ctx.strokeStyle = '#0a0805';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(x + 1, y + 1, w.w - 2, w.h - 2);
     }
   }
   // === DOORS (visuella, ren färg per typ) ===
@@ -9783,7 +9784,240 @@ function _drawHeistDecoration(kind, x, y) {
       ctx.font = 'bold 8px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('🚐', x - 12, y + 4);
+      ctx.textAlign = 'left';
       break;
+    // ===== v1.634 HEIST DECORATIONS (flyttade hit från fel funktion) =====
+    case 'cardboard_box': {
+      ctx.fillStyle = '#3a2818'; ctx.fillRect(x - 14, y - 12, 28, 24);
+      ctx.fillStyle = '#8a5a30'; ctx.fillRect(x - 12, y - 10, 24, 20);
+      ctx.fillStyle = '#aa7a48'; ctx.fillRect(x - 12, y - 10, 24, 4);
+      ctx.fillStyle = '#dab48a'; ctx.fillRect(x - 12, y - 2, 24, 4); ctx.fillRect(x - 2, y - 10, 4, 20);
+      ctx.strokeStyle = '#2a1a08'; ctx.lineWidth = 1; ctx.strokeRect(x - 14, y - 12, 28, 24);
+      break;
+    }
+    case 'pallet': {
+      ctx.fillStyle = '#3a2818'; ctx.fillRect(x - 22, y - 14, 44, 28);
+      ctx.fillStyle = '#6a4828';
+      for (let i = 0; i < 4; i++) ctx.fillRect(x - 22, y - 12 + i * 7, 44, 4);
+      ctx.fillStyle = '#1a1008';
+      ctx.fillRect(x - 22, y - 14, 4, 28); ctx.fillRect(x - 4, y - 14, 4, 28); ctx.fillRect(x + 14, y - 14, 4, 28);
+      break;
+    }
+    case 'fire_extinguisher': {
+      ctx.fillStyle = '#1a0a0a'; ctx.fillRect(x - 6, y - 14, 12, 28);
+      ctx.fillStyle = '#cc2a2a'; ctx.fillRect(x - 5, y - 12, 10, 24);
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 3, y - 16, 6, 6);
+      ctx.fillStyle = '#fff'; ctx.fillRect(x - 4, y - 4, 8, 6);
+      ctx.fillStyle = '#1a1a1a'; ctx.font = '6px sans-serif'; ctx.fillText('F', x - 2, y);
+      break;
+    }
+    case 'mop_bucket': {
+      ctx.fillStyle = '#1a3a1a'; ctx.beginPath(); ctx.ellipse(x, y + 4, 14, 6, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#3a7a3a'; ctx.fillRect(x - 12, y - 6, 24, 12);
+      ctx.fillStyle = '#1a4a1a'; ctx.beginPath(); ctx.ellipse(x, y - 6, 12, 4, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#8a5a30'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x + 6, y - 4); ctx.lineTo(x + 18, y - 22); ctx.stroke();
+      ctx.fillStyle = '#cccccc'; ctx.fillRect(x + 16, y - 24, 6, 4);
+      break;
+    }
+    case 'mailbox': {
+      ctx.fillStyle = '#1a2a4a'; ctx.fillRect(x - 4, y, 8, 28);
+      ctx.fillStyle = '#3a5a8a'; ctx.fillRect(x - 14, y - 16, 28, 20);
+      ctx.fillStyle = '#5a7aaa'; ctx.fillRect(x - 13, y - 14, 26, 4);
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 8, y - 6, 16, 2);
+      ctx.fillStyle = '#ff8a3a'; ctx.fillRect(x + 10, y - 12, 3, 8);
+      break;
+    }
+    case 'tree': {
+      ctx.fillStyle = '#3a1a08'; ctx.fillRect(x - 4, y - 4, 8, 20);
+      ctx.fillStyle = '#1a3a1a'; ctx.beginPath(); ctx.arc(x, y - 14, 22, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#2a5a2a'; ctx.beginPath(); ctx.arc(x - 6, y - 18, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#3a7a3a'; ctx.beginPath(); ctx.arc(x + 4, y - 14, 14, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#5a9a5a'; ctx.beginPath(); ctx.arc(x - 2, y - 20, 8, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'police_barrier': {
+      ctx.fillStyle = '#fff'; ctx.fillRect(x - 30, y - 4, 60, 8);
+      ctx.fillStyle = '#cc2a2a';
+      for (let i = 0; i < 4; i++) ctx.fillRect(x - 30 + i * 16, y - 4, 8, 8);
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 30, y + 4, 4, 14); ctx.fillRect(x + 26, y + 4, 4, 14);
+      break;
+    }
+    case 'bank_sign': {
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 50, y - 12, 100, 24);
+      ctx.fillStyle = '#ffd54a'; ctx.fillRect(x - 48, y - 10, 96, 20);
+      ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('STORBANKEN', x, y + 4);
+      ctx.textAlign = 'left';
+      break;
+    }
+    case 'info_kiosk': {
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 18, y - 20, 36, 40);
+      ctx.fillStyle = '#3a3a3a'; ctx.fillRect(x - 16, y - 18, 32, 36);
+      ctx.fillStyle = '#5acaff'; ctx.fillRect(x - 12, y - 14, 24, 18);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 8px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('INFO', x, y - 2);
+      ctx.textAlign = 'left';
+      break;
+    }
+    case 'exit_sign': {
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 16, y - 6, 32, 12);
+      ctx.fillStyle = '#5aff5a'; ctx.fillRect(x - 14, y - 4, 28, 8);
+      ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('EXIT', x, y + 2);
+      ctx.textAlign = 'left';
+      break;
+    }
+    case 'water_cooler': {
+      ctx.fillStyle = '#3a4a5a'; ctx.fillRect(x - 10, y - 4, 20, 20);
+      ctx.fillStyle = '#7acaff'; ctx.fillRect(x - 8, y - 16, 16, 16);
+      ctx.fillStyle = '#5aaaff'; ctx.fillRect(x - 8, y - 14, 16, 12);
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 2, y + 4, 4, 4);
+      break;
+    }
+    case 'printer': {
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 18, y - 8, 36, 20);
+      ctx.fillStyle = '#dadada'; ctx.fillRect(x - 16, y - 6, 32, 16);
+      ctx.fillStyle = '#3a3a3a'; ctx.fillRect(x - 14, y - 4, 28, 4);
+      ctx.fillStyle = '#5aff5a'; ctx.fillRect(x + 10, y + 2, 3, 3);
+      break;
+    }
+    case 'trash_pile': {
+      ctx.fillStyle = '#3a2818'; ctx.beginPath(); ctx.arc(x - 6, y + 4, 8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#5a3818'; ctx.beginPath(); ctx.arc(x + 4, y + 2, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#2a2010'; ctx.beginPath(); ctx.arc(x - 2, y - 4, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#dab48a'; ctx.fillRect(x - 8, y - 6, 4, 6);
+      break;
+    }
+    case 'promo_banner': {
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 40, y - 18, 80, 36);
+      ctx.fillStyle = '#5a3a08'; ctx.fillRect(x - 38, y - 16, 76, 32);
+      ctx.fillStyle = '#ffd54a'; ctx.font = 'bold 10px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('NEW LOAN', x, y - 2);
+      ctx.fillText('3.9% APR', x, y + 10);
+      ctx.textAlign = 'left';
+      break;
+    }
+    case 'shopping_cart': {
+      ctx.strokeStyle = '#aaaaaa'; ctx.lineWidth = 1.5; ctx.strokeRect(x - 12, y - 8, 24, 16);
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath(); ctx.moveTo(x - 12 + i * 8, y - 8); ctx.lineTo(x - 12 + i * 8, y + 8); ctx.stroke();
+      }
+      ctx.fillStyle = '#5a5a5a';
+      ctx.beginPath(); ctx.arc(x - 10, y + 12, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 10, y + 12, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#cccccc'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x + 12, y - 8); ctx.lineTo(x + 22, y - 14); ctx.stroke();
+      break;
+    }
+    case 'air_conditioner': {
+      ctx.fillStyle = '#2a3a4a'; ctx.fillRect(x - 16, y - 12, 32, 24);
+      ctx.fillStyle = '#5a7a9a'; ctx.fillRect(x - 14, y - 10, 28, 20);
+      ctx.fillStyle = '#1a2a3a';
+      for (let i = 0; i < 6; i++) ctx.fillRect(x - 12, y - 8 + i * 3, 24, 1);
+      break;
+    }
+    case 'gold_bar_box': {
+      ctx.fillStyle = '#3a2a08'; ctx.fillRect(x - 18, y - 10, 36, 20);
+      ctx.fillStyle = '#ffd54a';
+      ctx.fillRect(x - 16, y - 8, 16, 6); ctx.fillRect(x + 2, y - 8, 14, 6);
+      ctx.fillRect(x - 14, y, 14, 6); ctx.fillRect(x + 2, y, 14, 6);
+      ctx.strokeStyle = '#1a1008'; ctx.lineWidth = 1; ctx.strokeRect(x - 18, y - 10, 36, 20);
+      break;
+    }
+    case 'diamond_display': {
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 16, y - 10, 32, 20);
+      ctx.fillStyle = '#0a0a0a'; ctx.fillRect(x - 14, y - 8, 28, 16);
+      ctx.fillStyle = 'rgba(180,220,255,0.4)'; ctx.fillRect(x - 14, y - 8, 28, 16);
+      ctx.fillStyle = '#bcddff';
+      ctx.beginPath(); ctx.arc(x - 6, y, 3, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 4, y - 2, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(x + 8, y + 3, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#cccccc'; ctx.lineWidth = 1; ctx.strokeRect(x - 16, y - 10, 32, 20);
+      break;
+    }
+    case 'magazine_rack': {
+      ctx.fillStyle = '#5a4a3a'; ctx.fillRect(x - 14, y - 10, 28, 20);
+      ctx.fillStyle = '#3a2818'; ctx.fillRect(x - 14, y - 10, 28, 4);
+      ctx.fillStyle = '#5acaff'; ctx.fillRect(x - 12, y - 4, 6, 12);
+      ctx.fillStyle = '#ffd54a'; ctx.fillRect(x - 5, y - 4, 6, 12);
+      ctx.fillStyle = '#ff5a5a'; ctx.fillRect(x + 2, y - 4, 6, 12);
+      break;
+    }
+    case 'umbrella_stand': {
+      ctx.fillStyle = '#3a3a3a'; ctx.fillRect(x - 7, y - 4, 14, 16);
+      ctx.fillStyle = '#5a5a5a'; ctx.beginPath(); ctx.ellipse(x, y - 4, 7, 3, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#1a2a4a'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x - 3, y - 4); ctx.lineTo(x - 5, y - 18); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x + 2, y - 4); ctx.lineTo(x + 4, y - 18); ctx.stroke();
+      break;
+    }
+    case 'rope_barrier': {
+      ctx.fillStyle = '#ffd54a'; ctx.fillRect(x - 4, y - 14, 8, 14); ctx.fillRect(x + 36, y - 14, 8, 14);
+      ctx.fillStyle = '#cc2a2a'; ctx.fillRect(x - 4, y - 14, 8, 4); ctx.fillRect(x + 36, y - 14, 8, 4);
+      ctx.strokeStyle = '#7a1a1a'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(x + 4, y - 8); ctx.lineTo(x + 36, y - 8); ctx.stroke();
+      break;
+    }
+    case 'newspaper': {
+      ctx.fillStyle = '#dadada'; ctx.fillRect(x - 8, y - 6, 16, 12);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 7, y - 5, 14, 2); ctx.fillRect(x - 7, y - 1, 14, 1);
+      ctx.fillRect(x - 7, y + 1, 14, 1); ctx.fillRect(x - 7, y + 3, 14, 1);
+      break;
+    }
+    case 'parking_meter': {
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 3, y, 6, 24);
+      ctx.fillStyle = '#3a3a3a'; ctx.fillRect(x - 8, y - 12, 16, 14);
+      ctx.fillStyle = '#5aff5a'; ctx.fillRect(x - 6, y - 10, 12, 6);
+      ctx.fillStyle = '#1a1a1a'; ctx.font = 'bold 6px sans-serif'; ctx.fillText('$', x - 1, y - 5);
+      break;
+    }
+    case 'manhole': {
+      ctx.fillStyle = '#1a1a1a'; ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = '#2a2a2a';
+      for (let i = 0; i < 4; i++) {
+        const a = i * Math.PI / 2;
+        ctx.fillRect(x + Math.cos(a) * 8 - 1, y + Math.sin(a) * 8 - 1, 2, 2);
+      }
+      break;
+    }
+    case 'puddle': {
+      ctx.fillStyle = 'rgba(60,80,100,0.5)';
+      ctx.beginPath(); ctx.ellipse(x, y, 18, 8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(120,150,180,0.3)';
+      ctx.beginPath(); ctx.ellipse(x - 3, y - 1, 8, 3, 0, 0, Math.PI * 2); ctx.fill();
+      break;
+    }
+    case 'crowd_barrier': {
+      ctx.fillStyle = '#3a3a3a'; ctx.fillRect(x - 24, y - 2, 48, 4);
+      ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x - 24, y - 12, 4, 14); ctx.fillRect(x + 20, y - 12, 4, 14);
+      for (let i = 0; i < 3; i++) ctx.fillRect(x - 18 + i * 12, y - 8, 2, 10);
+      break;
+    }
+    case 'safety_box': {
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 12, y - 16, 24, 32);
+      ctx.fillStyle = '#3a3a3a'; ctx.fillRect(x - 10, y - 14, 20, 28);
+      ctx.fillStyle = '#aaaaaa'; ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 1, y - 4, 2, 4);
+      ctx.fillStyle = '#5a5a5a'; ctx.fillRect(x - 6, y + 8, 12, 3);
+      break;
+    }
+    case 'wall_mounted_sign': {
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(x - 18, y - 8, 36, 16);
+      ctx.fillStyle = '#5a8aaa'; ctx.fillRect(x - 16, y - 6, 32, 12);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 7px sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText('OFFICE', x, y + 2);
+      ctx.textAlign = 'left';
+      break;
+    }
+    default: {
+      // Fallback: synlig markör så vi ser om kind saknas
+      ctx.fillStyle = '#cc4a4a';
+      ctx.fillRect(x - 4, y - 4, 8, 8);
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 2, y - 2, 4, 4);
+    }
   }
 }
 
@@ -13477,23 +13711,7 @@ function drawCabinInteriorItem(item, cx, cy) {
       }
       break;
     }
-    // ===== v1.632 NYA HEIST DECORATIONS =====
-    case 'cardboard_box': {
-      ctx.fillStyle = '#3a2818';
-      ctx.fillRect(x - 14, y - 12, 28, 24);
-      ctx.fillStyle = '#8a5a30';
-      ctx.fillRect(x - 12, y - 10, 24, 20);
-      ctx.fillStyle = '#aa7a48';
-      ctx.fillRect(x - 12, y - 10, 24, 4);
-      // Tape
-      ctx.fillStyle = '#dab48a';
-      ctx.fillRect(x - 12, y - 2, 24, 4);
-      ctx.fillRect(x - 2, y - 10, 4, 20);
-      ctx.strokeStyle = '#2a1a08'; ctx.lineWidth = 1;
-      ctx.strokeRect(x - 14, y - 12, 28, 24);
-      break;
-    }
-    case 'pallet': {
+    case 'pallet_DEAD': {
       ctx.fillStyle = '#3a2818';
       ctx.fillRect(x - 22, y - 14, 44, 28);
       ctx.fillStyle = '#6a4828';
@@ -36296,7 +36514,8 @@ function ensureHeistActionBtn() {
   btn.id = 'heist-action-btn';
   // v1.624 fix: bottom 150→200 + min-width + tabular-nums så knappen inte krockar
   // med fire-cluster (right:58, bottom:58, grenade upp till bottom:180)
-  btn.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:max(200px, calc(env(safe-area-inset-bottom, 0px) + 200px));z-index:62;background:rgba(20,8,2,0.92);border:3px solid #ffae3a;border-radius:14px;padding:12px 22px;color:#ffd54a;font-family:sans-serif;font-weight:900;font-size:14px;letter-spacing:1.5px;box-shadow:0 0 18px rgba(255,174,58,0.5);cursor:pointer;display:none;text-shadow:0 1px 2px #000;pointer-events:auto;min-width:140px;max-width:80vw;white-space:nowrap;font-variant-numeric:tabular-nums;';
+  // v1.634: flyttad från center → top-right (var mitt över spelaren — extremt störande)
+  btn.style.cssText = 'position:fixed;right:max(12px, env(safe-area-inset-right, 12px));top:max(120px, calc(env(safe-area-inset-top, 0px) + 120px));z-index:62;background:rgba(20,8,2,0.88);border:2px solid #ffae3a;border-radius:10px;padding:7px 14px;color:#ffd54a;font-family:sans-serif;font-weight:900;font-size:11px;letter-spacing:1px;box-shadow:0 0 12px rgba(255,174,58,0.4);cursor:pointer;display:none;text-shadow:0 1px 2px #000;pointer-events:auto;min-width:100px;max-width:55vw;white-space:nowrap;font-variant-numeric:tabular-nums;';
   btn.textContent = 'ACTION';
   document.body.appendChild(btn);
   // v1.613-pattern: touchstart + click med debounce
@@ -36320,12 +36539,23 @@ function getHeistContextAction() {
   const px = state.player.x, py = state.player.y;
   const phase = state.heistPhase || 'stealth';
 
-  // EXTRACT phase + i extract-zone = "EXTRACT"
-  if (phase === 'extract' && state.heistArena && state.heistArena.extractZones) {
-    const ez = state.heistArena.extractZones.front;
-    if (ez && Math.abs(px - (ez.x + ez.w / 2)) < ez.w / 2 + 40 &&
-            Math.abs(py - (ez.y + ez.h / 2)) < ez.h / 2 + 40) {
-      return { label: '🚐 EXTRACT', action: null }; // automatic vid timeout
+  // v1.634: I extract-zon = "STIG IN I BIL" (alla phases om man har säckar)
+  // Iterar alla extract-zones så vi inte hårdkodar 'front' (som tagits bort)
+  if (state.heistArena && state.heistArena.extractZones) {
+    const carryingBags = (state.heistMyBagsCarrying || 0) > 0;
+    for (const k of Object.keys(state.heistArena.extractZones)) {
+      const ez = state.heistArena.extractZones[k];
+      if (!ez) continue;
+      if (ez.locked && !(state.heistUnlockedDoors && state.heistUnlockedDoors[k])) continue;
+      if (Math.abs(px - (ez.x + ez.w / 2)) < ez.w / 2 + 40 &&
+          Math.abs(py - (ez.y + ez.h / 2)) < ez.h / 2 + 40) {
+        if (carryingBags) {
+          return { label: '🚐 STIG IN I BIL', action: 'drop_bags' };
+        }
+        if (phase === 'extract') {
+          return { label: '🚐 EXTRACT', action: null };
+        }
+      }
     }
   }
 

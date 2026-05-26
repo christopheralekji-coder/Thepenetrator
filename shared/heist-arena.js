@@ -84,11 +84,11 @@ const HEIST_ARENA = {
   startWeapon: 'fists',
   startGrenades: 0,
 
-  // === EXTRACTION ZONES (3 nu — primary + back + loading-dock) ===
+  // === EXTRACTION ZONE — endast BACK-ALLEY (v1.634, user-feedback) ===
+  // Bara EN flyktbil bakom banken. Players spawnar utanför (street/front),
+  // måste ta sig genom banken till alley för extract.
   extractZones: {
-    front:  { x: 2000, y: 3700, w: 200, h: 100, kind: 'van_front',   locked: false },
-    back:   { x: 1900, y: 400,  w: 100, h: 120, kind: 'van_back',    locked: true  },
-    loading:{ x: 900,  y: 350,  w: 150, h: 120, kind: 'van_loading', locked: true  },
+    back:   { x: 1900, y: 400, w: 200, h: 120, kind: 'van_back', locked: false },
   },
 
   // === WALLS — v1.630 KOMPLETT OMSKRIVNING ===
@@ -705,7 +705,7 @@ const HEIST_ARENA = {
     { kind: 'newspaper',      x: 1200, y: 3650 },
     { kind: 'newspaper',      x: 2800, y: 3650 },
     { kind: 'bank_sign',      x: 2000, y: 3450 },  // huvudskylt utanför banken (på trottoaren)
-    { kind: 'getaway_van',    x: 2000, y: 3700 },
+    // GETAWAY-VAN FRONT BORTTAGEN (v1.634) — endast back-van är extract
     // SIDEWALK details — left side (x=0-600)
     { kind: 'tree',           x: 300,  y: 900 },
     { kind: 'tree',           x: 300,  y: 1500 },
@@ -778,8 +778,7 @@ const HEIST_ARENA = {
     { kind: 'puddle',      x: 2400, y: 550 },
     { kind: 'manhole',     x: 1500, y: 600 },
     { kind: 'manhole',     x: 2500, y: 600 },
-    { kind: 'getaway_van', x: 1950, y: 400 },
-    { kind: 'getaway_van', x: 950,  y: 350 },  // loading-dock van
+    { kind: 'getaway_van', x: 1950, y: 450 },  // ENDA flyktbilen (back-alley)
   ],
 
   // === LOOT-SPOTS (25 stycken) ===
