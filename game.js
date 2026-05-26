@@ -24651,6 +24651,16 @@ const Coop = {
       state.heistPhase = 'stealth';
       state.heistStartT = Date.now();
       state.heistArena = ev.arena;
+      // v1.642: Stoppa wave-progression som actuallyStartGame→startWave(1) startade.
+      // Heist har INGA waves; om dessa flaggor läcker triggar safety-fallback efter
+      // 40s med "Server svarar inte — host-fallback" → lokal sim börjar spawna
+      // wave-1 minions inne i banken (rapporterad som "minion spawnar som single-player").
+      state.enemies = []; state.bullets = [];
+      state.bossAlive = false; state.bossIntro = null;
+      state.waveActive = false;
+      state.enemiesToSpawn = 0;
+      state._serverSpawnWaitSince = 0;
+      state._serverWakeToastShown = false;
       // v1.635: PREFER LOCAL HEIST_ARENA om den har MER data (täcker stale server)
       const local = (typeof window !== 'undefined') ? window.HEIST_ARENA : null;
       const pick = (serverArr, localArr) => {
@@ -71862,7 +71872,11 @@ function runFrame(dt, now) {
       if (Coop.active && Coop.isHost && Coop.serverSimActive && state.waveActive &&
           state.enemiesToSpawn > 0 && state.enemies.length === 0 &&
           state.mode === 'playing' &&
-          !state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive && !state.kothActive && !state.juggernautActive) {
+          !state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive && !state.kothActive && !state.juggernautActive &&
+          // v1.642: server-auth modes utan wave-spawn (heist/CD/survivors/BR) ska
+          // INTE trigga fallback — de använder server-side spawning som inte
+          // matchar state.waveActive/enemiesToSpawn-mönstret
+          !state.heistActive && !state.castledefenseActive && !state.survivorsActive && !state.battleroyaleActive) {
         const countdownActive = state._countdownEndAt && performance.now() < state._countdownEndAt;
         if (!countdownActive) {
           state._serverSpawnWaitSince = state._serverSpawnWaitSince || performance.now();
