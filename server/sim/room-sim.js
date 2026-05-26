@@ -4159,6 +4159,14 @@ function tickHeist(sim, dt, nowMs) {
     }
   }
 
+  // === v1.641: BUILD spatial-hash innan bullets — annars hittar bullets-loopen
+  // inga enemies via sim.enemyGrid.getNearby() (huvudloopens grid-rebuild på
+  // line ~412 hoppas över eftersom heist-grenen tidigt-returnar). Detta var
+  // varför poliser visade som odödliga: skott passerade rakt igenom dem. ===
+  sim.enemyGrid.clear();
+  for (const e of sim.enemies) {
+    if (!e.dead) sim.enemyGrid.insert(e);
+  }
   // === v1.638: BULLET-tick (var saknad — police-skott fastnade i luften!) ===
   updateBullets(sim, dt, nowMs);
 
@@ -4218,6 +4226,8 @@ function tickHeist(sim, dt, nowMs) {
       for (const e of sim.enemies) {
         if (!e || e.dead) continue;
         updateEnemy(e, dt, nowMs, sim, heistPlayers);
+        // v1.641: blockera cops mot väggar — annars går de rakt igenom banken
+        _heistResolveWalls(e, arena);
       }
     }
     // Cleanup dead enemies + broadcast kills
@@ -4465,6 +4475,8 @@ function _heistTickCivilian(npc, dt, nowMs, sim, players, arena) {
       npc.facing = Math.atan2(dy, dx);
     }
   }
+  // v1.641: blockera mot väggar så civilians inte panic-springer genom desks
+  _heistResolveWalls(npc, arena);
 }
 
 function _heistTickGuard(npc, dt, nowMs, sim, players, arena) {
@@ -4520,6 +4532,8 @@ function _heistTickGuard(npc, dt, nowMs, sim, players, arena) {
       npc.state = 'patrol'; // återgår, men alarm har triggats
     }
   }
+  // v1.641: blockera mot väggar så vaktar inte patrullerar genom väggarna
+  _heistResolveWalls(npc, arena);
 }
 
 function _heistNearestExit(x, y, arena) {
@@ -4569,6 +4583,40 @@ function _heistLineBlockedByWall(x0, y0, x1, y1, arena) {
     if (blocked && tMin <= tMax) return true;
   }
   return false;
+}
+
+// v1.641: circle-vs-AABB push-out så NPCs/cops inte går igenom väggar.
+// Samma wall-set som LOS-checken (kind='wall' eller 'wall_vault'). Counters/pillars
+// behåller bullet-through-cover-pattern — de pushar inte heller actorn.
+function _heistResolveWalls(actor, arena) {
+  if (!arena || !arena.walls) return;
+  const r = actor.r || 14;
+  for (const w of arena.walls) {
+    if (w.kind !== 'wall' && w.kind !== 'wall_vault') continue;
+    const cx = Math.max(w.x, Math.min(actor.x, w.x + w.w));
+    const cy = Math.max(w.y, Math.min(actor.y, w.y + w.h));
+    const dx = actor.x - cx, dy = actor.y - cy;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < r * r) {
+      if (d2 > 0.0001) {
+        const d = Math.sqrt(d2);
+        const push = r - d;
+        actor.x += (dx / d) * push;
+        actor.y += (dy / d) * push;
+      } else {
+        // Center inuti rect — pusha ut längs närmsta kant
+        const dl = actor.x - w.x;
+        const dright = (w.x + w.w) - actor.x;
+        const dtop = actor.y - w.y;
+        const dbot = (w.y + w.h) - actor.y;
+        const minEdge = Math.min(dl, dright, dtop, dbot);
+        if (minEdge === dl) actor.x = w.x - r;
+        else if (minEdge === dright) actor.x = w.x + w.w + r;
+        else if (minEdge === dtop) actor.y = w.y - r;
+        else actor.y = w.y + w.h + r;
+      }
+    }
+  }
 }
 
 // När alarm triggas: konvertera guards till regular enemies så police-AI tar över
