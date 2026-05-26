@@ -704,8 +704,40 @@ const HEIST_ARENA = {
     { kind: 'fire_hydrant',   x: 1100, y: 3500 },  // (also as wall but visual ok)
     { kind: 'newspaper',      x: 1200, y: 3650 },
     { kind: 'newspaper',      x: 2800, y: 3650 },
-    { kind: 'bank_sign',      x: 2000, y: 3380 },  // huvudskylt utanför banken
+    { kind: 'bank_sign',      x: 2000, y: 3450 },  // huvudskylt utanför banken (på trottoaren)
     { kind: 'getaway_van',    x: 2000, y: 3700 },
+    // SIDEWALK details — left side (x=0-600)
+    { kind: 'tree',           x: 300,  y: 900 },
+    { kind: 'tree',           x: 300,  y: 1500 },
+    { kind: 'tree',           x: 300,  y: 2100 },
+    { kind: 'tree',           x: 300,  y: 2700 },
+    { kind: 'streetlight',    x: 400,  y: 1200 },
+    { kind: 'streetlight',    x: 400,  y: 1800 },
+    { kind: 'streetlight',    x: 400,  y: 2400 },
+    { kind: 'streetlight',    x: 400,  y: 3000 },
+    { kind: 'trash',          x: 200,  y: 1100 },
+    { kind: 'trash',          x: 200,  y: 2200 },
+    { kind: 'mailbox',        x: 350,  y: 1700 },
+    { kind: 'mailbox',        x: 350,  y: 2600 },
+    { kind: 'newspaper',      x: 250,  y: 1900 },
+    { kind: 'bench',          x: 300,  y: 1300 },
+    { kind: 'bench',          x: 300,  y: 2500 },
+    // SIDEWALK details — right side (x=3400-4000)
+    { kind: 'tree',           x: 3700, y: 900 },
+    { kind: 'tree',           x: 3700, y: 1500 },
+    { kind: 'tree',           x: 3700, y: 2100 },
+    { kind: 'tree',           x: 3700, y: 2700 },
+    { kind: 'streetlight',    x: 3600, y: 1200 },
+    { kind: 'streetlight',    x: 3600, y: 1800 },
+    { kind: 'streetlight',    x: 3600, y: 2400 },
+    { kind: 'streetlight',    x: 3600, y: 3000 },
+    { kind: 'trash',          x: 3800, y: 1100 },
+    { kind: 'trash',          x: 3800, y: 2200 },
+    { kind: 'mailbox',        x: 3650, y: 1700 },
+    { kind: 'mailbox',        x: 3650, y: 2600 },
+    { kind: 'newspaper',      x: 3750, y: 1900 },
+    { kind: 'bench',          x: 3700, y: 1300 },
+    { kind: 'bench',          x: 3700, y: 2500 },
 
     // ===== BACK ALLEY (y=0-700) =====
     { kind: 'dumpster',    x: 800,  y: 400 },
