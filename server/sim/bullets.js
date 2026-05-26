@@ -1410,7 +1410,9 @@ function updateBullets(sim, dt, now) {
     if (!b.hitIds) b.hitIds = new Set();
     // Anti-cheese: enemy måste vara nära ägarens spelare (på dennes skärm).
     // Bossar undantagna. ~viewport-radie för iPhone landscape ≈ 600px.
-    const ownerWsForCheese = b.ownerPid ? sim.room.members.get(b.ownerPid) : null;
+    // v1.639: HEIST har stor karta (4000x4000) — skippa cheese-check så police
+    // kan skjutas över rummen (annars passerar skott rakt genom dem)
+    const ownerWsForCheese = (b.ownerPid && !sim.heistActive) ? sim.room.members.get(b.ownerPid) : null;
     const ownerPosForCheese = (ownerWsForCheese && ownerWsForCheese.playerState)
       ? { x: ownerWsForCheese.playerState.x, y: ownerWsForCheese.playerState.y } : null;
     // SPATIAL-HASH: query bara enemies inom ~60px av bullet istället för linear-scan
