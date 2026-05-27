@@ -4141,7 +4141,16 @@ function tickHeist(sim, dt, nowMs) {
       if (sim.heistDisabledCameras && sim.heistDisabledCameras[cam.id]) continue;
       const camRange2 = (cam.range || 250) * (cam.range || 250);
       const cone = cam.cone || 0.7;
-      const dir = cam.dir || 0;
+      // v1.648: server-side sweep match klient-render (var statisk → klient
+      // visade kameran sveppa men detection-cone stod still = desync).
+      // Samma hash + Date.now() + sin-formel som game.js _drawHeistCamera.
+      let h = 0;
+      const camIdStr = cam.id || '';
+      for (let i = 0; i < camIdStr.length; i++) h = ((h << 5) - h + camIdStr.charCodeAt(i)) | 0;
+      const camPhase = (h % 1000) / 1000 * Math.PI * 2;
+      const sweepAmp = cam.sweepAmp != null ? cam.sweepAmp : 0.5;
+      const sweepPeriod = cam.sweepPeriod != null ? cam.sweepPeriod : 4500;
+      const dir = (cam.dir || 0) + Math.sin(Date.now() / sweepPeriod * Math.PI * 2 + camPhase) * sweepAmp;
       for (const [, ws] of sim.room.members) {
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         if (ws._heistCameraImmune) continue;

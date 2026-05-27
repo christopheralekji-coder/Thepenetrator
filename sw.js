@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v647-heist-lockpick-tick-complete';
+const CACHE = 'penetrator-v648-heist-LOS-sync-spawn-fix';
 const ASSETS = [
   './',
   './index.html',

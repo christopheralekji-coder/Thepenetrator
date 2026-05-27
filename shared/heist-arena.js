@@ -873,7 +873,7 @@ const HEIST_ARENA = {
     { id: 'term2', x: 800,  y: 1750, disables: ['cam_lobby_east', 'cam_lobby_center', 'cam_counter_l'], hackTime: 4 },
     { id: 'term3', x: 800,  y: 1900, disables: ['cam_counter_r', 'cam_hallway', 'cam_office_entry'], hackTime: 4 },
     { id: 'term4', x: 1850, y: 2050, disables: ['cam_break', 'cam_conference'], hackTime: 4 },  // i conference!
-    { id: 'term5', x: 1080, y: 1700, disables: ['cam_vault_outer', 'cam_server'], hackTime: 4 },  // server-rum själv
+    { id: 'term5', x: 1080, y: 1750, disables: ['cam_vault_outer', 'cam_server'], hackTime: 4 },  // server-rum (y=1700 var inuti vägg, v1.648)
     // MASTER — i security room, slår ut ALLA + vault-inner-cam
     { id: 'term_master', x: 3250, y: 1550, disables: ['cam_vault_inner', 'cam_security'], hackTime: 6, master: true },
   ],
@@ -911,8 +911,9 @@ const HEIST_ARENA = {
       patrol: [[1300, 2800], [2700, 2800]], facing: 0 },
     { id: 'g_hallway', x: 2000, y: 1850, kind: 'hallway_guard',
       patrol: [[1500, 1850], [2500, 1850]], facing: 0 },
-    { id: 'g_server',  x: 800,  y: 1700, kind: 'server_guard',
-      patrol: [[700, 1600], [1000, 1900]], facing: -Math.PI/2 },
+    // v1.648: spawn flyttad y=1700→1750 (var inuti server/network-mellanvägg)
+    { id: 'g_server',  x: 800,  y: 1750, kind: 'server_guard',
+      patrol: [[750, 1750], [1000, 1900]], facing: -Math.PI/2 },
     { id: 'g_office',  x: 3100, y: 1850, kind: 'office_guard',
       patrol: [[2900, 1800], [3300, 2200]], facing: -Math.PI/2 },
     { id: 'g_vault',   x: 2000, y: 1600, kind: 'vault_guard',  // NEW — utanför valvet

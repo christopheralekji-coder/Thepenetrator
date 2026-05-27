@@ -10233,16 +10233,16 @@ function _drawHeistCamera(cam, sx, sy, allHacked) {
   // Resultat: kameror sveper höger/vänster istället för att stå still.
   let camDir = cam.dir || 0;
   if (!disabled) {
-    // Hash från cam.id för phase-offset (varje kamera börjar olika)
+    // v1.638: deterministisk sweep per-cam — hash från cam.id för phase-offset.
+    // v1.648: Date.now() (var performance.now() = per-session, så server hade
+    // ingen chans att matcha). Server räknar samma sweep nu i tickHeist.
     let h = 0;
     const id = cam.id || '';
     for (let i = 0; i < id.length; i++) h = ((h << 5) - h + id.charCodeAt(i)) | 0;
     const phase = (h % 1000) / 1000 * Math.PI * 2;
-    const t = performance.now();
-    // Sweep ± 0.5 rad över 4.5s cykel
     const sweepAmp = cam.sweepAmp != null ? cam.sweepAmp : 0.5;
     const sweepPeriod = cam.sweepPeriod != null ? cam.sweepPeriod : 4500;
-    camDir += Math.sin(t / sweepPeriod * Math.PI * 2 + phase) * sweepAmp;
+    camDir += Math.sin(Date.now() / sweepPeriod * Math.PI * 2 + phase) * sweepAmp;
   }
   // Kamera-bas (svart)
   ctx.fillStyle = '#1a1a1a';
@@ -10280,8 +10280,10 @@ function _drawHeistCamera(cam, sx, sy, allHacked) {
     const minY = camWorldY - range, maxY = camWorldY + range;
     for (const w of walls) {
       if (w.x + w.w < minX || w.x > maxX || w.y + w.h < minY || w.y > maxY) continue;
-      // Bara solid walls blockerar — räkning, pelare, counter blockerar också
-      if (w.kind !== 'wall' && w.kind !== 'wall_vault' && w.kind !== 'pillar' && w.kind !== 'counter') continue;
+      // v1.648: Endast wall/wall_vault blockerar LOS (match server-check).
+      // Pillars (marmor) och counters (knähöjt) ser man över i top-down — så
+      // klient-cone visar genom dem. Detta speglar server-detect-logiken.
+      if (w.kind !== 'wall' && w.kind !== 'wall_vault') continue;
       // Liang-Barsky ray vs AABB
       const t = _rayBoxHit(camWorldX, camWorldY, dx, dy, w.x, w.y, w.w, w.h, range);
       if (t > 0 && t < bestT) bestT = t;
@@ -10450,15 +10452,39 @@ function _drawHeistCivilian(n, sx, sy, t) {
 function _drawHeistGuard(n, sx, sy, t) {
   // Guard humanoid — uniform + vision-cone
   ctx.save();
-  // Vision-cone (rita FÖRST så humanoid hamnar ovanpå)
+  // v1.648: WALL-CLIPPED vision-cone (var: cone gick rakt genom väggar →
+  // visuell desync mot server LOS-check). Samma raycast-pattern som
+  // camera-cone i _drawHeistCamera (v1.638).
   if (n.rg && n.cn) {
     const isAlert = n.s === 'alert';
     ctx.fillStyle = isAlert ? 'rgba(255,80,30,0.18)' : 'rgba(255,213,74,0.10)';
     ctx.strokeStyle = isAlert ? 'rgba(255,80,30,0.5)' : 'rgba(255,213,74,0.3)';
     ctx.lineWidth = 1.5;
+    const cone = n.cn;
+    const range = n.rg;
+    const camWorldX = (n._renderX != null) ? n._renderX : n.x;
+    const camWorldY = (n._renderY != null) ? n._renderY : n.y;
+    const RAYS = 20;
+    const points = [{ x: sx, y: sy }];
+    const walls = state.heistWalls || [];
+    const minX = camWorldX - range, maxX = camWorldX + range;
+    const minY = camWorldY - range, maxY = camWorldY + range;
+    for (let i = 0; i <= RAYS; i++) {
+      const a = n.f - cone + (cone * 2 * i / RAYS);
+      const dx = Math.cos(a), dy = Math.sin(a);
+      let bestT = range;
+      for (const w of walls) {
+        if (w.x + w.w < minX || w.x > maxX || w.y + w.h < minY || w.y > maxY) continue;
+        // v1.648: Endast wall/wall_vault (match server _heistLineBlockedByWall)
+        if (w.kind !== 'wall' && w.kind !== 'wall_vault') continue;
+        const tt = _rayBoxHit(camWorldX, camWorldY, dx, dy, w.x, w.y, w.w, w.h, range);
+        if (tt > 0 && tt < bestT) bestT = tt;
+      }
+      points.push({ x: sx + dx * bestT, y: sy + dy * bestT });
+    }
     ctx.beginPath();
-    ctx.moveTo(sx, sy);
-    ctx.arc(sx, sy, n.rg, n.f - n.cn, n.f + n.cn);
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
