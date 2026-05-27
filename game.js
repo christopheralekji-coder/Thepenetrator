@@ -10375,9 +10375,19 @@ function _drawHeistCamera(cam, sx, sy, allHacked) {
     const ey = sy + dy * bestT;
     points.push({ x: ex, y: ey });
   }
-  ctx.fillStyle = 'rgba(255,48,48,0.10)';
-  ctx.strokeStyle = 'rgba(255,48,48,0.4)';
-  ctx.lineWidth = 1;
+  // v1.651: cone färgas KRAFTIGT RÖD med pulse om kameran ser någon player nu
+  // (server tickar in seenCameras-array). Annars normal-orange-tone.
+  const seenNow = state.heistSeenCameras && state.heistSeenCameras[cam.id];
+  if (seenNow) {
+    const pulseAlpha = 0.30 + 0.20 * Math.sin(performance.now() / 100);
+    ctx.fillStyle = 'rgba(255,30,30,' + pulseAlpha.toFixed(2) + ')';
+    ctx.strokeStyle = 'rgba(255,60,60,0.9)';
+    ctx.lineWidth = 2;
+  } else {
+    ctx.fillStyle = 'rgba(255,180,80,0.08)';
+    ctx.strokeStyle = 'rgba(255,180,80,0.35)';
+    ctx.lineWidth = 1;
+  }
   ctx.beginPath();
   ctx.moveTo(points[0].x, points[0].y);
   for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
@@ -24936,6 +24946,11 @@ const Coop = {
       // v1.650: cease-fire-budget (30s cap) + nästa-våg-countdown
       state.heistCeasefireTotalMs = ev.ceasefireTotalMs || 0;
       state.heistNextPoliceInMs = ev.nextPoliceInMs || 0;
+      // v1.651: cameras som ser någon player just nu (för röd cone-render)
+      state.heistSeenCameras = {};
+      if (Array.isArray(ev.seenCameras)) {
+        for (const cid of ev.seenCameras) state.heistSeenCameras[cid] = true;
+      }
       if (state.heistDoors && state.heistUnlockedDoors) {
         for (const d of state.heistDoors) {
           if (state.heistUnlockedDoors[d.id]) d.locked = false;
@@ -37362,7 +37377,8 @@ function getHeistContextAction() {
     }
   }
 
-  // v1.623: LOCKPICK BACK-DOOR
+  // v1.623/v1.651: LOCKPICK — labels nu beskrivande per dörr-typ så player
+  // förstår VAD som öppnas (alt-extract / loot-rum / master-terminal etc).
   if (state.heistDoors) {
     for (const d of state.heistDoors) {
       if (!d.lockpickable) continue;
@@ -37370,12 +37386,19 @@ function getHeistContextAction() {
       const dcx = d.x + d.w / 2, dcy = d.y + d.h / 2;
       const ddx = px - dcx, ddy = py - dcy;
       if (ddx * ddx + ddy * ddy < 60 * 60) {
-        // Visa progress om pågående
+        const labels = {
+          back: '🔓 BACK-DOOR · öppnar getaway-van',
+          loading: '🔓 LOADING-DOCK · alt entry från norr',
+          storage: '🔓 STORAGE · cardboard-loot',
+          locker: '🔓 LOCKER · personal-skåp + loot',
+          security: '🔓 SECURITY · master-terminal + filing',
+        };
+        const baseLabel = labels[d.id] || '🔓 DYRKA LÅS';
         if (state.heistMyLockpickEnd && state.heistMyLockpickEnd > performance.now()) {
           const rem = Math.ceil((state.heistMyLockpickEnd - performance.now()) / 1000);
           return { label: '🔓 DYRKAR ' + rem + 's...', action: 'lockpick_door', doorId: d.id };
         }
-        return { label: '🔓 DYRKA LÅS', action: 'lockpick_door', doorId: d.id };
+        return { label: baseLabel, action: 'lockpick_door', doorId: d.id };
       }
     }
   }
@@ -37444,6 +37467,10 @@ function updateHeistHud() {
         const s = Math.ceil(state.heistCeasefireMs / 1000);
         objEl.textContent = '🕊️ CEASE-FIRE · ' + s + 's KVAR';
         objEl.style.color = '#5aff8a';
+      } else if (state.heistInnerDrilling) {
+        // v1.651: inner-drill pausar police-vågor → kommunicera
+        objEl.textContent = '💎 INNER-DRILL · polisen pausad';
+        objEl.style.color = '#5acaff';
       } else if (state.heistDrillBlocked) {
         objEl.textContent = '⛔ COPS BLOCKERAR DRILL · rensa zonen!';
         objEl.style.color = '#ff8080';

@@ -4137,6 +4137,9 @@ function tickHeist(sim, dt, nowMs) {
   // === v1.621/v1.625: CAMERA-DETECTION per-camera timer (fix shared-timer-bug) ===
   // Tidigare delade alla kameror EN timer per spelare → timer leakade mellan
   // kameror. Nu per-(player, cam) via ws._heistCamDetect[camId].
+  // v1.651: även global "seen by any player THIS TICK"-flag på sim per cam-id
+  // som broadcastas → klient kan färga cone röd när player är i den.
+  sim._heistSeenCamerasThisTick = {};
   if (sim.heistPhase === 'stealth') {
     for (const [, ws] of sim.room.members) {
       if (!ws.playerState) continue;
@@ -4174,6 +4177,8 @@ function tickHeist(sim, dt, nowMs) {
         // PLAYER IN CONE — per-(player, cam) timer
         if (!ws._heistCamDetect[cam.id]) ws._heistCamDetect[cam.id] = nowMs;
         ws._heistCamSeenThisTick[cam.id] = true;
+        // v1.651: global "någon player är i denna cam:s cone" → klient färgar röd
+        sim._heistSeenCamerasThisTick[cam.id] = true;
         // v1.626: difficulty-skalad camera-grace (1000-3000ms)
         const camGrace = _heistDifficultyMul(sim).cameraGraceMs;
         if (nowMs - ws._heistCamDetect[cam.id] > camGrace) {
@@ -4306,8 +4311,11 @@ function tickHeist(sim, dt, nowMs) {
   }
 
   // === v1.621: POLICE-VÅGOR under alarm-fas (skippas under cease-fire) ===
+  // v1.651: pausa OCKSÅ under inner-vault-drill — det är en optional "bonus push"
+  // som ska kunna göras lugnt utan att 5+ cops dyker upp mitt-i.
   const ceasefireActive = (sim.heistCeasefireUntil || 0) > nowMs;
-  if (sim.heistPhase === 'alarm' && !ceasefireActive) {
+  const innerDrillPause = !!sim.heistInnerDrilling;
+  if (sim.heistPhase === 'alarm' && !ceasefireActive && !innerDrillPause) {
     if (!sim._heistNextPoliceAt) sim._heistNextPoliceAt = nowMs + 5000; // första vågen 5s in i alarm
     if (nowMs >= sim._heistNextPoliceAt) {
       sim._heistNextPoliceAt = nowMs + 20000; // var 20s
@@ -4320,10 +4328,17 @@ function tickHeist(sim, dt, nowMs) {
       sim._heistNextPoliceAt = nowMs + 12000;
       _heistSpawnPoliceWave(sim, arena, nowMs);
     }
+  } else if (innerDrillPause && sim._heistNextPoliceAt) {
+    // Skjut upp nästa-våg-clock så timern inte ackumulerar under drill-paus
+    sim._heistNextPoliceAt = nowMs + 5000; // 5s grace efter drill klar
   }
 
   // === v1.621: ENEMY-AI (cops targetar nearest player via updateEnemy) ===
   // v1.626: Under cease-fire FRYSER cops — ingen rörelse, inget skytte
+  // v1.651: Cops som inte är inne i banken får en VIRTUELL player vid
+  // bank-entry som target → de springer mot entrén FÖRSTA. När de når
+  // entrén switchar de till riktiga players. Förhindrar att de fastnar
+  // mot ytterväggen utanför entrén.
   if (sim.enemies && sim.enemies.length > 0 && !ceasefireActive) {
     const heistPlayers = [];
     for (const [pid, ws] of sim.room.members) {
@@ -4338,11 +4353,34 @@ function tickHeist(sim, dt, nowMs) {
     if (heistPlayers.length > 0) {
       for (const e of sim.enemies) {
         if (!e || e.dead) continue;
-        // v1.644: spara prev-pos så _heistResolveWalls vet vilken sida av väggen
-        // actor kom från (förhindrar tunnel-through vid stor dt)
         e._prevX = e.x; e._prevY = e.y;
-        updateEnemy(e, dt, nowMs, sim, heistPlayers);
-        // v1.641: blockera cops mot väggar — annars går de rakt igenom banken
+        // v1.651: cop med entry-target → MANUELL movement direkt mot entry
+        // (bypass updateEnemy's ideal-range-behavior + shoot-AI). När cop
+        // når entry, switcha till normal AI. Förhindrar att cops fastnar
+        // 280px från entrén "skjutandes på tom gata".
+        let useNormalAI = true;
+        if (e._heistCop && e._heistEntryPoint && !e._heistEnteredBank) {
+          const insideBank = (e.x >= 620 && e.x <= 3380 && e.y >= 720 && e.y <= 3380);
+          if (insideBank) {
+            e._heistEnteredBank = true;
+            e._heistEntryPoint = null; // släpp virtual target → normal AI
+          } else {
+            // Manuell move mot entry-point
+            const dx = e._heistEntryPoint.x - e.x;
+            const dy = e._heistEntryPoint.y - e.y;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            if (d > 0.5) {
+              e.x += (dx / d) * e.speed * dt;
+              e.y += (dy / d) * e.speed * dt;
+              e.facing = Math.atan2(dy, dx);
+            }
+            // Skip updateEnemy → ingen skytte, ingen separation, bara walk
+            useNormalAI = false;
+          }
+        }
+        if (useNormalAI) {
+          updateEnemy(e, dt, nowMs, sim, heistPlayers);
+        }
         _heistResolveWalls(e, arena);
       }
     }
@@ -4464,6 +4502,8 @@ function tickHeist(sim, dt, nowMs) {
       nextPoliceInMs: (sim.heistPhase === 'alarm' || sim.heistPhase === 'extract')
         ? Math.max(0, (sim._heistNextPoliceAt || 0) - nowMs)
         : 0,
+      // v1.651: cameras som ser någon player just nu → klient färgar cone röd
+      seenCameras: Object.keys(sim._heistSeenCamerasThisTick || {}),
     });
   }
   // === v1.622: NPC-broadcast (var 200ms = 5Hz för positionssync) ===
@@ -4827,6 +4867,9 @@ function _heistConvertGuardsToEnemies(sim) {
 
 // v1.621: Spawna en polis-våg från random arena.policeSpawns
 // v1.626: Difficulty-skalning (casual=0.5x, veteran=1.0x, hardcore=1.3x, insane=1.6x)
+// v1.651: Filterera bort needsBack-spawns om back-door inte är lockpickad
+// (cops skulle fastna mot låst back-door wall). Plus tagga e._heistEntryPoint
+// så _heistTickPoliceEntryNav kan styra dem mot bank-entry FÖRE player.
 function _heistSpawnPoliceWave(sim, arena, nowMs) {
   if (!arena.policeSpawns || arena.policeSpawns.length === 0) return;
   const playerCount = Math.max(1, sim.room.members.size);
@@ -4836,9 +4879,14 @@ function _heistSpawnPoliceWave(sim, arena, nowMs) {
   const baseCount = 3 + Math.floor(Math.random() * 3); // 3-5
   const totalCount = Math.max(1, Math.round(baseCount * policeMul * diffMul));
   const enemyCap = 120;
+  // Filterera tillgängliga spawns: back-alley-spawns kräver back-door öppen
+  const validSpawns = arena.policeSpawns.filter(sp =>
+    !sp.needsBack || sim.heistBackExtractUnlocked
+  );
+  if (validSpawns.length === 0) return;
   let spawned = 0;
   for (let i = 0; i < totalCount && sim.enemies.length < enemyCap; i++) {
-    const sp = arena.policeSpawns[Math.floor(Math.random() * arena.policeSpawns.length)];
+    const sp = validSpawns[Math.floor(Math.random() * validSpawns.length)];
     // Variera spawn-pos ±50px så hela vågen inte ligger på exakt samma punkt
     const sx = sp.x + (Math.random() - 0.5) * 80;
     const sy = sp.y + (Math.random() - 0.5) * 80;
@@ -4850,7 +4898,12 @@ function _heistSpawnPoliceWave(sim, arena, nowMs) {
     e._heistCop = true;
     e._cdEnemy = true; // re-use CD-tagging för hit-detection-paths
     e._cdRole = 'attacker'; // chase player, not core
-    // v1.626: Difficulty-scaling på cop-stats
+    // v1.651: entry-navigation — cop går till bank-entry FÖRE den jagar player.
+    // Förhindrar att cops fastnar mot ytterväggen sökandes "kortaste vägen".
+    if (sp.entry) {
+      e._heistEntryPoint = { x: sp.entry.x, y: sp.entry.y };
+      e._heistEnteredBank = false;
+    }
     const dm = _heistDifficultyMul(sim);
     e.hp = Math.max(1, Math.round(e.hp * dm.copHp));
     e.maxHp = e.hp;

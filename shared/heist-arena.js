@@ -935,23 +935,34 @@ const HEIST_ARENA = {
       patrol: [[1500, 1600], [2500, 1600]], facing: 0 },
     { id: 'g_security',x: 3100, y: 1400, kind: 'security_guard', // NEW — i security-rum
       patrol: [[2900, 1300], [3300, 1500]], facing: 0 },
+    // v1.651: nya guards i toilet + break/conference (var helt guard-fri zone)
+    { id: 'g_break',   x: 950,  y: 2200, kind: 'break_guard',
+      patrol: [[800, 2200], [1100, 2200]], facing: 0 },
+    { id: 'g_toilet',  x: 2400, y: 2300, kind: 'toilet_guard',
+      patrol: [[2200, 2300], [2600, 2300]], facing: 0 },
   ],
 
   // === DRILL-SPOTS (outer + inner = double-tier) ===
   drillSpot: { x: 2000, y: 1720, r: 40, durationSec: 120 },
   drillSpotInner: { x: 2000, y: 1100, r: 40, durationSec: 90 },
 
-  // === POLICE-SPAWN-POINTS ===
+  // === POLICE-SPAWN-POINTS (v1.651: cleaned upp) ===
+  // Tidigare 9 punkter inkl side_west/side_east/far_left/far_right där cops
+  // spawnade långt från bank-entries och fastnade mot väggarna. Nu bara
+  // entry-line spawns med tydlig 'entry'-tag som police-AI använder för
+  // att navigera till bank först, sen jaga player.
+  // Front-entry är vid (1900-2100, 3400). Side-entry vid (3050-3200, 3400).
+  // Back-entry vid (1900-2000, 700) — bara om lockpickad.
   policeSpawns: [
-    { x: 2000, y: 3950, kind: 'street_front' },
-    { x: 700,  y: 3950, kind: 'street_left' },
-    { x: 3300, y: 3950, kind: 'street_right' },
-    { x: 2000, y: 200,  kind: 'alley_back' },
-    { x: 900,  y: 200,  kind: 'alley_loading' },
-    { x: 100,  y: 2000, kind: 'side_west' },
-    { x: 3900, y: 2000, kind: 'side_east' },
-    { x: 100,  y: 3700, kind: 'street_far_left' },
-    { x: 3900, y: 3700, kind: 'street_far_right' },
+    { x: 2000, y: 3950, kind: 'street_front',  entry: { x: 2000, y: 3400 } },
+    { x: 1500, y: 3950, kind: 'street_front2', entry: { x: 2000, y: 3400 } },
+    { x: 2500, y: 3950, kind: 'street_front3', entry: { x: 2000, y: 3400 } },
+    { x: 3300, y: 3700, kind: 'street_right',  entry: { x: 3125, y: 3400 } },
+    { x: 3100, y: 3700, kind: 'street_right2', entry: { x: 3125, y: 3400 } },
+    { x: 800,  y: 3700, kind: 'street_left',   entry: { x: 2000, y: 3400 } },
+    // Back-alley spawns — endast om back-extract-door öppen (lockpickad)
+    { x: 2000, y: 200,  kind: 'alley_back',     entry: { x: 1950, y: 700 }, needsBack: true },
+    { x: 1500, y: 200,  kind: 'alley_back2',    entry: { x: 1950, y: 700 }, needsBack: true },
   ],
 
   // === ROLES (oförändrat — fortfarande relevant) ===
