@@ -4216,6 +4216,47 @@ function tickHeist(sim, dt, nowMs) {
     }
   }
 
+  // v1.647: LOCKPICK-PROGRESS tick — fungerar i ALLA phases (stealth/alarm/extract).
+  // Samma server-tick auto-complete-mönster som hack: spelare tappar EN gång,
+  // server completar när finishesAt nådd och player står kvar inom 60px.
+  for (const [, ws] of sim.room.members) {
+    if (!ws._heistLockpickStart || !ws._heistLockpickDoorId) continue;
+    if (!ws.playerState || ws.playerState.hp <= 0) {
+      ws._heistLockpickStart = 0; ws._heistLockpickDoorId = null; continue;
+    }
+    const door = (arena.doors || []).find(d => d.id === ws._heistLockpickDoorId);
+    if (!door) { ws._heistLockpickStart = 0; ws._heistLockpickDoorId = null; continue; }
+    if (sim.heistUnlockedDoors && sim.heistUnlockedDoors[door.id]) {
+      // Already unlocked (av annan spelare) — bara rensa state
+      ws._heistLockpickStart = 0; ws._heistLockpickDoorId = null; continue;
+    }
+    const dcx = door.x + door.w / 2, dcy = door.y + door.h / 2;
+    const dx = ws.playerState.x - dcx, dy = ws.playerState.y - dcy;
+    if (dx * dx + dy * dy > 60 * 60) {
+      // Rörde sig ut ur range — cancel
+      sim.eventQueue.push({
+        type: 'heist_lockpick_cancel',
+        peerId: ws.id, doorId: ws._heistLockpickDoorId,
+      });
+      ws._heistLockpickStart = 0; ws._heistLockpickDoorId = null;
+      continue;
+    }
+    if (nowMs >= ws._heistLockpickFinishesAt) {
+      sim.heistUnlockedDoors = sim.heistUnlockedDoors || {};
+      sim.heistUnlockedDoors[door.id] = true;
+      if (door.kind === 'back_door') {
+        if (arena.extractZones && arena.extractZones.back) {
+          sim.heistBackExtractUnlocked = true;
+        }
+      }
+      sim.eventQueue.push({
+        type: 'heist_door_unlocked',
+        peerId: ws.id, doorId: door.id,
+      });
+      ws._heistLockpickStart = 0; ws._heistLockpickDoorId = null;
+    }
+  }
+
   // === v1.641: BUILD spatial-hash innan bullets — annars hittar bullets-loopen
   // inga enemies via sim.enemyGrid.getNearby() (huvudloopens grid-rebuild på
   // line ~412 hoppas över eftersom heist-grenen tidigt-returnar). Detta var

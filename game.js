@@ -24906,6 +24906,13 @@ const Coop = {
         state.heistMyLockpickEnd = performance.now() + (ev.pickTimeMs || 6000);
         state.heistMyLockpickDoorId = ev.doorId;
       }
+    } else if (ev.type === 'heist_lockpick_cancel') {
+      // v1.647: server cancelade lockpick (player rörde sig ut ur range)
+      if (ev.peerId === this.myId) {
+        state.heistMyLockpickEnd = 0;
+        state.heistMyLockpickDoorId = null;
+        if (typeof showToast === 'function') showToast('🔓 LOCKPICK AVBRUTET · stå still vid dörren');
+      }
     } else if (ev.type === 'heist_door_unlocked') {
       // { peerId, doorId }
       state.heistUnlockedDoors = state.heistUnlockedDoors || {};

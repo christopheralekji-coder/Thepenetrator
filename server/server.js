@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v168-heist-inner-vault-drill-v1.646';
+const SERVER_VERSION = 'v169-heist-lockpick-tick-complete-v1.647';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -1089,7 +1089,10 @@ function handleMessage(ws, msg) {
         bagsCarrying: ws._heistBagsCarrying, bagsValue: ws._heistBagsValue,
       });
     } else if (action === 'lockpick_door') {
-      // v1.623: Back-door lockpicking
+      // v1.623/v1.647: Lockpicking. Two-tap legacy + server-tick auto-complete
+      // (samma pattern som hack-terminal i v1.645). Player tappar EN gång,
+      // server completar när finishesAt nådd (i tickHeist) så länge spelaren
+      // står kvar inom 60px.
       const doorId = String(msg.doorId || 'back');
       const door = HEIST_ARENA.doors.find(d => d.id === doorId);
       if (!door || !door.lockpickable) return;
@@ -1113,11 +1116,10 @@ function handleMessage(ws, msg) {
         });
         return;
       }
-      // Andra tap = check completion
+      // Legacy: andra tap = check completion (om finish-tick missade ett tick)
       if (now >= ws._heistLockpickFinishesAt) {
         sim.heistUnlockedDoors[doorId] = true;
         if (door.kind === 'back_door') {
-          // Unlock back-extract van
           if (HEIST_ARENA.extractZones && HEIST_ARENA.extractZones.back) {
             sim.heistBackExtractUnlocked = true;
           }

@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v646-heist-inner-vault-drill';
+const CACHE = 'penetrator-v647-heist-lockpick-tick-complete';
 const ASSETS = [
   './',
   './index.html',
