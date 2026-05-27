@@ -10488,6 +10488,7 @@ function _drawHeistCivilian(n, sx, sy, t) {
   else if (subType === 'manager') shirtCol = '#1a1a1a'; // svart kostym
   const panic = n.s === 'panic';
   const hostage = n.s === 'hostage';
+  const calmed = n.s === 'calmed';
   ctx.save();
   ctx.translate(sx, sy);
   // Skugga
@@ -10543,19 +10544,37 @@ function _drawHeistCivilian(n, sx, sy, t) {
     ctx.fillText('😱', 0, -25 + float);
     ctx.shadowBlur = 0;
   }
+  // v1.652: calmed-state indikator (💊 — medic-lugnad)
+  if (calmed) {
+    ctx.fillStyle = '#5aff8a';
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+    const float = Math.sin(t / 300) * 1.5;
+    ctx.fillText('💊', 0, -25 + float);
+    ctx.shadowBlur = 0;
+  }
   ctx.restore();
 }
 
 function _drawHeistGuard(n, sx, sy, t) {
   // Guard humanoid — uniform + vision-cone
   ctx.save();
-  // v1.648: WALL-CLIPPED vision-cone (var: cone gick rakt genom väggar →
-  // visuell desync mot server LOS-check). Samma raycast-pattern som
-  // camera-cone i _drawHeistCamera (v1.638).
+  // v1.648: WALL-CLIPPED vision-cone + v1.652: state-färgning (alert=röd,
+  // distracted=grå, default=gul).
   if (n.rg && n.cn) {
     const isAlert = n.s === 'alert';
-    ctx.fillStyle = isAlert ? 'rgba(255,80,30,0.18)' : 'rgba(255,213,74,0.10)';
-    ctx.strokeStyle = isAlert ? 'rgba(255,80,30,0.5)' : 'rgba(255,213,74,0.3)';
+    const isDistracted = n.s === 'distracted';
+    if (isAlert) {
+      ctx.fillStyle = 'rgba(255,80,30,0.18)';
+      ctx.strokeStyle = 'rgba(255,80,30,0.5)';
+    } else if (isDistracted) {
+      ctx.fillStyle = 'rgba(120,120,140,0.08)';
+      ctx.strokeStyle = 'rgba(120,120,140,0.3)';
+    } else {
+      ctx.fillStyle = 'rgba(255,213,74,0.10)';
+      ctx.strokeStyle = 'rgba(255,213,74,0.3)';
+    }
     ctx.lineWidth = 1.5;
     const cone = n.cn;
     const range = n.rg;
@@ -10631,6 +10650,15 @@ function _drawHeistGuard(n, sx, sy, t) {
     ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
     const float = Math.sin(t / 100) * 3;
     ctx.fillText('❗', 0, -28 + float);
+    ctx.shadowBlur = 0;
+  } else if (n.s === 'distracted') {
+    // v1.652: distracted-indikator (Tank-distract) — grå frågetecken
+    ctx.fillStyle = '#cccccc';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+    const float = Math.sin(t / 300) * 2;
+    ctx.fillText('❓', 0, -28 + float);
     ctx.shadowBlur = 0;
   }
   ctx.restore();
@@ -24987,11 +25015,21 @@ const Coop = {
       if (typeof showToast === 'function') showToast('✅ SÄKRAT · ' + ev.bagsSecured + ' säckar · $' + (ev.value || 0).toLocaleString());
       if (typeof Audio !== 'undefined' && Audio.victory) Audio.victory();
     } else if (ev.type === 'heist_bags_dropped') {
+      // v1.652: drop EN åt gången, server skickar bagsRemaining + valueRemaining
       if (ev.peerId === this.myId) {
-        state.heistMyBagsCarrying = 0;
-        state.heistMyBagsValue = 0;
+        if (typeof ev.bagsRemaining === 'number') {
+          state.heistMyBagsCarrying = ev.bagsRemaining;
+          state.heistMyBagsValue = ev.valueRemaining || 0;
+        } else {
+          // Legacy fallback (gamla "drop all")
+          state.heistMyBagsCarrying = 0;
+          state.heistMyBagsValue = 0;
+        }
       }
-      if (typeof showToast === 'function') showToast('💔 ' + ev.bagsDropped + ' säckar tappade');
+      const droppedCount = ev.bagsDropped || 1;
+      const remainingLabel = (typeof ev.bagsRemaining === 'number' && ev.bagsRemaining > 0)
+        ? ' (' + ev.bagsRemaining + ' kvar)' : '';
+      if (typeof showToast === 'function') showToast('💔 ' + droppedCount + ' säck tappad · $' + (ev.value || 0).toLocaleString() + remainingLabel);
     } else if (ev.type === 'heist_camera_detect') {
       if (typeof showToast === 'function') showToast('🚨 KAMERA SÅG DIG!');
       if (typeof triggerShake === 'function') triggerShake(10, 0.5);
@@ -25120,6 +25158,18 @@ const Coop = {
         state.heistMyHackTermId = null;
         if (typeof showToast === 'function') showToast('💻 HACK AVBRUTET · stå still vid terminal');
       }
+    } else if (ev.type === 'heist_guard_distracted') {
+      // v1.652: Tank distract — visa toast + sätt cooldown på klient
+      if (ev.by === this.myId) {
+        state.heistMyDistractCdUntil = performance.now() + 30000;
+      }
+      if (typeof showToast === 'function') showToast('🛡️ VAKT DISTRAHERAD · 5s window');
+    } else if (ev.type === 'heist_civilian_calmed') {
+      // v1.652: Medic calm — visa toast + sätt cooldown på klient
+      if (ev.by === this.myId) {
+        state.heistMyCalmCdUntil = performance.now() + 20000;
+      }
+      if (typeof showToast === 'function') showToast('💊 CIVILIAN LUGNAD · 15s utan panic');
     } else if (ev.type === 'heist_terminal_hacked') {
       state.heistHackedTerminals = state.heistHackedTerminals || {};
       state.heistHackedTerminals[ev.terminalId] = true;
@@ -34316,6 +34366,8 @@ document.getElementById('btn-menu').addEventListener('click', () => {
   state.heistMyLockpickDoorId = null;
   state.heistMyHackEnd = 0;        // v1.645: hack-progress timer reset
   state.heistMyHackTermId = null;
+  state.heistMyDistractCdUntil = 0; // v1.652: Tank distract cooldown reset
+  state.heistMyCalmCdUntil = 0;     // v1.652: Medic calm cooldown reset
   state.heistDrillProgress = 0;
   state.heistDrilling = false;
   state.heistDrillBlocked = false;
@@ -37022,10 +37074,10 @@ function showHeistRolePicker() {
   overlay.id = 'heist-role-picker';
   overlay.style.cssText = 'position:fixed;inset:0;z-index:250;background:radial-gradient(ellipse at center,rgba(40,20,5,0.96) 0%,rgba(0,0,0,0.98) 80%);display:flex;align-items:center;justify-content:center;font-family:sans-serif;padding:max(12px, env(safe-area-inset-top, 12px)) max(12px, env(safe-area-inset-right, 12px)) max(12px, env(safe-area-inset-bottom, 12px)) max(12px, env(safe-area-inset-left, 12px));';
   const roles = [
-    { id: 'hacker', icon: '💻', name: 'HACKER', desc: 'Osynlig för kameror', tint: '#5acaff' },
-    { id: 'tank',   icon: '🛡️', name: 'TANK',   desc: '+50% HP, −10% rörelse', tint: '#ff7a3a' },
-    { id: 'medic',  icon: '💊', name: 'MEDIC',  desc: '+6 HP/s regen (+8 solo)', tint: '#5aff8a' },
-    { id: 'rogue',  icon: '🗡️', name: 'ROGUE',  desc: '+10% speed, silent-kill, −10% HP', tint: '#aa5aff' },
+    { id: 'hacker', icon: '💻', name: 'HACKER', desc: 'Osynlig för kameror · -50% hack-tid', tint: '#5acaff' },
+    { id: 'tank',   icon: '🛡️', name: 'TANK',   desc: '+50% HP · DISTRAHERA VAKT (150px, 30s CD)', tint: '#ff7a3a' },
+    { id: 'medic',  icon: '💊', name: 'MEDIC',  desc: '+6 HP/s regen · LUGNA CIVILIAN (15s, 20s CD)', tint: '#5aff8a' },
+    { id: 'rogue',  icon: '🗡️', name: 'ROGUE',  desc: '+10% speed · silent-kill · 2× lockpick', tint: '#aa5aff' },
   ];
   const cardsHtml = roles.map(r =>
     '<button data-role="' + r.id + '" class="heist-role-card" style="background:linear-gradient(180deg,#1a0f08 0%,#0a0604 100%);border:2px solid ' + r.tint + ';color:#fff;border-radius:14px;padding:18px 14px;font-family:inherit;cursor:pointer;text-align:center;box-shadow:0 0 24px ' + r.tint + '30;transition:transform 0.1s,box-shadow 0.1s;">' +
@@ -37348,31 +37400,51 @@ function getHeistContextAction() {
   }
 
   // v1.623: INTIMIDATE CIVILIAN (no weapon drawn + nära civilian, stealth)
-  // v1.626: RELEASE HOSTAGE (alarm/extract) → 10s cease-fire
+  // v1.626: RELEASE HOSTAGE (alarm/extract) → cease-fire
+  // v1.652: MEDIC CALM_CIVILIAN (medic-roll, alla vapen ok, stealth)
   const myWeapon = (state.player && state.player.weaponId) || 'pistol';
+  const myRole = (Coop.config && Coop.config.heistRoles && Coop.config.heistRoles[Coop.myId]) || 'hacker';
   if (state.heistNPCs) {
     for (const n of state.heistNPCs) {
       if (n.t !== 'civilian') continue;
       const dx = px - n.x, dy = py - n.y;
       if (dx * dx + dy * dy >= 60 * 60) continue;
       if (n.s === 'hostage' && (phase === 'alarm' || phase === 'extract')) {
-        return { label: '🙏 SLÄPP HOSTAGE · 10s lugn', action: 'release_hostage', npcId: n.id };
+        return { label: '🙏 SLÄPP HOSTAGE · cease-fire', action: 'release_hostage', npcId: n.id };
       }
-      if (phase === 'stealth' && myWeapon === 'fists' && n.s !== 'hostage') {
+      // v1.652: Medic kan lugna civilian utan fists-krav (passar role-temat)
+      if (phase === 'stealth' && myRole === 'medic' && n.s !== 'hostage' && n.s !== 'calmed') {
+        const cdRem = Math.max(0, (state.heistMyCalmCdUntil || 0) - performance.now());
+        if (cdRem > 0) {
+          return { label: '💊 CALM CD ' + Math.ceil(cdRem / 1000) + 's', action: null };
+        }
+        return { label: '💊 LUGNA CIVILIAN', action: 'calm_civilian', npcId: n.id };
+      }
+      if (phase === 'stealth' && myWeapon === 'fists' && n.s !== 'hostage' && n.s !== 'calmed') {
         return { label: '🙏 INTIMIDATE', action: 'intimidate_civilian', npcId: n.id };
       }
     }
   }
 
   // v1.623: SILENT-KILL (Rogue + melee + nära guard i stealth)
-  const myRole = (Coop.config && Coop.config.heistRoles && Coop.config.heistRoles[Coop.myId]) || 'hacker';
+  // v1.652: TANK DISTRACT_GUARD (tank-roll, 150px range, vakt vänder 5s, 30s CD)
   const meleeWeapons = ['fists', 'knife', 'knuckles', 'bat', 'machete'];
-  if (phase === 'stealth' && myRole === 'rogue' && meleeWeapons.includes(myWeapon) && state.heistNPCs) {
+  if (phase === 'stealth' && state.heistNPCs) {
     for (const n of state.heistNPCs) {
       if (n.t !== 'guard') continue;
       const dx = px - n.x, dy = py - n.y;
-      if (dx * dx + dy * dy < 40 * 40) {
+      const d2 = dx * dx + dy * dy;
+      // Rogue silent-kill (40px close-range)
+      if (myRole === 'rogue' && meleeWeapons.includes(myWeapon) && d2 < 40 * 40) {
         return { label: '🗡️ TYST KILL', action: 'silent_kill', npcId: n.id };
+      }
+      // Tank distract (150px throw-range)
+      if (myRole === 'tank' && d2 < 150 * 150) {
+        const cdRem = Math.max(0, (state.heistMyDistractCdUntil || 0) - performance.now());
+        if (cdRem > 0) {
+          return { label: '🛡️ DISTRACT CD ' + Math.ceil(cdRem / 1000) + 's', action: null };
+        }
+        return { label: '🛡️ DISTRAHERA VAKT', action: 'distract_guard', npcId: n.id };
       }
     }
   }
@@ -37403,9 +37475,12 @@ function getHeistContextAction() {
     }
   }
 
-  // DROP SÄCKAR — om carrying och inget annat action-mål
-  if ((state.heistMyBagsCarrying || 0) > 0) {
-    return { label: '💔 DROPPA SÄCKAR', action: 'drop_bags' };
+  // DROP SÄCKAR — drop EN åt gången (v1.652: var "drop all" → match-killer
+  // vid accidental tap). Label visar antal kvar.
+  const carryCount = state.heistMyBagsCarrying || 0;
+  if (carryCount > 0) {
+    const label = carryCount === 1 ? '💔 DROPPA SÄCK' : '💔 DROPPA SÄCK (' + carryCount + ' kvar)';
+    return { label, action: 'drop_bags' };
   }
 
   return null;

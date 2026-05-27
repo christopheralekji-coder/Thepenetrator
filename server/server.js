@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v173-heist-police-entry-AI-camwarn-v1.651';
+const SERVER_VERSION = 'v174-heist-tank-medic-stealth-tools-v1.652';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -1016,34 +1016,84 @@ function handleMessage(ws, msg) {
         bagsCarrying: ws._heistBagsCarrying,
         bagsValue: ws._heistBagsValue,
       });
-    } else if (action === 'drop_bags') {
-      // v1.623: Drop = fysiska bag-objekt i världen vid spelarens position
-      // Andra spelare (eller du själv) kan plocka upp dem senare
+    } else if (action === 'drop_bags' || action === 'drop_one_bag') {
+      // v1.652: Drop nu EN säck per tap istället för ALLA. Spelaren kan
+      // koordinera bag-distribution mellan partners utan att tappa allt.
+      // Legacy 'drop_bags' aliasas till samma som 'drop_one_bag' så ingen
+      // klient bryter. (Den gamla "drop all"-funktionen var för aggressiv —
+      // en accidental tap = match-disaster.)
       if (ws._heistBagsCarrying > 0) {
         sim.heistDroppedBags = sim.heistDroppedBags || [];
         sim._heistNextBagId = sim._heistNextBagId || 1;
-        // v1.624 BUG3 fix: lägg remainder på första bag så ingen $ förloras
         const perBagValue = Math.floor(ws._heistBagsValue / ws._heistBagsCarrying);
-        const remainder = ws._heistBagsValue - (perBagValue * ws._heistBagsCarrying);
-        for (let i = 0; i < ws._heistBagsCarrying; i++) {
-          const bagId = 'bg' + (sim._heistNextBagId++);
-          sim.heistDroppedBags.push({
-            id: bagId,
-            x: ps.x + (Math.random() - 0.5) * 30,
-            y: ps.y + (Math.random() - 0.5) * 30,
-            value: perBagValue + (i === 0 ? remainder : 0),
-            droppedBy: ws.id,
-          });
-        }
+        const bagId = 'bg' + (sim._heistNextBagId++);
+        sim.heistDroppedBags.push({
+          id: bagId,
+          x: ps.x + (Math.random() - 0.5) * 30,
+          y: ps.y + (Math.random() - 0.5) * 30,
+          value: perBagValue,
+          droppedBy: ws.id,
+        });
+        ws._heistBagsCarrying -= 1;
+        ws._heistBagsValue -= perBagValue;
+        // Weight: ta bort genomsnitts-weight (totala viktet / antal kvar+1)
+        const perBagWeight = ws._heistBagsCarrying > 0
+          ? ws._heistBagsWeight / (ws._heistBagsCarrying + 1)
+          : ws._heistBagsWeight;
+        ws._heistBagsWeight = Math.max(0, ws._heistBagsWeight - perBagWeight);
+        ps.speedMul = ws._heistBagsCarrying > 0
+          ? Math.max(0.4, 1 - ws._heistBagsWeight)
+          : 1.0;
         sim.eventQueue.push({
           type: 'heist_bags_dropped',
-          peerId: ws.id, bagsDropped: ws._heistBagsCarrying, value: ws._heistBagsValue,
+          peerId: ws.id, bagsDropped: 1, value: perBagValue,
+          bagsRemaining: ws._heistBagsCarrying,
+          valueRemaining: ws._heistBagsValue,
         });
-        ws._heistBagsCarrying = 0;
-        ws._heistBagsValue = 0;
-        ws._heistBagsWeight = 0;
-        ps.speedMul = 1.0;
       }
+    } else if (action === 'distract_guard') {
+      // v1.652: Tank-only — kasta object för att distrahera vakt.
+      // Vakt vänder bort från player + står still i 5s. Cooldown 30s.
+      if (ws._heistRole !== 'tank') return;
+      if (sim.heistPhase !== 'stealth') return;
+      const now = Date.now();
+      if ((ws._heistDistractCdUntil || 0) > now) return;
+      const npcId = String(msg.npcId || '');
+      const npc = (sim.heistNPCs || []).find(n => n.id === npcId && n.type === 'guard' && !n.dead);
+      if (!npc) return;
+      const dx = ps.x - npc.x, dy = ps.y - npc.y;
+      if (dx * dx + dy * dy > 150 * 150) return; // 150px range (Tank kan kasta långt)
+      // Distract: face bort från player, frys patrol 5s
+      npc.facing = Math.atan2(-dy, -dx);
+      npc._distractedUntil = now + 5000;
+      npc.state = 'distracted'; // klient renderar ❓ + grå cone
+      npc._patrolPauseUntil = now + 5000; // pause patrol-movement
+      ws._heistDistractCdUntil = now + 30000;
+      sim.eventQueue.push({
+        type: 'heist_guard_distracted',
+        guardId: npcId, by: ws.id, durationMs: 5000,
+      });
+    } else if (action === 'calm_civilian') {
+      // v1.652: Medic-only — lugna civilian → ingen panic på 15s.
+      // Kräver närhet (60px). Cooldown 20s. Fungerar i stealth.
+      if (ws._heistRole !== 'medic') return;
+      if (sim.heistPhase !== 'stealth') return;
+      const now = Date.now();
+      if ((ws._heistCalmCdUntil || 0) > now) return;
+      const npcId = String(msg.npcId || '');
+      const npc = (sim.heistNPCs || []).find(n => n.id === npcId && n.type === 'civilian' && !n.dead);
+      if (!npc) return;
+      const dx = ps.x - npc.x, dy = ps.y - npc.y;
+      if (dx * dx + dy * dy > 60 * 60) return;
+      // Calm: civilian till "calmed"-state. Ingen panic-trigger på 15s, även
+      // om de ser vapen. Bryts om Medic dör eller faserna ändras.
+      npc.state = 'calmed';
+      npc._calmedUntil = now + 15000;
+      ws._heistCalmCdUntil = now + 20000;
+      sim.eventQueue.push({
+        type: 'heist_civilian_calmed',
+        npcId, by: ws.id, durationMs: 15000,
+      });
     } else if (action === 'start_drill') {
       // Triggar alarm-fas omedelbart om i stealth
       if (sim.heistPhase === 'stealth') {

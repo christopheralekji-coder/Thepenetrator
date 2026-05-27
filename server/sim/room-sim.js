@@ -4566,6 +4566,15 @@ function _heistTickCivilian(npc, dt, nowMs, sim, players, arena) {
     // Stå still; om alarm triggas av annan källa, hostages bara stannar
     return;
   }
+  // v1.652: CALMED-state (Medic medic_calm action) — ingen panic på 15s
+  if (npc.state === 'calmed') {
+    if (nowMs > (npc._calmedUntil || 0)) {
+      // Tillbaka till idle, kan paniska igen vid weapon-sight
+      npc.state = 'idle';
+    }
+    // Annars stå still, ingen panic-trigger
+    return;
+  }
   // v1.644: spara prev-pos för tunnel-resistent wall-resolve
   npc._prevX = npc.x; npc._prevY = npc.y;
   if (npc.state === 'idle' && sim.heistPhase === 'stealth') {
@@ -4653,6 +4662,15 @@ function _heistTickGuard(npc, dt, nowMs, sim, players, arena) {
   if (sim.heistPhase !== 'stealth') return;
   // v1.644: spara prev-pos för tunnel-resistent wall-resolve
   npc._prevX = npc.x; npc._prevY = npc.y;
+  // v1.652: DISTRACTED-state (Tank distract_guard action) — vänd bort, ingen
+  // patrol-movement eller vision-detect på 5s. Bryts vid timeout.
+  if (npc._distractedUntil && nowMs < npc._distractedUntil) {
+    return; // stå still, ingen detect
+  }
+  if (npc._distractedUntil && nowMs >= npc._distractedUntil) {
+    npc._distractedUntil = 0;
+    if (npc.state === 'distracted') npc.state = 'patrol'; // tillbaka till normal
+  }
   if (npc.state === 'patrol') {
     if (!npc.patrolPoints || npc.patrolPoints.length === 0) return;
     const target = npc.patrolPoints[npc.patrolIdx];
@@ -6112,6 +6130,9 @@ function startSim(sim, opts) {
       ws._heistHackStart = 0;
       ws._heistHackTermId = null;
       ws._heistHackFinishesAt = 0;
+      // v1.652: Tank distract + Medic calm cooldowns
+      ws._heistDistractCdUntil = 0;
+      ws._heistCalmCdUntil = 0;
       ws._heistCamDetectStart = 0;
       ws._heistCamDetect = {}; // v1.625: per-cam timer
       ws._heistCamSeenThisTick = {};
