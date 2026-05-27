@@ -459,10 +459,10 @@ const HEIST_ARENA = {
     { kind: 'exit_sign',      x: 2650, y: 1730 },
 
     // ===== MANAGER TOP (reception zone, x=2700-3375, y=1700-2000) =====
-    // Reception-desk där assistent sitter
+    // Reception-desk där assistent sitter (v1.649: workstation-duplikat
+    // borttagen — den övertäckte WELCOME-skylten + dator på reception_desk)
     { kind: 'reception_desk', x: 2850, y: 1780 },
     { kind: 'office_chair',   x: 2850, y: 1870 },
-    { kind: 'workstation',    x: 2850, y: 1780 },
     // Vänteområde — soffa + tidskriftshylla
     { kind: 'office_couch',   x: 3100, y: 1830 },
     { kind: 'coffee_table',   x: 3100, y: 1900 },
@@ -642,9 +642,10 @@ const HEIST_ARENA = {
     { kind: 'coffee_table',   x: 2600, y: 3020 },
 
     // ===== RECEPTION FOYER (x=625-3375, y=3100-3300) — receptionist + sittplatser =====
-    // Reception-desk i mitten
+    // Reception-desk i mitten (v1.649: workstation-duplikat borttagen,
+    // reception_desk har redan WELCOME-skylt + dator inbyggd — workstationen
+    // över-renderade hela skyltern → desk såg "tom" ut)
     { kind: 'reception_desk', x: 2000, y: 3170 },
-    { kind: 'workstation',    x: 2000, y: 3170 },
     { kind: 'office_chair',   x: 2000, y: 3230 },
     // Vänteområde — bänkar längs väggar
     { kind: 'bench',          x: 1100, y: 3140 },
@@ -843,14 +844,18 @@ const HEIST_ARENA = {
   ],
 
   // === CAMERAS (15 stycken — smart placement) ===
+  // v1.649: spridda första 3 kamerorna (cam_front_door / cam_reception /
+  // cam_lobby_center) som tidigare alla var på x=2000 central-axel = visuellt
+  // staplade ovanpå varandra. Nu hörn-positionerade för bättre täckning.
   cameras: [
-    // Entry-zone
-    { id: 'cam_front_door',   x: 2000, y: 3380, dir: -Math.PI/2,  cone: 0.7, range: 280 },
-    { id: 'cam_reception',    x: 2000, y: 3200, dir: -Math.PI/2,  cone: 0.7, range: 280 },
-    // Lobby (3 overlap)
-    { id: 'cam_lobby_west',   x: 1100, y: 2800, dir: 0,           cone: 0.8, range: 300 },
-    { id: 'cam_lobby_east',   x: 2900, y: 2800, dir: Math.PI,     cone: 0.8, range: 300 },
-    { id: 'cam_lobby_center', x: 2000, y: 2750, dir: Math.PI/2,   cone: 0.7, range: 280 },
+    // Entry-zone — front-door @ central, reception @ vänster hörn med
+    // sneda blick mot öst (täcker både dörren och lobby-syd-väst)
+    { id: 'cam_front_door',   x: 2000, y: 3380, dir: -Math.PI/2,        cone: 0.7, range: 280 },
+    { id: 'cam_reception',    x: 1300, y: 3110, dir: -Math.PI/4,        cone: 0.8, range: 280 },
+    // Lobby (sprida ut central → höger hörn med blick mot syd-väst)
+    { id: 'cam_lobby_west',   x: 1100, y: 2800, dir: 0,                 cone: 0.8, range: 300 },
+    { id: 'cam_lobby_east',   x: 2900, y: 2800, dir: Math.PI,           cone: 0.8, range: 300 },
+    { id: 'cam_lobby_center', x: 2700, y: 3110, dir: Math.PI + Math.PI/4, cone: 0.8, range: 280 },
     // Counter
     { id: 'cam_counter_l',    x: 1500, y: 2480, dir: Math.PI/2,   cone: 0.6, range: 220 },
     { id: 'cam_counter_r',    x: 2500, y: 2480, dir: Math.PI/2,   cone: 0.6, range: 220 },

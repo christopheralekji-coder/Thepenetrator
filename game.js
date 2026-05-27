@@ -8802,12 +8802,18 @@ function drawHeistWalls() {
       ctx.strokeRect(x + 1, y + 1, w.w - 2, w.h - 2);
     }
   }
-  // === DOORS (visuella, ren färg per typ) ===
+  // === DOORS (v1.649: doorframe + threshold visualisering) ===
+  // Tidigare: enkel färg-rektangel mellan wall-segment → wall-outlines syntes
+  // som visuella sömmar vid dörröppningarna. Nu med:
+  //  - 3px överlapp in i adjacent wall för att dölja wall-stroke-seam
+  //  - "doorframe" mörka stolpar vid kortändarna (ger arkitektonisk-känsla)
+  //  - threshold-skugga som markerar passage
   if (state.heistDoors) {
     const tPulse = performance.now();
     for (const d of state.heistDoors) {
       const x = d.x - cx, y = d.y - cy;
       if (x + d.w < 0 || x > viewW || y + d.h < 0 || y > viewH) continue;
+      const horizontal = d.w >= d.h; // bred dörr = horisontell wall-gap
       let col = '#aa7a3a';
       if (d.kind === 'vault_door') {
         if (d.locked) col = '#5a4a3a';
@@ -8815,12 +8821,35 @@ function drawHeistWalls() {
       } else if (d.kind === 'back_door') col = d.locked ? '#3a2a2a' : '#7a5a3a';
       else if (d.kind === 'main_door') col = '#aa8a5a';
       else if (d.kind === 'side_door') col = '#7a5a4a';
+      // Dörrtröskel — mörk skugga som indikerar passage
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      if (horizontal) ctx.fillRect(x - 1, y + d.h + 1, d.w + 2, 4);
+      else ctx.fillRect(x + d.w + 1, y - 1, 4, d.h + 2);
+      // Dörrblad — extended 3px in i wall-area så stroke-seam göms
       ctx.fillStyle = col;
-      ctx.fillRect(x, y, d.w, d.h);
-      // Lock-indicator (röd när låst)
+      ctx.fillRect(x - 3, y - 3, d.w + 6, d.h + 6);
+      // Door-grain-detalj
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      if (horizontal) {
+        for (let xi = 8; xi < d.w - 4; xi += 14) ctx.fillRect(x + xi, y, 1, d.h);
+      } else {
+        for (let yi = 8; yi < d.h - 4; yi += 14) ctx.fillRect(x, y + yi, d.w, 1);
+      }
+      // Doorframe-stolpar (mörka pillars vid kortändarna)
+      ctx.fillStyle = '#2a1a08';
+      if (horizontal) {
+        ctx.fillRect(x - 4, y - 4, 3, d.h + 8);
+        ctx.fillRect(x + d.w + 1, y - 4, 3, d.h + 8);
+      } else {
+        ctx.fillRect(x - 4, y - 4, d.w + 8, 3);
+        ctx.fillRect(x - 4, y + d.h + 1, d.w + 8, 3);
+      }
+      // Handtag/lås-indikator i mitten
       if (d.locked) {
         ctx.fillStyle = '#ff5050';
         ctx.fillRect(x + d.w / 2 - 3, y + d.h / 2 - 3, 6, 6);
+        ctx.fillStyle = '#1a0a0a';
+        ctx.fillRect(x + d.w / 2 - 2, y + d.h / 2 - 1, 4, 2);
       } else if (d.kind === 'vault_door') {
         // Unlocked vault — pulserande blå glow
         const p = 0.5 + 0.5 * Math.sin(tPulse / 300);
@@ -8829,6 +8858,12 @@ function drawHeistWalls() {
         ctx.fillStyle = 'rgba(90,202,255,' + (0.4 + p * 0.4) + ')';
         ctx.fillRect(x - 2, y - 2, d.w + 4, d.h + 4);
         ctx.shadowBlur = 0;
+      } else {
+        // Vanligt handtag (mässing-färgad cirkel)
+        ctx.fillStyle = '#ffae3a';
+        ctx.beginPath();
+        ctx.arc(x + d.w / 2, y + d.h / 2, 1.6, 0, Math.PI * 2);
+        ctx.fill();
       }
     }
   }
@@ -9201,17 +9236,22 @@ function _drawHeistDecoration(kind, x, y) {
       break;
     }
     case 'office_chair': {
+      // v1.649: backrest flyttat från norra (y-14) → SÖDRA (y+8) sidan så
+      // chairen indikerar att personen tittar NORRUT mot desk + monitor.
+      // Alla 28 chairs i heist är söder om sin desk → ska titta norrut.
       ctx.fillStyle = '#1a1a1a';
       ctx.fillRect(x - 10, y - 10, 20, 20);
       ctx.fillStyle = '#2a2a2a';
       ctx.fillRect(x - 8, y - 8, 16, 16);
-      // Backrest
+      // Backrest — SÖDER (person lutar bakåt söderut, ansikte norrut)
       ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(x - 10, y - 14, 20, 6);
-      // Wheels
+      ctx.fillRect(x - 10, y + 8, 20, 6);
+      // Wheels (norr — under desk-sidan)
       ctx.fillStyle = '#3a3a3a';
-      ctx.beginPath(); ctx.arc(x - 8, y + 10, 2, 0, Math.PI * 2);
-      ctx.arc(x + 8, y + 10, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.arc(x - 8, y - 10, 2, 0, Math.PI * 2);
+      ctx.arc(x + 8, y - 10, 2, 0, Math.PI * 2);
+      ctx.fill();
       break;
     }
     case 'office_couch': {
@@ -9493,19 +9533,62 @@ function _drawHeistDecoration(kind, x, y) {
       break;
     }
     case 'reception_desk': {
+      // v1.649: berikat — papper, lampa, telefon + tydligare dator
+      // Desk-base mahogny
+      ctx.fillStyle = '#1a0a05';
+      ctx.fillRect(x - 36, y - 16, 72, 32);
       ctx.fillStyle = '#3a2a1a';
       ctx.fillRect(x - 35, y - 15, 70, 30);
       ctx.fillStyle = '#5a4a3a';
-      ctx.fillRect(x - 33, y - 13, 66, 8); // top
+      ctx.fillRect(x - 33, y - 13, 66, 6); // top highlight
+      // Datormonitor (centralt, större)
+      ctx.fillStyle = '#0a0a0a';
+      ctx.fillRect(x - 14, y - 8, 28, 16);
       ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(x - 12, y + 2, 24, 8); // computer
-      ctx.fillStyle = '#5aff5a';
-      ctx.fillRect(x - 10, y + 4, 20, 4);
-      // Welcome-text
-      ctx.fillStyle = '#ffd54a';
-      ctx.font = 'bold 7px sans-serif';
+      ctx.fillRect(x - 13, y - 7, 26, 14);
+      ctx.fillStyle = '#5acaff';
+      ctx.fillRect(x - 12, y - 6, 24, 12);
+      // UI på skärmen — "$" + balans-rader
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 6px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('WELCOME', x, y - 16);
+      ctx.fillText('$', x, y);
+      ctx.fillStyle = '#3a8aff';
+      ctx.fillRect(x - 10, y + 3, 20, 1);
+      // Tangentbord
+      ctx.fillStyle = '#2a2a2a';
+      ctx.fillRect(x - 11, y + 10, 22, 4);
+      // Telefon (vänster)
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(x - 28, y + 2, 9, 10);
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(x - 27, y + 3, 7, 3); // luren
+      ctx.fillStyle = '#5aff5a';
+      ctx.fillRect(x - 25, y + 8, 1, 1); // LED
+      // Pappersstack (höger)
+      ctx.fillStyle = '#fafafa';
+      ctx.fillRect(x + 18, y + 2, 10, 7);
+      ctx.fillStyle = '#aaa';
+      ctx.fillRect(x + 19, y + 3, 8, 0.6);
+      ctx.fillRect(x + 19, y + 5, 8, 0.6);
+      ctx.fillRect(x + 19, y + 7, 8, 0.6);
+      // Skrivbordslampa (höger)
+      ctx.fillStyle = '#7a5a3a';
+      ctx.fillRect(x + 29, y - 4, 4, 8); // bas
+      ctx.fillStyle = '#ffd54a';
+      ctx.beginPath();
+      ctx.moveTo(x + 28, y - 4);
+      ctx.lineTo(x + 36, y - 8);
+      ctx.lineTo(x + 32, y - 10);
+      ctx.closePath();
+      ctx.fill();
+      // Welcome-skylt — tydlig
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'bold 8px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 2;
+      ctx.fillText('WELCOME', x, y - 20);
+      ctx.shadowBlur = 0;
       break;
     }
     case 'bookshelf': {
@@ -10375,7 +10458,11 @@ function drawHeistNPCs() {
     n.f = rf;
     const sx = rx - cx, sy = ry - cy;
     n.f = origF; // restore omedelbart efter render-call
-    if (sx < -60 || sx > viewW + 60 || sy < -60 || sy > viewH + 60) continue;
+    // v1.649: cull-buffer skalad efter cone-range — vakter med cone (range ≈ 200px)
+    // ska rendera även när själva NPCn är ut ur viewport men cone-sticker ändå in.
+    // Civilians (utan cone) använder mindre buffer.
+    const cullBuf = (n.t === 'guard' && n.rg) ? (n.rg + 40) : 60;
+    if (sx < -cullBuf || sx > viewW + cullBuf || sy < -cullBuf || sy > viewH + cullBuf) continue;
     n.f = rf;
     if (n.t === 'civilian') _drawHeistCivilian(n, sx, sy, t);
     else if (n.t === 'guard') _drawHeistGuard(n, sx, sy, t);
@@ -31788,7 +31875,14 @@ function effectiveMag(weaponId) {
 function switchWeapon(dir) {
   const owned = save.owned;
   if (owned.length <= 1) return;
-  const i = owned.indexOf(save.equipped);
+  // v1.649: använd state.player.weaponId (faktiskt nuvarande vapen) istället
+  // för save.equipped — heist/PvP-modes överrider weaponId utan att uppdatera
+  // save.equipped → cycle hoppade förbi pistol (q/e från fists → kaststjärnor
+  // istället för fists → pistol).
+  const currentId = (state.player && state.player.weaponId) || save.equipped;
+  let i = owned.indexOf(currentId);
+  if (i < 0) i = owned.indexOf(save.equipped);
+  if (i < 0) i = 0;
   const next = owned[(i + dir + owned.length) % owned.length];
   equip(next);
 }
@@ -44387,7 +44481,7 @@ function drawGoalZone(cx, cy) {
   // PvP-modes använder customStage med goalPos (för spawnPos-symmetri) men
   // har ingen "utgång" — målet är att döda/cappa, inte gå till en plats.
   // Skippa den gula cirkeln + UTGÅNG-pilen helt i alla PvP-modes + castledefense.
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.castledefenseActive) return;
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.castledefenseActive || state.heistActive) return;
   const t = performance.now();
   const pulse = 1 + Math.sin(t/280) * 0.15;
   const gx = stage.goalPos.x - cx;
@@ -71769,7 +71863,7 @@ function drawOffScreenGoalArrow() {
   if (!stage || stage.isBoss) return;
   if (state.enemiesToSpawn > 0 || state.enemies.length > 0) return;
   // Inga "UTGÅNG"-pilar i PvP-modes + castledefense — story-only feature
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.castledefenseActive) return;
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.castledefenseActive || state.heistActive) return;
   const cx = state.camera.x, cy = state.camera.y;
   const gx = stage.goalPos.x - cx, gy = stage.goalPos.y - cy;
   // utanför skärmen?
