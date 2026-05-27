@@ -8896,40 +8896,51 @@ function drawHeistDecorations() {
   }
 
   // === Drill-glow vid drill-spot under alarm ===
-  if (state.heistPhase === 'alarm' && state.heistArena && state.heistArena.drillSpot) {
-    const ds = state.heistArena.drillSpot;
+  // v1.646: helper för båda spotsen (outer orange + inner gold/diamond)
+  const _drawDrillGlow = (ds, drilling, prog, unlocked, tintHex) => {
     const x = ds.x - cx, y = ds.y - cy;
-    if (x > -100 && x < viewW + 100 && y > -100 && y < viewH + 100) {
-      const drilling = !!state.heistDrilling;
-      const prog = state.heistDrillProgress || 0;
-      // Outer pulse-ring
-      ctx.strokeStyle = drilling ? 'rgba(255,80,30,' + (0.6 + pulse * 0.4) + ')' : 'rgba(255,140,60,0.4)';
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(x, y, (ds.r || 40) + (drilling ? pulse * 6 : 0), 0, Math.PI * 2);
-      ctx.stroke();
-      // Progress-arc
-      ctx.strokeStyle = '#ffae3a';
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.arc(x, y, (ds.r || 40) - 6, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
-      ctx.stroke();
-      // Drill-icon i mitten (roterande om drilling)
-      ctx.save();
-      ctx.translate(x, y);
-      if (drilling) ctx.rotate(t / 150);
-      ctx.fillStyle = '#ff5a3a';
-      ctx.fillRect(-3, -16, 6, 24);
-      ctx.fillStyle = '#aaa';
-      ctx.fillRect(-6, -20, 12, 6);
-      ctx.restore();
-      // Procent-text
-      ctx.fillStyle = '#fff';
-      ctx.font = 'bold 11px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
-      ctx.fillText(Math.round(prog * 100) + '%', x, y + 50);
-      ctx.shadowBlur = 0;
+    if (x < -100 || x > viewW + 100 || y < -100 || y > viewH + 100) return;
+    const tint = tintHex || { ring: '255,80,30', ringIdle: '255,140,60', arc: '#ffae3a', drill: '#ff5a3a' };
+    // Outer pulse-ring
+    ctx.strokeStyle = drilling ? ('rgba(' + tint.ring + ',' + (0.6 + pulse * 0.4) + ')') : ('rgba(' + tint.ringIdle + ',0.4)');
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, (ds.r || 40) + (drilling ? pulse * 6 : 0), 0, Math.PI * 2);
+    ctx.stroke();
+    // Progress-arc
+    ctx.strokeStyle = tint.arc;
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(x, y, (ds.r || 40) - 6, -Math.PI / 2, -Math.PI / 2 + prog * Math.PI * 2);
+    ctx.stroke();
+    // Drill-icon i mitten (roterande om drilling)
+    ctx.save();
+    ctx.translate(x, y);
+    if (drilling) ctx.rotate(t / 150);
+    ctx.fillStyle = tint.drill;
+    ctx.fillRect(-3, -16, 6, 24);
+    ctx.fillStyle = '#aaa';
+    ctx.fillRect(-6, -20, 12, 6);
+    ctx.restore();
+    // Procent-text (eller ✓ om done)
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+    ctx.fillText(unlocked ? '✓' : (Math.round(prog * 100) + '%'), x, y + 50);
+    ctx.shadowBlur = 0;
+  };
+  if (state.heistPhase === 'alarm' && state.heistArena) {
+    if (state.heistArena.drillSpot) {
+      _drawDrillGlow(state.heistArena.drillSpot, !!state.heistDrilling,
+        state.heistDrillProgress || 0, !!state.heistVaultUnlocked, null);
+    }
+    // v1.646: inner-drill bara aktiv efter outer är öppen
+    if (state.heistArena.drillSpotInner && state.heistVaultUnlocked) {
+      _drawDrillGlow(state.heistArena.drillSpotInner, !!state.heistInnerDrilling,
+        state.heistInnerDrillProgress || 0, !!state.heistInnerVaultUnlocked, {
+          ring: '90,202,255', ringIdle: '120,180,255', arc: '#5acaff', drill: '#3a8acc'
+        });
     }
   }
 
@@ -24751,13 +24762,18 @@ const Coop = {
       }
       if (typeof updateHeistHud === 'function') updateHeistHud();
     } else if (ev.type === 'heist_hud') {
-      // { phase, elapsedSec, phaseElapsedSec, drillProgress, drilling, lootValue, lootBaggedCount, lootBagged, vaultUnlocked, carrying }
+      // { phase, elapsedSec, phaseElapsedSec, drillProgress, drilling, lootValue, lootBaggedCount, lootBagged, vaultUnlocked, innerDrillProgress, innerDrilling, innerVaultUnlocked, carrying }
       state.heistPhase = ev.phase;
       state.heistElapsedSec = ev.elapsedSec;
       state.heistPhaseElapsedSec = ev.phaseElapsedSec;
       state.heistDrillProgress = ev.drillProgress;
       state.heistDrilling = !!ev.drilling;
       state.heistDrillBlocked = !!ev.drillBlocked;
+      // v1.646: inner-drill HUD-state
+      state.heistInnerDrillProgress = ev.innerDrillProgress || 0;
+      state.heistInnerDrilling = !!ev.innerDrilling;
+      state.heistInnerDrillBlocked = !!ev.innerDrillBlocked;
+      state.heistInnerVaultUnlocked = !!ev.innerVaultUnlocked;
       state.heistLootValue = ev.lootValue;
       state.heistLootBaggedCount = ev.lootBaggedCount;
       state.heistLootBagged = {};
@@ -24780,9 +24796,13 @@ const Coop = {
         }
       }
       // Uppdatera door-collision: vault unlocks gör att den inte blockerar
-      if (state.heistDoors && state.heistVaultUnlocked) {
-        for (const d of state.heistDoors) {
-          if (d.id === 'vault') d.locked = false;
+      if (state.heistDoors) {
+        if (state.heistVaultUnlocked) {
+          for (const d of state.heistDoors) if (d.id === 'vault') d.locked = false;
+        }
+        // v1.646: inner-vault door följer samma pattern
+        if (state.heistInnerVaultUnlocked) {
+          for (const d of state.heistDoors) if (d.id === 'vault_inner') d.locked = false;
         }
       }
       if (typeof updateHeistHud === 'function') updateHeistHud();
@@ -24908,6 +24928,17 @@ const Coop = {
       if (typeof showToast === 'function') showToast('🔓 VALV ÖPPNAT — säckar väntar!');
       if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
       if (typeof triggerShake === 'function') triggerShake(8, 0.4);
+    } else if (ev.type === 'heist_inner_vault_unlocked') {
+      // v1.646: INNER vault (gold-mega-stacks accessible)
+      if (state.heistDoors) {
+        for (const d of state.heistDoors) {
+          if (d.id === 'vault_inner') d.locked = false;
+        }
+      }
+      state.heistInnerVaultUnlocked = true;
+      if (typeof showToast === 'function') showToast('💎 INNER-VALV ÖPPNAT — gold-mega väntar!');
+      if (typeof Audio !== 'undefined' && Audio.victory) Audio.victory();
+      if (typeof triggerShake === 'function') triggerShake(10, 0.6);
     } else if (ev.type === 'heist_hack_start') {
       // v1.645: hack-progress timer (var instant tidigare). Speglar lockpick-pattern.
       if (ev.peerId === this.myId) {
@@ -37074,19 +37105,33 @@ function getHeistContextAction() {
       return { label: '🔨 DRILLING ' + pct + '%', action: null };
     }
   }
+  // v1.646: INNER drill-spot (öppnar vault-inner för gold-mega-stacks).
+  // Bara visa när outer redan är drillad (annars är spelaren inte i inner än).
+  const innerDrillSpot = (state.heistArena && state.heistArena.drillSpotInner) || { x: 2000, y: 1100, r: 40 };
+  if (state.heistVaultUnlocked && phase === 'alarm') {
+    const idx = px - innerDrillSpot.x, idy = py - innerDrillSpot.y;
+    if (idx * idx + idy * idy < (innerDrillSpot.r || 40) * (innerDrillSpot.r || 40)) {
+      if (state.heistInnerVaultUnlocked) {
+        return { label: '🔨 INNER ÖPPEN', action: null };
+      }
+      const pct = Math.round((state.heistInnerDrillProgress || 0) * 100);
+      return { label: '🔨 INNER DRILL ' + pct + '%', action: null };
+    }
+  }
 
-  // v1.625: LOOT — non-vault loot (drawers/safe) baggable i ALLA fases (alarm-trigger
-  // i stealth). Vault-loot kräver alarm/extract + unlocked vault.
+  // v1.625/v1.646: LOOT — tier-gate ('inner' kräver inner-drill, 'outer' kräver outer-drill).
+  // Övrig loot (cash_drawer/manager_safe/laptop/etc) stealth-accessible i alla phases.
   if (phase !== 'ended' && state.heistLootSpots) {
     for (const loot of state.heistLootSpots) {
       if (state.heistLootBagged && state.heistLootBagged[loot.id]) continue;
       const dx = px - loot.x, dy = py - loot.y;
       if (dx * dx + dy * dy < 60 * 60) {
-        const isVaultLoot = (loot.kind === 'cash_stack' || loot.kind === 'gold_stack');
+        const tier = loot.tier;
+        const isVaultLoot = (tier === 'outer' || tier === 'inner');
         if (isVaultLoot) {
-          // Vault — kräver alarm/extract + unlocked
           if (phase !== 'alarm' && phase !== 'extract') continue;
-          if (!state.heistVaultUnlocked) continue;
+          if (tier === 'outer' && !state.heistVaultUnlocked) continue;
+          if (tier === 'inner' && !state.heistInnerVaultUnlocked) continue;
         }
         // Visuell varning för stealth-bagging
         const warning = (phase === 'stealth' && !isVaultLoot) ? ' ⚠' : '';
@@ -37281,12 +37326,22 @@ function updateHeistHud() {
       statsEl.style.display = 'none';
     }
   }
-  // Drill-progress (under alarm)
+  // Drill-progress (under alarm) — outer + ev. inner-drill
+  // v1.646: visa båda drills när outer är klar
   if (drillEl) {
     if (phase === 'alarm') {
       drillEl.style.display = 'block';
-      const pct = Math.round((state.heistDrillProgress || 0) * 100);
-      drillEl.textContent = '🔨 DRILL ' + pct + '%';
+      const outerPct = Math.round((state.heistDrillProgress || 0) * 100);
+      if (state.heistVaultUnlocked) {
+        if (state.heistInnerVaultUnlocked) {
+          drillEl.textContent = '🔨 OUTER ✓ · 💎 INNER ✓';
+        } else {
+          const innerPct = Math.round((state.heistInnerDrillProgress || 0) * 100);
+          drillEl.textContent = '🔨 OUTER ✓ · 💎 INNER ' + innerPct + '%';
+        }
+      } else {
+        drillEl.textContent = '🔨 DRILL ' + outerPct + '%';
+      }
     } else {
       drillEl.style.display = 'none';
     }

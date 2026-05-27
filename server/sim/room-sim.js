@@ -4032,29 +4032,32 @@ function tickHeist(sim, dt, nowMs) {
     }
     // v1.620/v1.625: Drill kräver player-närvaro OCH inga cops inom 80px
     // → positional gameplay: "håll cops borta från drill" istället för "stand still"
-    const drillSpot = arena.drillSpot || { x: 2000, y: 1720, r: 40 };
-    const drillR2 = (drillSpot.r || 40) * (drillSpot.r || 40);
-    let playerOnDrill = false;
-    for (const [, ws] of sim.room.members) {
-      if (!ws.playerState || ws.playerState.hp <= 0) continue;
-      const dx = ws.playerState.x - drillSpot.x;
-      const dy = ws.playerState.y - drillSpot.y;
-      if (dx * dx + dy * dy < drillR2) { playerOnDrill = true; break; }
-    }
-    // Check om cop inom 80px av drill (pause-radius)
-    let copNearDrill = false;
+    // v1.646: helper för båda drill-spotten (outer + inner)
     const copPauseR2 = 80 * 80;
-    if (sim.enemies && sim.enemies.length > 0) {
-      for (const e of sim.enemies) {
-        if (!e || e.dead) continue;
-        const dx = e.x - drillSpot.x, dy = e.y - drillSpot.y;
-        if (dx * dx + dy * dy < copPauseR2) { copNearDrill = true; break; }
+    const _drillStatus = (spot) => {
+      const r2 = (spot.r || 40) * (spot.r || 40);
+      let player = false;
+      for (const [, ws] of sim.room.members) {
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        const dx = ws.playerState.x - spot.x, dy = ws.playerState.y - spot.y;
+        if (dx * dx + dy * dy < r2) { player = true; break; }
       }
-    }
-    sim.heistDrilling = playerOnDrill && !copNearDrill;
-    sim.heistDrillBlocked = copNearDrill;
-    if (sim.heistDrilling && sim.heistDrillProgress < 1.0) {
-      // v1.626: difficulty-skalad drill-tid
+      let cop = false;
+      if (sim.enemies && sim.enemies.length > 0) {
+        for (const e of sim.enemies) {
+          if (!e || e.dead) continue;
+          const dx = e.x - spot.x, dy = e.y - spot.y;
+          if (dx * dx + dy * dy < copPauseR2) { cop = true; break; }
+        }
+      }
+      return { player, cop };
+    };
+    // OUTER drill (open vault-outer först — gateway till outer-loot + inner-drill)
+    const drillSpot = arena.drillSpot || { x: 2000, y: 1720, r: 40 };
+    const outerStatus = _drillStatus(drillSpot);
+    sim.heistDrilling = outerStatus.player && !outerStatus.cop && sim.heistDrillProgress < 1.0;
+    sim.heistDrillBlocked = outerStatus.cop && sim.heistDrillProgress < 1.0;
+    if (sim.heistDrilling) {
       const drillDurMs = (arena.drillDurationSec || 120) * 1000 * _heistDifficultyMul(sim).drillTime;
       sim.heistDrillProgress = Math.min(1.0, sim.heistDrillProgress + (dt * 1000 / drillDurMs));
       if (sim.heistDrillProgress >= 1.0 && !sim.heistVaultUnlocked) {
@@ -4062,7 +4065,25 @@ function tickHeist(sim, dt, nowMs) {
         sim.eventQueue.push({ type: 'heist_vault_unlocked' });
       }
     }
-    // Trigga extract-fas när drill klar + minst en loot bagged
+    // v1.646: INNER drill (öppnar inner-vault för gold-mega-stacks) — bara
+    // möjligt efter outer är öppen. Optional bonus, kortare 90s drill, samma
+    // cop-pause-mekanik som outer.
+    if (sim.heistVaultUnlocked) {
+      const drillSpotInner = arena.drillSpotInner || { x: 2000, y: 1100, r: 40 };
+      const innerStatus = _drillStatus(drillSpotInner);
+      sim.heistInnerDrilling = innerStatus.player && !innerStatus.cop && sim.heistInnerDrillProgress < 1.0;
+      sim.heistInnerDrillBlocked = innerStatus.cop && sim.heistInnerDrillProgress < 1.0;
+      if (sim.heistInnerDrilling) {
+        const innerDurMs = (arena.innerVaultDrillSec || 90) * 1000 * _heistDifficultyMul(sim).drillTime;
+        sim.heistInnerDrillProgress = Math.min(1.0, sim.heistInnerDrillProgress + (dt * 1000 / innerDurMs));
+        if (sim.heistInnerDrillProgress >= 1.0 && !sim.heistInnerVaultUnlocked) {
+          sim.heistInnerVaultUnlocked = true;
+          sim.eventQueue.push({ type: 'heist_inner_vault_unlocked' });
+        }
+      }
+    }
+    // Trigga extract-fas när OUTER drill klar + minst en loot bagged
+    // (inner-drill är optional — inte krav för extract)
     if (sim.heistDrillProgress >= 1.0 && Object.keys(sim.heistLootBagged).length > 0) {
       _heistTransitionPhase(sim, 'extract', 'drill_done', nowMs);
     }
@@ -4363,6 +4384,11 @@ function tickHeist(sim, dt, nowMs) {
       drillProgress: sim.heistDrillProgress || 0,
       drilling: !!sim.heistDrilling,
       drillBlocked: !!sim.heistDrillBlocked,
+      // v1.646: inner-drill state (gold-mega-stack-access)
+      innerDrillProgress: sim.heistInnerDrillProgress || 0,
+      innerDrilling: !!sim.heistInnerDrilling,
+      innerDrillBlocked: !!sim.heistInnerDrillBlocked,
+      innerVaultUnlocked: !!sim.heistInnerVaultUnlocked,
       lootValue: sim.heistLootValue || 0,
       lootBaggedCount: Object.keys(sim.heistLootBagged || {}).length,
       lootBagged: Object.keys(sim.heistLootBagged || {}),  // ID-lista
@@ -5249,8 +5275,14 @@ function startSim(sim, opts) {
       sim.heistPhaseStartT = Date.now();
       sim.heistLootBagged = {};              // { lootId: true } när bagged
       sim.heistLootValue = 0;                // total $ value bagged
-      sim.heistDrillProgress = 0;            // 0..1 vault drill
-      sim.heistDrilling = false;             // någon spelare på drill-spot
+      sim.heistDrillProgress = 0;            // 0..1 vault OUTER drill (120s)
+      sim.heistDrilling = false;             // någon spelare på outer-drill-spot
+      // v1.646: INNER vault — andra-tier drill, 90s efter outer-vault är öppen.
+      // gold_mega_stacks (15k×3 + cash 7.5k×2 + safe 5k×2 = ~58k extra) ligger i
+      // inner-vault. Optional bonus — extract-fas kan börja efter bara outer-drill.
+      sim.heistInnerDrillProgress = 0;       // 0..1 vault INNER drill (90s)
+      sim.heistInnerDrilling = false;        // någon spelare på inner-drill-spot
+      sim.heistInnerVaultUnlocked = false;
       sim.heistEnded = false;
       sim.heistRoles = opts.heistRoles || {}; // { peerId: 'hacker'|'tank'|'medic'|'rogue' }
       // v1.622: NPC-init (civilians + guards) — startposition från arena-data

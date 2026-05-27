@@ -796,24 +796,26 @@ const HEIST_ARENA = {
   ],
 
   // === LOOT-SPOTS (25 stycken) ===
+  // tier-flagga: 'inner' = vault-inner (kräver INNER-drill), 'outer' = vault-outer
+  // (kräver OUTER-drill). Övriga loot saknar tier = stealth-accessible (i alla phases).
   lootSpots: [
-    // VAULT INNER — final tier
-    { id: 'vi1', x: 1800, y: 850,  kind: 'gold_mega_stack', value: 15000, bagTime: 8, weight: 0.50 },
-    { id: 'vi2', x: 2000, y: 850,  kind: 'gold_mega_stack', value: 15000, bagTime: 8, weight: 0.50 },
-    { id: 'vi3', x: 2200, y: 850,  kind: 'gold_mega_stack', value: 15000, bagTime: 8, weight: 0.50 },
-    { id: 'vi4', x: 1500, y: 950,  kind: 'cash_stack',      value: 7500,  bagTime: 4, weight: 0.30 },
-    { id: 'vi5', x: 2500, y: 950,  kind: 'cash_stack',      value: 7500,  bagTime: 4, weight: 0.30 },
-    { id: 'vi6', x: 1400, y: 800,  kind: 'safe_open',       value: 5000,  bagTime: 4, weight: 0.20 },
-    { id: 'vi7', x: 2600, y: 800,  kind: 'safe_open',       value: 5000,  bagTime: 4, weight: 0.20 },
-    // VAULT OUTER
-    { id: 'vc1', x: 1450, y: 1200, kind: 'cash_stack',  value: 5000, bagTime: 3, weight: 0.25 },
-    { id: 'vc2', x: 1700, y: 1200, kind: 'cash_stack',  value: 5000, bagTime: 3, weight: 0.25 },
-    { id: 'vc3', x: 2300, y: 1200, kind: 'cash_stack',  value: 5000, bagTime: 3, weight: 0.25 },
-    { id: 'vc4', x: 2550, y: 1200, kind: 'cash_stack',  value: 5000, bagTime: 3, weight: 0.25 },
-    { id: 'vg1', x: 1600, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
-    { id: 'vg2', x: 1850, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
-    { id: 'vg3', x: 2150, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
-    { id: 'vg4', x: 2400, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
+    // VAULT INNER — final tier (drillSpotInner @ 2000,1100, 90s drill efter outer)
+    { id: 'vi1', x: 1800, y: 850,  kind: 'gold_mega_stack', value: 15000, bagTime: 8, weight: 0.50, tier: 'inner' },
+    { id: 'vi2', x: 2000, y: 850,  kind: 'gold_mega_stack', value: 15000, bagTime: 8, weight: 0.50, tier: 'inner' },
+    { id: 'vi3', x: 2200, y: 850,  kind: 'gold_mega_stack', value: 15000, bagTime: 8, weight: 0.50, tier: 'inner' },
+    { id: 'vi4', x: 1500, y: 950,  kind: 'cash_stack',      value: 7500,  bagTime: 4, weight: 0.30, tier: 'inner' },
+    { id: 'vi5', x: 2500, y: 950,  kind: 'cash_stack',      value: 7500,  bagTime: 4, weight: 0.30, tier: 'inner' },
+    { id: 'vi6', x: 1400, y: 800,  kind: 'safe_open',       value: 5000,  bagTime: 4, weight: 0.20, tier: 'inner' },
+    { id: 'vi7', x: 2600, y: 800,  kind: 'safe_open',       value: 5000,  bagTime: 4, weight: 0.20, tier: 'inner' },
+    // VAULT OUTER (drillSpot @ 2000,1720, 120s drill)
+    { id: 'vc1', x: 1450, y: 1200, kind: 'cash_stack',  value: 5000, bagTime: 3, weight: 0.25, tier: 'outer' },
+    { id: 'vc2', x: 1700, y: 1200, kind: 'cash_stack',  value: 5000, bagTime: 3, weight: 0.25, tier: 'outer' },
+    { id: 'vc3', x: 2300, y: 1200, kind: 'cash_stack',  value: 5000, bagTime: 3, weight: 0.25, tier: 'outer' },
+    { id: 'vc4', x: 2550, y: 1200, kind: 'cash_stack',  value: 5000, bagTime: 3, weight: 0.25, tier: 'outer' },
+    { id: 'vg1', x: 1600, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40, tier: 'outer' },
+    { id: 'vg2', x: 1850, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40, tier: 'outer' },
+    { id: 'vg3', x: 2150, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40, tier: 'outer' },
+    { id: 'vg4', x: 2400, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40, tier: 'outer' },
     // CASHIER DRAWERS (stealth-accessible) — placerade BAKOM counter (y=2470)
     // mellan counter (y=2400-2450) och kassör-workstations (y=2520-2580).
     // v1.644: var y=2330 = INUTI conference/central/toilet rooms (wrong!) → fixed v1.645.

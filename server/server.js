@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v167-heist-data-fix-hack-timer-v1.645';
+const SERVER_VERSION = 'v168-heist-inner-vault-drill-v1.646';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -975,15 +975,17 @@ function handleMessage(ws, msg) {
       const lootId = String(msg.lootId || '');
       const loot = HEIST_ARENA.lootSpots.find(l => l.id === lootId);
       if (!loot) return;
-      // v1.625: Stealth-accessible loot — cash drawers + manager safe kan baggas
-      // i stealth också. Vault-loot (cash_stack/gold_stack) kräver alarm + drill.
-      const isVaultLoot = (loot.kind === 'cash_stack' || loot.kind === 'gold_stack');
+      // v1.625/v1.646: tier-baserad gate. 'outer' kräver outer-drill,
+      // 'inner' kräver BÅDE outer- och inner-drill. Övrig loot (cash_drawer,
+      // manager_safe, laptop, locker, tip_jar, storage box) är stealth-accessible
+      // i alla phases (stealth → instant alarm-trigger).
+      const tier = loot.tier; // 'outer' | 'inner' | undefined
+      const isVaultLoot = (tier === 'outer' || tier === 'inner');
       if (isVaultLoot) {
-        // Vault-loot kräver alarm/extract + unlocked vault
         if (sim.heistPhase !== 'alarm' && sim.heistPhase !== 'extract') return;
-        if (!sim.heistVaultUnlocked) return;
+        if (tier === 'outer' && !sim.heistVaultUnlocked) return;
+        if (tier === 'inner' && !sim.heistInnerVaultUnlocked) return;
       } else {
-        // Drawers + safe kan baggas i alla phases (inkl stealth för risky-reward)
         if (sim.heistPhase === 'ended') return;
       }
       // Inte redan bagged
