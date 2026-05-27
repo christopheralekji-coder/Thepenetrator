@@ -873,14 +873,24 @@ const HEIST_ARENA = {
   ],
 
   // === HACK-TERMINALS (5 vanliga + 1 master) ===
+  // v1.650: term4 fick 3:e cam (counter_l) så alla regular terminals är lika
+  // viktiga. Master flyttar till "slår ut RESTERANDE" som design intends.
   hackTerminals: [
     { id: 'term1', x: 750,  y: 1380, disables: ['cam_front_door', 'cam_reception', 'cam_lobby_west'], hackTime: 4 },
     { id: 'term2', x: 800,  y: 1750, disables: ['cam_lobby_east', 'cam_lobby_center', 'cam_counter_l'], hackTime: 4 },
     { id: 'term3', x: 800,  y: 1900, disables: ['cam_counter_r', 'cam_hallway', 'cam_office_entry'], hackTime: 4 },
-    { id: 'term4', x: 1850, y: 2050, disables: ['cam_break', 'cam_conference'], hackTime: 4 },  // i conference!
-    { id: 'term5', x: 1080, y: 1750, disables: ['cam_vault_outer', 'cam_server'], hackTime: 4 },  // server-rum (y=1700 var inuti vägg, v1.648)
-    // MASTER — i security room, slår ut ALLA + vault-inner-cam
-    { id: 'term_master', x: 3250, y: 1550, disables: ['cam_vault_inner', 'cam_security'], hackTime: 6, master: true },
+    { id: 'term4', x: 1850, y: 2050, disables: ['cam_break', 'cam_conference', 'cam_vault_outer'], hackTime: 4 },
+    { id: 'term5', x: 1080, y: 1750, disables: ['cam_server', 'cam_vault_inner'], hackTime: 4 },
+    // MASTER — security room. Risky reach (måste in i guard-rummet) men slår ut
+    // ALLA 15 kameror på 6s (3s Hacker) → enda "instant total blackout"-option.
+    { id: 'term_master', x: 3250, y: 1550, disables: [
+      'cam_front_door', 'cam_reception',
+      'cam_lobby_west', 'cam_lobby_east', 'cam_lobby_center',
+      'cam_counter_l', 'cam_counter_r',
+      'cam_hallway', 'cam_office_entry',
+      'cam_vault_outer', 'cam_vault_inner',
+      'cam_break', 'cam_conference', 'cam_security', 'cam_server',
+    ], hackTime: 6, master: true },
   ],
 
   // === CIVILIANS (15 st spridda över alla rum) ===

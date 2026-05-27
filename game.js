@@ -18797,6 +18797,25 @@ function triggerVibrate(ms) {
   if (!Feedback.vibrateEnabled) return;
   if (navigator.vibrate) navigator.vibrate(ms);
 }
+// v1.650: full-screen color flash för phase-transitions (heist alarm/extract)
+// fade-out över duration. Använder eller skapar DOM-overlay #screen-flash.
+function _flashScreen(color, peakAlpha, durationMs) {
+  let el = document.getElementById('screen-flash');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'screen-flash';
+    el.style.cssText = 'position:fixed;inset:0;z-index:200;pointer-events:none;opacity:0;transition:opacity 80ms ease-out;';
+    document.body.appendChild(el);
+  }
+  el.style.background = color;
+  el.style.opacity = String(peakAlpha);
+  setTimeout(() => {
+    if (el) {
+      el.style.transition = 'opacity ' + Math.max(150, durationMs - 80) + 'ms ease-out';
+      el.style.opacity = '0';
+    }
+  }, 80);
+}
 function getShakeOffset() {
   if (Feedback.shake.t <= 0) return { x: 0, y: 0 };
   const intensity = (Feedback.shake.t / Feedback.shake.dur) * Feedback.shake.mag;
@@ -24862,18 +24881,27 @@ const Coop = {
       state.heistPhase = ev.phase;
       state.heistPhaseStartT = Date.now();
       if (ev.phase === 'alarm') {
-        if (typeof showToast === 'function') showToast('🚨 ALARM! Drilla valvet + bagga loot.');
-        // v1.625: alarm-bell ljud
+        // v1.650: cinematic phase-shift — full-screen rött pulse + större toast
+        if (typeof showToast === 'function') showToast('🚨🚨 ALARM TRIGGERED 🚨🚨\nDrilla valvet · försvar mot polis');
         if (typeof Audio !== 'undefined' && Audio.heistAlarmBell) Audio.heistAlarmBell();
         if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
-        if (typeof triggerShake === 'function') triggerShake(10, 0.8);
+        if (typeof triggerShake === 'function') triggerShake(20, 1.4);
+        if (typeof triggerVibrate === 'function') triggerVibrate(60);
+        _flashScreen('#ff3030', 0.55, 800);
       } else if (ev.phase === 'extract') {
-        if (typeof showToast === 'function') showToast('🚐 EXTRACT — kom till getaway-van inom 60s!');
+        if (typeof showToast === 'function') showToast('🚐🚐 EXTRACT 🚐🚐\nKom till getaway-van inom 60s!');
         if (typeof Audio !== 'undefined' && Audio.heistSiren) Audio.heistSiren();
         if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('boss');
-        if (typeof triggerShake === 'function') triggerShake(8, 0.5);
+        if (typeof triggerShake === 'function') triggerShake(14, 0.8);
+        if (typeof triggerVibrate === 'function') triggerVibrate(40);
+        _flashScreen('#5aff8a', 0.45, 600);
       }
       if (typeof updateHeistHud === 'function') updateHeistHud();
+    } else if (ev.type === 'heist_alarm_timeout_warning') {
+      // v1.650: server pushar warning när alarm-fas tickat 6/8 min utan drill
+      if (typeof showToast === 'function') showToast('⏰ STARTA DRILL — 2 MIN KVAR\nUtan drill = match lost!');
+      if (typeof triggerShake === 'function') triggerShake(8, 0.4);
+      if (typeof Audio !== 'undefined' && Audio.heistAlarmBell) Audio.heistAlarmBell();
     } else if (ev.type === 'heist_hud') {
       // { phase, elapsedSec, phaseElapsedSec, drillProgress, drilling, lootValue, lootBaggedCount, lootBagged, vaultUnlocked, innerDrillProgress, innerDrilling, innerVaultUnlocked, carrying }
       state.heistPhase = ev.phase;
@@ -24898,11 +24926,16 @@ const Coop = {
       const myCarry = ev.carrying && ev.carrying[this.myId];
       state.heistMyBagsCarrying = myCarry ? (myCarry.count || 0) : 0;
       state.heistMyBagsValue = myCarry ? (myCarry.value || 0) : 0;
+      // v1.650: alla peers' carrying så vi kan visa bag-icon ovanför partners
+      state.heistPeerBags = ev.carrying || {};
       // v1.623: dropped bags + unlocked doors
       state.heistDroppedBags = ev.droppedBags || [];
       state.heistUnlockedDoors = ev.unlockedDoors || {};
       // v1.626: cease-fire remaining
       state.heistCeasefireMs = ev.ceasefireRemainMs || 0;
+      // v1.650: cease-fire-budget (30s cap) + nästa-våg-countdown
+      state.heistCeasefireTotalMs = ev.ceasefireTotalMs || 0;
+      state.heistNextPoliceInMs = ev.nextPoliceInMs || 0;
       if (state.heistDoors && state.heistUnlockedDoors) {
         for (const d of state.heistDoors) {
           if (state.heistUnlockedDoors[d.id]) d.locked = false;
@@ -37188,9 +37221,8 @@ function updateHeistPosIndicator() {
     else room = 'RECEPTION';
   } else if (y < 700) room = 'BACK-ALLEY';
   else if (y > 3400) room = 'STREET';
-  // Decoration-count för debug
-  const decoCount = state.heistDecorations ? state.heistDecorations.length : 0;
-  el.textContent = `X:${x} Y:${y} · ${room} · D:${decoCount}`;
+  // v1.650: rensa upp — bara rumsnamn (X/Y/D var debug-info som låg kvar)
+  el.textContent = room;
   el.style.display = 'block';
 }
 
@@ -37415,6 +37447,11 @@ function updateHeistHud() {
       } else if (state.heistDrillBlocked) {
         objEl.textContent = '⛔ COPS BLOCKERAR DRILL · rensa zonen!';
         objEl.style.color = '#ff8080';
+      } else if (state.heistNextPoliceInMs > 0 && state.heistNextPoliceInMs < 8000) {
+        // v1.650: warning sista 8s innan nästa police-våg
+        const s = Math.ceil(state.heistNextPoliceInMs / 1000);
+        objEl.textContent = '⚠️ NÄSTA VÅG: ' + s + 's · positionera om!';
+        objEl.style.color = '#ffae3a';
       } else {
         objEl.textContent = 'Drilla valvet · Bagga loot · Försvar mot polis';
         objEl.style.color = '#fff';
@@ -70173,6 +70210,28 @@ function render() {
   // (Grenade-render flyttat till SLUTET av render() — efter walls/träd/tak
   //  så granaten alltid syns överst, inte under objekt.)
   drawCoopPartner();
+  // v1.650: heist bag-indikator ovanför partners (🎒 + count) — så player vet
+  // vem som bär värdefulla säckar och behöver eskort.
+  if (state.heistActive && state.heistPeerBags && Coop.active && Coop.players) {
+    for (const [pid, p] of Coop.players) {
+      if (pid === Coop.myId) continue;
+      if (p.x === undefined) continue;
+      if (p.hp !== undefined && p.hp <= 0) continue;
+      const carry = state.heistPeerBags[pid];
+      if (!carry || !carry.count) continue;
+      const x = p.x - state.camera.x;
+      const y = p.y - state.camera.y;
+      // Skip om partner är utanför viewport (off-screen-arrow har egen indikator)
+      if (x < -30 || x > viewW + 30 || y < -30 || y > viewH + 30) continue;
+      const label = '🎒 ' + carry.count;
+      ctx.fillStyle = 'rgba(0,0,0,0.6)';
+      ctx.fillRect(x - 18, y - 42, 36, 16);
+      ctx.fillStyle = '#ffd54a';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, x, y - 30);
+    }
+  }
   // Emotes ovanpå allt
   if (state.player && state.player.emote) {
     const px = state.player.x - state.camera.x;

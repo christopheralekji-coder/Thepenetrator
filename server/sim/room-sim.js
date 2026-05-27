@@ -4018,6 +4018,12 @@ function tickHeist(sim, dt, nowMs) {
   } else if (sim.heistPhase === 'alarm') {
     // v1.625: ALARM-FAS TIMEOUT (8 min) — förhindrar match-lock om ingen drillar
     const alarmMaxMs = (arena.alarmPhaseMaxSec || 480) * 1000;
+    // v1.650: warning vid 6/8 min så player förstår att drilla nu
+    if (!sim._heistAlarmWarning2minSent && phaseElapsedMs >= alarmMaxMs - 120000 &&
+        sim.heistDrillProgress < 1.0) {
+      sim._heistAlarmWarning2minSent = true;
+      sim.eventQueue.push({ type: 'heist_alarm_timeout_warning' });
+    }
     if (phaseElapsedMs >= alarmMaxMs) {
       sim.heistEnded = true;
       sim.heistActive = false;
@@ -4452,6 +4458,12 @@ function tickHeist(sim, dt, nowMs) {
       unlockedDoors: sim.heistUnlockedDoors || {},
       // v1.626: cease-fire remaining ms
       ceasefireRemainMs: Math.max(0, (sim.heistCeasefireUntil || 0) - nowMs),
+      // v1.650: total cease-fire-budget använt (för cap-visualisering)
+      ceasefireTotalMs: sim.heistTotalCeasefireMs || 0,
+      // v1.650: nästa police-våg countdown (negativ om "om x ms")
+      nextPoliceInMs: (sim.heistPhase === 'alarm' || sim.heistPhase === 'extract')
+        ? Math.max(0, (sim._heistNextPoliceAt || 0) - nowMs)
+        : 0,
     });
   }
   // === v1.622: NPC-broadcast (var 200ms = 5Hz för positionssync) ===

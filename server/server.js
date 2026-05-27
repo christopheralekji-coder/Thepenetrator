@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v171-heist-polish-doorframe-chair-cam-v1.649';
+const SERVER_VERSION = 'v172-heist-playtest-feedback-v1.650';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -1132,8 +1132,10 @@ function handleMessage(ws, msg) {
         ws._heistLockpickDoorId = null;
       }
     } else if (action === 'release_hostage') {
-      // v1.626: Hostage-trade — släpp hostage civilian → 10s cease-fire från polisen
-      // (de skjuter inte och inga nya våg-spawns under perioden)
+      // v1.626: Hostage-trade — släpp hostage civilian → cease-fire från polisen
+      // v1.650: Diminishing returns. Tidigare: 10s stackat oändligt (15 hostages
+      // = 150s gratis drill). Nu: 1:a release 10s, 2:a 7s, 3:e 5s, 4+ 3s.
+      // Plus TOTAL CAP 30s ackumulerat per match.
       if (sim.heistPhase !== 'alarm' && sim.heistPhase !== 'extract') return;
       const npcId = String(msg.npcId || '');
       const npc = (sim.heistNPCs || []).find(n =>
@@ -1141,22 +1143,38 @@ function handleMessage(ws, msg) {
       if (!npc) return;
       const dx = ps.x - npc.x, dy = ps.y - npc.y;
       if (dx * dx + dy * dy > 60 * 60) return;
-      // Cease-fire 10s från nu (eller +5s om redan aktiv)
       const now = Date.now();
-      sim.heistCeasefireUntil = Math.max(sim.heistCeasefireUntil || 0, now) + 10000;
-      // Hostage springer iväg (panic → exit)
+      sim.heistTotalCeasefireMs = sim.heistTotalCeasefireMs || 0;
+      sim.heistReleaseCount = (sim.heistReleaseCount || 0) + 1;
+      // Diminishing returns + cap mot 30s totalt
+      const tiers = [10000, 7000, 5000, 3000];
+      let gainMs = tiers[Math.min(sim.heistReleaseCount - 1, tiers.length - 1)];
+      const remaining = Math.max(0, 30000 - sim.heistTotalCeasefireMs);
+      gainMs = Math.min(gainMs, remaining);
+      if (gainMs <= 0) {
+        // Helt cappad — släpp hostage utan reward (markerar dock som released)
+        npc.state = 'panic';
+        npc._panicTarget = { x: 2000, y: 3500 };
+        sim.eventQueue.push({
+          type: 'heist_hostage_released',
+          npcId, by: ws.id, ceasefireMs: 0, capped: true,
+        });
+        return;
+      }
+      sim.heistTotalCeasefireMs += gainMs;
+      sim.heistCeasefireUntil = Math.max(sim.heistCeasefireUntil || 0, now) + gainMs;
+      // Hostage springer iväg
       npc.state = 'panic';
       npc._panicTarget = { x: 2000, y: 3500 };
-      // Push wave-spawn till efter cease-fire
       if (sim._heistNextPoliceAt && sim._heistNextPoliceAt < sim.heistCeasefireUntil) {
         sim._heistNextPoliceAt = sim.heistCeasefireUntil + 1000;
       }
-      // v1.626: scoreboard tracking
       ws._heistStatHostages = (ws._heistStatHostages || 0) + 1;
       sim.eventQueue.push({
         type: 'heist_hostage_released',
         npcId, by: ws.id,
-        ceasefireMs: sim.heistCeasefireUntil - now,
+        ceasefireMs: gainMs,
+        totalUsedMs: sim.heistTotalCeasefireMs,
       });
     } else if (action === 'silent_kill') {
       // v1.623: Rogue-only silent-melee mot guard — ingen alarm, guard dör
