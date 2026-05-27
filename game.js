@@ -24908,6 +24908,19 @@ const Coop = {
       if (typeof showToast === 'function') showToast('🔓 VALV ÖPPNAT — säckar väntar!');
       if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
       if (typeof triggerShake === 'function') triggerShake(8, 0.4);
+    } else if (ev.type === 'heist_hack_start') {
+      // v1.645: hack-progress timer (var instant tidigare). Speglar lockpick-pattern.
+      if (ev.peerId === this.myId) {
+        state.heistMyHackEnd = performance.now() + (ev.hackTimeMs || 4000);
+        state.heistMyHackTermId = ev.terminalId;
+      }
+    } else if (ev.type === 'heist_hack_cancel') {
+      // v1.645: server cancelade hack (player rörde sig ut ur range)
+      if (ev.peerId === this.myId) {
+        state.heistMyHackEnd = 0;
+        state.heistMyHackTermId = null;
+        if (typeof showToast === 'function') showToast('💻 HACK AVBRUTET · stå still vid terminal');
+      }
     } else if (ev.type === 'heist_terminal_hacked') {
       state.heistHackedTerminals = state.heistHackedTerminals || {};
       state.heistHackedTerminals[ev.terminalId] = true;
@@ -24916,7 +24929,13 @@ const Coop = {
       for (const camId of (ev.disabledCameras || [])) {
         state.heistDisabledCameras[camId] = true;
       }
-      if (typeof showToast === 'function') showToast('💻 TERMINAL HACKAD · kameror ner');
+      // v1.645: rensa egen hack-state
+      if (state.heistMyHackTermId === ev.terminalId) {
+        state.heistMyHackEnd = 0;
+        state.heistMyHackTermId = null;
+      }
+      const toastMsg = ev.isMaster ? '💻 MASTER HACKAD · alla kameror ner!' : '💻 TERMINAL HACKAD · kameror ner';
+      if (typeof showToast === 'function') showToast(toastMsg);
     } else if (ev.type === 'heist_win') {
       // { lootValue, elapsedSec, scoreboard }
       document.body.classList.remove('heist-mode');
@@ -34089,6 +34108,8 @@ document.getElementById('btn-menu').addEventListener('click', () => {
   state.heistMyBagsValue = 0;
   state.heistMyLockpickEnd = 0;
   state.heistMyLockpickDoorId = null;
+  state.heistMyHackEnd = 0;        // v1.645: hack-progress timer reset
+  state.heistMyHackTermId = null;
   state.heistDrillProgress = 0;
   state.heistDrilling = false;
   state.heistDrillBlocked = false;
@@ -37042,7 +37063,7 @@ function getHeistContextAction() {
   }
 
   // DRILL-spot (alarm phase): visa drill-progress + "DRILL" om i range
-  const drillSpot = (state.heistArena && state.heistArena.drillSpot) || { x: 2000, y: 1920, r: 40 };
+  const drillSpot = (state.heistArena && state.heistArena.drillSpot) || { x: 2000, y: 1720, r: 40 };
   const dDx = px - drillSpot.x, dDy = py - drillSpot.y;
   const dDist2 = dDx * dDx + dDy * dDy;
   if (dDist2 < (drillSpot.r || 40) * (drillSpot.r || 40)) {
@@ -37078,12 +37099,21 @@ function getHeistContextAction() {
   }
 
   // HACK-TERMINAL (under stealth)
+  // v1.645: progress-label om hack pågår (var instant tidigare)
   if (phase === 'stealth' && state.heistHackTerminals) {
     for (const term of state.heistHackTerminals) {
       if (state.heistHackedTerminals && state.heistHackedTerminals[term.id]) continue;
       const dx = px - term.x, dy = py - term.y;
       if (dx * dx + dy * dy < 50 * 50) {
-        return { label: '💻 HACKA TERMINAL', action: 'hack_terminal', terminalId: term.id };
+        // Visa progress om pågående
+        if (state.heistMyHackEnd && state.heistMyHackTermId === term.id &&
+            state.heistMyHackEnd > performance.now()) {
+          const rem = Math.ceil((state.heistMyHackEnd - performance.now()) / 1000);
+          const masterTag = term.master ? ' MASTER' : '';
+          return { label: '💻 HACKAR' + masterTag + ' ' + rem + 's...', action: 'hack_terminal', terminalId: term.id };
+        }
+        const label = term.master ? '💻 HACKA MASTER' : '💻 HACKA TERMINAL';
+        return { label, action: 'hack_terminal', terminalId: term.id };
       }
     }
   }

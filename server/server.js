@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v166-heist-tunnel-fix-v1.644';
+const SERVER_VERSION = 'v167-heist-data-fix-hack-timer-v1.645';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -1172,6 +1172,9 @@ function handleMessage(ws, msg) {
         guardId: npcId, by: ws.id,
       });
     } else if (action === 'hack_terminal') {
+      // v1.645: HACK NU MED TIDS-PROGRESS (var instant trots arena.hackTime=4/6).
+      // Two-tap pattern: första tappet startar timer, vidare tap completes vid finish.
+      // Hacker-role: -50% hack-tid. Range-check på varje tap så player måste stanna.
       const termId = String(msg.terminalId || '');
       const term = HEIST_ARENA.hackTerminals.find(t => t.id === termId);
       if (!term) return;
@@ -1179,14 +1182,34 @@ function handleMessage(ws, msg) {
       if (dx * dx + dy * dy > 50 * 50) return;
       sim.heistHackedTerminals = sim.heistHackedTerminals || {};
       if (sim.heistHackedTerminals[termId]) return;
-      sim.heistHackedTerminals[termId] = true;
-      sim.heistDisabledCameras = sim.heistDisabledCameras || {};
-      for (const camId of (term.disables || [])) sim.heistDisabledCameras[camId] = true;
-      sim.eventQueue.push({
-        type: 'heist_terminal_hacked',
-        terminalId: termId,
-        disabledCameras: term.disables,
-      });
+      const role = ws._heistRole || 'hacker';
+      const baseTime = (term.hackTime || 4) * 1000;
+      const hackTime = role === 'hacker' ? Math.round(baseTime * 0.5) : baseTime;
+      const now = Date.now();
+      if (!ws._heistHackStart || ws._heistHackTermId !== termId) {
+        ws._heistHackStart = now;
+        ws._heistHackTermId = termId;
+        ws._heistHackFinishesAt = now + hackTime;
+        sim.eventQueue.push({
+          type: 'heist_hack_start',
+          peerId: ws.id, terminalId: termId, hackTimeMs: hackTime,
+          isMaster: !!term.master,
+        });
+        return;
+      }
+      if (now >= ws._heistHackFinishesAt) {
+        sim.heistHackedTerminals[termId] = true;
+        sim.heistDisabledCameras = sim.heistDisabledCameras || {};
+        for (const camId of (term.disables || [])) sim.heistDisabledCameras[camId] = true;
+        sim.eventQueue.push({
+          type: 'heist_terminal_hacked',
+          terminalId: termId,
+          disabledCameras: term.disables,
+          isMaster: !!term.master,
+        });
+        ws._heistHackStart = 0;
+        ws._heistHackTermId = null;
+      }
     } else if (action === 'pick_role') {
       // v1.642: In-game role-pick. Tillåtet en gång per match. Stealth-fas
       // krävs så fördelar inte kan bytas mitt under intense extract-fight.

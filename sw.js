@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v644-heist-client-bullet-walls-tunnel-fix';
+const CACHE = 'penetrator-v645-heist-data-fix-hack-timer';
 const ASSETS = [
   './',
   './index.html',

@@ -814,17 +814,20 @@ const HEIST_ARENA = {
     { id: 'vg2', x: 1850, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
     { id: 'vg3', x: 2150, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
     { id: 'vg4', x: 2400, y: 1450, kind: 'gold_stack',  value: 8000, bagTime: 5, weight: 0.40 },
-    // CASHIER DRAWERS (stealth-accessible) — aligned med nya counter-positioner
-    { id: 'cd1', x: 1400, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
-    { id: 'cd2', x: 1625, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
-    { id: 'cd3', x: 1825, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
-    { id: 'cd4', x: 2375, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
-    { id: 'cd5', x: 2575, y: 2330, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    // CASHIER DRAWERS (stealth-accessible) — placerade BAKOM counter (y=2470)
+    // mellan counter (y=2400-2450) och kassör-workstations (y=2520-2580).
+    // v1.644: var y=2330 = INUTI conference/central/toilet rooms (wrong!) → fixed v1.645.
+    { id: 'cd1', x: 1400, y: 2470, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    { id: 'cd2', x: 1625, y: 2470, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    { id: 'cd3', x: 1825, y: 2470, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    { id: 'cd4', x: 2375, y: 2470, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
+    { id: 'cd5', x: 2575, y: 2470, kind: 'cash_drawer', value: 500,  bagTime: 1, weight: 0.05 },
     // MANAGER SAFE (stealth-accessible)
     { id: 'msa', x: 3320, y: 2050, kind: 'manager_safe', value: 4000, bagTime: 4, weight: 0.20 },
-    // CONFERENCE LAPTOPS (NEW — stealth)
-    { id: 'lap1',x: 1700, y: 2180, kind: 'laptop',       value: 800,  bagTime: 2, weight: 0.08 },
-    { id: 'lap2',x: 2000, y: 2200, kind: 'laptop',       value: 800,  bagTime: 2, weight: 0.08 },
+    // CONFERENCE LAPTOPS — på konferensbordet (matchar decoration-positions)
+    // v1.645: var x=1700/2000 = utanför conference-rum, fixat till bordet i conf.
+    { id: 'lap1',x: 1420, y: 2200, kind: 'laptop',       value: 800,  bagTime: 2, weight: 0.08 },
+    { id: 'lap2',x: 1560, y: 2200, kind: 'laptop',       value: 800,  bagTime: 2, weight: 0.08 },
     // SECURITY CONFISCATED (kräver guard-elim eller stealth)
     { id: 'sec', x: 3050, y: 1200, kind: 'filing_cabinet', value: 2500, bagTime: 3, weight: 0.15 },
     // LOCKER ROOM (stealth om locker-door lockpickad)

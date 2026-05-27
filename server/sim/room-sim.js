@@ -4032,7 +4032,7 @@ function tickHeist(sim, dt, nowMs) {
     }
     // v1.620/v1.625: Drill kräver player-närvaro OCH inga cops inom 80px
     // → positional gameplay: "håll cops borta från drill" istället för "stand still"
-    const drillSpot = arena.drillSpot || { x: 2000, y: 1920, r: 40 };
+    const drillSpot = arena.drillSpot || { x: 2000, y: 1720, r: 40 };
     const drillR2 = (drillSpot.r || 40) * (drillSpot.r || 40);
     let playerOnDrill = false;
     for (const [, ws] of sim.room.members) {
@@ -4155,6 +4155,42 @@ function tickHeist(sim, dt, nowMs) {
             delete ws._heistCamDetect[camId];
           }
         }
+      }
+    }
+
+    // v1.645: HACK-PROGRESS tick — completar pågående hacks utan att kräva
+    // andra-tap. Cancel om player rört sig >50px från terminal mellan starts.
+    for (const [, ws] of sim.room.members) {
+      if (!ws._heistHackStart || !ws._heistHackTermId) continue;
+      if (!ws.playerState || ws.playerState.hp <= 0) {
+        ws._heistHackStart = 0; ws._heistHackTermId = null; continue;
+      }
+      const term = (arena.hackTerminals || []).find(t => t.id === ws._heistHackTermId);
+      if (!term) { ws._heistHackStart = 0; ws._heistHackTermId = null; continue; }
+      const dx = ws.playerState.x - term.x, dy = ws.playerState.y - term.y;
+      if (dx * dx + dy * dy > 60 * 60) {
+        // Rörde sig ut ur range — cancel hack
+        sim.eventQueue.push({
+          type: 'heist_hack_cancel',
+          peerId: ws.id, terminalId: ws._heistHackTermId,
+        });
+        ws._heistHackStart = 0; ws._heistHackTermId = null;
+        continue;
+      }
+      if (nowMs >= ws._heistHackFinishesAt) {
+        sim.heistHackedTerminals = sim.heistHackedTerminals || {};
+        if (!sim.heistHackedTerminals[term.id]) {
+          sim.heistHackedTerminals[term.id] = true;
+          sim.heistDisabledCameras = sim.heistDisabledCameras || {};
+          for (const camId of (term.disables || [])) sim.heistDisabledCameras[camId] = true;
+          sim.eventQueue.push({
+            type: 'heist_terminal_hacked',
+            terminalId: term.id,
+            disabledCameras: term.disables,
+            isMaster: !!term.master,
+          });
+        }
+        ws._heistHackStart = 0; ws._heistHackTermId = null;
       }
     }
   }
@@ -5925,6 +5961,10 @@ function startSim(sim, opts) {
       ws._heistLockpickStart = 0;
       ws._heistLockpickDoorId = null;
       ws._heistLockpickFinishesAt = 0;
+      // v1.645: samma reset för nya hack-progress-timer
+      ws._heistHackStart = 0;
+      ws._heistHackTermId = null;
+      ws._heistHackFinishesAt = 0;
       ws._heistCamDetectStart = 0;
       ws._heistCamDetect = {}; // v1.625: per-cam timer
       ws._heistCamSeenThisTick = {};
