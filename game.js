@@ -8821,28 +8821,18 @@ function drawHeistWalls() {
       } else if (d.kind === 'back_door') col = d.locked ? '#3a2a2a' : '#7a5a3a';
       else if (d.kind === 'main_door') col = '#aa8a5a';
       else if (d.kind === 'side_door') col = '#7a5a4a';
-      // Dörrtröskel — mörk skugga som indikerar passage
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      if (horizontal) ctx.fillRect(x - 1, y + d.h + 1, d.w + 2, 4);
-      else ctx.fillRect(x + d.w + 1, y - 1, 4, d.h + 2);
-      // Dörrblad — extended 3px in i wall-area så stroke-seam göms
+      // v1.653: minimal frame — bara 2px seam-cover + subtle grain.
+      // Tidigare doorframe-stolpar (3px breda + 4px ut) stack up under
+      // player → "ingången hamnar under gubben" syntes konstigt.
+      // Nu: bara dörrblad + grain, inga prominenta pillars.
       ctx.fillStyle = col;
-      ctx.fillRect(x - 3, y - 3, d.w + 6, d.h + 6);
-      // Door-grain-detalj
+      ctx.fillRect(x - 2, y - 2, d.w + 4, d.h + 4);
+      // Door-grain-detalj (mahogny-känsla)
       ctx.fillStyle = 'rgba(0,0,0,0.18)';
       if (horizontal) {
         for (let xi = 8; xi < d.w - 4; xi += 14) ctx.fillRect(x + xi, y, 1, d.h);
       } else {
         for (let yi = 8; yi < d.h - 4; yi += 14) ctx.fillRect(x, y + yi, d.w, 1);
-      }
-      // Doorframe-stolpar (mörka pillars vid kortändarna)
-      ctx.fillStyle = '#2a1a08';
-      if (horizontal) {
-        ctx.fillRect(x - 4, y - 4, 3, d.h + 8);
-        ctx.fillRect(x + d.w + 1, y - 4, 3, d.h + 8);
-      } else {
-        ctx.fillRect(x - 4, y - 4, d.w + 8, 3);
-        ctx.fillRect(x - 4, y + d.h + 1, d.w + 8, 3);
       }
       // Handtag/lås-indikator i mitten
       if (d.locked) {

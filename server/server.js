@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v174-heist-tank-medic-stealth-tools-v1.652';
+const SERVER_VERSION = 'v175-heist-guards-evacuate-LOS-witness-v1.653';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -993,11 +993,31 @@ function handleMessage(ws, msg) {
       // Range-check (60px radius)
       const dx = ps.x - loot.x, dy = ps.y - loot.y;
       if (dx * dx + dy * dy > 60 * 60) return;
-      // v1.625: Stealth-bagging av cash_drawer/manager_safe = INSTANT ALARM
-      // (du kan inte stjäla framför cashier utan att de märker det)
+      // v1.625/v1.653: Stealth-bagging triggar alarm BARA om en civilian
+      // har LOS + är inom 200px av loot-positionen (kassör/manager ser dig).
+      // Tidigare: alarm trigger oavsett (även om alla cashiers var döda/borta).
+      // Bortre civilians och de i panic/hostage/calmed-state räknas inte.
       if (!isVaultLoot && sim.heistPhase === 'stealth') {
-        sim.heistAlarmTriggered = true;
-        sim.eventQueue.push({ type: 'heist_loot_alarm', lootKind: loot.kind });
+        const { _heistLineBlockedByWall } = require('./sim/room-sim');
+        let witnessed = false;
+        const witnessR2 = 200 * 200;
+        for (const npc of (sim.heistNPCs || [])) {
+          if (!npc || npc.dead) continue;
+          if (npc.type !== 'civilian') continue;
+          // Hostage/calmed/panic civilians skvallrar inte
+          if (npc.state === 'hostage' || npc.state === 'calmed' || npc.state === 'panic') continue;
+          const dx = loot.x - npc.x, dy = loot.y - npc.y;
+          if (dx * dx + dy * dy > witnessR2) continue;
+          // LOS-check: vägg mellan civilian och loot = de ser ej
+          if (typeof _heistLineBlockedByWall === 'function' &&
+              _heistLineBlockedByWall(npc.x, npc.y, loot.x, loot.y, HEIST_ARENA)) continue;
+          witnessed = true;
+          break;
+        }
+        if (witnessed) {
+          sim.heistAlarmTriggered = true;
+          sim.eventQueue.push({ type: 'heist_loot_alarm', lootKind: loot.kind });
+        }
       }
       // v1.621: Bag → carry-weight på spelaren (säkras vid extract-van)
       // v1.624: Använd faktisk loot.weight per typ (0.05-0.40) istället för flat 0.10

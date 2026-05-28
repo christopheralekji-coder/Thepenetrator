@@ -4864,22 +4864,32 @@ function _heistApplyRole(ws, role, sim, arena) {
   }
 }
 
-// När alarm triggas: konvertera guards till regular enemies så police-AI tar över
+// v1.653: Tidigare konverterade vakter inuti banken till cops i samma position
+// → spelaren såg "cops spawna i random rum" mid-alarm. Nu evakuerar vakterna
+// istället (springer mot närmaste exit, försvinner) + sim triggar omedelbart
+// första police-våg från GATAN. Clear separation: stealth=guards inne,
+// alarm/extract=police utifrån.
 function _heistConvertGuardsToEnemies(sim) {
   if (!sim.heistNPCs) return;
+  // Sätt alla vakter till "panic"-state med exit som mål — de springer ut
+  // som civilians, försvinner när de når exit.
+  const arena = HEIST_ARENA;
   for (const npc of sim.heistNPCs) {
     if (npc.type !== 'guard' || npc.dead) continue;
-    const e = makeEnemy('soldier', npc.x, npc.y);
-    if (!e) continue;
-    e._idx = sim.nextEnemyIdx++;
-    e._heistCop = true;
-    e._cdEnemy = true;
-    e._cdRole = 'attacker';
-    e._origSpeed = e.speed;
-    e.hp = npc.hp;
-    e.maxHp = npc.maxHp;
-    sim.enemies.push(e);
-    npc.dead = true;
+    npc.state = 'panic'; // återanvänder civilian-panic-logik
+    npc._panicTarget = _heistNearestExit(npc.x, npc.y, arena);
+    npc._distractedUntil = 0;
+    // _heistTickCivilian hanterar panic → 'escaped' + dead när reached exit.
+    // Men guards har type='guard' så de tickas av _heistTickGuard. Override
+    // typen så de hanteras av civilian-tick istället.
+    npc.type = 'civilian';
+    npc.subType = 'evacuating_guard'; // klient renderar dem fortfarande som guards
+    npc.cone = 0; // ingen vision-cone-render
+    npc.range = 0;
+  }
+  // Direkt police-våg så player inte står still i tomt rum vid alarm-start
+  if (typeof _heistSpawnPoliceWave === 'function') {
+    _heistSpawnPoliceWave(sim, arena, Date.now());
   }
 }
 
@@ -6877,4 +6887,4 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole, _heistLineBlockedByWall };
