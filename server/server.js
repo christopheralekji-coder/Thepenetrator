@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v175-heist-guards-evacuate-LOS-witness-v1.653';
+const SERVER_VERSION = 'v176-heist-unique-roles-v1.654';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -1305,12 +1305,32 @@ function handleMessage(ws, msg) {
     } else if (action === 'pick_role') {
       // v1.642: In-game role-pick. Tillåtet en gång per match. Stealth-fas
       // krävs så fördelar inte kan bytas mitt under intense extract-fight.
+      // v1.654: UNIQUE-roll-validation. Varje roll får bara väljas av EN
+      // spelare per match. Om någon annan redan har rollen → reject + emit
+      // 'heist_role_taken' så klient kan visa toast.
       if (ws._heistRoleLocked) return;
       if (sim.heistPhase !== 'stealth') return;
       const role = String(msg.role || 'hacker');
       const validRoles = ['hacker', 'tank', 'medic', 'rogue'];
       if (validRoles.indexOf(role) < 0) return;
-      // Anropa server-helpern (room-sim.js) via sim-export. Fallback: kräv require.
+      // Unique-check: bara LOCKED peers blockar rollen (en peer som har
+      // 'hacker' som default men inte locked ännu räknas som "available").
+      sim.heistRoles = sim.heistRoles || {};
+      const room = rooms.get(ws.roomCode);
+      if (room && room.sim && room.sim.room && room.sim.room.members) {
+        for (const [otherPid, otherWs] of room.sim.room.members) {
+          if (otherPid === ws.id) continue;
+          if (!otherWs._heistRoleLocked) continue; // ej låst → räknas inte
+          if ((sim.heistRoles[otherPid] || otherWs._heistRole) === role) {
+            sim.eventQueue.push({
+              type: 'heist_role_taken',
+              peerId: ws.id, role,
+              takenByPid: otherPid,
+            });
+            return;
+          }
+        }
+      }
       const { _heistApplyRole } = require('./sim/room-sim');
       if (typeof _heistApplyRole === 'function') {
         _heistApplyRole(ws, role, sim, HEIST_ARENA);
@@ -1318,8 +1338,6 @@ function handleMessage(ws, msg) {
         ws._heistRole = role;
       }
       ws._heistRoleLocked = true;
-      // Spegla in sim.heistRoles så framtida re-spawn använder rätt role
-      sim.heistRoles = sim.heistRoles || {};
       sim.heistRoles[ws.id] = role;
       sim.eventQueue.push({
         type: 'heist_role_picked',

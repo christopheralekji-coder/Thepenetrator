@@ -24899,11 +24899,29 @@ const Coop = {
         if (typeof ev.maxHp === 'number') state.player.maxHp = ev.maxHp;
         if (typeof ev.hp === 'number') state.player.hp = ev.hp;
         if (typeof ev.speedMul === 'number') state.player.speedMul = ev.speedMul;
+        // v1.654: stäng picker NU när server bekräftade VÅRT pick
+        if (typeof hideHeistRolePicker === 'function') hideHeistRolePicker();
+        if (typeof showToast === 'function') {
+          const icon = { hacker:'💻', tank:'🛡️', medic:'💊', rogue:'🗡️' }[ev.role] || '👤';
+          showToast(icon + ' Roll vald: ' + ev.role.toUpperCase());
+        }
       }
       // Lagra alla peers' roller så framtida HUD/scoreboard har koll
       Coop.config = Coop.config || {};
       Coop.config.heistRoles = Coop.config.heistRoles || {};
       Coop.config.heistRoles[ev.peerId] = ev.role;
+      // v1.654: re-rendera picker så taken-roller disablas live för alla
+      if (typeof updateHeistRolePicker === 'function') updateHeistRolePicker();
+    } else if (ev.type === 'heist_role_taken') {
+      // v1.654: serverside rejection — annan spelare tog rollen först
+      if (ev.peerId === Coop.myId) {
+        if (typeof showToast === 'function') {
+          const icon = { hacker:'💻', tank:'🛡️', medic:'💊', rogue:'🗡️' }[ev.role] || '👤';
+          showToast(icon + ' Rollen är redan tagen · välj en annan');
+        }
+        // Re-render picker så user ser att rollen är disabled
+        if (typeof updateHeistRolePicker === 'function') updateHeistRolePicker();
+      }
     } else if (ev.type === 'heist_phase_change') {
       // { phase, reason } — server signalerar fas-byte
       state.heistPhase = ev.phase;
@@ -37063,47 +37081,85 @@ function showHeistRolePicker() {
   const overlay = document.createElement('div');
   overlay.id = 'heist-role-picker';
   overlay.style.cssText = 'position:fixed;inset:0;z-index:250;background:radial-gradient(ellipse at center,rgba(40,20,5,0.96) 0%,rgba(0,0,0,0.98) 80%);display:flex;align-items:center;justify-content:center;font-family:sans-serif;padding:max(12px, env(safe-area-inset-top, 12px)) max(12px, env(safe-area-inset-right, 12px)) max(12px, env(safe-area-inset-bottom, 12px)) max(12px, env(safe-area-inset-left, 12px));';
-  const roles = [
-    { id: 'hacker', icon: '💻', name: 'HACKER', desc: 'Osynlig för kameror · -50% hack-tid', tint: '#5acaff' },
-    { id: 'tank',   icon: '🛡️', name: 'TANK',   desc: '+50% HP · DISTRAHERA VAKT (150px, 30s CD)', tint: '#ff7a3a' },
-    { id: 'medic',  icon: '💊', name: 'MEDIC',  desc: '+6 HP/s regen · LUGNA CIVILIAN (15s, 20s CD)', tint: '#5aff8a' },
-    { id: 'rogue',  icon: '🗡️', name: 'ROGUE',  desc: '+10% speed · silent-kill · 2× lockpick', tint: '#aa5aff' },
-  ];
-  const cardsHtml = roles.map(r =>
-    '<button data-role="' + r.id + '" class="heist-role-card" style="background:linear-gradient(180deg,#1a0f08 0%,#0a0604 100%);border:2px solid ' + r.tint + ';color:#fff;border-radius:14px;padding:18px 14px;font-family:inherit;cursor:pointer;text-align:center;box-shadow:0 0 24px ' + r.tint + '30;transition:transform 0.1s,box-shadow 0.1s;">' +
-      '<div style="font-size:42px;line-height:1;margin-bottom:8px;">' + r.icon + '</div>' +
-      '<div style="color:' + r.tint + ';font-weight:900;letter-spacing:2px;font-size:15px;margin-bottom:6px;">' + r.name + '</div>' +
-      '<div style="color:#bbb;font-size:11px;line-height:1.3;">' + r.desc + '</div>' +
-    '</button>'
-  ).join('');
+  // v1.654: roles definition flyttat till module-scope (HEIST_ROLE_DEFS)
+  // så updateHeistRolePicker kan re-rendera vid taken-changes
   overlay.innerHTML =
     '<div style="background:linear-gradient(180deg,#1a0f08 0%,#0a0604 100%);border:3px solid #ffae3a;border-radius:18px;padding:24px 22px;max-width:560px;width:96vw;box-shadow:0 0 60px rgba(255,174,58,0.25);">' +
       '<div style="font-size:38px;line-height:1;text-align:center;margin-bottom:4px;">💰</div>' +
       '<h2 style="color:#ffd54a;text-align:center;font-size:20px;font-weight:900;letter-spacing:3px;margin:0 0 4px 0;">VÄLJ DIN ROLL</h2>' +
-      '<div style="color:#aaa;text-align:center;font-size:11px;letter-spacing:1px;margin-bottom:14px;">Stealth-fas — låses efter pick</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">' + cardsHtml + '</div>' +
-      '<div style="color:#888;text-align:center;font-size:11px;letter-spacing:1px;margin-top:14px;">Auto-pick <b style="color:#ffae3a;">' + defaultRole.toUpperCase() + '</b> om <span id="heist-role-countdown" style="color:#fff;font-weight:900;">15</span>s</div>' +
+      '<div style="color:#aaa;text-align:center;font-size:11px;letter-spacing:1px;margin-bottom:14px;">Varje roll bara EN spelare · låses efter pick</div>' +
+      '<div id="heist-role-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>' +
+      '<div style="color:#888;text-align:center;font-size:11px;letter-spacing:1px;margin-top:14px;">Auto-pick första lediga om <span id="heist-role-countdown" style="color:#fff;font-weight:900;">15</span>s</div>' +
     '</div>';
   document.body.appendChild(overlay);
-  // Bind tap-handlers
-  for (const btn of overlay.querySelectorAll('.heist-role-card')) {
-    const handler = () => {
-      const role = btn.getAttribute('data-role');
-      pickHeistRole(role);
-    };
-    btn.addEventListener('click', handler, { passive: true });
-    btn.addEventListener('touchend', (e) => { e.preventDefault(); handler(); });
-  }
+  // Initial card-render + bind via updateHeistRolePicker
+  updateHeistRolePicker();
   // Auto-pick countdown
   state._heistRolePickerStartedAt = performance.now();
-  state._heistRolePickerAutoPickRole = defaultRole;
   state._heistRolePickerIntervalId = setInterval(() => {
     const elapsed = (performance.now() - state._heistRolePickerStartedAt) / 1000;
     const remain = Math.max(0, Math.ceil(15 - elapsed));
     const cdEl = document.getElementById('heist-role-countdown');
     if (cdEl) cdEl.textContent = String(remain);
-    if (remain <= 0) pickHeistRole(state._heistRolePickerAutoPickRole || 'hacker');
+    if (remain <= 0) {
+      // Pick första LEDIGA roll (var: always 'hacker' även om hacker tagen)
+      const taken = _heistTakenRoles();
+      const free = HEIST_ROLE_DEFS.find(r => !taken[r.id]);
+      pickHeistRole(free ? free.id : 'hacker');
+    }
   }, 250);
+}
+
+// v1.654: role-defs i module-scope så de kan delas mellan show/update.
+const HEIST_ROLE_DEFS = [
+  { id: 'hacker', icon: '💻', name: 'HACKER', desc: 'Osynlig för kameror · -50% hack-tid', tint: '#5acaff' },
+  { id: 'tank',   icon: '🛡️', name: 'TANK',   desc: '+50% HP · DISTRAHERA VAKT (150px, 30s CD)', tint: '#ff7a3a' },
+  { id: 'medic',  icon: '💊', name: 'MEDIC',  desc: '+6 HP/s regen · LUGNA CIVILIAN (15s, 20s CD)', tint: '#5aff8a' },
+  { id: 'rogue',  icon: '🗡️', name: 'ROGUE',  desc: '+10% speed · silent-kill · 2× lockpick', tint: '#aa5aff' },
+];
+
+// Returnerar { roleId: peerIdSomTagit } för LOCKED roles av ANDRA spelare
+function _heistTakenRoles() {
+  const taken = {};
+  if (!Coop || !Coop.config || !Coop.config.heistRoles) return taken;
+  for (const pid in Coop.config.heistRoles) {
+    if (pid === Coop.myId) continue;
+    const r = Coop.config.heistRoles[pid];
+    if (r) taken[r] = pid;
+  }
+  return taken;
+}
+
+// v1.654: rendera kort + uppdatera disabled-state live när andra peers picker
+function updateHeistRolePicker() {
+  const cardsEl = document.getElementById('heist-role-cards');
+  if (!cardsEl) return;
+  const taken = _heistTakenRoles();
+  cardsEl.innerHTML = '';
+  for (const r of HEIST_ROLE_DEFS) {
+    const isTaken = !!taken[r.id];
+    const btn = document.createElement('button');
+    btn.setAttribute('data-role', r.id);
+    btn.className = 'heist-role-card';
+    btn.disabled = isTaken;
+    const opacity = isTaken ? '0.35' : '1';
+    const cursor = isTaken ? 'not-allowed' : 'pointer';
+    btn.style.cssText = 'background:linear-gradient(180deg,#1a0f08 0%,#0a0604 100%);border:2px solid ' + r.tint +
+      ';color:#fff;border-radius:14px;padding:18px 14px;font-family:inherit;cursor:' + cursor +
+      ';text-align:center;box-shadow:0 0 24px ' + r.tint + '30;transition:transform 0.1s,box-shadow 0.1s;opacity:' + opacity +
+      ';position:relative;';
+    btn.innerHTML =
+      '<div style="font-size:42px;line-height:1;margin-bottom:8px;">' + r.icon + '</div>' +
+      '<div style="color:' + r.tint + ';font-weight:900;letter-spacing:2px;font-size:15px;margin-bottom:6px;">' + r.name + '</div>' +
+      '<div style="color:#bbb;font-size:11px;line-height:1.3;">' + r.desc + '</div>' +
+      (isTaken ? '<div style="position:absolute;top:6px;right:8px;background:#ff5050;color:#fff;font-size:9px;font-weight:900;padding:2px 6px;border-radius:4px;letter-spacing:1px;">TAGEN</div>' : '');
+    if (!isTaken) {
+      const handler = () => pickHeistRole(r.id);
+      btn.addEventListener('click', handler, { passive: true });
+      btn.addEventListener('touchend', (e) => { e.preventDefault(); handler(); });
+    }
+    cardsEl.appendChild(btn);
+  }
 }
 
 function hideHeistRolePicker() {
@@ -37122,16 +37178,17 @@ function pickHeistRole(role) {
       Coop.ws.send(JSON.stringify({ type: 'sim_heist_action', action: 'pick_role', role }));
     } catch (_) {}
   }
-  // Spara lokalt så HUD/UI vet rollen direkt (server bekräftar via heist_role_picked-event)
+  // v1.654: VÄNTA på server-bekräftelse (heist_role_picked-event) innan
+  // picker stängs. Tidigare stängdes picker omedelbart även om server
+  // avvisade pga taken role → user fastnade utan picker.
+  // Lokal optimistisk markering så user ser feedback medan vi väntar.
   Coop.config = Coop.config || {};
   Coop.config.heistMyRole = role;
-  Coop.config.heistRoles = Coop.config.heistRoles || {};
-  Coop.config.heistRoles[Coop.myId] = role;
-  hideHeistRolePicker();
   if (typeof Audio !== 'undefined' && Audio.uiClick) Audio.uiClick();
+  // Visa pending-toast så user vet att vi väntar
   if (typeof showToast === 'function') {
     const icon = { hacker:'💻', tank:'🛡️', medic:'💊', rogue:'🗡️' }[role] || '👤';
-    showToast(icon + ' Roll vald: ' + role.toUpperCase());
+    showToast(icon + ' Väljer ' + role.toUpperCase() + '...');
   }
 }
 
