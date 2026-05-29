@@ -1462,6 +1462,18 @@ function handleDisconnect(ws) {
     const host = room.members.get(room.hostId);
     if (host) send(host, { type: 'peer_left', peerId: ws.id });
     console.log('[ROOM]', room.code, ws.id, 'left (', room.members.size, 'members)');
+    // v1.657: rensa per-pid sim-state för den lämnande peer:n så stale pids inte
+    // hänger kvar — annars spök-spelare i leaderboards (koth/jug/BR) + onödig
+    // deadBodies-iteration matchen ut. Defensivt guardat (no-op om saknas).
+    if (room.sim) {
+      const _s = room.sim, _pid = ws.id;
+      if (_s.deadBodies) delete _s.deadBodies[_pid];
+      if (_s.kothScores) delete _s.kothScores[_pid];
+      if (_s._kothPointAccum) delete _s._kothPointAccum[_pid];
+      if (_s.juggernautScores) delete _s.juggernautScores[_pid];
+      if (_s.battleroyaleKillsByPid) delete _s.battleroyaleKillsByPid[_pid];
+      if (_s.tdmDeathsByPid) delete _s.tdmDeathsByPid[_pid];
+    }
     // JUGGERNAUT: om JUG-spelaren disconnectade, frigör JUG-rollen så nästa
     // human-respawn ärver den (i stället för att JUG sitter död tills timer går ut).
     if (room.sim && room.sim.juggernautActive && room.sim.juggernautPid === ws.id) {

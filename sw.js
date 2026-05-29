@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v656-perf-adaptive-fps-shadow-gc';
+const CACHE = 'penetrator-v657-juice-audio-onboarding-stability';
 const ASSETS = [
   './',
   './index.html',

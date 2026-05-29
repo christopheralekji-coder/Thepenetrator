@@ -42,7 +42,10 @@ function clampI16(v) { v = Math.round(v); return v > 32767 ? 32767 : (v < -32768
 function clampU16(v) { v = Math.round(v); return v > 65535 ? 65535 : (v < 0 ? 0 : v); }
 function clampU8(v) { v = Math.round(v); return v > 255 ? 255 : (v < 0 ? 0 : v); }
 
-const _scratchBuf = new ArrayBuffer(32 * 1024);
+// v1.657: 32KB→128KB. Worst-case stresstest (1500 enemies × ~24B + 200 bullets +
+// overhead ≈ 40KB) kunde överskrida 32KB → out-of-bounds-write kraschade tick-loopen
+// för alla. 128KB ger headroom för ~5000 entities. Single-threaded → delning OK.
+const _scratchBuf = new ArrayBuffer(128 * 1024);
 const _scratchView = new DataView(_scratchBuf);
 const _scratchU8 = new Uint8Array(_scratchBuf);
 

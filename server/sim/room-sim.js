@@ -6289,6 +6289,11 @@ function stopSim(sim) {
       ws._mountedCtfTurretId = null;
       ws._mountedSiegeTurretId = null;
       ws._eventSkips = 0;
+      // v1.657: rensa TDM/PvP-respawn-state. tdmRespawnAt läckte → om en spelare
+      // dog i sista sekunden av en match var timern kvar → "respawn" triggades i
+      // NÄSTA match för en död de aldrig visste om.
+      ws.tdmRespawnAt = 0;
+      ws.tdmTeam = null;
     }
   }
   // v1.432: Rensa SIM-LEVEL state också. Tidigare läckte dessa mellan matcher

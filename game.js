@@ -17719,6 +17719,9 @@ function closeSurvivorsPerkOverlay() {
 
 function selectSurvivorsPerk(perk) {
   if (!perk) return;
+  // v1.657: belönings-stinger vid perk-val (var: bara uiClick). Ett av spelets
+  // viktigaste val-ögonblick förtjänar mer än ett UI-klick.
+  if (typeof Audio !== 'undefined' && Audio.perkChosen) Audio.perkChosen();
   state.survivorsPerks = state.survivorsPerks || [];
   state.survivorsPerks.push({
     perkId: perk.id,
@@ -18401,6 +18404,7 @@ const Audio = {
     this._noise(0.04, 0.08, { type: 'lowpass', freq: 200 });
   },
   bossSpawn() {
+    this.duck(0.5, 1000); // v1.657: dippa musiken för boss-entré
     this._tone(80, 0.6, 'sawtooth', 0.5, 0.05, 0.5, 40);
     this._tone(160, 0.6, 'sawtooth', 0.3, 0.05, 0.5, 80);
     this._noise(0.8, 0.3, { type: 'lowpass', freq: 200 });
@@ -18435,6 +18439,7 @@ const Audio = {
     this._tone(440, 0.2, 'sawtooth', 0.2, 0.005, 0.18, 220);
   },
   bossDeath() {
+    this.duck(0.6, 1400); // v1.657: dippa musiken så boss-döden andas
     this._tone(80, 1.2, 'sawtooth', 0.5, 0.05, 1.0, 30);
     this._noise(1.5, 0.4, { type: 'lowpass', freq: 300 });
     setTimeout(() => this._tone(440, 0.5, 'sine', 0.3, 0.05, 0.4, 880), 400);
@@ -18531,6 +18536,70 @@ const Audio = {
     setTimeout(() => this._tone(2093, 0.10, 'sine', 0.15, 0.005, 0.08), 320);
     setTimeout(() => this._tone(2637, 0.08, 'sine', 0.10, 0.005, 0.07), 380);
   },
+  // ===== v1.657: tidigare DÖDA SFX-anrop (anropades men fanns ej → tysta no-ops) =====
+  // Centrala events (spelar-död, wave-start, pickups) var tysta p.g.a. saknade metoder.
+  playerDeath() {
+    // Respawnbar spelar-död (PvP/coop) — kort tungt nedslag, INTE run-slut-fanfaren.
+    this._tone(180, 0.25, 'sawtooth', 0.4, 0.005, 0.2, 60);
+    this._noise(0.25, 0.3, { type: 'lowpass', freq: 400 });
+    setTimeout(() => this._tone(120, 0.3, 'sine', 0.3, 0.01, 0.26, 50), 120);
+  },
+  pickup() { this.goldPickup(); },
+  waveStart() { this.stageStart(); },
+  bossHit() {
+    if (!this._throttle('bossHit', 60)) return;
+    // Tyngre/lägre än vanlig hit — "du nöter på en stor fiende".
+    this._tone(140, 0.06, 'square', 0.22, 0.001, 0.05, 90);
+    this._noise(0.05, 0.12, { type: 'lowpass', freq: 600 });
+  },
+  playerHit() { this.playerHurt(); },
+  shotSmall() {
+    if (!this._throttle('shotSmall', 30)) return;
+    this._tone(620, 0.04, 'square', 0.18, 0.001, 0.03, 220);
+  },
+  alert() { this.alarm(); },
+  explode() { if (this.explosion) this.explosion(); },
+  // ===== v1.657: ny juice =====
+  killstreak(level) {
+    // Stigande arpeggio, högre topp ju högre streak.
+    const base = 523 + Math.min(level || 0, 25) * 18;
+    this._tone(base, 0.09, 'sine', 0.22, 0.002, 0.07);
+    setTimeout(() => this._tone(base * 1.25, 0.09, 'sine', 0.22, 0.002, 0.07), 60);
+    setTimeout(() => this._tone(base * 1.5, 0.14, 'triangle', 0.24, 0.002, 0.12), 120);
+  },
+  perkChosen() {
+    // Belönings-stinger (rikare än uiClick) för perk-/upgrade-val.
+    this._tone(523, 0.10, 'sine', 0.2, 0.002, 0.08);
+    this._tone(784, 0.10, 'triangle', 0.12, 0.002, 0.08);
+    setTimeout(() => this._tone(1046, 0.18, 'sine', 0.26, 0.002, 0.15), 90);
+  },
+  headshot() {
+    if (!this._throttle('headshot', 40)) return;
+    // Skarp hög "thwack" — distinkt crit/headshot-belöning.
+    this._tone(2200, 0.04, 'square', 0.18, 0.001, 0.03, 600);
+    this._noise(0.03, 0.1, { type: 'highpass', freq: 3000 });
+  },
+  multikill(n) {
+    // Ackord-svep vid AoE-mass-kill — skala med antal dödade.
+    const notes = [392, 523, 659, 784, 988];
+    const count = Math.max(2, Math.min(n || 2, notes.length));
+    for (let i = 0; i < count; i++) {
+      setTimeout(() => this._tone(notes[i], 0.16, 'sine', 0.2, 0.003, 0.13), i * 45);
+    }
+  },
+  // Ducking: dippa musiken kort vid stora ljud (boss/död) så de "andas".
+  duck(amount = 0.5, ms = 400) {
+    if (!this.musicGain || !this.ctx) return;
+    const g = this.musicGain.gain;
+    const t = this.ctx.currentTime;
+    const target = this.musicVol * (1 - amount);
+    try {
+      g.cancelScheduledValues(t);
+      g.setValueAtTime(g.value, t);
+      g.linearRampToValueAtTime(target, t + 0.03);
+      g.linearRampToValueAtTime(this.musicVol, t + ms / 1000);
+    } catch (_) {}
+  },
 };
 // ============================================================
 // MUSIC — procedurell ambient + drum + boss-mode
@@ -18562,6 +18631,10 @@ const Music = {
     tdm:       { root: 110, mode: 'minor', tempo:  92, chords: [0,  3,  5, -2], style: 'mellow' },
     ctf:       { root: 117, mode: 'minor', tempo:  88, chords: [0,  3, -3,  5], style: 'mellow' },
     siege:     { root: 110, mode: 'minor', tempo:  84, chords: [0, -3,  5,  3], style: 'mellow' },
+    // v1.657: Survivors/Castle Defense saknade egna teman → föll tyst tillbaka till
+    // forest. Egna minor-teman med lite mer driv för survival-känsla.
+    survive:       { root: 104, mode: 'minor', tempo:  96, chords: [0, -2,  3, -4], style: 'mellow' },
+    castledefense: { root:  98, mode: 'minor', tempo:  88, chords: [0, -3,  5, -2], style: 'mellow' },
   },
   // Skalor (semi-toner från root)
   scales: {
@@ -22745,6 +22818,14 @@ const Coop = {
       }
       if (typeof showTdmHud === 'function') showTdmHud(myTeam);
       if (typeof showToast === 'function') showToast(myTeam === 'red' ? '⚔ DU ÄR I RÖDA LAGET' : '⚔ DU ÄR I BLÅA LAGET');
+      // v1.657: kort TDM-onboarding EN gång (för paritet med CTF/Siege).
+      if (!save.tdmOnboarded) {
+        save.tdmOnboarded = true;
+        if (typeof persist === 'function') persist();
+        setTimeout(() => {
+          if (typeof showToast === 'function') showToast('🎯 Döda fiendelaget — först till poängmålet vinner.', 5);
+        }, 1800);
+      }
       // Spela TDM-specifik musik (snabb, action)
       if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('tdm');
       if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
@@ -23420,6 +23501,15 @@ const Coop = {
       if (typeof showSiegeHud === 'function') showSiegeHud();
       if (typeof updateSiegeScore === 'function') updateSiegeScore(0, 0, this.siegeTargetPoints);
       if (typeof showToast === 'function') showToast(myTeam === 'red' ? '⚔ DU ÄR I RÖDA LAGET' : '⚔ DU ÄR I BLÅA LAGET');
+      // v1.657: Siege-onboarding EN gång (klonat ctfOnboarded-mönstret). Mest komplexa
+      // PvP-läget hade noll förklaring — nya spelare såg 7 cirklar + score utan kontext.
+      if (!save.siegeOnboarded) {
+        save.siegeOnboarded = true;
+        if (typeof persist === 'function') persist();
+        setTimeout(() => {
+          if (typeof showToast === 'function') showToast('🎯 Stå i bas-zonerna (cirklar) för att inta dem. Äg fler → tjäna poäng. Förstör fiendens 🛡 core = instant-vinst.', 7);
+        }, 1800);
+      }
       if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('siege');
       if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
     } else if (ev.type === 'siege_base_captured') {
@@ -24651,7 +24741,20 @@ const Coop = {
       if (!_isSurvivors && !_isStresstest && typeof openCdPerkSelector === 'function') {
         setTimeout(() => openCdPerkSelector(), 500);
       }
-      if (typeof showToast === 'function') showToast('🏰 CASTLE DEFENSE — håll ut!');
+      // v1.657: rätt label + objektiv per mode (Survivors visade fel "CASTLE DEFENSE").
+      if (typeof showToast === 'function') {
+        if (_isSurvivors) showToast('☠️ SURVIVORS — överlev! Döda för XP, välj perk per level.', 4);
+        else showToast('🏰 CASTLE DEFENSE — håll ut!');
+      }
+      // v1.657: lär ut bygg-mekaniken EN gång (Castle Defense). Hela mode-identiteten
+      // är hold-dra-släpp-bygget men inget förklarade det → nya spelare byggde aldrig.
+      if (!_isSurvivors && !_isStresstest && !save.cdOnboarded) {
+        save.cdOnboarded = true;
+        if (typeof persist === 'function') persist();
+        setTimeout(() => {
+          if (typeof showToast === 'function') showToast('🔨 HÅLL bygg-knappen + dra för att bygga torn/murar. Kills ger gold.', 6);
+        }, 1800);
+      }
       if (typeof Music !== 'undefined' && Music.startStage) Music.startStage('survive');
       if (typeof Music !== 'undefined' && Music.setIntensity) Music.setIntensity('active');
     } else if (ev.type === 'cd_wave_started') {
@@ -39093,8 +39196,9 @@ function showKillstreakBanner(count) {
   else if (count >= 3) text = `${count} KILLS`;
   else return;
   killstreakBanner = { text: text, timer: 1.5, count };
-  if (count === 5) Audio.achievement();
-  if (count === 10) { Audio.achievement(); triggerShake(4, 0.15); }
+  // v1.657: stigande killstreak-arpeggio som skalar med streak (var: bara 5/10).
+  if (Audio.killstreak) Audio.killstreak(count);
+  if (count === 10 || count === 20) triggerShake(4, 0.15);
 }
 // drawComboCounter borttaget (combo-state.comboHits räknas fortfarande för
 // maxComboThisRun-stats men ingen visuell render).
@@ -40929,9 +41033,18 @@ function updateBullets(dt) {
             // Per-vapen hit-particles (frost/flame/plasma/tesla/etc)
             spawnHitParticles(e.x, e.y, b);
           }
+          // v1.657: PvE hit-marker på crosshair (fanns bara i PvP-vägen). Bara
+          // spelarens EGNA skott — ej companion/turret/drönare/fiende — så
+          // center-skärm-confirmen är ärlig. Återanvänder befintlig drawHitMarker.
+          if (!b._companion && !b._autoTurret && !b._drone && !b.hostile) {
+            state._hitMarkerUntil = performance.now() + (b.crit ? 190 : 135);
+            state._hitMarkerCrit = !!b.crit;
+          }
           // Headshot-popup: 3× dmg perk-bonus — distinct visuell + ljud
           if (b._isHeadshot && typeof showHeadshotPopup === 'function') {
             showHeadshotPopup(e.x, e.y, Math.round(b.dmg));
+            // v1.657: distinkt headshot-ljud (saknades — använde bara vanlig hit).
+            if (typeof Audio !== 'undefined' && Audio.headshot) Audio.headshot();
           }
           b.hitIds.add(e);
           if (!b.pierce) { hit = true; break; }
