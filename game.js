@@ -19025,6 +19025,14 @@ function triggerVibrate(ms) {
   if (!Feedback.vibrateEnabled) return;
   if (navigator.vibrate) navigator.vibrate(ms);
 }
+// v1.674: instant hit-juice (hitstop + shake) för coop/PvP-prediktion. Servern är
+// auth för skada, men KÄNSLAN ska vara identisk med solo — samma beprövade skala som
+// damageEnemy:s solo-väg (crit 60ms/3, normal 10ms/1.2). triggerHitStop/Shake self-
+// clampar via Math.max, så pierce/shotgun-pellets (flera träffar/frame) inte staplar.
+function _hitStopShake(crit) {
+  if (crit) { triggerHitStop(60); triggerShake(3, 0.1); }
+  else { triggerHitStop(10); triggerShake(1.2, 0.05); }
+}
 // v1.650: full-screen color flash för phase-transitions (heist alarm/extract)
 // fade-out över duration. Använder eller skapar DOM-overlay #screen-flash.
 function _flashScreen(color, peakAlpha, durationMs) {
@@ -41254,9 +41262,15 @@ function updateBullets(dt) {
             // Fallback till array-idx för bakåtkompatibilitet om _i saknas.
             const sendIdx = (e._i !== undefined) ? e._i : i;
             Coop.damageEnemyOnHost(sendIdx, b.dmg, b.crit);
-            // Visuell-feedback lokalt (flash)
+            // v1.674: INSTANT hit-feedback lokalt (server gör skadan, men känslan ska
+            // matcha solo). Förut: bara flash + siffra → träffen kändes "laggig" i coop.
+            // Nu även sparks + träffljud + vibration + hitstop/shake (samma som solo).
             e.flashUntil = performance.now() + 80;
             spawnDamageNumber(e.x, e.y - e.r, Math.round(b.dmg), b.crit);
+            if (typeof spawnHitParticles === 'function') spawnHitParticles(e.x, e.y, b);
+            if (typeof Audio !== 'undefined') { if (b.crit && Audio.hitCrit) Audio.hitCrit(); else if (Audio.hit) Audio.hit(); }
+            triggerVibrate(b.crit ? 30 : 15);
+            _hitStopShake(b.crit);
           } else {
             applyBulletEffects(e, b);
             e.lastDamagerPid = null; // host = null
@@ -41337,6 +41351,9 @@ function updateBullets(dt) {
             }
             // 5. Haptic vibration
             triggerVibrate(b.crit ? 30 : 15);
+            // 6. v1.674: hitstop + screenshake — den "crunch" som saknades så PvP-
+            //    träffar mot spelare/bots känns lika punchiga som solo (maskerar RTT).
+            _hitStopShake(b.crit);
             if (!b.pierce) { hit = true; break; }
           }
         }
