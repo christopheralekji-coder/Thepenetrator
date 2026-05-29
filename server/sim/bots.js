@@ -117,23 +117,34 @@ function tickBots(sim, dt, now) {
     const maxHp = ps.maxHp || 100;
     bot.fleeing = (ps.hp / maxHp) < (skill.fleeHp || 0.3) && (ps.shield || 0) <= 0;
 
-    // 1) Välj target baserat på mode
-    const target = chooseBotTarget(sim, botWs);
-    // v1.663: REACTION TIME — när target byts, sätt engage-fördröjning (skill-baserad)
-    // så boten reagerar istället för att skjuta instant. Gör skill-nivåerna meningsfulla.
-    const tref = target && target.ref;
-    if (tref !== bot._lastTargetRef) {
-      bot._lastTargetRef = tref;
+    // v1.665: FRIKOPPLAT rörelse-mål vs skjut-mål. Förut styrde ETT target båda →
+    // boten "väntade" vid objektiv-mål (flagga/bas) och slogs aldrig på vägen, eller
+    // stannade och slogs istället för att spela läget. Nu: marschera mot OBJEKTIVET
+    // medan du skjuter närmaste fiende i räckvidd.
+    // 1) RÖRELSE-MÅL — objektiv-styrt per mode.
+    const moveTarget = chooseBotTarget(sim, botWs);
+    bot.target = moveTarget;
+    if (!moveTarget) continue;
+
+    // 2) SKJUT-MÅL — närmaste fiende i räckvidd, oberoende av rörelsen. Faller tillbaka
+    //    till rörelse-målet om det är skjutbart (fiende/player/core) och inget annat finns.
+    let shootTarget = chooseShootTarget(sim, botWs);
+    if (!shootTarget && (moveTarget.type === 'enemy' || moveTarget.type === 'player' || moveTarget.type === 'siege_core')) {
+      shootTarget = moveTarget;
+    }
+
+    // 3) REACTION TIME — gäller skjut-målet (när det byts).
+    const sref = shootTarget && shootTarget.ref;
+    if (sref !== bot._lastShootRef) {
+      bot._lastShootRef = sref;
       bot._engageAt = now + (skill.reactionMs || 180);
     }
-    bot.target = target;
-    if (!target) continue;
 
-    // 2) Rör mot target (moveBotTowards läser bot.fleeing för kiting)
-    moveBotTowards(sim, botWs, target, dt);
+    // 4) Rör mot rörelse-målet (kitar vid låg HP via bot.fleeing)
+    moveBotTowards(sim, botWs, moveTarget, dt);
 
-    // 3) Skjut om i range, cooldown klar OCH reaktionstid passerad
-    if (now >= (bot._engageAt || 0)) shootIfReady(sim, botWs, target, now);
+    // 5) Skjut mot skjut-målet (override:ar aim mot det) om i räckvidd + reaktionstid klar
+    if (shootTarget && now >= (bot._engageAt || 0)) shootIfReady(sim, botWs, shootTarget, now);
   }
 }
 
@@ -266,25 +277,70 @@ function findClosestEnemy(sim, botWs) {
   return best;
 }
 
-function chooseCtfTarget(sim, botWs, team) {
-  // Prio 1: om jag bär en flagga → gå tillbaka till min bas
-  for (const t of ['red', 'blue']) {
-    const flag = sim.ctfFlags[t];
-    if (flag && flag.carrierId === botWs.id) {
-      return { x: sim.ctfFlags[team].baseX, y: sim.ctfFlags[team].baseY, type: 'home_base' };
+// v1.665: separat SKJUT-mål — närmaste fiende/motståndare i vapen-räckvidd, oberoende
+// av rörelse-objektivet. Låter bots slåss MEDAN de marscherar mot flagga/bas/core.
+function chooseShootTarget(sim, botWs) {
+  const ps = botWs.playerState;
+  const px = ps.x, py = ps.y, team = botWs.tdmTeam;
+  const w = W_BY_ID[ps.weaponId] || {};
+  const range = w.type === 'melee' ? (w.range || 36) + 22 : 720;
+  let best = null, bestD2 = range * range;
+  const isPvP = sim.tdmActive || sim.ctfActive || sim.siegeActive || sim.gungameActive ||
+                sim.kothActive || sim.juggernautActive || sim.battleroyaleActive;
+  if (isPvP) {
+    for (const [pid, ws] of sim.room.members) {
+      if (pid === botWs.id) continue;
+      if (!ws.playerState || ws.playerState.hp <= 0) continue;
+      if (team && ws.tdmTeam === team) continue;            // skippa lagkamrater
+      if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
+      const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; best = { x: ws.playerState.x, y: ws.playerState.y, type: 'player', ref: ws }; }
+    }
+  } else {
+    for (const e of sim.enemies) {
+      if (e.dead) continue;
+      const dx = e.x - px, dy = e.y - py;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; best = { x: e.x, y: e.y, type: 'enemy', ref: e }; }
     }
   }
-  // Prio 2: om enemy-flag är droppad → gå hämta den
+  return best;
+}
+
+// v1.665: CTF-rörelse-mål — situationell offensiv/försvar (skjut-mål hanteras separat).
+function chooseCtfTarget(sim, botWs, team) {
   const enemyTeam = team === 'red' ? 'blue' : 'red';
+  const myFlag = sim.ctfFlags[team];
   const enemyFlag = sim.ctfFlags[enemyTeam];
+  // 1) Jag bär fiende-flaggan → spring hem och scora.
+  if (enemyFlag && enemyFlag.carrierId === botWs.id) {
+    return { x: myFlag.baseX, y: myFlag.baseY, type: 'home_base' };
+  }
+  // 2) FÖRSVAR — vår flagga är STULEN (bärs av fiende) → jaga bäraren för att döda
+  //    den och returnera flaggan. (Detta är "skydda sitt team".)
+  if (myFlag && myFlag.carrierId) {
+    const carrier = sim.room.members.get(myFlag.carrierId);
+    if (carrier && carrier.playerState && carrier.playerState.hp > 0 && carrier.tdmTeam !== team) {
+      return { x: carrier.playerState.x, y: carrier.playerState.y, type: 'player', ref: carrier };
+    }
+  }
+  // 3) ESKORT — en lagkamrat bär fiende-flaggan → följ + skydda (håll dig nära dem).
+  if (enemyFlag && enemyFlag.carrierId) {
+    const carrier = sim.room.members.get(enemyFlag.carrierId);
+    if (carrier && carrier.tdmTeam === team && carrier.playerState && carrier.playerState.hp > 0) {
+      return { x: carrier.playerState.x, y: carrier.playerState.y, type: 'escort', ref: carrier };
+    }
+  }
+  // 4) OFFENSIV — fiende-flaggan droppad på marken → hämta den.
   if (enemyFlag && !enemyFlag.atBase && !enemyFlag.carrierId) {
     return { x: enemyFlag.x, y: enemyFlag.y, type: 'enemy_flag' };
   }
-  // Prio 3: om enemy-flag är vid bas → gå dit
+  // 5) OFFENSIV — fiende-flaggan vid sin bas → gå och ta den.
   if (enemyFlag && enemyFlag.atBase) {
     return { x: enemyFlag.baseX, y: enemyFlag.baseY, type: 'enemy_flag_base' };
   }
-  // Prio 4: skjut närmsta motståndare
+  // 6) Fallback: närmaste motståndare.
   return findClosestPlayer(sim, botWs, team);
 }
 
@@ -397,36 +453,37 @@ function chooseBattleRoyaleTarget(sim, botWs) {
   return null;
 }
 
+// v1.665: Siege-rörelse-mål — spela ALLTID objektivet (kapa baser → attackera core).
+// Skjut-mål hanteras separat så boten slåss på vägen. (Förut: stannade och slogs vid
+// fiende inom 300px + kapade bara baser inom 800px → passiv om allt var långt bort.)
 function chooseSiegeTarget(sim, botWs, team) {
   const px = botWs.playerState.x, py = botWs.playerState.y;
-  // Hitta närmaste enemy inom 300px — om en, prioritera kill (skydd)
-  let nearestEnemyD2 = Infinity;
-  for (const [pid, ws] of sim.room.members) {
-    if (pid === botWs.id) continue;
-    if (!ws.playerState || ws.playerState.hp <= 0) continue;
-    if (ws.tdmTeam === team) continue;
-    const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
-    const d2 = dx * dx + dy * dy;
-    if (d2 < nearestEnemyD2) nearestEnemyD2 = d2;
-  }
-  if (nearestEnemyD2 < 300 * 300) {
-    return findClosestPlayer(sim, botWs, team);
-  }
-  // Annars: hitta neutral/enemy-bas inom 800px och kapsa
+  // 1) Kapa NÄRMASTE bas som inte är vår (neutral eller fiendens) — oavsett avstånd.
   if (sim.siegeBases) {
-    let bestBase = null, bestD2 = 800 * 800;
+    let bestBase = null, bestD2 = Infinity;
     for (const baseId of Object.keys(sim.siegeBases)) {
       const base = sim.siegeBases[baseId];
-      if (base.owner === team) continue;       // skip egen
+      if (base.owner === team) continue;
       const dx = base.x - px, dy = base.y - py;
       const d2 = dx * dx + dy * dy;
       if (d2 < bestD2) { bestD2 = d2; bestBase = base; }
     }
-    if (bestBase) {
-      return { x: bestBase.x, y: bestBase.y, type: 'siege_base', ref: bestBase };
-    }
+    if (bestBase) return { x: bestBase.x, y: bestBase.y, type: 'siege_base', ref: bestBase };
   }
-  // Fallback: hitta närmsta motståndare även om långt borta
+  // 2) Äger vi alla baser → attackera fiendens CORE (instant-win / "disable").
+  if (sim.siegeCores) {
+    let bestCore = null, bestD2 = Infinity;
+    for (const coreId of Object.keys(sim.siegeCores)) {
+      const core = sim.siegeCores[coreId];
+      if (core.team === team) continue;                 // skippa egen core
+      if (core.hp != null && core.hp <= 0) continue;
+      const dx = core.x - px, dy = core.y - py;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bestD2) { bestD2 = d2; bestCore = core; }
+    }
+    if (bestCore) return { x: bestCore.x, y: bestCore.y, type: 'siege_core', ref: bestCore };
+  }
+  // 3) Fallback: närmaste motståndare.
   return findClosestPlayer(sim, botWs, team);
 }
 
@@ -456,6 +513,7 @@ function moveBotTowards(sim, botWs, target, dt) {
     const SHORT = ['shotgun', 'flame', 'smg'];
     desiredDist = LONG.indexOf(ps.weaponId) >= 0 ? 460 : (SHORT.indexOf(ps.weaponId) >= 0 ? 150 : 260);
   }
+  if (target.type === 'escort') desiredDist = 110;   // v1.665: följ flagg-bäraren nära (skydda)
   if (bot.fleeing && !isObjective) desiredDist = Math.max(desiredDist, 520);
   const speed = 180;
 
@@ -561,6 +619,7 @@ function shootIfReady(sim, botWs, target, now) {
     bot._aimPrev = { ref: target.ref, x: target.x, y: target.y, t: now };
   }
   const ang = Math.atan2(aimY - ps.y, aimX - ps.x) + jitter;
+  ps.aim = ang;   // v1.665: vänd boten mot det den SKJUTER (rörelsen kan gå mot ett objektiv)
   const p = { x: ps.x, y: ps.y, aimAngle: ang, r: 14, peerId: botWs.id };
   const params = { dmgMul: 1, perks: {}, cheats: {} };
   if (w.type === 'melee') {
