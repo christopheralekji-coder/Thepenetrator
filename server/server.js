@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v180-host-migration-v1.658';
+const SERVER_VERSION = 'v181-reconnect-restore-v1.659';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -317,6 +317,27 @@ function handleMessage(ws, msg) {
     room.members.set(ws.id, ws);
     ws.roomCode = code;
     if (msg.name) ws.playerName = String(msg.name).trim().slice(0, 14);
+    // v1.659: reconnect-restore — om token matchar en färsk stash (spelare som tappade
+    // anslutningen <60s sedan i aktiv sim) återställ server-side-only-state som INTE
+    // self-healar via sim_input: Heist-roll + hp/shield (annars gratis-heal + roll-loss).
+    // Körs FÖRE late-join-blocken; PvP-blocken sätter sedan fresh spawn (korrekt för PvP),
+    // co-op/heist (utan PvP-block) behåller restoren.
+    if (msg.reconnectToken) {
+      ws._reconnectToken = String(msg.reconnectToken).slice(0, 40);
+      const stash = room._reconnectStash && room._reconnectStash[ws._reconnectToken];
+      if (stash && Date.now() - stash.ts < 60000) {
+        ws._heistRole = stash.heistRole;
+        ws._heistRoleLocked = stash.heistRoleLocked;
+        if (!ws.playerState) ws.playerState = {};
+        if (stash.hp != null && stash.hp > 0) ws.playerState.hp = stash.hp;
+        if (stash.maxHp != null) ws.playerState.maxHp = stash.maxHp;
+        if (stash.shield != null) ws.playerState.shield = stash.shield;
+        if (stash.speedMul != null) ws.playerState.speedMul = stash.speedMul;
+        if (room.sim && stash.heistRole) { room.sim.heistRoles = room.sim.heistRoles || {}; room.sim.heistRoles[ws.id] = stash.heistRole; }
+        delete room._reconnectStash[ws._reconnectToken];
+        console.log('[ROOM]', code, ws.id, 'reconnect-restored role=' + (stash.heistRole || '-') + ' hp=' + (stash.hp != null ? Math.round(stash.hp) : '-'));
+      }
+    }
     send(ws, { type: 'joined', peerId: ws.id, hostId: room.hostId });
     // Meddela host
     const host = room.members.get(room.hostId);
@@ -1447,6 +1468,18 @@ function handleDisconnect(ws) {
   if (!ws.roomCode) return;
   const room = rooms.get(ws.roomCode);
   if (!room) return;
+  // v1.659: stasha server-side-only-state för ev. reconnect (Heist-roll + hp/shield)
+  // innan vi rensar. Bara under aktiv sim + om klienten har en reconnect-token.
+  // Stashen lever i rummet (rensas när rummet stängs) och utgår efter 60s vid restore.
+  if (room.sim && ws._reconnectToken) {
+    room._reconnectStash = room._reconnectStash || {};
+    const ps = ws.playerState || {};
+    room._reconnectStash[ws._reconnectToken] = {
+      heistRole: ws._heistRole, heistRoleLocked: ws._heistRoleLocked,
+      hp: ps.hp, maxHp: ps.maxHp, shield: ps.shield, speedMul: ps.speedMul,
+      ts: Date.now(),
+    };
+  }
   room.members.delete(ws.id);
   if (room.hostId === ws.id) {
     // v1.658: HOST MIGRATION — migrera värdskapet till en annan närvarande human

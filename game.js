@@ -22473,7 +22473,11 @@ const Coop = {
         const isPrivate = !!(this.config && this.config.private);
         this.ws.send(JSON.stringify({ type: 'host', name: myName, mode, private: isPrivate }));
       } else {
-        this.ws.send(JSON.stringify({ type: 'join', code: joinCode, name: myName }));
+        // v1.659: stabil reconnect-token (samma över auto-reconnects i denna session,
+        // ny vid page-reload). Servern stashar server-side-only-state (Heist-roll,
+        // hp/shield) vid disconnect och återställer vid rejoin med matchande token.
+        if (!this._reconnectToken) this._reconnectToken = Math.random().toString(36).slice(2) + Date.now().toString(36);
+        this.ws.send(JSON.stringify({ type: 'join', code: joinCode, name: myName, reconnectToken: this._reconnectToken }));
       }
       // App-level keepalive: skicka tom 'keepalive' var 25s så Render/proxies
       // inte cuttar idle WS-anslutningen. Server räknar alla messages som alive.

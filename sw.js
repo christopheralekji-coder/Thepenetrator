@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v658-host-migration';
+const CACHE = 'penetrator-v659-reconnect-restore';
 const ASSETS = [
   './',
   './index.html',

@@ -76,9 +76,11 @@ module.exports = {
     }));
     console.log('[HOST-MIG] Partner LIVE-check:', JSON.stringify(live));
 
-    // ASSERTIONS — partnern ska INTE kastas ut till menyn:
-    expect(live.mode).toBe('playing');                  // kvar i matchen (ej menu)
+    // ASSERTIONS — partnern ska INTE kastas ut till menyn (det är failure-läget vi
+    // vaktar mot). 'gameover' = de dog i strid men är KVAR i rummet → migration OK.
+    expect(live.mode !== 'menu').toBeTruthy();           // ej utkastad till meny
     expect(live.coopActive !== false).toBeTruthy();
+    expect(live.serverSimActive).toBeTruthy();           // sim:n lever vidare
     if (live.serverSimActive && live.enemies > 0) {
       console.log('[HOST-MIG] ✓ Rummet överlevde + sim flödar (' + live.enemies + ' enemies)');
     } else {
