@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v689-warparty-menubg-enhanced';
+const CACHE = 'penetrator-v690-cachebust';
 const ASSETS = [
   './',
   './index.html',
@@ -8,14 +8,14 @@ const ASSETS = [
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg',
-  './assets/menu/warparty-menubg.jpg',
-  './assets/menu/warparty-coopbg.jpg',
-  './assets/menu/bg-shop.jpg',
-  './assets/menu/bg-wardrobe.jpg',
-  './assets/menu/bg-ach.jpg',
-  './assets/menu/bg-settings.jpg',
-  './assets/menu/bg-help.jpg',
-  './assets/menu/warparty-logo.png',
+  './assets/menu/warparty-menubg.jpg?v=690',
+  './assets/menu/warparty-coopbg.jpg?v=690',
+  './assets/menu/bg-shop.jpg?v=690',
+  './assets/menu/bg-wardrobe.jpg?v=690',
+  './assets/menu/bg-ach.jpg?v=690',
+  './assets/menu/bg-settings.jpg?v=690',
+  './assets/menu/bg-help.jpg?v=690',
+  './assets/menu/warparty-logo.png?v=690',
   './shared/ctf-arena.js',
   './shared/gungame-arena.js',
   './shared/tdm-arena.js',
