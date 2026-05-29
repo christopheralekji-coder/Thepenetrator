@@ -367,9 +367,25 @@ function chooseCtfTarget(sim, botWs, team) {
   const enemyTeam = team === 'red' ? 'blue' : 'red';
   const myFlag = sim.ctfFlags[team];
   const enemyFlag = sim.ctfFlags[enemyTeam];
-  // 1) Jag bär fiende-flaggan → spring hem och scora.
+  // 1) Jag bär fiende-flaggan → spring hem och scora. MEN capture kräver att VÅR
+  //    egen flagga är hemma. Är den stulen/dropad kan boten inte scora → utan
+  //    detta dansar den upp/ner vid hembasen för evigt (v1.669-dödläge). Lös upp:
   if (enemyFlag && enemyFlag.carrierId === botWs.id) {
-    return { x: myFlag.baseX, y: myFlag.baseY, type: 'home_base' };
+    if (myFlag && myFlag.atBase) {
+      return { x: myFlag.baseX, y: myFlag.baseY, type: 'home_base' };   // kan scora → spring hem
+    }
+    // Vår flagga bärs av en fiende → jaga + döda bäraren (flaggan dropas då → kan returneras).
+    if (myFlag && myFlag.carrierId) {
+      const thief = sim.room.members.get(myFlag.carrierId);
+      if (thief && thief.playerState && thief.playerState.hp > 0 && thief.tdmTeam !== team) {
+        return { x: thief.playerState.x, y: thief.playerState.y, type: 'player', ref: thief };
+      }
+    }
+    // Vår flagga ligger dropad → gå dit och returnera den (hold-to-return), sen kan boten scora.
+    if (myFlag && !myFlag.atBase) {
+      return { x: myFlag.x, y: myFlag.y, type: 'return_flag' };
+    }
+    return { x: myFlag.baseX, y: myFlag.baseY, type: 'home_base' };     // fallback
   }
   // 2) FÖRSVAR — vår flagga är STULEN (bärs av fiende) → jaga bäraren för att döda
   //    den och returnera flaggan. (Detta är "skydda sitt team".)
@@ -554,13 +570,23 @@ function moveBotTowards(sim, botWs, target, dt) {
   // så capture-progress fortsätter ticka. Inte strafe utåt → ut ur radien.
   const isObjective = target.type === 'siege_base' || target.type === 'home_base'
     || target.type === 'enemy_flag' || target.type === 'enemy_flag_base'
+    || target.type === 'return_flag'   // v1.669: gå returnera egen dropad flagga
     || target.type === 'koth_zone' || target.type === 'br_loot' || target.type === 'br_zone_center'
     || target.type === 'revive';   // v1.663: stå nära nedslagen lagkamrat (revive-radie)
   // v1.663: vapen-räckvidds-medvetet skjutavstånd (var fast 250px för ALLA guns →
   // hagel-bot utom räckhåll, sniper-bot för nära). Långa vapen håller distans, korta
   // går in. + självbevarelse: kita undan vid låg HP.
   let desiredDist;
-  if (isObjective) desiredDist = 30;
+  if (isObjective) {
+    // v1.669: KRITISK fix — CTF-pickup-objektiv MÅSTE gå innanför pickupRadius
+    // (28px) annars orbiterar boten precis utanför (desiredDist=30 > 28) och
+    // strafe:ar vinkelrätt = "står kvar i basen och springer upp/ner" utan att
+    // någonsin plocka upp flaggan. Capture-mål (home_base, captureRadius 50)
+    // triggar redan under inmarsch vid d<50, så 30 är ok där.
+    const isPickup = target.type === 'enemy_flag' || target.type === 'enemy_flag_base'
+      || target.type === 'return_flag';   // return använder också pickupRadius (28)
+    desiredDist = isPickup ? 16 : 30;
+  }
   else if (isMelee) desiredDist = Math.max(20, (w.range || 36) - 5);
   else {
     const LONG = ['sniper', 'railgun', 'crossbow', 'bow', 'rifle', 'minigun'];
