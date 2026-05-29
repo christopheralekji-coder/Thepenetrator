@@ -108,9 +108,14 @@ let _botCounter = 0;
 const BOT_SKILL = {
   // v1.663: lade till fleeHp (HP-% under vilken boten kitar/retirerar) + leadAim
   // (siktar framför rörliga mål). reactionMs ANVÄNDS nu (var död config).
-  easy:   { aimJitter: 0.28, cooldownMul: 1.8, reactionMs: 350, fleeHp: 0.22, leadAim: 0.0 },
-  normal: { aimJitter: 0.12, cooldownMul: 1.3, reactionMs: 180, fleeHp: 0.30, leadAim: 0.4 },
-  hard:   { aimJitter: 0.05, cooldownMul: 1.0, reactionMs: 80,  fleeHp: 0.40, leadAim: 0.9 },
+  // v1.673: OMBALANSERAT. Bottarna NAVIGERAR nu faktiskt (v1.672 nav-grid-fix), så
+  // gamla värdena — satta när de fastnade vid basen — gjorde även "easy" dödlig.
+  // Nya spakar: dmgMul (skott+melee-skada) + moveMul (rörelsefart = 180*mul), båda
+  // skill-skalade. easy = dålig sikt, långsam eld, halv skada, långsam, retirerar
+  // tidigt. hard = oförändrat vass.
+  easy:   { aimJitter: 0.62, cooldownMul: 2.8, reactionMs: 700, fleeHp: 0.45, leadAim: 0.0, dmgMul: 0.5,  moveMul: 0.72 },
+  normal: { aimJitter: 0.16, cooldownMul: 1.45, reactionMs: 230, fleeHp: 0.30, leadAim: 0.4, dmgMul: 0.85, moveMul: 0.92 },
+  hard:   { aimJitter: 0.05, cooldownMul: 1.0,  reactionMs: 80,  fleeHp: 0.40, leadAim: 0.9, dmgMul: 1.0,  moveMul: 1.0 },
 };
 
 // v1.663: skill-anpassat default-vapen för modes som INTE sätter bot-vapen själva
@@ -639,7 +644,7 @@ function moveBotTowards(sim, botWs, target, dt) {
   }
   if (target.type === 'escort') desiredDist = 110;   // v1.665: följ flagg-bäraren nära (skydda)
   if (bot.fleeing && !isObjective) desiredDist = Math.max(desiredDist, 520);
-  const speed = 180;
+  const speed = 180 * ((bot.skill && bot.skill.moveMul) || 1);   // v1.673: skill-skalad fart
 
   // Wall-unstick (v1.670 KRITISK FIX): mät förflyttning över ett ~700ms-FÖNSTER,
   // inte per-tick. Förr: `moved` jämförde bot.lastX (uppdaterad VARJE tick) mot en
@@ -761,7 +766,7 @@ function shootIfReady(sim, botWs, target, now) {
   const ang = Math.atan2(aimY - ps.y, aimX - ps.x) + jitter;
   ps.aim = ang;   // v1.665: vänd boten mot det den SKJUTER (rörelsen kan gå mot ett objektiv)
   const p = { x: ps.x, y: ps.y, aimAngle: ang, r: 14, peerId: botWs.id };
-  const params = { dmgMul: 1, perks: {}, cheats: {} };
+  const params = { dmgMul: (bot.skill && bot.skill.dmgMul) || 1, perks: {}, cheats: {} };   // v1.673: skill-skalad skada
   if (w.type === 'melee') {
     applyMelee(sim, p, ps.weaponId, params);
     // Slash-VFX-event så klienten renderar bot:s melee-swing
