@@ -22576,6 +22576,23 @@ const Coop = {
       this.players.delete(msg.peerId);
       this.broadcastLobby();
       if (this._onPlayerJoinCb) this._onPlayerJoinCb(this.players.size + 1);
+    } else if (msg.type === 'host_migrated') {
+      // v1.658: gamla hosten tappade anslutningen men rummet + sim:n LEVER VIDARE
+      // (server migrerade värdskapet). Gå INTE till menyn — fortsätt spela.
+      // Städa bort gamla hosten ur roster/slot-map (som peer_left).
+      if (msg.peerLeft) {
+        if (this.slotToPeerId) {
+          for (const [slot, pid] of this.slotToPeerId) { if (pid === msg.peerLeft) { this.slotToPeerId.delete(slot); break; } }
+        }
+        if (this.players) this.players.delete(msg.peerLeft);
+      }
+      this.hostId = msg.newHostId;
+      if (msg.newHostId === this.myId) {
+        this.isHost = true;
+        if (typeof showToast === 'function') showToast('👑 Du är nu host', 3);
+      } else {
+        if (typeof showToast === 'function') showToast('👑 Värdskapet flyttades till en annan spelare', 3);
+      }
     } else if (msg.type === 'host_left') {
       // Tidigare alert + disconnect lämnade spelaren med state.mode='playing'
       // utan input/enemies → visuellt frozen. Skicka tillbaka till menyn.

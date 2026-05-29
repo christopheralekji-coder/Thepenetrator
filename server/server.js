@@ -1449,8 +1449,42 @@ function handleDisconnect(ws) {
   if (!room) return;
   room.members.delete(ws.id);
   if (room.hostId === ws.id) {
-    // Host lämnade — stäng rummet
-    console.log('[ROOM]', room.code, 'closed (host left)');
+    // v1.658: HOST MIGRATION — migrera värdskapet till en annan närvarande human
+    // istället för att döda rummet. En host som tappar signalen ska inte avsluta
+    // allas match. Sim:n körs server-side oberoende av hostId (hostId styr bara
+    // host-only-kommandon sim_stop/sim_load_stage + peer_joined-notiser), så att
+    // byta hostId mitt i match är säkert — sim:n fortsätter oavbrutet.
+    let newHost = null;
+    for (const [, m] of room.members) { if (!m._isBot) { newHost = m; break; } }
+    if (newHost) {
+      room.hostId = newHost.id;
+      if (room.meta) room.meta.hostName = newHost.playerName || room.meta.hostName;
+      // Rensa lämnande host:s per-pid sim-state (samma som vanlig-peer-grenen).
+      if (room.sim) {
+        const _s = room.sim, _pid = ws.id;
+        if (_s.deadBodies) delete _s.deadBodies[_pid];
+        if (_s.kothScores) delete _s.kothScores[_pid];
+        if (_s._kothPointAccum) delete _s._kothPointAccum[_pid];
+        if (_s.juggernautScores) delete _s.juggernautScores[_pid];
+        if (_s.battleroyaleKillsByPid) delete _s.battleroyaleKillsByPid[_pid];
+        if (_s.tdmDeathsByPid) delete _s.tdmDeathsByPid[_pid];
+        // Om host var JUG, frigör rollen (samma som vanlig-peer-grenen).
+        if (_s.juggernautActive && _s.juggernautPid === ws.id) {
+          _s.juggernautPid = null;
+          _s._juggernautAwaitFirstRespawn = true;
+          _s.eventQueue.push({ type: 'juggernaut_jug_changed', newJug: null, oldJug: ws.id, reason: 'jug_disconnected', weapon: _s.juggernautWeapon, jugHp: _s.juggernautHpMax });
+        }
+      }
+      for (const [, m] of room.members) {
+        if (m._isBot) continue;
+        send(m, { type: 'host_migrated', newHostId: newHost.id, peerLeft: ws.id });
+      }
+      console.log('[ROOM]', room.code, 'host migrated', ws.id, '→', newHost.id, '(', room.members.size, 'members)');
+      broadcastPublicRooms();
+      return;
+    }
+    // Ingen human kvar — stäng rummet (befintligt beteende).
+    console.log('[ROOM]', room.code, 'closed (host left, no members)');
     if (room.sim) stopSim(room.sim);
     for (const m of room.members.values()) {
       send(m, { type: 'host_left' });
