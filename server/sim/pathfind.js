@@ -14,11 +14,17 @@
 //    (de hanteras av combat-strafe + clamp). Räcker gott för game-feel.
 'use strict';
 
-const GRID_CELL = 70;       // världs-px per cell
-const WALL_PAD = 22;        // inflatera väggar med bot-radie så path håller avstånd
+// v1.672 KRITISK FIX: GRID_CELL var 70 + WALL_PAD 22 → bas-öppningarna (där flaggor
+// + spawns sitter) FÖRSEGLADES i griden (flood-fill: flaggorna ej nåbara från mitten).
+// A* kunde då aldrig rutta in/ut ur baserna → computePath null → boten gick rakt →
+// fastnade vid bas-väggen → unstick-strafe = "står kvar i basen / upp-ner bakom vägg".
+// CELL=50 + pad=16 (=bot-radie) återansluter ALLA baser + spawns (verifierat via
+// flood-fill). Finare grid = ~2x celler men A* throttlas (700ms) + få bots → ok CPU.
+const GRID_CELL = 50;       // världs-px per cell
+const WALL_PAD = 16;        // inflatera väggar med bot-radie så path håller avstånd
 const PATH_MAX_AGE_MS = 700;
 const PATH_GOAL_MOVE = 130; // recompute om målet flyttat sig mer än så
-const WAYPOINT_REACH = 46;  // hur nära en waypoint innan vi går till nästa
+const WAYPOINT_REACH = 40;  // hur nära en waypoint innan vi går till nästa (skalat med cell)
 
 const _gridCache = new WeakMap();   // walls-array → byggd grid
 

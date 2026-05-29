@@ -647,11 +647,14 @@ function moveBotTowards(sim, botWs, target, dt) {
   // alltså ALLTID < tröskeln → flaggades permanent "fast" → evig vinkelrät strafe =
   // "springer i linje upp och ner" i alla lägen. Nu: bara om boten rört sig < 30px
   // på 700ms är den genuint fast → lås in sido-angle 90° i 1.5s.
+  // v1.672: konservativare nu när A* faktiskt ger vägar (grid-konnektivitet fixad).
+  // Fyra BARA vid genuint fast (< 18px på 900ms ≈ nästan stillastående) + kortare
+  // strafe (900ms) så normal A*-navigering i trånga baser inte feltriggar upp/ner.
   if (bot._stuckRefAt === undefined) { bot._stuckRefAt = now; bot._stuckRefX = ps.x; bot._stuckRefY = ps.y; }
-  if (now - bot._stuckRefAt >= 700) {
+  if (now - bot._stuckRefAt >= 900) {
     const windowMoved = Math.hypot(ps.x - bot._stuckRefX, ps.y - bot._stuckRefY);
-    if (windowMoved < 30 && now > bot.unstickUntil) {
-      bot.unstickUntil = now + 1500;
+    if (windowMoved < 18 && now > bot.unstickUntil) {
+      bot.unstickUntil = now + 900;
       bot.strafeDir = -bot.strafeDir;    // flippa riktning
     }
     bot._stuckRefAt = now; bot._stuckRefX = ps.x; bot._stuckRefY = ps.y;
