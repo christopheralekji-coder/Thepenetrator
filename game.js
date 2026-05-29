@@ -19071,6 +19071,15 @@ function spawnShockwave(x, y, r0, r1, color, life = 0.5, lineWidth = 3) {
     life, maxLife: life, r: 0,
   });
 }
+// v1.664: DEATH-POP — frikopplad "fienden poppar"-effekt. Egen lista (state.deathPops),
+// renderas i Canvas2D oberoende av enemy-livscykeln + Pixi-sync (som skippar döda
+// sprites). Overshoot-scale → implodera + vit kärn-flash över ~220ms. Gör varje kill
+// saftig utan att röra den fragila syncPixiEnemies-pathen (v1.554-zonen).
+function spawnDeathPop(x, y, r) {
+  if (!state.deathPops) state.deathPops = [];
+  if (state.deathPops.length > 60) state.deathPops.shift();   // hård cap mot svärm-spik
+  state.deathPops.push({ x, y, r: Math.max(8, Math.min(48, r || 14)), born: performance.now(), dur: 220 });
+}
 // Muzzle flash: kort kon mot ang (rad).
 function spawnMuzzleFlash(x, y, ang, color, size = 18) {
   if (!state.particles) return;
@@ -25787,6 +25796,8 @@ const Coop = {
           dyingEnemy.flashUntil = _now + 250;
           dyingEnemy._deathAnimUntil = _now + 250;
           dyingEnemy.hp = 0;
+          // v1.664: death-pop även i co-op (server-auth kills detekteras här).
+          if (typeof spawnDeathPop === 'function') spawnDeathPop(dyingEnemy.x, dyingEnemy.y, dyingEnemy.r);
           if (typeof spawnParticles === 'function') {
             spawnParticles(dyingEnemy.x, dyingEnemy.y, dyingEnemy.color || '#aa3a3a', 8, 160);
           }
@@ -33007,6 +33018,8 @@ function spawnDamageNumber(x, y, dmg, isCrit) {
 
 function killEnemy(e) {
   e.dead = true;
+  // v1.664: death-pop — saftig "fienden poppar"-effekt vid lokala kills.
+  if (typeof spawnDeathPop === 'function') spawnDeathPop(e.x, e.y, e.r);
   // Mini-boss-sekvens: när en miniboss dör → spawna en interlude-wave av enemies.
   // När alla enemies cleared → nästa miniboss spawnar (i updateZoneProgression).
   if (e.isMiniBoss && !e._miniBossNextSpawned) {
@@ -70341,6 +70354,37 @@ function drawBullet(b) {
   ctx.restore();
 }
 
+// v1.664: rita death-pops (world-space, kameran subtraheras manuellt som allt annat).
+// Ingen shadowBlur (perf-säkert). Self-cleanar utgångna pops.
+function drawDeathPops() {
+  const arr = state.deathPops;
+  if (!arr || !arr.length) return;
+  const now = performance.now();
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  for (let i = arr.length - 1; i >= 0; i--) {
+    const p = arr[i];
+    const dp = (now - p.born) / p.dur;
+    if (dp >= 1) { arr.splice(i, 1); continue; }
+    const x = p.x - cx, y = p.y - cy;
+    if (x < -80 || x > viewW + 80 || y < -80 || y > viewH + 80) continue;
+    // Overshoot 1→1.4 (första 28%) → implodera mot 0. Det är "poppet".
+    const scale = dp < 0.28 ? (1 + (dp / 0.28) * 0.4) : (1.4 * (1 - (dp - 0.28) / 0.72));
+    const rr = p.r * Math.max(0, scale);
+    const alpha = 1 - dp;
+    ctx.save();
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.strokeStyle = '#ffd9a0';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.stroke();
+    if (dp < 0.45) {   // kort vit kärn-flash
+      ctx.globalAlpha = (1 - dp / 0.45) * 0.75;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(x, y, rr * 0.55, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
 function drawParticle(p) {
   const x = p.x - state.camera.x;
   const y = p.y - state.camera.y;
@@ -70715,6 +70759,8 @@ function render() {
     }
     drawParticle(p);
   }
+  // v1.664: death-pops ovanpå mid-partiklar, under nya entities (world-space).
+  if (typeof drawDeathPops === 'function') drawDeathPops();
   // Entities — v1.548: SKIP drawEnemy om Pixi-overlay aktivt (= första prestanda-vinsten)
   // v1.574: HYBRID — Pixi ritar minions/mini-bosses (kropp), Canvas2D ritar:
   // (a) bossar (full body — drawBossSoldier för phase-baserad rendering)
