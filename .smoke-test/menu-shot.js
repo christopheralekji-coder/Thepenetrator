@@ -1,21 +1,18 @@
 module.exports = {
-  description: 'Screenshot main menu at phone-landscape (fit-to-screen check)',
+  description: 'Screenshot menu (new hero) + co-op screen (new bg)',
   players: 1,
-  async run({ pages, screenshot, wait }) {
+  async run({ pages, screenshot, wait, waitFor }) {
     const [host] = pages;
-    // iPhone-landskap ~852x393 — testar att allt får plats utan scroll
     await host.setViewportSize({ width: 852, height: 393 });
-    await wait(1600);
-    if (typeof host.evaluate === 'function') {
-      try { await host.evaluate(() => window.fitMenu && window.fitMenu()); } catch (e) {}
-    }
-    await wait(300);
-    await screenshot(host, 'warparty-menu-landscape');
-    // även en kortare/mindre skärm för att se nedskalningen
-    await host.setViewportSize({ width: 740, height: 340 });
-    await wait(400);
+    await waitFor(host, '#btn-start', 10000);
+    await wait(1500);
     try { await host.evaluate(() => window.fitMenu && window.fitMenu()); } catch (e) {}
-    await wait(200);
-    await screenshot(host, 'warparty-menu-small');
+    await wait(300);
+    await screenshot(host, 'warparty-menu');
+    // co-op-skärmen
+    try {
+      await host.click('#btn-coop'); await wait(1200);
+      await screenshot(host, 'warparty-coop');
+    } catch (e) {}
   },
 };

@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v677-warparty-fit';
+const CACHE = 'penetrator-v678-warparty-art2';
 const ASSETS = [
   './',
   './index.html',
@@ -9,6 +9,7 @@ const ASSETS = [
   './icon-192.svg',
   './icon-512.svg',
   './assets/menu/warparty-hero.jpg',
+  './assets/menu/warparty-coop.jpg',
   './assets/menu/warparty-logo.png',
   './shared/ctf-arena.js',
   './shared/gungame-arena.js',
