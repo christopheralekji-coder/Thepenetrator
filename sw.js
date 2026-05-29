@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v666-bot-wall-steering';
+const CACHE = 'penetrator-v670-bot-unstick-mapfix';
 const ASSETS = [
   './',
   './index.html',
