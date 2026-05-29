@@ -2219,10 +2219,11 @@ body.heist-mode #hud-toast-stack {
    ============================================================ */
 /* v1.676: AI-genererad logo-bild (ersätter CSS-text-wordmarken) */
 .wp-logo-img {
-  width: min(60vw, 380px);
+  /* v1.688: större logga på startskärmen (var ganska liten) */
+  width: min(82vw, 540px);
   height: auto;
   margin: 0 0 2px;
-  filter: drop-shadow(0 6px 16px rgba(0,0,0,0.7));
+  filter: drop-shadow(0 6px 18px rgba(0,0,0,0.75));
   animation: titleFloat 7s ease-in-out infinite;
   -webkit-user-select: none; user-select: none; -webkit-user-drag: none;
 }
@@ -2240,7 +2241,27 @@ body.heist-mode #hud-toast-stack {
 /* v1.681: SPELA+CO-OP centrerade i gapet under logon, strax ovanför grid-knapparna
    (luft ovanför paret, tajt ner mot griden). */
 #menu-content > #btn-start.btn-play-hero { margin-top: 42px; }
-#menu-content > #btn-coop.btn-coop-hero { margin-bottom: 8px !important; }
+/* v1.688: SPELA+CO-OP-paret lyfts upp och får tydligt avstånd ner till grid-knapparna */
+#menu-content > #btn-coop.btn-coop-hero { margin-bottom: 28px !important; }
+
+/* v1.688: lätt genomskinliga meny-knappar så bakgrundskonsten skiner igenom lite.
+   Scoped till #menu-screen så paus/in-game-knappar är opåverkade. Liten backdrop-blur
+   håller texten läsbar (menyn är statisk → ingen perf-kostnad i gameplay). */
+#menu-screen .big-btn {
+  background: linear-gradient(135deg, rgba(217,46,52,0.80) 0%, rgba(160,31,36,0.80) 100%);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+#menu-screen .medium-btn {
+  background: linear-gradient(135deg, rgba(31,31,42,0.68) 0%, rgba(20,20,28,0.68) 100%);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+#menu-screen #btn-coop {
+  background: linear-gradient(135deg, rgba(170,58,255,0.80) 0%, rgba(90,26,170,0.82) 100%) !important;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
 /* Hjälp/Tutorial = egen full-bredds-rad */
 .menu-btn-wide { flex: 1 1 100% !important; max-width: 100%; }
 /* Sociala ikoner nere till vänster */
@@ -4389,7 +4410,11 @@ body.ios .overlay {
   inset: 0;
   pointer-events: auto;
   z-index: 11;
-  background: rgba(0, 0, 0, 0.85);
+  /* v1.688: egen genererad bg (instruktör/träningsbana) — scrim håller kortet läsbart */
+  background:
+    linear-gradient(rgba(6,5,10,0.74) 0%, rgba(6,5,10,0.82) 100%),
+    url('assets/menu/bg-help.jpg') center center / cover no-repeat,
+    rgba(0,0,0,0.85);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
   display: flex;
