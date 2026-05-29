@@ -2112,12 +2112,9 @@ body.heist-mode #hud-toast-stack {
   padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
   padding-left: max(16px, env(safe-area-inset-left, 16px));
   padding-right: max(16px, env(safe-area-inset-right, 16px));
-  /* v1.676: AI-genererad hero-key-art som bakgrund (era gubbar/banor). Mörk scrim
-     ovanpå så knappar/text förblir läsbara. Overrider .overlay:s nästan-opaka bg. */
-  background:
-    linear-gradient(rgba(10,5,12,0.42) 0%, rgba(10,5,12,0.40) 38%, rgba(10,5,12,0.66) 100%),
-    url('assets/menu/warparty-hero.jpg') center center / cover no-repeat,
-    #0a050a;
+  /* v1.679: mörk bas — sido-panelerna (co-op vänster, PvP höger) bär konsten,
+     menyn ligger centrerad mellan dem. */
+  background: radial-gradient(ellipse 62% 82% at 50% 46%, #160a14 0%, #0a050a 72%);
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   /* v1.677: INGEN scroll på startskärmen — content skalas ner för att få plats
@@ -2127,7 +2124,25 @@ body.heist-mode #hud-toast-stack {
   justify-content: center;
 }
 #menu-screen::before, #menu-screen::after { display: none !important; }
+/* v1.679: sido-paneler — co-op (squad ihop) vänster, PvP (mot varandra) höger.
+   55% breda + möts i mitten där scrim:en mörkar bakom menyn. */
+.menu-side {
+  position: absolute; top: 0; bottom: 0; width: 56%;
+  background-size: cover; background-repeat: no-repeat; z-index: 0;
+  pointer-events: none;
+}
+.menu-side-left  { left: 0;  background-image: url('assets/menu/warparty-coop.jpg'); background-position: left center; }
+.menu-side-right { right: 0; background-image: url('assets/menu/warparty-pvp.jpg');  background-position: right center; }
+/* Center-scrim: mörk i mitten (läsbar meny), genomskinligare mot kanterna (konsten syns). */
+.menu-scrim {
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background:
+    radial-gradient(ellipse 50% 96% at 50% 50%, rgba(8,4,10,0.93) 0%, rgba(8,4,10,0.78) 38%, rgba(8,4,10,0.42) 66%, rgba(8,4,10,0.18) 100%),
+    linear-gradient(rgba(8,4,10,0.10), rgba(8,4,10,0.34));
+}
 #menu-content {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -2135,6 +2150,8 @@ body.heist-mode #hud-toast-stack {
   transform-origin: center center;
   will-change: transform;
 }
+/* Sociala ikoner + version ovanför sido-paneler/scrim */
+#menu-screen > .wp-social, #menu-screen > #version-tag { z-index: 3; }
 #menu-screen .menu-row {
   display: flex;
   gap: 8px;
