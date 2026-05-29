@@ -11933,6 +11933,67 @@ function drawCastleDefenseDownStateUI() {
 // v1.419: ghost-preview för pin-drag — ritar pin-cursor vid finger-position
 // medan användaren håller pin-knappen + drar. Klart visuell feedback om var
 // pinnen kommer landa.
+// v1.660: CO-OP revive-overlay för story/heist (Castle Defense/Survivors har sin egen
+// cdDowned-overlay). Revive-MEKANIKEN (stå nära nedslagen lagkamrat i 5s) körs redan
+// server-side; tidigare fick den döde bara en "DU DOG"-toast och visste inte att hjälp
+// var möjlig. state.deadBody.reviveTimer (0→5, från server-broadcast) ger progressen.
+function drawCoopReviveOverlay() {
+  if (!Coop.active || state.castledefenseActive) return;
+  const p = state.player;
+  if (!p || !p.spectating || !state.deadBody) return;
+  const t = performance.now();
+  const revT = Math.max(0, Math.min(5, state.deadBody.reviveTimer || 0));
+  const beingRevived = revT > 0.4; // >0 = en lagkamrat håller på (filtrera initial-glitch)
+  // Mjuk röd vignette (pulserande)
+  const pulse = 0.30 + Math.sin(t / 320) * 0.12;
+  const grad = ctx.createRadialGradient(viewW / 2, viewH / 2, Math.min(viewW, viewH) * 0.32,
+                                        viewW / 2, viewH / 2, Math.max(viewW, viewH) * 0.7);
+  grad.addColorStop(0, 'rgba(150,0,0,0)');
+  grad.addColorStop(1, 'rgba(150,0,0,' + pulse + ')');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, viewW, viewH);
+  // Header
+  const headerY = 88;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(viewW / 2 - 150, headerY - 24, 300, 48);
+  ctx.strokeStyle = beingRevived ? '#5aff5a' : '#ff3030';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(viewW / 2 - 150, headerY - 24, 300, 48);
+  ctx.fillStyle = beingRevived ? '#8aff8a' : '#ff7a7a';
+  ctx.font = 'bold 18px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+  ctx.fillText(beingRevived ? '💚 RÄDDAS — HÅLL UT!' : '💀 NEDSLAGEN — vänta på räddning', viewW / 2, headerY);
+  ctx.restore();
+  // Revive-progress-bar (när en lagkamrat håller på) — annars en hint-rad
+  const barW = 260, barH = 14;
+  const bx = viewW / 2 - barW / 2;
+  const barY = headerY + 38;
+  ctx.save();
+  if (beingRevived) {
+    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+    ctx.fillRect(bx, barY, barW, barH);
+    const greenPulse = 0.7 + Math.sin(t / 150) * 0.3;
+    ctx.fillStyle = 'rgba(90,255,90,' + greenPulse + ')';
+    ctx.fillRect(bx, barY, barW * Math.min(1, revT / 5), barH);
+    ctx.strokeStyle = '#5aff5a'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(bx, barY, barW, barH);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+    ctx.fillText('RÄDDAS ' + Math.round((revT / 5) * 100) + '%', viewW / 2, barY + barH / 2);
+  } else {
+    ctx.fillStyle = '#ddd';
+    ctx.font = '12px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+    ctx.fillText('En lagkamrat som står nära dig i 5s räddar dig', viewW / 2, barY + barH / 2);
+  }
+  ctx.restore();
+}
 function drawCastleDefensePinGhost() {
   if (!state.castledefenseActive) return;
   const d = state._cdPinDrag;
@@ -26901,6 +26962,14 @@ const EMOTES = [
   { id: 'wave',   emoji: '👋', text: 'Hej!' },
   { id: 'point',  emoji: '🫵', text: 'YOU!' },
   { id: 'chicken',emoji: '🐔', text: 'FEGIS!' },
+  // v1.660: CO-OP-callouts — funktionell kommunikation för lagspel (på mobil kan
+  // man inte skriva, så emote-hjulet ÄR comms-kanalen). Komplement till taunts.
+  { id: 'help',    emoji: '🆘', text: 'HJÄLP!' },
+  { id: 'enemyhere',emoji: '⚠️', text: 'FIENDE!' },
+  { id: 'noammo',  emoji: '🔫', text: 'SLUT PÅ AMMO' },
+  { id: 'thanks',  emoji: '🙏', text: 'TACK!' },
+  { id: 'regroup', emoji: '🤝', text: 'SAMLAS' },
+  { id: 'onway',   emoji: '🏃', text: 'PÅ VÄG!' },
 ];
 function getEmoteById(id) { return EMOTES.find(e => e.id === id); }
 function applyEmote(player, emoteId) {
@@ -27112,6 +27181,37 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+// v1.660: invite/deep-link — bygg en delbar join-länk + auto-join från ?join=KOD.
+function makeJoinLink(code) {
+  try { return location.origin + location.pathname + '?join=' + encodeURIComponent(String(code).toUpperCase()); }
+  catch (_) { return String(code); }
+}
+function handleDeepLinkJoin() {
+  let code = null;
+  try {
+    const params = new URLSearchParams(location.search);
+    code = (params.get('join') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+  } catch (_) {}
+  if (!code || code.length < 4) return;
+  // Rensa URL:en så en refresh inte re-triggar.
+  try { history.replaceState(null, '', location.origin + location.pathname); } catch (_) {}
+  // Öppna co-op, fyll koden, auto-joina (ett tap blev noll). Guardat — faller koden
+  // bara förifylld om något inte är redo, så användaren kan tappa JOINA manuellt.
+  setTimeout(() => {
+    try {
+      const btnCoop = document.getElementById('btn-coop');
+      const input = document.getElementById('coop-code-input');
+      const joinBtn = document.getElementById('btn-coop-join');
+      if (!btnCoop || !input || !joinBtn) return;
+      btnCoop.click();
+      input.value = code;
+      if (typeof showToast === 'function') showToast('🔗 Går med i rum ' + code + '...', 3);
+      setTimeout(() => { try { joinBtn.click(); } catch (_) {} }, 350);
+    } catch (_) {}
+  }, 800);
+}
+window.addEventListener('load', () => { try { handleDeepLinkJoin(); } catch (_) {} });
+
 const coopInitEl = document.getElementById('coop-init');
 const coopLobbyEl = document.getElementById('coop-lobby');
 const coopCodeDisplay = document.getElementById('coop-code-display');
@@ -27447,20 +27547,30 @@ function initLobbyCopyCode() {
     e.stopPropagation();
     const code = coopCodeDisplay && coopCodeDisplay.textContent;
     if (!code || code === '----') return;
+    // v1.660: dela en JOIN-LÄNK (?join=KOD) istället för bara koden — kompisen tappar
+    // länken i en chatt → ett tap så är de inne. navigator.share öppnar mobilens
+    // dela-ark; annars kopieras länken till urklipp (med textarea-fallback).
+    const link = makeJoinLink(code);
     const fallback = () => {
       try {
         const ta = document.createElement('textarea');
-        ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        ta.value = link; ta.style.position = 'fixed'; ta.style.opacity = '0';
         document.body.appendChild(ta); ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
       } catch (_) {}
     };
-    if (navigator.clipboard) navigator.clipboard.writeText(code).catch(fallback);
-    else fallback();
-    btn.classList.add('copied');
-    btn.textContent = '✓';
-    setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📋'; }, 1500);
+    const flash = () => {
+      btn.classList.add('copied');
+      btn.textContent = '✓';
+      setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📋'; }, 1500);
+    };
+    if (navigator.share) {
+      navigator.share({ title: 'The Penetrator', text: 'Joina mitt co-op-rum (' + code + ')!', url: link })
+        .then(flash).catch(() => { /* user avbröt — gör inget */ });
+    } else if (navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(flash).catch(() => { fallback(); flash(); });
+    } else { fallback(); flash(); }
     Audio.uiClick && Audio.uiClick();
   });
 }
@@ -70723,6 +70833,10 @@ function render() {
       drawSurvivorsArenaAmbient();
       // v1.533: Boss-spawn-indicator pil (4s)
       if (typeof drawSurvivorsBossIndicator === 'function') drawSurvivorsBossIndicator();
+      // v1.660: ping fungerar i Survivors (knapp+tap finns via CD-pipeline) — bara
+      // render-anropet saknades här. Server-gaten tillåter nu co-op-ping.
+      if (typeof drawCastleDefensePings === 'function') drawCastleDefensePings();
+      if (typeof drawCastleDefensePinGhost === 'function') drawCastleDefensePinGhost();
     } else {
       drawCastleDefenseWalls();                  // legacy pre-built (tomt nu)
       drawCastleDefenseBuildings('tall');        // walls, turrets, stations
@@ -70734,6 +70848,9 @@ function render() {
       if (typeof drawCdBuildGhost === 'function') drawCdBuildGhost();
     }
   }
+  // v1.660: CO-OP revive-overlay (story/heist) — self-guardar (bara när jag är död +
+  // revivable i co-op, ej Castle Defense/Survivors som har sin egen down-overlay).
+  if (typeof drawCoopReviveOverlay === 'function') drawCoopReviveOverlay();
   // GRENADE-render ALLTID PÅ TOPP — efter walls/träd/tak så granaten aldrig hamnar
   // under objekt visuellt. Både landing-reticle (medan holding) + projektiler i flykt.
   if (typeof drawGrenadeReticle === 'function') drawGrenadeReticle();

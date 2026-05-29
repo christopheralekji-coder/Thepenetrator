@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v181-reconnect-restore-v1.659';
+const SERVER_VERSION = 'v182-coop-ping-allmodes-v1.660';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -968,7 +968,12 @@ function handleMessage(ws, msg) {
   if (msg.type === 'sim_cd_ping') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
-    if (!room.sim.castledefenseActive) return;
+    // v1.660: ping tillåts i ALLA co-op-lägen (var bara castledefense). Co-op =
+    // ingen PvP-mode aktiv (i PvP skulle ping läcka info till motståndarlaget).
+    const _s = room.sim;
+    const _isPvp = _s.tdmActive || _s.ctfActive || _s.siegeActive || _s.kothActive ||
+                   _s.gungameActive || _s.juggernautActive || _s.battleroyaleActive;
+    if (_isPvp) return;
     // Throttle per spelare: 1 ping per 1.5s
     const now = Date.now();
     if (ws._lastCdPingAt && now - ws._lastCdPingAt < 1500) return;
