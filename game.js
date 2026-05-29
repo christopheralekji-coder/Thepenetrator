@@ -20667,8 +20667,8 @@ canvas.addEventListener('mousedown', (e) => {
   if (checkDebugCornerTap(mx, my)) return; // v1.384: triple-tap top-left
   if (checkCdGoldCornerTap(mx, my)) return; // v1.424: double-tap bottom-left → gold-cheat-knapp
   if (typeof checkPixiDiagCornerTap === 'function' && checkPixiDiagCornerTap(mx, my)) return; // v1.535: 4-tap top-right → pixi-diag
-  // v1.418: Castle Defense pin-select-mode — tap placerar pin på världs- eller minimap-pos
-  if (state.castledefenseActive && state.cdPinSelectMode && e.button === 0) {
+  // v1.418/v1.661: co-op pin-select-mode — tap placerar pin (CD/Survivors/Heist)
+  if (isCoopPingMode() && state.cdPinSelectMode && e.button === 0) {
     if (handleCdPinSelectTap(mx, my)) { e.preventDefault && e.preventDefault(); return; }
   }
   // Castle Defense build-mode: vänsterklick placerar bygge istället för att skjuta
@@ -25920,10 +25920,12 @@ const Coop = {
     // Inkludera wardrobe + team-val (för shuffle/pick) så alla ser team-färgning
     const myWardrobe = (save && save.wardrobe) ? Object.assign({}, save.wardrobe) : null;
     if (!this.teamAssignments) this.teamAssignments = {}; // peerId → 'red'|'blue'|null
+    if (!this.readyStates) this.readyStates = {}; // peerId → bool (v1.661 lobby-ready)
     const arr = [{
       peerId: this.myId, name: (this.myName || 'P1') + ' (HOST)',
       colorIdx: 0, isHost: true, ping: 0, wardrobe: myWardrobe,
       team: this.teamAssignments[this.myId] || null,
+      ready: true, // host är implicit redo (de startar matchen)
     }];
     for (const [pid, p] of this.players) {
       arr.push({
@@ -25931,6 +25933,7 @@ const Coop = {
         isHost: false, ping: p.ping == null ? null : p.ping,
         wardrobe: p.wardrobe || null,
         team: this.teamAssignments[pid] || null,
+        ready: !!this.readyStates[pid], // v1.661
       });
     }
     return arr;
@@ -26096,6 +26099,15 @@ const Coop = {
       if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
       return;
     }
+    // v1.661: lobby-ready-toggle — peer signalerar redo/ej redo så host vet när alla
+    // är klara (avatarval/läget-läsning). Bara informativt — gatear inte start-knappen.
+    if (data.type === 'ready' && this.isHost) {
+      if (!this.readyStates) this.readyStates = {};
+      this.readyStates[fromId] = !!data.ready;
+      this.broadcastLobby();
+      if (this.onLobbyChange) this.onLobbyChange(this.serializeLobby());
+      return;
+    }
     // Wardrobe-broadcast: peer skickar sin garderob så alla ser allas outfits
     // i lobby-listan (mini-preview per spelare).
     if (data.type === 'wardrobe-update' && this.isHost) {
@@ -26120,6 +26132,10 @@ const Coop = {
     if (data.type === 'start') {
       this.inLobby = false;
       if (!this.isHost) {
+        // v1.661: dölj gameover/meny-skärm vid RE-ENTRY (host startade om matchen) så
+        // peers inte fastnar bakom gameover-overlayn när de återinträder.
+        if (typeof gameoverScreen !== 'undefined' && gameoverScreen) gameoverScreen.classList.add('hidden');
+        document.body.classList.remove('menu-mode');
         this.applyConfigToSave();
         actuallyStartGame();
       }
@@ -28365,6 +28381,29 @@ function renderLobbyPlayers(players) {
           pickWrap.appendChild(pb);
         });
         row.appendChild(pickWrap);
+      }
+    }
+    // v1.661: lobby-ready — egen togglbar knapp (icke-host), läs-bar indikator för andra.
+    if (!p.isHost) {
+      if (p.peerId === Coop.myId && !Coop.isHost) {
+        const rb = document.createElement('button');
+        rb.textContent = p.ready ? '✅ REDO' : '○ REDO?';
+        rb.style.cssText = 'flex:0 0 auto;margin-left:6px;padding:4px 9px;border-radius:8px;font-family:inherit;font-weight:900;font-size:10px;letter-spacing:0.3px;cursor:pointer;border:2px solid ' +
+          (p.ready ? '#5aff5a' : '#888') + ';background:' + (p.ready ? 'rgba(90,255,90,0.18)' : 'rgba(255,255,255,0.06)') + ';color:' + (p.ready ? '#8aff8a' : '#ccc') + ';';
+        rb.addEventListener('pointerdown', (ev) => {
+          ev.preventDefault(); ev.stopPropagation();
+          const next = !p.ready;
+          Coop._myReady = next;
+          if (typeof Coop.sendToHost === 'function') Coop.sendToHost({ type: 'ready', ready: next });
+          Audio.uiClick && Audio.uiClick();
+        });
+        row.appendChild(rb);
+      } else {
+        const ri = document.createElement('span');
+        ri.textContent = p.ready ? '✅' : '○';
+        ri.title = p.ready ? 'Redo' : 'Inte redo än';
+        ri.style.cssText = 'flex:0 0 auto;margin-left:6px;font-size:13px;opacity:' + (p.ready ? '1' : '0.5') + ';';
+        row.appendChild(ri);
       }
     }
     coopPlayerList.appendChild(row);
@@ -34573,6 +34612,14 @@ function resetSavePrompt() {
 const _setReset = document.getElementById('set-reset');
 if (_setReset) _setReset.addEventListener('click', resetSavePrompt);
 document.getElementById('btn-retry').addEventListener('click', () => {
+  // v1.661: non-host i co-op kan INTE starta om själv — det skulle koppla bort dem
+  // till ett lokalt spel medan resten spelar vidare. Hosten styr omstarten; vi väntar
+  // på deras 'start'-broadcast (peer-handlern re-entrar oss då). Förhindrar att party:t
+  // löses upp vid game over.
+  if (Coop.active && !Coop.isHost) {
+    if (typeof showToast === 'function') showToast('⏳ Väntar på att host startar om matchen...', 4);
+    return;
+  }
   gameoverScreen.classList.add('hidden');
   // Coop: om vi var i coop-rum, måste server få sim_start på nytt — annars
   // tror server att matchen är slut och klient blir stuck. Skicka om host.
@@ -34651,6 +34698,9 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     try { Coop.ws.send(JSON.stringify(payload)); } catch (_) {}
     Coop.serverSimActive = true;
     state.serverSimActive = true;
+    // v1.661: ta med party:t i omstarten — broadcasta 'start' så peers re-entrar
+    // (annars fastnar de på gameover medan hosten spelar vidare). Speglar lobby-starten.
+    if (typeof Coop.broadcast === 'function') Coop.broadcast({ type: 'start' });
   }
 });
 document.getElementById('btn-menu').addEventListener('click', () => {
@@ -37179,6 +37229,55 @@ function _stopBrHudInterval() {
 // ============================================================
 // CASTLE DEFENSE HUD
 // ============================================================
+// v1.661: CO-OP ping-knapp — delad av Castle Defense / Survivors / Heist (story-coop
+// är linjär PvE → ingen ping). Transition-baserad: gör DOM-arbete bara när läget
+// ändras, så den kan anropas per frame billigt (self-managing show/hide).
+function isCoopPingMode() {
+  return !!(typeof Coop !== 'undefined' && Coop.active &&
+    (state.castledefenseActive || state.survivorsActive || state.heistActive));
+}
+let _coopPingBtnWant = null;
+function ensureCoopPingBtn() {
+  const want = isCoopPingMode();
+  let pingBtn = document.getElementById('cd-ping-btn');
+  if (want && !pingBtn) {
+    pingBtn = document.createElement('button');
+    pingBtn.id = 'cd-ping-btn';
+    pingBtn.style.cssText = 'position:fixed !important;top:176px !important;right:56px !important;left:auto !important;bottom:auto !important;width:38px !important;height:38px !important;background:radial-gradient(circle at 30% 30%, rgba(90,200,255,0.35), rgba(0,0,0,0.55));border:2px solid #5acaff;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:16px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 0 8px rgba(90,200,255,0.2);display:flex;align-items:center;justify-content:center;padding:0;touch-action:none;transition:transform 0.12s ease, background 0.15s, box-shadow 0.15s;';
+    pingBtn.innerHTML = '📍';
+    pingBtn.title = 'Tap = select-mode · Hold+drag = direkt placera';
+    pingBtn.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      pingBtn.style.transform = 'scale(0.9)';
+      state._cdPinDrag = { startX: e.clientX, startY: e.clientY, x: e.clientX, y: e.clientY, pointerId: e.pointerId, moved: false };
+      try { pingBtn.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    pingBtn.addEventListener('pointermove', (e) => {
+      const d = state._cdPinDrag;
+      if (!d || d.pointerId !== e.pointerId) return;
+      d.x = e.clientX; d.y = e.clientY;
+      const dx = d.x - d.startX, dy = d.y - d.startY;
+      if (dx * dx + dy * dy > 10 * 10) d.moved = true;
+    });
+    const finishDrag = (e) => {
+      const d = state._cdPinDrag;
+      if (!d || d.pointerId !== e.pointerId) return;
+      pingBtn.style.transform = '';
+      try { pingBtn.releasePointerCapture(e.pointerId); } catch (_) {}
+      state._cdPinDrag = null;
+      if (d.moved) { if (typeof placeCdPinAtScreen === 'function') placeCdPinAtScreen(d.x, d.y); }
+      else { toggleCdPinSelectMode(); }
+    };
+    pingBtn.addEventListener('pointerup', finishDrag);
+    pingBtn.addEventListener('pointercancel', finishDrag);
+    document.body.appendChild(pingBtn);
+    _coopPingBtnWant = null; // tvinga display-set nedan
+  }
+  if (want === _coopPingBtnWant) return;
+  _coopPingBtnWant = want;
+  if (pingBtn) pingBtn.style.display = want ? 'flex' : 'none';
+}
+
 let _cdHudInterval = null;
 function showCastleDefenseHud() {
   _startCastleDefenseHudInterval();
@@ -37221,52 +37320,8 @@ function showCastleDefenseHud() {
   // Migration cleanup: ta bort gamla cd-inf-money om den finns från äldre version
   const oldInf = document.getElementById('cd-inf-money');
   if (oldInf && oldInf.parentNode) oldInf.parentNode.removeChild(oldInf);
-  // v1.418/v1.419: Pin-knapp — 38×38 (matchar vapen-knapp), placerad vänster om
-  // vapenknappen. TVÅ patterns: (1) tap = enter pin-select-mode (next tap placerar),
-  // (2) hold + drag + release = direkt placera vid release-pos (med ghost-preview).
-  let pingBtn = document.getElementById('cd-ping-btn');
-  if (!pingBtn) {
-    pingBtn = document.createElement('button');
-    pingBtn.id = 'cd-ping-btn';
-    pingBtn.style.cssText = 'position:fixed !important;top:176px !important;right:56px !important;left:auto !important;bottom:auto !important;width:38px !important;height:38px !important;background:radial-gradient(circle at 30% 30%, rgba(90,200,255,0.35), rgba(0,0,0,0.55));border:2px solid #5acaff;border-radius:50%;color:#fff;font-family:sans-serif;font-weight:900;z-index:6;cursor:pointer;font-size:16px;box-shadow:0 3px 10px rgba(0,0,0,0.6),inset 0 0 8px rgba(90,200,255,0.2);display:flex;align-items:center;justify-content:center;padding:0;touch-action:none;transition:transform 0.12s ease, background 0.15s, box-shadow 0.15s;';
-    pingBtn.innerHTML = '📍';
-    pingBtn.title = 'Tap = select-mode · Hold+drag = direkt placera';
-    pingBtn.addEventListener('pointerdown', (e) => {
-      e.preventDefault();
-      pingBtn.style.transform = 'scale(0.9)';
-      state._cdPinDrag = {
-        startX: e.clientX, startY: e.clientY,
-        x: e.clientX, y: e.clientY,
-        pointerId: e.pointerId,
-        moved: false,
-      };
-      try { pingBtn.setPointerCapture(e.pointerId); } catch (_) {}
-    });
-    pingBtn.addEventListener('pointermove', (e) => {
-      const d = state._cdPinDrag;
-      if (!d || d.pointerId !== e.pointerId) return;
-      d.x = e.clientX; d.y = e.clientY;
-      const dx = d.x - d.startX, dy = d.y - d.startY;
-      if (dx * dx + dy * dy > 10 * 10) d.moved = true;
-    });
-    const finishDrag = (e) => {
-      const d = state._cdPinDrag;
-      if (!d || d.pointerId !== e.pointerId) return;
-      pingBtn.style.transform = '';
-      try { pingBtn.releasePointerCapture(e.pointerId); } catch (_) {}
-      state._cdPinDrag = null;
-      if (d.moved) {
-        // Hold+drag+release → placera pin direkt vid release-pos
-        if (typeof placeCdPinAtScreen === 'function') placeCdPinAtScreen(d.x, d.y);
-      } else {
-        // Tap → toggle select-mode
-        toggleCdPinSelectMode();
-      }
-    };
-    pingBtn.addEventListener('pointerup', finishDrag);
-    pingBtn.addEventListener('pointercancel', finishDrag);
-    document.body.appendChild(pingBtn);
-  }
+  // v1.661: ping-knapp skapas/visas nu via ensureCoopPingBtn() (delas av CD/Survivors/Heist).
+  ensureCoopPingBtn();
   // v1.411/v1.423: Sell-knapp — placerad BREDVID cd-action-btn (left+200 bottom:14).
   // Same size (60×60) + samma stå-på-tornet AABB-regel. Strikt synlig bara när
   // player står på egen sellable byggnad.
@@ -39114,7 +39169,7 @@ function tryCdSell() {
 // nästa tap på världs-canvas ELLER minimap placerar pinnen. Tap på samma knapp igen
 // avbryter. T-key (snabb-ping vid player-pos) finns kvar som fallback.
 function toggleCdPinSelectMode() {
-  if (!state.castledefenseActive) return;
+  if (!isCoopPingMode()) return;
   state.cdPinSelectMode = !state.cdPinSelectMode;
   const btn = document.getElementById('cd-ping-btn');
   if (btn) {
@@ -39137,7 +39192,7 @@ function tryCdPing(worldX, worldY) {
   Coop.ws.send(JSON.stringify({ type: 'sim_cd_ping', x, y }));
 }
 function handleCdPinSelectTap(clientX, clientY) {
-  if (!state.cdPinSelectMode || !state.castledefenseActive) return false;
+  if (!state.cdPinSelectMode || !isCoopPingMode()) return false;
   const ok = placeCdPinAtScreen(clientX, clientY);
   if (ok) toggleCdPinSelectMode();
   return ok;
@@ -39145,7 +39200,7 @@ function handleCdPinSelectTap(clientX, clientY) {
 // v1.419: placerar pin direkt vid screen-pos (utan att kräva select-mode).
 // Används av hold+drag+release-flow.
 function placeCdPinAtScreen(clientX, clientY) {
-  if (!state.castledefenseActive) return false;
+  if (!isCoopPingMode()) return false;
   // Försök först minimap — om tap är inom minimap-rektangeln, översätt minimap→world
   const mm = state._minimapHitbox;
   if (mm && clientX >= mm.x && clientX <= mm.x + mm.w &&
@@ -70851,6 +70906,11 @@ function render() {
   // v1.660: CO-OP revive-overlay (story/heist) — self-guardar (bara när jag är död +
   // revivable i co-op, ej Castle Defense/Survivors som har sin egen down-overlay).
   if (typeof drawCoopReviveOverlay === 'function') drawCoopReviveOverlay();
+  // v1.661: ping-render för Heist (CD/Survivors ritar i sina egna grenar ovan).
+  if (state.heistActive && !state.castledefenseActive) {
+    if (typeof drawCastleDefensePings === 'function') drawCastleDefensePings();
+    if (typeof drawCastleDefensePinGhost === 'function') drawCastleDefensePinGhost();
+  }
   // GRENADE-render ALLTID PÅ TOPP — efter walls/träd/tak så granaten aldrig hamnar
   // under objekt visuellt. Både landing-reticle (medan holding) + projektiler i flykt.
   if (typeof drawGrenadeReticle === 'function') drawGrenadeReticle();
@@ -72690,6 +72750,8 @@ function runFrame(dt, now) {
     pixiState.particlesEnabled = false;
     pixiState.vfxEnabled = false;
   }
+  // v1.661: co-op ping-knapp visa/dölj-hantering (transition-guardad → ~gratis).
+  if (typeof ensureCoopPingBtn === 'function') ensureCoopPingBtn();
   // BR-UI cleanup: när mode REACHAR menu/gameover/victory (true match-end),
   // nuka alla BR-DOM-element OCH full BR-state cleanup så inget läcker till
   // nästa mode. Triggas oavsett varifrån vi kom (playing→menu, pause→menu, etc).
@@ -72969,8 +73031,8 @@ canvas.addEventListener('touchstart', e => {
     if (checkMinimapZoomClick(tx, ty)) { e.preventDefault(); return; }
     if (checkDebugCornerTap(tx, ty)) { e.preventDefault(); return; } // v1.384
     if (checkCdGoldCornerTap(tx, ty)) { e.preventDefault(); return; } // v1.424
-    // v1.418: pin-select-mode: tap placerar pin på världs- eller minimap-pos
-    if (state.castledefenseActive && state.cdPinSelectMode &&
+    // v1.418/v1.661: co-op pin-select-mode: tap placerar pin (CD/Survivors/Heist)
+    if (isCoopPingMode() && state.cdPinSelectMode &&
         typeof handleCdPinSelectTap === 'function') {
       if (handleCdPinSelectTap(tx, ty)) { e.preventDefault(); return; }
     }
