@@ -21,10 +21,25 @@ let _botCounter = 0;
 // normal: balanserad (default)
 // hard: nästan perfekt aim, snabb fire-rate
 const BOT_SKILL = {
-  easy:   { aimJitter: 0.28, cooldownMul: 1.8, reactionMs: 350 },
-  normal: { aimJitter: 0.12, cooldownMul: 1.3, reactionMs: 180 },
-  hard:   { aimJitter: 0.05, cooldownMul: 1.0, reactionMs: 80 },
+  // v1.663: lade till fleeHp (HP-% under vilken boten kitar/retirerar) + leadAim
+  // (siktar framför rörliga mål). reactionMs ANVÄNDS nu (var död config).
+  easy:   { aimJitter: 0.28, cooldownMul: 1.8, reactionMs: 350, fleeHp: 0.22, leadAim: 0.0 },
+  normal: { aimJitter: 0.12, cooldownMul: 1.3, reactionMs: 180, fleeHp: 0.30, leadAim: 0.4 },
+  hard:   { aimJitter: 0.05, cooldownMul: 1.0, reactionMs: 80,  fleeHp: 0.40, leadAim: 0.9 },
 };
+
+// v1.663: skill-anpassat default-vapen för modes som INTE sätter bot-vapen själva
+// (TDM/CTF/Siege/Story). GunGame/KOTH/Jugg/BR/CD skriver över via egen sim-logik.
+// Pistol-only-bots var pushovers. Inga snipers på hard (sniper+låg-jitter = brutalt).
+const BOT_WEAPON_POOL = {
+  easy:   ['pistol', 'smg'],
+  normal: ['rifle', 'smg', 'shotgun'],
+  hard:   ['rifle', 'revolver', 'burstpistol'],
+};
+function pickBotWeapon(skillName) {
+  const pool = BOT_WEAPON_POOL[skillName] || BOT_WEAPON_POOL.normal;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
 
 // Spawna bot i ett sim-rum. Returnerar bot-id om lyckad.
 // team='red'|'blue'|null (FFA). spawnPos sätts av caller efter mode.
@@ -54,7 +69,7 @@ function addBot(sim, team, skill, customName) {
       x: 1000, y: 1000,
       hp: 100, shield: 100, maxShield: 100,
       invulnUntil: Date.now() + 1500,
-      weaponId: 'pistol',
+      weaponId: pickBotWeapon(skill),   // v1.663: riktigt vapen (var hårdkodad 'pistol')
       _history: [],
     },
     tdmTeam: team || null,
@@ -95,16 +110,30 @@ function tickBots(sim, dt, now) {
     // Skip under time-stop
     if (sim.timeStopUntil && Date.now() < sim.timeStopUntil) continue;
 
+    const bot = botWs._bot;
+    const skill = bot.skill || BOT_SKILL.normal;
+    // v1.663: SJÄLVBEVARELSE — flagga för att kita/retirera när HP låg + ingen shield.
+    // Skill-skalad (hard kitar tidigare = överlever längre = svårare motståndare).
+    const maxHp = ps.maxHp || 100;
+    bot.fleeing = (ps.hp / maxHp) < (skill.fleeHp || 0.3) && (ps.shield || 0) <= 0;
+
     // 1) Välj target baserat på mode
     const target = chooseBotTarget(sim, botWs);
-    botWs._bot.target = target;
+    // v1.663: REACTION TIME — när target byts, sätt engage-fördröjning (skill-baserad)
+    // så boten reagerar istället för att skjuta instant. Gör skill-nivåerna meningsfulla.
+    const tref = target && target.ref;
+    if (tref !== bot._lastTargetRef) {
+      bot._lastTargetRef = tref;
+      bot._engageAt = now + (skill.reactionMs || 180);
+    }
+    bot.target = target;
     if (!target) continue;
 
-    // 2) Rör mot target
+    // 2) Rör mot target (moveBotTowards läser bot.fleeing för kiting)
     moveBotTowards(sim, botWs, target, dt);
 
-    // 3) Skjut om i range och cooldown är klar
-    shootIfReady(sim, botWs, target, now);
+    // 3) Skjut om i range, cooldown klar OCH reaktionstid passerad
+    if (now >= (bot._engageAt || 0)) shootIfReady(sim, botWs, target, now);
   }
 }
 
@@ -177,8 +206,30 @@ function chooseBotTarget(sim, botWs) {
   if (sim.tdmActive && !sim.tdmEnded) {
     return findClosestPlayer(sim, botWs, /*excludeTeam*/ team);
   }
-  // Story/coop: närmsta enemy (sim.enemies)
+  // Story/coop (PvE): v1.663 — om en lagkamrat ligger nedslagen i närheten och boten
+  // inte själv flyr, gå och återuppliva (updateRevive räddar när boten står inom 50px
+  // i 5s). Annars närmsta enemy. Gör bots till riktiga co-op-lagkamrater.
+  if (!botWs._bot.fleeing) {
+    const reviveTarget = chooseReviveTarget(sim, botWs);
+    if (reviveTarget) return reviveTarget;
+  }
   return findClosestEnemy(sim, botWs);
+}
+
+// v1.663: hitta närmsta nedslagna lagkamrat (deadBody) inom rimligt avstånd att gå till.
+function chooseReviveTarget(sim, botWs) {
+  if (!sim.deadBodies) return null;
+  const px = botWs.playerState.x, py = botWs.playerState.y;
+  let best = null, bestD2 = 750 * 750;   // gå bara om rimligt nära
+  for (const pid of Object.keys(sim.deadBodies)) {
+    if (pid === botWs.id) continue;
+    const body = sim.deadBodies[pid];
+    if (!body) continue;
+    const dx = body.x - px, dy = body.y - py;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD2) { bestD2 = d2; best = { x: body.x, y: body.y, type: 'revive', ref: body }; }
+  }
+  return best;
 }
 
 function findClosestPlayer(sim, botWs, excludeTeam) {
@@ -192,8 +243,11 @@ function findClosestPlayer(sim, botWs, excludeTeam) {
     // Skip respawn-invuln targets (oskjutbara — slösa inte tid)
     if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
     const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
-    const d2 = dx * dx + dy * dy;
-    if (d2 < bestD2) { bestD2 = d2; best = { x: ws.playerState.x, y: ws.playerState.y, type: 'player', ref: ws }; }
+    // v1.663: HP-viktad poäng — föredra avslutningsbara (låg-HP) mål utan att
+    // ignorera närhet (distans dominerar fortfarande). Fokus-eld på svaga.
+    const hpFrac = Math.max(0, Math.min(1, (ws.playerState.hp || 100) / (ws.playerState.maxHp || 100)));
+    const score = (dx * dx + dy * dy) * (0.6 + 0.4 * hpFrac);
+    if (score < bestD2) { bestD2 = score; best = { x: ws.playerState.x, y: ws.playerState.y, type: 'player', ref: ws }; }
   }
   return best;
 }
@@ -204,8 +258,10 @@ function findClosestEnemy(sim, botWs) {
   for (const e of sim.enemies) {
     if (e.dead) continue;
     const dx = e.x - px, dy = e.y - py;
-    const d2 = dx * dx + dy * dy;
-    if (d2 < bestD2) { bestD2 = d2; best = { x: e.x, y: e.y, type: 'enemy', ref: e }; }
+    // v1.663: HP-viktad poäng — föredra avslutningsbara fiender (distans dominerar).
+    const hpFrac = Math.max(0, Math.min(1, (e.hp || 1) / (e.maxHp || e.hp || 1)));
+    const score = (dx * dx + dy * dy) * (0.6 + 0.4 * hpFrac);
+    if (score < bestD2) { bestD2 = score; best = { x: e.x, y: e.y, type: 'enemy', ref: e }; }
   }
   return best;
 }
@@ -387,8 +443,20 @@ function moveBotTowards(sim, botWs, target, dt) {
   // så capture-progress fortsätter ticka. Inte strafe utåt → ut ur radien.
   const isObjective = target.type === 'siege_base' || target.type === 'home_base'
     || target.type === 'enemy_flag' || target.type === 'enemy_flag_base'
-    || target.type === 'koth_zone' || target.type === 'br_loot' || target.type === 'br_zone_center';
-  const desiredDist = isObjective ? 30 : (isMelee ? Math.max(20, (w.range || 36) - 5) : 250);
+    || target.type === 'koth_zone' || target.type === 'br_loot' || target.type === 'br_zone_center'
+    || target.type === 'revive';   // v1.663: stå nära nedslagen lagkamrat (revive-radie)
+  // v1.663: vapen-räckvidds-medvetet skjutavstånd (var fast 250px för ALLA guns →
+  // hagel-bot utom räckhåll, sniper-bot för nära). Långa vapen håller distans, korta
+  // går in. + självbevarelse: kita undan vid låg HP.
+  let desiredDist;
+  if (isObjective) desiredDist = 30;
+  else if (isMelee) desiredDist = Math.max(20, (w.range || 36) - 5);
+  else {
+    const LONG = ['sniper', 'railgun', 'crossbow', 'bow', 'rifle', 'minigun'];
+    const SHORT = ['shotgun', 'flame', 'smg'];
+    desiredDist = LONG.indexOf(ps.weaponId) >= 0 ? 460 : (SHORT.indexOf(ps.weaponId) >= 0 ? 150 : 260);
+  }
+  if (bot.fleeing && !isObjective) desiredDist = Math.max(desiredDist, 520);
   const speed = 180;
 
   // Wall-unstick: om bot rört sig <20px på 1s, lås in i sidoangle 90° för 1.5s
@@ -422,7 +490,8 @@ function moveBotTowards(sim, botWs, target, dt) {
   } else if (d > desiredDist) {
     ps.x += (dx / d) * speed * dt;
     ps.y += (dy / d) * speed * dt;
-  } else if (d < desiredDist - 60 && !isMelee) {
+  } else if (d < desiredDist - 60 && (!isMelee || bot.fleeing)) {
+    // v1.663: backa undan — ranged kitar; melee gör det bara när de flyr (låg HP).
     ps.x -= (dx / d) * speed * 0.5 * dt;
     ps.y -= (dy / d) * speed * 0.5 * dt;
   } else {
@@ -473,7 +542,25 @@ function shootIfReady(sim, botWs, target, now) {
   const baseJitter = (bot.skill && bot.skill.aimJitter) || 0.12;
   const jitterMag = baseJitter + Math.min(0.30, d / 700 * 0.30);
   const jitter = (Math.random() - 0.5) * jitterMag;
-  const ang = Math.atan2(dy, dx) + jitter;
+  // v1.663: AIM-LEADING — sikta framför rörliga mål, skalat med skill.leadAim (hard
+  // leder nästan helt, easy inte alls). Hastighet skattas från target-pos-delta mellan
+  // skott. Gör bots träffsäkra mot rörliga mål istället för att alltid skjuta bakom.
+  let aimX = target.x, aimY = target.y;
+  const lead = (bot.skill && bot.skill.leadAim) || 0;
+  if (lead > 0 && w.type !== 'melee') {
+    const pv = bot._aimPrev;
+    if (pv && pv.ref === target.ref) {
+      const vdt = (now - pv.t) / 1000;
+      if (vdt > 0.01 && vdt < 0.6) {
+        const vx = (target.x - pv.x) / vdt, vy = (target.y - pv.y) / vdt;
+        const tHit = Math.min(0.5, d / (w.speed || 700));
+        aimX = target.x + vx * tHit * lead;
+        aimY = target.y + vy * tHit * lead;
+      }
+    }
+    bot._aimPrev = { ref: target.ref, x: target.x, y: target.y, t: now };
+  }
+  const ang = Math.atan2(aimY - ps.y, aimX - ps.x) + jitter;
   const p = { x: ps.x, y: ps.y, aimAngle: ang, r: 14, peerId: botWs.id };
   const params = { dmgMul: 1, perks: {}, cheats: {} };
   if (w.type === 'melee') {
