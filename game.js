@@ -71592,6 +71592,48 @@ function drawDebugLatencyOverlay() {
   ctx.restore();
 }
 
+// v1.667: mode-anpassad minimap-titel + legend. Returnerar { title, legend }.
+// legend = array av { color, label, ring? } (ring=true → ihålig cirkel istället
+// för fylld). Hålls till ≤4 poster/mode så strippen får plats. Story-mode faller
+// tillbaka på stage.name + generisk fiende/mål/pickup-legend.
+function getMinimapMeta(stage) {
+  const P = '#3aff5a';   // player-grön (gemensam)
+  if (state.ctfActive) return { title: 'CAPTURE THE FLAG', legend: [
+    { color: '#ff3030', label: 'Röd flagga' }, { color: '#3060ff', label: 'Blå flagga' },
+    { color: '#ff8c32', label: 'Torn' }, { color: P, label: 'Du' } ] };
+  if (state.siegeActive) return { title: 'SIEGE THE BASE', legend: [
+    { color: '#cccccc', label: 'Bas (neutral)', ring: true }, { color: '#ff5a5a', label: 'Core (röd)' },
+    { color: '#5aaaff', label: 'Core (blå)' }, { color: P, label: 'Du' } ] };
+  if (state.gungameActive) return { title: 'GUN GAME', legend: [
+    { color: '#ff5a5a', label: 'Fiende' }, { color: P, label: 'Du' } ] };
+  if (state.kothActive) return { title: 'KING OF THE HILL', legend: [
+    { color: '#ffd54a', label: 'Hill-zon', ring: true }, { color: '#ff5a5a', label: 'Fiende' },
+    { color: P, label: 'Du' } ] };
+  if (state.juggernautActive) return { title: 'JUGGERNAUT', legend: [
+    { color: '#ffd54a', label: 'Juggernaut' }, { color: '#ff5a5a', label: 'Hunter' },
+    { color: P, label: 'Du' } ] };
+  if (state.battleroyaleActive) return { title: 'BATTLE ROYALE', legend: [
+    { color: '#3acaff', label: 'Säker zon', ring: true }, { color: '#a040e0', label: 'Alien-zon' },
+    { color: '#ff5a5a', label: 'Fiende' }, { color: P, label: 'Du' } ] };
+  if (state.tdmActive) return { title: 'TEAM DEATHMATCH', legend: [
+    { color: '#ff5a5a', label: 'Motståndare' }, { color: '#5acaff', label: 'Lagkamrat' },
+    { color: P, label: 'Du' } ] };
+  if (state.heistActive) return { title: 'HEIST', legend: [
+    { color: '#ffd54a', label: 'Loot' }, { color: '#ffae3a', label: 'Vakt' },
+    { color: '#ff3030', label: 'Kamera' }, { color: '#5aff8a', label: 'Extract' } ] };
+  if (state.survivorsActive) return { title: 'SURVIVORS', legend: [
+    { color: '#ffd54a', label: 'Core' }, { color: '#ff5a5a', label: 'Fiende' },
+    { color: '#5acaff', label: 'Lagkamrat' }, { color: P, label: 'Du' } ] };
+  if (state.castledefenseActive) return { title: 'CASTLE DEFENSE', legend: [
+    { color: '#ffd54a', label: 'Core' }, { color: '#5ac9ff', label: 'Torn' },
+    { color: '#ff5a5a', label: 'Fiende' }, { color: P, label: 'Du' } ] };
+  // Story / boss
+  const legend = [{ color: '#ff5a5a', label: 'Fiende' }];
+  if (!stage.isBoss) legend.push({ color: '#ffd54a', label: 'Mål / pickup', ring: true });
+  legend.push({ color: P, label: 'Du' });
+  return { title: (stage.name || 'KARTA').toUpperCase(), legend };
+}
+
 function drawMiniMap() {
   if (!state.player) return;
   if (save.minimapHidden) return;
@@ -71610,11 +71652,8 @@ function drawMiniMap() {
   // v1.377: original storlek (110/280) — användaren tycker större känns för mycket
   const smallSize = 110;
   const bigSize = Math.min(viewW * 0.5, 280);
-  const size = smallSize + (bigSize - smallSize) * t01;
+  const size = smallSize + (bigSize - smallSize) * t01;   // kvadrat-envelope (längsta sidan)
   const margin = 12;
-  const x0 = viewW - size - margin;
-  const y0 = 60;
-  state._minimapHitbox = { x: x0, y: y0, w: size, h: size };
 
   // ZOOMED-IN: visa 3500×3500 world centrerad på spelaren (v1.379: ökat från
   // 1500 → 3500 efter user-feedback att 1500 var för nära). Hus = ~7px,
@@ -71623,10 +71662,30 @@ function drawMiniMap() {
   // v1.425: CD när få enemies (≤5) → auto-zoom till full map så stragglers syns.
   const cdShowAll = state.castledefenseActive && state.enemies.length > 0 && state.enemies.length <= 5;
   const FOCUS_VIEW_WORLD = state.castledefenseActive ? 4200 : 3500;
-  const maxWorld = Math.max(stage.worldW, stage.worldH);
-  const baseSize = FOCUS_VIEW_WORLD + (maxWorld - FOCUS_VIEW_WORLD) * t01;
-  const viewWorldSize = cdShowAll ? Math.max(baseSize, maxWorld) : baseSize;
-  const scale = size / viewWorldSize;
+  // v1.667: ASPECT-KORREKT minimap. Tidigare var vyn alltid kvadratisk
+  // (max(worldW,worldH)) → svarta band i breda arenor (Siege 5000×3000 = 40%
+  // tomrum). Nu lerpas synlig världs-bredd/höjd separat: fokus-vy är kvadratisk
+  // (följer spelaren), full karta matchar arenans proportion. Boxen får samma
+  // aspect → inga band, ingen distortion (scale är uniform).
+  let viewWorldW = FOCUS_VIEW_WORLD + (stage.worldW - FOCUS_VIEW_WORLD) * t01;
+  let viewWorldH = FOCUS_VIEW_WORLD + (stage.worldH - FOCUS_VIEW_WORLD) * t01;
+  if (cdShowAll) {
+    viewWorldW = Math.max(viewWorldW, stage.worldW);
+    viewWorldH = Math.max(viewWorldH, stage.worldH);
+  }
+  const scale = size / Math.max(viewWorldW, viewWorldH);  // uniform → ingen distortion
+  const boxW = viewWorldW * scale;
+  const boxH = viewWorldH * scale;
+  // ANCHOR: bevara den gamla kvadratens center-x OCH botten-kant exakt, så
+  // syncActionButtonsToMinimap (läser hitbox center-x + botten) INTE flyttar
+  // action-knapparna — oavsett ny box-proportion. I default (liten, kvadratisk
+  // fokus-vy) blir boxX/boxY identiska med förr.
+  const refCenterX = viewW - margin - size / 2;
+  const refBottom = 60 + size;
+  const boxX = refCenterX - boxW / 2;
+  const boxY = refBottom - boxH;
+  const x0 = boxX, y0 = boxY;   // alias: efterföljande rendering origo = box-origo
+  state._minimapHitbox = { x: boxX, y: boxY, w: boxW, h: boxH };
 
   // Center-position lerp: zoomed-in följer spelaren, zoomed-out centrerar världen.
   const worldCenterX = stage.worldW / 2;
@@ -71634,46 +71693,46 @@ function drawMiniMap() {
   const focusX = state.player.x + (worldCenterX - state.player.x) * t01;
   const focusY = state.player.y + (worldCenterY - state.player.y) * t01;
 
-  // World viewport top-left, clamped till world-bounds (kamera-stil)
-  let worldVx = focusX - viewWorldSize / 2;
-  let worldVy = focusY - viewWorldSize / 2;
-  if (viewWorldSize < stage.worldW) {
-    worldVx = Math.max(0, Math.min(stage.worldW - viewWorldSize, worldVx));
+  // World viewport top-left, clamped till world-bounds (kamera-stil), per axel.
+  let worldVx = focusX - viewWorldW / 2;
+  let worldVy = focusY - viewWorldH / 2;
+  if (viewWorldW < stage.worldW) {
+    worldVx = Math.max(0, Math.min(stage.worldW - viewWorldW, worldVx));
   } else {
-    worldVx = (stage.worldW - viewWorldSize) / 2;
+    worldVx = (stage.worldW - viewWorldW) / 2;
   }
-  if (viewWorldSize < stage.worldH) {
-    worldVy = Math.max(0, Math.min(stage.worldH - viewWorldSize, worldVy));
+  if (viewWorldH < stage.worldH) {
+    worldVy = Math.max(0, Math.min(stage.worldH - viewWorldH, worldVy));
   } else {
-    worldVy = (stage.worldH - viewWorldSize) / 2;
+    worldVy = (stage.worldH - viewWorldH) / 2;
   }
 
   // Transform: world coord → minimap pixel. ox/oy är offset så att
   //   minimapX = ox + worldX * scale
   // funkar för ALL nedanstående rendering (oförändrat API).
-  const ox = x0 - worldVx * scale;
-  const oy = y0 - worldVy * scale;
+  const ox = boxX - worldVx * scale;
+  const oy = boxY - worldVy * scale;
   // v1.418: spara transform så pin-select-mode kan översätta tap→world
   state._cdMinimapXform = { ox, oy, scale };
 
   // Viewport-culling helper för walls (BR har ~2500, kostsamt att iterera alla)
-  const visMinX = worldVx, visMaxX = worldVx + viewWorldSize;
-  const visMinY = worldVy, visMaxY = worldVy + viewWorldSize;
+  const visMinX = worldVx, visMaxX = worldVx + viewWorldW;
+  const visMinY = worldVy, visMaxY = worldVy + viewWorldH;
   const inMmView = (wx, wy, ww, wh) => {
     return !(wx + ww < visMinX || wx > visMaxX || wy + wh < visMinY || wy > visMaxY);
   };
 
   // Ram
   ctx.fillStyle = 'rgba(0,0,0,0.78)';
-  ctx.fillRect(x0, y0, size, size);
+  ctx.fillRect(boxX, boxY, boxW, boxH);
   ctx.strokeStyle = 'rgba(255,213,74,0.6)';
   ctx.lineWidth = 2;
-  ctx.strokeRect(x0, y0, size, size);
+  ctx.strokeRect(boxX, boxY, boxW, boxH);
 
   // Allt inuti minimap-rectangeln — clip så zoomad vy inte spiller över ramen
   ctx.save();
   ctx.beginPath();
-  ctx.rect(x0, y0, size, size);
+  ctx.rect(x0, y0, boxW, boxH);
   ctx.clip();
 
   // Världsgräns (full karta i grå-fyll så player ser kant-zoner)
@@ -71819,7 +71878,7 @@ function drawMiniMap() {
     // ut utanför ramen vid stora radier.
     ctx.save();
     ctx.beginPath();
-    ctx.rect(x0, y0, size, size);
+    ctx.rect(x0, y0, boxW, boxH);
     ctx.clip();
     // Zone ring (cyan)
     ctx.strokeStyle = 'rgba(58,202,255,0.85)';
@@ -72295,11 +72354,11 @@ function drawMiniMap() {
     // Pin-select-mode overlay — fade + crosshair text
     if (state.cdPinSelectMode) {
       ctx.fillStyle = 'rgba(90,255,210,0.18)';
-      ctx.fillRect(x0, y0, size, size);
+      ctx.fillRect(x0, y0, boxW, boxH);
       ctx.strokeStyle = '#5affd2';
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 3]);
-      ctx.strokeRect(x0 + 2, y0 + 2, size - 4, size - 4);
+      ctx.strokeRect(x0 + 2, y0 + 2, boxW - 4, boxH - 4);
       ctx.setLineDash([]);
     }
   }
@@ -72330,22 +72389,24 @@ function drawMiniMap() {
   ctx.stroke();
   // Stäng world-clip — title/zoom-button är UI-overlay utanför världs-vy
   ctx.restore();
-  // Titel — centrerad pill ovanför minimap, matchar minimap-bredd
+  // v1.667: mode-anpassad titel + legend (ersätter generisk stage.name för PvP/special).
+  const mmMeta = getMinimapMeta(stage);
+  // Titel — centrerad pill ovanför minimap, matchar minimap-bredd (boxW).
   {
-    const titleTxt = (stage.name || '').toUpperCase();
+    const titleTxt = mmMeta.title;
     const titleH = 16;
     const titleY = y0 - titleH - 3;
     // Bakgrunds-pill
     ctx.fillStyle = 'rgba(0,0,0,0.78)';
-    ctx.fillRect(x0, titleY, size, titleH);
+    ctx.fillRect(x0, titleY, boxW, titleH);
     ctx.strokeStyle = 'rgba(255,213,74,0.55)';
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(x0, titleY, size, titleH);
+    ctx.strokeRect(x0, titleY, boxW, titleH);
     // Text — centrerad, dynamisk shrink ner till min 6px så ALLA banor får plats
     ctx.fillStyle = '#ffd54a';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    const maxW = size - 6;
+    const maxW = boxW - 6;
     let fontSize = 11;
     ctx.font = 'bold ' + fontSize + 'px sans-serif';
     while (fontSize > 6 && ctx.measureText(titleTxt).width > maxW) {
@@ -72353,14 +72414,45 @@ function drawMiniMap() {
       ctx.font = 'bold ' + fontSize + 'px sans-serif';
     }
     ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
-    ctx.fillText(titleTxt, x0 + size / 2, titleY + titleH / 2 + 0.5);
+    ctx.fillText(titleTxt, x0 + boxW / 2, titleY + titleH / 2 + 0.5);
     ctx.shadowBlur = 0;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
   }
+  // Legend — bara på (nästan) full karta där det finns plats. Kompakt rad-strip
+  // i boxens nedre kant: färg-swatch + label per mode-objekt. Liten minimap = för
+  // trångt → hoppas över (t01 lågt).
+  if (t01 > 0.55 && mmMeta.legend && mmMeta.legend.length) {
+    const entries = mmMeta.legend.slice(0, 4);
+    const rowH = 12;
+    const padX = 5;
+    const stripH = entries.length * rowH + 6;
+    const stripY = y0 + boxH - stripH - 2;
+    const stripW = Math.min(boxW - 6, 116);
+    const stripX = x0 + 3;
+    ctx.fillStyle = 'rgba(0,0,0,0.62)';
+    ctx.fillRect(stripX, stripY, stripW, stripH);
+    ctx.font = 'bold 8px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i];
+      const ry = stripY + 3 + i * rowH + rowH / 2;
+      ctx.fillStyle = e.color;
+      if (e.ring) {
+        ctx.strokeStyle = e.color; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(stripX + padX + 3, ry, 3.2, 0, Math.PI * 2); ctx.stroke();
+      } else {
+        ctx.beginPath(); ctx.arc(stripX + padX + 3, ry, 3.2, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.fillStyle = '#e8e8ee';
+      ctx.fillText(e.label, stripX + padX + 11, ry + 0.5);
+    }
+    ctx.textBaseline = 'alphabetic';
+  }
   // Förstoringsglas-knapp i hörnet av minimap
   const btnSize = 22;
-  const btnX = x0 + size - btnSize - 2;
+  const btnX = x0 + boxW - btnSize - 2;
   const btnY = y0 + 2;
   ctx.fillStyle = 'rgba(0,0,0,0.7)';
   ctx.fillRect(btnX, btnY, btnSize, btnSize);

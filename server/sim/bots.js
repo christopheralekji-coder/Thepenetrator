@@ -18,6 +18,9 @@ const { CTF_ARENA, bulletHitsWall } = require('../../shared/ctf-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
 const { GUNGAME_ARENA } = require('../../shared/gungame-arena');
 const { TDM_ARENA } = require('../../shared/tdm-arena');
+// v1.667: riktig A*-pathfinding (nav-grid + string-pull) ersätter reaktiv steerAround
+// som primär ruttläggning. steerAround behålls som lokal säkerhetsnät mellan waypoints.
+const { nextWaypoint } = require('./pathfind');
 
 // Väggar för aktivt mode (null = öppen arena, ingen styrning behövs).
 function getActiveWalls(sim) {
@@ -28,6 +31,18 @@ function getActiveWalls(sim) {
   if (sim.battleroyaleActive) return BATTLEROYALE_ARENA.walls;
   if (sim.tdmActive) return TDM_ARENA.walls || null;
   return null;
+}
+
+// Arena-dimensioner per mode (delas av pathfinding + position-clamp).
+function getWorldDims(sim) {
+  if (sim.tdmArena && sim.tdmArena.worldW) return { worldW: sim.tdmArena.worldW, worldH: sim.tdmArena.worldH };
+  if (sim.ctfActive) return { worldW: CTF_ARENA.worldW, worldH: CTF_ARENA.worldH };
+  if (sim.siegeActive) return { worldW: SIEGE_ARENA.worldW || 5000, worldH: SIEGE_ARENA.worldH || 3000 };
+  if (sim.juggernautActive) return { worldW: 5000, worldH: 3500 };
+  if (sim.battleroyaleActive) return { worldW: BATTLEROYALE_ARENA.worldW, worldH: BATTLEROYALE_ARENA.worldH };
+  if (sim.gungameActive) return { worldW: GUNGAME_ARENA.worldW || 3500, worldH: GUNGAME_ARENA.worldH || 2000 };
+  if (sim.kothActive) return { worldW: KOTH_ARENA.worldW || 3500, worldH: KOTH_ARENA.worldH || 2000 };
+  return { worldW: 5000, worldH: 3000 };
 }
 
 // Vägg-medveten styrning: gå mot (hx,hy) men om en probe-punkt framför är inne i en
@@ -585,8 +600,20 @@ function moveBotTowards(sim, botWs, target, dt) {
     ps.x += nx * speed * bot.strafeDir * dt;
     ps.y += ny * speed * bot.strafeDir * dt;
   } else if (d > desiredDist) {
-    // v1.666: vägg-medveten styrning istället för rak linje → går runt väggar.
-    steerAround(sim, ps, dx / d, dy / d, speed, dt);
+    // v1.667: A*-pathfinding — följ waypoints RUNT väggar. nextWaypoint returnerar
+    // null om målet är fritt synligt (gå rakt) eller om ingen väg hittas. steerAround
+    // körs ovanpå som lokal säkerhetsnät (mjukar hörn + täcker grov-gridens kanter).
+    let hx = dx / d, hy = dy / d;
+    const walls = getActiveWalls(sim);
+    if (walls && walls.length) {
+      const wd = getWorldDims(sim);
+      const wp = nextWaypoint(bot, walls, wd.worldW, wd.worldH, ps.x, ps.y, target.x, target.y, now);
+      if (wp) {
+        const wdx = wp.x - ps.x, wdy = wp.y - ps.y, wl = Math.hypot(wdx, wdy) || 1;
+        hx = wdx / wl; hy = wdy / wl;
+      }
+    }
+    steerAround(sim, ps, hx, hy, speed, dt);
   } else if (d < desiredDist - 60 && (!isMelee || bot.fleeing)) {
     // v1.663: backa undan — ranged kitar; melee gör det bara när de flyr (låg HP).
     ps.x -= (dx / d) * speed * 0.5 * dt;
@@ -597,21 +624,8 @@ function moveBotTowards(sim, botWs, target, dt) {
     ps.y += ny * speed * 0.6 * dt * bot.strafeDir;
   }
 
-  // Dynamisk arena-clamp: läs från sim.tdmArena/CTF/SIEGE/GUNGAME_ARENA om satt,
-  // fallback till stora 5000×3000 default. (Gungame är 3500×2000 men i de andra
-  // modes kan bot tidigare inte nå höger del av Siege 5000×3000.)
-  let worldW, worldH;
-  if (sim.tdmArena && sim.tdmArena.worldW) {
-    worldW = sim.tdmArena.worldW; worldH = sim.tdmArena.worldH;
-  } else if (sim.juggernautActive) {
-    worldW = 5000; worldH = 3500;
-  } else if (sim.battleroyaleActive) {
-    worldW = BATTLEROYALE_ARENA.worldW; worldH = BATTLEROYALE_ARENA.worldH;
-  } else if (sim.gungameActive || sim.kothActive) {
-    worldW = 3500; worldH = 2000;
-  } else {
-    worldW = 5000; worldH = 3000;
-  }
+  // Dynamisk arena-clamp (delad med pathfinding via getWorldDims).
+  const { worldW, worldH } = getWorldDims(sim);
   ps.x = Math.max(50, Math.min(worldW - 50, ps.x));
   ps.y = Math.max(50, Math.min(worldH - 50, ps.y));
   ps.aim = Math.atan2(dy, dx);
