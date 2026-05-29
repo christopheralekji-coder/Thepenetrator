@@ -12,6 +12,45 @@
 const { W_BY_ID } = require('../../shared/weapons-data');
 const { KOTH_ARENA } = require('../../shared/koth-arena');
 const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
+// v1.666: vägg-medveten styrning — bots fastnade på väggar (ingen pathfinding) och
+// strafe:ade "upp och ner i basen". Behöver mode-väggar + en punkt-blockerad-test.
+const { CTF_ARENA, bulletHitsWall } = require('../../shared/ctf-arena');
+const { SIEGE_ARENA } = require('../../shared/siege-arena');
+const { GUNGAME_ARENA } = require('../../shared/gungame-arena');
+const { TDM_ARENA } = require('../../shared/tdm-arena');
+
+// Väggar för aktivt mode (null = öppen arena, ingen styrning behövs).
+function getActiveWalls(sim) {
+  if (sim.ctfActive) return CTF_ARENA.walls;
+  if (sim.siegeActive) return SIEGE_ARENA.walls;
+  if (sim.gungameActive) return GUNGAME_ARENA.walls;
+  if (sim.kothActive) return KOTH_ARENA.walls;
+  if (sim.battleroyaleActive) return BATTLEROYALE_ARENA.walls;
+  if (sim.tdmActive) return TDM_ARENA.walls || null;
+  return null;
+}
+
+// Vägg-medveten styrning: gå mot (hx,hy) men om en probe-punkt framför är inne i en
+// vägg, vrid undan (prova allt större vinklar) tills en fri riktning hittas. Gör att
+// bots flödar RUNT väggar istället för att fastna (resolveCtfWall stoppade dem annars).
+function steerAround(sim, ps, hx, hy, speed, dt) {
+  const walls = getActiveWalls(sim);
+  if (walls && walls.length) {
+    const probe = 62, R = 16;
+    const blocked = (nx, ny) => bulletHitsWall({ x: ps.x + nx * probe, y: ps.y + ny * probe, r: R }, walls);
+    if (blocked(hx, hy)) {
+      const baseAng = Math.atan2(hy, hx);
+      const offs = [0.5, -0.5, 1.0, -1.0, 1.6, -1.6, 2.2, -2.2];
+      for (const o of offs) {
+        const a = baseAng + o, nx = Math.cos(a), ny = Math.sin(a);
+        if (!blocked(nx, ny)) { hx = nx; hy = ny; break; }
+      }
+      // Alla riktningar blockerade → behåll original (resolveCtfWall + unstick hanterar)
+    }
+  }
+  ps.x += hx * speed * dt;
+  ps.y += hy * speed * dt;
+}
 
 const BOT_NAMES = ['Hovigo', 'Jamlo', 'Kostefo', 'Wisämo', 'Salimius', 'Muzzius', 'Okanius'];
 let _botCounter = 0;
@@ -546,8 +585,8 @@ function moveBotTowards(sim, botWs, target, dt) {
     ps.x += nx * speed * bot.strafeDir * dt;
     ps.y += ny * speed * bot.strafeDir * dt;
   } else if (d > desiredDist) {
-    ps.x += (dx / d) * speed * dt;
-    ps.y += (dy / d) * speed * dt;
+    // v1.666: vägg-medveten styrning istället för rak linje → går runt väggar.
+    steerAround(sim, ps, dx / d, dy / d, speed, dt);
   } else if (d < desiredDist - 60 && (!isMelee || bot.fleeing)) {
     // v1.663: backa undan — ranged kitar; melee gör det bara när de flyr (låg HP).
     ps.x -= (dx / d) * speed * 0.5 * dt;
