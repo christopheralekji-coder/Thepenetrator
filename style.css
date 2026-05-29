@@ -2310,9 +2310,15 @@ body.heist-mode #hud-toast-stack {
    SHOP-POLISH — bättre tabs, hover, layout
    ============================================================ */
 #shop-screen {
+  /* v1.687: shop får egen genererad bg (vapen/armor-shop, guldmynt, neon-skyltar).
+     Scrim mörkare nedtill (där item-griden ligger) men släpper igenom konsten upptill. */
   background:
-    radial-gradient(ellipse at top, rgba(255,213,74,0.10) 0%, transparent 50%),
-    linear-gradient(180deg, rgba(20,12,5,0.96) 0%, rgba(5,3,0,0.98) 100%);
+    radial-gradient(ellipse at top, rgba(255,213,74,0.14) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(12,8,3,0.52) 0%, rgba(8,5,1,0.74) 42%, rgba(5,3,0,0.88) 100%),
+    url('assets/menu/bg-shop.jpg') center center / cover no-repeat,
+    #0a0703 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 #shop-gold {
   background: linear-gradient(135deg, #ffd54a, #ff8a3a);
@@ -2855,16 +2861,39 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
 }
+/* v1.687: achievements får egen genererad bg (pokal-hall, konfetti) — varm guld-scrim */
+#ach-screen {
+  background:
+    radial-gradient(ellipse at top, rgba(255,213,74,0.12) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(14,9,3,0.58) 0%, rgba(8,5,1,0.78) 50%, rgba(5,3,0,0.88) 100%),
+    url('assets/menu/bg-ach.jpg') center center / cover no-repeat,
+    #0a0703 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+/* v1.687: settings får egen genererad bg (verkstadsbänk, kugghjul) — lugn blå-scrim */
+#settings-screen {
+  background:
+    linear-gradient(180deg, rgba(6,10,16,0.56) 0%, rgba(4,7,12,0.76) 50%, rgba(3,5,9,0.86) 100%),
+    url('assets/menu/bg-settings.jpg') center center / cover no-repeat,
+    #05080d !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
 
 /* ============================================================
    WARDROBE-UPPGRADERING — fancy layout med preview vänster,
    controls höger, slot-bar + action-bar för full kontroll.
    ============================================================ */
 #wardrobe-screen {
+  /* v1.687: garderoben får egen genererad bg (catwalk, lockers, outfits) — behåll
+     lila/guld-glow men släpp igenom konsten med lättare linjär scrim. */
   background:
-    radial-gradient(ellipse at 25% 50%, rgba(170,58,255,0.18) 0%, transparent 50%),
+    radial-gradient(ellipse at 25% 50%, rgba(170,58,255,0.16) 0%, transparent 50%),
     radial-gradient(ellipse at 75% 60%, rgba(255,213,74,0.10) 0%, transparent 55%),
-    linear-gradient(180deg, rgba(20,10,30,0.95) 0%, rgba(0,0,0,0.97) 50%, rgba(15,5,25,0.95) 100%);
+    linear-gradient(180deg, rgba(14,8,22,0.60) 0%, rgba(6,3,12,0.80) 55%, rgba(12,5,20,0.88) 100%),
+    url('assets/menu/bg-wardrobe.jpg') center center / cover no-repeat,
+    #0a0612 !important;
   /* v1.509: SCREEN scrollas igen. Layout fyller hela visible viewport (calc 100dvh -
      header) så preview+menu = hela "första sidan". Footer (slots+buttons) hamnar
      UNDER visible area, scrolla ner för att se. */
