@@ -597,16 +597,20 @@ function moveBotTowards(sim, botWs, target, dt) {
   if (bot.fleeing && !isObjective) desiredDist = Math.max(desiredDist, 520);
   const speed = 180;
 
-  // Wall-unstick: om bot rört sig <20px på 1s, lås in i sidoangle 90° för 1.5s
-  const moved = Math.hypot(ps.x - bot.lastX, ps.y - bot.lastY);
-  if (moved < 20 * dt * 30) {            // < ~20px per ~1s vid 30Hz
-    if (bot.stuckSince === 0) bot.stuckSince = now;
-    if (now - bot.stuckSince > 1000 && now > bot.unstickUntil) {
+  // Wall-unstick (v1.670 KRITISK FIX): mät förflyttning över ett ~700ms-FÖNSTER,
+  // inte per-tick. Förr: `moved` jämförde bot.lastX (uppdaterad VARJE tick) mot en
+  // per-tick-tröskel (~13px @ 45Hz) — men en bot i full fart rör sig bara ~4px/tick,
+  // alltså ALLTID < tröskeln → flaggades permanent "fast" → evig vinkelrät strafe =
+  // "springer i linje upp och ner" i alla lägen. Nu: bara om boten rört sig < 30px
+  // på 700ms är den genuint fast → lås in sido-angle 90° i 1.5s.
+  if (bot._stuckRefAt === undefined) { bot._stuckRefAt = now; bot._stuckRefX = ps.x; bot._stuckRefY = ps.y; }
+  if (now - bot._stuckRefAt >= 700) {
+    const windowMoved = Math.hypot(ps.x - bot._stuckRefX, ps.y - bot._stuckRefY);
+    if (windowMoved < 30 && now > bot.unstickUntil) {
       bot.unstickUntil = now + 1500;
       bot.strafeDir = -bot.strafeDir;    // flippa riktning
     }
-  } else {
-    bot.stuckSince = 0;
+    bot._stuckRefAt = now; bot._stuckRefX = ps.x; bot._stuckRefY = ps.y;
   }
   bot.lastX = ps.x;
   bot.lastY = ps.y;
