@@ -2112,9 +2112,11 @@ body.heist-mode #hud-toast-stack {
   padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
   padding-left: max(16px, env(safe-area-inset-left, 16px));
   padding-right: max(16px, env(safe-area-inset-right, 16px));
-  /* v1.679: mörk bas — sido-panelerna (co-op vänster, PvP höger) bär konsten,
-     menyn ligger centrerad mellan dem. */
-  background: radial-gradient(ellipse 62% 82% at 50% 46%, #160a14 0%, #0a050a 72%);
+  /* v1.680: EN enda bild — co-op (gänget ihop) vänster, PvP (cirkel, skjuter på
+     varandra) höger, lugn mörk mitt för menyn. Center-scrim ovanpå för läsbarhet. */
+  background:
+    url('assets/menu/warparty-menubg.jpg') center center / cover no-repeat,
+    #0a050a;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   /* v1.677: INGEN scroll på startskärmen — content skalas ner för att få plats
@@ -2124,15 +2126,6 @@ body.heist-mode #hud-toast-stack {
   justify-content: center;
 }
 #menu-screen::before, #menu-screen::after { display: none !important; }
-/* v1.679: sido-paneler — co-op (squad ihop) vänster, PvP (mot varandra) höger.
-   55% breda + möts i mitten där scrim:en mörkar bakom menyn. */
-.menu-side {
-  position: absolute; top: 0; bottom: 0; width: 56%;
-  background-size: cover; background-repeat: no-repeat; z-index: 0;
-  pointer-events: none;
-}
-.menu-side-left  { left: 0;  background-image: url('assets/menu/warparty-coop.jpg'); background-position: left center; }
-.menu-side-right { right: 0; background-image: url('assets/menu/warparty-pvp.jpg');  background-position: right center; }
 /* Center-scrim: mörk i mitten (läsbar meny), genomskinligare mot kanterna (konsten syns). */
 .menu-scrim {
   position: absolute; inset: 0; z-index: 1; pointer-events: none;
