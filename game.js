@@ -27601,7 +27601,7 @@ function initLobbyCopyCode() {
       setTimeout(() => { btn.classList.remove('copied'); btn.textContent = '📋'; }, 1500);
     };
     if (navigator.share) {
-      navigator.share({ title: 'The Penetrator', text: 'Joina mitt co-op-rum (' + code + ')!', url: link })
+      navigator.share({ title: 'WarParty', text: 'Joina mitt co-op-rum (' + code + ')!', url: link })
         .then(flash).catch(() => { /* user avbröt — gör inget */ });
     } else if (navigator.clipboard) {
       navigator.clipboard.writeText(link).then(flash).catch(() => { fallback(); flash(); });

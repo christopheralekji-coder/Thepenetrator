@@ -1,4 +1,4 @@
-// The Penetrator — Co-op WebSocket relay server
+// WarParty — Co-op WebSocket relay server
 // Deployas på Render.com / Fly.io / Glitch / Railway free tier
 
 const WebSocket = require('ws');
@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v194-hit-prediction-juice-v1.674';
+const SERVER_VERSION = 'v195-warparty-rename-menu-v1.675';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -30,7 +30,7 @@ const server = http.createServer((req, res) => {
 
   if (req.url === '/health' || req.url === '/') {
     res.writeHead(200, { 'Content-Type': 'text/plain' });
-    res.end(`Penetrator co-op server\nVersion: ${SERVER_VERSION}\nBuilt: ${SERVER_BUILD_AT}\nRooms: ${rooms.size}\nUptime: ${Math.round(process.uptime())}s\nErrors logged: ${errorLog.length}`);
+    res.end(`WarParty co-op server\nVersion: ${SERVER_VERSION}\nBuilt: ${SERVER_BUILD_AT}\nRooms: ${rooms.size}\nUptime: ${Math.round(process.uptime())}s\nErrors logged: ${errorLog.length}`);
     return;
   }
   if (req.url === '/errors' && req.method === 'GET') {

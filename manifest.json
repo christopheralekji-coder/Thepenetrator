@@ -1,7 +1,7 @@
 {
-  "name": "The Penetrator",
-  "short_name": "Penetrator",
-  "description": "Top-Down Shooter — jakten på slutbossen Jimmy Mourad",
+  "name": "WarParty",
+  "short_name": "WarParty",
+  "description": "WarParty — top-down co-op & PvP arena shooter",
   "start_url": "./index.html",
   "display": "standalone",
   "orientation": "landscape",
