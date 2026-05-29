@@ -2120,6 +2120,20 @@ body.heist-mode #hud-toast-stack {
     #0a050a;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
+  /* v1.677: INGEN scroll på startskärmen — content skalas ner för att få plats
+     (JS fitMenu). justify-content:center + dolda overlay-sentinels så skalning
+     från mitten håller allt centrerat även när det krymps. */
+  overflow: hidden !important;
+  justify-content: center;
+}
+#menu-screen::before, #menu-screen::after { display: none !important; }
+#menu-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  transform-origin: center center;
+  will-change: transform;
 }
 #menu-screen .menu-row {
   display: flex;

@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v196-warparty-ai-keyart-v1.676';
+const SERVER_VERSION = 'v197-warparty-logo-tagline-fit-v1.677';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
