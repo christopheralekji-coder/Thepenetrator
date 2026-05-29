@@ -2196,6 +2196,9 @@ function cdPickBossKey(wave) {
 }
 
 // Per-tick uppdatering av alla aktiva castle-defense buildings.
+// v1.661: återanvänd scratch för auto-turret target-query (noll-alloc). Säkert:
+// single-threaded + fylls/läses inom en synkron turret-iteration.
+const _cdTurretScratch = [];
 // Auto-turret skjuter, traps skadar/slow:ar, repair-station regenererar walls,
 // health-station regenererar spelare.
 function updateCastleDefenseBuildings(sim, dt, nowMs) {
@@ -2216,11 +2219,25 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
       const effRange = b.range * (stratMul > 1 ? 1.2 : 1);
       if (b._fireCd <= 0 && b.range > 0 && b.fireRate > 0) {
         let best = null, bestD = effRange * effRange;
-        for (const e of sim.enemies) {
-          if (e.dead) continue;
-          const dx = e.x - bcx, dy = e.y - bcy;
-          const d2 = dx * dx + dy * dy;
-          if (d2 < bestD) { bestD = d2; best = e; }
+        // v1.661: spatial-grid-query istället för O(E) linjär scan per torn (var
+        // O(torn×enemies)/tick). Griden är 1-tick-stale (byggs i slutet av ticken)
+        // = helt OK för torn-targeting. Linjär fallback om griden ej byggd än (tick 1).
+        if (sim.enemyGrid && sim.enemyGrid.size > 0) {
+          sim.enemyGrid.queryInto(bcx, bcy, effRange, _cdTurretScratch);
+          for (let qi = 0; qi < _cdTurretScratch.length; qi++) {
+            const e = _cdTurretScratch[qi];
+            if (e.dead) continue;
+            const dx = e.x - bcx, dy = e.y - bcy;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < bestD) { bestD = d2; best = e; }
+          }
+        } else {
+          for (const e of sim.enemies) {
+            if (e.dead) continue;
+            const dx = e.x - bcx, dy = e.y - bcy;
+            const d2 = dx * dx + dy * dy;
+            if (d2 < bestD) { bestD = d2; best = e; }
+          }
         }
         if (best) {
           // Skjut: dmg = (b.dps / b.fireRate) per bullet, bullet hostile=false (våra)

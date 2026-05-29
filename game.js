@@ -33135,6 +33135,20 @@ function killEnemy(e) {
   if (state.killstreak >= 5) showKillstreakBanner(state.killstreak);
   if (state.killstreak >= 10) Achievements.unlock('streak10');
   if (state.killstreak >= 20) Achievements.unlock('streak20');
+  // v1.661: MULTIKILL — ≥3 kills inom ~280ms = freeze-frame + banner + ackord-svep.
+  // Gör AoE-vapen (rocket/granat/blackhole) + spray-wipes kraftfulla (saknades helt).
+  // Samma choke-point som killstreak → samma mode-täckning. Hit-stop bara EN gång per
+  // burst; banner uppgraderar till slutligt antal (TRIPLE→QUAD→MONSTER).
+  state._multiKillTimes = state._multiKillTimes || [];
+  state._multiKillTimes.push(now);
+  while (state._multiKillTimes.length && now - state._multiKillTimes[0] > 280) state._multiKillTimes.shift();
+  const _mk = state._multiKillTimes.length;
+  if (_mk <= 1) state._mkFired = 0;
+  if (_mk >= 3 && _mk > (state._mkFired || 0)) {
+    const fresh = (state._mkFired || 0) < 3;
+    state._mkFired = _mk;
+    triggerMultikill(_mk, e.x, e.y, fresh);
+  }
   // Blod-puddel som death-animation
   state.particles.push({
     x: e.x, y: e.y, vx: 0, vy: 0, life: 3.5, color: 'rgba(80,0,0,0.7)',
@@ -39372,6 +39386,21 @@ function drawJuggernautArrows() {
 
 // Killstreak banner (visas i sidan av skärmen, inte i mitten)
 let killstreakBanner = { text: '', timer: 0, count: 0 };
+// v1.661: multikill-feedback — återanvänder killstreakBanner + triggerHitStop +
+// Audio.multikill + spawnShockwave. withImpact=true bara på första triggern per burst
+// (så hit-stop/ljud inte staplas när banner uppgraderar TRIPLE→QUAD).
+function triggerMultikill(n, x, y, withImpact) {
+  const labels = { 3: 'TRIPLE KILL!', 4: 'QUAD KILL!', 5: 'MONSTER KILL!' };
+  const label = labels[n] || (n + '× MEGA KILL!');
+  killstreakBanner = { text: label, timer: 1.4, count: n };
+  if (withImpact) {
+    if (typeof triggerHitStop === 'function') triggerHitStop(Math.min(70, 35 + n * 8));
+    if (typeof Audio !== 'undefined' && Audio.multikill) Audio.multikill(n);
+    if (typeof spawnShockwave === 'function' && typeof x === 'number') {
+      spawnShockwave(x, y, 24, 100, '#ffd14a', 0.45, 2);
+    }
+  }
+}
 function showKillstreakBanner(count) {
   let text;
   if (count >= 20) text = 'GODLIKE!';
