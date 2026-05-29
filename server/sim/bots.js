@@ -45,6 +45,37 @@ function getWorldDims(sim) {
   return { worldW: 5000, worldH: 3000 };
 }
 
+// v1.671: Line-of-sight — är linjen (x0,y0)->(x1,y1) blockerad av en aktiv vägg?
+// Samma wall-set som bulletHitsWall, så LoS-blockerad ⟺ kulan skulle träffa väggen
+// FÖRE målet. Används för att (a) inte skjuta genom väggar, (b) tvinga boten runt
+// väggar för att nå sitt kill-mål. Liang-Barsky segment-vs-AABB per vägg.
+function losBlocked(sim, x0, y0, x1, y1) {
+  const walls = getActiveWalls(sim);
+  if (!walls || !walls.length) return false;
+  const dx = x1 - x0, dy = y1 - y0;
+  for (let i = 0; i < walls.length; i++) {
+    const w = walls[i];
+    let tMin = 0, tMax = 1, hit = true;
+    const checks = [
+      { p: -dx, q: x0 - w.x },
+      { p:  dx, q: (w.x + w.w) - x0 },
+      { p: -dy, q: y0 - w.y },
+      { p:  dy, q: (w.y + w.h) - y0 },
+    ];
+    for (let c = 0; c < 4; c++) {
+      const ch = checks[c];
+      if (ch.p === 0) { if (ch.q < 0) { hit = false; break; } }
+      else {
+        const t = ch.q / ch.p;
+        if (ch.p < 0) { if (t > tMax) { hit = false; break; } if (t > tMin) tMin = t; }
+        else          { if (t < tMin) { hit = false; break; } if (t < tMax) tMax = t; }
+      }
+    }
+    if (hit && tMin <= tMax) return true;
+  }
+  return false;
+}
+
 // Vägg-medveten styrning: gå mot (hx,hy) men om en probe-punkt framför är inne i en
 // vägg, vrid undan (prova allt större vinklar) tills en fri riktning hittas. Gör att
 // bots flödar RUNT väggar istället för att fastna (resolveCtfWall stoppade dem annars).
@@ -183,8 +214,9 @@ function tickBots(sim, dt, now) {
     // 2) SKJUT-MÅL — närmaste fiende i räckvidd, oberoende av rörelsen. Faller tillbaka
     //    till rörelse-målet om det är skjutbart (fiende/player/core) och inget annat finns.
     let shootTarget = chooseShootTarget(sim, botWs);
-    if (!shootTarget && (moveTarget.type === 'enemy' || moveTarget.type === 'player' || moveTarget.type === 'siege_core')) {
-      shootTarget = moveTarget;
+    if (!shootTarget && (moveTarget.type === 'enemy' || moveTarget.type === 'player' || moveTarget.type === 'siege_core')
+        && !losBlocked(sim, botWs.playerState.x, botWs.playerState.y, moveTarget.x, moveTarget.y)) {
+      shootTarget = moveTarget;   // v1.671: bara om fri sikt — annars skjut inte genom vägg
     }
 
     // 3) REACTION TIME — gäller skjut-målet (när det byts).
@@ -347,6 +379,10 @@ function chooseShootTarget(sim, botWs) {
       if (!ws.playerState || ws.playerState.hp <= 0) continue;
       if (team && ws.tdmTeam === team) continue;            // skippa lagkamrater
       if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
+      // v1.671: skjut INTE genom väggar — hoppa mål utan fri sikt (kulan skulle ändå
+      // träffa väggen). Boten väljer då närmaste mål den FAKTISKT kan träffa, eller
+      // inget (→ slutar skjuta in i väggen, fortsätter runt den via move-logiken).
+      if (losBlocked(sim, px, py, ws.playerState.x, ws.playerState.y)) continue;
       const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
       const d2 = dx * dx + dy * dy;
       if (d2 < bestD2) { bestD2 = d2; best = { x: ws.playerState.x, y: ws.playerState.y, type: 'player', ref: ws }; }
@@ -354,6 +390,7 @@ function chooseShootTarget(sim, botWs) {
   } else {
     for (const e of sim.enemies) {
       if (e.dead) continue;
+      if (losBlocked(sim, px, py, e.x, e.y)) continue;       // v1.671: skjut inte genom vägg
       const dx = e.x - px, dy = e.y - py;
       const d2 = dx * dx + dy * dy;
       if (d2 < bestD2) { bestD2 = d2; best = { x: e.x, y: e.y, type: 'enemy', ref: e }; }
@@ -401,6 +438,13 @@ function chooseCtfTarget(sim, botWs, team) {
     if (carrier && carrier.tdmTeam === team && carrier.playerState && carrier.playerState.hp > 0) {
       return { x: carrier.playerState.x, y: carrier.playerState.y, type: 'escort', ref: carrier };
     }
+  }
+  // 3b) FÖRSVAR (v1.671) — vår egen flagga ligger DROPAD på marken (varken hemma
+  //     eller buren). Gå returnera den (hold-to-return inom pickupRadius) innan
+  //     fienden hinner plocka upp den igen och scora. Tidigare ignorerade boten den
+  //     och sprang offensivt → "boten plockar inte upp sin egna flagga".
+  if (myFlag && !myFlag.atBase && !myFlag.carrierId) {
+    return { x: myFlag.x, y: myFlag.y, type: 'return_flag' };
   }
   // 4) OFFENSIV — fiende-flaggan droppad på marken → hämta den.
   if (enemyFlag && !enemyFlag.atBase && !enemyFlag.carrierId) {
@@ -621,6 +665,12 @@ function moveBotTowards(sim, botWs, target, dt) {
     bot.strafeDir = -bot.strafeDir;
   }
 
+  // v1.671: jagar jag ett kill-mål men en vägg skymmer sikten? Då ska boten FORTSÄTTA
+  // fram (A* rundar väggen) istället för att stanna på desiredDist och skjuta in i
+  // väggen. Så snart fri sikt nås faller den tillbaka till normal håll-avstånd-och-skjut.
+  const isKillTarget = target.type === 'player' || target.type === 'enemy' || target.type === 'siege_core';
+  const mustClose = isKillTarget && losBlocked(sim, ps.x, ps.y, target.x, target.y);
+
   // Force sido-angle om unstick aktiv — MEN inte om bot är i BR utanför zonen
   // (annars wobble: bot strafe:r 90° → tillbaka utanför zonen → unstick triggas
   // igen → loop. Måste prioritera "kom IN i zonen" framför wall-unstick.)
@@ -629,7 +679,7 @@ function moveBotTowards(sim, botWs, target, dt) {
     const nx = -dy / d, ny = dx / d;
     ps.x += nx * speed * bot.strafeDir * dt;
     ps.y += ny * speed * bot.strafeDir * dt;
-  } else if (d > desiredDist) {
+  } else if (mustClose || d > desiredDist) {
     // v1.667: A*-pathfinding — följ waypoints RUNT väggar. nextWaypoint returnerar
     // null om målet är fritt synligt (gå rakt) eller om ingen väg hittas. steerAround
     // körs ovanpå som lokal säkerhetsnät (mjukar hörn + täcker grov-gridens kanter).
@@ -675,6 +725,10 @@ function shootIfReady(sim, botWs, target, now) {
   const d = Math.hypot(dx, dy);
   const maxRange = w.type === 'melee' ? (w.range || 36) + 14 : 700;
   if (d > maxRange) return;
+  // v1.671: skjut ALDRIG genom en vägg (ultimat chokepoint — täcker alla target-
+  // källor inkl. move-target-fallbacken). Boten håller elden tills den har fri sikt;
+  // move-logiken (mustClose) rundar väggen under tiden. Gäller skjutvapen.
+  if (w.type !== 'melee' && losBlocked(sim, ps.x, ps.y, target.x, target.y)) return;
   bot.lastShotAt = now;
   // Använd applyShoot via lokal-import för att slippa cirkulär require
   // (bots.js → room-sim.js → bots.js). Vi anropar bullets.js direkt.
