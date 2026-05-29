@@ -2155,9 +2155,12 @@ body.heist-mode #hud-toast-stack {
   flex-wrap: wrap;
 }
 #menu-screen .menu-row .medium-btn {
-  flex: 1 1 160px;
+  flex: 1 1 200px;
   min-width: 0;
   margin: 0;
+  font-size: 15px;          /* v1.685: större knappar — texten var liten/suddig */
+  padding: 15px 18px;
+  letter-spacing: 1.5px;
 }
 /* Knapparna får liten lyft + soft glow på hover */
 #menu-screen .medium-btn,
@@ -2216,7 +2219,7 @@ body.heist-mode #hud-toast-stack {
    ============================================================ */
 /* v1.676: AI-genererad logo-bild (ersätter CSS-text-wordmarken) */
 .wp-logo-img {
-  width: min(74vw, 470px);
+  width: min(60vw, 380px);
   height: auto;
   margin: 0 0 2px;
   filter: drop-shadow(0 6px 16px rgba(0,0,0,0.7));
@@ -2236,8 +2239,8 @@ body.heist-mode #hud-toast-stack {
 #btn-start.btn-play-hero { min-width: 280px; font-size: 22px; }
 /* v1.681: SPELA+CO-OP centrerade i gapet under logon, strax ovanför grid-knapparna
    (luft ovanför paret, tajt ner mot griden). */
-#menu-content > #btn-start.btn-play-hero { margin-top: 30px; }
-#menu-content > #btn-coop.btn-coop-hero { margin-bottom: 16px !important; }
+#menu-content > #btn-start.btn-play-hero { margin-top: 42px; }
+#menu-content > #btn-coop.btn-coop-hero { margin-bottom: 8px !important; }
 /* Hjälp/Tutorial = egen full-bredds-rad */
 .menu-btn-wide { flex: 1 1 100% !important; max-width: 100%; }
 /* Sociala ikoner nere till vänster */
