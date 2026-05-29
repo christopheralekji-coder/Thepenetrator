@@ -39743,8 +39743,11 @@ function syncActionButtonsToMinimap() {
   if (!hb) return; // inte renderad än (menu-mode etc.)
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const minimapCenterX = hb.x + hb.w / 2;
-  const minimapBottom = hb.y + hb.h;
+  // v1.668: läs stabilt ankare (lilla kartans fotavtryck) om det finns — så att
+  // öppning av stora kartan INTE flyttar action-knapparna. Fallback: live-hitbox.
+  const anchor = (state && state._minimapBtnAnchor) || { centerX: hb.x + hb.w / 2, bottom: hb.y + hb.h };
+  const minimapCenterX = anchor.centerX;
+  const minimapBottom = anchor.bottom;
   const abH = ab.offsetHeight || 154;
   const abW = ab.offsetWidth || 84;
   // Right från viewport-right = vw - (minimap-center-x + ab-bredd/2)
@@ -71676,16 +71679,19 @@ function drawMiniMap() {
   const scale = size / Math.max(viewWorldW, viewWorldH);  // uniform → ingen distortion
   const boxW = viewWorldW * scale;
   const boxH = viewWorldH * scale;
-  // ANCHOR: bevara den gamla kvadratens center-x OCH botten-kant exakt, så
-  // syncActionButtonsToMinimap (läser hitbox center-x + botten) INTE flyttar
-  // action-knapparna — oavsett ny box-proportion. I default (liten, kvadratisk
-  // fokus-vy) blir boxX/boxY identiska med förr.
-  const refCenterX = viewW - margin - size / 2;
-  const refBottom = 60 + size;
-  const boxX = refCenterX - boxW / 2;
-  const boxY = refBottom - boxH;
+  // ANCHOR (v1.668): pinna ÖVRE HÖGRA hörnet fast (top=60, right=viewW-margin).
+  // Tidigare ankrades botten vid (60 + live size) → för aspect-korrekta (lägre)
+  // boxar drev toppen NEDÅT när man zoomade ut, så kartan "föll mot nedre delen av
+  // skärmen". Nu står topp + höger-kant still; boxen växer ned + åt vänster. Lilla
+  // (default) kartan blir pixel-identisk med förr.
+  const refRight = viewW - margin;
+  const boxX = refRight - boxW;
+  const boxY = 60;
   const x0 = boxX, y0 = boxY;   // alias: efterföljande rendering origo = box-origo
   state._minimapHitbox = { x: boxX, y: boxY, w: boxW, h: boxH };
+  // Action-knapparnas ankare frikopplas från zoom: ALLTID lilla kartans fotavtryck
+  // (center-x + botten), så knapparna aldrig flyttas när stora kartan öppnas.
+  state._minimapBtnAnchor = { centerX: refRight - smallSize / 2, bottom: 60 + smallSize };
 
   // Center-position lerp: zoomed-in följer spelaren, zoomed-out centrerar världen.
   const worldCenterX = stage.worldW / 2;
