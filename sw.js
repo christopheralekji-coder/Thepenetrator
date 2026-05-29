@@ -1,5 +1,5 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v655-audit-fixes-balance-heist';
+const CACHE = 'penetrator-v656-perf-adaptive-fps-shadow-gc';
 const ASSETS = [
   './',
   './index.html',

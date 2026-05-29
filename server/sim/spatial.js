@@ -58,6 +58,25 @@ class SpatialGrid {
     this.queryRadius(x, y, r, e => result.push(e));
     return result;
   }
+  // v1.656: noll-alloc-variant — fyller en ÅTERANVÄND array (out) istället för att
+  // allokera en ny per anrop. För hot-paths (bullet-collision @ 60Hz × N bullets)
+  // där getNearby:s per-anrops-array var den största GC-tryck-källan. Inlinad cell-
+  // iteration (ingen closure-alloc). Returnerar out för bekvämlighet.
+  queryInto(x, y, r, out) {
+    out.length = 0;
+    const minCx = Math.floor((x - r) / CELL_SIZE);
+    const maxCx = Math.floor((x + r) / CELL_SIZE);
+    const minCy = Math.floor((y - r) / CELL_SIZE);
+    const maxCy = Math.floor((y + r) / CELL_SIZE);
+    for (let cx = minCx; cx <= maxCx; cx++) {
+      for (let cy = minCy; cy <= maxCy; cy++) {
+        const arr = this.cells.get(this._key(cx, cy));
+        if (!arr) continue;
+        for (let i = 0; i < arr.length; i++) out.push(arr[i]);
+      }
+    }
+    return out;
+  }
 }
 
 module.exports = { SpatialGrid, CELL_SIZE };

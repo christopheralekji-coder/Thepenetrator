@@ -21,6 +21,12 @@ const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 const { CASTLEDEFENSE_ARENA } = require('../../shared/castledefense-arena');
 const { HEIST_ARENA } = require('../../shared/heist-arena');
 
+// v1.656: återanvänd scratch-array för bullet-collision spatial-query (noll-alloc).
+// Säkert att dela mellan rum: servern är single-threaded och arrayen fylls + läses
+// inom EN synkron loop-iteration (ingen await emellan). explode()/chain använder
+// fortfarande getNearby (egen alloc) så ingen scratch-korruption mitt i iterationen.
+const _bulletQueryScratch = [];
+
 // PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
 // Sniper nerf: 130→95 (fortfarande 2-shot genom shield+hp men inte instant).
 // Pistol buff: 18→24 (TTK 200hp 6→7 shots, mer relevant än 12).
@@ -1455,7 +1461,9 @@ function updateBullets(sim, dt, now) {
     const _longRangeIds = ['sniper', 'railgun', 'crossbow', 'bow', 'rifle', 'minigun'];
     const _isLong = b.weaponId && _longRangeIds.indexOf(b.weaponId) >= 0;
     const queryR = (b.r || 4) + 60;
-    const nearby = sim.enemyGrid ? sim.enemyGrid.getNearby(b.x, b.y, queryR) : sim.enemies;
+    // v1.656: queryInto (noll-alloc, återanvänd scratch) istället för getNearby som
+    // allokerade en ny array per bullet per tick — största GC-tryck-källan på servern.
+    const nearby = sim.enemyGrid ? sim.enemyGrid.queryInto(b.x, b.y, queryR, _bulletQueryScratch) : sim.enemies;
     for (let j = 0; j < nearby.length; j++) {
       const e = nearby[j];
       if (e.dead || b.hitIds.has(e)) continue;

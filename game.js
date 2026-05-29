@@ -19030,8 +19030,11 @@ let viewW = 0, viewH = 0;
       configurable: true,
       get() { return orig.get.call(this); },
       set(v) {
-        // Använd save.quality direkt — kollas vid varje set (cheap)
-        if (typeof save !== 'undefined' && save && save.quality === 'low') {
+        // v1.656: no-op skuggor på 'medium' OCKSÅ (var: bara 'low'). Default är
+        // 'medium' → tidigare betalade nästan alla enheter full skugg-kostnad (877
+        // callsites, mobilens dyraste Canvas2D-primitiv) tills auto-quality föll till
+        // 'low' efter 5s bildspel. Nu behåller bara 'high' skuggor (desktop/opt-in).
+        if (typeof save !== 'undefined' && save && save.quality !== 'high') {
           orig.set.call(this, 0);
         } else {
           orig.set.call(this, v);
@@ -44910,13 +44913,21 @@ function drawEnvironment() {
   // vinjettering vid kanterna (subtil polish) — använd stage-färg istället för svart
   // för att förstärka atmosfär-tinten.
   const edgeC = STAGE_ATMOSPHERE[stage.kind] && STAGE_ATMOSPHERE[stage.kind].vignette || 'rgba(0,0,0,0.45)';
-  const grad = ctx.createRadialGradient(viewW/2, viewH/2, Math.min(viewW, viewH) * 0.42,
-                                        viewW/2, viewH/2, Math.max(viewW, viewH) * 0.72);
-  grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(1, edgeC);
-  ctx.fillStyle = grad;
+  // v1.656: cacha gradienten — den byggdes om VARJE frame, varje läge (dyrt).
+  // Bygg bara om när viewport-storlek eller stage-färg ändras.
+  const _vKey = viewW + 'x' + viewH + '|' + edgeC;
+  if (_vignetteCache.key !== _vKey) {
+    const g = ctx.createRadialGradient(viewW/2, viewH/2, Math.min(viewW, viewH) * 0.42,
+                                       viewW/2, viewH/2, Math.max(viewW, viewH) * 0.72);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, edgeC);
+    _vignetteCache.key = _vKey;
+    _vignetteCache.grad = g;
+  }
+  ctx.fillStyle = _vignetteCache.grad;
   ctx.fillRect(0, 0, viewW, viewH);
 }
+const _vignetteCache = { key: null, grad: null };
 
 // Per-stage atmosfär — färgcast + light-rays + subtil overlay som gör varje
 // stage visuellt distinkt på första blick.
@@ -72317,10 +72328,15 @@ function drawBossIntro() {
 // ============================================================
 // MAIN LOOP
 // ============================================================
-// v1.607: 30 FPS cap för mobil — halverar CPU/GPU-load = mindre värme/batteri.
-// requestAnimationFrame körs ~60Hz men vi skippar varannan frame om < FRAME_MS gått.
-const TARGET_FPS = 30;
-const FRAME_MS = 1000 / TARGET_FPS;
+// v1.656: ADAPTIV FPS-cap (var hård 30). Renderar 60 när enheten har headroom,
+// faller tillbaka till 30 under ihållande last — skyddar batteri/värme på svaga
+// enheter (v1.607:s ursprungliga syfte) men ger kapabla enheter full 60. Beslutet
+// baseras på UPPMÄTT runFrame-kostnad (oberoende av cap:en), inte på cap-pegged fps.
+// 60 ger även 60Hz input-send till servern (Coop.tick körs i loopen) → bättre känsla
+// + bättre lag-comp-precision. Hysteres (drop >20ms, recover <12ms) hindrar flapping.
+let TARGET_FPS = 60;
+let FRAME_MS = 1000 / TARGET_FPS;
+let _frameCostEMA = 16;
 let lastTime = performance.now();
 let _lastFrameAt = lastTime;
 function loop(now) {
@@ -72334,9 +72350,15 @@ function loop(now) {
   lastTime = now;
   // Frame-counter för cache-invalidation (getCurrentCostume etc)
   state._currentFrame = (state._currentFrame || 0) + 1;
+  const _frameT0 = performance.now();
   try { runFrame(dt, now); } catch (e) {
     console.error('Frame error:', (e && e.message) || e);
   }
+  // Mät faktisk render-kostnad → justera cap:en adaptivt med hysteres.
+  const _cost = performance.now() - _frameT0;
+  _frameCostEMA += (_cost - _frameCostEMA) * 0.05;
+  if (TARGET_FPS === 60 && _frameCostEMA > 20) { TARGET_FPS = 30; FRAME_MS = 1000 / 30; }
+  else if (TARGET_FPS === 30 && _frameCostEMA < 12) { TARGET_FPS = 60; FRAME_MS = 1000 / 60; }
   requestAnimationFrame(loop);
 }
 function runFrame(dt, now) {
