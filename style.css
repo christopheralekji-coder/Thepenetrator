@@ -2234,6 +2234,10 @@ body.heist-mode #hud-toast-stack {
 .wp-tagline .wp-pvp { color: #e8201f; }
 /* SPELA mest prominent (matchar mockup) */
 #btn-start.btn-play-hero { min-width: 280px; font-size: 22px; }
+/* v1.681: SPELA+CO-OP centrerade i gapet under logon, strax ovanför grid-knapparna
+   (luft ovanför paret, tajt ner mot griden). */
+#menu-content > #btn-start.btn-play-hero { margin-top: 30px; }
+#menu-content > #btn-coop.btn-coop-hero { margin-bottom: 16px !important; }
 /* Hjälp/Tutorial = egen full-bredds-rad */
 .menu-btn-wide { flex: 1 1 100% !important; max-width: 100%; }
 /* Sociala ikoner nere till vänster */
@@ -2839,11 +2843,11 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   background:
     linear-gradient(180deg, rgba(30,5,15,0.6) 0%, rgba(0,0,0,0.96) 30%, rgba(0,0,0,0.96) 70%, rgba(15,5,20,0.6) 100%);
 }
-/* v1.678: co-op-lobbyn får egen AI-bakgrund (squad mot horden) istället för platt mörk */
+/* v1.681: co-op-lobbyn får samma bild som godkändes (co-op vänster / PvP-cirkel höger) */
 #coop-screen {
   background:
-    linear-gradient(rgba(6,10,14,0.55) 0%, rgba(6,10,14,0.70) 100%),
-    url('assets/menu/warparty-coop.jpg') center center / cover no-repeat,
+    linear-gradient(rgba(6,10,14,0.58) 0%, rgba(6,10,14,0.72) 100%),
+    url('assets/menu/warparty-coopbg.jpg') center center / cover no-repeat,
     #070b0e !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
