@@ -4,9 +4,9 @@
   "description": "Top-Down Shooter — jakten på slutbossen Jimmy Mourad",
   "start_url": "./index.html",
   "display": "standalone",
-  "orientation": "any",
+  "orientation": "landscape",
   "background_color": "#0a0a0a",
-  "theme_color": "#7a1818",
+  "theme_color": "#0a0508",
   "icons": [
     {
       "src": "icon-192.svg",

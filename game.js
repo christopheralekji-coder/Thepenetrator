@@ -8895,6 +8895,72 @@ function drawHeistDecorations() {
     _drawHeistDecoration(dec.kind, x, y);
   }
 
+  // === v1.655: STEALTH-fas världs-markörer ===
+  // Under stealth saknade spelaren helt in-world-vägledning (allt låg i minimapen).
+  // Visa diskreta markörer för hackbara terminaler + valvet (drill-spot), plus en
+  // off-screen-pil mot valvet. Dimmare än alarm-fasens loot/drill-glow.
+  if (state.heistPhase === 'stealth') {
+    // Terminaler kvar att hacka (cyan ring + liten monitor-ikon)
+    if (state.heistHackTerminals) {
+      for (const term of state.heistHackTerminals) {
+        if (state.heistHackedTerminals && state.heistHackedTerminals[term.id]) continue;
+        const tx = term.x - cx, ty = term.y - cy;
+        if (tx < -40 || tx > viewW + 40 || ty < -40 || ty > viewH + 40) continue;
+        ctx.strokeStyle = 'rgba(90,202,255,' + (0.25 + pulse * 0.2) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(tx, ty, 20 + pulse * 3, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(90,202,255,0.85)';
+        ctx.fillRect(tx - 7, ty - 30, 14, 10);
+        ctx.fillStyle = '#0a1a28';
+        ctx.fillRect(tx - 5, ty - 28, 10, 6);
+      }
+    }
+    // Valvet (drill-spot) — målet
+    const ds = state.heistArena && state.heistArena.drillSpot;
+    if (ds) {
+      const vx = ds.x - cx, vy = ds.y - cy;
+      const onScreen = vx > -40 && vx < viewW + 40 && vy > -40 && vy < viewH + 40;
+      ctx.textAlign = 'center';
+      if (onScreen) {
+        ctx.strokeStyle = 'rgba(255,213,74,' + (0.3 + pulse * 0.25) + ')';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(vx, vy, 30 + pulse * 5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255,213,74,0.9)';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+        ctx.fillText('VALVET', vx, vy - 38);
+        ctx.shadowBlur = 0;
+      } else {
+        // Off-screen-pil mot valvet, klampad till skärmkant
+        const mx = viewW / 2, my = viewH / 2;
+        const ang = Math.atan2(vy - my, vx - mx);
+        const margin = 60;
+        const ex = Math.max(margin, Math.min(viewW - margin, mx + Math.cos(ang) * 99999));
+        const ey = Math.max(margin, Math.min(viewH - margin, my + Math.sin(ang) * 99999));
+        ctx.save();
+        ctx.translate(ex, ey);
+        ctx.rotate(ang);
+        ctx.fillStyle = 'rgba(255,213,74,' + (0.5 + pulse * 0.3) + ')';
+        ctx.beginPath();
+        ctx.moveTo(14, 0);
+        ctx.lineTo(-8, -9);
+        ctx.lineTo(-8, 9);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = 'rgba(255,213,74,0.9)';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+        ctx.fillText('VALVET', ex, ey - 14);
+        ctx.shadowBlur = 0;
+      }
+    }
+  }
+
   // === Loot-pulse-glow under alarm-fasen ===
   if (state.heistPhase === 'alarm' && state.heistLootSpots) {
     for (const loot of state.heistLootSpots) {
@@ -15557,7 +15623,7 @@ const WEAPONS = [
     desc: 'Tyngre än bara nävar. 2× skada.' },
   { id: 'knife',      name: 'Kniv',             type: 'melee', price: 100,  dmg: 22,  rate: 240, range: 38, color: '#bcc8d0',
     desc: 'Snabbaste meleen. Hög DPS, kort räckvidd.' },
-  { id: 'bat',        name: 'Påk',              type: 'melee', price: 200,  dmg: 32,  rate: 440, range: 50, color: '#7a4a20',
+  { id: 'bat',        name: 'Påk',              type: 'melee', price: 200,  dmg: 40,  rate: 440, range: 50, color: '#7a4a20',
     desc: 'Klassisk gatuvapen. Bra räckvidd.' },
   { id: 'machete',    name: 'Machete',          type: 'melee', price: 320,  dmg: 42,  rate: 500, range: 56, color: '#9aa8b0',
     desc: 'Bredbladig, sliter genom flera fiender.' },
@@ -15565,7 +15631,7 @@ const WEAPONS = [
     desc: 'Snabbare än machete. Längre räckvidd.' },
   { id: 'spear',      name: 'Spjut',            type: 'melee', price: 480,  dmg: 50,  rate: 460, range: 84, color: '#bcbccc', style: 'spear',
     desc: 'Längsta räckvidden bland melee.' },
-  { id: 'axe',        name: 'Yxa',              type: 'melee', price: 580,  dmg: 60,  rate: 580, range: 50, color: '#9a7a5a', style: 'axe',
+  { id: 'axe',        name: 'Yxa',              type: 'melee', price: 580,  dmg: 78,  rate: 580, range: 50, color: '#9a7a5a', style: 'axe',
     desc: 'Tung yxa. Långsamma men dödande hugg.' },
   { id: 'mace',       name: 'Stridsklubba',     type: 'melee', price: 720,  dmg: 78,  rate: 700, range: 54, color: '#5a4a3a', style: 'mace', knockback: 180,
     desc: 'Slungar fiender. Stor knockback.' },
@@ -15588,9 +15654,9 @@ const WEAPONS = [
     desc: 'Mid-tier kast. Hög träffsäkerhet.' },
   { id: 'revolver',   name: 'Revolver',         type: 'gun',   price: 420,  dmg: 52,  rate: 580, speed: 760, mag: 6,  reload: 1500, spread: 0.02, color: '#ffae3a',
     desc: 'Tung kalibervapen. Hög dmg per skott.' },
-  { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 540,  dmg: 20,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 3,
+  { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 540,  dmg: 34,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 1,
     desc: 'Tre snabba skott per tryck. Hög burst-dmg.' },
-  { id: 'shotgun',    name: 'Hagelgevär',       type: 'gun',   price: 600,  dmg: 22,  rate: 620, speed: 760, mag: 8,  reload: 1700, spread: 0.30, pellets: 8, color: '#ff6b3d',
+  { id: 'shotgun',    name: 'Hagelgevär',       type: 'gun',   price: 850,  dmg: 20,  rate: 620, speed: 760, mag: 8,  reload: 1700, spread: 0.30, pellets: 6, color: '#ff6b3d',
     desc: 'Åtta hagel per skott. Förödande på nära håll.' },
   { id: 'bow',        name: 'Compoundbåge',     type: 'gun',   price: 800,  dmg: 90,  rate: 540, speed: 950, mag: 1,  reload: 500,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true,
     desc: 'Pierce. Snabb reload. Perfekt aim krävs.' },
@@ -15612,19 +15678,19 @@ const WEAPONS = [
     desc: 'Chain lightning — träffar 4 fiender på rad.' },
   { id: 'grenade',    name: 'Granatkastare',    type: 'gun',   price: 1900, dmg: 80,  rate: 950, speed: 480, mag: 6, reload: 2400, spread: 0.04, explosive: 100, color: '#9aff5a', style: 'grenade',
     desc: 'Explosionsradius — träffar grupper.' },
-  { id: 'boomerang',  name: 'Boomerang',        type: 'gun',   price: 2000, dmg: 50,  rate: 800, speed: 600, mag: 4, reload: 1500, spread: 0.0, color: '#9a6a30', style: 'boomerang', pierce: true, returns: true,
+  { id: 'boomerang',  name: 'Boomerang',        type: 'gun',   price: 2000, dmg: 50,  rate: 550, speed: 600, mag: 8, reload: 1500, spread: 0.0, color: '#9a6a30', style: 'boomerang', pierce: true, returns: true,
     desc: 'Pierce + returnerar! Träffar både ut + in.' },
   { id: 'plasma',     name: 'Plasma-gevär',     type: 'gun',   price: 2200, dmg: 95,  rate: 280, speed: 950, mag: 12, reload: 2200, spread: 0.0, color: '#3acaff', style: 'plasma',
     desc: 'High-tech: hög dmg, hög ROF, perfekt aim.' },
   { id: 'rocket',     name: 'Raketgevär',       type: 'gun',   price: 2400, dmg: 150, rate: 1500, speed: 540, mag: 4, reload: 3000, spread: 0.02, explosive: 140, color: '#ff3c3c', style: 'rocket',
     desc: 'Stora explosioner. AOE-king.' },
-  { id: 'pullwhip',   name: 'Drag-piska',       type: 'gun',   price: 2600, dmg: 35,  rate: 500, speed: 800, mag: 6, reload: 1700, spread: 0.0, color: '#5a4030', style: 'pullwhip', pullsEnemy: true,
+  { id: 'pullwhip',   name: 'Drag-piska',       type: 'gun',   price: 1200, dmg: 35,  rate: 500, speed: 800, mag: 6, reload: 1700, spread: 0.0, color: '#5a4030', style: 'pullwhip', pullsEnemy: true,
     desc: 'Drar fiender mot dig — combo med melee.' },
   { id: 'timestop',   name: 'Tids-pistol',      type: 'gun',   price: 2700, dmg: 100, rate: 900, speed: 1100, mag: 3, reload: 2500, spread: 0.0, color: '#9aff5a', style: 'timestop', timeStopMs: 1000,
     desc: 'Fryser tiden 1s. Perfekt för bossar.' },
   { id: 'blackhole',  name: 'Svartphål-pistol', type: 'gun',   price: 2800, dmg: 90,  rate: 1200, speed: 480, mag: 4, reload: 2400, spread: 0.0, color: '#aa3aff', style: 'blackhole', pullRadius: 200,
     desc: 'Skapar svart hål — drar in fiender.' },
-  { id: 'mindcontrol',name: 'Tank-strålen',     type: 'gun',   price: 1400, dmg: 0,   rate: 2000, speed: 600, mag: 2, reload: 4000, spread: 0.0, color: '#ff5aff', style: 'mindctrl', mindControlMs: 6000,
+  { id: 'mindcontrol',name: 'Tank-strålen',     type: 'gun',   price: 700,  dmg: 0,   rate: 2000, speed: 600, mag: 2, reload: 4000, spread: 0.0, color: '#ff5aff', style: 'mindctrl', mindControlMs: 6000,
     desc: 'Förvandlar fiende till allierad i 6s. Kills ger 30% guld.' },
   { id: 'railgun',    name: 'Railgun',          type: 'gun',   price: 3200, dmg: 280, rate: 1600, speed: 2200, mag: 3, reload: 3000, spread: 0.0, pierce: true, color: '#ffffff', style: 'railgun',
     desc: 'Maxdmg pierce. Skär genom allt.' },
@@ -17206,7 +17272,7 @@ const UPGRADES = [
   { id: 'speed',  name: 'Hastighet',       icon: '⚡', perLevel: 18,   basePrice: 100, desc: '+18 hastighet per nivå' },
   { id: 'dmg',    name: 'Skade-bonus',     icon: '💪', perLevel: 0.10, basePrice: 150, desc: '+10% skada per nivå' },
   { id: 'ammo',   name: 'Ammo-kapacitet',  icon: '🔫', perLevel: 0.20, basePrice: 120, desc: '+20% magasin per nivå' },
-  { id: 'crit',   name: 'Krit-chans',      icon: '🎯', perLevel: 0.10, basePrice: 150, desc: '+10% chans för 2× skada per nivå' },
+  { id: 'crit',   name: 'Krit-chans',      icon: '🎯', perLevel: 0.15, basePrice: 150, desc: '+15% chans för 2× skada per nivå' },
   { id: 'regen',  name: 'HP-regen',        icon: '🩹', perLevel: 0.6,  basePrice: 140, desc: '+0.6 HP/sek per nivå' },
   // === 6 NYA UPPGRADERINGAR ===
   { id: 'reload', name: 'Reload-fart',     icon: '⏱️', perLevel: 0.12, basePrice: 140, desc: '-12% reload-tid per nivå (max −60%)' },
@@ -17469,7 +17535,7 @@ const PERKS = [
   { id: 'phantombody',icon: '👻', name: 'Spektral kropp',  price: 800,  desc: '20% chans att skott missar dig.' },
   { id: 'klone',      icon: '👯', name: 'Klone',           price: 1000, desc: 'En skugga följer dig och skjuter likadant 35% av tiden.' },
   { id: 'goldwindow', icon: '✨', name: 'Gold-fönster',    price: 600,  desc: 'Vid stage-clear, 5 sek där alla droppar guld.' },
-  { id: 'reflexes',   icon: '🥋', name: 'Reflexer',         price: 500,  desc: 'Bullets vid 50px räckvidd kan blockas med melee.' },
+  { id: 'reflexes',   icon: '🥋', name: 'Reflexer',         price: 300,  desc: 'Bullets vid 50px räckvidd kan blockas med melee.' },
   { id: 'magnetism',  icon: '🧲', name: 'Magnet-mästare',  price: 350,  desc: 'Pickup-magnet 3× räckvidd. Mer guld i drops.' },
   { id: 'masterful',  icon: '🎓', name: 'Lärling',         price: 500,  desc: '+25% XP till alla vapen-mastery. +5% skada på mastered vapen.' },
   { id: 'berserker',  icon: '🪓', name: 'Berserker',       price: 850,  desc: 'Melee-combo cap höjs till 20 (från 10).' },
@@ -19188,6 +19254,15 @@ function syncPixiBullets() {
     } else {
       s.visible = false;
     }
+  }
+  // v1.655: Krymp containern när den vuxit långt över aktuellt behov (t.ex.
+  // efter en minigun-/stresstest-spik). Utan detta blir child-count high-water-
+  // mark för hela matchen → hundratals osynliga sprites itereras varje frame.
+  // Headroom på 64 + 2× undviker thrash vid normala fluktuationer.
+  const trimTo = Math.max(64, bullets.length * 2 + 64);
+  while (container.children.length > trimTo) {
+    const s = container.removeChildAt(container.children.length - 1);
+    _releaseBulletSprite(s);
   }
 }
 
@@ -26066,7 +26141,9 @@ const Coop = {
       }
       if (data.gs) {
         state.wave = data.gs.w;
-        state.currentZone = data.gs.cz;
+        // v1.655: cz skickas som sträng via writeStr → parsa till tal, annars
+        // blir lokal fallback-progression "0"+1 = "01" (zones["01"] = undefined).
+        state.currentZone = parseInt(data.gs.cz, 10) || 0;
         state.zoneState = data.gs.zs;
         state.bossSequenceStep = data.gs.bss;
         state.bossDefeated = !!data.gs.bd;
@@ -37087,7 +37164,13 @@ function showHeistRolePicker() {
     '<div style="background:linear-gradient(180deg,#1a0f08 0%,#0a0604 100%);border:3px solid #ffae3a;border-radius:18px;padding:24px 22px;max-width:560px;width:96vw;box-shadow:0 0 60px rgba(255,174,58,0.25);">' +
       '<div style="font-size:38px;line-height:1;text-align:center;margin-bottom:4px;">💰</div>' +
       '<h2 style="color:#ffd54a;text-align:center;font-size:20px;font-weight:900;letter-spacing:3px;margin:0 0 4px 0;">VÄLJ DIN ROLL</h2>' +
-      '<div style="color:#aaa;text-align:center;font-size:11px;letter-spacing:1px;margin-bottom:14px;">Varje roll bara EN spelare · låses efter pick</div>' +
+      '<div style="color:#aaa;text-align:center;font-size:11px;letter-spacing:1px;margin-bottom:10px;">Varje roll bara EN spelare · låses efter pick</div>' +
+      // v1.655: mission-brief så nya spelare förstår loopen (saknades helt)
+      '<div style="display:flex;gap:6px;justify-content:center;margin-bottom:14px;font-size:10px;line-height:1.3;">' +
+        '<div style="flex:1;background:rgba(90,202,255,0.10);border:1px solid rgba(90,202,255,0.4);border-radius:8px;padding:6px 4px;text-align:center;color:#9fe0ff;"><b>1.</b> Smyg till valvet · hacka kameror</div>' +
+        '<div style="flex:1;background:rgba(255,174,58,0.10);border:1px solid rgba(255,174,58,0.4);border-radius:8px;padding:6px 4px;text-align:center;color:#ffd08a;"><b>2.</b> Drilla (alarm!) · bagga loot</div>' +
+        '<div style="flex:1;background:rgba(90,255,138,0.10);border:1px solid rgba(90,255,138,0.4);border-radius:8px;padding:6px 4px;text-align:center;color:#9fffc0;"><b>3.</b> Fly med säckar till skåpbilen</div>' +
+      '</div>' +
       '<div id="heist-role-cards" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;"></div>' +
       '<div style="color:#888;text-align:center;font-size:11px;letter-spacing:1px;margin-top:14px;">Auto-pick första lediga om <span id="heist-role-countdown" style="color:#fff;font-weight:900;">15</span>s</div>' +
     '</div>';
@@ -37372,7 +37455,7 @@ function getHeistContextAction() {
   const dDist2 = dDx * dDx + dDy * dDy;
   if (dDist2 < (drillSpot.r || 40) * (drillSpot.r || 40)) {
     if (phase === 'stealth') {
-      return { label: '🔨 STARTA DRILL', action: 'start_drill' };
+      return { label: '🔨 STARTA DRILL (utlöser ALARM!)', action: 'start_drill' };
     } else if (phase === 'alarm') {
       const pct = Math.round((state.heistDrillProgress || 0) * 100);
       return { label: '🔨 DRILLING ' + pct + '%', action: null };
@@ -37578,7 +37661,7 @@ function updateHeistHud() {
     phaseEl.textContent = '🤫 STEALTH';
     phaseEl.style.borderColor = '#5acaff';
     phaseEl.style.color = '#5acaff';
-    if (objEl) objEl.textContent = 'Smyg in via fronten · Undvik kameror + vakter';
+    if (objEl) objEl.textContent = 'Nå valvet oupptäckt · hacka kameror, undvik vakter';
   } else if (phase === 'alarm') {
     phaseEl.textContent = '🚨 ALARM';
     phaseEl.style.borderColor = '#ff5050';
@@ -37590,8 +37673,8 @@ function updateHeistHud() {
         objEl.textContent = '🕊️ CEASE-FIRE · ' + s + 's KVAR';
         objEl.style.color = '#5aff8a';
       } else if (state.heistInnerDrilling) {
-        // v1.651: inner-drill pausar police-vågor → kommunicera
-        objEl.textContent = '💎 INNER-DRILL · polisen pausad';
+        // v1.655: inner-drill saktar (pausar ej) police-vågorna
+        objEl.textContent = '💎 INNER-DRILL · polis i lugnare takt';
         objEl.style.color = '#5acaff';
       } else if (state.heistDrillBlocked) {
         objEl.textContent = '⛔ COPS BLOCKERAR DRILL · rensa zonen!';
@@ -39395,8 +39478,9 @@ if (btnIngameSettings) {
 // ============================================================
 function updatePlayer(dt, now) {
   const p = state.player;
-  // Spectating (död) — gör inget. updateDeathState sköter spec-kameran.
-  if (p.spectating) return;
+  // v1.655: null-guard (övriga per-frame-funktioner har den; denna saknade den).
+  // Skyddar mot silent frame-drop om mode='playing' nås innan makePlayer().
+  if (!p || p.spectating) return;
 
   // v1.378: under 5s prep-countdown blockeras ALL rörelse + skytte.
   // Spelaren ska bara förbereda sig (titta runt, planera). Inga åtgärder.

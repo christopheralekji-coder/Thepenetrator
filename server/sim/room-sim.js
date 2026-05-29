@@ -3511,6 +3511,12 @@ function tickBattleRoyale(sim, dt, now) {
   // Match-end? Skip game-logic men fortsätt broadcasta för spec-mode.
   if (sim.battleroyaleEnded) return;
 
+  // v1.655: Nollställ multi-pellet-kill-dedup-flaggan vid tick-start (ersätter
+  // den tidigare per-kill 100ms-setTimeout som läckte timers).
+  for (const [, ws] of sim.room.members) {
+    if (ws._brCreditedKill) ws._brCreditedKill = false;
+  }
+
   // Wall-collision för LEVANDE spelare (BR är no-respawn, dead = spectator)
   for (const [, ws] of sim.room.members) {
     if (ws.playerState && ws.playerState.hp > 0) {
@@ -3619,8 +3625,8 @@ function tickBattleRoyale(sim, dt, now) {
     }
   }
 
-  // Win-check: 1 levande kvar
-  if (sim.battleroyaleAliveCount <= 1) {
+  // Win-check: 1 levande kvar (men bara om matchen startade med >=2 deltagare)
+  if (sim.battleroyaleStartCount >= 2 && sim.battleroyaleAliveCount <= 1) {
     // Hitta sista levande (om någon)
     let winner = null;
     for (const [pid, ws] of sim.room.members) {
@@ -4311,14 +4317,15 @@ function tickHeist(sim, dt, nowMs) {
   }
 
   // === v1.621: POLICE-VÅGOR under alarm-fas (skippas under cease-fire) ===
-  // v1.651: pausa OCKSÅ under inner-vault-drill — det är en optional "bonus push"
-  // som ska kunna göras lugnt utan att 5+ cops dyker upp mitt-i.
+  // v1.655: inner-drill PAUSAR INTE längre polisen helt (det gjorde den farligaste,
+  // högst-belönade fasen till ett gratis safe-room). Istället fortsätter vågorna men
+  // i lugnare takt (35s vs 20s) → genuin greed-vs-risk utan att bli brutalt.
   const ceasefireActive = (sim.heistCeasefireUntil || 0) > nowMs;
-  const innerDrillPause = !!sim.heistInnerDrilling;
-  if (sim.heistPhase === 'alarm' && !ceasefireActive && !innerDrillPause) {
+  const innerDrilling = !!sim.heistInnerDrilling;
+  if (sim.heistPhase === 'alarm' && !ceasefireActive) {
     if (!sim._heistNextPoliceAt) sim._heistNextPoliceAt = nowMs + 5000; // första vågen 5s in i alarm
     if (nowMs >= sim._heistNextPoliceAt) {
-      sim._heistNextPoliceAt = nowMs + 20000; // var 20s
+      sim._heistNextPoliceAt = nowMs + (innerDrilling ? 35000 : 20000); // lugnare under inner-drill
       _heistSpawnPoliceWave(sim, arena, nowMs);
     }
   } else if (sim.heistPhase === 'extract' && !ceasefireActive) {
@@ -4328,9 +4335,6 @@ function tickHeist(sim, dt, nowMs) {
       sim._heistNextPoliceAt = nowMs + 12000;
       _heistSpawnPoliceWave(sim, arena, nowMs);
     }
-  } else if (innerDrillPause && sim._heistNextPoliceAt) {
-    // Skjut upp nästa-våg-clock så timern inte ackumulerar under drill-paus
-    sim._heistNextPoliceAt = nowMs + 5000; // 5s grace efter drill klar
   }
 
   // === v1.621: ENEMY-AI (cops targetar nearest player via updateEnemy) ===
@@ -5014,9 +5018,8 @@ function handleBattleRoyaleKill(sim, killerPid, killerWs, victimPid, victimWs, w
   // GUARD 2: redan crediterad denna tick (multi-pellet shotgun)
   if (victimWs._brCreditedKill) return;
   victimWs._brCreditedKill = true;
-  // Rensa flaggan vid nästa tick-start så att samma victim kan döda igen senare
-  // (skulle inte hända i BR no-respawn men säkrare).
-  setTimeout(() => { victimWs._brCreditedKill = false; }, 100);
+  // v1.655: Flaggan nollställs vid nästa tick-start i tickBattleRoyale (inte via
+  // per-kill setTimeout — det läckte en timer per kill + höll ws-ref vid liv).
   sim.battleroyaleKillsByPid[killerPid] = (sim.battleroyaleKillsByPid[killerPid] || 0) + 1;
   // Death-detection-loopen i tickBattleRoyale tar hand om eliminated-flag,
   // men vi emit:ar kill-event här för killfeed.
@@ -5977,6 +5980,10 @@ function startSim(sim, opts) {
       i++;
     }
     sim.battleroyaleAliveCount = aliveCount;
+    // v1.655: Antal deltagare vid start. Win-checken (<=1 levande) får INTE
+    // trigga om matchen startade med en ensam spelare (0 bots) → annars
+    // avslutas matchen direkt på första ticken. Kräver >=2 för att aktiveras.
+    sim.battleroyaleStartCount = aliveCount;
     sim.eventQueue.push({
       type: 'br_started',
       arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },
@@ -6241,6 +6248,10 @@ function buildSiegePickups(sim) {
 }
 
 function stopSim(sim) {
+  // v1.655: Flagga sim:en som stoppad så fördröjda setTimeout-callbacks
+  // (granat-explode i server.js, andra-boss-spawn i waves.js) inte kör mot
+  // en nedlagd sim och läcker spök-skada/state in i NÄSTA match.
+  sim._stopped = true;
   if (sim.interval) {
     clearInterval(sim.interval);
     sim.interval = null;

@@ -234,7 +234,7 @@ const SURVIVORS_ARENA = {
 
   // === ENEMY-CAP / DIFFICULTY ===
   // Skalar med tid. Wave-spawn capad så server inte stallnar.
-  difficultyScalePerMinute: 1.10,   // enemy HP/dmg × 1.10 per minute (kompoundas)
+  difficultyScalePerMinute: 1.075,  // v1.655: 1.10→1.075. Kompoundas multiplikativt → vid min 20 var det ×6.7 (HP/dmg) vs spelarens additiva DPS → "wave-20-vägg". 1.075 ger ×4.2 vid min 20.
 
   // === DOWN-STATE (samma som CD) ===
   downBleedoutSec: 25,

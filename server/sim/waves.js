@@ -254,7 +254,7 @@ function checkBossDeath(sim, deadEntity) {
   // Stage med två-boss-sekvens
   if (stage.bossKey2 && sim.bossSequenceStep === 1) {
     sim.eventQueue.push({ type: 'boss_killed', step: 1 });
-    setTimeout(() => spawnSecondBoss(sim, stage), 1200);
+    setTimeout(() => { if (!sim || sim._stopped) return; spawnSecondBoss(sim, stage); }, 1200);
     return;
   }
   // Sista boss död → stage clear

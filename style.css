@@ -2657,7 +2657,9 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   border: 1px solid #3a3a4a;
   border-radius: 4px;
   color: #fff;
-  font-size: 14px;
+  /* v1.655: 16px (var 14px) → iOS Safari auto-zoomar in på <16px inputs vid
+     fokus, vilket fick lobby-layouten att hoppa i landskap. 16px stoppar det. */
+  font-size: 16px;
   font-weight: 600;
 }
 .lobby-input:focus {
