@@ -29168,9 +29168,9 @@ function drawWardrobePreviewV2() {
   // Ground spotlight (under fötter) — skalas med dprMul
   const groundY = cy + scale * 17;
   const groundGrad = c.createRadialGradient(cx, groundY, 4 * dprMul, cx, groundY, 95 * dprMul);
-  groundGrad.addColorStop(0, 'rgba(170,58,255,0.40)');
-  groundGrad.addColorStop(0.5, 'rgba(170,58,255,0.15)');
-  groundGrad.addColorStop(1, 'rgba(170,58,255,0)');
+  groundGrad.addColorStop(0, 'rgba(255,196,74,0.34)');
+  groundGrad.addColorStop(0.5, 'rgba(255,150,50,0.12)');
+  groundGrad.addColorStop(1, 'rgba(255,196,74,0)');
   c.fillStyle = groundGrad;
   c.beginPath();
   c.ellipse(cx, groundY, 95 * dprMul, 17 * dprMul, 0, 0, Math.PI * 2);
@@ -29735,6 +29735,51 @@ function renderWardrobeTabs() {
     wrap.appendChild(subRow);
   }
   wardrobeTabsEl.appendChild(wrap);
+}
+
+// v1.692: HÖGKVALITATIV huvud-thumbnail för KROPP-kategorierna. Istället för platta
+// cirkel-swatches återanvänds den RIKTIGA drawNakedBody-pipelinen → skuggat ansikte
+// med äkta hår/skägg/ärr-rendering (samma som in-game), inramat på huvudet. Ger djup,
+// textur och tydlighet så varje stil går att skilja åt.
+const WARDROBE_FACE_CATS = new Set(['skin','hair','facialHair','eyes','eyeShape','eyebrows','nose','mouth','scars']);
+function drawWardrobeFaceThumb(canvas, cat, opt) {
+  const c = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  c.clearRect(0, 0, W, H);
+  // Mjuk portrait-glow bakom huvudet (djup + lyfter motivet)
+  const g = c.createRadialGradient(W / 2, H * 0.46, W * 0.05, W / 2, H * 0.5, W * 0.62);
+  g.addColorStop(0, 'rgba(255,213,74,0.14)');
+  g.addColorStop(0.6, 'rgba(255,170,58,0.05)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, W, H);
+  // Head-only-kostym: nuvarande costume (för kontext) men rensa allt som skymmer
+  // ansiktet, override:a sedan den kategori vi förhandsvisar.
+  let base;
+  try { base = getCurrentCostume(); } catch (e) { base = {}; }
+  const cos = Object.assign({}, base, {
+    mascot: null, shirtBrand: null,
+    hat: null, glasses: null, bandana: null, cape: null,
+    facialHair: null, scars: null,
+  });
+  if (cat === 'hair') { cos.hairStyle = opt.style; cos.hairColor = opt.color; }
+  else if (cat === 'facialHair') { cos.facialHair = (opt.style && opt.style !== 'none') ? { style: opt.style, color: opt.color } : null; }
+  else if (cat === 'scars') { cos.scars = (opt.style && opt.style !== 'none') ? { style: opt.style, color: opt.color } : null; }
+  else if (cat === 'skin') { cos.skin = opt.color; }
+  else if (cat === 'eyes') { cos.eyes = { color: opt.color }; }
+  else if (cat === 'eyeShape') { cos.eyeShapeStyle = opt.style; }
+  else if (cat === 'eyebrows') { cos.eyebrowsStyle = opt.style; }
+  else if (cat === 'nose') { cos.noseStyle = opt.style; }
+  else if (cat === 'mouth') { cos.mouthStyle = opt.style; }
+  // Inramning på huvudet (drawNakedBody-units: crown y≈-20, haka y=-7, mohawk-topp y≈-25)
+  c.save();
+  const span = 22, frameCX = 1, frameCY = -14;
+  const s = (W * 0.96) / span;
+  c.translate(W / 2, H * 0.54);
+  c.scale(s, s);
+  c.translate(-frameCX, -frameCY);
+  try { drawNakedBody(c, cos, false, 0, false); } catch (e) {}
+  c.restore();
 }
 
 // Rita en kategori-specifik mini-preview-thumbnail inuti ett card-swatch element
@@ -30324,7 +30369,7 @@ function renderWardrobeOptions() {
     const tints = save.wardrobe.tints;
     const buildTintRow = (key, label, color) => {
       const wrap = document.createElement('div');
-      wrap.style.cssText = 'grid-column: 1 / -1; padding: 8px 10px; background: rgba(0,0,0,0.4); border-radius: 8px; border: 1px solid rgba(170,58,255,0.25); display: flex; flex-direction: column; gap: 6px;';
+      wrap.style.cssText = 'grid-column: 1 / -1; padding: 8px 10px; background: rgba(0,0,0,0.4); border-radius: 8px; border: 1px solid rgba(255,196,74,0.25); display: flex; flex-direction: column; gap: 6px;';
       const lblEl = document.createElement('div');
       lblEl.style.cssText = 'font-size: 11px; color: #ffd54a; font-weight: 800; letter-spacing: 1px; display: flex; justify-content: space-between; align-items: center;';
       lblEl.innerHTML = `<span>${label}</span><span style="font-size:10px;color:#aaa;">${tints[key] || 0}°</span>`;
@@ -30337,7 +30382,7 @@ function renderWardrobeOptions() {
       slider.type = 'range';
       slider.min = '0'; slider.max = '359'; slider.step = '5';
       slider.value = tints[key] || 0;
-      slider.style.cssText = 'width: 100%; accent-color: #aa3aff;';
+      slider.style.cssText = 'width: 100%; accent-color: #ffc44a;';
       slider.addEventListener('input', (e) => {
         tints[key] = parseInt(e.target.value, 10);
         lblEl.querySelector('span:last-child').textContent = tints[key] + '°';
@@ -30433,10 +30478,13 @@ function renderWardrobeOptions() {
     const thumb = document.createElement('div');
     thumb.className = 'ward-thumb';
     const thumbCanvas = document.createElement('canvas');
-    thumbCanvas.width = 44; thumbCanvas.height = 44;
-    thumbCanvas.style.cssText = 'position:absolute;inset:0;';
+    const _faceThumb = WARDROBE_FACE_CATS.has(cat);
+    thumbCanvas.width = _faceThumb ? 104 : 44;
+    thumbCanvas.height = _faceThumb ? 104 : 44;
+    thumbCanvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
     thumb.appendChild(thumbCanvas);
-    drawWardrobeCardThumb(thumbCanvas, cat, opt, currentSkinHex);
+    if (_faceThumb) drawWardrobeFaceThumb(thumbCanvas, cat, opt);
+    else drawWardrobeCardThumb(thumbCanvas, cat, opt, currentSkinHex);
     card.appendChild(thumb);
     const name = document.createElement('div');
     name.className = 'ward-name';

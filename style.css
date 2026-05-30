@@ -2910,11 +2910,11 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   /* v1.687: garderoben får egen genererad bg (catwalk, lockers, outfits) — behåll
      lila/guld-glow men släpp igenom konsten med lättare linjär scrim. */
   background:
-    radial-gradient(ellipse at 25% 50%, rgba(170,58,255,0.16) 0%, transparent 50%),
-    radial-gradient(ellipse at 75% 60%, rgba(255,213,74,0.10) 0%, transparent 55%),
-    linear-gradient(180deg, rgba(14,8,22,0.60) 0%, rgba(6,3,12,0.80) 55%, rgba(12,5,20,0.88) 100%),
+    radial-gradient(ellipse at 25% 45%, rgba(255,196,74,0.12) 0%, transparent 52%),
+    radial-gradient(ellipse at 78% 62%, rgba(255,150,60,0.08) 0%, transparent 55%),
+    linear-gradient(180deg, rgba(12,11,9,0.56) 0%, rgba(8,7,6,0.78) 55%, rgba(6,6,8,0.88) 100%),
     url('assets/menu/bg-wardrobe.jpg?v=690') center center / cover no-repeat,
-    #0a0612 !important;
+    #0a0908 !important;
   /* v1.509: SCREEN scrollas igen. Layout fyller hela visible viewport (calc 100dvh -
      header) så preview+menu = hela "första sidan". Footer (slots+buttons) hamnar
      UNDER visible area, scrolla ner för att se. */
@@ -2965,13 +2965,13 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
 }
 #wardrobe-preview {
   background:
-    radial-gradient(ellipse at center bottom, rgba(170,58,255,0.25) 0%, transparent 65%),
+    radial-gradient(ellipse at center bottom, rgba(255,196,74,0.20) 0%, transparent 65%),
     radial-gradient(circle at 50% 30%, rgba(255,255,255,0.06) 0%, transparent 60%),
-    linear-gradient(180deg, rgba(40,20,50,0.6) 0%, rgba(10,5,15,0.85) 100%);
+    linear-gradient(180deg, rgba(34,30,24,0.50) 0%, rgba(10,9,7,0.82) 100%);
   border-radius: 14px;
-  border: 2px solid rgba(170,58,255,0.35);
+  border: 2px solid rgba(255,196,74,0.30);
   box-shadow:
-    0 8px 28px rgba(170,58,255,0.25),
+    0 8px 28px rgba(0,0,0,0.45),
     inset 0 1px 0 rgba(255,255,255,0.08);
   display: block;
   /* v1.508: fyller sin grid-cell (preview-wrap). max-height så preview inte
@@ -2992,8 +2992,8 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
 #wardrobe-options { touch-action: pan-y; }
 /* SLOTS */
 #wardrobe-slots {
-  background: linear-gradient(180deg, rgba(30,15,40,0.7), rgba(15,5,20,0.7));
-  border: 1px solid rgba(170,58,255,0.3);
+  background: linear-gradient(180deg, rgba(22,20,16,0.42), rgba(12,11,9,0.42));
+  border: 1px solid rgba(255,196,74,0.22);
   border-radius: 10px;
   padding: 6px 8px;
   width: 100%;
@@ -3021,8 +3021,8 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   width: 64px;
   height: 48px;
   border-radius: 6px;
-  background: rgba(0,0,0,0.5);
-  border: 1px dashed rgba(170,58,255,0.4);
+  background: rgba(0,0,0,0.34);
+  border: 1px dashed rgba(255,196,74,0.34);
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -3041,7 +3041,7 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
 }
 .ward-slot.filled {
   border-style: solid;
-  border-color: rgba(170,58,255,0.6);
+  border-color: rgba(255,196,74,0.5);
 }
 .ward-slot.selected {
   border-color: #ffd54a;
@@ -3062,7 +3062,7 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
 }
 .ward-slot.filled .slot-label { color: #fff; }
 .ward-slot.empty .slot-swatch {
-  background: repeating-linear-gradient(45deg, rgba(80,40,120,0.2) 0 4px, rgba(40,20,60,0.2) 4px 8px);
+  background: repeating-linear-gradient(45deg, rgba(90,80,55,0.18) 0 4px, rgba(45,40,28,0.18) 4px 8px);
 }
 .ward-slot-actions {
   display: flex;
@@ -3109,21 +3109,21 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   padding: 7px 12px !important;
   font-size: 12px !important;
   border-radius: 8px !important;
-  background: rgba(30,15,40,0.7) !important;
-  border: 1px solid rgba(170,58,255,0.3) !important;
-  color: #ccc !important;
+  background: rgba(18,17,14,0.42) !important;
+  border: 1px solid rgba(255,196,74,0.24) !important;
+  color: #ddd !important;
   letter-spacing: 0.5px !important;
   transition: all 0.15s !important;
   min-width: 0 !important;
   min-height: 0 !important;
   margin: 0 !important;
 }
-#wardrobe-tabs button:hover { background: rgba(170,58,255,0.25) !important; color: #fff !important; }
+#wardrobe-tabs button:hover { background: rgba(255,196,74,0.16) !important; color: #fff !important; }
 #wardrobe-tabs button.active {
-  background: linear-gradient(135deg, #aa3aff, #6a1aaa) !important;
-  color: #fff !important;
-  border-color: #ffd54a !important;
-  box-shadow: 0 2px 10px rgba(170,58,255,0.5);
+  background: linear-gradient(135deg, #ffcf4a, #d68a22) !important;
+  color: #2a1a04 !important;
+  border-color: #ffe08a !important;
+  box-shadow: 0 2px 10px rgba(255,180,60,0.45);
 }
 /* v1.508: NYA TAB-KLASSER för 2-row hierarki — overrides #wardrobe-tabs button-default */
 .ward-tab-wrap {
@@ -3145,7 +3145,7 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   gap: 3px !important;
   justify-content: center !important;
   padding: 2px 2px 0 !important;
-  border-top: 1px solid rgba(170,58,255,0.18) !important;
+  border-top: 1px solid rgba(255,196,74,0.16) !important;
 }
 #wardrobe-tabs button.ward-group-btn {
   padding: 7px 11px !important;
@@ -3155,16 +3155,16 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   border-radius: 7px !important;
 }
 #wardrobe-tabs button.ward-group-btn:not(.active) {
-  background: rgba(30,20,45,0.7) !important;
-  color: #bbb !important;
-  border: 1px solid rgba(170,58,255,0.20) !important;
+  background: rgba(18,17,14,0.42) !important;
+  color: #cfcfcf !important;
+  border: 1px solid rgba(255,196,74,0.18) !important;
   box-shadow: none !important;
 }
 #wardrobe-tabs button.ward-group-btn.active {
-  background: linear-gradient(135deg, #aa3aff 0%, #7a2acc 100%) !important;
-  color: #fff !important;
-  border: 1px solid #cc7aff !important;
-  box-shadow: 0 0 12px rgba(170,58,255,0.55) !important;
+  background: linear-gradient(135deg, #ffcf4a 0%, #d68a22 100%) !important;
+  color: #2a1a04 !important;
+  border: 1px solid #ffe08a !important;
+  box-shadow: 0 0 12px rgba(255,180,60,0.5) !important;
 }
 #wardrobe-tabs button.ward-sub-btn {
   padding: 4px 8px !important;
@@ -3174,16 +3174,16 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   min-height: 26px !important;
 }
 #wardrobe-tabs button.ward-sub-btn:not(.active) {
-  background: rgba(15,10,25,0.55) !important;
-  color: #aaa !important;
-  border: 1px solid rgba(170,58,255,0.10) !important;
+  background: rgba(14,13,11,0.40) !important;
+  color: #b8b8b8 !important;
+  border: 1px solid rgba(255,196,74,0.12) !important;
   box-shadow: none !important;
 }
 #wardrobe-tabs button.ward-sub-btn.active {
-  background: rgba(170,58,255,0.30) !important;
+  background: rgba(255,196,74,0.22) !important;
   color: #fff !important;
-  border: 1px solid #aa3aff !important;
-  box-shadow: 0 0 8px rgba(170,58,255,0.35) !important;
+  border: 1px solid #ffce5a !important;
+  box-shadow: 0 0 8px rgba(255,196,74,0.32) !important;
 }
 #wardrobe-options {
   display: grid;
@@ -3198,9 +3198,9 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   position: relative;
   z-index: 2;
   pointer-events: auto;
-  background: rgba(0,0,0,0.25);
+  background: rgba(0,0,0,0.22);
   border-radius: 10px;
-  border: 1px solid rgba(170,58,255,0.15);
+  border: 1px solid rgba(255,196,74,0.14);
 }
 .ward-card {
   cursor: pointer;
@@ -3210,20 +3210,20 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   gap: 4px;
   padding: 8px 6px;
   border-radius: 8px;
-  background: linear-gradient(180deg, rgba(40,25,55,0.5), rgba(20,10,30,0.5));
+  background: linear-gradient(180deg, rgba(26,24,20,0.34), rgba(14,13,11,0.34));
   border: 2px solid transparent;
   transition: all 0.15s;
   position: relative;
 }
 .ward-card:hover {
-  border-color: rgba(170,58,255,0.6);
+  border-color: rgba(255,196,74,0.55);
   transform: translateY(-2px);
-  box-shadow: 0 6px 14px rgba(170,58,255,0.25);
+  box-shadow: 0 6px 14px rgba(255,180,60,0.22);
 }
 .ward-card.active {
   border-color: #ffd54a;
-  background: linear-gradient(180deg, rgba(170,58,255,0.25), rgba(80,20,140,0.4));
-  box-shadow: 0 0 14px rgba(255,213,74,0.4), inset 0 0 12px rgba(170,58,255,0.2);
+  background: linear-gradient(180deg, rgba(255,196,74,0.22), rgba(150,100,20,0.28));
+  box-shadow: 0 0 14px rgba(255,213,74,0.4), inset 0 0 12px rgba(255,180,60,0.18);
 }
 .ward-card.active::before {
   content: '✓';
@@ -3238,7 +3238,7 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #2a1a3a;
+  background: radial-gradient(circle at 50% 42%, #2a2620 0%, #14120e 100%);
   position: relative;
   overflow: hidden;
   display: flex;
@@ -3274,7 +3274,7 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   max-width: 980px;
   padding-top: 8px;
   margin-top: 6px;
-  border-top: 2px solid rgba(170,58,255,0.35);
+  border-top: 2px solid rgba(255,196,74,0.30);
   align-items: stretch;
 }
 
@@ -3311,9 +3311,9 @@ body.ultimate-active #game { animation: rainbow-pulse 5s linear infinite; }
   color: rgba(255,213,74,0.85);
   text-transform: uppercase;
   padding: 12px 4px 6px;
-  border-bottom: 1px solid rgba(170,58,255,0.30);
+  border-bottom: 1px solid rgba(255,196,74,0.28);
   margin-top: 4px;
-  background: linear-gradient(90deg, rgba(170,58,255,0.18) 0%, transparent 60%);
+  background: linear-gradient(90deg, rgba(255,196,74,0.16) 0%, transparent 60%);
   border-radius: 4px;
   padding-left: 10px;
 }
@@ -4422,54 +4422,116 @@ body.ios .overlay {
   justify-content: center;
   padding: 20px;
 }
+/* v1.692: HJÄLP/TUTORIAL — frostad glas-makeover (släpper igenom tränings-bg:n) */
 .tut-panel {
-  background: linear-gradient(180deg, rgba(20,20,30,0.98), rgba(10,5,8,0.98));
-  border: 2px solid #ffd54a;
-  border-radius: 12px;
-  padding: 20px 24px;
-  max-width: 700px;
+  background: linear-gradient(180deg, rgba(14,13,18,0.50), rgba(8,7,10,0.60));
+  backdrop-filter: blur(14px) saturate(1.12);
+  -webkit-backdrop-filter: blur(14px) saturate(1.12);
+  border: 1.5px solid rgba(255,213,74,0.55);
+  border-radius: 16px;
+  padding: 20px 22px;
+  max-width: 720px;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.7), 0 0 24px rgba(255,213,74,0.25);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.6), 0 0 30px rgba(255,180,60,0.18), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.tut-head { text-align: center; margin-bottom: 14px; }
+.tut-h2 {
+  font-size: 23px;
+  font-weight: 900;
+  letter-spacing: 2px;
+  background: linear-gradient(180deg, #ffe9a8, #ffb43a);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.6));
+}
+.tut-sub { font-size: 11px; color: #cbb88a; letter-spacing: 1px; margin-top: 3px; }
+.tut-section-label {
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: 2.5px;
+  color: #ffd54a;
+  margin: 4px 0 9px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid rgba(255,213,74,0.22);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.7);
 }
 .tut-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 10px;
-  margin-bottom: 18px;
+  gap: 8px;
+  margin-bottom: 16px;
 }
 .tut-item {
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,213,74,0.2);
-  border-radius: 8px;
-  padding: 10px 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,213,74,0.16);
+  border-left: 3px solid rgba(255,196,74,0.6);
+  border-radius: 9px;
+  padding: 9px 11px;
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
 }
-.tut-icon { font-size: 22px; line-height: 1; margin-bottom: 4px; }
+.tut-item:hover {
+  transform: translateY(-2px);
+  background: rgba(255,213,74,0.10);
+  border-color: rgba(255,213,74,0.40);
+}
+.tut-icon { font-size: 22px; line-height: 1; margin-bottom: 3px; }
 .tut-title {
   font-size: 11px;
   font-weight: 800;
-  letter-spacing: 1.5px;
+  letter-spacing: 1.2px;
   color: #ffd54a;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
 .tut-desc {
   font-size: 11px;
-  color: #ddd;
+  color: #e2dfd6;
   line-height: 1.4;
 }
+/* SPELLÄGEN — kompakta mode-chips */
+.tut-modes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+  gap: 7px;
+  margin-bottom: 18px;
+}
+.tut-mode {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: rgba(255,255,255,0.045);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 9px;
+  padding: 8px 10px;
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+}
+.tut-mode:hover {
+  transform: translateY(-2px);
+  background: rgba(255,196,74,0.10);
+  border-color: rgba(255,196,74,0.35);
+}
+.tm-ico { font-size: 19px; flex-shrink: 0; }
+.tm-txt { display: flex; flex-direction: column; min-width: 0; }
+.tm-name { font-size: 10.5px; font-weight: 900; letter-spacing: 0.8px; color: #ffce5a; }
+.tm-desc { font-size: 9.5px; color: #c8c4bb; line-height: 1.25; margin-top: 1px; }
 .tut-panel #btn-tut-close {
   display: block;
   margin: 0 auto;
   min-width: 200px;
 }
 @media (max-height: 500px) {
-  .tut-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; }
+  .tut-grid { grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 6px; }
   .tut-item { padding: 6px 8px; }
   .tut-icon { font-size: 18px; }
   .tut-desc { font-size: 10px; }
+  .tut-modes { gap: 5px; margin-bottom: 12px; }
+  .tut-mode { padding: 6px 8px; gap: 7px; }
   .tut-panel { padding: 12px 14px; }
-  .tut-panel h2 { font-size: 14px !important; margin: 0 0 8px 0 !important; }
+  .tut-h2 { font-size: 16px; }
+  .tut-sub { font-size: 10px; margin-top: 1px; }
+  .tut-section-label { margin: 2px 0 6px; }
 }
 .tut-bubble::after {
   content: '';
