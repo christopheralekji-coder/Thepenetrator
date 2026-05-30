@@ -51847,6 +51847,39 @@ function drawNakedBody(ctx, cos, flash, walkPhase, isMoving) {
   const hCol = flash ? '#fff' : (cos.hairColor || stubbleColor);
   const hShadow = flash ? '#fff' : darken(cos.hairColor || '#2a1a0a', 0.40);
   const hLight = flash ? '#fff' : lighten(cos.hairColor || '#2a1a0a', 0.22);
+  // v1.696: SHARED SCALP BASE — solid hår-cap som täcker skallen rent (hårlinje
+  // ~-14.2 → hjässa, wrappar sidorna ner till tinningen) så håret SITTER på huvudet
+  // utan panna/tinning-glipor + ger volym (mindre "klistrat"). Ritas UNDER stilens
+  // detaljer (spikar/strån/lockar). Skippas för rakade/skalliga stilar.
+  const HAIR_NO_BASE = (hStyle === 'bald' || hStyle === 'mohawk' || hStyle === 'liberty');
+  if (!HAIR_NO_BASE) {
+    ctx.fillStyle = hCol;
+    ctx.beginPath();
+    ctx.moveTo(-4.3, -14.2);                      // west tinning/hårlinje
+    ctx.quadraticCurveTo(-5.7, -16.5, -4.3, -18.9); // west sida upp över skallen
+    ctx.quadraticCurveTo(-2, -21.0, 2, -21.1);      // hjässa (lätt volym över skallen)
+    ctx.quadraticCurveTo(5.6, -20.7, 6.8, -18.2);   // east sida ner
+    ctx.quadraticCurveTo(7.8, -16, 7.0, -14.2);     // east tinning/hårlinje
+    ctx.quadraticCurveTo(2, -14.7, -4.3, -14.2);    // mjuk frontal hårlinje
+    ctx.closePath();
+    ctx.fill();
+    // Crown-highlight (rundad form, ej platt hjälm)
+    ctx.fillStyle = hLight;
+    ctx.globalAlpha = 0.32;
+    ctx.beginPath();
+    ctx.ellipse(1.4, -18.7, 3.2, 1.5, -0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    // Hårlinje-skugga (djup där hår möter panna)
+    ctx.strokeStyle = hShadow;
+    ctx.lineWidth = 0.4;
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(-4.0, -14.35);
+    ctx.quadraticCurveTo(2, -14.85, 6.7, -14.35);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
   if (hStyle === 'bald') {
     // v1.517: BUZZ CUT — multi-layer scalp shading + dense stubble + slight widow's
     // peak indication + 5-o-clock-shadow gradient zones
