@@ -56267,45 +56267,43 @@ function drawScarsOnFace(ctx, style, color, flash) {
     ctx.moveTo(3.7, -13.55); ctx.lineTo(5.1, -10.75);
     ctx.stroke();
   } else if (style === 'cheekScar') {
-    // KIND-ÄRR — kort horisontal slash på east cheek + 3 tydliga perp-stitches
-    // East cheek vid y=-10: x=4.3 (intill näsa) till x=6.4 (jaw-edge)
+    // KIND-ÄRR — kort slash på KINDBENET (under east eye, ovanför munnen) + stitches
     ctx.strokeStyle = col;
     ctx.lineWidth = 0.65;
     ctx.beginPath();
-    ctx.moveTo(4.4, -10.2); ctx.lineTo(6.3, -10.0);
+    ctx.moveTo(4.5, -11.4); ctx.lineTo(6.1, -10.8);
     ctx.stroke();
-    // 3 bold perpendicular stitches (cross-marks som är synliga)
-    ctx.lineWidth = 0.45;
-    for (const px of [4.8, 5.35, 5.9]) {
+    // 3 perpendicular stitches som korsar ärret
+    ctx.lineWidth = 0.4;
+    for (const [px, py] of [[4.9, -11.25], [5.4, -11.05], [5.9, -10.85]]) {
       ctx.beginPath();
-      ctx.moveTo(px, -10.5); ctx.lineTo(px, -9.7);
+      ctx.moveTo(px, py - 0.35); ctx.lineTo(px, py + 0.35);
       ctx.stroke();
     }
     // Subtle highlight på huvudärret
     ctx.strokeStyle = flash ? '#fff' : lighten(col, 0.45);
     ctx.lineWidth = 0.28;
     ctx.beginPath();
-    ctx.moveTo(4.4, -10.15); ctx.lineTo(6.3, -9.95);
+    ctx.moveTo(4.5, -11.35); ctx.lineTo(6.1, -10.75);
     ctx.stroke();
   } else if (style === 'crossScar') {
-    // KORS-ÄRR — två tjocka korsande slashes på east cheek (UNDER east eye, ej över pupill)
-    // Eye-bottom y=-12.1, så börja vid y=-11.8. East face vid y=-7.5: x=5
+    // KORS-ÄRR — kompakt X på KINDBENET (under east eye, tydligt ovanför munnen)
     ctx.strokeStyle = col;
     ctx.lineWidth = 0.8;
     // NW→SE diagonal
     ctx.beginPath();
-    ctx.moveTo(3.0, -11.7); ctx.lineTo(5.8, -8.5);
+    ctx.moveTo(4.2, -11.9); ctx.lineTo(6.2, -9.9);
     ctx.stroke();
     // NE→SW diagonal
     ctx.beginPath();
-    ctx.moveTo(5.8, -11.7); ctx.lineTo(3.0, -8.5);
+    ctx.moveTo(6.2, -11.9); ctx.lineTo(4.2, -9.9);
     ctx.stroke();
     // Highlights på båda
     ctx.strokeStyle = flash ? '#fff' : lighten(col, 0.45);
     ctx.lineWidth = 0.35;
     ctx.beginPath();
-    ctx.moveTo(3.1, -11.65); ctx.lineTo(5.9, -8.45);
-    ctx.moveTo(5.9, -11.65); ctx.lineTo(3.1, -8.45);
+    ctx.moveTo(4.3, -11.85); ctx.lineTo(6.3, -9.85);
+    ctx.moveTo(6.3, -11.85); ctx.lineTo(4.3, -9.85);
     ctx.stroke();
   } else if (style === 'noseRing') {
     // SEPTUM-RING — tydlig metallisk ring HÄNGANDE från näsbasen
@@ -56412,19 +56410,19 @@ function drawScarsOnFace(ctx, style, color, flash) {
     ctx.quadraticCurveTo(2, -11.1, -4, -10.6);
     ctx.closePath();
     ctx.fill();
-    // Lower stripe (jaw-zone) y=-8.8 to -7.9
+    // Lower stripe (mellan-kind, OVANFÖR munnen) y=-10.0 to -9.2
     ctx.beginPath();
-    ctx.moveTo(-3, -8.8);
-    ctx.quadraticCurveTo(2, -9.3, 6.5, -8.8);
-    ctx.lineTo(6.3, -7.9);
-    ctx.quadraticCurveTo(2, -8.4, -3, -7.9);
+    ctx.moveTo(-3, -10.0);
+    ctx.quadraticCurveTo(2, -10.5, 6.5, -10.0);
+    ctx.lineTo(6.3, -9.2);
+    ctx.quadraticCurveTo(2, -9.7, -3, -9.2);
     ctx.closePath();
     ctx.fill();
     // Smear-detalj (små additional dots utanför stripes — "applied with fingers" look)
     ctx.fillStyle = darken(col, 0.20);
-    ctx.fillRect(-1, -10.3, 0.4, 0.5);
-    ctx.fillRect(3.5, -10.3, 0.4, 0.4);
-    ctx.fillRect(6.0, -10.3, 0.35, 0.35);
+    ctx.fillRect(-1, -10.85, 0.4, 0.5);
+    ctx.fillRect(3.5, -10.85, 0.4, 0.4);
+    ctx.fillRect(6.0, -10.85, 0.35, 0.35);
   } else if (style === 'cybernetic') {
     // CYBER-IMPLANTAT — clean panel på east cheek med 2 LEDs (var 3 = för busy)
     // East cheek panel x=5 till 7, y=-11 till -9 (definitely on-face)

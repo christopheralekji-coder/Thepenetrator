@@ -4416,7 +4416,7 @@ body.ios .overlay {
   z-index: 11;
   /* v1.688: egen genererad bg (instruktör/träningsbana) — scrim håller kortet läsbart */
   background:
-    linear-gradient(rgba(6,5,10,0.74) 0%, rgba(6,5,10,0.82) 100%),
+    linear-gradient(rgba(6,5,10,0.42) 0%, rgba(6,5,10,0.55) 100%),
     url('assets/menu/bg-help.jpg?v=690') center center / cover no-repeat,
     rgba(0,0,0,0.85);
   backdrop-filter: blur(8px);
@@ -4428,9 +4428,10 @@ body.ios .overlay {
 }
 /* v1.692: HJÄLP/TUTORIAL — frostad glas-makeover (släpper igenom tränings-bg:n) */
 .tut-panel {
-  background: linear-gradient(180deg, rgba(14,13,18,0.50), rgba(8,7,10,0.60));
-  backdrop-filter: blur(14px) saturate(1.12);
-  -webkit-backdrop-filter: blur(14px) saturate(1.12);
+  /* v1.694: genuint genomskinlig — lägre opacitet + mindre blur så man ser igenom */
+  background: linear-gradient(180deg, rgba(14,13,18,0.32), rgba(8,7,10,0.40));
+  backdrop-filter: blur(6px) saturate(1.1);
+  -webkit-backdrop-filter: blur(6px) saturate(1.1);
   border: 1.5px solid rgba(255,213,74,0.55);
   border-radius: 16px;
   padding: 20px 22px;
