@@ -56258,13 +56258,13 @@ function drawScarsOnFace(ctx, style, color, flash) {
     ctx.strokeStyle = col;
     ctx.lineWidth = 0.7;
     ctx.beginPath();
-    ctx.moveTo(3.6, -13.6); ctx.lineTo(5.0, -10.8);
+    ctx.moveTo(4.0, -13.4); ctx.lineTo(4.8, -11.0);
     ctx.stroke();
     // Thin highlight (raised-scar look)
     ctx.strokeStyle = flash ? '#fff' : lighten(col, 0.45);
     ctx.lineWidth = 0.32;
     ctx.beginPath();
-    ctx.moveTo(3.7, -13.55); ctx.lineTo(5.1, -10.75);
+    ctx.moveTo(4.1, -13.35); ctx.lineTo(4.9, -10.95);
     ctx.stroke();
   } else if (style === 'cheekScar') {
     // KIND-ÄRR — kort slash på KINDBENET (under east eye, ovanför munnen) + stitches
@@ -56308,7 +56308,7 @@ function drawScarsOnFace(ctx, style, color, flash) {
   } else if (style === 'noseRing') {
     // SEPTUM-RING — tydlig metallisk ring HÄNGANDE från näsbasen
     // Nose-bottom (där septum är) ~y=-9.9. Ring center y=-9.55, radius 0.5
-    const cx = 3.8, cy = -9.55;
+    const cx = 4.1, cy = -9.5;
     const ringR = 0.5;
     // Ring stroke (tjock metallisk ring)
     ctx.strokeStyle = col;
@@ -56341,42 +56341,42 @@ function drawScarsOnFace(ctx, style, color, flash) {
     ctx.lineTo(-3.5, -10.5);
     ctx.closePath();
     ctx.fill();
-    // Secondary smaller flame (lower)
+    // Secondary smaller flame (lower) — hålls på kinden, ovanför käken (var y=-8)
     ctx.beginPath();
-    ctx.moveTo(-2.6, -9.5);
-    ctx.lineTo(-1.8, -9);
-    ctx.lineTo(-2.3, -8);
-    ctx.lineTo(-3.0, -8.7);
+    ctx.moveTo(-2.6, -10.0);
+    ctx.lineTo(-1.9, -9.5);
+    ctx.lineTo(-2.3, -9.4);
+    ctx.lineTo(-2.9, -9.8);
     ctx.closePath();
     ctx.fill();
     // 2 accent-dots
-    ctx.beginPath(); ctx.arc(-3.3, -11.5, 0.32, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(-1.8, -11.3, 0.25, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-3.2, -11.5, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(-1.9, -11.3, 0.24, 0, Math.PI * 2); ctx.fill();
   } else if (style === 'tribalRight') {
     // TRIBAL (H) — bold solid pattern på east cheek
     // East cheek: mellan east eye (4.3,-12.6) och east jaw (~6.5,-9). Center x~5.8
     ctx.fillStyle = col;
-    // Main flame-shape (mirror av V)
+    // Main flame-shape (mirror av V) — hålls innanför east-kindkanten (max x 6.5)
     ctx.beginPath();
-    ctx.moveTo(7.0, -12);
-    ctx.lineTo(5.5, -12.5);
-    ctx.lineTo(4.8, -10.5);
-    ctx.lineTo(5.5, -10.0);
-    ctx.lineTo(6.1, -11);
-    ctx.lineTo(7.0, -10.5);
+    ctx.moveTo(6.5, -12.0);
+    ctx.lineTo(5.3, -12.4);
+    ctx.lineTo(4.7, -10.6);
+    ctx.lineTo(5.4, -10.1);
+    ctx.lineTo(5.9, -11.0);
+    ctx.lineTo(6.5, -10.6);
     ctx.closePath();
     ctx.fill();
-    // Secondary smaller flame
+    // Secondary smaller flame — kvar på kinden, ovanför käken (var y=-8 = utanför)
     ctx.beginPath();
-    ctx.moveTo(6.1, -9.5);
-    ctx.lineTo(5.3, -9);
-    ctx.lineTo(5.8, -8);
-    ctx.lineTo(6.5, -8.7);
+    ctx.moveTo(5.9, -10.0);
+    ctx.lineTo(5.1, -9.5);
+    ctx.lineTo(5.5, -9.4);
+    ctx.lineTo(6.1, -9.8);
     ctx.closePath();
     ctx.fill();
     // 2 accent-dots
-    ctx.beginPath(); ctx.arc(6.8, -11.5, 0.32, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(5.3, -11.3, 0.25, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6.3, -11.5, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(5.2, -11.2, 0.24, 0, Math.PI * 2); ctx.fill();
   } else if (style === 'teardrop') {
     // TÅR-TATUERING — solid svart droppe under east eye-corner (gangster style)
     // East eye bottom ~y=-12.1. Drop start strax under (4.7,-11.7) — west-skift mot
@@ -56404,10 +56404,10 @@ function drawScarsOnFace(ctx, style, color, flash) {
     ctx.fillStyle = col;
     // Upper stripe (under eyes, över cheekbones) y=-11.7 to -10.6
     ctx.beginPath();
-    ctx.moveTo(-4, -11.7);
-    ctx.quadraticCurveTo(2, -12.1, 7.5, -11.4);
-    ctx.lineTo(7.3, -10.4);
-    ctx.quadraticCurveTo(2, -11.1, -4, -10.6);
+    ctx.moveTo(-3.6, -11.7);
+    ctx.quadraticCurveTo(2, -12.1, 6.9, -11.3);
+    ctx.lineTo(6.7, -10.4);
+    ctx.quadraticCurveTo(2, -11.1, -3.6, -10.6);
     ctx.closePath();
     ctx.fill();
     // Lower stripe (mellan-kind, OVANFÖR munnen) y=-10.0 to -9.2
@@ -56431,10 +56431,10 @@ function drawScarsOnFace(ctx, style, color, flash) {
     // Main panel (avrundad rectangle)
     ctx.beginPath();
     ctx.moveTo(5.0, -11.0);
-    ctx.lineTo(6.9, -11.0);
-    ctx.quadraticCurveTo(7.2, -11.0, 7.2, -10.7);
-    ctx.lineTo(7.2, -9.5);
-    ctx.quadraticCurveTo(7.2, -9.2, 6.9, -9.2);
+    ctx.lineTo(6.3, -11.0);
+    ctx.quadraticCurveTo(6.6, -11.0, 6.6, -10.7);
+    ctx.lineTo(6.6, -9.5);
+    ctx.quadraticCurveTo(6.6, -9.2, 6.3, -9.2);
     ctx.lineTo(5.0, -9.2);
     ctx.quadraticCurveTo(4.7, -9.2, 4.7, -9.5);
     ctx.lineTo(4.7, -10.7);
@@ -56444,19 +56444,19 @@ function drawScarsOnFace(ctx, style, color, flash) {
     ctx.shadowBlur = 0;
     // Inner shadow (panel-depth)
     ctx.fillStyle = darken(col, 0.50);
-    ctx.fillRect(5.0, -10.4, 1.95, 0.15);
+    ctx.fillRect(5.0, -10.4, 1.4, 0.15);
     // 2 LEDs (clean — bara 2 så det inte ser för busy ut)
     ctx.shadowColor = '#ffffff'; ctx.shadowBlur = 3;
     ctx.fillStyle = flash ? '#fff' : '#ffffff';
-    ctx.beginPath(); ctx.arc(5.5, -9.9, 0.25, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(6.4, -9.9, 0.25, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(5.4, -9.9, 0.25, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(6.05, -9.9, 0.25, 0, Math.PI * 2); ctx.fill();
     ctx.shadowBlur = 0;
     // Bolt-marks vid hörn (mount-points)
     ctx.fillStyle = darkCol;
     ctx.fillRect(5.0, -10.85, 0.2, 0.2);
-    ctx.fillRect(6.75, -10.85, 0.2, 0.2);
+    ctx.fillRect(6.2, -10.85, 0.2, 0.2);
     ctx.fillRect(5.0, -9.55, 0.2, 0.2);
-    ctx.fillRect(6.75, -9.55, 0.2, 0.2);
+    ctx.fillRect(6.2, -9.55, 0.2, 0.2);
   } else if (style === 'thirdEye') {
     // TREDJE ÖGAT — på BRIDGE mellan brows (var ovanför hairline=osynligt om hair)
     // Brows är vid y=-13.9 to -14.9. Mellan brows = nose-bridge top, x=2.0-2.5, y=-13.5
@@ -56494,8 +56494,8 @@ function drawScarsOnFace(ctx, style, color, flash) {
   } else if (style === 'sutured') {
     // STICKAT ÄRR — Frankenstein, MYCKET visible stitches. Diagonal från brow till jaw.
     // Start (2.5,-13.8) just under brow. End (5.5,-8) vid jaw.
-    const sx = 2.5, sy = -13.8;
-    const ex = 5.5, ey = -8;
+    const sx = 2.8, sy = -13.4;
+    const ex = 5.2, ey = -9.2;
     const dx = ex - sx, dy = ey - sy;
     const len = Math.hypot(dx, dy) || 1;
     const px = -dy / len, py = dx / len;
