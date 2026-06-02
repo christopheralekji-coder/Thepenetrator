@@ -22316,6 +22316,30 @@ function interpEntitySnap(ent, renderT) {
   }
   return { x: last.x, y: last.y };
 }
+// v1.704: cadence-adaptiv snap-klocka. Stämplar alla snapshots i ett world-paket med en
+// UTJÄMNAD tid i st f rå ankomst-tid → jämn interp-hastighet även när TCP levererar paket
+// i klumpar. Steget följer EMA av faktisk paket-ankomst (robust mot variabel broadcast-takt,
+// t.ex. server 60→30Hz under last). Hård resync vid stor drift → degraderar till realtid
+// (kan aldrig bli sämre än v1.701:s ankomst-tid-buffert).
+let _snapClock = null, _snapGapEMA = null, _lastSnapArr = null, _curSnapStamp = 0;
+function advanceSnapClock() {
+  const pn = performance.now();
+  if (_lastSnapArr != null) {
+    const gap = pn - _lastSnapArr;
+    _snapGapEMA = _snapGapEMA == null ? gap : _snapGapEMA * 0.88 + gap * 0.12;
+  }
+  _lastSnapArr = pn;
+  const step = Math.max(8, Math.min(60, _snapGapEMA || 16.6));
+  if (_snapClock == null) _snapClock = pn;
+  else {
+    _snapClock += step;
+    const drift = pn - _snapClock;
+    if (drift > 150 || drift < -80) _snapClock = pn;   // hård resync vid stor drift
+    else _snapClock += drift * 0.10;                   // mjuk dragning mot realtid
+  }
+  _curSnapStamp = _snapClock;
+  return _curSnapStamp;
+}
 
 // ── Binär protokoll för world-paket ──────────────────────────────────────────
 // Spar 3-5× vs JSON. Format: little-endian. Strängar är length-prefixed UTF-8 (max 255 bytes).
@@ -26350,6 +26374,8 @@ const Coop = {
         }
         this._lastSeenSeq = data.seq;
       }
+      // v1.704: advancera snap-klockan EN gång per world-paket (delas av alla entiteter i paketet)
+      if (typeof advanceSnapClock === 'function') advanceSnapClock();
       // Klient: hantera komprimerade data
       if (data.players) {
         for (const p of data.players) {
@@ -26412,7 +26438,7 @@ const Coop = {
           }
           // Interpolation: behåll x/y, sätt target + pusha snapshot till bufferten
           cur.targetX = p.x; cur.targetY = p.y;
-          if (typeof pushEntitySnap === 'function') pushEntitySnap(cur, p.x, p.y, performance.now());
+          if (typeof pushEntitySnap === 'function') pushEntitySnap(cur, p.x, p.y, _curSnapStamp || performance.now());
           cur.hp = p.hp;
           // Aim-vinkel: target istället för direkt-set så lerp i render-loopen kan smootha (undviker ryck)
           cur.targetAimAngle = p.a;
@@ -26428,7 +26454,12 @@ const Coop = {
         // dead-cleanup endast vid fullbroadcast.
         if (!state._enemyCache) state._enemyCache = {};
         const cache = state._enemyCache;
-        const existingByIdx = new Map();
+        // v1.704: återanvänd Map-objektet (clear + repopulera) i st f att allokera en ny
+        // per world-paket (60-120Hz) → mindre GC-tryck = färre mikro-spikes. Byggs fortf.
+        // fräscht varje paket så ingen staleness.
+        if (!this._existingByIdx) this._existingByIdx = new Map();
+        const existingByIdx = this._existingByIdx;
+        existingByIdx.clear();
         for (const e of state.enemies) if (e._i !== undefined) existingByIdx.set(e._i, e);
         for (const e of data.enemies) {
           let cached = cache[e.i];
@@ -26456,7 +26487,7 @@ const Coop = {
             // Uppdatera bara de fält som skickas i deltan; behåll x/y, sätt targetX/Y, uppdatera hp
             existing.targetX = e.x;
             existing.targetY = e.y;
-            if (typeof pushEntitySnap === 'function') pushEntitySnap(existing, e.x, e.y, performance.now());
+            if (typeof pushEntitySnap === 'function') pushEntitySnap(existing, e.x, e.y, _curSnapStamp || performance.now());
             existing.hp = e.hp;
             if (e.p !== undefined) existing.phase = e.p;
             // Vid full broadcast: uppdatera även statiska fields
