@@ -58635,6 +58635,23 @@ function drawPlayer() {
   if (cos.vfx && cos.vfx.length) {
     drawPlayerVfx(p, x, y, cos.vfx, now);
   }
+  // v1.715: HP-TRÄFF-RÖD-BLINK — när spelaren tar HP-skada (ej sköld) blinkar gubben
+  // rött väldigt snabbt medan blod-partiklarna flyger. Röd silhuett-overlay (huvud +
+  // torso, matchar sprite-fotavtrycket ~51px) som strobar ~45ms. Följer bob + JUG-scale.
+  if (p._hpHitFlashUntil && now < p._hpHitFlashUntil) {
+    if (Math.floor(now / 45) % 2 === 0) { // väldigt snabb blink (~11 Hz)
+      const _fade = Math.min(1, (p._hpHitFlashUntil - now) / 140); // tona ut sista 140ms
+      const _js = (p.scaleMul && p.scaleMul > 1) ? p.scaleMul : 1;
+      ctx.save();
+      ctx.translate(x, y + bob);
+      ctx.scale(_js, _js);
+      ctx.globalAlpha = 0.62 * _fade;
+      ctx.fillStyle = '#ff2020';
+      ctx.beginPath(); ctx.ellipse(0, 6, 11, 17, 0, 0, Math.PI * 2); ctx.fill(); // torso
+      ctx.beginPath(); ctx.arc(0, -14, 9, 0, Math.PI * 2); ctx.fill();           // huvud
+      ctx.restore();
+    }
+  }
 }
 
 // Rita item-VFX (aura, shimmer, halo) runt spelaren i screen-coords.
@@ -73593,6 +73610,9 @@ function runFrame(dt, now) {
         const _bx = _bAng != null ? _shp.x + Math.cos(_bAng) * _rr : _shp.x;
         const _by = _bAng != null ? _shp.y + Math.sin(_bAng) * _rr : _shp.y;
         spawnBloodSpray(_bx, _by, _bAng);
+        // v1.715: HP-träff utan sköld → gubben blinkar RÖTT snabbt medan blodet flyger
+        // (drawPlayer läser _hpHitFlashUntil). Bara HP-skada, ej sköld-absorption.
+        _shp._hpHitFlashUntil = _pn + 320;
       }
       _shp._prevHpFx = _hpNow;
       _shp._prevShield = _shNow;
