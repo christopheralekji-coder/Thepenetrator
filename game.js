@@ -73494,6 +73494,24 @@ function runFrame(dt, now) {
       const _absorbed = _shNow < _shp._prevShield - 0.5;
       const _gotHit = _flNow > _shp._prevFlash;
       const _pvp3s = _shp.pvpShieldUntil && _pn < _shp.pvpShieldUntil;
+      // v1.710: coop-PvE KONTAKT-skada (melee-fiender) är server-side utan position, så
+      // kul-koden sätter ingen träff-vinkel. När skada upptäcks UTAN färsk vinkel → härled
+      // riktning från NÄRMASTE överlappande fiende, så blod/sköld blir riktat även här.
+      // Kul-träffar (solo + coop) sätter redan färsk vinkel via damagePlayer → fallback hoppas.
+      // PvP: inga fiender i state.enemies → vinkel kommer från self-hit-prediktionen.
+      const _hpDropNow = (_shp._prevHpFx !== undefined) && ((_shp.hp || 0) < _shp._prevHpFx - 0.5);
+      const _hadFreshAng = state._dmgFromAngleAt && (_pn - state._dmgFromAngleAt < 600);
+      if ((_absorbed || (_gotHit && _pvp3s) || _hpDropNow) && !_hadFreshAng && state.enemies) {
+        let _bestD2 = Infinity, _bestAng = null;
+        for (const e of state.enemies) {
+          if (!e || e.dead || e.hp <= 0) continue;
+          const _ex = e.x - _shp.x, _ey = e.y - _shp.y;
+          const _d2 = _ex * _ex + _ey * _ey;
+          const _reach = (e.r || 14) + (_shp.r || 14) + 18;
+          if (_d2 < _reach * _reach && _d2 < _bestD2) { _bestD2 = _d2; _bestAng = Math.atan2(_ey, _ex); }
+        }
+        if (_bestAng != null) { state._dmgFromAngle = _bestAng; state._dmgFromAngleAt = _pn; }
+      }
       if (_absorbed || (_gotHit && _pvp3s)) {
         if (typeof triggerShieldHitFx === 'function') triggerShieldHitFx();
       }
