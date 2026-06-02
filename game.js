@@ -7417,6 +7417,29 @@ function drawKothZone() {
   ctx.shadowBlur = 0;
   ctx.fillStyle = 'rgba(255, 213, 74, 0.10)';
   ctx.fill();
+  // v1.698: "DU SCORAR"-feedback — när EGEN spelare står i zonen, grön puls-ring + "+1 👑"
+  // (förr fanns ingen moment-to-moment-signal att man tjänar poäng — kärn-loopen var osynlig).
+  if (state.player && !state.player.spectating) {
+    const pdx = state.player.x - z.x, pdy = state.player.y - z.y;
+    if (pdx * pdx + pdy * pdy < z.r * z.r) {
+      const gp = 0.5 + 0.5 * Math.sin(t * 6);
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = 'rgba(90,255,120,' + (0.5 + 0.4 * gp) + ')';
+      ctx.lineWidth = 5;
+      ctx.beginPath();
+      ctx.arc(sx, sy, z.r - 4, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(90,255,120,0.10)';
+      ctx.beginPath();
+      ctx.arc(sx, sy, z.r - 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(120,255,150,' + (0.6 + 0.4 * gp) + ')';
+      ctx.font = 'bold 14px sans-serif';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+      ctx.fillText('+1 👑', state.player.x - cx, state.player.y - cy - 36);
+      ctx.shadowBlur = 0;
+    }
+  }
   // Crown emblem i mitten
   ctx.fillStyle = '#ffd54a';
   ctx.font = 'bold 32px sans-serif';

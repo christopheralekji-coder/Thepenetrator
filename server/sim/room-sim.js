@@ -1645,13 +1645,14 @@ function tickKoth(sim, dt, now) {
       scores: { ...sim.kothScores },
       target: sim.kothTargetPoints,
     });
-    // Win-check
+    // Win-check (v1.698: välj HÖGST poäng vid samtidig överträngning, ej insertion-ordning)
+    let kWin = null, kBest = -1;
     for (const pid of Object.keys(sim.kothScores)) {
-      if (sim.kothScores[pid] >= sim.kothTargetPoints) {
-        endKothMatch(sim, pid, 'target_points');
-        return;
+      if (sim.kothScores[pid] >= sim.kothTargetPoints && sim.kothScores[pid] > kBest) {
+        kBest = sim.kothScores[pid]; kWin = pid;
       }
     }
+    if (kWin) { endKothMatch(sim, kWin, 'target_points'); return; }
   }
 }
 
