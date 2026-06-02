@@ -41587,7 +41587,7 @@ function updateBullets(dt) {
           Coop.sendDamageToPartner(nearestPid, b.dmg);
           nearest.hp = Math.max(0, (nearest.hp || 100) - b.dmg);
         } else {
-          damagePlayer(b.dmg, 'fientligt skott', b.x - (b.vx || 0), b.y - (b.vy || 0));
+          damagePlayer(b.dmg, 'fientligt skott', b.x, b.y); // v1.709: kulans träffpunkt (ej ursprung) → sköld/blod på rätt ställe
         }
         if (b.gasOnHit) dropGasCloud(b.x, b.y, 70, 4, 6);
         b.dead = true;
@@ -41611,9 +41611,9 @@ function updateBullets(dt) {
             continue;
           }
           b._localHitMe = true;
-          // v1.708: spara träff-vinkeln (mot kulans ursprung) så runFrame ritar blod/sköld
-          // på rätt ställe i PvP (server-hp-drop landar ~RTT senare).
-          state._dmgFromAngle = Math.atan2(-(b.vy || 0), -(b.vx || 0));
+          // v1.709: vinkel mot kulans TRÄFFPUNKT (FROM player TO bullet) = exakt den
+          // konvention som funkar för fiender. (Var fel: mot kulans ursprung → snett.)
+          state._dmgFromAngle = Math.atan2(b.y - p.y, b.x - p.x);
           state._dmgFromAngleAt = performance.now();
           // Visuell prediction: flash + shake + ev. predicted dmg-number
           if (typeof drawDamageFlash === 'function') {} // drawDamageFlash är canvas-render
@@ -71321,7 +71321,7 @@ function render() {
       // redan "⚠ name" som indikator. Bara HP-bar + namn räcker som signaling.
     }
   }
-  if (typeof drawProximityThreats === 'function') drawProximityThreats();
+  // v1.709: drawProximityThreats (röd närmar-sig-båge på snabba fiender) borttagen — användaren tyckte den var förvirrande.
   drawDeadBody();
   // TDM/CTF: rita team-ringar UNDER spelarna så de syns på avstånd
   if (state.tdmActive && Coop.tdmTeams) drawTdmTeamRings();
