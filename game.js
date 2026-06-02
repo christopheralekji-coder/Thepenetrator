@@ -19167,6 +19167,27 @@ function spawnSparks(x, y, color, count = 6, speed = 220, gravity = 320) {
     });
   }
 }
+// v1.707: blod-spray när SPELAREN tar HP-skada (hit confirmation). angle = riktning MOT
+// angriparen (om känd); blodet flyger i kraftens riktning = bort från angriparen (angle+PI),
+// annars allround. Faller med gravity. (Spelarens hit-impact-partikel togs bort v1.393 —
+// detta är användarens nya önskade juice-version.)
+function spawnBloodSpray(x, y, angle) {
+  if (!state.particles || state.particles.length > 240) return;
+  const base = (typeof angle === 'number') ? angle + Math.PI : null;
+  const colors = ['#b81a1a', '#8a0f0f', '#d63030', '#6e0a0a'];
+  const n = 7 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < n; i++) {
+    const a = base != null ? base + (Math.random() - 0.5) * 1.5 : Math.random() * Math.PI * 2;
+    const sp = 90 + Math.random() * 170;
+    state.particles.push({
+      x: x + (Math.random() - 0.5) * 8, y: y + (Math.random() - 0.5) * 8,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 30,
+      isSpark: true, color: colors[(Math.random() * colors.length) | 0],
+      r: 1.5 + Math.random() * 2.5,
+      life: 0.4 + Math.random() * 0.35, gravity: 360,
+    });
+  }
+}
 // Bullet trail: liten färgad dot bakom kulan.
 // HEADSHOT-popup: visuell extra-flash + tone vid 3× headshot-träff (perk).
 // Större/röd damage-number + "HEADSHOT!" text + power-up ljud.
@@ -23137,6 +23158,8 @@ const Coop = {
         state.player.invuln = 1.5;
         state.player.flashUntil = 0;
         state.deadBody = null;
+        state.player._prevShield = state.player.shield; // v1.707: undvik falsk sköld-hit-FX vid respawn-shield-set
+        if (typeof updateHUD === 'function') updateHUD(); // v1.707: HUD visade 0hp/0shield tills man sköt (world-paket refreshar bara HUD vid hp-ÄNDRING; respawn=max=server-max=ingen ändring)
         // Stäng respawn-overlay omedelbart om den fortfarande visas
         if (typeof _tdmRespawnOverlay !== 'undefined' && _tdmRespawnOverlay) {
           _tdmRespawnOverlay.classList.add('hidden');
@@ -73409,7 +73432,18 @@ function runFrame(dt, now) {
   // när shield-poolen absorberar en träff (drop) ELLER när man tar en träff med 3s-PvP-shield på.
   {
     const _shp = state.player;
-    if (_shp && !_shp.spectating) {
+    if (_shp && _shp.spectating) {
+      _shp._wasSpectating = true;
+    } else if (_shp) {
+      // v1.707: respawn (spectating true→false) → tvinga HUD-refresh. World-paket refreshar
+      // HUD bara vid hp-ÄNDRING, så respawn-till-max (= server-max = ingen ändring) visade
+      // kvar 0hp/0shield tills man sköt. Enhetlig fix för ALLA modes.
+      if (_shp._wasSpectating) {
+        _shp._wasSpectating = false;
+        _shp._prevShield = _shp.shield || 0; // undvik falsk sköld-FX vid respawn-shield-set
+        _shp._prevFlash = _shp.flashUntil || 0;
+        if (typeof updateHUD === 'function') updateHUD();
+      }
       const _pn = performance.now();
       const _shNow = _shp.shield || 0;
       if (_shp._prevShield === undefined) _shp._prevShield = _shNow;
@@ -73421,6 +73455,13 @@ function runFrame(dt, now) {
       if (_absorbed || (_gotHit && _pvp3s)) {
         if (typeof triggerShieldHitFx === 'function') triggerShieldHitFx();
       }
+      // v1.707: HP-drop → blod-spray (hit confirmation). Källa-agnostiskt (solo + coop).
+      const _hpNow = _shp.hp || 0;
+      if (_shp._prevHpFx === undefined) _shp._prevHpFx = _hpNow;
+      if (_hpNow < _shp._prevHpFx - 0.5 && !_absorbed && typeof spawnBloodSpray === 'function') {
+        spawnBloodSpray(_shp.x, _shp.y, (state._dmgFromAngleAt && _pn - state._dmgFromAngleAt < 220) ? state._dmgFromAngle : null);
+      }
+      _shp._prevHpFx = _hpNow;
       _shp._prevShield = _shNow;
       _shp._prevFlash = _flNow;
     }
