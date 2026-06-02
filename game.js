@@ -19171,11 +19171,11 @@ function spawnSparks(x, y, color, count = 6, speed = 220, gravity = 320) {
 // angriparen (om känd); blodet flyger i kraftens riktning = bort från angriparen (angle+PI),
 // annars allround. Faller med gravity. (Spelarens hit-impact-partikel togs bort v1.393 —
 // detta är användarens nya önskade juice-version.)
-function spawnBloodSpray(x, y, angle) {
+function spawnBloodSpray(x, y, angle, count) {
   if (!state.particles || state.particles.length > 240) return;
   const base = (typeof angle === 'number') ? angle + Math.PI : null;
   const colors = ['#b81a1a', '#8a0f0f', '#d63030', '#6e0a0a'];
-  const n = 7 + Math.floor(Math.random() * 4);
+  const n = count || (7 + Math.floor(Math.random() * 4));
   for (let i = 0; i < n; i++) {
     const a = base != null ? base + (Math.random() - 0.5) * 1.5 : Math.random() * Math.PI * 2;
     const sp = 90 + Math.random() * 170;
@@ -41606,10 +41606,15 @@ function updateBullets(dt) {
           // skippa hit-feedback (annars känns shielden buggig: flash+ljud+number
           // utan att HP rör sig).
           if (p.pvpShieldUntil && performance.now() < p.pvpShieldUntil) {
+            if (typeof triggerShieldHitOn === 'function') triggerShieldHitOn(p, Math.atan2(b.y - p.y, b.x - p.x)); // v1.708: 3s-shield-shock vid träffpunkten
             b.dead = true;
             continue;
           }
           b._localHitMe = true;
+          // v1.708: spara träff-vinkeln (mot kulans ursprung) så runFrame ritar blod/sköld
+          // på rätt ställe i PvP (server-hp-drop landar ~RTT senare).
+          state._dmgFromAngle = Math.atan2(-(b.vy || 0), -(b.vx || 0));
+          state._dmgFromAngleAt = performance.now();
           // Visuell prediction: flash + shake + ev. predicted dmg-number
           if (typeof drawDamageFlash === 'function') {} // drawDamageFlash är canvas-render
           state._damageFlashUntil = performance.now() + 180;
@@ -41691,6 +41696,7 @@ function updateBullets(dt) {
           // spelarens EGNA skott — ej companion/turret/drönare/fiende — så
           // center-skärm-confirmen är ärlig. Återanvänder befintlig drawHitMarker.
           if (!b._companion && !b._autoTurret && !b._drone && !b.hostile) {
+            if (typeof spawnBloodSpray === 'function') spawnBloodSpray(b.x, b.y, Math.atan2(-(b.vy || 0), -(b.vx || 0)), 4); // v1.708: blod/kött på träffstället när du träffar fiender (i kulans färdriktning)
             state._hitMarkerUntil = performance.now() + (b.crit ? 190 : 135);
             state._hitMarkerCrit = !!b.crit;
           }
@@ -41737,6 +41743,13 @@ function updateBullets(dt) {
           const prsum = (partner.r || 14) + (b.r || 4) + 8;
           if (pdx * pdx + pdy * pdy < prsum * prsum) {
             b._predictedPvpHit = true;
+            // v1.708: sköld-shock om motståndaren har shield (vinkel = ytan mot kulan),
+            // annars blod på träffstället (sprutar i kulans färdriktning).
+            if ((partner.shield || 0) > 0) {
+              if (typeof triggerShieldHitOn === 'function') triggerShieldHitOn(partner, Math.atan2(b.y - partner.y, b.x - partner.x));
+            } else if (typeof spawnBloodSpray === 'function') {
+              spawnBloodSpray(b.x, b.y, Math.atan2(-(b.vy || 0), -(b.vx || 0)), 5);
+            }
             // 1. Spawn damage-number direkt + tagga för dedup när server-confirm
             //    anländer i pvp_hp_changed-handler (annars spawns DUBBELT).
             if (typeof spawnDamageNumber === 'function') {
@@ -71320,6 +71333,7 @@ function render() {
   // (Grenade-render flyttat till SLUTET av render() — efter walls/träd/tak
   //  så granaten alltid syns överst, inte under objekt.)
   drawCoopPartner();
+  if (typeof drawOpponentShieldHits === 'function') drawOpponentShieldHits(); // v1.708: sköld-shock på motståndare man träffar
   // v1.650: heist bag-indikator ovanför partners (🎒 + count) — så player vet
   // vem som bär värdefulla säckar och behöver eskort.
   if (state.heistActive && state.heistPeerBags && Coop.active && Coop.players) {
@@ -73050,65 +73064,93 @@ function drawStageTransition() {
 // v1.706: Sköld-hit-FX. Blixtrar till en hex-sköld-ring runt spelaren när en träff
 // absorberas av shield — den vanliga shield-poolen (under HP-baren) ELLER 3s-PvP-shielden.
 // Ringen syns BARA vid träff (ej konstant) med en ljusblixt + gnistor vid träff-vinkeln.
-function triggerShieldHitFx() {
+// v1.708: per-entitet sköld-hit-FX (funkar på spelaren OCH motståndare man träffar).
+const _SHIELD_HIT_DUR = 300;
+function triggerShieldHitOn(ent, angle) {
+  if (!ent) return;
   const now = performance.now();
-  // undvik spam: re-trigga inte om en FX redan precis startade
-  if (state._shieldHitUntil && state._shieldHitUntil - now > 320) return;
-  state._shieldHitUntil = now + 380;
-  state._shieldHitAngle = (state._dmgFromAngleAt && now - state._dmgFromAngleAt < 220)
-    ? state._dmgFromAngle : null; // riktning om färsk, annars full ring
+  // re-trigga: om en FX redan pågår, uppdatera bara vinkeln (ny träff) utan att spamma om
+  if (ent._shieldHitUntil && ent._shieldHitUntil - now > 240) {
+    if (typeof angle === 'number') ent._shieldHitAngle = angle;
+    return;
+  }
+  ent._shieldHitUntil = now + _SHIELD_HIT_DUR;
+  if (typeof angle === 'number') ent._shieldHitAngle = angle;
+  else if (typeof ent._shieldHitAngle !== 'number') ent._shieldHitAngle = 0;
+}
+// Wrapper för egen spelare (anropas av per-frame-detektionen i runFrame).
+function triggerShieldHitFx() {
+  const fresh = (state._dmgFromAngleAt && performance.now() - state._dmgFromAngleAt < 600) ? state._dmgFromAngle : null;
+  triggerShieldHitOn(state.player, fresh);
   if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(1000, 0.10, 'triangle', 0.10, 0.004, 0.09, 1500);
 }
-function drawShieldHitFx() {
-  if (!state._shieldHitUntil) return;
-  const rem = state._shieldHitUntil - performance.now();
-  if (rem <= 0) { state._shieldHitUntil = 0; return; }
-  const p = state.player;
-  if (!p || p.spectating) return;
-  const t = rem / 380; // 1 → 0
-  const sx = p.x - state.camera.x, sy = p.y - state.camera.y;
-  const ringR = (p.r || 14) + 10 + (1 - t) * 8; // expanderar lätt utåt
+// Ritar en RUND/OVAL sköld (matchar gubben). Bara ~halva skölden vid träff-vinkeln syns,
+// med en ELEKTRISK shock/crackle vid träffpunkten. Fast radie (ingen expansion), snabb fade.
+function drawShieldHitFor(ent, sx, sy) {
+  if (!ent || !ent._shieldHitUntil) return;
+  const rem = ent._shieldHitUntil - performance.now();
+  if (rem <= 0) { ent._shieldHitUntil = 0; return; }
+  const t = Math.max(0, rem / _SHIELD_HIT_DUR); // 1 → 0
+  const ang = (typeof ent._shieldHitAngle === 'number') ? ent._shieldHitAngle : 0;
+  const rx = (ent.r || 14) + 7;       // rund/oval sköld som hugger om gubben
+  const ry = rx * 1.18;               // lite högre än bred (kroppsform)
+  const half = 1.2;                   // ~halva skölden (±~69°) centrerad på träffen
   ctx.save();
-  // Hex-sköld-ring (cyan) — fyllning + glödande kant
-  ctx.beginPath();
-  for (let i = 0; i <= 6; i++) {
-    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
-    const px = sx + Math.cos(a) * ringR, py = sy + Math.sin(a) * ringR;
-    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.fillStyle = '#5ad8ff';
-  ctx.globalAlpha = t * 0.16;
-  ctx.fill();
-  ctx.globalAlpha = t * 0.9;
-  ctx.strokeStyle = '#7ae6ff';
-  ctx.lineWidth = 2.5;
+  ctx.translate(sx, sy);
+  // 1. Mjuk sköld-glöd-båge (den runda skölden — bara halvan vid träffen lyser upp)
+  ctx.globalAlpha = t * 0.5;
+  ctx.strokeStyle = '#6fe0ff';
+  ctx.lineWidth = 3;
   ctx.shadowColor = '#5ad8ff';
-  ctx.shadowBlur = 12 * t;
+  ctx.shadowBlur = 9 * t;
+  ctx.beginPath();
+  ctx.ellipse(0, 0, rx, ry, 0, ang - half, ang + half);
   ctx.stroke();
   ctx.shadowBlur = 0;
-  // Impact-blixt + gnistor vid träff-vinkeln (om känd)
-  if (typeof state._shieldHitAngle === 'number') {
-    const a = state._shieldHitAngle;
-    const ix = sx + Math.cos(a) * ringR, iy = sy + Math.sin(a) * ringR;
-    ctx.globalAlpha = t;
-    ctx.fillStyle = '#eaffff';
-    ctx.beginPath();
-    ctx.arc(ix, iy, 4 + (1 - t) * 5, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#aef0ff';
-    ctx.lineWidth = 2;
-    ctx.globalAlpha = t * 0.85;
-    for (let k = -1; k <= 1; k++) {
-      const sa = a + k * 0.38;
-      const sl = 8 + (1 - t) * 12;
-      ctx.beginPath();
-      ctx.moveTo(ix, iy);
-      ctx.lineTo(ix + Math.cos(sa) * sl, iy + Math.sin(sa) * sl);
-      ctx.stroke();
-    }
+  // 2. ELEKTRISK shock — jagged crackle längs bågen (jitter per frame = elektrisk flicker)
+  ctx.globalAlpha = t;
+  ctx.strokeStyle = '#dffaff';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  const segs = 9;
+  for (let i = 0; i <= segs; i++) {
+    const a = ang - half + (i / segs) * (half * 2);
+    const j = (Math.random() - 0.5) * 6; // electric jitter (utan *t → crackle hela FX:en)
+    const ex = Math.cos(a) * (rx + j), ey = Math.sin(a) * (ry + j);
+    if (i === 0) ctx.moveTo(ex, ey); else ctx.lineTo(ex, ey);
+  }
+  ctx.stroke();
+  // 3. ljus impact-nod + korta blixtar utåt vid själva träffpunkten
+  const ix = Math.cos(ang) * rx, iy = Math.sin(ang) * ry;
+  ctx.fillStyle = '#f2ffff';
+  ctx.beginPath(); ctx.arc(ix, iy, 2.5 + t * 2.5, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#bff2ff';
+  ctx.lineWidth = 1.5;
+  for (let k = 0; k < 3; k++) {
+    const ba = ang + (Math.random() - 0.5) * 1.7;
+    const bl = 5 + Math.random() * 9;
+    const mx = ix + Math.cos(ba) * bl * 0.5 + (Math.random() - 0.5) * 4;
+    const my = iy + Math.sin(ba) * bl * 0.5 + (Math.random() - 0.5) * 4;
+    ctx.beginPath(); ctx.moveTo(ix, iy); ctx.lineTo(mx, my); ctx.lineTo(ix + Math.cos(ba) * bl, iy + Math.sin(ba) * bl);
+    ctx.stroke();
   }
   ctx.restore();
+}
+// Wrapper: ritar egen spelares sköld-FX (anropas efter drawPlayer).
+function drawShieldHitFx() {
+  const p = state.player;
+  if (!p || p.spectating || !p._shieldHitUntil) return;
+  drawShieldHitFor(p, p.x - state.camera.x, p.y - state.camera.y);
+}
+// Ritar motståndares/medspelares sköld-FX (när man träffar dem + deras shield tar emot).
+function drawOpponentShieldHits() {
+  if (typeof Coop === 'undefined' || !Coop.active || !Coop.players) return;
+  for (const [, p] of Coop.players) {
+    if (!p || !p._shieldHitUntil || p.x === undefined) continue;
+    const x = p.x - state.camera.x, y = p.y - state.camera.y;
+    if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) continue;
+    drawShieldHitFor(p, x, y);
+  }
 }
 function drawDamageFlash() {
   if (!state.dmgFlashUntil) return;
@@ -73455,11 +73497,16 @@ function runFrame(dt, now) {
       if (_absorbed || (_gotHit && _pvp3s)) {
         if (typeof triggerShieldHitFx === 'function') triggerShieldHitFx();
       }
-      // v1.707: HP-drop → blod-spray (hit confirmation). Källa-agnostiskt (solo + coop).
+      // v1.707/708: HP-drop → blod-spray PÅ TRÄFFSTÄLLET (kanten mot angriparen), sprutar
+      // bort i kulans färdriktning. Källa-agnostiskt (solo + coop). 600ms freshness täcker RTT.
       const _hpNow = _shp.hp || 0;
       if (_shp._prevHpFx === undefined) _shp._prevHpFx = _hpNow;
       if (_hpNow < _shp._prevHpFx - 0.5 && !_absorbed && typeof spawnBloodSpray === 'function') {
-        spawnBloodSpray(_shp.x, _shp.y, (state._dmgFromAngleAt && _pn - state._dmgFromAngleAt < 220) ? state._dmgFromAngle : null);
+        const _bAng = (state._dmgFromAngleAt && _pn - state._dmgFromAngleAt < 600) ? state._dmgFromAngle : null;
+        const _rr = (_shp.r || 14) * 0.8;
+        const _bx = _bAng != null ? _shp.x + Math.cos(_bAng) * _rr : _shp.x;
+        const _by = _bAng != null ? _shp.y + Math.sin(_bAng) * _rr : _shp.y;
+        spawnBloodSpray(_bx, _by, _bAng);
       }
       _shp._prevHpFx = _hpNow;
       _shp._prevShield = _shNow;
