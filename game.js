@@ -12545,6 +12545,63 @@ function drawBrLoot() {
 // SEAMLESS SKOGSGOLV — solid bas + RADIAL GRADIENT blobs med SOFT FALLOFF.
 // Kanten på varje blob fadar till alpha 0 → ingen synlig "cirkel-kontur".
 // Plus pixel-noise för grain (massa små prickar) så ingen yta är "helt slätt".
+// v1.706: PERF — BR-skogsgolvets blobs+grain (~72 gradienter + ~500 fillRects/frame, samma
+// anti-mönster som survivors-golvet hade) bakas EN gång till en sömlös world-ankrad tile.
+// TILE=1760 = 8×ANCHOR(220) = 44×MICRO(40) → wrappar sömlöst. Hash använder wrappade
+// cell-index så mönstret är periodiskt mod TILE; edge-features ritas på båda sidor.
+let _brFloorTileCanvas = null;
+const _BR_FLOOR_TILE = 1760;
+function _getBrFloorTile() {
+  if (_brFloorTileCanvas) return _brFloorTileCanvas;
+  const T = _BR_FLOOR_TILE;
+  const c = document.createElement('canvas'); c.width = T; c.height = T;
+  const g = c.getContext('2d');
+  g.fillStyle = '#1e2a14'; g.fillRect(0, 0, T, T);
+  const palette = [
+    { r: 40, g: 70, b: 30 }, { r: 70, g: 105, b: 40 }, { r: 55, g: 85, b: 30 }, { r: 100, g: 70, b: 30 },
+    { r: 60, g: 90, b: 40 }, { r: 45, g: 75, b: 25 }, { r: 80, g: 110, b: 50 }, { r: 35, g: 60, b: 25 },
+  ];
+  const ANCHOR = 220, NA = T / ANCHOR;
+  for (let ay = -1; ay <= NA; ay++) {
+    for (let ax = -1; ax <= NA; ax++) {
+      const wax = ((ax % NA) + NA) % NA, way = ((ay % NA) + NA) % NA;
+      const seed = ((wax * 73) ^ (way * 137)) | 0;
+      const blobsHere = 1 + ((seed >> 2) & 1);
+      for (let i = 0; i < blobsHere; i++) {
+        const subSeed = (seed * (i + 7)) | 0;
+        const ox = ((subSeed * 23) & 0xff) / 256, oy = ((subSeed * 31) & 0xff) / 256;
+        const bx = ax * ANCHOR + ox * ANCHOR, by = ay * ANCHOR + oy * ANCHOR;
+        const r = 130 + ((subSeed * 17) & 0x7f);
+        const col = palette[(subSeed >>> 0) & 0x7];
+        const grad = g.createRadialGradient(bx, by, 0, bx, by, r);
+        grad.addColorStop(0, 'rgba(' + col.r + ',' + col.g + ',' + col.b + ',0.35)');
+        grad.addColorStop(0.6, 'rgba(' + col.r + ',' + col.g + ',' + col.b + ',0.15)');
+        grad.addColorStop(1, 'rgba(' + col.r + ',' + col.g + ',' + col.b + ',0)');
+        g.fillStyle = grad;
+        g.beginPath(); g.arc(bx, by, r, 0, Math.PI * 2); g.fill();
+      }
+    }
+  }
+  const MICRO = 40, NM = T / MICRO;
+  for (let my = 0; my <= NM; my++) {
+    for (let mx = 0; mx <= NM; mx++) {
+      const wmx = ((mx % NM) + NM) % NM, wmy = ((my % NM) + NM) % NM;
+      const ms = ((wmx * 1093) ^ (wmy * 1471)) >>> 0;
+      for (let i = 0; i < 3; i++) {
+        const s = (ms * (i + 11)) >>> 0;
+        const px = mx * MICRO + (s & 0x3f) * (MICRO / 64);
+        const py = my * MICRO + ((s >> 6) & 0x3f) * (MICRO / 64);
+        const intensity = (s >> 12) & 7;
+        if (intensity === 0) { g.fillStyle = 'rgba(40, 60, 25, 0.5)'; g.fillRect(px, py, 1, 1); }
+        else if (intensity === 1) { g.fillStyle = 'rgba(80, 110, 50, 0.35)'; g.fillRect(px, py, 1, 1); }
+        else if (intensity === 2) { g.fillStyle = 'rgba(60, 90, 35, 0.4)'; g.fillRect(px, py, 1, 1); }
+        else if (intensity === 3) { g.fillStyle = 'rgba(100, 75, 30, 0.3)'; g.fillRect(px, py, 1, 1); }
+      }
+    }
+  }
+  _brFloorTileCanvas = c;
+  return c;
+}
 function drawBrForestFloor() {
   if (!state.battleroyaleActive) return;
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
@@ -12559,79 +12616,17 @@ function drawBrForestFloor() {
   // 1. Solid bas över viewporten + zoom-padding (täcker zoom-bordern smooth)
   ctx.fillStyle = '#1e2a14';
   ctx.fillRect(-padX, -padY, viewW + 2 * padX, viewH + 2 * padY);
-  // 2. Stora soft-falloff blobs (radial gradient → fade to 0 vid kanten)
-  const ANCHOR = 220;
-  const startAx = Math.floor((state.camera.x - padX) / ANCHOR) - 1;
-  const startAy = Math.floor((state.camera.y - padY) / ANCHOR) - 1;
-  const endAx = Math.floor((state.camera.x + viewW + padX) / ANCHOR) + 1;
-  const endAy = Math.floor((state.camera.y + viewH + padY) / ANCHOR) + 1;
-  const palette = [
-    { r: 40,  g: 70,  b: 30 },  // mörkare grön
-    { r: 70,  g: 105, b: 40 },  // ljusare grön
-    { r: 55,  g: 85,  b: 30 },  // mid grön
-    { r: 100, g: 70,  b: 30 },  // brunlöv
-    { r: 60,  g: 90,  b: 40 },  // mossy
-    { r: 45,  g: 75,  b: 25 },  // mörk mossy
-    { r: 80,  g: 110, b: 50 },  // ljus grön
-    { r: 35,  g: 60,  b: 25 },  // djup-grön
-  ];
-  for (let ay = startAy; ay <= endAy; ay++) {
-    for (let ax = startAx; ax <= endAx; ax++) {
-      const seed = ((ax * 73) ^ (ay * 137)) | 0;
-      const blobsHere = 1 + ((seed >> 2) & 1);
-      for (let i = 0; i < blobsHere; i++) {
-        const subSeed = (seed * (i + 7)) | 0;
-        const ox = ((subSeed * 23) & 0xff) / 256;
-        const oy = ((subSeed * 31) & 0xff) / 256;
-        const bx = ax * ANCHOR + ox * ANCHOR - cx;
-        const by = ay * ANCHOR + oy * ANCHOR - cy;
-        const r = 130 + ((subSeed * 17) & 0x7f);
-        const colorIdx = (subSeed >>> 0) & 0x7;
-        const col = palette[colorIdx];
-        // Radial gradient: solid i centrum → alpha 0 vid kanten
-        const grad = ctx.createRadialGradient(bx, by, 0, bx, by, r);
-        grad.addColorStop(0, 'rgba(' + col.r + ',' + col.g + ',' + col.b + ',0.35)');
-        grad.addColorStop(0.6, 'rgba(' + col.r + ',' + col.g + ',' + col.b + ',0.15)');
-        grad.addColorStop(1, 'rgba(' + col.r + ',' + col.g + ',' + col.b + ',0)');
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(bx, by, r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-  }
-  // 3. PIXEL-GRAIN ovanpå — massa små noise-prickar så ingen yta är helt slätt
-  //    Deterministisk per world-tile (40×40 micro-tiles) → ingen flimmer
-  //    Iteration utökad med padX/padY så grain täcker zoom-borden också
-  const MICRO = 40;
-  const mStartX = Math.floor((state.camera.x - padX) / MICRO);
-  const mStartY = Math.floor((state.camera.y - padY) / MICRO);
-  const mEndX = Math.floor((state.camera.x + viewW + padX) / MICRO);
-  const mEndY = Math.floor((state.camera.y + viewH + padY) / MICRO);
-  for (let my = mStartY; my <= mEndY; my++) {
-    for (let mx = mStartX; mx <= mEndX; mx++) {
-      const ms = ((mx * 1093) ^ (my * 1471)) >>> 0;
-      // 3-4 prickar per micro-tile
-      for (let i = 0; i < 3; i++) {
-        const s = (ms * (i + 11)) >>> 0;
-        const px = mx * MICRO + (s & 0x3f) * (MICRO / 64) - cx;
-        const py = my * MICRO + ((s >> 6) & 0x3f) * (MICRO / 64) - cy;
-        const intensity = (s >> 12) & 7;
-        if (intensity === 0) {
-          ctx.fillStyle = 'rgba(40, 60, 25, 0.5)';
-          ctx.fillRect(px, py, 1, 1);
-        } else if (intensity === 1) {
-          ctx.fillStyle = 'rgba(80, 110, 50, 0.35)';
-          ctx.fillRect(px, py, 1, 1);
-        } else if (intensity === 2) {
-          ctx.fillStyle = 'rgba(60, 90, 35, 0.4)';
-          ctx.fillRect(px, py, 1, 1);
-        } else if (intensity === 3) {
-          ctx.fillStyle = 'rgba(100, 75, 30, 0.3)';
-          ctx.fillRect(px, py, 1, 1);
-        }
-        // resterande intensity-värden: ingen prick = mer naturlig fördelning
-      }
+  // 2+3. v1.706: blitta bakad tile (blobs + grain) i st f ~72 gradienter + ~500 fillRects
+  // per frame. Tile är world-ankrad (justeras mot cx/cy) så mönstret står stilla i världen.
+  const _brTile = _getBrFloorTile();
+  const _bT = _BR_FLOOR_TILE;
+  let _bsx = -(((cx % _bT) + _bT) % _bT);
+  if (_bsx > -padX) _bsx -= _bT;
+  let _bsy = -(((cy % _bT) + _bT) % _bT);
+  if (_bsy > -padY) _bsy -= _bT;
+  for (let ox = _bsx; ox < viewW + padX; ox += _bT) {
+    for (let oy = _bsy; oy < viewH + padY; oy += _bT) {
+      ctx.drawImage(_brTile, ox, oy);
     }
   }
 }
@@ -71296,6 +71291,7 @@ function render() {
   if (state.tdmActive && Coop.tdmTeams) drawTdmTeamRings();
   if (state.ctfActive && Coop.ctfTeams) drawCtfTeamRings();
   if (!state.player || !state.player.spectating) drawPlayer();
+  if (typeof drawShieldHitFx === 'function') drawShieldHitFx(); // v1.706: sköld-hit-blixt ovanpå spelaren
   // Aim crosshair (efter player så reticle ritas ovanpå spelaren)
   drawAimCrosshair();
   // (Grenade-render flyttat till SLUTET av render() — efter walls/träd/tak
@@ -73028,6 +73024,69 @@ function drawStageTransition() {
 }
 
 // Damage screen-flash — kort röd pulse hela skärmen vid hit.
+// v1.706: Sköld-hit-FX. Blixtrar till en hex-sköld-ring runt spelaren när en träff
+// absorberas av shield — den vanliga shield-poolen (under HP-baren) ELLER 3s-PvP-shielden.
+// Ringen syns BARA vid träff (ej konstant) med en ljusblixt + gnistor vid träff-vinkeln.
+function triggerShieldHitFx() {
+  const now = performance.now();
+  // undvik spam: re-trigga inte om en FX redan precis startade
+  if (state._shieldHitUntil && state._shieldHitUntil - now > 320) return;
+  state._shieldHitUntil = now + 380;
+  state._shieldHitAngle = (state._dmgFromAngleAt && now - state._dmgFromAngleAt < 220)
+    ? state._dmgFromAngle : null; // riktning om färsk, annars full ring
+  if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(1000, 0.10, 'triangle', 0.10, 0.004, 0.09, 1500);
+}
+function drawShieldHitFx() {
+  if (!state._shieldHitUntil) return;
+  const rem = state._shieldHitUntil - performance.now();
+  if (rem <= 0) { state._shieldHitUntil = 0; return; }
+  const p = state.player;
+  if (!p || p.spectating) return;
+  const t = rem / 380; // 1 → 0
+  const sx = p.x - state.camera.x, sy = p.y - state.camera.y;
+  const ringR = (p.r || 14) + 10 + (1 - t) * 8; // expanderar lätt utåt
+  ctx.save();
+  // Hex-sköld-ring (cyan) — fyllning + glödande kant
+  ctx.beginPath();
+  for (let i = 0; i <= 6; i++) {
+    const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
+    const px = sx + Math.cos(a) * ringR, py = sy + Math.sin(a) * ringR;
+    if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fillStyle = '#5ad8ff';
+  ctx.globalAlpha = t * 0.16;
+  ctx.fill();
+  ctx.globalAlpha = t * 0.9;
+  ctx.strokeStyle = '#7ae6ff';
+  ctx.lineWidth = 2.5;
+  ctx.shadowColor = '#5ad8ff';
+  ctx.shadowBlur = 12 * t;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  // Impact-blixt + gnistor vid träff-vinkeln (om känd)
+  if (typeof state._shieldHitAngle === 'number') {
+    const a = state._shieldHitAngle;
+    const ix = sx + Math.cos(a) * ringR, iy = sy + Math.sin(a) * ringR;
+    ctx.globalAlpha = t;
+    ctx.fillStyle = '#eaffff';
+    ctx.beginPath();
+    ctx.arc(ix, iy, 4 + (1 - t) * 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#aef0ff';
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = t * 0.85;
+    for (let k = -1; k <= 1; k++) {
+      const sa = a + k * 0.38;
+      const sl = 8 + (1 - t) * 12;
+      ctx.beginPath();
+      ctx.moveTo(ix, iy);
+      ctx.lineTo(ix + Math.cos(sa) * sl, iy + Math.sin(sa) * sl);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 function drawDamageFlash() {
   if (!state.dmgFlashUntil) return;
   const remaining = state.dmgFlashUntil - performance.now();
@@ -73346,6 +73405,26 @@ function loop(now) {
 }
 function runFrame(dt, now) {
   state._lastDt = dt; // v1.705: exponera dt till draw-funktioner (walk-cykler) för 120fps-korrekt animation
+  // v1.706: sköld-hit-FX-detektion (källa-agnostiskt → funkar solo + coop). Trigga blixt-ring
+  // när shield-poolen absorberar en träff (drop) ELLER när man tar en träff med 3s-PvP-shield på.
+  {
+    const _shp = state.player;
+    if (_shp && !_shp.spectating) {
+      const _pn = performance.now();
+      const _shNow = _shp.shield || 0;
+      if (_shp._prevShield === undefined) _shp._prevShield = _shNow;
+      const _flNow = _shp.flashUntil || 0;
+      if (_shp._prevFlash === undefined) _shp._prevFlash = _flNow;
+      const _absorbed = _shNow < _shp._prevShield - 0.5;
+      const _gotHit = _flNow > _shp._prevFlash;
+      const _pvp3s = _shp.pvpShieldUntil && _pn < _shp.pvpShieldUntil;
+      if (_absorbed || (_gotHit && _pvp3s)) {
+        if (typeof triggerShieldHitFx === 'function') triggerShieldHitFx();
+      }
+      _shp._prevShield = _shNow;
+      _shp._prevFlash = _flNow;
+    }
+  }
   // Grenade-reset: när mode TRANSITIONERAR till 'playing' (ny match start eller
   // story-load), nollställ count till 5 + clear in-flight grenades. Respawn
   // ändrar inte mode, så det räknas inte som ny match.
