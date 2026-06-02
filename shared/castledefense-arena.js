@@ -169,9 +169,9 @@ const CASTLEDEFENSE_ARENA = {
     wall:        { cost: 60,   hp: 250, w: 30, h: 30, hpScalePerLvl: 1.2 },        // 75→60
     auto_turret: { cost: 550,  hp: 200, w: 30, h: 30, range: 165, dps: 20, fireRate: 2.0 }, // range 220→165 (-25%)
     man_turret:  { cost: 950,  hp: 350, w: 30, h: 30, range: 225, dpsMul: 2.5 },   // range 300→225 (-25%)
-    spike_trap:  { cost: 160,  hp: 250, w: 30, h: 30, dmgOnPass: 30, killCapacity: 5 }, // 200→160
+    spike_trap:  { cost: 160,  hp: 250, w: 30, h: 30, dmgOnPass: 60, killCapacity: 20 }, // v1.697: dmgOnPass 30→60, killCap 5→20 (var värdelös wave 10+ mot coop-skalad HP)
     slow_trap:   { cost: 250,  hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2, radius: 140 }, // 300→250
-    repair_stn:  { cost: 400,  hp: 200, w: 30, h: 30, healPerSec: 1, radius: 140, healScalePerLvl: 2.0 }, // 500→400
+    repair_stn:  { cost: 400,  hp: 200, w: 30, h: 30, healPerSec: 4, radius: 140, healScalePerLvl: 2.0 }, // v1.697: healPerSec 1→4 (1hp/s = 250s/vägg, värdelöst)
     health_stn:  { cost: 500,  hp: 150, w: 30, h: 30, playerHealPerSec: 3, radius: 140 }, // 600→500
   },
   // v1.410/v1.422: Level-system. upgradeCost = baseCost × upgradeCostBase × (lvl+1)^upgradeCostExp

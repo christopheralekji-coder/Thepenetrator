@@ -8,7 +8,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0a0508">
 <title>WarParty</title>
-<link rel="stylesheet" href="style.css?v=696">
+<link rel="stylesheet" href="style.css?v=697">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" type="image/svg+xml" href="icon-192.svg">
 <link rel="apple-touch-icon" href="icon-192.svg">
@@ -67,7 +67,7 @@
 </div>
 
 <!-- TRUCK turret-väljare (visas bara i konvoj-mode) -->
-<div id="truck-turret-bar" class="hidden" style="position:fixed;top:calc(60px + env(safe-area-inset-top, 0px));left:50%;transform:translateX(-50%);background:rgba(20,20,30,0.9);border:2px solid #aa3aff;border-radius:10px;padding:6px 8px;display:flex;gap:5px;z-index:6;box-shadow:0 2px 12px rgba(0,0,0,0.5);max-width:calc(100vw - 240px);flex-wrap:wrap;justify-content:center;">
+<div id="truck-turret-bar" class="hidden" style="position:fixed;top:calc(60px + env(safe-area-inset-top, 0px));left:50%;transform:translateX(-50%);background:rgba(20,20,30,0.9);border:2px solid #aa3aff;border-radius:10px;padding:6px 8px;display:flex;gap:5px;z-index:6;box-shadow:0 2px 12px rgba(0,0,0,0.5);max-width:calc(100vw - 120px);flex-wrap:wrap;justify-content:center;">
   <!-- Knappar fylls i av JS -->
 </div>
 
@@ -177,7 +177,7 @@
     <span id="tdm-blue" style="color:#5aaaff;">BLUE 0</span>
     <span style="color:#aaa;font-size:13px;font-weight:600;align-self:center;">→ <span id="tdm-target">10</span></span>
   </div>
-  <div id="tdm-killfeed" style="position:fixed;top:46px;right:8px;display:flex;flex-direction:column;gap:3px;font-size:13px;z-index:50;pointer-events:none;max-width:300px;"></div>
+  <div id="tdm-killfeed" style="position:fixed;top:46px;right:max(8px, env(safe-area-inset-right, 8px));display:flex;flex-direction:column;gap:3px;font-size:13px;z-index:50;pointer-events:none;max-width:300px;"></div>
 </div>
 
 <div id="tdm-respawn-overlay" class="hidden">
@@ -207,8 +207,8 @@
     <span id="ctf-blue" style="color:#5aaaff;">BLUE 0</span>
     <span id="ctf-blue-flag" style="font-size:14px;line-height:1;" title="Blue flag status">🚩</span>
   </div>
-  <div id="ctf-status" style="position:fixed;top:42px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);border-radius:6px;padding:3px 10px;font-size:11px;color:#ffd54a;font-weight:700;z-index:50;pointer-events:none;letter-spacing:0.5px;display:none;"></div>
-  <div id="ctf-killfeed" style="position:fixed;top:46px;right:8px;display:flex;flex-direction:column;gap:3px;font-size:13px;z-index:50;pointer-events:none;max-width:300px;"></div>
+  <div id="ctf-status" style="position:fixed;top:max(42px, calc(env(safe-area-inset-top, 0px) + 40px));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);border-radius:6px;padding:3px 10px;font-size:11px;color:#ffd54a;font-weight:700;z-index:50;pointer-events:none;letter-spacing:0.5px;display:none;"></div>
+  <div id="ctf-killfeed" style="position:fixed;top:46px;right:max(8px, env(safe-area-inset-right, 8px));display:flex;flex-direction:column;gap:3px;font-size:13px;z-index:50;pointer-events:none;max-width:300px;"></div>
 </div>
 
 <div id="ctf-respawn-overlay" class="hidden">
@@ -228,7 +228,7 @@
     <div id="siege-core-red" style="background:rgba(0,0,0,0.6);padding:3px 8px;border-radius:5px;color:#ff8a8a;">🛡 RED CORE: <span id="siege-core-red-hp">100%</span></div>
     <div id="siege-core-blue" style="background:rgba(0,0,0,0.6);padding:3px 8px;border-radius:5px;color:#8aaaff;">🛡 BLUE CORE: <span id="siege-core-blue-hp">100%</span></div>
   </div>
-  <div id="siege-killfeed" style="position:fixed;top:80px;right:8px;display:flex;flex-direction:column;gap:3px;font-size:12px;z-index:50;pointer-events:none;max-width:280px;"></div>
+  <div id="siege-killfeed" style="position:fixed;top:80px;right:max(8px, env(safe-area-inset-right, 8px));display:flex;flex-direction:column;gap:3px;font-size:12px;z-index:50;pointer-events:none;max-width:280px;"></div>
 </div>
 
 <div id="siege-respawn-overlay" class="hidden">
@@ -418,7 +418,7 @@
     <a href="#" id="social-twitter" class="wp-social-btn" target="_blank" rel="noopener" aria-label="X / Twitter">𝕏</a>
     <a href="#" id="social-youtube" class="wp-social-btn" target="_blank" rel="noopener" aria-label="YouTube">▶</a>
   </div>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.696 ⚡</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.697 ⚡</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">
@@ -627,7 +627,7 @@
   <h2>🔓 CHEAT CODES</h2>
   <p class="menu-sub" style="margin-bottom:12px;">Lås upp en ny cheat varje gång du klarar Story-mode</p>
   <div style="display:flex;gap:6px;margin-bottom:18px;max-width:380px;width:90%;">
-    <input id="cheats-screen-input" placeholder="Skriv kod..." class="lobby-input" style="flex:1;padding:8px 12px;background:#1a1a22;border:2px solid #ffd54a;border-radius:6px;color:#fff;font-weight:700;font-size:14px;letter-spacing:1px;" autocapitalize="off" autocorrect="off" autocomplete="off">
+    <input id="cheats-screen-input" placeholder="Skriv kod..." class="lobby-input" style="flex:1;padding:8px 12px;background:#1a1a22;border:2px solid #ffd54a;border-radius:6px;color:#fff;font-weight:700;font-size:16px;letter-spacing:1px;" autocapitalize="off" autocorrect="off" autocomplete="off">
     <button id="btn-cheats-screen-redeem" class="medium-btn" style="min-width:0;padding:8px 14px;">AKTIVERA</button>
   </div>
   <div id="cheats-progress"></div>
@@ -694,7 +694,7 @@
     });
   }
 </script>
-<script src="game.js?v=696"></script>
+<script src="game.js?v=697"></script>
 <script>
   // Registrera service worker. Periodiskt update-check (var 60s) + auto-reload
   // när ny version aktiverats. Användare kan annars sitta på gammal cached

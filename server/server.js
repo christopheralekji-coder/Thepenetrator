@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v216-hair-fit-v1.696';
+const SERVER_VERSION = 'v217-fixpass-v1.697';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -324,6 +324,19 @@ function handleMessage(ws, msg) {
     // co-op/heist (utan PvP-block) behåller restoren.
     if (msg.reconnectToken) {
       ws._reconnectToken = String(msg.reconnectToken).slice(0, 40);
+      // v1.697: rensa utgångna stash-entries (>60s) så de inte ackumuleras obegränsat
+      // (DoS-yta: join-flood med unika tokens utan reconnect). Cappa även till 16 nyaste.
+      if (room._reconnectStash) {
+        const _cut = Date.now() - 60000;
+        for (const k of Object.keys(room._reconnectStash)) {
+          if ((room._reconnectStash[k].ts || 0) < _cut) delete room._reconnectStash[k];
+        }
+        const _live = Object.keys(room._reconnectStash);
+        if (_live.length > 16) {
+          _live.sort((a, b) => (room._reconnectStash[b].ts || 0) - (room._reconnectStash[a].ts || 0));
+          for (const k of _live.slice(16)) delete room._reconnectStash[k];
+        }
+      }
       const stash = room._reconnectStash && room._reconnectStash[ws._reconnectToken];
       if (stash && Date.now() - stash.ts < 60000) {
         ws._heistRole = stash.heistRole;
@@ -696,6 +709,61 @@ function handleMessage(ws, msg) {
         }
       }
       send(ws, { type: 'sim_events', events: lateBrEvents });
+      return;
+    }
+
+    // HEIST late-joiner (v1.697): förr fanns inget block → joinaren blev ett spöke
+    // utan roll/fas/UI mid-match. Skicka full heist_started + aktuell fas/progress.
+    if (room.sim && room.sim.heistActive && !room.sim.heistEnded) {
+      const sim = room.sim;
+      const { HEIST_ARENA: arena } = require('../shared/heist-arena');
+      const hsp = (arena.playerSpawns && arena.playerSpawns[0]) || { x: arena.worldW / 2, y: arena.worldH / 2 };
+      ws.playerState = {
+        x: hsp.x, y: hsp.y,
+        hp: arena.startHp || 100, maxHp: arena.maxHp || 100,
+        shield: arena.startShield || 0, maxShield: arena.maxShield || 100,
+        weaponId: arena.startWeapon || 'pistol',
+        invulnUntil: Date.now() + 2000, speedMul: 1.0,
+        isJug: false, scaleMul: 1.0,
+      };
+      ws.tdmTeam = null;
+      ws.tdmRespawnAt = 0;
+      ws._heistRole = ws._heistRole || 'hacker';
+      ws._heistRoleLocked = false;
+      sim.heistRoles = sim.heistRoles || {};
+      sim.heistRoles[ws.id] = ws._heistRole;
+      // v1.697b: _heistApplyRole är INTE i join-handlerns scope (fri variabel → typeof gav
+      // 'undefined' i sloppy mode → rollstats applicerades aldrig). Inline-require som pick_role.
+      const { _heistApplyRole: _applyHeistRoleFn } = require('./sim/room-sim');
+      if (typeof _applyHeistRoleFn === 'function') _applyHeistRoleFn(ws, ws._heistRole, sim, arena);
+      send(ws, { type: 'sim_events', events: [{
+        type: 'heist_started',
+        arena: {
+          worldW: arena.worldW, worldH: arena.worldH, name: arena.name,
+          streetColor: arena.streetColor, sidewalkColor: arena.sidewalkColor,
+          bankFloorColor: arena.bankFloorColor, vaultFloorColor: arena.vaultFloorColor,
+          carpetColor: arena.carpetColor, serverFloorColor: arena.serverFloorColor,
+          matchDurationSec: arena.matchDurationSec, stealthPhaseMaxSec: arena.stealthPhaseMaxSec,
+          drillDurationSec: arena.drillDurationSec, extractDurationSec: arena.extractDurationSec,
+          startWeapon: arena.startWeapon, startHp: arena.startHp, maxHp: arena.maxHp,
+          startShield: arena.startShield, maxShield: arena.maxShield,
+          extractZones: arena.extractZones, drillSpot: arena.drillSpot,
+        },
+        walls: arena.walls, doors: arena.doors, decorations: arena.decorations,
+        cameras: arena.cameras, hackTerminals: arena.hackTerminals,
+        civilianSpawns: arena.civilianSpawns, guardSpawns: arena.guardSpawns,
+        lootSpots: arena.lootSpots, playerSpawns: arena.playerSpawns,
+        phase: sim.heistPhase,
+        roles: sim.heistRoles,
+        drillProgress: sim.heistDrillProgress || 0,
+        vaultUnlocked: !!sim.heistVaultUnlocked,
+        innerDrillProgress: sim.heistInnerDrillProgress || 0,
+        innerVaultUnlocked: !!sim.heistInnerVaultUnlocked,
+        alarmTriggered: !!sim.heistAlarmTriggered,
+        lootBagged: Object.keys(sim.heistLootBagged || {}),
+        isLateJoin: true,
+      }] });
+      return;
     }
     return;
   }

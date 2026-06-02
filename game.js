@@ -876,6 +876,21 @@ function drawEmoteBubble(em, x, y, r) {
   ctx.restore();
 }
 
+// v1.697: colorblind form-markör — ▲ = allierad, ■ = fiende. Friend/foe oberoende av
+// färg (deuteranope-vänligt utöver den befintliga streckade blå-ringen).
+function _drawCbTeamGlyph(x, y, color, ally) {
+  ctx.save();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  if (ally) { ctx.moveTo(x, y - 32); ctx.lineTo(x - 7, y - 19); ctx.lineTo(x + 7, y - 19); ctx.closePath(); }
+  else { ctx.rect(x - 6, y - 30, 12, 12); }
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
 // TDM: rita pulsande team-ring under varje spelare för friend/foe-identifiering
 function drawTdmTeamRings() {
   if (!Coop.tdmTeams) return;
@@ -904,6 +919,7 @@ function drawTdmTeamRings() {
     ctx.arc(x, y + 14, r, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
+    if (save.colorblind) _drawCbTeamGlyph(x, y, color, team === Coop.tdmTeams[Coop.myId]);
     ctx.restore();
   };
   // Min egen ring
@@ -938,6 +954,7 @@ function drawCtfTeamRings() {
     ctx.arc(x, y + 14, 22, 0, Math.PI * 2);
     ctx.stroke();
     ctx.setLineDash([]);
+    if (save.colorblind) _drawCbTeamGlyph(x, y, color, team === Coop.ctfTeams[Coop.myId]);
     ctx.restore();
   };
   if (state.player && Coop.ctfTeams[Coop.myId]) {
@@ -7920,6 +7937,75 @@ function applySurvivorsObstacleCollision() {
   }
 }
 
+// v1.697: PERF — survivors-golvets organiska noise (3 nästlade hash-loopar, ~150-250
+// ctx-ops/frame) bakas EN gång till en sömlös offscreen-tile och blittas sedan med
+// kamera-wrap (1-4 drawImage/frame i st f hundratals path-fills). TILE=1980 = LCM(180,60,220)
+// så alla tre lagren wrappar sömlöst. Mönstret repeteras var ~1980px (subtilt, acceptabelt).
+let _survFloorTileCanvas = null;
+const _SURV_FLOOR_TILE = 1980;
+function _getSurvFloorTile() {
+  if (_survFloorTileCanvas) return _survFloorTileCanvas;
+  const TILE = _SURV_FLOOR_TILE;
+  const c = document.createElement('canvas');
+  c.width = TILE; c.height = TILE;
+  const g = c.getContext('2d');
+  const wrap = (v) => ((v % TILE) + TILE) % TILE;
+  g.fillStyle = '#1a1410';
+  g.fillRect(0, 0, TILE, TILE);
+  // Lager 1: stora dimma-fläckar
+  g.fillStyle = 'rgba(50, 38, 30, 0.22)';
+  const blobSize = 180;
+  for (let bx = -blobSize; bx <= TILE; bx += blobSize) {
+    for (let by = -blobSize; by <= TILE; by += blobSize) {
+      const wx = wrap(bx), wy = wrap(by);
+      const h1 = ((wx * 73856093) ^ (wy * 19349663)) >>> 0;
+      const h2 = ((wx * 83492791) ^ (wy * 49979693)) >>> 0;
+      if ((h1 & 0xff) > 180) continue;
+      const jx = ((h1 >> 8) & 0xff) / 255 * blobSize * 0.8 - blobSize * 0.4;
+      const jy = ((h2 >> 8) & 0xff) / 255 * blobSize * 0.8 - blobSize * 0.4;
+      const r1 = 50 + ((h1 >> 16) & 0xff) / 255 * 80;
+      const r2 = 40 + ((h2 >> 16) & 0xff) / 255 * 70;
+      g.beginPath();
+      g.ellipse(bx + jx, by + jy, r1, r2, ((h1 >> 24) & 0xff) / 255 * Math.PI, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  // Lager 2: ljusa prickar (sten/ash)
+  g.fillStyle = 'rgba(80, 65, 50, 0.18)';
+  const dotSize = 60;
+  for (let dx = -dotSize; dx <= TILE; dx += dotSize) {
+    for (let dy = -dotSize; dy <= TILE; dy += dotSize) {
+      const wx = wrap(dx), wy = wrap(dy);
+      const h = ((wx * 41281 + wy * 73529) ^ ((wx + wy) * 13)) >>> 0;
+      if ((h & 0xff) > 90) continue;
+      const jx = ((h >> 8) & 0xff) / 255 * dotSize - dotSize / 2;
+      const jy = ((h >> 16) & 0xff) / 255 * dotSize - dotSize / 2;
+      const r = 4 + ((h >> 24) & 0x1f) / 31 * 8;
+      g.beginPath();
+      g.arc(dx + jx, dy + jy, r, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  // Lager 3: mörka skugg-fläckar
+  g.fillStyle = 'rgba(8, 5, 3, 0.30)';
+  const shadowSize = 220;
+  for (let sx = -shadowSize; sx <= TILE; sx += shadowSize) {
+    for (let sy = -shadowSize; sy <= TILE; sy += shadowSize) {
+      const wx = wrap(sx), wy = wrap(sy);
+      const h = ((wx * 31379 + wy * 51217) ^ ((wx - wy) * 19)) >>> 0;
+      if ((h & 0xff) > 70) continue;
+      const jx = ((h >> 8) & 0xff) / 255 * shadowSize * 0.6 - shadowSize * 0.3;
+      const jy = ((h >> 16) & 0xff) / 255 * shadowSize * 0.6 - shadowSize * 0.3;
+      const r1 = 70 + ((h >> 24) & 0x7f) / 127 * 60;
+      const r2 = 60 + (((h >> 12) & 0x7f)) / 127 * 50;
+      g.beginPath();
+      g.ellipse(sx + jx, sy + jy, r1, r2, h / 100 * Math.PI, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  _survFloorTileCanvas = c;
+  return c;
+}
 function drawSurvivorsArenaGround() {
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const centerX = 2000, centerY = 2000;
@@ -7929,68 +8015,14 @@ function drawSurvivorsArenaGround() {
   const cache = _ensureSurvivorsArenaCache();
   ctx.save();
 
-  // === BAS-MARK (organisk, ej rutig) — v1.579 ===
-  // Grundlager: mörk askfärg
-  ctx.fillStyle = '#1a1410';
-  ctx.fillRect(0, 0, viewW, viewH);
-  // ORGANISK noise via ELLIPSER med random storlek/position (inte rutor)
-  // Flera lager för depth. Hash-baserat seed så det är deterministiskt per worldpos.
-  // Stora dimma-fläckar (mjuka, transparenta)
-  ctx.fillStyle = 'rgba(50, 38, 30, 0.22)';
-  const blobSize = 180;
-  const blobOffX = Math.floor(cx / blobSize) * blobSize - cx - blobSize;
-  const blobOffY = Math.floor(cy / blobSize) * blobSize - cy - blobSize;
-  for (let bx = blobOffX; bx < viewW + blobSize * 2; bx += blobSize) {
-    for (let by = blobOffY; by < viewH + blobSize * 2; by += blobSize) {
-      const wx = bx + cx, wy = by + cy;
-      // 2 hash-värden för x/y-jitter + storlek/skip
-      const h1 = ((wx * 73856093) ^ (wy * 19349663)) >>> 0;
-      const h2 = ((wx * 83492791) ^ (wy * 49979693)) >>> 0;
-      if ((h1 & 0xff) > 180) continue; // skip ~30% för spridning
-      const jx = ((h1 >> 8) & 0xff) / 255 * blobSize * 0.8 - blobSize * 0.4;
-      const jy = ((h2 >> 8) & 0xff) / 255 * blobSize * 0.8 - blobSize * 0.4;
-      const r1 = 50 + ((h1 >> 16) & 0xff) / 255 * 80;
-      const r2 = 40 + ((h2 >> 16) & 0xff) / 255 * 70;
-      ctx.beginPath();
-      ctx.ellipse(bx + jx, by + jy, r1, r2, ((h1 >> 24) & 0xff) / 255 * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  // Mindre ljusare prickar (sten-fragment, ash-partiklar)
-  ctx.fillStyle = 'rgba(80, 65, 50, 0.18)';
-  const dotSize = 60;
-  const dotOffX = Math.floor(cx / dotSize) * dotSize - cx;
-  const dotOffY = Math.floor(cy / dotSize) * dotSize - cy;
-  for (let dx = dotOffX; dx < viewW + dotSize; dx += dotSize) {
-    for (let dy = dotOffY; dy < viewH + dotSize; dy += dotSize) {
-      const wx = dx + cx, wy = dy + cy;
-      const h = ((wx * 41281 + wy * 73529) ^ ((wx + wy) * 13)) >>> 0;
-      if ((h & 0xff) > 90) continue;
-      const jx = ((h >> 8) & 0xff) / 255 * dotSize - dotSize / 2;
-      const jy = ((h >> 16) & 0xff) / 255 * dotSize - dotSize / 2;
-      const r = 4 + ((h >> 24) & 0x1f) / 31 * 8;
-      ctx.beginPath();
-      ctx.arc(dx + jx, dy + jy, r, 0, Math.PI * 2);
-      ctx.fill();
-    }
-  }
-  // Mörka skugg-fläckar för djup
-  ctx.fillStyle = 'rgba(8, 5, 3, 0.30)';
-  const shadowSize = 220;
-  const shOffX = Math.floor(cx / shadowSize) * shadowSize - cx - shadowSize;
-  const shOffY = Math.floor(cy / shadowSize) * shadowSize - cy - shadowSize;
-  for (let sx = shOffX; sx < viewW + shadowSize * 2; sx += shadowSize) {
-    for (let sy = shOffY; sy < viewH + shadowSize * 2; sy += shadowSize) {
-      const wx = sx + cx, wy = sy + cy;
-      const h = ((wx * 31379 + wy * 51217) ^ ((wx - wy) * 19)) >>> 0;
-      if ((h & 0xff) > 70) continue;
-      const jx = ((h >> 8) & 0xff) / 255 * shadowSize * 0.6 - shadowSize * 0.3;
-      const jy = ((h >> 16) & 0xff) / 255 * shadowSize * 0.6 - shadowSize * 0.3;
-      const r1 = 70 + ((h >> 24) & 0x7f) / 127 * 60;
-      const r2 = 60 + (((h >> 12) & 0x7f)) / 127 * 50;
-      ctx.beginPath();
-      ctx.ellipse(sx + jx, sy + jy, r1, r2, h / 100 * Math.PI, 0, Math.PI * 2);
-      ctx.fill();
+  // === BAS-MARK (v1.697: organisk noise bakad till tile, blittas med kamera-wrap) ===
+  const _sft = _getSurvFloorTile();
+  const _sftT = _SURV_FLOOR_TILE;
+  const _sftStartX = -(((cx % _sftT) + _sftT) % _sftT);
+  const _sftStartY = -(((cy % _sftT) + _sftT) % _sftT);
+  for (let ox = _sftStartX; ox < viewW; ox += _sftT) {
+    for (let oy = _sftStartY; oy < viewH; oy += _sftT) {
+      ctx.drawImage(_sft, ox, oy);
     }
   }
 
@@ -15698,8 +15730,8 @@ const WEAPONS = [
     desc: 'Slungar fiender. Stor knockback.' },
   { id: 'whip',       name: 'Kedjepiska',       type: 'melee', price: 850,  dmg: 38,  rate: 380, range: 96, color: '#5a4a30', style: 'whip',
     desc: 'Lång räckvidd, snabb. Träffar tidigt.' },
-  { id: 'sledge',     name: 'Slägga',           type: 'melee', price: 1100, dmg: 100, rate: 780, range: 52, color: '#6a6a6a', style: 'sledge', speedMul: 0.9,
-    desc: 'Massivt enhandshugg. Långsam men förödande. -10% rörelse.' },
+  { id: 'sledge',     name: 'Slägga',           type: 'melee', price: 1100, dmg: 130, rate: 700, range: 52, color: '#6a6a6a', style: 'sledge', speedMul: 0.9,
+    desc: 'Massivt enhandshugg. Långsam men förödande. -10% rörelse.' }, // v1.697: dmg 100→130 (var dominerad av axe @580g)
   { id: 'katana',     name: 'Katana',           type: 'melee', price: 1300, dmg: 88,  rate: 360, range: 70, color: '#e6e6f0',
     desc: 'Mästarvapen. Hög DPS, lång räckvidd.' },
   { id: 'energysword',name: 'Energi-svärd',     type: 'melee', price: 1700, dmg: 120, rate: 340, range: 78, color: '#ff8a3a', style: 'energysword', pierce: true,
@@ -15715,8 +15747,8 @@ const WEAPONS = [
     desc: 'Mid-tier kast. Hög träffsäkerhet.' },
   { id: 'revolver',   name: 'Revolver',         type: 'gun',   price: 420,  dmg: 52,  rate: 580, speed: 760, mag: 6,  reload: 1500, spread: 0.02, color: '#ffae3a',
     desc: 'Tung kalibervapen. Hög dmg per skott.' },
-  { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 540,  dmg: 34,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 1,
-    desc: 'Tre snabba skott per tryck. Hög burst-dmg.' },
+  { id: 'burstpistol',name: 'Burst-pistol',     type: 'gun',   price: 540,  dmg: 20,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', style: 'burst', burstCount: 3, burstDelay: 70, ammoCost: 3,
+    desc: 'Tre snabba skott per tryck. Kontroll framför rå DPS — hög ammo-kostnad.' }, // v1.697: dmg 34→20 + ammoCost 1→3 (var grovt dominant solo; matchar nu server/shared)
   { id: 'shotgun',    name: 'Hagelgevär',       type: 'gun',   price: 850,  dmg: 20,  rate: 620, speed: 760, mag: 8,  reload: 1700, spread: 0.30, pellets: 6, color: '#ff6b3d',
     desc: 'Åtta hagel per skott. Förödande på nära håll.' },
   { id: 'bow',        name: 'Compoundbåge',     type: 'gun',   price: 800,  dmg: 90,  rate: 540, speed: 950, mag: 1,  reload: 500,  spread: 0.0,  color: '#3a8a3a', style: 'bow', pierce: true,
@@ -15739,7 +15771,7 @@ const WEAPONS = [
     desc: 'Chain lightning — träffar 4 fiender på rad.' },
   { id: 'grenade',    name: 'Granatkastare',    type: 'gun',   price: 1900, dmg: 80,  rate: 950, speed: 480, mag: 6, reload: 2400, spread: 0.04, explosive: 100, color: '#9aff5a', style: 'grenade',
     desc: 'Explosionsradius — träffar grupper.' },
-  { id: 'boomerang',  name: 'Boomerang',        type: 'gun',   price: 2000, dmg: 50,  rate: 550, speed: 600, mag: 8, reload: 1500, spread: 0.0, color: '#9a6a30', style: 'boomerang', pierce: true, returns: true,
+  { id: 'boomerang',  name: 'Boomerang',        type: 'gun',   price: 2000, dmg: 70,  rate: 550, speed: 600, mag: 8, reload: 1500, spread: 0.0, color: '#9a6a30', style: 'boomerang', pierce: true, returns: true,
     desc: 'Pierce + returnerar! Träffar både ut + in.' },
   { id: 'plasma',     name: 'Plasma-gevär',     type: 'gun',   price: 2200, dmg: 95,  rate: 280, speed: 950, mag: 12, reload: 2200, spread: 0.0, color: '#3acaff', style: 'plasma',
     desc: 'High-tech: hög dmg, hög ROF, perfekt aim.' },
@@ -19722,7 +19754,19 @@ function _releaseParticleSprite(s) {
   _pixiParticleSpritePool.push(s);
 }
 
+// v1.697: memoisera — kördes per partikel per frame och rgba-grenen allokerade en
+// match-array varje gång (GC-tryck på mobil). Färgerna kommer från en liten fast palett.
+const _tintCache = new Map();
 function _parseColorToTint(color) {
+  if (typeof color !== 'string') return 0xffffff;
+  const cached = _tintCache.get(color);
+  if (cached !== undefined) return cached;
+  const v = _computeColorToTint(color);
+  // Cap mot obegränsad tillväxt ifall någon källa skickar dynamiska rgba-strängar
+  if (_tintCache.size < 512) _tintCache.set(color, v);
+  return v;
+}
+function _computeColorToTint(color) {
   try {
     if (color == null || typeof color !== 'string') return 0xffffff;
     if (color[0] === '#') {
@@ -22656,6 +22700,12 @@ const Coop = {
         }
       }
       this.players.delete(msg.peerId);
+      // v1.697: om vi spectade peeren som lämnade, hoppa till nästa levande spelare
+      // (annars fryser spec-kameran på sista positionen).
+      if (state.player && state.player.specTarget === msg.peerId) {
+        state.player.specTarget = null;
+        for (const [pid, partner] of this.players) { if (partner && partner.hp > 0) { state.player.specTarget = pid; break; } }
+      }
       this.broadcastLobby();
       if (this._onPlayerJoinCb) this._onPlayerJoinCb(this.players.size + 1);
     } else if (msg.type === 'host_migrated') {
@@ -22667,6 +22717,10 @@ const Coop = {
           for (const [slot, pid] of this.slotToPeerId) { if (pid === msg.peerLeft) { this.slotToPeerId.delete(slot); break; } }
         }
         if (this.players) this.players.delete(msg.peerLeft);
+        if (state.player && state.player.specTarget === msg.peerLeft) {
+          state.player.specTarget = null;
+          for (const [pid, partner] of this.players) { if (partner && partner.hp > 0) { state.player.specTarget = pid; break; } }
+        }
       }
       this.hostId = msg.newHostId;
       if (msg.newHostId === this.myId) {
@@ -25099,8 +25153,14 @@ const Coop = {
       this.heistActive = true;
       state.heistActive = true;
       state.heistEnded = false;
-      state.heistPhase = 'stealth';
+      state.heistPhase = ev.phase || 'stealth';
       state.heistStartT = Date.now();
+      // v1.697: late-join → applicera aktuell fas-progress (annars börjar joinaren på stealth)
+      if (ev.isLateJoin) {
+        state.heistDrillProgress = ev.drillProgress || 0;
+        state.heistVaultUnlocked = !!ev.vaultUnlocked;
+        state.heistInnerVaultUnlocked = !!ev.innerVaultUnlocked;
+      }
       state.heistArena = ev.arena;
       // v1.642: Stoppa wave-progression som actuallyStartGame→startWave(1) startade.
       // Heist har INGA waves; om dessa flaggor läcker triggar safety-fallback efter
@@ -25134,7 +25194,8 @@ const Coop = {
         state.heistArena.extractZones = local.extractZones;
       }
       state.heistLootValue = 0;
-      state.heistDrillProgress = 0;
+      // v1.697b: skriv INTE över late-join-progressen som sattes ovan (synkron =0 nollade den)
+      if (!ev.isLateJoin) state.heistDrillProgress = 0;
       state.heistLootBaggedCount = 0;
       // Använd arena-config för world-size
       if (ev.arena) {
@@ -26509,6 +26570,23 @@ const Coop = {
     if (data.type === 'emote') {
       const partner = this.players.get(fromId);
       if (partner) applyEmote(partner, data.e);
+      return;
+    }
+    // v1.697: non-host röstar "redo för rematch". Värden auto-triggar sin egen
+    // rematch-knapp när alla MÄNSKLIGA spelare röstat → loopen överlever en passiv värd.
+    if (data.type === 'rematch_vote' && this.isHost) {
+      if (!this._rematchVotes) this._rematchVotes = new Set();
+      this._rematchVotes.add(fromId);
+      let humans = 0;
+      for (const [, p] of this.players) if (!p.isBot) humans++;
+      const needed = Math.max(1, humans);
+      if (typeof showToast === 'function') showToast('✋ ' + this._rematchVotes.size + '/' + needed + ' redo för rematch', 3);
+      if (this._rematchVotes.size >= needed) {
+        this._rematchVotes.clear();
+        // Klicka den synliga overlayens rematch-knapp (offsetParent!=null = faktiskt synlig)
+        const btns = document.querySelectorAll('[id$="-rematch"]');
+        for (const b of btns) { if (b.offsetParent !== null) { b.click(); break; } }
+      }
       return;
     }
     if (data.type === 'ping' && !this.isHost) {
@@ -31223,6 +31301,12 @@ window.addEventListener('contextmenu', e => e.preventDefault());
 const btnMode = document.getElementById('btn-mode');
 const btnDifficulty = document.getElementById('btn-difficulty');
 function refreshModeButtons() {
+  // v1.697: "BÖRJA HÄR"-ankring på SPELA-knappen för nya spelare (CSS via body.firsttime,
+  // tas bort automatiskt efter första spelet när save.tutorialDone sätts). Ger en tydlig
+  // on-ramp så de 8 lägena inte överväldigar en förstagångsspelare.
+  if (typeof document !== 'undefined' && typeof save !== 'undefined') {
+    document.body.classList.toggle('firsttime', !save.tutorialDone);
+  }
   let modeLabel = MODE_LABELS[getMode()] || 'STORY';
   const lvl = getNGPLevel();
   if (lvl === 1) modeLabel += ' (NG+)';
@@ -32865,8 +32949,10 @@ function damageEnemy(e, dmg, isCrit) {
   }
   // v1.533: SURVIVORS-RUN synergy-perk hooks
   if (state.survivorsActive && !e.dead && e.hp > 0) {
-    // EXECUTIONER — instakill om <10% HP (ej boss)
-    if (!e.isBoss && getSurvivorsPerkSum('executioner') > 0 && e.maxHp > 0 && (e.hp / e.maxHp) < 0.10) {
+    // EXECUTIONER — instakill om <10% HP (ej boss/mini-boss)
+    // v1.697: exkludera även mini-bossar — 10% av deras stora coop-skalade HP-pool var
+    // en gigantisk gratis-klump och gjorde ren dmg-perk överflödig i late-game.
+    if (!e.isBoss && !e.isMiniBoss && getSurvivorsPerkSum('executioner') > 0 && e.maxHp > 0 && (e.hp / e.maxHp) < 0.10) {
       e.hp = 0;
     }
     // FROST — slow 60% i 1s
@@ -33498,7 +33584,7 @@ function explode(x, y, radius, dmg, friendly) {
   }
 }
 
-function damagePlayer(amount, source) {
+function damagePlayer(amount, source, srcX, srcY) {
   const p = state.player;
   if (p.invuln > 0) return;
   // Ultimate cheat = odödlig
@@ -33532,6 +33618,12 @@ function damagePlayer(amount, source) {
   triggerVibrate(40);
   // Skärm-flash + small shockwave runt spelaren så damage känns punchy.
   state.dmgFlashUntil = performance.now() + 180;
+  // v1.697: riktnings-skade-indikator — spara vinkeln mot angriparen (om känd) så
+  // drawDamageFlash kan bias:a flashen mot rätt skärmkant i st f omnidirektionell wash.
+  if (typeof srcX === 'number' && typeof srcY === 'number') {
+    state._dmgFromAngle = Math.atan2(srcY - p.y, srcX - p.x);
+    state._dmgFromAngleAt = performance.now();
+  }
   spawnShockwave(p.x, p.y, 8, 32, '#ff3a3a', 0.25, 2);
   if (p.hp <= 0) {
     // v1.608: SURVIVORS PHOENIX-perk — vid död explodera + revive med 50% HP
@@ -34791,43 +34883,10 @@ document.getElementById('btn-menu').addEventListener('click', () => {
   menuScreen.classList.remove('hidden');
   document.body.classList.add('menu-mode');
   state.mode = 'menu';
-  // v1.610: hard cleanup av survivors-DOM så scoreboard/perks/shop inte läker
-  if (typeof resetSurvivorsPerks === 'function') resetSurvivorsPerks();
-  state.survivorsActive = false;
-  state.survivorsEnded = false;
-  document.body.classList.remove('survivors-mode');
-  // v1.619/v1.625: HEIST komplett state-cleanup
-  if (typeof hideHeistHud === 'function') hideHeistHud();
-  state.heistActive = false;
-  state.heistEnded = false;
-  state.heistPhase = null;
-  state.heistArena = null;
-  state.heistWalls = null;
-  state.heistDoors = null;
-  state.heistDecorations = null;
-  state.heistCameras = null;
-  state.heistHackTerminals = null;
-  state.heistLootSpots = null;
-  state.heistNPCs = null;
-  state.heistDroppedBags = null;
-  state.heistLootBagged = {};
-  state.heistHackedTerminals = {};
-  state.heistDisabledCameras = {};
-  state.heistUnlockedDoors = {};
-  state.heistVaultUnlocked = false;
-  state.heistMyBagsCarrying = 0;
-  state.heistMyBagsValue = 0;
-  state.heistMyLockpickEnd = 0;
-  state.heistMyLockpickDoorId = null;
-  state.heistMyHackEnd = 0;        // v1.645: hack-progress timer reset
-  state.heistMyHackTermId = null;
-  state.heistMyDistractCdUntil = 0; // v1.652: Tank distract cooldown reset
-  state.heistMyCalmCdUntil = 0;     // v1.652: Medic calm cooldown reset
-  state.heistDrillProgress = 0;
-  state.heistDrilling = false;
-  state.heistDrillBlocked = false;
-  state.heistLootValue = 0;
-  document.body.classList.remove('heist-mode');
+  // v1.697: survivors/stresstest + heist cleanup via extraherade funktioner
+  // (delas nu med runFrame-transition-guarden så disconnect inte läcker state).
+  if (typeof clearSurvivorsState === 'function') clearSurvivorsState();
+  if (typeof clearHeistState === 'function') clearHeistState();
   if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
   refreshModeButtons();
 });
@@ -35152,16 +35211,38 @@ function actuallyStartGame() {
   // Speedrun/survive timer-state alltid null nu (modes borttagna).
   state.speedrunStart = null;
   state.surviveStart = null;
-  // Tutorial första gången
-  // Per-mode tutorial: visa tutorial-panel första gången varje mode startas
-  // (samma generic content men ger användaren chans att läsa kontroller igen).
+  // Tutorial-onboarding (v1.697 omarbetad):
+  // FÖRR öppnades HELA tutorial-panelen en gång PER mode (upp till 8 ggr) — identisk
+  // generic content varje gång → tränade spelaren att stänga hjälpen blint. NU:
+  // full panel BARA första gången någonsin; för varje NYTT läge därefter visas en
+  // kort en-rads objektiv-toast i stället för att avbryta med hela väggen.
   if (!save.tutorialModesSeen) save.tutorialModesSeen = {};
   const _curMode = (typeof getMode === 'function') ? getMode() : 'story';
-  const _shouldShowTut = !save.tutorialDone || !save.tutorialModesSeen[_curMode];
-  if (_shouldShowTut) {
+  const MODE_TIPS = {
+    story:        '📖 STORY — ta dig genom zonerna och jaga Jimmy Mourad.',
+    tdm:          '⚔ TDM — slå ut fiendelaget tills poängmålet nås.',
+    ctf:          '🚩 CTF — ta fiendens flagga till din bas, försvara din egen.',
+    siege:        '🏰 SIEGE — kapa baser och förstör fiendens core.',
+    gungame:      '🔫 GUNGAME — varje kill ger nästa vapen. Först genom alla vinner.',
+    koth:         '👑 KING OF THE HILL — stå i zonen och håll den längst.',
+    juggernaut:   '💪 JUGGERNAUT — döda the Jug, eller överlev längst som den.',
+    battleroyale: '☠️ BATTLE ROYALE — sista överlevaren vinner. Zonen krymper.',
+    castledefense:'🛡 CASTLE DEFENSE — bygg torn och försvara coren mot vågorna.',
+    survivors:    '☠️ SURVIVORS — överlev 20 min och plocka perks vid level-up.',
+    heist:        '💰 HEIST — smyg in, drilla valvet, fly med bytet.',
+  };
+  if (!save.tutorialDone) {
+    // Första gången någonsin → visa hela guiden
+    save.tutorialDone = true;
     save.tutorialModesSeen[_curMode] = true;
     persist();
     document.getElementById('tutorial-overlay').classList.remove('hidden');
+  } else if (!save.tutorialModesSeen[_curMode]) {
+    // Nytt läge men spelaren kan redan grunderna → bara en objektiv-toast
+    save.tutorialModesSeen[_curMode] = true;
+    persist();
+    const _tip = MODE_TIPS[_curMode];
+    if (_tip && typeof showToast === 'function') showToast(_tip, 3.5);
   }
   state.enemies = [];
   state.bullets = [];
@@ -35831,6 +35912,32 @@ function applyBotPayload(payload) {
   }
   return payload;
 }
+// v1.697: rematch-loopen dog förr om värden var passiv (rematch var host-only, non-hosts
+// kunde bara vänta eller lämna). Nu visas knappen för ALLA: non-hosts "röstar redo" och
+// värdens klient auto-triggar rematchen när alla mänskliga spelare röstat.
+function castRematchVote() {
+  if (typeof Coop === 'undefined' || Coop.isHost) return;
+  Coop._sendBroadcast({ type: 'rematch_vote', peerId: Coop.myId });
+  if (typeof showToast === 'function') showToast('✋ Du är redo — väntar på övriga', 3);
+}
+function prepRematchBtn(btn) {
+  if (!btn || typeof Coop === 'undefined') return;
+  btn.classList.remove('hidden');
+  btn.disabled = false;
+  if (Coop.isHost) {
+    if (btn.dataset.origLabel) btn.textContent = btn.dataset.origLabel;
+    btn.onclick = null; // ordinarie addEventListener-handler kör rematchen
+    Coop._rematchVotes = new Set(); // nollställ röster för denna overlay
+  } else {
+    if (!btn.dataset.origLabel) btn.dataset.origLabel = btn.textContent;
+    btn.textContent = '✋ REDO FÖR REMATCH';
+    btn.onclick = function () {
+      castRematchVote();
+      btn.textContent = '✓ VÄNTAR PÅ ÖVRIGA';
+      btn.disabled = true;
+    };
+  }
+}
 function showTdmEndScreen(winner, redKills, blueKills, stats, teams) {
   if (!_tdmEndOverlay) return;
   hideTdmHud();
@@ -35841,9 +35948,9 @@ function showTdmEndScreen(winner, redKills, blueKills, stats, teams) {
   document.body.appendChild(flash);
   setTimeout(() => { if (flash.parentNode) flash.parentNode.removeChild(flash); }, 1100);
   _tdmEndOverlay.classList.remove('hidden');
-  // Rematch-knapp: bara host får trycka (de andra ser host väljer-text)
+  // Rematch-knapp: synlig för alla — host kör direkt, non-host röstar (v1.697)
   if (_btnTdmRematch) {
-    _btnTdmRematch.classList.toggle('hidden', !Coop.isHost);
+    prepRematchBtn(_btnTdmRematch);
   }
   if (_tdmEndTitle) {
     _tdmEndTitle.textContent = winner === 'red' ? 'RED WINS' : 'BLUE WINS';
@@ -36026,7 +36133,7 @@ function showCtfEndScreen(winner, redCaps, blueCaps, stats, teams) {
   document.body.appendChild(flash);
   setTimeout(() => { if (flash.parentNode) flash.parentNode.removeChild(flash); }, 1100);
   _ctfEndOverlay.classList.remove('hidden');
-  if (_btnCtfRematch) _btnCtfRematch.classList.toggle('hidden', !Coop.isHost);
+  if (_btnCtfRematch) prepRematchBtn(_btnCtfRematch);
   if (_ctfEndTitle) {
     _ctfEndTitle.textContent = winner === 'red' ? 'RED WINS' : 'BLUE WINS';
     _ctfEndTitle.style.color = winner === 'red' ? '#ff5a5a' : '#5aaaff';
@@ -36191,7 +36298,7 @@ function showSiegeEndScreen(winner, redScore, blueScore, stats, teams, reason) {
   document.body.appendChild(flash);
   setTimeout(() => { if (flash.parentNode) flash.parentNode.removeChild(flash); }, 1100);
   _siegeEndOverlay.classList.remove('hidden');
-  if (_btnSiegeRematch) _btnSiegeRematch.classList.toggle('hidden', !Coop.isHost);
+  if (_btnSiegeRematch) prepRematchBtn(_btnSiegeRematch);
   if (_siegeEndTitle) {
     _siegeEndTitle.textContent = winner === 'red' ? 'RED WINS' : 'BLUE WINS';
     _siegeEndTitle.style.color = winner === 'red' ? '#ff5a5a' : '#5aaaff';
@@ -36476,7 +36583,7 @@ function showGungameEndScreen(winnerId, stats) {
   if (overlay) overlay.classList.remove('hidden');
   // Rematch-knapp bara för host
   const _rematchBtn = document.getElementById('btn-gungame-rematch');
-  if (_rematchBtn) _rematchBtn.classList.toggle('hidden', !Coop.isHost);
+  if (_rematchBtn) prepRematchBtn(_rematchBtn);
 }
 
 // === KOTH HUD ===
@@ -36571,7 +36678,7 @@ function showKothEndScreen(winnerId, stats) {
   }
   if (overlay) overlay.classList.remove('hidden');
   const _rematchBtn = document.getElementById('btn-koth-rematch');
-  if (_rematchBtn) _rematchBtn.classList.toggle('hidden', !Coop.isHost);
+  if (_rematchBtn) prepRematchBtn(_rematchBtn);
 }
 
 // === JUGGERNAUT HUD ===
@@ -36860,7 +36967,7 @@ function showJuggernautEndScreen(winnerId, stats) {
   }
   overlay.classList.remove('hidden');
   const _rematchBtn = document.getElementById('btn-jug-rematch');
-  if (_rematchBtn) _rematchBtn.classList.toggle('hidden', !Coop.isHost);
+  if (_rematchBtn) prepRematchBtn(_rematchBtn);
 }
 
 // ============================================================
@@ -37123,6 +37230,54 @@ function clearCastleDefenseState() {
   if (typeof setGrenadeCount === 'function') setGrenadeCount(0);
 }
 
+// v1.697: Extraherade survivors/stresstest + heist state-cleanup till egna funktioner
+// så de kan anropas BÅDE från btn-menu OCH från runFrame-transition-guarden. Buggen:
+// disconnect() satte state.mode='menu' UTAN att rensa dessa lägen (cleanup låg bara
+// inline i btn-menu-klick-handlern) → *Active-flaggor + arena-walls läckte → osynliga
+// väggkollisioner + fel HUD + släckt mål-pil i nästa solo-spel.
+function clearSurvivorsState() {
+  if (typeof resetSurvivorsPerks === 'function') resetSurvivorsPerks();
+  state.survivorsActive = false;
+  state.survivorsEnded = false;
+  state.stresstestActive = false;
+  document.body.classList.remove('survivors-mode');
+  if (typeof hideStresstestHud === 'function') hideStresstestHud();
+}
+
+function clearHeistState() {
+  if (typeof hideHeistHud === 'function') hideHeistHud();
+  state.heistActive = false;
+  state.heistEnded = false;
+  state.heistPhase = null;
+  state.heistArena = null;
+  state.heistWalls = null;
+  state.heistDoors = null;
+  state.heistDecorations = null;
+  state.heistCameras = null;
+  state.heistHackTerminals = null;
+  state.heistLootSpots = null;
+  state.heistNPCs = null;
+  state.heistDroppedBags = null;
+  state.heistLootBagged = {};
+  state.heistHackedTerminals = {};
+  state.heistDisabledCameras = {};
+  state.heistUnlockedDoors = {};
+  state.heistVaultUnlocked = false;
+  state.heistMyBagsCarrying = 0;
+  state.heistMyBagsValue = 0;
+  state.heistMyLockpickEnd = 0;
+  state.heistMyLockpickDoorId = null;
+  state.heistMyHackEnd = 0;
+  state.heistMyHackTermId = null;
+  state.heistMyDistractCdUntil = 0;
+  state.heistMyCalmCdUntil = 0;
+  state.heistDrillProgress = 0;
+  state.heistDrilling = false;
+  state.heistDrillBlocked = false;
+  state.heistLootValue = 0;
+  document.body.classList.remove('heist-mode');
+}
+
 function updateBrHud() {
   if (!state.battleroyaleActive) return;
   // Koordinater-display (debug)
@@ -37291,7 +37446,7 @@ function showBrEndScreen(winnerId, statsArr) {
   }
   overlay.classList.remove('hidden');
   const rematchBtn = document.getElementById('btn-br-rematch');
-  if (rematchBtn) rematchBtn.classList.toggle('hidden', !Coop.isHost);
+  if (rematchBtn) prepRematchBtn(rematchBtn);
 }
 
 // HUD auto-update: startas vid showBrHud, stoppas vid hideBrHud.
@@ -40434,7 +40589,7 @@ function updateEnemies(dt, now) {
           Coop.sendDamageToPartner(_ti.peerId, e.dmg);
           p.hp = Math.max(0, (p.hp || 100) - e.dmg);
         } else {
-          damagePlayer(e.dmg, e.name || e.type || 'fiende');
+          damagePlayer(e.dmg, e.name || e.type || 'fiende', e.x, e.y);
         }
         e.contactCd = 0.6;
       } else {
@@ -40546,7 +40701,7 @@ function updateBoss(b, dt, now) {
       Coop.sendDamageToPartner(_bti.peerId, b.dmg);
       p.hp = Math.max(0, (p.hp || 100) - b.dmg);
     } else {
-      damagePlayer(b.dmg, b.name || 'BOSS');
+      damagePlayer(b.dmg, b.name || 'BOSS', b.x, b.y);
     }
     b.contactCd = 0.5;
   }
@@ -41226,7 +41381,7 @@ function updateBullets(dt) {
           Coop.sendDamageToPartner(nearestPid, b.dmg);
           nearest.hp = Math.max(0, (nearest.hp || 100) - b.dmg);
         } else {
-          damagePlayer(b.dmg, 'fientligt skott');
+          damagePlayer(b.dmg, 'fientligt skott', b.x - (b.vx || 0), b.y - (b.vy || 0));
         }
         if (b.gasOnHit) dropGasCloud(b.x, b.y, 70, 4, 6);
         b.dead = true;
@@ -65924,6 +66079,36 @@ const MINIBOSS_DRAW = {
   },
 };
 
+// v1.697: "incoming threat"-tell. Vanliga fiender har INGEN lunge-windup (bara bossar
+// telegraferar server-side), så snabba typer når en utan förvarning = "träffad av
+// ingenting". Rita en kort pulsande röd båge på fiendens spelar-vända sida när en snabb
+// typ är på final approach (<150px). Inget konstant glow på allt (clutter) — tonar in
+// bara sista biten. Klient-side, ingen wire-ändring.
+const _FAST_THREAT_TYPES = { runner: 1, ninja: 1, dog: 1, swarmer: 1, bomber: 1 };
+function drawProximityThreats() {
+  const p = state.player;
+  if (!p || p.spectating || !state.enemies || !state.enemies.length) return;
+  const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 90);
+  for (const e of state.enemies) {
+    if (!e || e.dead || e.isBoss || e.isMiniBoss) continue;
+    if (!_FAST_THREAT_TYPES[e.type]) continue;
+    const dx = p.x - e.x, dy = p.y - e.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > 150 * 150) continue;
+    const d = Math.sqrt(d2) || 1;
+    const closeness = Math.max(0, Math.min(1, (150 - d) / 120));
+    if (closeness <= 0.05) continue;
+    ctx.save();
+    ctx.translate(e.x - state.camera.x, e.y - state.camera.y);
+    ctx.rotate(Math.atan2(dy, dx));
+    ctx.strokeStyle = `rgba(255,60,40,${(0.35 + 0.4 * pulse) * closeness})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, (e.r || 14) + 8, -0.7, 0.7);
+    ctx.stroke();
+    ctx.restore();
+  }
+}
 function drawEnemy(e) {
   const x = e.x - state.camera.x;
   const y = e.y - state.camera.y;
@@ -70917,6 +71102,7 @@ function render() {
       // redan "⚠ name" som indikator. Bara HP-bar + namn räcker som signaling.
     }
   }
+  if (typeof drawProximityThreats === 'function') drawProximityThreats();
   drawDeadBody();
   // TDM/CTF: rita team-ringar UNDER spelarna så de syns på avstånd
   if (state.tdmActive && Coop.tdmTeams) drawTdmTeamRings();
@@ -72668,6 +72854,24 @@ function drawDamageFlash() {
   grad.addColorStop(1, `rgba(255,30,30,${0.55 * intensity})`);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, viewW, viewH);
+  // v1.697: riktnings-wedge mot angriparen (spelaren är skärm-centrerad → world-vinkel =
+  // skärm-vinkel). Visar VARIFRÅN träffen kom på stora kartor i st f bara röd wash.
+  const _dmgAng = state._dmgFromAngle;
+  if (typeof _dmgAng === 'number' && state._dmgFromAngleAt && (performance.now() - state._dmgFromAngleAt) < 180) {
+    const reach = Math.max(viewW, viewH);
+    ctx.translate(viewW / 2, viewH / 2);
+    ctx.rotate(_dmgAng);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, reach, -0.5, 0.5); // ~57° wedge mot +x (= angriparen)
+    ctx.closePath();
+    ctx.clip();
+    const lg = ctx.createLinearGradient(reach * 0.35, 0, reach, 0);
+    lg.addColorStop(0, 'rgba(255,40,40,0)');
+    lg.addColorStop(1, `rgba(255,40,40,${0.6 * intensity})`);
+    ctx.fillStyle = lg;
+    ctx.fillRect(0, -reach, reach, reach * 2);
+  }
   ctx.restore();
 }
 
@@ -73034,6 +73238,14 @@ function runFrame(dt, now) {
   if (state._prevMode !== state.mode &&
       (state.mode === 'menu' || state.mode === 'gameover' || state.mode === 'victory')) {
     if (typeof clearBattleroyaleState === 'function') clearBattleroyaleState();
+    // v1.697: gör teardown symmetrisk med BR. disconnect() satte mode=menu utan att
+    // rensa CD/heist/survivors/stresstest → osynliga väggar + fel HUD nästa match.
+    // Gatear på flaggorna så normala story/PvP-gameovers inte påverkas.
+    if ((state.castledefenseActive || state.survivorsActive || state.stresstestActive) &&
+        typeof clearCastleDefenseState === 'function') clearCastleDefenseState();
+    if ((state.survivorsActive || state.stresstestActive) &&
+        typeof clearSurvivorsState === 'function') clearSurvivorsState();
+    if (state.heistActive && typeof clearHeistState === 'function') clearHeistState();
     state._pendingServerMode = null;
   }
   state._prevMode = state.mode;

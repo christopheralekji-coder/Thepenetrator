@@ -8,7 +8,7 @@ const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy } = require('
 const { addBot, tickBots, removeAllBots } = require('./bots');
 const { updateBoss } = require('./bosses');
 const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onWaveComplete, checkBossDeath } = require('./waves');
-const { getDiffMul: cdGetDiffMul, getCoopMultiplier: cdGetCoopMul } = require('../../shared/stages-data');
+const { getDiffMul: cdGetDiffMul, getCoopMultiplier: cdGetCoopMul, getCoopDmgMultiplier: cdGetCoopDmgMul, getCoopSpawnMultiplier: cdGetCoopSpawnMul } = require('../../shared/stages-data');
 const { updatePickups, dropFromEnemyDeath } = require('./pickups');
 const { getStage } = require('../../shared/stages-data');
 const { CTF_ARENA, resolveCtfWall, bulletHitsWall } = require('../../shared/ctf-arena');
@@ -291,7 +291,10 @@ function tickSim(sim) {
         }
       }
     }
-    broadcastWorld(sim, now);
+    // v1.697: throttla som alla andra modes (TDM saknade BROADCAST_EVERY-check →
+    // broadcastade varje tick = ~960KB/s extra @8p, + ignorerade SIM_BROADCAST_HZ).
+    sim._tickCount = (sim._tickCount || 0) + 1;
+    if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
   }
 
@@ -2669,7 +2672,8 @@ function spawnSurvivorsMiniBoss(sim) {
   const dist = 700;
   const sx = arena.centerX + Math.cos(ang) * dist;
   const sy = arena.centerY + Math.sin(ang) * dist;
-  const coopMul = Math.max(1, sim.room.members.size);
+  // v1.697: mini-boss-HP sublinjärt (matchar story) i st f linjärt 8× @8p
+  const coopMul = cdGetCoopMul(Math.max(1, sim.room.members.size));
   const boss = makeBoss(key, sx, sy, coopMul);
   if (!boss) return;
   // v1.606: Mini-bossar ska INTE vara svårare än vanliga CD-bossar.
@@ -2814,7 +2818,8 @@ function tickCastleDefense(sim, dt, now) {
       sim.castledefenseWave += 1;
       sim.castledefenseWaveState = 'active'; // håll alltid active i survivors
       const survElapsedMin = elapsedMs / 60000;
-      const batchCount = Math.round(waveBase + survElapsedMin * waveScalePerMin);
+      // v1.697: svärmen växer med spelarantal (kompenserar för nu sublinjär HP + kapad dmg)
+      const batchCount = Math.max(1, Math.round((waveBase + survElapsedMin * waveScalePerMin) * cdGetCoopSpawnMul(Math.max(1, sim.room.members.size))));
       // Stacka på befintliga remaining så waves overlappar
       sim._cdWaveSpawnsRemaining = (sim._cdWaveSpawnsRemaining || 0) + batchCount;
       sim._cdWaveSpawnTimer = 0;
@@ -2887,7 +2892,8 @@ function tickCastleDefense(sim, dt, now) {
     if (isBoss) {
       const bossKey = cdPickBossKey(w);
       const sp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
-      const coopMul = Math.max(1, sim.room.members.size);
+      // v1.697: boss-HP sublinjärt (matchar story-bossar) i st f linjärt 8× @8p
+      const coopMul = cdGetCoopMul(Math.max(1, sim.room.members.size));
       const boss = makeBoss(bossKey, sp.x, sp.y, coopMul);
       if (boss) {
         // v1.419: BOSS scaling = difficulty × wave-scaling × casual-relief.
@@ -2914,11 +2920,12 @@ function tickCastleDefense(sim, dt, now) {
           sub: boss.subtitle,
         });
       }
-      sim._cdWaveSpawnsRemaining = 3 + Math.floor(w / 5);
+      sim._cdWaveSpawnsRemaining = Math.max(1, Math.round((3 + Math.floor(w / 5)) * cdGetCoopSpawnMul(Math.max(1, sim.room.members.size))));
     } else {
       const base = cdEnemiesForWave(arena, w);
       const countMul = cdGetThemeCountMul(theme);
-      sim._cdWaveSpawnsRemaining = Math.max(1, Math.round(base * countMul));
+      // v1.697: coop-spawn-skalning så svärmen växer med spelarantal
+      sim._cdWaveSpawnsRemaining = Math.max(1, Math.round(base * countMul * cdGetCoopSpawnMul(Math.max(1, sim.room.members.size))));
     }
     sim._cdWaveSpawnTimer = 0;
     sim.eventQueue.push({
@@ -2953,17 +2960,23 @@ function tickCastleDefense(sim, dt, now) {
         ? (1 + ((Date.now() - sim.survivorsStartT) / 60000) * 0.10)
         : (1 + (sim.castledefenseWave - 1) * 0.08);
       const cdDiff = cdGetDiffMul(sim.config.difficulty);
-      // v1.417: STRIKT linear coop-scaling — 2p=2x, 3p=3x, 4p=4x både HP + DMG
-      const cdCoop = Math.max(1, sim.room.members.size);
+      // v1.697: Tidigare STRIKT linjär coop-skalning (8p = 8× HP OCH 8× dmg) gjorde
+      // höga spelarantal brutala — 8× skada per träff mot oskalad spelar-EHP, samtidigt
+      // som svärmen INTE växte. Story-mode kapar medvetet (HP sublinjärt ~6.95× @8p,
+      // dmg +15%/spelare = 2.05× @8p). Använd samma kurvor här; svärm-antalet växer
+      // istället via cdGetCoopSpawnMul på wave-batch-count (se _cdWaveSpawnsRemaining).
+      const _cdMembers = Math.max(1, sim.room.members.size);
+      const cdCoopHp = cdGetCoopMul(_cdMembers);
+      const cdCoopDmg = cdGetCoopDmgMul(_cdMembers);
       // v1.416: theme stat-multiplier (ELITE = +60% hp/dmg/gold)
       const themeStat = cdGetThemeStatMul(sim._cdActiveTheme);
       const themeHpMul = themeStat ? themeStat.hp : 1.0;
       const themeDmgMul = themeStat ? themeStat.dmg : 1.0;
       const themeGoldMul = themeStat ? themeStat.gold : 1.0;
-      e.hp = Math.round(e.hp * cdWaveScale * cdDiff.enemyHp * cdCoop * themeHpMul);
+      e.hp = Math.round(e.hp * cdWaveScale * cdDiff.enemyHp * cdCoopHp * themeHpMul);
       e.maxHp = e.hp;
-      e.dmg = Math.round(e.dmg * cdWaveScale * cdDiff.enemyDmg * cdCoop * themeDmgMul);
-      if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * cdDiff.enemyDmg * cdCoop * themeDmgMul);
+      e.dmg = Math.round(e.dmg * cdWaveScale * cdDiff.enemyDmg * cdCoopDmg * themeDmgMul);
+      if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * cdDiff.enemyDmg * cdCoopDmg * themeDmgMul);
       if (e.gold) e.gold = Math.round(e.gold * themeGoldMul);
       // v1.410: speed-buff för "fast" enemy-typer — gör dem REALA hot. User-feedback
       // "vissa fiender ännu snabbare". runner/ninja/dog/swarmer +35%.
@@ -6311,6 +6324,35 @@ function stopSim(sim) {
       // NÄSTA match för en död de aldrig visste om.
       ws.tdmRespawnAt = 0;
       ws.tdmTeam = null;
+      // v1.697: Heist ws-state läckte mellan matcher. Reset låg bara i heist-START-
+      // grenen (startSim) → slutade man heist och startade ETT ANNAT läge behölls
+      // bag-vikt/speedMul/lockpick+hack-timers/role. Symptom: spelaren började slö,
+      // bar fantom-bags, och en pågående lockpick/hack kunde auto-completa i första
+      // ticken av nästa match. Återställ här så ALLA lägen börjar rent.
+      ws.playerState.speedMul = 1.0;
+      ws._heistLootCarrying = null;
+      ws._heistBagsCarrying = 0;
+      ws._heistBagsValue = 0;
+      ws._heistBagsWeight = 0;
+      ws._heistLockpickStart = 0;
+      ws._heistLockpickDoorId = null;
+      ws._heistLockpickFinishesAt = 0;
+      ws._heistHackStart = 0;
+      ws._heistHackTermId = null;
+      ws._heistHackFinishesAt = 0;
+      ws._heistDistractCdUntil = 0;
+      ws._heistCalmCdUntil = 0;
+      ws._heistCamDetect = {};
+      ws._heistCamSeenThisTick = {};
+      ws._heistCameraImmune = false;
+      ws._heistMedicRegenRate = 0;
+      ws._heistMedicRegenAccum = 0;
+      ws._heistRoleLocked = false;
+      ws._heistRole = null;
+      ws._heistStatSecured = 0;
+      ws._heistStatBags = 0;
+      ws._heistStatHostages = 0;
+      ws._lastShieldUseAt = 0;
     }
   }
   // v1.432: Rensa SIM-LEVEL state också. Tidigare läckte dessa mellan matcher

@@ -233,7 +233,11 @@ function getCoopMultiplier(playerCount) {
  */
 function getCoopDmgMultiplier(playerCount) {
   const n = Math.max(1, playerCount || 1);
-  return 1 + (n - 1) * 0.15;
+  // v1.697b: 0.15→0.30. Endast CD/Survivors använder denna (story-dmg har egen formel).
+  // Balans-re-audit: vid 0.15 blev co-op "för säkert" (inkommande dmg/spelare ~0.53× @8p
+  // pga svärmen sprids snabbare än bufften kompenserade). 0.30 → ~0.76×/spelare = co-op
+  // fortf. lite säkrare än solo (rätt feel) men inte trivialt.
+  return 1 + (n - 1) * 0.30;
 }
 
 /**
