@@ -26890,7 +26890,13 @@ const Coop = {
     // v1.391: Default 17ms → 60Hz client-send (matchar server-tick 60Hz).
     // Eliminerar ~3-6ms client-side quantization-lag jämfört med 45Hz/22ms.
     const buffered = this.ws ? this.ws.bufferedAmount : 0;
-    const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : 17);
+    // v1.703: matcha input-send-raten till render-raten igen (precis som vid 30→60-bytet
+    // där 17ms/60Hz-send kopplades till capen). Följer FRAME_MS upp till 120Hz (8ms) men
+    // GOLVAT på 60Hz (17ms = server-tick) så den aldrig regrerar när render droppar till 30.
+    // Vid 120fps når din input/sikte servern ~8ms snabbare (var ~17ms) → fräschare = mindre
+    // lagg + skott som registrerar närmare det du ser. Idle-skip + backoff håller bandbredden nere.
+    const _baseSend = Math.max(8, Math.min(17, FRAME_MS));
+    const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : _baseSend);
     // Server-auth mode: ALLA klienter (inkl host) skickar bara position till servern.
     // Visual shots delas fortfarande peer-to-peer via _sendBroadcast så andra ser dina projektiler.
     if (this.serverSimActive) {
