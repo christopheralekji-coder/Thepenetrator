@@ -1874,7 +1874,7 @@ const BATTLEROYALE_ARENA = {
       { kind: 'grenade',                         weight: 4 },
       { kind: 'weapon', weaponId: 'smg',         weight: 18 },
       { kind: 'weapon', weaponId: 'burstpistol', weight: 14 },
-      { kind: 'weapon', weaponId: 'crossbow',    weight: 18 },
+      { kind: 'weapon', weaponId: 'crossbow',    weight: 12 },
       { kind: 'weapon', weaponId: 'boomerang',   weight: 12 },
     ],
     rare: [
@@ -1895,8 +1895,8 @@ const BATTLEROYALE_ARENA = {
 
   phases: [
     { name: 'LOOT',     durationFrac: 0.15, areaFrac: 1.00, outsideDmg: 0  },
-    { name: 'SHRINK 1', durationFrac: 0.17, areaFrac: 0.60, outsideDmg: 2  },
-    { name: 'SHRINK 2', durationFrac: 0.17, areaFrac: 0.30, outsideDmg: 4  },
+    { name: 'SHRINK 1', durationFrac: 0.17, areaFrac: 0.60, outsideDmg: 4  }, // v1.698: 2→4 (storm dödade långsammare än fasen varar = ingen tidig press)
+    { name: 'SHRINK 2', durationFrac: 0.17, areaFrac: 0.30, outsideDmg: 6  }, // v1.698: 4→6
     { name: 'SHRINK 3', durationFrac: 0.17, areaFrac: 0.10, outsideDmg: 8  },
     { name: 'FINAL',    durationFrac: 0.34, areaFrac: 0.05, outsideDmg: 15 },
   ],

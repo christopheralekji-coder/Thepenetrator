@@ -652,6 +652,30 @@ function explode(sim, x, y, radius, dmg, fromPid) {
         hp: ws.playerState.hp,
         shield: ws.playerState.shield || 0,
       });
+      // v1.698: explosiv kill-attribution. Förr anropade explode() ALDRIG per-mode
+      // kill-handlers → GunGame promotade ej på rocket-kill (fastnade tier 12), JUG-
+      // explosiv-kill överförde rollen till RANDOM hunter, ingen kill-credit/win-check.
+      // Mirror av bullet-pathen (men INGEN break — en explosion kan döda flera).
+      if (inJug && !fromIsJug && ws.playerState.isJug && sim._trackJuggernautDmg) {
+        sim._trackJuggernautDmg(sim, fromPid, pid, finalDmg);
+      }
+      if (ws.playerState.hp <= 0 && fromPid && fromWs) {
+        if (inJug) {
+          if (sim._handleJuggernautKill) sim._handleJuggernautKill(sim, fromPid, fromWs, pid, ws, 'explosion');
+        } else if (inGungame) {
+          handleGungameKill(sim, fromPid, fromWs, pid, ws, 'explosion');
+        } else if (inKoth) {
+          handleKothKill(sim, fromPid, pid, ws, 'explosion');
+        } else if (sim.tdmActive) {
+          handleTdmKill(sim, fromPid, pid, ws, fromTeam, 'explosion');
+        } else if (sim.ctfActive) {
+          handleCtfKill(sim, fromPid, pid, ws, fromTeam, 'explosion');
+        } else if (sim.siegeActive) {
+          handleSiegeKill(sim, fromPid, pid, ws, fromTeam, 'explosion');
+        } else if (inBr) {
+          if (sim._handleBattleRoyaleKill) sim._handleBattleRoyaleKill(sim, fromPid, fromWs, pid, ws, 'explosion');
+        }
+      }
     }
   }
   // Siege-cores: explosion nära enemy-core ska skada den (med 0.15× nerf så

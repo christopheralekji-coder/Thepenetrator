@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v217-fixpass-v1.697';
+const SERVER_VERSION = 'v218-pvpfix-v1.698';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -1574,6 +1574,12 @@ function handleDisconnect(ws) {
         if (_s.juggernautScores) delete _s.juggernautScores[_pid];
         if (_s.battleroyaleKillsByPid) delete _s.battleroyaleKillsByPid[_pid];
         if (_s.tdmDeathsByPid) delete _s.tdmDeathsByPid[_pid];
+        // v1.698: dekrementera aliveCount om en LEVANDE BR-spelare lämnar — annars
+        // triggas last_alive-win aldrig (matchen hänger till 30s-fallbacken).
+        if (_s.battleroyaleActive && _s.battleroyaleEliminated && !_s.battleroyaleEliminated.includes(_pid)) {
+          _s.battleroyaleEliminated.push(_pid);
+          if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1);
+        }
         // Om host var JUG, frigör rollen (samma som vanlig-peer-grenen).
         if (_s.juggernautActive && _s.juggernautPid === ws.id) {
           _s.juggernautPid = null;
@@ -1613,6 +1619,12 @@ function handleDisconnect(ws) {
       if (_s.juggernautScores) delete _s.juggernautScores[_pid];
       if (_s.battleroyaleKillsByPid) delete _s.battleroyaleKillsByPid[_pid];
       if (_s.tdmDeathsByPid) delete _s.tdmDeathsByPid[_pid];
+      // v1.698: dekrementera aliveCount om en LEVANDE BR-spelare lämnar — annars
+      // triggas last_alive-win aldrig (matchen hänger till 30s-fallbacken).
+      if (_s.battleroyaleActive && _s.battleroyaleEliminated && !_s.battleroyaleEliminated.includes(_pid)) {
+        _s.battleroyaleEliminated.push(_pid);
+        if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1);
+      }
     }
     // JUGGERNAUT: om JUG-spelaren disconnectade, frigör JUG-rollen så nästa
     // human-respawn ärver den (i stället för att JUG sitter död tills timer går ut).

@@ -11971,6 +11971,11 @@ function drawCastleDefenseDownStateUI() {
 // var möjlig. state.deadBody.reviveTimer (0→5, från server-broadcast) ger progressen.
 function drawCoopReviveOverlay() {
   if (!Coop.active || state.castledefenseActive) return;
+  // v1.698: revive finns BARA i co-op-revive-lägen (story/heist; survivors/CD har egen
+  // cdDowned-overlay via guarden ovan). I FFA/BR/team-PvP respawnar/elimineras man →
+  // "vänta på räddning"-texten var falsk OCH krockade med respawn-countdownen.
+  if (state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive ||
+      state.tdmActive || state.ctfActive || state.siegeActive) return;
   const p = state.player;
   if (!p || !p.spectating || !state.deadBody) return;
   const t = performance.now();
@@ -35663,6 +35668,17 @@ function endGame(victory) {
   } else {
     endTitle.textContent = victory ? 'SEGER!' : 'GAME OVER';
     endTitle.style.color = victory ? '#4caf50' : '#ff5a5a';
+  }
+  // v1.698: visa dödsorsak på gameover-overlayn (var bara en transient toast) så
+  // spelaren förstår VAD som dödade dem efter 15 min på mobil.
+  const _deathCauseEl = document.getElementById('end-death-cause');
+  if (_deathCauseEl) {
+    if (!victory && state._lastDamageSource) {
+      _deathCauseEl.textContent = '💀 Dödad av ' + state._lastDamageSource;
+      _deathCauseEl.style.display = '';
+    } else {
+      _deathCauseEl.style.display = 'none';
+    }
   }
   Music.stop();
   if (victory) {

@@ -1778,15 +1778,20 @@ function applyHunterStats(sim, ws) {
 }
 
 function pickRandomHumanHunter(sim, excludePid) {
-  const candidates = [];
+  const live = [];
+  const fallback = [];
   for (const [pid, ws] of sim.room.members) {
     if (ws._isBot) continue;
     if (pid === excludePid) continue;
     if (!ws.playerState) continue;
-    candidates.push(pid);
+    fallback.push(pid);
+    // v1.698: föredra LEVANDE hunters — annars kunde en döende/respawnande hunter bli
+    // JUG och återupplivas direkt (full HP, tdmRespawnAt=0).
+    if (ws.playerState.hp > 0 && !ws.tdmRespawnAt) live.push(pid);
   }
-  if (!candidates.length) return null;
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  const pool = live.length ? live : fallback;
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
 }
 
 function transferJug(sim, newPid, reason) {
@@ -1998,6 +2003,16 @@ function tickJuggernaut(sim, dt, now) {
       endJuggernautMatch(sim, pid, 'target_reached');
       return;
     }
+  }
+  // v1.698: wall-clock-fallback — matchen tog ALDRIG slut förr (race-to-target nås sällan
+  // eftersom JUG-tiden delas mellan spelare). Vid timeout vinner mest ackumulerad JUG-tid.
+  if (sim.juggernautEndAt && nowMs >= sim.juggernautEndAt) {
+    let bestPid = null, bestScore = -1;
+    for (const pid of Object.keys(sim.juggernautScores)) {
+      if (sim.juggernautScores[pid] > bestScore) { bestScore = sim.juggernautScores[pid]; bestPid = pid; }
+    }
+    if (bestPid) endJuggernautMatch(sim, bestPid, 'time_up');
+    return;
   }
 }
 
@@ -6381,6 +6396,30 @@ function stopSim(sim) {
   sim._cdCoreHealedThisTick = false;
   sim._cdCoreLastHealBroadcast = 0;
   sim._lastTurretDmgEvtAt = 0;
+  // v1.698: HEIST sim-level state (stopSim rensade bara castledefense*). Latent — ofarligt
+  // så länge sim_start alltid kör createSim, men defensivt om sim-objektet återanvänds.
+  sim.heistActive = false;
+  sim.heistEnded = false;
+  sim.heistPhase = 'stealth';
+  sim.heistStartT = 0;
+  sim.heistPhaseStartT = 0;
+  sim.heistLootBagged = {};
+  sim.heistLootValue = 0;
+  sim.heistDrillProgress = 0;
+  sim.heistDrilling = false;
+  sim.heistAlarmTriggered = false;
+  sim.heistVaultUnlocked = false;
+  sim.heistInnerDrillProgress = 0;
+  sim.heistInnerVaultUnlocked = false;
+  sim.heistNPCs = [];
+  sim.heistRoles = {};
+  sim.heistDroppedBags = [];
+  sim.heistHackedTerminals = {};
+  sim.heistDisabledCameras = {};
+  sim.heistUnlockedDoors = {};
+  sim.heistBackExtractUnlocked = false;
+  sim.heistCeasefireUntil = 0;
+  sim._heistNextPoliceAt = 0;
   // Drain event-queue så stale events från slut-fas inte broadcastas vid restart
   if (sim.eventQueue) sim.eventQueue.length = 0;
 }
