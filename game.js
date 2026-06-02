@@ -21816,7 +21816,11 @@ const _btnPvpShield = document.getElementById('btn-pvp-shield');
 function tryPvpShield() {
   const p = state.player;
   if (!p) return;
-  if (!state.tdmActive && !state.ctfActive && !state.siegeActive && !state.gungameActive && !state.kothActive && !state.juggernautActive && !state.battleroyaleActive) return;
+  // v1.714: sköld-ability finns nu i ALLA lägen (PvP + PvE/co-op + solo).
+  // tryPvpShield anropas bara i mode==='playing' (knapp-handler), så ingen mode-gate
+  // behövs — men blockera när man är död/spectator (ingen poäng + server avvisar ändå).
+  if (state.mode !== 'playing') return;
+  if (p.spectating || (p.hp != null && p.hp <= 0)) return;
   const now = performance.now();
   if (p.pvpShieldUntil && now < p.pvpShieldUntil) return; // redan aktiv
   // Bugfix: ingen cooldown vid match-start. pvpShieldCdAt = null = aldrig använd.
@@ -33774,6 +33778,10 @@ function explode(x, y, radius, dmg, friendly) {
 function damagePlayer(amount, source, srcX, srcY) {
   const p = state.player;
   if (p.invuln > 0) return;
+  // v1.714: 3s-sköld-ability ger faktisk immunitet även i SOLO/klient-sim (story,
+  // solo-survivors). Server-sim-lägen sätter dessutom invulnUntil server-side, men den
+  // här klient-koden täcker lägen utan server. Skölden visas via drawPvpShieldBubbles.
+  if (p.pvpShieldUntil && performance.now() < p.pvpShieldUntil) return;
   // Ultimate cheat = odödlig
   if (isCheatActive('ultimate')) return;
   // Spectator-mode (redan död) — ta inte mer skada
@@ -40063,7 +40071,9 @@ let _lastShieldCdSet = -1;
 let _lastShieldVisible = null;
 function updatePvpShieldButton() {
   if (!_btnPvpShield) return;
-  const inPvP = state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.castledefenseActive;
+  // v1.714: sköld-ability finns i ALLA lägen. Funktionen anropas bara i mode==='playing'
+  // (runFrame), och knappen är child av #action-buttons (döljs i meny) → visa alltid här.
+  const inPvP = true;
   if (inPvP !== _lastShieldVisible) {
     _lastShieldVisible = inPvP;
     _btnPvpShield.classList.toggle('hidden', !inPvP);

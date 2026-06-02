@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v222-sweepfix-v1.705';
+const SERVER_VERSION = 'v223-shieldallmodes-v1.714';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -923,11 +923,12 @@ function handleMessage(ws, msg) {
     return;
   }
 
-  // PvP-shield-ability: 3s immunitet, 45s cooldown. TDM/CTF/Siege.
+  // Sköld-ability: 3s immunitet, 45s cooldown (20s JUG-hunter).
+  // v1.714: tillåten i ALLA server-sim-lägen (PvP + co-op PvE: survivors/heist/CD/
+  // story-coop). Mode-gaten borttagen; cooldown enforces fortfarande via _lastShieldUseAt.
   if (msg.type === 'pvp_ability_shield') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
-    if (!room.sim.tdmActive && !room.sim.ctfActive && !room.sim.siegeActive && !room.sim.kothActive && !room.sim.gungameActive && !room.sim.juggernautActive && !room.sim.battleroyaleActive && !room.sim.castledefenseActive) return;
     if (!ws.playerState || ws.playerState.hp <= 0) return;
     const now = Date.now();
     const SHIELD_DURATION = 3000;
