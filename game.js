@@ -5994,38 +5994,61 @@ function drawPvpPickups() {
 
 // PvP shield-bubble: rita runt spelare som är immuna. Visas för mig + alla
 // partners som har aktiv shield. Renderas i alla PvP-lägen.
+// v1.713: matchar nya sköld-hit-FX:en (cyan/elektrisk, rund/oval om gubben) men
+// lyser HELT runt om HELA tiden skölden är på (ej bara halv-arc vid träff). Träff-
+// shocken (drawShieldHitFor via _pvp3s) ritas ovanpå när man blir träffad.
 function drawPvpShieldBubbles() {
   const now = performance.now();
-  const draw = (wx, wy) => {
+  const draw = (wx, wy, r, until) => {
     const x = wx - state.camera.x, y = wy - state.camera.y;
     if (x < -60 || x > viewW + 60 || y < -60 || y > viewH + 60) return;
-    const pulse = 0.7 + Math.sin(now / 120) * 0.3;
+    const rem = until - now;
+    const fade = rem < 400 ? Math.max(0, rem / 400) : 1; // mjuk utfade sista 400ms
+    const pulse = 0.5 + 0.5 * Math.sin(now / 150);
+    const rx = (r || 14) + 7;   // samma form som drawShieldHitFor
+    const ry = rx * 1.18;
     ctx.save();
-    // Outer ring
-    ctx.strokeStyle = `rgba(140,255,200,${0.55 * pulse})`;
-    ctx.lineWidth = 3;
-    ctx.shadowColor = '#5aff9a';
-    ctx.shadowBlur = 18 * pulse;
+    ctx.translate(x, y);
+    // 1. Helkropps-sköldglöd (hela ovalen lyser så länge skölden är aktiv)
+    ctx.globalAlpha = fade * (0.30 + pulse * 0.18);
+    ctx.strokeStyle = '#6fe0ff';
+    ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#5ad8ff';
+    ctx.shadowBlur = 9 + pulse * 5;
     ctx.beginPath();
-    ctx.arc(x, y, 26, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
     ctx.stroke();
-    // Inner glow
-    const grad = ctx.createRadialGradient(x, y, 8, x, y, 26);
-    grad.addColorStop(0, `rgba(140,255,200,${0.18 * pulse})`);
-    grad.addColorStop(1, 'rgba(140,255,200,0)');
+    ctx.shadowBlur = 0;
+    // inre radial-glöd
+    const grad = ctx.createRadialGradient(0, 0, rx * 0.45, 0, 0, ry);
+    grad.addColorStop(0, `rgba(90,216,255,${fade * 0.16 * pulse})`);
+    grad.addColorStop(1, 'rgba(90,216,255,0)');
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.arc(x, y, 26, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
     ctx.fill();
+    // 2. Subtil elektrisk crackle runt HELA ringen (svagare än träff-shocken)
+    ctx.globalAlpha = fade * 0.45;
+    ctx.strokeStyle = '#dffaff';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    const segs = 24;
+    for (let i = 0; i <= segs; i++) {
+      const a = (i / segs) * Math.PI * 2;
+      const j = (Math.random() - 0.5) * 2.6;
+      const ex = Math.cos(a) * (rx + j), ey = Math.sin(a) * (ry + j);
+      if (i === 0) ctx.moveTo(ex, ey); else ctx.lineTo(ex, ey);
+    }
+    ctx.stroke();
     ctx.restore();
   };
   if (state.player && state.player.pvpShieldUntil && now < state.player.pvpShieldUntil) {
-    draw(state.player.x, state.player.y);
+    draw(state.player.x, state.player.y, state.player.r, state.player.pvpShieldUntil);
   }
   if (typeof Coop !== 'undefined' && Coop.players) {
     for (const [, p] of Coop.players) {
       if (p.pvpShieldUntil && now < p.pvpShieldUntil && p.x !== undefined) {
-        draw(p.x, p.y);
+        draw(p.x, p.y, p.r, p.pvpShieldUntil);
       }
     }
   }
@@ -23586,21 +23609,28 @@ const Coop = {
         const totalDealt = dealtHp + dealtShield;
         if (totalDealt > 0) {
           // v1.385: dedup mot predicted damage-number. Om vi redan visat en
-          // för denna target inom 250ms, skippa server-spawn (annars dubbel).
-          let foundPredicted = false;
+          // för denna target inom 250ms, återanvänd den (annars dubbel).
+          // v1.713: prediktionen visste inte sköld-split → korrigera färg/siffra mot
+          // serverns sanna split (blå om allt var sköld, annars röd HP).
+          let predictedPt = null;
           if (state.particles) {
             const now = performance.now();
             for (const pt of state.particles) {
               if (!pt.isDamageNumber || !pt._predictedTargetPid) continue;
               if (pt._predictedTargetPid !== ev.peerId) continue;
               if (now - (pt._predictedAt || 0) > 250) continue;
-              foundPredicted = true;
+              predictedPt = pt;
               break;
             }
           }
-          // Floating-number i världen vid target (bara om ingen prediction redan)
-          if (!foundPredicted && typeof spawnDamageNumber === 'function') {
-            spawnDamageNumber(targetX, targetY - 20, totalDealt, false);
+          if (predictedPt) {
+            predictedPt.text = '' + totalDealt;
+            if (dealtShield > 0 && dealtHp === 0) { predictedPt.color = '#46b6ff'; predictedPt._dmgKind = 'shield'; }
+            else { predictedPt.color = '#ff4d4d'; predictedPt._dmgKind = 'hp'; }
+          } else if (typeof spawnDamageNumber === 'function') {
+            // Ingen prediction → spawna serverns split: blå (sköld) + röd (HP), lätt offset.
+            if (dealtShield > 0) spawnDamageNumber(targetX - 9, targetY - 20, dealtShield, false, 'shield');
+            if (dealtHp > 0) spawnDamageNumber(targetX + 9, targetY - 20, dealtHp, false, 'hp');
           }
           // Off-screen hit-marker: om jag är shooter och target utanför viewport,
           // visa pil-indikator vid skärmkant så jag vet att jag träffade.
@@ -33275,14 +33305,18 @@ function drawOffscreenHitMarkers() {
   }
 }
 
-function spawnDamageNumber(x, y, dmg, isCrit) {
+function spawnDamageNumber(x, y, dmg, isCrit, kind) {
+  // v1.713: färgkodad efter vad som träffades — RÖD = HP-skada (ingen/genom-sköld),
+  // BLÅ = sköld-absorberad skada, GUL = crit. Så spelaren ser "hur mkt av vad".
+  const dmgKind = kind || 'hp';
   // Stacka: hitta recent damage-number inom 40px — bumpa siffran istället för ny partikel.
   // Burst-vapen (shotgun 6 pellets, burstpistol 3 skott) spawnade tidigare 3-6 ovanpå
   // varandra som FIFO-cullades, så spelaren såg bara "12 / 12 / 12" innan de försvann.
-  // Crits stackar inte (separat visuell payoff).
+  // Crits stackar inte (separat visuell payoff). Olika kind (röd/blå) stackar EJ ihop.
   if (!isCrit) {
     for (const pt of state.particles) {
       if (!pt.isDamageNumber || pt.isCritStack) continue;
+      if (pt._dmgKind !== dmgKind) continue; // blanda inte HP-röd med sköld-blå
       if (pt.life < 0.55) continue; // bara färska
       if (Math.abs(pt.x - x) < 40 && Math.abs(pt.y - y) < 40) {
         pt.stackedDmg = (pt.stackedDmg || parseInt(pt.text, 10) || 0) + dmg;
@@ -33295,12 +33329,17 @@ function spawnDamageNumber(x, y, dmg, isCrit) {
   // Cap 10 samtidiga (var 5) — FIFO på äldsta om över cap.
   const existing = state.particles.filter(p => p.isDamageNumber);
   if (existing.length >= 10) existing[0].life = 0;
+  let col;
+  if (isCrit) col = '#ffeb3b';
+  else if (dmgKind === 'shield') col = '#46b6ff'; // blå = sköld
+  else col = '#ff4d4d';                            // röd = HP
   state.particles.push({
     x: x + (Math.random() - 0.5) * 12, y, vx: (Math.random() - 0.5) * 30, vy: -60,
     life: 0.8, r: 0,
-    color: isCrit ? '#ffeb3b' : '#fff',
+    color: col,
     isDamageNumber: true,
     isCritStack: !!isCrit,
+    _dmgKind: dmgKind,
     text: isCrit ? dmg + '!' : '' + dmg,
     size: isCrit ? 18 : 13,
   });
