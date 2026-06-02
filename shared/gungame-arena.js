@@ -100,8 +100,8 @@ const GUNGAME_ARENA = {
 // under tier 9 — annars hopplöst grind efter att ha klivit sig upp i late-game.
 const GUNGAME_WEAPONS = [
   'throwknife',  // 1  — START (Kastkniv)
-  'pistol',      // 2  — basic gun
-  'revolver',    // 3  — heavy pistol
+  'revolver',    // 2  — heavy pistol (v1.700: bytt med pistol — pistol var DPS-svacka direkt efter start)
+  'pistol',      // 3  — basic gun
   'burstpistol', // 4  — 3-burst
   'shotgun',     // 5  — close-range power
   'shuriken',    // 6  — rapid throwing + burn

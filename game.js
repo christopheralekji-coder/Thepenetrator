@@ -23816,6 +23816,17 @@ const Coop = {
             setTimeout(() => el.classList.remove('core-flash'), 350);
           }
           if (dealt > 5 && typeof Audio !== 'undefined' && Audio.bossHit) Audio.bossHit();
+          // v1.700: eskalerande tröskel-varningar så spelaren märker core-attack även
+          // när coren är off-screen (badge-flashen syns bara om man tittar på HUD-en).
+          const _fracNow = ev.hp / (ev.maxHp || core.maxHp || 1);
+          if (core._warnedFrac == null) core._warnedFrac = 1;
+          for (const _thr of [0.75, 0.5, 0.25]) {
+            if (core._warnedFrac > _thr && _fracNow <= _thr) {
+              core._warnedFrac = _thr;
+              if (typeof showToast === 'function') showToast('⚠ DIN CORE ' + Math.round(_thr * 100) + '% — försvara!', 2.5);
+              if (typeof triggerShake === 'function') triggerShake(5, 0.3);
+            }
+          }
         }
         // -N pop ovanför core (i världen)
         if (dealt > 0 && typeof spawnDamageNumber === 'function') {
@@ -24123,7 +24134,7 @@ const Coop = {
         if (typeof playGungameTierUpVFX === 'function') playGungameTierUpVFX(ev.killerTier, this.gungameWeapons);
         if (typeof showToast === 'function') {
           const nextW = W_BY_ID[this.gungameWeapons[ev.killerTier]];
-          showToast('⬆ TIER ' + (ev.killerTier + 1) + '/' + this.gungameTotalTiers + (nextW ? ' — ' + nextW.name : ''));
+          showToast('⬆ TIER ' + (ev.killerTier + 1) + '/' + this.gungameTotalTiers + (nextW ? ' — ' + nextW.name : '') + ' · ⟳ ladda om');
         }
       }
       // Ego: jag blev demoterad
@@ -24132,6 +24143,7 @@ const Coop = {
         // Uppdatera HUD-bannern direkt så spelaren ser nya tiern under death-overlayen
         if (typeof updateGungameTier === 'function') updateGungameTier(ev.victimTier, this.gungameWeapons);
         if (typeof showToast === 'function') showToast('⬇ DEMOTION! Melee-kill → tier ' + (ev.victimTier + 1));
+        if (typeof playGungameDemoteVFX === 'function') playGungameDemoteVFX(ev.victimTier, this.gungameWeapons);
       }
       if (ev.victim === this.myId) {
         if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
@@ -24729,7 +24741,10 @@ const Coop = {
           // Total = players.size + 1 (mig själv är inte i players-map)
           const totalCount = (this.players ? this.players.size : 0) + 1;
           showToast('💀 ELIMINERAD — Placering ' + ev.placement + ' av ' + totalCount);
+          state._brPlacement = ev.placement;
+          state._brTotal = totalCount;
         }
+        if (typeof showBrSpectatorBanner === 'function') showBrSpectatorBanner();
       } else {
         // Annan spelare dog
         if (typeof showToast === 'function' && state.battleroyaleAliveCount <= 3) {
@@ -24737,10 +24752,12 @@ const Coop = {
         }
       }
       if (typeof updateBrHud === 'function') updateBrHud();
+      if (state.player && state.player.spectating && typeof updateBrSpectatorBanner === 'function') updateBrSpectatorBanner();
     } else if (ev.type === 'br_match_end') {
       // { winner, reason, stats }
       this.battleroyaleActive = false;
       state.battleroyaleActive = false;
+      if (typeof hideBrSpectatorBanner === 'function') hideBrSpectatorBanner();
       if (state.player) {
         state.player.isJug = false;
         state.player.scaleMul = 1.0;
@@ -36568,6 +36585,27 @@ function playGungameTierUpVFX(tier, weapons) {
   // Screen-shake för impact
   if (typeof triggerShake === 'function') triggerShake(6, 0.3);
 }
+// v1.700: demotion fick förr bara en diskret toast (promote har full VFX) → lätt att
+// missa att man tappade en tier. Röd flash + "TIER FÖRLORAD"-banner så nedgången registreras.
+function playGungameDemoteVFX(tier, weapons) {
+  document.querySelectorAll('#gungame-demote-flash, #gungame-demote-text').forEach(el => el.remove());
+  if (!document.getElementById('gg-demote-style')) {
+    const s = document.createElement('style'); s.id = 'gg-demote-style';
+    s.textContent = '@keyframes ggDemoteFade{0%{opacity:0;}15%{opacity:1;}100%{opacity:0;}}';
+    document.head.appendChild(s);
+  }
+  const flash = document.createElement('div');
+  flash.id = 'gungame-demote-flash';
+  flash.style.cssText = 'position:fixed;inset:0;z-index:180;pointer-events:none;background:radial-gradient(circle at center, rgba(255,60,40,0.30) 0%, rgba(255,40,30,0) 65%);animation:ggDemoteFade 0.9s forwards;';
+  document.body.appendChild(flash);
+  const text = document.createElement('div');
+  text.id = 'gungame-demote-text';
+  text.textContent = '⬇ TIER FÖRLORAD';
+  text.style.cssText = 'position:fixed;top:36%;left:50%;transform:translateX(-50%);z-index:181;pointer-events:none;color:#ff6a4a;font-family:sans-serif;font-weight:900;font-size:26px;letter-spacing:2px;text-shadow:0 2px 8px rgba(0,0,0,0.75);animation:ggDemoteFade 0.9s forwards;';
+  document.body.appendChild(text);
+  setTimeout(() => { flash.remove(); text.remove(); }, 950);
+  if (typeof triggerShake === 'function') triggerShake(5, 0.25);
+}
 function addGungameKillFeed(killerName, victimName, weaponName, wasMelee, demoted) {
   ensureGungameHud();
   if (!_gungameKillFeedEl) return;
@@ -37064,7 +37102,33 @@ function cleanupBrUI() {
 //
 // Symptom som detta fixar: BR-mark visas i sandbox, BR-scoreboard visas i gungame,
 // "utanför zonen 2/hp"-warning visas i andra modes, etc.
+// v1.700: persistent BR-spectator-banner. Förr fanns bara en flyktig elimination-toast →
+// slutupplevelsen ("vilken placering blev jag / vem lever") var osynlig efter död.
+function showBrSpectatorBanner() {
+  let el = document.getElementById('br-spectator-banner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'br-spectator-banner';
+    el.style.cssText = 'position:fixed;top:max(50px, calc(env(safe-area-inset-top,0px)+46px));left:50%;transform:translateX(-50%);z-index:120;background:rgba(20,10,10,0.86);border:2px solid #ff5a5a;border-radius:10px;padding:7px 16px;color:#fff;font-family:sans-serif;font-weight:800;text-align:center;font-size:13px;letter-spacing:0.5px;box-shadow:0 2px 12px rgba(0,0,0,0.6);pointer-events:none;';
+    document.body.appendChild(el);
+  }
+  updateBrSpectatorBanner();
+}
+function updateBrSpectatorBanner() {
+  const el = document.getElementById('br-spectator-banner');
+  if (!el) return;
+  const alive = state.battleroyaleAliveCount || 0;
+  const tgt = (state.player && state.player.specTarget && Coop.players) ? Coop.players.get(state.player.specTarget) : null;
+  const watching = tgt ? (tgt.name || 'spelare') : '—';
+  el.innerHTML = '💀 PLACERING <span style="color:#ffd54a;">' + (state._brPlacement || '?') + '</span> av ' + (state._brTotal || '?') +
+    ' · <span style="color:#5aff5a;">' + alive + ' KVAR</span><br><span style="font-size:10px;opacity:0.85;font-weight:600;">👁 ' + watching + '</span>';
+}
+function hideBrSpectatorBanner() {
+  const el = document.getElementById('br-spectator-banner');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
 function clearBattleroyaleState() {
+  if (typeof hideBrSpectatorBanner === 'function') hideBrSpectatorBanner();
   state.battleroyaleActive = false;
   state.battleroyaleWalls = null;
   state.battleroyaleDecorations = null;

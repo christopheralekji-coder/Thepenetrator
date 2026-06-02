@@ -1754,7 +1754,10 @@ function applyJugStats(sim, ws, hpFrac) {
   ws.playerState.maxHp = sim.juggernautHpMax;
   ws.playerState.hp = Math.round(sim.juggernautHpMax * frac);
   // JUG-specifik max-shield (200, var 100) — sätt FÖRE shield-räkningen
-  ws.playerState.maxShield = JUGGERNAUT_ARENA.jugShieldMax || 200;
+  // v1.700: skala shield med hunter-count vid N>4 (JUG var för svag vid 6-8 spelare;
+  // shield ist f HP så 1v2-3 inte blir ännu mer ensidigt). +25/hunter över 4, cap +150.
+  const _jugHunters = Math.max(0, sim.room.members.size - 1);
+  ws.playerState.maxShield = (JUGGERNAUT_ARENA.jugShieldMax || 200) + Math.min(150, 25 * Math.max(0, _jugHunters - 4));
   ws.playerState.shield = Math.round(ws.playerState.maxShield * frac);
   ws.playerState.isJug = true;
   ws.playerState.scaleMul = JUGGERNAUT_ARENA.jugScale;

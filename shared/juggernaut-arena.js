@@ -364,7 +364,7 @@ const JUGGERNAUT_ARENA = {
   hunterShieldMax: 100,           // NY (explicit, var implicit default)
   hunterDmgVsJugMul: 1.0,         // ingen damage-bonus — speed/dash-fördel räcker
   hunterWeapon: 'pistol',
-  minimapPulseIntervalMs: 5000,   // hunters ser JUG på minimap var 5s
+  minimapPulseIntervalMs: 2500,   // v1.700: 5000→2500 — tätare puls (läsbarhet på 390px) men bevarar fog-of-war (ej persistent wallhack-pil)
 
   // JUG-vapen-balans: rifle var dominant (137 DPS @ 820px räckvidd) på pelar-banan,
   // sledge nästan obrukbar (kräver 52px kontakt). Multipliers premierar melee-risk.
