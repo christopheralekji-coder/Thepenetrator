@@ -73288,8 +73288,19 @@ function loop(now) {
   // Mät faktisk render-kostnad → justera cap:en adaptivt med hysteres.
   const _cost = performance.now() - _frameT0;
   _frameCostEMA += (_cost - _frameCostEMA) * 0.05;
-  if (TARGET_FPS === 60 && _frameCostEMA > 20) { TARGET_FPS = 30; FRAME_MS = 1000 / 30; }
-  else if (TARGET_FPS === 30 && _frameCostEMA < 12) { TARGET_FPS = 60; FRAME_MS = 1000 / 60; }
+  // v1.702: TRE-tiers adaptiv cap (120/60/30) med hysteres. 60-capen lämnade
+  // 120Hz-telefoner (de flesta moderna flaggskepp) på juddrig "render-varannan-rAF"-60
+  // i st f mjuka native 120. Render-raten är frikopplad från input-send (Coop.tick har
+  // egen 17ms-gate) så 120fps floodar inte servern. FRAME_MS är bara ett TAK — på en
+  // 60Hz-skärm renderar rAF ändå bara 60/s även om TARGET_FPS=120 (ingen nackdel).
+  if (TARGET_FPS >= 120) {
+    if (_frameCostEMA > 11) { TARGET_FPS = 60; FRAME_MS = 1000 / 60; }
+  } else if (TARGET_FPS === 60) {
+    if (_frameCostEMA > 20) { TARGET_FPS = 30; FRAME_MS = 1000 / 30; }
+    else if (_frameCostEMA < 6) { TARGET_FPS = 120; FRAME_MS = 1000 / 120; }
+  } else { // 30
+    if (_frameCostEMA < 12) { TARGET_FPS = 60; FRAME_MS = 1000 / 60; }
+  }
   requestAnimationFrame(loop);
 }
 function runFrame(dt, now) {
