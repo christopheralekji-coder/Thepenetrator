@@ -22275,6 +22275,48 @@ const COOP_SERVER_URL = (typeof window !== 'undefined' && window.COOP_SERVER_URL
   'wss://penetrator-coop-eu.onrender.com';
 const PLAYER_COLORS = ['#3aff5a', '#3acaff', '#aa3aff', '#ff5a3a', '#ffd54a', '#ff5aca', '#5aff8a', '#cc5aff'];
 
+// v1.701: Entitets-interpolerings-buffert. Ersätter den gamla "jaga-senaste-position"-
+// lerpen (dt*35) med LINJÄR interp mellan tidsstämplade snapshots, renderade ~INTERP_DELAY_MS
+// bakåt → konstant hastighet = smooth + jitter-immun (tar bort stutter-spikes på mobilnät
+// där paket anländer ojämnt). Delayen hålls liten (≈ nuvarande effektiva delay) så
+// träffsäkerheten inte försämras; servern bumpar sin rewind med samma delay (bullets.js).
+const INTERP_DELAY_MS = 60;
+function pushEntitySnap(ent, x, y, t) {
+  if (!ent._snaps) ent._snaps = [];
+  const s = ent._snaps;
+  // Teleport (respawn/spawn) → nollställ bufferten så interp inte glider över skärmen
+  if (s.length && (Math.abs(x - s[s.length - 1].x) > 150 || Math.abs(y - s[s.length - 1].y) > 150)) s.length = 0;
+  s.push({ t, x, y });
+  const cut = t - 400;
+  while (s.length > 2 && s[0].t < cut) s.shift();
+  if (s.length > 24) s.shift();
+}
+function interpEntitySnap(ent, renderT) {
+  const s = ent._snaps;
+  if (!s || s.length < 2) return null;
+  const last = s[s.length - 1];
+  if (renderT >= last.t) {
+    // Paket-svält → extrapolera kort (cap 120ms) från sista två snapshots
+    const a = s[s.length - 2];
+    const span = last.t - a.t;
+    if (span > 0 && span < 200) {
+      const over = Math.min(120, renderT - last.t);
+      return { x: last.x + (last.x - a.x) / span * over, y: last.y + (last.y - a.y) / span * over };
+    }
+    return { x: last.x, y: last.y };
+  }
+  if (renderT <= s[0].t) return { x: s[0].x, y: s[0].y };
+  for (let i = s.length - 1; i >= 1; i--) {
+    if (s[i - 1].t <= renderT && s[i].t >= renderT) {
+      const a = s[i - 1], b = s[i];
+      const span = b.t - a.t;
+      const f = span > 0 ? (renderT - a.t) / span : 0;
+      return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
+    }
+  }
+  return { x: last.x, y: last.y };
+}
+
 // ── Binär protokoll för world-paket ──────────────────────────────────────────
 // Spar 3-5× vs JSON. Format: little-endian. Strängar är length-prefixed UTF-8 (max 255 bytes).
 // Allt annat (lobby/event/state/shot/etc) kör fortfarande JSON via _sendTo/_sendBroadcast.
@@ -26368,8 +26410,9 @@ const Coop = {
             // Lobby-broadcast har inte landat än — skippa tills den gör det
             continue;
           }
-          // Interpolation: behåll x/y, sätt target
+          // Interpolation: behåll x/y, sätt target + pusha snapshot till bufferten
           cur.targetX = p.x; cur.targetY = p.y;
+          if (typeof pushEntitySnap === 'function') pushEntitySnap(cur, p.x, p.y, performance.now());
           cur.hp = p.hp;
           // Aim-vinkel: target istället för direkt-set så lerp i render-loopen kan smootha (undviker ryck)
           cur.targetAimAngle = p.a;
@@ -26413,6 +26456,7 @@ const Coop = {
             // Uppdatera bara de fält som skickas i deltan; behåll x/y, sätt targetX/Y, uppdatera hp
             existing.targetX = e.x;
             existing.targetY = e.y;
+            if (typeof pushEntitySnap === 'function') pushEntitySnap(existing, e.x, e.y, performance.now());
             existing.hp = e.hp;
             if (e.p !== undefined) existing.phase = e.p;
             // Vid full broadcast: uppdatera även statiska fields
@@ -73464,23 +73508,33 @@ function runFrame(dt, now) {
         // mer real-time → du siktar på färskare position → mindre visuell
         // bullet-miss på opponents skärm pga lag-comp/interpolation-paradox.
         // Trade-off: lite mer stutter vid network-jitter. Acceptabel vid 45Hz.
+        // v1.701: interp-buffert (linjär mellan tidsstämplade snapshots @ now-INTERP_DELAY)
+        // = konstant hastighet, jitter-immun. Fallback till gamla lerpen tills bufferten
+        // har 2+ snapshots (precis efter spawn) eller om buffert saknas.
+        const renderT = performance.now() - INTERP_DELAY_MS;
         const lerpFactor = Math.min(1, dt * 35);
         for (const e of state.enemies) {
           if (e.targetX === undefined) continue;
-          const dxE = e.targetX - e.x, dyE = e.targetY - e.y;
-          // Snap vid stor diff (respawn/teleport) — smooth bara små rörelser
-          if (dxE * dxE + dyE * dyE > 10000) { e.x = e.targetX; e.y = e.targetY; }
-          else { e.x += dxE * lerpFactor; e.y += dyE * lerpFactor; }
+          const ip = interpEntitySnap(e, renderT);
+          if (ip) { e.x = ip.x; e.y = ip.y; }
+          else {
+            const dxE = e.targetX - e.x, dyE = e.targetY - e.y;
+            if (dxE * dxE + dyE * dyE > 10000) { e.x = e.targetX; e.y = e.targetY; }
+            else { e.x += dxE * lerpFactor; e.y += dyE * lerpFactor; }
+          }
           if (e.walkAccum !== undefined) e.walkAccum += dt * 5;
         }
-        // Coop-partners interpolation också — aim snabbare än position (taktiskt)
+        // Coop-partners: samma buffert-interp för position; aim lerpas separat (taktiskt)
         const aimLerp = Math.min(1, dt * 30);
         for (const [, p] of Coop.players) {
           if (p.targetX === undefined) { p.targetX = p.x; p.targetY = p.y; }
-          const dxP = p.targetX - p.x, dyP = p.targetY - p.y;
-          // Snap vid teleport (respawn/spawn) — smooth bara små rörelser
-          if (dxP * dxP + dyP * dyP > 10000) { p.x = p.targetX; p.y = p.targetY; }
-          else { p.x += dxP * lerpFactor; p.y += dyP * lerpFactor; }
+          const ipP = interpEntitySnap(p, renderT);
+          if (ipP) { p.x = ipP.x; p.y = ipP.y; }
+          else {
+            const dxP = p.targetX - p.x, dyP = p.targetY - p.y;
+            if (dxP * dxP + dyP * dyP > 10000) { p.x = p.targetX; p.y = p.targetY; }
+            else { p.x += dxP * lerpFactor; p.y += dyP * lerpFactor; }
+          }
           if (p.targetAimAngle !== undefined) {
             let d = p.targetAimAngle - p.aimAngle;
             while (d > Math.PI) d -= Math.PI * 2;

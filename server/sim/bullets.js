@@ -48,12 +48,19 @@ function getPvpDmg(weaponId, baseDmg) {
 // skärm. Server-tickSim pushar positionssnapshots till playerState._history.
 // Anti-cheat: cap 200ms => cheaters kan inte claim 5000ms ping för att träffa
 // genom väggar / mot teleporterade spelare.
-const MAX_REWIND_MS = 200;
+// v1.701: cap 200→250 + lägg klientens INTERP_DELAY (60ms) ovanpå RTT/2. Klienten
+// renderar nu remotes ~60ms bakåt (interp-buffert i game.js) — utan att matcha det i
+// rewinden skulle skott registrera mot en position 60ms FÖRE det skytten såg → miss på
+// rörliga mål. INTERP_DELAY måste hållas i sync med game.js INTERP_DELAY_MS.
+const MAX_REWIND_MS = 250;
+const CLIENT_INTERP_DELAY_MS = 60;
 function rewoundPosition(targetWs, shooterRtt) {
   if (!targetWs || !targetWs.playerState) return null;
   const cur = { x: targetWs.playerState.x, y: targetWs.playerState.y };
-  if (!shooterRtt || shooterRtt < 20) return cur; // ingen meningsfull rewind
-  const rewindMs = Math.min(MAX_REWIND_MS, shooterRtt / 2);
+  // v1.701: skippa BARA för bots (rtt 0/undefined → ingen klient-interp). Alla människor
+  // har 60ms interp-delay → behöver rewind även vid låg ping (annars miss på rörliga mål).
+  if (!shooterRtt) return cur;
+  const rewindMs = Math.min(MAX_REWIND_MS, shooterRtt / 2 + CLIENT_INTERP_DELAY_MS);
   const targetTime = Date.now() - rewindMs;
   const hist = targetWs.playerState._history;
   if (!hist || hist.length === 0) return cur;
