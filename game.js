@@ -41571,6 +41571,15 @@ function updateBullets(dt) {
       let nearest = null, nearestPid = null, nearestD2 = Infinity;
       const dxp = p.x - b.x, dyp = p.y - b.y;
       const distP2 = dxp*dxp + dyp*dyp;
+      // v1.711: spåra inkommande-eld-riktning för sköld/blod-FX. Sköld absorberas
+      // SERVER-side (pvp_hp_changed bär bara {hp,shield} UTAN position) → annars
+      // defaultar FX till vinkel 0 = höger. När en fiendekula passerar nära MIG,
+      // stämpla riktningen mot kulan = träffhållet. Funkar för ranged bottar i alla lägen.
+      const _nearR = (p.r || 14) + 20;
+      if (distP2 < _nearR * _nearR) {
+        state._dmgFromAngle = Math.atan2(b.y - p.y, b.x - p.x);
+        state._dmgFromAngleAt = performance.now();
+      }
       if (distP2 < nearestD2) { nearestD2 = distP2; nearest = p; }
       if (Coop.active && Coop.isHost) {
         for (const [pid, partner] of Coop.players) {
