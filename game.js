@@ -5457,7 +5457,7 @@ function drawCtfTurrets() {
       ctx.arc(x + (Math.random() - 0.5) * 4, y + (Math.random() - 0.5) * 4, 4 + Math.random() * 3, 0, Math.PI * 2);
       ctx.fill();
       // Spawna rök-partiklar då och då
-      if (state.particles && state.particles.length < 200 && Math.random() < 0.15) {
+      if (state.particles && state.particles.length < 200 && Math.random() < 0.15 * (state._lastDt || 0.0167) * 60) { // v1.705: dt-skalad spawn (var 2× partiklar vid 120fps)
         state.particles.push({
           x: tur.x + (Math.random() - 0.5) * 16,
           y: tur.y + (Math.random() - 0.5) * 16,
@@ -11224,10 +11224,11 @@ function drawCastleDefenseCore() {
   // Update + render sparks
   for (let i = state._cdCoreSparks.length - 1; i >= 0; i--) {
     const s = state._cdCoreSparks[i];
-    s.life -= 0.016;
-    s.x += s.vx * 0.016;
-    s.y += s.vy * 0.016;
-    s.vy += 8 * 0.016;
+    const _pdt = state._lastDt || 0.016; // v1.705: dt-skalad (var hårdkodat 0.016 = slow-mo vid 120fps)
+    s.life -= _pdt;
+    s.x += s.vx * _pdt;
+    s.y += s.vy * _pdt;
+    s.vy += 8 * _pdt;
     if (s.life <= 0) {
       state._cdCoreSparks.splice(i, 1);
       continue;
@@ -12133,8 +12134,9 @@ function drawCastleDefenseHealParticles() {
   ctx.save();
   for (let i = state._cdHealParticles.length - 1; i >= 0; i--) {
     const p = state._cdHealParticles[i];
-    p.y -= 0.6;                 // stigning
-    p.life -= 0.016;
+    const _pdt = state._lastDt || 0.016; // v1.705: dt-skalad (var hårdkodat = slow-mo + 2× livstid vid 120fps)
+    p.y -= 0.6 * _pdt * 60;     // stigning
+    p.life -= _pdt;
     if (p.life <= 0) {
       state._cdHealParticles.splice(i, 1);
       continue;
@@ -14780,7 +14782,7 @@ function drawSiegeCores() {
       const flicker = 0.5 + Math.random() * 0.5;
       ctx.fillStyle = `rgba(255,120,30,${flicker * 0.7})`;
       ctx.fillRect(x + c.w * 0.3, y + c.h * 0.3, c.w * 0.4, c.h * 0.4);
-      if (state.particles && state.particles.length < 200 && Math.random() < 0.4) {
+      if (state.particles && state.particles.length < 200 && Math.random() < 0.4 * (state._lastDt || 0.0167) * 60) { // v1.705: dt-skalad spawn (var 2× partiklar vid 120fps)
         state.particles.push({
           x: c.x + c.w / 2 + (Math.random() - 0.5) * c.w,
           y: c.y + c.h / 2 + (Math.random() - 0.5) * c.h,
@@ -20043,7 +20045,7 @@ function syncPixiEnemies() {
     // v1.601: bumped idle 0.04→0.15 så Pixi-rendered enemies ALLTID animerar synligt
     if (e.walkAccum == null) e.walkAccum = e.walkPhase || 0;
     const moving = !e.contactCd || e.contactCd < 0.3;
-    e.walkAccum += moving ? 0.22 : 0.15;
+    e.walkAccum += (moving ? 0.22 : 0.15) * (state._lastDt || 0.0167) * 60; // v1.705: dt-skalad (120fps-korrekt)
     const frame = (Math.sin(e.walkAccum) > 0) ? 'a' : 'b';
     const walkTex = pixiState.enemyTextures && pixiState.enemyTextures[wantKey + '_' + frame];
     if (walkTex && sprite.texture !== walkTex) sprite.texture = walkTex;
@@ -31208,8 +31210,10 @@ function renderCompanions() {
       const cost = companionRevivePrice(c);
       if (save.gold < cost) { showToast('Inte nog gold!'); return; }
       save.gold -= cost;
-      persist(); Audio.purchase(); renderCompanions();
+      // v1.705: respawn FÖRE render — spawnCompanion rensar dödsflaggan; renderar vi
+      // före står "ÅTERVÄCK"-knappen kvar → andra klicket dubbel-debiterar guld.
       if (typeof spawnCompanion === 'function') spawnCompanion();
+      persist(); Audio.purchase(); renderCompanions();
     });
     companionsGridEl.appendChild(card);
   }
@@ -34777,10 +34781,10 @@ function renderShopCompanions() {
       const cost = companionRevivePrice(c);
       if (save.gold < cost) { showToast('Inte nog gold!'); return; }
       save.gold -= cost;
+      // v1.705: respawn FÖRE render (annars står ÅTERVÄCK-knappen kvar → andra klicket dubbel-debiterar)
+      if (typeof spawnCompanion === 'function') spawnCompanion();
       persist(); Audio.purchase(); renderShopCompanions();
       if (shopGoldEl) shopGoldEl.textContent = save.gold;
-      // Återväck companion direkt
-      if (typeof spawnCompanion === 'function') spawnCompanion();
     });
     tmpGrid.appendChild(card);
   }
@@ -35189,7 +35193,7 @@ function restoreCoopIfNeeded() {
   if (snap.weaponId) save.weaponId = snap.weaponId;
   if (snap.equipped) save.equipped = snap.equipped;
   if (snap.upgrades) save.upgrades = snap.upgrades;
-  if (snap.perks) save.perks = snap.perks;
+  if (snap.perks) { save.perks = snap.perks; if (typeof rebuildPerkSet === 'function') rebuildPerkSet(); } // v1.705: bygg om cachen annars stale _perkSet → köp dubbletter + förlorat guld
   if (save.companions && snap.activeCompanion !== undefined) save.companions.active = snap.activeCompanion;
   if (state) state._coopSnapshot = null;
   try { localStorage.removeItem('penetrator_coop_snapshot'); } catch (_) {}
@@ -37190,7 +37194,7 @@ function showBrSpectatorBanner() {
   if (!el) {
     el = document.createElement('div');
     el.id = 'br-spectator-banner';
-    el.style.cssText = 'position:fixed;top:max(50px, calc(env(safe-area-inset-top,0px)+46px));left:50%;transform:translateX(-50%);z-index:120;background:rgba(20,10,10,0.86);border:2px solid #ff5a5a;border-radius:10px;padding:7px 16px;color:#fff;font-family:sans-serif;font-weight:800;text-align:center;font-size:13px;letter-spacing:0.5px;box-shadow:0 2px 12px rgba(0,0,0,0.6);pointer-events:none;';
+    el.style.cssText = 'position:fixed;top:max(70px, calc(env(safe-area-inset-top,0px)+66px));left:50%;transform:translateX(-50%);z-index:120;background:rgba(20,10,10,0.86);border:2px solid #ff5a5a;border-radius:10px;padding:7px 16px;color:#fff;font-family:sans-serif;font-weight:800;text-align:center;font-size:13px;letter-spacing:0.5px;box-shadow:0 2px 12px rgba(0,0,0,0.6);pointer-events:none;max-width:min(86vw,340px);box-sizing:border-box;white-space:normal;'; // v1.705: max-width + flyttad ned så den ej krockar med killfeed
     document.body.appendChild(el);
   }
   updateBrSpectatorBanner();
@@ -57787,7 +57791,7 @@ function drawPlayer() {
 
   // walk-cycle
   if (p.walkPhase === undefined) p.walkPhase = 0;
-  p.walkPhase += moving ? 0.22 : 0.04;
+  p.walkPhase += (moving ? 0.22 : 0.04) * (state._lastDt || 0.0167) * 60; // v1.705: dt-skalad (120fps-korrekt)
   const phase = p.walkPhase;
   const bob = moving ? Math.abs(Math.sin(phase)) * 1.6 : Math.sin(phase) * 0.4;
   // v1.434: subtil andning-cykel när stillastående (~3.5s period)
@@ -61881,12 +61885,12 @@ function drawBossSoldier(e, x, y, flash) {
   let dAng = targetFacing - e.facing;
   while (dAng > Math.PI)  dAng -= Math.PI * 2;
   while (dAng < -Math.PI) dAng += Math.PI * 2;
-  e.facing += dAng * 0.08;
+  e.facing += dAng * Math.min(1, 0.08 * (state._lastDt || 0.0167) * 60); // v1.705: dt-skalad lerp
 
   const moving = e.smoothSpeed > 0.3;
   if (e.walkAccum === undefined) e.walkAccum = 0;
   // v1.601: bumped idle 0.012→0.12 så bossar har synlig idle-animation
-  e.walkAccum += (moving ? e.smoothSpeed * 0.18 : 0.12);
+  e.walkAccum += (moving ? e.smoothSpeed * 0.18 : 0.12) * (state._lastDt || 0.0167) * 60; // v1.705: dt-skalad
   const phase = e.walkAccum;
   const bob = (moving ? 4 : 1.0) * Math.sin(phase);
 
@@ -66315,7 +66319,7 @@ function drawEnemy(e) {
   // v1.601: bumped idle 0.04→0.15 — synlig animation även för stillastående enemies
   if (e.walkAccum === undefined) e.walkAccum = e.walkPhase || 0;
   const moving = !e.contactCd || e.contactCd < 0.3;
-  e.walkAccum += moving ? 0.22 : 0.15;
+  e.walkAccum += (moving ? 0.22 : 0.15) * (state._lastDt || 0.0167) * 60; // v1.705: dt-skalad (120fps-korrekt)
   const phase = e.walkAccum;
   const bob = Math.abs(Math.sin(phase)) * 1.4;
 
@@ -73341,6 +73345,7 @@ function loop(now) {
   requestAnimationFrame(loop);
 }
 function runFrame(dt, now) {
+  state._lastDt = dt; // v1.705: exponera dt till draw-funktioner (walk-cykler) för 120fps-korrekt animation
   // Grenade-reset: när mode TRANSITIONERAR till 'playing' (ny match start eller
   // story-load), nollställ count till 5 + clear in-flight grenades. Respawn
   // ändrar inte mode, så det räknas inte som ny match.

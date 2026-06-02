@@ -206,8 +206,9 @@ function tickSim(sim) {
     if (!ws.playerState) continue;
     if (!ws.playerState._history) ws.playerState._history = [];
     ws.playerState._history.push({ t: now, x: ws.playerState.x, y: ws.playerState.y });
-    // Prune äldre än 250ms (lite mer än max rewind 200ms för safety)
-    while (ws.playerState._history.length > 0 && now - ws.playerState._history[0].t > 250) {
+    // v1.705: Prune > 320ms — marginal över max rewind 250 (= RTT/2 + 60ms interp-delay, v1.701).
+    // Förr 250 = exakt cap → noll marginal → högping-skytt föll på äldsta snapshot.
+    while (ws.playerState._history.length > 0 && now - ws.playerState._history[0].t > 320) {
       ws.playerState._history.shift();
     }
   }
