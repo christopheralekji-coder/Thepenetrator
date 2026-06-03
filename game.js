@@ -23967,6 +23967,23 @@ const Coop = {
       state._dbgServer.enemies = ev.enemies;
       state._dbgServer.bullets = ev.bullets;
       state._dbgServer.lastUpdateAt = performance.now();
+    } else if (ev.type === 'pvp_shot') {
+      // VARIANT B (v1.729): server-källat skott-event → spawna visuella kulor för ANDRA
+      // spelares skott (tillförlitligt, ersätter peer-broadcasten i server-sim). Egna
+      // skott dedupas (renderas redan lokalt). Lead-kompenseras lätt så de ej syns "bakom".
+      if (ev.ownerPid && ev.ownerPid !== this.myId && Array.isArray(ev.bs)) {
+        const _sp2 = this.players && this.players.get(ev.ownerPid);
+        const _lead2 = Math.min(0.08, Math.max(0, ((_sp2 && _sp2.ping) || 60) / 1000));
+        for (const s of ev.bs) {
+          const life = s.l || 1.6;
+          const adv = Math.min(_lead2, life * 0.5);
+          state.bullets.push({
+            x: s.x + (s.vx || 0) * adv, y: s.y + (s.vy || 0) * adv, vx: s.vx, vy: s.vy,
+            dmg: 0, life: Math.max(0.2, life - adv), r: s.r || 4,
+            color: s.c || '#fff', hostile: false, style: s.s, _visualOnly: true,
+          });
+        }
+      }
     } else if (ev.type === 'grenade_thrown') {
       // v1.381: server broadcastar grenade-throws så peers ser granaten flyga
       // + explosion-VFX. Thrower dedupar via ownerPid (har redan local-instans
@@ -27665,6 +27682,10 @@ const Coop = {
   _shotQueue: [],
   broadcastShots(shots) {
     if (!this.active || !shots || !shots.length) return;
+    // VARIANT B (v1.729): i server-sim skickar SERVERN skott-events (pvp_shot) →
+    // peer-broadcasten behövs ej (skulle ge DUBBLA kulor). Behåll den bara för
+    // host-authoritativt co-op (ej server-sim).
+    if (this.serverSimActive) return;
     for (const s of shots) this._shotQueue.push(s);
     // Hård cap så minigun-spam inte fryser nätet. v1.727: 50→120 (skott flushas nu 30Hz
     // → kön töms ofta; högre cap minskar drop vid burst-eld så fler skott syns).

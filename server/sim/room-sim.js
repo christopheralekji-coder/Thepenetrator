@@ -6699,7 +6699,24 @@ function applyShoot(sim, peerId, msg) {
     applyMelee(sim, p, weaponId, params);
     return;
   }
+  const _bBefore = sim.bullets.length;
   spawnPlayerBullets(sim, p, weaponId, params);
+  // VARIANT B (v1.729): server-källat visuellt skott-event → ANDRA klienter ser kulan
+  // TILLFÖRLITLIGT (server är auktoritativ + eventet droppas ej, till skillnad från den
+  // gamla peer-broadcasten som stryptes av skyttens telefon vid backpressure → "ser
+  // träffen men inte kulan"). Klienten dedupar egna skott via ownerPid.
+  if (sim.bullets.length > _bBefore) {
+    const bs = [];
+    for (let i = _bBefore; i < sim.bullets.length && bs.length < 14; i++) {
+      const b = sim.bullets[i];
+      bs.push({
+        x: Math.round(b.x), y: Math.round(b.y),
+        vx: Math.round(b.vx), vy: Math.round(b.vy),
+        c: b.color, r: b.r, l: b.life, s: b.style,
+      });
+    }
+    if (bs.length) sim.eventQueue.push({ type: 'pvp_shot', ownerPid: peerId, bs });
+  }
 }
 
 // BR: spelaren dropar ett vapen från inventory → spawna loot vid sin pos
