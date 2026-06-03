@@ -259,7 +259,10 @@ function tickSim(sim) {
     }
     if (!sim.tdmEnded) {
       if (!sim.tdmRoundActive) {
-        // CS-INTERMISSION mellan rundor — frys allt, vänta på 3s-reset → starta ny runda
+        // LOOT-FAS (5s): rundan avgjord men survivors kan fortf. röra sig + LOOTA
+        // (greppa granater inför nästa runda). Pickups + bullets tickar; ingen wipe-check.
+        tickPvpPickups(sim, now);
+        updateBullets(sim, dt, now);
         if (sim.tdmRoundResetAt && nowMs >= sim.tdmRoundResetAt) {
           tdmStartRound(sim, nowMs);
         }
@@ -288,10 +291,10 @@ function tickSim(sim) {
           if ((redAlive === 0 || blueAlive === 0) && !sim.tdmEnded) {
             const winner = redAlive > 0 ? 'red' : (blueAlive > 0 ? 'blue' : null);
             sim.tdmRoundActive = false;
-            sim.tdmRoundResetAt = nowMs + 3000;
+            sim.tdmRoundResetAt = nowMs + 5000; // 5s loot-fas (greppa granater inför nästa runda)
             sim.eventQueue.push({
               type: 'tdm_round_end', winner, roundNum: sim.tdmRoundNum,
-              redKills: sim.tdmKills.red, blueKills: sim.tdmKills.blue, durationMs: 3000,
+              redKills: sim.tdmKills.red, blueKills: sim.tdmKills.blue, durationMs: 5000,
             });
           }
         }

@@ -72620,8 +72620,12 @@ function drawMiniMap() {
   // tomrum). Nu lerpas synlig världs-bredd/höjd separat: fokus-vy är kvadratisk
   // (följer spelaren), full karta matchar arenans proportion. Boxen får samma
   // aspect → inga band, ingen distortion (scale är uniform).
-  let viewWorldW = FOCUS_VIEW_WORLD + (stage.worldW - FOCUS_VIEW_WORLD) * t01;
-  let viewWorldH = FOCUS_VIEW_WORLD + (stage.worldH - FOCUS_VIEW_WORLD) * t01;
+  // v1.721: cap:a fokus PER AXEL till arenans storlek → små arenor (TDM 1700×2000)
+  // fyller minimapen aspekt-korrekt utan svart tomrum runt om.
+  const focusW = Math.min(FOCUS_VIEW_WORLD, stage.worldW);
+  const focusH = Math.min(FOCUS_VIEW_WORLD, stage.worldH);
+  let viewWorldW = focusW + (stage.worldW - focusW) * t01;
+  let viewWorldH = focusH + (stage.worldH - focusH) * t01;
   if (cdShowAll) {
     viewWorldW = Math.max(viewWorldW, stage.worldW);
     viewWorldH = Math.max(viewWorldH, stage.worldH);
