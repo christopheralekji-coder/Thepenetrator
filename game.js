@@ -21921,75 +21921,69 @@ function drawSmokeClouds() {
     const R = sc.radius * (0.45 + 0.55 * grow);
     const sx = sc.x - camX, sy = sc.y - camY;
     if (sx < -R - 70 || sx > viewW + R + 70 || sy < -R - 70 || sy > viewH + R + 70) continue;
-    // Bas-disk (TÄT kärna som skymmer sikten — v1.726 ännu tätare)
-    const baseA = alpha * 0.93;
-    const bg = ctx.createRadialGradient(sx, sy, R * 0.10, sx, sy, R);
-    bg.addColorStop(0, 'rgba(210,212,217,' + baseA.toFixed(3) + ')');
-    bg.addColorStop(0.45, 'rgba(184,187,194,' + (baseA * 0.96).toFixed(3) + ')');
-    bg.addColorStop(0.78, 'rgba(165,168,176,' + (baseA * 0.72).toFixed(3) + ')');
-    bg.addColorStop(1, 'rgba(150,153,160,0)');
+    // v1.738: VOLYMETRISK RÖK — byggd av många överlappande halvgenomskinliga puffar i
+    // 3 oktaver (kärn-billows → mellan → kant-wisps) i st f en slät opak skiva. Överlappet
+    // summerar till tät obskyr-massa i kärnan MEN med blommkåls-textur/densitetsvariation =
+    // ser ut som rök, ej "grå blob". Riktad ljussättning (ljuskälla uppe-vänster) + offset-
+    // highlight ger volym; multi-frekvent tids-churn = mjuk rörelse utan flicker.
+    const many = state.smokeClouds.length > 6;
+    // Fyllnads-bas: ger tät obskyr-"golv" i kärnan (rökgranatens taktiska syfte) men
+    // mjuk falloff mot kanten så puffarna sköter texturen utan att se ut som en skiva.
+    const baseA = alpha * 0.62;
+    const bg = ctx.createRadialGradient(sx, sy, R * 0.05, sx, sy, R * 1.04);
+    bg.addColorStop(0, 'rgba(178,180,186,' + baseA.toFixed(3) + ')');
+    bg.addColorStop(0.5, 'rgba(156,159,166,' + (baseA * 0.78).toFixed(3) + ')');
+    bg.addColorStop(0.82, 'rgba(146,149,156,' + (baseA * 0.34).toFixed(3) + ')');
+    bg.addColorStop(1, 'rgba(140,143,150,0)');
     ctx.fillStyle = bg;
-    // v1.728: OJÄMN blob-silhuett (ej perfekt cirkel) — deterministisk per moln (seed) +
-    // långsam tids-wobble. Smooth via quadratic mellan lob-punkter.
-    const LOBES = 13;
-    const pts = [];
-    for (let i = 0; i < LOBES; i++) {
-      const a = (i / LOBES) * Math.PI * 2;
-      const wob = 0.74 + 0.18 * (0.5 + 0.5 * Math.sin(a * 2 + sc.seed * 3 + now / 1700))
-                       + 0.08 * Math.sin(a * 5 + sc.seed * 1.7);
-      const rr = R * Math.min(1, wob);
-      pts.push([sx + Math.cos(a) * rr, sy + Math.sin(a) * rr]);
-    }
-    ctx.beginPath();
-    ctx.moveTo((pts[0][0] + pts[LOBES - 1][0]) / 2, (pts[0][1] + pts[LOBES - 1][1]) / 2);
-    for (let i = 0; i < LOBES; i++) {
-      const cur = pts[i], nxt = pts[(i + 1) % LOBES];
-      ctx.quadraticCurveTo(cur[0], cur[1], (cur[0] + nxt[0]) / 2, (cur[1] + nxt[1]) / 2);
-    }
-    ctx.closePath();
-    ctx.fill();
-    // Billowande puffar med VOLYM (v1.737): riktad ljussättning (ljuskälla uppe-vänster →
-    // lit/skugg-sida ger 3D-känsla) + offset-center radialgradient (highlight) +
-    // fluffiga kant-wisps som bryter den hårda blob-kanten = "rökigare" textur.
-    // Adaptiv täthet (perf): färre puffar/wisps när många moln är aktiva samtidigt.
-    const many = state.smokeClouds.length > 8;
-    const N = many ? 16 : 26;
-    for (let i = 0; i < N; i++) {
-      const ph = sc.seed + i * 1.71;
-      const ringA = (i / N) * Math.PI * 2 + Math.sin(now / 2300 + ph) * 0.45;
-      const dist = R * (0.18 + 0.62 * ((i % 4) / 3));
-      const px = sx + Math.cos(ringA) * dist + Math.sin(now / 1650 + ph) * 9;
-      const py = sy + Math.sin(ringA) * dist + Math.cos(now / 1850 + ph) * 9;
-      const pr = R * (0.30 + 0.12 * Math.sin(now / 1250 + ph));
-      // Riktad ljussättning: projicera puff-offset på ljus-riktningen (uppe-vänster).
+    ctx.beginPath(); ctx.arc(sx, sy, R * 1.04, 0, Math.PI * 2); ctx.fill();
+    // Puff-helper: riktad ljussättning + offset-highlight → 3D-volym per puff.
+    const puff = (px, py, pr, baseShade, pa) => {
+      if (pa <= 0.004) return;
       const lightDot = (-(px - sx) - (py - sy)) / (R + 1);
-      const shade = Math.max(118, Math.min(234, (158 + ((i * 11) % 44)) + lightDot * 48));
-      const pa = alpha * (0.23 + 0.16 * (0.5 + 0.5 * Math.sin(now / 1450 + ph)));
-      // Offset-centrum → highlight på lit-sidan, mörkare mot skugg-sidan (volym).
-      const pg = ctx.createRadialGradient(px - (px - sx) * 0.14, py - (py - sy) * 0.14, 1, px, py, Math.max(2, pr));
-      pg.addColorStop(0, 'rgba(' + (shade | 0) + ',' + (shade | 0) + ',' + ((shade + 6) | 0) + ',' + pa.toFixed(3) + ')');
-      pg.addColorStop(0.6, 'rgba(' + ((shade * 0.9) | 0) + ',' + ((shade * 0.9) | 0) + ',' + ((shade * 0.92) | 0) + ',' + (pa * 0.7).toFixed(3) + ')');
-      pg.addColorStop(1, 'rgba(' + ((shade * 0.82) | 0) + ',' + ((shade * 0.82) | 0) + ',' + ((shade * 0.85) | 0) + ',0)');
+      const sh = (Math.max(96, Math.min(238, baseShade + lightDot * 54))) | 0;
+      const dk = (sh * 0.68) | 0;
+      const r2 = Math.max(2, pr);
+      const pg = ctx.createRadialGradient(px - (px - sx) * 0.18, py - (py - sy) * 0.18, 1, px, py, r2);
+      pg.addColorStop(0, 'rgba(' + sh + ',' + sh + ',' + ((sh + 5) | 0) + ',' + pa.toFixed(3) + ')');
+      pg.addColorStop(0.5, 'rgba(' + ((sh * 0.86) | 0) + ',' + ((sh * 0.86) | 0) + ',' + ((sh * 0.89) | 0) + ',' + (pa * 0.62).toFixed(3) + ')');
+      pg.addColorStop(1, 'rgba(' + dk + ',' + dk + ',' + ((dk + 3) | 0) + ',0)');
       ctx.fillStyle = pg;
-      ctx.beginPath(); ctx.arc(px, py, Math.max(2, pr), 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(px, py, r2, 0, Math.PI * 2); ctx.fill();
+    };
+    // Oktav 1 — KÄRN-BILLOWS (stora, klustrade mot center → tät obskyr-massa).
+    const NC = many ? 8 : 13;
+    for (let i = 0; i < NC; i++) {
+      const ph = sc.seed + i * 2.3994;
+      const a = (i / NC) * Math.PI * 2 + Math.sin(now / 2600 + ph) * 0.42;
+      const d = R * (0.04 + 0.42 * ((i % 3) / 2));
+      const px = sx + Math.cos(a) * d + Math.sin(now / 1900 + ph) * 7;
+      const py = sy + Math.sin(a) * d + Math.cos(now / 2100 + ph) * 7;
+      const pr = R * (0.42 + 0.13 * Math.sin(now / 1500 + ph * 1.3));
+      puff(px, py, pr, 166 + ((i * 13) % 40), alpha * (0.54 + 0.10 * Math.sin(now / 1700 + ph)));
     }
-    // Fluffiga kant-wisps: mindre, svagare puffar strax utanför blob-kanten.
+    // Oktav 2 — MELLAN-PUFFAR (textur i mellan-zonen, billowande).
+    const NM = many ? 10 : 18;
+    for (let i = 0; i < NM; i++) {
+      const ph = sc.seed * 1.7 + i * 1.91;
+      const a = (i / NM) * Math.PI * 2 + Math.sin(now / 2200 + ph) * 0.55;
+      const d = R * (0.28 + 0.46 * ((i % 4) / 3));
+      const px = sx + Math.cos(a) * d + Math.sin(now / 1600 + ph) * 10 + Math.sin(now / 700 + ph * 2.1) * 4;
+      const py = sy + Math.sin(a) * d + Math.cos(now / 1750 + ph) * 10 + Math.cos(now / 760 + ph * 1.9) * 4;
+      const pr = R * (0.26 + 0.10 * Math.sin(now / 1300 + ph));
+      puff(px, py, pr, 160 + ((i * 11) % 46), alpha * (0.34 + 0.13 * (0.5 + 0.5 * Math.sin(now / 1400 + ph))));
+    }
+    // Oktav 3 — FINA KANT-WISPS (bryter kanten, fluffig dissipation = "rökigt").
     if (!many) {
-      const NW = 12;
+      const NW = 14;
       for (let i = 0; i < NW; i++) {
-        const ph = sc.seed * 1.3 + i * 2.27;
-        const wa = (i / NW) * Math.PI * 2 + Math.sin(now / 2000 + ph) * 0.5;
-        const wd = R * (0.80 + 0.26 * (0.5 + 0.5 * Math.sin(now / 1500 + ph)));
-        const wx = sx + Math.cos(wa) * wd;
-        const wy = sy + Math.sin(wa) * wd;
-        const wr = R * (0.15 + 0.07 * Math.sin(now / 1100 + ph));
-        const wsh = 190 + ((i * 7) % 28);
-        const wpa = alpha * (0.09 + 0.08 * (0.5 + 0.5 * Math.sin(now / 1300 + ph)));
-        const wg = ctx.createRadialGradient(wx, wy, 1, wx, wy, Math.max(2, wr));
-        wg.addColorStop(0, 'rgba(' + wsh + ',' + wsh + ',' + (wsh + 5) + ',' + wpa.toFixed(3) + ')');
-        wg.addColorStop(1, 'rgba(' + wsh + ',' + wsh + ',' + (wsh + 5) + ',0)');
-        ctx.fillStyle = wg;
-        ctx.beginPath(); ctx.arc(wx, wy, Math.max(2, wr), 0, Math.PI * 2); ctx.fill();
+        const ph = sc.seed * 1.31 + i * 2.27;
+        const a = (i / NW) * Math.PI * 2 + Math.sin(now / 1900 + ph) * 0.7;
+        const d = R * (0.72 + 0.34 * (0.5 + 0.5 * Math.sin(now / 1500 + ph)));
+        const px = sx + Math.cos(a) * d + Math.sin(now / 600 + ph * 2.3) * 6;
+        const py = sy + Math.sin(a) * d + Math.cos(now / 640 + ph * 2.1) * 6;
+        const pr = R * (0.12 + 0.07 * Math.sin(now / 1100 + ph));
+        puff(px, py, pr, 190 + ((i * 7) % 30), alpha * (0.10 + 0.07 * (0.5 + 0.5 * Math.sin(now / 1200 + ph))));
       }
     }
   }
@@ -72488,10 +72482,27 @@ function render() {
   // under objekt visuellt. Både landing-reticle (medan holding) + projektiler i flykt.
   if (typeof drawGrenadeReticle === 'function') drawGrenadeReticle();
   if (typeof drawGrenades === 'function') drawGrenades();
-  // RÖK-MOLN ovanpå spelare/väggar (skymmer sikten). v1.724.
-  if (typeof drawSmokeClouds === 'function') drawSmokeClouds();
-  // FRAG-EXPLOSIONER ovanpå allt (eldboll poppar över ev. rök). v1.737.
-  if (typeof drawExplosions === 'function') drawExplosions();
+  // RÖK + FRAG-EXPLOSIONER ritas på HUD-canvas (z:3) så de ligger ÖVER Pixi-enemies
+  // (z:2). v1.738: tidigare på main-Canvas2D (z:1) → PvE-fiender (Pixi-lagret ovanför)
+  // renderades OVANPÅ röken (skymde inte). Replikera världs-zoom-transformen på hudCtx
+  // så positionen matchar; minimap ritas senare på samma canvas → ligger kvar överst.
+  if (hudCtx && ((state.smokeClouds && state.smokeClouds.length) || (state.explosions && state.explosions.length))) {
+    const _svSmokeCtx = ctx;
+    ctx = hudCtx;
+    ctx.save();
+    if (_camZoom !== 1.0) {
+      ctx.translate(viewW / 2, viewH / 2);
+      ctx.scale(_camZoom, _camZoom);
+      ctx.translate(-viewW / 2, -viewH / 2);
+    }
+    if (typeof drawSmokeClouds === 'function') drawSmokeClouds();
+    if (typeof drawExplosions === 'function') drawExplosions();
+    ctx.restore();
+    ctx = _svSmokeCtx;
+  } else {
+    if (typeof drawSmokeClouds === 'function') drawSmokeClouds();
+    if (typeof drawExplosions === 'function') drawExplosions();
+  }
   // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE + GUNGAME + KOTH + JUGGERNAUT + BR)
   if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.battleroyaleActive) drawPvpShieldBubbles();
   // PvP-pickups (HP/shield-regen) — alla PvP-lägen utom BR (BR har eget loot-system)

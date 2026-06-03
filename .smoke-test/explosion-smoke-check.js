@@ -46,16 +46,26 @@ module.exports = {
     }));
     console.log('[VFX-DIAG] ready:', JSON.stringify(ready));
 
-    // Trigga rök (vänster om spelaren) + explosion (höger om spelaren)
-    await page.evaluate(() => {
+    // Vänta in en fiende (efter prep-countdown) → flytta den intill spelaren och spawna
+    // rök PÅ den för att verifiera z-order (fienden ska DÖLJAS av röken, ej ligga över).
+    await wait(5000);
+    const zinfo = await page.evaluate(() => {
       const p = state.player;
-      if (typeof spawnSmokeCloud === 'function') spawnSmokeCloud(p.x - 60, p.y + 10);
-      if (typeof spawnExplosion === 'function') spawnExplosion(p.x + 55, p.y, 90);
+      let movedEnemy = false;
+      if (state.enemies && state.enemies.length) {
+        const e = state.enemies[0];
+        e.x = p.x + 8; e.y = p.y - 4; // placera precis under röken
+        movedEnemy = true;
+      }
+      if (typeof spawnSmokeCloud === 'function') spawnSmokeCloud(p.x, p.y);
+      if (typeof spawnExplosion === 'function') spawnExplosion(p.x + 70, p.y, 90);
+      return { movedEnemy, enemyCount: state.enemies ? state.enemies.length : 0 };
     });
+    console.log('[VFX-DIAG] z-order:', JSON.stringify(zinfo));
     await wait(50);  await screenshot(page, '01-expl-flash-50ms');
     await wait(150); await screenshot(page, '02-expl-fireball-200ms');
     await wait(300); await screenshot(page, '03-expl-flames-500ms');
-    await wait(500); await screenshot(page, '04-expl-smoke-1000ms');
+    await wait(500); await screenshot(page, '04-smoke-over-enemy-1000ms');
 
     // Andra explosionen för säkerhets skull + rök som mognat
     await page.evaluate(() => {
