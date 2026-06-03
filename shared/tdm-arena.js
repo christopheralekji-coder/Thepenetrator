@@ -4,21 +4,20 @@
 // KONCEPT (fy_ "fight yard"):
 //  - Lagen spawnar längst BAK på var sin kortsida (RÖD uppe / BLÅ nere).
 //  - Framför varje spawn ligger en RAD med olika vapen på marken man springer och greppar.
-//  - GRANATER ligger i MITTEN (omstritt, exponerat mellan två containrar).
+//  - GRANATER ligger i MITTEN (omstritt, mellan två containrar).
 //  - Sidocover = väggsegment med LUCKOR emellan.
-//  - Spawn-punkterna är spridda så man inte kan spawn-campa ett vapen (servern väljer
-//    dessutom punkt längst från fiender vid respawn).
-//  - Liten bana (2200×2600) = frenetisk närstrid.
+//  - Spawn-punkterna är spridda (+ servern väljer punkt längst från fiender vid respawn).
+//  - LITEN bana (1700×2000) = frenetisk närstrid.
 //
-// Tema: militär övningszon — sandsäckar, betongbarriärer, jersey-barriers,
-// shipping-containrar, ammolådor, oljefat, vakttorn, tält, lastbil.
+// Tema: tätt detaljerad militär övningszon — vakttorn, tält + supply-lastbil i depån,
+// sandsäcks-skyttevärn, jersey-barriers, betongblock, shipping-containrar, ammolådor,
+// olje-/eldfat, staket. Komponerad med 3 körfält (vänster/center/höger) som hålls öppna.
 'use strict';
 
-const TDM_W = 2200;
-const TDM_H = 2600;
-const TDM_MID_Y = TDM_H / 2; // 1300
+const TDM_W = 1700;
+const TDM_H = 2000;
+const TDM_MID_Y = TDM_H / 2; // 1000
 
-// Spegla en vägg/punkt över horisontal-axeln (y = mitten) → blå sida.
 function _mirrorWall(w) { return { x: w.x, y: TDM_H - w.y - w.h, w: w.w, h: w.h, kind: w.kind }; }
 function _mirrorPt(p, extra) {
   const o = { x: p.x, y: TDM_H - p.y };
@@ -28,41 +27,49 @@ function _mirrorPt(p, extra) {
 
 // === RÖD SIDA (uppe, y < mitten) — speglas till blå sida nere ===
 const _topWalls = [
-  // Vakttorn i bakre hörnen (landmärken + cover vid spawn)
-  { x: 70,   y: 95,  w: 95,  h: 95,  kind: 'hunting_tower' },
-  { x: 2035, y: 95,  w: 95,  h: 95,  kind: 'hunting_tower' },
-  // Tält + supply-lastbil i spawn-zonen
-  { x: 470,  y: 100, w: 130, h: 95,  kind: 'tent' },
-  { x: 1600, y: 100, w: 130, h: 95,  kind: 'tent' },
-  { x: 980,  y: 95,  w: 240, h: 100, kind: 'truck' },
-  // Sandsäcks-skyttevärn precis FRAMFÖR vapenraden — segment med luckor emellan
-  { x: 230,  y: 665, w: 185, h: 38,  kind: 'sandbag' },
-  { x: 760,  y: 665, w: 185, h: 38,  kind: 'sandbag' },
-  { x: 1255, y: 665, w: 185, h: 38,  kind: 'sandbag' },
-  { x: 1785, y: 665, w: 185, h: 38,  kind: 'sandbag' },
-  // Sido-segment längs vänster/höger kant — med LUCKA emellan (kika-runt-cover)
-  { x: 118,  y: 780,  w: 40, h: 175, kind: 'jersey_barrier' },
-  { x: 118,  y: 1015, w: 40, h: 150, kind: 'sandbag' },
-  { x: 2042, y: 780,  w: 40, h: 175, kind: 'jersey_barrier' },
-  { x: 2042, y: 1015, w: 40, h: 150, kind: 'sandbag' },
-  // Mid-fält cover (betong + fat + lådor) — symmetriskt vänster/höger
-  { x: 520,  y: 905,  w: 95, h: 95, kind: 'concrete' },
-  { x: 1585, y: 905,  w: 95, h: 95, kind: 'concrete' },
-  { x: 870,  y: 880,  w: 52, h: 52, kind: 'oil_drum' },
-  { x: 1278, y: 880,  w: 52, h: 52, kind: 'oil_drum' },
-  { x: 330,  y: 1085, w: 80, h: 80, kind: 'crate' },
-  { x: 1790, y: 1085, w: 80, h: 80, kind: 'crate' },
+  // --- Spawn-depå (bakre zon) ---
+  { x: 55,   y: 70,  w: 92,  h: 92,  kind: 'hunting_tower' }, // vakttorn vänster
+  { x: 1553, y: 70,  w: 92,  h: 92,  kind: 'hunting_tower' }, // vakttorn höger
+  { x: 360,  y: 80,  w: 118, h: 86,  kind: 'tent' },
+  { x: 1222, y: 80,  w: 118, h: 86,  kind: 'tent' },
+  { x: 740,  y: 70,  w: 220, h: 92,  kind: 'truck' },         // supply-lastbil
+  { x: 300,  y: 188, w: 50,  h: 50,  kind: 'crate' },         // ammolådor vid tält
+  { x: 1350, y: 188, w: 50,  h: 50,  kind: 'crate' },
+  { x: 688,  y: 96,  w: 44,  h: 44,  kind: 'oil_drum' },      // fat vid lastbilen
+  { x: 968,  y: 96,  w: 44,  h: 44,  kind: 'oil_drum' },
+  { x: 150,  y: 62,  w: 150, h: 16,  kind: 'wooden_fence' },  // staket-accenter bak
+  { x: 1400, y: 62,  w: 150, h: 16,  kind: 'wooden_fence' },
+  // --- Skyttevärn (sandsäckar) framför vapenraden — segment med luckor ---
+  { x: 150,  y: 460, w: 150, h: 34,  kind: 'sandbag' },
+  { x: 560,  y: 460, w: 150, h: 34,  kind: 'sandbag' },
+  { x: 990,  y: 460, w: 150, h: 34,  kind: 'sandbag' },
+  { x: 1400, y: 460, w: 150, h: 34,  kind: 'sandbag' },
+  // --- Mid-fält cover ---
+  { x: 290,  y: 630, w: 30,  h: 150, kind: 'jersey_barrier' }, // vänster lane
+  { x: 1380, y: 630, w: 30,  h: 150, kind: 'jersey_barrier' }, // höger lane
+  { x: 470,  y: 668, w: 85,  h: 85,  kind: 'concrete' },
+  { x: 1145, y: 668, w: 85,  h: 85,  kind: 'concrete' },
+  { x: 700,  y: 700, w: 44,  h: 44,  kind: 'oil_drum' },       // center-kluster
+  { x: 750,  y: 742, w: 44,  h: 44,  kind: 'fire_drum' },
+  { x: 906,  y: 742, w: 44,  h: 44,  kind: 'fire_drum' },
+  { x: 956,  y: 700, w: 44,  h: 44,  kind: 'oil_drum' },
+  { x: 240,  y: 828, w: 74,  h: 74,  kind: 'crate' },          // lådstaplar
+  { x: 1386, y: 828, w: 74,  h: 74,  kind: 'crate' },
+  // --- Sido-segment längs kant — med LUCKA emellan (kika-runt) ---
+  { x: 105,  y: 560, w: 38,  h: 130, kind: 'sandbag' },
+  { x: 105,  y: 772, w: 34,  h: 130, kind: 'jersey_barrier' },
+  { x: 1557, y: 560, w: 38,  h: 130, kind: 'sandbag' },
+  { x: 1561, y: 772, w: 34,  h: 130, kind: 'jersey_barrier' },
 ];
 
-// === MITTLINJE (symmetrisk runt y=1300) — ritas en gång ===
+// === MITTLINJE (symmetrisk runt y=1000) — ritas en gång ===
 const _centerWalls = [
-  // Två shipping-containrar flankerar mitten → vertikal korridor i mitten där
-  // granaterna ligger (exponerat & omstritt). Lämnar gap till sido-väggarna.
-  { x: 700,  y: 1238, w: 175, h: 124, kind: 'shipping_container' },
-  { x: 1325, y: 1238, w: 175, h: 124, kind: 'shipping_container' },
-  // Jersey-barriers vid yttre mitten (sido-lane-cover)
-  { x: 250,  y: 1233, w: 34,  h: 134, kind: 'jersey_barrier' },
-  { x: 1916, y: 1233, w: 34,  h: 134, kind: 'jersey_barrier' },
+  { x: 555,  y: 936, w: 175, h: 128, kind: 'shipping_container' }, // vänster (korridor 730-970)
+  { x: 970,  y: 936, w: 175, h: 128, kind: 'shipping_container' }, // höger
+  { x: 195,  y: 933, w: 32,  h: 134, kind: 'jersey_barrier' },
+  { x: 1473, y: 933, w: 32,  h: 134, kind: 'jersey_barrier' },
+  { x: 470,  y: 978, w: 44,  h: 44,  kind: 'fire_drum' },          // flankerar korridoren
+  { x: 1186, y: 978, w: 44,  h: 44,  kind: 'fire_drum' },
 ];
 
 const TDM_ARENA = {
@@ -70,44 +77,42 @@ const TDM_ARENA = {
   worldH: TDM_H,
   name: 'ÖVNINGSFÄLTET',
 
-  // Spawn-pooler: 6 spridda punkter på var sin kortsida. Spridningen + serverns
-  // pickFarthestSpawn (respawn) gör att man inte kan spawn-campa ett vapen.
+  // 6 spridda spawns/lag på kortsidan (anti-spawn-camp + serverns pickFarthestSpawn).
   spawns: {
-    red:  [
-      { x: 260, y: 275 }, { x: 620, y: 285 }, { x: 980, y: 270 },
-      { x: 1340, y: 285 }, { x: 1700, y: 275 }, { x: 1960, y: 285 },
-    ].slice(),
-    blue: null, // fylls nedan via spegling
+    red: [
+      { x: 200, y: 265 }, { x: 460, y: 270 }, { x: 720, y: 262 },
+      { x: 980, y: 270 }, { x: 1240, y: 262 }, { x: 1500, y: 268 },
+    ],
+    blue: null,
   },
 
-  // Vapen på marken — RAD framför varje spawn. Samma uppsättning för båda lag
-  // (speglat i y). revolver / automatkarbin / burstpistol / sniper / hagelgevär.
+  // Vapen på marken — RAD framför varje spawn. revolver/automatkarbin/burstpistol/sniper/hagel.
   weaponSpawns: [
-    { x: 300,  y: 470, weaponId: 'revolver' },
-    { x: 720,  y: 470, weaponId: 'rifle' },        // automatkarbin
-    { x: 1100, y: 470, weaponId: 'burstpistol' },
-    { x: 1480, y: 470, weaponId: 'sniper' },
-    { x: 1900, y: 470, weaponId: 'shotgun' },      // hagelgevär
+    { x: 230,  y: 360, weaponId: 'revolver' },
+    { x: 540,  y: 360, weaponId: 'rifle' },        // automatkarbin
+    { x: 850,  y: 360, weaponId: 'burstpistol' },
+    { x: 1160, y: 360, weaponId: 'sniper' },
+    { x: 1470, y: 360, weaponId: 'shotgun' },      // hagelgevär
   ],
 
-  // Granater i mitten (omstritt). Ligger i korridoren mellan containrarna.
+  // Granater i mitten (i korridoren mellan containrarna)
   grenadeSpawns: [
-    { x: 950,  y: 1300 },
-    { x: 1250, y: 1300 },
-    { x: 1100, y: 1175 },
-    { x: 1100, y: 1425 },
+    { x: 760, y: 1000 }, { x: 940, y: 1000 },
+    { x: 850, y: 900 },  { x: 850, y: 1100 },
   ],
+
+  // HP + shield i mid-fältet (symmetriskt)
+  hpSpawns:     [{ x: 250, y: 1000 }, { x: 1450, y: 1000 }],
+  shieldSpawns: [{ x: 850, y: 680 },  { x: 850, y: 1320 }],
 
   walls: [],
 };
 
-// Spegla spawns → blå
 TDM_ARENA.spawns.blue = TDM_ARENA.spawns.red.map(p => _mirrorPt(p));
-// Spegla vapenrad → blå (lägg till blå-raden)
 TDM_ARENA.weaponSpawns = TDM_ARENA.weaponSpawns.concat(
   TDM_ARENA.weaponSpawns.map(p => _mirrorPt(p, ['weaponId']))
 );
-// Bygg väggar: röd sida + speglad blå sida + mittlinje
+// (hp/shield-arrayerna är redan symmetriska — spegla EJ, ger dubbletter)
 TDM_ARENA.walls = _topWalls.concat(_topWalls.map(_mirrorWall)).concat(_centerWalls);
 
 if (typeof module !== 'undefined' && module.exports) {

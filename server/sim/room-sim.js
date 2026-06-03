@@ -934,11 +934,13 @@ function buildTdmPickups(sim, arena) {
   for (const g of (TDM_ARENA.grenadeSpawns || [])) {
     list.push({ id: nextPickupId(sim), x: g.x, y: g.y, type: 'grenade', available: true, respawnAt: 0 });
   }
-  // HP + shield i mid-fältet (kontestbart, symmetriskt)
-  list.push({ id: nextPickupId(sim), x: 300,  y: 1300, type: 'hp',     available: true, respawnAt: 0 });
-  list.push({ id: nextPickupId(sim), x: 1900, y: 1300, type: 'hp',     available: true, respawnAt: 0 });
-  list.push({ id: nextPickupId(sim), x: 1100, y: 920,  type: 'shield', available: true, respawnAt: 0 });
-  list.push({ id: nextPickupId(sim), x: 1100, y: 1680, type: 'shield', available: true, respawnAt: 0 });
+  // HP + shield i mid-fältet (symmetriskt, läses från arena)
+  for (const p of (TDM_ARENA.hpSpawns || [])) {
+    list.push({ id: nextPickupId(sim), x: p.x, y: p.y, type: 'hp', available: true, respawnAt: 0 });
+  }
+  for (const p of (TDM_ARENA.shieldSpawns || [])) {
+    list.push({ id: nextPickupId(sim), x: p.x, y: p.y, type: 'shield', available: true, respawnAt: 0 });
+  }
   return list;
 }
 

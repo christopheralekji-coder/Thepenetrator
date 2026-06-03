@@ -1148,8 +1148,15 @@ function drawPvpWalls(walls) {
       w.kind === 'alien_crystal' || w.kind === 'skull_totem'
     );
     if (w.kind !== 'pipe' && w.kind !== 'wall_divider' && !_brHasOwnShadow) {
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.fillRect(x + 2, y + Math.max(3, renderH * 0.06), renderW, renderH);
+      // v1.717: lagrad mjuk riktnings-skugga (ljus uppe-vänster → skugga ner-höger) → ger
+      // props tydligt djup/"pop" i st f platt 2px-skugga.
+      const _so = Math.max(3, renderH * 0.08);
+      ctx.fillStyle = 'rgba(0,0,0,0.12)';
+      ctx.fillRect(x + 5, y + _so + 4, renderW + 3, renderH);
+      ctx.fillStyle = 'rgba(0,0,0,0.20)';
+      ctx.fillRect(x + 3, y + _so + 2, renderW + 1, renderH);
+      ctx.fillStyle = 'rgba(0,0,0,0.34)';
+      ctx.fillRect(x + 1.5, y + _so, renderW, renderH);
     }
     // Stabil hash per-wall baserat på WORLD-koord (konstant). Tidigare beräknades
     // hash från SCREEN-coords (x,y) inom helpers → bullet-holes, concrete-dots och
@@ -1727,26 +1734,57 @@ function drawCrate(x, y, w, h, seed) {
 // === JUGGERNAUT-WALL-RENDERS ====================================================
 
 function drawConcreteWall(x, y, w, h) {
-  // Perimeter-betong med mörk fog + textur
-  const grad = ctx.createLinearGradient(x, y, x, y + h);
-  grad.addColorStop(0, '#3a3a40');
-  grad.addColorStop(0.5, '#2a2a2e');
-  grad.addColorStop(1, '#1a1a1e');
+  // Solid betongblock med DJUP: ljus topp-fas (fångar ljus uppifrån) + kropp + mörk
+  // bas-kontakt + aggregat-speckle + sprickor + rost-streck. Deterministisk textur.
+  const topH = Math.max(3, h * 0.16);
+  let rs = (((x * 7) ^ (y * 13) ^ (w * 5) ^ (h * 11)) & 0x7fffffff) || 1;
+  const rnd = () => { rs = (rs * 1103515245 + 12345) & 0x7fffffff; return rs / 0x7fffffff; };
+  // Kropp (gradient)
+  const grad = ctx.createLinearGradient(x, y + topH, x, y + h);
+  grad.addColorStop(0, '#41414a');
+  grad.addColorStop(0.5, '#34343b');
+  grad.addColorStop(1, '#212127');
   ctx.fillStyle = grad;
-  ctx.fillRect(x, y, w, h);
-  // Streckad fog ovanpå
-  ctx.fillStyle = 'rgba(10,10,12,0.6)';
-  ctx.fillRect(x, y, w, 2);
-  ctx.fillRect(x, y + h - 2, w, 2);
-  // Bullet-marks (random)
-  ctx.fillStyle = '#0a0a0a';
-  if (w > 100) {
-    for (let i = 0; i < Math.min(8, w / 200); i++) {
-      const mx = x + 20 + ((i * 137) % (w - 40));
-      const my = y + (i % 2 === 0 ? 4 : h - 6);
-      ctx.beginPath(); ctx.arc(mx, my, 1.5, 0, Math.PI * 2); ctx.fill();
-    }
+  ctx.fillRect(x, y + topH, w, h - topH);
+  // Topp-fas (ljusare ovansida)
+  const topGrad = ctx.createLinearGradient(x, y, x, y + topH);
+  topGrad.addColorStop(0, '#5c5c66');
+  topGrad.addColorStop(1, '#46464e');
+  ctx.fillStyle = topGrad;
+  ctx.fillRect(x, y, w, topH);
+  // Topp-highlight-kant
+  ctx.fillStyle = 'rgba(160,160,172,0.6)';
+  ctx.fillRect(x, y, w, 1.5);
+  // Mörk bas-kontakt
+  ctx.fillStyle = 'rgba(6,6,10,0.7)';
+  ctx.fillRect(x, y + h - Math.max(2, h * 0.09), w, Math.max(2, h * 0.09));
+  // Aggregat-speckle
+  const specks = Math.min(46, Math.max(8, (w * h) / 200));
+  for (let i = 0; i < specks; i++) {
+    const sx = x + rnd() * w, sy = y + topH + rnd() * (h - topH);
+    ctx.fillStyle = rnd() > 0.5 ? 'rgba(96,96,108,0.5)' : 'rgba(12,12,18,0.55)';
+    const r = 0.6 + rnd() * 1.4;
+    ctx.fillRect(sx, sy, r, r);
   }
+  // Sprickor (diagonala, jagged)
+  ctx.strokeStyle = 'rgba(8,8,12,0.6)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 2; i++) {
+    let px = x + 6 + rnd() * (w - 12), py = y + topH + 2;
+    ctx.beginPath(); ctx.moveTo(px, py);
+    for (let k = 0; k < 3; k++) { px += (rnd() - 0.5) * 14; py += (h - topH) / 3; ctx.lineTo(px, py); }
+    ctx.stroke();
+  }
+  // Vatten/rost-streck nedåt
+  ctx.fillStyle = 'rgba(58,44,28,0.20)';
+  for (let i = 0; i < Math.max(1, w / 80); i++) {
+    const wx = x + 10 + rnd() * (w - 20);
+    ctx.fillRect(wx, y + topH, 2.5, (h - topH) * (0.4 + rnd() * 0.5));
+  }
+  // Yttre kant
+  ctx.strokeStyle = 'rgba(6,6,10,0.8)';
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 }
 
 function drawTruck(x, y, w, h, seed) {
@@ -32823,6 +32861,20 @@ function equipPvpWeapon(id) {
   }
   if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
   if (typeof updateHUD === 'function') updateHUD();
+}
+// v1.717: KLIENT-PREDIKTION — equipa vapnet DIREKT när man går på det (känns instant)
+// i st f att vänta på server-bekräftelse (~RTT). Servern är fortf. auktoritet (sätter
+// ps.weaponId + broadcastar) men klienten predikterar för responsivitet. Idempotent:
+// equipar bara om annat vapen, så server-eventet trigger:ar ingen dubbel.
+function tdmWeaponPickupCheck() {
+  if (!state.tdmActive || !state.player || state.player.spectating || !state.pvpPickups) return;
+  const p = state.player;
+  for (const id in state.pvpPickups) {
+    const pu = state.pvpPickups[id];
+    if (!pu || pu.type !== 'weapon' || !pu.weaponId || p.weaponId === pu.weaponId) continue;
+    const dx = p.x - pu.x, dy = p.y - pu.y;
+    if (dx * dx + dy * dy <= 30 * 30) { equipPvpWeapon(pu.weaponId); break; }
+  }
 }
 function effectiveMag(weaponId) {
   const baseMag = getWeapon(weaponId).mag || 0;
@@ -74136,7 +74188,7 @@ function runFrame(dt, now) {
   }
 
   // Per-frame CSS-var-update för dash-cooldown-ring (smooth animation)
-  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); }
+  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); }
   // Gungame button-layout uppdateras ALLTID (även mode='menu') så defaults
   // återställs när matchen avslutats och spelaren går till menyn / annan mode.
   updateGungameButtonLayout();
