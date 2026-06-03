@@ -34607,7 +34607,14 @@ function _updateSpectateBanner() {
     b.id = 'spectate-switch-btn';
     b.innerHTML = '👁 BYT SPELARE ▶';
     b.style.cssText = 'position:fixed;bottom:max(22px, calc(env(safe-area-inset-bottom,0px) + 22px));left:50%;transform:translateX(-50%);z-index:45;background:rgba(20,18,26,0.94);border:2px solid rgba(154,255,160,0.6);border-radius:12px;color:#fff;font:800 13px sans-serif;padding:9px 18px;box-shadow:0 3px 14px rgba(0,0,0,0.5);pointer-events:auto;touch-action:manipulation;display:none;';
-    const onBtn = (e) => { e.preventDefault(); e.stopPropagation(); if (typeof cycleSpectate === 'function') cycleSpectate(1); };
+    let _specSwitchLast = 0;
+    const onBtn = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      const t = (typeof performance !== 'undefined' && performance.now) ? performance.now() : 0;
+      if (t - _specSwitchLast < 320) return; // debounce: pointerdown+touchstart dubbel-fire på iOS
+      _specSwitchLast = t;
+      if (typeof cycleSpectate === 'function') cycleSpectate(1);
+    };
     b.addEventListener('pointerdown', onBtn);
     b.addEventListener('touchstart', onBtn, { passive: false });
     document.body.appendChild(b);

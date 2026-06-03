@@ -293,6 +293,9 @@ function tickSim(sim) {
             const winner = redAlive > 0 ? 'red' : (blueAlive > 0 ? 'blue' : null);
             sim.tdmRoundActive = false;
             sim.tdmRoundResetAt = nowMs + 5000; // 5s loot-fas (greppa granater inför nästa runda)
+            // v1.734: LAG-baserad loadout-reset — hela förlorande LAGET tappar vapen+granater
+            // (även de som överlevde), hela vinnande laget BEHÅLLER (även de som dog).
+            sim._tdmLastLoser = winner ? (winner === 'red' ? 'blue' : 'red') : null;
             // v1.732: RUNDA-VINST-baserat — vinnaren får +1 rundvinst; match slutar vid målet
             if (!sim.tdmRoundWins) sim.tdmRoundWins = { red: 0, blue: 0 };
             if (winner) sim.tdmRoundWins[winner] = (sim.tdmRoundWins[winner] || 0) + 1;
@@ -987,22 +990,23 @@ function tdmStartRound(sim, nowMs) {
     const sp = ws.tdmTeam === 'red'
       ? (redSpawns[ri++] || TDM_ARENA.spawns.red[0])
       : (blueSpawns[bi++] || TDM_ARENA.spawns.blue[0]);
-    // v1.733: ÖVERLEVARE behåller vapen + granater. Bara de som DÖTT (förlorande laget
-    // + ev. egna döda) resettas → pistol + 0 granater (klienten nollställer granaterna).
-    const died = !!ws._tdmDeadRound;
+    // v1.734: LAG-baserad reset. Hela VINNANDE laget behåller vapen + granater
+    // (även de som dog under rundan), hela FÖRLORANDE laget tappar → pistol + 0 granater.
+    // Fallback till individuell död om ingen vinnare lagrats (t.ex. allra första rundan).
+    const reset = sim._tdmLastLoser ? (ws.tdmTeam === sim._tdmLastLoser) : !!ws._tdmDeadRound;
     ws.playerState.x = sp.x;
     ws.playerState.y = sp.y;
     ws.playerState.hp = 100;
     ws.playerState.shield = ws.playerState.maxShield || 100;
     ws.playerState.invulnUntil = nowMs + 1500;
-    if (died) ws.playerState.weaponId = 'pistol'; // döda tappar vapnet; överlevare behåller
+    if (reset) ws.playerState.weaponId = 'pistol'; // förlorande laget tappar vapnet; vinnare behåller
     ws._tdmDeadRound = false;
     ws.tdmRespawnAt = 0;
     sim.eventQueue.push({
       type: 'tdm_player_respawned', peerId: pid, x: sp.x, y: sp.y,
       hp: 100, shield: ws.playerState.shield,
       weaponId: ws.playerState.weaponId || 'pistol',
-      reset: died, // klienten: true → nollställ förråd + granater + pistol; false → behåll
+      reset: reset, // klienten: true → nollställ förråd + granater + pistol; false → behåll
     });
   }
   // Återställ ALLA pickups (vapen + granater + hp + shield) för nya rundan

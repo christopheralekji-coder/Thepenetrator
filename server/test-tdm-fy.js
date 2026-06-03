@@ -84,6 +84,9 @@ function collectEvents(type) {
   }
   return out;
 }
+// v1.734: ge BÅDA lagen ett icke-pistol-vapen för att verifiera lag-baserad behåll/reset
+p0.playerState.weaponId = 'sniper'; // röd (vinnare) — ska BEHÅLLA
+p1.playerState.weaponId = 'shotgun'; // blå (förlorare) — ska TAPPA → pistol
 // Döda p1 (blå) → blueAlive=0 → röd vinner rundan. Ticka tills broadcast sker (event drän).
 p1.playerState.hp = 0;
 sim.simReadyAt = 0;
@@ -106,11 +109,19 @@ sim.tdmRoundResetAt = Date.now() - 100;
 for (let i = 0; i < 3; i++) { sim.simReadyAt = 0; tickSim(sim, Date.now()); }
 assert(sim.tdmRoundActive === true && sim.tdmRoundNum === 2, 'round 2 active efter reset (num=' + sim.tdmRoundNum + ')');
 assert(p1.playerState.hp === 100 && p0.playerState.hp === 100, 'alla respawnade med full HP');
-assert(p0.playerState.weaponId === 'pistol' && p1.playerState.weaponId === 'pistol', 'alla resettade till pistol');
+// v1.734: LAG-baserad reset — vinnande laget (röd/p0) BEHÅLLER vapen, förlorande (blå/p1) → pistol
+assert(sim._tdmLastLoser === 'blue', 'förlorande laget lagrat = blue, got ' + sim._tdmLastLoser);
+assert(p0.playerState.weaponId === 'sniper', 'VINNARE (röd/p0) behåller sniper, got ' + p0.playerState.weaponId);
+assert(p1.playerState.weaponId === 'pistol', 'FÖRLORARE (blå/p1) resettad till pistol, got ' + p1.playerState.weaponId);
+const respawns = collectEvents('tdm_player_respawned');
+const p0resp = respawns.find(e => e.peerId === 'p0');
+const p1resp = respawns.find(e => e.peerId === 'p1');
+assert(p0resp && p0resp.reset === false, 'p0 (vinnare) respawn reset=false');
+assert(p1resp && p1resp.reset === true, 'p1 (förlorare) respawn reset=true');
 assert(sniperPu.available === true, 'vapen-pickups återställda (available=true) vid runda-start');
 const roundStart = collectEvents('tdm_round_start');
 assert(roundStart.length >= 1, 'tdm_round_start emitted');
-console.log('[OK] 3s → ny runda: alla respawn (pistol) + vapen återställda + roundNum=2');
+console.log('[OK] 3s → ny runda: LAG-baserad reset (vinnare behåller, förlorare→pistol) + roundNum=2');
 
 console.log('\n═══════════════════════════════════════');
 console.log('  ALL TDM fy_ + CS-RUNDA smoke-tests PASSED');
