@@ -25512,7 +25512,7 @@ const Coop = {
     } else if (ev.type === 'br_armor_update') {
       if (ev.peerId === this.myId && state.player) {
         state.player.armorLevel = ev.level || 0;
-        if (typeof updateBrArmorHud === 'function') updateBrArmorHud();
+        if (typeof refreshBrShopIfOpen === 'function') refreshBrShopIfOpen();
       }
     } else if (ev.type === 'br_buy_ok') {
       if (ev.peerId === this.myId) {
@@ -25536,13 +25536,29 @@ const Coop = {
         state.player.brPerks[ev.perk] = true;
         const pn = { fast_hands: '⚡ FAST HANDS', double_time: '🏃 DOUBLE TIME', ghost: '👻 GHOST', tracker: '👣 TRACKER', high_alert: '⚠️ HIGH ALERT' };
         if (typeof showToast === 'function') showToast('⭐ PERK: ' + (pn[ev.perk] || ev.perk));
-        if (typeof updateBrItemsHud === 'function') updateBrItemsHud();
+        if (typeof refreshBrBagIfOpen === 'function') refreshBrBagIfOpen();
       }
     } else if (ev.type === 'br_item_count') {
       if (ev.peerId === this.myId && state.player) {
         if (ev.item === 'self_revive') state.player.selfReviveKits = ev.count || 0;
         else if (ev.item === 'airstrike') state.player.airstrikes = ev.count || 0;
-        if (typeof updateBrItemsHud === 'function') updateBrItemsHud();
+        else if (ev.item === 'uav') state.player.uavCount = ev.count || 0;
+        if (typeof updateBrBagBadge === 'function') updateBrBagBadge();
+        if (typeof refreshBrBagIfOpen === 'function') refreshBrBagIfOpen();
+      }
+    } else if (ev.type === 'br_grenades') {
+      if (ev.peerId === this.myId) {
+        if (ev.frag && typeof setGrenadeCount === 'function' && typeof getGrenadeCount === 'function') setGrenadeCount(getGrenadeCount() + ev.frag);
+        if (ev.smoke && typeof setSmokeCount === 'function' && typeof getSmokeCount === 'function') setSmokeCount(getSmokeCount() + ev.smoke);
+        if (typeof showToast === 'function') showToast(ev.frag ? ('💣 +' + ev.frag + ' GRANATER') : ('💨 +' + ev.smoke + ' RÖKGRANATER'));
+      }
+    } else if (ev.type === 'br_maxstat') {
+      if (ev.peerId === this.myId && state.player) {
+        if (typeof ev.maxHp === 'number') state.player.maxHp = ev.maxHp;
+        if (typeof ev.maxShield === 'number') state.player.maxShield = ev.maxShield;
+        if (typeof ev.hp === 'number') state.player.hp = ev.hp;
+        if (typeof ev.shield === 'number') state.player.shield = ev.shield;
+        if (typeof updateHUD === 'function') updateHUD();
       }
     } else if (ev.type === 'br_downed') {
       if (ev.peerId === this.myId && state.player) {
@@ -25551,7 +25567,7 @@ const Coop = {
         state.player.selfReviveKits = ev.kits || 0;
         state.player.reloading = false;
         if (typeof exitBrAirstrikeTargeting === 'function') exitBrAirstrikeTargeting();
-        if (typeof updateBrItemsHud === 'function') updateBrItemsHud();
+        if (typeof updateBrBagBadge === 'function') updateBrBagBadge();
         if (typeof showBrDownedOverlay === 'function') showBrDownedOverlay();
         if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(140, 0.5, 'sawtooth', 0.22, 0.02, 0.4, 90);
       }
@@ -38247,25 +38263,28 @@ function showBrHud() {
     document.body.appendChild(coords);
   }
   coords.style.display = 'block';
-  // CASH + ARMOR-panel (v1.739) — top-left. Armor-pips är tappbara (applicera platta).
-  let cashPanel = document.getElementById('br-cash-panel');
-  if (!cashPanel) {
-    cashPanel = document.createElement('div');
-    cashPanel.id = 'br-cash-panel';
-    cashPanel.style.cssText = 'position:fixed;top:max(8px, calc(env(safe-area-inset-top,0px)+6px));left:max(8px, env(safe-area-inset-left,8px));z-index:80;display:flex;flex-direction:column;gap:5px;font-family:sans-serif;align-items:flex-start;';
-    // v1.741: cash visas i spelets befintliga 💰-räknare (uppe till höger) — ingen egen
-    // panel-rad. Pansar = passiv nivå-display (5 pips, 10% dmg-reduktion/nivå).
-    const armor = document.createElement('div');
-    armor.id = 'br-armor';
-    armor.style.cssText = 'display:flex;align-items:center;gap:4px;background:rgba(8,10,16,0.78);border:1px solid rgba(120,200,255,0.5);border-radius:8px;padding:4px 8px;box-shadow:0 2px 8px rgba(0,0,0,0.4);pointer-events:none;';
-    const items = document.createElement('div');
-    items.id = 'br-items';
-    items.style.cssText = 'display:flex;align-items:center;gap:6px;';
-    cashPanel.appendChild(armor);
-    cashPanel.appendChild(items);
-    document.body.appendChild(cashPanel);
+  // v1.743: cash i 💰-HUD, armor-display borttagen. Köpta aktiverbara items ligger i en
+  // BAG (väska) — knapp uppe till höger (vänster om byt-vapen-knappen), 38px.
+  let bagBtn = document.getElementById('br-bag-btn');
+  if (!bagBtn) {
+    bagBtn = document.createElement('button');
+    bagBtn.id = 'br-bag-btn';
+    bagBtn.style.cssText = 'position:fixed;top:176px;right:58px;width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,213,74,0.55);background:radial-gradient(circle at 30% 30%, rgba(80,70,40,0.85), rgba(24,18,10,0.9));color:#fff;font-size:18px;z-index:6;pointer-events:auto;touch-action:manipulation;box-shadow:0 3px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
+    bagBtn.innerHTML = '🎒<span id="br-bag-badge" style="position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;border-radius:8px;background:#ff4646;color:#fff;font:800 10px sans-serif;display:none;align-items:center;justify-content:center;padding:0 3px;">0</span>';
+    let _bagTapT = 0;
+    const onBag = (e) => { e.preventDefault(); e.stopPropagation(); const t = performance.now(); if (t - _bagTapT < 320) return; _bagTapT = t; if (typeof toggleBrBag === 'function') toggleBrBag(); };
+    bagBtn.addEventListener('pointerdown', onBag);
+    bagBtn.addEventListener('touchstart', onBag, { passive: false });
+    document.body.appendChild(bagBtn);
   }
-  cashPanel.style.display = 'flex';
+  bagBtn.style.display = 'flex';
+  // Shield-knappen: 38px (som byt-vapen) + flyttad till topp-höger raden vid BR (vänster
+  // om väskan). Spara original-css så den återställs i andra modes vid BR-exit.
+  if (_btnPvpShield) {
+    if (_btnPvpShield._origCss == null) _btnPvpShield._origCss = _btnPvpShield.style.cssText;
+    _btnPvpShield.style.cssText = 'position:fixed;top:176px;right:104px;width:38px;height:38px;font-size:16px;z-index:6;pointer-events:auto;';
+  }
+  if (typeof updateBrBagBadge === 'function') updateBrBagBadge();
   // BUY-prompt (visas bara nära en buy-station). Tap → öppna shoppen.
   let buyPrompt = document.getElementById('br-buy-prompt');
   if (!buyPrompt) {
@@ -38281,8 +38300,7 @@ function showBrHud() {
   }
   ensureBrCashCheatBtn();
   updateBrCashHud();
-  updateBrArmorHud();
-  updateBrItemsHud();
+  updateBrBagBadge();
   updateBrHud();
 }
 
@@ -38293,41 +38311,92 @@ function updateBrCashHud() {
   // Cash visas i spelets befintliga 💰-räknare via updateHUD.
   if (typeof updateHUD === 'function') updateHUD();
 }
-function updateBrArmorHud() {
-  const el = document.getElementById('br-armor');
-  if (!el || !state.player) return;
-  const lvl = state.player.armorLevel || 0;
-  let pips = '';
-  for (let i = 0; i < BR_ARMOR_MAX; i++) {
-    const on = i < lvl;
-    pips += '<span style="display:inline-block;width:9px;height:16px;border-radius:2px;margin-right:2px;background:' + (on ? 'linear-gradient(#7fe0ff,#2f9fe0)' : 'rgba(255,255,255,0.12)') + ';border:1px solid ' + (on ? '#aef0ff' : 'rgba(255,255,255,0.25)') + ';"></span>';
-  }
-  el.innerHTML = '<span style="color:#cfeaff;font-size:11px;font-weight:800;margin-right:2px;">🛡</span>' + pips +
-    (lvl > 0 ? '<span style="color:#9fe0ff;font-weight:800;font-size:11px;margin-left:3px;">-' + (lvl * 10) + '%</span>' : '');
+// === BAG (väska) v1.743 — aktiverbara items: UAV, Air Strike, Self-Revive (+ perk-info).
+function _brBagItems() {
+  const p = state.player || {};
+  return [
+    { id: 'uav', icon: '📡', name: 'UAV', count: p.uavCount || 0, desc: 'Avslöjar fiender 20s', activatable: true },
+    { id: 'airstrike', icon: '✈️', name: 'Air Strike', count: p.airstrikes || 0, desc: 'Rikta via minimapen', activatable: true },
+    { id: 'self_revive', icon: '🩹', name: 'Self-Revive', count: p.selfReviveKits || 0, desc: 'Auto vid nedskjutning', activatable: false },
+  ];
 }
-
-// Item-HUD: self-revive-kits (passiv) + airstrike-laddningar (tappbar → targeting).
-function updateBrItemsHud() {
-  const el = document.getElementById('br-items');
-  if (!el || !state.player) return;
-  const kits = state.player.selfReviveKits || 0;
-  const strikes = state.player.airstrikes || 0;
-  let html = '';
-  if (kits > 0) html += '<span style="background:rgba(20,40,24,0.8);border:1px solid #6fe08a;border-radius:7px;padding:3px 8px;color:#bfffd0;font-weight:800;font-size:12px;">🩹 ' + kits + '</span>';
-  if (strikes > 0) html += '<span id="br-airstrike-chip" style="background:rgba(40,28,10,0.86);border:1px solid #ffb24a;border-radius:7px;padding:3px 8px;color:#ffd9a0;font-weight:800;font-size:12px;pointer-events:auto;cursor:pointer;touch-action:manipulation;">✈️ ' + strikes + '</span>';
-  // Ägda perks (passiva ikoner)
-  const perks = state.player.brPerks || {};
+function updateBrBagBadge() {
+  const badge = document.getElementById('br-bag-badge');
+  if (!badge || !state.player) return;
+  const total = (state.player.uavCount || 0) + (state.player.airstrikes || 0) + (state.player.selfReviveKits || 0);
+  badge.textContent = total;
+  badge.style.display = total > 0 ? 'flex' : 'none';
+}
+function toggleBrBag() {
+  if (document.getElementById('br-bag-overlay')) closeBrBag();
+  else openBrBag();
+}
+function closeBrBag() {
+  const ov = document.getElementById('br-bag-overlay');
+  if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+}
+function openBrBag() {
+  if (!state.battleroyaleActive || !state.player || state.player.spectating) return;
+  let ov = document.getElementById('br-bag-overlay');
+  if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+  ov = document.createElement('div');
+  ov.id = 'br-bag-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:131;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-family:sans-serif;';
+  ov.addEventListener('pointerdown', (e) => { if (e.target === ov) closeBrBag(); });
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:linear-gradient(#241808,#120a02);border:2px solid #ffd54a;border-radius:16px;padding:16px;max-width:min(460px,92vw);width:100%;box-shadow:0 12px 48px rgba(0,0,0,0.7);box-sizing:border-box;';
+  panel.innerHTML = '<div style="color:#ffd54a;font-weight:900;font-size:18px;margin-bottom:12px;">🎒 VÄSKA</div><div id="br-bag-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;"></div>' +
+    '<button id="br-bag-close" style="margin-top:14px;width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.3);border-radius:10px;color:#fff;font:800 14px sans-serif;padding:10px;cursor:pointer;">STÄNG</button>';
+  ov.appendChild(panel);
+  document.body.appendChild(ov);
+  document.getElementById('br-bag-close').addEventListener('pointerdown', (e) => { e.preventDefault(); closeBrBag(); });
+  _brRenderBag();
+}
+function _brRenderBag() {
+  const grid = document.getElementById('br-bag-grid');
+  if (!grid) return;
+  const items = _brBagItems().filter(it => it.count > 0);
+  const perks = state.player && state.player.brPerks || {};
   const perkIcons = { fast_hands: '⚡', double_time: '🏃', ghost: '👻', tracker: '👣', high_alert: '⚠️' };
-  let pstr = '';
-  for (const k in perkIcons) if (perks[k]) pstr += perkIcons[k];
-  if (pstr) html += '<span style="background:rgba(30,24,44,0.82);border:1px solid #b48bff;border-radius:7px;padding:3px 7px;font-size:13px;letter-spacing:1px;">' + pstr + '</span>';
-  el.innerHTML = html;
-  const chip = document.getElementById('br-airstrike-chip');
-  if (chip) {
-    let _t = 0;
-    const onTap = (e) => { e.preventDefault(); e.stopPropagation(); const n = performance.now(); if (n - _t < 320) return; _t = n; enterBrAirstrikeTargeting(); };
-    chip.addEventListener('pointerdown', onTap);
-    chip.addEventListener('touchstart', onTap, { passive: false });
+  let perkStr = '';
+  for (const k in perkIcons) if (perks[k]) perkStr += perkIcons[k] + ' ';
+  grid.innerHTML = '';
+  if (!items.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#888;font-size:13px;padding:14px 0;">Väskan är tom — köp items i en Buy Station 🛒</div>';
+  }
+  for (const it of items) {
+    const card = document.createElement('div');
+    const canUse = it.activatable;
+    card.style.cssText = 'background:rgba(255,255,255,0.06);border:1px solid ' + (canUse ? '#5fd0ff' : '#6fe08a') + ';border-radius:12px;padding:10px;text-align:center;cursor:' + (canUse ? 'pointer' : 'default') + ';';
+    card.innerHTML = '<div style="font-size:28px;">' + it.icon + '</div><div style="color:#fff;font-weight:800;font-size:13px;">' + it.name + ' <span style="color:#9fe0ff;">x' + it.count + '</span></div>' +
+      '<div style="color:#bbb;font-size:10px;margin-top:3px;">' + it.desc + '</div>' +
+      (canUse ? '<div style="margin-top:6px;color:#aef0ff;font-weight:800;font-size:12px;">▶ ANVÄND</div>' : '<div style="margin-top:6px;color:#8f8;font-size:11px;">passiv</div>');
+    if (canUse) {
+      let _t = 0;
+      const onUse = (e) => { e.preventDefault(); e.stopPropagation(); const n = performance.now(); if (n - _t < 260) return; _t = n; _brBagActivate(it.id); };
+      card.addEventListener('pointerdown', onUse);
+      card.addEventListener('touchstart', onUse, { passive: false });
+    }
+    grid.appendChild(card);
+  }
+  // Perk-rad (passiv info)
+  if (perkStr) {
+    const pr = document.createElement('div');
+    pr.style.cssText = 'grid-column:1/-1;margin-top:6px;color:#cdbbff;font-size:12px;text-align:center;background:rgba(30,24,44,0.6);border:1px solid #6a4a9a;border-radius:8px;padding:6px;';
+    pr.innerHTML = 'Perks: ' + perkStr;
+    grid.appendChild(pr);
+  }
+}
+function refreshBrBagIfOpen() {
+  if (document.getElementById('br-bag-overlay')) _brRenderBag();
+}
+function _brBagActivate(id) {
+  if (id === 'uav') {
+    if (Coop && Coop.ws && Coop.ws.readyState === 1) Coop.ws.send(JSON.stringify({ type: 'sim_br_use_uav' }));
+    closeBrBag();
+  } else if (id === 'airstrike') {
+    closeBrBag();
+    enterBrAirstrikeTargeting();
   }
 }
 
@@ -38343,7 +38412,7 @@ function enterBrAirstrikeTargeting() {
     b.style.cssText = 'position:fixed;top:18%;left:50%;transform:translateX(-50%);z-index:118;background:rgba(40,20,8,0.92);border:2px solid #ffb24a;border-radius:10px;padding:8px 16px;color:#ffd9a0;font:800 13px sans-serif;letter-spacing:0.5px;pointer-events:none;box-shadow:0 3px 14px rgba(0,0,0,0.6);text-align:center;';
     document.body.appendChild(b);
   }
-  b.innerHTML = '✈️ TRYCK PÅ KARTAN FÖR AIRSTRIKE<br><span style="font-size:10px;opacity:0.8;font-weight:600;">(tryck igen utanför för att avbryta)</span>';
+  b.innerHTML = '✈️ TRYCK PÅ MINIMAPEN FÖR ATT RIKTA<br><span style="font-size:10px;opacity:0.8;font-weight:600;">(tryck utanför minimapen = avbryt)</span>';
   b.style.display = 'block';
 }
 function exitBrAirstrikeTargeting() {
@@ -38352,15 +38421,23 @@ function exitBrAirstrikeTargeting() {
   if (b) b.style.display = 'none';
 }
 // Anropas FÖRST i canvas pointerdown/touchstart. Returnerar true om tappet konsumerades.
+// v1.743: Airstrike riktas ENDAST via minimapen. Tap på minimapen (liten el. förstorad)
+// → world via _cdMinimapXform. Tap UTANFÖR minimapen → avbryt (ingen träff där man står).
 function checkBrAirstrikeTap(mx, my) {
   if (!state.brAirstrikeTargeting) return false;
+  if (!state.player || (state.player.airstrikes || 0) <= 0) { exitBrAirstrikeTargeting(); return true; }
+  const mm = state._minimapHitbox, xf = state._cdMinimapXform;
+  if (mm && xf && mx >= mm.x && mx <= mm.x + mm.w && my >= mm.y && my <= mm.y + mm.h) {
+    const wx = (mx - xf.ox) / xf.scale;
+    const wy = (my - xf.oy) / xf.scale;
+    exitBrAirstrikeTargeting();
+    if (Coop && Coop.ws && Coop.ws.readyState === 1) Coop.ws.send(JSON.stringify({ type: 'sim_br_airstrike', x: Math.round(wx), y: Math.round(wy) }));
+    if (typeof showToast === 'function') showToast('✈️ AIRSTRIKE INKOMMANDE...');
+    return true;
+  }
+  // Utanför minimapen → avbryt targeting (konsumera tappet så inget skott avlossas).
   exitBrAirstrikeTargeting();
-  if (!state.player || (state.player.airstrikes || 0) <= 0) return true;
-  const z = (typeof getCameraZoom === 'function') ? getCameraZoom() : 1.0;
-  const wx = state.camera.x + (mx - viewW / 2) / z + viewW / 2;
-  const wy = state.camera.y + (my - viewH / 2) / z + viewH / 2;
-  if (Coop && Coop.ws && Coop.ws.readyState === 1) Coop.ws.send(JSON.stringify({ type: 'sim_br_airstrike', x: Math.round(wx), y: Math.round(wy) }));
-  if (typeof showToast === 'function') showToast('✈️ AIRSTRIKE INKOMMANDE...');
+  if (typeof showToast === 'function') showToast('✈️ Airstrike avbruten (tryck på minimapen för att rikta)');
   return true;
 }
 
@@ -38376,10 +38453,18 @@ const BR_SHOP_CATALOG = [
     cost: () => 250, avail: (p) => !p.gasMask, sub: (p) => p.gasMask ? 'Ägd' : '' },
   { id: 'self_revive', name: 'Self-Revive', icon: '🩹', tab: 'gear', alien: false, desc: 'Reser dig själv när du blir nedskjuten',
     cost: () => 300, avail: (p) => (p.selfReviveKits || 0) < 2, sub: (p) => 'x' + (p.selfReviveKits || 0) + '/2' },
-  { id: 'uav', name: 'UAV', icon: '📡', tab: 'gear', alien: false, desc: 'Avslöjar alla fiender på kartan i 20s',
-    cost: () => 400, avail: () => true, sub: () => '' },
-  { id: 'airstrike', name: 'Air Strike', icon: '✈️', tab: 'gear', alien: false, desc: 'Rikta in ett bombnedslag på kartan',
+  { id: 'uav', name: 'UAV', icon: '📡', tab: 'gear', alien: false, desc: 'Aktiveras från väskan: avslöjar fiender 20s',
+    cost: () => 400, avail: (p) => (p.uavCount || 0) < 3, sub: (p) => 'x' + (p.uavCount || 0) + '/3' },
+  { id: 'airstrike', name: 'Air Strike', icon: '✈️', tab: 'gear', alien: false, desc: 'Aktiveras från väskan: rikta via minimapen',
     cost: () => 500, avail: (p) => (p.airstrikes || 0) < 3, sub: (p) => 'x' + (p.airstrikes || 0) + '/3' },
+  { id: 'grenade', name: 'Granater', icon: '💣', tab: 'gear', alien: false, desc: '+2 spränggranater',
+    cost: () => 150, avail: () => true, sub: () => '' },
+  { id: 'smoke', name: 'Rökgranater', icon: '💨', tab: 'gear', alien: false, desc: '+2 rökgranater',
+    cost: () => 150, avail: () => true, sub: () => '' },
+  { id: 'max_hp', name: 'Max HP', icon: '❤️', tab: 'armor', alien: false, desc: 'Höjer max-HP till 200 (+heal)',
+    cost: () => 400, avail: (p) => (p.maxHp || 100) < 200, sub: (p) => (p.maxHp || 100) >= 200 ? 'Max' : '100→200' },
+  { id: 'max_shield', name: 'Max Shield', icon: '🛡️', tab: 'armor', alien: false, desc: 'Höjer max-shield till 400 (+fyll)',
+    cost: () => 400, avail: (p) => (p.maxShield || 200) < 400, sub: (p) => (p.maxShield || 200) >= 400 ? 'Max' : '200→400' },
   { id: 'alien_armor', name: 'Alien Armor', icon: '👽', tab: 'alien', alien: true, desc: 'Sätter pansaret till MAX-nivå direkt',
     cost: () => 900, avail: (p) => (p.armorLevel || 0) < BR_ARMOR_MAX, sub: () => '' },
   // PERKS (v1.742) — engångs-köp, passiva. avail = ej redan ägd.
@@ -38733,10 +38818,15 @@ function hideBrHud() {
 // inventory-bar). Anropas både från hideBrHud OCH vid mode-exit från 'playing'
 // (runFrame-watcher) så scoreboarden inte kan läcka till menyn via någon path.
 function cleanupBrUI() {
-  const ids = ['br-hud', 'br-killfeed', 'br-coords', 'br-inv', 'br-inv-hint', 'br-end-overlay', 'br-cash-panel', 'br-buy-prompt', 'br-shop-overlay', 'br-cash-cheat-btn', 'br-airstrike-banner', 'br-downed-overlay'];
+  const ids = ['br-hud', 'br-killfeed', 'br-coords', 'br-inv', 'br-inv-hint', 'br-end-overlay', 'br-cash-panel', 'br-buy-prompt', 'br-shop-overlay', 'br-cash-cheat-btn', 'br-airstrike-banner', 'br-downed-overlay', 'br-bag-btn', 'br-bag-overlay'];
   for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
+  }
+  // Återställ shield-knappens original-position/storlek (BR flyttade/skalade den).
+  if (_btnPvpShield && _btnPvpShield._origCss != null) {
+    _btnPvpShield.style.cssText = _btnPvpShield._origCss;
+    _btnPvpShield._origCss = null;
   }
 }
 

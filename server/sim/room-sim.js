@@ -4160,7 +4160,9 @@ function initBrLoot(sim) {
         lo.x >= b.x && lo.x <= b.x + b.w && lo.y >= b.y && lo.y <= b.y + b.h);
       if (hasWeapon) continue;
       const pick = wpnPool[c % wpnPool.length];
-      const sp = brFindFreeSpot(b.x + b.w / 2, b.y + b.h / 2, arena.walls, arena.worldW, arena.worldH);
+      // v1.743: placera vapnet TILL HÖGER om centrum (hp/shield-loot ligger centrum-36)
+      // så de hamnar BREDVID varandra, ej ovanpå.
+      const sp = brFindFreeSpot(b.x + b.w / 2 + 36, b.y + b.h / 2, arena.walls, arena.worldW, arena.worldH);
       sim._brLootIdCounter = (sim._brLootIdCounter || 0) + 1;
       loot.push({ id: 'br_loot_' + sim._brLootIdCounter, x: sp.x, y: sp.y, kind: 'weapon', weaponId: pick.weaponId, tier: pick.tier, available: true, unlockAt: 0 });
       addedHouseWpn++;
@@ -5253,13 +5255,18 @@ function brAwardCash(sim, pid, amount) {
 // lila SE-hörnet. Minst 12 vanliga. Deterministiskt (ingen RNG) → samma varje match.
 function computeBrBuyStations(arena) {
   const stations = [];
-  const cabins = (arena.cabins || []).filter(c => c && c.bounds && !c._isContainer);
-  // Sprid ut: ta var N:te stuga så vi får ≥12 spridda över kartan.
-  const want = Math.max(12, Math.floor(cabins.length * 0.35));
-  const step = Math.max(1, Math.floor(cabins.length / want));
-  for (let k = 0; k < cabins.length && stations.length < want; k += step) {
-    const b = cabins[k].bounds;
-    // v1.741: hus-stationer använder husets BOUNDS (man måste vara HELT inne) i st f radie.
+  // v1.743: shops = de 12 dedikerade shop:true-husen (addBrShopCabins). Faller tillbaka
+  // till var-3:e-stuga-heuristiken om inga shop-flaggade hus finns (bakåtkompat).
+  let shopCabins = (arena.cabins || []).filter(c => c && c.bounds && c.shop && !c._isContainer);
+  if (!shopCabins.length) {
+    const all = (arena.cabins || []).filter(c => c && c.bounds && !c._isContainer);
+    const want = Math.max(12, Math.floor(all.length * 0.35));
+    const step = Math.max(1, Math.floor(all.length / want));
+    for (let k = 0; k < all.length && shopCabins.length < want; k += step) shopCabins.push(all[k]);
+  }
+  for (const c of shopCabins) {
+    const b = c.bounds;
+    // Hus-stationer använder husets BOUNDS (man måste vara HELT inne) i st f radie.
     stations.push({
       x: Math.round(b.x + b.w / 2),
       y: Math.round(b.y + b.h / 2),
@@ -5297,8 +5304,12 @@ const BR_SHOP = {
   armor:         { dynamic: true, alienOnly: false }, // pris från BR_ARMOR_COSTS[level]
   gas_mask:      { cost: 250, alienOnly: false },
   self_revive:   { cost: 300, alienOnly: false },  // (v1.740) auto-används vid down
-  uav:           { cost: 400, alienOnly: false },  // omedelbar 20s fiende-reveal
-  airstrike:     { cost: 500, alienOnly: false },  // bärbar — rikta + släpp
+  uav:           { cost: 400, alienOnly: false },  // (v1.743) bärbar — aktiveras från bag
+  airstrike:     { cost: 500, alienOnly: false },  // bärbar — rikta via minimap
+  grenade:       { cost: 150, alienOnly: false },  // (v1.743) +2 spränggranater
+  smoke:         { cost: 150, alienOnly: false },  // (v1.743) +2 rökgranater
+  max_hp:        { cost: 400, alienOnly: false },  // (v1.743) maxHP 100→200 + heal
+  max_shield:    { cost: 400, alienOnly: false },  // (v1.743) maxShield 200→400 + fyll
   alien_armor:   { cost: 900, alienOnly: true },   // sätter pansaret till MAX (lvl 5) direkt
   // PERKS (v1.742) — engångs-köp, passiva bonusar.
   perk_fast_hands:  { cost: 350, alienOnly: false, perk: 'fast_hands' },  // snabbare omladdning
@@ -5344,8 +5355,21 @@ function applyBrBuy(sim, pid, itemKind) {
     ps.airstrikes = (ps.airstrikes || 0) + 1;
     sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'airstrike', count: ps.airstrikes });
   } else if (itemKind === 'uav') {
-    ps.brUavUntil = Date.now() + 20000;
-    sim.eventQueue.push({ type: 'br_uav_active', peerId: pid, until: ps.brUavUntil });
+    if ((ps.uavCount || 0) >= 3) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
+    ps.uavCount = (ps.uavCount || 0) + 1; // (v1.743) bärbar — aktiveras från bag
+    sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'uav', count: ps.uavCount });
+  } else if (itemKind === 'grenade') {
+    sim.eventQueue.push({ type: 'br_grenades', peerId: pid, frag: 2 });
+  } else if (itemKind === 'smoke') {
+    sim.eventQueue.push({ type: 'br_grenades', peerId: pid, smoke: 2 });
+  } else if (itemKind === 'max_hp') {
+    if ((ps.maxHp || 100) >= 200) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
+    ps.maxHp = 200; ps.hp = Math.min(200, (ps.hp || 0) + 100);
+    sim.eventQueue.push({ type: 'br_maxstat', peerId: pid, maxHp: ps.maxHp, maxShield: ps.maxShield || 200, hp: ps.hp, shield: ps.shield || 0 });
+  } else if (itemKind === 'max_shield') {
+    if ((ps.maxShield || 200) >= 400) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
+    ps.maxShield = 400; ps.shield = Math.min(400, (ps.shield || 0) + 200);
+    sim.eventQueue.push({ type: 'br_maxstat', peerId: pid, maxHp: ps.maxHp || 100, maxShield: ps.maxShield, hp: ps.hp || 0, shield: ps.shield });
   } else if (itemKind === 'alien_armor') {
     if ((ps.armorLevel || 0) >= BR_ARMOR_MAX) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
     ps.armorLevel = BR_ARMOR_MAX;
@@ -5366,6 +5390,19 @@ function applyBrBuy(sim, pid, itemKind) {
 function applyBrInfCash(sim, pid) {
   if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
   brAwardCash(sim, pid, 5000);
+}
+
+// Aktivera en bärbar UAV från bag → 20s fiende-reveal (v1.743).
+function applyBrUseUav(sim, pid) {
+  if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
+  const ws = sim.room.members.get(pid);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  const ps = ws.playerState;
+  if ((ps.uavCount || 0) <= 0) return;
+  ps.uavCount -= 1;
+  ps.brUavUntil = Date.now() + 20000;
+  sim.eventQueue.push({ type: 'br_uav_active', peerId: pid, until: ps.brUavUntil });
+  sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'uav', count: ps.uavCount });
 }
 
 // AIR STRIKE (v1.740): förbruka en laddning, schemalägg fördröjt nedslag (telegraf 3s)
@@ -6455,6 +6492,7 @@ function startSim(sim, opts) {
       ws.playerState.gasMask = false;
       ws.playerState.selfReviveKits = 0;  // (v1.740) auto-används vid down
       ws.playerState.airstrikes = 0;      // bärbara airstrike-laddningar
+      ws.playerState.uavCount = 0;        // (v1.743) bärbara UAV — aktiveras från bag
       ws.playerState.brUavUntil = 0;      // UAV-reveal aktiv till (ms)
       ws.playerState.brDowned = false;
       ws.playerState.brReviveEnd = 0;
@@ -7469,4 +7507,4 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole, _heistLineBlockedByWall };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole, _heistLineBlockedByWall };

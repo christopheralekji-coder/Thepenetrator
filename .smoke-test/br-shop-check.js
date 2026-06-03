@@ -103,24 +103,38 @@ module.exports = {
     await wait(200);
     await screenshot(page, '04-br-cash-cheat-btn');
 
-    // Fas 2: airstrike-targeting + downed-overlay.
+    // Fas 2/3-batch: BAG-system, airstrike-minimap-targeting, downed-overlay.
     const p2 = await page.evaluate(() => {
       try {
         if (typeof closeBrShop === 'function') closeBrShop();
         state.player.x = 300; state.player.y = 300;
-        if (typeof updateBrItemsHud === 'function') updateBrItemsHud();
-        const hasAirstrikeChip = !!document.getElementById('br-airstrike-chip');
+        state.player.uavCount = 1; state.player.airstrikes = 1; state.player.selfReviveKits = 1;
+        // BAG: knapp finns + öppna → items i grid
+        const hasBagBtn = !!document.getElementById('br-bag-btn');
+        if (typeof openBrBag === 'function') openBrBag();
+        const bagItems = (document.getElementById('br-bag-grid') || { querySelectorAll: () => [] }).querySelectorAll('div').length;
+        if (typeof closeBrBag === 'function') closeBrBag();
+        // AIRSTRIKE-targeting (startas normalt från bag)
         if (typeof enterBrAirstrikeTargeting === 'function') enterBrAirstrikeTargeting();
         const targeting = !!state.brAirstrikeTargeting;
         const banner = (document.getElementById('br-airstrike-banner') || {}).style ? document.getElementById('br-airstrike-banner').style.display : 'none';
-        if (typeof exitBrAirstrikeTargeting === 'function') exitBrAirstrikeTargeting();
+        // mock ws (staged scenariot har ingen live coop-anslutning) + minimap-hitbox
+        state._minimapHitbox = { x: 700, y: 10, w: 120, h: 120 }; state._cdMinimapXform = { ox: 700, oy: 10, scale: 0.012 };
+        let strikeSent = false, strikeMsg = null;
+        Coop.ws = { readyState: 1, send: (d) => { try { const m = JSON.parse(d); if (m.type === 'sim_br_airstrike') { strikeSent = true; strikeMsg = m; } } catch (e) {} } };
+        if (typeof enterBrAirstrikeTargeting === 'function') enterBrAirstrikeTargeting();
+        if (typeof checkBrAirstrikeTap === 'function') checkBrAirstrikeTap(760, 60); // inne i minimap → skicka
+        // tap UTANFÖR minimap → ska INTE skicka (avbryt)
+        let outsideSent = false;
+        Coop.ws.send = (d) => { try { if (JSON.parse(d).type === 'sim_br_airstrike') outsideSent = true; } catch (e) {} };
+        if (typeof enterBrAirstrikeTargeting === 'function') enterBrAirstrikeTargeting();
+        if (typeof checkBrAirstrikeTap === 'function') checkBrAirstrikeTap(50, 300); // utanför minimap → avbryt
         // downed-overlay
         state.player.brDowned = true; state.player.brReviveEnd = Date.now() + 6000;
         if (typeof showBrDownedOverlay === 'function') showBrDownedOverlay();
         const downedVisible = (document.getElementById('br-downed-overlay') || {}).style ? document.getElementById('br-downed-overlay').style.display : 'none';
-        // UAV-blip-state
         state.brUav = { until: Date.now() + 20000, blips: [{ x: 1000, y: 1000 }, { x: 2000, y: 2000 }], blipAt: performance.now() };
-        return { hasAirstrikeChip, targeting, banner, downedVisible };
+        return { hasBagBtn, bagItems, targeting, banner, strikeSent, strikeMsg, outsideSent, downedVisible };
       } catch (e) { return { error: e.message }; }
     });
     console.log('[BR-SHOP] fas2:', JSON.stringify(p2));
@@ -132,16 +146,18 @@ module.exports = {
     if (staged.error) throw new Error('staging failed: ' + staged.error);
     if (p2.error) throw new Error('fas2 failed: ' + p2.error);
     if (!staged.goldText || staged.goldText.indexOf('750') < 0) throw new Error('cash i 💰-HUD fel: ' + staged.goldText);
-    if (staged.armorHtml.indexOf('30%') < 0) throw new Error('armor-HUD visar inte nivå-% : ' + staged.armorHtml);
     if (staged.promptVisible !== 'block') throw new Error('buy-prompt visades inte inne i huset');
     if (!staged.insideOnly) throw new Error('shop visades UTANFÖR huset (helt-inne-krav brutet)');
-    if (!shopOpen.overlay || shopOpen.gearCards < 3) throw new Error('gear-flik saknar kort (≥3): ' + JSON.stringify(shopOpen));
-    if (shopOpen.tabs < 2) throw new Error('shop saknar flikar (≥2): ' + JSON.stringify(shopOpen));
-    if (shopOpen.armorCards < 1) throw new Error('armor-flik saknar pansar-kort: ' + JSON.stringify(shopOpen));
-    if (alienShop.tabs < 3) throw new Error('alien-shop saknar alien-flik (≥3 flikar): ' + JSON.stringify(alienShop));
+    if (!shopOpen.overlay || shopOpen.gearCards < 5) throw new Error('gear-flik saknar kort (≥5): ' + JSON.stringify(shopOpen));
+    if (shopOpen.tabs < 3) throw new Error('shop saknar flikar (gear/armor/perks ≥3): ' + JSON.stringify(shopOpen));
+    if (shopOpen.armorCards < 2) throw new Error('armor-flik saknar kort (pansar+maxhp/shield ≥2): ' + JSON.stringify(shopOpen));
+    if (alienShop.tabs < 4) throw new Error('alien-shop saknar alien-flik (≥4 flikar): ' + JSON.stringify(alienShop));
     if (alienShop.alienCards < 1) throw new Error('alien-flik saknar exklusiv vara: ' + JSON.stringify(alienShop));
     if (cheat.cheatVisible !== 'flex') throw new Error('cash-cheat-knapp visades inte: ' + JSON.stringify(cheat));
-    if (!p2.hasAirstrikeChip) throw new Error('airstrike-chip saknas i HUD');
+    if (!p2.hasBagBtn) throw new Error('bag-knapp saknas');
+    if (p2.bagItems < 1) throw new Error('bag-panelen saknar items: ' + JSON.stringify(p2));
+    if (!p2.strikeSent) throw new Error('airstrike via minimap-tap skickades inte: ' + JSON.stringify(p2));
+    if (p2.outsideSent) throw new Error('airstrike skickades vid tap UTANFÖR minimap (ska avbryta)');
     if (!p2.targeting || p2.banner !== 'block') throw new Error('airstrike-targeting startade inte: ' + JSON.stringify(p2));
     if (p2.downedVisible !== 'flex') throw new Error('downed-overlay visades inte: ' + JSON.stringify(p2));
     if (errors.length) throw new Error('console errors: ' + errors.slice(0, 5).join(' | '));

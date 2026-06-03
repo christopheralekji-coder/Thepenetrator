@@ -15,7 +15,7 @@ function makeFakeRoom(n) {
   return { code: 'BRTEST', hostId: 'p0', members, meta: {} };
 }
 
-const { createSim, startSim, tickSim, applyBrBuy, applyBrInfCash, applyBrAirstrike } = require('./sim/room-sim');
+const { createSim, startSim, tickSim, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav } = require('./sim/room-sim');
 const { BATTLEROYALE_ARENA } = require('../shared/battleroyale-arena');
 
 const room = makeFakeRoom(2);
@@ -114,13 +114,27 @@ sim.brCash.p0 = 5000;
 
 applyBrBuy(sim, 'p0', 'self_revive');
 assert(p0.playerState.selfReviveKits === 1, 'self-revive köpt: ' + p0.playerState.selfReviveKits);
-sim.eventQueue.length = 0;
+// v1.743: UAV är BÄRBAR (buy → uavCount++, aktiveras från bag)
 applyBrBuy(sim, 'p0', 'uav');
-assert(p0.playerState.brUavUntil > Date.now(), 'UAV aktiv');
-assert(sim.eventQueue.find(e => e.type === 'br_uav_active'), 'br_uav_active emitterat');
+assert(p0.playerState.uavCount === 1, 'UAV bärbar köpt (uavCount=1), fick ' + p0.playerState.uavCount);
+sim.eventQueue.length = 0;
+applyBrUseUav(sim, 'p0');
+assert(p0.playerState.brUavUntil > Date.now() && p0.playerState.uavCount === 0, 'UAV aktiverad från bag → reveal + uavCount 0');
+assert(sim.eventQueue.find(e => e.type === 'br_uav_active'), 'br_uav_active emitterat vid aktivering');
 applyBrBuy(sim, 'p0', 'airstrike');
 assert(p0.playerState.airstrikes === 1, 'airstrike köpt');
-console.log('[OK] köpte self-revive + UAV (aktiverad) + airstrike');
+// Granat-köp + max-hp/shield-uppgraderingar
+sim.eventQueue.length = 0;
+applyBrBuy(sim, 'p0', 'grenade');
+assert(sim.eventQueue.find(e => e.type === 'br_grenades' && e.frag === 2), 'grenade-köp → br_grenades frag:2');
+p0.playerState.maxHp = 100; p0.playerState.hp = 100; p0.playerState.maxShield = 200; p0.playerState.shield = 0;
+sim.eventQueue.length = 0;
+applyBrBuy(sim, 'p0', 'max_hp');
+assert(p0.playerState.maxHp === 200 && p0.playerState.hp === 200, 'max_hp → maxHp 200 + heal, fick ' + p0.playerState.maxHp + '/' + p0.playerState.hp);
+applyBrBuy(sim, 'p0', 'max_shield');
+assert(p0.playerState.maxShield === 400 && p0.playerState.shield === 200, 'max_shield → maxShield 400 +fyll200, fick ' + p0.playerState.maxShield + '/' + p0.playerState.shield);
+console.log('[OK] köpte self-revive + UAV(bärbar→bag-aktivering) + airstrike + granat + max-hp/shield');
+console.log('[OK] UAV-bag-aktivering, granat-köp, max-hp(200)/max-shield(400)-uppgradering');
 
 // Helper: events drän:as av broadcastWorld i tickSim → scanna BÅDE eventQueue + sända msgs.
 function collectEv(type) {

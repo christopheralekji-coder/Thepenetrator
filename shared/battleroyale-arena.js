@@ -1906,9 +1906,9 @@ const BATTLEROYALE_ARENA = {
   matchDurationLabels: ['⚡ 5 MIN', '🔥 10 MIN', '👑 15 MIN'],
 
   startWeapon: 'pistol',
-  startHp: 200,
+  startHp: 100,
   startShield: 200,
-  maxHp: 200,
+  maxHp: 100,
   maxShield: 200,
   lootPickupRadius: 32,
 };
@@ -2179,6 +2179,38 @@ function preprocessContainerCabins(arena) {
 
 preprocessContainerCabins(BATTLEROYALE_ARENA);
 generateProceduralContent(BATTLEROYALE_ARENA);
+// v1.743: 12 dedikerade SHOP-hus (shop:true). Funkar som vanliga hus (väggar +
+// shoot-through-fönster via preprocessCabinWalls) men är buy-stations. Spridda,
+// undviker SE-alien-hörnet. Ser ut som vanliga hus (varierande tak).
+function addBrShopCabins(arena) {
+  const spots = [
+    { x: 820, y: 760 }, { x: 5380, y: 700 }, { x: 8650, y: 1150 },
+    { x: 1520, y: 3380 }, { x: 6720, y: 3260 }, { x: 9080, y: 4250 },
+    { x: 620, y: 6180 }, { x: 3320, y: 6620 }, { x: 5820, y: 5560 },
+    { x: 8720, y: 6420 }, { x: 2420, y: 8620 }, { x: 5220, y: 8780 },
+  ];
+  const roofs = [
+    { color: '#4a2a18', accent: '#2a1408', style: 'wood_shingle' },
+    { color: '#6a4030', accent: '#3a2014', style: 'tile' },
+    { color: '#7a6a42', accent: '#3a3320', style: 'thatch' },
+  ];
+  const W = 190, H = 160;
+  for (let i = 0; i < spots.length; i++) {
+    const s = spots[i];
+    arena.cabins.push({
+      id: 'shop_cabin_' + i, name: 'HANDELSBOD', shop: true,
+      bounds: { x: s.x, y: s.y, w: W, h: H },
+      door: { side: (i % 2 === 0) ? 'south' : 'north', offset: W / 2 - 25, width: 50 },
+      windows: [
+        { side: 'east', offset: H / 2 - 20, width: 40 },
+        { side: 'west', offset: H / 2 - 20, width: 40 },
+        { side: (i % 2 === 0) ? 'north' : 'south', offset: W / 2 - 20, width: 40 },
+      ],
+      roof: roofs[i % roofs.length], floor: '#5a3a1a', interior: [],
+    });
+  }
+}
+addBrShopCabins(BATTLEROYALE_ARENA);
 preprocessCabinWalls(BATTLEROYALE_ARENA);
 
 // === POST-PROCESS: ta bort graffiti + caution_tape + auto-lägg loot i cabins ===
@@ -2302,7 +2334,9 @@ function postProcessArena(arena) {
   const centerLoot = arena.lootSpawns.pop();
   for (const cabin of arena.cabins) {
     const b = cabin.bounds;
-    arena.lootSpawns.push({ x: b.x + b.w / 2, y: b.y + b.h / 2 });
+    // v1.743: placera hus-loot något TILL VÄNSTER om centrum så den garanterade
+    // hus-vapen-lådan (initBrLoot, centrum+36) hamnar BREDVID, ej ovanpå.
+    arena.lootSpawns.push({ x: b.x + b.w / 2 - 36, y: b.y + b.h / 2 });
   }
   arena.lootSpawns.push(centerLoot);
   // 3. Audit: ta bort walls som ligger ENTRY-blockerande precis utanför cabin-dörrar.
