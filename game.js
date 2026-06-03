@@ -38528,6 +38528,11 @@ function exitBrAirstrikeTargeting() {
 function checkBrAirstrikeTap(mx, my) {
   if (!state.brAirstrikeTargeting) return false;
   if (!state.player || (state.player.airstrikes || 0) <= 0) { exitBrAirstrikeTargeting(); return true; }
+  // v1.750: tryck på förstoringsglaset ska FÖRSTORA kartan (ej rikta airstrike där).
+  // Returnera false så checkMinimapZoomClick (nästa i pointer-handlern) togglar zoom;
+  // targeting förblir aktivt så man kan sikta på den stora kartan.
+  const zb = state._minimapZoomBtn;
+  if (zb && mx >= zb.x && mx <= zb.x + zb.w && my >= zb.y && my <= zb.y + zb.h) return false;
   const mm = state._minimapHitbox, xf = state._cdMinimapXform;
   if (mm && xf && mx >= mm.x && mx <= mm.x + mm.w && my >= mm.y && my <= mm.y + mm.h) {
     const wx = (mx - xf.ox) / xf.scale;
