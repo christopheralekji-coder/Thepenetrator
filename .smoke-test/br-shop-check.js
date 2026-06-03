@@ -138,6 +138,34 @@ module.exports = {
       } catch (e) { return { error: e.message }; }
     });
     console.log('[BR-SHOP] fas2:', JSON.stringify(p2));
+    // Fas 4: stage contracts + supply-drop + bounty-ping + aktivt kontrakt → exercise
+    // drawBrContracts + minimap-markörer + contract-prompt (fångar render-fel).
+    const p4 = await page.evaluate(() => {
+      try {
+        state.player.brDowned = false;
+        state.brContracts = [
+          { id: 'c1', x: 320, y: 320, type: 'bounty', available: true },
+          { id: 'c2', x: 1200, y: 800, type: 'dropbox', available: true },
+          { id: 'c3', x: 800, y: 1200, type: 'supply_run', available: true },
+        ];
+        state.brSupplyDrops = { s1: { id: 's1', x: 600, y: 400, landAt: Date.now() + 3000, landed: false, pingAt: performance.now() }, s2: { id: 's2', x: 900, y: 700, landed: true, pingAt: performance.now() - 7000 } };
+        state.brBountyPing = { x: 1500, y: 1500, at: performance.now() };
+        state.brActiveContract = null;
+        state.player.x = 320; state.player.y = 320; // står vid bounty-kontraktet
+        if (typeof updateBrContractPrompt === 'function') updateBrContractPrompt();
+        const promptVisible = (document.getElementById('br-contract-prompt') || {}).style ? document.getElementById('br-contract-prompt').style.display : 'none';
+        const nearC = state.brNearContract ? state.brNearContract.id : null;
+        // aktivt kontrakt → HUD
+        state.brActiveContract = { id: 'c3', type: 'supply_run', goalX: 800, goalY: 1200, deadline: Date.now() + 30000 };
+        if (typeof updateBrContractHud === 'function') updateBrContractHud();
+        const hudShown = (document.getElementById('br-contract-hud') || {}).style ? document.getElementById('br-contract-hud').style.display : 'none';
+        return { promptVisible, nearC, hudShown };
+      } catch (e) { return { error: e.message }; }
+    });
+    console.log('[BR-SHOP] fas4:', JSON.stringify(p4));
+    await wait(300); // låt render-loopen rita kontrakt/supply/minimap-markörer
+    await screenshot(page, '06-br-contracts');
+    await page.evaluate(() => { state.brActiveContract = null; state.brContracts = null; state.brSupplyDrops = null; });
     await wait(250);
     await screenshot(page, '05-br-downed-overlay');
     await page.evaluate(() => { state.player.brDowned = false; if (typeof hideBrDownedOverlay === 'function') hideBrDownedOverlay(); });
@@ -160,6 +188,9 @@ module.exports = {
     if (p2.outsideSent) throw new Error('airstrike skickades vid tap UTANFÖR minimap (ska avbryta)');
     if (!p2.targeting || p2.banner !== 'block') throw new Error('airstrike-targeting startade inte: ' + JSON.stringify(p2));
     if (p2.downedVisible !== 'flex') throw new Error('downed-overlay visades inte: ' + JSON.stringify(p2));
+    if (p4.error) throw new Error('fas4 failed: ' + p4.error);
+    if (p4.promptVisible !== 'block' || p4.nearC !== 'c1') throw new Error('kontrakt-prompt visades inte vid billboard: ' + JSON.stringify(p4));
+    if (p4.hudShown !== 'block') throw new Error('aktivt-kontrakt-HUD visades inte: ' + JSON.stringify(p4));
     if (errors.length) throw new Error('console errors: ' + errors.slice(0, 5).join(' | '));
   },
 };

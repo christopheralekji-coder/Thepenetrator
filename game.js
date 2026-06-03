@@ -25354,6 +25354,12 @@ const Coop = {
       state.brBuyStations = ev.buyStations || [];
       state.brCash = (typeof ev.startCash === 'number') ? ev.startCash : 500;
       state.brNearStation = null;
+      // CONTRACTS + SUPPLY DROPS (v1.746)
+      state.brContracts = ev.contracts || [];
+      state.brActiveContract = null;
+      state.brNearContract = null;
+      state.brSupplyDrops = {};
+      state.brBountyPing = null;
       state.pvpShieldMax = ev.shieldMax || 100;
       state.enemies = []; state.bullets = [];
       state.bossAlive = false; state.bossIntro = null;
@@ -25558,6 +25564,51 @@ const Coop = {
         if (typeof ev.maxShield === 'number') state.player.maxShield = ev.maxShield;
         if (typeof ev.hp === 'number') state.player.hp = ev.hp;
         if (typeof ev.shield === 'number') state.player.shield = ev.shield;
+        if (typeof updateHUD === 'function') updateHUD();
+      }
+    } else if (ev.type === 'br_contract_taken') {
+      // Markera kontraktet som taget (billboard-markör bort för alla).
+      if (state.brContracts) { const c = state.brContracts.find(k => k.id === ev.id); if (c) c.available = false; }
+    } else if (ev.type === 'br_contract_active') {
+      if (ev.peerId === this.myId) {
+        state.brActiveContract = ev.contract;
+        const tn = { bounty: '🎯 BOUNTY — eliminera måltavlan (pingas)', supply_run: '🏃 SUPPLY RUN — nå stationen i tid', dropbox: '📦 DROPBOX — hämta lådan' };
+        if (typeof showToast === 'function') showToast('📋 KONTRAKT: ' + (tn[ev.contract.type] || ev.contract.type));
+      }
+    } else if (ev.type === 'br_bounty_ping') {
+      if (ev.peerId === this.myId) state.brBountyPing = { x: ev.x, y: ev.y, at: performance.now() };
+    } else if (ev.type === 'br_contract_done') {
+      if (ev.peerId === this.myId) {
+        state.brActiveContract = null; state.brBountyPing = null;
+        if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+        if (typeof showToast === 'function') showToast('✅ KONTRAKT KLART! ' + (ev.msg || ''));
+      }
+    } else if (ev.type === 'br_contract_fail') {
+      if (ev.peerId === this.myId) {
+        if (ev.reason === 'expired' || ev.reason === 'no_target') { state.brActiveContract = null; state.brBountyPing = null; }
+        const r = { busy: 'Du har redan ett kontrakt', far: 'Gå fram till kontraktet', gone: 'Kontraktet är taget', expired: '⏱ Kontrakt misslyckades (tid ute)', no_target: 'Ingen måltavla finns' };
+        if (typeof showToast === 'function') showToast('❌ ' + (r[ev.reason] || 'Kontrakt'));
+      }
+    } else if (ev.type === 'br_supply_spawn') {
+      state.brSupplyDrops = state.brSupplyDrops || {};
+      state.brSupplyDrops[ev.id] = { id: ev.id, x: ev.x, y: ev.y, landAt: ev.landAt, landed: false, pingAt: performance.now(), pings: 3 };
+      if (typeof showToast === 'function') showToast(ev.fromContract ? '📦 DROPBOX faller...' : '📦 SUPPLY DROP inkommande!');
+    } else if (ev.type === 'br_supply_land') {
+      if (state.brSupplyDrops && state.brSupplyDrops[ev.id]) state.brSupplyDrops[ev.id].landed = true;
+    } else if (ev.type === 'br_supply_opened') {
+      if (state.brSupplyDrops && state.brSupplyDrops[ev.id]) delete state.brSupplyDrops[ev.id];
+      if (ev.peerId === this.myId) {
+        if (ev.weaponId) {
+          if (!Array.isArray(save.owned)) save.owned = ['fists'];
+          if (!save.owned.includes(ev.weaponId)) save.owned.push(ev.weaponId);
+          state.brWeaponTiers = state.brWeaponTiers || {}; state.brWeaponTiers[ev.weaponId] = 'legendary';
+          state.player.weaponId = ev.weaponId; save.equipped = ev.weaponId; save.weaponId = ev.weaponId;
+          state.player.ammo = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) || 0; state.player.reloading = false;
+          if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+        }
+        const wn = ev.weaponId && W_BY_ID[ev.weaponId] ? (W_BY_ID[ev.weaponId].name || ev.weaponId) : 'loot';
+        if (typeof showToast === 'function') showToast('📦 EPIC LOOT: ' + wn.toUpperCase() + ' + $' + (ev.cash || 0));
+        if (typeof Audio !== 'undefined' && Audio.pickup) Audio.pickup();
         if (typeof updateHUD === 'function') updateHUD();
       }
     } else if (ev.type === 'br_downed') {
@@ -38302,6 +38353,19 @@ function showBrHud() {
     buyPrompt.addEventListener('touchstart', onBuy, { passive: false });
     document.body.appendChild(buyPrompt);
   }
+  // CONTRACT-prompt (visas nära en billboard utan aktivt kontrakt). v1.746.
+  let cPrompt = document.getElementById('br-contract-prompt');
+  if (!cPrompt) {
+    cPrompt = document.createElement('button');
+    cPrompt.id = 'br-contract-prompt';
+    cPrompt.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-164px);z-index:84;display:none;background:rgba(24,16,34,0.94);border:2px solid #b48bff;border-radius:12px;color:#e6d8ff;font:800 14px sans-serif;padding:9px 18px;box-shadow:0 3px 16px rgba(0,0,0,0.6);pointer-events:auto;touch-action:manipulation;letter-spacing:0.5px;';
+    cPrompt.textContent = '📋 TA KONTRAKT';
+    let _cTapT = 0;
+    const onC = (e) => { e.preventDefault(); e.stopPropagation(); const t = performance.now(); if (t - _cTapT < 320) return; _cTapT = t; if (typeof _brAcceptContract === 'function') _brAcceptContract(); };
+    cPrompt.addEventListener('pointerdown', onC);
+    cPrompt.addEventListener('touchstart', onC, { passive: false });
+    document.body.appendChild(cPrompt);
+  }
   ensureBrCashCheatBtn();
   updateBrCashHud();
   updateBrBagBadge();
@@ -38814,6 +38878,108 @@ function drawBrHighAlert() {
   ctx.restore();
 }
 
+// === CONTRACTS + SUPPLY DROPS render/HUD (v1.746) ===
+const BR_CONTRACT_ICON = { bounty: '🎯', dropbox: '📦', supply_run: '🏃' };
+function drawBrContracts() {
+  const camX = state.camera.x, camY = state.camera.y, now = performance.now();
+  // Billboards för tillgängliga kontrakt
+  if (state.brContracts) {
+    for (const c of state.brContracts) {
+      if (!c.available) continue;
+      const sx = c.x - camX, sy = c.y - camY;
+      if (sx < -80 || sx > viewW + 80 || sy < -90 || sy > viewH + 80) continue;
+      const pulse = 0.5 + 0.5 * Math.sin(now / 420);
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,213,74,' + (0.10 * pulse).toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(sx, sy - 22, 34, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#5a4030'; ctx.fillRect(sx - 3, sy - 4, 6, 22);
+      ctx.fillStyle = 'rgba(28,22,12,0.95)'; ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 2;
+      if (typeof drawRoundedRect === 'function') { drawRoundedRect(ctx, sx - 24, sy - 40, 48, 34, 5); ctx.fill(); ctx.stroke(); }
+      else { ctx.fillRect(sx - 24, sy - 40, 48, 34); ctx.strokeRect(sx - 24, sy - 40, 48, 34); }
+      ctx.font = '20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(BR_CONTRACT_ICON[c.type] || '📋', sx, sy - 23);
+      ctx.restore();
+    }
+  }
+  // Supply-drops (fallande fallskärm → landad låda + ljusstråle)
+  if (state.brSupplyDrops) {
+    for (const id in state.brSupplyDrops) {
+      const d = state.brSupplyDrops[id];
+      const sx = d.x - camX, sy = d.y - camY;
+      if (sx < -120 || sx > viewW + 120 || sy < -200 || sy > viewH + 120) continue;
+      const prog = d.landed ? 1 : Math.min(1, (now - (d.pingAt || now)) / 6000);
+      const cyv = sy - (1 - prog) * 420;
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,200,60,0.10)'; ctx.fillRect(sx - 13, sy - 220, 26, 220); // ljusstråle
+      ctx.fillStyle = '#7a5a2a'; ctx.strokeStyle = '#3a2a12'; ctx.lineWidth = 2;
+      ctx.fillRect(sx - 13, cyv - 13, 26, 26); ctx.strokeRect(sx - 13, cyv - 13, 26, 26);
+      ctx.fillStyle = '#ffd54a'; ctx.font = '15px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('📦', sx, cyv);
+      if (prog < 1) {
+        ctx.fillStyle = 'rgba(220,80,80,0.92)';
+        ctx.beginPath(); ctx.ellipse(sx, cyv - 28, 24, 15, 0, Math.PI, 0); ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(sx - 20, cyv - 26); ctx.lineTo(sx - 9, cyv - 13); ctx.moveTo(sx + 20, cyv - 26); ctx.lineTo(sx + 9, cyv - 13); ctx.stroke();
+      } else {
+        const pl = 0.5 + 0.5 * Math.sin(now / 300);
+        ctx.fillStyle = 'rgba(255,200,60,' + (0.18 * pl).toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(sx, sy, 42, 0, Math.PI * 2); ctx.fill();
+      }
+      ctx.restore();
+    }
+  }
+}
+
+function updateBrContractPrompt() {
+  const prompt = document.getElementById('br-contract-prompt');
+  if (!state.battleroyaleActive || !state.player || state.player.spectating || !state.brContracts) {
+    if (prompt) prompt.style.display = 'none'; state.brNearContract = null; return;
+  }
+  const px = state.player.x, py = state.player.y;
+  let near = null;
+  if (!state.brActiveContract) {
+    for (const c of state.brContracts) {
+      if (!c.available) continue;
+      const dx = px - c.x, dy = py - c.y;
+      if (dx * dx + dy * dy <= 150 * 150) { near = c; break; }
+    }
+  }
+  state.brNearContract = near;
+  if (prompt) {
+    if (near) {
+      prompt.style.display = 'block';
+      const tn = { bounty: '🎯 BOUNTY-KONTRAKT', dropbox: '📦 DROPBOX-KONTRAKT', supply_run: '🏃 SUPPLY RUN' };
+      prompt.textContent = '📋 ' + (tn[near.type] || 'KONTRAKT');
+    } else { prompt.style.display = 'none'; }
+  }
+}
+
+function _brAcceptContract() {
+  if (!state.brNearContract) return;
+  if (Coop && Coop.ws && Coop.ws.readyState === 1) Coop.ws.send(JSON.stringify({ type: 'sim_br_accept_contract', id: state.brNearContract.id }));
+}
+
+function updateBrContractHud() {
+  let el = document.getElementById('br-contract-hud');
+  const ac = state.brActiveContract;
+  if (!ac) { if (el) el.style.display = 'none'; return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'br-contract-hud';
+    el.style.cssText = 'position:fixed;top:max(46px, calc(env(safe-area-inset-top,0px)+44px));left:50%;transform:translateX(-50%);z-index:79;background:rgba(20,14,30,0.86);border:1px solid #b48bff;border-radius:8px;padding:4px 12px;color:#e6d8ff;font:800 12px sans-serif;text-align:center;pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,0.5);white-space:nowrap;';
+    document.body.appendChild(el);
+  }
+  el.style.display = 'block';
+  if (ac.type === 'bounty') {
+    el.innerHTML = '🎯 BOUNTY — eliminera måltavlan (pingas)';
+  } else if (ac.type === 'supply_run') {
+    const left = Math.max(0, (ac.deadline || 0) - Date.now()) / 1000;
+    el.innerHTML = '🏃 SUPPLY RUN — nå stationen: <span style="color:#ffd54a;">' + left.toFixed(0) + 's</span>';
+  } else if (ac.type === 'dropbox') {
+    el.innerHTML = '📦 DROPBOX — hämta lådan (markerad på kartan)';
+  }
+}
+
 function hideBrHud() {
   _stopBrHudInterval();
   cleanupBrUI();
@@ -38823,7 +38989,7 @@ function hideBrHud() {
 // inventory-bar). Anropas både från hideBrHud OCH vid mode-exit från 'playing'
 // (runFrame-watcher) så scoreboarden inte kan läcka till menyn via någon path.
 function cleanupBrUI() {
-  const ids = ['br-hud', 'br-killfeed', 'br-coords', 'br-inv', 'br-inv-hint', 'br-end-overlay', 'br-cash-panel', 'br-buy-prompt', 'br-shop-overlay', 'br-cash-cheat-btn', 'br-airstrike-banner', 'br-downed-overlay', 'br-bag-btn', 'br-bag-overlay'];
+  const ids = ['br-hud', 'br-killfeed', 'br-coords', 'br-inv', 'br-inv-hint', 'br-end-overlay', 'br-cash-panel', 'br-buy-prompt', 'br-shop-overlay', 'br-cash-cheat-btn', 'br-airstrike-banner', 'br-downed-overlay', 'br-bag-btn', 'br-bag-overlay', 'br-contract-prompt', 'br-contract-hud'];
   for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
@@ -73136,6 +73302,8 @@ function render() {
     }
     // 6. Alien-shop-beacon i lila zonen (gör den hittbar; vanliga stationer = osynliga/förklädda)
     if (typeof drawBrAlienShop === 'function') drawBrAlienShop();
+    // 6b. Kontrakt-billboards + supply-drops (v1.746)
+    if (typeof drawBrContracts === 'function') drawBrContracts();
     // 7. Air strike-telegraf (röd mål-zon med nedräkning)
     if (typeof drawBrAirstrikeWarnings === 'function') drawBrAirstrikeWarnings();
     // 8. Zone-ring + outside-warning
@@ -74641,6 +74809,42 @@ function drawMiniMap() {
       state._brStrikeMark = null;
     }
   }
+  // CONTRACTS + SUPPLY-markörer på minimapen (v1.746)
+  if (state.battleroyaleActive) {
+    const _bnow = performance.now();
+    // Tillgängliga kontrakt-billboards (lila 📋)
+    if (state.brContracts && !state.brActiveContract) {
+      ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (const c of state.brContracts) {
+        if (!c.available) continue;
+        ctx.fillText('📋', ox + c.x * scale, oy + c.y * scale);
+      }
+    }
+    // Aktivt kontrakt-mål (supply_run/dropbox) — lila ring
+    const ac = state.brActiveContract;
+    if (ac && (ac.goalX != null)) {
+      const gpulse = 0.5 + 0.5 * Math.sin(_bnow / 280);
+      ctx.strokeStyle = 'rgba(180,130,255,' + (0.5 + 0.4 * gpulse).toFixed(2) + ')'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(ox + ac.goalX * scale, oy + ac.goalY * scale, 5 + gpulse * 3, 0, Math.PI * 2); ctx.stroke();
+    }
+    // Bounty-ping (röd döskalle, senaste position ~6s)
+    if (state.brBountyPing && _bnow - state.brBountyPing.at < 6000) {
+      ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('💀', ox + state.brBountyPing.x * scale, oy + state.brBountyPing.y * scale);
+    }
+    // Supply-drops (orange 📦 + ping-puls)
+    if (state.brSupplyDrops) {
+      for (const id in state.brSupplyDrops) {
+        const d = state.brSupplyDrops[id];
+        const mx = ox + d.x * scale, my = oy + d.y * scale;
+        const sp = 0.5 + 0.5 * Math.sin(_bnow / 260);
+        ctx.strokeStyle = 'rgba(255,180,50,' + (0.4 + 0.5 * sp).toFixed(2) + ')'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(mx, my, 4 + sp * 4, 0, Math.PI * 2); ctx.stroke();
+        ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('📦', mx, my);
+      }
+    }
+  }
   // spelare (grön)
   const px = ox + state.player.x * scale;
   const py = oy + state.player.y * scale;
@@ -75653,7 +75857,7 @@ function runFrame(dt, now) {
   }
 
   // Per-frame CSS-var-update för dash-cooldown-ring (smooth animation)
-  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); if (typeof _updateSpectateBanner === 'function') _updateSpectateBanner(); if (typeof updateGrenadeTypeChip === 'function') updateGrenadeTypeChip(); if (state.battleroyaleActive && typeof updateBrBuyPrompt === 'function') updateBrBuyPrompt(); if (state.battleroyaleActive && typeof updateBrDownedOverlay === 'function') updateBrDownedOverlay(); if (state.battleroyaleActive && typeof updateBrPerkEffects === 'function') updateBrPerkEffects(); }
+  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); if (typeof _updateSpectateBanner === 'function') _updateSpectateBanner(); if (typeof updateGrenadeTypeChip === 'function') updateGrenadeTypeChip(); if (state.battleroyaleActive && typeof updateBrBuyPrompt === 'function') updateBrBuyPrompt(); if (state.battleroyaleActive && typeof updateBrDownedOverlay === 'function') updateBrDownedOverlay(); if (state.battleroyaleActive && typeof updateBrPerkEffects === 'function') updateBrPerkEffects(); if (state.battleroyaleActive && typeof updateBrContractPrompt === 'function') { updateBrContractPrompt(); updateBrContractHud(); } }
   // Gungame button-layout uppdateras ALLTID (även mode='menu') så defaults
   // återställs när matchen avslutats och spelaren går till menyn / annan mode.
   updateGungameButtonLayout();

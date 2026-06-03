@@ -15,7 +15,7 @@ function makeFakeRoom(n) {
   return { code: 'BRTEST', hostId: 'p0', members, meta: {} };
 }
 
-const { createSim, startSim, tickSim, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav } = require('./sim/room-sim');
+const { createSim, startSim, tickSim, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrAcceptContract } = require('./sim/room-sim');
 const { BATTLEROYALE_ARENA } = require('../shared/battleroyale-arena');
 
 const room = makeFakeRoom(2);
@@ -208,6 +208,63 @@ const pings = collectEv('br_uav_ping').filter(e => e.peerId === 'p1');
 assert(pings.length >= 1, 'p1 fick UAV-ping');
 assert(pings[0].blips.length === 0, 'GHOST: p0 syns EJ i p1:s UAV-ping (blips=' + pings[0].blips.length + ')');
 console.log('[OK] Ghost-perk: ghosted spelare exkluderas ur fiendens UAV-ping');
+
+// ===== FAS 4: CONTRACTS + SUPPLY DROPS =====
+console.log('\n--- FAS 4: contracts + supply drops ---');
+assert(Array.isArray(sim.brContracts) && sim.brContracts.length >= 6, '≥6 kontrakt skapade vid start, fick ' + (sim.brContracts ? sim.brContracts.length : 0));
+// Hitta ett supply_run-kontrakt; stå vid det → acceptera
+let sr = sim.brContracts.find(c => c.type === 'supply_run' && c.available);
+assert(sr, 'finns ett supply_run-kontrakt');
+p0.playerState.brContract = null; p0.playerState.hp = 200; p0.playerState.brDowned = false;
+p0.playerState.x = sr.x; p0.playerState.y = sr.y;
+sim.eventQueue.length = 0; p0._sentMessages.length = 0; p1._sentMessages.length = 0;
+applyBrAcceptContract(sim, 'p0', sr.id);
+assert(p0.playerState.brContract && p0.playerState.brContract.type === 'supply_run', 'supply_run accepterat');
+assert(sr.takenBy === 'p0' && !sr.available, 'kontrakt markerat taget');
+assert(collectEv('br_contract_active').length >= 1, 'br_contract_active emitterat');
+console.log('[OK] supply_run accepterat (mål + deadline satt)');
+// Nå målet → reward + done
+p0.playerState.x = p0.playerState.brContract.goalX; p0.playerState.y = p0.playerState.brContract.goalY;
+const cashBeforeSR = sim.brCash.p0 || 0;
+sim.eventQueue.length = 0; p0._sentMessages.length = 0; p1._sentMessages.length = 0;
+sim.simReadyAt = 0; tickSim(sim, Date.now());
+assert(!p0.playerState.brContract, 'supply_run slutfört (kontrakt rensat)');
+assert((sim.brCash.p0 || 0) > cashBeforeSR, 'supply_run gav cash-belöning');
+assert(collectEv('br_contract_done').length >= 1, 'br_contract_done emitterat');
+console.log('[OK] supply_run slutfört vid mål → cash + done');
+
+// DROPBOX-kontrakt → spawnar supply-drop
+let db = sim.brContracts.find(c => c.type === 'dropbox' && c.available);
+assert(db, 'finns ett dropbox-kontrakt');
+p0.playerState.x = db.x; p0.playerState.y = db.y;
+const dropsBefore = sim.brSupplyDrops.length;
+applyBrAcceptContract(sim, 'p0', db.id);
+assert(p0.playerState.brContract && p0.playerState.brContract.type === 'dropbox', 'dropbox accepterat');
+assert(sim.brSupplyDrops.length === dropsBefore + 1, 'dropbox spawnade en supply-drop');
+console.log('[OK] dropbox accepterat → supply-drop spawnad');
+
+// Supply-drop: forcera landning + pickup → br_supply_opened + cash + dropbox done
+const drop = sim.brSupplyDrops[sim.brSupplyDrops.length - 1];
+drop.landAt = Date.now() - 1; // forcera landad
+p0.playerState.x = drop.x; p0.playerState.y = drop.y;
+const cashBeforeDrop = sim.brCash.p0 || 0;
+sim.eventQueue.length = 0; p0._sentMessages.length = 0; p1._sentMessages.length = 0;
+sim.simReadyAt = 0; tickSim(sim, Date.now());
+assert(drop.opened, 'supply-drop öppnad vid pickup');
+assert(collectEv('br_supply_opened').length >= 1, 'br_supply_opened emitterat');
+assert((sim.brCash.p0 || 0) > cashBeforeDrop, 'supply-drop gav cash');
+assert(!p0.playerState.brContract, 'dropbox-kontrakt slutfört vid pickup');
+console.log('[OK] supply-drop: landning → pickup → epic loot + cash + dropbox done');
+
+// BOUNTY-kontrakt → måltavla tilldelas
+let bt = sim.brContracts.find(c => c.type === 'bounty' && c.available);
+assert(bt, 'finns ett bounty-kontrakt');
+p1.playerState.hp = 200;
+p0.playerState.x = bt.x; p0.playerState.y = bt.y;
+applyBrAcceptContract(sim, 'p0', bt.id);
+assert(p0.playerState.brContract && p0.playerState.brContract.type === 'bounty' && p0.playerState.brContract.target === 'p1', 'bounty → p1 är måltavla');
+console.log('[OK] bounty accepterat → måltavla tilldelad + pingas');
+p0.playerState.brContract = null; // rensa inför kill-credit-testet nedan
 
 // KILL-CREDIT vid finish: p1 hp→0 utan kit + färsk angripare p0 → p0 krediteras
 p1.playerState.brUavUntil = 0;

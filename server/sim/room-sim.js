@@ -164,6 +164,13 @@ function createSim(room) {
     brCash: {},                    // pid → cash (per-match)
     brBuyStations: [],             // [{ x, y, r, alien }] — disguised houses + alien-shop
     _brStartCash: 500,
+    // BR contracts + supply drops (v1.746)
+    brContracts: [],               // [{ id, x, y, type, available, takenBy, target, goalX, goalY, deadline }]
+    brSupplyDrops: [],             // [{ id, x, y, landAt, landed, opened, fromContract }]
+    _brContractIdCtr: 0,
+    _brSupplyIdCtr: 0,
+    _brBountyPingAccum: 0,
+    _brNextSupplyAt: 0,
     // CASTLE DEFENSE state (co-op endless horde defense)
     castledefenseActive: false,
     castledefenseEnded: false,
@@ -3723,6 +3730,7 @@ function tickBattleRoyale(sim, dt, now) {
 
   // BR-meta: self-revive-channel, airstrike-impacts, UAV-pings (v1.740)
   tickBrMeta(sim, nowMs);
+  tickBrContracts(sim, nowMs);
 
   // Centraliserad death-detection (täcker explosion/oob/zone-dmg)
   for (const [pid, ws] of sim.room.members) {
@@ -5230,8 +5238,14 @@ function handleBattleRoyaleKill(sim, killerPid, killerWs, victimPid, victimWs, w
   // v1.655: Flaggan nollställs vid nästa tick-start i tickBattleRoyale (inte via
   // per-kill setTimeout — det läckte en timer per kill + höll ws-ref vid liv).
   sim.battleroyaleKillsByPid[killerPid] = (sim.battleroyaleKillsByPid[killerPid] || 0) + 1;
-  // KILL-REWARD: $150 cash till killer (Warzone-style). Bounty-bonus läggs på i fas 4.
+  // KILL-REWARD: $150 cash till killer (Warzone-style).
   brAwardCash(sim, killerPid, 150);
+  // BOUNTY (v1.746): hade killern ett bounty-kontrakt på OFFRET → belöning $1200 + done.
+  if (killerWs && killerWs.playerState && killerWs.playerState.brContract &&
+      killerWs.playerState.brContract.type === 'bounty' && killerWs.playerState.brContract.target === victimPid) {
+    brAwardCash(sim, killerPid, 1200);
+    brFinishContract(sim, killerPid, true, 'Bounty +$1200!');
+  }
   // Death-detection-loopen i tickBattleRoyale tar hand om eliminated-flag,
   // men vi emit:ar kill-event här för killfeed.
   sim.eventQueue.push({
@@ -5403,6 +5417,156 @@ function applyBrUseUav(sim, pid) {
   ps.brUavUntil = Date.now() + 20000;
   sim.eventQueue.push({ type: 'br_uav_active', peerId: pid, until: ps.brUavUntil });
   sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'uav', count: ps.uavCount });
+}
+
+// === CONTRACTS + SUPPLY DROPS (v1.746) ===
+const BR_CONTRACT_SPOTS = [
+  { x: 2000, y: 2000 }, { x: 7800, y: 2200 }, { x: 1800, y: 7400 },
+  { x: 5000, y: 5000 }, { x: 8200, y: 5200 }, { x: 3800, y: 8400 },
+];
+const BR_CONTRACT_TYPES = ['bounty', 'dropbox', 'supply_run'];
+const BR_SUPPLY_FALL_MS = 6000, BR_SUPPLY_INTERVAL_MS = 90000, BR_SUPPLY_PICK_R = 44;
+
+function computeBrContracts(sim, arena) {
+  const out = [];
+  for (let i = 0; i < BR_CONTRACT_SPOTS.length; i++) {
+    const s = BR_CONTRACT_SPOTS[i];
+    const sp = brFindFreeSpot(s.x, s.y, arena.walls, arena.worldW, arena.worldH);
+    sim._brContractIdCtr = (sim._brContractIdCtr || 0) + 1;
+    out.push({ id: 'brc_' + sim._brContractIdCtr, x: sp.x, y: sp.y, type: BR_CONTRACT_TYPES[i % BR_CONTRACT_TYPES.length], available: true, takenBy: null });
+  }
+  return out;
+}
+
+function brSpawnSupply(sim, x, y, fromContract) {
+  const arena = BATTLEROYALE_ARENA;
+  const sp = brFindFreeSpot(Math.max(200, Math.min(arena.worldW - 200, x)), Math.max(200, Math.min(arena.worldH - 200, y)), arena.walls, arena.worldW, arena.worldH);
+  sim._brSupplyIdCtr = (sim._brSupplyIdCtr || 0) + 1;
+  const drop = { id: 'brs_' + sim._brSupplyIdCtr, x: sp.x, y: sp.y, landAt: Date.now() + BR_SUPPLY_FALL_MS, landed: false, opened: false, fromContract: fromContract || null };
+  sim.brSupplyDrops.push(drop);
+  sim.eventQueue.push({ type: 'br_supply_spawn', id: drop.id, x: sp.x, y: sp.y, landAt: drop.landAt, fromContract: !!fromContract });
+  return drop;
+}
+
+function applyBrAcceptContract(sim, pid, contractId) {
+  if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
+  const ws = sim.room.members.get(pid);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0 || ws.playerState.brDowned) return;
+  const ps = ws.playerState;
+  if (ps.brContract) { sim.eventQueue.push({ type: 'br_contract_fail', peerId: pid, reason: 'busy' }); return; }
+  const c = sim.brContracts.find(k => k.id === contractId);
+  if (!c || !c.available) { sim.eventQueue.push({ type: 'br_contract_fail', peerId: pid, reason: 'gone' }); return; }
+  const dx = ps.x - c.x, dy = ps.y - c.y;
+  if (dx * dx + dy * dy > 150 * 150) { sim.eventQueue.push({ type: 'br_contract_fail', peerId: pid, reason: 'far' }); return; }
+  c.available = false; c.takenBy = pid;
+  const active = { id: c.id, type: c.type };
+  if (c.type === 'bounty') {
+    let cands = [];
+    for (const [opid, ows] of sim.room.members) {
+      if (opid !== pid && ows.playerState && ows.playerState.hp > 0) cands.push(opid);
+    }
+    if (!cands.length) { c.available = true; c.takenBy = null; sim.eventQueue.push({ type: 'br_contract_fail', peerId: pid, reason: 'no_target' }); return; }
+    active.target = cands[(c.x + sim.battleroyaleAliveCount) % cands.length];
+  } else if (c.type === 'supply_run') {
+    // mål = en annan buy-station (helst en bit bort)
+    let best = null, bestD = -1;
+    for (const s of sim.brBuyStations) {
+      if (s.alien) continue;
+      const gx = s.bounds ? s.bounds.x + s.bounds.w / 2 : s.x, gy = s.bounds ? s.bounds.y + s.bounds.h / 2 : s.y;
+      const d = (gx - ps.x) ** 2 + (gy - ps.y) ** 2;
+      if (d > bestD && d > 400 * 400) { bestD = d; best = { x: gx, y: gy }; }
+    }
+    if (!best) best = { x: c.x + 600, y: c.y };
+    active.goalX = Math.round(best.x); active.goalY = Math.round(best.y);
+    active.deadline = Date.now() + 50000;
+  } else if (c.type === 'dropbox') {
+    const drop = brSpawnSupply(sim, c.x + 200, c.y + 120, pid);
+    active.dropId = drop.id;
+    active.goalX = drop.x; active.goalY = drop.y;
+  }
+  ps.brContract = active;
+  sim.eventQueue.push({ type: 'br_contract_active', peerId: pid, contract: active });
+  sim.eventQueue.push({ type: 'br_contract_taken', id: c.id }); // alla: billboard-markör bort
+}
+
+// Belöning + slutför kontrakt. reason='done'|'fail'.
+function brFinishContract(sim, pid, ok, msg) {
+  const ws = sim.room.members.get(pid);
+  if (!ws || !ws.playerState || !ws.playerState.brContract) return;
+  const ac = ws.playerState.brContract;
+  ws.playerState.brContract = null;
+  if (ok) sim.eventQueue.push({ type: 'br_contract_done', peerId: pid, contractType: ac.type, msg: msg || '' });
+  else sim.eventQueue.push({ type: 'br_contract_fail', peerId: pid, reason: 'expired' });
+}
+
+// Tick: bounty-pings, supply-run-deadline/mål, supply-drops spawn+land+pickup. (v1.746)
+function brSupplyLegendaryWeapon() {
+  const arr = (BATTLEROYALE_ARENA.lootByTier && BATTLEROYALE_ARENA.lootByTier.legendary) || [];
+  const wpns = arr.filter(it => it.kind === 'weapon' && it.weaponId);
+  if (!wpns.length) return 'minigun';
+  return wpns[(Math.random() * wpns.length) | 0].weaponId;
+}
+function tickBrContracts(sim, nowMs) {
+  // 1. Bounty-pings var 5s
+  sim._brBountyPingAccum = (sim._brBountyPingAccum || 0) + (nowMs - (sim._brBountyLast || nowMs));
+  sim._brBountyLast = nowMs;
+  const pingNow = sim._brBountyPingAccum >= 5000;
+  if (pingNow) sim._brBountyPingAccum = 0;
+  for (const [pid, ws] of sim.room.members) {
+    const ps = ws.playerState; if (!ps || !ps.brContract) continue;
+    const ac = ps.brContract;
+    if (ac.type === 'bounty') {
+      const tWs = sim.room.members.get(ac.target);
+      if (!tWs || !tWs.playerState || tWs.playerState.hp <= 0 || sim.battleroyaleEliminated.includes(ac.target)) {
+        // målet dog (ej av mig → handleKill sköter done); här = försvann → fail
+        if (!tWs || !tWs.playerState) brFinishContract(sim, pid, false);
+        continue;
+      }
+      if (pingNow) sim.eventQueue.push({ type: 'br_bounty_ping', peerId: pid, x: Math.round(tWs.playerState.x), y: Math.round(tWs.playerState.y) });
+    } else if (ac.type === 'supply_run') {
+      if (nowMs > ac.deadline) { brFinishContract(sim, pid, false); continue; }
+      const dx = ps.x - ac.goalX, dy = ps.y - ac.goalY;
+      if (dx * dx + dy * dy < 170 * 170) {
+        brAwardCash(sim, pid, 500);
+        sim.eventQueue.push({ type: 'br_grenades', peerId: pid, frag: 2 });
+        sim.eventQueue.push({ type: 'br_grenades', peerId: pid, smoke: 2 });
+        brFinishContract(sim, pid, true, '+$500 + granater');
+      }
+    }
+  }
+  // 2. Supply-drops: spawn periodiskt
+  if (nowMs >= (sim._brNextSupplyAt || 0)) {
+    sim._brNextSupplyAt = nowMs + BR_SUPPLY_INTERVAL_MS;
+    const arena = BATTLEROYALE_ARENA;
+    // sikta nära nuvarande zon-center så lådan är relevant
+    const zx = sim.battleroyaleZone ? sim.battleroyaleZone.x : arena.worldW / 2;
+    const zy = sim.battleroyaleZone ? sim.battleroyaleZone.y : arena.worldH / 2;
+    const r = sim.battleroyaleZone ? sim.battleroyaleZone.r * 0.6 : 2500;
+    brSpawnSupply(sim, zx + (((nowMs % 1000) / 1000) - 0.5) * r, zy + (((nowMs % 777) / 777) - 0.5) * r, null);
+  }
+  // 3. Supply-drops: land + pickup
+  if (sim.brSupplyDrops && sim.brSupplyDrops.length) {
+    for (const d of sim.brSupplyDrops) {
+      if (d.opened) continue;
+      if (!d.landed && nowMs >= d.landAt) { d.landed = true; sim.eventQueue.push({ type: 'br_supply_land', id: d.id, x: d.x, y: d.y }); }
+      if (!d.landed) continue;
+      for (const [pid, ws] of sim.room.members) {
+        if (!ws.playerState || ws.playerState.hp <= 0 || ws.playerState.brDowned) continue;
+        const dx = ws.playerState.x - d.x, dy = ws.playerState.y - d.y;
+        if (dx * dx + dy * dy > BR_SUPPLY_PICK_R * BR_SUPPLY_PICK_R) continue;
+        d.opened = true;
+        const wpn = brSupplyLegendaryWeapon();
+        brAwardCash(sim, pid, 400);
+        sim.eventQueue.push({ type: 'br_supply_opened', id: d.id, peerId: pid, weaponId: wpn, cash: 400 });
+        // Dropbox-kontrakt slutfört om denna låda hörde till ett
+        if (d.fromContract && ws.playerState.brContract && ws.playerState.brContract.type === 'dropbox' && ws.playerState.brContract.dropId === d.id) {
+          brFinishContract(sim, pid, true, 'Epic loot!');
+        }
+        break;
+      }
+    }
+    if (sim.brSupplyDrops.length > 30) sim.brSupplyDrops = sim.brSupplyDrops.filter(d => !d.opened);
+  }
 }
 
 // AIR STRIKE (v1.740): förbruka en laddning, schemalägg fördröjt nedslag (telegraf 3s)
@@ -6497,6 +6661,7 @@ function startSim(sim, opts) {
       ws.playerState.brDowned = false;
       ws.playerState.brReviveEnd = 0;
       ws.playerState.brPerks = {};        // (v1.742) köpta perks: fast_hands/double_time/ghost/tracker/high_alert
+      ws.playerState.brContract = null;   // (v1.746) aktivt kontrakt {id,type,...}
       ws.tdmRespawnAt = 0;
       ws.tdmTeam = null; // FFA
       sim.battleroyaleKillsByPid[pid] = 0;
@@ -6510,6 +6675,9 @@ function startSim(sim, opts) {
     // 1 alien-shop i lila SE-hörnet. Deterministiskt urval (var 3:e stuga) så det
     // är spritt över kartan. Servern validerar köp mot dessa positioner (anti-cheat).
     sim.brBuyStations = computeBrBuyStations(arena);
+    // CONTRACTS (v1.746): placera kontrakt på billboards spridda över kartan.
+    sim.brContracts = computeBrContracts(sim, arena);
+    sim._brNextSupplyAt = Date.now() + 75000; // första supply-drop efter ~75s
     // v1.655: Antal deltagare vid start. Win-checken (<=1 levande) får INTE
     // trigga om matchen startade med en ensam spelare (0 bots) → annars
     // avslutas matchen direkt på första ticken. Kräver >=2 för att aktiveras.
@@ -6522,6 +6690,7 @@ function startSim(sim, opts) {
       decorations: arena.decorations || [],
       cabins: arena.cabins || [],
       buyStations: sim.brBuyStations,
+      contracts: sim.brContracts.map(c => ({ id: c.id, x: c.x, y: c.y, type: c.type, available: c.available })),
       startCash: sim._brStartCash,
       loot: sim.battleroyaleLoot.map(lo => ({
         id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: lo.unlockAt || 0,
@@ -7507,4 +7676,4 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole, _heistLineBlockedByWall };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole, _heistLineBlockedByWall };
