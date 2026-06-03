@@ -22026,6 +22026,29 @@ if (_btnPvpShield) {
   _btnPvpShield.addEventListener('touchstart', onShieldDown, { passive: false });
 }
 
+// SPECTATE-cykling: medan man är död/spectator → tap (mobil) eller piltangent (desktop)
+// växlar till nästa levande lagkamrat. Bara aktivt i spectating-läge så normal input
+// påverkas ej.
+(function setupSpectateCycle() {
+  let _lastSpecTapAt = 0;
+  const onTap = () => {
+    if (state.mode !== 'playing' || !state.player || !state.player.spectating) return;
+    if (typeof Coop === 'undefined' || !Coop.active) return;
+    const now = performance.now();
+    if (now - _lastSpecTapAt < 250) return; // debounce (iOS dubbel-event)
+    _lastSpecTapAt = now;
+    if (typeof cycleSpectate === 'function') cycleSpectate(1);
+  };
+  document.addEventListener('pointerdown', onTap);
+  document.addEventListener('touchstart', onTap, { passive: true });
+  document.addEventListener('keydown', (e) => {
+    if (state.mode !== 'playing' || !state.player || !state.player.spectating) return;
+    if (typeof Coop === 'undefined' || !Coop.active) return;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === ' ' || e.key === 'd') cycleSpectate(1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown' || e.key === 'a') cycleSpectate(-1);
+  });
+})();
+
 // EMOTE-knapp + picker (lazy-build första gången knappen trycks så EMOTES finns då)
 const emotePickerEl = document.getElementById('emote-picker');
 let _emotePickerBuilt = false;
@@ -34188,18 +34211,79 @@ function checkCoopAllDead() {
   endGame(false);
 }
 
+// === SPECTATE: cykla mellan EGNA lagets levande spelare (alla modes) ===
+// Team-modes (TDM/CTF/Siege) → bara egna laget. Co-op/FFA → alla levande.
+function _spectateTeamMap() {
+  if (typeof Coop === 'undefined') return null;
+  if (state.tdmActive) return Coop.tdmTeams;
+  if (state.ctfActive) return Coop.ctfTeams;
+  if (state.siegeActive) return Coop.siegeTeams;
+  return null;
+}
+function _spectatablePeers() {
+  if (typeof Coop === 'undefined' || !Coop.active || !Coop.players) return [];
+  const teamMap = _spectateTeamMap();
+  const myTeam = (teamMap && Coop.myId) ? teamMap[Coop.myId] : null;
+  const out = [];
+  for (const [pid, pl] of Coop.players) {
+    if (!pl || pl.x === undefined || (pl.hp != null && pl.hp <= 0)) continue;
+    if (myTeam && teamMap && teamMap[pid] !== myTeam) continue; // bara egna laget
+    out.push(pid);
+  }
+  return out;
+}
+function cycleSpectate(dir) {
+  if (!state.player || !state.player.spectating) return;
+  const peers = _spectatablePeers();
+  if (!peers.length) { state.player.specTarget = null; _updateSpectateBanner(); return; }
+  let idx = peers.indexOf(state.player.specTarget);
+  idx = (idx + (dir || 1) + peers.length) % peers.length;
+  state.player.specTarget = peers[idx];
+  if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(520, 0.05, 'sine', 0.12, 0.003, 0.04, 660);
+  _updateSpectateBanner();
+}
+let _spectateBanner = null;
+function _updateSpectateBanner() {
+  const spec = state.player && state.player.spectating && state.player.specTarget &&
+               typeof Coop !== 'undefined' && Coop.active;
+  if (!spec) { if (_spectateBanner) _spectateBanner.style.display = 'none'; return; }
+  if (!_spectateBanner) {
+    const el = document.createElement('div');
+    el.id = 'spectate-banner';
+    el.style.cssText = 'position:fixed;top:calc(54px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:40;pointer-events:none;background:rgba(10,8,12,0.80);border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:6px 14px;font-family:sans-serif;color:#fff;font-size:13px;font-weight:800;text-align:center;white-space:nowrap;box-shadow:0 3px 14px rgba(0,0,0,0.5);';
+    document.body.appendChild(el);
+    _spectateBanner = el;
+  }
+  const tgt = Coop.players && Coop.players.get(state.player.specTarget);
+  const name = (tgt && tgt.name) || 'Lagkamrat';
+  _spectateBanner.innerHTML = '👁 SER PÅ: <span style="color:#9affa0;">' + name + '</span> &nbsp;·&nbsp; <span style="color:#bbb;font-weight:600;">tryck för nästa</span>';
+  _spectateBanner.style.display = 'block';
+}
+
 function updateDeathState(dt) {
   if (!state.deadBody || !state.player) return;
   const body = state.deadBody;
   const p = state.player;
-  // Update spec-camera följer specTarget i coop
+  // SPECTATE: auto-välj target (egna laget) om ingen/ogiltig, följ med kameran
+  if (p.spectating) {
+    const peers = _spectatablePeers();
+    if (peers.length) {
+      if (!p.specTarget || peers.indexOf(p.specTarget) < 0) p.specTarget = peers[0];
+    } else {
+      p.specTarget = null;
+    }
+  }
   if (p.spectating && p.specTarget && Coop.players.has(p.specTarget)) {
     const target = Coop.players.get(p.specTarget);
     p.x += (target.x - p.x) * 0.1;
     p.y += (target.y - p.y) * 0.1;
   }
-  // Coop: kolla om någon partner står på kroppen i 5 sek
-  if (Coop.active) {
+  // Body-revive (stå på kroppen 5s): BARA i co-op-PvE. I PvP-modes (TDM/CTF/Siege/
+  // KOTH/GunGame/JUG/BR) är död = vänta på runda/respawn — ingen body-revive.
+  const _isPvpMode = state.tdmActive || state.ctfActive || state.siegeActive ||
+                     state.kothActive || state.gungameActive || state.juggernautActive ||
+                     state.battleroyaleActive;
+  if (Coop.active && !_isPvpMode) {
     let anyReviving = false;
     for (const [pid, partner] of Coop.players) {
       if (partner.hp <= 0) continue;
@@ -74256,7 +74340,7 @@ function runFrame(dt, now) {
   }
 
   // Per-frame CSS-var-update för dash-cooldown-ring (smooth animation)
-  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); }
+  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); if (typeof _updateSpectateBanner === 'function') _updateSpectateBanner(); }
   // Gungame button-layout uppdateras ALLTID (även mode='menu') så defaults
   // återställs när matchen avslutats och spelaren går till menyn / annan mode.
   updateGungameButtonLayout();
