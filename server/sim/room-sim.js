@@ -953,9 +953,12 @@ function buildTdmPickups(sim, arena) {
   for (const ws of (TDM_ARENA.weaponSpawns || [])) {
     list.push({ id: nextPickupId(sim), x: ws.x, y: ws.y, type: 'weapon', weaponId: ws.weaponId, available: true, respawnAt: 0 });
   }
-  // Granater i mitten (omstritt)
+  // Granat-loot i mitten: 8 spräng + 8 rök (v1.733). Man spawnar med 0 granater.
   for (const g of (TDM_ARENA.grenadeSpawns || [])) {
     list.push({ id: nextPickupId(sim), x: g.x, y: g.y, type: 'grenade', available: true, respawnAt: 0 });
+  }
+  for (const g of (TDM_ARENA.smokeSpawns || [])) {
+    list.push({ id: nextPickupId(sim), x: g.x, y: g.y, type: 'smoke', available: true, respawnAt: 0 });
   }
   // HP + shield i mid-fältet (symmetriskt, läses från arena)
   for (const p of (TDM_ARENA.hpSpawns || [])) {
@@ -984,17 +987,22 @@ function tdmStartRound(sim, nowMs) {
     const sp = ws.tdmTeam === 'red'
       ? (redSpawns[ri++] || TDM_ARENA.spawns.red[0])
       : (blueSpawns[bi++] || TDM_ARENA.spawns.blue[0]);
+    // v1.733: ÖVERLEVARE behåller vapen + granater. Bara de som DÖTT (förlorande laget
+    // + ev. egna döda) resettas → pistol + 0 granater (klienten nollställer granaterna).
+    const died = !!ws._tdmDeadRound;
     ws.playerState.x = sp.x;
     ws.playerState.y = sp.y;
     ws.playerState.hp = 100;
     ws.playerState.shield = ws.playerState.maxShield || 100;
     ws.playerState.invulnUntil = nowMs + 1500;
-    ws.playerState.weaponId = 'pistol';
+    if (died) ws.playerState.weaponId = 'pistol'; // döda tappar vapnet; överlevare behåller
     ws._tdmDeadRound = false;
     ws.tdmRespawnAt = 0;
     sim.eventQueue.push({
       type: 'tdm_player_respawned', peerId: pid, x: sp.x, y: sp.y,
-      hp: 100, shield: ws.playerState.shield, weaponId: 'pistol',
+      hp: 100, shield: ws.playerState.shield,
+      weaponId: ws.playerState.weaponId || 'pistol',
+      reset: died, // klienten: true → nollställ förråd + granater + pistol; false → behåll
     });
   }
   // Återställ ALLA pickups (vapen + granater + hp + shield) för nya rundan
@@ -1046,6 +1054,7 @@ function tickPvpPickups(sim, now) {
       const maxHp = ws.playerState.maxHp || 100;
       const maxShield = ws.playerState.maxShield || 100;
       let grenadesGained = 0;
+      let smokeGained = 0;
       if (pu.type === 'hp') {
         const before = ws.playerState.hp;
         ws.playerState.hp = Math.min(maxHp, before + PICKUP_HEAL);
@@ -1055,9 +1064,9 @@ function tickPvpPickups(sim, now) {
         ws.playerState.shield = Math.min(maxShield, before + PICKUP_HEAL);
         if (ws.playerState.shield === before) continue; // redan full shield
       } else if (pu.type === 'grenade') {
-        // Grenade-pickup: +1 granat. Klient håller faktisk count (server bara
-        // emiterar event — klient bumpar lokal counter).
-        grenadesGained = 1;
+        grenadesGained = 1; // klient håller count, bumpar lokalt
+      } else if (pu.type === 'smoke') {
+        smokeGained = 1; // v1.733: rökgranat-loot
       }
       pu.available = false;
       pu.respawnAt = now + PICKUP_RESPAWN_MS;
@@ -1069,6 +1078,7 @@ function tickPvpPickups(sim, now) {
         hp: ws.playerState.hp,
         shield: ws.playerState.shield || 0,
         grenadesGained,
+        smokeGained,
         respawnAt: pu.respawnAt,
       });
       break; // pickup borta — gå till nästa

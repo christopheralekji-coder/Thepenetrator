@@ -95,10 +95,16 @@ const TDM_ARENA = {
     { x: 1470, y: 360, weaponId: 'shotgun' },      // hagelgevär
   ],
 
-  // Granater i mitten (i korridoren mellan containrarna)
-  grenadeSpawns: [
-    { x: 760, y: 1000 }, { x: 940, y: 1000 },
-    { x: 850, y: 900 },  { x: 850, y: 1100 },
+  // Granat-loot i MITTEN (korridoren mellan containrarna). v1.733: 8 spräng + 8 rök
+  // att loota — man spawnar med 0 granater och greppar i mitten om man hinner.
+  // 4×2-rutnät i den öppna korridoren (x 745-955, fri på all y mellan containrarna).
+  grenadeSpawns: [ // 8 spränggranater (övre raderna)
+    { x: 745, y: 900 }, { x: 815, y: 900 }, { x: 885, y: 900 }, { x: 955, y: 900 },
+    { x: 745, y: 968 }, { x: 815, y: 968 }, { x: 885, y: 968 }, { x: 955, y: 968 },
+  ],
+  smokeSpawns: [ // 8 rökgranater (nedre raderna)
+    { x: 745, y: 1032 }, { x: 815, y: 1032 }, { x: 885, y: 1032 }, { x: 955, y: 1032 },
+    { x: 745, y: 1100 }, { x: 815, y: 1100 }, { x: 885, y: 1100 }, { x: 955, y: 1100 },
   ],
 
   // HP + shield i mid-fältet (symmetriskt)

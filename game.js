@@ -5952,12 +5952,14 @@ function drawPvpPickups() {
     const isHp = pu.type === 'hp';
     const isShield = pu.type === 'shield';
     const isGrenade = pu.type === 'grenade';
+    const isSmoke = pu.type === 'smoke';
     const isWeapon = pu.type === 'weapon';
     // Glow-färg per typ
     let glowColor;
     if (isHp) glowColor = 'rgba(90,255,90,0.55)';
     else if (isShield) glowColor = 'rgba(58,202,255,0.55)';
     else if (isGrenade) glowColor = 'rgba(255,170,60,0.55)';
+    else if (isSmoke) glowColor = 'rgba(180,200,210,0.55)';
     else if (isWeapon) glowColor = 'rgba(255,213,74,0.55)';
     else glowColor = 'rgba(180,180,180,0.55)';
     const glowR = 18 + pulse * 6;
@@ -6119,6 +6121,25 @@ function drawPvpPickups() {
       ctx.beginPath();
       ctx.arc(-8.5, -11, 2, 0, Math.PI * 2);
       ctx.stroke();
+    } else if (isSmoke) {
+      // ============ RÖKGRANAT — grå canister med grön rök-band + ventiler ============
+      const sgrad = ctx.createLinearGradient(0, -8, 0, 8);
+      sgrad.addColorStop(0, '#7a8088'); sgrad.addColorStop(0.5, '#5b626a'); sgrad.addColorStop(1, '#3a4047');
+      ctx.fillStyle = sgrad;
+      drawRoundedRect(ctx, -5, -8, 10, 16, 2.5); ctx.fill();
+      ctx.strokeStyle = '#23262b'; ctx.lineWidth = 1.1;
+      drawRoundedRect(ctx, -5, -8, 10, 16, 2.5); ctx.stroke();
+      // topp-cap
+      ctx.fillStyle = '#9aa0a6'; ctx.fillRect(-5, -8, 10, 2.4);
+      // grön rök-band
+      ctx.fillStyle = '#7fd9a0'; ctx.fillRect(-5, -4.5, 10, 2);
+      // ventiler
+      ctx.fillStyle = '#15171a';
+      ctx.beginPath(); ctx.arc(-2, -6.6, 0.7, 0, Math.PI * 2); ctx.arc(0, -6.6, 0.7, 0, Math.PI * 2); ctx.arc(2, -6.6, 0.7, 0, Math.PI * 2); ctx.fill();
+      // highlight + liten rök-wisp
+      ctx.fillStyle = 'rgba(220,225,230,0.5)'; ctx.fillRect(-4, -6, 1.8, 12);
+      ctx.fillStyle = 'rgba(200,205,210,' + (0.3 * pulse).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(0, -12, 3 + pulse * 1.5, 0, Math.PI * 2); ctx.fill();
     } else if (isWeapon) {
       // ============ VAPEN PÅ MARKEN (fy_) — rack + top-down gun-silhuett + namn ============
       const _w = (typeof getWeapon === 'function') ? getWeapon(pu.weaponId) : null;
@@ -21886,8 +21907,8 @@ function detonateGrenade(g) {
 let _smokeSeedCtr = 0;
 function spawnSmokeCloud(x, y) {
   if (!state.smokeClouds) state.smokeClouds = [];
-  // v1.728: 7→16 så flera moln (egna + lagets) kan ligga samtidigt utan att äldsta försvinner
-  if (state.smokeClouds.length >= 16) state.smokeClouds.shift();
+  // v1.733: cap 25 moln samtidigt (8 rök-loot/lag × flera spelare kan ge många)
+  if (state.smokeClouds.length >= 25) state.smokeClouds.shift();
   _smokeSeedCtr++;
   // v1.725: tjockare/större/längre — duration 11.5s, radie 175.
   state.smokeClouds.push({ x, y, startAt: performance.now(), duration: 11500, radius: 175, seed: (_smokeSeedCtr * 2.3994) % (Math.PI * 2) });
@@ -23529,7 +23550,7 @@ const Coop = {
       }
       // fy_: alla startar med pistol — vapen greppas från marken (server satte ps.weaponId='pistol')
       if (typeof tdmResetInventory === 'function') tdmResetInventory(); // nollställ förråd (ny match)
-      if (state.player) state.player.smokeCount = 2; // rökgranater per liv
+      if (state.player) { state.player.grenadeCount = 0; state.player.smokeCount = 0; } // v1.733: start UTAN granater — loota i mitten
       state.grenadeType = 'frag';
       if (state.player && typeof equipPvpWeapon === 'function') equipPvpWeapon('pistol');
       if (typeof showTdmHud === 'function') showTdmHud(myTeam);
@@ -23628,10 +23649,15 @@ const Coop = {
         state.player.flashUntil = 0;
         state.deadBody = null;
         state.player._prevShield = state.player.shield; // v1.707: undvik falsk sköld-hit-FX vid respawn-shield-set
-        // fy_: respawn:a med pistol (server satte ps.weaponId='pistol') — greppa vapen igen
-        if (typeof tdmResetInventory === 'function') tdmResetInventory(); // ny runda → tomt förråd, börja med pistol
-        if (state.player) state.player.smokeCount = 2; // fyll på rökgranater varje runda
-        if (ev.weaponId && typeof equipPvpWeapon === 'function') equipPvpWeapon(ev.weaponId);
+        // v1.733: DÖD (ev.reset) → tappa vapen + granater (reset till pistol + 0). ÖVERLEVARE
+        // (vinnande lag) → BEHÅLL förråd + granater, bara equipa nuvarande vapen igen (full ammo).
+        if (ev.reset) {
+          if (typeof tdmResetInventory === 'function') tdmResetInventory();
+          if (state.player) { state.player.grenadeCount = 0; state.player.smokeCount = 0; }
+          if (typeof equipPvpWeapon === 'function') equipPvpWeapon('pistol');
+        } else if (ev.weaponId && typeof equipPvpWeapon === 'function') {
+          equipPvpWeapon(ev.weaponId); // överlevare: behåll vapnet (refill ammo)
+        }
         if (typeof updateHUD === 'function') updateHUD(); // v1.707: HUD visade 0hp/0shield tills man sköt (world-paket refreshar bara HUD vid hp-ÄNDRING; respawn=max=server-max=ingen ändring)
         // Stäng respawn-overlay omedelbart om den fortfarande visas
         if (typeof _tdmRespawnOverlay !== 'undefined' && _tdmRespawnOverlay) {
@@ -24122,6 +24148,12 @@ const Coop = {
             setGrenadeCount(getGrenadeCount() + ev.grenadesGained);
           }
         }
+        // v1.733: rökgranat-loot → +smoke
+        if (ev.ptype === 'smoke' && typeof ev.smokeGained === 'number' && ev.smokeGained > 0) {
+          if (typeof setSmokeCount === 'function' && typeof getSmokeCount === 'function') {
+            setSmokeCount(getSmokeCount() + ev.smokeGained);
+          }
+        }
         // Vapen-pickup: första → hand, resten → förråd (idempotent mot klient-prediktion)
         if (ev.ptype === 'weapon' && ev.weaponId && typeof tdmPickWeapon === 'function') {
           tdmPickWeapon(ev.weaponId);
@@ -24131,6 +24163,7 @@ const Coop = {
           if (ev.ptype === 'hp') showToast('💚 +40 HP');
           else if (ev.ptype === 'shield') showToast('🛡 +40 SHIELD');
           else if (ev.ptype === 'grenade') showToast('💣 +' + (ev.grenadesGained || 1) + ' GRANAT');
+          else if (ev.ptype === 'smoke') showToast('💨 +' + (ev.smokeGained || 1) + ' RÖKGRANAT');
           else if (ev.ptype === 'weapon') {
             const _w = (typeof getWeapon === 'function') ? getWeapon(ev.weaponId) : null;
             showToast('🔫 ' + (((_w && _w.name) || ev.weaponId || '').toUpperCase()));

@@ -33,10 +33,11 @@ const counts = {};
 for (const pu of sim.pvpPickups) counts[pu.type] = (counts[pu.type] || 0) + 1;
 console.log('  pickup counts', JSON.stringify(counts));
 assert(counts.weapon === 10, 'should be 10 weapon pickups');
-assert(counts.grenade === 4, 'should be 4 grenade pickups');
+assert(counts.grenade === 8, 'should be 8 frag-grenade pickups (center loot)');
+assert(counts.smoke === 8, 'should be 8 smoke-grenade pickups (center loot)');
 const weaponPus = sim.pvpPickups.filter(p => p.type === 'weapon');
 assert(weaponPus.every(p => p.weaponId), 'every weapon pickup has weaponId');
-console.log('[OK] pickups: 10 weapons (' + [...new Set(weaponPus.map(p => p.weaponId))].join(',') + '), 4 grenades, hp/shield');
+console.log('[OK] pickups: 10 weapons (' + [...new Set(weaponPus.map(p => p.weaponId))].join(',') + '), 8 frag + 8 rök, hp/shield');
 
 // Hoppa över 5s-startup-countdown (i prod passeras den av realtid)
 sim.simReadyAt = 0;
