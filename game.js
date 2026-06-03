@@ -922,8 +922,8 @@ function drawTdmTeamRings() {
     if (save.colorblind) _drawCbTeamGlyph(x, y, color, team === Coop.tdmTeams[Coop.myId]);
     ctx.restore();
   };
-  // Min egen ring
-  if (state.player && Coop.tdmTeams[Coop.myId]) {
+  // Min egen ring (ej under spectate — då ligger spelaren vid target och ringen krockar)
+  if (state.player && !state.player.spectating && Coop.tdmTeams[Coop.myId]) {
     drawRing(state.player.x, state.player.y, Coop.tdmTeams[Coop.myId], true);
   }
   // Partners
@@ -957,7 +957,7 @@ function drawCtfTeamRings() {
     if (save.colorblind) _drawCbTeamGlyph(x, y, color, team === Coop.ctfTeams[Coop.myId]);
     ctx.restore();
   };
-  if (state.player && Coop.ctfTeams[Coop.myId]) {
+  if (state.player && !state.player.spectating && Coop.ctfTeams[Coop.myId]) {
     drawRing(state.player.x, state.player.y, Coop.ctfTeams[Coop.myId], true);
   }
   for (const [pid, p] of Coop.players) {
@@ -21520,19 +21520,25 @@ function updateGrenadeTypeChip() {
     const b = document.createElement('div');
     b.id = 'grenade-switch';
     b.setAttribute('aria-label', 'Byt granat-typ');
-    b.style.cssText = 'position:absolute;top:1px;left:1px;width:21px;height:21px;border-radius:50%;background:rgba(16,18,24,0.95);border:2px solid rgba(255,255,255,0.6);display:none;align-items:center;justify-content:center;font-size:11px;line-height:1;z-index:7;pointer-events:auto;touch-action:manipulation;box-shadow:0 1px 4px rgba(0,0,0,0.6);';
-    const onTap = (e) => { e.preventDefault(); e.stopPropagation(); toggleGrenadeType(); };
+    b.textContent = '⇄'; // switch-ikon (ej granat-emoji)
+    // HÖGER sida av granat-knappen, vertikalt centrerad
+    b.style.cssText = 'position:absolute;top:calc(50% - 11px);right:1px;width:22px;height:22px;border-radius:50%;background:rgba(16,18,24,0.96);border:2px solid rgba(255,255,255,0.65);color:#fff;display:none;align-items:center;justify-content:center;font:800 13px sans-serif;line-height:1;z-index:7;pointer-events:auto;touch-action:manipulation;box-shadow:0 1px 4px rgba(0,0,0,0.6);';
+    let _lastTap = 0;
+    const onTap = (e) => {
+      e.preventDefault(); e.stopPropagation();
+      // DEBOUNCE: iOS skickar BÅDE touchstart + pointerdown för samma tap → annars
+      // toggle:ades typen två gånger (= ingen ändring, "dubbeltryck"-buggen).
+      const t = (typeof performance !== 'undefined') ? performance.now() : Date.now();
+      if (t - _lastTap < 320) return;
+      _lastTap = t;
+      toggleGrenadeType();
+    };
     b.addEventListener('pointerdown', onTap);
     b.addEventListener('touchstart', onTap, { passive: false });
     _btnGrenade.appendChild(b);
     _grenadeSwitchBtn = b;
   }
-  if (showSwitch) {
-    _grenadeSwitchBtn.textContent = (eff === 'smoke') ? '💣' : '💨'; // ikonen man byter TILL
-    _grenadeSwitchBtn.style.display = 'flex';
-  } else {
-    _grenadeSwitchBtn.style.display = 'none';
-  }
+  _grenadeSwitchBtn.style.display = showSwitch ? 'flex' : 'none';
 }
 
 // Beräkna landing-target från drag-state. Respekterar wall-blockering
@@ -21887,8 +21893,8 @@ function drawSmokeClouds() {
     const R = sc.radius * (0.45 + 0.55 * grow);
     const sx = sc.x - camX, sy = sc.y - camY;
     if (sx < -R - 70 || sx > viewW + R + 70 || sy < -R - 70 || sy > viewH + R + 70) continue;
-    // Bas-disk (TÄT kärna som skymmer sikten — v1.725 tjockare)
-    const baseA = alpha * 0.86;
+    // Bas-disk (TÄT kärna som skymmer sikten — v1.726 ännu tätare)
+    const baseA = alpha * 0.93;
     const bg = ctx.createRadialGradient(sx, sy, R * 0.10, sx, sy, R);
     bg.addColorStop(0, 'rgba(210,212,217,' + baseA.toFixed(3) + ')');
     bg.addColorStop(0.45, 'rgba(184,187,194,' + (baseA * 0.96).toFixed(3) + ')');
