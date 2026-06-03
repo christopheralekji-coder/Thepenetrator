@@ -21434,9 +21434,10 @@ function setGrenadeCount(n) {
   updateGrenadeBadge();
 }
 function updateGrenadeBadge() {
+  // v1.725: granat-knappens ikon/count/switch hanteras nu av updateGrenadeTypeChip
+  // (visar EFFEKTIV typ — frag eller rök). Delegera dit om den finns.
+  if (typeof updateGrenadeTypeChip === 'function') { updateGrenadeTypeChip(); return; }
   if (!_grenadeCountEl) return;
-  // v1.376: visa ALLTID riktigt count (även sandbox). I sandbox är decrement
-  // blockerad i setGrenadeCount så count stannar på starting-värdet.
   const raw = (state.player && typeof state.player.grenadeCount === 'number')
     ? state.player.grenadeCount : 0;
   _grenadeCountEl.textContent = raw;
@@ -21454,7 +21455,9 @@ function resetGrenadesForMatch() {
   if (typeof updateGrenadeTypeChip === 'function') updateGrenadeTypeChip();
 }
 
-// === RÖKGRANAT (v1.724) — separat typ + count, väljs via chip ovanför granat-knappen ===
+// === RÖKGRANAT (v1.725) — separat typ + count. Switch i granat-knappens uppe-vänstra
+// hörn; knapp-ikonen byter till rökgranat när rök är vald. Switch döljs om man bara
+// har en typ. ===
 function getSmokeCount() {
   if (isSandboxMode()) return Infinity;
   return (state.player && typeof state.player.smokeCount === 'number') ? state.player.smokeCount : 0;
@@ -21465,36 +21468,71 @@ function setSmokeCount(n) {
   updateGrenadeTypeChip();
 }
 function getSelectedGrenadeKind() { return state.grenadeType === 'smoke' ? 'smoke' : 'frag'; }
-function selectedGrenadeCount() { return getSelectedGrenadeKind() === 'smoke' ? getSmokeCount() : getGrenadeCount(); }
+// Effektiv typ = vald typ om man har den, annars den man faktiskt HAR (auto-fallback).
+function getEffectiveGrenadeKind() {
+  const sel = getSelectedGrenadeKind();
+  const f = getGrenadeCount(), s = getSmokeCount();
+  if (sel === 'smoke' && s <= 0 && f > 0) return 'frag';
+  if (sel === 'frag' && f <= 0 && s > 0) return 'smoke';
+  return sel;
+}
+function effectiveGrenadeCount() { return getEffectiveGrenadeKind() === 'smoke' ? getSmokeCount() : getGrenadeCount(); }
 function toggleGrenadeType() {
   state.grenadeType = (getSelectedGrenadeKind() === 'frag') ? 'smoke' : 'frag';
   if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(440, 0.05, 'square', 0.12, 0.003, 0.04, 560);
   updateGrenadeTypeChip();
-  if (typeof showToast === 'function') showToast(getSelectedGrenadeKind() === 'smoke' ? '💨 RÖKGRANAT vald' : '💣 SPRÄNGGRANAT vald');
+  if (typeof showToast === 'function') showToast(getSelectedGrenadeKind() === 'smoke' ? '💨 RÖKGRANAT' : '💣 SPRÄNGGRANAT');
 }
-let _grenadeTypeChip = null;
+// Snygg rökgranat-ikon (front-vy: canister + lever + ring + grön rök-band + ventiler)
+const SMOKE_ICON_SVG = '<svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">'
+  + '<circle cx="9" cy="5" r="2.4" fill="none" stroke="#d8dce0" stroke-width="1.5"/>'
+  + '<path d="M10.6 6.7 Q 13 8.2 13 10.5" fill="none" stroke="#d8dce0" stroke-width="1.3" stroke-linecap="round"/>'
+  + '<rect x="20" y="8.5" width="2.4" height="12.5" rx="1.2" fill="#aab0b6" stroke="#3a3d42" stroke-width="0.6"/>'
+  + '<rect x="10" y="8" width="12" height="4.6" rx="1.6" fill="#3a4630" stroke="#1e2613" stroke-width="1.2"/>'
+  + '<circle cx="13" cy="10.3" r="0.9" fill="#10130b"/><circle cx="16" cy="10.3" r="0.9" fill="#10130b"/><circle cx="19" cy="10.3" r="0.9" fill="#10130b"/>'
+  + '<rect x="10" y="12.6" width="12" height="16.4" rx="2.6" fill="#5b6b4a" stroke="#1e2613" stroke-width="1.4"/>'
+  + '<rect x="10.7" y="13.2" width="3" height="15.2" rx="1.5" fill="rgba(255,255,255,0.22)"/>'
+  + '<rect x="18.3" y="13.2" width="3" height="15.2" rx="1.5" fill="rgba(0,0,0,0.26)"/>'
+  + '<rect x="10" y="15.2" width="12" height="3" fill="#7fd9a0"/><rect x="10" y="15.2" width="12" height="1" fill="#b6f2cf"/>'
+  + '<line x1="10.6" y1="22" x2="21.4" y2="22" stroke="#1e2613" stroke-width="0.9"/>'
+  + '<line x1="10.6" y1="25.6" x2="21.4" y2="25.6" stroke="#1e2613" stroke-width="0.9"/>'
+  + '</svg>';
+let _fragIconHTML = null;
+let _grenadeSwitchBtn = null;
 function updateGrenadeTypeChip() {
-  const show = state.mode === 'playing' && _btnGrenade &&
-               _btnGrenade.style.display !== 'none' && !_btnGrenade.classList.contains('hidden');
-  if (!_grenadeTypeChip) {
-    const el = document.createElement('button');
-    el.id = 'grenade-type-chip';
-    el.setAttribute('aria-label', 'Byt granat-typ');
-    el.style.cssText = 'position:fixed;right:150px;bottom:200px;z-index:6;width:46px;height:40px;border-radius:11px;border:2px solid rgba(255,255,255,0.35);background:rgba(18,20,26,0.92);color:#fff;font-family:sans-serif;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1px;pointer-events:auto;touch-action:manipulation;box-shadow:0 2px 8px rgba(0,0,0,0.5);';
-    const onTap = (e) => { e.preventDefault(); e.stopPropagation(); toggleGrenadeType(); };
-    el.addEventListener('pointerdown', onTap);
-    el.addEventListener('touchstart', onTap, { passive: false });
-    document.body.appendChild(el);
-    _grenadeTypeChip = el;
+  if (!_btnGrenade) return;
+  const iconEl = _btnGrenade.querySelector('.grenade-icon');
+  if (iconEl && _fragIconHTML === null) _fragIconHTML = iconEl.innerHTML; // cacha original frag-ikon
+  const f = getGrenadeCount(), s = getSmokeCount();
+  const eff = getEffectiveGrenadeKind();
+  // Byt knapp-ikon efter effektiv typ
+  if (iconEl) iconEl.innerHTML = (eff === 'smoke') ? SMOKE_ICON_SVG : (_fragIconHTML || '');
+  // Count-badge visar effektiv typ
+  if (_grenadeCountEl) {
+    const c = eff === 'smoke' ? s : f;
+    _grenadeCountEl.textContent = (c === Infinity) ? '∞' : c;
   }
-  if (!show) { _grenadeTypeChip.style.display = 'none'; return; }
-  const smoke = getSelectedGrenadeKind() === 'smoke';
-  const cnt = selectedGrenadeCount();
-  const cntTxt = (cnt === Infinity) ? '∞' : cnt;
-  _grenadeTypeChip.innerHTML = '<span style="font-size:16px;line-height:1;">' + (smoke ? '💨' : '💣') + '</span>'
-    + '<span style="font-size:9px;font-weight:800;opacity:0.9;">' + cntTxt + ' ⇄</span>';
-  _grenadeTypeChip.style.borderColor = smoke ? 'rgba(190,205,215,0.75)' : 'rgba(255,170,60,0.75)';
-  _grenadeTypeChip.style.display = 'flex';
+  _btnGrenade.classList.toggle('empty', (f <= 0 && s <= 0));
+  // Switch-knapp i UPPE-VÄNSTRA hörnet — bara om man har BÅDA typerna
+  const showSwitch = state.mode === 'playing' && f > 0 && s > 0 &&
+                     _btnGrenade.style.display !== 'none' && !_btnGrenade.classList.contains('hidden');
+  if (!_grenadeSwitchBtn) {
+    const b = document.createElement('div');
+    b.id = 'grenade-switch';
+    b.setAttribute('aria-label', 'Byt granat-typ');
+    b.style.cssText = 'position:absolute;top:1px;left:1px;width:21px;height:21px;border-radius:50%;background:rgba(16,18,24,0.95);border:2px solid rgba(255,255,255,0.6);display:none;align-items:center;justify-content:center;font-size:11px;line-height:1;z-index:7;pointer-events:auto;touch-action:manipulation;box-shadow:0 1px 4px rgba(0,0,0,0.6);';
+    const onTap = (e) => { e.preventDefault(); e.stopPropagation(); toggleGrenadeType(); };
+    b.addEventListener('pointerdown', onTap);
+    b.addEventListener('touchstart', onTap, { passive: false });
+    _btnGrenade.appendChild(b);
+    _grenadeSwitchBtn = b;
+  }
+  if (showSwitch) {
+    _grenadeSwitchBtn.textContent = (eff === 'smoke') ? '💣' : '💨'; // ikonen man byter TILL
+    _grenadeSwitchBtn.style.display = 'flex';
+  } else {
+    _grenadeSwitchBtn.style.display = 'none';
+  }
 }
 
 // Beräkna landing-target från drag-state. Respekterar wall-blockering
@@ -21544,8 +21582,8 @@ function grenadeDown(e) {
   }
   // v1.432: blockera om downed/dead (knife only)
   if (state.player.cdDowned || state.player.cdDownDead) return;
-  if (selectedGrenadeCount() <= 0) {
-    if (typeof showToast === 'function') showToast(getSelectedGrenadeKind() === 'smoke' ? '💨 INGA RÖKGRANATER KVAR' : '💣 INGA GRANATER KVAR');
+  if (effectiveGrenadeCount() <= 0) {
+    if (typeof showToast === 'function') showToast(getEffectiveGrenadeKind() === 'smoke' ? '💨 INGA RÖKGRANATER KVAR' : '💣 INGA GRANATER KVAR');
     return;
   }
   const t = e.changedTouches ? e.changedTouches[0] : e;
@@ -21587,10 +21625,10 @@ function grenadeUp(e) {
   if (e && e.pointerId != null && grenadeTouchId !== 'mouse' && e.pointerId !== grenadeTouchId) return;
   if (e && e.preventDefault) e.preventDefault();
   // Validera fortfarande playable + har granater
-  if (state.mode === 'playing' && state.player && !state.player.spectating && selectedGrenadeCount() > 0) {
+  if (state.mode === 'playing' && state.player && !state.player.spectating && effectiveGrenadeCount() > 0) {
     const target = computeGrenadeTarget();
     if (target) {
-      const kind = getSelectedGrenadeKind();
+      const kind = getEffectiveGrenadeKind();
       throwGrenade(state.player.x, state.player.y, target.x, target.y, kind);
       if (kind === 'smoke') setSmokeCount(getSmokeCount() - 1);
       else setGrenadeCount(getGrenadeCount() - 1);
@@ -21815,7 +21853,8 @@ function spawnSmokeCloud(x, y) {
   if (!state.smokeClouds) state.smokeClouds = [];
   if (state.smokeClouds.length >= 7) state.smokeClouds.shift();
   _smokeSeedCtr++;
-  state.smokeClouds.push({ x, y, startAt: performance.now(), duration: 9000, radius: 132, seed: (_smokeSeedCtr * 2.3994) % (Math.PI * 2) });
+  // v1.725: tjockare/större/längre — duration 11.5s, radie 175.
+  state.smokeClouds.push({ x, y, startAt: performance.now(), duration: 11500, radius: 175, seed: (_smokeSeedCtr * 2.3994) % (Math.PI * 2) });
   // Väsande utsläpp + liten initial puff-burst
   if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(150, 0.6, 'sawtooth', 0.16, 0.02, 0.45, 95);
   if (state.particles && state.particles.length < 760) {
@@ -21844,20 +21883,21 @@ function drawSmokeClouds() {
     let alpha = 1;
     if (tNorm < 0.07) alpha = tNorm / 0.07;              // mjuk fade-in
     else if (tNorm > 0.80) alpha = (1 - tNorm) / 0.20;   // fade-out sista 20%
-    const grow = Math.min(1, age / 850);
+    const grow = Math.min(1, age / 1000);
     const R = sc.radius * (0.45 + 0.55 * grow);
     const sx = sc.x - camX, sy = sc.y - camY;
     if (sx < -R - 70 || sx > viewW + R + 70 || sy < -R - 70 || sy > viewH + R + 70) continue;
-    // Bas-disk (tät kärna som skymmer sikten)
-    const baseA = alpha * 0.6;
-    const bg = ctx.createRadialGradient(sx, sy, R * 0.12, sx, sy, R);
-    bg.addColorStop(0, 'rgba(206,208,213,' + baseA.toFixed(3) + ')');
-    bg.addColorStop(0.55, 'rgba(176,179,186,' + (baseA * 0.92).toFixed(3) + ')');
+    // Bas-disk (TÄT kärna som skymmer sikten — v1.725 tjockare)
+    const baseA = alpha * 0.86;
+    const bg = ctx.createRadialGradient(sx, sy, R * 0.10, sx, sy, R);
+    bg.addColorStop(0, 'rgba(210,212,217,' + baseA.toFixed(3) + ')');
+    bg.addColorStop(0.45, 'rgba(184,187,194,' + (baseA * 0.96).toFixed(3) + ')');
+    bg.addColorStop(0.78, 'rgba(165,168,176,' + (baseA * 0.72).toFixed(3) + ')');
     bg.addColorStop(1, 'rgba(150,153,160,0)');
     ctx.fillStyle = bg;
     ctx.beginPath(); ctx.arc(sx, sy, R, 0, Math.PI * 2); ctx.fill();
-    // Billowande puffar (tids-baserad oscillation = mjukt, ingen flicker)
-    const N = 16;
+    // Billowande puffar (tids-baserad oscillation = mjukt, ingen flicker) — v1.725 fler + tätare
+    const N = 22;
     for (let i = 0; i < N; i++) {
       const ph = sc.seed + i * 1.71;
       const ringA = (i / N) * Math.PI * 2 + Math.sin(now / 2300 + ph) * 0.45;
@@ -21866,7 +21906,7 @@ function drawSmokeClouds() {
       const py = sy + Math.sin(ringA) * dist + Math.cos(now / 1850 + ph) * 9;
       const pr = R * (0.30 + 0.12 * Math.sin(now / 1250 + ph));
       const shade = 156 + ((i * 11) % 56);
-      const pa = alpha * (0.16 + 0.13 * (0.5 + 0.5 * Math.sin(now / 1450 + ph)));
+      const pa = alpha * (0.24 + 0.16 * (0.5 + 0.5 * Math.sin(now / 1450 + ph)));
       const pg = ctx.createRadialGradient(px, py, 1, px, py, Math.max(2, pr));
       pg.addColorStop(0, 'rgba(' + shade + ',' + shade + ',' + (shade + 6) + ',' + pa.toFixed(3) + ')');
       pg.addColorStop(1, 'rgba(' + shade + ',' + shade + ',' + (shade + 6) + ',0)');
