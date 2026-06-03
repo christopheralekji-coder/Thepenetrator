@@ -5300,6 +5300,12 @@ const BR_SHOP = {
   uav:           { cost: 400, alienOnly: false },  // omedelbar 20s fiende-reveal
   airstrike:     { cost: 500, alienOnly: false },  // bärbar — rikta + släpp
   alien_armor:   { cost: 900, alienOnly: true },   // sätter pansaret till MAX (lvl 5) direkt
+  // PERKS (v1.742) — engångs-köp, passiva bonusar.
+  perk_fast_hands:  { cost: 350, alienOnly: false, perk: 'fast_hands' },  // snabbare omladdning
+  perk_double_time: { cost: 400, alienOnly: false, perk: 'double_time' }, // +25% fart
+  perk_ghost:       { cost: 450, alienOnly: false, perk: 'ghost' },       // osynlig för UAV
+  perk_tracker:     { cost: 350, alienOnly: false, perk: 'tracker' },     // fiende-fotspår
+  perk_high_alert:  { cost: 400, alienOnly: false, perk: 'high_alert' },  // varning vid fiende-sikte/närhet
 };
 
 function applyBrBuy(sim, pid, itemKind) {
@@ -5344,6 +5350,13 @@ function applyBrBuy(sim, pid, itemKind) {
     if ((ps.armorLevel || 0) >= BR_ARMOR_MAX) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
     ps.armorLevel = BR_ARMOR_MAX;
     sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, level: ps.armorLevel });
+  } else if (item.perk) {
+    if (!ps.brPerks) ps.brPerks = {};
+    if (ps.brPerks[item.perk]) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
+    ps.brPerks[item.perk] = true;
+    // Double Time: höj server-side speedMul så anti-cheat tillåter +25% fart (om ej downed).
+    if (item.perk === 'double_time' && !ps.brDowned) ps.speedMul = 1.25;
+    sim.eventQueue.push({ type: 'br_perk_granted', peerId: pid, perk: item.perk });
   }
   brAwardCash(sim, pid, -cost);
   sim.eventQueue.push({ type: 'br_buy_ok', peerId: pid, item: itemKind });
@@ -5404,7 +5417,7 @@ function tickBrMeta(sim, nowMs) {
     if (ps && ps.brDowned && ps.hp > 0 && nowMs >= ps.brReviveEnd) {
       ps.brDowned = false;
       ps.hp = Math.min(ps.maxHp || 200, 50);
-      ps.speedMul = 1.0;
+      ps.speedMul = (ps.brPerks && ps.brPerks.double_time) ? 1.25 : 1.0; // återställ ev. Double Time
       ps.invulnUntil = nowMs + 1500;
       sim.eventQueue.push({ type: 'br_revived', peerId: pid, hp: ps.hp });
       sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield || 0 });
@@ -5440,7 +5453,7 @@ function tickBrMeta(sim, nowMs) {
       for (const [opid, ows] of sim.room.members) {
         if (opid === pid) continue;
         if (!ows.playerState || ows.playerState.hp <= 0) continue;
-        if (ows.playerState.brGhost) continue; // (fas 3) Ghost-perk döljer från UAV
+        if (ows.playerState.brPerks && ows.playerState.brPerks.ghost) continue; // Ghost-perk döljer från UAV (v1.742)
         blips.push({ x: Math.round(ows.playerState.x), y: Math.round(ows.playerState.y) });
       }
       sim.eventQueue.push({ type: 'br_uav_ping', peerId: pid, blips });
@@ -6445,6 +6458,7 @@ function startSim(sim, opts) {
       ws.playerState.brUavUntil = 0;      // UAV-reveal aktiv till (ms)
       ws.playerState.brDowned = false;
       ws.playerState.brReviveEnd = 0;
+      ws.playerState.brPerks = {};        // (v1.742) köpta perks: fast_hands/double_time/ghost/tracker/high_alert
       ws.tdmRespawnAt = 0;
       ws.tdmTeam = null; // FFA
       sim.battleroyaleKillsByPid[pid] = 0;

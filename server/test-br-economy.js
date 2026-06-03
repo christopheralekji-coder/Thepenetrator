@@ -166,7 +166,37 @@ assert(collectEv('br_airstrike_blast').length >= 1, 'br_airstrike_blast emittera
 assert(p1.playerState.hp < 200, 'p1 tog airstrike-skada, hp=' + p1.playerState.hp);
 console.log('[OK] airstrike: rikta → nedslag → blast-event + AoE-skada (' + Math.round(200 - p1.playerState.hp) + ' dmg)');
 
+// ===== FAS 3: PERKS (shop-köp) =====
+console.log('\n--- FAS 3: perks ---');
+p0.playerState.x = stn.bounds.x + stn.bounds.w / 2; p0.playerState.y = stn.bounds.y + stn.bounds.h / 2;
+p0.playerState.hp = 200; p0.playerState.brDowned = false; sim.brCash.p0 = 5000;
+sim.eventQueue.length = 0; p0._sentMessages.length = 0; p1._sentMessages.length = 0;
+applyBrBuy(sim, 'p0', 'perk_fast_hands');
+assert(p0.playerState.brPerks.fast_hands === true, 'fast_hands-perk satt');
+assert(sim.eventQueue.find(e => e.type === 'br_perk_granted' && e.perk === 'fast_hands'), 'br_perk_granted fast_hands');
+// Re-köp samma perk → have
+sim.eventQueue.length = 0;
+applyBrBuy(sim, 'p0', 'perk_fast_hands');
+assert(sim.eventQueue.find(e => e.type === 'br_buy_fail' && e.reason === 'have'), 'redan ägd perk → have');
+// Double Time → speedMul 1.25
+applyBrBuy(sim, 'p0', 'perk_double_time');
+assert(p0.playerState.brPerks.double_time === true && p0.playerState.speedMul === 1.25, 'double_time → speedMul 1.25, fick ' + p0.playerState.speedMul);
+console.log('[OK] perks köps (fast_hands/double_time), re-köp nekas (have), double_time → +25% fart');
+
+// GHOST: p1 har UAV, p0 har ghost → p0 syns INTE i p1:s UAV-ping
+p1.playerState.x = 6000; p1.playerState.y = 6000; p1.playerState.hp = 200; p1.playerState.brUavUntil = Date.now() + 20000;
+applyBrBuy(sim, 'p0', 'perk_ghost');
+assert(p0.playerState.brPerks.ghost === true, 'ghost-perk satt');
+sim.eventQueue.length = 0; p0._sentMessages.length = 0; p1._sentMessages.length = 0;
+sim._brUavTick = 1600; // forcera UAV-ping nästa tick
+sim.simReadyAt = 0; tickSim(sim, Date.now());
+const pings = collectEv('br_uav_ping').filter(e => e.peerId === 'p1');
+assert(pings.length >= 1, 'p1 fick UAV-ping');
+assert(pings[0].blips.length === 0, 'GHOST: p0 syns EJ i p1:s UAV-ping (blips=' + pings[0].blips.length + ')');
+console.log('[OK] Ghost-perk: ghosted spelare exkluderas ur fiendens UAV-ping');
+
 // KILL-CREDIT vid finish: p1 hp→0 utan kit + färsk angripare p0 → p0 krediteras
+p1.playerState.brUavUntil = 0;
 p1.playerState.hp = 0; p1.playerState.selfReviveKits = 0; p1.playerState.brDowned = false;
 p1.playerState._brLastAttacker = 'p0'; p1.playerState._brLastAttackerAt = Date.now(); p1.playerState._brLastWeapon = 'rifle';
 const killsBefore = sim.battleroyaleKillsByPid.p0 || 0;

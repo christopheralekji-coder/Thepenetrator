@@ -25388,6 +25388,7 @@ const Coop = {
         state.player.selfReviveKits = 0;
         state.player.airstrikes = 0;
         state.player.brDowned = false;
+        state.player.brPerks = {};
         if (ev.isSpectator) {
           // Late-joiner — direkt i spectator-mode
           state.player.spectating = true;
@@ -25528,6 +25529,14 @@ const Coop = {
     } else if (ev.type === 'br_item_granted') {
       if (ev.peerId === this.myId && state.player) {
         if (ev.item === 'gas_mask') state.player.gasMask = true;
+      }
+    } else if (ev.type === 'br_perk_granted') {
+      if (ev.peerId === this.myId && state.player) {
+        state.player.brPerks = state.player.brPerks || {};
+        state.player.brPerks[ev.perk] = true;
+        const pn = { fast_hands: '⚡ FAST HANDS', double_time: '🏃 DOUBLE TIME', ghost: '👻 GHOST', tracker: '👣 TRACKER', high_alert: '⚠️ HIGH ALERT' };
+        if (typeof showToast === 'function') showToast('⭐ PERK: ' + (pn[ev.perk] || ev.perk));
+        if (typeof updateBrItemsHud === 'function') updateBrItemsHud();
       }
     } else if (ev.type === 'br_item_count') {
       if (ev.peerId === this.myId && state.player) {
@@ -38306,6 +38315,12 @@ function updateBrItemsHud() {
   let html = '';
   if (kits > 0) html += '<span style="background:rgba(20,40,24,0.8);border:1px solid #6fe08a;border-radius:7px;padding:3px 8px;color:#bfffd0;font-weight:800;font-size:12px;">🩹 ' + kits + '</span>';
   if (strikes > 0) html += '<span id="br-airstrike-chip" style="background:rgba(40,28,10,0.86);border:1px solid #ffb24a;border-radius:7px;padding:3px 8px;color:#ffd9a0;font-weight:800;font-size:12px;pointer-events:auto;cursor:pointer;touch-action:manipulation;">✈️ ' + strikes + '</span>';
+  // Ägda perks (passiva ikoner)
+  const perks = state.player.brPerks || {};
+  const perkIcons = { fast_hands: '⚡', double_time: '🏃', ghost: '👻', tracker: '👣', high_alert: '⚠️' };
+  let pstr = '';
+  for (const k in perkIcons) if (perks[k]) pstr += perkIcons[k];
+  if (pstr) html += '<span style="background:rgba(30,24,44,0.82);border:1px solid #b48bff;border-radius:7px;padding:3px 7px;font-size:13px;letter-spacing:1px;">' + pstr + '</span>';
   el.innerHTML = html;
   const chip = document.getElementById('br-airstrike-chip');
   if (chip) {
@@ -38367,8 +38382,19 @@ const BR_SHOP_CATALOG = [
     cost: () => 500, avail: (p) => (p.airstrikes || 0) < 3, sub: (p) => 'x' + (p.airstrikes || 0) + '/3' },
   { id: 'alien_armor', name: 'Alien Armor', icon: '👽', tab: 'alien', alien: true, desc: 'Sätter pansaret till MAX-nivå direkt',
     cost: () => 900, avail: (p) => (p.armorLevel || 0) < BR_ARMOR_MAX, sub: () => '' },
+  // PERKS (v1.742) — engångs-köp, passiva. avail = ej redan ägd.
+  { id: 'perk_fast_hands', name: 'Fast Hands', icon: '⚡', tab: 'perks', alien: false, desc: 'Snabbare omladdning',
+    cost: () => 350, avail: (p) => !(p.brPerks && p.brPerks.fast_hands), sub: (p) => (p.brPerks && p.brPerks.fast_hands) ? 'Ägd' : '' },
+  { id: 'perk_double_time', name: 'Double Time', icon: '🏃', tab: 'perks', alien: false, desc: '+25% rörelse- och sprintfart',
+    cost: () => 400, avail: (p) => !(p.brPerks && p.brPerks.double_time), sub: (p) => (p.brPerks && p.brPerks.double_time) ? 'Ägd' : '' },
+  { id: 'perk_ghost', name: 'Ghost', icon: '👻', tab: 'perks', alien: false, desc: 'Osynlig för fiendens UAV',
+    cost: () => 450, avail: (p) => !(p.brPerks && p.brPerks.ghost), sub: (p) => (p.brPerks && p.brPerks.ghost) ? 'Ägd' : '' },
+  { id: 'perk_tracker', name: 'Tracker', icon: '👣', tab: 'perks', alien: false, desc: 'Visar fiendernas fotspår',
+    cost: () => 350, avail: (p) => !(p.brPerks && p.brPerks.tracker), sub: (p) => (p.brPerks && p.brPerks.tracker) ? 'Ägd' : '' },
+  { id: 'perk_high_alert', name: 'High Alert', icon: '⚠️', tab: 'perks', alien: false, desc: 'Varnar när en fiende siktar/närmar sig',
+    cost: () => 400, avail: (p) => !(p.brPerks && p.brPerks.high_alert), sub: (p) => (p.brPerks && p.brPerks.high_alert) ? 'Ägd' : '' },
 ];
-const BR_TAB_LABELS = { gear: '🎒 Utrustning', armor: '🛡 Pansar', alien: '👽 Alien' };
+const BR_TAB_LABELS = { gear: '🎒 Utrustning', armor: '🛡 Pansar', perks: '⭐ Perks', alien: '👽 Alien' };
 
 function _brSendBuy(itemId) {
   if (Coop && Coop.ws && Coop.ws.readyState === 1) Coop.ws.send(JSON.stringify({ type: 'sim_br_buy', item: itemId }));
@@ -38407,7 +38433,7 @@ function _brRenderShop(isAlien) {
   if (!grid || !tabsEl) return;
   const p = state.player || {};
   const accent = isAlien ? '#b46bff' : '#ffd54a';
-  const tabs = isAlien ? ['gear', 'armor', 'alien'] : ['gear', 'armor'];
+  const tabs = isAlien ? ['gear', 'armor', 'perks', 'alien'] : ['gear', 'armor', 'perks'];
   if (tabs.indexOf(state._brShopTab) < 0) state._brShopTab = 'gear';
   // Flik-knappar
   tabsEl.innerHTML = '';
@@ -38625,6 +38651,79 @@ function updateBrDownedOverlay() {
   }
 }
 
+// === BR PERK-effekter (v1.742): Tracker (fiende-fotspår) + High Alert (sikt-varning).
+// Körs varje frame i BR. (Fast Hands/Double Time/Ghost hanteras i sina egna paths.)
+function updateBrPerkEffects() {
+  if (!state.battleroyaleActive || !state.player || state.player.spectating) return;
+  const p = state.player;
+  const perks = p.brPerks || {};
+  if (!perks.tracker && !perks.high_alert) return;
+  if (typeof Coop === 'undefined' || !Coop.players) return;
+  const now = performance.now();
+  // TRACKER: spawna fiende-fotspår (röda) periodiskt, persistenta ~3s.
+  if (perks.tracker) {
+    if (!state._brTrackerLast || now - state._brTrackerLast > 280) {
+      state._brTrackerLast = now;
+      for (const [, pl] of Coop.players) {
+        if (!pl || pl.x == null || (pl.hp != null && pl.hp <= 0)) continue;
+        const dx = pl.x - p.x, dy = pl.y - p.y;
+        if (dx * dx + dy * dy > 1300 * 1300) continue;
+        if (state.particles && state.particles.length < 560) {
+          state.particles.push({ x: pl.x + (Math.random() - 0.5) * 6, y: pl.y + 6, vx: 0, vy: 0, life: 3.0, maxLife: 3.0, color: 'rgba(255,80,80,0.5)', r: 4.5, isFootprint: true, ang: pl.aimAngle || 0 });
+        }
+      }
+    }
+  }
+  // HIGH ALERT: varna när en fiende är NÄRA eller SIKTAR mot mig.
+  if (perks.high_alert) {
+    let threat = null, threatD2 = Infinity;
+    for (const [, pl] of Coop.players) {
+      if (!pl || pl.x == null || (pl.hp != null && pl.hp <= 0)) continue;
+      const dx = pl.x - p.x, dy = pl.y - p.y;
+      const d2 = dx * dx + dy * dy;
+      const near = d2 < 260 * 260;
+      let aiming = false;
+      if (d2 < 760 * 760 && typeof pl.aimAngle === 'number') {
+        const toMe = Math.atan2(p.y - pl.y, p.x - pl.x);
+        const da = Math.abs(((pl.aimAngle - toMe + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        aiming = da < 0.4;
+      }
+      if ((near || aiming) && d2 < threatD2) { threatD2 = d2; threat = pl; }
+    }
+    if (threat) {
+      state._brHighAlertUntil = now + 360;
+      state._brHighAlertDir = Math.atan2(threat.y - p.y, threat.x - p.x);
+    }
+  }
+}
+
+// High Alert-overlay (screen-space): pulsande röd ram + riktnings-chevron mot hotet.
+function drawBrHighAlert() {
+  if (!state.battleroyaleActive || !state._brHighAlertUntil) return;
+  const now = performance.now();
+  if (now > state._brHighAlertUntil) return;
+  const pulse = 0.4 + 0.45 * (0.5 + 0.5 * Math.sin(now / 90));
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,45,45,' + pulse.toFixed(2) + ')';
+  ctx.lineWidth = 9;
+  ctx.strokeRect(4.5, 4.5, viewW - 9, viewH - 9);
+  if (typeof state._brHighAlertDir === 'number') {
+    const cx = viewW / 2, cy = viewH / 2;
+    const a = state._brHighAlertDir;
+    const rad = Math.min(viewW, viewH) * 0.30;
+    ctx.save();
+    ctx.translate(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad);
+    ctx.rotate(a);
+    ctx.fillStyle = 'rgba(255,60,60,' + (0.55 * pulse + 0.35).toFixed(2) + ')';
+    ctx.beginPath(); ctx.moveTo(15, 0); ctx.lineTo(-9, -10); ctx.lineTo(-9, 10); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  ctx.fillStyle = 'rgba(255,90,90,' + (0.6 * pulse + 0.4).toFixed(2) + ')';
+  ctx.font = '900 14px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillText('⚠ FIENDE I SIKTE', viewW / 2, 48);
+  ctx.restore();
+}
+
 function hideBrHud() {
   _stopBrHudInterval();
   cleanupBrUI();
@@ -38697,6 +38796,8 @@ function clearBattleroyaleState() {
   state.brUav = null;
   state.brAirstrikeWarnings = null;
   state.brAirstrikeTargeting = false;
+  state._brHighAlertUntil = 0;
+  state._brTrackerLast = 0;
   state._alienCracks = null; // cached crack-data (decoration-cache)
   if (typeof Coop !== 'undefined') {
     Coop.battleroyaleActive = false;
@@ -41745,8 +41846,10 @@ function updatePlayer(dt, now) {
       ? Math.max(0.4, 1 - 0.15 * state.heistMyBagsCarrying) : 1;
     // BR downed (v1.740): krypfart medan man väntar på self-revive
     const brDownedMul = (state.battleroyaleActive && p.brDowned) ? 0.45 : 1;
-    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * dt;
-    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * dt;
+    // BR Double Time-perk (v1.742): +25% fart (ej när downed)
+    const brDoubleTime = (state.battleroyaleActive && !p.brDowned && p.brPerks && p.brPerks.double_time) ? 1.25 : 1;
+    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * brDoubleTime * dt;
+    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * brDoubleTime * dt;
   }
   // Mounted i CTF/SIEGE-torn: lås position till turret-koord
   if (p._mountedCtfTurretId && state.ctfTurrets && state.ctfTurrets[p._mountedCtfTurretId]) {
@@ -41915,7 +42018,9 @@ function updatePlayer(dt, now) {
     const w = getWeapon(p.weaponId);
     // v1.527: SURVIVORS-RUN reload-perks (stack-bara, -X% reload-tid)
     const survReloadMul = state.survivorsActive ? Math.max(0.2, 1 - getSurvivorsPerkSum('reload')) : 1;
-    const total = w.reload * (p.reloadMul || 1) * survReloadMul;
+    // BR Fast Hands-perk (v1.742): -45% omladdningstid.
+    const brFastHands = (state.battleroyaleActive && p.brPerks && p.brPerks.fast_hands) ? 0.55 : 1;
+    const total = w.reload * (p.reloadMul || 1) * survReloadMul * brFastHands;
     const elapsed = now - p.reloadStart;
     if (elapsed >= total) {
       p.ammo = effectiveMag(p.weaponId);
@@ -73032,6 +73137,7 @@ function render() {
   drawOffScreenGoalArrow();
   drawOffscreenHitMarkers();
   drawReloadRing();
+  if (state.battleroyaleActive && typeof drawBrHighAlert === 'function') drawBrHighAlert();
   // v1.575: Minimap renderas till hud-canvas (z-index:3) så Pixi-sprites (z:2)
   // inte täcker den. Ctx-swap eftersom drawMiniMap använder global ctx.
   if (hudCtx) {
@@ -75420,7 +75526,7 @@ function runFrame(dt, now) {
   }
 
   // Per-frame CSS-var-update för dash-cooldown-ring (smooth animation)
-  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); if (typeof _updateSpectateBanner === 'function') _updateSpectateBanner(); if (typeof updateGrenadeTypeChip === 'function') updateGrenadeTypeChip(); if (state.battleroyaleActive && typeof updateBrBuyPrompt === 'function') updateBrBuyPrompt(); if (state.battleroyaleActive && typeof updateBrDownedOverlay === 'function') updateBrDownedOverlay(); }
+  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); if (typeof _updateSpectateBanner === 'function') _updateSpectateBanner(); if (typeof updateGrenadeTypeChip === 'function') updateGrenadeTypeChip(); if (state.battleroyaleActive && typeof updateBrBuyPrompt === 'function') updateBrBuyPrompt(); if (state.battleroyaleActive && typeof updateBrDownedOverlay === 'function') updateBrDownedOverlay(); if (state.battleroyaleActive && typeof updateBrPerkEffects === 'function') updateBrPerkEffects(); }
   // Gungame button-layout uppdateras ALLTID (även mode='menu') så defaults
   // återställs när matchen avslutats och spelaren går till menyn / annan mode.
   updateGungameButtonLayout();
