@@ -64,9 +64,9 @@ for (const m of p0._sentMessages) {
 const collected = flat.filter(e => e.ptype === 'weapon');
 assert(collected.length >= 1, 'weapon pickup emitted pvp_pickup_collected');
 assert(collected[0].weaponId === 'sniper', 'collected weaponId is sniper, got ' + collected[0].weaponId);
-assert(p0.playerState.weaponId === 'sniper', 'server set ps.weaponId=sniper');
+// v1.723: servern sätter EJ ps.weaponId vid pickup (klienten styr hand/förråd via tdm_equip)
 assert(sniperPu.available === false, 'CS-runda: weapon pickup KONSUMERAS (available=false)');
-console.log('[OK] walked onto sniper → equipped + pickup KONSUMERAD (CS-runda)');
+console.log('[OK] walked onto sniper → pickup KONSUMERAD + collected-event (weaponId styrs av klient)');
 
 // ===== CS-RUNDA-FLÖDE =====
 console.log('\n--- CS-RUNDA: team-wipe → round-end → reset ---');

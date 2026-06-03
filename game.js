@@ -21176,20 +21176,25 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
   }
 
   function buildSlots() {
-    // Vilka vapen visas?
+    // Vilka vapen visas? equippat vapen = state.player.weaponId i PvP, annars save.equipped.
+    const _equippedId = state.tdmActive ? (state.player && state.player.weaponId) : save.equipped;
     let weaponList = null;
-    if (state.juggernautActive && state.player && state.player.isJug) {
+    if (state.tdmActive) {
+      // TDM fy_: BARA vapnen man plockat upp denna runda (förrådet) — ej hela arsenalen
+      const inv = Array.isArray(state._tdmInventory) ? state._tdmInventory : ['pistol'];
+      weaponList = inv.map(id => WEAPONS.find(w => w.id === id)).filter(Boolean);
+    } else if (state.juggernautActive && state.player && state.player.isJug) {
       // JUG: bara jug-weapons
       weaponList = (Coop.juggernautWeapons || ['rifle', 'shotgun', 'sledge']).map(id => WEAPONS.find(w => w.id === id)).filter(Boolean);
     } else {
-      // Alla ägda vapen (story + alla PvP utom GG/JUG-hunter)
+      // Alla ägda vapen (story + alla PvP utom TDM/GG/JUG-hunter)
       weaponList = WEAPONS.filter(w => save.owned && save.owned.includes(w.id));
     }
     if (!weaponList || weaponList.length === 0) return false;
     // Sortera: equipped först, sedan efter typ (melee först), sedan pris
     weaponList.sort((a, b) => {
-      if (a.id === save.equipped) return -1;
-      if (b.id === save.equipped) return 1;
+      if (a.id === _equippedId) return -1;
+      if (b.id === _equippedId) return 1;
       if (a.type !== b.type) return a.type === 'melee' ? -1 : 1;
       return (a.price || 0) - (b.price || 0);
     });
@@ -21231,7 +21236,7 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
       const sy = centerY + Math.sin(angle) * radius;
       const el = document.createElement('div');
       el.className = 'weapon-radial-slot';
-      if (w.id === save.equipped) el.classList.add('equipped');
+      if (w.id === _equippedId) el.classList.add('equipped');
       const tc = tierClass(w.id);
       if (tc) el.classList.add(tc);
       el.style.left = sx + 'px';
@@ -21295,7 +21300,10 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
     if (!active) return;
     if (commit && selectedIdx >= 0) {
       const wid = slots[selectedIdx].id;
-      if (wid !== save.equipped) {
+      if (state.tdmActive) {
+        // TDM fy_: byt mellan upplockade vapen (förråd) — equipPvpWeapon (ingen save-mutation, synkar)
+        if (state.player && wid !== state.player.weaponId && typeof equipPvpWeapon === 'function') equipPvpWeapon(wid);
+      } else if (wid !== save.equipped) {
         // Story/standard: equip() ändrar save.equipped + state.player.weaponId
         if (typeof equip === 'function') equip(wid);
         // BR: skicka även weaponTier till server så pickup-jämförelse fungerar
@@ -23286,6 +23294,7 @@ const Coop = {
         state.player.invuln = 1.5;
       }
       // fy_: alla startar med pistol — vapen greppas från marken (server satte ps.weaponId='pistol')
+      if (typeof tdmResetInventory === 'function') tdmResetInventory(); // nollställ förråd (ny match)
       if (state.player && typeof equipPvpWeapon === 'function') equipPvpWeapon('pistol');
       if (typeof showTdmHud === 'function') showTdmHud(myTeam);
       if (typeof showToast === 'function') showToast(myTeam === 'red' ? '⚔ DU ÄR I RÖDA LAGET' : '⚔ DU ÄR I BLÅA LAGET');
@@ -23382,6 +23391,7 @@ const Coop = {
         state.deadBody = null;
         state.player._prevShield = state.player.shield; // v1.707: undvik falsk sköld-hit-FX vid respawn-shield-set
         // fy_: respawn:a med pistol (server satte ps.weaponId='pistol') — greppa vapen igen
+        if (typeof tdmResetInventory === 'function') tdmResetInventory(); // ny runda → tomt förråd, börja med pistol
         if (ev.weaponId && typeof equipPvpWeapon === 'function') equipPvpWeapon(ev.weaponId);
         if (typeof updateHUD === 'function') updateHUD(); // v1.707: HUD visade 0hp/0shield tills man sköt (world-paket refreshar bara HUD vid hp-ÄNDRING; respawn=max=server-max=ingen ändring)
         // Stäng respawn-overlay omedelbart om den fortfarande visas
@@ -23857,9 +23867,9 @@ const Coop = {
             setGrenadeCount(getGrenadeCount() + ev.grenadesGained);
           }
         }
-        // Vapen-pickup: equipa det greppade vapnet (live, ingen save-mutation)
-        if (ev.ptype === 'weapon' && ev.weaponId && typeof equipPvpWeapon === 'function') {
-          equipPvpWeapon(ev.weaponId);
+        // Vapen-pickup: första → hand, resten → förråd (idempotent mot klient-prediktion)
+        if (ev.ptype === 'weapon' && ev.weaponId && typeof tdmPickWeapon === 'function') {
+          tdmPickWeapon(ev.weaponId);
         }
         if (typeof updateHUD === 'function') updateHUD();
         if (typeof showToast === 'function') {
@@ -32893,21 +32903,48 @@ function equipPvpWeapon(id) {
   }
   if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
   if (typeof updateHUD === 'function') updateHUD();
+  // v1.723: TDM — synka equippat vapen till servern så ANDRA ser rätt vapen i handen
+  // (snapshot använder ws.playerState.weaponId). Skjutandet använder msg.weaponId per
+  // skott så det är redan korrekt; detta är för det visuella + server-fallback.
+  if (state.tdmActive && typeof Coop !== 'undefined' && Coop.ws && Coop.ws.readyState === 1) {
+    try { Coop.ws.send(JSON.stringify({ type: 'tdm_equip', weaponId: id })); } catch (_) {}
+  }
 }
-// v1.717: KLIENT-PREDIKTION — equipa vapnet DIREKT när man går på det (känns instant)
-// i st f att vänta på server-bekräftelse (~RTT). Servern är fortf. auktoritet (sätter
-// ps.weaponId + broadcastar) men klienten predikterar för responsivitet. Idempotent:
-// equipar bara om annat vapen, så server-eventet trigger:ar ingen dubbel.
+// v1.723: TDM fy_-FÖRRÅD — FÖRSTA upplockade vapnet equippas i handen, övriga läggs i
+// förrådet (vapen-radialen under minimapen). state._tdmInventory = vapnen plockade denna
+// runda. Idempotent (re-anrop från server-confirm gör inget om redan i förrådet).
+function tdmPickWeapon(weaponId) {
+  if (!weaponId || !W_BY_ID[weaponId]) return;
+  if (!Array.isArray(state._tdmInventory)) state._tdmInventory = ['pistol'];
+  if (state._tdmInventory.indexOf(weaponId) >= 0) return; // redan plockad denna runda
+  state._tdmInventory.push(weaponId);
+  if (!state._tdmFirstWeaponTaken) {
+    state._tdmFirstWeaponTaken = true;
+    equipPvpWeapon(weaponId); // första → i handen (+ synkar)
+  } else {
+    const w = getWeapon(weaponId);
+    if (typeof showToast === 'function') showToast('🎒 ' + (((w && w.name) || weaponId).toUpperCase()) + ' → vapenförråd (⚔)');
+    if (typeof updateHUD === 'function') updateHUD();
+  }
+}
+function tdmResetInventory() {
+  state._tdmInventory = ['pistol'];
+  state._tdmFirstWeaponTaken = false;
+}
+// v1.717/723: KLIENT-PREDIKTION — plocka upp vapnet DIREKT vid överlapp (känns instant).
+// Routas via tdmPickWeapon (första→hand, resten→förråd). Servern bekräftar + konsumerar.
 function tdmWeaponPickupCheck() {
   if (!state.tdmActive || !state.player || state.player.spectating || !state.pvpPickups) return;
   const p = state.player;
+  if (!Array.isArray(state._tdmInventory)) tdmResetInventory();
   for (const id in state.pvpPickups) {
     const pu = state.pvpPickups[id];
-    if (!pu || pu.type !== 'weapon' || !pu.weaponId || !pu.available || p.weaponId === pu.weaponId) continue;
+    if (!pu || pu.type !== 'weapon' || !pu.weaponId || !pu.available) continue;
+    if (state._tdmInventory.indexOf(pu.weaponId) >= 0) continue; // har redan
     const dx = p.x - pu.x, dy = p.y - pu.y;
     if (dx * dx + dy * dy <= 30 * 30) {
-      equipPvpWeapon(pu.weaponId);
-      pu.available = false; // prediktion: försvinner direkt (server bekräftar + konsumerar)
+      tdmPickWeapon(pu.weaponId);
+      pu.available = false; // prediktion: försvinner direkt
       break;
     }
   }

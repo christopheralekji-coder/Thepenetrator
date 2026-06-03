@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v228-minimap-loot-v1.721';
+const SERVER_VERSION = 'v229-weaponinv-v1.723';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -949,6 +949,15 @@ function handleMessage(ws, msg) {
       durationMs: SHIELD_DURATION,
       cooldownMs: SHIELD_COOLDOWN, // klient använder för CD-ring
     });
+    return;
+  }
+  // TDM fy_-förråd: klienten synkar vilket vapen som är i HANDEN (snapshot till andra).
+  // Servern litar på klientens equip (TDM har redan klient-betrodd weaponId via sim_shoot).
+  if (msg.type === 'tdm_equip') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim || !room.sim.tdmActive) return;
+    if (!ws.playerState || typeof msg.weaponId !== 'string') return;
+    ws.playerState.weaponId = msg.weaponId;
     return;
   }
   // JUGGERNAUT vapen-byte: bara nuvarande JUG-spelaren får byta, valet måste

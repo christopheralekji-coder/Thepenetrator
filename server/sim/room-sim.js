@@ -1008,11 +1008,11 @@ function tickPvpPickups(sim, now) {
       if (!ws.playerState || ws.playerState.hp <= 0) continue;
       const dx = ws.playerState.x - pu.x, dy = ws.playerState.y - pu.y;
       if (dx * dx + dy * dy > PICKUP_RADIUS * PICKUP_RADIUS) continue;
-      // VAPEN-pickup (fy_ / CS-runda): KONSUMERAS vid upptag — försvinner för rundan
-      // (återställs vid runda-start). Equipas bara om annat vapen.
+      // VAPEN-pickup (fy_ / CS-runda): KONSUMERAS vid upptag (försvinner för rundan,
+      // återställs vid runda-start). Servern sätter EJ ws.playerState.weaponId här —
+      // klienten avgör hand vs förråd (första→hand) och synkar via 'tdm_equip'. Så
+      // andra ser rätt vapen i handen även när man bara LAGRAR det upplockade.
       if (pu.type === 'weapon') {
-        if (ws.playerState.weaponId === pu.weaponId) continue;
-        ws.playerState.weaponId = pu.weaponId;
         pu.available = false;
         pu.respawnAt = now + PICKUP_RESPAWN_MS; // oanvänt i TDM (respawn gated av !tdmActive)
         sim.eventQueue.push({
