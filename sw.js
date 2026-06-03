@@ -1,10 +1,10 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v718-tdmfixes';
+const CACHE = 'penetrator-v719-tdmrounds';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=718',
-  './game.js?v=718',
+  './style.css?v=719',
+  './game.js?v=719',
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg',

@@ -65,17 +65,50 @@ const collected = flat.filter(e => e.ptype === 'weapon');
 assert(collected.length >= 1, 'weapon pickup emitted pvp_pickup_collected');
 assert(collected[0].weaponId === 'sniper', 'collected weaponId is sniper, got ' + collected[0].weaponId);
 assert(p0.playerState.weaponId === 'sniper', 'server set ps.weaponId=sniper');
-assert(sniperPu.available === true, 'weapon pickup STAYS available (permanent)');
-console.log('[OK] walked onto sniper → equipped server-side + pickup remains on ground');
+assert(sniperPu.available === false, 'CS-runda: weapon pickup KONSUMERAS (available=false)');
+console.log('[OK] walked onto sniper → equipped + pickup KONSUMERAD (CS-runda)');
 
-// Stå kvar nästa tick → ska INTE spamma nytt event (samma vapen)
+// ===== CS-RUNDA-FLÖDE =====
+console.log('\n--- CS-RUNDA: team-wipe → round-end → reset ---');
+assert(sim.tdmRoundActive === true && sim.tdmRoundNum === 1, 'round 1 active vid start');
+const p1 = room.members.get('p1');
+console.log('  teams: p0=' + p0.tdmTeam + ' p1=' + p1.tdmTeam);
+// Helper: samla event-typ från BÅDE eventQueue + dränade sim_events (broadcastWorld tömmer kön)
+function collectEvents(type) {
+  const out = [];
+  for (const e of sim.eventQueue) if (e.type === type) out.push(e);
+  for (const m of p0._sentMessages) {
+    if (m.type === type) out.push(m);
+    if (Array.isArray(m.events)) for (const e of m.events) if (e.type === type) out.push(e);
+  }
+  return out;
+}
+// Döda p1 (blå) → blueAlive=0 → röd vinner rundan. Ticka tills broadcast sker (event drän).
+p1.playerState.hp = 0;
 sim.simReadyAt = 0;
-sim.eventQueue.length = 0;
-tickSim(sim, Date.now());
-const again = sim.eventQueue.filter(e => e.type === 'pvp_pickup_collected' && e.ptype === 'weapon');
-assert(again.length === 0, 'no re-emit while standing on same weapon (got ' + again.length + ')');
-console.log('[OK] no event-spam standing on equipped weapon');
+p0._sentMessages.length = 0;
+for (let i = 0; i < 6; i++) { sim.simReadyAt = 0; tickSim(sim, Date.now()); }
+const roundEnd = collectEvents('tdm_round_end');
+assert(roundEnd.length >= 1, 'tdm_round_end emitted on team-wipe (got ' + roundEnd.length + ')');
+const winnerTeam = p0.tdmTeam; // p0 lever → p0:s lag vinner
+assert(roundEnd[0].winner === winnerTeam, 'winner = surviving team (' + winnerTeam + '), got ' + roundEnd[0].winner);
+assert(sim.tdmRoundActive === false && sim.tdmRoundResetAt > 0, 'round inactive + reset-timer satt');
+console.log('[OK] team-wipe → tdm_round_end winner=' + roundEnd[0].winner + ', intermission startad');
+
+// Avancera förbi 3s-reset → ny runda. (Reset-checken använder Date.now() i prod;
+// forcera timern bakåt i testet så vi slipper sleep:a 3s.)
+sim.simReadyAt = 0;
+p0._sentMessages.length = 0;
+sim.tdmRoundResetAt = Date.now() - 100;
+for (let i = 0; i < 3; i++) { sim.simReadyAt = 0; tickSim(sim, Date.now()); }
+assert(sim.tdmRoundActive === true && sim.tdmRoundNum === 2, 'round 2 active efter reset (num=' + sim.tdmRoundNum + ')');
+assert(p1.playerState.hp === 100 && p0.playerState.hp === 100, 'alla respawnade med full HP');
+assert(p0.playerState.weaponId === 'pistol' && p1.playerState.weaponId === 'pistol', 'alla resettade till pistol');
+assert(sniperPu.available === true, 'vapen-pickups återställda (available=true) vid runda-start');
+const roundStart = collectEvents('tdm_round_start');
+assert(roundStart.length >= 1, 'tdm_round_start emitted');
+console.log('[OK] 3s → ny runda: alla respawn (pistol) + vapen återställda + roundNum=2');
 
 console.log('\n═══════════════════════════════════════');
-console.log('  ALL TDM fy_ smoke-tests PASSED');
+console.log('  ALL TDM fy_ + CS-RUNDA smoke-tests PASSED');
 console.log('═══════════════════════════════════════');

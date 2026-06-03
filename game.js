@@ -23324,12 +23324,28 @@ const Coop = {
         if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
       }
     } else if (ev.type === 'tdm_player_died') {
-      // Riktat event: bara renderera respawn-countdown om DET är jag som dog.
-      // ev.durationMs (klient-tid relativ) — fallback till respawnAt för bakåtkomp.
-      if (ev.victim === this.myId && typeof showTdmRespawnCountdown === 'function') {
-        const respawnAt = ev.durationMs ? Date.now() + ev.durationMs : ev.respawnAt;
-        showTdmRespawnCountdown(respawnAt);
+      // Riktat event: bara om DET är jag som dog.
+      if (ev.victim === this.myId) {
+        // CS-runda: dö = spectate tills rundan tar slut (respawn vid runda-start).
+        if (state.player) { state.player.spectating = true; state.player.hp = 0; }
+        state.deadBody = { x: state.player ? state.player.x : 0, y: state.player ? state.player.y : 0, reviveTimer: 0 };
+        if (ev.round) {
+          if (typeof showTdmDeadWaiting === 'function') showTdmDeadWaiting();
+        } else if (typeof showTdmRespawnCountdown === 'function') {
+          // Legacy fallback (gammal deathmatch-respawn)
+          const respawnAt = ev.durationMs ? Date.now() + ev.durationMs : ev.respawnAt;
+          showTdmRespawnCountdown(respawnAt);
+        }
       }
+    } else if (ev.type === 'tdm_round_end') {
+      // CS-runda slut: ett lag wipeat. Visa vinnar-banner + 3s nedräkning.
+      if (typeof showTdmRoundEnd === 'function') {
+        showTdmRoundEnd(ev.winner, ev.roundNum, ev.redKills || 0, ev.blueKills || 0, ev.durationMs || 3000, this.tdmTeams && this.tdmTeams[this.myId]);
+      }
+    } else if (ev.type === 'tdm_round_start') {
+      // Ny runda — banner bort. (Respawn sker via tdm_player_respawned per spelare.)
+      if (typeof hideTdmRoundBanner === 'function') hideTdmRoundBanner();
+      if (typeof showToast === 'function') showToast('⚔ RUNDA ' + (ev.roundNum || ''));
     } else if (ev.type === 'tdm_team_assigned') {
       // Late-joiner team-broadcast till befintliga peers (var dead code i klienten)
       if (this.tdmTeams && ev.peerId && ev.team) {
@@ -23811,8 +23827,9 @@ const Coop = {
       }
     } else if (ev.type === 'pvp_pickup_collected') {
       // Server-shape: { id, peerId, ptype, hp, shield, respawnAt, weaponId? }
-      // VAPEN-pickups (fy_) är PERMANENTA → konsumera EJ (de ligger kvar på marken).
-      if (state.pvpPickups && state.pvpPickups[ev.id] && ev.ptype !== 'weapon') {
+      // CS-runda: ALLA pickups (inkl vapen) konsumeras → försvinner för rundan,
+      // återställs via pvp_pickup_spawned vid runda-start.
+      if (state.pvpPickups && state.pvpPickups[ev.id]) {
         state.pvpPickups[ev.id].available = false;
         state.pvpPickups[ev.id].respawnAt = ev.respawnAt;
       }
@@ -32871,9 +32888,13 @@ function tdmWeaponPickupCheck() {
   const p = state.player;
   for (const id in state.pvpPickups) {
     const pu = state.pvpPickups[id];
-    if (!pu || pu.type !== 'weapon' || !pu.weaponId || p.weaponId === pu.weaponId) continue;
+    if (!pu || pu.type !== 'weapon' || !pu.weaponId || !pu.available || p.weaponId === pu.weaponId) continue;
     const dx = p.x - pu.x, dy = p.y - pu.y;
-    if (dx * dx + dy * dy <= 30 * 30) { equipPvpWeapon(pu.weaponId); break; }
+    if (dx * dx + dy * dy <= 30 * 30) {
+      equipPvpWeapon(pu.weaponId);
+      pu.available = false; // prediktion: försvinner direkt (server bekräftar + konsumerar)
+      break;
+    }
   }
 }
 function effectiveMag(weaponId) {
@@ -36273,6 +36294,49 @@ function showTdmRespawnCountdown(respawnAt) {
   };
   tick();
   _tdmRespawnInterval = setInterval(tick, 100);
+}
+// CS-runda: dö = vänta på nästa runda (ingen fast respawn-countdown). Återanvänder
+// respawn-overlayn med statisk text.
+function showTdmDeadWaiting() {
+  if (!_tdmRespawnOverlay) return;
+  if (_tdmRespawnInterval) { clearInterval(_tdmRespawnInterval); _tdmRespawnInterval = null; }
+  _tdmRespawnOverlay.classList.remove('hidden');
+  if (_tdmRespawnNum) _tdmRespawnNum.textContent = '💀';
+  const labels = _tdmRespawnOverlay.querySelectorAll('.label');
+  if (labels && labels[1]) labels[1].textContent = 'väntar på nästa runda';
+}
+// CS-runda-slut-banner (vinnande lag + 3s nedräkning + kill-score)
+let _tdmRoundBanner = null;
+let _tdmRoundBannerInterval = null;
+function showTdmRoundEnd(winner, roundNum, redKills, blueKills, durationMs, myTeam) {
+  if (!_tdmRoundBanner) {
+    const el = document.createElement('div');
+    el.id = 'tdm-round-banner';
+    el.style.cssText = 'position:fixed;top:17%;left:50%;transform:translateX(-50%);z-index:50;pointer-events:none;text-align:center;display:none;background:rgba(10,8,12,0.80);border:2px solid rgba(255,255,255,0.22);border-radius:14px;padding:14px 26px;box-shadow:0 6px 30px rgba(0,0,0,0.6);font-family:sans-serif;';
+    document.body.appendChild(el);
+    _tdmRoundBanner = el;
+  }
+  const el = _tdmRoundBanner;
+  const won = winner && myTeam && winner === myTeam;
+  const wColor = winner === 'red' ? '#ff5a5a' : (winner === 'blue' ? '#5aaaff' : '#ffd54a');
+  const wName = winner === 'red' ? 'RÖDA' : (winner === 'blue' ? 'BLÅA' : '—');
+  const endAt = Date.now() + (durationMs || 3000);
+  if (_tdmRoundBannerInterval) clearInterval(_tdmRoundBannerInterval);
+  const render = () => {
+    const rem = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+    el.innerHTML =
+      '<div style="font-size:12px;font-weight:900;letter-spacing:2px;color:#bbb;">RUNDA ' + (roundNum || '') + ' SLUT</div>' +
+      '<div style="font-size:24px;font-weight:900;color:' + wColor + ';text-shadow:0 0 12px ' + wColor + ';margin:4px 0;">' + (won ? '🏆 DITT LAG VANN' : wName + ' VANN') + '</div>' +
+      '<div style="font-size:13px;color:#ddd;">🔴 ' + redKills + '  —  ' + blueKills + ' 🔵</div>' +
+      '<div style="font-size:12px;color:#9affa0;margin-top:6px;">Nästa runda om ' + rem + 's</div>';
+  };
+  render();
+  el.style.display = 'block';
+  _tdmRoundBannerInterval = setInterval(render, 200);
+}
+function hideTdmRoundBanner() {
+  if (_tdmRoundBannerInterval) { clearInterval(_tdmRoundBannerInterval); _tdmRoundBannerInterval = null; }
+  if (_tdmRoundBanner) _tdmRoundBanner.style.display = 'none';
 }
 
 function showTdmHud(myTeam) {

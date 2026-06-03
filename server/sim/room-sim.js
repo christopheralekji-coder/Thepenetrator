@@ -77,6 +77,12 @@ function createSim(room) {
     tdmEnded: false,
     tdmKillsByPid: {},   // peerId → kills (för leaderboard)
     tdmDeathsByPid: {},  // peerId → deaths
+    // CS-runda-state: runda slutar när ett lag wipeas → 3s → alla respawnar + vapen
+    // resettas. Kills ackumuleras tvärs rundor; match slutar vid tdmTargetKills.
+    tdmRoundActive: false,
+    tdmRoundNum: 0,
+    tdmRoundResetAt: 0,
+    _tdmRoundHadBoth: false, // hade rundan spelare i BÅDA lag? (annars ingen wipe-check)
     // CTF-state (Capture the Flag PVP)
     ctfActive: false,
     ctfCaptures: { red: 0, blue: 0 },
@@ -242,35 +248,7 @@ function tickSim(sim) {
   // TDM-mode: skip enemy spawning/AI, but bullets MÅSTE tickas så spelare kan skjuta varandra
   if (sim.tdmActive) {
     const nowMs = Date.now();
-    for (const [pid, ws] of sim.room.members) {
-      if (ws.tdmRespawnAt && nowMs >= ws.tdmRespawnAt) {
-        ws.tdmRespawnAt = 0;
-        if (ws.playerState) {
-          // Välj från team-pool den spawn som ligger LÄNGST bort från motståndare.
-          const pool = ws.tdmTeam === 'red' ? TDM_ARENA.spawns.red : TDM_ARENA.spawns.blue;
-          const sp = pickFarthestSpawn(pool, sim, pid) || pool[0];
-          ws.playerState.x = sp.x;
-          ws.playerState.y = sp.y;
-          ws.playerState.hp = 100;
-          ws.playerState.shield = ws.playerState.maxShield || 100;
-          ws.playerState.invulnUntil = Date.now() + 1500;
-          // fy_: respawn:a med pistol — greppa vapen från marken igen
-          ws.playerState.weaponId = 'pistol';
-          // Riktat event så klienten kan reseta spectating-mode + spawna-fx
-          sim.eventQueue.push({
-            type: 'tdm_player_respawned',
-            peerId: pid,
-            x: ws.playerState.x,
-            y: ws.playerState.y,
-            hp: ws.playerState.hp,
-            shield: ws.playerState.shield,
-            weaponId: 'pistol',
-          });
-        }
-      }
-    }
-    // Wall-collision för spelare i TDM (server är auktoritet — annars går att
-    // springa genom cover-crates). resolveCtfWall muterar entity.x/y in-place.
+    // Wall-collision för spelare (server-auth). resolveCtfWall muterar entity.x/y.
     for (const [, ws] of sim.room.members) {
       if (ws.playerState && ws.playerState.hp > 0) {
         const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
@@ -279,24 +257,46 @@ function tickSim(sim) {
         ws.playerState.y = ent.y;
       }
     }
-    // PvP-pickups: respawn-timer + collect-detection (BARA om match ej avslutad)
-    if (!sim.tdmEnded) tickPvpPickups(sim, now);
-    // Match-end-flagga: stoppa allt när någon nått targetKills
     if (!sim.tdmEnded) {
-      updateBullets(sim, dt, now);
-      // Centraliserad death-detection: även om explosioner/PvE-källor dödar
-      // sätts respawn-timer + emit kill-events. Bullets.js sätter dem redan
-      // för player-bullets, så vi bara fyller luckorna.
-      for (const [pid, ws] of sim.room.members) {
-        if (ws.playerState && ws.playerState.hp <= 0 && !ws.tdmRespawnAt) {
-          ws.tdmRespawnAt = nowMs + 3000;
-          sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
-          sim.eventQueue.push({ type: 'tdm_player_died', victim: pid, durationMs: 3000 });
+      if (!sim.tdmRoundActive) {
+        // CS-INTERMISSION mellan rundor — frys allt, vänta på 3s-reset → starta ny runda
+        if (sim.tdmRoundResetAt && nowMs >= sim.tdmRoundResetAt) {
+          tdmStartRound(sim, nowMs);
+        }
+      } else {
+        // AKTIV RUNDA — pickups + bullets + death (INGEN mid-runda-respawn)
+        tickPvpPickups(sim, now);
+        updateBullets(sim, dt, now);
+        // Death-detection: markera död (ingen respawn-timer — CS-runda). Bullets.js
+        // sätter _tdmDeadRound för player-kills; detta fyller luckor (explosion/PvE).
+        for (const [pid, ws] of sim.room.members) {
+          if (ws.playerState && ws.playerState.hp <= 0 && !ws._tdmDeadRound) {
+            ws._tdmDeadRound = true;
+            sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
+            sim.eventQueue.push({ type: 'tdm_player_died', victim: pid, round: true });
+          }
+        }
+        // TEAM-WIPE → runda slut (bara om rundan hade spelare i båda lag)
+        if (sim._tdmRoundHadBoth) {
+          let redAlive = 0, blueAlive = 0;
+          for (const [, ws] of sim.room.members) {
+            if (ws.playerState && ws.playerState.hp > 0) {
+              if (ws.tdmTeam === 'red') redAlive++;
+              else if (ws.tdmTeam === 'blue') blueAlive++;
+            }
+          }
+          if ((redAlive === 0 || blueAlive === 0) && !sim.tdmEnded) {
+            const winner = redAlive > 0 ? 'red' : (blueAlive > 0 ? 'blue' : null);
+            sim.tdmRoundActive = false;
+            sim.tdmRoundResetAt = nowMs + 3000;
+            sim.eventQueue.push({
+              type: 'tdm_round_end', winner, roundNum: sim.tdmRoundNum,
+              redKills: sim.tdmKills.red, blueKills: sim.tdmKills.blue, durationMs: 3000,
+            });
+          }
         }
       }
     }
-    // v1.697: throttla som alla andra modes (TDM saknade BROADCAST_EVERY-check →
-    // broadcastade varje tick = ~960KB/s extra @8p, + ignorerade SIM_BROADCAST_HZ).
     sim._tickCount = (sim._tickCount || 0) + 1;
     if (sim._tickCount % BROADCAST_EVERY === 0) broadcastWorld(sim, now);
     return;
@@ -944,13 +944,58 @@ function buildTdmPickups(sim, arena) {
   return list;
 }
 
+// CS-runda: starta ny TDM-runda — respawna ALLA, nollställ vapen (pistol) + alla
+// pickups, ++rundnummer. Emiterar tdm_player_respawned per spelare + pvp_pickup_spawned
+// per pickup + tdm_round_start.
+function tdmStartRound(sim, nowMs) {
+  const redIds = [], blueIds = [];
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState) continue;
+    if (ws.tdmTeam === 'red') redIds.push(pid); else if (ws.tdmTeam === 'blue') blueIds.push(pid);
+  }
+  const redSpawns = pickSpreadSpawns(TDM_ARENA.spawns.red, Math.max(1, redIds.length));
+  const blueSpawns = pickSpreadSpawns(TDM_ARENA.spawns.blue, Math.max(1, blueIds.length));
+  let ri = 0, bi = 0;
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState) continue;
+    const sp = ws.tdmTeam === 'red'
+      ? (redSpawns[ri++] || TDM_ARENA.spawns.red[0])
+      : (blueSpawns[bi++] || TDM_ARENA.spawns.blue[0]);
+    ws.playerState.x = sp.x;
+    ws.playerState.y = sp.y;
+    ws.playerState.hp = 100;
+    ws.playerState.shield = ws.playerState.maxShield || 100;
+    ws.playerState.invulnUntil = nowMs + 1500;
+    ws.playerState.weaponId = 'pistol';
+    ws._tdmDeadRound = false;
+    ws.tdmRespawnAt = 0;
+    sim.eventQueue.push({
+      type: 'tdm_player_respawned', peerId: pid, x: sp.x, y: sp.y,
+      hp: 100, shield: ws.playerState.shield, weaponId: 'pistol',
+    });
+  }
+  // Återställ ALLA pickups (vapen + granater + hp + shield) för nya rundan
+  if (sim.pvpPickups) {
+    for (const pu of sim.pvpPickups) {
+      pu.available = true;
+      pu.respawnAt = 0;
+      sim.eventQueue.push({ type: 'pvp_pickup_spawned', id: pu.id, x: pu.x, y: pu.y, ptype: pu.type });
+    }
+  }
+  sim.tdmRoundNum = (sim.tdmRoundNum || 0) + 1;
+  sim.tdmRoundActive = true;
+  sim.tdmRoundResetAt = 0;
+  sim._tdmRoundHadBoth = (redIds.length > 0 && blueIds.length > 0);
+  sim.eventQueue.push({ type: 'tdm_round_start', roundNum: sim.tdmRoundNum });
+}
+
 // Tickas från CTF + TDM: respawn timer + collision-detection mot spelare.
 // Emiterar pvp_pickup_collected (med uppdaterad hp/shield) + pvp_pickup_spawned.
 function tickPvpPickups(sim, now) {
   if (!sim.pvpPickups) return;
   for (const pu of sim.pvpPickups) {
-    // Respawn
-    if (!pu.available && now >= pu.respawnAt) {
+    // Respawn — i TDM auto-respawnar pickups EJ (CS-runda: återställs vid runda-start).
+    if (!pu.available && now >= pu.respawnAt && !sim.tdmActive) {
       pu.available = true;
       sim.eventQueue.push({ type: 'pvp_pickup_spawned', id: pu.id, x: pu.x, y: pu.y, ptype: pu.type });
     }
@@ -960,17 +1005,19 @@ function tickPvpPickups(sim, now) {
       if (!ws.playerState || ws.playerState.hp <= 0) continue;
       const dx = ws.playerState.x - pu.x, dy = ws.playerState.y - pu.y;
       if (dx * dx + dy * dy > PICKUP_RADIUS * PICKUP_RADIUS) continue;
-      // VAPEN-pickup (fy_): PERMANENT — försvinner ej, equipas bara om annat vapen
-      // (annars event-spam varje tick man står på den). Klienten equipar + skjuter med det.
+      // VAPEN-pickup (fy_ / CS-runda): KONSUMERAS vid upptag — försvinner för rundan
+      // (återställs vid runda-start). Equipas bara om annat vapen.
       if (pu.type === 'weapon') {
         if (ws.playerState.weaponId === pu.weaponId) continue;
         ws.playerState.weaponId = pu.weaponId;
+        pu.available = false;
+        pu.respawnAt = now + PICKUP_RESPAWN_MS; // oanvänt i TDM (respawn gated av !tdmActive)
         sim.eventQueue.push({
           type: 'pvp_pickup_collected', id: pu.id, peerId: pid, ptype: 'weapon',
           weaponId: pu.weaponId, hp: ws.playerState.hp, shield: ws.playerState.shield || 0,
-          grenadesGained: 0, respawnAt: 0,
+          grenadesGained: 0, respawnAt: pu.respawnAt,
         });
-        continue; // ligger kvar för alla — konsumeras ej
+        break; // konsumerad — nästa pickup
       }
       // Heal — använd spelarens faktiska maxHp (JUG har 400-1300, inte 100)
       const maxHp = ws.playerState.maxHp || 100;
@@ -5334,6 +5381,10 @@ function startSim(sim, opts) {
   sim.siegeScores = { red: 0, blue: 0 };
   sim.tdmKillsByPid = {};
   sim.tdmDeathsByPid = {};
+  sim.tdmRoundActive = false;
+  sim.tdmRoundNum = 0;
+  sim.tdmRoundResetAt = 0;
+  sim._tdmRoundHadBoth = false;
   sim.ctfKillsByPid = {};
   sim.ctfCapturesByPid = {};
   sim.siegeKillsByPid = {};
@@ -5700,9 +5751,15 @@ function startSim(sim, opts) {
       // fy_: alla startar med pistol; vapen greppas från marken
       ws.playerState.weaponId = 'pistol';
       ws.tdmRespawnAt = 0;
+      ws._tdmDeadRound = false;
       sim.tdmKillsByPid[pid] = 0;
       sim.tdmDeathsByPid[pid] = 0;
     }
+    // CS-runda 1 startar direkt (spelarna spawnades redan ovan)
+    sim.tdmRoundNum = 1;
+    sim.tdmRoundActive = true;
+    sim.tdmRoundResetAt = 0;
+    sim._tdmRoundHadBoth = (redIds.length > 0 && blueIds.length > 0);
     // Legacy fallback-spawn-coords (top/bottom-orienterad arena: röd uppe, blå nere)
     const spawnX = Math.floor(arena.worldW * 0.50);
     const redSpawnY = Math.floor(arena.worldH * 0.10);

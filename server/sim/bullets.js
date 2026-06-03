@@ -241,11 +241,13 @@ function applyMelee(sim, p, weaponId, params) {
 // GUARD: om victim redan har respawn-timer (= redan dödad denna tick) → skip,
 // annars dubbel-räknas explosion+bullet samma tick → score-inflation + falsk match-end.
 function handleTdmKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
-  if (victimWs.tdmRespawnAt) return;
+  // CS-runda: ingen mid-runda-respawn. Dubbel-count-guard via _tdmDeadRound
+  // (sätts här + rensas vid runda-start). Tidigare användes tdmRespawnAt.
+  if (victimWs._tdmDeadRound) return;
   // Killer kan ha disconnectat mellan bullet-spawn och hit (rare). Skip credit
   // så stats inte rapporterar ghost-kills för borttagna peerId:n.
   if (!sim.room.members.has(killerPid)) return;
-  victimWs.tdmRespawnAt = Date.now() + 3000;
+  victimWs._tdmDeadRound = true;
   sim.tdmKills[ownerTeam] = (sim.tdmKills[ownerTeam] || 0) + 1;
   sim.tdmKillsByPid[killerPid] = (sim.tdmKillsByPid[killerPid] || 0) + 1;
   sim.tdmDeathsByPid[victimPid] = (sim.tdmDeathsByPid[victimPid] || 0) + 1;
@@ -262,7 +264,7 @@ function handleTdmKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId)
   sim.eventQueue.push({
     type: 'tdm_player_died',
     victim: victimPid,
-    durationMs: 3000,
+    round: true,
   });
   if (sim.tdmKills[ownerTeam] >= sim.tdmTargetKills) {
     sim.tdmEnded = true;
