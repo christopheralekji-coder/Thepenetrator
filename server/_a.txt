@@ -1,2 +1,0 @@
-[SIM] CITEST spawn wave=1 zone=0 toSpawn=8 players=1 spawned=true
-OK: 100 ticks utan crash, max 5 enemies aktiva (5 just nu)
