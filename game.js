@@ -74981,37 +74981,7 @@ function drawMiniMap() {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'alphabetic';
   }
-  // Legend — bara på (nästan) full karta där det finns plats. Kompakt rad-strip
-  // i boxens nedre kant: färg-swatch + label per mode-objekt. Liten minimap = för
-  // trångt → hoppas över (t01 lågt).
-  if (t01 > 0.55 && mmMeta.legend && mmMeta.legend.length) {
-    const entries = mmMeta.legend.slice(0, 4);
-    const rowH = 12;
-    const padX = 5;
-    const stripH = entries.length * rowH + 6;
-    const stripY = y0 + boxH - stripH - 2;
-    const stripW = Math.min(boxW - 6, 116);
-    const stripX = x0 + 3;
-    ctx.fillStyle = 'rgba(0,0,0,0.62)';
-    ctx.fillRect(stripX, stripY, stripW, stripH);
-    ctx.font = 'bold 8px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'middle';
-    for (let i = 0; i < entries.length; i++) {
-      const e = entries[i];
-      const ry = stripY + 3 + i * rowH + rowH / 2;
-      ctx.fillStyle = e.color;
-      if (e.ring) {
-        ctx.strokeStyle = e.color; ctx.lineWidth = 1.4;
-        ctx.beginPath(); ctx.arc(stripX + padX + 3, ry, 3.2, 0, Math.PI * 2); ctx.stroke();
-      } else {
-        ctx.beginPath(); ctx.arc(stripX + padX + 3, ry, 3.2, 0, Math.PI * 2); ctx.fill();
-      }
-      ctx.fillStyle = '#e8e8ee';
-      ctx.fillText(e.label, stripX + padX + 11, ry + 0.5);
-    }
-    ctx.textBaseline = 'alphabetic';
-  }
+  // v1.751: Färg-legend-rutan borttagen (användaren ville inte ha den på minimapen).
   // Förstoringsglas-knapp i hörnet av minimap
   const btnSize = 22;
   const btnX = x0 + boxW - btnSize - 2;
