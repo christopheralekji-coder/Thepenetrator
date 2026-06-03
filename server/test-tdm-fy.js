@@ -93,7 +93,9 @@ assert(roundEnd.length >= 1, 'tdm_round_end emitted on team-wipe (got ' + roundE
 const winnerTeam = p0.tdmTeam; // p0 lever → p0:s lag vinner
 assert(roundEnd[0].winner === winnerTeam, 'winner = surviving team (' + winnerTeam + '), got ' + roundEnd[0].winner);
 assert(sim.tdmRoundActive === false && sim.tdmRoundResetAt > 0, 'round inactive + reset-timer satt');
-console.log('[OK] team-wipe → tdm_round_end winner=' + roundEnd[0].winner + ', intermission startad');
+assert(sim.tdmRoundWins[winnerTeam] === 1, 'rundvinst +1 till vinnaren (' + winnerTeam + '): ' + JSON.stringify(sim.tdmRoundWins));
+assert(roundEnd[0].redWins === sim.tdmRoundWins.red && roundEnd[0].blueWins === sim.tdmRoundWins.blue, 'round_end bär rundvinst-ställning');
+console.log('[OK] team-wipe → tdm_round_end winner=' + roundEnd[0].winner + ', rundvinst-ställning ' + sim.tdmRoundWins.red + '-' + sim.tdmRoundWins.blue);
 
 // Avancera förbi 3s-reset → ny runda. (Reset-checken använder Date.now() i prod;
 // forcera timern bakåt i testet så vi slipper sleep:a 3s.)

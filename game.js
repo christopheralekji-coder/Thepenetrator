@@ -23462,7 +23462,7 @@ const Coop = {
       // Companions tillåts inte i PvP — kicka ut om någon spawnade innan event
       state.companion = null;
       this.tdmActive = true;
-      this.tdmTargetKills = ev.targetKills || 10;
+      this.tdmTargetKills = ev.targetKills || 5;
       this.tdmTeams = ev.teams || {};       // peerId → 'red'|'blue'
       this.tdmRedKills = 0;
       this.tdmBlueKills = 0;
@@ -23575,7 +23575,7 @@ const Coop = {
         : (this.players.get(ev.victim) && this.players.get(ev.victim).name) || 'Spelare';
       const weaponName = ev.weapon && W_BY_ID[ev.weapon] ? (W_BY_ID[ev.weapon].name || ev.weapon) : null;
       if (typeof addTdmKillFeed === 'function') addTdmKillFeed(killerName, ev.killerTeam, victimName, ev.victimTeam, weaponName);
-      if (typeof updateTdmScore === 'function') updateTdmScore(this.tdmRedKills, this.tdmBlueKills, this.tdmTargetKills);
+      // v1.732: HUD-score = RUNDA-VINSTER (uppdateras i tdm_round_end), ej kills. Kills syns i kill-feed.
       // Audio + shake om jag dog eller fick kill
       if (ev.victim === this.myId) {
         if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
@@ -23598,9 +23598,11 @@ const Coop = {
         }
       }
     } else if (ev.type === 'tdm_round_end') {
-      // CS-runda slut: ett lag wipeat. Visa vinnar-banner + 3s nedräkning.
+      // CS-runda slut: ett lag wipeat. v1.732: uppdatera RUNDA-VINST-score (HUD) + banner.
+      if (typeof ev.redWins === 'number') { this.tdmRedWins = ev.redWins; this.tdmBlueWins = ev.blueWins; }
+      if (typeof updateTdmScore === 'function') updateTdmScore(ev.redWins || 0, ev.blueWins || 0, ev.target || this.tdmTargetKills);
       if (typeof showTdmRoundEnd === 'function') {
-        showTdmRoundEnd(ev.winner, ev.roundNum, ev.redKills || 0, ev.blueKills || 0, ev.durationMs || 3000, this.tdmTeams && this.tdmTeams[this.myId]);
+        showTdmRoundEnd(ev.winner, ev.roundNum, ev.redWins || 0, ev.blueWins || 0, ev.target || this.tdmTargetKills, ev.durationMs || 5000, this.tdmTeams && this.tdmTeams[this.myId]);
       }
     } else if (ev.type === 'tdm_round_start') {
       // Ny runda — banner bort. (Respawn sker via tdm_player_respawned per spelare.)
@@ -23644,7 +23646,7 @@ const Coop = {
       this.tdmActive = false;
       state.tdmActive = false;
       if (typeof showTdmEndScreen === 'function') {
-        showTdmEndScreen(ev.winner, ev.redKills || 0, ev.blueKills || 0, ev.stats || [], this.tdmTeams || {});
+        showTdmEndScreen(ev.winner, ev.redWins || 0, ev.blueWins || 0, ev.stats || [], this.tdmTeams || {});
       }
     } else if (ev.type === 'ctf_started') {
       if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
@@ -28126,8 +28128,8 @@ function onTapScrollable(el, fn) {
 const MODE_OPTIONS = {
   tdm: {
     title: '⚔️ TDM — TEAM DEATHMATCH',
-    desc: 'Två lag, först till X kills vinner.',
-    options: [{ key: 'tdmTargetKills', label: 'KILLS TILL VINST', values: [10, 20, 30], suffix: ' kills', def: 10 }],
+    desc: 'CS-stil: rundor. Vinn rundan genom att utplåna fiendelaget. Först till X rundvinster vinner matchen.',
+    options: [{ key: 'tdmTargetKills', label: 'RUNDOR TILL VINST', values: [5, 10, 20], suffix: ' rundor', def: 5 }],
   },
   ctf: {
     title: '🚩 CTF — CAPTURE THE FLAG',
@@ -28598,7 +28600,7 @@ function renderHostControls() {
       Coop.config.ctf = false; Coop.config.siege = false; Coop.config.gungame = false; Coop.config.koth = false; Coop.config.juggernaut = false; Coop.config.battleroyale = false; Coop.config.castledefense = false; Coop.config.survivors = false; Coop.config.stresstest = false;
       if (newTdm) {
         Coop.config.serverSim = true;
-        Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 10;
+        Coop.config.tdmTargetKills = Coop.config.tdmTargetKills || 5;
       }
       Coop.updateConfig({
         tdm: newTdm, ctf: false, siege: false, gungame: false, koth: false, juggernaut: false, battleroyale: false, castledefense: false,
@@ -28837,7 +28839,7 @@ function renderLobbyMatchInfo() {
   chips.push(`<span class="match-info-chip mode">${modeLabel}</span>`);
   // 2. Target-chip (vad krävs för vinst i aktiv mode)
   let target = '';
-  if (cfg.tdm) target = (cfg.tdmTargetKills || 10) + ' kills';
+  if (cfg.tdm) target = (cfg.tdmTargetKills || 5) + ' rundor';
   else if (cfg.ctf) target = (cfg.ctfTargetCaptures || 3) + ' flags';
   else if (cfg.siege) target = (cfg.siegeTargetPoints || 500) + ' poäng';
   else if (cfg.koth) target = (cfg.kothTargetPoints || 100) + ' poäng';
@@ -29442,7 +29444,7 @@ btnCoopStart.addEventListener('click', () => {
     };
     if (Coop.config.tdm) {
       payload.tdm = true;
-      payload.tdmTargetKills = Coop.config.tdmTargetKills || 10;
+      payload.tdmTargetKills = Coop.config.tdmTargetKills || 5;
     }
     if (Coop.config.ctf) {
       payload.ctf = true;
@@ -35657,7 +35659,7 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     };
     if (Coop.config.tdm) {
       payload.tdm = true;
-      payload.tdmTargetKills = Coop.config.tdmTargetKills || 10;
+      payload.tdmTargetKills = Coop.config.tdmTargetKills || 5;
     }
     if (Coop.config.ctf) {
       payload.ctf = true;
@@ -36717,7 +36719,7 @@ function showTdmDeadWaiting() {
 // CS-runda-slut-banner (vinnande lag + 3s nedräkning + kill-score)
 let _tdmRoundBanner = null;
 let _tdmRoundBannerInterval = null;
-function showTdmRoundEnd(winner, roundNum, redKills, blueKills, durationMs, myTeam) {
+function showTdmRoundEnd(winner, roundNum, redWins, blueWins, target, durationMs, myTeam) {
   if (!_tdmRoundBanner) {
     const el = document.createElement('div');
     el.id = 'tdm-round-banner';
@@ -36729,14 +36731,15 @@ function showTdmRoundEnd(winner, roundNum, redKills, blueKills, durationMs, myTe
   const won = winner && myTeam && winner === myTeam;
   const wColor = winner === 'red' ? '#ff5a5a' : (winner === 'blue' ? '#5aaaff' : '#ffd54a');
   const wName = winner === 'red' ? 'RÖDA' : (winner === 'blue' ? 'BLÅA' : '—');
-  const endAt = Date.now() + (durationMs || 3000);
+  const endAt = Date.now() + (durationMs || 5000);
+  const tgt = target || '';
   if (_tdmRoundBannerInterval) clearInterval(_tdmRoundBannerInterval);
   const render = () => {
     const rem = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
     el.innerHTML =
-      '<div style="font-size:12px;font-weight:900;letter-spacing:2px;color:#bbb;">RUNDA ' + (roundNum || '') + ' SLUT</div>' +
-      '<div style="font-size:24px;font-weight:900;color:' + wColor + ';text-shadow:0 0 12px ' + wColor + ';margin:4px 0;">' + (won ? '🏆 DITT LAG VANN' : wName + ' VANN') + '</div>' +
-      '<div style="font-size:13px;color:#ddd;">🔴 ' + redKills + '  —  ' + blueKills + ' 🔵</div>' +
+      '<div style="font-size:12px;font-weight:900;letter-spacing:2px;color:#bbb;">RUNDA ' + (roundNum || '') + ' — ' + (won ? 'VUNNEN' : 'FÖRLORAD') + '</div>' +
+      '<div style="font-size:24px;font-weight:900;color:' + wColor + ';text-shadow:0 0 12px ' + wColor + ';margin:4px 0;">' + (won ? '🏆 DITT LAG VANN RUNDAN' : wName + ' VANN RUNDAN') + '</div>' +
+      '<div style="font-size:15px;font-weight:800;color:#fff;">🔴 ' + redWins + '  —  ' + blueWins + ' 🔵 <span style="font-size:11px;color:#bbb;">(först till ' + tgt + ')</span></div>' +
       '<div style="font-size:12px;color:#9affa0;margin-top:6px;">Nästa runda om ' + rem + 's</div>';
   };
   render();
@@ -36753,7 +36756,7 @@ function showTdmHud(myTeam) {
   _tdmHud.classList.remove('hidden');
   if (_tdmRedEl) _tdmRedEl.textContent = 'RED 0';
   if (_tdmBlueEl) _tdmBlueEl.textContent = 'BLUE 0';
-  if (_tdmTargetEl) _tdmTargetEl.textContent = String(Coop.tdmTargetKills || 10);
+  if (_tdmTargetEl) _tdmTargetEl.textContent = String(Coop.tdmTargetKills || 5);
   if (_tdmKillFeedEl) _tdmKillFeedEl.innerHTML = '';
 }
 function hideTdmHud() {
@@ -36849,7 +36852,7 @@ function _scoreboardTroll(isWorst) {
   const t = _SCOREBOARD_TROLLS[Math.floor(Math.random() * _SCOREBOARD_TROLLS.length)];
   return ` <span style="color:#ff7a7a;font-style:italic;font-size:10px;font-weight:600;opacity:0.95;">— ${t}</span>`;
 }
-function showTdmEndScreen(winner, redKills, blueKills, stats, teams) {
+function showTdmEndScreen(winner, redWins, blueWins, stats, teams) {
   if (!_tdmEndOverlay) return;
   hideTdmHud();
   // Vinnar-färg-flash innan overlay slides in (game-feel polish)
@@ -36864,7 +36867,9 @@ function showTdmEndScreen(winner, redKills, blueKills, stats, teams) {
     prepRematchBtn(_btnTdmRematch);
   }
   if (_tdmEndTitle) {
-    _tdmEndTitle.textContent = winner === 'red' ? 'RED WINS' : 'BLUE WINS';
+    // v1.732: visa RUNDA-resultatet (rundvinster) i titeln
+    const _rs = (typeof redWins === 'number' && typeof blueWins === 'number') ? ' ' + redWins + '–' + blueWins : '';
+    _tdmEndTitle.textContent = (winner === 'red' ? 'RED WINS' : 'BLUE WINS') + _rs;
     _tdmEndTitle.style.color = winner === 'red' ? '#ff5a5a' : '#5aaaff';
   }
   if (_tdmEndScore) _tdmEndScore.textContent = redKills + ' — ' + blueKills;
@@ -36931,7 +36936,7 @@ if (_btnTdmRematch) {
             ngpLevel: 0,
             mode: Coop.config.mode || 'story',
             tdm: true,
-            tdmTargetKills: Coop.config.tdmTargetKills || 10,
+            tdmTargetKills: Coop.config.tdmTargetKills || 5,
           })));
         }, 400);
       } catch (e) {}

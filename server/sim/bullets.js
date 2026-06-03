@@ -266,21 +266,8 @@ function handleTdmKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId)
     victim: victimPid,
     round: true,
   });
-  if (sim.tdmKills[ownerTeam] >= sim.tdmTargetKills) {
-    sim.tdmEnded = true;
-    sim.eventQueue.push({
-      type: 'tdm_match_end',
-      winner: ownerTeam,
-      redKills: sim.tdmKills.red,
-      blueKills: sim.tdmKills.blue,
-      stats: Object.keys(sim.tdmKillsByPid).map(p => ({
-        peerId: p,
-        team: sim.room.members.get(p) && sim.room.members.get(p).tdmTeam,
-        kills: sim.tdmKillsByPid[p] || 0,
-        deaths: sim.tdmDeathsByPid[p] || 0,
-      })),
-    });
-  }
+  // v1.732: match slutar EJ på kills längre — det avgörs av RUNDA-VINSTER (team-wipe →
+  // round-end i room-sim.js). Kills räknas bara för scoreboard/stats + kill-feed.
 }
 
 // handleCtfKill — kill-flow för CTF inkl. flag-drop om offret bar flagga.

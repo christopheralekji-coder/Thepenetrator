@@ -82,6 +82,7 @@ function createSim(room) {
     tdmRoundActive: false,
     tdmRoundNum: 0,
     tdmRoundResetAt: 0,
+    tdmRoundWins: { red: 0, blue: 0 }, // v1.732: match vinns på rundvinster (tdmTargetKills = mål)
     _tdmRoundHadBoth: false, // hade rundan spelare i BÅDA lag? (annars ingen wipe-check)
     // CTF-state (Capture the Flag PVP)
     ctfActive: false,
@@ -292,10 +293,29 @@ function tickSim(sim) {
             const winner = redAlive > 0 ? 'red' : (blueAlive > 0 ? 'blue' : null);
             sim.tdmRoundActive = false;
             sim.tdmRoundResetAt = nowMs + 5000; // 5s loot-fas (greppa granater inför nästa runda)
+            // v1.732: RUNDA-VINST-baserat — vinnaren får +1 rundvinst; match slutar vid målet
+            if (!sim.tdmRoundWins) sim.tdmRoundWins = { red: 0, blue: 0 };
+            if (winner) sim.tdmRoundWins[winner] = (sim.tdmRoundWins[winner] || 0) + 1;
+            const target = sim.tdmTargetKills || 5; // repurposed: antal rundvinster till match-vinst
             sim.eventQueue.push({
               type: 'tdm_round_end', winner, roundNum: sim.tdmRoundNum,
-              redKills: sim.tdmKills.red, blueKills: sim.tdmKills.blue, durationMs: 5000,
+              redKills: sim.tdmKills.red, blueKills: sim.tdmKills.blue,
+              redWins: sim.tdmRoundWins.red, blueWins: sim.tdmRoundWins.blue,
+              target, durationMs: 5000,
             });
+            // Match slut?
+            if (winner && sim.tdmRoundWins[winner] >= target) {
+              sim.tdmEnded = true;
+              sim.eventQueue.push({
+                type: 'tdm_match_end', winner,
+                redKills: sim.tdmKills.red, blueKills: sim.tdmKills.blue,
+                redWins: sim.tdmRoundWins.red, blueWins: sim.tdmRoundWins.blue,
+                stats: Object.keys(sim.tdmKillsByPid).map(pp => ({
+                  peerId: pp, team: sim.room.members.get(pp) && sim.room.members.get(pp).tdmTeam,
+                  kills: sim.tdmKillsByPid[pp] || 0, deaths: sim.tdmDeathsByPid[pp] || 0,
+                })),
+              });
+            }
           }
         }
       }
@@ -5389,6 +5409,7 @@ function startSim(sim, opts) {
   sim.tdmRoundActive = false;
   sim.tdmRoundNum = 0;
   sim.tdmRoundResetAt = 0;
+  sim.tdmRoundWins = { red: 0, blue: 0 };
   sim._tdmRoundHadBoth = false;
   sim.ctfKillsByPid = {};
   sim.ctfCapturesByPid = {};
@@ -5502,7 +5523,7 @@ function startSim(sim, opts) {
     if (opts.wave) sim.wave = opts.wave;
     if (opts.tdm) {
       sim.tdmActive = true;
-      sim.tdmTargetKills = opts.tdmTargetKills || 10;
+      sim.tdmTargetKills = opts.tdmTargetKills || 5;
     }
     if (opts.ctf) {
       sim.ctfActive = true;
