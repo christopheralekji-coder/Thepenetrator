@@ -21016,6 +21016,7 @@ function checkCdGoldCornerTap(mx, my) {
 canvas.addEventListener('mousedown', (e) => {
   const r = canvas.getBoundingClientRect();
   const mx = e.clientX - r.left, my = e.clientY - r.top;
+  if (typeof checkBrAirstrikeTap === 'function' && checkBrAirstrikeTap(mx, my)) { e.preventDefault && e.preventDefault(); return; } // v1.740: airstrike-targeting
   if (checkMinimapZoomClick(mx, my)) return;
   if (checkDebugCornerTap(mx, my)) return; // v1.384: triple-tap top-left
   if (checkCdGoldCornerTap(mx, my)) return; // v1.424: double-tap bottom-left → gold-cheat-knapp
@@ -25528,6 +25529,62 @@ const Coop = {
       if (ev.peerId === this.myId && state.player) {
         if (ev.item === 'gas_mask') state.player.gasMask = true;
       }
+    } else if (ev.type === 'br_item_count') {
+      if (ev.peerId === this.myId && state.player) {
+        if (ev.item === 'self_revive') state.player.selfReviveKits = ev.count || 0;
+        else if (ev.item === 'airstrike') state.player.airstrikes = ev.count || 0;
+        if (typeof updateBrItemsHud === 'function') updateBrItemsHud();
+      }
+    } else if (ev.type === 'br_downed') {
+      if (ev.peerId === this.myId && state.player) {
+        state.player.brDowned = true;
+        state.player.brReviveEnd = ev.reviveEnd || (Date.now() + 6000);
+        state.player.selfReviveKits = ev.kits || 0;
+        state.player.reloading = false;
+        if (typeof exitBrAirstrikeTargeting === 'function') exitBrAirstrikeTargeting();
+        if (typeof updateBrItemsHud === 'function') updateBrItemsHud();
+        if (typeof showBrDownedOverlay === 'function') showBrDownedOverlay();
+        if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(140, 0.5, 'sawtooth', 0.22, 0.02, 0.4, 90);
+      }
+    } else if (ev.type === 'br_revived') {
+      if (ev.peerId === this.myId && state.player) {
+        state.player.brDowned = false;
+        if (typeof ev.hp === 'number') state.player.hp = ev.hp;
+        if (typeof hideBrDownedOverlay === 'function') hideBrDownedOverlay();
+        if (typeof showToast === 'function') showToast('🩹 SJÄLV-ÅTERUPPLIVAD!');
+        if (typeof updateHUD === 'function') updateHUD();
+      }
+    } else if (ev.type === 'br_uav_active') {
+      if (ev.peerId === this.myId) {
+        state.brUav = state.brUav || {};
+        state.brUav.until = ev.until || (Date.now() + 20000);
+        if (typeof showToast === 'function') showToast('📡 UAV AKTIV — fiender på kartan 20s');
+      }
+    } else if (ev.type === 'br_uav_ping') {
+      if (ev.peerId === this.myId) {
+        state.brUav = state.brUav || {};
+        state.brUav.blips = ev.blips || [];
+        state.brUav.blipAt = performance.now();
+      }
+    } else if (ev.type === 'br_airstrike_incoming') {
+      // Synligt för ALLA (telegraf-zon så man hinner fly).
+      state.brAirstrikeWarnings = state.brAirstrikeWarnings || [];
+      state.brAirstrikeWarnings.push({ x: ev.x, y: ev.y, r: ev.r || 240, impactAt: ev.impactAt || (Date.now() + 3000) });
+      if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(880, 0.12, 'square', 0.12, 0.005, 0.1, 660);
+    } else if (ev.type === 'br_airstrike_blast') {
+      // Ta bort matchande warning + spawna explosioner på blast-punkterna.
+      if (state.brAirstrikeWarnings) {
+        state.brAirstrikeWarnings = state.brAirstrikeWarnings.filter(w => Math.abs(w.x - ev.x) > 40 || Math.abs(w.y - ev.y) > 40);
+      }
+      const pts = ev.points || [{ x: ev.x, y: ev.y }];
+      pts.forEach((pt, k) => {
+        setTimeout(() => {
+          if (typeof spawnExplosion === 'function') spawnExplosion(pt.x, pt.y, 95);
+          if (typeof spawnSparks === 'function') spawnSparks(pt.x, pt.y, '#ffd24a', 10, 280);
+        }, k * 140);
+      });
+      if (typeof triggerShake === 'function') triggerShake(10, 0.5);
+      if (typeof Audio !== 'undefined' && Audio.explode) Audio.explode();
     } else if (ev.type === 'br_kill') {
       // { killer, victim, weapon }
       const killerName = (ev.killer === this.myId) ? (this.myName || 'Du')
@@ -33490,6 +33547,8 @@ function startReload() {
 
 function tryShoot(now) {
   const p = state.player;
+  // BR downed (v1.740): krypande spelare kan inte skjuta (matchar server-guard).
+  if (state.battleroyaleActive && p.brDowned) return;
   // Truck-turret override: använd turretens vapen istället för spelarens
   const activeWeaponId = p._turretWeapon || p.weaponId;
   // SPECIAL: repair-turret laga trucken istället för att skjuta
@@ -38197,8 +38256,12 @@ function showBrHud() {
     const onPlate = (e) => { e.preventDefault(); e.stopPropagation(); const t = performance.now(); if (t - _plateTapT < 320) return; _plateTapT = t; if (typeof applyBrPlate === 'function') applyBrPlate(); };
     armor.addEventListener('pointerdown', onPlate);
     armor.addEventListener('touchstart', onPlate, { passive: false });
+    const items = document.createElement('div');
+    items.id = 'br-items';
+    items.style.cssText = 'display:flex;align-items:center;gap:6px;';
     cashPanel.appendChild(cash);
     cashPanel.appendChild(armor);
+    cashPanel.appendChild(items);
     document.body.appendChild(cashPanel);
   }
   cashPanel.style.display = 'flex';
@@ -38218,6 +38281,7 @@ function showBrHud() {
   ensureBrCashCheatBtn();
   updateBrCashHud();
   updateBrArmorHud();
+  updateBrItemsHud();
   updateBrHud();
 }
 
@@ -38246,10 +38310,65 @@ function applyBrPlate() {
   if (Coop && Coop.ws && Coop.ws.readyState === 1) Coop.ws.send(JSON.stringify({ type: 'sim_br_use_plate' }));
 }
 
+// Item-HUD: self-revive-kits (passiv) + airstrike-laddningar (tappbar → targeting).
+function updateBrItemsHud() {
+  const el = document.getElementById('br-items');
+  if (!el || !state.player) return;
+  const kits = state.player.selfReviveKits || 0;
+  const strikes = state.player.airstrikes || 0;
+  let html = '';
+  if (kits > 0) html += '<span style="background:rgba(20,40,24,0.8);border:1px solid #6fe08a;border-radius:7px;padding:3px 8px;color:#bfffd0;font-weight:800;font-size:12px;">🩹 ' + kits + '</span>';
+  if (strikes > 0) html += '<span id="br-airstrike-chip" style="background:rgba(40,28,10,0.86);border:1px solid #ffb24a;border-radius:7px;padding:3px 8px;color:#ffd9a0;font-weight:800;font-size:12px;pointer-events:auto;cursor:pointer;touch-action:manipulation;">✈️ ' + strikes + '</span>';
+  el.innerHTML = html;
+  const chip = document.getElementById('br-airstrike-chip');
+  if (chip) {
+    let _t = 0;
+    const onTap = (e) => { e.preventDefault(); e.stopPropagation(); const n = performance.now(); if (n - _t < 320) return; _t = n; enterBrAirstrikeTargeting(); };
+    chip.addEventListener('pointerdown', onTap);
+    chip.addEventListener('touchstart', onTap, { passive: false });
+  }
+}
+
+// === AIR STRIKE targeting (v1.740) ===
+function enterBrAirstrikeTargeting() {
+  if (!state.battleroyaleActive || !state.player || state.player.spectating || state.player.brDowned) return;
+  if ((state.player.airstrikes || 0) <= 0) return;
+  state.brAirstrikeTargeting = true;
+  let b = document.getElementById('br-airstrike-banner');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'br-airstrike-banner';
+    b.style.cssText = 'position:fixed;top:18%;left:50%;transform:translateX(-50%);z-index:118;background:rgba(40,20,8,0.92);border:2px solid #ffb24a;border-radius:10px;padding:8px 16px;color:#ffd9a0;font:800 13px sans-serif;letter-spacing:0.5px;pointer-events:none;box-shadow:0 3px 14px rgba(0,0,0,0.6);text-align:center;';
+    document.body.appendChild(b);
+  }
+  b.innerHTML = '✈️ TRYCK PÅ KARTAN FÖR AIRSTRIKE<br><span style="font-size:10px;opacity:0.8;font-weight:600;">(tryck igen utanför för att avbryta)</span>';
+  b.style.display = 'block';
+}
+function exitBrAirstrikeTargeting() {
+  state.brAirstrikeTargeting = false;
+  const b = document.getElementById('br-airstrike-banner');
+  if (b) b.style.display = 'none';
+}
+// Anropas FÖRST i canvas pointerdown/touchstart. Returnerar true om tappet konsumerades.
+function checkBrAirstrikeTap(mx, my) {
+  if (!state.brAirstrikeTargeting) return false;
+  exitBrAirstrikeTargeting();
+  if (!state.player || (state.player.airstrikes || 0) <= 0) return true;
+  const z = (typeof getCameraZoom === 'function') ? getCameraZoom() : 1.0;
+  const wx = state.camera.x + (mx - viewW / 2) / z + viewW / 2;
+  const wy = state.camera.y + (my - viewH / 2) / z + viewH / 2;
+  if (Coop && Coop.ws && Coop.ws.readyState === 1) Coop.ws.send(JSON.stringify({ type: 'sim_br_airstrike', x: Math.round(wx), y: Math.round(wy) }));
+  if (typeof showToast === 'function') showToast('✈️ AIRSTRIKE INKOMMANDE...');
+  return true;
+}
+
 // Shop-katalog (klient-spegel; servern är auktoritet på pris/effekt). alien=exklusiv.
 const BR_SHOP_CATALOG = [
   { id: 'armor_plate', name: 'Armor Plate', icon: '🛡', cost: 150, desc: '+50 pansar (sätt in via HUD-pipsen)', alien: false },
   { id: 'gas_mask',    name: 'Gas Mask',    icon: '😷', cost: 250, desc: 'Halverar skadan utanför cirkeln', alien: false },
+  { id: 'self_revive', name: 'Self-Revive', icon: '🩹', cost: 300, desc: 'Reser dig själv när du blir nedskjuten', alien: false },
+  { id: 'uav',         name: 'UAV',          icon: '📡', cost: 400, desc: 'Avslöjar alla fiender på kartan i 20s', alien: false },
+  { id: 'airstrike',   name: 'Air Strike',   icon: '✈️', cost: 500, desc: 'Rikta in ett bombnedslag på kartan', alien: false },
   { id: 'alien_armor', name: 'Alien Armor', icon: '👽', cost: 600, desc: 'Fyller ALLA 3 pansarplattor direkt', alien: true },
 ];
 
@@ -38415,6 +38534,69 @@ function drawBrAlienShop() {
   ctx.restore();
 }
 
+// Air strike-telegraf: pulserande röd mål-zon i världen tills nedslaget (v1.740).
+function drawBrAirstrikeWarnings() {
+  if (!state.brAirstrikeWarnings || !state.brAirstrikeWarnings.length) return;
+  const now = Date.now();
+  state.brAirstrikeWarnings = state.brAirstrikeWarnings.filter(w => now < w.impactAt + 400);
+  const t = performance.now() / 1000;
+  for (const w of state.brAirstrikeWarnings) {
+    const sx = w.x - state.camera.x, sy = w.y - state.camera.y;
+    if (!isFinite(sx) || !isFinite(sy)) continue;
+    const left = Math.max(0, w.impactAt - now);
+    const urgency = 1 - Math.min(1, left / 3000); // 0→1 ju närmare nedslag
+    const blink = 0.35 + 0.4 * (0.5 + 0.5 * Math.sin(t * (6 + urgency * 14)));
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,60,40,' + blink.toFixed(2) + ')';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([12, 8]); ctx.lineDashOffset = -t * 40;
+    ctx.beginPath(); ctx.arc(sx, sy, w.r, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    const fg = ctx.createRadialGradient(sx, sy, 4, sx, sy, w.r);
+    fg.addColorStop(0, 'rgba(255,50,30,' + (0.10 + urgency * 0.18).toFixed(3) + ')');
+    fg.addColorStop(1, 'rgba(255,50,30,0)');
+    ctx.fillStyle = fg;
+    ctx.beginPath(); ctx.arc(sx, sy, w.r, 0, Math.PI * 2); ctx.fill();
+    // ✈ + nedräkning i mitten
+    ctx.font = '900 18px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(255,210,160,' + (0.6 + 0.4 * blink).toFixed(2) + ')';
+    ctx.fillText('✈️ ' + (left / 1000).toFixed(1) + 's', sx, sy - 6);
+    ctx.restore();
+  }
+}
+
+// === BR DOWNED-overlay (v1.740) — röd vignette + self-revive-nedräkning ===
+function showBrDownedOverlay() {
+  let el = document.getElementById('br-downed-overlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'br-downed-overlay';
+    el.style.cssText = 'position:fixed;inset:0;z-index:108;pointer-events:none;box-shadow:inset 0 0 160px 40px rgba(180,0,0,0.55);display:flex;align-items:flex-start;justify-content:center;';
+    const txt = document.createElement('div');
+    txt.id = 'br-downed-text';
+    txt.style.cssText = 'margin-top:24%;background:rgba(40,6,6,0.82);border:2px solid #ff5a5a;border-radius:12px;padding:9px 20px;color:#ffd0d0;font:900 15px sans-serif;text-align:center;letter-spacing:0.5px;box-shadow:0 3px 16px rgba(0,0,0,0.7);';
+    el.appendChild(txt);
+    document.body.appendChild(el);
+  }
+  el.style.display = 'flex';
+  updateBrDownedOverlay();
+}
+function hideBrDownedOverlay() {
+  const el = document.getElementById('br-downed-overlay');
+  if (el) el.style.display = 'none';
+}
+function updateBrDownedOverlay() {
+  const el = document.getElementById('br-downed-overlay');
+  if (!el) return;
+  if (!state.player || !state.player.brDowned) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  const txt = document.getElementById('br-downed-text');
+  if (txt) {
+    const left = Math.max(0, (state.player.brReviveEnd || 0) - Date.now()) / 1000;
+    txt.innerHTML = '🩸 NEDSKJUTEN<br><span style="font-size:12px;color:#9affb0;">🩹 Reser dig om ' + left.toFixed(1) + 's</span>';
+  }
+}
+
 function hideBrHud() {
   _stopBrHudInterval();
   cleanupBrUI();
@@ -38424,7 +38606,7 @@ function hideBrHud() {
 // inventory-bar). Anropas både från hideBrHud OCH vid mode-exit från 'playing'
 // (runFrame-watcher) så scoreboarden inte kan läcka till menyn via någon path.
 function cleanupBrUI() {
-  const ids = ['br-hud', 'br-killfeed', 'br-coords', 'br-inv', 'br-inv-hint', 'br-end-overlay', 'br-cash-panel', 'br-buy-prompt', 'br-shop-overlay', 'br-cash-cheat-btn'];
+  const ids = ['br-hud', 'br-killfeed', 'br-coords', 'br-inv', 'br-inv-hint', 'br-end-overlay', 'br-cash-panel', 'br-buy-prompt', 'br-shop-overlay', 'br-cash-cheat-btn', 'br-airstrike-banner', 'br-downed-overlay'];
   for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
@@ -38481,6 +38663,12 @@ function clearBattleroyaleState() {
   state.battleroyaleStartedAt = null;
   state.battleroyaleLootPickupRadius = null;
   state.brWeaponTiers = null;
+  // BR-meta-state (v1.739/v1.740)
+  state.brBuyStations = null;
+  state.brNearStation = null;
+  state.brUav = null;
+  state.brAirstrikeWarnings = null;
+  state.brAirstrikeTargeting = false;
   state._alienCracks = null; // cached crack-data (decoration-cache)
   if (typeof Coop !== 'undefined') {
     Coop.battleroyaleActive = false;
@@ -41527,8 +41715,10 @@ function updatePlayer(dt, now) {
     // sannings-källan — denna klient-mul är extra-säkerhet om server lags.
     const heistCarryMul = (state.heistActive && state.heistMyBagsCarrying > 0)
       ? Math.max(0.4, 1 - 0.15 * state.heistMyBagsCarrying) : 1;
-    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * dt;
-    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * dt;
+    // BR downed (v1.740): krypfart medan man väntar på self-revive
+    const brDownedMul = (state.battleroyaleActive && p.brDowned) ? 0.45 : 1;
+    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * dt;
+    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * dt;
   }
   // Mounted i CTF/SIEGE-torn: lås position till turret-koord
   if (p._mountedCtfTurretId && state.ctfTurrets && state.ctfTurrets[p._mountedCtfTurretId]) {
@@ -72721,7 +72911,9 @@ function render() {
     }
     // 6. Alien-shop-beacon i lila zonen (gör den hittbar; vanliga stationer = osynliga/förklädda)
     if (typeof drawBrAlienShop === 'function') drawBrAlienShop();
-    // 7. Zone-ring + outside-warning
+    // 7. Air strike-telegraf (röd mål-zon med nedräkning)
+    if (typeof drawBrAirstrikeWarnings === 'function') drawBrAirstrikeWarnings();
+    // 8. Zone-ring + outside-warning
     drawBrZone();
     drawBrOutsideWarning();
   }
@@ -74178,6 +74370,16 @@ function drawMiniMap() {
       ctx.shadowBlur = 0;
     }
   }
+  // UAV (v1.740): röda fiende-blips på minimapen medan UAV är aktiv.
+  if (state.battleroyaleActive && state.brUav && state.brUav.until && Date.now() < state.brUav.until && Array.isArray(state.brUav.blips)) {
+    const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 240);
+    ctx.fillStyle = 'rgba(255,70,70,' + pulse.toFixed(2) + ')';
+    ctx.shadowColor = '#ff4646'; ctx.shadowBlur = 6;
+    for (const bl of state.brUav.blips) {
+      ctx.beginPath(); ctx.arc(ox + bl.x * scale, oy + bl.y * scale, 2.6, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+  }
   // spelare (grön)
   const px = ox + state.player.x * scale;
   const py = oy + state.player.y * scale;
@@ -75190,7 +75392,7 @@ function runFrame(dt, now) {
   }
 
   // Per-frame CSS-var-update för dash-cooldown-ring (smooth animation)
-  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); if (typeof _updateSpectateBanner === 'function') _updateSpectateBanner(); if (typeof updateGrenadeTypeChip === 'function') updateGrenadeTypeChip(); if (state.battleroyaleActive && typeof updateBrBuyPrompt === 'function') updateBrBuyPrompt(); }
+  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); if (typeof _updateSpectateBanner === 'function') _updateSpectateBanner(); if (typeof updateGrenadeTypeChip === 'function') updateGrenadeTypeChip(); if (state.battleroyaleActive && typeof updateBrBuyPrompt === 'function') updateBrBuyPrompt(); if (state.battleroyaleActive && typeof updateBrDownedOverlay === 'function') updateBrDownedOverlay(); }
   // Gungame button-layout uppdateras ALLTID (även mode='menu') så defaults
   // återställs när matchen avslutats och spelaren går till menyn / annan mode.
   updateGungameButtonLayout();
@@ -75214,6 +75416,7 @@ canvas.addEventListener('touchstart', e => {
   if (newTouch) {
     const tx = newTouch.clientX - r.left;
     const ty = newTouch.clientY - r.top;
+    if (typeof checkBrAirstrikeTap === 'function' && checkBrAirstrikeTap(tx, ty)) { e.preventDefault(); return; } // v1.740: airstrike-targeting
     if (checkMinimapZoomClick(tx, ty)) { e.preventDefault(); return; }
     if (checkDebugCornerTap(tx, ty)) { e.preventDefault(); return; } // v1.384
     if (checkCdGoldCornerTap(tx, ty)) { e.preventDefault(); return; } // v1.424

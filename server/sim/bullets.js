@@ -1357,6 +1357,11 @@ function updateBullets(sim, dt, now) {
             remaining -= absorb;
           }
           if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+          // v1.740: registrera senaste angripare (för kill-credit VID elimination, ej
+          // direkt — en spelare kan gå "downed" m. self-revive innan riktig död).
+          ws.playerState._brLastAttacker = b.ownerPid;
+          ws.playerState._brLastWeapon = b.weaponId;
+          ws.playerState._brLastAttackerAt = Date.now();
           sim.eventQueue.push({
             type: 'pvp_hp_changed',
             peerId: pid,
@@ -1366,9 +1371,7 @@ function updateBullets(sim, dt, now) {
           if ((ws.playerState.armor || 0) !== armorBefore) {
             sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, armor: ws.playerState.armor || 0, plates: ws.playerState.armorPlates || 0 });
           }
-          if (ws.playerState.hp <= 0) {
-            if (sim._handleBattleRoyaleKill) sim._handleBattleRoyaleKill(sim, b.ownerPid, ownerWs, pid, ws, b.weaponId);
-          }
+          // Downed/elimination + kill-credit hanteras centralt i tickBattleRoyale.
           pvpHit = true;
           break;
         }

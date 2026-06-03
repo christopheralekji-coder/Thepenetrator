@@ -3721,10 +3721,33 @@ function tickBattleRoyale(sim, dt, now) {
   // Bullets
   updateBullets(sim, dt, now);
 
+  // BR-meta: self-revive-channel, airstrike-impacts, UAV-pings (v1.740)
+  tickBrMeta(sim, nowMs);
+
   // Centraliserad death-detection (täcker explosion/oob/zone-dmg)
   for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState) continue;
     if (ws.playerState.hp <= 0 && !sim.battleroyaleEliminated.includes(pid)) {
+      // DOWNED (v1.740): har self-revive-kit + ej redan downed → gå "downed" (krypande,
+      // sårbar) + auto-revive-channel istället för direkt elimination. Annars elimineras.
+      if (!ws.playerState.brDowned && (ws.playerState.selfReviveKits || 0) > 0) {
+        ws.playerState.selfReviveKits -= 1;
+        ws.playerState.brDowned = true;
+        ws.playerState.brReviveEnd = nowMs + 6000;
+        ws.playerState.hp = 1;
+        ws.playerState.speedMul = 0.45;
+        sim.eventQueue.push({ type: 'br_downed', peerId: pid, reviveEnd: ws.playerState.brReviveEnd, kits: ws.playerState.selfReviveKits });
+        sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: 1, shield: ws.playerState.shield || 0 });
+        continue;
+      }
+      // KILL-CREDIT vid RIKTIG elimination: kreditera senaste angripare om färsk (≤8s).
+      // (Storm/miljö-död utan färsk angripare → ingen credit.)
+      const la = ws.playerState._brLastAttacker;
+      const laFresh = la && (Date.now() - (ws.playerState._brLastAttackerAt || 0) <= 8000);
+      if (laFresh && la !== pid && sim.room.members.has(la) && sim._handleBattleRoyaleKill) {
+        sim._handleBattleRoyaleKill(sim, la, sim.room.members.get(la), pid, ws, ws.playerState._brLastWeapon);
+      }
+      ws.playerState.brDowned = false;
       // BR: ingen respawn. Markera som eliminated + flagga som spectator.
       const placement = sim.battleroyaleAliveCount; // current alive blir deras placering
       sim.battleroyaleRanks[pid] = placement;
@@ -5239,8 +5262,10 @@ function brStationNear(sim, ws) {
 const BR_SHOP = {
   armor_plate:   { cost: 150, alienOnly: false },
   gas_mask:      { cost: 250, alienOnly: false },
-  // Fas 2+ (UAV/airstrike/self-revive) registreras här när de implementeras.
-  alien_armor:   { cost: 600, alienOnly: true },  // fyller ALLA 3 plattor direkt
+  self_revive:   { cost: 300, alienOnly: false },  // (v1.740) auto-används vid down
+  uav:           { cost: 400, alienOnly: false },  // omedelbar 20s fiende-reveal
+  airstrike:     { cost: 500, alienOnly: false },  // bärbar — rikta + släpp
+  alien_armor:   { cost: 600, alienOnly: true },   // fyller ALLA 3 plattor direkt
 };
 
 function applyBrBuy(sim, pid, itemKind) {
@@ -5264,6 +5289,17 @@ function applyBrBuy(sim, pid, itemKind) {
     if (ps.gasMask) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
     ps.gasMask = true;
     sim.eventQueue.push({ type: 'br_item_granted', peerId: pid, item: 'gas_mask' });
+  } else if (itemKind === 'self_revive') {
+    if ((ps.selfReviveKits || 0) >= 2) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
+    ps.selfReviveKits = (ps.selfReviveKits || 0) + 1;
+    sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'self_revive', count: ps.selfReviveKits });
+  } else if (itemKind === 'airstrike') {
+    if ((ps.airstrikes || 0) >= 3) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
+    ps.airstrikes = (ps.airstrikes || 0) + 1;
+    sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'airstrike', count: ps.airstrikes });
+  } else if (itemKind === 'uav') {
+    ps.brUavUntil = Date.now() + 20000;
+    sim.eventQueue.push({ type: 'br_uav_active', peerId: pid, until: ps.brUavUntil });
   } else if (itemKind === 'alien_armor') {
     ps.armor = ps.maxArmor || 150; // fyll alla plattor direkt
     sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, armor: ps.armor, plates: ps.armorPlates || 0 });
@@ -5289,6 +5325,103 @@ function applyBrUsePlate(sim, pid) {
 function applyBrInfCash(sim, pid) {
   if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
   brAwardCash(sim, pid, 5000);
+}
+
+// AIR STRIKE (v1.740): förbruka en laddning, schemalägg fördröjt nedslag (telegraf 3s)
+// med flera blast i en radie. Servern äger skada-appliceringen.
+const BR_AIRSTRIKE = { delayMs: 3000, radius: 240, dmg: 130, blasts: 6, spreadMs: 1400 };
+function applyBrAirstrike(sim, pid, x, y) {
+  if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
+  const ws = sim.room.members.get(pid);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0 || ws.playerState.brDowned) return;
+  if ((ws.playerState.airstrikes || 0) <= 0) return;
+  const arena = BATTLEROYALE_ARENA;
+  const tx = Math.max(0, Math.min(arena.worldW, +x || 0));
+  const ty = Math.max(0, Math.min(arena.worldH, +y || 0));
+  ws.playerState.airstrikes -= 1;
+  const now = Date.now();
+  if (!sim._brAirstrikes) sim._brAirstrikes = [];
+  sim._brAirstrikes.push({ x: tx, y: ty, r: BR_AIRSTRIKE.radius, owner: pid, impactAt: now + BR_AIRSTRIKE.delayMs, done: false });
+  sim.eventQueue.push({ type: 'br_airstrike_incoming', x: Math.round(tx), y: Math.round(ty), r: BR_AIRSTRIKE.radius, impactAt: now + BR_AIRSTRIKE.delayMs });
+  sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'airstrike', count: ws.playerState.airstrikes });
+}
+
+// Applicera airstrike-skada i radie (armor → shield → hp). Krediterar owner via _brLastAttacker.
+function _brAirstrikeDamage(sim, strike) {
+  const r2 = strike.r * strike.r;
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    if (pid === strike.owner) continue; // träffar ej den som kallade in den
+    if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
+    const dx = ws.playerState.x - strike.x, dy = ws.playerState.y - strike.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > r2) continue;
+    const falloff = 1 - Math.sqrt(d2) / strike.r; // 1 i center → 0 vid kant
+    let remaining = BR_AIRSTRIKE.dmg * (0.45 + 0.55 * falloff);
+    const armorBefore = ws.playerState.armor || 0;
+    if (armorBefore > 0) { const a = Math.min(armorBefore, remaining); ws.playerState.armor -= a; remaining -= a; }
+    if (remaining > 0 && (ws.playerState.shield || 0) > 0) { const a = Math.min(ws.playerState.shield, remaining); ws.playerState.shield -= a; remaining -= a; }
+    if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+    ws.playerState._brLastAttacker = strike.owner;
+    ws.playerState._brLastWeapon = 'airstrike';
+    ws.playerState._brLastAttackerAt = Date.now();
+    sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ws.playerState.hp, shield: ws.playerState.shield || 0 });
+    if ((ws.playerState.armor || 0) !== armorBefore) {
+      sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, armor: ws.playerState.armor || 0, plates: ws.playerState.armorPlates || 0 });
+    }
+  }
+}
+
+// BR-meta-tick: self-revive-channel, airstrike-impacts, UAV-pings. (v1.740)
+function tickBrMeta(sim, nowMs) {
+  // 1. Self-revive-channel: downed + levande + timer slut → res dig (50 hp).
+  for (const [pid, ws] of sim.room.members) {
+    const ps = ws.playerState;
+    if (ps && ps.brDowned && ps.hp > 0 && nowMs >= ps.brReviveEnd) {
+      ps.brDowned = false;
+      ps.hp = Math.min(ps.maxHp || 200, 50);
+      ps.speedMul = 1.0;
+      ps.invulnUntil = nowMs + 1500;
+      sim.eventQueue.push({ type: 'br_revived', peerId: pid, hp: ps.hp });
+      sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield || 0 });
+    }
+  }
+  // 2. Airstrike-impacts: när impactAt nås → blast-VFX-events + skada.
+  if (sim._brAirstrikes && sim._brAirstrikes.length) {
+    for (const s of sim._brAirstrikes) {
+      if (s.done) continue;
+      if (nowMs >= s.impactAt) {
+        s.done = true;
+        // Flera blast-punkter spridda i radien (klient-VFX, deterministiskt index).
+        const pts = [];
+        for (let k = 0; k < BR_AIRSTRIKE.blasts; k++) {
+          const ang = (k / BR_AIRSTRIKE.blasts) * Math.PI * 2 + (s.x % 7) * 0.3;
+          const dist = s.r * (0.2 + 0.65 * ((k % 3) / 2));
+          pts.push({ x: Math.round(s.x + Math.cos(ang) * dist), y: Math.round(s.y + Math.sin(ang) * dist) });
+        }
+        sim.eventQueue.push({ type: 'br_airstrike_blast', x: Math.round(s.x), y: Math.round(s.y), r: s.r, points: pts });
+        _brAirstrikeDamage(sim, s);
+      }
+    }
+    sim._brAirstrikes = sim._brAirstrikes.filter(s => !s.done);
+  }
+  // 3. UAV-pings: var ~1.5s emit:a fiende-blips till spelare med aktiv UAV.
+  sim._brUavTick = (sim._brUavTick || 0) + (nowMs - (sim._brUavLast || nowMs));
+  sim._brUavLast = nowMs;
+  if (sim._brUavTick >= 1500) {
+    sim._brUavTick = 0;
+    for (const [pid, ws] of sim.room.members) {
+      if (!ws.playerState || nowMs >= (ws.playerState.brUavUntil || 0)) continue;
+      const blips = [];
+      for (const [opid, ows] of sim.room.members) {
+        if (opid === pid) continue;
+        if (!ows.playerState || ows.playerState.hp <= 0) continue;
+        if (ows.playerState.brGhost) continue; // (fas 3) Ghost-perk döljer från UAV
+        blips.push({ x: Math.round(ows.playerState.x), y: Math.round(ows.playerState.y) });
+      }
+      sim.eventQueue.push({ type: 'br_uav_ping', peerId: pid, blips });
+    }
+  }
 }
 
 // Pickup-builder för juggernaut-arenan — symmetrisk runt 2500,1750
@@ -6285,6 +6418,11 @@ function startSim(sim, opts) {
       ws.playerState.maxArmor = 150;
       ws.playerState.armorPlates = 0;     // reserv-plattor i inventory (max 8)
       ws.playerState.gasMask = false;
+      ws.playerState.selfReviveKits = 0;  // (v1.740) auto-används vid down
+      ws.playerState.airstrikes = 0;      // bärbara airstrike-laddningar
+      ws.playerState.brUavUntil = 0;      // UAV-reveal aktiv till (ms)
+      ws.playerState.brDowned = false;
+      ws.playerState.brReviveEnd = 0;
       ws.tdmRespawnAt = 0;
       ws.tdmTeam = null; // FFA
       sim.battleroyaleKillsByPid[pid] = 0;
@@ -6809,6 +6947,8 @@ function applyShoot(sim, peerId, msg) {
     };
   }
   const ps = ws.playerState;
+  // BR downed (v1.740): krypande spelare kan inte skjuta (server-enforce).
+  if (ps.brDowned) return;
   // Castle Defense down-state: bara knife tillåten (server-enforce, annars
   // kan klient skicka rifle/sniper-shots medan downed).
   if (ps.cdDowned) {
@@ -7293,4 +7433,4 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrUsePlate, applyBrInfCash, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole, _heistLineBlockedByWall };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrUsePlate, applyBrInfCash, applyBrAirstrike, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole, _heistLineBlockedByWall };

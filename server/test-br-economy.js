@@ -15,7 +15,7 @@ function makeFakeRoom(n) {
   return { code: 'BRTEST', hostId: 'p0', members, meta: {} };
 }
 
-const { createSim, startSim, tickSim, applyBrBuy, applyBrUsePlate, applyBrInfCash } = require('./sim/room-sim');
+const { createSim, startSim, tickSim, applyBrBuy, applyBrUsePlate, applyBrInfCash, applyBrAirstrike } = require('./sim/room-sim');
 const { BATTLEROYALE_ARENA } = require('../shared/battleroyale-arena');
 
 const room = makeFakeRoom(2);
@@ -99,6 +99,76 @@ assert(p0.playerState.gasMask === true, 'gas_mask-flagga satt');
 assert(sim.eventQueue.find(e => e.type === 'br_item_granted' && e.item === 'gas_mask'), 'br_item_granted gas_mask emitterat');
 console.log('[OK] gas_mask köpt → flagga + grant-event');
 
+// ===== FAS 2: self-revive / UAV / airstrike / downed-revive / kill-credit =====
+console.log('\n--- FAS 2: self-revive, UAV, airstrike, downed ---');
+sim.simReadyAt = 0;
+p0.playerState.x = stn.x; p0.playerState.y = stn.y; p0.playerState.hp = 200; p0.playerState.brDowned = false;
+sim.brCash.p0 = 5000;
+
+applyBrBuy(sim, 'p0', 'self_revive');
+assert(p0.playerState.selfReviveKits === 1, 'self-revive köpt: ' + p0.playerState.selfReviveKits);
+sim.eventQueue.length = 0;
+applyBrBuy(sim, 'p0', 'uav');
+assert(p0.playerState.brUavUntil > Date.now(), 'UAV aktiv');
+assert(sim.eventQueue.find(e => e.type === 'br_uav_active'), 'br_uav_active emitterat');
+applyBrBuy(sim, 'p0', 'airstrike');
+assert(p0.playerState.airstrikes === 1, 'airstrike köpt');
+console.log('[OK] köpte self-revive + UAV (aktiverad) + airstrike');
+
+// Helper: events drän:as av broadcastWorld i tickSim → scanna BÅDE eventQueue + sända msgs.
+function collectEv(type) {
+  const out = [];
+  for (const e of sim.eventQueue) if (e.type === type) out.push(e);
+  for (const m of [...p0._sentMessages, ...p1._sentMessages]) {
+    if (m && m.type === type) out.push(m);
+    if (m && Array.isArray(m.events)) for (const e of m.events) if (e.type === type) out.push(e);
+  }
+  return out;
+}
+
+// DOWNED: hp→0 med kit → går downed (ej eliminerad)
+p0.playerState.hp = 0;
+sim.eventQueue.length = 0; p0._sentMessages.length = 0; p1._sentMessages.length = 0;
+sim.simReadyAt = 0; tickSim(sim, Date.now());
+assert(p0.playerState.brDowned === true, 'p0 downed istället för eliminerad');
+assert(p0.playerState.hp === 1, 'downed hp=1, fick ' + p0.playerState.hp);
+assert(p0.playerState.selfReviveKits === 0, 'kit förbrukad vid down');
+assert(!sim.battleroyaleEliminated.includes('p0'), 'p0 EJ eliminerad (downed)');
+assert(collectEv('br_downed').length >= 1, 'br_downed emitterat');
+console.log('[OK] hp→0 med kit → DOWNED (ej eliminerad), hp=1, kit förbrukad');
+
+// REVIVE-channel: forcera timern bakåt → tick → rest upp (hp 50)
+p0.playerState.brReviveEnd = Date.now() - 50;
+sim.eventQueue.length = 0; p0._sentMessages.length = 0; p1._sentMessages.length = 0;
+sim.simReadyAt = 0; tickSim(sim, Date.now());
+assert(p0.playerState.brDowned === false, 'p0 rest upp');
+assert(p0.playerState.hp === 50, 'revive hp=50, fick ' + p0.playerState.hp);
+assert(collectEv('br_revived').length >= 1, 'br_revived emitterat');
+console.log('[OK] self-revive-channel klar → rest upp med 50 hp');
+
+// AIRSTRIKE-impact + skada: rikta på p1, forcera nedslag → blast + dmg
+p1.playerState.x = 5000; p1.playerState.y = 5000; p1.playerState.hp = 200;
+p1.playerState.shield = 0; p1.playerState.armor = 0; p1.playerState.invulnUntil = 0;
+applyBrAirstrike(sim, 'p0', 5000, 5000);
+assert(p0.playerState.airstrikes === 0, 'airstrike-laddning förbrukad');
+assert(sim._brAirstrikes && sim._brAirstrikes.length === 1, 'pending airstrike registrerad');
+sim._brAirstrikes[0].impactAt = Date.now() - 1; // forcera nedslag NU
+sim.eventQueue.length = 0; p0._sentMessages.length = 0; p1._sentMessages.length = 0;
+sim.simReadyAt = 0; tickSim(sim, Date.now());
+assert(collectEv('br_airstrike_blast').length >= 1, 'br_airstrike_blast emitterat');
+assert(p1.playerState.hp < 200, 'p1 tog airstrike-skada, hp=' + p1.playerState.hp);
+console.log('[OK] airstrike: rikta → nedslag → blast-event + AoE-skada (' + Math.round(200 - p1.playerState.hp) + ' dmg)');
+
+// KILL-CREDIT vid finish: p1 hp→0 utan kit + färsk angripare p0 → p0 krediteras
+p1.playerState.hp = 0; p1.playerState.selfReviveKits = 0; p1.playerState.brDowned = false;
+p1.playerState._brLastAttacker = 'p0'; p1.playerState._brLastAttackerAt = Date.now(); p1.playerState._brLastWeapon = 'rifle';
+const killsBefore = sim.battleroyaleKillsByPid.p0 || 0;
+sim.eventQueue.length = 0;
+sim.simReadyAt = 0; tickSim(sim, Date.now());
+assert(sim.battleroyaleEliminated.includes('p1'), 'p1 eliminerad');
+assert((sim.battleroyaleKillsByPid.p0 || 0) === killsBefore + 1, 'p0 krediterad kill vid elimination (' + (sim.battleroyaleKillsByPid.p0 || 0) + ')');
+console.log('[OK] kill-credit: finish av sårbar spelare krediterar färsk angripare');
+
 console.log('\n═══════════════════════════════════════');
-console.log('  ALL BR ECONOMY/ARMOR/SHOP smoke-tests PASSED');
+console.log('  ALL BR ECONOMY/ARMOR/SHOP + FAS 2 smoke-tests PASSED');
 console.log('═══════════════════════════════════════');
