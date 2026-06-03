@@ -20979,9 +20979,10 @@ let _cdGoldTapCount = 0;
 let _cdGoldTapLastT = 0;
 function checkCdGoldCornerTap(mx, my) {
   if (state.mode !== 'playing') return false;
-  if (!state.castledefenseActive) return false;
+  const isCd = state.castledefenseActive && !state.survivorsActive;
+  const isBr = !!state.battleroyaleActive;
   // v1.532: Exkludera survivors (delar castledefenseActive-flag men har egen gold-economy)
-  if (state.survivorsActive) return false;
+  if (!isCd && !isBr) return false;
   // Bottom-left 70×70 zon
   if (mx > 70) return false;
   if (my < viewH - 70) return false;
@@ -20991,6 +20992,16 @@ function checkCdGoldCornerTap(mx, my) {
   _cdGoldTapLastT = now;
   if (_cdGoldTapCount >= 4) {
     _cdGoldTapCount = 0;
+    if (isBr) {
+      // v1.739: BR cash-cheat (samma 4-klick-mekanik som Castle Defense)
+      state._brCashCheatVisible = !state._brCashCheatVisible;
+      const bbtn = document.getElementById('br-cash-cheat-btn');
+      if (bbtn) bbtn.style.display = state._brCashCheatVisible ? 'flex' : 'none';
+      if (typeof showToast === 'function') {
+        showToast(state._brCashCheatVisible ? '💵 CASH-CHEAT PÅ (+$5000/klick)' : '💵 CASH-CHEAT AV');
+      }
+      return true;
+    }
     state._cdGoldCheatVisible = !state._cdGoldCheatVisible;
     const btn = document.getElementById('cd-gold-cheat-btn');
     if (btn) btn.style.display = state._cdGoldCheatVisible ? 'flex' : 'none';
@@ -25338,6 +25349,10 @@ const Coop = {
       }
       state.battleroyaleStartedAt = Date.now();
       state.battleroyaleLootPickupRadius = ev.lootPickupRadius || 32;
+      // BR-meta (v1.739): buy-stations (utseende-identiska hus + alien-shop), cash, armor.
+      state.brBuyStations = ev.buyStations || [];
+      state.brCash = (typeof ev.startCash === 'number') ? ev.startCash : 500;
+      state.brNearStation = null;
       state.pvpShieldMax = ev.shieldMax || 100;
       state.enemies = []; state.bullets = [];
       state.bossAlive = false; state.bossIntro = null;
@@ -25367,6 +25382,10 @@ const Coop = {
         state.player.speedMul = 1.0;
         state.player.dashCdMs = null;
         state.player.invuln = 1.5;
+        state.player.armor = 0;
+        state.player.maxArmor = 150;
+        state.player.armorPlates = 0;
+        state.player.gasMask = false;
         if (ev.isSpectator) {
           // Late-joiner — direkt i spectator-mode
           state.player.spectating = true;
@@ -25480,6 +25499,34 @@ const Coop = {
         }
         if (typeof updateHUD === 'function') updateHUD();
         if (typeof Audio !== 'undefined' && Audio.pickup) Audio.pickup();
+      }
+    } else if (ev.type === 'br_cash_update') {
+      if (ev.peerId === this.myId) {
+        state.brCash = ev.cash || 0;
+        if (typeof updateBrCashHud === 'function') updateBrCashHud();
+        if (typeof refreshBrShopIfOpen === 'function') refreshBrShopIfOpen();
+      }
+    } else if (ev.type === 'br_armor_update') {
+      if (ev.peerId === this.myId && state.player) {
+        state.player.armor = ev.armor || 0;
+        state.player.armorPlates = ev.plates || 0;
+        if (typeof updateBrArmorHud === 'function') updateBrArmorHud();
+      }
+    } else if (ev.type === 'br_buy_ok') {
+      if (ev.peerId === this.myId) {
+        if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+        else if (typeof Audio !== 'undefined' && Audio.pickup) Audio.pickup();
+        const names = { armor_plate: '🛡 ARMOR PLATE', gas_mask: '😷 GAS MASK', alien_armor: '👽 ALIEN ARMOR' };
+        if (typeof showToast === 'function') showToast('✅ KÖPT: ' + (names[ev.item] || ev.item));
+      }
+    } else if (ev.type === 'br_buy_fail') {
+      if (ev.peerId === this.myId) {
+        const reasons = { no_cash: 'För lite pengar', too_far: 'Stå vid en Buy Station', full: 'Max antal plattor', have: 'Du har redan den', wrong_shop: 'Endast hos Alien-shoppen' };
+        if (typeof showToast === 'function') showToast('❌ ' + (reasons[ev.reason] || 'Köp misslyckades'));
+      }
+    } else if (ev.type === 'br_item_granted') {
+      if (ev.peerId === this.myId && state.player) {
+        if (ev.item === 'gas_mask') state.player.gasMask = true;
       }
     } else if (ev.type === 'br_kill') {
       // { killer, victim, weapon }
@@ -38132,7 +38179,240 @@ function showBrHud() {
     document.body.appendChild(coords);
   }
   coords.style.display = 'block';
+  // CASH + ARMOR-panel (v1.739) — top-left. Armor-pips är tappbara (applicera platta).
+  let cashPanel = document.getElementById('br-cash-panel');
+  if (!cashPanel) {
+    cashPanel = document.createElement('div');
+    cashPanel.id = 'br-cash-panel';
+    cashPanel.style.cssText = 'position:fixed;top:max(8px, calc(env(safe-area-inset-top,0px)+6px));left:max(8px, env(safe-area-inset-left,8px));z-index:80;display:flex;flex-direction:column;gap:5px;font-family:sans-serif;align-items:flex-start;';
+    const cash = document.createElement('div');
+    cash.id = 'br-cash';
+    cash.style.cssText = 'background:rgba(8,10,6,0.82);border:2px solid #ffd54a;border-radius:8px;padding:4px 11px;color:#ffe27a;font-weight:900;font-size:15px;letter-spacing:0.5px;box-shadow:0 2px 10px rgba(0,0,0,0.5);text-shadow:0 1px 2px #000;';
+    cash.textContent = '💵 $0';
+    const armor = document.createElement('div');
+    armor.id = 'br-armor';
+    armor.style.cssText = 'display:flex;align-items:center;gap:4px;background:rgba(8,10,16,0.78);border:1px solid rgba(120,200,255,0.5);border-radius:8px;padding:4px 8px;pointer-events:auto;touch-action:manipulation;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.4);';
+    armor.title = 'Tryck för att sätta in en platta';
+    let _plateTapT = 0;
+    const onPlate = (e) => { e.preventDefault(); e.stopPropagation(); const t = performance.now(); if (t - _plateTapT < 320) return; _plateTapT = t; if (typeof applyBrPlate === 'function') applyBrPlate(); };
+    armor.addEventListener('pointerdown', onPlate);
+    armor.addEventListener('touchstart', onPlate, { passive: false });
+    cashPanel.appendChild(cash);
+    cashPanel.appendChild(armor);
+    document.body.appendChild(cashPanel);
+  }
+  cashPanel.style.display = 'flex';
+  // BUY-prompt (visas bara nära en buy-station). Tap → öppna shoppen.
+  let buyPrompt = document.getElementById('br-buy-prompt');
+  if (!buyPrompt) {
+    buyPrompt = document.createElement('button');
+    buyPrompt.id = 'br-buy-prompt';
+    buyPrompt.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-120px);z-index:84;display:none;background:rgba(20,18,10,0.94);border:2px solid #ffd54a;border-radius:12px;color:#ffe27a;font:800 14px sans-serif;padding:9px 18px;box-shadow:0 3px 16px rgba(0,0,0,0.6);pointer-events:auto;touch-action:manipulation;letter-spacing:0.5px;';
+    buyPrompt.textContent = '🛒 ÖPPNA SHOP';
+    let _buyTapT = 0;
+    const onBuy = (e) => { e.preventDefault(); e.stopPropagation(); const t = performance.now(); if (t - _buyTapT < 320) return; _buyTapT = t; if (typeof openBrShop === 'function') openBrShop(); };
+    buyPrompt.addEventListener('pointerdown', onBuy);
+    buyPrompt.addEventListener('touchstart', onBuy, { passive: false });
+    document.body.appendChild(buyPrompt);
+  }
+  ensureBrCashCheatBtn();
+  updateBrCashHud();
+  updateBrArmorHud();
   updateBrHud();
+}
+
+// === BR CASH/ARMOR HUD + SHOP (v1.739) ===
+function updateBrCashHud() {
+  const el = document.getElementById('br-cash');
+  if (el) el.textContent = '💵 $' + (state.brCash || 0);
+}
+function updateBrArmorHud() {
+  const el = document.getElementById('br-armor');
+  if (!el || !state.player) return;
+  const armor = state.player.armor || 0;
+  const plates = state.player.armorPlates || 0;
+  const filled = Math.ceil(armor / 50); // hur många av 3 plattor är "hela"
+  let pips = '';
+  for (let i = 0; i < 3; i++) {
+    const on = i < filled;
+    pips += '<span style="display:inline-block;width:13px;height:18px;border-radius:2px;margin-right:2px;background:' + (on ? 'linear-gradient(#7fe0ff,#2f9fe0)' : 'rgba(255,255,255,0.12)') + ';border:1px solid ' + (on ? '#aef0ff' : 'rgba(255,255,255,0.25)') + ';"></span>';
+  }
+  el.innerHTML = pips + '<span style="color:#cfeaff;font-weight:800;font-size:12px;margin-left:3px;">+' + plates + '</span>';
+}
+function applyBrPlate() {
+  if (!state.battleroyaleActive || !state.player || state.player.spectating) return;
+  if ((state.player.armorPlates || 0) <= 0) { if (typeof showToast === 'function') showToast('🛡 Inga plattor — köp i en Buy Station'); return; }
+  if ((state.player.armor || 0) >= (state.player.maxArmor || 150)) { if (typeof showToast === 'function') showToast('🛡 Pansaret är fullt'); return; }
+  if (Coop && Coop.ws && Coop.ws.readyState === 1) Coop.ws.send(JSON.stringify({ type: 'sim_br_use_plate' }));
+}
+
+// Shop-katalog (klient-spegel; servern är auktoritet på pris/effekt). alien=exklusiv.
+const BR_SHOP_CATALOG = [
+  { id: 'armor_plate', name: 'Armor Plate', icon: '🛡', cost: 150, desc: '+50 pansar (sätt in via HUD-pipsen)', alien: false },
+  { id: 'gas_mask',    name: 'Gas Mask',    icon: '😷', cost: 250, desc: 'Halverar skadan utanför cirkeln', alien: false },
+  { id: 'alien_armor', name: 'Alien Armor', icon: '👽', cost: 600, desc: 'Fyller ALLA 3 pansarplattor direkt', alien: true },
+];
+
+function _brSendBuy(itemId) {
+  if (Coop && Coop.ws && Coop.ws.readyState === 1) Coop.ws.send(JSON.stringify({ type: 'sim_br_buy', item: itemId }));
+}
+
+function openBrShop() {
+  if (!state.battleroyaleActive || !state.player || state.player.spectating) return;
+  const station = state.brNearStation;
+  if (!station) return;
+  const isAlien = !!station.alien;
+  let ov = document.getElementById('br-shop-overlay');
+  if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+  ov = document.createElement('div');
+  ov.id = 'br-shop-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:130;background:rgba(0,0,0,0.74);display:flex;align-items:center;justify-content:center;font-family:sans-serif;';
+  ov.addEventListener('pointerdown', (e) => { if (e.target === ov) closeBrShop(); });
+  const accent = isAlien ? '#b46bff' : '#ffd54a';
+  const panel = document.createElement('div');
+  panel.style.cssText = 'background:linear-gradient(' + (isAlien ? '#1a0e2a,#0e0618' : '#241808,#120a02') + ');border:2px solid ' + accent + ';border-radius:16px;padding:16px 16px 14px;max-width:min(560px,94vw);width:100%;box-shadow:0 12px 48px rgba(0,0,0,0.7);box-sizing:border-box;max-height:90vh;overflow:auto;';
+  panel.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">' +
+    '<div style="color:' + accent + ';font-weight:900;font-size:18px;letter-spacing:0.5px;">' + (isAlien ? '👽 ALIEN BLACK MARKET' : '🛒 BUY STATION') + '</div>' +
+    '<div id="br-shop-cash" style="color:#ffe27a;font-weight:900;font-size:16px;">💵 $' + (state.brCash || 0) + '</div></div>' +
+    '<div id="br-shop-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;"></div>' +
+    '<button id="br-shop-close" style="margin-top:14px;width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.3);border-radius:10px;color:#fff;font:800 14px sans-serif;padding:10px;cursor:pointer;">STÄNG</button>';
+  ov.appendChild(panel);
+  document.body.appendChild(ov);
+  document.getElementById('br-shop-close').addEventListener('pointerdown', (e) => { e.preventDefault(); closeBrShop(); });
+  _brRenderShopCards(isAlien);
+}
+
+function _brRenderShopCards(isAlien) {
+  const grid = document.getElementById('br-shop-grid');
+  if (!grid) return;
+  // Alien-shoppen säljer vanliga varor + exklusiva; vanliga stationer bara icke-alien.
+  const items = BR_SHOP_CATALOG.filter(it => isAlien || !it.alien);
+  grid.innerHTML = '';
+  for (const it of items) {
+    const cash = state.brCash || 0;
+    const afford = cash >= it.cost;
+    const card = document.createElement('div');
+    card.style.cssText = 'background:' + (afford ? 'rgba(255,255,255,0.06)' : 'rgba(40,20,20,0.5)') + ';border:1px solid ' + (it.alien ? '#b46bff' : (afford ? '#5fd0ff' : '#5a3a3a')) + ';border-radius:12px;padding:10px;text-align:center;cursor:' + (afford ? 'pointer' : 'default') + ';opacity:' + (afford ? '1' : '0.6') + ';transition:transform 0.08s;';
+    card.innerHTML = '<div style="font-size:30px;line-height:1;margin-bottom:5px;">' + it.icon + '</div>' +
+      '<div style="color:#fff;font-weight:800;font-size:13px;">' + it.name + (it.alien ? ' <span style="color:#b46bff;">★</span>' : '') + '</div>' +
+      '<div style="color:#bbb;font-size:10px;margin:4px 0 6px;min-height:26px;line-height:1.25;">' + it.desc + '</div>' +
+      '<div style="color:' + (afford ? '#ffe27a' : '#ff7a7a') + ';font-weight:900;font-size:14px;">💵 $' + it.cost + '</div>';
+    if (afford) {
+      let _t = 0;
+      const onTap = (e) => { e.preventDefault(); e.stopPropagation(); const n = performance.now(); if (n - _t < 260) return; _t = n; _brSendBuy(it.id); };
+      card.addEventListener('pointerdown', onTap);
+      card.addEventListener('touchstart', onTap, { passive: false });
+    }
+    grid.appendChild(card);
+  }
+}
+
+function refreshBrShopIfOpen() {
+  const ov = document.getElementById('br-shop-overlay');
+  if (!ov) return;
+  const cashEl = document.getElementById('br-shop-cash');
+  if (cashEl) cashEl.textContent = '💵 $' + (state.brCash || 0);
+  const station = state.brNearStation;
+  _brRenderShopCards(station ? !!station.alien : false);
+}
+
+function closeBrShop() {
+  const ov = document.getElementById('br-shop-overlay');
+  if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+}
+
+// Proximity-check: kör varje frame i BR. Visar buy-prompt nära en station; stänger
+// shoppen om man går därifrån. Sätter state.brNearStation (för köp-validering UI).
+function updateBrBuyPrompt() {
+  const prompt = document.getElementById('br-buy-prompt');
+  if (!state.battleroyaleActive || !state.player || state.player.spectating || !state.brBuyStations) {
+    if (prompt) prompt.style.display = 'none';
+    state.brNearStation = null;
+    return;
+  }
+  const px = state.player.x, py = state.player.y;
+  let near = null;
+  for (const s of state.brBuyStations) {
+    const dx = px - s.x, dy = py - s.y;
+    if (dx * dx + dy * dy <= s.r * s.r) { near = s; break; }
+  }
+  state.brNearStation = near;
+  if (prompt) {
+    if (near) {
+      prompt.style.display = 'block';
+      prompt.textContent = near.alien ? '👽 ÖPPNA ALIEN-SHOP' : '🛒 ÖPPNA SHOP';
+      prompt.style.borderColor = near.alien ? '#b46bff' : '#ffd54a';
+      prompt.style.color = near.alien ? '#e0c0ff' : '#ffe27a';
+    } else {
+      prompt.style.display = 'none';
+      if (document.getElementById('br-shop-overlay')) closeBrShop(); // gick från stationen
+    }
+  }
+}
+
+// BR cash-cheat-knapp (skapas i showBrHud, togglas via 4-klick nere till vänster).
+function ensureBrCashCheatBtn() {
+  if (document.getElementById('br-cash-cheat-btn')) return;
+  const b = document.createElement('button');
+  b.id = 'br-cash-cheat-btn';
+  b.style.cssText = 'position:fixed;left:12px;bottom:max(80px, calc(env(safe-area-inset-bottom,0px)+80px));z-index:90;display:none;width:60px;height:60px;border-radius:50%;background:radial-gradient(circle at 35% 30%, #ffe680, #c79a1a);border:2px solid #ffd54a;color:#3a2a00;font:900 11px sans-serif;align-items:center;justify-content:center;flex-direction:column;box-shadow:0 3px 14px rgba(0,0,0,0.6),inset 0 0 8px rgba(255,255,255,0.4);cursor:pointer;touch-action:manipulation;';
+  b.innerHTML = '💵<span style="font-size:9px;">+5K</span>';
+  b.onclick = (e) => { e.preventDefault(); tryBrInfCash(); };
+  document.body.appendChild(b);
+}
+function tryBrInfCash() {
+  if (!Coop || !Coop.ws || Coop.ws.readyState !== 1) return;
+  Coop.ws.send(JSON.stringify({ type: 'sim_br_infcash' }));
+}
+
+// Alien-shop-beacon: svävande kristall-pod + pulsande lila glöd-ring på marken i lila
+// SE-zonen. Vanliga buy-stations ritas EJ (de ska vara oskiljbara från vanliga hus).
+function drawBrAlienShop() {
+  if (!state.brBuyStations) return;
+  const st = state.brBuyStations.find(s => s && s.alien);
+  if (!st || !state.camera) return;
+  const sx = st.x - state.camera.x, sy = st.y - state.camera.y;
+  if (!isFinite(sx) || !isFinite(sy) || !isFinite(st.r) || st.r <= 0) return; // defensivt: aldrig NaN→createRadialGradient
+  if (sx < -260 || sx > viewW + 260 || sy < -260 || sy > viewH + 260) return;
+  const t = performance.now() / 1000;
+  const pulse = 0.5 + 0.5 * Math.sin(t * 2.2);
+  ctx.save();
+  // Markglöd-ring (interaktions-zon visuellt)
+  const rg = ctx.createRadialGradient(sx, sy, 8, sx, sy, st.r);
+  rg.addColorStop(0, 'rgba(180,107,255,' + (0.22 + pulse * 0.14).toFixed(3) + ')');
+  rg.addColorStop(0.6, 'rgba(140,70,220,0.10)');
+  rg.addColorStop(1, 'rgba(120,60,200,0)');
+  ctx.fillStyle = rg;
+  ctx.beginPath(); ctx.arc(sx, sy, st.r, 0, Math.PI * 2); ctx.fill();
+  // Roterande runor-ring
+  ctx.strokeStyle = 'rgba(200,150,255,' + (0.4 + pulse * 0.3).toFixed(3) + ')';
+  ctx.lineWidth = 2; ctx.setLineDash([14, 12]); ctx.lineDashOffset = -t * 30;
+  ctx.beginPath(); ctx.arc(sx, sy, st.r * 0.62, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  // Svävande kristall-pod
+  const bob = Math.sin(t * 1.6) * 7;
+  const cy = sy - 26 + bob;
+  ctx.shadowColor = '#b46bff'; ctx.shadowBlur = 24;
+  // pod-bas (mörk sockel)
+  ctx.fillStyle = 'rgba(40,20,64,0.9)';
+  ctx.beginPath(); ctx.ellipse(sx, sy + 4, 30, 11, 0, 0, Math.PI * 2); ctx.fill();
+  // kristall (diamantform)
+  const cg = ctx.createLinearGradient(sx, cy - 26, sx, cy + 22);
+  cg.addColorStop(0, '#e9d4ff'); cg.addColorStop(0.5, '#b46bff'); cg.addColorStop(1, '#6a2fd0');
+  ctx.fillStyle = cg;
+  ctx.beginPath();
+  ctx.moveTo(sx, cy - 26); ctx.lineTo(sx + 16, cy - 2); ctx.lineTo(sx, cy + 22); ctx.lineTo(sx - 16, cy - 2);
+  ctx.closePath(); ctx.fill();
+  // facett-highlight
+  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.moveTo(sx, cy - 26); ctx.lineTo(sx, cy + 22); ctx.moveTo(sx - 16, cy - 2); ctx.lineTo(sx + 16, cy - 2); ctx.stroke();
+  ctx.shadowBlur = 0;
+  // Label
+  ctx.font = '900 13px sans-serif'; ctx.textAlign = 'center';
+  ctx.fillStyle = '#e0c0ff'; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 3;
+  ctx.strokeText('👽 ALIEN SHOP', sx, sy - 56 + bob);
+  ctx.fillText('👽 ALIEN SHOP', sx, sy - 56 + bob);
+  ctx.restore();
 }
 
 function hideBrHud() {
@@ -38144,7 +38424,7 @@ function hideBrHud() {
 // inventory-bar). Anropas både från hideBrHud OCH vid mode-exit från 'playing'
 // (runFrame-watcher) så scoreboarden inte kan läcka till menyn via någon path.
 function cleanupBrUI() {
-  const ids = ['br-hud', 'br-killfeed', 'br-coords', 'br-inv', 'br-inv-hint', 'br-end-overlay'];
+  const ids = ['br-hud', 'br-killfeed', 'br-coords', 'br-inv', 'br-inv-hint', 'br-end-overlay', 'br-cash-panel', 'br-buy-prompt', 'br-shop-overlay', 'br-cash-cheat-btn'];
   for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
@@ -72439,7 +72719,9 @@ function render() {
     if (state.battleroyaleDecorations && state.battleroyaleDecorations.length) {
       drawBrSmoke(state.battleroyaleDecorations);
     }
-    // 6. Zone-ring + outside-warning
+    // 6. Alien-shop-beacon i lila zonen (gör den hittbar; vanliga stationer = osynliga/förklädda)
+    if (typeof drawBrAlienShop === 'function') drawBrAlienShop();
+    // 7. Zone-ring + outside-warning
     drawBrZone();
     drawBrOutsideWarning();
   }
@@ -74908,7 +75190,7 @@ function runFrame(dt, now) {
   }
 
   // Per-frame CSS-var-update för dash-cooldown-ring (smooth animation)
-  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); if (typeof _updateSpectateBanner === 'function') _updateSpectateBanner(); if (typeof updateGrenadeTypeChip === 'function') updateGrenadeTypeChip(); }
+  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); if (typeof _updateSpectateBanner === 'function') _updateSpectateBanner(); if (typeof updateGrenadeTypeChip === 'function') updateGrenadeTypeChip(); if (state.battleroyaleActive && typeof updateBrBuyPrompt === 'function') updateBrBuyPrompt(); }
   // Gungame button-layout uppdateras ALLTID (även mode='menu') så defaults
   // återställs när matchen avslutats och spelaren går till menyn / annan mode.
   updateGungameButtonLayout();

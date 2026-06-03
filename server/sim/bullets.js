@@ -1344,7 +1344,14 @@ function updateBullets(sim, dt, now) {
         if (dx * dx + dy * dy < rsum * rsum) {
           const effDmg = getPvpDmg(b.weaponId, b.dmg);
           let remaining = effDmg;
-          if ((ws.playerState.shield || 0) > 0) {
+          // ARMOR (v1.739): plattor absorberar FÖRST, sedan shield, sedan HP.
+          const armorBefore = ws.playerState.armor || 0;
+          if (armorBefore > 0) {
+            const absorbA = Math.min(armorBefore, remaining);
+            ws.playerState.armor = armorBefore - absorbA;
+            remaining -= absorbA;
+          }
+          if (remaining > 0 && (ws.playerState.shield || 0) > 0) {
             const absorb = Math.min(ws.playerState.shield, remaining);
             ws.playerState.shield -= absorb;
             remaining -= absorb;
@@ -1356,6 +1363,9 @@ function updateBullets(sim, dt, now) {
             hp: ws.playerState.hp,
             shield: ws.playerState.shield || 0,
           });
+          if ((ws.playerState.armor || 0) !== armorBefore) {
+            sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, armor: ws.playerState.armor || 0, plates: ws.playerState.armorPlates || 0 });
+          }
           if (ws.playerState.hp <= 0) {
             if (sim._handleBattleRoyaleKill) sim._handleBattleRoyaleKill(sim, b.ownerPid, ownerWs, pid, ws, b.weaponId);
           }

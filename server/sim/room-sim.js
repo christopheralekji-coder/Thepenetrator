@@ -160,6 +160,10 @@ function createSim(room) {
     _brZoneDmgTick: 0,              // ackumulator för outside-dmg-broadcasts
     _brBroadcastTick: 0,
     _brLootIdCounter: 0,
+    // BR ekonomi/armor-meta (Warzone-style) — v1.739
+    brCash: {},                    // pid → cash (per-match)
+    brBuyStations: [],             // [{ x, y, r, alien }] — disguised houses + alien-shop
+    _brStartCash: 500,
     // CASTLE DEFENSE state (co-op endless horde defense)
     castledefenseActive: false,
     castledefenseEnded: false,
@@ -3922,8 +3926,8 @@ function applyBrOutsideDamage(sim, dt) {
     const dx = ws.playerState.x - z.x;
     const dy = ws.playerState.y - z.y;
     if (dx * dx + dy * dy <= r2) continue; // i zonen — safe
-    // Utanför — applicera dmg. Shield tar damage först.
-    const dmg = phaseCfg.outsideDmg * dt;
+    // Utanför — applicera dmg. GASMASK halverar zon-skadan (v1.739). Shield tar först.
+    const dmg = phaseCfg.outsideDmg * dt * (ws.playerState.gasMask ? 0.5 : 1);
     let remaining = dmg;
     if ((ws.playerState.shield || 0) > 0) {
       const absorb = Math.min(ws.playerState.shield, remaining);
@@ -4016,6 +4020,9 @@ function tickBrLootPickups(sim, nowMs) {
       }
       if (!applied) continue;
       lo.available = false;
+      // CASH: varje lootbox ger pengar (tier-baserat) — Warzone-style ekonomi (v1.739).
+      const CASH_BY_TIER = { common: 50, uncommon: 100, rare: 200, legendary: 400, corpse: 75, starter: 40, dropped: 40 };
+      brAwardCash(sim, pid, CASH_BY_TIER[lo.tier] != null ? CASH_BY_TIER[lo.tier] : 50);
       sim.eventQueue.push({
         type: 'br_loot_picked',
         peerId: pid,
@@ -5174,6 +5181,8 @@ function handleBattleRoyaleKill(sim, killerPid, killerWs, victimPid, victimWs, w
   // v1.655: Flaggan nollställs vid nästa tick-start i tickBattleRoyale (inte via
   // per-kill setTimeout — det läckte en timer per kill + höll ws-ref vid liv).
   sim.battleroyaleKillsByPid[killerPid] = (sim.battleroyaleKillsByPid[killerPid] || 0) + 1;
+  // KILL-REWARD: $150 cash till killer (Warzone-style). Bounty-bonus läggs på i fas 4.
+  brAwardCash(sim, killerPid, 150);
   // Death-detection-loopen i tickBattleRoyale tar hand om eliminated-flag,
   // men vi emit:ar kill-event här för killfeed.
   sim.eventQueue.push({
@@ -5182,6 +5191,104 @@ function handleBattleRoyaleKill(sim, killerPid, killerWs, victimPid, victimWs, w
     victim: victimPid,
     weapon: weaponId || null,
   });
+}
+
+// === BR EKONOMI/BUY-STATIONS/ARMOR (v1.739) ===
+// Lägg till cash + emit:a br_cash_update (klampat ≥0, tak 999999).
+function brAwardCash(sim, pid, amount) {
+  if (!pid || !amount) return;
+  if (!sim.brCash) sim.brCash = {};
+  sim.brCash[pid] = Math.max(0, Math.min(999999, (sim.brCash[pid] || 0) + amount));
+  sim.eventQueue.push({ type: 'br_cash_update', peerId: pid, cash: sim.brCash[pid] });
+}
+
+// Välj buy-stations: var 3:e stuga (utseende-identisk med vanliga hus) + alien-shop i
+// lila SE-hörnet. Minst 12 vanliga. Deterministiskt (ingen RNG) → samma varje match.
+function computeBrBuyStations(arena) {
+  const stations = [];
+  const cabins = (arena.cabins || []).filter(c => c && c.bounds && !c._isContainer);
+  // Sprid ut: ta var N:te stuga så vi får ≥12 spridda över kartan.
+  const want = Math.max(12, Math.floor(cabins.length * 0.35));
+  const step = Math.max(1, Math.floor(cabins.length / want));
+  for (let k = 0; k < cabins.length && stations.length < want; k += step) {
+    const b = cabins[k].bounds;
+    stations.push({
+      x: Math.round(b.x + b.w / 2),
+      y: Math.round(b.y + b.h / 2),
+      r: Math.round(Math.max(b.w, b.h) / 2 + 40), // interaktions-radie täcker hela huset
+      alien: false,
+    });
+  }
+  // ALIEN-SHOP i lila SE-hörnet (mitten av alien_floor-zonen ~8800,8800).
+  stations.push({ x: 8850, y: 8850, r: 200, alien: true });
+  return stations;
+}
+
+// Validera att spelaren står vid en buy-station (anti-cheat). Returnerar station|null.
+function brStationNear(sim, ws) {
+  if (!ws.playerState || !sim.brBuyStations) return null;
+  const px = ws.playerState.x, py = ws.playerState.y;
+  for (const s of sim.brBuyStations) {
+    const dx = px - s.x, dy = py - s.y;
+    if (dx * dx + dy * dy <= s.r * s.r) return s;
+  }
+  return null;
+}
+
+// SHOP-katalog. alienOnly = exklusivt hos alien-shoppen. Effekter appliceras server-auth.
+const BR_SHOP = {
+  armor_plate:   { cost: 150, alienOnly: false },
+  gas_mask:      { cost: 250, alienOnly: false },
+  // Fas 2+ (UAV/airstrike/self-revive) registreras här när de implementeras.
+  alien_armor:   { cost: 600, alienOnly: true },  // fyller ALLA 3 plattor direkt
+};
+
+function applyBrBuy(sim, pid, itemKind) {
+  if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
+  const ws = sim.room.members.get(pid);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  const item = BR_SHOP[itemKind];
+  if (!item) return;
+  const station = brStationNear(sim, ws);
+  if (!station) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'too_far' }); return; }
+  if (item.alienOnly && !station.alien) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'wrong_shop' }); return; }
+  const cash = sim.brCash[pid] || 0;
+  if (cash < item.cost) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'no_cash' }); return; }
+  // Validera/applicera effekt INNAN debitering (vissa köp kan vara redundanta).
+  const ps = ws.playerState;
+  if (itemKind === 'armor_plate') {
+    if ((ps.armorPlates || 0) >= 8) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
+    ps.armorPlates = (ps.armorPlates || 0) + 1;
+    sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, armor: ps.armor || 0, plates: ps.armorPlates });
+  } else if (itemKind === 'gas_mask') {
+    if (ps.gasMask) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
+    ps.gasMask = true;
+    sim.eventQueue.push({ type: 'br_item_granted', peerId: pid, item: 'gas_mask' });
+  } else if (itemKind === 'alien_armor') {
+    ps.armor = ps.maxArmor || 150; // fyll alla plattor direkt
+    sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, armor: ps.armor, plates: ps.armorPlates || 0 });
+  }
+  brAwardCash(sim, pid, -item.cost);
+  sim.eventQueue.push({ type: 'br_buy_ok', peerId: pid, item: itemKind });
+}
+
+// Applicera EN reserv-platta → fyll armor +50 (tak maxArmor). Manuellt (klient tappar HUD).
+function applyBrUsePlate(sim, pid) {
+  if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
+  const ws = sim.room.members.get(pid);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  const ps = ws.playerState;
+  const max = ps.maxArmor || 150;
+  if ((ps.armorPlates || 0) <= 0 || (ps.armor || 0) >= max) return;
+  ps.armorPlates -= 1;
+  ps.armor = Math.min(max, (ps.armor || 0) + 50);
+  sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, armor: ps.armor, plates: ps.armorPlates });
+}
+
+// Cash-cheat (4-klick nere till vänster, som Castle Defense).
+function applyBrInfCash(sim, pid) {
+  if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
+  brAwardCash(sim, pid, 5000);
 }
 
 // Pickup-builder för juggernaut-arenan — symmetrisk runt 2500,1750
@@ -6172,14 +6279,25 @@ function startSim(sim, opts) {
       ws.playerState.scaleMul = 1.0;
       ws.playerState.speedMul = 1.0;
       ws.playerState.dashCdMs = null;
+      // BR meta (v1.739): armor (3 plattor × 50 = 150 absorberas FÖRE shield/hp),
+      // bärbara reserv-plattor, gasmask, samt per-match-cash.
+      ws.playerState.armor = 0;
+      ws.playerState.maxArmor = 150;
+      ws.playerState.armorPlates = 0;     // reserv-plattor i inventory (max 8)
+      ws.playerState.gasMask = false;
       ws.tdmRespawnAt = 0;
       ws.tdmTeam = null; // FFA
       sim.battleroyaleKillsByPid[pid] = 0;
       sim.tdmDeathsByPid[pid] = 0;
+      sim.brCash[pid] = sim._brStartCash; // startkapital
       aliveCount++;
       i++;
     }
     sim.battleroyaleAliveCount = aliveCount;
+    // BUY STATIONS (v1.739): välj ≥12 stugor (utseende-identiska med vanliga hus) +
+    // 1 alien-shop i lila SE-hörnet. Deterministiskt urval (var 3:e stuga) så det
+    // är spritt över kartan. Servern validerar köp mot dessa positioner (anti-cheat).
+    sim.brBuyStations = computeBrBuyStations(arena);
     // v1.655: Antal deltagare vid start. Win-checken (<=1 levande) får INTE
     // trigga om matchen startade med en ensam spelare (0 bots) → annars
     // avslutas matchen direkt på första ticken. Kräver >=2 för att aktiveras.
@@ -6191,6 +6309,8 @@ function startSim(sim, opts) {
       spawns: arena.spawns,
       decorations: arena.decorations || [],
       cabins: arena.cabins || [],
+      buyStations: sim.brBuyStations,
+      startCash: sim._brStartCash,
       loot: sim.battleroyaleLoot.map(lo => ({
         id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: lo.unlockAt || 0,
       })),
@@ -7173,4 +7293,4 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole, _heistLineBlockedByWall };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrUsePlate, applyBrInfCash, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole, _heistLineBlockedByWall };

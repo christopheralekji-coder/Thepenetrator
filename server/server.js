@@ -3,11 +3,11 @@
 
 const WebSocket = require('ws');
 const http = require('http');
-const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney } = require('./sim/room-sim');
+const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrUsePlate, applyBrInfCash, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney } = require('./sim/room-sim');
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v237-noff-grenaderange-v1.736';
+const SERVER_VERSION = 'v238-br-economy-shop-v1.739';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -1032,6 +1032,24 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     applyBrDropWeapon(room.sim, ws.id, msg);
+    return;
+  }
+  if (msg.type === 'sim_br_buy') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyBrBuy(room.sim, ws.id, msg.item);
+    return;
+  }
+  if (msg.type === 'sim_br_use_plate') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyBrUsePlate(room.sim, ws.id);
+    return;
+  }
+  if (msg.type === 'sim_br_infcash') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyBrInfCash(room.sim, ws.id);
     return;
   }
   if (msg.type === 'sim_cd_build') {
