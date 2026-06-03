@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v229-weaponinv-v1.723';
+const SERVER_VERSION = 'v230-smoke-v1.724';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -1526,21 +1526,28 @@ function handleMessage(ws, msg) {
     const FLIGHT_MS = 800;
     const RADIUS = 85;
     const DMG = 120;
-    // Broadcast till alla klienter (inkl thrower — thrower dedupar via ownerPid)
+    const kind = msg.kind === 'smoke' ? 'smoke' : 'frag';
+    // Broadcast till alla klienter (inkl thrower — thrower dedupar via ownerPid).
+    // Rök-molnet ritas client-side deterministiskt från detta event (samma pos+tid
+    // hos alla) — ingen kontinuerlig sync behövs.
     sim.eventQueue.push({
       type: 'grenade_thrown',
       ownerPid: ws.id,
       fromX, fromY, toX, toY,
       flightMs: FLIGHT_MS,
-      radius: RADIUS,
+      radius: kind === 'smoke' ? 130 : RADIUS,
+      kind,
     });
-    setTimeout(() => {
-      if (!sim || sim._stopped) return;
-      const { explode } = require('./sim/bullets');
-      if (typeof explode === 'function') {
-        explode(sim, toX, toY, RADIUS, DMG, ws.id);
-      }
-    }, FLIGHT_MS);
+    // RÖKGRANAT gör INGEN skada → ingen explode. Spränggranat exploderar server-auth.
+    if (kind !== 'smoke') {
+      setTimeout(() => {
+        if (!sim || sim._stopped) return;
+        const { explode } = require('./sim/bullets');
+        if (typeof explode === 'function') {
+          explode(sim, toX, toY, RADIUS, DMG, ws.id);
+        }
+      }, FLIGHT_MS);
+    }
     return;
   }
 }

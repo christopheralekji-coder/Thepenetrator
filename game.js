@@ -21444,10 +21444,57 @@ function updateGrenadeBadge() {
 }
 function resetGrenadesForMatch() {
   if (state.player) state.player.grenadeCount = GRENADE_STARTING_COUNT;
+  if (state.player) state.player.smokeCount = 2; // v1.724: rökgranater per liv
+  state.grenadeType = 'frag';
   state.grenades = [];
+  state.smokeClouds = [];
   state.grenadeAim = null;
   if (_btnGrenade) _btnGrenade.classList.remove('aiming');
   updateGrenadeBadge();
+  if (typeof updateGrenadeTypeChip === 'function') updateGrenadeTypeChip();
+}
+
+// === RÖKGRANAT (v1.724) — separat typ + count, väljs via chip ovanför granat-knappen ===
+function getSmokeCount() {
+  if (isSandboxMode()) return Infinity;
+  return (state.player && typeof state.player.smokeCount === 'number') ? state.player.smokeCount : 0;
+}
+function setSmokeCount(n) {
+  if (isSandboxMode()) return;
+  if (state.player) state.player.smokeCount = Math.max(0, Math.min(15, n));
+  updateGrenadeTypeChip();
+}
+function getSelectedGrenadeKind() { return state.grenadeType === 'smoke' ? 'smoke' : 'frag'; }
+function selectedGrenadeCount() { return getSelectedGrenadeKind() === 'smoke' ? getSmokeCount() : getGrenadeCount(); }
+function toggleGrenadeType() {
+  state.grenadeType = (getSelectedGrenadeKind() === 'frag') ? 'smoke' : 'frag';
+  if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(440, 0.05, 'square', 0.12, 0.003, 0.04, 560);
+  updateGrenadeTypeChip();
+  if (typeof showToast === 'function') showToast(getSelectedGrenadeKind() === 'smoke' ? '💨 RÖKGRANAT vald' : '💣 SPRÄNGGRANAT vald');
+}
+let _grenadeTypeChip = null;
+function updateGrenadeTypeChip() {
+  const show = state.mode === 'playing' && _btnGrenade &&
+               _btnGrenade.style.display !== 'none' && !_btnGrenade.classList.contains('hidden');
+  if (!_grenadeTypeChip) {
+    const el = document.createElement('button');
+    el.id = 'grenade-type-chip';
+    el.setAttribute('aria-label', 'Byt granat-typ');
+    el.style.cssText = 'position:fixed;right:150px;bottom:200px;z-index:6;width:46px;height:40px;border-radius:11px;border:2px solid rgba(255,255,255,0.35);background:rgba(18,20,26,0.92);color:#fff;font-family:sans-serif;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1px;pointer-events:auto;touch-action:manipulation;box-shadow:0 2px 8px rgba(0,0,0,0.5);';
+    const onTap = (e) => { e.preventDefault(); e.stopPropagation(); toggleGrenadeType(); };
+    el.addEventListener('pointerdown', onTap);
+    el.addEventListener('touchstart', onTap, { passive: false });
+    document.body.appendChild(el);
+    _grenadeTypeChip = el;
+  }
+  if (!show) { _grenadeTypeChip.style.display = 'none'; return; }
+  const smoke = getSelectedGrenadeKind() === 'smoke';
+  const cnt = selectedGrenadeCount();
+  const cntTxt = (cnt === Infinity) ? '∞' : cnt;
+  _grenadeTypeChip.innerHTML = '<span style="font-size:16px;line-height:1;">' + (smoke ? '💨' : '💣') + '</span>'
+    + '<span style="font-size:9px;font-weight:800;opacity:0.9;">' + cntTxt + ' ⇄</span>';
+  _grenadeTypeChip.style.borderColor = smoke ? 'rgba(190,205,215,0.75)' : 'rgba(255,170,60,0.75)';
+  _grenadeTypeChip.style.display = 'flex';
 }
 
 // Beräkna landing-target från drag-state. Respekterar wall-blockering
@@ -21497,8 +21544,8 @@ function grenadeDown(e) {
   }
   // v1.432: blockera om downed/dead (knife only)
   if (state.player.cdDowned || state.player.cdDownDead) return;
-  if (getGrenadeCount() <= 0) {
-    if (typeof showToast === 'function') showToast('💣 INGA GRANATER KVAR');
+  if (selectedGrenadeCount() <= 0) {
+    if (typeof showToast === 'function') showToast(getSelectedGrenadeKind() === 'smoke' ? '💨 INGA RÖKGRANATER KVAR' : '💣 INGA GRANATER KVAR');
     return;
   }
   const t = e.changedTouches ? e.changedTouches[0] : e;
@@ -21540,11 +21587,13 @@ function grenadeUp(e) {
   if (e && e.pointerId != null && grenadeTouchId !== 'mouse' && e.pointerId !== grenadeTouchId) return;
   if (e && e.preventDefault) e.preventDefault();
   // Validera fortfarande playable + har granater
-  if (state.mode === 'playing' && state.player && !state.player.spectating && getGrenadeCount() > 0) {
+  if (state.mode === 'playing' && state.player && !state.player.spectating && selectedGrenadeCount() > 0) {
     const target = computeGrenadeTarget();
     if (target) {
-      throwGrenade(state.player.x, state.player.y, target.x, target.y);
-      setGrenadeCount(getGrenadeCount() - 1);
+      const kind = getSelectedGrenadeKind();
+      throwGrenade(state.player.x, state.player.y, target.x, target.y, kind);
+      if (kind === 'smoke') setSmokeCount(getSmokeCount() - 1);
+      else setGrenadeCount(getGrenadeCount() - 1);
     }
   }
   grenadeTouchId = null;
@@ -21610,7 +21659,8 @@ function raycastGrenadeWalls(fromX, fromY, toX, toY) {
   return nearestT;
 }
 
-function throwGrenade(fromX, fromY, toX, toY) {
+function throwGrenade(fromX, fromY, toX, toY, kind) {
+  kind = (kind === 'smoke') ? 'smoke' : 'frag';
   // RAYCAST: om en cabin/hus/container-wall blockerar mellan player och target,
   // korta throw till strax FÖRE väggen (95% av t-värdet — så granaten landar
   // på den OPEN sidan av väggen, inte INNE i väggen).
@@ -21625,19 +21675,21 @@ function throwGrenade(fromX, fromY, toX, toY) {
     fromX, fromY, toX, toY,
     startTime: performance.now(),
     flightTime: GRENADE_FLIGHT_MS,
-    radius: GRENADE_RADIUS,
-    damage: GRENADE_DAMAGE,
+    radius: kind === 'smoke' ? 130 : GRENADE_RADIUS,
+    damage: kind === 'smoke' ? 0 : GRENADE_DAMAGE,
+    kind,
     exploded: false,
     fadeUntil: 0,
     ownerId: (typeof Coop !== 'undefined' && Coop.myId) ? Coop.myId : 'local',
   });
-  // PvP: skicka till server för auth damage + broadcasta till andra spelare
+  // PvP: skicka till server (auth damage för frag + broadcast så andra ser granaten/röken)
   if (typeof Coop !== 'undefined' && Coop.active && Coop.ws && Coop.ws.readyState === 1) {
     try {
       Coop.ws.send(JSON.stringify({
         type: 'sim_grenade_throw',
         fromX: Math.round(fromX), fromY: Math.round(fromY),
         toX: Math.round(toX), toY: Math.round(toY),
+        kind,
       }));
     } catch (_) {}
   }
@@ -21684,6 +21736,12 @@ function updateGrenades(dt) {
 }
 
 function detonateGrenade(g) {
+  // RÖKGRANAT: ingen explosion/skada — släpper ut ett rök-moln (deterministiskt så
+  // alla klienter ser samma moln från broadcastat kast).
+  if (g.kind === 'smoke') {
+    if (typeof spawnSmokeCloud === 'function') spawnSmokeCloud(g.toX, g.toY);
+    return;
+  }
   // VFX
   if (typeof spawnShockwave === 'function') {
     spawnShockwave(g.toX, g.toY, 24, g.radius, '#ffaa30', 0.45, 6);
@@ -21748,6 +21806,75 @@ function detonateGrenade(g) {
       }
     }
   }
+}
+
+// === RÖK-MOLN (v1.724) — deterministiskt per kast så alla klienter ser samma moln.
+// Skymmer sikten (tät grå rök) i ~9s. Ritas OVANPÅ spelare/väggar (efter dem) ===
+let _smokeSeedCtr = 0;
+function spawnSmokeCloud(x, y) {
+  if (!state.smokeClouds) state.smokeClouds = [];
+  if (state.smokeClouds.length >= 7) state.smokeClouds.shift();
+  _smokeSeedCtr++;
+  state.smokeClouds.push({ x, y, startAt: performance.now(), duration: 9000, radius: 132, seed: (_smokeSeedCtr * 2.3994) % (Math.PI * 2) });
+  // Väsande utsläpp + liten initial puff-burst
+  if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(150, 0.6, 'sawtooth', 0.16, 0.02, 0.45, 95);
+  if (state.particles && state.particles.length < 760) {
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      state.particles.push({ x, y, vx: Math.cos(a) * 70, vy: Math.sin(a) * 70 - 24, life: 1.1, maxLife: 1.1, r: 10 + Math.random() * 6, color: 'rgba(180,182,188,0.5)', isExplosion: true, decay: 0.9 });
+    }
+  }
+}
+function updateSmokeClouds() {
+  if (!state.smokeClouds || !state.smokeClouds.length) return;
+  const now = performance.now();
+  if (state.smokeClouds.some(sc => now - sc.startAt >= sc.duration)) {
+    state.smokeClouds = state.smokeClouds.filter(sc => now - sc.startAt < sc.duration);
+  }
+}
+function drawSmokeClouds() {
+  if (!state.smokeClouds || !state.smokeClouds.length) return;
+  const now = performance.now();
+  const camX = state.camera.x, camY = state.camera.y;
+  ctx.save();
+  for (const sc of state.smokeClouds) {
+    const age = now - sc.startAt;
+    const tNorm = age / sc.duration;
+    if (tNorm >= 1) continue;
+    let alpha = 1;
+    if (tNorm < 0.07) alpha = tNorm / 0.07;              // mjuk fade-in
+    else if (tNorm > 0.80) alpha = (1 - tNorm) / 0.20;   // fade-out sista 20%
+    const grow = Math.min(1, age / 850);
+    const R = sc.radius * (0.45 + 0.55 * grow);
+    const sx = sc.x - camX, sy = sc.y - camY;
+    if (sx < -R - 70 || sx > viewW + R + 70 || sy < -R - 70 || sy > viewH + R + 70) continue;
+    // Bas-disk (tät kärna som skymmer sikten)
+    const baseA = alpha * 0.6;
+    const bg = ctx.createRadialGradient(sx, sy, R * 0.12, sx, sy, R);
+    bg.addColorStop(0, 'rgba(206,208,213,' + baseA.toFixed(3) + ')');
+    bg.addColorStop(0.55, 'rgba(176,179,186,' + (baseA * 0.92).toFixed(3) + ')');
+    bg.addColorStop(1, 'rgba(150,153,160,0)');
+    ctx.fillStyle = bg;
+    ctx.beginPath(); ctx.arc(sx, sy, R, 0, Math.PI * 2); ctx.fill();
+    // Billowande puffar (tids-baserad oscillation = mjukt, ingen flicker)
+    const N = 16;
+    for (let i = 0; i < N; i++) {
+      const ph = sc.seed + i * 1.71;
+      const ringA = (i / N) * Math.PI * 2 + Math.sin(now / 2300 + ph) * 0.45;
+      const dist = R * (0.22 + 0.6 * ((i % 4) / 3));
+      const px = sx + Math.cos(ringA) * dist + Math.sin(now / 1650 + ph) * 9;
+      const py = sy + Math.sin(ringA) * dist + Math.cos(now / 1850 + ph) * 9;
+      const pr = R * (0.30 + 0.12 * Math.sin(now / 1250 + ph));
+      const shade = 156 + ((i * 11) % 56);
+      const pa = alpha * (0.16 + 0.13 * (0.5 + 0.5 * Math.sin(now / 1450 + ph)));
+      const pg = ctx.createRadialGradient(px, py, 1, px, py, Math.max(2, pr));
+      pg.addColorStop(0, 'rgba(' + shade + ',' + shade + ',' + (shade + 6) + ',' + pa.toFixed(3) + ')');
+      pg.addColorStop(1, 'rgba(' + shade + ',' + shade + ',' + (shade + 6) + ',0)');
+      ctx.fillStyle = pg;
+      ctx.beginPath(); ctx.arc(px, py, Math.max(2, pr), 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  ctx.restore();
 }
 
 // Render: landing-reticle medan holding + grenade-projektiler i flykt
@@ -21848,26 +21975,39 @@ function drawGrenades() {
     ctx.save();
     ctx.translate(sx, drawY);
     ctx.rotate(rotAng);
-    // Bomb-kropp
-    ctx.fillStyle = '#3a4a30';
-    ctx.beginPath();
-    ctx.arc(0, 1, 6.5, 0, Math.PI * 2);
-    ctx.fill();
-    // Detalj-segment
-    ctx.strokeStyle = '#1a2418';
-    ctx.lineWidth = 1.2;
-    ctx.beginPath();
-    ctx.moveTo(-6, 1); ctx.lineTo(6, 1);
-    ctx.moveTo(0, -5); ctx.lineTo(0, 7);
-    ctx.stroke();
-    // Pin/topp
-    ctx.fillStyle = '#5a4020';
-    ctx.fillRect(-1.5, -8, 3, 4);
-    // Highlight
-    ctx.fillStyle = 'rgba(180, 200, 160, 0.5)';
-    ctx.beginPath();
-    ctx.arc(-2, -1, 2, 0, Math.PI * 2);
-    ctx.fill();
+    if (g.kind === 'smoke') {
+      // RÖK-CANISTER (grå cylinder med band, ventiler + grön rök-märkning)
+      ctx.fillStyle = '#6a6e74';
+      if (typeof drawRoundedRect === 'function') { drawRoundedRect(ctx, -4.5, -7, 9, 14, 2.5); ctx.fill(); }
+      else ctx.fillRect(-4.5, -7, 9, 14);
+      ctx.strokeStyle = '#23262b'; ctx.lineWidth = 1;
+      if (typeof drawRoundedRect === 'function') { drawRoundedRect(ctx, -4.5, -7, 9, 14, 2.5); ctx.stroke(); }
+      ctx.strokeStyle = '#3a3d42'; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(-4.5, -1.5); ctx.lineTo(4.5, -1.5); ctx.moveTo(-4.5, 3); ctx.lineTo(4.5, 3); ctx.stroke();
+      ctx.fillStyle = '#9aa0a6'; ctx.fillRect(-4.5, -7, 9, 2.2);
+      ctx.fillStyle = '#a8e6c4'; ctx.fillRect(-4.5, -5, 9, 1.1); // grön rand = smoke
+      ctx.fillStyle = '#15171a';
+      ctx.beginPath(); ctx.arc(-2, -5.7, 0.7, 0, Math.PI * 2); ctx.arc(0, -5.7, 0.7, 0, Math.PI * 2); ctx.arc(2, -5.7, 0.7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(222,227,232,0.5)'; ctx.fillRect(-3.6, -5.5, 1.8, 10);
+    } else {
+      // Bomb-kropp (spränggranat)
+      ctx.fillStyle = '#3a4a30';
+      ctx.beginPath();
+      ctx.arc(0, 1, 6.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#1a2418';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(-6, 1); ctx.lineTo(6, 1);
+      ctx.moveTo(0, -5); ctx.lineTo(0, 7);
+      ctx.stroke();
+      ctx.fillStyle = '#5a4020';
+      ctx.fillRect(-1.5, -8, 3, 4);
+      ctx.fillStyle = 'rgba(180, 200, 160, 0.5)';
+      ctx.beginPath();
+      ctx.arc(-2, -1, 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
     ctx.restore();
   }
   ctx.restore();
@@ -23295,6 +23435,8 @@ const Coop = {
       }
       // fy_: alla startar med pistol — vapen greppas från marken (server satte ps.weaponId='pistol')
       if (typeof tdmResetInventory === 'function') tdmResetInventory(); // nollställ förråd (ny match)
+      if (state.player) state.player.smokeCount = 2; // rökgranater per liv
+      state.grenadeType = 'frag';
       if (state.player && typeof equipPvpWeapon === 'function') equipPvpWeapon('pistol');
       if (typeof showTdmHud === 'function') showTdmHud(myTeam);
       if (typeof showToast === 'function') showToast(myTeam === 'red' ? '⚔ DU ÄR I RÖDA LAGET' : '⚔ DU ÄR I BLÅA LAGET');
@@ -23392,6 +23534,7 @@ const Coop = {
         state.player._prevShield = state.player.shield; // v1.707: undvik falsk sköld-hit-FX vid respawn-shield-set
         // fy_: respawn:a med pistol (server satte ps.weaponId='pistol') — greppa vapen igen
         if (typeof tdmResetInventory === 'function') tdmResetInventory(); // ny runda → tomt förråd, börja med pistol
+        if (state.player) state.player.smokeCount = 2; // fyll på rökgranater varje runda
         if (ev.weaponId && typeof equipPvpWeapon === 'function') equipPvpWeapon(ev.weaponId);
         if (typeof updateHUD === 'function') updateHUD(); // v1.707: HUD visade 0hp/0shield tills man sköt (world-paket refreshar bara HUD vid hp-ÄNDRING; respawn=max=server-max=ingen ändring)
         // Stäng respawn-overlay omedelbart om den fortfarande visas
@@ -23772,6 +23915,7 @@ const Coop = {
         flightTime: ev.flightMs || 800,
         radius: ev.radius || 85,
         damage: 0, // peer-visual — ingen lokal damage (server är auth)
+        kind: ev.kind === 'smoke' ? 'smoke' : 'frag', // rök-moln spawnas vid detonate
         exploded: false,
         fadeUntil: 0,
         ownerId: ev.ownerPid,
@@ -71993,6 +72137,8 @@ function render() {
   // under objekt visuellt. Både landing-reticle (medan holding) + projektiler i flykt.
   if (typeof drawGrenadeReticle === 'function') drawGrenadeReticle();
   if (typeof drawGrenades === 'function') drawGrenades();
+  // RÖK-MOLN ovanpå spelare/väggar (skymmer sikten). v1.724.
+  if (typeof drawSmokeClouds === 'function') drawSmokeClouds();
   // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE + GUNGAME + KOTH + JUGGERNAUT + BR)
   if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.battleroyaleActive) drawPvpShieldBubbles();
   // PvP-pickups (HP/shield-regen) — alla PvP-lägen utom BR (BR har eget loot-system)
@@ -74164,6 +74310,7 @@ function runFrame(dt, now) {
 
       // Granat-projektiler (lokala VFX + singleplayer damage)
       if (typeof updateGrenades === 'function') updateGrenades(dt);
+      if (typeof updateSmokeClouds === 'function') updateSmokeClouds();
 
       // Klient-side: vapen-pickup, dog tags, stage ambient. KÖRS ALLTID — påverkar save-data, inte sim.
       updateCollectibles();
@@ -74396,7 +74543,7 @@ function runFrame(dt, now) {
   }
 
   // Per-frame CSS-var-update för dash-cooldown-ring (smooth animation)
-  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); if (typeof _updateSpectateBanner === 'function') _updateSpectateBanner(); }
+  if (state.mode === 'playing') { updateDashCdRing(); updatePvpShieldButton(); updateTurretButton(); tdmWeaponPickupCheck(); if (typeof _updateSpectateBanner === 'function') _updateSpectateBanner(); if (typeof updateGrenadeTypeChip === 'function') updateGrenadeTypeChip(); }
   // Gungame button-layout uppdateras ALLTID (även mode='menu') så defaults
   // återställs när matchen avslutats och spelaren går till menyn / annan mode.
   updateGungameButtonLayout();
