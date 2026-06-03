@@ -21596,20 +21596,22 @@ function updateGrenadeTypeChip() {
 function computeGrenadeTarget() {
   const p = state.player;
   if (!p) return null;
+  // TDM: dubbel kast-räckvidd (gäller BÅDA granat-typerna). Övriga modes oförändrade.
+  const maxR = state.tdmActive ? GRENADE_MAX_RANGE * 2 : GRENADE_MAX_RANGE;
   let tx, ty, range;
   if (!state.grenadeAim || !state.grenadeAim.engaged) {
     // TAP: forward i player.aimAngle
     const ang = p.aimAngle || 0;
-    tx = p.x + Math.cos(ang) * GRENADE_MAX_RANGE;
-    ty = p.y + Math.sin(ang) * GRENADE_MAX_RANGE;
-    range = GRENADE_MAX_RANGE;
+    tx = p.x + Math.cos(ang) * maxR;
+    ty = p.y + Math.sin(ang) * maxR;
+    range = maxR;
   } else {
     // HOLD+DRAG: drag-direction + drag-distance scaled
     const a = state.grenadeAim;
     const d = Math.hypot(a.dragX, a.dragY);
     if (d < 0.01) return null;
     const ang = Math.atan2(a.dragY, a.dragX);
-    range = Math.min(GRENADE_MAX_RANGE, d * GRENADE_DRAG_SCALE);
+    range = Math.min(maxR, d * GRENADE_DRAG_SCALE);
     tx = p.x + Math.cos(ang) * range;
     ty = p.y + Math.sin(ang) * range;
   }
@@ -21764,11 +21766,16 @@ function throwGrenade(fromX, fromY, toX, toY, kind) {
     toX = fromX + (toX - fromX) * safeT;
     toY = fromY + (toY - fromY) * safeT;
   }
+  // Flygtid skalas med faktisk distans så längre kast (TDM:s dubbla räckvidd) får en
+  // naturlig båge istället för att susa iväg som en raket. Kast ≤ GRENADE_MAX_RANGE
+  // behåller exakt GRENADE_FLIGHT_MS (oförändrad känsla i alla modes).
+  const throwDist = Math.hypot(toX - fromX, toY - fromY);
+  const flightTime = Math.round(GRENADE_FLIGHT_MS * Math.max(1, throwDist / GRENADE_MAX_RANGE));
   state.grenades = state.grenades || [];
   state.grenades.push({
     fromX, fromY, toX, toY,
     startTime: performance.now(),
-    flightTime: GRENADE_FLIGHT_MS,
+    flightTime,
     radius: kind === 'smoke' ? 130 : GRENADE_RADIUS,
     damage: kind === 'smoke' ? 0 : GRENADE_DAMAGE,
     kind,
@@ -21776,13 +21783,15 @@ function throwGrenade(fromX, fromY, toX, toY, kind) {
     fadeUntil: 0,
     ownerId: (typeof Coop !== 'undefined' && Coop.myId) ? Coop.myId : 'local',
   });
-  // PvP: skicka till server (auth damage för frag + broadcast så andra ser granaten/röken)
+  // PvP: skicka till server (auth damage för frag + broadcast så andra ser granaten/röken).
+  // flightMs skickas med så serverns explosion-timing + peer-broadcast matchar thrower-bågen.
   if (typeof Coop !== 'undefined' && Coop.active && Coop.ws && Coop.ws.readyState === 1) {
     try {
       Coop.ws.send(JSON.stringify({
         type: 'sim_grenade_throw',
         fromX: Math.round(fromX), fromY: Math.round(fromY),
         toX: Math.round(toX), toY: Math.round(toY),
+        flightMs: flightTime,
         kind,
       }));
     } catch (_) {}
@@ -42545,7 +42554,9 @@ function updateBullets(dt) {
                              || (state.ctfActive && Coop.ctfTeams && Coop.ctfTeams[pid])
                              || (state.siegeActive && Coop.siegeTeams && Coop.siegeTeams[pid])
                              || partner.team;
-            if (partnerTeam && partnerTeam === myTeam) continue;
+            // FF fail-closed: prediktera träff BARA om mål-team är KÄNT och skiljer sig.
+            // Okänt team (saknas i mappen) → ingen träff-feedback (förr: falsk FF-känsla).
+            if (!partnerTeam || partnerTeam === myTeam) continue;
           }
           // Juggernaut: hunter→hunter blocked, JUG→JUG kan inte hända
           if (state.juggernautActive) {

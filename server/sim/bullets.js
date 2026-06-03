@@ -159,7 +159,10 @@ function applyMelee(sim, p, weaponId, params) {
     // Friendly-fire av i team-modes (KOTH + gungame + BR är FFA — alla mål).
     // Juggernaut: hunters får BARA skada JUG, JUG får skada alla hunters.
     const isFfa = inGungame || inKoth || inBr;
-    if (!isFfa && !inJug && ownerTeam && ws.tdmTeam && ws.tdmTeam === ownerTeam) continue;
+    // Friendly fire FAIL-CLOSED i team-modes: skada BARA en spelare vars team är KÄNT
+    // och SKILJER sig från skytten. Okänt mål-team (late-join/edge) → ingen skada
+    // (förr: fail-open → träffade lagkamrater vars team saknades i mappen = FF-bugg).
+    if (!isFfa && !inJug && ownerTeam && (!ws.tdmTeam || ws.tdmTeam === ownerTeam)) continue;
     if (inJug) {
       const targetIsJug = !!ws.playerState.isJug;
       if (!shooterIsJug && !targetIsJug) continue; // hunter→hunter blockerat
@@ -1154,7 +1157,7 @@ function updateBullets(sim, dt, now) {
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue;
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
-        if (ws.tdmTeam === ownerTeam) continue;  // friendly fire off
+        if (!ws.tdmTeam || ws.tdmTeam === ownerTeam) continue;  // FF fail-closed: okänt team → ingen skada
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;       // respawn-invuln skyddar
         const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
@@ -1203,7 +1206,7 @@ function updateBullets(sim, dt, now) {
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue;
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
-        if (ws.tdmTeam === ownerTeam) continue;
+        if (!ws.tdmTeam || ws.tdmTeam === ownerTeam) continue; // FF fail-closed
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
         const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
@@ -1250,7 +1253,7 @@ function updateBullets(sim, dt, now) {
       for (const [pid, ws] of sim.room.members) {
         if (pid === b.ownerPid) continue;
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
-        if (ws.tdmTeam === ownerTeam) continue;
+        if (!ws.tdmTeam || ws.tdmTeam === ownerTeam) continue; // FF fail-closed
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
         const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;

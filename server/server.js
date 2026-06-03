@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v236-stableslot-v1.735';
+const SERVER_VERSION = 'v237-noff-grenaderange-v1.736';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -1544,7 +1544,9 @@ function handleMessage(ws, msg) {
     const fromY = Math.max(0, Math.min(20000, +msg.fromY || 0));
     const toX = Math.max(0, Math.min(20000, +msg.toX || 0));
     const toY = Math.max(0, Math.min(20000, +msg.toY || 0));
-    const FLIGHT_MS = 800;
+    // flightMs styrs av klienten (skalas med kast-distans, TDM dubbel räckvidd) —
+    // klampa till sant intervall så explosion-timing + peer-broadcast matchar thrower.
+    const FLIGHT_MS = Math.max(200, Math.min(3000, +msg.flightMs || 800));
     const RADIUS = 85;
     const DMG = 120;
     const kind = msg.kind === 'smoke' ? 'smoke' : 'frag';
