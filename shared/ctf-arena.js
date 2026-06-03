@@ -234,6 +234,7 @@ function pointInWall(x, y, r, wall) {
 // Lös wall-collision för entity (player/companion). Push ut ur närmsta wall-kant.
 function resolveCtfWall(entity, walls) {
   for (const w of walls) {
+    if (w.decor) continue; // dekor-props (t.ex. tält) blockerar ej rörelse
     if (!pointInWall(entity.x, entity.y, entity.r || 14, w)) continue;
     // Räkna ut overlap per axel; push ut åt minsta riktning
     const dxLeft = (entity.x + (entity.r || 14)) - w.x;
@@ -256,6 +257,7 @@ function bulletHitsWall(b, walls) {
   const r = (b.r || 4);
   // Snabb-väg: om bullet redan står i en wall (eller dess radie överlappar)
   for (const w of walls) {
+    if (w.decor) continue; // dekor-props (t.ex. tält) stoppar ej skott
     if (b.x + r >= w.x && b.x - r <= w.x + w.w &&
         b.y + r >= w.y && b.y - r <= w.y + w.h) {
       return true;
@@ -265,6 +267,7 @@ function bulletHitsWall(b, walls) {
   if (typeof b._prevX === 'number' && typeof b._prevY === 'number') {
     const x0 = b._prevX, y0 = b._prevY, x1 = b.x, y1 = b.y;
     for (const w of walls) {
+      if (w.decor) continue;
       if (segmentIntersectsAABB(x0, y0, x1, y1, w.x - r, w.y - r, w.x + w.w + r, w.y + w.h + r)) {
         return true;
       }

@@ -42052,7 +42052,9 @@ function updateBullets(dt) {
             // 6. v1.674: hitstop + screenshake — den "crunch" som saknades så PvP-
             //    träffar mot spelare/bots känns lika punchiga som solo (maskerar RTT).
             _hitStopShake(b.crit);
-            if (!b.pierce) { hit = true; break; }
+            // v1.718: STOPPA skottet på motståndaren (även pierce-vapen som sniper) — servern
+            // honorerar inte pierce i PvP, så klienten matchar: skott "fastnar" som i väggar.
+            hit = true; break;
           }
         }
       }
@@ -71828,7 +71830,9 @@ function render() {
   } else {
     drawMiniMap();
   }
-  drawHitMarker(); // v1.385: lag-hiding hit-confirm på crosshair
+  // v1.718: drawHitMarker (rött X i skärm-centrum) borttaget — eftersom kameran följer
+  // spelaren hamnade det PÅ gubbens kropp vid varje träff (förvirrande). Blod-partiklar +
+  // dmg-siffror ger redan hit-confirm.
   drawDebugLatencyOverlay(); // v1.384: net-debug-overlay (togglas via 'L'-key)
   drawAlarmOverlay();
   drawJimmyScreensOverlay();

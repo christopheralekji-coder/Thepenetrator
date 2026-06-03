@@ -18,7 +18,7 @@ const TDM_W = 1700;
 const TDM_H = 2000;
 const TDM_MID_Y = TDM_H / 2; // 1000
 
-function _mirrorWall(w) { return { x: w.x, y: TDM_H - w.y - w.h, w: w.w, h: w.h, kind: w.kind }; }
+function _mirrorWall(w) { return Object.assign({}, w, { y: TDM_H - w.y - w.h }); }
 function _mirrorPt(p, extra) {
   const o = { x: p.x, y: TDM_H - p.y };
   if (extra) for (const k of extra) o[k] = p[k];
@@ -30,8 +30,8 @@ const _topWalls = [
   // --- Spawn-depå (bakre zon) ---
   { x: 55,   y: 70,  w: 92,  h: 92,  kind: 'hunting_tower' }, // vakttorn vänster
   { x: 1553, y: 70,  w: 92,  h: 92,  kind: 'hunting_tower' }, // vakttorn höger
-  { x: 360,  y: 80,  w: 118, h: 86,  kind: 'tent' },
-  { x: 1222, y: 80,  w: 118, h: 86,  kind: 'tent' },
+  { x: 360,  y: 80,  w: 118, h: 86,  kind: 'tent', decor: true }, // genomgångbart (läger-tält)
+  { x: 1222, y: 80,  w: 118, h: 86,  kind: 'tent', decor: true },
   { x: 740,  y: 70,  w: 220, h: 92,  kind: 'truck' },         // supply-lastbil
   { x: 300,  y: 188, w: 50,  h: 50,  kind: 'crate' },         // ammolådor vid tält
   { x: 1350, y: 188, w: 50,  h: 50,  kind: 'crate' },
