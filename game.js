@@ -27200,10 +27200,17 @@ const Coop = {
       // Annan spelare sköt — spawna visuella projektiler (ingen skada)
       // Server-relay broadcastar redan till alla utom avsändaren, ingen re-broadcast behövs
       if (Array.isArray(data.bs)) {
+        // v1.727: lead-kompensera — kulan skapades vid muzzle men har redan flugit
+        // ~(flush + RTT) sedan avskjutningen. Avancera den så den hamnar nära sin
+        // FAKTISKA position (annars syns den "bakom" / efter att man redan blivit träffad).
+        const _sp = this.players && this.players.get(fromId);
+        const _lead = Math.min(0.16, Math.max(0.04, ((_sp && _sp.ping) || 70) / 1000 + 0.033));
         for (const s of data.bs) {
+          const life = s.l || 1.6;
+          const adv = Math.min(_lead, life * 0.5);
           state.bullets.push({
-            x: s.x, y: s.y, vx: s.vx, vy: s.vy,
-            dmg: 0, life: s.l || 1.6, r: s.r || 4,
+            x: s.x + (s.vx || 0) * adv, y: s.y + (s.vy || 0) * adv, vx: s.vx, vy: s.vy,
+            dmg: 0, life: Math.max(0.2, life - adv), r: s.r || 4,
             color: s.c || '#fff', hostile: false,
             style: s.s,                  // v1.502: bevara style för korrekt render
             _partnerMascot: s.m || null, // v1.502: partner's mascot för themed bullets
@@ -27394,6 +27401,16 @@ const Coop = {
     // lagg + skott som registrerar närmare det du ser. Idle-skip + backoff håller bandbredden nere.
     const _baseSend = Math.max(8, Math.min(17, FRAME_MS));
     const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : _baseSend);
+    // v1.727 BUGFIX: flusha VISUELLA SKOTT på egen hög takt (~30Hz), FRIKOPPLAT från
+    // world-snapshot-throttlingen. Tidigare gatedes skott av samma adaptiveDelay som
+    // world-paketet → under backpressure (150-250ms) skickades motståndar-skott bara
+    // 4-7Hz och servern hann resolva träffen först → "ser träffen men inte kulan".
+    // Skott-paket är pyttesmå så detta är billigt även under last (skippas bara om
+    // bufferten är extremt full).
+    if (this._shotQueue && this._shotQueue.length && (now - (this._lastShotFlush || 0)) >= 33 && buffered < 65536) {
+      this._lastShotFlush = now;
+      this.flushShots();
+    }
     // Server-auth mode: ALLA klienter (inkl host) skickar bara position till servern.
     // Visual shots delas fortfarande peer-to-peer via _sendBroadcast så andra ser dina projektiler.
     if (this.serverSimActive) {
@@ -27474,7 +27491,7 @@ const Coop = {
       }
       // Pre-build live entities (snapshot one gång, culling sker per peer)
       const cullDist = 1100;  // tightre än innan (1400) — viewport är ~700px så detta är fortfarande rejäl margin
-      const visDist = 800;    // bullets — något tightre eftersom de är många
+      const visDist = 1300;   // v1.727: 800→1300 (kulor syns från längre håll, ingen edge-flicker)
       const liveEnemies = [];
       for (let i = 0; i < state.enemies.length; i++) {
         const e = state.enemies[i];
@@ -27629,8 +27646,9 @@ const Coop = {
   broadcastShots(shots) {
     if (!this.active || !shots || !shots.length) return;
     for (const s of shots) this._shotQueue.push(s);
-    // Hård cap så minigun-spam inte fryser nätet
-    if (this._shotQueue.length > 50) this._shotQueue.length = 50;
+    // Hård cap så minigun-spam inte fryser nätet. v1.727: 50→120 (skott flushas nu 30Hz
+    // → kön töms ofta; högre cap minskar drop vid burst-eld så fler skott syns).
+    if (this._shotQueue.length > 120) this._shotQueue.splice(0, this._shotQueue.length - 120);
   },
   flushShots() {
     if (!this._shotQueue.length) return;
@@ -33791,6 +33809,9 @@ function drawOffscreenHitMarkers() {
 }
 
 function spawnDamageNumber(x, y, dmg, isCrit, kind) {
+  // v1.727: visa ALDRIG "0"-skada (miss / fullt blockerad / avrundad till 0) — fult +
+  // förvirrande. Catch-all oavsett anropare.
+  if (!(dmg > 0)) return;
   // v1.713: färgkodad efter vad som träffades — RÖD = HP-skada (ingen/genom-sköld),
   // BLÅ = sköld-absorberad skada, GUL = crit. Så spelaren ser "hur mkt av vad".
   const dmgKind = kind || 'hp';

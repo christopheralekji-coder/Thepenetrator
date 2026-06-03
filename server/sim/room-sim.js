@@ -5284,7 +5284,9 @@ function broadcastWorld(sim, now) {
     const hb = [];
     for (const b of sim.bullets) {
       if (!b.hostile) continue;
-      if (Math.abs(b.x - px) < 800 && Math.abs(b.y - py) < 800) {
+      // v1.727: 800→1300 så fiende-kulor syns från längre håll (mer förvarning) +
+      // ingen hård edge-flicker på större skärmar.
+      if (Math.abs(b.x - px) < 1300 && Math.abs(b.y - py) < 1300) {
         hb.push({
           x: Math.round(b.x), y: Math.round(b.y),
           vx: Math.round(b.vx), vy: Math.round(b.vy),
