@@ -3953,6 +3953,9 @@ function applyBrOutsideDamage(sim, dt) {
   const r2 = z.r * z.r;
   for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    // (v1.750) Downed spelare (self-revive-kanal aktiv) är immuna mot zone-damage.
+    // Utan detta: hp=1 tar storm-skada → hp→0 → death-loopen ser brDowned=true+kits=0 → eliminerar.
+    if (ws.playerState.brDowned) continue;
     if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
     const dx = ws.playerState.x - z.x;
     const dy = ws.playerState.y - z.y;
