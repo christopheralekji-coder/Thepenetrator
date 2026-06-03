@@ -15,7 +15,7 @@ function makeFakeRoom(n) {
   return { code: 'BRTEST', hostId: 'p0', members, meta: {} };
 }
 
-const { createSim, startSim, tickSim, applyBrBuy, applyBrUsePlate, applyBrInfCash, applyBrAirstrike } = require('./sim/room-sim');
+const { createSim, startSim, tickSim, applyBrBuy, applyBrInfCash, applyBrAirstrike } = require('./sim/room-sim');
 const { BATTLEROYALE_ARENA } = require('../shared/battleroyale-arena');
 
 const room = makeFakeRoom(2);
@@ -41,42 +41,49 @@ console.log('[OK] ' + regular.length + ' vanliga buy-stations + 1 alien-shop @ (
 // 3. Köp utan att stå vid station → fail (too_far). Flytta p0 långt från alla.
 p0.playerState.x = -9999; p0.playerState.y = -9999; p0.playerState.hp = 100;
 p0._sentMessages.length = 0; sim.eventQueue.length = 0;
-applyBrBuy(sim, 'p0', 'armor_plate');
+applyBrBuy(sim, 'p0', 'armor');
 let evNames = sim.eventQueue.map(e => e.type);
 assert(evNames.includes('br_buy_fail'), 'köp utan station → br_buy_fail, fick ' + JSON.stringify(evNames));
 assert(sim.brCash.p0 === 500, 'ingen debitering vid fail');
 console.log('[OK] köp utan station nekas (too_far), ingen debitering');
 
-// 4. Stå vid en vanlig station → köp armor_plate ok
+// 4. Stå HELT inne i en hus-station (bounds) → köp armor lvl1 (150)
 const stn = regular[0];
-p0.playerState.x = stn.x; p0.playerState.y = stn.y;
+assert(stn.bounds, 'hus-station har bounds');
+p0.playerState.x = stn.bounds.x + stn.bounds.w / 2; p0.playerState.y = stn.bounds.y + stn.bounds.h / 2;
 sim.eventQueue.length = 0;
-applyBrBuy(sim, 'p0', 'armor_plate');
+applyBrBuy(sim, 'p0', 'armor');
 evNames = sim.eventQueue.map(e => e.type);
-assert(evNames.includes('br_buy_ok'), 'köp vid station → br_buy_ok, fick ' + JSON.stringify(evNames));
+assert(evNames.includes('br_buy_ok'), 'köp inne i hus → br_buy_ok, fick ' + JSON.stringify(evNames));
 assert(sim.brCash.p0 === 350, 'cash 500-150=350, fick ' + sim.brCash.p0);
-assert(p0.playerState.armorPlates === 1, 'fick 1 reserv-platta, fick ' + p0.playerState.armorPlates);
-console.log('[OK] köpte armor_plate ($150) vid station → 1 platta, cash $350');
+assert(p0.playerState.armorLevel === 1, 'armor lvl 1, fick ' + p0.playerState.armorLevel);
+console.log('[OK] köpte armor lvl1 ($150) inne i hus → -10% dmg, cash $350');
+
+// 4b. Står UTANFÖR husets bounds → too_far (helt-inne-krav)
+p0.playerState.x = stn.bounds.x - 60; p0.playerState.y = stn.bounds.y - 60;
+sim.eventQueue.length = 0;
+applyBrBuy(sim, 'p0', 'gas_mask');
+assert(sim.eventQueue.find(e => e.type === 'br_buy_fail' && e.reason === 'too_far'), 'utanför hus-bounds → too_far');
+console.log('[OK] utanför husväggarna nekas (måste vara HELT inne)');
 
 // 5. Alien-only-vara nekas vid vanlig station, lyckas vid alien-shop
+p0.playerState.x = stn.bounds.x + stn.bounds.w / 2; p0.playerState.y = stn.bounds.y + stn.bounds.h / 2;
 sim.eventQueue.length = 0;
 applyBrBuy(sim, 'p0', 'alien_armor');
-evNames = sim.eventQueue.map(e => e.type);
 const wrongShop = sim.eventQueue.find(e => e.type === 'br_buy_fail' && e.reason === 'wrong_shop');
 assert(wrongShop, 'alien-vara vid vanlig station → wrong_shop, fick ' + JSON.stringify(sim.eventQueue.map(e => e.type + (e.reason ? ':' + e.reason : ''))));
-p0.playerState.x = alien[0].x; p0.playerState.y = alien[0].y; sim.brCash.p0 = 1000;
+p0.playerState.x = alien[0].x; p0.playerState.y = alien[0].y; sim.brCash.p0 = 2000; p0.playerState.armorLevel = 0;
 sim.eventQueue.length = 0;
 applyBrBuy(sim, 'p0', 'alien_armor');
-assert(p0.playerState.armor === 150, 'alien_armor fyller pansaret till 150, fick ' + p0.playerState.armor);
-assert(sim.brCash.p0 === 400, 'cash 1000-600=400, fick ' + sim.brCash.p0);
-console.log('[OK] alien_armor exklusiv: nekas vid vanlig station, fyller 150 pansar vid alien-shop');
+assert(p0.playerState.armorLevel === 5, 'alien_armor → armor MAX (lvl 5), fick ' + p0.playerState.armorLevel);
+assert(sim.brCash.p0 === 1100, 'cash 2000-900=1100, fick ' + sim.brCash.p0);
+console.log('[OK] alien_armor exklusiv: nekas vid vanlig station, sätter armor lvl5 vid alien-shop');
 
-// 6. Applicera reserv-platta → armor +50 (vi har 1 platta, armor=150 redan → ingen ändring;
-//    nollställ armor först för att testa applicering)
-p0.playerState.armor = 0; p0.playerState.armorPlates = 1;
-applyBrUsePlate(sim, 'p0');
-assert(p0.playerState.armor === 50 && p0.playerState.armorPlates === 0, 'platta applicerad: armor 50, plates 0, fick ' + p0.playerState.armor + '/' + p0.playerState.armorPlates);
-console.log('[OK] applicera platta → +50 armor, reserv -1');
+// 6. Armor maxad → fler köp nekas (full) → "försvinner ur shoppen"-regel server-side
+sim.eventQueue.length = 0;
+applyBrBuy(sim, 'p0', 'armor');
+assert(sim.eventQueue.find(e => e.type === 'br_buy_fail' && e.reason === 'full'), 'maxad armor → full');
+console.log('[OK] maxad armor (lvl5) → fler köp nekas (full)');
 
 // 7. För lite pengar → no_cash
 sim.brCash.p0 = 10; p0.playerState.x = stn.x; p0.playerState.y = stn.y;

@@ -4143,6 +4143,30 @@ function initBrLoot(sim) {
       unlockAt,
     });
   }
+  // v1.741: GARANTERA att varje hus har minst EN vapen-lootbox. Hus som bara råkade
+  // få hp/shield-loot får nu också en vapen-låda (så alla hus är värda att besöka).
+  const cabins = (arena.cabins || []).filter(c => c && c.bounds && !c._isContainer);
+  const wpnPool = [];
+  for (const tierName of ['common', 'uncommon', 'rare']) {
+    for (const it of (arena.lootByTier[tierName] || [])) {
+      if (it.kind === 'weapon' && it.weaponId) wpnPool.push({ weaponId: it.weaponId, tier: tierName });
+    }
+  }
+  if (wpnPool.length) {
+    let addedHouseWpn = 0;
+    for (let c = 0; c < cabins.length; c++) {
+      const b = cabins[c].bounds;
+      const hasWeapon = loot.some(lo => lo.kind === 'weapon' && lo.available &&
+        lo.x >= b.x && lo.x <= b.x + b.w && lo.y >= b.y && lo.y <= b.y + b.h);
+      if (hasWeapon) continue;
+      const pick = wpnPool[c % wpnPool.length];
+      const sp = brFindFreeSpot(b.x + b.w / 2, b.y + b.h / 2, arena.walls, arena.worldW, arena.worldH);
+      sim._brLootIdCounter = (sim._brLootIdCounter || 0) + 1;
+      loot.push({ id: 'br_loot_' + sim._brLootIdCounter, x: sp.x, y: sp.y, kind: 'weapon', weaponId: pick.weaponId, tier: pick.tier, available: true, unlockAt: 0 });
+      addedHouseWpn++;
+    }
+    if (addedHouseWpn > 0) console.log('[BR] initBrLoot: +' + addedHouseWpn + ' garanterade hus-vapen');
+  }
   if (movedCount > 0) {
     console.log('[BR] initBrLoot: ' + movedCount + ' loot-spawns flyttade ur walls');
   }
@@ -5235,37 +5259,47 @@ function computeBrBuyStations(arena) {
   const step = Math.max(1, Math.floor(cabins.length / want));
   for (let k = 0; k < cabins.length && stations.length < want; k += step) {
     const b = cabins[k].bounds;
+    // v1.741: hus-stationer använder husets BOUNDS (man måste vara HELT inne) i st f radie.
     stations.push({
       x: Math.round(b.x + b.w / 2),
       y: Math.round(b.y + b.h / 2),
-      r: Math.round(Math.max(b.w, b.h) / 2 + 40), // interaktions-radie täcker hela huset
+      bounds: { x: b.x, y: b.y, w: b.w, h: b.h },
       alien: false,
     });
   }
-  // ALIEN-SHOP i lila SE-hörnet (mitten av alien_floor-zonen ~8800,8800).
+  // ALIEN-SHOP i lila SE-hörnet (öppen yta → radie). Mitten av alien_floor-zonen ~8800,8800.
   stations.push({ x: 8850, y: 8850, r: 200, alien: true });
   return stations;
 }
 
-// Validera att spelaren står vid en buy-station (anti-cheat). Returnerar station|null.
+// Validera att spelaren står vid en buy-station (anti-cheat). Hus-stationer kräver att
+// man är HELT inne i husets bounds; alien-shoppen använder radie. Returnerar station|null.
 function brStationNear(sim, ws) {
   if (!ws.playerState || !sim.brBuyStations) return null;
   const px = ws.playerState.x, py = ws.playerState.y;
   for (const s of sim.brBuyStations) {
-    const dx = px - s.x, dy = py - s.y;
-    if (dx * dx + dy * dy <= s.r * s.r) return s;
+    if (s.bounds) {
+      const b = s.bounds;
+      if (px >= b.x && px <= b.x + b.w && py >= b.y && py <= b.y + b.h) return s;
+    } else if (s.r) {
+      const dx = px - s.x, dy = py - s.y;
+      if (dx * dx + dy * dy <= s.r * s.r) return s;
+    }
   }
   return null;
 }
 
-// SHOP-katalog. alienOnly = exklusivt hos alien-shoppen. Effekter appliceras server-auth.
+// Armor-uppgradering: 5 nivåer, +10% dmg-reduktion/nivå. Pris stiger per nivå.
+const BR_ARMOR_COSTS = [150, 220, 300, 400, 520]; // kostnad lvl0→1, 1→2, ... 4→5
+const BR_ARMOR_MAX = 5;
+// SHOP-katalog. alienOnly = exklusivt hos alien-shoppen. cost = fast pris (armor är dynamiskt).
 const BR_SHOP = {
-  armor_plate:   { cost: 150, alienOnly: false },
+  armor:         { dynamic: true, alienOnly: false }, // pris från BR_ARMOR_COSTS[level]
   gas_mask:      { cost: 250, alienOnly: false },
   self_revive:   { cost: 300, alienOnly: false },  // (v1.740) auto-används vid down
   uav:           { cost: 400, alienOnly: false },  // omedelbar 20s fiende-reveal
   airstrike:     { cost: 500, alienOnly: false },  // bärbar — rikta + släpp
-  alien_armor:   { cost: 600, alienOnly: true },   // fyller ALLA 3 plattor direkt
+  alien_armor:   { cost: 900, alienOnly: true },   // sätter pansaret till MAX (lvl 5) direkt
 };
 
 function applyBrBuy(sim, pid, itemKind) {
@@ -5277,14 +5311,20 @@ function applyBrBuy(sim, pid, itemKind) {
   const station = brStationNear(sim, ws);
   if (!station) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'too_far' }); return; }
   if (item.alienOnly && !station.alien) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'wrong_shop' }); return; }
-  const cash = sim.brCash[pid] || 0;
-  if (cash < item.cost) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'no_cash' }); return; }
-  // Validera/applicera effekt INNAN debitering (vissa köp kan vara redundanta).
   const ps = ws.playerState;
-  if (itemKind === 'armor_plate') {
-    if ((ps.armorPlates || 0) >= 8) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
-    ps.armorPlates = (ps.armorPlates || 0) + 1;
-    sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, armor: ps.armor || 0, plates: ps.armorPlates });
+  // Dynamiskt pris för armor (beror på nuvarande nivå).
+  let cost = item.cost;
+  if (itemKind === 'armor') {
+    const lvl = ps.armorLevel || 0;
+    if (lvl >= BR_ARMOR_MAX) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
+    cost = BR_ARMOR_COSTS[lvl];
+  }
+  const cash = sim.brCash[pid] || 0;
+  if (cash < cost) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'no_cash' }); return; }
+  // Validera/applicera effekt INNAN debitering (vissa köp kan vara redundanta).
+  if (itemKind === 'armor') {
+    ps.armorLevel = Math.min(BR_ARMOR_MAX, (ps.armorLevel || 0) + 1);
+    sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, level: ps.armorLevel });
   } else if (itemKind === 'gas_mask') {
     if (ps.gasMask) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
     ps.gasMask = true;
@@ -5301,24 +5341,12 @@ function applyBrBuy(sim, pid, itemKind) {
     ps.brUavUntil = Date.now() + 20000;
     sim.eventQueue.push({ type: 'br_uav_active', peerId: pid, until: ps.brUavUntil });
   } else if (itemKind === 'alien_armor') {
-    ps.armor = ps.maxArmor || 150; // fyll alla plattor direkt
-    sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, armor: ps.armor, plates: ps.armorPlates || 0 });
+    if ((ps.armorLevel || 0) >= BR_ARMOR_MAX) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
+    ps.armorLevel = BR_ARMOR_MAX;
+    sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, level: ps.armorLevel });
   }
-  brAwardCash(sim, pid, -item.cost);
+  brAwardCash(sim, pid, -cost);
   sim.eventQueue.push({ type: 'br_buy_ok', peerId: pid, item: itemKind });
-}
-
-// Applicera EN reserv-platta → fyll armor +50 (tak maxArmor). Manuellt (klient tappar HUD).
-function applyBrUsePlate(sim, pid) {
-  if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
-  const ws = sim.room.members.get(pid);
-  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
-  const ps = ws.playerState;
-  const max = ps.maxArmor || 150;
-  if ((ps.armorPlates || 0) <= 0 || (ps.armor || 0) >= max) return;
-  ps.armorPlates -= 1;
-  ps.armor = Math.min(max, (ps.armor || 0) + 50);
-  sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, armor: ps.armor, plates: ps.armorPlates });
 }
 
 // Cash-cheat (4-klick nere till vänster, som Castle Defense).
@@ -5357,18 +5385,14 @@ function _brAirstrikeDamage(sim, strike) {
     const d2 = dx * dx + dy * dy;
     if (d2 > r2) continue;
     const falloff = 1 - Math.sqrt(d2) / strike.r; // 1 i center → 0 vid kant
-    let remaining = BR_AIRSTRIKE.dmg * (0.45 + 0.55 * falloff);
-    const armorBefore = ws.playerState.armor || 0;
-    if (armorBefore > 0) { const a = Math.min(armorBefore, remaining); ws.playerState.armor -= a; remaining -= a; }
+    // ARMOR (v1.741): nivå-baserad % dmg-reduktion.
+    let remaining = BR_AIRSTRIKE.dmg * (0.45 + 0.55 * falloff) * (1 - 0.10 * (ws.playerState.armorLevel || 0));
     if (remaining > 0 && (ws.playerState.shield || 0) > 0) { const a = Math.min(ws.playerState.shield, remaining); ws.playerState.shield -= a; remaining -= a; }
     if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
     ws.playerState._brLastAttacker = strike.owner;
     ws.playerState._brLastWeapon = 'airstrike';
     ws.playerState._brLastAttackerAt = Date.now();
     sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ws.playerState.hp, shield: ws.playerState.shield || 0 });
-    if ((ws.playerState.armor || 0) !== armorBefore) {
-      sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, armor: ws.playerState.armor || 0, plates: ws.playerState.armorPlates || 0 });
-    }
   }
 }
 
@@ -6414,9 +6438,7 @@ function startSim(sim, opts) {
       ws.playerState.dashCdMs = null;
       // BR meta (v1.739): armor (3 plattor × 50 = 150 absorberas FÖRE shield/hp),
       // bärbara reserv-plattor, gasmask, samt per-match-cash.
-      ws.playerState.armor = 0;
-      ws.playerState.maxArmor = 150;
-      ws.playerState.armorPlates = 0;     // reserv-plattor i inventory (max 8)
+      ws.playerState.armorLevel = 0;      // (v1.741) 0-5, varje nivå = 10% dmg-reduktion
       ws.playerState.gasMask = false;
       ws.playerState.selfReviveKits = 0;  // (v1.740) auto-används vid down
       ws.playerState.airstrikes = 0;      // bärbara airstrike-laddningar
@@ -7433,4 +7455,4 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrUsePlate, applyBrInfCash, applyBrAirstrike, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole, _heistLineBlockedByWall };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole, _heistLineBlockedByWall };

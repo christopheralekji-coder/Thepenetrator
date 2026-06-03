@@ -1343,14 +1343,8 @@ function updateBullets(sim, dt, now) {
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
           const effDmg = getPvpDmg(b.weaponId, b.dmg);
-          let remaining = effDmg;
-          // ARMOR (v1.739): plattor absorberar FÖRST, sedan shield, sedan HP.
-          const armorBefore = ws.playerState.armor || 0;
-          if (armorBefore > 0) {
-            const absorbA = Math.min(armorBefore, remaining);
-            ws.playerState.armor = armorBefore - absorbA;
-            remaining -= absorbA;
-          }
+          // ARMOR (v1.741): nivå-baserad % dmg-reduktion (10%/nivå, max 50%) → sedan shield/HP.
+          let remaining = effDmg * (1 - 0.10 * (ws.playerState.armorLevel || 0));
           if (remaining > 0 && (ws.playerState.shield || 0) > 0) {
             const absorb = Math.min(ws.playerState.shield, remaining);
             ws.playerState.shield -= absorb;
@@ -1368,9 +1362,6 @@ function updateBullets(sim, dt, now) {
             hp: ws.playerState.hp,
             shield: ws.playerState.shield || 0,
           });
-          if ((ws.playerState.armor || 0) !== armorBefore) {
-            sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, armor: ws.playerState.armor || 0, plates: ws.playerState.armorPlates || 0 });
-          }
           // Downed/elimination + kill-credit hanteras centralt i tickBattleRoyale.
           pvpHit = true;
           break;

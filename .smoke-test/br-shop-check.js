@@ -27,21 +27,23 @@ module.exports = {
         state.battleroyaleMatchEndAt = Date.now() + 600000;
         state.battleroyalePhaseEndAt = Date.now() + 90000;
         state.player = state.player || {};
-        Object.assign(state.player, { x: 300, y: 300, hp: 200, maxHp: 200, shield: 0, maxShield: 200, weaponId: 'pistol', spectating: false, armor: 100, maxArmor: 150, armorPlates: 2, gasMask: false, selfReviveKits: 1, airstrikes: 2, brDowned: false });
+        Object.assign(state.player, { x: 300, y: 300, hp: 200, maxHp: 200, shield: 0, maxShield: 200, weaponId: 'pistol', spectating: false, armorLevel: 3, gasMask: false, selfReviveKits: 1, airstrikes: 2, brDowned: false });
         state.camera = { x: state.player.x - 422, y: state.player.y - 195 };
         state.battleroyaleZone = { x: 5000, y: 5000, r: 6000 };
         state.battleroyaleZoneRender = { x: 5000, y: 5000, r: 6000 };
         state.battleroyaleNextZoneRender = null;
-        state.brBuyStations = [{ x: 300, y: 300, r: 200, alien: false }, { x: 8850, y: 8850, r: 200, alien: true }];
+        // hus-station = bounds (helt-inne-krav), alien = radie
+        state.brBuyStations = [{ x: 300, y: 300, bounds: { x: 240, y: 240, w: 120, h: 120 }, alien: false }, { x: 8850, y: 8850, r: 200, alien: true }];
         state.brCash = 750;
         state.brNearStation = null;
         if (typeof showBrHud === 'function') showBrHud();
         if (typeof updateBrBuyPrompt === 'function') updateBrBuyPrompt();
         return {
-          cashText: (document.getElementById('br-cash') || {}).textContent,
-          armorHtml: !!document.getElementById('br-armor'),
+          goldText: (document.getElementById('gold-info') || {}).textContent,
+          armorHtml: (document.getElementById('br-armor') || {}).innerHTML || '',
           promptVisible: (document.getElementById('br-buy-prompt') || {}).style ? document.getElementById('br-buy-prompt').style.display : 'none',
           nearStation: !!state.brNearStation,
+          insideOnly: (function () { state.player.x = 200; state.player.y = 200; if (typeof updateBrBuyPrompt === 'function') updateBrBuyPrompt(); const out = !state.brNearStation; state.player.x = 300; state.player.y = 300; if (typeof updateBrBuyPrompt === 'function') updateBrBuyPrompt(); return out; })(),
         };
       } catch (e) { return { error: e.message }; }
     });
@@ -49,22 +51,26 @@ module.exports = {
     await wait(300);
     await screenshot(page, '01-br-hud-cash-armor');
 
-    // Buy-prompt ska synas (vi står på en station). Öppna shoppen.
+    // Buy-prompt ska synas (vi står inne i huset). Öppna shoppen → gear-flik + armor-flik.
     const shopOpen = await page.evaluate(() => {
       try {
         state.player.x = 300; state.player.y = 300;
         if (typeof updateBrBuyPrompt === 'function') updateBrBuyPrompt();
         if (typeof openBrShop === 'function') openBrShop();
         const ov = document.getElementById('br-shop-overlay');
-        const cards = ov ? ov.querySelectorAll('#br-shop-grid > div').length : 0;
-        return { overlay: !!ov, cards };
+        const gearCards = ov ? ov.querySelectorAll('#br-shop-grid > div').length : 0;
+        const tabs = ov ? ov.querySelectorAll('#br-shop-tabs > button').length : 0;
+        // byt till armor-flik
+        state._brShopTab = 'armor'; if (typeof _brRenderShop === 'function') _brRenderShop(false);
+        const armorCards = ov ? ov.querySelectorAll('#br-shop-grid > div').length : 0;
+        return { overlay: !!ov, gearCards, tabs, armorCards };
       } catch (e) { return { error: e.message }; }
     });
     console.log('[BR-SHOP] shop:', JSON.stringify(shopOpen));
-    await wait(300);
+    await wait(250);
     await screenshot(page, '02-br-shop-regular');
 
-    // Stäng + testa ALIEN-shoppen (flytta till alien-stationen).
+    // Stäng + testa ALIEN-shoppen (alien-flik med exklusiv vara).
     const alienShop = await page.evaluate(() => {
       try {
         if (typeof closeBrShop === 'function') closeBrShop();
@@ -73,12 +79,14 @@ module.exports = {
         if (typeof updateBrBuyPrompt === 'function') updateBrBuyPrompt();
         if (typeof openBrShop === 'function') openBrShop();
         const ov = document.getElementById('br-shop-overlay');
-        const cards = ov ? ov.querySelectorAll('#br-shop-grid > div').length : 0;
-        return { alienPrompt: (document.getElementById('br-buy-prompt') || {}).textContent, cards };
+        const tabs = ov ? ov.querySelectorAll('#br-shop-tabs > button').length : 0;
+        state._brShopTab = 'alien'; if (typeof _brRenderShop === 'function') _brRenderShop(true);
+        const alienCards = ov ? ov.querySelectorAll('#br-shop-grid > div').length : 0;
+        return { alienPrompt: (document.getElementById('br-buy-prompt') || {}).textContent, tabs, alienCards };
       } catch (e) { return { error: e.message }; }
     });
     console.log('[BR-SHOP] alien:', JSON.stringify(alienShop));
-    await wait(300);
+    await wait(250);
     await screenshot(page, '03-br-shop-alien');
 
     // Cash-cheat: 4 klick nere till vänster → br-cash-cheat-btn ska bli synlig.
@@ -123,10 +131,15 @@ module.exports = {
     console.log('[BR-SHOP] console errors:', errors.length, JSON.stringify(errors.slice(0, 8)));
     if (staged.error) throw new Error('staging failed: ' + staged.error);
     if (p2.error) throw new Error('fas2 failed: ' + p2.error);
-    if (!staged.cashText || staged.cashText.indexOf('750') < 0) throw new Error('cash HUD fel: ' + staged.cashText);
-    if (staged.promptVisible !== 'block') throw new Error('buy-prompt visades inte vid station');
-    if (!shopOpen.overlay || shopOpen.cards < 5) throw new Error('shop-modal saknar kort (väntade ≥5): ' + JSON.stringify(shopOpen));
-    if (alienShop.cards < 6) throw new Error('alien-shop saknar exklusiv vara (väntade ≥6): ' + JSON.stringify(alienShop));
+    if (!staged.goldText || staged.goldText.indexOf('750') < 0) throw new Error('cash i 💰-HUD fel: ' + staged.goldText);
+    if (staged.armorHtml.indexOf('30%') < 0) throw new Error('armor-HUD visar inte nivå-% : ' + staged.armorHtml);
+    if (staged.promptVisible !== 'block') throw new Error('buy-prompt visades inte inne i huset');
+    if (!staged.insideOnly) throw new Error('shop visades UTANFÖR huset (helt-inne-krav brutet)');
+    if (!shopOpen.overlay || shopOpen.gearCards < 3) throw new Error('gear-flik saknar kort (≥3): ' + JSON.stringify(shopOpen));
+    if (shopOpen.tabs < 2) throw new Error('shop saknar flikar (≥2): ' + JSON.stringify(shopOpen));
+    if (shopOpen.armorCards < 1) throw new Error('armor-flik saknar pansar-kort: ' + JSON.stringify(shopOpen));
+    if (alienShop.tabs < 3) throw new Error('alien-shop saknar alien-flik (≥3 flikar): ' + JSON.stringify(alienShop));
+    if (alienShop.alienCards < 1) throw new Error('alien-flik saknar exklusiv vara: ' + JSON.stringify(alienShop));
     if (cheat.cheatVisible !== 'flex') throw new Error('cash-cheat-knapp visades inte: ' + JSON.stringify(cheat));
     if (!p2.hasAirstrikeChip) throw new Error('airstrike-chip saknas i HUD');
     if (!p2.targeting || p2.banner !== 'block') throw new Error('airstrike-targeting startade inte: ' + JSON.stringify(p2));
