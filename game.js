@@ -20960,6 +20960,21 @@ canvas.addEventListener('mousemove', e => {
     updateCdBuildHover(input.mouse.x, input.mouse.y);
   }
 });
+// v1.752: medan förstorade minimapen är uppe ska höger-knapparna (action-btn +
+// bag) INTE fånga tryck — annars kan man inte rikta airstrike på kart-ytan bakom
+// dem. Joysticken lämnas aktiv (ligger nere-vänster, ej bakom kartan → man kan
+// fortf. röra sig). Knapparna har inline `pointer-events:auto !important`, så det
+// krävs setProperty(...,'important') för att överstyra.
+function setGameControlsTappable(on) {
+  try {
+    const pe = on ? 'auto' : 'none';
+    const els = [];
+    const tc = document.getElementById('touch-controls');
+    if (tc) els.push(...tc.querySelectorAll('.action-btn'));
+    const bag = document.getElementById('br-bag-btn'); if (bag) els.push(bag);
+    for (const el of els) el.style.setProperty('pointer-events', pe, 'important');
+  } catch (_) {}
+}
 function checkMinimapZoomClick(mx, my) {
   if (state.mode !== 'playing') return false;
   const z = state._minimapZoomBtn;
@@ -20970,6 +20985,9 @@ function checkMinimapZoomClick(mx, my) {
     // v1.748: stora kartan ska ligga ÖVER action-knapparna (z:6), inte under.
     // hud-canvas (z:3) lyfts till z:9 medan kartan är stor, återställs när liten.
     if (typeof hudCanvas !== 'undefined' && hudCanvas) hudCanvas.style.zIndex = state.minimapBig ? '9' : '3';
+    // v1.752: medan stora kartan är uppe ska höger-knapparna INTE fånga tryck
+    // (annars kan man inte rikta airstrike där en knapp ligger bakom kartan).
+    setGameControlsTappable(!state.minimapBig);
     Audio.uiClick();
     return true;
   }
@@ -39132,6 +39150,8 @@ function clearBattleroyaleState() {
   state._brHighAlertDir = null;
   if (state.player) { state.player.brDowned = false; state.player.uavCount = 0; }
   if (typeof hudCanvas !== 'undefined' && hudCanvas) hudCanvas.style.zIndex = '3'; // återställ ev. förstorad-karta-z
+  state.minimapBig = false; state._minimapZoomTarget = 0; // v1.752: lämna ej kartan förstorad in i nästa match
+  if (typeof setGameControlsTappable === 'function') setGameControlsTappable(true);
   state._alienCracks = null; // cached crack-data (decoration-cache)
   if (typeof Coop !== 'undefined') {
     Coop.battleroyaleActive = false;
