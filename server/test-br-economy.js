@@ -266,6 +266,25 @@ assert(p0.playerState.brContract && p0.playerState.brContract.type === 'bounty' 
 console.log('[OK] bounty accepterat → måltavla tilldelad + pingas');
 p0.playerState.brContract = null; // rensa inför kill-credit-testet nedan
 
+// ===== FAS 5: alien-exklusiva varor =====
+console.log('\n--- FAS 5: alien-shop exklusivt ---');
+p0.playerState.x = alien[0].x; p0.playerState.y = alien[0].y; sim.brCash.p0 = 8000;
+p0.playerState.brPerks = {}; p0.playerState.hp = 50; p0.playerState.shield = 0;
+p0.playerState.maxHp = 200; p0.playerState.maxShield = 400; p0.playerState.armorLevel = 0;
+applyBrBuy(sim, 'p0', 'alien_loadout');
+assert(p0.playerState.hp === 200 && p0.playerState.shield === 400 && p0.playerState.armorLevel === 5, 'alien_loadout → full restore (hp200/shield400/armor5)');
+applyBrBuy(sim, 'p0', 'alien_perks');
+assert(['fast_hands', 'double_time', 'ghost', 'tracker', 'high_alert'].every(k => p0.playerState.brPerks[k]), 'alien_perks → alla 5 perks');
+sim.eventQueue.length = 0; p0._sentMessages.length = 0;
+applyBrBuy(sim, 'p0', 'alien_weapon');
+assert(collectEv('br_supply_opened').find(e => e.peerId === 'p0' && e.weaponId), 'alien_weapon → top-tier-vapen-grant');
+// alien-vara nekas vid VANLIG station
+p0.playerState.x = stn.bounds.x + stn.bounds.w / 2; p0.playerState.y = stn.bounds.y + stn.bounds.h / 2;
+sim.eventQueue.length = 0;
+applyBrBuy(sim, 'p0', 'alien_loadout');
+assert(sim.eventQueue.find(e => e.type === 'br_buy_fail' && e.reason === 'wrong_shop'), 'alien_loadout nekas vid vanlig station');
+console.log('[OK] fas5: alien_loadout/perks/weapon (exklusiva, bara hos alien-shoppen)');
+
 // KILL-CREDIT vid finish: p1 hp→0 utan kit + färsk angripare p0 → p0 krediteras
 p1.playerState.brUavUntil = 0;
 p1.playerState.hp = 0; p1.playerState.selfReviveKits = 0; p1.playerState.brDowned = false;

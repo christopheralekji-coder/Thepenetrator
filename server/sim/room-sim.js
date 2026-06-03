@@ -5325,6 +5325,9 @@ const BR_SHOP = {
   max_hp:        { cost: 400, alienOnly: false },  // (v1.743) maxHP 100→200 + heal
   max_shield:    { cost: 400, alienOnly: false },  // (v1.743) maxShield 200→400 + fyll
   alien_armor:   { cost: 900, alienOnly: true },   // sätter pansaret till MAX (lvl 5) direkt
+  alien_loadout: { cost: 1200, alienOnly: true },  // (v1.747) full restore: hp+shield+armor MAX
+  alien_weapon:  { cost: 1400, alienOnly: true },  // exklusivt top-tier-vapen
+  alien_perks:   { cost: 2600, alienOnly: true },  // ALLA 5 perks på en gång
   // PERKS (v1.742) — engångs-köp, passiva bonusar.
   perk_fast_hands:  { cost: 350, alienOnly: false, perk: 'fast_hands' },  // snabbare omladdning
   perk_double_time: { cost: 400, alienOnly: false, perk: 'double_time' }, // +25% fart
@@ -5388,6 +5391,23 @@ function applyBrBuy(sim, pid, itemKind) {
     if ((ps.armorLevel || 0) >= BR_ARMOR_MAX) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
     ps.armorLevel = BR_ARMOR_MAX;
     sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, level: ps.armorLevel });
+  } else if (itemKind === 'alien_loadout') {
+    // Full restore: hp + shield + armor till MAX (v1.747)
+    ps.hp = ps.maxHp || 100; ps.shield = ps.maxShield || 200; ps.armorLevel = BR_ARMOR_MAX;
+    sim.eventQueue.push({ type: 'br_maxstat', peerId: pid, maxHp: ps.maxHp || 100, maxShield: ps.maxShield || 200, hp: ps.hp, shield: ps.shield });
+    sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, level: ps.armorLevel });
+  } else if (itemKind === 'alien_weapon') {
+    // Exklusivt top-tier-vapen (legendary) — equipa direkt.
+    const wpn = brSupplyLegendaryWeapon();
+    sim.eventQueue.push({ type: 'br_supply_opened', id: null, peerId: pid, weaponId: wpn, cash: 0 });
+  } else if (itemKind === 'alien_perks') {
+    if (!ps.brPerks) ps.brPerks = {};
+    const allP = ['fast_hands', 'double_time', 'ghost', 'tracker', 'high_alert'];
+    if (allP.every(p => ps.brPerks[p])) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
+    for (const p of allP) {
+      if (!ps.brPerks[p]) { ps.brPerks[p] = true; sim.eventQueue.push({ type: 'br_perk_granted', peerId: pid, perk: p }); }
+    }
+    if (!ps.brDowned) ps.speedMul = 1.25; // double_time aktiv
   } else if (item.perk) {
     if (!ps.brPerks) ps.brPerks = {};
     if (ps.brPerks[item.perk]) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }

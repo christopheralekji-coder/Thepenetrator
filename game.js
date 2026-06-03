@@ -25524,7 +25524,7 @@ const Coop = {
       if (ev.peerId === this.myId) {
         if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
         else if (typeof Audio !== 'undefined' && Audio.pickup) Audio.pickup();
-        const names = { armor: '🛡 PANSAR-UPPGRADERING', gas_mask: '😷 GAS MASK', self_revive: '🩹 SELF-REVIVE', uav: '📡 UAV', airstrike: '✈️ AIR STRIKE', alien_armor: '👽 ALIEN ARMOR' };
+        const names = { armor: '🛡 PANSAR-UPPGRADERING', gas_mask: '😷 GAS MASK', self_revive: '🩹 SELF-REVIVE', uav: '📡 UAV', airstrike: '✈️ AIR STRIKE', grenade: '💣 GRANATER', smoke: '💨 RÖKGRANATER', max_hp: '❤️ MAX HP', max_shield: '🛡️ MAX SHIELD', alien_armor: '👽 ALIEN ARMOR', alien_loadout: '🛸 ALIEN RESTORATION', alien_weapon: '🔫 ALIEN ARSENAL', alien_perks: '🧠 ALIEN MIND (alla perks)' };
         if (typeof showToast === 'function') showToast('✅ KÖPT: ' + (names[ev.item] || ev.item));
       }
     } else if (ev.type === 'br_buy_fail') {
@@ -38536,6 +38536,12 @@ const BR_SHOP_CATALOG = [
     cost: () => 400, avail: (p) => (p.maxShield || 200) < 400, sub: (p) => (p.maxShield || 200) >= 400 ? 'Max' : '200→400' },
   { id: 'alien_armor', name: 'Alien Armor', icon: '👽', tab: 'alien', alien: true, desc: 'Sätter pansaret till MAX-nivå direkt',
     cost: () => 900, avail: (p) => (p.armorLevel || 0) < BR_ARMOR_MAX, sub: () => '' },
+  { id: 'alien_loadout', name: 'Alien Restoration', icon: '🛸', tab: 'alien', alien: true, desc: 'Full återställning: HP + shield + pansar MAX',
+    cost: () => 1200, avail: () => true, sub: () => '' },
+  { id: 'alien_weapon', name: 'Alien Arsenal', icon: '🔫', tab: 'alien', alien: true, desc: 'Exklusivt top-tier-vapen direkt i handen',
+    cost: () => 1400, avail: () => true, sub: () => '' },
+  { id: 'alien_perks', name: 'Alien Mind', icon: '🧠', tab: 'alien', alien: true, desc: 'Låser upp ALLA 5 perks på en gång',
+    cost: () => 2600, avail: (p) => { const pk = p.brPerks || {}; return !['fast_hands','double_time','ghost','tracker','high_alert'].every(k => pk[k]); }, sub: () => '' },
   // PERKS (v1.742) — engångs-köp, passiva. avail = ej redan ägd.
   { id: 'perk_fast_hands', name: 'Fast Hands', icon: '⚡', tab: 'perks', alien: false, desc: 'Snabbare omladdning',
     cost: () => 350, avail: (p) => !(p.brPerks && p.brPerks.fast_hands), sub: (p) => (p.brPerks && p.brPerks.fast_hands) ? 'Ägd' : '' },
