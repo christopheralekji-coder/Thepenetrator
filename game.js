@@ -21845,46 +21845,14 @@ function detonateGrenade(g) {
     if (typeof spawnSmokeCloud === 'function') spawnSmokeCloud(g.toX, g.toY);
     return;
   }
-  // VFX
-  if (typeof spawnShockwave === 'function') {
-    spawnShockwave(g.toX, g.toY, 24, g.radius, '#ffaa30', 0.45, 6);
-  }
+  // VFX (v1.737): rik lagrad explosion (flash → texturerad eldboll m. heta pockets →
+  // flam-tungor → chock-ringar → stigande efter-rök) via dedikerat Canvas2D-system,
+  // + glödande debris-gnistor (gravity) som extra lager ovanpå.
+  if (typeof spawnExplosion === 'function') spawnExplosion(g.toX, g.toY, g.radius);
   if (typeof spawnSparks === 'function') {
-    spawnSparks(g.toX, g.toY, '#ffaa30', 24, 260);
-    spawnSparks(g.toX, g.toY, '#ff5a20', 12, 200);
-  }
-  // v1.573: ELDBOLL — snabb-fade orange/röd blob på explosion-centrum (AAA-känsla)
-  if (state.particles && state.particles.length < 800) {
-    for (let i = 0; i < 6; i++) {
-      state.particles.push({
-        x: g.toX + (Math.random() - 0.5) * 14,
-        y: g.toY + (Math.random() - 0.5) * 14,
-        vx: 0, vy: 0,
-        life: 0.22 + Math.random() * 0.18,
-        maxLife: 0.4,
-        r: 16 + Math.random() * 18,
-        color: i < 2 ? '#ffeb3b' : (i < 4 ? '#ff8a30' : '#ff3a14'),
-        isExplosion: true,
-      });
-    }
-  }
-  // Smoke-puff
-  if (state.particles && state.particles.length < 800) {
-    for (let i = 0; i < 10; i++) {
-      const ang = (i / 10) * Math.PI * 2;
-      state.particles.push({
-        x: g.toX + Math.cos(ang) * 8,
-        y: g.toY + Math.sin(ang) * 8,
-        vx: Math.cos(ang) * 60,
-        vy: Math.sin(ang) * 60 - 30,
-        life: 0.8,
-        maxLife: 0.8,
-        r: 8 + Math.random() * 4,
-        color: 'rgba(80,80,80,0.55)',
-        isExplosion: true,
-        decay: 1.2,
-      });
-    }
+    spawnSparks(g.toX, g.toY, '#ffe07a', 16, 320);
+    spawnSparks(g.toX, g.toY, '#ff8a30', 14, 230);
+    spawnSparks(g.toX, g.toY, '#ff3a14', 8, 170);
   }
   if (typeof Audio !== 'undefined' && Audio.explode) Audio.explode();
   if (typeof triggerShake === 'function') triggerShake(8, 0.32);
@@ -21980,25 +21948,203 @@ function drawSmokeClouds() {
     }
     ctx.closePath();
     ctx.fill();
-    // Billowande puffar (tids-baserad oscillation = mjukt, ingen flicker) — v1.725 fler + tätare
-    const N = 22;
+    // Billowande puffar med VOLYM (v1.737): riktad ljussättning (ljuskälla uppe-vänster →
+    // lit/skugg-sida ger 3D-känsla) + offset-center radialgradient (highlight) +
+    // fluffiga kant-wisps som bryter den hårda blob-kanten = "rökigare" textur.
+    // Adaptiv täthet (perf): färre puffar/wisps när många moln är aktiva samtidigt.
+    const many = state.smokeClouds.length > 8;
+    const N = many ? 16 : 26;
     for (let i = 0; i < N; i++) {
       const ph = sc.seed + i * 1.71;
       const ringA = (i / N) * Math.PI * 2 + Math.sin(now / 2300 + ph) * 0.45;
-      const dist = R * (0.22 + 0.6 * ((i % 4) / 3));
+      const dist = R * (0.18 + 0.62 * ((i % 4) / 3));
       const px = sx + Math.cos(ringA) * dist + Math.sin(now / 1650 + ph) * 9;
       const py = sy + Math.sin(ringA) * dist + Math.cos(now / 1850 + ph) * 9;
       const pr = R * (0.30 + 0.12 * Math.sin(now / 1250 + ph));
-      const shade = 156 + ((i * 11) % 56);
-      const pa = alpha * (0.24 + 0.16 * (0.5 + 0.5 * Math.sin(now / 1450 + ph)));
-      const pg = ctx.createRadialGradient(px, py, 1, px, py, Math.max(2, pr));
-      pg.addColorStop(0, 'rgba(' + shade + ',' + shade + ',' + (shade + 6) + ',' + pa.toFixed(3) + ')');
-      pg.addColorStop(1, 'rgba(' + shade + ',' + shade + ',' + (shade + 6) + ',0)');
+      // Riktad ljussättning: projicera puff-offset på ljus-riktningen (uppe-vänster).
+      const lightDot = (-(px - sx) - (py - sy)) / (R + 1);
+      const shade = Math.max(118, Math.min(234, (158 + ((i * 11) % 44)) + lightDot * 48));
+      const pa = alpha * (0.23 + 0.16 * (0.5 + 0.5 * Math.sin(now / 1450 + ph)));
+      // Offset-centrum → highlight på lit-sidan, mörkare mot skugg-sidan (volym).
+      const pg = ctx.createRadialGradient(px - (px - sx) * 0.14, py - (py - sy) * 0.14, 1, px, py, Math.max(2, pr));
+      pg.addColorStop(0, 'rgba(' + (shade | 0) + ',' + (shade | 0) + ',' + ((shade + 6) | 0) + ',' + pa.toFixed(3) + ')');
+      pg.addColorStop(0.6, 'rgba(' + ((shade * 0.9) | 0) + ',' + ((shade * 0.9) | 0) + ',' + ((shade * 0.92) | 0) + ',' + (pa * 0.7).toFixed(3) + ')');
+      pg.addColorStop(1, 'rgba(' + ((shade * 0.82) | 0) + ',' + ((shade * 0.82) | 0) + ',' + ((shade * 0.85) | 0) + ',0)');
       ctx.fillStyle = pg;
       ctx.beginPath(); ctx.arc(px, py, Math.max(2, pr), 0, Math.PI * 2); ctx.fill();
     }
+    // Fluffiga kant-wisps: mindre, svagare puffar strax utanför blob-kanten.
+    if (!many) {
+      const NW = 12;
+      for (let i = 0; i < NW; i++) {
+        const ph = sc.seed * 1.3 + i * 2.27;
+        const wa = (i / NW) * Math.PI * 2 + Math.sin(now / 2000 + ph) * 0.5;
+        const wd = R * (0.80 + 0.26 * (0.5 + 0.5 * Math.sin(now / 1500 + ph)));
+        const wx = sx + Math.cos(wa) * wd;
+        const wy = sy + Math.sin(wa) * wd;
+        const wr = R * (0.15 + 0.07 * Math.sin(now / 1100 + ph));
+        const wsh = 190 + ((i * 7) % 28);
+        const wpa = alpha * (0.09 + 0.08 * (0.5 + 0.5 * Math.sin(now / 1300 + ph)));
+        const wg = ctx.createRadialGradient(wx, wy, 1, wx, wy, Math.max(2, wr));
+        wg.addColorStop(0, 'rgba(' + wsh + ',' + wsh + ',' + (wsh + 5) + ',' + wpa.toFixed(3) + ')');
+        wg.addColorStop(1, 'rgba(' + wsh + ',' + wsh + ',' + (wsh + 5) + ',0)');
+        ctx.fillStyle = wg;
+        ctx.beginPath(); ctx.arc(wx, wy, Math.max(2, wr), 0, Math.PI * 2); ctx.fill();
+      }
+    }
   }
   ctx.restore();
+}
+
+// === FRAG-EXPLOSION (v1.737) — rik, lagrad, texturerad detonation i Canvas2D (frikopplad
+// från partikel-systemets dubbla Pixi/Canvas-path → full kontroll). Lager (underst→överst):
+// stigande efter-rök → texturerad eldboll m. heta pockets → flam-tungor → vit flash →
+// chock-ringar. Deterministisk via seed så alla klienter ser samma form.
+let _explSeedCtr = 0;
+function spawnExplosion(x, y, radius) {
+  if (!state.explosions) state.explosions = [];
+  if (state.explosions.length >= 12) state.explosions.shift();
+  _explSeedCtr++;
+  state.explosions.push({ x, y, r: Math.max(40, radius || 85), startAt: performance.now(), dur: 1300, seed: (_explSeedCtr * 12.9898) % 6.2831 });
+}
+function updateExplosions() {
+  if (!state.explosions || !state.explosions.length) return;
+  const now = performance.now();
+  if (state.explosions.some(e => now - e.startAt >= e.dur)) {
+    state.explosions = state.explosions.filter(e => now - e.startAt < e.dur);
+  }
+}
+// Lobad blob-path (deterministisk) — texturerad eldbolls-silhuett (ej perfekt cirkel).
+function _explBlobPath(cx, cy, R, lobes, seed, wobAmt, tWob) {
+  const pts = [];
+  for (let i = 0; i < lobes; i++) {
+    const a = (i / lobes) * Math.PI * 2;
+    const wob = (1 - wobAmt) + wobAmt * (0.5 + 0.5 * Math.sin(a * 3 + seed + tWob)) + 0.08 * Math.sin(a * 6 + seed * 1.7);
+    const rr = R * Math.min(1.15, wob);
+    pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]);
+  }
+  ctx.beginPath();
+  ctx.moveTo((pts[0][0] + pts[lobes - 1][0]) / 2, (pts[0][1] + pts[lobes - 1][1]) / 2);
+  for (let i = 0; i < lobes; i++) {
+    const cur = pts[i], nxt = pts[(i + 1) % lobes];
+    ctx.quadraticCurveTo(cur[0], cur[1], (cur[0] + nxt[0]) / 2, (cur[1] + nxt[1]) / 2);
+  }
+  ctx.closePath();
+}
+function drawExplosions() {
+  if (!state.explosions || !state.explosions.length) return;
+  const now = performance.now();
+  const camX = state.camera.x, camY = state.camera.y;
+  for (const ex of state.explosions) {
+    const age = now - ex.startAt;
+    if (age >= ex.dur) continue;
+    const sx = ex.x - camX, sy = ex.y - camY;
+    const R = ex.r;
+    if (sx < -R - 140 || sx > viewW + R + 140 || sy < -R - 140 || sy > viewH + R + 140) continue;
+    ctx.save();
+
+    // ---- 1. STIGANDE EFTER-RÖK (underst) — mörk → ljusare, driver uppåt, fluffig ----
+    if (age > 110) {
+      const st = (age - 110) / (ex.dur - 110);
+      const smokeA = Math.min(1, st < 0.14 ? st / 0.14 : (1 - st) / 0.86);
+      const rise = st * R * 0.55;
+      for (let i = 0; i < 10; i++) {
+        const ph = ex.seed + i * 2.39;
+        const ang = (i / 10) * Math.PI * 2 + Math.sin(ex.seed + i) * 0.6;
+        const dist = R * (0.14 + 0.46 * ((i % 3) / 2)) * (0.6 + st * 0.7);
+        const px = sx + Math.cos(ang) * dist + Math.sin(now / 900 + ph) * 6;
+        const py = sy + Math.sin(ang) * dist - rise + Math.cos(now / 1100 + ph) * 6;
+        const pr = R * (0.20 + 0.18 * st) * (0.7 + 0.3 * Math.sin(now / 700 + ph));
+        const sh = (50 + ((i * 13) % 36) + st * 34) | 0;
+        const pa = smokeA * 0.5;
+        const pg = ctx.createRadialGradient(px, py, 1, px, py, Math.max(3, pr));
+        pg.addColorStop(0, 'rgba(' + sh + ',' + ((sh * 0.95) | 0) + ',' + ((sh * 0.88) | 0) + ',' + pa.toFixed(3) + ')');
+        pg.addColorStop(1, 'rgba(' + sh + ',' + ((sh * 0.95) | 0) + ',' + ((sh * 0.88) | 0) + ',0)');
+        ctx.fillStyle = pg;
+        ctx.beginPath(); ctx.arc(px, py, Math.max(3, pr), 0, Math.PI * 2); ctx.fill();
+      }
+    }
+
+    // ---- 2. ELDBOLL (additiv): het kärna → gul → orange → djupröd + heta pockets ----
+    if (age < 470) {
+      const ft = age / 470;
+      const fa = ft < 0.12 ? 1 : Math.max(0, 1 - (ft - 0.12) / 0.88);
+      const FR = R * (0.52 + 0.52 * Math.min(1, ft * 2.2));
+      ctx.globalCompositeOperation = 'lighter';
+      const fg = ctx.createRadialGradient(sx, sy, FR * 0.05, sx, sy, FR);
+      fg.addColorStop(0, 'rgba(255,250,236,' + fa.toFixed(3) + ')');
+      fg.addColorStop(0.22, 'rgba(255,214,92,' + (fa * 0.95).toFixed(3) + ')');
+      fg.addColorStop(0.5, 'rgba(255,122,30,' + (fa * 0.8).toFixed(3) + ')');
+      fg.addColorStop(0.8, 'rgba(198,42,12,' + (fa * 0.5).toFixed(3) + ')');
+      fg.addColorStop(1, 'rgba(120,18,6,0)');
+      ctx.fillStyle = fg;
+      _explBlobPath(sx, sy, FR, 11, ex.seed, 0.26, now / 120);
+      ctx.fill();
+      // Heta pockets (textur/djup) — små ljusa blobs inuti eldbollen.
+      for (let i = 0; i < 6; i++) {
+        const ph = ex.seed * 1.7 + i * 2.1;
+        const d = FR * (0.16 + 0.4 * ((i % 3) / 2));
+        const px = sx + Math.cos(ph) * d, py = sy + Math.sin(ph) * d;
+        const pr = FR * (0.16 + 0.1 * Math.sin(now / 90 + ph));
+        const pa = Math.max(0, fa * (0.45 + 0.3 * Math.sin(now / 80 + ph)));
+        const pg = ctx.createRadialGradient(px, py, 1, px, py, Math.max(2, pr));
+        pg.addColorStop(0, 'rgba(255,238,156,' + pa.toFixed(3) + ')');
+        pg.addColorStop(0.6, 'rgba(255,142,42,' + (pa * 0.6).toFixed(3) + ')');
+        pg.addColorStop(1, 'rgba(255,92,22,0)');
+        ctx.fillStyle = pg;
+        ctx.beginPath(); ctx.arc(px, py, Math.max(2, pr), 0, Math.PI * 2); ctx.fill();
+      }
+      // Flam-tungor — flimrande eld-spetsar utåt (textur i kanten).
+      if (age > 40 && age < 390) {
+        for (let i = 0; i < 9; i++) {
+          const ph = ex.seed + i * 4.3;
+          const a = (i / 9) * Math.PI * 2 + Math.sin(now / 100 + ph) * 0.15;
+          const reach = FR * (0.82 + 0.45 * (0.5 + 0.5 * Math.sin(now / 110 + ph)));
+          const tx = sx + Math.cos(a) * reach, ty = sy + Math.sin(a) * reach;
+          const tr = FR * 0.22 * (0.6 + 0.4 * Math.sin(now / 95 + ph * 1.3));
+          const ta = fa * 0.55;
+          const tg = ctx.createRadialGradient(tx, ty, 1, tx, ty, Math.max(2, tr));
+          tg.addColorStop(0, 'rgba(255,182,64,' + ta.toFixed(3) + ')');
+          tg.addColorStop(1, 'rgba(255,82,20,0)');
+          ctx.fillStyle = tg;
+          ctx.beginPath(); ctx.arc(tx, ty, Math.max(2, tr), 0, Math.PI * 2); ctx.fill();
+        }
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    // ---- 3. INITIAL FLASH (additiv, mycket kort) ----
+    if (age < 100) {
+      const fl = 1 - age / 100;
+      ctx.globalCompositeOperation = 'lighter';
+      const flR = R * (1.05 + 0.7 * (1 - fl));
+      const flg = ctx.createRadialGradient(sx, sy, 1, sx, sy, flR);
+      flg.addColorStop(0, 'rgba(255,255,246,' + (fl * 0.9).toFixed(3) + ')');
+      flg.addColorStop(0.5, 'rgba(255,232,164,' + (fl * 0.4).toFixed(3) + ')');
+      flg.addColorStop(1, 'rgba(255,202,122,0)');
+      ctx.fillStyle = flg;
+      ctx.beginPath(); ctx.arc(sx, sy, flR, 0, Math.PI * 2); ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    // ---- 4. CHOCK-RINGAR (additiv) — en skarp + en svagare bakom ----
+    if (age < 350) {
+      const rt = age / 350;
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.strokeStyle = 'rgba(255,222,170,' + ((1 - rt) * 0.8).toFixed(3) + ')';
+      ctx.lineWidth = Math.max(1.5, 5 * (1 - rt));
+      ctx.beginPath(); ctx.arc(sx, sy, R * (0.3 + 1.6 * rt), 0, Math.PI * 2); ctx.stroke();
+      const rt2 = (age - 60) / 350;
+      if (rt2 > 0 && rt2 < 1) {
+        ctx.strokeStyle = 'rgba(255,168,90,' + ((1 - rt2) * 0.42).toFixed(3) + ')';
+        ctx.lineWidth = Math.max(1, 3 * (1 - rt2));
+        ctx.beginPath(); ctx.arc(sx, sy, R * (0.2 + 1.5 * rt2), 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    }
+
+    ctx.restore();
+  }
 }
 
 // Render: landing-reticle medan holding + grenade-projektiler i flykt
@@ -72344,6 +72490,8 @@ function render() {
   if (typeof drawGrenades === 'function') drawGrenades();
   // RÖK-MOLN ovanpå spelare/väggar (skymmer sikten). v1.724.
   if (typeof drawSmokeClouds === 'function') drawSmokeClouds();
+  // FRAG-EXPLOSIONER ovanpå allt (eldboll poppar över ev. rök). v1.737.
+  if (typeof drawExplosions === 'function') drawExplosions();
   // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE + GUNGAME + KOTH + JUGGERNAUT + BR)
   if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.battleroyaleActive) drawPvpShieldBubbles();
   // PvP-pickups (HP/shield-regen) — alla PvP-lägen utom BR (BR har eget loot-system)
@@ -74516,6 +74664,7 @@ function runFrame(dt, now) {
       // Granat-projektiler (lokala VFX + singleplayer damage)
       if (typeof updateGrenades === 'function') updateGrenades(dt);
       if (typeof updateSmokeClouds === 'function') updateSmokeClouds();
+      if (typeof updateExplosions === 'function') updateExplosions();
 
       // Klient-side: vapen-pickup, dog tags, stage ambient. KÖRS ALLTID — påverkar save-data, inte sim.
       updateCollectibles();
