@@ -25601,6 +25601,15 @@ const Coop = {
       if (state.brAirstrikeWarnings) {
         state.brAirstrikeWarnings = state.brAirstrikeWarnings.filter(w => Math.abs(w.x - ev.x) > 40 || Math.abs(w.y - ev.y) > 40);
       }
+      // Minimap-bekräftelse om DETTA var min egen airstrike (nära mitt pending-mål).
+      if (state._brMyStrikePending) {
+        const dx = (ev.x || 0) - state._brMyStrikePending.x, dy = (ev.y || 0) - state._brMyStrikePending.y;
+        if (dx * dx + dy * dy < 280 * 280) {
+          state._brStrikeMark = { x: ev.x, y: ev.y, at: performance.now() };
+          state._brMyStrikePending = null;
+          if (typeof showToast === 'function') showToast('✈️ NEDSLAG BEKRÄFTAT');
+        }
+      }
       const pts = ev.points || [{ x: ev.x, y: ev.y }];
       pts.forEach((pt, k) => {
         setTimeout(() => {
@@ -38426,6 +38435,7 @@ function checkBrAirstrikeTap(mx, my) {
     const wx = (mx - xf.ox) / xf.scale;
     const wy = (my - xf.oy) / xf.scale;
     exitBrAirstrikeTargeting();
+    state._brMyStrikePending = { x: wx, y: wy, at: performance.now() }; // för minimap-bekräftelse
     if (Coop && Coop.ws && Coop.ws.readyState === 1) Coop.ws.send(JSON.stringify({ type: 'sim_br_airstrike', x: Math.round(wx), y: Math.round(wy) }));
     if (typeof showToast === 'function') showToast('✈️ AIRSTRIKE INKOMMANDE...');
     return true;
@@ -38878,6 +38888,8 @@ function clearBattleroyaleState() {
   state.brAirstrikeTargeting = false;
   state._brHighAlertUntil = 0;
   state._brTrackerLast = 0;
+  state._brStrikeMark = null;
+  state._brMyStrikePending = null;
   state._alienCracks = null; // cached crack-data (decoration-cache)
   if (typeof Coop !== 'undefined') {
     Coop.battleroyaleActive = false;
@@ -74584,15 +74596,50 @@ function drawMiniMap() {
       ctx.shadowBlur = 0;
     }
   }
-  // UAV (v1.740): röda fiende-blips på minimapen medan UAV är aktiv.
+  // UAV (v1.740/v1.744): röda fiende-blips. Blips UTANFÖR minimap-rutan klampas till
+  // KANTEN som en riktnings-triangel (åt fiendens håll) så man slipper öppna stora kartan.
   if (state.battleroyaleActive && state.brUav && state.brUav.until && Date.now() < state.brUav.until && Array.isArray(state.brUav.blips)) {
     const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 240);
-    ctx.fillStyle = 'rgba(255,70,70,' + pulse.toFixed(2) + ')';
+    const _bcx = boxX + boxW / 2, _bcy = boxY + boxH / 2, _pad = 6;
     ctx.shadowColor = '#ff4646'; ctx.shadowBlur = 6;
     for (const bl of state.brUav.blips) {
-      ctx.beginPath(); ctx.arc(ox + bl.x * scale, oy + bl.y * scale, 2.6, 0, Math.PI * 2); ctx.fill();
+      const bx = ox + bl.x * scale, by = oy + bl.y * scale;
+      const inside = bx >= boxX + _pad && bx <= boxX + boxW - _pad && by >= boxY + _pad && by <= boxY + boxH - _pad;
+      ctx.fillStyle = 'rgba(255,70,70,' + pulse.toFixed(2) + ')';
+      if (inside) {
+        ctx.beginPath(); ctx.arc(bx, by, 2.6, 0, Math.PI * 2); ctx.fill();
+      } else {
+        // Klampa till box-kanten längs riktningen från center → rita triangel utåt.
+        const ang = Math.atan2(by - _bcy, bx - _bcx);
+        const dx = Math.cos(ang), dy = Math.sin(ang);
+        const hw = boxW / 2 - _pad, hh = boxH / 2 - _pad;
+        let t = Infinity;
+        if (Math.abs(dx) > 1e-4) t = Math.min(t, hw / Math.abs(dx));
+        if (Math.abs(dy) > 1e-4) t = Math.min(t, hh / Math.abs(dy));
+        if (!isFinite(t)) continue;
+        const ex = _bcx + dx * t, ey = _bcy + dy * t;
+        ctx.save(); ctx.translate(ex, ey); ctx.rotate(ang);
+        ctx.beginPath(); ctx.moveTo(6, 0); ctx.lineTo(-5, -4.5); ctx.lineTo(-5, 4.5); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
     }
     ctx.shadowBlur = 0;
+  }
+  // AIR STRIKE-bekräftelse (v1.744): pulserande orange ring där nedslaget skedde (~2.5s).
+  if (state.battleroyaleActive && state._brStrikeMark) {
+    const age = performance.now() - state._brStrikeMark.at;
+    if (age < 2500) {
+      const mx = ox + state._brStrikeMark.x * scale, my = oy + state._brStrikeMark.y * scale;
+      const tphase = (age % 800) / 800;
+      ctx.strokeStyle = 'rgba(255,150,40,' + (0.9 * (1 - tphase)).toFixed(2) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(mx, my, 3 + tphase * 9, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,180,60,0.95)';
+      ctx.font = '900 11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('✈', mx, my);
+    } else {
+      state._brStrikeMark = null;
+    }
   }
   // spelare (grön)
   const px = ox + state.player.x * scale;
