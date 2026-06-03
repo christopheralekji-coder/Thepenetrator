@@ -254,6 +254,8 @@ function tickSim(sim) {
           ws.playerState.hp = 100;
           ws.playerState.shield = ws.playerState.maxShield || 100;
           ws.playerState.invulnUntil = Date.now() + 1500;
+          // fy_: respawn:a med pistol — greppa vapen från marken igen
+          ws.playerState.weaponId = 'pistol';
           // Riktat event så klienten kan reseta spectating-mode + spawna-fx
           sim.eventQueue.push({
             type: 'tdm_player_respawned',
@@ -262,6 +264,7 @@ function tickSim(sim) {
             y: ws.playerState.y,
             hp: ws.playerState.hp,
             shield: ws.playerState.shield,
+            weaponId: 'pistol',
           });
         }
       }
@@ -919,22 +922,24 @@ function buildCtfPickups(sim) {
 }
 
 function buildTdmPickups(sim, arena) {
-  // 4000×3000 öppen arena. Symmetrisk runt center x=2000, y=1500.
-  return [
-    { id: nextPickupId(sim), x: 1200, y: 1000, type: 'hp',     available: true, respawnAt: 0 },
-    { id: nextPickupId(sim), x: 2800, y: 1000, type: 'hp',     available: true, respawnAt: 0 },
-    { id: nextPickupId(sim), x: 1200, y: 2000, type: 'hp',     available: true, respawnAt: 0 },
-    { id: nextPickupId(sim), x: 2800, y: 2000, type: 'hp',     available: true, respawnAt: 0 },
-    { id: nextPickupId(sim), x: 2000, y: 600,  type: 'shield', available: true, respawnAt: 0 },
-    { id: nextPickupId(sim), x: 2000, y: 2400, type: 'shield', available: true, respawnAt: 0 },
-    { id: nextPickupId(sim), x: 1600, y: 1500, type: 'shield', available: true, respawnAt: 0 },
-    { id: nextPickupId(sim), x: 2400, y: 1500, type: 'shield', available: true, respawnAt: 0 },
-    // Granater: 4 symmetriska runt mid (riskabla men taktiska)
-    { id: nextPickupId(sim), x: 800,  y: 1500, type: 'grenade', available: true, respawnAt: 0 },
-    { id: nextPickupId(sim), x: 3200, y: 1500, type: 'grenade', available: true, respawnAt: 0 },
-    { id: nextPickupId(sim), x: 2000, y: 1100, type: 'grenade', available: true, respawnAt: 0 },
-    { id: nextPickupId(sim), x: 2000, y: 1900, type: 'grenade', available: true, respawnAt: 0 },
-  ];
+  // ÖVNINGSFÄLTET (fy_): vapen-på-marken-rad framför varje spawn + granater i mitten
+  // + lite HP/shield i mid-fältet. Vapen-pickups är PERMANENTA (försvinner ej) — man
+  // springer och greppar varje liv. Läser layout från TDM_ARENA så allt ligger på ett ställe.
+  const list = [];
+  // Vapen-pickups (permanenta, type:'weapon' + weaponId) — respawnAt/available oanvänt.
+  for (const ws of (TDM_ARENA.weaponSpawns || [])) {
+    list.push({ id: nextPickupId(sim), x: ws.x, y: ws.y, type: 'weapon', weaponId: ws.weaponId, available: true, respawnAt: 0 });
+  }
+  // Granater i mitten (omstritt)
+  for (const g of (TDM_ARENA.grenadeSpawns || [])) {
+    list.push({ id: nextPickupId(sim), x: g.x, y: g.y, type: 'grenade', available: true, respawnAt: 0 });
+  }
+  // HP + shield i mid-fältet (kontestbart, symmetriskt)
+  list.push({ id: nextPickupId(sim), x: 300,  y: 1300, type: 'hp',     available: true, respawnAt: 0 });
+  list.push({ id: nextPickupId(sim), x: 1900, y: 1300, type: 'hp',     available: true, respawnAt: 0 });
+  list.push({ id: nextPickupId(sim), x: 1100, y: 920,  type: 'shield', available: true, respawnAt: 0 });
+  list.push({ id: nextPickupId(sim), x: 1100, y: 1680, type: 'shield', available: true, respawnAt: 0 });
+  return list;
 }
 
 // Tickas från CTF + TDM: respawn timer + collision-detection mot spelare.
@@ -953,6 +958,18 @@ function tickPvpPickups(sim, now) {
       if (!ws.playerState || ws.playerState.hp <= 0) continue;
       const dx = ws.playerState.x - pu.x, dy = ws.playerState.y - pu.y;
       if (dx * dx + dy * dy > PICKUP_RADIUS * PICKUP_RADIUS) continue;
+      // VAPEN-pickup (fy_): PERMANENT — försvinner ej, equipas bara om annat vapen
+      // (annars event-spam varje tick man står på den). Klienten equipar + skjuter med det.
+      if (pu.type === 'weapon') {
+        if (ws.playerState.weaponId === pu.weaponId) continue;
+        ws.playerState.weaponId = pu.weaponId;
+        sim.eventQueue.push({
+          type: 'pvp_pickup_collected', id: pu.id, peerId: pid, ptype: 'weapon',
+          weaponId: pu.weaponId, hp: ws.playerState.hp, shield: ws.playerState.shield || 0,
+          grenadesGained: 0, respawnAt: 0,
+        });
+        continue; // ligger kvar för alla — konsumeras ej
+      }
       // Heal — använd spelarens faktiska maxHp (JUG har 400-1300, inte 100)
       const maxHp = ws.playerState.maxHp || 100;
       const maxShield = ws.playerState.maxShield || 100;
@@ -5649,7 +5666,7 @@ function startSim(sim, opts) {
     // PvP-mode: dedikerad TDM-arena (4000×3000 öppet fält). Inget enemy-spawn,
     // ingen wave-progression. Lagen spawnar på motsatta sidor.
     sim.simReadyAt = Date.now() + 5000;
-    sim.tdmArena = { worldW: 4000, worldH: 3000, name: 'ARENA' };
+    sim.tdmArena = { worldW: TDM_ARENA.worldW, worldH: TDM_ARENA.worldH, name: TDM_ARENA.name };
     const arena = sim.tdmArena;
     // Team-tilldelning först — alternering så lag blir jämna
     const teams = {};
@@ -5678,15 +5695,17 @@ function startSim(sim, opts) {
       ws.playerState.shield = 100;
       ws.playerState.maxShield = 100;
       ws.playerState.invulnUntil = Date.now() + 1500;
+      // fy_: alla startar med pistol; vapen greppas från marken
+      ws.playerState.weaponId = 'pistol';
       ws.tdmRespawnAt = 0;
       sim.tdmKillsByPid[pid] = 0;
       sim.tdmDeathsByPid[pid] = 0;
     }
-    // Behåll legacy spawn-coords för respawn-fallback (mitten av varje team-pool)
-    const redSpawnX = Math.floor(arena.worldW * 0.10);
-    const blueSpawnX = Math.floor(arena.worldW * 0.90);
-    const spawnY = Math.floor(arena.worldH * 0.50);
-    // PvP-pickups på arenan — symmetrisk 4 HP + 4 shield, respawn 15s
+    // Legacy fallback-spawn-coords (top/bottom-orienterad arena: röd uppe, blå nere)
+    const spawnX = Math.floor(arena.worldW * 0.50);
+    const redSpawnY = Math.floor(arena.worldH * 0.10);
+    const blueSpawnY = Math.floor(arena.worldH * 0.90);
+    // PvP-pickups på arenan — vapen-rad + center-granater + HP/shield
     sim.pvpPickups = buildTdmPickups(sim, arena);
     // Skicka arena-info + walls (TDM har nu cover så sniper inte one-shots edge-to-edge)
     sim.eventQueue.push({
@@ -5695,8 +5714,8 @@ function startSim(sim, opts) {
       teams,
       arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },
       walls: TDM_ARENA.walls,
-      spawns: { red: { x: redSpawnX, y: spawnY }, blue: { x: blueSpawnX, y: spawnY } },
-      pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
+      spawns: { red: { x: spawnX, y: redSpawnY }, blue: { x: spawnX, y: blueSpawnY } },
+      pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type, weaponId: p.weaponId })),
       shieldMax: 100,
     });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });

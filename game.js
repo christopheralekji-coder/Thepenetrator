@@ -1011,6 +1011,99 @@ function drawCtfArenaFloor() {
   ctx.restore();
 }
 
+// ÖVNINGSFÄLTET (TDM fy_-bana) — militärt övningsfält-golv. Bakad sömlös smuts-tile
+// (perf) + målade dekaler (betongplatta i mitten, skjutlinjer vid vapenraderna,
+// måltavlor, fara-kant). Ritas efter drawEnvironment så story-terrängen täcks.
+let _tdmFloorPattern = null;
+function _getTdmFloorPattern() {
+  if (_tdmFloorPattern) return _tdmFloorPattern;
+  const S = 128;
+  const c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const g = c.getContext('2d');
+  // Bas: dammig tan/brun
+  g.fillStyle = '#6b5d44';
+  g.fillRect(0, 0, S, S);
+  // Deterministisk pseudo-random (samma varje bake)
+  let seed = 1337;
+  const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+  // Mörkare jord-fläckar
+  for (let i = 0; i < 26; i++) {
+    g.fillStyle = `rgba(78,66,48,${0.25 + rnd() * 0.3})`;
+    const r = 6 + rnd() * 16;
+    g.beginPath(); g.ellipse(rnd() * S, rnd() * S, r, r * (0.6 + rnd() * 0.5), rnd() * 6, 0, Math.PI * 2); g.fill();
+  }
+  // Ljusare damm-specks
+  for (let i = 0; i < 40; i++) {
+    g.fillStyle = `rgba(135,118,84,${0.2 + rnd() * 0.35})`;
+    const r = 1 + rnd() * 3;
+    g.beginPath(); g.arc(rnd() * S, rnd() * S, r, 0, Math.PI * 2); g.fill();
+  }
+  // Småsten
+  for (let i = 0; i < 14; i++) {
+    g.fillStyle = `rgba(${40 + rnd() * 30 | 0},${36 + rnd() * 26 | 0},${28 + rnd() * 20 | 0},0.7)`;
+    g.beginPath(); g.arc(rnd() * S, rnd() * S, 1.5 + rnd() * 2.5, 0, Math.PI * 2); g.fill();
+  }
+  _tdmFloorPattern = ctx.createPattern(c, 'repeat');
+  return _tdmFloorPattern;
+}
+function drawTdmArenaFloor() {
+  const ww = (typeof WORLD !== 'undefined' && WORLD.w) ? WORLD.w : 2200;
+  const wh = (typeof WORLD !== 'undefined' && WORLD.h) ? WORLD.h : 2600;
+  const cx = state.camera.x, cy = state.camera.y;
+  ctx.save();
+  ctx.translate(-cx, -cy); // arbeta i världskoord — pattern + dekaler aligned till world-origin
+  // 1. Smuts-bas (sömlös tile via pattern → 1 fill, billigt)
+  const pat = _getTdmFloorPattern();
+  if (pat) { ctx.fillStyle = pat; } else { ctx.fillStyle = '#6b5d44'; }
+  ctx.fillRect(0, 0, ww, wh);
+  // svag vinjett-mörkning mot kanterna (djup)
+  const vg = ctx.createRadialGradient(ww / 2, wh / 2, Math.min(ww, wh) * 0.25, ww / 2, wh / 2, Math.max(ww, wh) * 0.62);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,0.30)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, ww, wh);
+  // 2. Betongplatta i mitten (runt granaterna) — grå med expansion-fogar
+  const padX = ww / 2 - 320, padY = wh / 2 - 270, padW = 640, padH = 540;
+  ctx.fillStyle = 'rgba(120,116,104,0.55)';
+  if (typeof drawRoundedRect === 'function') { drawRoundedRect(ctx, padX, padY, padW, padH, 18); ctx.fill(); }
+  else ctx.fillRect(padX, padY, padW, padH);
+  ctx.strokeStyle = 'rgba(40,40,36,0.45)';
+  ctx.lineWidth = 3;
+  if (typeof drawRoundedRect === 'function') { drawRoundedRect(ctx, padX, padY, padW, padH, 18); ctx.stroke(); }
+  // expansion-fogar (rutnät)
+  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = 'rgba(40,40,36,0.30)';
+  ctx.beginPath();
+  for (let gx = padX + padW / 3; gx < padX + padW; gx += padW / 3) { ctx.moveTo(gx, padY); ctx.lineTo(gx, padY + padH); }
+  for (let gy = padY + padH / 3; gy < padY + padH; gy += padH / 3) { ctx.moveTo(padX, gy); ctx.lineTo(padX + padW, gy); }
+  ctx.stroke();
+  // 3. Skjutlinjer (gul-streckad) vid de två vapenraderna (y≈470 / wh-470)
+  ctx.strokeStyle = 'rgba(230,200,70,0.55)';
+  ctx.lineWidth = 5;
+  ctx.setLineDash([34, 26]);
+  for (const ly of [470, wh - 470]) {
+    ctx.beginPath(); ctx.moveTo(140, ly); ctx.lineTo(ww - 140, ly); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  // 4. Målade måltavlor (koncentriska ringar) på sido-ytorna
+  const targets = [[ww * 0.5, wh * 0.32], [ww * 0.5, wh * 0.68], [ww * 0.22, wh * 0.5], [ww * 0.78, wh * 0.5]];
+  for (const [tx, ty] of targets) {
+    ctx.strokeStyle = 'rgba(220,210,200,0.22)';
+    ctx.lineWidth = 2.5;
+    for (let rr = 14; rr <= 42; rr += 14) { ctx.beginPath(); ctx.arc(tx, ty, rr, 0, Math.PI * 2); ctx.stroke(); }
+    ctx.fillStyle = 'rgba(200,70,60,0.20)';
+    ctx.beginPath(); ctx.arc(tx, ty, 6, 0, Math.PI * 2); ctx.fill();
+  }
+  // 5. Fara-kant (gul/svart hazard-stripe) runt arenan
+  ctx.lineWidth = 10;
+  ctx.setLineDash([26, 18]);
+  ctx.strokeStyle = 'rgba(220,190,60,0.40)';
+  ctx.strokeRect(14, 14, ww - 28, wh - 28);
+  ctx.setLineDash([]);
+  ctx.restore();
+}
+
 // Generisk wall-render — detaljerad pixel-art-style rendering för varje kind.
 // Använd helper-funktioner per typ så koden är läsbar. Alla helpers tar
 // (x, y, w, h) som ABSOLUTA skärm-koord (kameran är redan applicerad).
@@ -5821,11 +5914,13 @@ function drawPvpPickups() {
     const isHp = pu.type === 'hp';
     const isShield = pu.type === 'shield';
     const isGrenade = pu.type === 'grenade';
+    const isWeapon = pu.type === 'weapon';
     // Glow-färg per typ
     let glowColor;
     if (isHp) glowColor = 'rgba(90,255,90,0.55)';
     else if (isShield) glowColor = 'rgba(58,202,255,0.55)';
     else if (isGrenade) glowColor = 'rgba(255,170,60,0.55)';
+    else if (isWeapon) glowColor = 'rgba(255,213,74,0.55)';
     else glowColor = 'rgba(180,180,180,0.55)';
     const glowR = 18 + pulse * 6;
     const grad = ctx.createRadialGradient(x, y, 4, x, y, glowR);
@@ -5986,6 +6081,35 @@ function drawPvpPickups() {
       ctx.beginPath();
       ctx.arc(-8.5, -11, 2, 0, Math.PI * 2);
       ctx.stroke();
+    } else if (isWeapon) {
+      // ============ VAPEN PÅ MARKEN (fy_) — rack + top-down gun-silhuett + namn ============
+      const _w = (typeof getWeapon === 'function') ? getWeapon(pu.weaponId) : null;
+      const wc = (_w && _w.color) || '#ffd54a';
+      // Mörk weapon-rack/matta
+      ctx.fillStyle = 'rgba(18,20,16,0.85)';
+      drawRoundedRect(ctx, -16, -7, 32, 14, 3); ctx.fill();
+      ctx.strokeStyle = wc; ctx.lineWidth = 1;
+      drawRoundedRect(ctx, -16, -7, 32, 14, 3); ctx.stroke();
+      // Top-down gun-silhuett (grepp + slide + pipa), tier-färgad rand
+      ctx.save();
+      ctx.rotate(Math.sin(t / 600) * 0.12);
+      ctx.fillStyle = '#2a2a2a'; ctx.fillRect(-3, -2, 6, 9);      // grepp
+      ctx.fillStyle = '#4a4a4a'; ctx.fillRect(-6, -7, 18, 5);     // slide/pipa
+      ctx.fillStyle = wc;        ctx.fillRect(-6, -7, 18, 1.6);   // tier-rand
+      ctx.fillStyle = '#1a1a1a'; ctx.fillRect(10, -6.5, 3, 3);    // mynning
+      ctx.restore();
+      // Namn-etikett (alltid synlig — identifiera vapnet på avstånd)
+      ctx.fillStyle = wc;
+      ctx.font = 'bold 9px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 3;
+      ctx.fillText((((_w && _w.name) || pu.weaponId || '')).toUpperCase(), 0, -13);
+      ctx.shadowBlur = 0;
+      // "TA UPP" när nära
+      if (state.player) {
+        const dp = Math.hypot(pu.x - state.player.x, pu.y - state.player.y);
+        if (dp < 72) { ctx.fillStyle = '#ffffff'; ctx.font = 'bold 8px sans-serif'; ctx.shadowColor = '#000'; ctx.shadowBlur = 3; ctx.fillText('TA UPP', 0, 19); ctx.shadowBlur = 0; }
+      }
     }
     ctx.restore();
   }
@@ -23093,7 +23217,7 @@ const Coop = {
       state.pvpPickups = {};
       if (ev.pvpPickups) {
         for (const p of ev.pvpPickups) {
-          state.pvpPickups[p.id] = { id: p.id, x: p.x, y: p.y, type: p.type, available: true, respawnAt: 0 };
+          state.pvpPickups[p.id] = { id: p.id, x: p.x, y: p.y, type: p.type, weaponId: p.weaponId, available: true, respawnAt: 0 };
         }
       }
       state.pvpShieldMax = ev.shieldMax || 100;
@@ -23108,6 +23232,8 @@ const Coop = {
         state.player.spectating = false;
         state.player.invuln = 1.5;
       }
+      // fy_: alla startar med pistol — vapen greppas från marken (server satte ps.weaponId='pistol')
+      if (state.player && typeof equipPvpWeapon === 'function') equipPvpWeapon('pistol');
       if (typeof showTdmHud === 'function') showTdmHud(myTeam);
       if (typeof showToast === 'function') showToast(myTeam === 'red' ? '⚔ DU ÄR I RÖDA LAGET' : '⚔ DU ÄR I BLÅA LAGET');
       // v1.657: kort TDM-onboarding EN gång (för paritet med CTF/Siege).
@@ -23186,6 +23312,8 @@ const Coop = {
         state.player.flashUntil = 0;
         state.deadBody = null;
         state.player._prevShield = state.player.shield; // v1.707: undvik falsk sköld-hit-FX vid respawn-shield-set
+        // fy_: respawn:a med pistol (server satte ps.weaponId='pistol') — greppa vapen igen
+        if (ev.weaponId && typeof equipPvpWeapon === 'function') equipPvpWeapon(ev.weaponId);
         if (typeof updateHUD === 'function') updateHUD(); // v1.707: HUD visade 0hp/0shield tills man sköt (world-paket refreshar bara HUD vid hp-ÄNDRING; respawn=max=server-max=ingen ändring)
         // Stäng respawn-overlay omedelbart om den fortfarande visas
         if (typeof _tdmRespawnOverlay !== 'undefined' && _tdmRespawnOverlay) {
@@ -23644,8 +23772,9 @@ const Coop = {
         }
       }
     } else if (ev.type === 'pvp_pickup_collected') {
-      // Server-shape: { id, peerId, ptype, hp, shield, respawnAt }
-      if (state.pvpPickups && state.pvpPickups[ev.id]) {
+      // Server-shape: { id, peerId, ptype, hp, shield, respawnAt, weaponId? }
+      // VAPEN-pickups (fy_) är PERMANENTA → konsumera EJ (de ligger kvar på marken).
+      if (state.pvpPickups && state.pvpPickups[ev.id] && ev.ptype !== 'weapon') {
         state.pvpPickups[ev.id].available = false;
         state.pvpPickups[ev.id].respawnAt = ev.respawnAt;
       }
@@ -23658,17 +23787,26 @@ const Coop = {
             setGrenadeCount(getGrenadeCount() + ev.grenadesGained);
           }
         }
+        // Vapen-pickup: equipa det greppade vapnet (live, ingen save-mutation)
+        if (ev.ptype === 'weapon' && ev.weaponId && typeof equipPvpWeapon === 'function') {
+          equipPvpWeapon(ev.weaponId);
+        }
         if (typeof updateHUD === 'function') updateHUD();
         if (typeof showToast === 'function') {
           if (ev.ptype === 'hp') showToast('💚 +40 HP');
           else if (ev.ptype === 'shield') showToast('🛡 +40 SHIELD');
           else if (ev.ptype === 'grenade') showToast('💣 +' + (ev.grenadesGained || 1) + ' GRANAT');
+          else if (ev.ptype === 'weapon') {
+            const _w = (typeof getWeapon === 'function') ? getWeapon(ev.weaponId) : null;
+            showToast('🔫 ' + (((_w && _w.name) || ev.weaponId || '').toUpperCase()));
+          }
         }
         if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
       } else if (this.players.has(ev.peerId)) {
         const p = this.players.get(ev.peerId);
         p.hp = ev.hp;
         p.shield = ev.shield;
+        if (ev.ptype === 'weapon' && ev.weaponId) p.weaponId = ev.weaponId;
       }
       // VFX: shockwave + sparks i pickup-färgen
       if (typeof spawnSparks === 'function' && state.pvpPickups && state.pvpPickups[ev.id]) {
@@ -23676,6 +23814,10 @@ const Coop = {
         let color = '#5aff5a';
         if (ev.ptype === 'shield') color = '#3acaff';
         else if (ev.ptype === 'grenade') color = '#ffaa30';
+        else if (ev.ptype === 'weapon') {
+          const _w = (typeof getWeapon === 'function') ? getWeapon(ev.weaponId) : null;
+          color = (_w && _w.color) || '#ffd54a';
+        }
         spawnSparks(pu.x, pu.y, color, 18, 220);
       }
     } else if (ev.type === 'pvp_pickup_spawned') {
@@ -32657,6 +32799,30 @@ function equip(id) {
   }
   if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
   updateHUD();
+}
+// v1.716: lätt equip för PvP-vapen (TDM fy_-bana). Sätter bara live-vapnet +
+// ammo — INGEN save-mutation (save.owned/equipped orört) så det funkar för vapen
+// man inte äger och inte smutsar ner spelarens loadout. Skjut-koden skickar
+// state.player.weaponId i sim_shoot → servern litar på det i TDM.
+function equipPvpWeapon(id) {
+  const p = state.player;
+  if (!p || !W_BY_ID[id]) return;
+  const prev = p.weaponId;
+  p.weaponId = id;
+  p.ammo = effectiveMag(id);
+  p.reloading = false;
+  if (prev && prev !== id) {
+    const w = getWeapon(id);
+    const c = (w && w.color) || '#ffd54a';
+    if (typeof spawnShockwave === 'function') spawnShockwave(p.x, p.y, p.r * 0.8, p.r * 2.2, c, 0.22, 2);
+    if (typeof spawnSparks === 'function') spawnSparks(p.x, p.y, c, 4, 150);
+    if (typeof weaponName !== 'undefined' && weaponName) {
+      weaponName.classList.add('weapon-flash');
+      setTimeout(() => weaponName.classList.remove('weapon-flash'), 350);
+    }
+  }
+  if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
+  if (typeof updateHUD === 'function') updateHUD();
 }
 function effectiveMag(weaponId) {
   const baseMag = getWeapon(weaponId).mag || 0;
@@ -71276,6 +71442,8 @@ function render() {
   drawEnvironment();
   // CTF: team-tinted floor halves + walls + flag-stands UNDER allt annat
   if (state.ctfActive) drawCtfArenaFloor();
+  // TDM (ÖVNINGSFÄLTET): militärt övningsfält-golv (smuts + betong + skjutlinjer + måltavlor)
+  if (state.tdmActive) drawTdmArenaFloor();
   // BR: seamless skogsgolv FÖRST + ovanpå sjö/stigar/gläntor + cabin-INTERIOR
   // (alla ritas FÖRE player så spelaren ses OVANPÅ marken/golvet)
   if (state.battleroyaleActive) {

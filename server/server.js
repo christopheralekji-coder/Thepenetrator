@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v223-shieldallmodes-v1.714';
+const SERVER_VERSION = 'v224-tdm-fyarena-v1.716';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
