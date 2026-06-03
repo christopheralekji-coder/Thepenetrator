@@ -25393,6 +25393,7 @@ const Coop = {
         state.player.gasMask = false;
         state.player.selfReviveKits = 0;
         state.player.airstrikes = 0;
+        state.player.uavCount = 0;
         state.player.brDowned = false;
         state.player.brPerks = {};
         if (ev.isSpectator) {
@@ -38330,7 +38331,7 @@ function showBrHud() {
   if (!bagBtn) {
     bagBtn = document.createElement('button');
     bagBtn.id = 'br-bag-btn';
-    bagBtn.style.cssText = 'position:fixed;right:232px;bottom:14px;width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,213,74,0.55);background:radial-gradient(circle at 30% 30%, rgba(80,70,40,0.9), rgba(24,18,10,0.92));color:#fff;font-size:18px;z-index:6;pointer-events:auto;touch-action:manipulation;box-shadow:0 3px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
+    bagBtn.style.cssText = 'position:fixed;right:232px;bottom:max(14px, env(safe-area-inset-bottom,0px));width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,213,74,0.55);background:radial-gradient(circle at 30% 30%, rgba(80,70,40,0.9), rgba(24,18,10,0.92));color:#fff;font-size:18px;z-index:6;pointer-events:auto;touch-action:manipulation;box-shadow:0 3px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
     bagBtn.innerHTML = '🎒<span id="br-bag-badge" style="position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;border-radius:8px;background:#ff4646;color:#fff;font:800 10px sans-serif;display:none;align-items:center;justify-content:center;padding:0 3px;">0</span>';
     let _bagTapT = 0;
     const onBag = (e) => { e.preventDefault(); e.stopPropagation(); const t = performance.now(); if (t - _bagTapT < 320) return; _bagTapT = t; if (typeof toggleBrBag === 'function') toggleBrBag(); };
@@ -38345,7 +38346,7 @@ function showBrHud() {
   if (!buyPrompt) {
     buyPrompt = document.createElement('button');
     buyPrompt.id = 'br-buy-prompt';
-    buyPrompt.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-120px);z-index:84;display:none;background:rgba(20,18,10,0.94);border:2px solid #ffd54a;border-radius:12px;color:#ffe27a;font:800 14px sans-serif;padding:9px 18px;box-shadow:0 3px 16px rgba(0,0,0,0.6);pointer-events:auto;touch-action:manipulation;letter-spacing:0.5px;';
+    buyPrompt.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-90px);z-index:84;display:none;background:rgba(20,18,10,0.94);border:2px solid #ffd54a;border-radius:12px;color:#ffe27a;font:800 14px sans-serif;padding:9px 18px;box-shadow:0 3px 16px rgba(0,0,0,0.6);pointer-events:auto;touch-action:manipulation;letter-spacing:0.5px;';
     buyPrompt.textContent = '🛒 ÖPPNA SHOP';
     let _buyTapT = 0;
     const onBuy = (e) => { e.preventDefault(); e.stopPropagation(); const t = performance.now(); if (t - _buyTapT < 320) return; _buyTapT = t; if (typeof openBrShop === 'function') openBrShop(); };
@@ -38358,7 +38359,7 @@ function showBrHud() {
   if (!cPrompt) {
     cPrompt = document.createElement('button');
     cPrompt.id = 'br-contract-prompt';
-    cPrompt.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-164px);z-index:84;display:none;background:rgba(24,16,34,0.94);border:2px solid #b48bff;border-radius:12px;color:#e6d8ff;font:800 14px sans-serif;padding:9px 18px;box-shadow:0 3px 16px rgba(0,0,0,0.6);pointer-events:auto;touch-action:manipulation;letter-spacing:0.5px;';
+    cPrompt.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-134px);z-index:84;display:none;background:rgba(24,16,34,0.94);border:2px solid #b48bff;border-radius:12px;color:#e6d8ff;font:800 14px sans-serif;padding:9px 18px;box-shadow:0 3px 16px rgba(0,0,0,0.6);pointer-events:auto;touch-action:manipulation;letter-spacing:0.5px;';
     cPrompt.textContent = '📋 TA KONTRAKT';
     let _cTapT = 0;
     const onC = (e) => { e.preventDefault(); e.stopPropagation(); const t = performance.now(); if (t - _cTapT < 320) return; _cTapT = t; if (typeof _brAcceptContract === 'function') _brAcceptContract(); };
@@ -38405,6 +38406,7 @@ function closeBrBag() {
 }
 function openBrBag() {
   if (!state.battleroyaleActive || !state.player || state.player.spectating) return;
+  if (state.brAirstrikeTargeting && typeof exitBrAirstrikeTargeting === 'function') exitBrAirstrikeTargeting();
   let ov = document.getElementById('br-bag-overlay');
   if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
   ov = document.createElement('div');
@@ -38412,7 +38414,7 @@ function openBrBag() {
   ov.style.cssText = 'position:fixed;inset:0;z-index:131;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;font-family:sans-serif;';
   ov.addEventListener('pointerdown', (e) => { if (e.target === ov) closeBrBag(); });
   const panel = document.createElement('div');
-  panel.style.cssText = 'background:linear-gradient(#241808,#120a02);border:2px solid #ffd54a;border-radius:16px;padding:16px;max-width:min(460px,92vw);width:100%;box-shadow:0 12px 48px rgba(0,0,0,0.7);box-sizing:border-box;';
+  panel.style.cssText = 'background:linear-gradient(#241808,#120a02);border:2px solid #ffd54a;border-radius:16px;padding:16px;max-width:min(460px,92vw);width:100%;box-shadow:0 12px 48px rgba(0,0,0,0.7);box-sizing:border-box;max-height:90vh;overflow:auto;-webkit-overflow-scrolling:touch;';
   panel.innerHTML = '<div style="color:#ffd54a;font-weight:900;font-size:18px;margin-bottom:12px;">🎒 VÄSKA</div><div id="br-bag-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;"></div>' +
     '<button id="br-bag-close" style="margin-top:14px;width:100%;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.3);border-radius:10px;color:#fff;font:800 14px sans-serif;padding:10px;cursor:pointer;">STÄNG</button>';
   ov.appendChild(panel);
@@ -38562,6 +38564,7 @@ function _brSendBuy(itemId) {
 
 function openBrShop() {
   if (!state.battleroyaleActive || !state.player || state.player.spectating) return;
+  if (state.brAirstrikeTargeting && typeof exitBrAirstrikeTargeting === 'function') exitBrAirstrikeTargeting();
   const station = state.brNearStation;
   if (!station) return;
   const isAlien = !!station.alien;
@@ -38834,8 +38837,10 @@ function updateBrPerkEffects() {
       }
     }
   }
-  // HIGH ALERT: varna när en fiende är NÄRA eller SIKTAR mot mig.
-  if (perks.high_alert) {
+  // HIGH ALERT: varna när en fiende är NÄRA eller SIKTAR mot mig. Throttlad ~8Hz (v1.748)
+  // — varningen har 360ms-fönster så frame-exakt scan behövs ej.
+  if (perks.high_alert && (!state._brHighAlertScan || now - state._brHighAlertScan > 130)) {
+    state._brHighAlertScan = now;
     let threat = null, threatD2 = Infinity;
     for (const [, pl] of Coop.players) {
       if (!pl || pl.x == null || (pl.hp != null && pl.hp <= 0)) continue;
@@ -38972,7 +38977,7 @@ function updateBrContractHud() {
   if (!el) {
     el = document.createElement('div');
     el.id = 'br-contract-hud';
-    el.style.cssText = 'position:fixed;top:max(46px, calc(env(safe-area-inset-top,0px)+44px));left:50%;transform:translateX(-50%);z-index:79;background:rgba(20,14,30,0.86);border:1px solid #b48bff;border-radius:8px;padding:4px 12px;color:#e6d8ff;font:800 12px sans-serif;text-align:center;pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,0.5);white-space:nowrap;';
+    el.style.cssText = 'position:fixed;top:max(64px, calc(env(safe-area-inset-top,0px)+44px));left:50%;transform:translateX(-50%);z-index:79;background:rgba(20,14,30,0.86);border:1px solid #b48bff;border-radius:8px;padding:4px 12px;color:#e6d8ff;font:800 12px sans-serif;text-align:center;pointer-events:none;box-shadow:0 2px 10px rgba(0,0,0,0.5);white-space:normal;max-width:calc(100vw - 24px);';
     document.body.appendChild(el);
   }
   el.style.display = 'block';
@@ -39062,6 +39067,16 @@ function clearBattleroyaleState() {
   state._brTrackerLast = 0;
   state._brStrikeMark = null;
   state._brMyStrikePending = null;
+  // v1.748: teardown-symmetri — nollställ resterande BR-meta-state
+  state.brCash = 0;
+  state.brContracts = null;
+  state.brActiveContract = null;
+  state.brNearContract = null;
+  state.brSupplyDrops = null;
+  state.brBountyPing = null;
+  state._brShopTab = 'gear';
+  state._brHighAlertDir = null;
+  if (state.player) { state.player.brDowned = false; state.player.uavCount = 0; }
   state._alienCracks = null; // cached crack-data (decoration-cache)
   if (typeof Coop !== 'undefined') {
     Coop.battleroyaleActive = false;

@@ -3752,7 +3752,7 @@ function tickBattleRoyale(sim, dt, now) {
       // (Storm/miljö-död utan färsk angripare → ingen credit.)
       const la = ws.playerState._brLastAttacker;
       const laFresh = la && (Date.now() - (ws.playerState._brLastAttackerAt || 0) <= 8000);
-      if (laFresh && la !== pid && sim.room.members.has(la) && sim._handleBattleRoyaleKill) {
+      if (laFresh && la !== pid && sim.room.members.has(la) && !sim.battleroyaleEliminated.includes(la) && sim._handleBattleRoyaleKill) {
         sim._handleBattleRoyaleKill(sim, la, sim.room.members.get(la), pid, ws, ws.playerState._brLastWeapon);
       }
       ws.playerState.brDowned = false;
@@ -3815,10 +3815,10 @@ function tickBattleRoyale(sim, dt, now) {
 
   // Win-check: 1 levande kvar (men bara om matchen startade med >=2 deltagare)
   if (sim.battleroyaleStartCount >= 2 && sim.battleroyaleAliveCount <= 1) {
-    // Hitta sista levande (om någon)
+    // Hitta sista levande (om någon). Downed räknas EJ som vinnare (v1.748).
     let winner = null;
     for (const [pid, ws] of sim.room.members) {
-      if (ws.playerState && ws.playerState.hp > 0) {
+      if (ws.playerState && ws.playerState.hp > 0 && !ws.playerState.brDowned) {
         winner = pid;
         break;
       }
@@ -3956,7 +3956,12 @@ function applyBrOutsideDamage(sim, dt) {
     if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
     const dx = ws.playerState.x - z.x;
     const dy = ws.playerState.y - z.y;
-    if (dx * dx + dy * dy <= r2) continue; // i zonen — safe
+    if (dx * dx + dy * dy <= r2) {
+      // I zonen — safe. v1.748: åldra ut gammal angripare (>3s) så storm-död EJ
+      // krediterar någon som sköt en länge sedan.
+      if (ws.playerState._brLastAttackerAt && Date.now() - ws.playerState._brLastAttackerAt > 3000) ws.playerState._brLastAttackerAt = 0;
+      continue;
+    }
     // Utanför — applicera dmg. GASMASK halverar zon-skadan (v1.739). Shield tar först.
     const dmg = phaseCfg.outsideDmg * dt * (ws.playerState.gasMask ? 0.5 : 1);
     let remaining = dmg;
@@ -5340,6 +5345,7 @@ function applyBrBuy(sim, pid, itemKind) {
   if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
   const ws = sim.room.members.get(pid);
   if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  if (ws.playerState.brDowned) return; // (v1.748) ingen handel medan nedskjuten
   const item = BR_SHOP[itemKind];
   if (!item) return;
   const station = brStationNear(sim, ws);
@@ -5978,6 +5984,20 @@ function startSim(sim, opts) {
   sim._brZoneDmgTick = 0;
   sim._brBroadcastTick = 0;
   sim._brLootIdCounter = 0;
+  sim.battleroyaleStartCount = 0;
+  // v1.748: nollställ ekonomi/meta-state vid (re)start så rematch i samma rum ej ärver
+  sim.brCash = {};
+  sim.brBuyStations = [];
+  sim.brContracts = [];
+  sim.brSupplyDrops = [];
+  sim._brAirstrikes = [];
+  sim._brContractIdCtr = 0;
+  sim._brSupplyIdCtr = 0;
+  sim._brBountyPingAccum = 0;
+  sim._brBountyLast = 0;
+  sim._brUavTick = 0;
+  sim._brUavLast = 0;
+  sim._brNextSupplyAt = 0;
   // CASTLE DEFENSE reset
   sim.castledefenseActive = false;
   sim.castledefenseEnded = false;
