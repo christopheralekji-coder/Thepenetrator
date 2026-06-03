@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v235-teamreset-v1.734';
+const SERVER_VERSION = 'v236-stableslot-v1.735';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -267,11 +267,18 @@ function handleMessage(ws, msg) {
       hostId: ws.id,
       members: new Map(),
       meta: { hostName, mode, private: isPrivate, started: false, createdAt: Date.now() },
+      // stable-slot: host=0, peers tilldelas 1,2,... vid join. Lediga slots
+      // återanvänds via _freeSlots-listan så en ny peer som joinar efter att
+      // en annan lämnat får det lägsta lediga slot-numret.
+      _nextSlot: 1,
+      _freeSlots: [],
     };
     room.members.set(ws.id, ws);
     rooms.set(code, room);
     ws.roomCode = code;
     ws.playerName = hostName;
+    // Host är alltid slot 0
+    ws.stableSlot = 0;
     send(ws, { type: 'hosted', code, peerId: ws.id });
     console.log('[ROOM]', code, 'created by', ws.id, 'name="' + hostName + '" mode=' + mode + (isPrivate ? ' [PRIVATE]' : ''));
     broadcastPublicRooms();
@@ -314,6 +321,19 @@ function handleMessage(ws, msg) {
     const room = rooms.get(code);
     if (!room) { send(ws, { type: 'error', error: 'Rummet finns inte' }); return; }
     if (room.members.size >= 8) { send(ws, { type: 'error', error: 'Rummet är fullt (max 8)' }); return; }
+    // Tilldela stabilt slot-index: återanvänd lägsta lediga slot först,
+    // annars ta nästa från räknaren. Slot ändras ALDRIG för en peer under
+    // dess session; när peer lämnar returneras slottet till _freeSlots.
+    if (!room._freeSlots) room._freeSlots = [];
+    if (!room._nextSlot) room._nextSlot = 1;
+    let slot;
+    if (room._freeSlots.length > 0) {
+      room._freeSlots.sort((a, b) => a - b);
+      slot = room._freeSlots.shift();
+    } else {
+      slot = room._nextSlot++;
+    }
+    ws.stableSlot = slot;
     room.members.set(ws.id, ws);
     ws.roomCode = code;
     if (msg.name) ws.playerName = String(msg.name).trim().slice(0, 14);
@@ -352,9 +372,10 @@ function handleMessage(ws, msg) {
       }
     }
     send(ws, { type: 'joined', peerId: ws.id, hostId: room.hostId });
-    // Meddela host
+    // Meddela host — inkludera stableSlot så host:s klient bygger slotToPeerId
+    // med det stabila slot-numret (annars räknas colorIdx om vid varje join).
     const host = room.members.get(room.hostId);
-    if (host) send(host, { type: 'peer_joined', peerId: ws.id });
+    if (host) send(host, { type: 'peer_joined', peerId: ws.id, stableSlot: ws.stableSlot });
     console.log('[ROOM]', code, ws.id, 'joined (', room.members.size, 'members)');
     broadcastPublicRooms();
     // TDM late-joiner: tilldela team baserat på balans, push tdm_started-event riktat
@@ -511,7 +532,7 @@ function handleMessage(ws, msg) {
             peerId: botId,
             name: botWs.name || 'BOT',
             team: botWs.tdmTeam || null,
-            colorIdx: memberList.indexOf(botId),
+            colorIdx: (botWs.stableSlot != null) ? botWs.stableSlot : memberList.indexOf(botId),
           });
         }
       }
@@ -570,7 +591,7 @@ function handleMessage(ws, msg) {
             peerId: botId,
             name: botWs.name || 'BOT',
             team: botWs.tdmTeam || null,
-            colorIdx: memberList.indexOf(botId),
+            colorIdx: (botWs.stableSlot != null) ? botWs.stableSlot : memberList.indexOf(botId),
           });
         }
       }
@@ -633,7 +654,7 @@ function handleMessage(ws, msg) {
             peerId: botId,
             name: botWs.name || 'BOT',
             team: null,
-            colorIdx: memberList.indexOf(botId),
+            colorIdx: (botWs.stableSlot != null) ? botWs.stableSlot : memberList.indexOf(botId),
           });
         }
       }
@@ -704,7 +725,7 @@ function handleMessage(ws, msg) {
             peerId: botId,
             name: botWs.name || 'BOT',
             team: null,
-            colorIdx: memberList.indexOf(botId),
+            colorIdx: (botWs.stableSlot != null) ? botWs.stableSlot : memberList.indexOf(botId),
           });
         }
       }
@@ -1569,6 +1590,12 @@ function handleDisconnect(ws) {
       hp: ps.hp, maxHp: ps.maxHp, shield: ps.shield, speedMul: ps.speedMul,
       ts: Date.now(),
     };
+  }
+  // Returnera stable-slot till den lediga poolen så nästa peer som joinar
+  // kan återanvända det lägsta lediga slot-numret. Host (slot 0) returneras
+  // INTE — slot 0 är alltid hosten, host-migration uppdaterar bara hostId.
+  if (ws.stableSlot != null && ws.stableSlot !== 0 && room._freeSlots) {
+    room._freeSlots.push(ws.stableSlot);
   }
   room.members.delete(ws.id);
   if (room.hostId === ws.id) {

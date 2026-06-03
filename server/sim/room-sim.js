@@ -5238,8 +5238,12 @@ function broadcastWorld(sim, now) {
   // partners verkade peka åt höger med fists. Server tog emot aim korrekt men
   // använde inte ws.playerState.aim/weaponId i broadcast. Använd nu p.aim
   // (set från input.aim i applyPlayerInput) + p.weaponId.
+  // stable-slot: använd ws.stableSlot (tilldelat vid join i server.js) istället
+  // för array-index i. Array-index skiftar när en peer lämnar → c:i pekar på
+  // fel peerId hos klienten. stableSlot ändras aldrig under en peers session.
+  // Fallback till array-index i (bakåtkompatibelt för test-stubs utan stableSlot).
   const allPlayers = realPlayers.map((p, i) => ({
-    c: i,
+    c: (p._wsRef && p._wsRef.stableSlot != null) ? p._wsRef.stableSlot : i,
     x: Math.round(p.x), y: Math.round(p.y),
     hp: Math.round(p.hp),
     a: typeof p.aim === 'number' ? p.aim : 0,
@@ -5629,10 +5633,13 @@ function startSim(sim, opts) {
   if (botCount > 0) {
     const inTeamMode = sim.tdmActive || sim.ctfActive || sim.siegeActive;
     const skill = (opts && opts.botSkill) || 'normal';
-    // KRITISKT: colorIdx måste matcha loop-position i broadcastWorld's
-    // realPlayers-array (klient mappar c: i mot slotToPeerId). Bot kommer sist
-    // i sim.room.members (insertion order), så colorIdx = nuvarande size + bi.
-    let nextColorIdx = sim.room.members.size;
+    // stable-slot: bots tilldelas nästa stabila slot-index efter de riktiga
+    // spelarna. Slot lagras på botWs.stableSlot och broadcastWorld läser det
+    // via p._wsRef.stableSlot (precis som för riktiga peers). colorIdx i
+    // bot_joined-eventet måste matcha så klientens slotToPeerId är konsistent.
+    // room._nextSlot/-freeSlots kan vara oinitierade i test-stubs; fall tillbaka
+    // till sim.room.members.size (positional) för bakåtkompatibilitet.
+    const roomRef = sim.room;
     // Beräkna host-team-prediction (host hamnar typiskt i loop-index 0 = red).
     // 'auto'-default sätter bot på MOTSATT sida så solo-spelare får en motståndare,
     // inte en teammate. Med flera bots: alternera red/blue.
@@ -5662,6 +5669,25 @@ function startSim(sim, opts) {
       // annars fall tillbaka till server-shuffle från BOT_NAMES.
       const customName = (opts && Array.isArray(opts.botNames) && opts.botNames[bi]) || null;
       const botInfo = addBot(sim, botTeam, skill, customName);
+      // Tilldela stableSlot på botens fake-ws (samma mekanism som riktiga peers).
+      // Bots återanvänder lediga slots precis som riktiga spelare.
+      const botWs = roomRef.members.get(botInfo.id);
+      let botSlot;
+      if (botWs && roomRef._freeSlots) {
+        if (roomRef._freeSlots.length > 0) {
+          roomRef._freeSlots.sort((a, b) => a - b);
+          botSlot = roomRef._freeSlots.shift();
+        } else {
+          botSlot = (roomRef._nextSlot != null) ? roomRef._nextSlot++ : roomRef.members.size - 1;
+        }
+        botWs.stableSlot = botSlot;
+      } else if (botWs) {
+        // Test-stub utan _freeSlots: falla tillbaka på positional
+        botSlot = roomRef.members.size - 1;
+        botWs.stableSlot = botSlot;
+      } else {
+        botSlot = roomRef.members.size - 1;
+      }
       // Skicka bot_joined så klienter lägger in bot i sin Coop.players-map.
       // Ingen #N-suffix längre — namnen är redan unika via shuffle-poolen.
       sim.eventQueue.push({
@@ -5669,7 +5695,7 @@ function startSim(sim, opts) {
         peerId: botInfo.id,
         name: botInfo.name,
         team: botTeam,
-        colorIdx: nextColorIdx++,
+        colorIdx: botSlot,
       });
     }
   }

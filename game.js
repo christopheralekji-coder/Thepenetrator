@@ -23258,8 +23258,11 @@ const Coop = {
       this.hostId = msg.hostId;
       if (onConnect) onConnect();
     } else if (msg.type === 'peer_joined') {
-      // Host får meddelande att en peer joinade
-      const colorIdx = this.players.size + 1;
+      // Host får meddelande att en peer joinade.
+      // stable-slot: server tilldelar nu ett stabilt slot-index (msg.stableSlot) vid join
+      // som ALDRIG skiftar när en annan peer lämnar. Fallback till players.size+1 om
+      // server är äldre kod (bakåtkompatibelt).
+      const colorIdx = (msg.stableSlot != null) ? msg.stableSlot : (this.players.size + 1);
       this.players.set(msg.peerId, { x: 900, y: 900, hp: 100, weaponId: 'fists', aimAngle: 0, name: 'P' + (colorIdx + 1), colorIdx });
       // Lägg till i slotToPeerId så host hittar partners i world-paket (annars osynliga)
       if (!this.slotToPeerId) this.slotToPeerId = new Map();
