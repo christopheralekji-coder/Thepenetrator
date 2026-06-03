@@ -4031,6 +4031,9 @@ function tickBrLootPickups(sim, nowMs) {
       } else if (lo.kind === 'grenade') {
         // BR grenade-pickup: ger +3 granater. Klient bumpar lokal counter.
         applied = true;
+      } else if (lo.kind === 'smoke') {
+        // BR rökgranat-pickup: ger +3 rökgranater (v1.748). Klient bumpar.
+        applied = true;
       } else if (lo.kind === 'weapon' && lo.weaponId) {
         // BR tier-baserad auto-equip:
         // - Picked tier > current tier → auto-equip
@@ -5328,11 +5331,12 @@ const BR_SHOP = {
   grenade:       { cost: 150, alienOnly: false },  // (v1.743) +2 spränggranater
   smoke:         { cost: 150, alienOnly: false },  // (v1.743) +2 rökgranater
   max_hp:        { cost: 400, alienOnly: false },  // (v1.743) maxHP 100→200 + heal
-  max_shield:    { cost: 400, alienOnly: false },  // (v1.743) maxShield 200→400 + fyll
+  max_shield:    { cost: 600, alienOnly: false },  // (v1.748) maxShield 200→400 + fyll (höjt pris)
   alien_armor:   { cost: 900, alienOnly: true },   // sätter pansaret till MAX (lvl 5) direkt
   alien_loadout: { cost: 1200, alienOnly: true },  // (v1.747) full restore: hp+shield+armor MAX
   alien_weapon:  { cost: 1400, alienOnly: true },  // exklusivt top-tier-vapen
   alien_perks:   { cost: 2600, alienOnly: true },  // ALLA 5 perks på en gång
+  alien_juggernaut: { cost: 7500, alienOnly: true }, // (v1.748) ULTRA-OP: max allt + alla perks + max hp/shield
   // PERKS (v1.742) — engångs-köp, passiva bonusar.
   perk_fast_hands:  { cost: 350, alienOnly: false, perk: 'fast_hands' },  // snabbare omladdning
   perk_double_time: { cost: 400, alienOnly: false, perk: 'double_time' }, // +25% fart
@@ -5414,6 +5418,16 @@ function applyBrBuy(sim, pid, itemKind) {
       if (!ps.brPerks[p]) { ps.brPerks[p] = true; sim.eventQueue.push({ type: 'br_perk_granted', peerId: pid, perk: p }); }
     }
     if (!ps.brDowned) ps.speedMul = 1.25; // double_time aktiv
+  } else if (itemKind === 'alien_juggernaut') {
+    // (v1.748) ULTRA-OP: max-uppgraderad HP+shield+armor + fyllt + ALLA perks.
+    ps.maxHp = 200; ps.maxShield = 400; ps.hp = 200; ps.shield = 400; ps.armorLevel = BR_ARMOR_MAX;
+    sim.eventQueue.push({ type: 'br_maxstat', peerId: pid, maxHp: 200, maxShield: 400, hp: 200, shield: 400 });
+    sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, level: ps.armorLevel });
+    if (!ps.brPerks) ps.brPerks = {};
+    for (const p of ['fast_hands', 'double_time', 'ghost', 'tracker', 'high_alert']) {
+      if (!ps.brPerks[p]) { ps.brPerks[p] = true; sim.eventQueue.push({ type: 'br_perk_granted', peerId: pid, perk: p }); }
+    }
+    if (!ps.brDowned) ps.speedMul = 1.25;
   } else if (item.perk) {
     if (!ps.brPerks) ps.brPerks = {};
     if (ps.brPerks[item.perk]) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
@@ -5581,9 +5595,11 @@ function tickBrContracts(sim, nowMs) {
         const dx = ws.playerState.x - d.x, dy = ws.playerState.y - d.y;
         if (dx * dx + dy * dy > BR_SUPPLY_PICK_R * BR_SUPPLY_PICK_R) continue;
         d.opened = true;
-        const wpn = brSupplyLegendaryWeapon();
-        brAwardCash(sim, pid, 400);
-        sim.eventQueue.push({ type: 'br_supply_opened', id: d.id, peerId: pid, weaponId: wpn, cash: 400 });
+        // v1.748: 50/50 — antingen ett top-tier-vapen ELLER cash, inte båda.
+        let wpn = null, cash = 0;
+        if (Math.random() < 0.5) { wpn = brSupplyLegendaryWeapon(); }
+        else { cash = 700; brAwardCash(sim, pid, cash); }
+        sim.eventQueue.push({ type: 'br_supply_opened', id: d.id, peerId: pid, weaponId: wpn, cash: cash });
         // Dropbox-kontrakt slutfört om denna låda hörde till ett
         if (d.fromContract && ws.playerState.brContract && ws.playerState.brContract.type === 'dropbox' && ws.playerState.brContract.dropId === d.id) {
           brFinishContract(sim, pid, true, 'Epic loot!');

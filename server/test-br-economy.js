@@ -251,10 +251,12 @@ const cashBeforeDrop = sim.brCash.p0 || 0;
 sim.eventQueue.length = 0; p0._sentMessages.length = 0; p1._sentMessages.length = 0;
 sim.simReadyAt = 0; tickSim(sim, Date.now());
 assert(drop.opened, 'supply-drop öppnad vid pickup');
-assert(collectEv('br_supply_opened').length >= 1, 'br_supply_opened emitterat');
-assert((sim.brCash.p0 || 0) > cashBeforeDrop, 'supply-drop gav cash');
+const openedEv = collectEv('br_supply_opened').find(e => e.peerId === 'p0');
+assert(openedEv, 'br_supply_opened emitterat');
+// v1.748: 50/50 — antingen vapen ELLER cash (inte båda)
+assert((openedEv.weaponId && !openedEv.cash) || (!openedEv.weaponId && (sim.brCash.p0 || 0) > cashBeforeDrop), 'supply-drop gav 50/50 vapen ELLER cash');
 assert(!p0.playerState.brContract, 'dropbox-kontrakt slutfört vid pickup');
-console.log('[OK] supply-drop: landning → pickup → epic loot + cash + dropbox done');
+console.log('[OK] supply-drop: landning → pickup → 50/50 vapen-eller-cash + dropbox done');
 
 // BOUNTY-kontrakt → måltavla tilldelas
 let bt = sim.brContracts.find(c => c.type === 'bounty' && c.available);

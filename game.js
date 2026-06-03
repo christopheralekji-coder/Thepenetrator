@@ -12735,6 +12735,28 @@ function drawBrLoot() {
       ctx.beginPath();
       ctx.arc(x - 10, y - 13, 2.3, 0, Math.PI * 2);
       ctx.stroke();
+    } else if (lo.kind === 'smoke') {
+      // ============ RÖKGRANAT-pickup — grå canister med grön rand (v1.748) ============
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = 'rgba(0,0,0,0.4)';
+      ctx.beginPath(); ctx.ellipse(x, y + 11, 8, 3, 0, 0, Math.PI * 2); ctx.fill();
+      // Cylinder-kropp
+      const smGr = ctx.createLinearGradient(x - 6, 0, x + 6, 0);
+      smGr.addColorStop(0, '#4a4e54'); smGr.addColorStop(0.5, '#7a7e84'); smGr.addColorStop(1, '#3a3d42');
+      ctx.fillStyle = smGr;
+      drawRoundedRect(ctx, x - 6, y - 9, 12, 19, 3); ctx.fill();
+      ctx.strokeStyle = '#23262b'; ctx.lineWidth = 1.1;
+      drawRoundedRect(ctx, x - 6, y - 9, 12, 19, 3); ctx.stroke();
+      // Topplock + ventiler
+      ctx.fillStyle = '#9aa0a6'; ctx.fillRect(x - 6, y - 9, 12, 3);
+      ctx.fillStyle = '#15171a';
+      ctx.beginPath(); ctx.arc(x - 2.5, y - 7.5, 0.9, 0, Math.PI * 2); ctx.arc(x, y - 7.5, 0.9, 0, Math.PI * 2); ctx.arc(x + 2.5, y - 7.5, 0.9, 0, Math.PI * 2); ctx.fill();
+      // Grön rök-rand + band
+      ctx.fillStyle = '#a8e6c4'; ctx.fillRect(x - 6, y - 3, 12, 1.6);
+      ctx.strokeStyle = '#3a3d42'; ctx.lineWidth = 0.7;
+      ctx.beginPath(); ctx.moveTo(x - 6, y + 3); ctx.lineTo(x + 6, y + 3); ctx.stroke();
+      // Glans
+      ctx.fillStyle = 'rgba(222,227,232,0.5)'; ctx.fillRect(x - 4.5, y - 6, 2, 13);
     } else {
       // Fallback: en kub
       ctx.fillStyle = tierColor;
@@ -20945,6 +20967,9 @@ function checkMinimapZoomClick(mx, my) {
     state.minimapBig = !state.minimapBig;
     // Animera zoom-target (lerpas i drawMiniMap)
     state._minimapZoomTarget = state.minimapBig ? 1 : 0;
+    // v1.748: stora kartan ska ligga ÖVER action-knapparna (z:6), inte under.
+    // hud-canvas (z:3) lyfts till z:9 medan kartan är stor, återställs när liten.
+    if (typeof hudCanvas !== 'undefined' && hudCanvas) hudCanvas.style.zIndex = state.minimapBig ? '9' : '3';
     Audio.uiClick();
     return true;
   }
@@ -25396,6 +25421,9 @@ const Coop = {
         state.player.uavCount = 0;
         state.player.brDowned = false;
         state.player.brPerks = {};
+        // v1.748: BR-spawn med 2 spräng + 2 rökgranater
+        if (typeof setGrenadeCount === 'function') setGrenadeCount(2);
+        if (typeof setSmokeCount === 'function') setSmokeCount(2);
         if (ev.isSpectator) {
           // Late-joiner — direkt i spectator-mode
           state.player.spectating = true;
@@ -25506,6 +25534,12 @@ const Coop = {
             setGrenadeCount(getGrenadeCount() + 3);
           }
           if (typeof showToast === 'function') showToast('💣 +3 GRANATER');
+        } else if (ev.kind === 'smoke') {
+          // BR rökgranat-pickup: +3 rökgranater (v1.748)
+          if (typeof setSmokeCount === 'function' && typeof getSmokeCount === 'function') {
+            setSmokeCount(getSmokeCount() + 3);
+          }
+          if (typeof showToast === 'function') showToast('💨 +3 RÖKGRANATER');
         }
         if (typeof updateHUD === 'function') updateHUD();
         if (typeof Audio !== 'undefined' && Audio.pickup) Audio.pickup();
@@ -25525,7 +25559,7 @@ const Coop = {
       if (ev.peerId === this.myId) {
         if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
         else if (typeof Audio !== 'undefined' && Audio.pickup) Audio.pickup();
-        const names = { armor: '🛡 PANSAR-UPPGRADERING', gas_mask: '😷 GAS MASK', self_revive: '🩹 SELF-REVIVE', uav: '📡 UAV', airstrike: '✈️ AIR STRIKE', grenade: '💣 GRANATER', smoke: '💨 RÖKGRANATER', max_hp: '❤️ MAX HP', max_shield: '🛡️ MAX SHIELD', alien_armor: '👽 ALIEN ARMOR', alien_loadout: '🛸 ALIEN RESTORATION', alien_weapon: '🔫 ALIEN ARSENAL', alien_perks: '🧠 ALIEN MIND (alla perks)' };
+        const names = { armor: '🛡 PANSAR-UPPGRADERING', gas_mask: '😷 GAS MASK', self_revive: '🩹 SELF-REVIVE', uav: '📡 UAV', airstrike: '✈️ AIR STRIKE', grenade: '💣 GRANATER', smoke: '💨 RÖKGRANATER', max_hp: '❤️ MAX HP', max_shield: '🛡️ MAX SHIELD', alien_armor: '👽 ALIEN ARMOR', alien_loadout: '🛸 ALIEN RESTORATION', alien_weapon: '🔫 ALIEN ARSENAL', alien_perks: '🧠 ALIEN MIND (alla perks)', alien_juggernaut: '☠️ JUGGERNAUT-X' };
         if (typeof showToast === 'function') showToast('✅ KÖPT: ' + (names[ev.item] || ev.item));
       }
     } else if (ev.type === 'br_buy_fail') {
@@ -25607,8 +25641,14 @@ const Coop = {
           state.player.ammo = (W_BY_ID[ev.weaponId] && W_BY_ID[ev.weaponId].mag) || 0; state.player.reloading = false;
           if (typeof updateFireButtonIcon === 'function') updateFireButtonIcon();
         }
-        const wn = ev.weaponId && W_BY_ID[ev.weaponId] ? (W_BY_ID[ev.weaponId].name || ev.weaponId) : 'loot';
-        if (typeof showToast === 'function') showToast('📦 EPIC LOOT: ' + wn.toUpperCase() + ' + $' + (ev.cash || 0));
+        if (typeof showToast === 'function') {
+          if (ev.weaponId) {
+            const wn = W_BY_ID[ev.weaponId] ? (W_BY_ID[ev.weaponId].name || ev.weaponId) : ev.weaponId;
+            showToast('📦 EPIC LOOT: ' + wn.toUpperCase());
+          } else {
+            showToast('📦 SUPPLY: $' + (ev.cash || 0));
+          }
+        }
         if (typeof Audio !== 'undefined' && Audio.pickup) Audio.pickup();
         if (typeof updateHUD === 'function') updateHUD();
       }
@@ -38303,7 +38343,7 @@ function showBrHud() {
   if (!el) {
     el = document.createElement('div');
     el.id = 'br-hud';
-    el.style.cssText = 'position:fixed;top:max(8px, env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.78);border:2px solid #3acaff;border-radius:8px;padding:8px 16px;color:#fff;font-family:sans-serif;font-weight:900;letter-spacing:1px;z-index:80;pointer-events:none;display:flex;align-items:center;gap:14px;font-size:14px;text-align:center;';
+    el.style.cssText = 'position:fixed;top:max(6px, env(safe-area-inset-top));left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.42);border:1px solid rgba(58,202,255,0.5);border-radius:7px;padding:3px 9px;color:#fff;font-family:sans-serif;font-weight:800;letter-spacing:0.5px;z-index:80;pointer-events:none;display:flex;align-items:center;gap:8px;font-size:11px;text-align:center;backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);';
     el.innerHTML = '<div><span style="color:#3acaff;">🌀 ALIVE:</span> <span id="br-alive">--</span></div><div style="color:#666;">|</div><div><span style="color:#ffd54a;" id="br-phase-name">--</span> <span id="br-phase-timer" style="color:#fff;font-variant-numeric:tabular-nums;">--</span></div><div id="br-mid-unlock-wrap" style="color:#666;display:none;">|</div><div id="br-mid-unlock" style="display:none;color:#ff8aff;font-size:12px;"></div>';
     document.body.appendChild(el);
   }
@@ -38315,15 +38355,7 @@ function showBrHud() {
     kf.style.cssText = 'position:fixed;top:max(60px, env(safe-area-inset-top));right:12px;width:280px;max-height:200px;pointer-events:none;z-index:75;display:flex;flex-direction:column;gap:4px;font-family:sans-serif;';
     document.body.appendChild(kf);
   }
-  // Koordinat-display (debug — bottom-left)
-  let coords = document.getElementById('br-coords');
-  if (!coords) {
-    coords = document.createElement('div');
-    coords.id = 'br-coords';
-    coords.style.cssText = 'position:fixed;bottom:max(12px, env(safe-area-inset-bottom));left:12px;background:rgba(0,0,0,0.7);border:1px solid #3acaff;border-radius:6px;padding:6px 10px;color:#3acaff;font-family:monospace;font-weight:700;font-size:13px;z-index:80;pointer-events:none;letter-spacing:0.5px;';
-    document.body.appendChild(coords);
-  }
-  coords.style.display = 'block';
+  // v1.748: koordinat-display (X,Y) borttagen (användaren ville ej ha den).
   // v1.744: cash i 💰-HUD, armor-display borttagen. Köpta aktiverbara items ligger i en
   // BAG (väska) — knapp placerad en bit till VÄNSTER om shield-knappen, 38px (som byt-
   // vapen-knappen). RÖR EJ dash/shield/granat-knapparnas positioner (strikt förbjudet).
@@ -38535,7 +38567,7 @@ const BR_SHOP_CATALOG = [
   { id: 'max_hp', name: 'Max HP', icon: '❤️', tab: 'armor', alien: false, desc: 'Höjer max-HP till 200 (+heal)',
     cost: () => 400, avail: (p) => (p.maxHp || 100) < 200, sub: (p) => (p.maxHp || 100) >= 200 ? 'Max' : '100→200' },
   { id: 'max_shield', name: 'Max Shield', icon: '🛡️', tab: 'armor', alien: false, desc: 'Höjer max-shield till 400 (+fyll)',
-    cost: () => 400, avail: (p) => (p.maxShield || 200) < 400, sub: (p) => (p.maxShield || 200) >= 400 ? 'Max' : '200→400' },
+    cost: () => 600, avail: (p) => (p.maxShield || 200) < 400, sub: (p) => (p.maxShield || 200) >= 400 ? 'Max' : '200→400' },
   { id: 'alien_armor', name: 'Alien Armor', icon: '👽', tab: 'alien', alien: true, desc: 'Sätter pansaret till MAX-nivå direkt',
     cost: () => 900, avail: (p) => (p.armorLevel || 0) < BR_ARMOR_MAX, sub: () => '' },
   { id: 'alien_loadout', name: 'Alien Restoration', icon: '🛸', tab: 'alien', alien: true, desc: 'Full återställning: HP + shield + pansar MAX',
@@ -38544,6 +38576,8 @@ const BR_SHOP_CATALOG = [
     cost: () => 1400, avail: () => true, sub: () => '' },
   { id: 'alien_perks', name: 'Alien Mind', icon: '🧠', tab: 'alien', alien: true, desc: 'Låser upp ALLA 5 perks på en gång',
     cost: () => 2600, avail: (p) => { const pk = p.brPerks || {}; return !['fast_hands','double_time','ghost','tracker','high_alert'].every(k => pk[k]); }, sub: () => '' },
+  { id: 'alien_juggernaut', name: 'JUGGERNAUT-X', icon: '☠️', tab: 'alien', alien: true, desc: 'ULTRA: 200 HP + 400 shield + max pansar + ALLA perks',
+    cost: () => 7500, avail: () => true, sub: () => 'OP' },
   // PERKS (v1.742) — engångs-köp, passiva. avail = ej redan ägd.
   { id: 'perk_fast_hands', name: 'Fast Hands', icon: '⚡', tab: 'perks', alien: false, desc: 'Snabbare omladdning',
     cost: () => 350, avail: (p) => !(p.brPerks && p.brPerks.fast_hands), sub: (p) => (p.brPerks && p.brPerks.fast_hands) ? 'Ägd' : '' },
@@ -38725,29 +38759,44 @@ function drawBrAlienShop() {
   ctx.lineWidth = 2; ctx.setLineDash([14, 12]); ctx.lineDashOffset = -t * 30;
   ctx.beginPath(); ctx.arc(sx, sy, st.r * 0.62, 0, Math.PI * 2); ctx.stroke();
   ctx.setLineDash([]);
-  // Svävande kristall-pod
-  const bob = Math.sin(t * 1.6) * 7;
-  const cy = sy - 26 + bob;
-  ctx.shadowColor = '#b46bff'; ctx.shadowBlur = 24;
-  // pod-bas (mörk sockel)
-  ctx.fillStyle = 'rgba(40,20,64,0.9)';
-  ctx.beginPath(); ctx.ellipse(sx, sy + 4, 30, 11, 0, 0, Math.PI * 2); ctx.fill();
-  // kristall (diamantform)
-  const cg = ctx.createLinearGradient(sx, cy - 26, sx, cy + 22);
-  cg.addColorStop(0, '#e9d4ff'); cg.addColorStop(0.5, '#b46bff'); cg.addColorStop(1, '#6a2fd0');
-  ctx.fillStyle = cg;
-  ctx.beginPath();
-  ctx.moveTo(sx, cy - 26); ctx.lineTo(sx + 16, cy - 2); ctx.lineTo(sx, cy + 22); ctx.lineTo(sx - 16, cy - 2);
-  ctx.closePath(); ctx.fill();
-  // facett-highlight
-  ctx.strokeStyle = 'rgba(255,255,255,0.55)'; ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.moveTo(sx, cy - 26); ctx.lineTo(sx, cy + 22); ctx.moveTo(sx - 16, cy - 2); ctx.lineTo(sx + 16, cy - 2); ctx.stroke();
+  // === ALIEN-HANDLARE (v1.748): grön utomjording som svävar lätt + glödande ögon ===
+  const bob = Math.sin(t * 1.6) * 5;
+  const fy = sy + bob; // figur-fötter-referens
+  ctx.shadowColor = '#7bf07b'; ctx.shadowBlur = 18;
+  // Skugga på marken
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(20,40,20,0.5)';
+  ctx.beginPath(); ctx.ellipse(sx, sy + 8, 18, 6, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.shadowColor = '#8fff8f'; ctx.shadowBlur = 16;
+  // Kropp (smal grön torso)
+  const bodyGr = ctx.createLinearGradient(sx, fy - 18, sx, fy + 6);
+  bodyGr.addColorStop(0, '#9fe87f'); bodyGr.addColorStop(1, '#4a9a3a');
+  ctx.fillStyle = bodyGr;
+  ctx.beginPath(); ctx.ellipse(sx, fy - 6, 9, 15, 0, 0, Math.PI * 2); ctx.fill();
+  // Smala armar
+  ctx.strokeStyle = '#6abf52'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  const armSw = Math.sin(t * 2) * 3;
+  ctx.beginPath(); ctx.moveTo(sx - 7, fy - 8); ctx.lineTo(sx - 15, fy + 2 + armSw); ctx.moveTo(sx + 7, fy - 8); ctx.lineTo(sx + 15, fy + 2 - armSw); ctx.stroke();
+  // Stort huvud (klassisk grå/grön alien)
+  const headGr = ctx.createRadialGradient(sx - 3, fy - 30, 2, sx, fy - 26, 16);
+  headGr.addColorStop(0, '#c8ffb0'); headGr.addColorStop(1, '#5aaa44');
+  ctx.fillStyle = headGr;
+  ctx.beginPath(); ctx.ellipse(sx, fy - 26, 13, 16, 0, 0, Math.PI * 2); ctx.fill();
+  // Stora svarta mandel-ögon med glöd
+  ctx.shadowColor = '#aaffaa'; ctx.shadowBlur = 8;
+  ctx.fillStyle = '#0a0f0a';
+  ctx.beginPath(); ctx.ellipse(sx - 5, fy - 26, 3.2, 5.5, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(sx + 5, fy - 26, 3.2, 5.5, -0.5, 0, Math.PI * 2); ctx.fill();
+  // Ögon-glimt
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(180,255,180,' + (0.5 + pulse * 0.5).toFixed(2) + ')';
+  ctx.beginPath(); ctx.arc(sx - 5.5, fy - 28, 1, 0, Math.PI * 2); ctx.arc(sx + 4.5, fy - 28, 1, 0, Math.PI * 2); ctx.fill();
   ctx.shadowBlur = 0;
   // Label
   ctx.font = '900 13px sans-serif'; ctx.textAlign = 'center';
-  ctx.fillStyle = '#e0c0ff'; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 3;
-  ctx.strokeText('👽 ALIEN SHOP', sx, sy - 56 + bob);
-  ctx.fillText('👽 ALIEN SHOP', sx, sy - 56 + bob);
+  ctx.fillStyle = '#bfffbf'; ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = 3;
+  ctx.strokeText('👽 ALIEN-HANDLARE', sx, fy - 50);
+  ctx.fillText('👽 ALIEN-HANDLARE', sx, fy - 50);
   ctx.restore();
 }
 
@@ -39077,6 +39126,7 @@ function clearBattleroyaleState() {
   state._brShopTab = 'gear';
   state._brHighAlertDir = null;
   if (state.player) { state.player.brDowned = false; state.player.uavCount = 0; }
+  if (typeof hudCanvas !== 'undefined' && hudCanvas) hudCanvas.style.zIndex = '3'; // återställ ev. förstorad-karta-z
   state._alienCracks = null; // cached crack-data (decoration-cache)
   if (typeof Coop !== 'undefined') {
     Coop.battleroyaleActive = false;
@@ -39314,13 +39364,6 @@ function clearHeistState() {
 
 function updateBrHud() {
   if (!state.battleroyaleActive) return;
-  // Koordinater-display (debug)
-  const coordsEl = document.getElementById('br-coords');
-  if (coordsEl && state.player) {
-    const px = Math.round(state.player.x);
-    const py = Math.round(state.player.y);
-    coordsEl.textContent = 'X: ' + px + '  Y: ' + py;
-  }
   const aliveEl = document.getElementById('br-alive');
   const phaseNameEl = document.getElementById('br-phase-name');
   const phaseTimerEl = document.getElementById('br-phase-timer');
@@ -39397,8 +39440,8 @@ function showBrEndScreen(winnerId, statsArr) {
     overlay = document.createElement('div');
     overlay.id = 'br-end-overlay';
     overlay.className = 'overlay';
-    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);display:flex;align-items:center;justify-content:center;z-index:200;padding:max(20px, env(safe-area-inset-top, 20px)) max(16px, env(safe-area-inset-right, 16px)) max(20px, env(safe-area-inset-bottom, 20px)) max(16px, env(safe-area-inset-left, 16px));box-sizing:border-box;';
-    overlay.innerHTML = '<div style="background:#181818;border:2px solid #3acaff;border-radius:10px;padding:24px 24px;max-width:600px;width:100%;max-height:100%;overflow-y:auto;color:#fff;font-family:sans-serif;text-align:center;box-sizing:border-box;"><h1 id="br-end-title" style="color:#3acaff;margin:0 0 8px;font-size:28px;">🏆</h1><div id="br-end-sub" style="color:#aaa;margin-bottom:18px;">vann LAST HUNT!</div><div id="br-end-hero" style="color:#5aff5a;font-size:14px;margin-bottom:14px;"></div><div id="br-end-stats" style="font-size:13px;margin-bottom:18px;overflow-x:auto;-webkit-overflow-scrolling:touch;"></div><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;"><button id="btn-br-rematch" class="hidden" style="background:#5aff5a;color:#000;border:0;padding:12px 22px;border-radius:6px;font-weight:900;letter-spacing:1px;cursor:pointer;min-height:44px;">⚔ REMATCH</button><button id="btn-br-back" style="background:#444;color:#fff;border:0;padding:12px 22px;border-radius:6px;font-weight:900;letter-spacing:1px;cursor:pointer;min-height:44px;">↩ LOBBY</button></div></div>';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:200;padding:max(16px, env(safe-area-inset-top, 16px)) max(12px, env(safe-area-inset-right, 12px)) max(16px, env(safe-area-inset-bottom, 16px)) max(12px, env(safe-area-inset-left, 12px));box-sizing:border-box;';
+    overlay.innerHTML = '<div style="background:rgba(18,20,26,0.8);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border:1px solid rgba(58,202,255,0.6);border-radius:12px;padding:14px 16px;max-width:380px;width:100%;max-height:92%;overflow-y:auto;color:#fff;font-family:sans-serif;text-align:center;box-sizing:border-box;box-shadow:0 8px 32px rgba(0,0,0,0.6);"><h1 id="br-end-title" style="color:#3acaff;margin:0 0 4px;font-size:20px;">🏆</h1><div id="br-end-sub" style="color:#aaa;margin-bottom:10px;font-size:12px;">vann LAST HUNT!</div><div id="br-end-hero" style="color:#5aff5a;font-size:12px;margin-bottom:8px;"></div><div id="br-end-stats" style="font-size:11px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch;"></div><div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;"><button id="btn-br-rematch" class="hidden" style="background:#5aff5a;color:#000;border:0;padding:9px 16px;border-radius:6px;font-weight:900;letter-spacing:0.5px;cursor:pointer;min-height:40px;font-size:13px;">⚔ REMATCH</button><button id="btn-br-back" style="background:#444;color:#fff;border:0;padding:9px 16px;border-radius:6px;font-weight:900;letter-spacing:0.5px;cursor:pointer;min-height:40px;font-size:13px;">↩ LOBBY</button></div></div>';
     document.body.appendChild(overlay);
     document.getElementById('btn-br-back').addEventListener('click', () => {
       overlay.classList.add('hidden');
@@ -74830,39 +74873,61 @@ function drawMiniMap() {
       state._brStrikeMark = null;
     }
   }
-  // CONTRACTS + SUPPLY-markörer på minimapen (v1.746)
+  // CONTRACTS + SUPPLY-markörer på minimapen (v1.746/v1.748: kant-klampning så markörer
+  // utanför lilla minimap-rutan ändå syns vid kanten i sin riktning).
   if (state.battleroyaleActive) {
     const _bnow = performance.now();
+    const _mcx = ox + (boxX + boxW / 2 - ox), _mcy = oy + (boxY + boxH / 2 - oy); // = box-center
+    const _bcx = boxX + boxW / 2, _bcy = boxY + boxH / 2, _mpad = 8;
+    // Returnerar [mx,my] klampat till box-kanten om utanför.
+    const _clamp = (wx, wy) => {
+      let mx = ox + wx * scale, my = oy + wy * scale;
+      if (mx >= boxX + _mpad && mx <= boxX + boxW - _mpad && my >= boxY + _mpad && my <= boxY + boxH - _mpad) return [mx, my, false];
+      const ang = Math.atan2(my - _bcy, mx - _bcx);
+      const dx = Math.cos(ang), dy = Math.sin(ang);
+      const hw = boxW / 2 - _mpad, hh = boxH / 2 - _mpad;
+      let t = Infinity;
+      if (Math.abs(dx) > 1e-4) t = Math.min(t, hw / Math.abs(dx));
+      if (Math.abs(dy) > 1e-4) t = Math.min(t, hh / Math.abs(dy));
+      if (!isFinite(t)) return [mx, my, false];
+      return [_bcx + dx * t, _bcy + dy * t, true];
+    };
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     // Tillgängliga kontrakt-billboards (lila 📋)
     if (state.brContracts && !state.brActiveContract) {
-      ctx.font = '10px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '10px sans-serif';
       for (const c of state.brContracts) {
         if (!c.available) continue;
-        ctx.fillText('📋', ox + c.x * scale, oy + c.y * scale);
+        const p = _clamp(c.x, c.y);
+        ctx.fillText('📋', p[0], p[1]);
       }
     }
-    // Aktivt kontrakt-mål (supply_run/dropbox) — lila ring
+    // Aktivt kontrakt-mål (supply_run/dropbox) — lila ring (kant-klampad)
     const ac = state.brActiveContract;
     if (ac && (ac.goalX != null)) {
       const gpulse = 0.5 + 0.5 * Math.sin(_bnow / 280);
+      const p = _clamp(ac.goalX, ac.goalY);
       ctx.strokeStyle = 'rgba(180,130,255,' + (0.5 + 0.4 * gpulse).toFixed(2) + ')'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(ox + ac.goalX * scale, oy + ac.goalY * scale, 5 + gpulse * 3, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p[0], p[1], 5 + gpulse * 3, 0, Math.PI * 2); ctx.stroke();
+      ctx.font = '11px sans-serif'; ctx.fillStyle = '#d8c0ff';
+      ctx.fillText(ac.type === 'supply_run' ? '🏃' : '📦', p[0], p[1]);
     }
-    // Bounty-ping (röd döskalle, senaste position ~6s)
-    if (state.brBountyPing && _bnow - state.brBountyPing.at < 6000) {
-      ctx.font = '12px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('💀', ox + state.brBountyPing.x * scale, oy + state.brBountyPing.y * scale);
+    // Bounty-ping (röd döskalle, senaste position ~6s, kant-klampad)
+    if (state.brBountyPing && _bnow - state.brBountyPing.at < 6500) {
+      const p = _clamp(state.brBountyPing.x, state.brBountyPing.y);
+      ctx.font = '13px sans-serif';
+      ctx.fillText('💀', p[0], p[1]);
     }
-    // Supply-drops (orange 📦 + ping-puls)
+    // Supply-drops (orange 📦 + ping-puls, kant-klampade)
     if (state.brSupplyDrops) {
+      const sp = 0.5 + 0.5 * Math.sin(_bnow / 260);
       for (const id in state.brSupplyDrops) {
         const d = state.brSupplyDrops[id];
-        const mx = ox + d.x * scale, my = oy + d.y * scale;
-        const sp = 0.5 + 0.5 * Math.sin(_bnow / 260);
+        const p = _clamp(d.x, d.y);
         ctx.strokeStyle = 'rgba(255,180,50,' + (0.4 + 0.5 * sp).toFixed(2) + ')'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(mx, my, 4 + sp * 4, 0, Math.PI * 2); ctx.stroke();
-        ctx.font = '11px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('📦', mx, my);
+        ctx.beginPath(); ctx.arc(p[0], p[1], 4 + sp * 4, 0, Math.PI * 2); ctx.stroke();
+        ctx.font = '11px sans-serif';
+        ctx.fillText('📦', p[0], p[1]);
       }
     }
   }
