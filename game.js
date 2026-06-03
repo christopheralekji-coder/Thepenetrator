@@ -38263,13 +38263,14 @@ function showBrHud() {
     document.body.appendChild(coords);
   }
   coords.style.display = 'block';
-  // v1.743: cash i 💰-HUD, armor-display borttagen. Köpta aktiverbara items ligger i en
-  // BAG (väska) — knapp uppe till höger (vänster om byt-vapen-knappen), 38px.
+  // v1.744: cash i 💰-HUD, armor-display borttagen. Köpta aktiverbara items ligger i en
+  // BAG (väska) — knapp placerad en bit till VÄNSTER om shield-knappen, 38px (som byt-
+  // vapen-knappen). RÖR EJ dash/shield/granat-knapparnas positioner (strikt förbjudet).
   let bagBtn = document.getElementById('br-bag-btn');
   if (!bagBtn) {
     bagBtn = document.createElement('button');
     bagBtn.id = 'br-bag-btn';
-    bagBtn.style.cssText = 'position:fixed;top:176px;right:58px;width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,213,74,0.55);background:radial-gradient(circle at 30% 30%, rgba(80,70,40,0.85), rgba(24,18,10,0.9));color:#fff;font-size:18px;z-index:6;pointer-events:auto;touch-action:manipulation;box-shadow:0 3px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
+    bagBtn.style.cssText = 'position:fixed;right:232px;bottom:14px;width:38px;height:38px;border-radius:50%;border:2px solid rgba(255,213,74,0.55);background:radial-gradient(circle at 30% 30%, rgba(80,70,40,0.9), rgba(24,18,10,0.92));color:#fff;font-size:18px;z-index:6;pointer-events:auto;touch-action:manipulation;box-shadow:0 3px 10px rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;';
     bagBtn.innerHTML = '🎒<span id="br-bag-badge" style="position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;border-radius:8px;background:#ff4646;color:#fff;font:800 10px sans-serif;display:none;align-items:center;justify-content:center;padding:0 3px;">0</span>';
     let _bagTapT = 0;
     const onBag = (e) => { e.preventDefault(); e.stopPropagation(); const t = performance.now(); if (t - _bagTapT < 320) return; _bagTapT = t; if (typeof toggleBrBag === 'function') toggleBrBag(); };
@@ -38278,12 +38279,6 @@ function showBrHud() {
     document.body.appendChild(bagBtn);
   }
   bagBtn.style.display = 'flex';
-  // Shield-knappen: 38px (som byt-vapen) + flyttad till topp-höger raden vid BR (vänster
-  // om väskan). Spara original-css så den återställs i andra modes vid BR-exit.
-  if (_btnPvpShield) {
-    if (_btnPvpShield._origCss == null) _btnPvpShield._origCss = _btnPvpShield.style.cssText;
-    _btnPvpShield.style.cssText = 'position:fixed;top:176px;right:104px;width:38px;height:38px;font-size:16px;z-index:6;pointer-events:auto;';
-  }
   if (typeof updateBrBagBadge === 'function') updateBrBagBadge();
   // BUY-prompt (visas bara nära en buy-station). Tap → öppna shoppen.
   let buyPrompt = document.getElementById('br-buy-prompt');
@@ -38822,11 +38817,6 @@ function cleanupBrUI() {
   for (const id of ids) {
     const e = document.getElementById(id);
     if (e && e.parentNode) e.parentNode.removeChild(e);
-  }
-  // Återställ shield-knappens original-position/storlek (BR flyttade/skalade den).
-  if (_btnPvpShield && _btnPvpShield._origCss != null) {
-    _btnPvpShield.style.cssText = _btnPvpShield._origCss;
-    _btnPvpShield._origCss = null;
   }
 }
 
