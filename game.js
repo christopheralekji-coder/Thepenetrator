@@ -23972,14 +23972,12 @@ const Coop = {
       // spelares skott (tillförlitligt, ersätter peer-broadcasten i server-sim). Egna
       // skott dedupas (renderas redan lokalt). Lead-kompenseras lätt så de ej syns "bakom".
       if (ev.ownerPid && ev.ownerPid !== this.myId && Array.isArray(ev.bs)) {
-        const _sp2 = this.players && this.players.get(ev.ownerPid);
-        const _lead2 = Math.min(0.08, Math.max(0, ((_sp2 && _sp2.ping) || 60) / 1000));
+        // v1.730: spawna vid MYNNINGEN (ingen lead-comp) → kulan syns hela vägen från
+        // skytten mot dig + överskjuter aldrig förbi dig på nära håll (= alltid synlig).
         for (const s of ev.bs) {
-          const life = s.l || 1.6;
-          const adv = Math.min(_lead2, life * 0.5);
           state.bullets.push({
-            x: s.x + (s.vx || 0) * adv, y: s.y + (s.vy || 0) * adv, vx: s.vx, vy: s.vy,
-            dmg: 0, life: Math.max(0.2, life - adv), r: s.r || 4,
+            x: s.x, y: s.y, vx: s.vx, vy: s.vy,
+            dmg: 0, life: s.l || 1.6, r: s.r || 4,
             color: s.c || '#fff', hostile: false, style: s.s, _visualOnly: true,
           });
         }
@@ -27236,18 +27234,12 @@ const Coop = {
       // Annan spelare sköt — spawna visuella projektiler (ingen skada)
       // Server-relay broadcastar redan till alla utom avsändaren, ingen re-broadcast behövs
       if (Array.isArray(data.bs)) {
-        // v1.727: lead-kompensera — kulan skapades vid muzzle men har redan flugit
-        // ~(flush + RTT) sedan avskjutningen. Avancera den så den hamnar nära sin
-        // FAKTISKA position (annars syns den "bakom" / efter att man redan blivit träffad).
-        const _sp = this.players && this.players.get(fromId);
-        // v1.728: lägre cap (0.08) så NÄRA skott ej överskjuter förbi spelaren (= osynliga).
-        const _lead = Math.min(0.08, Math.max(0, ((_sp && _sp.ping) || 60) / 1000));
+        // v1.730: spawna vid MYNNINGEN (ingen lead-comp) — kulan syns hela vägen +
+        // överskjuter aldrig förbi spelaren på nära håll.
         for (const s of data.bs) {
-          const life = s.l || 1.6;
-          const adv = Math.min(_lead, life * 0.5);
           state.bullets.push({
-            x: s.x + (s.vx || 0) * adv, y: s.y + (s.vy || 0) * adv, vx: s.vx, vy: s.vy,
-            dmg: 0, life: Math.max(0.2, life - adv), r: s.r || 4,
+            x: s.x, y: s.y, vx: s.vx, vy: s.vy,
+            dmg: 0, life: s.l || 1.6, r: s.r || 4,
             color: s.c || '#fff', hostile: false,
             style: s.s,                  // v1.502: bevara style för korrekt render
             _partnerMascot: s.m || null, // v1.502: partner's mascot för themed bullets
