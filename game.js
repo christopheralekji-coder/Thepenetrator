@@ -6166,42 +6166,71 @@ function drawPvpShieldBubbles() {
     if (x < -60 || x > viewW + 60 || y < -60 || y > viewH + 60) return;
     const rem = until - now;
     const fade = rem < 400 ? Math.max(0, rem / 400) : 1; // mjuk utfade sista 400ms
-    const pulse = 0.5 + 0.5 * Math.sin(now / 150);
-    const rx = (r || 14) + 7;   // samma form som drawShieldHitFor
+    const pulse = 0.5 + 0.5 * Math.sin(now / 130);
+    const rx = (r || 14) + 8;
     const ry = rx * 1.18;
     ctx.save();
     ctx.translate(x, y);
-    // 1. Helkropps-sköldglöd (hela ovalen lyser så länge skölden är aktiv)
-    ctx.globalAlpha = fade * (0.30 + pulse * 0.18);
-    ctx.strokeStyle = '#6fe0ff';
-    ctx.lineWidth = 2.5;
-    ctx.shadowColor = '#5ad8ff';
-    ctx.shadowBlur = 9 + pulse * 5;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    // inre radial-glöd
-    const grad = ctx.createRadialGradient(0, 0, rx * 0.45, 0, 0, ry);
-    grad.addColorStop(0, `rgba(90,216,255,${fade * 0.16 * pulse})`);
-    grad.addColorStop(1, 'rgba(90,216,255,0)');
+    // 1. Inre energi-fält (pulserande radial-glöd)
+    const grad = ctx.createRadialGradient(0, 0, rx * 0.35, 0, 0, ry * 1.05);
+    grad.addColorStop(0, `rgba(120,225,255,${fade * (0.10 + pulse * 0.12)})`);
+    grad.addColorStop(0.7, `rgba(70,190,255,${fade * 0.10})`);
+    grad.addColorStop(1, 'rgba(70,190,255,0)');
     ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // 2. Subtil elektrisk crackle runt HELA ringen (svagare än träff-shocken)
-    ctx.globalAlpha = fade * 0.45;
-    ctx.strokeStyle = '#dffaff';
+    ctx.beginPath(); ctx.ellipse(0, 0, rx * 1.05, ry * 1.05, 0, 0, Math.PI * 2); ctx.fill();
+    // 2. Huvud-ring (glöd)
+    ctx.globalAlpha = fade * (0.42 + pulse * 0.26);
+    ctx.strokeStyle = '#7fe8ff';
+    ctx.lineWidth = 2.2;
+    ctx.shadowColor = '#5ad8ff'; ctx.shadowBlur = 10 + pulse * 8;
+    ctx.beginPath(); ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2); ctx.stroke();
+    ctx.shadowBlur = 0;
+    // 3. ROTERANDE energi-bågar (3 ljusa segment som sveper runt i olika hastighet/riktning)
+    ctx.lineCap = 'round';
+    for (let k = 0; k < 3; k++) {
+      const spd = (k % 2 === 0 ? 1 : -1) * (0.0016 + k * 0.0006);
+      const start = now * spd + k * 2.1;
+      const arcLen = 0.5 + 0.25 * Math.sin(now / 200 + k);
+      ctx.globalAlpha = fade * (0.45 + 0.4 * (0.5 + 0.5 * Math.sin(now / 110 + k)));
+      ctx.strokeStyle = k === 0 ? '#ffffff' : '#aef0ff';
+      ctx.lineWidth = k === 0 ? 2.2 : 1.4;
+      ctx.shadowColor = '#bff2ff'; ctx.shadowBlur = 6;
+      ctx.beginPath();
+      const er = rx + (k === 0 ? 0 : 1.6);
+      ctx.ellipse(0, 0, er, er * 1.18, 0, start, start + arcLen);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+    // 4. JAGGED elektrisk crackle (lightning-trace runt hela ringen)
+    ctx.globalAlpha = fade * 0.6;
+    ctx.strokeStyle = '#eaffff';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    const segs = 24;
+    const segs = 28;
     for (let i = 0; i <= segs; i++) {
       const a = (i / segs) * Math.PI * 2;
-      const j = (Math.random() - 0.5) * 2.6;
+      const j = (Math.random() - 0.5) * 4.5;
       const ex = Math.cos(a) * (rx + j), ey = Math.sin(a) * (ry + j);
       if (i === 0) ctx.moveTo(ex, ey); else ctx.lineTo(ex, ey);
     }
     ctx.stroke();
+    // 5. Flimrande spark-noder runt ringen (elektriskt "levande" + korta blixtar)
+    const nodes = 5;
+    for (let i = 0; i < nodes; i++) {
+      const a = (i / nodes) * Math.PI * 2 + now * 0.0012 * (i % 2 ? 1 : -1);
+      const fl = Math.sin(now / 70 + i * 1.7);
+      if (fl < 0.3) continue;
+      const nx = Math.cos(a) * rx, ny = Math.sin(a) * ry;
+      ctx.globalAlpha = fade * (0.5 + 0.5 * fl);
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath(); ctx.arc(nx, ny, 1.3 + fl * 1.2, 0, Math.PI * 2); ctx.fill();
+      if (fl > 0.7) {
+        ctx.strokeStyle = '#bff2ff'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(nx, ny);
+        ctx.lineTo(nx + Math.cos(a) * 5 + (Math.random() - 0.5) * 3, ny + Math.sin(a) * 5 + (Math.random() - 0.5) * 3);
+        ctx.stroke();
+      }
+    }
     ctx.restore();
   };
   if (state.player && state.player.pvpShieldUntil && now < state.player.pvpShieldUntil) {
@@ -36806,6 +36835,20 @@ function prepRematchBtn(btn) {
     };
   }
 }
+// v1.731: trolla sämsta spelaren i scoreboarden (alla modes). Slumpad text varje gång.
+const _SCOREBOARD_TROLLS = [
+  'check the tutorial 📚', 'du behöver öva mer', 'fyfan vad dålig 💀', 'siktet hemma idag?',
+  'botten-fragga 🪦', 'AFK? 😴', 'köp ett bättre sikte', 'spela Candy Crush istället',
+  'var det första gången? 🤡', 'pinsamt...', 'ren NPC-energy', 'fingrarna i syltburken?',
+  'prova lägre svårighet kanske', 'tröstpris 🥄', 'L + ratio', 'såg du ens fienden?',
+  'rage quit nu? 🚪', 'din lillasyster siktar bättre', 'free kills åt alla 🎁', 'sämst i klassen 🎓',
+  'wifi:t skyller du på va?', 'bot-svårighet nästa gång', 'sänkte hela laget 🪂', 'turist i lobbyn',
+];
+function _scoreboardTroll(isWorst) {
+  if (!isWorst) return '';
+  const t = _SCOREBOARD_TROLLS[Math.floor(Math.random() * _SCOREBOARD_TROLLS.length)];
+  return ` <span style="color:#ff7a7a;font-style:italic;font-size:10px;font-weight:600;opacity:0.95;">— ${t}</span>`;
+}
 function showTdmEndScreen(winner, redKills, blueKills, stats, teams) {
   if (!_tdmEndOverlay) return;
   hideTdmHud();
@@ -36837,14 +36880,15 @@ function showTdmEndScreen(winner, redKills, blueKills, stats, teams) {
   }
   if (_tdmEndStats) {
     const sortedStats = (stats || []).slice().sort((a, b) => b.kills - a.kills);
-    _tdmEndStats.innerHTML = sortedStats.map(s => {
+    _tdmEndStats.innerHTML = sortedStats.map((s, _i) => {
       const name = (s.peerId === Coop.myId)
         ? (Coop.myName || 'Du')
         : (Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || 'Spelare';
       const tColor = s.team === 'red' ? '#ff5a5a' : '#5aaaff';
       const isMe = s.peerId === Coop.myId ? ' (du)' : '';
+      const _worst = _i === sortedStats.length - 1 && sortedStats.length > 1;
       return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
-        <span style="color:${tColor};font-weight:700;">${escapeHtml(name)}${isMe}</span>
+        <span style="color:${tColor};font-weight:700;">${escapeHtml(name)}${isMe}${_scoreboardTroll(_worst)}</span>
         <span style="color:#ddd;"><b>${s.kills}</b> kills · 💀 ${s.deaths}</span>
       </div>`;
     }).join('') || '<div style="color:#888;">Inga stats</div>';
@@ -37025,14 +37069,15 @@ function showCtfEndScreen(winner, redCaps, blueCaps, stats, teams) {
   }
   if (_ctfEndStats) {
     const sorted = (stats || []).slice().sort((a, b) => (b.captures - a.captures) || (b.kills - a.kills));
-    _ctfEndStats.innerHTML = sorted.map(s => {
+    _ctfEndStats.innerHTML = sorted.map((s, _i) => {
       const name = (s.peerId === Coop.myId)
         ? (Coop.myName || 'Du')
         : (Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || 'Spelare';
       const tColor = s.team === 'red' ? '#ff5a5a' : '#5aaaff';
       const isMe = s.peerId === Coop.myId ? ' (du)' : '';
+      const _worst = _i === sorted.length - 1 && sorted.length > 1;
       return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);gap:10px;">
-        <span style="color:${tColor};font-weight:700;">${escapeHtml(name)}${isMe}</span>
+        <span style="color:${tColor};font-weight:700;">${escapeHtml(name)}${isMe}${_scoreboardTroll(_worst)}</span>
         <span style="color:#ddd;"><b>🚩 ${s.captures || 0}</b> · ⚡ ${s.kills || 0} · 💀 ${s.deaths || 0}</span>
       </div>`;
     }).join('') || '<div style="color:#888;">Inga stats</div>';
@@ -37192,13 +37237,14 @@ function showSiegeEndScreen(winner, redScore, blueScore, stats, teams, reason) {
   }
   if (_siegeEndStats) {
     const sorted = (stats || []).slice().sort((a, b) => (b.kills - a.kills));
-    _siegeEndStats.innerHTML = sorted.map(s => {
+    _siegeEndStats.innerHTML = sorted.map((s, _i) => {
       const name = (s.peerId === Coop.myId) ? (Coop.myName || 'Du')
         : (Coop.players.get(s.peerId) && Coop.players.get(s.peerId).name) || 'Spelare';
       const tColor = s.team === 'red' ? '#ff5a5a' : '#5aaaff';
       const isMe = s.peerId === Coop.myId ? ' (du)' : '';
+      const _worst = _i === sorted.length - 1 && sorted.length > 1;
       return `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(255,255,255,0.05);gap:10px;">
-        <span style="color:${tColor};font-weight:700;">${escapeHtml(name)}${isMe}</span>
+        <span style="color:${tColor};font-weight:700;">${escapeHtml(name)}${isMe}${_scoreboardTroll(_worst)}</span>
         <span style="color:#ddd;">⚡ ${s.kills || 0} · 💀 ${s.deaths || 0}</span>
       </div>`;
     }).join('') || '<div style="color:#888;">Inga stats</div>';
@@ -37465,7 +37511,7 @@ function showGungameEndScreen(winnerId, stats) {
       // Vapen-namn för aktuell tier
       const tw = (typeof GUNGAME_WEAPONS !== 'undefined' && GUNGAME_WEAPONS[s.tier]) ? GUNGAME_WEAPONS[s.tier] : null;
       const wName = tw && W_BY_ID[tw] ? W_BY_ID[tw].name : (tw || '');
-      return '<tr><td style="padding:4px 8px;text-align:left;">' + winBadge + escapeHtml(name) + isMe + '</td><td style="padding:4px 8px;text-align:center;color:#3acaff;font-weight:700;">' + (s.tier + 1) + '/15</td><td style="padding:4px 8px;text-align:center;color:#aaa;font-size:11px;">' + escapeHtml(wName) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.deaths || 0) + '</td></tr>';
+      return '<tr><td style="padding:4px 8px;text-align:left;">' + winBadge + escapeHtml(name) + isMe + _scoreboardTroll(i === sortedByTier.length - 1 && sortedByTier.length > 1) + '</td><td style="padding:4px 8px;text-align:center;color:#3acaff;font-weight:700;">' + (s.tier + 1) + '/15</td><td style="padding:4px 8px;text-align:center;color:#aaa;font-size:11px;">' + escapeHtml(wName) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.deaths || 0) + '</td></tr>';
     }).join('');
     statsEl.innerHTML = '<table style="margin:0 auto;border-collapse:collapse;"><thead><tr><th style="padding:4px 8px;color:#888;text-align:left;">Spelare</th><th style="padding:4px 8px;color:#888;">Tier</th><th style="padding:4px 8px;color:#888;">Vapen</th><th style="padding:4px 8px;color:#888;">Kills</th><th style="padding:4px 8px;color:#888;">Deaths</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
@@ -37561,7 +37607,7 @@ function showKothEndScreen(winnerId, stats) {
       const winBadge = s.peerId === winnerId ? '👑 ' : '';
       const isMe = s.peerId === Coop.myId ? ' (du)' : '';
       const rank = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : (i + 1) + '.'));
-      return '<tr><td style="padding:4px 8px;text-align:center;color:#888;">' + rank + '</td><td style="padding:4px 8px;text-align:left;">' + winBadge + escapeHtml(name) + isMe + '</td><td style="padding:4px 8px;text-align:center;color:#ffd54a;font-weight:700;">' + (s.score || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.deaths || 0) + '</td></tr>';
+      return '<tr><td style="padding:4px 8px;text-align:center;color:#888;">' + rank + '</td><td style="padding:4px 8px;text-align:left;">' + winBadge + escapeHtml(name) + isMe + _scoreboardTroll(i === sortedByScore.length - 1 && sortedByScore.length > 1) + '</td><td style="padding:4px 8px;text-align:center;color:#ffd54a;font-weight:700;">' + (s.score || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.deaths || 0) + '</td></tr>';
     }).join('');
     statsEl.innerHTML = '<table style="margin:0 auto;border-collapse:collapse;"><thead><tr><th style="padding:4px 8px;color:#888;">#</th><th style="padding:4px 8px;color:#888;text-align:left;">Spelare</th><th style="padding:4px 8px;color:#888;">Poäng</th><th style="padding:4px 8px;color:#888;">Kills</th><th style="padding:4px 8px;color:#888;">Deaths</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
@@ -37850,7 +37896,7 @@ function showJuggernautEndScreen(winnerId, stats) {
       const winBadge = s.peerId === winnerId ? '👑 ' : '';
       const isMe = s.peerId === Coop.myId ? ' (du)' : '';
       const rank = i === 0 ? '🥇' : (i === 1 ? '🥈' : (i === 2 ? '🥉' : (i + 1) + '.'));
-      return '<tr><td style="padding:4px 8px;text-align:center;color:#888;">' + rank + '</td><td style="padding:4px 8px;text-align:left;">' + winBadge + escapeHtml(name) + isMe + '</td><td style="padding:4px 8px;text-align:center;color:#ffd54a;font-weight:700;">' + (s.timeAsJug || 0) + 's</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.deaths || 0) + '</td></tr>';
+      return '<tr><td style="padding:4px 8px;text-align:center;color:#888;">' + rank + '</td><td style="padding:4px 8px;text-align:left;">' + winBadge + escapeHtml(name) + isMe + _scoreboardTroll(i === sortedByTime.length - 1 && sortedByTime.length > 1) + '</td><td style="padding:4px 8px;text-align:center;color:#ffd54a;font-weight:700;">' + (s.timeAsJug || 0) + 's</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.deaths || 0) + '</td></tr>';
     }).join('');
     statsEl.innerHTML = '<table style="margin:0 auto;border-collapse:collapse;"><thead><tr><th style="padding:4px 8px;color:#888;">#</th><th style="padding:4px 8px;color:#888;text-align:left;">Spelare</th><th style="padding:4px 8px;color:#888;">Tid som JUG</th><th style="padding:4px 8px;color:#888;">Kills</th><th style="padding:4px 8px;color:#888;">Deaths</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
@@ -38355,7 +38401,7 @@ function showBrEndScreen(winnerId, statsArr) {
       else if (s.placement === 3) rank = '🥉';
       else if (s.placement >= 999) rank = '–';
       else rank = '#' + s.placement;
-      return '<tr><td style="padding:4px 8px;text-align:center;color:#888;">' + rank + '</td><td style="padding:4px 8px;text-align:left;">' + winBadge + escapeHtml(name) + isMe + '</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;color:#888;">' + (s.deaths || 0) + '</td></tr>';
+      return '<tr><td style="padding:4px 8px;text-align:center;color:#888;">' + rank + '</td><td style="padding:4px 8px;text-align:left;">' + winBadge + escapeHtml(name) + isMe + _scoreboardTroll(i === sortedByPlacement.length - 1 && sortedByPlacement.length > 1) + '</td><td style="padding:4px 8px;text-align:center;">' + (s.kills || 0) + '</td><td style="padding:4px 8px;text-align:center;color:#888;">' + (s.deaths || 0) + '</td></tr>';
     }).join('');
     statsEl.innerHTML = '<table style="margin:0 auto;border-collapse:collapse;"><thead><tr><th style="padding:4px 8px;color:#888;">#</th><th style="padding:4px 8px;color:#888;text-align:left;">Spelare</th><th style="padding:4px 8px;color:#888;">Kills</th><th style="padding:4px 8px;color:#888;">Deaths</th></tr></thead><tbody>' + rows + '</tbody></table>';
   }
