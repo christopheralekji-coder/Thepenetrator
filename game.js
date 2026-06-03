@@ -21522,7 +21522,7 @@ function updateGrenadeTypeChip() {
     b.setAttribute('aria-label', 'Byt granat-typ');
     b.textContent = '⇄'; // switch-ikon (ej granat-emoji)
     // HÖGER sida av granat-knappen, vertikalt centrerad
-    b.style.cssText = 'position:absolute;top:calc(50% - 11px);right:1px;width:22px;height:22px;border-radius:50%;background:rgba(16,18,24,0.96);border:2px solid rgba(255,255,255,0.65);color:#fff;display:none;align-items:center;justify-content:center;font:800 13px sans-serif;line-height:1;z-index:7;pointer-events:auto;touch-action:manipulation;box-shadow:0 1px 4px rgba(0,0,0,0.6);';
+    b.style.cssText = 'position:absolute;top:calc(50% - 11px);right:-9px;width:22px;height:22px;border-radius:50%;background:rgba(16,18,24,0.96);border:2px solid rgba(255,255,255,0.65);color:#fff;display:none;align-items:center;justify-content:center;font:800 13px sans-serif;line-height:1;z-index:7;pointer-events:auto;touch-action:manipulation;box-shadow:0 1px 4px rgba(0,0,0,0.6);';
     let _lastTap = 0;
     const onTap = (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -21857,7 +21857,8 @@ function detonateGrenade(g) {
 let _smokeSeedCtr = 0;
 function spawnSmokeCloud(x, y) {
   if (!state.smokeClouds) state.smokeClouds = [];
-  if (state.smokeClouds.length >= 7) state.smokeClouds.shift();
+  // v1.728: 7→16 så flera moln (egna + lagets) kan ligga samtidigt utan att äldsta försvinner
+  if (state.smokeClouds.length >= 16) state.smokeClouds.shift();
   _smokeSeedCtr++;
   // v1.725: tjockare/större/längre — duration 11.5s, radie 175.
   state.smokeClouds.push({ x, y, startAt: performance.now(), duration: 11500, radius: 175, seed: (_smokeSeedCtr * 2.3994) % (Math.PI * 2) });
@@ -21901,7 +21902,25 @@ function drawSmokeClouds() {
     bg.addColorStop(0.78, 'rgba(165,168,176,' + (baseA * 0.72).toFixed(3) + ')');
     bg.addColorStop(1, 'rgba(150,153,160,0)');
     ctx.fillStyle = bg;
-    ctx.beginPath(); ctx.arc(sx, sy, R, 0, Math.PI * 2); ctx.fill();
+    // v1.728: OJÄMN blob-silhuett (ej perfekt cirkel) — deterministisk per moln (seed) +
+    // långsam tids-wobble. Smooth via quadratic mellan lob-punkter.
+    const LOBES = 13;
+    const pts = [];
+    for (let i = 0; i < LOBES; i++) {
+      const a = (i / LOBES) * Math.PI * 2;
+      const wob = 0.74 + 0.18 * (0.5 + 0.5 * Math.sin(a * 2 + sc.seed * 3 + now / 1700))
+                       + 0.08 * Math.sin(a * 5 + sc.seed * 1.7);
+      const rr = R * Math.min(1, wob);
+      pts.push([sx + Math.cos(a) * rr, sy + Math.sin(a) * rr]);
+    }
+    ctx.beginPath();
+    ctx.moveTo((pts[0][0] + pts[LOBES - 1][0]) / 2, (pts[0][1] + pts[LOBES - 1][1]) / 2);
+    for (let i = 0; i < LOBES; i++) {
+      const cur = pts[i], nxt = pts[(i + 1) % LOBES];
+      ctx.quadraticCurveTo(cur[0], cur[1], (cur[0] + nxt[0]) / 2, (cur[1] + nxt[1]) / 2);
+    }
+    ctx.closePath();
+    ctx.fill();
     // Billowande puffar (tids-baserad oscillation = mjukt, ingen flicker) — v1.725 fler + tätare
     const N = 22;
     for (let i = 0; i < N; i++) {
@@ -27204,7 +27223,8 @@ const Coop = {
         // ~(flush + RTT) sedan avskjutningen. Avancera den så den hamnar nära sin
         // FAKTISKA position (annars syns den "bakom" / efter att man redan blivit träffad).
         const _sp = this.players && this.players.get(fromId);
-        const _lead = Math.min(0.16, Math.max(0.04, ((_sp && _sp.ping) || 70) / 1000 + 0.033));
+        // v1.728: lägre cap (0.08) så NÄRA skott ej överskjuter förbi spelaren (= osynliga).
+        const _lead = Math.min(0.08, Math.max(0, ((_sp && _sp.ping) || 60) / 1000));
         for (const s of data.bs) {
           const life = s.l || 1.6;
           const adv = Math.min(_lead, life * 0.5);
