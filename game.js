@@ -22030,17 +22030,9 @@ if (_btnPvpShield) {
 // växlar till nästa levande lagkamrat. Bara aktivt i spectating-läge så normal input
 // påverkas ej.
 (function setupSpectateCycle() {
-  let _lastSpecTapAt = 0;
-  const onTap = () => {
-    if (state.mode !== 'playing' || !state.player || !state.player.spectating) return;
-    if (typeof Coop === 'undefined' || !Coop.active) return;
-    const now = performance.now();
-    if (now - _lastSpecTapAt < 250) return; // debounce (iOS dubbel-event)
-    _lastSpecTapAt = now;
-    if (typeof cycleSpectate === 'function') cycleSpectate(1);
-  };
-  document.addEventListener('pointerdown', onTap);
-  document.addEventListener('touchstart', onTap, { passive: true });
+  // v1.722: byte sker via dedikerad knapp (#spectate-switch-btn) längst ner —
+  // tap-var-som-helst borttaget (orsakade oavsiktligt byte när man tittade).
+  // Desktop: piltangenter kvar.
   document.addEventListener('keydown', (e) => {
     if (state.mode !== 'playing' || !state.player || !state.player.spectating) return;
     if (typeof Coop === 'undefined' || !Coop.active) return;
@@ -34243,21 +34235,40 @@ function cycleSpectate(dir) {
   _updateSpectateBanner();
 }
 let _spectateBanner = null;
+let _spectateBtn = null;
 function _updateSpectateBanner() {
   const spec = state.player && state.player.spectating && state.player.specTarget &&
                typeof Coop !== 'undefined' && Coop.active;
-  if (!spec) { if (_spectateBanner) _spectateBanner.style.display = 'none'; return; }
+  if (!spec) {
+    if (_spectateBanner) _spectateBanner.style.display = 'none';
+    if (_spectateBtn) _spectateBtn.style.display = 'none';
+    return;
+  }
+  // Liten info-banner uppe (vem man ser på)
   if (!_spectateBanner) {
     const el = document.createElement('div');
     el.id = 'spectate-banner';
-    el.style.cssText = 'position:fixed;top:calc(54px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:40;pointer-events:none;background:rgba(10,8,12,0.80);border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:6px 14px;font-family:sans-serif;color:#fff;font-size:13px;font-weight:800;text-align:center;white-space:nowrap;box-shadow:0 3px 14px rgba(0,0,0,0.5);';
+    el.style.cssText = 'position:fixed;top:calc(54px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);z-index:40;pointer-events:none;background:rgba(10,8,12,0.80);border:1px solid rgba(255,255,255,0.25);border-radius:10px;padding:5px 12px;font-family:sans-serif;color:#fff;font-size:12px;font-weight:800;text-align:center;white-space:nowrap;box-shadow:0 3px 14px rgba(0,0,0,0.5);';
     document.body.appendChild(el);
     _spectateBanner = el;
   }
   const tgt = Coop.players && Coop.players.get(state.player.specTarget);
   const name = (tgt && tgt.name) || 'Lagkamrat';
-  _spectateBanner.innerHTML = '👁 SER PÅ: <span style="color:#9affa0;">' + name + '</span> &nbsp;·&nbsp; <span style="color:#bbb;font-weight:600;">tryck för nästa</span>';
+  _spectateBanner.innerHTML = '👁 SER PÅ: <span style="color:#9affa0;">' + name + '</span>';
   _spectateBanner.style.display = 'block';
+  // Liten knapp längst ner (bara när död) för att byta spelare
+  if (!_spectateBtn) {
+    const b = document.createElement('button');
+    b.id = 'spectate-switch-btn';
+    b.innerHTML = '👁 BYT SPELARE ▶';
+    b.style.cssText = 'position:fixed;bottom:max(22px, calc(env(safe-area-inset-bottom,0px) + 22px));left:50%;transform:translateX(-50%);z-index:45;background:rgba(20,18,26,0.94);border:2px solid rgba(154,255,160,0.6);border-radius:12px;color:#fff;font:800 13px sans-serif;padding:9px 18px;box-shadow:0 3px 14px rgba(0,0,0,0.5);pointer-events:auto;touch-action:manipulation;display:none;';
+    const onBtn = (e) => { e.preventDefault(); e.stopPropagation(); if (typeof cycleSpectate === 'function') cycleSpectate(1); };
+    b.addEventListener('pointerdown', onBtn);
+    b.addEventListener('touchstart', onBtn, { passive: false });
+    document.body.appendChild(b);
+    _spectateBtn = b;
+  }
+  _spectateBtn.style.display = 'block';
 }
 
 function updateDeathState(dt) {
@@ -36381,6 +36392,7 @@ function showTdmRespawnCountdown(respawnAt) {
 }
 // CS-runda: dö = vänta på nästa runda (ingen fast respawn-countdown). Återanvänder
 // respawn-overlayn med statisk text.
+let _tdmDeadHideTimer = null;
 function showTdmDeadWaiting() {
   if (!_tdmRespawnOverlay) return;
   if (_tdmRespawnInterval) { clearInterval(_tdmRespawnInterval); _tdmRespawnInterval = null; }
@@ -36388,6 +36400,9 @@ function showTdmDeadWaiting() {
   if (_tdmRespawnNum) _tdmRespawnNum.textContent = '💀';
   const labels = _tdmRespawnOverlay.querySelectorAll('.label');
   if (labels && labels[1]) labels[1].textContent = 'väntar på nästa runda';
+  // v1.722: dölj efter 2s så döskallen/texten inte täcker spectate-vyn
+  if (_tdmDeadHideTimer) clearTimeout(_tdmDeadHideTimer);
+  _tdmDeadHideTimer = setTimeout(() => { if (_tdmRespawnOverlay) _tdmRespawnOverlay.classList.add('hidden'); }, 2000);
 }
 // CS-runda-slut-banner (vinnande lag + 3s nedräkning + kill-score)
 let _tdmRoundBanner = null;
