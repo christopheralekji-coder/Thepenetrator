@@ -19428,6 +19428,9 @@ function spawnMuzzleFlash(x, y, ang, color, size = 18) {
 // Sparks: spridda gnistor med gravity.
 function spawnSparks(x, y, color, count = 6, speed = 220, gravity = 320) {
   if (!state.particles) return;
+  // PERF (Omgång 2): halvera gnistor på låg kvalitet (svaga/heta telefoner) — mindre
+  // partikel-CPU + fill-rate, knappt synligt i strid.
+  if (typeof save !== 'undefined' && save && save.quality === 'low') count = Math.ceil(count * 0.5);
   for (let i = 0; i < count; i++) {
     const a = Math.random() * Math.PI * 2;
     const sp = speed * (0.5 + Math.random() * 0.8);
@@ -21993,6 +21996,30 @@ function updateSmokeClouds() {
     state.smokeClouds = state.smokeClouds.filter(sc => now - sc.startAt < sc.duration);
   }
 }
+// PERF (Omgång 2): förbakade puff-texturer (shade-buckets) → stämplas med drawImage
+// i st f createRadialGradient PER puff PER frame (var den största combat-värmekällan:
+// upp till ~46 gradienter/moln × 25 moln/frame). Buckets bevarar den riktade
+// ljussättningen (ljusare puffar mot ljuskällan); highlight bakad uppe-vänster.
+const _smokePuffTex = [];
+const _SMOKE_PUFF_SHADE0 = 96, _SMOKE_PUFF_STEP = 28; // 6 buckets: 96..236
+function _getSmokePuffTex(bucket) {
+  let tex = _smokePuffTex[bucket];
+  if (tex) return tex;
+  const sh = _SMOKE_PUFF_SHADE0 + bucket * _SMOKE_PUFF_STEP;
+  const S = 64, cc = S / 2;
+  const c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const g2 = c.getContext('2d');
+  const dk = (sh * 0.68) | 0;
+  const grad = g2.createRadialGradient(cc - S * 0.12, cc - S * 0.12, 1, cc, cc, cc);
+  grad.addColorStop(0, 'rgba(' + sh + ',' + sh + ',' + ((sh + 5) | 0) + ',1)');
+  grad.addColorStop(0.5, 'rgba(' + ((sh * 0.86) | 0) + ',' + ((sh * 0.86) | 0) + ',' + ((sh * 0.89) | 0) + ',0.62)');
+  grad.addColorStop(1, 'rgba(' + dk + ',' + dk + ',' + ((dk + 3) | 0) + ',0)');
+  g2.fillStyle = grad;
+  g2.beginPath(); g2.arc(cc, cc, cc, 0, Math.PI * 2); g2.fill();
+  tex = _smokePuffTex[bucket] = c;
+  return tex;
+}
 function drawSmokeClouds() {
   if (!state.smokeClouds || !state.smokeClouds.length) return;
   const now = performance.now();
@@ -22014,10 +22041,12 @@ function drawSmokeClouds() {
     // summerar till tät obskyr-massa i kärnan MEN med blommkåls-textur/densitetsvariation =
     // ser ut som rök, ej "grå blob". Riktad ljussättning (ljuskälla uppe-vänster) + offset-
     // highlight ger volym; multi-frekvent tids-churn = mjuk rörelse utan flicker.
-    const many = state.smokeClouds.length > 6;
+    // PERF (Omgång 2): tvinga reducerad puff-path även på låg kvalitet (ej bara >6 moln).
+    const many = state.smokeClouds.length > 6 || (typeof save !== 'undefined' && save && save.quality === 'low');
     // Fyllnads-bas: ger tät obskyr-"golv" i kärnan (rökgranatens taktiska syfte) men
     // mjuk falloff mot kanten så puffarna sköter texturen utan att se ut som en skiva.
     const baseA = alpha * 0.62;
+    ctx.globalAlpha = 1; // reset (puff() nedan lämnar globalAlpha satt per puff)
     const bg = ctx.createRadialGradient(sx, sy, R * 0.05, sx, sy, R * 1.04);
     bg.addColorStop(0, 'rgba(178,180,186,' + baseA.toFixed(3) + ')');
     bg.addColorStop(0.5, 'rgba(156,159,166,' + (baseA * 0.78).toFixed(3) + ')');
@@ -22025,19 +22054,16 @@ function drawSmokeClouds() {
     bg.addColorStop(1, 'rgba(140,143,150,0)');
     ctx.fillStyle = bg;
     ctx.beginPath(); ctx.arc(sx, sy, R * 1.04, 0, Math.PI * 2); ctx.fill();
-    // Puff-helper: riktad ljussättning + offset-highlight → 3D-volym per puff.
+    // Puff-helper: stämplar förbakad shade-bucket-textur (drawImage) i st f live-gradient.
+    // Riktad ljussättning bevaras via bucket-val (lightDot → ljusare/mörkare textur).
     const puff = (px, py, pr, baseShade, pa) => {
       if (pa <= 0.004) return;
       const lightDot = (-(px - sx) - (py - sy)) / (R + 1);
       const sh = (Math.max(96, Math.min(238, baseShade + lightDot * 54))) | 0;
-      const dk = (sh * 0.68) | 0;
       const r2 = Math.max(2, pr);
-      const pg = ctx.createRadialGradient(px - (px - sx) * 0.18, py - (py - sy) * 0.18, 1, px, py, r2);
-      pg.addColorStop(0, 'rgba(' + sh + ',' + sh + ',' + ((sh + 5) | 0) + ',' + pa.toFixed(3) + ')');
-      pg.addColorStop(0.5, 'rgba(' + ((sh * 0.86) | 0) + ',' + ((sh * 0.86) | 0) + ',' + ((sh * 0.89) | 0) + ',' + (pa * 0.62).toFixed(3) + ')');
-      pg.addColorStop(1, 'rgba(' + dk + ',' + dk + ',' + ((dk + 3) | 0) + ',0)');
-      ctx.fillStyle = pg;
-      ctx.beginPath(); ctx.arc(px, py, r2, 0, Math.PI * 2); ctx.fill();
+      const bucket = Math.min(5, Math.max(0, ((sh - _SMOKE_PUFF_SHADE0) / _SMOKE_PUFF_STEP) | 0));
+      ctx.globalAlpha = pa;
+      ctx.drawImage(_getSmokePuffTex(bucket), px - r2, py - r2, r2 * 2, r2 * 2);
     };
     // Oktav 1 — KÄRN-BILLOWS (stora, klustrade mot center → tät obskyr-massa).
     const NC = many ? 8 : 13;
@@ -22113,6 +22139,33 @@ function _explBlobPath(cx, cy, R, lobes, seed, wobAmt, tWob) {
   }
   ctx.closePath();
 }
+// PERF (Omgång 2): förbakade glöd-texturer för explosions-PUFFARNA (efter-rök/pockets/
+// tungor = 25 live-gradienter/explosion/frame). Huvud-eldbollen + flashen behålls som
+// live-gradienter (signaturform, bara ~2/explosion). Stämplas med drawImage + globalAlpha.
+const _fireTexCache = {};
+function _getFireTex(kind) {
+  if (_fireTexCache[kind]) return _fireTexCache[kind];
+  const S = 64, cc = S / 2;
+  const c = document.createElement('canvas');
+  c.width = S; c.height = S;
+  const g2 = c.getContext('2d');
+  const grad = g2.createRadialGradient(cc, cc, 1, cc, cc, cc);
+  if (kind === 'aftersmoke') {
+    grad.addColorStop(0, 'rgba(96,91,84,1)');
+    grad.addColorStop(1, 'rgba(96,91,84,0)');
+  } else if (kind === 'pocket') {
+    grad.addColorStop(0, 'rgba(255,238,156,1)');
+    grad.addColorStop(0.6, 'rgba(255,142,42,0.6)');
+    grad.addColorStop(1, 'rgba(255,92,22,0)');
+  } else { // 'tongue'
+    grad.addColorStop(0, 'rgba(255,182,64,1)');
+    grad.addColorStop(1, 'rgba(255,82,20,0)');
+  }
+  g2.fillStyle = grad;
+  g2.beginPath(); g2.arc(cc, cc, cc, 0, Math.PI * 2); g2.fill();
+  _fireTexCache[kind] = c;
+  return c;
+}
 function drawExplosions() {
   if (!state.explosions || !state.explosions.length) return;
   const now = performance.now();
@@ -22137,13 +22190,11 @@ function drawExplosions() {
         const px = sx + Math.cos(ang) * dist + Math.sin(now / 900 + ph) * 6;
         const py = sy + Math.sin(ang) * dist - rise + Math.cos(now / 1100 + ph) * 6;
         const pr = R * (0.20 + 0.18 * st) * (0.7 + 0.3 * Math.sin(now / 700 + ph));
-        const sh = (50 + ((i * 13) % 36) + st * 34) | 0;
         const pa = smokeA * 0.5;
-        const pg = ctx.createRadialGradient(px, py, 1, px, py, Math.max(3, pr));
-        pg.addColorStop(0, 'rgba(' + sh + ',' + ((sh * 0.95) | 0) + ',' + ((sh * 0.88) | 0) + ',' + pa.toFixed(3) + ')');
-        pg.addColorStop(1, 'rgba(' + sh + ',' + ((sh * 0.95) | 0) + ',' + ((sh * 0.88) | 0) + ',0)');
-        ctx.fillStyle = pg;
-        ctx.beginPath(); ctx.arc(px, py, Math.max(3, pr), 0, Math.PI * 2); ctx.fill();
+        const r = Math.max(3, pr);
+        ctx.globalAlpha = pa;
+        ctx.drawImage(_getFireTex('aftersmoke'), px - r, py - r, r * 2, r * 2);
+        ctx.globalAlpha = 1;
       }
     }
 
@@ -22169,12 +22220,10 @@ function drawExplosions() {
         const px = sx + Math.cos(ph) * d, py = sy + Math.sin(ph) * d;
         const pr = FR * (0.16 + 0.1 * Math.sin(now / 90 + ph));
         const pa = Math.max(0, fa * (0.45 + 0.3 * Math.sin(now / 80 + ph)));
-        const pg = ctx.createRadialGradient(px, py, 1, px, py, Math.max(2, pr));
-        pg.addColorStop(0, 'rgba(255,238,156,' + pa.toFixed(3) + ')');
-        pg.addColorStop(0.6, 'rgba(255,142,42,' + (pa * 0.6).toFixed(3) + ')');
-        pg.addColorStop(1, 'rgba(255,92,22,0)');
-        ctx.fillStyle = pg;
-        ctx.beginPath(); ctx.arc(px, py, Math.max(2, pr), 0, Math.PI * 2); ctx.fill();
+        const r = Math.max(2, pr);
+        ctx.globalAlpha = pa;
+        ctx.drawImage(_getFireTex('pocket'), px - r, py - r, r * 2, r * 2); // additiv (lighter)
+        ctx.globalAlpha = 1;
       }
       // Flam-tungor — flimrande eld-spetsar utåt (textur i kanten).
       if (age > 40 && age < 390) {
@@ -22185,11 +22234,10 @@ function drawExplosions() {
           const tx = sx + Math.cos(a) * reach, ty = sy + Math.sin(a) * reach;
           const tr = FR * 0.22 * (0.6 + 0.4 * Math.sin(now / 95 + ph * 1.3));
           const ta = fa * 0.55;
-          const tg = ctx.createRadialGradient(tx, ty, 1, tx, ty, Math.max(2, tr));
-          tg.addColorStop(0, 'rgba(255,182,64,' + ta.toFixed(3) + ')');
-          tg.addColorStop(1, 'rgba(255,82,20,0)');
-          ctx.fillStyle = tg;
-          ctx.beginPath(); ctx.arc(tx, ty, Math.max(2, tr), 0, Math.PI * 2); ctx.fill();
+          const r = Math.max(2, tr);
+          ctx.globalAlpha = ta;
+          ctx.drawImage(_getFireTex('tongue'), tx - r, ty - r, r * 2, r * 2); // additiv (lighter)
+          ctx.globalAlpha = 1;
         }
       }
       ctx.globalCompositeOperation = 'source-over';
@@ -27525,14 +27573,32 @@ const Coop = {
       }
       // Hostile bullets från host (visuella + lokal collision-check)
       if (data.hb) {
-        // Behåll klientens egna bullets, ersätt bara hostile
-        const ownBullets = state.bullets.filter(b => !b.hostile);
-        const hostileFromHost = data.hb.map(b => ({
-          x: b.x, y: b.y, vx: b.vx, vy: b.vy,
-          dmg: 0, // skada hanteras av host via damage_to_you
-          life: 2, r: b.r, color: b.c, hostile: true, _fromHost: true,
-        }));
-        state.bullets = ownBullets.concat(hostileFromHost);
+        // PERF (Omgång 2): muta en återanvänd hostile-pool in-place i st f
+        // .filter+.map+.concat (3 arrayer + N nya objekt PER snapshot ~45Hz =
+        // största GC-källan i coop-combat). Hostile-grenen (b.hostile) använder
+        // bara x/y/vx/vy/r/color/dmg/life + b.dead — inga hitIds → pool är säker
+        // om dead nollställs varje snapshot (annars läcker en gammal wall/hit-död).
+        const hb = data.hb;
+        const pool = state._hostilePool || (state._hostilePool = []);
+        for (let i = 0; i < hb.length; i++) {
+          const s = hb[i];
+          let o = pool[i];
+          if (!o) o = pool[i] = {};
+          o.x = s.x; o.y = s.y; o.vx = s.vx; o.vy = s.vy;
+          o.r = s.r; o.color = s.c; o.life = 2;
+          o.dmg = 0; // skada hanteras av host via damage_to_you
+          o.hostile = true; o._fromHost = true; o.dead = false;
+        }
+        pool.length = hb.length;
+        // Kompaktera bort gamla hostile ur state.bullets in-place, lägg poolen sist
+        // (samma ordning som förut: egna först, hostile sist). Ingen array-reallok.
+        const bl = state.bullets;
+        let w = 0;
+        for (let r = 0; r < bl.length; r++) {
+          if (!bl[r].hostile) bl[w++] = bl[r];
+        }
+        bl.length = w;
+        for (let i = 0; i < pool.length; i++) bl.push(pool[i]);
       }
       if (data.pickups) {
         // v1.603: SURVIVORS — endast HP + shield drops. Filter bort gold/ammo/temp_dmg från server-broadcast.
