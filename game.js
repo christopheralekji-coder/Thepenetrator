@@ -19515,10 +19515,35 @@ function triggerShake(magnitude, duration) {
 function triggerHitStop(ms) {
   Feedback.hitStopUntil = Math.max(Feedback.hitStopUntil, performance.now() + ms);
 }
+let _lastHapticAt = 0;
 function triggerVibrate(ms) {
   if (!Feedback.vibrateEnabled) return;
+  // Native (Capacitor) taptic-haptik — RIKTIG vibration på iPhone i appen. iPhone-Safari
+  // (webben) stödjer ingen vibration alls, så detta aktiveras automatiskt först i native-
+  // appen. Throttlad så snabb eld (minigun/pellets) inte spammar taptic-motorn.
+  try {
+    const H = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics;
+    if (H) {
+      const _n = performance.now();
+      if (_n - _lastHapticAt < 35) return; // max ~28 stötar/sek
+      _lastHapticAt = _n;
+      const style = ms >= 30 ? 'HEAVY' : (ms >= 14 ? 'MEDIUM' : 'LIGHT');
+      try { H.impact({ style: style }); } catch (e) {}
+      return;
+    }
+  } catch (e) {}
+  // Webb-fallback: Android Chrome stödjer navigator.vibrate; iPhone-Safari ignorerar.
   if (navigator.vibrate) navigator.vibrate(ms);
 }
+// Native-app-polish (Capacitor): dölj status-baren för ren helskärm. No-op på webben.
+(function _nativeInit() {
+  try {
+    const C = window.Capacitor;
+    if (C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.StatusBar) {
+      try { C.Plugins.StatusBar.hide(); } catch (e) {}
+    }
+  } catch (e) {}
+})();
 // v1.674: instant hit-juice (hitstop + shake) för coop/PvP-prediktion. Servern är
 // auth för skada, men KÄNSLAN ska vara identisk med solo — samma beprövade skala som
 // damageEnemy:s solo-väg (crit 60ms/3, normal 10ms/1.2). triggerHitStop/Shake self-
