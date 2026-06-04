@@ -1,10 +1,10 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v755-autoLOD-threshold';
+const CACHE = 'penetrator-v756-godray-cache';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=755',
-  './game.js?v=755',
+  './style.css?v=756',
+  './game.js?v=756',
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg',

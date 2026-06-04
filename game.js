@@ -47781,24 +47781,40 @@ function drawStageAtmosphere(stage) {
   if (atm.rays) {
     const t = performance.now();
     const drift = (t / 4000) % 1;
-    for (let i = 0; i < atm.rays.count; i++) {
-      const baseX = (i / atm.rays.count + drift) * viewW * 1.3 - viewW * 0.15;
-      const skewX = atm.rays.dir === 'down' ? 30 : -30;
-      const grad = ctx.createLinearGradient(baseX, 0, baseX + skewX, viewH);
-      grad.addColorStop(0, atm.rays.color);
-      grad.addColorStop(0.6, atm.rays.color.replace(/,(\s*0\.\d+)\)$/, ',0)'));
-      grad.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = grad;
+    const skewX = atm.rays.dir === 'down' ? 30 : -30;
+    // PERF (Omgång 3): gradientens FÄRGPROFIL är identisk varje frame — bara baseX
+    // driver. Förut byggdes en ny createLinearGradient PER stråle PER frame (3-6 grad/
+    // frame + helskärms-fyllningar). Nu byggs den EN gång (i lokal 0,0→skewX,viewH-rymd,
+    // cachad per viewH+färg+skew) och återanvänds via ctx.translate(baseX). Färre strålar
+    // på låg kvalitet (mindre fill-rate).
+    const _rk = viewH + '|' + atm.rays.color + '|' + skewX;
+    if (_rayGradCache.key !== _rk) {
+      const g = ctx.createLinearGradient(0, 0, skewX, viewH);
+      g.addColorStop(0, atm.rays.color);
+      g.addColorStop(0.6, atm.rays.color.replace(/,(\s*0\.\d+)\)$/, ',0)'));
+      g.addColorStop(1, 'rgba(0,0,0,0)');
+      _rayGradCache.key = _rk;
+      _rayGradCache.grad = g;
+    }
+    const lowQ = (typeof save !== 'undefined' && save && save.quality === 'low');
+    const rayCount = lowQ ? Math.max(2, Math.ceil(atm.rays.count / 2)) : atm.rays.count;
+    ctx.fillStyle = _rayGradCache.grad;
+    for (let i = 0; i < rayCount; i++) {
+      const baseX = (i / rayCount + drift) * viewW * 1.3 - viewW * 0.15;
+      ctx.save();
+      ctx.translate(baseX, 0); // gradient ligger i lokal rymd → strålen hamnar vid baseX
       ctx.beginPath();
-      ctx.moveTo(baseX - 25, 0);
-      ctx.lineTo(baseX + 25, 0);
-      ctx.lineTo(baseX + skewX + 45, viewH);
-      ctx.lineTo(baseX + skewX - 5, viewH);
+      ctx.moveTo(-25, 0);
+      ctx.lineTo(25, 0);
+      ctx.lineTo(skewX + 45, viewH);
+      ctx.lineTo(skewX - 5, viewH);
       ctx.closePath();
       ctx.fill();
+      ctx.restore();
     }
   }
 }
+const _rayGradCache = { key: null, grad: null };
 
 // World-boundary: stage-themed kant istället för dashad linje.
 function drawWorldBoundary(stage, cx, cy) {
