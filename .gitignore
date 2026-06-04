@@ -2,3 +2,11 @@
 # temp test-output
 server/_*.txt
 _*.txt
+
+# Capacitor / native app (genereras — ej i repo, så Pages-deployen påverkas ej)
+node_modules/
+www/
+ios/
+android/
+dist/
+.DS_Store

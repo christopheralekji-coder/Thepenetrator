@@ -1,0 +1,21 @@
+{
+  "name": "warparty",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WarParty — top-down co-op & PvP shooter. Capacitor-wrapper för native iOS/Android (webb-versionen ligger kvar oförändrad på GitHub Pages).",
+  "scripts": {
+    "build:www": "node scripts/build-www.mjs",
+    "sync": "npm run build:www && cap sync",
+    "ios:add": "npm run build:www && cap add ios",
+    "ios:sync": "npm run build:www && cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "^6.2.0",
+    "@capacitor/ios": "^6.2.0",
+    "@capacitor/splash-screen": "^6.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^6.2.0",
+    "@capacitor/assets": "^3.0.5"
+  }
+}

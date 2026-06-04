@@ -1,0 +1,19 @@
+{
+  "appId": "com.alekji.warparty",
+  "appName": "WarParty",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#0a0508"
+  },
+  "server": {
+    "iosScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 1200,
+      "backgroundColor": "#0a0508",
+      "showSpinner": false
+    }
+  }
+}

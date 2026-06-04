@@ -1,0 +1,58 @@
+name: iOS → TestFlight
+
+# Körs BARA manuellt (workflow_dispatch) eller på ios-tag, så den inte failar röd
+# på varje vanlig push innan hemligheterna finns. Tryck "Run workflow" i GitHub
+# Actions-fliken när Apple-kontot + secrets är på plats.
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "ios-v*"
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Installera beroenden
+        run: npm ci || npm install
+
+      - name: Bygg www + iOS-projekt
+        run: |
+          npm run build:www
+          npx cap add ios
+          npx cap sync ios
+
+      - name: Generera app-ikoner + splash
+        run: npx @capacitor/assets generate --ios --assetPath resources || echo "assets-generering hoppad"
+
+      - name: Ruby + Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: false
+      - run: gem install fastlane --no-document
+
+      - name: Bygg + ladda upp till TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APP_ID: com.alekji.warparty
+          BUILD_NUMBER: ${{ github.run_number }}
+          FASTLANE_HIDE_CHANGELOG: "true"
+        run: fastlane beta
+
+      - name: Spara .ipa som artifact (om bygget lyckas)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WarParty-ipa
+          path: build/*.ipa
+          if-no-files-found: ignore
