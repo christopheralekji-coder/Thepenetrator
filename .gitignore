@@ -10,3 +10,5 @@ ios/
 android/
 dist/
 .DS_Store
+
+resources/icon-candidates/

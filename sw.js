@@ -1,13 +1,16 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v762-footstep-vol';
+const CACHE = 'penetrator-v763-app-icon';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=762',
-  './game.js?v=762',
+  './style.css?v=763',
+  './game.js?v=763',
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg',
+  './icon-180.png?v=763',
+  './icon-192.png?v=763',
+  './icon-512.png?v=763',
   './assets/menu/warparty-menubg.jpg?v=690',
   './assets/menu/warparty-coopbg.jpg?v=690',
   './assets/menu/bg-shop.jpg?v=690',
