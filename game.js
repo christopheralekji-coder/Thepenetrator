@@ -18942,6 +18942,7 @@ const Audio = {
     this._tone(1200, 0.04, 'square', 0.15, 0.001, 0.03);
   },
   uiClick() {
+    if (!this._throttle('uiClick', 40)) return; // dedupe: global klick-handler + ev. explicit anrop
     if (this._playSample('uiClick', 0)) return;
     this._tone(800, 0.03, 'square', 0.15, 0.001, 0.025);
   },
@@ -19451,6 +19452,19 @@ function initAudioOnGesture() {
 window.addEventListener('click', initAudioOnGesture);
 window.addEventListener('touchstart', initAudioOnGesture);
 window.addEventListener('keydown', initAudioOnGesture);
+// GLOBAL klick-ljud för ALLA meny/overlay-knappar (många saknade explicit uiClick).
+// Capture-fas så det fyrar även om handlern stoppar propagation. Initierar ljudet vid
+// behov (första klicket) → även den allra första knappen låter. uiClick:s 40ms-throttle
+// dedupar mot knappar som redan anropar uiClick. IN-GAME action-knappar (fire/dash/etc)
+// exkluderas — de har egna ljud (skott/dash) och använder pointerdown, ej click.
+document.addEventListener('click', (e) => {
+  const t = e.target && e.target.closest && e.target.closest('button, [role="button"]');
+  if (!t) return;
+  if (t.closest('#action-buttons') || t.classList.contains('action-btn')) return;
+  if (typeof Audio === 'undefined') return;
+  if (!Audio.ctx && Audio.init) { Audio.init(); if (Audio.ctx && Audio.ctx.state === 'suspended') Audio.ctx.resume(); }
+  if (Audio.uiClick) Audio.uiClick();
+}, true);
 // Resume audio vid visibility-change (iOS pausar bakgrund)
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && Audio.ctx && Audio.ctx.state === 'suspended') {
