@@ -18749,16 +18749,26 @@ const Audio = {
   // via billig BufferSource. Fallback till syntesen om en sample ej hunnit ladda /
   // dekodning failar → ljud funkar alltid. Volym per ljud i _sfxManifest (justerbart). ===
   _sfxManifest: {
-    shootGun: 0.5, shootEnergy: 0.5, shootHeavy: 0.6, hit: 0.7, hitCrit: 0.8,
-    kill: 0.7, explosion: 0.85, goldPickup: 0.55, reloadStart: 0.5, reloadDone: 0.55,
-    uiClick: 0.5, uiHover: 0.35, bossSpawn: 0.85, bossDeath: 0.9,
+    // Vapen-arketyper
+    shootGun: 0.5, shootRapid: 0.4, shootShotgun: 0.6, shootBig: 0.6,
+    shootEnergy: 0.5, shootHeavy: 0.6, shootThrow: 0.5, shootMelee: 0.5,
+    // Träff/död/explosion
+    hit: 0.7, hitCrit: 0.8, kill: 0.7, explosion: 0.85,
+    // Abilities
+    dash: 0.5, shield: 0.6, grenadeThrow: 0.55,
+    // Pickups / reload / köp
+    goldPickup: 0.5, reloadStart: 0.55, reloadDone: 0.6, purchase: 0.55,
+    // UI-knappar
+    uiClick: 0.5, uiHover: 0.35, uiBack: 0.45, uiError: 0.45,
+    // Boss
+    bossSpawn: 0.85, bossDeath: 0.9,
   },
   _sampleBuffers: {},
   _samplesLoaded: false,
   _loadSamples() {
     if (this._samplesLoaded || !this.ctx) return;
     this._samplesLoaded = true; // försök bara en gång
-    const V = '757'; // cache-bust = appversion
+    const V = '758'; // cache-bust = appversion
     for (const name in this._sfxManifest) {
       fetch('assets/sfx/' + name + '.ogg?v=' + V)
         .then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status))
@@ -18794,7 +18804,29 @@ const Audio = {
   },
   shootMelee() {
     if (!this._throttle('shootMelee', 50)) return;
+    if (this._playSample('shootMelee', 0.07)) return; // svärds-swing (whoosh)
     this._tone(420, 0.08, 'sawtooth', 0.18, 0.005, 0.08, 180);
+  },
+  shootRapid() { // smg/minigun/rifle — snabb eld
+    if (!this._throttle('shootRapid', 25)) return;
+    if (this._playSample('shootRapid', 0.06)) return;
+    this._tone(700, 0.04, 'square', 0.22, 0.001, 0.03, 220);
+  },
+  shootShotgun() { // hagelgevär — tjock smäll
+    if (!this._throttle('shootShotgun', 60)) return;
+    if (this._playSample('shootShotgun', 0.04)) return;
+    this._tone(180, 0.12, 'sawtooth', 0.4, 0.002, 0.1, 60);
+    this._noise(0.12, 0.3, { type: 'lowpass', freq: 1200 });
+  },
+  shootBig() { // sniper/revolver/railgun — kraftfullt enkelskott
+    if (!this._throttle('shootBig', 50)) return;
+    if (this._playSample('shootBig', 0.03)) return;
+    this._tone(220, 0.12, 'square', 0.35, 0.002, 0.1, 90);
+  },
+  shootThrow() { // kastvapen (shuriken/båge/boomerang) — whoosh
+    if (!this._throttle('shootThrow', 40)) return;
+    if (this._playSample('shootThrow', 0.08)) return;
+    this._tone(520, 0.06, 'sine', 0.12, 0.002, 0.05, 320);
   },
   shootHeavy() {
     if (!this._throttle('shootHeavy', 80)) return;
@@ -18907,10 +18939,32 @@ const Audio = {
     if (this._playSample('uiHover', 0)) return;
     this._tone(1000, 0.02, 'sine', 0.05, 0.001, 0.015);
   },
+  uiBack() { // tillbaka/stäng-knappar
+    if (this._playSample('uiBack', 0)) return;
+    this._tone(500, 0.03, 'square', 0.12, 0.001, 0.025);
+  },
+  uiError() { // ogiltig handling / fail
+    if (this._playSample('uiError', 0)) return;
+    this._tone(200, 0.12, 'square', 0.18, 0.002, 0.1, 140);
+  },
+  // ABILITIES (Omgång 3 ljud-pass)
+  dash() {
+    if (this._playSample('dash', 0.05)) return; // cloth-whoosh
+    this._tone(900, 0.08, 'sine', 0.2, 0.001, 0.06, 1500);
+  },
+  shield() {
+    if (this._playSample('shield', 0.03)) return; // force-field power-up
+    this._tone(600, 0.3, 'sine', 0.3, 0.005, 0.25, 1000);
+  },
+  grenadeThrow() {
+    if (this._playSample('grenadeThrow', 0.06)) return; // kast-whoosh
+    this._tone(220, 0.15, 'triangle', 0.3, 0.005, 0.13, 180);
+  },
   shopOpen() {
     this._tone(440, 0.15, 'sine', 0.2, 0.005, 0.12, 880);
   },
   purchase() {
+    if (this._playSample('purchase', 0.02)) return; // bekräftelse-chime
     // Trevlig 3-tons ladder (perfect-5th sweep)
     this._tone(523, 0.08, 'sine', 0.18, 0.001, 0.06);
     setTimeout(() => this._tone(659, 0.08, 'sine', 0.18, 0.001, 0.06), 50);
@@ -20807,7 +20861,7 @@ function tryDash() {
   p.dashUntil = performance.now() + 220;
   p.dashCdAt = performance.now();
   p.invuln = Math.max(p.invuln, 0.25); // i-frames
-  Audio._tone(900, 0.08, 'sine', 0.2, 0.001, 0.06, 1500);
+  if (typeof Audio !== 'undefined' && Audio.dash) Audio.dash();
   triggerVibrate(20);
 }
 
@@ -21943,9 +21997,7 @@ function throwGrenade(fromX, fromY, toX, toY, kind) {
       }));
     } catch (_) {}
   }
-  if (typeof Audio !== 'undefined' && Audio._tone) {
-    Audio._tone(220, 0.15, 'triangle', 0.3, 0.005, 0.13, 180);
-  }
+  if (typeof Audio !== 'undefined' && Audio.grenadeThrow) Audio.grenadeThrow();
 }
 
 if (_btnGrenade) {
@@ -22609,7 +22661,7 @@ function tryPvpShield() {
   if (typeof Coop !== 'undefined' && Coop.ws && Coop.ws.readyState === 1) {
     try { Coop.ws.send(JSON.stringify({ type: 'pvp_ability_shield' })); } catch (_) {}
   }
-  if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(600, 0.3, 'sine', 0.3, 0.005, 0.25, 1000);
+  if (typeof Audio !== 'undefined' && Audio.shield) Audio.shield();
   if (typeof showToast === 'function') showToast('🛡 SHIELD AKTIV (3s)');
   if (typeof triggerVibrate === 'function') triggerVibrate(40);
 }
@@ -33961,9 +34013,13 @@ function tryShoot(now) {
     p.ammo -= ammoCost;
   }
   p.lastShot = now;
-  // SFX per vapenkategori
+  // SFX per vapen-arketyp (Omgång 3: finare buckets, behåller heavy/energy-villkoren)
   if (w.explosive || w.id === 'rocket' || w.id === 'sledge') Audio.shootHeavy();
   else if (w.style === 'plasma' || w.style === 'tesla' || w.style === 'frost' || w.style === 'flame' || w.style === 'sonic' || w.id === 'railgun' || w.id === 'blackhole') Audio.shootEnergy();
+  else if (w.id === 'shuriken' || w.id === 'throwknife' || w.id === 'bow' || w.id === 'crossbow' || w.id === 'boomerang' || w.id === 'pullwhip') Audio.shootThrow();
+  else if (w.id === 'shotgun') Audio.shootShotgun();
+  else if (w.id === 'sniper' || w.id === 'revolver') Audio.shootBig();
+  else if (w.id === 'smg' || w.id === 'minigun' || w.id === 'rifle' || w.id === 'turret_mg') Audio.shootRapid();
   else Audio.shootGun();
   state.weaponUsage = state.weaponUsage || {};
   state.weaponUsage[w.id] = (state.weaponUsage[w.id] || 0) + 1;
