@@ -18762,13 +18762,23 @@ const Audio = {
     uiClick: 0.5, uiHover: 0.35, uiBack: 0.45, uiError: 0.45,
     // Boss
     bossSpawn: 0.85, bossDeath: 0.9,
+    // Differentierade pickups
+    pickupHealth: 0.6, pickupShield: 0.55, pickupAmmo: 0.5, pickupWeapon: 0.6,
+    // Defensivt / status
+    shieldBreak: 0.7, downed: 0.8,
+    // CTF-flagga
+    flagGrab: 0.6, flagReturn: 0.6, flagDrop: 0.55,
+    // Objektiv / varningar
+    coreDestroyed: 0.9, airstrikeWarning: 0.7, stormWarning: 0.6, uavActivate: 0.55,
+    // Lobby / countdown
+    countdownBeep: 0.5, countdownGo: 0.7, playerJoin: 0.45, playerLeave: 0.45,
   },
   _sampleBuffers: {},
   _samplesLoaded: false,
   _loadSamples() {
     if (this._samplesLoaded || !this.ctx) return;
     this._samplesLoaded = true; // försök bara en gång
-    const V = '758'; // cache-bust = appversion
+    const V = '759'; // cache-bust = appversion
     for (const name in this._sfxManifest) {
       fetch('assets/sfx/' + name + '.ogg?v=' + V)
         .then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status))
@@ -18960,6 +18970,28 @@ const Audio = {
     if (this._playSample('grenadeThrow', 0.06)) return; // kast-whoosh
     this._tone(220, 0.15, 'triangle', 0.3, 0.005, 0.13, 180);
   },
+  // ===== Omgång 3 ljud-gap-fixar: differentierade pickups, status, läges-events =====
+  pickupHealth() { if (this._playSample('pickupHealth', 0.03)) return; this._tone(660, 0.1, 'sine', 0.18, 0.002, 0.08, 990); },
+  pickupShield() { if (this._playSample('pickupShield', 0.03)) return; this._tone(520, 0.12, 'sine', 0.18, 0.005, 0.1, 780); },
+  pickupAmmo() { if (this._playSample('pickupAmmo', 0.04)) return; this._tone(440, 0.05, 'square', 0.15, 0.001, 0.04); },
+  pickupWeapon() { if (this._playSample('pickupWeapon', 0.03)) return; this._tone(600, 0.12, 'square', 0.2, 0.002, 0.1, 900); },
+  shieldBreak() { if (this._playSample('shieldBreak', 0.04)) return; this._tone(300, 0.2, 'sawtooth', 0.3, 0.002, 0.16, 120); },
+  downed() { if (this._playSample('downed', 0.02)) return; this._tone(160, 0.3, 'sawtooth', 0.4, 0.005, 0.25, 60); },
+  flagGrab() { if (this._playSample('flagGrab', 0.03)) return; this._tone(700, 0.1, 'square', 0.2, 0.002, 0.08, 1000); },
+  flagReturn() { if (this._playSample('flagReturn', 0.03)) return; this._tone(620, 0.12, 'sine', 0.2, 0.002, 0.1, 930); },
+  flagDrop() { if (this._playSample('flagDrop', 0.03)) return; this._tone(400, 0.1, 'triangle', 0.18, 0.002, 0.08, 260); },
+  coreDestroyed() { if (this._playSample('coreDestroyed', 0.03)) return; if (this.explosion) this.explosion(); },
+  airstrikeWarning() { if (this._playSample('airstrikeWarning', 0.03)) return; this._tone(880, 0.15, 'square', 0.25, 0.005, 0.12, 660); },
+  stormWarning() { if (this._playSample('stormWarning', 0.03)) return; this._tone(140, 0.4, 'sawtooth', 0.3, 0.01, 0.3, 90); },
+  uavActivate() { if (this._playSample('uavActivate', 0.03)) return; this._tone(1200, 0.1, 'sine', 0.2, 0.002, 0.08, 1600); },
+  countdownBeep() { if (this._playSample('countdownBeep', 0.02)) return; this._tone(880, 0.06, 'square', 0.18, 0.001, 0.05); },
+  countdownGo() { if (this._playSample('countdownGo', 0.02)) return; this._tone(1200, 0.18, 'sine', 0.28, 0.002, 0.15, 1600); },
+  playerJoin() { if (this._playSample('playerJoin', 0.03)) return; this._tone(700, 0.08, 'sine', 0.15, 0.002, 0.06, 1050); },
+  playerLeave() { if (this._playSample('playerLeave', 0.03)) return; this._tone(500, 0.08, 'sine', 0.12, 0.002, 0.06, 330); },
+  // Match-resultat: kopplar till de befintliga (korrekt stigande/fallande) fanfarerna.
+  matchWin() { if (this.victory) this.victory(); },
+  matchLose() { if (this.gameOver) this.gameOver(); },
+  tierUp() { if (this.killstreak) this.killstreak(3); }, // gungame vapen-uppgradering
   shopOpen() {
     this._tone(440, 0.15, 'sine', 0.2, 0.005, 0.12, 880);
   },
@@ -23667,6 +23699,7 @@ const Coop = {
       this._sendTo(msg.peerId, { type: 'config', config: this.config });
       this.broadcastLobby();
       if (this._onPlayerJoinCb) this._onPlayerJoinCb(this.players.size + 1);
+      if (typeof Audio !== 'undefined' && Audio.playerJoin) Audio.playerJoin();
     } else if (msg.type === 'peer_left') {
       // Ta bort från slotToPeerId
       if (this.slotToPeerId) {
@@ -23681,6 +23714,7 @@ const Coop = {
         state.player.specTarget = null;
         for (const [pid, partner] of this.players) { if (partner && partner.hp > 0) { state.player.specTarget = pid; break; } }
       }
+      if (typeof Audio !== 'undefined' && Audio.playerLeave) Audio.playerLeave();
       this.broadcastLobby();
       if (this._onPlayerJoinCb) this._onPlayerJoinCb(this.players.size + 1);
     } else if (msg.type === 'host_migrated') {
@@ -24214,7 +24248,7 @@ const Coop = {
       const isMine = ev.peerId === this.myId;
       const flagName = flagTeam === 'red' ? 'RÖD' : 'BLÅ';
       if (typeof showCtfStatus === 'function') showCtfStatus(isMine ? `🚩 DU TOG ${flagName} FLAGGAN!` : `⚠ ${flagName} FLAGGAN TOGS!`, 2400);
-      if (typeof Audio !== 'undefined' && Audio.purchase && isMine) Audio.purchase();
+      if (typeof Audio !== 'undefined') { if (isMine) { Audio.flagGrab && Audio.flagGrab(); } else { Audio.uiError && Audio.uiError(); } }
       if (typeof triggerShake === 'function' && isMine) triggerShake(6, 0.3);
     } else if (ev.type === 'ctf_flag_dropped') {
       // Server-shape: { team, x, y, droppedBy }
@@ -24230,6 +24264,7 @@ const Coop = {
       if (typeof updateCtfFlagIcons === 'function') updateCtfFlagIcons();
       const flagName = flagTeam === 'red' ? 'RÖD' : 'BLÅ';
       if (typeof showCtfStatus === 'function') showCtfStatus(`💧 ${flagName} FLAGGAN TAPPADES`, 1800);
+      if (typeof Audio !== 'undefined' && Audio.flagDrop) Audio.flagDrop();
     } else if (ev.type === 'ctf_flag_returned') {
       // Server-shape: { team, peerId?, reason: 'carrier_lost'|'timeout'|'manual' }
       const flagTeam = ev.team;
@@ -24247,6 +24282,7 @@ const Coop = {
       const flagName = flagTeam === 'red' ? 'RÖD' : 'BLÅ';
       const reasonText = ev.reason === 'timeout' ? '(auto-return)' : (ev.reason === 'manual' ? '(retur)' : '(återställd)');
       if (typeof showCtfStatus === 'function') showCtfStatus(`🏠 ${flagName} FLAGGAN HEMMA ${reasonText}`, 1800);
+      if (typeof Audio !== 'undefined' && Audio.flagReturn) Audio.flagReturn();
     } else if (ev.type === 'ctf_flag_captured') {
       // Server-shape: { peerId, team (=scoring team), captures: { red, blue } }
       this.ctfRedCaps = (ev.captures && ev.captures.red) || 0;
@@ -24868,6 +24904,7 @@ const Coop = {
       }
       if (typeof updateSiegeCoreHp === 'function') updateSiegeCoreHp();
       if (typeof triggerShake === 'function') triggerShake(20, 1.5);
+      if (typeof Audio !== 'undefined' && Audio.coreDestroyed) Audio.coreDestroyed();
     } else if (ev.type === 'siege_kill') {
       const killerName = (ev.killer === this.myId) ? (this.myName || 'Du')
         : (this.players.get(ev.killer) && this.players.get(ev.killer).name) || 'Spelare';
@@ -25689,6 +25726,7 @@ const Coop = {
         showToast('⚠ ' + (ev.name || 'PHASE ' + (ev.phase + 1)) + ' — ZON KRYMPER');
       }
       if (typeof triggerShake === 'function') triggerShake(6, 0.3);
+      if (typeof Audio !== 'undefined' && Audio.stormWarning) Audio.stormWarning();
       if (typeof updateBrHud === 'function') updateBrHud();
     } else if (ev.type === 'br_loot_picked') {
       // { peerId, lootId, kind, weaponId, tier, equipped, hp, shield }
@@ -25750,7 +25788,14 @@ const Coop = {
           if (typeof showToast === 'function') showToast('💨 +3 RÖKGRANATER');
         }
         if (typeof updateHUD === 'function') updateHUD();
-        if (typeof Audio !== 'undefined' && Audio.pickup) Audio.pickup();
+        if (typeof Audio !== 'undefined') {
+          const _k = ev.kind; // differentierat pickup-ljud per typ
+          if (_k === 'weapon') { Audio.pickupWeapon && Audio.pickupWeapon(); }
+          else if (_k === 'hp_small' || _k === 'hp_big') { Audio.pickupHealth && Audio.pickupHealth(); }
+          else if (_k === 'shield_small' || _k === 'shield_big') { Audio.pickupShield && Audio.pickupShield(); }
+          else if (_k === 'ammo' || _k === 'grenade' || _k === 'smoke') { Audio.pickupAmmo && Audio.pickupAmmo(); }
+          else { Audio.pickup && Audio.pickup(); }
+        }
       }
     } else if (ev.type === 'br_cash_update') {
       if (ev.peerId === this.myId) {
@@ -25869,7 +25914,7 @@ const Coop = {
         if (typeof exitBrAirstrikeTargeting === 'function') exitBrAirstrikeTargeting();
         if (typeof updateBrBagBadge === 'function') updateBrBagBadge();
         if (typeof showBrDownedOverlay === 'function') showBrDownedOverlay();
-        if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(140, 0.5, 'sawtooth', 0.22, 0.02, 0.4, 90);
+        if (typeof Audio !== 'undefined' && Audio.downed) Audio.downed();
       }
     } else if (ev.type === 'br_revived') {
       if (ev.peerId === this.myId && state.player) {
@@ -25877,6 +25922,7 @@ const Coop = {
         if (typeof ev.hp === 'number') state.player.hp = ev.hp;
         if (typeof hideBrDownedOverlay === 'function') hideBrDownedOverlay();
         if (typeof showToast === 'function') showToast('🩹 SJÄLV-ÅTERUPPLIVAD!');
+        if (typeof Audio !== 'undefined' && Audio.revive) Audio.revive();
         if (typeof updateHUD === 'function') updateHUD();
       }
     } else if (ev.type === 'br_uav_active') {
@@ -25884,6 +25930,7 @@ const Coop = {
         state.brUav = state.brUav || {};
         state.brUav.until = ev.until || (Date.now() + 20000);
         if (typeof showToast === 'function') showToast('📡 UAV AKTIV — fiender på kartan 20s');
+        if (typeof Audio !== 'undefined' && Audio.uavActivate) Audio.uavActivate();
       }
     } else if (ev.type === 'br_uav_ping') {
       if (ev.peerId === this.myId) {
@@ -25895,7 +25942,7 @@ const Coop = {
       // Synligt för ALLA (telegraf-zon så man hinner fly).
       state.brAirstrikeWarnings = state.brAirstrikeWarnings || [];
       state.brAirstrikeWarnings.push({ x: ev.x, y: ev.y, r: ev.r || 240, impactAt: ev.impactAt || (Date.now() + 3000) });
-      if (typeof Audio !== 'undefined' && Audio._tone) Audio._tone(880, 0.12, 'square', 0.12, 0.005, 0.1, 660);
+      if (typeof Audio !== 'undefined' && Audio.airstrikeWarning) Audio.airstrikeWarning();
     } else if (ev.type === 'br_airstrike_blast') {
       // Ta bort matchande warning + spawna explosioner på blast-punkterna.
       if (state.brAirstrikeWarnings) {
@@ -26201,6 +26248,7 @@ const Coop = {
       state.castledefenseNextBossKey = ev.nextBossKey;
       state.castledefenseNextThemeLabel = ev.nextThemeLabel || null;
       if (typeof showToast === 'function') showToast('✓ Våg ' + ev.wave + ' klar — bygg/repair!');
+      if (typeof Audio !== 'undefined' && Audio.zoneClear) Audio.zoneClear();
       if (ev.nextIsBoss && typeof showToast === 'function') {
         setTimeout(() => showToast('⚠ BOSS-VÅG om ' + (ev.nextWaveInSec || 8) + 's — förbered!'), 1500);
       }
@@ -26227,6 +26275,7 @@ const Coop = {
       if (state.castledefenseCore) {
         state.castledefenseCore.hp = ev.hp;
       }
+      if (typeof Audio !== 'undefined' && Audio.playerHurt) Audio.playerHurt(); // core tar skada (throttlad 200ms)
     } else if (ev.type === 'cd_hp_changed') {
       // { peerId, hp, shield } — v1.404: sync shield + hp efter dmg
       if (ev.peerId === this.myId && state.player) {
@@ -26249,6 +26298,7 @@ const Coop = {
         const who = ev.peerId === this.myId ? 'Du valde' : ((this.players.get(ev.peerId) && this.players.get(ev.peerId).name) || 'Spelare') + ' valde';
         showToast(who + ' ' + perk.icon + ' ' + perk.name);
       }
+      if (ev.peerId === this.myId && typeof Audio !== 'undefined' && Audio.perkChosen) Audio.perkChosen();
       // v1.419: Absoluta värden (idempotent). Tidigare multiplikation skapade
       // dubbel-apply om event triggas igen (reconnect / respawn-broadcast).
       if (ev.peerId === this.myId && state.player) {
@@ -26390,6 +26440,7 @@ const Coop = {
       state.castledefenseEnded = true;
       state.survivorsActive = false;
       state.survivorsEnded = true;
+      if (typeof Audio !== 'undefined' && Audio.matchWin) Audio.matchWin();
       if (typeof hideCastleDefenseHud === 'function') hideCastleDefenseHud();
       if (typeof hideCastleDefenseBuildBar === 'function') hideCastleDefenseBuildBar();
       if (typeof resetSurvivorsPerks === 'function') resetSurvivorsPerks();
@@ -27064,6 +27115,13 @@ const Coop = {
       // 5-sekunders prep-overlay innan stage börjar — alla synkar position
       state._countdownEndAt = performance.now() + (ev.durationMs || 5000);
       state._countdownLabel = 'FÖRBERED'; // v1.378: triggar isInputLocked
+      // Schemalägg nedräknings-pip (per sekund) + GO vid 0.
+      if (typeof Audio !== 'undefined') {
+        const _cdDur = ev.durationMs || 5000;
+        const _cdSecs = Math.min(5, Math.floor(_cdDur / 1000));
+        for (let _s = 1; _s <= _cdSecs; _s++) setTimeout(() => { if (Audio.countdownBeep) Audio.countdownBeep(); }, _cdDur - _s * 1000);
+        setTimeout(() => { if (Audio.countdownGo) Audio.countdownGo(); }, _cdDur);
+      }
       // Rensa eventuell stale input-state så user inte kan starta firing/grenade
       // genom att hålla in knappen från föregående match.
       input.firing = false;
@@ -27098,6 +27156,7 @@ const Coop = {
       if (this._lastBossToastKey !== key) {
         this._lastBossToastKey = key;
         if (typeof showToast === 'function') showToast('⚠ MINI-BOSS: ' + (ev.name || ''));
+        if (typeof Audio !== 'undefined' && Audio.bossSpawn) Audio.bossSpawn();
       }
     } else if (ev.type === 'player_died') {
       // Spelare dog (kan vara mig eller partner)
@@ -33853,6 +33912,7 @@ function tdmPickWeapon(weaponId) {
     if (typeof showToast === 'function') showToast('🎒 ' + (((w && w.name) || weaponId).toUpperCase()) + ' → vapenförråd (⚔)');
     if (typeof updateHUD === 'function') updateHUD();
   }
+  if (typeof Audio !== 'undefined' && Audio.pickupWeapon) Audio.pickupWeapon();
 }
 function tdmResetInventory() {
   state._tdmInventory = ['pistol'];
@@ -37395,6 +37455,7 @@ function showTdmDeadWaiting() {
 let _tdmRoundBanner = null;
 let _tdmRoundBannerInterval = null;
 function showTdmRoundEnd(winner, roundNum, redWins, blueWins, target, durationMs, myTeam) {
+  try { if (typeof Audio !== 'undefined' && winner && myTeam) (winner === myTeam ? Audio.zoneClear() : Audio.uiError()); } catch (e) {}
   if (!_tdmRoundBanner) {
     const el = document.createElement('div');
     el.id = 'tdm-round-banner';
@@ -37530,6 +37591,7 @@ function _scoreboardTroll(isWorst) {
 function showTdmEndScreen(winner, redWins, blueWins, stats, teams) {
   if (!_tdmEndOverlay) return;
   hideTdmHud();
+  try { if (typeof Audio !== 'undefined') { const _mt = teams && teams[Coop.myId]; if (_mt) (winner === _mt ? Audio.matchWin() : Audio.matchLose()); } } catch (e) {}
   // Vinnar-färg-flash innan overlay slides in (game-feel polish)
   const winColor = winner === 'red' ? 'rgba(255,90,90,0.4)' : 'rgba(90,170,255,0.4)';
   const flash = document.createElement('div');
@@ -37719,6 +37781,7 @@ function addCtfKillFeed(killerName, killerTeam, victimName, victimTeam, weaponNa
 function showCtfEndScreen(winner, redCaps, blueCaps, stats, teams) {
   if (!_ctfEndOverlay) return;
   hideCtfHud();
+  try { if (typeof Audio !== 'undefined') { const _mt = teams && teams[Coop.myId]; if (_mt) (winner === _mt ? Audio.matchWin() : Audio.matchLose()); } } catch (e) {}
   const winColor = winner === 'red' ? 'rgba(255,90,90,0.4)' : 'rgba(90,170,255,0.4)';
   const flash = document.createElement('div');
   flash.style.cssText = `position:fixed;inset:0;background:${winColor};z-index:199;pointer-events:none;animation:tdmEndFlash 1s forwards;`;
@@ -37885,6 +37948,7 @@ function addSiegeKillFeed(killerName, killerTeam, victimName, victimTeam, weapon
 function showSiegeEndScreen(winner, redScore, blueScore, stats, teams, reason) {
   if (!_siegeEndOverlay) return;
   hideSiegeHud();
+  try { if (typeof Audio !== 'undefined') { const _mt = teams && teams[Coop.myId]; if (_mt) (winner === _mt ? Audio.matchWin() : Audio.matchLose()); } } catch (e) {}
   const winColor = winner === 'red' ? 'rgba(255,90,90,0.4)' : 'rgba(90,170,255,0.4)';
   const flash = document.createElement('div');
   flash.style.cssText = `position:fixed;inset:0;background:${winColor};z-index:199;pointer-events:none;animation:tdmEndFlash 1s forwards;`;
@@ -38115,11 +38179,8 @@ function playGungameTierUpVFX(tier, weapons) {
   document.body.appendChild(text);
   // Cleanup efter animation
   setTimeout(() => { flash.remove(); text.remove(); }, 850);
-  // Power-up ljud
-  if (typeof Audio !== 'undefined' && Audio._tone) {
-    Audio._tone(800, 0.4, 'square', 0.3, 0.01, 0.3, 1400);
-    setTimeout(() => Audio._tone(1200, 0.3, 'square', 0.25, 0.01, 0.25, 1800), 100);
-  }
+  // Power-up ljud (vapen-uppgradering)
+  if (typeof Audio !== 'undefined' && Audio.tierUp) Audio.tierUp();
   // Screen-shake för impact
   if (typeof triggerShake === 'function') triggerShake(6, 0.3);
 }
@@ -38142,6 +38203,7 @@ function playGungameDemoteVFX(tier, weapons) {
   text.style.cssText = 'position:fixed;top:36%;left:50%;transform:translateX(-50%);z-index:181;pointer-events:none;color:#ff6a4a;font-family:sans-serif;font-weight:900;font-size:26px;letter-spacing:2px;text-shadow:0 2px 8px rgba(0,0,0,0.75);animation:ggDemoteFade 0.9s forwards;';
   document.body.appendChild(text);
   setTimeout(() => { flash.remove(); text.remove(); }, 950);
+  if (typeof Audio !== 'undefined' && Audio.uiError) Audio.uiError(); // tier-förlust
   if (typeof triggerShake === 'function') triggerShake(5, 0.25);
 }
 function addGungameKillFeed(killerName, victimName, weaponName, wasMelee, demoted) {
@@ -38165,6 +38227,7 @@ function addGungameKillFeed(killerName, victimName, weaponName, wasMelee, demote
 }
 function showGungameEndScreen(winnerId, stats) {
   hideGungameHud();
+  try { if (typeof Audio !== 'undefined') (winnerId === Coop.myId ? Audio.matchWin() : Audio.matchLose()); } catch (e) {}
   const overlay = document.getElementById('gungame-end-overlay');
   const winnerName = winnerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(winnerId) && Coop.players.get(winnerId).name) || 'Spelare');
   const titleEl = document.getElementById('gungame-end-title');
@@ -38266,6 +38329,7 @@ function addKothKillFeed(killerName, victimName, weaponName) {
 }
 function showKothEndScreen(winnerId, stats) {
   hideKothHud();
+  try { if (typeof Audio !== 'undefined') (winnerId === Coop.myId ? Audio.matchWin() : Audio.matchLose()); } catch (e) {}
   const overlay = document.getElementById('koth-end-overlay');
   const winnerName = winnerId === Coop.myId ? (Coop.myName || 'Du') : ((Coop.players.get(winnerId) && Coop.players.get(winnerId).name) || 'Spelare');
   const titleEl = document.getElementById('koth-end-title');
@@ -38499,6 +38563,7 @@ function addJuggernautKillFeed(killerName, victimName, weaponName, wasJugKilled)
 }
 function showJuggernautEndScreen(winnerId, stats) {
   hideJuggernautHud();
+  try { if (typeof Audio !== 'undefined') (winnerId === Coop.myId ? Audio.matchWin() : Audio.matchLose()); } catch (e) {}
   // Använd KOTH-overlay som template om dedikerad overlay saknas
   let overlay = document.getElementById('juggernaut-end-overlay');
   if (!overlay) {
@@ -39694,6 +39759,7 @@ function showBrEndScreen(winnerId, statsArr) {
   // sent server-event (br_match_ended kan komma 1-2s efter mode-exit).
   if (state.mode === 'menu' || state.mode === 'gameover') return;
   hideBrHud();
+  try { if (typeof Audio !== 'undefined') (winnerId === Coop.myId ? Audio.matchWin() : Audio.matchLose()); } catch (e) {}
   let overlay = document.getElementById('br-end-overlay');
   if (!overlay) {
     overlay = document.createElement('div');
@@ -43427,6 +43493,7 @@ function aiFinal(b, p, ndx, ndy, d, hpFrac, dt, now) {
         text: phaseLabels[phase] || ('FAS ' + phase),
         until: performance.now() + 1500,
       };
+      if (typeof Audio !== 'undefined' && Audio.bossPhase) Audio.bossPhase();
       triggerShake(8, 0.3);
     }
   }
@@ -75824,7 +75891,11 @@ function runFrame(dt, now) {
       }
       if (_absorbed || (_gotHit && _pvp3s)) {
         if (typeof triggerShieldHitFx === 'function') triggerShieldHitFx();
+        // Sköld-BRYTS: distinkt ljud när skölden går från >0 till 0 på denna träff.
+        const _shNow = _shp.shield || 0;
+        if (_shp._prevShieldFx !== undefined && _shp._prevShieldFx > 0.5 && _shNow <= 0.5 && typeof Audio !== 'undefined' && Audio.shieldBreak) Audio.shieldBreak();
       }
+      _shp._prevShieldFx = _shp.shield || 0;
       // v1.707/708: HP-drop → blod-spray PÅ TRÄFFSTÄLLET (kanten mot angriparen), sprutar
       // bort i kulans färdriktning. Källa-agnostiskt (solo + coop). 600ms freshness täcker RTT.
       const _hpNow = _shp.hp || 0;
