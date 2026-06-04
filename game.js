@@ -18881,7 +18881,7 @@ const Audio = {
   },
   footstep() {
     if (!this._throttle('footstep', 200)) return;
-    this._noise(0.04, 0.08, { type: 'lowpass', freq: 200 });
+    this._noise(0.05, 0.18, { type: 'lowpass', freq: 320 }); // v1.762: tydligare fotsteg (var 0.08/200Hz)
   },
   bossSpawn() {
     this.duck(0.5, 1000); // v1.657: dippa musiken för boss-entré
