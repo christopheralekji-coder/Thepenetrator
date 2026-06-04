@@ -18706,15 +18706,26 @@ const Audio = {
     osc.onended = () => { this._activeNodes = Math.max(0, this._activeNodes - 1); };
   },
   // Brus med envelope (för explosioner, hagelgevär)
+  _noiseBuf: null,
   _noise(dur, vol = 0.5, filter = null) {
     if (!this.enabled || !this.ctx) return;
+    if (this._activeNodes > 60) return; // cap gäller nu ÄVEN brus (combat-värme-fix)
+    // PERF: återanvänd EN förgenererad brus-buffert (2s, loopad) i stället för att
+    // allokera en ny AudioBuffer + fylla den med Math.random() per anrop. shootGun
+    // anropade detta PER SKOTT (~2880 RNG + ny Float32Array varje skott) = ren
+    // GC/CPU-värme i combat. Nu byggs bruset en gång och spelas via en lätt source.
+    if (!this._noiseBuf) {
+      const len = (this.ctx.sampleRate * 2) | 0;
+      const b = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+      const d = b.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      this._noiseBuf = b;
+    }
+    this._activeNodes++;
     const t = this.ctx.currentTime;
-    const bufSize = this.ctx.sampleRate * dur;
-    const buf = this.ctx.createBuffer(1, bufSize, this.ctx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < bufSize; i++) data[i] = Math.random() * 2 - 1;
     const src = this.ctx.createBufferSource();
-    src.buffer = buf;
+    src.buffer = this._noiseBuf;
+    src.loop = true; // buffert är 2s → loopa så valfri dur funkar
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(vol, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
@@ -18729,6 +18740,8 @@ const Audio = {
     }
     gain.connect(this.sfxGain);
     src.start(t);
+    src.stop(t + dur + 0.05); // måste stoppas explicit nu (loopad buffert)
+    src.onended = () => { this._activeNodes = Math.max(0, this._activeNodes - 1); };
   },
   // SFX-funktioner
   shootGun() {
@@ -18757,6 +18770,7 @@ const Audio = {
     this._tone(baseFreq, 0.05, 'square', 0.15, 0.002, 0.03, baseFreq * 0.45);
   },
   hitCrit() {
+    if (!this._throttle('hitCrit', 40)) return; // saknade broms → crit-spam = 6 noder/träff
     // Crit får en uppåtgående ton + sawtooth-bas för punch
     const baseFreq = 420 + Math.random() * 60;
     this._tone(baseFreq, 0.1, 'square', 0.3, 0.002, 0.08, baseFreq * 2);
@@ -19499,7 +19513,26 @@ const _mainCtx = ctx; // referens till main-context för säker restore
 // v1.575: HUD-canvas (z-index:3) för minimap + HUD-element som ska ligga ovan Pixi-sprites
 const hudCanvas = document.getElementById('hud-canvas');
 const hudCtx = hudCanvas ? hudCanvas.getContext('2d') : null;
-let DPR = Math.min(window.devicePixelRatio || 1, 2);
+// PERF (combat-värme-fix): adaptiv DPR. Mobiler har devicePixelRatio 2-3 → vi
+// renderade förut alltid i min(dpr,2) = full retina, vilket är den största
+// enskilda fill-rate/värme-kostnaden (alla 3 canvas-lager + Pixi samtidigt).
+// Nu kapas backing-store-upplösningen efter kvalitets-tier: high=2 (desktop/opt-in),
+// medium=1.5 (default mobil, ~-44% pixlar, nära osynligt i rörelse), low=1.25.
+// resize() anropas när save.quality ändras (auto-FPS/batteri/inställning) så bytet
+// slår igenom direkt. CSS-storleken (viewW/viewH) är oförändrad → bara skärpan.
+function computeDPR() {
+  const raw = window.devicePixelRatio || 1;
+  let cap = 2;
+  try {
+    if (typeof save !== 'undefined' && save) {
+      if (save.quality === 'high') cap = 2;
+      else if (save.quality === 'low') cap = 1.25;
+      else cap = 1.5; // medium / default
+    }
+  } catch (e) { /* save ej redo ännu → cap 2 */ }
+  return Math.min(raw, cap);
+}
+let DPR = computeDPR();
 let viewW = 0, viewH = 0;
 
 // PERF: ShadowBlur är 5-15× långsammare än utan på Canvas2D. 280 callsites i
@@ -19531,7 +19564,7 @@ let viewW = 0, viewH = 0;
 })();
 
 function resize() {
-  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  DPR = computeDPR();
   // Använd visualViewport om tillgänglig (mer korrekt på mobile med dynamic island)
   const vw = window.visualViewport ? window.visualViewport.width : window.innerWidth;
   const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
@@ -25383,6 +25416,7 @@ const Coop = {
       state.battleroyaleMatchEndAt = ev.matchEndAt || (Date.now() + 600000);
       state.battleroyalePhaseEndAt = ev.phaseEndAt || 0;
       state.battleroyaleWalls = ev.walls || [];
+      state._brBulletWalls = null; // invalidera bullet-wall-cache mot nya walls
       state.battleroyaleDecorations = ev.decorations || [];
       state.battleroyaleCabins = ev.cabins || [];
       state.battleroyaleLoot = {};
@@ -27502,7 +27536,8 @@ const Coop = {
       }
       if (data.pickups) {
         // v1.603: SURVIVORS — endast HP + shield drops. Filter bort gold/ammo/temp_dmg från server-broadcast.
-        const allowedTypes = state.survivorsActive ? new Set(['hp', 'shield']) : null;
+        // PERF: använd hoistad Set-konstant i st f att bygga en ny Set per snapshot.
+        const allowedTypes = state.survivorsActive ? _SURVIVORS_PICKUP_TYPES : null;
         state.pickups = data.pickups
           .filter(p => !allowedTypes || allowedTypes.has(p.t))
           .map(p => ({ x: p.x, y: p.y, type: p.t, life: 25, vx:0, vy:0, magnetized: false }));
@@ -32367,14 +32402,17 @@ function autoAdjustQuality(now) {
     if (fps < 25 && save.quality !== 'low') {
       save.quality = 'low';
       persist();
+      if (typeof resize === 'function') resize(); // applicera lägre DPR direkt
       showToast('🐢 Kvalitet sänkt → LÅG (' + Math.round(fps) + ' fps)');
     } else if (fps < 45 && save.quality === 'high') {
       save.quality = 'medium';
       persist();
+      if (typeof resize === 'function') resize();
       showToast('Kvalitet sänkt → MEDIUM (' + Math.round(fps) + ' fps)');
     } else if (fps > 55 && save.quality === 'low') {
       save.quality = 'medium';
       persist();
+      if (typeof resize === 'function') resize();
     }
     // Reset för nästa mätning (löpande, inte engångs)
     _fpsStart = now;
@@ -32388,6 +32426,7 @@ if (navigator.getBattery) {
     function checkBattery() {
       if (b.level < 0.2 && !b.charging && save.quality !== 'low') {
         save.quality = 'low'; persist();
+        if (typeof resize === 'function') resize(); // applicera lägre DPR direkt
         showToast('Låg batteri — kvalitet sänkt');
       }
     }
@@ -32484,6 +32523,7 @@ document.getElementById('set-colorblind').addEventListener('change', (e) => {
 });
 document.getElementById('set-quality').addEventListener('change', (e) => {
   save.quality = e.target.value; persist();
+  if (typeof resize === 'function') resize(); // byt DPR-tier direkt
 });
 document.getElementById('set-skipdialog').addEventListener('change', (e) => {
   save.skipDialog = e.target.checked; persist();
@@ -34332,8 +34372,15 @@ function spawnDamageNumber(x, y, dmg, isCrit, kind) {
     }
   }
   // Cap 10 samtidiga (var 5) — FIFO på äldsta om över cap.
-  const existing = state.particles.filter(p => p.isDamageNumber);
-  if (existing.length >= 10) existing[0].life = 0;
+  // PERF: räkna + hitta äldsta i ETT pass utan att allokera en ny array per träff.
+  let _dmgCount = 0, _oldestDmg = null;
+  for (let _i = 0; _i < state.particles.length; _i++) {
+    if (state.particles[_i].isDamageNumber) {
+      _dmgCount++;
+      if (!_oldestDmg) _oldestDmg = state.particles[_i]; // först i arrayen = äldst
+    }
+  }
+  if (_dmgCount >= 10 && _oldestDmg) _oldestDmg.life = 0;
   let col;
   if (isCrit) col = '#ffeb3b';
   else if (dmgKind === 'shield') col = '#46b6ff'; // blå = sköld
@@ -39114,6 +39161,7 @@ function clearBattleroyaleState() {
   if (typeof hideBrSpectatorBanner === 'function') hideBrSpectatorBanner();
   state.battleroyaleActive = false;
   state.battleroyaleWalls = null;
+  state._brBulletWalls = null; // släpp bullet-wall-cache
   state.battleroyaleDecorations = null;
   state.battleroyaleCabins = null;
   state.battleroyaleLoot = null;
@@ -43273,6 +43321,11 @@ function applyBulletEffects(target, b) {
   }
 }
 
+// PERF: hoistad ur den heta kula×fiende-loopen (förut allokerad PER PAR).
+const LONG_RANGE_WEAPON_IDS = ['sniper', 'railgun', 'crossbow', 'bow', 'rifle', 'minigun'];
+// PERF: hoistad ur onData-pickup-loopen (förut en ny Set per snapshot i Survivors).
+const _SURVIVORS_PICKUP_TYPES = new Set(['hp', 'shield']);
+
 function updateBullets(dt) {
   const p = state.player;
   // Hård cap mot infinite-skott (t.ex. cheats + minigun)
@@ -43448,7 +43501,8 @@ function updateBullets(dt) {
     }
     if (state.battleroyaleActive && state.battleroyaleWalls && typeof bulletHitsWall === 'function') {
       // BR: skippa walls med passThroughBullets-flag (fönster) — bullets passerar igenom
-      const brSolidWalls = state.battleroyaleWalls.filter(w => !w.passThroughBullets);
+      const brSolidWalls = state._brBulletWalls || (state._brBulletWalls =
+        state.battleroyaleWalls.filter(w => !w.passThroughBullets)); // PERF: cacha (jfr heist)
       if (bulletHitsWall(b, brSolidWalls)) {
         if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
         if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 4, 80);
@@ -43559,21 +43613,22 @@ function updateBullets(dt) {
         }
         if (b.dead) continue;
       }
+      // PERF: per-bullet-värden beräknas EN gång före fiende-loopen (förut per par).
+      // Anti-cheese: enemies får bara skjutas inom rimligt avstånd från SPELAREN.
+      // Explicit allow-list för LONG-RANGE-vapen — boomerang/energysword/lightsaber
+      // har också pierce:true men ska INTE få long-range exemption.
+      // Companion-bullets undantagna (de kan hamna långt från player).
+      const _isLongRange = b.weaponId && LONG_RANGE_WEAPON_IDS.indexOf(b.weaponId) >= 0;
+      // Phone-clamp: 700px är ~50% past viewport på 852×393. Skala mot half-diag * 1.2.
+      const _halfDiag = Math.hypot(viewW, viewH) / 2;
+      const _cheeseRange = Math.min(700, Math.max(450, _halfDiag * 1.2));
+      const _cheeseRangeSq = _cheeseRange * _cheeseRange;
       for (let i = 0; i < state.enemies.length; i++) {
         const e = state.enemies[i];
         if (e.dead || b.hitIds.has(e)) continue;
-        // Anti-cheese: enemies får bara skjutas inom rimligt avstånd från SPELAREN.
-        // Explicit allow-list för LONG-RANGE-vapen — boomerang/energysword/lightsaber
-        // har också pierce:true men ska INTE få long-range exemption.
-        // Companion-bullets undantagna (de kan hamna långt från player).
-        const longRangeIds = ['sniper', 'railgun', 'crossbow', 'bow', 'rifle', 'minigun'];
-        const isLongRange = b.weaponId && longRangeIds.indexOf(b.weaponId) >= 0;
-        if (!e.isBoss && !e.isMiniBoss && !isLongRange && !b._companion) {
+        if (!e.isBoss && !e.isMiniBoss && !_isLongRange && !b._companion) {
           const ddx = e.x - p.x, ddy = e.y - p.y;
-          // Phone-clamp: 700px är ~50% past viewport på 852×393. Skala mot half-diag * 1.2.
-          const halfDiag = Math.hypot(viewW, viewH) / 2;
-          const cheeseRange = Math.min(700, Math.max(450, halfDiag * 1.2));
-          if (ddx * ddx + ddy * ddy > cheeseRange * cheeseRange) continue;
+          if (ddx * ddx + ddy * ddy > _cheeseRangeSq) continue;
         }
         // Squared distance — slipper sqrt på den heta collision-loopen (kollisionscheck körs ~5000 ggr/frame med 50 enemies × 100 bullets)
         const dx = e.x - b.x, dy = e.y - b.y;
