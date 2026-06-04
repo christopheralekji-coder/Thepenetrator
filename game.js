@@ -19241,6 +19241,14 @@ const Music = {
       stepsPerBeat: 4,
       sustainedNotes: [],
     };
+    this.menuMode = false;
+  },
+  // Meny/lobby-musik (lobby-temat). Spelar tills ett gameplay-stage startar.
+  menuMode: false,
+  startMenu() {
+    if (this.menuMode && this.active) return; // redan meny-musik igång
+    this.startStage('lobby');
+    this.menuMode = true;
   },
 
   stop() {
@@ -19436,6 +19444,8 @@ const Music = {
 function initAudioOnGesture() {
   Audio.init();
   if (Audio.ctx && Audio.ctx.state === 'suspended') Audio.ctx.resume();
+  // Starta meny-musik vid första gestur (autoplay-policy kräver user-gesture).
+  try { if (typeof state !== 'undefined' && state.mode === 'menu' && typeof Music !== 'undefined' && Music.startMenu) Music.startMenu(); } catch (e) {}
 }
 // Trigga vid första gestur, men resume varje gång ifall iOS pausat
 window.addEventListener('click', initAudioOnGesture);
@@ -24414,6 +24424,7 @@ const Coop = {
         // VFX: explosion-shockwave + sparks
         if (typeof spawnSparks === 'function') spawnSparks(t.x, t.y, '#ff8a3a', 28, 360);
         if (typeof spawnShockwave === 'function') spawnShockwave(t.x, t.y, 24, 120, '#ff5a3a', 0.6, 5);
+        if (typeof Audio !== 'undefined' && Audio.explosion) Audio.explosion();
         if (typeof triggerShake === 'function') triggerShake(14, 0.7);
         if (typeof showToast === 'function') {
           const team = t.team === 'red' ? 'RÖDA' : 'BLÅA';
@@ -24832,6 +24843,7 @@ const Coop = {
         t.rebuildProgress = 0;
         if (typeof spawnSparks === 'function') spawnSparks(t.x, t.y, '#ff8a3a', 28, 360);
         if (typeof spawnShockwave === 'function') spawnShockwave(t.x, t.y, 24, 120, '#ff5a3a', 0.6, 5);
+        if (typeof Audio !== 'undefined' && Audio.explosion) Audio.explosion();
         if (typeof triggerShake === 'function') triggerShake(10, 0.5);
         if (typeof showToast === 'function') {
           const team = t.team === 'red' ? 'RÖD' : 'BLÅ';
@@ -26759,6 +26771,7 @@ const Coop = {
       if (ev.peerId === this.myId) {
         state.heistMyBagsCarrying = ev.bagsCarrying || 0;
         state.heistMyBagsValue = ev.bagsValue || 0;
+        if (typeof Audio !== 'undefined' && Audio.goldPickup) Audio.goldPickup();
       }
       if (typeof showToast === 'function') showToast('🎒 PLOCKADE UPP · $' + (ev.value || 0).toLocaleString());
     } else if (ev.type === 'heist_bag_secured_loose') {
@@ -26784,6 +26797,7 @@ const Coop = {
       if (state.heistDoors) {
         for (const d of state.heistDoors) if (d.id === ev.doorId) d.locked = false;
       }
+      if (typeof Audio !== 'undefined' && Audio.reloadDone) Audio.reloadDone(); // mekaniskt lås-klick
       if (ev.peerId === this.myId) {
         state.heistMyLockpickEnd = 0;
         state.heistMyLockpickDoorId = null;
@@ -26843,6 +26857,8 @@ const Coop = {
       for (const camId of (ev.disabledCameras || [])) {
         state.heistDisabledCameras[camId] = true;
       }
+      if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase(); // terminal hackad
+
       // v1.645: rensa egen hack-state
       if (state.heistMyHackTermId === ev.terminalId) {
         state.heistMyHackEnd = 0;
@@ -42455,6 +42471,8 @@ function updatePlayer(dt, now) {
   if (_locked) { mx = 0; my = 0; }
   const m = Math.hypot(mx, my);
   if (m > 1) { mx /= m; my /= m; }
+  // Fotsteg medan man rör sig till fots (footstep() throttlar internt 200ms).
+  if (m > 0.12 && !_locked && p.dashUntil <= now && !p._mountedTurretId && !p._mountedCtfTurretId && !p._mountedSiegeTurretId && typeof Audio !== 'undefined' && Audio.footstep) Audio.footstep();
   // Dash override
   if (p.dashUntil > now) {
     p.x += p.dashDir.x * 700 * dt;
@@ -75813,6 +75831,9 @@ function loop(now) {
   lastTime = now;
   // Frame-counter för cache-invalidation (getCurrentCostume etc)
   state._currentFrame = (state._currentFrame || 0) + 1;
+  // Robust meny/lobby-musik: säkerställ lobby-tema i menyn (täcker ALLA retur-till-
+  // meny-vägar). Idempotent — startMenu() returnerar direkt om den redan spelar.
+  if (state.mode === 'menu' && Audio.ctx && typeof Music !== 'undefined' && Music.startMenu) Music.startMenu();
   const _frameT0 = performance.now();
   try { runFrame(dt, now); } catch (e) {
     console.error('Frame error:', (e && e.message) || e);
