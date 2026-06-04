@@ -78,7 +78,23 @@ module.exports = {
     expect(dprCheck.medium.dpr).toBe(dprCheck.expectedCaps.medium);
     expect(dprCheck.low.dpr).toBe(dprCheck.expectedCaps.low);
 
-    // --- LJUD: stressa shootGun/hit/hitCrit/explosion (noise-buffer-återanvändning + crit-throttle) ---
+    // --- LJUD-SAMPLES (Omgång 3): verifiera att CC0-samplen laddas (fetch+decode) ---
+    await page.evaluate(() => { if (typeof Audio !== 'undefined' && Audio.init) Audio.init(); });
+    await wait(2000); // ge decodeAudioData tid
+    const samples = await page.evaluate(() => {
+      if (typeof Audio === 'undefined') return { skipped: true };
+      return {
+        loaded: Object.keys(Audio._sampleBuffers || {}).length,
+        expected: Object.keys(Audio._sfxManifest || {}).length,
+        keys: Object.keys(Audio._sampleBuffers || {}),
+      };
+    });
+    console.log('[PERF-DIAG] samples:', JSON.stringify(samples));
+    if (!samples.skipped) {
+      expect(samples.loaded).toBeGreaterThan(0); // minst några samples dekodade
+    }
+
+    // --- LJUD: stressa shootGun/hit/hitCrit/explosion (sample-playback + fallback) ---
     const audio = await page.evaluate(() => {
       if (typeof Audio === 'undefined' || !Audio.enabled) return { skipped: true };
       if (typeof Audio.init === 'function') Audio.init();

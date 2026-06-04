@@ -18672,6 +18672,7 @@ const Audio = {
       this.musicGain = this.ctx.createGain();
       this.musicGain.gain.value = this.musicVol;
       this.musicGain.connect(this.master);
+      this._loadSamples(); // Omgång 3: ladda CC0-sample-banken
     } catch (e) { this.enabled = false; }
   },
   setSfxVol(v) { this.sfxVol = v; if (this.sfxGain) this.sfxGain.gain.value = v; },
@@ -18743,9 +18744,51 @@ const Audio = {
     src.stop(t + dur + 0.05); // måste stoppas explicit nu (loopad buffert)
     src.onended = () => { this._activeNodes = Math.max(0, this._activeNodes - 1); };
   },
+  // === SAMPLE-BANK (Omgång 3) — riktiga CC0-ljud (Kenney, public domain) i st f
+  // ren syntes för de heta combat-ljuden. Laddas EN gång (decodeAudioData) och spelas
+  // via billig BufferSource. Fallback till syntesen om en sample ej hunnit ladda /
+  // dekodning failar → ljud funkar alltid. Volym per ljud i _sfxManifest (justerbart). ===
+  _sfxManifest: {
+    shootGun: 0.5, shootEnergy: 0.5, shootHeavy: 0.6, hit: 0.7, hitCrit: 0.8,
+    kill: 0.7, explosion: 0.85, goldPickup: 0.55, reloadStart: 0.5, reloadDone: 0.55,
+    uiClick: 0.5, uiHover: 0.35, bossSpawn: 0.85, bossDeath: 0.9,
+  },
+  _sampleBuffers: {},
+  _samplesLoaded: false,
+  _loadSamples() {
+    if (this._samplesLoaded || !this.ctx) return;
+    this._samplesLoaded = true; // försök bara en gång
+    const V = '757'; // cache-bust = appversion
+    for (const name in this._sfxManifest) {
+      fetch('assets/sfx/' + name + '.ogg?v=' + V)
+        .then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status))
+        .then(ab => this.ctx.decodeAudioData(ab))
+        .then(buf => { this._sampleBuffers[name] = buf; })
+        .catch(() => { /* behåll syntes-fallback för detta ljud */ });
+    }
+  },
+  // Spela en laddad sample. Returnerar true om spelad/cap:ad (→ anropare hoppar
+  // syntes-fallback), false om bufferten ej finns ännu (→ anropare faller tillbaka).
+  _playSample(name, rateVar) {
+    if (!this.enabled || !this.ctx) return false;
+    const buf = this._sampleBuffers[name];
+    if (!buf) return false;
+    if (this._activeNodes > 60) return true; // overload-cap (räknas som spelad)
+    this._activeNodes++;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    if (rateVar) src.playbackRate.value = 1 + (Math.random() * 2 - 1) * rateVar; // pitch-variation
+    const gain = this.ctx.createGain();
+    gain.gain.value = this._sfxManifest[name] || 0.6;
+    src.connect(gain); gain.connect(this.sfxGain);
+    src.start();
+    src.onended = () => { this._activeNodes = Math.max(0, this._activeNodes - 1); };
+    return true;
+  },
   // SFX-funktioner
   shootGun() {
     if (!this._throttle('shootGun', 30)) return;
+    if (this._playSample('shootGun', 0.06)) return;
     this._tone(800, 0.05, 'square', 0.3, 0.001, 0.04, 200);
     this._noise(0.06, 0.15, { type: 'lowpass', freq: 2000 });
   },
@@ -18755,22 +18798,26 @@ const Audio = {
   },
   shootHeavy() {
     if (!this._throttle('shootHeavy', 80)) return;
+    if (this._playSample('shootHeavy', 0.05)) return;
     this._tone(120, 0.15, 'sawtooth', 0.4, 0.002, 0.1, 60);
     this._noise(0.18, 0.25, { type: 'lowpass', freq: 600 });
   },
   shootEnergy() {
     if (!this._throttle('shootEnergy', 40)) return;
+    if (this._playSample('shootEnergy', 0.07)) return;
     this._tone(1200, 0.08, 'sine', 0.25, 0.001, 0.06, 600);
     this._tone(2400, 0.05, 'sine', 0.15, 0.001, 0.04, 1200);
   },
   hit() {
     if (!this._throttle('hit', 30)) return;
+    if (this._playSample('hit', 0.12)) return; // pitch-variation = ej monotont vid spam
     // Pitch-variation per träff så audio inte blir monotont vid spam
     const baseFreq = 160 + Math.random() * 80;
     this._tone(baseFreq, 0.05, 'square', 0.15, 0.002, 0.03, baseFreq * 0.45);
   },
   hitCrit() {
     if (!this._throttle('hitCrit', 40)) return; // saknade broms → crit-spam = 6 noder/träff
+    if (this._playSample('hitCrit', 0.08)) return;
     // Crit får en uppåtgående ton + sawtooth-bas för punch
     const baseFreq = 420 + Math.random() * 60;
     this._tone(baseFreq, 0.1, 'square', 0.3, 0.002, 0.08, baseFreq * 2);
@@ -18780,11 +18827,13 @@ const Audio = {
   },
   kill() {
     if (!this._throttle('kill', 40)) return;
+    if (this._playSample('kill', 0.08)) return;
     this._tone(200, 0.08, 'sawtooth', 0.2, 0.002, 0.06, 100);
     this._noise(0.08, 0.1, { type: 'lowpass', freq: 800 });
   },
   explosion() {
     if (!this._throttle('explosion', 80)) return;
+    if (this._playSample('explosion', 0.07)) return;
     this._tone(60, 0.4, 'sawtooth', 0.5, 0.002, 0.3, 30);
     this._noise(0.5, 0.4, { type: 'lowpass', freq: 400 });
   },
@@ -18794,6 +18843,7 @@ const Audio = {
   },
   bossSpawn() {
     this.duck(0.5, 1000); // v1.657: dippa musiken för boss-entré
+    if (this._playSample('bossSpawn', 0.02)) return;
     this._tone(80, 0.6, 'sawtooth', 0.5, 0.05, 0.5, 40);
     this._tone(160, 0.6, 'sawtooth', 0.3, 0.05, 0.5, 80);
     this._noise(0.8, 0.3, { type: 'lowpass', freq: 200 });
@@ -18829,26 +18879,32 @@ const Audio = {
   },
   bossDeath() {
     this.duck(0.6, 1400); // v1.657: dippa musiken så boss-döden andas
+    if (this._playSample('bossDeath', 0.02)) return;
     this._tone(80, 1.2, 'sawtooth', 0.5, 0.05, 1.0, 30);
     this._noise(1.5, 0.4, { type: 'lowpass', freq: 300 });
     setTimeout(() => this._tone(440, 0.5, 'sine', 0.3, 0.05, 0.4, 880), 400);
   },
   goldPickup() {
     if (!this._throttle('goldPickup', 30)) return;
+    if (this._playSample('goldPickup', 0.05)) return;
     this._tone(880, 0.08, 'sine', 0.15, 0.001, 0.06);
     this._tone(1320, 0.06, 'sine', 0.1, 0.001, 0.05);
   },
   reloadStart() {
+    if (this._playSample('reloadStart', 0.03)) return;
     this._tone(600, 0.04, 'square', 0.2, 0.001, 0.03);
   },
   reloadDone() {
+    if (this._playSample('reloadDone', 0.03)) return;
     this._tone(800, 0.05, 'square', 0.25, 0.001, 0.04, 1000);
     this._tone(1200, 0.04, 'square', 0.15, 0.001, 0.03);
   },
   uiClick() {
+    if (this._playSample('uiClick', 0)) return;
     this._tone(800, 0.03, 'square', 0.15, 0.001, 0.025);
   },
   uiHover() {
+    if (this._playSample('uiHover', 0)) return;
     this._tone(1000, 0.02, 'sine', 0.05, 0.001, 0.015);
   },
   shopOpen() {

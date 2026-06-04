@@ -1,0 +1,12 @@
+WarParty — SFX-källa
+
+Alla ljudeffekter i denna mapp kommer från Kenney (https://kenney.nl).
+Licens: CC0 1.0 Universal (Public Domain Dedication).
+Ingen attribution krävs; fria att använda kommersiellt (inkl. App Store).
+
+Använda paket:
+- Sci-Fi Sounds   (shootGun, shootEnergy, shootHeavy, explosion, bossSpawn, bossDeath)
+- Impact Sounds   (hit, hitCrit, kill)
+- Interface Sounds (goldPickup, reloadStart, reloadDone, uiClick, uiHover)
+
+Källfiler valda + omdöpta till spel-händelse-namn. CC0: https://creativecommons.org/publicdomain/zero/1.0/
