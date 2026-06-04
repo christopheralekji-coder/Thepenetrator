@@ -32470,6 +32470,14 @@ function autoAdjustQuality(now) {
       persist();
       if (typeof resize === 'function') resize(); // applicera lägre DPR direkt
       showToast('🐢 Kvalitet sänkt → LÅG (' + Math.round(fps) + ' fps)');
+    } else if (fps < 35 && save.quality === 'medium') {
+      // v1.755: medium-telefoner som hackar på 25-34 fps fastnade förut på medium
+      // (medium→låg fanns bara <25 = redan ospelbart). Nu engageras låg-LOD:en
+      // (DPR 1.25 + halverade gnistor + tvingad rök-LOD) i TID. Hysteres mot
+      // återhämtning (låg→medium vid >55) = 20 fps glapp → inget 5s-flimmer.
+      save.quality = 'low';
+      persist();
+      if (typeof resize === 'function') resize();
     } else if (fps < 45 && save.quality === 'high') {
       save.quality = 'medium';
       persist();

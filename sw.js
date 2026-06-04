@@ -1,10 +1,10 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v754-perf-batch2';
+const CACHE = 'penetrator-v755-autoLOD-threshold';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=754',
-  './game.js?v=754',
+  './style.css?v=755',
+  './game.js?v=755',
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg',
