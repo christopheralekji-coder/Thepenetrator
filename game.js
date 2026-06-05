@@ -23635,6 +23635,18 @@ const Coop = {
     this._lastOnConnect = onConnect;
     this._lastOnError = onError;
     this._reconnectAttempt = this._reconnectAttempt || 0;
+    // v1.769 livscykel-fix: stäng ev. KVARLEVANDE socket innan vi öppnar en ny, annars
+    // får man två live-anslutningar (host/join efter ett game som ej disconnectade).
+    // Den gamlas onclose skulle annars fira asynkront och river ner den NYA sessionens
+    // state. Detacha handlers FÖRST så close() inte triggar disconnect() på singletonen.
+    if (this.ws) {
+      try {
+        const _old = this.ws;
+        _old.onopen = null; _old.onmessage = null; _old.onerror = null; _old.onclose = null;
+        _old.close();
+      } catch (e) {}
+      this.ws = null;
+    }
     try {
       this.ws = new WebSocket(COOP_SERVER_URL);
       this.ws.binaryType = 'arraybuffer';
@@ -28174,6 +28186,15 @@ const Coop = {
     }
     this.conns.clear();
     this.players.clear();
+    // v1.769 livscykel-fix: nollställ ALL per-session-mappning så den inte bleeder
+    // in i nästa match (stale slotToPeerId → fel/osynliga spelare; stale team/ready →
+    // fel lag; stale sim-confirmed → klienten tror servern redan kör).
+    if (this.slotToPeerId) this.slotToPeerId.clear();
+    this.teamAssignments = {};
+    this.readyStates = {};
+    this._lastInputSent = null;
+    this._simStartedConfirmed = false;
+    if (this._shotQueue) this._shotQueue.length = 0;
     this.ws = null; this.hostId = null;
     this._reconnectAttempt = 0;
   },
@@ -35262,7 +35283,9 @@ function enterDeathState() {
     // Single-player: revive-perk ger second chance, annars game over
     if (p.reviveAvailable && hasPerk('revive')) {
       p.reviveAvailable = false;
-      setTimeout(() => {
+      // v1.769: lagra handle + clearas i actuallyStartGame så en gammal timer aldrig
+      // firar på en NY match (latent loop/instant-game-over-hazard).
+      state._deathTimer = setTimeout(() => {
         if (!state.player || !state.player.spectating) return;
         state.deadBody = null;
         state.player.spectating = false;
@@ -35272,7 +35295,7 @@ function enterDeathState() {
       }, 1500);
     } else {
       // Riktig solo death — visa game-over efter en kort respit så toast hinner ses
-      setTimeout(() => {
+      state._deathTimer = setTimeout(() => {
         if (state.mode !== 'playing') return;
         endGame(false);
       }, 1500);
@@ -36522,6 +36545,17 @@ document.getElementById('btn-menu').addEventListener('click', () => {
   if (typeof clearSurvivorsState === 'function') clearSurvivorsState();
   if (typeof clearHeistState === 'function') clearHeistState();
   if (typeof restoreSandboxIfNeeded === 'function') restoreSandboxIfNeeded();
+  // v1.769 KRITISK livscykel-fix: game-over → TILL MENY rev tidigare ALDRIG ner
+  // co-op-sessionen. Den orphanade WS-kopplingen + Coop.active=true levde kvar och
+  // skrev över state.player.hp från den DÖDA server-sloten i nästa game → instant
+  // death / loop / man var tvungen att starta om hela appen. Nu: host stoppar simmen
+  // för alla, sen full disconnect (stänger socket, rensar intervals + state).
+  if (Coop.active) {
+    if (Coop.isHost && Coop.ws && Coop.ws.readyState === 1) {
+      try { Coop.ws.send(JSON.stringify({ type: 'sim_stop' })); } catch (e) {}
+    }
+    Coop.disconnect();
+  }
   refreshModeButtons();
 });
 
@@ -36735,6 +36769,8 @@ function actuallyStartGame() {
   if (coopInitEl) coopInitEl.classList.remove('hidden');
   if (coopLobbyEl) coopLobbyEl.classList.add('hidden');
   document.body.classList.remove('menu-mode');
+  // v1.769: rensa ev. pending death/revive-timer från förra matchen så den inte firar nu.
+  if (state._deathTimer) { clearTimeout(state._deathTimer); state._deathTimer = null; }
   // Anti-läck: ALLTID restore sandbox-snapshot innan ny game-start. Garanterar
   // att sandbox-state aldrig leakas in i nästa mode oavsett exit-path.
   restoreSandboxIfNeeded();
@@ -37667,7 +37703,9 @@ function showTdmEndScreen(winner, redWins, blueWins, stats, teams) {
     _tdmEndTitle.textContent = (winner === 'red' ? 'RED WINS' : 'BLUE WINS') + _rs;
     _tdmEndTitle.style.color = winner === 'red' ? '#ff5a5a' : '#5aaaff';
   }
-  if (_tdmEndScore) _tdmEndScore.textContent = redKills + ' — ' + blueKills;
+  // v1.769: redKills/blueKills fanns inte i scope (ReferenceError → resten av end-screenen
+  // renderades aldrig). Totala kills ligger i Coop.tdmRedKills/tdmBlueKills.
+  if (_tdmEndScore) _tdmEndScore.textContent = (Coop.tdmRedKills || 0) + ' — ' + (Coop.tdmBlueKills || 0);
   // Hero-stat: MVP = mest kills
   const tdmHeroEl = document.getElementById('tdm-end-hero');
   if (tdmHeroEl && stats && stats.length) {

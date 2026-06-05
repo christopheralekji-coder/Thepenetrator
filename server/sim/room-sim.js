@@ -6247,6 +6247,13 @@ function startSim(sim, opts) {
     ws.playerState.speedMul = 1.0;
     ws.playerState.dashCdMs = null;
     if (ws.playerState.maxHp > 100) ws.playerState.maxHp = 100;
+    // v1.769 KRITISK livscykel-fix: nollställ hp till full vid VARJE match-start.
+    // Dog spelaren i förra matchen låg ws.playerState.hp kvar på 0 → buildPlayerList
+    // la dem i deadBodies redan tick 1 → player_died-event → INSTANT DEATH på "try
+    // again". PvP-grenarna nedan sätter ändå om hp+pos (opåverkade); detta räddar
+    // co-op/story + castledefense/survivors/heist som saknade hp-reset.
+    ws.playerState.hp = 100;
+    ws.playerState.invulnUntil = Date.now() + 1500;
   }
   if (sim.ctfActive) {
     // CTF: dedikerad arena (4500×2800 med walls). Symmetrisk röd/blå.

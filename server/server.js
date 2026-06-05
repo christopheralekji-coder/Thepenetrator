@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v247-self-revive-fix-v1.750';
+const SERVER_VERSION = 'v248-lifecycle-fix-v1.769';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -821,6 +821,11 @@ function handleMessage(ws, msg) {
     // gammal state (tdmActive/ctfActive/scores/pickup-ids) läcker in i nästa match.
     if (room.sim) {
       try { stopSim(room.sim); } catch (e) {}
+      // v1.769 livscykel-fix: nulla room.sim efter stopSim. Om stopSim kastade levde
+      // gamla sim:ens setInterval-tick kvar; eftersom createSim ger ett NYTT objekt
+      // (interval=null) passerade startSim:s guard → TVÅ tick-loopar mot samma rum
+      // (hp hoppar, spöken, "ibland funkar/ibland inte"). Garantera ren slate.
+      room.sim = null;
     }
     // Tillämpa team-assignments från host (om shuffle/pick aktiverat).
     // msg.teams: { peerId → 'red' | 'blue' }. Sätt ws.tdmTeam INNAN startSim
