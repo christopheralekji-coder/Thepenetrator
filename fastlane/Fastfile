@@ -1,6 +1,7 @@
 # Fastlane — bygger iOS-appen + laddar upp till TestFlight via App Store Connect.
-# MANUELL distributions-signering: cert (Apple Distribution) + sigh (app-store-profil)
-# via API-nyckeln, importerade i setup_ci:s temporära nyckelring (ingen codesign-hang).
+# MANUELL distributions-signering. Certifikatet ÅTERANVÄNDS från DIST_CERT_P12-secret
+# (skapas ALDRIG nytt per bygge) → ingen "max distribution certificates"-gräns.
+require "base64"
 default_platform(:ios)
 
 platform :ios do
@@ -25,12 +26,15 @@ platform :ios do
 
     app_id = ENV["APP_ID"] || "com.warparty.game"
 
-    # Distributions-cert (importeras i setup_ci-nyckelringen med känt lösenord så
-    # partition-list kan sättas → codesign frågar inte efter lösenord).
-    cert(
-      api_key: api_key,
-      output_path: "fastlane/certs",
-      keychain_path: File.expand_path("~/Library/Keychains/fastlane_tmp_keychain-db"),
+    # ÅTERANVÄNT distributions-cert (.p12 från DIST_CERT_P12-secret) importeras i
+    # setup_ci-nyckelringen. Inget nytt cert skapas → ingen cert-gräns. Partition-list
+    # sätts via keychain_password så codesign inte frågar efter lösenord.
+    p12_path = File.expand_path("dist_cert.p12")
+    File.write(p12_path, Base64.decode64(ENV["DIST_CERT_P12"]))
+    import_certificate(
+      certificate_path: p12_path,
+      certificate_password: ENV["DIST_CERT_PASSWORD"] || "",
+      keychain_name: ENV["MATCH_KEYCHAIN_NAME"] || "fastlane_tmp_keychain",
       keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"] || ""
     )
     # App-store-provisioning-profil för bundle-ID:t.
