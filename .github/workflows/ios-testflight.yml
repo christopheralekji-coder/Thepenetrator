@@ -54,6 +54,17 @@ jobs:
           $PB -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST"
           echo "Orientering + helskärm + compliance satt"
 
+      - name: Tvinga LANDSKAP i AppDelegate (runtime-auktoritet, överstyr Info.plist)
+        run: |
+          AD="ios/App/App/AppDelegate.swift"
+          if grep -q "supportedInterfaceOrientationsFor" "$AD"; then
+            echo "AppDelegate redan patchad"
+          else
+            perl -0pi -e 's/(var window: UIWindow\?)/$1\n\n    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {\n        return .landscape\n    }/' "$AD"
+            echo "AppDelegate patchad med .landscape"
+          fi
+          grep -n "supportedInterfaceOrientationsFor\|\.landscape" "$AD" || true
+
       - name: Generera app-ikoner + splash
         run: npx @capacitor/assets generate --ios --assetPath resources || echo "assets-generering hoppad"
 
