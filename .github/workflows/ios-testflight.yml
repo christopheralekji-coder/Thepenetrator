@@ -77,3 +77,13 @@ jobs:
           name: WarParty-ipa
           path: build/*.ipa
           if-no-files-found: ignore
+
+      # ENGÅNGS: spara cert+nyckel (.p12) som cert återanvänds i framtida byggen.
+      # Tas bort när DIST_CERT_P12-secret är satt.
+      - name: Spara cert (.p12) som artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-cert
+          path: fastlane/certs/*
+          if-no-files-found: ignore
