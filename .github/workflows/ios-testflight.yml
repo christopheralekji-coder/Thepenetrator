@@ -35,6 +35,18 @@ jobs:
           npx cap add ios
           npx cap sync ios
 
+      - name: Lås orientering till LANDSKAP (iOS Info.plist)
+        run: |
+          PB=/usr/libexec/PlistBuddy
+          PLIST="ios/App/App/Info.plist"
+          for KEY in "UISupportedInterfaceOrientations" "UISupportedInterfaceOrientations~ipad"; do
+            $PB -c "Delete :$KEY" "$PLIST" 2>/dev/null || true
+            $PB -c "Add :$KEY array" "$PLIST"
+            $PB -c "Add :$KEY:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST"
+            $PB -c "Add :$KEY:1 string UIInterfaceOrientationLandscapeRight" "$PLIST"
+          done
+          echo "Orientering låst:"; $PB -c "Print :UISupportedInterfaceOrientations" "$PLIST"
+
       - name: Generera app-ikoner + splash
         run: npx @capacitor/assets generate --ios --assetPath resources || echo "assets-generering hoppad"
 
