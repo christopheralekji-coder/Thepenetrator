@@ -32,12 +32,11 @@ jobs:
       - name: Generera app-ikoner + splash
         run: npx @capacitor/assets generate --ios --assetPath resources || echo "assets-generering hoppad"
 
-      - name: Ruby + Fastlane
+      - name: Ruby + Fastlane (via Bundler — löser alla gem-beroenden)
         uses: ruby/setup-ruby@v1
         with:
-          ruby-version: "3.2"
-          bundler-cache: false
-      - run: gem install fastlane --no-document
+          ruby-version: "3.3"
+          bundler-cache: true
 
       - name: Bygg + ladda upp till TestFlight
         env:
@@ -47,7 +46,7 @@ jobs:
           APP_ID: com.warparty.game
           BUILD_NUMBER: ${{ github.run_number }}
           FASTLANE_HIDE_CHANGELOG: "true"
-        run: fastlane beta
+        run: bundle exec fastlane beta
 
       - name: Spara .ipa som artifact (om bygget lyckas)
         if: always()
