@@ -5,6 +5,10 @@ default_platform(:ios)
 platform :ios do
   desc "Bygg + ladda upp till TestFlight"
   lane :beta do
+    # Skapar + låser upp en temporär CI-nyckelring så codesign INTE hänger på en
+    # lösenords-dialog (annars timeout). Måste köras FÖRE cert importerar certifikatet.
+    setup_ci
+
     api_key = app_store_connect_api_key(
       key_id: ENV["ASC_KEY_ID"],
       issuer_id: ENV["ASC_ISSUER_ID"],
@@ -22,7 +26,14 @@ platform :ios do
     app_id = ENV["APP_ID"] || "com.warparty.game"
 
     # Skapa/hämta distributions-cert + app-store-provisioning-profil via API-nyckeln.
-    cert(api_key: api_key, output_path: "fastlane/certs")
+    # Importera i setup_ci:s temporära nyckelring (känt lösenord) så partition-list
+    # kan sättas → codesign hänger inte på en UI-dialog.
+    cert(
+      api_key: api_key,
+      output_path: "fastlane/certs",
+      keychain_path: File.expand_path("~/Library/Keychains/fastlane_tmp_keychain-db"),
+      keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"] || ""
+    )
     sigh(
       api_key: api_key,
       app_identifier: app_id,
