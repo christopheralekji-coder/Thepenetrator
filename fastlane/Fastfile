@@ -1,12 +1,13 @@
-# Fastlane — bygger iOS-appen + laddar upp till TestFlight via App Store Connect
-# API-nyckel (ingen Mac/Keychain behövs lokalt; allt sker på GitHub:s moln-Mac).
+# Fastlane — bygger iOS-appen + laddar upp till TestFlight via App Store Connect.
+# MOLN-SIGNERING (automatic + -allowProvisioningUpdates): Apple skapar/återanvänder
+# en moln-hanterad distributions-cert + profil via API-nyckeln. Ingen lokal cert-
+# hantering → ingen "max distribution certificates"-gräns, fungerar på en fräsch CI-Mac.
 default_platform(:ios)
 
 platform :ios do
   desc "Bygg + ladda upp till TestFlight"
   lane :beta do
-    # Skapar + låser upp en temporär CI-nyckelring så codesign INTE hänger på en
-    # lösenords-dialog (annars timeout). Måste köras FÖRE cert importerar certifikatet.
+    # Temporär CI-nyckelring (xcodebuild laddar ner moln-certet hit utan UI-dialog).
     setup_ci
 
     api_key = app_store_connect_api_key(
@@ -23,36 +24,16 @@ platform :ios do
       build_number: ENV["BUILD_NUMBER"] || Time.now.to_i.to_s
     )
 
-    app_id = ENV["APP_ID"] || "com.warparty.game"
-
-    # Skapa/hämta distributions-cert + app-store-provisioning-profil via API-nyckeln.
-    # Importera i setup_ci:s temporära nyckelring (känt lösenord) så partition-list
-    # kan sättas → codesign hänger inte på en UI-dialog.
-    cert(
-      api_key: api_key,
-      output_path: "fastlane/certs",
-      keychain_path: File.expand_path("~/Library/Keychains/fastlane_tmp_keychain-db"),
-      keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"] || ""
-    )
-    sigh(
-      api_key: api_key,
-      app_identifier: app_id,
-      platform: "ios",
-      force: true
-    )
-    profile_name = lane_context[SharedValues::SIGH_NAME]
-
-    # Konfigurera Xcode-projektet för MANUELL signering med team + profil (Capacitor-
-    # projektet saknar team → "requires a development team" annars).
+    # Automatisk signering med team — Apple sköter cert + profil i molnet.
     update_code_signing_settings(
-      use_automatic_signing: false,
+      use_automatic_signing: true,
       path: "ios/App/App.xcodeproj",
       team_id: ENV["TEAM_ID"],
-      code_sign_identity: "Apple Distribution",
-      profile_name: profile_name,
       targets: ["App"]
     )
 
+    # gym skickar API-nyckel-autentisering till xcodebuild när -allowProvisioningUpdates
+    # används (eftersom app_store_connect_api_key satt token ovan) → moln-signering.
     build_app(
       workspace: "ios/App/App.xcworkspace",
       scheme: "App",
@@ -60,10 +41,10 @@ platform :ios do
       export_method: "app-store",
       output_directory: "build",
       output_name: "WarParty.ipa",
+      xcargs: "-allowProvisioningUpdates",
       export_options: {
-        signingStyle: "manual",
-        teamID: ENV["TEAM_ID"],
-        provisioningProfiles: { app_id => profile_name }
+        signingStyle: "automatic",
+        teamID: ENV["TEAM_ID"]
       }
     )
 
