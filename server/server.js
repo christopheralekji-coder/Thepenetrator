@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v248-lifecycle-fix-v1.769';
+const SERVER_VERSION = 'v249-ghost-dedupe-v1.770';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -344,6 +344,39 @@ function handleMessage(ws, msg) {
     // co-op/heist (utan PvP-block) behåller restoren.
     if (msg.reconnectToken) {
       ws._reconnectToken = String(msg.reconnectToken).slice(0, 40);
+      // v1.770: rensa ev. KVARLEVANDE "ghost"-ws med samma reconnect-token — en halv-
+      // trasig anslutning vars close-event ännu inte firat (vanligt på mobil som byter
+      // wifi↔mobilnät). Annars ligger en spök-spelare kvar i rummet i ~75s tills heartbeat
+      // dödar den (frusen dubblett + fel slot-mappning hos host). Hoppar host (host-
+      // migration sköter den) + bots. Ärver ghost:ens server-side-state så mid-match-
+      // rejoin behåller hp/roll, och sätter ghost.roomCode=null så dess senare close
+      // early-returnar i handleDisconnect (ingen dubbel-cleanup/dubbel-slot-free).
+      for (const [ghostPid, ghostWs] of room.members) {
+        if (ghostPid === ws.id || ghostWs._isBot || ghostPid === room.hostId) continue;
+        if (ghostWs._reconnectToken && ghostWs._reconnectToken === ws._reconnectToken) {
+          if (ghostWs.playerState && !ws.playerState) ws.playerState = ghostWs.playerState;
+          if (ghostWs._heistRole) { ws._heistRole = ghostWs._heistRole; ws._heistRoleLocked = ghostWs._heistRoleLocked; }
+          if (room.sim) {
+            const _s = room.sim;
+            if (_s.deadBodies) delete _s.deadBodies[ghostPid];
+            if (_s.kothScores) delete _s.kothScores[ghostPid];
+            if (_s._kothPointAccum) delete _s._kothPointAccum[ghostPid];
+            if (_s.juggernautScores) delete _s.juggernautScores[ghostPid];
+            if (_s.battleroyaleKillsByPid) delete _s.battleroyaleKillsByPid[ghostPid];
+            if (_s.tdmDeathsByPid) delete _s.tdmDeathsByPid[ghostPid];
+          }
+          if (ghostWs.stableSlot != null && ghostWs.stableSlot !== 0 && room._freeSlots) {
+            room._freeSlots.push(ghostWs.stableSlot);
+          }
+          room.members.delete(ghostPid);
+          ghostWs.roomCode = null;  // → handleDisconnect early-returnar på dess close
+          try { (ghostWs.terminate || ghostWs.close).call(ghostWs); } catch (e) {}
+          const _hostWs = room.members.get(room.hostId);
+          if (_hostWs) send(_hostWs, { type: 'peer_left', peerId: ghostPid });
+          console.log('[ROOM]', code, 'ghost', ghostPid, 'ersatt av', ws.id, '(samma reconnect-token)');
+          break;
+        }
+      }
       // v1.697: rensa utgångna stash-entries (>60s) så de inte ackumuleras obegränsat
       // (DoS-yta: join-flood med unika tokens utan reconnect). Cappa även till 16 nyaste.
       if (room._reconnectStash) {
