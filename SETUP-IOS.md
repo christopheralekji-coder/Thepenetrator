@@ -3,7 +3,7 @@
 Det här gör spelet till en **riktig iPhone-app** du installerar via **TestFlight**.
 Bygget sker i molnet (GitHub:s Mac-server) — du behöver **ingen egen Mac**.
 
-Appens namn: **WarParty** · Bundle-ID: **com.alekji.warparty**
+Appens namn: **WarParty** · Bundle-ID: **com.warparty.game**
 (Vill du byta bundle-ID: ändra i `capacitor.config.json` + `.github/workflows/ios-testflight.yml` + `fastlane/Fastfile`. Gör det FÖRE första uppladdningen — det kan inte ändras sen.)
 
 ---
@@ -17,12 +17,12 @@ Appens namn: **WarParty** · Bundle-ID: **com.alekji.warparty**
 
 ### 2. Skapa appens Bundle-ID
 - developer.apple.com → **Certificates, IDs & Profiles** → **Identifiers** → **+**
-- Välj **App IDs** → **App** → Description: `WarParty`, Bundle ID (explicit): `com.alekji.warparty`
+- Välj **App IDs** → **App** → Description: `WarParty`, Bundle ID (explicit): `com.warparty.game`
 - Spara
 
 ### 3. Skapa appen i App Store Connect
 - Gå till **appstoreconnect.apple.com** → **Apps** → **+** → **New App**
-- Platform: iOS · Namn: `WarParty` · Bundle ID: välj `com.alekji.warparty` · SKU: `warparty`
+- Platform: iOS · Namn: `WarParty` · Bundle ID: välj `com.warparty.game` · SKU: `warparty`
 - Skapa (du behöver INTE fylla i butiks-info nu — bara skapa appen)
 
 ### 4. Skapa en API-nyckel (så molnet får ladda upp åt dig)
