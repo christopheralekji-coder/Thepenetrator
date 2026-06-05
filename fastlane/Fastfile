@@ -26,22 +26,19 @@ platform :ios do
 
     app_id = ENV["APP_ID"] || "com.warparty.game"
 
-    # Distributions-cert via API-nyckeln (skapas/installeras BARA i detta byggets
-    # temporära nyckelring — nyckeln lagras ALDRIG någonstans = säkert).
-    cert(
-      api_key: api_key,
-      output_path: "fastlane/certs",
-      keychain_path: File.expand_path("~/Library/Keychains/fastlane_tmp_keychain-db"),
-      keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"] || ""
-    )
-    # App-store-provisioning-profil för bundle-ID:t.
-    sigh(
-      api_key: api_key,
+    # ÅTERANVÄNT cert + profil via fastlane MATCH (krypterat i privat repo warparty-match).
+    # Skapas EN gång, återanvänds i alla byggen → ingen cert-gräns, säkert (nyckeln
+    # krypterad m. MATCH_PASSWORD, åtkomst via SSH-deploy-key). readonly:false self-healar.
+    match(
+      type: "appstore",
       app_identifier: app_id,
-      platform: "ios",
-      force: true
+      api_key: api_key,
+      git_url: "git@github.com:christopheralekji-coder/warparty-match.git",
+      keychain_name: ENV["MATCH_KEYCHAIN_NAME"] || "fastlane_tmp_keychain",
+      keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"] || "",
+      readonly: false
     )
-    profile_name = lane_context[SharedValues::SIGH_NAME]
+    profile_name = "match AppStore #{app_id}"
 
     # Manuell signering med team + den hämtade profilen.
     update_code_signing_settings(
