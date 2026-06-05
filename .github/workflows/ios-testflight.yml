@@ -45,7 +45,10 @@ jobs:
             $PB -c "Add :$KEY:0 string UIInterfaceOrientationLandscapeLeft" "$PLIST"
             $PB -c "Add :$KEY:1 string UIInterfaceOrientationLandscapeRight" "$PLIST"
           done
-          echo "Orientering låst:"; $PB -c "Print :UISupportedInterfaceOrientations" "$PLIST"
+          # Helskärm (krävs för att iPad ska få vara landskap-bara, annars multitask-krav).
+          $PB -c "Delete :UIRequiresFullScreen" "$PLIST" 2>/dev/null || true
+          $PB -c "Add :UIRequiresFullScreen bool true" "$PLIST"
+          echo "Orientering låst + helskärm:"; $PB -c "Print :UISupportedInterfaceOrientations" "$PLIST"
 
       - name: Generera app-ikoner + splash
         run: npx @capacitor/assets generate --ios --assetPath resources || echo "assets-generering hoppad"
