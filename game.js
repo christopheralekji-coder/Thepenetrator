@@ -19535,12 +19535,15 @@ function triggerVibrate(ms) {
   // Webb-fallback: Android Chrome stödjer navigator.vibrate; iPhone-Safari ignorerar.
   if (navigator.vibrate) navigator.vibrate(ms);
 }
-// Native-app-polish (Capacitor): dölj status-baren för ren helskärm. No-op på webben.
+// Native-app-polish (Capacitor): dölj status-bar + signalera OTA-bundle OK. No-op på webben.
 (function _nativeInit() {
   try {
     const C = window.Capacitor;
-    if (C && C.isNativePlatform && C.isNativePlatform() && C.Plugins && C.Plugins.StatusBar) {
-      try { C.Plugins.StatusBar.hide(); } catch (e) {}
+    if (C && C.isNativePlatform && C.isNativePlatform() && C.Plugins) {
+      if (C.Plugins.StatusBar) { try { C.Plugins.StatusBar.hide(); } catch (e) {} }
+      // Capgo OTA: tala om att bundlen laddade korrekt — annars rullar motorn
+      // tillbaka till föregående version efter en timeout (skydd mot trasiga updates).
+      if (C.Plugins.CapacitorUpdater) { try { C.Plugins.CapacitorUpdater.notifyAppReady(); } catch (e) {} }
     }
   } catch (e) {}
 })();

@@ -1,0 +1,37 @@
+name: Capgo OTA-uppdatering
+
+# Körs vid push till main när SPEL-filer ändras → bygger www-bundlen och laddar upp
+# den till Capgo. Installerade appar (med OTA-motorn) hämtar nya bundlen vid nästa
+# start — ingen native-bygge, ingen App Store-granskning. Webb/Pages opåverkat.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "game.js"
+      - "index.html"
+      - "style.css"
+      - "sw.js"
+      - "manifest.json"
+      - "assets/**"
+      - "shared/**"
+  workflow_dispatch:
+
+jobs:
+  ota:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm ci || npm install
+      - run: npm run build:www
+      - name: Ladda upp OTA-bundle till Capgo (kanal production)
+        run: >
+          npx -y @capgo/cli@latest bundle upload
+          com.warparty.game
+          --apikey ${{ secrets.CAPGO_TOKEN }}
+          --path www
+          --channel production
+          --bundle 1.0.${{ github.run_number }}

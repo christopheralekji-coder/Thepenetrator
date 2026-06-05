@@ -14,6 +14,11 @@
       "launchShowDuration": 1200,
       "backgroundColor": "#0a0508",
       "showSpinner": false
+    },
+    "CapacitorUpdater": {
+      "autoUpdate": true,
+      "directUpdate": false,
+      "resetWhenUpdate": true
     }
   }
 }
