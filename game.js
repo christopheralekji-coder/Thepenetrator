@@ -28103,6 +28103,11 @@ const Coop = {
     this.active = false; this.inLobby = false;
     this.serverSimActive = false;
     this.tdmActive = false; this.ctfActive = false; this.siegeActive = false; this.gungameActive = false; this.kothActive = false; this.juggernautActive = false;
+    // v1.771: nollställ ÄVEN dessa — annars kan Coop.battleroyaleActive ligga kvar true
+    // in i nästa co-op-match → checkCoopAllDead (~35313) bailar → "alla döda"-game-over
+    // firar aldrig → zombie/stuck-match. (Tidigare maskerat av runFrame-guarden — nu
+    // självständigt i teardown.)
+    this.battleroyaleActive = false; this.castledefenseActive = false; this.survivorsActive = false; this.heistActive = false;
     if (typeof state !== 'undefined') {
       state.serverSimActive = false;
       state.tdmActive = false;
@@ -28159,6 +28164,7 @@ const Coop = {
     if (typeof hideCtfHud === 'function') hideCtfHud();
     if (typeof hideGungameHud === 'function') hideGungameHud();
     if (typeof hideKothHud === 'function') hideKothHud();
+    if (typeof hideTdmRoundBanner === 'function') hideTdmRoundBanner();  // v1.771: stoppa ev. läckande runda-banner-interval
     // Om vi förlorat anslutningen mid-game, kicka tillbaka till menyn så vi inte
     // hamnar i lokalt PvE-fallback-läge (minions spawnar lokalt). Tidigare:
     // 'playing' state kvar → solo-game-loop tog över → fel mode → buggat.
@@ -36533,6 +36539,18 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     // v1.661: ta med party:t i omstarten — broadcasta 'start' så peers re-entrar
     // (annars fastnar de på gameover medan hosten spelar vidare). Speglar lobby-starten.
     if (typeof Coop.broadcast === 'function') Coop.broadcast({ type: 'start' });
+    // v1.771: watchdog — samma som lobby-starten (~30287). Om servern (sovande Render
+    // free-tier / tappat paket) ALDRIG svarar med sim_started, fall tillbaka till host-
+    // läge istället för att fastna i serverSim utan fiender ("Try Again → ingen hittar
+    // gamet → måste starta om"). BR/CD/survivors/heist har ingen 40s-runFrame-fallback.
+    setTimeout(() => {
+      if (!Coop._simStartedConfirmed && Coop.serverSimActive && Coop.active) {
+        console.warn('[SIM] retry sim_start timeout — föll tillbaka till host-mode');
+        Coop.serverSimActive = false;
+        state.serverSimActive = false;
+        if (typeof showToast === 'function') showToast('⚠ Server-sim tidsutgång — host-läge');
+      }
+    }, 5000);
   }
 });
 document.getElementById('btn-menu').addEventListener('click', () => {
@@ -37685,6 +37703,10 @@ function _scoreboardTroll(isWorst) {
 function showTdmEndScreen(winner, redWins, blueWins, stats, teams) {
   if (!_tdmEndOverlay) return;
   hideTdmHud();
+  // v1.771: stoppa runda-banner-intervallet. Slutade matchen på samma runda som ett
+  // tdm_round_end firade startas en setInterval(200ms) som annars aldrig clearas (inget
+  // tdm_round_start följer) → läcker + banner-DOM hänger kvar in i nästa session.
+  if (typeof hideTdmRoundBanner === 'function') hideTdmRoundBanner();
   try { if (typeof Audio !== 'undefined') { const _mt = teams && teams[Coop.myId]; if (_mt) (winner === _mt ? Audio.matchWin() : Audio.matchLose()); } } catch (e) {}
   // Vinnar-färg-flash innan overlay slides in (game-feel polish)
   const winColor = winner === 'red' ? 'rgba(255,90,90,0.4)' : 'rgba(90,170,255,0.4)';

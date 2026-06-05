@@ -7090,6 +7090,19 @@ function stopSim(sim) {
       ws._heistStatBags = 0;
       ws._heistStatHostages = 0;
       ws._lastShieldUseAt = 0;
+      // v1.771: companionState togs aldrig bort → stale companion (med stale hp) kunde
+      // dingla in i nästa match. BR-state (armor/vapen-tier/downed/kits) gav oförtjänt
+      // fördel om man gick BR → annan mode i samma rum. Nollställ till known-good.
+      ws.companionState = null;
+      ws.playerState._brWeaponTier = null;
+      ws.playerState.armorLevel = 0;
+      ws.playerState.gasMask = false;
+      ws.playerState.selfReviveKits = 0;
+      ws.playerState.airstrikes = 0;
+      ws.playerState.uavCount = 0;
+      ws.playerState.brUavUntil = 0;
+      ws.playerState.brDowned = false;
+      ws.playerState.brReviveEnd = 0;
     }
   }
   // v1.432: Rensa SIM-LEVEL state också. Tidigare läckte dessa mellan matcher
