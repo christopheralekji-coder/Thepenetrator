@@ -26,23 +26,14 @@ platform :ios do
 
     app_id = ENV["APP_ID"] || "com.warparty.game"
 
-    # ÅTERANVÄNT distributions-cert (.p12 från DIST_CERT_P12-secret) importeras i
-    # setup_ci-nyckelringen. Inget nytt cert skapas → ingen cert-gräns. Partition-list
-    # sätts via keychain_password så codesign inte frågar efter lösenord.
-    p12_path = File.expand_path("dist_cert.p12")
-    File.write(p12_path, Base64.decode64(ENV["DIST_CERT_P12"]))
-    import_certificate(
-      certificate_path: p12_path,
-      certificate_password: ENV["DIST_CERT_PASSWORD"] || "",
-      keychain_name: ENV["MATCH_KEYCHAIN_NAME"] || "fastlane_tmp_keychain",
+    # Distributions-cert via API-nyckeln (skapas/installeras BARA i detta byggets
+    # temporära nyckelring — nyckeln lagras ALDRIG någonstans = säkert).
+    cert(
+      api_key: api_key,
+      output_path: "fastlane/certs",
+      keychain_path: File.expand_path("~/Library/Keychains/fastlane_tmp_keychain-db"),
       keychain_password: ENV["MATCH_KEYCHAIN_PASSWORD"] || ""
     )
-    # Installera Apple WWDR-mellancertifikat — annars är dist-certet ingen GILTIG
-    # signerings-identitet (import_certificate installerar dem ej, det gör cert däremot).
-    kc = File.expand_path("~/Library/Keychains/fastlane_tmp_keychain-db")
-    %w[G3 G4 G5 G6].each do |g|
-      sh("curl -fsSL https://www.apple.com/certificateauthority/AppleWWDRCA#{g}.cer -o /tmp/wwdr_#{g}.cer && security import /tmp/wwdr_#{g}.cer -k #{kc} 2>/dev/null; true")
-    end
     # App-store-provisioning-profil för bundle-ID:t.
     sigh(
       api_key: api_key,

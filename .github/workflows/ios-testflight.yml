@@ -66,8 +66,6 @@ jobs:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
           APP_ID: com.warparty.game
           TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          DIST_CERT_P12: ${{ secrets.DIST_CERT_P12 }}
-          DIST_CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
           BUILD_NUMBER: ${{ github.run_number }}
           FASTLANE_HIDE_CHANGELOG: "true"
         run: bundle exec fastlane beta
@@ -78,14 +76,4 @@ jobs:
         with:
           name: WarParty-ipa
           path: build/*.ipa
-          if-no-files-found: ignore
-
-      # ENGÅNGS: spara cert+nyckel (.p12) som cert återanvänds i framtida byggen.
-      # Tas bort när DIST_CERT_P12-secret är satt.
-      - name: Spara cert (.p12) som artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-cert
-          path: fastlane/certs/*
           if-no-files-found: ignore
