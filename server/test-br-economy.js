@@ -287,8 +287,11 @@ applyBrBuy(sim, 'p0', 'alien_loadout');
 assert(sim.eventQueue.find(e => e.type === 'br_buy_fail' && e.reason === 'wrong_shop'), 'alien_loadout nekas vid vanlig station');
 console.log('[OK] fas5: alien_loadout/perks/weapon (exklusiva, bara hos alien-shoppen)');
 
-// KILL-CREDIT vid finish: p1 hp→0 utan kit + färsk angripare p0 → p0 krediteras
+// KILL-CREDIT vid finish: p1 hp→0 utan kit + färsk angripare p0 → p0 krediteras.
+// v1.790: gulagUsed=true så p1 elimineras DIREKT (har redan använt sin gulag-chans);
+// annars skulle första döden gå till Gulag-kön istället för elimination.
 p1.playerState.brUavUntil = 0;
+p1.playerState.gulagUsed = true;
 p1.playerState.hp = 0; p1.playerState.selfReviveKits = 0; p1.playerState.brDowned = false;
 p1.playerState._brLastAttacker = 'p0'; p1.playerState._brLastAttackerAt = Date.now(); p1.playerState._brLastWeapon = 'rifle';
 const killsBefore = sim.battleroyaleKillsByPid.p0 || 0;

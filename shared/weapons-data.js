@@ -51,6 +51,9 @@ const WEAPONS = [
   // men HÖG dmg + AoE-explosion. BALANSERING: 120→70 dmg + 1400→1700ms rate
   // så det inte längre 1-shot:ar 200-EHP-spelare via direct+AoE-double-dip.
   { id: 'turret_rocket', type: 'gun', dmg: 70, rate: 1700, speed: 700, mag: 9999, reload: 0, spread: 0.0, color: '#ff8a3a', explosive: 80 },
+  // GULAG: knockback-kanon (The Void) — 0 dmg, knuffar offret (hanteras i bullets.js BR-hook).
+  // Endast åtkomlig i Gulag-1v1, aldrig i shop/loot.
+  { id: 'gulag_knock', type: 'gun', dmg: 0, rate: 300, speed: 920, mag: 9999, reload: 0, spread: 0.03, color: '#5ac7ff', gulagKnock: true },
 ];
 
 const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));

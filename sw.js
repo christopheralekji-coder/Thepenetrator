@@ -1,10 +1,10 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v789-cd-bleedout';
+const CACHE = 'penetrator-v790-gulag';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=789',
-  './game.js?v=789',
+  './style.css?v=790',
+  './game.js?v=790',
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg',
@@ -71,6 +71,7 @@ const ASSETS = [
   './shared/castledefense-arena.js',
   './shared/survivors-arena.js',
   './shared/heist-arena.js',
+  './shared/gulag-arenas.js',
 ];
 
 self.addEventListener('install', e => {

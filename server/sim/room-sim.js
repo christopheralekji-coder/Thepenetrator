@@ -5,6 +5,7 @@ const { encodeWorldBinary } = require('./wirefmt');
 const { makeEnemy, updateEnemy } = require('./enemies');
 const { makeBoss } = require('./bosses');
 const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy } = require('./bullets');
+const { enterGulag, gulagMatchmake, tickGulag, voidAllGulag } = require('./gulag');
 const { addBot, tickBots, removeAllBots } = require('./bots');
 const { updateBoss } = require('./bosses');
 const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onWaveComplete, checkBossDeath } = require('./waves');
@@ -3701,8 +3702,11 @@ function tickBattleRoyale(sim, dt, now) {
     if (ws._brCreditedKill) ws._brCreditedKill = false;
   }
 
-  // Wall-collision för LEVANDE spelare (BR är no-respawn, dead = spectator)
+  // Wall-collision för LEVANDE spelare (BR är no-respawn, dead = spectator).
+  // GULAG (v1.790): hoppa över gulag-spelare — de är off-map; vägg-klamp skulle dra dem
+  // tillbaka till kartan. Gulag-väggar enforceras klient-side.
   for (const [, ws] of sim.room.members) {
+    if (ws.playerState && ws.playerState.gulagState) continue;
     if (ws.playerState && ws.playerState.hp > 0) {
       const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
       resolveCtfWall(ent, arena.walls);
@@ -3713,6 +3717,11 @@ function tickBattleRoyale(sim, dt, now) {
       ws.playerState.y = ent.y;
     }
   }
+
+  // GULAG (v1.790): kör 1v1-duellerna + matchmaking FÖRE death-detection så förloraren
+  // redan ligger i battleroyaleEliminated när loopen nedan körs (skippas där).
+  tickGulag(sim, dt, Date.now());
+  gulagMatchmake(sim, Date.now());
 
   // Phase-progression: kolla om current phase slutat
   if (sim.battleroyalePhaseEndAt && nowMs >= sim.battleroyalePhaseEndAt) {
@@ -3755,6 +3764,7 @@ function tickBattleRoyale(sim, dt, now) {
   // Centraliserad death-detection (täcker explosion/oob/zone-dmg)
   for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState) continue;
+    if (ws.playerState.gulagState) continue; // GULAG (v1.790): hanteras av tickGulag
     if (ws.playerState.hp <= 0 && !sim.battleroyaleEliminated.includes(pid)) {
       // DOWNED (v1.740): har self-revive-kit + ej redan downed → gå "downed" (krypande,
       // sårbar) + auto-revive-channel istället för direkt elimination. Annars elimineras.
@@ -3766,6 +3776,14 @@ function tickBattleRoyale(sim, dt, now) {
         ws.playerState.speedMul = 0.45;
         sim.eventQueue.push({ type: 'br_downed', peerId: pid, reviveEnd: ws.playerState.brReviveEnd, kits: ws.playerState.selfReviveKits });
         sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: 1, shield: ws.playerState.shield || 0 });
+        continue;
+      }
+      // GULAG (v1.790): FÖRSTA döden utan self-revive-kit → skicka till Gulag-kön
+      // (1v1 om återkomst) istället för direkt elimination. Bara EN chans per match.
+      if (!ws.playerState.gulagUsed) {
+        ws.playerState.brDowned = false;
+        ws.playerState.speedMul = 1;
+        enterGulag(sim, pid, ws);
         continue;
       }
       // KILL-CREDIT vid RIKTIG elimination: kreditera senaste angripare om färsk (≤8s).
@@ -3838,6 +3856,7 @@ function tickBattleRoyale(sim, dt, now) {
     // Hitta sista levande (om någon). Downed räknas EJ som vinnare (v1.748).
     let winner = null;
     for (const [pid, ws] of sim.room.members) {
+      if (ws.playerState && ws.playerState.gulagState) continue; // GULAG: ej "levande på kartan"
       if (ws.playerState && ws.playerState.hp > 0 && !ws.playerState.brDowned) {
         winner = pid;
         break;
@@ -3973,6 +3992,7 @@ function applyBrOutsideDamage(sim, dt) {
   const r2 = z.r * z.r;
   for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    if (ws.playerState.gulagState) continue; // GULAG (v1.790): off-map → ingen storm-skada
     // (v1.750) Downed spelare (self-revive-kanal aktiv) är immuna mot zone-damage.
     // Utan detta: hp=1 tar storm-skada → hp→0 → death-loopen ser brDowned=true+kits=0 → eliminerar.
     if (ws.playerState.brDowned) continue;
@@ -5235,6 +5255,8 @@ function endBattleRoyaleMatch(sim, winnerId, reason) {
   if (sim.battleroyaleEnded) return;
   sim.battleroyaleEnded = true;
   sim.battleroyaleWinner = winnerId;
+  // GULAG (v1.790): matchen är slut — avbryt ev. pågående dueller, spelare blir spectators.
+  voidAllGulag(sim);
   // Winner får placement 1 (om de var alive)
   if (winnerId && !sim.battleroyaleRanks[winnerId]) {
     sim.battleroyaleRanks[winnerId] = 1;
@@ -6746,6 +6768,14 @@ function startSim(sim, opts) {
       ws.playerState.brUavUntil = 0;      // UAV-reveal aktiv till (ms)
       ws.playerState.brDowned = false;
       ws.playerState.brReviveEnd = 0;
+      // GULAG (v1.790): nollställ per-match så förra matchens gulag-state ej bleeder in
+      ws.playerState.gulagUsed = false;
+      ws.playerState.gulagState = null;
+      ws.playerState._gulagMatchId = null;
+      ws.playerState._gulagGame = null;
+      ws.playerState._gulagWeapon = null;
+      ws.playerState._gulagNoShoot = false;
+      ws.playerState.spectating = false;
       ws.playerState.brPerks = {};        // (v1.742) köpta perks: fast_hands/double_time/ghost/tracker/high_alert
       ws.playerState.brContract = null;   // (v1.746) aktivt kontrakt {id,type,...}
       ws.tdmRespawnAt = 0;
@@ -6768,6 +6798,12 @@ function startSim(sim, opts) {
     // trigga om matchen startade med en ensam spelare (0 bots) → annars
     // avslutas matchen direkt på första ticken. Kräver >=2 för att aktiveras.
     sim.battleroyaleStartCount = aliveCount;
+    // GULAG (v1.790): referens till arenan för redeploy-pos + nollställ ev. gulag-state
+    sim._brArena = arena;
+    sim.gulagQueue = [];
+    sim.gulagMatches = [];
+    if (sim._gulagSlotsUsed) sim._gulagSlotsUsed.clear();
+    sim._gulagMatchCounter = 0;
     sim.eventQueue.push({
       type: 'br_started',
       arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },
@@ -7239,7 +7275,10 @@ function applyPlayerInput(sim, peerId, input) {
     if (typeof input.x === 'number') ws.playerState.x = input.x;
     if (typeof input.y === 'number') ws.playerState.y = input.y;
   }
-  if (typeof input.hp === 'number') ws.playerState.hp = input.hp;
+  // GULAG (v1.790): hp är SERVER-auktoritärt under duell (loadout + bullets/melee/lava).
+  // Ignorera klient-hp så (a) den döda spelarens hp=0 ej skriver över loadout-hp vid start,
+  // (b) ingen hp-cheat i gulagen.
+  if (typeof input.hp === 'number' && ws.playerState.gulagState !== 'fighting') ws.playerState.hp = input.hp;
   if (typeof input.aim === 'number') ws.playerState.aim = input.aim;
   if (input.weaponId) {
     ws.playerState.weaponId = input.weaponId;
@@ -7291,6 +7330,8 @@ function applyShoot(sim, peerId, msg) {
   const ps = ws.playerState;
   // BR downed (v1.740): krypande spelare kan inte skjuta (server-enforce).
   if (ps.brDowned) return;
+  // GULAG (v1.790): no-shoot-spel (Bomb Tag/Floor is Lava) blockerar skott helt.
+  if (ps.gulagState === 'fighting' && ps._gulagNoShoot) return;
   // Castle Defense down-state: bara knife tillåten (server-enforce, annars
   // kan klient skicka rifle/sniper-shots medan downed).
   if (ps.cdDowned) {
@@ -7300,6 +7341,8 @@ function applyShoot(sim, peerId, msg) {
   // Mounted turret: tvinga rätt vapen-id + position. Annars kan client säga
   // "weaponId: railgun" och få railgun-dmg från turret-position.
   let weaponId = msg.weaponId || ps.weaponId || 'pistol';
+  // GULAG (v1.790): tvinga duellens vapen (anti-cheat — ingen rocket i gulagen)
+  if (ps.gulagState === 'fighting' && ps._gulagWeapon) weaponId = ps._gulagWeapon;
   if (ps.cdDowned) weaponId = 'knife';
   // v1.401 anti-cheat: Castle Defense — validera mot vapen-tier
   if (sim.castledefenseActive && msg.weaponId) {

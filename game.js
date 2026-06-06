@@ -16135,6 +16135,9 @@ const WEAPONS = [
   // turret_rocket: 120→70 dmg + slower rate, AoE 100→80. Tar bort 1-shot på 200-EHP.
   { id: 'turret_rocket', name: 'Turret Rocket', type: 'gun',   price: 0,    dmg: 70, rate: 1700, speed: 700, mag: 9999, reload: 0, spread: 0.0, color: '#ff8a3a', explosive: 80, style: 'rocket',
     desc: 'Tornets rocket launcher. Hög dmg + explosion.' },
+  // GULAG: knockback-kanon (The Void). 0 dmg — knuffar offret. Endast i Gulag-1v1.
+  { id: 'gulag_knock', name: 'Knuff-kanon',     type: 'gun',   price: 0,    dmg: 0,  rate: 300, speed: 920, mag: 9999, reload: 0, spread: 0.03, color: '#5ac7ff', gulagKnock: true,
+    desc: 'Knuffar motståndaren. Gulag.' },
 ];
 const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 
@@ -26225,10 +26228,124 @@ const Coop = {
       }
       if (typeof updateBrHud === 'function') updateBrHud();
       if (state.player && state.player.spectating && typeof updateBrSpectatorBanner === 'function') updateBrSpectatorBanner();
+    } else if (ev.type === 'gulag_queued') {
+      // GULAG (v1.790): jag dog utan kit → väntar på motståndare, spectar live-matchen
+      if (ev.peerId === this.myId) {
+        state.gulagQueued = true;
+        if (typeof hideBrSpectatorBanner === 'function') hideBrSpectatorBanner();
+        if (typeof showGulagQueueBanner === 'function') showGulagQueueBanner();
+        if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
+        if (state.player) {
+          state.player.spectating = true; state.player.hp = 0; state.player.specTarget = null;
+          for (const [pid, partner] of this.players) { if (partner && partner.hp > 0) { state.player.specTarget = pid; break; } }
+        }
+        state.deadBody = { x: state.player ? state.player.x : 0, y: state.player ? state.player.y : 0, reviveTimer: 0 };
+      }
+    } else if (ev.type === 'gulag_start') {
+      // { matchId, game, gameName, emoji, hint, a, b, noShoot, loadoutWeapon, geo, spawnA, spawnB, bombHolder, bombMs }
+      if (ev.a === this.myId || ev.b === this.myId) {
+        const role = ev.a === this.myId ? 'a' : 'b';
+        const sp = role === 'a' ? ev.spawnA : ev.spawnB;
+        const gdef = (typeof window !== 'undefined' && window.GULAG_GAMES) ? window.GULAG_GAMES[ev.game] : null;
+        state.gulagQueued = false;
+        state.gulag = {
+          matchId: ev.matchId, game: ev.game, gameName: ev.gameName, emoji: ev.emoji, hint: ev.hint,
+          noShoot: !!ev.noShoot, loadoutWeapon: ev.loadoutWeapon, geo: ev.geo,
+          role, oppPid: role === 'a' ? ev.b : ev.a,
+          platformR: ev.geo.platformR || 0, ringR: ev.geo.ringR || 0, fallen: [], pu: [],
+          bombHolder: ev.bombHolder, bombMs: ev.bombMs || 0, timeLeft: null,
+          speedMul: 1, speedUntil: 0, gunUntil: 0, knockUntil: 0, knockVX: 0, knockVY: 0,
+        };
+        state.deadBody = null;
+        if (state.player) {
+          state.player.spectating = false; state.player.specTarget = null;
+          state.player.x = sp.x; state.player.y = sp.y; state.player.aimAngle = sp.facing || 0;
+          state.player.weaponId = ev.loadoutWeapon; state.player.brDowned = false;
+          state.player.hp = gdef ? gdef.loadout.hp : 100;
+          state.player.shield = gdef ? (gdef.loadout.shield || 0) : 0;
+        }
+        if (typeof hideBrSpectatorBanner === 'function') hideBrSpectatorBanner();
+        if (typeof showGulagBanner === 'function') showGulagBanner();
+        if (typeof triggerShake === 'function') triggerShake(10, 0.4);
+        if (typeof showToast === 'function') showToast(ev.emoji + ' GULAG — ' + ev.gameName + '!');
+        if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+      }
+    } else if (ev.type === 'gulag_tick') {
+      const g = state.gulag;
+      if (g && g.matchId === ev.matchId) {
+        g.platformR = ev.platformR || g.platformR;
+        g.ringR = ev.ringR || g.ringR;
+        g.fallen = ev.fallen || g.fallen;
+        g.bombHolder = ev.bombHolder;
+        g.bombMs = ev.bombMs || 0;
+        g.pu = ev.pu || [];
+        g.timeLeft = ev.timeLeft;
+        if (typeof updateGulagBanner === 'function') updateGulagBanner();
+      }
+    } else if (ev.type === 'gulag_bomb') {
+      const g = state.gulag;
+      if (g && g.matchId === ev.matchId) {
+        g.bombHolder = ev.holder; g.bombMs = Math.max(0, (ev.endsAt || 0) - Date.now());
+        if (ev.holder === this.myId && typeof triggerShake === 'function') triggerShake(8, 0.3);
+        if (ev.holder === this.myId && typeof Audio !== 'undefined' && Audio.hit) Audio.hit();
+        if (typeof updateGulagBanner === 'function') updateGulagBanner();
+      }
+    } else if (ev.type === 'gulag_powerup') {
+      if (ev.peerId === this.myId && state.gulag) {
+        const g = state.gulag;
+        if (ev.kind === 'speed') { g.speedMul = 1.6; g.speedUntil = performance.now() + 5000; }
+        else if (ev.kind === 'biggun') { if (state.player) state.player.weaponId = 'shotgun'; g.gunUntil = performance.now() + 7000; }
+        if (typeof showToast === 'function') showToast('⚡ ' + (ev.kind === 'shield' ? '+Sköld' : ev.kind === 'heal' ? '+HP' : ev.kind === 'speed' ? 'Fart!' : 'Hagelgevär!'));
+        if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
+      }
+    } else if (ev.type === 'gulag_knockback') {
+      if (ev.peerId === this.myId && state.gulag) {
+        const g = state.gulag;
+        const mag = Math.hypot(ev.vx, ev.vy) || 1;
+        const force = (typeof window !== 'undefined' && window.GULAG_GAMES && window.GULAG_GAMES.void) ? window.GULAG_GAMES.void.knockForce : 540;
+        g.knockVX = (ev.vx / mag) * force; g.knockVY = (ev.vy / mag) * force; g.knockUntil = performance.now() + 220;
+        if (typeof triggerShake === 'function') triggerShake(6, 0.25);
+      }
+    } else if (ev.type === 'gulag_won') {
+      if (ev.peerId === this.myId) {
+        state.gulag = null; state.gulagQueued = false; state.deadBody = null;
+        if (typeof hideGulagBanner === 'function') hideGulagBanner();
+        if (state.player) {
+          state.player.spectating = false; state.player.specTarget = null;
+          state.player.x = ev.x; state.player.y = ev.y;
+          state.player.hp = ev.hp; state.player.shield = ev.shield;
+          state.player.weaponId = 'pistol'; state.player.brDowned = false;
+        }
+        if (typeof showToast === 'function') showToast('🏆 VANN GULAGEN — TILLBAKA I STRIDEN!');
+        if (typeof triggerShake === 'function') triggerShake(12, 0.5);
+        if (typeof Audio !== 'undefined' && Audio.revive) Audio.revive();
+        if (typeof updateBrHud === 'function') updateBrHud();
+      }
+    } else if (ev.type === 'gulag_lost') {
+      state.battleroyaleAliveCount = ev.aliveCount;
+      if (ev.peerId === this.myId) {
+        state.gulag = null; state.gulagQueued = false;
+        if (typeof hideGulagBanner === 'function') hideGulagBanner();
+        if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
+        if (typeof triggerShake === 'function') triggerShake(14, 0.6);
+        if (state.player) {
+          state.player.spectating = true; state.player.hp = 0; state.player.specTarget = null;
+          for (const [pid, partner] of this.players) { if (partner && partner.hp > 0) { state.player.specTarget = pid; break; } }
+        }
+        state.deadBody = { x: state.player ? state.player.x : 0, y: state.player ? state.player.y : 0, reviveTimer: 0 };
+        const totalCount = (this.players ? this.players.size : 0) + 1;
+        if (typeof showToast === 'function') showToast('💀 FÖRLORADE GULAGEN — Placering ' + ev.placement + ' av ' + totalCount);
+        state._brPlacement = ev.placement; state._brTotal = totalCount;
+        if (typeof showBrSpectatorBanner === 'function') showBrSpectatorBanner();
+      }
+      if (typeof updateBrHud === 'function') updateBrHud();
     } else if (ev.type === 'br_match_end') {
       // { winner, reason, stats }
       this.battleroyaleActive = false;
       state.battleroyaleActive = false;
+      // GULAG (v1.790): matchen slut — stäng ev. pågående duell-UI
+      state.gulag = null; state.gulagQueued = false;
+      if (typeof hideGulagBanner === 'function') hideGulagBanner();
       if (typeof hideBrSpectatorBanner === 'function') hideBrSpectatorBanner();
       if (state.player) {
         state.player.isJug = false;
@@ -28263,6 +28380,9 @@ const Coop = {
     // självständigt i teardown.)
     this.battleroyaleActive = false; this.castledefenseActive = false; this.survivorsActive = false; this.heistActive = false;
     if (typeof state !== 'undefined') {
+      // GULAG (v1.790): teardown — nolla duell-state + banner
+      state.gulag = null; state.gulagQueued = false;
+      if (typeof hideGulagBanner === 'function') hideGulagBanner();
       state.serverSimActive = false;
       state.tdmActive = false;
       state.ctfActive = false;
@@ -34217,6 +34337,8 @@ function tryShoot(now) {
   const p = state.player;
   // BR downed (v1.740): krypande spelare kan inte skjuta (matchar server-guard).
   if (state.battleroyaleActive && p.brDowned) return;
+  // GULAG (v1.790): no-shoot-spel (Bomb Tag/Floor is Lava) — ingen skjutning
+  if (state.gulag && state.gulag.noShoot) return;
   // Truck-turret override: använd turretens vapen istället för spelarens
   const activeWeaponId = p._turretWeapon || p.weaponId;
   // SPECIAL: repair-turret laga trucken istället för att skjuta
@@ -39686,6 +39808,10 @@ function hideBrSpectatorBanner() {
 }
 function clearBattleroyaleState() {
   if (typeof hideBrSpectatorBanner === 'function') hideBrSpectatorBanner();
+  // GULAG (v1.790): nolla duell-state + banner så det ej bleeder mellan matcher
+  if (typeof hideGulagBanner === 'function') hideGulagBanner();
+  state.gulag = null;
+  state.gulagQueued = false;
   state.battleroyaleActive = false;
   state.battleroyaleWalls = null;
   state._brBulletWalls = null; // släpp bullet-wall-cache
@@ -42773,8 +42899,10 @@ function updatePlayer(dt, now) {
     const brDownedMul = (state.battleroyaleActive && p.brDowned) ? 0.45 : 1;
     // BR Double Time-perk (v1.742): +25% fart (ej när downed)
     const brDoubleTime = (state.battleroyaleActive && !p.brDowned && p.brPerks && p.brPerks.double_time) ? 1.25 : 1;
-    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * brDoubleTime * dt;
-    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * brDoubleTime * dt;
+    // GULAG (v1.790): fart-powerup (Frenzy) ger +60% i duellen
+    const gulagSpeedMul = (state.gulag && state.gulag.speedMul) ? state.gulag.speedMul : 1;
+    p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * brDoubleTime * gulagSpeedMul * dt;
+    p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * brDoubleTime * gulagSpeedMul * dt;
   }
   // Mounted i CTF/SIEGE-torn: lås position till turret-koord
   if (p._mountedCtfTurretId && state.ctfTurrets && state.ctfTurrets[p._mountedCtfTurretId]) {
@@ -42784,6 +42912,27 @@ function updatePlayer(dt, now) {
   if (p._mountedSiegeTurretId && state.siegeTurrets && state.siegeTurrets[p._mountedSiegeTurretId]) {
     const t = state.siegeTurrets[p._mountedSiegeTurretId];
     p.x = t.x; p.y = t.y;
+  }
+  // GULAG (v1.790): off-map 1v1 — egen kollision, INGEN world-clamp (den skulle dra
+  // spelaren tillbaka till kartan). Plattform/ring/tiles låter dig falla (= förlust).
+  if (state.gulag) {
+    const g = state.gulag;
+    const nowG = performance.now();
+    // knockback-impuls (The Void)
+    if (g.knockUntil && nowG < g.knockUntil) {
+      p.x += g.knockVX * dt;
+      p.y += g.knockVY * dt;
+    }
+    // expirera tidsbegränsade powerups (Frenzy) — spegla servern
+    if (g.speedUntil && nowG > g.speedUntil) { g.speedMul = 1; g.speedUntil = 0; }
+    if (g.gunUntil && nowG > g.gunUntil) { g.gunUntil = 0; p.weaponId = g.loadoutWeapon; }
+    // lås vapnet till duellens (eller aktiv biggun-powerup)
+    p.weaponId = (g.gunUntil && nowG < g.gunUntil) ? 'shotgun' : g.loadoutWeapon;
+    // arena-väggar (skydd) blockerar; plattform/ring/tiles INTE (man ska kunna falla)
+    if (g.geo && g.geo.walls && g.geo.walls.length && typeof resolveCtfWall === 'function') {
+      resolveCtfWall(p, g.geo.walls);
+    }
+    return;
   }
   p.x = Math.max(p.r, Math.min(WORLD.w - p.r, p.x));
   p.y = Math.max(p.r, Math.min(WORLD.h - p.r, p.y));
@@ -73728,6 +73877,161 @@ function drawToast() {
   if (toastTimer > 0) toastTimer = 0;
 }
 
+// ============================ GULAG (v1.790) ============================
+// Rita 1v1-arenan (world-space; screen = world - camera, samma som drawBrZone).
+// Anropas i golv-passet (inom zoom-transformen) när state.gulag är aktiv.
+function drawGulagArena() {
+  const g = state.gulag;
+  if (!g || !g.geo) return;
+  const geo = g.geo;
+  const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
+  const now = performance.now();
+  ctx.save();
+  // Tomhets-bakgrund (täck även zoom-bordern)
+  ctx.fillStyle = '#050509';
+  ctx.fillRect(-viewW, -viewH, viewW * 3, viewH * 3);
+
+  if (geo.shape === 'platform') {
+    const px = geo.platformX - cx, py = geo.platformY - cy;
+    const r = g.platformR || geo.platformR || 400;
+    const grd = ctx.createRadialGradient(px, py, r * 0.2, px, py, r * 1.25);
+    grd.addColorStop(0, '#1c2a4a'); grd.addColorStop(0.78, '#0d1530'); grd.addColorStop(1, 'rgba(8,10,24,0)');
+    ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(px, py, r * 1.25, 0, 7); ctx.fill();
+    ctx.fillStyle = geo.groundColor || '#1b2440';
+    ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.fill();
+    // hex-glow-kant (fara)
+    ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(95,170,255,' + (0.5 + 0.35 * Math.sin(now / 200)) + ')';
+    ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.stroke();
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(150,200,255,0.25)';
+    ctx.beginPath(); ctx.arc(px, py, r * 0.6, 0, 7); ctx.stroke();
+  } else if (geo.shape === 'ring') {
+    const px = geo.ringX - cx, py = geo.ringY - cy;
+    const r = g.ringR || geo.ringR || 400;
+    // lava-hav
+    ctx.fillStyle = '#2a0a04'; ctx.fillRect(-viewW, -viewH, viewW * 3, viewH * 3);
+    const lg = ctx.createRadialGradient(px, py, r * 0.5, px, py, r * 2.2);
+    lg.addColorStop(0, 'rgba(255,90,30,0)'); lg.addColorStop(0.6, 'rgba(255,90,30,0.25)'); lg.addColorStop(1, 'rgba(120,20,5,0.5)');
+    ctx.fillStyle = lg; ctx.fillRect(-viewW, -viewH, viewW * 3, viewH * 3);
+    ctx.fillStyle = geo.groundColor || '#160707';
+    ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.fill();
+    ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(255,120,40,' + (0.6 + 0.3 * Math.sin(now / 160)) + ')';
+    ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.stroke();
+  } else if (geo.shape === 'tilegrid') {
+    ctx.fillStyle = '#2a0c02'; ctx.fillRect(-viewW, -viewH, viewW * 3, viewH * 3);
+    const lg = ctx.createLinearGradient(0, 0, 0, viewH);
+    lg.addColorStop(0, 'rgba(255,90,20,0.12)'); lg.addColorStop(1, 'rgba(180,40,10,0.22)');
+    ctx.fillStyle = lg; ctx.fillRect(-viewW, -viewH, viewW * 3, viewH * 3);
+    const fallen = new Set(g.fallen || []);
+    const T = geo.tile;
+    for (let i = 0; i < geo.tiles.length; i++) {
+      if (fallen.has(i)) continue;
+      const t = geo.tiles[i];
+      const tx = t.x - cx - T / 2, ty = t.y - cy - T / 2;
+      ctx.fillStyle = ((Math.floor(i / geo.cols) + i) % 2) ? '#6a4028' : '#7a4c30';
+      ctx.fillRect(tx + 3, ty + 3, T - 6, T - 6);
+      ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(tx + 3, ty + 3, T - 6, 5);
+      ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 2; ctx.strokeRect(tx + 3, ty + 3, T - 6, T - 6);
+    }
+  } else { // arena
+    if (geo.bounds) {
+      const b = geo.bounds;
+      ctx.fillStyle = geo.groundColor || '#1a1a2e';
+      ctx.fillRect(b.x - cx, b.y - cy, b.w, b.h);
+      // subtil grid
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
+      for (let gx = b.x; gx <= b.x + b.w; gx += 120) { ctx.beginPath(); ctx.moveTo(gx - cx, b.y - cy); ctx.lineTo(gx - cx, b.y + b.h - cy); ctx.stroke(); }
+      for (let gy = b.y; gy <= b.y + b.h; gy += 120) { ctx.beginPath(); ctx.moveTo(b.x - cx, gy - cy); ctx.lineTo(b.x + b.w - cx, gy - cy); ctx.stroke(); }
+    }
+  }
+
+  // Powerups (Frenzy)
+  if (g.pu && g.pu.length) {
+    for (const pu of g.pu) {
+      const ux = pu.x - cx, uy = pu.y - cy;
+      const col = pu.kind === 'shield' ? '#5ac7ff' : pu.kind === 'heal' ? '#5aff7a' : pu.kind === 'speed' ? '#ffe14a' : '#ff6a3a';
+      ctx.save(); ctx.translate(ux, uy);
+      const s = 1 + 0.15 * Math.sin(now / 180);
+      ctx.globalAlpha = 0.35; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 22 * s, 0, 7); ctx.fill();
+      ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(pu.kind === 'shield' ? '🛡' : pu.kind === 'heal' ? '➕' : pu.kind === 'speed' ? '⚡' : '🔫', 0, 1);
+      ctx.restore();
+    }
+  }
+  // Bomb-indikator ovanför hållaren (Bomb Tag)
+  if (g.game === 'bombtag' && g.bombHolder) {
+    let bx, by;
+    if (g.bombHolder === Coop.myId && state.player) { bx = state.player.x; by = state.player.y; }
+    else { const opp = Coop.players && Coop.players.get(g.bombHolder); if (opp) { bx = opp.x; by = opp.y; } }
+    if (bx != null) {
+      const sx = bx - cx, sy = by - cy - 40;
+      const pulse = 0.6 + 0.4 * Math.sin(now / 90);
+      ctx.fillStyle = 'rgba(255,60,30,' + pulse + ')';
+      ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('💣', sx, sy);
+    }
+  }
+  // Väggar/skydd (arena) — ritas i golv-passet (under spelarna)
+  if (geo.walls && geo.walls.length) {
+    for (const w of geo.walls) {
+      ctx.fillStyle = '#33334a'; ctx.fillRect(w.x - cx, w.y - cy, w.w, w.h);
+      ctx.fillStyle = 'rgba(255,255,255,0.07)'; ctx.fillRect(w.x - cx, w.y - cy, w.w, 4);
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 2; ctx.strokeRect(w.x - cx, w.y - cy, w.w, w.h);
+    }
+  }
+  ctx.restore();
+}
+
+// DOM-banner överst: spelnamn + regel-hint + timer (+ bomb-status)
+function showGulagBanner() {
+  let el = document.getElementById('gulag-banner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'gulag-banner';
+    el.style.cssText = 'position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 6px);transform:translateX(-50%);z-index:145;text-align:center;pointer-events:none;font-family:sans-serif;max-width:94vw';
+    document.body.appendChild(el);
+  }
+  el.style.display = 'block';
+  updateGulagBanner();
+}
+function updateGulagBanner() {
+  const el = document.getElementById('gulag-banner');
+  if (!el) return;
+  const g = state.gulag;
+  if (!g) { el.style.display = 'none'; return; }
+  let sub = g.hint || '';
+  if (g.game === 'bombtag') {
+    const mine = g.bombHolder === Coop.myId;
+    const secs = (Math.max(0, g.bombMs || 0) / 1000).toFixed(1);
+    sub = mine ? ('💣 DU HAR BOMBEN! ' + secs + 's — nudda motståndaren!') : ('Motståndaren har bomben · ' + secs + 's');
+  }
+  const headBg = (g.game === 'bombtag' && g.bombHolder === Coop.myId)
+    ? 'linear-gradient(180deg,#ff3c2a,#a01010)' : 'linear-gradient(180deg,#c0203a,#7a0f22)';
+  el.innerHTML =
+    '<div style="background:' + headBg + ';color:#fff;font-weight:900;font-size:14px;padding:5px 16px;border-radius:10px 10px 0 0;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.5)">' +
+    (g.emoji || '⚔️') + ' ' + (g.gameName || 'GULAG') + ' — VINN FÖR ATT ÅTERVÄNDA</div>' +
+    '<div style="background:rgba(10,10,16,.92);color:#ffd14a;font-size:12px;padding:4px 14px;border-radius:0 0 10px 10px">' +
+    sub + (g.timeLeft != null ? ('  ·  ⏱ ' + g.timeLeft + 's') : '') + '</div>';
+}
+function showGulagQueueBanner() {
+  let el = document.getElementById('gulag-banner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'gulag-banner';
+    el.style.cssText = 'position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 6px);transform:translateX(-50%);z-index:145;text-align:center;pointer-events:none;font-family:sans-serif;max-width:94vw';
+    document.body.appendChild(el);
+  }
+  el.style.display = 'block';
+  el.innerHTML =
+    '<div style="background:linear-gradient(180deg,#5a3a8a,#33205a);color:#fff;font-weight:900;font-size:14px;padding:5px 16px;border-radius:10px;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.5)">' +
+    '⚔️ GULAG — väntar på motståndare...</div>' +
+    '<div style="color:#cbb6ff;font-size:11px;margin-top:3px;text-shadow:0 1px 2px #000">Nästa spelare som dör möter dig i en 1v1 om återkomst</div>';
+}
+function hideGulagBanner() {
+  const el = document.getElementById('gulag-banner');
+  if (el) el.style.display = 'none';
+}
+
 function render() {
   ctx.clearRect(0, 0, viewW, viewH);
   // v1.575: Clear hud-canvas (ovan Pixi) varje frame — minimap/boss-HUD ritas hit
@@ -73809,12 +74113,17 @@ function render() {
   // BR: seamless skogsgolv FÖRST + ovanpå sjö/stigar/gläntor + cabin-INTERIOR
   // (alla ritas FÖRE player så spelaren ses OVANPÅ marken/golvet)
   if (state.battleroyaleActive) {
-    drawBrForestFloor();
-    if (state.battleroyaleDecorations) {
-      drawBrGroundDecorations(state.battleroyaleDecorations);
+    if (state.gulag) {
+      // GULAG (v1.790): rita 1v1-arenan (golv + plattform/ring/tiles/väggar) istället
+      drawGulagArena();
+    } else {
+      drawBrForestFloor();
+      if (state.battleroyaleDecorations) {
+        drawBrGroundDecorations(state.battleroyaleDecorations);
+      }
+      // Cabin-INTERIOR (golv + items för stugan jag är inne i) — under player
+      if (typeof drawBrCabinInteriors === 'function') drawBrCabinInteriors();
     }
-    // Cabin-INTERIOR (golv + items för stugan jag är inne i) — under player
-    if (typeof drawBrCabinInteriors === 'function') drawBrCabinInteriors();
   }
   // CASTLE DEFENSE — EARLY pass (innan player). Ground, dekorationer på marken,
   // spike/slow-traps (flat objects), spawn-markers, CORE (obelisk på marken).
@@ -74043,7 +74352,9 @@ function render() {
   }
   // BATTLE ROYALE — walls + loot + top-decorations + stugor + rök + zone
   // (ground-decorations ritas TIDIGT — se early-render block ovan)
-  if (state.battleroyaleActive) {
+  if (state.battleroyaleActive && state.gulag) {
+    // GULAG (v1.790): hoppa över BR-värld (walls/loot/zon) — gulag-arenan ritades i golv-passet
+  } else if (state.battleroyaleActive) {
     // 1. Walls (träd, stenar, stugor, bilar) — efter player så spelaren syns "under" träden
     if (state.battleroyaleWalls) drawPvpWalls(state.battleroyaleWalls);
     // 2. Loot på marken (ovanpå walls — fast loot är på öppen mark)
@@ -74158,7 +74469,10 @@ function render() {
   if (state.battleroyaleActive && typeof drawBrHighAlert === 'function') drawBrHighAlert();
   // v1.575: Minimap renderas till hud-canvas (z-index:3) så Pixi-sprites (z:2)
   // inte täcker den. Ctx-swap eftersom drawMiniMap använder global ctx.
-  if (hudCtx) {
+  // GULAG (v1.790): dölj minimap under duell (off-map → skulle visa dig fast i hörnet)
+  if (state.gulag) {
+    // skippa minimap
+  } else if (hudCtx) {
     const _savedCtx = ctx;
     ctx = hudCtx;
     try { drawMiniMap(); } catch (e) { console.warn('[hudCtx] minimap fail:', e.message); }

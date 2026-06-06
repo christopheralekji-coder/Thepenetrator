@@ -229,9 +229,10 @@ function applyMelee(sim, p, weaponId, params) {
         handleCtfKill(sim, p.peerId, pid, ws, ownerTeam, weaponId);
       } else if (inSiege) {
         handleSiegeKill(sim, p.peerId, pid, ws, ownerTeam, weaponId);
-      } else if (inBr) {
+      } else if (inBr && ws.playerState.gulagState !== 'fighting') {
         if (sim._handleBattleRoyaleKill) sim._handleBattleRoyaleKill(sim, p.peerId, ownerWs, pid, ws, weaponId);
       }
+      // GULAG (v1.790): melee-död i duell hanteras av tickGulag (hp=0 redan satt ovan).
       // BREAK: en swing träffar bara en spelare (mirror av klient-melee). Utan
       // detta promotras gungame-bot dubbelt om 2 fiender står i cone+range.
       break;
@@ -1356,6 +1357,11 @@ function updateBullets(sim, dt, now) {
           ws.playerState._brLastAttacker = b.ownerPid;
           ws.playerState._brLastWeapon = b.weaponId;
           ws.playerState._brLastAttackerAt = Date.now();
+          // GULAG The Void (v1.790): knuff-kanon (0 dmg) → skicka impuls-event; klienten
+          // applicerar knuffen på sin egen position (rörelse är klient-auktoritär).
+          if (ws.playerState.gulagState === 'fighting' && ws.playerState._gulagGame === 'void') {
+            sim.eventQueue.push({ type: 'gulag_knockback', peerId: pid, vx: Math.round(b.vx), vy: Math.round(b.vy) });
+          }
           sim.eventQueue.push({
             type: 'pvp_hp_changed',
             peerId: pid,
