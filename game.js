@@ -20169,33 +20169,32 @@ function _bakeEnemyTexture(type, opts) {
 // + (via drawImage på iOS) hela fiende-rosteret samtidigt.
 function _polishSprite(src, r) {
   if (typeof document === 'undefined') return src;
-  const pad = Math.max(2, Math.ceil(r * 0.12));
-  const w = src.width + pad * 2, h = src.height + pad * 2;
+  // v1.782: INGEN padding (gjorde sprites större + fot-skuggan fel). Tunn kontur ryms i
+  // canvasens befintliga marginal → EXAKT samma storlek + skugg-position som förut.
+  const w = src.width, h = src.height;
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const o = out.getContext('2d');
-  // Mörk silhuett (för konturen)
-  const sil = document.createElement('canvas'); sil.width = src.width; sil.height = src.height;
+  // Mörk silhuett (för tunn kontur)
+  const sil = document.createElement('canvas'); sil.width = w; sil.height = h;
   const sc = sil.getContext('2d');
   sc.drawImage(src, 0, 0);
   sc.globalCompositeOperation = 'source-in';
-  sc.fillStyle = 'rgba(6,4,9,0.92)';
-  sc.fillRect(0, 0, sil.width, sil.height);
-  const off = Math.max(1, Math.round(r * 0.07));
-  for (const [dx, dy] of [[-off, 0], [off, 0], [0, -off], [0, off], [-off, -off], [off, -off], [-off, off], [off, off]]) {
-    o.drawImage(sil, pad + dx, pad + dy);
-  }
+  sc.fillStyle = 'rgba(6,4,9,0.82)';
+  sc.fillRect(0, 0, w, h);
+  const off = Math.max(1, Math.round(r * 0.045));
+  for (const [dx, dy] of [[-off, 0], [off, 0], [0, -off], [0, off]]) o.drawImage(sil, dx, dy);
   // Konst ovanpå konturen
-  o.drawImage(src, pad, pad);
+  o.drawImage(src, 0, 0);
   // Ljussättning + skuggning — source-atop så det BARA träffar konst-pixlarna
   o.save();
   o.globalCompositeOperation = 'source-atop';
-  const g = o.createLinearGradient(pad, pad, pad + src.width * 0.55, pad + src.height * 0.55);
-  g.addColorStop(0, 'rgba(255,247,222,0.17)');
+  const g = o.createLinearGradient(0, 0, w * 0.55, h * 0.55);
+  g.addColorStop(0, 'rgba(255,247,222,0.15)');
   g.addColorStop(0.55, 'rgba(255,247,222,0)');
   o.fillStyle = g; o.fillRect(0, 0, w, h);
-  const g2 = o.createLinearGradient(0, pad + src.height * 0.42, 0, h);
+  const g2 = o.createLinearGradient(0, h * 0.45, 0, h);
   g2.addColorStop(0, 'rgba(8,6,16,0)');
-  g2.addColorStop(1, 'rgba(8,6,16,0.26)');
+  g2.addColorStop(1, 'rgba(8,6,16,0.22)');
   o.fillStyle = g2; o.fillRect(0, 0, w, h);
   o.restore();
   return out;
