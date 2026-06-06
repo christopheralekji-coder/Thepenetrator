@@ -32618,8 +32618,11 @@ const isMobile = isIOS || isAndroid || ('ontouchstart' in window && window.inner
 if (isIOS) document.body.classList.add('ios');
 if (isAndroid) document.body.classList.add('android');
 if (isMobile) document.body.classList.add('mobile');
-// Disable vibration on iOS (saknas)
-if (isIOS) Feedback.vibrateEnabled = false;
+// v1.772: stäng bara av vibration på iOS-WEBBEN (Safari saknar Vibration API). I
+// native-appen (Capacitor) finns RIKTIG taptic via Haptics-pluginet → behåll PÅ där,
+// annars kände man aldrig haptiken i appen trots att den fungerar.
+const _isNativeApp = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+if (isIOS && !_isNativeApp) Feedback.vibrateEnabled = false;
 
 // Fullscreen — robust med multipla fallbacks
 function isFullscreen() {
