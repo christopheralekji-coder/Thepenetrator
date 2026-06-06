@@ -74064,6 +74064,12 @@ function trainGulag(game) {
       }));
     } catch (e) { if (typeof showToast === 'function') showToast('Fel: ' + e.message); return; }
     Coop.serverSimActive = true; state.serverSimActive = true; Coop._simStartedConfirmed = false;
+    // v1.793: KRITISK — Coop.tick() (input-send) returnerar tidigt om inLobby===true.
+    // trainGulag anropar actuallyStartGame() men ALDRIG Coop.startGame() (som normalt
+    // nollar inLobby), så den stod kvar true från Coop.host() → klienten skickade ALDRIG
+    // sin position till servern → servern höll spawn-pos → reconciliationen drog tillbaka
+    // spelaren = "kan inte röra sig" i gulag-testet. Nolla den explicit.
+    Coop.inLobby = false;
     document.body.classList.remove('menu-mode');
     ['menu', 'coopScreen', 'coop-screen', 'coop-lobby'].forEach(id => { const e = document.getElementById(id); if (e) e.classList.add('hidden'); });
     if (typeof showToast === 'function') showToast('🥊 GULAG-TEST: ' + game);

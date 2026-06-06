@@ -45,6 +45,38 @@ module.exports = {
     });
     console.log('[BS] gulag-test: ' + JSON.stringify(g));
     await screenshot(p, 'bs-3-gulagtest');
+
+    // (2b) RÖRELSE-TEST: kan spelaren faktiskt röra sig i gulag?
+    const lockState = await p.evaluate(() => ({
+      countdownEndAt: state._countdownEndAt || 0, now: Math.round(performance.now()),
+      countdownLabel: state._countdownLabel || null,
+      inputLocked: typeof isInputLocked === 'function' ? isInputLocked() : 'n/a',
+      px0: state.player && Math.round(state.player.x), py0: state.player && Math.round(state.player.y),
+    }));
+    console.log('[BS] lock-state: ' + JSON.stringify(lockState));
+    // JOYSTICK-vägen (mobil): sätt input.moveX direkt + logga positions-kurva
+    const mvBefore = await p.evaluate(() => ({ x: state.player.x, y: state.player.y }));
+    const curve = [];
+    for (let t = 0; t < 10; t++) {
+      await p.evaluate(() => { input.moveX = 1; input.moveY = 0; }); // joystick höger
+      await wait(150);
+      const pt = await p.evaluate(() => ({ x: Math.round(state.player.x), inSent: (Coop._lastInputSent && Coop._lastInputSent.x) || null }));
+      curve.push(pt.x);
+    }
+    await p.evaluate(() => { input.moveX = 0; input.moveY = 0; });
+    const probe = await p.evaluate(() => ({
+      serverSimActive: Coop.serverSimActive, active: Coop.active, inLobby: Coop.inLobby, isHost: Coop.isHost,
+      lastInputSent: Coop._lastInputSent || null, lastBroadcast: Math.round(Coop._lastBroadcast || 0),
+      spectating: state.player && state.player.spectating, hasWs: !!Coop.ws,
+      wsBuffered: Coop.ws ? Coop.ws.bufferedAmount : 'no-ws',
+    }));
+    console.log('[BS] probe: ' + JSON.stringify(probe));
+    const mvAfter = await p.evaluate(() => ({ x: state.player.x, y: state.player.y, lastSent: Coop._lastInputSent ? Coop._lastInputSent.x : null }));
+    const moved = Math.hypot(mvAfter.x - mvBefore.x, mvAfter.y - mvBefore.y);
+    console.log('[BS] joystick-curve x: ' + curve.join(' → '));
+    console.log('[BS] movement: before=' + Math.round(mvBefore.x) + ' after=' + Math.round(mvAfter.x) + ' lastSentToServer=' + mvAfter.lastSent + ' dist=' + Math.round(moved));
+    if (moved < 80) console.log('[BS] FAIL: spelaren kunde INTE röra sig i gulag (dist=' + Math.round(moved) + ')');
+    else console.log('[BS] PASS: spelaren rörde sig i gulag (dist=' + Math.round(moved) + ')');
     // ASSERTS: positiv off-map-koord (ej Int16-klampad -32768) + kameran följer dit
     if (g.px == null || g.px < 11000 || g.px > 31000) console.log('[BS] FAIL: spelare ej på positiv off-map-koord: px=' + g.px);
     else console.log('[BS] PASS: spelare på off-map-koord px=' + g.px);
