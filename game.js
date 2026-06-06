@@ -68860,6 +68860,39 @@ function drawEnemy(e) {
   }
 }
 
+// v1.778 TILLFÄLLIGT VISUELLT TEST: ritar i ett fast skärm-hörn (1) sanity-ruta,
+// (2) test-grunt via drawHumanEnemy, (3) test-boss via drawBossSoldier, (4) Pixi-ruta.
+// Bypassar kamera/cull/enemy-loopen → isolerar EXAKT vilken rit-väg som funkar på iOS.
+// Tas bort när enemy-buggen är löst.
+let _dbgPixiRect = null;
+function _renderDbgTest() {
+  if (state.mode !== 'playing') return;
+  const now = performance.now();
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(6, 86, 258, 78);
+  ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'center';
+  const slots = [[42, 'SANITY'], [108, 'GRUNT'], [172, 'BOSS'], [236, 'PIXI']];
+  for (const [sx, lbl] of slots) { ctx.strokeStyle = '#555'; ctx.strokeRect(sx - 24, 96, 48, 48); ctx.fillStyle = '#9bd'; ctx.fillText(lbl, sx, 158); }
+  // 1) sanity (ren fillRect — ska ALLTID synas)
+  ctx.fillStyle = '#33dd33'; ctx.fillRect(42 - 13, 109, 26, 26);
+  // 2) grunt via drawHumanEnemy (minion-Canvas2D-väg)
+  try {
+    ctx.save(); ctx.translate(108, 122);
+    const g = { r: 15, type: 'grunt', color: '#aa3a3a', facing: 0, walkAccum: 0, walkPhase: 0, contactCd: 1, flashUntil: 0, aiming: false, isBoss: false, isMiniBoss: false, miniIntensity: 0, name: '', stageAccent: '#7a5aaa', stageEdge: '#aaff5a', fuse: 1, x: 0, y: 0 };
+    drawHumanEnemy(g, false, now, 0); ctx.restore();
+  } catch (e) { ctx.fillStyle = '#f44'; ctx.fillText('ERR', 108, 124); ctx.restore(); ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); }
+  // 3) boss via drawBossSoldier (boss-Canvas2D-väg, känd att funka)
+  try {
+    const b = { r: 17, type: 'soldier', facing: 0, flashUntil: 0, aiming: false, isBoss: true, hp: 100, maxHp: 100, name: 'T', x: 0, y: 0, phase: 0, bossPhase: 0, walkAccum: 0, contactCd: 1 };
+    drawBossSoldier(b, 172, 120, false);
+  } catch (e) { ctx.fillStyle = '#f44'; ctx.fillText('ERR', 172, 124); }
+  ctx.restore();
+  // 4) Pixi-ruta (läggs till app.stage EN gång — testar om Pixi renderar något alls)
+  if (!_dbgPixiRect && typeof PIXI !== 'undefined' && pixiState && pixiState.ready && pixiState.app) {
+    try { const gr = new PIXI.Graphics(); gr.rect(0, 0, 26, 26).fill(0xff33ff); gr.x = 236 - 13; gr.y = 109; pixiState.app.stage.addChild(gr); _dbgPixiRect = gr; } catch (e) {}
+  }
+}
 // Hjälpare: rita ben + stövlar med walk-cycle
 function drawLegs(e, phase, flash, pantsColor, bootColor) {
   const swing = Math.sin(phase);
@@ -73745,6 +73778,7 @@ function render() {
   if (!(pixiState && pixiState.enemiesEnabled) || _dualRenderActive) {
     for (const e of state.enemies) drawEnemy(e);
   }
+  if (typeof _renderDbgTest === 'function') _renderDbgTest();  // v1.778 TILLFÄLLIG diagnostik
   if (pixiState && pixiState.enemiesEnabled) {
     const _nowOverlay = performance.now();
     for (const e of state.enemies) {
