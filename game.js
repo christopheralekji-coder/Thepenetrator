@@ -12169,11 +12169,15 @@ function drawCastleDefenseDownStateUI() {
     ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
     ctx.fillText('💀 DOWN — VÄNTA HJÄLP', viewW / 2, headerY);
     ctx.restore();
-    // Bleed-out countdown — räknat lokalt från cdDownStartedAt
+    // v1.789: bleed-out räknas mot serverns EXAKTA sluttid (cdDownEndsAt = nu + serverns
+    // bleedoutMs vid down-event) → klock-oberoende, ingen RTT-drift, ingen 25-vs-30-miss.
     const arena = (typeof CASTLEDEFENSE_ARENA !== 'undefined') ? CASTLEDEFENSE_ARENA : null;
-    const bleedSec = arena ? (arena.downBleedoutSec || 25) : 25;
-    const elapsed = state.player.cdDownStartedAt ? (Date.now() - state.player.cdDownStartedAt) / 1000 : 0;
-    const remaining = Math.max(0, bleedSec - elapsed);
+    const bleedSec = (state.player.cdDownEndsAt && state.player.cdDownStartedAt)
+      ? Math.max(1, (state.player.cdDownEndsAt - state.player.cdDownStartedAt) / 1000)
+      : (arena ? (arena.downBleedoutSec || 30) : 30);
+    const remaining = state.player.cdDownEndsAt
+      ? Math.max(0, (state.player.cdDownEndsAt - Date.now()) / 1000)
+      : bleedSec;
     const bleedBarY = headerY + 38;
     const barW = 240, barH = 14;
     const bx = viewW / 2 - barW / 2;
@@ -27160,6 +27164,9 @@ const Coop = {
       if (ev.peerId === this.myId && state.player) {
         state.player.cdDowned = true;
         state.player.cdDownStartedAt = Date.now();
+        // v1.789: server-exakt bleed-out — räkna ner mot egen klocka från serverns
+        // skickade ms (klock-oberoende, ingen drift, ingen 25-vs-30-miss).
+        state.player.cdDownEndsAt = Date.now() + (ev.bleedoutMs || 30000);
         state.player._cdPrevWeapon = state.player.weaponId;
         state.player.weaponId = 'knife';
         state.player.speedMul = 0.35;

@@ -2690,6 +2690,9 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
         type: 'cd_player_downed',
         peerId: pid,
         x: Math.round(ps.x), y: Math.round(ps.y),
+        // v1.789: skicka exakt bleed-out-duration (ms) från SERVERN → klienten räknar ner
+        // mot sin egen klocka (klock-oberoende, ingen RTT-drift, ingen 25-vs-30-konstant-miss).
+        bleedoutMs: (arena.downBleedoutSec || 30) * 1000,
       });
       sim.castledefenseDownedPids = sim.castledefenseDownedPids || [];
       if (!sim.castledefenseDownedPids.includes(pid)) sim.castledefenseDownedPids.push(pid);
