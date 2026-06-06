@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v253-gulag-v1.790';
+const SERVER_VERSION = 'v254-gulagtest-v1.791';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -889,6 +889,8 @@ function handleMessage(ws, msg) {
       juggernautMatchDurationSec: msg.juggernautMatchDurationSec,
       battleroyale: msg.battleroyale,
       battleroyaleMatchDurationSec: msg.battleroyaleMatchDurationSec,
+      gulagPractice: msg.gulagPractice, // DEBUG: hoppa direkt in i ett gulag-spel vs bot
+
       castledefense: msg.castledefense,
       survivors: msg.survivors,
       survivorsDurationSec: msg.survivorsDurationSec,

@@ -5,7 +5,7 @@ const { encodeWorldBinary } = require('./wirefmt');
 const { makeEnemy, updateEnemy } = require('./enemies');
 const { makeBoss } = require('./bosses');
 const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy } = require('./bullets');
-const { enterGulag, gulagMatchmake, tickGulag, voidAllGulag } = require('./gulag');
+const { enterGulag, gulagMatchmake, tickGulag, voidAllGulag, startGulagPractice } = require('./gulag');
 const { addBot, tickBots, removeAllBots } = require('./bots');
 const { updateBoss } = require('./bosses');
 const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onWaveComplete, checkBossDeath } = require('./waves');
@@ -6838,6 +6838,10 @@ function startSim(sim, opts) {
     sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
     sim._endBattleRoyaleMatch = endBattleRoyaleMatch;
     sim._handleBattleRoyaleKill = handleBattleRoyaleKill;
+    // DEBUG: gulagPractice → droppa host + bot direkt i valt gulag-spel (solo-bugfix)
+    if (opts && opts.gulagPractice) {
+      startGulagPractice(sim, opts.gulagPractice, Date.now());
+    }
   } else if (sim.castledefenseActive) {
     // CASTLE DEFENSE init — fasta walls + core + spawn-spelare inne i castle
     sim.simReadyAt = Date.now() + 5000;

@@ -92,8 +92,32 @@ function freeSlot(sim) {
   sim._gulagSlotsUsed.add(0); return 0; // >8 samtidiga (osannolikt) → återanvänd
 }
 
-function pickGame() {
+function pickGame(sim) {
+  // DEBUG: _gulagForceGame (satt av startGulagPractice) tvingar ett specifikt spel
+  if (sim && sim._gulagForceGame && GULAG_GAMES[sim._gulagForceGame]) return sim._gulagForceGame;
   return GULAG_GAME_IDS[Math.floor(Math.random() * GULAG_GAME_IDS.length)];
+}
+
+// DEBUG/TEST: droppa host + en bot direkt i ett valt gulag-spel (för solo-bugfix).
+// Anropas i slutet av BR-init när sim_start har gulagPractice satt. Boten står still
+// (tickBots skippar gulag-bots) — räcker för att testa win-path + rendering + HUD.
+function startGulagPractice(sim, gameId, now) {
+  ensureGulagState(sim);
+  if (gameId && GULAG_GAMES[gameId]) sim._gulagForceGame = gameId;
+  // hitta host (första riktiga spelaren) + första boten
+  let hostPid = null, botPid = null;
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState) continue;
+    if (ws._isBot) { if (!botPid) botPid = pid; }
+    else if (!hostPid) hostPid = pid;
+  }
+  if (!hostPid || !botPid) return; // behöver både spelare + bot
+  for (const pid of [hostPid, botPid]) {
+    const ws = sim.room.members.get(pid);
+    ws.playerState.gulagUsed = false; // tillåt (om)gulag
+    enterGulag(sim, pid, ws);
+  }
+  gulagMatchmake(sim, now);
 }
 
 // Skicka bara geometrin klienten behöver för rendering (one-shot event)
@@ -120,7 +144,7 @@ function startGulagMatch(sim, pidA, pidB, now) {
   }
   const slot = freeSlot(sim);
   const origin = gulagSlotOrigin(slot);
-  const gameId = pickGame();
+  const gameId = pickGame(sim);
   const game = GULAG_GAMES[gameId];
   const geo = game.build(origin.x, origin.y);
   const matchId = 'g' + (++sim._gulagMatchCounter);
@@ -440,4 +464,4 @@ function voidAllGulag(sim) {
   if (sim._gulagSlotsUsed) sim._gulagSlotsUsed.clear();
 }
 
-module.exports = { enterGulag, gulagMatchmake, tickGulag, voidAllGulag, ensureGulagState };
+module.exports = { enterGulag, gulagMatchmake, tickGulag, voidAllGulag, ensureGulagState, startGulagPractice };

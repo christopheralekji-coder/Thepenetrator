@@ -30529,6 +30529,10 @@ btnCoopStart.addEventListener('click', () => {
       payload.battleroyale = true;
       payload.battleroyaleMatchDurationSec = Coop.config.battleroyaleMatchDurationSec || 600;
     }
+    // DEBUG: gulag-träning — droppa direkt i ett valt gulag-spel vs bot
+    if (Coop.config.gulagPractice) {
+      payload.gulagPractice = Coop.config.gulagPractice;
+    }
     if (Coop.config.castledefense) {
       payload.castledefense = true;
     }
@@ -36785,6 +36789,10 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     if (Coop.config.battleroyale) {
       payload.battleroyale = true;
       payload.battleroyaleMatchDurationSec = Coop.config.battleroyaleMatchDurationSec || 600;
+    }
+    // DEBUG: gulag-träning — droppa direkt i ett valt gulag-spel vs bot
+    if (Coop.config.gulagPractice) {
+      payload.gulagPractice = Coop.config.gulagPractice;
     }
     if (Coop.config.castledefense) {
       payload.castledefense = true;
@@ -74031,6 +74039,78 @@ function hideGulagBanner() {
   const el = document.getElementById('gulag-banner');
   if (el) el.style.display = 'none';
 }
+
+// ---- GULAG-TEST (debug): droppa solo direkt i ett valt gulag-spel vs bot ----
+// Auto-hostar en solo-BR + 1 bot och skickar gulagPractice så servern parar ihop
+// dig + boten i valt spel direkt. Boten står still (räcker för att testa win-path +
+// rendering + HUD). Öppna panelen genom att tappa versionsnumret 5× (funkar i appen).
+function trainGulag(game) {
+  const go = () => {
+    if (!Coop.isHost || !Coop.ws || Coop.ws.readyState !== 1) { if (typeof showToast === 'function') showToast('⚠ Ej ansluten'); return; }
+    if (typeof Coop.applyConfigToSave === 'function') Coop.applyConfigToSave();
+    Coop.config = Coop.config || {};
+    Coop.config.serverSim = true; Coop.config.mode = 'story';
+    if (typeof actuallyStartGame === 'function') actuallyStartGame();
+    state._pendingServerMode = 'battleroyale';
+    try {
+      Coop.ws.send(JSON.stringify({
+        type: 'sim_start', wave: 1, difficulty: 'veteran', ngpLevel: 0, mode: 'story',
+        battleroyale: true, battleroyaleMatchDurationSec: 600,
+        addBot: true, botCount: 1, botSkill: 'normal', gulagPractice: game,
+      }));
+    } catch (e) { if (typeof showToast === 'function') showToast('Fel: ' + e.message); return; }
+    Coop.serverSimActive = true; state.serverSimActive = true; Coop._simStartedConfirmed = false;
+    document.body.classList.remove('menu-mode');
+    ['menu', 'coopScreen', 'coop-screen', 'coop-lobby'].forEach(id => { const e = document.getElementById(id); if (e) e.classList.add('hidden'); });
+    if (typeof showToast === 'function') showToast('🥊 GULAG-TEST: ' + game);
+  };
+  if (Coop.isHost && Coop.ws && Coop.ws.readyState === 1) go();
+  else {
+    if (typeof showToast === 'function') showToast('🥊 Startar gulag-test...');
+    Coop.host((code) => { setTimeout(go, 500); }, () => {}, (err) => { if (typeof showToast === 'function') showToast('Host misslyckades: ' + err); });
+  }
+}
+function showGulagTestPanel() {
+  let el = document.getElementById('gulag-test-panel');
+  if (el) { el.style.display = 'flex'; return; }
+  el = document.createElement('div');
+  el.id = 'gulag-test-panel';
+  el.style.cssText = 'position:fixed;inset:0;z-index:300;background:rgba(5,5,12,.92);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;font-family:sans-serif;padding:20px';
+  const games = (typeof window !== 'undefined' && window.GULAG_GAMES) ? window.GULAG_GAMES : {};
+  let btns = '';
+  for (const id of (window.GULAG_GAME_IDS || [])) {
+    const g = games[id];
+    btns += '<button class="gulag-test-btn" data-game="' + id + '" style="background:linear-gradient(180deg,#c0203a,#7a0f22);color:#fff;border:2px solid #ff5a6a;border-radius:12px;font-size:16px;font-weight:800;padding:14px 18px;min-width:240px;text-align:left;cursor:pointer">' + g.emoji + '  ' + g.name + '<div style="font-size:11px;font-weight:400;color:#ffd14a;margin-top:3px">' + g.hint + '</div></button>';
+  }
+  el.innerHTML =
+    '<div style="color:#fff;font-size:20px;font-weight:900;letter-spacing:1px;margin-bottom:4px">🥊 GULAG-TEST</div>' +
+    '<div style="color:#9aa;font-size:12px;margin-bottom:8px">Solo-test mot bot. Boten står still — testa win-path + känsla + rendering.</div>' +
+    btns +
+    '<button id="gulag-test-close" style="margin-top:14px;background:#333;color:#fff;border:none;border-radius:10px;font-size:14px;padding:10px 24px;cursor:pointer">Stäng</button>';
+  document.body.appendChild(el);
+  el.querySelectorAll('.gulag-test-btn').forEach(b => b.addEventListener('click', () => {
+    el.style.display = 'none';
+    trainGulag(b.getAttribute('data-game'));
+  }));
+  el.querySelector('#gulag-test-close').addEventListener('click', () => { el.style.display = 'none'; });
+}
+// Versions-tap-trigger: tappa versionsnumret 5× inom 3s → öppna gulag-test-panelen
+(function wireGulagTestTrigger() {
+  function attach() {
+    const vt = document.getElementById('version-tag');
+    if (!vt) { setTimeout(attach, 1000); return; }
+    let taps = 0, firstAt = 0;
+    vt.style.pointerEvents = 'auto'; vt.style.cursor = 'pointer';
+    vt.addEventListener('click', () => {
+      const now = Date.now();
+      if (now - firstAt > 3000) { taps = 0; firstAt = now; }
+      taps++;
+      if (taps >= 5) { taps = 0; showGulagTestPanel(); }
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attach);
+  else attach();
+})();
 
 function render() {
   ctx.clearRect(0, 0, viewW, viewH);

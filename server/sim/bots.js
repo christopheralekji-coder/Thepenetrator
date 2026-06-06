@@ -194,6 +194,7 @@ function tickBots(sim, dt, now) {
     const botWs = sim.room.members.get(botId);
     if (!botWs || !botWs.playerState) continue;
     if (botWs.playerState.hp <= 0) continue;       // dead — vänta på respawn
+    if (botWs.playerState.gulagState) continue;    // GULAG (v1.791): bot i duell står still (off-map)
     const ps = botWs.playerState;
     // Skip bot-AI under count-down (samma som klient-paus)
     if (sim.simReadyAt && Date.now() < sim.simReadyAt) continue;
