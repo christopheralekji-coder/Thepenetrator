@@ -20106,6 +20106,9 @@ function _bakeEnemyTexture(type, opts) {
 
   try {
     const tex = PIXI.Texture.from(offCanvas);
+    // v1.773 iOS-FIX: poke source så iOS WebKit pushar canvas→GPU (#7983). Gäller
+    // fallback-vägen om generateTexture failar och canvas-texturen används direkt.
+    try { if (tex.source && tex.source.update) tex.source.update(); } catch (e) {}
     _ENEMY_BAKE_RADIUS[opts.key || type] = r;
     return tex;
   } catch (err) {
@@ -20202,11 +20205,23 @@ function _primeGpuTextureUploads() {
     const canvasTex = pixiState.enemyTextures[key];
     if (!canvasTex) continue;
     try {
+      // v1.773 iOS-FIX: tvinga upp canvas-pixlarna till GPU INNAN generateTexture läser
+      // den — iOS WebKit pushar inte canvas→textur utan explicit poke (Pixi-issue #7983).
+      try { if (canvasTex.source && canvasTex.source.update) canvasTex.source.update(); } catch (e) {}
       // Skapa en temporär sprite från canvas-texturen
       const tempSprite = new PIXI.Sprite(canvasTex);
-      // Rendera sprite till en GPU-native render-texture
-      // renderer.generateTexture är synkron och tvingar GPU-upload omedelbart
-      const gpuTex = renderer.generateTexture(tempSprite);
+      // Rendera sprite till en GPU-native render-texture.
+      // v1.773 iOS-FIX (ROT-ORSAK): generateTexture UTAN options ärvde renderns
+      // FRAKTIONELLA upplösning (DPR 1.25/1.5 på iOS). iOS WebKit WebGL renderar
+      // fraktionell-upplösta render-texturer som TOMMA → osynliga enemies (Pixi-issue
+      // #7115; samma kod funkar på desktop). Pinna till resolution:1 (heltal) + explicit
+      // transparent clear (#3211 svart bakgrund på mobil-GPU). Behåller Pixi-enemies.
+      const gpuTex = renderer.generateTexture({
+        target: tempSprite,
+        resolution: 1,
+        antialias: false,
+        clearColor: 0x00000000,
+      });
       converted[key] = gpuTex;
       tempSprite.destroy({ children: false, texture: false });
       count++;

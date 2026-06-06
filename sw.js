@@ -1,10 +1,10 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v772-ios-haptics-fix';
+const CACHE = 'penetrator-v773-ios-enemy-texture-fix';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=772',
-  './game.js?v=772',
+  './style.css?v=773',
+  './game.js?v=773',
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg',
