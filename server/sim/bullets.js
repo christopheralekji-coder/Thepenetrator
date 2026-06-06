@@ -813,7 +813,9 @@ function updateBullets(sim, dt, now) {
     else if (sim.juggernautActive) { worldMaxX = JUGGERNAUT_ARENA.worldW; worldMaxY = JUGGERNAUT_ARENA.worldH; }
     else if (sim.battleroyaleActive) { worldMaxX = BATTLEROYALE_ARENA.worldW; worldMaxY = BATTLEROYALE_ARENA.worldH; }
     else if (sim.castledefenseActive) { worldMaxX = CASTLEDEFENSE_ARENA.worldW; worldMaxY = CASTLEDEFENSE_ARENA.worldH; }
-    if (b.life <= 0 || b.x < 0 || b.y < 0 || b.x > worldMaxX || b.y > worldMaxY) {
+    // GULAG (v1.795): kulor från off-map-duellen (13000+) cullas EJ på map-bounds —
+    // bara på life-ut/explosion. Annars dog de direkt och nådde aldrig motståndaren.
+    if (b.life <= 0 || (!b.gulag && (b.x < 0 || b.y < 0 || b.x > worldMaxX || b.y > worldMaxY))) {
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
       }

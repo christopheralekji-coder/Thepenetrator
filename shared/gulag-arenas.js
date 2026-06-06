@@ -198,7 +198,7 @@ const GULAG_GAMES = {
     noShoot: true,
     groundColor: '#2a2a10',
     maxMs: 40000,
-    bombMs: 13000, passCooldownMs: 750, contactRange: 48,
+    bombMs: 17000, passCooldownMs: 750, contactRange: 48,  // v1.795: +4s (var 13s)
     build(ox, oy) {
       const HW = 540, HH = 410;
       const rel = [

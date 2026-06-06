@@ -311,11 +311,13 @@ function resolveGulag(sim, m, winnerPid, loserPid, now) {
   });
 }
 
+// v1.795: vapen-powerups (shotgun/minigun/rocket) hanteras generiskt — kind === weaponId.
+const FRENZY_GUN_KINDS = ['shotgun', 'minigun', 'rocket'];
 function applyFrenzyPowerup(ps, kind, now) {
   if (kind === 'shield') ps.shield = Math.min(100, (ps.shield || 0) + 50);
-  else if (kind === 'heal') ps.hp = Math.min(100, (ps.hp || 0) + 45);
+  else if (kind === 'heal') ps.hp = Math.min(ps.maxHp || 100, (ps.hp || 0) + 45);
   else if (kind === 'speed') { ps.speedMul = 1.6; ps._gulagSpeedUntil = now + 5000; }
-  else if (kind === 'biggun') { ps._gulagWeapon = 'shotgun'; ps.weaponId = 'shotgun'; ps._gulagGunUntil = now + 7000; }
+  else if (FRENZY_GUN_KINDS.includes(kind)) { ps._gulagWeapon = kind; ps.weaponId = kind; ps._gulagGunUntil = now + 7000; }
 }
 
 // ---- TICK: kör alla aktiva matcher ----
@@ -370,7 +372,8 @@ function tickGulag(sim, dt, now) {
           const spots = m.geo.powerupSpawns || [];
           if (spots.length) {
             const spot = spots[Math.floor(Math.random() * spots.length)];
-            const kinds = ['shield', 'heal', 'speed', 'biggun'];
+            // v1.795: mer variation + roligare vapen-powerups (minigun-spray, raket-kaos)
+            const kinds = ['shield', 'heal', 'speed', 'shotgun', 'minigun', 'rocket'];
             m.powerups.push({ id: 'pu' + (++m.puCounter), x: spot.x, y: spot.y, kind: kinds[Math.floor(Math.random() * kinds.length)] });
             m.nextPowerupAt = now + game.powerupEverMs;
           }

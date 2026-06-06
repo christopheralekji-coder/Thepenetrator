@@ -99,6 +99,20 @@ module.exports = {
     console.log('[BS] hp-state: ' + JSON.stringify(hp));
     const hpOk = hp.maxHp === 100 && hp.hp <= hp.maxHp && hp.hp > 0;
     console.log(hpOk ? '[BS] PASS: HP/maxHp korrekt satt (void 100/100)' : '[BS] FAIL: HP/maxHp fel: ' + JSON.stringify(hp));
+
+    // (2e) SKJUT-TEST (The Void gulag_knock): kan man avfyra skott?
+    const fire = await p.evaluate(async () => {
+      const pre = { ammo: state.player.ammo, reloading: state.player.reloading, weaponId: state.player.weaponId, bullets0: state.bullets.length, shotsSent0: (typeof _simDiag !== 'undefined' ? _simDiag.shotsSent : -1) };
+      input.fireJoyActive = true; input.aimX = 1; input.aimY = 0; input.firing = true;
+      let maxBullets = state.bullets.length;
+      for (let k = 0; k < 12; k++) { await new Promise(r => setTimeout(r, 80)); if (state.bullets.length > maxBullets) maxBullets = state.bullets.length; }
+      input.firing = false; input.fireJoyActive = false; input.aimX = 0; input.aimY = 0;
+      return { pre, maxBullets, shotsSent1: (typeof _simDiag !== 'undefined' ? _simDiag.shotsSent : -1), ammoAfter: state.player.ammo };
+    });
+    const shotsFired = (fire.shotsSent1 - fire.pre.shotsSent0);
+    console.log('[BS] fire: pre-ammo=' + fire.pre.ammo + ' reloading=' + fire.pre.reloading + ' weapon=' + fire.pre.weaponId + ' maxBullets=' + fire.maxBullets + ' shotsSent=' + shotsFired + ' ammoAfter=' + fire.ammoAfter);
+    if (fire.maxBullets > fire.pre.bullets0 || shotsFired > 0) console.log('[BS] PASS: The Void avfyrar skott');
+    else console.log('[BS] FAIL: The Void avfyrar INGA skott (ammo=' + fire.pre.ammo + ' reloading=' + fire.pre.reloading + ')');
     // ASSERTS: positiv off-map-koord (ej Int16-klampad -32768) + kameran följer dit
     if (g.px == null || g.px < 11000 || g.px > 31000) console.log('[BS] FAIL: spelare ej på positiv off-map-koord: px=' + g.px);
     else console.log('[BS] PASS: spelare på off-map-koord px=' + g.px);

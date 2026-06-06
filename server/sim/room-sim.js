@@ -7411,6 +7411,12 @@ function applyShoot(sim, peerId, msg) {
   }
   const _bBefore = sim.bullets.length;
   spawnPlayerBullets(sim, p, weaponId, params);
+  // GULAG (v1.795): markera kulor från duellanter så de INTE cullas av map-bounds
+  // (off-map-arenan ligger på 13000+ > worldMaxX → annars dog kulan direkt och nådde
+  // aldrig motståndaren = "vapnet puttar inte bak / skjuter inga skott").
+  if (ps.gulagState === 'fighting') {
+    for (let i = _bBefore; i < sim.bullets.length; i++) sim.bullets[i].gulag = true;
+  }
   // VARIANT B (v1.729): server-källat visuellt skott-event → ANDRA klienter ser kulan
   // TILLFÖRLITLIGT (server är auktoritativ + eventet droppas ej, till skillnad från den
   // gamla peer-broadcasten som stryptes av skyttens telefon vid backpressure → "ser

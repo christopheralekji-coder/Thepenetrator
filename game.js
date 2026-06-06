@@ -26270,6 +26270,11 @@ const Coop = {
           state.player.maxHp = gdef ? gdef.loadout.hp : 100;
           state.player.shield = gdef ? (gdef.loadout.shield || 0) : 0;
           state.player.maxShield = 100;
+          // v1.795: fyll ammo + nollställ reload — annars stod ammo kvar från BR-döds-
+          // staten (t.ex. 12) eller reloading=true → gun-gulag (void/oneshot/frenzy)
+          // kunde inte skjuta / tog slut snabbt.
+          state.player.ammo = (typeof effectiveMag === 'function') ? effectiveMag(state.player.weaponId) : 9999;
+          state.player.reloading = false;
         }
         if (typeof hideBrSpectatorBanner === 'function') hideBrSpectatorBanner();
         // v1.794: tvinga HUD-refresh — annars visar HP/shield-baren stale döds-värden
@@ -26306,9 +26311,19 @@ const Coop = {
     } else if (ev.type === 'gulag_powerup') {
       if (ev.peerId === this.myId && state.gulag) {
         const g = state.gulag;
+        const GUN_KINDS = { shotgun: 'Hagelgevär!', minigun: 'Minigun!', rocket: 'Raketgevär!' };
         if (ev.kind === 'speed') { g.speedMul = 1.6; g.speedUntil = performance.now() + 5000; }
-        else if (ev.kind === 'biggun') { if (state.player) state.player.weaponId = 'shotgun'; g.gunUntil = performance.now() + 7000; }
-        if (typeof showToast === 'function') showToast('⚡ ' + (ev.kind === 'shield' ? '+Sköld' : ev.kind === 'heal' ? '+HP' : ev.kind === 'speed' ? 'Fart!' : 'Hagelgevär!'));
+        else if (GUN_KINDS[ev.kind]) {
+          // v1.795: vapen-powerup (shotgun/minigun/rocket) — lås till gunWeapon + fyll ammo
+          g.gunWeapon = ev.kind; g.gunUntil = performance.now() + 7000;
+          if (state.player) {
+            state.player.weaponId = ev.kind;
+            state.player.ammo = (typeof effectiveMag === 'function') ? effectiveMag(ev.kind) : 999;
+            state.player.reloading = false;
+          }
+        }
+        const _puTxt = ev.kind === 'shield' ? '+Sköld' : ev.kind === 'heal' ? '+HP' : ev.kind === 'speed' ? 'Fart!' : (GUN_KINDS[ev.kind] || 'Powerup!');
+        if (typeof showToast === 'function') showToast('⚡ ' + _puTxt);
         if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
       }
     } else if (ev.type === 'gulag_knockback') {
@@ -42957,9 +42972,9 @@ function updatePlayer(dt, now) {
     }
     // expirera tidsbegränsade powerups (Frenzy) — spegla servern
     if (g.speedUntil && nowG > g.speedUntil) { g.speedMul = 1; g.speedUntil = 0; }
-    if (g.gunUntil && nowG > g.gunUntil) { g.gunUntil = 0; p.weaponId = g.loadoutWeapon; }
-    // lås vapnet till duellens (eller aktiv biggun-powerup)
-    p.weaponId = (g.gunUntil && nowG < g.gunUntil) ? 'shotgun' : g.loadoutWeapon;
+    if (g.gunUntil && nowG > g.gunUntil) { g.gunUntil = 0; g.gunWeapon = null; p.weaponId = g.loadoutWeapon; }
+    // lås vapnet till duellens (eller aktiv vapen-powerup: shotgun/minigun/rocket — v1.795)
+    p.weaponId = (g.gunUntil && nowG < g.gunUntil) ? (g.gunWeapon || 'shotgun') : g.loadoutWeapon;
     // arena-väggar (skydd) blockerar; plattform/ring/tiles INTE (man ska kunna falla)
     if (g.geo && g.geo.walls && g.geo.walls.length && typeof resolveCtfWall === 'function') {
       resolveCtfWall(p, g.geo.walls);
@@ -44139,7 +44154,7 @@ function updateBullets(dt) {
     // Studsskott-perk: studsa en gång på världs-kanten
     // v1.527: SURVIVORS-RUN ricochet-perk (purple) ger samma bounce
     const _hasRico = hasPerk('ricochet') || (state.survivorsActive && getSurvivorsPerkSum('ricochet') > 0);
-    if (!b.hostile && _hasRico && !b.bounced) {
+    if (!b.hostile && _hasRico && !b.bounced && !state.gulag) {
       let bounced = false;
       if (b.x < 0) { b.vx = Math.abs(b.vx); b.x = 1; bounced = true; }
       if (b.x > WORLD.w) { b.vx = -Math.abs(b.vx); b.x = WORLD.w - 1; bounced = true; }
@@ -44147,7 +44162,9 @@ function updateBullets(dt) {
       if (b.y > WORLD.h) { b.vy = -Math.abs(b.vy); b.y = WORLD.h - 1; bounced = true; }
       if (bounced) { b.bounced = true; b.life = Math.max(b.life, 0.6); continue; }
     }
-    if (b.life <= 0 || b.x < 0 || b.y < 0 || b.x > WORLD.w || b.y > WORLD.h) {
+    // GULAG (v1.795): off-map-arenan (13000+) ligger UTANFÖR WORLD-bounds → cull:a INTE
+    // på map-kanten (då försvann gulag-kulor direkt = "skjuter inga skott"). Bara life-cull.
+    if (b.life <= 0 || (!state.gulag && (b.x < 0 || b.y < 0 || b.x > WORLD.w || b.y > WORLD.h))) {
       if (b.explosive && !b.hostile) explode(b.x, b.y, b.explosive, b.dmg, true);
       if (b.gasOnHit) dropGasCloud(b.x, b.y, 70, 4, 6);
       b.dead = true;
@@ -73997,13 +74014,16 @@ function drawGulagArena() {
   if (g.pu && g.pu.length) {
     for (const pu of g.pu) {
       const ux = pu.x - cx, uy = pu.y - cy;
-      const col = pu.kind === 'shield' ? '#5ac7ff' : pu.kind === 'heal' ? '#5aff7a' : pu.kind === 'speed' ? '#ffe14a' : '#ff6a3a';
+      // v1.795: färg/emoji per powerup-typ (inkl. nya minigun/rocket)
+      const PU_COL = { shield: '#5ac7ff', heal: '#5aff7a', speed: '#ffe14a', shotgun: '#ff6a3a', minigun: '#ff9a3a', rocket: '#ff4a4a' };
+      const PU_EMOJI = { shield: '🛡', heal: '➕', speed: '⚡', shotgun: '🔫', minigun: '🌀', rocket: '🚀' };
+      const col = PU_COL[pu.kind] || '#ff6a3a';
       ctx.save(); ctx.translate(ux, uy);
       const s = 1 + 0.15 * Math.sin(now / 180);
       ctx.globalAlpha = 0.35; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 22 * s, 0, 7); ctx.fill();
       ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill();
       ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(pu.kind === 'shield' ? '🛡' : pu.kind === 'heal' ? '➕' : pu.kind === 'speed' ? '⚡' : '🔫', 0, 1);
+      ctx.fillText(PU_EMOJI[pu.kind] || '🔫', 0, 1);
       ctx.restore();
     }
   }
