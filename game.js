@@ -44721,8 +44721,12 @@ function updateCamera() {
     if (Math.abs(state._recoilX) < 0.05) state._recoilX = 0;
     if (Math.abs(state._recoilY) < 0.05) state._recoilY = 0;
   }
-  state.camera.x = Math.max(0, Math.min(WORLD.w - viewW, state.camera.x));
-  state.camera.y = Math.max(0, Math.min(WORLD.h - viewH, state.camera.y));
+  // GULAG (v1.792): off-map-arena ligger utanför WORLD-bounds → hoppa över world-clamp
+  // (annars klamps kameran till [0,WORLD.w] och kan inte följa spelaren → svart skärm).
+  if (!state.gulag) {
+    state.camera.x = Math.max(0, Math.min(WORLD.w - viewW, state.camera.x));
+    state.camera.y = Math.max(0, Math.min(WORLD.h - viewH, state.camera.y));
+  }
   // shake-offset
   const shake = getShakeOffset();
   state.camera.x += shake.x;
