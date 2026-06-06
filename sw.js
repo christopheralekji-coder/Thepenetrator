@@ -1,10 +1,10 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v779-imagebitmap-textures';
+const CACHE = 'penetrator-v780-ios-canvas2d-enemies';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=779',
-  './game.js?v=779',
+  './style.css?v=780',
+  './game.js?v=780',
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg',

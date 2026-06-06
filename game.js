@@ -36859,12 +36859,6 @@ function actuallyStartGame() {
   document.body.classList.remove('menu-mode');
   // v1.769: rensa ev. pending death/revive-timer från förra matchen så den inte firar nu.
   if (state._deathTimer) { clearTimeout(state._deathTimer); state._deathTimer = null; }
-  // v1.775 TILLFÄLLIG: skicka Pixi-render-diagnostik EN gång/session (efter att enemies
-  // hunnit spawna) så vi ser varför iOS-enemies är osynliga. Tas bort när löst.
-  if (!window._pixiDiagSent && typeof _reportPixiDiag === 'function') {
-    window._pixiDiagSent = true;
-    setTimeout(() => { try { _reportPixiDiag(); } catch (e) {} }, 8000);
-  }
   // Anti-läck: ALLTID restore sandbox-snapshot innan ny game-start. Garanterar
   // att sandbox-state aldrig leakas in i nästa mode oavsett exit-path.
   restoreSandboxIfNeeded();
@@ -73767,7 +73761,6 @@ function render() {
   if (!(pixiState && pixiState.enemiesEnabled) || _dualRenderActive) {
     for (const e of state.enemies) drawEnemy(e);
   }
-  if (typeof _renderDbgTest === 'function') _renderDbgTest();  // v1.778 TILLFÄLLIG diagnostik
   if (pixiState && pixiState.enemiesEnabled) {
     const _nowOverlay = performance.now();
     for (const e of state.enemies) {
@@ -76215,10 +76208,16 @@ function runFrame(dt, now) {
     pixiState.bulletsEnabled = true;
     pixiState.particlesEnabled = true;
     pixiState.vfxEnabled = true;
-    if (!pixiState.enemyTexturesBaked && typeof bakeAllEnemyTextures === 'function') {
+    // v1.780 iOS-FIX (BEVISAD via 6 fixar + visuellt device-test): Pixi-TEXTURER renderar
+    // inte på iOS WebKit WebGL (Canvas2D + drawHumanEnemy + Pixi GRAPHICS funkar dock).
+    // → rita fienderna via Canvas2D på iOS (drawEnemy = SAMMA väg som bossarna, bevisat
+    // fungera + ger skarp boss-kvalitets-grafik). Pixi-enemies behålls på desktop/Android
+    // där de fungerar + perf spelar roll. iOS slipper dessutom slösa bake-arbete på
+    // texturer som ändå inte syns.
+    if (!pixiState.enemyTexturesBaked && !isIOS && typeof bakeAllEnemyTextures === 'function') {
       bakeAllEnemyTextures();
     }
-    pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked;
+    pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked && !isIOS;
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;
