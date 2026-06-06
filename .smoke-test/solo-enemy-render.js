@@ -17,7 +17,7 @@ module.exports = {
     await p.reload();
     await waitFor(p, '#btn-start', 10000);
     await p.click('#btn-start');
-    await wait(9000); // låt enemies spawna + passera 3s pixi-warmup
+    await wait(3200); // UNDER warmupen → drawEnemy (live) + skuggan ritas, så vi ser dem
 
     const diag = await p.evaluate(() => {
       const ps = (typeof pixiState !== 'undefined') ? pixiState : null;  // BART namn, ej window.

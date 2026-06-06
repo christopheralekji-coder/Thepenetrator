@@ -68873,8 +68873,10 @@ function drawEnemy(e) {
   const bob = Math.abs(Math.sin(phase)) * 1.4;
 
   // skugga
-  ctx.fillStyle = 'rgba(0,0,0,0.45)';
-  ctx.beginPath(); ctx.ellipse(x + 2, y + e.r * 0.9, e.r * 1.2, e.r * 0.40, 0, 0, Math.PI*2); ctx.fill();
+  // v1.786: skuggan satt för högt (vid kroppen, y+0.9r). Fötterna är på ~y+1.3r → flytta
+  // ner skuggan UNDER fötterna + gör den plattare/smalare = trovärdig mark-skugga.
+  ctx.fillStyle = 'rgba(0,0,0,0.40)';
+  ctx.beginPath(); ctx.ellipse(x, y + e.r * 1.18, e.r * 1.0, e.r * 0.26, 0, 0, Math.PI * 2); ctx.fill();
 
   ctx.save();
   ctx.translate(x, y + bob);
