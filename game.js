@@ -19876,13 +19876,20 @@ async function initPixiFoundation() {
     return;
   }
   try {
+    // v1.777 iOS-FIX (ROT-ORSAK, bekräftat via device-diagnostik): iOS WebKit WebGL
+    // renderar TOMT vid FRAKTIONELL resolution (DPR 1.5) — PixiJS-issue #7115. Diagnostiken
+    // visade res:1.5 på iPhone (osynliga enemies) vs res:1 på desktop (syns). Pinna iOS-
+    // WebKit till heltal 1 → Pixi-enemies syns. BONUS: färre pixlar än 1.5 → BÄTTRE värme/
+    // FPS. Inline UA-check (globala isIOS deklareras längre ner = TDZ vid detta anrop).
+    const _iosWebkit = /iPad|iPhone|iPod/.test(navigator.userAgent || '') ||
+      (/Macintosh/.test(navigator.userAgent || '') && (navigator.maxTouchPoints || 0) > 1);
     const app = new PIXI.Application();
     await app.init({
       width: viewW,
       height: viewH,
       backgroundAlpha: 0,         // transparent — Canvas2D underst ritar background
       antialias: true,
-      resolution: DPR,
+      resolution: _iosWebkit ? 1 : DPR,
       autoDensity: true,
       preference: 'webgl',
     });
