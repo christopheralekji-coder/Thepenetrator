@@ -20158,13 +20158,55 @@ function _bakeEnemyTexture(type, opts) {
     ctx = savedCtx;
   }
 
-  // v1.778 iOS-FIX (BEKRÄFTAD via visuellt device-test): returnera CANVAS:en istället för
-  // en textur. bakeAllEnemyTextures konverterar den via createImageBitmap → textur, vilket
-  // är den ENDA canvas→GPU-vägen som laddas upp pålitligt på iOS WebKit (rå canvas OCH
-  // async data-URL-bild gav blanka/osynliga texturer; Pixi Graphics + Canvas2D funkar
-  // dock, vilket testet bevisade). Synkron retur så bake-loopen kan samla alla canvasar.
+  // v1.781: returnera den POLERADE canvasen (kontur + ljussättning) — lyfter alla fiender.
   _ENEMY_BAKE_RADIUS[opts.key || type] = r;
-  return offCanvas;
+  return _polishSprite(offCanvas, r);
+}
+
+// v1.781 UNIVERSELL POLISH: tar en bakad fiende-canvas och lägger på mörk kontur (pop mot
+// bakgrunden), riktad ljussättning uppe-vänster (volym) + skuggning nedtill (grounding).
+// Körs EN gång per typ vid bake → noll per-frame-kostnad. Lyfter alla 15 typer + minibossar
+// + (via drawImage på iOS) hela fiende-rosteret samtidigt.
+function _polishSprite(src, r) {
+  if (typeof document === 'undefined') return src;
+  const pad = Math.max(2, Math.ceil(r * 0.12));
+  const w = src.width + pad * 2, h = src.height + pad * 2;
+  const out = document.createElement('canvas'); out.width = w; out.height = h;
+  const o = out.getContext('2d');
+  // Mörk silhuett (för konturen)
+  const sil = document.createElement('canvas'); sil.width = src.width; sil.height = src.height;
+  const sc = sil.getContext('2d');
+  sc.drawImage(src, 0, 0);
+  sc.globalCompositeOperation = 'source-in';
+  sc.fillStyle = 'rgba(6,4,9,0.92)';
+  sc.fillRect(0, 0, sil.width, sil.height);
+  const off = Math.max(1, Math.round(r * 0.07));
+  for (const [dx, dy] of [[-off, 0], [off, 0], [0, -off], [0, off], [-off, -off], [off, -off], [-off, off], [off, off]]) {
+    o.drawImage(sil, pad + dx, pad + dy);
+  }
+  // Konst ovanpå konturen
+  o.drawImage(src, pad, pad);
+  // Ljussättning + skuggning — source-atop så det BARA träffar konst-pixlarna
+  o.save();
+  o.globalCompositeOperation = 'source-atop';
+  const g = o.createLinearGradient(pad, pad, pad + src.width * 0.55, pad + src.height * 0.55);
+  g.addColorStop(0, 'rgba(255,247,222,0.17)');
+  g.addColorStop(0.55, 'rgba(255,247,222,0)');
+  o.fillStyle = g; o.fillRect(0, 0, w, h);
+  const g2 = o.createLinearGradient(0, pad + src.height * 0.42, 0, h);
+  g2.addColorStop(0, 'rgba(8,6,16,0)');
+  g2.addColorStop(1, 'rgba(8,6,16,0.26)');
+  o.fillStyle = g2; o.fillRect(0, 0, w, h);
+  o.restore();
+  return out;
+}
+// Vit silhuett för flash (träff-blink) av en polerad sprite.
+function _whiteSilhouette(src) {
+  if (typeof document === 'undefined') return src;
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+  const x = c.getContext('2d'); x.drawImage(src, 0, 0);
+  x.globalCompositeOperation = 'source-in'; x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height);
+  return c;
 }
 
 function _bakeFallbackTexture() {
@@ -20197,11 +20239,13 @@ async function bakeAllEnemyTextures() {
   // men icke-blockerande; _bakingNow hindrar dubbel-bake (callers anropar varje frame).
   if (pixiState._bakingNow) return;
   pixiState._bakingNow = true;
+  if (!pixiState._enemyCanvases) pixiState._enemyCanvases = {};
+  if (!pixiState._enemyWhite) pixiState._enemyWhite = {};
   const canvases = [];
   for (const item of _ENEMY_BAKE_LIST) {
     for (const frame of ['a', 'b']) {
       const key = item.type + '_' + frame;
-      if (pixiState.enemyTextures[key]) continue;
+      if (pixiState._enemyCanvases[key]) continue;
       const phase = frame === 'a' ? 0 : Math.PI;
       const cv = _bakeEnemyTexture(item.type, { ...item, key, walkPhase: phase });
       if (cv) canvases.push({ key, cv });
@@ -20210,25 +20254,28 @@ async function bakeAllEnemyTextures() {
   for (const power of _MINIBOSS_BAKE_LIST) {
     for (const frame of ['a', 'b']) {
       const key = 'mb_' + power + '_' + frame;
-      if (pixiState.enemyTextures[key]) continue;
+      if (pixiState._enemyCanvases[key]) continue;
       const phase = frame === 'a' ? 0 : Math.PI;
       const cv = _bakeEnemyTexture('grunt', { r: 32, color: '#aa3a3a', miniPower: power, key, walkPhase: phase });
       if (cv) canvases.push({ key, cv });
     }
   }
-  const _useBitmap = (typeof createImageBitmap === 'function');
-  await Promise.all(canvases.map(async ({ key, cv }) => {
-    try {
-      if (_useBitmap) {
-        const bmp = await createImageBitmap(cv);
-        pixiState.enemyTextures[key] = PIXI.Texture.from(bmp);
-      } else {
-        pixiState.enemyTextures[key] = PIXI.Texture.from(cv);
-      }
-    } catch (e) {
-      try { pixiState.enemyTextures[key] = PIXI.Texture.from(cv); } catch (_) {}
-    }
-  }));
+  // v1.781: lagra polerade canvasar (+ vit flash-variant) — används av drawEnemy på iOS
+  // (snabb drawImage av färdig-polerad sprite = perf-vinst + polish).
+  for (const { key, cv } of canvases) {
+    pixiState._enemyCanvases[key] = cv;
+    pixiState._enemyWhite[key] = _whiteSilhouette(cv);
+  }
+  // Pixi-texturer BARA på icke-iOS (iOS WebKit renderar Pixi-texturer blanka → drawImage istället)
+  if (!isIOS) {
+    const _useBitmap = (typeof createImageBitmap === 'function');
+    await Promise.all(canvases.map(async ({ key, cv }) => {
+      try {
+        if (_useBitmap) { const bmp = await createImageBitmap(cv); pixiState.enemyTextures[key] = PIXI.Texture.from(bmp); }
+        else pixiState.enemyTextures[key] = PIXI.Texture.from(cv);
+      } catch (e) { try { pixiState.enemyTextures[key] = PIXI.Texture.from(cv); } catch (_) {} }
+    }));
+  }
   if (!pixiState.enemyTextures.grunt_a) {
     pixiState.enemyTextures.grunt_a = _bakeFallbackTexture();
     _ENEMY_BAKE_RADIUS.grunt = 18;
@@ -68776,6 +68823,16 @@ function drawProximityThreats() {
     ctx.restore();
   }
 }
+// v1.781: hämta den polerade bakade sprite-canvasen för en minion (iOS drawImage-väg).
+// Returnerar null på desktop/Android (där Pixi ritar) eller om canvasen inte bakad än.
+function _getEnemySpriteCanvas(e, phase, flash) {
+  if (!isIOS) return null;
+  const ps = pixiState;
+  if (!ps || !ps._enemyCanvases) return null;
+  const key = _getEnemyTextureKey(e) + '_' + (Math.sin(phase) > 0 ? 'a' : 'b');
+  if (flash && ps._enemyWhite && ps._enemyWhite[key]) return ps._enemyWhite[key];
+  return ps._enemyCanvases[key] || null;
+}
 function drawEnemy(e) {
   const x = e.x - state.camera.x;
   const y = e.y - state.camera.y;
@@ -68823,9 +68880,18 @@ function drawEnemy(e) {
   // (visuell ring + namn-tag visas ändå nedan via isMiniBoss-grenen).
   if (e.isMiniBoss && e.miniPower && MINIBOSS_DRAW[e.miniPower]) {
     MINIBOSS_DRAW[e.miniPower](e, flash, now, phase, moving);
-  } else if (e.type === 'dog') drawDog(e, flash, phase);
-  else if (e.type === 'robot') drawRobot(e, flash, now, phase);
-  else drawHumanEnemy(e, flash, now, phase);
+  } else {
+    // v1.781: minions — på iOS rita den POLERADE bakade spriten (kontur+ljus) med drawImage
+    // (snabbt = perf-vinst). Fallback till live-ritning om canvasen inte bakad än / ej iOS.
+    const _spr = _getEnemySpriteCanvas(e, phase, flash);
+    if (_spr) {
+      const br = _ENEMY_BAKE_RADIUS[_getEnemyTextureKey(e)] || e.r;
+      const s = e.r / br;
+      ctx.drawImage(_spr, -_spr.width * s / 2, -_spr.height * s / 2, _spr.width * s, _spr.height * s);
+    } else if (e.type === 'dog') drawDog(e, flash, phase);
+    else if (e.type === 'robot') drawRobot(e, flash, now, phase);
+    else drawHumanEnemy(e, flash, now, phase);
+  }
 
   ctx.restore();
   drawHpBar(e, x, y);
@@ -76214,7 +76280,11 @@ function runFrame(dt, now) {
     // fungera + ger skarp boss-kvalitets-grafik). Pixi-enemies behålls på desktop/Android
     // där de fungerar + perf spelar roll. iOS slipper dessutom slösa bake-arbete på
     // texturer som ändå inte syns.
-    if (!pixiState.enemyTexturesBaked && !isIOS && typeof bakeAllEnemyTextures === 'function') {
+    // v1.781: baka ALLTID (även iOS) → fyller pixiState._enemyCanvases (polerade sprites).
+    // På iOS hoppar baken Pixi-texturerna men lagrar canvasarna → drawEnemy ritar dem med
+    // drawImage. enemiesEnabled förblir false på iOS (Pixi-rendering av enemies bara
+    // på desktop/Android där texturerna funkar).
+    if (!pixiState.enemyTexturesBaked && typeof bakeAllEnemyTextures === 'function') {
       bakeAllEnemyTextures();
     }
     pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked && !isIOS;

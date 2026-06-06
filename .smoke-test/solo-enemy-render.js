@@ -40,8 +40,26 @@ module.exports = {
       };
     });
     console.log('[ENEMY-RENDER] ' + JSON.stringify(diag, null, 1));
-    await wait(700); // låt några frames rita med spelaren på enemyn
+    // Rita ut bakade POLERADE sprites STORT så vi kan bedöma kontur + ljus
+    await p.evaluate(() => {
+      const ps = (typeof pixiState !== 'undefined') ? pixiState : null;
+      if (!ps || !ps._enemyCanvases) return;
+      const cans = Array.from(document.querySelectorAll('canvas'));
+      const top = cans[cans.length - 1]; if (!top) return;
+      const cx = top.getContext && top.getContext('2d'); if (!cx) return;
+      cx.save(); cx.setTransform(1,0,0,1,0,0);
+      cx.fillStyle = 'rgba(20,20,28,1)'; cx.fillRect(0, 0, 760, 150);
+      const keys = ['grunt_a','soldier_a','brute_a','tank_a','ninja_a','robot_a','sniper_a','swordsman_a'];
+      let x = 16;
+      for (const k of keys) {
+        const cv = ps._enemyCanvases[k];
+        if (cv) { const sc = 110/cv.height; cx.drawImage(cv, x, 18, cv.width*sc, cv.height*sc); x += cv.width*sc + 6; }
+      }
+      cx.restore();
+    });
+    await wait(300);
     await screenshot(p, 'solo-enemy-closeup');
+    await screenshot(p, 'polish-showcase');
     const errs = consoleLog(p).filter(l => l.startsWith('[error]') || l.toLowerCase().includes('pixi') || l.toLowerCase().includes('webgl'));
     errs.slice(0, 12).forEach(e => console.log('  LOG ' + e));
   },
