@@ -20105,14 +20105,18 @@ function _bakeEnemyTexture(type, opts) {
   }
 
   try {
-    const tex = PIXI.Texture.from(offCanvas);
-    // v1.773 iOS-FIX: poke source så iOS WebKit pushar canvas→GPU (#7983). Gäller
-    // fallback-vägen om generateTexture failar och canvas-texturen används direkt.
-    try { if (tex.source && tex.source.update) tex.source.update(); } catch (e) {}
+    // v1.774 iOS-FIX (ROT-ORSAK): bygg texturen från en IMAGE (data-URL) istället för
+    // canvas. iOS WebKit laddar INTE upp canvas-källor/render-texturer pålitligt till
+    // WebGL → osynliga enemies (resolution-fixen i v1.773 räckte ej). IMAGE-källor laddas
+    // upp pålitligt på iOS. Pixi auto-uppdaterar texturen när bilden laddat (data-URL =
+    // ~omedelbart, ingen nätverk); 5s Canvas2D-warmupen täcker laddnings-gapet.
+    const img = new Image();
+    img.src = offCanvas.toDataURL();
+    const tex = PIXI.Texture.from(img);
     _ENEMY_BAKE_RADIUS[opts.key || type] = r;
     return tex;
   } catch (err) {
-    console.warn('[Pixi-bake] PIXI.Texture.from fail for', type, err.message);
+    console.warn('[Pixi-bake] texture build fail for', type, err.message);
     return null;
   }
 }
@@ -20128,7 +20132,10 @@ function _bakeFallbackTexture() {
   cx.beginPath(); cx.arc(40, 40, 14, 0, Math.PI*2); cx.fill();
   cx.strokeStyle = '#0a0a0a'; cx.lineWidth = 1.5;
   cx.beginPath(); cx.arc(40, 40, 14, 0, Math.PI*2); cx.stroke();
-  return PIXI.Texture.from(c);
+  // v1.774 iOS-FIX: image-källa (ej canvas) — se _bakeEnemyTexture.
+  const img = new Image();
+  img.src = c.toDataURL();
+  return PIXI.Texture.from(img);
 }
 
 function bakeAllEnemyTextures() {
@@ -20179,7 +20186,9 @@ function bakeAllEnemyTextures() {
     // Vid kall GPU-context tar det flera frames → osynliga enemies. Lösning:
     // skapa hidden sprites och rendrera dem off-screen NU för att tvinga upload
     // medan vi fortfarande är i bake-funktionen.
-    try { _primeGpuTextureUploads(); } catch (e) { console.warn('[Pixi] prime fail:', e.message); }
+    // v1.774: _primeGpuTextureUploads (canvas→render-texture-konvertering) SLOPPAD —
+    // image-källor (v1.774) laddas upp pålitligt på alla plattformar, OCH render-texturer
+    // var osynliga på iOS WebKit. Image-texturer behöver ingen forcerad GPU-prime.
   } else {
     console.warn('[Pixi-bake] partial bake:', bakedCount, '/', expected, '— will retry on next sync');
     pixiState.enemyTexturesBaked = false; // tillåt retry
