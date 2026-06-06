@@ -558,8 +558,10 @@ function tickSim(sim) {
 }
 
 // Revive-system: levande spelare nära dead body 5s → respawn på platsen med 50% HP
+const REVIVE_SEC = 5;  // v1.788: enda källan för revive-duration (co-op story/heist)
 function updateRevive(sim, dt) {
   if (!sim.deadBodies) return;
+  const nowMs = Date.now();
   for (const peerId of Object.keys(sim.deadBodies)) {
     const body = sim.deadBodies[peerId];
     let anyReviving = false;
@@ -574,7 +576,7 @@ function updateRevive(sim, dt) {
         reviverPid = pid;
         body.reviveTimer = (body.reviveTimer || 0) + dt;
         body.revivedBy = pid;
-        if (body.reviveTimer >= 5) {
+        if (body.reviveTimer >= REVIVE_SEC) {
           // Återuppliv!
           const deadWs = sim.room.members.get(peerId);
           if (deadWs && deadWs.playerState) {
@@ -584,12 +586,27 @@ function updateRevive(sim, dt) {
             deadWs.playerState.invulnUntil = Date.now() + 2000;
           }
           delete sim.deadBodies[peerId];
+          // v1.788: slut-progress (1.0) + revived till ALLA i samma batch (bar når 100% innan den försvinner)
+          sim.eventQueue.push({ type: 'revive_progress', peerId, reviverPid: pid, progress: 1 });
           sim.eventQueue.push({ type: 'player_revived', peerId, revivedBy: pid });
         }
         break;
       }
     }
     if (!anyReviving) body.reviveTimer = Math.max(0, (body.reviveTimer || 0) - dt);
+    // v1.788 SYNK-FIX: broadcasta SAMMA progress (0-1 float) till ALLA (reviver + revivee)
+    // ~8Hz, exakt som Castle Defense. Båda parter ritar från detta → IDENTISK + smooth
+    // nedräkning, ingen diff-tid. Ersätter den trasiga per-spelar-rT (var alltid 0).
+    const stillDown = sim.deadBodies[peerId];
+    if (stillDown && (body.reviveTimer > 0 || anyReviving)) {
+      if (!body._lastProg || nowMs - body._lastProg > 120) {
+        body._lastProg = nowMs;
+        sim.eventQueue.push({
+          type: 'revive_progress', peerId, reviverPid,
+          progress: Math.min(1, (body.reviveTimer || 0) / REVIVE_SEC),
+        });
+      }
+    }
   }
 }
 

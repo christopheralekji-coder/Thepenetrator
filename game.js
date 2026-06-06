@@ -12285,7 +12285,12 @@ function drawCoopReviveOverlay() {
   const p = state.player;
   if (!p || !p.spectating || !state.deadBody) return;
   const t = performance.now();
-  const revT = Math.max(0, Math.min(5, state.deadBody.reviveTimer || 0));
+  // v1.788: läs server-broadcastad reviveProgress (0-1) — SAMMA värde som revivern ser →
+  // identisk nedräkning. Fallback till gamla reviveTimer om event ej kommit än.
+  const revP = (typeof state.deadBody.reviveProgress === 'number')
+    ? state.deadBody.reviveProgress
+    : Math.max(0, Math.min(1, (state.deadBody.reviveTimer || 0) / 5));
+  const revT = revP * 5;
   const beingRevived = revT > 0.4; // >0 = en lagkamrat håller på (filtrera initial-glitch)
   // Mjuk röd vignette (pulserande)
   const pulse = 0.30 + Math.sin(t / 320) * 0.12;
@@ -15259,9 +15264,11 @@ function drawCoopPartner() {
       // Blod
       ctx.fillStyle = 'rgba(120,0,0,0.5)';
       ctx.beginPath(); ctx.ellipse(x - 2, y + 3, 14, 6, 0.3, 0, Math.PI*2); ctx.fill();
-      // Revive-indikator (synkat med dead player's reviveTimer)
-      if (p.reviveTimer && p.reviveTimer > 0) {
-        const frac = Math.min(1, p.reviveTimer / 5);
+      // v1.788: revive-indikator från SAMMA server-progress (0-1) som revivee:s overlay
+      // → identisk nedräkning för båda. Fallback till gamla reviveTimer/5 om event ej kommit.
+      const _rp = (typeof p.reviveProgress === 'number') ? p.reviveProgress : Math.min(1, (p.reviveTimer || 0) / 5);
+      if (_rp > 0.02) {
+        const frac = Math.min(1, _rp);
         ctx.strokeStyle = '#5aff5a';
         ctx.lineWidth = 3;
         ctx.shadowColor = '#5aff5a'; ctx.shadowBlur = 8;
@@ -15272,7 +15279,7 @@ function drawCoopPartner() {
         ctx.fillStyle = '#5aff5a';
         ctx.font = 'bold 10px sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(Math.ceil(5 - p.reviveTimer) + 's', x, y - 36);
+        ctx.fillText(Math.ceil(5 * (1 - frac)) + 's', x, y - 36);
       } else {
         ctx.fillStyle = '#ff5a5a';
         ctx.font = 'bold 10px sans-serif';
@@ -20295,7 +20302,8 @@ async function bakeAllEnemyTextures() {
   }
   pixiState.enemyTexturesBaked = true;
   pixiState._bakingNow = false;
-  console.log('[Pixi] enemy textures baked via', _useBitmap ? 'ImageBitmap' : 'canvas', '— count:', Object.keys(pixiState.enemyTextures).length);
+  // v1.788-fix: _useBitmap var scope:ad i if-blocket ovan → ReferenceError här. Logga utan den.
+  console.log('[Pixi] enemy textures baked — count:', Object.keys(pixiState.enemyTextures).length);
 }
 
 // v1.617: KONVERTERA canvas-textures → GPU-native render-textures.
@@ -27175,6 +27183,16 @@ const Coop = {
           showToast('⚠ ' + name + ' är NER — stå nära för att rädda');
         }
       }
+    } else if (ev.type === 'revive_progress') {
+      // v1.788: co-op story/heist revive — SAMMA server-progress (0-1) till BÅDA parter
+      // (revivee:s state.deadBody + revivern:s vy av partnern) → identisk + smooth nedräkning.
+      const prog = ev.progress || 0;
+      if (ev.peerId === this.myId) {
+        if (state.deadBody) state.deadBody.reviveProgress = prog;
+      } else {
+        const partner = this.players.get(ev.peerId);
+        if (partner) partner.reviveProgress = prog;
+      }
     } else if (ev.type === 'cd_revive_progress') {
       // { peerId, reviverPid, progress (0-1) }
       if (ev.peerId === this.myId && state.player) {
@@ -27373,6 +27391,8 @@ const Coop = {
         if (typeof updateHUD === 'function') updateHUD();
       } else {
         // En partner blev revived
+        const _rp = this.players.get(ev.peerId);
+        if (_rp) _rp.reviveProgress = 0;  // v1.788: nollställ så ringen försvinner rent
         if (typeof showToast === 'function') showToast('💚 Partner återupplivad!');
       }
     } else if (ev.type === 'enemy_killed') {
@@ -35601,9 +35621,10 @@ function drawDeadBody() {
   // Blod
   ctx.fillStyle = 'rgba(120,0,0,0.5)';
   ctx.beginPath(); ctx.ellipse(x - 2, y + 3, 14, 6, 0.3, 0, Math.PI*2); ctx.fill();
-  // Revive-indikator
-  if (body.reviveTimer > 0) {
-    const frac = body.reviveTimer / 5;
+  // v1.788: revive-ring från SAMMA server-progress (0-1) som overlay + reviver → identisk.
+  const _frac = (typeof body.reviveProgress === 'number') ? body.reviveProgress : Math.min(1, (body.reviveTimer || 0) / 5);
+  if (_frac > 0.02) {
+    const frac = Math.min(1, _frac);
     ctx.strokeStyle = '#5aff5a';
     ctx.lineWidth = 3;
     ctx.shadowColor = '#5aff5a'; ctx.shadowBlur = 8;
@@ -35614,7 +35635,7 @@ function drawDeadBody() {
     ctx.fillStyle = '#5aff5a';
     ctx.font = 'bold 11px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('REVIVING ' + Math.ceil(5 - body.reviveTimer) + 's', x, y - 36);
+    ctx.fillText('REVIVING ' + Math.ceil(5 * (1 - frac)) + 's', x, y - 36);
   } else {
     // Spec-info
     ctx.fillStyle = '#ff5a3a';
