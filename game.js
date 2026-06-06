@@ -68891,20 +68891,15 @@ function drawEnemy(e) {
   // Mini-bosses: dedicated power-baserad rendering (9 unika designs)
   // Fallback om miniPower saknas/okänd: fortsätt med default-enemy-rendering
   // (visuell ring + namn-tag visas ändå nedan via isMiniBoss-grenen).
+  // v1.785: iOS ritar fienderna LIVE (drawHumanEnemy/drawDog/drawRobot) → korrekt fot-skugga
+  // + flytande gång-animation (legs rör sig kontinuerligt via phase), precis som bossarna.
+  // Den bakade drawImage-vägen (v1.781) hade bara 2 gång-frames + lite fel fot-position →
+  // skuggan satt fel + fienderna "gick" inte. Polishen flyttas in i live-ritningen istället.
   if (e.isMiniBoss && e.miniPower && MINIBOSS_DRAW[e.miniPower]) {
     MINIBOSS_DRAW[e.miniPower](e, flash, now, phase, moving);
-  } else {
-    // v1.781: minions — på iOS rita den POLERADE bakade spriten (kontur+ljus) med drawImage
-    // (snabbt = perf-vinst). Fallback till live-ritning om canvasen inte bakad än / ej iOS.
-    const _spr = _getEnemySpriteCanvas(e, phase, flash);
-    if (_spr) {
-      const br = _ENEMY_BAKE_RADIUS[_getEnemyTextureKey(e)] || e.r;
-      const s = e.r / br;
-      ctx.drawImage(_spr, -_spr.width * s / 2, -_spr.height * s / 2, _spr.width * s, _spr.height * s);
-    } else if (e.type === 'dog') drawDog(e, flash, phase);
-    else if (e.type === 'robot') drawRobot(e, flash, now, phase);
-    else drawHumanEnemy(e, flash, now, phase);
-  }
+  } else if (e.type === 'dog') drawDog(e, flash, phase);
+  else if (e.type === 'robot') drawRobot(e, flash, now, phase);
+  else drawHumanEnemy(e, flash, now, phase);
 
   ctx.restore();
   drawHpBar(e, x, y);
@@ -76293,11 +76288,9 @@ function runFrame(dt, now) {
     // fungera + ger skarp boss-kvalitets-grafik). Pixi-enemies behålls på desktop/Android
     // där de fungerar + perf spelar roll. iOS slipper dessutom slösa bake-arbete på
     // texturer som ändå inte syns.
-    // v1.781: baka ALLTID (även iOS) → fyller pixiState._enemyCanvases (polerade sprites).
-    // På iOS hoppar baken Pixi-texturerna men lagrar canvasarna → drawEnemy ritar dem med
-    // drawImage. enemiesEnabled förblir false på iOS (Pixi-rendering av enemies bara
-    // på desktop/Android där texturerna funkar).
-    if (!pixiState.enemyTexturesBaked && typeof bakeAllEnemyTextures === 'function') {
+    // v1.785: iOS ritar fiender LIVE (drawEnemy) → ingen bake behövs där. Baka bara på
+    // desktop/Android (Pixi-texturer + den bakade polishen). enemiesEnabled false på iOS.
+    if (!pixiState.enemyTexturesBaked && !isIOS && typeof bakeAllEnemyTextures === 'function') {
       bakeAllEnemyTextures();
     }
     pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked && !isIOS;

@@ -1,10 +1,10 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v784-bakeR-key-fix';
+const CACHE = 'penetrator-v785-ios-live-walk-shadow';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=784',
-  './game.js?v=784',
+  './style.css?v=785',
+  './game.js?v=785',
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg',
