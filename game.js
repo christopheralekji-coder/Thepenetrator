@@ -20158,21 +20158,13 @@ function _bakeEnemyTexture(type, opts) {
     ctx = savedCtx;
   }
 
-  try {
-    // v1.774 iOS-FIX (ROT-ORSAK): bygg texturen från en IMAGE (data-URL) istället för
-    // canvas. iOS WebKit laddar INTE upp canvas-källor/render-texturer pålitligt till
-    // WebGL → osynliga enemies (resolution-fixen i v1.773 räckte ej). IMAGE-källor laddas
-    // upp pålitligt på iOS. Pixi auto-uppdaterar texturen när bilden laddat (data-URL =
-    // ~omedelbart, ingen nätverk); 5s Canvas2D-warmupen täcker laddnings-gapet.
-    const img = new Image();
-    img.src = offCanvas.toDataURL();
-    const tex = PIXI.Texture.from(img);
-    _ENEMY_BAKE_RADIUS[opts.key || type] = r;
-    return tex;
-  } catch (err) {
-    console.warn('[Pixi-bake] texture build fail for', type, err.message);
-    return null;
-  }
+  // v1.778 iOS-FIX (BEKRÄFTAD via visuellt device-test): returnera CANVAS:en istället för
+  // en textur. bakeAllEnemyTextures konverterar den via createImageBitmap → textur, vilket
+  // är den ENDA canvas→GPU-vägen som laddas upp pålitligt på iOS WebKit (rå canvas OCH
+  // async data-URL-bild gav blanka/osynliga texturer; Pixi Graphics + Canvas2D funkar
+  // dock, vilket testet bevisade). Synkron retur så bake-loopen kan samla alla canvasar.
+  _ENEMY_BAKE_RADIUS[opts.key || type] = r;
+  return offCanvas;
 }
 
 function _bakeFallbackTexture() {
@@ -20186,13 +20178,10 @@ function _bakeFallbackTexture() {
   cx.beginPath(); cx.arc(40, 40, 14, 0, Math.PI*2); cx.fill();
   cx.strokeStyle = '#0a0a0a'; cx.lineWidth = 1.5;
   cx.beginPath(); cx.arc(40, 40, 14, 0, Math.PI*2); cx.stroke();
-  // v1.774 iOS-FIX: image-källa (ej canvas) — se _bakeEnemyTexture.
-  const img = new Image();
-  img.src = c.toDataURL();
-  return PIXI.Texture.from(img);
+  return PIXI.Texture.from(c);  // sällan-använd fallback (sync); huvud-bake går via createImageBitmap
 }
 
-function bakeAllEnemyTextures() {
+async function bakeAllEnemyTextures() {
   // v1.573: Guard mot för-tidig bake — om Pixi inte är ready än, skip + retry senare
   if (typeof PIXI === 'undefined') return;
   if (!pixiState.ready) {
@@ -20202,51 +20191,51 @@ function bakeAllEnemyTextures() {
   if (pixiState.enemyTexturesBaked) return;
   if (!pixiState.enemyTextures) pixiState.enemyTextures = {};
 
-  let bakedCount = 0;
-  let expected = 0;
-
-  // v1.573: Bake 2 frames per type för walk-cycle animation
-  // Frame _a: phase=0 (vänster ben fram), Frame _b: phase=π (höger ben fram)
+  // v1.778 iOS-FIX: samla CANVASAR, konvertera sedan ALLA via createImageBitmap → textur.
+  // ImageBitmap är den ENDA canvas→GPU-vägen som iOS WebKit laddar upp pålitligt (rå canvas
+  // + async data-URL-bild gav blanka texturer — bevisat med visuellt device-test). Async
+  // men icke-blockerande; _bakingNow hindrar dubbel-bake (callers anropar varje frame).
+  if (pixiState._bakingNow) return;
+  pixiState._bakingNow = true;
+  const canvases = [];
   for (const item of _ENEMY_BAKE_LIST) {
     for (const frame of ['a', 'b']) {
-      expected++;
       const key = item.type + '_' + frame;
-      if (pixiState.enemyTextures[key]) { bakedCount++; continue; }
+      if (pixiState.enemyTextures[key]) continue;
       const phase = frame === 'a' ? 0 : Math.PI;
-      const tex = _bakeEnemyTexture(item.type, { ...item, key, walkPhase: phase });
-      if (tex) { pixiState.enemyTextures[key] = tex; bakedCount++; }
+      const cv = _bakeEnemyTexture(item.type, { ...item, key, walkPhase: phase });
+      if (cv) canvases.push({ key, cv });
     }
   }
   for (const power of _MINIBOSS_BAKE_LIST) {
     for (const frame of ['a', 'b']) {
-      expected++;
       const key = 'mb_' + power + '_' + frame;
-      if (pixiState.enemyTextures[key]) { bakedCount++; continue; }
+      if (pixiState.enemyTextures[key]) continue;
       const phase = frame === 'a' ? 0 : Math.PI;
-      const tex = _bakeEnemyTexture('grunt', { r: 32, color: '#aa3a3a', miniPower: power, key, walkPhase: phase });
-      if (tex) { pixiState.enemyTextures[key] = tex; bakedCount++; }
+      const cv = _bakeEnemyTexture('grunt', { r: 32, color: '#aa3a3a', miniPower: power, key, walkPhase: phase });
+      if (cv) canvases.push({ key, cv });
     }
   }
+  const _useBitmap = (typeof createImageBitmap === 'function');
+  await Promise.all(canvases.map(async ({ key, cv }) => {
+    try {
+      if (_useBitmap) {
+        const bmp = await createImageBitmap(cv);
+        pixiState.enemyTextures[key] = PIXI.Texture.from(bmp);
+      } else {
+        pixiState.enemyTextures[key] = PIXI.Texture.from(cv);
+      }
+    } catch (e) {
+      try { pixiState.enemyTextures[key] = PIXI.Texture.from(cv); } catch (_) {}
+    }
+  }));
   if (!pixiState.enemyTextures.grunt_a) {
     pixiState.enemyTextures.grunt_a = _bakeFallbackTexture();
     _ENEMY_BAKE_RADIUS.grunt = 18;
   }
-
-  if (bakedCount >= expected) {
-    pixiState.enemyTexturesBaked = true;
-    console.log('[Pixi] enemy textures fully baked:', bakedCount, '/', expected);
-    // v1.612: FORCE GPU-upload synkront via primer-render. PIXI.Texture.from
-    // returnerar synkront men GPU-upload sker async vid första riktiga draw.
-    // Vid kall GPU-context tar det flera frames → osynliga enemies. Lösning:
-    // skapa hidden sprites och rendrera dem off-screen NU för att tvinga upload
-    // medan vi fortfarande är i bake-funktionen.
-    // v1.774: _primeGpuTextureUploads (canvas→render-texture-konvertering) SLOPPAD —
-    // image-källor (v1.774) laddas upp pålitligt på alla plattformar, OCH render-texturer
-    // var osynliga på iOS WebKit. Image-texturer behöver ingen forcerad GPU-prime.
-  } else {
-    console.warn('[Pixi-bake] partial bake:', bakedCount, '/', expected, '— will retry on next sync');
-    pixiState.enemyTexturesBaked = false; // tillåt retry
-  }
+  pixiState.enemyTexturesBaked = true;
+  pixiState._bakingNow = false;
+  console.log('[Pixi] enemy textures baked via', _useBitmap ? 'ImageBitmap' : 'canvas', '— count:', Object.keys(pixiState.enemyTextures).length);
 }
 
 // v1.617: KONVERTERA canvas-textures → GPU-native render-textures.
