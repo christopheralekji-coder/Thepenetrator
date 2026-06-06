@@ -20158,8 +20158,11 @@ function _bakeEnemyTexture(type, opts) {
     ctx = savedCtx;
   }
 
-  // v1.781: returnera den POLERADE canvasen (kontur + ljussättning) — lyfter alla fiender.
-  _ENEMY_BAKE_RADIUS[opts.key || type] = r;
+  // v1.784 STORLEKS-FIX: lagra bake-radien med SAMMA nyckel som drawEnemy/Pixi slår upp
+  // (_getEnemyTextureKey = e.type för minions, 'mb_'+power för minibossar) — INTE frame-
+  // nyckeln 'grunt_a'. Annars hittas ingen radie → fallback → fel storlek (för stora) +
+  // fel-sittande skugga. Detta gällde både drawImage (iOS) och Pixi-skalningen.
+  _ENEMY_BAKE_RADIUS[opts.miniPower ? ('mb_' + opts.miniPower) : type] = r;
   return _polishSprite(offCanvas, r);
 }
 
@@ -20174,28 +20177,39 @@ function _polishSprite(src, r) {
   const w = src.width, h = src.height;
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const o = out.getContext('2d');
-  // Mörk silhuett (för tunn kontur)
+  // Mörk silhuett (för kontur — tunn men TYDLIG, ryms i marginalen)
   const sil = document.createElement('canvas'); sil.width = w; sil.height = h;
   const sc = sil.getContext('2d');
   sc.drawImage(src, 0, 0);
   sc.globalCompositeOperation = 'source-in';
-  sc.fillStyle = 'rgba(6,4,9,0.82)';
+  sc.fillStyle = 'rgba(4,3,7,0.95)';
   sc.fillRect(0, 0, w, h);
-  const off = Math.max(1, Math.round(r * 0.045));
-  for (const [dx, dy] of [[-off, 0], [off, 0], [0, -off], [0, off]]) o.drawImage(sil, dx, dy);
+  const off = Math.max(1, Math.round(r * 0.05));
+  for (const [dx, dy] of [[-off, 0], [off, 0], [0, -off], [0, off], [-off, -off], [off, -off], [-off, off], [off, off]]) {
+    o.drawImage(sil, dx, dy);
+  }
   // Konst ovanpå konturen
   o.drawImage(src, 0, 0);
-  // Ljussättning + skuggning — source-atop så det BARA träffar konst-pixlarna
+  // v1.783: TYDLIG ljussättning — source-atop träffar bara konst-pixlarna (ändrar EJ storlek).
   o.save();
   o.globalCompositeOperation = 'source-atop';
-  const g = o.createLinearGradient(0, 0, w * 0.55, h * 0.55);
-  g.addColorStop(0, 'rgba(255,247,222,0.15)');
-  g.addColorStop(0.55, 'rgba(255,247,222,0)');
+  // Varm rim-light uppe-vänster (ljuskälla)
+  const g = o.createLinearGradient(0, 0, w * 0.62, h * 0.62);
+  g.addColorStop(0, 'rgba(255,244,212,0.34)');
+  g.addColorStop(0.45, 'rgba(255,244,212,0.05)');
+  g.addColorStop(0.7, 'rgba(255,244,212,0)');
   o.fillStyle = g; o.fillRect(0, 0, w, h);
-  const g2 = o.createLinearGradient(0, h * 0.45, 0, h);
-  g2.addColorStop(0, 'rgba(8,6,16,0)');
-  g2.addColorStop(1, 'rgba(8,6,16,0.22)');
+  // Skugga nedtill + höger (form-skuggning)
+  const g2 = o.createLinearGradient(w * 0.5, h * 0.35, w, h);
+  g2.addColorStop(0, 'rgba(10,7,18,0)');
+  g2.addColorStop(1, 'rgba(10,7,18,0.40)');
   o.fillStyle = g2; o.fillRect(0, 0, w, h);
+  // Mjuk inner-vignette (mörkare kanter = mer volym/djup)
+  const cx2 = w / 2, cy2 = h / 2;
+  const rg = o.createRadialGradient(cx2, cy2, Math.min(w, h) * 0.18, cx2, cy2, Math.min(w, h) * 0.52);
+  rg.addColorStop(0, 'rgba(0,0,0,0)');
+  rg.addColorStop(1, 'rgba(6,4,12,0.22)');
+  o.fillStyle = rg; o.fillRect(0, 0, w, h);
   o.restore();
   return out;
 }

@@ -44,18 +44,14 @@ module.exports = {
     await p.evaluate(() => {
       const ps = (typeof pixiState !== 'undefined') ? pixiState : null;
       if (!ps || !ps._enemyCanvases) return;
-      const cans = Array.from(document.querySelectorAll('canvas'));
-      const top = cans[cans.length - 1]; if (!top) return;
-      const cx = top.getContext && top.getContext('2d'); if (!cx) return;
-      cx.save(); cx.setTransform(1,0,0,1,0,0);
-      cx.fillStyle = 'rgba(20,20,28,1)'; cx.fillRect(0, 0, 760, 150);
       const keys = ['grunt_a','soldier_a','brute_a','tank_a','ninja_a','robot_a','sniper_a','swordsman_a'];
-      let x = 16;
-      for (const k of keys) {
-        const cv = ps._enemyCanvases[k];
-        if (cv) { const sc = 110/cv.height; cx.drawImage(cv, x, 18, cv.width*sc, cv.height*sc); x += cv.width*sc + 6; }
-      }
-      cx.restore();
+      const ov = document.createElement('canvas'); ov.width = 800; ov.height = 160;
+      ov.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;';
+      document.body.appendChild(ov);
+      const cx = ov.getContext('2d');
+      cx.fillStyle = '#3a4a3a'; cx.fillRect(0, 0, 800, 160);
+      let x = 12;
+      for (const k of keys) { const cv = ps._enemyCanvases[k]; if (cv) { const sc = 130/cv.height; cx.drawImage(cv, x, 12, cv.width*sc, cv.height*sc); x += cv.width*sc + 4; } }
     });
     await wait(300);
     await screenshot(p, 'solo-enemy-closeup');
