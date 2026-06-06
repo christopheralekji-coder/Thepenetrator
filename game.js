@@ -49,35 +49,43 @@ function _reportPixiDiag() {
     const ps = (typeof pixiState !== 'undefined') ? pixiState : null;
     const app = ps && ps.app;
     const renderer = app && app.renderer;
-    const canvas = renderer && (renderer.canvas || (renderer.view && (renderer.view.canvas || renderer.view)));
+    const canvas = (app && app.canvas) || (renderer && (renderer.canvas || (renderer.view && (renderer.view.canvas || renderer.view))));
     const cs = (canvas && typeof getComputedStyle === 'function') ? getComputedStyle(canvas) : {};
     const enemies = (ps && ps.sprites && ps.sprites.enemies) ? ps.sprites.enemies : new Map();
-    let sample = null;
-    for (const [, s] of enemies) {
-      const tex = s.texture || {}; const src = tex.source || {};
-      sample = { vis: s.visible, rend: s.renderable, a: s.alpha, wa: Math.round((s.worldAlpha||0)*100)/100,
-        tw: tex.width, th: tex.height, srcW: src.width, srcH: src.height, srcLoaded: src.uploadMethodId !== undefined ? undefined : src.resource ? !!src.resource.width : undefined,
-        x: Math.round(s.x), y: Math.round(s.y), inParent: !!s.parent }; break;
+    function texInfo(s) {
+      if (!s) return null;
+      const tex = s.texture; const src = tex && tex.source; const resrc = src && src.resource;
+      let rtype = 'none', rW = -1, rComplete = null;
+      if (resrc) {
+        rtype = resrc.constructor ? resrc.constructor.name : typeof resrc;
+        rW = resrc.naturalWidth != null ? resrc.naturalWidth : (resrc.width != null ? resrc.width : -1);
+        rComplete = resrc.complete != null ? resrc.complete : null;
+      }
+      return { vis: s.visible, rend: s.renderable, a: s.alpha,
+        tW: tex ? tex.width : -1, tH: tex ? tex.height : -1, tlbl: tex ? (tex.label||'').slice(0,14) : '',
+        sW: src ? src.width : -1, sH: src ? src.height : -1, sUp: src ? src.uploadMethodId : '?',
+        resType: rtype, resW: rW, resDone: rComplete,
+        x: Math.round(s.x), y: Math.round(s.y), inP: !!s.parent };
     }
+    let samples = []; for (const [, s] of enemies) { samples.push(texInfo(s)); if (samples.length >= 2) break; }
     const cont = ps && ps.containers && ps.containers.enemies;
     const diag = {
-      v: '774', ua: navigator.userAgent.slice(0, 55),
+      v: '776', ua: navigator.userAgent.slice(0, 50),
       ready: ps && ps.ready, enOn: ps && ps.enemiesEnabled, paOn: ps && ps.particlesEnabled,
-      rtype: renderer ? (renderer.type != null ? renderer.type : (renderer.gl ? 'gl' : (renderer.gpu ? 'gpu' : '?'))) : 'norender',
-      hasGl: !!(renderer && renderer.gl), hasGpu: !!(renderer && renderer.gpu),
-      res: renderer ? renderer.resolution : null,
-      canW: canvas ? canvas.width : -1, canH: canvas ? canvas.height : -1,
-      cssW: canvas ? canvas.clientWidth : -1, cssH: canvas ? canvas.clientHeight : -1,
-      z: cs.zIndex, pos: cs.position, disp: cs.display, op: cs.opacity, vsb: cs.visibility, tr: (cs.transform||'').slice(0,20),
+      texBaked: ps && ps.enemyTexturesBaked, texKeyN: (ps && ps.enemyTextures) ? Object.keys(ps.enemyTextures).length : -1,
+      rtype: renderer ? renderer.type : 'norender', rname: renderer ? (renderer.name||'') : '',
+      hasGl: !!(renderer && renderer.gl), hasGpu: !!(renderer && renderer.gpu), res: renderer ? renderer.resolution : null,
+      canW: canvas ? canvas.width : -1, canH: canvas ? canvas.height : -1, cssW: canvas ? canvas.clientWidth : -1, cssH: canvas ? canvas.clientHeight : -1,
+      z: cs.zIndex, pos: cs.position, disp: cs.display, op: cs.opacity, vsb: cs.visibility,
       inDom: canvas ? !!canvas.parentNode : false,
       spriteN: enemies.size, enemyN: (typeof state !== 'undefined' && state.enemies) ? state.enemies.length : -1,
-      contN: cont ? cont.children.length : -1, contVis: cont ? cont.visible : null, contInStage: cont ? !!cont.parent : null,
-      sample,
+      contN: cont ? cont.children.length : -1, contVis: cont ? cont.visible : null, contInStage: cont ? !!cont.parent : null, contA: cont ? cont.alpha : null,
+      samples,
     };
     const j = JSON.stringify(diag);
-    _reportError({ msg: 'PIXIDIAG ' + j.slice(0, 460), src: 'pixidiag', line: 0, stack: j, ua: navigator.userAgent, version: 'pixidiag774' });
+    _reportError({ msg: 'PIXIDIAG ' + j.slice(0, 460), src: 'pixidiag', line: 0, stack: j, ua: navigator.userAgent, version: 'pixidiag776' });
   } catch (e) {
-    _reportError({ msg: 'PIXIDIAG-ERR ' + (e && e.message), src: 'pixidiag', line: 0, ua: navigator.userAgent, version: 'pixidiag774' });
+    _reportError({ msg: 'PIXIDIAG-ERR ' + (e && e.message), src: 'pixidiag', line: 0, ua: navigator.userAgent, version: 'pixidiag776' });
   }
 }
 
@@ -36859,7 +36867,7 @@ function actuallyStartGame() {
   // hunnit spawna) så vi ser varför iOS-enemies är osynliga. Tas bort när löst.
   if (!window._pixiDiagSent && typeof _reportPixiDiag === 'function') {
     window._pixiDiagSent = true;
-    setTimeout(() => { try { _reportPixiDiag(); } catch (e) {} }, 6500);
+    setTimeout(() => { try { _reportPixiDiag(); } catch (e) {} }, 8000);
   }
   // Anti-läck: ALLTID restore sandbox-snapshot innan ny game-start. Garanterar
   // att sandbox-state aldrig leakas in i nästa mode oavsett exit-path.
