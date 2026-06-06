@@ -80,10 +80,12 @@ const GULAG_GAMES = {
     maxMs: 40000,
     build(ox, oy) {
       const HW = 760, HH = 520;
-      // Symmetriskt hinder-mönster (massa skydd)
+      // Symmetriskt hinder-mönster (massa skydd) — v1.794: tätare labyrint-känsla
       const rel = [
-        // mittpelare
+        // mittpelare + två flankerande mittväggar
         { x: -45, y: -45, w: 90, h: 90 },
+        { x: -20, y: -250, w: 40, h: 140 },
+        { x: -20, y: 110, w: 40, h: 140 },
         // fyra långa väggar i ett kors-mönster
         { x: -260, y: -200, w: 60, h: 180 },
         { x: 200, y: -200, w: 60, h: 180 },
@@ -98,6 +100,19 @@ const GULAG_GAMES = {
         { x: -120, y: 325, w: 240, h: 55 },
         { x: -610, y: -40, w: 55, h: 80 },
         { x: 555, y: -40, w: 55, h: 80 },
+        // v1.794: extra skydd — diagonala block + hörn-pelare + mellanväggar
+        { x: -420, y: -130, w: 55, h: 55 },
+        { x: 365, y: -130, w: 55, h: 55 },
+        { x: -420, y: 75, w: 55, h: 55 },
+        { x: 365, y: 75, w: 55, h: 55 },
+        { x: -700, y: -200, w: 50, h: 130 },
+        { x: 650, y: -200, w: 50, h: 130 },
+        { x: -700, y: 70, w: 50, h: 130 },
+        { x: 650, y: 70, w: 50, h: 130 },
+        { x: -330, y: -415, w: 130, h: 50 },
+        { x: 200, y: -415, w: 130, h: 50 },
+        { x: -330, y: 365, w: 130, h: 50 },
+        { x: 200, y: 365, w: 130, h: 50 },
       ];
       return {
         shape: 'arena', groundColor: '#241526',
@@ -143,7 +158,7 @@ const GULAG_GAMES = {
     loadout: { weaponId: 'pistol', hp: 100, shield: 0 },
     groundColor: '#161630',
     maxMs: 45000,
-    powerupEverMs: 3500,          // ny powerup-spawn-intervall
+    powerupEverMs: 1400,          // v1.794: mycket tätare powerup-flöde (var 3500)
     build(ox, oy) {
       const HW = 680, HH = 500;
       const rel = [
@@ -152,10 +167,13 @@ const GULAG_GAMES = {
         { x: -330, y: -30, w: 60, h: 60 },
         { x: 270, y: -30, w: 60, h: 60 },
       ];
-      // powerup-spawn-punkter (relativt)
+      // powerup-spawn-punkter (relativt) — v1.794: många fler spots (kaos!)
       const pus = [
         { x: 0, y: 0 }, { x: -420, y: -300 }, { x: 420, y: -300 },
         { x: -420, y: 300 }, { x: 420, y: 300 }, { x: 0, y: -330 }, { x: 0, y: 330 },
+        { x: -560, y: 0 }, { x: 560, y: 0 }, { x: -220, y: -180 }, { x: 220, y: -180 },
+        { x: -220, y: 180 }, { x: 220, y: 180 }, { x: -560, y: -340 }, { x: 560, y: -340 },
+        { x: -560, y: 340 }, { x: 560, y: 340 }, { x: -200, y: 0 }, { x: 200, y: 0 },
       ];
       return {
         shape: 'arena', groundColor: '#161630',
@@ -194,9 +212,11 @@ const GULAG_GAMES = {
         bounds: { x: ox - HW, y: oy - HH, w: 2 * HW, h: 2 * HH },
         walls: perimeter(HW, HH, 40).map(r => abs(r, ox, oy))
           .concat(rel.map(r => abs(r, ox, oy))),
+        // v1.794: spawna NÄRA varandra (±170 = 340px isär, var ±460 = 920px) så
+        // bomb-hållaren faktiskt har en chans att nudda över bomben innan tiden går ut.
         spawns: [
-          { x: ox - HW + 80, y: oy, facing: 0 },
-          { x: ox + HW - 80, y: oy, facing: Math.PI },
+          { x: ox - 170, y: oy - 80, facing: 0 },
+          { x: ox + 170, y: oy + 80, facing: Math.PI },
         ],
       };
     },
@@ -212,8 +232,9 @@ const GULAG_GAMES = {
     groundColor: '#3a1505',
     maxMs: 45000,
     cols: 9, rows: 7, tile: 150,
-    fallStartMs: 4500,            // grace innan första platta faller
-    fallEveryMs: 750,             // intervall mellan plattfall
+    fallStartMs: 4500,            // grace innan första plattan VARNAS
+    fallEveryMs: 750,             // bas-intervall mellan plattfall (accelererar, se tickGulag)
+    warnMs: 650,                  // v1.794: röd blink-förvarning innan plattan faller
     standCrumbleMs: 2600,         // hur länge man kan stå på en platta innan den vacklar
     build(ox, oy) {
       const COLS = 9, ROWS = 7, T = 150;

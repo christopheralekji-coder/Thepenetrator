@@ -77,6 +77,28 @@ module.exports = {
     console.log('[BS] movement: before=' + Math.round(mvBefore.x) + ' after=' + Math.round(mvAfter.x) + ' lastSentToServer=' + mvAfter.lastSent + ' dist=' + Math.round(moved));
     if (moved < 80) console.log('[BS] FAIL: spelaren kunde INTE röra sig i gulag (dist=' + Math.round(moved) + ')');
     else console.log('[BS] PASS: spelaren rörde sig i gulag (dist=' + Math.round(moved) + ')');
+
+    // (2c) AIM-TEST: kan spelaren sikta? (gulag early-return skippade tidigare aim-koden)
+    const aim = await p.evaluate(async () => {
+      input.moveX = 0; input.moveY = 0;
+      input.fireJoyActive = true; input.aimX = 0; input.aimY = 1; // sikta nedåt (PI/2)
+      await new Promise(r => setTimeout(r, 200));
+      const a1 = state.player.aimAngle;
+      input.aimX = 1; input.aimY = 0; // sikta höger (0)
+      await new Promise(r => setTimeout(r, 200));
+      const a2 = state.player.aimAngle;
+      input.fireJoyActive = false; input.aimX = 0; input.aimY = 0;
+      return { a1: Math.round(a1 * 100) / 100, a2: Math.round(a2 * 100) / 100 };
+    });
+    const aimWorks = Math.abs(aim.a1 - 1.57) < 0.3 && Math.abs(aim.a2) < 0.3;
+    console.log('[BS] aim: nedåt=' + aim.a1 + ' (vänta ~1.57) höger=' + aim.a2 + ' (vänta ~0)');
+    console.log(aimWorks ? '[BS] PASS: spelaren kan sikta i gulag' : '[BS] FAIL: aim svarar inte på input i gulag');
+
+    // (2d) HP/MAXHP-TEST: maxHp ska matcha loadout (void=100, men kolla att den är satt + finit)
+    const hp = await p.evaluate(() => ({ hp: state.player.hp, maxHp: state.player.maxHp, shield: state.player.shield, maxShield: state.player.maxShield }));
+    console.log('[BS] hp-state: ' + JSON.stringify(hp));
+    const hpOk = hp.maxHp === 100 && hp.hp <= hp.maxHp && hp.hp > 0;
+    console.log(hpOk ? '[BS] PASS: HP/maxHp korrekt satt (void 100/100)' : '[BS] FAIL: HP/maxHp fel: ' + JSON.stringify(hp));
     // ASSERTS: positiv off-map-koord (ej Int16-klampad -32768) + kameran följer dit
     if (g.px == null || g.px < 11000 || g.px > 31000) console.log('[BS] FAIL: spelare ej på positiv off-map-koord: px=' + g.px);
     else console.log('[BS] PASS: spelare på off-map-koord px=' + g.px);

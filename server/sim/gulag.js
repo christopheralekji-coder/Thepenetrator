@@ -173,6 +173,7 @@ function startGulagMatch(sim, pidA, pidB, now) {
     platformR: geo.platformR || 0,
     ringR: geo.ringR || 0,
     fallenTiles: [],
+    warningTiles: [],
     tileStandSince: {},
     nextTileFallAt: game.fallStartMs ? now + game.fallStartMs : 0,
     bombHolder: null, bombEndsAt: 0, bombPassReadyAt: 0,
@@ -225,6 +226,21 @@ function dropRandomTile(m) {
   }
   if (!candidates.length) return;
   m.fallenTiles.push(candidates[Math.floor(Math.random() * candidates.length)]);
+}
+// v1.794: välj en platta att VARNA (röd blink) innan den faller. Exkluderar redan
+// fallna, redan varnade och plattor spelarna står på just nu.
+function pickWarnTile(m) {
+  const g = m.geo;
+  const total = g.cols * g.rows;
+  const occupied = new Set();
+  [m.a, m.b].forEach(pid => { const rec = m.tileStandSince[pid]; if (rec) occupied.add(rec.idx); });
+  const warned = new Set((m.warningTiles || []).map(w => w.idx));
+  const candidates = [];
+  for (let i = 0; i < total; i++) {
+    if (!m.fallenTiles.includes(i) && !occupied.has(i) && !warned.has(i)) candidates.push(i);
+  }
+  if (!candidates.length) return -1;
+  return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
 function safeRedeployPos(sim) {
@@ -349,8 +365,8 @@ function tickGulag(sim, dt, now) {
           if (ps._gulagSpeedUntil && now > ps._gulagSpeedUntil) { ps.speedMul = 1; ps._gulagSpeedUntil = 0; }
           if (ps._gulagGunUntil && now > ps._gulagGunUntil) { ps._gulagWeapon = game.loadout.weaponId; ps.weaponId = game.loadout.weaponId; ps._gulagGunUntil = 0; }
         });
-        // spawna powerup
-        if (m.nextPowerupAt && now >= m.nextPowerupAt && m.powerups.length < 4) {
+        // spawna powerup (v1.794: upp till 8 samtidigt = tätt powerup-kaos)
+        if (m.nextPowerupAt && now >= m.nextPowerupAt && m.powerups.length < 8) {
           const spots = m.geo.powerupSpawns || [];
           if (spots.length) {
             const spot = spots[Math.floor(Math.random() * spots.length)];
@@ -386,7 +402,24 @@ function tickGulag(sim, dt, now) {
         break;
       }
       case 'floorlava': {
-        if (m.nextTileFallAt && now >= m.nextTileFallAt) { dropRandomTile(m); m.nextTileFallAt = now + game.fallEveryMs; }
+        if (!m.warningTiles) m.warningTiles = [];
+        // 1) promota varnade plattor som passerat sin fallAt → faktiskt fallna
+        for (let wi = m.warningTiles.length - 1; wi >= 0; wi--) {
+          if (now >= m.warningTiles[wi].fallAt) {
+            const fidx = m.warningTiles[wi].idx;
+            if (!m.fallenTiles.includes(fidx)) m.fallenTiles.push(fidx);
+            m.warningTiles.splice(wi, 1);
+          }
+        }
+        // 2) schemalägg ny varning. ACCELERATION: intervallet krymper ju fler plattor
+        // som fallit (750ms → ~220ms golv) så tempot ökar mot slutet.
+        if (m.nextTileFallAt && now >= m.nextTileFallAt) {
+          const widx = pickWarnTile(m);
+          if (widx >= 0) m.warningTiles.push({ idx: widx, fallAt: now + (game.warnMs || 650) });
+          const totalT = m.geo.cols * m.geo.rows;
+          const frac = m.fallenTiles.length / totalT;
+          m.nextTileFallAt = now + Math.max(220, game.fallEveryMs * (1 - frac * 1.25));
+        }
         // stå-för-länge → platta vacklar
         [m.a, m.b].forEach(pid => {
           const ps = sim.room.members.get(pid).playerState;
@@ -437,6 +470,7 @@ function tickGulag(sim, dt, now) {
         type: 'gulag_tick', matchId: m.id, a: m.a, b: m.b,
         platformR: Math.round(m.platformR), ringR: Math.round(m.ringR),
         fallen: m.fallenTiles.slice(),
+        warn: (m.warningTiles || []).map(w => w.idx),
         bombHolder: m.bombHolder, bombMs: m.bombEndsAt ? Math.max(0, m.bombEndsAt - now) : 0,
         pu: m.powerups.map(p => ({ id: p.id, x: Math.round(p.x), y: Math.round(p.y), kind: p.kind })),
         timeLeft: Math.max(0, Math.round((game.maxMs - (now - m.startedAt)) / 1000)),

@@ -26252,7 +26252,9 @@ const Coop = {
           matchId: ev.matchId, game: ev.game, gameName: ev.gameName, emoji: ev.emoji, hint: ev.hint,
           noShoot: !!ev.noShoot, loadoutWeapon: ev.loadoutWeapon, geo: ev.geo,
           role, oppPid: role === 'a' ? ev.b : ev.a,
-          platformR: ev.geo.platformR || 0, ringR: ev.geo.ringR || 0, fallen: [], pu: [],
+          platformR: ev.geo.platformR || 0, ringR: ev.geo.ringR || 0,
+          platformRTarget: ev.geo.platformR || 0, ringRTarget: ev.geo.ringR || 0, // v1.794 smooth-lerp
+          fallen: [], warn: [], pu: [],
           bombHolder: ev.bombHolder, bombMs: ev.bombMs || 0, timeLeft: null,
           speedMul: 1, speedUntil: 0, gunUntil: 0, knockUntil: 0, knockVX: 0, knockVY: 0,
         };
@@ -26262,9 +26264,17 @@ const Coop = {
           state.player.x = sp.x; state.player.y = sp.y; state.player.aimAngle = sp.facing || 0;
           state.player.weaponId = ev.loadoutWeapon; state.player.brDowned = false;
           state.player.hp = gdef ? gdef.loadout.hp : 100;
+          // v1.794: sätt maxHp till loadout-hp så HP-baren visar rätt ratio (blade=320,
+          // oneshot=1 etc). Tidigare stod maxHp kvar på BR-100 → "320/100"-overflow /
+          // oneshot nästan tom. maxShield 100 (frenzy-powerup kan ge upp till 100).
+          state.player.maxHp = gdef ? gdef.loadout.hp : 100;
           state.player.shield = gdef ? (gdef.loadout.shield || 0) : 0;
+          state.player.maxShield = 100;
         }
         if (typeof hideBrSpectatorBanner === 'function') hideBrSpectatorBanner();
+        // v1.794: tvinga HUD-refresh — annars visar HP/shield-baren stale döds-värden
+        // (gulag_start satte tidigare aldrig om HUD:en).
+        if (typeof updateHUD === 'function') updateHUD();
         if (typeof showGulagBanner === 'function') showGulagBanner();
         if (typeof triggerShake === 'function') triggerShake(10, 0.4);
         if (typeof showToast === 'function') showToast(ev.emoji + ' GULAG — ' + ev.gameName + '!');
@@ -26273,9 +26283,12 @@ const Coop = {
     } else if (ev.type === 'gulag_tick') {
       const g = state.gulag;
       if (g && g.matchId === ev.matchId) {
-        g.platformR = ev.platformR || g.platformR;
-        g.ringR = ev.ringR || g.ringR;
+        // v1.794: lerpa ring/plattform-radien mot server-värdet (8Hz → annars hackig
+        // krympning). Sätt TARGET här; updatePlayer-gulag-blocket smoothar per frame.
+        if (ev.platformR) g.platformRTarget = ev.platformR;
+        if (ev.ringR) g.ringRTarget = ev.ringR;
         g.fallen = ev.fallen || g.fallen;
+        g.warn = ev.warn || [];   // v1.794: plattor som blinkar rött (faller snart)
         g.bombHolder = ev.bombHolder;
         g.bombMs = ev.bombMs || 0;
         g.pu = ev.pu || [];
@@ -26314,11 +26327,15 @@ const Coop = {
           state.player.spectating = false; state.player.specTarget = null;
           state.player.x = ev.x; state.player.y = ev.y;
           state.player.hp = ev.hp; state.player.shield = ev.shield;
+          // v1.794: återställ maxHp till BR-100 (gulag kan ha satt 320/1) så redeploy-baren
+          // visar "75/100" korrekt istället för att fastna på loadout-maxHp.
+          state.player.maxHp = 100;
           state.player.weaponId = 'pistol'; state.player.brDowned = false;
         }
         if (typeof showToast === 'function') showToast('🏆 VANN GULAGEN — TILLBAKA I STRIDEN!');
         if (typeof triggerShake === 'function') triggerShake(12, 0.5);
         if (typeof Audio !== 'undefined' && Audio.revive) Audio.revive();
+        if (typeof updateHUD === 'function') updateHUD();
         if (typeof updateBrHud === 'function') updateBrHud();
       }
     } else if (ev.type === 'gulag_lost') {
@@ -26330,6 +26347,7 @@ const Coop = {
         if (typeof triggerShake === 'function') triggerShake(14, 0.6);
         if (state.player) {
           state.player.spectating = true; state.player.hp = 0; state.player.specTarget = null;
+          state.player.maxHp = 100; // v1.794: återställ från ev. gulag-loadout-maxHp
           for (const [pid, partner] of this.players) { if (partner && partner.hp > 0) { state.player.specTarget = pid; break; } }
         }
         state.deadBody = { x: state.player ? state.player.x : 0, y: state.player ? state.player.y : 0, reviveTimer: 0 };
@@ -42926,6 +42944,12 @@ function updatePlayer(dt, now) {
   if (state.gulag) {
     const g = state.gulag;
     const nowG = performance.now();
+    // v1.794: mjuk krympning av ring (Blade) / plattform (Void). Servern skickar bara
+    // radien ~8Hz → direkt-set blir hackigt. Lerpa mot target per frame (rent visuellt;
+    // server äger fall-detektionen så ingen desync-risk).
+    const _shrLerp = Math.min(1, dt * 7);
+    if (g.platformRTarget != null) g.platformR += (g.platformRTarget - g.platformR) * _shrLerp;
+    if (g.ringRTarget != null) g.ringR += (g.ringRTarget - g.ringR) * _shrLerp;
     // knockback-impuls (The Void)
     if (g.knockUntil && nowG < g.knockUntil) {
       p.x += g.knockVX * dt;
@@ -42940,8 +42964,10 @@ function updatePlayer(dt, now) {
     if (g.geo && g.geo.walls && g.geo.walls.length && typeof resolveCtfWall === 'function') {
       resolveCtfWall(p, g.geo.walls);
     }
-    return;
-  }
+    // v1.794: INGEN return här! Den tidigare returen hoppade över aim (43020+),
+    // reload OCH tryShoot (43145) → "kan inte sikta/skjuta i gulag". Vi hoppar
+    // BARA över world-clamp + map-kollision nedan (gulag har egen kollision ovan).
+  } else {
   p.x = Math.max(p.r, Math.min(WORLD.w - p.r, p.x));
   p.y = Math.max(p.r, Math.min(WORLD.h - p.r, p.y));
   resolveBuildingCollision(p);
@@ -43016,6 +43042,7 @@ function updatePlayer(dt, now) {
       }
     }
   }
+  } // slut else (!state.gulag): world-clamp + map-kollision körs ej i gulag (v1.794)
 
   // sikta: prio fire-joystick (alltid på när fire-knappen hålls), sen mus, sen rörelse.
   // VIKTIGT: när input.firing är aktivt, AUTO-trackar inte rörelse-riktningen längre.
@@ -73934,7 +73961,10 @@ function drawGulagArena() {
     lg.addColorStop(0, 'rgba(255,90,20,0.12)'); lg.addColorStop(1, 'rgba(180,40,10,0.22)');
     ctx.fillStyle = lg; ctx.fillRect(-viewW, -viewH, viewW * 3, viewH * 3);
     const fallen = new Set(g.fallen || []);
+    const warn = new Set(g.warn || []);   // v1.794: plattor som faller snart → röd blink
     const T = geo.tile;
+    // snabb blink-puls (~5Hz) för förvarning
+    const warnPulse = 0.45 + 0.45 * Math.abs(Math.sin(now / 110));
     for (let i = 0; i < geo.tiles.length; i++) {
       if (fallen.has(i)) continue;
       const t = geo.tiles[i];
@@ -73943,6 +73973,13 @@ function drawGulagArena() {
       ctx.fillRect(tx + 3, ty + 3, T - 6, T - 6);
       ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(tx + 3, ty + 3, T - 6, 5);
       ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 2; ctx.strokeRect(tx + 3, ty + 3, T - 6, T - 6);
+      // FÖRVARNING: röd blinkande overlay + glödande kant på plattor som snart faller
+      if (warn.has(i)) {
+        ctx.fillStyle = 'rgba(255,40,20,' + (warnPulse * 0.55).toFixed(3) + ')';
+        ctx.fillRect(tx + 3, ty + 3, T - 6, T - 6);
+        ctx.strokeStyle = 'rgba(255,120,40,' + warnPulse.toFixed(3) + ')';
+        ctx.lineWidth = 4; ctx.strokeRect(tx + 5, ty + 5, T - 10, T - 10);
+      }
     }
   } else { // arena
     if (geo.bounds) {
