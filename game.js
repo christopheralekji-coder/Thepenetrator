@@ -68836,15 +68836,56 @@ function drawProximityThreats() {
     ctx.restore();
   }
 }
-// v1.781: hämta den polerade bakade sprite-canvasen för en minion (iOS drawImage-väg).
-// Returnerar null på desktop/Android (där Pixi ritar) eller om canvasen inte bakad än.
-function _getEnemySpriteCanvas(e, phase, flash) {
-  if (!isIOS) return null;
-  const ps = pixiState;
-  if (!ps || !ps._enemyCanvases) return null;
-  const key = _getEnemyTextureKey(e) + '_' + (Math.sin(phase) > 0 ? 'a' : 'b');
-  if (flash && ps._enemyWhite && ps._enemyWhite[key]) return ps._enemyWhite[key];
-  return ps._enemyCanvases[key] || null;
+// v1.787 PRO-FINISH (live): renderar fienden till en återanvänd off-screen-buffer, lägger
+// på enhetlig rim-ljus (uppe-vänster ljuskälla) + ambient-djup (radiell) + en ren mörk
+// kontur (cel-shaded edge → poppar mot bakgrunden som i AAA 2D-spel), och komponerar till
+// huvud-canvasen på EXAKT samma position som live-ritningen (skugga + gång oförändrade).
+// Återanvänder buffrar → noll per-frame-allokering (GC-snålt, värme/FPS-vänligt).
+let _fxA = null, _fxB = null;
+function _drawEnemyFx(e, flash, now, phase, moving, x, y, bob) {
+  const r = e.r;
+  const need = Math.ceil(r * 3.8) + 12;
+  if (!_fxA || _fxA.width < need) {
+    const s = Math.max(need, 80);
+    _fxA = document.createElement('canvas'); _fxA.width = _fxA.height = s;
+    _fxB = document.createElement('canvas'); _fxB.width = _fxB.height = s;
+  }
+  const W = _fxA.width, cxn = W / 2;
+  const a = _fxA.getContext('2d'), b = _fxB.getContext('2d');
+  a.clearRect(0, 0, W, W);
+  // Rendera fienden centrerat + roterat till bufferten (byt global ctx, som baken gör)
+  const saved = ctx; ctx = a;
+  a.save();
+  a.translate(cxn, cxn);
+  if (!SIDE_VIEW_ENEMY_TYPES.has(e.type)) a.rotate(e.facing);
+  else if (Math.abs(e.facing) > Math.PI / 2) a.scale(-1, 1);
+  if (e.isMiniBoss && e.miniPower && MINIBOSS_DRAW[e.miniPower]) MINIBOSS_DRAW[e.miniPower](e, flash, now, phase, moving);
+  else if (e.type === 'dog') drawDog(e, flash, phase);
+  else if (e.type === 'robot') drawRobot(e, flash, now, phase);
+  else drawHumanEnemy(e, flash, now, phase);
+  a.restore();
+  ctx = saved;
+  const dx = x - cxn, dy = (y + bob) - cxn;
+  if (flash) { ctx.drawImage(_fxA, dx, dy); return; }  // flash = redan vit, ingen finish
+  // Rim-ljus + ambient-djup (source-atop → bara på fiende-pixlarna, screen-space)
+  a.save();
+  a.globalCompositeOperation = 'source-atop';
+  const g = a.createLinearGradient(0, 0, W * 0.5, W * 0.5);
+  g.addColorStop(0, 'rgba(255,246,220,0.22)'); g.addColorStop(0.5, 'rgba(255,246,220,0)');
+  a.fillStyle = g; a.fillRect(0, 0, W, W);
+  const rg = a.createRadialGradient(cxn, cxn, r * 0.35, cxn, cxn, r * 1.55);
+  rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(6,4,12,0.30)');
+  a.fillStyle = rg; a.fillRect(0, 0, W, W);
+  a.restore();
+  // Mörk silhuett i buffer B (för konturen)
+  b.clearRect(0, 0, W, W);
+  b.drawImage(_fxA, 0, 0);
+  b.save(); b.globalCompositeOperation = 'source-in'; b.fillStyle = 'rgba(5,3,8,0.9)'; b.fillRect(0, 0, W, W); b.restore();
+  // Komponera: kontur (4-riktad offset) UNDER, sen den ljussatta fienden ÖVER
+  const off = Math.max(1, Math.round(r * 0.06));
+  ctx.drawImage(_fxB, dx - off, dy); ctx.drawImage(_fxB, dx + off, dy);
+  ctx.drawImage(_fxB, dx, dy - off); ctx.drawImage(_fxB, dx, dy + off);
+  ctx.drawImage(_fxA, dx, dy);
 }
 function drawEnemy(e) {
   const x = e.x - state.camera.x;
@@ -68878,32 +68919,9 @@ function drawEnemy(e) {
   ctx.fillStyle = 'rgba(0,0,0,0.40)';
   ctx.beginPath(); ctx.ellipse(x, y + e.r * 1.18, e.r * 1.0, e.r * 0.26, 0, 0, Math.PI * 2); ctx.fill();
 
-  ctx.save();
-  ctx.translate(x, y + bob);
-  // v1.582: SIDE-VIEW types — sprite roterar INTE med facing (samma som player).
-  // Listan utökas vartefter fler types revampas. Övriga types behåller rotation.
-  if (!SIDE_VIEW_ENEMY_TYPES.has(e.type)) {
-    ctx.rotate(e.facing);
-  } else {
-    // Mirror sprite om enemy "tittar vänster" (för konsistens med facing)
-    const facingLeft = Math.abs(e.facing) > Math.PI / 2;
-    if (facingLeft) ctx.scale(-1, 1);
-  }
-
-  // Mini-bosses: dedicated power-baserad rendering (9 unika designs)
-  // Fallback om miniPower saknas/okänd: fortsätt med default-enemy-rendering
-  // (visuell ring + namn-tag visas ändå nedan via isMiniBoss-grenen).
-  // v1.785: iOS ritar fienderna LIVE (drawHumanEnemy/drawDog/drawRobot) → korrekt fot-skugga
-  // + flytande gång-animation (legs rör sig kontinuerligt via phase), precis som bossarna.
-  // Den bakade drawImage-vägen (v1.781) hade bara 2 gång-frames + lite fel fot-position →
-  // skuggan satt fel + fienderna "gick" inte. Polishen flyttas in i live-ritningen istället.
-  if (e.isMiniBoss && e.miniPower && MINIBOSS_DRAW[e.miniPower]) {
-    MINIBOSS_DRAW[e.miniPower](e, flash, now, phase, moving);
-  } else if (e.type === 'dog') drawDog(e, flash, phase);
-  else if (e.type === 'robot') drawRobot(e, flash, now, phase);
-  else drawHumanEnemy(e, flash, now, phase);
-
-  ctx.restore();
+  // v1.787 PRO-FINISH: rita fienden via off-screen-buffer med kontur + enhetlig ljussättning
+  // (bevarar gång + skugga). _drawEnemyFx gör translate/rotate/mirror internt + komponerar.
+  _drawEnemyFx(e, flash, now, phase, moving, x, y, bob);
   drawHpBar(e, x, y);
   // v1.600: Mini-boss namn-tag bevarad, glow-ring BORTTAGEN per user-request
   if (e.isMiniBoss) {

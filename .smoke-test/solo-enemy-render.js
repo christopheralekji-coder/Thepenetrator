@@ -44,14 +44,29 @@ module.exports = {
     await p.evaluate(() => {
       const ps = (typeof pixiState !== 'undefined') ? pixiState : null;
       if (!ps || !ps._enemyCanvases) return;
-      const keys = ['grunt_a','soldier_a','brute_a','tank_a','ninja_a','robot_a','sniper_a','swordsman_a'];
-      const ov = document.createElement('canvas'); ov.width = 800; ov.height = 160;
+      const types = ['grunt','soldier','brute','tank','runner','sniper','swordsman','robot','dog'];
+      const ov = document.createElement('canvas'); ov.width = 820; ov.height = 200;
       ov.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;';
       document.body.appendChild(ov);
       const cx = ov.getContext('2d');
-      cx.fillStyle = '#3a4a3a'; cx.fillRect(0, 0, 800, 160);
-      let x = 12;
-      for (const k of keys) { const cv = ps._enemyCanvases[k]; if (cv) { const sc = 130/cv.height; cx.drawImage(cv, x, 12, cv.width*sc, cv.height*sc); x += cv.width*sc + 4; } }
+      cx.fillStyle = '#4a5a4a'; cx.fillRect(0, 0, 820, 200);
+      // Byt global ctx till overlay + rita varje typ via _drawEnemyFx (pro-finishen)
+      const savedCtx = (typeof ctx !== 'undefined') ? ctx : null;
+      try {
+        if (savedCtx !== null) {
+          // hacka in vår overlay som global ctx
+          eval('ctx = cx');
+          let x = 70;
+          for (const t of types) {
+            const r = 26;
+            const e = { r, type: t, color: '#4a5a30', facing: 0, walkAccum: 0, walkPhase: 0, contactCd: 1, flashUntil: 0, aiming: false, isBoss: false, isMiniBoss: false, miniIntensity: 0, name: '', stageAccent: '#7a5aaa', stageEdge: '#aaff5a', fuse: 1, x: 0, y: 0, camera: 0 };
+            try { _drawEnemyFx(e, false, performance.now(), 0, true, x, 110, 0); } catch (err) { cx.fillStyle = '#f44'; cx.fillText('ERR ' + t, x, 110); }
+            cx.fillStyle = '#cde'; cx.font = '10px sans-serif'; cx.textAlign = 'center'; cx.fillText(t, x, 185);
+            x += 90;
+          }
+          eval('ctx = savedCtx');
+        }
+      } catch (e2) { cx.fillStyle = '#f44'; cx.fillText('FX-ERR ' + e2.message, 20, 20); }
     });
     await wait(300);
     await screenshot(p, 'solo-enemy-closeup');
