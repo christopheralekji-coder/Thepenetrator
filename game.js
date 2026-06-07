@@ -19970,7 +19970,14 @@ async function initPixiFoundation() {
     app.ticker.autoStart = false;
     app.ticker.stop();
     pixiState.ready = true;
-    console.log('[PixiJS] Foundation init klar — v' + PIXI.VERSION + ', resolution', DPR);
+    // v1.811 (0×0-FIX): initPixiFoundation() körs FÖRE första resize() i load-ordningen,
+    // så app.init() ovan fick width/height = 0 (viewW/viewH ännu 0). Den resize() som
+    // kördes under await-gapet hoppade Pixi (pixiState.app ej tilldelad än) → renderern
+    // satt fast på 0×0 tills ett orientation/visualViewport-event råkade trigga om den.
+    // Diag visade "Canvas size: 0x0". Forcera en resize() nu när app finns → korrekt
+    // backing store + resolution direkt. (iOS-pin resolution=1 bevaras, sätts vid init.)
+    if (typeof resize === 'function') { try { resize(); } catch (e) {} }
+    console.log('[PixiJS] Foundation init klar — v' + PIXI.VERSION + ', resolution', app.renderer.resolution);
     // v1.573: Trigger texture-bake AFTER full Pixi-readiness + JS-load complete
     // (delay = säkrar att MINIBOSS_DRAW + draw-funktionerna är declared)
     setTimeout(() => {
@@ -21010,13 +21017,20 @@ function updatePixiDiagOverlay() {
   const worldX = pixiState.ready && pixiState.containers.world ? Math.round(pixiState.containers.world.position.x) : 0;
   const worldY = pixiState.ready && pixiState.containers.world ? Math.round(pixiState.containers.world.position.y) : 0;
   // v1.809: PERF-rad — TARGET_FPS-cap, frame-cost-EMA, DPR, kvalitets-tier, pool-storlekar
-  const _dpr = (window.devicePixelRatio || 1).toFixed(2);
+  // v1.811: visa TILLÄMPAD ratio per lager (backing/CSS), inte raw devicePixelRatio.
+  // Raw kunde visa 3.00 trots att capen (computeDPR) faktiskt renderar i 1.5/1.0.
+  const _dprRaw = (window.devicePixelRatio || 1).toFixed(2);
+  const _ratMain = (viewW > 0 && canvas) ? (canvas.width / viewW).toFixed(2) : '?';
+  const _ratHud = (viewW > 0 && hudCanvas) ? (hudCanvas.width / viewW).toFixed(2) : '?';
+  const _ratPixi = (pixiState.ready && pixiState.app && pixiState.app.renderer)
+    ? (pixiState.app.renderer.resolution || 0).toFixed(2) : '?';
   const _q = (typeof save !== 'undefined' && save && save.quality) || '?';
   const _poolP = (typeof _particlePool !== 'undefined') ? _particlePool.length : 0;
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   el.innerHTML = `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
-    `<div style="color:#ffe14a;font-size:9px">DPR:${_dpr} q:${_q} pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
+    `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
+    `<div style="color:#ffe14a;font-size:9px">pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
     `<div>Pixi: ${pixiState.diagFrameTime.toFixed(1)}ms</div>` +
     `<div>Enemies: ${enemiesCount} Bullets: ${bulletsCount}</div>` +
     `<div>Particles: ${particlesCount}</div>` +
@@ -21036,7 +21050,8 @@ function updatePixiDiagOverlay() {
     (state.survivorsActive ? `<div style="color:#aaffaa;font-size:9px;">CoopHost:${Coop.isHost?'Y':'N'} SrvSim:${Coop.serverSimActive?'Y':'N'} Obst:${(state._survArenaCache&&state._survArenaCache.obstacles)?state._survArenaCache.obstacles.length:0}</div>` +
     `<div style="color:#aaffaa;font-size:9px;">CollCalls:${(state._survCollisionStats&&state._survCollisionStats.calls)||0} EnRes:${(state._survCollisionStats&&state._survCollisionStats.enemiesResolved)||0} BlkBlk:${(state._survCollisionStats&&state._survCollisionStats.bulletsBlocked)||0}</div>` : '') +
     `<div>Canvas DOM: ${canvasInDom} z:${canvasZ}</div>` +
-    `<div>Canvas size: ${canvasSize}</div>` +
+    `<div style="font-size:9px;">backing main:${canvas?canvas.width+'x'+canvas.height:'?'} hud:${hudCanvas?hudCanvas.width+'x'+hudCanvas.height:'?'}</div>` +
+    `<div style="font-size:9px;">backing pixi:${canvasSize} css:${viewW}x${viewH}</div>` +
     `<div>Cam: ${camX},${camY}</div>` +
     `<div>World: ${worldX},${worldY}</div>` +
     `<div>Pixi ready: ${pixiState.ready ? '✓' : '✗'}</div>`;
