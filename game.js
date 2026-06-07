@@ -26357,16 +26357,33 @@ const Coop = {
     } else if (ev.type === 'gulag_powerup') {
       if (ev.peerId === this.myId && state.gulag) {
         const g = state.gulag;
+        const _now = performance.now();
         const FRENZY_WEAPONS = { shotgun: 'Hagelgevär', smg: 'SMG', rifle: 'Gevär' };
-        // v1.800: kreativa powerups + VAPEN som ackumuleras i radialen
-        if (ev.kind === 'speed') { g.speedMul = 1.6; g.speedUntil = performance.now() + 5000; }
-        else if (ev.kind === 'berserk') { g.berserkUntil = performance.now() + 6000; }
+        // v1.800/805: kreativa powerups + 8 nya + VAPEN som ackumuleras i radialen
+        if (ev.kind === 'speed') { g.speedMul = 1.6; g.speedUntil = _now + 5000; }
+        else if (ev.kind === 'berserk') { g.berserkUntil = _now + 6000; }
+        else if (ev.kind === 'rapid') { g.rapidUntil = _now + 6000; }          // ⚡ dubbel skottakt (tryShoot)
+        else if (ev.kind === 'vampire') { g.vampUntil = _now + 8000; }          // 🧛 visuell aura (heal server-side)
+        else if (ev.kind === 'invuln') { g.invulnVisUntil = _now + 2000; }      // 🛡 visuell (server sätter invuln)
+        else if (ev.kind === 'magnet') { g.magnetUntil = _now + 5000; }         // 🧲 visuell aura
+        else if (ev.kind === 'blink') {                                          // 🌀 stark dash-dodge framåt
+          if (state.player) {
+            const _a = state.player.aimAngle;
+            const _mvx = (input.moveX || 0), _mvy = (input.moveY || 0);
+            const _m = Math.hypot(_mvx, _mvy);
+            const _dx = _m > 0.15 ? _mvx / _m : Math.cos(_a), _dy = _m > 0.15 ? _mvy / _m : Math.sin(_a);
+            state.player.dashDir = { x: _dx, y: _dy };
+            state.player.dashUntil = _now + 320; // 320ms * 700 = ~220px snabb dodge
+            if (typeof spawnSparks === 'function') spawnSparks(state.player.x, state.player.y, '#c0a0ff', 8, 260);
+          }
+        }
         else if (FRENZY_WEAPONS[ev.kind]) {
           if (!Array.isArray(state._gulagInventory)) state._gulagInventory = ['pistol'];
           if (state._gulagInventory.indexOf(ev.kind) < 0) state._gulagInventory.push(ev.kind);
           if (typeof equipPvpWeapon === 'function') equipPvpWeapon(ev.kind); // equippa senaste (byt via ⚔-radialen)
         }
-        const _puTxt = ev.kind === 'shield' ? '+Sköld' : ev.kind === 'heal' ? '+HP' : ev.kind === 'speed' ? 'Fart!' : ev.kind === 'berserk' ? '💥 BERSERK 2× skada!' : ev.kind === 'freeze' ? '❄️ Fryste motståndaren!' : FRENZY_WEAPONS[ev.kind] ? ('🔫 ' + FRENZY_WEAPONS[ev.kind] + ' → ⚔ radial') : 'Powerup!';
+        const _txtMap = { shield: '+Sköld', heal: '+HP', speed: 'Fart!', berserk: '💥 BERSERK 2× skada!', freeze: '❄️ Fryste motståndaren!', slow: '🐢 Saktade motståndaren!', rapid: '⚡ SNABBELD!', vampire: '🧛 VAMPYR (lifesteal)!', shockwave: '💫 SHOCKWAVE-knuff!', invuln: '🛡 ODÖDLIG 2s!', blink: '🌀 BLINK!', confuse: '🔄 Förvirrade motståndaren!', magnet: '🧲 MAGNET!' };
+        const _puTxt = _txtMap[ev.kind] || (FRENZY_WEAPONS[ev.kind] ? ('🔫 ' + FRENZY_WEAPONS[ev.kind] + ' → ⚔ radial') : 'Powerup!');
         if (typeof showToast === 'function') showToast('⚡ ' + _puTxt);
         if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
       }
@@ -26387,6 +26404,19 @@ const Coop = {
         if (typeof triggerShake === 'function') triggerShake(5, 0.2);
         if (typeof showToast === 'function') showToast('❄️ FRYST!');
         if (typeof Audio !== 'undefined' && Audio.hit) Audio.hit();
+      }
+    } else if (ev.type === 'gulag_slow') {
+      // v1.805: 🐢 SLOW — motståndaren plockade slow → JAG saktas 55% (klient respekterar)
+      if (ev.peerId === this.myId && state.gulag) {
+        state.gulag._slowUntil = performance.now() + (ev.ms || 4000);
+        if (typeof showToast === 'function') showToast('🐢 SAKTAD!');
+      }
+    } else if (ev.type === 'gulag_confuse') {
+      // v1.805: 🔄 CONFUSE — motståndaren plockade confuse → MINA kontroller omvända
+      if (ev.peerId === this.myId && state.gulag) {
+        state.gulag._confuseUntil = performance.now() + (ev.ms || 3000);
+        if (typeof triggerShake === 'function') triggerShake(5, 0.2);
+        if (typeof showToast === 'function') showToast('🔄 FÖRVIRRAD!');
       }
     } else if (ev.type === 'gulag_won') {
       if (ev.peerId === this.myId) {
@@ -34470,7 +34500,9 @@ function tryShoot(now) {
   const glasscannonMul = hasPerk('glasscannon') ? 0.85 : 1;
   // v1.527: SURVIVORS-RUN fire-rate-perks (stack-bara): rate-cooldown / (1 + sumOfRatePerks)
   const survRateMul = state.survivorsActive ? (1 / (1 + getSurvivorsPerkSum('rate'))) : 1;
-  if (now - p.lastShot < w.rate * meleeMul * glasscannonMul * survRateMul) return;
+  // v1.805: GULAG Frenzy RAPID-powerup → halverad skott-cooldown (dubbel eldhastighet)
+  const gulagRapidMul = (state.gulag && state.gulag.rapidUntil && now < state.gulag.rapidUntil) ? 0.5 : 1;
+  if (now - p.lastShot < w.rate * meleeMul * glasscannonMul * survRateMul * gulagRapidMul) return;
 
   // Adrenalin perk
   const adrenaline = hasPerk('adrenalin') && p.hp < p.maxHp * 0.3;
@@ -43022,6 +43054,8 @@ function updatePlayer(dt, now) {
   if (_locked) { mx = 0; my = 0; }
   // v1.799: GULAG Frenzy FREEZE — fryst spelare kan ej röra sig
   if (state.gulag && state.gulag._frozenUntil && performance.now() < state.gulag._frozenUntil) { mx = 0; my = 0; }
+  // v1.805: CONFUSE — omvända kontroller
+  if (state.gulag && state.gulag._confuseUntil && performance.now() < state.gulag._confuseUntil) { mx = -mx; my = -my; }
   const m = Math.hypot(mx, my);
   if (m > 1) { mx /= m; my /= m; }
   // Fotsteg medan man rör sig till fots (footstep() throttlar internt 200ms).
@@ -43070,6 +43104,8 @@ function updatePlayer(dt, now) {
     let gulagSpeedMul = (state.gulag && state.gulag.speedMul) ? state.gulag.speedMul : 1;
     // v1.799: Bomb Tag — den som BÄR bomben får +15% fart (chans att jaga ikapp + lämna över)
     if (state.gulag && state.gulag.game === 'bombtag' && state.gulag.bombHolder === Coop.myId) gulagSpeedMul *= 1.15;
+    // v1.805: SLOW-powerup — saktad spelare 45% fart
+    if (state.gulag && state.gulag._slowUntil && performance.now() < state.gulag._slowUntil) gulagSpeedMul *= 0.45;
     p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * brDoubleTime * gulagSpeedMul * dt;
     p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * brDoubleTime * gulagSpeedMul * dt;
   }
@@ -74214,8 +74250,6 @@ function drawGulagArena() {
     const fallen = new Set(g.fallen || []);
     const warn = new Set(g.warn || []);   // v1.794: plattor som faller snart → röd blink
     const T = geo.tile;
-    // snabb blink-puls (~5Hz) för förvarning
-    const warnPulse = 0.45 + 0.45 * Math.abs(Math.sin(now / 110));
     for (let i = 0; i < geo.tiles.length; i++) {
       if (fallen.has(i)) continue;
       const t = geo.tiles[i];
@@ -74224,11 +74258,14 @@ function drawGulagArena() {
       ctx.fillRect(tx + 3, ty + 3, T - 6, T - 6);
       ctx.fillStyle = 'rgba(255,255,255,0.06)'; ctx.fillRect(tx + 3, ty + 3, T - 6, 5);
       ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 2; ctx.strokeRect(tx + 3, ty + 3, T - 6, T - 6);
-      // FÖRVARNING: röd blinkande overlay + glödande kant på plattor som snart faller
+      // FÖRVARNING: röd blink på plattor som snart faller. v1.805: PER-PLATTA fas-offset
+      // (i*1.7) + varierad takt → blinkar oberoende av varandra (var synkat = såg ut som
+      // ett enhetligt "mönster"). Nu organiskt/slumpmässigt-känsla.
       if (warn.has(i)) {
-        ctx.fillStyle = 'rgba(255,40,20,' + (warnPulse * 0.55).toFixed(3) + ')';
+        const wp = 0.42 + 0.48 * Math.abs(Math.sin(now / (95 + (i % 5) * 18) + i * 1.7));
+        ctx.fillStyle = 'rgba(255,40,20,' + (wp * 0.6).toFixed(3) + ')';
         ctx.fillRect(tx + 3, ty + 3, T - 6, T - 6);
-        ctx.strokeStyle = 'rgba(255,120,40,' + warnPulse.toFixed(3) + ')';
+        ctx.strokeStyle = 'rgba(255,120,40,' + wp.toFixed(3) + ')';
         ctx.lineWidth = 4; ctx.strokeRect(tx + 5, ty + 5, T - 10, T - 10);
       }
     }
@@ -74292,8 +74329,10 @@ function drawGulagArena() {
     for (const pu of g.pu) {
       const ux = pu.x - cx, uy = pu.y - cy;
       // v1.800: färg/emoji per powerup-typ (utility + berserk/freeze + vapen)
-      const PU_COL = { shield: '#5ac7ff', heal: '#5aff7a', speed: '#ffe14a', berserk: '#ff5a3a', freeze: '#7ad8ff', shotgun: '#ff9a3a', smg: '#c0a0ff', rifle: '#ffd14a' };
-      const PU_EMOJI = { shield: '🛡', heal: '➕', speed: '⚡', berserk: '💥', freeze: '❄️', shotgun: '🔫', smg: '🔫', rifle: '🔫' };
+      const PU_COL = { shield: '#5ac7ff', heal: '#5aff7a', speed: '#ffe14a', berserk: '#ff5a3a', freeze: '#7ad8ff', shotgun: '#ff9a3a', smg: '#c0a0ff', rifle: '#ffd14a',
+        slow: '#88c0a0', rapid: '#ff8a3a', vampire: '#c83055', shockwave: '#a0e0ff', invuln: '#ffe98a', blink: '#b48aff', confuse: '#ff7af0', magnet: '#8aa0ff' };
+      const PU_EMOJI = { shield: '🛡', heal: '➕', speed: '⚡', berserk: '💥', freeze: '❄️', shotgun: '🔫', smg: '🔫', rifle: '🔫',
+        slow: '🐢', rapid: '🔥', vampire: '🧛', shockwave: '💫', invuln: '✨', blink: '🌀', confuse: '🔄', magnet: '🧲' };
       const col = PU_COL[pu.kind] || '#ffd14a';
       ctx.save(); ctx.translate(ux, uy);
       const s = 1 + 0.16 * Math.sin(now / 180);
@@ -74364,6 +74403,25 @@ function drawGulagArena() {
       const bgr = ctx.createRadialGradient(ax, ay, 4, ax, ay, 40);
       bgr.addColorStop(0, 'rgba(255,60,40,' + (0.32 + 0.22 * Math.abs(Math.sin(now / 100))) + ')'); bgr.addColorStop(1, 'rgba(255,40,20,0)');
       ctx.fillStyle = bgr; ctx.beginPath(); ctx.arc(ax, ay, 40, 0, 7); ctx.fill();
+    }
+    // v1.805: nya buff-auror
+    if (g.invulnVisUntil && now < g.invulnVisUntil) { // 🛡 odödlig — guld-ring
+      ctx.strokeStyle = 'rgba(255,225,120,' + (0.55 + 0.35 * Math.abs(Math.sin(now / 90))) + ')'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(ax, ay, 24, 0, 7); ctx.stroke();
+    }
+    if (g.vampUntil && now < g.vampUntil) { // 🧛 vampyr — mörkröd aura
+      const vg = ctx.createRadialGradient(ax, ay, 4, ax, ay, 38);
+      vg.addColorStop(0, 'rgba(200,40,80,0.30)'); vg.addColorStop(1, 'rgba(150,20,60,0)');
+      ctx.fillStyle = vg; ctx.beginPath(); ctx.arc(ax, ay, 38, 0, 7); ctx.fill();
+    }
+    if (g.magnetUntil && now < g.magnetUntil) { // 🧲 magnet — blå sug-ringar
+      ctx.strokeStyle = 'rgba(140,170,255,0.5)'; ctx.lineWidth = 2;
+      const mr = 20 + ((now / 12) % 36);
+      ctx.beginPath(); ctx.arc(ax, ay, mr, 0, 7); ctx.stroke();
+    }
+    if (g._confuseUntil && now < g._confuseUntil) { // 🔄 förvirrad — lila virvel
+      ctx.strokeStyle = 'rgba(220,120,250,0.6)'; ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(ax, ay - 26, 9, now / 120, now / 120 + 4.5); ctx.stroke();
     }
   }
   // v1.800: ONE SHOT — periodisk SONAR-ping som avslöjar motståndarens position ~0.95s

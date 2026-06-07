@@ -1367,6 +1367,15 @@ function updateBullets(sim, dt, now) {
             remaining -= absorb;
           }
           if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+          // v1.805: GULAG Frenzy VAMPIRE — skytten lifestealar 50% av skadan (cap maxHp)
+          const _sh = sim.room.members.get(b.ownerPid);
+          if (_sh && _sh.playerState && _sh.playerState._gulagVampUntil && Date.now() < _sh.playerState._gulagVampUntil) {
+            const _heal = Math.round(effDmg * 0.5);
+            if (_heal > 0) {
+              _sh.playerState.hp = Math.min(_sh.playerState.maxHp || 100, (_sh.playerState.hp || 0) + _heal);
+              sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: b.ownerPid, hp: Math.round(_sh.playerState.hp), shield: _sh.playerState.shield || 0 });
+            }
+          }
           // v1.740: registrera senaste angripare (för kill-credit VID elimination, ej
           // direkt — en spelare kan gå "downed" m. self-revive innan riktig död).
           ws.playerState._brLastAttacker = b.ownerPid;

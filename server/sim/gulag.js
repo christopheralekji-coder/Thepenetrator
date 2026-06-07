@@ -186,6 +186,17 @@ function startGulagMatch(sim, pidA, pidB, now) {
     match.bombEndsAt = now + game.bombMs;
     match.bombPassReadyAt = now + 1300;
   }
+  // v1.805: FRENZY — förplacera ~10 powerups DIREKT vid start (man ska ej behöva vänta)
+  // + börja spamma snabbt. Blandar spawn-punkterna så de sprids.
+  if (gameId === 'frenzy') {
+    const spots = (geo.powerupSpawns || []).slice();
+    for (let s = spots.length - 1; s > 0; s--) { const j = Math.floor(Math.random() * (s + 1)); const tmp = spots[s]; spots[s] = spots[j]; spots[j] = tmp; }
+    const n = Math.min(10, spots.length);
+    for (let s = 0; s < n; s++) {
+      match.powerups.push({ id: 'pu' + (++match.puCounter), x: spots[s].x, y: spots[s].y, kind: FRENZY_POOL[Math.floor(Math.random() * FRENZY_POOL.length)] });
+    }
+    match.nextPowerupAt = now + 600; // spamma snabbt direkt
+  }
   sim.gulagMatches.push(match);
 
   sim.eventQueue.push({
@@ -265,9 +276,10 @@ function clearGulagFields(ps) {
   ps.gulagState = null;
   ps._gulagMatchId = null; ps._gulagGame = null; ps._gulagWeapon = null;
   ps._gulagNoShoot = false; ps._gulagSpeedUntil = 0; ps._gulagGunUntil = 0;
-  // v1.800: rensa frenzy/void-temp-state så det ej läcker till nästa duell/match
+  // v1.800/805: rensa frenzy/void-temp-state så det ej läcker till nästa duell/match
   ps._gulagWeapons = null; ps._gulagDmgUntil = 0; ps._gulagFrozenUntil = 0;
   ps._gulagKnockUntil = 0; ps._gulagKnockDX = 0; ps._gulagKnockDY = 0;
+  ps._gulagVampUntil = 0; ps._gulagMagnetUntil = 0; ps._gulagSlowUntil = 0; ps._gulagConfuseUntil = 0;
   // v1.798: rensa kill-credit-state — annars fick gulag-MOTSTÅNDAREN (redan eliminerad)
   // kill-credit om vinnaren dog kort efter redeploy (fel kills + cash till en spöke).
   ps._brLastAttacker = null; ps._brLastWeapon = null; ps._brLastAttackerAt = 0;
@@ -321,13 +333,21 @@ function resolveGulag(sim, m, winnerPid, loserPid, now) {
 
 // v1.800: vapen-powerups i frenzy (ackumuleras i förrådet, byts via radialen)
 const FRENZY_WEAPON_KINDS = ['shotgun', 'smg', 'rifle'];
-// v1.799: KREATIVA powerups (ej bara vapen) — freeze hanteras i pickup-loopen (träffar
-// motståndaren). Self-buffs här: shield/heal/speed/berserk.
+// v1.805: hela frenzy-poolen inkl. 8 NYA powerups. OPP_KINDS träffar motståndaren.
+const FRENZY_POOL = [
+  'shield', 'heal', 'speed', 'berserk', 'freeze', 'shotgun', 'smg', 'rifle',
+  'slow', 'rapid', 'vampire', 'shockwave', 'invuln', 'blink', 'confuse', 'magnet',
+];
+const FRENZY_OPP_KINDS = ['freeze', 'slow', 'shockwave', 'confuse'];
+// v1.799/805: SELF-buffs (rapid/blink är klient-only → ingen server-state här).
 function applyFrenzyPowerup(ps, kind, now) {
   if (kind === 'shield') ps.shield = Math.min(100, (ps.shield || 0) + 50);
   else if (kind === 'heal') ps.hp = Math.min(ps.maxHp || 100, (ps.hp || 0) + 45);
   else if (kind === 'speed') { ps.speedMul = 1.6; ps._gulagSpeedUntil = now + 5000; }
-  else if (kind === 'berserk') { ps._gulagDmgUntil = now + 6000; } // 2× skada i 6s (appliceras i applyShoot)
+  else if (kind === 'berserk') { ps._gulagDmgUntil = now + 6000; } // 2× skada i 6s (applyShoot)
+  else if (kind === 'vampire') { ps._gulagVampUntil = now + 8000; } // lifesteal vid träff (bullets.js)
+  else if (kind === 'invuln') { ps.invulnUntil = Math.max(ps.invulnUntil || 0, now + 2000); } // 2s odödlig
+  else if (kind === 'magnet') { ps._gulagMagnetUntil = now + 5000; } // drar powerups till sig
 }
 
 // ---- TICK: kör alla aktiva matcher ----
@@ -388,15 +408,22 @@ function tickGulag(sim, dt, now) {
           if (ps._gulagSpeedUntil && now > ps._gulagSpeedUntil) { ps.speedMul = 1; ps._gulagSpeedUntil = 0; }
           if (ps._gulagGunUntil && now > ps._gulagGunUntil) { ps._gulagWeapon = game.loadout.weaponId; ps.weaponId = game.loadout.weaponId; ps._gulagGunUntil = 0; }
         });
-        // spawna powerup (v1.796: cap 6 samtidigt = tätt men läsbart)
-        if (m.nextPowerupAt && now >= m.nextPowerupAt && m.powerups.length < 6) {
+        // v1.805: MAGNET — drar lediga powerups till bäraren (snabb in-sug)
+        [m.a, m.b].forEach(pid => {
+          const ps = sim.room.members.get(pid).playerState;
+          if (ps._gulagMagnetUntil && now < ps._gulagMagnetUntil) {
+            for (const pu of m.powerups) {
+              const dx = ps.x - pu.x, dy = ps.y - pu.y, d = Math.hypot(dx, dy) || 1;
+              if (d > 8) { pu.x += (dx / d) * Math.min(d, 420 * dt); pu.y += (dy / d) * Math.min(d, 420 * dt); }
+            }
+          }
+        });
+        // spawna powerup (v1.805: cap 14 samtidigt — tätt powerup-kaos)
+        if (m.nextPowerupAt && now >= m.nextPowerupAt && m.powerups.length < 14) {
           const spots = m.geo.powerupSpawns || [];
           if (spots.length) {
             const spot = spots[Math.floor(Math.random() * spots.length)];
-            // v1.800: KREATIVA powerups (freeze/berserk/utility) + VAPEN som ACKUMULERAS
-            // i vapen-radialen (byt fritt mellan upplockade — ej fast på senaste).
-            const kinds = ['shield', 'heal', 'speed', 'berserk', 'freeze', 'shotgun', 'smg', 'rifle'];
-            m.powerups.push({ id: 'pu' + (++m.puCounter), x: spot.x, y: spot.y, kind: kinds[Math.floor(Math.random() * kinds.length)] });
+            m.powerups.push({ id: 'pu' + (++m.puCounter), x: spot.x, y: spot.y, kind: FRENZY_POOL[Math.floor(Math.random() * FRENZY_POOL.length)] });
             m.nextPowerupAt = now + game.powerupEverMs;
           }
         }
@@ -406,11 +433,26 @@ function tickGulag(sim, dt, now) {
           for (const pid of [m.a, m.b]) {
             const ps = sim.room.members.get(pid).playerState;
             if (dist(ps.x, ps.y, pu.x, pu.y) < 36) {
+              const oppPid = (pid === m.a) ? m.b : m.a;
+              const ows = sim.room.members.get(oppPid);
+              const ops = ows && ows.playerState;
               if (pu.kind === 'freeze') {
-                // ❄️ FREEZE träffar MOTSTÅNDAREN (frys 1.4s) — server enforce:ar i applyPlayerInput
-                const oppPid = (pid === m.a) ? m.b : m.a;
-                const ows = sim.room.members.get(oppPid);
-                if (ows && ows.playerState) { ows.playerState._gulagFrozenUntil = now + 1400; sim.eventQueue.push({ type: 'gulag_frozen', peerId: oppPid, ms: 1400 }); }
+                // ❄️ FREEZE — frys motståndaren 1.4s (server enforce:ar i applyPlayerInput)
+                if (ops) { ops._gulagFrozenUntil = now + 1400; sim.eventQueue.push({ type: 'gulag_frozen', peerId: oppPid, ms: 1400 }); }
+              } else if (pu.kind === 'slow') {
+                // 🐢 SLOW — motståndaren 55% långsammare i 4s (klienten respekterar)
+                if (ops) { ops._gulagSlowUntil = now + 4000; sim.eventQueue.push({ type: 'gulag_slow', peerId: oppPid, ms: 4000 }); }
+              } else if (pu.kind === 'confuse') {
+                // 🔄 CONFUSE — motståndarens kontroller omvända i 3s
+                if (ops) { ops._gulagConfuseUntil = now + 3000; sim.eventQueue.push({ type: 'gulag_confuse', peerId: oppPid, ms: 3000 }); }
+              } else if (pu.kind === 'shockwave') {
+                // 💫 SHOCKWAVE — knuffar motståndaren bakåt + 15 dmg (instant)
+                if (ops) {
+                  let kdx = ops.x - ps.x, kdy = ops.y - ps.y; if (kdx === 0 && kdy === 0) kdx = 1;
+                  ops.hp = Math.max(0, (ops.hp || 0) - 15);
+                  sim.eventQueue.push({ type: 'gulag_knockback', peerId: oppPid, vx: Math.round(kdx), vy: Math.round(kdy), force: 620 });
+                  sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: oppPid, hp: Math.round(ops.hp), shield: ops.shield || 0 });
+                }
               } else if (FRENZY_WEAPON_KINDS.includes(pu.kind)) {
                 // 🔫 VAPEN — ackumulera i förrådet (permanent), equippa senaste. applyShoot
                 // tillåter byte mellan ps._gulagWeapons → man kan välja via radialen.

@@ -153,7 +153,7 @@ const GULAG_GAMES = {
     loadout: { weaponId: 'pistol', hp: 140, shield: 0 },
     groundColor: '#161630',
     maxMs: 32000,
-    powerupEverMs: 1700,          // v1.796: tätt men läsbart (var 1400)
+    powerupEverMs: 900,           // v1.805: snabb spam (var 1700) + 10 förplacerade vid start
     build(ox, oy) {
       const HW = 680, HH = 500;
       const rel = [
