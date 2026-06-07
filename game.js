@@ -34770,7 +34770,21 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
   if (_coopShots && _coopShots.length) Coop.broadcastShots(_coopShots);
   // Muzzle flash: kort kon vid mynningen. Storlek skalas med vapen-DPS-känsla.
   // Skip för melee/passiva vapen (de har egen slash-VFX).
-  if (w.type === 'gun') {
+  if (w.id === 'gulag_knock') {
+    // KNUFF-KANON: ingen vanlig muzzle — en BLÅ KRAFT-BLAST (expanderande shockwave-ring
+    // + framåt-kon av tryck-partiklar) så det TYDLIGT ser ut som ett vapen som knuffar bak.
+    const mx = p.x + Math.cos(p.aimAngle) * (p.r + 10);
+    const my = p.y + Math.sin(p.aimAngle) * (p.r + 10);
+    if (typeof spawnShockwave === 'function') spawnShockwave(mx, my, 6, 34, '#7ad8ff', 0.28, 4);
+    if (typeof spawnMuzzleFlash === 'function') spawnMuzzleFlash(mx, my, p.aimAngle, '#aee8ff', 26);
+    // framåt-kon av tryck-partiklar (visar push-riktningen)
+    for (let i = 0; i < 7; i++) {
+      const sp = 220 + Math.random() * 180;
+      const a = p.aimAngle + (Math.random() - 0.5) * 0.5;
+      state.particles.push({ x: mx, y: my, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 0.32, color: 'rgba(150,220,255,0.9)', r: 2.5 + Math.random() * 2 });
+    }
+    if (typeof applyShootRecoil === 'function') applyShootRecoil(p.aimAngle, 4); // tyngd-känsla
+  } else if (w.type === 'gun') {
     const muzzleSize = w.explosive ? 28 : (w.style === 'plasma' || w.style === 'tesla' || w.style === 'railgun') ? 24 : (w.style === 'flame' || w.style === 'minigun') ? 16 : 18;
     const mx = p.x + Math.cos(p.aimAngle) * (p.r + 4);
     const my = p.y + Math.sin(p.aimAngle) * (p.r + 4);
@@ -62648,6 +62662,33 @@ function drawPlayerWeapon(p, w, flash, now) {
   }
 
   // ─── PISTOL ── kompakt semi-auto silhuett (Glock-style) ──────────────────
+  if (w.id === 'gulag_knock') {
+    // v1.802: KNUFF-KANON — bred "kraft-emitter" med tratt-mynning, glödande blå kärna +
+    // pulsande energi-ringar, så det TYDLIGT ser ut som ett vapen som trycker bak folk.
+    ctx.fillStyle = 'rgba(0,0,0,0.25)'; ctx.fillRect(p.r + 1, 3.5, 18, 1.5); // skugga
+    ctx.fillStyle = flash ? '#fff' : '#16202a'; ctx.fillRect(p.r - 1, 1, 4.5, 9); // grip
+    ctx.fillStyle = flash ? '#fff' : '#2a3a4a'; ctx.fillRect(p.r - 2, -4, 14, 8); // kropp
+    ctx.fillStyle = flash ? '#fff' : '#3e5468'; ctx.fillRect(p.r - 2, -4, 14, 1.2); // top-highlight
+    // tratt-mynning (vidgas utåt = push-emitter)
+    ctx.fillStyle = flash ? '#fff' : '#34485c';
+    ctx.beginPath(); ctx.moveTo(p.r + 12, -4); ctx.lineTo(p.r + 22, -8); ctx.lineTo(p.r + 22, 8); ctx.lineTo(p.r + 12, 4); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = flash ? '#fff' : '#4a6680';
+    ctx.beginPath(); ctx.moveTo(p.r + 12, -4); ctx.lineTo(p.r + 22, -8); ctx.lineTo(p.r + 22, -6.5); ctx.lineTo(p.r + 12, -2.8); ctx.closePath(); ctx.fill();
+    // glödande blå kärna
+    const _kg = 0.6 + 0.4 * Math.sin(now / 140);
+    ctx.fillStyle = 'rgba(120,216,255,' + _kg.toFixed(2) + ')';
+    ctx.beginPath(); ctx.ellipse(p.r + 13, 0, 2.5, 5.5, 0, 0, Math.PI * 2); ctx.fill();
+    // pulsande energi-ringar vid mynningen (kraft-vågor)
+    ctx.strokeStyle = 'rgba(150,225,255,' + (0.4 + 0.4 * Math.sin(now / 110)).toFixed(2) + ')'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(p.r + 20, 0, 6, -1.0, 1.0); ctx.stroke();
+    ctx.beginPath(); ctx.arc(p.r + 17, 0, 7.5, -0.8, 0.8); ctx.stroke();
+    if (muzz) {
+      const _bg = ctx.createRadialGradient(p.r + 22, 0, 1, p.r + 22, 0, 14);
+      _bg.addColorStop(0, 'rgba(200,240,255,0.95)'); _bg.addColorStop(1, 'rgba(120,200,255,0)');
+      ctx.fillStyle = _bg; ctx.beginPath(); ctx.arc(p.r + 24, 0, 14, 0, Math.PI * 2); ctx.fill();
+    }
+    return;
+  }
   if (w.id === 'pistol') {
     const recoilBack = 0; // canvas är redan recoil-shiftad av drawPlayer
     const slideOffset = muzzlePulse * -2; // slide kicks back when firing
@@ -72871,6 +72912,20 @@ function drawMascotBullet(ctx, x, y, b, mascot) {
 function drawBullet(b) {
   const x = b.x - state.camera.x;
   const y = b.y - state.camera.y;
+  // v1.802: KNUFF-KANON — kraft-våg/shockwave i färdriktningen (ej mascot-mat-projektil)
+  if (b.weaponId === 'gulag_knock') {
+    const ang = Math.atan2(b.vy, b.vx);
+    ctx.save(); ctx.translate(x, y); ctx.rotate(ang);
+    const gd = ctx.createRadialGradient(0, 0, 1, 0, 0, 11);
+    gd.addColorStop(0, 'rgba(220,245,255,0.95)'); gd.addColorStop(1, 'rgba(90,199,255,0)');
+    ctx.fillStyle = gd; ctx.beginPath(); ctx.arc(0, 0, 11, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(120,210,255,0.9)'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(-2, 0, 9, -1.1, 1.1); ctx.stroke();
+    ctx.strokeStyle = 'rgba(150,225,255,0.5)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(-8, 0, 13, -0.9, 0.9); ctx.stroke();
+    ctx.restore();
+    return;
+  }
   // v1.502: MASCOT BULLET DISPATCH — themed projectiles för både local + coop-partners
   // Local: använd getCurrentCostume().mascot. Partner: använd b._partnerMascot (skickat
   // via Coop.broadcastShots). Skip-list: rocket/grenade/blackhole/pullwhip/railgun/boomerang.

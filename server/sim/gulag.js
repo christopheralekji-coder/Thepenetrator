@@ -439,7 +439,7 @@ function tickGulag(sim, dt, now) {
         }
         if (now >= m.bombEndsAt) {
           m._detonating = true;
-          m._detonateResolveAt = now + 850;
+          m._detonateResolveAt = now + 425; // v1.802: halverat (var 850ms)
           const hws = sim.room.members.get(m.bombHolder);
           if (hws && hws.playerState) {
             sim.eventQueue.push({ type: 'gulag_bomb_explode', matchId: m.id, holder: m.bombHolder, x: Math.round(hws.playerState.x), y: Math.round(hws.playerState.y) });
