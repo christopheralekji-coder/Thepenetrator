@@ -181,5 +181,19 @@ function pairedMatch(sim, gameId, now) {
   ok(sim.gulagQueue.length === 1, 'T10: B kvar i kö');
 })();
 
+// ---- T11 (v1.807): disconnectad förlorare elimineras + aliveCount sänks ----
+(function () {
+  const sim = makeSim();
+  addPlayer(sim, 'A'); addPlayer(sim, 'B');
+  enterGulag(sim, 'A', sim.room.members.get('A'));
+  enterGulag(sim, 'B', sim.room.members.get('B'));
+  gulagMatchmake(sim, 1000);
+  sim.battleroyaleAliveCount = 2;
+  sim.room.members.delete('B'); // B disconnectar mitt i duellen
+  tickGulag(sim, 0.05, 1100);   // wsB saknas → resolveGulag (A vinner)
+  ok(sim.battleroyaleEliminated.includes('B'), 'T11: disconnectad B eliminerad');
+  ok(sim.battleroyaleAliveCount === 1, 'T11: aliveCount 2→1 (annars fastnar matchen)');
+})();
+
 console.log(`\nGULAG-TEST: ${pass} OK, ${fail} fel`);
 process.exit(fail > 0 ? 1 : 0);

@@ -316,14 +316,18 @@ function resolveGulag(sim, m, winnerPid, loserPid, now) {
     const ps = lWs.playerState;
     clearGulagFields(ps);
     ps.brDowned = false; ps.hp = 0; ps.spectating = true;
-    if (!sim.battleroyaleEliminated.includes(loserPid)) {
-      placement = sim.battleroyaleAliveCount;
-      sim.battleroyaleRanks[loserPid] = placement;
-      sim.battleroyaleEliminated.push(loserPid);
-      sim.battleroyaleAliveCount = Math.max(0, sim.battleroyaleAliveCount - 1);
-      sim.tdmDeathsByPid[loserPid] = (sim.tdmDeathsByPid[loserPid] || 0) + 1;
-      lWs.tdmRespawnAt = 0;
-    }
+  }
+  // v1.807: elimineringen sker OAVSETT om lWs finns kvar — en spelare som disconnectade
+  // mitt i duellen är fortf. eliminerad. Annars sänktes aldrig aliveCount → 2-spelarmatch
+  // kunde aldrig avgöras (win-checken triggade aldrig). `!includes`-guarden hindrar
+  // dubbel-elim om handleDisconnect redan hann eliminera.
+  if (!sim.battleroyaleEliminated.includes(loserPid)) {
+    placement = sim.battleroyaleAliveCount;
+    sim.battleroyaleRanks[loserPid] = placement;
+    sim.battleroyaleEliminated.push(loserPid);
+    sim.battleroyaleAliveCount = Math.max(0, sim.battleroyaleAliveCount - 1);
+    sim.tdmDeathsByPid[loserPid] = (sim.tdmDeathsByPid[loserPid] || 0) + 1;
+    if (lWs) lWs.tdmRespawnAt = 0;
   }
   sim.eventQueue.push({
     type: 'gulag_lost', peerId: loserPid, placement, aliveCount: sim.battleroyaleAliveCount,
@@ -589,7 +593,7 @@ function tickGulag(sim, dt, now) {
       m.lastTickEmit = now;
       sim.eventQueue.push({
         type: 'gulag_tick', matchId: m.id, a: m.a, b: m.b,
-        platformR: Math.round(m.platformR), ringR: Math.round(m.ringR),
+        platformR: Math.round(m.platformR || 0), ringR: Math.round(m.ringR || 0), // v1.807: || 0 (ej NaN→null på tråden)
         fallen: m.fallenTiles.slice(),
         warn: (m.warningTiles || []).map(w => w.idx),
         bombHolder: m.bombHolder, bombMs: m.bombEndsAt ? Math.max(0, m.bombEndsAt - now) : 0,

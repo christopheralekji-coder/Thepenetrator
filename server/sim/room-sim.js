@@ -6794,6 +6794,15 @@ function startSim(sim, opts) {
       ws.playerState._brLastWeapon = null;
       ws.playerState._brLastAttackerAt = 0;
       ws._brCreditedKill = false;
+      // v1.807: defensiv nollställning av ALLA gulag-temp-fält vid match-start (clearGulagFields
+      // gör det vid resolve, men en reconnect/edge utan teardown ska ej läcka buffs till live-BR).
+      ws.playerState.gulagState = null;
+      ws.playerState._gulagWeapons = null; ws.playerState._gulagWeapon = null;
+      ws.playerState._gulagDmgUntil = 0; ws.playerState._gulagVampUntil = 0;
+      ws.playerState._gulagSpeedUntil = 0; ws.playerState._gulagGunUntil = 0;
+      ws.playerState._gulagFrozenUntil = 0; ws.playerState._gulagSlowUntil = 0;
+      ws.playerState._gulagConfuseUntil = 0; ws.playerState._gulagMagnetUntil = 0;
+      ws.playerState._gulagKnockUntil = 0;
       ws.playerState.brPerks = {};        // (v1.742) köpta perks: fast_hands/double_time/ghost/tracker/high_alert
       ws.playerState.brContract = null;   // (v1.746) aktivt kontrakt {id,type,...}
       ws.tdmRespawnAt = 0;
@@ -7418,8 +7427,9 @@ function applyShoot(sim, peerId, msg) {
     stealthBonus: msg.stealthBonus || 1,
     perks: msg.perks || {}, cheats: msg.cheats || {},
   };
-  // v1.799: GULAG Frenzy BERSERK-powerup → 2× skada i 6s (server-auktoritärt)
-  if (ps._gulagDmgUntil && Date.now() < ps._gulagDmgUntil) params.dmgMul *= 2;
+  // v1.799/807: GULAG Frenzy BERSERK-powerup → 2× skada i 6s. gulagState-guard (v1.807):
+  // BARA under aktiv duell → berserk läcker aldrig till live-BR.
+  if (ps.gulagState === 'fighting' && ps._gulagDmgUntil && Date.now() < ps._gulagDmgUntil) params.dmgMul *= 2;
   // v1.416: Apply CD hero-perk effects to params
   if (sim.castledefenseActive) {
     const perk = sim.castledefensePerks[peerId];
