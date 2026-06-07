@@ -8781,6 +8781,8 @@ function drawSurvivorsBossIndicator() {
   ctx.restore();
 }
 
+// v1.809: cachat survivors-vinjett-gradient-objekt (invalideras vid resize)
+let _survVignetteCache = null;
 // Ash particles + vignette — kallas EFTER spelare/enemies (top layer)
 function drawSurvivorsArenaAmbient() {
   if (!state.survivorsActive) return;
@@ -8836,11 +8838,16 @@ function drawSurvivorsArenaAmbient() {
       ctx.fill();
     }
   }
-  // Vignette: mörkare hörn för "post-apocalyptic" feel
-  const vignette = ctx.createRadialGradient(viewW / 2, viewH / 2, viewH * 0.4, viewW / 2, viewH / 2, viewH * 0.8);
-  vignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
-  vignette.addColorStop(1, 'rgba(20, 5, 0, 0.55)');
-  ctx.fillStyle = vignette;
+  // Vignette: mörkare hörn för "post-apocalyptic" feel. v1.809: CACHA gradient-objektet
+  // (fasta params, ändras bara vid resize) → ingen createRadialGradient+addColorStop varje
+  // frame. Identisk visuell, billigare CPU. Invalideras när viewW/viewH ändras.
+  if (!_survVignetteCache || _survVignetteCache.w !== viewW || _survVignetteCache.h !== viewH) {
+    const _vg = ctx.createRadialGradient(viewW / 2, viewH / 2, viewH * 0.4, viewW / 2, viewH / 2, viewH * 0.8);
+    _vg.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    _vg.addColorStop(1, 'rgba(20, 5, 0, 0.55)');
+    _survVignetteCache = { w: viewW, h: viewH, grad: _vg };
+  }
+  ctx.fillStyle = _survVignetteCache.grad;
   ctx.fillRect(0, 0, viewW, viewH);
   ctx.restore();
 }
@@ -19526,10 +19533,25 @@ document.addEventListener('click', (e) => {
   if (!Audio.ctx && Audio.init) { Audio.init(); if (Audio.ctx && Audio.ctx.state === 'suspended') Audio.ctx.resume(); }
   if (Audio.uiClick) Audio.uiClick();
 }, true);
-// Resume audio vid visibility-change (iOS pausar bakgrund)
+// v1.809: PAUSA hela loopen + suspenda audio vid document.hidden (spar batteri/värme).
+// På native iOS suspenderar OS:et ändå appen i bakgrund, men detta täcker skärm-skymd-
+// fallet (Control Center/notis) OCH ger en REN resume (ingen jätte-dt-hack-frame, resize
+// vid ev. rotation). I online-match (coop/TDM/BR) rör vi INTE websocketen — server-auth-
+// snapshots resynkar state vid nästa paket; vi simulerar ALDRIG ikapp lokalt.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden && Audio.ctx && Audio.ctx.state === 'suspended') {
-    Audio.ctx.resume();
+  if (document.hidden) {
+    if (_rafId) { cancelAnimationFrame(_rafId); _rafId = 0; }
+    _loopPaused = true;
+    if (Audio.ctx && Audio.ctx.state === 'running' && Audio.ctx.suspend) { try { Audio.ctx.suspend(); } catch (e) {} }
+  } else {
+    if (Audio.ctx && Audio.ctx.state === 'suspended' && Audio.ctx.resume) { try { Audio.ctx.resume(); } catch (e) {} }
+    if (_loopPaused) {
+      _loopPaused = false;
+      const _n = performance.now();
+      lastTime = _n; _lastFrameAt = _n; // nollställ tids-baser → ingen hack-frame
+      if (typeof resize === 'function') { try { resize(); } catch (e) {} } // skärmen kan ha roterats
+      _rafId = requestAnimationFrame(loop);
+    }
   }
 });
 
@@ -19689,11 +19711,12 @@ function spawnSparks(x, y, color, count = 6, speed = 220, gravity = 320) {
   for (let i = 0; i < count; i++) {
     const a = Math.random() * Math.PI * 2;
     const sp = speed * (0.5 + Math.random() * 0.8);
-    state.particles.push({
-      x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - speed * 0.3,
-      isSpark: true, color, r: 1.5 + Math.random(),
-      life: 0.35 + Math.random() * 0.25, gravity,
-    });
+    // v1.809: via poolen (wipad obj) i st.f. färsk literal → mindre GC i strid.
+    const _p = getParticleFromPool();
+    _p.x = x; _p.y = y; _p.vx = Math.cos(a) * sp; _p.vy = Math.sin(a) * sp - speed * 0.3;
+    _p.isSpark = true; _p.color = color; _p.r = 1.5 + Math.random();
+    _p.life = 0.35 + Math.random() * 0.25; _p.gravity = gravity;
+    state.particles.push(_p);
   }
 }
 // v1.707: blod-spray när SPELAREN tar HP-skada (hit confirmation). angle = riktning MOT
@@ -20982,7 +21005,14 @@ function updatePixiDiagOverlay() {
   const camY = Math.round(state.camera ? state.camera.y : 0);
   const worldX = pixiState.ready && pixiState.containers.world ? Math.round(pixiState.containers.world.position.x) : 0;
   const worldY = pixiState.ready && pixiState.containers.world ? Math.round(pixiState.containers.world.position.y) : 0;
-  el.innerHTML = `<div>FPS: ${_pixiDiagState.fps}</div>` +
+  // v1.809: PERF-rad — TARGET_FPS-cap, frame-cost-EMA, DPR, kvalitets-tier, pool-storlekar
+  const _dpr = (window.devicePixelRatio || 1).toFixed(2);
+  const _q = (typeof save !== 'undefined' && save && save.quality) || '?';
+  const _poolP = (typeof _particlePool !== 'undefined') ? _particlePool.length : 0;
+  const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
+  const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
+  el.innerHTML = `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
+    `<div style="color:#ffe14a;font-size:9px">DPR:${_dpr} q:${_q} pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
     `<div>Pixi: ${pixiState.diagFrameTime.toFixed(1)}ms</div>` +
     `<div>Enemies: ${enemiesCount} Bullets: ${bulletsCount}</div>` +
     `<div>Particles: ${particlesCount}</div>` +
@@ -34765,7 +34795,10 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
       }
       if (_isInsideBrWall(spawnX, spawnY)) continue; // skip om inuti wall
     }
-    state.bullets.push({
+    // v1.809: via bullet-poolen (wipad obj + Object.assign = identiskt med färsk literal,
+    // inga ghost-fält) → mindre GC i minigun/shotgun-bursts.
+    const _nb = getBulletFromPool();
+    Object.assign(_nb, {
       x: spawnX, y: spawnY,
       vx: Math.cos(ang)*speed, vy: Math.sin(ang)*speed,
       dmg: w.dmg * (p.dmgMul || 1) * adrenalineDmg * stealthBonus * (isCrit ? 2 : 1) * (isHead ? 3 : 1) * ultDmgMul * weaponLevelDmgBonus(w.id) * (state.survivorsActive ? ((1 + getSurvivorsPerkSum('dmg')) * (getSurvivorsPerkSum('berserker') > 0 && p.hp < p.maxHp * 0.5 ? (1 + Math.min(0.5, (1 - p.hp / p.maxHp))) : 1)) : 1),
@@ -34792,6 +34825,7 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
       cheatPen,
       cheatUlt,
     });
+    state.bullets.push(_nb);
     if (_coopShots) {
       const _bul = state.bullets[state.bullets.length - 1];
       // v1.502: skicka även style + mascot så partner-bullets renderas korrekt
@@ -35576,11 +35610,11 @@ function spawnParticles(x, y, color, count, speed) {
   for (let i = 0; i < adjusted; i++) {
     const a = Math.random() * Math.PI * 2;
     const s = speed * (0.4 + Math.random() * 0.8);
-    state.particles.push({
-      x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
-      life: 0.4 + Math.random()*0.4, color,
-      r: 2 + Math.random()*2,
-    });
+    // v1.809: via poolen (wipad obj) → mindre GC
+    const _p = getParticleFromPool();
+    _p.x = x; _p.y = y; _p.vx = Math.cos(a) * s; _p.vy = Math.sin(a) * s;
+    _p.life = 0.4 + Math.random() * 0.4; _p.color = color; _p.r = 2 + Math.random() * 2;
+    state.particles.push(_p);
   }
 }
 function spawnSlash(x, y, ang, reach, color) {
@@ -44728,7 +44762,17 @@ function updateBullets(dt) {
       if (hit) b.dead = true;
     }
   }
-  state.bullets = state.bullets.filter(b => !b.dead);
+  // v1.809: SWAP-REMOVE in-place + recycle till pool (ingen ny array/frame = mindre GC).
+  // Ordningen ändras men spelar ingen roll visuellt (kulor är transienta, pixi-sync är
+  // index-baserad). recycleBullet wipar alla fält → inga ghost-bullets vid återanvändning.
+  const _bl = state.bullets;
+  for (let i = _bl.length - 1; i >= 0; i--) {
+    if (!_bl[i].dead) continue;
+    recycleBullet(_bl[i]);
+    const _last = _bl.length - 1;
+    if (i !== _last) _bl[i] = _bl[_last];
+    _bl.pop();
+  }
 }
 
 // Drift-emitter: kontinuerligt subtila bakgrunds-partiklar för varje stage-kind.
@@ -44933,6 +44977,18 @@ function recycleParticle(p) {
     _particlePool.push(p);
   }
 }
+// v1.809: Bullet-pool (samma mönster) — wipar ALLA fält vid recycling → inga ghost-bullets
+// när en återanvänd kula råkar ha kvar gammalt pierce/explosive/style från förra livet.
+const _bulletPool = [];
+function getBulletFromPool() {
+  return _bulletPool.pop() || {};
+}
+function recycleBullet(b) {
+  if (_bulletPool.length < 200) {
+    for (const k in b) delete b[k];
+    _bulletPool.push(b);
+  }
+}
 
 function updateParticles(dt) {
   for (const p of state.particles) {
@@ -44969,13 +45025,16 @@ function updateParticles(dt) {
     const removed = state.particles.splice(0, state.particles.length - particleCap);
     for (const p of removed) recycleParticle(p);
   }
-  // Filter dead particles + recycle them
-  const alive = [];
-  for (const p of state.particles) {
-    if (p.life > 0) alive.push(p);
-    else recycleParticle(p);
+  // v1.809: SWAP-REMOVE döda partiklar in-place + recycle (ingen ny array/frame = mindre
+  // GC). Ordningen ändras men spelar ingen roll visuellt för transienta partiklar.
+  const _pl = state.particles;
+  for (let i = _pl.length - 1; i >= 0; i--) {
+    if (_pl[i].life > 0) continue;
+    recycleParticle(_pl[i]);
+    const _last = _pl.length - 1;
+    if (i !== _last) _pl[i] = _pl[_last];
+    _pl.pop();
   }
-  state.particles = alive;
 }
 
 // v1.387: camera-recoil — kameran "punchar" motsatt fire-direction vid skott
@@ -77079,12 +77138,15 @@ let FRAME_MS = 1000 / TARGET_FPS;
 let _frameCostEMA = 16;
 let lastTime = performance.now();
 let _lastFrameAt = lastTime;
+let _rafId = 0;          // v1.809: spårad så document.hidden kan cancelAnimationFrame
+let _loopPaused = false; // v1.809: true mellan hidden→visible
 function loop(now) {
+  _rafId = requestAnimationFrame(loop); // schemalägg nästa överst → cancel funkar rent
+  const _playing = state.mode === 'playing';
+  // v1.809: meny/lobby/death-screen körs i 30fps (halverar arbete när man ej spelar).
+  const _effFrameMs = _playing ? FRAME_MS : (1000 / 30);
   const sinceLast = now - _lastFrameAt;
-  if (sinceLast < FRAME_MS - 1) {
-    requestAnimationFrame(loop);
-    return;
-  }
+  if (sinceLast < _effFrameMs - 1) return;
   _lastFrameAt = now;
   const dt = Math.min(0.05, (now - lastTime) / 1000);
   lastTime = now;
@@ -77097,23 +77159,16 @@ function loop(now) {
   try { runFrame(dt, now); } catch (e) {
     console.error('Frame error:', (e && e.message) || e);
   }
-  // Mät faktisk render-kostnad → justera cap:en adaptivt med hysteres.
-  const _cost = performance.now() - _frameT0;
-  _frameCostEMA += (_cost - _frameCostEMA) * 0.05;
-  // v1.702: TRE-tiers adaptiv cap (120/60/30) med hysteres. 60-capen lämnade
-  // 120Hz-telefoner (de flesta moderna flaggskepp) på juddrig "render-varannan-rAF"-60
-  // i st f mjuka native 120. Render-raten är frikopplad från input-send (Coop.tick har
-  // egen 17ms-gate) så 120fps floodar inte servern. FRAME_MS är bara ett TAK — på en
-  // 60Hz-skärm renderar rAF ändå bara 60/s även om TARGET_FPS=120 (ingen nackdel).
-  if (TARGET_FPS >= 120) {
-    if (_frameCostEMA > 11) { TARGET_FPS = 60; FRAME_MS = 1000 / 60; }
-  } else if (TARGET_FPS === 60) {
-    if (_frameCostEMA > 20) { TARGET_FPS = 30; FRAME_MS = 1000 / 30; }
-    else if (_frameCostEMA < 6) { TARGET_FPS = 120; FRAME_MS = 1000 / 120; }
-  } else { // 30
-    if (_frameCostEMA < 12) { TARGET_FPS = 60; FRAME_MS = 1000 / 60; }
+  // v1.809: adaptiv cap MAX 60 + 30-fallback med hysteres. 120-tieret BORTTAGET — EMA:n
+  // mäter bara JS-tid (runFrame), inte GPU/compositing/termik, så den kunde felaktigt
+  // dra upp till 120fps på ProMotion-telefoner och dubbla GPU-arbetet → värme. 60 räcker.
+  // Mät + adaptera BARA under spel (menyns billiga frames skulle annars förvränga EMA:n).
+  if (_playing) {
+    const _cost = performance.now() - _frameT0;
+    _frameCostEMA += (_cost - _frameCostEMA) * 0.05;
+    if (TARGET_FPS === 60) { if (_frameCostEMA > 20) { TARGET_FPS = 30; FRAME_MS = 1000 / 30; } }
+    else { if (_frameCostEMA < 12) { TARGET_FPS = 60; FRAME_MS = 1000 / 60; } } // 30→60 recovery (hysteres-gap 12–20)
   }
-  requestAnimationFrame(loop);
 }
 function runFrame(dt, now) {
   state._lastDt = dt; // v1.705: exponera dt till draw-funktioner (walk-cykler) för 120fps-korrekt animation
@@ -77562,11 +77617,18 @@ function runFrame(dt, now) {
   render();
   // v1.534: PixiJS-render efter Canvas2D. Pixi-canvas är under Canvas2D
   // (z-index 0 vs 1) men båda måste anropas per frame för att uppdateras.
-  if (typeof renderPixiFrame === 'function') renderPixiFrame();
-  if (typeof updatePixiDiagOverlay === 'function') updatePixiDiagOverlay();
+  // v1.809: hoppa över Pixi-render + diag-overlay när man EJ spelar (meny/lobby/death-
+  // screen) — sparar GPU/CPU. "Flush-once": rendera EN extra frame efter att man lämnat
+  // spel så den (nu tömda) scenen rensas från pixi-canvasen (inget fryst kvar).
+  const _playingNow = state.mode === 'playing';
+  if (_playingNow || state._pixiNeedsFlush) {
+    if (typeof renderPixiFrame === 'function') renderPixiFrame();
+  }
+  state._pixiNeedsFlush = _playingNow;
+  if (_playingNow && typeof updatePixiDiagOverlay === 'function') updatePixiDiagOverlay();
 }
 
-requestAnimationFrame(loop);
+_rafId = requestAnimationFrame(loop);
 
 // Förhindra default touch-scroll på canvas + dismiss dialog (endast på knapp).
 // Använd changedTouches (nya touchen i denna event), inte touches[0] — annars
