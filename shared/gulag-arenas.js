@@ -58,7 +58,7 @@ const GULAG_GAMES = {
     // v1.796: krymper snabbare (full krymp vid 24s, var 36s) + mindre slutplattform +
     // hårdare knuff → tvingar avgörande närkamp, undviker timeout-tiebreak.
     platformR0: 440, platformRmin: 105, shrinkStartMs: 4000, shrinkMs: 20000,
-    knockForce: 660,
+    knockForce: 140,  // v1.800: ~20% av tidigare (660) — knuffade ALLDELES för långt
     build(ox, oy) {
       return {
         shape: 'platform', groundColor: '#070712',

@@ -7370,7 +7370,15 @@ function applyShoot(sim, peerId, msg) {
   // "weaponId: railgun" och få railgun-dmg från turret-position.
   let weaponId = msg.weaponId || ps.weaponId || 'pistol';
   // GULAG (v1.790): tvinga duellens vapen (anti-cheat — ingen rocket i gulagen)
-  if (ps.gulagState === 'fighting' && ps._gulagWeapon) weaponId = ps._gulagWeapon;
+  if (ps.gulagState === 'fighting' && ps._gulagWeapon) {
+    // v1.800: Frenzy — tillåt byte mellan UPPLOCKADE vapen (radialen) + pistol; annars
+    // lås till duell-vapnet (anti-cheat: ingen rocket i void osv).
+    if (ps._gulagGame === 'frenzy' && (msg.weaponId === 'pistol' || (Array.isArray(ps._gulagWeapons) && ps._gulagWeapons.includes(msg.weaponId)))) {
+      weaponId = msg.weaponId;
+    } else {
+      weaponId = ps._gulagWeapon;
+    }
+  }
   if (ps.cdDowned) weaponId = 'knife';
   // v1.401 anti-cheat: Castle Defense — validera mot vapen-tier
   if (sim.castledefenseActive && msg.weaponId) {

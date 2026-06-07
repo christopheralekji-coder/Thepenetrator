@@ -165,6 +165,8 @@ function startGulagMatch(sim, pidA, pidB, now) {
     ps.invulnUntil = now + 800; // spawn-grace + skydd mot in-flight-position-desync
     ps.brDowned = false; ps.spectating = false;
     ps._gulagSpeedUntil = 0; ps._gulagGunUntil = 0;
+    ps._gulagWeapons = [lo.weaponId]; ps._gulagDmgUntil = 0; ps._gulagFrozenUntil = 0; // v1.800: frenzy/freeze/berserk-state fräsch
+    ps._gulagKnockUntil = 0;
   });
 
   const match = {
@@ -263,6 +265,9 @@ function clearGulagFields(ps) {
   ps.gulagState = null;
   ps._gulagMatchId = null; ps._gulagGame = null; ps._gulagWeapon = null;
   ps._gulagNoShoot = false; ps._gulagSpeedUntil = 0; ps._gulagGunUntil = 0;
+  // v1.800: rensa frenzy/void-temp-state så det ej läcker till nästa duell/match
+  ps._gulagWeapons = null; ps._gulagDmgUntil = 0; ps._gulagFrozenUntil = 0;
+  ps._gulagKnockUntil = 0; ps._gulagKnockDX = 0; ps._gulagKnockDY = 0;
   // v1.798: rensa kill-credit-state — annars fick gulag-MOTSTÅNDAREN (redan eliminerad)
   // kill-credit om vinnaren dog kort efter redeploy (fel kills + cash till en spöke).
   ps._brLastAttacker = null; ps._brLastWeapon = null; ps._brLastAttackerAt = 0;
@@ -314,6 +319,8 @@ function resolveGulag(sim, m, winnerPid, loserPid, now) {
   });
 }
 
+// v1.800: vapen-powerups i frenzy (ackumuleras i förrådet, byts via radialen)
+const FRENZY_WEAPON_KINDS = ['shotgun', 'smg', 'rifle'];
 // v1.799: KREATIVA powerups (ej bara vapen) — freeze hanteras i pickup-loopen (träffar
 // motståndaren). Self-buffs här: shield/heal/speed/berserk.
 function applyFrenzyPowerup(ps, kind, now) {
@@ -386,9 +393,9 @@ function tickGulag(sim, dt, now) {
           const spots = m.geo.powerupSpawns || [];
           if (spots.length) {
             const spot = spots[Math.floor(Math.random() * spots.length)];
-            // v1.799: KREATIVA powerups istället för vapen — ❄️FREEZE (frys motståndaren
-            // 1.4s) + 💥BERSERK (2× skada 6s) + utility (shield/heal/speed). Vapen borttagna.
-            const kinds = ['shield', 'heal', 'speed', 'berserk', 'freeze'];
+            // v1.800: KREATIVA powerups (freeze/berserk/utility) + VAPEN som ACKUMULERAS
+            // i vapen-radialen (byt fritt mellan upplockade — ej fast på senaste).
+            const kinds = ['shield', 'heal', 'speed', 'berserk', 'freeze', 'shotgun', 'smg', 'rifle'];
             m.powerups.push({ id: 'pu' + (++m.puCounter), x: spot.x, y: spot.y, kind: kinds[Math.floor(Math.random() * kinds.length)] });
             m.nextPowerupAt = now + game.powerupEverMs;
           }
@@ -404,6 +411,12 @@ function tickGulag(sim, dt, now) {
                 const oppPid = (pid === m.a) ? m.b : m.a;
                 const ows = sim.room.members.get(oppPid);
                 if (ows && ows.playerState) { ows.playerState._gulagFrozenUntil = now + 1400; sim.eventQueue.push({ type: 'gulag_frozen', peerId: oppPid, ms: 1400 }); }
+              } else if (FRENZY_WEAPON_KINDS.includes(pu.kind)) {
+                // 🔫 VAPEN — ackumulera i förrådet (permanent), equippa senaste. applyShoot
+                // tillåter byte mellan ps._gulagWeapons → man kan välja via radialen.
+                if (!Array.isArray(ps._gulagWeapons)) ps._gulagWeapons = [];
+                if (!ps._gulagWeapons.includes(pu.kind)) ps._gulagWeapons.push(pu.kind);
+                ps._gulagWeapon = pu.kind; ps.weaponId = pu.kind;
               } else {
                 applyFrenzyPowerup(ps, pu.kind, now);
               }
@@ -464,7 +477,11 @@ function tickGulag(sim, dt, now) {
           const rec = m.tileStandSince[pid];
           if (!rec || rec.idx !== idx) m.tileStandSince[pid] = { idx, since: now };
           else if (now - rec.since > game.standCrumbleMs && !m.fallenTiles.includes(idx)) {
-            m.fallenTiles.push(idx); m.tileStandSince[pid] = null;
+            // v1.800: TELEGRAFERA crumble — plattan BLINKAR (warningTiles) i 500ms innan
+            // den faller, i st.f. instant fall (tidigare försvann den abrupt under en
+            // som stod stilla → såg ut som en bugg). Promoteras av warning-loopen ovan.
+            if (!m.warningTiles.some(w => w.idx === idx)) m.warningTiles.push({ idx, fallAt: now + 500 });
+            m.tileStandSince[pid] = null;
           }
         });
         // off-hole-tidsstämpel → RÄTTVIS dubbel-fall-tiebreak (ingen coin-flip i en

@@ -21658,10 +21658,17 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
   }
 
   function buildSlots() {
+    // v1.800: GULAG — i frenzy visas FÖRRÅDET (upplockade vapen); i övriga gulag-spel
+    // (void/oneshot/blade/bombtag/floorlava) ska radialen INTE öppnas (låst loadout).
+    const _inGulagFrenzy = state.gulag && state.gulag.game === 'frenzy';
+    if (state.gulag && !_inGulagFrenzy) return false;
     // Vilka vapen visas? equippat vapen = state.player.weaponId i PvP, annars save.equipped.
-    const _equippedId = state.tdmActive ? (state.player && state.player.weaponId) : save.equipped;
+    const _equippedId = (state.tdmActive || _inGulagFrenzy) ? (state.player && state.player.weaponId) : save.equipped;
     let weaponList = null;
-    if (state.tdmActive) {
+    if (_inGulagFrenzy) {
+      const inv = Array.isArray(state._gulagInventory) ? state._gulagInventory : ['pistol'];
+      weaponList = inv.map(id => WEAPONS.find(w => w.id === id)).filter(Boolean);
+    } else if (state.tdmActive) {
       // TDM fy_: BARA vapnen man plockat upp denna runda (förrådet) — ej hela arsenalen
       const inv = Array.isArray(state._tdmInventory) ? state._tdmInventory : ['pistol'];
       weaponList = inv.map(id => WEAPONS.find(w => w.id === id)).filter(Boolean);
@@ -21782,8 +21789,8 @@ window.addEventListener('mouseup',     (e) => { if (fireJoyTouchId === 'mouse') 
     if (!active) return;
     if (commit && selectedIdx >= 0) {
       const wid = slots[selectedIdx].id;
-      if (state.tdmActive) {
-        // TDM fy_: byt mellan upplockade vapen (förråd) — equipPvpWeapon (ingen save-mutation, synkar)
+      if (state.tdmActive || (state.gulag && state.gulag.game === 'frenzy')) {
+        // TDM/Frenzy: byt mellan upplockade vapen (förråd) — equipPvpWeapon (ingen save-mutation, synkar)
         if (state.player && wid !== state.player.weaponId && typeof equipPvpWeapon === 'function') equipPvpWeapon(wid);
       } else if (wid !== save.equipped) {
         // Story/standard: equip() ändrar save.equipped + state.player.weaponId
@@ -26279,6 +26286,7 @@ const Coop = {
           speedMul: 1, speedUntil: 0, gunUntil: 0, knockUntil: 0, knockVX: 0, knockVY: 0,
         };
         state.deadBody = null;
+        state._gulagInventory = [ev.loadoutWeapon]; // v1.800: Frenzy vapen-förråd (radial)
         if (state.player) {
           state.player.spectating = false; state.player.specTarget = null;
           state.player.x = sp.x; state.player.y = sp.y; state.player.aimAngle = sp.facing || 0;
@@ -26331,10 +26339,16 @@ const Coop = {
     } else if (ev.type === 'gulag_powerup') {
       if (ev.peerId === this.myId && state.gulag) {
         const g = state.gulag;
-        // v1.799: kreativa powerups — freeze (på motståndaren), berserk (2× dmg 6s)
+        const FRENZY_WEAPONS = { shotgun: 'Hagelgevär', smg: 'SMG', rifle: 'Gevär' };
+        // v1.800: kreativa powerups + VAPEN som ackumuleras i radialen
         if (ev.kind === 'speed') { g.speedMul = 1.6; g.speedUntil = performance.now() + 5000; }
         else if (ev.kind === 'berserk') { g.berserkUntil = performance.now() + 6000; }
-        const _puTxt = ev.kind === 'shield' ? '+Sköld' : ev.kind === 'heal' ? '+HP' : ev.kind === 'speed' ? 'Fart!' : ev.kind === 'berserk' ? '💥 BERSERK 2× skada!' : ev.kind === 'freeze' ? '❄️ Fryste motståndaren!' : 'Powerup!';
+        else if (FRENZY_WEAPONS[ev.kind]) {
+          if (!Array.isArray(state._gulagInventory)) state._gulagInventory = ['pistol'];
+          if (state._gulagInventory.indexOf(ev.kind) < 0) state._gulagInventory.push(ev.kind);
+          if (typeof equipPvpWeapon === 'function') equipPvpWeapon(ev.kind); // equippa senaste (byt via ⚔-radialen)
+        }
+        const _puTxt = ev.kind === 'shield' ? '+Sköld' : ev.kind === 'heal' ? '+HP' : ev.kind === 'speed' ? 'Fart!' : ev.kind === 'berserk' ? '💥 BERSERK 2× skada!' : ev.kind === 'freeze' ? '❄️ Fryste motståndaren!' : FRENZY_WEAPONS[ev.kind] ? ('🔫 ' + FRENZY_WEAPONS[ev.kind] + ' → ⚔ radial') : 'Powerup!';
         if (typeof showToast === 'function') showToast('⚡ ' + _puTxt);
         if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
       }
@@ -34460,10 +34474,11 @@ function tryShoot(now) {
       // den normala rörelsen i gulag-blocket. ~450px/s i 130ms = ~58px, ~7.5px/frame =
       // inom serverns anti-cheat-budget → ingen desync, och man kan röra sig fritt samtidigt.
       const g = state.gulag;
-      g._lungeVX = Math.cos(p.aimAngle) * 450;
-      g._lungeVY = Math.sin(p.aimAngle) * 450;
-      g._lungeUntil = performance.now() + 130;
+      g._lungeVX = Math.cos(p.aimAngle) * 400; // v1.800: något kortare → mindre överskjut i lavan
+      g._lungeVY = Math.sin(p.aimAngle) * 400;
+      g._lungeUntil = performance.now() + 120;
       if (typeof triggerVibrate === 'function') triggerVibrate(10);
+      if (typeof spawnSparks === 'function') spawnSparks(p.x + Math.cos(p.aimAngle) * 30, p.y + Math.sin(p.aimAngle) * 30, '#7ad8ff', 4, 220); // saber-whoosh-gnistor
     }
     if (state.weaponsUsedThisStage) state.weaponsUsedThisStage.add(w.id);
     const ang = p.aimAngle;
@@ -43052,9 +43067,9 @@ function updatePlayer(dt, now) {
     }
     // expirera tidsbegränsade powerups (Frenzy) — spegla servern
     if (g.speedUntil && nowG > g.speedUntil) { g.speedMul = 1; g.speedUntil = 0; }
-    if (g.gunUntil && nowG > g.gunUntil) { g.gunUntil = 0; g.gunWeapon = null; p.weaponId = g.loadoutWeapon; }
-    // lås vapnet till duellens (eller aktiv vapen-powerup: shotgun/minigun/rocket — v1.795)
-    p.weaponId = (g.gunUntil && nowG < g.gunUntil) ? (g.gunWeapon || 'shotgun') : g.loadoutWeapon;
+    // v1.800: Frenzy — vapnet styrs av FÖRRÅDET/radialen (equipPvpWeapon), tvinga ej.
+    // Övriga spel: lås till duell-vapnet varje frame (anti-cheat / rätt loadout).
+    if (g.game !== 'frenzy') p.weaponId = g.loadoutWeapon;
     // arena-väggar (skydd) blockerar; plattform/ring/tiles INTE (man ska kunna falla)
     if (g.geo && g.geo.walls && g.geo.walls.length && typeof resolveCtfWall === 'function') {
       resolveCtfWall(p, g.geo.walls);
@@ -74130,18 +74145,28 @@ function drawGulagArena() {
   if (g.pu && g.pu.length) {
     for (const pu of g.pu) {
       const ux = pu.x - cx, uy = pu.y - cy;
-      // v1.795: färg/emoji per powerup-typ (inkl. nya minigun/rocket)
-      const PU_COL = { shield: '#5ac7ff', heal: '#5aff7a', speed: '#ffe14a', berserk: '#ff3a3a', freeze: '#7ad8ff' };
-      const PU_EMOJI = { shield: '🛡', heal: '➕', speed: '⚡', berserk: '💥', freeze: '❄️' };
-      const col = PU_COL[pu.kind] || '#ff6a3a';
+      // v1.800: färg/emoji per powerup-typ (utility + berserk/freeze + vapen)
+      const PU_COL = { shield: '#5ac7ff', heal: '#5aff7a', speed: '#ffe14a', berserk: '#ff5a3a', freeze: '#7ad8ff', shotgun: '#ff9a3a', smg: '#c0a0ff', rifle: '#ffd14a' };
+      const PU_EMOJI = { shield: '🛡', heal: '➕', speed: '⚡', berserk: '💥', freeze: '❄️', shotgun: '🔫', smg: '🔫', rifle: '🔫' };
+      const col = PU_COL[pu.kind] || '#ffd14a';
       ctx.save(); ctx.translate(ux, uy);
-      const s = 1 + 0.18 * Math.sin(now / 180);
-      // v1.796: större + ljus-pelare så typen läses på avstånd (mobil) → spelarna RACAR
-      // efter kända priser istället för att gissa-greppa.
-      ctx.globalAlpha = 0.18; ctx.fillStyle = col; ctx.fillRect(-5, -120, 10, 120); // beam uppåt
-      ctx.globalAlpha = 0.40; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 30 * s, 0, 7); ctx.fill();
-      ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 18, 0, 7); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const s = 1 + 0.16 * Math.sin(now / 180);
+      const bob = Math.sin(now / 320) * 3;
+      // v1.800: GUDOMLIG LJUS-KON NEDIFRÅN HIMLEN — bred topp som smalnar ner på powerupen
+      // (var en pelare uppåt; användaren ville ha ljuset uppifrån-ner). Mjuk pulsande.
+      const beamA = 0.12 + 0.06 * Math.abs(Math.sin(now / 260));
+      ctx.globalAlpha = beamA; ctx.fillStyle = col;
+      ctx.beginPath(); ctx.moveTo(-34, -170); ctx.lineTo(34, -170); ctx.lineTo(12, 2); ctx.lineTo(-12, 2); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = beamA * 1.5;
+      ctx.beginPath(); ctx.moveTo(-16, -170); ctx.lineTo(16, -170); ctx.lineTo(7, 2); ctx.lineTo(-7, 2); ctx.closePath(); ctx.fill();
+      // mark-glöd (där ljuset landar)
+      ctx.globalAlpha = 0.30; ctx.beginPath(); ctx.ellipse(0, 6, 26, 9, 0, 0, 7); ctx.fill();
+      // svävande orb + ikon
+      ctx.translate(0, bob);
+      ctx.globalAlpha = 0.40; ctx.beginPath(); ctx.arc(0, 0, 26 * s, 0, 7); ctx.fill();
+      ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(0, 0, 17, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 17, 0, 7); ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 19px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(PU_EMOJI[pu.kind] || '🔫', 0, 1);
       ctx.restore();
     }
@@ -74158,6 +74183,11 @@ function drawGulagArena() {
       const urg = g.bombMs > 0 ? Math.max(0, Math.min(1, 1 - g.bombMs / 6000)) : 1;
       const pulse = 0.55 + 0.45 * Math.abs(Math.sin(now / (95 - urg * 68)));
       const sc = 1 + urg * 0.55 + 0.12 * pulse;
+      // v1.800: glödande mark-aura under hållaren → jakten blir läsbar på avstånd
+      const gg = ctx.createRadialGradient(bx - cx, by - cy, 4, bx - cx, by - cy, 46);
+      gg.addColorStop(0, 'rgba(255,' + Math.round(120 - urg * 100) + ',30,' + (0.32 + 0.2 * pulse) + ')');
+      gg.addColorStop(1, 'rgba(255,60,20,0)');
+      ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(bx - cx, by - cy, 46, 0, 7); ctx.fill();
       ctx.strokeStyle = 'rgba(255,' + Math.round(80 - urg * 70) + ',20,' + (0.25 + 0.5 * pulse * (0.3 + urg)) + ')';
       ctx.lineWidth = 3 + 6 * urg;
       ctx.beginPath(); ctx.arc(bx - cx, by - cy, 30 + 12 * pulse, 0, 7); ctx.stroke();
@@ -74188,6 +74218,23 @@ function drawGulagArena() {
       const bgr = ctx.createRadialGradient(ax, ay, 4, ax, ay, 40);
       bgr.addColorStop(0, 'rgba(255,60,40,' + (0.32 + 0.22 * Math.abs(Math.sin(now / 100))) + ')'); bgr.addColorStop(1, 'rgba(255,40,20,0)');
       ctx.fillStyle = bgr; ctx.beginPath(); ctx.arc(ax, ay, 40, 0, 7); ctx.fill();
+    }
+  }
+  // v1.800: ONE SHOT — periodisk SONAR-ping som avslöjar motståndarens position ~0.95s
+  // var ~3.2s → tvingar rörelse, bryter camping, katt-och-råtta (symmetriskt = rättvist).
+  if (g.game === 'oneshot') {
+    if (!g._nextPingAt) g._nextPingAt = now + 2200;
+    if (now >= g._nextPingAt) { g._pingUntil = now + 950; g._nextPingAt = now + 3200; if (typeof triggerVibrate === 'function') triggerVibrate(6); }
+    if (g._pingUntil && now < g._pingUntil) {
+      const opp = Coop.players && Coop.players.get(g.oppPid);
+      if (opp && opp.x != null) {
+        const ox = opp.x - cx, oy = opp.y - cy;
+        const tt = 1 - (g._pingUntil - now) / 950; // 0→1
+        ctx.strokeStyle = 'rgba(255,70,70,' + (0.85 * (1 - tt)).toFixed(3) + ')'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(ox, oy, 12 + tt * 64, 0, 7); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,90,90,' + (0.9 * (1 - tt)).toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(ox, oy, 5, 0, 7); ctx.fill();
+      }
     }
   }
   // Väggar/skydd (arena) — ritas i golv-passet (under spelarna)
