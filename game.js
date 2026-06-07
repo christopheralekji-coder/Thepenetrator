@@ -74238,37 +74238,52 @@ function drawGulagArena() {
       const bx = b.x - cx, by = b.y - cy;
       ctx.fillStyle = geo.groundColor || '#1a1a2e';
       ctx.fillRect(bx, by, b.w, b.h);
-      // v1.801: EGET TEMA-GOLV per bana (ej bara fyrkant-grid)
+      // v1.804: EGET TEMA-GOLV per bana med TYDLIGA alternerande paneler (var för svaga
+      // innan — osynliga på mörka golv). Klippt till arena-gränsen.
+      ctx.save(); ctx.beginPath(); ctx.rect(bx, by, b.w, b.h); ctx.clip();
+      const _T = 120;
+      const _cols = Math.ceil(b.w / _T), _rows = Math.ceil(b.h / _T);
       if (g.game === 'frenzy') {
-        // arkad-energigolv: pulsande neon-grid + glödnoder i korsningarna
-        const T = 130, pul = 0.08 + 0.06 * Math.abs(Math.sin(now / 480));
-        ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(90,170,255,' + pul.toFixed(3) + ')';
-        for (let gx = b.x; gx <= b.x + b.w; gx += T) { ctx.beginPath(); ctx.moveTo(gx - cx, by); ctx.lineTo(gx - cx, by + b.h); ctx.stroke(); }
-        for (let gy = b.y; gy <= b.y + b.h; gy += T) { ctx.beginPath(); ctx.moveTo(bx, gy - cy); ctx.lineTo(bx + b.w, gy - cy); ctx.stroke(); }
-        ctx.fillStyle = 'rgba(140,210,255,' + (0.16 + 0.12 * Math.abs(Math.sin(now / 380))).toFixed(3) + ')';
-        for (let gx = b.x; gx <= b.x + b.w; gx += T) for (let gy = b.y; gy <= b.y + b.h; gy += T) { ctx.beginPath(); ctx.arc(gx - cx, gy - cy, 2.6, 0, 7); ctx.fill(); }
+        // arkad-energigolv: alternerande blå paneler + lysande neon-grid + glödnoder
+        for (let c = 0; c < _cols; c++) for (let rr = 0; rr < _rows; rr++) {
+          if ((c + rr) % 2 === 0) { ctx.fillStyle = 'rgba(60,110,210,0.16)'; ctx.fillRect(bx + c * _T, by + rr * _T, _T, _T); }
+        }
+        const pul = 0.30 + 0.20 * Math.abs(Math.sin(now / 440));
+        ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(110,190,255,' + pul.toFixed(3) + ')';
+        for (let gx = b.x; gx <= b.x + b.w; gx += _T) { ctx.beginPath(); ctx.moveTo(gx - cx, by); ctx.lineTo(gx - cx, by + b.h); ctx.stroke(); }
+        for (let gy = b.y; gy <= b.y + b.h; gy += _T) { ctx.beginPath(); ctx.moveTo(bx, gy - cy); ctx.lineTo(bx + b.w, gy - cy); ctx.stroke(); }
+        ctx.fillStyle = 'rgba(170,225,255,' + (0.5 + 0.3 * Math.abs(Math.sin(now / 360))).toFixed(3) + ')';
+        for (let gx = b.x; gx <= b.x + b.w; gx += _T) for (let gy = b.y; gy <= b.y + b.h; gy += _T) { ctx.beginPath(); ctx.arc(gx - cx, gy - cy, 3.5, 0, 7); ctx.fill(); }
       } else if (g.game === 'bombtag') {
-        // industrigolv: betongpaneler + svart/gul fara-stripe-ram + nitar
-        const T = 150;
-        ctx.strokeStyle = 'rgba(0,0,0,0.30)'; ctx.lineWidth = 2;
-        for (let gx = b.x; gx <= b.x + b.w; gx += T) { ctx.beginPath(); ctx.moveTo(gx - cx, by); ctx.lineTo(gx - cx, by + b.h); ctx.stroke(); }
-        for (let gy = b.y; gy <= b.y + b.h; gy += T) { ctx.beginPath(); ctx.moveTo(bx, gy - cy); ctx.lineTo(bx + b.w, gy - cy); ctx.stroke(); }
-        ctx.fillStyle = 'rgba(255,255,255,0.05)';
-        for (let gx = b.x + T / 2; gx <= b.x + b.w; gx += T) for (let gy = b.y + T / 2; gy <= b.y + b.h; gy += T) { ctx.fillRect(gx - cx - 2, gy - cy - 2, 4, 4); }
-        const sw = 16;
-        for (let i = 0; i < b.w; i += 28) { ctx.fillStyle = (Math.floor(i / 28) % 2) ? 'rgba(190,160,40,0.7)' : 'rgba(20,20,12,0.7)'; ctx.fillRect(bx + i, by, 28, sw); ctx.fillRect(bx + i, by + b.h - sw, 28, sw); }
+        // industrigolv: alternerande betongpaneler + tydliga fogar + nitar + gul/svart fara-ram (alla 4 sidor)
+        for (let c = 0; c < _cols; c++) for (let rr = 0; rr < _rows; rr++) {
+          ctx.fillStyle = ((c + rr) % 2 === 0) ? 'rgba(255,235,150,0.07)' : 'rgba(0,0,0,0.18)';
+          ctx.fillRect(bx + c * _T, by + rr * _T, _T, _T);
+        }
+        ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 2.5;
+        for (let gx = b.x; gx <= b.x + b.w; gx += _T) { ctx.beginPath(); ctx.moveTo(gx - cx, by); ctx.lineTo(gx - cx, by + b.h); ctx.stroke(); }
+        for (let gy = b.y; gy <= b.y + b.h; gy += _T) { ctx.beginPath(); ctx.moveTo(bx, gy - cy); ctx.lineTo(bx + b.w, gy - cy); ctx.stroke(); }
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        for (let gx = b.x + _T / 2; gx <= b.x + b.w; gx += _T) for (let gy = b.y + _T / 2; gy <= b.y + b.h; gy += _T) { ctx.beginPath(); ctx.arc(gx - cx, gy - cy, 2.2, 0, 7); ctx.fill(); }
+        const sw = 22;
+        for (let i = 0; i < b.w; i += 34) { ctx.fillStyle = (Math.floor(i / 34) % 2) ? 'rgba(210,175,40,0.85)' : 'rgba(25,22,12,0.85)'; ctx.fillRect(bx + i, by, 34, sw); ctx.fillRect(bx + i, by + b.h - sw, 34, sw); }
+        for (let j = 0; j < b.h; j += 34) { ctx.fillStyle = (Math.floor(j / 34) % 2) ? 'rgba(210,175,40,0.85)' : 'rgba(25,22,12,0.85)'; ctx.fillRect(bx, by + j, sw, 34); ctx.fillRect(bx + b.w - sw, by + j, sw, 34); }
       } else {
-        // oneshot (default): taktiska paneler + sikt-reticle i mitten + hörn-hatch
-        const T = 160;
-        ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
-        for (let gx = b.x; gx <= b.x + b.w; gx += T) { ctx.beginPath(); ctx.moveTo(gx - cx, by); ctx.lineTo(gx - cx, by + b.h); ctx.stroke(); }
-        for (let gy = b.y; gy <= b.y + b.h; gy += T) { ctx.beginPath(); ctx.moveTo(bx, gy - cy); ctx.lineTo(bx + b.w, gy - cy); ctx.stroke(); }
+        // oneshot: taktiskt golv — alternerande paneler + lysande fogar + tydligt center-reticle
+        for (let c = 0; c < _cols; c++) for (let rr = 0; rr < _rows; rr++) {
+          ctx.fillStyle = ((c + rr) % 2 === 0) ? 'rgba(180,120,210,0.12)' : 'rgba(0,0,0,0.22)';
+          ctx.fillRect(bx + c * _T, by + rr * _T, _T, _T);
+        }
+        ctx.strokeStyle = 'rgba(190,130,220,0.24)'; ctx.lineWidth = 1.5;
+        for (let gx = b.x; gx <= b.x + b.w; gx += _T) { ctx.beginPath(); ctx.moveTo(gx - cx, by); ctx.lineTo(gx - cx, by + b.h); ctx.stroke(); }
+        for (let gy = b.y; gy <= b.y + b.h; gy += _T) { ctx.beginPath(); ctx.moveTo(bx, gy - cy); ctx.lineTo(bx + b.w, gy - cy); ctx.stroke(); }
         const ccx = b.x + b.w / 2 - cx, ccy = b.y + b.h / 2 - cy;
-        ctx.strokeStyle = 'rgba(210,130,230,0.12)'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(ccx, ccy, 66, 0, 7); ctx.stroke();
-        ctx.beginPath(); ctx.arc(ccx, ccy, 34, 0, 7); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(ccx - 80, ccy); ctx.lineTo(ccx + 80, ccy); ctx.moveTo(ccx, ccy - 80); ctx.lineTo(ccx, ccy + 80); ctx.stroke();
+        ctx.strokeStyle = 'rgba(230,150,250,0.40)'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(ccx, ccy, 70, 0, 7); ctx.stroke();
+        ctx.beginPath(); ctx.arc(ccx, ccy, 36, 0, 7); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ccx - 92, ccy); ctx.lineTo(ccx + 92, ccy); ctx.moveTo(ccx, ccy - 92); ctx.lineTo(ccx, ccy + 92); ctx.stroke();
       }
+      ctx.restore();
     }
   }
 
