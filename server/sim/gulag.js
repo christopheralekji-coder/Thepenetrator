@@ -407,7 +407,8 @@ function tickGulag(sim, dt, now) {
           // ("jag taggade dig, du är det nu, spring!"). Mjukare knuff än void (force 380).
           const nh = sim.room.members.get(m.bombHolder).playerState;
           const oh = (m.bombHolder === m.a) ? psB : psA;
-          const kdx = nh.x - oh.x, kdy = nh.y - oh.y;
+          let kdx = nh.x - oh.x, kdy = nh.y - oh.y;
+          if (kdx === 0 && kdy === 0) kdx = 1; // v1.797: fallback om exakt samma pixel → knuff ändå
           sim.eventQueue.push({ type: 'gulag_knockback', peerId: m.bombHolder, vx: Math.round(kdx), vy: Math.round(kdy), force: 380 });
         }
         break;

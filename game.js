@@ -21051,6 +21051,8 @@ function isInputLocked() {
 function tryDash() {
   if (isInputLocked()) return;
   const p = state.player;
+  if (!p) return; // v1.797: null-guard FÖRE cdMs-beräkningen (läste p.isJug innan guarden
+                  // → latent krasch; nu bredare anropad via noShoot-fire→dash i gulag)
   // Bug-fix: `p.dashUntil > 0` var permanent truthy efter första dashen (värdet
   // resettas aldrig till 0) → spelaren kunde bara dasha en gång per run. Använd
   // jämförelse mot now istället så bara *aktiv* dash blockar.
@@ -26349,6 +26351,11 @@ const Coop = {
           // v1.794: återställ maxHp till BR-100 (gulag kan ha satt 320/1) så redeploy-baren
           // visar "75/100" korrekt istället för att fastna på loadout-maxHp.
           state.player.maxHp = 100;
+          state.player.maxShield = state.pvpShieldMax || 100; // v1.797: symmetrisk teardown
+          // v1.797: återställ ammo/reload — annars kunde första skottet efter redeploy
+          // tvinga en reload (gulag-vapnet kan ha tömts, t.ex. frenzy minigun/rocket).
+          state.player.ammo = (typeof effectiveMag === 'function') ? effectiveMag('pistol') : 9999;
+          state.player.reloading = false;
           state.player.weaponId = 'pistol'; state.player.brDowned = false;
         }
         if (typeof showToast === 'function') showToast('🏆 VANN GULAGEN — TILLBAKA I STRIDEN!');
@@ -34427,7 +34434,12 @@ function tryShoot(now) {
     // + commitment (annars cirklade man bara och ringen/lavan avgjorde, ej svärdet).
     // Lunge sker FÖRE sim_shoot-sänden nedan så server-melee:n läser den nya positionen.
     if (state.gulag && state.gulag.game === 'blade') {
-      p.x += Math.cos(p.aimAngle) * 60; p.y += Math.sin(p.aimAngle) * 60;
+      // v1.797: mjuk DASH-lunge (spridd över ~6 frames via dashUntil) i st.f. instant
+      // +60px-teleport. Den gamla teleporten klampades av serverns anti-cheat-positions-
+      // budget (~19px/tick) → desync/rubber-band + ring/lava-detektion läste fel pos.
+      // Dash-rörelsen håller sig inom budgeten → server och klient i synk.
+      p.dashDir = { x: Math.cos(p.aimAngle), y: Math.sin(p.aimAngle) };
+      p.dashUntil = performance.now() + 95;
       if (typeof triggerVibrate === 'function') triggerVibrate(10);
     }
     if (state.weaponsUsedThisStage) state.weaponsUsedThisStage.add(w.id);
