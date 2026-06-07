@@ -7261,7 +7261,12 @@ function applyPlayerInput(sim, peerId, input) {
                 sim.gungameActive || sim.kothActive ||
                 sim.juggernautActive || sim.battleroyaleActive ||
                 sim.castledefenseActive;
-  if (inPvP && typeof input.x === 'number' && typeof input.y === 'number') {
+  // v1.799: FREEZE (Frenzy-powerup) — frusen spelare kan ej röra sig. Ignorera klient-
+  // position helt (server-enforce; klienten blockerar också lokalt). Aim/vapen tillåts.
+  const _gulagFrozen = (ws.playerState._gulagFrozenUntil || 0) > Date.now();
+  if (_gulagFrozen) {
+    // håll position — ingen rörelse medan frusen
+  } else if (inPvP && typeof input.x === 'number' && typeof input.y === 'number') {
     const now = Date.now();
     const isInvuln = (ws.playerState.invulnUntil || 0) > now;
     const _dxRaw = input.x - ws.playerState.x;
@@ -7405,6 +7410,8 @@ function applyShoot(sim, peerId, msg) {
     stealthBonus: msg.stealthBonus || 1,
     perks: msg.perks || {}, cheats: msg.cheats || {},
   };
+  // v1.799: GULAG Frenzy BERSERK-powerup → 2× skada i 6s (server-auktoritärt)
+  if (ps._gulagDmgUntil && Date.now() < ps._gulagDmgUntil) params.dmgMul *= 2;
   // v1.416: Apply CD hero-perk effects to params
   if (sim.castledefenseActive) {
     const perk = sim.castledefensePerks[peerId];

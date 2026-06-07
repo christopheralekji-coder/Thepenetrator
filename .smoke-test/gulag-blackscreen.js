@@ -141,6 +141,18 @@ module.exports = {
     else if (!after.camInBounds) console.log('[BS] FAIL: kameran ur kart-bounds i ny mode (svart) cam=' + after.camx + ',' + after.camy);
     else console.log('[BS] PASS: ny mode efter gulag OK (ingen state-läcka)');
 
+    // (5) SPECTATE-LÄCKA: simulera att man speccar (spectating=true + specTarget) och
+    // verifiera att clearSpectateState() + teardown nollar det (annars = fast i nästa match).
+    const spec = await p.evaluate(() => {
+      state.player.spectating = true; state.player.specTarget = 'ghost-peer';
+      const had = { spectating: state.player.spectating, specTarget: state.player.specTarget };
+      if (typeof clearSpectateState === 'function') clearSpectateState();
+      return { had, after: { spectating: state.player.spectating, specTarget: state.player.specTarget } };
+    });
+    console.log('[BS] spectate-clear: före=' + JSON.stringify(spec.had) + ' efter=' + JSON.stringify(spec.after));
+    if (spec.after.spectating || spec.after.specTarget) console.log('[BS] FAIL: spectate-state läckte (ej nollad)');
+    else console.log('[BS] PASS: clearSpectateState nollar spectating+specTarget');
+
     const errs = consoleLog(p).filter(l => l.startsWith('[error]'));
     errs.slice(0, 15).forEach(e => console.log('  CONSOLE ' + e));
     console.log('[BS] total console errors: ' + errs.length);

@@ -830,6 +830,19 @@ function updateBullets(sim, dt, now) {
       bullets.splice(i, 1);
       continue;
     }
+    // v1.799: GULAG arena-väggar blockerar kulor (oneshot/frenzy skydd) — tidigare gick
+    // skott rakt genom väggarna. Slå upp skyttens aktiva duell-arena via _gulagMatchId.
+    if (b.gulag) {
+      const _ow = sim.room.members.get(b.ownerPid);
+      const _mid = _ow && _ow.playerState && _ow.playerState._gulagMatchId;
+      if (_mid && sim.gulagMatches) {
+        const _gm = sim.gulagMatches.find(mm => mm.id === _mid);
+        if (_gm && _gm.geo && _gm.geo.walls && _gm.geo.walls.length && bulletHitsWall(b, _gm.geo.walls)) {
+          bullets.splice(i, 1);
+          continue;
+        }
+      }
+    }
     // v1.638/640: HEIST — bara faktiska VÄGGAR blockerar skott (inte counters/pillars
     // som är knähögt cover du ska kunna skjuta över)
     if (sim.heistActive) {
@@ -1363,6 +1376,12 @@ function updateBullets(sim, dt, now) {
           // applicerar knuffen på sin egen position (rörelse är klient-auktoritär).
           if (ws.playerState.gulagState === 'fighting' && ws.playerState._gulagGame === 'void') {
             sim.eventQueue.push({ type: 'gulag_knockback', peerId: pid, vx: Math.round(b.vx), vy: Math.round(b.vy) });
+            // v1.799: spara knuff-RIKTNING server-side så BOTS (som saknar klient att
+            // applicera impulsen) ändå puttas — tickGulag integrerar den med game.knockForce.
+            const _km = Math.hypot(b.vx, b.vy) || 1;
+            ws.playerState._gulagKnockDX = b.vx / _km;
+            ws.playerState._gulagKnockDY = b.vy / _km;
+            ws.playerState._gulagKnockUntil = Date.now() + 220;
           }
           sim.eventQueue.push({
             type: 'pvp_hp_changed',

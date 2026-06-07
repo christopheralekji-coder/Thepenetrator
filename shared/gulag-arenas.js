@@ -102,19 +102,9 @@ const GULAG_GAMES = {
         { x: -120, y: 325, w: 240, h: 55 },
         { x: -610, y: -40, w: 55, h: 80 },
         { x: 555, y: -40, w: 55, h: 80 },
-        // v1.794: extra skydd — diagonala block + hörn-pelare + mellanväggar
+        // v1.799: ett par diagonala block för flank-skydd (var 14 extra → för många)
         { x: -420, y: -130, w: 55, h: 55 },
-        { x: 365, y: -130, w: 55, h: 55 },
-        { x: -420, y: 75, w: 55, h: 55 },
         { x: 365, y: 75, w: 55, h: 55 },
-        { x: -700, y: -200, w: 50, h: 130 },
-        { x: 650, y: -200, w: 50, h: 130 },
-        { x: -700, y: 70, w: 50, h: 130 },
-        { x: 650, y: 70, w: 50, h: 130 },
-        { x: -330, y: -415, w: 130, h: 50 },
-        { x: 200, y: -415, w: 130, h: 50 },
-        { x: -330, y: 365, w: 130, h: 50 },
-        { x: 200, y: 365, w: 130, h: 50 },
       ];
       return {
         shape: 'arena', groundColor: '#241526',
@@ -203,7 +193,7 @@ const GULAG_GAMES = {
     noShoot: true,
     groundColor: '#2a2a10',
     maxMs: 40000,
-    bombMs: 17000, passCooldownMs: 750, contactRange: 48,  // v1.795: +4s (var 13s)
+    bombMs: 22000, passCooldownMs: 750, contactRange: 48,  // v1.799: 22s (mer tid) + hållaren får +15% fart (klient)
     build(ox, oy) {
       const HW = 540, HH = 410;
       const rel = [

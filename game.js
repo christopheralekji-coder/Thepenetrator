@@ -24312,6 +24312,7 @@ const Coop = {
     } else if (ev.type === 'tdm_match_end') {
       this.tdmActive = false;
       state.tdmActive = false;
+      if (typeof clearSpectateState === 'function') clearSpectateState(); // v1.799
       if (typeof showTdmEndScreen === 'function') {
         showTdmEndScreen(ev.winner, ev.redWins || 0, ev.blueWins || 0, ev.stats || [], this.tdmTeams || {});
       }
@@ -24843,6 +24844,7 @@ const Coop = {
       // Server-shape: { winner, captures: { red, blue }, stats: { red, blue, perPlayer: { pid: { team, captures, kills, deaths } } } }
       this.ctfActive = false;
       state.ctfActive = false;
+      if (typeof clearSpectateState === 'function') clearSpectateState(); // v1.799
       if (state.player) state.player.carryingFlag = null;
       const redCaps = (ev.captures && ev.captures.red) || 0;
       const blueCaps = (ev.captures && ev.captures.blue) || 0;
@@ -25154,6 +25156,7 @@ const Coop = {
       // { winner, reason ('points'|'core_destroyed'), scores: {red, blue}, stats }
       this.siegeActive = false;
       state.siegeActive = false;
+      if (typeof clearSpectateState === 'function') clearSpectateState(); // v1.799
       const statsArr = [];
       if (ev.stats && ev.stats.perPlayer) {
         for (const pid of Object.keys(ev.stats.perPlayer)) {
@@ -25294,6 +25297,7 @@ const Coop = {
     } else if (ev.type === 'koth_match_end') {
       this.kothActive = false;
       state.kothActive = false;
+      if (typeof clearSpectateState === 'function') clearSpectateState(); // v1.799
       const statsArr = [];
       if (ev.stats && ev.stats.perPlayer) {
         for (const pid of Object.keys(ev.stats.perPlayer)) {
@@ -25475,6 +25479,7 @@ const Coop = {
       // { winner, reason ('final_tier_kill'), stats }
       this.gungameActive = false;
       state.gungameActive = false;
+      if (typeof clearSpectateState === 'function') clearSpectateState(); // v1.799
       const statsArr = [];
       if (ev.stats && ev.stats.perPlayer) {
         for (const pid of Object.keys(ev.stats.perPlayer)) {
@@ -25760,6 +25765,7 @@ const Coop = {
     } else if (ev.type === 'juggernaut_match_end') {
       this.juggernautActive = false;
       state.juggernautActive = false;
+      if (typeof clearSpectateState === 'function') clearSpectateState(); // v1.799
       // Cleanup JUG-flaggor på spelaren så de inte läcker till nästa match
       if (state.player) {
         state.player.isJug = false;
@@ -26325,18 +26331,10 @@ const Coop = {
     } else if (ev.type === 'gulag_powerup') {
       if (ev.peerId === this.myId && state.gulag) {
         const g = state.gulag;
-        const GUN_KINDS = { shotgun: 'Hagelgevär!', minigun: 'Minigun!', rocket: 'Raketgevär!' };
+        // v1.799: kreativa powerups — freeze (på motståndaren), berserk (2× dmg 6s)
         if (ev.kind === 'speed') { g.speedMul = 1.6; g.speedUntil = performance.now() + 5000; }
-        else if (GUN_KINDS[ev.kind]) {
-          // v1.795: vapen-powerup (shotgun/minigun/rocket) — lås till gunWeapon + fyll ammo
-          g.gunWeapon = ev.kind; g.gunUntil = performance.now() + 7000;
-          if (state.player) {
-            state.player.weaponId = ev.kind;
-            state.player.ammo = (typeof effectiveMag === 'function') ? effectiveMag(ev.kind) : 999;
-            state.player.reloading = false;
-          }
-        }
-        const _puTxt = ev.kind === 'shield' ? '+Sköld' : ev.kind === 'heal' ? '+HP' : ev.kind === 'speed' ? 'Fart!' : (GUN_KINDS[ev.kind] || 'Powerup!');
+        else if (ev.kind === 'berserk') { g.berserkUntil = performance.now() + 6000; }
+        const _puTxt = ev.kind === 'shield' ? '+Sköld' : ev.kind === 'heal' ? '+HP' : ev.kind === 'speed' ? 'Fart!' : ev.kind === 'berserk' ? '💥 BERSERK 2× skada!' : ev.kind === 'freeze' ? '❄️ Fryste motståndaren!' : 'Powerup!';
         if (typeof showToast === 'function') showToast('⚡ ' + _puTxt);
         if (typeof Audio !== 'undefined' && Audio.purchase) Audio.purchase();
       }
@@ -26348,6 +26346,15 @@ const Coop = {
         const force = ev.force || ((typeof window !== 'undefined' && window.GULAG_GAMES && window.GULAG_GAMES.void) ? window.GULAG_GAMES.void.knockForce : 540);
         g.knockVX = (ev.vx / mag) * force; g.knockVY = (ev.vy / mag) * force; g.knockUntil = performance.now() + 220;
         if (typeof triggerShake === 'function') triggerShake(6, 0.25);
+      }
+    } else if (ev.type === 'gulag_frozen') {
+      // v1.799: ❄️ FREEZE — motståndaren plockade freeze-powerup → JAG fryses. Blockera
+      // rörelse + skytte lokalt (server enforce:ar också via applyPlayerInput).
+      if (ev.peerId === this.myId && state.gulag) {
+        state.gulag._frozenUntil = performance.now() + (ev.ms || 1400);
+        if (typeof triggerShake === 'function') triggerShake(5, 0.2);
+        if (typeof showToast === 'function') showToast('❄️ FRYST!');
+        if (typeof Audio !== 'undefined' && Audio.hit) Audio.hit();
       }
     } else if (ev.type === 'gulag_won') {
       if (ev.peerId === this.myId) {
@@ -26405,6 +26412,7 @@ const Coop = {
       // { winner, reason, stats }
       this.battleroyaleActive = false;
       state.battleroyaleActive = false;
+      if (typeof clearSpectateState === 'function') clearSpectateState(); // v1.799
       // GULAG (v1.790): matchen slut — stäng ev. pågående duell-UI
       state.gulag = null; state.gulagQueued = false;
       if (typeof hideGulagBanner === 'function') hideGulagBanner();
@@ -28501,6 +28509,7 @@ const Coop = {
     if (typeof hideGungameHud === 'function') hideGungameHud();
     if (typeof hideKothHud === 'function') hideKothHud();
     if (typeof hideTdmRoundBanner === 'function') hideTdmRoundBanner();  // v1.771: stoppa ev. läckande runda-banner-interval
+    if (typeof clearSpectateState === 'function') clearSpectateState(); // v1.799: spectate läckte annars till nästa match (fast spelare)
     // Om vi förlorat anslutningen mid-game, kicka tillbaka till menyn så vi inte
     // hamnar i lokalt PvE-fallback-läge (minions spawnar lokalt). Tidigare:
     // 'playing' state kvar → solo-game-loop tog över → fel mode → buggat.
@@ -34403,6 +34412,8 @@ function tryShoot(now) {
   const p = state.player;
   // BR downed (v1.740): krypande spelare kan inte skjuta (matchar server-guard).
   if (state.battleroyaleActive && p.brDowned) return;
+  // v1.799: GULAG Frenzy FREEZE — fryst spelare kan ej skjuta
+  if (state.gulag && state.gulag._frozenUntil && now < state.gulag._frozenUntil) return;
   // GULAG (v1.796): no-shoot-spel (Bomb Tag/Floor is Lava) — fire-knappen blir en DASH
   // istället för skjutning → ger AGENCY: hållaren stänger avstånd/jagar, jagad jukar/
   // dodgar över hål. tryDash gatar själv på (kort) cooldown.
@@ -34444,12 +34455,14 @@ function tryShoot(now) {
     // + commitment (annars cirklade man bara och ringen/lavan avgjorde, ej svärdet).
     // Lunge sker FÖRE sim_shoot-sänden nedan så server-melee:n läser den nya positionen.
     if (state.gulag && state.gulag.game === 'blade') {
-      // v1.797: mjuk DASH-lunge (spridd över ~6 frames via dashUntil) i st.f. instant
-      // +60px-teleport. Den gamla teleporten klampades av serverns anti-cheat-positions-
-      // budget (~19px/tick) → desync/rubber-band + ring/lava-detektion läste fel pos.
-      // Dash-rörelsen håller sig inom budgeten → server och klient i synk.
-      p.dashDir = { x: Math.cos(p.aimAngle), y: Math.sin(p.aimAngle) };
-      p.dashUntil = performance.now() + 95;
+      // v1.799: ADDITIV lunge-impuls (ej dash-override som FÖRR ersatte joystick-rörelsen
+      // → buggigt att gå+slå samtidigt). Lägger en kort framåt-velocity som ADDERAS till
+      // den normala rörelsen i gulag-blocket. ~450px/s i 130ms = ~58px, ~7.5px/frame =
+      // inom serverns anti-cheat-budget → ingen desync, och man kan röra sig fritt samtidigt.
+      const g = state.gulag;
+      g._lungeVX = Math.cos(p.aimAngle) * 450;
+      g._lungeVY = Math.sin(p.aimAngle) * 450;
+      g._lungeUntil = performance.now() + 130;
       if (typeof triggerVibrate === 'function') triggerVibrate(10);
     }
     if (state.weaponsUsedThisStage) state.weaponsUsedThisStage.add(w.id);
@@ -35722,6 +35735,14 @@ function cycleSpectate(dir) {
 }
 let _spectateBanner = null;
 let _spectateBtn = null;
+// v1.799: CENTRAL spectate-städning. updatePlayer return:ar på spectating + updateDeathState
+// drar kameran mot specTarget → en läckt spectating=true = FAST spelare + kamera-drag i nästa
+// match. Anropas i ALLA teardown-/start-vägar (disconnect, clearBattleroyaleState, alla
+// *_match_end, actuallyStartGame, resetGameState) så spectate aldrig läcker mellan faser.
+function clearSpectateState() {
+  if (state.player) { state.player.spectating = false; state.player.specTarget = null; }
+  if (typeof _updateSpectateBanner === 'function') _updateSpectateBanner();
+}
 function _updateSpectateBanner() {
   const spec = state.player && state.player.spectating && state.player.specTarget &&
                typeof Coop !== 'undefined' && Coop.active;
@@ -37306,7 +37327,7 @@ function actuallyStartGame() {
   state._lastDamageSource = null;
   state._stageClearShown = false;
   state._stageClearShownForWave = null;
-  if (state.player) state.player.spectating = false;
+  if (state.player) { state.player.spectating = false; state.player.specTarget = null; } // v1.799: symmetrisk spectate-reset
   state.goldThisRun = 0;
   state.killsThisRun = 0;
   state.critsThisRun = 0;
@@ -39938,6 +39959,7 @@ function clearBattleroyaleState() {
   // v1.798: nollställ placerings-siffror + startantal (annars kunde förra matchens
   // "Plats X av Y" läcka in i nästa spectator-banner).
   state._brPlacement = null; state._brTotal = null; state.battleroyaleStartCount = 0;
+  if (typeof clearSpectateState === 'function') clearSpectateState(); // v1.799: spectate-läcka
   if (typeof hudCanvas !== 'undefined' && hudCanvas) hudCanvas.style.zIndex = '3'; // återställ ev. förstorad-karta-z
   state.minimapBig = false; state._minimapZoomTarget = 0; // v1.752: lämna ej kartan förstorad in i nästa match
   if (typeof setGameControlsTappable === 'function') setGameControlsTappable(true);
@@ -40084,6 +40106,7 @@ function clearCastleDefenseState() {
     state.player.cdReviveProgress = 0;
     state.player._cdPrevWeapon = null;
     state.player.spectating = false;
+    state.player.specTarget = null; // v1.799: spectate-reset vid full game-reset
   }
   // Rensa partner CD-flags
   if (typeof Coop !== 'undefined' && Coop.players) {
@@ -42943,6 +42966,8 @@ function updatePlayer(dt, now) {
   if (input.keys.has('d')) mx += 1;
   // Countdown lock: nollställ rörelse helt (joystick + tangentbord)
   if (_locked) { mx = 0; my = 0; }
+  // v1.799: GULAG Frenzy FREEZE — fryst spelare kan ej röra sig
+  if (state.gulag && state.gulag._frozenUntil && performance.now() < state.gulag._frozenUntil) { mx = 0; my = 0; }
   const m = Math.hypot(mx, my);
   if (m > 1) { mx /= m; my /= m; }
   // Fotsteg medan man rör sig till fots (footstep() throttlar internt 200ms).
@@ -42988,7 +43013,9 @@ function updatePlayer(dt, now) {
     // BR Double Time-perk (v1.742): +25% fart (ej när downed)
     const brDoubleTime = (state.battleroyaleActive && !p.brDowned && p.brPerks && p.brPerks.double_time) ? 1.25 : 1;
     // GULAG (v1.790): fart-powerup (Frenzy) ger +60% i duellen
-    const gulagSpeedMul = (state.gulag && state.gulag.speedMul) ? state.gulag.speedMul : 1;
+    let gulagSpeedMul = (state.gulag && state.gulag.speedMul) ? state.gulag.speedMul : 1;
+    // v1.799: Bomb Tag — den som BÄR bomben får +15% fart (chans att jaga ikapp + lämna över)
+    if (state.gulag && state.gulag.game === 'bombtag' && state.gulag.bombHolder === Coop.myId) gulagSpeedMul *= 1.15;
     p.x += mx * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * brDoubleTime * gulagSpeedMul * dt;
     p.y += my * p.speed * adrenalineSpeed * cheatSpeed * ctfCarrySlow * jugSpeedMul * cdSpeedMul * weaponSpeedMul * survSpeedMul * heistCarryMul * brDownedMul * brDoubleTime * gulagSpeedMul * dt;
   }
@@ -43016,6 +43043,12 @@ function updatePlayer(dt, now) {
     if (g.knockUntil && nowG < g.knockUntil) {
       p.x += g.knockVX * dt;
       p.y += g.knockVY * dt;
+    }
+    // v1.799: Blade-lunge — ADDERAS till den normala rörelsen (ovan) så man kan gå+slå
+    // samtidigt utan att lungen tar över styrningen (gamla dash-override:n var buggig).
+    if (g._lungeUntil && nowG < g._lungeUntil) {
+      p.x += g._lungeVX * dt;
+      p.y += g._lungeVY * dt;
     }
     // expirera tidsbegränsade powerups (Frenzy) — spegla servern
     if (g.speedUntil && nowG > g.speedUntil) { g.speedMul = 1; g.speedUntil = 0; }
@@ -44216,6 +44249,15 @@ function updateBullets(dt) {
       if (b.gasOnHit) dropGasCloud(b.x, b.y, 70, 4, 6);
       b.dead = true;
       continue;
+    }
+    // v1.799: GULAG arena-väggar blockerar kulor visuellt (matchar server-sidan så cover
+    // faktiskt skyddar i oneshot/frenzy — tidigare gick skotten rakt genom väggarna).
+    if (state.gulag && state.gulag.geo && state.gulag.geo.walls && state.gulag.geo.walls.length && typeof bulletHitsWall === 'function') {
+      if (bulletHitsWall(b, state.gulag.geo.walls)) {
+        if (typeof spawnSparks === 'function') spawnSparks(b.x, b.y, b.color || '#fff', 3, 70);
+        b.dead = true;
+        continue;
+      }
     }
     // PvP: bullet dör vid wall-hit. Speglar server-side bullets.js.
     // v1.376: även turrets blockerar bullets visuellt (speglar server-side).
@@ -74089,8 +74131,8 @@ function drawGulagArena() {
     for (const pu of g.pu) {
       const ux = pu.x - cx, uy = pu.y - cy;
       // v1.795: färg/emoji per powerup-typ (inkl. nya minigun/rocket)
-      const PU_COL = { shield: '#5ac7ff', heal: '#5aff7a', speed: '#ffe14a', shotgun: '#ff6a3a', minigun: '#ff9a3a', rocket: '#ff4a4a' };
-      const PU_EMOJI = { shield: '🛡', heal: '➕', speed: '⚡', shotgun: '🔫', minigun: '🌀', rocket: '🚀' };
+      const PU_COL = { shield: '#5ac7ff', heal: '#5aff7a', speed: '#ffe14a', berserk: '#ff3a3a', freeze: '#7ad8ff' };
+      const PU_EMOJI = { shield: '🛡', heal: '➕', speed: '⚡', berserk: '💥', freeze: '❄️' };
       const col = PU_COL[pu.kind] || '#ff6a3a';
       ctx.save(); ctx.translate(ux, uy);
       const s = 1 + 0.18 * Math.sin(now / 180);
@@ -74131,6 +74173,21 @@ function drawGulagArena() {
           if (typeof triggerVibrate === 'function') triggerVibrate(urg > 0.6 ? 16 : 9);
         }
       }
+    }
+  }
+  // v1.799: Frenzy status-auror på lokala spelaren (is när fryst, röd vid berserk)
+  if (g.game === 'frenzy' && state.player && !state.player.spectating) {
+    const ax = state.player.x - cx, ay = state.player.y - cy;
+    if (g._frozenUntil && now < g._frozenUntil) {
+      const ig = ctx.createRadialGradient(ax, ay, 4, ax, ay, 42);
+      ig.addColorStop(0, 'rgba(160,228,255,0.55)'); ig.addColorStop(1, 'rgba(120,200,255,0)');
+      ctx.fillStyle = ig; ctx.beginPath(); ctx.arc(ax, ay, 42, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(200,240,255,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(ax, ay, 22, 0, 7); ctx.stroke();
+    }
+    if (g.berserkUntil && now < g.berserkUntil) {
+      const bgr = ctx.createRadialGradient(ax, ay, 4, ax, ay, 40);
+      bgr.addColorStop(0, 'rgba(255,60,40,' + (0.32 + 0.22 * Math.abs(Math.sin(now / 100))) + ')'); bgr.addColorStop(1, 'rgba(255,40,20,0)');
+      ctx.fillStyle = bgr; ctx.beginPath(); ctx.arc(ax, ay, 40, 0, 7); ctx.fill();
     }
   }
   // Väggar/skydd (arena) — ritas i golv-passet (under spelarna)

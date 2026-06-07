@@ -314,13 +314,13 @@ function resolveGulag(sim, m, winnerPid, loserPid, now) {
   });
 }
 
-// v1.795: vapen-powerups (shotgun/minigun/rocket) hanteras generiskt — kind === weaponId.
-const FRENZY_GUN_KINDS = ['shotgun', 'minigun', 'rocket'];
+// v1.799: KREATIVA powerups (ej bara vapen) — freeze hanteras i pickup-loopen (träffar
+// motståndaren). Self-buffs här: shield/heal/speed/berserk.
 function applyFrenzyPowerup(ps, kind, now) {
   if (kind === 'shield') ps.shield = Math.min(100, (ps.shield || 0) + 50);
   else if (kind === 'heal') ps.hp = Math.min(ps.maxHp || 100, (ps.hp || 0) + 45);
   else if (kind === 'speed') { ps.speedMul = 1.6; ps._gulagSpeedUntil = now + 5000; }
-  else if (FRENZY_GUN_KINDS.includes(kind)) { ps._gulagWeapon = kind; ps.weaponId = kind; ps._gulagGunUntil = now + 7000; }
+  else if (kind === 'berserk') { ps._gulagDmgUntil = now + 6000; } // 2× skada i 6s (appliceras i applyShoot)
 }
 
 // ---- TICK: kör alla aktiva matcher ----
@@ -342,6 +342,17 @@ function tickGulag(sim, dt, now) {
         const t = Math.max(0, now - m.startedAt - game.shrinkStartMs);
         const f = game.shrinkMs > 0 ? Math.min(1, t / game.shrinkMs) : 0;
         m.platformR = game.platformR0 + (game.platformRmin - game.platformR0) * f;
+        // v1.799: server-side knockback-integration för BOTS (riktiga spelare applicerar
+        // knuffen klient-side via sin egen position; bots har ingen klient → puttas här).
+        [m.a, m.b].forEach(pid => {
+          const ws = sim.room.members.get(pid);
+          if (!ws || !ws._isBot || !ws.playerState) return;
+          const ps = ws.playerState;
+          if (ps._gulagKnockUntil && now < ps._gulagKnockUntil) {
+            ps.x += (ps._gulagKnockDX || 0) * (game.knockForce || 600) * dt;
+            ps.y += (ps._gulagKnockDY || 0) * (game.knockForce || 600) * dt;
+          }
+        });
         const cx = m.geo.platformX, cy = m.geo.platformY;
         const dA = dist(psA.x, psA.y, cx, cy), dB = dist(psB.x, psB.y, cx, cy);
         const offA = dA > m.platformR + 18, offB = dB > m.platformR + 18;
@@ -375,10 +386,9 @@ function tickGulag(sim, dt, now) {
           const spots = m.geo.powerupSpawns || [];
           if (spots.length) {
             const spot = spots[Math.floor(Math.random() * spots.length)];
-            // v1.796: VIKTAD pool — utility vanligast, minigun ovanligt, rocket sällsynt
-            // (rocket = stark burst men dödlig direkt → ska vara en sällsynt höjdpunkt,
-            // ej 1-av-6-lotteri). shield/heal/speed/shotgun 20% var, minigun 10%, rocket 10%.
-            const kinds = ['shield', 'shield', 'heal', 'heal', 'speed', 'speed', 'shotgun', 'shotgun', 'minigun', 'rocket'];
+            // v1.799: KREATIVA powerups istället för vapen — ❄️FREEZE (frys motståndaren
+            // 1.4s) + 💥BERSERK (2× skada 6s) + utility (shield/heal/speed). Vapen borttagna.
+            const kinds = ['shield', 'heal', 'speed', 'berserk', 'freeze'];
             m.powerups.push({ id: 'pu' + (++m.puCounter), x: spot.x, y: spot.y, kind: kinds[Math.floor(Math.random() * kinds.length)] });
             m.nextPowerupAt = now + game.powerupEverMs;
           }
@@ -389,7 +399,14 @@ function tickGulag(sim, dt, now) {
           for (const pid of [m.a, m.b]) {
             const ps = sim.room.members.get(pid).playerState;
             if (dist(ps.x, ps.y, pu.x, pu.y) < 36) {
-              applyFrenzyPowerup(ps, pu.kind, now);
+              if (pu.kind === 'freeze') {
+                // ❄️ FREEZE träffar MOTSTÅNDAREN (frys 1.4s) — server enforce:ar i applyPlayerInput
+                const oppPid = (pid === m.a) ? m.b : m.a;
+                const ows = sim.room.members.get(oppPid);
+                if (ows && ows.playerState) { ows.playerState._gulagFrozenUntil = now + 1400; sim.eventQueue.push({ type: 'gulag_frozen', peerId: oppPid, ms: 1400 }); }
+              } else {
+                applyFrenzyPowerup(ps, pu.kind, now);
+              }
               sim.eventQueue.push({ type: 'gulag_powerup', peerId: pid, kind: pu.kind });
               sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: Math.round(ps.hp), shield: ps.shield || 0 });
               m.powerups.splice(i, 1);
