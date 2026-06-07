@@ -28086,8 +28086,13 @@ const Coop = {
                 // när man tog stryk. Behåller shake + playerHurt + flashUntil.
               }
               // Trigga death-state lokalt om server säger hp=0 (annars uppstår klient/server-divergens
-              // där server tror du är död men klient fortsätter spela)
-              if (p.hp <= 0 && !state.player.spectating && typeof enterDeathState === 'function') {
+              // där server tror du är död men klient fortsätter spela).
+              // v1.808: HOPPA ÖVER i Battle Royale/Gulag — där är döden server-driven
+              // (br_downed/gulag_queued/br_player_eliminated/gulag_lost). Ett transient hp=0
+              // i broadcasten (mellan dödsslaget och death-loopens "down") triggade annars
+              // enterDeathState() → spectating=true INNAN br_downed → self-revive bröts
+              // (spelaren fast i döds-läge). Servern skickar ALLTID rätt event i BR.
+              if (p.hp <= 0 && !state.player.spectating && !state.battleroyaleActive && typeof enterDeathState === 'function') {
                 enterDeathState();
               }
             }
@@ -35712,7 +35717,9 @@ function damagePlayer(amount, source, srcX, srcY) {
     }
     p.hp = 0;
     state.hostDeaths = (state.hostDeaths || 0) + 1;
-    enterDeathState();
+    // v1.808: i Battle Royale/Gulag driver SERVERN döden (br_downed/gulag_queued/
+    // br_player_eliminated) — klienten ska ej gå i egen döds-state (bröt self-revive).
+    if (!state.battleroyaleActive) enterDeathState();
   }
   updateHUD();
 }
@@ -39850,51 +39857,102 @@ function drawBrHighAlert() {
 
 // === CONTRACTS + SUPPLY DROPS render/HUD (v1.746) ===
 const BR_CONTRACT_ICON = { bounty: '🎯', dropbox: '📦', supply_run: '🏃' };
+const BR_CONTRACT_RGB = { bounty: '255,90,90', dropbox: '90,176,255', supply_run: '90,255,138' };
 function drawBrContracts() {
   const camX = state.camera.x, camY = state.camera.y, now = performance.now();
-  // Billboards för tillgängliga kontrakt
+  // === KONTRAKTS-SKYLTAR (v1.808: typ-färgad anslagstavla på stolpe) ===
   if (state.brContracts) {
     for (const c of state.brContracts) {
       if (!c.available) continue;
       const sx = c.x - camX, sy = c.y - camY;
-      if (sx < -80 || sx > viewW + 80 || sy < -90 || sy > viewH + 80) continue;
+      if (!isFinite(sx) || !isFinite(sy)) continue; // v1.808: skydda createLinearGradient/arc mot NaN
+      if (sx < -90 || sx > viewW + 90 || sy < -110 || sy > viewH + 90) continue;
+      const rgb = BR_CONTRACT_RGB[c.type] || '255,213,74';
       const pulse = 0.5 + 0.5 * Math.sin(now / 420);
+      const bob = Math.sin(now / 620) * 2;
       ctx.save();
-      ctx.fillStyle = 'rgba(255,213,74,' + (0.10 * pulse).toFixed(3) + ')';
-      ctx.beginPath(); ctx.arc(sx, sy - 22, 34, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#5a4030'; ctx.fillRect(sx - 3, sy - 4, 6, 22);
-      ctx.fillStyle = 'rgba(28,22,12,0.95)'; ctx.strokeStyle = '#ffd54a'; ctx.lineWidth = 2;
-      if (typeof drawRoundedRect === 'function') { drawRoundedRect(ctx, sx - 24, sy - 40, 48, 34, 5); ctx.fill(); ctx.stroke(); }
-      else { ctx.fillRect(sx - 24, sy - 40, 48, 34); ctx.strokeRect(sx - 24, sy - 40, 48, 34); }
-      ctx.font = '20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(BR_CONTRACT_ICON[c.type] || '📋', sx, sy - 23);
+      // typ-färgad glöd-aura
+      ctx.fillStyle = 'rgba(' + rgb + ',' + (0.10 + 0.08 * pulse).toFixed(3) + ')';
+      ctx.beginPath(); ctx.arc(sx, sy - 30, 42, 0, Math.PI * 2); ctx.fill();
+      // mark-skugga
+      ctx.fillStyle = 'rgba(0,0,0,0.28)'; ctx.beginPath(); ctx.ellipse(sx, sy + 18, 16, 4, 0, 0, 7); ctx.fill();
+      // stolpe
+      ctx.fillStyle = '#4a3826'; ctx.fillRect(sx - 3.5, sy - 8, 7, 28);
+      ctx.fillStyle = '#65503a'; ctx.fillRect(sx - 3.5, sy - 8, 2, 28);
+      // skylt-platta (svävar lätt)
+      const py2 = sy - 50 + bob;
+      ctx.fillStyle = '#15110a'; ctx.strokeStyle = 'rgb(' + rgb + ')'; ctx.lineWidth = 2.5;
+      if (typeof drawRoundedRect === 'function') { drawRoundedRect(ctx, sx - 27, py2, 54, 40, 7); ctx.fill(); ctx.stroke(); }
+      else { ctx.fillRect(sx - 27, py2, 54, 40); ctx.strokeRect(sx - 27, py2, 54, 40); }
+      // typ-färgad topp-banner
+      ctx.fillStyle = 'rgb(' + rgb + ')';
+      if (typeof drawRoundedRect === 'function') { drawRoundedRect(ctx, sx - 27, py2, 54, 10, 7); ctx.fill(); }
+      else ctx.fillRect(sx - 27, py2, 54, 8);
+      // ikon
+      ctx.fillStyle = '#fff'; ctx.font = '23px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(BR_CONTRACT_ICON[c.type] || '📋', sx, py2 + 25);
+      // pulsande "!"-indikator ovanför
+      ctx.fillStyle = 'rgb(' + rgb + ')'; ctx.font = 'bold 17px sans-serif';
+      ctx.fillText('❗', sx, py2 - 11 - 2 * pulse);
       ctx.restore();
     }
   }
-  // Supply-drops (fallande fallskärm → landad låda + ljusstråle)
+  // === SUPPLY-DROPS (v1.808: gradient-ljuspelare + detaljerad militärlåda + fallskärm) ===
   if (state.brSupplyDrops) {
     for (const id in state.brSupplyDrops) {
       const d = state.brSupplyDrops[id];
       const sx = d.x - camX, sy = d.y - camY;
-      if (sx < -120 || sx > viewW + 120 || sy < -200 || sy > viewH + 120) continue;
+      if (!isFinite(sx) || !isFinite(sy)) continue; // v1.808: skydda gradient mot NaN
+      if (sx < -140 || sx > viewW + 140 || sy < -640 || sy > viewH + 140) continue;
       const prog = d.landed ? 1 : Math.min(1, (now - (d.pingAt || now)) / 6000);
-      const cyv = sy - (1 - prog) * 420;
+      const cyv = sy - (1 - prog) * 460;
+      const beamPulse = 0.5 + 0.5 * Math.sin(now / 220);
       ctx.save();
-      ctx.fillStyle = 'rgba(255,200,60,0.10)'; ctx.fillRect(sx - 13, sy - 220, 26, 220); // ljusstråle
-      ctx.fillStyle = '#7a5a2a'; ctx.strokeStyle = '#3a2a12'; ctx.lineWidth = 2;
-      ctx.fillRect(sx - 13, cyv - 13, 26, 26); ctx.strokeRect(sx - 13, cyv - 13, 26, 26);
-      ctx.fillStyle = '#ffd54a'; ctx.font = '15px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('📦', sx, cyv);
-      if (prog < 1) {
-        ctx.fillStyle = 'rgba(220,80,80,0.92)';
-        ctx.beginPath(); ctx.ellipse(sx, cyv - 28, 24, 15, 0, Math.PI, 0); ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1.4;
-        ctx.beginPath(); ctx.moveTo(sx - 20, cyv - 26); ctx.lineTo(sx - 9, cyv - 13); ctx.moveTo(sx + 20, cyv - 26); ctx.lineTo(sx + 9, cyv - 13); ctx.stroke();
-      } else {
-        const pl = 0.5 + 0.5 * Math.sin(now / 300);
-        ctx.fillStyle = 'rgba(255,200,60,' + (0.18 * pl).toFixed(3) + ')';
-        ctx.beginPath(); ctx.arc(sx, sy, 42, 0, Math.PI * 2); ctx.fill();
+      // --- LJUS-PELARE: kon från himlen (smal topp → bred bas) med gradient ---
+      const beamTop = sy - 600, beamBot = sy + 8, bw = 30;
+      const bg = ctx.createLinearGradient(0, beamTop, 0, beamBot);
+      bg.addColorStop(0, 'rgba(255,225,120,0)');
+      bg.addColorStop(0.55, 'rgba(255,215,90,' + (0.08 + 0.05 * beamPulse).toFixed(3) + ')');
+      bg.addColorStop(1, 'rgba(255,238,150,' + (0.24 + 0.10 * beamPulse).toFixed(3) + ')');
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.moveTo(sx - 8, beamTop); ctx.lineTo(sx + 8, beamTop); ctx.lineTo(sx + bw, beamBot); ctx.lineTo(sx - bw, beamBot); ctx.closePath(); ctx.fill();
+      // stigande ljus-motes i pelaren
+      for (let k = 0; k < 5; k++) {
+        const mp = ((now / 950 + k * 0.21) % 1), my = beamBot - (beamBot - beamTop) * mp;
+        const mx = sx + Math.sin(now / 600 + k * 1.7) * bw * (1 - mp) * 0.55;
+        ctx.fillStyle = 'rgba(255,240,180,' + (0.45 * (1 - mp)).toFixed(2) + ')';
+        ctx.beginPath(); ctx.arc(mx, my, 2, 0, 7); ctx.fill();
       }
+      // mark-glödring där lådan landar
+      ctx.fillStyle = 'rgba(255,210,80,' + (0.16 + 0.10 * beamPulse).toFixed(3) + ')';
+      ctx.beginPath(); ctx.ellipse(sx, sy + 6, bw, 10, 0, 0, 7); ctx.fill();
+      // --- FALLSKÄRM (medan fallande) ---
+      if (prog < 1) {
+        const sway = Math.sin(now / 520) * 9 * (1 - prog), px2 = sx + sway, cw = 30;
+        ctx.strokeStyle = 'rgba(235,235,245,0.85)'; ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.moveTo(px2 - 24, cyv - 30); ctx.lineTo(sx - 11, cyv - 14);
+        ctx.moveTo(px2 + 24, cyv - 30); ctx.lineTo(sx + 11, cyv - 14);
+        ctx.moveTo(px2, cyv - 36); ctx.lineTo(sx, cyv - 15); ctx.stroke();
+        ctx.fillStyle = '#d24a4a'; ctx.beginPath(); ctx.ellipse(px2, cyv - 30, cw, 19, 0, Math.PI, 0); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.20)'; ctx.beginPath(); ctx.ellipse(px2, cyv - 30, cw, 19, 0, Math.PI, Math.PI * 1.5); ctx.fill();
+        ctx.strokeStyle = 'rgba(120,20,20,0.55)'; ctx.lineWidth = 1;
+        for (let s = -2; s <= 2; s++) { ctx.beginPath(); ctx.moveTo(px2 + s * cw * 0.42, cyv - 30); ctx.lineTo(px2 + s * cw * 0.52, cyv - 47); ctx.stroke(); }
+      } else {
+        ctx.fillStyle = 'rgba(0,0,0,0.30)'; ctx.beginPath(); ctx.ellipse(sx, sy + 12, 19, 5, 0, 0, 7); ctx.fill();
+      }
+      // --- MILITÄR SUPPLY-LÅDA ---
+      const cs = 15;
+      ctx.fillStyle = '#6b4e28'; ctx.fillRect(sx - cs, cyv - cs, cs * 2, cs * 2);
+      ctx.fillStyle = '#856338'; ctx.fillRect(sx - cs, cyv - cs, cs * 2, cs * 0.55); // topp-highlight
+      ctx.fillStyle = '#503a1c'; ctx.fillRect(sx - cs, cyv + cs * 0.55, cs * 2, cs * 0.45); // botten-skugga
+      ctx.fillStyle = '#352712'; ctx.fillRect(sx - cs, cyv - 2.5, cs * 2, 5); ctx.fillRect(sx - 2.5, cyv - cs, 5, cs * 2); // metall-kors
+      ctx.fillStyle = '#caa040'; for (const o of [[-cs, -cs], [cs - 5, -cs], [-cs, cs - 5], [cs - 5, cs - 5]]) ctx.fillRect(sx + o[0], cyv + o[1], 5, 5); // hörn-beslag
+      ctx.strokeStyle = '#2a1f0e'; ctx.lineWidth = 2; ctx.strokeRect(sx - cs, cyv - cs, cs * 2, cs * 2);
+      // grön blink-lampa på toppen
+      const lp = 0.5 + 0.5 * Math.sin(now / 170);
+      ctx.fillStyle = 'rgba(120,255,120,' + (0.45 + 0.55 * lp).toFixed(2) + ')';
+      ctx.beginPath(); ctx.arc(sx, cyv - cs - 3, 2.6, 0, 7); ctx.fill();
       ctx.restore();
     }
   }
@@ -39918,8 +39976,12 @@ function updateBrContractPrompt() {
   if (prompt) {
     if (near) {
       prompt.style.display = 'block';
-      const tn = { bounty: '🎯 BOUNTY-KONTRAKT', dropbox: '📦 DROPBOX-KONTRAKT', supply_run: '🏃 SUPPLY RUN' };
-      prompt.textContent = '📋 ' + (tn[near.type] || 'KONTRAKT');
+      const tn = { bounty: '🎯 BOUNTY', dropbox: '📦 DROPBOX', supply_run: '🏃 SUPPLY RUN' };
+      const col = { bounty: '#ff7a7a', dropbox: '#7ac0ff', supply_run: '#7aff9a' }[near.type] || '#e6d8ff';
+      prompt.style.borderColor = col;
+      prompt.innerHTML = '<div style="font-size:10px;letter-spacing:1px;opacity:0.65;font-weight:700">📋 KONTRAKT</div>'
+        + '<div style="font-size:15px;font-weight:900;margin:1px 0;color:' + col + '">' + (tn[near.type] || 'KONTRAKT') + '</div>'
+        + '<div style="font-size:10px;opacity:0.85;font-weight:700">▶ TRYCK FÖR ATT TA</div>';
     } else { prompt.style.display = 'none'; }
   }
 }
