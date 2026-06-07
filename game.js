@@ -20027,7 +20027,9 @@ function syncPixiBullets() {
     const s = container.children[i];
     if (i < bullets.length) {
       const b = bullets[i];
-      if (b && !b.dead) {
+      // v1.803: gulag_knock (knuff-kanon) ritas via Canvas2D (kraft-våg) även när Pixi
+      // är på — Pixi-poolen kan bara rita generiska prickar. Hoppa över den här.
+      if (b && !b.dead && b.weaponId !== 'gulag_knock') {
         s.visible = true;
         s.position.set(b.x, b.y);
         // Skala baserat på bullet.r (default 5)
@@ -74765,6 +74767,14 @@ function render() {
   // v1.550: SKIP Canvas2D-render om Pixi-bullets aktivt
   if (!(pixiState && pixiState.bulletsEnabled)) {
     for (const b of state.bullets) {
+      if (b.x < _cullL || b.x > _cullR || b.y < _cullT || b.y > _cullB) continue;
+      drawBullet(b);
+    }
+  } else if (state.gulag && state.gulag.game === 'void') {
+    // v1.803: Pixi på men gulag_knock-kulor ritas i Canvas2D (kraft-våg-look; de skippas
+    // i Pixi-poolen). Få st. så billigt. Bara i The Void (där gulag_knock används).
+    for (const b of state.bullets) {
+      if (b.weaponId !== 'gulag_knock') continue;
       if (b.x < _cullL || b.x > _cullR || b.y < _cullT || b.y > _cullB) continue;
       drawBullet(b);
     }
