@@ -5261,6 +5261,15 @@ function endBattleRoyaleMatch(sim, winnerId, reason) {
   if (winnerId && !sim.battleroyaleRanks[winnerId]) {
     sim.battleroyaleRanks[winnerId] = 1;
   }
+  // v1.798: spelare som var i GULAG (kö ELLER duell) när matchen slutade saknar rank
+  // (enterGulag eliminerar dem ej) → annars visar scoreboarden 999. Ge dem rank =
+  // aliveCount (de var ej riktigt eliminerade) så placeringen blir rimlig.
+  for (const [pid, ws] of sim.room.members) {
+    if (!ws.playerState) continue;
+    if (!sim.battleroyaleRanks[pid] && !sim.battleroyaleEliminated.includes(pid)) {
+      sim.battleroyaleRanks[pid] = pid === winnerId ? 1 : Math.max(2, sim.battleroyaleAliveCount);
+    }
+  }
   const stats = { perPlayer: {}, winner: winnerId, reason };
   for (const [p] of sim.room.members) {
     stats.perPlayer[p] = {
@@ -5681,6 +5690,9 @@ function _brAirstrikeDamage(sim, strike) {
   for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
     if (pid === strike.owner) continue; // träffar ej den som kallade in den
+    // v1.798: downed-spelare (hp=1) skyddas (annars → 0 hp = kringgår self-revive-kanalen),
+    // och gulag-spelare är off-map (ska ej träffas av airstrike på kartan).
+    if (ws.playerState.brDowned || ws.playerState.gulagState) continue;
     if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
     const dx = ws.playerState.x - strike.x, dy = ws.playerState.y - strike.y;
     const d2 = dx * dx + dy * dy;
@@ -6776,6 +6788,12 @@ function startSim(sim, opts) {
       ws.playerState._gulagWeapon = null;
       ws.playerState._gulagNoShoot = false;
       ws.playerState.spectating = false;
+      // v1.798: nollställ kill-credit-state vid match-start (annars kan stale attacker
+      // från förra matchen ge fel kill-credit på första döden).
+      ws.playerState._brLastAttacker = null;
+      ws.playerState._brLastWeapon = null;
+      ws.playerState._brLastAttackerAt = 0;
+      ws._brCreditedKill = false;
       ws.playerState.brPerks = {};        // (v1.742) köpta perks: fast_hands/double_time/ghost/tracker/high_alert
       ws.playerState.brContract = null;   // (v1.746) aktivt kontrakt {id,type,...}
       ws.tdmRespawnAt = 0;
@@ -6804,6 +6822,7 @@ function startSim(sim, opts) {
     sim.gulagMatches = [];
     if (sim._gulagSlotsUsed) sim._gulagSlotsUsed.clear();
     sim._gulagMatchCounter = 0;
+    sim._gulagLoneSince = 0; // v1.798: nollställ deadlock-timern (defensiv state-hygien)
     sim.eventQueue.push({
       type: 'br_started',
       arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },

@@ -263,6 +263,9 @@ function clearGulagFields(ps) {
   ps.gulagState = null;
   ps._gulagMatchId = null; ps._gulagGame = null; ps._gulagWeapon = null;
   ps._gulagNoShoot = false; ps._gulagSpeedUntil = 0; ps._gulagGunUntil = 0;
+  // v1.798: rensa kill-credit-state — annars fick gulag-MOTSTÅNDAREN (redan eliminerad)
+  // kill-credit om vinnaren dog kort efter redeploy (fel kills + cash till en spöke).
+  ps._brLastAttacker = null; ps._brLastWeapon = null; ps._brLastAttackerAt = 0;
 }
 
 // ---- RESOLVE: vinnare redeployar, förlorare elimineras ----

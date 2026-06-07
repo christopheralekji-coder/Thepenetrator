@@ -25819,6 +25819,7 @@ const Coop = {
       state.battleroyaleNextZone = null;
       state.battleroyaleNextZoneRender = null;
       state.battleroyaleAliveCount = ev.aliveCount || 0;
+      state.battleroyaleStartCount = ev.aliveCount || 0; // v1.798: startantal för "Plats X av Y"
       state.battleroyaleMatchEndAt = ev.matchEndAt || (Date.now() + 600000);
       state.battleroyalePhaseEndAt = ev.phaseEndAt || 0;
       state.battleroyaleWalls = ev.walls || [];
@@ -26207,6 +26208,11 @@ const Coop = {
         if (state.player) {
           state.player.spectating = true;
           state.player.hp = 0;
+          // v1.798: nollställ downed-state + dölj röda "NEDSKJUTEN"-overlayen (annars
+          // låg den kvar genom hela spectator-läget eftersom updateBrDownedOverlay bara
+          // self-correctar på brDowned).
+          state.player.brDowned = false;
+          if (typeof hideBrDownedOverlay === 'function') hideBrDownedOverlay();
           // Auto-pick: cykla till första levande partner som spec-target
           state.player.specTarget = null;
           for (const [pid, partner] of this.players) {
@@ -26218,8 +26224,9 @@ const Coop = {
         }
         state.deadBody = { x: state.player ? state.player.x : 0, y: state.player ? state.player.y : 0, reviveTimer: 0 };
         if (typeof showToast === 'function') {
-          // Total = players.size + 1 (mig själv är inte i players-map)
-          const totalCount = (this.players ? this.players.size : 0) + 1;
+          // v1.798: total = startantalet (battleroyaleStartCount) så "av Y" stämmer även
+          // om någon lämnat under matchen (var players.size+1 = för lågt).
+          const totalCount = state.battleroyaleStartCount || ((this.players ? this.players.size : 0) + 1);
           showToast('💀 ELIMINERAD — Placering ' + ev.placement + ' av ' + totalCount);
           state._brPlacement = ev.placement;
           state._brTotal = totalCount;
@@ -26242,6 +26249,8 @@ const Coop = {
         if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
         if (state.player) {
           state.player.spectating = true; state.player.hp = 0; state.player.specTarget = null;
+          state.player.brDowned = false; // v1.798: dölj NEDSKJUTEN-overlayen i gulag-kö
+          if (typeof hideBrDownedOverlay === 'function') hideBrDownedOverlay();
           for (const [pid, partner] of this.players) { if (partner && partner.hp > 0) { state.player.specTarget = pid; break; } }
         }
         state.deadBody = { x: state.player ? state.player.x : 0, y: state.player ? state.player.y : 0, reviveTimer: 0 };
@@ -26356,6 +26365,7 @@ const Coop = {
           // tvinga en reload (gulag-vapnet kan ha tömts, t.ex. frenzy minigun/rocket).
           state.player.ammo = (typeof effectiveMag === 'function') ? effectiveMag('pistol') : 9999;
           state.player.reloading = false;
+          state.player.armorLevel = 0; // v1.798: servern nollar pansar vid redeploy → spegla (annars fel nivå i shoppen)
           state.player.weaponId = 'pistol'; state.player.brDowned = false;
         }
         if (typeof showToast === 'function') showToast('🏆 VANN GULAGEN — TILLBAKA I STRIDEN!');
@@ -26385,7 +26395,7 @@ const Coop = {
           for (const [pid, partner] of this.players) { if (partner && partner.hp > 0) { state.player.specTarget = pid; break; } }
         }
         state.deadBody = { x: state.player ? state.player.x : 0, y: state.player ? state.player.y : 0, reviveTimer: 0 };
-        const totalCount = (this.players ? this.players.size : 0) + 1;
+        const totalCount = state.battleroyaleStartCount || ((this.players ? this.players.size : 0) + 1); // v1.798: startantal
         if (typeof showToast === 'function') showToast('💀 FÖRLORADE GULAGEN — Placering ' + ev.placement + ' av ' + totalCount);
         state._brPlacement = ev.placement; state._brTotal = totalCount;
         if (typeof showBrSpectatorBanner === 'function') showBrSpectatorBanner();
@@ -39924,6 +39934,10 @@ function clearBattleroyaleState() {
   state._brShopTab = 'gear';
   state._brHighAlertDir = null;
   if (state.player) { state.player.brDowned = false; state.player.uavCount = 0; }
+  if (typeof hideBrDownedOverlay === 'function') hideBrDownedOverlay(); // v1.798: ej kvarhängande NEDSKJUTEN-overlay
+  // v1.798: nollställ placerings-siffror + startantal (annars kunde förra matchens
+  // "Plats X av Y" läcka in i nästa spectator-banner).
+  state._brPlacement = null; state._brTotal = null; state.battleroyaleStartCount = 0;
   if (typeof hudCanvas !== 'undefined' && hudCanvas) hudCanvas.style.zIndex = '3'; // återställ ev. förstorad-karta-z
   state.minimapBig = false; state._minimapZoomTarget = 0; // v1.752: lämna ej kartan förstorad in i nästa match
   if (typeof setGameControlsTappable === 'function') setGameControlsTappable(true);
