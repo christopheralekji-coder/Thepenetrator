@@ -54,9 +54,11 @@ const GULAG_GAMES = {
     shape: 'platform',
     loadout: { weaponId: 'gulag_knock', hp: 100, shield: 0 }, // tar aldrig skada — fall = förlust
     groundColor: '#070712',
-    maxMs: 45000,
-    platformR0: 440, platformRmin: 130, shrinkStartMs: 6000, shrinkMs: 30000,
-    knockForce: 540,
+    maxMs: 35000,
+    // v1.796: krymper snabbare (full krymp vid 24s, var 36s) + mindre slutplattform +
+    // hårdare knuff → tvingar avgörande närkamp, undviker timeout-tiebreak.
+    platformR0: 440, platformRmin: 105, shrinkStartMs: 4000, shrinkMs: 20000,
+    knockForce: 660,
     build(ox, oy) {
       return {
         shape: 'platform', groundColor: '#070712',
@@ -77,7 +79,7 @@ const GULAG_GAMES = {
     shape: 'arena',
     loadout: { weaponId: 'pistol', hp: 1, shield: 0 },
     groundColor: '#241526',
-    maxMs: 40000,
+    maxMs: 26000,  // v1.796: kortare (var 40s) — 1-hit-spel ska ej dra ut i camp-stalemate
     build(ox, oy) {
       const HW = 760, HH = 520;
       // Symmetriskt hinder-mönster (massa skydd) — v1.794: tätare labyrint-känsla
@@ -134,8 +136,10 @@ const GULAG_GAMES = {
     shape: 'ring',
     loadout: { weaponId: 'lightsaber', hp: 320, shield: 0 },
     groundColor: '#160707',
-    maxMs: 45000,
-    ringR0: 430, ringRmin: 150, shrinkStartMs: 7000, shrinkMs: 30000,
+    maxMs: 35000,
+    // v1.796: ringen krymper snabbare (full krymp vid 23s, var 37s) + mindre slutring
+    // (range 78 → vid 120px ingen kiting) så svärdet avgör, inte timeouten.
+    ringR0: 430, ringRmin: 120, shrinkStartMs: 3000, shrinkMs: 20000,
     lavaDps: 60,
     build(ox, oy) {
       return {
@@ -155,10 +159,11 @@ const GULAG_GAMES = {
     id: 'frenzy', name: 'POWERUP FRENZY', emoji: '⚡',
     hint: 'Snappa powerups och döda motståndaren!',
     shape: 'arena',
-    loadout: { weaponId: 'pistol', hp: 100, shield: 0 },
+    // v1.796: hp 140 (var 100) så vapen-powerups inte är instant-kill → counterplay.
+    loadout: { weaponId: 'pistol', hp: 140, shield: 0 },
     groundColor: '#161630',
-    maxMs: 45000,
-    powerupEverMs: 1400,          // v1.794: mycket tätare powerup-flöde (var 3500)
+    maxMs: 32000,
+    powerupEverMs: 1700,          // v1.796: tätt men läsbart (var 1400)
     build(ox, oy) {
       const HW = 680, HH = 500;
       const rel = [
@@ -230,11 +235,11 @@ const GULAG_GAMES = {
     loadout: { weaponId: 'fists', hp: 100, shield: 0 }, // ingen skada — fall = förlust
     noShoot: true,
     groundColor: '#3a1505',
-    maxMs: 45000,
+    maxMs: 34000,                 // v1.796: kortare svans (var 45s)
     cols: 9, rows: 7, tile: 150,
-    fallStartMs: 4500,            // grace innan första plattan VARNAS
+    fallStartMs: 5000,            // grace innan första plattan VARNAS (v1.796: 5s)
     fallEveryMs: 750,             // bas-intervall mellan plattfall (accelererar, se tickGulag)
-    warnMs: 650,                  // v1.794: röd blink-förvarning innan plattan faller
+    warnMs: 650,                  // bas röd blink-förvarning (skalas i tickGulag, v1.796)
     standCrumbleMs: 2600,         // hur länge man kan stå på en platta innan den vacklar
     build(ox, oy) {
       const COLS = 9, ROWS = 7, T = 150;

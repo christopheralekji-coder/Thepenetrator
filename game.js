@@ -21063,6 +21063,9 @@ function tryDash() {
     cdMs = 0;
   } else {
     cdMs = (state.juggernautActive && p.isJug && p.dashCdMs) ? p.dashCdMs : DASH_COOLDOWN_MS;
+    // GULAG noShoot-spel (Bomb Tag/Floor is Lava): dash är spelets HUVUDVERB (jaga/juka/
+    // stänga avstånd) → kort cooldown så det känns responsivt (v1.796).
+    if (state.gulag && state.gulag.noShoot) cdMs = 900;
     // v1.531: SURVIVORS-RUN dash-perks i 4 nivåer — använd LÄGSTA cd-värde av alla aktiva perks
     if (state.survivorsActive && state.survivorsPerks) {
       let lowestDashCd = cdMs;
@@ -26330,7 +26333,8 @@ const Coop = {
       if (ev.peerId === this.myId && state.gulag) {
         const g = state.gulag;
         const mag = Math.hypot(ev.vx, ev.vy) || 1;
-        const force = (typeof window !== 'undefined' && window.GULAG_GAMES && window.GULAG_GAMES.void) ? window.GULAG_GAMES.void.knockForce : 540;
+        // v1.796: ev.force tillåter spel-specifik knuff-styrka (bombtag-pass = mjukare shove)
+        const force = ev.force || ((typeof window !== 'undefined' && window.GULAG_GAMES && window.GULAG_GAMES.void) ? window.GULAG_GAMES.void.knockForce : 540);
         g.knockVX = (ev.vx / mag) * force; g.knockVY = (ev.vy / mag) * force; g.knockUntil = performance.now() + 220;
         if (typeof triggerShake === 'function') triggerShake(6, 0.25);
       }
@@ -26348,7 +26352,12 @@ const Coop = {
           state.player.weaponId = 'pistol'; state.player.brDowned = false;
         }
         if (typeof showToast === 'function') showToast('🏆 VANN GULAGEN — TILLBAKA I STRIDEN!');
-        if (typeof triggerShake === 'function') triggerShake(12, 0.5);
+        // v1.796: SÄLJ ögonblicket — guld-flash + hitstop + tung haptik (segern är
+        // spelets högsta insats: du kommer tillbaka i matchen).
+        if (typeof triggerHitStop === 'function') triggerHitStop(150);
+        if (typeof triggerShake === 'function') triggerShake(14, 0.6);
+        if (typeof _flashScreen === 'function') _flashScreen('#ffd24a', 0.42, 520);
+        if (typeof triggerVibrate === 'function') triggerVibrate(40);
         if (typeof Audio !== 'undefined' && Audio.revive) Audio.revive();
         if (typeof updateHUD === 'function') updateHUD();
         if (typeof updateBrHud === 'function') updateBrHud();
@@ -26359,7 +26368,10 @@ const Coop = {
         state.gulag = null; state.gulagQueued = false;
         if (typeof hideGulagBanner === 'function') hideGulagBanner();
         if (typeof Audio !== 'undefined' && Audio.playerDeath) Audio.playerDeath();
-        if (typeof triggerShake === 'function') triggerShake(14, 0.6);
+        if (typeof triggerShake === 'function') triggerShake(16, 0.7);
+        // v1.796: röd förlust-flash + hitstop (definitivt slut — du elimineras)
+        if (typeof triggerHitStop === 'function') triggerHitStop(160);
+        if (typeof _flashScreen === 'function') _flashScreen('#ff2436', 0.5, 650);
         if (state.player) {
           state.player.spectating = true; state.player.hp = 0; state.player.specTarget = null;
           state.player.maxHp = 100; // v1.794: återställ från ev. gulag-loadout-maxHp
@@ -34374,8 +34386,10 @@ function tryShoot(now) {
   const p = state.player;
   // BR downed (v1.740): krypande spelare kan inte skjuta (matchar server-guard).
   if (state.battleroyaleActive && p.brDowned) return;
-  // GULAG (v1.790): no-shoot-spel (Bomb Tag/Floor is Lava) — ingen skjutning
-  if (state.gulag && state.gulag.noShoot) return;
+  // GULAG (v1.796): no-shoot-spel (Bomb Tag/Floor is Lava) — fire-knappen blir en DASH
+  // istället för skjutning → ger AGENCY: hållaren stänger avstånd/jagar, jagad jukar/
+  // dodgar över hål. tryDash gatar själv på (kort) cooldown.
+  if (state.gulag && state.gulag.noShoot) { if (typeof tryDash === 'function') tryDash(); return; }
   // Truck-turret override: använd turretens vapen istället för spelarens
   const activeWeaponId = p._turretWeapon || p.weaponId;
   // SPECIAL: repair-turret laga trucken istället för att skjuta
@@ -34409,6 +34423,13 @@ function tryShoot(now) {
   if (w.type === 'melee') {
     p.lastShot = now;
     Audio.shootMelee();
+    // GULAG Blade Brawl (v1.796): varje hugg = kort framåt-LUNGE → svärdet får räckvidd
+    // + commitment (annars cirklade man bara och ringen/lavan avgjorde, ej svärdet).
+    // Lunge sker FÖRE sim_shoot-sänden nedan så server-melee:n läser den nya positionen.
+    if (state.gulag && state.gulag.game === 'blade') {
+      p.x += Math.cos(p.aimAngle) * 60; p.y += Math.sin(p.aimAngle) * 60;
+      if (typeof triggerVibrate === 'function') triggerVibrate(10);
+    }
     if (state.weaponsUsedThisStage) state.weaponsUsedThisStage.add(w.id);
     const ang = p.aimAngle;
     const reach = w.range * (p.mrangeMul || 1);
@@ -73960,6 +73981,18 @@ function drawGulagArena() {
     ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.stroke();
     ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(150,200,255,0.25)';
     ctx.beginPath(); ctx.arc(px, py, r * 0.6, 0, 7); ctx.stroke();
+    // v1.796: KANT-FARA — när spelaren närmar sig kanten: röd pulsande varnings-rim
+    // + stigande haptik (annars märker man inte att man är på väg att falla = dö).
+    if (state.player && !state.player.spectating) {
+      const pd = Math.hypot(state.player.x - geo.platformX, state.player.y - geo.platformY);
+      if (pd > r - 75) {
+        const dgr = Math.max(0, Math.min(1, (pd - (r - 75)) / 75));
+        ctx.lineWidth = 6 + 8 * dgr;
+        ctx.strokeStyle = 'rgba(255,45,45,' + (0.35 + 0.5 * Math.abs(Math.sin(now / 80))) + ')';
+        ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.stroke();
+        if (dgr > 0.45 && typeof triggerVibrate === 'function') triggerVibrate(8);
+      }
+    }
   } else if (geo.shape === 'ring') {
     const px = geo.ringX - cx, py = geo.ringY - cy;
     const r = g.ringR || geo.ringR || 400;
@@ -73972,6 +74005,21 @@ function drawGulagArena() {
     ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.fill();
     ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(255,120,40,' + (0.6 + 0.3 * Math.sin(now / 160)) + ')';
     ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.stroke();
+    // v1.796: LAVA-FARA — när spelaren är UTANFÖR ringen (i lavan, tar 60 dps): brinnande
+    // röd aura runt gubben + glöd-partiklar + haptik så det blir ett TYDLIGT farligt val,
+    // ej en förvirrande hp-tapp.
+    if (state.player && !state.player.spectating) {
+      const pd = Math.hypot(state.player.x - geo.ringX, state.player.y - geo.ringY);
+      if (pd > r) {
+        const ax = state.player.x - cx, ay = state.player.y - cy;
+        const ag = ctx.createRadialGradient(ax, ay, 6, ax, ay, 46);
+        ag.addColorStop(0, 'rgba(255,140,30,' + (0.45 + 0.3 * Math.abs(Math.sin(now / 70))) + ')');
+        ag.addColorStop(1, 'rgba(255,40,10,0)');
+        ctx.fillStyle = ag; ctx.beginPath(); ctx.arc(ax, ay, 46, 0, 7); ctx.fill();
+        if (typeof triggerVibrate === 'function') triggerVibrate(10);
+        if (typeof spawnParticles === 'function' && Math.sin(now / 60) > 0.8) spawnParticles(state.player.x, state.player.y, '#ff7a20', 2, 120);
+      }
+    }
   } else if (geo.shape === 'tilegrid') {
     ctx.fillStyle = '#2a0c02'; ctx.fillRect(-viewW, -viewH, viewW * 3, viewH * 3);
     const lg = ctx.createLinearGradient(0, 0, 0, viewH);
@@ -74019,10 +74067,13 @@ function drawGulagArena() {
       const PU_EMOJI = { shield: '🛡', heal: '➕', speed: '⚡', shotgun: '🔫', minigun: '🌀', rocket: '🚀' };
       const col = PU_COL[pu.kind] || '#ff6a3a';
       ctx.save(); ctx.translate(ux, uy);
-      const s = 1 + 0.15 * Math.sin(now / 180);
-      ctx.globalAlpha = 0.35; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 22 * s, 0, 7); ctx.fill();
-      ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 13, 0, 7); ctx.fill();
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 14px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const s = 1 + 0.18 * Math.sin(now / 180);
+      // v1.796: större + ljus-pelare så typen läses på avstånd (mobil) → spelarna RACAR
+      // efter kända priser istället för att gissa-greppa.
+      ctx.globalAlpha = 0.18; ctx.fillStyle = col; ctx.fillRect(-5, -120, 10, 120); // beam uppåt
+      ctx.globalAlpha = 0.40; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 30 * s, 0, 7); ctx.fill();
+      ctx.globalAlpha = 1; ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, 0, 18, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 20px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(PU_EMOJI[pu.kind] || '🔫', 0, 1);
       ctx.restore();
     }
@@ -74034,10 +74085,26 @@ function drawGulagArena() {
     else { const opp = Coop.players && Coop.players.get(g.bombHolder); if (opp) { bx = opp.x; by = opp.y; } }
     if (bx != null) {
       const sx = bx - cx, sy = by - cy - 40;
-      const pulse = 0.6 + 0.4 * Math.sin(now / 90);
-      ctx.fillStyle = 'rgba(255,60,30,' + pulse + ')';
+      // v1.796: URGENS — sista 6s rampar puls-takt, storlek, röd fara-ring + (om JAG håller
+      // bomben) accelererande haptisk tick. Fuse:n ska KÄNNAS brinna.
+      const urg = g.bombMs > 0 ? Math.max(0, Math.min(1, 1 - g.bombMs / 6000)) : 1;
+      const pulse = 0.55 + 0.45 * Math.abs(Math.sin(now / (95 - urg * 68)));
+      const sc = 1 + urg * 0.55 + 0.12 * pulse;
+      ctx.strokeStyle = 'rgba(255,' + Math.round(80 - urg * 70) + ',20,' + (0.25 + 0.5 * pulse * (0.3 + urg)) + ')';
+      ctx.lineWidth = 3 + 6 * urg;
+      ctx.beginPath(); ctx.arc(bx - cx, by - cy, 30 + 12 * pulse, 0, 7); ctx.stroke();
+      ctx.save(); ctx.translate(sx, sy); ctx.scale(sc, sc);
+      ctx.fillStyle = 'rgba(255,' + Math.round(70 - urg * 50) + ',30,' + pulse + ')';
       ctx.font = 'bold 26px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('💣', sx, sy);
+      ctx.fillText('💣', 0, 0);
+      ctx.restore();
+      if (g.bombHolder === Coop.myId && g.bombMs > 0) {
+        const beepInterval = 120 + (1 - urg) * 680; // 800ms → 120ms ju närmare detonation
+        if (!g._lastBeep || now - g._lastBeep > beepInterval) {
+          g._lastBeep = now;
+          if (typeof triggerVibrate === 'function') triggerVibrate(urg > 0.6 ? 16 : 9);
+        }
+      }
     }
   }
   // Väggar/skydd (arena) — ritas i golv-passet (under spelarna)

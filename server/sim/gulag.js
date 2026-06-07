@@ -159,7 +159,7 @@ function startGulagMatch(sim, pidA, pidB, now) {
     ps._gulagWeapon = lo.weaponId;
     ps._gulagNoShoot = !!game.noShoot;
     ps.x = sp.x; ps.y = sp.y; ps.aim = sp.facing;
-    ps.hp = lo.hp; ps.shield = lo.shield || 0;
+    ps.hp = lo.hp; ps.maxHp = lo.hp; ps.shield = lo.shield || 0; // v1.796: maxHp = loadout (frenzy 140) → heal-cap rätt
     ps.weaponId = lo.weaponId;
     ps.armorLevel = 0; ps.speedMul = 1;
     ps.invulnUntil = now + 800; // spawn-grace + skydd mot in-flight-position-desync
@@ -277,7 +277,7 @@ function resolveGulag(sim, m, winnerPid, loserPid, now) {
     const ps = wWs.playerState;
     clearGulagFields(ps);
     ps.spectating = false; ps.brDowned = false;
-    ps.hp = 75; ps.shield = 25; ps.weaponId = 'pistol';
+    ps.hp = 75; ps.maxHp = 100; ps.shield = 25; ps.weaponId = 'pistol'; // v1.796: maxHp tillbaka till BR-100
     ps.armorLevel = 0; ps.speedMul = 1;
     const pos = safeRedeployPos(sim);
     ps.x = pos.x; ps.y = pos.y;
@@ -367,13 +367,15 @@ function tickGulag(sim, dt, now) {
           if (ps._gulagSpeedUntil && now > ps._gulagSpeedUntil) { ps.speedMul = 1; ps._gulagSpeedUntil = 0; }
           if (ps._gulagGunUntil && now > ps._gulagGunUntil) { ps._gulagWeapon = game.loadout.weaponId; ps.weaponId = game.loadout.weaponId; ps._gulagGunUntil = 0; }
         });
-        // spawna powerup (v1.794: upp till 8 samtidigt = tätt powerup-kaos)
-        if (m.nextPowerupAt && now >= m.nextPowerupAt && m.powerups.length < 8) {
+        // spawna powerup (v1.796: cap 6 samtidigt = tätt men läsbart)
+        if (m.nextPowerupAt && now >= m.nextPowerupAt && m.powerups.length < 6) {
           const spots = m.geo.powerupSpawns || [];
           if (spots.length) {
             const spot = spots[Math.floor(Math.random() * spots.length)];
-            // v1.795: mer variation + roligare vapen-powerups (minigun-spray, raket-kaos)
-            const kinds = ['shield', 'heal', 'speed', 'shotgun', 'minigun', 'rocket'];
+            // v1.796: VIKTAD pool — utility vanligast, minigun ovanligt, rocket sällsynt
+            // (rocket = stark burst men dödlig direkt → ska vara en sällsynt höjdpunkt,
+            // ej 1-av-6-lotteri). shield/heal/speed/shotgun 20% var, minigun 10%, rocket 10%.
+            const kinds = ['shield', 'shield', 'heal', 'heal', 'speed', 'speed', 'shotgun', 'shotgun', 'minigun', 'rocket'];
             m.powerups.push({ id: 'pu' + (++m.puCounter), x: spot.x, y: spot.y, kind: kinds[Math.floor(Math.random() * kinds.length)] });
             m.nextPowerupAt = now + game.powerupEverMs;
           }
@@ -401,6 +403,12 @@ function tickGulag(sim, dt, now) {
           m.bombHolder = (m.bombHolder === m.a) ? m.b : m.a;
           m.bombPassReadyAt = now + game.passCooldownMs;
           sim.eventQueue.push({ type: 'gulag_bomb', matchId: m.id, a: m.a, b: m.b, holder: m.bombHolder, endsAt: m.bombEndsAt });
+          // v1.796: SHOVE den nya hållaren bort från taggaren → läsbar orsak/verkan
+          // ("jag taggade dig, du är det nu, spring!"). Mjukare knuff än void (force 380).
+          const nh = sim.room.members.get(m.bombHolder).playerState;
+          const oh = (m.bombHolder === m.a) ? psB : psA;
+          const kdx = nh.x - oh.x, kdy = nh.y - oh.y;
+          sim.eventQueue.push({ type: 'gulag_knockback', peerId: m.bombHolder, vx: Math.round(kdx), vy: Math.round(kdy), force: 380 });
         }
         break;
       }
@@ -415,13 +423,17 @@ function tickGulag(sim, dt, now) {
           }
         }
         // 2) schemalägg ny varning. ACCELERATION: intervallet krymper ju fler plattor
-        // som fallit (750ms → ~220ms golv) så tempot ökar mot slutet.
+        // som fallit (750ms → ~220ms golv) så tempot ökar mot slutet. v1.796: warn-tiden
+        // skalas med intervallet (men aldrig under 450ms) → rättvist reaktionsfönster
+        // även när plattor faller snabbt sent i matchen.
         if (m.nextTileFallAt && now >= m.nextTileFallAt) {
-          const widx = pickWarnTile(m);
-          if (widx >= 0) m.warningTiles.push({ idx: widx, fallAt: now + (game.warnMs || 650) });
           const totalT = m.geo.cols * m.geo.rows;
           const frac = m.fallenTiles.length / totalT;
-          m.nextTileFallAt = now + Math.max(220, game.fallEveryMs * (1 - frac * 1.25));
+          const interval = Math.max(220, game.fallEveryMs * (1 - frac * 1.25));
+          const warn = Math.max(450, interval * 0.9);
+          const widx = pickWarnTile(m);
+          if (widx >= 0) m.warningTiles.push({ idx: widx, fallAt: now + warn });
+          m.nextTileFallAt = now + interval;
         }
         // stå-för-länge → platta vacklar
         [m.a, m.b].forEach(pid => {
@@ -434,8 +446,18 @@ function tickGulag(sim, dt, now) {
             m.fallenTiles.push(idx); m.tileStandSince[pid] = null;
           }
         });
+        // off-hole-tidsstämpel → RÄTTVIS dubbel-fall-tiebreak (ingen coin-flip i en
+        // eliminerings-match). Den som höll fast mark LÄNGST (föll senast) vinner.
         const aOff = isOverHole(m, psA.x, psA.y), bOff = isOverHole(m, psB.x, psB.y);
-        if (aOff && bOff) { if (Math.random() < 0.5) { winner = m.a; loser = m.b; } else { winner = m.b; loser = m.a; } }
+        if (aOff) { if (!m._aOffSince) m._aOffSince = now; } else m._aOffSince = 0;
+        if (bOff) { if (!m._bOffSince) m._bOffSince = now; } else m._bOffSince = 0;
+        if (aOff && bOff) {
+          const aT = m._aOffSince || now, bT = m._bOffSince || now;
+          if (aT > bT) { winner = m.a; loser = m.b; }          // A föll senare → A vinner
+          else if (bT > aT) { winner = m.b; loser = m.a; }
+          else if ((psA.hp || 0) >= (psB.hp || 0)) { winner = m.a; loser = m.b; } // exakt samma tick → mer hp
+          else { winner = m.b; loser = m.a; }
+        }
         else if (aOff) { winner = m.b; loser = m.a; }
         else if (bOff) { winner = m.a; loser = m.b; }
         break;
