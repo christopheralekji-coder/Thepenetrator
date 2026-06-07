@@ -431,7 +431,21 @@ function tickGulag(sim, dt, now) {
       }
       case 'oneshot': break; // hp-död hanteras nedan
       case 'bombtag': {
-        if (now >= m.bombEndsAt) { winner = (m.bombHolder === m.a) ? m.b : m.a; loser = m.bombHolder; break; }
+        // v1.801: DETONATION-fönster — visa explosionen på hållaren INNAN förlust-screenen
+        // (resolve fördröjs ~850ms så man hinner se hen sprängas).
+        if (m._detonating) {
+          if (now >= m._detonateResolveAt) { winner = (m.bombHolder === m.a) ? m.b : m.a; loser = m.bombHolder; }
+          break;
+        }
+        if (now >= m.bombEndsAt) {
+          m._detonating = true;
+          m._detonateResolveAt = now + 850;
+          const hws = sim.room.members.get(m.bombHolder);
+          if (hws && hws.playerState) {
+            sim.eventQueue.push({ type: 'gulag_bomb_explode', matchId: m.id, holder: m.bombHolder, x: Math.round(hws.playerState.x), y: Math.round(hws.playerState.y) });
+          }
+          break;
+        }
         if (now >= m.bombPassReadyAt && dist(psA.x, psA.y, psB.x, psB.y) < game.contactRange) {
           m.bombHolder = (m.bombHolder === m.a) ? m.b : m.a;
           m.bombPassReadyAt = now + game.passCooldownMs;
@@ -464,7 +478,8 @@ function tickGulag(sim, dt, now) {
           const totalT = m.geo.cols * m.geo.rows;
           const frac = m.fallenTiles.length / totalT;
           const interval = Math.max(220, game.fallEveryMs * (1 - frac * 1.25));
-          const warn = Math.max(450, interval * 0.9);
+          // v1.801: varning startar på 2s och krymper 0.1s per fallen platta (golv 400ms)
+          const warn = Math.max(400, 2000 - 100 * m.fallenTiles.length);
           const widx = pickWarnTile(m);
           if (widx >= 0) m.warningTiles.push({ idx: widx, fallAt: now + warn });
           m.nextTileFallAt = now + interval;
@@ -477,10 +492,11 @@ function tickGulag(sim, dt, now) {
           const rec = m.tileStandSince[pid];
           if (!rec || rec.idx !== idx) m.tileStandSince[pid] = { idx, since: now };
           else if (now - rec.since > game.standCrumbleMs && !m.fallenTiles.includes(idx)) {
-            // v1.800: TELEGRAFERA crumble — plattan BLINKAR (warningTiles) i 500ms innan
-            // den faller, i st.f. instant fall (tidigare försvann den abrupt under en
-            // som stod stilla → såg ut som en bugg). Promoteras av warning-loopen ovan.
-            if (!m.warningTiles.some(w => w.idx === idx)) m.warningTiles.push({ idx, fallAt: now + 500 });
+            // v1.801: TELEGRAFERA crumble — plattan BLINKAR innan fall. Varnings-tiden
+            // startar 2s och krymper 0.1s per fallen platta (golv 400ms) så det är generöst
+            // tidigt och stramare sent.
+            const _cw = Math.max(400, 2000 - 100 * m.fallenTiles.length);
+            if (!m.warningTiles.some(w => w.idx === idx)) m.warningTiles.push({ idx, fallAt: now + _cw });
             m.tileStandSince[pid] = null;
           }
         });

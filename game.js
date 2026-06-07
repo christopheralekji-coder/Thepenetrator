@@ -26336,6 +26336,22 @@ const Coop = {
         if (ev.holder === this.myId && typeof Audio !== 'undefined' && Audio.hit) Audio.hit();
         if (typeof updateGulagBanner === 'function') updateGulagBanner();
       }
+    } else if (ev.type === 'gulag_bomb_explode') {
+      // v1.801: STOR explosion på hållaren ~850ms INNAN gulag_lost/won-screenen → man
+      // hinner se hen sprängas. Server fördröjer resolve.
+      const g = state.gulag;
+      if (g && g.matchId === ev.matchId) {
+        g.bombMs = 0; g.bombHolder = null;
+        if (typeof spawnExplosion === 'function') spawnExplosion(ev.x, ev.y, 130);
+        else if (typeof explode === 'function') explode(ev.x, ev.y, 130, 0, true);
+        if (typeof spawnSparks === 'function') spawnSparks(ev.x, ev.y, '#ffcc33', 16, 320);
+        if (typeof triggerShake === 'function') triggerShake(18, 0.6);
+        if (typeof triggerHitStop === 'function') triggerHitStop(120);
+        if (typeof _flashScreen === 'function') _flashScreen('#ff7a20', 0.4, 400);
+        if (typeof triggerVibrate === 'function') triggerVibrate(40);
+        if (typeof Audio !== 'undefined' && Audio.shootHeavy) Audio.shootHeavy();
+        if (typeof updateGulagBanner === 'function') updateGulagBanner();
+      }
     } else if (ev.type === 'gulag_powerup') {
       if (ev.peerId === this.myId && state.gulag) {
         const g = state.gulag;
@@ -34474,11 +34490,18 @@ function tryShoot(now) {
       // den normala rörelsen i gulag-blocket. ~450px/s i 130ms = ~58px, ~7.5px/frame =
       // inom serverns anti-cheat-budget → ingen desync, och man kan röra sig fritt samtidigt.
       const g = state.gulag;
-      g._lungeVX = Math.cos(p.aimAngle) * 400; // v1.800: något kortare → mindre överskjut i lavan
-      g._lungeVY = Math.sin(p.aimAngle) * 400;
-      g._lungeUntil = performance.now() + 120;
-      if (typeof triggerVibrate === 'function') triggerVibrate(10);
-      if (typeof spawnSparks === 'function') spawnSparks(p.x + Math.cos(p.aimAngle) * 30, p.y + Math.sin(p.aimAngle) * 30, '#7ad8ff', 4, 220); // saber-whoosh-gnistor
+      // v1.801: leapa ENDAST medan man springer (rörelse-input aktiv). Står man still och
+      // slår → ingen förflyttning (man stannar). Lunge-riktning = rörelseriktningen.
+      const _mvx = (input.moveX || 0) + (input.keys.has('d') ? 1 : 0) - (input.keys.has('a') ? 1 : 0);
+      const _mvy = (input.moveY || 0) + (input.keys.has('s') ? 1 : 0) - (input.keys.has('w') ? 1 : 0);
+      const _mvm = Math.hypot(_mvx, _mvy);
+      if (_mvm > 0.15) {
+        g._lungeVX = (_mvx / _mvm) * 400;
+        g._lungeVY = (_mvy / _mvm) * 400;
+        g._lungeUntil = performance.now() + 120;
+        if (typeof triggerVibrate === 'function') triggerVibrate(10);
+        if (typeof spawnSparks === 'function') spawnSparks(p.x + Math.cos(p.aimAngle) * 30, p.y + Math.sin(p.aimAngle) * 30, '#7ad8ff', 4, 220);
+      }
     }
     if (state.weaponsUsedThisStage) state.weaponsUsedThisStage.add(w.id);
     const ang = p.aimAngle;
@@ -74059,11 +74082,21 @@ function drawGulagArena() {
     ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(px, py, r * 1.25, 0, 7); ctx.fill();
     ctx.fillStyle = geo.groundColor || '#1b2440';
     ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.fill();
+    // v1.801: rymd-plattform-detalj — radiella ekrar + koncentriska panel-ringar + glödkärna
+    ctx.save(); ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.clip();
+    ctx.strokeStyle = 'rgba(120,170,255,0.10)'; ctx.lineWidth = 2;
+    for (let a = 0; a < 8; a++) { const an = a * Math.PI / 4 + now / 6000; ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + Math.cos(an) * r, py + Math.sin(an) * r); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(150,200,255,0.14)';
+    ctx.beginPath(); ctx.arc(px, py, r * 0.32, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(px, py, r * 0.6, 0, 7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(px, py, r * 0.85, 0, 7); ctx.stroke();
+    const core = ctx.createRadialGradient(px, py, 2, px, py, r * 0.28);
+    core.addColorStop(0, 'rgba(120,180,255,' + (0.30 + 0.12 * Math.sin(now / 300)) + ')'); core.addColorStop(1, 'rgba(120,180,255,0)');
+    ctx.fillStyle = core; ctx.beginPath(); ctx.arc(px, py, r * 0.28, 0, 7); ctx.fill();
+    ctx.restore();
     // hex-glow-kant (fara)
     ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(95,170,255,' + (0.5 + 0.35 * Math.sin(now / 200)) + ')';
     ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.stroke();
-    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(150,200,255,0.25)';
-    ctx.beginPath(); ctx.arc(px, py, r * 0.6, 0, 7); ctx.stroke();
     // v1.796: KANT-FARA — när spelaren närmar sig kanten: röd pulsande varnings-rim
     // + stigande haptik (annars märker man inte att man är på väg att falla = dö).
     if (state.player && !state.player.spectating) {
@@ -74086,6 +74119,19 @@ function drawGulagArena() {
     ctx.fillStyle = lg; ctx.fillRect(-viewW, -viewH, viewW * 3, viewH * 3);
     ctx.fillStyle = geo.groundColor || '#160707';
     ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.fill();
+    // v1.801: sprucken obsidian-detalj — glödande lava-sprickor från centrum + inre ring
+    ctx.save(); ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.clip();
+    ctx.strokeStyle = 'rgba(255,90,30,' + (0.18 + 0.08 * Math.sin(now / 240)) + ')'; ctx.lineWidth = 2.5;
+    for (let a = 0; a < 6; a++) {
+      const an = a * Math.PI / 3 + 0.4;
+      ctx.beginPath(); ctx.moveTo(px, py);
+      ctx.lineTo(px + Math.cos(an) * r * 0.5, py + Math.sin(an) * r * 0.5);
+      ctx.lineTo(px + Math.cos(an + 0.3) * r * 0.9, py + Math.sin(an + 0.3) * r * 0.9);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(120,40,15,0.5)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(px, py, r * 0.55, 0, 7); ctx.stroke();
+    ctx.restore();
     ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(255,120,40,' + (0.6 + 0.3 * Math.sin(now / 160)) + ')';
     ctx.beginPath(); ctx.arc(px, py, r, 0, 7); ctx.stroke();
     // v1.796: LAVA-FARA — när spelaren är UTANFÖR ringen (i lavan, tar 60 dps): brinnande
@@ -74132,12 +74178,40 @@ function drawGulagArena() {
   } else { // arena
     if (geo.bounds) {
       const b = geo.bounds;
+      const bx = b.x - cx, by = b.y - cy;
       ctx.fillStyle = geo.groundColor || '#1a1a2e';
-      ctx.fillRect(b.x - cx, b.y - cy, b.w, b.h);
-      // subtil grid
-      ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.lineWidth = 1;
-      for (let gx = b.x; gx <= b.x + b.w; gx += 120) { ctx.beginPath(); ctx.moveTo(gx - cx, b.y - cy); ctx.lineTo(gx - cx, b.y + b.h - cy); ctx.stroke(); }
-      for (let gy = b.y; gy <= b.y + b.h; gy += 120) { ctx.beginPath(); ctx.moveTo(b.x - cx, gy - cy); ctx.lineTo(b.x + b.w - cx, gy - cy); ctx.stroke(); }
+      ctx.fillRect(bx, by, b.w, b.h);
+      // v1.801: EGET TEMA-GOLV per bana (ej bara fyrkant-grid)
+      if (g.game === 'frenzy') {
+        // arkad-energigolv: pulsande neon-grid + glödnoder i korsningarna
+        const T = 130, pul = 0.08 + 0.06 * Math.abs(Math.sin(now / 480));
+        ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(90,170,255,' + pul.toFixed(3) + ')';
+        for (let gx = b.x; gx <= b.x + b.w; gx += T) { ctx.beginPath(); ctx.moveTo(gx - cx, by); ctx.lineTo(gx - cx, by + b.h); ctx.stroke(); }
+        for (let gy = b.y; gy <= b.y + b.h; gy += T) { ctx.beginPath(); ctx.moveTo(bx, gy - cy); ctx.lineTo(bx + b.w, gy - cy); ctx.stroke(); }
+        ctx.fillStyle = 'rgba(140,210,255,' + (0.16 + 0.12 * Math.abs(Math.sin(now / 380))).toFixed(3) + ')';
+        for (let gx = b.x; gx <= b.x + b.w; gx += T) for (let gy = b.y; gy <= b.y + b.h; gy += T) { ctx.beginPath(); ctx.arc(gx - cx, gy - cy, 2.6, 0, 7); ctx.fill(); }
+      } else if (g.game === 'bombtag') {
+        // industrigolv: betongpaneler + svart/gul fara-stripe-ram + nitar
+        const T = 150;
+        ctx.strokeStyle = 'rgba(0,0,0,0.30)'; ctx.lineWidth = 2;
+        for (let gx = b.x; gx <= b.x + b.w; gx += T) { ctx.beginPath(); ctx.moveTo(gx - cx, by); ctx.lineTo(gx - cx, by + b.h); ctx.stroke(); }
+        for (let gy = b.y; gy <= b.y + b.h; gy += T) { ctx.beginPath(); ctx.moveTo(bx, gy - cy); ctx.lineTo(bx + b.w, gy - cy); ctx.stroke(); }
+        ctx.fillStyle = 'rgba(255,255,255,0.05)';
+        for (let gx = b.x + T / 2; gx <= b.x + b.w; gx += T) for (let gy = b.y + T / 2; gy <= b.y + b.h; gy += T) { ctx.fillRect(gx - cx - 2, gy - cy - 2, 4, 4); }
+        const sw = 16;
+        for (let i = 0; i < b.w; i += 28) { ctx.fillStyle = (Math.floor(i / 28) % 2) ? 'rgba(190,160,40,0.7)' : 'rgba(20,20,12,0.7)'; ctx.fillRect(bx + i, by, 28, sw); ctx.fillRect(bx + i, by + b.h - sw, 28, sw); }
+      } else {
+        // oneshot (default): taktiska paneler + sikt-reticle i mitten + hörn-hatch
+        const T = 160;
+        ctx.strokeStyle = 'rgba(255,255,255,0.05)'; ctx.lineWidth = 1;
+        for (let gx = b.x; gx <= b.x + b.w; gx += T) { ctx.beginPath(); ctx.moveTo(gx - cx, by); ctx.lineTo(gx - cx, by + b.h); ctx.stroke(); }
+        for (let gy = b.y; gy <= b.y + b.h; gy += T) { ctx.beginPath(); ctx.moveTo(bx, gy - cy); ctx.lineTo(bx + b.w, gy - cy); ctx.stroke(); }
+        const ccx = b.x + b.w / 2 - cx, ccy = b.y + b.h / 2 - cy;
+        ctx.strokeStyle = 'rgba(210,130,230,0.12)'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(ccx, ccy, 66, 0, 7); ctx.stroke();
+        ctx.beginPath(); ctx.arc(ccx, ccy, 34, 0, 7); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ccx - 80, ccy); ctx.lineTo(ccx + 80, ccy); ctx.moveTo(ccx, ccy - 80); ctx.lineTo(ccx, ccy + 80); ctx.stroke();
+      }
     }
   }
 

@@ -108,7 +108,10 @@ function pairedMatch(sim, gameId, now) {
   const m = pairedMatch(sim, 'bombtag', 1000);
   m.bombHolder = 'A'; m.bombEndsAt = 2000;
   sim.eventQueue = [];
-  tickGulag(sim, 0.05, 3000);
+  tickGulag(sim, 0.05, 3000);   // v1.801: startar detonations-fönstret (explosion-event)
+  ok(evs(sim, 'gulag_bomb_explode').length === 1, 'T5: explosion-event innan resolve');
+  ok(!sim.battleroyaleEliminated.includes('A'), 'T5: ej resolvad än (850ms-fönster)');
+  tickGulag(sim, 0.05, 3900);   // efter 850ms → resolve
   ok(sim.battleroyaleEliminated.includes('A'), 'T5: bomb-hållare A förlorar');
   ok(sim.room.members.get('B').playerState.hp === 75, 'T5: B vinner');
 })();
