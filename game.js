@@ -20931,30 +20931,34 @@ function checkPixiDiagCornerTap(mx, my) {
   _pixiDiagTapLastT = now;
   if (_pixiDiagTapCount >= 4) {
     _pixiDiagTapCount = 0;
-    window._pixiDiag = !window._pixiDiag;
-    // v1.548: Toggle stor rosa pixi-marker mitt på skärmen för att VERIFIERA
-    // att Pixi-canvas alls syns. Bound till diag-toggle.
-    if (pixiState && pixiState.ready && pixiState.app) {
-      try {
-        if (window._pixiDiag && !pixiState._alwaysVisibleMarker) {
-          const m = new PIXI.Graphics();
-          m.circle(0, 0, 80).fill({ color: 0xff00ff, alpha: 0.75 });
-          m.circle(0, 0, 80).stroke({ width: 6, color: 0xffff00 });
-          m.position.set(viewW / 2, viewH / 2);
-          pixiState.app.stage.addChild(m);
-          pixiState._alwaysVisibleMarker = m;
-        } else if (!window._pixiDiag && pixiState._alwaysVisibleMarker) {
-          pixiState.app.stage.removeChild(pixiState._alwaysVisibleMarker);
-          pixiState._alwaysVisibleMarker = null;
-        }
-      } catch (e) { console.error('[PixiJS] marker error:', e); }
-    }
-    if (typeof showToast === 'function') {
-      showToast(window._pixiDiag ? '🔧 DIAG PÅ' : '🔧 DIAG AV');
-    }
+    togglePixiDiag();
     return true;
   }
   return false;
+}
+// v1.810: delad toggle-funktion (anropas av 4-tap top-right OCH 5-tap på 💰-räknaren)
+function togglePixiDiag() {
+  window._pixiDiag = !window._pixiDiag;
+  // v1.548: Toggle stor rosa pixi-marker mitt på skärmen för att VERIFIERA
+  // att Pixi-canvas alls syns. Bound till diag-toggle.
+  if (pixiState && pixiState.ready && pixiState.app) {
+    try {
+      if (window._pixiDiag && !pixiState._alwaysVisibleMarker) {
+        const m = new PIXI.Graphics();
+        m.circle(0, 0, 80).fill({ color: 0xff00ff, alpha: 0.75 });
+        m.circle(0, 0, 80).stroke({ width: 6, color: 0xffff00 });
+        m.position.set(viewW / 2, viewH / 2);
+        pixiState.app.stage.addChild(m);
+        pixiState._alwaysVisibleMarker = m;
+      } else if (!window._pixiDiag && pixiState._alwaysVisibleMarker) {
+        pixiState.app.stage.removeChild(pixiState._alwaysVisibleMarker);
+        pixiState._alwaysVisibleMarker = null;
+      }
+    } catch (e) { console.error('[PixiJS] marker error:', e); }
+  }
+  if (typeof showToast === 'function') {
+    showToast(window._pixiDiag ? '🔧 DIAG PÅ' : '🔧 DIAG AV');
+  }
 }
 function updatePixiDiagOverlay() {
   if (!window._pixiDiag) {
@@ -42774,6 +42778,23 @@ const _shieldFill = document.getElementById('shield-fill');
 const _shieldText = document.getElementById('shield-text');
 const waveInfo = document.getElementById('wave-info');
 const goldInfo = document.getElementById('gold-info');
+// v1.810: 5-tap på 💰-räknaren togglar diag-overlayn (lättare träffyta än
+// 4-tap top-right-hörnet). Använder pointerdown så det funkar på mobil.
+if (goldInfo) {
+  let _goldTapCount = 0;
+  let _goldTapLastT = 0;
+  goldInfo.addEventListener('pointerdown', (e) => {
+    const now = (typeof performance !== 'undefined') ? performance.now() : 0;
+    if (now - _goldTapLastT > 600) _goldTapCount = 0;
+    _goldTapCount++;
+    _goldTapLastT = now;
+    if (_goldTapCount >= 5) {
+      _goldTapCount = 0;
+      e.stopPropagation();
+      if (typeof togglePixiDiag === 'function') togglePixiDiag();
+    }
+  });
+}
 const weaponName = document.getElementById('weapon-name');
 const ammoInfo = document.getElementById('ammo-info');
 const killCountEl = document.getElementById('kill-count');
