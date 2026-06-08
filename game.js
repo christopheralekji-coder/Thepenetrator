@@ -19794,6 +19794,45 @@ const _mainCtx = ctx; // referens till main-context för säker restore
 // v1.575: HUD-canvas (z-index:3) för minimap + HUD-element som ska ligga ovan Pixi-sprites
 const hudCanvas = document.getElementById('hud-canvas');
 const hudCtx = hudCanvas ? hudCanvas.getContext('2d') : null;
+// OPTION A (v1.813): dedikerad minimap-canvas (z:4) + flagga. Minimap låg förr på den
+// HELSKÄRMS hudCanvas (z:3) → OS-compositorn texture-uppladdade + blendade ett helskärms-
+// lager VARJE frame bara för minimap-hörnet. Nu ritas minimap till en LITEN canvas (≈
+// minimap-regionen) och hudCanvas (rök) släcks (display:none) när ingen rök är aktiv —
+// så i 95% av speltiden (ingen rök) finns inget helskärms-z:3-lager att kompositera.
+// ?hudSplit=0 → gamla vägen (minimap på hudCtx, hudCanvas alltid synlig).
+let _hudSplitEnabled = true;
+try { _hudSplitEnabled = new URLSearchParams(location.search).get('hudSplit') !== '0'; } catch (_) {}
+let _miniCanvas = null, _miniCtx = null;
+const _miniRect = { left: 0, top: 0, w: 0, h: 0 };
+function _ensureMiniCanvas() {
+  if (!_hudSplitEnabled) return null;
+  if (!_miniCanvas) {
+    _miniCanvas = document.createElement('canvas');
+    _miniCanvas.id = 'minimap-canvas';
+    _miniCanvas.style.cssText = 'position:fixed;top:0;left:0;z-index:4;pointer-events:none;background:transparent;';
+    document.body.appendChild(_miniCanvas);
+    _miniCtx = _miniCanvas.getContext('2d');
+  }
+  // Layout: täck minimap-regionen (top-right-ankrad box i drawMiniMap, max = bigSize) + pad.
+  // drawMiniMap ritar i SKÄRM-koordinater → vi translaterar in i den lilla canvasen.
+  // VIKTIGT: titel-pillen ritas ~19px OVANFÖR boxen (titleY = y0 - titleH - 3) → topPad
+  // måste vara > 19 annars klipps titeln. Zoom-knappen ligger inne i boxen (ok).
+  const margin = 12, sidePad = 10, topPad = 26, botPad = 10;
+  const maxBox = Math.min(viewW * 0.5, 280);
+  const left = Math.max(0, viewW - margin - maxBox - sidePad);
+  const top = Math.max(0, 60 - topPad);
+  const right = Math.min(viewW, viewW - margin + sidePad);
+  const w = right - left;
+  const h = maxBox + topPad + botPad;
+  _miniRect.left = left; _miniRect.top = top; _miniRect.w = w; _miniRect.h = h;
+  const bw = Math.max(1, Math.ceil(w * DPR)), bh = Math.max(1, Math.ceil(h * DPR));
+  if (_miniCanvas.width !== bw || _miniCanvas.height !== bh) { _miniCanvas.width = bw; _miniCanvas.height = bh; }
+  _miniCanvas.style.left = left + 'px';
+  _miniCanvas.style.top = top + 'px';
+  _miniCanvas.style.width = w + 'px';
+  _miniCanvas.style.height = h + 'px';
+  return _miniCtx;
+}
 // PERF (combat-värme-fix): adaptiv DPR. Mobiler har devicePixelRatio 2-3 → vi
 // renderade förut alltid i min(dpr,2) = full retina, vilket är den största
 // enskilda fill-rate/värme-kostnaden (alla 3 canvas-lager + Pixi samtidigt).
@@ -21054,6 +21093,7 @@ function updatePixiDiagOverlay() {
     `<div>Canvas DOM: ${canvasInDom} z:${canvasZ}</div>` +
     `<div style="font-size:9px;">backing main:${canvas?canvas.width+'x'+canvas.height:'?'} hud:${hudCanvas?hudCanvas.width+'x'+hudCanvas.height:'?'}</div>` +
     `<div style="font-size:9px;">backing pixi:${canvasSize} css:${viewW}x${viewH}</div>` +
+    `<div style="color:#80ffd0;font-size:9px;">split:${_hudSplitEnabled ? 'ON' : 'OFF'} mini:${_miniCanvas ? _miniCanvas.width + 'x' + _miniCanvas.height : '-'} hud:${(hudCanvas && hudCanvas.style.display === 'none') ? 'HID' : 'vis'}</div>` +
     `<div>Cam: ${camX},${camY}</div>` +
     `<div>World: ${worldX},${worldY}</div>` +
     `<div>Pixi ready: ${pixiState.ready ? '✓' : '✗'}</div>`;
@@ -21414,7 +21454,9 @@ function checkMinimapZoomClick(mx, my) {
     state._minimapZoomTarget = state.minimapBig ? 1 : 0;
     // v1.748: stora kartan ska ligga ÖVER action-knapparna (z:6), inte under.
     // hud-canvas (z:3) lyfts till z:9 medan kartan är stor, återställs när liten.
-    if (typeof hudCanvas !== 'undefined' && hudCanvas) hudCanvas.style.zIndex = state.minimapBig ? '9' : '3';
+    // Option A: vid split ligger minimap på _miniCanvas (egen z-hantering per frame) →
+    // rör INTE rök-hudCanvas-z:n (skulle annars lyfta rök-lagret till z:9 felaktigt).
+    if (!_hudSplitEnabled && typeof hudCanvas !== 'undefined' && hudCanvas) hudCanvas.style.zIndex = state.minimapBig ? '9' : '3';
     // v1.752: medan stora kartan är uppe ska höger-knapparna INTE fånga tryck
     // (annars kan man inte rikta airstrike där en knapp ligger bakom kartan).
     setGameControlsTappable(!state.minimapBig);
@@ -74782,7 +74824,14 @@ function render() {
   ctx.clearRect(0, 0, viewW, viewH);
   // v1.575: Clear hud-canvas (ovan Pixi) varje frame — minimap/boss-HUD ritas hit
   if (hudCtx) hudCtx.clearRect(0, 0, viewW, viewH);
-  if (state.mode === 'menu' || !state.player) return;
+  if (state.mode === 'menu' || !state.player) {
+    // Option A: släck mini- + rök-lagren i meny så inget stale-innehåll kompositeras.
+    if (_hudSplitEnabled) {
+      if (_miniCanvas) _miniCanvas.style.display = 'none';
+      if (hudCanvas) hudCanvas.style.display = 'none';
+    }
+    return;
+  }
 
   // v1.372: Server-driven coop-mode startas. Skipa default-stage-rendering
   // tills server bekräftar BR/TDM/etc — annars syns "original mapen i en
@@ -75177,6 +75226,7 @@ function render() {
   // renderades OVANPÅ röken (skymde inte). Replikera världs-zoom-transformen på hudCtx
   // så positionen matchar; minimap ritas senare på samma canvas → ligger kvar överst.
   if (hudCtx && ((state.smokeClouds && state.smokeClouds.length) || (state.explosions && state.explosions.length))) {
+    if (_hudSplitEnabled && hudCanvas) hudCanvas.style.display = 'block'; // rök aktiv → visa z:3-lagret
     const _smokeT0 = performance.now();
     if (_smokeBufEnabled) {
       // C: rendera rök+explosioner till LÅGUPPLÖST buffert, komposita med EN drawImage.
@@ -75222,6 +75272,8 @@ function render() {
     }
     _smokePassMs = _smokePassMs * 0.8 + (performance.now() - _smokeT0) * 0.2; // EMA
   } else {
+    // Ingen rök/explosion → släck helskärms-z:3-lagret (Option A: compositorn hoppar det).
+    if (_hudSplitEnabled && hudCanvas) hudCanvas.style.display = 'none';
     if (typeof drawSmokeClouds === 'function') drawSmokeClouds();
     if (typeof drawExplosions === 'function') drawExplosions();
   }
@@ -75257,7 +75309,29 @@ function render() {
   // inte täcker den. Ctx-swap eftersom drawMiniMap använder global ctx.
   // GULAG (v1.790): dölj minimap under duell (off-map → skulle visa dig fast i hörnet)
   if (state.gulag) {
-    // skippa minimap
+    // skippa minimap (off-map duell) — släck mini-lagret om split aktiv
+    if (_hudSplitEnabled && _miniCanvas) _miniCanvas.style.display = 'none';
+  } else if (_hudSplitEnabled) {
+    // Option A: rita minimap till dedikerad LITEN canvas (z:4) i st f helskärms hudCtx.
+    const mctx = _ensureMiniCanvas();
+    if (mctx) {
+      if (save.minimapHidden) {
+        _miniCanvas.style.display = 'none';
+      } else {
+        _miniCanvas.style.display = 'block';
+        _miniCanvas.style.zIndex = state.minimapBig ? '9' : '4';
+        // Rensa hela backingen, sätt sen DPR-bas + translatera så drawMiniMap:s SKÄRM-
+        // koordinater (boxX/boxY uppe-höger) landar lokalt i den lilla canvasen.
+        mctx.setTransform(1, 0, 0, 1, 0, 0);
+        mctx.clearRect(0, 0, _miniCanvas.width, _miniCanvas.height);
+        mctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+        mctx.translate(-_miniRect.left, -_miniRect.top);
+        const _savedCtx = ctx;
+        ctx = mctx;
+        try { drawMiniMap(); } catch (e) { console.warn('[mini] minimap fail:', e.message); }
+        ctx = _savedCtx;
+      }
+    }
   } else if (hudCtx) {
     const _savedCtx = ctx;
     ctx = hudCtx;
