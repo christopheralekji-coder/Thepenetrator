@@ -19930,11 +19930,11 @@ function _pixiCamSprite(poolMap, key, wx, wy, side, drawFn) {
   const half = side / 2, bc = rec.bufCtx;
   bc.setTransform(1, 0, 0, 1, 0, 0); bc.clearRect(0, 0, bpx, bpx);
   bc.setTransform(SH, 0, 0, SH, 0, 0);
-  const _c = state.camera, _x = ctx;
-  state.camera = { x: wx - half, y: wy - half };
+  const _cx0 = state.camera.x, _cy0 = state.camera.y, _x = ctx; // v1.858: muteras in-place (ingen allokering)
+  state.camera.x = wx - half; state.camera.y = wy - half;
   ctx = bc;
   try { drawFn(half); } catch (_) {}
-  ctx = _x; state.camera = _c;
+  ctx = _x; state.camera.x = _cx0; state.camera.y = _cy0;
   try {
     if (!rec.texInit) { rec.spr.texture = PIXI.Texture.from(rec.buf); rec.texInit = true; }
     else if (rec.spr.texture && rec.spr.texture.source && rec.spr.texture.source.update) rec.spr.texture.source.update();
@@ -21120,7 +21120,7 @@ function _updateSurvPixiWorld() {
   // present (attack-telegraphs) ELLER nedlagd spelare/partner (revive-overlay). Då slipper vi
   // migrera den komplexa UI:n men behåller den synlig precis när den behövs.
   if (typeof canvas !== 'undefined' && canvas) {
-    let _leftover = !!(state.player && state.player.cdDowned);
+    let _leftover = !!(state.player && state.player.cdDowned) || !!state.survivorsBossIndicator; // v1.858: boss-spawn-pil syns
     if (!_leftover && state.enemies) { for (const e of state.enemies) { if (e && !e.dead && e.isBoss) { _leftover = true; break; } } } // bara riktiga bossar har Canvas2D-telegraph
     if (!_leftover && typeof Coop !== 'undefined' && Coop.players) { for (const [, p] of Coop.players) { if (p && p.cdDowned) { _leftover = true; break; } } }
     const _wantDisp = (active && _hideCanvasTest && !_leftover) ? 'none' : '';
@@ -21128,6 +21128,10 @@ function _updateSurvPixiWorld() {
   }
   if (!active) {
     if (psp) psp.visible = false;
+    if (pixiState._pixiBosses && pixiState._pixiBosses.size) { // v1.858: töm boss-sprites (läckte till nästa mode)
+      for (const [, rec] of pixiState._pixiBosses) { if (rec.spr) { try { rec.spr.destroy(); } catch (_) {} } }
+      pixiState._pixiBosses.clear();
+    }
     if (pixiState._hpBarG) { pixiState._hpBarG.clear(); pixiState._hpBarG.visible = false; } // v1.838: töm staplar
     if (pixiState._aimG) { pixiState._aimG.clear(); pixiState._aimG.visible = false; } // v1.839: töm sikte
     if (pixiState._shieldMap && pixiState._shieldMap.size) { // v1.843: töm sköldar
@@ -21196,9 +21200,9 @@ function _updateSurvPixiWorld() {
     // Pixi (som annars kör 1.0). v1.834 POST-FX (B): rita konsten till en temp, bygg silhuett, och
     // komponera GLOW (mjukt färgat sken) + KONTUR (mörk kant) + skarp boss in i texturen vi laddar
     // upp. Allt bakas i Canvas2D-buffern → INGA extra GPU-pass (= ingen extra värme). Bara bossen.
-    const SHARP = 2;
-    const side = Math.min(560, Math.ceil((e.r || 40) * 6));
-    const bpx = side * SHARP;
+    const SHARP = 1.5; // v1.858: 2→1.5 matchar Pixi-renderns 1.5 (ingen synlig förlust, ~0.56× upload)
+    const side = Math.min(480, Math.ceil((e.r || 40) * 6)); // v1.858: cap 560→480
+    const bpx = Math.ceil(side * SHARP);
     let rec = bmap.get(idx);
     if (!rec || rec.side !== side) {
       if (rec && rec.spr) { try { rec.spr.destroy(); } catch (_) {} }
@@ -21248,8 +21252,8 @@ function _updateSurvPixiWorld() {
         g.fillStyle = rg; g.fillRect(0, 0, bpx, bpx);
       }
       g.save(); // GLOW: färgat mjukt sken via shadow på silhuetten
-      g.shadowColor = glowCol; g.shadowBlur = 13 * SHARP; g.shadowOffsetX = 0; g.shadowOffsetY = 0;
-      g.drawImage(rec.sil, 0, 0); g.drawImage(rec.sil, 0, 0);
+      g.shadowColor = glowCol; g.shadowBlur = 15 * SHARP; g.shadowOffsetX = 0; g.shadowOffsetY = 0;
+      g.drawImage(rec.sil, 0, 0); // v1.858: EN shadowBlur-pass (var två — dyraste op:en) + lite större blur
       g.restore();
       const o = Math.max(1, Math.round(1.4 * SHARP)); // KONTUR: mörk silhuett förskjuten 8 håll
       const _dirs = [[-o, 0], [o, 0], [0, -o], [0, o], [-o, -o], [o, -o], [-o, o], [o, o]];
@@ -21565,11 +21569,16 @@ function _updateSurvPixiWorld() {
       } else if (p.isShockwave) {
         const t = 1 - p.life / (p.maxLife || 0.5);
         const r = (p.r0 || 10) + ((p.r1 || 80) - (p.r0 || 10)) * t;
-        if (r > 0) fxg.circle(p.x, p.y, r).stroke({ width: (p.lineWidth || 3) * (1 - t * 0.5), color: col, alpha: Math.max(0, Math.min(1, p.life * 2)) });
+        if (r > 0) {
+          const _sa = Math.max(0, Math.min(1, p.life * 2));
+          fxg.circle(p.x, p.y, r).stroke({ width: (p.lineWidth || 3) * (1 - t * 0.5) * 2.4, color: col, alpha: _sa * 0.22 }); // v1.858: fejk-glow (bred svag ring)
+          fxg.circle(p.x, p.y, r).stroke({ width: (p.lineWidth || 3) * (1 - t * 0.5), color: col, alpha: _sa });
+        }
       } else if (p.isMuzzleFlash) {
         const t = 1 - p.life / (p.maxLife || 0.08), intensity = 1 - t, len = (p.r || 18) * intensity;
         const ang = p.ang || 0, ca = Math.cos(ang), sa = Math.sin(ang);
         const rx = (lx, ly) => p.x + lx * ca - ly * sa, ry = (lx, ly) => p.y + lx * sa + ly * ca;
+        fxg.circle(p.x, p.y, len * 1.1).fill({ color: col, alpha: intensity * 0.22 }); // v1.858: fejk-bloom (halo)
         fxg.moveTo(rx(0, 0), ry(0, 0)).lineTo(rx(len, -len * 0.5), ry(len, -len * 0.5)).lineTo(rx(len * 1.3, 0), ry(len * 1.3, 0)).lineTo(rx(len, len * 0.5), ry(len, len * 0.5)).closePath().fill({ color: 0xffffff, alpha: intensity });
         fxg.circle(p.x, p.y, len * 0.45).fill({ color: col, alpha: intensity });
       } else if (p.isTrail) {
@@ -21600,6 +21609,7 @@ function _updateSurvPixiWorld() {
     for (const g of state.gasClouds) {
       if (g.x - cx < -g.r - 40 || g.x - cx > viewW + g.r + 40 || g.y - cy < -g.r - 40 || g.y - cy > viewH + g.r + 40) continue;
       const a = Math.min(0.6, (g.life / g.maxLife) * 0.7);
+      fxg.circle(g.x, g.y, g.r * 1.28).fill({ color: 0x50c83c, alpha: Math.max(0, a * 0.12) }); // v1.858: mjuk yttre kant
       fxg.circle(g.x, g.y, g.r).fill({ color: 0x50c83c, alpha: Math.max(0, a * 0.32) });
       fxg.circle(g.x, g.y, g.r * 0.6).fill({ color: 0x78ff5a, alpha: Math.max(0, a * 0.5) });
     }
@@ -21608,6 +21618,7 @@ function _updateSurvPixiWorld() {
     for (const f of state.flameTrails) {
       if (f.x - cx < -f.r - 40 || f.x - cx > viewW + f.r + 40 || f.y - cy < -f.r - 40 || f.y - cy > viewH + f.r + 40) continue;
       const a = Math.min(1, f.life / 2.5);
+      fxg.circle(f.x, f.y, f.r * 1.28).fill({ color: 0xff5014, alpha: Math.max(0, a * 0.13) }); // v1.858: mjuk yttre kant
       fxg.circle(f.x, f.y, f.r).fill({ color: 0xff5014, alpha: Math.max(0, a * 0.35) });
       fxg.circle(f.x, f.y, f.r * 0.5).fill({ color: 0xffa028, alpha: Math.max(0, a * 0.55) });
     }
@@ -21643,7 +21654,7 @@ function _updateSurvPixiWorld() {
         if (tsx < -160 || tsx > viewW + 160 || tsy < -80 || tsy > viewH + 80) continue;
         let bt = tpool[ti];
         if (!bt) {
-          try { bt = new PIXI.BitmapText({ text: '', style: { fontFamily: 'sans-serif', fontSize: TBASE, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x000000, width: 4 } } }); }
+          try { bt = new PIXI.BitmapText({ text: '', style: { fontFamily: 'sans-serif', fontSize: TBASE, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x000000, width: 5 } } }); }
           catch (_) { try { bt = new PIXI.BitmapText({ text: '', style: { fontFamily: 'sans-serif', fontSize: TBASE, fontWeight: 'bold', fill: 0xffffff } }); } catch (__) { bt = null; } }
           if (!bt) break;
           bt.anchor.set(0.5);
@@ -21696,7 +21707,7 @@ function _updateSurvPixiWorld() {
         if (ensx < -180 || ensx > viewW + 180 || ensy < -40 || ensy > viewH + 40) continue;
         let nt = npool[ni];
         if (!nt) {
-          try { nt = new PIXI.BitmapText({ text: '', style: { fontFamily: 'sans-serif', fontSize: NBASE, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x000000, width: 4 } } }); }
+          try { nt = new PIXI.BitmapText({ text: '', style: { fontFamily: 'sans-serif', fontSize: NBASE, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x000000, width: 5 } } }); }
           catch (_) { try { nt = new PIXI.BitmapText({ text: '', style: { fontFamily: 'sans-serif', fontSize: NBASE, fontWeight: 'bold', fill: 0xffffff } }); } catch (__) { nt = null; } }
           if (!nt) break;
           nt.anchor.set(0.5);
@@ -21734,14 +21745,19 @@ function _updateSurvPixiWorld() {
     _mseen.add(key);
     _pixiCamSprite(pixiState._miscMap, key, ex, ey, 180, () => drawEmoteBubble(em, ex - state.camera.x, ey - state.camera.y, er));
   }
-  // pickups (per-pickup camera-trick; återanvänder drawPickups via temporär 1-element-array)
+  // pickups (per-pickup camera-trick; återanvänder drawPickups via 1-element-array).
+  // v1.858: pickups står still → re-rendera/ladda upp bara var 3:e bild (liten bob/pulse, knappt synligt
+  // choppigt) + återanvänd scratch-array (ingen allokering). Spar ~67% pickup-uploads.
   if (state.pickups) {
+    const _fn = (pixiState._fN = (pixiState._fN || 0) + 1);
+    const _scr = pixiState._pkScratch || (pixiState._pkScratch = [null]);
     for (const pk of state.pickups) {
       if (pk.x - cx < -50 || pk.x - cx > viewW + 50 || pk.y - cy < -50 || pk.y - cy > viewH + 50) continue;
       if (pk._pid == null) pk._pid = 'pk' + (pixiState._pkNextId = (pixiState._pkNextId || 0) + 1);
       _mseen.add(pk._pid);
+      if (_fn % 3 !== 0 && pixiState._miscMap.has(pk._pid)) continue; // throttle (men rendera nya direkt)
       _pixiCamSprite(pixiState._miscMap, pk._pid, pk.x, pk.y, 60, () => {
-        const _sp = state.pickups; state.pickups = [pk]; pixiState._pickupBufRender = true;
+        const _sp = state.pickups; _scr[0] = pk; state.pickups = _scr; pixiState._pickupBufRender = true;
         try { drawPickups(); } catch (_) {}
         pixiState._pickupBufRender = false; state.pickups = _sp;
       });
@@ -22029,7 +22045,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:857 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:858 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
