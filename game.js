@@ -19889,6 +19889,17 @@ function _eliteOnPixi(e) {
   return !!(e && (e.isBoss || e.isMiniBoss) && _pixiWorld && state.survivorsActive &&
     pixiState && pixiState._survWorldReady);
 }
+// v1.842: muzzle-offset per vapen (global) — matchar drawPlayerWeapon's mynnings-position OCH var
+// bullets föds. Används av skjut-koden + Pixi-aim-siktet (så linjen startar exakt vid mynningen).
+const MUZZLE_OFFSETS = {
+  pistol: 17, burstpistol: 22, shotgun: 26, smg: 24,
+  rifle: 31, sniper: 36, revolver: 25, minigun: 27,
+  plasma: 26, rocket: 23, sonic: 16, bow: 23,
+  grenade: 18, flame: 16, tesla: 22, frost: 22,
+  crossbow: 20, shuriken: 14, throwknife: 16,
+  boomerang: 18, pullwhip: 16, railgun: 30, blackhole: 24,
+  timestop: 16, mindcontrol: 16,
+};
 let _miniCanvas = null, _miniCtx = null;
 const _miniRect = { left: 0, top: 0, w: 0, h: 0 };
 function _ensureMiniCanvas() {
@@ -21179,7 +21190,10 @@ function _updateSurvPixiWorld() {
   ag.visible = _showAim;
   if (_showAim) {
     const aa = _pp.aimAngle, axc = Math.cos(aa), ayc = Math.sin(aa);
-    const so = (_pp.r || 14) + 4, RNG = 200;
+    // v1.842: starta linjen vid den FAKTISKA mynningen (p.r + muzzleOff) — samma som bullets föds —
+    // inte p.r+4 (som låg innan mynningen). Detta riktar även in ner-skjutningen (rätt geometri).
+    const _mo = (_wAim && MUZZLE_OFFSETS[_wAim.id]) || 20;
+    const so = (_pp.r || 14) + _mo, RNG = 200;
     // v1.841: spelar-spriten är UPPRÄTT (roterar ej) — vapen-pivoten sitter vid händerna, en bit
     // ovanför centret i KONSTANT skärm-led. Så lyft hela linjen med en konstant skärm-vertikal
     // offset (samma i alla aim-riktningar), INTE vinkelrätt mot aim. AIM_Y trimbart (mer minus = mer upp).
@@ -21462,7 +21476,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:841 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:842 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -35307,17 +35321,7 @@ function spawnPlayerBullets(p, w, pellets, adrenalineDmg, stealthBonus) {
   const speedBonus = (cheatPen ? 1.5 : 1) * (cheatUlt ? 1.5 : 1);
   const ultDmgMul = cheatUlt ? 10 : 1;
   const _coopShots = Coop.active ? [] : null;
-  // Muzzle-offset: spawna bullets vid pip-mynning, inte mitt på spelaren.
-  // Värden matchar drawPlayerWeapon's muzzle-position per vapen.
-  const MUZZLE_OFFSETS = {
-    pistol: 17, burstpistol: 22, shotgun: 26, smg: 24,
-    rifle: 31, sniper: 36, revolver: 25, minigun: 27,
-    plasma: 26, rocket: 23, sonic: 16, bow: 23,
-    grenade: 18, flame: 16, tesla: 22, frost: 22,
-    crossbow: 20, shuriken: 14, throwknife: 16,
-    boomerang: 18, pullwhip: 16, railgun: 30, blackhole: 24,
-    timestop: 16, mindcontrol: 16,
-  };
+  // Muzzle-offset: spawna bullets vid pip-mynning, inte mitt på spelaren (global MUZZLE_OFFSETS).
   const muzzleOff = (w.type === 'gun') ? (MUZZLE_OFFSETS[w.id] || 20) : 0;
 
   // BR wall-check: RAYTRACE från player till spawn-pos. Om någon solid wall
