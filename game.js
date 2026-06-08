@@ -21049,31 +21049,54 @@ function _updateSurvPixiWorld() {
     if (sx < -m || sx > viewW + m || sy < -m || sy > viewH + m) continue; // off-screen → ingen upload
     const idx = e._idx != null ? e._idx : (e._idx = (state.nextEnemyIdx = (state.nextEnemyIdx || 0) + 1));
     _seen.add(idx);
-    // v1.833: SUPERSAMPLING — rita bossen i SHARP× upplösning, visa i world-storlek → skarp
-    // på Pixi (som annars kör 1.0). Bara bossen kostar extra (få på skärmen), ej hela världen.
+    // v1.833: SUPERSAMPLING — rita bossen i SHARP× upplösning, visa i world-storlek → skarp på
+    // Pixi (som annars kör 1.0). v1.834 POST-FX (B): rita konsten till en temp, bygg silhuett, och
+    // komponera GLOW (mjukt färgat sken) + KONTUR (mörk kant) + skarp boss in i texturen vi laddar
+    // upp. Allt bakas i Canvas2D-buffern → INGA extra GPU-pass (= ingen extra värme). Bara bossen.
     const SHARP = 2;
     const side = Math.min(560, Math.ceil((e.r || 40) * 6));
     const bpx = side * SHARP;
     let rec = bmap.get(idx);
     if (!rec || rec.side !== side) {
       if (rec && rec.spr) { try { rec.spr.destroy(); } catch (_) {} }
-      const buf = document.createElement('canvas'); buf.width = bpx; buf.height = bpx;
+      const mkc = () => { const c = document.createElement('canvas'); c.width = bpx; c.height = bpx; return c; };
+      const buf = mkc(), tmp = mkc(), sil = mkc();
       const spr = new PIXI.Sprite(); spr.anchor.set(0.5); spr.label = 'pixiBoss';
       pixiState.containers.world.addChild(spr);
-      rec = { buf, bufCtx: buf.getContext('2d'), spr, side, texInit: false };
+      rec = { buf, bufCtx: buf.getContext('2d'), tmp, tmpCtx: tmp.getContext('2d'),
+        sil, silCtx: sil.getContext('2d'), spr, side, texInit: false };
       bmap.set(idx, rec);
     }
-    const bhalf = side / 2, bctx = rec.bufCtx;
-    bctx.setTransform(1, 0, 0, 1, 0, 0);
-    bctx.clearRect(0, 0, bpx, bpx);
-    bctx.setTransform(SHARP, 0, 0, SHARP, 0, 0); // allt ritas i world-units, renderas i SHARP× px
+    const bhalf = side / 2;
+    // 1) rita boss-konsten till tmp (transparent bakgrund, SHARP×)
+    const tctx = rec.tmpCtx;
+    tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.clearRect(0, 0, bpx, bpx);
+    tctx.setTransform(SHARP, 0, 0, SHARP, 0, 0); // ritas i world-units, renderas i SHARP× px
     const _bCam = state.camera, _bCtx = ctx;
     state.camera = { x: e.x - bhalf, y: e.y - bhalf };
-    ctx = bctx;
+    ctx = tctx;
     pixiState._bossBufRender = true;
     try { drawBossSoldier(e, bhalf, bhalf, e.flashUntil > _nowB); } catch (_) {}
     pixiState._bossBufRender = false;
     ctx = _bCtx; state.camera = _bCam;
+    // 2) mörk silhuett från tmp (för glow-sken + kontur)
+    const sctx = rec.silCtx;
+    sctx.setTransform(1, 0, 0, 1, 0, 0); sctx.clearRect(0, 0, bpx, bpx);
+    sctx.globalCompositeOperation = 'source-over'; sctx.drawImage(rec.tmp, 0, 0);
+    sctx.globalCompositeOperation = 'source-in'; sctx.fillStyle = '#120a06'; sctx.fillRect(0, 0, bpx, bpx);
+    sctx.globalCompositeOperation = 'source-over';
+    // 3) komponera glow + kontur + skarp boss → buf (texturen som laddas upp)
+    const g = rec.bufCtx;
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, bpx, bpx);
+    const glowCol = e.glow || e.accent || '#ffae5a';
+    g.save(); // GLOW: färgat mjukt sken via shadow på silhuetten
+    g.shadowColor = glowCol; g.shadowBlur = 13 * SHARP; g.shadowOffsetX = 0; g.shadowOffsetY = 0;
+    g.drawImage(rec.sil, 0, 0); g.drawImage(rec.sil, 0, 0);
+    g.restore();
+    const o = Math.max(1, Math.round(1.4 * SHARP)); // KONTUR: mörk silhuett förskjuten 8 håll
+    const _dirs = [[-o, 0], [o, 0], [0, -o], [0, o], [-o, -o], [o, -o], [-o, o], [o, o]];
+    for (let i = 0; i < _dirs.length; i++) g.drawImage(rec.sil, _dirs[i][0], _dirs[i][1]);
+    g.drawImage(rec.tmp, 0, 0); // skarp boss överst
     try {
       if (!rec.texInit) { rec.spr.texture = PIXI.Texture.from(rec.buf); rec.texInit = true; }
       else if (rec.spr.texture && rec.spr.texture.source && rec.spr.texture.source.update) rec.spr.texture.source.update();
@@ -21346,7 +21369,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:833 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:834 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiBoss:${[..._pixiBossKeys].join(',')} aktiva:${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
