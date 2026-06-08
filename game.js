@@ -19863,36 +19863,18 @@ try { _hudSplitEnabled = new URLSearchParams(location.search).get('hudSplit') !=
 // (Canvas2D-fiender) tills bevisat. ?pixiEnemiesIOS=1 → testa Pixi-fiender på iOS.
 // v1.820: läs från URL-param ELLER localStorage (settings-toggle) — så det funkar i NATIVE-appen
 // (OTA, pålitlig) utan URL-param + utan Safari-cache-strul. ?pixiEnemiesIOS=0 tvingar av.
-let _pixiEnemiesIOSTest = true; // v1.829: DEFAULT PÅ (Pixi-fiender funkar på iOS efter 8.19-uppgrad)
-try {
-  const _u = new URLSearchParams(location.search).get('pixiEnemiesIOS');
-  if (_u === '1') _pixiEnemiesIOSTest = true;
-  else if (_u === '0') _pixiEnemiesIOSTest = false;
-  else _pixiEnemiesIOSTest = localStorage.getItem('penetrator_pixiEnemiesIOS') !== '0'; // på om ej explicit av
-} catch (_) {}
+const _pixiEnemiesIOSTest = true; // v1.830: ALLTID PÅ (Pixi-fiender funkar på iOS efter 8.19-uppgrad, verifierat)
 // WebGPU-TEST (v1.822): Pixi v8 kan rendera mot WebGPU (→ Metal på iOS 26+ = native-effektivitet,
 // ~50% bättre batteri-potential). WKWebView fick WebGPU först i iOS 26. preference:'webgpu' låter
 // Pixi använda WebGPU OM tillgängligt, annars AUTO-fallback till WebGL (säkert). Bakom flagga +
 // settings-toggle. ?webgpu=1/0 eller localStorage. Kräver omstart (renderern skapas vid init).
-let _webgpuTest = true; // v1.829: DEFAULT PÅ (Metal på iOS 26+, auto-fallback till WebGL på äldre)
-try {
-  const _w = new URLSearchParams(location.search).get('webgpu');
-  if (_w === '1') _webgpuTest = true;
-  else if (_w === '0') _webgpuTest = false;
-  else _webgpuTest = localStorage.getItem('penetrator_webgpu') !== '0'; // på om ej explicit av
-} catch (_) {}
+const _webgpuTest = true; // v1.830: ALLTID PÅ (Metal på iOS 26+, auto-fallback till WebGL på äldre, verifierat)
 // LAGER-KOLLAPS (v1.824): flytta Survivors VÄRLDS-lager (golv + props + spelare) från Canvas2D
 // (z:1) till Pixi (z:2 = Metal/WebGPU). Mål: tömma z:1-canvasen → ETT lager → halverad
 // compositing/overdraw = native-svalka. Z-ordning kräver att golv+props+spelare flyttas SAMTIDIGT
 // (annars täcker Pixi-golvet Canvas2D-spelaren). Steg 1: golv (TilingSprite) + spelare (sprite).
 // Bakom flagga + settings-toggle. ?pixiWorld=1/0 eller localStorage.
-let _pixiWorld = true; // v1.829: DEFAULT PÅ i Survivors (golv+props+spelare på Metal = svalka, verifierat)
-try {
-  const _pw = new URLSearchParams(location.search).get('pixiWorld');
-  if (_pw === '1') _pixiWorld = true;
-  else if (_pw === '0') _pixiWorld = false;
-  else _pixiWorld = localStorage.getItem('penetrator_pixiWorld') !== '0'; // på om ej explicit av
-} catch (_) {}
+const _pixiWorld = true; // v1.830: ALLTID PÅ i Survivors (golv+props+spelare på Metal = svalka, verifierat)
 let _miniCanvas = null, _miniCtx = null;
 const _miniRect = { left: 0, top: 0, w: 0, h: 0 };
 function _ensureMiniCanvas() {
@@ -21303,7 +21285,7 @@ function updatePixiDiagOverlay() {
   const _poolP = (typeof _particlePool !== 'undefined') ? _particlePool.length : 0;
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:829 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:830 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
     `<div style="color:#ffe14a;font-size:9px">pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
@@ -23530,9 +23512,6 @@ function openSettings(returnTo) {
   document.getElementById('set-colorblind').checked = save.colorblind || false;
   document.getElementById('set-quality').value = save.quality || 'medium';
   { const _sb = document.getElementById('set-battery'); if (_sb) _sb.checked = save.batterySaver || false; }
-  { const _spe = document.getElementById('set-pixienemies'); if (_spe) { try { _spe.checked = localStorage.getItem('penetrator_pixiEnemiesIOS') !== '0'; } catch (_) {} } }
-  { const _swg = document.getElementById('set-webgpu'); if (_swg) { try { _swg.checked = localStorage.getItem('penetrator_webgpu') !== '0'; } catch (_) {} } }
-  { const _spw = document.getElementById('set-pixiworld'); if (_spw) { try { _spw.checked = localStorage.getItem('penetrator_pixiWorld') !== '0'; } catch (_) {} } }
 }
 function closeSettings() {
   settingsScreen.classList.add('hidden');
@@ -33718,31 +33697,7 @@ if (_setBattery) {
     if (typeof showToast === 'function') showToast(e.target.checked ? '🔋 Batterisparläge PÅ — 30 fps' : '🔋 Batterisparläge AV');
   });
 }
-// v1.820: Pixi-fiender iOS-test — persisteras i localStorage (läses vid load). Kräver omstart
-// så bake körs med flaggan (Pixi-texturer bakas bara om flaggan är på vid bake-tillfället).
-const _setPixiEnemies = document.getElementById('set-pixienemies');
-if (_setPixiEnemies) {
-  _setPixiEnemies.addEventListener('change', (e) => {
-    try { localStorage.setItem('penetrator_pixiEnemiesIOS', e.target.checked ? '1' : '0'); } catch (_) {}
-    if (typeof showToast === 'function') showToast(e.target.checked ? '🧪 Pixi-fiender PÅ — STARTA OM APPEN' : '🧪 Pixi-fiender AV — starta om appen', 5);
-  });
-}
-// v1.822: WebGPU-test-toggle (iOS 26+). Persisteras → läses vid load (renderern skapas vid init).
-const _setWebgpu = document.getElementById('set-webgpu');
-if (_setWebgpu) {
-  _setWebgpu.addEventListener('change', (e) => {
-    try { localStorage.setItem('penetrator_webgpu', e.target.checked ? '1' : '0'); } catch (_) {}
-    if (typeof showToast === 'function') showToast(e.target.checked ? '⚡ WebGPU PÅ — STARTA OM APPEN' : '⚡ WebGPU AV — starta om appen', 5);
-  });
-}
-// v1.824: Lager-kollaps-toggle (Survivors golv+spelare → Pixi).
-const _setPixiWorld = document.getElementById('set-pixiworld');
-if (_setPixiWorld) {
-  _setPixiWorld.addEventListener('change', (e) => {
-    try { localStorage.setItem('penetrator_pixiWorld', e.target.checked ? '1' : '0'); } catch (_) {}
-    if (typeof showToast === 'function') showToast(e.target.checked ? '🧊 Lager-kollaps PÅ — STARTA OM APPEN' : '🧊 Lager-kollaps AV — starta om appen', 5);
-  });
-}
+// v1.830: Pixi-fiender, WebGPU och lager-kollaps är nu ALLTID PÅ (hårdkodade) — inga toggles.
 document.getElementById('set-skipdialog').addEventListener('change', (e) => {
   save.skipDialog = e.target.checked; persist();
 });
