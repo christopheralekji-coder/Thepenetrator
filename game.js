@@ -19883,6 +19883,12 @@ function _bossOnPixi(e) {
   return !!(e && e.isBoss && _pixiWorld && state.survivorsActive &&
     pixiState && pixiState._survWorldReady);
 }
+// v1.836: mini-bossar OCKSÅ via Pixi-buffern (för att kunna släcka Canvas2D-lagret). De ritas via
+// drawEnemy→_drawEnemyFx (1×-raster) → blir aningen mjuka i 2×, men kontur+glow maskerar det.
+function _eliteOnPixi(e) {
+  return !!(e && (e.isBoss || e.isMiniBoss) && _pixiWorld && state.survivorsActive &&
+    pixiState && pixiState._survWorldReady);
+}
 let _miniCanvas = null, _miniCtx = null;
 const _miniRect = { left: 0, top: 0, w: 0, h: 0 };
 function _ensureMiniCanvas() {
@@ -21043,7 +21049,7 @@ function _updateSurvPixiWorld() {
   _seen.clear();
   const _nowB = performance.now();
   for (const e of state.enemies) {
-    if (!e || e.dead || !_bossOnPixi(e)) continue;
+    if (!e || e.dead || !_eliteOnPixi(e)) continue;
     const sx = e.x - cx, sy = e.y - cy;
     const m = (e.r || 40) * 4;
     if (sx < -m || sx > viewW + m || sy < -m || sy > viewH + m) continue; // off-screen → ingen upload
@@ -21080,7 +21086,8 @@ function _updateSurvPixiWorld() {
       state.camera = { x: e.x - bhalf, y: e.y - bhalf };
       ctx = tctx;
       pixiState._bossBufRender = true;
-      try { drawBossSoldier(e, bhalf, bhalf, e.flashUntil > _nowB); } catch (_) {}
+      // boss → vektor-ritning (skarp i 2×); mini-boss → drawEnemy (kropp via _drawEnemyFx, mjukare)
+      try { if (e.isBoss) drawBossSoldier(e, bhalf, bhalf, e.flashUntil > _nowB); else drawEnemy(e); } catch (_) {}
       pixiState._bossBufRender = false;
       ctx = _bCtx; state.camera = _bCam;
       // 2) mörk silhuett från tmp (för glow-sken + kontur)
@@ -21092,7 +21099,7 @@ function _updateSurvPixiWorld() {
       // 3) komponera glow + kontur + skarp boss → buf (texturen som laddas upp)
       const g = rec.bufCtx;
       g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, bpx, bpx);
-      const glowCol = e.glow || e.accent || '#ffae5a';
+      const glowCol = e.glow || e.stageEdge || e.accent || '#ffae5a';
       g.save(); // GLOW: färgat mjukt sken via shadow på silhuetten
       g.shadowColor = glowCol; g.shadowBlur = 13 * SHARP; g.shadowOffsetX = 0; g.shadowOffsetY = 0;
       g.drawImage(rec.sil, 0, 0); g.drawImage(rec.sil, 0, 0);
@@ -21375,8 +21382,8 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:835 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
-    `<div style="color:#5aff9a;font-size:9px">pixiBoss:ALLA aktiva:${_pixiBossN}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:836 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+    `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
     `<div style="color:#ffe14a;font-size:9px">pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
@@ -69998,40 +70005,44 @@ function drawEnemy(e) {
   const phase = e.walkAccum;
   const bob = Math.abs(Math.sin(phase)) * 1.4;
 
-  // v1.835: mini-boss färgad glow (samma "pop" som bossarna) — mjukt pulserande aura UNDER kroppen.
-  // De ritas redan skarpt med kontur+rim via _drawEnemyFx; detta ger dem bossarnas glödande look.
-  if (e.isMiniBoss) {
-    const mgc = e.glow || e.stageEdge || e.stageAccent || e.accent || '#aaff5a';
-    const mp = 0.8 + Math.sin(now / 360) * 0.2;
-    const gr = ctx.createRadialGradient(x, y, e.r * 0.4, x, y, e.r * 2.1 * mp);
-    gr.addColorStop(0, hexA(mgc, 0.34));
-    gr.addColorStop(0.55, hexA(mgc, 0.13));
-    gr.addColorStop(1, hexA(mgc, 0));
-    ctx.fillStyle = gr;
-    ctx.fillRect(x - e.r * 2.3, y - e.r * 2.3, e.r * 4.6, e.r * 4.6);
+  // v1.836: mini-boss-KROPPEN (glow + skugga + _drawEnemyFx) ritas via Pixi-buffern när den är en
+  // Pixi-elit → hoppa den på Canvas2D (utom under bake, då _bossBufRender är satt). HP-bar + namn-tag
+  // stannar KVAR på Canvas2D (skarpa FX). _bakeMode = vi ritar in i Pixi-bufferten just nu.
+  const _bakeMode = !!(pixiState && pixiState._bossBufRender);
+  const _miniPixi = e.isMiniBoss && _eliteOnPixi(e);
+  if (!_miniPixi || _bakeMode) {
+    // mini-boss färgad glow på Canvas2D-vägen. Hoppas under bake (Pixi-komposition ger glow där →
+    // annars dubbel-glow + grumlig silhuett). _bakeMode true = vi ritar in i Pixi-bufferten.
+    if (e.isMiniBoss && !_bakeMode) {
+      const mgc = e.glow || e.stageEdge || e.stageAccent || e.accent || '#aaff5a';
+      const mp = 0.8 + Math.sin(now / 360) * 0.2;
+      const gr = ctx.createRadialGradient(x, y, e.r * 0.4, x, y, e.r * 2.1 * mp);
+      gr.addColorStop(0, hexA(mgc, 0.34));
+      gr.addColorStop(0.55, hexA(mgc, 0.13));
+      gr.addColorStop(1, hexA(mgc, 0));
+      ctx.fillStyle = gr;
+      ctx.fillRect(x - e.r * 2.3, y - e.r * 2.3, e.r * 4.6, e.r * 4.6);
+    }
+    // skugga (v1.786: under fötterna, plattare = trovärdig mark-skugga)
+    ctx.fillStyle = 'rgba(0,0,0,0.40)';
+    ctx.beginPath(); ctx.ellipse(x, y + e.r * 1.18, e.r * 1.0, e.r * 0.26, 0, 0, Math.PI * 2); ctx.fill();
+    // v1.787 PRO-FINISH: fienden via off-screen-buffer med kontur + enhetlig ljussättning
+    _drawEnemyFx(e, flash, now, phase, moving, x, y, bob);
   }
-
-  // skugga
-  // v1.786: skuggan satt för högt (vid kroppen, y+0.9r). Fötterna är på ~y+1.3r → flytta
-  // ner skuggan UNDER fötterna + gör den plattare/smalare = trovärdig mark-skugga.
-  ctx.fillStyle = 'rgba(0,0,0,0.40)';
-  ctx.beginPath(); ctx.ellipse(x, y + e.r * 1.18, e.r * 1.0, e.r * 0.26, 0, 0, Math.PI * 2); ctx.fill();
-
-  // v1.787 PRO-FINISH: rita fienden via off-screen-buffer med kontur + enhetlig ljussättning
-  // (bevarar gång + skugga). _drawEnemyFx gör translate/rotate/mirror internt + komponerar.
-  _drawEnemyFx(e, flash, now, phase, moving, x, y, bob);
-  drawHpBar(e, x, y);
-  // v1.600: Mini-boss namn-tag bevarad, glow-ring BORTTAGEN per user-request
-  if (e.isMiniBoss) {
-    ctx.save();
-    const tagY = Math.max(20, y - e.r - 22);
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 11px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
-    ctx.fillText(e.name || 'MINI-BOSS', x, tagY);
-    ctx.shadowBlur = 0;
-    ctx.restore();
+  if (!_bakeMode) {
+    drawHpBar(e, x, y);
+    // v1.600: Mini-boss namn-tag bevarad, glow-ring BORTTAGEN per user-request
+    if (e.isMiniBoss) {
+      ctx.save();
+      const tagY = Math.max(20, y - e.r - 22);
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.shadowColor = '#000'; ctx.shadowBlur = 4;
+      ctx.fillText(e.name || 'MINI-BOSS', x, tagY);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+    }
   }
 }
 
