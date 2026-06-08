@@ -369,6 +369,10 @@
       <input id="set-pixienemies" type="checkbox">
     </div>
     <div class="setting-row toggle">
+      <label>⚡ WebGPU (test, iOS 26+)<br><span style="font-size:10px;opacity:0.6;font-weight:400;">Metal-rendering — kräver omstart av appen</span></label>
+      <input id="set-webgpu" type="checkbox">
+    </div>
+    <div class="setting-row toggle">
       <label>Skippa story-dialog</label>
       <input id="set-skipdialog" type="checkbox">
     </div>
@@ -427,7 +431,7 @@
     <a href="#" id="social-twitter" class="wp-social-btn" target="_blank" rel="noopener" aria-label="X / Twitter">𝕏</a>
     <a href="#" id="social-youtube" class="wp-social-btn" target="_blank" rel="noopener" aria-label="YouTube">▶</a>
   </div>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.821 ⚡</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.822 ⚡</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">
@@ -708,7 +712,7 @@
     });
   }
 </script>
-<script src="game.js?v=821"></script>
+<script src="game.js?v=822"></script>
 <script>
   // Registrera service worker. Periodiskt update-check (var 60s) + auto-reload
   // när ny version aktiverats. Användare kan annars sitta på gammal cached

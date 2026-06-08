@@ -19870,6 +19870,17 @@ try {
   else if (_u === '0') _pixiEnemiesIOSTest = false;
   else _pixiEnemiesIOSTest = localStorage.getItem('penetrator_pixiEnemiesIOS') === '1';
 } catch (_) {}
+// WebGPU-TEST (v1.822): Pixi v8 kan rendera mot WebGPU (→ Metal på iOS 26+ = native-effektivitet,
+// ~50% bättre batteri-potential). WKWebView fick WebGPU först i iOS 26. preference:'webgpu' låter
+// Pixi använda WebGPU OM tillgängligt, annars AUTO-fallback till WebGL (säkert). Bakom flagga +
+// settings-toggle. ?webgpu=1/0 eller localStorage. Kräver omstart (renderern skapas vid init).
+let _webgpuTest = false;
+try {
+  const _w = new URLSearchParams(location.search).get('webgpu');
+  if (_w === '1') _webgpuTest = true;
+  else if (_w === '0') _webgpuTest = false;
+  else _webgpuTest = localStorage.getItem('penetrator_webgpu') === '1';
+} catch (_) {}
 let _miniCanvas = null, _miniCtx = null;
 const _miniRect = { left: 0, top: 0, w: 0, h: 0 };
 function _ensureMiniCanvas() {
@@ -20040,10 +20051,20 @@ async function initPixiFoundation() {
       antialias: _iosWebkit ? false : true,
       resolution: _iosWebkit ? 1 : DPR,
       autoDensity: true,
-      preference: 'webgl',
+      // v1.822: WebGPU-test (iOS 26+) med auto-fallback till WebGL. Default webgl.
+      preference: _webgpuTest ? 'webgpu' : 'webgl',
     });
     pixiState.app = app;
     pixiState.canvas = app.canvas;
+    // v1.822: detektera vilken backend Pixi faktiskt valde (WebGPU vs WebGL-fallback) för diag.
+    try {
+      const _rt = app.renderer && app.renderer.type;
+      const _rn = (app.renderer && app.renderer.constructor && app.renderer.constructor.name) || '';
+      if ((typeof PIXI.RendererType !== 'undefined' && _rt === PIXI.RendererType.WEBGPU) || /gpu/i.test(_rn)) pixiState._renderer = 'WebGPU';
+      else if ((typeof PIXI.RendererType !== 'undefined' && _rt === PIXI.RendererType.WEBGL) || /gl/i.test(_rn)) pixiState._renderer = 'WebGL';
+      else pixiState._renderer = _rn || ('type' + _rt);
+    } catch (e) { pixiState._renderer = '?'; }
+    console.log('[PixiJS] renderer backend:', pixiState._renderer);
     // v1.536: Pixi-canvas placeras OVANPÅ Canvas2D (z-index 2). Canvas2D fyller
     // viewport med world+UI så Pixi måste vara ovan för att synas. pointer-events:
     // none så touch går genom till Canvas2D-input. När enemies migreras kommer
@@ -21168,7 +21189,8 @@ function updatePixiDiagOverlay() {
     `<div style="font-size:9px;">backing main:${canvas?canvas.width+'x'+canvas.height:'?'} hud:${hudCanvas?hudCanvas.width+'x'+hudCanvas.height:'?'}</div>` +
     `<div style="font-size:9px;">backing pixi:${canvasSize} css:${viewW}x${viewH}</div>` +
     `<div style="color:#80ffd0;font-size:9px;">split:${_hudSplitEnabled ? 'ON' : 'OFF'} mini:${_miniCanvas ? _miniCanvas.width + 'x' + _miniCanvas.height : '-'} hud:${(hudCanvas && hudCanvas.style.display === 'none') ? 'HID' : 'vis'}</div>` +
-    `<div style="color:#ff80ff;font-size:9px;">build:821 iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} ios:${(typeof isIOS !== 'undefined' && isIOS) ? 'Y' : 'N'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
+    `<div style="color:#ff80ff;font-size:9px;">build:822 iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
+    `<div style="color:#80c0ff;font-size:9px;">GPU-test:${_webgpuTest ? 'ON' : 'off'} → renderer:${pixiState._renderer || '?'}</div>` +
     `<div>Cam: ${camX},${camY}</div>` +
     `<div>World: ${worldX},${worldY}</div>` +
     `<div>Pixi ready: ${pixiState.ready ? '✓' : '✗'}</div>`;
@@ -23369,6 +23391,7 @@ function openSettings(returnTo) {
   document.getElementById('set-quality').value = save.quality || 'medium';
   { const _sb = document.getElementById('set-battery'); if (_sb) _sb.checked = save.batterySaver || false; }
   { const _spe = document.getElementById('set-pixienemies'); if (_spe) { try { _spe.checked = localStorage.getItem('penetrator_pixiEnemiesIOS') === '1'; } catch (_) {} } }
+  { const _swg = document.getElementById('set-webgpu'); if (_swg) { try { _swg.checked = localStorage.getItem('penetrator_webgpu') === '1'; } catch (_) {} } }
 }
 function closeSettings() {
   settingsScreen.classList.add('hidden');
@@ -33561,6 +33584,14 @@ if (_setPixiEnemies) {
   _setPixiEnemies.addEventListener('change', (e) => {
     try { localStorage.setItem('penetrator_pixiEnemiesIOS', e.target.checked ? '1' : '0'); } catch (_) {}
     if (typeof showToast === 'function') showToast(e.target.checked ? '🧪 Pixi-fiender PÅ — STARTA OM APPEN' : '🧪 Pixi-fiender AV — starta om appen', 5);
+  });
+}
+// v1.822: WebGPU-test-toggle (iOS 26+). Persisteras → läses vid load (renderern skapas vid init).
+const _setWebgpu = document.getElementById('set-webgpu');
+if (_setWebgpu) {
+  _setWebgpu.addEventListener('change', (e) => {
+    try { localStorage.setItem('penetrator_webgpu', e.target.checked ? '1' : '0'); } catch (_) {}
+    if (typeof showToast === 'function') showToast(e.target.checked ? '⚡ WebGPU PÅ — STARTA OM APPEN' : '⚡ WebGPU AV — starta om appen', 5);
   });
 }
 document.getElementById('set-skipdialog').addEventListener('change', (e) => {
