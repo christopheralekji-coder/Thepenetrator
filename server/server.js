@@ -7,7 +7,7 @@ const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadSta
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v266-gulag-qa-fixes-v1.807';
+const SERVER_VERSION = 'v267-perf-deflate-off-v1.815';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -66,18 +66,15 @@ const server = http.createServer((req, res) => {
   res.writeHead(404); res.end();
 });
 
-// perMessageDeflate: transparent gzip-komprimering på frame-nivå.
-// Browsers förhandlar automatiskt. ~30-50% extra på binär världs-paket
-// utöver vår egen binära packning. CPU-kostnad är låg med dessa defaults.
+// PERF (v1.815 — #2 värme-fix): perMessageDeflate AV. Tidigare komprimerades varje frame,
+// vilket tvingade MOBIL-KLIENTEN att INFLATE:a varje inkommande världs-paket 60×/sek = konstant
+// CPU + zlib-scratch-allokeringar på den separata audio/main-tråden som INTE syns i frame-EMA:n
+// (en av de dolda värmekällorna native-spel slipper). Världs-paketen är redan tätt binär-packade
+// (Int16/enum/delta) → deflate gav dålig ratio men kostade CPU på BÅDA sidor 60Hz. Av = mindre
+// bandbredd-besparing men klart mindre CPU/värme på telefonen. Radion är ändå vaken 60Hz.
 const wss = new WebSocket.Server({
   server,
-  perMessageDeflate: {
-    zlibDeflateOptions: { level: 3 },        // 3 = bra balans speed vs ratio (default 6 är dyrare)
-    threshold: 256,                          // skippa kompression för paket < 256 B (overhead lönar sig inte)
-    concurrencyLimit: 10,                    // max samtidiga compress-jobb
-    serverNoContextTakeover: true,           // släpp kompressionskontext mellan paket → mindre minne, lite sämre ratio
-    clientNoContextTakeover: true,
-  },
+  perMessageDeflate: false,
 });
 const rooms = new Map(); // code → { hostId, members: Map(id → ws), meta: { hostName, mode, private, started, createdAt } }
 const publicRoomSubscribers = new Set(); // ws-references som vill ha live room-list updates

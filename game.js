@@ -8311,6 +8311,198 @@ function _getSurvFloorTile() {
   _survFloorTileCanvas = c;
   return c;
 }
+// PERF (v1.815 — #1 SPRITE-BAKE av statiska Survivors-props): drawSurvivorsArenaGround ritade
+// om ~113 STATISKA props (väggar/fordon/pelare/sandsäckar) från grunden VARJE frame = ~700
+// CoreGraphics-draw-calls + 10-25 NYA gradient-objekt/frame. På iOS WebKit (separat GPU-Process)
+// skapar varje drawImage/fill nya GPU-texturer per frame → web-specifik värme (bekräftat av
+// Apples utvecklarforum #689071). Fix: baka varje prop till en DPR-sprite EN gång, blitta sen
+// med 1 drawImage/frame. drawFn(c, prop, cxL, cyL) ritar propen centrerad på (cxL,cyL) — SAMMA
+// kod som live-vägen → identiskt utseende. ?propBake=0 → gamla per-frame-vägen.
+let _propBakeEnabled = true;
+try { _propBakeEnabled = new URLSearchParams(location.search).get('propBake') !== '0'; } catch (_) {}
+function _survBakeProp(prop, drawFn, half) {
+  if (prop._spr && prop._sprDPR === DPR) return prop._spr;
+  const side = Math.max(2, Math.ceil(half * 2));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.ceil(side * DPR));
+  c.height = Math.max(1, Math.ceil(side * DPR));
+  const sc = c.getContext('2d');
+  sc.setTransform(DPR, 0, 0, DPR, 0, 0);
+  drawFn(sc, prop, half, half);
+  prop._spr = { canvas: c, half, side };
+  prop._sprDPR = DPR;
+  return prop._spr;
+}
+// Blittar en bakad prop centrerad på skärm-pos (x,y). Sprite är DPR-skalad → 1:1 crisp.
+function _survBlitProp(spr, x, y) {
+  ctx.drawImage(spr.canvas, 0, 0, spr.canvas.width, spr.canvas.height, x - spr.half, y - spr.half, spr.side, spr.side);
+}
+// === Extraherade prop-rit-helpers (identiska ops som de gamla inline-looparna, x→cxL/y→cyL) ===
+function _survDrawWall(c, r, cxL, cyL) {
+  c.save();
+  c.translate(cxL, cyL);
+  c.rotate(r.rot);
+  c.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  c.fillRect(-r.w / 2 + 4, -r.h / 2 + 5, r.w, r.h);
+  const grad = c.createLinearGradient(0, -r.h / 2, 0, r.h / 2);
+  grad.addColorStop(0, '#7a7268');
+  grad.addColorStop(0.4, '#5a5048');
+  grad.addColorStop(1, '#3a3028');
+  c.fillStyle = grad;
+  c.fillRect(-r.w / 2, -r.h / 2, r.w, r.h);
+  c.fillStyle = '#8a8278';
+  c.fillRect(-r.w / 2, -r.h / 2, r.w, 2);
+  c.fillStyle = 'rgba(20, 12, 8, 0.7)';
+  const stripes = Math.floor(r.w / 14);
+  for (let s = 0; s < stripes; s++) {
+    const sx = -r.w / 2 + s * 14 + 4;
+    c.fillRect(sx, -r.h / 2, 0.8, r.h);
+  }
+  c.fillStyle = '#1a1008';
+  for (let h = 0; h < 4; h++) {
+    const hx = ((r.seed * 7 + h * 13) % 1) * r.w - r.w / 2;
+    const hy = ((r.seed * 11 + h * 17) % 1) * r.h - r.h / 2;
+    c.beginPath();
+    c.arc(hx, hy, 1.5 + ((r.seed * 3 + h) % 1) * 1.5, 0, Math.PI * 2);
+    c.fill();
+  }
+  c.fillStyle = '#1a1208';
+  const segments = 5;
+  for (let s = 0; s < segments; s++) {
+    const sx = -r.w / 2 + s * (r.w / segments);
+    const sw = r.w / segments;
+    const sh = (1 - r.decay) * 7 + ((r.seed * 5 + s) % 1) * 3;
+    c.fillRect(sx, -r.h / 2 - sh, sw - 1, sh);
+  }
+  c.fillStyle = 'rgba(140, 130, 120, 0.5)';
+  for (let s = 0; s < segments; s++) {
+    const sx = -r.w / 2 + s * (r.w / segments);
+    const sw = r.w / segments;
+    const sh = (1 - r.decay) * 7 + ((r.seed * 5 + s) % 1) * 3;
+    c.fillRect(sx, -r.h / 2 - sh, sw - 1, 1);
+  }
+  c.restore();
+}
+function _survDrawVehicleBody(c, v, cxL, cyL) {
+  c.save();
+  c.translate(cxL, cyL);
+  c.rotate(v.rot);
+  c.fillStyle = 'rgba(0, 0, 0, 0.65)';
+  c.fillRect(-v.w / 2 + 4, -v.h / 2 + 5, v.w, v.h);
+  const chassiGrad = c.createLinearGradient(0, -v.h / 2, 0, v.h / 2);
+  chassiGrad.addColorStop(0, '#3a3a28');
+  chassiGrad.addColorStop(0.5, '#2a2a18');
+  chassiGrad.addColorStop(1, '#1a1a0a');
+  c.fillStyle = chassiGrad;
+  c.fillRect(-v.w / 2, -v.h / 2, v.w, v.h);
+  c.fillStyle = '#0a0a08';
+  c.fillRect(-v.w / 2 + 4, -v.h / 4, v.w * 0.3, v.h * 0.5);
+  c.fillRect(v.w * 0.15, -v.h / 3, v.w * 0.2, v.h * 0.4);
+  c.fillStyle = '#0a0a0a';
+  const wheelR = v.h * 0.18;
+  c.beginPath(); c.arc(-v.w * 0.35, -v.h / 2, wheelR, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(v.w * 0.35, -v.h / 2, wheelR, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(-v.w * 0.35, v.h / 2, wheelR, 0, Math.PI * 2); c.fill();
+  c.beginPath(); c.arc(v.w * 0.35, v.h / 2, wheelR, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#4a4a3a';
+  if (v.kind === 'truck') {
+    c.fillRect(-v.w * 0.45, -v.h * 0.35, v.w * 0.25, v.h * 0.7);
+  } else {
+    c.fillRect(-v.w * 0.15, -v.h * 0.32, v.w * 0.3, v.h * 0.64);
+  }
+  c.fillStyle = '#000';
+  if (v.kind === 'truck') {
+    c.fillRect(-v.w * 0.42, -v.h * 0.28, v.w * 0.18, v.h * 0.20);
+  } else {
+    c.fillRect(-v.w * 0.10, -v.h * 0.25, v.w * 0.20, v.h * 0.18);
+  }
+  c.strokeStyle = '#5a3a18';
+  c.lineWidth = 0.8;
+  for (let l = 0; l < 4; l++) {
+    const ly = -v.h / 2 + ((v.seed * 7 + l * 5) % 1) * v.h;
+    c.beginPath();
+    c.moveTo(-v.w / 2, ly);
+    c.lineTo(-v.w / 2 + 8 + ((v.seed * 3 + l) % 1) * 12, ly);
+    c.stroke();
+  }
+  c.restore();
+}
+function _survDrawPillar(c, p, cxL, cyL) {
+  c.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  c.beginPath();
+  c.ellipse(cxL + 4, cyL + 5, p.r * 1.1, p.r * 0.4, 0, 0, Math.PI * 2);
+  c.fill();
+  const pillarGrad = c.createRadialGradient(cxL - p.r * 0.3, cyL - p.r * 0.3, 0, cxL, cyL, p.r);
+  pillarGrad.addColorStop(0, '#a89888');
+  pillarGrad.addColorStop(0.6, '#685848');
+  pillarGrad.addColorStop(1, '#382818');
+  c.fillStyle = pillarGrad;
+  c.beginPath();
+  c.arc(cxL, cyL, p.r, 0, Math.PI * 2);
+  c.fill();
+  c.strokeStyle = '#1a1008';
+  c.lineWidth = 1.5;
+  c.stroke();
+  c.strokeStyle = 'rgba(30, 20, 10, 0.7)';
+  c.lineWidth = 0.8;
+  for (let cr = 0; cr < 3; cr++) {
+    const ang = (cr / 3) * Math.PI * 2 + p.seed * Math.PI;
+    c.beginPath();
+    c.moveTo(cxL + Math.cos(ang) * p.r * 0.4, cyL + Math.sin(ang) * p.r * 0.4);
+    c.lineTo(cxL + Math.cos(ang + 0.3) * p.r * 0.9, cyL + Math.sin(ang + 0.3) * p.r * 0.9);
+    c.stroke();
+  }
+  c.fillStyle = 'rgba(180, 170, 160, 0.3)';
+  c.beginPath();
+  c.arc(cxL - p.r * 0.25, cyL - p.r * 0.25, p.r * 0.3, 0, Math.PI * 2);
+  c.fill();
+}
+function _survDrawSandbag(c, sb, cxL, cyL) {
+  c.save();
+  c.translate(cxL, cyL);
+  c.rotate(sb.rot);
+  c.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  c.fillRect(-sb.len / 2 + 3, -sb.h / 2 + 4, sb.len, sb.h);
+  const bagW = sb.len / sb.bags;
+  for (let b = 0; b < sb.bags; b++) {
+    const bx = -sb.len / 2 + b * bagW + bagW / 2;
+    c.fillStyle = '#8a7050';
+    c.beginPath();
+    c.ellipse(bx, 0, bagW * 0.45, sb.h * 0.5, 0, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#a89070';
+    c.beginPath();
+    c.ellipse(bx - bagW * 0.15, -sb.h * 0.2, bagW * 0.25, sb.h * 0.25, 0, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#5a4028';
+    c.lineWidth = 0.6;
+    c.beginPath();
+    c.moveTo(bx - bagW * 0.4, -sb.h * 0.05);
+    c.lineTo(bx + bagW * 0.4, -sb.h * 0.05);
+    c.stroke();
+    if ((sb.seed * 7 + b * 3) % 1 > 0.5) {
+      c.fillStyle = 'rgba(50, 35, 20, 0.5)';
+      c.beginPath();
+      c.arc(bx + (((sb.seed * 5 + b) % 1) - 0.5) * bagW * 0.5, sb.h * 0.1, 2, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+  if (sb.bags >= 3) {
+    const bagW2 = sb.len * 0.7 / (sb.bags - 1);
+    for (let b = 0; b < sb.bags - 1; b++) {
+      const bx = -sb.len * 0.35 + b * bagW2 + bagW2 / 2;
+      c.fillStyle = '#7a6042';
+      c.beginPath();
+      c.ellipse(bx, -sb.h * 0.6, bagW2 * 0.4, sb.h * 0.4, 0, 0, Math.PI * 2);
+      c.fill();
+      c.fillStyle = '#9a8060';
+      c.beginPath();
+      c.ellipse(bx - bagW2 * 0.1, -sb.h * 0.75, bagW2 * 0.18, sb.h * 0.18, 0, 0, Math.PI * 2);
+      c.fill();
+    }
+  }
+  c.restore();
+}
 function drawSurvivorsArenaGround() {
   const cx = Math.round(state.camera.x), cy = Math.round(state.camera.y);
   const centerX = 2000, centerY = 2000;
@@ -8417,112 +8609,25 @@ function drawSurvivorsArenaGround() {
   for (const r of cache.walls) {
     const x = r.x - cx, y = r.y - cy;
     if (x < -80 || x > viewW + 80 || y < -80 || y > viewH + 80) continue;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(r.rot);
-    // Skugga (mjuk, off-set)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-    ctx.fillRect(-r.w / 2 + 4, -r.h / 2 + 5, r.w, r.h);
-    // Bas-betong (gradient mörk → ljus topp)
-    const grad = ctx.createLinearGradient(0, -r.h / 2, 0, r.h / 2);
-    grad.addColorStop(0, '#7a7268');
-    grad.addColorStop(0.4, '#5a5048');
-    grad.addColorStop(1, '#3a3028');
-    ctx.fillStyle = grad;
-    ctx.fillRect(-r.w / 2, -r.h / 2, r.w, r.h);
-    // Top highlight (ljust kant)
-    ctx.fillStyle = '#8a8278';
-    ctx.fillRect(-r.w / 2, -r.h / 2, r.w, 2);
-    // Riv-skår (vertikala mörka linjer)
-    ctx.fillStyle = 'rgba(20, 12, 8, 0.7)';
-    const stripes = Math.floor(r.w / 14);
-    for (let s = 0; s < stripes; s++) {
-      const sx = -r.w / 2 + s * 14 + 4;
-      ctx.fillRect(sx, -r.h / 2, 0.8, r.h);
+    if (_propBakeEnabled) {
+      const _half = r._spHalf || (r._spHalf = Math.ceil(Math.sqrt((r.w / 2) * (r.w / 2) + (r.h / 2) * (r.h / 2)) + 16));
+      _survBlitProp(_survBakeProp(r, _survDrawWall, _half), x, y);
+    } else {
+      _survDrawWall(ctx, r, x, y);
     }
-    // Skotthål (random baserat på seed)
-    ctx.fillStyle = '#1a1008';
-    for (let h = 0; h < 4; h++) {
-      const hx = ((r.seed * 7 + h * 13) % 1) * r.w - r.w / 2;
-      const hy = ((r.seed * 11 + h * 17) % 1) * r.h - r.h / 2;
-      ctx.beginPath();
-      ctx.arc(hx, hy, 1.5 + ((r.seed * 3 + h) % 1) * 1.5, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    // Decay edge — irregular top (krossade kant-segment)
-    ctx.fillStyle = '#1a1208';
-    const segments = 5;
-    for (let s = 0; s < segments; s++) {
-      const sx = -r.w / 2 + s * (r.w / segments);
-      const sw = r.w / segments;
-      const sh = (1 - r.decay) * 7 + ((r.seed * 5 + s) % 1) * 3;
-      ctx.fillRect(sx, -r.h / 2 - sh, sw - 1, sh);
-    }
-    // Highlight på krossade kanten
-    ctx.fillStyle = 'rgba(140, 130, 120, 0.5)';
-    for (let s = 0; s < segments; s++) {
-      const sx = -r.w / 2 + s * (r.w / segments);
-      const sw = r.w / segments;
-      const sh = (1 - r.decay) * 7 + ((r.seed * 5 + s) % 1) * 3;
-      ctx.fillRect(sx, -r.h / 2 - sh, sw - 1, 1);
-    }
-    ctx.restore();
   }
 
   // === v1.578: FORDON-WRAK (jeepar + lastbilar, brinnande) ===
   for (const v of cache.vehicles) {
     const x = v.x - cx, y = v.y - cy;
     if (x < -80 || x > viewW + 80 || y < -80 || y > viewH + 80) continue;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(v.rot);
-    // Skugga
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-    ctx.fillRect(-v.w / 2 + 4, -v.h / 2 + 5, v.w, v.h);
-    // Chassi (mörk metallisk olivgrön)
-    const chassiGrad = ctx.createLinearGradient(0, -v.h / 2, 0, v.h / 2);
-    chassiGrad.addColorStop(0, '#3a3a28');
-    chassiGrad.addColorStop(0.5, '#2a2a18');
-    chassiGrad.addColorStop(1, '#1a1a0a');
-    ctx.fillStyle = chassiGrad;
-    ctx.fillRect(-v.w / 2, -v.h / 2, v.w, v.h);
-    // Brända marker (mörka fläckar)
-    ctx.fillStyle = '#0a0a08';
-    ctx.fillRect(-v.w / 2 + 4, -v.h / 4, v.w * 0.3, v.h * 0.5);
-    ctx.fillRect(v.w * 0.15, -v.h / 3, v.w * 0.2, v.h * 0.4);
-    // Hjul (svarta cirklar vid kanter)
-    ctx.fillStyle = '#0a0a0a';
-    const wheelR = v.h * 0.18;
-    ctx.beginPath(); ctx.arc(-v.w * 0.35, -v.h / 2, wheelR, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(v.w * 0.35, -v.h / 2, wheelR, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(-v.w * 0.35, v.h / 2, wheelR, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(v.w * 0.35, v.h / 2, wheelR, 0, Math.PI * 2); ctx.fill();
-    // Kabin (i mitten, ljusare för relief)
-    ctx.fillStyle = '#4a4a3a';
-    if (v.kind === 'truck') {
-      ctx.fillRect(-v.w * 0.45, -v.h * 0.35, v.w * 0.25, v.h * 0.7);
+    if (_propBakeEnabled) {
+      const _half = v._spHalf || (v._spHalf = Math.ceil(Math.sqrt((v.w / 2) * (v.w / 2) + (v.h * 0.68) * (v.h * 0.68)) + 12));
+      _survBlitProp(_survBakeProp(v, _survDrawVehicleBody, _half), x, y);
     } else {
-      ctx.fillRect(-v.w * 0.15, -v.h * 0.32, v.w * 0.3, v.h * 0.64);
+      _survDrawVehicleBody(ctx, v, x, y);
     }
-    // Trasiga fönster (svart)
-    ctx.fillStyle = '#000';
-    if (v.kind === 'truck') {
-      ctx.fillRect(-v.w * 0.42, -v.h * 0.28, v.w * 0.18, v.h * 0.20);
-    } else {
-      ctx.fillRect(-v.w * 0.10, -v.h * 0.25, v.w * 0.20, v.h * 0.18);
-    }
-    // Rost-streck
-    ctx.strokeStyle = '#5a3a18';
-    ctx.lineWidth = 0.8;
-    for (let l = 0; l < 4; l++) {
-      const ly = -v.h / 2 + ((v.seed * 7 + l * 5) % 1) * v.h;
-      ctx.beginPath();
-      ctx.moveTo(-v.w / 2, ly);
-      ctx.lineTo(-v.w / 2 + 8 + ((v.seed * 3 + l) % 1) * 12, ly);
-      ctx.stroke();
-    }
-    ctx.restore();
-    // Brinnande effect ovanpå (om burning)
+    // Brinnande effect ovanpå (om burning) — ANIMERAD, ritas alltid live
     if (v.burn) {
       const flame = 0.7 + 0.3 * Math.sin(t * 5 + v.flamePhase);
       const flameH = 18 * flame;
@@ -8546,96 +8651,24 @@ function drawSurvivorsArenaGround() {
   for (const p of cache.pillars) {
     const x = p.x - cx, y = p.y - cy;
     if (x < -40 || x > viewW + 40 || y < -40 || y > viewH + 40) continue;
-    // Skugga (ellipse på marken)
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-    ctx.beginPath();
-    ctx.ellipse(x + 4, y + 5, p.r * 1.1, p.r * 0.4, 0, 0, Math.PI * 2);
-    ctx.fill();
-    // Pelarkropp (cirkel med gradient)
-    const pillarGrad = ctx.createRadialGradient(x - p.r * 0.3, y - p.r * 0.3, 0, x, y, p.r);
-    pillarGrad.addColorStop(0, '#a89888');
-    pillarGrad.addColorStop(0.6, '#685848');
-    pillarGrad.addColorStop(1, '#382818');
-    ctx.fillStyle = pillarGrad;
-    ctx.beginPath();
-    ctx.arc(x, y, p.r, 0, Math.PI * 2);
-    ctx.fill();
-    // Dark outline
-    ctx.strokeStyle = '#1a1008';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    // Sprickor (radial linjer)
-    ctx.strokeStyle = 'rgba(30, 20, 10, 0.7)';
-    ctx.lineWidth = 0.8;
-    for (let cr = 0; cr < 3; cr++) {
-      const ang = (cr / 3) * Math.PI * 2 + p.seed * Math.PI;
-      ctx.beginPath();
-      ctx.moveTo(x + Math.cos(ang) * p.r * 0.4, y + Math.sin(ang) * p.r * 0.4);
-      ctx.lineTo(x + Math.cos(ang + 0.3) * p.r * 0.9, y + Math.sin(ang + 0.3) * p.r * 0.9);
-      ctx.stroke();
+    if (_propBakeEnabled) {
+      const _half = p._spHalf || (p._spHalf = Math.ceil(p.r + 12));
+      _survBlitProp(_survBakeProp(p, _survDrawPillar, _half), x, y);
+    } else {
+      _survDrawPillar(ctx, p, x, y);
     }
-    // Topp-highlight (subtle inner cirkel)
-    ctx.fillStyle = 'rgba(180, 170, 160, 0.3)';
-    ctx.beginPath();
-    ctx.arc(x - p.r * 0.25, y - p.r * 0.25, p.r * 0.3, 0, Math.PI * 2);
-    ctx.fill();
   }
 
   // === v1.578: SANDBAG-BUNKERS (taktiska kort-cover) ===
   for (const sb of cache.sandbags) {
     const x = sb.x - cx, y = sb.y - cy;
     if (x < -60 || x > viewW + 60 || y < -60 || y > viewH + 60) continue;
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(sb.rot);
-    // Skugga
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-    ctx.fillRect(-sb.len / 2 + 3, -sb.h / 2 + 4, sb.len, sb.h);
-    // Rita varje sandbag (säck) i raden
-    const bagW = sb.len / sb.bags;
-    for (let b = 0; b < sb.bags; b++) {
-      const bx = -sb.len / 2 + b * bagW + bagW / 2;
-      // Säck (rundad rektangel via 2 cirklar + rect)
-      ctx.fillStyle = '#8a7050';
-      ctx.beginPath();
-      ctx.ellipse(bx, 0, bagW * 0.45, sb.h * 0.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Highlight top
-      ctx.fillStyle = '#a89070';
-      ctx.beginPath();
-      ctx.ellipse(bx - bagW * 0.15, -sb.h * 0.2, bagW * 0.25, sb.h * 0.25, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Söm-linje
-      ctx.strokeStyle = '#5a4028';
-      ctx.lineWidth = 0.6;
-      ctx.beginPath();
-      ctx.moveTo(bx - bagW * 0.4, -sb.h * 0.05);
-      ctx.lineTo(bx + bagW * 0.4, -sb.h * 0.05);
-      ctx.stroke();
-      // Random dirty patches
-      if ((sb.seed * 7 + b * 3) % 1 > 0.5) {
-        ctx.fillStyle = 'rgba(50, 35, 20, 0.5)';
-        ctx.beginPath();
-        ctx.arc(bx + (((sb.seed * 5 + b) % 1) - 0.5) * bagW * 0.5, sb.h * 0.1, 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
+    if (_propBakeEnabled) {
+      const _half = sb._spHalf || (sb._spHalf = Math.ceil(Math.sqrt((sb.len / 2) * (sb.len / 2) + sb.h * sb.h) + 12));
+      _survBlitProp(_survBakeProp(sb, _survDrawSandbag, _half), x, y);
+    } else {
+      _survDrawSandbag(ctx, sb, x, y);
     }
-    // Andra raden ovanpå (lite mindre)
-    if (sb.bags >= 3) {
-      const bagW2 = sb.len * 0.7 / (sb.bags - 1);
-      for (let b = 0; b < sb.bags - 1; b++) {
-        const bx = -sb.len * 0.35 + b * bagW2 + bagW2 / 2;
-        ctx.fillStyle = '#7a6042';
-        ctx.beginPath();
-        ctx.ellipse(bx, -sb.h * 0.6, bagW2 * 0.4, sb.h * 0.4, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#9a8060';
-        ctx.beginPath();
-        ctx.ellipse(bx - bagW2 * 0.1, -sb.h * 0.75, bagW2 * 0.18, sb.h * 0.18, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-    ctx.restore();
   }
 
   // === BRÄNDA TRÄD ===
@@ -18744,7 +18777,23 @@ const Audio = {
     } catch (e) { this.enabled = false; }
   },
   setSfxVol(v) { this.sfxVol = v; if (this.sfxGain) this.sfxGain.gain.value = v; },
-  setMusicVol(v) { this.musicVol = v; if (this.musicGain) this.musicGain.gain.value = v; },
+  setMusicVol(v) {
+    this.musicVol = v;
+    if (this.musicGain) this.musicGain.gain.value = v;
+    // PERF (v1.815 — #3): när musik stängs av (vol≈0) → STOPPA syntes-grafen, inte bara
+    // tysta gainen. Annars körde ~30 live-oscillatorer + delay/lowpass-DSP vidare osynligt
+    // hela sessionen (konstant audio-tråd-CPU) trots att inget hörs. Vanligt på mobil att
+    // spela utan spelmusik → nu noll musik-CPU då.
+    if (typeof Music !== 'undefined' && Music.startStage) {
+      if (v < 0.01) {
+        if (Music.active) Music.stop();
+      } else if (!Music.active && Music._lastStage && Audio.ctx) {
+        // Höjd från tyst → återbygg syntes-grafen för pågående stage (self-heal ÄVEN in-game,
+        // där det annars inte fanns någon retry → musiken förblev permanent tyst).
+        Music.startStage(Music._lastStage);
+      }
+    }
+  },
   // Throttle: max 1 av samma ljud per X ms
   _throttle(name, ms) {
     const now = performance.now();
@@ -19277,8 +19326,12 @@ const Music = {
   },
 
   startStage(stageKind) {
+    this._lastStage = stageKind; // minns stage ÄVEN när vol<0.01 hindrar bygget (för self-heal vid vol-höjning)
     this.stop();
     if (!Audio.ctx) return;
+    // PERF (v1.815 — #3): bygg INTE musik-syntes-grafen alls när musik är av (vol≈0).
+    // Sparar ~30 oscillatorer + alltid-på delay/lowpass-DSP/sek för den som spelar utan musik.
+    if (Audio.musicVol < 0.01) return;
     const theme = this.themes[stageKind] || this.themes.forest;
     const scale = this.scales[theme.mode];
     const t = Audio.ctx.currentTime;
@@ -23757,6 +23810,16 @@ function encodeWorldBinary(pkt) {
   return new Uint8Array(buf, 0, o);
 }
 
+// PERF (v1.815 — #2 DECODE-POOLING): avkodaren allokerade ~6000 färska objekt/sek (per-entity
+// object-literaler i färska arrayer, 60Hz) = konstant GC-tryck UTANFÖR frame-EMA:n (körs i
+// onmessage; GC-pauser mellan frames = osynlig värme native-spel slipper). Konsumenten KOPIERAR
+// fält (verifierat: existing.hp=e.hp / {...cached,x:e.x}) → behåller ej pkt-objekten → säkert att
+// återanvända per-entity-pooler. pkt-OBJEKTET hålls färskt (1/paket = billigt) så villkorliga
+// topp-fält (gs/db/tk/pickups) aldrig blir stale. Enemy full-mode-fält nollställs i delta-läge →
+// identiskt med ett färskt {i,x,y,hp}. ?netPool=0 → gamla allokerande vägen (fallback).
+let _netPoolEnabled = true;
+try { _netPoolEnabled = new URLSearchParams(location.search).get('netPool') !== '0'; } catch (_) {}
+const _decPlayers = [], _decEnemies = [], _decHb = [], _decPickups = [];
 function decodeWorldBinary(buf) {
   // buf är ArrayBuffer (efter att route-headern strippats av _handleBinaryFromServer)
   if (buf.byteLength < 2) return null;
@@ -23792,7 +23855,7 @@ function decodeWorldBinary(buf) {
   pkt.seq = seq;
   // Players (slot-mapped — id/name slås upp via slotToPeerId i onData-handlern)
   const numP = view.getUint8(o++);
-  pkt.players = [];
+  const _pArr = _netPoolEnabled ? _decPlayers : [];
   for (let i = 0; i < numP; i++) {
     const c = view.getUint8(o++);
     const x = view.getInt16(o, true); o += 2;
@@ -23801,18 +23864,26 @@ function decodeWorldBinary(buf) {
     const a = view.getInt16(o, true) / 1000; o += 2;
     const w = readWeapon();
     const rT = view.getUint8(o++);
-    pkt.players.push({ c, x, y, hp, a, w, rT });
+    if (_netPoolEnabled) {
+      const p = _pArr[i] || (_pArr[i] = {});
+      p.c = c; p.x = x; p.y = y; p.hp = hp; p.a = a; p.w = w; p.rT = rT;
+    } else {
+      _pArr.push({ c, x, y, hp, a, w, rT });
+    }
   }
+  if (_netPoolEnabled) _pArr.length = numP;
+  pkt.players = _pArr;
   // Enemies
   const numE = view.getUint16(o, true); o += 2;
-  pkt.enemies = [];
+  const _eArr = _netPoolEnabled ? _decEnemies : [];
   const fullMode = !!pkt.full;
   for (let i = 0; i < numE; i++) {
     const idx = view.getInt16(o, true); o += 2;
     const x = view.getInt16(o, true); o += 2;
     const y = view.getInt16(o, true); o += 2;
     const hp = view.getUint16(o, true); o += 2;
-    const e = { i: idx, x, y, hp };
+    const e = _netPoolEnabled ? (_eArr[i] || (_eArr[i] = {})) : {};
+    e.i = idx; e.x = x; e.y = y; e.hp = hp;
     if (fullMode) {
       e.mh = view.getUint16(o, true); o += 2;
       e.t = readEnemyType();
@@ -23823,12 +23894,18 @@ function decodeWorldBinary(buf) {
       e.c = readStr();
       e.n = readStr();
       e.p = view.getUint8(o++);
+    } else if (_netPoolEnabled) {
+      // delta-läge på ÅTERANVÄNT objekt: nollställ full-mode-fält → identiskt med färskt {i,x,y,hp}
+      // (annars läser konsumentens !cached-gren stale e.t/e.b/... + e.p-gren stale phase).
+      e.mh = e.t = e.b = e.mb = e.bk = e.r = e.c = e.n = e.p = undefined;
     }
-    pkt.enemies.push(e);
+    if (!_netPoolEnabled) _eArr.push(e);
   }
+  if (_netPoolEnabled) _eArr.length = numE;
+  pkt.enemies = _eArr;
   // Bullets
   const numB = view.getUint16(o, true); o += 2;
-  pkt.hb = [];
+  const _hbArr = _netPoolEnabled ? _decHb : [];
   for (let i = 0; i < numB; i++) {
     const x = view.getInt16(o, true); o += 2;
     const y = view.getInt16(o, true); o += 2;
@@ -23836,18 +23913,32 @@ function decodeWorldBinary(buf) {
     const vy = view.getInt16(o, true); o += 2;
     const c = readBulletColor();
     const r = view.getUint8(o++);
-    pkt.hb.push({ x, y, vx, vy, c, r });
+    if (_netPoolEnabled) {
+      const b = _hbArr[i] || (_hbArr[i] = {});
+      b.x = x; b.y = y; b.vx = vx; b.vy = vy; b.c = c; b.r = r;
+    } else {
+      _hbArr.push({ x, y, vx, vy, c, r });
+    }
   }
+  if (_netPoolEnabled) _hbArr.length = numB;
+  pkt.hb = _hbArr;
   // Pickups
   if (flags & WP_FLAG_PICKUPS) {
     const numPk = view.getUint8(o++);
-    pkt.pickups = [];
+    const _pkArr = _netPoolEnabled ? _decPickups : [];
     for (let i = 0; i < numPk; i++) {
       const x = view.getInt16(o, true); o += 2;
       const y = view.getInt16(o, true); o += 2;
       const t = readStr();
-      pkt.pickups.push({ x, y, t });
+      if (_netPoolEnabled) {
+        const pk = _pkArr[i] || (_pkArr[i] = {});
+        pk.x = x; pk.y = y; pk.t = t;
+      } else {
+        _pkArr.push({ x, y, t });
+      }
     }
+    if (_netPoolEnabled) _pkArr.length = numPk;
+    pkt.pickups = _pkArr;
   }
   // Game state
   if (flags & WP_FLAG_GS) {
