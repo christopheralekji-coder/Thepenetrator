@@ -21060,6 +21060,7 @@ function _updateSurvPixiWorld() {
     if (pixiState._fxG) { pixiState._fxG.clear(); pixiState._fxG.visible = false; } // v1.848
     if (pixiState._chatterG) pixiState._chatterG.clear(); // v1.849
     if (pixiState._textPool) for (const bt of pixiState._textPool) if (bt) bt.visible = false;
+    if (pixiState._namePool) for (const nt of pixiState._namePool) if (nt) nt.visible = false; // v1.850
     return;
   }
   const cx = state.camera.x, cy = state.camera.y;
@@ -21489,6 +21490,22 @@ function _updateSurvPixiWorld() {
       }
     }
   }
+  // v1.850: DEATH-POPS (ring + vit kärn-flash) i samma FX-Graphics. (cleanup sker i drawDeathPops.)
+  if (state.deathPops && state.deathPops.length) {
+    const _nowDp = performance.now();
+    for (const dpp of state.deathPops) {
+      const dpv = (_nowDp - dpp.born) / dpp.dur;
+      if (dpv < 0 || dpv >= 1) continue;
+      const ddx = dpp.x - cx, ddy = dpp.y - cy;
+      if (ddx < -80 || ddx > viewW + 80 || ddy < -80 || ddy > viewH + 80) continue;
+      const dsc = dpv < 0.28 ? (1 + (dpv / 0.28) * 0.4) : (1.4 * (1 - (dpv - 0.28) / 0.72));
+      const drr = dpp.r * Math.max(0, dsc);
+      if (drr > 0.5) {
+        fxg.circle(dpp.x, dpp.y, drr).stroke({ width: 3, color: 0xffd9a0, alpha: Math.max(0, (1 - dpv) * 0.9) });
+        if (dpv < 0.45) fxg.circle(dpp.x, dpp.y, drr * 0.55).fill({ color: 0xffffff, alpha: Math.max(0, (1 - dpv / 0.45) * 0.75) });
+      }
+    }
+  }
   // v1.849 PASS5: damage-siffror + crit-text + chatter via Pixi BitmapText (pool) + bubbel-Graphics.
   // EN bitmap-font (vit fill + svart kontur) återanvänds; tintas per färg, skalas per storlek → ingen
   // font-churn. Svart kontur bevaras vid tint (svart × tint = svart).
@@ -21537,6 +21554,46 @@ function _updateSurvPixiWorld() {
       }
     }
     for (let k = ti; k < tpool.length; k++) if (tpool[k]) tpool[k].visible = false;
+  }
+  // v1.850 PASS5: FIENDE-NAMN (boss/mini-boss/showcase) via Pixi BitmapText-pool. Egen pool (få st).
+  if (typeof PIXI.BitmapText === 'function') {
+    if (!pixiState._nameContainer) {
+      pixiState._nameContainer = new PIXI.Container(); pixiState._nameContainer.label = 'enemyNames';
+      pixiState.containers.world.addChild(pixiState._nameContainer);
+      pixiState._namePool = [];
+    }
+    const nc = pixiState._nameContainer, npool = pixiState._namePool;
+    pixiState.containers.world.addChild(nc);
+    let ni = 0; const NBASE = 28;
+    if (state.enemies) {
+      for (const e of state.enemies) {
+        if (!e || e.dead) continue;
+        let label, ncol, nsize, ny;
+        if (e._showcaseLabel) {
+          label = e._showcaseLabel; ncol = e.isBoss ? 0xffd54a : 0xffffff;
+          nsize = e.isBoss ? 11 : 10; ny = e.y - (e.r || 14) - (e.isBoss ? 52 : 42);
+        } else if (e.isBoss) {
+          label = e.name || '???'; ncol = 0xffffff; nsize = 11; ny = e.y - e.r - 18;
+        } else if (e.isMiniBoss) {
+          label = '⚠ ' + (e.name || '???'); ncol = 0xffae3a; nsize = 10; ny = e.y - e.r - 18;
+        } else continue;
+        const ensx = e.x - cx, ensy = ny - cy;
+        if (ensx < -180 || ensx > viewW + 180 || ensy < -40 || ensy > viewH + 40) continue;
+        let nt = npool[ni];
+        if (!nt) {
+          try { nt = new PIXI.BitmapText({ text: '', style: { fontFamily: 'sans-serif', fontSize: NBASE, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x000000, width: 4 } } }); }
+          catch (_) { try { nt = new PIXI.BitmapText({ text: '', style: { fontFamily: 'sans-serif', fontSize: NBASE, fontWeight: 'bold', fill: 0xffffff } }); } catch (__) { nt = null; } }
+          if (!nt) break;
+          nt.anchor.set(0.5);
+          nc.addChild(nt); npool[ni] = nt;
+        }
+        ni++;
+        if (nt.text !== label) nt.text = label;
+        nt.tint = ncol; nt.alpha = 1; nt.scale.set(nsize / NBASE);
+        nt.position.set(e.x, ny); nt.visible = true;
+      }
+    }
+    for (let k = ni; k < npool.length; k++) if (npool[k]) npool[k].visible = false;
   }
 }
 
@@ -21798,7 +21855,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:849 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:850 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -70455,7 +70512,8 @@ function drawEnemy(e) {
   if (!_bakeMode) {
     drawHpBar(e, x, y);
     // v1.600: Mini-boss namn-tag bevarad, glow-ring BORTTAGEN per user-request
-    if (e.isMiniBoss) {
+    // v1.850: i kollaps ritas namnet via Pixi (drawHpBar:s namn gatas redan) → hoppa här (annars dubbelt)
+    if (e.isMiniBoss && !(_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady)) {
       ctx.save();
       const tagY = Math.max(20, y - e.r - 22);
       ctx.fillStyle = '#fff';
@@ -73244,7 +73302,7 @@ function drawHpBar(e, x, y) {
     ctx.fillStyle = e.isMiniBoss ? '#ff8a3a' : '#ff5a5a';
     ctx.fillRect(x - w/2, y - e.r - 12, w * (e.hp / e.maxHp), h);
   }
-  if (e.isBoss || e.isMiniBoss) {
+  if ((e.isBoss || e.isMiniBoss) && !(_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady)) {
     ctx.fillStyle = e.isMiniBoss ? '#ffae3a' : '#fff';
     ctx.font = 'bold ' + (e.isMiniBoss ? 10 : 11) + 'px sans-serif';
     ctx.textAlign = 'center';
@@ -74994,6 +75052,7 @@ function drawDeathPops() {
     if (dp >= 1) { arr.splice(i, 1); continue; }
     const x = p.x - cx, y = p.y - cy;
     if (x < -80 || x > viewW + 80 || y < -80 || y > viewH + 80) continue;
+    if (_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady) continue; // v1.850: Pixi ritar (cleanup ovan körs ändå)
     // Overshoot 1→1.4 (första 28%) → implodera mot 0. Det är "poppet".
     const scale = dp < 0.28 ? (1 + (dp / 0.28) * 0.4) : (1.4 * (1 - (dp - 0.28) / 0.72));
     const rr = p.r * Math.max(0, scale);
@@ -75871,7 +75930,7 @@ function render() {
       if (e.isBoss || e.isMiniBoss) {
         // v1.614: hoppa om Canvas2D-fallback redan ritat (dual-render) — annars dubbel-draw
         if (!_dualRenderActive) drawEnemy(e);
-        if (e._showcaseLabel) {
+        if (e._showcaseLabel && !(_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady)) {
           ctx.save();
           ctx.fillStyle = e.isBoss ? '#ffd54a' : '#fff';
           ctx.font = 'bold ' + (e.isBoss ? 11 : 10) + 'px sans-serif';
@@ -75887,7 +75946,7 @@ function render() {
       // HP-bar för minions och mini-bosses
       if (typeof drawHpBar === 'function') drawHpBar(e, sx, sy);
       // v1.581: Showcase-label ovanför enemy (visar typ-namn för enemy-revamp-arbete)
-      if (e._showcaseLabel) {
+      if (e._showcaseLabel && !(_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady)) {
         ctx.save();
         ctx.fillStyle = '#fff';
         ctx.font = 'bold 10px sans-serif';
