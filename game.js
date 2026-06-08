@@ -21038,6 +21038,11 @@ function _updateSurvPixiWorld() {
       pixiState._shieldMap.clear();
     }
     if (pixiState._meleeRec && pixiState._meleeRec.spr) pixiState._meleeRec.spr.visible = false; // v1.844
+    if (pixiState._grenMap && pixiState._grenMap.size) { // v1.845: töm granater
+      for (const [, gr] of pixiState._grenMap) { if (gr.spr) { try { gr.spr.destroy(); } catch (_) {} } }
+      pixiState._grenMap.clear();
+    }
+    if (pixiState._grenReticleG) { pixiState._grenReticleG.clear(); pixiState._grenReticleG.visible = false; }
     return;
   }
   const cx = state.camera.x, cy = state.camera.y;
@@ -21315,6 +21320,82 @@ function _updateSurvPixiWorld() {
     }
   }
   if (!_meleeActive && pixiState._meleeRec && pixiState._meleeRec.spr) pixiState._meleeRec.spr.visible = false;
+  // v1.845 PASS5: GRANATER (frag + rök-canister) via Pixi per-granat camera-trick (_drawOneGrenade).
+  // Sparsamt (bara när granater i luften) → små occasional uploads.
+  if (!pixiState._grenMap) pixiState._grenMap = new Map();
+  const gmap = pixiState._grenMap;
+  const _gseen = pixiState._grenSeen || (pixiState._grenSeen = new Set());
+  _gseen.clear();
+  const _nowGr = performance.now();
+  if (state.grenades) {
+    for (const gr of state.grenades) {
+      if (!gr || gr.exploded) continue;
+      const gtt = Math.min(1, (_nowGr - gr.startTime) / gr.flightTime);
+      const gx = gr.fromX + (gr.toX - gr.fromX) * gtt, gy = gr.fromY + (gr.toY - gr.fromY) * gtt;
+      const grsx = gx - cx, grsy = gy - cy;
+      if (grsx < -60 || grsx > viewW + 60 || grsy < -90 || grsy > viewH + 60) continue;
+      if (gr._gid == null) gr._gid = (pixiState._grenNextId = (pixiState._grenNextId || 0) + 1);
+      _gseen.add(gr._gid);
+      const GSIDE = 100, GSH = 2, gbpx = GSIDE * GSH;
+      let grec = gmap.get(gr._gid);
+      if (!grec) {
+        const gbuf = document.createElement('canvas'); gbuf.width = gbpx; gbuf.height = gbpx;
+        const gspr = new PIXI.Sprite(); gspr.anchor.set(0.5); gspr.label = 'grenade';
+        pixiState.containers.world.addChild(gspr);
+        grec = { buf: gbuf, bufCtx: gbuf.getContext('2d'), spr: gspr, texInit: false };
+        gmap.set(gr._gid, grec);
+      }
+      const ghalf = GSIDE / 2, gbc = grec.bufCtx;
+      gbc.setTransform(1, 0, 0, 1, 0, 0); gbc.clearRect(0, 0, gbpx, gbpx);
+      gbc.setTransform(GSH, 0, 0, GSH, 0, 0);
+      const _grCam = state.camera, _grCtx = ctx;
+      state.camera = { x: gx - ghalf, y: gy - ghalf };
+      ctx = gbc;
+      try { _drawOneGrenade(gr, _nowGr); } catch (_) {}
+      ctx = _grCtx; state.camera = _grCam;
+      try {
+        if (!grec.texInit) { grec.spr.texture = PIXI.Texture.from(grec.buf); grec.texInit = true; }
+        else if (grec.spr.texture && grec.spr.texture.source && grec.spr.texture.source.update) grec.spr.texture.source.update();
+      } catch (_) {}
+      grec.spr.width = GSIDE; grec.spr.height = GSIDE;
+      grec.spr.position.set(gx, gy);
+      grec.spr.visible = true;
+    }
+  }
+  for (const [id, grec] of gmap) {
+    if (!_gseen.has(id)) { if (grec.spr) { try { grec.spr.destroy(); } catch (_) {} } gmap.delete(id); }
+  }
+  // v1.845: GRANAT-RETICLE (kast-bana + landnings-markör) native Pixi Graphics (enkel → ingen upload).
+  if (!pixiState._grenReticleG) {
+    pixiState._grenReticleG = new PIXI.Graphics(); pixiState._grenReticleG.label = 'grenReticle';
+    pixiState.containers.world.addChild(pixiState._grenReticleG);
+  }
+  const rg2 = pixiState._grenReticleG;
+  pixiState.containers.world.addChild(rg2);
+  rg2.clear();
+  let _retShow = false;
+  if (state.mode === 'playing' && state.grenadeAim && state.grenadeAim.engaged && typeof computeGrenadeTarget === 'function') {
+    const tgt = computeGrenadeTarget();
+    if (tgt && _pp) {
+      _retShow = true;
+      const VR = (typeof GRENADE_VISUAL_RADIUS !== 'undefined') ? GRENADE_VISUAL_RADIUS : 24;
+      // streckad bana player→target
+      const ddist = Math.hypot(tgt.x - _pp.x, tgt.y - _pp.y), dn = Math.max(1, Math.floor(ddist / 14));
+      for (let i = 0; i < dn; i += 2) {
+        const t0 = i / dn, t1 = Math.min(1, (i + 1) / dn);
+        rg2.moveTo(_pp.x + (tgt.x - _pp.x) * t0, _pp.y + (tgt.y - _pp.y) * t0).lineTo(_pp.x + (tgt.x - _pp.x) * t1, _pp.y + (tgt.y - _pp.y) * t1);
+      }
+      rg2.stroke({ width: 2, color: 0xffaa30, alpha: 0.42, cap: 'round' });
+      // landnings-markör
+      rg2.circle(tgt.x, tgt.y, VR).fill({ color: 0xffaa30, alpha: 0.20 });
+      rg2.circle(tgt.x, tgt.y, VR).stroke({ width: 2, color: 0xffaa30, alpha: 0.9 });
+      const CXr = Math.min(6, VR - 4);
+      rg2.moveTo(tgt.x - CXr, tgt.y).lineTo(tgt.x + CXr, tgt.y).moveTo(tgt.x, tgt.y - CXr).lineTo(tgt.x, tgt.y + CXr);
+      rg2.stroke({ width: 1.4, color: 0xffaa30, alpha: 0.9 });
+      rg2.circle(tgt.x, tgt.y, 2).fill(0xffaa30);
+    }
+  }
+  rg2.visible = _retShow;
 }
 
 // v1.534/v1.535: Diagnostic-overlay (FPS + Pixi-frametime). Toggle via 4-tap
@@ -21575,7 +21656,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:844 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:845 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -23260,6 +23341,7 @@ function drawExplosions() {
 function drawGrenadeReticle() {
   if (state.mode !== 'playing') return;
   if (!state.grenadeAim || !state.grenadeAim.engaged) return;
+  if (_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady) return; // v1.845: Pixi ritar reticle
   const target = computeGrenadeTarget();
   if (!target) return;
   const p = state.player;
@@ -23308,36 +23390,12 @@ function drawGrenadeReticle() {
   ctx.restore();
 }
 
-function drawGrenades() {
-  if (!state.grenades || state.grenades.length === 0) return;
-  const now = performance.now();
-  // v1.377: BR — om granat-position är INNE i ett hus och spelaren INTE är i
-  // samma hus, dölj granaten (täcks av tak). Anledning: när granat går igenom
-  // fönster ska den inte synas utifrån, samma logik som spelare inomhus.
-  const cabins = state.battleroyaleActive ? state.battleroyaleCabins : null;
-  const myX = state.player ? state.player.x : 0;
-  const myY = state.player ? state.player.y : 0;
-  const inSameOrNoCabinAs = (gx, gy) => {
-    if (!cabins || cabins.length === 0) return true; // ingen cabin-logik = synlig
-    for (const cabin of cabins) {
-      const b = cabin.bounds;
-      const gInside = gx >= b.x && gx <= b.x + b.w && gy >= b.y && gy <= b.y + b.h;
-      if (!gInside) continue;
-      // granaten är i denna stuga — kolla om jag också är i den
-      const pInside = myX >= b.x && myX <= b.x + b.w && myY >= b.y && myY <= b.y + b.h;
-      return pInside; // synlig endast om jag är där också
-    }
-    return true; // granaten är ute = alltid synlig
-  };
-  ctx.save();
-  for (const g of state.grenades) {
-    if (g.exploded) continue;
+// v1.845: en ENskild granat (frag/rök) — extraherad så Pixi kan rendera den till en sprite-buffer.
+function _drawOneGrenade(g, now) {
     const elapsed = now - g.startTime;
     const t = Math.min(1, elapsed / g.flightTime);
     const x = g.fromX + (g.toX - g.fromX) * t;
     const y = g.fromY + (g.toY - g.fromY) * t;
-    // Dölj granat om den är inne i hus och jag är ute
-    if (!inSameOrNoCabinAs(x, y)) continue;
     // Parabolisk höjd (visuell flight-känsla, max 32px upp)
     const arcH = Math.sin(t * Math.PI) * 32;
     const sx = x - state.camera.x;
@@ -23388,6 +23446,39 @@ function drawGrenades() {
       ctx.fill();
     }
     ctx.restore();
+}
+function drawGrenades() {
+  if (!state.grenades || state.grenades.length === 0) return;
+  if (_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady) return; // v1.845: Pixi ritar granaterna
+  const now = performance.now();
+  // v1.377: BR — om granat-position är INNE i ett hus och spelaren INTE är i
+  // samma hus, dölj granaten (täcks av tak). Anledning: när granat går igenom
+  // fönster ska den inte synas utifrån, samma logik som spelare inomhus.
+  const cabins = state.battleroyaleActive ? state.battleroyaleCabins : null;
+  const myX = state.player ? state.player.x : 0;
+  const myY = state.player ? state.player.y : 0;
+  const inSameOrNoCabinAs = (gx, gy) => {
+    if (!cabins || cabins.length === 0) return true; // ingen cabin-logik = synlig
+    for (const cabin of cabins) {
+      const b = cabin.bounds;
+      const gInside = gx >= b.x && gx <= b.x + b.w && gy >= b.y && gy <= b.y + b.h;
+      if (!gInside) continue;
+      // granaten är i denna stuga — kolla om jag också är i den
+      const pInside = myX >= b.x && myX <= b.x + b.w && myY >= b.y && myY <= b.y + b.h;
+      return pInside; // synlig endast om jag är där också
+    }
+    return true; // granaten är ute = alltid synlig
+  };
+  ctx.save();
+  for (const g of state.grenades) {
+    if (g.exploded) continue;
+    const elapsed = now - g.startTime;
+    const t = Math.min(1, elapsed / g.flightTime);
+    const x = g.fromX + (g.toX - g.fromX) * t;
+    const y = g.fromY + (g.toY - g.fromY) * t;
+    // Dölj granat om den är inne i hus och jag är ute
+    if (!inSameOrNoCabinAs(x, y)) continue;
+    _drawOneGrenade(g, now);
   }
   ctx.restore();
 }
