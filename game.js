@@ -19898,6 +19898,14 @@ function _eliteOnPixi(e) {
   return !!(e && (e.isBoss || e.isMiniBoss) && _pixiWorld && state.survivorsActive &&
     pixiState && pixiState._survWorldReady);
 }
+// v1.849: hex-färg → int (för Pixi tint). Hanterar #rgb/#rrggbb; fallback vit.
+function _hexToInt(c) {
+  if (typeof c !== 'string') return 0xffffff;
+  let s = c.replace('#', '');
+  if (s.length === 3) s = s[0] + s[0] + s[1] + s[1] + s[2] + s[2];
+  const n = parseInt(s, 16);
+  return isNaN(n) ? 0xffffff : n;
+}
 // v1.842: muzzle-offset per vapen (global) — matchar drawPlayerWeapon's mynnings-position OCH var
 // bullets föds. Används av skjut-koden + Pixi-aim-siktet (så linjen startar exakt vid mynningen).
 const MUZZLE_OFFSETS = {
@@ -21050,6 +21058,8 @@ function _updateSurvPixiWorld() {
     if (pixiState._grenReticleG) { pixiState._grenReticleG.clear(); pixiState._grenReticleG.visible = false; }
     if (pixiState._deadRec && pixiState._deadRec.spr) pixiState._deadRec.spr.visible = false; // v1.847
     if (pixiState._fxG) { pixiState._fxG.clear(); pixiState._fxG.visible = false; } // v1.848
+    if (pixiState._chatterG) pixiState._chatterG.clear(); // v1.849
+    if (pixiState._textPool) for (const bt of pixiState._textPool) if (bt) bt.visible = false;
     return;
   }
   const cx = state.camera.x, cy = state.camera.y;
@@ -21479,6 +21489,55 @@ function _updateSurvPixiWorld() {
       }
     }
   }
+  // v1.849 PASS5: damage-siffror + crit-text + chatter via Pixi BitmapText (pool) + bubbel-Graphics.
+  // EN bitmap-font (vit fill + svart kontur) återanvänds; tintas per färg, skalas per storlek → ingen
+  // font-churn. Svart kontur bevaras vid tint (svart × tint = svart).
+  if (typeof PIXI.BitmapText === 'function') {
+    if (!pixiState._textContainer) {
+      pixiState._chatterG = new PIXI.Graphics(); pixiState._chatterG.label = 'chatterBubble';
+      pixiState.containers.world.addChild(pixiState._chatterG);
+      pixiState._textContainer = new PIXI.Container(); pixiState._textContainer.label = 'worldText';
+      pixiState.containers.world.addChild(pixiState._textContainer);
+      pixiState._textPool = [];
+    }
+    const cgr = pixiState._chatterG, tc = pixiState._textContainer, tpool = pixiState._textPool;
+    pixiState.containers.world.addChild(cgr); pixiState.containers.world.addChild(tc); // håll överst
+    cgr.clear();
+    let ti = 0; const TBASE = 28;
+    if (state.particles) {
+      for (const p of state.particles) {
+        if (!(p.isDamageNumber || p.isCritText || p.isChatter)) continue;
+        const tsx = p.x - cx, tsy = p.y - cy;
+        if (tsx < -160 || tsx > viewW + 160 || tsy < -80 || tsy > viewH + 80) continue;
+        let bt = tpool[ti];
+        if (!bt) {
+          try { bt = new PIXI.BitmapText({ text: '', style: { fontFamily: 'sans-serif', fontSize: TBASE, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x000000, width: 4 } } }); }
+          catch (_) { try { bt = new PIXI.BitmapText({ text: '', style: { fontFamily: 'sans-serif', fontSize: TBASE, fontWeight: 'bold', fill: 0xffffff } }); } catch (__) { bt = null; } }
+          if (!bt) break;
+          bt.anchor.set(0.5);
+          tc.addChild(bt); tpool[ti] = bt;
+        }
+        ti++;
+        const txt = p.text != null ? String(p.text) : '';
+        if (bt.text !== txt) bt.text = txt;
+        let alpha, sizePx, tint, yo = 0;
+        if (p.isCritText) { alpha = Math.min(1, p.life * 2); sizePx = 16; tint = _hexToInt(p.color || '#ffeb3b'); }
+        else if (p.isDamageNumber) { alpha = Math.min(1, p.life * 1.4); sizePx = p.size || 13; tint = _hexToInt(p.color || '#ffffff'); }
+        else { alpha = Math.min(1, p.life * 1.2); sizePx = p.size || 11; tint = 0xffd54a; yo = -4; } // chatter
+        bt.alpha = Math.max(0, alpha);
+        bt.tint = tint;
+        bt.scale.set(sizePx / TBASE);
+        bt.position.set(p.x, p.y + yo);
+        bt.visible = true;
+        if (p.isChatter) {
+          const w = txt.length * 6 + 12;
+          cgr.rect(p.x - w / 2, p.y - 12, w, 16).fill({ color: 0x000000, alpha: Math.max(0, alpha * 0.7) });
+          cgr.rect(p.x - w / 2, p.y - 12, w, 16).stroke({ width: 1, color: 0xffd54a, alpha: Math.max(0, alpha) });
+        }
+      }
+    }
+    for (let k = ti; k < tpool.length; k++) if (tpool[k]) tpool[k].visible = false;
+  }
 }
 
 // v1.534/v1.535: Diagnostic-overlay (FPS + Pixi-frametime). Toggle via 4-tap
@@ -21739,7 +21798,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:848 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:849 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -76099,10 +76158,13 @@ function render() {
   // PvP-pickups (HP/shield-regen) — alla PvP-lägen utom BR (BR har eget loot-system)
   if ((state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive) && state.pvpPickups) drawPvpPickups();
   // Top layer: damage-numbers + crit-text + chatter — viewport-cull
-  for (const p of state.particles) {
-    if (!(p.isDamageNumber || p.isCritText || p.isChatter)) continue;
-    if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
-    drawParticle(p);
+  // v1.849: i kollaps ritas dessa via Pixi BitmapText → hoppa Canvas2D
+  if (!(_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady)) {
+    for (const p of state.particles) {
+      if (!(p.isDamageNumber || p.isCritText || p.isChatter)) continue;
+      if (p.x < _cullL || p.x > _cullR || p.y < _cullT || p.y > _cullB) continue;
+      drawParticle(p);
+    }
   }
   // Explosions (toppmost) — viewport-cull
   // v1.562: SKIP om Pixi-VFX aktivt
