@@ -19881,6 +19881,18 @@ try {
   else if (_w === '0') _webgpuTest = false;
   else _webgpuTest = localStorage.getItem('penetrator_webgpu') === '1';
 } catch (_) {}
+// LAGER-KOLLAPS (v1.824): flytta Survivors VÄRLDS-lager (golv + props + spelare) från Canvas2D
+// (z:1) till Pixi (z:2 = Metal/WebGPU). Mål: tömma z:1-canvasen → ETT lager → halverad
+// compositing/overdraw = native-svalka. Z-ordning kräver att golv+props+spelare flyttas SAMTIDIGT
+// (annars täcker Pixi-golvet Canvas2D-spelaren). Steg 1: golv (TilingSprite) + spelare (sprite).
+// Bakom flagga + settings-toggle. ?pixiWorld=1/0 eller localStorage.
+let _pixiWorld = false;
+try {
+  const _pw = new URLSearchParams(location.search).get('pixiWorld');
+  if (_pw === '1') _pixiWorld = true;
+  else if (_pw === '0') _pixiWorld = false;
+  else _pixiWorld = localStorage.getItem('penetrator_pixiWorld') === '1';
+} catch (_) {}
 let _miniCanvas = null, _miniCtx = null;
 const _miniRect = { left: 0, top: 0, w: 0, h: 0 };
 function _ensureMiniCanvas() {
@@ -20888,6 +20900,9 @@ function renderPixiFrame() {
   const t0 = performance.now();
   // Camera-follow: world-container offsetas så sprites i world-koord syns rätt
   pixiState.containers.world.position.set(-state.camera.x, -state.camera.y);
+  // v1.824: LAGER-KOLLAPS — bygg Survivors-golv+spelare på Pixi lazy + uppdatera per frame
+  if (_pixiWorld && state.survivorsActive && !pixiState._survWorldReady && state.mode === 'playing') _buildSurvPixiWorld();
+  if (pixiState._survWorldReady) { try { _updateSurvPixiWorld(); } catch (e) { console.warn('[pixiWorld] update', e && e.message); } }
   // v1.558: Wrap varje sync i try-catch så en crash inte stoppar render.
   // Var bug i v1.557: syncPixiParticles kraschade → renderer.render() körs aldrig
   // → hela skärmen tom.
@@ -20904,6 +20919,68 @@ function renderPixiFrame() {
     pixiState._lastError = 'render:' + (e.message || e);
   }
   pixiState.diagFrameTime = performance.now() - t0;
+}
+
+// ===== LAGER-KOLLAPS (v1.824, ?pixiWorld=1): Survivors golv + spelare → Pixi (Metal) =====
+// PASS 1: golv (TilingSprite, scrollas via tilePosition = noll per-frame-upload) + spelaren
+// (Pixi-sprite vars textur uppdateras per frame från en LITEN offscreen-canvas via drawPlayer —
+// kamera-trick centrerar gubben i buffern). Props/plaza/dekor kommer i PASS 2. Flag-skyddat.
+let _pwBuilding = false;
+async function _buildSurvPixiWorld() {
+  if (pixiState._survWorldReady || _pwBuilding || !pixiState.ready || !pixiState.app || typeof PIXI === 'undefined') return;
+  _pwBuilding = true;
+  try {
+    const tileCanvas = (typeof _getSurvFloorTile === 'function') ? _getSurvFloorTile() : null;
+    if (!tileCanvas) { _pwBuilding = false; return; }
+    let tex;
+    try { const bmp = await createImageBitmap(tileCanvas); tex = PIXI.Texture.from(bmp); }
+    catch (_) { tex = PIXI.Texture.from(tileCanvas); }
+    const ts = new PIXI.TilingSprite({ texture: tex, width: Math.max(1, viewW), height: Math.max(1, viewH) });
+    ts.label = 'survFloor';
+    pixiState.app.stage.addChildAt(ts, 0); // underst (under world-containern = under enemies)
+    pixiState._survFloor = ts;
+    const pc = document.createElement('canvas'); pc.width = 256; pc.height = 256;
+    pixiState._pwPlayerCanvas = pc;
+    const psp = new PIXI.Sprite();
+    psp.anchor.set(0.5); psp.label = 'survPlayer';
+    pixiState.containers.world.addChild(psp); // överst i world (ovanpå enemies = gubben på topp)
+    pixiState._survPlayer = psp;
+    pixiState._survWorldReady = true;
+    console.log('[pixiWorld] Survivors-värld byggd (golv+spelare på Pixi)');
+  } catch (e) { console.warn('[pixiWorld] build fail', e && e.message); }
+  _pwBuilding = false;
+}
+function _updateSurvPixiWorld() {
+  if (!pixiState._survWorldReady) return;
+  const active = _pixiWorld && state.survivorsActive && state.mode === 'playing';
+  const ts = pixiState._survFloor, psp = pixiState._survPlayer;
+  if (ts) ts.visible = active;
+  if (!active) { if (psp) psp.visible = false; return; }
+  const cx = state.camera.x, cy = state.camera.y;
+  if (ts) {
+    if (ts.width !== viewW || ts.height !== viewH) { ts.width = viewW; ts.height = viewH; }
+    ts.tilePosition.set(-cx, -cy); // scrolla texturen med kameran (ingen per-frame-upload)
+  }
+  const p = state.player;
+  if (psp && p && !p.spectating) {
+    const pc = pixiState._pwPlayerCanvas, pctx = pc.getContext('2d');
+    pctx.setTransform(1, 0, 0, 1, 0, 0);
+    pctx.clearRect(0, 0, pc.width, pc.height);
+    const half = pc.width / 2;
+    // kamera-trick: rita drawPlayer centrerat i den lilla buffern (player.x - cam.x = half)
+    const _svCam = state.camera, _svCtx = ctx;
+    state.camera = { x: p.x - half, y: p.y - half };
+    ctx = pctx;
+    try { drawPlayer(); } catch (e) {}
+    ctx = _svCtx; state.camera = _svCam;
+    try {
+      if (!psp._texInit) { psp.texture = PIXI.Texture.from(pc); psp._texInit = true; }
+      else if (psp.texture && psp.texture.source && psp.texture.source.update) psp.texture.source.update();
+    } catch (e) {}
+    psp.width = pc.width; psp.height = pc.height; // 256 world-units (1 buffer-px = 1 world-px)
+    psp.position.set(p.x, p.y);
+    psp.visible = true;
+  } else if (psp) { psp.visible = false; }
 }
 
 // v1.534/v1.535: Diagnostic-overlay (FPS + Pixi-frametime). Toggle via 4-tap
@@ -21190,8 +21267,9 @@ function updatePixiDiagOverlay() {
     `<div style="font-size:9px;">backing main:${canvas?canvas.width+'x'+canvas.height:'?'} hud:${hudCanvas?hudCanvas.width+'x'+hudCanvas.height:'?'}</div>` +
     `<div style="font-size:9px;">backing pixi:${canvasSize} css:${viewW}x${viewH}</div>` +
     `<div style="color:#80ffd0;font-size:9px;">split:${_hudSplitEnabled ? 'ON' : 'OFF'} mini:${_miniCanvas ? _miniCanvas.width + 'x' + _miniCanvas.height : '-'} hud:${(hudCanvas && hudCanvas.style.display === 'none') ? 'HID' : 'vis'}</div>` +
-    `<div style="color:#ff80ff;font-size:9px;">build:823 iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
+    `<div style="color:#ff80ff;font-size:9px;">build:824 iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
     `<div style="color:#80c0ff;font-size:9px;">GPU-test:${_webgpuTest ? 'ON' : 'off'} → renderer:${pixiState._renderer || '?'}</div>` +
+    `<div style="color:#80ffff;font-size:9px;">layerCollapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pending') : 'off'}</div>` +
     `<div>Cam: ${camX},${camY}</div>` +
     `<div>World: ${worldX},${worldY}</div>` +
     `<div>Pixi ready: ${pixiState.ready ? '✓' : '✗'}</div>`;
@@ -23393,6 +23471,7 @@ function openSettings(returnTo) {
   { const _sb = document.getElementById('set-battery'); if (_sb) _sb.checked = save.batterySaver || false; }
   { const _spe = document.getElementById('set-pixienemies'); if (_spe) { try { _spe.checked = localStorage.getItem('penetrator_pixiEnemiesIOS') === '1'; } catch (_) {} } }
   { const _swg = document.getElementById('set-webgpu'); if (_swg) { try { _swg.checked = localStorage.getItem('penetrator_webgpu') === '1'; } catch (_) {} } }
+  { const _spw = document.getElementById('set-pixiworld'); if (_spw) { try { _spw.checked = localStorage.getItem('penetrator_pixiWorld') === '1'; } catch (_) {} } }
 }
 function closeSettings() {
   settingsScreen.classList.add('hidden');
@@ -33593,6 +33672,14 @@ if (_setWebgpu) {
   _setWebgpu.addEventListener('change', (e) => {
     try { localStorage.setItem('penetrator_webgpu', e.target.checked ? '1' : '0'); } catch (_) {}
     if (typeof showToast === 'function') showToast(e.target.checked ? '⚡ WebGPU PÅ — STARTA OM APPEN' : '⚡ WebGPU AV — starta om appen', 5);
+  });
+}
+// v1.824: Lager-kollaps-toggle (Survivors golv+spelare → Pixi).
+const _setPixiWorld = document.getElementById('set-pixiworld');
+if (_setPixiWorld) {
+  _setPixiWorld.addEventListener('change', (e) => {
+    try { localStorage.setItem('penetrator_pixiWorld', e.target.checked ? '1' : '0'); } catch (_) {}
+    if (typeof showToast === 'function') showToast(e.target.checked ? '🧊 Lager-kollaps PÅ — STARTA OM APPEN' : '🧊 Lager-kollaps AV — starta om appen', 5);
   });
 }
 document.getElementById('set-skipdialog').addEventListener('change', (e) => {
@@ -75147,7 +75234,8 @@ function render() {
       ctx.fillStyle = '#1a1a1a';
       ctx.fillRect(0, 0, viewW, viewH);
     } else if (state.survivorsActive) {
-      drawSurvivorsArenaGround();
+      // v1.824 LAGER-KOLLAPS: hoppa Canvas2D-golvet när Pixi-golvet (TilingSprite) är aktivt
+      if (!(_pixiWorld && pixiState._survWorldReady)) drawSurvivorsArenaGround();
       // Skip core (ingen synlig obelisk i ÖDESLAND — altaret är centrum)
       // Skip buildings (inga byggnader i survivors)
       // Skip spawn-markers (enemies spawnar dynamiskt)
@@ -75252,7 +75340,10 @@ function render() {
   // TDM/CTF: rita team-ringar UNDER spelarna så de syns på avstånd
   if (state.tdmActive && Coop.tdmTeams) drawTdmTeamRings();
   if (state.ctfActive && Coop.ctfTeams) drawCtfTeamRings();
-  if (!state.player || !state.player.spectating) drawPlayer();
+  // v1.824 LAGER-KOLLAPS: spelaren ritas via Pixi-sprite när aktivt → hoppa Canvas2D-drawPlayer
+  if (!state.player || !state.player.spectating) {
+    if (!(_pixiWorld && pixiState._survWorldReady && state.survivorsActive)) drawPlayer();
+  }
   if (typeof drawShieldHitFx === 'function') drawShieldHitFx(); // v1.706: sköld-hit-blixt ovanpå spelaren
   // Aim crosshair (efter player så reticle ritas ovanpå spelaren)
   drawAimCrosshair();
