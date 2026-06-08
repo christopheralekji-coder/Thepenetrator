@@ -20981,13 +20981,43 @@ async function _buildSurvProps() {
   for (const v of cache.vehicles) await mk(v, _survDrawVehicleBody, Math.ceil(Math.sqrt((v.w / 2) * (v.w / 2) + (v.h * 0.68) * (v.h * 0.68)) + 12));
   for (const p of cache.pillars) await mk(p, _survDrawPillar, Math.ceil(p.r + 12));
   for (const sb of cache.sandbags) await mk(sb, _survDrawSandbag, Math.ceil(Math.sqrt((sb.len / 2) * (sb.len / 2) + sb.h * sb.h) + 12));
-  console.log('[pixiWorld] props byggda:', gp.children.length);
+  // PASS 2b: altaret (plaza) — statiska delar bakade till en sprite vid (2000,2000).
+  try {
+    const R = 200, pad = 44, side = (R + pad) * 2;
+    const pcv = document.createElement('canvas'); pcv.width = Math.ceil(side * DPR); pcv.height = Math.ceil(side * DPR);
+    const g = pcv.getContext('2d'); g.setTransform(DPR, 0, 0, DPR, 0, 0); g.translate(side / 2, side / 2);
+    g.fillStyle = '#1a0e0a'; g.beginPath(); g.arc(0, 0, R, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(120,40,20,0.7)'; g.lineWidth = 1.5;
+    for (let i = 0; i < 16; i++) { const a = i * Math.PI / 8; const r1 = 30 + (i % 3) * 25, r2 = R - 10 + (i % 5) * 4; g.beginPath(); g.moveTo(Math.cos(a) * r1, Math.sin(a) * r1); g.lineTo(Math.cos(a) * r2, Math.sin(a) * r2); g.stroke(); }
+    g.strokeStyle = 'rgba(80,25,10,0.6)'; g.lineWidth = 1;
+    for (let r = 50; r < R - 20; r += 40) { g.beginPath(); g.arc(0, 0, r, 0, Math.PI * 2); g.stroke(); }
+    g.fillStyle = '#3a1a0a'; g.beginPath(); g.arc(0, 0, 35, 0, Math.PI * 2); g.fill();
+    g.strokeStyle = 'rgba(255,180,60,0.85)'; g.lineWidth = 2;
+    for (let i = 0; i < 5; i++) { const a = i * 2 * Math.PI / 5 - Math.PI / 2; const a2 = ((i + 2) % 5) * 2 * Math.PI / 5 - Math.PI / 2; g.beginPath(); g.moveTo(Math.cos(a) * 28, Math.sin(a) * 28); g.lineTo(Math.cos(a2) * 28, Math.sin(a2) * 28); g.stroke(); }
+    let ptex; try { const bmp = await createImageBitmap(pcv); ptex = PIXI.Texture.from(bmp); } catch (_) { ptex = PIXI.Texture.from(pcv); }
+    const ps = new PIXI.Sprite(ptex); ps.anchor.set(0.5); ps.width = side; ps.height = side; ps.position.set(2000, 2000); gp.addChild(ps);
+  } catch (e) {}
+  console.log('[pixiWorld] props+plaza byggda:', gp.children.length);
 }
 function _updateSurvPixiWorld() {
   if (!pixiState._survWorldReady) return;
   const active = _pixiWorld && state.survivorsActive && state.mode === 'playing';
-  const ts = pixiState._survFloor, psp = pixiState._survPlayer;
+  const ts = pixiState._survFloor, psp = pixiState._survPlayer, gp = pixiState._groundProps;
   if (ts) ts.visible = active;
+  if (gp) gp.visible = active;
+  // PASS 3 — Z-SWAP: i kollaps-läge ligger Pixi-canvasen UNDER main-canvasen (z:1 vs z:2) så
+  // FX som fortfarande ritas på main (damage-siffror/HP-barer/sikte/shield/dash/overlays) syns
+  // OVANPÅ Pixi-världen. main-bakgrunden görs transparent så Pixi-världen syns igenom där main
+  // är tom. Tunga grejer (golv/props/spelare/fiender) ligger på Pixi/WebGPU; FX på tunt main-lager.
+  if (active && !pixiState._zSwapped) {
+    if (pixiState.canvas) pixiState.canvas.style.zIndex = '1';
+    if (typeof canvas !== 'undefined' && canvas) { canvas.style.zIndex = '2'; canvas.style.background = 'transparent'; }
+    pixiState._zSwapped = true;
+  } else if (!active && pixiState._zSwapped) {
+    if (pixiState.canvas) pixiState.canvas.style.zIndex = '2';
+    if (typeof canvas !== 'undefined' && canvas) { canvas.style.zIndex = ''; canvas.style.background = ''; }
+    pixiState._zSwapped = false;
+  }
   if (!active) { if (psp) psp.visible = false; return; }
   const cx = state.camera.x, cy = state.camera.y;
   if (ts) {
@@ -21273,7 +21303,7 @@ function updatePixiDiagOverlay() {
   const _poolP = (typeof _particlePool !== 'undefined') ? _particlePool.length : 0;
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:826 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:827 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
     `<div style="color:#ffe14a;font-size:9px">pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
