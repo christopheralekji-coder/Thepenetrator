@@ -427,7 +427,7 @@
     <a href="#" id="social-twitter" class="wp-social-btn" target="_blank" rel="noopener" aria-label="X / Twitter">𝕏</a>
     <a href="#" id="social-youtube" class="wp-social-btn" target="_blank" rel="noopener" aria-label="YouTube">▶</a>
   </div>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.820 ⚡</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.821 ⚡</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">
@@ -708,12 +708,16 @@
     });
   }
 </script>
-<script src="game.js?v=820"></script>
+<script src="game.js?v=821"></script>
 <script>
   // Registrera service worker. Periodiskt update-check (var 60s) + auto-reload
   // när ny version aktiverats. Användare kan annars sitta på gammal cached
   // version i timmar utan att veta att en uppdatering finns.
-  if ('serviceWorker' in navigator) {
+  // v1.821 (värme-fix): registrera INTE service-workern i native-appen — Capgo OTA sköter
+  // uppdateringar där, och SW:ns reg.update()-poll var 60s väckte radion i onödan hela sessionen
+  // (ren batteri/värme-kostnad utan nytta i WKWebView). SW behålls bara för web (Pages).
+  const _isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  if ('serviceWorker' in navigator && !_isNative) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('sw.js').then(reg => {
         reg.update();
@@ -738,8 +742,8 @@
           _swReloaded = true;
           location.reload();
         });
-        // Tvinga update-check var 60s så användare inte sitter på stale cache
-        setInterval(() => { reg.update().catch(() => {}); }, 60000);
+        // v1.821: höjt 60s→5min (web) — 60s-pollen var onödig radio-wake. Capgo täcker native.
+        setInterval(() => { reg.update().catch(() => {}); }, 300000);
         // Också på page-visibility-change (när användare återvänder till tab)
         document.addEventListener('visibilitychange', () => {
           if (!document.hidden) reg.update().catch(() => {});

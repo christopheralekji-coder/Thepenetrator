@@ -19661,7 +19661,8 @@ function triggerVibrate(ms) {
     const H = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Haptics;
     if (H) {
       const _n = performance.now();
-      if (_n - _lastHapticAt < 35) return; // max ~28 stötar/sek
+      if (_n - _lastHapticAt < 75) return; // v1.821: 35→75ms (~13 Hz, var 28) — Taptic-motorn drar
+      // verklig ström+värme + JS→native-bridge-trafik vid uthållig eld; knappt märkbart taktilt.
       _lastHapticAt = _n;
       const style = ms >= 30 ? 'HEAVY' : (ms >= 14 ? 'MEDIUM' : 'LIGHT');
       try { H.impact({ style: style }); } catch (e) {}
@@ -21167,7 +21168,7 @@ function updatePixiDiagOverlay() {
     `<div style="font-size:9px;">backing main:${canvas?canvas.width+'x'+canvas.height:'?'} hud:${hudCanvas?hudCanvas.width+'x'+hudCanvas.height:'?'}</div>` +
     `<div style="font-size:9px;">backing pixi:${canvasSize} css:${viewW}x${viewH}</div>` +
     `<div style="color:#80ffd0;font-size:9px;">split:${_hudSplitEnabled ? 'ON' : 'OFF'} mini:${_miniCanvas ? _miniCanvas.width + 'x' + _miniCanvas.height : '-'} hud:${(hudCanvas && hudCanvas.style.display === 'none') ? 'HID' : 'vis'}</div>` +
-    `<div style="color:#ff80ff;font-size:9px;">build:820 iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} ios:${(typeof isIOS !== 'undefined' && isIOS) ? 'Y' : 'N'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
+    `<div style="color:#ff80ff;font-size:9px;">build:821 iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} ios:${(typeof isIOS !== 'undefined' && isIOS) ? 'Y' : 'N'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
     `<div>Cam: ${camX},${camY}</div>` +
     `<div>World: ${worldX},${worldY}</div>` +
     `<div>Pixi ready: ${pixiState.ready ? '✓' : '✗'}</div>`;
