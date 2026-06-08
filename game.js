@@ -8827,6 +8827,7 @@ let _survVignetteCache = null;
 // Ash particles + vignette — kallas EFTER spelare/enemies (top layer)
 function drawSurvivorsArenaAmbient() {
   if (!state.survivorsActive) return;
+  if (_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady) return; // v1.856: Pixi/DOM ritar (aska+thorns Pixi, vinjett DOM)
   const t = performance.now() / 1000;
   ctx.save();
   // v1.533: THORNS visuell aura — pulserande röd ring runt spelaren när perk aktiv
@@ -21142,6 +21143,7 @@ function _updateSurvPixiWorld() {
       for (const [, rec] of pixiState._miscMap) { if (rec.spr) { try { rec.spr.destroy(); } catch (_) {} } }
       pixiState._miscMap.clear();
     }
+    if (pixiState._screenG) pixiState._screenG.clear(); // v1.856: töm aska
     return;
   }
   const cx = state.camera.x, cy = state.camera.y;
@@ -21604,6 +21606,15 @@ function _updateSurvPixiWorld() {
       fxg.circle(f.x, f.y, f.r * 0.5).fill({ color: 0xffa028, alpha: Math.max(0, a * 0.55) });
     }
   }
+  // v1.856: THORNS-aura (röd ring runt spelaren när perk aktiv) — approximerad med 2 cirklar.
+  if (typeof getSurvivorsPerkSum === 'function' && state.player && state.player.hp > 0) {
+    let _th = 0; try { _th = getSurvivorsPerkSum('thorns'); } catch (_) {}
+    if (_th > 0) {
+      const tp = 0.5 + 0.3 * Math.sin(performance.now() / 250);
+      fxg.circle(state.player.x, state.player.y, 102).stroke({ width: 3, color: 0xff5030, alpha: Math.max(0, 0.16 * tp) });
+      fxg.circle(state.player.x, state.player.y, 100).stroke({ width: 1.5, color: 0xff5050, alpha: Math.max(0, 0.4 * tp) });
+    }
+  }
   // v1.849 PASS5: damage-siffror + crit-text + chatter via Pixi BitmapText (pool) + bubbel-Graphics.
   // EN bitmap-font (vit fill + svart kontur) återanvänds; tintas per färg, skalas per storlek → ingen
   // font-churn. Svart kontur bevaras vid tint (svart × tint = svart).
@@ -21731,6 +21742,27 @@ function _updateSurvPixiWorld() {
     }
   }
   _pixiCamSweep(pixiState._miscMap, _mseen);
+  // v1.856: ASKA (skärm-space) på en stage-Graphics (ingen kamera-offset = skärm-koords).
+  if (!pixiState._screenG) {
+    pixiState._screenG = new PIXI.Graphics(); pixiState._screenG.label = 'screenFx';
+    pixiState.app.stage.addChild(pixiState._screenG);
+  }
+  const scg = pixiState._screenG;
+  pixiState.app.stage.addChild(scg); // håll överst på stage
+  scg.clear();
+  const _ta = performance.now() / 1000;
+  let _ashC = state._survArenaCache && state._survArenaCache.ash;
+  if (state._survArenaCache && !_ashC && typeof _survRng === 'function') {
+    const rng = _survRng(1337); const arr = [];
+    for (let i = 0; i < 60; i++) arr.push({ x: rng() * viewW, y: rng() * (viewH + 40), r: 0.7 + rng() * 1.4, speed: 6 + rng() * 12, phase: rng() * Math.PI * 2 });
+    state._survArenaCache.ash = arr; _ashC = arr;
+  }
+  if (_ashC) {
+    for (const a of _ashC) {
+      const yPos = ((a.y + _ta * a.speed) % (viewH + 40));
+      scg.circle(a.x + Math.sin(_ta * 0.8 + a.phase) * 12, yPos, a.r).fill({ color: 0xb49682, alpha: 0.45 });
+    }
+  }
 }
 
 // v1.534/v1.535: Diagnostic-overlay (FPS + Pixi-frametime). Toggle via 4-tap
@@ -21991,7 +22023,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:855 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:856 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
