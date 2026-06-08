@@ -21303,7 +21303,7 @@ function updatePixiDiagOverlay() {
   const _poolP = (typeof _particlePool !== 'undefined') ? _particlePool.length : 0;
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:827 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:828 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
     `<div style="color:#ffe14a;font-size:9px">pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
@@ -75646,8 +75646,9 @@ function render() {
     if (typeof drawSmokeClouds === 'function') drawSmokeClouds();
     if (typeof drawExplosions === 'function') drawExplosions();
   }
-  // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE + GUNGAME + KOTH + JUGGERNAUT + BR)
-  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.battleroyaleActive) drawPvpShieldBubbles();
+  // PvP shield-bubbles ovanpå spelare (TDM + CTF + SIEGE + GUNGAME + KOTH + JUGGERNAUT + BR + Survivors)
+  // v1.828: + Survivors (shield-bubblan saknades där; drawPvpShieldBubbles no-op:ar om ingen shield aktiv)
+  if (state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive || state.survivorsActive) drawPvpShieldBubbles();
   // PvP-pickups (HP/shield-regen) — alla PvP-lägen utom BR (BR har eget loot-system)
   if ((state.tdmActive || state.ctfActive || state.siegeActive || state.gungameActive || state.kothActive || state.juggernautActive || state.battleroyaleActive) && state.pvpPickups) drawPvpPickups();
   // Top layer: damage-numbers + crit-text + chatter — viewport-cull
