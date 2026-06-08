@@ -19855,6 +19855,13 @@ const hudCtx = hudCanvas ? hudCanvas.getContext('2d') : null;
 // ?hudSplit=0 → gamla vägen (minimap på hudCtx, hudCanvas alltid synlig).
 let _hudSplitEnabled = true;
 try { _hudSplitEnabled = new URLSearchParams(location.search).get('hudSplit') !== '0'; } catch (_) {}
+// PNG/WebGL-MIGRATION TEST (v1.817): Pixi-fiender är avstängda på iOS sedan WebKit renderade
+// Pixi-texturer blanka på Pixi 8.5.1 — men #11331 (VRAM-regression som blankade iOS-texturer)
+// fixades i Pixi 8.10.0 (vi uppgraderar nu till 8.19.0). Denna flagga slår PÅ Pixi-fiender på
+// iOS så vi kan VERIFIERA på riktig iPhone om texturerna nu syns. Default AV → iOS oförändrat
+// (Canvas2D-fiender) tills bevisat. ?pixiEnemiesIOS=1 → testa Pixi-fiender på iOS.
+let _pixiEnemiesIOSTest = false;
+try { _pixiEnemiesIOSTest = new URLSearchParams(location.search).get('pixiEnemiesIOS') === '1'; } catch (_) {}
 let _miniCanvas = null, _miniCtx = null;
 const _miniRect = { left: 0, top: 0, w: 0, h: 0 };
 function _ensureMiniCanvas() {
@@ -20422,8 +20429,10 @@ async function bakeAllEnemyTextures() {
     pixiState._enemyCanvases[key] = cv;
     pixiState._enemyWhite[key] = _whiteSilhouette(cv);
   }
-  // Pixi-texturer BARA på icke-iOS (iOS WebKit renderar Pixi-texturer blanka → drawImage istället)
-  if (!isIOS) {
+  // Pixi-texturer BARA på icke-iOS (iOS WebKit renderar Pixi-texturer blanka → drawImage istället).
+  // v1.817: ?pixiEnemiesIOS=1 tillåter texturer på iOS för att TESTA om Pixi 8.19-uppgraderingen
+  // (VRAM-fix #11331) gjorde dem synliga.
+  if (!isIOS || _pixiEnemiesIOSTest) {
     const _useBitmap = (typeof createImageBitmap === 'function');
     await Promise.all(canvases.map(async ({ key, cv }) => {
       try {
@@ -77676,10 +77685,11 @@ function runFrame(dt, now) {
     // texturer som ändå inte syns.
     // v1.785: iOS ritar fiender LIVE (drawEnemy) → ingen bake behövs där. Baka bara på
     // desktop/Android (Pixi-texturer + den bakade polishen). enemiesEnabled false på iOS.
-    if (!pixiState.enemyTexturesBaked && !isIOS && typeof bakeAllEnemyTextures === 'function') {
+    // v1.817: (!isIOS || _pixiEnemiesIOSTest) → tillåt Pixi-fiender på iOS i test-läge (?pixiEnemiesIOS=1)
+    if (!pixiState.enemyTexturesBaked && (!isIOS || _pixiEnemiesIOSTest) && typeof bakeAllEnemyTextures === 'function') {
       bakeAllEnemyTextures();
     }
-    pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked && !isIOS;
+    pixiState.enemiesEnabled = !!pixiState.enemyTexturesBaked && (!isIOS || _pixiEnemiesIOSTest);
   } else if (pixiState) {
     pixiState.enemiesEnabled = false;
     pixiState.bulletsEnabled = false;

@@ -423,7 +423,7 @@
     <a href="#" id="social-twitter" class="wp-social-btn" target="_blank" rel="noopener" aria-label="X / Twitter">𝕏</a>
     <a href="#" id="social-youtube" class="wp-social-btn" target="_blank" rel="noopener" aria-label="YouTube">▶</a>
   </div>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.816 ⚡</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.817 ⚡</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">
@@ -690,7 +690,10 @@
 <script src="shared/gulag-arenas.js"></script>
 <!-- v1.533: PixiJS v8 förberedelse — laddas men används inte än. Enemies-migration
      börjar i v1.534. Backup-branch: backup/pre-pixi på origin. -->
-<script src="https://cdn.jsdelivr.net/npm/pixi.js@8.5.1/dist/pixi.min.js" crossorigin="anonymous"></script>
+<!-- v1.817: uppgraderad 8.5.1 → 8.19.0 för iOS VRAM-textur-fix (#11331/PR#11343, i 8.10.0+).
+     API-säker per changelog-research (inga kodändringar 8.6-8.19 rör våra API:er). Möjliggör
+     test av Pixi-fiender på iOS (?pixiEnemiesIOS=1) → potentiellt eliminera Canvas2D-enemy-värmen. -->
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@8.19.0/dist/pixi.min.js" crossorigin="anonymous"></script>
 <script>
   // PixiJS load-check (early-init verification). Loggar bara, ingen funktionell hook än.
   if (typeof PIXI !== 'undefined') {
