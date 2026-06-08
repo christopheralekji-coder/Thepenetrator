@@ -21163,7 +21163,8 @@ function updatePixiDiagOverlay() {
   const _poolP = (typeof _particlePool !== 'undefined') ? _particlePool.length : 0;
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
-  el.innerHTML = `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'}${_webgpuTest ? ' (gpu-test ON)' : ''}</div>` +
+    `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
     `<div style="color:#ffe14a;font-size:9px">pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
     `<div style="color:#80ffd0;font-size:9px">smokeBuf:${_smokeBufEnabled ? _smokeBufW + 'x' + _smokeBufH : 'OFF'} pass:${(typeof _smokePassMs !== 'undefined' ? _smokePassMs : 0).toFixed(2)}ms</div>` +
@@ -21189,7 +21190,7 @@ function updatePixiDiagOverlay() {
     `<div style="font-size:9px;">backing main:${canvas?canvas.width+'x'+canvas.height:'?'} hud:${hudCanvas?hudCanvas.width+'x'+hudCanvas.height:'?'}</div>` +
     `<div style="font-size:9px;">backing pixi:${canvasSize} css:${viewW}x${viewH}</div>` +
     `<div style="color:#80ffd0;font-size:9px;">split:${_hudSplitEnabled ? 'ON' : 'OFF'} mini:${_miniCanvas ? _miniCanvas.width + 'x' + _miniCanvas.height : '-'} hud:${(hudCanvas && hudCanvas.style.display === 'none') ? 'HID' : 'vis'}</div>` +
-    `<div style="color:#ff80ff;font-size:9px;">build:822 iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
+    `<div style="color:#ff80ff;font-size:9px;">build:823 iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
     `<div style="color:#80c0ff;font-size:9px;">GPU-test:${_webgpuTest ? 'ON' : 'off'} → renderer:${pixiState._renderer || '?'}</div>` +
     `<div>Cam: ${camX},${camY}</div>` +
     `<div>World: ${worldX},${worldY}</div>` +
