@@ -20024,8 +20024,8 @@ function _ensureMiniCanvas() {
 // är migrerat (annars försvinner kvarvarande FX/overlays) — default av tills dess.
 let _pixiHiRes = true;
 try { _pixiHiRes = localStorage.getItem('penetrator_pixiHiRes') !== '0'; } catch (_) { _pixiHiRes = true; }
-let _hideCanvasTest = false;
-try { _hideCanvasTest = localStorage.getItem('penetrator_hideCanvas') === '1'; } catch (_) {}
+let _hideCanvasTest = true; // v1.857: DEFAULT PÅ (dynamisk släckning — visas auto vid boss/down)
+try { _hideCanvasTest = localStorage.getItem('penetrator_hideCanvas') !== '0'; } catch (_) { _hideCanvasTest = true; }
 function computeDPR() {
   const raw = window.devicePixelRatio || 1;
   let cap = 2;
@@ -21115,9 +21115,15 @@ function _updateSurvPixiWorld() {
     if (typeof canvas !== 'undefined' && canvas) { canvas.style.zIndex = ''; canvas.style.background = ''; }
     pixiState._zSwapped = false;
   }
-  // v1.851 TEST: släck main-canvasen i Survivors (mät lager-borttagningens vinst). Återställs i andra lägen.
+  // v1.857: DYNAMISK släckning. Släck main-canvasen under vanliga vågor (allt ligger på Pixi/DOM),
+  // men VISA den automatiskt när det finns kvarvarande gameplay-kritisk Canvas2D-UI: boss/mini-boss
+  // present (attack-telegraphs) ELLER nedlagd spelare/partner (revive-overlay). Då slipper vi
+  // migrera den komplexa UI:n men behåller den synlig precis när den behövs.
   if (typeof canvas !== 'undefined' && canvas) {
-    const _wantDisp = (active && _hideCanvasTest) ? 'none' : '';
+    let _leftover = !!(state.player && state.player.cdDowned);
+    if (!_leftover && state.enemies) { for (const e of state.enemies) { if (e && !e.dead && e.isBoss) { _leftover = true; break; } } } // bara riktiga bossar har Canvas2D-telegraph
+    if (!_leftover && typeof Coop !== 'undefined' && Coop.players) { for (const [, p] of Coop.players) { if (p && p.cdDowned) { _leftover = true; break; } } }
+    const _wantDisp = (active && _hideCanvasTest && !_leftover) ? 'none' : '';
     if (canvas.style.display !== _wantDisp) canvas.style.display = _wantDisp;
   }
   if (!active) {
@@ -22023,7 +22029,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:856 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:857 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -24262,7 +24268,7 @@ function openSettings(returnTo) {
   document.getElementById('set-quality').value = save.quality || 'medium';
   { const _sb = document.getElementById('set-battery'); if (_sb) _sb.checked = save.batterySaver || false; }
   { const _shr = document.getElementById('set-pixihires'); if (_shr) { try { _shr.checked = localStorage.getItem('penetrator_pixiHiRes') !== '0'; } catch (_) {} } }
-  { const _shc = document.getElementById('set-hidecanvas'); if (_shc) { try { _shc.checked = localStorage.getItem('penetrator_hideCanvas') === '1'; } catch (_) {} } }
+  { const _shc = document.getElementById('set-hidecanvas'); if (_shc) { try { _shc.checked = localStorage.getItem('penetrator_hideCanvas') !== '0'; } catch (_) {} } }
 }
 function closeSettings() {
   settingsScreen.classList.add('hidden');
