@@ -21049,6 +21049,7 @@ function _updateSurvPixiWorld() {
     }
     if (pixiState._grenReticleG) { pixiState._grenReticleG.clear(); pixiState._grenReticleG.visible = false; }
     if (pixiState._deadRec && pixiState._deadRec.spr) pixiState._deadRec.spr.visible = false; // v1.847
+    if (pixiState._fxG) { pixiState._fxG.clear(); pixiState._fxG.visible = false; } // v1.848
     return;
   }
   const cx = state.camera.x, cy = state.camera.y;
@@ -21436,6 +21437,48 @@ function _updateSurvPixiWorld() {
       drec.spr.visible = true;
     } else if (pixiState._deadRec && pixiState._deadRec.spr) pixiState._deadRec.spr.visible = false;
   } else if (pixiState._deadRec && pixiState._deadRec.spr) pixiState._deadRec.spr.visible = false;
+  // v1.848 PASS5: SPECIAL-PARTIKLAR native Pixi Graphics (slash/lightning/shockwave/muzzle/trail/
+  // bulletTrail/chainLightning). Frekventa → native (ingen upload). Glow (shadowBlur) approximeras ej i v1.
+  if (!pixiState._fxG) {
+    pixiState._fxG = new PIXI.Graphics(); pixiState._fxG.label = 'specFx';
+    pixiState.containers.world.addChild(pixiState._fxG);
+  }
+  const fxg = pixiState._fxG;
+  pixiState.containers.world.addChild(fxg);
+  fxg.clear(); fxg.visible = true;
+  if (state.particles) {
+    for (const p of state.particles) {
+      const psx = p.x - cx, psy = p.y - cy;
+      if (psx < -120 || psx > viewW + 120 || psy < -120 || psy > viewH + 120) continue;
+      const col = p.color || '#ffffff';
+      if (p.isSlash) {
+        fxg.arc(p.x, p.y, p.r, p.ang - 0.7, p.ang + 0.7).stroke({ width: 4, color: col, alpha: Math.min(1, p.life * 5), cap: 'round' });
+      } else if (p.isLightning) {
+        const a = Math.min(1, p.life * 4), segs = 6;
+        fxg.moveTo(p.x, p.y);
+        for (let i = 1; i < segs; i++) {
+          const t = i / segs;
+          fxg.lineTo(p.x + (p.x2 - p.x) * t + (Math.random() - 0.5) * 14, p.y + (p.y2 - p.y) * t + (Math.random() - 0.5) * 14);
+        }
+        fxg.lineTo(p.x2, p.y2);
+        fxg.stroke({ width: 3, color: 0xffeb3b, alpha: a, cap: 'round' });
+      } else if (p.isShockwave) {
+        const t = 1 - p.life / (p.maxLife || 0.5);
+        const r = (p.r0 || 10) + ((p.r1 || 80) - (p.r0 || 10)) * t;
+        if (r > 0) fxg.circle(p.x, p.y, r).stroke({ width: (p.lineWidth || 3) * (1 - t * 0.5), color: col, alpha: Math.max(0, Math.min(1, p.life * 2)) });
+      } else if (p.isMuzzleFlash) {
+        const t = 1 - p.life / (p.maxLife || 0.08), intensity = 1 - t, len = (p.r || 18) * intensity;
+        const ang = p.ang || 0, ca = Math.cos(ang), sa = Math.sin(ang);
+        const rx = (lx, ly) => p.x + lx * ca - ly * sa, ry = (lx, ly) => p.y + lx * sa + ly * ca;
+        fxg.moveTo(rx(0, 0), ry(0, 0)).lineTo(rx(len, -len * 0.5), ry(len, -len * 0.5)).lineTo(rx(len * 1.3, 0), ry(len * 1.3, 0)).lineTo(rx(len, len * 0.5), ry(len, len * 0.5)).closePath().fill({ color: 0xffffff, alpha: intensity });
+        fxg.circle(p.x, p.y, len * 0.45).fill({ color: col, alpha: intensity });
+      } else if (p.isTrail) {
+        fxg.circle(p.x, p.y, p.r || 2).fill({ color: col, alpha: Math.min(1, p.life * (p.fadeMul || 4)) });
+      } else if (p.isBulletTrail || p.isChainLightning) {
+        fxg.circle(p.x, p.y, p.r || 2).fill({ color: col, alpha: Math.max(0, Math.min(1, p.life * 2)) });
+      }
+    }
+  }
 }
 
 // v1.534/v1.535: Diagnostic-overlay (FPS + Pixi-frametime). Toggle via 4-tap
@@ -21696,7 +21739,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:847 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:848 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -75736,6 +75779,8 @@ function render() {
     // Om Pixi-particles aktivt → rita BARA special. Annars rita allt.
     if (pixiState && pixiState.particlesEnabled) {
       if (!isSpecial) continue;
+      // v1.848: i kollaps ritas special-partiklarna native i Pixi Graphics → hoppa Canvas2D
+      if (_pixiWorld && state.survivorsActive && pixiState._survWorldReady) continue;
     }
     drawParticle(p);
   }
