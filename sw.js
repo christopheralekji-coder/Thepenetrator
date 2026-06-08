@@ -1,10 +1,10 @@
 // Service Worker — network-first för kod, cache-first för assets
-const CACHE = 'penetrator-v791-gulagtest';
+const CACHE = 'penetrator-v819';
 const ASSETS = [
   './',
   './index.html',
-  './style.css?v=791',
-  './game.js?v=791',
+  './style.css?v=819',
+  './game.js?v=819',
   './manifest.json',
   './icon-192.svg',
   './icon-512.svg',

@@ -21160,6 +21160,7 @@ function updatePixiDiagOverlay() {
     `<div style="font-size:9px;">backing main:${canvas?canvas.width+'x'+canvas.height:'?'} hud:${hudCanvas?hudCanvas.width+'x'+hudCanvas.height:'?'}</div>` +
     `<div style="font-size:9px;">backing pixi:${canvasSize} css:${viewW}x${viewH}</div>` +
     `<div style="color:#80ffd0;font-size:9px;">split:${_hudSplitEnabled ? 'ON' : 'OFF'} mini:${_miniCanvas ? _miniCanvas.width + 'x' + _miniCanvas.height : '-'} hud:${(hudCanvas && hudCanvas.style.display === 'none') ? 'HID' : 'vis'}</div>` +
+    `<div style="color:#ff80ff;font-size:9px;">build:819 iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} ios:${(typeof isIOS !== 'undefined' && isIOS) ? 'Y' : 'N'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
     `<div>Cam: ${camX},${camY}</div>` +
     `<div>World: ${worldX},${worldY}</div>` +
     `<div>Pixi ready: ${pixiState.ready ? '✓' : '✗'}</div>`;
