@@ -19958,8 +19958,11 @@ function _ensureMiniCanvas() {
 // v1.851 TEST-toggles (mätning, tillfälliga): _pixiHiRes höjer Pixi-upplösning på iOS 1.0→1.5
 // (skarpare ALLT på Pixi, ~2.25× fill-rate; kräver omstart). _hideCanvasTest släcker main-canvasen
 // i Survivors (mät lager-borttagningens vinst). Båda via localStorage så de funkar i native-appen.
-let _pixiHiRes = false;
-try { _pixiHiRes = localStorage.getItem('penetrator_pixiHiRes') === '1'; } catch (_) {}
+// v1.852: Pixi 1.5 är nu DEFAULT på iOS (användaren valde C: skarpt + släck canvas). Toggle kvar som
+// escape (sätt '0' → tillbaka till 1.0 för max batteri). _hideCanvasTest släcks FÖRST när allt
+// är migrerat (annars försvinner kvarvarande FX/overlays) — default av tills dess.
+let _pixiHiRes = true;
+try { _pixiHiRes = localStorage.getItem('penetrator_pixiHiRes') !== '0'; } catch (_) { _pixiHiRes = true; }
 let _hideCanvasTest = false;
 try { _hideCanvasTest = localStorage.getItem('penetrator_hideCanvas') === '1'; } catch (_) {}
 function computeDPR() {
@@ -21586,9 +21589,9 @@ function _updateSurvPixiWorld() {
           label = e._showcaseLabel; ncol = e.isBoss ? 0xffd54a : 0xffffff;
           nsize = e.isBoss ? 11 : 10; ny = e.y - (e.r || 14) - (e.isBoss ? 52 : 42);
         } else if (e.isBoss) {
-          label = e.name || '???'; ncol = 0xffffff; nsize = 11; ny = e.y - e.r - 18;
+          label = e.name || '???'; ncol = 0xffffff; nsize = 11; ny = e.y - e.r - 11; // v1.852: ner 7px
         } else if (e.isMiniBoss) {
-          label = '⚠ ' + (e.name || '???'); ncol = 0xffae3a; nsize = 10; ny = e.y - e.r - 18;
+          label = '⚠ ' + (e.name || '???'); ncol = 0xffae3a; nsize = 10; ny = e.y - e.r - 11;
         } else continue;
         const ensx = e.x - cx, ensy = ny - cy;
         if (ensx < -180 || ensx > viewW + 180 || ensy < -40 || ensy > viewH + 40) continue;
@@ -21868,7 +21871,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:851 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:852 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -24106,7 +24109,7 @@ function openSettings(returnTo) {
   document.getElementById('set-colorblind').checked = save.colorblind || false;
   document.getElementById('set-quality').value = save.quality || 'medium';
   { const _sb = document.getElementById('set-battery'); if (_sb) _sb.checked = save.batterySaver || false; }
-  { const _shr = document.getElementById('set-pixihires'); if (_shr) { try { _shr.checked = localStorage.getItem('penetrator_pixiHiRes') === '1'; } catch (_) {} } }
+  { const _shr = document.getElementById('set-pixihires'); if (_shr) { try { _shr.checked = localStorage.getItem('penetrator_pixiHiRes') !== '0'; } catch (_) {} } }
   { const _shc = document.getElementById('set-hidecanvas'); if (_shc) { try { _shc.checked = localStorage.getItem('penetrator_hideCanvas') === '1'; } catch (_) {} } }
 }
 function closeSettings() {
