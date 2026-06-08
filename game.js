@@ -21048,6 +21048,7 @@ function _updateSurvPixiWorld() {
       pixiState._grenMap.clear();
     }
     if (pixiState._grenReticleG) { pixiState._grenReticleG.clear(); pixiState._grenReticleG.visible = false; }
+    if (pixiState._deadRec && pixiState._deadRec.spr) pixiState._deadRec.spr.visible = false; // v1.847
     return;
   }
   const cx = state.camera.x, cy = state.camera.y;
@@ -21401,6 +21402,40 @@ function _updateSurvPixiWorld() {
     }
   }
   rg2.visible = _retShow;
+  // v1.847 PASS5: DÖD KROPP via Pixi (camera-trick, återanvänder drawDeadBody inkl. text + revive-ring).
+  // Sparsamt (bara när man är död/väntar revive) → occasional upload ok.
+  if (state.deadBody) {
+    const db = state.deadBody;
+    const dbsx = db.x - cx, dbsy = db.y - cy;
+    if (dbsx > -120 && dbsx < viewW + 120 && dbsy > -120 && dbsy < viewH + 120) {
+      const DSIDE = 200, DSH = 2, dbpx = DSIDE * DSH;
+      let drec = pixiState._deadRec;
+      if (!drec) {
+        const dbuf = document.createElement('canvas'); dbuf.width = dbpx; dbuf.height = dbpx;
+        const dspr = new PIXI.Sprite(); dspr.anchor.set(0.5); dspr.label = 'deadBody';
+        pixiState.containers.world.addChild(dspr);
+        drec = { buf: dbuf, bufCtx: dbuf.getContext('2d'), spr: dspr, texInit: false };
+        pixiState._deadRec = drec;
+      }
+      const dhalf = DSIDE / 2, dbc = drec.bufCtx;
+      dbc.setTransform(1, 0, 0, 1, 0, 0); dbc.clearRect(0, 0, dbpx, dbpx);
+      dbc.setTransform(DSH, 0, 0, DSH, 0, 0);
+      const _dCam = state.camera, _dCtx = ctx;
+      state.camera = { x: db.x - dhalf, y: db.y - dhalf };
+      ctx = dbc;
+      pixiState._deadBufRender = true;
+      try { drawDeadBody(); } catch (_) {}
+      pixiState._deadBufRender = false;
+      ctx = _dCtx; state.camera = _dCam;
+      try {
+        if (!drec.texInit) { drec.spr.texture = PIXI.Texture.from(drec.buf); drec.texInit = true; }
+        else if (drec.spr.texture && drec.spr.texture.source && drec.spr.texture.source.update) drec.spr.texture.source.update();
+      } catch (_) {}
+      drec.spr.width = DSIDE; drec.spr.height = DSIDE;
+      drec.spr.position.set(db.x, db.y);
+      drec.spr.visible = true;
+    } else if (pixiState._deadRec && pixiState._deadRec.spr) pixiState._deadRec.spr.visible = false;
+  } else if (pixiState._deadRec && pixiState._deadRec.spr) pixiState._deadRec.spr.visible = false;
 }
 
 // v1.534/v1.535: Diagnostic-overlay (FPS + Pixi-frametime). Toggle via 4-tap
@@ -21661,7 +21696,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:846 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:847 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -36741,6 +36776,7 @@ function updateDeathState(dt) {
 
 function drawDeadBody() {
   if (!state.deadBody) return;
+  if (_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady && !pixiState._deadBufRender) return; // v1.847: Pixi ritar
   const body = state.deadBody;
   const x = body.x - state.camera.x;
   const y = body.y - state.camera.y;
