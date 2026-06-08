@@ -19875,13 +19875,13 @@ const _webgpuTest = true; // v1.830: ALLTID PÅ (Metal på iOS 26+, auto-fallbac
 // (annars täcker Pixi-golvet Canvas2D-spelaren). Steg 1: golv (TilingSprite) + spelare (sprite).
 // Bakom flagga + settings-toggle. ?pixiWorld=1/0 eller localStorage.
 const _pixiWorld = true; // v1.830: ALLTID PÅ i Survivors (golv+props+spelare på Metal = svalka, verifierat)
-// v1.831 PASS 5-TEST: bossar vars bossKey finns här ritas via Pixi (per-bild camera-trick =
-// skarpt, samma som spelaren) istället för Canvas2D. Mål: släcka main-canvasen helt. Startar
-// med EN boss för att utvärdera suddighet i stress-test (showcase visar alla 10 frysta).
-const _pixiBossKeys = new Set(['ironclad']);
+// v1.835: ALLA bossar ritas via Pixi (per-bild camera-trick = skarpt + supersampling + glow +
+// kontur, som ironclad-testet). drawBossSoldier ritar vektorer → skarpa i 2×. Mini-bossar går EJ
+// hit (de ritas via _drawEnemyFx i en 1×-rasterbuffert → skulle bli suddiga i 2×); de får istället
+// färgad glow på Canvas2D-vägen där de redan är skarpa med kontur+rim.
 function _bossOnPixi(e) {
-  return !!(e && e.bossKey && _pixiWorld && state.survivorsActive &&
-    pixiState && pixiState._survWorldReady && _pixiBossKeys.has(e.bossKey));
+  return !!(e && e.isBoss && _pixiWorld && state.survivorsActive &&
+    pixiState && pixiState._survWorldReady);
 }
 let _miniCanvas = null, _miniCtx = null;
 const _miniRect = { left: 0, top: 0, w: 0, h: 0 };
@@ -21068,39 +21068,45 @@ function _updateSurvPixiWorld() {
       bmap.set(idx, rec);
     }
     const bhalf = side / 2;
-    // 1) rita boss-konsten till tmp (transparent bakgrund, SHARP×)
-    const tctx = rec.tmpCtx;
-    tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.clearRect(0, 0, bpx, bpx);
-    tctx.setTransform(SHARP, 0, 0, SHARP, 0, 0); // ritas i world-units, renderas i SHARP× px
-    const _bCam = state.camera, _bCtx = ctx;
-    state.camera = { x: e.x - bhalf, y: e.y - bhalf };
-    ctx = tctx;
-    pixiState._bossBufRender = true;
-    try { drawBossSoldier(e, bhalf, bhalf, e.flashUntil > _nowB); } catch (_) {}
-    pixiState._bossBufRender = false;
-    ctx = _bCtx; state.camera = _bCam;
-    // 2) mörk silhuett från tmp (för glow-sken + kontur)
-    const sctx = rec.silCtx;
-    sctx.setTransform(1, 0, 0, 1, 0, 0); sctx.clearRect(0, 0, bpx, bpx);
-    sctx.globalCompositeOperation = 'source-over'; sctx.drawImage(rec.tmp, 0, 0);
-    sctx.globalCompositeOperation = 'source-in'; sctx.fillStyle = '#120a06'; sctx.fillRect(0, 0, bpx, bpx);
-    sctx.globalCompositeOperation = 'source-over';
-    // 3) komponera glow + kontur + skarp boss → buf (texturen som laddas upp)
-    const g = rec.bufCtx;
-    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, bpx, bpx);
-    const glowCol = e.glow || e.accent || '#ffae5a';
-    g.save(); // GLOW: färgat mjukt sken via shadow på silhuetten
-    g.shadowColor = glowCol; g.shadowBlur = 13 * SHARP; g.shadowOffsetX = 0; g.shadowOffsetY = 0;
-    g.drawImage(rec.sil, 0, 0); g.drawImage(rec.sil, 0, 0);
-    g.restore();
-    const o = Math.max(1, Math.round(1.4 * SHARP)); // KONTUR: mörk silhuett förskjuten 8 håll
-    const _dirs = [[-o, 0], [o, 0], [0, -o], [0, o], [-o, -o], [o, -o], [-o, o], [o, o]];
-    for (let i = 0; i < _dirs.length; i++) g.drawImage(rec.sil, _dirs[i][0], _dirs[i][1]);
-    g.drawImage(rec.tmp, 0, 0); // skarp boss överst
-    try {
-      if (!rec.texInit) { rec.spr.texture = PIXI.Texture.from(rec.buf); rec.texInit = true; }
-      else if (rec.spr.texture && rec.spr.texture.source && rec.spr.texture.source.update) rec.spr.texture.source.update();
-    } catch (_) {}
+    // v1.835: frysta bossar (showcase) barely ändras → rendera EN gång, sen bara visa. Håller
+    // stress-test (10 bossar samtidigt) billigt; riktiga matcher (ej frysta) renderas varje bild.
+    const _needRender = !(e._frozen && rec.rendered);
+    if (_needRender) {
+      // 1) rita boss-konsten till tmp (transparent bakgrund, SHARP×)
+      const tctx = rec.tmpCtx;
+      tctx.setTransform(1, 0, 0, 1, 0, 0); tctx.clearRect(0, 0, bpx, bpx);
+      tctx.setTransform(SHARP, 0, 0, SHARP, 0, 0); // ritas i world-units, renderas i SHARP× px
+      const _bCam = state.camera, _bCtx = ctx;
+      state.camera = { x: e.x - bhalf, y: e.y - bhalf };
+      ctx = tctx;
+      pixiState._bossBufRender = true;
+      try { drawBossSoldier(e, bhalf, bhalf, e.flashUntil > _nowB); } catch (_) {}
+      pixiState._bossBufRender = false;
+      ctx = _bCtx; state.camera = _bCam;
+      // 2) mörk silhuett från tmp (för glow-sken + kontur)
+      const sctx = rec.silCtx;
+      sctx.setTransform(1, 0, 0, 1, 0, 0); sctx.clearRect(0, 0, bpx, bpx);
+      sctx.globalCompositeOperation = 'source-over'; sctx.drawImage(rec.tmp, 0, 0);
+      sctx.globalCompositeOperation = 'source-in'; sctx.fillStyle = '#120a06'; sctx.fillRect(0, 0, bpx, bpx);
+      sctx.globalCompositeOperation = 'source-over';
+      // 3) komponera glow + kontur + skarp boss → buf (texturen som laddas upp)
+      const g = rec.bufCtx;
+      g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, bpx, bpx);
+      const glowCol = e.glow || e.accent || '#ffae5a';
+      g.save(); // GLOW: färgat mjukt sken via shadow på silhuetten
+      g.shadowColor = glowCol; g.shadowBlur = 13 * SHARP; g.shadowOffsetX = 0; g.shadowOffsetY = 0;
+      g.drawImage(rec.sil, 0, 0); g.drawImage(rec.sil, 0, 0);
+      g.restore();
+      const o = Math.max(1, Math.round(1.4 * SHARP)); // KONTUR: mörk silhuett förskjuten 8 håll
+      const _dirs = [[-o, 0], [o, 0], [0, -o], [0, o], [-o, -o], [o, -o], [-o, o], [o, o]];
+      for (let i = 0; i < _dirs.length; i++) g.drawImage(rec.sil, _dirs[i][0], _dirs[i][1]);
+      g.drawImage(rec.tmp, 0, 0); // skarp boss överst
+      try {
+        if (!rec.texInit) { rec.spr.texture = PIXI.Texture.from(rec.buf); rec.texInit = true; }
+        else if (rec.spr.texture && rec.spr.texture.source && rec.spr.texture.source.update) rec.spr.texture.source.update();
+      } catch (_) {}
+      rec.rendered = true;
+    }
     rec.spr.width = side; rec.spr.height = side;
     rec.spr.position.set(e.x, e.y);
     rec.spr.visible = true;
@@ -21369,8 +21375,8 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:834 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
-    `<div style="color:#5aff9a;font-size:9px">pixiBoss:${[..._pixiBossKeys].join(',')} aktiva:${_pixiBossN}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:835 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+    `<div style="color:#5aff9a;font-size:9px">pixiBoss:ALLA aktiva:${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
     `<div style="color:#ffe14a;font-size:9px">pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
@@ -69991,6 +69997,19 @@ function drawEnemy(e) {
   e.walkAccum += (moving ? 0.22 : 0.15) * (state._lastDt || 0.0167) * 60; // v1.705: dt-skalad (120fps-korrekt)
   const phase = e.walkAccum;
   const bob = Math.abs(Math.sin(phase)) * 1.4;
+
+  // v1.835: mini-boss färgad glow (samma "pop" som bossarna) — mjukt pulserande aura UNDER kroppen.
+  // De ritas redan skarpt med kontur+rim via _drawEnemyFx; detta ger dem bossarnas glödande look.
+  if (e.isMiniBoss) {
+    const mgc = e.glow || e.stageEdge || e.stageAccent || e.accent || '#aaff5a';
+    const mp = 0.8 + Math.sin(now / 360) * 0.2;
+    const gr = ctx.createRadialGradient(x, y, e.r * 0.4, x, y, e.r * 2.1 * mp);
+    gr.addColorStop(0, hexA(mgc, 0.34));
+    gr.addColorStop(0.55, hexA(mgc, 0.13));
+    gr.addColorStop(1, hexA(mgc, 0));
+    ctx.fillStyle = gr;
+    ctx.fillRect(x - e.r * 2.3, y - e.r * 2.3, e.r * 4.6, e.r * 4.6);
+  }
 
   // skugga
   // v1.786: skuggan satt för högt (vid kroppen, y+0.9r). Fötterna är på ~y+1.3r → flytta
