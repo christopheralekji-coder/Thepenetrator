@@ -21017,6 +21017,7 @@ function _updateSurvPixiWorld() {
   if (!active) {
     if (psp) psp.visible = false;
     if (pixiState._hpBarG) { pixiState._hpBarG.clear(); pixiState._hpBarG.visible = false; } // v1.838: töm staplar
+    if (pixiState._aimG) { pixiState._aimG.clear(); pixiState._aimG.visible = false; } // v1.839: töm sikte
     return;
   }
   const cx = state.camera.x, cy = state.camera.y;
@@ -21160,6 +21161,42 @@ function _updateSurvPixiWorld() {
       const frac = Math.max(0, Math.min(1, (e.maxHp ? e.hp / e.maxHp : 0)));
       if (frac > 0) hg.rect(bx, by, w * frac, h).fill(e.isMiniBoss ? 0xff8a3a : 0xff5a5a);
     }
+  }
+  // v1.839 PASS5 steg 3: GUN-sikte (CS-style crosshair) via Pixi Graphics. Melee-sikte stannar på
+  // Canvas2D (komplex, ovanligare). World-coords; container sköter kamera-offset. Konstant FX under
+  // skjutning → native (ingen per-bild-upload = ingen extra värme).
+  if (!pixiState._aimG) {
+    pixiState._aimG = new PIXI.Graphics(); pixiState._aimG.label = 'aim';
+    pixiState.containers.world.addChild(pixiState._aimG);
+  }
+  const ag = pixiState._aimG;
+  pixiState.containers.world.addChild(ag); // överst
+  ag.clear();
+  const _pp = state.player;
+  let _showAim = !!(_pp && !_pp.spectating && state.mode === 'playing' && input && input.firing && typeof _pp.aimAngle === 'number');
+  let _wAim = null;
+  if (_showAim) { _wAim = (typeof getWeapon === 'function') ? getWeapon(_pp.weaponId) : null; if (_wAim && _wAim.type === 'melee') _showAim = false; }
+  ag.visible = _showAim;
+  if (_showAim) {
+    const aa = _pp.aimAngle, axc = Math.cos(aa), ayc = Math.sin(aa);
+    const so = (_pp.r || 14) + 4, RNG = 200;
+    const sX = _pp.x + axc * so, sY = _pp.y + ayc * so;
+    const eX = _pp.x + axc * (so + RNG), eY = _pp.y + ayc * (so + RNG);
+    let acol = 0xffd54a;
+    try { const wc = (_wAim && _wAim.color) || '#ffd54a'; const pc = parseInt(wc.replace('#', ''), 16); if (!isNaN(pc)) acol = pc; } catch (_) {}
+    // streckad svag siktlinje (manuella dash-segment)
+    const dist = Math.hypot(eX - sX, eY - sY), dsh = 8, nseg = Math.max(1, Math.floor(dist / dsh));
+    for (let i = 0; i < nseg; i += 2) {
+      const t0 = i / nseg, t1 = Math.min(1, (i + 1) / nseg);
+      ag.moveTo(sX + (eX - sX) * t0, sY + (eY - sY) * t0).lineTo(sX + (eX - sX) * t1, sY + (eY - sY) * t1);
+    }
+    ag.stroke({ width: 1.5, color: acol, alpha: 0.18, cap: 'round' });
+    // 4 tick-streck (axel-justerade) runt träffpunkten
+    const GAP = 3, LEN = 5;
+    ag.moveTo(eX - GAP - LEN, eY).lineTo(eX - GAP, eY).moveTo(eX + GAP, eY).lineTo(eX + GAP + LEN, eY)
+      .moveTo(eX, eY - GAP - LEN).lineTo(eX, eY - GAP).moveTo(eX, eY + GAP).lineTo(eX, eY + GAP + LEN);
+    ag.stroke({ width: 1.5, color: acol, alpha: 0.60 });
+    ag.rect(eX - 0.6, eY - 0.6, 1.2, 1.2).fill({ color: acol, alpha: 0.85 }); // center-prick
   }
 }
 
@@ -21421,7 +21458,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:838 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:839 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -49880,6 +49917,8 @@ function drawAimCrosshair() {
     return;
   }
   // ========== GUN: CS 1.6-style crosshair ==========
+  // v1.839: i kollaps ritas gun-siktet via Pixi Graphics → hoppa Canvas2D-versionen här.
+  if (_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady) return;
   // Fast 200px — INGEN info om vapen-räckvidd. Universellt vapen-utseende.
   const RANGE = 200;
   const startOff = (p.r || 14) + 4;
