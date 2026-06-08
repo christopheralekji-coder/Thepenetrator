@@ -21074,9 +21074,9 @@ function _updateSurvPixiWorld() {
       bmap.set(idx, rec);
     }
     const bhalf = side / 2;
-    // v1.835: frysta bossar (showcase) barely ändras → rendera EN gång, sen bara visa. Håller
-    // stress-test (10 bossar samtidigt) billigt; riktiga matcher (ej frysta) renderas varje bild.
-    const _needRender = !(e._frozen && rec.rendered);
+    // v1.837: LÅS BORTTAGET — eliter renderas LIVE varje bild (frozen-cache borttagen) så glow +
+    // animation uppdateras. Viewport-cull håller kostnaden nere (bara synliga eliter renderas).
+    const _needRender = true;
     if (_needRender) {
       // 1) rita boss-konsten till tmp (transparent bakgrund, SHARP×)
       const tctx = rec.tmpCtx;
@@ -21100,6 +21100,16 @@ function _updateSurvPixiWorld() {
       const g = rec.bufCtx;
       g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, bpx, bpx);
       const glowCol = e.glow || e.stageEdge || e.accent || '#ffae5a';
+      // v1.837: mini-bossar saknar boss-kroppens inbyggda aura → ge dem en TYDLIG radiell glow-aura
+      // i composite (ren, ej i silhuetten = ingen grumling). Bossar har redan sin egen aura.
+      if (e.isMiniBoss) {
+        const cg = bpx / 2;
+        const rg = g.createRadialGradient(cg, cg, side * 0.18 * SHARP, cg, cg, side * 0.5 * SHARP);
+        rg.addColorStop(0, hexA(glowCol, 0.42));
+        rg.addColorStop(0.55, hexA(glowCol, 0.16));
+        rg.addColorStop(1, hexA(glowCol, 0));
+        g.fillStyle = rg; g.fillRect(0, 0, bpx, bpx);
+      }
       g.save(); // GLOW: färgat mjukt sken via shadow på silhuetten
       g.shadowColor = glowCol; g.shadowBlur = 13 * SHARP; g.shadowOffsetX = 0; g.shadowOffsetY = 0;
       g.drawImage(rec.sil, 0, 0); g.drawImage(rec.sil, 0, 0);
@@ -21382,7 +21392,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:836 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:837 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
