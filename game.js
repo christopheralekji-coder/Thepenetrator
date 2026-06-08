@@ -19806,7 +19806,8 @@ function computeDPR() {
   let cap = 2;
   try {
     if (typeof save !== 'undefined' && save) {
-      if (save.quality === 'high') cap = 2;
+      if (save.batterySaver) cap = 1.25;       // D: batterisparläge → lägsta DPR oavsett quality
+      else if (save.quality === 'high') cap = 2;
       else if (save.quality === 'low') cap = 1.25;
       else cap = 1.5; // medium / default
     }
@@ -21031,6 +21032,7 @@ function updatePixiDiagOverlay() {
   el.innerHTML = `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
     `<div style="color:#ffe14a;font-size:9px">pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
+    `<div style="color:#80ffd0;font-size:9px">smokeBuf:${_smokeBufEnabled ? _smokeBufW + 'x' + _smokeBufH : 'OFF'} pass:${(typeof _smokePassMs !== 'undefined' ? _smokePassMs : 0).toFixed(2)}ms</div>` +
     `<div>Pixi: ${pixiState.diagFrameTime.toFixed(1)}ms</div>` +
     `<div>Enemies: ${enemiesCount} Bullets: ${bulletsCount}</div>` +
     `<div>Particles: ${particlesCount}</div>` +
@@ -22417,6 +22419,34 @@ function _getSmokePuffTex(bucket) {
   tex = _smokePuffTex[bucket] = c;
   return tex;
 }
+// PERF (v1.812 — C: LÅGUPPLÖST RÖKBUFFERT): rök + frag-explosioner är fill-rate-bovarna
+// (rök ~1100 puff-blits/frame över stor skärmyta = GPU-värme även vid Enemies:0). Vi
+// renderar dem till en offscreen-canvas i 1/3 av spel-upplösningen (backing) och
+// kompositar med EN drawImage/frame (upscale, imageSmoothing PÅ). De redan förbakade
+// puff-/fire-spritesarna (_getSmokePuffTex/_getFireTex) stämplas IN i bufferten. Bufferten
+// ritas om VARJE frame (bara i lägre upplösning) så röken inte släpar mot kameran.
+// ?smokeBuf=0 → gamla heluppløsta vägen (för före/efter-jämförelse på samma scen).
+let _smokeBufEnabled = true;
+try { _smokeBufEnabled = new URLSearchParams(location.search).get('smokeBuf') !== '0'; } catch (_) {}
+const _SMOKE_BUF_DIV = 3; // buffert = 1/3 av backing-upplösningen
+let _smokeBuf = null, _smokeBufCtx = null, _smokeBufW = 0, _smokeBufH = 0, _smokeBufScale = 1;
+let _smokePassMs = 0; // diag: EMA-ms för rök/expl-passet (buffert-render + komposit)
+function _ensureSmokeBuf() {
+  // Backing-mått (CSS × DPR) nedskalat med DIV. Transform-skalan från CSS-screen-
+  // koordinater (sx/sy som draw-funktionerna använder) → buffert-px = DPR/DIV.
+  const bw = Math.max(1, Math.ceil(viewW * DPR / _SMOKE_BUF_DIV));
+  const bh = Math.max(1, Math.ceil(viewH * DPR / _SMOKE_BUF_DIV));
+  if (!_smokeBuf) {
+    _smokeBuf = document.createElement('canvas');
+    _smokeBufCtx = _smokeBuf.getContext('2d');
+  }
+  if (_smokeBuf.width !== bw || _smokeBuf.height !== bh) {
+    _smokeBuf.width = bw; _smokeBuf.height = bh;
+  }
+  _smokeBufW = bw; _smokeBufH = bh;
+  _smokeBufScale = (viewW > 0) ? (bw / viewW) : 1; // CSS-px → buffert-px
+  return _smokeBufCtx;
+}
 function drawSmokeClouds() {
   if (!state.smokeClouds || !state.smokeClouds.length) return;
   const now = performance.now();
@@ -23220,6 +23250,7 @@ function openSettings(returnTo) {
   document.getElementById('set-vibrate').checked = Feedback.vibrateEnabled;
   document.getElementById('set-colorblind').checked = save.colorblind || false;
   document.getElementById('set-quality').value = save.quality || 'medium';
+  { const _sb = document.getElementById('set-battery'); if (_sb) _sb.checked = save.batterySaver || false; }
 }
 function closeSettings() {
   settingsScreen.classList.add('hidden');
@@ -33319,6 +33350,16 @@ document.getElementById('set-quality').addEventListener('change', (e) => {
   save.quality = e.target.value; persist();
   if (typeof resize === 'function') resize(); // byt DPR-tier direkt
 });
+// D (v1.812): Batterisparläge — cap 30 fps i spel + DPR-cap 1.25 (återanvänder
+// auto-quality-maskineriet: loopen pinnar TARGET_FPS=30, computeDPR cappar 1.25).
+const _setBattery = document.getElementById('set-battery');
+if (_setBattery) {
+  _setBattery.addEventListener('change', (e) => {
+    save.batterySaver = e.target.checked; persist();
+    if (typeof resize === 'function') resize(); // applicera lägre DPR direkt
+    if (typeof showToast === 'function') showToast(e.target.checked ? '🔋 Batterisparläge PÅ — 30 fps' : '🔋 Batterisparläge AV');
+  });
+}
 document.getElementById('set-skipdialog').addEventListener('change', (e) => {
   save.skipDialog = e.target.checked; persist();
 });
@@ -75136,18 +75177,50 @@ function render() {
   // renderades OVANPÅ röken (skymde inte). Replikera världs-zoom-transformen på hudCtx
   // så positionen matchar; minimap ritas senare på samma canvas → ligger kvar överst.
   if (hudCtx && ((state.smokeClouds && state.smokeClouds.length) || (state.explosions && state.explosions.length))) {
-    const _svSmokeCtx = ctx;
-    ctx = hudCtx;
-    ctx.save();
-    if (_camZoom !== 1.0) {
-      ctx.translate(viewW / 2, viewH / 2);
-      ctx.scale(_camZoom, _camZoom);
-      ctx.translate(-viewW / 2, -viewH / 2);
+    const _smokeT0 = performance.now();
+    if (_smokeBufEnabled) {
+      // C: rendera rök+explosioner till LÅGUPPLÖST buffert, komposita med EN drawImage.
+      const bctx = _ensureSmokeBuf();
+      // Rensa bufferten (identitets-transform vid clear så hela ytan rensas).
+      bctx.setTransform(1, 0, 0, 1, 0, 0);
+      bctx.clearRect(0, 0, _smokeBufW, _smokeBufH);
+      // CSS-screen-koord → buffert-px (skala = DPR/DIV), inkl. kamera-zoom (bakas in i
+      // bufferten så kompositen blir en ren helbilds-blit utan zoom-transform).
+      bctx.setTransform(_smokeBufScale, 0, 0, _smokeBufScale, 0, 0);
+      if (_camZoom !== 1.0) {
+        bctx.translate(viewW / 2, viewH / 2);
+        bctx.scale(_camZoom, _camZoom);
+        bctx.translate(-viewW / 2, -viewH / 2);
+      }
+      const _svSmokeCtx = ctx;
+      ctx = bctx;
+      if (typeof drawSmokeClouds === 'function') drawSmokeClouds();
+      if (typeof drawExplosions === 'function') drawExplosions();
+      ctx = _svSmokeCtx;
+      // Komposita upp till hudCtx (z:3). hudCtx har DPR-bas-transform (clearRect i CSS-
+      // space varje frame) → rita i CSS-space 0..viewW → backing viewW*DPR. EN drawImage.
+      hudCtx.save();
+      hudCtx.globalAlpha = 1;
+      hudCtx.globalCompositeOperation = 'source-over';
+      hudCtx.imageSmoothingEnabled = true;
+      hudCtx.drawImage(_smokeBuf, 0, 0, _smokeBufW, _smokeBufH, 0, 0, viewW, viewH);
+      hudCtx.restore();
+    } else {
+      // Gamla HELUPPLÖSTA vägen (?smokeBuf=0) — direkt på hudCtx med zoom-transform.
+      const _svSmokeCtx = ctx;
+      ctx = hudCtx;
+      ctx.save();
+      if (_camZoom !== 1.0) {
+        ctx.translate(viewW / 2, viewH / 2);
+        ctx.scale(_camZoom, _camZoom);
+        ctx.translate(-viewW / 2, -viewH / 2);
+      }
+      if (typeof drawSmokeClouds === 'function') drawSmokeClouds();
+      if (typeof drawExplosions === 'function') drawExplosions();
+      ctx.restore();
+      ctx = _svSmokeCtx;
     }
-    if (typeof drawSmokeClouds === 'function') drawSmokeClouds();
-    if (typeof drawExplosions === 'function') drawExplosions();
-    ctx.restore();
-    ctx = _svSmokeCtx;
+    _smokePassMs = _smokePassMs * 0.8 + (performance.now() - _smokeT0) * 0.2; // EMA
   } else {
     if (typeof drawSmokeClouds === 'function') drawSmokeClouds();
     if (typeof drawExplosions === 'function') drawExplosions();
@@ -77202,7 +77275,10 @@ function loop(now) {
   if (_playing) {
     const _cost = performance.now() - _frameT0;
     _frameCostEMA += (_cost - _frameCostEMA) * 0.05;
-    if (TARGET_FPS === 60) { if (_frameCostEMA > 20) { TARGET_FPS = 30; FRAME_MS = 1000 / 30; } }
+    // D (v1.812): batterisparläge pinnar 30 fps (hoppar adaptiva 30↔60 helt).
+    if (typeof save !== 'undefined' && save && save.batterySaver) {
+      if (TARGET_FPS !== 30) { TARGET_FPS = 30; FRAME_MS = 1000 / 30; }
+    } else if (TARGET_FPS === 60) { if (_frameCostEMA > 20) { TARGET_FPS = 30; FRAME_MS = 1000 / 30; } }
     else { if (_frameCostEMA < 12) { TARGET_FPS = 60; FRAME_MS = 1000 / 60; } } // 30→60 recovery (hysteres-gap 12–20)
   }
 }
