@@ -340,14 +340,12 @@ html, body {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(110deg, transparent 30%, rgba(255,255,255,0.22) 50%, transparent 70%);
-  background-size: 200% 100%;
-  animation: hpShimmer 3s linear infinite;
+  /* PERF (v1.814): statisk gloss-highlight i st f infinite background-position-animation.
+     Den oändliga animationen tvingade GPU-compositorn att repainta HP-baren VARJE frame
+     under hela matchen (kontinuerlig värme, oberoende av canvas). Statisk sheen = noll
+     per-frame-kostnad, nära identisk look. */
+  background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,0.16) 50%, transparent 65%);
   pointer-events: none;
-}
-@keyframes hpShimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -50% 0; }
 }
 #hp-fill::after {
   content: '';

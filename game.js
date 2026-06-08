@@ -19965,7 +19965,11 @@ async function initPixiFoundation() {
       width: viewW,
       height: viewH,
       backgroundAlpha: 0,         // transparent — Canvas2D underst ritar background
-      antialias: true,
+      // PERF (v1.814): antialias=true = MSAA på HELA WebGL-compositen varje frame =
+      // konstant fill-rate/bandbredd-skatt på iPhone-GPU:n, oavsett sprite-antal (en av
+      // de dolda "varm men ej låg-FPS"-källorna). Sprites är pre-bakade texturer →
+      // MSAA gör nästan ingen synlig skillnad (bara på vektor-Graphics-kanter). Av på iOS.
+      antialias: _iosWebkit ? false : true,
       resolution: _iosWebkit ? 1 : DPR,
       autoDensity: true,
       preference: 'webgl',
@@ -74900,7 +74904,15 @@ function render() {
     ctx.translate(-viewW / 2, -viewH / 2);
   }
 
-  drawEnvironment();
+  // PERF (v1.814 — DUBBELT-GOLV-FIX): Survivors (drawSurvivorsArenaGround, full tile-blit)
+  // och BR (drawBrForestFloor, opak helskärms-fillRect+tile) målar HELA viewporten med
+  // sitt EGET ogenomskinliga golv längre ned → hela drawEnvironment() (stage-terräng +
+  // byggnader + boundary + atmosfär + vinjett, ~3-4 helskärms-Mpx + hundratals path-ops
+  // per frame) var ren WASTED OVERDRAW i de lägena = stor onödig GPU-värme. Hoppa den där.
+  // CTF/TDM/CD ritar bara halvtransparenta tints/paths → de BEHÖVER bas-golvet, rör ej.
+  // Gulag har egen (drawGulagArena) men täcker ej nödvändigtvis fullt → behåll env.
+  const _ownsFullFloor = state.survivorsActive || (state.battleroyaleActive && !state.gulag);
+  if (!_ownsFullFloor) drawEnvironment();
   // CTF: team-tinted floor halves + walls + flag-stands UNDER allt annat
   if (state.ctfActive) drawCtfArenaFloor();
   // TDM (ÖVNINGSFÄLTET): militärt övningsfält-golv (smuts + betong + skjutlinjer + måltavlor)
@@ -77100,12 +77112,20 @@ function drawJuggernautTransferFlash() {
 
 // Always-on subtil cinematic vinjett runt kanten. Mycket subtil så bara känns "premium",
 // inte distraherande. Skala med kortaste sidan så den inte växer på super-wide.
+let _cinVigCache = null, _cinVigKey = '';
 function drawCinematicVignette() {
-  const minDim = Math.min(viewW, viewH);
-  const grad = ctx.createRadialGradient(viewW/2, viewH/2, minDim * 0.35, viewW/2, viewH/2, minDim * 0.85);
-  grad.addColorStop(0, 'rgba(0,0,0,0)');
-  grad.addColorStop(1, 'rgba(0,0,0,0.45)');
-  ctx.fillStyle = grad;
+  // PERF (v1.814): cacha gradienten (byggdes om VARJE frame = per-frame GC-allokering).
+  // Den är statisk — bara viewport-storlek påverkar den. Mönstret matchar stage-vinjettens
+  // cache (_vignetteCache). Helskärms-fyllningen kvar (enda vinjetten i survivors/BR nu).
+  const key = viewW + 'x' + viewH;
+  if (_cinVigKey !== key || !_cinVigCache) {
+    const minDim = Math.min(viewW, viewH);
+    const g = ctx.createRadialGradient(viewW/2, viewH/2, minDim * 0.35, viewW/2, viewH/2, minDim * 0.85);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.45)');
+    _cinVigCache = g; _cinVigKey = key;
+  }
+  ctx.fillStyle = _cinVigCache;
   ctx.fillRect(0, 0, viewW, viewH);
 }
 
