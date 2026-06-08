@@ -8882,14 +8882,17 @@ function drawSurvivorsArenaAmbient() {
   // Vignette: mörkare hörn för "post-apocalyptic" feel. v1.809: CACHA gradient-objektet
   // (fasta params, ändras bara vid resize) → ingen createRadialGradient+addColorStop varje
   // frame. Identisk visuell, billigare CPU. Invalideras när viewW/viewH ändras.
-  if (!_survVignetteCache || _survVignetteCache.w !== viewW || _survVignetteCache.h !== viewH) {
-    const _vg = ctx.createRadialGradient(viewW / 2, viewH / 2, viewH * 0.4, viewW / 2, viewH / 2, viewH * 0.8);
-    _vg.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    _vg.addColorStop(1, 'rgba(20, 5, 0, 0.55)');
-    _survVignetteCache = { w: viewW, h: viewH, grad: _vg };
+  // v1.855: vinjetten ritas via DOM i kollaps → hoppa Canvas2D-versionen.
+  if (!(_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady)) {
+    if (!_survVignetteCache || _survVignetteCache.w !== viewW || _survVignetteCache.h !== viewH) {
+      const _vg = ctx.createRadialGradient(viewW / 2, viewH / 2, viewH * 0.4, viewW / 2, viewH / 2, viewH * 0.8);
+      _vg.addColorStop(0, 'rgba(0, 0, 0, 0)');
+      _vg.addColorStop(1, 'rgba(20, 5, 0, 0.55)');
+      _survVignetteCache = { w: viewW, h: viewH, grad: _vg };
+    }
+    ctx.fillStyle = _survVignetteCache.grad;
+    ctx.fillRect(0, 0, viewW, viewH);
   }
-  ctx.fillStyle = _survVignetteCache.grad;
-  ctx.fillRect(0, 0, viewW, viewH);
   ctx.restore();
 }
 
@@ -19945,6 +19948,24 @@ function _pixiCamSweep(poolMap, seenSet) {
     if (!seenSet.has(k)) { if (rec.spr) { try { rec.spr.destroy(); } catch (_) {} } poolMap.delete(k); }
   }
 }
+// v1.855: skärm-overlays (vinjett + damage-flash) som DOM/CSS istället för Canvas2D → lägger INTE
+// till ett canvas-lager (skärm-UI hör hemma i DOM). z:4 = ovanför spel-canvas (z≤3), under HUD (z:5).
+let _domOvInit = false, _domVignette = null, _domFlash = null;
+function _ensureDomOverlays() {
+  if (_domOvInit) return;
+  _domOvInit = true;
+  const mk = (css) => { const d = document.createElement('div'); d.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;will-change:opacity;' + css; document.body.appendChild(d); return d; };
+  _domVignette = mk('background:radial-gradient(ellipse at center, rgba(0,0,0,0) 42%, rgba(8,4,2,0.62) 100%);');
+  _domFlash = mk('background:radial-gradient(ellipse at center, rgba(255,30,30,0.30) 18%, rgba(255,30,30,0.72) 100%);');
+}
+function _updateDomOverlays(collapse) {
+  if (!collapse) { if (_domOvInit) { _domVignette.style.opacity = '0'; _domFlash.style.opacity = '0'; } return; }
+  _ensureDomOverlays();
+  _domVignette.style.opacity = '1'; // atmosfärisk vinjett (alltid i Survivors)
+  let fa = 0;
+  if (state.dmgFlashUntil) { const rem = state.dmgFlashUntil - performance.now(); if (rem > 0) fa = Math.min(1, rem / 180); }
+  _domFlash.style.opacity = fa > 0.01 ? String(fa) : '0';
+}
 // v1.842: muzzle-offset per vapen (global) — matchar drawPlayerWeapon's mynnings-position OCH var
 // bullets föds. Används av skjut-koden + Pixi-aim-siktet (så linjen startar exakt vid mynningen).
 const MUZZLE_OFFSETS = {
@@ -21076,6 +21097,7 @@ async function _buildSurvProps() {
 function _updateSurvPixiWorld() {
   if (!pixiState._survWorldReady) return;
   const active = _pixiWorld && state.survivorsActive && state.mode === 'playing';
+  _updateDomOverlays(active); // v1.855: DOM vinjett + damage-flash (ersätter Canvas2D)
   const ts = pixiState._survFloor, psp = pixiState._survPlayer, gp = pixiState._groundProps;
   if (ts) ts.visible = active;
   if (gp) gp.visible = active;
@@ -21969,7 +21991,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:854 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:855 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -78114,6 +78136,7 @@ function drawDamageFlash() {
   if (!state.dmgFlashUntil) return;
   const remaining = state.dmgFlashUntil - performance.now();
   if (remaining <= 0) { state.dmgFlashUntil = 0; return; }
+  if (_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady) return; // v1.855: DOM ritar
   const intensity = remaining / 180;
   ctx.save();
   ctx.fillStyle = `rgba(255, 30, 30, ${0.32 * intensity})`;
