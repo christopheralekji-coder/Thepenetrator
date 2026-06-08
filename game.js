@@ -23578,23 +23578,45 @@ const PLAYER_COLORS = ['#3aff5a', '#3acaff', '#aa3aff', '#ff5a3a', '#ffd54a', '#
 // där paket anländer ojämnt). Delayen hålls liten (≈ nuvarande effektiva delay) så
 // träffsäkerheten inte försämras; servern bumpar sin rewind med samma delay (bullets.js).
 const INTERP_DELAY_MS = 60;
+// PERF (v1.816 — #2 SNAP-RING): pushEntitySnap gjorde s.push({t,x,y}) + s.shift() per entity per
+// paket (~40 ent × 60Hz = ~2400 objekt/sek + 2400 O(n)-shifts/sek = ren GC-mat utanför frame-EMA:n).
+// Nu en ring-buffert med PRE-ALLOKERADE slots som återanvänds in-place: _si = head (nästa skriv),
+// _sn = antal giltiga (max 24). Logisk ordning: äldsta = (_si - _sn), nyaste = (_si - 1). Interp-
+// logiken (teleport-reset/400ms-cutoff/extrapolation/lerp) är BEVARAD exakt, bara index-översatt.
+const SNAP_CAP = 24;
 function pushEntitySnap(ent, x, y, t) {
-  if (!ent._snaps) ent._snaps = [];
-  const s = ent._snaps;
-  // Teleport (respawn/spawn) → nollställ bufferten så interp inte glider över skärmen
-  if (s.length && (Math.abs(x - s[s.length - 1].x) > 150 || Math.abs(y - s[s.length - 1].y) > 150)) s.length = 0;
-  s.push({ t, x, y });
+  let s = ent._snaps;
+  if (!s) {
+    s = ent._snaps = new Array(SNAP_CAP);
+    for (let i = 0; i < SNAP_CAP; i++) s[i] = { t: 0, x: 0, y: 0 };
+    ent._si = 0; ent._sn = 0;
+  }
+  // Teleport (respawn/spawn) → nollställ (jämför mot NYASTE slot)
+  if (ent._sn) {
+    const lp = s[(ent._si - 1 + SNAP_CAP) % SNAP_CAP];
+    if (Math.abs(x - lp.x) > 150 || Math.abs(y - lp.y) > 150) ent._sn = 0;
+  }
+  const w = s[ent._si];
+  w.t = t; w.x = x; w.y = y;
+  ent._si = (ent._si + 1) % SNAP_CAP;
+  if (ent._sn < SNAP_CAP) ent._sn++;
+  // 400ms-cutoff: dra in svansen så länge >2 kvar OCH äldsta är för gammal
   const cut = t - 400;
-  while (s.length > 2 && s[0].t < cut) s.shift();
-  if (s.length > 24) s.shift();
+  while (ent._sn > 2) {
+    const oldIdx = (ent._si - ent._sn + SNAP_CAP) % SNAP_CAP;
+    if (s[oldIdx].t < cut) ent._sn--; else break;
+  }
 }
 function interpEntitySnap(ent, renderT) {
   const s = ent._snaps;
-  if (!s || s.length < 2) return null;
-  const last = s[s.length - 1];
+  const n = ent ? ent._sn : 0;
+  if (!s || n < 2) return null;
+  const base = ent._si;
+  const at = (j) => s[(base - n + j + SNAP_CAP * 2) % SNAP_CAP]; // logiskt j (0=äldst) → fysisk slot
+  const last = at(n - 1);
   if (renderT >= last.t) {
     // Paket-svält → extrapolera kort (cap 120ms) från sista två snapshots
-    const a = s[s.length - 2];
+    const a = at(n - 2);
     const span = last.t - a.t;
     if (span > 0 && span < 200) {
       const over = Math.min(120, renderT - last.t);
@@ -23602,10 +23624,11 @@ function interpEntitySnap(ent, renderT) {
     }
     return { x: last.x, y: last.y };
   }
-  if (renderT <= s[0].t) return { x: s[0].x, y: s[0].y };
-  for (let i = s.length - 1; i >= 1; i--) {
-    if (s[i - 1].t <= renderT && s[i].t >= renderT) {
-      const a = s[i - 1], b = s[i];
+  const first = at(0);
+  if (renderT <= first.t) return { x: first.x, y: first.y };
+  for (let i = n - 1; i >= 1; i--) {
+    const a = at(i - 1), b = at(i);
+    if (a.t <= renderT && b.t >= renderT) {
       const span = b.t - a.t;
       const f = span > 0 ? (renderT - a.t) / span : 0;
       return { x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f };
@@ -28464,11 +28487,21 @@ const Coop = {
       }
       if (data.pickups) {
         // v1.603: SURVIVORS — endast HP + shield drops. Filter bort gold/ammo/temp_dmg från server-broadcast.
-        // PERF: använd hoistad Set-konstant i st f att bygga en ny Set per snapshot.
+        // PERF (v1.816 — #2): pool:a i st f .filter().map() (skapade ny array + N nya objekt per
+        // pickup-paket = GC-mat). Samma mönster som hostile-poolen. o.dead nollställs (annars skulle
+        // en återanvänd 'collected'-slot direkt filtreras bort av per-frame !p.dead-filtret).
         const allowedTypes = state.survivorsActive ? _SURVIVORS_PICKUP_TYPES : null;
-        state.pickups = data.pickups
-          .filter(p => !allowedTypes || allowedTypes.has(p.t))
-          .map(p => ({ x: p.x, y: p.y, type: p.t, life: 25, vx:0, vy:0, magnetized: false }));
+        const _src = data.pickups, _pkPool = state._pickupPool || (state._pickupPool = []);
+        let _pw = 0;
+        for (let i = 0; i < _src.length; i++) {
+          const p = _src[i];
+          if (allowedTypes && !allowedTypes.has(p.t)) continue;
+          let o = _pkPool[_pw]; if (!o) o = _pkPool[_pw] = {};
+          o.x = p.x; o.y = p.y; o.type = p.t; o.life = 25; o.vx = 0; o.vy = 0; o.magnetized = false; o.dead = false;
+          _pw++;
+        }
+        _pkPool.length = _pw;
+        state.pickups = _pkPool;
       }
       if (data.gs) {
         state.wave = data.gs.w;
@@ -28874,7 +28907,12 @@ const Coop = {
     // GOLVAT på 60Hz (17ms = server-tick) så den aldrig regrerar när render droppar till 30.
     // Vid 120fps når din input/sikte servern ~8ms snabbare (var ~17ms) → fräschare = mindre
     // lagg + skott som registrerar närmare det du ser. Idle-skip + backoff håller bandbredden nere.
-    const _baseSend = Math.max(8, Math.min(17, FRAME_MS));
+    // PERF (v1.816 — #2): aktivitets-adaptiv uplink. 60Hz när man SKJUTER (sikte/skott måste vara
+    // färskt), annars 30Hz under rörelse/idle → halverad radio-duty-cycle = mindre radio-värme
+    // (native-spel skickar 20-30Hz). Hit-reg påverkas EJ (servern rewindar ±200ms till skott-
+    // ögonblicket oavsett uplink-takt). state.player.lastShot = senaste faktiska skott-tidsstämpel.
+    const _firingNow = (now - (state.player.lastShot || 0) < 350);
+    const _baseSend = _firingNow ? Math.max(8, Math.min(17, FRAME_MS)) : 33;
     const adaptiveDelay = buffered > 50000 ? 250 : (buffered > 15000 ? 150 : _baseSend);
     // v1.727 BUGFIX: flusha VISUELLA SKOTT på egen hög takt (~30Hz), FRIKOPPLAT från
     // world-snapshot-throttlingen. Tidigare gatedes skott av samma adaptiveDelay som
@@ -69616,6 +69654,13 @@ function drawProximityThreats() {
 // huvud-canvasen på EXAKT samma position som live-ritningen (skugga + gång oförändrade).
 // Återanvänder buffrar → noll per-frame-allokering (GC-snålt, värme/FPS-vänligt).
 let _fxA = null, _fxB = null;
+// PERF (v1.816 — #1 Steg A): cacha _drawEnemyFx:s 2 rim/ambient-gradienter. De byggdes om PER
+// FIENDE PER FRAME (createLinear+createRadial) trots att de bara beror på buffert-bredd W (linjär)
+// resp. (W,r) (radial). Vid 50-80 fiender = ~100-160 gradient-allokeringar/frame = GPU-textur-churn
+// + GC. På iOS ritas fiender i Canvas2D (Pixi-fiender avstängda) → detta är den STÖRSTA enemy-FX-
+// kostnaden. Cachen invalideras när FX-bufferten reallokeras (ny canvas → ny kontext). Noll visuell ändring.
+let _fxLinGrad = null;
+const _fxRadCache = new Map();
 function _drawEnemyFx(e, flash, now, phase, moving, x, y, bob) {
   const r = e.r;
   const need = Math.ceil(r * 3.8) + 12;
@@ -69623,6 +69668,7 @@ function _drawEnemyFx(e, flash, now, phase, moving, x, y, bob) {
     const s = Math.max(need, 80);
     _fxA = document.createElement('canvas'); _fxA.width = _fxA.height = s;
     _fxB = document.createElement('canvas'); _fxB.width = _fxB.height = s;
+    _fxLinGrad = null; _fxRadCache.clear(); // ny kontext → gamla cachade gradienter ogiltiga
   }
   const W = _fxA.width, cxn = W / 2;
   const a = _fxA.getContext('2d'), b = _fxB.getContext('2d');
@@ -69644,11 +69690,19 @@ function _drawEnemyFx(e, flash, now, phase, moving, x, y, bob) {
   // Rim-ljus + ambient-djup (source-atop → bara på fiende-pixlarna, screen-space)
   a.save();
   a.globalCompositeOperation = 'source-atop';
-  const g = a.createLinearGradient(0, 0, W * 0.5, W * 0.5);
-  g.addColorStop(0, 'rgba(255,246,220,0.22)'); g.addColorStop(0.5, 'rgba(255,246,220,0)');
-  a.fillStyle = g; a.fillRect(0, 0, W, W);
-  const rg = a.createRadialGradient(cxn, cxn, r * 0.35, cxn, cxn, r * 1.55);
-  rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(6,4,12,0.30)');
+  // Linjär rim-gradient beror bara på W → cacha en gång per buffert.
+  if (_fxLinGrad === null) {
+    _fxLinGrad = a.createLinearGradient(0, 0, W * 0.5, W * 0.5);
+    _fxLinGrad.addColorStop(0, 'rgba(255,246,220,0.22)'); _fxLinGrad.addColorStop(0.5, 'rgba(255,246,220,0)');
+  }
+  a.fillStyle = _fxLinGrad; a.fillRect(0, 0, W, W);
+  // Radiell ambient-gradient beror på (W,r); W konstant per buffert → cacha per r.
+  let rg = _fxRadCache.get(r);
+  if (!rg) {
+    rg = a.createRadialGradient(cxn, cxn, r * 0.35, cxn, cxn, r * 1.55);
+    rg.addColorStop(0, 'rgba(0,0,0,0)'); rg.addColorStop(1, 'rgba(6,4,12,0.30)');
+    _fxRadCache.set(r, rg);
+  }
   a.fillStyle = rg; a.fillRect(0, 0, W, W);
   a.restore();
   // Mörk silhuett i buffer B (för konturen)
