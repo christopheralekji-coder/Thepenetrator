@@ -19875,6 +19875,14 @@ const _webgpuTest = true; // v1.830: ALLTID PÅ (Metal på iOS 26+, auto-fallbac
 // (annars täcker Pixi-golvet Canvas2D-spelaren). Steg 1: golv (TilingSprite) + spelare (sprite).
 // Bakom flagga + settings-toggle. ?pixiWorld=1/0 eller localStorage.
 const _pixiWorld = true; // v1.830: ALLTID PÅ i Survivors (golv+props+spelare på Metal = svalka, verifierat)
+// v1.831 PASS 5-TEST: bossar vars bossKey finns här ritas via Pixi (per-bild camera-trick =
+// skarpt, samma som spelaren) istället för Canvas2D. Mål: släcka main-canvasen helt. Startar
+// med EN boss för att utvärdera suddighet i stress-test (showcase visar alla 10 frysta).
+const _pixiBossKeys = new Set(['ironclad']);
+function _bossOnPixi(e) {
+  return !!(e && e.bossKey && _pixiWorld && state.survivorsActive &&
+    pixiState && pixiState._survWorldReady && _pixiBossKeys.has(e.bossKey));
+}
 let _miniCanvas = null, _miniCtx = null;
 const _miniRect = { left: 0, top: 0, w: 0, h: 0 };
 function _ensureMiniCanvas() {
@@ -21026,6 +21034,53 @@ function _updateSurvPixiWorld() {
     psp.position.set(p.x, p.y);
     psp.visible = true;
   } else if (psp) { psp.visible = false; }
+  // v1.831 PASS 5: bossar (allowlist) via Pixi — per-bild camera-trick, samma princip som spelaren.
+  // Skarpt (renderas i native storlek varje bild, ej förbakad lågupplöst textur). En upload/boss/bild;
+  // bossar är få (oftast 1) så billigt. HP-bar/telegraph ritas kvar på Canvas2D (FX-lagret).
+  if (!pixiState._pixiBosses) pixiState._pixiBosses = new Map();
+  const bmap = pixiState._pixiBosses;
+  const _seen = pixiState._bossSeen || (pixiState._bossSeen = new Set());
+  _seen.clear();
+  const _nowB = performance.now();
+  for (const e of state.enemies) {
+    if (!e || e.dead || !_bossOnPixi(e)) continue;
+    const sx = e.x - cx, sy = e.y - cy;
+    const m = (e.r || 40) * 4;
+    if (sx < -m || sx > viewW + m || sy < -m || sy > viewH + m) continue; // off-screen → ingen upload
+    const idx = e._idx != null ? e._idx : (e._idx = (state.nextEnemyIdx = (state.nextEnemyIdx || 0) + 1));
+    _seen.add(idx);
+    const side = Math.min(560, Math.ceil((e.r || 40) * 6));
+    let rec = bmap.get(idx);
+    if (!rec || rec.side !== side) {
+      if (rec && rec.spr) { try { rec.spr.destroy(); } catch (_) {} }
+      const buf = document.createElement('canvas'); buf.width = side; buf.height = side;
+      const spr = new PIXI.Sprite(); spr.anchor.set(0.5); spr.label = 'pixiBoss';
+      pixiState.containers.world.addChild(spr);
+      rec = { buf, bufCtx: buf.getContext('2d'), spr, side, texInit: false };
+      bmap.set(idx, rec);
+    }
+    const bhalf = side / 2, bctx = rec.bufCtx;
+    bctx.setTransform(1, 0, 0, 1, 0, 0);
+    bctx.clearRect(0, 0, side, side);
+    const _bCam = state.camera, _bCtx = ctx;
+    state.camera = { x: e.x - bhalf, y: e.y - bhalf };
+    ctx = bctx;
+    pixiState._bossBufRender = true;
+    try { drawBossSoldier(e, bhalf, bhalf, e.flashUntil > _nowB); } catch (_) {}
+    pixiState._bossBufRender = false;
+    ctx = _bCtx; state.camera = _bCam;
+    try {
+      if (!rec.texInit) { rec.spr.texture = PIXI.Texture.from(rec.buf); rec.texInit = true; }
+      else if (rec.spr.texture && rec.spr.texture.source && rec.spr.texture.source.update) rec.spr.texture.source.update();
+    } catch (_) {}
+    rec.spr.width = side; rec.spr.height = side;
+    rec.spr.position.set(e.x, e.y);
+    rec.spr.visible = true;
+  }
+  // städa bort bossar som inte längre syns/finns (off-screen eller döda)
+  for (const [idx, rec] of bmap) {
+    if (!_seen.has(idx)) { if (rec.spr) { try { rec.spr.destroy(); } catch (_) {} } bmap.delete(idx); }
+  }
 }
 
 // v1.534/v1.535: Diagnostic-overlay (FPS + Pixi-frametime). Toggle via 4-tap
@@ -21285,7 +21340,9 @@ function updatePixiDiagOverlay() {
   const _poolP = (typeof _particlePool !== 'undefined') ? _particlePool.length : 0;
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:830 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:831 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+    `<div style="color:#5aff9a;font-size:9px">pixiBoss:${[..._pixiBossKeys].join(',')} aktiva:${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
     `<div style="color:#ffe14a;font-size:9px">pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
@@ -65387,6 +65444,9 @@ function drawBossTelegraph(e, x, y, now) {
 }
 
 function drawBossSoldier(e, x, y, flash) {
+  // v1.831 PASS 5: om denna boss ritas via Pixi → hoppa Canvas2D-kroppen (utom när vi
+  // ritar in i Pixi-buffern, då _bossBufRender är satt). HP-bar/telegraph ritas separat.
+  if (pixiState && !pixiState._bossBufRender && _bossOnPixi(e)) return;
   const now = performance.now();
 
   if (e.lastX === undefined) { e.lastX = e.x; e.lastY = e.y; e.smoothSpeed = 0; }
