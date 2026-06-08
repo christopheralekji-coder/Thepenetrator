@@ -21341,7 +21341,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:831 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:832 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiBoss:${[..._pixiBossKeys].join(',')} aktiva:${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -75306,9 +75306,14 @@ function render() {
   if (state.castledefenseActive) {
     // v1.529: I survivors-mode rendera ÖDESLAND-arena istället för CD's plaza
     if (state.stresstestActive) {
-      // v1.537: STRESS-TEST — bara grå platt bakgrund, ingen dekor
-      ctx.fillStyle = '#1a1a1a';
-      ctx.fillRect(0, 0, viewW, viewH);
+      // v1.537: STRESS-TEST — bara grå platt bakgrund, ingen dekor.
+      // v1.832 KOLLAPS-FIX: hoppa den OPAKA fyllningen när Pixi-golvet är aktivt. Efter z-swap
+      // ligger main-canvasen (z:2) ÖVER Pixi (z:1) → en heltäckande grå ruta gömmer hela
+      // Pixi-världen (spelare + Pixi-boss hamnade "under golvet"). Transparent → Pixi-golvet syns.
+      if (!(_pixiWorld && pixiState._survWorldReady)) {
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(0, 0, viewW, viewH);
+      }
     } else if (state.survivorsActive) {
       // v1.824 LAGER-KOLLAPS: hoppa Canvas2D-golvet när Pixi-golvet (TilingSprite) är aktivt
       if (!(_pixiWorld && pixiState._survWorldReady)) drawSurvivorsArenaGround();
