@@ -21037,6 +21037,7 @@ function _updateSurvPixiWorld() {
       for (const [, sr] of pixiState._shieldMap) { if (sr.spr) { try { sr.spr.destroy(); } catch (_) {} } }
       pixiState._shieldMap.clear();
     }
+    if (pixiState._meleeRec && pixiState._meleeRec.spr) pixiState._meleeRec.spr.visible = false; // v1.844
     return;
   }
   const cx = state.camera.x, cy = state.camera.y;
@@ -21276,6 +21277,44 @@ function _updateSurvPixiWorld() {
   for (const [id, srec] of smap) {
     if (!_sseen.has(id)) { if (srec.spr) { try { srec.spr.destroy(); } catch (_) {} } smap.delete(id); }
   }
+  // v1.844 PASS5 steg 3c: MELEE-sikte via Pixi (camera-trick, återanvänder drawAimCrosshair→
+  // drawMeleeCrosshair). Sparsamt (bara medan man slår med melee-vapen) → occasional upload ok.
+  let _meleeActive = false;
+  if (_pp && !_pp.spectating && state.mode === 'playing' && input && input.firing && typeof _pp.aimAngle === 'number') {
+    const wm = (typeof getWeapon === 'function') ? getWeapon(_pp.weaponId) : null;
+    if (wm && wm.type === 'melee') {
+      _meleeActive = true;
+      const mrange = (wm.range || 40) * (_pp.mrangeMul || 1);
+      const mside = Math.ceil((mrange + 28) * 2), MSH = 2, mbpx = mside * MSH;
+      let mrec = pixiState._meleeRec;
+      if (!mrec || mrec.side !== mside) {
+        if (mrec && mrec.spr) { try { mrec.spr.destroy(); } catch (_) {} }
+        const mbuf = document.createElement('canvas'); mbuf.width = mbpx; mbuf.height = mbpx;
+        const mspr = new PIXI.Sprite(); mspr.anchor.set(0.5); mspr.label = 'meleeAim';
+        pixiState.containers.world.addChild(mspr);
+        mrec = { buf: mbuf, bufCtx: mbuf.getContext('2d'), spr: mspr, side: mside, texInit: false };
+        pixiState._meleeRec = mrec;
+      }
+      const mhalf = mside / 2, mbc = mrec.bufCtx;
+      mbc.setTransform(1, 0, 0, 1, 0, 0); mbc.clearRect(0, 0, mbpx, mbpx);
+      mbc.setTransform(MSH, 0, 0, MSH, 0, 0);
+      const _mCam = state.camera, _mCtx = ctx;
+      state.camera = { x: _pp.x - mhalf, y: _pp.y - mhalf };
+      ctx = mbc;
+      pixiState._aimBufRender = true;
+      try { drawAimCrosshair(); } catch (_) {}
+      pixiState._aimBufRender = false;
+      ctx = _mCtx; state.camera = _mCam;
+      try {
+        if (!mrec.texInit) { mrec.spr.texture = PIXI.Texture.from(mrec.buf); mrec.texInit = true; }
+        else if (mrec.spr.texture && mrec.spr.texture.source && mrec.spr.texture.source.update) mrec.spr.texture.source.update();
+      } catch (_) {}
+      mrec.spr.width = mside; mrec.spr.height = mside;
+      mrec.spr.position.set(_pp.x, _pp.y);
+      mrec.spr.visible = true;
+    }
+  }
+  if (!_meleeActive && pixiState._meleeRec && pixiState._meleeRec.spr) pixiState._meleeRec.spr.visible = false;
 }
 
 // v1.534/v1.535: Diagnostic-overlay (FPS + Pixi-frametime). Toggle via 4-tap
@@ -21536,7 +21575,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:843 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:844 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -49981,6 +50020,8 @@ function drawAimCrosshair() {
   const color = (w && w.color) || '#ffd54a';
   // ========== MELEE: vapen-specifik crosshair (visar EXAKT där det träffar) ==========
   if (w && w.type === 'melee') {
+    // v1.844: i kollaps ritas melee-siktet via Pixi (camera-trick) → hoppa Canvas2D (utom under bake).
+    if (_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady && !pixiState._aimBufRender) return;
     drawMeleeCrosshair(p, w, px, py, aimAng, ax, ay, color);
     return;
   }
