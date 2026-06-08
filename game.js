@@ -21180,12 +21180,12 @@ function _updateSurvPixiWorld() {
   if (_showAim) {
     const aa = _pp.aimAngle, axc = Math.cos(aa), ayc = Math.sin(aa);
     const so = (_pp.r || 14) + 4, RNG = 200;
-    // v1.840: linjen låg "lite under" vapnet — geväret hålls en bit ovanför skottstrålen. Lyft
-    // origin+slut vinkelrätt mot aim (uppåt-sidan). AIM_PERP trimbart (öka = mer upp, minus = ner).
-    const AIM_PERP = 8;
-    const pxn = Math.sin(aa) * AIM_PERP, pyn = -Math.cos(aa) * AIM_PERP; // vinkelrät "upp" mot aim
-    const sX = _pp.x + axc * so + pxn, sY = _pp.y + ayc * so + pyn;
-    const eX = _pp.x + axc * (so + RNG) + pxn, eY = _pp.y + ayc * (so + RNG) + pyn;
+    // v1.841: spelar-spriten är UPPRÄTT (roterar ej) — vapen-pivoten sitter vid händerna, en bit
+    // ovanför centret i KONSTANT skärm-led. Så lyft hela linjen med en konstant skärm-vertikal
+    // offset (samma i alla aim-riktningar), INTE vinkelrätt mot aim. AIM_Y trimbart (mer minus = mer upp).
+    const AIM_Y = -4;
+    const sX = _pp.x + axc * so, sY = _pp.y + ayc * so + AIM_Y;
+    const eX = _pp.x + axc * (so + RNG), eY = _pp.y + ayc * (so + RNG) + AIM_Y;
     let acol = 0xffd54a;
     try { const wc = (_wAim && _wAim.color) || '#ffd54a'; const pc = parseInt(wc.replace('#', ''), 16); if (!isNaN(pc)) acol = pc; } catch (_) {}
     // streckad svag siktlinje (manuella dash-segment)
@@ -21462,7 +21462,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:840 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:841 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
