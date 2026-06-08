@@ -20945,10 +20945,43 @@ async function _buildSurvPixiWorld() {
     psp.anchor.set(0.5); psp.label = 'survPlayer';
     pixiState.containers.world.addChild(psp); // överst i world (ovanpå enemies = gubben på topp)
     pixiState._survPlayer = psp;
+    try { await _buildSurvProps(); } catch (e) { console.warn('[pixiWorld] props fail', e && e.message); }
     pixiState._survWorldReady = true;
-    console.log('[pixiWorld] Survivors-värld byggd (golv+spelare på Pixi)');
+    console.log('[pixiWorld] Survivors-värld byggd (golv+props+spelare på Pixi)');
   } catch (e) { console.warn('[pixiWorld] build fail', e && e.message); }
   _pwBuilding = false;
+}
+// PASS 2: bakade props (väggar/fordon/pelare/sandsäckar) → Pixi-sprites i en groundProps-container
+// (underst i world, ovanpå golv-TilingSpriten, under enemies). Force-bakar via _survBakeProp +
+// återanvänder canvasen som textur. Statiska → bakas EN gång, ingen per-frame-upload.
+async function _buildSurvProps() {
+  if (typeof _ensureSurvivorsArenaCache !== 'function') return;
+  const cache = _ensureSurvivorsArenaCache();
+  if (!cache) return;
+  if (!pixiState._groundProps) {
+    pixiState._groundProps = new PIXI.Container();
+    pixiState._groundProps.label = 'groundProps';
+    pixiState.containers.world.addChildAt(pixiState._groundProps, 0); // underst i world
+  }
+  const gp = pixiState._groundProps;
+  const mk = async (prop, drawFn, half) => {
+    try {
+      const spr = _survBakeProp(prop, drawFn, half);
+      if (!spr || !spr.canvas) return;
+      let tex;
+      try { const bmp = await createImageBitmap(spr.canvas); tex = PIXI.Texture.from(bmp); }
+      catch (_) { tex = PIXI.Texture.from(spr.canvas); }
+      const s = new PIXI.Sprite(tex);
+      s.anchor.set(0.5); s.width = spr.side; s.height = spr.side;
+      s.position.set(prop.x, prop.y);
+      gp.addChild(s);
+    } catch (e) {}
+  };
+  for (const r of cache.walls) await mk(r, _survDrawWall, Math.ceil(Math.sqrt((r.w / 2) * (r.w / 2) + (r.h / 2) * (r.h / 2)) + 16));
+  for (const v of cache.vehicles) await mk(v, _survDrawVehicleBody, Math.ceil(Math.sqrt((v.w / 2) * (v.w / 2) + (v.h * 0.68) * (v.h * 0.68)) + 12));
+  for (const p of cache.pillars) await mk(p, _survDrawPillar, Math.ceil(p.r + 12));
+  for (const sb of cache.sandbags) await mk(sb, _survDrawSandbag, Math.ceil(Math.sqrt((sb.len / 2) * (sb.len / 2) + sb.h * sb.h) + 12));
+  console.log('[pixiWorld] props byggda:', gp.children.length);
 }
 function _updateSurvPixiWorld() {
   if (!pixiState._survWorldReady) return;
@@ -21240,7 +21273,7 @@ function updatePixiDiagOverlay() {
   const _poolP = (typeof _particlePool !== 'undefined') ? _particlePool.length : 0;
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:825 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:826 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
     `<div style="color:#ffe14a;font-size:9px">pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
