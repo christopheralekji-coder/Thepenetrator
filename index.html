@@ -365,6 +365,14 @@
       <input id="set-battery" type="checkbox">
     </div>
     <div class="setting-row toggle">
+      <label>🧪 Test: skarp Pixi (1.5)<br><span style="font-size:10px;opacity:0.6;font-weight:400;">skarpare allt, mer värme — kräver omstart</span></label>
+      <input id="set-pixihires" type="checkbox">
+    </div>
+    <div class="setting-row toggle">
+      <label>🧪 Test: släck canvas-lager<br><span style="font-size:10px;opacity:0.6;font-weight:400;">mät batteri i Survivors (FX/overlays döljs)</span></label>
+      <input id="set-hidecanvas" type="checkbox">
+    </div>
+    <div class="setting-row toggle">
       <label>Skippa story-dialog</label>
       <input id="set-skipdialog" type="checkbox">
     </div>
@@ -423,7 +431,7 @@
     <a href="#" id="social-twitter" class="wp-social-btn" target="_blank" rel="noopener" aria-label="X / Twitter">𝕏</a>
     <a href="#" id="social-youtube" class="wp-social-btn" target="_blank" rel="noopener" aria-label="YouTube">▶</a>
   </div>
-  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.850 ⚡</p>
+  <p id="version-tag" style="position:absolute;bottom:max(8px, env(safe-area-inset-bottom, 8px));right:max(12px, env(safe-area-inset-right, 12px));font-size:11px;opacity:0.7;color:#5aff5a;font-weight:900;">v1.851 ⚡</p>
 </div>
 
 <div id="stats-screen" class="overlay hidden">
@@ -704,7 +712,7 @@
     });
   }
 </script>
-<script src="game.js?v=850"></script>
+<script src="game.js?v=851"></script>
 <script>
   // Registrera service worker. Periodiskt update-check (var 60s) + auto-reload
   // när ny version aktiverats. Användare kan annars sitta på gammal cached

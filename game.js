@@ -19955,6 +19955,13 @@ function _ensureMiniCanvas() {
 // medium=1.5 (default mobil, ~-44% pixlar, nära osynligt i rörelse), low=1.25.
 // resize() anropas när save.quality ändras (auto-FPS/batteri/inställning) så bytet
 // slår igenom direkt. CSS-storleken (viewW/viewH) är oförändrad → bara skärpan.
+// v1.851 TEST-toggles (mätning, tillfälliga): _pixiHiRes höjer Pixi-upplösning på iOS 1.0→1.5
+// (skarpare ALLT på Pixi, ~2.25× fill-rate; kräver omstart). _hideCanvasTest släcker main-canvasen
+// i Survivors (mät lager-borttagningens vinst). Båda via localStorage så de funkar i native-appen.
+let _pixiHiRes = false;
+try { _pixiHiRes = localStorage.getItem('penetrator_pixiHiRes') === '1'; } catch (_) {}
+let _hideCanvasTest = false;
+try { _hideCanvasTest = localStorage.getItem('penetrator_hideCanvas') === '1'; } catch (_) {}
 function computeDPR() {
   const raw = window.devicePixelRatio || 1;
   let cap = 2;
@@ -20085,7 +20092,8 @@ async function initPixiFoundation() {
       // de dolda "varm men ej låg-FPS"-källorna). Sprites är pre-bakade texturer →
       // MSAA gör nästan ingen synlig skillnad (bara på vektor-Graphics-kanter). Av på iOS.
       antialias: _iosWebkit ? false : true,
-      resolution: _iosWebkit ? 1 : DPR,
+      resolution: _iosWebkit ? (_pixiHiRes ? 1.5 : 1) : DPR, // v1.851: test-toggle höjer iOS-Pixi → 1.5
+
       autoDensity: true,
       // v1.822: WebGPU-test (iOS 26+) med auto-fallback till WebGL. Default webgl.
       preference: _webgpuTest ? 'webgpu' : 'webgl',
@@ -21042,6 +21050,11 @@ function _updateSurvPixiWorld() {
     if (typeof canvas !== 'undefined' && canvas) { canvas.style.zIndex = ''; canvas.style.background = ''; }
     pixiState._zSwapped = false;
   }
+  // v1.851 TEST: släck main-canvasen i Survivors (mät lager-borttagningens vinst). Återställs i andra lägen.
+  if (typeof canvas !== 'undefined' && canvas) {
+    const _wantDisp = (active && _hideCanvasTest) ? 'none' : '';
+    if (canvas.style.display !== _wantDisp) canvas.style.display = _wantDisp;
+  }
   if (!active) {
     if (psp) psp.visible = false;
     if (pixiState._hpBarG) { pixiState._hpBarG.clear(); pixiState._hpBarG.visible = false; } // v1.838: töm staplar
@@ -21855,7 +21868,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:850 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:851 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -24093,6 +24106,8 @@ function openSettings(returnTo) {
   document.getElementById('set-colorblind').checked = save.colorblind || false;
   document.getElementById('set-quality').value = save.quality || 'medium';
   { const _sb = document.getElementById('set-battery'); if (_sb) _sb.checked = save.batterySaver || false; }
+  { const _shr = document.getElementById('set-pixihires'); if (_shr) { try { _shr.checked = localStorage.getItem('penetrator_pixiHiRes') === '1'; } catch (_) {} } }
+  { const _shc = document.getElementById('set-hidecanvas'); if (_shc) { try { _shc.checked = localStorage.getItem('penetrator_hideCanvas') === '1'; } catch (_) {} } }
 }
 function closeSettings() {
   settingsScreen.classList.add('hidden');
@@ -34277,6 +34292,20 @@ if (_setBattery) {
     save.batterySaver = e.target.checked; persist();
     if (typeof resize === 'function') resize(); // applicera lägre DPR direkt
     if (typeof showToast === 'function') showToast(e.target.checked ? '🔋 Batterisparläge PÅ — 30 fps' : '🔋 Batterisparläge AV');
+  });
+}
+// v1.851 TEST-toggles (mätning): Pixi hi-res (kräver omstart) + släck canvas-lager.
+{
+  const _shr = document.getElementById('set-pixihires');
+  if (_shr) _shr.addEventListener('change', (e) => {
+    try { localStorage.setItem('penetrator_pixiHiRes', e.target.checked ? '1' : '0'); } catch (_) {}
+    if (typeof showToast === 'function') showToast(e.target.checked ? '🧪 Skarp Pixi 1.5 — STARTA OM APPEN' : '🧪 Skarp Pixi AV — starta om appen', 5);
+  });
+  const _shc = document.getElementById('set-hidecanvas');
+  if (_shc) _shc.addEventListener('change', (e) => {
+    _hideCanvasTest = e.target.checked;
+    try { localStorage.setItem('penetrator_hideCanvas', e.target.checked ? '1' : '0'); } catch (_) {}
+    if (typeof showToast === 'function') showToast(e.target.checked ? '🧪 Canvas-lager SLÄCKT (mät batteri)' : '🧪 Canvas-lager PÅ igen');
   });
 }
 // v1.830: Pixi-fiender, WebGPU och lager-kollaps är nu ALLTID PÅ (hårdkodade) — inga toggles.
