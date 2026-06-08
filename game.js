@@ -21014,7 +21014,11 @@ function _updateSurvPixiWorld() {
     if (typeof canvas !== 'undefined' && canvas) { canvas.style.zIndex = ''; canvas.style.background = ''; }
     pixiState._zSwapped = false;
   }
-  if (!active) { if (psp) psp.visible = false; return; }
+  if (!active) {
+    if (psp) psp.visible = false;
+    if (pixiState._hpBarG) { pixiState._hpBarG.clear(); pixiState._hpBarG.visible = false; } // v1.838: töm staplar
+    return;
+  }
   const cx = state.camera.x, cy = state.camera.y;
   if (ts) {
     if (ts.width !== viewW || ts.height !== viewH) { ts.width = viewW; ts.height = viewH; }
@@ -21131,6 +21135,31 @@ function _updateSurvPixiWorld() {
   // städa bort bossar som inte längre syns/finns (off-screen eller döda)
   for (const [idx, rec] of bmap) {
     if (!_seen.has(idx)) { if (rec.spr) { try { rec.spr.destroy(); } catch (_) {} } bmap.delete(idx); }
+  }
+  // v1.838 PASS5 steg 2: HP-barer (rektanglar) via Pixi Graphics — EN Graphics för ALLA fiender
+  // (billigt). Namn-text för eliter stannar på Canvas2D (flyttas i text-steget). Speglar drawHpBar.
+  if (!pixiState._hpBarG) {
+    pixiState._hpBarG = new PIXI.Graphics(); pixiState._hpBarG.label = 'hpBars';
+    pixiState.containers.world.addChild(pixiState._hpBarG);
+  }
+  const hg = pixiState._hpBarG;
+  pixiState.containers.world.addChild(hg); // håll överst (ovanpå fiender + nya boss-sprites)
+  hg.clear();
+  hg.visible = active;
+  if (active && state.enemies) {
+    for (const e of state.enemies) {
+      if (!e || e.dead) continue;
+      if (!(state.survivorsActive || e.hp < e.maxHp || e.isBoss || e.isMiniBoss)) continue;
+      const ex = e.x - cx, ey = e.y - cy;
+      const mm = (e.r || 18) * 3 + 40;
+      if (ex < -mm || ex > viewW + mm || ey < -mm || ey > viewH + mm) continue;
+      const w = e.isBoss ? 80 : (e.isMiniBoss ? 60 : 28);
+      const h = e.isBoss ? 6 : (e.isMiniBoss ? 5 : 4);
+      const bx = e.x - w / 2, by = e.y - (e.r || 14) - 12;
+      hg.rect(bx, by, w, h).fill({ color: 0x000000, alpha: 0.6 });
+      const frac = Math.max(0, Math.min(1, (e.maxHp ? e.hp / e.maxHp : 0)));
+      if (frac > 0) hg.rect(bx, by, w * frac, h).fill(e.isMiniBoss ? 0xff8a3a : 0xff5a5a);
+    }
   }
 }
 
@@ -21392,7 +21421,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:837 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:838 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -72818,9 +72847,12 @@ function drawRobot(e, flash, now, phase) {
 }
 
 function drawHpBar(e, x, y) {
+  // v1.838: när Pixi-HP-barer är aktiva ritas SJÄLVA STAPELN via Pixi Graphics → hoppa Canvas2D-
+  // stapeln (namn-texten ritas kvar nedan tills text-steget flyttar den).
+  const _pixiBars = _pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady;
   // v1.608: SURVIVORS — alltid visa HP-bar (även full HP) så user ser threat-level.
   const alwaysShow = !!state.survivorsActive;
-  if (alwaysShow || e.hp < e.maxHp || e.isBoss || e.isMiniBoss) {
+  if (!_pixiBars && (alwaysShow || e.hp < e.maxHp || e.isBoss || e.isMiniBoss)) {
     const w = e.isBoss ? 80 : (e.isMiniBoss ? 60 : 28);
     const h = e.isBoss ? 6 : (e.isMiniBoss ? 5 : 4);
     ctx.fillStyle = 'rgba(0,0,0,0.6)';
