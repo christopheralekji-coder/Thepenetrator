@@ -669,6 +669,7 @@ function drawTruck() {
 }
 
 function spawnCompanion() {
+  state.companion = null; return; // v1.846: drönare/kompanjoner borttagna ur spelet (spawnar aldrig)
   if (!save.companions || !save.companions.active) { state.companion = null; return; }
   // PvP-modes (tdm/ctf/siege) tillåter inte companion — orättvist + ingen shop att köpa
   if (Coop.active && Coop.config && (Coop.config.tdm || Coop.config.ctf || Coop.config.siege || Coop.config.gungame)) {
@@ -697,6 +698,7 @@ function spawnCompanion() {
   };
 }
 function updateCompanion(dt, now) {
+  state.companion = null; return; // v1.846: kompanjoner borttagna ur spelet
   const c = state.companion;
   if (!c || !c.alive || !state.player) return;
   const p = state.player;
@@ -748,6 +750,7 @@ function updateCompanion(dt, now) {
   }
 }
 function drawCompanion() {
+  return; // v1.846: kompanjoner borttagna ur spelet
   const c = state.companion;
   if (!c || !c.alive) return;
   const x = c.x - state.camera.x;
@@ -861,6 +864,7 @@ function drawCompanion() {
 }
 
 function updateDrone(dt, now) {
+  state.drone = null; return; // v1.846: drönare borttagna ur spelet
   if (!state.drone || !state.drone.alive || !state.player) return;
   const d = state.drone;
   const p = state.player;
@@ -15836,6 +15840,7 @@ function drawOffscreenPartner(p, sx, sy) {
 }
 
 function drawDrone() {
+  return; // v1.846: drönare borttagna ur spelet
   if (!state.drone || !state.drone.alive) return;
   const d = state.drone;
   const x = d.x - state.camera.x, y = d.y - state.camera.y;
@@ -21656,7 +21661,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:845 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:846 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -33766,13 +33771,14 @@ function renderCompanions() {
   }
 }
 function openCompanions() {
+  return; // v1.846: kompanjoner borttagna ur spelet — skärmen öppnas aldrig
   if (!companionsScreen) return;
   companionsScreen.classList.remove('hidden');
   Audio.uiClick();
   renderCompanions();
 }
 const _btnComp = document.getElementById('btn-companions');
-if (_btnComp) _btnComp.addEventListener('click', openCompanions);
+if (_btnComp) { _btnComp.style.display = 'none'; _btnComp.addEventListener('click', openCompanions); } // v1.846: dold
 const _btnCompClose = document.getElementById('btn-companions-close');
 if (_btnCompClose) _btnCompClose.addEventListener('click', () => {
   companionsScreen.classList.add('hidden'); Audio.uiClick();
@@ -37496,6 +37502,7 @@ const shopPerksEl = document.getElementById('shop-perks');
 let shopActiveTab = 'weapons';
 
 const tabCompanions = document.getElementById('tab-companions');
+if (tabCompanions) tabCompanions.style.display = 'none'; // v1.846: kompanjoner borttagna ur spelet
 const shopCompanionsEl = document.getElementById('shop-companions');
 function setShopTab(tab) {
   shopActiveTab = tab;
