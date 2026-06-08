@@ -21189,7 +21189,7 @@ function updatePixiDiagOverlay() {
   if (!el) {
     el = document.createElement('div');
     el.id = 'pixi-diag-overlay';
-    el.style.cssText = 'position:fixed;top:8px;right:8px;z-index:2000;background:rgba(0,0,0,0.75);color:#5aff5a;padding:5px 10px;border-radius:5px;border:1px solid #5aff5a;font:700 11px monospace;line-height:1.5;pointer-events:none;letter-spacing:0.5px;';
+    el.style.cssText = 'position:fixed;top:4px;right:4px;z-index:2000;background:rgba(0,0,0,0.78);color:#5aff5a;padding:4px 7px;border-radius:5px;border:1px solid #5aff5a;font:700 8px monospace;line-height:1.25;pointer-events:none;letter-spacing:0.3px;max-height:96vh;overflow:hidden;';
     document.body.appendChild(el);
   }
   const now = performance.now();
@@ -21240,7 +21240,7 @@ function updatePixiDiagOverlay() {
   const _poolP = (typeof _particlePool !== 'undefined') ? _particlePool.length : 0;
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'}${_webgpuTest ? ' (gpu-test ON)' : ''}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:825 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
     `<div style="color:#ffe14a;font-size:9px">pool b:${_poolB} p:${_poolP} bspr:${_poolBSpr}</div>` +
@@ -21267,9 +21267,7 @@ function updatePixiDiagOverlay() {
     `<div style="font-size:9px;">backing main:${canvas?canvas.width+'x'+canvas.height:'?'} hud:${hudCanvas?hudCanvas.width+'x'+hudCanvas.height:'?'}</div>` +
     `<div style="font-size:9px;">backing pixi:${canvasSize} css:${viewW}x${viewH}</div>` +
     `<div style="color:#80ffd0;font-size:9px;">split:${_hudSplitEnabled ? 'ON' : 'OFF'} mini:${_miniCanvas ? _miniCanvas.width + 'x' + _miniCanvas.height : '-'} hud:${(hudCanvas && hudCanvas.style.display === 'none') ? 'HID' : 'vis'}</div>` +
-    `<div style="color:#ff80ff;font-size:9px;">build:824 iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
-    `<div style="color:#80c0ff;font-size:9px;">GPU-test:${_webgpuTest ? 'ON' : 'off'} → renderer:${pixiState._renderer || '?'}</div>` +
-    `<div style="color:#80ffff;font-size:9px;">layerCollapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pending') : 'off'}</div>` +
+    `<div style="color:#ff80ff;font-size:8px;">iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
     `<div>Cam: ${camX},${camY}</div>` +
     `<div>World: ${worldX},${worldY}</div>` +
     `<div>Pixi ready: ${pixiState.ready ? '✓' : '✗'}</div>`;
