@@ -15955,6 +15955,9 @@ function showFloatingText(x, y, text, color) {
 }
 function drawPickups() {
   if (!state.pickups) return;
+  // v1.854: i kollaps ritas pickups via Pixi (camera-trick, en pickup åt gången) → hoppa Canvas2D
+  // (utom under buffer-render då _pickupBufRender är satt).
+  if (_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady && !pixiState._pickupBufRender) return;
   const cx = state.camera.x, cy = state.camera.y;
   const t = performance.now();
   for (const pk of state.pickups) {
@@ -21562,6 +21565,23 @@ function _updateSurvPixiWorld() {
       }
     }
   }
+  // v1.854: HAZARDS (gas-moln + flame-trails) — radiell gradient approximerad med 2 cirklar.
+  if (state.gasClouds) {
+    for (const g of state.gasClouds) {
+      if (g.x - cx < -g.r - 40 || g.x - cx > viewW + g.r + 40 || g.y - cy < -g.r - 40 || g.y - cy > viewH + g.r + 40) continue;
+      const a = Math.min(0.6, (g.life / g.maxLife) * 0.7);
+      fxg.circle(g.x, g.y, g.r).fill({ color: 0x50c83c, alpha: Math.max(0, a * 0.32) });
+      fxg.circle(g.x, g.y, g.r * 0.6).fill({ color: 0x78ff5a, alpha: Math.max(0, a * 0.5) });
+    }
+  }
+  if (state.flameTrails) {
+    for (const f of state.flameTrails) {
+      if (f.x - cx < -f.r - 40 || f.x - cx > viewW + f.r + 40 || f.y - cy < -f.r - 40 || f.y - cy > viewH + f.r + 40) continue;
+      const a = Math.min(1, f.life / 2.5);
+      fxg.circle(f.x, f.y, f.r).fill({ color: 0xff5014, alpha: Math.max(0, a * 0.35) });
+      fxg.circle(f.x, f.y, f.r * 0.5).fill({ color: 0xffa028, alpha: Math.max(0, a * 0.55) });
+    }
+  }
   // v1.849 PASS5: damage-siffror + crit-text + chatter via Pixi BitmapText (pool) + bubbel-Graphics.
   // EN bitmap-font (vit fill + svart kontur) återanvänds; tintas per färg, skalas per storlek → ingen
   // font-churn. Svart kontur bevaras vid tint (svart × tint = svart).
@@ -21674,6 +21694,19 @@ function _updateSurvPixiWorld() {
     if (ex - cx < -90 || ex - cx > viewW + 90 || ey - cy < -110 || ey - cy > viewH + 90) continue;
     _mseen.add(key);
     _pixiCamSprite(pixiState._miscMap, key, ex, ey, 180, () => drawEmoteBubble(em, ex - state.camera.x, ey - state.camera.y, er));
+  }
+  // pickups (per-pickup camera-trick; återanvänder drawPickups via temporär 1-element-array)
+  if (state.pickups) {
+    for (const pk of state.pickups) {
+      if (pk.x - cx < -50 || pk.x - cx > viewW + 50 || pk.y - cy < -50 || pk.y - cy > viewH + 50) continue;
+      if (pk._pid == null) pk._pid = 'pk' + (pixiState._pkNextId = (pixiState._pkNextId || 0) + 1);
+      _mseen.add(pk._pid);
+      _pixiCamSprite(pixiState._miscMap, pk._pid, pk.x, pk.y, 60, () => {
+        const _sp = state.pickups; state.pickups = [pk]; pixiState._pickupBufRender = true;
+        try { drawPickups(); } catch (_) {}
+        pixiState._pickupBufRender = false; state.pickups = _sp;
+      });
+    }
   }
   _pixiCamSweep(pixiState._miscMap, _mseen);
 }
@@ -21936,7 +21969,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:853 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:854 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -76760,6 +76793,7 @@ function drawStageMechanic() {
 }
 
 function drawHazards() {
+  if (_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady) return; // v1.854: Pixi ritar hazards
   const cx = state.camera.x, cy = state.camera.y;
   if (state.gasClouds) {
     for (const g of state.gasClouds) {
