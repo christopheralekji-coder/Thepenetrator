@@ -6227,9 +6227,9 @@ function drawPvpPickups() {
 // v1.713: matchar nya sköld-hit-FX:en (cyan/elektrisk, rund/oval om gubben) men
 // lyser HELT runt om HELA tiden skölden är på (ej bara halv-arc vid träff). Träff-
 // shocken (drawShieldHitFor via _pvp3s) ritas ovanpå när man blir träffad.
-function drawPvpShieldBubbles() {
-  const now = performance.now();
-  const draw = (wx, wy, r, until) => {
+// v1.843: en ENskild sköld-bubbla (extraherad så Pixi-koden kan rendera den till en sprite-buffer).
+function _drawShieldBubble(wx, wy, r, until) {
+    const now = performance.now();
     const x = wx - state.camera.x, y = wy - state.camera.y;
     if (x < -60 || x > viewW + 60 || y < -60 || y > viewH + 60) return;
     const rem = until - now;
@@ -6300,14 +6300,18 @@ function drawPvpShieldBubbles() {
       }
     }
     ctx.restore();
-  };
+}
+function drawPvpShieldBubbles() {
+  // v1.843: i kollaps ritas skölden via Pixi (per-entity camera-trick) → hoppa Canvas2D. Annars vanligt.
+  if (_pixiWorld && state.survivorsActive && pixiState && pixiState._survWorldReady) return;
+  const now = performance.now();
   if (state.player && state.player.pvpShieldUntil && now < state.player.pvpShieldUntil) {
-    draw(state.player.x, state.player.y, state.player.r, state.player.pvpShieldUntil);
+    _drawShieldBubble(state.player.x, state.player.y, state.player.r, state.player.pvpShieldUntil);
   }
   if (typeof Coop !== 'undefined' && Coop.players) {
     for (const [, p] of Coop.players) {
       if (p.pvpShieldUntil && now < p.pvpShieldUntil && p.x !== undefined) {
-        draw(p.x, p.y, p.r, p.pvpShieldUntil);
+        _drawShieldBubble(p.x, p.y, p.r, p.pvpShieldUntil);
       }
     }
   }
@@ -21029,6 +21033,10 @@ function _updateSurvPixiWorld() {
     if (psp) psp.visible = false;
     if (pixiState._hpBarG) { pixiState._hpBarG.clear(); pixiState._hpBarG.visible = false; } // v1.838: töm staplar
     if (pixiState._aimG) { pixiState._aimG.clear(); pixiState._aimG.visible = false; } // v1.839: töm sikte
+    if (pixiState._shieldMap && pixiState._shieldMap.size) { // v1.843: töm sköldar
+      for (const [, sr] of pixiState._shieldMap) { if (sr.spr) { try { sr.spr.destroy(); } catch (_) {} } }
+      pixiState._shieldMap.clear();
+    }
     return;
   }
   const cx = state.camera.x, cy = state.camera.y;
@@ -21193,7 +21201,8 @@ function _updateSurvPixiWorld() {
     // v1.842: starta linjen vid den FAKTISKA mynningen (p.r + muzzleOff) — samma som bullets föds —
     // inte p.r+4 (som låg innan mynningen). Detta riktar även in ner-skjutningen (rätt geometri).
     const _mo = (_wAim && MUZZLE_OFFSETS[_wAim.id]) || 20;
-    const so = (_pp.r || 14) + _mo, RNG = 200;
+    const AIM_FWD = 8; // v1.843: knuffa starten lite längre ut (låg "i mitten av vapnet") → mynnings-spets
+    const so = (_pp.r || 14) + _mo + AIM_FWD, RNG = 200;
     // v1.841: spelar-spriten är UPPRÄTT (roterar ej) — vapen-pivoten sitter vid händerna, en bit
     // ovanför centret i KONSTANT skärm-led. Så lyft hela linjen med en konstant skärm-vertikal
     // offset (samma i alla aim-riktningar), INTE vinkelrätt mot aim. AIM_Y trimbart (mer minus = mer upp).
@@ -21215,6 +21224,57 @@ function _updateSurvPixiWorld() {
       .moveTo(eX, eY - GAP - LEN).lineTo(eX, eY - GAP).moveTo(eX, eY + GAP).lineTo(eX, eY + GAP + LEN);
     ag.stroke({ width: 1.5, color: acol, alpha: 0.60 });
     ag.rect(eX - 0.6, eY - 0.6, 1.2, 1.2).fill({ color: acol, alpha: 0.85 }); // center-prick
+  }
+  // v1.843 PASS5 steg 3b: PvP-sköld-bubblor via Pixi (per-entity camera-trick → sprite, återanvänder
+  // _drawShieldBubble). Sparsamt (bara när sköld aktiv) → occasional upload ok. Pool per entity-id.
+  if (!pixiState._shieldMap) pixiState._shieldMap = new Map();
+  const smap = pixiState._shieldMap;
+  const _sseen = pixiState._shieldSeen || (pixiState._shieldSeen = new Set());
+  _sseen.clear();
+  const _nowS = performance.now();
+  const _shielded = [];
+  if (state.player && state.player.pvpShieldUntil && _nowS < state.player.pvpShieldUntil)
+    _shielded.push({ id: 'self', x: state.player.x, y: state.player.y, r: state.player.r || 14, until: state.player.pvpShieldUntil });
+  if (typeof Coop !== 'undefined' && Coop.players) {
+    for (const [pid, pp] of Coop.players) {
+      if (pp.pvpShieldUntil && _nowS < pp.pvpShieldUntil && pp.x !== undefined)
+        _shielded.push({ id: 'c' + pid, x: pp.x, y: pp.y, r: pp.r || 14, until: pp.pvpShieldUntil });
+    }
+  }
+  const SHS = 2;
+  for (const ent of _shielded) {
+    const ssx = ent.x - cx, ssy = ent.y - cy;
+    if (ssx < -80 || ssx > viewW + 80 || ssy < -80 || ssy > viewH + 80) continue;
+    _sseen.add(ent.id);
+    const sside = Math.ceil((ent.r + 8) * 1.18 * 2) + 30;
+    const sbpx = sside * SHS;
+    let srec = smap.get(ent.id);
+    if (!srec || srec.side !== sside) {
+      if (srec && srec.spr) { try { srec.spr.destroy(); } catch (_) {} }
+      const sbuf = document.createElement('canvas'); sbuf.width = sbpx; sbuf.height = sbpx;
+      const sspr = new PIXI.Sprite(); sspr.anchor.set(0.5); sspr.label = 'shield';
+      pixiState.containers.world.addChild(sspr);
+      srec = { buf: sbuf, bufCtx: sbuf.getContext('2d'), spr: sspr, side: sside, texInit: false };
+      smap.set(ent.id, srec);
+    }
+    const sh = sside / 2, sbc = srec.bufCtx;
+    sbc.setTransform(1, 0, 0, 1, 0, 0); sbc.clearRect(0, 0, sbpx, sbpx);
+    sbc.setTransform(SHS, 0, 0, SHS, 0, 0);
+    const _shCam = state.camera, _shCtx = ctx;
+    state.camera = { x: ent.x - sh, y: ent.y - sh };
+    ctx = sbc;
+    try { _drawShieldBubble(ent.x, ent.y, ent.r, ent.until); } catch (_) {}
+    ctx = _shCtx; state.camera = _shCam;
+    try {
+      if (!srec.texInit) { srec.spr.texture = PIXI.Texture.from(srec.buf); srec.texInit = true; }
+      else if (srec.spr.texture && srec.spr.texture.source && srec.spr.texture.source.update) srec.spr.texture.source.update();
+    } catch (_) {}
+    srec.spr.width = sside; srec.spr.height = sside;
+    srec.spr.position.set(ent.x, ent.y);
+    srec.spr.visible = true;
+  }
+  for (const [id, srec] of smap) {
+    if (!_sseen.has(id)) { if (srec.spr) { try { srec.spr.destroy(); } catch (_) {} } smap.delete(id); }
   }
 }
 
@@ -21476,7 +21536,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:842 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:843 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
