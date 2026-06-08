@@ -19860,8 +19860,15 @@ try { _hudSplitEnabled = new URLSearchParams(location.search).get('hudSplit') !=
 // fixades i Pixi 8.10.0 (vi uppgraderar nu till 8.19.0). Denna flagga slår PÅ Pixi-fiender på
 // iOS så vi kan VERIFIERA på riktig iPhone om texturerna nu syns. Default AV → iOS oförändrat
 // (Canvas2D-fiender) tills bevisat. ?pixiEnemiesIOS=1 → testa Pixi-fiender på iOS.
+// v1.820: läs från URL-param ELLER localStorage (settings-toggle) — så det funkar i NATIVE-appen
+// (OTA, pålitlig) utan URL-param + utan Safari-cache-strul. ?pixiEnemiesIOS=0 tvingar av.
 let _pixiEnemiesIOSTest = false;
-try { _pixiEnemiesIOSTest = new URLSearchParams(location.search).get('pixiEnemiesIOS') === '1'; } catch (_) {}
+try {
+  const _u = new URLSearchParams(location.search).get('pixiEnemiesIOS');
+  if (_u === '1') _pixiEnemiesIOSTest = true;
+  else if (_u === '0') _pixiEnemiesIOSTest = false;
+  else _pixiEnemiesIOSTest = localStorage.getItem('penetrator_pixiEnemiesIOS') === '1';
+} catch (_) {}
 let _miniCanvas = null, _miniCtx = null;
 const _miniRect = { left: 0, top: 0, w: 0, h: 0 };
 function _ensureMiniCanvas() {
@@ -21160,7 +21167,7 @@ function updatePixiDiagOverlay() {
     `<div style="font-size:9px;">backing main:${canvas?canvas.width+'x'+canvas.height:'?'} hud:${hudCanvas?hudCanvas.width+'x'+hudCanvas.height:'?'}</div>` +
     `<div style="font-size:9px;">backing pixi:${canvasSize} css:${viewW}x${viewH}</div>` +
     `<div style="color:#80ffd0;font-size:9px;">split:${_hudSplitEnabled ? 'ON' : 'OFF'} mini:${_miniCanvas ? _miniCanvas.width + 'x' + _miniCanvas.height : '-'} hud:${(hudCanvas && hudCanvas.style.display === 'none') ? 'HID' : 'vis'}</div>` +
-    `<div style="color:#ff80ff;font-size:9px;">build:819 iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} ios:${(typeof isIOS !== 'undefined' && isIOS) ? 'Y' : 'N'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
+    `<div style="color:#ff80ff;font-size:9px;">build:820 iosEnemyFlag:${_pixiEnemiesIOSTest ? 'ON' : 'off'} ios:${(typeof isIOS !== 'undefined' && isIOS) ? 'Y' : 'N'} enEnabled:${pixiState.enemiesEnabled ? 'Y' : 'N'}</div>` +
     `<div>Cam: ${camX},${camY}</div>` +
     `<div>World: ${worldX},${worldY}</div>` +
     `<div>Pixi ready: ${pixiState.ready ? '✓' : '✗'}</div>`;
@@ -23360,6 +23367,7 @@ function openSettings(returnTo) {
   document.getElementById('set-colorblind').checked = save.colorblind || false;
   document.getElementById('set-quality').value = save.quality || 'medium';
   { const _sb = document.getElementById('set-battery'); if (_sb) _sb.checked = save.batterySaver || false; }
+  { const _spe = document.getElementById('set-pixienemies'); if (_spe) { try { _spe.checked = localStorage.getItem('penetrator_pixiEnemiesIOS') === '1'; } catch (_) {} } }
 }
 function closeSettings() {
   settingsScreen.classList.add('hidden');
@@ -33543,6 +33551,15 @@ if (_setBattery) {
     save.batterySaver = e.target.checked; persist();
     if (typeof resize === 'function') resize(); // applicera lägre DPR direkt
     if (typeof showToast === 'function') showToast(e.target.checked ? '🔋 Batterisparläge PÅ — 30 fps' : '🔋 Batterisparläge AV');
+  });
+}
+// v1.820: Pixi-fiender iOS-test — persisteras i localStorage (läses vid load). Kräver omstart
+// så bake körs med flaggan (Pixi-texturer bakas bara om flaggan är på vid bake-tillfället).
+const _setPixiEnemies = document.getElementById('set-pixienemies');
+if (_setPixiEnemies) {
+  _setPixiEnemies.addEventListener('change', (e) => {
+    try { localStorage.setItem('penetrator_pixiEnemiesIOS', e.target.checked ? '1' : '0'); } catch (_) {}
+    if (typeof showToast === 'function') showToast(e.target.checked ? '🧪 Pixi-fiender PÅ — STARTA OM APPEN' : '🧪 Pixi-fiender AV — starta om appen', 5);
   });
 }
 document.getElementById('set-skipdialog').addEventListener('change', (e) => {
