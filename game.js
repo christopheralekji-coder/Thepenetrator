@@ -19985,7 +19985,7 @@ function _ensureMiniCanvas() {
   if (!_miniCanvas) {
     _miniCanvas = document.createElement('canvas');
     _miniCanvas.id = 'minimap-canvas';
-    _miniCanvas.style.cssText = 'position:fixed;top:0;left:0;z-index:4;pointer-events:none;background:transparent;';
+    _miniCanvas.style.cssText = 'position:fixed;top:0;left:0;z-index:5;pointer-events:none;background:transparent;'; // v1.859: z:4→5 (över DOM-vinjett z:4)
     document.body.appendChild(_miniCanvas);
     _miniCtx = _miniCanvas.getContext('2d');
   }
@@ -21120,7 +21120,8 @@ function _updateSurvPixiWorld() {
   // present (attack-telegraphs) ELLER nedlagd spelare/partner (revive-overlay). Då slipper vi
   // migrera den komplexa UI:n men behåller den synlig precis när den behövs.
   if (typeof canvas !== 'undefined' && canvas) {
-    let _leftover = !!(state.player && state.player.cdDowned) || !!state.survivorsBossIndicator; // v1.858: boss-spawn-pil syns
+    let _leftover = !!(state.player && state.player.cdDowned) || !!state.survivorsBossIndicator // v1.858: boss-spawn-pil syns
+      || (typeof killstreakBanner !== 'undefined' && killstreakBanner.timer > 0); // v1.859: killstreak/RAMPAGE-banner syns
     if (!_leftover && state.enemies) { for (const e of state.enemies) { if (e && !e.dead && e.isBoss) { _leftover = true; break; } } } // bara riktiga bossar har Canvas2D-telegraph
     if (!_leftover && typeof Coop !== 'undefined' && Coop.players) { for (const [, p] of Coop.players) { if (p && p.cdDowned) { _leftover = true; break; } } }
     const _wantDisp = (active && _hideCanvasTest && !_leftover) ? 'none' : '';
@@ -21157,6 +21158,7 @@ function _updateSurvPixiWorld() {
     return;
   }
   const cx = state.camera.x, cy = state.camera.y;
+  pixiState._fN = (pixiState._fN || 0) + 1; // v1.859: frame-räknare (boss dirty-cache + pickup-throttle)
   if (ts) {
     if (ts.width !== viewW || ts.height !== viewH) { ts.width = viewW; ts.height = viewH; }
     ts.tilePosition.set(-cx, -cy); // scrolla texturen med kameran (ingen per-frame-upload)
@@ -21168,11 +21170,11 @@ function _updateSurvPixiWorld() {
     pctx.clearRect(0, 0, pc.width, pc.height);
     const half = pc.width / 2;
     // kamera-trick: rita drawPlayer centrerat i den lilla buffern (player.x - cam.x = half)
-    const _svCam = state.camera, _svCtx = ctx;
-    state.camera = { x: p.x - half, y: p.y - half };
+    const _svCamX = state.camera.x, _svCamY = state.camera.y, _svCtx = ctx; // v1.859: in-place (ingen allokering/bild)
+    state.camera.x = p.x - half; state.camera.y = p.y - half;
     ctx = pctx;
     try { drawPlayer(); } catch (e) {}
-    ctx = _svCtx; state.camera = _svCam;
+    ctx = _svCtx; state.camera.x = _svCamX; state.camera.y = _svCamY;
     try {
       if (!psp._texInit) { psp.texture = PIXI.Texture.from(pc); psp._texInit = true; }
       else if (psp.texture && psp.texture.source && psp.texture.source.update) psp.texture.source.update();
@@ -21215,9 +21217,12 @@ function _updateSurvPixiWorld() {
       bmap.set(idx, rec);
     }
     const bhalf = side / 2;
-    // v1.837: LÅS BORTTAGET — eliter renderas LIVE varje bild (frozen-cache borttagen) så glow +
-    // animation uppdateras. Viewport-cull håller kostnaden nere (bara synliga eliter renderas).
-    const _needRender = true;
+    // v1.859: DIRTY-CACHE — re-rendera+ladda upp boss-bufferten bara när state ändras (hp/stage/flash)
+    // ELLER var 5:e bild (animation @12Hz). Position uppdateras varje bild (mjuk rörelse), bara den dyra
+    // texturen (shadowBlur 720² + 2MB-upload) hoppas mellan dirty-events → ~80% färre uploads.
+    const _bsig = Math.round(e.hp) + '|' + (e.stageEdge || '') + '|' + (e.flashUntil > _nowB ? 1 : 0);
+    const _needRender = !rec.rendered || rec._sig !== _bsig || ((pixiState._fN || 0) % 5 === 0);
+    rec._sig = _bsig;
     if (_needRender) {
       // 1) rita boss-konsten till tmp (transparent bakgrund, SHARP×)
       const tctx = rec.tmpCtx;
@@ -21559,13 +21564,17 @@ function _updateSurvPixiWorld() {
         fxg.arc(p.x, p.y, p.r, p.ang - 0.7, p.ang + 0.7).stroke({ width: 4, color: col, alpha: Math.min(1, p.life * 5), cap: 'round' });
       } else if (p.isLightning) {
         const a = Math.min(1, p.life * 4), segs = 6;
-        fxg.moveTo(p.x, p.y);
+        // v1.859: precomputera jitter-punkter så underglow:en (bred svag) och den skarpa linjen följs åt
+        const pts = [p.x, p.y];
         for (let i = 1; i < segs; i++) {
           const t = i / segs;
-          fxg.lineTo(p.x + (p.x2 - p.x) * t + (Math.random() - 0.5) * 14, p.y + (p.y2 - p.y) * t + (Math.random() - 0.5) * 14);
+          pts.push(p.x + (p.x2 - p.x) * t + (Math.random() - 0.5) * 14, p.y + (p.y2 - p.y) * t + (Math.random() - 0.5) * 14);
         }
-        fxg.lineTo(p.x2, p.y2);
-        fxg.stroke({ width: 3, color: 0xffeb3b, alpha: a, cap: 'round' });
+        pts.push(p.x2, p.y2);
+        fxg.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) fxg.lineTo(pts[i], pts[i + 1]);
+        fxg.stroke({ width: 8, color: 0xffeb3b, alpha: a * 0.22, cap: 'round' }); // underglow
+        fxg.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) fxg.lineTo(pts[i], pts[i + 1]);
+        fxg.stroke({ width: 3, color: 0xffeb3b, alpha: a, cap: 'round' }); // skarp
       } else if (p.isShockwave) {
         const t = 1 - p.life / (p.maxLife || 0.5);
         const r = (p.r0 || 10) + ((p.r1 || 80) - (p.r0 || 10)) * t;
@@ -21749,7 +21758,7 @@ function _updateSurvPixiWorld() {
   // v1.858: pickups står still → re-rendera/ladda upp bara var 3:e bild (liten bob/pulse, knappt synligt
   // choppigt) + återanvänd scratch-array (ingen allokering). Spar ~67% pickup-uploads.
   if (state.pickups) {
-    const _fn = (pixiState._fN = (pixiState._fN || 0) + 1);
+    const _fn = pixiState._fN || 0; // v1.859: räknas nu högt upp i funktionen
     const _scr = pixiState._pkScratch || (pixiState._pkScratch = [null]);
     for (const pk of state.pickups) {
       if (pk.x - cx < -50 || pk.x - cx > viewW + 50 || pk.y - cy < -50 || pk.y - cy > viewH + 50) continue;
@@ -22045,7 +22054,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:858 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:859 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -76464,7 +76473,7 @@ function render() {
         _miniCanvas.style.display = 'none';
       } else {
         _miniCanvas.style.display = 'block';
-        _miniCanvas.style.zIndex = state.minimapBig ? '9' : '4';
+        _miniCanvas.style.zIndex = state.minimapBig ? '9' : '5'; // v1.859: 4→5 (över DOM-vinjett z:4)
         // Rensa hela backingen, sätt sen DPR-bas + translatera så drawMiniMap:s SKÄRM-
         // koordinater (boxX/boxY uppe-höger) landar lokalt i den lilla canvasen.
         mctx.setTransform(1, 0, 0, 1, 0, 0);
