@@ -20034,7 +20034,9 @@ function computeDPR() {
       if (save.batterySaver) cap = 1.25;       // D: batterisparläge → lägsta DPR oavsett quality
       else if (save.quality === 'high') cap = 2;
       else if (save.quality === 'low') cap = 1.25;
-      else cap = 1.5; // medium / default
+      // v1.861: medium = 1.5 i Survivors (Pixi-1.5/skarpt val), men 1.3 i Canvas2D-lägena
+      // (~25% mindre fill-rate = svalare i alla 3v3/PvP-matcher; knappt synligt i snabb action).
+      else cap = (typeof state !== 'undefined' && state && state.survivorsActive) ? 1.5 : 1.3;
     }
   } catch (e) { /* save ej redo ännu → cap 2 */ }
   return Math.min(raw, cap);
@@ -22054,7 +22056,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:860 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:861 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
