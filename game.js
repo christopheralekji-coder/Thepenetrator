@@ -20026,6 +20026,21 @@ let _pixiHiRes = true;
 try { _pixiHiRes = localStorage.getItem('penetrator_pixiHiRes') !== '0'; } catch (_) { _pixiHiRes = true; }
 let _hideCanvasTest = true; // v1.857: DEFAULT PÅ (dynamisk släckning — visas auto vid boss/down)
 try { _hideCanvasTest = localStorage.getItem('penetrator_hideCanvas') !== '0'; } catch (_) { _hideCanvasTest = true; }
+// ============================================================
+// v1.862: TERMIK-AUTO-TIER. Telefonen blir varm av GPU/composite-arbete per sekund —
+// men loopens EMA mäter BARA JS-tid (runFrame), aldrig GPU/värme, så spelet bromsar
+// aldrig själv när det hettar. Lösningen: efter ihållande spel sänk GPU-takten
+// AUTOMATISKT (fps-tak + DPR), helt utan att röra användarens manuella batterisparläge.
+// Tidsbaserat (ej EMA) just för att värmen inte syns i JS-tiden. Gäller ALLA lägen.
+//   tier 0 = normal (60fps, full DPR) — telefonen är fortf. sval
+//   tier 1 = sval  (cap 45fps + DPR ≤1.3) efter ~90s  → ~25% mindre GPU, knappt synligt
+//   tier 2 = batteri (cap 30fps + DPR 1.2) efter ~4min → max svalka vid lång session
+let _thermalTier = 0;
+let _sustainedPlayMs = 0;
+const _THERMAL_WARM = 90000;   // 90s sammanhängande spel → tier 1
+const _THERMAL_HOT = 240000;   // 4min → tier 2
+let _thermalMobile = false;
+try { _thermalMobile = /iphone|ipad|ipod|android/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /Mac|Mac OS/i.test(navigator.platform || '')); } catch (_) { _thermalMobile = false; }
 function computeDPR() {
   const raw = window.devicePixelRatio || 1;
   let cap = 2;
@@ -20037,6 +20052,11 @@ function computeDPR() {
       // v1.861: medium = 1.5 i Survivors (Pixi-1.5/skarpt val), men 1.3 i Canvas2D-lägena
       // (~25% mindre fill-rate = svalare i alla 3v3/PvP-matcher; knappt synligt i snabb action).
       else cap = (typeof state !== 'undefined' && state && state.survivorsActive) ? 1.5 : 1.3;
+      // v1.862: termik-auto-tier sänker DPR stegvis vid lång session (utöver fps-taket).
+      if (!save.batterySaver) {
+        if (_thermalTier >= 2) cap = Math.min(cap, 1.2);
+        else if (_thermalTier === 1) cap = Math.min(cap, 1.3);
+      }
     }
   } catch (e) { /* save ej redo ännu → cap 2 */ }
   return Math.min(raw, cap);
@@ -22056,7 +22076,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:861 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:862 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -78517,11 +78537,32 @@ function loop(now) {
   if (_playing) {
     const _cost = performance.now() - _frameT0;
     _frameCostEMA += (_cost - _frameCostEMA) * 0.05;
-    // D (v1.812): batterisparläge pinnar 30 fps (hoppar adaptiva 30↔60 helt).
-    if (typeof save !== 'undefined' && save && save.batterySaver) {
-      if (TARGET_FPS !== 30) { TARGET_FPS = 30; FRAME_MS = 1000 / 30; }
-    } else if (TARGET_FPS === 60) { if (_frameCostEMA > 20) { TARGET_FPS = 30; FRAME_MS = 1000 / 30; } }
-    else { if (_frameCostEMA < 12) { TARGET_FPS = 60; FRAME_MS = 1000 / 60; } } // 30→60 recovery (hysteres-gap 12–20)
+    _sustainedPlayMs += Math.min(sinceLast, 100); // v1.862: ack. spel-tid (klamp → dold-flik hoppar ej tier)
+  } else if (_sustainedPlayMs > 0) {
+    // Ej spelande (meny/death/lobby) → telefonen svalnar, dra ned termik 3× snabbare.
+    _sustainedPlayMs = Math.max(0, _sustainedPlayMs - sinceLast * 3);
+  }
+  // v1.862: beräkna termik-tier (bara mobil) med deadband (nedgradering vid 60% av tröskeln
+  // → ingen flapping kring gränsen). Byte av tier → resize() så ny DPR slår igenom.
+  {
+    let _wantTier = _thermalTier;
+    if (!_thermalMobile) _wantTier = 0;
+    else if (_thermalTier === 0 && _sustainedPlayMs > _THERMAL_WARM) _wantTier = 1;
+    else if (_thermalTier === 1 && _sustainedPlayMs > _THERMAL_HOT) _wantTier = 2;
+    else if (_thermalTier === 1 && _sustainedPlayMs < _THERMAL_WARM * 0.6) _wantTier = 0;
+    else if (_thermalTier === 2 && _sustainedPlayMs < _THERMAL_HOT * 0.6) _wantTier = 1;
+    if (_wantTier !== _thermalTier) { _thermalTier = _wantTier; try { resize(); } catch (_) {} }
+  }
+  if (_playing) {
+    // Fps-tak: manuellt batterisparläge > termik-tier > normal 60. Adaptiv 30-fallback
+    // vid hög JS-last behålls inom taket (hysteres 12/20ms oförändrad).
+    let _fpsCap = 60;
+    if (typeof save !== 'undefined' && save && save.batterySaver) _fpsCap = 30; // D (v1.812): manuellt
+    else if (_thermalTier >= 2) _fpsCap = 30;  // v1.862: auto efter ~4min
+    else if (_thermalTier === 1) _fpsCap = 45;  // v1.862: auto efter ~90s
+    if (TARGET_FPS > _fpsCap) { TARGET_FPS = _fpsCap; FRAME_MS = 1000 / _fpsCap; }
+    else if (TARGET_FPS === _fpsCap) { if (_fpsCap > 30 && _frameCostEMA > 20) { TARGET_FPS = 30; FRAME_MS = 1000 / 30; } }
+    else { if (_frameCostEMA < 12) { TARGET_FPS = _fpsCap; FRAME_MS = 1000 / _fpsCap; } } // recovery upp till taket
   }
 }
 function runFrame(dt, now) {
