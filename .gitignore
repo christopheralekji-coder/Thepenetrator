@@ -12,3 +12,6 @@ dist/
 .DS_Store
 
 resources/icon-candidates/
+
+tools/shot*.png
+tools/*.png

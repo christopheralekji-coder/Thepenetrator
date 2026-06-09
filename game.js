@@ -16685,7 +16685,7 @@ const TIER_RANK = { common: 0, rare: 1, epic: 2, legendary: 3 };
 })();
 // v1.489: Validera ALLA wardrobe-presets + items vid script-load.
 // Loggar varningar för dangling refs (preset.shirt='foo' men 'foo' saknas i WARDROBE.shirt).
-(function _validateWardrobeAtLoad() {
+setTimeout(function _validateWardrobeAtLoad() { // v1.860: deferrad — WARDROBE_PRESETS (const) deklareras längre ner; typeof i TDZ kastade vid load
   try {
     const errors = [];
     if (typeof WARDROBE_PRESETS !== 'undefined' && typeof WARDROBE !== 'undefined') {
@@ -16704,7 +16704,7 @@ const TIER_RANK = { common: 0, rare: 1, epic: 2, legendary: 3 };
       for (const e of errors) console.warn('  ' + e);
     }
   } catch (e) { console.warn('[wardrobe] validation crashed:', e.message); }
-})();
+}, 0);
 function ensureWardrobe() {
   if (!save.wardrobe) save.wardrobe = {};
   const w = save.wardrobe;
@@ -22054,7 +22054,7 @@ function updatePixiDiagOverlay() {
   const _poolB = (typeof _bulletPool !== 'undefined') ? _bulletPool.length : 0;
   const _poolBSpr = (typeof _pixiBulletSpritePool !== 'undefined') ? _pixiBulletSpritePool.length : 0;
   const _pixiBossN = (pixiState._pixiBosses && pixiState._pixiBosses.size) || 0;
-  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:859 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
+  el.innerHTML = `<div style="color:#5affff;font-weight:900;">▶ ${pixiState._renderer || '?'} · build:860 · gpu:${_webgpuTest ? 'ON' : 'off'} · collapse:${_pixiWorld ? (pixiState._survWorldReady ? 'ACTIVE' : 'pend') : 'off'}</div>` +
     `<div style="color:#5aff9a;font-size:9px">pixiElit(boss+mini):${_pixiBossN}</div>` +
     `<div style="color:#ffe14a">cap:${TARGET_FPS} fps:${_pixiDiagState.fps} ema:${_frameCostEMA.toFixed(1)}ms</div>` +
     `<div style="color:#ffe14a;font-size:9px">raw:${_dprRaw} → main:${_ratMain} hud:${_ratHud} pixi:${_ratPixi} q:${_q}</div>` +
@@ -79026,3 +79026,20 @@ updateHUD();
 if (typeof maybeRestoreReconnectButton === 'function') {
   setTimeout(maybeRestoreReconnectButton, 300);
 }
+
+// === DEV-ONLY: headless skärmdump-rigg. ?devboot=<mode> auto-startar solo-match. Ofarligt utan param. ===
+(function _devBoot(){
+  try {
+    const m = new URLSearchParams(location.search).get('devboot');
+    if (!m) return;
+    try { save.introWatched = true; } catch(_){}
+    if (m === 'story' || m === 'sandbox') { try { save.mode = m; } catch(_){} }
+    setTimeout(function(){
+      try {
+        if ((m === 'story' || m === 'sandbox') && typeof startGame === 'function') startGame();
+        else console.log('[devboot] mode kräver server/coop:', m);
+        console.log('[devboot] startad mode=' + m + ' state.mode=' + (typeof state!=='undefined'?state.mode:'?'));
+      } catch(e){ console.log('[devboot-start]', e && e.message); }
+    }, 2000);
+  } catch(e){ console.log('[devboot-outer]', e && e.message); }
+})();
