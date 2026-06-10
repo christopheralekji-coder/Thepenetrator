@@ -85,6 +85,14 @@ function rewoundPosition(targetWs, shooterRtt) {
 // Returnerar true om enemy dog.
 function damageEnemy(e, dmg, isCrit, fromPid) {
   if (e.dead) return false;
+  // v2 #58 (additivt): sandbox-dummies är ODÖDLIGA — hit-flash men ingen hp-förlust.
+  // _sandboxDummy sätts bara av sandbox-stages (V1 skickar aldrig sandbox) → no-op för V1.
+  if (e._sandboxDummy) {
+    e.flashUntil = Date.now() + 80;
+    if (fromPid) e.lastDamagerPid = fromPid;
+    e.hp = e.maxHp;
+    return false;
+  }
   e.hp -= dmg;
   e.flashUntil = (Date.now() + 80);
   if (fromPid) e.lastDamagerPid = fromPid;

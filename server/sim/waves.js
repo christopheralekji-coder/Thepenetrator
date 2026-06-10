@@ -183,6 +183,9 @@ function stageFor(sim, w) {
 function updateZoneProgression(sim, dt) {
   const stage = stageFor(sim, sim.wave);
   if (!stage) return;
+  // v2 #58 (additivt): sandbox-stage = ingen progression/boss alls. V1-stages har
+  // aldrig sandbox-flaggan (sätts bara via saniterade customStages) → no-op för V1.
+  if (stage.sandbox) return;
   // Boss fail-safe (game.js:5878-5893)
   if (stage.bossKey && sim.bossSequenceStep === 0) {
     const zones = stage.zones || [];
@@ -316,6 +319,7 @@ function loadStage(sim, wave) {
   // Rensa enemies/bullets/dead-bodies från förra stage
   sim.enemies = [];
   sim.bullets = [];
+  sim._hasSandboxDummies = false;  // v2 #58: nollställ — sätts igen nedan om sandbox
   if (sim.gasClouds) sim.gasClouds = [];
   if (sim.flameTrails) sim.flameTrails = [];
   if (sim.deadBodies) sim.deadBodies = {};
@@ -323,6 +327,8 @@ function loadStage(sim, wave) {
   for (const [, ws] of sim.room.members) {
     if (ws.playerState) {
       ws.playerState.hp = 100;
+      // v2 #68 (additivt): stage-reset ger start-shield igen (V1: baseShield 0 → no-op)
+      if (sim.baseShield > 0) ws.playerState.shield = sim.baseShield;
       ws.playerState.x = stage.spawnPos.x;
       ws.playerState.y = stage.spawnPos.y;
       ws.playerState.invulnUntil = Date.now() + 1500;
@@ -331,15 +337,46 @@ function loadStage(sim, wave) {
   // Initiera alla peers playerState till stage spawn-pos så enemy-spawn + cull blir korrekt
   // tills första sim_input anländer från klient
   for (const [, ws] of sim.room.members) {
-    if (!ws.playerState) ws.playerState = { x: stage.spawnPos.x, y: stage.spawnPos.y, hp: 100 };
+    if (!ws.playerState) {
+      ws.playerState = { x: stage.spawnPos.x, y: stage.spawnPos.y, hp: 100 };
+      // v2 #68 (additivt): fräsch playerState ska också få start-shield (V1: 0 → no-op)
+      if (sim.baseShield > 0) {
+        ws.playerState.shield = sim.baseShield;
+        ws.playerState.maxShield = Math.max(100, sim.baseShield);
+      }
+    }
   }
-  // Starta första zon
-  startZone(sim, stage, 0);
+  if (stage.sandbox) {
+    // v2 #58 (additivt): SANDBOX — ingen zon/wave-progression, ingen boss. Spawna
+    // 6 ODÖDLIGA dummy-fiender i ring (250px) runt stage-center. De toppas upp
+    // varje tick i tickSim + skyddas i damageEnemy → kan aldrig dö.
+    sim.zoneState = 'idle';
+    sim.currentZone = 0;
+    sim.enemiesToSpawn = 0;
+    sim.activeZonePool = null;
+    const cx = stage.worldW / 2, cy = stage.worldH / 2;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const e = makeEnemy('grunt', cx + Math.cos(a) * 250, cy + Math.sin(a) * 250);
+      e.hp = 99999; e.maxHp = 99999;
+      e.dmg = 0; e.bulletDmg = 0;
+      e.speed = 0; e._origSpeed = 0;
+      e.gold = 0;
+      e._sandboxDummy = true;
+      e._idx = sim.nextEnemyIdx++;
+      sim.enemies.push(e);
+    }
+    sim._hasSandboxDummies = true;
+  } else {
+    // Starta första zon
+    startZone(sim, stage, 0);
+  }
   // 5-sekunders countdown vid varje stage-start så alla peers hinner synka position
   // och se "FÖRBERED 5..4..3..2..1" innan enemies börjar spawna
-  sim.simReadyAt = Date.now() + 5000;
+  // (v2 #62: längden styrbar via sim_start.countdownMs — V1 utan fältet = 5000 som förut)
+  sim.simReadyAt = Date.now() + (sim.countdownMs || 5000);
   sim.eventQueue.push({ type: 'stage_loaded', wave, stageName: stage.name, stageKind: stage.kind });
-  sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+  sim.eventQueue.push({ type: 'countdown_start', durationMs: sim.countdownMs || 5000 });
 }
 
 module.exports = {

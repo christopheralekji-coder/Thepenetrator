@@ -467,6 +467,8 @@ function tickSim(sim) {
       if (ws && ws.playerState) {
         ws.playerState.hp = p.hp;
         ws.playerState.invulnUntil = p.invulnUntil;
+        // v2 #68: skriv tillbaka shield-absorptionen (gated — V1 har baseShield 0)
+        if (sim.baseShield > 0 && !p._isCompanion) ws.playerState.shield = p.shield || 0;
       }
     }
   }
@@ -497,6 +499,15 @@ function tickSim(sim) {
 
   // Hazards: gasClouds + flameTrails — applicera DoT på spelare
   updateHazards(sim, dt, now, players);
+
+  // v2 #58 (additivt): SANDBOX-dummies är ODÖDLIGA — toppa upp hp + häv died-flaggan
+  // varje tick (täcker burn-DoT/explosioner/edge-paths utöver damageEnemy-guarden).
+  // Flaggan sätts bara av sandbox-stages (V1 skickar aldrig sandbox) → no-op för V1.
+  if (sim._hasSandboxDummies) {
+    for (const e of sim.enemies) {
+      if (e._sandboxDummy) { e.hp = e.maxHp; e.dead = false; }
+    }
+  }
 
   // Boss-death tracking + pickup-droppar
   if (sim.enemies.some(e => e.dead)) {
@@ -590,6 +601,8 @@ function updateRevive(sim, dt) {
             deadWs.playerState.x = body.x;
             deadWs.playerState.y = body.y;
             deadWs.playerState.hp = 50;
+            // v2 #68: revive ger start-shield igen (gated — V1 har baseShield 0)
+            if (sim.baseShield > 0) deadWs.playerState.shield = sim.baseShield;
             deadWs.playerState.invulnUntil = Date.now() + 2000;
           }
           delete sim.deadBodies[peerId];
@@ -637,6 +650,10 @@ function buildPlayerList(sim) {
       peerId: pid,
       x: ps.x, y: ps.y,
       hp: ps.hp != null ? ps.hp : 100,
+      // v2 #68 (additivt): shield i co-op-contact-damage-flödet — BARA när baseShield
+      // är satt (V1 skickar aldrig → 0 → applyContactDamage-absorben är no-op exakt
+      // som idag, även om gammal PvP-shield råkar ligga kvar på playerState).
+      shield: sim.baseShield > 0 ? (ps.shield || 0) : 0,
       // v1.430: inkludera aim + weaponId så broadcast-player-array har dem
       aim: typeof ps.aim === 'number' ? ps.aim : 0,
       weaponId: ps.weaponId || 'fists',
@@ -5838,6 +5855,9 @@ function broadcastWorld(sim, now) {
     c: (p._wsRef && p._wsRef.stableSlot != null) ? p._wsRef.stableSlot : i,
     x: Math.round(p.x), y: Math.round(p.y),
     hp: Math.round(p.hp),
+    // v2 #68 (additivt): shield i world-paketet. Binär-encodern (V1-webben)
+    // ignorerar okända fält → bara JSON-klienter (_jsonWorld/Godot) ser `sh`.
+    sh: Math.round((p._wsRef && p._wsRef.playerState && p._wsRef.playerState.shield) || 0),
     a: typeof p.aim === 'number' ? p.aim : 0,
     w: p.weaponId || 'fists',
     rT: Math.round(p.reviveTimer || 0),
@@ -6179,6 +6199,10 @@ function startSim(sim, opts) {
   sim.bullets = [];
   sim.enemies = [];
   sim.eventQueue.length = 0;
+  // v2 #62/#68 (additivt): nollställ per-match — V1 skickar aldrig fälten → 0 → no-op
+  sim.countdownMs = 0;
+  sim.baseShield = 0;
+  sim._hasSandboxDummies = false;
   if (opts) {
     if (opts.difficulty) sim.config.difficulty = opts.difficulty;
     if (opts.ngpLevel) sim.config.ngpLevel = opts.ngpLevel;
@@ -6187,6 +6211,10 @@ function startSim(sim, opts) {
     // v2-tillägg: dagliga modifiers (clampade i server.js, default 1 = no-op)
     if (opts.enemySpeedMul) sim.config.enemySpeedMul = opts.enemySpeedMul;
     if (opts.goldMul) sim.config.goldMul = opts.goldMul;
+    // v2 #62: countdown-längd (clampad 1000-8000 i server.js). 0 = default 5000 (3000 heist).
+    if (opts.countdownMs) sim.countdownMs = opts.countdownMs;
+    // v2 #68: start-shield i alla modes (clampad 0-100 i server.js). 0 = V1-beteende.
+    if (opts.baseShield > 0) sim.baseShield = Math.min(100, opts.baseShield);
     if (opts.tdm) {
       sim.tdmActive = true;
       sim.tdmTargetKills = opts.tdmTargetKills || 5;
@@ -6348,6 +6376,9 @@ function startSim(sim, opts) {
     }
   }
   console.log('[SIM]', sim.room.code, 'started mode=' + (sim.castledefenseActive ? 'castledefense' : (sim.battleroyaleActive ? 'battleroyale' : (sim.juggernautActive ? 'juggernaut' : (sim.ctfActive ? 'ctf' : (sim.tdmActive ? 'tdm' : sim.config.mode))))) + ' diff=' + sim.config.difficulty + (opts && opts.addBot ? ' +bot' : ''));
+  // v2 #62 (additivt): countdown-längd. V1 skickar aldrig countdownMs → cdMs = 5000
+  // exakt som de gamla hårdkodade värdena. Heist-grenen defaultar 3000 (som förut).
+  const cdMs = sim.countdownMs || 5000;
   // Anti-mode-leakage: rensa JUG-flaggor från ev. förra match på alla members.
   // Annars kan en spelare som var JUG i förra rundan behålla isJug=true / scaleMul=1.8
   // / speedMul=1.35 / dashCdMs=1000 / maxHp=500 in i nästa mode.
@@ -6365,10 +6396,19 @@ function startSim(sim, opts) {
     // co-op/story + castledefense/survivors/heist som saknade hp-reset.
     ws.playerState.hp = 100;
     ws.playerState.invulnUntil = Date.now() + 1500;
+    // v2 #68 (additivt): start-shield i ALLA modes (inkl. co-op-story + bots).
+    // V1 skickar aldrig baseShield → grenen körs aldrig → gammalt beteende exakt.
+    // PvP/CD/heist-grenarna nedan kan skriva över (PvP = 100 som förut).
+    if (sim.baseShield > 0) {
+      ws.playerState.shield = sim.baseShield;
+      if (!ws.playerState.maxShield || ws.playerState.maxShield < sim.baseShield) {
+        ws.playerState.maxShield = Math.max(100, sim.baseShield);
+      }
+    }
   }
   if (sim.ctfActive) {
     // CTF: dedikerad arena (4500×2800 med walls). Symmetrisk röd/blå.
-    sim.simReadyAt = Date.now() + 5000;
+    sim.simReadyAt = Date.now() + cdMs;
     // Init flag-state från CTF_ARENA
     for (const team of ['red', 'blue']) {
       const fs = CTF_ARENA.flags[team];
@@ -6435,11 +6475,11 @@ function startSim(sim, opts) {
       turretEnterRadius: CTF_ARENA.turretEnterRadius,
       decorations: CTF_ARENA.decorations || [],
     });
-    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: cdMs });
   } else if (sim.tdmActive) {
     // PvP-mode: dedikerad TDM-arena (4000×3000 öppet fält). Inget enemy-spawn,
     // ingen wave-progression. Lagen spawnar på motsatta sidor.
-    sim.simReadyAt = Date.now() + 5000;
+    sim.simReadyAt = Date.now() + cdMs;
     sim.tdmArena = { worldW: TDM_ARENA.worldW, worldH: TDM_ARENA.worldH, name: TDM_ARENA.name };
     const arena = sim.tdmArena;
     // Team-tilldelning först — alternering så lag blir jämna
@@ -6498,10 +6538,10 @@ function startSim(sim, opts) {
       pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type, weaponId: p.weaponId })),
       shieldMax: 100,
     });
-    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: cdMs });
   } else if (sim.siegeActive) {
     // SIEGE THE BASE: 5000×3000 arena med 2 cores + 6 capture-bases.
-    sim.simReadyAt = Date.now() + 5000;
+    sim.simReadyAt = Date.now() + cdMs;
     // Init cores
     sim.siegeCores = {};
     for (const c of SIEGE_ARENA.cores) {
@@ -6575,7 +6615,7 @@ function startSim(sim, opts) {
       pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
       shieldMax: 100,
     });
-    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: cdMs });
     // Bullets.js behöver kunna kalla endSiegeMatch när core förstörs.
     // Eftersom funktionen är local i denna fil exponerar vi via sim-objektet.
     sim._endSiegeMatch = endSiegeMatch;
@@ -6583,7 +6623,7 @@ function startSim(sim, opts) {
     // GUNGAME: FFA på 3500×2000 close-quarters arena, 15-tier progression.
     // Start-vapen är pistol (tier 0) — tidigare knife var för frustrerande.
     // Tier 15 = sledge (final melee humiliation).
-    sim.simReadyAt = Date.now() + 5000;
+    sim.simReadyAt = Date.now() + cdMs;
     // FFA — alla är fiender → använd max-spread så ingen spawnar bredvid varandra.
     const playerCount = sim.room.members.size;
     const spreadSpawns = pickSpreadSpawns(GUNGAME_ARENA.spawns, playerCount);
@@ -6619,12 +6659,12 @@ function startSim(sim, opts) {
       totalTiers: GUNGAME_WEAPONS.length,
       shieldMax: 100,
     });
-    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: cdMs });
     // Exponera promote/demote till bullets.js
     sim._endGungameMatch = endGungameMatch;
   } else if (sim.kothActive) {
     // KOTH: hold-the-hill FFA på 3500×2000 close-quarters arena.
-    sim.simReadyAt = Date.now() + 5000;
+    sim.simReadyAt = Date.now() + cdMs;
     // Bot:s vapen-roterande i KOTH — random från common-arsenal så de inte alla
     // har samma vapen. Riktiga spelare behåller sin equipped.
     const KOTH_BOT_WEAPONS = ['pistol', 'smg', 'rifle', 'shotgun', 'burstpistol', 'revolver'];
@@ -6674,14 +6714,14 @@ function startSim(sim, opts) {
       pvpPickups: sim.pvpPickups.map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
       shieldMax: 100,
     });
-    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: cdMs });
     sim._endKothMatch = endKothMatch;
   } else if (sim.juggernautActive) {
     // JUGGERNAUT: 5000×3500 underjordisk parkering. Random human blir initial JUG.
     // Spawn-logik: JUG ensam på ena sidan, ALLA HUNTERS klustrade på motsatt sida
     // — så hunters kan koordinera mot JUG direkt utan att JUG kan one-shot:a en
     // ensam hunter vid match-start.
-    sim.simReadyAt = Date.now() + 5000;
+    sim.simReadyAt = Date.now() + cdMs;
     const humanIds = [];
     const allPids = [];
     for (const [pid, ws] of sim.room.members) {
@@ -6770,13 +6810,13 @@ function startSim(sim, opts) {
       matchEndAt: sim.juggernautEndAt,
       minimapPulseIntervalMs: JUGGERNAUT_ARENA.minimapPulseIntervalMs,
     });
-    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: cdMs });
     // Exponera kill-handler + dmg-tracker till bullets.js
     sim._handleJuggernautKill = handleJuggernautKill;
     sim._trackJuggernautDmg = trackJuggernautDmg;
   } else if (sim.battleroyaleActive) {
     // BATTLE ROYALE: 6000×6000 FFA no-respawn arena. Krympande zon.
-    sim.simReadyAt = Date.now() + 5000;
+    sim.simReadyAt = Date.now() + cdMs;
     const arena = BATTLEROYALE_ARENA;
     // Initial zon = täcker HELA kartan inklusive hörn. Diagonal/2 + buffer.
     // För 10000×10000 ger sqrt(2)*5000 ≈ 7071, +200 buffer = 7272 så hörn-spawns ligger inne.
@@ -6920,7 +6960,7 @@ function startSim(sim, opts) {
       lootPickupRadius: arena.lootPickupRadius,
       shieldMax: arena.maxShield,
     });
-    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: cdMs });
     sim._endBattleRoyaleMatch = endBattleRoyaleMatch;
     sim._handleBattleRoyaleKill = handleBattleRoyaleKill;
     // DEBUG: gulagPractice → droppa host + bot direkt i valt gulag-spel (solo-bugfix)
@@ -6929,7 +6969,7 @@ function startSim(sim, opts) {
     }
   } else if (sim.castledefenseActive) {
     // CASTLE DEFENSE init — fasta walls + core + spawn-spelare inne i castle
-    sim.simReadyAt = Date.now() + 5000;
+    sim.simReadyAt = Date.now() + cdMs;
     const arena = CASTLEDEFENSE_ARENA;
     // Runtime-kopia av walls så vi kan mutera hp utan att röra arena-konstanten
     sim.castledefenseWalls = arena.walls.map(w => ({ ...w }));
@@ -6956,8 +6996,9 @@ function startSim(sim, opts) {
       ws.playerState.y = sp.y;
       ws.playerState.hp = arena.startHp;
       ws.playerState.maxHp = arena.maxHp;
-      ws.playerState.shield = arena.startShield;
-      ws.playerState.maxShield = arena.maxShield;
+      // v2 #68: explicit baseShield vinner; annars arena-default (100) som förut.
+      ws.playerState.shield = sim.baseShield > 0 ? sim.baseShield : arena.startShield;
+      ws.playerState.maxShield = Math.max(arena.maxShield, sim.baseShield || 0);
       ws.playerState.invulnUntil = Date.now() + 2000;
       ws.playerState.weaponId = arena.startWeapon;
       ws.playerState.isJug = false;
@@ -7023,10 +7064,11 @@ function startSim(sim, opts) {
       waveBetweenEndAt: sim.castledefenseWaveBetweenEndAt,
       bossEveryWave: arena.bossEveryWave,
     });
-    sim.eventQueue.push({ type: 'countdown_start', durationMs: 5000 });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: cdMs });
   } else if (sim.heistActive) {
     // v1.619: HEIST init — bank-rån. Player spawnar utanför front-door.
-    sim.simReadyAt = Date.now() + 3000;
+    // v2 #62: explicit countdownMs vinner; annars 3000 som förut.
+    sim.simReadyAt = Date.now() + (sim.countdownMs || 3000);
     const arena = HEIST_ARENA;
     // Spawn alla players på street utanför banken
     let hIdx = 0;
@@ -7037,7 +7079,8 @@ function startSim(sim, opts) {
       ws.playerState.y = spawn.y;
       ws.playerState.hp = arena.startHp || 100;
       ws.playerState.maxHp = arena.maxHp || 100;
-      ws.playerState.shield = arena.startShield || 0;
+      // v2 #68: explicit baseShield vinner; annars arena-default (0) som förut.
+      ws.playerState.shield = sim.baseShield > 0 ? sim.baseShield : (arena.startShield || 0);
       ws.playerState.maxShield = arena.maxShield || 100;
       ws.playerState.weaponId = arena.startWeapon || 'pistol';
       ws.playerState.invulnUntil = Date.now() + 3000;
@@ -7109,7 +7152,7 @@ function startSim(sim, opts) {
       lootSpots: arena.lootSpots,
       playerSpawns: arena.playerSpawns,
     });
-    sim.eventQueue.push({ type: 'countdown_start', durationMs: 3000 });
+    sim.eventQueue.push({ type: 'countdown_start', durationMs: sim.countdownMs || 3000 });
   } else {
     loadStage(sim, sim.wave);
   }

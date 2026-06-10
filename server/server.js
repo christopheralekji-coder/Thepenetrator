@@ -901,6 +901,9 @@ function handleMessage(ws, msg) {
         })) : [{ count: 8, pool: ['grunt'] }],
         bgColor: String(s.bgColor || '#2a2a30').slice(0, 9),
         accentColor: String(s.accentColor || '#10101a').slice(0, 9),
+        // v2 #58 (additivt): sandbox-stage — ingen wave-progression/boss, 6 odödliga
+        // dummy-fiender i ring runt stage-center. V1 skickar aldrig fältet → undefined.
+        sandbox: s.sandbox === true ? true : undefined,
       }));
     }
     room.sim = createSim(room);
@@ -924,6 +927,10 @@ function handleMessage(ws, msg) {
       // v2-tillägg: dagliga modifiers (clampade, default 1 = no-op)
       enemySpeedMul: Math.max(0.5, Math.min(2.0, +msg.enemySpeedMul || 1)),
       goldMul: Math.max(0.5, Math.min(3.0, +msg.goldMul || 1)),
+      // v2 #62 (additivt): countdown-längd. V1 skickar aldrig → 0 → default (5000/3000 heist).
+      countdownMs: msg.countdownMs ? Math.max(1000, Math.min(8000, Math.round(+msg.countdownMs) || 0)) : 0,
+      // v2 #68 (additivt): start-shield i alla modes. V1 skickar aldrig → 0 → exakt gammalt beteende.
+      baseShield: Math.max(0, Math.min(100, Math.round(+msg.baseShield) || 0)),
       tdm: msg.tdm,
       tdmTargetKills: msg.tdmTargetKills,
       ctf: msg.ctf,
@@ -988,6 +995,58 @@ function handleMessage(ws, msg) {
     stopSim(room.sim);
     room.sim = null;  // v1.771: håll invarianten "om room.sim existerar är den aktiv"
     if (room.meta) room.meta.started = false;
+    broadcastPublicRooms();
+    return;
+  }
+
+  // v2 #60 (additivt): host kan sparka spelare/bot ur rummet. V1-webben skickar
+  // aldrig kick_peer → handlern är död kod för V1. Bot → bort ur rum+sim;
+  // människa → {type:'kicked'} + ws-close + samma städning som disconnect.
+  if (msg.type === 'kick_peer') {
+    const room = rooms.get(ws.roomCode);
+    if (!room) return;
+    if (room.hostId !== ws.id) return;                 // bara host
+    const peerId = typeof msg.peerId === 'string' ? msg.peerId : '';
+    if (!peerId || peerId === ws.id) return;           // kan inte kicka sig själv
+    const target = room.members.get(peerId);
+    if (!target) return;
+    if (target._isBot) {
+      // BOT: ta bort ur rummet + sim (botIds + per-pid sim-state, mirror av disconnect-städning)
+      room.members.delete(peerId);
+      if (target.stableSlot != null && target.stableSlot !== 0 && room._freeSlots) {
+        room._freeSlots.push(target.stableSlot);
+      }
+      if (room.sim) {
+        const _s = room.sim;
+        if (_s._botIds) _s._botIds = _s._botIds.filter(id => id !== peerId);
+        if (_s.deadBodies) delete _s.deadBodies[peerId];
+        if (_s.kothScores) delete _s.kothScores[peerId];
+        if (_s._kothPointAccum) delete _s._kothPointAccum[peerId];
+        if (_s.juggernautScores) delete _s.juggernautScores[peerId];
+        if (_s.battleroyaleKillsByPid) delete _s.battleroyaleKillsByPid[peerId];
+        if (_s.tdmDeathsByPid) delete _s.tdmDeathsByPid[peerId];
+        if (_s.battleroyaleActive && _s.battleroyaleEliminated && !_s.battleroyaleEliminated.includes(peerId)) {
+          _s.battleroyaleEliminated.push(peerId);
+          if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1);
+        }
+        if (_s.juggernautActive && _s.juggernautPid === peerId) {
+          _s.juggernautPid = null;
+          _s._juggernautAwaitFirstRespawn = true;
+          _s.eventQueue.push({ type: 'juggernaut_jug_changed', newJug: null, oldJug: peerId, reason: 'jug_disconnected', weapon: _s.juggernautWeapon, jugHp: _s.juggernautHpMax });
+        }
+      }
+      console.log('[ROOM]', room.code, 'bot', peerId, 'kicked by host');
+    } else {
+      // MÄNNISKA: meddela offret, städa som disconnect, stäng socketen.
+      send(target, { type: 'kicked' });
+      handleDisconnect(target);
+      target.roomCode = null;            // close-eventets handleDisconnect no-op:ar då
+      try { target.close(); } catch (e) {}
+      console.log('[ROOM]', room.code, peerId, 'kicked by host');
+    }
+    for (const [, m] of room.members) {
+      if (!m._isBot) send(m, { type: 'peer_kicked', peerId });
+    }
     broadcastPublicRooms();
     return;
   }
@@ -1628,6 +1687,42 @@ function handleMessage(ws, msg) {
   if (msg.type === 'sim_stresstest') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim || !room.sim.stresstestActive) return;
+    // v2 #59 (additivt): `what`-varianten — host-only spawn av n enemies/kulor.
+    // V1-webben skickar bara `action` (grenen nedan) → helt opåverkad.
+    if (msg.what === 'enemies' || msg.what === 'bullets') {
+      if (room.hostId !== ws.id) return;  // bara host
+      const sim = room.sim;
+      const ws2 = sim.room.members.get(ws.id);
+      if (!ws2 || !ws2.playerState) return;
+      const px = ws2.playerState.x, py = ws2.playerState.y;
+      if (msg.what === 'enemies') {
+        const n = Math.max(1, Math.min(100, Math.round(+msg.n) || 20));
+        const { makeEnemy } = require('./sim/enemies');
+        const types = ['grunt', 'runner', 'brute'];
+        for (let i = 0; i < n; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const dist = 400 + Math.random() * 300;
+          const t = types[Math.floor(Math.random() * types.length)];
+          const e = makeEnemy(t, px + Math.cos(a) * dist, py + Math.sin(a) * dist);
+          e._idx = sim.nextEnemyIdx++;
+          sim.enemies.push(e);
+        }
+      } else {
+        const n = Math.max(1, Math.min(200, Math.round(+msg.n) || 50));
+        for (let i = 0; i < n; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const dist = 250 + Math.random() * 350;
+          const speed = 180 + Math.random() * 120;
+          // Fiende-kulor radiellt INÅT mot avsändaren (samma shape som spawnHostileBullet)
+          sim.bullets.push({
+            x: px + Math.cos(a) * dist, y: py + Math.sin(a) * dist,
+            vx: -Math.cos(a) * speed, vy: -Math.sin(a) * speed,
+            dmg: 5, life: 2, r: 4, color: '#ff5a5a', hostile: true,
+          });
+        }
+      }
+      return;
+    }
     if (msg.action === 'enemies') {
       const sim = room.sim;
       const count = Math.max(1, Math.min(100, +msg.count || 20));
