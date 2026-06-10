@@ -871,12 +871,48 @@ function handleMessage(ws, msg) {
         }
       }
     }
+    // v2-tillägg (additivt): custom stage-listor (Godot endless/bossrush m.fl.).
+    // Saniteras hårt — utan fältet är beteendet EXAKT som förut.
+    let customStages = null;
+    if (Array.isArray(msg.customStages) && msg.customStages.length > 0) {
+      const okTypes = new Set(['grunt', 'runner', 'brute', 'shooter', 'ninja', 'swordsman', 'soldier', 'robot', 'dog', 'healer', 'summoner', 'swarmer', 'swordsman', 'sniper', 'bomber']);
+      const num = (v, d, lo, hi) => Math.max(lo, Math.min(hi, +v || d));
+      customStages = msg.customStages.slice(0, 60).map((s, i) => ({
+        id: String(s.id || ('custom' + (i + 1))).slice(0, 32),
+        name: String(s.name || ('STAGE ' + (i + 1))).slice(0, 40),
+        kind: String(s.kind || 'forest').slice(0, 16),
+        worldW: num(s.worldW, 2000, 800, 6000),
+        worldH: num(s.worldH, 2800, 800, 6000),
+        spawnPos: { x: num(s.spawnPos && s.spawnPos.x, 1000, 50, 6000), y: num(s.spawnPos && s.spawnPos.y, 2600, 50, 6000) },
+        goalPos: { x: num(s.goalPos && s.goalPos.x, 1000, 50, 6000), y: num(s.goalPos && s.goalPos.y, 200, 50, 6000) },
+        goalRadius: num(s.goalRadius, 100, 40, 300),
+        bossKey: s.bossKey ? String(s.bossKey).slice(0, 24) : undefined,
+        miniBosses: Array.isArray(s.miniBosses) ? s.miniBosses.slice(0, 4).map(m => ({
+          type: okTypes.has(String(m.type)) ? String(m.type) : 'brute',
+          name: String(m.name || 'ELITE').slice(0, 28),
+          power: String(m.power || 'caster').slice(0, 20),
+          hpMul: num(m.hpMul, 8, 1, 40), dmgMul: num(m.dmgMul, 1.5, 0.5, 4),
+          scale: num(m.scale, 1.3, 1, 2.2), gold: num(m.gold, 150, 0, 3000),
+        })) : undefined,
+        zones: Array.isArray(s.zones) ? s.zones.slice(0, 8).map(z => ({
+          count: num(z.count, 8, 1, 50),
+          pool: Array.isArray(z.pool) ? z.pool.filter(t => okTypes.has(String(t))).slice(0, 6) : ['grunt'],
+          event: z.event ? String(z.event).slice(0, 24) : undefined,
+        })) : [{ count: 8, pool: ['grunt'] }],
+        bgColor: String(s.bgColor || '#2a2a30').slice(0, 9),
+        accentColor: String(s.accentColor || '#10101a').slice(0, 9),
+      }));
+    }
     room.sim = createSim(room);
+    if (customStages) room.sim.customStagesList = customStages;
     startSim(room.sim, {
       difficulty: msg.difficulty,
       ngpLevel: msg.ngpLevel,
       mode: msg.mode,
       wave: msg.wave,
+      // v2-tillägg: dagliga modifiers (clampade, default 1 = no-op)
+      enemySpeedMul: Math.max(0.5, Math.min(2.0, +msg.enemySpeedMul || 1)),
+      goldMul: Math.max(0.5, Math.min(3.0, +msg.goldMul || 1)),
       tdm: msg.tdm,
       tdmTargetKills: msg.tdmTargetKills,
       ctf: msg.ctf,

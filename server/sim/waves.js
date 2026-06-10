@@ -161,15 +161,27 @@ function spawnEnemyAtEdge(sim, stage, players) {
   e.hp = Math.round(e.hp * scale * diff.enemyHp * ngpMul * coopMul);
   e.maxHp = e.hp;
   e.dmg = Math.round(e.dmg * scale * diff.enemyDmg * ngpMul * (1 + (coopMul - 1) * 0.5));
+  // v2-tillägg (additivt): daglig modifier kan skala enemy-speed (clampad i server.js)
+  if (sim.config && sim.config.enemySpeedMul && sim.config.enemySpeedMul !== 1) {
+    e.speed *= sim.config.enemySpeedMul;
+  }
   e._origSpeed = e.speed;
   if (e.bulletDmg) e.bulletDmg = Math.round(e.bulletDmg * diff.enemyDmg * ngpMul);
   e._idx = sim.nextEnemyIdx++;
   sim.enemies.push(e);
 }
 
+// v2-tillägg (additivt): custom stage-listor (endless/bossrush/m.fl. från Godot-
+// klienten via sim_start.customStages, saniterade i server.js). Utan lista =
+// exakt gamla beteendet (STAGES via getStage) — webb-klienter opåverkade.
+function stageFor(sim, w) {
+  const cs = sim && sim.customStagesList;
+  return (cs && cs[w - 1]) || getStage(w);
+}
+
 // Update wave progression — mirror av game.js:5877-5934
 function updateZoneProgression(sim, dt) {
-  const stage = getStage(sim.wave);
+  const stage = stageFor(sim, sim.wave);
   if (!stage) return;
   // Boss fail-safe (game.js:5878-5893)
   if (stage.bossKey && sim.bossSequenceStep === 0) {
@@ -249,7 +261,7 @@ function updateZoneProgression(sim, dt) {
 // Boss-defeat tracking (kallas från damageEnemy när boss dör)
 function checkBossDeath(sim, deadEntity) {
   if (!deadEntity.isBoss) return;
-  const stage = getStage(sim.wave);
+  const stage = stageFor(sim, sim.wave);
   if (!stage) return;
   // Stage med två-boss-sekvens
   if (stage.bossKey2 && sim.bossSequenceStep === 1) {
@@ -267,7 +279,7 @@ function isStageComplete(sim) {
   if (!sim.waveActive) return false;
   if (!sim.bossDefeated) return false;
   if (sim.enemies.length > 0) return false;
-  const stage = getStage(sim.wave);
+  const stage = stageFor(sim, sim.wave);
   if (stage && stage.bossKey2 && sim.bossSequenceStep < 2) return false;
   return true;
 }
@@ -283,7 +295,7 @@ function onWaveComplete(sim) {
 
 // Init eller load nästa stage
 function loadStage(sim, wave) {
-  const stage = getStage(wave);
+  const stage = stageFor(sim, wave);
   if (!stage) return;
   sim.wave = wave;
   sim.waveActive = true;

@@ -11,8 +11,8 @@ const OUT = path.resolve(__dirname, '..', '..', 'WarParty-V2', 'assets', 'weapon
   await page.goto('http://localhost:8799/index.html', { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForTimeout(4000);
 
-  const ids = ['pistol', 'smg', 'rifle', 'shotgun', 'sniper', 'revolver', 'minigun', 'rocket',
-    'burstpistol', 'grenadelauncher', 'lmg', 'ar', 'uzi', 'mp5', 'flamethrower', 'railgun', 'crossbow'];
+  // ALLA vapen ur shared/weapons-data (42 st) — okända id:n hoppar getWeaponIconHTML-checken
+  const ids = require('../shared/weapons-data').WEAPONS.map(w => w.id);
 
   const present = await page.evaluate((ids) => {
     const out = { have: [], host: null };

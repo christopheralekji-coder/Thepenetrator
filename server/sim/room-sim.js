@@ -415,7 +415,7 @@ function tickSim(sim) {
   if (sim.waveActive && sim.enemiesToSpawn > 0 && !timeStopped) {
     sim.spawnTimer -= dt;
     if (sim.spawnTimer <= 0 && sim.enemies.length < (sim.stresstestActive ? 1500 : ENEMY_CAP)) {
-      const stage = getStage(sim.wave);
+      const stage = _stageFor(sim, sim.wave);
       const players = buildPlayerList(sim);
       const beforeCount = sim.enemies.length;
       if (stage) spawnEnemyAtEdge(sim, stage, players);
@@ -443,7 +443,7 @@ function tickSim(sim) {
         updateEnemy(e, dt, now, sim, players);
       }
       // World bounds (förenklad)
-      const stage = getStage(sim.wave);
+      const stage = _stageFor(sim, sim.wave);
       const ww = stage ? stage.worldW : 4000;
       const wh = stage ? stage.worldH : 3000;
       e.x = Math.max(20, Math.min(ww - 20, e.x));
@@ -503,7 +503,7 @@ function tickSim(sim) {
         e._miniBossNextSpawned = true;
         // Använd top-level imports (require är hot-loop-noise + crashar mid-tick
         // om modul-load fail. getStage + makeEnemy redan importerade.)
-        const stage = getStage(sim.wave);
+        const stage = _stageFor(sim, sim.wave);
         const list = stage && (stage.miniBosses || (stage.miniBoss ? [stage.miniBoss] : []));
         if (list && (sim.miniBossesSpawned || 0) < list.length) {
           sim._miniInterludeActive = true;
@@ -611,8 +611,15 @@ function updateRevive(sim, dt) {
   }
 }
 
+// v2-tillägg (additivt): custom stage-listor (Godot-klientens endless/bossrush m.fl.)
+// — utan lista används STAGES exakt som förut.
+function _stageFor(sim, w) {
+  const cs = sim && sim.customStagesList;
+  return (cs && cs[w - 1]) || getStage(w);
+}
+
 function buildPlayerList(sim) {
-  const stage = getStage(sim.wave);
+  const stage = _stageFor(sim, sim.wave);
   const defaultX = stage ? stage.spawnPos.x : 1000;
   const defaultY = stage ? stage.spawnPos.y : 1000;
   const players = [];
@@ -3589,7 +3596,7 @@ function tickCastleDefense(sim, dt, now) {
             for (const [pid, ws] of sim.room.members) {
               if (ws.playerState && ws.playerState.hp > 0) alivePids.push(pid);
             }
-            const share = alivePids.length > 0 ? Math.floor(goldGain / alivePids.length) : goldGain;
+            const share = Math.round((alivePids.length > 0 ? Math.floor(goldGain / alivePids.length) : goldGain) * (sim.config.goldMul || 1));
             for (const pid of alivePids) {
               sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + share;
               sim.eventQueue.push({
@@ -3603,7 +3610,7 @@ function tickCastleDefense(sim, dt, now) {
             for (const [pid, ws] of sim.room.members) {
               if (ws.playerState && ws.playerState.hp > 0) survAlive.push(pid);
             }
-            const survShare = survAlive.length > 0 ? Math.floor(goldGain / survAlive.length) : goldGain;
+            const survShare = Math.round((survAlive.length > 0 ? Math.floor(goldGain / survAlive.length) : goldGain) * (sim.config.goldMul || 1));
             for (const pid of survAlive) {
               sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + survShare;
               sim.eventQueue.push({
@@ -3650,7 +3657,7 @@ function tickCastleDefense(sim, dt, now) {
       nextTheme, nextThemeLabel: cdGetThemeLabel(nextTheme),
     });
     // Wave-clear gold-bonus + grenades + shield-regen så player är redo för nästa våg
-    const bonus = (arena.waveBonusBase || 150) + sim.castledefenseWave * (arena.waveBonusPerWave || 30);
+    const bonus = Math.round(((arena.waveBonusBase || 150) + sim.castledefenseWave * (arena.waveBonusPerWave || 30)) * (sim.config.goldMul || 1));
     const grenadeGrant = arena.grenadesPerWave || 2;
     const shieldRegen = arena.shieldRegenPerWave || 50;
     for (const [pid, ws] of sim.room.members) {
@@ -5891,6 +5898,10 @@ function broadcastWorld(sim, now) {
           i: e._idx, x: ex, y: ey, hp: eh, mh: e.maxHp,
           t: e.type, b: e.isBoss ? 1 : 0, mb: e.isMiniBoss ? 1 : 0,
           bk: e.bossKey || '', r: e.r, c: e.color, n: e.name || '', p: e.phase || 0,
+          // v2-tillägg (JSON-klienter; binär-encodern ignorerar okända fält):
+          // fx = status-bitfält (1=burn, 2=slow), g = guld-värde (story-ekonomi)
+          fx: ((e.burnUntil && e.burnUntil > now ? 1 : 0) | (e.slowUntil && e.slowUntil > now ? 2 : 0)),
+          g: e.gold || 0,
         });
       } else {
         enemiesPkt.push({ i: e._idx, x: ex, y: ey, hp: eh });
@@ -5967,6 +5978,24 @@ function broadcastWorld(sim, now) {
         w: sim.wave, cz: sim.currentZone, zs: sim.zoneState,
         bss: sim.bossSequenceStep, bd: sim.bossDefeated ? 1 : 0,
       };
+      // v2-tillägg: gas/flame-hazards (server-skadan får inte vara osynlig).
+      // Cullas mot spelaren, cap 40. k: 0=gas, 1=flame. lf = liv-fraktion.
+      if ((sim.gasClouds && sim.gasClouds.length) || (sim.flameTrails && sim.flameTrails.length)) {
+        const hz = [];
+        for (const g of (sim.gasClouds || [])) {
+          if (hz.length >= 40) break;
+          if (Math.abs(g.x - px) < 1300 && Math.abs(g.y - py) < 1300) {
+            hz.push({ x: Math.round(g.x), y: Math.round(g.y), r: Math.round(g.r), k: 0, lf: Math.round((g.life / (g.maxLife || g.life || 1)) * 100) / 100 });
+          }
+        }
+        for (const f of (sim.flameTrails || [])) {
+          if (hz.length >= 40) break;
+          if (Math.abs(f.x - px) < 1300 && Math.abs(f.y - py) < 1300) {
+            hz.push({ x: Math.round(f.x), y: Math.round(f.y), r: Math.round(f.r), k: 1, lf: Math.round(Math.min(1, f.life / 2.5) * 100) / 100 });
+          }
+        }
+        if (hz.length) pkt.hz = hz;
+      }
       if (ws && ws.readyState === 1 && ws.bufferedAmount <= 65536) {
         pkt.type = 'world';
         try { ws.send(JSON.stringify(pkt)); } catch (e) {}
@@ -6146,6 +6175,9 @@ function startSim(sim, opts) {
     if (opts.ngpLevel) sim.config.ngpLevel = opts.ngpLevel;
     if (opts.mode) sim.config.mode = opts.mode;
     if (opts.wave) sim.wave = opts.wave;
+    // v2-tillägg: dagliga modifiers (clampade i server.js, default 1 = no-op)
+    if (opts.enemySpeedMul) sim.config.enemySpeedMul = opts.enemySpeedMul;
+    if (opts.goldMul) sim.config.goldMul = opts.goldMul;
     if (opts.tdm) {
       sim.tdmActive = true;
       sim.tdmTargetKills = opts.tdmTargetKills || 5;
