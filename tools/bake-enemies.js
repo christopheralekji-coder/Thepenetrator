@@ -22,6 +22,26 @@ const OUT = path.resolve(__dirname, '..', '..', 'WarParty-V2', 'assets');
       { key: 'enemy_brute', type: 'brute', r: 28, color: '#6a4030' },
       { key: 'enemy_soldier', type: 'soldier', r: 20, color: '#5a8a3a' },
       { key: 'enemy_ninja', type: 'ninja', r: 18, color: '#1a1a2a' },
+      // resterande story-typer (STAGES zone-pools)
+      { key: 'enemy_dog', type: 'dog', r: 16, color: '#7a5a3a' },
+      { key: 'enemy_robot', type: 'robot', r: 22, color: '#6a7a8a' },
+      { key: 'enemy_shooter', type: 'shooter', r: 20, color: '#5a7a4a' },
+      { key: 'enemy_sniper', type: 'sniper', r: 19, color: '#3a5a8a' },
+      { key: 'enemy_bomber', type: 'bomber', r: 21, color: '#aa5a2a' },
+      { key: 'enemy_healer', type: 'healer', r: 19, color: '#3aaa7a' },
+      { key: 'enemy_summoner', type: 'summoner', r: 21, color: '#7a3aaa' },
+      { key: 'enemy_swarmer', type: 'swarmer', r: 14, color: '#aaaa3a' },
+      { key: 'enemy_swordsman', type: 'swordsman', r: 20, color: '#8a3a3a' },
+      // minibossar (MINIBOSS_DRAW per power, r 32 som V1:s bake)
+      { key: 'mb_caster', type: 'grunt', r: 32, color: '#aa3a3a', miniPower: 'caster' },
+      { key: 'mb_tank_charger', type: 'grunt', r: 32, color: '#aa3a3a', miniPower: 'tank_charger' },
+      { key: 'mb_cloaker', type: 'grunt', r: 32, color: '#aa3a3a', miniPower: 'cloaker' },
+      { key: 'mb_brute_charger', type: 'grunt', r: 32, color: '#aa3a3a', miniPower: 'brute_charger' },
+      { key: 'mb_gas_sniper', type: 'grunt', r: 32, color: '#aa3a3a', miniPower: 'gas_sniper' },
+      { key: 'mb_jetpack', type: 'grunt', r: 32, color: '#aa3a3a', miniPower: 'jetpack' },
+      { key: 'mb_plasma', type: 'grunt', r: 32, color: '#aa3a3a', miniPower: 'plasma' },
+      { key: 'mb_shielder', type: 'grunt', r: 32, color: '#aa3a3a', miniPower: 'shielder' },
+      { key: 'mb_avatar', type: 'grunt', r: 32, color: '#aa3a3a', miniPower: 'avatar' },
     ];
     const res = { _hasPixi: typeof PIXI !== 'undefined', _meta: {} };
     for (const it of list) {
