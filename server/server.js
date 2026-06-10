@@ -905,6 +905,17 @@ function handleMessage(ws, msg) {
     }
     room.sim = createSim(room);
     if (customStages) room.sim.customStagesList = customStages;
+    // v2: PvE-stage-väggar från Godot-klienten (story-byggnader per wave) — kulor
+    // stoppas server-side (bullets.js _pveWalls). Saniterat: max 60 stages × 120
+    // walls, talen clampade. V1-webben skickar aldrig fältet → no-op.
+    if (Array.isArray(msg.stageWalls)) {
+      const wnum = (v, d, lo, hi) => Math.max(lo, Math.min(hi, +v || d));
+      room.sim.stageWallsList = msg.stageWalls.slice(0, 60).map((list) =>
+        Array.isArray(list) ? list.slice(0, 120).map((r) => ({
+          x: wnum(r.x, 0, -2000, 12000), y: wnum(r.y, 0, -2000, 12000),
+          w: wnum(r.w, 10, 1, 4000), h: wnum(r.h, 10, 1, 4000),
+        })) : []);
+    }
     startSim(room.sim, {
       difficulty: msg.difficulty,
       ngpLevel: msg.ngpLevel,

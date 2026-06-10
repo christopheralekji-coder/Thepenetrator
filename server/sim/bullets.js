@@ -582,6 +582,28 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
 
 // v2: Studsskott-perken — reflektera kulan EN gång vid vägg-träff istället för
 // att dö. Hittar blockerande axel via enaxlig swept-probe. Returnerar true om studsad.
+// v2: aktuella PvE-stage-väggar (sim_start.stageWalls per wave / customStages[].walls).
+// Cacheas per wave. null i PvP-modes eller när inga walls finns (= V1-beteende).
+function _pveWalls(sim) {
+  if (sim.tdmActive || sim.ctfActive || sim.siegeActive || sim.gungameActive ||
+      sim.kothActive || sim.juggernautActive || sim.battleroyaleActive ||
+      sim.castledefenseActive || sim.heistActive) return null;
+  if (sim._pveWallsWave === sim.wave) return sim._pveWalls || null;
+  sim._pveWallsWave = sim.wave;
+  let w = null;
+  const idx = Math.max(0, (sim.wave || 1) - 1);
+  if (sim.customStagesList && sim.customStagesList.length) {
+    const st = sim.customStagesList[Math.min(idx, sim.customStagesList.length - 1)];
+    if (st && Array.isArray(st.walls) && st.walls.length) w = st.walls;
+  }
+  if (!w && Array.isArray(sim.stageWallsList)) {
+    const sw = sim.stageWallsList[idx];   // utanför listan (endless wave 10+) = inga walls
+    if (Array.isArray(sw) && sw.length) w = sw;
+  }
+  sim._pveWalls = w;
+  return w;
+}
+
 function ricochetOff(b, walls) {
   if (!b.ricochet || b.bounced || b.hostile) return false;
   b.bounced = true;
@@ -871,6 +893,19 @@ function updateBullets(sim, dt, now) {
     // GULAG (v1.795): kulor från off-map-duellen (13000+) cullas EJ på map-bounds —
     // bara på life-ut/explosion. Annars dog de direkt och nådde aldrig motståndaren.
     if (b.life <= 0 || (!b.gulag && (b.x < 0 || b.y < 0 || b.x > worldMaxX || b.y > worldMaxY))) {
+      if (b.explosive && !b.hostile) {
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+      }
+      bullets.splice(i, 1);
+      continue;
+    }
+    // v2: PvE-STAGE-VÄGGAR (story-familjen) — Godot-klienten skickar byggnads-rects i
+    // sim_start.stageWalls (per wave) / customStages[].walls. Skott (även fiende-skott)
+    // stoppas så man inte kan skjuta genom hus. V1-webben skickar aldrig fältet
+    // (solo-story kör lokal sim med klient-kollision) → exakt gamla beteendet utan walls.
+    const _pveW = _pveWalls(sim);
+    if (_pveW && bulletHitsWall(b, _pveW)) {
+      if (ricochetOff(b, _pveW)) continue;
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
       }
