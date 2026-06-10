@@ -414,7 +414,15 @@ function handleMessage(ws, msg) {
     // ignorerar okända fält → V1 opåverkad. Godot-joiners behöver slotten för
     // att hitta SIG SJÄLVA i world-paketens players[].c (annars doppelgänger +
     // ingen server-auth hp/shield-synk). `code` = F3 (joiner-UI visar rumskod).
-    send(ws, { type: 'joined', peerId: ws.id, hostId: room.hostId, stableSlot: ws.stableSlot, code });
+    // E2E-fynd 1: joiners fick aldrig pid→slot för TIDIGARE medlemmar (rå peerId
+    // i kill-feed, slumpad bot-outfit på riktiga spelare, ingen lagfärg). Additiv
+    // members-lista (exkl. joinern själv) — V1 ignorerar okända fält.
+    const memberList = [];
+    for (const [mpid, mm] of room.members) {
+      if (mpid === ws.id) continue;
+      memberList.push({ id: mpid, name: mm.playerName || '', slot: mm.stableSlot != null ? mm.stableSlot : -1 });
+    }
+    send(ws, { type: 'joined', peerId: ws.id, hostId: room.hostId, stableSlot: ws.stableSlot, code, members: memberList });
     // Meddela host — inkludera stableSlot så host:s klient bygger slotToPeerId
     // med det stabila slot-numret (annars räknas colorIdx om vid varje join).
     const host = room.members.get(room.hostId);
@@ -1182,8 +1190,11 @@ function handleMessage(ws, msg) {
     return;
   }
   if (msg.type === 'server_ping') {
-    // Echo tillbaka klient-timestamp så de kan beräkna RTT mot servern
-    send(ws, { type: 'server_pong', t: msg.t });
+    // Echo tillbaka klient-timestamp så de kan beräkna RTT mot servern.
+    // st (additivt, transport-pass 2026-06-10): serverns klocka vid svar —
+    // klienten kan kalibrera server-tid-offset (RTT/2-metoden) för sin
+    // interpolationsbuffert. V1-webben läser bara t → opåverkad.
+    send(ws, { type: 'server_pong', t: msg.t, st: Date.now() });
     return;
   }
   // Lag comp: klient ekar tillbaka RTT-ping. Server beräknar RTT och sparar.
@@ -1808,7 +1819,7 @@ function handleMessage(ws, msg) {
         if (!sim || sim._stopped) return;
         const { explode } = require('./sim/bullets');
         if (typeof explode === 'function') {
-          explode(sim, toX, toY, RADIUS, DMG, ws.id);
+          explode(sim, toX, toY, RADIUS, DMG, ws.id, 'grenade');  // v2 E6: källvapen för kill-weaponId
         }
       }, FLIGHT_MS);
     }

@@ -83,19 +83,23 @@ function rewoundPosition(targetWs, shooterRtt) {
 
 // Skada enemy server-side (mirror av game.js:5073-5116, utan UI/audio)
 // Returnerar true om enemy dog.
-function damageEnemy(e, dmg, isCrit, fromPid) {
+// v2 E6 (additivt): weaponId (valfri) trackas som e.lastDamagerWeapon →
+// enemy_killed.weaponId. V1 läser aldrig fältet.
+function damageEnemy(e, dmg, isCrit, fromPid, weaponId) {
   if (e.dead) return false;
   // v2 #58 (additivt): sandbox-dummies är ODÖDLIGA — hit-flash men ingen hp-förlust.
   // _sandboxDummy sätts bara av sandbox-stages (V1 skickar aldrig sandbox) → no-op för V1.
   if (e._sandboxDummy) {
     e.flashUntil = Date.now() + 80;
     if (fromPid) e.lastDamagerPid = fromPid;
+    if (weaponId) e.lastDamagerWeapon = weaponId;
     e.hp = e.maxHp;
     return false;
   }
   e.hp -= dmg;
   e.flashUntil = (Date.now() + 80);
   if (fromPid) e.lastDamagerPid = fromPid;
+  if (weaponId) e.lastDamagerWeapon = weaponId;
   if (e.hp <= 0) {
     e.dead = true;
     return true;
@@ -139,7 +143,7 @@ function applyMelee(sim, p, weaponId, params) {
       while (da < -Math.PI) da += Math.PI * 2;
       if (Math.abs(da) > Math.PI / 2) continue;   // 180° framåt-kon (som PvE-cone)
       const isCrit = Math.random() < (params.critChance || 0);
-      damageEnemy(e, w.dmg * dmgMulPvE * (isCrit ? 2 : 1), isCrit, p.peerId);
+      damageEnemy(e, w.dmg * dmgMulPvE * (isCrit ? 2 : 1), isCrit, p.peerId, weaponId);
       if (e.burnUntil !== undefined && w.id === 'lightsaber') { /* pierce-melee — ingen extra */ }
       // H8 (audit 2026-06-10): pusha INTE enemy_killed här. Centrala death-blocket
       // (room-sim.js ~548, kör nästa tick på e.dead) äger eventet och skickar det
@@ -181,7 +185,7 @@ function applyMelee(sim, p, weaponId, params) {
       while (da > Math.PI) da -= Math.PI * 2;
       while (da < -Math.PI) da += Math.PI * 2;
       if (Math.abs(da) > Math.PI / 2) continue;
-      damageEnemy(e, baseDmg, false, p.peerId);
+      damageEnemy(e, baseDmg, false, p.peerId, weaponId);
       // H8 (audit 2026-06-10): ingen lokal enemy_killed-push här heller. Heists
       // cleanup-loop (room-sim.js ~4694, _heistKillBroadcast-dedupe) äger eventet
       // — den lokala pushen saknade dedupe-flaggan och gav DUBBLA enemy_killed
@@ -296,7 +300,10 @@ function applyMelee(sim, p, weaponId, params) {
 // återanvända samma flow. Antar att invuln+team-checks redan gjorts av caller.
 // GUARD: om victim redan har respawn-timer (= redan dödad denna tick) → skip,
 // annars dubbel-räknas explosion+bullet samma tick → score-inflation + falsk match-end.
-function handleTdmKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
+// v2 E6 (additivt, alla handle*Kill): srcWeaponId (valfri, bara från explode) =
+// källvapnet bakom en explosion. Event-fältet `weaponId` = srcWeaponId || weaponId.
+// `weapon`-fältet är OFÖRÄNDRAT (V1 läser det för kill-feed).
+function handleTdmKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId, srcWeaponId) {
   // CS-runda: ingen mid-runda-respawn. Dubbel-count-guard via _tdmDeadRound
   // (sätts här + rensas vid runda-start). Tidigare användes tdmRespawnAt.
   if (victimWs._tdmDeadRound) return;
@@ -314,6 +321,7 @@ function handleTdmKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId)
     killerTeam: ownerTeam,
     victimTeam: victimWs.tdmTeam,
     weapon: weaponId || null,
+    weaponId: srcWeaponId || weaponId || null,   // v2 E6
     redKills: sim.tdmKills.red,
     blueKills: sim.tdmKills.blue,
   });
@@ -327,7 +335,7 @@ function handleTdmKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId)
 }
 
 // handleCtfKill — kill-flow för CTF inkl. flag-drop om offret bar flagga.
-function handleCtfKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
+function handleCtfKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId, srcWeaponId) {
   if (victimWs.tdmRespawnAt) return;
   if (!sim.room.members.has(killerPid)) return;
   victimWs.tdmRespawnAt = Date.now() + 3000;
@@ -340,6 +348,7 @@ function handleCtfKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId)
     killerTeam: ownerTeam,
     victimTeam: victimWs.tdmTeam,
     weapon: weaponId || null,
+    weaponId: srcWeaponId || weaponId || null,   // v2 E6
   });
   sim.eventQueue.push({
     type: 'ctf_player_died',
@@ -364,7 +373,7 @@ function handleCtfKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId)
 }
 
 // handleSiegeKill — kill-flow för SIEGE. +3 poäng till killer-teamet.
-function handleSiegeKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId) {
+function handleSiegeKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponId, srcWeaponId) {
   if (victimWs.tdmRespawnAt) return;
   if (!sim.room.members.has(killerPid)) return;
   victimWs.tdmRespawnAt = Date.now() + 3000;
@@ -376,6 +385,7 @@ function handleSiegeKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponI
     killer: killerPid, victim: victimPid,
     killerTeam: ownerTeam, victimTeam: victimWs.tdmTeam,
     weapon: weaponId || null,
+    weaponId: srcWeaponId || weaponId || null,   // v2 E6
   });
   sim.eventQueue.push({ type: 'siege_player_died', victim: victimPid, durationMs: 3000 });
   sim.eventQueue.push({ type: 'siege_score_update', red: sim.siegeScores.red, blue: sim.siegeScores.blue });
@@ -401,7 +411,7 @@ function handleSiegeKill(sim, killerPid, victimPid, victimWs, ownerTeam, weaponI
 // handleKothKill — kill-flow för KOTH. Inkrementera kills, respawn-timer.
 // Ingen tier-progression, ingen poäng-bonus för kill (KOTH-poäng kommer från
 // zone-occupancy). Bara kill-feed + respawn.
-function handleKothKill(sim, killerPid, victimPid, victimWs, weaponId) {
+function handleKothKill(sim, killerPid, victimPid, victimWs, weaponId, srcWeaponId) {
   if (victimWs.tdmRespawnAt) return;
   if (!sim.room.members.has(killerPid)) return;
   sim.kothKillsByPid[killerPid] = (sim.kothKillsByPid[killerPid] || 0) + 1;
@@ -412,6 +422,7 @@ function handleKothKill(sim, killerPid, victimPid, victimWs, weaponId) {
     killer: killerPid,
     victim: victimPid,
     weapon: weaponId || null,
+    weaponId: srcWeaponId || weaponId || null,   // v2 E6
   });
   sim.eventQueue.push({
     type: 'koth_respawn_pending',
@@ -424,7 +435,7 @@ function handleKothKill(sim, killerPid, victimPid, victimWs, weaponId) {
 // emit gungame_kill + gungame_respawn_pending, check win-condition.
 // Kallas från bullets-loopen (PvP-hit) och applyMelee.
 // GUARD: dubbel-kill samma tick → bara första räknas (annars dubbel tier-promote).
-function handleGungameKill(sim, killerPid, killerWs, victimPid, victimWs, weaponId) {
+function handleGungameKill(sim, killerPid, killerWs, victimPid, victimWs, weaponId, srcWeaponId) {
   if (victimWs.tdmRespawnAt) return;
   if (!sim.room.members.has(killerPid)) return;
   const wasMelee = GUNGAME_MELEE_DEMOTERS.has(weaponId);
@@ -460,6 +471,7 @@ function handleGungameKill(sim, killerPid, killerWs, victimPid, victimWs, weapon
     killer: killerPid,
     victim: victimPid,
     weapon: weaponId || null,
+    weaponId: srcWeaponId || weaponId || null,   // v2 E6
     killerTier: newTier,
     victimTier: sim.gungameTiers[victimPid],
     wasMelee,
@@ -667,7 +679,7 @@ function applyBulletEffects(b, e, sim) {
         if (d2 < bestD2) { bestD2 = d2; nextE = o; }
       }
       if (!nextE) break;
-      damageEnemy(nextE, b.dmg * 0.5, false, b.ownerPid);
+      damageEnemy(nextE, b.dmg * 0.5, false, b.ownerPid, b.weaponId);
       hitSet.add(nextE);
       prevPos = { x: nextE.x, y: nextE.y };
       chainsLeft--;
@@ -681,7 +693,10 @@ function applyBulletEffects(b, e, sim) {
 //   - TDM/CTF/Siege — eget lag blockerat
 //   - Juggernaut — hunter→hunter blockerat
 //   - FFA-modes (gungame/koth/BR) — alla utom self skadas
-function explode(sim, x, y, radius, dmg, fromPid) {
+// v2 E6 (additivt): srcWeaponId (valfri) = källvapnet ('grenade'/'rocket'/...) för
+// kill-attributions weaponId-fält. Utan param → 'explosion' (generisk). `weapon`-
+// fältet i kill-events förblir 'explosion' (V1 läser det) — bara nya weaponId ändras.
+function explode(sim, x, y, radius, dmg, fromPid, srcWeaponId) {
   const fromWs = fromPid ? sim.room.members.get(fromPid) : null;
   const fromTeam = fromWs && fromWs.tdmTeam;
   const fromIsJug = !!(fromWs && fromWs.playerState && fromWs.playerState.isJug);
@@ -701,7 +716,7 @@ function explode(sim, x, y, radius, dmg, fromPid) {
       const d2 = dx * dx + dy * dy;
       if (d2 < radius * radius) {
         const falloff = 1 - Math.sqrt(d2) / radius;
-        damageEnemy(e, dmg * (0.4 + falloff * 0.6), false, fromPid);
+        damageEnemy(e, dmg * (0.4 + falloff * 0.6), false, fromPid, srcWeaponId || 'explosion');
       }
     }
   }
@@ -753,19 +768,19 @@ function explode(sim, x, y, radius, dmg, fromPid) {
       }
       if (ws.playerState.hp <= 0 && fromPid && fromWs) {
         if (inJug) {
-          if (sim._handleJuggernautKill) sim._handleJuggernautKill(sim, fromPid, fromWs, pid, ws, 'explosion');
+          if (sim._handleJuggernautKill) sim._handleJuggernautKill(sim, fromPid, fromWs, pid, ws, 'explosion', srcWeaponId);
         } else if (inGungame) {
-          handleGungameKill(sim, fromPid, fromWs, pid, ws, 'explosion');
+          handleGungameKill(sim, fromPid, fromWs, pid, ws, 'explosion', srcWeaponId);
         } else if (inKoth) {
-          handleKothKill(sim, fromPid, pid, ws, 'explosion');
+          handleKothKill(sim, fromPid, pid, ws, 'explosion', srcWeaponId);
         } else if (sim.tdmActive) {
-          handleTdmKill(sim, fromPid, pid, ws, fromTeam, 'explosion');
+          handleTdmKill(sim, fromPid, pid, ws, fromTeam, 'explosion', srcWeaponId);
         } else if (sim.ctfActive) {
-          handleCtfKill(sim, fromPid, pid, ws, fromTeam, 'explosion');
+          handleCtfKill(sim, fromPid, pid, ws, fromTeam, 'explosion', srcWeaponId);
         } else if (sim.siegeActive) {
-          handleSiegeKill(sim, fromPid, pid, ws, fromTeam, 'explosion');
+          handleSiegeKill(sim, fromPid, pid, ws, fromTeam, 'explosion', srcWeaponId);
         } else if (inBr) {
-          if (sim._handleBattleRoyaleKill) sim._handleBattleRoyaleKill(sim, fromPid, fromWs, pid, ws, 'explosion');
+          if (sim._handleBattleRoyaleKill) sim._handleBattleRoyaleKill(sim, fromPid, fromWs, pid, ws, 'explosion', srcWeaponId);
         }
       }
     }
@@ -909,7 +924,7 @@ function updateBullets(sim, dt, now) {
     // bara på life-ut/explosion. Annars dog de direkt och nådde aldrig motståndaren.
     if (b.life <= 0 || (!b.gulag && (b.x < 0 || b.y < 0 || b.x > worldMaxX || b.y > worldMaxY))) {
       if (b.explosive && !b.hostile) {
-        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
       }
       bullets.splice(i, 1);
       continue;
@@ -922,7 +937,7 @@ function updateBullets(sim, dt, now) {
     if (_pveW && bulletHitsWall(b, _pveW)) {
       if (ricochetOff(b, _pveW)) continue;
       if (b.explosive && !b.hostile) {
-        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
       }
       bullets.splice(i, 1);
       continue;
@@ -931,7 +946,7 @@ function updateBullets(sim, dt, now) {
     if (sim.ctfActive && bulletHitsWall(b, CTF_ARENA.walls)) {
       if (ricochetOff(b, CTF_ARENA.walls)) continue;
       if (b.explosive && !b.hostile) {
-        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
       }
       bullets.splice(i, 1);
       continue;
@@ -960,7 +975,7 @@ function updateBullets(sim, dt, now) {
       if (bulletHitsWall(b, HEIST_ARENA._bulletWalls)) {
         if (ricochetOff(b, HEIST_ARENA._bulletWalls)) continue;
         if (b.explosive && !b.hostile) {
-          explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+          explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
         }
         bullets.splice(i, 1);
         continue;
@@ -969,7 +984,7 @@ function updateBullets(sim, dt, now) {
     if (sim.tdmActive && bulletHitsWall(b, TDM_ARENA.walls)) {
       if (ricochetOff(b, TDM_ARENA.walls)) continue;
       if (b.explosive && !b.hostile) {
-        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
       }
       bullets.splice(i, 1);
       continue;
@@ -977,7 +992,7 @@ function updateBullets(sim, dt, now) {
     if (sim.gungameActive && bulletHitsWall(b, GUNGAME_ARENA.walls)) {
       if (ricochetOff(b, GUNGAME_ARENA.walls)) continue;
       if (b.explosive && !b.hostile) {
-        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
       }
       bullets.splice(i, 1);
       continue;
@@ -985,7 +1000,7 @@ function updateBullets(sim, dt, now) {
     if (sim.kothActive && bulletHitsWall(b, KOTH_ARENA.walls)) {
       if (ricochetOff(b, KOTH_ARENA.walls)) continue;
       if (b.explosive && !b.hostile) {
-        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
       }
       bullets.splice(i, 1);
       continue;
@@ -993,7 +1008,7 @@ function updateBullets(sim, dt, now) {
     if (sim.juggernautActive && bulletHitsWall(b, JUGGERNAUT_ARENA.walls)) {
       if (ricochetOff(b, JUGGERNAUT_ARENA.walls)) continue;
       if (b.explosive && !b.hostile) {
-        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
       }
       bullets.splice(i, 1);
       continue;
@@ -1004,7 +1019,7 @@ function updateBullets(sim, dt, now) {
       if (bulletHitsWall(b, brSolidWalls)) {
         if (ricochetOff(b, brSolidWalls)) continue;
         if (b.explosive && !b.hostile) {
-          explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+          explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
         }
         bullets.splice(i, 1);
         continue;
@@ -1052,7 +1067,7 @@ function updateBullets(sim, dt, now) {
           }
         }
         if (b.explosive && !b.hostile) {
-          explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+          explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
         }
         bullets.splice(i, 1);
         continue;
@@ -1102,7 +1117,7 @@ function updateBullets(sim, dt, now) {
         }
       }
       if (b.explosive && !b.hostile) {
-        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+        explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
       }
       bullets.splice(i, 1);
       continue;
@@ -1664,11 +1679,11 @@ function updateBullets(sim, dt, now) {
       const rsum = e.r + b.r + 8;  // +8 lag-kompensation
       if (dx * dx + dy * dy < rsum * rsum) {
         if (b.explosive) {
-          explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
+          explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
           hit = true; break;
         }
         applyBulletEffects(b, e, sim);
-        damageEnemy(e, b.dmg, b.crit, b.ownerPid);
+        damageEnemy(e, b.dmg, b.crit, b.ownerPid, b.weaponId);
         // v1.400/v1.431: emit damage-number event för auto-turret bullets så player ser
         // hur mycket turrets gör. Throttle till max 8Hz globalt (purely cosmetic;
         // för många torn-shots gav 20+ events/sek = backpressure).

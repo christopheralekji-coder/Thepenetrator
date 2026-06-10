@@ -581,6 +581,7 @@ function tickSim(sim) {
           i: e._idx,
           gold: e.gold || 0,
           killerPid: e.lastDamagerPid || null,
+          weaponId: e.lastDamagerWeapon || null,   // v2 E6 (additivt — V1 ignorerar)
           isBoss: !!e.isBoss,
           isMiniBoss: !!e.isMiniBoss,
         });
@@ -2224,7 +2225,9 @@ function tickJuggernaut(sim, dt, now) {
 
 // Kallas från bullets.js när en kill registreras i juggernaut-mode.
 // Anropas via sim._handleJuggernautKill (exponerad vid startSim).
-function handleJuggernautKill(sim, killerPid, killerWs, victimPid, victimWs, weaponId) {
+// v2 E6 (additivt): srcWeaponId (valfri, bara från explode) = källvapnet bakom en
+// explosion. Nya fältet weaponId = srcWeaponId || weaponId; `weapon` oförändrat (V1).
+function handleJuggernautKill(sim, killerPid, killerWs, victimPid, victimWs, weaponId, srcWeaponId) {
   if (sim.juggernautEnded) return;
   const wasJugKilled = (victimPid === sim.juggernautPid);
   sim.juggernautKillsByPid[killerPid] = (sim.juggernautKillsByPid[killerPid] || 0) + 1;
@@ -2233,6 +2236,7 @@ function handleJuggernautKill(sim, killerPid, killerWs, victimPid, victimWs, wea
     killer: killerPid,
     victim: victimPid,
     weapon: weaponId || null,
+    weaponId: srcWeaponId || weaponId || null,   // v2 E6
     wasJugKilled,
   });
   if (wasJugKilled) {
@@ -3620,6 +3624,7 @@ function tickCastleDefense(sim, dt, now) {
         i: e._idx,
         gold: e.gold || 0,
         killerPid: e.lastDamagerPid || null,
+        weaponId: e.lastDamagerWeapon || null,   // v2 E6 (additivt — V1 ignorerar)
         isBoss: !!e.isBoss,
         isMiniBoss: !!e.isMiniBoss,
         // v1.608: skicka pos för klient-side death-flash + kill-explode-perk
@@ -4740,6 +4745,7 @@ function tickHeist(sim, dt, nowMs) {
         sim.eventQueue.push({
           type: 'enemy_killed',
           i: e._idx, gold: 0, killerPid: e.lastDamagerPid || null,
+          weaponId: e.lastDamagerWeapon || null,   // v2 E6 (additivt — V1 ignorerar)
           isBoss: false, isMiniBoss: false, x: e.x, y: e.y,
         });
       }
@@ -5364,7 +5370,8 @@ function endBattleRoyaleMatch(sim, winnerId, reason) {
 // vi guardar bara via eliminated-listan (som uppdateras senare i tick).
 // Använd även victimWs._brCreditedKill för att markera at offret redan
 // gett credit till en killer den här ticken.
-function handleBattleRoyaleKill(sim, killerPid, killerWs, victimPid, victimWs, weaponId) {
+// v2 E6 (additivt): srcWeaponId (valfri, bara från explode) — se handleJuggernautKill.
+function handleBattleRoyaleKill(sim, killerPid, killerWs, victimPid, victimWs, weaponId, srcWeaponId) {
   if (sim.battleroyaleEnded) return;
   if (!sim.room.members.has(killerPid)) return;
   // GUARD 1: redan eliminated (force-stop)
@@ -5390,6 +5397,7 @@ function handleBattleRoyaleKill(sim, killerPid, killerWs, victimPid, victimWs, w
     killer: killerPid,
     victim: victimPid,
     weapon: weaponId || null,
+    weaponId: srcWeaponId || weaponId || null,   // v2 E6
   });
 }
 
@@ -5913,6 +5921,23 @@ function broadcastWorld(sim, now) {
     w: p.weaponId || 'fists',
     rT: Math.round(p.reviveTimer || 0),
   }));
+  // Transport-pass (2026-06-10, JSON-vägen): egen players-payload för JSON-peers.
+  // a avrundas till 2 decimaler (0.01 rad ≈ 0.57° — osynligt, sparar ~8-14 tecken/
+  // spelare/paket) och rT utelämnas när 0 (NetLocalPlayer.gd: d.get("rT", 0) →
+  // utelämnande identiskt; NetPlayer.gd läser inte rT alls). sh/w/hp behålls
+  // ALLTID — V2-parsningen har sticky-defaults (d.get(fält, nuvarande)) så ute-
+  // lämnande skulle frysa värdet vid övergång till 0. allPlayers rörs INTE —
+  // binär-encodern (V1-webben) kvantiserar a×1000 själv → V1-bytes oförändrade.
+  let _jsonPlayers = null;
+  const getJsonPlayers = () => {
+    if (_jsonPlayers) return _jsonPlayers;
+    _jsonPlayers = allPlayers.map((p) => {
+      const jp = { c: p.c, x: p.x, y: p.y, hp: p.hp, sh: p.sh, a: Math.round(p.a * 100) / 100, w: p.w };
+      if (p.rT) jp.rT = p.rT;
+      return jp;
+    });
+    return _jsonPlayers;
+  };
 
   // Drain event-queue. Batch ALLA events i ett enda 'sim_events'-meddelande per
   // peer per tick — sparar 1 JSON.stringify + 1 ws.send per event per client.
@@ -5922,7 +5947,10 @@ function broadcastWorld(sim, now) {
   // ctf_match_end om sista spelaren disconnectade samma tick).
   if (sim.eventQueue.length > 0 && sim.room.members.size > 0) {
     const events = sim.eventQueue.splice(0);
-    const json = JSON.stringify({ type: 'sim_events', events });
+    // st (additivt, transport-pass 2026-06-10): server-tidsstämpel på batchen —
+    // JSON-klienter (Godot) använder den för event↔world-tidslinjering i
+    // interpolationsbufferten. V1-webben läser bara .events → okänt fält ignoreras.
+    const json = JSON.stringify({ type: 'sim_events', st: now, events });
     for (const [, ws] of sim.room.members) {
       if (ws.readyState !== 1) continue;
       // v1.431: Defensive backpressure — om WS-buffert är > 2MB är klienten så
@@ -5978,16 +6006,51 @@ function broadcastWorld(sim, now) {
       const last = lastSent[e._idx];
       if (!forceFullForPeer && last && last.x === ex && last.y === ey && last.hp === eh) continue;
       if (forceFullForPeer) {
-        enemiesPkt.push({
-          i: e._idx, x: ex, y: ey, hp: eh, mh: e.maxHp,
-          t: e.type, b: e.isBoss ? 1 : 0, mb: e.isMiniBoss ? 1 : 0,
-          bk: e.bossKey || '', r: e.r, c: e.color, n: e.name || '', p: e.phase || 0,
-          // v2-tillägg (JSON-klienter; binär-encodern ignorerar okända fält):
-          // fx = status-bitfält (1=burn, 2=slow, 4=boss-charge, 8=boss-cloak), g = guld
-          fx: ((e.burnUntil && e.burnUntil > now ? 1 : 0) | (e.slowUntil && e.slowUntil > now ? 2 : 0)
-            | (e.chargeUntil && e.chargeUntil > now ? 4 : 0) | (e.cloakUntil && e.cloakUntil > now ? 8 : 0)),
-          g: e.gold || 0,
-        });
+        // v2-tillägg (JSON-klienter; binär-encodern i wirefmt.js packar ALDRIG
+        // fx/g/ht/at → V1-webben opåverkad oavsett bit-värden):
+        // fx = status-bitfält: 1=burn, 2=slow, 4=boss-charge, 8=boss-cloak,
+        //   16=HEALING (healer m. aktiv heal-target — C4), 32=SUMMONING (summoner
+        //   inom ~700ms före nästa summon-cast — C4), 64=SNIPER-AIM (aim-fasen,
+        //   800ms före skott — C3), 128=BOMBER-ARMED (fuse tänd, ≤0.6s till
+        //   detonation — C3). g = guld.
+        const _fx = ((e.burnUntil && e.burnUntil > now ? 1 : 0) | (e.slowUntil && e.slowUntil > now ? 2 : 0)
+          | (e.chargeUntil && e.chargeUntil > now ? 4 : 0) | (e.cloakUntil && e.cloakUntil > now ? 8 : 0)
+          | (e.type === 'healer' && e._healTargetIdx >= 0 ? 16 : 0)
+          | (e.type === 'summoner' && (now - (e.summonAt || 0)) > 3800 ? 32 : 0)
+          | (e.aiming ? 64 : 0)
+          | (e.type === 'bomber' && (e.fuse || 0) > 0 ? 128 : 0));
+        let eo;
+        if (isJson) {
+          // Transport-pass (2026-06-10): strippa default-fält i full-entries till
+          // JSON-peers. Varje strippat fält VERIFIERAT mot V2 NetEnemy.apply_full
+          // (d.get-defaults): b/mb→0, n/bk→'', fx→0 (resettas varje apply_full);
+          // g sticky men init 0 + server-värdet konstant per enemy → utelämna-vid-0
+          // identiskt; p (→power) används bara för miniboss-aura där '' och '0'
+          // renderar identiskt (POWER_COL-fallback + mb_-textur-gate kräver != '').
+          // mh/t/r/c behålls alltid (t är dessutom full/delta-diskriminatorn i
+          // NetGame._sync_enemies). Binär-vägen (else-grenen) är OFÖRÄNDRAD.
+          eo = { i: e._idx, x: ex, y: ey, hp: eh, mh: e.maxHp, t: e.type, r: e.r, c: e.color };
+          if (e.isBoss) eo.b = 1;
+          if (e.isMiniBoss) eo.mb = 1;
+          if (e.bossKey) eo.bk = e.bossKey;
+          if (e.name) eo.n = e.name;
+          if (e.phase) eo.p = e.phase;
+          if (_fx) eo.fx = _fx;
+          if (e.gold) eo.g = e.gold;
+        } else {
+          eo = {
+            i: e._idx, x: ex, y: ey, hp: eh, mh: e.maxHp,
+            t: e.type, b: e.isBoss ? 1 : 0, mb: e.isMiniBoss ? 1 : 0,
+            bk: e.bossKey || '', r: e.r, c: e.color, n: e.name || '', p: e.phase || 0,
+            fx: _fx,
+            g: e.gold || 0,
+          };
+        }
+        // JSON-only target-fält (C4/C3): ht = heal-target enemy-idx (beam),
+        // at = sniper-aim target-peerId (laserlinje). Sätts bara när biten är på.
+        if ((_fx & 16) && e._healTargetIdx >= 0) eo.ht = e._healTargetIdx;
+        if ((_fx & 64) && e._aimTargetPid) eo.at = e._aimTargetPid;
+        enemiesPkt.push(eo);
       } else {
         enemiesPkt.push({ i: e._idx, x: ex, y: ey, hp: eh });
       }
@@ -6081,9 +6144,28 @@ function broadcastWorld(sim, now) {
         }
         if (hz.length) pkt.hz = hz;
       }
-      if (ws && ws.readyState === 1 && ws.bufferedAmount <= 65536) {
-        pkt.type = 'world';
-        try { ws.send(JSON.stringify(pkt)); } catch (e) {}
+      // Backpressure (transport-pass 2026-06-10): world-snapshots är ERSÄTTLIGA
+      // (nästa paket bär hela tillståndet) — om peerens sändbuffer backar upp
+      // (>64KB ≈ 4-8 paket) skippas detta paket så en hickande telefon inte drar
+      // igång dödsspiralen (växande buffer → sekunder av lag → timeout). Events
+      // skickas fortfarande (de är små + oersättliga, egen 2MB-gräns ovan).
+      // Loggas throttlat (max 1/5s per peer) så en långsam klient inte spammar.
+      if (ws && ws.readyState === 1) {
+        if (ws.bufferedAmount > 65536) {
+          ws._worldSkips = (ws._worldSkips || 0) + 1;
+          if (!ws._lastBpLogAt || now - ws._lastBpLogAt > 5000) {
+            ws._lastBpLogAt = now;
+            console.log('[BACKPRESSURE-WORLD-SKIP]', ws.id, 'buf=' + ws.bufferedAmount, 'totalSkips=' + ws._worldSkips);
+          }
+        } else {
+          pkt.players = getJsonPlayers();
+          pkt.type = 'world';
+          // st (additivt): server-tidsstämpel för klientens interpolationsbuffert
+          // (render-tid = st − buffertfönster i stället för ankomst-tid → jämn
+          // rörelse även när paket-ankomsten jittrar).
+          pkt.st = now;
+          try { ws.send(JSON.stringify(pkt)); } catch (e) {}
+        }
       }
       continue;
     }

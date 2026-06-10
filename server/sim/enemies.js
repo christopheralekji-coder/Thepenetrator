@@ -63,6 +63,9 @@ function makeEnemy(type, x, y) {
     staggerUntil: 0,
     // type-specific
     healAt: 0, summonAt: 0, fuse: 0, aiming: false, aimAt: 0,
+    // v2 C4/C3: FX-mål för world-paketets JSON-fält (ht/at). Påverkar INGEN AI —
+    // sätts av healer/sniper-AI:n och läses bara av JSON-pkt-bygget i room-sim.
+    _healTargetIdx: -1, _aimTargetPid: null,
     coverCheckUntil: 0, targetCover: null,
   };
   return e;
@@ -184,6 +187,8 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
       }
     }
     if (target) {
+      // v2 C4: aktiv heal-target → fx-bit 16 + JSON-fältet `ht` (beam-rendering)
+      e._healTargetIdx = (typeof target._idx === 'number') ? target._idx : -1;
       const tdx = target.x - e.x, tdy = target.y - e.y;
       const td = Math.sqrt(tdx * tdx + tdy * tdy);
       if (td > 80) { e.x += (tdx / td) * e.speed * dt; e.y += (tdy / td) * e.speed * dt; }
@@ -192,6 +197,7 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
         target.hp = Math.min(target.maxHp, target.hp + 8);
       }
     } else {
+      e._healTargetIdx = -1;   // v2 C4: ingen heal-target → bit 16 av
       // backa från spelaren
       e.x -= (dx / d) * e.speed * dt;
       e.y -= (dy / d) * e.speed * dt;
@@ -232,6 +238,14 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
     else { e.x += (dx / d) * e.speed * dt; e.y += (dy / d) * e.speed * dt; }
     if (d < e.shootRange && !e.aiming && now - e.lastShot > e.shootRate) {
       e.aiming = true; e.aimAt = now;
+    }
+    // v2 C3: target för sniper-laserlinjen (fx-bit 64 + JSON-fältet `at`).
+    // CD/survivors-pseudo-targets ('__player_<pid>') mappas till riktig peerId;
+    // core/byggnads-targets ('__core__'/'__target_*') → null (ingen laser).
+    if (e.aiming) {
+      const _tp = p.peerId || null;
+      e._aimTargetPid = (_tp && _tp.indexOf('__player_') === 0) ? _tp.slice(9)
+        : ((_tp && _tp.indexOf('__') === 0) ? null : _tp);
     }
     if (e.aiming && now - e.aimAt > 800) {
       e.aiming = false; e.lastShot = now;
