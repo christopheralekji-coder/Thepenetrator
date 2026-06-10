@@ -15,3 +15,7 @@ resources/icon-candidates/
 
 tools/shot*.png
 tools/*.png
+
+# V2-bake referens-bilder (regenererbara via tools/*.js)
+tools/*-ref/
+tools/ward-debug/

@@ -253,6 +253,10 @@ function handleBinaryMessage(ws, raw) {
 }
 
 function handleMessage(ws, msg) {
+  // Godot/V2-klienter får world-snapshots som JSON-text (text) istället för det
+  // binära delta-formatet. Sätts via host/join (msg.godot:1). Allt annat
+  // (klient→server-meddelanden, sim_events) är redan JSON i båda riktningar.
+  if (msg.godot) ws._jsonWorld = true;
   if (msg.type === 'host') {
     // Skapa rum
     const code = generateCode();

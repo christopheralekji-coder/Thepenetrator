@@ -5853,13 +5853,16 @@ function broadcastWorld(sim, now) {
   }
 
   for (const [peerId, ws] of sim.room.members) {
+    // Godot/V2-klienter: world-snapshot som JSON-text, full varje tick (trivial
+    // klient-rendering — ersätt hela listan). Bandbredd > korrekthet ok i co-op-skala.
+    const isJson = !!ws._jsonWorld;
     let lastSent = sim.lastSentEnemyByPeer.get(peerId);
     // v1.701: stagga enemy-full-broadcasten PER PEER. Förr synkad per-sim (sim.lastFullAt)
     // → alla klienter fick sin tunga full-paket SAMMA tick = server-encode-burst + synkad
     // klient-decode-spik var 1500ms. Per-peer-timer med slumpad start-fas sprider lasten.
     if (!sim._peerFullAt) sim._peerFullAt = {};
     if (sim._peerFullAt[peerId] == null) sim._peerFullAt[peerId] = now - Math.floor(Math.random() * FULL_BROADCAST_MS);
-    let forceFullForPeer = !lastSent || (now - sim._peerFullAt[peerId]) > FULL_BROADCAST_MS;
+    let forceFullForPeer = isJson || !lastSent || (now - sim._peerFullAt[peerId]) > FULL_BROADCAST_MS;
     if (forceFullForPeer) sim._peerFullAt[peerId] = now;
     if (!lastSent) lastSent = {};
     // Pre-scan: om någon synlig enemy är NY för peeren, forcera full-paket så vi får med
@@ -5956,6 +5959,19 @@ function broadcastWorld(sim, now) {
       }));
     } else if (fullBroadcast) {
       pkt.pickups = [];
+    }
+    // Godot/V2: skicka world som JSON-text. gs varje tick (klient håller annars
+    // gammalt wave/zone tills nästa full-broadcast).
+    if (isJson) {
+      if (!pkt.gs) pkt.gs = {
+        w: sim.wave, cz: sim.currentZone, zs: sim.zoneState,
+        bss: sim.bossSequenceStep, bd: sim.bossDefeated ? 1 : 0,
+      };
+      if (ws && ws.readyState === 1 && ws.bufferedAmount <= 65536) {
+        pkt.type = 'world';
+        try { ws.send(JSON.stringify(pkt)); } catch (e) {}
+      }
+      continue;
     }
     const payload = encodeWorldBinary(pkt);
     if (ws && ws.readyState === 1) {
