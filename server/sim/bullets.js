@@ -114,6 +114,10 @@ function applyMelee(sim, p, weaponId, params) {
   if (!inGungame && !inTdm && !inCtf && !inSiege && !inKoth && !inJug && !inBr && !inHeist) {
     // v2: PvE-MELEE (story-familjen/CD/survivors) — V1 körde melee klient-side
     // mot lokala enemies; Godot-klienten har ingen lokal sim → servern svingar.
+    // GATE: bara JSON-world-klienter (Godot). V1-webben skickar sim_shoot för
+    // melee även i co-op-story och skadar lokalt → server-svingen vore DUBBELT.
+    const shooterWs = sim.room && sim.room.members.get(p.peerId);
+    if (!shooterWs || !shooterWs._jsonWorld) return;
     const range = (w.range || 40) * (params.mrangeMul || 1);
     const dmgMulPvE = (params.dmgMul || 1) * (params.adrenalineDmg || 1) * (params.stealthBonus || 1) * (params.cheats && params.cheats.ultimate ? 10 : 1);
     const aim = p.aimAngle || 0;

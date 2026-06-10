@@ -4,7 +4,7 @@
 const { encodeWorldBinary } = require('./wirefmt');
 const { makeEnemy, updateEnemy } = require('./enemies');
 const { makeBoss } = require('./bosses');
-const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy } = require('./bullets');
+const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy, explode } = require('./bullets');
 const { enterGulag, gulagMatchmake, tickGulag, voidAllGulag, startGulagPractice } = require('./gulag');
 const { addBot, tickBots, removeAllBots } = require('./bots');
 const { updateBoss } = require('./bosses');
