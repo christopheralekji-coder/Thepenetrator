@@ -40,6 +40,19 @@ const BROADCAST_EVERY = Math.max(1, Math.round(TICK_HZ / BROADCAST_HZ));
 const FULL_BROADCAST_MS = 1500;
 const ENEMY_CAP = 80;
 const CULL_DIST = 1100;
+// M5 (audit 2026-06-10): JSON-peers (Godot/_jsonWorld) MÅSTE alltid få full
+// enemy-lista — klienten har ingen delta-hantering (frånvarande idx = borttagen
+// enemy) → FULL_BROADCAST_MS/delta-mönstret kan inte användas för dem. Istället
+// sänks SÄNDFREKVENSEN: world-paket till JSON-peers skickas bara var
+// JSON_WORLD_EVERY:e broadcast (60Hz/2 = 30Hz). Godot lerpar positioner (14/s,
+// ~70ms-fönster > paketintervallet) → visuellt oskiljbart från 60Hz men halverad
+// parse/bandbredd. 2 valt över 3 efter användarens smoothness-fråga.
+// sim_events går fortfarande varje tick, och
+// binär-klienter (V1-webben) påverkas inte alls. Utan detta: full lista +
+// JSON.stringify per peer per tick ≈ 700KB/s (survivors cap 120) till flera
+// MB/s (stresstest cap 1500) per JSON-peer — exakt den encode-burst som
+// v1.701-staggern infördes mot.
+const JSON_WORLD_EVERY = 2;
 
 function createSim(room) {
   const sim = {
@@ -5887,10 +5900,15 @@ function broadcastWorld(sim, now) {
     }
   }
 
+  // M5: räknare för JSON-peer-nedsamplingen (per broadcastWorld-anrop, inte per
+  // tick — broadcastWorld anropas redan bara var BROADCAST_EVERY:e tick).
+  sim._worldCastNo = (sim._worldCastNo || 0) + 1;
   for (const [peerId, ws] of sim.room.members) {
-    // Godot/V2-klienter: world-snapshot som JSON-text, full varje tick (trivial
-    // klient-rendering — ersätt hela listan). Bandbredd > korrekthet ok i co-op-skala.
+    // Godot/V2-klienter: world-snapshot som JSON-text, alltid full lista (trivial
+    // klient-rendering — ersätt hela listan) men bara var JSON_WORLD_EVERY:e
+    // broadcast (20Hz) — se M5-kommentaren vid konstanten.
     const isJson = !!ws._jsonWorld;
+    if (isJson && (sim._worldCastNo % JSON_WORLD_EVERY) !== 0) continue;
     let lastSent = sim.lastSentEnemyByPeer.get(peerId);
     // v1.701: stagga enemy-full-broadcasten PER PEER. Förr synkad per-sim (sim.lastFullAt)
     // → alla klienter fick sin tunga full-paket SAMMA tick = server-encode-burst + synkad

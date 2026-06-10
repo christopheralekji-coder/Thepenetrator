@@ -139,9 +139,13 @@ function applyMelee(sim, p, weaponId, params) {
       while (da < -Math.PI) da += Math.PI * 2;
       if (Math.abs(da) > Math.PI / 2) continue;   // 180° framåt-kon (som PvE-cone)
       const isCrit = Math.random() < (params.critChance || 0);
-      const died = damageEnemy(e, w.dmg * dmgMulPvE * (isCrit ? 2 : 1), isCrit, p.peerId);
+      damageEnemy(e, w.dmg * dmgMulPvE * (isCrit ? 2 : 1), isCrit, p.peerId);
       if (e.burnUntil !== undefined && w.id === 'lightsaber') { /* pierce-melee — ingen extra */ }
-      if (died) sim.eventQueue.push({ type: 'enemy_killed', i: e._idx, killerPid: p.peerId });
+      // H8 (audit 2026-06-10): pusha INTE enemy_killed här. Centrala death-blocket
+      // (room-sim.js ~548, kör nästa tick på e.dead) äger eventet och skickar det
+      // med gold/isBoss/isMiniBoss — den lokala pushen gav DUBBLA enemy_killed per
+      // melee-kill (dubbel SFX/hit-stop/vapen-XP/guld hos Godot-klienter). Grenen
+      // är _jsonWorld-gated → V1-webben träffas aldrig av ändringen.
       if (w.knockback) {
         const kb = w.knockback * (params.kbMul || 1) * 0.5;
         e.x += (dx / (d || 1)) * kb * 0.05;
@@ -177,11 +181,12 @@ function applyMelee(sim, p, weaponId, params) {
       while (da > Math.PI) da -= Math.PI * 2;
       while (da < -Math.PI) da += Math.PI * 2;
       if (Math.abs(da) > Math.PI / 2) continue;
-      const died = damageEnemy(e, baseDmg, false, p.peerId);
-      if (died) {
-        // Emit enemy_killed event så klient ser kill-bekräftelse
-        sim.eventQueue.push({ type: 'enemy_killed', i: e._idx, killerPid: p.peerId });
-      }
+      damageEnemy(e, baseDmg, false, p.peerId);
+      // H8 (audit 2026-06-10): ingen lokal enemy_killed-push här heller. Heists
+      // cleanup-loop (room-sim.js ~4694, _heistKillBroadcast-dedupe) äger eventet
+      // — den lokala pushen saknade dedupe-flaggan och gav DUBBLA enemy_killed
+      // per heist-melee-kill (även mot V1-webben). Cleanup-versionen är dessutom
+      // rikare (x/y/gold) och är redan vägen alla heist-bullet-kills tar.
     }
     return;
   }
@@ -590,8 +595,14 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
 
 // v2: Studsskott-perken — reflektera kulan EN gång vid vägg-träff istället för
 // att dö. Hittar blockerande axel via enaxlig swept-probe. Returnerar true om studsad.
-// v2: aktuella PvE-stage-väggar (sim_start.stageWalls per wave / customStages[].walls).
-// Cacheas per wave. null i PvP-modes eller när inga walls finns (= V1-beteende).
+// v2: aktuella PvE-stage-väggar — ENDA källan är sim_start.stageWalls per wave
+// (sim.stageWallsList, saniterad i server.js). Cacheas per wave. null i PvP-modes
+// eller när inga walls finns (= V1-beteende).
+// F7 (audit 2026-06-10): customStages[].walls-grenen borttagen — sanitizern i
+// server.js whitelistar aldrig walls-fältet, så st.walls var ALLTID undefined
+// (död kod). Kommentaren utlovade källan → desync-fälla: en framtida klient som
+// skickar walls via customStages hade tyst droppats (skott genom väggar
+// server-side). Vill V2 skicka walls: använd stageWalls-fältet.
 function _pveWalls(sim) {
   if (sim.tdmActive || sim.ctfActive || sim.siegeActive || sim.gungameActive ||
       sim.kothActive || sim.juggernautActive || sim.battleroyaleActive ||
@@ -600,11 +611,7 @@ function _pveWalls(sim) {
   sim._pveWallsWave = sim.wave;
   let w = null;
   const idx = Math.max(0, (sim.wave || 1) - 1);
-  if (sim.customStagesList && sim.customStagesList.length) {
-    const st = sim.customStagesList[Math.min(idx, sim.customStagesList.length - 1)];
-    if (st && Array.isArray(st.walls) && st.walls.length) w = st.walls;
-  }
-  if (!w && Array.isArray(sim.stageWallsList)) {
+  if (Array.isArray(sim.stageWallsList)) {
     const sw = sim.stageWallsList[idx];   // utanför listan (endless wave 10+) = inga walls
     if (Array.isArray(sw) && sw.length) w = sw;
   }
@@ -1208,6 +1215,13 @@ function updateBullets(sim, dt, now) {
         }
       }
       if (bulletConsumed) continue;
+      // M4 (audit 2026-06-10): STRESSTEST = spelaren odödlig (rent perf-showcase,
+      // ingen död) — samma semantik som contact-damage-guarden i enemies.js:372.
+      // Utan guarden downade '+N BULLETS'-kulorna (200 × dmg 5 riktade mot hosten)
+      // spelaren och bröt showcasen. Guard (inte dmg:0 vid spawn) valdes så även
+      // VANLIGA fiendekulor i stresstest täcks, och kulorna flyger vidare genom
+      // spelaren (konsumeras inte) = fler kulor kvar i sim:en, vilket är poängen.
+      if (sim.stresstestActive) continue;
       for (const [, ws] of sim.room.members) {
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         // v1.395 fix: respektera invulnUntil + cdDowned (annars sniper-bullets

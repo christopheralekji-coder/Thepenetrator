@@ -75,6 +75,11 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocket.Server({
   server,
   perMessageDeflate: false,
+  // H9 (audit 2026-06-10): ws-default är 100MiB → en oautentiserad klient kunde
+  // skicka en jätteframe som JSON.parse:as på event-loopen och fryser ALLA rums
+  // 60Hz-sims (DoS). Värsta legitima payload är sim_start med customStages +
+  // stageWalls (~300KB) → 1MiB ger god marginal. ws stänger med 1009 vid överskott.
+  maxPayload: 1024 * 1024,
 });
 const rooms = new Map(); // code → { hostId, members: Map(id → ws), meta: { hostName, mode, private, started, createdAt } }
 const publicRoomSubscribers = new Set(); // ws-references som vill ha live room-list updates
@@ -404,11 +409,25 @@ function handleMessage(ws, msg) {
         console.log('[ROOM]', code, ws.id, 'reconnect-restored role=' + (stash.heistRole || '-') + ' hp=' + (stash.hp != null ? Math.round(stash.hp) : '-'));
       }
     }
-    send(ws, { type: 'joined', peerId: ws.id, hostId: room.hostId });
+    // K2 (audit 2026-06-10, additivt): joined-svaret bär nu stableSlot + code.
+    // V1-webbens joined-gren läser bara peerId/hostId (game.js:25107) och
+    // ignorerar okända fält → V1 opåverkad. Godot-joiners behöver slotten för
+    // att hitta SIG SJÄLVA i world-paketens players[].c (annars doppelgänger +
+    // ingen server-auth hp/shield-synk). `code` = F3 (joiner-UI visar rumskod).
+    send(ws, { type: 'joined', peerId: ws.id, hostId: room.hostId, stableSlot: ws.stableSlot, code });
     // Meddela host — inkludera stableSlot så host:s klient bygger slotToPeerId
     // med det stabila slot-numret (annars räknas colorIdx om vid varje join).
     const host = room.members.get(room.hostId);
     if (host) send(host, { type: 'peer_joined', peerId: ws.id, stableSlot: ws.stableSlot });
+    // K2 (forts): skicka peer_joined även till övriga rumsmedlemmar — men BARA
+    // _jsonWorld-peers (Godot). V1-webbens peer_joined-hantering (game.js:25111)
+    // är host-orienterad: den skickar 'welcome' + 'config' till joinern — om en
+    // V1-JOINER fick eventet skulle den dubblera welcome med fel roster. Godot-
+    // joiners behöver eventet för pid→stableSlot-mappning av senare joiners.
+    for (const [pid, m] of room.members) {
+      if (pid === ws.id || pid === room.hostId) continue;
+      if (m._jsonWorld) send(m, { type: 'peer_joined', peerId: ws.id, stableSlot: ws.stableSlot });
+    }
     console.log('[ROOM]', code, ws.id, 'joined (', room.members.size, 'members)');
     broadcastPublicRooms();
     // TDM late-joiner: tilldela team baserat på balans, push tdm_started-event riktat
@@ -850,6 +869,48 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room) return;
     if (room.hostId !== ws.id) return;  // bara host får starta
+    // v2-tillägg (additivt): custom stage-listor (Godot endless/bossrush m.fl.).
+    // Saniteras hårt — utan fältet är beteendet EXAKT som förut.
+    // M3 (audit 2026-06-10): saniteringen körs nu FÖRE stopSim-blocket nedan +
+    // .filter(s => s && typeof s === 'object') före .map (även miniBosses/zones).
+    // Förr kastade String(s.id) på null-element EFTER att stopSim + room.sim=null
+    // redan körts → trasigt customStages vid rematch dödade pågående sim och
+    // lämnade rummet utan sim_started. Nu: kastar inget, och skulle något ändå
+    // kasta sker det innan någon destruktiv state-ändring.
+    let customStages = null;
+    if (Array.isArray(msg.customStages) && msg.customStages.length > 0) {
+      const okTypes = new Set(['grunt', 'runner', 'brute', 'shooter', 'ninja', 'swordsman', 'soldier', 'robot', 'dog', 'healer', 'summoner', 'swarmer', 'swordsman', 'sniper', 'bomber']);
+      const num = (v, d, lo, hi) => Math.max(lo, Math.min(hi, +v || d));
+      customStages = msg.customStages.slice(0, 60).filter(s => s && typeof s === 'object').map((s, i) => ({
+        id: String(s.id || ('custom' + (i + 1))).slice(0, 32),
+        name: String(s.name || ('STAGE ' + (i + 1))).slice(0, 40),
+        kind: String(s.kind || 'forest').slice(0, 16),
+        worldW: num(s.worldW, 2000, 800, 6000),
+        worldH: num(s.worldH, 2800, 800, 6000),
+        spawnPos: { x: num(s.spawnPos && s.spawnPos.x, 1000, 50, 6000), y: num(s.spawnPos && s.spawnPos.y, 2600, 50, 6000) },
+        goalPos: { x: num(s.goalPos && s.goalPos.x, 1000, 50, 6000), y: num(s.goalPos && s.goalPos.y, 200, 50, 6000) },
+        goalRadius: num(s.goalRadius, 100, 40, 300),
+        bossKey: s.bossKey ? String(s.bossKey).slice(0, 24) : undefined,
+        miniBosses: Array.isArray(s.miniBosses) ? s.miniBosses.slice(0, 4).filter(m => m && typeof m === 'object').map(m => ({
+          type: okTypes.has(String(m.type)) ? String(m.type) : 'brute',
+          name: String(m.name || 'ELITE').slice(0, 28),
+          power: String(m.power || 'caster').slice(0, 20),
+          hpMul: num(m.hpMul, 8, 1, 40), dmgMul: num(m.dmgMul, 1.5, 0.5, 4),
+          scale: num(m.scale, 1.3, 1, 2.2), gold: num(m.gold, 150, 0, 3000),
+        })) : undefined,
+        zones: Array.isArray(s.zones) ? s.zones.slice(0, 8).filter(z => z && typeof z === 'object').map(z => ({
+          count: num(z.count, 8, 1, 50),
+          pool: Array.isArray(z.pool) ? z.pool.filter(t => okTypes.has(String(t))).slice(0, 6) : ['grunt'],
+          event: z.event ? String(z.event).slice(0, 24) : undefined,
+        })) : [{ count: 8, pool: ['grunt'] }],
+        bgColor: String(s.bgColor || '#2a2a30').slice(0, 9),
+        accentColor: String(s.accentColor || '#10101a').slice(0, 9),
+        // v2 #58 (additivt): sandbox-stage — ingen wave-progression/boss, 6 odödliga
+        // dummy-fiender i ring runt stage-center. V1 skickar aldrig fältet → undefined.
+        sandbox: s.sandbox === true ? true : undefined,
+      }));
+      if (customStages.length === 0) customStages = null;  // bara skräp-element → som om fältet saknades
+    }
     // Rematch / mode-byte: stoppa ev. tidigare sim och skapa en ny så ingen
     // gammal state (tdmActive/ctfActive/scores/pickup-ids) läcker in i nästa match.
     if (room.sim) {
@@ -871,41 +932,6 @@ function handleMessage(ws, msg) {
         }
       }
     }
-    // v2-tillägg (additivt): custom stage-listor (Godot endless/bossrush m.fl.).
-    // Saniteras hårt — utan fältet är beteendet EXAKT som förut.
-    let customStages = null;
-    if (Array.isArray(msg.customStages) && msg.customStages.length > 0) {
-      const okTypes = new Set(['grunt', 'runner', 'brute', 'shooter', 'ninja', 'swordsman', 'soldier', 'robot', 'dog', 'healer', 'summoner', 'swarmer', 'swordsman', 'sniper', 'bomber']);
-      const num = (v, d, lo, hi) => Math.max(lo, Math.min(hi, +v || d));
-      customStages = msg.customStages.slice(0, 60).map((s, i) => ({
-        id: String(s.id || ('custom' + (i + 1))).slice(0, 32),
-        name: String(s.name || ('STAGE ' + (i + 1))).slice(0, 40),
-        kind: String(s.kind || 'forest').slice(0, 16),
-        worldW: num(s.worldW, 2000, 800, 6000),
-        worldH: num(s.worldH, 2800, 800, 6000),
-        spawnPos: { x: num(s.spawnPos && s.spawnPos.x, 1000, 50, 6000), y: num(s.spawnPos && s.spawnPos.y, 2600, 50, 6000) },
-        goalPos: { x: num(s.goalPos && s.goalPos.x, 1000, 50, 6000), y: num(s.goalPos && s.goalPos.y, 200, 50, 6000) },
-        goalRadius: num(s.goalRadius, 100, 40, 300),
-        bossKey: s.bossKey ? String(s.bossKey).slice(0, 24) : undefined,
-        miniBosses: Array.isArray(s.miniBosses) ? s.miniBosses.slice(0, 4).map(m => ({
-          type: okTypes.has(String(m.type)) ? String(m.type) : 'brute',
-          name: String(m.name || 'ELITE').slice(0, 28),
-          power: String(m.power || 'caster').slice(0, 20),
-          hpMul: num(m.hpMul, 8, 1, 40), dmgMul: num(m.dmgMul, 1.5, 0.5, 4),
-          scale: num(m.scale, 1.3, 1, 2.2), gold: num(m.gold, 150, 0, 3000),
-        })) : undefined,
-        zones: Array.isArray(s.zones) ? s.zones.slice(0, 8).map(z => ({
-          count: num(z.count, 8, 1, 50),
-          pool: Array.isArray(z.pool) ? z.pool.filter(t => okTypes.has(String(t))).slice(0, 6) : ['grunt'],
-          event: z.event ? String(z.event).slice(0, 24) : undefined,
-        })) : [{ count: 8, pool: ['grunt'] }],
-        bgColor: String(s.bgColor || '#2a2a30').slice(0, 9),
-        accentColor: String(s.accentColor || '#10101a').slice(0, 9),
-        // v2 #58 (additivt): sandbox-stage — ingen wave-progression/boss, 6 odödliga
-        // dummy-fiender i ring runt stage-center. V1 skickar aldrig fältet → undefined.
-        sandbox: s.sandbox === true ? true : undefined,
-      }));
-    }
     room.sim = createSim(room);
     if (customStages) room.sim.customStagesList = customStages;
     // v2: PvE-stage-väggar från Godot-klienten (story-byggnader per wave) — kulor
@@ -913,8 +939,10 @@ function handleMessage(ws, msg) {
     // walls, talen clampade. V1-webben skickar aldrig fältet → no-op.
     if (Array.isArray(msg.stageWalls)) {
       const wnum = (v, d, lo, hi) => Math.max(lo, Math.min(hi, +v || d));
+      // M3 (samma klass): filtrera icke-objekt-element så wnum(r.x) inte kastar
+      // på null mitt mellan createSim och startSim (rummet skulle fastna utan sim).
       room.sim.stageWallsList = msg.stageWalls.slice(0, 60).map((list) =>
-        Array.isArray(list) ? list.slice(0, 120).map((r) => ({
+        Array.isArray(list) ? list.slice(0, 120).filter(r => r && typeof r === 'object').map((r) => ({
           x: wnum(r.x, 0, -2000, 12000), y: wnum(r.y, 0, -2000, 12000),
           w: wnum(r.w, 10, 1, 4000), h: wnum(r.h, 10, 1, 4000),
         })) : []);
