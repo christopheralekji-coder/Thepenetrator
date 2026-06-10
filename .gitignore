@@ -19,3 +19,4 @@ tools/*.png
 # V2-bake referens-bilder (regenererbara via tools/*.js)
 tools/*-ref/
 tools/ward-debug/
+tools/_*.txt
