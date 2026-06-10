@@ -55,6 +55,46 @@ const OUT = path.resolve(__dirname, '..', '..', 'WarParty-V2', 'assets');
     return res;
   });
 
+  // BOSSAR: BOSS_DRAW[bossKey] + glow-aura (samma som boss-wrappern game.js ~66242)
+  const bosses = await page.evaluate(() => {
+    const res = {};
+    const savedCtx = ctx;
+    for (const key of Object.keys(BOSS_CONFIGS)) {
+      try {
+        const cfg = BOSS_CONFIGS[key];
+        const size = Math.ceil(cfg.r * 6);
+        const cv = document.createElement('canvas');
+        cv.width = size; cv.height = size;
+        ctx = cv.getContext('2d');
+        const mockE = {
+          r: cfg.r, bossKey: key, isBoss: true, type: 'boss',
+          color: cfg.color, accent: cfg.accent, glow: cfg.glow, name: cfg.name,
+          facing: 0, walkAccum: 0.4, walkPhase: 0.4, contactCd: 0, flashUntil: 0,
+          hp: cfg.hp, maxHp: cfg.hp, x: 0, y: 0,
+          stageAccent: '#7a5aaa', stageEdge: '#aaff5a',
+        };
+        ctx.save();
+        ctx.translate(size / 2, size / 2);
+        // glow-aura (statisk puls = 1)
+        if (mockE.glow) {
+          const grad = ctx.createRadialGradient(0, 0, cfg.r * 0.5, 0, 0, cfg.r * 2.4);
+          grad.addColorStop(0, hexA(mockE.glow, 0.40));
+          grad.addColorStop(0.6, hexA(mockE.glow, 0.15));
+          grad.addColorStop(1, hexA(mockE.glow, 0));
+          ctx.fillStyle = grad;
+          ctx.fillRect(-cfg.r * 2.6, -cfg.r * 2.6, cfg.r * 5.2, cfg.r * 5.2);
+        }
+        const fn = (typeof BOSS_DRAW !== 'undefined' && BOSS_DRAW[key]) || drawBossDefault;
+        fn(mockE, false, 0, 0, false);
+        ctx.restore();
+        res['boss_' + key] = cv.toDataURL();
+      } catch (e) { res['boss_' + key] = 'ERR:' + (e && e.message); }
+      ctx = savedCtx;
+    }
+    return res;
+  });
+  Object.assign(out, bosses);
+
   let saved = 0;
   for (const [k, v] of Object.entries(out)) {
     if (k.startsWith('_')) continue;
