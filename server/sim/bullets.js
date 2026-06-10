@@ -111,7 +111,42 @@ function applyMelee(sim, p, weaponId, params) {
   const inJug = !!sim.juggernautActive && !sim.juggernautEnded;
   const inBr = !!sim.battleroyaleActive && !sim.battleroyaleEnded;
   const inHeist = !!sim.heistActive && !sim.heistEnded;
-  if (!inGungame && !inTdm && !inCtf && !inSiege && !inKoth && !inJug && !inBr && !inHeist) return;
+  if (!inGungame && !inTdm && !inCtf && !inSiege && !inKoth && !inJug && !inBr && !inHeist) {
+    // v2: PvE-MELEE (story-familjen/CD/survivors) — V1 körde melee klient-side
+    // mot lokala enemies; Godot-klienten har ingen lokal sim → servern svingar.
+    const range = (w.range || 40) * (params.mrangeMul || 1);
+    const dmgMulPvE = (params.dmgMul || 1) * (params.adrenalineDmg || 1) * (params.stealthBonus || 1) * (params.cheats && params.cheats.ultimate ? 10 : 1);
+    const aim = p.aimAngle || 0;
+    for (const e of sim.enemies) {
+      if (e.dead) continue;
+      const dx = e.x - p.x, dy = e.y - p.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (d > range + e.r) continue;
+      let da = Math.atan2(dy, dx) - aim;
+      while (da > Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      if (Math.abs(da) > Math.PI / 2) continue;   // 180° framåt-kon (som PvE-cone)
+      const isCrit = Math.random() < (params.critChance || 0);
+      const died = damageEnemy(e, w.dmg * dmgMulPvE * (isCrit ? 2 : 1), isCrit, p.peerId);
+      if (e.burnUntil !== undefined && w.id === 'lightsaber') { /* pierce-melee — ingen extra */ }
+      if (died) sim.eventQueue.push({ type: 'enemy_killed', i: e._idx, killerPid: p.peerId });
+      if (w.knockback) {
+        const kb = w.knockback * (params.kbMul || 1) * 0.5;
+        e.x += (dx / (d || 1)) * kb * 0.05;
+        e.y += (dy / (d || 1)) * kb * 0.05;
+      }
+    }
+    // v2: Reflexer-perken — meleesvinget blockar fiende-kulor inom 60px
+    if (params.perks && params.perks.reflexes && sim.bullets) {
+      for (let bi = sim.bullets.length - 1; bi >= 0; bi--) {
+        const hb2 = sim.bullets[bi];
+        if (!hb2.hostile) continue;
+        const bdx = hb2.x - p.x, bdy = hb2.y - p.y;
+        if (bdx * bdx + bdy * bdy < 60 * 60) sim.bullets.splice(bi, 1);
+      }
+    }
+    return;
+  }
 
   // HEIST melee: damage enemies (police/guards) inom range
   if (inHeist) {
@@ -532,14 +567,30 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
       returnTimer: 0,
       origin: { x: p.x, y: p.y },
       bounced: false,
+      // v2-perks (V1 räknade dem klient-side): studsskott + kraftbrand
+      ricochet: !!(params.perks && params.perks.ricochet),
+      firespread: !!(params.perks && params.perks.firespread),
       ownerPid: p.peerId,  // kill-credit
       hitIds: null,
     });
   }
 }
 
+// v2: Studsskott-perken — reflektera kulan EN gång vid vägg-träff istället för
+// att dö. Hittar blockerande axel via enaxlig swept-probe. Returnerar true om studsad.
+function ricochetOff(b, walls) {
+  if (!b.ricochet || b.bounced || b.hostile) return false;
+  b.bounced = true;
+  const probe = { _prevX: b._prevX, _prevY: b._prevY, x: b.x, y: b._prevY, r: b.r };
+  if (bulletHitsWall(probe, walls)) b.vx = -b.vx; else b.vy = -b.vy;
+  b.x = b._prevX; b.y = b._prevY;
+  return true;
+}
+
 // Apply bullet effects på en träffad fiende (mirror av game.js:7829-7868)
 function applyBulletEffects(b, e, sim) {
+  // v2: Kraftbrand-perken — markera så burn-ticken sprider elden vidare
+  if (b.firespread && b.burn > 0) e._fireSpread = true;
   // Burn (DoT)
   if (b.burn > 0) {
     e.burnUntil = Date.now() + 4000;
@@ -824,6 +875,7 @@ function updateBullets(sim, dt, now) {
     }
     // PvP: wall-collision. Skott dör vid wall-hit så cover faktiskt skyddar.
     if (sim.ctfActive && bulletHitsWall(b, CTF_ARENA.walls)) {
+      if (ricochetOff(b, CTF_ARENA.walls)) continue;
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
       }
@@ -852,6 +904,7 @@ function updateBullets(sim, dt, now) {
         );
       }
       if (bulletHitsWall(b, HEIST_ARENA._bulletWalls)) {
+        if (ricochetOff(b, HEIST_ARENA._bulletWalls)) continue;
         if (b.explosive && !b.hostile) {
           explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
         }
@@ -860,6 +913,7 @@ function updateBullets(sim, dt, now) {
       }
     }
     if (sim.tdmActive && bulletHitsWall(b, TDM_ARENA.walls)) {
+      if (ricochetOff(b, TDM_ARENA.walls)) continue;
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
       }
@@ -867,6 +921,7 @@ function updateBullets(sim, dt, now) {
       continue;
     }
     if (sim.gungameActive && bulletHitsWall(b, GUNGAME_ARENA.walls)) {
+      if (ricochetOff(b, GUNGAME_ARENA.walls)) continue;
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
       }
@@ -874,6 +929,7 @@ function updateBullets(sim, dt, now) {
       continue;
     }
     if (sim.kothActive && bulletHitsWall(b, KOTH_ARENA.walls)) {
+      if (ricochetOff(b, KOTH_ARENA.walls)) continue;
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
       }
@@ -881,6 +937,7 @@ function updateBullets(sim, dt, now) {
       continue;
     }
     if (sim.juggernautActive && bulletHitsWall(b, JUGGERNAUT_ARENA.walls)) {
+      if (ricochetOff(b, JUGGERNAUT_ARENA.walls)) continue;
       if (b.explosive && !b.hostile) {
         explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
       }
@@ -891,6 +948,7 @@ function updateBullets(sim, dt, now) {
       // Skippa fönster-walls (passThroughBullets=true) så bullets passerar
       const brSolidWalls = sim._brSolidWalls || (sim._brSolidWalls = BATTLEROYALE_ARENA.walls.filter(w => !w.passThroughBullets));
       if (bulletHitsWall(b, brSolidWalls)) {
+        if (ricochetOff(b, brSolidWalls)) continue;
         if (b.explosive && !b.hostile) {
           explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid);
         }
@@ -1134,6 +1192,8 @@ function updateBullets(sim, dt, now) {
         const dx = ws.playerState.x - b.x, dy = ws.playerState.y - b.y;
         const rsum = 14 + b.r;
         if (dx * dx + dy * dy < rsum * rsum) {
+          // v2: Spektral kropp-perken — 20% chans att skott missar (passerar igenom)
+          if (ws.playerState.perks && ws.playerState.perks.phantombody && Math.random() < 0.2) continue;
           // v1.403: shield absorberar först (CD + PvP)
           let remaining = b.dmg;
           if ((ws.playerState.shield || 0) > 0) {

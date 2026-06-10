@@ -481,6 +481,12 @@ function tickSim(sim) {
         revivedBy: null,
       };
       sim.eventQueue.push({ type: 'player_died', peerId: pid });
+      // v2: Sista skrattet-perken — explosion vid din död (200 dmg, 250px)
+      if (ws.playerState.perks && ws.playerState.perks.lastlaugh) {
+        explode(sim, ws.playerState.x, ws.playerState.y, 250, 200, pid);
+        sim.eventQueue.push({ type: 'grenade_thrown', fromX: ws.playerState.x, fromY: ws.playerState.y,
+          toX: ws.playerState.x, toY: ws.playerState.y, flightMs: 1, kind: 'frag', radius: 250 });
+      }
     }
   }
   // Revive-tick: om annan LEVANDE spelare står inom 50px av kroppen i 5s → revive
@@ -3598,7 +3604,9 @@ function tickCastleDefense(sim, dt, now) {
             }
             const share = Math.round((alivePids.length > 0 ? Math.floor(goldGain / alivePids.length) : goldGain) * (sim.config.goldMul || 1));
             for (const pid of alivePids) {
-              sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + share;
+              const _pws = sim.room.members.get(pid);
+              const _pgm = (_pws && _pws.playerState && _pws.playerState.perks && _pws.playerState.perks.goldMul) || 1;
+              sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + Math.round(share * _pgm);
               sim.eventQueue.push({
                 type: 'cd_gold_update', peerId: pid, gold: sim.castledefenseGold[pid], delta: share,
               });
@@ -5899,8 +5907,9 @@ function broadcastWorld(sim, now) {
           t: e.type, b: e.isBoss ? 1 : 0, mb: e.isMiniBoss ? 1 : 0,
           bk: e.bossKey || '', r: e.r, c: e.color, n: e.name || '', p: e.phase || 0,
           // v2-tillägg (JSON-klienter; binär-encodern ignorerar okända fält):
-          // fx = status-bitfält (1=burn, 2=slow), g = guld-värde (story-ekonomi)
-          fx: ((e.burnUntil && e.burnUntil > now ? 1 : 0) | (e.slowUntil && e.slowUntil > now ? 2 : 0)),
+          // fx = status-bitfält (1=burn, 2=slow, 4=boss-charge, 8=boss-cloak), g = guld
+          fx: ((e.burnUntil && e.burnUntil > now ? 1 : 0) | (e.slowUntil && e.slowUntil > now ? 2 : 0)
+            | (e.chargeUntil && e.chargeUntil > now ? 4 : 0) | (e.cloakUntil && e.cloakUntil > now ? 8 : 0)),
           g: e.gold || 0,
         });
       } else {
@@ -7299,6 +7308,16 @@ function applyPlayerInput(sim, peerId, input) {
   const ws = sim.room.members.get(peerId);
   if (!ws) return;
   if (!ws.playerState) ws.playerState = { x: 1000, y: 1000, hp: 100 };
+  // v2: persistenta spelar-perks (skickas med första inputen / vid ändring).
+  // Saniteras: bara kända booleans + clampad goldMul. V1-klienter skickar aldrig fältet.
+  if (input.perks && typeof input.perks === 'object') {
+    ws.playerState.perks = {
+      phantombody: !!input.perks.phantombody,
+      lastlaugh: !!input.perks.lastlaugh,
+      magnetism: !!input.perks.magnetism,
+      goldMul: Math.max(1, Math.min(2.5, +input.perks.goldMul || 1)),
+    };
+  }
   // Mounted turret-spelare: position låst av server. Ignorera klient-position
   // helt så ingen kan skjuta från fel pos eller bypass turret-occupant.
   if (ws._mountedSiegeTurretId || ws._mountedCtfTurretId) {
@@ -7473,6 +7492,7 @@ function applyShoot(sim, peerId, msg) {
     critChance: msg.critChance || 0,
     adrenalineDmg: msg.adrenalineDmg || 1,
     stealthBonus: msg.stealthBonus || 1,
+    mrangeMul: Math.max(1, Math.min(2, +msg.mrangeMul || 1)),   // v2: melee-räckvidd-upgrade
     perks: msg.perks || {}, cheats: msg.cheats || {},
   };
   // v1.799/807: GULAG Frenzy BERSERK-powerup → 2× skada i 6s. gulagState-guard (v1.807):

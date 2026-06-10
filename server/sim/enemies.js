@@ -108,8 +108,25 @@ function spawnHostileBullet(sim, e, target) {
 }
 
 // Status-effekter — speglar game.js:7297-7314
-function updateStatus(e, dt, now) {
+// v2: allEnemies (valfri) för Kraftbrand-perkens eld-spridning
+function updateStatus(e, dt, now, allEnemies) {
   let speedMul = 1;
+  // v2: Kraftbrand — brinnande fiende tänder närmsta granne (ett hopp per fiende)
+  if (e._fireSpread && !e._fireSpreadDone && e.burnUntil && now < e.burnUntil && allEnemies) {
+    e._fireSpreadDone = true;
+    let nearest = null, nd2 = 120 * 120;
+    for (const o of allEnemies) {
+      if (o === e || o.dead || (o.burnUntil && o.burnUntil > now)) continue;
+      const dx = o.x - e.x, dy = o.y - e.y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < nd2) { nd2 = d2; nearest = o; }
+    }
+    if (nearest) {
+      nearest.burnUntil = now + 2500;
+      nearest.burnDps = e.burnDps || 6;
+      nearest._fireSpread = true;   // kedjar vidare (en gång per fiende)
+    }
+  }
   // burn (DoT)
   if (e.burnUntil && now < e.burnUntil) {
     e.hp -= (e.burnDps || 0) * dt;
@@ -383,7 +400,7 @@ function updateEnemy(e, dt, now, sim, players) {
   if (e.dead) return;
   if (e.contactCd > 0) e.contactCd -= dt;
   // Status-effekter (kan döda enemy)
-  if (!updateStatus(e, dt, now)) return;
+  if (!updateStatus(e, dt, now, sim.enemies)) return;
   // Mind-control byter sida
   if (e.mindControlled && now < e.mindControlUntil) {
     updateMindControlled(e, dt, now, sim.enemies);

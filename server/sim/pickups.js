@@ -67,9 +67,12 @@ function updatePickups(sim, dt) {
     if (!nearest) continue;
     const dx = nearest.x - pk.x, dy = nearest.y - pk.y;
     const d = Math.sqrt(nearestD2);
-    if (d < MAGNET_RANGE) pk.magnetized = true;
+    // v2: magnet-mästare-perken = 3× magnet-räckvidd (per spelare)
+    const psN = nearest.ws.playerState;
+    const magRange = (psN && psN.perks && psN.perks.magnetism) ? MAGNET_RANGE * 3 : MAGNET_RANGE;
+    if (d < magRange) pk.magnetized = true;
     if (pk.magnetized && d > 0) {
-      const speed = Math.min(600, 200 + (1 - d / MAGNET_RANGE) * 300);
+      const speed = Math.min(600, 200 + Math.max(0, 1 - d / magRange) * 300);
       pk.x += (dx / d) * speed * dt;
       pk.y += (dy / d) * speed * dt;
     }

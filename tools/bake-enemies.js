@@ -15,7 +15,9 @@ const OUT = path.resolve(__dirname, '..', '..', 'WarParty-V2', 'assets');
   await page.goto('http://localhost:8799/index.html', { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForTimeout(4000); // PIXI måste hinna laddas (bake kräver det)
 
-  const out = await page.evaluate(() => {
+  // v2: 3 GÅNG-FRAMES per typ (idle/_a/_b — walkPhase 0 / 0.35 / 0.85 som V1:s frames)
+  const FRAMES = [['', 0], ['_a', 0.35], ['_b', 0.85]];
+  const out = await page.evaluate(({ FRAMES }) => {
     const list = [
       { key: 'enemy_grunt', type: 'grunt', r: 22, color: '#4a5a30' },
       { key: 'enemy_runner', type: 'runner', r: 18, color: '#5a4a30' },
@@ -45,15 +47,19 @@ const OUT = path.resolve(__dirname, '..', '..', 'WarParty-V2', 'assets');
     ];
     const res = { _hasPixi: typeof PIXI !== 'undefined', _meta: {} };
     for (const it of list) {
-      try {
-        const cv = _bakeEnemyTexture(it.type, { r: it.r, color: it.color, walkPhase: 0.6 });
-        if (!cv) { res[it.key] = 'ERR:null(pixi?)'; continue; }
-        res[it.key] = cv.toDataURL();
-        res._meta[it.key] = { w: cv.width, h: cv.height, r: it.r };
-      } catch (e) { res[it.key] = 'ERR:' + (e && e.message); }
+      for (const [suffix, phase] of FRAMES) {
+        // minibossar: bara idle-frame (MINIBOSS_DRAW animeras ej per frame)
+        if (it.miniPower && suffix !== '') continue;
+        try {
+          const cv = _bakeEnemyTexture(it.type, { r: it.r, color: it.color, walkPhase: phase, miniPower: it.miniPower });
+          if (!cv) { res[it.key + suffix] = 'ERR:null(pixi?)'; continue; }
+          res[it.key + suffix] = cv.toDataURL();
+          res._meta[it.key + suffix] = { w: cv.width, h: cv.height, r: it.r };
+        } catch (e) { res[it.key + suffix] = 'ERR:' + (e && e.message); }
+      }
     }
     return res;
-  });
+  }, { FRAMES });
 
   // BOSSAR: BOSS_DRAW[bossKey] + glow-aura (samma som boss-wrappern game.js ~66242)
   const bosses = await page.evaluate(() => {
