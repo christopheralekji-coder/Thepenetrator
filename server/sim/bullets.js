@@ -1698,4 +1698,8 @@ module.exports = {
   damageEnemy,
   explode,
   applyBulletEffects,
+  // v2: exporterad så enemy-rörelsen (room-sim) kan kollidera mot SAMMA cachade
+  // wall-lista som kulorna. null i PvP/CD/heist eller utan stageWalls (= V1-vägar
+  // exakt orörda).
+  pveWalls: _pveWalls,
 };

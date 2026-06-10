@@ -2,9 +2,9 @@
 'use strict';
 
 const { encodeWorldBinary } = require('./wirefmt');
-const { makeEnemy, updateEnemy } = require('./enemies');
+const { makeEnemy, updateEnemy, resolveWallsCircle } = require('./enemies');
 const { makeBoss } = require('./bosses');
-const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy, explode } = require('./bullets');
+const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy, explode, pveWalls } = require('./bullets');
 const { enterGulag, gulagMatchmake, tickGulag, voidAllGulag, startGulagPractice } = require('./gulag');
 const { addBot, tickBots, removeAllBots } = require('./bots');
 const { updateBoss } = require('./bosses');
@@ -432,6 +432,16 @@ function tickSim(sim) {
       const players = buildPlayerList(sim);
       const beforeCount = sim.enemies.length;
       if (stage) spawnEnemyAtEdge(sim, stage, players);
+      // v2: spawn-i-vägg-skydd — knuffa nyspawnade till närmaste fria kant direkt
+      // (samma resolve som per-tick). null utan stageWalls (= V1 orört).
+      if (sim.enemies.length > beforeCount) {
+        const _spawnWalls = pveWalls(sim);
+        if (_spawnWalls) {
+          for (let k = beforeCount; k < sim.enemies.length; k++) {
+            resolveWallsCircle(sim.enemies[k], _spawnWalls);
+          }
+        }
+      }
       // Spam-skydd: bara logga första spawn per wave (annars 100+ logs/match)
       if (process.env.SIM_DEBUG || (sim._lastLogWave !== sim.wave)) {
         const spawned = sim.enemies.length > beforeCount;
@@ -448,6 +458,10 @@ function tickSim(sim) {
 
   // Enemy + boss AI (frozen vid time-stop)
   if (!timeStopped) {
+    // v2: PvE-stage-väggar (story-husen) — samma cachade lista som kulorna
+    // (bullets.js _pveWalls). null i PvP/CD/heist eller utan stageWalls
+    // → hela resolve-steget hoppas över (= V1-vägar exakt orörda).
+    const _enemyWalls = pveWalls(sim);
     for (const e of sim.enemies) {
       if (e.dead) continue;
       if (e.isBoss) {
@@ -461,6 +475,9 @@ function tickSim(sim) {
       const wh = stage ? stage.worldH : 3000;
       e.x = Math.max(20, Math.min(ww - 20, e.x));
       e.y = Math.max(20, Math.min(wh - 20, e.y));
+      // v2: lös överlapp mot husen EFTER att AI:n flyttat (ingen path-ändring) —
+      // fienden glider längs väggen (minsta-penetrations-axeln) istället för fastna.
+      if (_enemyWalls) resolveWallsCircle(e, _enemyWalls);
     }
   }
 
@@ -1071,7 +1088,10 @@ function tdmStartRound(sim, nowMs) {
     ws.playerState.hp = 100;
     ws.playerState.shield = ws.playerState.maxShield || 100;
     ws.playerState.invulnUntil = nowMs + 1500;
-    if (reset) ws.playerState.weaponId = 'pistol'; // förlorande laget tappar vapnet; vinnare behåller
+    if (reset) {
+      ws.playerState.weaponId = 'pistol'; // förlorande laget tappar vapnet; vinnare behåller
+      ws._tdmPickedWeapons = [];          // v2 anti-cheat: förrådet nollställs med (spegel av klienten)
+    }
     ws._tdmDeadRound = false;
     ws.tdmRespawnAt = 0;
     sim.eventQueue.push({
@@ -1119,6 +1139,12 @@ function tickPvpPickups(sim, now) {
       if (pu.type === 'weapon') {
         pu.available = false;
         pu.respawnAt = now + PICKUP_RESPAWN_MS; // oanvänt i TDM (respawn gated av !tdmActive)
+        // v2 anti-cheat: tracka vad spelaren FAKTISKT plockat (fy_-förrådet) så
+        // applyShoot kan validera weaponId mot det. Lazy-init täcker late-joiners.
+        if (sim.tdmActive && pu.weaponId) {
+          if (!Array.isArray(ws._tdmPickedWeapons)) ws._tdmPickedWeapons = [];
+          if (!ws._tdmPickedWeapons.includes(pu.weaponId)) ws._tdmPickedWeapons.push(pu.weaponId);
+        }
         sim.eventQueue.push({
           type: 'pvp_pickup_collected', id: pu.id, peerId: pid, ptype: 'weapon',
           weaponId: pu.weaponId, hp: ws.playerState.hp, shield: ws.playerState.shield || 0,
@@ -4144,6 +4170,10 @@ function tickBrLootPickups(sim, nowMs) {
         // Trigger event ALLTID så klient kan lägga vapnet i sitt inventory
         applied = true;
         lo._brEquippedOnPickup = equippedNow;
+        // v2 anti-cheat: vapnet hamnar i klientens inventory oavsett equip →
+        // tracka server-side så applyShoot tillåter det.
+        if (!(ws._brOwnedWeapons instanceof Set)) ws._brOwnedWeapons = new Set(['fists', 'knife', BATTLEROYALE_ARENA.startWeapon || 'pistol']);
+        ws._brOwnedWeapons.add(lo.weaponId);
       }
       if (!applied) continue;
       lo.available = false;
@@ -5508,6 +5538,9 @@ function applyBrBuy(sim, pid, itemKind) {
   } else if (itemKind === 'alien_weapon') {
     // Exklusivt top-tier-vapen (legendary) — equipa direkt.
     const wpn = brSupplyLegendaryWeapon();
+    // v2 anti-cheat: lägg i serverns inventory-spegel (klienten lägger i save.owned)
+    if (!(ws._brOwnedWeapons instanceof Set)) ws._brOwnedWeapons = new Set(['fists', 'knife', BATTLEROYALE_ARENA.startWeapon || 'pistol']);
+    ws._brOwnedWeapons.add(wpn);
     sim.eventQueue.push({ type: 'br_supply_opened', id: null, peerId: pid, weaponId: wpn, cash: 0 });
   } else if (itemKind === 'alien_perks') {
     if (!ps.brPerks) ps.brPerks = {};
@@ -5698,6 +5731,11 @@ function tickBrContracts(sim, nowMs) {
         let wpn = null, cash = 0;
         if (Math.random() < 0.5) { wpn = brSupplyLegendaryWeapon(); }
         else { cash = 700; brAwardCash(sim, pid, cash); }
+        // v2 anti-cheat: vapnet hamnar i klientens save.owned → spegla server-side
+        if (wpn) {
+          if (!(ws._brOwnedWeapons instanceof Set)) ws._brOwnedWeapons = new Set(['fists', 'knife', BATTLEROYALE_ARENA.startWeapon || 'pistol']);
+          ws._brOwnedWeapons.add(wpn);
+        }
         sim.eventQueue.push({ type: 'br_supply_opened', id: d.id, peerId: pid, weaponId: wpn, cash: cash });
         // Dropbox-kontrakt slutfört om denna låda hörde till ett
         if (d.fromContract && ws.playerState.brContract && ws.playerState.brContract.type === 'dropbox' && ws.playerState.brContract.dropId === d.id) {
@@ -6529,6 +6567,10 @@ function startSim(sim, opts) {
       ws.playerState.invulnUntil = Date.now() + 1500;
       // fy_: alla startar med pistol; vapen greppas från marken
       ws.playerState.weaponId = 'pistol';
+      // v2 anti-cheat: serverns spegel av fy_-förrådet (fylls i tickPvpPickups,
+      // nollställs för förlorande laget i resetTdmRound). Används av
+      // clampWeaponToModeArsenal i applyShoot.
+      ws._tdmPickedWeapons = [];
       ws.tdmRespawnAt = 0;
       ws._tdmDeadRound = false;
       sim.tdmKillsByPid[pid] = 0;
@@ -6881,6 +6923,9 @@ function startSim(sim, opts) {
       ws.playerState.invulnUntil = Date.now() + 1500;
       ws.playerState.weaponId = arena.startWeapon;
       ws.playerState._brWeaponTier = 'starter'; // för tier-baserad pickup-jämförelse
+      // v2 anti-cheat: serverns spegel av BR-inventoriet (starter-trion, speglar
+      // klientens save.owned-reset i br_started). Fylls på vid loot/supply/shop.
+      ws._brOwnedWeapons = new Set(['fists', 'knife', arena.startWeapon || 'pistol']);
       ws.playerState.isJug = false;
       ws.playerState.scaleMul = 1.0;
       ws.playerState.speedMul = 1.0;
@@ -7482,6 +7527,89 @@ function applyPlayerInput(sim, peerId, input) {
   }
 }
 
+// ============ v2 ANTI-CHEAT: MODE-ARSENAL-VALIDERING (server-sanning) ============
+// CLAMPAR otillåtet weaponId till mode-default och BEHÅLLER skottet (mjukt mot
+// latency/races) istället för att kasta det. V1-webben skickar redan giltiga vapen
+// i alla dessa lägen → no-op för V1 (verifierat mot V1-klientens faktiska regler):
+//   - CTF/Siege/KOTH (+ JUG-hunters): radialen visar save.owned = fists+COOP_WEAPONS
+//     (game.js:16074/38579) → tillåtna listan måste vara HELA coop-arsenalen, inte
+//     bara fists/knife/pistol.
+//   - TDM fy_: pistol + det spelaren FAKTISKT plockat (server trackar pickups i
+//     tickPvpPickups → ws._tdmPickedWeapons; vinnare behåller över rundor, förlorare
+//     nollställs i resetTdmRound — speglar v1.734-semantiken).
+//   - Gungame: exakt aktuellt tier-vapen (sim.gungameTiers) + fists (V1 sätter
+//     save.owned=['fists'] i GG → melee-demote-mekaniken, game.js:26592).
+//   - BR: starter-trion + lootat/köpt (server vet looten → ws._brOwnedWeapons).
+//   - Story-familjen/survivors/CD/heist: servern känner inte save.owned → validera
+//     bara att id finns i vapenkatalogen. (CD har dessutom redan tier-låset ovan.)
+// Gulag-duellen forcerar redan sitt vapen FÖRE detta steg; mounted turret forceras
+// EFTER (override vinner alltid).
+const COOP_ARSENAL = ['fists', 'knife', 'pistol', 'shuriken', 'burstpistol', 'shotgun', 'sniper', 'rifle'];
+const TDM_BASE_WEAPONS = ['fists', 'knife', 'pistol'];
+
+function _logWeaponClamp(sim, peerId, from, to, why) {
+  // Throttlat (max 1 log / 2s per rum) så fusk syns utan log-spam
+  const now = Date.now();
+  sim._weaponClampCount = (sim._weaponClampCount || 0) + 1;
+  if (!sim._weaponClampLogAt || now - sim._weaponClampLogAt > 2000) {
+    sim._weaponClampLogAt = now;
+    console.log('[ANTICHEAT]', sim.room.code, 'weapon clamp #' + sim._weaponClampCount,
+      peerId, String(from) + ' → ' + to, '(' + why + ')');
+  }
+}
+
+function clampWeaponToModeArsenal(sim, ws, ps, weaponId, peerId) {
+  // Gulag-duellen har redan låst vapnet (inkl. specialet gulag_knock) — rör ej.
+  if (ps.gulagState === 'fighting') return weaponId;
+  const W_BY_ID = require('../../shared/weapons-data').W_BY_ID;
+  if (sim.gungameActive) {
+    const tier = Math.max(0, Math.min(GUNGAME_WEAPONS.length - 1, sim.gungameTiers[peerId] || 0));
+    const tierWeapon = GUNGAME_WEAPONS[tier];
+    if (weaponId === tierWeapon || weaponId === 'fists') return weaponId;
+    _logWeaponClamp(sim, peerId, weaponId, tierWeapon, 'gungame tier ' + tier);
+    return tierWeapon;
+  }
+  if (sim.tdmActive) {
+    if (TDM_BASE_WEAPONS.includes(weaponId)) return weaponId;
+    if (Array.isArray(ws._tdmPickedWeapons) && ws._tdmPickedWeapons.includes(weaponId)) return weaponId;
+    _logWeaponClamp(sim, peerId, weaponId, 'pistol', 'tdm ej i förrådet');
+    return 'pistol';
+  }
+  if (sim.ctfActive || sim.siegeActive || sim.kothActive) {
+    if (COOP_ARSENAL.includes(weaponId)) return weaponId;
+    _logWeaponClamp(sim, peerId, weaponId, 'pistol', sim.ctfActive ? 'ctf' : (sim.siegeActive ? 'siege' : 'koth'));
+    return 'pistol';
+  }
+  if (sim.juggernautActive) {
+    const isJug = sim.juggernautPid === peerId;
+    // Hunters: hela coop-arsenalen (V1-radialen tillåter den). JUG: dito + jug-vapnen
+    // (sledge). Pistol-shots från en NYBLIVEN jug (event-latency) clampas inte.
+    if (COOP_ARSENAL.includes(weaponId)) return weaponId;
+    if (isJug && JUGGERNAUT_ARENA.jugWeapons.includes(weaponId)) return weaponId;
+    const fb = isJug
+      ? (sim.juggernautWeapon || JUGGERNAUT_ARENA.jugDefaultWeapon || 'rifle')
+      : (JUGGERNAUT_ARENA.hunterWeapon || 'pistol');
+    _logWeaponClamp(sim, peerId, weaponId, fb, isJug ? 'juggernaut (jug)' : 'juggernaut (hunter)');
+    return fb;
+  }
+  if (sim.battleroyaleActive) {
+    // Lazy-init (late-join/gulag-redeploy-edge): starter-trion + serverns hand-vapen
+    if (!(ws._brOwnedWeapons instanceof Set)) {
+      ws._brOwnedWeapons = new Set(['fists', 'knife', BATTLEROYALE_ARENA.startWeapon || 'pistol']);
+      if (ps.weaponId && W_BY_ID[ps.weaponId]) ws._brOwnedWeapons.add(ps.weaponId);
+    }
+    if (ws._brOwnedWeapons.has(weaponId)) return weaponId;
+    const fb = BATTLEROYALE_ARENA.startWeapon || 'pistol';
+    _logWeaponClamp(sim, peerId, weaponId, fb, 'br ej lootat');
+    return fb;
+  }
+  // Story-familjen/survivors/CD/heist: katalog-existens räcker (servern vet inte save.owned)
+  if (W_BY_ID[weaponId]) return weaponId;
+  const fb = (ps.weaponId && W_BY_ID[ps.weaponId]) ? ps.weaponId : 'pistol';
+  _logWeaponClamp(sim, peerId, weaponId, fb, 'okänt vapen-id');
+  return fb;
+}
+
 function applyShoot(sim, peerId, msg) {
   const ws = sim.room.members.get(peerId);
   if (!ws) return;
@@ -7529,6 +7657,9 @@ function applyShoot(sim, peerId, msg) {
       weaponId = ps.weaponId || prog[tier] || 'pistol';
     }
   }
+  // v2 anti-cheat: mode-arsenal-validering (clamp + behåll skottet). Mounted
+  // turret override:ar weaponId NEDAN — den vinner alltid över clampen.
+  weaponId = clampWeaponToModeArsenal(sim, ws, ps, weaponId, peerId);
   let posX = typeof msg.x === 'number' ? msg.x : ps.x;
   let posY = typeof msg.y === 'number' ? msg.y : ps.y;
   if (ws._mountedSiegeTurretId && sim.siegeTurrets) {

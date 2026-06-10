@@ -395,6 +395,45 @@ function applyContactDamage(e, p, sim) {
   }
 }
 
+// v2: FIENDE-vs-PvE-STAGE-VÄGGAR (story-husen från Godot-klientens sim_start.stageWalls).
+// Kulor stoppades redan server-side (bullets.js _pveWalls) men fiender gick rakt
+// genom husen (V1 solo körde klient-side kollision → V2-spelare såg fiender gå
+// genom väggar). Klassisk cirkel-vs-rect-resolve EFTER att AI:n flyttat (ingen
+// path-ändring): knuffa ut längs minsta-penetrations-axeln så fienden GLIDER
+// längs väggen istället för att fastna (V1-klientens beteende). Anropas BARA
+// när walls finns (caller gate:ar på pveWalls(sim) != null) → V1-vägar orörda.
+// Täcker även spawn-i-vägg (center inne i rect → knuffas till närmaste fria kant).
+function resolveWallsCircle(e, walls) {
+  const r = e.r || 12;
+  for (let i = 0; i < walls.length; i++) {
+    const wl = walls[i];
+    // Närmaste punkt på rect till cirkelcentrum
+    const cx = Math.max(wl.x, Math.min(wl.x + wl.w, e.x));
+    const cy = Math.max(wl.y, Math.min(wl.y + wl.h, e.y));
+    const dx = e.x - cx, dy = e.y - cy;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= r * r) continue;       // ingen överlapp
+    if (d2 > 1e-6) {
+      // Centrum utanför rect: knuffa ut längs kontakt-normalen. Vid kant-kontakt är
+      // normalen axel-rät (= bara den penetrerande axeln resolvas) → tangentiella
+      // rörelsekomponenten består = glid. Vid hörn blir det diagonalt (naturligt).
+      const d = Math.sqrt(d2);
+      const pen = r - d;
+      e.x += (dx / d) * pen;
+      e.y += (dy / d) * pen;
+    } else {
+      // Centrum INNE i rect (spawn i vägg / hög fart): ut längs minsta-penetrations-axeln
+      const left = e.x - wl.x, right = wl.x + wl.w - e.x;
+      const top = e.y - wl.y, bottom = wl.y + wl.h - e.y;
+      const m = Math.min(left, right, top, bottom);
+      if (m === left) e.x = wl.x - r;
+      else if (m === right) e.x = wl.x + wl.w + r;
+      else if (m === top) e.y = wl.y - r;
+      else e.y = wl.y + wl.h + r;
+    }
+  }
+}
+
 // Huvud-uppdatering per fiende. Anropas från room-sim.js för varje enemy.
 function updateEnemy(e, dt, now, sim, players) {
   if (e.dead) return;
@@ -425,4 +464,5 @@ module.exports = {
   makeEnemy,
   updateEnemy,
   findNearestPlayer,
+  resolveWallsCircle,
 };
