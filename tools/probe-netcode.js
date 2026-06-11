@@ -113,8 +113,18 @@ async function probeRtt() {
   console.log('    klient-noDelay PÅ : ' + fmt(withNd) + ' (ms)');
   console.log('    klient-noDelay AV : ' + fmt(withNagle) + ' (ms)');
   console.log('    (loopback — Nagle-effekten är normalt osynlig lokalt; jämförelsen rapporteras ärligt, WAN-vinsten syns inte här)');
-  ok(withNd.p50 < 50, 'RTT p50 < 50ms lokalt (' + withNd.p50 + 'ms)', withNd);
-  ok(withNd.p95 < 100, 'RTT p95 < 100ms lokalt (' + withNd.p95 + 'ms)', withNd);
+  // RTT-trösklarna gäller bara LOOPBACK — mot prod (Render EU) är p50 ~90ms
+  // helt friskt (WAN-avstånd, inte server-fel). Där rapporteras siffrorna
+  // informativt och STABILITETEN asserteras i stället (jitter-sd < 30ms).
+  const isLocal = /localhost|127\.0\.0\.1/.test(URL);
+  if (isLocal) {
+    ok(withNd.p50 < 50, 'RTT p50 < 50ms lokalt (' + withNd.p50 + 'ms)', withNd);
+    ok(withNd.p95 < 100, 'RTT p95 < 100ms lokalt (' + withNd.p95 + 'ms)', withNd);
+  } else {
+    console.log('    (WAN-läge: RTT-trösklar skippade — p50=' + withNd.p50 + 'ms är avstånd, inte fel)');
+    ok(withNd.sd < 30, 'RTT-jitter sd < 30ms över WAN (' + withNd.sd + 'ms)', withNd);
+    ok(withNd.p99 < withNd.p50 + 120, 'RTT p99 utan extrema spikar (' + withNd.p99 + 'ms)', withNd);
+  }
 }
 
 // ── (d) st-fält i world / sim_events / server_pong ───────────────────────────

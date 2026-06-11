@@ -7218,7 +7218,10 @@ function startSim(sim, opts) {
     // Spawn alla players på street utanför banken
     let hIdx = 0;
     for (const [pid, ws] of sim.room.members) {
-      if (!ws.playerState) continue;
+      // SLUTAUDIT 2 #2: var `continue` — V2-hosten saknar playerState vid
+      // sim_start så HELA initen (sköld/spawn/vapen/roll/invuln) skippades.
+      // Samma mönster som CTF (6575) och BR (6997).
+      ws.playerState = ws.playerState || {};
       const spawn = arena.playerSpawns[hIdx % arena.playerSpawns.length];
       ws.playerState.x = spawn.x;
       ws.playerState.y = spawn.y;
