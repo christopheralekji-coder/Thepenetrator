@@ -1,0 +1,88 @@
+name: iOS V2 → TestFlight (Godot)
+
+# Bygger WARPARTY V2 (Godot-repot warparty-v2) härifrån V1-repot — för att
+# återanvända ALLA befintliga secrets (ASC_*, APPLE_TEAM_ID, MATCH_*) utan
+# kopiering. V2-koden checkas ut via read-only deploy-nyckel (V2_DEPLOY_KEY).
+# Körs BARA manuellt. V2-repots egen ios-testflight.yml är samma pipeline för
+# framtiden om secrets flyttas dit.
+on:
+  workflow_dispatch:
+
+env:
+  GODOT_VERSION: "4.6.3"
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - name: Checka ut V2-repot via deploy-nyckel
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.V2_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
+          git clone --depth 1 git@github.com:christopheralekji-coder/warparty-v2.git v2
+
+      - name: Välj senaste Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Ladda ner Godot + iOS-exportmallar
+        run: |
+          set -e
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          curl -L -o godot.zip "$BASE/Godot_v${GODOT_VERSION}-stable_macos.universal.zip"
+          unzip -q godot.zip
+          GODOT="$PWD/Godot.app/Contents/MacOS/Godot"
+          echo "GODOT=$GODOT" >> "$GITHUB_ENV"
+          curl -L -o templates.tpz "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          TPL_DIR="$HOME/Library/Application Support/Godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$TPL_DIR"
+          unzip -q templates.tpz
+          mv templates/* "$TPL_DIR/"
+          "$GODOT" --version
+
+      - name: Importera + exportera iOS-Xcode-projekt
+        run: |
+          set -e
+          cd v2
+          "$GODOT" --headless --path . --import || true
+          mkdir -p build/ios
+          "$GODOT" --headless --path . --export-release "iOS" "build/ios/WarParty.ipa"
+          ls -la build/ios/
+          test -d build/ios/WarParty.xcodeproj || { echo "::error::Xcode-projektet genererades inte"; exit 1; }
+
+      - name: Ruby + Fastlane (Bundler mot V2:s Gemfile)
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+          bundler-cache: true
+          working-directory: v2
+
+      - name: Byt SSH-nyckel till match-repots deploy-nyckel
+        run: |
+          printf '%s\n' "${{ secrets.MATCH_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+
+      - name: Bygg + ladda upp till TestFlight
+        working-directory: v2
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+          APP_ID: com.warparty.game
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          BUILD_NUMBER: ${{ github.run_number }}
+          FASTLANE_HIDE_CHANGELOG: "true"
+        run: bundle exec fastlane beta
+
+      - name: Spara .ipa som artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: WarParty-V2-ipa
+          path: v2/build/*.ipa
+          if-no-files-found: ignore
