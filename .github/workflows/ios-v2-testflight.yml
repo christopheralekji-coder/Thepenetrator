@@ -45,9 +45,15 @@ jobs:
           "$GODOT" --version
 
       - name: Importera + exportera iOS-Xcode-projekt
+        env:
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           set -e
           cd v2
+          # Godot kräver app_store_team_id även med export_project_only —
+          # injiceras från secreten här så det aldrig ligger i repot.
+          sed -i '' "s|application/app_store_team_id=\"\"|application/app_store_team_id=\"$TEAM_ID\"|" export_presets.cfg
+          grep -c "app_store_team_id" export_presets.cfg
           "$GODOT" --headless --path . --import || true
           mkdir -p build/ios
           "$GODOT" --headless --path . --export-release "iOS" "build/ios/WarParty.ipa"
