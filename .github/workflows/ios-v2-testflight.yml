@@ -24,6 +24,29 @@ jobs:
           ssh-keyscan github.com >> ~/.ssh/known_hosts 2>/dev/null
           git clone --depth 1 git@github.com:christopheralekji-coder/warparty-v2.git v2
 
+      # GodotApplePlugins (migueldeicaza) — Sign in with Apple + Game Center.
+      # GDExtension med iOS-xcframeworks; binärerna är för stora för repot
+      # (~110 MB opackat) → pinnad release-zip + sha256 i stället. Endast de
+      # tre addons vi behöver packas upp (Runtime är delat beroende som
+      # .gdextension-manifesten pekar på — Godot bäddar in xcframeworken i
+      # Xcode-projektet vid export, även med export_project_only=true).
+      - name: Installera GodotApplePlugins (pinnad version + checksum)
+        run: |
+          set -e
+          cd v2
+          GAP_BUILD="22a254b8866e5a75e234621b09da3d8a14f143a9"   # release 2026-06-07
+          GAP_SHA256="d9daf99f75ad12d46ee879fd0c54d8b40539e3d2fd963b38f2d2e78f6fa11809"
+          curl -L -o gap.zip "https://github.com/migueldeicaza/GodotApplePlugins/releases/download/build-${GAP_BUILD}/GodotApplePlugins-addons-${GAP_BUILD}.zip"
+          echo "${GAP_SHA256}  gap.zip" | shasum -a 256 -c -
+          unzip -q gap.zip -d gap_tmp \
+            "dist/addons/GodotApplePluginsRuntime/*" \
+            "dist/addons/GodotApplePluginsAuthenticationServices/*" \
+            "dist/addons/GodotApplePluginsGameCenter/*"
+          mkdir -p addons
+          cp -R gap_tmp/dist/addons/* addons/
+          rm -rf gap.zip gap_tmp
+          ls addons/
+
       - name: Välj senaste Xcode
         uses: maxim-lobanov/setup-xcode@v1
         with:
@@ -59,6 +82,15 @@ jobs:
           "$GODOT" --headless --path . --export-release "iOS" "build/ios/WarParty.ipa"
           ls -la build/ios/
           test -d build/ios/WarParty.xcodeproj || { echo "::error::Xcode-projektet genererades inte"; exit 1; }
+          # Sanity: plugin-ramverken MÅSTE ha följt med i exporten — annars är
+          # Apple-knappen död i appen igen (unavailable) trots grönt bygge.
+          find build/ios -name "*.xcframework" -prune | sort
+          find build/ios -name "*SwiftGodotRuntime*" -prune | grep -q . \
+            || { echo "::error::GodotApplePlugins-ramverken kom inte med i iOS-exporten"; exit 1; }
+          # Sanity: SiwA-entitlementen måste ligga i .entitlements-filen
+          find build/ios -name "*.entitlements" -exec cat {} \;
+          find build/ios -name "*.entitlements" -exec cat {} \; | grep -q "applesignin" \
+            || { echo "::error::com.apple.developer.applesignin saknas i entitlements"; exit 1; }
 
       - name: Ruby + Fastlane (Bundler mot V2:s Gemfile)
         uses: ruby/setup-ruby@v1
