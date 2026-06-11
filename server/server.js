@@ -34,6 +34,17 @@ const server = http.createServer((req, res) => {
     res.end(`WarParty co-op server\nVersion: ${SERVER_VERSION}\nBuilt: ${SERVER_BUILD_AT}\nRooms: ${rooms.size}\nUptime: ${Math.round(process.uptime())}s\nErrors logged: ${errorLog.length}`);
     return;
   }
+  // v2 konto-bind: Google-OAuth förmedlas via servern (acct_google_start ger
+  // klienten /auth/google?s=… → 302 till Google → callback → push över WS).
+  // Additivt — V1 träffar aldrig dessa paths.
+  if (req.url.startsWith('/auth/google/callback') && req.method === 'GET') {
+    accounts.handleGoogleCallback(req, res).catch(() => { try { res.writeHead(500); res.end(); } catch (e) {} });
+    return;
+  }
+  if (req.url.startsWith('/auth/google') && req.method === 'GET') {
+    accounts.handleGoogleRedirect(req, res);
+    return;
+  }
   if (req.url === '/errors' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(errorLog, null, 2));
