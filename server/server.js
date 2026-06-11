@@ -8,7 +8,7 @@ const accounts = require('./accounts'); // v2 konto/vänner (acct_* — additivt
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v267-perf-deflate-off-v1.815';
+const SERVER_VERSION = 'v268-showroom-s8-cabins';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -1791,12 +1791,19 @@ function handleMessage(ws, msg) {
     if (!room || !room.sim || !room.sim.stresstestActive) return;
     // v2 #59 (additivt): `what`-varianten — host-only spawn av n enemies/kulor.
     // V1-webben skickar bara `action` (grenen nedan) → helt opåverkad.
-    if (msg.what === 'enemies' || msg.what === 'bullets') {
+    if (msg.what === 'enemies' || msg.what === 'bullets' || msg.what === 'showcase') {
       if (room.hostId !== ws.id) return;  // bara host
       const sim = room.sim;
       const ws2 = sim.room.members.get(ws.id);
       if (!ws2 || !ws2.playerState) return;
       const px = ws2.playerState.x, py = ws2.playerState.y;
+      if (msg.what === 'showcase') {
+        // v2 R10b (additivt): SHOWROOM — en av varje enemy-typ + miniboss-power +
+        // boss i frusna rader nedanför hosten (V1-paritet: spawnEnemyShowcase).
+        const { applyStresstestShowcase } = require('./sim/room-sim');
+        applyStresstestShowcase(sim, px, py);
+        return;
+      }
       if (msg.what === 'enemies') {
         const n = Math.max(1, Math.min(100, Math.round(+msg.n) || 20));
         const { makeEnemy } = require('./sim/enemies');
@@ -1811,15 +1818,17 @@ function handleMessage(ws, msg) {
         }
       } else {
         const n = Math.max(1, Math.min(200, Math.round(+msg.n) || 50));
+        // v2 R10a: V1-PARITET (game.js spawnStresstestBullets) — jämn radiell
+        // solfjäder UTÅT från avsändaren, gula, ofarliga (dmg 0; M4-guarden gör
+        // dem ändå ofarliga i stresstest). Förr: röda kulor INÅT mot spelaren =
+        // såg ut som ett bakhåll, inte som "+50 BULLETS". hostile:true behålls
+        // för hb-syncen (icke-hostile kulor skickas aldrig till klienter).
         for (let i = 0; i < n; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const dist = 250 + Math.random() * 350;
-          const speed = 180 + Math.random() * 120;
-          // Fiende-kulor radiellt INÅT mot avsändaren (samma shape som spawnHostileBullet)
+          const a = (i / n) * Math.PI * 2;
           sim.bullets.push({
-            x: px + Math.cos(a) * dist, y: py + Math.sin(a) * dist,
-            vx: -Math.cos(a) * speed, vy: -Math.sin(a) * speed,
-            dmg: 5, life: 2, r: 4, color: '#ff5a5a', hostile: true,
+            x: px + Math.cos(a) * 30, y: py + Math.sin(a) * 30,
+            vx: Math.cos(a) * 400, vy: Math.sin(a) * 400,
+            dmg: 0, life: 2, r: 4, color: '#ffeb3b', hostile: true,
           });
         }
       }

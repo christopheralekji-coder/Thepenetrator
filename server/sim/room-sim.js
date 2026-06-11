@@ -464,6 +464,9 @@ function tickSim(sim) {
     const _enemyWalls = pveWalls(sim);
     for (const e of sim.enemies) {
       if (e.dead) continue;
+      // v2 R10b (additivt): showcase-frusna enheter skippar AI/attack/rörelse.
+      // Flaggan sätts aldrig i V1-vägar (kräver stresstest) → no-op här normalt.
+      if (e._showcaseFrozen) continue;
       if (e.isBoss) {
         updateBoss(sim, e, dt, now, players);
       } else {
@@ -2931,6 +2934,80 @@ function spawnSurvivorsMiniBoss(sim) {
   });
 }
 
+// v2 R10b (additivt): STRESSTEST-SHOWROOM — spawnar EN av varje standard-enemy,
+// varje miniboss-power och varje boss i prydliga rader nedanför hosten (V1-paritet:
+// game.js spawnEnemyShowcase, v1.581). Alla får _showcaseFrozen: AI/attack skippas
+// i tick-looparna, de tar skada men gör ingen, och "död" återställs + positionen
+// pinnas varje tick (odödliga-ish). Nås BARA via sim_stresstest {what:'showcase'}
+// (kräver host + stresstestActive) — V1-webben skickar aldrig `what` → total no-op.
+function applyStresstestShowcase(sim, px, py) {
+  if (!sim || !sim.stresstestActive) return;
+  const arena = CASTLEDEFENSE_ARENA;
+  // Rensa allt levande så griden är ren (stresstest-only — ingen V1-väg hit)
+  sim.enemies = [];
+  const cols = 7;
+  const spacingX = 110, spacingY = 140;
+  // Klampa basen så hela griden (bredaste rad ±360, total höjd ~1150) ryms i arenan
+  const baseX = Math.max(420, Math.min(arena.worldW - 420, px));
+  const baseY = Math.max(60, Math.min(arena.worldH - 1260, py + 280));
+  const place = (e, x, y, label) => {
+    e._showcaseFrozen = true;
+    e._showcaseX = x; e._showcaseY = y;
+    e.x = x; e.y = y;
+    e.dmg = 0;                       // bälte+hängslen: kan inte skada ens via edge-paths
+    if (e.bulletDmg) e.bulletDmg = 0;
+    e.gold = 0;                      // ingen guld-farm på odödliga dockor
+    e._miniBossNextSpawned = true;   // ingen interlude-spawn om en ändå skulle "dö"
+    if (label && !e.name) e.name = label;
+    e._idx = sim.nextEnemyIdx++;
+    sim.enemies.push(e);
+  };
+  // STANDARD ENEMIES (14) — samma lista + grid som V1:s showcase
+  const standard = ['grunt', 'runner', 'brute', 'shooter', 'ninja', 'swordsman', 'soldier',
+    'robot', 'dog', 'healer', 'summoner', 'bomber', 'sniper', 'swarmer'];
+  let standardRows = 0;
+  standard.forEach((type, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    if (row + 1 > standardRows) standardRows = row + 1;
+    place(makeEnemy(type, 0, 0),
+      baseX - (cols - 1) * spacingX / 2 + col * spacingX,
+      baseY + row * spacingY, type.toUpperCase());
+  });
+  // MINI-BOSS-POWERS (9) — brute-bas + miniPower, som V1
+  const miniPowers = ['caster', 'tank_charger', 'cloaker', 'brute_charger', 'plasma',
+    'jetpack', 'gas_sniper', 'shielder', 'avatar'];
+  const miniBaseY = baseY + standardRows * spacingY + 120;
+  let miniRows = 0;
+  miniPowers.forEach((power, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    if (row + 1 > miniRows) miniRows = row + 1;
+    const e = makeEnemy('brute', 0, 0);
+    e.isMiniBoss = true;
+    e.miniPower = power;
+    e.r = Math.round(e.r * 1.4);
+    e.hp = e.maxHp = 300;
+    e.name = power.toUpperCase().replace(/_/g, ' ');
+    place(e, baseX - (cols - 1) * spacingX / 2 + col * spacingX,
+      miniBaseY + row * spacingY);
+  });
+  // BOSSAR — alla nycklar ur BOSS_CONFIGS (10 st), större spacing pga radius
+  const bossKeys = Object.keys(BOSS_CONFIGS);
+  const bossBaseY = miniBaseY + miniRows * spacingY + 220;
+  const bossCols = 5, bossSpacingX = 180, bossSpacingY = 200;
+  bossKeys.forEach((key, i) => {
+    const boss = makeBoss(key, 0, 0, 1);
+    if (!boss) return;
+    const col = i % bossCols, row = Math.floor(i / bossCols);
+    place(boss, baseX - (bossCols - 1) * bossSpacingX / 2 + col * bossSpacingX,
+      bossBaseY + row * bossSpacingY);
+  });
+  sim._showcaseActive = true;
+  sim.eventQueue.push({
+    type: 'stresstest_showcase',
+    count: sim.enemies.length,
+  });
+}
+
 function tickCastleDefense(sim, dt, now) {
   const nowMs = Date.now();
   const arena = CASTLEDEFENSE_ARENA;
@@ -3278,6 +3355,9 @@ function tickCastleDefense(sim, dt, now) {
   }
   for (const e of sim.enemies) {
     if (e.dead) continue;
+    // v2 R10b (additivt): showcase-frusna enheter — ingen AI, ingen attack, ingen
+    // rörelse. Flaggan sätts bara av applyStresstestShowcase → V1-vägar opåverkade.
+    if (e._showcaseFrozen) continue;
     let target;
     // v1.411: Ranged enemies (shooter/soldier/sniper) ALLTID siege-role — skjuter
     // mot torn istället för att jaga players. Annars stannar de aldrig vid turrets.
@@ -3581,6 +3661,20 @@ function tickCastleDefense(sim, dt, now) {
       survivedSec: Math.round((nowMs - sim.castledefenseStartedAt) / 1000),
     });
     return;
+  }
+
+  // v2 R10b (additivt): SHOWROOM — frusna enheter är odödliga-ish: de tar skada
+  // (hit-flash + hp-bar funkar) men "död" återställs till full hp INNAN death-
+  // drop-blocket nedan (inga kill-events/drops), positionen pinnas på grid-platsen
+  // (knockback/explosioner flyttar dem inte) och status-effekter släcks.
+  // _showcaseActive sätts bara av applyStresstestShowcase → V1 helt opåverkad.
+  if (sim._showcaseActive) {
+    for (const e of sim.enemies) {
+      if (!e._showcaseFrozen) continue;
+      if (e.dead || e.hp <= 0) { e.hp = e.maxHp; e.dead = false; }
+      e.x = e._showcaseX; e.y = e._showcaseY;
+      e.burnUntil = 0; e.slowUntil = 0; e.staggerUntil = 0;
+    }
   }
 
   // === ENEMY DEATH DROP-EVENTS ===
@@ -8252,4 +8346,4 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, _heistApplyRole, _heistLineBlockedByWall };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall };
