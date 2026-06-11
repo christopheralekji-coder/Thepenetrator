@@ -4,6 +4,7 @@
 const WebSocket = require('ws');
 const http = require('http');
 const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney } = require('./sim/room-sim');
+const accounts = require('./accounts'); // v2 konto/vänner (acct_* — additivt, no-op för V1)
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
@@ -214,6 +215,23 @@ function broadcast(room, obj, exceptId) {
   }
 }
 
+// v2 konto/vänner: helpers till accounts.js (skicka + presence-uppslag).
+// roomInfo kräver att ws faktiskt är medlem i rummet (efter 'leave' hänger
+// ws.roomCode kvar som V1-quirk — membership-checken gör presensen korrekt).
+const acctHelpers = {
+  send,
+  roomInfo(w) {
+    if (!w || !w.roomCode) return null;
+    const room = rooms.get(w.roomCode);
+    if (!room || !room.members.has(w.id)) return null;
+    return {
+      code: w.roomCode,
+      started: !!(room.sim || (room.meta && room.meta.started)),
+      mode: (room.meta && room.meta.mode) || 'story',
+    };
+  },
+};
+
 function sendBinary(ws, buf) {
   if (ws.readyState !== WebSocket.OPEN) return;
   try { ws.send(buf, { binary: true }); } catch (e) {}
@@ -262,6 +280,8 @@ function handleMessage(ws, msg) {
   // binära delta-formatet. Sätts via host/join (msg.godot:1). Allt annat
   // (klient→server-meddelanden, sim_events) är redan JSON i båda riktningar.
   if (msg.godot) ws._jsonWorld = true;
+  // v2 konto/vänner: EN ingång för alla acct_* (V1 skickar aldrig dessa → no-op)
+  if (typeof msg.type === 'string' && msg.type.startsWith('acct_')) return accounts.handle(ws, msg, acctHelpers);
   if (msg.type === 'host') {
     // Skapa rum
     const code = generateCode();
@@ -288,6 +308,7 @@ function handleMessage(ws, msg) {
     send(ws, { type: 'hosted', code, peerId: ws.id });
     console.log('[ROOM]', code, 'created by', ws.id, 'name="' + hostName + '" mode=' + mode + (isPrivate ? ' [PRIVATE]' : ''));
     broadcastPublicRooms();
+    accounts.presenceChanged(ws); // v2 konto: vänner ser lobby + rumskod
     return;
   }
 
@@ -446,6 +467,7 @@ function handleMessage(ws, msg) {
     }
     console.log('[ROOM]', code, ws.id, 'joined (', room.members.size, 'members)');
     broadcastPublicRooms();
+    accounts.presenceChanged(ws); // v2 konto: vänner ser lobby/match + rumskod
     // TDM late-joiner: tilldela team baserat på balans, push tdm_started-event riktat
     if (room.sim && room.sim.tdmActive) {
       let red = 0, blue = 0;
@@ -1044,6 +1066,7 @@ function handleMessage(ws, msg) {
     for (const [, m] of room.members) {
       if (m !== ws) send(m, { type: 'sim_started' });
     }
+    for (const [, m] of room.members) accounts.presenceChanged(m); // v2 konto: lobby → match
     return;
   }
   if (msg.type === 'sim_load_stage') {
@@ -1060,6 +1083,7 @@ function handleMessage(ws, msg) {
     room.sim = null;  // v1.771: håll invarianten "om room.sim existerar är den aktiv"
     if (room.meta) room.meta.started = false;
     broadcastPublicRooms();
+    for (const [, m] of room.members) accounts.presenceChanged(m); // v2 konto: match → lobby
     return;
   }
 
@@ -1856,6 +1880,9 @@ function handleMessage(ws, msg) {
 }
 
 function handleDisconnect(ws) {
+  // v2 konto: offline/presence-push till vänner (no-op utan acct_login).
+  // Skiljer själv på riktig disconnect vs 'leave'/kick via ws.readyState.
+  accounts.onDisconnect(ws);
   // Rensa public-rooms-prenumeration
   publicRoomSubscribers.delete(ws);
   if (!ws.roomCode) return;

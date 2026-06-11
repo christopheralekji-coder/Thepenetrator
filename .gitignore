@@ -1,4 +1,7 @@
 
+# konto-data (användardata committas inte)
+server/data/
+
 # temp test-output
 server/_*.txt
 _*.txt
