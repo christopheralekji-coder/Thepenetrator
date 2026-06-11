@@ -352,6 +352,14 @@ function handleMessage(ws, msg) {
           try { (ghostWs.terminate || ghostWs.close).call(ghostWs); } catch (e) {}
           const _hostWs = room.members.get(room.hostId);
           if (_hostWs) send(_hostWs, { type: 'peer_left', peerId: ghostPid });
+          // SLUTAUDIT 2 #12: peer_left gick bara till hosten → icke-host-Godot-klienter
+          // ackumulerade spök-peers i roster/minimap. Spegla K2-mönstret (peer_joined):
+          // skicka även till alla _jsonWorld-peers (ej hosten — den fick sitt ovan).
+          // V1-webbens icke-hosts är aldrig _jsonWorld → V1 opåverkad.
+          for (const [_plPid, _plM] of room.members) {
+            if (_plPid === room.hostId) continue;
+            if (_plM._jsonWorld) send(_plM, { type: 'peer_left', peerId: ghostPid });
+          }
           console.log('[ROOM]', code, 'ghost', ghostPid, 'ersatt av', ws.id, '(samma reconnect-token)');
           break;
         }
@@ -845,6 +853,26 @@ function handleMessage(ws, msg) {
         isLateJoin: true,
       }] });
       return;
+    }
+    // SLUTAUDIT 2 #3: STORY-FAMILJEN late-joiner (story/endless/bossrush/truck/daily/
+    // speedrun). loadStage broadcastade stage_loaded vid stage-start men event-kön
+    // var längesedan tömd → late-joinern fick aldrig wave/stage → tom värld. Resänd
+    // EXAKT samma fält som loadStage (sim/waves.js:378). Stage härleds deterministiskt
+    // med samma uppslag som stageFor i waves.js: customStagesList (Godot-modes) annars
+    // getStage(wave). Gate:at på _jsonWorld (Godot) — V1-webben får inget = no-op.
+    if (ws._jsonWorld && room.sim && room.sim.waveActive
+        && !room.sim.tdmActive && !room.sim.ctfActive && !room.sim.siegeActive
+        && !room.sim.gungameActive && !room.sim.kothActive && !room.sim.juggernautActive
+        && !room.sim.battleroyaleActive && !room.sim.castledefenseActive && !room.sim.heistActive) {
+      const sim = room.sim;
+      const { getStage } = require('../shared/stages-data');
+      const cs = sim.customStagesList;
+      const stage = (cs && cs[sim.wave - 1]) || getStage(sim.wave);
+      if (stage) {
+        send(ws, { type: 'sim_events', events: [{
+          type: 'stage_loaded', wave: sim.wave, stageName: stage.name, stageKind: stage.kind,
+        }] });
+      }
     }
     return;
   }
@@ -1905,6 +1933,14 @@ function handleDisconnect(ws) {
     // Vanlig peer lämnade — meddela host
     const host = room.members.get(room.hostId);
     if (host) send(host, { type: 'peer_left', peerId: ws.id });
+    // SLUTAUDIT 2 #12: peer_left gick bara till hosten → icke-host-Godot-klienter
+    // ackumulerade spök-peers i roster/minimap. Spegla K2-mönstret (peer_joined):
+    // skicka även till alla _jsonWorld-peers (ej hosten — den fick sitt ovan).
+    // V1-webbens icke-hosts är aldrig _jsonWorld → V1 opåverkad.
+    for (const [_plPid, _plM] of room.members) {
+      if (_plPid === room.hostId) continue;
+      if (_plM._jsonWorld) send(_plM, { type: 'peer_left', peerId: ws.id });
+    }
     console.log('[ROOM]', room.code, ws.id, 'left (', room.members.size, 'members)');
     // v1.657: rensa per-pid sim-state för den lämnande peer:n så stale pids inte
     // hänger kvar — annars spök-spelare i leaderboards (koth/jug/BR) + onödig

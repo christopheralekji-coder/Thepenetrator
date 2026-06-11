@@ -2482,6 +2482,11 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
             hostile: false,
             ownerPid: b.ownerPid,
             _autoTurret: true,
+            // SLUTAUDIT 2 #19: utan weaponId behöll fienden stale lastDamagerWeapon
+            // (t.ex. 'grenade' från en tidigare granat-träff) när turreten gjorde
+            // finish → falsk Pyroman-credit i enemy_killed.weaponId. 'turret' matchar
+            // inga achievement-vapen hos klienten → räknas snällt som "övrigt".
+            weaponId: 'turret',
           });
           b._fireCd = 1 / b.fireRate;
           // v1.415: emit fire-event så client kan rita muzzle-flash + spela ljud
@@ -5960,6 +5965,19 @@ function broadcastWorld(sim, now) {
       if (ws.bufferedAmount > 2 * 1024 * 1024) {
         console.log('[BACKPRESSURE-SKIP]', ws.id, 'buf=' + ws.bufferedAmount);
         ws._eventSkips = (ws._eventSkips || 0) + 1;
+        // SLUTAUDIT 2 #14: events-batchen splice:as ur kön EN gång — en peer som
+        // skippas här får ALDRIG batchen igen (ingen resync-väg för oersättliga
+        // events som match_end/*_started → klienten fastnar i fel state). För
+        // Godot-peers (_jsonWorld): stäng socketen — klientens auto-rejoin +
+        // late-join-replayen i server.js läker hela state:t. Kort grace via
+        // close(), hård terminate efter 2s om close-framen inte når fram (den
+        // sitter ju bakom samma 2MB-buffert). V1-webben behåller gamla
+        // skip-utan-kick-beteendet (cd_hud_update-resyncen täcker dess modes).
+        if (ws._jsonWorld && !ws._backpressureKicked) {
+          ws._backpressureKicked = true;
+          try { ws.close(1013, 'backpressure'); } catch (e) {}
+          setTimeout(() => { try { ws.terminate(); } catch (e) {} }, 2000);
+        }
         continue;
       }
       try { ws.send(json); } catch (e) {}
@@ -6035,6 +6053,11 @@ function broadcastWorld(sim, now) {
           if (e.bossKey) eo.bk = e.bossKey;
           if (e.name) eo.n = e.name;
           if (e.phase) eo.p = e.phase;
+          // SLUTAUDIT 2 #13: minibossarnas miniPower transmittades aldrig — p bär
+          // boss-phase (krockar) → klientens POWER_COL-aura/mb_*-texturer onåbara.
+          // EGET fält mp, bara för JSON-peers (binär-vägen orörd: wirefmt packar
+          // ändå inga nya fält → V1-bytes oförändrade).
+          if (e.isMiniBoss && e.miniPower) eo.mp = e.miniPower;
           if (_fx) eo.fx = _fx;
           if (e.gold) eo.g = e.gold;
         } else {
