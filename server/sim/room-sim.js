@@ -7596,7 +7596,19 @@ function applyPlayerInput(sim, peerId, input) {
   // GULAG (v1.790): hp är SERVER-auktoritärt under duell (loadout + bullets/melee/lava).
   // Ignorera klient-hp så (a) den döda spelarens hp=0 ej skriver över loadout-hp vid start,
   // (b) ingen hp-cheat i gulagen.
-  if (typeof input.hp === 'number' && ws.playerState.gulagState !== 'fighting') ws.playerState.hp = input.hp;
+  // M2-fix (V2 iPhone-test 2026-06-11): i RENA PvP-lägen är klient-hp bara ett
+  // eko (all skada är server-side) — ett stale hp<=0-eko får ALDRIG döda en
+  // server-levande spelare. V2 fortsatte skicka hp=0 efter server-respawnen →
+  // respawnen skrevs över → EVIG DÖD i TDM (ingen runda-ress, lik låg kvar).
+  // Täcker även V1:s död→respawn-lagg-race. OBS: castledefense/co-op undantas —
+  // där är klient-hp legitimt auktoritärt i V1 (klienten räknar kontakt-skada).
+  const _pureP2P = sim.tdmActive || sim.ctfActive || sim.siegeActive ||
+                   sim.gungameActive || sim.kothActive ||
+                   sim.juggernautActive || sim.battleroyaleActive;
+  if (typeof input.hp === 'number' && ws.playerState.gulagState !== 'fighting') {
+    const staleDeathEcho = _pureP2P && input.hp <= 0 && ws.playerState.hp > 0;
+    if (!staleDeathEcho) ws.playerState.hp = input.hp;
+  }
   if (typeof input.aim === 'number') ws.playerState.aim = input.aim;
   if (input.weaponId) {
     ws.playerState.weaponId = input.weaponId;
