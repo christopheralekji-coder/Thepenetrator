@@ -6669,6 +6669,12 @@ function startSim(sim, opts) {
     // again". PvP-grenarna nedan sätter ändå om hp+pos (opåverkade); detta räddar
     // co-op/story + castledefense/survivors/heist som saknade hp-reset.
     ws.playerState.hp = 100;
+    // build 4 KRIT (survivors "respawn död"-buggen): nollställ DOWNED-flaggorna vid
+    // VARJE match-start. Förr återställdes hp men cdDowned/cdDownDead låg kvar från
+    // förra gamet → survivors lose-check (hp>0 && !cdDowned) såg ingen levande →
+    // 'survivors_lose' tick 1 → instant loss på "spela igen", om och om igen.
+    ws.playerState.cdDowned = false;
+    ws.playerState.cdDownDead = false;
     ws.playerState.invulnUntil = Date.now() + 1500;
     // v2 #68 (additivt): start-shield i ALLA modes (inkl. co-op-story + bots).
     // V1 skickar aldrig baseShield → grenen körs aldrig → gammalt beteende exakt.
