@@ -179,7 +179,13 @@ function activityOf(ws) {
 
 function buildFriendEntry(fid) {
   const a = accounts.get(fid);
-  if (!a) return null;
+  // VÄNFÖRLUST-FIX (2026-06-12): okänt konto = vännen har inte loggat in på DEN
+  // HÄR servern ännu (färsk region-volym / dataförlust). Förr: null → vännen
+  // FÖLL UR login-svaret → klienten skrev över sin durabla cache med den
+  // amputerade listan = permanent förlust åt båda håll. Nu: placeholder-entry
+  // (pending:1) så relationen överlever — klienten visar cachat namn och
+  // entryt blir komplett när vännen loggar in en gång på servern.
+  if (!a) return { id: fid, name: '', avatar: {}, level: 1, online: false, pending: 1 };
   const entry = { id: a.id, name: a.name, avatar: a.avatar, level: a.level, online: online.has(fid) };
   if (entry.online) {
     const act = activityOf(online.get(fid));

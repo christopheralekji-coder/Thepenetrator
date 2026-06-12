@@ -196,6 +196,20 @@ const SECRET_B = 'b'.repeat(8) + 'probeSecretB0002';
     ok(dSeesA && dSeesA.online === true, 'D: A online i resync:ad lista', dSeesA);
     D.close();
 
+    // ── 12) VÄNFÖRLUST-REGRESSION (2026-06-12): resync med vän vars konto INTE
+    // finns på servern (färsk region-volym) → login-svaret ska behålla vännen
+    // som pending-placeholder, INTE filtrera bort den (förr: bort → klienten
+    // skrev över sin durabla cache med amputerad lista = permanent förlust).
+    const E = await mkClient('E');
+    const ghostId = '99887766';   // existerar INTE server-side
+    E.send({ type: 'acct_login', id: '55667788', secret: 'e'.repeat(20), name: 'ProbeElsa', friends: [ghostId, aIn.id], v: 1 });
+    const eIn = (await E.waitMsg('acct_logged_in')).d;
+    const eGhost = eIn.friends.find(f => f.id === ghostId);
+    ok(!!eGhost, 'E: okänd vän KVAR i login-svaret (pending-placeholder)', eIn.friends.map(f => f.id));
+    ok(eGhost && eGhost.pending === 1 && eGhost.online === false, 'E: placeholder flaggad pending + offline', eGhost);
+    ok(!!eIn.friends.find(f => f.id === aIn.id), 'E: känd vän (A) fortfarande komplett i samma lista');
+    E.close();
+
     A.close(); B2.close();
   } catch (e) {
     fail++;

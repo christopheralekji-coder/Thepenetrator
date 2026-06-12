@@ -1,29 +1,29 @@
-// WarParty — Co-op WebSocket relay server
-// Deployas på Render.com / Fly.io / Glitch / Railway free tier
+﻿// WarParty â€” Co-op WebSocket relay server
+// Deployas pÃ¥ Render.com / Fly.io / Glitch / Railway free tier
 
 const WebSocket = require('ws');
 const http = require('http');
 const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney } = require('./sim/room-sim');
-const accounts = require('./accounts'); // v2 konto/vänner (acct_* — additivt, no-op för V1)
+const accounts = require('./accounts'); // v2 konto/vÃ¤nner (acct_* â€” additivt, no-op fÃ¶r V1)
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v270-pvp60hz-attacker-all-atomic-save';
+const SERVER_VERSION = 'v271-friendloss-fix';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
 
-// TCP keepalive på alla inkommande HTTP-anslutningar. WS körs på TCP-socket;
+// TCP keepalive pÃ¥ alla inkommande HTTP-anslutningar. WS kÃ¶rs pÃ¥ TCP-socket;
 // utan OS-level keepalive kan intermediate routers/proxies (Render edge, mobil-NAT)
-// släppa "idle" anslutningar trots WS-message-flow. Initial-delay 25s + interval 10s
-// håller socketen "warm" oavsett app-level traffic-pattern.
+// slÃ¤ppa "idle" anslutningar trots WS-message-flow. Initial-delay 25s + interval 10s
+// hÃ¥ller socketen "warm" oavsett app-level traffic-pattern.
 function applyTcpKeepalive(socket) {
   try { socket.setKeepAlive(true, 25000); } catch (e) {}
-  try { socket.setNoDelay(true); } catch (e) {} // disable Nagle för låg latens
+  try { socket.setNoDelay(true); } catch (e) {} // disable Nagle fÃ¶r lÃ¥g latens
 }
 
 const server = http.createServer((req, res) => {
-  // CORS för fetch från klient (PWA)
+  // CORS fÃ¶r fetch frÃ¥n klient (PWA)
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
@@ -34,9 +34,9 @@ const server = http.createServer((req, res) => {
     res.end(`WarParty co-op server\nVersion: ${SERVER_VERSION}\nBuilt: ${SERVER_BUILD_AT}\nRooms: ${rooms.size}\nUptime: ${Math.round(process.uptime())}s\nErrors logged: ${errorLog.length}`);
     return;
   }
-  // v2 konto-bind: Google-OAuth förmedlas via servern (acct_google_start ger
-  // klienten /auth/google?s=… → 302 till Google → callback → push över WS).
-  // Additivt — V1 träffar aldrig dessa paths.
+  // v2 konto-bind: Google-OAuth fÃ¶rmedlas via servern (acct_google_start ger
+  // klienten /auth/google?s=â€¦ â†’ 302 till Google â†’ callback â†’ push Ã¶ver WS).
+  // Additivt â€” V1 trÃ¤ffar aldrig dessa paths.
   if (req.url.startsWith('/auth/google/callback') && req.method === 'GET') {
     accounts.handleGoogleCallback(req, res).catch(() => { try { res.writeHead(500); res.end(); } catch (e) {} });
     return;
@@ -78,25 +78,25 @@ const server = http.createServer((req, res) => {
   res.writeHead(404); res.end();
 });
 
-// PERF (v1.815 — #2 värme-fix): perMessageDeflate AV. Tidigare komprimerades varje frame,
-// vilket tvingade MOBIL-KLIENTEN att INFLATE:a varje inkommande världs-paket 60×/sek = konstant
-// CPU + zlib-scratch-allokeringar på den separata audio/main-tråden som INTE syns i frame-EMA:n
-// (en av de dolda värmekällorna native-spel slipper). Världs-paketen är redan tätt binär-packade
-// (Int16/enum/delta) → deflate gav dålig ratio men kostade CPU på BÅDA sidor 60Hz. Av = mindre
-// bandbredd-besparing men klart mindre CPU/värme på telefonen. Radion är ändå vaken 60Hz.
+// PERF (v1.815 â€” #2 vÃ¤rme-fix): perMessageDeflate AV. Tidigare komprimerades varje frame,
+// vilket tvingade MOBIL-KLIENTEN att INFLATE:a varje inkommande vÃ¤rlds-paket 60Ã—/sek = konstant
+// CPU + zlib-scratch-allokeringar pÃ¥ den separata audio/main-trÃ¥den som INTE syns i frame-EMA:n
+// (en av de dolda vÃ¤rmekÃ¤llorna native-spel slipper). VÃ¤rlds-paketen Ã¤r redan tÃ¤tt binÃ¤r-packade
+// (Int16/enum/delta) â†’ deflate gav dÃ¥lig ratio men kostade CPU pÃ¥ BÃ…DA sidor 60Hz. Av = mindre
+// bandbredd-besparing men klart mindre CPU/vÃ¤rme pÃ¥ telefonen. Radion Ã¤r Ã¤ndÃ¥ vaken 60Hz.
 const wss = new WebSocket.Server({
   server,
   perMessageDeflate: false,
-  // H9 (audit 2026-06-10): ws-default är 100MiB → en oautentiserad klient kunde
-  // skicka en jätteframe som JSON.parse:as på event-loopen och fryser ALLA rums
-  // 60Hz-sims (DoS). Värsta legitima payload är sim_start med customStages +
-  // stageWalls (~300KB) → 1MiB ger god marginal. ws stänger med 1009 vid överskott.
+  // H9 (audit 2026-06-10): ws-default Ã¤r 100MiB â†’ en oautentiserad klient kunde
+  // skicka en jÃ¤tteframe som JSON.parse:as pÃ¥ event-loopen och fryser ALLA rums
+  // 60Hz-sims (DoS). VÃ¤rsta legitima payload Ã¤r sim_start med customStages +
+  // stageWalls (~300KB) â†’ 1MiB ger god marginal. ws stÃ¤nger med 1009 vid Ã¶verskott.
   maxPayload: 1024 * 1024,
 });
-const rooms = new Map(); // code → { hostId, members: Map(id → ws), meta: { hostName, mode, private, started, createdAt } }
+const rooms = new Map(); // code â†’ { hostId, members: Map(id â†’ ws), meta: { hostName, mode, private, started, createdAt } }
 const publicRoomSubscribers = new Set(); // ws-references som vill ha live room-list updates
 
-// Bygg publikt room-snapshot för broadcast/snapshot till browse-skärmen
+// Bygg publikt room-snapshot fÃ¶r broadcast/snapshot till browse-skÃ¤rmen
 function buildPublicRoomsList() {
   const list = [];
   for (const [code, room] of rooms) {
@@ -111,14 +111,14 @@ function buildPublicRoomsList() {
       createdAt: (room.meta && room.meta.createdAt) || 0,
     });
   }
-  // Senaste rummen först
+  // Senaste rummen fÃ¶rst
   list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   return list;
 }
 
 function broadcastPublicRooms() {
   if (publicRoomSubscribers.size === 0) return;
-  // Lokalt namn `list` (inte `rooms`) så vi inte skuggar module-level `rooms` Map
+  // Lokalt namn `list` (inte `rooms`) sÃ¥ vi inte skuggar module-level `rooms` Map
   const list = buildPublicRoomsList();
   const json = JSON.stringify({ type: 'public_rooms', rooms: list });
   for (const ws of publicRoomSubscribers) {
@@ -143,12 +143,12 @@ wss.on('connection', (ws, req) => {
   ws.isAlive = true;
   ws._missedPings = 0;
   ws._connectedAt = Date.now();
-  // Aktivera TCP keepalive på underliggande socket (fix för Render edge-proxy
-  // idle-timeout som dödar WS efter ~60s trots app-traffic).
+  // Aktivera TCP keepalive pÃ¥ underliggande socket (fix fÃ¶r Render edge-proxy
+  // idle-timeout som dÃ¶dar WS efter ~60s trots app-traffic).
   if (req && req.socket) applyTcpKeepalive(req.socket);
   console.log('[CONN]', ws.id, 'connected from', req && req.headers ? (req.headers['x-forwarded-for'] || req.socket.remoteAddress) : '?');
 
-  // Heartbeat: vilken meddelande/pong som helst räknas som "alive".
+  // Heartbeat: vilken meddelande/pong som helst rÃ¤knas som "alive".
   ws.on('pong', () => { ws.isAlive = true; ws._missedPings = 0; });
 
   ws.on('message', (raw, isBinary) => {
@@ -163,7 +163,7 @@ wss.on('connection', (ws, req) => {
     try { handleMessage(ws, msg); } catch (e) { console.error('msg-error:', e.message); }
   });
 
-  // Logga close-code + reason så vi kan diagnostisera disconnect-källan
+  // Logga close-code + reason sÃ¥ vi kan diagnostisera disconnect-kÃ¤llan
   // (1000=normal, 1006=abnormal-close, 1011=server-error, 4xxx=app-specific).
   ws.on('close', (code, reason) => {
     const lifetime = Math.round((Date.now() - ws._connectedAt) / 1000);
@@ -175,12 +175,12 @@ wss.on('connection', (ws, req) => {
   ws.on('error', (e) => console.warn('[ERR]', ws.id, e.message));
 });
 
-// Heartbeat — döda BARA helt silent connections. 25s interval med 3-strike-rule
-// (max ~75s grace) så mobila spikes/4G-handoffs inte triggar onödig disconnect.
-// Tidigare: 30s ping + 30s grace → ~60s exakt timing matchade Render edge
-// idle-timeout och dödade live anslutningar.
+// Heartbeat â€” dÃ¶da BARA helt silent connections. 25s interval med 3-strike-rule
+// (max ~75s grace) sÃ¥ mobila spikes/4G-handoffs inte triggar onÃ¶dig disconnect.
+// Tidigare: 30s ping + 30s grace â†’ ~60s exakt timing matchade Render edge
+// idle-timeout och dÃ¶dade live anslutningar.
 const HEARTBEAT_INTERVAL_MS = 25000;
-const MAX_MISSED_PINGS = 3; // 3 × 25s = ~75s helt utan svar krävs för terminate
+const MAX_MISSED_PINGS = 3; // 3 Ã— 25s = ~75s helt utan svar krÃ¤vs fÃ¶r terminate
 setInterval(() => {
   for (const ws of wss.clients) {
     if (!ws.isAlive) {
@@ -196,15 +196,15 @@ setInterval(() => {
   }
 }, HEARTBEAT_INTERVAL_MS);
 
-// RTT-mätning per WS för lag compensation. Server pingar varje aktiv WS-klient
-// 1Hz; klient ekar omedelbart tillbaka via srv_rtt_pong. Server beräknar RTT
-// och sparar i ws._serverRtt (millisekunder). bullets.js använder det för att
-// rewinda target-positioner ws._serverRtt/2 bakåt vid hit-check (cap 200ms).
+// RTT-mÃ¤tning per WS fÃ¶r lag compensation. Server pingar varje aktiv WS-klient
+// 1Hz; klient ekar omedelbart tillbaka via srv_rtt_pong. Server berÃ¤knar RTT
+// och sparar i ws._serverRtt (millisekunder). bullets.js anvÃ¤nder det fÃ¶r att
+// rewinda target-positioner ws._serverRtt/2 bakÃ¥t vid hit-check (cap 200ms).
 const RTT_PING_INTERVAL_MS = 1000;
 setInterval(() => {
   for (const ws of wss.clients) {
     if (ws.readyState !== WebSocket.OPEN) continue;
-    // Bara mät RTT när klient är aktivt i ett sim-aktivt rum
+    // Bara mÃ¤t RTT nÃ¤r klient Ã¤r aktivt i ett sim-aktivt rum
     if (!ws.roomCode) continue;
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) continue;
@@ -226,9 +226,9 @@ function broadcast(room, obj, exceptId) {
   }
 }
 
-// v2 konto/vänner: helpers till accounts.js (skicka + presence-uppslag).
-// roomInfo kräver att ws faktiskt är medlem i rummet (efter 'leave' hänger
-// ws.roomCode kvar som V1-quirk — membership-checken gör presensen korrekt).
+// v2 konto/vÃ¤nner: helpers till accounts.js (skicka + presence-uppslag).
+// roomInfo krÃ¤ver att ws faktiskt Ã¤r medlem i rummet (efter 'leave' hÃ¤nger
+// ws.roomCode kvar som V1-quirk â€” membership-checken gÃ¶r presensen korrekt).
 const acctHelpers = {
   send,
   roomInfo(w) {
@@ -255,14 +255,14 @@ function broadcastBinary(room, buf, exceptId) {
   }
 }
 
-// Binär message-format (klient → server):
+// BinÃ¤r message-format (klient â†’ server):
 //   [u8 routeByte][u8 idLen][idBytes...][payload...]
-//   routeByte = 0 → broadcast i rummet (utom avsändaren)
-//   routeByte = 1 → directed till peer med id i idBytes
-// Server → klient binär format:
+//   routeByte = 0 â†’ broadcast i rummet (utom avsÃ¤ndaren)
+//   routeByte = 1 â†’ directed till peer med id i idBytes
+// Server â†’ klient binÃ¤r format:
 //   [u8 fromIdLen][fromIdBytes...][payload...]
 function handleBinaryMessage(ws, raw) {
-  // raw är Buffer på Node
+  // raw Ã¤r Buffer pÃ¥ Node
   if (!ws.roomCode) return;
   const room = rooms.get(ws.roomCode);
   if (!room) return;
@@ -272,7 +272,7 @@ function handleBinaryMessage(ws, raw) {
   if (raw.length < 2 + idLen) return;
   const targetId = idLen > 0 ? raw.slice(2, 2 + idLen).toString('utf8') : '';
   const payload = raw.slice(2 + idLen);
-  // Bygg utgående frame: [fromIdLen][fromIdBytes][payload]
+  // Bygg utgÃ¥ende frame: [fromIdLen][fromIdBytes][payload]
   const fromIdBytes = Buffer.from(ws.id, 'utf8');
   const out = Buffer.allocUnsafe(1 + fromIdBytes.length + payload.length);
   out[0] = fromIdBytes.length;
@@ -287,11 +287,11 @@ function handleBinaryMessage(ws, raw) {
 }
 
 function handleMessage(ws, msg) {
-  // Godot/V2-klienter får world-snapshots som JSON-text (text) istället för det
-  // binära delta-formatet. Sätts via host/join (msg.godot:1). Allt annat
-  // (klient→server-meddelanden, sim_events) är redan JSON i båda riktningar.
+  // Godot/V2-klienter fÃ¥r world-snapshots som JSON-text (text) istÃ¤llet fÃ¶r det
+  // binÃ¤ra delta-formatet. SÃ¤tts via host/join (msg.godot:1). Allt annat
+  // (klientâ†’server-meddelanden, sim_events) Ã¤r redan JSON i bÃ¥da riktningar.
   if (msg.godot) ws._jsonWorld = true;
-  // v2 konto/vänner: EN ingång för alla acct_* (V1 skickar aldrig dessa → no-op)
+  // v2 konto/vÃ¤nner: EN ingÃ¥ng fÃ¶r alla acct_* (V1 skickar aldrig dessa â†’ no-op)
   if (typeof msg.type === 'string' && msg.type.startsWith('acct_')) return accounts.handle(ws, msg, acctHelpers);
   if (msg.type === 'host') {
     // Skapa rum
@@ -305,8 +305,8 @@ function handleMessage(ws, msg) {
       members: new Map(),
       meta: { hostName, mode, private: isPrivate, started: false, createdAt: Date.now() },
       // stable-slot: host=0, peers tilldelas 1,2,... vid join. Lediga slots
-      // återanvänds via _freeSlots-listan så en ny peer som joinar efter att
-      // en annan lämnat får det lägsta lediga slot-numret.
+      // Ã¥teranvÃ¤nds via _freeSlots-listan sÃ¥ en ny peer som joinar efter att
+      // en annan lÃ¤mnat fÃ¥r det lÃ¤gsta lediga slot-numret.
       _nextSlot: 1,
       _freeSlots: [],
     };
@@ -314,16 +314,16 @@ function handleMessage(ws, msg) {
     rooms.set(code, room);
     ws.roomCode = code;
     ws.playerName = hostName;
-    // Host är alltid slot 0
+    // Host Ã¤r alltid slot 0
     ws.stableSlot = 0;
     send(ws, { type: 'hosted', code, peerId: ws.id });
     console.log('[ROOM]', code, 'created by', ws.id, 'name="' + hostName + '" mode=' + mode + (isPrivate ? ' [PRIVATE]' : ''));
     broadcastPublicRooms();
-    accounts.presenceChanged(ws); // v2 konto: vänner ser lobby + rumskod
+    accounts.presenceChanged(ws); // v2 konto: vÃ¤nner ser lobby + rumskod
     return;
   }
 
-  // Host kan uppdatera room-meta (mode/namn/private) — speglas i public-rooms-list
+  // Host kan uppdatera room-meta (mode/namn/private) â€” speglas i public-rooms-list
   if (msg.type === 'update_room_meta') {
     const room = rooms.get(ws.roomCode);
     if (!room || room.hostId !== ws.id) return;
@@ -337,13 +337,13 @@ function handleMessage(ws, msg) {
     return;
   }
 
-  // Klient vill se publika rum (engångs-snapshot)
+  // Klient vill se publika rum (engÃ¥ngs-snapshot)
   if (msg.type === 'list_public_rooms') {
     send(ws, { type: 'public_rooms', rooms: buildPublicRoomsList() });
     return;
   }
 
-  // Klient prenumererar på publika rum-uppdateringar (live på join-skärmen)
+  // Klient prenumererar pÃ¥ publika rum-uppdateringar (live pÃ¥ join-skÃ¤rmen)
   if (msg.type === 'subscribe_public_rooms') {
     publicRoomSubscribers.add(ws);
     send(ws, { type: 'public_rooms', rooms: buildPublicRoomsList() });
@@ -358,12 +358,12 @@ function handleMessage(ws, msg) {
     const code = (msg.code || '').toUpperCase().trim();
     const room = rooms.get(code);
     if (!room) { send(ws, { type: 'error', error: 'Rummet finns inte' }); return; }
-    // v1.771: ghost-dedupe FÖRE size-check + slot-alloc. En halv-trasig anslutning vars
-    // close ej firat (mobil byter wifi↔mobilnät) ligger kvar som spök-spelare i ~75s.
-    // Kasta ut ev. kvarlevande ws med samma reconnect-token → reconnecten återanvänder
+    // v1.771: ghost-dedupe FÃ–RE size-check + slot-alloc. En halv-trasig anslutning vars
+    // close ej firat (mobil byter wifiâ†”mobilnÃ¤t) ligger kvar som spÃ¶k-spelare i ~75s.
+    // Kasta ut ev. kvarlevande ws med samma reconnect-token â†’ reconnecten Ã¥teranvÃ¤nder
     // ghost:ens slot (slot-kontinuitet) + ett fullt rum blockerar inte en rejoin. Hoppar
-    // host (host-migration sköter den) + bots. roomCode=null → handleDisconnect early-
-    // returnar på ghost:ens senare close (ingen dubbel-cleanup/dubbel-slot-free).
+    // host (host-migration skÃ¶ter den) + bots. roomCode=null â†’ handleDisconnect early-
+    // returnar pÃ¥ ghost:ens senare close (ingen dubbel-cleanup/dubbel-slot-free).
     if (msg.reconnectToken) {
       ws._reconnectToken = String(msg.reconnectToken).slice(0, 40);
       if (!room._freeSlots) room._freeSlots = [];
@@ -380,14 +380,14 @@ function handleMessage(ws, msg) {
           }
           if (ghostWs.stableSlot != null && ghostWs.stableSlot !== 0) room._freeSlots.push(ghostWs.stableSlot);
           room.members.delete(ghostPid);
-          ghostWs.roomCode = null;  // → handleDisconnect early-returnar på dess close
+          ghostWs.roomCode = null;  // â†’ handleDisconnect early-returnar pÃ¥ dess close
           try { (ghostWs.terminate || ghostWs.close).call(ghostWs); } catch (e) {}
           const _hostWs = room.members.get(room.hostId);
           if (_hostWs) send(_hostWs, { type: 'peer_left', peerId: ghostPid });
-          // SLUTAUDIT 2 #12: peer_left gick bara till hosten → icke-host-Godot-klienter
-          // ackumulerade spök-peers i roster/minimap. Spegla K2-mönstret (peer_joined):
-          // skicka även till alla _jsonWorld-peers (ej hosten — den fick sitt ovan).
-          // V1-webbens icke-hosts är aldrig _jsonWorld → V1 opåverkad.
+          // SLUTAUDIT 2 #12: peer_left gick bara till hosten â†’ icke-host-Godot-klienter
+          // ackumulerade spÃ¶k-peers i roster/minimap. Spegla K2-mÃ¶nstret (peer_joined):
+          // skicka Ã¤ven till alla _jsonWorld-peers (ej hosten â€” den fick sitt ovan).
+          // V1-webbens icke-hosts Ã¤r aldrig _jsonWorld â†’ V1 opÃ¥verkad.
           for (const [_plPid, _plM] of room.members) {
             if (_plPid === room.hostId) continue;
             if (_plM._jsonWorld) send(_plM, { type: 'peer_left', peerId: ghostPid });
@@ -397,10 +397,10 @@ function handleMessage(ws, msg) {
         }
       }
     }
-    if (room.members.size >= 8) { send(ws, { type: 'error', error: 'Rummet är fullt (max 8)' }); return; }
-    // Tilldela stabilt slot-index: återanvänd lägsta lediga slot först,
-    // annars ta nästa från räknaren. Slot ändras ALDRIG för en peer under
-    // dess session; när peer lämnar returneras slottet till _freeSlots.
+    if (room.members.size >= 8) { send(ws, { type: 'error', error: 'Rummet Ã¤r fullt (max 8)' }); return; }
+    // Tilldela stabilt slot-index: Ã¥teranvÃ¤nd lÃ¤gsta lediga slot fÃ¶rst,
+    // annars ta nÃ¤sta frÃ¥n rÃ¤knaren. Slot Ã¤ndras ALDRIG fÃ¶r en peer under
+    // dess session; nÃ¤r peer lÃ¤mnar returneras slottet till _freeSlots.
     if (!room._freeSlots) room._freeSlots = [];
     if (!room._nextSlot) room._nextSlot = 1;
     let slot;
@@ -414,16 +414,16 @@ function handleMessage(ws, msg) {
     room.members.set(ws.id, ws);
     ws.roomCode = code;
     if (msg.name) ws.playerName = String(msg.name).trim().slice(0, 14);
-    // v1.659: reconnect-restore — om token matchar en färsk stash (spelare som tappade
-    // anslutningen <60s sedan i aktiv sim) återställ server-side-only-state som INTE
+    // v1.659: reconnect-restore â€” om token matchar en fÃ¤rsk stash (spelare som tappade
+    // anslutningen <60s sedan i aktiv sim) Ã¥terstÃ¤ll server-side-only-state som INTE
     // self-healar via sim_input: Heist-roll + hp/shield (annars gratis-heal + roll-loss).
-    // Körs FÖRE late-join-blocken; PvP-blocken sätter sedan fresh spawn (korrekt för PvP),
-    // co-op/heist (utan PvP-block) behåller restoren.
+    // KÃ¶rs FÃ–RE late-join-blocken; PvP-blocken sÃ¤tter sedan fresh spawn (korrekt fÃ¶r PvP),
+    // co-op/heist (utan PvP-block) behÃ¥ller restoren.
     if (msg.reconnectToken) {
       ws._reconnectToken = String(msg.reconnectToken).slice(0, 40);
-      // (ghost-dedupe körs nu HÖGRE UPP, före size-check/slot-alloc — se v1.771-blocket)
-      // v1.697: rensa utgångna stash-entries (>60s) så de inte ackumuleras obegränsat
-      // (DoS-yta: join-flood med unika tokens utan reconnect). Cappa även till 16 nyaste.
+      // (ghost-dedupe kÃ¶rs nu HÃ–GRE UPP, fÃ¶re size-check/slot-alloc â€” se v1.771-blocket)
+      // v1.697: rensa utgÃ¥ngna stash-entries (>60s) sÃ¥ de inte ackumuleras obegrÃ¤nsat
+      // (DoS-yta: join-flood med unika tokens utan reconnect). Cappa Ã¤ven till 16 nyaste.
       if (room._reconnectStash) {
         const _cut = Date.now() - 60000;
         for (const k of Object.keys(room._reconnectStash)) {
@@ -449,37 +449,37 @@ function handleMessage(ws, msg) {
         console.log('[ROOM]', code, ws.id, 'reconnect-restored role=' + (stash.heistRole || '-') + ' hp=' + (stash.hp != null ? Math.round(stash.hp) : '-'));
       }
     }
-    // K2 (audit 2026-06-10, additivt): joined-svaret bär nu stableSlot + code.
-    // V1-webbens joined-gren läser bara peerId/hostId (game.js:25107) och
-    // ignorerar okända fält → V1 opåverkad. Godot-joiners behöver slotten för
-    // att hitta SIG SJÄLVA i world-paketens players[].c (annars doppelgänger +
+    // K2 (audit 2026-06-10, additivt): joined-svaret bÃ¤r nu stableSlot + code.
+    // V1-webbens joined-gren lÃ¤ser bara peerId/hostId (game.js:25107) och
+    // ignorerar okÃ¤nda fÃ¤lt â†’ V1 opÃ¥verkad. Godot-joiners behÃ¶ver slotten fÃ¶r
+    // att hitta SIG SJÃ„LVA i world-paketens players[].c (annars doppelgÃ¤nger +
     // ingen server-auth hp/shield-synk). `code` = F3 (joiner-UI visar rumskod).
-    // E2E-fynd 1: joiners fick aldrig pid→slot för TIDIGARE medlemmar (rå peerId
-    // i kill-feed, slumpad bot-outfit på riktiga spelare, ingen lagfärg). Additiv
-    // members-lista (exkl. joinern själv) — V1 ignorerar okända fält.
+    // E2E-fynd 1: joiners fick aldrig pidâ†’slot fÃ¶r TIDIGARE medlemmar (rÃ¥ peerId
+    // i kill-feed, slumpad bot-outfit pÃ¥ riktiga spelare, ingen lagfÃ¤rg). Additiv
+    // members-lista (exkl. joinern sjÃ¤lv) â€” V1 ignorerar okÃ¤nda fÃ¤lt.
     const memberList = [];
     for (const [mpid, mm] of room.members) {
       if (mpid === ws.id) continue;
       memberList.push({ id: mpid, name: mm.playerName || '', slot: mm.stableSlot != null ? mm.stableSlot : -1 });
     }
     send(ws, { type: 'joined', peerId: ws.id, hostId: room.hostId, stableSlot: ws.stableSlot, code, members: memberList });
-    // Meddela host — inkludera stableSlot så host:s klient bygger slotToPeerId
-    // med det stabila slot-numret (annars räknas colorIdx om vid varje join).
+    // Meddela host â€” inkludera stableSlot sÃ¥ host:s klient bygger slotToPeerId
+    // med det stabila slot-numret (annars rÃ¤knas colorIdx om vid varje join).
     const host = room.members.get(room.hostId);
     if (host) send(host, { type: 'peer_joined', peerId: ws.id, stableSlot: ws.stableSlot });
-    // K2 (forts): skicka peer_joined även till övriga rumsmedlemmar — men BARA
+    // K2 (forts): skicka peer_joined Ã¤ven till Ã¶vriga rumsmedlemmar â€” men BARA
     // _jsonWorld-peers (Godot). V1-webbens peer_joined-hantering (game.js:25111)
-    // är host-orienterad: den skickar 'welcome' + 'config' till joinern — om en
+    // Ã¤r host-orienterad: den skickar 'welcome' + 'config' till joinern â€” om en
     // V1-JOINER fick eventet skulle den dubblera welcome med fel roster. Godot-
-    // joiners behöver eventet för pid→stableSlot-mappning av senare joiners.
+    // joiners behÃ¶ver eventet fÃ¶r pidâ†’stableSlot-mappning av senare joiners.
     for (const [pid, m] of room.members) {
       if (pid === ws.id || pid === room.hostId) continue;
       if (m._jsonWorld) send(m, { type: 'peer_joined', peerId: ws.id, stableSlot: ws.stableSlot });
     }
     console.log('[ROOM]', code, ws.id, 'joined (', room.members.size, 'members)');
     broadcastPublicRooms();
-    accounts.presenceChanged(ws); // v2 konto: vänner ser lobby/match + rumskod
-    // TDM late-joiner: tilldela team baserat på balans, push tdm_started-event riktat
+    accounts.presenceChanged(ws); // v2 konto: vÃ¤nner ser lobby/match + rumskod
+    // TDM late-joiner: tilldela team baserat pÃ¥ balans, push tdm_started-event riktat
     if (room.sim && room.sim.tdmActive) {
       let red = 0, blue = 0;
       for (const [, m] of room.members) {
@@ -491,11 +491,11 @@ function handleMessage(ws, msg) {
       const arena = room.sim.tdmArena || { worldW: 4000, worldH: 3000 };
       const spawnX = team === 'red' ? Math.floor(arena.worldW * 0.10) : Math.floor(arena.worldW * 0.90);
       const spawnY = Math.floor(arena.worldH * 0.50);
-      // Late-joiner får också shield + maxShield (annars saknar de PvP-shield helt)
+      // Late-joiner fÃ¥r ocksÃ¥ shield + maxShield (annars saknar de PvP-shield helt)
       ws.playerState = { x: spawnX, y: spawnY, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500 };
       room.sim.tdmKillsByPid[ws.id] = 0;
       room.sim.tdmDeathsByPid[ws.id] = 0;
-      // Bygg fullständig roster så late-joiner ser alla teams
+      // Bygg fullstÃ¤ndig roster sÃ¥ late-joiner ser alla teams
       const teams = {};
       for (const [pid, m] of room.members) if (m.tdmTeam) teams[pid] = m.tdmTeam;
       send(ws, { type: 'sim_events', events: [{
@@ -512,7 +512,7 @@ function handleMessage(ws, msg) {
         send(m, { type: 'sim_events', events: [{ type: 'tdm_team_assigned', peerId: ws.id, team }] });
       }
     }
-    // CTF late-joiner: samma pattern men för CTF-arena + flag-state + ctf_started
+    // CTF late-joiner: samma pattern men fÃ¶r CTF-arena + flag-state + ctf_started
     if (room.sim && room.sim.ctfActive) {
       const { CTF_ARENA } = require('../shared/ctf-arena');
       let red = 0, blue = 0;
@@ -593,7 +593,7 @@ function handleMessage(ws, msg) {
         send(m, { type: 'sim_events', events: [{ type: 'siege_team_assigned', peerId: ws.id, team }] });
       }
     }
-    // GUNGAME late-joiner: spawna på roterande spawn, tier 0, FFA (inget team)
+    // GUNGAME late-joiner: spawna pÃ¥ roterande spawn, tier 0, FFA (inget team)
     if (room.sim && room.sim.gungameActive) {
       const { GUNGAME_ARENA, GUNGAME_WEAPONS } = require('../shared/gungame-arena');
       const idx = (room.sim._gungameSpawnIdx || 0) % GUNGAME_ARENA.spawns.length;
@@ -614,15 +614,15 @@ function handleMessage(ws, msg) {
         totalTiers: GUNGAME_WEAPONS.length,
         shieldMax: 100,
       }];
-      // Om sim fortfarande är i 5s prep-countdown, skicka countdown_start med
-      // resten av tiden så late-joiner ser samma overlay som andra spelare.
+      // Om sim fortfarande Ã¤r i 5s prep-countdown, skicka countdown_start med
+      // resten av tiden sÃ¥ late-joiner ser samma overlay som andra spelare.
       if (room.sim.simReadyAt && Date.now() < room.sim.simReadyAt) {
         lateJoinEvents.push({
           type: 'countdown_start',
           durationMs: room.sim.simReadyAt - Date.now(),
         });
       }
-      // Befintliga bots — late-joiner ser dem inte utan synthetiska bot_joined
+      // Befintliga bots â€” late-joiner ser dem inte utan synthetiska bot_joined
       if (room.sim._botIds && room.sim._botIds.length) {
         const memberList = [...room.members.keys()];
         for (const botId of room.sim._botIds) {
@@ -639,7 +639,7 @@ function handleMessage(ws, msg) {
       }
       send(ws, { type: 'sim_events', events: lateJoinEvents });
     }
-    // KOTH late-joiner: spawna på roterande spawn-point + skicka current scores
+    // KOTH late-joiner: spawna pÃ¥ roterande spawn-point + skicka current scores
     if (room.sim && room.sim.kothActive) {
       const { KOTH_ARENA } = require('../shared/koth-arena');
       const idx = (room.sim._kothSpawnIdx || 0) % KOTH_ARENA.spawns.length;
@@ -664,13 +664,13 @@ function handleMessage(ws, msg) {
         pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
         shieldMax: 100,
       }];
-      // Aktuella scores så late-joiner ser leaderboard direkt
+      // Aktuella scores sÃ¥ late-joiner ser leaderboard direkt
       lateKothEvents.push({
         type: 'koth_score_update',
         scores: { ...(room.sim.kothScores || {}) },
         target: room.sim.kothTargetPoints,
       });
-      // Också nästa zone-rotate-tid
+      // OcksÃ¥ nÃ¤sta zone-rotate-tid
       if (room.sim._kothZoneRotateAt) {
         const zone = KOTH_ARENA.zones[room.sim.kothActiveZoneIdx || 0];
         lateKothEvents.push({
@@ -680,8 +680,8 @@ function handleMessage(ws, msg) {
           nextRotateAt: room.sim._kothZoneRotateAt,
         });
       }
-      // Befintliga bots i sim:n — late-joiner ser dem inte annars (bot_joined
-      // emittades vid sim-start och queuen tömdes innan denna spelare anslöt).
+      // Befintliga bots i sim:n â€” late-joiner ser dem inte annars (bot_joined
+      // emittades vid sim-start och queuen tÃ¶mdes innan denna spelare anslÃ¶t).
       if (room.sim._botIds && room.sim._botIds.length) {
         const memberList = [...room.members.keys()];
         for (const botId of room.sim._botIds) {
@@ -734,7 +734,7 @@ function handleMessage(ws, msg) {
         matchEndAt: room.sim.juggernautEndAt,
         minimapPulseIntervalMs: JUGGERNAUT_ARENA.minimapPulseIntervalMs,
       }];
-      // Aktuella scores för leaderboard
+      // Aktuella scores fÃ¶r leaderboard
       const scoresRounded = {};
       for (const pid of Object.keys(room.sim.juggernautScores || {})) {
         scoresRounded[pid] = Math.floor(room.sim.juggernautScores[pid]);
@@ -761,16 +761,16 @@ function handleMessage(ws, msg) {
       }
       send(ws, { type: 'sim_events', events: lateJugEvents });
     }
-    // BATTLE ROYALE late-joiner: BR är no-respawn — sätt direkt som spectator.
-    // Klient renderar match från spectator-cam. När matchen slutar kan de joina
+    // BATTLE ROYALE late-joiner: BR Ã¤r no-respawn â€” sÃ¤tt direkt som spectator.
+    // Klient renderar match frÃ¥n spectator-cam. NÃ¤r matchen slutar kan de joina
     // rematch (vanlig flow).
     if (room.sim && room.sim.battleroyaleActive) {
       const { BATTLEROYALE_ARENA } = require('../shared/battleroyale-arena');
-      // Spawnpos i mitten — de blir spectator omedelbart (hp=0)
+      // Spawnpos i mitten â€” de blir spectator omedelbart (hp=0)
       ws.playerState = {
         x: BATTLEROYALE_ARENA.worldW / 2,
         y: BATTLEROYALE_ARENA.worldH / 2,
-        hp: 0, // dead = spectator från start
+        hp: 0, // dead = spectator frÃ¥n start
         maxHp: BATTLEROYALE_ARENA.maxHp,
         shield: 0,
         maxShield: BATTLEROYALE_ARENA.maxShield,
@@ -780,7 +780,7 @@ function handleMessage(ws, msg) {
       };
       ws.tdmTeam = null;
       ws.tdmRespawnAt = 0;
-      // Markera som already-eliminated så de inte räknas i alive-count + ger placement-999
+      // Markera som already-eliminated sÃ¥ de inte rÃ¤knas i alive-count + ger placement-999
       if (!room.sim.battleroyaleEliminated.includes(ws.id)) {
         room.sim.battleroyaleEliminated.push(ws.id);
         room.sim.battleroyaleRanks[ws.id] = 999; // late = ranking N/A
@@ -814,7 +814,7 @@ function handleMessage(ws, msg) {
         maxShield: BATTLEROYALE_ARENA.maxShield,
         lootPickupRadius: BATTLEROYALE_ARENA.lootPickupRadius,
         shieldMax: BATTLEROYALE_ARENA.maxShield,
-        isSpectator: true, // klient ska direkt gå in i spec-cam
+        isSpectator: true, // klient ska direkt gÃ¥ in i spec-cam
       }];
       if (room.sim._botIds && room.sim._botIds.length) {
         const memberList = [...room.members.keys()];
@@ -834,7 +834,7 @@ function handleMessage(ws, msg) {
       return;
     }
 
-    // HEIST late-joiner (v1.697): förr fanns inget block → joinaren blev ett spöke
+    // HEIST late-joiner (v1.697): fÃ¶rr fanns inget block â†’ joinaren blev ett spÃ¶ke
     // utan roll/fas/UI mid-match. Skicka full heist_started + aktuell fas/progress.
     if (room.sim && room.sim.heistActive && !room.sim.heistEnded) {
       const sim = room.sim;
@@ -854,8 +854,8 @@ function handleMessage(ws, msg) {
       ws._heistRoleLocked = false;
       sim.heistRoles = sim.heistRoles || {};
       sim.heistRoles[ws.id] = ws._heistRole;
-      // v1.697b: _heistApplyRole är INTE i join-handlerns scope (fri variabel → typeof gav
-      // 'undefined' i sloppy mode → rollstats applicerades aldrig). Inline-require som pick_role.
+      // v1.697b: _heistApplyRole Ã¤r INTE i join-handlerns scope (fri variabel â†’ typeof gav
+      // 'undefined' i sloppy mode â†’ rollstats applicerades aldrig). Inline-require som pick_role.
       const { _heistApplyRole: _applyHeistRoleFn } = require('./sim/room-sim');
       if (typeof _applyHeistRoleFn === 'function') _applyHeistRoleFn(ws, ws._heistRole, sim, arena);
       send(ws, { type: 'sim_events', events: [{
@@ -888,11 +888,11 @@ function handleMessage(ws, msg) {
       return;
     }
     // SLUTAUDIT 2 #3: STORY-FAMILJEN late-joiner (story/endless/bossrush/truck/daily/
-    // speedrun). loadStage broadcastade stage_loaded vid stage-start men event-kön
-    // var längesedan tömd → late-joinern fick aldrig wave/stage → tom värld. Resänd
-    // EXAKT samma fält som loadStage (sim/waves.js:378). Stage härleds deterministiskt
+    // speedrun). loadStage broadcastade stage_loaded vid stage-start men event-kÃ¶n
+    // var lÃ¤ngesedan tÃ¶md â†’ late-joinern fick aldrig wave/stage â†’ tom vÃ¤rld. ResÃ¤nd
+    // EXAKT samma fÃ¤lt som loadStage (sim/waves.js:378). Stage hÃ¤rleds deterministiskt
     // med samma uppslag som stageFor i waves.js: customStagesList (Godot-modes) annars
-    // getStage(wave). Gate:at på _jsonWorld (Godot) — V1-webben får inget = no-op.
+    // getStage(wave). Gate:at pÃ¥ _jsonWorld (Godot) â€” V1-webben fÃ¥r inget = no-op.
     if (ws._jsonWorld && room.sim && room.sim.waveActive
         && !room.sim.tdmActive && !room.sim.ctfActive && !room.sim.siegeActive
         && !room.sim.gungameActive && !room.sim.kothActive && !room.sim.juggernautActive
@@ -919,7 +919,7 @@ function handleMessage(ws, msg) {
       const target = room.members.get(msg.to);
       if (target) send(target, payload);
     } else {
-      // Broadcast till alla utom avsändaren
+      // Broadcast till alla utom avsÃ¤ndaren
       broadcast(room, payload, ws.id);
     }
     return;
@@ -930,22 +930,22 @@ function handleMessage(ws, msg) {
     return;
   }
 
-  // ── SERVER-AUTHORITATIVE SIM ──────────────────────────────────────────────
-  // Phase 1: opt-in via 'sim_start' från host. Server tar över enemy-AI.
+  // â”€â”€ SERVER-AUTHORITATIVE SIM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Phase 1: opt-in via 'sim_start' frÃ¥n host. Server tar Ã¶ver enemy-AI.
   // Klienter skickar sin position via 'sim_input'. Server broadcastar world-paket.
-  // Default OFF — gamla host-authoritative kör som tidigare när sim inte är aktiverad.
+  // Default OFF â€” gamla host-authoritative kÃ¶r som tidigare nÃ¤r sim inte Ã¤r aktiverad.
   if (msg.type === 'sim_start') {
     const room = rooms.get(ws.roomCode);
     if (!room) return;
-    if (room.hostId !== ws.id) return;  // bara host får starta
-    // v2-tillägg (additivt): custom stage-listor (Godot endless/bossrush m.fl.).
-    // Saniteras hårt — utan fältet är beteendet EXAKT som förut.
-    // M3 (audit 2026-06-10): saniteringen körs nu FÖRE stopSim-blocket nedan +
-    // .filter(s => s && typeof s === 'object') före .map (även miniBosses/zones).
-    // Förr kastade String(s.id) på null-element EFTER att stopSim + room.sim=null
-    // redan körts → trasigt customStages vid rematch dödade pågående sim och
-    // lämnade rummet utan sim_started. Nu: kastar inget, och skulle något ändå
-    // kasta sker det innan någon destruktiv state-ändring.
+    if (room.hostId !== ws.id) return;  // bara host fÃ¥r starta
+    // v2-tillÃ¤gg (additivt): custom stage-listor (Godot endless/bossrush m.fl.).
+    // Saniteras hÃ¥rt â€” utan fÃ¤ltet Ã¤r beteendet EXAKT som fÃ¶rut.
+    // M3 (audit 2026-06-10): saniteringen kÃ¶rs nu FÃ–RE stopSim-blocket nedan +
+    // .filter(s => s && typeof s === 'object') fÃ¶re .map (Ã¤ven miniBosses/zones).
+    // FÃ¶rr kastade String(s.id) pÃ¥ null-element EFTER att stopSim + room.sim=null
+    // redan kÃ¶rts â†’ trasigt customStages vid rematch dÃ¶dade pÃ¥gÃ¥ende sim och
+    // lÃ¤mnade rummet utan sim_started. Nu: kastar inget, och skulle nÃ¥got Ã¤ndÃ¥
+    // kasta sker det innan nÃ¥gon destruktiv state-Ã¤ndring.
     let customStages = null;
     if (Array.isArray(msg.customStages) && msg.customStages.length > 0) {
       const okTypes = new Set(['grunt', 'runner', 'brute', 'shooter', 'ninja', 'swordsman', 'soldier', 'robot', 'dog', 'healer', 'summoner', 'swarmer', 'swordsman', 'sniper', 'bomber']);
@@ -974,25 +974,25 @@ function handleMessage(ws, msg) {
         })) : [{ count: 8, pool: ['grunt'] }],
         bgColor: String(s.bgColor || '#2a2a30').slice(0, 9),
         accentColor: String(s.accentColor || '#10101a').slice(0, 9),
-        // v2 #58 (additivt): sandbox-stage — ingen wave-progression/boss, 6 odödliga
-        // dummy-fiender i ring runt stage-center. V1 skickar aldrig fältet → undefined.
+        // v2 #58 (additivt): sandbox-stage â€” ingen wave-progression/boss, 6 odÃ¶dliga
+        // dummy-fiender i ring runt stage-center. V1 skickar aldrig fÃ¤ltet â†’ undefined.
         sandbox: s.sandbox === true ? true : undefined,
       }));
-      if (customStages.length === 0) customStages = null;  // bara skräp-element → som om fältet saknades
+      if (customStages.length === 0) customStages = null;  // bara skrÃ¤p-element â†’ som om fÃ¤ltet saknades
     }
-    // Rematch / mode-byte: stoppa ev. tidigare sim och skapa en ny så ingen
-    // gammal state (tdmActive/ctfActive/scores/pickup-ids) läcker in i nästa match.
+    // Rematch / mode-byte: stoppa ev. tidigare sim och skapa en ny sÃ¥ ingen
+    // gammal state (tdmActive/ctfActive/scores/pickup-ids) lÃ¤cker in i nÃ¤sta match.
     if (room.sim) {
       try { stopSim(room.sim); } catch (e) {}
       // v1.769 livscykel-fix: nulla room.sim efter stopSim. Om stopSim kastade levde
       // gamla sim:ens setInterval-tick kvar; eftersom createSim ger ett NYTT objekt
-      // (interval=null) passerade startSim:s guard → TVÅ tick-loopar mot samma rum
-      // (hp hoppar, spöken, "ibland funkar/ibland inte"). Garantera ren slate.
+      // (interval=null) passerade startSim:s guard â†’ TVÃ… tick-loopar mot samma rum
+      // (hp hoppar, spÃ¶ken, "ibland funkar/ibland inte"). Garantera ren slate.
       room.sim = null;
     }
-    // Tillämpa team-assignments från host (om shuffle/pick aktiverat).
-    // msg.teams: { peerId → 'red' | 'blue' }. Sätt ws.tdmTeam INNAN startSim
-    // så room-sim plockar upp dem istället för i%2-defaulten.
+    // TillÃ¤mpa team-assignments frÃ¥n host (om shuffle/pick aktiverat).
+    // msg.teams: { peerId â†’ 'red' | 'blue' }. SÃ¤tt ws.tdmTeam INNAN startSim
+    // sÃ¥ room-sim plockar upp dem istÃ¤llet fÃ¶r i%2-defaulten.
     if (msg.teams && typeof msg.teams === 'object') {
       for (const [pid, team] of Object.entries(msg.teams)) {
         const member = room.members.get(pid);
@@ -1003,13 +1003,13 @@ function handleMessage(ws, msg) {
     }
     room.sim = createSim(room);
     if (customStages) room.sim.customStagesList = customStages;
-    // v2: PvE-stage-väggar från Godot-klienten (story-byggnader per wave) — kulor
-    // stoppas server-side (bullets.js _pveWalls). Saniterat: max 60 stages × 120
-    // walls, talen clampade. V1-webben skickar aldrig fältet → no-op.
+    // v2: PvE-stage-vÃ¤ggar frÃ¥n Godot-klienten (story-byggnader per wave) â€” kulor
+    // stoppas server-side (bullets.js _pveWalls). Saniterat: max 60 stages Ã— 120
+    // walls, talen clampade. V1-webben skickar aldrig fÃ¤ltet â†’ no-op.
     if (Array.isArray(msg.stageWalls)) {
       const wnum = (v, d, lo, hi) => Math.max(lo, Math.min(hi, +v || d));
-      // M3 (samma klass): filtrera icke-objekt-element så wnum(r.x) inte kastar
-      // på null mitt mellan createSim och startSim (rummet skulle fastna utan sim).
+      // M3 (samma klass): filtrera icke-objekt-element sÃ¥ wnum(r.x) inte kastar
+      // pÃ¥ null mitt mellan createSim och startSim (rummet skulle fastna utan sim).
       room.sim.stageWallsList = msg.stageWalls.slice(0, 60).map((list) =>
         Array.isArray(list) ? list.slice(0, 120).filter(r => r && typeof r === 'object').map((r) => ({
           x: wnum(r.x, 0, -2000, 12000), y: wnum(r.y, 0, -2000, 12000),
@@ -1021,12 +1021,12 @@ function handleMessage(ws, msg) {
       ngpLevel: msg.ngpLevel,
       mode: msg.mode,
       wave: msg.wave,
-      // v2-tillägg: dagliga modifiers (clampade, default 1 = no-op)
+      // v2-tillÃ¤gg: dagliga modifiers (clampade, default 1 = no-op)
       enemySpeedMul: Math.max(0.5, Math.min(2.0, +msg.enemySpeedMul || 1)),
       goldMul: Math.max(0.5, Math.min(3.0, +msg.goldMul || 1)),
-      // v2 #62 (additivt): countdown-längd. V1 skickar aldrig → 0 → default (5000/3000 heist).
+      // v2 #62 (additivt): countdown-lÃ¤ngd. V1 skickar aldrig â†’ 0 â†’ default (5000/3000 heist).
       countdownMs: msg.countdownMs ? Math.max(1000, Math.min(8000, Math.round(+msg.countdownMs) || 0)) : 0,
-      // v2 #68 (additivt): start-shield i alla modes. V1 skickar aldrig → 0 → exakt gammalt beteende.
+      // v2 #68 (additivt): start-shield i alla modes. V1 skickar aldrig â†’ 0 â†’ exakt gammalt beteende.
       baseShield: Math.max(0, Math.min(100, Math.round(+msg.baseShield) || 0)),
       tdm: msg.tdm,
       tdmTargetKills: msg.tdmTargetKills,
@@ -1077,7 +1077,7 @@ function handleMessage(ws, msg) {
     for (const [, m] of room.members) {
       if (m !== ws) send(m, { type: 'sim_started' });
     }
-    for (const [, m] of room.members) accounts.presenceChanged(m); // v2 konto: lobby → match
+    for (const [, m] of room.members) accounts.presenceChanged(m); // v2 konto: lobby â†’ match
     return;
   }
   if (msg.type === 'sim_load_stage') {
@@ -1091,26 +1091,26 @@ function handleMessage(ws, msg) {
     if (!room || !room.sim) return;
     if (room.hostId !== ws.id) return;
     stopSim(room.sim);
-    room.sim = null;  // v1.771: håll invarianten "om room.sim existerar är den aktiv"
+    room.sim = null;  // v1.771: hÃ¥ll invarianten "om room.sim existerar Ã¤r den aktiv"
     if (room.meta) room.meta.started = false;
     broadcastPublicRooms();
-    for (const [, m] of room.members) accounts.presenceChanged(m); // v2 konto: match → lobby
+    for (const [, m] of room.members) accounts.presenceChanged(m); // v2 konto: match â†’ lobby
     return;
   }
 
   // v2 #60 (additivt): host kan sparka spelare/bot ur rummet. V1-webben skickar
-  // aldrig kick_peer → handlern är död kod för V1. Bot → bort ur rum+sim;
-  // människa → {type:'kicked'} + ws-close + samma städning som disconnect.
+  // aldrig kick_peer â†’ handlern Ã¤r dÃ¶d kod fÃ¶r V1. Bot â†’ bort ur rum+sim;
+  // mÃ¤nniska â†’ {type:'kicked'} + ws-close + samma stÃ¤dning som disconnect.
   if (msg.type === 'kick_peer') {
     const room = rooms.get(ws.roomCode);
     if (!room) return;
     if (room.hostId !== ws.id) return;                 // bara host
     const peerId = typeof msg.peerId === 'string' ? msg.peerId : '';
-    if (!peerId || peerId === ws.id) return;           // kan inte kicka sig själv
+    if (!peerId || peerId === ws.id) return;           // kan inte kicka sig sjÃ¤lv
     const target = room.members.get(peerId);
     if (!target) return;
     if (target._isBot) {
-      // BOT: ta bort ur rummet + sim (botIds + per-pid sim-state, mirror av disconnect-städning)
+      // BOT: ta bort ur rummet + sim (botIds + per-pid sim-state, mirror av disconnect-stÃ¤dning)
       room.members.delete(peerId);
       if (target.stableSlot != null && target.stableSlot !== 0 && room._freeSlots) {
         room._freeSlots.push(target.stableSlot);
@@ -1136,10 +1136,10 @@ function handleMessage(ws, msg) {
       }
       console.log('[ROOM]', room.code, 'bot', peerId, 'kicked by host');
     } else {
-      // MÄNNISKA: meddela offret, städa som disconnect, stäng socketen.
+      // MÃ„NNISKA: meddela offret, stÃ¤da som disconnect, stÃ¤ng socketen.
       send(target, { type: 'kicked' });
       handleDisconnect(target);
-      target.roomCode = null;            // close-eventets handleDisconnect no-op:ar då
+      target.roomCode = null;            // close-eventets handleDisconnect no-op:ar dÃ¥
       try { target.close(); } catch (e) {}
       console.log('[ROOM]', room.code, peerId, 'kicked by host');
     }
@@ -1151,7 +1151,7 @@ function handleMessage(ws, msg) {
   }
 
   // CTF turret-enter: spelaren vill mounta turret. Server auktoritet kollar
-  // avstånd + lag + ledig + ej destroyed.
+  // avstÃ¥nd + lag + ledig + ej destroyed.
   if (msg.type === 'ctf_turret_enter') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
@@ -1190,8 +1190,8 @@ function handleMessage(ws, msg) {
     return;
   }
 
-  // Sköld-ability: 3s immunitet, 45s cooldown (20s JUG-hunter).
-  // v1.714: tillåten i ALLA server-sim-lägen (PvP + co-op PvE: survivors/heist/CD/
+  // SkÃ¶ld-ability: 3s immunitet, 45s cooldown (20s JUG-hunter).
+  // v1.714: tillÃ¥ten i ALLA server-sim-lÃ¤gen (PvP + co-op PvE: survivors/heist/CD/
   // story-coop). Mode-gaten borttagen; cooldown enforces fortfarande via _lastShieldUseAt.
   if (msg.type === 'pvp_ability_shield') {
     const room = rooms.get(ws.roomCode);
@@ -1207,19 +1207,19 @@ function handleMessage(ws, msg) {
     }
     if (ws._lastShieldUseAt && now - ws._lastShieldUseAt < SHIELD_COOLDOWN) return; // cooldown
     ws._lastShieldUseAt = now;
-    // Sätter invulnUntil — bullets.js/explode kollar redan denna
+    // SÃ¤tter invulnUntil â€” bullets.js/explode kollar redan denna
     ws.playerState.invulnUntil = Math.max(ws.playerState.invulnUntil || 0, now + SHIELD_DURATION);
-    // Broadcasta så alla klienter renderar bubblan + ljudet
+    // Broadcasta sÃ¥ alla klienter renderar bubblan + ljudet
     room.sim.eventQueue.push({
       type: 'pvp_shield_used',
       peerId: ws.id,
       durationMs: SHIELD_DURATION,
-      cooldownMs: SHIELD_COOLDOWN, // klient använder för CD-ring
+      cooldownMs: SHIELD_COOLDOWN, // klient anvÃ¤nder fÃ¶r CD-ring
     });
     return;
   }
-  // TDM fy_-förråd: klienten synkar vilket vapen som är i HANDEN (snapshot till andra).
-  // Servern litar på klientens equip (TDM har redan klient-betrodd weaponId via sim_shoot).
+  // TDM fy_-fÃ¶rrÃ¥d: klienten synkar vilket vapen som Ã¤r i HANDEN (snapshot till andra).
+  // Servern litar pÃ¥ klientens equip (TDM har redan klient-betrodd weaponId via sim_shoot).
   if (msg.type === 'tdm_equip') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim || !room.sim.tdmActive) return;
@@ -1227,8 +1227,8 @@ function handleMessage(ws, msg) {
     ws.playerState.weaponId = msg.weaponId;
     return;
   }
-  // JUGGERNAUT vapen-byte: bara nuvarande JUG-spelaren får byta, valet måste
-  // vara inom listan från arena-konfig.
+  // JUGGERNAUT vapen-byte: bara nuvarande JUG-spelaren fÃ¥r byta, valet mÃ¥ste
+  // vara inom listan frÃ¥n arena-konfig.
   if (msg.type === 'juggernaut_weapon_change') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
@@ -1253,15 +1253,15 @@ function handleMessage(ws, msg) {
     return;
   }
   if (msg.type === 'server_ping') {
-    // Echo tillbaka klient-timestamp så de kan beräkna RTT mot servern.
-    // st (additivt, transport-pass 2026-06-10): serverns klocka vid svar —
-    // klienten kan kalibrera server-tid-offset (RTT/2-metoden) för sin
-    // interpolationsbuffert. V1-webben läser bara t → opåverkad.
+    // Echo tillbaka klient-timestamp sÃ¥ de kan berÃ¤kna RTT mot servern.
+    // st (additivt, transport-pass 2026-06-10): serverns klocka vid svar â€”
+    // klienten kan kalibrera server-tid-offset (RTT/2-metoden) fÃ¶r sin
+    // interpolationsbuffert. V1-webben lÃ¤ser bara t â†’ opÃ¥verkad.
     send(ws, { type: 'server_pong', t: msg.t, st: Date.now() });
     return;
   }
-  // Lag comp: klient ekar tillbaka RTT-ping. Server beräknar RTT och sparar.
-  // Smooth via EMA (0.3 ny, 0.7 gammal) så enstaka spikes inte ger felaktig rewind.
+  // Lag comp: klient ekar tillbaka RTT-ping. Server berÃ¤knar RTT och sparar.
+  // Smooth via EMA (0.3 ny, 0.7 gammal) sÃ¥ enstaka spikes inte ger felaktig rewind.
   if (msg.type === 'srv_rtt_pong') {
     const now = Date.now();
     const sent = typeof msg.t === 'number' ? msg.t : ws._lastRttPingAt;
@@ -1346,8 +1346,8 @@ function handleMessage(ws, msg) {
   if (msg.type === 'sim_cd_ping') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
-    // v1.660: ping tillåts i ALLA co-op-lägen (var bara castledefense). Co-op =
-    // ingen PvP-mode aktiv (i PvP skulle ping läcka info till motståndarlaget).
+    // v1.660: ping tillÃ¥ts i ALLA co-op-lÃ¤gen (var bara castledefense). Co-op =
+    // ingen PvP-mode aktiv (i PvP skulle ping lÃ¤cka info till motstÃ¥ndarlaget).
     const _s = room.sim;
     const _isPvp = _s.tdmActive || _s.ctfActive || _s.siegeActive || _s.kothActive ||
                    _s.gungameActive || _s.juggernautActive || _s.battleroyaleActive;
@@ -1364,7 +1364,7 @@ function handleMessage(ws, msg) {
     });
     return;
   }
-  // v1.620: HEIST actions — bag loot, start drill (alarm trigger), hack terminal
+  // v1.620: HEIST actions â€” bag loot, start drill (alarm trigger), hack terminal
   if (msg.type === 'sim_heist_action') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
@@ -1379,10 +1379,10 @@ function handleMessage(ws, msg) {
       const lootId = String(msg.lootId || '');
       const loot = HEIST_ARENA.lootSpots.find(l => l.id === lootId);
       if (!loot) return;
-      // v1.625/v1.646: tier-baserad gate. 'outer' kräver outer-drill,
-      // 'inner' kräver BÅDE outer- och inner-drill. Övrig loot (cash_drawer,
-      // manager_safe, laptop, locker, tip_jar, storage box) är stealth-accessible
-      // i alla phases (stealth → instant alarm-trigger).
+      // v1.625/v1.646: tier-baserad gate. 'outer' krÃ¤ver outer-drill,
+      // 'inner' krÃ¤ver BÃ…DE outer- och inner-drill. Ã–vrig loot (cash_drawer,
+      // manager_safe, laptop, locker, tip_jar, storage box) Ã¤r stealth-accessible
+      // i alla phases (stealth â†’ instant alarm-trigger).
       const tier = loot.tier; // 'outer' | 'inner' | undefined
       const isVaultLoot = (tier === 'outer' || tier === 'inner');
       if (isVaultLoot) {
@@ -1398,9 +1398,9 @@ function handleMessage(ws, msg) {
       const dx = ps.x - loot.x, dy = ps.y - loot.y;
       if (dx * dx + dy * dy > 60 * 60) return;
       // v1.625/v1.653: Stealth-bagging triggar alarm BARA om en civilian
-      // har LOS + är inom 200px av loot-positionen (kassör/manager ser dig).
-      // Tidigare: alarm trigger oavsett (även om alla cashiers var döda/borta).
-      // Bortre civilians och de i panic/hostage/calmed-state räknas inte.
+      // har LOS + Ã¤r inom 200px av loot-positionen (kassÃ¶r/manager ser dig).
+      // Tidigare: alarm trigger oavsett (Ã¤ven om alla cashiers var dÃ¶da/borta).
+      // Bortre civilians och de i panic/hostage/calmed-state rÃ¤knas inte.
       if (!isVaultLoot && sim.heistPhase === 'stealth') {
         const { _heistLineBlockedByWall } = require('./sim/room-sim');
         let witnessed = false;
@@ -1412,7 +1412,7 @@ function handleMessage(ws, msg) {
           if (npc.state === 'hostage' || npc.state === 'calmed' || npc.state === 'panic') continue;
           const dx = loot.x - npc.x, dy = loot.y - npc.y;
           if (dx * dx + dy * dy > witnessR2) continue;
-          // LOS-check: vägg mellan civilian och loot = de ser ej
+          // LOS-check: vÃ¤gg mellan civilian och loot = de ser ej
           if (typeof _heistLineBlockedByWall === 'function' &&
               _heistLineBlockedByWall(npc.x, npc.y, loot.x, loot.y, HEIST_ARENA)) continue;
           witnessed = true;
@@ -1423,14 +1423,14 @@ function handleMessage(ws, msg) {
           sim.eventQueue.push({ type: 'heist_loot_alarm', lootKind: loot.kind });
         }
       }
-      // v1.621: Bag → carry-weight på spelaren (säkras vid extract-van)
-      // v1.624: Använd faktisk loot.weight per typ (0.05-0.40) istället för flat 0.10
+      // v1.621: Bag â†’ carry-weight pÃ¥ spelaren (sÃ¤kras vid extract-van)
+      // v1.624: AnvÃ¤nd faktisk loot.weight per typ (0.05-0.40) istÃ¤llet fÃ¶r flat 0.10
       sim.heistLootBagged[lootId] = true;
       ws._heistBagsCarrying = (ws._heistBagsCarrying || 0) + 1;
       ws._heistBagsValue = (ws._heistBagsValue || 0) + (loot.value || 0);
       ws._heistBagsWeight = (ws._heistBagsWeight || 0) + (loot.weight || 0.10);
-      // SpeedMul baseras på summan av loot.weight (gold = 0.40, cash drawer = 0.05)
-      // Cap vid 0.4 (60% slow) så player aldrig fastnar helt
+      // SpeedMul baseras pÃ¥ summan av loot.weight (gold = 0.40, cash drawer = 0.05)
+      // Cap vid 0.4 (60% slow) sÃ¥ player aldrig fastnar helt
       ps.speedMul = Math.max(0.4, 1 - ws._heistBagsWeight);
       sim.eventQueue.push({
         type: 'heist_loot_bagged',
@@ -1441,10 +1441,10 @@ function handleMessage(ws, msg) {
         bagsValue: ws._heistBagsValue,
       });
     } else if (action === 'drop_bags' || action === 'drop_one_bag') {
-      // v1.652: Drop nu EN säck per tap istället för ALLA. Spelaren kan
+      // v1.652: Drop nu EN sÃ¤ck per tap istÃ¤llet fÃ¶r ALLA. Spelaren kan
       // koordinera bag-distribution mellan partners utan att tappa allt.
-      // Legacy 'drop_bags' aliasas till samma som 'drop_one_bag' så ingen
-      // klient bryter. (Den gamla "drop all"-funktionen var för aggressiv —
+      // Legacy 'drop_bags' aliasas till samma som 'drop_one_bag' sÃ¥ ingen
+      // klient bryter. (Den gamla "drop all"-funktionen var fÃ¶r aggressiv â€”
       // en accidental tap = match-disaster.)
       if (ws._heistBagsCarrying > 0) {
         sim.heistDroppedBags = sim.heistDroppedBags || [];
@@ -1476,8 +1476,8 @@ function handleMessage(ws, msg) {
         });
       }
     } else if (action === 'distract_guard') {
-      // v1.652: Tank-only — kasta object för att distrahera vakt.
-      // Vakt vänder bort från player + står still i 5s. Cooldown 30s.
+      // v1.652: Tank-only â€” kasta object fÃ¶r att distrahera vakt.
+      // Vakt vÃ¤nder bort frÃ¥n player + stÃ¥r still i 5s. Cooldown 30s.
       if (ws._heistRole !== 'tank') return;
       if (sim.heistPhase !== 'stealth') return;
       const now = Date.now();
@@ -1486,11 +1486,11 @@ function handleMessage(ws, msg) {
       const npc = (sim.heistNPCs || []).find(n => n.id === npcId && n.type === 'guard' && !n.dead);
       if (!npc) return;
       const dx = ps.x - npc.x, dy = ps.y - npc.y;
-      if (dx * dx + dy * dy > 150 * 150) return; // 150px range (Tank kan kasta långt)
-      // Distract: face bort från player, frys patrol 5s
+      if (dx * dx + dy * dy > 150 * 150) return; // 150px range (Tank kan kasta lÃ¥ngt)
+      // Distract: face bort frÃ¥n player, frys patrol 5s
       npc.facing = Math.atan2(-dy, -dx);
       npc._distractedUntil = now + 5000;
-      npc.state = 'distracted'; // klient renderar ❓ + grå cone
+      npc.state = 'distracted'; // klient renderar â“ + grÃ¥ cone
       npc._patrolPauseUntil = now + 5000; // pause patrol-movement
       ws._heistDistractCdUntil = now + 30000;
       sim.eventQueue.push({
@@ -1498,8 +1498,8 @@ function handleMessage(ws, msg) {
         guardId: npcId, by: ws.id, durationMs: 5000,
       });
     } else if (action === 'calm_civilian') {
-      // v1.652: Medic-only — lugna civilian → ingen panic på 15s.
-      // Kräver närhet (60px). Cooldown 20s. Fungerar i stealth.
+      // v1.652: Medic-only â€” lugna civilian â†’ ingen panic pÃ¥ 15s.
+      // KrÃ¤ver nÃ¤rhet (60px). Cooldown 20s. Fungerar i stealth.
       if (ws._heistRole !== 'medic') return;
       if (sim.heistPhase !== 'stealth') return;
       const now = Date.now();
@@ -1509,8 +1509,8 @@ function handleMessage(ws, msg) {
       if (!npc) return;
       const dx = ps.x - npc.x, dy = ps.y - npc.y;
       if (dx * dx + dy * dy > 60 * 60) return;
-      // Calm: civilian till "calmed"-state. Ingen panic-trigger på 15s, även
-      // om de ser vapen. Bryts om Medic dör eller faserna ändras.
+      // Calm: civilian till "calmed"-state. Ingen panic-trigger pÃ¥ 15s, Ã¤ven
+      // om de ser vapen. Bryts om Medic dÃ¶r eller faserna Ã¤ndras.
       npc.state = 'calmed';
       npc._calmedUntil = now + 15000;
       ws._heistCalmCdUntil = now + 20000;
@@ -1522,11 +1522,11 @@ function handleMessage(ws, msg) {
       // Triggar alarm-fas omedelbart om i stealth
       if (sim.heistPhase === 'stealth') {
         sim.heistAlarmTriggered = true;
-        // Phase-byte sker i nästa tick
+        // Phase-byte sker i nÃ¤sta tick
       }
     } else if (action === 'intimidate_civilian') {
-      // v1.623: Hostage-system — make civilian a hostage (no panic, no alarm-trigger)
-      // Kräver: nära civilian (60px), vapen = 'fists' (NO weapon drawn)
+      // v1.623: Hostage-system â€” make civilian a hostage (no panic, no alarm-trigger)
+      // KrÃ¤ver: nÃ¤ra civilian (60px), vapen = 'fists' (NO weapon drawn)
       if (ps.weaponId !== 'fists') return;
       const npcId = String(msg.npcId || '');
       const npc = (sim.heistNPCs || []).find(n => n.id === npcId && n.type === 'civilian');
@@ -1541,7 +1541,7 @@ function handleMessage(ws, msg) {
         npcId, by: ws.id,
       });
     } else if (action === 'pickup_bag') {
-      // v1.623: Plocka upp närmaste dropped bag (50px range)
+      // v1.623: Plocka upp nÃ¤rmaste dropped bag (50px range)
       if (!sim.heistDroppedBags || sim.heistDroppedBags.length === 0) return;
       let nearestIdx = -1, nearestD2 = 50 * 50;
       for (let i = 0; i < sim.heistDroppedBags.length; i++) {
@@ -1554,7 +1554,7 @@ function handleMessage(ws, msg) {
       const bag = sim.heistDroppedBags.splice(nearestIdx, 1)[0];
       ws._heistBagsCarrying = (ws._heistBagsCarrying || 0) + 1;
       ws._heistBagsValue = (ws._heistBagsValue || 0) + bag.value;
-      // v1.624: använd genomsnitts-weight (vi vet inte ursprungs-loot.kind), default 0.15
+      // v1.624: anvÃ¤nd genomsnitts-weight (vi vet inte ursprungs-loot.kind), default 0.15
       ws._heistBagsWeight = (ws._heistBagsWeight || 0) + 0.15;
       ps.speedMul = Math.max(0.4, 1 - ws._heistBagsWeight);
       sim.eventQueue.push({
@@ -1564,19 +1564,19 @@ function handleMessage(ws, msg) {
       });
     } else if (action === 'lockpick_door') {
       // v1.623/v1.647: Lockpicking. Two-tap legacy + server-tick auto-complete
-      // (samma pattern som hack-terminal i v1.645). Player tappar EN gång,
-      // server completar när finishesAt nådd (i tickHeist) så länge spelaren
-      // står kvar inom 60px.
+      // (samma pattern som hack-terminal i v1.645). Player tappar EN gÃ¥ng,
+      // server completar nÃ¤r finishesAt nÃ¥dd (i tickHeist) sÃ¥ lÃ¤nge spelaren
+      // stÃ¥r kvar inom 60px.
       const doorId = String(msg.doorId || 'back');
       const door = HEIST_ARENA.doors.find(d => d.id === doorId);
       if (!door || !door.lockpickable) return;
       sim.heistUnlockedDoors = sim.heistUnlockedDoors || {};
       if (sim.heistUnlockedDoors[doorId]) return;
-      // Range-check (60px från door-center)
+      // Range-check (60px frÃ¥n door-center)
       const dcx = door.x + door.w / 2, dcy = door.y + door.h / 2;
       const dx = ps.x - dcx, dy = ps.y - dcy;
       if (dx * dx + dy * dy > 60 * 60) return;
-      // Lockpick-tid: 6s normal, 3s för Rogue
+      // Lockpick-tid: 6s normal, 3s fÃ¶r Rogue
       const role = ws._heistRole || 'hacker';
       const pickTime = role === 'rogue' ? 3000 : 6000;
       const now = Date.now();
@@ -1606,8 +1606,8 @@ function handleMessage(ws, msg) {
         ws._heistLockpickDoorId = null;
       }
     } else if (action === 'release_hostage') {
-      // v1.626: Hostage-trade — släpp hostage civilian → cease-fire från polisen
-      // v1.650: Diminishing returns. Tidigare: 10s stackat oändligt (15 hostages
+      // v1.626: Hostage-trade â€” slÃ¤pp hostage civilian â†’ cease-fire frÃ¥n polisen
+      // v1.650: Diminishing returns. Tidigare: 10s stackat oÃ¤ndligt (15 hostages
       // = 150s gratis drill). Nu: 1:a release 10s, 2:a 7s, 3:e 5s, 4+ 3s.
       // Plus TOTAL CAP 30s ackumulerat per match.
       if (sim.heistPhase !== 'alarm' && sim.heistPhase !== 'extract') return;
@@ -1626,7 +1626,7 @@ function handleMessage(ws, msg) {
       const remaining = Math.max(0, 30000 - sim.heistTotalCeasefireMs);
       gainMs = Math.min(gainMs, remaining);
       if (gainMs <= 0) {
-        // Helt cappad — släpp hostage utan reward (markerar dock som released)
+        // Helt cappad â€” slÃ¤pp hostage utan reward (markerar dock som released)
         npc.state = 'panic';
         npc._panicTarget = { x: 2000, y: 3500 };
         sim.eventQueue.push({
@@ -1637,7 +1637,7 @@ function handleMessage(ws, msg) {
       }
       sim.heistTotalCeasefireMs += gainMs;
       sim.heistCeasefireUntil = Math.max(sim.heistCeasefireUntil || 0, now) + gainMs;
-      // Hostage springer iväg
+      // Hostage springer ivÃ¤g
       npc.state = 'panic';
       npc._panicTarget = { x: 2000, y: 3500 };
       if (sim._heistNextPoliceAt && sim._heistNextPoliceAt < sim.heistCeasefireUntil) {
@@ -1651,10 +1651,10 @@ function handleMessage(ws, msg) {
         totalUsedMs: sim.heistTotalCeasefireMs,
       });
     } else if (action === 'silent_kill') {
-      // v1.623: Rogue-only silent-melee mot guard — ingen alarm, guard dör
+      // v1.623: Rogue-only silent-melee mot guard â€” ingen alarm, guard dÃ¶r
       if (ws._heistRole !== 'rogue') return;
       if (sim.heistPhase !== 'stealth') return;
-      // Melee-vapen krävs (fists/knife/melee-types)
+      // Melee-vapen krÃ¤vs (fists/knife/melee-types)
       const meleeWeapons = ['fists', 'knife', 'knuckles', 'bat', 'machete'];
       if (!meleeWeapons.includes(ps.weaponId)) return;
       const npcId = String(msg.npcId || '');
@@ -1669,8 +1669,8 @@ function handleMessage(ws, msg) {
       });
     } else if (action === 'hack_terminal') {
       // v1.645: HACK NU MED TIDS-PROGRESS (var instant trots arena.hackTime=4/6).
-      // Two-tap pattern: första tappet startar timer, vidare tap completes vid finish.
-      // Hacker-role: -50% hack-tid. Range-check på varje tap så player måste stanna.
+      // Two-tap pattern: fÃ¶rsta tappet startar timer, vidare tap completes vid finish.
+      // Hacker-role: -50% hack-tid. Range-check pÃ¥ varje tap sÃ¥ player mÃ¥ste stanna.
       const termId = String(msg.terminalId || '');
       const term = HEIST_ARENA.hackTerminals.find(t => t.id === termId);
       if (!term) return;
@@ -1707,24 +1707,24 @@ function handleMessage(ws, msg) {
         ws._heistHackTermId = null;
       }
     } else if (action === 'pick_role') {
-      // v1.642: In-game role-pick. Tillåtet en gång per match. Stealth-fas
-      // krävs så fördelar inte kan bytas mitt under intense extract-fight.
-      // v1.654: UNIQUE-roll-validation. Varje roll får bara väljas av EN
-      // spelare per match. Om någon annan redan har rollen → reject + emit
-      // 'heist_role_taken' så klient kan visa toast.
+      // v1.642: In-game role-pick. TillÃ¥tet en gÃ¥ng per match. Stealth-fas
+      // krÃ¤vs sÃ¥ fÃ¶rdelar inte kan bytas mitt under intense extract-fight.
+      // v1.654: UNIQUE-roll-validation. Varje roll fÃ¥r bara vÃ¤ljas av EN
+      // spelare per match. Om nÃ¥gon annan redan har rollen â†’ reject + emit
+      // 'heist_role_taken' sÃ¥ klient kan visa toast.
       if (ws._heistRoleLocked) return;
       if (sim.heistPhase !== 'stealth') return;
       const role = String(msg.role || 'hacker');
       const validRoles = ['hacker', 'tank', 'medic', 'rogue'];
       if (validRoles.indexOf(role) < 0) return;
       // Unique-check: bara LOCKED peers blockar rollen (en peer som har
-      // 'hacker' som default men inte locked ännu räknas som "available").
+      // 'hacker' som default men inte locked Ã¤nnu rÃ¤knas som "available").
       sim.heistRoles = sim.heistRoles || {};
       const room = rooms.get(ws.roomCode);
       if (room && room.sim && room.sim.room && room.sim.room.members) {
         for (const [otherPid, otherWs] of room.sim.room.members) {
           if (otherPid === ws.id) continue;
-          if (!otherWs._heistRoleLocked) continue; // ej låst → räknas inte
+          if (!otherWs._heistRoleLocked) continue; // ej lÃ¥st â†’ rÃ¤knas inte
           if ((sim.heistRoles[otherPid] || otherWs._heistRole) === role) {
             sim.eventQueue.push({
               type: 'heist_role_taken',
@@ -1752,7 +1752,7 @@ function handleMessage(ws, msg) {
     }
     return;
   }
-  // v1.607: SURVIVORS shop-buy — validera + dra gold + ge weapon
+  // v1.607: SURVIVORS shop-buy â€” validera + dra gold + ge weapon
   if (msg.type === 'sim_survivors_buy') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
@@ -1761,7 +1761,7 @@ function handleMessage(ws, msg) {
     const wid = String(msg.weaponId || '');
     const cost = Math.max(0, Math.min(99999, parseInt(msg.cost) || 0));
     const gold = sim.castledefenseGold[ws.id] || 0;
-    if (gold < cost) return; // not enough gold (silent — klient visar UI-error)
+    if (gold < cost) return; // not enough gold (silent â€” klient visar UI-error)
     sim.castledefenseGold[ws.id] = gold - cost;
     sim.castledefenseOwnedWeapons = sim.castledefenseOwnedWeapons || {};
     sim.castledefenseOwnedWeapons[ws.id] = sim.castledefenseOwnedWeapons[ws.id] || ['pistol'];
@@ -1789,8 +1789,8 @@ function handleMessage(ws, msg) {
   if (msg.type === 'sim_stresstest') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim || !room.sim.stresstestActive) return;
-    // v2 #59 (additivt): `what`-varianten — host-only spawn av n enemies/kulor.
-    // V1-webben skickar bara `action` (grenen nedan) → helt opåverkad.
+    // v2 #59 (additivt): `what`-varianten â€” host-only spawn av n enemies/kulor.
+    // V1-webben skickar bara `action` (grenen nedan) â†’ helt opÃ¥verkad.
     if (msg.what === 'enemies' || msg.what === 'bullets' || msg.what === 'showcase') {
       if (room.hostId !== ws.id) return;  // bara host
       const sim = room.sim;
@@ -1798,8 +1798,8 @@ function handleMessage(ws, msg) {
       if (!ws2 || !ws2.playerState) return;
       const px = ws2.playerState.x, py = ws2.playerState.y;
       if (msg.what === 'showcase') {
-        // v2 R10b (additivt): SHOWROOM — en av varje enemy-typ + miniboss-power +
-        // boss i frusna rader nedanför hosten (V1-paritet: spawnEnemyShowcase).
+        // v2 R10b (additivt): SHOWROOM â€” en av varje enemy-typ + miniboss-power +
+        // boss i frusna rader nedanfÃ¶r hosten (V1-paritet: spawnEnemyShowcase).
         const { applyStresstestShowcase } = require('./sim/room-sim');
         applyStresstestShowcase(sim, px, py);
         return;
@@ -1818,11 +1818,11 @@ function handleMessage(ws, msg) {
         }
       } else {
         const n = Math.max(1, Math.min(200, Math.round(+msg.n) || 50));
-        // v2 R10a: V1-PARITET (game.js spawnStresstestBullets) — jämn radiell
-        // solfjäder UTÅT från avsändaren, gula, ofarliga (dmg 0; M4-guarden gör
-        // dem ändå ofarliga i stresstest). Förr: röda kulor INÅT mot spelaren =
-        // såg ut som ett bakhåll, inte som "+50 BULLETS". hostile:true behålls
-        // för hb-syncen (icke-hostile kulor skickas aldrig till klienter).
+        // v2 R10a: V1-PARITET (game.js spawnStresstestBullets) â€” jÃ¤mn radiell
+        // solfjÃ¤der UTÃ…T frÃ¥n avsÃ¤ndaren, gula, ofarliga (dmg 0; M4-guarden gÃ¶r
+        // dem Ã¤ndÃ¥ ofarliga i stresstest). FÃ¶rr: rÃ¶da kulor INÃ…T mot spelaren =
+        // sÃ¥g ut som ett bakhÃ¥ll, inte som "+50 BULLETS". hostile:true behÃ¥lls
+        // fÃ¶r hb-syncen (icke-hostile kulor skickas aldrig till klienter).
         for (let i = 0; i < n; i++) {
           const a = (i / n) * Math.PI * 2;
           sim.bullets.push({
@@ -1855,10 +1855,10 @@ function handleMessage(ws, msg) {
     }
     return;
   }
-  // v1.376: Granat-throw från klient. Server schemalägger detonation efter
-  // flight-time och kör explode() (med friendly-fire-regler + turret-damage).
-  // v1.381: server pushar grenade_thrown till eventQueue → broadcastas till
-  // alla peers så de ser projektilen + explosion-VFX (tidigare såg motståndare
+  // v1.376: Granat-throw frÃ¥n klient. Server schemalÃ¤gger detonation efter
+  // flight-time och kÃ¶r explode() (med friendly-fire-regler + turret-damage).
+  // v1.381: server pushar grenade_thrown till eventQueue â†’ broadcastas till
+  // alla peers sÃ¥ de ser projektilen + explosion-VFX (tidigare sÃ¥g motstÃ¥ndare
   // bara HP-droppet, ingen visuell granat).
   if (msg.type === 'sim_grenade_throw') {
     const room = rooms.get(ws.roomCode);
@@ -1868,15 +1868,15 @@ function handleMessage(ws, msg) {
     const fromY = Math.max(0, Math.min(20000, +msg.fromY || 0));
     const toX = Math.max(0, Math.min(20000, +msg.toX || 0));
     const toY = Math.max(0, Math.min(20000, +msg.toY || 0));
-    // flightMs styrs av klienten (skalas med kast-distans, TDM dubbel räckvidd) —
-    // klampa till sant intervall så explosion-timing + peer-broadcast matchar thrower.
+    // flightMs styrs av klienten (skalas med kast-distans, TDM dubbel rÃ¤ckvidd) â€”
+    // klampa till sant intervall sÃ¥ explosion-timing + peer-broadcast matchar thrower.
     const FLIGHT_MS = Math.max(200, Math.min(3000, +msg.flightMs || 800));
     const RADIUS = 85;
     const DMG = 120;
     const kind = msg.kind === 'smoke' ? 'smoke' : 'frag';
-    // Broadcast till alla klienter (inkl thrower — thrower dedupar via ownerPid).
-    // Rök-molnet ritas client-side deterministiskt från detta event (samma pos+tid
-    // hos alla) — ingen kontinuerlig sync behövs.
+    // Broadcast till alla klienter (inkl thrower â€” thrower dedupar via ownerPid).
+    // RÃ¶k-molnet ritas client-side deterministiskt frÃ¥n detta event (samma pos+tid
+    // hos alla) â€” ingen kontinuerlig sync behÃ¶vs.
     sim.eventQueue.push({
       type: 'grenade_thrown',
       ownerPid: ws.id,
@@ -1885,13 +1885,13 @@ function handleMessage(ws, msg) {
       radius: kind === 'smoke' ? 130 : RADIUS,
       kind,
     });
-    // RÖKGRANAT gör INGEN skada → ingen explode. Spränggranat exploderar server-auth.
+    // RÃ–KGRANAT gÃ¶r INGEN skada â†’ ingen explode. SprÃ¤nggranat exploderar server-auth.
     if (kind !== 'smoke') {
       setTimeout(() => {
         if (!sim || sim._stopped) return;
         const { explode } = require('./sim/bullets');
         if (typeof explode === 'function') {
-          explode(sim, toX, toY, RADIUS, DMG, ws.id, 'grenade');  // v2 E6: källvapen för kill-weaponId
+          explode(sim, toX, toY, RADIUS, DMG, ws.id, 'grenade');  // v2 E6: kÃ¤llvapen fÃ¶r kill-weaponId
         }
       }, FLIGHT_MS);
     }
@@ -1900,17 +1900,17 @@ function handleMessage(ws, msg) {
 }
 
 function handleDisconnect(ws) {
-  // v2 konto: offline/presence-push till vänner (no-op utan acct_login).
-  // Skiljer själv på riktig disconnect vs 'leave'/kick via ws.readyState.
+  // v2 konto: offline/presence-push till vÃ¤nner (no-op utan acct_login).
+  // Skiljer sjÃ¤lv pÃ¥ riktig disconnect vs 'leave'/kick via ws.readyState.
   accounts.onDisconnect(ws);
   // Rensa public-rooms-prenumeration
   publicRoomSubscribers.delete(ws);
   if (!ws.roomCode) return;
   const room = rooms.get(ws.roomCode);
   if (!room) return;
-  // v1.659: stasha server-side-only-state för ev. reconnect (Heist-roll + hp/shield)
+  // v1.659: stasha server-side-only-state fÃ¶r ev. reconnect (Heist-roll + hp/shield)
   // innan vi rensar. Bara under aktiv sim + om klienten har en reconnect-token.
-  // Stashen lever i rummet (rensas när rummet stängs) och utgår efter 60s vid restore.
+  // Stashen lever i rummet (rensas nÃ¤r rummet stÃ¤ngs) och utgÃ¥r efter 60s vid restore.
   if (room.sim && ws._reconnectToken) {
     room._reconnectStash = room._reconnectStash || {};
     const ps = ws.playerState || {};
@@ -1920,25 +1920,25 @@ function handleDisconnect(ws) {
       ts: Date.now(),
     };
   }
-  // Returnera stable-slot till den lediga poolen så nästa peer som joinar
-  // kan återanvända det lägsta lediga slot-numret. Host (slot 0) returneras
-  // INTE — slot 0 är alltid hosten, host-migration uppdaterar bara hostId.
+  // Returnera stable-slot till den lediga poolen sÃ¥ nÃ¤sta peer som joinar
+  // kan Ã¥teranvÃ¤nda det lÃ¤gsta lediga slot-numret. Host (slot 0) returneras
+  // INTE â€” slot 0 Ã¤r alltid hosten, host-migration uppdaterar bara hostId.
   if (ws.stableSlot != null && ws.stableSlot !== 0 && room._freeSlots) {
     room._freeSlots.push(ws.stableSlot);
   }
   room.members.delete(ws.id);
   if (room.hostId === ws.id) {
-    // v1.658: HOST MIGRATION — migrera värdskapet till en annan närvarande human
-    // istället för att döda rummet. En host som tappar signalen ska inte avsluta
-    // allas match. Sim:n körs server-side oberoende av hostId (hostId styr bara
-    // host-only-kommandon sim_stop/sim_load_stage + peer_joined-notiser), så att
-    // byta hostId mitt i match är säkert — sim:n fortsätter oavbrutet.
+    // v1.658: HOST MIGRATION â€” migrera vÃ¤rdskapet till en annan nÃ¤rvarande human
+    // istÃ¤llet fÃ¶r att dÃ¶da rummet. En host som tappar signalen ska inte avsluta
+    // allas match. Sim:n kÃ¶rs server-side oberoende av hostId (hostId styr bara
+    // host-only-kommandon sim_stop/sim_load_stage + peer_joined-notiser), sÃ¥ att
+    // byta hostId mitt i match Ã¤r sÃ¤kert â€” sim:n fortsÃ¤tter oavbrutet.
     let newHost = null;
     for (const [, m] of room.members) { if (!m._isBot) { newHost = m; break; } }
     if (newHost) {
       room.hostId = newHost.id;
       if (room.meta) room.meta.hostName = newHost.playerName || room.meta.hostName;
-      // Rensa lämnande host:s per-pid sim-state (samma som vanlig-peer-grenen).
+      // Rensa lÃ¤mnande host:s per-pid sim-state (samma som vanlig-peer-grenen).
       if (room.sim) {
         const _s = room.sim, _pid = ws.id;
         if (_s.deadBodies) delete _s.deadBodies[_pid];
@@ -1947,13 +1947,13 @@ function handleDisconnect(ws) {
         if (_s.juggernautScores) delete _s.juggernautScores[_pid];
         if (_s.battleroyaleKillsByPid) delete _s.battleroyaleKillsByPid[_pid];
         if (_s.tdmDeathsByPid) delete _s.tdmDeathsByPid[_pid];
-        // v1.698: dekrementera aliveCount om en LEVANDE BR-spelare lämnar — annars
-        // triggas last_alive-win aldrig (matchen hänger till 30s-fallbacken).
+        // v1.698: dekrementera aliveCount om en LEVANDE BR-spelare lÃ¤mnar â€” annars
+        // triggas last_alive-win aldrig (matchen hÃ¤nger till 30s-fallbacken).
         if (_s.battleroyaleActive && _s.battleroyaleEliminated && !_s.battleroyaleEliminated.includes(_pid)) {
           _s.battleroyaleEliminated.push(_pid);
           if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1);
         }
-        // Om host var JUG, frigör rollen (samma som vanlig-peer-grenen).
+        // Om host var JUG, frigÃ¶r rollen (samma som vanlig-peer-grenen).
         if (_s.juggernautActive && _s.juggernautPid === ws.id) {
           _s.juggernautPid = null;
           _s._juggernautAwaitFirstRespawn = true;
@@ -1964,11 +1964,11 @@ function handleDisconnect(ws) {
         if (m._isBot) continue;
         send(m, { type: 'host_migrated', newHostId: newHost.id, peerLeft: ws.id });
       }
-      console.log('[ROOM]', room.code, 'host migrated', ws.id, '→', newHost.id, '(', room.members.size, 'members)');
+      console.log('[ROOM]', room.code, 'host migrated', ws.id, 'â†’', newHost.id, '(', room.members.size, 'members)');
       broadcastPublicRooms();
       return;
     }
-    // Ingen human kvar — stäng rummet (befintligt beteende).
+    // Ingen human kvar â€” stÃ¤ng rummet (befintligt beteende).
     console.log('[ROOM]', room.code, 'closed (host left, no members)');
     if (room.sim) stopSim(room.sim);
     for (const m of room.members.values()) {
@@ -1977,20 +1977,20 @@ function handleDisconnect(ws) {
     }
     rooms.delete(room.code);
   } else {
-    // Vanlig peer lämnade — meddela host
+    // Vanlig peer lÃ¤mnade â€” meddela host
     const host = room.members.get(room.hostId);
     if (host) send(host, { type: 'peer_left', peerId: ws.id });
-    // SLUTAUDIT 2 #12: peer_left gick bara till hosten → icke-host-Godot-klienter
-    // ackumulerade spök-peers i roster/minimap. Spegla K2-mönstret (peer_joined):
-    // skicka även till alla _jsonWorld-peers (ej hosten — den fick sitt ovan).
-    // V1-webbens icke-hosts är aldrig _jsonWorld → V1 opåverkad.
+    // SLUTAUDIT 2 #12: peer_left gick bara till hosten â†’ icke-host-Godot-klienter
+    // ackumulerade spÃ¶k-peers i roster/minimap. Spegla K2-mÃ¶nstret (peer_joined):
+    // skicka Ã¤ven till alla _jsonWorld-peers (ej hosten â€” den fick sitt ovan).
+    // V1-webbens icke-hosts Ã¤r aldrig _jsonWorld â†’ V1 opÃ¥verkad.
     for (const [_plPid, _plM] of room.members) {
       if (_plPid === room.hostId) continue;
       if (_plM._jsonWorld) send(_plM, { type: 'peer_left', peerId: ws.id });
     }
     console.log('[ROOM]', room.code, ws.id, 'left (', room.members.size, 'members)');
-    // v1.657: rensa per-pid sim-state för den lämnande peer:n så stale pids inte
-    // hänger kvar — annars spök-spelare i leaderboards (koth/jug/BR) + onödig
+    // v1.657: rensa per-pid sim-state fÃ¶r den lÃ¤mnande peer:n sÃ¥ stale pids inte
+    // hÃ¤nger kvar â€” annars spÃ¶k-spelare i leaderboards (koth/jug/BR) + onÃ¶dig
     // deadBodies-iteration matchen ut. Defensivt guardat (no-op om saknas).
     if (room.sim) {
       const _s = room.sim, _pid = ws.id;
@@ -2000,15 +2000,15 @@ function handleDisconnect(ws) {
       if (_s.juggernautScores) delete _s.juggernautScores[_pid];
       if (_s.battleroyaleKillsByPid) delete _s.battleroyaleKillsByPid[_pid];
       if (_s.tdmDeathsByPid) delete _s.tdmDeathsByPid[_pid];
-      // v1.698: dekrementera aliveCount om en LEVANDE BR-spelare lämnar — annars
-      // triggas last_alive-win aldrig (matchen hänger till 30s-fallbacken).
+      // v1.698: dekrementera aliveCount om en LEVANDE BR-spelare lÃ¤mnar â€” annars
+      // triggas last_alive-win aldrig (matchen hÃ¤nger till 30s-fallbacken).
       if (_s.battleroyaleActive && _s.battleroyaleEliminated && !_s.battleroyaleEliminated.includes(_pid)) {
         _s.battleroyaleEliminated.push(_pid);
         if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1);
       }
     }
-    // JUGGERNAUT: om JUG-spelaren disconnectade, frigör JUG-rollen så nästa
-    // human-respawn ärver den (i stället för att JUG sitter död tills timer går ut).
+    // JUGGERNAUT: om JUG-spelaren disconnectade, frigÃ¶r JUG-rollen sÃ¥ nÃ¤sta
+    // human-respawn Ã¤rver den (i stÃ¤llet fÃ¶r att JUG sitter dÃ¶d tills timer gÃ¥r ut).
     if (room.sim && room.sim.juggernautActive && room.sim.juggernautPid === ws.id) {
       room.sim.juggernautPid = null;
       room.sim._juggernautAwaitFirstRespawn = true;
@@ -2018,8 +2018,8 @@ function handleDisconnect(ws) {
         weapon: room.sim.juggernautWeapon, jugHp: room.sim.juggernautHpMax,
       });
     }
-    // KRITISKT: räkna inte bots i tom-rum-check, annars lever sim:en vidare med
-    // bara bot-ws kvar (rum-läcka, evig bot-AI-tick).
+    // KRITISKT: rÃ¤kna inte bots i tom-rum-check, annars lever sim:en vidare med
+    // bara bot-ws kvar (rum-lÃ¤cka, evig bot-AI-tick).
     let realCount = 0;
     for (const [, m] of room.members) { if (!m._isBot) realCount++; }
     if (realCount === 0) {
@@ -2031,8 +2031,8 @@ function handleDisconnect(ws) {
 }
 
 server.listen(PORT, () => {
-  console.log('═══════════════════════════════════════');
-  console.log('  THE PENETRATOR — Co-op Server v1');
+  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
+  console.log('  THE PENETRATOR â€” Co-op Server v1');
   console.log('  Listening on port ' + PORT);
-  console.log('═══════════════════════════════════════');
+  console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
 });
