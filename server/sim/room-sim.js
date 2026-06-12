@@ -318,6 +318,19 @@ function tickSim(sim) {
             const winner = redAlive > 0 ? 'red' : (blueAlive > 0 ? 'blue' : null);
             sim.tdmRoundActive = false;
             sim.tdmRoundResetAt = nowMs + 5000; // 5s loot-fas (greppa granater inför nästa runda)
+            // 17:41 #6e: ÖVERLEVARNA får FULL hp+shield DIREKT vid rundans slut
+            // (förr först vid nästa rundas start → man lootade med halva barer och
+            // kunde dödas under loot-fasen). Explicit event för att kringgå
+            // shield-world-echo-gaten (samma skäl som tdm_player_respawned).
+            for (const [hpid, hws] of sim.room.members) {
+              if (!hws.playerState || hws.playerState.hp <= 0) continue;
+              hws.playerState.hp = 100;
+              hws.playerState.shield = hws.playerState.maxShield || 100;
+              sim.eventQueue.push({
+                type: 'tdm_round_heal', peerId: hpid,
+                hp: 100, shield: hws.playerState.shield,
+              });
+            }
             // v1.734: LAG-baserad loadout-reset — hela förlorande LAGET tappar vapen+granater
             // (även de som överlevde), hela vinnande laget BEHÅLLER (även de som dog).
             sim._tdmLastLoser = winner ? (winner === 'red' ? 'blue' : 'red') : null;

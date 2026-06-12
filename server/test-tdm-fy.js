@@ -28,16 +28,19 @@ console.log('[OK] tdm started, arena', sim.tdmArena.worldW + 'x' + sim.tdmArena.
 for (const [pid, ws] of room.members) assert(ws.playerState.weaponId === 'pistol', pid + ' spawns with pistol');
 console.log('[OK] all players spawn with pistol');
 
-// Pickups: ska ha 10 vapen + 4 granater + 2 hp + 2 shield
+// Pickups: 10 spawn-vapen (5×spegel) + 1 minigun i mitten (17:41 #6b) + 8+8 granater + 2 hp + 2 shield
 const counts = {};
 for (const pu of sim.pvpPickups) counts[pu.type] = (counts[pu.type] || 0) + 1;
 console.log('  pickup counts', JSON.stringify(counts));
-assert(counts.weapon === 10, 'should be 10 weapon pickups');
+assert(counts.weapon === 11, 'should be 11 weapon pickups (10 + center minigun)');
 assert(counts.grenade === 8, 'should be 8 frag-grenade pickups (center loot)');
 assert(counts.smoke === 8, 'should be 8 smoke-grenade pickups (center loot)');
 const weaponPus = sim.pvpPickups.filter(p => p.type === 'weapon');
 assert(weaponPus.every(p => p.weaponId), 'every weapon pickup has weaponId');
-console.log('[OK] pickups: 10 weapons (' + [...new Set(weaponPus.map(p => p.weaponId))].join(',') + '), 8 frag + 8 rök, hp/shield');
+// 17:41 #6b: minigun exakt i mitten (850,1000)
+const mg = weaponPus.find(p => p.weaponId === 'minigun');
+assert(mg && mg.x === 850 && mg.y === 1000, 'minigun pickup i dead-center (850,1000)');
+console.log('[OK] pickups: 11 weapons inkl center-minigun (' + [...new Set(weaponPus.map(p => p.weaponId))].join(',') + '), 8 frag + 8 rök, hp/shield');
 
 // Hoppa över 5s-startup-countdown (i prod passeras den av realtid)
 sim.simReadyAt = 0;

@@ -98,13 +98,16 @@ const TDM_ARENA = {
   // Granat-loot i MITTEN (korridoren mellan containrarna). v1.733: 8 spräng + 8 rök
   // att loota — man spawnar med 0 granater och greppar i mitten om man hinner.
   // 4×2-rutnät i den öppna korridoren (x 745-955, fri på all y mellan containrarna).
-  grenadeSpawns: [ // 8 spränggranater (övre raderna)
-    { x: 745, y: 900 }, { x: 815, y: 900 }, { x: 885, y: 900 }, { x: 955, y: 900 },
-    { x: 745, y: 968 }, { x: 815, y: 968 }, { x: 885, y: 968 }, { x: 955, y: 968 },
+  // 17:41 #6b+#6c: raderna isär-dragna så MITTEN (850,1000) blir fri för en
+  // minigun-pickup, och inget överlappar (x-gap 70, y-gap 56 ≫ pickup-storlek;
+  // närmaste granat ~84px från minigun-centrum). Övre = spräng, nedre = rök.
+  grenadeSpawns: [ // 8 spränggranater (övre raderna, ovanför centern)
+    { x: 745, y: 868 }, { x: 815, y: 868 }, { x: 885, y: 868 }, { x: 955, y: 868 },
+    { x: 745, y: 924 }, { x: 815, y: 924 }, { x: 885, y: 924 }, { x: 955, y: 924 },
   ],
-  smokeSpawns: [ // 8 rökgranater (nedre raderna)
-    { x: 745, y: 1032 }, { x: 815, y: 1032 }, { x: 885, y: 1032 }, { x: 955, y: 1032 },
-    { x: 745, y: 1100 }, { x: 815, y: 1100 }, { x: 885, y: 1100 }, { x: 955, y: 1100 },
+  smokeSpawns: [ // 8 rökgranater (nedre raderna, under centern)
+    { x: 745, y: 1076 }, { x: 815, y: 1076 }, { x: 885, y: 1076 }, { x: 955, y: 1076 },
+    { x: 745, y: 1132 }, { x: 815, y: 1132 }, { x: 885, y: 1132 }, { x: 955, y: 1132 },
   ],
 
   // HP + shield i mid-fältet (symmetriskt)
@@ -118,6 +121,9 @@ TDM_ARENA.spawns.blue = TDM_ARENA.spawns.red.map(p => _mirrorPt(p));
 TDM_ARENA.weaponSpawns = TDM_ARENA.weaponSpawns.concat(
   TDM_ARENA.weaponSpawns.map(p => _mirrorPt(p, ['weaponId']))
 );
+// 17:41 #6b: MINIGUN i dead-center (850,1000) — power-pickupen mitt på kartan.
+// Läggs EFTER speglingen (annars dubbleras den på sin egen spegelpunkt).
+TDM_ARENA.weaponSpawns.push({ x: 850, y: 1000, weaponId: 'minigun' });
 // (hp/shield-arrayerna är redan symmetriska — spegla EJ, ger dubbletter)
 TDM_ARENA.walls = _topWalls.concat(_topWalls.map(_mirrorWall)).concat(_centerWalls);
 
