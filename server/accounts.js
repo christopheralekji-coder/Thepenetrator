@@ -146,7 +146,11 @@ function saveNow() {
   if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    fs.writeFileSync(DATA_FILE, JSON.stringify({ accounts: [...accounts.values()] }));
+    // Atomisk skrivning (granskning 2026-06-12): temp + rename — en crash mitt i
+    // write trunkerar annars accounts.json (datan är långlivad på Fly-volymen).
+    const tmp = DATA_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify({ accounts: [...accounts.values()] }));
+    fs.renameSync(tmp, DATA_FILE);
   } catch (e) {
     console.warn('[ACCT] save misslyckades —', e.message);
   }

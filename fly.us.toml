@@ -1,0 +1,33 @@
+# USA-regionen (Virginia/iad — bäst för blandade EU+USA-lobbys och östkusten;
+# västkusten får ~70ms vilket är spelbart). AUTO-STOPP: maskinen suspenderas när
+# ingen är ansluten och vaknar på ~1s vid connect → kostar bara när någon spelar.
+app = "warparty-us"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ACCOUNTS_DATA_DIR = "/data"
+
+[[mounts]]
+  source = "wp_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

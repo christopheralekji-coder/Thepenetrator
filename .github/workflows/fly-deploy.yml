@@ -3,6 +3,7 @@
 # båda kör samma kod under övergången.
 name: fly-deploy
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -10,6 +11,8 @@ on:
       - "shared/**"
       - "Dockerfile"
       - "fly.toml"
+      - "fly.us.toml"
+      - "fly.asia.toml"
       - ".github/workflows/fly-deploy.yml"
 
 concurrency:
@@ -19,9 +22,21 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # app-scopade deploy-tokens (least privilege) — en secret per region
+        include:
+          - config: fly.toml
+            token: FLY_API_TOKEN
+          - config: fly.us.toml
+            token: FLY_API_TOKEN_US
+          - config: fly.asia.toml
+            token: FLY_API_TOKEN_ASIA
     steps:
       - uses: actions/checkout@v4
-      - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --remote-only --yes
+      # pinnad version (granskning: @master = supply-chain-risk)
+      - uses: superfly/flyctl-actions/setup-flyctl@v1
+      - run: flyctl deploy -c ${{ matrix.config }} --remote-only --yes
         env:
-          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FLY_API_TOKEN: ${{ secrets[matrix.token] }}

@@ -34,7 +34,10 @@ const OUT = path.resolve(__dirname, '..', '..', 'WarParty-V2', 'assets', 'wardro
       ctx.save(); ctx.translate(CW / 2, OY); ctx.scale(S, S);
       try {
         if (withArms && !cos.mascot && typeof drawHangingArm === 'function') {
-          drawHangingArm(ctx, cos, false, true, 0, 0); drawHangingArm(ctx, cos, false, false, 0, 0);
+          // v2: ENDAST väst-armen (hängarmen). Kroppen bakas vänd öster — i spelet ritas
+          // skjutarmen dynamiskt (roterar med aim) och hängarmen ska sitta på motsatt sida.
+          // V1 in-game: facing east → drawHangingArm(facingLeft=false) = väst-arm.
+          drawHangingArm(ctx, cos, false, false, 0, 0);
         }
         drawNakedBody(ctx, cos, false, phase, moving);
       } catch (e) {}

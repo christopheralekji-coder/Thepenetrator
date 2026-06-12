@@ -6086,7 +6086,13 @@ function broadcastWorld(sim, now) {
     // klient-rendering — ersätt hela listan) men bara var JSON_WORLD_EVERY:e
     // broadcast (20Hz) — se M5-kommentaren vid konstanten.
     const isJson = !!ws._jsonWorld;
-    if (isJson && (sim._worldCastNo % JSON_WORLD_EVERY) !== 0) continue;
+    // v2 latens-polish (granskning 2026-06-12): rena PvP-lägen har inga PvE-
+    // enemy-listor → world-paketet är litet (players+hb ≈ 0.3-1KB) → ge JSON-
+    // peers FULL 60Hz där (halverar klientens interp-fönster-bas 33→16.7ms).
+    // Co-op/survivors/BR behåller 30Hz (full enemy-lista per paket = dyrt).
+    const jsonEvery = (sim.tdmActive || sim.ctfActive || sim.siegeActive ||
+      sim.kothActive || sim.gungameActive || sim.juggernautActive) ? 1 : JSON_WORLD_EVERY;
+    if (isJson && (sim._worldCastNo % jsonEvery) !== 0) continue;
     let lastSent = sim.lastSentEnemyByPeer.get(peerId);
     // v1.701: stagga enemy-full-broadcasten PER PEER. Förr synkad per-sim (sim.lastFullAt)
     // → alla klienter fick sin tunga full-paket SAMMA tick = server-encode-burst + synkad

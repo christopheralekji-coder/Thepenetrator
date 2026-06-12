@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+  <!-- fartstreck (rörelse) -->
+  <g>
+    <rect x="4"  y="30" width="19" height="5" rx="2.5" fill="#f4f6f8" stroke="#2c3138" stroke-width="2"/>
+    <rect x="2"  y="48" width="14" height="5" rx="2.5" fill="#f4f6f8" stroke="#2c3138" stroke-width="2"/>
+    <rect x="6"  y="64" width="17" height="5" rx="2.5" fill="#f4f6f8" stroke="#2c3138" stroke-width="2"/>
+  </g>
+
+  <!-- handleds-muddar bakom näven -->
+  <rect x="44" y="68" width="28" height="14" rx="5" fill="#3a3a46" stroke="#15151c" stroke-width="3"/>
+
+  <!-- nävens huvudform -->
+  <path d="M 32 62 L 32 34
+           A 6 6 0 0 1 44 34
+           A 6 6 0 0 1 56 34
+           A 6 6 0 0 1 68 34
+           A 6 6 0 0 1 80 34
+           Q 83 36 83 42 L 83 60
+           Q 83 70 73 70 L 42 70
+           Q 32 70 32 62 Z"
+        fill="#d4a574" stroke="#4a2a15" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- skugga på högersidan -->
+  <path d="M 69 36 L 69 68 L 73 68 Q 81 68 81 60 L 81 42 Q 81 37 78 35 A 6 6 0 0 1 69 36 Z"
+        fill="#b5854f" opacity="0.55"/>
+
+  <!-- finger-separationer -->
+  <g stroke="#4a2a15" stroke-width="2.6" stroke-linecap="round" opacity="0.9">
+    <line x1="44" y1="42" x2="44" y2="57"/>
+    <line x1="56" y1="42" x2="56" y2="57"/>
+    <line x1="68" y1="42" x2="68" y2="57"/>
+  </g>
+
+  <!-- tumme tvärs över framsidan -->
+  <rect x="33" y="56" width="46" height="17" rx="8.5" fill="#d4a574" stroke="#4a2a15" stroke-width="3"/>
+  <rect x="36" y="66.5" width="40" height="4.5" rx="2.25" fill="#b5854f" opacity="0.55"/>
+  <path d="M 47 57.5 Q 50 64.5 47 71.5" fill="none" stroke="#4a2a15" stroke-width="2.4" stroke-linecap="round"/>
+  <ellipse cx="40" cy="63.5" rx="3.2" ry="4" fill="#f0d2a8"/>
+
+  <!-- stål-spikar (bakom mässingen) -->
+  <g stroke="#2b3038" stroke-width="2.2" stroke-linejoin="round">
+    <path d="M 32.5 25 L 38 13 L 43.5 25 Z" fill="#dde2e8"/>
+    <path d="M 44.5 25 L 50 13 L 55.5 25 Z" fill="#dde2e8"/>
+    <path d="M 56.5 25 L 62 13 L 67.5 25 Z" fill="#dde2e8"/>
+    <path d="M 68.5 25 L 74 13 L 79.5 25 Z" fill="#dde2e8"/>
+  </g>
+  <!-- spik-highlights -->
+  <g fill="#ffffff" opacity="0.9">
+    <path d="M 35.5 23 L 38 15.5 L 38.8 23 Z"/>
+    <path d="M 47.5 23 L 50 15.5 L 50.8 23 Z"/>
+    <path d="M 59.5 23 L 62 15.5 L 62.8 23 Z"/>
+    <path d="M 71.5 23 L 74 15.5 L 74.8 23 Z"/>
+  </g>
+
+  <!-- mässings-bygel över knogarna -->
+  <rect x="29" y="27" width="54" height="14" rx="7" fill="#d4a32e" stroke="#4f3a08" stroke-width="3"/>
+  <!-- mässings-knoppar -->
+  <g fill="#d4a32e" stroke="#4f3a08" stroke-width="2.8">
+    <circle cx="38" cy="27" r="6.5"/>
+    <circle cx="50" cy="27" r="6.5"/>
+    <circle cx="62" cy="27" r="6.5"/>
+    <circle cx="74" cy="27" r="6.5"/>
+  </g>
+  <!-- mässings-highlights -->
+  <g fill="#f6dc7a">
+    <ellipse cx="36.5" cy="24.5" rx="2.8" ry="2.1"/>
+    <ellipse cx="48.5" cy="24.5" rx="2.8" ry="2.1"/>
+    <ellipse cx="60.5" cy="24.5" rx="2.8" ry="2.1"/>
+    <ellipse cx="72.5" cy="24.5" rx="2.8" ry="2.1"/>
+  </g>
+  <!-- mörk botten-skugga på bygeln -->
+  <rect x="32" y="35" width="48" height="4" rx="2" fill="#8f6a18" opacity="0.7"/>
+</svg>

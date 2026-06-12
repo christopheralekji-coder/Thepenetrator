@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
+  <!-- fartstreck (rörelse) -->
+  <g>
+    <rect x="4"  y="26" width="19" height="5" rx="2.5" fill="#f4f6f8" stroke="#2c3138" stroke-width="2"/>
+    <rect x="2"  y="44" width="14" height="5" rx="2.5" fill="#f4f6f8" stroke="#2c3138" stroke-width="2"/>
+    <rect x="6"  y="61" width="17" height="5" rx="2.5" fill="#f4f6f8" stroke="#2c3138" stroke-width="2"/>
+  </g>
+
+  <!-- handleds-muddar bakom näven -->
+  <rect x="44" y="66" width="28" height="14" rx="5" fill="#3a3a46" stroke="#15151c" stroke-width="3"/>
+
+  <!-- nävens huvudform: scalloped knogrygg + rundad kropp -->
+  <path d="M 32 60 L 32 30
+           A 6 6 0 0 1 44 30
+           A 6 6 0 0 1 56 30
+           A 6 6 0 0 1 68 30
+           A 6 6 0 0 1 80 30
+           Q 83 32 83 38 L 83 58
+           Q 83 68 73 68 L 42 68
+           Q 32 68 32 60 Z"
+        fill="#d4a574" stroke="#4a2a15" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- skugga på högersidan (ljus från vänster) -->
+  <path d="M 69 32 L 69 66 L 73 66 Q 81 66 81 58 L 81 38 Q 81 33 78 31 A 6 6 0 0 1 69 32 Z"
+        fill="#b5854f" opacity="0.55"/>
+
+  <!-- ljus släpljus-streck under knogarna -->
+  <ellipse cx="43" cy="39" rx="11" ry="3.5" fill="#ecc79b" opacity="0.6"/>
+
+  <!-- finger-separationer -->
+  <g stroke="#4a2a15" stroke-width="2.6" stroke-linecap="round" opacity="0.9">
+    <line x1="44" y1="33" x2="44" y2="55"/>
+    <line x1="56" y1="33" x2="56" y2="55"/>
+    <line x1="68" y1="33" x2="68" y2="55"/>
+  </g>
+
+  <!-- knog-highlights -->
+  <g fill="#f0d2a8">
+    <ellipse cx="37" cy="27.5" rx="3.4" ry="2.4"/>
+    <ellipse cx="49" cy="27.5" rx="3.4" ry="2.4"/>
+    <ellipse cx="61" cy="27.5" rx="3.4" ry="2.4"/>
+    <ellipse cx="73" cy="27.5" rx="3.4" ry="2.4"/>
+  </g>
+
+  <!-- tumme tvärs över framsidan -->
+  <rect x="33" y="54" width="46" height="17" rx="8.5" fill="#d4a574" stroke="#4a2a15" stroke-width="3"/>
+  <!-- tummens inre skugga -->
+  <rect x="36" y="64.5" width="40" height="4.5" rx="2.25" fill="#b5854f" opacity="0.55"/>
+  <!-- tumtopps-led -->
+  <path d="M 47 55.5 Q 50 62.5 47 69.5" fill="none" stroke="#4a2a15" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- tumnagel-highlight -->
+  <ellipse cx="40" cy="61.5" rx="3.2" ry="4" fill="#f0d2a8"/>
+</svg>

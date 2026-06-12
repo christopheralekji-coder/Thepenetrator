@@ -271,6 +271,7 @@ function applyMelee(sim, p, weaponId, params) {
       peerId: pid,
       hp: ws.playerState.hp,
       shield: ws.playerState.shield || 0,
+      attackerPid: p.peerId,   // v2 (additivt): melee/hitscan-attribution — V1 ignorerar
     });
 
     // Damage-attribution för juggernaut (hunter skadar JUG → tracka för transfer)
@@ -764,6 +765,9 @@ function explode(sim, x, y, radius, dmg, fromPid, srcWeaponId) {
         peerId: pid,
         hp: ws.playerState.hp,
         shield: ws.playerState.shield || 0,
+        // v2 (additivt): explosions-attribution (granat/rocket = vanlig TTK-väg i
+        // BR/TDM — utan denna uteblev hitmarker/haptik just där). V1 ignorerar.
+        attackerPid: fromPid || undefined,
       });
       // v1.698: explosiv kill-attribution. Förr anropade explode() ALDRIG per-mode
       // kill-handlers → GunGame promotade ej på rocket-kill (fastnade tier 12), JUG-

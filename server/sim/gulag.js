@@ -455,7 +455,8 @@ function tickGulag(sim, dt, now) {
                   let kdx = ops.x - ps.x, kdy = ops.y - ps.y; if (kdx === 0 && kdy === 0) kdx = 1;
                   ops.hp = Math.max(0, (ops.hp || 0) - 15);
                   sim.eventQueue.push({ type: 'gulag_knockback', peerId: oppPid, vx: Math.round(kdx), vy: Math.round(kdy), force: 620 });
-                  sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: oppPid, hp: Math.round(ops.hp), shield: ops.shield || 0 });
+                  // v2 (additivt): attackerPid = den som plockade shockwaven (haptik-attribution)
+                  sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: oppPid, hp: Math.round(ops.hp), shield: ops.shield || 0, attackerPid: pid });
                 }
               } else if (FRENZY_WEAPON_KINDS.includes(pu.kind)) {
                 // 🔫 VAPEN — ackumulera i förrådet (permanent), equippa senaste. applyShoot
