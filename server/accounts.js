@@ -59,6 +59,11 @@ let _saveTimer = null;
 let _dirty = false;
 
 function computeLevel(stats) {
+  // v2 konto-progression (2026-06-12, additivt): klienten räknar sin riktiga
+  // konto-nivå (XP-kurva) och skickar alevel — den vinner när den finns.
+  // V1/äldre klienter skickar aldrig fältet → gamla matches-formeln.
+  const al = (stats && +stats.alevel) || 0;
+  if (al >= 1) return Math.min(999, Math.round(al));
   const m = (stats && +stats.matches) || 0;
   return Math.min(99, 1 + Math.floor(Math.sqrt(Math.max(0, m))));
 }
@@ -73,7 +78,13 @@ function sanitizeName(raw) {
 function sanitizeStats(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const n = (v) => Math.max(0, Math.min(99999999, Math.round(+v) || 0));
-  return { matches: n(raw.matches), kills: n(raw.kills), wins: n(raw.wins) };
+  const out = { matches: n(raw.matches), kills: n(raw.kills), wins: n(raw.wins) };
+  // v2 konto-progression (additivt): mynt/XP/nivå följer kontot → överlever
+  // reinstall (login-svaret ekar stats). V1 skickar aldrig fälten → utelämnas.
+  if (raw.coins != null) out.coins = n(raw.coins);
+  if (raw.axp != null) out.axp = n(raw.axp);
+  if (raw.alevel != null) out.alevel = Math.max(1, Math.min(999, n(raw.alevel)));
+  return out;
 }
 
 function sanitizeFriendIds(raw, selfId) {
@@ -338,6 +349,7 @@ function handleLogin(ws, msg) {
     requests,
     sentRequests: acc.reqOut.slice(),
     bound: boundOf(acc), // bind-lagret: vilka providers kontot är knutet till
+    stats: acc.stats,    // v2 (additivt): mynt/XP-recovery vid reinstall — V1 ignorerar
   });
   notifyFriendsOf(id); // vänner ser online:true
 }
