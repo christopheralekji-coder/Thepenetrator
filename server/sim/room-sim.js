@@ -7827,6 +7827,13 @@ function clampWeaponToModeArsenal(sim, ws, ps, weaponId, peerId) {
 function applyShoot(sim, peerId, msg) {
   const ws = sim.room.members.get(peerId);
   if (!ws) return;
+  // v2 (additivt): Godot-klientens aktuella interp-fönster (ms) för exakt
+  // lag-komp-rewind (bullets.js rewoundPosition). Clamp 0-200 (anti-cheat —
+  // ingen kan begära att träffa längre bakåt än rewind-capen ändå tillåter).
+  // V1 skickar aldrig fältet → förblir undefined → 60ms-default.
+  if (typeof msg.interp === 'number' && isFinite(msg.interp)) {
+    ws._clientInterpMs = Math.max(0, Math.min(200, msg.interp));
+  }
   if (!ws.playerState) {
     ws.playerState = {
       x: typeof msg.x === 'number' ? msg.x : 1000,

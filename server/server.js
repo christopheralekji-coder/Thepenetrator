@@ -8,7 +8,7 @@ const accounts = require('./accounts'); // v2 konto/vänner (acct_* — additivt
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v268-showroom-s8-cabins';
+const SERVER_VERSION = 'v269-lagcomp-interp-attacker';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;

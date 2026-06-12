@@ -54,13 +54,19 @@ function getPvpDmg(weaponId, baseDmg) {
 // rörliga mål. INTERP_DELAY måste hållas i sync med game.js INTERP_DELAY_MS.
 const MAX_REWIND_MS = 250;
 const CLIENT_INTERP_DELAY_MS = 60;
-function rewoundPosition(targetWs, shooterRtt) {
+// v2 (additivt): Godot-klienten renderar remotes med ADAPTIV interp-fördröjning
+// (60-180ms beroende på jitter, Net.gd) — inte V1-webbens fasta 60ms. Den
+// rapporterar sitt aktuella fönster per skott (sim_shoot.interp → ws._clientInterpMs)
+// så rewinden träffar EXAKT det skytten såg. V1 skickar aldrig fältet → 60ms-default.
+function rewoundPosition(targetWs, shooterRtt, shooterInterpMs) {
   if (!targetWs || !targetWs.playerState) return null;
   const cur = { x: targetWs.playerState.x, y: targetWs.playerState.y };
   // v1.701: skippa BARA för bots (rtt 0/undefined → ingen klient-interp). Alla människor
   // har 60ms interp-delay → behöver rewind även vid låg ping (annars miss på rörliga mål).
   if (!shooterRtt) return cur;
-  const rewindMs = Math.min(MAX_REWIND_MS, shooterRtt / 2 + CLIENT_INTERP_DELAY_MS);
+  const interp = (typeof shooterInterpMs === 'number' && shooterInterpMs > 0)
+    ? Math.min(200, shooterInterpMs) : CLIENT_INTERP_DELAY_MS;
+  const rewindMs = Math.min(MAX_REWIND_MS, shooterRtt / 2 + interp);
   const targetTime = Date.now() - rewindMs;
   const hist = targetWs.playerState._history;
   if (!hist || hist.length === 0) return cur;
@@ -1312,7 +1318,7 @@ function updateBullets(sim, dt, now) {
         if (!ws.tdmTeam || ws.tdmTeam === ownerTeam) continue;  // FF fail-closed: okänt team → ingen skada
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;       // respawn-invuln skyddar
-        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1334,6 +1340,9 @@ function updateBullets(sim, dt, now) {
             peerId: pid,
             hp: ws.playerState.hp,
             shield: ws.playerState.shield || 0,
+            // v2 (additivt): exakt skytt-attribution → träff-haptik/hitmarker på
+            // rätt klient utan sikteslinje-heuristik. V1 läser aldrig fältet.
+            attackerPid: b.ownerPid,
           });
           if (ws.playerState.hp <= 0) {
             handleTdmKill(sim, b.ownerPid, pid, ws, ownerTeam, b.weaponId);
@@ -1361,7 +1370,7 @@ function updateBullets(sim, dt, now) {
         if (!ws.tdmTeam || ws.tdmTeam === ownerTeam) continue; // FF fail-closed
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
-        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1382,6 +1391,9 @@ function updateBullets(sim, dt, now) {
             peerId: pid,
             hp: ws.playerState.hp,
             shield: ws.playerState.shield || 0,
+            // v2 (additivt): exakt skytt-attribution → träff-haptik/hitmarker på
+            // rätt klient utan sikteslinje-heuristik. V1 läser aldrig fältet.
+            attackerPid: b.ownerPid,
           });
           if (ws.playerState.hp <= 0) {
             handleCtfKill(sim, b.ownerPid, pid, ws, ownerTeam, b.weaponId);
@@ -1408,7 +1420,7 @@ function updateBullets(sim, dt, now) {
         if (!ws.tdmTeam || ws.tdmTeam === ownerTeam) continue; // FF fail-closed
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
-        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1425,6 +1437,9 @@ function updateBullets(sim, dt, now) {
             peerId: pid,
             hp: ws.playerState.hp,
             shield: ws.playerState.shield || 0,
+            // v2 (additivt): exakt skytt-attribution → träff-haptik/hitmarker på
+            // rätt klient utan sikteslinje-heuristik. V1 läser aldrig fältet.
+            attackerPid: b.ownerPid,
           });
           if (ws.playerState.hp <= 0) {
             handleSiegeKill(sim, b.ownerPid, pid, ws, ownerTeam, b.weaponId);
@@ -1449,7 +1464,7 @@ function updateBullets(sim, dt, now) {
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
-        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1466,6 +1481,9 @@ function updateBullets(sim, dt, now) {
             peerId: pid,
             hp: ws.playerState.hp,
             shield: ws.playerState.shield || 0,
+            // v2 (additivt): exakt skytt-attribution → träff-haptik/hitmarker på
+            // rätt klient utan sikteslinje-heuristik. V1 läser aldrig fältet.
+            attackerPid: b.ownerPid,
           });
           if (ws.playerState.hp <= 0) {
             handleKothKill(sim, b.ownerPid, pid, ws, b.weaponId);
@@ -1490,7 +1508,7 @@ function updateBullets(sim, dt, now) {
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
-        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1534,6 +1552,9 @@ function updateBullets(sim, dt, now) {
             peerId: pid,
             hp: ws.playerState.hp,
             shield: ws.playerState.shield || 0,
+            // v2 (additivt): exakt skytt-attribution → träff-haptik/hitmarker på
+            // rätt klient utan sikteslinje-heuristik. V1 läser aldrig fältet.
+            attackerPid: b.ownerPid,
           });
           // Downed/elimination + kill-credit hanteras centralt i tickBattleRoyale.
           pvpHit = true;
@@ -1561,7 +1582,7 @@ function updateBullets(sim, dt, now) {
         // Friendly-fire-regler: hunter→hunter blockerat, JUG→JUG kan inte hända
         if (!ownerIsJug && !targetIsJug) continue;
         if (ownerIsJug && targetIsJug) continue;
-        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1585,6 +1606,9 @@ function updateBullets(sim, dt, now) {
             peerId: pid,
             hp: ws.playerState.hp,
             shield: ws.playerState.shield || 0,
+            // v2 (additivt): exakt skytt-attribution → träff-haptik/hitmarker på
+            // rätt klient utan sikteslinje-heuristik. V1 läser aldrig fältet.
+            attackerPid: b.ownerPid,
           });
           // Damage-attribution för juggernaut (hunter skadar JUG → tracka för transfer)
           if (!ownerIsJug && targetIsJug && sim._trackJuggernautDmg) {
@@ -1615,7 +1639,7 @@ function updateBullets(sim, dt, now) {
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         const invuln = ws.playerState.invulnUntil || 0;
         if (Date.now() < invuln) continue;
-        const rPos = rewoundPosition(ws, shooterRtt) || ws.playerState;
+        const rPos = rewoundPosition(ws, shooterRtt, ownerWs._clientInterpMs) || ws.playerState;
         const dx = rPos.x - b.x, dy = rPos.y - b.y;
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
@@ -1634,6 +1658,9 @@ function updateBullets(sim, dt, now) {
             peerId: pid,
             hp: ws.playerState.hp,
             shield: ws.playerState.shield || 0,
+            // v2 (additivt): exakt skytt-attribution → träff-haptik/hitmarker på
+            // rätt klient utan sikteslinje-heuristik. V1 läser aldrig fältet.
+            attackerPid: b.ownerPid,
           });
           if (ws.playerState.hp <= 0) {
             handleGungameKill(sim, b.ownerPid, ownerWs, pid, ws, b.weaponId);

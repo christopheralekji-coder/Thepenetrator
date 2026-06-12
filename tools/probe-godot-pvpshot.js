@@ -20,7 +20,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   const msgs = [];
   let myPeerId = null, mySlot = 0, code = null;
   const worldPos = {};   // slot → {x,y}
-  let gotPeerJoin = false, shotsSent = 0, dmgTakenEvents = 0, dmgDealtSeen = 0;
+  let gotPeerJoin = false, shotsSent = 0, dmgTakenEvents = 0, dmgDealtSeen = 0, atkPidSeen = 0;
 
   ws.on('message', (raw, isBinary) => {
     if (isBinary) return;
@@ -35,6 +35,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
         // vår hp sjönk via event → godot-klientens skott träffade oss
         if (ev.type === 'pvp_hp_changed' && ev.peerId === myPeerId) dmgTakenEvents++;
         if (ev.type === 'pvp_hp_changed' && ev.peerId && ev.peerId !== myPeerId) dmgDealtSeen++;
+        // v2: kul-träffar ska bära exakt skytt-attribution
+        if (ev.type === 'pvp_hp_changed' && ev.attackerPid) atkPidSeen++;
       }
     }
   });
@@ -95,6 +97,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   console.log('[probe] skott skickade: ' + shotsSent);
   console.log((shotsSent > 50 ? 'PASS' : 'FAIL') + ': pvp_shot-volym (' + shotsSent + ')');
   console.log((dmgTakenEvents > 0 ? 'PASS' : 'INFO') + ': godot-klienten skadade oss ' + dmgTakenEvents + ' ggr (flash_hurt-vägen motionerad på godot-sidan: ' + (dmgDealtSeen > 0 ? 'ja, vi skadade dem ' + dmgDealtSeen + ' ggr' : 'nej') + ')');
+  const totDmg = dmgTakenEvents + dmgDealtSeen;
+  console.log((totDmg === 0 || atkPidSeen > 0 ? 'PASS' : 'FAIL') + ': attackerPid på kul-träffar (' + atkPidSeen + '/' + totDmg + ')');
   try { ws.close(); } catch (e) {}
   process.exit(0);
 })().catch(e => { console.log('PROBE-FEL:', e.message); process.exit(1); });
