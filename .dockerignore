@@ -1,0 +1,6 @@
+# Bara server/ + shared/ behövs i imagen — resten är webbklient/verktyg/assets.
+*
+!server/
+!shared/
+server/node_modules/
+server/data/

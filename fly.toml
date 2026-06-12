@@ -1,0 +1,34 @@
+# Fly.io-konfig: WarParty co-op-server, region Stockholm (arn).
+# EU-primären är ALLTID PÅ (min_machines_running=1, auto_stop off) — spelservern
+# ska aldrig kallstarta mitt i en sessions-start. Framtida extra regioner (USA/
+# Asien) kan köra auto-stop för att bara kosta när någon spelar där.
+app = "warparty-eu"
+primary_region = "arn"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  ACCOUNTS_DATA_DIR = "/data"
+
+[[mounts]]
+  source = "wp_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

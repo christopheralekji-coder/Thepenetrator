@@ -1,0 +1,27 @@
+# Auto-deploy av co-op-servern till Fly.io (warparty-eu, Stockholm) vid push
+# som rör server/shared. Render auto-deployar parallellt tills den sägs upp —
+# båda kör samma kod under övergången.
+name: fly-deploy
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "shared/**"
+      - "Dockerfile"
+      - "fly.toml"
+      - ".github/workflows/fly-deploy.yml"
+
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl deploy --remote-only --yes
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
