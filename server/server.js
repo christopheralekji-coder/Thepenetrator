@@ -8,7 +8,7 @@ const accounts = require('./accounts'); // v2 konto/vÃ¤nner (acct_* â€” a
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
-const SERVER_VERSION = 'v271-friendloss-fix';
+const SERVER_VERSION = 'v272-room-caps';
 const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
@@ -106,7 +106,7 @@ function buildPublicRoomsList() {
       hostName: (room.meta && room.meta.hostName) || 'Spelare',
       mode: (room.meta && room.meta.mode) || 'story',
       players: room.members.size,
-      maxPlayers: 8,
+      maxPlayers: (room.meta && room.meta.maxPlayers) || 8,
       started: !!(room.meta && room.meta.started),
       createdAt: (room.meta && room.meta.createdAt) || 0,
     });
@@ -299,11 +299,15 @@ function handleMessage(ws, msg) {
     const hostName = String(msg.name || '').trim().slice(0, 14) || 'Spelare';
     const mode = String(msg.mode || 'story').slice(0, 16);
     const isPrivate = !!msg.private;
+    // v2 (additivt): per-läge rum-tak — klienten skickar maxPlayers ur sin
+    // läges-katalog (BR 25, gungame 20, övriga PvP 10, co-op 8). V1 skickar
+    // aldrig fältet → 8 som förr. Clamp 2-25 (anti-abuse).
+    const maxP = Math.max(2, Math.min(25, parseInt(msg.maxPlayers, 10) || 8));
     const room = {
       code,
       hostId: ws.id,
       members: new Map(),
-      meta: { hostName, mode, private: isPrivate, started: false, createdAt: Date.now() },
+      meta: { hostName, mode, private: isPrivate, started: false, createdAt: Date.now(), maxPlayers: maxP },
       // stable-slot: host=0, peers tilldelas 1,2,... vid join. Lediga slots
       // Ã¥teranvÃ¤nds via _freeSlots-listan sÃ¥ en ny peer som joinar efter att
       // en annan lÃ¤mnat fÃ¥r det lÃ¤gsta lediga slot-numret.
@@ -333,6 +337,12 @@ function handleMessage(ws, msg) {
     }
     if (msg.mode != null) room.meta.mode = String(msg.mode).slice(0, 16);
     if (msg.private != null) room.meta.private = !!msg.private;
+    // v2 (additivt): BYT LÄGE i lobbyn → nytt tak följer läget (aldrig under
+    // nuvarande antal medlemmar — ingen ska kastas ut av ett lägesbyte)
+    if (msg.maxPlayers != null) {
+      room.meta.maxPlayers = Math.max(Math.max(2, room.members.size),
+        Math.min(25, parseInt(msg.maxPlayers, 10) || 8));
+    }
     broadcastPublicRooms();
     return;
   }
@@ -397,7 +407,8 @@ function handleMessage(ws, msg) {
         }
       }
     }
-    if (room.members.size >= 8) { send(ws, { type: 'error', error: 'Rummet Ã¤r fullt (max 8)' }); return; }
+    const _joinMaxP = (room.meta && room.meta.maxPlayers) || 8;
+    if (room.members.size >= _joinMaxP) { send(ws, { type: 'error', error: 'Rummet är fullt (max ' + _joinMaxP + ')' }); return; }
     // Tilldela stabilt slot-index: Ã¥teranvÃ¤nd lÃ¤gsta lediga slot fÃ¶rst,
     // annars ta nÃ¤sta frÃ¥n rÃ¤knaren. Slot Ã¤ndras ALDRIG fÃ¶r en peer under
     // dess session; nÃ¤r peer lÃ¤mnar returneras slottet till _freeSlots.
