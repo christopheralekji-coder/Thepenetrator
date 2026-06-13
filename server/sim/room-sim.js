@@ -6675,6 +6675,10 @@ function startSim(sim, opts) {
     // 'survivors_lose' tick 1 → instant loss på "spela igen", om och om igen.
     ws.playerState.cdDowned = false;
     ws.playerState.cdDownDead = false;
+    // build 4 ("fixa det helt — alla lägen"): nollställ ÄVEN PvP-död-flaggorna så
+    // ingen stale död-/respawn-state läcker in i en ny match oavsett mode.
+    ws._tdmDeadRound = false;
+    ws.tdmRespawnAt = 0;
     ws.playerState.invulnUntil = Date.now() + 1500;
     // v2 #68 (additivt): start-shield i ALLA modes (inkl. co-op-story + bots).
     // V1 skickar aldrig baseShield → grenen körs aldrig → gammalt beteende exakt.
