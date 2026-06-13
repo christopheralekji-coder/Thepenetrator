@@ -57,6 +57,7 @@ function encodeWorld(pkt) {
   const w = new W();
   w.u8(MAGIC);
   w.u16(pkt.seq || 0);
+  w.u16(pkt.ack || 0);   // AAA #6: senast behandlade input-seq för peeren (reconcile)
   w.u8(pkt.full ? 1 : 0);
   w.f64(pkt.st || 0);
   let presence = 0;
@@ -144,7 +145,7 @@ function encodeWorld(pkt) {
 function decodeWorld(buf) {
   const r = new R(buf);
   if (r.u8() !== MAGIC) return null;   // ej binär-world
-  const pkt = { type: 'world', seq: r.u16(), full: r.u8(), st: r.f64(), players: [], enemies: [], hb: [] };
+  const pkt = { type: 'world', seq: r.u16(), ack: r.u16(), full: r.u8(), st: r.f64(), players: [], enemies: [], hb: [] };
   const presence = r.u8();
 
   const pn = r.u8();

@@ -6218,6 +6218,9 @@ function broadcastWorld(sim, now) {
       hb,
       full: forceFullForPeer ? 1 : 0,
       seq,
+      // AAA #6: senast behandlade INPUT-seq för DENNA peer (≠ world-seq ovan).
+      // Klientens NetLocalPlayer matchar mot sin pending-ring → latensfri reconcile.
+      ack: (ws && ws.playerState && ws.playerState._ackSeq) || 0,
     };
     if (fullBroadcast) {
       pkt.gs = {
@@ -7661,10 +7664,35 @@ function stopSim(sim) {
   if (sim.eventQueue) sim.eventQueue.length = 0;
 }
 
+// AAA #6 (2026-06-13): klient-prediktion + server-sim + reconcile.
+// Dash-medveten max-fart (px/s) för PvP-positionsklampen. Ersätter den gamla
+// 460 px/s + 12 px-fudgen som var dash-skör (dash = 918 px/s slank bara igenom
+// vid 40 Hz → klampades på termik-strypta 30 Hz-telefoner). 1000 täcker dash +
+// adrenalin (459) med marginal; tidsskalad (cap·dt) = paketförlust-robust
+// (ett tappat input → nästa absolutposition catchar via större dt-budget).
+const MOVE_SPEED_CAP = 1000;
+// Wrap-medveten "a nyare än b" i 16-bitars seq-rum (inputs = otillförlitlig
+// UDP-kanal → omordnade/duplicerade paket släpps = gratis dedup, newest-wins).
+function _seqNewer(a, b) {
+  const d = (a - b) & 0xFFFF;
+  return d !== 0 && d < 0x8000;
+}
+
 function applyPlayerInput(sim, peerId, input) {
   const ws = sim.room.members.get(peerId);
   if (!ws) return;
   if (!ws.playerState) ws.playerState = { x: 1000, y: 1000, hp: 100 };
+  // AAA #6: input-sekvensnummer. Stale/omordnad input (inte nyare än senast
+  // bekräftade) släpps HELT — strömmen är 40 Hz self-superseding, en färsk
+  // input med ny aim/pos följer inom ≤25ms. Första inputen (_ackSeq undefined)
+  // passerar alltid. Klienter utan seq (gammal/V1) → _inputSeq=-1, ingen drop.
+  let _inputSeq = -1;
+  if (typeof input.seq === 'number' && isFinite(input.seq)) {
+    _inputSeq = input.seq & 0xFFFF;
+    if (ws.playerState._ackSeq !== undefined && !_seqNewer(_inputSeq, ws.playerState._ackSeq)) {
+      return;
+    }
+  }
   // v2: persistenta spelar-perks (skickas med första inputen / vid ändring).
   // Saniteras: bara kända booleans + clampad goldMul. V1-klienter skickar aldrig fältet.
   if (input.perks && typeof input.perks === 'object') {
@@ -7680,6 +7708,7 @@ function applyPlayerInput(sim, peerId, input) {
   if (ws._mountedSiegeTurretId || ws._mountedCtfTurretId) {
     if (typeof input.aim === 'number') ws.playerState.aim = input.aim;
     if (input.weaponId) ws.playerState.weaponId = input.weaponId;
+    if (_inputSeq >= 0) ws.playerState._ackSeq = _inputSeq;  // AAA #6: bekräfta även bemannad
     return;
   }
   // PvP anti-cheat / carrier-slow enforcement: klampa positionsdelta per tick
@@ -7710,15 +7739,17 @@ function applyPlayerInput(sim, peerId, input) {
       const lastT = ws._lastInputT || now;
       const dt = Math.max(0.001, Math.min(0.25, (now - lastT) / 1000));
       ws._lastInputT = now;
-      let maxSpeed = 230 * 2.0;
+      // AAA #6: dash-medveten cap (1000 px/s) i st.f. gamla 460+12. Tidsskalad
+      // (cap·dt) → paketförlust-robust + ingen dash-clampning på 30 Hz-telefoner.
+      let maxSpeed = MOVE_SPEED_CAP;
       if (sim.ctfActive) {
         const isCarrier = sim.ctfFlags && (
           (sim.ctfFlags.red && sim.ctfFlags.red.carrierId === peerId) ||
           (sim.ctfFlags.blue && sim.ctfFlags.blue.carrierId === peerId)
         );
-        if (isCarrier) maxSpeed *= CTF_CARRIER_SPEED_MUL; // 0.75
+        if (isCarrier) maxSpeed *= CTF_CARRIER_SPEED_MUL; // 0.75 — flaggbärar-broms (server-enforce)
       }
-      const maxDelta = maxSpeed * dt + 12;
+      const maxDelta = maxSpeed * dt + 4; // liten rundnings-marginal (x/y skickas som heltal)
       const d = Math.hypot(_dxRaw, _dyRaw);
       if (d > maxDelta && d > 0) {
         const scale = maxDelta / d;
@@ -7794,6 +7825,10 @@ function applyPlayerInput(sim, peerId, input) {
   } else if (ws.companionState) {
     ws.companionState = null;
   }
+  // AAA #6: bekräfta senast behandlade input-seq (broadcastWorld → pkt.ack →
+  // klientens precisa reconcile). Sätts EFTER all rörelse/clamp så ack:en svarar
+  // mot positionen vi just skrev. Stale inputs returnerade redan ovan.
+  if (_inputSeq >= 0) ws.playerState._ackSeq = _inputSeq;
 }
 
 // ============ v2 ANTI-CHEAT: MODE-ARSENAL-VALIDERING (server-sanning) ============

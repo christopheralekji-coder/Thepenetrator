@@ -36,7 +36,7 @@ function buildPkt() {
   for (let k = 0; k < 40; k++)
     hb.push({ x: (k * 53) - 1000, y: (k * 71) - 1000, vx: (k % 7) * 40 - 120, vy: (k % 5) * 50 - 100, c: '#ff3a2a', r: 4 + (k % 3) });
   const pkt = {
-    type: 'world', seq: 4242, full: 1, st: 1765000000123,
+    type: 'world', seq: 4242, ack: 31337, full: 1, st: 1765000000123,
     players, enemies, hb,
     gs: { w: 7, cz: 2, zs: 'fighting', bss: 1, bd: 0 },
     db: { x: 1200, y: -800, reviveTimer: 2.5, revivedBy: 'p3_ab12', color: '#222222' },
@@ -56,6 +56,7 @@ const dec = decodeWorld(bin);
 
 if (!dec) { console.error('[CODEC] ❌ decode gav null (magic-fel?)'); process.exit(1); }
 if (dec.seq !== pkt.seq) fails.push('seq');
+if (dec.ack !== pkt.ack) fails.push('ack (' + dec.ack + ')');   // AAA #6
 if (dec.full !== pkt.full) fails.push('full');
 if (Math.abs(dec.st - pkt.st) > 0.001) fails.push('st (' + dec.st + ')');
 
