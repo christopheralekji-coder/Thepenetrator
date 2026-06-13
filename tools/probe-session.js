@@ -1,15 +1,15 @@
 // Probe DTLS-alternativet: HTTPS /auth/session → token → acct_login{token}.
 //   node tools/probe-session.js [http-base] [ws-url]
-const http = require('http');
 const WebSocket = require(require('path').join(__dirname, '..', 'server', 'node_modules', 'ws'));
 const BASE = process.argv[2] || 'http://localhost:8094';
 const WSURL = process.argv[3] || 'ws://localhost:8094';
+const http = require(BASE.startsWith('https') ? 'https' : 'http');   // live Fly = TLS
 const SECRET = 'abcdef0123456789abcdef0123456789';
 const fails = [];
 const post = (path, body) => new Promise((res, rej) => {
   const data = JSON.stringify(body);
   const u = new URL(BASE + path);
-  const r = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST',
+  const r = http.request({ hostname: u.hostname, port: u.port || (BASE.startsWith('https') ? 443 : 80), path: u.pathname, method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) } }, (resp) => {
     let b = ''; resp.on('data', c => b += c); resp.on('end', () => res({ status: resp.statusCode, body: b }));
   });
