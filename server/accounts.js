@@ -437,21 +437,67 @@ function handleLogin(ws, msg) {
 
 // HTTPS POST /auth/session — TLS-skyddat secret-handshake → kortlivad token.
 // Körs från HTTP-servern (server.js). H-fritt anropsträd. Body = login-payloaden.
+function meFromToken(token) {
+  const id = lookupSession(token);
+  return id ? accounts.get(id) : null;
+}
+
+// Resultat-protokoll (phase 2): cores returnerar { kind:'switch'|'bind'|'err', ... }
+// → samma logik körs över BÅDE kanalen (legacy/WSS) OCH HTTPS (säkert handshake).
+function applyChannelResult(ws, r) {
+  if (!r || r.kind === 'err') { sendErr(ws, r ? r.code : 'invalid'); return; }
+  if (r.kind === 'bind') { sendOk(ws, r.what, { bound: r.bound }); return; }
+  if (r.kind === 'switch') { sendSwitch(ws, r.acc); return; }
+}
+function applyHttpResult(res, r) {
+  if (!r || r.kind === 'err') {
+    const code = r ? r.code : 'invalid';
+    const status = (code === 'auth' || code === 'badlogin' || code === 'badtoken') ? 401 : 400;
+    res.writeHead(status, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: code }));
+    return;
+  }
+  if (r.kind === 'bind') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, what: r.what, bound: r.bound }));
+    return;
+  }
+  // switch/login → token + secreten (för klientens framtida HTTPS-refresh) över TLS
+  const token = issueSession(r.acc.id);
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(Object.assign({ token, expiresInSec: Math.floor(SESSION_TTL_MS / 1000), secret: r.acc.secret, switch: true }, loginPayload(r.acc))));
+}
+
+// HTTPS POST /auth/session — TLS-skyddad ersättning för ALLA secret-bärande
+// auth-handshakes. op: 'guest' (default, secret→token) | 'email_login' |
+// 'email_bind' | 'apple_login' | 'gc_login'. Bind-ops identifierar kontot via
+// session-token (msg.token); login-ops via credentials. H-fritt anropsträd.
 function handleSessionHttp(req, res) {
   let body = '';
   req.on('data', (c) => { body += c; if (body.length > 16384) { try { req.destroy(); } catch (e) {} } });
-  req.on('end', () => {
+  req.on('end', async () => {
     let msg; try { msg = JSON.parse(body || '{}'); } catch (e) { res.writeHead(400); res.end('bad json'); return; }
-    const acc = resolveAccountFromCreds(msg || {});
-    if (!acc) {
-      res.writeHead(401, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'auth' }));
-      return;
+    msg = msg || {};
+    try {
+      const op = typeof msg.op === 'string' ? msg.op : 'guest';
+      if (op === 'guest') {
+        const acc = resolveAccountFromCreds(msg);
+        if (!acc) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'auth' })); return; }
+        const token = issueSession(acc.id);
+        console.log('[ACCT] HTTPS session-token utfärdad', acc.id);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(Object.assign({ token, expiresInSec: Math.floor(SESSION_TTL_MS / 1000) }, loginPayload(acc))));
+        return;
+      }
+      if (op === 'email_login') return applyHttpResult(res, coreEmailLogin(msg));
+      if (op === 'email_bind') return applyHttpResult(res, coreEmailBind(meFromToken(msg.token), msg));
+      if (op === 'apple_login') return applyHttpResult(res, await coreAppleLogin(meFromToken(msg.token), msg));
+      if (op === 'gc_login') return applyHttpResult(res, await coreGcLogin(meFromToken(msg.token), msg));
+      res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'badop' }));
+    } catch (e) {
+      console.warn('[ACCT] /auth/session fel —', e.message);
+      try { res.writeHead(500); res.end(); } catch (e2) {}
     }
-    const token = issueSession(acc.id);
-    console.log('[ACCT] HTTPS session-token utfärdad', acc.id);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify(Object.assign({ token, expiresInSec: Math.floor(SESSION_TTL_MS / 1000) }, loginPayload(acc))));
   });
   req.on('error', () => { try { res.writeHead(400); res.end(); } catch (e) {} });
 }
@@ -677,41 +723,41 @@ function normEmail(raw) {
   return email;
 }
 
-function handleEmailBind(ws, msg) {
-  const me = getMe(ws);
-  if (!me) { sendErr(ws, 'auth'); return; }
+// Resultat-baserade cores (phase 2) — DELAS av kanal-handlern + HTTPS-vägen.
+// H-fria (HTTPS-tråden saknar H). `me` = inloggat konto (token/ws) eller null.
+function coreEmailBind(me, msg) {
+  if (!me) return { kind: 'err', code: 'auth' };
   const email = normEmail(msg.email);
   const password = typeof msg.password === 'string' ? msg.password : '';
-  if (!email || password.length < 8) { sendErr(ws, 'invalid'); return; }
+  if (!email || password.length < 8) return { kind: 'err', code: 'invalid' };
   const ownerId = emailIdx.get(email);
-  if (ownerId && ownerId !== me.id) { sendErr(ws, 'taken'); return; }
+  if (ownerId && ownerId !== me.id) return { kind: 'err', code: 'taken' };
   const salt = crypto.randomBytes(16);
-  // Rebind av egen email → städa gamla index-nyckeln
-  if (me.email && me.email !== email) emailIdx.delete(me.email);
+  if (me.email && me.email !== email) emailIdx.delete(me.email); // rebind → städa gammalt index
   me.email = email;
   me.pwSalt = salt.toString('hex');
   me.pwHash = scryptHash(password, salt).toString('hex');
   emailIdx.set(email, me.id);
   markDirty();
-  sendOk(ws, 'email_bind', { bound: boundOf(me) });
+  return { kind: 'bind', what: 'email_bind', bound: boundOf(me) };
 }
-
-function handleEmailLogin(ws, msg) {
-  // Kräver EJ inloggad. Okänd email och fel lösenord ger SAMMA kod (badlogin)
-  // — ingen user-enumeration.
+function coreEmailLogin(msg) {
+  // Okänd email OCH fel lösenord ger SAMMA kod (badlogin) — ingen user-enumeration.
   const email = normEmail(msg.email);
   const password = typeof msg.password === 'string' ? msg.password : '';
   const acc = email ? accounts.get(emailIdx.get(email)) : null;
-  if (!acc || !acc.pwHash || !acc.pwSalt) { sendErr(ws, 'badlogin'); return; }
+  if (!acc || !acc.pwHash || !acc.pwSalt) return { kind: 'err', code: 'badlogin' };
   let match = false;
   try {
     const h = scryptHash(password, Buffer.from(acc.pwSalt, 'hex'));
     const stored = Buffer.from(acc.pwHash, 'hex');
     match = h.length === stored.length && crypto.timingSafeEqual(h, stored);
   } catch (e) {}
-  if (!match) { sendErr(ws, 'badlogin'); return; }
-  sendSwitch(ws, acc);
+  if (!match) return { kind: 'err', code: 'badlogin' };
+  return { kind: 'switch', acc };
 }
+function handleEmailBind(ws, msg) { applyChannelResult(ws, coreEmailBind(getMe(ws), msg)); }
+function handleEmailLogin(ws, msg) { applyChannelResult(ws, coreEmailLogin(msg)); }
 
 // ── 2) GOOGLE (browser-OAuth, server-förmedlad) ──────────────────────────────
 const GOOGLE_STATE_TTL_MS = 10 * 60 * 1000;
@@ -878,37 +924,33 @@ function appleBundleIds() {
   return ids.length > 0 ? ids : null;
 }
 
-async function handleAppleLogin(ws, msg) {
+async function coreAppleLogin(me, msg) {
   const bundleIds = appleBundleIds();
-  if (!bundleIds) { sendErr(ws, 'notconfigured'); return; }
+  if (!bundleIds) return { kind: 'err', code: 'notconfigured' };
   const jwksUrl = process.env.APPLE_JWKS_URL || 'https://appleid.apple.com/auth/keys';
   const payload = await verifyJwtRS256(msg.identityToken, jwksUrl);
   const issOk = payload && payload.iss === 'https://appleid.apple.com';
   const audOk = payload && bundleIds.includes(payload.aud);
   const expOk = payload && (+payload.exp * 1000) > Date.now();
   const sub = (payload && typeof payload.sub === 'string') ? payload.sub : '';
-  if (!issOk || !audOk || !expOk || !sub) { sendErr(ws, 'badtoken'); return; }
-  const me = getMe(ws);
+  if (!issOk || !audOk || !expOk || !sub) return { kind: 'err', code: 'badtoken' };
   const ownerId = appleIdx.get(sub);
   if (me) {
-    // Inloggad → bind (taken om sub tillhör annat konto)
-    if (ownerId && ownerId !== me.id) { sendErr(ws, 'taken'); return; }
+    if (ownerId && ownerId !== me.id) return { kind: 'err', code: 'taken' }; // sub tillhör annat konto
     if (me.appleSub && me.appleSub !== sub) appleIdx.delete(me.appleSub);
     me.appleSub = sub;
     appleIdx.set(sub, me.id);
     markDirty();
-    sendOk(ws, 'apple_bind', { bound: boundOf(me) });
+    return { kind: 'bind', what: 'apple_bind', bound: boundOf(me) };
   } else if (ownerId && accounts.has(ownerId)) {
-    // Ej inloggad + sub har konto → byt till det
-    sendSwitch(ws, accounts.get(ownerId));
-  } else {
-    // Ej inloggad + okänd sub → skapa konto knutet till sub
-    const acc = createProviderAccount({ appleSub: sub });
-    appleIdx.set(sub, acc.id);
-    markDirty();
-    sendSwitch(ws, acc);
+    return { kind: 'switch', acc: accounts.get(ownerId) };   // sub har konto → byt
   }
+  const acc = createProviderAccount({ appleSub: sub });        // okänd sub → skapa
+  appleIdx.set(sub, acc.id);
+  markDirty();
+  return { kind: 'switch', acc };
 }
+async function handleAppleLogin(ws, msg) { applyChannelResult(ws, await coreAppleLogin(getMe(ws), msg)); }
 
 // ── 4) GAME CENTER (fetchItems-signatur verifierad mot Apples cert) ──────────
 // Payload som Apple signerar: playerId(utf8) ‖ bundleId(utf8) ‖ timestampBE64 ‖ salt.
@@ -917,15 +959,15 @@ async function handleAppleLogin(ws, msg) {
 // utan externa deps → mocken serverar rå SPKI-DER och servern faller tillbaka
 // på createPublicKey(spki-der) när X509-parsning misslyckas OCH override är
 // satt. Prod (utan override) kräver äkta DER-cert från *.apple.com.
-async function handleGcLogin(ws, msg) {
+async function coreGcLogin(me, msg) {
   const bundleIds = appleBundleIds();
-  if (!bundleIds) { sendErr(ws, 'notconfigured'); return; }
+  if (!bundleIds) return { kind: 'err', code: 'notconfigured' };
   const playerId = typeof msg.playerId === 'string' ? msg.playerId.slice(0, 128) : '';
   const bundleId = typeof msg.bundleId === 'string' ? msg.bundleId : '';
   const ts = +msg.timestamp;
-  if (!playerId || !bundleId || !Number.isFinite(ts) || ts <= 0) { sendErr(ws, 'badtoken'); return; }
-  if (!bundleIds.includes(bundleId)) { sendErr(ws, 'badtoken'); return; }
-  if (Math.abs(Date.now() - ts) > 7 * 24 * 3600 * 1000) { sendErr(ws, 'badtoken'); return; } // ±7 dygn
+  if (!playerId || !bundleId || !Number.isFinite(ts) || ts <= 0) return { kind: 'err', code: 'badtoken' };
+  if (!bundleIds.includes(bundleId)) return { kind: 'err', code: 'badtoken' };
+  if (Math.abs(Date.now() - ts) > 7 * 24 * 3600 * 1000) return { kind: 'err', code: 'badtoken' }; // ±7 dygn
   const override = process.env.GC_CERT_URL_OVERRIDE;
   let certUrl;
   if (override) {
@@ -933,7 +975,7 @@ async function handleGcLogin(ws, msg) {
   } else {
     let host = '';
     try { host = new URL(String(msg.publicKeyUrl || '')).hostname; } catch (e) {}
-    if (!host.endsWith('.apple.com')) { sendErr(ws, 'badtoken'); return; }
+    if (!host.endsWith('.apple.com')) return { kind: 'err', code: 'badtoken' };
     certUrl = String(msg.publicKeyUrl);
   }
   let pubKey = null;
@@ -942,14 +984,12 @@ async function handleGcLogin(ws, msg) {
     try {
       pubKey = new crypto.X509Certificate(der).publicKey;
     } catch (e) {
-      // Fallback ENDAST i testläge (se kommentar ovan)
-      if (override) pubKey = crypto.createPublicKey({ key: der, format: 'der', type: 'spki' });
+      if (override) pubKey = crypto.createPublicKey({ key: der, format: 'der', type: 'spki' }); // bara testläge
       else throw e;
     }
   } catch (e) {
     console.warn('[ACCT] gc-cert fel —', e.message);
-    sendErr(ws, 'badtoken');
-    return;
+    return { kind: 'err', code: 'badtoken' };
   }
   let okSig = false;
   try {
@@ -963,28 +1003,26 @@ async function handleGcLogin(ws, msg) {
     ]);
     okSig = crypto.verify('sha256', signed, pubKey, Buffer.from(String(msg.signature || ''), 'base64'));
   } catch (e) {}
-  if (!okSig) { sendErr(ws, 'badtoken'); return; }
-  const me = getMe(ws);
+  if (!okSig) return { kind: 'err', code: 'badtoken' };
   const ownerId = gcIdx.get(playerId);
   if (me) {
-    // VIKTIGT undantag: gcPlayerId som tillhör ANNAT konto → acct_switch, inte
-    // taken. GC är auto-räddningen: reinstall (nytt guest-konto) ska byta
-    // tillbaka till det gamla kontot. Gamla guest-kontot lämnas vilande.
-    if (ownerId && ownerId !== me.id) { sendSwitch(ws, accounts.get(ownerId)); return; }
+    // VIKTIGT undantag: gcPlayerId som tillhör ANNAT konto → SWITCH, inte taken
+    // (GC = reinstall-räddningen: nytt guest-konto byter tillbaka till det gamla).
+    if (ownerId && ownerId !== me.id) return { kind: 'switch', acc: accounts.get(ownerId) };
     if (me.gcPlayerId && me.gcPlayerId !== playerId) gcIdx.delete(me.gcPlayerId);
     me.gcPlayerId = playerId; // TYST bind
     gcIdx.set(playerId, me.id);
     markDirty();
-    sendOk(ws, 'gc_bind', { bound: boundOf(me) });
+    return { kind: 'bind', what: 'gc_bind', bound: boundOf(me) };
   } else if (ownerId && accounts.has(ownerId)) {
-    sendSwitch(ws, accounts.get(ownerId));
-  } else {
-    const acc = createProviderAccount({ gcPlayerId: playerId });
-    gcIdx.set(playerId, acc.id);
-    markDirty();
-    sendSwitch(ws, acc);
+    return { kind: 'switch', acc: accounts.get(ownerId) };
   }
+  const acc = createProviderAccount({ gcPlayerId: playerId });
+  gcIdx.set(playerId, acc.id);
+  markDirty();
+  return { kind: 'switch', acc };
 }
+async function handleGcLogin(ws, msg) { applyChannelResult(ws, await coreGcLogin(getMe(ws), msg)); }
 
 // EN ingång från server.js message-handler (alla type som börjar med "acct_")
 function handle(ws, msg, helpers) {

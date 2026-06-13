@@ -52,6 +52,26 @@ const wsLogin = (loginMsg) => new Promise((res) => {
   const c5 = r5.status === 401;
   console.log((c5 ? '✅' : '❌') + ' [5] /auth/session fel secret → 401 (' + r5.status + ')');
   if (!c5) fails.push('wrong-secret-accepted');
-  console.log(fails.length ? ('\n❌ ' + fails.length + ' FEL: ' + fails.join(', ')) : '\n✅ ALLA 5 GRÖNA — secret går bara över HTTPS, token binder UDP-socketen');
+  // ── Phase 2: e-post-lösenord över HTTPS (op-fält) ──────────────────────────
+  const EMAIL = 'probe' + j1.id + '@test.com';
+  const PW = 'testpass123';
+  // 6) email_bind via session-token (inloggat konto från [1])
+  const r6 = await post('/auth/session', { op: 'email_bind', token: j1.token, email: EMAIL, password: PW });
+  let j6 = {}; try { j6 = JSON.parse(r6.body); } catch (e) {}
+  const c6 = r6.status === 200 && j6.ok === true && j6.bound && j6.bound.email === true;
+  console.log((c6 ? '✅' : '❌') + ' [6] HTTPS email_bind → ok + bound.email (status ' + r6.status + ')');
+  if (!c6) fails.push('email_bind-https');
+  // 7) email_login via HTTPS → token + switch till samma konto
+  const r7 = await post('/auth/session', { op: 'email_login', email: EMAIL, password: PW });
+  let j7 = {}; try { j7 = JSON.parse(r7.body); } catch (e) {}
+  const c7 = r7.status === 200 && typeof j7.token === 'string' && j7.switch === true && String(j7.id) === String(j1.id) && typeof j7.secret === 'string';
+  console.log((c7 ? '✅' : '❌') + ' [7] HTTPS email_login → token+switch (id ' + j7.id + ', secret över TLS)');
+  if (!c7) fails.push('email_login-https');
+  // 8) fel lösenord → 401 badlogin (ingen enumeration)
+  const r8 = await post('/auth/session', { op: 'email_login', email: EMAIL, password: 'fellosenord999' });
+  const c8 = r8.status === 401;
+  console.log((c8 ? '✅' : '❌') + ' [8] HTTPS email_login fel pw → 401 (' + r8.status + ')');
+  if (!c8) fails.push('email-wrong-pw-accepted');
+  console.log(fails.length ? ('\n❌ ' + fails.length + ' FEL: ' + fails.join(', ')) : '\n✅ ALLA 8 GRÖNA — guest+email-secret går bara över HTTPS, token binder UDP-socketen');
   process.exit(fails.length ? 1 : 0);
 })();
