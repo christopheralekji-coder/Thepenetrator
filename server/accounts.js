@@ -1051,4 +1051,7 @@ function handle(ws, msg, helpers) {
   }
 }
 
-module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp };
+// matchmaking grupp-lager (fas 2): hitta en INLOGGAD spelares socket via konto-id
+function wsForAccount(id) { return online.get(id) || null; }
+
+module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount };

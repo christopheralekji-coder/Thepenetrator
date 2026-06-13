@@ -11,6 +11,8 @@
 // som hålls ihop + samma lag. Fas 1 testas med solo-tickets (size 1).
 // ============================================================================
 
+const groups = require('./groups'); // fas 2: grupp → en ticket (inget cykliskt require)
+
 let H = null; // { send, rooms, createSim, startSim, generateCode }
 function setHelpers(h) { H = h; }
 
@@ -280,7 +282,13 @@ function handle(ws, msg) {
       // JSON/binär world — de hoppar host/join där flaggorna annars sätts.
       if (msg.godot) ws._jsonWorld = true;
       if (msg.bin) ws._binWorld = true;
-      const err = joinQueue([ws], String(msg.mode || ''));
+      // fas 2: i grupp → köa HELA gruppen som en ticket (bara ledaren); medlem nekas
+      const party = groups.partyMembers(ws);
+      if (party === 'notleader') { send(ws, { type: 'queue_error', code: 'notleader' }); return; }
+      const members = Array.isArray(party) ? party : [ws];
+      // sätt world-flaggorna på alla gruppmedlemmar (de matchmade hoppar host/join)
+      if (Array.isArray(party)) for (const m of party) { if (msg.godot) m._jsonWorld = true; if (msg.bin) m._binWorld = true; }
+      const err = joinQueue(members, String(msg.mode || ''));
       if (err) send(ws, { type: 'queue_error', code: err });
       return;
     }
