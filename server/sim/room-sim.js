@@ -6300,7 +6300,12 @@ function broadcastWorld(sim, now) {
           // (render-tid = st − buffertfönster i stället för ankomst-tid → jämn
           // rörelse även när paket-ankomsten jittrar).
           pkt.st = now;
-          try { ws.send(JSON.stringify(pkt)); } catch (e) {}
+          // UDP-peers (V2): world går på den OTILLFÖRLITLIGA kanalen (nyaste vinner,
+          // släng gamla) → ett tappat world-paket blockerar aldrig nästa = inga
+          // TCP-head-of-line-stalls. WS-peers (legacy) saknar sendUnreliable → vanlig
+          // (tillförlitlig) send. Events går alltid ws.send (tillförlitligt) ovan/nedan.
+          const _wjson = JSON.stringify(pkt);
+          try { (ws.sendUnreliable ? ws.sendUnreliable(_wjson) : ws.send(_wjson)); } catch (e) {}
         }
       }
       continue;

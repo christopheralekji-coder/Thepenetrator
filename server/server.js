@@ -5,6 +5,7 @@ const WebSocket = require('ws');
 const http = require('http');
 const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney } = require('./sim/room-sim');
 const accounts = require('./accounts'); // v2 konto/vÃ¤nner (acct_* â€” additivt, no-op fÃ¶r V1)
+const { attachUdp } = require('./net/udp-integration'); // UDP-transport (V2-native, V1 dött)
 const PORT = process.env.PORT || 8080;
 
 // Healthcheck + error-reporting endpoint
@@ -2045,5 +2046,11 @@ server.listen(PORT, () => {
   console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
   console.log('  THE PENETRATOR â€” Co-op Server v1');
   console.log('  Listening on port ' + PORT);
+  // UDP-transport bredvid WS (V2). Samma portnummer, separat socket-namespace.
+  attachUdp({
+    handleMessage, handleDisconnect, genId,
+    port: parseInt(process.env.UDP_PORT || PORT, 10),
+    rttIntervalMs: RTT_PING_INTERVAL_MS,
+  });
   console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
 });

@@ -107,6 +107,7 @@ class Connection extends EventEmitter {
   get bufferedAmount() {
     let n = 0; for (const e of this._unacked.values()) n += e.size; return n;
   }
+  getRtt() { return Math.round(this._srtt); }    // smoothed RTT (ms) — bullets.js lag-comp
 
   send(data) {                              // RELIABLE (default — events/acct/lobby)
     if (this.closed) return;
@@ -306,6 +307,7 @@ class UdpServer extends EventEmitter {
     const conn = this._conns.get(key);
     if (conn) conn._onPacket(buf);
   }
+  peers() { return [...this._conns.values()]; }   // aktiva Connections (för app-loopar t.ex. RTT)
   close() {
     clearInterval(this._timer);
     for (const c of this._conns.values()) c.close('server-shutdown');
