@@ -1,0 +1,294 @@
+'use strict';
+// ============================================================================
+// MATCHMAKING-KÖ (Mobile-Legends-stil, 2026-06-13) — fas 1: server-kärnan.
+// Spelare (solo ELLER grupp) söker per läge; servern poolar dem och formar en
+// match vid TARGET-storlek → ACCEPT-fas (10s, alla måste acceptera) → skapar rum,
+// placerar alla, sätter lag, startar simen → 'match_ready' till var och en.
+// Region = IMPLICIT (denna server-instans = en region; varje Fly-app poolar sina
+// egna anslutna spelare). INGA bots (användarval — väntar på riktiga spelare).
+//
+// Ticket-modell stödjer N medlemmar → grupper (fas 2) slottar in som EN ticket
+// som hålls ihop + samma lag. Fas 1 testas med solo-tickets (size 1).
+// ============================================================================
+
+let H = null; // { send, rooms, createSim, startSim, generateCode }
+function setHelpers(h) { H = h; }
+
+// target = MINSTA antal RIKTIGA spelare för att starta (ej fulla lobbyn — liten
+// spelarbas + inga bots → annars fyller kön aldrig). Tunas vid behov.
+const MATCH_TARGET = {
+  tdm: 4, ctf: 4, siege: 4, koth: 4, gungame: 4, juggernaut: 4, battleroyale: 6,
+  survivors: 2, castledefense: 2, heist: 2, story: 2, endless: 2, bossrush: 2,
+};
+const TEAM_MODES = new Set(['tdm', 'ctf', 'siege']);
+// sim_start-opts per läge (server-side start; speglar klientens sim_start-flaggor)
+const MODE_OPTS = {
+  tdm: { tdm: true, tdmTargetKills: 30 },
+  ctf: { ctf: true, ctfTargetCaptures: 3 },
+  siege: { siege: true },
+  koth: { koth: true },
+  gungame: { gungame: true },
+  juggernaut: { juggernaut: true },
+  battleroyale: { battleroyale: true },
+  survivors: { survivors: true, survivorsDurationSec: 600 },
+  castledefense: { castledefense: true },
+  heist: { heist: true },
+  story: { mode: 'story', wave: 1 },
+};
+
+const ACCEPT_MS = 10000;
+const queues = new Map();    // mode → [ticket]   (FIFO)
+const accepting = new Map(); // matchId → { mode, tickets, accepts:Set, members:[ws], timer }
+let _midSeq = 1;
+
+function targetFor(mode) { return MATCH_TARGET[mode] || 0; }
+function qFor(mode) { let q = queues.get(mode); if (!q) { q = []; queues.set(mode, q); } return q; }
+function ticketOf(ws) { return ws._mmTicket || null; }
+function sizeOf(t) { return t.members.length; }
+
+// ── Kö-API (anropas från server.js message-handler) ──────────────────────────
+
+// Solo (fas 1) eller grupp (fas 2): members = [ws,...]. Returnerar fel-kod el. null.
+function joinQueue(members, mode) {
+  if (!targetFor(mode)) return 'badmode';
+  const T = targetFor(mode);
+  // grupp större än lägets lag/storlek kan aldrig matcha → neka
+  const cap = TEAM_MODES.has(mode) ? (T / 2) : T;
+  if (members.length > cap) return 'partytoobig';
+  // någon i gruppen redan i kö/rum → neka
+  for (const ws of members) {
+    if (ws._mmTicket) leave(ws);            // re-queue: släpp gammal ticket först
+    if (ws.roomCode) return 'inroom';
+  }
+  const ticket = { members: members.slice(), mode, joinedAt: Date.now() };
+  for (const ws of members) ws._mmTicket = ticket;
+  qFor(mode).push(ticket);
+  for (const ws of members) send(ws, { type: 'queue_joined', mode, target: T, size: members.length });
+  broadcastQueueStatus(mode);
+  tryForm(mode);
+  return null;
+}
+
+function cancelQueue(ws) {
+  const t = ticketOf(ws);
+  if (!t) return;
+  const mode = t.mode;
+  removeTicket(t);
+  for (const m of t.members) { m._mmTicket = null; send(m, { type: 'queue_left' }); }
+  broadcastQueueStatus(mode);
+}
+
+function removeTicket(t) {
+  const q = queues.get(t.mode);
+  if (!q) return;
+  const i = q.indexOf(t);
+  if (i >= 0) q.splice(i, 1);
+}
+
+// disconnect/leave: städa ur kö OCH ur ev. pågående accept-fas
+function leave(ws) {
+  const t = ticketOf(ws);
+  if (t) {
+    // ta bort BARA denna ws ur ticketen (en gruppmedlem droppar); tom ticket → bort
+    const i = t.members.indexOf(ws);
+    if (i >= 0) t.members.splice(i, 1);
+    ws._mmTicket = null;
+    if (t.members.length === 0) removeTicket(t);
+    broadcastQueueStatus(t.mode);
+  }
+  // i accept-fas → räknas som DECLINE (löser upp matchen för övriga)
+  if (ws._mmMatchId) declineMatch(ws, ws._mmMatchId);
+}
+
+function broadcastQueueStatus(mode) {
+  const q = queues.get(mode) || [];
+  let inQ = 0;
+  for (const t of q) inQ += sizeOf(t);
+  const T = targetFor(mode);
+  for (const t of q) for (const ws of t.members) send(ws, { type: 'queue_status', mode, inQueue: inQ, target: T });
+}
+
+// ── Match-formning ───────────────────────────────────────────────────────────
+
+function tryForm(mode) {
+  const T = targetFor(mode);
+  const q = queues.get(mode) || [];
+  // greedy FIFO: plocka tickets tills summan == T (hoppa över de som skulle spräcka
+  // T och leta en mindre som passar). Solo-tickets (size 1) → trivialt; grupper
+  // hålls ihop (en hel ticket eller inget).
+  const chosen = [];
+  let sum = 0;
+  for (let i = 0; i < q.length && sum < T; i++) {
+    if (sum + sizeOf(q[i]) <= T) { chosen.push(q[i]); sum += sizeOf(q[i]); }
+  }
+  if (sum !== T) return;   // kunde inte fylla exakt → vänta
+  // för lag-lägen: kräv att tickets kan delas i två lag à T/2 (grupper hela)
+  let teamSplit = null;
+  if (TEAM_MODES.has(mode)) {
+    teamSplit = partitionTeams(chosen, T / 2);
+    if (!teamSplit) return;  // ingen giltig lag-uppdelning (t.ex. [3,1] i 2v2) → vänta
+  }
+  for (const t of chosen) removeTicket(t);
+  startAccept(mode, chosen, teamSplit);
+}
+
+// dela tickets i två lag à `half` spelare, grupper HELA. Returnerar [redTickets,
+// blueTickets] eller null. Greedy: störst först till det minsta laget.
+function partitionTeams(tickets, half) {
+  const sorted = tickets.slice().sort((a, b) => sizeOf(b) - sizeOf(a));
+  const red = [], blue = []; let rN = 0, bN = 0;
+  for (const t of sorted) {
+    const s = sizeOf(t);
+    if (rN + s <= half && (rN <= bN || bN + s > half)) { red.push(t); rN += s; }
+    else if (bN + s <= half) { blue.push(t); bN += s; }
+    else return null;
+  }
+  if (rN !== half || bN !== half) return null;
+  return [red, blue];
+}
+
+// ── Accept-fas ───────────────────────────────────────────────────────────────
+
+function startAccept(mode, tickets, teamSplit) {
+  const matchId = 'm' + (_midSeq++);
+  const members = [];
+  for (const t of tickets) for (const ws of t.members) members.push(ws);
+  const entry = { mode, tickets, teamSplit, accepts: new Set(), members, timer: null };
+  accepting.set(matchId, entry);
+  for (const ws of members) {
+    ws._mmMatchId = matchId;
+    send(ws, { type: 'match_found', matchId, mode, players: members.length, acceptMs: ACCEPT_MS });
+  }
+  entry.timer = setTimeout(() => expireAccept(matchId), ACCEPT_MS);
+  if (entry.timer.unref) entry.timer.unref();
+}
+
+function acceptMatch(ws, matchId) {
+  const entry = accepting.get(matchId);
+  if (!entry || ws._mmMatchId !== matchId) return;
+  entry.accepts.add(ws.id);
+  for (const m of entry.members) send(m, { type: 'match_accept_progress', matchId, accepted: entry.accepts.size, total: entry.members.length });
+  if (entry.accepts.size >= entry.members.length) finalizeMatch(matchId);
+}
+
+function declineMatch(ws, matchId) {
+  const entry = accepting.get(matchId);
+  if (!entry) { ws._mmMatchId = null; return; }
+  dissolveAccept(matchId, ws);
+}
+
+function expireAccept(matchId) {
+  const entry = accepting.get(matchId);
+  if (!entry) return;
+  // de som INTE accepterat = orsaken; städa dem, återställ resten
+  dissolveAccept(matchId, null);
+}
+
+// lös upp accept-fasen: de som accepterat (utom ev. decliner) går TILLBAKA i kön
+// (deras tickets), de som nekade/timeoutade droppas helt.
+function dissolveAccept(matchId, decliner) {
+  const entry = accepting.get(matchId);
+  if (!entry) return;
+  accepting.delete(matchId);
+  if (entry.timer) clearTimeout(entry.timer);
+  for (const ws of entry.members) ws._mmMatchId = null;
+  for (const t of entry.tickets) {
+    // behåll ticket om HELA gruppen accepterade och ingen är decliner
+    const allAccepted = t.members.every(m => entry.accepts.has(m.id) && m !== decliner);
+    if (allAccepted) {
+      // tillbaka i kön (fronten) + meddela
+      qFor(t.mode).unshift(t);
+      for (const m of t.members) { send(m, { type: 'match_cancelled', requeued: true }); }
+    } else {
+      for (const m of t.members) { m._mmTicket = null; send(m, { type: 'match_cancelled', requeued: false }); }
+    }
+  }
+  tryForm(entry.mode);
+}
+
+// ── Rum-skapande + start ─────────────────────────────────────────────────────
+
+function finalizeMatch(matchId) {
+  const entry = accepting.get(matchId);
+  if (!entry) return;
+  accepting.delete(matchId);
+  if (entry.timer) clearTimeout(entry.timer);
+  const mode = entry.mode;
+  // verifiera att alla fortfarande är anslutna + utan rum
+  const live = entry.members.filter(ws => ws.readyState === 1 && !ws.roomCode);
+  if (live.length < entry.members.length) {
+    // någon hann disconnecta → lös upp (de kvarvarandes tickets tillbaka i kön)
+    for (const ws of entry.members) ws._mmMatchId = null;
+    for (const t of entry.tickets) {
+      const ok = t.members.every(m => m.readyState === 1 && !m.roomCode);
+      if (ok) { qFor(mode).unshift(t); for (const m of t.members) send(m, { type: 'match_cancelled', requeued: true }); }
+      else for (const m of t.members) { m._mmTicket = null; if (m.readyState === 1) send(m, { type: 'match_cancelled', requeued: false }); }
+    }
+    tryForm(mode);
+    return;
+  }
+  // skapa rum (replikerar 'host'-handlern). Host = första ticketens första medlem.
+  const code = H.generateCode();
+  const host = entry.members[0];
+  const room = {
+    code, hostId: host.id, members: new Map(),
+    meta: { hostName: host.playerName || 'Spelare', mode, private: true, started: false, createdAt: Date.now(), maxPlayers: Math.max(2, entry.members.length) },
+    _nextSlot: 1, _freeSlots: [], _matchmade: true,
+  };
+  // lag-tilldelning (TEAM_MODES): teamSplit → peerId→team
+  const teamOf = {};
+  if (entry.teamSplit) {
+    for (const t of entry.teamSplit[0]) for (const m of t.members) teamOf[m.id] = 'red';
+    for (const t of entry.teamSplit[1]) for (const m of t.members) teamOf[m.id] = 'blue';
+  }
+  // placera medlemmar: host slot 0, resten 1..N
+  let slot = 0;
+  for (const ws of entry.members) {
+    ws.roomCode = code;
+    ws.stableSlot = (ws === host) ? 0 : (room._nextSlot++);
+    ws._mmMatchId = null;
+    ws._mmTicket = null;
+    if (teamOf[ws.id]) ws.tdmTeam = teamOf[ws.id];
+    room.members.set(ws.id, ws);
+  }
+  H.rooms.set(code, room);
+  // starta simen server-side med lägets opts
+  room.sim = H.createSim(room);
+  const opts = Object.assign({ mode, difficulty: 'normal', addBot: false, baseShield: 100, countdownMs: 3000 }, MODE_OPTS[mode] || {});
+  if (Object.keys(teamOf).length) opts.teams = teamOf;
+  H.startSim(room.sim, opts);
+  room.meta.started = true;
+  // 'match_ready' till var och en (kombinerad hosted/joined + sim körs redan)
+  const memberList = [];
+  for (const [, m] of room.members) memberList.push({ id: m.id, slot: m.stableSlot, name: m.playerName || 'Spelare' });
+  for (const ws of entry.members) {
+    send(ws, {
+      type: 'match_ready', code, mode, peerId: ws.id, hostId: host.id,
+      stableSlot: ws.stableSlot, team: teamOf[ws.id] || null, members: memberList,
+    });
+  }
+  console.log('[MATCHMAKER]', mode, 'match formad', code, entry.members.length, 'spelare', entry.teamSplit ? '(lag)' : '');
+}
+
+function send(ws, obj) { if (H) H.send(ws, obj); }
+
+// dispatch från server.js (alla type som börjar med "queue_"/"match_")
+function handle(ws, msg) {
+  switch (msg.type) {
+    case 'queue_join': {
+      // world-format-flaggor (samma som host/join) så matchmade V2-klienter får
+      // JSON/binär world — de hoppar host/join där flaggorna annars sätts.
+      if (msg.godot) ws._jsonWorld = true;
+      if (msg.bin) ws._binWorld = true;
+      const err = joinQueue([ws], String(msg.mode || ''));
+      if (err) send(ws, { type: 'queue_error', code: err });
+      return;
+    }
+    case 'queue_cancel': cancelQueue(ws); return;
+    case 'match_accept': acceptMatch(ws, String(msg.matchId || '')); return;
+    case 'match_decline': declineMatch(ws, String(msg.matchId || '')); return;
+    default: return;
+  }
+}
+
+module.exports = { setHelpers, handle, leave, joinQueue, MATCH_TARGET };

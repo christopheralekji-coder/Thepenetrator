@@ -5,6 +5,7 @@ const WebSocket = require('ws');
 const http = require('http');
 const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney } = require('./sim/room-sim');
 const accounts = require('./accounts'); // v2 konto/vÃ¤nner (acct_* â€” additivt, no-op fÃ¶r V1)
+const matchmaker = require('./matchmaker'); // v2 matchmaking-kö (queue_*/match_* — additivt)
 const { attachUdp } = require('./net/udp-integration'); // UDP-transport (V2-native, V1 dött)
 const PORT = process.env.PORT || 8080;
 
@@ -302,6 +303,8 @@ function handleMessage(ws, msg) {
   if (msg.bin) ws._binWorld = true;   // AAA #1: klienten begär binär world (UDP-only)
   // v2 konto/vÃ¤nner: EN ingÃ¥ng fÃ¶r alla acct_* (V1 skickar aldrig dessa â†’ no-op)
   if (typeof msg.type === 'string' && msg.type.startsWith('acct_')) return accounts.handle(ws, msg, acctHelpers);
+  // v2 matchmaking-kö: queue_join/queue_cancel/match_accept/match_decline (additivt)
+  if (typeof msg.type === 'string' && (msg.type.startsWith('queue_') || msg.type.startsWith('match_'))) return matchmaker.handle(ws, msg);
   if (msg.type === 'host') {
     // Skapa rum
     const code = generateCode();
@@ -1923,6 +1926,9 @@ function handleDisconnect(ws) {
   // v2 konto: offline/presence-push till vÃ¤nner (no-op utan acct_login).
   // Skiljer sjÃ¤lv pÃ¥ riktig disconnect vs 'leave'/kick via ws.readyState.
   accounts.onDisconnect(ws);
+  // v2 matchmaking: städa ur kö + ev. accept-fas (no-op om ej i kö). MÅSTE köras
+  // FÖRE roomCode-early-return — köande spelare har inget rum.
+  matchmaker.leave(ws);
   // Rensa public-rooms-prenumeration
   publicRoomSubscribers.delete(ws);
   if (!ws.roomCode) return;
@@ -2049,6 +2055,9 @@ function handleDisconnect(ws) {
   }
   broadcastPublicRooms();
 }
+
+// v2 matchmaking: ge matchmakern serverns helpers (send/rooms/sim/kod-generator)
+matchmaker.setHelpers({ send, rooms, createSim, startSim, generateCode });
 
 server.listen(PORT, () => {
   console.log('â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•');
