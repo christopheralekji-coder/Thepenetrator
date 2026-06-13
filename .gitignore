@@ -23,3 +23,4 @@ tools/*.png
 tools/*-ref/
 tools/ward-debug/
 tools/_*.txt
+data/golden/

@@ -20,6 +20,7 @@ const { KOTH_ARENA } = require('../../shared/koth-arena');
 const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
 const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 const { CASTLEDEFENSE_ARENA } = require('../../shared/castledefense-arena');
+const { encodeWorld } = require('../net/world-codec');  // AAA #1: binär world för bin-peers
 const { SURVIVORS_ARENA } = require('../../shared/survivors-arena');
 const { HEIST_ARENA } = require('../../shared/heist-arena');
 const { BOSS_CONFIGS } = require('../../shared/boss-configs');
@@ -6304,8 +6305,16 @@ function broadcastWorld(sim, now) {
           // släng gamla) → ett tappat world-paket blockerar aldrig nästa = inga
           // TCP-head-of-line-stalls. WS-peers (legacy) saknar sendUnreliable → vanlig
           // (tillförlitlig) send. Events går alltid ws.send (tillförlitligt) ovan/nedan.
-          const _wjson = JSON.stringify(pkt);
-          try { (ws.sendUnreliable ? ws.sendUnreliable(_wjson) : ws.send(_wjson)); } catch (e) {}
+          // AAA #1: bin-peers (UDP + bin:1) får BINÄR world (−76% + ingen JSON.parse
+          // på telefonen = mindre värme). Magic 0xB1 → klienten skiljer från JSON-events.
+          try {
+            if (ws._binWorld && ws.sendUnreliable) {
+              ws.sendUnreliable(encodeWorld(pkt));
+            } else {
+              const _wjson = JSON.stringify(pkt);
+              (ws.sendUnreliable ? ws.sendUnreliable(_wjson) : ws.send(_wjson));
+            }
+          } catch (e) {}
         }
       }
       continue;

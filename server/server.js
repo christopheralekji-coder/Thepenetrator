@@ -292,6 +292,7 @@ function handleMessage(ws, msg) {
   // binÃ¤ra delta-formatet. SÃ¤tts via host/join (msg.godot:1). Allt annat
   // (klientâ†’server-meddelanden, sim_events) Ã¤r redan JSON i bÃ¥da riktningar.
   if (msg.godot) ws._jsonWorld = true;
+  if (msg.bin) ws._binWorld = true;   // AAA #1: klienten begär binär world (UDP-only)
   // v2 konto/vÃ¤nner: EN ingÃ¥ng fÃ¶r alla acct_* (V1 skickar aldrig dessa â†’ no-op)
   if (typeof msg.type === 'string' && msg.type.startsWith('acct_')) return accounts.handle(ws, msg, acctHelpers);
   if (msg.type === 'host') {
