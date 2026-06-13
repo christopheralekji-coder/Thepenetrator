@@ -41,6 +41,10 @@ const BROADCAST_EVERY = Math.max(1, Math.round(TICK_HZ / BROADCAST_HZ));
 const FULL_BROADCAST_MS = 1500;
 const ENEMY_CAP = 80;
 const CULL_DIST = 1100;
+// AAA per-entitet-budget (V2): max enemy-entries i ETT delta-paket per peer. Över
+// detta skjuts de FJÄRRAN upp till nästa tick (off-screen → osynligt). Generöst
+// (täcker on-screen + buffert) → engagerar bara vid äkta trängsel. ENV-bar.
+const ENEMY_DELTA_BUDGET = parseInt(process.env.SIM_ENEMY_BUDGET, 10) || 64;
 // M5 (audit 2026-06-10): JSON-peers (Godot/_jsonWorld) MÅSTE alltid få full
 // enemy-lista — klienten har ingen delta-hantering (frånvarande idx = borttagen
 // enemy) → FULL_BROADCAST_MS/delta-mönstret kan inte användas för dem. Istället
@@ -6095,6 +6099,17 @@ function broadcastWorld(sim, now) {
   // M5: räknare för JSON-peer-nedsamplingen (per broadcastWorld-anrop, inte per
   // tick — broadcastWorld anropas redan bara var BROADCAST_EVERY:e tick).
   sim._worldCastNo = (sim._worldCastNo || 0) + 1;
+  // AAA per-entitet-delta (V2): idx→levande-enemy-map, lazy (byggs först när en
+  // JSON-peer behöver den) + cachad per broadcast. Används för (a) entity-remove
+  // (idx i lastSent men EJ i mappen = död → reliable enemy_remove) och (b) budget-
+  // prioritet (boss/telegraf-flaggor). Noll kostnad om inga JSON-peers.
+  let _enemyByIdx = null;
+  const getEnemyByIdx = () => {
+    if (_enemyByIdx) return _enemyByIdx;
+    _enemyByIdx = new Map();
+    for (const e of sim.enemies) if (!e.dead) _enemyByIdx.set(e._idx, e);
+    return _enemyByIdx;
+  };
   for (const [peerId, ws] of sim.room.members) {
     // Godot/V2-klienter: world-snapshot som JSON-text, alltid full lista (trivial
     // klient-rendering — ersätt hela listan) men bara var JSON_WORLD_EVERY:e
@@ -6113,44 +6128,67 @@ function broadcastWorld(sim, now) {
     // klient-decode-spik var 1500ms. Per-peer-timer med slumpad start-fas sprider lasten.
     if (!sim._peerFullAt) sim._peerFullAt = {};
     if (sim._peerFullAt[peerId] == null) sim._peerFullAt[peerId] = now - Math.floor(Math.random() * FULL_BROADCAST_MS);
-    let forceFullForPeer = isJson || !lastSent || (now - sim._peerFullAt[peerId]) > FULL_BROADCAST_MS;
+    // AAA per-entitet-delta (V2): JSON-peers tvingar INTE längre full varje tick.
+    // De får delta-positioner (otillförlitlig kanal) + per-enemy FULL-ENTRIES för
+    // nya/flagg-ändrade fiender + reliable enemy_remove för döda. Periodisk full
+    // (FULL_BROADCAST_MS) = cull-backstop. V1-binär behåller exakt gamla isJson-
+    // lösa beteendet. Förstapaketet (!lastSent) tvingar full för båda.
+    let forceFullForPeer = !lastSent || (now - sim._peerFullAt[peerId]) > FULL_BROADCAST_MS;
     if (forceFullForPeer) sim._peerFullAt[peerId] = now;
     if (!lastSent) lastSent = {};
-    // Pre-scan: om någon synlig enemy är NY för peeren, forcera full-paket så vi får med
-    // bossKey/isBoss/color/name. Annars syns bossen som "bara skugga" tills nästa full-broadcast.
-    if (!forceFullForPeer) {
+    // Pre-scan: BARA V1-binär forcerar full-paket vid ny enemy (binär-klienten har
+    // ingen per-entry-full-i-delta-paket-väg). V2 (isJson) skickar full-entry per
+    // ny enemy inline → ingen per-packet-forcering behövs.
+    if (!forceFullForPeer && !isJson) {
       for (const e of sim.enemies) {
         if (e.dead) continue;
         if (!lastSent[e._idx]) { forceFullForPeer = true; break; }
       }
     }
     const newSent = {};
-    const enemiesPkt = [];
+    let enemiesPkt = [];
     const px = (ws.playerState && ws.playerState.x) || 1000;
     const py = (ws.playerState && ws.playerState.y) || 1000;
+    const cullHyst = CULL_DIST * 1.18;   // AAA: anti-churn-hysteres (V2 delta)
     for (const e of sim.enemies) {
       if (e.dead) continue;
+      const adx = Math.abs(e.x - px), ady = Math.abs(e.y - py);
+      // V2-hysteres: redan-sänd enemy hålls synlig till CULL_DIST*1.18 (mindre
+      // re-spawn-churn vid oscillering runt cull-gränsen).
       const visible = e.isBoss || e.isMiniBoss ||
-                      (Math.abs(e.x - px) < CULL_DIST && Math.abs(e.y - py) < CULL_DIST);
+                      (adx < CULL_DIST && ady < CULL_DIST) ||
+                      (isJson && lastSent[e._idx] && adx < cullHyst && ady < cullHyst);
       if (!visible) continue;
       const ex = Math.round(e.x), ey = Math.round(e.y), eh = Math.round(e.hp);
-      newSent[e._idx] = { x: ex, y: ey, hp: eh };
+      // fx = status-bitfält: 1=burn, 2=slow, 4=boss-charge, 8=boss-cloak,
+      //   16=HEALING (healer m. aktiv heal-target — C4), 32=SUMMONING (summoner
+      //   inom ~700ms före nästa summon-cast — C4), 64=SNIPER-AIM (aim-fasen,
+      //   800ms före skott — C3), 128=BOMBER-ARMED (fuse tänd, ≤0.6s — C3). g=guld.
+      // AAA: beräknas för ALLA synliga — V2-delta måste skicka full-entry när fx
+      // ändras även om positionen står still (annars missas sniper-aim/charge-
+      // telegraferna på stillastående fiender). V1 läser bara värdet i full-grenen.
+      const _fx = ((e.burnUntil && e.burnUntil > now ? 1 : 0) | (e.slowUntil && e.slowUntil > now ? 2 : 0)
+        | (e.chargeUntil && e.chargeUntil > now ? 4 : 0) | (e.cloakUntil && e.cloakUntil > now ? 8 : 0)
+        | (e.type === 'healer' && e._healTargetIdx >= 0 ? 16 : 0)
+        | (e.type === 'summoner' && (now - (e.summonAt || 0)) > 3800 ? 32 : 0)
+        | (e.aiming ? 64 : 0)
+        | (e.type === 'bomber' && (e.fuse || 0) > 0 ? 128 : 0));
       const last = lastSent[e._idx];
-      if (!forceFullForPeer && last && last.x === ex && last.y === ey && last.hp === eh) continue;
-      if (forceFullForPeer) {
-        // v2-tillägg (JSON-klienter; binär-encodern i wirefmt.js packar ALDRIG
-        // fx/g/ht/at → V1-webben opåverkad oavsett bit-värden):
-        // fx = status-bitfält: 1=burn, 2=slow, 4=boss-charge, 8=boss-cloak,
-        //   16=HEALING (healer m. aktiv heal-target — C4), 32=SUMMONING (summoner
-        //   inom ~700ms före nästa summon-cast — C4), 64=SNIPER-AIM (aim-fasen,
-        //   800ms före skott — C3), 128=BOMBER-ARMED (fuse tänd, ≤0.6s till
-        //   detonation — C3). g = guld.
-        const _fx = ((e.burnUntil && e.burnUntil > now ? 1 : 0) | (e.slowUntil && e.slowUntil > now ? 2 : 0)
-          | (e.chargeUntil && e.chargeUntil > now ? 4 : 0) | (e.cloakUntil && e.cloakUntil > now ? 8 : 0)
-          | (e.type === 'healer' && e._healTargetIdx >= 0 ? 16 : 0)
-          | (e.type === 'summoner' && (now - (e.summonAt || 0)) > 3800 ? 32 : 0)
-          | (e.aiming ? 64 : 0)
-          | (e.type === 'bomber' && (e.fuse || 0) > 0 ? 128 : 0));
+      const isNew = !last;
+      const fxChanged = !isNew && last.fx !== _fx;
+      newSent[e._idx] = { x: ex, y: ey, hp: eh, fx: _fx };
+      // TARGET-strålar (heal-beam 16 / sniper-laser 64): _tele byggs om från
+      // paketets enemies VARJE tick → en stillastående strålande fiende måste skickas
+      // varje tick annars FLIMRAR strålen (ht/at finns bara i full-entries). Burn/slow/
+      // charge/cloak (1/2/4/8) persisterar däremot på klienten (apply_delta rör ej fx).
+      const fxBeam = (_fx & 80) !== 0;
+      // skip oförändrade befintliga (delta-paket); V2: behåll om fx ändrats el. strålar
+      if (!forceFullForPeer && last && last.x === ex && last.y === ey && last.hp === eh
+          && !(isJson && (fxChanged || fxBeam))) continue;
+      // per-enemy FULL-ENTRY: forceFull (V1 + periodisk full) ELLER V2 ny/flagg-ändrad/
+      // strålande (16|64 → behöver ht/at varje tick). Annars mager {i,x,y,hp}-delta.
+      const sendFullEntry = forceFullForPeer || (isJson && (isNew || fxChanged || fxBeam));
+      if (sendFullEntry) {
         let eo;
         if (isJson) {
           // Transport-pass (2026-06-10): strippa default-fält i full-entries till
@@ -6190,6 +6228,51 @@ function broadcastWorld(sim, now) {
         enemiesPkt.push(eo);
       } else {
         enemiesPkt.push({ i: e._idx, x: ex, y: ey, hp: eh });
+      }
+    }
+    // ── AAA per-peer budget + reliable entity-remove (V2/JSON, bara delta-paket) ──
+    if (isJson && !forceFullForPeer) {
+      // BUDGET: cappa enemy-entries i delta-paketet → skjut upp FJÄRRAN (carry-
+      // forward i newSent → diffen re-fyrar nästa tick). Boss/telegraf-fiender +
+      // närmast prioriteras. Engagerar bara vid äkta trängsel (> budget ändrade) →
+      // vanliga fallet byte-för-byte oförändrat. Full-paket budgetas ALDRIG.
+      if (enemiesPkt.length > ENEMY_DELTA_BUDGET) {
+        const ebi = getEnemyByIdx();
+        const scored = enemiesPkt.map((eo) => {
+          const ent = ebi.get(eo.i);
+          const imp = (ent && (ent.isBoss || ent.isMiniBoss || ent.aiming
+            || (ent.chargeUntil && ent.chargeUntil > now) || (ent.fuse && ent.fuse > 0))) ? 1 : 0;
+          const dx = eo.x - px, dy = eo.y - py;
+          return { eo, k: (imp ? -1e15 : 0) + dx * dx + dy * dy };
+        });
+        scored.sort((a, b) => a.k - b.k);
+        const kept = [];
+        for (let k = 0; k < scored.length; k++) {
+          if (k < ENEMY_DELTA_BUDGET) { kept.push(scored[k].eo); continue; }
+          const prev = lastSent[scored[k].eo.i];
+          if (prev) newSent[scored[k].eo.i] = prev;   // carry-forward → re-send nästa tick
+        }
+        const dropped = scored.length - kept.length;
+        enemiesPkt = kept;
+        sim._budgetDrops = (sim._budgetDrops || 0) + dropped;
+        if (!sim._budgetLogAt || now - sim._budgetLogAt > 5000) {
+          sim._budgetLogAt = now;
+          console.log('[REPL-BUDGET]', sim.room.code, 'höll', kept.length,
+            'sköt upp', dropped, '(tot ' + sim._budgetDrops + ')');
+        }
+      }
+      // ENTITY-REMOVE: idx vi tidigare skickat men som EJ längre lever (död/borta)
+      // → reliable enemy_remove (world går unreliable → absens ensam räcker ej).
+      // Culled-men-LEVANDE (i lastSent, ej i newSent, men i mappen) tas EJ bort här
+      // (off-screen; periodisk full städar dem). Deferrade (budget) lever → ej heller.
+      const ebi2 = getEnemyByIdx();
+      let removedIds = null;
+      for (const k in lastSent) {
+        const idx = +k;
+        if (!ebi2.has(idx) && !newSent[idx]) (removedIds || (removedIds = [])).push(idx);
+      }
+      if (removedIds && ws.readyState === 1) {
+        try { ws.send(JSON.stringify({ type: 'enemy_remove', ids: removedIds })); } catch (e) {}
       }
     }
     sim.lastSentEnemyByPeer.set(peerId, newSent);
