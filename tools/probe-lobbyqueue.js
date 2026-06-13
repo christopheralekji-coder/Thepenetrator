@@ -13,17 +13,21 @@ const st = (ws) => { ws._team = null; ws._code = null; ws._mid = null;
   }); return ws; };
 const wait = (ms) => new Promise(r => setTimeout(r, ms));
 (async () => {
-  const host = st(conn()); await wait(300);
-  host.send(JSON.stringify({ type: 'host', mode: 'tdm', name: 'HOST', godot: 1 })); await wait(400);
-  const friend = st(conn()); await wait(200);
-  friend.send(JSON.stringify({ type: 'join', code: host._lobby, name: 'FRIEND', godot: 1 })); await wait(400);
+  const open = (ws) => new Promise(r => { if (ws.readyState === 1) r(); else ws.on('open', r); });
+  const until = async (fn, ms = 4000) => { const t0 = Date.now(); while (!fn() && Date.now() - t0 < ms) await wait(50); };
+  const host = st(conn()); await open(host);
+  host.send(JSON.stringify({ type: 'host', mode: 'tdm', name: 'HOST', godot: 1 }));
+  await until(() => host._lobby);
+  const friend = st(conn()); await open(friend);
+  friend.send(JSON.stringify({ type: 'join', code: host._lobby, name: 'FRIEND', godot: 1 }));
+  await until(() => friend._pid); await wait(300);
   console.log('lobby', host._lobby, '— host', host._pid, 'friend', friend._pid);
   // host köar lobbyn
   host.send(JSON.stringify({ type: 'queue_join', mode: 'tdm', godot: 1 }));
   // 2 solo fyller
-  const c = st(conn()); await wait(150); c.send(JSON.stringify({ type: 'queue_join', mode: 'tdm', godot: 1 }));
-  const d = st(conn()); await wait(150); d.send(JSON.stringify({ type: 'queue_join', mode: 'tdm', godot: 1 }));
-  await wait(1500);
+  const c = st(conn()); await open(c); c.send(JSON.stringify({ type: 'queue_join', mode: 'tdm', godot: 1 }));
+  const d = st(conn()); await open(d); d.send(JSON.stringify({ type: 'queue_join', mode: 'tdm', godot: 1 }));
+  await wait(2500);
   const c1 = host._team != null && friend._team != null && host._team === friend._team;
   const c2 = host._code != null && host._code === friend._code && host._code === c._code && c._code === d._code;
   const c3 = host._code !== host._lobby;   // match-rum är ett NYTT rum (lobbyn flyttades)
