@@ -7451,8 +7451,11 @@ function startSim(sim, opts) {
     loadStage(sim, sim.wave);
   }
   sim.lastTick = Date.now();
-  // Tick-profiling: logga slow ticks > 16ms så vi kan se CPU-spikes i prod.
-  // Throttled till 1Hz max så vi inte spammar logs.
+  // Tick-profiling: logga slow ticks i prod. Throttled 2s max.
+  // Tröskel 50ms = klart över 16.7ms-budgeten men under normalt GC-jitter-buller.
+  // Om en tick FAKTISKT tar >50ms syns det i `flyctl logs` / Render-loggar.
+  // wave-info inkluderas för CD-mode (castledefenseActive) — det är den
+  // enda PvE-mode med per-wave enemy-acceleration som kan orsaka spike.
   sim._slowTickLogAt = 0;
   sim.interval = setInterval(() => {
     const t0 = process.hrtime.bigint();
@@ -7462,14 +7465,17 @@ function startSim(sim, opts) {
     sim._tickMsEMA = sim._tickMsEMA == null ? elapsedMs : sim._tickMsEMA * 0.92 + elapsedMs * 0.08;
     // Max decay: efter 5s utan spike, glömmer servern bort gamla spikes
     sim._tickMsMax = Math.max((sim._tickMsMax || 0) * 0.995, elapsedMs);
-    if (elapsedMs > 16) {
+    if (elapsedMs > 50) {
       const now = Date.now();
-      if (now - sim._slowTickLogAt > 1000) {
+      if (now - sim._slowTickLogAt > 2000) {
         sim._slowTickLogAt = now;
+        const waveInfo = sim.castledefenseActive
+          ? ' wave=' + sim.castledefenseWave + '/' + sim.castledefenseWaveState
+          : (sim.survivorsActive ? ' survWave=' + sim.castledefenseWave : '');
         console.warn('[SLOW-TICK]', sim.room.code, elapsedMs.toFixed(1) + 'ms',
           'enemies=' + sim.enemies.length,
           'bullets=' + sim.bullets.length,
-          'members=' + sim.room.members.size);
+          'members=' + sim.room.members.size + waveInfo);
       }
     }
   }, TICK_MS);
