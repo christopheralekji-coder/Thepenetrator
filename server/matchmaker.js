@@ -11,7 +11,8 @@
 // som hålls ihop + samma lag. Fas 1 testas med solo-tickets (size 1).
 // ============================================================================
 
-const groups = require('./groups'); // fas 2: grupp → en ticket (inget cykliskt require)
+// Lobby = party (ML-stil): matchmakern köar en HEL lobby (room.members) som en
+// ticket — inget separat grupp-lager behövs (groups.js ligger kvar men oanvänt).
 
 let H = null; // { send, rooms, createSim, startSim, generateCode }
 function setHelpers(h) { H = h; }
@@ -57,10 +58,11 @@ function joinQueue(members, mode) {
   // grupp större än lägets lag/storlek kan aldrig matcha → neka
   const cap = TEAM_MODES.has(mode) ? (T / 2) : T;
   if (members.length > cap) return 'partytoobig';
-  // någon i gruppen redan i kö/rum → neka
+  // någon i gruppen redan i en STARTAD match → neka (lobby = OK, det är ju partyt)
   for (const ws of members) {
     if (ws._mmTicket) leave(ws);            // re-queue: släpp gammal ticket först
-    if (ws.roomCode) return 'inroom';
+    const r = ws.roomCode ? H.rooms.get(ws.roomCode) : null;
+    if (r && r.meta && r.meta.started) return 'inroom';
   }
   const ticket = { members: members.slice(), mode, joinedAt: Date.now() };
   for (const ws of members) ws._mmTicket = ticket;
@@ -216,13 +218,14 @@ function finalizeMatch(matchId) {
   accepting.delete(matchId);
   if (entry.timer) clearTimeout(entry.timer);
   const mode = entry.mode;
-  // verifiera att alla fortfarande är anslutna + utan rum
-  const live = entry.members.filter(ws => ws.readyState === 1 && !ws.roomCode);
+  // verifiera att alla fortfarande är anslutna (lobby = party → de ÄR i sina
+  // lobby-rum, så ws.roomCode är satt; kolla bara att socketen lever)
+  const live = entry.members.filter(ws => ws.readyState === 1);
   if (live.length < entry.members.length) {
     // någon hann disconnecta → lös upp (de kvarvarandes tickets tillbaka i kön)
     for (const ws of entry.members) ws._mmMatchId = null;
     for (const t of entry.tickets) {
-      const ok = t.members.every(m => m.readyState === 1 && !m.roomCode);
+      const ok = t.members.every(m => m.readyState === 1);
       if (ok) { qFor(mode).unshift(t); for (const m of t.members) send(m, { type: 'match_cancelled', requeued: true }); }
       else for (const m of t.members) { m._mmTicket = null; if (m.readyState === 1) send(m, { type: 'match_cancelled', requeued: false }); }
     }
@@ -243,9 +246,15 @@ function finalizeMatch(matchId) {
     for (const t of entry.teamSplit[0]) for (const m of t.members) teamOf[m.id] = 'red';
     for (const t of entry.teamSplit[1]) for (const m of t.members) teamOf[m.id] = 'blue';
   }
-  // placera medlemmar: host slot 0, resten 1..N
-  let slot = 0;
+  // placera medlemmar: host slot 0, resten 1..N. Lobby = party → flytta varje
+  // medlem UT ur sin lobby in i match-rummet; töm + radera tomma lobbies.
   for (const ws of entry.members) {
+    const oldRoom = H.rooms.get(ws.roomCode);
+    if (oldRoom && oldRoom !== room) {
+      oldRoom.members.delete(ws.id);
+      if (oldRoom.members.size === 0) H.rooms.delete(oldRoom.code);
+      else if (oldRoom.hostId === ws.id) oldRoom.hostId = oldRoom.members.keys().next().value;
+    }
     ws.roomCode = code;
     ws.stableSlot = (ws === host) ? 0 : (room._nextSlot++);
     ws._mmMatchId = null;
@@ -278,17 +287,23 @@ function send(ws, obj) { if (H) H.send(ws, obj); }
 function handle(ws, msg) {
   switch (msg.type) {
     case 'queue_join': {
-      // world-format-flaggor (samma som host/join) så matchmade V2-klienter får
-      // JSON/binär world — de hoppar host/join där flaggorna annars sätts.
-      if (msg.godot) ws._jsonWorld = true;
-      if (msg.bin) ws._binWorld = true;
-      // fas 2: i grupp → köa HELA gruppen som en ticket (bara ledaren); medlem nekas
-      const party = groups.partyMembers(ws);
-      if (party === 'notleader') { send(ws, { type: 'queue_error', code: 'notleader' }); return; }
-      const members = Array.isArray(party) ? party : [ws];
-      // sätt world-flaggorna på alla gruppmedlemmar (de matchmade hoppar host/join)
-      if (Array.isArray(party)) for (const m of party) { if (msg.godot) m._jsonWorld = true; if (msg.bin) m._binWorld = true; }
-      const err = joinQueue(members, String(msg.mode || ''));
+      // LOBBY = PARTY (ML-stil): spelaren köar FRÅN sin lobby → hela lobbyn (utom
+      // bots) blir EN ticket; bara host:en får köa. Ej i lobby → solo-fallback.
+      const room = ws.roomCode ? H.rooms.get(ws.roomCode) : null;
+      let members;
+      let mode = String(msg.mode || '');
+      if (room) {
+        if (ws.id !== room.hostId) { send(ws, { type: 'queue_error', code: 'notleader' }); return; }
+        if (room.meta && room.meta.started) { send(ws, { type: 'queue_error', code: 'inroom' }); return; }
+        members = [];
+        for (const [, m] of room.members) if (!m._isBot && m.readyState === 1) members.push(m);
+        if (!mode) mode = (room.meta && room.meta.mode) || '';
+      } else {
+        members = [ws];
+      }
+      // world-format-flaggor (host/join sätter dem annars) på ALLA matchmade
+      for (const m of members) { if (msg.godot) m._jsonWorld = true; if (msg.bin) m._binWorld = true; }
+      const err = joinQueue(members, mode);
       if (err) send(ws, { type: 'queue_error', code: err });
       return;
     }
