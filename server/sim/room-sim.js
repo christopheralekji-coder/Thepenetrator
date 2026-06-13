@@ -8063,6 +8063,41 @@ function applyShoot(sim, peerId, msg) {
     const t = sim.ctfTurrets[ws._mountedCtfTurretId];
     if (t) { weaponId = t.weaponId || 'turret_mg'; posX = t.x; posY = t.y; }
   }
+  // ANTI-CHEAT (AAA): validera skott-ORIGIN mot spelarens AUKTORITATIVA positioner
+  // (server-pos + rewind-historiken ps._history). Klienten skickar legitimt sin pos-
+  // vid-avfyrning (responsivt + lag-komp), MEN ett origin långt från någon rimlig
+  // nyligen-position = teleport-skott/aimbot-från-valfri-plats. Då clampas origin till
+  // server-pos (skottet BEHÅLLS — mjukt mot latens, samma filosofi som vapen-clampen).
+  // Bara PvP (co-op-pos är klient-betrodd + ofarlig); hoppar mounted turret (legit fast
+  // pos) + gulag (off-map-arena, egen pos-logik). 400px täcker prediktion+RTT+dash.
+  const _spvp = sim.tdmActive || sim.ctfActive || sim.siegeActive ||
+                sim.gungameActive || sim.kothActive ||
+                sim.juggernautActive || sim.battleroyaleActive;
+  if (_spvp && !(ws._mountedSiegeTurretId || ws._mountedCtfTurretId) &&
+      ps.gulagState !== 'fighting' && typeof msg.x === 'number' && typeof msg.y === 'number') {
+    const MAX_DEV2 = 400 * 400;
+    let best2 = (posX - ps.x) * (posX - ps.x) + (posY - ps.y) * (posY - ps.y);
+    const hist = ps._history;
+    if (hist) {
+      for (let i = 0; i < hist.length; i++) {
+        const dx = posX - hist[i].x, dy = posY - hist[i].y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < best2) best2 = d2;
+      }
+    }
+    if (best2 > MAX_DEV2) {
+      sim._originClampCount = (sim._originClampCount || 0) + 1;
+      const _ocNow = Date.now();
+      if (!sim._originClampLogAt || _ocNow - sim._originClampLogAt > 2000) {
+        sim._originClampLogAt = _ocNow;
+        console.log('[ANTICHEAT]', sim.room.code, 'skott-origin clamp #' + sim._originClampCount,
+          peerId, 'origin=(' + Math.round(posX) + ',' + Math.round(posY) + ') → server-pos=(' +
+          Math.round(ps.x) + ',' + Math.round(ps.y) + ') dev=' + Math.round(Math.sqrt(best2)));
+      }
+      posX = ps.x;
+      posY = ps.y;
+    }
+  }
   const p = {
     x: posX, y: posY,
     aimAngle: typeof msg.ang === 'number' ? msg.ang : (ps.aim || 0),
