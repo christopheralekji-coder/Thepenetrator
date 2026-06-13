@@ -12,7 +12,8 @@
 const { UdpServer } = require('./udp-transport');
 
 function attachUdp({ handleMessage, handleDisconnect, genId, port, rttIntervalMs }) {
-  const udpServer = new UdpServer({ port });
+  // Fly: UDP_BIND='fly-global-services'. Lokalt: 0.0.0.0 (default).
+  const udpServer = new UdpServer({ port, bindAddr: process.env.UDP_BIND || '0.0.0.0' });
   udpServer.on('listening', (p) => console.log('  UDP-transport: udp://0.0.0.0:' + p));
   udpServer.on('error', (e) => console.warn('[UDP-ERR]', e.message));
   udpServer.on('connection', (peer) => {

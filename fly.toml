@@ -10,6 +10,8 @@ primary_region = "arn"
 
 [env]
   ACCOUNTS_DATA_DIR = "/data"
+  # UDP-transport (V2-native): Fly KRÄVER bind till fly-global-services för UDP.
+  UDP_BIND = "fly-global-services"
 
 [[mounts]]
   source = "wp_data"
@@ -28,6 +30,16 @@ primary_region = "arn"
     grace_period = "20s"
     method = "GET"
     path = "/health"
+
+# UDP-transport (V2-native, V1 dött) — samma internal_port som HTTP/WS (8080), eget
+# protokoll-namespace. KRÄVER en dedikerad IPv4 (fly ips allocate-v4) — UDP funkar EJ
+# på delad/anycast-IP. Appen binder UDP till fly-global-services:8080 (UDP_BIND-env).
+[[services]]
+  protocol = "udp"
+  internal_port = 8080
+
+  [[services.ports]]
+    port = 8080
 
 [[vm]]
   size = "shared-cpu-1x"

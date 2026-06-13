@@ -268,7 +268,7 @@ class Connection extends EventEmitter {
 
 // ── UdpServer: binder en port, hanterar handshake + många Connections ────────
 class UdpServer extends EventEmitter {
-  constructor({ port, onConnection, lossSim = 0 }) {
+  constructor({ port, onConnection, lossSim = 0, bindAddr = '0.0.0.0' }) {
     super();
     this.port = port;
     this.lossSim = lossSim;
@@ -277,7 +277,9 @@ class UdpServer extends EventEmitter {
     this._nextSession = 1;
     this._sock.on('message', (buf, rinfo) => this._onMessage(buf, rinfo));
     this._sock.on('error', (e) => this.emit('error', e));
-    this._sock.bind(port, () => this.emit('listening', port));
+    // Fly.io UDP KRÄVER bind till 'fly-global-services' (ej 0.0.0.0 — Linux skickar
+    // annars fel käll-adress i svaret). Lokalt = 0.0.0.0. Sätts via UDP_BIND-env.
+    this._sock.bind(port, bindAddr, () => this.emit('listening', port));
     if (onConnection) this.on('connection', onConnection);
     this._timer = setInterval(() => {
       const now = Date.now();
