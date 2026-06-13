@@ -152,18 +152,49 @@ function load() {
   }
 }
 
+let _saving = false;   // pågående async-write (förhindra överlappande skrivningar)
+
+// PERF-FIX (2026-06-13, "feta spikes då och då"): konto-saven gjorde förr en
+// SYNKRON fs.writeFileSync av ALLA konton — det blockerade hela Node-event-loopen
+// medan filen skrevs (10-tals/100-tals ms på Fly-volymen). Saven debounce:as till
+// var 3:e sekund medan kontot är "dirty" (XP/mynt från kills mitt i matchen) →
+// sim-tick:en + world-broadcasten frös var ~3:e sekund → alla enemies stod still
+// och "flög ikapp" sen. Nu: ASYNKRON write. Atomisk temp+rename behålls.
 function saveNow() {
+  _dirty = false;
+  if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
+  if (_saving) {   // en write pågår → markera om och schemalägg ny efteråt
+    _dirty = true;
+    if (!_saveTimer) _saveTimer = setTimeout(() => { _saveTimer = null; if (_dirty) saveNow(); }, 3000);
+    return;
+  }
+  let data;
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    data = JSON.stringify({ accounts: [...accounts.values()] });
+  } catch (e) { console.warn('[ACCT] save-prep misslyckades —', e.message); return; }
+  _saving = true;
+  const tmp = DATA_FILE + '.tmp';
+  fs.writeFile(tmp, data, (err) => {
+    if (err) { _saving = false; console.warn('[ACCT] async write misslyckades —', err.message); return; }
+    fs.rename(tmp, DATA_FILE, (err2) => {
+      _saving = false;
+      if (err2) console.warn('[ACCT] async rename misslyckades —', err2.message);
+    });
+  });
+}
+
+function saveNowSync() {
+  // Synkron flush — BARA vid shutdown (SIGTERM), då async inte hinner före exit.
   _dirty = false;
   if (_saveTimer) { clearTimeout(_saveTimer); _saveTimer = null; }
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
-    // Atomisk skrivning (granskning 2026-06-12): temp + rename — en crash mitt i
-    // write trunkerar annars accounts.json (datan är långlivad på Fly-volymen).
     const tmp = DATA_FILE + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify({ accounts: [...accounts.values()] }));
     fs.renameSync(tmp, DATA_FILE);
   } catch (e) {
-    console.warn('[ACCT] save misslyckades —', e.message);
+    console.warn('[ACCT] sync save misslyckades —', e.message);
   }
 }
 
@@ -174,7 +205,7 @@ function markDirty() {
 }
 
 process.on('SIGTERM', () => {
-  try { if (_dirty) saveNow(); } catch (e) {}
+  try { if (_dirty || _saving) saveNowSync(); } catch (e) {}
   process.exit(0);
 });
 
