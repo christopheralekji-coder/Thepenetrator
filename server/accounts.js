@@ -329,17 +329,43 @@ function getMe(ws) {
   return accounts.get(ws.accountId) || null;
 }
 
-function handleLogin(ws, msg) {
+// ── SESSION-TOKEN-LAGER (DTLS-alternativet, 2026-06-13) ──────────────────────
+// Konto-SECRETEN går nu BARA över HTTPS (/auth/session, TLS-terminerad av Fly) →
+// servern returnerar en kortlivad token. Klienten skickar sedan BARA token över
+// UDP (acct_login{token}) → ws binds. Secreten korsar ALDRIG plaintext-UDP.
+// Token roterar (TTL) + är revokerbar (vs permanent secret = oåterkallelig).
+const sessionTokens = new Map(); // token → { accountId, exp }
+const SESSION_TTL_MS = 60 * 60 * 1000; // 1h — klienten HTTPS-refreshar vid utgång
+function issueSession(accountId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  sessionTokens.set(token, { accountId, exp: Date.now() + SESSION_TTL_MS });
+  return token;
+}
+function lookupSession(token) {
+  if (typeof token !== 'string' || !token) return null;
+  const s = sessionTokens.get(token);
+  if (!s) return null;
+  if (Date.now() > s.exp) { sessionTokens.delete(token); return null; }
+  return s.accountId;
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [t, s] of sessionTokens) if (now > s.exp) sessionTokens.delete(t);
+}, 10 * 60 * 1000).unref();
+
+// Konto-resolution från credentials (id+secret) + profil-applicering. DELAS av
+// HTTPS-handshaket OCH legacy-secret-login. Returnerar acc, eller null vid auth-fel.
+// H-FRI (anropas även från HTTP-tråden där H ej är satt).
+function resolveAccountFromCreds(msg) {
   const secret = typeof msg.secret === 'string' ? msg.secret.slice(0, 128) : '';
-  if (secret.length < 16) { sendErr(ws, 'auth'); return; }
+  if (secret.length < 16) return null;
   let id = typeof msg.id === 'string' ? msg.id.trim() : '';
   let acc = id ? accounts.get(id) : null;
   if (acc) {
-    // id finns server-side → secret MÅSTE matcha
-    if (acc.secret !== secret) { sendErr(ws, 'auth'); return; }
+    if (acc.secret !== secret) return null;   // id finns → secret MÅSTE matcha
   } else {
-    // id okänt (servern kan ha tappat data — Render flyktig disk) eller saknas
-    // → skapa konto. Klientens id återanvänds om giltigt + ledigt, annars nytt.
+    // id okänt (Render-dataförlust) eller saknas → skapa konto. Klientens id
+    // återanvänds om giltigt + ledigt, annars nytt.
     if (!/^[0-9]{1,16}$/.test(id) || accounts.has(id)) id = genAccountId();
     acc = {
       id, secret,
@@ -351,38 +377,83 @@ function handleLogin(ws, msg) {
     accounts.set(id, acc);
     console.log('[ACCT]', id, 'konto skapat');
   }
-  // Profil-payload från login
   const name = sanitizeName(msg.name);
   if (name) acc.name = name;
   if (msg.avatar && typeof msg.avatar === 'object') acc.avatar = msg.avatar;
   const stats = sanitizeStats(msg.stats);
   if (stats) { acc.stats = stats; acc.level = computeLevel(stats); }
-  // Resync-modellen: klientens friends-lista är den durabla kopian → ERSÄTTER
-  // serverns lista för detta konto (fältet utelämnat → behåll serverns).
-  if (Array.isArray(msg.friends)) acc.friends = sanitizeFriendIds(msg.friends, id);
-  // Samma konto från ny socket → gamla socketens accountId kopplas loss (senaste vinner)
-  const old = online.get(id);
-  if (old && old !== ws) old.accountId = null;
-  ws.accountId = id;
-  online.set(id, ws);
+  // Resync-modellen: klientens friends-lista ERSÄTTER serverns (utelämnat → behåll).
+  if (Array.isArray(msg.friends)) acc.friends = sanitizeFriendIds(msg.friends, acc.id);
   acc.lastSeen = Date.now();
   markDirty();
-  // requests = inkommande förfrågningar med avsändar-profil
+  return acc;
+}
+
+// acct_logged_in-payload (utan type). DELAS av token-bind + legacy + HTTPS-svaret.
+function loginPayload(acc) {
   const requests = [];
   for (const rid of acc.reqIn) {
     const r = accounts.get(rid);
     if (r) requests.push({ id: r.id, name: r.name, avatar: r.avatar });
   }
-  H.send(ws, {
-    type: 'acct_logged_in',
+  return {
     id: acc.id, name: acc.name, avatar: acc.avatar, level: acc.level,
     friends: buildFriendsList(acc),
     requests,
     sentRequests: acc.reqOut.slice(),
-    bound: boundOf(acc), // bind-lagret: vilka providers kontot är knutet till
-    stats: acc.stats,    // v2 (additivt): mynt/XP-recovery vid reinstall — V1 ignorerar
+    bound: boundOf(acc),
+    stats: acc.stats,
+  };
+}
+
+// Binder en SOCKET till ett (redan resolvat) konto: online-swap, ws.accountId,
+// acct_logged_in + presence. Kräver H (anropas bara via WS-dispatchern → H satt).
+function bindSocketToAccount(ws, acc) {
+  const old = online.get(acc.id);
+  if (old && old !== ws) old.accountId = null;
+  ws.accountId = acc.id;
+  online.set(acc.id, ws);
+  acc.lastSeen = Date.now();
+  markDirty();
+  H.send(ws, Object.assign({ type: 'acct_logged_in' }, loginPayload(acc)));
+  notifyFriendsOf(acc.id); // vänner ser online:true
+}
+
+function handleLogin(ws, msg) {
+  // NY VÄG: token (från HTTPS /auth/session) → secreten korsar aldrig UDP.
+  if (typeof msg.token === 'string' && msg.token) {
+    const accId = lookupSession(msg.token);
+    const acc = accId ? accounts.get(accId) : null;
+    if (!acc) { sendErr(ws, 'session'); return; } // utgången/okänd → klienten HTTPS-refreshar
+    bindSocketToAccount(ws, acc);
+    return;
+  }
+  // LEGACY: secret direkt. Säkert över WSS/TLS (lokal test) + HTTPS-fallback;
+  // över plaintext-UDP osäkert → V2-prod-klienten använder token-vägen ovan.
+  const acc = resolveAccountFromCreds(msg);
+  if (!acc) { sendErr(ws, 'auth'); return; }
+  bindSocketToAccount(ws, acc);
+}
+
+// HTTPS POST /auth/session — TLS-skyddat secret-handshake → kortlivad token.
+// Körs från HTTP-servern (server.js). H-fritt anropsträd. Body = login-payloaden.
+function handleSessionHttp(req, res) {
+  let body = '';
+  req.on('data', (c) => { body += c; if (body.length > 16384) { try { req.destroy(); } catch (e) {} } });
+  req.on('end', () => {
+    let msg; try { msg = JSON.parse(body || '{}'); } catch (e) { res.writeHead(400); res.end('bad json'); return; }
+    const acc = resolveAccountFromCreds(msg || {});
+    if (!acc) {
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'auth' }));
+      return;
+    }
+    const token = issueSession(acc.id);
+    console.log('[ACCT] HTTPS session-token utfärdad', acc.id);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(Object.assign({ token, expiresInSec: Math.floor(SESSION_TTL_MS / 1000) }, loginPayload(acc))));
   });
-  notifyFriendsOf(id); // vänner ser online:true
+  req.on('error', () => { try { res.writeHead(400); res.end(); } catch (e) {} });
 }
 
 function handleUpdate(ws, msg) {
@@ -942,4 +1013,4 @@ function handle(ws, msg, helpers) {
   }
 }
 
-module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback };
+module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp };

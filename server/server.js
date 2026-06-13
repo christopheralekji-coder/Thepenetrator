@@ -46,6 +46,13 @@ const server = http.createServer((req, res) => {
     accounts.handleGoogleRedirect(req, res);
     return;
   }
+  // DTLS-alternativet: TLS-skyddat secret-handshake → kortlivad session-token.
+  // Klienten skickar sedan BARA token över UDP (acct_login{token}) → secreten
+  // korsar aldrig plaintext-UDP. Additivt — V1 träffar aldrig denna path.
+  if (req.url === '/auth/session' && req.method === 'POST') {
+    accounts.handleSessionHttp(req, res);
+    return;
+  }
   if (req.url === '/errors' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(errorLog, null, 2));
