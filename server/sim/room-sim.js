@@ -7740,7 +7740,13 @@ function applyPlayerInput(sim, peerId, input) {
                    sim.gungameActive || sim.kothActive ||
                    sim.juggernautActive || sim.battleroyaleActive;
   if (typeof input.hp === 'number' && ws.playerState.gulagState !== 'fighting') {
-    const staleDeathEcho = _pureP2P && input.hp <= 0 && ws.playerState.hp > 0;
+    // Stale-death-echo-skydd: en klient som ekar hp<=0 MEDAN servern har spelaren
+    // LEVANDE (hp>0) = fördröjt/stale eko, applicera INTE. Drabbade CO-OP REMATCH:
+    // gamla scenens hp=0-inputs anländer efter serverns respawn-reset → server 0 →
+    // world-eko 0 → klient ekar 0 → EVIG DÖD-LOOP ("spela igen → spawnar död").
+    // Gällde förut bara _pureP2P (M2-fix för PvP); co-op behövde det också. Legit
+    // co-op-död är server-driven (server hp då också <=0 → guard triggar EJ).
+    const staleDeathEcho = input.hp <= 0 && ws.playerState.hp > 0;
     if (!staleDeathEcho) ws.playerState.hp = input.hp;
   }
   if (typeof input.aim === 'number') ws.playerState.aim = input.aim;
