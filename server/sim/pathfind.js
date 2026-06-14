@@ -113,9 +113,17 @@ const SQRT2 = 1.41421356;
 // A* över griden. Returnerar array av cell-index (start→mål) eller null.
 function astar(g, sIdx, gIdx) {
   const n = g.cols * g.rows;
-  const gScore = new Float32Array(n).fill(Infinity);
-  const came = new Int32Array(n).fill(-1);
-  const closed = new Uint8Array(n);
+  // PERF: återanvänd scratch-buffrar per grid. Förut: 3× typed-array-alloc om n element
+  // (BR 200×200 = 40000) PER A*-anrop → GC-spikar med många bots = [SLOW-TICK]. Nu
+  // allokeras de en gång/grid och nollställs (memset, billigt) per anrop.
+  if (!g._gScore || g._gScore.length !== n) {
+    g._gScore = new Float32Array(n);
+    g._came = new Int32Array(n);
+    g._closed = new Uint8Array(n);
+  }
+  const gScore = g._gScore; gScore.fill(Infinity);
+  const came = g._came; came.fill(-1);
+  const closed = g._closed; closed.fill(0);
   const sx = sIdx % g.cols, sy = (sIdx / g.cols) | 0;
   const gx = gIdx % g.cols, gy = (gIdx / g.cols) | 0;
   const h = (cx, cy) => {
@@ -125,7 +133,9 @@ function astar(g, sIdx, gIdx) {
   gScore[sIdx] = 0;
   const heap = [];
   heapPush(heap, [h(sx, sy), sIdx]);
-  const maxIter = n * 2;
+  // PERF: cap utforskning. På stora öppna arenor kan en lång/omöjlig väg annars expandera
+  // hela griden (BR: 80000 iter). Bots klarar sig med rak väg + steerAround om A* ger upp.
+  const maxIter = n * 2 < 6000 ? n * 2 : 6000;
   let iter = 0;
   while (heap.length && iter++ < maxIter) {
     const [, cur] = heapPop(heap);

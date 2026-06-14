@@ -1075,7 +1075,7 @@ function handleMessage(ws, msg) {
       heist: msg.heist,
       heistRoles: msg.heistRoles,
       addBot: !!msg.addBot,
-      botCount: Math.max(1, Math.min(7, msg.botCount || 1)),
+      botCount: Math.max(1, Math.min(24, msg.botCount || 1)),
       botSkill: msg.botSkill || 'normal',
       botTeam: msg.botTeam,
       botNames: Array.isArray(msg.botNames) ? msg.botNames : null,
@@ -1083,7 +1083,7 @@ function handleMessage(ws, msg) {
       // V2: per-bot skill-mix (saniterad — bara giltiga nivåer släpps igenom,
       // resten faller tillbaka på botSkill i spawn-loopen).
       botSkills: Array.isArray(msg.botSkills)
-        ? msg.botSkills.slice(0, 7).map(s => (s === 'easy' || s === 'normal' || s === 'hard') ? s : null)
+        ? msg.botSkills.slice(0, 24).map(s => (s === 'easy' || s === 'normal' || s === 'hard') ? s : null)
         : null,
     });
     // Markera rummet som "startat" i public-listan + uppdatera mode

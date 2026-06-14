@@ -6679,7 +6679,7 @@ function startSim(sim, opts) {
   // Bot-spawn: lägg bot(s) som virtuella members INNAN mode-init så loopen tilldelar
   // dem team + spawn-pos precis som riktiga spelare. Pre-set team respekteras
   // av mode-init-loopen via ws._isBot-check.
-  const botCount = Math.max(0, Math.min(7, (opts && opts.addBot) ? (opts.botCount || 1) : 0));
+  const botCount = Math.max(0, Math.min(24, (opts && opts.addBot) ? (opts.botCount || 1) : 0));
   if (botCount > 0) {
     const inTeamMode = sim.tdmActive || sim.ctfActive || sim.siegeActive;
     const skill = (opts && opts.botSkill) || 'normal';

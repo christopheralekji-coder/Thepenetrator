@@ -62,8 +62,14 @@ function losBlocked(sim, x0, y0, x1, y1) {
   const walls = getActiveWalls(sim);
   if (!walls || !walls.length) return false;
   const dx = x1 - x0, dy = y1 - y0;
+  // PERF: bounding-box-broadphase. En LoS-linje är kort (≤720px); de allra flesta väggar
+  // ligger helt utanför segmentets bbox och kan slängas med 4 jämförelser INNAN den dyra
+  // Liang-Barsky-testen. Kritiskt i BR (2694 väggar) × många bots → annars [SLOW-TICK].
+  const segMinX = x0 < x1 ? x0 : x1, segMaxX = x0 < x1 ? x1 : x0;
+  const segMinY = y0 < y1 ? y0 : y1, segMaxY = y0 < y1 ? y1 : y0;
   for (let i = 0; i < walls.length; i++) {
     const w = walls[i];
+    if (w.x > segMaxX || w.x + w.w < segMinX || w.y > segMaxY || w.y + w.h < segMinY) continue;
     let tMin = 0, tMax = 1, hit = true;
     const checks = [
       { p: -dx, q: x0 - w.x },
@@ -185,7 +191,12 @@ function findCoverPoint(sim, px, py, tx, ty, now, bot) {
   return best;
 }
 
-const BOT_NAMES = ['Hovigo', 'Jamlo', 'Kostefo', 'Wisämo', 'Salimius', 'Muzzius', 'Okanius'];
+// Fallback-pool när host inte skickar botNames (lobbyn skickar alltid). Utökad till ≥24
+// så en full BR-lobby inte tömmer poolen → undefined-namn. Matchar V2:s BOT_NAMES-ordning.
+const BOT_NAMES = ['Hovigo', 'Jamlo', 'Kostefo', 'Wisämo', 'Salimius', 'Muzzius', 'Okanius',
+  'Bahmo', 'Zaffo', 'Lindo', 'Nahro', 'Gabro', 'Shamiro', 'Aboodo', 'Tonyo', 'Eliyo',
+  'Saro', 'Ninos', 'Ashuro', 'Malko', 'Robino', 'Sargo', 'Yakubo', 'Daniyo', 'Georgo',
+  'Marawgo', 'Basho', 'Fadelo'];
 let _botCounter = 0;
 
 // Skill-presets: påverkar aim-jitter och fire-rate
@@ -529,33 +540,43 @@ function chooseShootTarget(sim, botWs) {
   const px = ps.x, py = ps.y, team = botWs.tdmTeam;
   const w = W_BY_ID[ps.weaponId] || {};
   const range = w.type === 'melee' ? (w.range || 36) + 22 : 720;
-  let best = null, bestD2 = range * range;
+  const r2 = range * range;
   const isPvP = sim.tdmActive || sim.ctfActive || sim.siegeActive || sim.gungameActive ||
                 sim.kothActive || sim.juggernautActive || sim.battleroyaleActive;
+  // PERF (24-bot-stöd): samla in-range-kandidater med distans (BILLIGT — ingen losBlocked),
+  // sortera närmast först, och LoS-testa BARA nerifrån tills en är fri (cap). Förut: en
+  // losBlocked per kandidat × varje bot × varje tick = O(bots·members·walls) → [SLOW-TICK]
+  // i BR (2694 väggar). Nu max ~6 losBlocked/bot.
+  const cands = [];
   if (isPvP) {
+    const nowMs = Date.now();
     for (const [pid, ws] of sim.room.members) {
       if (pid === botWs.id) continue;
       if (!ws.playerState || ws.playerState.hp <= 0) continue;
       if (team && ws.tdmTeam === team) continue;            // skippa lagkamrater
-      if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
-      // v1.671: skjut INTE genom väggar — hoppa mål utan fri sikt (kulan skulle ändå
-      // träffa väggen). Boten väljer då närmaste mål den FAKTISKT kan träffa, eller
-      // inget (→ slutar skjuta in i väggen, fortsätter runt den via move-logiken).
-      if (losBlocked(sim, px, py, ws.playerState.x, ws.playerState.y)) continue;
+      if (nowMs < (ws.playerState.invulnUntil || 0)) continue;
       const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
       const d2 = dx * dx + dy * dy;
-      if (d2 < bestD2) { bestD2 = d2; best = { x: ws.playerState.x, y: ws.playerState.y, type: 'player', ref: ws }; }
+      if (d2 < r2) cands.push({ d2, x: ws.playerState.x, y: ws.playerState.y, ref: ws, enemy: false });
     }
   } else {
     for (const e of sim.enemies) {
       if (e.dead) continue;
-      if (losBlocked(sim, px, py, e.x, e.y)) continue;       // v1.671: skjut inte genom vägg
       const dx = e.x - px, dy = e.y - py;
       const d2 = dx * dx + dy * dy;
-      if (d2 < bestD2) { bestD2 = d2; best = { x: e.x, y: e.y, type: 'enemy', ref: e }; }
+      if (d2 < r2) cands.push({ d2, x: e.x, y: e.y, ref: e, enemy: true });
     }
   }
-  return best;
+  if (!cands.length) return null;
+  cands.sort((a, b) => a.d2 - b.d2);
+  const maxChecks = cands.length < 6 ? cands.length : 6;   // skjut inte genom vägg — men cap LoS-tester
+  for (let i = 0; i < maxChecks; i++) {
+    const c = cands[i];
+    if (!losBlocked(sim, px, py, c.x, c.y)) {
+      return { x: c.x, y: c.y, type: c.enemy ? 'enemy' : 'player', ref: c.ref };
+    }
+  }
+  return null;
 }
 
 // v1.665: CTF-rörelse-mål — situationell offensiv/försvar (skjut-mål hanteras separat).
