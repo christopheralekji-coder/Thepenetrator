@@ -560,7 +560,15 @@ function tickSim(sim) {
   // Flaggan sätts bara av sandbox-stages (V1 skickar aldrig sandbox) → no-op för V1.
   if (sim._hasSandboxDummies) {
     for (const e of sim.enemies) {
-      if (e._sandboxDummy) { e.hp = e.maxHp; e.dead = false; }
+      if (e._sandboxDummy) {
+        // V2: dummies är odödliga MEN ska visa skadesiffror (DPS-test). Räkna skadan
+        // som togs denna tick (maxHp − hp) och skicka ett event INNAN vi toppar upp.
+        const taken = (e.maxHp || 0) - (e.hp || 0);
+        if (taken > 0.5) {
+          sim.eventQueue.push({ type: 'dummy_damage', x: Math.round(e.x), y: Math.round(e.y - (e.r || 20)), dmg: Math.round(taken) });
+        }
+        e.hp = e.maxHp; e.dead = false;
+      }
     }
   }
 
