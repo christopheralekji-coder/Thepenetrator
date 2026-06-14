@@ -18,6 +18,11 @@ const { CTF_ARENA, bulletHitsWall } = require('../../shared/ctf-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
 const { GUNGAME_ARENA } = require('../../shared/gungame-arena');
 const { TDM_ARENA } = require('../../shared/tdm-arena');
+// V2: juggernaut/heist hade väggdata men kopplades ALDRIG in i bot-navigeringen →
+// bots sprang rakt in i väggar (ingen pathfinding/LoS) i de lägena. Castledefense har
+// tomma walls (öppen plaza) men egna world-dims för clamp.
+const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
+const { HEIST_ARENA } = require('../../shared/heist-arena');
 // v1.667: riktig A*-pathfinding (nav-grid + string-pull) ersätter reaktiv steerAround
 // som primär ruttläggning. steerAround behålls som lokal säkerhetsnät mellan waypoints.
 const { nextWaypoint } = require('./pathfind');
@@ -29,6 +34,8 @@ function getActiveWalls(sim) {
   if (sim.gungameActive) return GUNGAME_ARENA.walls;
   if (sim.kothActive) return KOTH_ARENA.walls;
   if (sim.battleroyaleActive) return BATTLEROYALE_ARENA.walls;
+  if (sim.juggernautActive) return JUGGERNAUT_ARENA.walls || null;
+  if (sim.heistActive) return HEIST_ARENA.walls || null;
   if (sim.tdmActive) return TDM_ARENA.walls || null;
   return null;
 }
@@ -38,7 +45,9 @@ function getWorldDims(sim) {
   if (sim.tdmArena && sim.tdmArena.worldW) return { worldW: sim.tdmArena.worldW, worldH: sim.tdmArena.worldH };
   if (sim.ctfActive) return { worldW: CTF_ARENA.worldW, worldH: CTF_ARENA.worldH };
   if (sim.siegeActive) return { worldW: SIEGE_ARENA.worldW || 5000, worldH: SIEGE_ARENA.worldH || 3000 };
-  if (sim.juggernautActive) return { worldW: 5000, worldH: 3500 };
+  if (sim.juggernautActive) return { worldW: JUGGERNAUT_ARENA.worldW || 5000, worldH: JUGGERNAUT_ARENA.worldH || 3500 };
+  if (sim.heistActive) return { worldW: HEIST_ARENA.worldW || 4000, worldH: HEIST_ARENA.worldH || 4000 };
+  if (sim.castledefenseActive) return { worldW: 4000, worldH: 4000 };
   if (sim.battleroyaleActive) return { worldW: BATTLEROYALE_ARENA.worldW, worldH: BATTLEROYALE_ARENA.worldH };
   if (sim.gungameActive) return { worldW: GUNGAME_ARENA.worldW || 3500, worldH: GUNGAME_ARENA.worldH || 2000 };
   if (sim.kothActive) return { worldW: KOTH_ARENA.worldW || 3500, worldH: KOTH_ARENA.worldH || 2000 };
@@ -98,6 +107,84 @@ function steerAround(sim, ps, hx, hy, speed, dt) {
   ps.y += hy * speed * dt;
 }
 
+// V2 TAKTIK-LAGER (throttlad ~350ms/bot — bara för smart>0, dvs normal/hard).
+// Skannar närområdet EN gång per fönster och cachar på bot._tac: hur många fiender vs
+// lagkamrater är nära (numerärt över/underläge), lagets tyngdpunkt (för regroup) och
+// närmaste hot (för cover-retreat). Allt nedströmsbeteende läser cachen → inga extra
+// O(members)-svep per tick.
+function assessTactical(sim, botWs, now) {
+  const bot = botWs._bot;
+  if (bot._tac && now - (bot._tacAt || 0) < 350) return bot._tac;
+  const ps = botWs.playerState;
+  const px = ps.x, py = ps.y, team = botWs.tdmTeam;
+  const R2 = 560 * 560;
+  const isPvP = sim.tdmActive || sim.ctfActive || sim.siegeActive || sim.gungameActive ||
+                sim.kothActive || sim.juggernautActive || sim.battleroyaleActive;
+  let foes = 0, allies = 0, ax = 0, ay = 0;
+  let threatX = null, threatY = null, threatD2 = Infinity;
+  if (isPvP) {
+    for (const [pid, ws] of sim.room.members) {
+      if (pid === botWs.id) continue;
+      if (!ws.playerState || ws.playerState.hp <= 0) continue;
+      const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > R2) continue;
+      // I FFA-lägen (gungame/koth/jugg/br) finns inga lagkamrater → alla är hot.
+      const sameTeam = team && ws.tdmTeam && ws.tdmTeam === team;
+      if (sameTeam) { allies++; ax += ws.playerState.x; ay += ws.playerState.y; }
+      else { foes++; if (d2 < threatD2) { threatD2 = d2; threatX = ws.playerState.x; threatY = ws.playerState.y; } }
+    }
+  } else {
+    // PvE: hot = fiender, lagkamrater = andra spelare/bots (för regroup/cover)
+    for (const e of sim.enemies) {
+      if (e.dead) continue;
+      const dx = e.x - px, dy = e.y - py;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > R2) continue;
+      foes++; if (d2 < threatD2) { threatD2 = d2; threatX = e.x; threatY = e.y; }
+    }
+    for (const [pid, ws] of sim.room.members) {
+      if (pid === botWs.id) continue;
+      if (!ws.playerState || ws.playerState.hp <= 0) continue;
+      const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
+      if (dx * dx + dy * dy > R2) continue;
+      allies++; ax += ws.playerState.x; ay += ws.playerState.y;
+    }
+  }
+  const tac = {
+    foes, allies,
+    allyCx: allies ? ax / allies : px,
+    allyCy: allies ? ay / allies : py,
+    outnumbered: foes > allies + 1,   // genuint underläge (1v1 räknas inte)
+    threatX, threatY,
+  };
+  bot._tac = tac; bot._tacAt = now;
+  return tac;
+}
+
+// Hitta en cover-punkt som BRYTER line-of-sight till hotet (hård bot retirerar bakom
+// vägg och läker i st.f. att bara springa rakt bort i öppen terräng). Throttlad ~400ms.
+// Provar växande vinklar runt "bort-från-hot"-riktningen; första punkten som (a) inte
+// ligger i en vägg och (b) är skymd från hotet vinner.
+function findCoverPoint(sim, px, py, tx, ty, now, bot) {
+  if (bot._coverPt !== undefined && now - (bot._coverAt || 0) < 400) return bot._coverPt;
+  bot._coverAt = now;
+  const walls = getActiveWalls(sim);
+  if (!walls || !walls.length) { bot._coverPt = null; return null; }
+  const away = Math.atan2(py - ty, px - tx);
+  const dist = 200;
+  const offs = [0, 0.55, -0.55, 1.1, -1.1, 1.7, -1.7, 2.4, -2.4, Math.PI];
+  let best = null;
+  for (const o of offs) {
+    const a = away + o;
+    const cx = px + Math.cos(a) * dist, cy = py + Math.sin(a) * dist;
+    if (bulletHitsWall({ x: cx, y: cy, r: 16 }, walls)) continue;   // punkten är i en vägg
+    if (losBlocked(sim, tx, ty, cx, cy)) { best = { x: cx, y: cy }; break; }  // skymd → bra cover
+  }
+  bot._coverPt = best;
+  return best;
+}
+
 const BOT_NAMES = ['Hovigo', 'Jamlo', 'Kostefo', 'Wisämo', 'Salimius', 'Muzzius', 'Okanius'];
 let _botCounter = 0;
 
@@ -113,9 +200,16 @@ const BOT_SKILL = {
   // Nya spakar: dmgMul (skott+melee-skada) + moveMul (rörelsefart = 180*mul), båda
   // skill-skalade. easy = dålig sikt, långsam eld, halv skada, långsam, retirerar
   // tidigt. hard = oförändrat vass.
-  easy:   { aimJitter: 0.62, cooldownMul: 2.8, reactionMs: 700, fleeHp: 0.45, leadAim: 0.0, dmgMul: 0.5,  moveMul: 0.72 },
-  normal: { aimJitter: 0.16, cooldownMul: 1.45, reactionMs: 230, fleeHp: 0.30, leadAim: 0.4, dmgMul: 0.85, moveMul: 0.92 },
-  hard:   { aimJitter: 0.05, cooldownMul: 1.0,  reactionMs: 80,  fleeHp: 0.40, leadAim: 0.9, dmgMul: 1.0,  moveMul: 1.0 },
+  // V2: `smart` [0..1] driver det TAKTISKA lagret (cover-sökning, regroup vid
+  // numerärt underläge, fokus-eld på svaga mål, retreat som bryter LoS). Det är detta
+  // — inte bara aim/skada — som gör nivåerna KÄNNBART olika: easy rusar in dumt utan
+  // cover, hard spelar positionellt. easy hoppar HELT över taktik-lagret (smart=0 →
+  // ingen CPU-kostnad + medvetet korkat beteende).
+  // hard tuning: "tuff men slåbar" (på begäran) — behåller LITE jitter/reaktion så den
+  // känns mänsklig, inte aimbot (var 0.05/80ms → 0.06/110ms, leadAim 0.9→0.85).
+  easy:   { aimJitter: 0.62, cooldownMul: 2.8, reactionMs: 700, fleeHp: 0.45, leadAim: 0.0,  dmgMul: 0.5,  moveMul: 0.72, smart: 0.0 },
+  normal: { aimJitter: 0.16, cooldownMul: 1.45, reactionMs: 230, fleeHp: 0.30, leadAim: 0.4,  dmgMul: 0.85, moveMul: 0.92, smart: 0.5 },
+  hard:   { aimJitter: 0.06, cooldownMul: 1.0,  reactionMs: 110, fleeHp: 0.42, leadAim: 0.85, dmgMul: 1.0,  moveMul: 1.0,  smart: 1.0 },
 };
 
 // v1.663: skill-anpassat default-vapen för modes som INTE sätter bot-vapen själva
@@ -208,14 +302,28 @@ function tickBots(sim, dt, now) {
     const maxHp = ps.maxHp || 100;
     bot.fleeing = (ps.hp / maxHp) < (skill.fleeHp || 0.3) && (ps.shield || 0) <= 0;
 
+    // V2: throttlad taktik-bedömning (numerärt läge, lag-tyngdpunkt, närmaste hot).
+    // Bara smart>0 (normal/hard) → easy förblir korkad OCH gratis CPU-mässigt.
+    const smart = skill.smart || 0;
+    if (smart > 0) assessTactical(sim, botWs, now);
+    else bot._tac = null;
+
     // v1.665: FRIKOPPLAT rörelse-mål vs skjut-mål. Förut styrde ETT target båda →
     // boten "väntade" vid objektiv-mål (flagga/bas) och slogs aldrig på vägen, eller
     // stannade och slogs istället för att spela läget. Nu: marschera mot OBJEKTIVET
     // medan du skjuter närmaste fiende i räckvidd.
     // 1) RÖRELSE-MÅL — objektiv-styrt per mode.
-    const moveTarget = chooseBotTarget(sim, botWs);
+    let moveTarget = chooseBotTarget(sim, botWs);
     bot.target = moveTarget;
     if (!moveTarget) continue;
+
+    // V2: HÅRD bot som flyr söker COVER (bryter LoS bakom vägg och läker) i st.f. att
+    // bara backa rakt i öppen terräng. Override:ar rörelse-målet — skjut-målet behålls
+    // (kan fortfarande peppra om den råkar ha sikt på vägen till skyddet).
+    if (bot.fleeing && smart > 0.7 && bot._tac && bot._tac.threatX != null) {
+      const cover = findCoverPoint(sim, ps.x, ps.y, bot._tac.threatX, bot._tac.threatY, now, bot);
+      if (cover) { moveTarget = { x: cover.x, y: cover.y, type: 'cover' }; bot.target = moveTarget; }
+    }
 
     // 2) SKJUT-MÅL — närmaste fiende i räckvidd, oberoende av rörelsen. Faller tillbaka
     //    till rörelse-målet om det är skjutbart (fiende/player/core) och inget annat finns.
@@ -309,6 +417,10 @@ function chooseBotTarget(sim, botWs) {
   if (sim.tdmActive && !sim.tdmEnded) {
     return findClosestPlayer(sim, botWs, /*excludeTeam*/ team);
   }
+  // HEIST (co-op stealth): följ laget (vakter + objektiv-interaktion är ej bot-spelbara).
+  if (sim.heistActive && !sim.heistEnded) {
+    return chooseHeistTarget(sim, botWs);
+  }
   // Story/coop (PvE): v1.663 — om en lagkamrat ligger nedslagen i närheten och boten
   // inte själv flyr, gå och återuppliva (updateRevive räddar när boten står inom 50px
   // i 5s). Annars närmsta enemy. Gör bots till riktiga co-op-lagkamrater.
@@ -317,6 +429,43 @@ function chooseBotTarget(sim, botWs) {
     if (reviveTarget) return reviveTarget;
   }
   return findClosestEnemy(sim, botWs);
+}
+
+// V2: HEIST-rörelse-mål. Vakter ligger i sim.heistNPCs (ej sim.enemies) och väska/borr/
+// extract kräver klient-actions som bots inte skickar → bots kan inte "lösa" heisten
+// själva. Minimal vettig roll: ESKORTERA närmaste levande människa genom banken (navigerar
+// väggar korrekt nu) så de inte står frusna. All-bot → drift mot närmaste obärgade loot.
+// (Full heist-combat/objektiv-AI = separat större jobb — kräver guard-combat-wiring +
+// bot-interaktions-API.)
+function chooseHeistTarget(sim, botWs) {
+  const px = botWs.playerState.x, py = botWs.playerState.y;
+  // 1) Nedslagen lagkamrat nära → revive (om heist använder deadBodies).
+  if (!botWs._bot.fleeing) {
+    const rev = chooseReviveTarget(sim, botWs);
+    if (rev) return rev;
+  }
+  // 2) Följ närmaste levande MÄNNISKA (eskort-avstånd ~110px).
+  let best = null, bestD2 = Infinity;
+  for (const [pid, ws] of sim.room.members) {
+    if (pid === botWs.id || ws._isBot) continue;
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < bestD2) { bestD2 = d2; best = ws; }
+  }
+  if (best) return { x: best.playerState.x, y: best.playerState.y, type: 'escort', ref: best };
+  // 3) All-bot: närmaste obärgade loot så de rör sig framåt genom banken.
+  if (HEIST_ARENA.lootSpots) {
+    let bl = null, bd2 = Infinity;
+    for (const lo of HEIST_ARENA.lootSpots) {
+      if (sim.heistLootBagged && sim.heistLootBagged[lo.id]) continue;
+      const dx = lo.x - px, dy = lo.y - py;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bd2) { bd2 = d2; bl = lo; }
+    }
+    if (bl) return { x: bl.x, y: bl.y, type: 'br_loot' };   // br_loot = objektiv-stå-nära
+  }
+  return null;
 }
 
 // v1.663: hitta närmsta nedslagna lagkamrat (deadBody) inom rimligt avstånd att gå till.
@@ -337,6 +486,10 @@ function chooseReviveTarget(sim, botWs) {
 
 function findClosestPlayer(sim, botWs, excludeTeam) {
   const px = botWs.playerState.x, py = botWs.playerState.y;
+  // V2: HP-viktningens STYRKA skalas med skill. easy (smart 0) → ren närhet (korkat,
+  // ignorerar avslutningsbara mål). hard (smart 1) → stark fokus-eld på svaga.
+  const smart = (botWs._bot && botWs._bot.skill && botWs._bot.skill.smart) || 0;
+  const wgt = 0.5 * smart;
   let best = null, bestD2 = Infinity;
   for (const [pid, ws] of sim.room.members) {
     if (pid === botWs.id) continue;
@@ -346,10 +499,8 @@ function findClosestPlayer(sim, botWs, excludeTeam) {
     // Skip respawn-invuln targets (oskjutbara — slösa inte tid)
     if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
     const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
-    // v1.663: HP-viktad poäng — föredra avslutningsbara (låg-HP) mål utan att
-    // ignorera närhet (distans dominerar fortfarande). Fokus-eld på svaga.
     const hpFrac = Math.max(0, Math.min(1, (ws.playerState.hp || 100) / (ws.playerState.maxHp || 100)));
-    const score = (dx * dx + dy * dy) * (0.6 + 0.4 * hpFrac);
+    const score = (dx * dx + dy * dy) * (1 - wgt + wgt * hpFrac);
     if (score < bestD2) { bestD2 = score; best = { x: ws.playerState.x, y: ws.playerState.y, type: 'player', ref: ws }; }
   }
   return best;
@@ -357,13 +508,15 @@ function findClosestPlayer(sim, botWs, excludeTeam) {
 
 function findClosestEnemy(sim, botWs) {
   const px = botWs.playerState.x, py = botWs.playerState.y;
+  // V2: skill-skalad fokus-eld (se findClosestPlayer).
+  const smart = (botWs._bot && botWs._bot.skill && botWs._bot.skill.smart) || 0;
+  const wgt = 0.5 * smart;
   let best = null, bestD2 = Infinity;
   for (const e of sim.enemies) {
     if (e.dead) continue;
     const dx = e.x - px, dy = e.y - py;
-    // v1.663: HP-viktad poäng — föredra avslutningsbara fiender (distans dominerar).
     const hpFrac = Math.max(0, Math.min(1, (e.hp || 1) / (e.maxHp || e.hp || 1)));
-    const score = (dx * dx + dy * dy) * (0.6 + 0.4 * hpFrac);
+    const score = (dx * dx + dy * dy) * (1 - wgt + wgt * hpFrac);
     if (score < bestD2) { bestD2 = score; best = { x: e.x, y: e.y, type: 'enemy', ref: e }; }
   }
   return best;
@@ -645,6 +798,7 @@ function moveBotTowards(sim, botWs, target, dt) {
   }
   if (target.type === 'escort') desiredDist = 110;   // v1.665: följ flagg-bäraren nära (skydda)
   if (bot.fleeing && !isObjective) desiredDist = Math.max(desiredDist, 520);
+  if (target.type === 'cover') desiredDist = 12;     // V2: gå ända in i skyddet (bryt LoS)
   const speed = 180 * ((bot.skill && bot.skill.moveMul) || 1);   // v1.673: skill-skalad fart
 
   // Wall-unstick (v1.670 KRITISK FIX): mät förflyttning över ett ~700ms-FÖNSTER,
@@ -684,10 +838,21 @@ function moveBotTowards(sim, botWs, target, dt) {
   // (annars wobble: bot strafe:r 90° → tillbaka utanför zonen → unstick triggas
   // igen → loop. Måste prioritera "kom IN i zonen" framför wall-unstick.)
   const isBrZoneEscape = sim.battleroyaleActive && target.type === 'br_zone_center';
+  // V2: OVEREXTEND-SPÄRR — smart bot i numerärt underläge pushar INTE ensam mot ett
+  // kill-mål. Den faller tillbaka mot lagets tyngdpunkt (regroup) men håller blicken mot
+  // hotet (aim sätts mot target nedan), så den kan fortfarande skjuta medan den backar.
+  const tac = bot._tac;
+  const smartM = (bot.skill && bot.skill.smart) || 0;
+  const overextend = smartM > 0.6 && tac && tac.outnumbered && tac.allies >= 1
+    && !isObjective && !bot.fleeing && target.type !== 'cover' && isKillTarget
+    && Math.hypot(tac.allyCx - ps.x, tac.allyCy - ps.y) > 90;
   if (now < bot.unstickUntil && !isBrZoneEscape) {
     const nx = -dy / d, ny = dx / d;
     ps.x += nx * speed * bot.strafeDir * dt;
     ps.y += ny * speed * bot.strafeDir * dt;
+  } else if (overextend) {
+    const gx = tac.allyCx - ps.x, gy = tac.allyCy - ps.y, gl = Math.hypot(gx, gy) || 1;
+    steerAround(sim, ps, gx / gl, gy / gl, speed * 0.85, dt);
   } else if (mustClose || d > desiredDist) {
     // v1.667: A*-pathfinding — följ waypoints RUNT väggar. nextWaypoint returnerar
     // null om målet är fritt synligt (gå rakt) eller om ingen väg hittas. steerAround
