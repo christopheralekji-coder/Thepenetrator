@@ -1080,6 +1080,11 @@ function handleMessage(ws, msg) {
       botTeam: msg.botTeam,
       botNames: Array.isArray(msg.botNames) ? msg.botNames : null,
       botTeams: Array.isArray(msg.botTeams) ? msg.botTeams : null,
+      // V2: per-bot skill-mix (saniterad — bara giltiga nivåer släpps igenom,
+      // resten faller tillbaka på botSkill i spawn-loopen).
+      botSkills: Array.isArray(msg.botSkills)
+        ? msg.botSkills.slice(0, 7).map(s => (s === 'easy' || s === 'normal' || s === 'hard') ? s : null)
+        : null,
     });
     // Markera rummet som "startat" i public-listan + uppdatera mode
     if (room.meta) {

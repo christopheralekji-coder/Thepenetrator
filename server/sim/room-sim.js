@@ -6683,6 +6683,8 @@ function startSim(sim, opts) {
   if (botCount > 0) {
     const inTeamMode = sim.tdmActive || sim.ctfActive || sim.siegeActive;
     const skill = (opts && opts.botSkill) || 'normal';
+    // V2: per-bot skill-mix. opts.botSkills[bi] (giltig nivå) > opts.botSkill > 'normal'.
+    const perBotSkills = (opts && Array.isArray(opts.botSkills)) ? opts.botSkills : null;
     // stable-slot: bots tilldelas nästa stabila slot-index efter de riktiga
     // spelarna. Slot lagras på botWs.stableSlot och broadcastWorld läser det
     // via p._wsRef.stableSlot (precis som för riktiga peers). colorIdx i
@@ -6718,7 +6720,9 @@ function startSim(sim, opts) {
       // Använd host-skickat namn om tillgängligt (synkar lobby ↔ match),
       // annars fall tillbaka till server-shuffle från BOT_NAMES.
       const customName = (opts && Array.isArray(opts.botNames) && opts.botNames[bi]) || null;
-      const botInfo = addBot(sim, botTeam, skill, customName);
+      const thisSkill = (perBotSkills && (perBotSkills[bi] === 'easy' || perBotSkills[bi] === 'normal' || perBotSkills[bi] === 'hard'))
+        ? perBotSkills[bi] : skill;
+      const botInfo = addBot(sim, botTeam, thisSkill, customName);
       // Tilldela stableSlot på botens fake-ws (samma mekanism som riktiga peers).
       // Bots återanvänder lediga slots precis som riktiga spelare.
       const botWs = roomRef.members.get(botInfo.id);
