@@ -74,7 +74,7 @@ function applyGravity(sim, x, y, radius, fromPid) {
 }
 // Eldkastarens brinnande mark — liten kort fläck där kulan slår ner (throttlad i bullets).
 function spawnFlamePatch(sim, x, y, fromPid) {
-  spawnZone(sim, 'fire', x, y, 60, 1800, fromPid, 8);
+  spawnZone(sim, 'fire', x, y, 16, 1800, fromPid, 8);   // ~75% mindre eldspår (var 60)
 }
 
 // Tickas varje sim-tick: FIRE skadar entiteter (throttlat ~4/s), GRAVITY drar dem mot

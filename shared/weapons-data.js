@@ -27,7 +27,7 @@ const WEAPONS = [
 
   // ── MELEE (2) — båda ger rörelse; ingen distans = svagheten ───────────────
   { id: 'knife',   type: 'melee', dmg: 26,  rate: 200, range: 40, color: '#bcc8d0', moveSpeedMul: 1.25 },
-  { id: 'katana',  type: 'melee', dmg: 60,  rate: 330, range: 78, color: '#e6e6f0', moveSpeedMul: 1.10, pierce: true },
+  { id: 'katana',  type: 'melee', dmg: 60,  rate: 330, range: 90, color: '#e6e6f0', moveSpeedMul: 1.10, pierce: true },
 
   // ── PISTOLER (2) ───────────────────────────────────────────────────────────
   // pistol: START, rent/pålitligt — noll spridning + snabb omladdning; låg DPS.
@@ -53,7 +53,7 @@ const WEAPONS = [
   // rifle: AUTOMATKARBIN — kontroll (tight 3-burst, hög precision); lägre topp-DPS.
   { id: 'rifle',  type: 'gun', dmg: 22, rate: 110, speed: 900, mag: 24, reload: 1400, spread: 0.025, color: '#5fd95f', burstCount: 3, burstDelay: 60, ammoCost: 3 },
   // sniper: AWP — örnöga (utzoom medan buren) + one-shot + pierce; långsam, 1 mag, värdelös nära.
-  { id: 'sniper', type: 'gun', dmg: 140, rate: 1400, speed: 1800, mag: 1, reload: 2200, spread: 0.0, pierce: true, color: '#bb88ff', zoom: 1.2 },
+  { id: 'sniper', type: 'gun', dmg: 200, rate: 1400, speed: 1800, mag: 1, reload: 2200, spread: 0.0, pierce: true, color: '#bb88ff', zoom: 1.32 },
 
   // ── TUNGA / SUSTAINED (3) ──────────────────────────────────────────────────
   // minigun: TUNG KULSPRUTA — undertryckning (enorm mag); spin-up + saktar dig (immobil).
