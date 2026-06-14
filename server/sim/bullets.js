@@ -510,12 +510,17 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
     const nowF = Date.now();
     if (!sim._flamePatchAt) sim._flamePatchAt = {};
     const fkey = p.peerId || 'x';
-    if (nowF - (sim._flamePatchAt[fkey] || 0) > 220) {
+    if (nowF - (sim._flamePatchAt[fkey] || 0) > 160) {
       sim._flamePatchAt[fkey] = nowF;
-      const fpx = p.x + Math.cos(p.aimAngle) * 240;
-      const fpy = p.y + Math.sin(p.aimAngle) * 240;
-      require('./grenades').spawnFlamePatch(sim, fpx, fpy, p.peerId);
-      sim.eventQueue.push({ type: 'fire_patch', x: Math.round(fpx), y: Math.round(fpy) });
+      // V2: droppa BRINNANDE SPÅR längs hela skjut-linjen (3 fläckar @ 110/200/290px),
+      // inte bara en i änden → man ser eld i linjen man eldar.
+      const cax = Math.cos(p.aimAngle), cay = Math.sin(p.aimAngle);
+      const sg = require('./grenades');
+      for (const dist of [110, 200, 290]) {
+        const fpx = p.x + cax * dist, fpy = p.y + cay * dist;
+        sg.spawnFlamePatch(sim, fpx, fpy, p.peerId);
+        sim.eventQueue.push({ type: 'fire_patch', x: Math.round(fpx), y: Math.round(fpy) });
+      }
     }
   }
   // Special: mind-control — mark närmsta fiende, ingen bullet
