@@ -22,7 +22,7 @@ function pvpActive(sim) {
 // BLÄNDGRANAT — vitnar fiendens skärm. Skalar med avstånd, LoS-blockerad, träffar ALLA.
 function applyFlashbang(sim, x, y, radius, fromPid) {
   const now = Date.now();
-  const MAXDUR = 2200;   // ms full bländning på nära håll
+  const MAXDUR = 3800;   // ms full bländning på nära håll (höjt — kändes för kort)
   // Spelare (inkl kastaren — design: alla i radien). Klienten whitar ut via 'flashed'.
   for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState || ws.playerState.hp <= 0) continue;

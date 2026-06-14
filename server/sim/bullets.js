@@ -96,11 +96,15 @@ function damageEnemy(e, dmg, isCrit, fromPid, weaponId) {
   // v2 #58 (additivt): sandbox-dummies är ODÖDLIGA — hit-flash men ingen hp-förlust.
   // _sandboxDummy sätts bara av sandbox-stages (V1 skickar aldrig sandbox) → no-op för V1.
   if (e._sandboxDummy) {
+    // V2 #58 fix: låt hp FALLA denna tick så room-sim:s (maxHp − hp) > 0 → skade-
+    // siffran visas (förr nollställdes hp HÄR → taken=0 → inga siffror = "osynlig
+    // sköld"-känsla). room-sim toppar upp hp + häver died i slutet av ticken.
+    e.hp -= dmg;
+    if (e.hp < 0) e.hp = 0;
     e.flashUntil = Date.now() + 80;
     if (fromPid) e.lastDamagerPid = fromPid;
     if (weaponId) e.lastDamagerWeapon = weaponId;
-    e.hp = e.maxHp;
-    return false;
+    return false;   // dör ALDRIG
   }
   e.hp -= dmg;
   e.flashUntil = (Date.now() + 80);
