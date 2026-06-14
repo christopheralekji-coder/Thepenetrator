@@ -520,7 +520,7 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
       // inte bara en i änden → man ser eld i linjen man eldar.
       const cax = Math.cos(p.aimAngle), cay = Math.sin(p.aimAngle);
       const sg = require('./grenades');
-      for (const dist of [44, 64, 84, 104]) {   // tätt ÖVERLAPPANDE eldspår (r=16 → lågorna går ihop)
+      for (const dist of [38, 54, 70, 86, 102]) {   // 5 lågor, ~16px isär → kraftig överlappning (r=16)
         const fpx = p.x + cax * dist, fpy = p.y + cay * dist;
         sg.spawnFlamePatch(sim, fpx, fpy, p.peerId);
         sim.eventQueue.push({ type: 'fire_patch', x: Math.round(fpx), y: Math.round(fpy) });
