@@ -1903,25 +1903,34 @@ function handleMessage(ws, msg) {
     const FLIGHT_MS = Math.max(200, Math.min(3000, +msg.flightMs || 800));
     const RADIUS = 85;
     const DMG = 120;
-    const kind = msg.kind === 'smoke' ? 'smoke' : 'frag';
-    // Broadcast till alla klienter (inkl thrower â€” thrower dedupar via ownerPid).
-    // RÃ¶k-molnet ritas client-side deterministiskt frÃ¥n detta event (samma pos+tid
-    // hos alla) â€” ingen kontinuerlig sync behÃ¶vs.
+    // V2: 5 granat-typer. CC (bländ/gravity) + area-denial (molotov) bor ENBART här.
+    const VALID = ['frag', 'smoke', 'flashbang', 'molotov', 'gravity'];
+    const kind = VALID.indexOf(msg.kind) >= 0 ? msg.kind : 'frag';
+    const RADIUS_BY = { frag: 85, smoke: 130, flashbang: 160, molotov: 110, gravity: 140 };
+    const DUR_BY = { frag: 0, smoke: 5000, flashbang: 2200, molotov: 5000, gravity: 2600 };
+    const radius = RADIUS_BY[kind] || 85;
+    // Broadcast till alla klienter (inkl thrower — dedupar via ownerPid). Klienten ritar
+    // effekten deterministiskt ur eventet (rök/eld/gravity); skada/CC är server-auth.
     sim.eventQueue.push({
       type: 'grenade_thrown',
       ownerPid: ws.id,
       fromX, fromY, toX, toY,
       flightMs: FLIGHT_MS,
-      radius: kind === 'smoke' ? 130 : RADIUS,
-      kind,
+      radius, kind,
+      durationMs: DUR_BY[kind] || 0,
     });
-    // RÃ–KGRANAT gÃ¶r INGEN skada â†’ ingen explode. SprÃ¤nggranat exploderar server-auth.
+    // Effekt vid nedslag (efter flightMs). Rök = bara visuell.
     if (kind !== 'smoke') {
       setTimeout(() => {
         if (!sim || sim._stopped) return;
-        const { explode } = require('./sim/bullets');
-        if (typeof explode === 'function') {
-          explode(sim, toX, toY, RADIUS, DMG, ws.id, 'grenade');  // v2 E6: kÃ¤llvapen fÃ¶r kill-weaponId
+        if (kind === 'frag') {
+          const { explode } = require('./sim/bullets');
+          if (typeof explode === 'function') explode(sim, toX, toY, RADIUS, DMG, ws.id, 'grenade');
+        } else {
+          const g = require('./sim/grenades');
+          if (kind === 'flashbang') g.applyFlashbang(sim, toX, toY, radius, ws.id);
+          else if (kind === 'molotov') g.applyMolotov(sim, toX, toY, radius, ws.id);
+          else if (kind === 'gravity') g.applyGravity(sim, toX, toY, radius, ws.id);
         }
       }, FLIGHT_MS);
     }

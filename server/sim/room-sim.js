@@ -7,6 +7,7 @@ const { makeBoss } = require('./bosses');
 const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy, explode, pveWalls } = require('./bullets');
 const { enterGulag, gulagMatchmake, tickGulag, voidAllGulag, startGulagPractice } = require('./gulag');
 const { addBot, tickBots, removeAllBots } = require('./bots');
+const { tickGrenadeZones } = require('./grenades');
 const { updateBoss } = require('./bosses');
 const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onWaveComplete, checkBossDeath } = require('./waves');
 const { getDiffMul: cdGetDiffMul, getCoopMultiplier: cdGetCoopMul, getCoopDmgMultiplier: cdGetCoopDmgMul, getCoopSpawnMultiplier: cdGetCoopSpawnMul } = require('../../shared/stages-data');
@@ -254,6 +255,9 @@ function tickSim(sim) {
   // Körs FÖRE mode-specifika branches så bot-position är updated innan
   // bullets uppdateras / damage appliceras.
   tickBots(sim, dt, now);
+  // V2: granat-zoner (molotov brinnande mark + gravitations-dragning). Bländgranat är
+  // omedelbar (server.js). Skadefritt no-op om inga zoner.
+  tickGrenadeZones(sim, dt, now);
 
   // 5s startup-countdown: skicka world-snapshot (för synk) men frys enemy-AI/spawn/damage
   if (sim.simReadyAt && now < sim.simReadyAt) {

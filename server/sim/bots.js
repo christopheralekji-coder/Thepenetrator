@@ -308,6 +308,19 @@ function tickBots(sim, dt, now) {
 
     const bot = botWs._bot;
     const skill = bot.skill || BOT_SKILL.normal;
+    // V2: BLÄNDGRANAT — desorienterad bot vandrar planlöst och skjuter inte (siktar fel).
+    if (botWs._flashedUntil && now < botWs._flashedUntil) {
+      if (bot._flashDirUntil == null || now > bot._flashDirUntil) {
+        bot._flashDir = Math.random() * Math.PI * 2;
+        bot._flashDirUntil = now + 300 + Math.random() * 300;
+      }
+      ps.x += Math.cos(bot._flashDir) * 90 * dt;
+      ps.y += Math.sin(bot._flashDir) * 90 * dt;
+      const wd = getWorldDims(sim);
+      ps.x = Math.max(50, Math.min(wd.worldW - 50, ps.x));
+      ps.y = Math.max(50, Math.min(wd.worldH - 50, ps.y));
+      continue;
+    }
     // v1.663: SJÄLVBEVARELSE — flagga för att kita/retirera när HP låg + ingen shield.
     // Skill-skalad (hard kitar tidigare = överlever längre = svårare motståndare).
     const maxHp = ps.maxHp || 100;
@@ -820,7 +833,8 @@ function moveBotTowards(sim, botWs, target, dt) {
   if (target.type === 'escort') desiredDist = 110;   // v1.665: följ flagg-bäraren nära (skydda)
   if (bot.fleeing && !isObjective) desiredDist = Math.max(desiredDist, 520);
   if (target.type === 'cover') desiredDist = 12;     // V2: gå ända in i skyddet (bryt LoS)
-  const speed = 180 * ((bot.skill && bot.skill.moveMul) || 1);   // v1.673: skill-skalad fart
+  const _wmm = (W_BY_ID[ps.weaponId] && W_BY_ID[ps.weaponId].moveSpeedMul) || 1;   // V2: kniv/katana/tung-MG
+  const speed = 180 * ((bot.skill && bot.skill.moveMul) || 1) * _wmm;   // v1.673: skill-skalad fart
 
   // Wall-unstick (v1.670 KRITISK FIX): mät förflyttning över ett ~700ms-FÖNSTER,
   // inte per-tick. Förr: `moved` jämförde bot.lastX (uppdaterad VARJE tick) mot en
@@ -987,4 +1001,4 @@ function removeAllBots(sim) {
   sim._botIds = [];
 }
 
-module.exports = { addBot, tickBots, removeAllBots };
+module.exports = { addBot, tickBots, removeAllBots, getActiveWalls, losBlocked };
