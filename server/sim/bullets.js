@@ -503,6 +503,21 @@ function handleGungameKill(sim, killerPid, killerWs, victimPid, victimWs, weapon
 function spawnPlayerBullets(sim, p, weaponId, params) {
   const w = W_BY_ID[weaponId];
   if (!w || w.type === 'melee') return;  // melee handled by applyMelee
+  // V2: eldkastarens BRINNANDE MARK — droppa kort eld-fläck framför skytten (throttlat
+  // per skytt, annars 1 fläck/skott = zon-spam). Skadan sker via tickGrenadeZones; ett
+  // litet fire_patch-event ritar elden klient-side.
+  if (w.burningGround) {
+    const nowF = Date.now();
+    if (!sim._flamePatchAt) sim._flamePatchAt = {};
+    const fkey = p.peerId || 'x';
+    if (nowF - (sim._flamePatchAt[fkey] || 0) > 220) {
+      sim._flamePatchAt[fkey] = nowF;
+      const fpx = p.x + Math.cos(p.aimAngle) * 240;
+      const fpy = p.y + Math.sin(p.aimAngle) * 240;
+      require('./grenades').spawnFlamePatch(sim, fpx, fpy, p.peerId);
+      sim.eventQueue.push({ type: 'fire_patch', x: Math.round(fpx), y: Math.round(fpy) });
+    }
+  }
   // Special: mind-control — mark närmsta fiende, ingen bullet
   if (w.id === 'mindcontrol') {
     let target = null, bestD2 = 999 * 999;

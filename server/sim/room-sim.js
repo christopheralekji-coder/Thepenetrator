@@ -4274,6 +4274,9 @@ function tickBrLootPickups(sim, nowMs) {
       } else if (lo.kind === 'smoke') {
         // BR rökgranat-pickup: ger +3 rökgranater (v1.748). Klient bumpar.
         applied = true;
+      } else if (lo.kind === 'flashbang' || lo.kind === 'molotov' || lo.kind === 'gravity') {
+        // V2: nya granat-typer som BR-loot. Klient bumpar rätt counter via event-kind.
+        applied = true;
       } else if (lo.kind === 'weapon' && lo.weaponId) {
         // BR tier-baserad auto-equip:
         // - Picked tier > current tier → auto-equip
