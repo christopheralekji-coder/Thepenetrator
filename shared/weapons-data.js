@@ -27,7 +27,7 @@ const WEAPONS = [
 
   // ── MELEE (2) — båda ger rörelse; ingen distans = svagheten ───────────────
   { id: 'knife',   type: 'melee', dmg: 26,  rate: 200, range: 40, color: '#bcc8d0', moveSpeedMul: 1.25 },
-  { id: 'katana',  type: 'melee', dmg: 60,  rate: 330, range: 90, color: '#e6e6f0', moveSpeedMul: 1.10, pierce: true },
+  { id: 'katana',  type: 'melee', dmg: 60,  rate: 330, range: 56, color: '#e6e6f0', moveSpeedMul: 1.10, pierce: true },
 
   // ── PISTOLER (2) ───────────────────────────────────────────────────────────
   // pistol: START, rent/pålitligt — noll spridning + snabb omladdning; låg DPS.
