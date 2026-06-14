@@ -1,61 +1,91 @@
-// Shared weapons data — speglar WEAPONS-arrayn i game.js:1102-1152.
-// MÅSTE hållas i sync vid varje vapen-ändring. Phase 8 ska unifiera via UMD.
+// Shared weapons data — V2 ARSENAL-ÖVERSYN 2026-06-14.
+// 42 vapen → 16 ikoniska SPELARVAPEN (perk + tydlig svaghet var) + 3 special-vapen
+// (turret_mg/turret_rocket/gulag_knock — mode-givna, ej i shop). Designspec:
+// se minnet penetrator_v2_weapon_redesign. CC bor ENBART i granaterna, ej i vapnen.
+//
+// Server är auktoritativ för skada → detta är källan. V2 (data/weapons.json + shop +
+// NetLocalPlayer.WEAPONS) speglar samma id:n/stats. game.js (V1) är DÖTT — rör ej.
+//
+// NYA FLAGGOR (vissa inerta tills klient/server wirar dem i senare fas):
+//   moveSpeedMul  — spelarens fart medan vapnet bärs (kniv/katana/tung-MG)
+//   pierce        — skott/hugg går genom mål (katana-cleave, AWP, ...)
+//   dualWield     — dubbel-vapen (visuell + eld-känsla)
+//   burstCount/burstDelay/ammoCost — burst-eld (karbin)
+//   pellets       — hagel-spridning
+//   spinUp        — {startRate,rampMs}: eldhast. rampar från startRate→rate (tung MG)
+//   recoilRamp    — spridning växer vid ihållande eld (AK)
+//   zoom          — kamera-utzoom medan buren (AWP: 1.2 = ser ~20% mer)
+//   burn          — DoT-stackar vid träff (eldkastare)
+//   burningGround — lämnar brinnande mark/väggar några sek (eldkastare)
+//   explosive     — AoE-explosion vid träff (granatgevär/raket)
 'use strict';
 
-// MÅSTE matcha game.js's WEAPONS-array. Borttagna: tonfa, boxgloves, glaive, drone.
 const WEAPONS = [
-  { id: 'fists',      type: 'melee', dmg: 8,   rate: 380, range: 36, color: '#dab27a' },
-  { id: 'knuckles',   type: 'melee', dmg: 16,  rate: 320, range: 38, color: '#c0a060' },
-  { id: 'knife',      type: 'melee', dmg: 22,  rate: 240, range: 38, color: '#bcc8d0' },
-  { id: 'bat',        type: 'melee', dmg: 40,  rate: 440, range: 50, color: '#7a4a20' }, // v1.697: synk m. game.js (32→40)
-  { id: 'machete',    type: 'melee', dmg: 42,  rate: 500, range: 56, color: '#9aa8b0' },
-  { id: 'sickle',     type: 'melee', dmg: 44,  rate: 380, range: 62, color: '#9a9aa0' },
-  { id: 'spear',      type: 'melee', dmg: 50,  rate: 460, range: 84, color: '#bcbccc' },
-  { id: 'axe',        type: 'melee', dmg: 78,  rate: 580, range: 50, color: '#9a7a5a' }, // v1.697: synk m. game.js (60→78)
-  { id: 'mace',       type: 'melee', dmg: 78,  rate: 700, range: 54, color: '#5a4a3a', knockback: 180 },
-  { id: 'whip',       type: 'melee', dmg: 38,  rate: 380, range: 96, color: '#5a4a30' },
-  { id: 'sledge',     type: 'melee', dmg: 130, rate: 700, range: 52, color: '#6a6a6a' }, // v1.697: dmg 100→130, rate 780→700
-  { id: 'katana',     type: 'melee', dmg: 88,  rate: 360, range: 70, color: '#e6e6f0' },
-  { id: 'energysword',type: 'melee', dmg: 120, rate: 340, range: 78, color: '#ff8a3a', pierce: true },
-  { id: 'lightsaber', type: 'melee', dmg: 150, rate: 350, range: 78, color: '#3aff5a', pierce: true }, // (game.js har samma dmg/rate; price bara klient-side)
-  { id: 'pistol',     type: 'gun',   dmg: 18,  rate: 340, speed: 700, mag: 12, reload: 1100, spread: 0.04, color: '#ffd14a' },
-  { id: 'shuriken',   type: 'gun',   dmg: 14,  rate: 130, speed: 700, mag: 24, reload: 1100, spread: 0.06, color: '#cccccc', burn: 2 },
-  { id: 'throwknife', type: 'gun',   dmg: 32,  rate: 280, speed: 760, mag: 12, reload: 1300, spread: 0.04, color: '#aaaacc' },
-  { id: 'revolver',   type: 'gun',   dmg: 52,  rate: 580, speed: 760, mag: 6,  reload: 1500, spread: 0.02, color: '#ffae3a' },
-  { id: 'burstpistol',type: 'gun',   dmg: 20,  rate: 480, speed: 720, mag: 24, reload: 1500, spread: 0.04, color: '#ffae3a', burstCount: 3, burstDelay: 70, ammoCost: 3 },
-  { id: 'shotgun',    type: 'gun',   dmg: 20,  rate: 620, speed: 760, mag: 8,  reload: 1700, spread: 0.30, pellets: 6, color: '#ff6b3d' }, // v1.697: synk m. game.js (dmg/rate/speed/mag/reload/spread)
-  { id: 'bow',        type: 'gun',   dmg: 90,  rate: 540, speed: 950, mag: 1,  reload: 500,  spread: 0.0,  color: '#3a8a3a', pierce: true },
-  { id: 'smg',        type: 'gun',   dmg: 14,  rate: 95,  speed: 740, mag: 30, reload: 1500, spread: 0.07, color: '#88ccff' },
-  { id: 'crossbow',   type: 'gun',   dmg: 110, rate: 900, speed: 950, mag: 4,  reload: 1700, spread: 0.0,  color: '#7a5a3a', pierce: true },
-  { id: 'rifle',      type: 'gun',   dmg: 26,  rate: 130, speed: 820, mag: 30, reload: 1800, spread: 0.05, color: '#5fd95f' },
-  { id: 'flame',      type: 'gun',   dmg: 11,  rate: 50,  speed: 400, mag: 80, reload: 2400, spread: 0.18, color: '#ff7a2a', burn: 6 },
-  { id: 'sonic',      type: 'gun',   dmg: 38,  rate: 320, speed: 600, mag: 8,  reload: 1700, spread: 0.05, color: '#ff5ac4', knockback: 280 },
-  { id: 'sniper',     type: 'gun',   dmg: 130, rate: 1300, speed: 1500, mag: 5, reload: 2400, spread: 0.0, pierce: true, color: '#bb88ff' },
-  { id: 'frost',      type: 'gun',   dmg: 28,  rate: 180, speed: 720, mag: 16, reload: 1900, spread: 0.04, color: '#9af2ff', slow: 1.8 },
-  { id: 'tesla',      type: 'gun',   dmg: 40,  rate: 200, speed: 1100, mag: 12, reload: 1800, spread: 0.0, color: '#ffeb3b', chain: 4 },
-  { id: 'grenade',    type: 'gun',   dmg: 80,  rate: 950, speed: 480, mag: 6, reload: 2400, spread: 0.04, explosive: 100, color: '#9aff5a' },
-  { id: 'boomerang',  type: 'gun',   dmg: 70,  rate: 550, speed: 600, mag: 8, reload: 1500, spread: 0.0, color: '#9a6a30', pierce: true, returns: true }, // v1.697: dmg 50→70 + synk m. game.js (rate 800→550, mag 4→8)
-  { id: 'plasma',     type: 'gun',   dmg: 95,  rate: 280, speed: 950, mag: 12, reload: 2200, spread: 0.0, color: '#3acaff' },
-  { id: 'rocket',     type: 'gun',   dmg: 150, rate: 1500, speed: 540, mag: 4, reload: 3000, spread: 0.02, explosive: 140, color: '#ff3c3c' },
-  { id: 'pullwhip',   type: 'gun',   dmg: 35,  rate: 500, speed: 800, mag: 6, reload: 1700, spread: 0.0, color: '#5a4030', pullsEnemy: true },
-  { id: 'timestop',   type: 'gun',   dmg: 100, rate: 900, speed: 1100, mag: 3, reload: 2500, spread: 0.0, color: '#9aff5a', timeStopMs: 1000 },
-  { id: 'blackhole',  type: 'gun',   dmg: 90,  rate: 1200, speed: 480, mag: 4, reload: 2400, spread: 0.0, color: '#aa3aff', pullRadius: 200 },
-  { id: 'mindcontrol',type: 'gun',   dmg: 0,   rate: 2000, speed: 600, mag: 2, reload: 4000, spread: 0.0, color: '#ff5aff', mindControlMs: 6000 },
-  { id: 'railgun',    type: 'gun',   dmg: 280, rate: 1600, speed: 2200, mag: 3, reload: 3000, spread: 0.0, pierce: true, color: '#ffffff' },
-  { id: 'minigun',    type: 'gun',   dmg: 22,  rate: 50,  speed: 920, mag: 100, reload: 3500, spread: 0.14, color: '#3cf0ff' },
-  // turret_mg: värsting-MG som spelaren får när de mountar CTF-tornet. Hög DPS,
-  // ingen reload, oändlig ammo. Bara åtkomlig via turret-enter, inte i shop.
-  // BALANSERING: 14→11 dmg så MG-DPS inte är >1.4× rifle (immobil tradeoff).
-  { id: 'turret_mg',  type: 'gun',   dmg: 11,  rate: 75,  speed: 1100, mag: 9999, reload: 0, spread: 0.07, color: '#ff5a3a' },
-  // turret_rocket: explosivt rocket launcher i Siege-tornen. Långsamt rate
-  // men HÖG dmg + AoE-explosion. BALANSERING: 120→70 dmg + 1400→1700ms rate
-  // så det inte längre 1-shot:ar 200-EHP-spelare via direct+AoE-double-dip.
+  // ── OBEVÄPNAD (sentinel — EJ i shop). 'fists' används som "inget vapen"-tillstånd
+  //    i hela servern (heist-intimidate, default-state, melee-demote). MÅSTE finnas.
+  { id: 'fists',   type: 'melee', dmg: 8,   rate: 380, range: 36, color: '#dab27a' },
+
+  // ── MELEE (2) — båda ger rörelse; ingen distans = svagheten ───────────────
+  { id: 'knife',   type: 'melee', dmg: 26,  rate: 200, range: 40, color: '#bcc8d0', moveSpeedMul: 1.25 },
+  { id: 'katana',  type: 'melee', dmg: 60,  rate: 330, range: 78, color: '#e6e6f0', moveSpeedMul: 1.10, pierce: true },
+
+  // ── PISTOLER (2) ───────────────────────────────────────────────────────────
+  // pistol: START, rent/pålitligt — noll spridning + snabb omladdning; låg DPS.
+  { id: 'pistol',     type: 'gun', dmg: 24, rate: 300, speed: 820, mag: 14, reload: 900,  spread: 0.0,  color: '#ffd14a' },
+  // dualpistol: run-and-gun spray; hög spridning + slukar ammo.
+  { id: 'dualpistol', type: 'gun', dmg: 18, rate: 150, speed: 780, mag: 24, reload: 1400, spread: 0.11, color: '#ffae3a', dualWield: true },
+
+  // ── HAGEL (2) ──────────────────────────────────────────────────────────────
+  // shotgun: PUMP — stoppkraft nära; långsam pumpning + kort räckvidd.
+  { id: 'shotgun',     type: 'gun', dmg: 16, rate: 760, speed: 760, mag: 6,  reload: 2000, spread: 0.28, pellets: 8, color: '#ff6b3d' },
+  // autoshotgun: full-auto hagel; extrem spridning + äter ammo.
+  { id: 'autoshotgun', type: 'gun', dmg: 11, rate: 300, speed: 720, mag: 10, reload: 2200, spread: 0.36, pellets: 6, color: '#ff8a3d' },
+
+  // ── SMG (2) ────────────────────────────────────────────────────────────────
+  // smg: MINI UZI — eldstorm + rörlig; låg skada/kula, kort räckvidd.
+  { id: 'smg',     type: 'gun', dmg: 13, rate: 80,  speed: 720, mag: 28, reload: 1300, spread: 0.09, color: '#88ccff' },
+  // dualuzi: max närstrids-DPS; usel träffbild, töms snabbt, lång omladdning.
+  { id: 'dualuzi', type: 'gun', dmg: 11, rate: 55,  speed: 700, mag: 40, reload: 2000, spread: 0.17, color: '#aaccff', dualWield: true },
+
+  // ── GEVÄR (3) ──────────────────────────────────────────────────────────────
+  // ak: AK47 — tunghand (hög skada/skott); kraftig rekyl-ramp + lägre eldhast.
+  { id: 'ak',     type: 'gun', dmg: 30, rate: 135, speed: 850, mag: 30, reload: 1900, spread: 0.045, color: '#caa46a', recoilRamp: 0.10 },
+  // rifle: AUTOMATKARBIN — kontroll (tight 3-burst, hög precision); lägre topp-DPS.
+  { id: 'rifle',  type: 'gun', dmg: 22, rate: 110, speed: 900, mag: 24, reload: 1400, spread: 0.025, color: '#5fd95f', burstCount: 3, burstDelay: 60, ammoCost: 3 },
+  // sniper: AWP — örnöga (utzoom medan buren) + one-shot + pierce; långsam, 1 mag, värdelös nära.
+  { id: 'sniper', type: 'gun', dmg: 140, rate: 1400, speed: 1800, mag: 1, reload: 2200, spread: 0.0, pierce: true, color: '#bb88ff', zoom: 1.2 },
+
+  // ── TUNGA / SUSTAINED (3) ──────────────────────────────────────────────────
+  // minigun: TUNG KULSPRUTA — undertryckning (enorm mag); spin-up + saktar dig (immobil).
+  { id: 'minigun', type: 'gun', dmg: 18, rate: 45, speed: 900, mag: 120, reload: 4000, spread: 0.13, color: '#3cf0ff', spinUp: { startRate: 140, rampMs: 1200 }, moveSpeedMul: 0.7 },
+  // lmg: LÄTT KULSPRUTA — rörlig eldkraft (stor mag, ingen spin-up); lägre DPS, lång omladdning.
+  { id: 'lmg',     type: 'gun', dmg: 20, rate: 90, speed: 880, mag: 60,  reload: 2600, spread: 0.08, color: '#7ad0ff' },
+  // flame: ELDKASTARE — brännmark (lång räckvidd, DoT, brinnande mark); låg direktskada, slukar bränsle.
+  { id: 'flame',   type: 'gun', dmg: 10, rate: 45, speed: 680, mag: 100, reload: 2200, spread: 0.12, color: '#ff7a2a', burn: 7, burningGround: true },
+
+  // ── EXPLOSIVT (2) ──────────────────────────────────────────────────────────
+  // grenade: GRANATGEVÄR — lobb (bågskott, studsar, AoE); restid/båge, låg eldhast.
+  { id: 'grenade', type: 'gun', dmg: 60,  rate: 700,  speed: 600, mag: 4, reload: 2400, spread: 0.03, explosive: 90,  color: '#9aff5a' },
+  // rocket: RAKETGEVÄR — spränghuvud (störst AoE, raksikte); mkt lång omladdning, 1 raket.
+  { id: 'rocket',  type: 'gun', dmg: 130, rate: 1500, speed: 560, mag: 1, reload: 3200, spread: 0.02, explosive: 140, color: '#ff3c3c' },
+
+  // ── SPECIAL (mode-givna, EJ i shop/loot/gungame) ───────────────────────────
+  // turret_mg: CTF-tornets MG (mountat). Hög DPS, ingen reload, immobil tradeoff.
+  { id: 'turret_mg',  type: 'gun', dmg: 11, rate: 75, speed: 1100, mag: 9999, reload: 0, spread: 0.07, color: '#ff5a3a' },
+  // turret_rocket: Siege-tornens raket. Långsam, hög dmg + AoE.
   { id: 'turret_rocket', type: 'gun', dmg: 70, rate: 1700, speed: 700, mag: 9999, reload: 0, spread: 0.0, color: '#ff8a3a', explosive: 80 },
-  // GULAG: knockback-kanon (The Void) — 0 dmg, knuffar offret (hanteras i bullets.js BR-hook).
-  // Endast åtkomlig i Gulag-1v1, aldrig i shop/loot.
+  // gulag_knock: Gulag-knockback-kanon (The Void). 0 dmg, knuffar (bullets.js BR-hook).
   { id: 'gulag_knock', type: 'gun', dmg: 0, rate: 300, speed: 920, mag: 9999, reload: 0, spread: 0.03, color: '#5ac7ff', gulagKnock: true },
 ];
 
 const W_BY_ID = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
 
-module.exports = { WEAPONS, W_BY_ID };
+// De 16 spelarvapnen i kanonisk ordning (shop/gungame/loot/UI bygger på denna).
+// Special-vapnen ingår INTE.
+const PLAYER_WEAPON_IDS = [
+  'knife', 'katana', 'pistol', 'dualpistol', 'shotgun', 'autoshotgun',
+  'smg', 'dualuzi', 'ak', 'rifle', 'sniper', 'minigun', 'lmg', 'flame',
+  'grenade', 'rocket',
+];
+
+module.exports = { WEAPONS, W_BY_ID, PLAYER_WEAPON_IDS };

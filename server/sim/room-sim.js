@@ -7059,7 +7059,7 @@ function startSim(sim, opts) {
     sim.simReadyAt = Date.now() + cdMs;
     // Bot:s vapen-roterande i KOTH — random från common-arsenal så de inte alla
     // har samma vapen. Riktiga spelare behåller sin equipped.
-    const KOTH_BOT_WEAPONS = ['pistol', 'smg', 'rifle', 'shotgun', 'burstpistol', 'revolver'];
+    const KOTH_BOT_WEAPONS = ['pistol', 'smg', 'rifle', 'shotgun', 'ak', 'dualpistol'];
     // FFA — max-spread så ingen spawnar bredvid varandra.
     const kothPlayerCount = sim.room.members.size;
     const kothSpreadSpawns = pickSpreadSpawns(KOTH_ARENA.spawns, kothPlayerCount);
@@ -7935,7 +7935,7 @@ function applyPlayerInput(sim, peerId, input) {
 //     bara att id finns i vapenkatalogen. (CD har dessutom redan tier-låset ovan.)
 // Gulag-duellen forcerar redan sitt vapen FÖRE detta steg; mounted turret forceras
 // EFTER (override vinner alltid).
-const COOP_ARSENAL = ['fists', 'knife', 'pistol', 'shuriken', 'burstpistol', 'shotgun', 'sniper', 'rifle'];
+const COOP_ARSENAL = ['fists', 'knife', 'pistol', 'smg', 'autoshotgun', 'shotgun', 'sniper', 'rifle'];
 const TDM_BASE_WEAPONS = ['fists', 'knife', 'pistol'];
 
 function _logWeaponClamp(sim, peerId, from, to, why) {

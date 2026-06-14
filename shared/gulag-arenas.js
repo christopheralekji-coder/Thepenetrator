@@ -122,9 +122,9 @@ const GULAG_GAMES = {
   // 3) BLADE BRAWL — laser-svärds-närstrid i krympande ring (lava utanför).
   blade: {
     id: 'blade', name: 'BLADE BRAWL', emoji: '⚔️',
-    hint: 'Laser-svärd! ~3 träffar. Håll dig i ringen!',
+    hint: 'Katana! ~3 träffar. Håll dig i ringen!',
     shape: 'ring',
-    loadout: { weaponId: 'lightsaber', hp: 320, shield: 0 },
+    loadout: { weaponId: 'katana', hp: 320, shield: 0 },
     groundColor: '#160707',
     maxMs: 35000,
     // v1.796: ringen krymper snabbare (full krymp vid 23s, var 37s) + mindre slutring

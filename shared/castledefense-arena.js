@@ -120,13 +120,13 @@ const CASTLEDEFENSE_ARENA = {
   weaponProgression: [
     'pistol',      // 0 — start (Gun)
     'shotgun',     // 1 — boss 1 (wave 5)
-    'burstpistol', // 2 — boss 2 (wave 10)
-    'shuriken',    // 3 — boss 3 (wave 15)
-    'smg',         // 4 — boss 4 (wave 20)
-    'plasma',      // 5 — boss 5 (wave 25)
-    'rocket',      // 6 — boss 6 (wave 30)
-    'flame',       // 7 — boss 7 (wave 35)
-    'minigun',     // 8 — FINAL boss 8 (wave 40)
+    'smg',         // 2 — boss 2 (wave 10)
+    'autoshotgun', // 3 — boss 3 (wave 15)
+    'rifle',       // 4 — boss 4 (wave 20)
+    'ak',          // 5 — boss 5 (wave 25)
+    'flame',       // 6 — boss 6 (wave 30)
+    'minigun',     // 7 — boss 7 (wave 35)
+    'rocket',      // 8 — FINAL boss 8 (wave 40)
   ],
   // Grenades per cleared wave (v1.401)
   grenadesPerWave: 2,

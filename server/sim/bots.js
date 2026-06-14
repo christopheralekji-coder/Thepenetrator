@@ -229,7 +229,7 @@ const BOT_SKILL = {
 const BOT_WEAPON_POOL = {
   easy:   ['pistol', 'smg'],
   normal: ['rifle', 'smg', 'shotgun'],
-  hard:   ['rifle', 'revolver', 'burstpistol'],
+  hard:   ['rifle', 'ak', 'lmg'],   // V2-roster; inga snipers på hard (medvetet)
 };
 function pickBotWeapon(skillName) {
   const pool = BOT_WEAPON_POOL[skillName] || BOT_WEAPON_POOL.normal;
@@ -714,9 +714,9 @@ function chooseBattleRoyaleTarget(sim, botWs) {
     const myW = botWs.playerState.weaponId;
     const HIGH_TIER = new Set([
       // legendary
-      'minigun', 'lightsaber',
+      'minigun', 'sniper', 'rocket',
       // rare
-      'rifle', 'sniper', 'flame', 'energysword',
+      'rifle', 'shotgun', 'flame', 'ak',
     ]);
     const hasHighTierWeapon = HIGH_TIER.has(myW);
     let bestLoot = null, bestD2 = Infinity;
@@ -813,8 +813,8 @@ function moveBotTowards(sim, botWs, target, dt) {
   }
   else if (isMelee) desiredDist = Math.max(20, (w.range || 36) - 5);
   else {
-    const LONG = ['sniper', 'railgun', 'crossbow', 'bow', 'rifle', 'minigun'];
-    const SHORT = ['shotgun', 'flame', 'smg'];
+    const LONG = ['sniper', 'ak', 'rifle', 'lmg', 'minigun', 'grenade', 'rocket'];
+    const SHORT = ['shotgun', 'autoshotgun', 'smg', 'dualuzi', 'dualpistol'];
     desiredDist = LONG.indexOf(ps.weaponId) >= 0 ? 460 : (SHORT.indexOf(ps.weaponId) >= 0 ? 150 : 260);
   }
   if (target.type === 'escort') desiredDist = 110;   // v1.665: följ flagg-bäraren nära (skydda)

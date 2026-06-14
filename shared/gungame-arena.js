@@ -98,34 +98,32 @@ const GUNGAME_ARENA = {
 // trade-off för 1-hit kill-melee. Kill med melee → ev. demotion av offret.
 // Demotion-floor: när offret är på tier ≥ 9 (level 10+) kan de INTE demoteras
 // under tier 9 — annars hopplöst grind efter att ha klivit sig upp i late-game.
+// V2-arsenal: 16 vapen = 16 tiers (hela rostern, svag→stark, melee-finisher).
 const GUNGAME_WEAPONS = [
-  'throwknife',  // 1  — START (Kastkniv)
-  'revolver',    // 2  — heavy pistol (v1.700: bytt med pistol — pistol var DPS-svacka direkt efter start)
-  'pistol',      // 3  — basic gun
-  'burstpistol', // 4  — 3-burst
-  'shotgun',     // 5  — close-range power
-  'shuriken',    // 6  — rapid throwing + burn
-  'smg',         // 7  — auto-fire
-  'crossbow',    // 8  — pierce precision
-  'sniper',      // 9  — one-shot precision (level 10 = demotion-floor)
-  'rifle',       // 10 — standard auto
-  'plasma',      // 11 — high-dmg
-  'rocket',      // 12 — explosive AoE
-  'minigun',     // 13 — heavy auto
-  'flame',       // 14 — burn DoT close-range
-  'sledge',      // 15 — FINAL melee 1-hit kill (TUNG — -10% movement speed)
+  'knife',       // 1  — START (snabb mobil melee)
+  'pistol',      // 2  — pålitlig prick
+  'dualpistol',  // 3  — run-and-gun spray
+  'smg',         // 4  — mini uzi
+  'autoshotgun', // 5  — full-auto hagel
+  'shotgun',     // 6  — pump, stoppkraft
+  'dualuzi',     // 7  — max närstrids-DPS
+  'lmg',         // 8  — rörlig eldkraft
+  'rifle',       // 9  — karbin (precision-burst)
+  'ak',          // 10 — tunghand
+  'flame',       // 11 — brännmark
+  'sniper',      // 12 — AWP one-shot (tier 12 = demotion-floor-region)
+  'minigun',     // 13 — tung kulspruta
+  'grenade',     // 14 — granatgevär (AoE)
+  'rocket',      // 15 — raketgevär (störst AoE)
+  'katana',      // 16 — FINAL melee-förnedring (klyver, mobil)
 ];
 
 // Demotion-floor: vid death med melee, om offret är på tier >= GUNGAME_DEMOTE_FLOOR
 // så är det också det LÄGSTA de kan demoteras till. Skyddar late-game-spelare.
-const GUNGAME_DEMOTE_FLOOR = 9; // = level 10 (1-indexed)
+const GUNGAME_DEMOTE_FLOOR = 11; // = level 12 (1-indexed), 16-tier-roster
 
-// Vilka vapen räknas som "melee" för demotion-mekanik?
-// Killer med dessa → offret förlorar 1 tier (kan inte gå under 0).
-const GUNGAME_MELEE_DEMOTERS = new Set([
-  'fists', 'knife', 'knuckles', 'bat', 'machete', 'sickle', 'spear',
-  'axe', 'mace', 'whip', 'sledge', 'katana', 'energysword', 'lightsaber',
-]);
+// Vilka vapen räknas som "melee" för demotion-mekanik? (V2: bara kvarvarande melee)
+const GUNGAME_MELEE_DEMOTERS = new Set(['fists', 'knife', 'katana']);
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS, GUNGAME_DEMOTE_FLOOR };

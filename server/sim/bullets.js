@@ -1689,7 +1689,7 @@ function updateBullets(sim, dt, now) {
       ? { x: ownerWsForCheese.playerState.x, y: ownerWsForCheese.playerState.y } : null;
     // SPATIAL-HASH: query bara enemies inom ~60px av bullet istället för linear-scan
     // (max enemy-r ≈ 50, max bullet-r ≈ 5 + lag-comp 8 = 63px worst-case).
-    const _longRangeIds = ['sniper', 'railgun', 'crossbow', 'bow', 'rifle', 'minigun'];
+    const _longRangeIds = ['sniper', 'ak', 'rifle', 'lmg', 'minigun'];
     const _isLong = b.weaponId && _longRangeIds.indexOf(b.weaponId) >= 0;
     const queryR = (b.r || 4) + 60;
     // v1.656: queryInto (noll-alloc, återanvänd scratch) istället för getNearby som

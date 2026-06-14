@@ -1685,7 +1685,7 @@ function handleMessage(ws, msg) {
       if (ws._heistRole !== 'rogue') return;
       if (sim.heistPhase !== 'stealth') return;
       // Melee-vapen krÃ¤vs (fists/knife/melee-types)
-      const meleeWeapons = ['fists', 'knife', 'knuckles', 'bat', 'machete'];
+      const meleeWeapons = ['fists', 'knife', 'katana'];
       if (!meleeWeapons.includes(ps.weaponId)) return;
       const npcId = String(msg.npcId || '');
       const npc = (sim.heistNPCs || []).find(n => n.id === npcId && n.type === 'guard' && !n.dead);
