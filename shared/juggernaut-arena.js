@@ -343,7 +343,7 @@ const JUGGERNAUT_ARENA = {
 
   // JUG-specifika vapenval. Klient visar dessa i weapon-switch-UI när
   // spelaren är JUG; server validerar att val är inom denna lista.
-  jugWeapons: ['rifle', 'shotgun', 'sledge'],
+  jugWeapons: ['rifle', 'shotgun', 'katana'],
   jugDefaultWeapon: 'rifle',  // 'automatkarbinen' = rifle i weapons-data
 
   // Match-konfig
