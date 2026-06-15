@@ -1042,6 +1042,36 @@ async function coreGcLogin(me, msg) {
 async function handleGcLogin(ws, msg) { applyChannelResult(ws, await coreGcLogin(getMe(ws), msg)); }
 
 // EN ingång från server.js message-handler (alla type som börjar med "acct_")
+// LEDERBORD: topp 25 konton efter vald metrik (read-only).
+function handleLeaderboard(ws, msg) {
+  const metric = (msg.metric === 'kills' || msg.metric === 'level') ? msg.metric : 'wins';
+  const arr = [];
+  for (const acc of accounts.values()) {
+    let v;
+    if (metric === 'level') v = computeLevel(acc.stats);
+    else v = (acc.stats && +acc.stats[metric]) || 0;
+    arr.push({ id: acc.id, name: acc.name, level: computeLevel(acc.stats), value: v });
+  }
+  arr.sort((a, b) => b.value - a.value);
+  H.send(ws, { type: 'acct_leaderboard_result', metric, top: arr.slice(0, 25) });
+}
+
+// REFERRAL: någon löste in DIN kod → +gems till referrern (additivt, max-merge-säkert).
+// Redeemerns egen välkomstbonus delas ut klient-side (engångs, spårad i vault).
+function handleReferral(ws, msg) {
+  const me = getMe(ws);
+  const code = String(msg.code || '').trim();
+  if (!me || !code || code === me.id) return;
+  const ref = accounts.get(code);
+  if (!ref) { sendErr(ws, 'badcode'); return; }
+  if (!ref.vault) ref.vault = {};
+  ref.vault.gems = (Math.max(0, Math.round(+ref.vault.gems) || 0)) + 150;   // referrer-bonus
+  markDirty();
+  sendOk(ws, 'referral');
+  const rws = online.get(code);
+  if (rws) H.send(rws, { type: 'acct_referral_credit', amount: 150 });
+}
+
 function handle(ws, msg, helpers) {
   if (helpers) H = helpers;
   if (!H) return;
@@ -1054,6 +1084,8 @@ function handle(ws, msg, helpers) {
     case 'acct_friend_decline': handleFriendDecline(ws, msg); return;
     case 'acct_friend_remove': handleFriendRemove(ws, msg); return;
     case 'acct_invite': handleInvite(ws, msg); return;
+    case 'acct_leaderboard': handleLeaderboard(ws, msg); return;
+    case 'acct_referral': handleReferral(ws, msg); return;
     // Bind-lagret (async-handlers sköter sina fel själva — fire-and-forget)
     case 'acct_email_bind': handleEmailBind(ws, msg); return;
     case 'acct_email_login': handleEmailLogin(ws, msg); return;
