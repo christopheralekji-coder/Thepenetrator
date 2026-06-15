@@ -87,6 +87,20 @@ function sanitizeStats(raw) {
   return out;
 }
 
+// v2 PREMIUM-VAULT (additivt): opak progression-blob (gems, battle pass, kosmetik)
+// som följer kontot → överlever reinstall. Klient-auktoritativ tills riktig IAP;
+// servern lagrar/ekar bara (storleks-cappad mot abuse).
+function sanitizeVault(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  try {
+    const s = JSON.stringify(raw);
+    if (s.length > 12000) return null;   // för stor → ignorera
+    return JSON.parse(s);
+  } catch (e) {
+    return null;
+  }
+}
+
 function sanitizeFriendIds(raw, selfId) {
   const out = [];
   if (!Array.isArray(raw)) return out;
@@ -134,6 +148,7 @@ function load() {
         reqIn: sanitizeFriendIds(a.reqIn, a.id).slice(0, REQUESTS_CAP),
         reqOut: sanitizeFriendIds(a.reqOut, a.id).slice(0, REQUESTS_CAP),
         lastSeen: +a.lastSeen || 0,
+        vault: (a.vault && typeof a.vault === 'object') ? a.vault : null,
       });
       const acc = accounts.get(a.id);
       acc.level = computeLevel(acc.stats);
@@ -382,6 +397,7 @@ function resolveAccountFromCreds(msg) {
   if (msg.avatar && typeof msg.avatar === 'object') acc.avatar = msg.avatar;
   const stats = sanitizeStats(msg.stats);
   if (stats) { acc.stats = stats; acc.level = computeLevel(stats); }
+  if (msg.vault) { const v = sanitizeVault(msg.vault); if (v) acc.vault = v; }
   // Resync-modellen: klientens friends-lista ERSÄTTER serverns (utelämnat → behåll).
   if (Array.isArray(msg.friends)) acc.friends = sanitizeFriendIds(msg.friends, acc.id);
   acc.lastSeen = Date.now();
@@ -403,6 +419,7 @@ function loginPayload(acc) {
     sentRequests: acc.reqOut.slice(),
     bound: boundOf(acc),
     stats: acc.stats,
+    vault: acc.vault || null,
   };
 }
 
