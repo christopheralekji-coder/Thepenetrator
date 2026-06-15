@@ -6798,13 +6798,14 @@ function startSim(sim, opts) {
     // ingen stale död-/respawn-state läcker in i en ny match oavsett mode.
     ws._tdmDeadRound = false;
     ws.tdmRespawnAt = 0;
-    // G3-fix 2026-06-15 (rematch-gummiband): nollställ _lastInputT så anti-teleport-
-    // clampen i applyPlayerInput inte ärver ett stale dt från förra matchens sista
-    // input-tidsstämpel. castledefenseActive (survivors/CD) körs med inPvP=true →
+    // G3-fix 2026-06-15 (rematch-gummiband): sätt _lastInputT till 1s bakåt så
+    // anti-teleport-clampen i applyPlayerInput alltid får dt=0.25s (max) vid FÖRSTA
+    // input i ny match. castledefenseActive (survivors/CD) körs med inPvP=true →
     // clampen aktiveras. Med stale _lastInputT som råkar vara exakt nu (input skickades
-    // precis innan sim_start) → dt=0.001 → maxDelta=5px → klienten klampas tillbaka
-    // till sin spawn-position varje tick → upplevs som "fastnar på ett ställe".
-    ws._lastInputT = undefined;
+    // precis innan sim_start) → dt=0.001 → maxDelta=5px → klienten klampas vid spawn.
+    // "undefined" gav samma problem (undefined → lastT=now → dt≈0). 1s bakåt garanterar
+    // dt=min(0.25, 1.0)=0.25s → maxDelta=254px → normal rörelse alltid tillåten.
+    ws._lastInputT = Date.now() - 1000;
     ws.playerState.invulnUntil = Date.now() + 1500;
     // v2 #68 (additivt): start-shield i ALLA modes (inkl. co-op-story + bots).
     // V1 skickar aldrig baseShield → grenen körs aldrig → gammalt beteende exakt.
