@@ -149,6 +149,7 @@ function load() {
         reqOut: sanitizeFriendIds(a.reqOut, a.id).slice(0, REQUESTS_CAP),
         lastSeen: +a.lastSeen || 0,
         vault: (a.vault && typeof a.vault === 'object') ? a.vault : null,
+        referredBy: (typeof a.referredBy === 'string') ? a.referredBy : '',
       });
       const acc = accounts.get(a.id);
       acc.level = computeLevel(acc.stats);
@@ -1062,8 +1063,10 @@ function handleReferral(ws, msg) {
   const me = getMe(ws);
   const code = String(msg.code || '').trim();
   if (!me || !code || code === me.id) return;
+  if (me.referredBy) { sendErr(ws, 'already'); return; }   // engångs (server-auktoritativt)
   const ref = accounts.get(code);
   if (!ref) { sendErr(ws, 'badcode'); return; }
+  me.referredBy = ref.id;   // markera FÖRE kreditering → ingen upprepad credit-exploit
   if (!ref.vault) ref.vault = {};
   ref.vault.gems = (Math.max(0, Math.round(+ref.vault.gems) || 0)) + 150;   // referrer-bonus
   markDirty();
