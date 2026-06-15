@@ -516,12 +516,18 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
     const fkey = p.peerId || 'x';
     if (nowF - (sim._flamePatchAt[fkey] || 0) > 160) {
       sim._flamePatchAt[fkey] = nowF;
-      // V2: droppa BRINNANDE SPÅR längs hela skjut-linjen (3 fläckar @ 110/200/290px),
-      // inte bara en i änden → man ser eld i linjen man eldar.
+      // V2: droppa BRINNANDE SPÅR längs HELA skjut-linjen ut till vapnets räckvidd.
+      // flame: speed=680 × life=0.5 → max räckvidd ≈ 340px. Med r=16 per fläck
+      // behövs fläckar var ~26px för täckning utan gap → 13 fläckar från 14→340px.
+      // Startdistans 14px (utanför spelarens kropp) till 340px (full räckvidd).
       const cax = Math.cos(p.aimAngle), cay = Math.sin(p.aimAngle);
       const sg = require('./grenades');
-      for (const dist of [38, 54, 70, 86, 102]) {   // 5 lågor, ~16px isär → kraftig överlappning (r=16)
-        const fpx = p.x + cax * dist, fpy = p.y + cay * dist;
+      // G1-fix 2026-06-15: fläckar jämnt fördelade 14→340px (var 26px, 13 st)
+      const FLAME_MAX_RANGE = 340;
+      const FLAME_STEP = 26;
+      const FLAME_START = 14;
+      for (let fd = FLAME_START; fd <= FLAME_MAX_RANGE; fd += FLAME_STEP) {
+        const fpx = p.x + cax * fd, fpy = p.y + cay * fd;
         sg.spawnFlamePatch(sim, fpx, fpy, p.peerId);
         sim.eventQueue.push({ type: 'fire_patch', x: Math.round(fpx), y: Math.round(fpy) });
       }

@@ -66,8 +66,25 @@ function spawnZone(sim, type, x, y, radius, durationMs, fromPid, dmgPerTick) {
   if (sim.grenadeZones.length > 80) sim.grenadeZones.splice(0, sim.grenadeZones.length - 80);
 }
 
+// G2-fix 2026-06-15: molotov lägger SAMMA LILLA flame-patches som eldkastaren (r=16)
+// utspridda i ett täckande mönster inom nedslagsradien. Det ger visuell paritet med
+// flamethrowerns eldspår. EN central fläck + 8 i ring vid r*0.55 + 16 i ring vid r*0.95
+// (triangelärt grid) för 110px-radien → täcker ytan utan stora gluggar. Zoner lever 5s.
 function applyMolotov(sim, x, y, radius, fromPid) {
-  spawnZone(sim, 'fire', x, y, radius, 5000, fromPid, 14);   // 5s brinnande zon
+  // Central fläck
+  spawnFlamePatch(sim, x, y, fromPid);
+  // Inre ring (8 punkter vid r*0.55)
+  const innerR = radius * 0.55;
+  const outerR = radius * 0.95;
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2;
+    spawnFlamePatch(sim, x + Math.cos(ang) * innerR, y + Math.sin(ang) * innerR, fromPid);
+  }
+  // Yttre ring (16 punkter vid r*0.95)
+  for (let i = 0; i < 16; i++) {
+    const ang = (i / 16) * Math.PI * 2;
+    spawnFlamePatch(sim, x + Math.cos(ang) * outerR, y + Math.sin(ang) * outerR, fromPid);
+  }
 }
 function applyGravity(sim, x, y, radius, fromPid) {
   spawnZone(sim, 'gravity', x, y, radius, 2600, fromPid, 0); // 2.6s dragning
@@ -103,23 +120,49 @@ function tickGrenadeZones(sim, dt, now) {
           }
         }
       }
-      // Spelare (PvP: motståndare; co-op: ingen friendly skada)
+      // Spelare — PvP: skada motståndare direkt. Co-op: förnya fire-DOT (1 dmg/s i 3s).
+      // G2-fix 2026-06-15: spelaren rör sig FRITT genom elden (ingen kollision/blocking),
+      // men tar fire-DOT medan man är i zonen + 3s efter att man lämnat. Ingen invuln-gate
+      // för DOT (invuln skyddar bara mot direktskada vid spawn, ej hazard-DOT).
       for (const [pid, ws] of sim.room.members) {
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
-        if (pid === z.fromPid) continue;
-        if (!isPvP) continue;
-        if (fromTeam && ws.tdmTeam && ws.tdmTeam === fromTeam) continue;
-        if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
+        if (pid === z.fromPid) continue;  // kastaren skonas (designval: man eldar framåt)
         const dx = ws.playerState.x - z.x, dy = ws.playerState.y - z.y;
-        if (dx * dx + dy * dy > z.r * z.r) continue;
-        let rem = z.dmgPerTick;
-        if ((ws.playerState.shield || 0) > 0) {
-          const ab = Math.min(ws.playerState.shield, rem);
-          ws.playerState.shield -= ab; rem -= ab;
+        const inFire = (dx * dx + dy * dy) <= z.r * z.r;
+        if (isPvP) {
+          // PvP: direkt skada per zone-tick (som förr), friendly fire av
+          if (!inFire) continue;
+          if (fromTeam && ws.tdmTeam && ws.tdmTeam === fromTeam) continue;
+          if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
+          let rem = z.dmgPerTick;
+          if ((ws.playerState.shield || 0) > 0) {
+            const ab = Math.min(ws.playerState.shield, rem);
+            ws.playerState.shield -= ab; rem -= ab;
+          }
+          if (rem > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - rem);
+          sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ws.playerState.hp,
+            shield: ws.playerState.shield || 0, attackerPid: z.fromPid || null });
+        } else {
+          // Co-op / PvE: fire-DOT. Förnya timer medan i elden, lös ut 3s efter att man lämnat.
+          if (inFire) {
+            // I elden: förnya DOT-timern (3s från nu) + markera nästa DOT-tick om ej satt
+            ws.playerState._fireDotUntil = now + 3000;
+            if (!ws.playerState._fireDotNextTick || ws.playerState._fireDotNextTick <= now) {
+              ws.playerState._fireDotNextTick = now + 1000;  // första DOT-tick om 1s
+            }
+          }
+          // DOT-tick (1 dmg/s i 3s, körs oavsett om man är kvar i elden eller just lämnat)
+          if ((ws.playerState._fireDotUntil || 0) > now &&
+              (ws.playerState._fireDotNextTick || 0) <= now) {
+            ws.playerState._fireDotNextTick = now + 1000;
+            const dotDmg = 8;   // samma som spawnFlamePatch.dmgPerTick
+            ws.playerState.hp = Math.max(0, ws.playerState.hp - dotDmg);
+            // Informera klienten om hp-ändringen (server-auth hp i V2)
+            sim.eventQueue.push({ type: 'cd_hp_changed', peerId: pid,
+              hp: ws.playerState.hp, shield: ws.playerState.shield || 0,
+              src: 'fire' });
+          }
         }
-        if (rem > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - rem);
-        sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ws.playerState.hp,
-          shield: ws.playerState.shield || 0, attackerPid: z.fromPid || null });
       }
     } else if (z.type === 'gravity') {
       const pull = 260 * dt;             // px/s mot centrum
