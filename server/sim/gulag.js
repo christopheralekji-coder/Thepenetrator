@@ -159,9 +159,9 @@ function startGulagMatch(sim, pidA, pidB, now) {
     ps._gulagWeapon = lo.weaponId;
     ps._gulagNoShoot = !!game.noShoot;
     ps.x = sp.x; ps.y = sp.y; ps.aim = sp.facing;
-    ps.hp = lo.hp; ps.maxHp = lo.hp; ps.shield = lo.shield || 0; // v1.796: maxHp = loadout (frenzy 140) → heal-cap rätt
+    ps.hp = lo.hp; ps.maxHp = lo.hp; ps.shield = lo.shield || 0; ps.maxShield = 100; // v1.796: maxHp = loadout (frenzy 140) → heal-cap rätt
     ps.weaponId = lo.weaponId;
-    ps.armorLevel = 0; ps.speedMul = 1;
+    ps.speedMul = 1;
     ps.invulnUntil = now + 800; // spawn-grace + skydd mot in-flight-position-desync
     ps.brDowned = false; ps.spectating = false;
     ps._gulagSpeedUntil = 0; ps._gulagGunUntil = 0;
@@ -202,6 +202,7 @@ function startGulagMatch(sim, pidA, pidB, now) {
   sim.eventQueue.push({
     type: 'gulag_start', matchId, game: gameId, gameName: game.name, emoji: game.emoji,
     hint: game.hint, a: pidA, b: pidB, noShoot: !!game.noShoot, loadoutWeapon: lo.weaponId,
+    loadoutHp: lo.hp, loadoutShield: lo.shield || 0,
     geo: serializeGeo(geo),
     spawnA: { x: Math.round(geo.spawns[0].x), y: Math.round(geo.spawns[0].y), facing: geo.spawns[0].facing },
     spawnB: { x: Math.round(geo.spawns[1].x), y: Math.round(geo.spawns[1].y), facing: geo.spawns[1].facing },
@@ -297,14 +298,18 @@ function resolveGulag(sim, m, winnerPid, loserPid, now) {
     const ps = wWs.playerState;
     clearGulagFields(ps);
     ps.spectating = false; ps.brDowned = false;
-    ps.hp = 75; ps.maxHp = 100; ps.shield = 25; ps.weaponId = 'pistol'; // v1.796: maxHp tillbaka till BR-100
-    ps.armorLevel = 0; ps.speedMul = 1;
+    // V2: återställ maxHp/maxShield FRÅN köpta perks (gulag-loadouten satte dem till
+    // duell-värden; hård reset till 100/200 skulle radera max_hp/shield-perk-taken).
+    ps.maxHp = Math.min(200, 100 + 25 * ((ps.brPerkLevels && ps.brPerkLevels.max_hp) || 0));
+    ps.maxShield = Math.min(400, 200 + 50 * ((ps.brPerkLevels && ps.brPerkLevels.shield) || 0));
+    ps.hp = 75; ps.shield = 25; ps.weaponId = 'pistol';
+    ps.speedMul = 1;
     const pos = safeRedeployPos(sim);
     ps.x = pos.x; ps.y = pos.y;
     ps.invulnUntil = Date.now() + 3000;
     sim.eventQueue.push({
       type: 'gulag_won', peerId: winnerPid, x: Math.round(pos.x), y: Math.round(pos.y),
-      hp: 75, shield: 25, game: m.gameId,
+      hp: 75, shield: 25, maxHp: ps.maxHp, maxShield: ps.maxShield, game: m.gameId,
     });
     sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: winnerPid, hp: 75, shield: 25 });
   }
