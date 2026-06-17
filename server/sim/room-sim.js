@@ -4226,7 +4226,7 @@ function applyBrOutsideDamage(sim, dt) {
   }
   // Throttla broadcast så vi inte spammar pvp_hp_changed varje tick
   sim._brZoneDmgTick = (sim._brZoneDmgTick || 0) + dt;
-  if (sim._brZoneDmgTick >= 0.4) {
+  if (sim._brZoneDmgTick >= 0.2) {
     sim._brZoneDmgTick = 0;
     for (const [pid, ws] of sim.room.members) {
       if (!ws.playerState) continue;
