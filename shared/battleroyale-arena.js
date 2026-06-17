@@ -1908,9 +1908,9 @@ const BATTLEROYALE_ARENA = {
     { name: 'FINAL',    durationFrac: 0.34, areaFrac: 0.05, outsideDmg: 15 },
   ],
 
-  matchDurations: [300, 600, 900],
-  defaultMatchDuration: 600,
-  matchDurationLabels: ['⚡ 5 MIN', '🔥 10 MIN', '👑 15 MIN'],
+  matchDurations: [600, 1200, 1800],
+  defaultMatchDuration: 1200,
+  matchDurationLabels: ['10 MIN', '20 MIN', '30 MIN'],
 
   startWeapon: 'pistol',
   startHp: 100,

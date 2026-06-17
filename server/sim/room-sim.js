@@ -4145,7 +4145,9 @@ function advanceBrPhase(sim) {
   const cur = sim.battleroyaleZone;
   const newR = Math.round(Math.sqrt(arena.worldW * arena.worldH * phaseCfg.areaFrac / Math.PI));
   const totalShrinkPhases = arena.phases.length - 1;
-  const t = totalShrinkPhases > 0 ? nextPhase / totalShrinkPhases : 1;
+  // V2: nå det slumpade slut-centret SNABBARE (×1.7) så zonen tydligt hamnar på olika
+  // ställen redan från mitten av matchen (var för center-ig tidigt = "samma ställe").
+  const t = totalShrinkPhases > 0 ? Math.min(1, (nextPhase / totalShrinkPhases) * 1.7) : 1;
   const finalCx = sim.brFinalCenterX != null ? sim.brFinalCenterX : (arena.worldW / 2);
   const finalCy = sim.brFinalCenterY != null ? sim.brFinalCenterY : (arena.worldH / 2);
   // Lerp mot final-target
@@ -4153,7 +4155,7 @@ function advanceBrPhase(sim) {
   let ny = cur.y + (finalCy - cur.y) * t;
   // Liten random noise (max 250px per phase) så det inte syns perfekt linjärt
   const noiseAng = Math.random() * Math.PI * 2;
-  const noiseDist = Math.random() * Math.min(250, cur.r * 0.08);
+  const noiseDist = Math.random() * Math.min(450, cur.r * 0.14);
   nx += Math.cos(noiseAng) * noiseDist;
   ny += Math.sin(noiseAng) * noiseDist;
   // Klamp inside current zone (fairness — players i safe-area får inte get screwed)
@@ -4286,20 +4288,18 @@ function tickBrLootPickups(sim, nowMs) {
         // V2: nya granat-typer som BR-loot. Klient bumpar rätt counter via event-kind.
         applied = true;
       } else if (lo.kind === 'weapon' && lo.weaponId) {
-        // BR tier-baserad auto-equip:
-        // - Picked tier > current tier → auto-equip
-        // - Picked tier == current tier → BEHÅLL nuvarande (ingen ändring)
-        // - Picked tier < current tier → BEHÅLL nuvarande
-        // Vapnet läggs alltid i klient-inventoriet (save.owned) via event.
+        // V2: auto-equippa BARA om man fortfarande har STARTVAPNET (första vapnet).
+        // Efter det går loot-vapen till inventariet — spelaren byter själv via vapen-
+        // menyn. Annars bytte mystery-lådor (okänt innehåll) ut spelarens valda/bättre
+        // vapen ofrivilligt ("vapnet ändrades fast jag hade ett bättre").
         const TIER_RANK = {
           starter: 0, corpse: 0, dropped: 0,
           common: 1, uncommon: 2, rare: 3, legendary: 4,
         };
         const currentTier = ws.playerState._brWeaponTier || 'starter';
         const oldRank = TIER_RANK[currentTier] != null ? TIER_RANK[currentTier] : 0;
-        const newRank = TIER_RANK[lo.tier] != null ? TIER_RANK[lo.tier] : 0;
         let equippedNow = false;
-        if (newRank > oldRank) {
+        if (oldRank === 0) {
           ws.playerState.weaponId = lo.weaponId;
           ws.playerState._brWeaponTier = lo.tier;
           equippedNow = true;
@@ -5621,7 +5621,7 @@ const BR_BAG = {
   medkit:     { cost: 250, max: 5, field: 'medkits' },
   shieldkit:  { cost: 250, max: 5, field: 'shieldkits' },
   adrenaline: { cost: 300, max: 5, field: 'adrenalines' },
-  airstrike:  { cost: 500, max: 3, field: 'airstrikes' },
+  airstrike:  { cost: 500, max: 5, field: 'airstrikes' },
 };
 
 // Inkommande-skada-reduktion från dmg_redux-perken (-5%/nivå, tak -50%). Läses
