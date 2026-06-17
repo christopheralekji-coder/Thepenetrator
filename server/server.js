@@ -3,7 +3,7 @@
 
 const WebSocket = require('ws');
 const http = require('http');
-const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney } = require('./sim/room-sim');
+const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney } = require('./sim/room-sim');
 const accounts = require('./accounts'); // v2 konto/vÃ¤nner (acct_* â€” additivt, no-op fÃ¶r V1)
 const matchmaker = require('./matchmaker'); // v2 matchmaking-kö (queue_*/match_* — additivt)
 const groups = require('./groups'); // v2 matchmaking grupp-lager (group_* — additivt)
@@ -1335,6 +1335,12 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     applyBrUseUav(room.sim, ws.id);
+    return;
+  }
+  if (msg.type === 'sim_br_use_item') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyBrUseItem(room.sim, ws.id, msg.item);
     return;
   }
   if (msg.type === 'sim_br_accept_contract') {

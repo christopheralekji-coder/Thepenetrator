@@ -4414,8 +4414,11 @@ function initBrLoot(sim) {
       unlockAt,
     });
   }
-  // v1.741: GARANTERA att varje hus har minst EN vapen-lootbox. Hus som bara råkade
-  // få hp/shield-loot får nu också en vapen-låda (så alla hus är värda att besöka).
+  // V2: GARANTERA att VARJE hus alltid har minst EN vapen-lootbox — även hus som
+  // redan fick en heal/shield/granat på sin slumpade center-spawn. Den slumpade
+  // center-loot:en (postProcessArena, centrum-36) ger heal/shield/variation; denna
+  // loop lägger ALLTID en vapenlåda BREDVID (centrum+36). Varje vapenlåda ger cash
+  // (CASH_BY_TIER i tickBrLootPickups). Användarkrav: "alla hus minst en vapenbox".
   const cabins = (arena.cabins || []).filter(c => c && c.bounds && !c._isContainer);
   const wpnPool = [];
   for (const tierName of ['common', 'uncommon', 'rare']) {
@@ -4427,13 +4430,16 @@ function initBrLoot(sim) {
     let addedHouseWpn = 0;
     for (let c = 0; c < cabins.length; c++) {
       const b = cabins[c].bounds;
-      const hasWeapon = loot.some(lo => lo.kind === 'weapon' && lo.available &&
-        lo.x >= b.x && lo.x <= b.x + b.w && lo.y >= b.y && lo.y <= b.y + b.h);
-      if (hasWeapon) continue;
+      // Hoppa bara över om huset RÅKADE få exakt en vapenlåda på sin slump-spawn
+      // OCH den ligger till höger (ovanpå garanti-platsen) — annars dubblett. I praktiken
+      // ger vi alltid en garanterad låda; check:en undviker bara två lådor på samma pixel.
       const pick = wpnPool[c % wpnPool.length];
-      // v1.743: placera vapnet TILL HÖGER om centrum (hp/shield-loot ligger centrum-36)
+      // placera vapnet TILL HÖGER om centrum (heal/shield-loot ligger centrum-36)
       // så de hamnar BREDVID varandra, ej ovanpå.
       const sp = brFindFreeSpot(b.x + b.w / 2 + 36, b.y + b.h / 2, arena.walls, arena.worldW, arena.worldH);
+      const dupe = loot.some(lo => lo.kind === 'weapon' && lo.available &&
+        Math.abs(lo.x - sp.x) < 8 && Math.abs(lo.y - sp.y) < 8);
+      if (dupe) continue;
       sim._brLootIdCounter = (sim._brLootIdCounter || 0) + 1;
       loot.push({ id: 'br_loot_' + sim._brLootIdCounter, x: sp.x, y: sp.y, kind: 'weapon', weaponId: pick.weaponId, tier: pick.tier, available: true, unlockAt: 0 });
       addedHouseWpn++;
@@ -5587,148 +5593,151 @@ function brStationNear(sim, ws) {
   return null;
 }
 
-// Armor-uppgradering: 5 nivåer, +10% dmg-reduktion/nivå. Pris stiger per nivå.
-const BR_ARMOR_COSTS = [150, 220, 300, 400, 520]; // kostnad lvl0→1, 1→2, ... 4→5
-const BR_ARMOR_MAX = 5;
-// SHOP-katalog. alienOnly = exklusivt hos alien-shoppen. cost = fast pris (armor är dynamiskt).
-const BR_SHOP = {
-  armor:         { dynamic: true, alienOnly: false }, // pris från BR_ARMOR_COSTS[level]
-  gas_mask:      { cost: 250, alienOnly: false },
-  self_revive:   { cost: 300, alienOnly: false },  // (v1.740) auto-används vid down
-  uav:           { cost: 400, alienOnly: false },  // (v1.743) bärbar — aktiveras från bag
-  airstrike:     { cost: 500, alienOnly: false },  // bärbar — rikta via minimap
-  grenade:       { cost: 150, alienOnly: false },  // (v1.743) +2 spränggranater
-  smoke:         { cost: 150, alienOnly: false },  // (v1.743) +2 rökgranater
-  max_hp:        { cost: 400, alienOnly: false },  // (v1.743) maxHP 100→200 + heal
-  max_shield:    { cost: 600, alienOnly: false },  // (v1.748) maxShield 200→400 + fyll (höjt pris)
-  alien_armor:   { cost: 900, alienOnly: true },   // sätter pansaret till MAX (lvl 5) direkt
-  alien_loadout: { cost: 1200, alienOnly: true },  // (v1.747) full restore: hp+shield+armor MAX
-  alien_weapon:  { cost: 1400, alienOnly: true },  // exklusivt top-tier-vapen
-  alien_perks:   { cost: 2600, alienOnly: true },  // ALLA 5 perks på en gång
-  alien_juggernaut: { cost: 7500, alienOnly: true }, // (v1.748) ULTRA-OP: max allt + alla perks + max hp/shield
-  // PERKS (v1.742) — engångs-köp, passiva bonusar.
-  perk_fast_hands:  { cost: 350, alienOnly: false, perk: 'fast_hands' },  // snabbare omladdning
-  perk_double_time: { cost: 400, alienOnly: false, perk: 'double_time' }, // +25% fart
-  perk_ghost:       { cost: 450, alienOnly: false, perk: 'ghost' },       // osynlig för UAV
-  perk_tracker:     { cost: 350, alienOnly: false, perk: 'tracker' },     // fiende-fotspår
-  perk_high_alert:  { cost: 400, alienOnly: false, perk: 'high_alert' },  // varning vid fiende-sikte/närhet
+// ===========================================================================
+// V2 BR-EKONOMI 2.0 — NIVÅ-BASERADE PERKS + BAG-FÖRBRUKNINGSVAROR
+// ===========================================================================
+// Perks köps en NIVÅ i taget (permanenta under matchen). costs[i] = pris för
+// nivå i→i+1. cat = UI-kategori (move/surv/off). Bag-items är stackbara
+// förbrukningsvaror som aktiveras under match. ENDA källan: alla shop-hus
+// (house-stationer + alien-stationen) säljer samma katalog.
+// OBS: håll dessa siffror i SYNK med V2-klientens BrLayer.PERK_DEFS/BAG_DEFS.
+const BR_PERKS = {
+  // RÖRELSE
+  move_speed:  { cat: 'move', max: 5,  costs: [200, 260, 330, 410, 500] },                                   // +3% fart/nivå (klient)
+  dash_cd:     { cat: 'move', max: 4,  costs: [200, 280, 380, 500] },                                         // -0.3s dash-cd/nivå (klient)
+  // ÖVERLEVNAD
+  max_hp:      { cat: 'surv', max: 4,  costs: [250, 320, 410, 520] },                                         // +25 maxHP/nivå (100→200)
+  shield:      { cat: 'surv', max: 4,  costs: [250, 320, 410, 520] },                                         // +50 maxShield/nivå (200→400)
+  dmg_redux:   { cat: 'surv', max: 10, costs: [150, 190, 230, 280, 330, 390, 450, 520, 600, 690] },           // -5% inkommande/nivå (tak -50%)
+  // OFFENSIV
+  self_revive: { cat: 'off',  max: 2,  costs: [350, 500] },                                                   // självåterupplivning (max 2)
+  rapid_fire:  { cat: 'off',  max: 5,  costs: [220, 290, 370, 460, 560] },                                     // +5% eldhast/nivå (klient)
+  fast_hands:  { cat: 'off',  max: 4,  costs: [200, 270, 350, 450] },                                          // +10% omladdning/nivå (klient)
+  dmg:         { cat: 'off',  max: 10, costs: [200, 250, 310, 380, 460, 550, 650, 760, 880, 1010] },           // +5% skada/nivå (sim_shoot dmgMul)
 };
+// Bag-förbrukningsvaror (stackbara). field = playerState-räknarfält. max = stack-tak.
+const BR_BAG = {
+  uav:        { cost: 400, max: 5, field: 'uavCount' },
+  medkit:     { cost: 250, max: 5, field: 'medkits' },
+  shieldkit:  { cost: 250, max: 5, field: 'shieldkits' },
+  adrenaline: { cost: 300, max: 5, field: 'adrenalines' },
+  airstrike:  { cost: 500, max: 3, field: 'airstrikes' },
+};
+
+// Inkommande-skada-reduktion från dmg_redux-perken (-5%/nivå, tak -50%). Läses
+// LIVE av bullets.js (PvP) + _brAirstrikeDamage. Ersätter gamla armorLevel.
+function brDmgRedux(ps) {
+  const lvl = (ps && ps.brPerkLevels && ps.brPerkLevels.dmg_redux) || 0;
+  return Math.min(0.5, 0.05 * lvl);
+}
+
+// Applicera en perk-nivås OMEDELBARA server-effekt (HP/shield-tak, self-revive-kit).
+// move_speed/dash_cd/rapid_fire/fast_hands/dmg = klient-applicerade (server lagrar bara
+// nivån + dmg clampas i applyShoot). dmg_redux = läses live via brDmgRedux.
+function brApplyPerkEffect(sim, pid, ps, perk, level) {
+  if (perk === 'max_hp') {
+    ps.maxHp = Math.min(200, 100 + 25 * level);
+    ps.hp = Math.min(ps.maxHp, (ps.hp || 0) + 25);
+    sim.eventQueue.push({ type: 'br_maxstat', peerId: pid, maxHp: ps.maxHp, maxShield: ps.maxShield || 200, hp: ps.hp, shield: ps.shield || 0 });
+  } else if (perk === 'shield') {
+    ps.maxShield = Math.min(400, 200 + 50 * level);
+    ps.shield = Math.min(ps.maxShield, (ps.shield || 0) + 50);
+    sim.eventQueue.push({ type: 'br_maxstat', peerId: pid, maxHp: ps.maxHp || 100, maxShield: ps.maxShield, hp: ps.hp || 0, shield: ps.shield });
+  } else if (perk === 'self_revive') {
+    ps.selfReviveKits = level; // 1 eller 2
+    sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'self_revive', count: ps.selfReviveKits });
+  }
+}
 
 function applyBrBuy(sim, pid, itemKind) {
   if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
   const ws = sim.room.members.get(pid);
   if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
-  if (ws.playerState.brDowned) return; // (v1.748) ingen handel medan nedskjuten
-  const item = BR_SHOP[itemKind];
-  if (!item) return;
+  if (ws.playerState.brDowned) return; // ingen handel medan nedskjuten
   const station = brStationNear(sim, ws);
   if (!station) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'too_far' }); return; }
-  if (item.alienOnly && !station.alien) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'wrong_shop' }); return; }
   const ps = ws.playerState;
-  // Dynamiskt pris för armor (beror på nuvarande nivå).
-  let cost = item.cost;
-  if (itemKind === 'armor') {
-    const lvl = ps.armorLevel || 0;
-    if (lvl >= BR_ARMOR_MAX) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
-    cost = BR_ARMOR_COSTS[lvl];
-  }
+  if (!ps.brPerkLevels) ps.brPerkLevels = {};
   const cash = sim.brCash[pid] || 0;
-  if (cash < cost) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'no_cash' }); return; }
-  // Validera/applicera effekt INNAN debitering (vissa köp kan vara redundanta).
-  if (itemKind === 'armor') {
-    ps.armorLevel = Math.min(BR_ARMOR_MAX, (ps.armorLevel || 0) + 1);
-    sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, level: ps.armorLevel });
-  } else if (itemKind === 'gas_mask') {
-    if (ps.gasMask) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
-    ps.gasMask = true;
-    sim.eventQueue.push({ type: 'br_item_granted', peerId: pid, item: 'gas_mask' });
-  } else if (itemKind === 'self_revive') {
-    if ((ps.selfReviveKits || 0) >= 2) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
-    ps.selfReviveKits = (ps.selfReviveKits || 0) + 1;
-    sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'self_revive', count: ps.selfReviveKits });
-  } else if (itemKind === 'airstrike') {
-    if ((ps.airstrikes || 0) >= 3) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
-    ps.airstrikes = (ps.airstrikes || 0) + 1;
-    sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'airstrike', count: ps.airstrikes });
-  } else if (itemKind === 'uav') {
-    if ((ps.uavCount || 0) >= 3) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
-    ps.uavCount = (ps.uavCount || 0) + 1; // (v1.743) bärbar — aktiveras från bag
-    sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'uav', count: ps.uavCount });
-  } else if (itemKind === 'grenade') {
-    sim.eventQueue.push({ type: 'br_grenades', peerId: pid, frag: 2 });
-  } else if (itemKind === 'smoke') {
-    sim.eventQueue.push({ type: 'br_grenades', peerId: pid, smoke: 2 });
-  } else if (itemKind === 'max_hp') {
-    if ((ps.maxHp || 100) >= 200) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
-    ps.maxHp = 200; ps.hp = Math.min(200, (ps.hp || 0) + 100);
-    sim.eventQueue.push({ type: 'br_maxstat', peerId: pid, maxHp: ps.maxHp, maxShield: ps.maxShield || 200, hp: ps.hp, shield: ps.shield || 0 });
-  } else if (itemKind === 'max_shield') {
-    if ((ps.maxShield || 200) >= 400) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
-    ps.maxShield = 400; ps.shield = Math.min(400, (ps.shield || 0) + 200);
-    sim.eventQueue.push({ type: 'br_maxstat', peerId: pid, maxHp: ps.maxHp || 100, maxShield: ps.maxShield, hp: ps.hp || 0, shield: ps.shield });
-  } else if (itemKind === 'alien_armor') {
-    if ((ps.armorLevel || 0) >= BR_ARMOR_MAX) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
-    ps.armorLevel = BR_ARMOR_MAX;
-    sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, level: ps.armorLevel });
-  } else if (itemKind === 'alien_loadout') {
-    // Full restore: hp + shield + armor till MAX (v1.747)
-    ps.hp = ps.maxHp || 100; ps.shield = ps.maxShield || 200; ps.armorLevel = BR_ARMOR_MAX;
-    sim.eventQueue.push({ type: 'br_maxstat', peerId: pid, maxHp: ps.maxHp || 100, maxShield: ps.maxShield || 200, hp: ps.hp, shield: ps.shield });
-    sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, level: ps.armorLevel });
-  } else if (itemKind === 'alien_weapon') {
-    // Exklusivt top-tier-vapen (legendary) — equipa direkt.
-    const wpn = brSupplyLegendaryWeapon();
-    // v2 anti-cheat: lägg i serverns inventory-spegel (klienten lägger i save.owned)
-    if (!(ws._brOwnedWeapons instanceof Set)) ws._brOwnedWeapons = new Set(['fists', 'knife', BATTLEROYALE_ARENA.startWeapon || 'pistol']);
-    ws._brOwnedWeapons.add(wpn);
-    sim.eventQueue.push({ type: 'br_supply_opened', id: null, peerId: pid, weaponId: wpn, cash: 0 });
-  } else if (itemKind === 'alien_perks') {
-    if (!ps.brPerks) ps.brPerks = {};
-    const allP = ['fast_hands', 'double_time', 'ghost', 'tracker', 'high_alert'];
-    if (allP.every(p => ps.brPerks[p])) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
-    for (const p of allP) {
-      if (!ps.brPerks[p]) { ps.brPerks[p] = true; sim.eventQueue.push({ type: 'br_perk_granted', peerId: pid, perk: p }); }
-    }
-    if (!ps.brDowned) ps.speedMul = 1.25; // double_time aktiv
-  } else if (itemKind === 'alien_juggernaut') {
-    // (v1.748) ULTRA-OP: max-uppgraderad HP+shield+armor + fyllt + ALLA perks.
-    ps.maxHp = 200; ps.maxShield = 400; ps.hp = 200; ps.shield = 400; ps.armorLevel = BR_ARMOR_MAX;
-    sim.eventQueue.push({ type: 'br_maxstat', peerId: pid, maxHp: 200, maxShield: 400, hp: 200, shield: 400 });
-    sim.eventQueue.push({ type: 'br_armor_update', peerId: pid, level: ps.armorLevel });
-    if (!ps.brPerks) ps.brPerks = {};
-    for (const p of ['fast_hands', 'double_time', 'ghost', 'tracker', 'high_alert']) {
-      if (!ps.brPerks[p]) { ps.brPerks[p] = true; sim.eventQueue.push({ type: 'br_perk_granted', peerId: pid, perk: p }); }
-    }
-    if (!ps.brDowned) ps.speedMul = 1.25;
-  } else if (item.perk) {
-    if (!ps.brPerks) ps.brPerks = {};
-    if (ps.brPerks[item.perk]) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'have' }); return; }
-    ps.brPerks[item.perk] = true;
-    // Double Time: höj server-side speedMul så anti-cheat tillåter +25% fart (om ej downed).
-    if (item.perk === 'double_time' && !ps.brDowned) ps.speedMul = 1.25;
-    sim.eventQueue.push({ type: 'br_perk_granted', peerId: pid, perk: item.perk });
+  // ── PERK (nivå-baserad) ──
+  if (BR_PERKS[itemKind]) {
+    const def = BR_PERKS[itemKind];
+    const lvl = ps.brPerkLevels[itemKind] || 0;
+    if (lvl >= def.max) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
+    const cost = def.costs[lvl];
+    if (cash < cost) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'no_cash' }); return; }
+    ps.brPerkLevels[itemKind] = lvl + 1;
+    brApplyPerkEffect(sim, pid, ps, itemKind, lvl + 1);
+    brAwardCash(sim, pid, -cost);
+    sim.eventQueue.push({ type: 'br_perk_level', peerId: pid, perk: itemKind, level: lvl + 1 });
+    sim.eventQueue.push({ type: 'br_buy_ok', peerId: pid, item: itemKind });
+    return;
   }
-  brAwardCash(sim, pid, -cost);
-  sim.eventQueue.push({ type: 'br_buy_ok', peerId: pid, item: itemKind });
+  // ── BAG-FÖRBRUKNINGSVARA (stackbar) ──
+  if (BR_BAG[itemKind]) {
+    const def = BR_BAG[itemKind];
+    const cur = ps[def.field] || 0;
+    if (cur >= def.max) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
+    if (cash < def.cost) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'no_cash' }); return; }
+    ps[def.field] = cur + 1;
+    brAwardCash(sim, pid, -def.cost);
+    sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: itemKind, count: ps[def.field] });
+    sim.eventQueue.push({ type: 'br_buy_ok', peerId: pid, item: itemKind });
+    return;
+  }
+  sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'unknown' });
 }
 
-// Cash-cheat (4-klick nere till vänster, som Castle Defense).
+// Cash-cheat (4-klick nere till vänster → claima 100k, obegränsat).
 function applyBrInfCash(sim, pid) {
   if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
-  brAwardCash(sim, pid, 5000);
+  brAwardCash(sim, pid, 100000);
 }
 
 // Aktivera en bärbar UAV från bag → 20s fiende-reveal (v1.743).
 function applyBrUseUav(sim, pid) {
+  applyBrUseItem(sim, pid, 'uav');
+}
+
+// V2: aktivera en bag-förbrukningsvara (uav/medkit/shieldkit/adrenaline). Airstrike
+// går via sim_br_airstrike (kräver minimap-markerad x,y). Server äger hp/shield →
+// medkit/shieldkit appliceras server-side; adrenalin är klient-applicerad fart (server
+// emit:ar bara fönstret) — anti-teleport-clampen (1000px/s) bundar ändå farten.
+function applyBrUseItem(sim, pid, item) {
   if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
   const ws = sim.room.members.get(pid);
-  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0 || ws.playerState.brDowned) return;
   const ps = ws.playerState;
-  if ((ps.uavCount || 0) <= 0) return;
-  ps.uavCount -= 1;
-  ps.brUavUntil = Date.now() + 20000;
-  sim.eventQueue.push({ type: 'br_uav_active', peerId: pid, until: ps.brUavUntil });
-  sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'uav', count: ps.uavCount });
+  const now = Date.now();
+  if (item === 'uav') {
+    if ((ps.uavCount || 0) <= 0) return;
+    ps.uavCount -= 1;
+    ps.brUavUntil = now + 20000;
+    sim.eventQueue.push({ type: 'br_uav_active', peerId: pid, until: ps.brUavUntil });
+    sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'uav', count: ps.uavCount });
+  } else if (item === 'medkit') {
+    if ((ps.medkits || 0) <= 0) return;
+    if ((ps.hp || 0) >= (ps.maxHp || 100)) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
+    ps.medkits -= 1;
+    // heal-over-time: 5 tick × 18 hp = 90 hp över 4s (en tick var 800ms)
+    ps.brMedkitTicks = 5;
+    ps.brMedkitNext = now + 800;
+    sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'medkit', count: ps.medkits });
+    sim.eventQueue.push({ type: 'br_heal_active', peerId: pid });
+  } else if (item === 'shieldkit') {
+    if ((ps.shieldkits || 0) <= 0) return;
+    if ((ps.shield || 0) >= (ps.maxShield || 200)) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'full' }); return; }
+    ps.shieldkits -= 1;
+    ps.shield = Math.min(ps.maxShield || 200, (ps.shield || 0) + 100);
+    sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'shieldkit', count: ps.shieldkits });
+    sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield });
+  } else if (item === 'adrenaline') {
+    if ((ps.adrenalines || 0) <= 0) return;
+    ps.adrenalines -= 1;
+    ps.brAdrenalineEnd = now + 8000;
+    sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: 'adrenaline', count: ps.adrenalines });
+    sim.eventQueue.push({ type: 'br_adrenaline', peerId: pid, until: ps.brAdrenalineEnd });
+  }
 }
 
 // === CONTRACTS + SUPPLY DROPS (v1.746) ===
@@ -5921,8 +5930,8 @@ function _brAirstrikeDamage(sim, strike) {
     const d2 = dx * dx + dy * dy;
     if (d2 > r2) continue;
     const falloff = 1 - Math.sqrt(d2) / strike.r; // 1 i center → 0 vid kant
-    // ARMOR (v1.741): nivå-baserad % dmg-reduktion.
-    let remaining = BR_AIRSTRIKE.dmg * (0.45 + 0.55 * falloff) * (1 - 0.10 * (ws.playerState.armorLevel || 0));
+    // V2: dmg_redux-perk (-5%/nivå, tak -50%).
+    let remaining = BR_AIRSTRIKE.dmg * (0.45 + 0.55 * falloff) * (1 - brDmgRedux(ws.playerState));
     if (remaining > 0 && (ws.playerState.shield || 0) > 0) { const a = Math.min(ws.playerState.shield, remaining); ws.playerState.shield -= a; remaining -= a; }
     if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
     ws.playerState._brLastAttacker = strike.owner;
@@ -5940,11 +5949,24 @@ function tickBrMeta(sim, nowMs) {
     if (ps && ps.brDowned && ps.hp > 0 && nowMs >= ps.brReviveEnd) {
       ps.brDowned = false;
       ps.hp = Math.min(ps.maxHp || 200, 50);
-      ps.speedMul = (ps.brPerks && ps.brPerks.double_time) ? 1.25 : 1.0; // återställ ev. Double Time
+      ps.speedMul = 1.0; // klienten återapplicerar ev. move_speed-perk + adrenalin lokalt
       ps.invulnUntil = nowMs + 1500;
       sim.eventQueue.push({ type: 'br_revived', peerId: pid, hp: ps.hp });
       sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield || 0 });
     }
+  }
+  // 1b. Medkit heal-over-time (server äger hp): 5 tick × 18 hp var 800ms.
+  for (const [pid, ws] of sim.room.members) {
+    const ps = ws.playerState;
+    if (!ps || !(ps.brMedkitTicks > 0)) continue;
+    if (ps.hp <= 0 || ps.brDowned) { ps.brMedkitTicks = 0; continue; } // avbryt om död/downed
+    if (nowMs < (ps.brMedkitNext || 0)) continue;
+    ps.brMedkitTicks -= 1;
+    ps.brMedkitNext = nowMs + 800;
+    const before = ps.hp;
+    ps.hp = Math.min(ps.maxHp || 100, ps.hp + 18);
+    if (ps.hp !== before) sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield || 0 });
+    if (ps.hp >= (ps.maxHp || 100)) ps.brMedkitTicks = 0; // full → klart
   }
   // 2. Airstrike-impacts: när impactAt nås → blast-VFX-events + skada.
   if (sim._brAirstrikes && sim._brAirstrikes.length) {
@@ -5976,7 +5998,6 @@ function tickBrMeta(sim, nowMs) {
       for (const [opid, ows] of sim.room.members) {
         if (opid === pid) continue;
         if (!ows.playerState || ows.playerState.hp <= 0) continue;
-        if (ows.playerState.brPerks && ows.playerState.brPerks.ghost) continue; // Ghost-perk döljer från UAV (v1.742)
         blips.push({ x: Math.round(ows.playerState.x), y: Math.round(ows.playerState.y) });
       }
       sim.eventQueue.push({ type: 'br_uav_ping', peerId: pid, blips });
@@ -7285,13 +7306,18 @@ function startSim(sim, opts) {
       ws.playerState.scaleMul = 1.0;
       ws.playerState.speedMul = 1.0;
       ws.playerState.dashCdMs = null;
-      // BR meta (v1.739): armor (3 plattor × 50 = 150 absorberas FÖRE shield/hp),
-      // bärbara reserv-plattor, gasmask, samt per-match-cash.
-      ws.playerState.armorLevel = 0;      // (v1.741) 0-5, varje nivå = 10% dmg-reduktion
-      ws.playerState.gasMask = false;
-      ws.playerState.selfReviveKits = 0;  // (v1.740) auto-används vid down
-      ws.playerState.airstrikes = 0;      // bärbara airstrike-laddningar
-      ws.playerState.uavCount = 0;        // (v1.743) bärbara UAV — aktiveras från bag
+      // V2 BR-meta 2.0: nivå-baserade perks + stackbara bag-förbrukningsvaror + per-match-cash.
+      ws.playerState.brPerkLevels = {};   // nivåer: move_speed/dash_cd/max_hp/shield/dmg_redux/self_revive/rapid_fire/fast_hands/dmg
+      ws.playerState.gasMask = false;     // (kvar för storm-kod; ej längre köpbar)
+      ws.playerState.selfReviveKits = 0;  // self_revive-perk → auto-används vid down
+      ws.playerState.airstrikes = 0;      // bag: airstrike-laddningar
+      ws.playerState.uavCount = 0;        // bag: UAV-laddningar
+      ws.playerState.medkits = 0;         // bag: medkit (heal-over-time)
+      ws.playerState.shieldkits = 0;      // bag: shieldkit (shield-refill)
+      ws.playerState.adrenalines = 0;     // bag: adrenalin (+50% fart 8s)
+      ws.playerState.brMedkitTicks = 0;   // pågående medkit-heal-tick-räknare
+      ws.playerState.brMedkitNext = 0;
+      ws.playerState.brAdrenalineEnd = 0;
       ws.playerState.brUavUntil = 0;      // UAV-reveal aktiv till (ms)
       ws.playerState.brDowned = false;
       ws.playerState.brReviveEnd = 0;
@@ -7318,7 +7344,7 @@ function startSim(sim, opts) {
       ws.playerState._gulagFrozenUntil = 0; ws.playerState._gulagSlowUntil = 0;
       ws.playerState._gulagConfuseUntil = 0; ws.playerState._gulagMagnetUntil = 0;
       ws.playerState._gulagKnockUntil = 0;
-      ws.playerState.brPerks = {};        // (v1.742) köpta perks: fast_hands/double_time/ghost/tracker/high_alert
+      ws.playerState.brPerkLevels = {};   // V2: nivå-baserade perks (nollställ per match)
       ws.playerState.brContract = null;   // (v1.746) aktivt kontrakt {id,type,...}
       ws.tdmRespawnAt = 0;
       ws.tdmTeam = null; // FFA
@@ -7710,11 +7736,16 @@ function stopSim(sim) {
       // fördel om man gick BR → annan mode i samma rum. Nollställ till known-good.
       ws.companionState = null;
       ws.playerState._brWeaponTier = null;
-      ws.playerState.armorLevel = 0;
+      ws.playerState.brPerkLevels = {};
       ws.playerState.gasMask = false;
       ws.playerState.selfReviveKits = 0;
       ws.playerState.airstrikes = 0;
       ws.playerState.uavCount = 0;
+      ws.playerState.medkits = 0;
+      ws.playerState.shieldkits = 0;
+      ws.playerState.adrenalines = 0;
+      ws.playerState.brMedkitTicks = 0;
+      ws.playerState.brAdrenalineEnd = 0;
       ws.playerState.brUavUntil = 0;
       ws.playerState.brDowned = false;
       ws.playerState.brReviveEnd = 0;
@@ -8588,4 +8619,4 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall };

@@ -1885,10 +1885,11 @@ const BATTLEROYALE_ARENA = {
     rare: [
       { kind: 'hp_big',                          weight: 20 },
       { kind: 'shield_big',                      weight: 14 },
-      { kind: 'weapon', weaponId: 'rifle',       weight: 22 },
-      { kind: 'weapon', weaponId: 'shotgun',     weight: 18 },
-      { kind: 'weapon', weaponId: 'flame',       weight: 14 },
+      { kind: 'weapon', weaponId: 'rifle',       weight: 20 },
+      { kind: 'weapon', weaponId: 'shotgun',     weight: 16 },
+      { kind: 'weapon', weaponId: 'flame',       weight: 13 },
       { kind: 'weapon', weaponId: 'ak',          weight: 12 },
+      { kind: 'weapon', weaponId: 'grenade',     weight: 10 }, // granatgevär (lobb-AoE)
     ],
     legendary: [
       { kind: 'weapon', weaponId: 'minigun',    weight: 48 },
@@ -2218,6 +2219,91 @@ function addBrShopCabins(arena) {
   }
 }
 addBrShopCabins(BATTLEROYALE_ARENA);
+
+// V2: +40 NYA HUS (20 vanliga + 20 shoppar). Geometrin KLONAS från befintliga
+// (redan bakade) hus → varje genererat väggsegment får en storlek som redan har
+// en bakad obstacle-sprite (Arena.gd-nyckel = kind__WxH; POSITION ignoreras) →
+// noll nya bakningar behövs, full visuell korrekthet. Deterministisk seedad
+// placering (identisk karta varje match), undviker existerande hus, exklusions-
+// zoner (sjö/kyrka/scrap/alien), spawns och kartkant. Körs FÖRE preprocessCabinWalls
+// (väggar genereras för dem) och postProcessArena (loot-spawns + träd-rensning).
+function addBrExtraCabins(arena) {
+  if (arena._extraCabinsAdded) return;
+  arena._extraCabinsAdded = true;
+  const srcRegular = arena.cabins.filter(c => c && c.bounds && !c.shop && !c._isContainer);
+  const srcShop = arena.cabins.filter(c => c && c.bounds && c.shop);
+  if (!srcRegular.length || !srcShop.length) return;
+  // Spridda mall-index för variation (olika tak/storlekar/dörr-sidor)
+  const regTemplates = [];
+  const stepT = Math.max(1, Math.floor(srcRegular.length / 8));
+  for (let i = 0; i < srcRegular.length && regTemplates.length < 8; i += stepT) regTemplates.push(srcRegular[i]);
+  const shopRoofs = [
+    { color: '#4a2a18', accent: '#2a1408', style: 'wood_shingle' },
+    { color: '#6a4030', accent: '#3a2014', style: 'tile' },
+    { color: '#7a6a42', accent: '#3a3320', style: 'thatch' },
+  ];
+  // Seedad LCG (annan seed än generateProceduralContent)
+  let _seed = 0x5eed1234;
+  const rng = () => { _seed = (_seed * 1664525 + 1013904223) >>> 0; return _seed / 0x100000000; };
+  const exclusion = [
+    [2550, 3300, 6400, 7270],   // sjö/klippa
+    [4300, 4950, 6300, 7350],   // kyrka/kyrkogård
+    [5250, 7700, 2150, 3900],   // scrap-yard
+    [7900, 10000, 7900, 10000], // alien-hörnet
+  ];
+  const farFromCabins = (x, y, w, h, buf) => {
+    for (const c of arena.cabins) {
+      const b = c.bounds;
+      if (x < b.x + b.w + buf && x + w > b.x - buf && y < b.y + b.h + buf && y + h > b.y - buf) return false;
+    }
+    return true;
+  };
+  const farFromSpawns = (x, y, w, h) => {
+    const cx = x + w / 2, cy = y + h / 2;
+    for (const s of arena.spawns) { const dx = cx - s.x, dy = cy - s.y; if (dx * dx + dy * dy < 320 * 320) return false; }
+    return true;
+  };
+  const inExclusion = (x, y, w, h) => {
+    const cx = x + w / 2, cy = y + h / 2;
+    for (const z of exclusion) if (cx >= z[0] && cx <= z[1] && cy >= z[2] && cy <= z[3]) return true;
+    return false;
+  };
+  let placed = 0, shopCount = 0, regCount = 0, regTi = 0;
+  for (let i = 0; i < 40; i++) {
+    const isShop = (i % 2 === 1);           // jämn=vanlig (20), udda=shop (20)
+    let tpl, roof;
+    if (isShop) { tpl = srcShop[shopCount % srcShop.length]; roof = shopRoofs[shopCount % shopRoofs.length]; }
+    else { tpl = regTemplates[regTi % regTemplates.length]; regTi++; roof = null; }
+    const w = tpl.bounds.w, h = tpl.bounds.h;
+    let ok = false, px = 0, py = 0;
+    for (let attempt = 0; attempt < 80; attempt++) {
+      px = Math.round(250 + rng() * (arena.worldW - 500 - w));
+      py = Math.round(250 + rng() * (arena.worldH - 500 - h));
+      if (inExclusion(px, py, w, h)) continue;
+      if (!farFromCabins(px, py, w, h, 80)) continue;
+      if (!farFromSpawns(px, py, w, h)) continue;
+      ok = true; break;
+    }
+    if (!ok) continue;
+    const dx = px - tpl.bounds.x, dy = py - tpl.bounds.y;
+    const interior = (tpl.interior || []).map(it => Object.assign({}, it, { x: it.x + dx, y: it.y + dy }));
+    const cab = {
+      id: isShop ? ('shop_cabin_ext_' + shopCount) : ('cabin_extra_' + regCount),
+      name: isShop ? 'HANDELSBOD' : (tpl.name || 'STUGA'),
+      bounds: { x: px, y: py, w, h },
+      door: JSON.parse(JSON.stringify(tpl.door)),
+      windows: JSON.parse(JSON.stringify(tpl.windows || [])),
+      roof: roof || JSON.parse(JSON.stringify(tpl.roof)),
+      floor: tpl.floor || '#5a3a1a',
+      interior,
+    };
+    if (isShop) { cab.shop = true; shopCount++; } else regCount++;
+    arena.cabins.push(cab);
+    placed++;
+  }
+  console.log('[BR] addBrExtraCabins: +' + placed + ' hus (' + shopCount + ' shoppar, ' + regCount + ' vanliga)');
+}
+addBrExtraCabins(BATTLEROYALE_ARENA);
 preprocessCabinWalls(BATTLEROYALE_ARENA);
 
 // === POST-PROCESS: ta bort graffiti + caution_tape + auto-lägg loot i cabins ===

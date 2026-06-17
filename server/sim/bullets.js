@@ -1547,8 +1547,9 @@ function updateBullets(sim, dt, now) {
         const rsum = 14 + b.r + 8;
         if (dx * dx + dy * dy < rsum * rsum) {
           const effDmg = getPvpDmg(b.weaponId, b.dmg);
-          // ARMOR (v1.741): nivå-baserad % dmg-reduktion (10%/nivå, max 50%) → sedan shield/HP.
-          let remaining = effDmg * (1 - 0.10 * (ws.playerState.armorLevel || 0));
+          // V2: BR dmg_redux-perk (-5%/nivå, tak -50%) → sedan shield/HP.
+          const _ddx = ws.playerState.brPerkLevels && ws.playerState.brPerkLevels.dmg_redux || 0;
+          let remaining = effDmg * (1 - Math.min(0.5, 0.05 * _ddx));
           if (remaining > 0 && (ws.playerState.shield || 0) > 0) {
             const absorb = Math.min(ws.playerState.shield, remaining);
             ws.playerState.shield -= absorb;
