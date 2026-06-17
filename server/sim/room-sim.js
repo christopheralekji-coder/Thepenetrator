@@ -1079,12 +1079,16 @@ function buildTdmPickups(sim, arena) {
   for (const ws of (TDM_ARENA.weaponSpawns || [])) {
     list.push({ id: nextPickupId(sim), x: ws.x, y: ws.y, type: 'weapon', weaponId: ws.weaponId, available: true, respawnAt: 0 });
   }
-  // Granat-loot i mitten: 8 spräng + 8 rök (v1.733). Man spawnar med 0 granater.
-  for (const g of (TDM_ARENA.grenadeSpawns || [])) {
-    list.push({ id: nextPickupId(sim), x: g.x, y: g.y, type: 'grenade', available: true, respawnAt: 0 });
+  // Granat-loot i mitten (2026-06-17): bländgranater + molotovs + gravitationsgranater,
+  // SYMMETRISKT placerade (arena-arrayerna är redan speglade). Man spawnar med 0 granater.
+  for (const g of (TDM_ARENA.flashSpawns || [])) {
+    list.push({ id: nextPickupId(sim), x: g.x, y: g.y, type: 'flash', available: true, respawnAt: 0 });
   }
-  for (const g of (TDM_ARENA.smokeSpawns || [])) {
-    list.push({ id: nextPickupId(sim), x: g.x, y: g.y, type: 'smoke', available: true, respawnAt: 0 });
+  for (const g of (TDM_ARENA.molotovSpawns || [])) {
+    list.push({ id: nextPickupId(sim), x: g.x, y: g.y, type: 'molotov', available: true, respawnAt: 0 });
+  }
+  for (const g of (TDM_ARENA.gravitySpawns || [])) {
+    list.push({ id: nextPickupId(sim), x: g.x, y: g.y, type: 'gravity', available: true, respawnAt: 0 });
   }
   // HP + shield i mid-fältet (symmetriskt, läses från arena)
   for (const p of (TDM_ARENA.hpSpawns || [])) {
@@ -1191,6 +1195,9 @@ function tickPvpPickups(sim, now) {
       const maxShield = ws.playerState.maxShield || 100;
       let grenadesGained = 0;
       let smokeGained = 0;
+      let flashGained = 0;
+      let molotovGained = 0;
+      let gravityGained = 0;
       if (pu.type === 'hp') {
         const before = ws.playerState.hp;
         ws.playerState.hp = Math.min(maxHp, before + PICKUP_HEAL);
@@ -1203,6 +1210,12 @@ function tickPvpPickups(sim, now) {
         grenadesGained = 1; // klient håller count, bumpar lokalt
       } else if (pu.type === 'smoke') {
         smokeGained = 1; // v1.733: rökgranat-loot
+      } else if (pu.type === 'flash') {
+        flashGained = 1; // 2026-06-17: TDM bländgranat-loot
+      } else if (pu.type === 'molotov') {
+        molotovGained = 1;
+      } else if (pu.type === 'gravity') {
+        gravityGained = 1;
       }
       pu.available = false;
       pu.respawnAt = now + PICKUP_RESPAWN_MS;
@@ -1215,6 +1228,9 @@ function tickPvpPickups(sim, now) {
         shield: ws.playerState.shield || 0,
         grenadesGained,
         smokeGained,
+        flashGained,
+        molotovGained,
+        gravityGained,
         respawnAt: pu.respawnAt,
       });
       break; // pickup borta — gå till nästa

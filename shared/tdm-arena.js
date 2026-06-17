@@ -86,29 +86,23 @@ const TDM_ARENA = {
     blue: null,
   },
 
-  // Vapen på marken — RAD framför varje spawn. revolver/automatkarbin/burstpistol/sniper/hagel.
+  // Vapen på marken — RAD framför varje spawn (V2-roster, 2026-06-17): dubbel-uzi,
+  // eldkastare, pump-hagel, AK, raketgevär. Speglas → båda lagen får samma rad.
   weaponSpawns: [
-    { x: 230,  y: 360, weaponId: 'revolver' },
-    { x: 540,  y: 360, weaponId: 'rifle' },        // automatkarbin
-    { x: 850,  y: 360, weaponId: 'burstpistol' },
-    { x: 1160, y: 360, weaponId: 'sniper' },
-    { x: 1470, y: 360, weaponId: 'shotgun' },      // hagelgevär
+    { x: 230,  y: 360, weaponId: 'dualuzi' },
+    { x: 540,  y: 360, weaponId: 'flame' },
+    { x: 850,  y: 360, weaponId: 'shotgun' },
+    { x: 1160, y: 360, weaponId: 'ak' },
+    { x: 1470, y: 360, weaponId: 'rocket' },
   ],
 
-  // Granat-loot i MITTEN (korridoren mellan containrarna). v1.733: 8 spräng + 8 rök
-  // att loota — man spawnar med 0 granater och greppar i mitten om man hinner.
-  // 4×2-rutnät i den öppna korridoren (x 745-955, fri på all y mellan containrarna).
-  // 17:41 #6b+#6c: raderna isär-dragna så MITTEN (850,1000) blir fri för en
-  // minigun-pickup, och inget överlappar (x-gap 70, y-gap 56 ≫ pickup-storlek;
-  // närmaste granat ~84px från minigun-centrum). Övre = spräng, nedre = rök.
-  grenadeSpawns: [ // 8 spränggranater (övre raderna, ovanför centern)
-    { x: 745, y: 868 }, { x: 815, y: 868 }, { x: 885, y: 868 }, { x: 955, y: 868 },
-    { x: 745, y: 924 }, { x: 815, y: 924 }, { x: 885, y: 924 }, { x: 955, y: 924 },
-  ],
-  smokeSpawns: [ // 8 rökgranater (nedre raderna, under centern)
-    { x: 745, y: 1076 }, { x: 815, y: 1076 }, { x: 885, y: 1076 }, { x: 955, y: 1076 },
-    { x: 745, y: 1132 }, { x: 815, y: 1132 }, { x: 885, y: 1132 }, { x: 955, y: 1132 },
-  ],
+  // Granat-loot i MITT-KORRIDOREN (mellan containrarna). 2026-06-17: SYMMETRISKT runt
+  // y=1000 (speglas) så BÅDA lagen har EXAKT samma åtkomst till varje typ. Definieras
+  // på röd sida (y<1000) + speglas → 4 bländgranater + 4 molotovs + 2 gravitationsgranater.
+  // Man spawnar med 0 granater och greppar i mitten. (Frag/rök borttagna ur TDM.)
+  flashSpawns:   [{ x: 770, y: 905 }, { x: 930, y: 905 }],   // → 4 bländgranater
+  molotovSpawns: [{ x: 770, y: 868 }, { x: 930, y: 868 }],   // → 4 molotovs
+  gravitySpawns: [{ x: 850, y: 888 }],                       // → 2 gravitationsgranater
 
   // HP + shield i mid-fältet (symmetriskt)
   hpSpawns:     [{ x: 250, y: 1000 }, { x: 1450, y: 1000 }],
@@ -124,6 +118,10 @@ TDM_ARENA.weaponSpawns = TDM_ARENA.weaponSpawns.concat(
 // 17:41 #6b: MINIGUN i dead-center (850,1000) — power-pickupen mitt på kartan.
 // Läggs EFTER speglingen (annars dubbleras den på sin egen spegelpunkt).
 TDM_ARENA.weaponSpawns.push({ x: 850, y: 1000, weaponId: 'minigun' });
+// Granaterna speglas runt y=1000 → varje typ får dubbelt antal, perfekt symmetriskt.
+TDM_ARENA.flashSpawns   = TDM_ARENA.flashSpawns.concat(TDM_ARENA.flashSpawns.map(p => _mirrorPt(p)));
+TDM_ARENA.molotovSpawns = TDM_ARENA.molotovSpawns.concat(TDM_ARENA.molotovSpawns.map(p => _mirrorPt(p)));
+TDM_ARENA.gravitySpawns = TDM_ARENA.gravitySpawns.concat(TDM_ARENA.gravitySpawns.map(p => _mirrorPt(p)));
 // (hp/shield-arrayerna är redan symmetriska — spegla EJ, ger dubbletter)
 TDM_ARENA.walls = _topWalls.concat(_topWalls.map(_mirrorWall)).concat(_centerWalls);
 
