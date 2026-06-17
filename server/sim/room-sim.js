@@ -5899,7 +5899,7 @@ function tickBrContracts(sim, nowMs) {
 
 // AIR STRIKE (v1.740): förbruka en laddning, schemalägg fördröjt nedslag (telegraf 3s)
 // med flera blast i en radie. Servern äger skada-appliceringen.
-const BR_AIRSTRIKE = { delayMs: 3000, radius: 240, dmg: 130, blasts: 6, spreadMs: 1400 };
+const BR_AIRSTRIKE = { delayMs: 3000, radius: 240, dmg: 400, blasts: 6, spreadMs: 1400 };
 function applyBrAirstrike(sim, pid, x, y) {
   if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
   const ws = sim.room.members.get(pid);
@@ -5930,8 +5930,9 @@ function _brAirstrikeDamage(sim, strike) {
     const d2 = dx * dx + dy * dy;
     if (d2 > r2) continue;
     const falloff = 1 - Math.sqrt(d2) / strike.r; // 1 i center → 0 vid kant
-    // V2: dmg_redux-perk (-5%/nivå, tak -50%).
-    let remaining = BR_AIRSTRIKE.dmg * (0.45 + 0.55 * falloff) * (1 - brDmgRedux(ws.playerState));
+    // V2: exakt i center = full dmg (400), skalar ner mot kanten. Går genom hus
+    // (ingen LoS-check). dmg_redux-perk (-5%/nivå, tak -50%) reducerar sedan.
+    let remaining = BR_AIRSTRIKE.dmg * (0.18 + 0.82 * falloff) * (1 - brDmgRedux(ws.playerState));
     if (remaining > 0 && (ws.playerState.shield || 0) > 0) { const a = Math.min(ws.playerState.shield, remaining); ws.playerState.shield -= a; remaining -= a; }
     if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
     ws.playerState._brLastAttacker = strike.owner;
