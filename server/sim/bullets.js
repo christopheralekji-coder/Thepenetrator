@@ -1574,7 +1574,10 @@ function updateBullets(sim, dt, now) {
           // GULAG The Void (v1.790): knuff-kanon (0 dmg) → skicka impuls-event; klienten
           // applicerar knuffen på sin egen position (rörelse är klient-auktoritär).
           if (ws.playerState.gulagState === 'fighting' && ws.playerState._gulagGame === 'void') {
-            sim.eventQueue.push({ type: 'gulag_knockback', peerId: pid, vx: Math.round(b.vx), vy: Math.round(b.vy) });
+            // B1: skicka EXPLICIT force (320 → ~180px klient-knuff) — utan fältet använde
+            // klienten default 620 (~660px = launchade rakt av plattformen). Matchar bot-
+            // integrationens game.knockForce nedan så push:en känns lika oavsett motståndare.
+            sim.eventQueue.push({ type: 'gulag_knockback', peerId: pid, vx: Math.round(b.vx), vy: Math.round(b.vy), force: 320 });
             // v1.799: spara knuff-RIKTNING server-side så BOTS (som saknar klient att
             // applicera impulsen) ändå puttas — tickGulag integrerar den med game.knockForce.
             const _km = Math.hypot(b.vx, b.vy) || 1;
