@@ -58,8 +58,8 @@ const GULAG_GAMES = {
     // v1.796: krymper snabbare (full krymp vid 24s, var 36s) + mindre slutplattform +
     // hårdare knuff → tvingar avgörande närkamp, undviker timeout-tiebreak.
     platformR0: 440, platformRmin: 105, shrinkStartMs: 4000, shrinkMs: 20000,
-    knockForce: 820,  // B1 (2026-06-17): 140 var ~31px (knappt synligt). 820 ger ~180px
-                      // bot-knuff (×dt över 220ms) — matchar klientens force:320-event.
+    knockForce: 205,  // B1.2 (2026-06-17): användaren ville ha ~25% av 820 (≈180px) →
+                      // 205 ger ~45px knuff. Klientens event-force räknas ur knockForce.
     build(ox, oy) {
       return {
         shape: 'platform', groundColor: '#070712',
@@ -194,7 +194,8 @@ const GULAG_GAMES = {
     noShoot: true,
     groundColor: '#2a2a10',
     maxMs: 40000,
-    bombMs: 22000, passCooldownMs: 750, contactRange: 48,  // v1.799: 22s (mer tid) + hållaren får +15% fart (klient)
+    bombMs: 22000, passCooldownMs: 750, contactRange: 72,  // B (2026-06-17): 48→72 — vid
+    // 48 krävdes nästan full överlapp för att lämna över; 72 = "nudda" räcker. +15% fart hållaren.
     build(ox, oy) {
       const HW = 540, HH = 410;
       const rel = [
@@ -221,10 +222,12 @@ const GULAG_GAMES = {
   // 6) FLOOR IS LAVA — golvplattor faller bort. Sist kvar på fast mark vinner.
   floorlava: {
     id: 'floorlava', name: 'FLOOR IS LAVA', emoji: '🌋',
-    hint: 'Plattorna faller! Sist på fast mark vinner!',
+    hint: 'Plattorna faller! Knuffa ner motståndaren — sist på mark vinner!',
     shape: 'tilegrid',
-    loadout: { weaponId: 'fists', hp: 100, shield: 0 }, // ingen skada — fall = förlust
-    noShoot: true,
+    // B (2026-06-17): knuff-kanon så man kan PUTTA varandra ner i hålen (0 dmg, fall=förlust)
+    loadout: { weaponId: 'gulag_knock', hp: 100, shield: 0 },
+    noShoot: false,
+    knockForce: 450,   // ~99px knuff — nog för att stöta motståndaren mot ett hål
     groundColor: '#3a1505',
     maxMs: 34000,                 // v1.796: kortare svans (var 45s)
     cols: 9, rows: 7, tile: 150,

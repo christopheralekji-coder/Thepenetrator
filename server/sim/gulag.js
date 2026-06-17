@@ -373,22 +373,26 @@ function tickGulag(sim, dt, now) {
     const psA = wsA.playerState, psB = wsB.playerState;
     let winner = null, loser = null;
 
+    // server-side knockback-integration för BOTS (riktiga spelare applicerar knuffen
+    // klient-side via sin egen position; bots har ingen klient → puttas här). Körs för
+    // ALLA knuff-spel (void + floorlava) så bot-motståndaren faktiskt flyttas av kanonen.
+    if (game.knockForce) {
+      [m.a, m.b].forEach(pid => {
+        const ws = sim.room.members.get(pid);
+        if (!ws || !ws._isBot || !ws.playerState) return;
+        const ps = ws.playerState;
+        if (ps._gulagKnockUntil && now < ps._gulagKnockUntil) {
+          ps.x += (ps._gulagKnockDX || 0) * game.knockForce * dt;
+          ps.y += (ps._gulagKnockDY || 0) * game.knockForce * dt;
+        }
+      });
+    }
+
     switch (m.gameId) {
       case 'void': {
         const t = Math.max(0, now - m.startedAt - game.shrinkStartMs);
         const f = game.shrinkMs > 0 ? Math.min(1, t / game.shrinkMs) : 0;
         m.platformR = game.platformR0 + (game.platformRmin - game.platformR0) * f;
-        // v1.799: server-side knockback-integration för BOTS (riktiga spelare applicerar
-        // knuffen klient-side via sin egen position; bots har ingen klient → puttas här).
-        [m.a, m.b].forEach(pid => {
-          const ws = sim.room.members.get(pid);
-          if (!ws || !ws._isBot || !ws.playerState) return;
-          const ps = ws.playerState;
-          if (ps._gulagKnockUntil && now < ps._gulagKnockUntil) {
-            ps.x += (ps._gulagKnockDX || 0) * (game.knockForce || 600) * dt;
-            ps.y += (ps._gulagKnockDY || 0) * (game.knockForce || 600) * dt;
-          }
-        });
         const cx = m.geo.platformX, cy = m.geo.platformY;
         const dA = dist(psA.x, psA.y, cx, cy), dB = dist(psB.x, psB.y, cx, cy);
         const offA = dA > m.platformR + 18, offB = dB > m.platformR + 18;
@@ -441,7 +445,7 @@ function tickGulag(sim, dt, now) {
           const pu = m.powerups[i];
           for (const pid of [m.a, m.b]) {
             const ps = sim.room.members.get(pid).playerState;
-            if (dist(ps.x, ps.y, pu.x, pu.y) < 36) {
+            if (dist(ps.x, ps.y, pu.x, pu.y) < 48) {   // B: 36→48 (matchar större visuell + pålitligare plock)
               const oppPid = (pid === m.a) ? m.b : m.a;
               const ows = sim.room.members.get(oppPid);
               const ops = ows && ows.playerState;

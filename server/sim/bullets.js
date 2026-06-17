@@ -20,6 +20,7 @@ const { JUGGERNAUT_ARENA } = require('../../shared/juggernaut-arena');
 const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 const { CASTLEDEFENSE_ARENA } = require('../../shared/castledefense-arena');
 const { HEIST_ARENA } = require('../../shared/heist-arena');
+const { GULAG_GAMES } = require('../../shared/gulag-arenas');
 
 // v1.656: återanvänd scratch-array för bullet-collision spatial-query (noll-alloc).
 // Säkert att dela mellan rum: servern är single-threaded och arrayen fylls + läses
@@ -1573,13 +1574,15 @@ function updateBullets(sim, dt, now) {
           ws.playerState._brLastAttackerAt = Date.now();
           // GULAG The Void (v1.790): knuff-kanon (0 dmg) → skicka impuls-event; klienten
           // applicerar knuffen på sin egen position (rörelse är klient-auktoritär).
-          if (ws.playerState.gulagState === 'fighting' && ws.playerState._gulagGame === 'void') {
-            // B1: skicka EXPLICIT force (320 → ~180px klient-knuff) — utan fältet använde
-            // klienten default 620 (~660px = launchade rakt av plattformen). Matchar bot-
-            // integrationens game.knockForce nedan så push:en känns lika oavsett motståndare.
-            sim.eventQueue.push({ type: 'gulag_knockback', peerId: pid, vx: Math.round(b.vx), vy: Math.round(b.vy), force: 320 });
-            // v1.799: spara knuff-RIKTNING server-side så BOTS (som saknar klient att
-            // applicera impulsen) ändå puttas — tickGulag integrerar den med game.knockForce.
+          // GULAG knuff-kanon — The Void OCH Floor is Lava (putta ner i hålen). 0 dmg.
+          const _kg = ws.playerState._gulagGame;
+          if (ws.playerState.gulagState === 'fighting' && (_kg === 'void' || _kg === 'floorlava')) {
+            // klientens event-force RÄKNAS UR spelets knockForce så bot- och spelar-knuffen
+            // blir lika lång: bot-push = knockForce·0.22 ; klient-push = (force·2.2)²/2800.
+            const _kf = (GULAG_GAMES[_kg] && GULAG_GAMES[_kg].knockForce) || 205;
+            const _force = Math.round(Math.sqrt(_kf * 616) / 2.2);
+            sim.eventQueue.push({ type: 'gulag_knockback', peerId: pid, vx: Math.round(b.vx), vy: Math.round(b.vy), force: _force });
+            // spara knuff-RIKTNING server-side så BOTS (utan klient) ändå puttas (tickGulag).
             const _km = Math.hypot(b.vx, b.vy) || 1;
             ws.playerState._gulagKnockDX = b.vx / _km;
             ws.playerState._gulagKnockDY = b.vy / _km;
