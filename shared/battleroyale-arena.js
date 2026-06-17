@@ -1917,7 +1917,7 @@ const BATTLEROYALE_ARENA = {
   startShield: 200,
   maxHp: 100,
   maxShield: 200,
-  lootPickupRadius: 32,
+  lootPickupRadius: 50,   // V2: 32→50 — mer förlåtande "gå-över-för-att-plocka" (kändes oclaimbart)
 };
 
 // === CABIN-WALL PREPROCESSING ===
