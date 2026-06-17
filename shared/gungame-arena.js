@@ -98,32 +98,33 @@ const GUNGAME_ARENA = {
 // trade-off för 1-hit kill-melee. Kill med melee → ev. demotion av offret.
 // Demotion-floor: när offret är på tier ≥ 9 (level 10+) kan de INTE demoteras
 // under tier 9 — annars hopplöst grind efter att ha klivit sig upp i late-game.
-// V2-arsenal: 16 vapen = 16 tiers (hela rostern, svag→stark, melee-finisher).
+// V2-arsenal (2026-06-17): 15 tiers, START PÅ PISTOL (ingen kniv), svag→stark,
+// katana-finisher. Ordning per användarens val (sniper↔lmg bytta).
 const GUNGAME_WEAPONS = [
-  'knife',       // 1  — START (snabb mobil melee)
-  'pistol',      // 2  — pålitlig prick
+  'pistol',      // 1  — START, pålitlig prick
+  'smg',         // 2  — mini uzi (eldstorm)
   'dualpistol',  // 3  — run-and-gun spray
-  'smg',         // 4  — mini uzi
+  'flame',       // 4  — brännmark (situationell DoT)
   'autoshotgun', // 5  — full-auto hagel
   'shotgun',     // 6  — pump, stoppkraft
   'dualuzi',     // 7  — max närstrids-DPS
-  'lmg',         // 8  — rörlig eldkraft
-  'rifle',       // 9  — karbin (precision-burst)
+  'rifle',       // 8  — karbin (precision-burst)
+  'sniper',      // 9  — AWP one-shot
   'ak',          // 10 — tunghand
-  'flame',       // 11 — brännmark
-  'sniper',      // 12 — AWP one-shot (tier 12 = demotion-floor-region)
-  'minigun',     // 13 — tung kulspruta
-  'grenade',     // 14 — granatgevär (AoE)
-  'rocket',      // 15 — raketgevär (störst AoE)
-  'katana',      // 16 — FINAL melee-förnedring (klyver, mobil)
+  'minigun',     // 11 — tung kulspruta (demotion-zonen börjar här)
+  'lmg',         // 12 — rörlig eldkraft
+  'grenade',     // 13 — granatgevär (AoE)
+  'rocket',      // 14 — raketgevär (störst AoE)
+  'katana',      // 15 — FINAL melee-förnedring (klyver, mobil)
 ];
 
-// Demotion-floor: vid death med melee, om offret är på tier >= GUNGAME_DEMOTE_FLOOR
-// så är det också det LÄGSTA de kan demoteras till. Skyddar late-game-spelare.
-const GUNGAME_DEMOTE_FLOOR = 11; // = level 12 (1-indexed), 16-tier-roster
+// Demotion-GOLV = stage 10 (1-indexed) = index 9. Man kan ALDRIG demoteras under
+// stage 10. Demotions-ZONEN är stage 11+ (index > golvet): där nedrankas man 1 steg
+// vid VARJE död (oavsett vapen). Stage 1-10 är säkra (ingen demotion).
+const GUNGAME_DEMOTE_FLOOR = 9; // stage 10
 
-// Vilka vapen räknas som "melee" för demotion-mekanik? (V2: bara kvarvarande melee)
-const GUNGAME_MELEE_DEMOTERS = new Set(['fists', 'knife', 'katana']);
+// Vilka vapen räknas som "melee" (för wasMelee-display/haptik). Kniven borttagen.
+const GUNGAME_MELEE_DEMOTERS = new Set(['fists', 'katana']);
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS, GUNGAME_DEMOTE_FLOOR };

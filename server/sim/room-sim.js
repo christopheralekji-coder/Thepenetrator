@@ -7058,8 +7058,7 @@ function startSim(sim, opts) {
     sim._endSiegeMatch = endSiegeMatch;
   } else if (sim.gungameActive) {
     // GUNGAME: FFA på 3500×2000 close-quarters arena, 15-tier progression.
-    // Start-vapen är pistol (tier 0) — tidigare knife var för frustrerande.
-    // Tier 15 = sledge (final melee humiliation).
+    // Start-vapen = pistol (tier 0, ingen kniv). Tier 15 = katana (final melee).
     sim.simReadyAt = Date.now() + cdMs;
     // FFA — alla är fiender → använd max-spread så ingen spawnar bredvid varandra.
     const playerCount = sim.room.members.size;
@@ -7074,7 +7073,7 @@ function startSim(sim, opts) {
       ws.playerState.shield = 100;
       ws.playerState.maxShield = 100;
       ws.playerState.invulnUntil = Date.now() + 1500;
-      ws.playerState.weaponId = GUNGAME_WEAPONS[0]; // fists
+      ws.playerState.weaponId = GUNGAME_WEAPONS[0]; // pistol (tier 0)
       ws.tdmRespawnAt = 0;
       ws.tdmTeam = null; // FFA - inget team
       sim.gungameTiers[pid] = 0;
