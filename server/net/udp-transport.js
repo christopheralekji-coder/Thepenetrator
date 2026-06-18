@@ -35,6 +35,14 @@ const TICK_MS = 30;
 // Otillförlitlig återmonterings-buffert: max antal halvfärdiga pktSeq vi håller
 // (skydd mot minnesläck vid förlust). Vid överskridande slängs äldsta.
 const UNREL_BUF_MAX = 8;
+// Anti-abuse hardening (audit 2026-06-18): bounda allt som en peer styr storleken på,
+// och guarda varje fält-läsning så ett kort/trasigt paket aldrig kraschar processen.
+const MAX_FRAGS = 256;               // max fragment per meddelande (legit-msg är små; world-snapshots << detta)
+const RECV_WIN = 4096;               // reliable relSeq accepteras max så här långt före recvExpected (C105)
+const MAX_ASM = 64;                  // samtidiga halvfärdiga reliable-montage (C105)
+const MAX_DONE = 256;                // färdiga-men-ej-levererade reliable-meddelanden (C105)
+const MAX_CONNS = 4096;              // max samtidiga Connections per UdpServer — HELLO-flod-skydd (C242)
+const UNVERIFIED_TIMEOUT_MS = 4000;  // overifierad (ej return-routability-bevisad) peer reaps snabbt (C242)
 
 function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
@@ -74,11 +82,12 @@ function ctrlPkt(type, session) {
 
 // ── Connection: reliability-maskin för EN peer ───────────────────────────────
 class Connection extends EventEmitter {
-  constructor(session, sendRaw, now) {
+  constructor(session, sendRaw, now, verified) {
     super();
     this.session = session >>> 0;
     this._sendRaw = sendRaw;                // (Buffer) => void  (dgram-send till remote)
     this.closed = false;
+    this._verified = !!verified;            // return-routability bevisad? (C242: overifierad = ingen heartbeat + snabb reap)
     // duck-typade ws-fält (sim sätter playerState m.fl. själv)
     this.id = String(session);
     this.readyStateClosed = false;
@@ -139,39 +148,47 @@ class Connection extends EventEmitter {
   _onPacket(buf) {
     if (this.closed) return;
     this._lastRecvAt = Date.now();
-    switch (buf[0]) {
-      case T.REL:   this._onRel(buf);  break;
-      case T.ACK:   this._onAck(buf);  break;
-      case T.UNREL: this._onUnrel(buf); break;
-      case T.PING:  this._sendRaw(ctrlPkt(T.PONG, this.session)); break;
-      case T.PONG:  break;                  // lastRecvAt redan uppdaterat
-      case T.BYE:   this.close('remote-bye'); break;
-    }
+    this._verified = true;                  // varje mottaget paket bevisar return-routability (C242)
+    try {
+      switch (buf[0]) {
+        case T.REL:   this._onRel(buf);  break;
+        case T.ACK:   this._onAck(buf);  break;
+        case T.UNREL: this._onUnrel(buf); break;
+        case T.PING:  this._sendRaw(ctrlPkt(T.PONG, this.session)); break;
+        case T.PONG:  break;                // lastRecvAt redan uppdaterat
+        case T.BYE:   this.close('remote-bye'); break;
+      }
+    } catch (e) { /* trasigt/kort paket — släng, krascha ALDRIG processen (audit C241) */ }
   }
 
   _onRel(buf) {
+    if (buf.length < REL_HDR) return;                                            // C241: längd-guard
     const relSeq = buf.readUInt32LE(5);
     const msgId = buf.readUInt32LE(9);
     const fragIdx = buf.readUInt16LE(13);
     const fragCount = buf.readUInt16LE(15);
+    if (fragCount < 1 || fragCount > MAX_FRAGS || fragIdx >= fragCount) return;   // C105: sanity på frag-fält
+    // duplikat / redan passerat / absurt långt fram → bara acka, väx inga buffrar
+    if (relSeq < this._recvExpected || this._recvWin.has(relSeq)) { this._sendAck(); return; }
+    if (relSeq - this._recvExpected > RECV_WIN) { this._sendAck(); return; }      // C105: utanför mottagar-fönstret
     const payload = buf.subarray(REL_HDR);
-    // duplikat eller redan passerat → bara acka
-    if (relSeq >= this._recvExpected && !this._recvWin.has(relSeq)) {
-      this._recvWin.add(relSeq);
-      // montera meddelandet (per msgId)
-      let a = this._asm.get(msgId);
-      if (!a) { a = { fragCount, parts: new Array(fragCount), got: 0 }; this._asm.set(msgId, a); }
-      if (!a.parts[fragIdx]) { a.parts[fragIdx] = payload; a.got++; }
-      if (a.got === a.fragCount) {
-        this._done.set(msgId, a.fragCount === 1 ? a.parts[0] : Buffer.concat(a.parts));
-        this._asm.delete(msgId);
-        this._deliverReady();
-      }
-      // flytta fram recvExpected över kontinuerligt mottagna relSeq
-      while (this._recvWin.has(this._recvExpected)) {
-        this._recvWin.delete(this._recvExpected);
-        this._recvExpected = (this._recvExpected + 1) >>> 0;
-      }
+    this._recvWin.add(relSeq);
+    // montera meddelandet (per msgId); vid tak: hoppa montaget men ACKa + avancera recvExpected ändå
+    // (annars kan _recvWin växa när _asm är mättad — single-exit nedan håller den boundad).
+    let a = this._asm.get(msgId);
+    if (!a && this._asm.size < MAX_ASM) {                                         // C105: tak på samtidiga montage
+      a = { fragCount, parts: new Array(fragCount), got: 0 }; this._asm.set(msgId, a);
+    }
+    if (a && a.fragCount === fragCount && fragIdx < a.parts.length && !a.parts[fragIdx]) { a.parts[fragIdx] = payload; a.got++; }
+    if (a && a.got === a.fragCount) {
+      if (this._done.size < MAX_DONE) this._done.set(msgId, a.fragCount === 1 ? a.parts[0] : Buffer.concat(a.parts));  // C105: tak
+      this._asm.delete(msgId);
+      this._deliverReady();
+    }
+    // flytta fram recvExpected över kontinuerligt mottagna relSeq
+    while (this._recvWin.has(this._recvExpected)) {
+      this._recvWin.delete(this._recvExpected);
+      this._recvExpected = (this._recvExpected + 1) >>> 0;
     }
     this._sendAck();
   }
@@ -194,6 +211,7 @@ class Connection extends EventEmitter {
   }
 
   _onAck(buf) {
+    if (buf.length < 13) return;                                                 // C241: längd-guard
     const ackBase = buf.readUInt32LE(5);
     const ackBits = buf.readUInt32LE(9);
     const now = Date.now();
@@ -217,9 +235,11 @@ class Connection extends EventEmitter {
   }
 
   _onUnrel(buf) {
+    if (buf.length < UNREL_HDR) return;                                          // C241: längd-guard
     const pktSeq = buf.readUInt32LE(5);
     const fragIdx = buf.readUInt16LE(9);
     const fragCount = buf.readUInt16LE(11);
+    if (fragCount < 1 || fragCount > MAX_FRAGS || fragIdx >= fragCount) return;   // C105/C241: sanity på frag-fält
     const payload = buf.subarray(UNREL_HDR);
     if (pktSeq < this._unrelNewest) return;             // äldre än senast levererade → släng
     let a = this._unrelAsm.get(pktSeq);
@@ -232,7 +252,7 @@ class Connection extends EventEmitter {
         if (oldest !== pktSeq) this._unrelAsm.delete(oldest);
       }
     }
-    if (!a.parts[fragIdx]) { a.parts[fragIdx] = payload; a.got++; }
+    if (a.fragCount === fragCount && !a.parts[fragIdx]) { a.parts[fragIdx] = payload; a.got++; }
     if (a.got === a.fragCount) {
       this._unrelAsm.delete(pktSeq);
       this._unrelNewest = pktSeq;
@@ -244,14 +264,16 @@ class Connection extends EventEmitter {
 
   tick(now) {
     if (this.closed) return;
-    if (now - this._lastRecvAt >= TIMEOUT_MS) { this.close('timeout'); return; }
+    const timeoutMs = this._verified ? TIMEOUT_MS : UNVERIFIED_TIMEOUT_MS;   // C242: reap spoofad/overifierad peer snabbt
+    if (now - this._lastRecvAt >= timeoutMs) { this.close('timeout'); return; }
     for (const e of this._unacked.values()) {           // resend obekräftade frags
       if (now - e.sentAt >= this._rto) {
         e.sentAt = now; e.sends++;
         this._sendRaw(e.pkt);
       }
     }
-    if (now - this._lastHbAt >= HEARTBEAT_MS) {          // heartbeat
+    // C242: skicka ALDRIG heartbeat till en overifierad peer → ingen reflektions-amplifiering mot spoofad IP.
+    if (this._verified && now - this._lastHbAt >= HEARTBEAT_MS) {
       this._lastHbAt = now;
       this._sendRaw(ctrlPkt(T.PING, this.session));
     }
@@ -296,6 +318,7 @@ class UdpServer extends EventEmitter {
     if (buf[0] === T.HELLO) {
       let conn = this._conns.get(key);
       if (!conn) {
+        if (this._conns.size >= MAX_CONNS) return;        // C242: vägra nya conns när tabellen är full (släng tyst, ingen WELCOME)
         const session = this._nextSession++;
         conn = new Connection(session, (b) => this._send(b, rinfo.port, rinfo.address), Date.now());
         conn.address = rinfo.address; conn.port = rinfo.port; conn._key = key;
@@ -340,9 +363,11 @@ class UdpClient extends EventEmitter {
   _onMessage(buf) {
     if (!buf.length) return;
     if (buf[0] === T.WELCOME) {
+      if (buf.length < 5) return;                         // C241: längd-guard
       if (this.conn) return;                              // redan ansluten (dubbel-WELCOME)
       const session = buf.readUInt32LE(1);
-      this.conn = new Connection(session, (b) => this._sendRaw(b), Date.now());
+      // klienten initierade → return-routability implicit (vi fick WELCOME) → verifierad direkt
+      this.conn = new Connection(session, (b) => this._sendRaw(b), Date.now(), true);
       this.conn.on('message', (m) => this.emit('message', m));
       this.conn.on('close', (r) => this.emit('close', r));
       this.emit('connect', this.conn);

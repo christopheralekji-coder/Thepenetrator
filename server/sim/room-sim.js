@@ -8225,12 +8225,19 @@ function applyShoot(sim, peerId, msg) {
   if (process.env.SIM_DEBUG) {
     console.log('[SIM]', sim.room.code, 'shoot from', peerId, 'weapon=' + weaponId, 'pos=(' + p.x + ',' + p.y + ')', 'enemies=' + sim.enemies.length, 'bullets=' + sim.bullets.length);
   }
+  // AUDIT C269/C275/C178/C203 (2026-06-18): klient-levererade combat-multiplikatorer var OKLAMPADE
+  // → moddad klient kunde skicka dmgMul=1e9/Infinity och one-shotta allt (även bossar). Bounda alla
+  // till finita, generösa tak som ligger TYDLIGT över legit max-stack (upgrades×mastery×combo×glass_cannon×temp
+  // ≈ 25-30) så inga riktiga builds nerfas. critChance är en sannolikhet → måste vara [0,1].
+  // (Full server-auktoritativ härledning kommer i ekonomi/auktoritets-vågen.)
   const params = {
-    dmgMul: msg.dmgMul || 1, bspeedMul: msg.bspeedMul || 1,
-    explMul: msg.explMul || 1, kbMul: msg.kbMul || 1,
-    critChance: msg.critChance || 0,
-    adrenalineDmg: msg.adrenalineDmg || 1,
-    stealthBonus: msg.stealthBonus || 1,
+    dmgMul: Math.max(0, Math.min(50, +msg.dmgMul || 1)),
+    bspeedMul: Math.max(0.1, Math.min(5, +msg.bspeedMul || 1)),
+    explMul: Math.max(0, Math.min(10, +msg.explMul || 1)),
+    kbMul: Math.max(0, Math.min(10, +msg.kbMul || 1)),
+    critChance: Math.max(0, Math.min(1, +msg.critChance || 0)),
+    adrenalineDmg: Math.max(0, Math.min(5, +msg.adrenalineDmg || 1)),
+    stealthBonus: Math.max(0, Math.min(5, +msg.stealthBonus || 1)),
     mrangeMul: Math.max(1, Math.min(2, +msg.mrangeMul || 1)),   // v2: melee-räckvidd-upgrade
     perks: msg.perks || {}, cheats: msg.cheats || {},
   };
