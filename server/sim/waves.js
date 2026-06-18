@@ -56,6 +56,10 @@ function startZone(sim, stage, zoneIdx) {
 }
 
 function spawnBoss(sim, stage) {
+  // AUDIT C286: bosslös stage (t.ex. endless icke-boss-våg) har ingen boss att spawna. Utan detta
+  // hängde stage:t för evigt — zoneState fastnade i 'boss', bossDefeated sattes aldrig, så
+  // isStageComplete returnerade alltid false. Markera stage klar direkt → wave-progressionen går vidare.
+  if (!stage.bossKey) { sim.bossDefeated = true; return; }
   sim.zoneState = 'boss';
   const coopMul = getCoopMultiplier(sim.room.members.size);
   const boss = makeBoss(stage.bossKey, stage.goalPos.x, stage.goalPos.y, coopMul);

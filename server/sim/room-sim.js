@@ -5717,6 +5717,10 @@ function applyBrBuy(sim, pid, itemKind) {
 
 // Cash-cheat (4-klick nere till vänster → claima 100k, obegränsat).
 function applyBrInfCash(sim, pid) {
+  // AUDIT C175: dev-testgenväg — får ALDRIG vara aktiv i produktion. Gatad bakom env-flagga
+  // (sätt ALLOW_CHEATS=1 på en lokal/testserver för att återaktivera). I prod = no-op även om
+  // en klient skickar rå sim_br_infcash direkt.
+  if (process.env.ALLOW_CHEATS !== '1') return;
   if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
   brAwardCash(sim, pid, 100000);
 }
