@@ -70,20 +70,25 @@ function losBlocked(sim, x0, y0, x1, y1) {
   for (let i = 0; i < walls.length; i++) {
     const w = walls[i];
     if (w.x > segMaxX || w.x + w.w < segMinX || w.y > segMaxY || w.y + w.h < segMinY) continue;
+    // PERF: inline-Liang-Barsky utan checks-array (noll allokering per vägg) — samma
+    // som shared/ctf-arena.segmentIntersectsAABB. Mer märkbart × många bots × väggar.
     let tMin = 0, tMax = 1, hit = true;
-    const checks = [
-      { p: -dx, q: x0 - w.x },
-      { p:  dx, q: (w.x + w.w) - x0 },
-      { p: -dy, q: y0 - w.y },
-      { p:  dy, q: (w.y + w.h) - y0 },
-    ];
-    for (let c = 0; c < 4; c++) {
-      const ch = checks[c];
-      if (ch.p === 0) { if (ch.q < 0) { hit = false; break; } }
+    if (dx === 0) { if (x0 - w.x < 0 || (w.x + w.w) - x0 < 0) hit = false; }
+    else {
+      const t1 = (x0 - w.x) / -dx, t2 = ((w.x + w.w) - x0) / dx;
+      if (-dx < 0) { if (t1 > tMax) hit = false; else if (t1 > tMin) tMin = t1; }
+      else { if (t1 < tMin) hit = false; else if (t1 < tMax) tMax = t1; }
+      if (hit) { if (dx < 0) { if (t2 > tMax) hit = false; else if (t2 > tMin) tMin = t2; }
+        else { if (t2 < tMin) hit = false; else if (t2 < tMax) tMax = t2; } }
+    }
+    if (hit) {
+      if (dy === 0) { if (y0 - w.y < 0 || (w.y + w.h) - y0 < 0) hit = false; }
       else {
-        const t = ch.q / ch.p;
-        if (ch.p < 0) { if (t > tMax) { hit = false; break; } if (t > tMin) tMin = t; }
-        else          { if (t < tMin) { hit = false; break; } if (t < tMax) tMax = t; }
+        const t3 = (y0 - w.y) / -dy, t4 = ((w.y + w.h) - y0) / dy;
+        if (-dy < 0) { if (t3 > tMax) hit = false; else if (t3 > tMin) tMin = t3; }
+        else { if (t3 < tMin) hit = false; else if (t3 < tMax) tMax = t3; }
+        if (hit) { if (dy < 0) { if (t4 > tMax) hit = false; else if (t4 > tMin) tMin = t4; }
+          else { if (t4 < tMin) hit = false; else if (t4 < tMax) tMax = t4; } }
       }
     }
     if (hit && tMin <= tMax) return true;

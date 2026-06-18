@@ -277,22 +277,29 @@ function bulletHitsWall(b, walls) {
 }
 // Liang-Barsky line-vs-AABB clip — returnerar true om segmentet träffar boxen.
 function segmentIntersectsAABB(x0, y0, x1, y1, minX, minY, maxX, maxY) {
+  // PERF: inline-Liang-Barsky utan array/objekt-literaler — anropas O(bullets×walls)
+  // per tick (BR: 300×2775); den gamla `checks`-arrayen allokerade ~50M obj/sek = GC-
+  // spik ([SLOW-TICK]). Två lokala vars återanvänds (en clip-helper) → noll allokering.
   const dx = x1 - x0, dy = y1 - y0;
   let tMin = 0, tMax = 1;
-  const checks = [
-    { p: -dx, q: x0 - minX },
-    { p:  dx, q: maxX - x0 },
-    { p: -dy, q: y0 - minY },
-    { p:  dy, q: maxY - y0 },
-  ];
-  for (const c of checks) {
-    if (c.p === 0) {
-      if (c.q < 0) return false;
-    } else {
-      const t = c.q / c.p;
-      if (c.p < 0) { if (t > tMax) return false; if (t > tMin) tMin = t; }
-      else         { if (t < tMin) return false; if (t < tMax) tMax = t; }
-    }
+  // clip mot varje axel-par; inline för att slippa funktionsanrop/allokering
+  // axel X (vänster: p=-dx,q=x0-minX ; höger: p=dx,q=maxX-x0)
+  if (dx === 0) { if (x0 - minX < 0 || maxX - x0 < 0) return false; }
+  else {
+    let t1 = (x0 - minX) / -dx, t2 = (maxX - x0) / dx;
+    if (-dx < 0) { if (t1 > tMax) return false; if (t1 > tMin) tMin = t1; }
+    else { if (t1 < tMin) return false; if (t1 < tMax) tMax = t1; }
+    if (dx < 0) { if (t2 > tMax) return false; if (t2 > tMin) tMin = t2; }
+    else { if (t2 < tMin) return false; if (t2 < tMax) tMax = t2; }
+  }
+  // axel Y (övre: p=-dy,q=y0-minY ; nedre: p=dy,q=maxY-y0)
+  if (dy === 0) { if (y0 - minY < 0 || maxY - y0 < 0) return false; }
+  else {
+    let t3 = (y0 - minY) / -dy, t4 = (maxY - y0) / dy;
+    if (-dy < 0) { if (t3 > tMax) return false; if (t3 > tMin) tMin = t3; }
+    else { if (t3 < tMin) return false; if (t3 < tMax) tMax = t3; }
+    if (dy < 0) { if (t4 > tMax) return false; if (t4 > tMin) tMin = t4; }
+    else { if (t4 < tMin) return false; if (t4 < tMax) tMax = t4; }
   }
   return true;
 }
