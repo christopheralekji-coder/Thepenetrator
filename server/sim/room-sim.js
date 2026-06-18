@@ -6841,6 +6841,10 @@ function startSim(sim, opts) {
     ws.playerState.speedMul = 1.0;
     ws.playerState.dashCdMs = null;
     if (ws.playerState.maxHp > 100) ws.playerState.maxHp = 100;
+    // ny match → släpp klientens rapporterade max (re-skickas i sim_input inom en
+    // tick). Annars läcker t.ex. BR-perk-maxHp in i nästa TDM/gungame-respawn.
+    ws.playerState._cliMaxHp = null;
+    ws.playerState._cliMaxShield = null;
     // v1.769 KRITISK livscykel-fix: nollställ hp till full vid VARJE match-start.
     // Dog spelaren i förra matchen låg ws.playerState.hp kvar på 0 → buildPlayerList
     // la dem i deadBodies redan tick 1 → player_died-event → INSTANT DEATH på "try

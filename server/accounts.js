@@ -565,7 +565,14 @@ function handleGetProfile(ws, msg) {
   if (!a) { H.send(ws, { type: 'acct_profile', id, found: false }); return; }
   const v = (a.vault && typeof a.vault === 'object') ? a.vault : {};
   const ps = (v.pub_stats && typeof v.pub_stats === 'object') ? v.pub_stats : {};
-  const recent = Array.isArray(v.recent) ? v.recent.slice(0, 8) : [];
+  // vitlista formen — recent är klient-pushad (osaniterad i vaulten) → mappa till
+  // en känd, typ-koercad form innan den skickas vidare till andra spelare.
+  const recent = (Array.isArray(v.recent) ? v.recent.slice(0, 8) : []).map((r) => ({
+    mode: String((r && r.mode) || '').slice(0, 24),
+    kills: Math.max(0, Math.min(9999, +(r && r.kills) || 0)),
+    gold: Math.max(0, Math.min(9999999, +(r && r.gold) || 0)),
+    won: !!(r && r.won),
+  }));
   H.send(ws, {
     type: 'acct_profile', id: a.id, found: true,
     name: a.name, avatar: a.avatar, level: a.level,
