@@ -21,6 +21,7 @@ const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 const { CASTLEDEFENSE_ARENA } = require('../../shared/castledefense-arena');
 const { HEIST_ARENA } = require('../../shared/heist-arena');
 const { GULAG_GAMES } = require('../../shared/gulag-arenas');
+const { dropGasCloud } = require('./bosses');  // C119: gas-on-hit för Caster-boss-kulor
 
 // v1.656: återanvänd scratch-array för bullet-collision spatial-query (noll-alloc).
 // Säkert att dela mellan rum: servern är single-threaded och arrayen fylls + läses
@@ -555,6 +556,7 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
     if (target) {
       target.mindControlled = true;
       target.mindControlUntil = Date.now() + (w.mindControlMs || 5000);
+      target._mcOwner = p.peerId;  // C310: kreditera kills utförda av kontrollerad fiende till skytten
     }
     return;
   }
@@ -695,6 +697,8 @@ function applyBulletEffects(b, e, sim) {
   if (b.burn > 0) {
     e.burnUntil = Date.now() + 4000;
     e.burnDps = b.burn;
+    e._burnOwner = b.ownerPid;   // C311: kreditera burn-kill (inkl. kedje-spridd eld) till skytten
+    e._burnWeapon = b.weaponId;  // C311: vapnet för killfeed-attribution
   }
   // Slow
   if (b.slow > 0) {
@@ -1344,6 +1348,8 @@ function updateBullets(sim, dt, now) {
               hp: ws.playerState.hp, shield: ws.playerState.shield || 0,
             });
           }
+          // C119: Caster-boss gasOnHit — träff mot spelare utlöser gasmoln vid träffpunkten
+          if (b.gasOnHit) dropGasCloud(sim, b.x, b.y, 70, 4, 6);
           bullets.splice(i, 1);
           break;
         }
