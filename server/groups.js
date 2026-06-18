@@ -104,6 +104,34 @@ function partyMembers(ws) {
   return [...g.members.values()];
 }
 
+// AUDIT C277: byt ut en gammal socket mot en ny för ett givet accountId i dess grupp.
+// Anropas från accounts.bindSocketToAccount vid reconnect/re-login. Null-guardad.
+// Returnerar groupId om rebind skedde, annars null.
+function rebindSocket(accountId, newWs) {
+  if (!accountId || !newWs) return null;
+  for (const g of groups.values()) {
+    if (g.members.has(accountId)) {
+      g.members.set(accountId, newWs);
+      newWs._groupId = g.id;
+      return g.id;
+    }
+  }
+  return null;
+}
+
+// AUDIT C272: pusha ett auktoritativt grupp-roster till ws efter login/reconnect.
+// Om ws är i en grupp → skicka roster; annars → skicka group_left så klienten
+// kan snappa till sanningen (inte fastna i ett gammalt grupp-UI).
+function pushRosterFor(ws) {
+  if (!ws) return;
+  const g = groupOf(ws);
+  if (g) {
+    send(ws, roster(g));
+  } else {
+    send(ws, { type: 'group_left' });
+  }
+}
+
 function handle(ws, msg) {
   switch (msg.type) {
     case 'group_create': create(ws); return;
@@ -114,4 +142,4 @@ function handle(ws, msg) {
   }
 }
 
-module.exports = { setHelpers, handle, leave, partyMembers };
+module.exports = { setHelpers, handle, leave, partyMembers, rebindSocket, pushRosterFor };

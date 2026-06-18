@@ -2204,7 +2204,9 @@ function handleDisconnect(ws) {
 }
 
 // v2 matchmaking: ge matchmakern serverns helpers (send/rooms/sim/kod-generator)
-matchmaker.setHelpers({ send, rooms, createSim, startSim, generateCode });
+// AUDIT C312: matchmakern behöver presenceChanged + broadcastPublicRooms för att
+// vänner ska se matchmade spelare som 'i match' (ej fast i 'lobby' med stale kod).
+matchmaker.setHelpers({ send, rooms, createSim, startSim, generateCode, presenceChanged: accounts.presenceChanged, broadcastPublicRooms });
 groups.setHelpers({ send, wsForAccount: accounts.wsForAccount });
 
 server.listen(PORT, () => {

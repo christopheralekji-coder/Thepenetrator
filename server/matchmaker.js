@@ -16,7 +16,7 @@
 
 const groups = require('./groups');   // AUDIT C268: vän-baserad party-state måste konsumeras vid köning
 
-let H = null; // { send, rooms, createSim, startSim, generateCode }
+let H = null; // { send, rooms, createSim, startSim, generateCode, presenceChanged?, broadcastPublicRooms? }
 function setHelpers(h) { H = h; }
 
 // target = MINSTA antal RIKTIGA spelare för att starta (ej fulla lobbyn — liten
@@ -72,7 +72,7 @@ function joinQueue(members, mode) {
     const r = ws.roomCode ? H.rooms.get(ws.roomCode) : null;
     if (r && r.meta && r.meta.started) return 'inroom';
   }
-  const ticket = { members: members.slice(), mode, joinedAt: Date.now() };
+  const ticket = { members: members.slice(), mode, joinedAt: Date.now(), size: members.length };
   for (const ws of members) ws._mmTicket = ticket;
   qFor(mode).push(ticket);
   for (const ws of members) send(ws, { type: 'queue_joined', mode, target: T, size: members.length });
@@ -214,9 +214,11 @@ function dissolveAccept(matchId, decliner) {
   if (entry.timer) clearTimeout(entry.timer);
   for (const ws of entry.members) ws._mmMatchId = null;
   for (const t of entry.tickets) {
-    // AUDIT C306: en redan-tömd ticket (alla medlemmar lämnade) ska aldrig åter-köas
-    // (every() är vacuously sann på tom array → spök-ticket). Hoppa över helt.
-    if (t.members.length === 0) continue;
+    // AUDIT C306: en ticket vars storlek krympt (någon lämnade/dissade) ska aldrig
+    // åter-köas — varken tom (vacuously-sann every()) eller delvis urholkad.
+    // t.size = originalstorlek sätts i joinQueue. Tomt (0) = trivial spök-ticket;
+    // krympt (!== t.size) = gruppen är inte intakt längre → neka åter-köning.
+    if (t.members.length === 0 || (t.size != null && t.members.length !== t.size)) continue;
     // behåll ticket om HELA gruppen accepterade och ingen är decliner
     const allAccepted = t.members.every(m => entry.accepts.has(m.id) && m !== decliner);
     if (allAccepted) {
@@ -289,6 +291,10 @@ function finalizeMatch(matchId) {
   if (Object.keys(teamOf).length) opts.teams = teamOf;
   H.startSim(room.sim, opts);
   room.meta.started = true;
+  // AUDIT C312: push presence-uppdatering till vänner (matchmade → i match, ej lobby).
+  // broadcastPublicRooms: stale lobbykod försvinner ur publika rum-listan.
+  if (H.broadcastPublicRooms) H.broadcastPublicRooms();
+  for (const ws of entry.members) { if (H.presenceChanged) H.presenceChanged(ws); }
   // 'match_ready' till var och en (kombinerad hosted/joined + sim körs redan)
   const memberList = [];
   for (const [, m] of room.members) memberList.push({ id: m.id, slot: m.stableSlot, name: m.playerName || 'Spelare' });

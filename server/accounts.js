@@ -14,6 +14,7 @@ const path = require('path');
 const crypto = require('crypto');
 const http = require('http');
 const https = require('https');
+const groups = require('./groups'); // AUDIT C277/C272: socket-rebind + roster-push vid reconnect
 
 // ── Persistens ───────────────────────────────────────────────────────────────
 // ACCOUNTS_DATA_DIR-override gör att prober kan peka mot temp-katalog.
@@ -442,7 +443,13 @@ function loginPayload(acc) {
 // acct_logged_in + presence. Kräver H (anropas bara via WS-dispatchern → H satt).
 function bindSocketToAccount(ws, acc) {
   const old = online.get(acc.id);
-  if (old && old !== ws) old.accountId = null;
+  if (old && old !== ws) {
+    // AUDIT C277: om den gamla socketen är i en grupp, transfera gruppmedlemskapet
+    // till den nya socketen INNAN vi nollar old.accountId — annars pekar
+    // g.members[accountId] på stale `old` och groupOf(newWs) returnerar null.
+    if (old._groupId) groups.rebindSocket(acc.id, ws);
+    old.accountId = null;
+  }
   // C172: byter socketen konto (switch → re-login) revokeras det gamla kontots
   // tokens så en utdelad token inte kan replaya efter bytet.
   if (ws.accountId && ws.accountId !== acc.id) revokeSessionsFor(ws.accountId);
@@ -452,6 +459,9 @@ function bindSocketToAccount(ws, acc) {
   markDirty();
   H.send(ws, Object.assign({ type: 'acct_logged_in' }, loginPayload(acc)));
   notifyFriendsOf(acc.id); // vänner ser online:true
+  // AUDIT C272: pusha auktoritativt grupp-roster (eller group_left) direkt efter
+  // login/reconnect så klienten snapper till rätt grupp-state utan fördröjning.
+  groups.pushRosterFor(ws);
 }
 
 function handleLogin(ws, msg) {
