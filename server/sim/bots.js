@@ -591,7 +591,7 @@ function chooseShootTarget(sim, botWs) {
   const ps = botWs.playerState;
   const px = ps.x, py = ps.y, team = botWs.tdmTeam;
   const w = W_BY_ID[ps.weaponId] || {};
-  const range = w.type === 'melee' ? (w.range || 36) + 22 : 720;
+  const range = w.type === 'melee' ? (w.range || 36) + 22 : (w.botRange || 720);  // C136: per-weapon botRange (fallback 720)
   const r2 = range * range;
   const isPvP = sim.tdmActive || sim.ctfActive || sim.siegeActive || sim.gungameActive ||
                 sim.kothActive || sim.juggernautActive || sim.battleroyaleActive;
@@ -873,9 +873,15 @@ function moveBotTowards(sim, botWs, target, dt, now) {
   }
   else if (isMelee) desiredDist = Math.max(20, (w.range || 36) - 5);
   else {
-    const LONG = ['sniper', 'ak', 'rifle', 'lmg', 'minigun', 'grenade', 'rocket'];
-    const SHORT = ['shotgun', 'autoshotgun', 'smg', 'dualuzi', 'dualpistol'];
-    desiredDist = LONG.indexOf(ps.weaponId) >= 0 ? 460 : (SHORT.indexOf(ps.weaponId) >= 0 ? 150 : 260);
+    // C136: prefer per-weapon botRange (×0.65 gives a comfortable firing position within range).
+    // Fallback to hardcoded tiers if botRange absent (backward-compat for weapons without the field).
+    if (w.botRange) {
+      desiredDist = Math.round(w.botRange * 0.65);
+    } else {
+      const LONG = ['sniper', 'ak', 'rifle', 'lmg', 'minigun', 'grenade', 'rocket'];
+      const SHORT = ['shotgun', 'autoshotgun', 'smg', 'dualuzi', 'dualpistol'];
+      desiredDist = LONG.indexOf(ps.weaponId) >= 0 ? 460 : (SHORT.indexOf(ps.weaponId) >= 0 ? 150 : 260);
+    }
   }
   if (target.type === 'escort') desiredDist = 110;   // v1.665: följ flagg-bäraren nära (skydda)
   if (bot.fleeing && !isObjective) desiredDist = Math.max(desiredDist, 520);
@@ -979,7 +985,7 @@ function shootIfReady(sim, botWs, target, now) {
   // Check att target är inom range (melee) eller LoS-distans (gun)
   const dx = target.x - ps.x, dy = target.y - ps.y;
   const d = Math.hypot(dx, dy);
-  const maxRange = w.type === 'melee' ? (w.range || 36) + 14 : 700;
+  const maxRange = w.type === 'melee' ? (w.range || 36) + 14 : (w.botRange || 700);  // C136: per-weapon botRange (fallback 700)
   if (d > maxRange) return;
   // v1.671: skjut ALDRIG genom en vägg (ultimat chokepoint — täcker alla target-
   // källor inkl. move-target-fallbacken). Boten håller elden tills den har fri sikt;

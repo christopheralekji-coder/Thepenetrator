@@ -274,7 +274,7 @@ const HEIST_ARENA = {
     { id: 'vault',         x: 1900, y: 1675, w: 200, h: 25, kind: 'vault_door',   locked: true,  drillable: true },
     { id: 'security',      x: 2900, y: 1675, w: 100, h: 25, kind: 'side_door',    locked: true,  lockpickable: true, kind2: 'rfid' },
     { id: 'server',        x: 820,  y: 1975, w: 100, h: 25, kind: 'side_door',    locked: false },
-    { id: 'behindcounter', x: 1700, y: 1975, w: 400, h: 25, kind: 'side_door',    locked: false },
+    { id: 'corridor',      x: 1700, y: 1975, w: 400, h: 25, kind: 'side_door',    locked: false },  // C155: omdöpt från 'behindcounter' (låg i hallway, ej bakom-disk-zonen y=2450-2700)
     { id: 'manager',       x: 3050, y: 2400, w: 100, h: 25, kind: 'side_door',    locked: false },
     { id: 'break',         x: 1275, y: 2150, w: 50,  h: 80, kind: 'side_door',    locked: false },
     { id: 'conf_corridor', x: 1675, y: 2150, w: 50,  h: 80, kind: 'side_door',    locked: false },
@@ -867,7 +867,7 @@ const HEIST_ARENA = {
     { id: 'cam_vault_inner',  x: 2000, y: 1100, dir: -Math.PI/2,  cone: 0.7, range: 220 },
     // Specialized rooms
     { id: 'cam_break',        x: 900,  y: 2050, dir: Math.PI/2,   cone: 0.7, range: 240 },
-    { id: 'cam_conference',   x: 1850, y: 2050, dir: Math.PI/2,   cone: 0.7, range: 220 },
+    { id: 'cam_conference',   x: 1490, y: 2050, dir: Math.PI/2,   cone: 0.7, range: 220 },  // C155: flytt från central corridor (1850) in i conference room (1300-1675)
     { id: 'cam_security',     x: 2900, y: 1200, dir: 0,           cone: 0.7, range: 240 },
     { id: 'cam_server',       x: 1080, y: 1700, dir: 0,           cone: 0.6, range: 220 },
   ],
@@ -911,9 +911,9 @@ const HEIST_ARENA = {
     { id: 'civ_mg',  x: 3200, y: 2180, kind: 'manager' },
     // Manager assistant (reception)
     { id: 'civ_as',  x: 2900, y: 1880, kind: 'cashier' },
-    // Conference attendees
-    { id: 'civ_co1', x: 1900, y: 2080, kind: 'manager' },
-    { id: 'civ_co2', x: 2050, y: 2340, kind: 'customer' },
+    // Conference attendees — C155: flytt från central corridor (1900/2050) till konferensbordet (1300-1675)
+    { id: 'civ_co1', x: 1450, y: 2200, kind: 'manager' },
+    { id: 'civ_co2', x: 1560, y: 2200, kind: 'customer' },
     // Janitor (vandrar — high mobility, NEW)
     { id: 'civ_jan', x: 800,  y: 2300, kind: 'janitor' },
     // Reception
@@ -931,8 +931,8 @@ const HEIST_ARENA = {
       patrol: [[750, 1750], [1000, 1900]], facing: -Math.PI/2 },
     { id: 'g_office',  x: 3100, y: 1850, kind: 'office_guard',
       patrol: [[2900, 1800], [3300, 2200]], facing: -Math.PI/2 },
-    { id: 'g_vault',   x: 2000, y: 1600, kind: 'vault_guard',  // NEW — utanför valvet
-      patrol: [[1500, 1600], [2500, 1600]], facing: 0 },
+    { id: 'g_vault',   x: 2000, y: 1730, kind: 'vault_guard',  // C133: flytt från inuti sealed vault (1600) till hallway framför vault-dörren
+      patrol: [[1850, 1730], [2150, 1730]], facing: -Math.PI/2 },
     { id: 'g_security',x: 3100, y: 1400, kind: 'security_guard', // NEW — i security-rum
       patrol: [[2900, 1300], [3300, 1500]], facing: 0 },
     // v1.651: nya guards i toilet + break/conference (var helt guard-fri zone)
