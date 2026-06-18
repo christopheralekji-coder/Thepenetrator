@@ -5715,12 +5715,15 @@ function applyBrBuy(sim, pid, itemKind) {
   sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'unknown' });
 }
 
-// Cash-cheat (4-klick nere till vänster → claima 100k, obegränsat).
+// AUDIT C175: dev-cheat-allowlist. Bara dev-konton (default 86743226, utöka via DEV_ACCOUNT_IDS-env,
+// komma-separerat) får trigga cheats — från VILKET bygge som helst (funkar även på TestFlight). Alla
+// andra = no-op, även vid rå sim_br_infcash. Återanvänds av övriga cheat-handlers (sim_cd_infmoney m.fl.).
+const DEV_ACCOUNTS = new Set((process.env.DEV_ACCOUNT_IDS || '86743226').split(',').map((s) => s.trim()).filter(Boolean));
+function isDevAccount(ws) { return !!(ws && ws.accountId && DEV_ACCOUNTS.has(String(ws.accountId))); }
+
+// Cash-cheat (4-klick nere till vänster → claima 100k) — dev-konto-gatad (säkerhets-gräns).
 function applyBrInfCash(sim, pid) {
-  // AUDIT C175: dev-testgenväg — får ALDRIG vara aktiv i produktion. Gatad bakom env-flagga
-  // (sätt ALLOW_CHEATS=1 på en lokal/testserver för att återaktivera). I prod = no-op även om
-  // en klient skickar rå sim_br_infcash direkt.
-  if (process.env.ALLOW_CHEATS !== '1') return;
+  if (!isDevAccount(sim.room.members.get(pid))) return;
   if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
   brAwardCash(sim, pid, 100000);
 }
