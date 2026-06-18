@@ -14,7 +14,7 @@
 // weaponId/pickup-typ/zoneState = längd-prefixad sträng (säkert, låg volym).
 // ============================================================================
 
-const MAGIC = 0xB1;
+const MAGIC = 0xB2;   // C104: bumpad 0xB1->0xB2 — player mh/msh tillagt i formatet (mixed-version-skydd mot tyst misframe)
 // Enemy-typ-enum — ordning MÅSTE matcha WorldCodec.gd:ETYPES på klienten.
 const ETYPES = ['grunt', 'runner', 'brute', 'tank', 'ninja', 'soldier', 'shooter',
   'dog', 'robot', 'sniper', 'bomber', 'healer', 'summoner', 'swarmer', 'swordsman', 'fast'];
@@ -73,6 +73,7 @@ function encodeWorld(pkt) {
   for (const p of players) {
     w.u16(p.c); w.i16(p.x); w.i16(p.y); w.u16(p.hp); w.u16(p.sh || 0);
     w.i16(Math.round((p.a || 0) * 100)); w.str(p.w);
+    w.u16(p.mh || 100); w.u16(p.msh || 0);   // C104: maxHp/maxShield -> korrekt hp/shield-bar for remotes (Jug 400, BR/Survivors-uppgraderingar)
     if (p.rT !== undefined) { w.u8(1); w.f32(p.rT); } else { w.u8(0); }
   }
 
@@ -150,7 +151,7 @@ function decodeWorld(buf) {
 
   const pn = r.u8();
   for (let k = 0; k < pn; k++) {
-    const p = { c: r.u16(), x: r.i16(), y: r.i16(), hp: r.u16(), sh: r.u16(), a: r.i16() / 100, w: r.str() };
+    const p = { c: r.u16(), x: r.i16(), y: r.i16(), hp: r.u16(), sh: r.u16(), a: r.i16() / 100, w: r.str(), mh: r.u16(), msh: r.u16() };
     if (r.u8()) p.rT = r.f32();
     pkt.players.push(p);
   }
