@@ -5,6 +5,9 @@
 
 const { BOSS_CONFIGS } = require('../../shared/boss-configs');
 const { makeEnemy } = require('./enemies');
+// C139: mirror room-sim.js ENEMY_CAP so boss summon loops never exceed the cap.
+// Kept local (not required from room-sim) to avoid a circular dependency.
+const BOSS_SUMMON_CAP = 80;
 
 function makeBoss(bossKey, x, y, coopMul) {
   const cfg = BOSS_CONFIGS[bossKey];
@@ -125,7 +128,9 @@ function aiCaster(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   }
   if (hpFrac < 0.5 && now - b.lastSpread > 5000) {
     b.lastSpread = now;
-    for (let i = 0; i < 2; i++) {
+    // C139: gate summons on cap (mirror enemies.js summoner guard)
+    const _cap = sim.stresstestActive ? 1500 : BOSS_SUMMON_CAP;
+    for (let i = 0; i < 2 && sim.enemies.length < _cap; i++) {
       const a = Math.random() * Math.PI * 2;
       const e = makeEnemy('runner', b.x + Math.cos(a) * 60, b.y + Math.sin(a) * 60);
       e._idx = sim.nextEnemyIdx++;
@@ -322,7 +327,9 @@ function aiAvatar(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   }
   if (hpFrac < 0.6 && now - b.lastSpread > 6000) {
     b.lastSpread = now;
-    for (let i = 0; i < 3; i++) {
+    // C139: gate summons on cap
+    const _cap = sim.stresstestActive ? 1500 : BOSS_SUMMON_CAP;
+    for (let i = 0; i < 3 && sim.enemies.length < _cap; i++) {
       const a = i * Math.PI * 2 / 3;
       const e = makeEnemy('ninja', b.x + Math.cos(a) * 70, b.y + Math.sin(a) * 70);
       e._idx = sim.nextEnemyIdx++;
@@ -358,7 +365,10 @@ function aiFinal(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   }
   if (phase >= 2 && now - b.lastAttack >= 5000) {
     b.lastAttack = now;
-    for (let i = 0; i < (phase === 3 ? 4 : 3); i++) {
+    // C139: gate summons on cap
+    const _cap = sim.stresstestActive ? 1500 : BOSS_SUMMON_CAP;
+    const _count = phase === 3 ? 4 : 3;
+    for (let i = 0; i < _count && sim.enemies.length < _cap; i++) {
       const a = Math.random() * Math.PI * 2;
       const e = makeEnemy('runner', b.x + Math.cos(a) * 90, b.y + Math.sin(a) * 90);
       e._idx = sim.nextEnemyIdx++;

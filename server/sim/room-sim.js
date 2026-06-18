@@ -6,7 +6,7 @@ const { makeEnemy, updateEnemy, resolveWallsCircle } = require('./enemies');
 const { makeBoss } = require('./bosses');
 const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy, explode, pveWalls } = require('./bullets');
 const { enterGulag, gulagMatchmake, tickGulag, voidAllGulag, startGulagPractice } = require('./gulag');
-const { addBot, tickBots, removeAllBots } = require('./bots');
+const { addBot, tickBots, removeAllBots, resetBotAiState } = require('./bots');
 const { tickGrenadeZones, tickPlayerBurn } = require('./grenades');
 const { updateBoss } = require('./bosses');
 const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onWaveComplete, checkBossDeath } = require('./waves');
@@ -840,6 +840,8 @@ function tickCtf(sim, dt, now) {
         ws.playerState.hp = respawnHpFor(ws.playerState);
         ws.playerState.shield = respawnShieldFor(ws.playerState);
         ws.playerState.invulnUntil = Date.now() + 1500;
+        // C117: rensa stale bot-AI-state (stale path/sticky från förra livet)
+        if (ws._bot) resetBotAiState(ws._bot, sp.x, sp.y, Date.now());
         // Om spelare dog med en flagga, droppa den vid death-positionen (sker via
         // applyCtfDeath separat — denna respawn-path ger ny position).
         sim.eventQueue.push({
@@ -1168,6 +1170,8 @@ function tdmStartRound(sim, nowMs) {
     }
     ws._tdmDeadRound = false;
     ws.tdmRespawnAt = 0;
+    // C117: rensa stale bot-AI-state (path/sticky läcker annars från förra rundan)
+    if (ws._bot) resetBotAiState(ws._bot, sp.x, sp.y, nowMs);
     sim.eventQueue.push({
       type: 'tdm_player_respawned', peerId: pid, x: sp.x, y: sp.y,
       hp: ws.playerState.hp, shield: ws.playerState.shield,
@@ -1480,6 +1484,8 @@ function tickSiege(sim, dt, now) {
         ws.playerState.hp = respawnHpFor(ws.playerState);
         ws.playerState.shield = respawnShieldFor(ws.playerState);
         ws.playerState.invulnUntil = Date.now() + 1500;
+        // C117: rensa stale bot-AI-state
+        if (ws._bot) resetBotAiState(ws._bot, sp.x, sp.y, Date.now());
         sim.eventQueue.push({
           type: 'siege_player_respawned',
           peerId: pid,
@@ -1769,13 +1775,8 @@ function tickGungame(sim, dt, now) {
         // Sätt vapen till current tier (kan ha demoterats)
         const tier = sim.gungameTiers[pid] || 0;
         ws.playerState.weaponId = GUNGAME_WEAPONS[tier];
-        // Rensa bot-state vid respawn (annars siktar bot på en stale target-ref
-        // som kan vara död/disconnected)
-        if (ws._bot) {
-          ws._bot.target = null;
-          ws._bot.lastShotAt = 0;
-          ws._bot.stuckSince = 0;
-        }
+        // C117: rensa stale bot-AI-state (path/sticky/cover + stale target-ref)
+        if (ws._bot) resetBotAiState(ws._bot, sp.x, sp.y, nowMs);
         sim.eventQueue.push({
           type: 'gungame_player_respawned',
           peerId: pid,
@@ -1843,7 +1844,8 @@ function tickKoth(sim, dt, now) {
         ws.playerState.hp = respawnHpFor(ws.playerState);
         ws.playerState.shield = respawnShieldFor(ws.playerState);
         ws.playerState.invulnUntil = nowMs + 1500;
-        if (ws._bot) { ws._bot.target = null; ws._bot.lastShotAt = 0; ws._bot.stuckSince = 0; }
+        // C117: rensa stale bot-AI-state
+        if (ws._bot) resetBotAiState(ws._bot, sp.x, sp.y, nowMs);
         sim.eventQueue.push({
           type: 'koth_player_respawned',
           peerId: pid,
@@ -2184,11 +2186,8 @@ function tickJuggernaut(sim, dt, now) {
           applyHunterStats(sim, ws);
           ws.playerState.invulnUntil = nowMs + 1500;
         }
-        if (ws._bot) {
-          ws._bot.target = null;
-          ws._bot.lastShotAt = 0;
-          ws._bot.stuckSince = 0;
-        }
+        // C117: rensa stale bot-AI-state
+        if (ws._bot) resetBotAiState(ws._bot, ws.playerState.x, ws.playerState.y, nowMs);
         sim.eventQueue.push({
           type: 'juggernaut_player_respawned',
           peerId: pid,
@@ -8051,6 +8050,10 @@ function applyPlayerInput(sim, peerId, input) {
       // AAA #6: dash-medveten cap (1000 px/s) i st.f. gamla 460+12. Tidsskalad
       // (cap·dt) → paketförlust-robust + ingen dash-clampning på 30 Hz-telefoner.
       let maxSpeed = MOVE_SPEED_CAP;
+      // C193 ÖVERVÄGT + FÖRKASTAT: att multiplicera dash-cap:en (1000 px/s) med
+      // moveSpeedMul skulle klampa LEGITIMA dashar för tunga vapen (minigun 0.62 → 620 <
+      // dash-fart) → rubber-band. MOVE_SPEED_CAP räcker som anti-speedhack-tak; per-vapen-
+      // farten enforce:as redan klient-sidan. Lämnas oförändrad.
       if (sim.ctfActive) {
         const isCarrier = sim.ctfFlags && (
           (sim.ctfFlags.red && sim.ctfFlags.red.carrierId === peerId) ||
@@ -8810,4 +8813,4 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall, pickRandomHumanHunter, transferJug, ENEMY_CAP };

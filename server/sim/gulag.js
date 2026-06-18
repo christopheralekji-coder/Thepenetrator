@@ -41,6 +41,25 @@ function gulagMatchmake(sim, now) {
     const a = sim.gulagQueue.shift();
     const b = sim.gulagQueue.shift();
     if (a === b) continue;
+    // C151: all-bot pair → fast-resolve via coin-flip instead of a real match.
+    // bots stand still (tickBots skips gulagState) so void/oneshot/frenzy/blade
+    // would run the full maxMs (26-40s) backstop before resolving.
+    const wsA = sim.room.members.get(a), wsB = sim.room.members.get(b);
+    if (wsA && wsB && wsA._isBot && wsB._isBot) {
+      // coin-flip: pick winner, route loser to elimination immediately
+      const [winPid, losePid] = Math.random() < 0.5 ? [a, b] : [b, a];
+      // clear queued state so resolveGulag finds them in a valid state
+      const psA = wsA.playerState, psB = wsB.playerState;
+      if (psA) psA.gulagState = 'fighting';
+      if (psB) psB.gulagState = 'fighting';
+      const fakeMatch = {
+        id: 'g_botfast_' + (++sim._gulagMatchCounter),
+        slot: -1, ended: false,
+        a, b, gameId: 'oneshot', origin: { x: 0, y: 0 },
+      };
+      resolveGulag(sim, fakeMatch, winPid, losePid, now);
+      continue;
+    }
     startGulagMatch(sim, a, b, now);
   }
   // DEADLOCK-SKYDD: en ENSAM köad kan bara paras om någon ANNAN spelare dör. Om ≤1

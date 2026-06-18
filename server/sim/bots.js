@@ -1048,4 +1048,30 @@ function removeAllBots(sim) {
   sim._botIds = [];
 }
 
-module.exports = { addBot, tickBots, removeAllBots, getActiveWalls, losBlocked };
+// C117: reset per-life bot AI state on respawn/redeploy.
+// Nulls stale path/sticky/cover fields so the bot recomputes a fresh path from
+// the new spawn position instead of beelining its old death position.
+// newX/newY: the spawn coordinates just assigned; now: Date.now() at respawn.
+function resetBotAiState(bot, newX, newY, now) {
+  if (!bot) return;
+  bot.target = null;
+  bot.lastShotAt = 0;
+  bot.stuckSince = 0;
+  bot._path = null;
+  bot._pathIdx = 0;
+  bot._pathGoalX = null;
+  bot._pathGoalY = null;
+  bot._pathAt = 0;          // forces path recompute next tick (staleness check)
+  bot._brStickyTarget = null;
+  bot._brStickySetAt = 0;
+  bot._coverPt = null;
+  bot._coverAt = 0;
+  bot._aimPrev = null;
+  bot._tac = null;
+  bot._tacAt = 0;
+  bot._stuckRefX = newX;
+  bot._stuckRefY = newY;
+  bot._stuckRefAt = now;
+}
+
+module.exports = { addBot, tickBots, removeAllBots, getActiveWalls, losBlocked, resetBotAiState };

@@ -3,7 +3,7 @@
 
 const WebSocket = require('ws');
 const http = require('http');
-const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney } = require('./sim/room-sim');
+const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, pickRandomHumanHunter, transferJug } = require('./sim/room-sim');
 const accounts = require('./accounts'); // v2 konto/vÃ¤nner (acct_* â€” additivt, no-op fÃ¶r V1)
 const matchmaker = require('./matchmaker'); // v2 matchmaking-kö (queue_*/match_* — additivt)
 const groups = require('./groups'); // v2 matchmaking grupp-lager (group_* — additivt)
@@ -1248,9 +1248,16 @@ function handleMessage(ws, msg) {
           if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1);
         }
         if (_s.juggernautActive && _s.juggernautPid === peerId) {
-          _s.juggernautPid = null;
-          _s._juggernautAwaitFirstRespawn = true;
-          _s.eventQueue.push({ type: 'juggernaut_jug_changed', newJug: null, oldJug: peerId, reason: 'jug_disconnected', weapon: _s.juggernautWeapon, jugHp: _s.juggernautHpMax });
+          // C229: immediately install a live human as the new JUG instead of
+          // leaving the role vacant until the next human respawn.
+          const _nextJug = pickRandomHumanHunter(_s, peerId);
+          if (_nextJug) {
+            transferJug(_s, _nextJug, 'jug_kicked');
+          } else {
+            _s.juggernautPid = null;
+            _s._juggernautAwaitFirstRespawn = true;
+            _s.eventQueue.push({ type: 'juggernaut_jug_changed', newJug: null, oldJug: peerId, reason: 'jug_kicked', weapon: _s.juggernautWeapon, jugHp: _s.juggernautHpMax });
+          }
         }
       }
       console.log('[ROOM]', room.code, 'bot', peerId, 'kicked by host');
@@ -2106,11 +2113,16 @@ function handleDisconnect(ws) {
           _s.battleroyaleEliminated.push(_pid);
           if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1);
         }
-        // Om host var JUG, frigÃ¶r rollen (samma som vanlig-peer-grenen).
+        // C229: Om host var JUG, transferera direkt till en levande human (ej vänta på respawn).
         if (_s.juggernautActive && _s.juggernautPid === ws.id) {
-          _s.juggernautPid = null;
-          _s._juggernautAwaitFirstRespawn = true;
-          _s.eventQueue.push({ type: 'juggernaut_jug_changed', newJug: null, oldJug: ws.id, reason: 'jug_disconnected', weapon: _s.juggernautWeapon, jugHp: _s.juggernautHpMax });
+          const _nextJug = pickRandomHumanHunter(_s, ws.id);
+          if (_nextJug) {
+            transferJug(_s, _nextJug, 'jug_host_migrated');
+          } else {
+            _s.juggernautPid = null;
+            _s._juggernautAwaitFirstRespawn = true;
+            _s.eventQueue.push({ type: 'juggernaut_jug_changed', newJug: null, oldJug: ws.id, reason: 'jug_disconnected', weapon: _s.juggernautWeapon, jugHp: _s.juggernautHpMax });
+          }
         }
       }
       for (const [, m] of room.members) {
@@ -2163,16 +2175,21 @@ function handleDisconnect(ws) {
         if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1);
       }
     }
-    // JUGGERNAUT: om JUG-spelaren disconnectade, frigÃ¶r JUG-rollen sÃ¥ nÃ¤sta
-    // human-respawn Ã¤rver den (i stÃ¤llet fÃ¶r att JUG sitter dÃ¶d tills timer gÃ¥r ut).
+    // C229: JUGGERNAUT — om JUG disconnectade, transferera direkt till en levande
+    // human i st.f. att vänta på att en hunter respawnar (matchen staller annars).
     if (room.sim && room.sim.juggernautActive && room.sim.juggernautPid === ws.id) {
-      room.sim.juggernautPid = null;
-      room.sim._juggernautAwaitFirstRespawn = true;
-      room.sim.eventQueue.push({
-        type: 'juggernaut_jug_changed',
-        newJug: null, oldJug: ws.id, reason: 'jug_disconnected',
-        weapon: room.sim.juggernautWeapon, jugHp: room.sim.juggernautHpMax,
-      });
+      const _nextJug = pickRandomHumanHunter(room.sim, ws.id);
+      if (_nextJug) {
+        transferJug(room.sim, _nextJug, 'jug_disconnected');
+      } else {
+        room.sim.juggernautPid = null;
+        room.sim._juggernautAwaitFirstRespawn = true;
+        room.sim.eventQueue.push({
+          type: 'juggernaut_jug_changed',
+          newJug: null, oldJug: ws.id, reason: 'jug_disconnected',
+          weapon: room.sim.juggernautWeapon, jugHp: room.sim.juggernautHpMax,
+        });
+      }
     }
     // KRITISKT: rÃ¤kna inte bots i tom-rum-check, annars lever sim:en vidare med
     // bara bot-ws kvar (rum-lÃ¤cka, evig bot-AI-tick).
