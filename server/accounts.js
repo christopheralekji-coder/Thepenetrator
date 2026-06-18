@@ -554,6 +554,33 @@ function handleSearch(ws, msg) {
   H.send(ws, { type: 'acct_search_result', results });
 }
 
+// Hämta en spelares PUBLIKA profil (vän/medspelare) — stats + senaste matcher.
+// Stats: acc.stats (matches/kills/wins, auktoritativt) + vault.pub_stats (rikare:
+// best_streak/gold_earned) + vault.recent (senaste matcherna, klient-pushade).
+function handleGetProfile(ws, msg) {
+  const me = getMe(ws);
+  if (!me) { sendErr(ws, 'auth'); return; }
+  const id = String(msg.id || '').slice(0, 40);
+  const a = accounts.get(id);
+  if (!a) { H.send(ws, { type: 'acct_profile', id, found: false }); return; }
+  const v = (a.vault && typeof a.vault === 'object') ? a.vault : {};
+  const ps = (v.pub_stats && typeof v.pub_stats === 'object') ? v.pub_stats : {};
+  const recent = Array.isArray(v.recent) ? v.recent.slice(0, 8) : [];
+  H.send(ws, {
+    type: 'acct_profile', id: a.id, found: true,
+    name: a.name, avatar: a.avatar, level: a.level,
+    online: online.has(a.id),
+    stats: {
+      matches: (a.stats && +a.stats.matches) || +ps.matches || 0,
+      kills: (a.stats && +a.stats.kills) || +ps.kills || 0,
+      wins: (a.stats && +a.stats.wins) || +ps.wins || 0,
+      best_streak: +ps.best_streak || 0,
+      gold_earned: +ps.gold_earned || 0,
+    },
+    recent,
+  });
+}
+
 function handleFriendRequest(ws, msg) {
   const me = getMe(ws);
   if (!me) { sendErr(ws, 'auth'); return; }
@@ -1082,6 +1109,7 @@ function handle(ws, msg, helpers) {
     case 'acct_login': handleLogin(ws, msg); return;
     case 'acct_update': handleUpdate(ws, msg); return;
     case 'acct_search': handleSearch(ws, msg); return;
+    case 'acct_get_profile': handleGetProfile(ws, msg); return;
     case 'acct_friend_request': handleFriendRequest(ws, msg); return;
     case 'acct_friend_accept': handleFriendAccept(ws, msg); return;
     case 'acct_friend_decline': handleFriendDecline(ws, msg); return;
