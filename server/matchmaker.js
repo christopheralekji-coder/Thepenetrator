@@ -14,6 +14,8 @@
 // Lobby = party (ML-stil): matchmakern köar en HEL lobby (room.members) som en
 // ticket — inget separat grupp-lager behövs (groups.js ligger kvar men oanvänt).
 
+const groups = require('./groups');   // AUDIT C268: vän-baserad party-state måste konsumeras vid köning
+
 let H = null; // { send, rooms, createSim, startSim, generateCode }
 function setHelpers(h) { H = h; }
 
@@ -287,19 +289,27 @@ function send(ws, obj) { if (H) H.send(ws, obj); }
 function handle(ws, msg) {
   switch (msg.type) {
     case 'queue_join': {
-      // LOBBY = PARTY (ML-stil): spelaren köar FRÅN sin lobby → hela lobbyn (utom
-      // bots) blir EN ticket; bara host:en får köa. Ej i lobby → solo-fallback.
-      const room = ws.roomCode ? H.rooms.get(ws.roomCode) : null;
-      let members;
       let mode = String(msg.mode || '');
-      if (room) {
-        if (ws.id !== room.hostId) { send(ws, { type: 'queue_error', code: 'notleader' }); return; }
-        if (room.meta && room.meta.started) { send(ws, { type: 'queue_error', code: 'inroom' }); return; }
-        members = [];
-        for (const [, m] of room.members) if (!m._isBot && m.readyState === 1) members.push(m);
-        if (!mode) mode = (room.meta && room.meta.mode) || '';
+      let members;
+      // AUDIT C268: vän-baserad party (groups.js) har FÖRETRÄDE. Utan detta köade ledaren SOLO
+      // och gruppmedlemmarna strandade för evigt ("Väntar på att ledaren startar").
+      const party = groups.partyMembers(ws);
+      if (party === 'notleader') { send(ws, { type: 'queue_error', code: 'notleader' }); return; }
+      if (Array.isArray(party) && party.length > 0) {
+        members = party.filter((m) => m && m.readyState === 1);
       } else {
-        members = [ws];
+        // LOBBY = PARTY (ML-stil): köa FRÅN lobbyn → hela lobbyn (utom bots) blir EN ticket;
+        // bara host:en får köa. Varken grupp eller lobby → solo.
+        const room = ws.roomCode ? H.rooms.get(ws.roomCode) : null;
+        if (room) {
+          if (ws.id !== room.hostId) { send(ws, { type: 'queue_error', code: 'notleader' }); return; }
+          if (room.meta && room.meta.started) { send(ws, { type: 'queue_error', code: 'inroom' }); return; }
+          members = [];
+          for (const [, m] of room.members) if (!m._isBot && m.readyState === 1) members.push(m);
+          if (!mode) mode = (room.meta && room.meta.mode) || '';
+        } else {
+          members = [ws];
+        }
       }
       // world-format-flaggor (host/join sätter dem annars) på ALLA matchmade
       for (const m of members) { if (msg.godot) m._jsonWorld = true; if (msg.bin) m._binWorld = true; }
