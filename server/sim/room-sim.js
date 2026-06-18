@@ -6130,6 +6130,14 @@ function broadcastWorld(sim, now) {
     });
     return _jsonPlayers;
   };
+  // PERF: pickups är IDENTISKA för alla peers → bygg den avrundade arrayen EN gång
+  // (memoiserat som getJsonPlayers) i st.f. .map per peer i broadcast-loopen.
+  let _jsonPickups = null;
+  const getJsonPickups = () => {
+    if (_jsonPickups) return _jsonPickups;
+    _jsonPickups = sim.pickups.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), t: p.type }));
+    return _jsonPickups;
+  };
 
   // Drain event-queue. Batch ALLA events i ett enda 'sim_events'-meddelande per
   // peer per tick — sparar 1 JSON.stringify + 1 ws.send per event per client.
@@ -6411,9 +6419,7 @@ function broadcastWorld(sim, now) {
     }
     // Pickups: skickas i full broadcast eller om något ändrats
     if (sim.pickups && sim.pickups.length > 0) {
-      pkt.pickups = sim.pickups.map(p => ({
-        x: Math.round(p.x), y: Math.round(p.y), t: p.type,
-      }));
+      pkt.pickups = getJsonPickups();   // memoiserat (samma för alla peers)
     } else if (fullBroadcast) {
       pkt.pickups = [];
     }
