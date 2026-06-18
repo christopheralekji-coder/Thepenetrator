@@ -6090,17 +6090,28 @@ function broadcastWorld(sim, now) {
   // för array-index i. Array-index skiftar när en peer lämnar → c:i pekar på
   // fel peerId hos klienten. stableSlot ändras aldrig under en peers session.
   // Fallback till array-index i (bakåtkompatibelt för test-stubs utan stableSlot).
-  const allPlayers = realPlayers.map((p, i) => ({
+  const allPlayers = realPlayers.map((p, i) => {
+    const _ps = (p._wsRef && p._wsRef.playerState) || {};
+    const _sh = Math.round(_ps.shield || 0);
+    const _hp = Math.round(p.hp);
+    return {
     c: (p._wsRef && p._wsRef.stableSlot != null) ? p._wsRef.stableSlot : i,
     x: Math.round(p.x), y: Math.round(p.y),
-    hp: Math.round(p.hp),
+    hp: _hp,
     // v2 #68 (additivt): shield i world-paketet. Binär-encodern (V1-webben)
     // ignorerar okända fält → bara JSON-klienter (_jsonWorld/Godot) ser `sh`.
-    sh: Math.round((p._wsRef && p._wsRef.playerState && p._wsRef.playerState.shield) || 0),
+    sh: _sh,
+    // v2 (additivt): per-spelare MAX hp/shield så ANDRA ser rätt hp-andel
+    // (en spelare med hp-upgrades har max 100+25/nv → annars antog NetPlayer 100
+    // och en halvskadad spelare såg ut som full). max() med hp/shield + server-
+    // satt maxHp (juggernaut 400) → aldrig under verkligt max, aldrig > 100% bar.
+    mh: Math.max(_ps.maxHp || 100, _ps._cliMaxHp || 0, _hp),
+    msh: Math.max(_ps.maxShield || 100, _ps._cliMaxShield || 0, _sh),
     a: typeof p.aim === 'number' ? p.aim : 0,
     w: p.weaponId || 'fists',
     rT: Math.round(p.reviveTimer || 0),
-  }));
+  };
+  });
   // Transport-pass (2026-06-10, JSON-vägen): egen players-payload för JSON-peers.
   // a avrundas till 2 decimaler (0.01 rad ≈ 0.57° — osynligt, sparar ~8-14 tecken/
   // spelare/paket) och rT utelämnas när 0 (NetLocalPlayer.gd: d.get("rT", 0) →
@@ -6112,7 +6123,7 @@ function broadcastWorld(sim, now) {
   const getJsonPlayers = () => {
     if (_jsonPlayers) return _jsonPlayers;
     _jsonPlayers = allPlayers.map((p) => {
-      const jp = { c: p.c, x: p.x, y: p.y, hp: p.hp, sh: p.sh, a: Math.round(p.a * 100) / 100, w: p.w };
+      const jp = { c: p.c, x: p.x, y: p.y, hp: p.hp, sh: p.sh, a: Math.round(p.a * 100) / 100, w: p.w, mh: p.mh, msh: p.msh };
       if (p.rT) jp.rT = p.rT;
       return jp;
     });
