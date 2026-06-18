@@ -32,8 +32,10 @@ const WEAPONS = [
   // ── PISTOLER (2) ───────────────────────────────────────────────────────────
   // pistol: START, rent/pålitligt — noll spridning + snabb omladdning; låg DPS.
   { id: 'pistol',     type: 'gun', dmg: 24, rate: 300, speed: 820, mag: 14, reload: 900,  spread: 0.0,  color: '#ffd14a' },
-  // dualpistol: run-and-gun spray; hög spridning + slukar ammo.
-  { id: 'dualpistol', type: 'gun', dmg: 18, rate: 150, speed: 780, mag: 24, reload: 1400, spread: 0.11, color: '#ffae3a', dualWield: true },
+  // dualpistol: run-and-gun spray; snabbast till fots men sämre träffbild + slukar ammo.
+  // BALANS 2026-06-18: egen identitet (moveSpeedMul 1.15, tightare .085) — var tidigare
+  // strikt dominerad av smg (billigare, högre DPS, tightare). Nu mobil-spray-nischen.
+  { id: 'dualpistol', type: 'gun', dmg: 18, rate: 150, speed: 780, mag: 24, reload: 1400, spread: 0.085, color: '#ffae3a', dualWield: true, moveSpeedMul: 1.15 },
 
   // ── HAGEL (2) ──────────────────────────────────────────────────────────────
   // shotgun: PUMP — stoppkraft nära; långsam pumpning + kort räckvidd.
@@ -44,20 +46,27 @@ const WEAPONS = [
   // ── SMG (2) ────────────────────────────────────────────────────────────────
   // smg: MINI UZI — eldstorm + rörlig; låg skada/kula, kort räckvidd.
   { id: 'smg',     type: 'gun', dmg: 13, rate: 80,  speed: 720, mag: 28, reload: 1300, spread: 0.09, color: '#88ccff' },
-  // dualuzi: max närstrids-DPS; usel träffbild, töms snabbt, lång omladdning.
-  { id: 'dualuzi', type: 'gun', dmg: 11, rate: 55,  speed: 700, mag: 40, reload: 2000, spread: 0.17, color: '#aaccff', dualWield: true },
+  // dualuzi: max närstrids-DPS (högsta burst i spelet); usel träffbild, töms snabbt, lång omladdning.
+  // BALANS 2026-06-18: rate 55→48 → tydlig glass-cannon-identitet vs smg:s kontroll.
+  { id: 'dualuzi', type: 'gun', dmg: 11, rate: 48,  speed: 700, mag: 40, reload: 2000, spread: 0.17, color: '#aaccff', dualWield: true },
 
   // ── GEVÄR (3) ──────────────────────────────────────────────────────────────
   // ak: AK47 — tunghand (hög skada/skott); kraftig rekyl-ramp + lägre eldhast.
-  { id: 'ak',     type: 'gun', dmg: 30, rate: 135, speed: 850, mag: 30, reload: 1900, spread: 0.045, color: '#caa46a', recoilRamp: 0.10 },
+  // BALANS 2026-06-18: dmg 30→26, recoilRamp 0.10→0.22 — var dominant all-rounder
+  // (bäst DPS+precision, svaghet ±2.9° osynlig). Nu i nivå med karbinen; håll-eld bloomar.
+  { id: 'ak',     type: 'gun', dmg: 26, rate: 135, speed: 850, mag: 30, reload: 1900, spread: 0.045, color: '#caa46a', recoilRamp: 0.22 },
   // rifle: AUTOMATKARBIN — kontroll (tight 3-burst, hög precision); lägre topp-DPS.
   { id: 'rifle',  type: 'gun', dmg: 22, rate: 110, speed: 900, mag: 24, reload: 1400, spread: 0.025, color: '#5fd95f', burstCount: 3, burstDelay: 60, ammoCost: 3 },
-  // sniper: AWP — örnöga (utzoom medan buren) + one-shot + pierce; långsam, 1 mag, värdelös nära.
-  { id: 'sniper', type: 'gun', dmg: 200, rate: 1400, speed: 1800, mag: 1, reload: 2200, spread: 0.0, pierce: true, color: '#bb88ff', zoom: 1.32 },
+  // sniper: AWP — örnöga (utzoom medan buren) + one-shot + pierce; långsam, värdelös nära.
+  // BALANS 2026-06-18: mag 1→2, dmg 200→220 — var en fälla på mobil (1 miss = död,
+  // lägsta DPS). 2 skott mildrar allt-eller-inget, 220 dödar säkert genom sköld+armor.
+  { id: 'sniper', type: 'gun', dmg: 220, rate: 1400, speed: 1800, mag: 2, reload: 2200, spread: 0.0, pierce: true, color: '#bb88ff', zoom: 1.32 },
 
   // ── TUNGA / SUSTAINED (3) ──────────────────────────────────────────────────
   // minigun: TUNG KULSPRUTA — undertryckning (enorm mag); spin-up + saktar dig (immobil).
-  { id: 'minigun', type: 'gun', dmg: 18, rate: 45, speed: 900, mag: 120, reload: 4000, spread: 0.13, color: '#3cf0ff', spinUp: { startRate: 140, rampMs: 1200 }, moveSpeedMul: 0.7 },
+  // BALANS 2026-06-18: dmg 18→15, moveSpeedMul 0.7→0.62 — var strikt DPS-kung (230 vs
+  // näst-bäst 150) med opt-out-svaghet i hold-lägen. Skarpare rörelse-trade, lägre tak.
+  { id: 'minigun', type: 'gun', dmg: 15, rate: 45, speed: 900, mag: 120, reload: 4000, spread: 0.13, color: '#3cf0ff', spinUp: { startRate: 140, rampMs: 1200 }, moveSpeedMul: 0.62 },
   // lmg: LÄTT KULSPRUTA — rörlig eldkraft (stor mag, ingen spin-up); lägre DPS, lång omladdning.
   { id: 'lmg',     type: 'gun', dmg: 20, rate: 90, speed: 880, mag: 60,  reload: 2600, spread: 0.08, color: '#7ad0ff' },
   // flame: ELDKASTARE — brännmark (lång räckvidd, DoT, brinnande mark); låg direktskada, slukar bränsle.

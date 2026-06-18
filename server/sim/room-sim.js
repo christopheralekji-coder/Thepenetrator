@@ -8047,7 +8047,9 @@ function applyPlayerInput(sim, peerId, input) {
 //     bara att id finns i vapenkatalogen. (CD har dessutom redan tier-låset ovan.)
 // Gulag-duellen forcerar redan sitt vapen FÖRE detta steg; mounted turret forceras
 // EFTER (override vinner alltid).
-const COOP_ARSENAL = ['fists', 'knife', 'pistol', 'smg', 'autoshotgun', 'shotgun', 'sniper', 'rifle'];
+// BALANS 2026-06-18: + ak + lmg — objektiv-lägena (CTF/KOTH/Siege/Jugg) erbjöd bara
+// 8 vapen; bästa rifle-klassen (ak, nu nerfad) och rörlig eldkraft (lmg) saknades.
+const COOP_ARSENAL = ['fists', 'knife', 'pistol', 'smg', 'autoshotgun', 'shotgun', 'sniper', 'rifle', 'ak', 'lmg'];
 const TDM_BASE_WEAPONS = ['fists', 'knife', 'pistol'];
 
 function _logWeaponClamp(sim, peerId, from, to, why) {
