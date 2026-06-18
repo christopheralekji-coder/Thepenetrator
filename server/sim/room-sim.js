@@ -333,11 +333,11 @@ function tickSim(sim) {
             // shield-world-echo-gaten (samma skäl som tdm_player_respawned).
             for (const [hpid, hws] of sim.room.members) {
               if (!hws.playerState || hws.playerState.hp <= 0) continue;
-              hws.playerState.hp = 100;
-              hws.playerState.shield = hws.playerState.maxShield || 100;
+              hws.playerState.hp = respawnHpFor(hws.playerState);
+              hws.playerState.shield = respawnShieldFor(hws.playerState);
               sim.eventQueue.push({
                 type: 'tdm_round_heal', peerId: hpid,
-                hp: 100, shield: hws.playerState.shield,
+                hp: hws.playerState.hp, shield: hws.playerState.shield,
               });
             }
             // v1.734: LAG-baserad loadout-reset — hela förlorande LAGET tappar vapen+granater
@@ -701,6 +701,16 @@ function _stageFor(sim, w) {
   return (cs && cs[w - 1]) || getStage(w);
 }
 
+// Respawn-värden: spelarens FULLA hp/shield inkl. klient-rapporterade upgrades
+// (_cliMaxHp/_cliMaxShield via sim_input). Tidigare hårdkodat 100 → en spelare med
+// hp/shield-upgrades (max_hp 100+25/nv) respawnade på en bråkdel av sin bar (kändes
+// ~20 hp). Gammal klient skickar ej fälten → fallback exakt som förr.
+function respawnHpFor(ps) { return Math.max(1, Math.round(ps._cliMaxHp || ps.maxHp || 100)); }
+function respawnShieldFor(ps) {
+  if (ps._cliMaxShield != null) return Math.max(0, Math.round(ps._cliMaxShield));
+  return ps.maxShield || 100;
+}
+
 function buildPlayerList(sim) {
   const stage = _stageFor(sim, sim.wave);
   const defaultX = stage ? stage.spawnPos.x : 1000;
@@ -801,8 +811,8 @@ function tickCtf(sim, dt, now) {
         const sp = pts[Math.floor(Math.random() * pts.length)];
         ws.playerState.x = sp.x;
         ws.playerState.y = sp.y;
-        ws.playerState.hp = 100;
-        ws.playerState.shield = ws.playerState.maxShield || 100;
+        ws.playerState.hp = respawnHpFor(ws.playerState);
+        ws.playerState.shield = respawnShieldFor(ws.playerState);
         ws.playerState.invulnUntil = Date.now() + 1500;
         // Om spelare dog med en flagga, droppa den vid death-positionen (sker via
         // applyCtfDeath separat — denna respawn-path ger ny position).
@@ -1123,8 +1133,8 @@ function tdmStartRound(sim, nowMs) {
     const reset = sim._tdmLastLoser ? (ws.tdmTeam === sim._tdmLastLoser) : !!ws._tdmDeadRound;
     ws.playerState.x = sp.x;
     ws.playerState.y = sp.y;
-    ws.playerState.hp = 100;
-    ws.playerState.shield = ws.playerState.maxShield || 100;
+    ws.playerState.hp = respawnHpFor(ws.playerState);
+    ws.playerState.shield = respawnShieldFor(ws.playerState);
     ws.playerState.invulnUntil = nowMs + 1500;
     if (reset) {
       ws.playerState.weaponId = 'pistol'; // förlorande laget tappar vapnet; vinnare behåller
@@ -1134,7 +1144,7 @@ function tdmStartRound(sim, nowMs) {
     ws.tdmRespawnAt = 0;
     sim.eventQueue.push({
       type: 'tdm_player_respawned', peerId: pid, x: sp.x, y: sp.y,
-      hp: 100, shield: ws.playerState.shield,
+      hp: ws.playerState.hp, shield: ws.playerState.shield,
       weaponId: ws.playerState.weaponId || 'pistol',
       reset: reset, // klienten: true → nollställ förråd + granater + pistol; false → behåll
     });
@@ -1437,8 +1447,8 @@ function tickSiege(sim, dt, now) {
         const sp = pts[Math.floor(Math.random() * pts.length)];
         ws.playerState.x = sp.x;
         ws.playerState.y = sp.y;
-        ws.playerState.hp = 100;
-        ws.playerState.shield = ws.playerState.maxShield || 100;
+        ws.playerState.hp = respawnHpFor(ws.playerState);
+        ws.playerState.shield = respawnShieldFor(ws.playerState);
         ws.playerState.invulnUntil = Date.now() + 1500;
         sim.eventQueue.push({
           type: 'siege_player_respawned',
@@ -1719,8 +1729,8 @@ function tickGungame(sim, dt, now) {
         sim._gungameSpawnIdx++;
         ws.playerState.x = sp.x;
         ws.playerState.y = sp.y;
-        ws.playerState.hp = 100;
-        ws.playerState.shield = ws.playerState.maxShield || 100;
+        ws.playerState.hp = respawnHpFor(ws.playerState);
+        ws.playerState.shield = respawnShieldFor(ws.playerState);
         ws.playerState.invulnUntil = nowMs + 1500;
         // Sätt vapen till current tier (kan ha demoterats)
         const tier = sim.gungameTiers[pid] || 0;
@@ -1790,8 +1800,8 @@ function tickKoth(sim, dt, now) {
         sim._kothSpawnIdx++;
         ws.playerState.x = sp.x;
         ws.playerState.y = sp.y;
-        ws.playerState.hp = 100;
-        ws.playerState.shield = ws.playerState.maxShield || 100;
+        ws.playerState.hp = respawnHpFor(ws.playerState);
+        ws.playerState.shield = respawnShieldFor(ws.playerState);
         ws.playerState.invulnUntil = nowMs + 1500;
         if (ws._bot) { ws._bot.target = null; ws._bot.lastShotAt = 0; ws._bot.stuckSince = 0; }
         sim.eventQueue.push({
@@ -7945,6 +7955,16 @@ function applyPlayerInput(sim, peerId, input) {
     // co-op-död är server-driven (server hp då också <=0 → guard triggar EJ).
     const staleDeathEcho = input.hp <= 0 && ws.playerState.hp > 0;
     if (!staleDeathEcho) ws.playerState.hp = input.hp;
+  }
+  // v2: klient-rapporterad max hp/shield (hp-upgrade/glasscannon/shield-perk) →
+  // respawn återställer till FULLT istället för hårdkodat 100. Saniterat (1..2000).
+  // Egna fält så lägen som SÄTTER maxHp server-side (juggernaut 400, gulag-loadout)
+  // inte skrivs över av input-echot.
+  if (typeof input.maxHp === 'number' && isFinite(input.maxHp)) {
+    ws.playerState._cliMaxHp = Math.max(1, Math.min(2000, input.maxHp));
+  }
+  if (typeof input.maxShield === 'number' && isFinite(input.maxShield)) {
+    ws.playerState._cliMaxShield = Math.max(0, Math.min(2000, input.maxShield));
   }
   if (typeof input.aim === 'number') ws.playerState.aim = input.aim;
   if (input.weaponId) {
