@@ -16,6 +16,17 @@ const SERVER_BUILD_AT = new Date().toISOString();
 const errorLog = []; // ring-buffer av senaste 100 client-side errors
 const ERROR_LOG_MAX = 100;
 
+// C99: SERVER-AUKTORITATIV survivors-shop-priser. Spegel av klientens
+// SURVIVORS_SHOP_WEAPONS (game.js). Servern litade tidigare på msg.cost från
+// klienten → en manipulerad klient kunde köpa vilket vapen som helst för 0 guld.
+// Nu slås priset upp här per weaponId; köp av okänt id avvisas. Håll i synk med
+// klientens lista vid balansändring (samordnad deploy).
+const SURVIVORS_SHOP_PRICES = {
+  pistol: 0, throwknife: 300, revolver: 700, burstpistol: 1200, shotgun: 1800,
+  shuriken: 2500, smg: 3500, crossbow: 4500, sniper: 6000, rifle: 7500,
+  plasma: 9500, rocket: 12000, minigun: 15000, flame: 18000, sledge: 25000,
+};
+
 // TCP keepalive pÃ¥ alla inkommande HTTP-anslutningar. WS kÃ¶rs pÃ¥ TCP-socket;
 // utan OS-level keepalive kan intermediate routers/proxies (Render edge, mobil-NAT)
 // slÃ¤ppa "idle" anslutningar trots WS-message-flow. Initial-delay 25s + interval 10s
@@ -308,6 +319,12 @@ function handleMessage(ws, msg) {
   if (typeof msg.type === 'string' && (msg.type.startsWith('queue_') || msg.type.startsWith('match_'))) return matchmaker.handle(ws, msg);
   if (typeof msg.type === 'string' && msg.type.startsWith('group_')) return groups.handle(ws, msg);
   if (msg.type === 'host') {
+    // C123: släpp ev. kvarvarande matchmaker-ticket/grupp innan vi skapar rum direkt.
+    // joinQueue() releasar bara vid re-queue → en köande spelare som hostar/joinar
+    // utan queue_cancel lämnar annars en stale ticket kvar (kan dras in i en match
+    // medan hen redan spelar). No-op om ej i kö/grupp.
+    matchmaker.leave(ws);
+    groups.leave(ws);
     // Skapa rum
     const code = generateCode();
     const hostName = String(msg.name || '').trim().slice(0, 14) || 'Spelare';
@@ -382,6 +399,10 @@ function handleMessage(ws, msg) {
     const code = (msg.code || '').toUpperCase().trim();
     const room = rooms.get(code);
     if (!room) { send(ws, { type: 'error', error: 'Rummet finns inte' }); return; }
+    // C123: släpp ev. kvarvarande matchmaker-ticket/grupp innan vi joinar ett rum
+    // direkt (samma stale-ticket-läcka som i 'host'). No-op om ej i kö/grupp.
+    matchmaker.leave(ws);
+    groups.leave(ws);
     // v1.771: ghost-dedupe FÃ–RE size-check + slot-alloc. En halv-trasig anslutning vars
     // close ej firat (mobil byter wifiâ†”mobilnÃ¤t) ligger kvar som spÃ¶k-spelare i ~75s.
     // Kasta ut ev. kvarlevande ws med samma reconnect-token â†’ reconnecten Ã¥teranvÃ¤nder
@@ -465,7 +486,12 @@ function handleMessage(ws, msg) {
         ws._heistRole = stash.heistRole;
         ws._heistRoleLocked = stash.heistRoleLocked;
         if (!ws.playerState) ws.playerState = {};
-        if (stash.hp != null && stash.hp > 0) ws.playerState.hp = stash.hp;
+        // C134: restorera hp ÄVEN när stash.hp <= 0. En spelare som var död/nere vid
+        // disconnect hade tidigare hp INTE restorerad → buildPlayerList defaultade dem
+        // till 100 (gratis återuppståndelse). Behåll dödstillståndet: stashad hp <= 0
+        // läggs tillbaka som hp <= 0 (clampad till min 1 om exakt 0 saknades så de inte
+        // tolkas som "okänd" → 100). hp <= 0 passerar buildPlayerList korrekt.
+        if (stash.hp != null) ws.playerState.hp = stash.hp;
         if (stash.maxHp != null) ws.playerState.maxHp = stash.maxHp;
         if (stash.shield != null) ws.playerState.shield = stash.shield;
         if (stash.speedMul != null) ws.playerState.speedMul = stash.speedMul;
@@ -856,6 +882,69 @@ function handleMessage(ws, msg) {
         }
       }
       send(ws, { type: 'sim_events', events: lateBrEvents });
+      return;
+    }
+
+    // C106: CASTLE DEFENSE / SURVIVORS late-joiner. Tidigare fanns INGET block →
+    // joinaren blev ett off-map-spöke utan spawn/gold/vapen/UI (story-blocket nedan
+    // exkluderar dessutom explicit castledefenseActive). Spegla heist/KOTH-mönstret:
+    // spawna inne i castle, seed:a per-pid match-state, skicka cd_started.
+    if (room.sim && room.sim.castledefenseActive && !room.sim.castledefenseEnded) {
+      const sim = room.sim;
+      const { CASTLEDEFENSE_ARENA: cdArena } = require('../shared/castledefense-arena');
+      const cdSpawnList = cdArena.playerSpawns || [{ x: cdArena.centerX, y: cdArena.centerY }];
+      const cdSp = cdSpawnList[(sim._cdLateJoinIdx || 0) % cdSpawnList.length];
+      sim._cdLateJoinIdx = (sim._cdLateJoinIdx || 0) + 1;
+      ws.playerState = {
+        x: cdSp.x, y: cdSp.y,
+        hp: cdArena.startHp, maxHp: cdArena.maxHp,
+        shield: sim.baseShield > 0 ? sim.baseShield : cdArena.startShield,
+        maxShield: Math.max(cdArena.maxShield, sim.baseShield || 0),
+        invulnUntil: Date.now() + 2000,
+        weaponId: cdArena.startWeapon,
+        isJug: false, scaleMul: 1.0, speedMul: 1.0, dashCdMs: null,
+        cdDowned: false, cdDownDead: false, cdDownStartedAt: 0,
+        cdDownReviveProgress: 0, spectating: false, aim: 0,
+      };
+      ws.tdmTeam = null; // co-op
+      ws.tdmRespawnAt = 0;
+      ws._mountedCtfTurretId = null;
+      ws._mountedSiegeTurretId = null;
+      sim.castledefenseGold = sim.castledefenseGold || {};
+      sim.castledefenseWeaponTier = sim.castledefenseWeaponTier || {};
+      sim.castledefenseScores = sim.castledefenseScores || {};
+      sim.castledefenseGold[ws.id] = sim.survivorsActive ? 100 : (cdArena.startGold || 400);
+      sim.castledefenseWeaponTier[ws.id] = 0;
+      sim.castledefenseScores[ws.id] = 0;
+      sim.tdmDeathsByPid[ws.id] = 0;
+      if (sim.survivorsActive) {
+        sim.castledefenseOwnedWeapons = sim.castledefenseOwnedWeapons || {};
+        sim.castledefenseOwnedWeapons[ws.id] = ['pistol'];
+      }
+      send(ws, { type: 'sim_events', events: [{
+        type: 'cd_started',
+        arena: {
+          worldW: cdArena.worldW, worldH: cdArena.worldH, name: cdArena.name,
+          groundColor: cdArena.groundColor, plazaColor: cdArena.plazaColor,
+          pathColor: cdArena.pathColor, plazaRadius: cdArena.plazaRadius,
+          centerX: cdArena.centerX, centerY: cdArena.centerY,
+          startWeapon: cdArena.startWeapon, startGrenades: cdArena.startGrenades,
+          weaponProgression: cdArena.weaponProgression,
+        },
+        walls: [],
+        core: { ...sim.castledefenseCore },
+        playerSpawns: cdArena.playerSpawns,
+        enemySpawns: cdArena.enemySpawns,
+        decorations: cdArena.decorations || [],
+        buildables: cdArena.buildables,
+        buildGridSize: cdArena.buildGridSize,
+        startHp: cdArena.startHp,
+        maxHp: cdArena.maxHp,
+        startGold: sim.castledefenseGold,
+        waveBetweenEndAt: sim.castledefenseWaveBetweenEndAt,
+        bossEveryWave: cdArena.bossEveryWave,
+        isLateJoin: true,
+      }] });
       return;
     }
 
@@ -1320,8 +1409,12 @@ function handleMessage(ws, msg) {
     return;
   }
   if (msg.type === 'sim_br_infcash') {
+    // C100: dev-cheat — gate:ad bakom env-flagga + host-only (mirror av sim_stresstest).
+    // Utan ALLOW_CHEATS kan ingen klient ge sig själv +100k cash i produktion.
+    if (!process.env.ALLOW_CHEATS) return;
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
+    if (room.hostId !== ws.id) return;
     applyBrInfCash(room.sim, ws.id);
     return;
   }
@@ -1795,7 +1888,10 @@ function handleMessage(ws, msg) {
     const sim = room.sim;
     if (!sim.survivorsActive) return;
     const wid = String(msg.weaponId || '');
-    const cost = Math.max(0, Math.min(99999, parseInt(msg.cost) || 0));
+    // C99: slå upp priset SERVER-SIDE per weaponId — ignorera msg.cost helt.
+    // Okänt/icke-shop-vapen avvisas (anti-cheat: kunde annars köpas gratis).
+    if (!Object.prototype.hasOwnProperty.call(SURVIVORS_SHOP_PRICES, wid)) return;
+    const cost = SURVIVORS_SHOP_PRICES[wid];
     const gold = sim.castledefenseGold[ws.id] || 0;
     if (gold < cost) return; // not enough gold (silent â€” klient visar UI-error)
     sim.castledefenseGold[ws.id] = gold - cost;
@@ -1816,8 +1912,12 @@ function handleMessage(ws, msg) {
     return;
   }
   if (msg.type === 'sim_cd_infmoney') {
+    // C100: dev-cheat — gate:ad bakom env-flagga + host-only (mirror av sim_stresstest).
+    // Utan ALLOW_CHEATS kan ingen klient ge sig själv +100k guld i produktion.
+    if (!process.env.ALLOW_CHEATS) return;
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
+    if (room.hostId !== ws.id) return;
     applyCastleDefenseInfMoney(room.sim, ws.id, msg);
     return;
   }
@@ -1994,6 +2094,10 @@ function handleDisconnect(ws) {
         if (_s.kothScores) delete _s.kothScores[_pid];
         if (_s._kothPointAccum) delete _s._kothPointAccum[_pid];
         if (_s.juggernautScores) delete _s.juggernautScores[_pid];
+        // C170: rensa ÄVEN JUG-kill/dmg-trackers (ghost-dedupe-pathen 401 gör det
+        // redan, men disconnect-grenarna missade dem → spöke i JUG-leaderboard).
+        if (_s.juggernautKillsByPid) delete _s.juggernautKillsByPid[_pid];
+        if (_s.juggernautDmgToJug) delete _s.juggernautDmgToJug[_pid];
         if (_s.battleroyaleKillsByPid) delete _s.battleroyaleKillsByPid[_pid];
         if (_s.tdmDeathsByPid) delete _s.tdmDeathsByPid[_pid];
         // v1.698: dekrementera aliveCount om en LEVANDE BR-spelare lÃ¤mnar â€” annars
@@ -2047,6 +2151,9 @@ function handleDisconnect(ws) {
       if (_s.kothScores) delete _s.kothScores[_pid];
       if (_s._kothPointAccum) delete _s._kothPointAccum[_pid];
       if (_s.juggernautScores) delete _s.juggernautScores[_pid];
+      // C170: rensa ÄVEN JUG-kill/dmg-trackers (annars spöke i JUG-leaderboard).
+      if (_s.juggernautKillsByPid) delete _s.juggernautKillsByPid[_pid];
+      if (_s.juggernautDmgToJug) delete _s.juggernautDmgToJug[_pid];
       if (_s.battleroyaleKillsByPid) delete _s.battleroyaleKillsByPid[_pid];
       if (_s.tdmDeathsByPid) delete _s.tdmDeathsByPid[_pid];
       // v1.698: dekrementera aliveCount om en LEVANDE BR-spelare lÃ¤mnar â€” annars

@@ -43,6 +43,8 @@ const MAX_ASM = 64;                  // samtidiga halvfärdiga reliable-montage 
 const MAX_DONE = 256;                // färdiga-men-ej-levererade reliable-meddelanden (C105)
 const MAX_CONNS = 4096;              // max samtidiga Connections per UdpServer — HELLO-flod-skydd (C242)
 const UNVERIFIED_TIMEOUT_MS = 4000;  // overifierad (ej return-routability-bevisad) peer reaps snabbt (C242)
+const MAX_RETRANSMIT = 12;           // C125: ge upp på en reliable-frame efter så här många sändningar → reap conn
+const MAX_UNACKED = 1024;            // C125: tak på obekräftade reliable-frames → reap conn (send-side starvation-skydd)
 
 function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
@@ -125,6 +127,8 @@ class Connection extends EventEmitter {
     const fragCount = Math.max(1, Math.ceil(buf.length / MAX_PAYLOAD));
     const now = Date.now();
     for (let i = 0; i < fragCount; i++) {
+      // C125: peer som slutar acka → _unacked växer obegränsat. Reap istället för att svälta.
+      if (this._unacked.size >= MAX_UNACKED) { this.close('rel-overflow'); return; }
       const slice = buf.subarray(i * MAX_PAYLOAD, (i + 1) * MAX_PAYLOAD);
       const relSeq = this._relSeqNext++;
       const pkt = relPkt(this.session, relSeq, msgId, i, fragCount, slice);
@@ -268,6 +272,9 @@ class Connection extends EventEmitter {
     if (now - this._lastRecvAt >= timeoutMs) { this.close('timeout'); return; }
     for (const e of this._unacked.values()) {           // resend obekräftade frags
       if (now - e.sentAt >= this._rto) {
+        // C125: liveness knyts till ACK-framsteg, ej bara _lastRecvAt. En peer som håller
+        // conn vid liv (inputs/pings) men vars ACKs ständigt tappas → frame når retransmit-taket → reap.
+        if (e.sends >= MAX_RETRANSMIT) { this.close('rel-giveup'); return; }
         e.sentAt = now; e.sends++;
         this._sendRaw(e.pkt);
       }

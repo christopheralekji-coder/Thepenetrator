@@ -13,6 +13,19 @@
 
 const { getActiveWalls, losBlocked } = require('./bots');
 
+// damageEnemy ligger i ./bullets som lazy-requirar ./grenades (cirkulärt) → kräv lat
+// vid första anrop, precis som bullets gör åt andra hållet. Cachas efter första hämtning.
+let _damageEnemy = null;
+function damageEnemy(e, dmg, isCrit, fromPid, weaponId) {
+  if (!_damageEnemy) _damageEnemy = require('./bullets').damageEnemy;
+  return _damageEnemy(e, dmg, isCrit, fromPid, weaponId);
+}
+
+// C158: återanvänd scratch-array för enemyGrid.queryInto (gravity + fire broad-phase).
+// Noll allokering per tick. Endast en zon itereras åt gången i tickGrenadeZones så
+// samma scratch kan delas mellan fire- och gravity-grenarna utan korruption.
+const _zoneScratch = [];
+
 // Är (x,y) i ett aktivt PvP-läge? (avgör om granater träffar spelare vs fiender)
 function pvpActive(sim) {
   return !!(sim.tdmActive || sim.ctfActive || sim.siegeActive || sim.gungameActive ||
@@ -62,8 +75,18 @@ function spawnZone(sim, type, x, y, radius, durationMs, fromPid, dmgPerTick) {
     dmgPerTick: dmgPerTick || 0,
     nextTick: 0,
   });
-  // Cap så en spammare inte bygger upp tusentals zoner
-  if (sim.grenadeZones.length > 80) sim.grenadeZones.splice(0, sim.grenadeZones.length - 80);
+  // Cap så en spammare inte bygger upp tusentals zoner. C159: rensa FÖRST utgångna zoner
+  // (until<=now) i st.f. blint FIFO-splice som kunde radera fortfarande aktiva grav/fire-
+  // zoner (en molotov = 25 patches → 4 nästan-samtidiga slår i taket). Bara om vi
+  // fortfarande är över taket FIFO-evictas levande zoner som sista utväg.
+  if (sim.grenadeZones.length > 80) {
+    const nowMs = Date.now();
+    const zs = sim.grenadeZones;
+    for (let i = zs.length - 1; i >= 0; i--) {
+      if (zs[i].until <= nowMs) zs.splice(i, 1);
+    }
+    if (zs.length > 80) zs.splice(0, zs.length - 80);
+  }
 }
 
 // G2-fix 2026-06-15: molotov lägger SAMMA LILLA flame-patches som eldkastaren (r=16)
@@ -109,14 +132,18 @@ function tickGrenadeZones(sim, dt, now) {
       z.nextTick = now + 250;            // 4 ticks/s
       // Fiender (PvE)
       if (!isPvP && Array.isArray(sim.enemies)) {
-        const list = sim.enemyGrid ? sim.enemyGrid.getNearby(z.x, z.y, z.r) : sim.enemies;
+        // C158: noll-alloc broad-phase via queryInto (återanvänd scratch) i st.f. getNearby.
+        const list = sim.enemyGrid
+          ? sim.enemyGrid.queryInto(z.x, z.y, z.r, _zoneScratch)
+          : sim.enemies;
         for (const e of list) {
           if (e.dead) continue;
           const dx = e.x - z.x, dy = e.y - z.y;
           if (dx * dx + dy * dy <= z.r * z.r) {
-            e.hp = (e.hp || 0) - z.dmgPerTick;
+            // C137: gå via damageEnemy → kill-credit, vapen-XP (molotov) + flash bevaras
+            // i st.f. direkt hp-subtraktion (förlorade lastDamagerPid/Weapon).
+            damageEnemy(e, z.dmgPerTick, false, z.fromPid, 'molotov');
             e.burnUntil = now + 600;     // visuell brand-stack
-            if (e.hp <= 0) e.dead = true;
           }
         }
       }
@@ -171,9 +198,13 @@ function tickGrenadeZones(sim, dt, now) {
       }
     } else if (z.type === 'gravity') {
       const pull = 260 * dt;             // px/s mot centrum
-      // Fiender
+      // Fiender — C158: broad-phase via enemyGrid.queryInto (noll-alloc scratch) i st.f.
+      // full linjär scan av sim.enemies varje tick per gravity-zon.
       if (Array.isArray(sim.enemies)) {
-        for (const e of sim.enemies) {
+        const glist = sim.enemyGrid
+          ? sim.enemyGrid.queryInto(z.x, z.y, z.r, _zoneScratch)
+          : sim.enemies;
+        for (const e of glist) {
           if (e.dead) continue;
           const dx = z.x - e.x, dy = z.y - e.y;
           const d = Math.hypot(dx, dy);

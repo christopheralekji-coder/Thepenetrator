@@ -23,11 +23,13 @@ const KOTH_ARENA = {
 
   // Capture-zoner. Servern roterar mellan dessa var 60s.
   // En zon är aktiv åt gången — visas tydligt på minimap + arena.
+  // Corner-zoner ligger på befintligt cover (debris/crate) så hållaren inte
+  // står helt i öppet. En zon per kvadrant (NW/NE/SW) ger symmetrisk rotation.
   zones: [
-    { x: 1750, y: 1000, r: 180, name: 'MID' },       // central
-    { x: 700,  y: 700,  r: 150, name: 'NW' },        // top-left quad
-    { x: 2800, y: 1300, r: 150, name: 'SE' },        // bottom-right quad
-    { x: 2800, y: 700,  r: 150, name: 'NE' },        // top-right quad
+    { x: 1750, y: 1000, r: 180, name: 'MID' },       // central (sandbag-cluster)
+    { x: 820,  y: 800,  r: 150, name: 'NW' },        // top-left quad (debris 880,750)
+    { x: 2680, y: 800,  r: 150, name: 'NE' },        // top-right quad (debris 2570,750)
+    { x: 820,  y: 1200, r: 150, name: 'SW' },        // bottom-left quad (debris 880,1200)
   ],
 
   // Walls — samma cover-design som gungame

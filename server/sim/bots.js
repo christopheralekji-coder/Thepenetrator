@@ -27,6 +27,14 @@ const { HEIST_ARENA } = require('../../shared/heist-arena');
 // som primär ruttläggning. steerAround behålls som lokal säkerhetsnät mellan waypoints.
 const { nextWaypoint } = require('./pathfind');
 
+// C108: återanvänd scratch-array för enemyGrid.queryInto — bots frågar den befintliga
+// spatial-hashen i st.f. att linjärt skanna HELA sim.enemies per bot per tick
+// (O(bots·enemies) → O(bots·local)). Noll allokering per anrop (queryInto fyller en
+// återanvänd array). OBS: tickBots körs FÖRE grid-rebuilden (room-sim.js) så griden är
+// 1 tick gammal — acceptabelt för AI-targeting (samma staleness som annan AI-läsning).
+// queryInto är broad-phase (cell-överlapp) → exakt d2-test krävs fortfarande nedströms.
+const _enemyScratch = [];
+
 // Väggar för aktivt mode (null = öppen arena, ingen styrning behövs).
 function getActiveWalls(sim) {
   if (sim.ctfActive) return CTF_ARENA.walls;
@@ -147,7 +155,10 @@ function assessTactical(sim, botWs, now) {
     }
   } else {
     // PvE: hot = fiender, lagkamrater = andra spelare/bots (för regroup/cover)
-    for (const e of sim.enemies) {
+    // C108: query enemyGrid (radie 560 = sqrt(R2)) i st.f. linjär scan av sim.enemies.
+    const near = sim.enemyGrid ? sim.enemyGrid.queryInto(px, py, 560, _enemyScratch) : sim.enemies;
+    for (let i = 0; i < near.length; i++) {
+      const e = near[i];
       if (e.dead) continue;
       const dx = e.x - px, dy = e.y - py;
       const d2 = dx * dx + dy * dy;
@@ -342,7 +353,7 @@ function tickBots(sim, dt, now) {
     // stannade och slogs istället för att spela läget. Nu: marschera mot OBJEKTIVET
     // medan du skjuter närmaste fiende i räckvidd.
     // 1) RÖRELSE-MÅL — objektiv-styrt per mode.
-    let moveTarget = chooseBotTarget(sim, botWs);
+    let moveTarget = chooseBotTarget(sim, botWs, now);
     bot.target = moveTarget;
     if (!moveTarget) continue;
 
@@ -370,7 +381,7 @@ function tickBots(sim, dt, now) {
     }
 
     // 4) Rör mot rörelse-målet (kitar vid låg HP via bot.fleeing)
-    moveBotTowards(sim, botWs, moveTarget, dt);
+    moveBotTowards(sim, botWs, moveTarget, dt, now);
 
     // 5) Skjut mot skjut-målet (override:ar aim mot det) om i räckvidd + reaktionstid klar
     if (shootTarget && now >= (bot._engageAt || 0)) shootIfReady(sim, botWs, shootTarget, now);
@@ -378,7 +389,10 @@ function tickBots(sim, dt, now) {
 }
 
 // Pick a target depending on mode. Returns {x, y, type, ref} eller null.
-function chooseBotTarget(sim, botWs) {
+// C149: `now` trädas in från tickBots (en sim-klocka) i st.f. interna Date.now() →
+// deterministiskt under test. Fallback till Date.now() om anropad utan now.
+function chooseBotTarget(sim, botWs, now) {
+  if (now === undefined) now = Date.now();
   const px = botWs.playerState.x, py = botWs.playerState.y;
   const team = botWs.tdmTeam;
 
@@ -406,7 +420,7 @@ function chooseBotTarget(sim, botWs) {
   // inte zig-zaggar mellan 2 fiender och dör.
   if (sim.battleroyaleActive && !sim.battleroyaleEnded) {
     const bot = botWs._bot;
-    const now = Date.now();
+    // C149: `now` trädas in (var const now = Date.now())
     // Validera nuvarande target — om dead/borta, force re-pick
     let cur = bot._brStickyTarget;
     if (cur && cur.type === 'player' && cur.ref) {
@@ -425,7 +439,7 @@ function chooseBotTarget(sim, botWs) {
       return cur;
     }
     // Re-pick
-    const newTarget = chooseBattleRoyaleTarget(sim, botWs);
+    const newTarget = chooseBattleRoyaleTarget(sim, botWs, now);
     bot._brStickyTarget = newTarget;
     bot._brStickySetAt = now;
     return newTarget;
@@ -436,7 +450,7 @@ function chooseBotTarget(sim, botWs) {
     if (sim.juggernautPid) {
       const jws = sim.room.members.get(sim.juggernautPid);
       if (jws && jws.playerState && jws.playerState.hp > 0 &&
-          Date.now() >= (jws.playerState.invulnUntil || 0)) {
+          now >= (jws.playerState.invulnUntil || 0)) {
         return { x: jws.playerState.x, y: jws.playerState.y, type: 'player', ref: jws };
       }
     }
@@ -523,6 +537,8 @@ function findClosestPlayer(sim, botWs, excludeTeam) {
   for (const [pid, ws] of sim.room.members) {
     if (pid === botWs.id) continue;
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    // C129: off-map gulag-duellanter får aldrig vara mål (konsekvent med BR-scan:en).
+    if (ws.playerState.gulagState) continue;
     // Exkludera same-team i team-modes
     if (excludeTeam && ws.tdmTeam && ws.tdmTeam === excludeTeam) continue;
     // Skip respawn-invuln targets (oskjutbara — slösa inte tid)
@@ -541,6 +557,24 @@ function findClosestEnemy(sim, botWs) {
   const smart = (botWs._bot && botWs._bot.skill && botWs._bot.skill.smart) || 0;
   const wgt = 0.5 * smart;
   let best = null, bestD2 = Infinity;
+  // C108: query enemyGrid med generös rörelse-radie (1100) i st.f. linjär scan av HELA
+  // sim.enemies. Faller tillbaka till full scan om inget i radien (boten ska ALLTID hitta
+  // ett rörelse-mål så den inte fryser när alla fiender är långt borta).
+  let scanned = best;
+  if (sim.enemyGrid) {
+    const near = sim.enemyGrid.queryInto(px, py, 1100, _enemyScratch);
+    for (let i = 0; i < near.length; i++) {
+      const e = near[i];
+      if (e.dead) continue;
+      const dx = e.x - px, dy = e.y - py;
+      const hpFrac = Math.max(0, Math.min(1, (e.hp || 1) / (e.maxHp || e.hp || 1)));
+      const score = (dx * dx + dy * dy) * (1 - wgt + wgt * hpFrac);
+      if (score < bestD2) { bestD2 = score; best = { x: e.x, y: e.y, type: 'enemy', ref: e }; }
+    }
+    scanned = best;
+  }
+  if (scanned) return scanned;
+  // Fallback: ingen fiende i griden inom radien (eller ingen grid) → full scan.
   for (const e of sim.enemies) {
     if (e.dead) continue;
     const dx = e.x - px, dy = e.y - py;
@@ -578,7 +612,10 @@ function chooseShootTarget(sim, botWs) {
       if (d2 < r2) cands.push({ d2, x: ws.playerState.x, y: ws.playerState.y, ref: ws, enemy: false });
     }
   } else {
-    for (const e of sim.enemies) {
+    // C108: query enemyGrid (radie = shoot-range) i st.f. linjär scan av sim.enemies.
+    const near = sim.enemyGrid ? sim.enemyGrid.queryInto(px, py, range, _enemyScratch) : sim.enemies;
+    for (let i = 0; i < near.length; i++) {
+      const e = near[i];
       if (e.dead) continue;
       const dx = e.x - px, dy = e.y - py;
       const d2 = dx * dx + dy * dy;
@@ -697,7 +734,8 @@ function chooseKothTarget(sim, botWs) {
 // BR bot-AI: prio 1 = överlev (gå till zon om utanför). Prio 2 = jaga närmsta
 // fiende inom 600px. Prio 3 = loot om phase 0 eller låg HP. Prio 4 = drift mot
 // zonens centrum så bot inte bara står still.
-function chooseBattleRoyaleTarget(sim, botWs) {
+function chooseBattleRoyaleTarget(sim, botWs, now) {
+  if (now === undefined) now = Date.now();   // C149: sim-klocka trädas in (test-determinism)
   const px = botWs.playerState.x, py = botWs.playerState.y;
   // 1) Utanför zonen? Gå till centrum med priority
   if (sim.battleroyaleZone) {
@@ -713,7 +751,11 @@ function chooseBattleRoyaleTarget(sim, botWs) {
   for (const [pid, ws] of sim.room.members) {
     if (pid === botWs.id) continue;
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
-    if (Date.now() < (ws.playerState.invulnUntil || 0)) continue;
+    // C129: off-map gulag-duellanter (hp>0 vid 13000+) får ALDRIG vara mål — annars
+    // vandrar boten mot kart-kanten/in i stormen via fallbacken (759) som ignorerar
+    // 600px-jakt-grinden. Filtrera redan i scan:en.
+    if (ws.playerState.gulagState) continue;
+    if (now < (ws.playerState.invulnUntil || 0)) continue;
     const dx = ws.playerState.x - px, dy = ws.playerState.y - py;
     const d2 = dx * dx + dy * dy;
     if (d2 < nearestEnemyD2) { nearestEnemyD2 = d2; nearestEnemy = ws; }
@@ -726,7 +768,7 @@ function chooseBattleRoyaleTarget(sim, botWs) {
   const phase = sim.battleroyalePhase || 0;
   const lowHp = botWs.playerState.hp < 60;
   if ((phase === 0 || lowHp) && sim.battleroyaleLoot) {
-    const nowMs = Date.now();
+    const nowMs = now;   // C149: sim-klocka trädas in
     // FIX: skip weapon-loot om bot redan har bra vapen (rare/legendary)
     // Hardcoded high-tier-set (snabbare än att slå upp i loot-tabellen per tick)
     const myW = botWs.playerState.weaponId;
@@ -799,10 +841,10 @@ function chooseSiegeTarget(sim, botWs, team) {
   return findClosestPlayer(sim, botWs, team);
 }
 
-function moveBotTowards(sim, botWs, target, dt) {
+function moveBotTowards(sim, botWs, target, dt, now) {
   const ps = botWs.playerState;
   const bot = botWs._bot;
-  const now = Date.now();
+  if (now === undefined) now = Date.now();   // C149: sim-klocka trädas in (test-determinism)
   const dx = target.x - ps.x;
   const dy = target.y - ps.y;
   const d = Math.hypot(dx, dy) || 1;

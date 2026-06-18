@@ -100,6 +100,12 @@ const GUNGAME_ARENA = {
 // under tier 9 — annars hopplöst grind efter att ha klivit sig upp i late-game.
 // V2-arsenal (2026-06-17): 15 tiers, START PÅ PISTOL (ingen kniv), svag→stark,
 // katana-finisher. Ordning per användarens val (sniper↔lmg bytta).
+// AUDIT 2026-06-18 (C181/C182): demotions-ZONEN (tier 11+, index > golvet) får
+// vid VARJE död -1 tier. De långsamma/orörliga vapnen (minigun moveSpeedMul 0.62
+// + spin-up, samt AoE-lobben grenade/rocket) flyttades NER i den säkra zonen
+// (tier ≤10, ingen demotion) så att de inte längre sitter i frustrations-loopen.
+// Demotions-zonen + de sista 3 tiers är nu mobila & beslutsamma → matchen
+// accelererar mot katana-finishern (inga AoE-lob-väggar precis före slutet).
 const GUNGAME_WEAPONS = [
   'pistol',      // 1  — START, pålitlig prick
   'smg',         // 2  — mini uzi (eldstorm)
@@ -107,14 +113,14 @@ const GUNGAME_WEAPONS = [
   'flame',       // 4  — brännmark (situationell DoT)
   'autoshotgun', // 5  — full-auto hagel
   'shotgun',     // 6  — pump, stoppkraft
-  'dualuzi',     // 7  — max närstrids-DPS
-  'rifle',       // 8  — karbin (precision-burst)
-  'sniper',      // 9  — AWP one-shot
-  'ak',          // 10 — tunghand
-  'minigun',     // 11 — tung kulspruta (demotion-zonen börjar här)
-  'lmg',         // 12 — rörlig eldkraft
-  'grenade',     // 13 — granatgevär (AoE)
-  'rocket',      // 14 — raketgevär (störst AoE)
+  'rifle',       // 7  — karbin (precision-burst)
+  'minigun',     // 8  — tung kulspruta (orörlig: i SÄKRA zonen, ingen demotion)
+  'grenade',     // 9  — granatgevär (AoE-lob: säker zon)
+  'rocket',      // 10 — raketgevär (störst AoE, mag 1: säker zon, sista pre-golv)
+  'sniper',      // 11 — AWP one-shot (mobil/beslutsam — demotions-zonen börjar här)
+  'dualuzi',     // 12 — max närstrids-DPS (mobil)
+  'ak',          // 13 — tunghand (mobil hög-DPS)
+  'lmg',         // 14 — rörlig eldkraft
   'katana',      // 15 — FINAL melee-förnedring (klyver, mobil)
 ];
 

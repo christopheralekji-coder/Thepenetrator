@@ -128,12 +128,24 @@ function updateStatus(e, dt, now, allEnemies) {
       nearest.burnUntil = now + 2500;
       nearest.burnDps = e.burnDps || 6;
       nearest._fireSpread = true;   // kedjar vidare (en gång per fiende)
+      // v2 C311: bär med eldens ägare/vapen så en kedje-brand-kill krediteras
+      // rätt spelare. _burnOwner/_burnWeapon sätts först i bullets.js
+      // (applyBulletEffects) — tills dess undefined = oförändrat (null-credit).
+      nearest._burnOwner = e._burnOwner;
+      nearest._burnWeapon = e._burnWeapon;
     }
   }
   // burn (DoT)
   if (e.burnUntil && now < e.burnUntil) {
     e.hp -= (e.burnDps || 0) * dt;
-    if (e.hp <= 0) { e.dead = true; return false; }
+    if (e.hp <= 0) {
+      // v2 C311: kreditera burn-death (inkl. kedje-spridd eld) till eldens ägare.
+      if (e._burnOwner) {
+        e.lastDamagerPid = e._burnOwner;
+        e.lastDamagerWeapon = e._burnWeapon || e.lastDamagerWeapon || 'fire';
+      }
+      e.dead = true; return false;
+    }
   } else { e.burnUntil = 0; }
   // slow
   if (e.slowUntil && now < e.slowUntil) {
@@ -164,7 +176,16 @@ function updateMindControlled(e, dt, now, allEnemies) {
     if (d2 < e.r + target.r + 4 && (!e.contactCd || e.contactCd <= 0)) {
       target.hp -= 25;
       e.contactCd = 0.6;
-      if (target.hp <= 0) target.dead = true;
+      if (target.hp <= 0) {
+        // v2 C310: kreditera kill till spelaren som castade mind-control. _mcOwner
+        // sätts i bullets.js (mindcontrol-grenen) — tills dess null = oförändrat
+        // beteende. Death-loopen läser lastDamagerPid/Weapon för enemy_killed.
+        if (e._mcOwner) {
+          target.lastDamagerPid = e._mcOwner;
+          target.lastDamagerWeapon = 'mindcontrol';
+        }
+        target.dead = true;
+      }
     }
   }
 }
@@ -222,10 +243,29 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
     e.y += (dy / d) * e.speed * dt;
     if (d < 60) e.fuse = (e.fuse || 0) + dt;
     if (e.fuse > 0.6) {
-      // Phase 3 implementerar explode() — nu: gör bara contact-damage och dö
-      if (d < 100) {
-        p.hp = Math.max(0, p.hp - e.dmg);
-        p._tookDamageFrom = e;
+      // v2 C113: AoE-detonation som SPEGLAR explode()-co-op-grenen (bullets.js):
+      // iterera ALLA spelare i radien (inte bara AI-target), respektera
+      // invulnUntil (annars instakill av nyss-respawnad/odödlig co-op-spelare),
+      // dra av shield FÖRE hp och tillämpa avstånds-falloff. Bombers spawnar bara
+      // i PvE/co-op → alla spelare är allierade (ingen friendly-fire-gate behövs).
+      const blastR = 110;
+      if (sim && sim.room && sim.room.members) {
+        for (const [, ws] of sim.room.members) {
+          if (!ws.playerState || ws.playerState.hp <= 0) continue;
+          if (now < (ws.playerState.invulnUntil || 0)) continue;
+          const bdx = ws.playerState.x - e.x, bdy = ws.playerState.y - e.y;
+          const bd2 = bdx * bdx + bdy * bdy;
+          if (bd2 >= blastR * blastR) continue;
+          const falloff = 1 - Math.sqrt(bd2) / blastR;
+          let remaining = e.dmg * (0.4 + falloff * 0.6);
+          if ((ws.playerState.shield || 0) > 0) {
+            const absorb = Math.min(ws.playerState.shield, remaining);
+            ws.playerState.shield -= absorb;
+            remaining -= absorb;
+          }
+          if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+          ws.playerState._tookDamageFrom = e;
+        }
       }
       e.dead = true;
     }
@@ -286,6 +326,12 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
 // Enemy-enemy separation (lätt push-effekt) — använder spatial-grid om
 // tillgängligt (O(E) totalt istället för O(E²)). Fallback linear scan.
 function applySeparation(e, allEnemies, grid) {
+  // v2 C167: ackumulera alla push:ar under en READ-ONLY pass (mot e:s position vid
+  // ankomst) och tillämpa EN gång efter. Förr muterades e.x/e.y mitt i query:n →
+  // resultatet berodde på grannarnas iterations-ordning och var inkonsistent med
+  // grid:ens bucketing av e (e flyttades men re-bucketades aldrig). Inga nya
+  // per-frame-allokeringar: två lokala nummer-ackumulatorer.
+  let ax = 0, ay = 0;
   if (grid) {
     // Max-radius vi behöver söka: e.r + worst-case other.r ≈ 60px
     const r = (e.r || 14) + 60;
@@ -297,10 +343,12 @@ function applySeparation(e, allEnemies, grid) {
       if (d2 > 0 && d2 < min * min) {
         const d = Math.sqrt(d2);
         const push = (min - d) * 0.5;
-        e.x += (dx / d) * push;
-        e.y += (dy / d) * push;
+        ax += (dx / d) * push;
+        ay += (dy / d) * push;
       }
     });
+    e.x += ax;
+    e.y += ay;
     return;
   }
   // Fallback (utan grid)
@@ -312,10 +360,12 @@ function applySeparation(e, allEnemies, grid) {
     if (d2 > 0 && d2 < min * min) {
       const d = Math.sqrt(d2);
       const push = (min - d) * 0.5;
-      e.x += (dx / d) * push;
-      e.y += (dy / d) * push;
+      ax += (dx / d) * push;
+      ay += (dy / d) * push;
     }
   }
+  e.x += ax;
+  e.y += ay;
 }
 
 // Stuck-detection: om enemy inte rört sig nämnvärt på 1s, sidestepa för att gå runt obstacles.

@@ -64,48 +64,62 @@ function inBounds(g, cx, cy) { return cx >= 0 && cy >= 0 && cx < g.cols && cy < 
 function isFree(g, cx, cy) { return inBounds(g, cx, cy) && g.blocked[cellIdx(g, cx, cy)] === 0; }
 
 // Närmsta fria cell via expanderande ring (start/mål kan ligga inne i inflaterad vägg).
+// C165: ringtaket höjt 8→16 (djupa tjocka fort-/bas-väggar i Siege/BR kan vara >400px),
+// och inom den första ringen med träff väljs den euklidiskt närmaste cellen (ej första i
+// raster-ordning) så path-ändpunkten inte hoppar längre ut än nödvändigt.
 function nearestFree(g, cx, cy) {
   if (isFree(g, cx, cy)) return [cx, cy];
-  for (let r = 1; r <= 8; r++) {
+  for (let r = 1; r <= 16; r++) {
+    let bestX = -1, bestY = -1, bestD = Infinity;
     for (let dy = -r; dy <= r; dy++) {
       for (let dx = -r; dx <= r; dx++) {
         if (Math.abs(dx) !== r && Math.abs(dy) !== r) continue; // bara ringens kant
-        if (isFree(g, cx + dx, cy + dy)) return [cx + dx, cy + dy];
+        if (!isFree(g, cx + dx, cy + dy)) continue;
+        const d = dx * dx + dy * dy;
+        if (d < bestD) { bestD = d; bestX = cx + dx; bestY = cy + dy; }
       }
     }
+    if (bestX !== -1) return [bestX, bestY];
   }
   return null;
 }
 
-// Min-heap på f-score (par av [f, idx]).
-function heapPush(heap, node) {
-  heap.push(node);
-  let i = heap.length - 1;
+// Min-heap på f-score via två parallella återanvändbara buffrar (hf=f-score, hi=cell-idx).
+// PERF: förut allokerades ett [f,idx]-par per push (upp till maxIter=6000/anrop) + ett
+// nytt heap=[] per computePath → GC-tryck med många bots. Nu skrivs bara in i förallokerade
+// typed-arrays; heapState.len håller storleken. Kapacitet = n (en cell pushas ~en gång netto,
+// men dubbletter förekommer → buffrarna dimensioneras till heap-kapacitet i astar).
+function heapPush(hf, hi, state, f, idx) {
+  let i = state.len++;
+  hf[i] = f; hi[i] = idx;
   while (i > 0) {
     const p = (i - 1) >> 1;
-    if (heap[p][0] <= heap[i][0]) break;
-    const t = heap[p]; heap[p] = heap[i]; heap[i] = t;
+    if (hf[p] <= hf[i]) break;
+    const tf = hf[p]; hf[p] = hf[i]; hf[i] = tf;
+    const ti = hi[p]; hi[p] = hi[i]; hi[i] = ti;
     i = p;
   }
 }
-function heapPop(heap) {
-  const top = heap[0];
-  const last = heap.pop();
-  if (heap.length > 0) {
-    heap[0] = last;
+// Poppar minsta f och returnerar dess cell-idx (-1 om tom).
+function heapPop(hf, hi, state) {
+  if (state.len === 0) return -1;
+  const topIdx = hi[0];
+  const n = --state.len;
+  if (n > 0) {
+    hf[0] = hf[n]; hi[0] = hi[n];
     let i = 0;
-    const n = heap.length;
     for (;;) {
       const l = 2 * i + 1, r = 2 * i + 2;
       let s = i;
-      if (l < n && heap[l][0] < heap[s][0]) s = l;
-      if (r < n && heap[r][0] < heap[s][0]) s = r;
+      if (l < n && hf[l] < hf[s]) s = l;
+      if (r < n && hf[r] < hf[s]) s = r;
       if (s === i) break;
-      const t = heap[s]; heap[s] = heap[i]; heap[i] = t;
+      const tf = hf[s]; hf[s] = hf[i]; hf[i] = tf;
+      const ti = hi[s]; hi[s] = hi[i]; hi[i] = ti;
       i = s;
     }
   }
-  return top;
+  return topIdx;
 }
 
 const SQRT2 = 1.41421356;
@@ -124,6 +138,18 @@ function astar(g, sIdx, gIdx) {
   const gScore = g._gScore; gScore.fill(Infinity);
   const came = g._came; came.fill(-1);
   const closed = g._closed; closed.fill(0);
+  // PERF: cap utforskning. På stora öppna arenor kan en lång/omöjlig väg annars expandera
+  // hela griden (BR: 80000 iter). Bots klarar sig med rak väg + steerAround om A* ger upp.
+  const maxIter = n * 2 < 6000 ? n * 2 : 6000;
+  // Heap-buffrar: varje pop relaxar ≤8 grannar → ≤8 pushar/iter (+1 start). Dimensionera
+  // till maxIter*8+1 men aldrig större än griden behöver. Återanvänds per grid.
+  const heapCap = maxIter * 8 + 1;
+  if (!g._heapF || g._heapF.length < heapCap) {
+    g._heapF = new Float64Array(heapCap);
+    g._heapIdx = new Int32Array(heapCap);
+  }
+  const hf = g._heapF, hi = g._heapIdx;
+  const heapState = { len: 0 };
   const sx = sIdx % g.cols, sy = (sIdx / g.cols) | 0;
   const gx = gIdx % g.cols, gy = (gIdx / g.cols) | 0;
   const h = (cx, cy) => {
@@ -131,14 +157,13 @@ function astar(g, sIdx, gIdx) {
     return (dx + dy) + (SQRT2 - 2) * Math.min(dx, dy); // octile
   };
   gScore[sIdx] = 0;
-  const heap = [];
-  heapPush(heap, [h(sx, sy), sIdx]);
-  // PERF: cap utforskning. På stora öppna arenor kan en lång/omöjlig väg annars expandera
-  // hela griden (BR: 80000 iter). Bots klarar sig med rak väg + steerAround om A* ger upp.
-  const maxIter = n * 2 < 6000 ? n * 2 : 6000;
+  heapPush(hf, hi, heapState, h(sx, sy), sIdx);
+  // C135: spåra närmaste-mot-målet stängda noden så vi kan ge en best-effort-väg vid cap-out
+  // (lång konkav vägg kan kräva >maxIter expansioner; null → boten går rakt in i väggen).
+  let bestIdx = sIdx, bestH = h(sx, sy);
   let iter = 0;
-  while (heap.length && iter++ < maxIter) {
-    const [, cur] = heapPop(heap);
+  while (heapState.len && iter++ < maxIter) {
+    const cur = heapPop(hf, hi, heapState);
     if (cur === gIdx) {
       const path = [];
       let c = cur;
@@ -149,6 +174,8 @@ function astar(g, sIdx, gIdx) {
     if (closed[cur]) continue;
     closed[cur] = 1;
     const cx = cur % g.cols, cy = (cur / g.cols) | 0;
+    const curH = h(cx, cy);
+    if (curH < bestH) { bestH = curH; bestIdx = cur; }
     for (let dy = -1; dy <= 1; dy++) {
       for (let dx = -1; dx <= 1; dx++) {
         if (dx === 0 && dy === 0) continue;
@@ -163,10 +190,19 @@ function astar(g, sIdx, gIdx) {
         if (tentative < gScore[ni]) {
           gScore[ni] = tentative;
           came[ni] = cur;
-          heapPush(heap, [tentative + h(nx, ny), ni]);
+          heapPush(hf, hi, heapState, tentative + h(nx, ny), ni);
         }
       }
     }
+  }
+  // C135: mål ej nått inom budget → returnera bästa partiella väg (mot målet) om vi
+  // gjort framsteg, annars null. Boten rör sig då framåt + re-pathar nästa fönster.
+  if (bestIdx !== sIdx) {
+    const path = [];
+    let c = bestIdx;
+    while (c !== -1) { path.push(c); c = came[c]; }
+    path.reverse();
+    return path;
   }
   return null;
 }
@@ -174,7 +210,9 @@ function astar(g, sIdx, gIdx) {
 // Är linjen (x0,y0)->(x1,y1) fri från blockerade celler? (string-pull-test, grov DDA.)
 function lineClear(g, x0, y0, x1, y1) {
   const dist = Math.hypot(x1 - x0, y1 - y0);
-  const steps = Math.max(1, Math.ceil(dist / (GRID_CELL * 0.5)));
+  // C166: finare steg (0.25 cell) så en grazande diagonal inte hoppar över en blockerad
+  // cell mellan två samplade punkter och låter string-pull kapa ett inflaterat hörn.
+  const steps = Math.max(1, Math.ceil(dist / (GRID_CELL * 0.25)));
   for (let i = 0; i <= steps; i++) {
     const t = i / steps;
     const x = x0 + (x1 - x0) * t, y = y0 + (y1 - y0) * t;

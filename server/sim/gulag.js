@@ -257,10 +257,33 @@ function pickWarnTile(m) {
   return candidates[Math.floor(Math.random() * candidates.length)];
 }
 
+// C142: lokal spegling av brPointInAnyWall/brFindFreeSpot (room-sim.js, ej exporterade)
+// så redeploy ej landar inuti träd/stuga. Wall-struktur = {x,y,w,h}, 20px-buffer.
+function _gulagPointInWall(x, y, walls) {
+  for (const w of walls) {
+    if (x + 20 >= w.x && x - 20 <= w.x + w.w &&
+        y + 20 >= w.y && y - 20 <= w.y + w.h) return true;
+  }
+  return false;
+}
+function _gulagFreeSpot(x, y, walls, worldW, worldH) {
+  if (!walls || !walls.length || !_gulagPointInWall(x, y, walls)) return { x, y };
+  for (let r = 40; r < 400; r += 30) {
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) {
+      const nx = x + Math.cos(a) * r;
+      const ny = y + Math.sin(a) * r;
+      if (nx < 50 || nx > worldW - 50 || ny < 50 || ny > worldH - 50) continue;
+      if (!_gulagPointInWall(nx, ny, walls)) return { x: Math.round(nx), y: Math.round(ny) };
+    }
+  }
+  return { x, y }; // fallback: original (worst case)
+}
+
 function safeRedeployPos(sim) {
   const z = sim.battleroyaleZone;
   const arena = sim._brArena;
   const wW = (arena && arena.worldW) || 10000, wH = (arena && arena.worldH) || 10000;
+  const walls = (arena && arena.walls) || null;
   if (z && z.r > 0) {
     const ang = Math.random() * Math.PI * 2;
     const rad = z.r * (0.45 + Math.random() * 0.3);
@@ -268,9 +291,9 @@ function safeRedeployPos(sim) {
     let y = z.y + Math.sin(ang) * rad;
     x = Math.max(60, Math.min(wW - 60, x));
     y = Math.max(60, Math.min(wH - 60, y));
-    return { x, y };
+    return _gulagFreeSpot(x, y, walls, wW, wH); // C142: undvik wall-overlap, spegla BR-spawns
   }
-  return { x: wW / 2, y: wH / 2 };
+  return _gulagFreeSpot(wW / 2, wH / 2, walls, wW, wH);
 }
 
 function clearGulagFields(ps) {
@@ -303,6 +326,7 @@ function resolveGulag(sim, m, winnerPid, loserPid, now) {
     ps.maxHp = Math.min(200, 100 + 25 * ((ps.brPerkLevels && ps.brPerkLevels.max_hp) || 0));
     ps.maxShield = Math.min(400, 200 + 50 * ((ps.brPerkLevels && ps.brPerkLevels.shield) || 0));
     ps.hp = 75; ps.shield = 25; ps.weaponId = 'pistol';
+    ps._brWeaponTier = 'starter'; // C107: reset tier så nästa loot-pickup auto-equippar (matchar match-start)
     ps.speedMul = 1;
     const pos = safeRedeployPos(sim);
     ps.x = pos.x; ps.y = pos.y;

@@ -60,9 +60,15 @@ function joinQueue(members, mode) {
   // grupp större än lägets lag/storlek kan aldrig matcha → neka
   const cap = TEAM_MODES.has(mode) ? (T / 2) : T;
   if (members.length > cap) return 'partytoobig';
+  // AUDIT C313: någon mitt i accept-fasen (_mmMatchId satt) får INTE köa om — det skulle
+  // dra leave()→declineMatch och lösa upp hela pending-matchen för alla andra (dubbel-tap /
+  // läges-byte under match_found). Neka istället; klienten avbryter accepten explicit.
+  for (const ws of members) {
+    if (ws._mmMatchId) return 'inaccept';
+  }
   // någon i gruppen redan i en STARTAD match → neka (lobby = OK, det är ju partyt)
   for (const ws of members) {
-    if (ws._mmTicket) leave(ws);            // re-queue: släpp gammal ticket först
+    if (ws._mmTicket) leave(ws);            // re-queue: släpp gammal ticket först (endast kö-tickets — mid-accept nekades ovan)
     const r = ws.roomCode ? H.rooms.get(ws.roomCode) : null;
     if (r && r.meta && r.meta.started) return 'inroom';
   }
@@ -93,6 +99,10 @@ function removeTicket(t) {
 
 // disconnect/leave: städa ur kö OCH ur ev. pågående accept-fas
 function leave(ws) {
+  // AUDIT C306: i accept-fas → räknas som DECLINE FÖRST (innan vi krymper ticketen),
+  // annars ser dissolveAccept en redan-spliced t.members och `every()` blir vacuously
+  // sann för en tom ticket → tom spök-ticket åter-köas. declineMatch nollar _mmMatchId.
+  if (ws._mmMatchId) declineMatch(ws, ws._mmMatchId);
   const t = ticketOf(ws);
   if (t) {
     // ta bort BARA denna ws ur ticketen (en gruppmedlem droppar); tom ticket → bort
@@ -102,8 +112,6 @@ function leave(ws) {
     if (t.members.length === 0) removeTicket(t);
     broadcastQueueStatus(t.mode);
   }
-  // i accept-fas → räknas som DECLINE (löser upp matchen för övriga)
-  if (ws._mmMatchId) declineMatch(ws, ws._mmMatchId);
 }
 
 function broadcastQueueStatus(mode) {
@@ -118,6 +126,7 @@ function broadcastQueueStatus(mode) {
 
 function tryForm(mode) {
   const T = targetFor(mode);
+  if (T <= 0) return;   // AUDIT C319: okänt/target-0-läge → forma aldrig (annars skulle sum===T===0 trigga startAccept med tom match)
   const q = queues.get(mode) || [];
   // greedy FIFO: plocka tickets tills summan == T (hoppa över de som skulle spräcka
   // T och leta en mindre som passar). Solo-tickets (size 1) → trivialt; grupper
@@ -125,6 +134,7 @@ function tryForm(mode) {
   const chosen = [];
   let sum = 0;
   for (let i = 0; i < q.length && sum < T; i++) {
+    if (sizeOf(q[i]) === 0) continue;   // AUDIT C319/C306: hoppa över spök-tickets (alla medlemmar lämnade)
     if (sum + sizeOf(q[i]) <= T) { chosen.push(q[i]); sum += sizeOf(q[i]); }
   }
   if (sum !== T) return;   // kunde inte fylla exakt → vänta
@@ -174,7 +184,12 @@ function acceptMatch(ws, matchId) {
   if (!entry || ws._mmMatchId !== matchId) return;
   entry.accepts.add(ws.id);
   for (const m of entry.members) send(m, { type: 'match_accept_progress', matchId, accepted: entry.accepts.size, total: entry.members.length });
-  if (entry.accepts.size >= entry.members.length) finalizeMatch(matchId);
+  // AUDIT C318: räkna mot LEVANDE medlemmar — en halv-stängd socket (readyState 2/CLOSING vars
+  // close/leave ännu inte fyrat) kan aldrig acceptera och skulle annars stalla hela accept-fasen
+  // i 10s. När alla levande accepterat → finalizeMatch (som själv åter-köar om live < total).
+  let liveCount = 0;
+  for (const m of entry.members) if (m.readyState === 1) liveCount++;
+  if (entry.accepts.size >= entry.members.length || entry.accepts.size >= liveCount) finalizeMatch(matchId);
 }
 
 function declineMatch(ws, matchId) {
@@ -199,6 +214,9 @@ function dissolveAccept(matchId, decliner) {
   if (entry.timer) clearTimeout(entry.timer);
   for (const ws of entry.members) ws._mmMatchId = null;
   for (const t of entry.tickets) {
+    // AUDIT C306: en redan-tömd ticket (alla medlemmar lämnade) ska aldrig åter-köas
+    // (every() är vacuously sann på tom array → spök-ticket). Hoppa över helt.
+    if (t.members.length === 0) continue;
     // behåll ticket om HELA gruppen accepterade och ingen är decliner
     const allAccepted = t.members.every(m => entry.accepts.has(m.id) && m !== decliner);
     if (allAccepted) {

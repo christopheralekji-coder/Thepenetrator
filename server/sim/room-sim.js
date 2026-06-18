@@ -242,13 +242,22 @@ function tickSim(sim) {
   // Ringbuffer per ws.playerState — håll bara 12 snapshots (~265ms @ 45Hz).
   for (const [, ws] of sim.room.members) {
     if (!ws.playerState) continue;
-    if (!ws.playerState._history) ws.playerState._history = [];
-    ws.playerState._history.push({ t: now, x: ws.playerState.x, y: ws.playerState.y });
+    const ps = ws.playerState;
+    if (!ps._history) ps._history = [];
+    // C156 (audit 2026-06-18): återanvänd snapshot-objekten i st.f. att allokera ett
+    // färskt {t,x,y} varje tick (var ~3600 small-objekt/s @ 60 members → GC-churn). Den
+    // bortprunade slot:en muteras + återinsätts som nyaste → noll allokering per tick.
+    // _history förblir en vanlig array ordnad äldst→nyast (index 0..len-1) → konsumenterna
+    // (rewoundPosition i bullets.js + origin-clampen i applyShoot) är OFÖRÄNDRADE.
+    let slot = null;
     // v1.705: Prune > 320ms — marginal över max rewind 250 (= RTT/2 + 60ms interp-delay, v1.701).
     // Förr 250 = exakt cap → noll marginal → högping-skytt föll på äldsta snapshot.
-    while (ws.playerState._history.length > 0 && now - ws.playerState._history[0].t > 320) {
-      ws.playerState._history.shift();
+    while (ps._history.length > 0 && now - ps._history[0].t > 320) {
+      slot = ps._history.shift();   // återanvänd ett av de prunade objekten
     }
+    if (slot) { slot.t = now; slot.x = ps.x; slot.y = ps.y; }
+    else slot = { t: now, x: ps.x, y: ps.y };
+    ps._history.push(slot);
   }
 
   // Bot-AI: rör bots + skjuter. Skippar countdown och time-stop internt.
@@ -479,6 +488,18 @@ function tickSim(sim) {
   // Bygg lista av "spelare"
   const players = buildPlayerList(sim);
 
+  // Bygg spatial-grid över ALIVE enemies — används av bullets-collision,
+  // applySeparation (i enemies.js), chain-effekter, explode. Sparar ~1M
+  // ops/s vs linear scan vid 80 enemies × 200 bullets.
+  // C138 (audit 2026-06-18): byggs nu FÖRE enemy-AI-loopen (var efter) så
+  // applySeparation läser DENNA ticks positioner + nyspawnade fiender, inte föregående
+  // ticks. AI nudgar bara positioner (lägger inte till/tar bort) → samma grid duger för
+  // bullet-collision som körs efter AI (cull/death sker längre ned).
+  sim.enemyGrid.clear();
+  for (const e of sim.enemies) {
+    if (!e.dead) sim.enemyGrid.insert(e);
+  }
+
   // Enemy + boss AI (frozen vid time-stop)
   if (!timeStopped) {
     // v2: PvE-stage-väggar (story-husen) — samma cachade lista som kulorna
@@ -507,14 +528,6 @@ function tickSim(sim) {
     }
   }
 
-  // Bygg spatial-grid över ALIVE enemies — används av bullets-collision,
-  // applySeparation (i enemies.js), chain-effekter, explode. Sparar ~1M
-  // ops/s vs linear scan vid 80 enemies × 200 bullets.
-  sim.enemyGrid.clear();
-  for (const e of sim.enemies) {
-    if (!e.dead) sim.enemyGrid.insert(e);
-  }
-
   // Skriv tillbaka playerState.hp + invulnUntil från contact-damage
   if (!sim.deadBodies) sim.deadBodies = {};
   for (const p of players) {
@@ -531,6 +544,9 @@ function tickSim(sim) {
   // Centraliserad death-detektering — täcker alla damage-källor (contact, hostile bullets, hazards, explosion)
   for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState) continue;
+    // C150 (audit 2026-06-18): bots är fulla room.members med playerState — en downad bot
+    // ska INTE skapa deadBody/player_died/revive-prompt (co-op-revive är ett människo-system).
+    if (ws._isBot) continue;
     if (ws.playerState.hp <= 0 && !sim.deadBodies[pid]) {
       sim.deadBodies[pid] = {
         x: ws.playerState.x,
@@ -651,6 +667,7 @@ function updateRevive(sim, dt) {
     let reviverPid = null;
     for (const [pid, ws] of sim.room.members) {
       if (pid === peerId) continue;
+      if (ws._isBot) continue; // C150: bots reviver inte (co-op-revive är ett människo-system)
       if (!ws.playerState || ws.playerState.hp <= 0) continue;
       const dx = ws.playerState.x - body.x;
       const dy = ws.playerState.y - body.y;
@@ -802,6 +819,14 @@ function updateHazards(sim, dt, now, players) {
 // wall-collision för spelare, samt bullets via befintlig updateBullets (som
 // kollar walls via shared/ctf-arena).
 function tickCtf(sim, dt, now) {
+  // C147/C164 (audit 2026-06-18): efter match-end körde respawn-loopen nedan vidare tills
+  // host:en gjorde sim_stop. Gate FÖRE respawn-loopen — behåll exakt den befintliga end-
+  // vägens beteende (tickPvpPickups + broadcast varje tick, sedan return).
+  if (sim.ctfEnded) {
+    tickPvpPickups(sim, now);
+    broadcastWorld(sim, now);
+    return;
+  }
   // Respawn döda spelare på random egna spawn-point
   for (const [pid, ws] of sim.room.members) {
     if (ws.tdmRespawnAt && now >= ws.tdmRespawnAt) {
@@ -1438,6 +1463,10 @@ function applyCtfDeath(sim, peerId) {
 function tickSiege(sim, dt, now) {
   const nowMs = Date.now();
 
+  // C147/C164 (audit 2026-06-18): gate hela ticken efter match-end så respawn-loopen
+  // nedan inte re-spawnar döda spelare tills host:en gör sim_stop.
+  if (sim.siegeEnded) return;
+
   // Respawn döda spelare på random egna spawn-point
   for (const [pid, ws] of sim.room.members) {
     if (ws.tdmRespawnAt && nowMs >= ws.tdmRespawnAt) {
@@ -1706,6 +1735,10 @@ function endSiegeMatch(sim, winner, reason) {
 function tickGungame(sim, dt, now) {
   const nowMs = Date.now();
 
+  // C147/C164 (audit 2026-06-18): gate hela ticken efter match-end så respawn-loopen
+  // nedan inte re-spawnar döda spelare tills host:en gör sim_stop.
+  if (sim.gungameEnded) return;
+
   // Respawn döda spelare på roterande spawn-point (anti-spawn-camp).
   // Försök upp till N spawn-punkter tills vi hittar en utan levande spelare
   // inom 120px — annars spawnar man rakt ovanpå en motståndare.
@@ -1790,6 +1823,12 @@ function tickGungame(sim, dt, now) {
 // var N sek så ingen kan sitta i samma hörn hela matchen. First to targetPoints.
 function tickKoth(sim, dt, now) {
   const nowMs = Date.now();
+
+  // C147/C164 (audit 2026-06-18): efter match-end körde respawn-loopen nedan vidare
+  // (tdmRespawnAt re-spawnade döda) tills host:en tryckte sim_stop. Gate hela ticken
+  // överst → ingen post-end-respawn. Match-end-eventet är redan köat + broadcastas av
+  // tickSim efter detta return.
+  if (sim.kothEnded) return;
 
   // Respawn (samma som gungame — roterande spawn, 3s cooldown)
   for (const [pid, ws] of sim.room.members) {
@@ -1911,6 +1950,9 @@ function tickKoth(sim, dt, now) {
     // Win-check (v1.698: välj HÖGST poäng vid samtidig överträngning, ej insertion-ordning)
     let kWin = null, kBest = -1;
     for (const pid of Object.keys(sim.kothScores)) {
+      // C230 (audit 2026-06-18): en bot får aldrig utropas till King of the Hill.
+      const kws = sim.room.members.get(pid);
+      if (kws && kws._isBot) continue;
       if (sim.kothScores[pid] >= sim.kothTargetPoints && sim.kothScores[pid] > kBest) {
         kBest = sim.kothScores[pid]; kWin = pid;
       }
@@ -2101,6 +2143,11 @@ function transferJug(sim, newPid, reason) {
 function tickJuggernaut(sim, dt, now) {
   const nowMs = Date.now();
 
+  // C147/C164 (audit 2026-06-18): gate hela ticken efter match-end så respawn-loopen
+  // nedan inte re-spawnar döda hunters tills host:en gör sim_stop. (Det fanns redan en
+  // juggernautEnded-gate längre ned efter respawn/pickups/walls — denna flyttar den överst.)
+  if (sim.juggernautEnded) return;
+
   // Respawn hunters (3s gungame-style, roterande spawn). JUG respawnar inte —
   // när JUG dör händer transferJug + ny JUG spawnar direkt på dödsplatsen.
   // Specialfall: om bot dödade förra JUG har sim._juggernautAwaitFirstRespawn
@@ -2210,9 +2257,18 @@ function tickJuggernaut(sim, dt, now) {
         const dy = ps.y - sim._jugLastMovePos.y;
         if (dx * dx + dy * dy > 25 * 25) {
           sim._jugLastMovePos = { x: ps.x, y: ps.y, t: nowMs };
-        } else if (nowMs - sim._jugLastMovePos.t > 5000) {
-          // Stationär >5s → drain 2 HP/sek
-          ps.hp = Math.max(0, ps.hp - 2 * dt);
+        } else if (nowMs - sim._jugLastMovePos.t > 5000 && nowMs >= (ps.invulnUntil || 0)) {
+          // Stationär >5s → drain 2 HP/sek.
+          // C144 (audit 2026-06-18): gate på !invuln — en ny JUG som just transfererat
+          // (invulnUntil=now+2000) och står stilla medan han orienterar sig ska inte börja
+          // ta camp-skada genom sin invuln. Dränera shield FÖRE hp (konsekvent med övrig
+          // dmg-väg) så camp-skadan inte hoppar över skölden.
+          let drain = 2 * dt;
+          if ((ps.shield || 0) > 0) {
+            const absorb = Math.min(ps.shield, drain);
+            ps.shield -= absorb; drain -= absorb;
+          }
+          if (drain > 0) ps.hp = Math.max(0, ps.hp - drain);
           // Throttla pvp_hp_changed till 2Hz för att inte spamma events
           sim._jugDecayBroadcast = (sim._jugDecayBroadcast || 0) + dt;
           if (sim._jugDecayBroadcast >= 0.5) {
@@ -2490,6 +2546,16 @@ const _cdTurretScratch = [];
 // Auto-turret skjuter, traps skadar/slow:ar, repair-station regenererar walls,
 // health-station regenererar spelare.
 function updateCastleDefenseBuildings(sim, dt, nowMs) {
+  // C162 (audit 2026-06-18): samla strategist-spelarnas positioner EN gång före
+  // building-loopen istället för att scanna ALLA room.members per auto-turret per tick
+  // (var O(torn×members)). Strategist-setet är litet + ändras sällan. Tom array → turret-
+  // aura-loopen hoppas helt (vanligaste fallet: ingen har perken).
+  const _cdStrategists = [];
+  for (const [pid, ws] of sim.room.members) {
+    if (sim.castledefensePerks[pid] !== 'strategist') continue;
+    if (!ws.playerState || ws.playerState.hp <= 0) continue;
+    _cdStrategists.push(ws.playerState);
+  }
   for (const b of sim.castledefenseBuildings) {
     if (b.hp <= 0) continue;
     const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
@@ -2497,11 +2563,11 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
     if (b.kind === 'auto_turret') {
       if (b._fireCd > 0) b._fireCd -= dt;
       // v1.416: STRATEGIST aura — om strategist-player är inom 250px, +35% dmg + range
+      // C162: scanna bara den lilla för-byggda strategist-listan (ej alla members).
       let stratMul = 1.0;
-      for (const [pid, ws] of sim.room.members) {
-        if (sim.castledefensePerks[pid] !== 'strategist') continue;
-        if (!ws.playerState || ws.playerState.hp <= 0) continue;
-        const dxs = ws.playerState.x - bcx, dys = ws.playerState.y - bcy;
+      for (let si = 0; si < _cdStrategists.length; si++) {
+        const sps = _cdStrategists[si];
+        const dxs = sps.x - bcx, dys = sps.y - bcy;
         if (dxs * dxs + dys * dys <= 250 * 250) { stratMul = 1.35; break; }
       }
       const effRange = b.range * (stratMul > 1 ? 1.2 : 1);
@@ -3404,11 +3470,22 @@ function tickCastleDefense(sim, dt, now) {
   const cdSolidsForTarget = cdLiveBuildings.filter(b =>
     b.kind !== 'spike_trap' && b.kind !== 'slow_trap');
   // Pre-compute alive players (real, not bots — bots are members too)
+  // C110 (audit 2026-06-18): beräkna varje spelares onSolid (står PÅ mur/byggnad → immun
+  // mot melee) EN gång här i st.f. per enemy (var O(E×P×Solids), ~38k AABB-test/tick worst
+  // case). Bär även ws-ref så melee-kontakten slipper reverse-lookup. onSolid beror bara
+  // på spelarens position (oförändrad under enemy-loopen).
   const cdAlivePlayers = [];
   for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
     if (ws.playerState.cdDowned) continue; // downed räknas inte som mål
-    cdAlivePlayers.push({ peerId: pid, x: ws.playerState.x, y: ws.playerState.y });
+    const psX = ws.playerState.x, psY = ws.playerState.y;
+    let onSolid = false;
+    for (const sB of cdAllSolids) {
+      if (sB.hp <= 0) continue;
+      if (psX >= sB.x && psX <= sB.x + sB.w &&
+          psY >= sB.y && psY <= sB.y + sB.h) { onSolid = true; break; }
+    }
+    cdAlivePlayers.push({ peerId: pid, x: psX, y: psY, _ws: ws, _onSolid: onSolid });
   }
   for (const e of sim.enemies) {
     if (e.dead) continue;
@@ -3543,20 +3620,17 @@ function tickCastleDefense(sim, dt, now) {
       if (e._cdPlayerContactCd > 0) e._cdPlayerContactCd -= dt;
       else e._cdPlayerContactCd = 0;
       if (e._cdPlayerContactCd <= 0) {
-        for (const [, wsP] of sim.room.members) {
-          if (!wsP.playerState || wsP.playerState.hp <= 0) continue;
-          if (wsP.playerState.cdDowned) continue;
+        // C110: iterera den för-byggda alive-player-listan (onSolid + ws redan beräknade)
+        // → O(E×P) avstånd med O(1) onSolid-lookup, ingen reverse-lookup.
+        for (let pi = 0; pi < cdAlivePlayers.length; pi++) {
+          const ap = cdAlivePlayers[pi];
+          const wsP = ap._ws;
           const psP = wsP.playerState;
+          if (!psP || psP.hp <= 0 || psP.cdDowned) continue; // kan ha downats mid-loop
           if (Date.now() < (psP.invulnUntil || 0)) continue;
           // v1.422: Player står PÅ solid byggnad/mur (AABB) → immune mot melee.
           // Walls ÄR cover — du ska kunna repair/upgrade utan att kontakt-killas.
-          let onSolid = false;
-          for (const sB of cdAllSolids) {
-            if (sB.hp <= 0) continue;
-            if (psP.x >= sB.x && psP.x <= sB.x + sB.w &&
-                psP.y >= sB.y && psP.y <= sB.y + sB.h) { onSolid = true; break; }
-          }
-          if (onSolid) continue;
+          if (ap._onSolid) continue;
           const ddx = psP.x - e.x, ddy = psP.y - e.y;
           const rsumP = (e.r || 12) + 14;
           if (ddx * ddx + ddy * ddy < rsumP * rsumP) {
@@ -3570,17 +3644,12 @@ function tickCastleDefense(sim, dt, now) {
             if (remaining > 0) psP.hp = Math.max(0, psP.hp - remaining);
             psP.invulnUntil = Date.now() + 500;
             e._cdPlayerContactCd = 0.7;
-            // v1.404: broadcast hp+shield-ändring så klient ser shield-droppen
-            // Hitta pid via reverse-lookup (psP är ws.playerState)
-            for (const [pidLookup, wsLookup] of sim.room.members) {
-              if (wsLookup.playerState === psP) {
-                sim.eventQueue.push({
-                  type: 'cd_hp_changed', peerId: pidLookup,
-                  hp: psP.hp, shield: psP.shield || 0,
-                });
-                break;
-              }
-            }
+            // v1.404: broadcast hp+shield-ändring så klient ser shield-droppen.
+            // C110: peerId finns redan på alive-player-recorden (ingen reverse-lookup).
+            sim.eventQueue.push({
+              type: 'cd_hp_changed', peerId: ap.peerId,
+              hp: psP.hp, shield: psP.shield || 0,
+            });
             break;
           }
         }
@@ -3615,32 +3684,24 @@ function tickCastleDefense(sim, dt, now) {
     // === ENEMY ATTACK PÅ WALL/CORE ===
     // v1.400 fix: skippa redan-döda targets (mid-tick destruction från attack-loop
     // skulle annars trigga dubbel destroy-event)
+    // C109 (audit 2026-06-18): EN scan över cdAllSolids istället för två (Pass 1 wall/
+    // turret, Pass 2 station). Spara första wall/turret-träffen OCH första station-träffen,
+    // välj wall>station efter loopen → halverar scannen, noll beteendeändring (samma
+    // wall-före-station-prioritet, samma "första i listan"-tie-break per kategori).
     let attackTarget = null;
-    // Pass 1: prioriterade target (walls, turrets — saker som blockerar path)
+    let attackStation = null;
+    const _cr2 = (e.r + 1) * (e.r + 1);
     for (const w of cdAllSolids) {
       if (w.hp <= 0) continue;
-      if (w.kind !== 'wall' && w.kind !== 'castle_wall' && w.kind !== 'auto_turret' && w.kind !== 'man_turret') continue;
       const cx2 = Math.max(w.x, Math.min(e.x, w.x + w.w));
       const cy2 = Math.max(w.y, Math.min(e.y, w.y + w.h));
       const dx2 = e.x - cx2, dy2 = e.y - cy2;
-      if (dx2 * dx2 + dy2 * dy2 < (e.r + 1) * (e.r + 1)) {
-        attackTarget = w;
-        break;
-      }
+      if (dx2 * dx2 + dy2 * dy2 >= _cr2) continue;
+      const isWallOrTurret = (w.kind === 'wall' || w.kind === 'castle_wall' || w.kind === 'auto_turret' || w.kind === 'man_turret');
+      if (isWallOrTurret) { attackTarget = w; break; } // prioriterat → klart
+      if (!attackStation) attackStation = w; // första station-träffen (om inget mur/turret hittas)
     }
-    // Pass 2: stations (repair/health) bara om inget mur/turret i kontakt
-    if (!attackTarget) {
-      for (const w of cdAllSolids) {
-        if (w.hp <= 0) continue;
-        const cx2 = Math.max(w.x, Math.min(e.x, w.x + w.w));
-        const cy2 = Math.max(w.y, Math.min(e.y, w.y + w.h));
-        const dx2 = e.x - cx2, dy2 = e.y - cy2;
-        if (dx2 * dx2 + dy2 * dy2 < (e.r + 1) * (e.r + 1)) {
-          attackTarget = w;
-          break;
-        }
-      }
-    }
+    if (!attackTarget) attackTarget = attackStation;
     // Eller core om i kontakt (om enemy lyckats nå inre)
     if (!attackTarget && sim.castledefenseCore && sim.castledefenseCore.hp > 0) {
       const core = sim.castledefenseCore;
@@ -4032,6 +4093,9 @@ function tickBattleRoyale(sim, dt, now) {
       sim.battleroyaleEliminated.push(pid);
       sim.battleroyaleAliveCount = Math.max(0, sim.battleroyaleAliveCount - 1);
       ws.tdmRespawnAt = 0; // ingen respawn
+      // C140 (audit 2026-06-18): sätt server-side spectating-flaggan vid RIKTIG elimination
+      // (bara gulag-vägen gjorde det förr) → en enda sanningskälla för "är spectator".
+      ws.playerState.spectating = true;
       sim.tdmDeathsByPid[pid] = (sim.tdmDeathsByPid[pid] || 0) + 1;
       // CORPSE-DROP: dropp current vapen + small HP-pack vid death-pos (kill-reward)
       const deathX = ws.playerState.x, deathY = ws.playerState.y;
@@ -4088,6 +4152,7 @@ function tickBattleRoyale(sim, dt, now) {
     // Hitta sista levande (om någon). Downed räknas EJ som vinnare (v1.748).
     let winner = null;
     for (const [pid, ws] of sim.room.members) {
+      if (ws._isBot) continue; // C152 (audit 2026-06-18): en bot får aldrig utropas till BR-vinnare
       if (ws.playerState && ws.playerState.gulagState) continue; // GULAG: ej "levande på kartan"
       if (ws.playerState && ws.playerState.hp > 0 && !ws.playerState.brDowned) {
         winner = pid;
@@ -4134,6 +4199,7 @@ function tickBattleRoyale(sim, dt, now) {
     // Pick winner = LEVANDE spelare med högst HP (FILTRERA bort spectators/late-joiners)
     let bestPid = null, bestHp = -1;
     for (const [pid, ws] of sim.room.members) {
+      if (ws._isBot) continue; // C152 (audit 2026-06-18): timeout-vinnare ska vara en människa
       if (!ws.playerState || ws.playerState.hp <= 0) continue;
       if (ws.playerState.hp > bestHp) {
         bestHp = ws.playerState.hp;
@@ -4274,6 +4340,16 @@ function applyBrOutsideDamage(sim, dt) {
 // Loot pickup collision (BR-specifik — speglar tickPvpPickups men för loot-typer)
 function tickBrLootPickups(sim, nowMs) {
   if (!sim.battleroyaleLoot) return;
+  // C157 (audit 2026-06-18): upplockad loot markeras lo.available=false men spliceades
+  // aldrig → corpse-droppar pushar hela tiden så listan växer och scannas i sin helhet
+  // varje tick. Svep bort otillgängliga var ~3s (ordning ej lastbärande) → per-tick-scanen
+  // hålls proportionell mot LEVANDE loot. Speglar supply-drops-svepet i tickBrContracts.
+  if (nowMs - (sim._brLootSweepAt || 0) > 3000) {
+    sim._brLootSweepAt = nowMs;
+    if (sim.battleroyaleLoot.some(l => !l.available)) {
+      sim.battleroyaleLoot = sim.battleroyaleLoot.filter(l => l.available);
+    }
+  }
   for (const lo of sim.battleroyaleLoot) {
     if (!lo.available) continue;
     // Anti-rush: center-loot låst första 30s
@@ -5818,7 +5894,9 @@ function applyBrAcceptContract(sim, pid, contractId) {
   if (c.type === 'bounty') {
     let cands = [];
     for (const [opid, ows] of sim.room.members) {
-      if (opid !== pid && ows.playerState && ows.playerState.hp > 0) cands.push(opid);
+      // C143 (audit 2026-06-18): hoppa gulag-kämpar (off-map ~13000+, hp>0) som bounty-mål
+      // — annars pingas en spelare mitt i sin gulag-duell ut på kartan.
+      if (opid !== pid && ows.playerState && ows.playerState.hp > 0 && !ows.playerState.gulagState) cands.push(opid);
     }
     if (!cands.length) { c.available = true; c.takenBy = null; sim.eventQueue.push({ type: 'br_contract_fail', peerId: pid, reason: 'no_target' }); return; }
     active.target = cands[(c.x + sim.battleroyaleAliveCount) % cands.length];
@@ -5877,6 +5955,8 @@ function tickBrContracts(sim, nowMs) {
         if (!tWs || !tWs.playerState) brFinishContract(sim, pid, false);
         continue;
       }
+      // C143 (audit 2026-06-18): pinga inte målets off-map gulag-position medan det duellerar.
+      if (tWs.playerState.gulagState) continue;
       if (pingNow) sim.eventQueue.push({ type: 'br_bounty_ping', peerId: pid, x: Math.round(tWs.playerState.x), y: Math.round(tWs.playerState.y) });
     } else if (ac.type === 'supply_run') {
       if (nowMs > ac.deadline) { brFinishContract(sim, pid, false); continue; }
@@ -6033,6 +6113,10 @@ function tickBrMeta(sim, nowMs) {
       for (const [opid, ows] of sim.room.members) {
         if (opid === pid) continue;
         if (!ows.playerState || ows.playerState.hp <= 0) continue;
+        // C128 (audit 2026-06-18): gulag-kämpar har hp>0 men lever off-map (~13000+) →
+        // annars blippas de som minimap-prickar långt utanför kartan. Speglar airstrike-
+        // guarden (gulagState/brDowned filtreras bort).
+        if (ows.playerState.gulagState || ows.playerState.brDowned) continue;
         blips.push({ x: Math.round(ows.playerState.x), y: Math.round(ows.playerState.y) });
       }
       sim.eventQueue.push({ type: 'br_uav_ping', peerId: pid, blips });
@@ -6201,6 +6285,11 @@ function broadcastWorld(sim, now) {
     return _enemyByIdx;
   };
   for (const [peerId, ws] of sim.room.members) {
+    // C115 (audit 2026-06-18): bots är riktiga room.members med readyState:1 och en
+    // no-op send (bots.js). De läser sim-state direkt i tickBots och konsumerar aldrig
+    // world-paket → skippa hela per-peer-encoden (sparar full world-encode/bot/tick) +
+    // håller bot-ids ur lastSentEnemyByPeer/seqByPeer/_peerFullAt.
+    if (ws._isBot) continue;
     // Godot/V2-klienter: world-snapshot som JSON-text, alltid full lista (trivial
     // klient-rendering — ersätt hela listan) men bara var JSON_WORLD_EVERY:e
     // broadcast (20Hz) — se M5-kommentaren vid konstanten.
@@ -6409,9 +6498,17 @@ function broadcastWorld(sim, now) {
     if (sim.deadBodies) {
       let bodyToSend = sim.deadBodies[peerId];  // egen kropp först
       if (!bodyToSend) {
+        // C146 (audit 2026-06-18): wireformatet bär bara EN kropp → välj den NÄRMASTE
+        // (eller den denna peer aktivt återupplivar) istället för första iterations-
+        // nyckeln. Annars renderar man en avlägsen kropp medan en kompis bredvid en
+        // ligger osynlig.
+        let bestD2 = Infinity;
         for (const otherPid in sim.deadBodies) {
-          bodyToSend = sim.deadBodies[otherPid];
-          break;
+          const b = sim.deadBodies[otherPid];
+          if (b.revivedBy === peerId) { bodyToSend = b; break; } // den jag reviver vinner
+          const bdx = b.x - px, bdy = b.y - py;
+          const d2 = bdx * bdx + bdy * bdy;
+          if (d2 < bestD2) { bestD2 = d2; bodyToSend = b; }
         }
       }
       if (bodyToSend) {
@@ -6516,6 +6613,14 @@ function broadcastWorld(sim, now) {
       }
     }
   }
+  // C171 (audit 2026-06-18): _peerFullAt är ett plain object och städades ALDRIG ovan
+  // (Map-guarden täcker bara lastSentEnemyByPeer/seqByPeer) → läckte en nyckel per peer
+  // som lämnat över sessionens livstid. Pruna det separat (oberoende av guarden ovan).
+  if (sim._peerFullAt) {
+    for (const peerId in sim._peerFullAt) {
+      if (!sim.room.members.has(peerId)) delete sim._peerFullAt[peerId];
+    }
+  }
 }
 
 function startSim(sim, opts) {
@@ -6559,6 +6664,11 @@ function startSim(sim, opts) {
   sim._kothSpawnIdx = 0;
   sim._kothZoneRotateAt = 0;
   sim._kothBroadcastTick = 0;
+  // C233 (audit 2026-06-18): warning/contested-flaggor nollades EJ här → i en back-to-back-
+  // match satt _kothWarningSent kvar (rensas annars bara vid zone-rotation) och första
+  // zon-varningen suppressades. Nollställ båda vid match-start.
+  sim._kothWarningSent = false;
+  sim._kothContestedSent = 0;
   // JUGGERNAUT reset
   sim.juggernautActive = false;
   sim.juggernautEnded = false;
@@ -7924,7 +8034,10 @@ function applyPlayerInput(sim, peerId, input) {
   const _gulagFrozen = (ws.playerState._gulagFrozenUntil || 0) > Date.now();
   if (_gulagFrozen) {
     // håll position — ingen rörelse medan frusen
-  } else if (inPvP && typeof input.x === 'number' && typeof input.y === 'number') {
+  } else if (inPvP && typeof input.x === 'number' && typeof input.y === 'number'
+             && isFinite(input.x) && isFinite(input.y)) {
+    // C124 (audit 2026-06-18): isFinite-guard — annars ger ett Infinity-input ett
+    // Infinity-delta → scale=maxDelta/Infinity=0 → x += Infinity*0 = NaN-position.
     const now = Date.now();
     const isInvuln = (ws.playerState.invulnUntil || 0) > now;
     const _dxRaw = input.x - ws.playerState.x;
@@ -7960,8 +8073,10 @@ function applyPlayerInput(sim, peerId, input) {
     // klient snappar via world-packet (klient-side discrepancy check).
   } else {
     // Non-PvP (coop story etc.): acceptera klient x/y unchecked
-    if (typeof input.x === 'number') ws.playerState.x = input.x;
-    if (typeof input.y === 'number') ws.playerState.y = input.y;
+    // C124 (audit 2026-06-18): isFinite-guard — typeof===number släpper igenom Infinity/NaN
+    // (1e400) → annars läcker en icke-finit spelar-position in i bullet-origin/broadcast.
+    if (typeof input.x === 'number' && isFinite(input.x)) ws.playerState.x = input.x;
+    if (typeof input.y === 'number' && isFinite(input.y)) ws.playerState.y = input.y;
   }
   // GULAG (v1.790): hp är SERVER-auktoritärt under duell (loadout + bullets/melee/lava).
   // Ignorera klient-hp så (a) den döda spelarens hp=0 ej skriver över loadout-hp vid start,
@@ -8225,7 +8340,9 @@ function applyShoot(sim, peerId, msg) {
   }
   const p = {
     x: posX, y: posY,
-    aimAngle: typeof msg.ang === 'number' ? msg.ang : (ps.aim || 0),
+    // C124 (audit 2026-06-18): isFinite-guard (speglar msg.interp-guarden) — en JSON-
+    // producer kan emit:a Infinity (1e400) → annars NaN-velocity-kulor som aldrig cullas.
+    aimAngle: (typeof msg.ang === 'number' && isFinite(msg.ang)) ? msg.ang : (ps.aim || 0),
     r: 14, peerId,
   };
   // Diagnostik (avstängt i prod via env-var)

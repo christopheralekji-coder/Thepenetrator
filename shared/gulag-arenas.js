@@ -16,12 +16,15 @@ function gulagSlotOrigin(i) {
   // v1.792: POSITIVA off-map-koordinater INOM Int16-range (±32767). Wire-formatet
   // (server/sim/wirefmt.js) packar positioner som Int16 → de gamla -40000-koordinaterna
   // klampades till -32768, så spelaren hamnade utanför arenan (på void-koordinater) och
-  // kameran kunde ej följa dit → svart skärm. 4×2-grid ovanför 10000×10000-kartan:
-  // x 13000–28000, y 13000–18000. Arenor är ~±800px → ryms med god marginal i Int16,
-  // och 5000px mellan centrum (arenor ~1600 breda, skjut-arenor har perimeter-väggar)
-  // → kulor kan ej korsa mellan samtidiga matcher.
+  // kameran kunde ej följa dit → svart skärm. 4×2-grid ovanför 10000×10000-kartan.
+  // C168 (2026-06-18): sänkt bas 13000→12000 och stride 5000→4000 så slot 7 hamnar på
+  // x=24000 (var 28000). Arena-halvbredd (~760) + spawn-offset + knockback (gulag_knockback
+  // 620) tryckte tidigare spelaren mot x~28800 → tunn marginal mot Int16-taket 32767.
+  // Nytt max ~24800 ger ~8000px buffert. x 12000–24000, y 12000–16000. Arenor ~±800px →
+  // ryms med god marginal, och 4000px mellan centrum (arenor ~1600 breda, skjut-arenor har
+  // perimeter-väggar) → kulor kan fortfarande ej korsa mellan samtidiga matcher.
   i = i % GULAG_SLOT_COUNT;
-  return { x: 13000 + (i % 4) * 5000, y: 13000 + Math.floor(i / 4) * 5000 };
+  return { x: 12000 + (i % 4) * 4000, y: 12000 + Math.floor(i / 4) * 4000 };
 }
 
 // ---- geometri-hjälpare (relativt arena-centrum 0,0; servern adderar origin) ----

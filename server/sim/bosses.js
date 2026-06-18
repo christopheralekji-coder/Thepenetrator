@@ -6,9 +6,6 @@
 const { BOSS_CONFIGS } = require('../../shared/boss-configs');
 const { makeEnemy } = require('./enemies');
 
-// Förenklad world (samma som room-sim.js)
-const WORLD = { w: 4000, h: 3000 };
-
 function makeBoss(bossKey, x, y, coopMul) {
   const cfg = BOSS_CONFIGS[bossKey];
   if (!cfg) return null;
@@ -137,11 +134,18 @@ function aiCaster(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   }
 }
 
+// C316 (audit 2026-06-18): slow/freeze ratio so hardcoded charge/dash speeds
+// honor status effects (updateStatus scales b.speed but charges used raw px/s).
+function slowRatio(b) {
+  return b._origSpeed > 0 ? (b.speed / b._origSpeed) : 1;
+}
+
 // 2) TANK_CHARGER (Benkrossare)
 function aiTankCharger(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   if (b.chargeUntil && now < b.chargeUntil) {
-    b.x += b.chargeDir.x * 360 * dt;
-    b.y += b.chargeDir.y * 360 * dt;
+    const sm = slowRatio(b);
+    b.x += b.chargeDir.x * 360 * sm * dt;
+    b.y += b.chargeDir.y * 360 * sm * dt;
   } else {
     if (b.chargeUntil) b.chargeUntil = 0;
     b.x += ndx * b.speed * dt;
@@ -182,8 +186,9 @@ function aiCloaker(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
 // 4) BRUTE_CHARGER (Avrättaren)
 function aiBruteCharger(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   if (b.chargeUntil && now < b.chargeUntil) {
-    b.x += b.chargeDir.x * 420 * dt;
-    b.y += b.chargeDir.y * 420 * dt;
+    const sm = slowRatio(b);
+    b.x += b.chargeDir.x * 420 * sm * dt;
+    b.y += b.chargeDir.y * 420 * sm * dt;
     return;
   }
   if (b.chargeUntil) b.chargeUntil = 0;
@@ -204,8 +209,9 @@ function aiBruteCharger(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
 // 5) PLASMA (Köttkvarn)
 function aiPlasma(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   if (b.dashUntil && now < b.dashUntil) {
-    b.x += b.dashDir.x * 500 * dt;
-    b.y += b.dashDir.y * 500 * dt;
+    const sm = slowRatio(b);
+    b.x += b.dashDir.x * 500 * sm * dt;
+    b.y += b.dashDir.y * 500 * sm * dt;
     return;
   }
   if (b.dashUntil) b.dashUntil = 0;
@@ -249,8 +255,9 @@ function aiJetpack(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
 // 7) GAS_SNIPER (Lungrivare)
 function aiGasSniper(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
   if (b.dashUntil && now < b.dashUntil) {
-    b.x += b.dashDir.x * 480 * dt;
-    b.y += b.dashDir.y * 480 * dt;
+    const sm = slowRatio(b);
+    b.x += b.dashDir.x * 480 * sm * dt;
+    b.y += b.dashDir.y * 480 * sm * dt;
     return;
   }
   if (b.dashUntil) b.dashUntil = 0;
@@ -291,8 +298,9 @@ function aiShielder(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
     b.chargeDir = { x: ndx, y: ndy };
   }
   if (b.chargeUntil && now < b.chargeUntil) {
-    b.x += b.chargeDir.x * 380 * dt;
-    b.y += b.chargeDir.y * 380 * dt;
+    const sm = slowRatio(b);
+    b.x += b.chargeDir.x * 380 * sm * dt;
+    b.y += b.chargeDir.y * 380 * sm * dt;
   } else if (b.chargeUntil) b.chargeUntil = 0;
 }
 
@@ -334,8 +342,9 @@ function aiFinal(sim, b, p, ndx, ndy, d, hpFrac, dt, now) {
     bossShoot(sim, b, 1, 0, 16, Math.PI * 2 / 16, b.glow, 1.0, 2.5);
   }
   if (b.chargeUntil && now < b.chargeUntil) {
-    b.x += b.chargeDir.x * 480 * dt;
-    b.y += b.chargeDir.y * 480 * dt;
+    const sm = slowRatio(b);
+    b.x += b.chargeDir.x * 480 * sm * dt;
+    b.y += b.chargeDir.y * 480 * sm * dt;
     return;
   }
   if (b.chargeUntil) b.chargeUntil = 0;
@@ -391,16 +400,69 @@ function updateBoss(sim, b, dt, now, players) {
     default:               aiBruteCharger(sim, b, target, ndx, ndy, d, hpFrac, dt, now);
   }
 
-  // World bounds
-  b.x = Math.max(b.r, Math.min(WORLD.w - b.r, b.x));
-  b.y = Math.max(b.r, Math.min(WORLD.h - b.r, b.y));
+  // World bounds: caller (room-sim.js) re-clamps every enemy/boss to the active
+  // stage's worldW/worldH right after updateBoss, so an internal hardcoded
+  // 4000x3000 clamp here was dead (looser than every real stage) AND wrong.
+  // C320 (audit 2026-06-18): removed — rely on the caller's stage-correct clamp.
 
-  // Boss contact damage
+  // Boss contact damage — mirror enemies.js applyContactDamage so the boss
+  // respects invuln-frames, shield-absorption and routes companion-hits to
+  // companionState instead of stomping the owner's HP.
   if (b.contactCd > 0) b.contactCd -= dt;
+  // C317 (audit 2026-06-18): recompute separation from POST-move positions
+  // (the ai* fns mutate b.x/b.y) so a charge that ends on the player still
+  // registers contact instead of using the stale pre-move distance.
+  const cdx = target.x - b.x, cdy = target.y - b.y;
   const rsum = (target.r || 14) + b.r;
-  if (dx * dx + dy * dy < rsum * rsum && b.contactCd <= 0) {
-    target.hp = Math.max(0, target.hp - b.dmg);
-    target._tookDamageFrom = b;
+  if (cdx * cdx + cdy * cdy < rsum * rsum && b.contactCd <= 0 && b.dmg > 0) {
+    const tnow = Date.now();
+    // C307: respect player invuln-frames (same as the normal-enemy path).
+    if (target.invulnUntil && tnow < target.invulnUntil) return;
+    if (target._isCompanion && target._wsRef && target._wsRef.companionState) {
+      // C308: companion-hit → update server-side companion-state + emit events.
+      // Do NOT set _tookDamageFrom on companions (that would write the owner's HP).
+      const c = target._wsRef.companionState;
+      c.hp = Math.max(0, c.hp - b.dmg);
+      if (sim && sim.eventQueue) {
+        sim.eventQueue.push({
+          type: 'companion_damaged',
+          peerId: target.peerId,
+          hp: c.hp,
+          maxHp: c.maxHp,
+          dmg: b.dmg,
+        });
+      }
+      if (c.hp <= 0) {
+        c.alive = false;
+        if (sim && sim.eventQueue) {
+          sim.eventQueue.push({
+            type: 'companion_died',
+            peerId: target.peerId,
+            companionId: c.id,
+          });
+        }
+      }
+    } else {
+      // STRESSTEST: spelaren odödlig (rent prestanda-test, ingen död).
+      if (sim && sim.stresstestActive) {
+        target.invulnUntil = tnow + 500;
+        b.contactCd = 0.5;
+        return;
+      }
+      // C307: shield absorberar damage först, resten går på HP.
+      let dmgRemaining = b.dmg;
+      if (target.shield && target.shield > 0) {
+        const absorbed = Math.min(dmgRemaining, target.shield);
+        target.shield -= absorbed;
+        dmgRemaining -= absorbed;
+      }
+      if (dmgRemaining > 0) {
+        target.hp = Math.max(0, target.hp - dmgRemaining);
+      }
+      target._tookDamageFrom = b;
+      target._lastDamageAt = tnow;
+      target.invulnUntil = tnow + (sim && sim.survivorsActive ? 150 : 500);
+    }
     b.contactCd = 0.5;
   }
 }

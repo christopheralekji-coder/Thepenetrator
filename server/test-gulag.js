@@ -67,7 +67,7 @@ function pairedMatch(sim, gameId, now) {
   ok(evs(sim, 'gulag_start').length === 1, 'T1: gulag_start sänt');
   const m = sim.gulagMatches[0];
   ok(sim.room.members.get('A').playerState.gulagState === 'fighting', 'T1: A fighting');
-  ok(sim.room.members.get('A').playerState.x > 12000, 'T1: A off-map (positiv off-map-koord, v1.792)');
+  ok(sim.room.members.get('A').playerState.x > 10000, 'T1: A off-map (positiv off-map-koord ovanfor 10k-kartan; C168 sankte grid-bas 13000->12000)');
   ok(sim.room.members.get('A').playerState.hp === GULAG_GAMES[m.gameId].loadout.hp, 'T1: loadout-hp');
 })();
 

@@ -85,7 +85,10 @@ function updatePickups(sim, dt) {
       // För hp: server uppdaterar playerState.hp så enemy-AI och hazards ser den
       if (pk.type === 'hp') {
         const ps = nearest.ws.playerState;
-        if (ps) ps.hp = Math.min(100, ps.hp + 30);
+        if (ps) {
+          const cap = Math.max(1, Math.round(ps._cliMaxHp || ps.maxHp || 100));
+          ps.hp = Math.min(cap, ps.hp + 30);
+        }
       }
     }
   }

@@ -28,20 +28,31 @@ const { GULAG_GAMES } = require('../../shared/gulag-arenas');
 // fortfarande getNearby (egen alloc) så ingen scratch-korruption mitt i iterationen.
 const _bulletQueryScratch = [];
 
-// PvP balance-overrides: tillämpas bara när sim.tdmActive eller sim.ctfActive.
-// Sniper nerf: 130→95 (fortfarande 2-shot genom shield+hp men inte instant).
-// Pistol buff: 18→24 (TTK 200hp 6→7 shots, mer relevant än 12).
-// Railgun nerf: 280→140 (annars 1-shot genom 200 EHP, no counterplay).
-// Rocket direct nerf: 150→95 (AoE 140 behålls — duo-träffar är fortfarande starka).
+// PvP balance-overrides: tillämpas bara i PvP-modes (tdm/ctf/siege/koth/br/jug/gungame).
+// VÄRDET = effektiv PvP-bas-dmg per skott (mot EHP shield 100 + hp 100 = 200). Det
+// tillämpas RATIO-vis mot vapnets shared-bas (W_BY_ID[id].dmg) så crit/headshot/perk/
+// upgrade-multiplikatorer (redan bakade in i b.dmg vid spawn) ÖVERLEVER — förr returnerade
+// funktionen ett platt värde och kastade ALLA multiplikatorer (C176). HÅLL synkat med
+// shared/weapons-data: nuvarande bas sniper 220 (mag 2), pistol 24 (mag 14), rocket 130.
+//   - Sniper: bas 220 = 2-shot genom 200 EHP redan, men instant via crit/headshot → cap 140
+//     (2-shot genom full bar, belönar 2-skotts-magasinet, ingen instant-kill).
+//   - Pistol: 24 = oförändrad bas (ratio 1.0) — buffen sitter redan i shared-datan.
+//   - Rocket: direkt-träff cap 95 (AoE-explosionen på 130 behålls separat — duo-träffar starka).
+// railgun borttagen (ej i 16-vapens-arsenalen).
 const PVP_DMG_OVERRIDE = {
-  sniper: 95,
+  sniper: 140,
   pistol: 24,
-  railgun: 140,
   rocket: 95,
 };
-function getPvpDmg(weaponId, baseDmg) {
-  if (PVP_DMG_OVERRIDE[weaponId] != null) return PVP_DMG_OVERRIDE[weaponId];
-  return baseDmg;
+// getPvpDmg: b.dmg är redan multiplikator-bakat vid spawn (w.dmg * crit * head * perks ...).
+// Skala den med (override / vapnets shared-bas) så multiplikatorerna rider med.
+function getPvpDmg(weaponId, dmg) {
+  const o = PVP_DMG_OVERRIDE[weaponId];
+  if (o == null) return dmg;
+  const w = W_BY_ID[weaponId];
+  const base = w && w.dmg;
+  if (!base) return dmg;            // okänd bas → rör inte (säkrare än div-by-0)
+  return dmg * (o / base);
 }
 
 // Lag compensation: returnera target-position rewindad shooterRtt/2 (cap 200ms)
@@ -1138,6 +1149,13 @@ function updateBullets(sim, dt, now) {
                 sim.siegeScores[ownerTeam] = (sim.siegeScores[ownerTeam] || 0) + 1;
               }
               sim.eventQueue.push({ type: 'siege_score_update', red: sim.siegeScores.red, blue: sim.siegeScores.blue });
+              // C232: points-win måste re-checkas HÄR också. Tidigare avgjordes
+              // points-vinst bara i tickSiege (bakom en scoreChanged-guard) → att nå
+              // målpoängen rent via core-dmg kunde aldrig avsluta matchen. Mirror av
+              // core_destroyed-vinst-pathen nedan (samma _endSiegeMatch-callback).
+              if (!sim.siegeEnded && sim.siegeScores[ownerTeam] >= sim.siegeTargetPoints && sim._endSiegeMatch) {
+                sim._endSiegeMatch(sim, ownerTeam, 'points');
+              }
               // Core destroyed → instant win
               if (core.hp <= 0 && !core.destroyed) {
                 core.destroyed = true;
@@ -1276,7 +1294,7 @@ function updateBullets(sim, dt, now) {
       // VANLIGA fiendekulor i stresstest täcks, och kulorna flyger vidare genom
       // spelaren (konsumeras inte) = fler kulor kvar i sim:en, vilket är poängen.
       if (sim.stresstestActive) continue;
-      for (const [, ws] of sim.room.members) {
+      for (const [pid, ws] of sim.room.members) {
         if (!ws.playerState || ws.playerState.hp <= 0) continue;
         // v1.395 fix: respektera invulnUntil + cdDowned (annars sniper-bullets
         // kan instant-killa downade spelare i bleed-out)
@@ -1318,16 +1336,13 @@ function updateBullets(sim, dt, now) {
           }
           if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
           // v1.404: broadcast hp+shield i CD så client uppdaterar UI
+          // C163: pid finns redan i loop-destrukturen → använd den direkt istället för
+          // en nästlad O(members) reverse-lookup per skade-event.
           if (sim.castledefenseActive) {
-            for (const [pidLookup, wsLookup] of sim.room.members) {
-              if (wsLookup === ws) {
-                sim.eventQueue.push({
-                  type: 'cd_hp_changed', peerId: pidLookup,
-                  hp: ws.playerState.hp, shield: ws.playerState.shield || 0,
-                });
-                break;
-              }
-            }
+            sim.eventQueue.push({
+              type: 'cd_hp_changed', peerId: pid,
+              hp: ws.playerState.hp, shield: ws.playerState.shield || 0,
+            });
           }
           bullets.splice(i, 1);
           break;
@@ -1547,19 +1562,29 @@ function updateBullets(sim, dt, now) {
         if (dx * dx + dy * dy < rsum * rsum) {
           const effDmg = getPvpDmg(b.weaponId, b.dmg);
           // V2: BR dmg_redux-perk (-5%/nivå, tak -50%) → sedan shield/HP.
-          const _ddx = ws.playerState.brPerkLevels && ws.playerState.brPerkLevels.dmg_redux || 0;
+          // C141: SKIPPA dmg_redux för gulag-fighters — gulag-dueller sätter fasta
+          // loadout-hp/shield (oneshot etc.) och ska vara symmetriska 1v1; perken
+          // från live-BR får inte sippra in och göra ena sidan tåligare.
+          const _ddx = (ws.playerState.gulagState === 'fighting')
+            ? 0
+            : (ws.playerState.brPerkLevels && ws.playerState.brPerkLevels.dmg_redux || 0);
           let remaining = effDmg * (1 - Math.min(0.5, 0.05 * _ddx));
           if (remaining > 0 && (ws.playerState.shield || 0) > 0) {
             const absorb = Math.min(ws.playerState.shield, remaining);
             ws.playerState.shield -= absorb;
             remaining -= absorb;
           }
+          // C161: spara HP FÖRE skadan så vampire-healen baseras på FAKTISKT förlorad
+          // HP (post-shield, post-redux, post-0-clamp) — inte rå effDmg. Förr healade
+          // skytten 50% av nominell skada även när shield åt hela träffen (0 hp-förlust).
+          const _preHp = ws.playerState.hp;
           if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+          const _hpLost = _preHp - ws.playerState.hp;
           // v1.805/807: GULAG Frenzy VAMPIRE — skytten lifestealar 50% av skadan (cap maxHp).
           // gulagState-guard (v1.807): BARA under aktiv duell → läcker aldrig till live-BR.
           if (ownerWs.playerState && ownerWs.playerState.gulagState === 'fighting'
               && ownerWs.playerState._gulagVampUntil && Date.now() < ownerWs.playerState._gulagVampUntil) {
-            const _heal = Math.round(effDmg * 0.5);
+            const _heal = Math.round(_hpLost * 0.5);
             if (_heal > 0) {
               ownerWs.playerState.hp = Math.min(ownerWs.playerState.maxHp || 100, (ownerWs.playerState.hp || 0) + _heal);
               sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: b.ownerPid, hp: Math.round(ownerWs.playerState.hp), shield: ownerWs.playerState.shield || 0 });

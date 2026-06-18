@@ -70,7 +70,14 @@ function computeLevel(stats) {
 
 function sanitizeName(raw) {
   if (typeof raw !== 'string') return null;
-  const name = raw.trim().slice(0, 16);
+  // Strip control chars, zero-width/joiner och bidi-override-codepoints (de
+  // renderas som tomma rutor på iOS eller kan kapa namn-layouten), kollapsa
+  // whitespace. Görs FÖRE trim/slice så längd-kontrollen ser det rensade namnet.
+  const cleaned = raw
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, '')   // C0/C1-kontroll
+    .replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u2064\ufeff]/g, '') // zero-width/bidi/joiner
+    .replace(/\s+/g, ' ');
+  const name = cleaned.trim().slice(0, 16);
   if (name.length < 2) return null;
   return name;
 }
@@ -321,6 +328,7 @@ function onDisconnect(ws) {
     return;
   }
   online.delete(id);
+  revokeSessionsFor(id); // C172: ingen stale-token-replay efter offline
   const st = _updState.get(id);
   if (st && st.timer) { clearTimeout(st.timer); st.timer = null; }
   const acc = accounts.get(id);
@@ -363,6 +371,12 @@ function lookupSession(token) {
   if (!s) return null;
   if (Date.now() > s.exp) { sessionTokens.delete(token); return null; }
   return s.accountId;
+}
+// Revokera alla sessions-token för ett konto (logout/disconnect) → stänger
+// replay-fönstret för en gammal token efter att socketen gått offline.
+function revokeSessionsFor(accountId) {
+  if (!accountId) return;
+  for (const [t, s] of sessionTokens) if (s.accountId === accountId) sessionTokens.delete(t);
 }
 setInterval(() => {
   const now = Date.now();
@@ -429,6 +443,9 @@ function loginPayload(acc) {
 function bindSocketToAccount(ws, acc) {
   const old = online.get(acc.id);
   if (old && old !== ws) old.accountId = null;
+  // C172: byter socketen konto (switch → re-login) revokeras det gamla kontots
+  // tokens så en utdelad token inte kan replaya efter bytet.
+  if (ws.accountId && ws.accountId !== acc.id) revokeSessionsFor(ws.accountId);
   ws.accountId = acc.id;
   online.set(acc.id, ws);
   acc.lastSeen = Date.now();

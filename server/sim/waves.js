@@ -155,7 +155,26 @@ function spawnEnemyAtEdge(sim, stage, players) {
     if (dx * dx + dy * dy < 320 * 320) continue;
     ok = true;
   }
-  if (!ok) return;
+  // AUDIT C309: tidigare `if (!ok) return` — då hoppade funktionen över spawn helt,
+  // men anroparen (room-sim.js) kör ändå `sim.enemiesToSpawn--` ovillkorligt →
+  // tyst under-spawn (vågen "tappar" fiender när alla 14 kandidatpunkter hamnade
+  // för nära spelar-centroiden). Fallback: garanterad kant-punkt så en fiende
+  // ALLTID placeras och decrement-räkningen stämmer. Välj längst-bort av topp/botten/
+  // vänster/höger kant relativt centroiden.
+  if (!ok) {
+    const cands = [
+      [pcx, 40], [pcx, stage.worldH - 40],
+      [40, pcy], [stage.worldW - 40, pcy],
+    ];
+    let best = cands[0], bestD = -1;
+    for (const c of cands) {
+      const ddx = c[0] - pcx, ddy = c[1] - pcy;
+      const d = ddx * ddx + ddy * ddy;
+      if (d > bestD) { bestD = d; best = c; }
+    }
+    x = Math.max(40, Math.min(stage.worldW - 40, best[0]));
+    y = Math.max(40, Math.min(stage.worldH - 40, best[1]));
+  }
   const e = makeEnemy(type, x, y);
   const wave = sim.wave;
   const scale = 1 + (wave - 1) * 0.10;
@@ -273,7 +292,18 @@ function checkBossDeath(sim, deadEntity) {
   // Stage med två-boss-sekvens
   if (stage.bossKey2 && sim.bossSequenceStep === 1) {
     sim.eventQueue.push({ type: 'boss_killed', step: 1 });
-    setTimeout(() => { if (!sim || sim._stopped) return; spawnSecondBoss(sim, stage); }, 1200);
+    // AUDIT C160: setTimeout är wall-clock (frikopplad från sim-ticks). Fånga wave +
+    // re-validera ALLT inuti timeouten — annars kan en snabb stage-load/wave-byte under
+    // de 1200ms:en spawna boss 2 i fel stage (eller dubbel-spawna). Kontrollera _stopped,
+    // samma wave, fortfarande step 1 och samma stage-objekt.
+    const _capturedWave = sim.wave;
+    setTimeout(() => {
+      if (!sim || sim._stopped) return;
+      if (sim.wave !== _capturedWave) return;
+      if (sim.bossSequenceStep !== 1) return;
+      if (stageFor(sim, sim.wave) !== stage) return;
+      spawnSecondBoss(sim, stage);
+    }, 1200);
     return;
   }
   // Sista boss död → stage clear

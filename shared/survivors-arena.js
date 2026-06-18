@@ -27,11 +27,14 @@ const SURVIVORS_ARENA = {
   plazaRadius: 180,                 // visuell stenplaza vid spawn
 
   // === PLAYER SPAWN-POINTS (4-player coop) ===
+  // C153 (audit 2026-06-18): tidigare 1940/2060-box låg bara ~60px/axel från center →
+  // de 4 co-op-spelarna (radie ~14 + jitter) spawnade nästan ovanpå varandra. Spridda
+  // till ~150px/axel-ring (≈212px diagonal) så starten inte blir en klump.
   playerSpawns: [
-    { x: 1940, y: 1940 },
-    { x: 2060, y: 1940 },
-    { x: 1940, y: 2060 },
-    { x: 2060, y: 2060 },
+    { x: 1850, y: 1850 },
+    { x: 2150, y: 1850 },
+    { x: 1850, y: 2150 },
+    { x: 2150, y: 2150 },
   ],
 
   // === ENEMY SPAWN ===
