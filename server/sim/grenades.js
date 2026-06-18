@@ -142,6 +142,11 @@ function tickGrenadeZones(sim, dt, now) {
           if (rem > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - rem);
           sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ws.playerState.hp,
             shield: ws.playerState.shield || 0, attackerPid: z.fromPid || null });
+          // FATTA ELD: brinn 3s efter träff (lingrande DoT via tickPlayerBurn, även
+          // efter att man lämnat elden). Förnyas medan man står kvar i lågorna.
+          ws.playerState.burnUntil = now + 3000;
+          ws.playerState.burnDps = 7;
+          ws.playerState._burnFrom = z.fromPid || null;
         } else {
           // Co-op / PvE: fire-DOT. Förnya timer medan i elden, lös ut 3s efter att man lämnat.
           if (inFire) {
@@ -190,4 +195,26 @@ function tickGrenadeZones(sim, dt, now) {
   }
 }
 
-module.exports = { applyFlashbang, applyMolotov, applyGravity, spawnFlamePatch, tickGrenadeZones };
+// Lingrande BRAND-DoT på spelare (PvP): brinn burnDps/sek tills burnUntil — körs varje
+// tick (oberoende av om eld-zonerna finns kvar) så elden följer offret hela 3s efter
+// träff. burnUntil sätts i tickGrenadeZones fire-grenen. Första ticken sker direkt
+// (_burnNext odefinierad). player_burning-event driver klientens brinn-visual.
+function tickPlayerBurn(sim, now) {
+  if (!pvpActive(sim)) return;
+  for (const [pid, ws] of sim.room.members) {
+    const ps = ws.playerState;
+    if (!ps || ps.hp <= 0) continue;
+    if (!(ps.burnUntil > now)) continue;
+    if ((ps._burnNext || 0) > now) continue;
+    ps._burnNext = now + 1000;   // 1 tick/sek
+    if (now < (ps.invulnUntil || 0)) continue;   // spawn-invuln skyddar mot DoT med
+    let rem = ps.burnDps || 7;
+    if ((ps.shield || 0) > 0) { const ab = Math.min(ps.shield, rem); ps.shield -= ab; rem -= ab; }
+    if (rem > 0) ps.hp = Math.max(0, ps.hp - rem);
+    sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ps.hp,
+      shield: ps.shield || 0, attackerPid: ps._burnFrom || null });
+    sim.eventQueue.push({ type: 'player_burning', peerId: pid, until: ps.burnUntil });
+  }
+}
+
+module.exports = { applyFlashbang, applyMolotov, applyGravity, spawnFlamePatch, tickGrenadeZones, tickPlayerBurn };

@@ -506,17 +506,23 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
   if (w.burningGround) {
     const nowF = Date.now();
     if (!sim._flamePatchAt) sim._flamePatchAt = {};
+    if (!sim._flameHeld) sim._flameHeld = {};
     const fkey = p.peerId || 'x';
+    // HÅLL-SPÅRNING (varje skott): >250ms utan skott = ny stråle → nollställ rampen.
+    // Räckvidden växer ju längre man HÅLLER in elden (matchar klientens flam-stråle
+    // som förlängs med charge) → ingen osynlig skada långt bort vid tändningen.
+    const h = sim._flameHeld[fkey] || { since: nowF, last: 0 };
+    if (nowF - h.last > 250) h.since = nowF;
+    h.last = nowF;
+    sim._flameHeld[fkey] = h;
     if (nowF - (sim._flamePatchAt[fkey] || 0) > 160) {
       sim._flamePatchAt[fkey] = nowF;
-      // V2: droppa BRINNANDE SPÅR längs HELA skjut-linjen ut till vapnets räckvidd.
-      // flame: speed=680 × life=0.5 → max räckvidd ≈ 340px. Med r=16 per fläck
-      // behövs fläckar var ~26px för täckning utan gap → 13 fläckar från 14→340px.
-      // Startdistans 14px (utanför spelarens kropp) till 340px (full räckvidd).
       const cax = Math.cos(p.aimAngle), cay = Math.sin(p.aimAngle);
       const sg = require('./grenades');
-      // G1-fix 2026-06-15: fläckar jämnt fördelade 14→340px (var 26px, 13 st)
-      const FLAME_MAX_RANGE = 340;
+      // range RAMPAR 110→340px över ~0.5s håll (klientens stråle: 72→332). r=16/fläck,
+      // var 26px → gap-fri täckning. spawnFlamePatch = skada; fire_patch = klient-ember.
+      const rampFrac = Math.min(1, (nowF - h.since) / 500);
+      const FLAME_MAX_RANGE = Math.round(110 + 230 * rampFrac);
       const FLAME_STEP = 26;
       const FLAME_START = 14;
       for (let fd = FLAME_START; fd <= FLAME_MAX_RANGE; fd += FLAME_STEP) {
