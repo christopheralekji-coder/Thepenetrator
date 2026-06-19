@@ -1245,6 +1245,18 @@ function adminListPlayers(q) {
   return out.slice(0, 500);
 }
 
+function adminSummary() {
+  let total = 0, on = 0, banned = 0, coins = 0, gems = 0;
+  for (const acc of accounts.values()) {
+    total++;
+    if (online.has(acc.id)) on++;
+    if (acc.banned) banned++;
+    coins += (acc.stats && acc.stats.coins) || 0;
+    gems += (acc.vault && typeof acc.vault.gems === 'number') ? acc.vault.gems : 0;
+  }
+  return { total, online: on, banned, coins, gems };
+}
+
 function adminKickSocket(id, code) {
   const ws = online.get(String(id));
   if (!ws) return;
@@ -1342,7 +1354,7 @@ async function handleAdminHttp(req, res) {
   _adminFails.delete(ip);   // lyckad auth → nolla räknaren
 
   if (req.method === 'GET' && path === '/admin/api/players') {
-    _adminJson(res, 200, { players: adminListPlayers(u.searchParams.get('q')) });
+    _adminJson(res, 200, { players: adminListPlayers(u.searchParams.get('q')), summary: adminSummary() });
     return;
   }
   if (req.method === 'POST' && path === '/admin/api/ban') {
@@ -1364,102 +1376,331 @@ async function handleAdminHttp(req, res) {
   _adminJson(res, 404, { error: 'unknown admin route' });
 }
 
-const ADMIN_HTML = `<!doctype html><html lang="sv"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>WarParty — Admin</title>
+const ADMIN_HTML = `<!doctype html><html lang="sv"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>WarParty · Admin</title>
 <style>
- :root{color-scheme:dark}
- body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0f1117;color:#e6e8ee}
- header{padding:14px 16px;background:#161a24;border-bottom:1px solid #232838;position:sticky;top:0}
- h1{font-size:17px;margin:0 0 8px}
- .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
- input,button{font-size:14px;padding:8px 10px;border-radius:8px;border:1px solid #2c3142;background:#1c2230;color:#e6e8ee}
- button{cursor:pointer;background:#2a3550;border-color:#37456a}
- button:hover{background:#33406180}
- button.danger{background:#5a2330;border-color:#7a2f40}
- button.ok{background:#1f5135;border-color:#2c6e49}
- .muted{color:#8b93a7;font-size:12px}
- table{width:100%;border-collapse:collapse;font-size:13px}
- th,td{text-align:left;padding:7px 8px;border-bottom:1px solid #1d2230;white-space:nowrap}
- th{color:#9aa3ba;font-weight:600;position:sticky;top:0;background:#12151d}
- tr:hover td{background:#151a26}
- .pill{padding:2px 7px;border-radius:999px;font-size:11px}
- .on{background:#13361f;color:#5fd38a}.off{background:#2a2f3b;color:#8b93a7}
- .ban{background:#4a1622;color:#ff8a9c}
- .wrap{padding:12px 16px;overflow:auto}
- .act{display:flex;gap:6px}
- .act button{padding:5px 9px;font-size:12px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+ --bg:#0a0c11;--panel:#12151e;--panel2:#171b26;--line:#232a39;--line2:#2e3749;
+ --txt:#e9ecf3;--mut:#8b93a8;--mut2:#5f6678;
+ --gold:#f5b53f;--gold2:#ffd16b;--danger:#ff5d6c;--ok:#46d39a;--on:#3ddc84;--blue:#5aa9ff;
+ --r:14px;--sh:0 8px 30px rgba(0,0,0,.45)}
+html,body{margin:0;height:100%}
+body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:
+ radial-gradient(1200px 600px at 80% -10%,#1a2030 0,transparent 60%),var(--bg);
+ color:var(--txt);font-size:14px;-webkit-font-smoothing:antialiased;padding-bottom:env(safe-area-inset-bottom)}
+button{font:inherit;cursor:pointer;border:0;border-radius:10px;color:var(--txt);background:var(--panel2);transition:.15s}
+button:active{transform:scale(.97)}
+input,select{font:inherit;color:var(--txt);background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px 12px;outline:none;transition:.15s}
+input:focus,select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(245,181,63,.15)}
+.mut{color:var(--mut)}.tiny{font-size:11px}
+.hide{display:none!important}
+/* LOGIN */
+#login{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:20px;
+ background:radial-gradient(900px 500px at 50% 0,#171d2b 0,var(--bg) 60%);z-index:50}
+#login .card{width:100%;max-width:380px;background:var(--panel);border:1px solid var(--line);
+ border-radius:20px;padding:28px 24px;box-shadow:var(--sh);text-align:center}
+#login .lock{width:58px;height:58px;border-radius:16px;margin:0 auto 16px;display:flex;align-items:center;
+ justify-content:center;font-size:26px;background:linear-gradient(160deg,#23283a,#161a26);border:1px solid var(--line2)}
+#login h1{margin:0 0 4px;font-size:19px;letter-spacing:.3px}
+#login p{margin:0 0 20px;color:var(--mut);font-size:13px}
+#login input{width:100%;text-align:center;letter-spacing:2px;margin-bottom:12px}
+#login button{width:100%;padding:13px;font-weight:700;background:linear-gradient(135deg,var(--gold),#e6a32b);color:#1a1205}
+#login .err{color:var(--danger);font-size:12.5px;min-height:18px;margin-top:10px}
+/* HEADER */
+header{position:sticky;top:0;z-index:20;background:rgba(10,12,17,.86);backdrop-filter:blur(12px);
+ border-bottom:1px solid var(--line);padding:14px 16px calc(14px);padding-top:calc(14px + env(safe-area-inset-top))}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.brand .dot{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,var(--gold),#d8881f);
+ display:flex;align-items:center;justify-content:center;font-weight:800;color:#1a1205}
+.brand h1{font-size:16px;margin:0;font-weight:700;flex:1}
+.brand .logout{padding:7px 12px;font-size:12.5px;color:var(--mut);background:transparent;border:1px solid var(--line)}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:13px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px 11px}
+.stat .n{font-size:18px;font-weight:800;line-height:1.1}
+.stat .l{font-size:10.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.6px;margin-top:3px}
+.stat.on .n{color:var(--on)}.stat.ban .n{color:var(--danger)}.stat.coin .n{color:var(--gold)}.stat.gem .n{color:var(--blue)}
+.tools{display:flex;gap:8px;align-items:center}
+.search{position:relative;flex:1}
+.search input{width:100%;padding-left:36px}
+.search .ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--mut2)}
+.tools select{padding:11px 10px}
+.tools .rf{padding:11px 13px;border:1px solid var(--line)}
+/* LIST */
+main{padding:14px 16px 40px;max-width:920px;margin:0 auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:11px}
+.pc{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:13px;cursor:pointer;
+ transition:.16s;display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden}
+.pc:hover{border-color:var(--line2);transform:translateY(-2px);box-shadow:var(--sh)}
+.pc.bn{border-color:rgba(255,93,108,.4)}
+.pc .top{display:flex;align-items:center;gap:11px}
+.av{width:42px;height:42px;border-radius:12px;flex:none;display:flex;align-items:center;justify-content:center;
+ font-weight:800;font-size:17px;color:#0c0e14}
+.pc .nm{font-weight:700;font-size:14.5px;display:flex;align-items:center;gap:7px;line-height:1.15}
+.pc .id{color:var(--mut);font-size:11.5px;font-variant-numeric:tabular-nums;margin-top:2px}
+.badge{font-size:10px;font-weight:800;padding:3px 7px;border-radius:999px;letter-spacing:.4px;text-transform:uppercase}
+.b-on{background:rgba(61,220,132,.16);color:var(--on)}
+.b-off{background:#222838;color:var(--mut)}
+.b-ban{background:rgba(255,93,108,.16);color:var(--danger)}
+.dotL{width:7px;height:7px;border-radius:50%;display:inline-block}
+.dotL.g{background:var(--on);box-shadow:0 0 7px var(--on)}.dotL.o{background:var(--mut2)}
+.pc .row{display:flex;gap:8px}
+.kv{flex:1;background:var(--panel2);border-radius:9px;padding:7px 9px}
+.kv .k{font-size:9.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
+.kv .v{font-weight:700;font-size:14px;font-variant-numeric:tabular-nums;margin-top:1px}
+.kv .v.gold{color:var(--gold)}.kv .v.blue{color:var(--blue)}
+.pc .foot{display:flex;justify-content:space-between;align-items:center;color:var(--mut);font-size:11.5px}
+.empty{text-align:center;color:var(--mut);padding:60px 0}
+.empty .big{font-size:34px;margin-bottom:8px;opacity:.5}
+/* DRAWER */
+.scrim{position:fixed;inset:0;background:rgba(4,6,10,.62);backdrop-filter:blur(3px);z-index:30;opacity:0;
+ pointer-events:none;transition:.22s}
+.scrim.show{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;height:100%;width:min(440px,100%);background:var(--panel);
+ border-left:1px solid var(--line);z-index:31;transform:translateX(100%);transition:transform .26s cubic-bezier(.4,0,.2,1);
+ display:flex;flex-direction:column;box-shadow:var(--sh)}
+.drawer.show{transform:none}
+.dh{padding:18px 18px 16px;padding-top:calc(18px + env(safe-area-inset-top));border-bottom:1px solid var(--line);
+ display:flex;gap:13px;align-items:center}
+.dh .av{width:52px;height:52px;border-radius:14px;font-size:21px}
+.dh .nm{font-size:18px;font-weight:800}
+.dh .id{color:var(--mut);font-size:12.5px;margin-top:3px;display:flex;align-items:center;gap:6px;cursor:pointer}
+.dh .id .cp{font-size:11px;color:var(--gold)}
+.dh .x{margin-left:auto;align-self:flex-start;width:34px;height:34px;border-radius:10px;font-size:18px;
+ background:var(--panel2);color:var(--mut);display:flex;align-items:center;justify-content:center}
+.db{flex:1;overflow:auto;padding:18px}
+.sec{margin-bottom:22px}
+.sec h3{font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--mut);margin:0 0 11px;font-weight:700}
+.sgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.sgrid .kv{background:var(--panel2);border:1px solid var(--line)}
+.eco{display:flex;flex-direction:column;gap:11px}
+.field{display:flex;align-items:center;gap:10px}
+.field label{width:78px;font-size:13px;color:var(--mut)}
+.stepper{flex:1;display:flex;align-items:center;background:var(--panel2);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.stepper button{width:42px;height:42px;font-size:20px;background:transparent;color:var(--gold);border-radius:0}
+.stepper button:hover{background:#1d2330}
+.stepper input{flex:1;border:0;border-radius:0;text-align:center;font-weight:700;font-variant-numeric:tabular-nums;background:transparent}
+.presets{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 4px 88px}
+.presets button{padding:5px 10px;font-size:11.5px;background:var(--panel2);border:1px solid var(--line);color:var(--mut)}
+.presets button:hover{border-color:var(--gold);color:var(--gold)}
+.save{width:100%;padding:13px;font-weight:800;background:linear-gradient(135deg,var(--gold),#e6a32b);color:#1a1205;margin-top:4px}
+.save:disabled{opacity:.45;filter:grayscale(.5)}
+.mod{display:flex;gap:9px}
+.mod button{flex:1;padding:13px;font-weight:700;border:1px solid var(--line)}
+.btn-ban{background:rgba(255,93,108,.12);color:var(--danger);border-color:rgba(255,93,108,.35)}
+.btn-unban{background:rgba(70,211,154,.12);color:var(--ok);border-color:rgba(70,211,154,.35)}
+.btn-kick{background:var(--panel2);color:var(--mut)}
+.prov{display:flex;gap:6px;flex-wrap:wrap}
+.prov span{font-size:11px;padding:4px 9px;border-radius:8px;background:var(--panel2);color:var(--mut);border:1px solid var(--line)}
+.prov span.y{color:var(--ok);border-color:rgba(70,211,154,.3)}
+/* CONFIRM */
+.cf{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:24px;
+ background:rgba(4,6,10,.7);opacity:0;pointer-events:none;transition:.18s}
+.cf.show{opacity:1;pointer-events:auto}
+.cf .box{background:var(--panel);border:1px solid var(--line2);border-radius:18px;padding:22px;max-width:340px;width:100%;text-align:center;box-shadow:var(--sh)}
+.cf h4{margin:0 0 8px;font-size:17px}.cf p{margin:0 0 18px;color:var(--mut);font-size:13.5px;line-height:1.5}
+.cf .btns{display:flex;gap:9px}.cf .btns button{flex:1;padding:12px;font-weight:700}
+.cf .no{background:var(--panel2);color:var(--mut)}.cf .yes{color:#fff}
+.cf .yes.danger{background:var(--danger)}.cf .yes.gold{background:var(--gold);color:#1a1205}
+/* TOAST */
+#toasts{position:fixed;left:0;right:0;bottom:calc(18px + env(safe-area-inset-bottom));z-index:60;
+ display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none;padding:0 16px}
+.toast{background:var(--panel2);border:1px solid var(--line2);border-radius:12px;padding:11px 16px;font-size:13.5px;
+ font-weight:600;box-shadow:var(--sh);display:flex;align-items:center;gap:9px;animation:tin .25s;max-width:420px}
+.toast.ok{border-color:rgba(70,211,154,.4)}.toast.err{border-color:rgba(255,93,108,.4)}
+.toast .i{font-size:16px}
+@keyframes tin{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media(max-width:560px){.stats{grid-template-columns:repeat(3,1fr)}.stat:nth-child(4),.stat:nth-child(5){display:none}
+ .brand h1{font-size:15px}.grid{grid-template-columns:1fr}}
 </style></head><body>
-<header>
- <h1>WarParty — Admin-panel <span class="muted" id="cnt"></span></h1>
- <div class="row">
-  <input id="tok" type="password" placeholder="Admin-token" style="min-width:200px">
-  <button onclick="saveTok()">Spara token</button>
-  <input id="q" placeholder="Sök id/namn" oninput="debLoad()" style="min-width:160px">
-  <button onclick="load()">Uppdatera</button>
-  <span class="muted" id="status"></span>
- </div>
-</header>
-<div class="wrap"><table id="tbl"><thead><tr>
- <th>ID</th><th>Namn</th><th>Status</th><th>Coins</th><th>Gems</th><th>Konto-niv</th><th>Level</th><th>K/M/W</th><th>Senast</th><th>Åtgärd</th>
-</tr></thead><tbody id="rows"></tbody></table></div>
+
+<div id="login"><div class="card">
+ <div class="lock">&#128274;</div>
+ <h1>WarParty Admin</h1>
+ <p>Ange admin-token för att fortsätta</p>
+ <input id="ltok" type="password" placeholder="admin-token" autocomplete="off" autocapitalize="off">
+ <button id="lbtn">Lås upp</button>
+ <div class="err" id="lerr"></div>
+</div></div>
+
+<div id="app" class="hide">
+ <header>
+  <div class="brand">
+   <div class="dot">W</div><h1>Admin-panel</h1>
+   <button class="logout" id="logout">Logga ut</button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="tools">
+   <div class="search"><span class="ico">&#128269;</span><input id="q" placeholder="Sök namn eller id…" autocomplete="off"></div>
+   <select id="sort">
+    <option value="lastSeen">Senast online</option>
+    <option value="coins">Mest coins</option>
+    <option value="gems">Mest gems</option>
+    <option value="alevel">Högst nivå</option>
+    <option value="name">Namn A–Ö</option>
+   </select>
+   <button class="rf" id="refresh" title="Uppdatera">&#8635;</button>
+  </div>
+ </header>
+ <main><div class="grid" id="grid"></div><div class="empty hide" id="empty"><div class="big">&#128100;</div>Inga spelare matchar</div></main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer"></aside>
+<div class="cf" id="cf"></div>
+<div id="toasts"></div>
+
 <script>
- var TOK='';
- function $(i){return document.getElementById(i)}
- function saveTok(){TOK=$('tok').value.trim();sessionStorage.setItem('wpadmin',TOK);load()}
- (function(){var t=sessionStorage.getItem('wpadmin');if(t){TOK=t;$('tok').value=t}})();
- function hdr(){return {'x-admin-token':TOK,'Content-Type':'application/json'}}
- function ago(ms){if(!ms)return '—';var s=(Date.now()-ms)/1000;if(s<60)return Math.round(s)+'s';if(s<3600)return Math.round(s/60)+'m';if(s<86400)return Math.round(s/3600)+'h';return Math.round(s/86400)+'d'}
- var _t;function debLoad(){clearTimeout(_t);_t=setTimeout(load,250)}
- async function load(){
-  $('status').textContent='laddar…';
-  try{
-   var r=await fetch('/admin/api/players?q='+encodeURIComponent($('q').value||''),{headers:hdr()});
-   if(r.status===401){$('status').textContent='Fel token';return}
-   if(r.status===503){$('status').textContent='ADMIN_TOKEN ej satt på servern';return}
-   var d=await r.json();render(d.players||[]);$('status').textContent='';$('cnt').textContent='('+(d.players||[]).length+')';
-  }catch(e){$('status').textContent='nätfel'}
- }
- function cell(txt){var td=document.createElement('td');td.textContent=txt;return td}
- function render(ps){
-  var tb=$('rows');tb.textContent='';
-  ps.forEach(function(p){
-   var tr=document.createElement('tr');
-   tr.appendChild(cell(p.id));
-   tr.appendChild(cell(p.name||''));
-   var st=document.createElement('td');var s=document.createElement('span');
-   if(p.banned){s.className='pill ban';s.textContent='BANNAD'}else if(p.online){s.className='pill on';s.textContent='online'}else{s.className='pill off';s.textContent='offline'}
-   st.appendChild(s);tr.appendChild(st);
-   tr.appendChild(cell((p.coins||0).toLocaleString()));
-   tr.appendChild(cell((p.gems||0).toLocaleString()));
-   tr.appendChild(cell(p.alevel||1));
-   tr.appendChild(cell(p.level||1));
-   tr.appendChild(cell((p.kills||0)+'/'+(p.matches||0)+'/'+(p.wins||0)));
-   tr.appendChild(cell(ago(p.lastSeen)));
-   var act=document.createElement('td');var d=document.createElement('div');d.className='act';
-   var be=document.createElement('button');be.textContent='Ekonomi';be.onclick=function(){editEcon(p)};d.appendChild(be);
-   var bb=document.createElement('button');bb.textContent=p.banned?'Avbanna':'Banna';bb.className=p.banned?'ok':'danger';bb.onclick=function(){setBan(p)};d.appendChild(bb);
-   act.appendChild(d);tr.appendChild(act);
-   tb.appendChild(tr);
-  });
- }
- async function setBan(p){
-  if(!confirm((p.banned?'Avbanna ':'BANNA ')+p.name+' ('+p.id+')?'))return;
-  var r=await fetch('/admin/api/ban',{method:'POST',headers:hdr(),body:JSON.stringify({id:p.id,banned:!p.banned})});
-  if(r.ok)load();else alert('Fel: '+r.status);
- }
- async function editEcon(p){
-  var coins=prompt('Coins för '+p.name,p.coins);if(coins===null)return;
-  var gems=prompt('Gems',p.gems);if(gems===null)return;
-  var alevel=prompt('Konto-nivå',p.alevel);if(alevel===null)return;
-  var body={id:p.id};
-  if(coins!=='')body.coins=parseInt(coins,10);
-  if(gems!=='')body.gems=parseInt(gems,10);
-  if(alevel!=='')body.alevel=parseInt(alevel,10);
-  var r=await fetch('/admin/api/economy',{method:'POST',headers:hdr(),body:JSON.stringify(body)});
-  if(r.ok){load();alert('Sparat. Spelaren adopterar värdena vid nästa inloggning.')}else alert('Fel: '+r.status);
- }
- if(TOK)load();
+var TOK="",DATA=[],CUR=null;
+function $(i){return document.getElementById(i)}
+function el(t,c,tx){var e=document.createElement(t);if(c)e.className=c;if(tx!=null)e.textContent=tx;return e}
+function fmt(n){return (n||0).toLocaleString("sv-SE")}
+function ago(ms){if(!ms)return "aldrig";var s=(Date.now()-ms)/1000;if(s<60)return Math.round(s)+"s sen";
+ if(s<3600)return Math.round(s/60)+"m sen";if(s<86400)return Math.round(s/3600)+"h sen";var d=Math.round(s/86400);
+ return d<30?d+"d sen":Math.round(d/30)+"mån sen"}
+function hue(id){var h=0,s=String(id);for(var i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))%360;return h}
+function avStyle(id){var h=hue(id);return "background:linear-gradient(135deg,hsl("+h+",62%,58%),hsl("+((h+40)%360)+",62%,46%))"}
+function initial(nm){return (nm||"?").trim().charAt(0).toUpperCase()||"?"}
+function toast(msg,kind){var t=el("div","toast "+(kind||""));var i=el("span","i");i.textContent=kind==="err"?"⚠":kind==="ok"?"✓":"ℹ";
+ t.appendChild(i);t.appendChild(el("span",null,msg));$("toasts").appendChild(t);setTimeout(function(){t.style.opacity=0;t.style.transform="translateY(10px)";t.style.transition=".25s";setTimeout(function(){t.remove()},260)},2600)}
+function hdr(){return {"x-admin-token":TOK,"Content-Type":"application/json"}}
+
+/* AUTH */
+(function(){var t=sessionStorage.getItem("wpadmin");if(t){TOK=t;boot()}})();
+$("lbtn").onclick=function(){TOK=$("ltok").value.trim();if(!TOK)return;boot(true)};
+$("ltok").addEventListener("keydown",function(e){if(e.key==="Enter")$("lbtn").click()});
+$("logout").onclick=function(){TOK="";sessionStorage.removeItem("wpadmin");$("app").classList.add("hide");$("login").classList.remove("hide");$("ltok").value=""};
+function boot(fromLogin){load(function(ok){
+ if(ok){sessionStorage.setItem("wpadmin",TOK);$("login").classList.add("hide");$("app").classList.remove("hide")}
+ else if(fromLogin){$("lerr").textContent="Fel token";}
+ else{$("login").classList.remove("hide");$("app").classList.add("hide")}
+})}
+
+/* LOAD */
+var _t;
+$("q").addEventListener("input",function(){clearTimeout(_t);_t=setTimeout(function(){load()},220)});
+$("sort").addEventListener("change",render);
+$("refresh").onclick=function(){load(function(){toast("Uppdaterad","ok")})};
+function load(cb){
+ fetch("/admin/api/players?q="+encodeURIComponent($("q").value||""),{headers:hdr()}).then(function(r){
+  if(r.status===200)return r.json();
+  if(r.status===429){toast("För många försök — vänta","err")}
+  throw r.status;
+ }).then(function(d){DATA=d.players||[];renderStats(d.summary);render();if(cb)cb(true)})
+ .catch(function(){if(cb)cb(false)})
+}
+function renderStats(s){
+ s=s||{};var box=$("stats");box.textContent="";
+ var cards=[["",s.total||DATA.length,"Spelare"],["on",s.online||0,"Online"],["ban",s.banned||0,"Bannade"],
+  ["coin",fmt(s.coins),"Σ Coins"],["gem",fmt(s.gems),"Σ Gems"]];
+ cards.forEach(function(c){var d=el("div","stat "+c[0]);d.appendChild(el("div","n",typeof c[1]==="number"?fmt(c[1]):c[1]));
+  d.appendChild(el("div","l",c[2]));box.appendChild(d)})
+}
+function render(){
+ var sort=$("sort").value,rows=DATA.slice();
+ rows.sort(function(a,b){if(sort==="name")return (a.name||"").localeCompare(b.name||"");return (b[sort]||0)-(a[sort]||0)});
+ var g=$("grid");g.textContent="";
+ $("empty").classList.toggle("hide",rows.length>0);
+ rows.forEach(function(p){g.appendChild(card(p))})
+}
+function card(p){
+ var c=el("div","pc"+(p.banned?" bn":""));c.onclick=function(){openDrawer(p)};
+ var top=el("div","top");var av=el("div","av",initial(p.name));av.setAttribute("style",avStyle(p.id));top.appendChild(av);
+ var info=el("div");info.style.flex="1";info.style.minWidth="0";
+ var nm=el("div","nm");nm.appendChild(el("span",null,p.name||"(namnlös)"));info.appendChild(nm);
+ info.appendChild(el("div","id","#"+p.id));top.appendChild(info);
+ top.appendChild(badge(p));c.appendChild(top);
+ var row=el("div","row");
+ row.appendChild(kv("Coins",fmt(p.coins),"gold"));row.appendChild(kv("Gems",fmt(p.gems),"blue"));row.appendChild(kv("Nivå",p.alevel||1));
+ c.appendChild(row);
+ var f=el("div","foot");f.appendChild(el("span",null,"Lvl "+(p.level||1)+" · "+fmt(p.kills)+" kills"));f.appendChild(el("span",null,ago(p.lastSeen)));
+ c.appendChild(f);return c
+}
+function badge(p){
+ if(p.banned){var b=el("span","badge b-ban","Bannad");return b}
+ var s=el("span","badge "+(p.online?"b-on":"b-off"));var d=el("span","dotL "+(p.online?"g":"o"));s.appendChild(d);
+ s.appendChild(document.createTextNode(p.online?"Online":"Offline"));return s
+}
+function kv(k,v,cls){var d=el("div","kv");d.appendChild(el("div","k",k));var vv=el("div","v"+(cls?" "+cls:""),String(v));d.appendChild(vv);return d}
+
+/* DRAWER */
+function openDrawer(p){CUR=p;var d=$("drawer");d.textContent="";
+ var h=el("div","dh");var av=el("div","av",initial(p.name));av.setAttribute("style",avStyle(p.id));h.appendChild(av);
+ var ti=el("div");ti.style.flex="1";ti.style.minWidth="0";ti.appendChild(el("div","nm",p.name||"(namnlös)"));
+ var id=el("div","id");id.appendChild(el("span",null,"#"+p.id));var cp=el("span","cp","kopiera");id.appendChild(cp);
+ id.onclick=function(){navigator.clipboard&&navigator.clipboard.writeText(p.id);toast("ID kopierat","ok")};ti.appendChild(id);h.appendChild(ti);
+ var x=el("button","x","×");x.onclick=closeDrawer;h.appendChild(x);d.appendChild(h);
+
+ var body=el("div","db");
+ // status
+ var st=el("div","sec");st.appendChild(secTitle("Status"));var sr=el("div");sr.style.display="flex";sr.style.gap="8px";sr.style.alignItems="center";
+ sr.appendChild(badge(p));sr.appendChild(el("span","mut tiny",ago(p.lastSeen)));st.appendChild(sr);body.appendChild(st);
+ // identity
+ var prov=[["E-post",p.bound&&p.bound.email],["Google",p.bound&&p.bound.google],["Apple",p.bound&&p.bound.apple],["Game Center",p.bound&&p.bound.gc]];
+ var ps=el("div","sec");ps.appendChild(secTitle("Inloggning"));var pw=el("div","prov");
+ prov.forEach(function(x){var s=el("span",x[1]?"y":null,(x[1]?"✓ ":"")+x[0]);pw.appendChild(s)});ps.appendChild(pw);body.appendChild(ps);
+ // stats
+ var stg=el("div","sec");stg.appendChild(secTitle("Statistik"));var sg=el("div","sgrid");
+ sg.appendChild(kv("Matcher",fmt(p.matches)));sg.appendChild(kv("Kills",fmt(p.kills)));sg.appendChild(kv("Wins",fmt(p.wins)));
+ sg.appendChild(kv("Konto-XP",fmt(p.axp)));sg.appendChild(kv("Lvl (stat)",p.level||1));sg.appendChild(kv("Konto-niv",p.alevel||1));
+ stg.appendChild(sg);body.appendChild(stg);
+ // economy editor
+ var ec=el("div","sec");ec.appendChild(secTitle("Justera ekonomi"));var ew=el("div","eco");
+ var fc=stepperField("Coins","coins",p.coins,[["0",0],["+1k",p.coins+1000],["+10k",p.coins+10000]]);
+ var fg=stepperField("Gems","gems",p.gems,[["0",0],["+100",p.gems+100],["+1000",p.gems+1000]]);
+ var fl=stepperField("Konto-niv","alevel",p.alevel||1,[["1",1],["+5",(p.alevel||1)+5],["50",50]]);
+ ew.appendChild(fc.field);ew.appendChild(fc.presets);ew.appendChild(fg.field);ew.appendChild(fg.presets);ew.appendChild(fl.field);ew.appendChild(fl.presets);
+ var save=el("button","save","Spara ändringar");save.disabled=true;
+ function dirty(){var ch=fc.val()!==p.coins||fg.val()!==p.gems||fl.val()!==(p.alevel||1);save.disabled=!ch;
+  save.textContent=ch?"Spara ändringar":"Inga ändringar"}
+ fc.onChange=dirty;fg.onChange=dirty;fl.onChange=dirty;dirty();
+ save.onclick=function(){save.disabled=true;save.textContent="Sparar…";
+  postJSON("/admin/api/economy",{id:p.id,coins:fc.val(),gems:fg.val(),alevel:fl.val()},function(ok,r){
+   if(ok){toast("Ekonomi sparad — gäller vid spelarens nästa login","ok");mergeRow(r.player);closeDrawer()}
+   else{toast("Kunde inte spara","err");save.disabled=false;save.textContent="Spara ändringar"}})};
+ ew.appendChild(save);ec.appendChild(ew);body.appendChild(ec);
+ // moderation
+ var mo=el("div","sec");mo.appendChild(secTitle("Moderering"));var mw=el("div","mod");
+ var banBtn=el("button",p.banned?"btn-unban":"btn-ban",p.banned?"Avbanna spelare":"Banna spelare");
+ banBtn.onclick=function(){confirmBox(p.banned?"Avbanna "+(p.name||p.id)+"?":"Banna "+(p.name||p.id)+"?",
+   p.banned?"Spelaren får tillgång till sitt konto igen.":"Kontot låses, alla tokens revokeras och spelaren sparkas ut direkt.",
+   p.banned?"Avbanna":"Banna",p.banned?"gold":"danger",function(){
+    postJSON("/admin/api/ban",{id:p.id,banned:!p.banned},function(ok,r){
+     if(ok){toast(p.banned?"Avbannad":"Bannad","ok");mergeRow(r.player);closeDrawer()}else toast("Misslyckades","err")})})};
+ mw.appendChild(banBtn);mo.appendChild(mw);body.appendChild(mo);
+ d.appendChild(body);
+ $("scrim").classList.add("show");d.classList.add("show")
+}
+function secTitle(t){return el("h3",null,t)}
+function stepperField(label,key,val,presets){
+ var field=el("div","field");field.appendChild(el("label",null,label));
+ var st=el("div","stepper");var minus=el("button",null,"−");var inp=el("input");inp.type="text";inp.inputMode="numeric";inp.value=val;
+ var plus=el("button",null,"+");st.appendChild(minus);st.appendChild(inp);st.appendChild(plus);field.appendChild(st);
+ var obj={field:field,onChange:null,val:function(){var n=parseInt((inp.value||"0").replace(/\s/g,""),10);return isNaN(n)?0:Math.max(0,n)}};
+ var step=key==="gems"?50:key==="alevel"?1:500;
+ function set(v){inp.value=Math.max(0,v);if(obj.onChange)obj.onChange()}
+ minus.onclick=function(){set(obj.val()-step)};plus.onclick=function(){set(obj.val()+step)};
+ inp.addEventListener("input",function(){if(obj.onChange)obj.onChange()});
+ var pr=el("div","presets");presets.forEach(function(x){var b=el("button",null,x[0]);b.onclick=function(){set(x[1])};pr.appendChild(b)});
+ obj.presets=pr;return obj
+}
+function closeDrawer(){$("drawer").classList.remove("show");$("scrim").classList.remove("show")}
+$("scrim").onclick=closeDrawer;
+document.addEventListener("keydown",function(e){if(e.key==="Escape")closeDrawer()});
+function mergeRow(np){if(!np)return load();for(var i=0;i<DATA.length;i++)if(DATA[i].id===np.id){DATA[i]=np;break}render()}
+
+/* CONFIRM + POST */
+function confirmBox(title,msg,yesLabel,kind,onYes){
+ var c=$("cf");c.textContent="";var box=el("div","box");box.appendChild(el("h4",null,title));box.appendChild(el("p",null,msg));
+ var btns=el("div","btns");var no=el("button","no","Avbryt");no.onclick=function(){c.classList.remove("show")};
+ var yes=el("button","yes "+(kind||"gold"),yesLabel);yes.onclick=function(){c.classList.remove("show");onYes()};
+ btns.appendChild(no);btns.appendChild(yes);box.appendChild(btns);c.appendChild(box);c.classList.add("show")}
+$("cf").onclick=function(e){if(e.target===this)this.classList.remove("show")};
+function postJSON(url,body,cb){fetch(url,{method:"POST",headers:hdr(),body:JSON.stringify(body)}).then(function(r){
+ return r.json().then(function(j){cb(r.ok,j)}).catch(function(){cb(r.ok,{})})}).catch(function(){cb(false,{})})}
 </script></body></html>`;
 
 module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount, handleAdminHttp };
