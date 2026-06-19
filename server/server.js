@@ -66,6 +66,12 @@ const server = http.createServer((req, res) => {
     accounts.handleSessionHttp(req, res);
     return;
   }
+  // Admin-panel (skyddad moderations-yta): GET /admin = dashboard (token-fri skal),
+  // /admin/api/* = data bakom ADMIN_TOKEN. All logik bor i accounts.handleAdminHttp.
+  if (req.url === '/admin' || req.url.startsWith('/admin/') || req.url.startsWith('/admin?')) {
+    accounts.handleAdminHttp(req, res).catch(() => { try { res.writeHead(500); res.end(); } catch (e) {} });
+    return;
+  }
   if (req.url === '/errors' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(errorLog, null, 2));

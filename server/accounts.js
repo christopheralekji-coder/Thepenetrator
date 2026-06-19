@@ -83,15 +83,25 @@ function sanitizeName(raw) {
   return name;
 }
 
-function sanitizeStats(raw) {
+function sanitizeStats(raw, prev) {
   if (!raw || typeof raw !== 'object') return null;
   const n = (v) => Math.max(0, Math.min(99999999, Math.round(+v) || 0));
   const out = { matches: n(raw.matches), kills: n(raw.kills), wins: n(raw.wins) };
   // v2 konto-progression (additivt): mynt/XP/nivå följer kontot → överlever
   // reinstall (login-svaret ekar stats). V1 skickar aldrig fälten → utelämnas.
-  if (raw.coins != null) out.coins = n(raw.coins);
-  if (raw.axp != null) out.axp = n(raw.axp);
-  if (raw.alevel != null) out.alevel = Math.max(1, Math.min(999, n(raw.alevel)));
+  // C98 interim-härdning: avvisa ENBART absurda en-meddelande-HÖJNINGAR (klient-
+  // fabricering, t.ex. coins=99 miljoner i ett svep). SÄNKNINGAR släpps alltid
+  // igenom (legitim spending via spend_coins). Taken är generösa → noll falska
+  // positiva på legitimt spel; full server-auktoritet görs vid IAP/launch.
+  const capInc = (key, val, cap) => {
+    const v = n(val);
+    const base = (prev && typeof prev[key] === 'number') ? prev[key] : 0;
+    if (v - base > cap) return base;   // orimligt hopp → behåll föregående (avvisa höjningen)
+    return v;
+  };
+  if (raw.coins != null) out.coins = capInc('coins', raw.coins, 1000000);
+  if (raw.axp != null) out.axp = capInc('axp', raw.axp, 5000000);
+  if (raw.alevel != null) out.alevel = Math.max(1, Math.min(999, capInc('alevel', raw.alevel, 50)));
   return out;
 }
 
@@ -158,6 +168,7 @@ function load() {
         lastSeen: +a.lastSeen || 0,
         vault: (a.vault && typeof a.vault === 'object') ? a.vault : null,
         referredBy: (typeof a.referredBy === 'string') ? a.referredBy : '',
+        banned: !!a.banned,   // admin-ban (persisterar — load() återskapar explicita fält)
       });
       const acc = accounts.get(a.id);
       acc.level = computeLevel(acc.stats);
@@ -411,7 +422,7 @@ function resolveAccountFromCreds(msg) {
   const name = sanitizeName(msg.name);
   if (name) acc.name = name;
   if (msg.avatar && typeof msg.avatar === 'object') acc.avatar = msg.avatar;
-  const stats = sanitizeStats(msg.stats);
+  const stats = sanitizeStats(msg.stats, acc.stats);
   if (stats) { acc.stats = stats; acc.level = computeLevel(stats); }
   if (msg.vault) { const v = sanitizeVault(msg.vault); if (v) acc.vault = v; }
   // Resync-modellen: klientens friends-lista ERSÄTTER serverns (utelämnat → behåll).
@@ -436,12 +447,15 @@ function loginPayload(acc) {
     bound: boundOf(acc),
     stats: acc.stats,
     vault: acc.vault || null,
+    banned: !!acc.banned,
+    economyForce: !!acc._economyForce,   // admin satte ekonomi → klienten adopterar ovillkorligt
   };
 }
 
 // Binder en SOCKET till ett (redan resolvat) konto: online-swap, ws.accountId,
 // acct_logged_in + presence. Kräver H (anropas bara via WS-dispatchern → H satt).
 function bindSocketToAccount(ws, acc) {
+  if (isBanned(acc)) { sendErr(ws, 'banned'); try { ws.close(); } catch (e) {} return; }
   const old = online.get(acc.id);
   if (old && old !== ws) {
     // AUDIT C277: om den gamla socketen är i en grupp, transfera gruppmedlemskapet
@@ -458,6 +472,8 @@ function bindSocketToAccount(ws, acc) {
   acc.lastSeen = Date.now();
   markDirty();
   H.send(ws, Object.assign({ type: 'acct_logged_in' }, loginPayload(acc)));
+  // admin-ekonomi-override konsumerad → klienten har nu adopterat serverns värden
+  if (acc._economyForce) { acc._economyForce = false; markDirty(); }
   notifyFriendsOf(acc.id); // vänner ser online:true
   // AUDIT C272: pusha auktoritativt grupp-roster (eller group_left) direkt efter
   // login/reconnect så klienten snapper till rätt grupp-state utan fördröjning.
@@ -553,7 +569,7 @@ function handleUpdate(ws, msg) {
   const name = sanitizeName(msg.name);
   if (name) me.name = name;
   if (msg.avatar && typeof msg.avatar === 'object') me.avatar = msg.avatar;
-  const stats = sanitizeStats(msg.stats);
+  const stats = sanitizeStats(msg.stats, me.stats);
   if (stats) { me.stats = stats; me.level = computeLevel(stats); }
   markDirty();
   sendOk(ws, 'update');
@@ -1168,4 +1184,231 @@ function handle(ws, msg, helpers) {
 // matchmaking grupp-lager (fas 2): hitta en INLOGGAD spelares socket via konto-id
 function wsForAccount(id) { return online.get(id) || null; }
 
-module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount };
+// ════════════════════════════════════════════════════════════════════════════
+// ADMIN-BACKEND (2026-06-19) — skyddad moderations-yta: se alla spelare, banna,
+// justera coins/gems/level. Bakom ADMIN_TOKEN (env, konstant-tids-jämförelse).
+// ADMIN_TOKEN OSATT → admin-API:t är AVSTÄNGT (503) — aldrig öppet av misstag.
+// Dashboard-skalet (GET /admin) serveras utan token (ingen data); ALL data kräver
+// token via x-admin-token-headern. isBanned() enforce:as i login-chokepointen.
+// ════════════════════════════════════════════════════════════════════════════
+function isBanned(acc) { return !!(acc && acc.banned); }
+
+function adminTokenOk(token) {
+  const expected = process.env.ADMIN_TOKEN || '';
+  if (!expected || typeof token !== 'string' || !token) return false;
+  const a = Buffer.from(token);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length) return false;
+  try { return crypto.timingSafeEqual(a, b); } catch (e) { return false; }
+}
+
+function adminPlayerRow(acc) {
+  return {
+    id: acc.id,
+    name: acc.name,
+    level: acc.level,
+    coins: (acc.stats && acc.stats.coins) || 0,
+    axp: (acc.stats && acc.stats.axp) || 0,
+    alevel: (acc.stats && acc.stats.alevel) || 1,
+    gems: (acc.vault && typeof acc.vault.gems === 'number') ? acc.vault.gems : 0,
+    matches: (acc.stats && acc.stats.matches) || 0,
+    kills: (acc.stats && acc.stats.kills) || 0,
+    wins: (acc.stats && acc.stats.wins) || 0,
+    lastSeen: acc.lastSeen || 0,
+    online: online.has(acc.id),
+    banned: !!acc.banned,
+    bound: boundOf(acc),
+  };
+}
+
+function adminListPlayers(q) {
+  const needle = (q || '').toString().trim().toLowerCase();
+  const out = [];
+  for (const acc of accounts.values()) {
+    if (needle && !(String(acc.id).includes(needle) || (acc.name || '').toLowerCase().includes(needle))) continue;
+    out.push(adminPlayerRow(acc));
+  }
+  out.sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
+  return out.slice(0, 500);
+}
+
+function adminKickSocket(id, code) {
+  const ws = online.get(String(id));
+  if (ws) { try { safeSend(ws, { type: 'acct_error', code: code || 'kicked' }); } catch (e) {} try { ws.close(); } catch (e) {} }
+}
+
+function adminSetBanned(id, banned) {
+  const acc = accounts.get(String(id));
+  if (!acc) return null;
+  acc.banned = !!banned;
+  markDirty();
+  if (acc.banned) adminKickSocket(acc.id, 'banned');   // sparka ut direkt om online
+  return adminPlayerRow(acc);
+}
+
+function adminSetEconomy(id, fields) {
+  const acc = accounts.get(String(id));
+  if (!acc) return null;
+  const clampN = (v, max) => Math.max(0, Math.min(max, Math.round(+v) || 0));
+  if (!acc.stats) acc.stats = { matches: 0, kills: 0, wins: 0 };
+  if (fields.coins != null) acc.stats.coins = clampN(fields.coins, 99999999);
+  if (fields.axp != null) acc.stats.axp = clampN(fields.axp, 99999999);
+  if (fields.alevel != null) acc.stats.alevel = Math.max(1, Math.min(999, clampN(fields.alevel, 999)));
+  if (fields.gems != null) {
+    if (!acc.vault || typeof acc.vault !== 'object') acc.vault = {};
+    acc.vault.gems = clampN(fields.gems, 99999999);
+  }
+  acc.level = computeLevel(acc.stats);
+  acc._economyForce = true;   // klienten adopterar serverns värden ovillkorligt vid nästa login
+  markDirty();
+  return adminPlayerRow(acc);
+}
+
+function _adminReadBody(req) {
+  return new Promise((resolve) => {
+    let body = '';
+    req.on('data', (c) => { body += c; if (body.length > 65536) { try { req.destroy(); } catch (e) {} } });
+    req.on('end', () => { try { resolve(JSON.parse(body || '{}')); } catch (e) { resolve(null); } });
+    req.on('error', () => resolve(null));
+  });
+}
+
+function _adminJson(res, code, obj) {
+  res.writeHead(code, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(obj));
+}
+
+async function handleAdminHttp(req, res) {
+  const u = new URL(req.url, 'http://x');
+  const path = u.pathname;
+  if (path === '/admin' || path === '/admin/') {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(ADMIN_HTML);
+    return;
+  }
+  if (!process.env.ADMIN_TOKEN) { _adminJson(res, 503, { error: 'admin disabled — ADMIN_TOKEN ej satt på servern' }); return; }
+  const token = req.headers['x-admin-token'] || u.searchParams.get('token') || '';
+  if (!adminTokenOk(token)) { _adminJson(res, 401, { error: 'unauthorized' }); return; }
+
+  if (req.method === 'GET' && path === '/admin/api/players') {
+    _adminJson(res, 200, { players: adminListPlayers(u.searchParams.get('q')) });
+    return;
+  }
+  if (req.method === 'POST' && path === '/admin/api/ban') {
+    const body = await _adminReadBody(req);
+    if (!body || !body.id) { _adminJson(res, 400, { error: 'bad request' }); return; }
+    const row = adminSetBanned(body.id, !!body.banned);
+    if (!row) { _adminJson(res, 404, { error: 'not found' }); return; }
+    _adminJson(res, 200, { player: row });
+    return;
+  }
+  if (req.method === 'POST' && path === '/admin/api/economy') {
+    const body = await _adminReadBody(req);
+    if (!body || !body.id) { _adminJson(res, 400, { error: 'bad request' }); return; }
+    const row = adminSetEconomy(body.id, body);
+    if (!row) { _adminJson(res, 404, { error: 'not found' }); return; }
+    _adminJson(res, 200, { player: row });
+    return;
+  }
+  _adminJson(res, 404, { error: 'unknown admin route' });
+}
+
+const ADMIN_HTML = `<!doctype html><html lang="sv"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WarParty — Admin</title>
+<style>
+ :root{color-scheme:dark}
+ body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#0f1117;color:#e6e8ee}
+ header{padding:14px 16px;background:#161a24;border-bottom:1px solid #232838;position:sticky;top:0}
+ h1{font-size:17px;margin:0 0 8px}
+ .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+ input,button{font-size:14px;padding:8px 10px;border-radius:8px;border:1px solid #2c3142;background:#1c2230;color:#e6e8ee}
+ button{cursor:pointer;background:#2a3550;border-color:#37456a}
+ button:hover{background:#33406180}
+ button.danger{background:#5a2330;border-color:#7a2f40}
+ button.ok{background:#1f5135;border-color:#2c6e49}
+ .muted{color:#8b93a7;font-size:12px}
+ table{width:100%;border-collapse:collapse;font-size:13px}
+ th,td{text-align:left;padding:7px 8px;border-bottom:1px solid #1d2230;white-space:nowrap}
+ th{color:#9aa3ba;font-weight:600;position:sticky;top:0;background:#12151d}
+ tr:hover td{background:#151a26}
+ .pill{padding:2px 7px;border-radius:999px;font-size:11px}
+ .on{background:#13361f;color:#5fd38a}.off{background:#2a2f3b;color:#8b93a7}
+ .ban{background:#4a1622;color:#ff8a9c}
+ .wrap{padding:12px 16px;overflow:auto}
+ .act{display:flex;gap:6px}
+ .act button{padding:5px 9px;font-size:12px}
+</style></head><body>
+<header>
+ <h1>WarParty — Admin-panel <span class="muted" id="cnt"></span></h1>
+ <div class="row">
+  <input id="tok" type="password" placeholder="Admin-token" style="min-width:200px">
+  <button onclick="saveTok()">Spara token</button>
+  <input id="q" placeholder="Sök id/namn" oninput="debLoad()" style="min-width:160px">
+  <button onclick="load()">Uppdatera</button>
+  <span class="muted" id="status"></span>
+ </div>
+</header>
+<div class="wrap"><table id="tbl"><thead><tr>
+ <th>ID</th><th>Namn</th><th>Status</th><th>Coins</th><th>Gems</th><th>Konto-niv</th><th>Level</th><th>K/M/W</th><th>Senast</th><th>Åtgärd</th>
+</tr></thead><tbody id="rows"></tbody></table></div>
+<script>
+ var TOK='';
+ function $(i){return document.getElementById(i)}
+ function saveTok(){TOK=$('tok').value.trim();sessionStorage.setItem('wpadmin',TOK);load()}
+ (function(){var t=sessionStorage.getItem('wpadmin');if(t){TOK=t;$('tok').value=t}})();
+ function hdr(){return {'x-admin-token':TOK,'Content-Type':'application/json'}}
+ function ago(ms){if(!ms)return '—';var s=(Date.now()-ms)/1000;if(s<60)return Math.round(s)+'s';if(s<3600)return Math.round(s/60)+'m';if(s<86400)return Math.round(s/3600)+'h';return Math.round(s/86400)+'d'}
+ var _t;function debLoad(){clearTimeout(_t);_t=setTimeout(load,250)}
+ async function load(){
+  $('status').textContent='laddar…';
+  try{
+   var r=await fetch('/admin/api/players?q='+encodeURIComponent($('q').value||''),{headers:hdr()});
+   if(r.status===401){$('status').textContent='Fel token';return}
+   if(r.status===503){$('status').textContent='ADMIN_TOKEN ej satt på servern';return}
+   var d=await r.json();render(d.players||[]);$('status').textContent='';$('cnt').textContent='('+(d.players||[]).length+')';
+  }catch(e){$('status').textContent='nätfel'}
+ }
+ function cell(txt){var td=document.createElement('td');td.textContent=txt;return td}
+ function render(ps){
+  var tb=$('rows');tb.textContent='';
+  ps.forEach(function(p){
+   var tr=document.createElement('tr');
+   tr.appendChild(cell(p.id));
+   tr.appendChild(cell(p.name||''));
+   var st=document.createElement('td');var s=document.createElement('span');
+   if(p.banned){s.className='pill ban';s.textContent='BANNAD'}else if(p.online){s.className='pill on';s.textContent='online'}else{s.className='pill off';s.textContent='offline'}
+   st.appendChild(s);tr.appendChild(st);
+   tr.appendChild(cell((p.coins||0).toLocaleString()));
+   tr.appendChild(cell((p.gems||0).toLocaleString()));
+   tr.appendChild(cell(p.alevel||1));
+   tr.appendChild(cell(p.level||1));
+   tr.appendChild(cell((p.kills||0)+'/'+(p.matches||0)+'/'+(p.wins||0)));
+   tr.appendChild(cell(ago(p.lastSeen)));
+   var act=document.createElement('td');var d=document.createElement('div');d.className='act';
+   var be=document.createElement('button');be.textContent='Ekonomi';be.onclick=function(){editEcon(p)};d.appendChild(be);
+   var bb=document.createElement('button');bb.textContent=p.banned?'Avbanna':'Banna';bb.className=p.banned?'ok':'danger';bb.onclick=function(){setBan(p)};d.appendChild(bb);
+   act.appendChild(d);tr.appendChild(act);
+   tb.appendChild(tr);
+  });
+ }
+ async function setBan(p){
+  if(!confirm((p.banned?'Avbanna ':'BANNA ')+p.name+' ('+p.id+')?'))return;
+  var r=await fetch('/admin/api/ban',{method:'POST',headers:hdr(),body:JSON.stringify({id:p.id,banned:!p.banned})});
+  if(r.ok)load();else alert('Fel: '+r.status);
+ }
+ async function editEcon(p){
+  var coins=prompt('Coins för '+p.name,p.coins);if(coins===null)return;
+  var gems=prompt('Gems',p.gems);if(gems===null)return;
+  var alevel=prompt('Konto-nivå',p.alevel);if(alevel===null)return;
+  var body={id:p.id};
+  if(coins!=='')body.coins=parseInt(coins,10);
+  if(gems!=='')body.gems=parseInt(gems,10);
+  if(alevel!=='')body.alevel=parseInt(alevel,10);
+  var r=await fetch('/admin/api/economy',{method:'POST',headers:hdr(),body:JSON.stringify(body)});
+  if(r.ok){load();alert('Sparat. Spelaren adopterar värdena vid nästa inloggning.')}else alert('Fel: '+r.status);
+ }
+ if(TOK)load();
+</script></body></html>`;
+
+module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount, handleAdminHttp };
