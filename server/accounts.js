@@ -140,13 +140,15 @@ function recordNameAttempt(acc, name, ok, adm) {
 function sanitizeStats(raw, prev) {
   if (!raw || typeof raw !== 'object') return null;
   const n = (v) => Math.max(0, Math.min(99999999, Math.round(+v) || 0));
-  const out = { matches: n(raw.matches), kills: n(raw.kills), wins: n(raw.wins) };
-  // v2 konto-progression (additivt): mynt/XP/nivå följer kontot → överlever
-  // reinstall (login-svaret ekar stats). V1 skickar aldrig fälten → utelämnas.
-  // C98 interim-härdning: avvisa ENBART absurda en-meddelande-HÖJNINGAR (klient-
-  // fabricering, t.ex. coins=99 miljoner i ett svep). SÄNKNINGAR släpps alltid
-  // igenom (legitim spending via spend_coins). Taken är generösa → noll falska
-  // positiva på legitimt spel; full server-auktoritet görs vid IAP/launch.
+  // DELTA: ta BARA med fält som faktiskt SKICKADES → anroparen MERGAR in i befintlig
+  // stats. (Förr ersattes hela objektet → en klient som utelämnade t.ex. alevel TAPPADE
+  // det server-side → föll till 1 via '|| 1'; coins/gems överlevde = exakt symptomet.)
+  const out = {};
+  if (raw.matches != null) out.matches = n(raw.matches);
+  if (raw.kills != null) out.kills = n(raw.kills);
+  if (raw.wins != null) out.wins = n(raw.wins);
+  // C98-härdning: avvisa ENBART absurda en-meddelande-HÖJNINGAR (klient-fabricering).
+  // SÄNKNINGAR släpps (legitim spending). Generösa tak → noll falska positiva.
   const capInc = (key, val, cap) => {
     const v = n(val);
     const base = (prev && typeof prev[key] === 'number') ? prev[key] : 0;
@@ -156,6 +158,18 @@ function sanitizeStats(raw, prev) {
   if (raw.coins != null) out.coins = capInc('coins', raw.coins, 1000000);
   if (raw.axp != null) out.axp = capInc('axp', raw.axp, 5000000);
   if (raw.alevel != null) out.alevel = Math.max(1, Math.min(999, capInc('alevel', raw.alevel, 50)));
+  return out;
+}
+
+// Laddar LAGRAD (betrodd) stats utan delta-cap (cap:en gäller bara klient-input — annars
+// hade ett konto med >1M coins nollställts vid server-omstart).
+function loadStats(raw) {
+  if (!raw || typeof raw !== 'object') return { matches: 0, kills: 0, wins: 0 };
+  const n = (v) => Math.max(0, Math.min(99999999, Math.round(+v) || 0));
+  const out = { matches: n(raw.matches), kills: n(raw.kills), wins: n(raw.wins) };
+  if (raw.coins != null) out.coins = n(raw.coins);
+  if (raw.axp != null) out.axp = n(raw.axp);
+  if (raw.alevel != null) out.alevel = Math.max(1, Math.min(999, n(raw.alevel)));
   return out;
 }
 
@@ -225,7 +239,7 @@ function load() {
         secret: a.secret,
         name: sanitizeName(a.name) || 'Spelare',
         avatar: (a.avatar && typeof a.avatar === 'object') ? a.avatar : {},
-        stats: sanitizeStats(a.stats) || { matches: 0, kills: 0, wins: 0 },
+        stats: loadStats(a.stats),
         level: 1,
         friends: sanitizeFriendIds(a.friends, a.id),
         reqIn: sanitizeFriendIds(a.reqIn, a.id).slice(0, REQUESTS_CAP),
@@ -490,7 +504,7 @@ function resolveAccountFromCreds(msg) {
   if (name && !nameFlagged(name)) acc.name = name;   // blockera olämpliga namn (behåll befintligt/default)
   if (msg.avatar && typeof msg.avatar === 'object') acc.avatar = msg.avatar;
   const stats = sanitizeStats(msg.stats, acc.stats);
-  if (stats) { acc.stats = stats; acc.level = computeLevel(stats); }
+  if (stats) { acc.stats = Object.assign({}, acc.stats || {}, stats); acc.level = computeLevel(acc.stats); }
   if (msg.vault) { const v = sanitizeVault(msg.vault); if (v) acc.vault = v; }
   // Resync-modellen: klientens friends-lista ERSÄTTER serverns (utelämnat → behåll).
   if (Array.isArray(msg.friends)) acc.friends = sanitizeFriendIds(msg.friends, acc.id);
@@ -644,13 +658,14 @@ function handleUpdate(ws, msg) {
   const forced = !!me._economyForce;   // admin satte ekonomi → ignorera klientens ekonomi denna gång
   const stats = sanitizeStats(msg.stats, me.stats);
   if (stats) {
-    if (forced) {
-      // behåll serverns coins/axp/alevel (annars kan en stale push undo:a admin-ändringen)
-      stats.coins = (me.stats && me.stats.coins) || 0;
-      stats.axp = (me.stats && me.stats.axp) || 0;
-      stats.alevel = (me.stats && me.stats.alevel) || 1;
+    if (forced && me.stats) {
+      // behåll serverns coins/axp/alevel (admin satte dem) — överskriv BARA det klienten skickade
+      if (stats.coins != null) stats.coins = me.stats.coins || 0;
+      if (stats.axp != null) stats.axp = me.stats.axp || 0;
+      if (stats.alevel != null) stats.alevel = me.stats.alevel || 1;
     }
-    me.stats = stats; me.level = computeLevel(stats);
+    me.stats = Object.assign({}, me.stats || {}, stats);   // MERGE → tappa ALDRIG ej-skickade fält (t.ex. alevel)
+    me.level = computeLevel(me.stats);
   }
   // BUGFIX: vault (gems/battle pass/kosmetik) applicerades ALDRIG i acct_update → servern
   // hade alltid tom vault (admin såg 0 gems hos alla; gems/kosmetik överlevde ej reinstall).
@@ -1831,7 +1846,12 @@ function openDrawer(p){CUR=p;var d=$("drawer");d.textContent="";
   save.textContent=ch?"Spara ändringar":"Inga ändringar"}
  fc.onChange=dirty;fg.onChange=dirty;fl.onChange=dirty;dirty();
  save.onclick=function(){save.disabled=true;save.textContent="Sparar…";
-  postJSON("/admin/api/economy",{id:p.id,coins:fc.val(),gems:fg.val(),alevel:fl.val()},function(ok,r){
+  // skicka BARA ändrade fält (annars skulle t.ex. en coins-ändring även skriva alevel/gems)
+  var body={id:p.id};
+  if(fc.val()!==p.coins)body.coins=fc.val();
+  if(fg.val()!==p.gems)body.gems=fg.val();
+  if(fl.val()!==(p.alevel||1))body.alevel=fl.val();
+  postJSON("/admin/api/economy",body,function(ok,r){
    if(ok){toast("Ekonomi sparad — gäller vid spelarens nästa login","ok");mergeRow(r.player);closeDrawer()}
    else{toast("Kunde inte spara","err");save.disabled=false;save.textContent="Spara ändringar"}})};
  ew.appendChild(save);ec.appendChild(ew);body.appendChild(ec);
