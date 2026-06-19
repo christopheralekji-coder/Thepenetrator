@@ -83,6 +83,46 @@ function sanitizeName(raw) {
   return name;
 }
 
+// ── Namn-filter (svordomar/slurs, SV+EN) ─────────────────────────────────────
+// Normaliserar bort obfuskering (leetspeak, separatorer, upprepningar, diakriter)
+// och matchar mot en denylist av grova/olämpliga termer. Blockerar vid spelar-
+// namnsättning (login/update) och FLAGGAR i admin-panelen. Admin kan överstyra.
+// Listan är i NORMALISERAD form (gemener a-z). Distinkta termer valda för att
+// hålla falska positiva låga; admin-flaggan + manuell granskning täcker resten.
+function _normName(s) {
+  return String(s).toLowerCase()
+    .replace(/[àáâãäåāăą]/g, 'a').replace(/[èéêëēĕėęě]/g, 'e').replace(/[ìíîïĩīįı]/g, 'i')
+    .replace(/[òóôõöøōő]/g, 'o').replace(/[ùúûüũūų]/g, 'u').replace(/[ýÿ]/g, 'y')
+    .replace(/[ñń]/g, 'n').replace(/[çćč]/g, 'c').replace(/[ß]/g, 'b')
+    .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a')
+    .replace(/5/g, 's').replace(/7/g, 't').replace(/8/g, 'b').replace(/9/g, 'g')
+    .replace(/@/g, 'a').replace(/\$/g, 's')
+    .replace(/[^a-z]/g, '');
+}
+const NAME_DENYLIST = [
+  // EN — slurs/hat (distinkta)
+  'nigger', 'nigga', 'niggas', 'faggot', 'retard', 'kike', 'tranny', 'wetback',
+  'chinaman', 'pedophile', 'pedophil', 'rapist', 'hitler', 'heilhitler', 'nazi',
+  // EN — grov profanitet
+  'fuck', 'motherfuck', 'cunt', 'pussy', 'whore', 'bitch', 'bastard', 'asshole',
+  'dickhead', 'blowjob', 'handjob', 'jerkoff', 'cumslut',
+  // SV — slurs/hat ('bog'/bög + 'sieg' borttagna: falsk-pos Bogdan/Siegfried)
+  'neger', 'negern', 'blatte', 'svartskalle', 'pedofil', 'valdtakt', 'valdtog',
+  'nazist', 'hora', 'horan', 'fitta', 'fittan', 'knulla', 'knullar',
+  // SV — grov profanitet
+  'javlahora', 'fitthuvud', 'kukhuvud', 'runka', 'runkar', 'satkarring',
+];
+function nameFlagged(name) {
+  const b = _normName(name);
+  if (!b) return false;
+  const c = b.replace(/(.)\1+/g, '$1');   // kollapsa upprepningar (fuuuck → fuck)
+  for (let i = 0; i < NAME_DENYLIST.length; i++) {
+    const t = NAME_DENYLIST[i];
+    if (b.indexOf(t) >= 0 || c.indexOf(t) >= 0) return true;
+  }
+  return false;
+}
+
 function sanitizeStats(raw, prev) {
   if (!raw || typeof raw !== 'object') return null;
   const n = (v) => Math.max(0, Math.min(99999999, Math.round(+v) || 0));
@@ -431,7 +471,7 @@ function resolveAccountFromCreds(msg) {
     console.log('[ACCT]', id, 'konto skapat');
   }
   const name = sanitizeName(msg.name);
-  if (name) acc.name = name;
+  if (name && !nameFlagged(name)) acc.name = name;   // blockera olämpliga namn (behåll befintligt/default)
   if (msg.avatar && typeof msg.avatar === 'object') acc.avatar = msg.avatar;
   const stats = sanitizeStats(msg.stats, acc.stats);
   if (stats) { acc.stats = stats; acc.level = computeLevel(stats); }
@@ -582,7 +622,7 @@ function handleUpdate(ws, msg) {
   if (!me) { sendErr(ws, 'auth'); return; }
   const nameForced = !!me._nameForce;  // admin döpte om → ignorera klientens namn-push tills adopterat
   const name = sanitizeName(msg.name);
-  if (name && !nameForced) me.name = name;
+  if (name && !nameForced && !nameFlagged(name)) me.name = name;   // blockera olämpliga namn
   if (msg.avatar && typeof msg.avatar === 'object') me.avatar = msg.avatar;
   const forced = !!me._economyForce;   // admin satte ekonomi → ignorera klientens ekonomi denna gång
   const stats = sanitizeStats(msg.stats, me.stats);
@@ -1252,6 +1292,7 @@ function adminPlayerRow(acc) {
     lastSeen: acc.lastSeen || 0,
     online: online.has(acc.id),
     banned: !!acc.banned,
+    flagged: nameFlagged(acc.name),   // namn-filter: misstänkt olämpligt namn → ⚠ i panelen
     bound: boundOf(acc),
   };
 }
@@ -1268,15 +1309,16 @@ function adminListPlayers(q) {
 }
 
 function adminSummary() {
-  let total = 0, on = 0, banned = 0, coins = 0, gems = 0;
+  let total = 0, on = 0, banned = 0, coins = 0, gems = 0, flagged = 0;
   for (const acc of accounts.values()) {
     total++;
     if (online.has(acc.id)) on++;
     if (acc.banned) banned++;
+    if (nameFlagged(acc.name)) flagged++;
     coins += (acc.stats && acc.stats.coins) || 0;
     gems += (acc.vault && typeof acc.vault.gems === 'number') ? acc.vault.gems : 0;
   }
-  return { total, online: on, banned, coins, gems };
+  return { total, online: on, banned, coins, gems, flagged };
 }
 
 function adminKickSocket(id, code) {
@@ -1525,6 +1567,8 @@ main{padding:14px 16px 40px;max-width:920px;margin:0 auto}
 .b-on{background:rgba(61,220,132,.16);color:var(--on)}
 .b-off{background:#222838;color:var(--mut)}
 .b-ban{background:rgba(255,93,108,.16);color:var(--danger)}
+.flag-ic{color:var(--gold);font-size:13px;cursor:help}
+.rf.act{background:rgba(245,181,63,.18);border-color:var(--gold);color:var(--gold)}
 .dotL{width:7px;height:7px;border-radius:50%;display:inline-block}
 .dotL.g{background:var(--on);box-shadow:0 0 7px var(--on)}.dotL.o{background:var(--mut2)}
 .pc .row{display:flex;gap:8px}
@@ -1622,6 +1666,7 @@ main{padding:14px 16px 40px;max-width:920px;margin:0 auto}
     <option value="alevel">Högst nivå</option>
     <option value="name">Namn A–Ö</option>
    </select>
+   <button class="rf" id="flagf" title="Visa bara flaggade namn">&#9888;</button>
    <button class="rf" id="refresh" title="Uppdatera">&#8635;</button>
   </div>
  </header>
@@ -1634,7 +1679,7 @@ main{padding:14px 16px 40px;max-width:920px;margin:0 auto}
 <div id="toasts"></div>
 
 <script>
-var TOK="",DATA=[],CUR=null;
+var TOK="",DATA=[],CUR=null,FLAGONLY=false;
 function $(i){return document.getElementById(i)}
 function el(t,c,tx){var e=document.createElement(t);if(c)e.className=c;if(tx!=null)e.textContent=tx;return e}
 function fmt(n){return (n||0).toLocaleString("sv-SE")}
@@ -1663,6 +1708,7 @@ function boot(fromLogin){load(function(ok){
 var _t;
 $("q").addEventListener("input",function(){clearTimeout(_t);_t=setTimeout(function(){load()},220)});
 $("sort").addEventListener("change",render);
+ $("flagf").addEventListener("click",function(){FLAGONLY=!FLAGONLY;$("flagf").classList.toggle("act",FLAGONLY);render()});
 $("refresh").onclick=function(){load(function(){toast("Uppdaterad","ok")})};
 function load(cb){
  fetch("/admin/api/players?q="+encodeURIComponent($("q").value||""),{headers:hdr()}).then(function(r){
@@ -1681,6 +1727,7 @@ function renderStats(s){
 }
 function render(){
  var sort=$("sort").value,rows=DATA.slice();
+ if(FLAGONLY)rows=rows.filter(function(p){return p.flagged});
  rows.sort(function(a,b){if(sort==="name")return (a.name||"").localeCompare(b.name||"");return (b[sort]||0)-(a[sort]||0)});
  var g=$("grid");g.textContent="";
  $("empty").classList.toggle("hide",rows.length>0);
@@ -1690,7 +1737,7 @@ function card(p){
  var c=el("div","pc"+(p.banned?" bn":""));c.onclick=function(){openDrawer(p)};
  var top=el("div","top");var av=el("div","av",initial(p.name));av.setAttribute("style",avStyle(p.id));top.appendChild(av);
  var info=el("div");info.style.flex="1";info.style.minWidth="0";
- var nm=el("div","nm");nm.appendChild(el("span",null,p.name||"(namnlös)"));info.appendChild(nm);
+ var nm=el("div","nm");nm.appendChild(el("span",null,p.name||"(namnlös)"));if(p.flagged){var fw=el("span","flag-ic","⚠");fw.title="Misstänkt olämpligt namn";nm.appendChild(fw)}info.appendChild(nm);
  info.appendChild(el("div","id","#"+p.id));top.appendChild(info);
  top.appendChild(badge(p));c.appendChild(top);
  var row=el("div","row");
