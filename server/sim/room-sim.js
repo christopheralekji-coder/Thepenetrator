@@ -6178,6 +6178,7 @@ const _XP_EVENT_MODE = {
 // Heterogena stats-former: tdm = array [{peerId,team,kills}]; övriga = {perPlayer:{pid:{...}}}.
 // Lag-lägen (tdm/ctf/siege) har winner='red'/'blue'; FFA (koth/jugg/br/gungame) winner=peerId.
 function creditServerXp(sim, events) {
+  if (!process.env.SERVERAUTH_XP) return;   // flagga av (default) → noll kostnad, scanna inget
   let extra = null;
   for (const ev of events) {
     const mode = _XP_EVENT_MODE[ev && ev.type];
