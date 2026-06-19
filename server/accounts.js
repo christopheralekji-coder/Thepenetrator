@@ -96,7 +96,7 @@ function sanitizeStats(raw, prev) {
   const capInc = (key, val, cap) => {
     const v = n(val);
     const base = (prev && typeof prev[key] === 'number') ? prev[key] : 0;
-    if (v - base > cap) return base;   // orimligt hopp → behåll föregående (avvisa höjningen)
+    if (v - base >= cap) return base;   // orimligt hopp → behåll föregående (avvisa höjningen)
     return v;
   };
   if (raw.coins != null) out.coins = capInc('coins', raw.coins, 1000000);
@@ -472,8 +472,9 @@ function bindSocketToAccount(ws, acc) {
   acc.lastSeen = Date.now();
   markDirty();
   H.send(ws, Object.assign({ type: 'acct_logged_in' }, loginPayload(acc)));
-  // admin-ekonomi-override konsumerad → klienten har nu adopterat serverns värden
-  if (acc._economyForce) { acc._economyForce = false; markDirty(); }
+  // OBS: _economyForce rensas INTE här (en tappad login-frame skulle annars förlora
+  // override:n permanent). Den konsumeras i handleUpdate vid första acct_update efter
+  // login — då har klienten bevisligen tagit emot+adopterat acct_logged_in.
   notifyFriendsOf(acc.id); // vänner ser online:true
   // AUDIT C272: pusha auktoritativt grupp-roster (eller group_left) direkt efter
   // login/reconnect så klienten snapper till rätt grupp-state utan fördröjning.
@@ -544,6 +545,7 @@ function handleSessionHttp(req, res) {
       if (op === 'guest') {
         const acc = resolveAccountFromCreds(msg);
         if (!acc) { res.writeHead(401, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'auth' })); return; }
+        if (isBanned(acc)) { res.writeHead(403, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'banned' })); return; }
         const token = issueSession(acc.id);
         console.log('[ACCT] HTTPS session-token utfärdad', acc.id);
         res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -570,7 +572,18 @@ function handleUpdate(ws, msg) {
   if (name) me.name = name;
   if (msg.avatar && typeof msg.avatar === 'object') me.avatar = msg.avatar;
   const stats = sanitizeStats(msg.stats, me.stats);
-  if (stats) { me.stats = stats; me.level = computeLevel(stats); }
+  if (stats) {
+    if (me._economyForce) {
+      // admin satte ekonomi → klientens (ev. inaktuella) ekonomi-värden IGNORERAS denna
+      // gång (annars kan en stale push undo:a admin-resetten). Servern äger coins/axp/
+      // alevel; behåll dem, ta bara icke-ekonomi (matches/kills/wins). Konsumera flaggan.
+      stats.coins = (me.stats && me.stats.coins) || 0;
+      stats.axp = (me.stats && me.stats.axp) || 0;
+      stats.alevel = (me.stats && me.stats.alevel) || 1;
+      me._economyForce = false;
+    }
+    me.stats = stats; me.level = computeLevel(stats);
+  }
   markDirty();
   sendOk(ws, 'update');
 }
@@ -1234,7 +1247,10 @@ function adminListPlayers(q) {
 
 function adminKickSocket(id, code) {
   const ws = online.get(String(id));
-  if (ws) { try { safeSend(ws, { type: 'acct_error', code: code || 'kicked' }); } catch (e) {} try { ws.close(); } catch (e) {} }
+  if (!ws) return;
+  try { safeSend(ws, { type: 'acct_error', code: code || 'kicked' }); } catch (e) {}
+  try { ws.close(); } catch (e) {}
+  console.log('[ADMIN] kick', id, '(readyState ' + (ws.readyState != null ? ws.readyState : '?') + ')');
 }
 
 function adminSetBanned(id, banned) {
@@ -1242,7 +1258,11 @@ function adminSetBanned(id, banned) {
   if (!acc) return null;
   acc.banned = !!banned;
   markDirty();
-  if (acc.banned) adminKickSocket(acc.id, 'banned');   // sparka ut direkt om online
+  console.log('[ADMIN] ban', id, '→', acc.banned);
+  if (acc.banned) {
+    revokeSessionsFor(acc.id);          // ogiltigförklara alla utdelade tokens → ingen replay-window
+    adminKickSocket(acc.id, 'banned');  // sparka ut direkt om online
+  }
   return adminPlayerRow(acc);
 }
 
@@ -1251,6 +1271,7 @@ function adminSetEconomy(id, fields) {
   if (!acc) return null;
   const clampN = (v, max) => Math.max(0, Math.min(max, Math.round(+v) || 0));
   if (!acc.stats) acc.stats = { matches: 0, kills: 0, wins: 0 };
+  const before = { coins: acc.stats.coins || 0, gems: (acc.vault && acc.vault.gems) || 0, alevel: acc.stats.alevel || 1 };
   if (fields.coins != null) acc.stats.coins = clampN(fields.coins, 99999999);
   if (fields.axp != null) acc.stats.axp = clampN(fields.axp, 99999999);
   if (fields.alevel != null) acc.stats.alevel = Math.max(1, Math.min(999, clampN(fields.alevel, 999)));
@@ -1261,14 +1282,20 @@ function adminSetEconomy(id, fields) {
   acc.level = computeLevel(acc.stats);
   acc._economyForce = true;   // klienten adopterar serverns värden ovillkorligt vid nästa login
   markDirty();
+  console.log('[ADMIN] economy', id, '| coins', before.coins, '→', acc.stats.coins,
+    '| gems', before.gems, '→', (acc.vault && acc.vault.gems) || 0, '| alevel', before.alevel, '→', acc.stats.alevel);
   return adminPlayerRow(acc);
 }
 
 function _adminReadBody(req) {
   return new Promise((resolve) => {
-    let body = '';
-    req.on('data', (c) => { body += c; if (body.length > 65536) { try { req.destroy(); } catch (e) {} } });
-    req.on('end', () => { try { resolve(JSON.parse(body || '{}')); } catch (e) { resolve(null); } });
+    let body = ''; let tooLarge = false;
+    req.on('data', (c) => {
+      if (tooLarge) return;
+      body += c;
+      if (body.length > 16384) { tooLarge = true; try { req.destroy(); } catch (e) {} resolve(null); }
+    });
+    req.on('end', () => { if (tooLarge) return; try { resolve(JSON.parse(body || '{}')); } catch (e) { resolve(null); } });
     req.on('error', () => resolve(null));
   });
 }
@@ -1278,7 +1305,28 @@ function _adminJson(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 
+// brute-force-broms (per-IP): 10 auth-fel → 15 min block. In-memory, transient.
+const _adminFails = new Map();
+function _adminIp(req) {
+  return String(req.headers['x-forwarded-for'] || (req.socket && req.socket.remoteAddress) || '').split(',')[0].trim();
+}
+function _adminThrottled(ip) { const e = _adminFails.get(ip); return !!(e && e.until && Date.now() < e.until); }
+function _adminFail(ip) {
+  const e = _adminFails.get(ip) || { n: 0, until: 0 };
+  e.n += 1;
+  if (e.n >= 10) { e.until = Date.now() + 15 * 60 * 1000; e.n = 0; }
+  _adminFails.set(ip, e);
+}
+
 async function handleAdminHttp(req, res) {
+  // admin-ytan är SAME-ORIGIN (dashboard fetchar från samma host) → ta bort den globala
+  // wildcard-CORS:en så ingen cross-origin-sida kan läsa admin-svar med en stulen token.
+  try { res.removeHeader('Access-Control-Allow-Origin'); } catch (e) {}
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  // ADMIN_TOKEN osatt → HELA admin-ytan osynlig (404), även dashboard-skalet (ingen recon).
+  if (!process.env.ADMIN_TOKEN) { res.writeHead(404); res.end(); return; }
   const u = new URL(req.url, 'http://x');
   const path = u.pathname;
   if (path === '/admin' || path === '/admin/') {
@@ -1286,9 +1334,12 @@ async function handleAdminHttp(req, res) {
     res.end(ADMIN_HTML);
     return;
   }
-  if (!process.env.ADMIN_TOKEN) { _adminJson(res, 503, { error: 'admin disabled — ADMIN_TOKEN ej satt på servern' }); return; }
-  const token = req.headers['x-admin-token'] || u.searchParams.get('token') || '';
-  if (!adminTokenOk(token)) { _adminJson(res, 401, { error: 'unauthorized' }); return; }
+  const ip = _adminIp(req);
+  if (_adminThrottled(ip)) { _adminJson(res, 429, { error: 'too many attempts' }); return; }
+  // token ENBART via header (aldrig query-param → ingen log/referer/historik-läcka)
+  const token = req.headers['x-admin-token'] || '';
+  if (!adminTokenOk(token)) { _adminFail(ip); _adminJson(res, 401, { error: 'unauthorized' }); return; }
+  _adminFails.delete(ip);   // lyckad auth → nolla räknaren
 
   if (req.method === 'GET' && path === '/admin/api/players') {
     _adminJson(res, 200, { players: adminListPlayers(u.searchParams.get('q')) });
