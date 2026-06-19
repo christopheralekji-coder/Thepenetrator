@@ -788,7 +788,27 @@ function handleUpdate(ws, msg) {
   // dvs en FÄRSK login EFTER admin-ändringen, då klienten bevisligen adopterat värdena. En
   // redan-online socket (flaggan sattes efter dess login → ws._force* = false) konsumerar EJ,
   // så dess gamla acct_update kan varken äta upp override:n eller reverta det admin-satta värdet.
-  if (forced && ws._forceEcon) { me._economyForce = false; ws._forceEcon = false; }
+  //
+  // BUGFIX: konsumera flaggan BARA om klienten faktiskt skickade TILLBAKA de admin-satta värdena
+  // (adoption bekräftad). Tidigare konsumerades flaggan vid FÖRSTA acct_update oavsett om
+  // klientens stats matchade — vilket lämnade nästa push oskyddad och aleveln reverterade till
+  // klientens gamla värde på 2:a pushen. Nu: flaggan sitter kvar tills klienten skickar korrekt.
+  if (forced && ws._forceEcon) {
+    // ADOPTION-BEVIS: konsumera flaggan BARA när klienten EKAR tillbaka serverns admin-satta
+    // ekonomi-värden (= bevis på att den faktiskt adopterat). En klient som pushar GAMLA värden
+    // (icke-adopterande/gammal build, eller en stale push) konsumerar EJ → flaggan + serverns
+    // värde behålls (ingen backend-revert). En push UTAN stats är inte heller adoption-bevis.
+    const s = (msg.stats && typeof msg.stats === 'object') ? msg.stats : null;
+    let adopted = !!s;
+    if (s) {
+      if (s.alevel != null && Math.round(+s.alevel) !== (me.stats.alevel || 1)) adopted = false;
+      if (s.coins  != null && Math.round(+s.coins)  !== (me.stats.coins  || 0)) adopted = false;
+      if (s.axp    != null && Math.round(+s.axp)    !== (me.stats.axp    || 0)) adopted = false;
+      const g = (msg.vault && typeof msg.vault === 'object' && msg.vault.gems != null) ? Math.round(+msg.vault.gems) : null;
+      if (g != null && g !== ((me.vault && me.vault.gems) || 0)) adopted = false;
+    }
+    if (adopted) { me._economyForce = false; ws._forceEcon = false; }
+  }
   if (nameForced && ws._forceName) { me._nameForce = false; ws._forceName = false; }
   markDirty();
   sendOk(ws, 'update');
