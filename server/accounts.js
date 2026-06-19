@@ -331,6 +331,10 @@ function load() {
       // i råobjektet). Utan detta nollas _xpMigrated vid varje omstart → migreringen kör om
       // på första acct_update och skulle adoptera en klient-uppblåst nivå (fusk-fönster).
       if (a._xpMigrated) acc._xpMigrated = true;
+      // admin-force (ekonomi/namn) ska överleva en server-omstart — annars tappas en admin-
+      // ändring som gjordes strax före omstart (spelaren adopterar den aldrig → kan reverta).
+      if (a._economyForce) acc._economyForce = true;
+      if (a._nameForce) acc._nameForce = true;
       indexAccount(acc);
     }
     console.log('[ACCT] laddade', accounts.size, 'konton från', DATA_FILE);
@@ -629,6 +633,12 @@ function bindSocketToAccount(ws, acc) {
   acc.lastSeen = Date.now();
   markDirty();
   H.send(ws, Object.assign({ type: 'acct_logged_in' }, loginPayload(acc)));
+  // ADOPTIONS-SCOPING: markera att DENNA socket fick (ev.) force-flaggorna i sin loginPayload.
+  // Bara en socket som faktiskt fick dem får senare KONSUMERA dem i handleUpdate. En redan-
+  // online socket (där admin satte flaggan EFTER dess login) har dessa = false → dess gamla
+  // acct_update kan inte äta upp override:n i förtid (buggen: admin-ändring revertades).
+  ws._forceEcon = !!acc._economyForce;
+  ws._forceName = !!acc._nameForce;
   // OBS: _economyForce rensas INTE här (en tappad login-frame skulle annars förlora
   // override:n permanent). Den konsumeras i handleUpdate vid första acct_update efter
   // login — då har klienten bevisligen tagit emot+adopterat acct_logged_in.
@@ -774,8 +784,12 @@ function handleUpdate(ws, msg) {
       me.vault = v;
     }
   }
-  if (forced) me._economyForce = false;   // konsumerad (klienten har adopterat via login)
-  if (nameForced) me._nameForce = false;  // konsumerad (klienten har adopterat namnet via login)
+  // Konsumera force-flaggorna BARA om DENNA socket fick dem i sin loginPayload (ws._force*) —
+  // dvs en FÄRSK login EFTER admin-ändringen, då klienten bevisligen adopterat värdena. En
+  // redan-online socket (flaggan sattes efter dess login → ws._force* = false) konsumerar EJ,
+  // så dess gamla acct_update kan varken äta upp override:n eller reverta det admin-satta värdet.
+  if (forced && ws._forceEcon) { me._economyForce = false; ws._forceEcon = false; }
+  if (nameForced && ws._forceName) { me._nameForce = false; ws._forceName = false; }
   markDirty();
   sendOk(ws, 'update');
 }
@@ -1461,6 +1475,26 @@ function adminKickSocket(id, code) {
   console.log('[ADMIN] kick', id, '(readyState ' + (ws.readyState != null ? ws.readyState : '?') + ')');
 }
 
+// Live-adoption UTAN disconnect: pushar en FÄRSK acct_logged_in (loginPayload) till en ev.
+// online-socket så klienten adopterar de admin-satta värdena DIREKT (economyForce/nameForce) —
+// ändringen syns in-game på en gång. INGEN ws.close() → ingen match-vräkning, ingen token-revoke
+// (onDisconnect körs ej), ingen game-rejoin-väg (som hoppar över re-login). Sätter ws._force* på
+// SAMMA socket så den får konsumera flaggan vid nästa acct_update (klienten ekar då adopterade
+// värden). Klientens logged_in-lyssnare är rena UI-uppdateringar (FriendsScreen._render_all +
+// Menu._on_account_changed) → säkert att re-emitta mid-session, även mitt i en match. Offline →
+// no-op (värdena levereras vid spelarens nästa riktiga login via bindSocketToAccount-taggningen).
+function adminPushAdoption(acc) {
+  const ws = online.get(acc.id);
+  if (!ws || ws.readyState !== 1) return false;
+  try {
+    safeSend(ws, Object.assign({ type: 'acct_logged_in' }, loginPayload(acc)));
+    ws._forceEcon = !!acc._economyForce;
+    ws._forceName = !!acc._nameForce;
+  } catch (e) { return false; }
+  console.log('[ADMIN] live-adoption push', acc.id);
+  return true;
+}
+
 function adminSetBanned(id, banned) {
   const acc = accounts.get(String(id));
   if (!acc) return null;
@@ -1491,6 +1525,7 @@ function adminSetEconomy(id, fields) {
   acc.level = computeLevel(acc.stats);
   acc._economyForce = true;   // klienten adopterar serverns värden ovillkorligt vid nästa login
   markDirty();
+  adminPushAdoption(acc);  // online? → live re-send av acct_logged_in så ändringen syns in-game direkt
   console.log('[ADMIN] economy', id, '| coins', before.coins, '→', acc.stats.coins,
     '| gems', before.gems, '→', (acc.vault && acc.vault.gems) || 0, '| alevel', before.alevel, '→', acc.stats.alevel);
   return adminPlayerRow(acc);
@@ -1507,6 +1542,7 @@ function adminSetName(id, name) {
   acc._nameForce = true;   // klienten adopterar namnet vid nästa login (annars skriver den tillbaka sitt lokala)
   recordNameAttempt(acc, clean, true, true);   // logga admin-rename i namn-historiken
   markDirty();
+  adminPushAdoption(acc);  // online? → live re-send av acct_logged_in så namnet syns in-game direkt
   console.log('[ADMIN] rename', id, '|', before, '→', clean);
   return adminPlayerRow(acc);
 }
