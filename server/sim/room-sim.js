@@ -26,6 +26,7 @@ const { SURVIVORS_ARENA } = require('../../shared/survivors-arena');
 const { HEIST_ARENA } = require('../../shared/heist-arena');
 const { BOSS_CONFIGS } = require('../../shared/boss-configs');
 const { SpatialGrid } = require('./spatial');
+const accounts = require('../accounts');   // server-auktoritativ match-XP (fas 1, bakom flagga)
 
 // 45Hz → 60Hz (v1.391): tickar var 16.7ms istället för 22ms. Sparar ~3-6ms
 // quantization-lag per tick + matchar 60fps-rendering på klient.
@@ -6163,6 +6164,47 @@ function endGungameMatch(sim, winnerId, reason) {
   });
 }
 
+// Mappar match_end-event-typ → läges-sträng (matchar klientens PVP_MODES + serverns
+// SERVER_XP_MODES). br_match_end → 'battleroyale'.
+const _XP_EVENT_MODE = {
+  tdm_match_end: 'tdm', ctf_match_end: 'ctf', siege_match_end: 'siege',
+  koth_match_end: 'koth', juggernaut_match_end: 'juggernaut',
+  gungame_match_end: 'gungame', br_match_end: 'battleroyale',
+};
+// Server-auktoritativ match-XP: skanna utgående events efter match_end, normalisera
+// per-spelar-resultatet → [{peerId, kills, won}], kreditera XP server-side för bundna
+// server-auth-konton (accounts.creditMatchEndXp no-op:ar för bots/oflaggade/ej-wired),
+// och pusha acct_xp-events i SAMMA batch (klienten adopterar axp/alevel om peerId==self).
+// Heterogena stats-former: tdm = array [{peerId,team,kills}]; övriga = {perPlayer:{pid:{...}}}.
+// Lag-lägen (tdm/ctf/siege) har winner='red'/'blue'; FFA (koth/jugg/br/gungame) winner=peerId.
+function creditServerXp(sim, events) {
+  let extra = null;
+  for (const ev of events) {
+    const mode = _XP_EVENT_MODE[ev && ev.type];
+    if (!mode) continue;
+    const teamWin = ev.winner === 'red' || ev.winner === 'blue';
+    const rows = [];
+    if (Array.isArray(ev.stats)) {
+      for (const s of ev.stats) {
+        if (!s || s.peerId == null) continue;
+        rows.push({ peerId: String(s.peerId), kills: s.kills || 0, won: teamWin ? (s.team === ev.winner) : (String(s.peerId) === String(ev.winner)) });
+      }
+    } else if (ev.stats && ev.stats.perPlayer) {
+      for (const pid of Object.keys(ev.stats.perPlayer)) {
+        const s = ev.stats.perPlayer[pid] || {};
+        rows.push({ peerId: String(pid), kills: s.kills || 0, won: teamWin ? (s.team === ev.winner) : (pid === String(ev.winner)) });
+      }
+    }
+    for (const r of rows) {
+      const ws = sim.room.members.get(r.peerId);
+      if (!ws || ws._isBot) continue;
+      const res = accounts.creditMatchEndXp(ws, mode, r.kills, r.won);
+      if (res) (extra || (extra = [])).push({ type: 'acct_xp', peerId: r.peerId, axp: res.axp, alevel: res.alevel, gained: res.gained });
+    }
+  }
+  if (extra) for (const e of extra) events.push(e);
+}
+
 function broadcastWorld(sim, now) {
   const fullBroadcast = (now - sim.lastFullAt) > FULL_BROADCAST_MS;
   if (fullBroadcast) sim.lastFullAt = now;
@@ -6237,6 +6279,9 @@ function broadcastWorld(sim, now) {
   // ctf_match_end om sista spelaren disconnectade samma tick).
   if (sim.eventQueue.length > 0 && sim.room.members.size > 0) {
     const events = sim.eventQueue.splice(0);
+    // Server-auktoritativ match-XP (fas 1, no-op om flagga av / inga server-auth-konton):
+    // kreditera + injicera acct_xp-events INNAN serialisering så de går i samma batch.
+    creditServerXp(sim, events);
     // st (additivt, transport-pass 2026-06-10): server-tidsstämpel på batchen —
     // JSON-klienter (Godot) använder den för event↔world-tidslinjering i
     // interpolationsbufferten. V1-webben läser bara .events → okänt fält ignoreras.

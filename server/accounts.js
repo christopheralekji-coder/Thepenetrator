@@ -192,6 +192,42 @@ function creditAxp(acc, n) {
   if (acc.stats.alevel >= 999) acc.stats.axp = Math.min(acc.stats.axp, axpNeeded(999) - 1);
   return leveled;
 }
+// Total ackumulerad XP för (axp inom nivå, alevel) — används för MIGRERING (jämför
+// server- vs klient-progression rättvist; ta den högre EN gång när server tar över).
+function totalXp(axp, alevel) {
+  let lv = Math.max(1, Math.min(999, Math.round(+alevel) || 1));
+  let t = Math.max(0, Math.round(+axp) || 0);
+  for (let k = 1; k < lv; k++) t += axpNeeded(k);
+  return t;
+}
+
+// Gating: vilka konton är server-auktoritativa för XP. SERVERAUTH_XP osatt → ingen
+// (full klient-auth, oförändrat). ='all' → alla. annat truthy → BARA dev-konton (test).
+const _DEV_XP = new Set((process.env.DEV_ACCOUNT_IDS || '86743226').split(',').map((s) => s.trim()).filter(Boolean));
+function serverAuthXpFor(acc) {
+  const f = process.env.SERVERAUTH_XP;
+  if (!f || !acc) return false;
+  if (f === 'all') return true;
+  return _DEV_XP.has(String(acc.id));
+}
+// Lägen där SERVERN krediterar match-XP (har per-spelar-kills i match_end-eventet).
+// Övriga lägen + uppdrag förblir klient-auth (servern accepterar via merge). Utöka när
+// fler lägen verifierats / PvE-kills spåras. Klienten hoppar lokal XP BARA för dessa.
+const SERVER_XP_MODES = new Set((process.env.SERVERAUTH_XP_MODES || 'tdm,ctf,siege,koth,gungame,juggernaut,battleroyale').split(',').map((s) => s.trim()).filter(Boolean));
+
+// Krediterar match-XP server-side för ett bundet, server-auth-konto i ett wired läge.
+// Returnerar {peerId, axp, alevel, gained} för acct_xp-eventet, eller null (no-op).
+function creditMatchEndXp(ws, mode, kills, won) {
+  if (!ws || !ws.accountId) return null;
+  if (!serverAuthXpFor({ id: ws.accountId }) || !SERVER_XP_MODES.has(String(mode))) return null;
+  const acc = accounts.get(ws.accountId);
+  if (!acc) return null;
+  const gained = matchXpAward(kills, won);
+  creditAxp(acc, gained);
+  markDirty();
+  console.log('[XP] credit', acc.id, mode, 'kills=' + (kills | 0), 'won=' + !!won, '→ +' + gained + ' axp, alevel=' + acc.stats.alevel);
+  return { peerId: ws.id, axp: acc.stats.axp, alevel: acc.stats.alevel, gained: gained };
+}
 
 // Laddar LAGRAD (betrodd) stats utan delta-cap (cap:en gäller bara klient-input — annars
 // hade ett konto med >1M coins nollställts vid server-omstart).
@@ -563,6 +599,9 @@ function loginPayload(acc) {
     banned: !!acc.banned,
     economyForce: !!acc._economyForce,   // admin satte ekonomi → klienten adopterar ovillkorligt
     nameForce: !!acc._nameForce,         // admin döpte om → klienten adopterar namnet i Config.player_name
+    // Lägen där SERVERN äger match-XP för DETTA konto. Tom lista = klient-auth (oförändrat).
+    // Klienten hoppar lokal add_axp för dessa lägen och adopterar acct_xp-eventet istället.
+    serverXpModes: serverAuthXpFor(acc) ? [...SERVER_XP_MODES] : [],
   };
 }
 
@@ -695,6 +734,22 @@ function handleUpdate(ws, msg) {
       if (stats.coins != null) stats.coins = me.stats.coins || 0;
       if (stats.axp != null) stats.axp = me.stats.axp || 0;
       if (stats.alevel != null) stats.alevel = me.stats.alevel || 1;
+    }
+    // SERVER-AUKTORITATIV XP: när servern äger XP för kontot ignoreras klientens axp/alevel.
+    // EN gång (migrering) tas dock det HÖGRE av server/klient (skyddar nivå-wipeade konton)
+    // innan servern tar över helt. forced (admin) har företräde och hoppar migreringen.
+    if (!forced && serverAuthXpFor(me) && me.stats) {
+      if (!me._xpMigrated && (stats.axp != null || stats.alevel != null)) {
+        const cliAxp = stats.axp != null ? stats.axp : (me.stats.axp || 0);
+        const cliLv = stats.alevel != null ? stats.alevel : (me.stats.alevel || 1);
+        if (totalXp(cliAxp, cliLv) > totalXp(me.stats.axp || 0, me.stats.alevel || 1)) {
+          me.stats.axp = cliAxp; me.stats.alevel = cliLv;   // klientens progression var högre → behåll
+        }
+        me._xpMigrated = true;
+        console.log('[XP] migrated', me.id, '→ axp=' + (me.stats.axp || 0) + ' alevel=' + (me.stats.alevel || 1));
+      }
+      // efter migrering äger servern axp/alevel → strippa klientens push (anti-fusk)
+      delete stats.axp; delete stats.alevel;
     }
     me.stats = Object.assign({}, me.stats || {}, stats);   // MERGE → tappa ALDRIG ej-skickade fält (t.ex. alevel)
     me.level = computeLevel(me.stats);
@@ -1932,4 +1987,4 @@ function postJSON(url,body,cb){fetch(url,{method:"POST",headers:hdr(),body:JSON.
  return r.json().then(function(j){cb(r.ok,j)}).catch(function(){cb(r.ok,{})})}).catch(function(){cb(false,{})})}
 </script></body></html>`;
 
-module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount, handleAdminHttp };
+module.exports = { handle, onDisconnect, presenceChanged, handleGoogleRedirect, handleGoogleCallback, handleSessionHttp, wsForAccount, handleAdminHttp, creditMatchEndXp };
