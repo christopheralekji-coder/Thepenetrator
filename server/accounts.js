@@ -575,13 +575,34 @@ function resolveAccountFromCreds(msg) {
     accounts.set(id, acc);
     console.log('[ACCT]', id, 'konto skapat');
   }
+  // ADMIN-FORCE vid LOGIN: respektera _economyForce/_nameForce även här (login-vägen) —
+  // annars revertar klientens login-stats/-namn det admin-satta värdet INNAN economyForce-
+  // adoptionen ens hinner verka. (Detta var roten: handleUpdate skyddade acct_update men
+  // INTE login. alevel/coins/axp bor i stats, gems i vault, namnet i acc.name.)
+  const forced = !!acc._economyForce;
+  const nameForced = !!acc._nameForce;
   const name = sanitizeName(msg.name);
-  if (name) recordNameAttempt(acc, name, !nameFlagged(name), false);   // logga försöket (även blockerat)
-  if (name && !nameFlagged(name)) acc.name = name;   // blockera olämpliga namn (behåll befintligt/default)
+  if (name && !nameForced) recordNameAttempt(acc, name, !nameFlagged(name), false);   // logga försöket (även blockerat)
+  if (name && !nameForced && !nameFlagged(name)) acc.name = name;   // blockera olämpliga namn / behåll admin-namn
   if (msg.avatar && typeof msg.avatar === 'object') acc.avatar = msg.avatar;
   const stats = sanitizeStats(msg.stats, acc.stats);
-  if (stats) { acc.stats = Object.assign({}, acc.stats || {}, stats); acc.level = computeLevel(acc.stats); }
-  if (msg.vault) { const v = sanitizeVault(msg.vault); if (v) acc.vault = v; }
+  if (stats) {
+    if (forced && acc.stats) {
+      // behåll serverns admin-satta coins/axp/alevel — skriv INTE klientens vid login
+      if (stats.coins != null) stats.coins = acc.stats.coins || 0;
+      if (stats.axp != null) stats.axp = acc.stats.axp || 0;
+      if (stats.alevel != null) stats.alevel = acc.stats.alevel || 1;
+    }
+    acc.stats = Object.assign({}, acc.stats || {}, stats);
+    acc.level = computeLevel(acc.stats);
+  }
+  if (msg.vault) {
+    const v = sanitizeVault(msg.vault);
+    if (v) {
+      if (forced && acc.vault && typeof acc.vault.gems === 'number') v.gems = acc.vault.gems;  // behåll admin-satta gems
+      acc.vault = v;
+    }
+  }
   // Resync-modellen: klientens friends-lista ERSÄTTER serverns (utelämnat → behåll).
   if (Array.isArray(msg.friends)) acc.friends = sanitizeFriendIds(msg.friends, acc.id);
   acc.lastSeen = Date.now();
