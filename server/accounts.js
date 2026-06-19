@@ -327,6 +327,10 @@ function load() {
       if (typeof a.googleSub === 'string' && a.googleSub) acc.googleSub = a.googleSub;
       if (typeof a.appleSub === 'string' && a.appleSub) acc.appleSub = a.appleSub;
       if (typeof a.gcPlayerId === 'string' && a.gcPlayerId) acc.gcPlayerId = a.gcPlayerId;
+      // server-auth XP: migrering redan utförd → återställ flaggan (saveNow persisterar den
+      // i råobjektet). Utan detta nollas _xpMigrated vid varje omstart → migreringen kör om
+      // på första acct_update och skulle adoptera en klient-uppblåst nivå (fusk-fönster).
+      if (a._xpMigrated) acc._xpMigrated = true;
       indexAccount(acc);
     }
     console.log('[ACCT] laddade', accounts.size, 'konton från', DATA_FILE);
@@ -739,9 +743,16 @@ function handleUpdate(ws, msg) {
     // EN gång (migrering) tas dock det HÖGRE av server/klient (skyddar nivå-wipeade konton)
     // innan servern tar över helt. forced (admin) har företräde och hoppar migreringen.
     if (!forced && serverAuthXpFor(me) && me.stats) {
-      if (!me._xpMigrated && (stats.axp != null || stats.alevel != null)) {
-        const cliAxp = stats.axp != null ? stats.axp : (me.stats.axp || 0);
-        const cliLv = stats.alevel != null ? stats.alevel : (me.stats.alevel || 1);
+      // MIGRERING läser RÅA klient-värden (msg.stats), INTE de delta-cappade (sanitizeStats
+      // klampar alevel-hopp >50 över server-basen → en nivå-60-klient mot server-bas 1 skulle
+      // annars klampas till 1 och låsas PERMANENT av _xpMigrated = nivå-förlust). Detta är ett
+      // engångs-betrott steg → anti-fusk-cap:en är irrelevant här. Normala (klient-auth) vägen
+      // behåller cap:en (sanitizeStats orörd). axp är "rest inom nivå" (<~50k) → aldrig cappad.
+      const rawStats = (msg && msg.stats && typeof msg.stats === 'object') ? msg.stats : null;
+      const hasRawXp = rawStats && (rawStats.axp != null || rawStats.alevel != null);
+      if (!me._xpMigrated && hasRawXp) {
+        const cliAxp = rawStats.axp != null ? Math.max(0, Math.round(+rawStats.axp) || 0) : (me.stats.axp || 0);
+        const cliLv = rawStats.alevel != null ? Math.max(1, Math.min(999, Math.round(+rawStats.alevel) || 1)) : (me.stats.alevel || 1);
         if (totalXp(cliAxp, cliLv) > totalXp(me.stats.axp || 0, me.stats.alevel || 1)) {
           me.stats.axp = cliAxp; me.stats.alevel = cliLv;   // klientens progression var högre → behåll
         }
