@@ -111,8 +111,19 @@ function sanitizeStats(raw, prev) {
 function sanitizeVault(raw) {
   if (!raw || typeof raw !== 'object') return null;
   try {
-    const s = JSON.stringify(raw);
-    if (s.length > 12000) return null;   // för stor → ignorera
+    // valvet bär gems/battle-pass/kosmetik — ALDRIG coins/axp/alevel (de bor i stats
+    // med delta-cap). Strippa ekonomi-stat-nycklar + __proto__ så valvet varken blir en
+    // bypass-vektor eller prototyp-förgiftning.
+    const clean = {};
+    for (const k in raw) {
+      if (!Object.prototype.hasOwnProperty.call(raw, k)) continue;
+      if (k === 'coins' || k === 'axp' || k === 'alevel' || k === '__proto__') continue;
+      clean[k] = raw[k];
+    }
+    const s = JSON.stringify(clean);
+    // C-fix: höjt 12000→65536 — en spelare med mycket kosmetik hade ett valv >12KB som
+    // TYST avvisades → gems fastnade på 0 server-side. 64KB rymmer värsta-fall med marginal.
+    if (s.length > 65536) { console.warn('[ACCT] vault för stor (' + s.length + ' bytes) — ignorerad'); return null; }
     return JSON.parse(s);
   } catch (e) {
     return null;
@@ -571,19 +582,27 @@ function handleUpdate(ws, msg) {
   const name = sanitizeName(msg.name);
   if (name) me.name = name;
   if (msg.avatar && typeof msg.avatar === 'object') me.avatar = msg.avatar;
+  const forced = !!me._economyForce;   // admin satte ekonomi → ignorera klientens ekonomi denna gång
   const stats = sanitizeStats(msg.stats, me.stats);
   if (stats) {
-    if (me._economyForce) {
-      // admin satte ekonomi → klientens (ev. inaktuella) ekonomi-värden IGNORERAS denna
-      // gång (annars kan en stale push undo:a admin-resetten). Servern äger coins/axp/
-      // alevel; behåll dem, ta bara icke-ekonomi (matches/kills/wins). Konsumera flaggan.
+    if (forced) {
+      // behåll serverns coins/axp/alevel (annars kan en stale push undo:a admin-ändringen)
       stats.coins = (me.stats && me.stats.coins) || 0;
       stats.axp = (me.stats && me.stats.axp) || 0;
       stats.alevel = (me.stats && me.stats.alevel) || 1;
-      me._economyForce = false;
     }
     me.stats = stats; me.level = computeLevel(stats);
   }
+  // BUGFIX: vault (gems/battle pass/kosmetik) applicerades ALDRIG i acct_update → servern
+  // hade alltid tom vault (admin såg 0 gems hos alla; gems/kosmetik överlevde ej reinstall).
+  if (msg.vault) {
+    const v = sanitizeVault(msg.vault);
+    if (v) {
+      if (forced && me.vault && typeof me.vault.gems === 'number') v.gems = me.vault.gems;  // bevara admin-satta gems
+      me.vault = v;
+    }
+  }
+  if (forced) me._economyForce = false;   // konsumerad (klienten har adopterat via login)
   markDirty();
   sendOk(ws, 'update');
 }
@@ -1279,6 +1298,7 @@ function adminSetBanned(id, banned) {
 }
 
 function adminSetEconomy(id, fields) {
+  if (!/^[0-9]{1,16}$/.test(String(id))) return null;
   const acc = accounts.get(String(id));
   if (!acc) return null;
   const clampN = (v, max) => Math.max(0, Math.min(max, Math.round(+v) || 0));
@@ -1297,6 +1317,46 @@ function adminSetEconomy(id, fields) {
   console.log('[ADMIN] economy', id, '| coins', before.coins, '→', acc.stats.coins,
     '| gems', before.gems, '→', (acc.vault && acc.vault.gems) || 0, '| alevel', before.alevel, '→', acc.stats.alevel);
   return adminPlayerRow(acc);
+}
+
+function adminSetName(id, name) {
+  if (!/^[0-9]{1,16}$/.test(String(id))) return null;
+  const acc = accounts.get(String(id));
+  if (!acc) return null;
+  const clean = sanitizeName(name);
+  if (!clean) return null;
+  const before = acc.name;
+  acc.name = clean;
+  markDirty();
+  console.log('[ADMIN] rename', id, '|', before, '→', clean);
+  return adminPlayerRow(acc);
+}
+
+function adminDeleteAccount(id) {
+  if (!/^[0-9]{1,16}$/.test(String(id))) return false;
+  const acc = accounts.get(String(id));
+  if (!acc) return false;
+  acc.banned = true;   // stäng reconnect-fönstret mellan kick och delete (bindSocketToAccount avvisar)
+  adminKickSocket(acc.id, 'deleted');
+  revokeSessionsFor(acc.id);
+  online.delete(acc.id);
+  // reversera provider-index (indexAccount) så stale uppslag inte pekar på raderat konto
+  if (acc.email) emailIdx.delete(acc.email);
+  if (acc.googleSub) googleIdx.delete(acc.googleSub);
+  if (acc.appleSub) appleIdx.delete(acc.appleSub);
+  if (acc.gcPlayerId) gcIdx.delete(acc.gcPlayerId);
+  // rensa kvarvarande referenser ur andras vän-/förfrågnings-listor (annars spök-vänskap
+  // om ett nytt konto senare får samma id)
+  for (const other of accounts.values()) {
+    if (other.id === acc.id) continue;
+    arrRemove(other.friends, acc.id);
+    arrRemove(other.reqIn, acc.id);
+    arrRemove(other.reqOut, acc.id);
+  }
+  accounts.delete(acc.id);
+  markDirty();
+  console.log('[ADMIN] delete', id, '(', acc.name, ')');
+  return true;
 }
 
 function _adminReadBody(req) {
@@ -1371,6 +1431,22 @@ async function handleAdminHttp(req, res) {
     const row = adminSetEconomy(body.id, body);
     if (!row) { _adminJson(res, 404, { error: 'not found' }); return; }
     _adminJson(res, 200, { player: row });
+    return;
+  }
+  if (req.method === 'POST' && path === '/admin/api/rename') {
+    const body = await _adminReadBody(req);
+    if (!body || !body.id || typeof body.name !== 'string') { _adminJson(res, 400, { error: 'bad request' }); return; }
+    const row = adminSetName(body.id, body.name);
+    if (!row) { _adminJson(res, 404, { error: 'not found eller ogiltigt namn (2-16 tecken)' }); return; }
+    _adminJson(res, 200, { player: row });
+    return;
+  }
+  if (req.method === 'POST' && path === '/admin/api/delete') {
+    const body = await _adminReadBody(req);
+    if (!body || !body.id) { _adminJson(res, 400, { error: 'bad request' }); return; }
+    const ok = adminDeleteAccount(body.id);
+    if (!ok) { _adminJson(res, 404, { error: 'not found' }); return; }
+    _adminJson(res, 200, { deleted: true });
     return;
   }
   _adminJson(res, 404, { error: 'unknown admin route' });
@@ -1638,6 +1714,11 @@ function openDrawer(p){CUR=p;var d=$("drawer");d.textContent="";
  // status
  var st=el("div","sec");st.appendChild(secTitle("Status"));var sr=el("div");sr.style.display="flex";sr.style.gap="8px";sr.style.alignItems="center";
  sr.appendChild(badge(p));sr.appendChild(el("span","mut tiny",ago(p.lastSeen)));st.appendChild(sr);body.appendChild(st);
+ var rn=el("div","sec");rn.appendChild(secTitle("Byt namn"));var rf=el("div","field");
+ var rinp=el("input");rinp.type="text";rinp.value=p.name||"";rinp.maxLength=16;rinp.style.flex="1";rf.appendChild(rinp);
+ var rbtn=el("button",null,"Spara");rbtn.style.cssText="padding:11px 16px;background:var(--panel2);border:1px solid var(--line)";
+ rbtn.onclick=function(){var nn=(rinp.value||"").trim();if(nn.length<2){toast("Minst 2 tecken","err");return}postJSON("/admin/api/rename",{id:p.id,name:nn},function(ok,r){if(ok){toast("Namn sparat","ok");mergeRow(r.player);closeDrawer()}else toast("Ogiltigt namn","err")})};
+ rf.appendChild(rbtn);rn.appendChild(rf);body.appendChild(rn);
  // identity
  var prov=[["E-post",p.bound&&p.bound.email],["Google",p.bound&&p.bound.google],["Apple",p.bound&&p.bound.apple],["Game Center",p.bound&&p.bound.gc]];
  var ps=el("div","sec");ps.appendChild(secTitle("Inloggning"));var pw=el("div","prov");
@@ -1670,7 +1751,11 @@ function openDrawer(p){CUR=p;var d=$("drawer");d.textContent="";
    p.banned?"Avbanna":"Banna",p.banned?"gold":"danger",function(){
     postJSON("/admin/api/ban",{id:p.id,banned:!p.banned},function(ok,r){
      if(ok){toast(p.banned?"Avbannad":"Bannad","ok");mergeRow(r.player);closeDrawer()}else toast("Misslyckades","err")})})};
- mw.appendChild(banBtn);mo.appendChild(mw);body.appendChild(mo);
+ mw.appendChild(banBtn);
+ var delBtn=el("button","btn-kick","Radera");delBtn.style.color="var(--danger)";
+ delBtn.onclick=function(){confirmBox("Radera "+(p.name||p.id)+"?","Kontot raderas permanent och kan inte återställas. Använd för skräp-/test-konton.","Radera permanent","danger",function(){postJSON("/admin/api/delete",{id:p.id},function(ok){if(ok){toast("Kontot raderat","ok");closeDrawer();load()}else toast("Misslyckades","err")})})};
+ mw.appendChild(delBtn);
+ mo.appendChild(mw);body.appendChild(mo);
  d.appendChild(body);
  $("scrim").classList.add("show");d.classList.add("show")
 }
