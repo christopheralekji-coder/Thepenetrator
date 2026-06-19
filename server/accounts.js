@@ -161,6 +161,38 @@ function sanitizeStats(raw, prev) {
   return out;
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// SERVER-AUKTORITATIV KONTO-XP/NIVÅ (fas 1) — bakom feature-flagga SERVERAUTH_XP.
+// SPEGEL av klientens formler (Save.gd): axp_needed(level)=100+(level-1)*50, och
+// match-XP = (vinst?30:12)+min(kills,20). axp lagras som "rest inom nuvarande nivå"
+// (klienten subtraherar vid level-up) → vi replikerar add_axp exakt. Köpta nivåer
+// (buy_account_level) är redan inbakade i alevel. FLAGGA AV = motorn rör inget.
+// ════════════════════════════════════════════════════════════════════════════
+function serverAuthXpOn() { return !!process.env.SERVERAUTH_XP; }
+function axpNeeded(level) { return 100 + (Math.max(1, level) - 1) * 50; }
+function matchXpAward(kills, won) {
+  return (won ? 30 : 12) + Math.min(Math.max(0, Math.round(+kills) || 0), 20);
+}
+// Replikerar Save.add_axp(): lägg till axp, level-up-loop. Muterar acc.stats. Returnerar
+// antal nivåer höjda. Anropas BARA server-side (match-slut / validerad uppdrags-claim).
+function creditAxp(acc, n) {
+  if (!acc) return 0;
+  if (!acc.stats || typeof acc.stats !== 'object') acc.stats = { matches: 0, kills: 0, wins: 0 };
+  if (typeof acc.stats.axp !== 'number') acc.stats.axp = 0;
+  if (typeof acc.stats.alevel !== 'number' || acc.stats.alevel < 1) acc.stats.alevel = 1;
+  n = Math.max(0, Math.round(+n) || 0);
+  if (n <= 0) return 0;
+  acc.stats.axp += n;
+  let leveled = 0;
+  while (acc.stats.axp >= axpNeeded(acc.stats.alevel) && acc.stats.alevel < 999) {
+    acc.stats.axp -= axpNeeded(acc.stats.alevel);
+    acc.stats.alevel += 1;
+    leveled++;
+  }
+  if (acc.stats.alevel >= 999) acc.stats.axp = Math.min(acc.stats.axp, axpNeeded(999) - 1);
+  return leveled;
+}
+
 // Laddar LAGRAD (betrodd) stats utan delta-cap (cap:en gäller bara klient-input — annars
 // hade ett konto med >1M coins nollställts vid server-omstart).
 function loadStats(raw) {
