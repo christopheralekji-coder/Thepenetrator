@@ -123,6 +123,20 @@ function nameFlagged(name) {
   return false;
 }
 
+// Namn-historik (moderations-logg): varje DISTINKT namn-försök sparas med status
+// (ok=godkänt, ok:false=blockerat av filtret, adm=admin-satt). Dedupas i rad så
+// upprepade pushar av samma namn inte spammar. Capad till 50 senaste per konto.
+function recordNameAttempt(acc, name, ok, adm) {
+  if (!name || typeof name !== 'string') return;
+  if (!Array.isArray(acc.nameHistory)) acc.nameHistory = [];
+  const h = acc.nameHistory;
+  const last = h[h.length - 1];
+  if (last && last.name === name && !!last.ok === !!ok && !!last.adm === !!adm) return;
+  h.push({ name: name, ok: !!ok, adm: !!adm, t: Date.now() });
+  if (h.length > 50) acc.nameHistory = h.slice(-50);
+  markDirty();
+}
+
 function sanitizeStats(raw, prev) {
   if (!raw || typeof raw !== 'object') return null;
   const n = (v) => Math.max(0, Math.min(99999999, Math.round(+v) || 0));
@@ -220,6 +234,7 @@ function load() {
         vault: (a.vault && typeof a.vault === 'object') ? a.vault : null,
         referredBy: (typeof a.referredBy === 'string') ? a.referredBy : '',
         banned: !!a.banned,   // admin-ban (persisterar — load() återskapar explicita fält)
+        nameHistory: Array.isArray(a.nameHistory) ? a.nameHistory.slice(-50) : [],   // namn-historik
       });
       const acc = accounts.get(a.id);
       acc.level = computeLevel(acc.stats);
@@ -471,6 +486,7 @@ function resolveAccountFromCreds(msg) {
     console.log('[ACCT]', id, 'konto skapat');
   }
   const name = sanitizeName(msg.name);
+  if (name) recordNameAttempt(acc, name, !nameFlagged(name), false);   // logga försöket (även blockerat)
   if (name && !nameFlagged(name)) acc.name = name;   // blockera olämpliga namn (behåll befintligt/default)
   if (msg.avatar && typeof msg.avatar === 'object') acc.avatar = msg.avatar;
   const stats = sanitizeStats(msg.stats, acc.stats);
@@ -622,6 +638,7 @@ function handleUpdate(ws, msg) {
   if (!me) { sendErr(ws, 'auth'); return; }
   const nameForced = !!me._nameForce;  // admin döpte om → ignorera klientens namn-push tills adopterat
   const name = sanitizeName(msg.name);
+  if (name && !nameForced) recordNameAttempt(me, name, !nameFlagged(name), false);   // logga försöket
   if (name && !nameForced && !nameFlagged(name)) me.name = name;   // blockera olämpliga namn
   if (msg.avatar && typeof msg.avatar === 'object') me.avatar = msg.avatar;
   const forced = !!me._economyForce;   // admin satte ekonomi → ignorera klientens ekonomi denna gång
@@ -1293,6 +1310,8 @@ function adminPlayerRow(acc) {
     online: online.has(acc.id),
     banned: !!acc.banned,
     flagged: nameFlagged(acc.name),   // namn-filter: misstänkt olämpligt namn → ⚠ i panelen
+    nameHistory: (acc.nameHistory || []).slice(-20),
+    badNames: (acc.nameHistory || []).reduce(function (n, e) { return n + (e && !e.ok ? 1 : 0); }, 0),
     bound: boundOf(acc),
   };
 }
@@ -1373,6 +1392,7 @@ function adminSetName(id, name) {
   const before = acc.name;
   acc.name = clean;
   acc._nameForce = true;   // klienten adopterar namnet vid nästa login (annars skriver den tillbaka sitt lokala)
+  recordNameAttempt(acc, clean, true, true);   // logga admin-rename i namn-historiken
   markDirty();
   console.log('[ADMIN] rename', id, '|', before, '→', clean);
   return adminPlayerRow(acc);
@@ -1620,6 +1640,15 @@ main{padding:14px 16px 40px;max-width:920px;margin:0 auto}
 .prov{display:flex;gap:6px;flex-wrap:wrap}
 .prov span{font-size:11px;padding:4px 9px;border-radius:8px;background:var(--panel2);color:var(--mut);border:1px solid var(--line)}
 .prov span.y{color:var(--ok);border-color:rgba(70,211,154,.3)}
+.nhist{display:flex;flex-direction:column;gap:5px}
+.nhrow{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--panel2);border:1px solid var(--line);border-radius:9px}
+.nhname{flex:1;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nhname.blk{color:var(--danger);text-decoration:line-through;opacity:.9}
+.nhtag{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:999px;text-transform:uppercase;letter-spacing:.3px}
+.nhtag.ok{background:rgba(70,211,154,.14);color:var(--ok)}
+.nhtag.blk{background:rgba(255,93,108,.16);color:var(--danger)}
+.nhtag.adm{background:rgba(245,181,63,.16);color:var(--gold)}
+.nhtime{font-size:11px;color:var(--mut);min-width:54px;text-align:right}
 /* CONFIRM */
 .cf{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:24px;
  background:rgba(4,6,10,.7);opacity:0;pointer-events:none;transition:.18s}
@@ -1770,6 +1799,18 @@ function openDrawer(p){CUR=p;var d=$("drawer");d.textContent="";
  var rbtn=el("button",null,"Spara");rbtn.style.cssText="padding:11px 16px;background:var(--panel2);border:1px solid var(--line)";
  rbtn.onclick=function(){var nn=(rinp.value||"").trim();if(nn.length<2){toast("Minst 2 tecken","err");return}postJSON("/admin/api/rename",{id:p.id,name:nn},function(ok,r){if(ok){toast("Namn sparat","ok");mergeRow(r.player);closeDrawer()}else toast("Ogiltigt namn","err")})};
  rf.appendChild(rbtn);rn.appendChild(rf);body.appendChild(rn);
+ if(p.nameHistory&&p.nameHistory.length){
+  var nh=el("div","sec");var ht="Namn-historik ("+p.nameHistory.length+")";if(p.badNames)ht+=" · "+p.badNames+" blockerade";nh.appendChild(secTitle(ht));
+  var nl=el("div","nhist");
+  p.nameHistory.slice().reverse().forEach(function(e){
+   var row=el("div","nhrow");
+   var nm2=el("span","nhname"+(e.ok?"":" blk"),e.name);row.appendChild(nm2);
+   var tag=el("span","nhtag "+(e.adm?"adm":e.ok?"ok":"blk"),e.adm?"admin":e.ok?"ok":"blockerad");row.appendChild(tag);
+   row.appendChild(el("span","nhtime",ago(e.t)));
+   nl.appendChild(row);
+  });
+  nh.appendChild(nl);body.appendChild(nh);
+ }
  // identity
  var prov=[["E-post",p.bound&&p.bound.email],["Google",p.bound&&p.bound.google],["Apple",p.bound&&p.bound.apple],["Game Center",p.bound&&p.bound.gc]];
  var ps=el("div","sec");ps.appendChild(secTitle("Inloggning"));var pw=el("div","prov");
