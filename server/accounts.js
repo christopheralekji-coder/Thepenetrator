@@ -460,6 +460,7 @@ function loginPayload(acc) {
     vault: acc.vault || null,
     banned: !!acc.banned,
     economyForce: !!acc._economyForce,   // admin satte ekonomi → klienten adopterar ovillkorligt
+    nameForce: !!acc._nameForce,         // admin döpte om → klienten adopterar namnet i Config.player_name
   };
 }
 
@@ -579,8 +580,9 @@ function handleSessionHttp(req, res) {
 function handleUpdate(ws, msg) {
   const me = getMe(ws);
   if (!me) { sendErr(ws, 'auth'); return; }
+  const nameForced = !!me._nameForce;  // admin döpte om → ignorera klientens namn-push tills adopterat
   const name = sanitizeName(msg.name);
-  if (name) me.name = name;
+  if (name && !nameForced) me.name = name;
   if (msg.avatar && typeof msg.avatar === 'object') me.avatar = msg.avatar;
   const forced = !!me._economyForce;   // admin satte ekonomi → ignorera klientens ekonomi denna gång
   const stats = sanitizeStats(msg.stats, me.stats);
@@ -603,6 +605,7 @@ function handleUpdate(ws, msg) {
     }
   }
   if (forced) me._economyForce = false;   // konsumerad (klienten har adopterat via login)
+  if (nameForced) me._nameForce = false;  // konsumerad (klienten har adopterat namnet via login)
   markDirty();
   sendOk(ws, 'update');
 }
@@ -1327,6 +1330,7 @@ function adminSetName(id, name) {
   if (!clean) return null;
   const before = acc.name;
   acc.name = clean;
+  acc._nameForce = true;   // klienten adopterar namnet vid nästa login (annars skriver den tillbaka sitt lokala)
   markDirty();
   console.log('[ADMIN] rename', id, '|', before, '→', clean);
   return adminPlayerRow(acc);
