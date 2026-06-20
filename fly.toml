@@ -18,7 +18,7 @@ primary_region = "arn"
   # SERVER-AUKTORITATIV XP (fas 1): "1" = BARA dev-konton (DEV_ACCOUNT_IDS) blir server-auth
   # för PvP-XP (test). "all" = alla spelare. Osatt = av (klient-auth). Aktiverad 2026-06-19
   # för dev-test på EU. Bredda till "all" + us/asia när verifierad.
-  SERVERAUTH_XP = "1"
+  SERVERAUTH_XP = "all"
 
 [[mounts]]
   source = "wp_data"

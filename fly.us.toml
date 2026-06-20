@@ -9,6 +9,7 @@ primary_region = "iad"
 
 [env]
   ACCOUNTS_DATA_DIR = "/data"
+  SERVERAUTH_XP = "all"   # server-auktoritativ PvP-XP för ALLA spelare (bredd-rollout 2026-06-20)
 
 [[mounts]]
   source = "wp_data"
