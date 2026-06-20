@@ -15,6 +15,10 @@ primary_region = "arn"
   # AUDIT C175: dev-konto-id(n) som får trigga cheats (komma-separerat). Ej hemligt
   # (bara ett konto-id; cheaten gatas server-side mot detta). Lägg till fler vid behov.
   DEV_ACCOUNT_IDS = "86743226"
+  # SERVER-AUKTORITATIV XP (fas 1): "1" = BARA dev-konton (DEV_ACCOUNT_IDS) blir server-auth
+  # för PvP-XP (test). "all" = alla spelare. Osatt = av (klient-auth). Aktiverad 2026-06-19
+  # för dev-test på EU. Bredda till "all" + us/asia när verifierad.
+  SERVERAUTH_XP = "1"
 
 [[mounts]]
   source = "wp_data"
