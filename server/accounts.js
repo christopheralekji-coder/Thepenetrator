@@ -790,8 +790,19 @@ function handleUpdate(ws, msg) {
         me._xpMigrated = true;
         console.log('[XP] migrated', me.id, '→ axp=' + (me.stats.axp || 0) + ' alevel=' + (me.stats.alevel || 1));
       }
-      // efter migrering äger servern axp/alevel → strippa klientens push (anti-fusk)
-      delete stats.axp; delete stats.alevel;
+      // MONOTON-MAX (ersätter tidigare hård strip): acceptera klientens (cappade) axp/alevel
+      // BARA som en ÖKNING — så legitim ICKE-match-XP (daily +25 / weekly +80 via Save.add_axp)
+      // krediteras kontot. ALDRIG en MINSKNING (skyddar server-krediterad match-XP om ett
+      // acct_xp-event tappades). Ingen dubbelräkning: klienten adopterar serverns match-XP via
+      // acct_xp + hoppar lokal match-XP, och pushar sedan SAMMA värde (max = no-op); match-XP
+      // räknas via identisk formel server↔klient. Anti-fusk = sanitizeStats-cap:en (oförändrad).
+      const cAxp = stats.axp != null ? stats.axp : (me.stats.axp || 0);
+      const cLv = stats.alevel != null ? stats.alevel : (me.stats.alevel || 1);
+      if (totalXp(cAxp, cLv) > totalXp(me.stats.axp || 0, me.stats.alevel || 1)) {
+        stats.axp = cAxp; stats.alevel = cLv;       // klienten HÖGRE (la till daily/weekly) → behåll
+      } else {
+        delete stats.axp; delete stats.alevel;       // klienten lägre/lika → behåll serverns (skydda match-XP)
+      }
     }
     me.stats = Object.assign({}, me.stats || {}, stats);   // MERGE → tappa ALDRIG ej-skickade fält (t.ex. alevel)
     me.level = computeLevel(me.stats);
