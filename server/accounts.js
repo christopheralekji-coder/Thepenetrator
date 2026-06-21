@@ -1456,19 +1456,13 @@ async function handleAppleLogin(ws, msg) { applyChannelResult(ws, await coreAppl
 // satt. Prod (utan override) kräver äkta DER-cert från *.apple.com.
 async function coreGcLogin(me, msg) {
   const bundleIds = appleBundleIds();
-  if (!bundleIds) { console.warn('[GC-DIAG] notconfigured (APPLE_BUNDLE_IDS saknas)'); return { kind: 'err', code: 'notconfigured' }; }
+  if (!bundleIds) return { kind: 'err', code: 'notconfigured' };
   const playerId = typeof msg.playerId === 'string' ? msg.playerId.slice(0, 128) : '';
   const bundleId = typeof msg.bundleId === 'string' ? msg.bundleId : '';
   const ts = +msg.timestamp;
-  // TEMP DIAGNOS (GC-bind-bugg): logga inkommande fält + varje avslags-orsak (alla var TYSTA).
-  console.log('[GC-DIAG] attempt me=' + (me ? me.id : 'null') + ' pidLen=' + playerId.length +
-    ' bundleId=' + JSON.stringify(bundleId) + ' allowed=' + JSON.stringify(bundleIds) +
-    ' ts=' + ts + ' skewMin=' + (Number.isFinite(ts) ? Math.round((Date.now() - ts) / 60000) : 'NaN') +
-    ' sigLen=' + String(msg.signature || '').length + ' saltLen=' + String(msg.salt || '').length +
-    ' keyUrl=' + JSON.stringify(String(msg.publicKeyUrl || '').slice(0, 80)));
-  if (!playerId || !bundleId || !Number.isFinite(ts) || ts <= 0) { console.warn('[GC-DIAG] badtoken: tomt fält (pid/bundle/ts)'); return { kind: 'err', code: 'badtoken' }; }
-  if (!bundleIds.includes(bundleId)) { console.warn('[GC-DIAG] badtoken: bundleId ej i allow-list'); return { kind: 'err', code: 'badtoken' }; }
-  if (Math.abs(Date.now() - ts) > 7 * 24 * 3600 * 1000) { console.warn('[GC-DIAG] badtoken: timestamp utanför ±7d (skewMin=' + Math.round((Date.now() - ts) / 60000) + ')'); return { kind: 'err', code: 'badtoken' }; } // ±7 dygn
+  if (!playerId || !bundleId || !Number.isFinite(ts) || ts <= 0) return { kind: 'err', code: 'badtoken' };
+  if (!bundleIds.includes(bundleId)) return { kind: 'err', code: 'badtoken' };
+  if (Math.abs(Date.now() - ts) > 7 * 24 * 3600 * 1000) return { kind: 'err', code: 'badtoken' }; // ±7 dygn
   const override = process.env.GC_CERT_URL_OVERRIDE;
   let certUrl;
   if (override) {
@@ -1476,7 +1470,7 @@ async function coreGcLogin(me, msg) {
   } else {
     let host = '';
     try { host = new URL(String(msg.publicKeyUrl || '')).hostname; } catch (e) {}
-    if (!host.endsWith('.apple.com')) { console.warn('[GC-DIAG] badtoken: keyUrl-host ej .apple.com (host=' + JSON.stringify(host) + ')'); return { kind: 'err', code: 'badtoken' }; }
+    if (!host.endsWith('.apple.com')) return { kind: 'err', code: 'badtoken' };
     certUrl = String(msg.publicKeyUrl);
   }
   let pubKey = null;
@@ -1503,9 +1497,8 @@ async function coreGcLogin(me, msg) {
       Buffer.from(String(msg.salt || ''), 'base64'),
     ]);
     okSig = crypto.verify('sha256', signed, pubKey, Buffer.from(String(msg.signature || ''), 'base64'));
-  } catch (e) { console.warn('[GC-DIAG] sig-verify kastade —', e.message); }
-  if (!okSig) { console.warn('[GC-DIAG] badtoken: signatur verifierade EJ (cert OK men sig fel)'); return { kind: 'err', code: 'badtoken' }; }
-  console.log('[GC-DIAG] signatur OK → fortsätter till bind/switch för player', playerId.slice(0, 12));
+  } catch (e) {}
+  if (!okSig) return { kind: 'err', code: 'badtoken' };
   const ownerId = gcIdx.get(playerId);
   const ownerAcc = ownerId ? accounts.get(ownerId) : null;
   if (ownerId && !ownerAcc) gcIdx.delete(playerId);   // index-desync (kontot raderat) → städa
