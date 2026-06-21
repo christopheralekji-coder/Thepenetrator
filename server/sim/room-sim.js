@@ -1129,6 +1129,14 @@ function buildTdmPickups(sim, arena) {
   for (const g of (TDM_ARENA.gravitySpawns || [])) {
     list.push({ id: nextPickupId(sim), x: g.x, y: g.y, type: 'gravity', available: true, respawnAt: 0 });
   }
+  // FRAG + RÖK (2026-06-21): 6 frag + 6 rök, symmetriskt (arena-arrayerna är speglade).
+  // type:'grenade' = frag (grenadesGained), type:'smoke' = rök (smokeGained) — redan wirade.
+  for (const g of (TDM_ARENA.fragSpawns || [])) {
+    list.push({ id: nextPickupId(sim), x: g.x, y: g.y, type: 'grenade', available: true, respawnAt: 0 });
+  }
+  for (const g of (TDM_ARENA.smokeSpawns || [])) {
+    list.push({ id: nextPickupId(sim), x: g.x, y: g.y, type: 'smoke', available: true, respawnAt: 0 });
+  }
   // HP + shield i mid-fältet (symmetriskt, läses från arena)
   for (const p of (TDM_ARENA.hpSpawns || [])) {
     list.push({ id: nextPickupId(sim), x: p.x, y: p.y, type: 'hp', available: true, respawnAt: 0 });
@@ -8140,14 +8148,18 @@ function applyPlayerInput(sim, peerId, input) {
                    sim.gungameActive || sim.kothActive ||
                    sim.juggernautActive || sim.battleroyaleActive;
   if (typeof input.hp === 'number' && ws.playerState.gulagState !== 'fighting') {
-    // Stale-death-echo-skydd: en klient som ekar hp<=0 MEDAN servern har spelaren
-    // LEVANDE (hp>0) = fördröjt/stale eko, applicera INTE. Drabbade CO-OP REMATCH:
-    // gamla scenens hp=0-inputs anländer efter serverns respawn-reset → server 0 →
-    // world-eko 0 → klient ekar 0 → EVIG DÖD-LOOP ("spela igen → spawnar död").
-    // Gällde förut bara _pureP2P (M2-fix för PvP); co-op behövde det också. Legit
-    // co-op-död är server-driven (server hp då också <=0 → guard triggar EJ).
-    const staleDeathEcho = input.hp <= 0 && ws.playerState.hp > 0;
-    if (!staleDeathEcho) ws.playerState.hp = input.hp;
+    if (!_pureP2P) {
+      // CO-OP/story: klient-hp är legitimt auktoritärt (klienten räknar kontakt-skada).
+      // Stale-death-echo-skydd: en klient som ekar hp<=0 MEDAN servern har spelaren
+      // LEVANDE (hp>0) = fördröjt/stale eko, applicera INTE. Drabbade CO-OP REMATCH:
+      // gamla scenens hp=0-inputs anländer efter respawn-reset → EVIG DÖD-LOOP.
+      const staleDeathEcho = input.hp <= 0 && ws.playerState.hp > 0;
+      if (!staleDeathEcho) ws.playerState.hp = input.hp;
+    }
+    // _pureP2P (TDM/CTF/siege/koth/gungame/jugg/BR): servern ÄGER hp helt (all skada är
+    // server-auth via bullets/granater). Klient-hp-ekot IGNORERAS — annars kunde en SEN
+    // sim_input med hp=5 (värdet före respawn) skriva över serverns respawn-hp=100 →
+    // "spawnar med 5 hp + 100 shield" (shield skyddades av 600ms-echo-gate, hp ej).
   }
   // v2: klient-rapporterad max hp/shield (hp-upgrade/glasscannon/shield-perk) →
   // respawn återställer till FULLT istället för hårdkodat 100. Saniterat (1..2000).

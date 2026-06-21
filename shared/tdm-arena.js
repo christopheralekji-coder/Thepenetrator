@@ -96,13 +96,17 @@ const TDM_ARENA = {
     { x: 1470, y: 360, weaponId: 'rocket' },
   ],
 
-  // Granat-loot i MITT-KORRIDOREN (mellan containrarna). 2026-06-17: SYMMETRISKT runt
-  // y=1000 (speglas) så BÅDA lagen har EXAKT samma åtkomst till varje typ. Definieras
-  // på röd sida (y<1000) + speglas → 4 bländgranater + 4 molotovs + 2 gravitationsgranater.
-  // Man spawnar med 0 granater och greppar i mitten. (Frag/rök borttagna ur TDM.)
+  // Granat-loot. SYMMETRISKT runt y=1000 (speglas) så BÅDA lagen har EXAKT samma åtkomst
+  // till varje typ. Definieras på röd sida (y<1000) + speglas. Man spawnar med 0 granater
+  // och greppar på kartan.
   flashSpawns:   [{ x: 770, y: 905 }, { x: 930, y: 905 }],   // → 4 bländgranater
   molotovSpawns: [{ x: 770, y: 868 }, { x: 930, y: 868 }],   // → 4 molotovs
   gravitySpawns: [{ x: 850, y: 888 }],                       // → 2 gravitationsgranater
+  // FRAG + RÖK (användarbeslut 2026-06-21): 3 per typ på röd sida → speglas → 6 frag + 6 rök.
+  // Mid-rear-zon (undviker center-klustret y≈868-905 + shield-kolumnen x=850/y=680) — vänster-
+  // lane / center / höger-lane, x-speglat inom sidan + y-speglat mellan lagen = perfekt rättvist.
+  fragSpawns:    [{ x: 200, y: 600 }, { x: 850, y: 560 }, { x: 1500, y: 600 }],   // → 6 frag
+  smokeSpawns:   [{ x: 380, y: 740 }, { x: 850, y: 800 }, { x: 1320, y: 740 }],   // → 6 rök
 
   // HP + shield i mid-fältet (symmetriskt)
   hpSpawns:     [{ x: 250, y: 1000 }, { x: 1450, y: 1000 }],
@@ -122,6 +126,8 @@ TDM_ARENA.weaponSpawns.push({ x: 850, y: 1000, weaponId: 'minigun' });
 TDM_ARENA.flashSpawns   = TDM_ARENA.flashSpawns.concat(TDM_ARENA.flashSpawns.map(p => _mirrorPt(p)));
 TDM_ARENA.molotovSpawns = TDM_ARENA.molotovSpawns.concat(TDM_ARENA.molotovSpawns.map(p => _mirrorPt(p)));
 TDM_ARENA.gravitySpawns = TDM_ARENA.gravitySpawns.concat(TDM_ARENA.gravitySpawns.map(p => _mirrorPt(p)));
+TDM_ARENA.fragSpawns    = TDM_ARENA.fragSpawns.concat(TDM_ARENA.fragSpawns.map(p => _mirrorPt(p)));   // 3→6 frag, symmetriskt
+TDM_ARENA.smokeSpawns   = TDM_ARENA.smokeSpawns.concat(TDM_ARENA.smokeSpawns.map(p => _mirrorPt(p)));   // 3→6 rök, symmetriskt
 // (hp/shield-arrayerna är redan symmetriska — spegla EJ, ger dubbletter)
 TDM_ARENA.walls = _topWalls.concat(_topWalls.map(_mirrorWall)).concat(_centerWalls);
 
