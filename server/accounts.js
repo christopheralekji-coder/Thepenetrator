@@ -764,8 +764,10 @@ function handleSessionHttp(req, res) {
       }
       if (op === 'email_login') return applyHttpResult(res, coreEmailLogin(msg));
       if (op === 'email_bind') return applyHttpResult(res, coreEmailBind(meFromToken(msg.token), msg));
-      if (op === 'apple_login') return applyHttpResult(res, await coreAppleLogin(meFromToken(msg.token), msg));
-      if (op === 'gc_login') return applyHttpResult(res, await coreGcLogin(meFromToken(msg.token), msg));
+      // apple/gc: resolva me via token ELLER creds-fallback (id+secret över TLS) → binder på
+      // gäst-kontot i st.f. att skapa ett nytt (dubbelkonto-fix).
+      if (op === 'apple_login') return applyHttpResult(res, await coreAppleLogin(meFromTokenOrCreds(msg), msg));
+      if (op === 'gc_login') return applyHttpResult(res, await coreGcLogin(meFromTokenOrCreds(msg), msg));
       res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'badop' }));
     } catch (e) {
       console.warn('[ACCT] /auth/session fel —', e.message);
@@ -1291,6 +1293,62 @@ function sendSwitchRaw(ws, acc) {
   safeSend(ws, { type: 'acct_switch', id: acc.id, secret: acc.secret, name: acc.name });
 }
 
+// DUBBELKONTO-FIX: klienten skapar ETT gäst-konto vid app-start (resolveAccountFromCreds),
+// och en provider-login (Apple/GC) skapade FÖRR ett ANDRA konto när `me` var null (klienten
+// skickade ingen token innan den hunnit logga in) → gäst-kontot blev en föräldralös "Spelare"-
+// spöke (2 profiler i panelen). Fix: (1) klienten skickar nu ALLTID sina creds (id+secret över
+// TLS) med provider-loginen → servern resolvar gäst-kontot här och BINDER providern på det
+// (inget nytt konto). (2) Är providern redan knuten till ett ANNAT konto OCH `me` är ett tomt
+// gäst-konto → SWITCH till det riktiga + städa bort det tomma gästkontot.
+
+// Resolvar `me` från session-token ELLER (fallback, TLS-only) klientens id+secret. Secret-
+// kollen gör att en angripare bara kan resolva SITT EGET konto (ingen takeover).
+function meFromTokenOrCreds(msg) {
+  const t = meFromToken(msg.token);
+  if (t) return t;
+  const id = typeof msg.id === 'string' ? msg.id.trim() : '';
+  const secret = typeof msg.secret === 'string' ? msg.secret : '';
+  if (id && secret.length >= 16) {
+    const a = accounts.get(id);
+    if (a && typeof a.secret === 'string' && a.secret.length === secret.length) {
+      try { if (crypto.timingSafeEqual(Buffer.from(a.secret), Buffer.from(secret))) return a; } catch (e) {}
+    }
+  }
+  return null;
+}
+
+// Strikt tomt-gäst-test: INGA provider-bindningar, default-namn, NOLL progression, inga
+// vänner/förfrågningar, tom vault. Måste vara strikt — vi får ALDRIG reclaim:a/radera ett
+// konto med riktig progress.
+function isEmptyGuest(acc) {
+  if (!acc) return false;
+  if (acc.email || acc.googleSub || acc.appleSub || acc.gcPlayerId) return false;  // bundet = riktigt
+  if (acc.banned || acc._economyForce || acc._nameForce) return false;             // admin rörde kontot → rör ej
+  if (acc.name && acc.name !== 'Spelare') return false;                            // omdöpt = engagerad
+  if (acc.referredBy) return false;                                                // referral-inlöst → bevara markören
+  if (acc.avatar && typeof acc.avatar === 'object' && Object.keys(acc.avatar).length > 0) return false;  // vald avatar
+  const s = acc.stats || {};
+  if ((s.matches | 0) || (s.kills | 0) || (s.wins | 0) || (s.coins | 0) || (s.axp | 0)) return false;
+  if ((s.alevel || 1) > 1) return false;
+  if ((acc.friends || []).length || (acc.reqIn || []).length || (acc.reqOut || []).length) return false;
+  const v = acc.vault;
+  if (v && typeof v === 'object' && ((v.gems | 0) > 0 || Object.keys(v).length > 0)) return false;
+  return true;
+}
+
+// Städar bort ett TOMT gäst-konto efter en switch till spelarens riktiga konto. Dubbel-
+// kollar isEmptyGuest (aldrig radera progress). keepId = kontot vi switchar TILL (rör ej).
+function reclaimEmptyGuest(guestId, keepId) {
+  if (!guestId || guestId === keepId) return;
+  const g = accounts.get(guestId);
+  if (!g || !isEmptyGuest(g)) return;   // säkerhetsspärr: bara verifierat tomma gäster
+  accounts.delete(guestId);
+  online.delete(guestId);
+  revokeSessionsFor(guestId);
+  markDirty();
+  console.log('[ACCT] tomt gäst-konto', guestId, 'städat (switch →', keepId + ')');
+}
+
 // Nytt konto skapat av en provider-login (Apple/Google/GC utan befintligt
 // konto). Servern genererar secret — klienten tar över det via acct_switch.
 function createProviderAccount(fields) {
@@ -1328,17 +1386,25 @@ async function coreAppleLogin(me, msg) {
   const sub = (payload && typeof payload.sub === 'string') ? payload.sub : '';
   if (!issOk || !audOk || !expOk || !sub) return { kind: 'err', code: 'badtoken' };
   const ownerId = appleIdx.get(sub);
+  const ownerAcc = ownerId ? accounts.get(ownerId) : null;
+  if (ownerId && !ownerAcc) appleIdx.delete(sub);   // index-desync (kontot raderat) → städa, fall igenom till bind
+  if (me && ownerAcc && ownerId !== me.id) {
+    // Apple-sub tillhör ett ANNAT (existerande) konto. Är `me` bara detta installs tomma
+    // gäst-konto → reinstall/byte-av-enhet: SWITCH till det riktiga + städa gästkontot EFTER
+    // att vi vet att målet finns. Är `me` ett RIKTIGT konto → taken (ingen kapning).
+    if (isEmptyGuest(me)) { reclaimEmptyGuest(me.id, ownerId); return { kind: 'switch', acc: ownerAcc }; }
+    return { kind: 'err', code: 'taken' };
+  }
   if (me) {
-    if (ownerId && ownerId !== me.id) return { kind: 'err', code: 'taken' }; // sub tillhör annat konto
     if (me.appleSub && me.appleSub !== sub) appleIdx.delete(me.appleSub);
-    me.appleSub = sub;
+    me.appleSub = sub;                                         // bind sub på BEFINTLIGT konto (gäst el. riktigt)
     appleIdx.set(sub, me.id);
     markDirty();
     return { kind: 'bind', what: 'apple_bind', bound: boundOf(me) };
-  } else if (ownerId && accounts.has(ownerId)) {
-    return { kind: 'switch', acc: accounts.get(ownerId) };   // sub har konto → byt
+  } else if (ownerAcc) {
+    return { kind: 'switch', acc: ownerAcc };   // sub har konto, ingen me → byt
   }
-  const acc = createProviderAccount({ appleSub: sub });        // okänd sub → skapa
+  const acc = createProviderAccount({ appleSub: sub });        // okänd sub + ingen me → skapa (sista utväg)
   appleIdx.set(sub, acc.id);
   markDirty();
   return { kind: 'switch', acc };
@@ -1398,17 +1464,23 @@ async function coreGcLogin(me, msg) {
   } catch (e) {}
   if (!okSig) return { kind: 'err', code: 'badtoken' };
   const ownerId = gcIdx.get(playerId);
+  const ownerAcc = ownerId ? accounts.get(ownerId) : null;
+  if (ownerId && !ownerAcc) gcIdx.delete(playerId);   // index-desync (kontot raderat) → städa
   if (me) {
     // VIKTIGT undantag: gcPlayerId som tillhör ANNAT konto → SWITCH, inte taken
     // (GC = reinstall-räddningen: nytt guest-konto byter tillbaka till det gamla).
-    if (ownerId && ownerId !== me.id) return { kind: 'switch', acc: accounts.get(ownerId) };
+    // Är `me` detta installs TOMMA gäst-konto → städa bort det (annars spöke kvar).
+    if (ownerAcc && ownerId !== me.id) {
+      if (isEmptyGuest(me)) reclaimEmptyGuest(me.id, ownerId);
+      return { kind: 'switch', acc: ownerAcc };
+    }
     if (me.gcPlayerId && me.gcPlayerId !== playerId) gcIdx.delete(me.gcPlayerId);
-    me.gcPlayerId = playerId; // TYST bind
+    me.gcPlayerId = playerId; // TYST bind på BEFINTLIGT konto (gäst el. riktigt)
     gcIdx.set(playerId, me.id);
     markDirty();
     return { kind: 'bind', what: 'gc_bind', bound: boundOf(me) };
-  } else if (ownerId && accounts.has(ownerId)) {
-    return { kind: 'switch', acc: accounts.get(ownerId) };
+  } else if (ownerAcc) {
+    return { kind: 'switch', acc: ownerAcc };
   }
   const acc = createProviderAccount({ gcPlayerId: playerId });
   gcIdx.set(playerId, acc.id);
