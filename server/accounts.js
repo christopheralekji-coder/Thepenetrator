@@ -1268,9 +1268,9 @@ async function handleGoogleCallback(req, res) {
     const ownerAcc = ownerId ? accounts.get(ownerId) : null;
     if (ownerId && !ownerAcc) googleIdx.delete(sub);   // index-desync → städa
     if (me && ownerAcc && ownerId !== me.id) {
-      // Google-sub hör till ett ANNAT konto. Tomt gäst-me → reinstall: switch + städa gästen.
-      // Riktigt me → taken (ingen kapning).
-      if (isEmptyGuest(me)) { reclaimEmptyGuest(me.id, ownerId); if (ws) sendSwitchRaw(ws, ownerAcc); }
+      // Google-sub hör till ett ANNAT konto. Gäst-me (ingen egen bindning) → reinstall/recovery:
+      // switch + städa slängbar gäst. Riktigt me (egen bindning) → taken (ingen kapning).
+      if (!guestHasOwnIdentity(me)) { reclaimEmptyGuest(me.id, ownerId); if (ws) sendSwitchRaw(ws, ownerAcc); }
       else { safeSend(ws, { type: 'acct_error', code: 'taken' }); htmlEnd(false, '❌ Det Google-kontot är redan knutet till ett annat spelkonto.'); return; }
     } else if (me) {
       if (me.googleSub && me.googleSub !== sub) googleIdx.delete(me.googleSub);
@@ -1323,6 +1323,34 @@ function meFromTokenOrCreds(msg) {
   return null;
 }
 
+// Har kontot en EGEN provider-bindning (email/google/apple/gc)? Då är det ett "riktigt"
+// konto med egen identitet → ska skyddas (taken vid provider-krock), aldrig switchas bort.
+function guestHasOwnIdentity(acc) {
+  return !!(acc && (acc.email || acc.googleSub || acc.appleSub || acc.gcPlayerId));
+}
+
+// "Slängbar" gäst: som isEmptyGuest MEN tillåter små incidentella mynt (daglig login-bonus
+// +100 etc) — en reinstall-gäst som hunnit få login-bonus innan provider-recovery. Används
+// BARA i provider-switch-vägen (reclaim) för att städa bort gästen efter en account-recovery.
+// INGA bindningar/admin-flaggor/namn/avatar/referral/matcher/kills/axp/nivå/vänner/vault.
+const GUEST_DISPOSABLE_COINS = 200;   // login-bonus (100) + ev. ett par dailies → fortfarande slängbar
+function isDisposableGuest(acc) {
+  if (!acc) return false;
+  if (guestHasOwnIdentity(acc)) return false;
+  if (acc.banned || acc._economyForce || acc._nameForce) return false;
+  if (acc.name && acc.name !== 'Spelare') return false;
+  if (acc.referredBy) return false;
+  if (acc.avatar && typeof acc.avatar === 'object' && Object.keys(acc.avatar).length > 0) return false;
+  const s = acc.stats || {};
+  if ((s.matches | 0) || (s.kills | 0) || (s.wins | 0) || (s.axp | 0)) return false;   // INGEN spelad progress
+  if ((s.alevel || 1) > 1) return false;
+  if ((s.coins | 0) > GUEST_DISPOSABLE_COINS) return false;   // mer än bonus-mynt → behåll
+  if ((acc.friends || []).length || (acc.reqIn || []).length || (acc.reqOut || []).length) return false;
+  const v = acc.vault;
+  if (v && typeof v === 'object' && ((v.gems | 0) > 0 || Object.keys(v).length > 0)) return false;
+  return true;
+}
+
 // Strikt tomt-gäst-test: INGA provider-bindningar, default-namn, NOLL progression, inga
 // vänner/förfrågningar, tom vault. Måste vara strikt — vi får ALDRIG reclaim:a/radera ett
 // konto med riktig progress.
@@ -1342,12 +1370,13 @@ function isEmptyGuest(acc) {
   return true;
 }
 
-// Städar bort ett TOMT gäst-konto efter en switch till spelarens riktiga konto. Dubbel-
-// kollar isEmptyGuest (aldrig radera progress). keepId = kontot vi switchar TILL (rör ej).
+// Städar bort en SLÄNGBAR gäst efter en switch till spelarens riktiga konto. Dubbel-
+// kollar isDisposableGuest (aldrig radera spelad progress/bindning). keepId = kontot vi
+// switchar TILL (rör ej).
 function reclaimEmptyGuest(guestId, keepId) {
   if (!guestId || guestId === keepId) return;
   const g = accounts.get(guestId);
-  if (!g || !isEmptyGuest(g)) return;   // säkerhetsspärr: bara verifierat tomma gäster
+  if (!g || !isDisposableGuest(g)) return;   // säkerhetsspärr: bara verifierat slängbara gäster
   accounts.delete(guestId);
   online.delete(guestId);
   revokeSessionsFor(guestId);
@@ -1395,10 +1424,11 @@ async function coreAppleLogin(me, msg) {
   const ownerAcc = ownerId ? accounts.get(ownerId) : null;
   if (ownerId && !ownerAcc) appleIdx.delete(sub);   // index-desync (kontot raderat) → städa, fall igenom till bind
   if (me && ownerAcc && ownerId !== me.id) {
-    // Apple-sub tillhör ett ANNAT (existerande) konto. Är `me` bara detta installs tomma
-    // gäst-konto → reinstall/byte-av-enhet: SWITCH till det riktiga + städa gästkontot EFTER
-    // att vi vet att målet finns. Är `me` ett RIKTIGT konto → taken (ingen kapning).
-    if (isEmptyGuest(me)) { reclaimEmptyGuest(me.id, ownerId); return { kind: 'switch', acc: ownerAcc }; }
+    // Apple-sub tillhör ett ANNAT (existerande) konto. Har `me` INGEN egen bindning är det en
+    // GÄST (även med login-bonus-mynt) → reinstall/account-recovery: SWITCH till spelarens
+    // riktiga Apple-konto + städa den slängbara gästen. Har `me` en EGEN bindning (riktigt
+    // konto) → taken (byt inte bort/kapa det). Apple-token:en bevisar ägarskap av målkontot.
+    if (!guestHasOwnIdentity(me)) { reclaimEmptyGuest(me.id, ownerId); return { kind: 'switch', acc: ownerAcc }; }
     return { kind: 'err', code: 'taken' };
   }
   if (me) {
