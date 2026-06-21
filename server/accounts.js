@@ -288,6 +288,37 @@ function sanitizeVault(raw) {
   }
 }
 
+// VAULT-MERGE (2026-06-21, dataförlust-fix): valvet ERSATTES förr rakt av (acc.vault = v) →
+// en färsk-install-klient som pushade ett TOMT valv RADERADE all ägd kosmetik/progression
+// server-side (skins/outfits/titlar försvann vid reinstall). Nu: ägda SAMLINGAR slås ihop
+// (växer bara, tappar aldrig), medan skalärer (gems/gold/bp_xp/utrustat) tar klientens värde
+// (klient-auktoritärt — spenderbart). Skyddar mot tom-push-races oavsett login-timing.
+const _VAULT_OWNED_DICTS = ['skins_owned', 'wardrobe_owned', 'titles_owned', 'emotes_owned', 'frames_owned', 'banners_owned', 'kill_fx_owned', 'bp_claimed', 'ach_chain_claimed', 'g_achievements'];
+const _VAULT_OWNED_ARRAYS = ['g_owned', 'g_perks'];
+const _VAULT_MAX_DICTS = ['g_upgrades', 'g_weapon_xp', 'g_weapon_levels'];
+function mergeVaultOwned(oldV, newV) {
+  if (!newV || typeof newV !== 'object') return oldV || null;
+  if (!oldV || typeof oldV !== 'object') return newV;
+  const out = Object.assign({}, newV);   // klienten vinner för skalärer/gems/utrustat
+  for (const k of _VAULT_OWNED_DICTS) {   // ägda bool-dicts → UNION (växer bara)
+    const o = (oldV[k] && typeof oldV[k] === 'object') ? oldV[k] : null;
+    if (o) out[k] = Object.assign({}, o, (newV[k] && typeof newV[k] === 'object') ? newV[k] : {});
+  }
+  for (const k of _VAULT_OWNED_ARRAYS) {  // ägda id-arrayer → UNION
+    const a = Array.isArray(oldV[k]) ? oldV[k] : [];
+    const b = Array.isArray(newV[k]) ? newV[k] : [];
+    if (a.length || b.length) out[k] = [...new Set([...a, ...b])];
+  }
+  for (const k of _VAULT_MAX_DICTS) {     // nivå/xp-dicts → per-nyckel MAX
+    const o = (oldV[k] && typeof oldV[k] === 'object') ? oldV[k] : {};
+    const nw = (newV[k] && typeof newV[k] === 'object') ? newV[k] : {};
+    const m = Object.assign({}, o);
+    for (const kk in nw) if (Object.prototype.hasOwnProperty.call(nw, kk)) m[kk] = Math.max(Math.round(+m[kk]) || 0, Math.round(+nw[kk]) || 0);
+    if (Object.keys(m).length) out[k] = m;
+  }
+  return out;
+}
+
 function sanitizeFriendIds(raw, selfId) {
   const out = [];
   if (!Array.isArray(raw)) return out;
@@ -622,7 +653,7 @@ function resolveAccountFromCreds(msg) {
     const v = sanitizeVault(msg.vault);
     if (v) {
       if (forced && acc.vault && typeof acc.vault.gems === 'number') v.gems = acc.vault.gems;  // behåll admin-satta gems
-      acc.vault = v;
+      acc.vault = mergeVaultOwned(acc.vault, v);   // MERGE (ägda samlingar växer bara) — radera aldrig kosmetik
     }
   }
   // Resync-modellen: klientens friends-lista ERSÄTTER serverns (utelämnat → behåll).
@@ -842,7 +873,7 @@ function handleUpdate(ws, msg) {
     const v = sanitizeVault(msg.vault);
     if (v) {
       if (forced && me.vault && typeof me.vault.gems === 'number') v.gems = me.vault.gems;  // bevara admin-satta gems
-      me.vault = v;
+      me.vault = mergeVaultOwned(me.vault, v);   // MERGE (ägda samlingar växer bara) — radera aldrig kosmetik
     }
   }
   // Konsumera force-flaggorna BARA om DENNA socket fick dem i sin loginPayload (ws._force*) —
