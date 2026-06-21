@@ -1183,7 +1183,10 @@ function handleGoogleStart(ws) {
   if (!env) { sendErr(ws, 'notconfigured'); return; }
   sweepGoogleStates();
   const token = crypto.randomBytes(24).toString('hex');
-  _googleStates.set(token, { ws, exp: Date.now() + GOOGLE_STATE_TTL_MS });
+  // DUBBELKONTO-FIX: spara även gäst-kontots id vid START — browser-callbacken kan inte
+  // bära klientens creds, och ws:en kan ha bytts ut (reconnect) → utan detta blev me=null
+  // vid callback → nytt konto. Fallbacken nedan binder Google på start-tidens gäst-konto.
+  _googleStates.set(token, { ws, accountId: (ws && ws.accountId) || null, exp: Date.now() + GOOGLE_STATE_TTL_MS });
   // Bas-URL för vår egen /auth/google: härled ur GOOGLE_REDIRECT_URL
   // (…/auth/google/callback → …/auth/google), annars localhost:PORT (dev/probe).
   let base;
@@ -1257,25 +1260,28 @@ async function handleGoogleCallback(req, res) {
       htmlEnd(false, '❌ Kunde inte verifiera Google-kontot. Försök igen.');
       return;
     }
-    // ws:ens inloggnings-status avgör bind vs switch vs skapa
-    const me = (ws && ws.accountId && online.get(ws.accountId) === ws) ? accounts.get(ws.accountId) : null;
+    // me = ws-bundet konto ELLER (fallback) gäst-kontot från START-tiden (dubbelkonto-fix:
+    // utan fallbacken blev me=null när ws bytts/login ej klar → nytt konto skapades).
+    let me = (ws && ws.accountId && online.get(ws.accountId) === ws) ? accounts.get(ws.accountId) : null;
+    if (!me && st.accountId) me = accounts.get(st.accountId) || null;
     const ownerId = googleIdx.get(sub);
-    if (me) {
-      if (ownerId && ownerId !== me.id) {
-        safeSend(ws, { type: 'acct_error', code: 'taken' });
-        htmlEnd(false, '❌ Det Google-kontot är redan knutet till ett annat spelkonto.');
-        return;
-      }
+    const ownerAcc = ownerId ? accounts.get(ownerId) : null;
+    if (ownerId && !ownerAcc) googleIdx.delete(sub);   // index-desync → städa
+    if (me && ownerAcc && ownerId !== me.id) {
+      // Google-sub hör till ett ANNAT konto. Tomt gäst-me → reinstall: switch + städa gästen.
+      // Riktigt me → taken (ingen kapning).
+      if (isEmptyGuest(me)) { reclaimEmptyGuest(me.id, ownerId); if (ws) sendSwitchRaw(ws, ownerAcc); }
+      else { safeSend(ws, { type: 'acct_error', code: 'taken' }); htmlEnd(false, '❌ Det Google-kontot är redan knutet till ett annat spelkonto.'); return; }
+    } else if (me) {
       if (me.googleSub && me.googleSub !== sub) googleIdx.delete(me.googleSub);
-      me.googleSub = sub;
+      me.googleSub = sub;                              // bind på BEFINTLIGT konto (gäst el. riktigt)
       googleIdx.set(sub, me.id);
       markDirty();
       safeSend(ws, { type: 'acct_ok', what: 'google_bind', bound: boundOf(me) });
-    } else if (ownerId && accounts.has(ownerId)) {
-      const acc = accounts.get(ownerId);
-      if (ws) sendSwitchRaw(ws, acc);
+    } else if (ownerAcc) {
+      if (ws) sendSwitchRaw(ws, ownerAcc);             // sub har konto, ingen me → byt
     } else {
-      const acc = createProviderAccount({ googleSub: sub });
+      const acc = createProviderAccount({ googleSub: sub });   // sista utväg
       googleIdx.set(sub, acc.id);
       markDirty();
       if (ws) sendSwitchRaw(ws, acc);
@@ -1725,6 +1731,27 @@ function adminDeleteAccount(id) {
   return true;
 }
 
+// ENGÅNGS-STÄDNING av historiska spök-konton (tomma "Spelare" från dubbelkonto-buggen).
+// STRIKT: bara isEmptyGuest (inga bindningar/progress/vänner/admin-flaggor), EJ online, och
+// inaktiva minst minAgeSec (default 1h) → rör aldrig ett konto mitt i pågående första-session-
+// signup. apply=false = torrkörning (räknar bara). Returnerar {scanned, ghosts, deleted, sample}.
+function adminCleanupGhosts(opts) {
+  const minAgeMs = Math.max(0, (opts && +opts.minAgeSec) || 3600) * 1000;
+  const apply = !!(opts && opts.apply);
+  const now = Date.now();
+  const victims = [];
+  for (const acc of accounts.values()) {
+    if (!isEmptyGuest(acc)) continue;
+    if (online.has(acc.id)) continue;                       // aktiv just nu → rör ej
+    if ((now - (acc.lastSeen || 0)) < minAgeMs) continue;   // för färsk (mitt i signup?) → rör ej
+    victims.push(acc.id);
+  }
+  let deleted = 0;
+  if (apply) for (const id of victims) { if (adminDeleteAccount(id)) deleted++; }
+  console.log('[ADMIN] cleanup-ghosts', apply ? 'APPLY' : 'dry-run', '— hittade', victims.length, 'raderade', deleted);
+  return { scanned: accounts.size, ghosts: victims.length, deleted, sample: victims.slice(0, 20) };
+}
+
 function _adminReadBody(req) {
   return new Promise((resolve) => {
     let body = ''; let tooLarge = false;
@@ -1813,6 +1840,16 @@ async function handleAdminHttp(req, res) {
     const ok = adminDeleteAccount(body.id);
     if (!ok) { _adminJson(res, 404, { error: 'not found' }); return; }
     _adminJson(res, 200, { deleted: true });
+    return;
+  }
+  // Spök-konto-städning: GET = torrkörning (räkna), POST = radera (apply). Strikt isEmptyGuest.
+  if (req.method === 'GET' && path === '/admin/api/ghosts') {
+    _adminJson(res, 200, adminCleanupGhosts({ minAgeSec: +u.searchParams.get('minAgeSec') || 3600, apply: false }));
+    return;
+  }
+  if (req.method === 'POST' && path === '/admin/api/ghosts/purge') {
+    const body = await _adminReadBody(req);
+    _adminJson(res, 200, adminCleanupGhosts({ minAgeSec: (body && +body.minAgeSec) || 3600, apply: true }));
     return;
   }
   _adminJson(res, 404, { error: 'unknown admin route' });
