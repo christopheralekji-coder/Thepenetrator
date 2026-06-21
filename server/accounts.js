@@ -201,6 +201,28 @@ function totalXp(axp, alevel) {
   return t;
 }
 
+// ANTI-FUSK: rullande tidsfönster-tak på hur mycket KLIENT-pushad konto-XP (monoton-max-
+// vägen, dvs daily/weekly + reinstall-eko) som accepteras. Server-krediterad match-XP går
+// EJ via denna väg (creditAxp muterar direkt) → orörd. Legit icke-match-XP/dygn ≈ 3 dailies
+// (75) + 1 weekly (80) ≈ 155 → 800-taket är generöst men blockerar nivå-inflation (en modad
+// klient kan annars pusha +49 nivåer/meddelande upp till sanitizeStats-cap:en). I minnet
+// (ej persisterat): server-omstart nollar fönstret — gynnar bara legit spelare, och en
+// fuskare kan inte tvinga omstarter. Returnerar true om delta får accepteras nu.
+const NONMATCH_XP_WINDOW_MS = 24 * 3600 * 1000;
+const NONMATCH_XP_MAX = parseInt(process.env.NONMATCH_XP_MAX, 10) || 800;
+function clientXpDeltaAllowed(acc, delta, now) {
+  if (delta <= 0) return true;
+  const w = acc._xpWin;
+  if (!w || (now - w.start) >= NONMATCH_XP_WINDOW_MS) {
+    acc._xpWin = { start: now, gain: delta };
+    if (delta > NONMATCH_XP_MAX) { acc._xpWin.gain = 0; return false; }  // ett enskilt skutt > taket = fusk
+    return true;
+  }
+  if (w.gain + delta > NONMATCH_XP_MAX) return false;   // skulle spränga dygns-taket → avvisa
+  w.gain += delta;
+  return true;
+}
+
 // Gating: vilka konton är server-auktoritativa för XP. SERVERAUTH_XP osatt → ingen
 // (full klient-auth, oförändrat). ='all' → alla. annat truthy → BARA dev-konton (test).
 const _DEV_XP = new Set((process.env.DEV_ACCOUNT_IDS || '86743226').split(',').map((s) => s.trim()).filter(Boolean));
@@ -798,10 +820,15 @@ function handleUpdate(ws, msg) {
       // räknas via identisk formel server↔klient. Anti-fusk = sanitizeStats-cap:en (oförändrad).
       const cAxp = stats.axp != null ? stats.axp : (me.stats.axp || 0);
       const cLv = stats.alevel != null ? stats.alevel : (me.stats.alevel || 1);
-      if (totalXp(cAxp, cLv) > totalXp(me.stats.axp || 0, me.stats.alevel || 1)) {
+      const srvTot = totalXp(me.stats.axp || 0, me.stats.alevel || 1);
+      const delta = totalXp(cAxp, cLv) - srvTot;
+      // ANTI-FUSK: acceptera ökningen BARA om den ryms i dygns-taket (blockerar nivå-inflation
+      // via modad klient). Server-krediterad match-XP påverkas ej (går ej via denna väg).
+      if (delta > 0 && clientXpDeltaAllowed(me, delta, Date.now())) {
         stats.axp = cAxp; stats.alevel = cLv;       // klienten HÖGRE (la till daily/weekly) → behåll
       } else {
-        delete stats.axp; delete stats.alevel;       // klienten lägre/lika → behåll serverns (skydda match-XP)
+        if (delta > 0) console.log('[XP] cap-block', me.id, 'delta=' + delta + ' (dygns-tak ' + NONMATCH_XP_MAX + ')');
+        delete stats.axp; delete stats.alevel;       // lägre/lika ELLER över taket → behåll serverns
       }
     }
     me.stats = Object.assign({}, me.stats || {}, stats);   // MERGE → tappa ALDRIG ej-skickade fält (t.ex. alevel)
