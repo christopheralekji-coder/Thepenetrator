@@ -2013,6 +2013,11 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     const sim = room.sim;
+    // BUGFIX: en DÖD/nere/spectator-spelare ska INTE kunna kasta granat. Klienten gate:ade
+    // skott (applyShoot: hp/brDowned/cdDowned) men granat-inputen var öppen → server-enforce
+    // här (samma dödstillstånd som blockerar skott).
+    const gps = ws.playerState;
+    if (!gps || gps.hp <= 0 || gps.brDowned || gps.cdDowned || gps.spectating) return;
     const fromX = Math.max(0, Math.min(20000, +msg.fromX || 0));
     const fromY = Math.max(0, Math.min(20000, +msg.fromY || 0));
     const toX = Math.max(0, Math.min(20000, +msg.toX || 0));
