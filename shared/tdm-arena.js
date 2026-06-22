@@ -102,11 +102,12 @@ const TDM_ARENA = {
   flashSpawns:   [{ x: 770, y: 905 }, { x: 930, y: 905 }],   // → 4 bländgranater
   molotovSpawns: [{ x: 770, y: 868 }, { x: 930, y: 868 }],   // → 4 molotovs
   gravitySpawns: [{ x: 850, y: 888 }],                       // → 2 gravitationsgranater
-  // FRAG + RÖK (användarbeslut 2026-06-21): 3 per typ på röd sida → speglas → 6 frag + 6 rök.
-  // Mid-rear-zon (undviker center-klustret y≈868-905 + shield-kolumnen x=850/y=680) — vänster-
-  // lane / center / höger-lane, x-speglat inom sidan + y-speglat mellan lagen = perfekt rättvist.
-  fragSpawns:    [{ x: 200, y: 600 }, { x: 850, y: 560 }, { x: 1500, y: 600 }],   // → 6 frag
-  smokeSpawns:   [{ x: 380, y: 740 }, { x: 850, y: 800 }, { x: 1320, y: 740 }],   // → 6 rök
+  // FRAG + RÖK (användarbeslut 2026-06-22): ligger nu i MITTEN (kontesterade zonen) som
+  // övriga granater — INTE utspritt över hela kartan. 3 per typ på röd sida (x symmetriskt
+  // kring 850, strax utanför center-klustret y≈868-905) → speglas y kring 1000 → 6 frag +
+  // 6 rök, perfekt rättvist för rött (topp) och blått (botten).
+  fragSpawns:    [{ x: 700, y: 950 }, { x: 1000, y: 950 }, { x: 850, y: 978 }],   // → 6 frag (mitten)
+  smokeSpawns:   [{ x: 740, y: 832 }, { x: 960, y: 832 }, { x: 850, y: 808 }],   // → 6 rök (mitten)
 
   // HP + shield i mid-fältet (symmetriskt)
   hpSpawns:     [{ x: 250, y: 1000 }, { x: 1450, y: 1000 }],
