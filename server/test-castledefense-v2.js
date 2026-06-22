@@ -135,6 +135,24 @@ function step(sim) { sim.simReadyAt = 0; sim.lastTick = Date.now() - 50; tickSim
   console.log('[OK] castle-HP damage model (enemy at core chips it)');
 }
 
+// 8. SELL a slot-tower FREES the slot (rebuildable) + ejects occupant
+{
+  const { sim, p0 } = mk();
+  const RS2 = require('./sim/room-sim');
+  const slot = sim.castledefenseSlots[1]; p0.playerState.x = slot.x; p0.playerState.y = slot.y;
+  applyCastleDefenseBuild(sim, 'p0', { kind: 'machinegun', slot: slot.id });
+  const mg = sim.castledefenseBuildings.find(b => b.kind === 'machinegun');
+  assert(sim.castledefenseSlots[1].towerId === mg.id, 'slot taken after build');
+  applyCastleDefenseEnterTower(sim, 'p0', { id: mg.id });
+  RS2.applyCastleDefenseSell(sim, 'p0', { id: mg.id });
+  assert(sim.castledefenseSlots[1].towerId == null, 'slot freed after sell');
+  assert(!p0._mountedCdTowerId, 'occupant ejected on sell');
+  // can rebuild in the freed slot
+  applyCastleDefenseBuild(sim, 'p0', { kind: 'bomber', slot: slot.id });
+  assert(sim.castledefenseBuildings.some(b => b.kind === 'bomber' && b.hp > 0), 'rebuilt in freed slot');
+  console.log('[OK] sell frees slot + ejects occupant + rebuildable');
+}
+
 console.log('\n═══════════════════════════════════════');
 console.log('  CASTLE DEFENSE v2 server smoke PASSED');
 console.log('═══════════════════════════════════════');

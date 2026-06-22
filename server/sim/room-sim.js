@@ -2648,6 +2648,8 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
         e.hp -= b.dmgOnPass;
         if (e.hp <= 0) {
           e.dead = true;
+          e.lastDamagerPid = b.ownerPid;       // kreditera ägaren (gold/score/perks)
+          e.lastDamagerWeapon = 'spike_trap';
           b._spikeKills = (b._spikeKills || 0) + 1;
           const cap = b.killCapacity || 20;
           b.hp = Math.max(0, ((cap - b._spikeKills) / cap) * b.maxHp);
@@ -3704,6 +3706,17 @@ function tickCastleDefense(sim, dt, now) {
         // Solid building/wall förstörd → flow field måste recomputeras
         if (!isCore && (!attackTarget.kind || (attackTarget.kind !== 'spike_trap' && attackTarget.kind !== 'slow_trap'))) {
           sim._cdFlowDirty = true;
+        }
+        // v2 REDESIGN: om ett SLOT-TORN förstörs medan någon sitter i det → sparka av
+        // (annars fryser deras rörelse-input via _mountedCdTowerId). + frigör slotten.
+        if (!isCore && attackTarget.occupantId) {
+          const occWs = sim.room.members.get(attackTarget.occupantId);
+          if (occWs && occWs._mountedCdTowerId === attackTarget.id) occWs._mountedCdTowerId = null;
+          attackTarget.occupantId = null;
+          if (attackTarget.slotId && sim.castledefenseSlots) {
+            const _sl = sim.castledefenseSlots.find(s => s.id === attackTarget.slotId);
+            if (_sl && _sl.towerId === attackTarget.id) _sl.towerId = null;
+          }
         }
         sim.eventQueue.push({
           type: isCore ? 'cd_core_destroyed' : (isBuild ? 'cd_building_destroyed' : 'cd_wall_destroyed'),
@@ -8779,8 +8792,18 @@ function applyCastleDefenseSell(sim, peerId, msg) {
   const refund = Math.round((b._totalInvested || 0) * 0.5);
   sim.castledefenseGold[peerId] = (sim.castledefenseGold[peerId] || 0) + refund;
   b.hp = 0;
-  // Solid building → flow field dirty
-  if (b.kind !== 'spike_trap' && b.kind !== 'slow_trap') sim._cdFlowDirty = true;
+  // v2 REDESIGN: sälja ett SLOT-TORN → frigör slotten (annars permanent "upptagen")
+  // + sparka av ev. sittande spelare.
+  if (b.slotId && sim.castledefenseSlots) {
+    const slot = sim.castledefenseSlots.find(s => s.id === b.slotId);
+    if (slot && slot.towerId === b.id) slot.towerId = null;
+    if (b.occupantId) {
+      const occWs = sim.room.members.get(b.occupantId);
+      if (occWs && occWs._mountedCdTowerId === b.id) occWs._mountedCdTowerId = null;
+    }
+  }
+  // Bara MUR/PORT ändrar pathfinding → flow field dirty
+  if (b.kind === 'wall' || b.kind === 'gate') sim._cdFlowDirty = true;
   sim.eventQueue.push({ type: 'cd_building_sold', id: b.id, peerId, refund });
   sim.eventQueue.push({ type: 'cd_building_destroyed', id: b.id });
   sim.eventQueue.push({ type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: refund });

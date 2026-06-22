@@ -1794,6 +1794,21 @@ function updateBullets(sim, dt, now) {
       const dx = e.x - b.x, dy = e.y - b.y;
       const rsum = e.r + b.r + 8;  // +8 lag-kompensation
       if (dx * dx + dy * dy < rsum * rsum) {
+        // v2 CD: BOMBER-torn → AoE-blast vid träff (skadar fiender i _cdBlastR med falloff).
+        if (b._cdBlastR) {
+          const R = b._cdBlastR, R2 = R * R;
+          for (const e2 of sim.enemies) {
+            if (e2.dead) continue;
+            const ddx = e2.x - b.x, ddy = e2.y - b.y;
+            const d2 = ddx * ddx + ddy * ddy;
+            if (d2 > R2) continue;
+            const falloff = 1 - Math.sqrt(d2) / R;
+            damageEnemy(e2, b.dmg * (0.45 + 0.55 * Math.max(0, falloff)), false, b.ownerPid, b.weaponId);
+            e2.burnUntil = Date.now() + 300;
+          }
+          sim.eventQueue.push({ type: 'cd_barrel_blast', x: Math.round(b.x), y: Math.round(b.y), r: R });
+          hit = true; break;
+        }
         if (b.explosive) {
           explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
           hit = true; break;
