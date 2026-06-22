@@ -947,6 +947,10 @@ function handleGetProfile(ws, msg) {
     gold: Math.max(0, Math.min(9999999, +(r && r.gold) || 0)),
     won: !!(r && r.won),
   }));
+  // upplåsta achievements (klient mappar id->namn). g_achievements = id->true i vaulten.
+  const achDict = (v.g_achievements && typeof v.g_achievements === 'object') ? v.g_achievements : {};
+  const achievements = Object.keys(achDict)
+    .filter((k) => achDict[k]).slice(0, 60).map((k) => String(k).slice(0, 40));
   H.send(ws, {
     type: 'acct_profile', id: a.id, found: true,
     name: a.name, avatar: a.avatar, level: a.level,
@@ -958,7 +962,7 @@ function handleGetProfile(ws, msg) {
       best_streak: +ps.best_streak || 0,
       gold_earned: +ps.gold_earned || 0,
     },
-    recent,
+    recent, achievements,
   });
 }
 
