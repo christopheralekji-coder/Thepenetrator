@@ -955,6 +955,7 @@ function handleGetProfile(ws, msg) {
     type: 'acct_profile', id: a.id, found: true,
     name: a.name, avatar: a.avatar, level: a.level,
     online: online.has(a.id),
+    lastSeen: a.lastSeen || 0,   // epoch-ms; klienten visar 'Senast online: …' för offline-vänner
     stats: {
       matches: (a.stats && +a.stats.matches) || +ps.matches || 0,
       kills: (a.stats && +a.stats.kills) || +ps.kills || 0,
