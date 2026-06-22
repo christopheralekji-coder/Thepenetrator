@@ -2583,23 +2583,20 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
   for (const b of sim.castledefenseBuildings) {
     if (b.hp <= 0) continue;
     const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
-    // === AUTO-TURRET ===
-    if (b.kind === 'auto_turret') {
+    // === SLOT-TORN: MACHINEGUN / BOMBER (auto-skjut mot närmaste fiende; sätt-dig = dmg-boost) ===
+    if (b.kind === 'machinegun' || b.kind === 'bomber') {
       if (b._fireCd > 0) b._fireCd -= dt;
-      // v1.416: STRATEGIST aura — om strategist-player är inom 250px, +35% dmg + range
-      // C162: scanna bara den lilla för-byggda strategist-listan (ej alla members).
       let stratMul = 1.0;
       for (let si = 0; si < _cdStrategists.length; si++) {
         const sps = _cdStrategists[si];
         const dxs = sps.x - bcx, dys = sps.y - bcy;
         if (dxs * dxs + dys * dys <= 250 * 250) { stratMul = 1.35; break; }
       }
+      // Hybrid: spelare som SITTER i tornet (b.occupantId) ger dmg-boost (manDpsMul).
+      const manMul = b.occupantId ? (b.manDpsMul || 1.6) : 1.0;
       const effRange = b.range * (stratMul > 1 ? 1.2 : 1);
       if (b._fireCd <= 0 && b.range > 0 && b.fireRate > 0) {
         let best = null, bestD = effRange * effRange;
-        // v1.661: spatial-grid-query istället för O(E) linjär scan per torn (var
-        // O(torn×enemies)/tick). Griden är 1-tick-stale (byggs i slutet av ticken)
-        // = helt OK för torn-targeting. Linjär fallback om griden ej byggd än (tick 1).
         if (sim.enemyGrid && sim.enemyGrid.size > 0) {
           sim.enemyGrid.queryInto(bcx, bcy, effRange, _cdTurretScratch);
           for (let qi = 0; qi < _cdTurretScratch.length; qi++) {
@@ -2618,44 +2615,28 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
           }
         }
         if (best) {
-          // Skjut: dmg = (b.dps / b.fireRate) per bullet, bullet hostile=false (våra)
           const ang = Math.atan2(best.y - bcy, best.x - bcx);
-          const SPEED = 700;
-          sim.bullets.push({
+          const isBomber = b.kind === 'bomber';
+          const SPEED = isBomber ? 520 : 760;
+          const bullet = {
             x: bcx, y: bcy,
-            vx: Math.cos(ang) * SPEED,
-            vy: Math.sin(ang) * SPEED,
-            dmg: (b.dps / b.fireRate) * stratMul, // v1.416: STRATEGIST +35%
-            life: 1.5,
-            r: 3,
-            color: '#3acaff',
-            hostile: false,
-            ownerPid: b.ownerPid,
-            _autoTurret: true,
-            // SLUTAUDIT 2 #19: utan weaponId behöll fienden stale lastDamagerWeapon
-            // (t.ex. 'grenade' från en tidigare granat-träff) när turreten gjorde
-            // finish → falsk Pyroman-credit i enemy_killed.weaponId. 'turret' matchar
-            // inga achievement-vapen hos klienten → räknas snällt som "övrigt".
-            weaponId: 'turret',
-          });
+            vx: Math.cos(ang) * SPEED, vy: Math.sin(ang) * SPEED,
+            dmg: (b.dps / b.fireRate) * stratMul * manMul,
+            life: isBomber ? 1.8 : 1.4, r: isBomber ? 6 : 3,
+            color: isBomber ? '#ff8a3a' : '#3acaff',
+            hostile: false, ownerPid: b.ownerPid, _autoTurret: true, weaponId: 'turret',
+          };
+          if (isBomber) bullet._cdBlastR = b.blastRadius || 90;   // AoE vid träff (bullets.js)
+          sim.bullets.push(bullet);
           b._fireCd = 1 / b.fireRate;
-          // v1.415: emit fire-event så client kan rita muzzle-flash + spela ljud
-          // v1.431: throttle till max 3Hz per torn så event-volym minskar vid många torn
-          // (tidigare: fireRate=2 = 2Hz per torn × 10 torn = 20 events/sek bara från auto_turret).
           if (!b._lastFireEvtAt || nowMs - b._lastFireEvtAt > 333) {
             b._lastFireEvtAt = nowMs;
-            sim.eventQueue.push({
-              type: 'cd_turret_fired',
-              id: b.id,
-              x: Math.round(bcx),
-              y: Math.round(bcy),
-              ang,
-            });
+            sim.eventQueue.push({ type: 'cd_turret_fired', id: b.id, x: Math.round(bcx), y: Math.round(bcy), ang, kind: b.kind });
           }
         }
       }
     }
-    // === SPIKE TRAP === (v1.400: kill-count baserat — efter 3 kills försvinner trapen)
+    // === SPIKFÄLLA (dmg vid passage; slutar efter killCapacity fiender) ===
     else if (b.kind === 'spike_trap' && b.dmgOnPass > 0) {
       for (const e of sim.enemies) {
         if (e.dead) continue;
@@ -2667,25 +2648,16 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
         e.hp -= b.dmgOnPass;
         if (e.hp <= 0) {
           e.dead = true;
-          // Track kill för spike-trap destruction
           b._spikeKills = (b._spikeKills || 0) + 1;
-          const cap = 5; // killCapacity från arena-spec
-          // Visual: hp speglar (cap - kills) / cap × maxHp så HP-bar visar uses remaining
+          const cap = b.killCapacity || 20;
           b.hp = Math.max(0, ((cap - b._spikeKills) / cap) * b.maxHp);
-          sim.eventQueue.push({
-            type: 'cd_building_damaged',
-            id: b.id, hp: b.hp, maxHp: b.maxHp,
-          });
-          if (b._spikeKills >= cap) {
-            sim.eventQueue.push({ type: 'cd_building_destroyed', id: b.id });
-          }
+          sim.eventQueue.push({ type: 'cd_building_damaged', id: b.id, hp: b.hp, maxHp: b.maxHp });
+          if (b._spikeKills >= cap) sim.eventQueue.push({ type: 'cd_building_destroyed', id: b.id });
         }
       }
     }
-    // === SLOW TRAP (AOE aura — v1.414) ===
-    // v1.417: BUG-FIX — slowUntil måste vara i MILLISEKUNDER (matchar updateStatus's
-    // `now` som är Date.now() i ms). Tidigare nowSec gjorde att slow aldrig var aktiv.
-    else if (b.kind === 'slow_trap' && b.slowDurSec > 0 && b.radius > 0) {
+    // === TJÄRGROP (slow-aura) ===
+    else if (b.kind === 'tar_trap' && b.slowDurSec > 0 && b.radius > 0) {
       const r2 = b.radius * b.radius;
       for (const e of sim.enemies) {
         if (e.dead) continue;
@@ -2695,65 +2667,54 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
         e.slowFactor = b.slowMul;
       }
     }
-    // === REPAIR STATION ===
-    else if (b.kind === 'repair_stn' && b.healPerSec > 0 && b.radius > 0) {
-      const r2 = b.radius * b.radius;
-      for (const w of sim.castledefenseWalls) {
-        if (w.hp <= 0 || w.hp >= w.maxHp) continue;
-        const wcx = w.x + w.w / 2, wcy = w.y + w.h / 2;
-        const dx = wcx - bcx, dy = wcy - bcy;
+    // === OLJEBRAND (tidsbegränsad AoE eld-DoT mot fiender; brinner ut) ===
+    else if (b.kind === 'oil_fire') {
+      if (b._burnLeft == null) b._burnLeft = b.burnSec || 12;
+      b._burnLeft -= dt;
+      const r2 = (b.radius || 95) * (b.radius || 95);
+      for (const e of sim.enemies) {
+        if (e.dead) continue;
+        const dx = e.x - bcx, dy = e.y - bcy;
         if (dx * dx + dy * dy > r2) continue;
-        const heal = b.healPerSec * dt;
-        w.hp = Math.min(w.maxHp, w.hp + heal);
-        if (!w._lastHealBroadcast || nowMs - w._lastHealBroadcast > 250) {
-          w._lastHealBroadcast = nowMs;
-          sim.eventQueue.push({ type: 'cd_wall_damaged', id: w.id, hp: w.hp, maxHp: w.maxHp });
-        }
+        e.hp -= (b.dps || 45) * dt;
+        e.burnUntil = nowMs + 400;
+        if (e.hp <= 0) { e.dead = true; e.lastDamagerPid = b.ownerPid; e.lastDamagerWeapon = 'fire'; }
       }
-      for (const b2 of sim.castledefenseBuildings) {
-        if (b2 === b || b2.hp <= 0 || b2.hp >= b2.maxHp) continue;
-        const b2cx = b2.x + b2.w / 2, b2cy = b2.y + b2.h / 2;
-        const dx = b2cx - bcx, dy = b2cy - bcy;
-        if (dx * dx + dy * dy > r2) continue;
-        b2.hp = Math.min(b2.maxHp, b2.hp + b.healPerSec * dt);
-        if (!b2._lastHealBroadcast || nowMs - b2._lastHealBroadcast > 250) {
-          b2._lastHealBroadcast = nowMs;
-          sim.eventQueue.push({ type: 'cd_building_damaged', id: b2.id, hp: b2.hp, maxHp: b2.maxHp });
-        }
-      }
-      // v1.411: Repair-station healar CORE (extended reach: radius + core.r).
-      // v1.413: bara EN repair-stn får heala core per tick (annars stackar
-      // multipla stations linjärt = OP-recipe vid 4-5 stations runt core).
-      if (sim.castledefenseCore && sim.castledefenseCore.hp > 0 && sim.castledefenseCore.hp < sim.castledefenseCore.maxHp && !sim._cdCoreHealedThisTick) {
-        const core = sim.castledefenseCore;
-        const dxc = core.x - bcx, dyc = core.y - bcy;
-        const reach = b.radius + core.r;
-        if (dxc * dxc + dyc * dyc <= reach * reach) {
-          // Core får 50% av wall-heal-rate så det inte trivialiserar boss-vågor
-          core.hp = Math.min(core.maxHp, core.hp + b.healPerSec * 0.5 * dt);
-          sim._cdCoreHealedThisTick = true;
-          if (!sim._cdCoreLastHealBroadcast || nowMs - sim._cdCoreLastHealBroadcast > 250) {
-            sim._cdCoreLastHealBroadcast = nowMs;
-            sim.eventQueue.push({ type: 'cd_core_damaged', hp: core.hp, maxHp: core.maxHp });
-          }
-        }
-      }
+      if (b._burnLeft <= 0) { b.hp = 0; sim.eventQueue.push({ type: 'cd_building_destroyed', id: b.id }); }
     }
-    // === HEALTH STATION ===
-    else if (b.kind === 'health_stn' && b.playerHealPerSec > 0 && b.radius > 0) {
-      const r2 = b.radius * b.radius;
-      for (const [, ws] of sim.room.members) {
-        if (!ws.playerState || ws.playerState.hp <= 0) continue;
-        const ps = ws.playerState;
-        if (ps.hp >= (ps.maxHp || 100)) continue;
-        const dx = ps.x - bcx, dy = ps.y - bcy;
-        if (dx * dx + dy * dy > r2) continue;
-        ps.hp = Math.min(ps.maxHp || 100, ps.hp + b.playerHealPerSec * dt);
-      }
+    // powder_barrel: ingen per-tick — detonerar när man SKJUTER på den (bullets.js)
+  }
+}
+
+// v2 REDESIGN: SLOTTS-NPC:er (inne i slottet, uppgraderas via tron/interaktion).
+//  - heal_npc   helar SPELARE i radie (lvl 0 = 0 hp/s)
+//  - repair_npc reparerar SLOTTET (core) (lvl 0 = 0 hp/s)
+//  - throne     passiv (dess nivå sätter core.maxHp vid uppgradering)
+function updateCastleNpcs(sim, dt, nowMs) {
+  const npcs = sim.castledefenseNpcs;
+  if (!npcs) return;
+  const ups = CASTLEDEFENSE_ARENA.castleUpgrades;
+  const hn = npcs.heal_npc;
+  if (hn && hn.level > 0) {
+    const rate = hn.level * ups.heal_npc.healPerSecPerLvl;
+    const rad = ups.heal_npc.radius || 230, r2 = rad * rad;
+    for (const [, ws] of sim.room.members) {
+      const ps = ws.playerState;
+      if (!ps || ps.hp <= 0 || ps.cdDowned) continue;
+      if (ps.hp >= (ps.maxHp || 100)) continue;
+      const dx = ps.x - hn.x, dy = ps.y - hn.y;
+      if (dx * dx + dy * dy > r2) continue;
+      ps.hp = Math.min(ps.maxHp || 100, ps.hp + rate * dt);
     }
-    // === MANNED TURRET (fas 7 polish) ===
-    // För nu: passar som ett extra stort wall-segment. Fas 7 lägger till
-    // enter/exit-mekanik + dpsMul när spelare sitter i.
+  }
+  const rn = npcs.repair_npc, core = sim.castledefenseCore;
+  if (rn && rn.level > 0 && core && core.hp > 0 && core.hp < core.maxHp) {
+    const rate = rn.level * ups.repair_npc.castleHealPerSecPerLvl;
+    core.hp = Math.min(core.maxHp, core.hp + rate * dt);
+    if (!sim._cdCoreLastHealBroadcast || nowMs - sim._cdCoreLastHealBroadcast > 250) {
+      sim._cdCoreLastHealBroadcast = nowMs;
+      sim.eventQueue.push({ type: 'cd_core_damaged', hp: core.hp, maxHp: core.maxHp });
+    }
   }
 }
 
@@ -2774,10 +2735,11 @@ function buildCdFlowField(sim) {
   const walkable = new Uint8Array(cellCount);
   walkable.fill(1);
 
-  // Markera alla solida buildings som blocked (traps är walkable)
+  // v2 REDESIGN: BARA murar blockerar flow-fältet i fältet. Port hanteras separat
+  // (blockerar bara STÄNGD), och fällor/krut-tunna är walkable (effekt vid överlapp).
   for (const b of sim.castledefenseBuildings) {
     if (b.hp <= 0) continue;
-    if (b.kind === 'spike_trap' || b.kind === 'slow_trap') continue;
+    if (b.kind !== 'wall') continue;
     const ciStart = Math.floor(b.x / grid);
     const cjStart = Math.floor(b.y / grid);
     const ciEnd = Math.floor((b.x + b.w - 1) / grid);
@@ -2799,10 +2761,37 @@ function buildCdFlowField(sim) {
       }
     }
   }
+  // v2 REDESIGN: SOLIDA slottsväggar — alltid blocked (indestruktibla). Port-gapet i
+  // sydväggen är INTE en vägg → cellerna där förblir walkable så flow-fältet (seedat
+  // i slottets mitt) bara kan nå fältet GENOM porten = fiender trattas dit.
+  for (const w of (sim.castledefenseCastleWalls || [])) {
+    const ciStart = Math.floor(w.x / grid), cjStart = Math.floor(w.y / grid);
+    const ciEnd = Math.floor((w.x + w.w - 1) / grid), cjEnd = Math.floor((w.y + w.h - 1) / grid);
+    for (let ci = ciStart; ci <= ciEnd; ci++) {
+      for (let cj = cjStart; cj <= cjEnd; cj++) {
+        if (ci >= 0 && ci < cols && cj >= 0 && cj < rows) walkable[cj * cols + ci] = 0;
+      }
+    }
+  }
+  // CLOSED PORT (port-byggen med open=false) blockerar också flow-fältet (öppen = walkable)
+  for (const b of sim.castledefenseBuildings) {
+    if (b.hp <= 0 || b.kind !== 'gate' || b.open) continue;
+    const ciStart = Math.floor(b.x / grid), cjStart = Math.floor(b.y / grid);
+    const ciEnd = Math.floor((b.x + b.w - 1) / grid), cjEnd = Math.floor((b.y + b.h - 1) / grid);
+    for (let ci = ciStart; ci <= ciEnd; ci++) {
+      for (let cj = cjStart; cj <= cjEnd; cj++) {
+        if (ci >= 0 && ci < cols && cj >= 0 && cj < rows) walkable[cj * cols + ci] = 0;
+      }
+    }
+  }
 
-  // BFS från ALLA cells i en ring runt core (så enemies pathfindar till core-edge)
-  const coreCi = Math.floor(arena.centerX / grid);
-  const coreCj = Math.floor(arena.centerY / grid);
+  // BFS från ALLA cells i en ring runt SLOTTS-KÄRNAN (i slottets mitt). Castle-väggarna
+  // blockerar → BFS:en kan bara nå fältet GENOM port-gapet → fält-fiender flödar mot
+  // porten, in, och till kärnan. (v2: seedat från core, ej borttagna arena.centerX/Y.)
+  const cdGoalX = (sim.castledefenseCore ? sim.castledefenseCore.x : 2000);
+  const cdGoalY = (sim.castledefenseCore ? sim.castledefenseCore.y : 600);
+  const coreCi = Math.floor(cdGoalX / grid);
+  const coreCj = Math.floor(cdGoalY / grid);
   const dist = new Int32Array(cellCount);
   for (let i = 0; i < cellCount; i++) dist[i] = -1;
   const queue = new Int32Array(cellCount);
@@ -2816,7 +2805,7 @@ function buildCdFlowField(sim) {
       if (ci < 0 || ci >= cols || cj < 0 || cj >= rows) continue;
       const cellX = ci * grid + grid / 2;
       const cellY = cj * grid + grid / 2;
-      const ddx = cellX - arena.centerX, ddy = cellY - arena.centerY;
+      const ddx = cellX - cdGoalX, ddy = cellY - cdGoalY;
       if (ddx * ddx + ddy * ddy <= coreRange * coreRange) {
         const idx = cj * cols + ci;
         dist[idx] = 0;
@@ -3301,21 +3290,27 @@ function tickCastleDefense(sim, dt, now) {
   }
 
   // Bygg alive-walls + buildings för collision-checks.
-  // v1.398: ALLA non-trap buildings är solida (per user feedback "gå inte igenom föremålen").
-  // Bara spike_trap + slow_trap är walkable (de skadar vid overlap).
+  // v2 REDESIGN: SOLIDA (blockerar rörelse + är attack-/kul-mål) = MURAR + STÄNGDA PORTAR.
+  // Fällor (spik/tjära/olja), krut-tunna, slot-torn och NPC:er blockerar INTE rörelse.
   const cdLiveWalls = sim.castledefenseWalls.filter(w => w.hp > 0);
   const cdLiveBuildings = sim.castledefenseBuildings.filter(b => b.hp > 0);
   const cdSolidBuildings = cdLiveBuildings.filter(b =>
-    b.kind !== 'spike_trap' && b.kind !== 'slow_trap');
+    b.kind === 'wall' || (b.kind === 'gate' && !b.open));
+  // Destruktibla fält-strukturer (enemy-attack + kul-skada): murar + stängda portar.
   const cdAllSolids = cdLiveWalls.concat(cdSolidBuildings);
+  // RÖRELSE-kollision (spelare + fiender): fält-strukturer + INDESTRUKTIBLA slottsväggar.
+  const cdMoveSolids = cdAllSolids.concat(sim.castledefenseCastleWalls || []);
 
-  // === PLAYER COLLISION (v1.419: player kan GÅ IGENOM walls/buildings för att
-  // stå PÅ tornen för repair/upgrade/sell. Enemies blockas fortfarande via flow-
-  // field nedan. Bara CORE blockar player.)
-  // v1.531: I SURVIVORS-mode är altaret bara dekoration — player kan gå igenom.
+  // === PLAYER COLLISION ===
+  // v2 REDESIGN: spelare kan INTE längre gå igenom murar — murar + STÄNGDA portar +
+  // de solida slottsväggarna blockerar spelaren (bygg taktiskt). Öppna portar och
+  // fällor/krut-tunna släpper igenom. SURVIVORS behåller pass-through (eget läge).
   for (const [, ws] of sim.room.members) {
     if (ws.playerState && ws.playerState.hp > 0) {
       const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
+      if (!sim.survivorsActive) {
+        resolveCtfWall(ent, cdMoveSolids);
+      }
       if (sim.castledefenseCore && sim.castledefenseCore.hp > 0 && !sim.survivorsActive) {
         const core = sim.castledefenseCore;
         const dx = ent.x - core.x, dy = ent.y - core.y;
@@ -3464,11 +3459,13 @@ function tickCastleDefense(sim, dt, now) {
     }
   }
 
-  // === BUILDINGS RUNTIME — auto-turret fire, traps, repair/health stations ===
+  // === BUILDINGS RUNTIME — slot-torn-eld, fällor (spik/tjära/olja) ===
   if (sim.castledefenseBuildings.length > 0) {
     sim._cdCoreHealedThisTick = false; // v1.413: reset per tick — cap multi-repair-stack
     updateCastleDefenseBuildings(sim, dt, nowMs);
   }
+  // v2 REDESIGN: slotts-NPC:er (heal-NPC helar spelare, repair-NPC reparerar slottet)
+  if (!sim.survivorsActive) updateCastleNpcs(sim, dt, nowMs);
 
   // v1.416: MEDIC auto-regen (2 hp/s) — per-player perk-effect
   for (const [pid, ws] of sim.room.members) {
@@ -3556,79 +3553,31 @@ function tickCastleDefense(sim, dt, now) {
         x: corePos.x, y: corePos.y,
         hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
       } : { x: 2000, y: 2000, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
-    } else if (!isRangedType && e._cdRole === 'attacker' && cdAlivePlayers.length > 0) {
-      // Attacker: target nearest alive player
-      let bestPlayer = null, bestPD2 = Infinity;
-      for (const p of cdAlivePlayers) {
-        const dx = p.x - e.x, dy = p.y - e.y;
-        const d2 = dx * dx + dy * dy;
-        if (d2 < bestPD2) { bestPD2 = d2; bestPlayer = p; }
-      }
-      if (bestPlayer) {
-        // Reset aim om target bytte (annars sniper låser på död spelare)
-        const newTargetId = '__player_' + bestPlayer.peerId;
-        if (e._cdLastTargetId && e._cdLastTargetId !== newTargetId) {
-          e.aiming = false; e.aimAt = 0;
-        }
-        e._cdLastTargetId = newTargetId;
+    } else {
+      // v2 REDESIGN: MARK-fiender följer FLOW-FÄLTET mot slotts-kärnan (genom porten,
+      // runt fält-murarna). Waypoint = punkt en bit fram längs flödet → updateEnemy
+      // beelinear dit, resolveCtfWall sköter mur-kollisionen, attack-scannen nedan
+      // skadar murar/core vid kontakt. Ranged skjuter mot waypointen (≈ mot core) →
+      // skotten träffar murarna i vägen. Inget flöde (helt inmurad) → rakt mot core.
+      const _flow = cdFlowLookup(sim._cdFlowField, e.x, e.y);
+      if (_flow && (_flow.dx !== 0 || _flow.dy !== 0)) {
+        const _flen = Math.hypot(_flow.dx, _flow.dy) || 1;
+        if (e._cdLastTargetId !== '__flow__') { e.aiming = false; e.aimAt = 0; }
+        e._cdLastTargetId = '__flow__';
         target = {
-          peerId: newTargetId, _isCoreTarget: false,
-          x: bestPlayer.x, y: bestPlayer.y,
+          peerId: '__flow__', _isCoreTarget: true,
+          x: e.x + (_flow.dx / _flen) * 200,
+          y: e.y + (_flow.dy / _flen) * 200,
           hp: 99999, maxHp: 99999, invulnUntil: 0, r: 14,
         };
       } else {
-        // Fallback: core. Uppdatera _cdLastTargetId så aim resetas vid nästa byte.
-        if (e._cdLastTargetId !== '__core__') {
-          e.aiming = false; e.aimAt = 0;
-        }
+        if (e._cdLastTargetId !== '__core__') { e.aiming = false; e.aimAt = 0; }
         e._cdLastTargetId = '__core__';
         target = corePos ? {
           peerId: '__core__', _isCoreTarget: true,
           x: corePos.x, y: corePos.y,
           hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
-        } : null;
-      }
-    } else {
-      // Andra fiender: hitta NÄRMSTA player-built solid building som är "på vägen"
-      // mot core (filter: building är närmare core än enemy). Annars skulle shooters
-      // skjuta walls långt åt sidan istället för core-relaterade defenser.
-      let nearestBuild = null, nearestD2 = Infinity;
-      const dxEC = corePos ? (corePos.x - e.x) : 0;
-      const dyEC = corePos ? (corePos.y - e.y) : 0;
-      const dEC2 = dxEC * dxEC + dyEC * dyEC;
-      for (const b of cdSolidsForTarget) {
-        const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
-        // Filter: building måste vara närmare core än enemy (= "på vägen")
-        if (corePos) {
-          const dxBC = bcx - corePos.x, dyBC = bcy - corePos.y;
-          if (dxBC * dxBC + dyBC * dyBC > dEC2) continue;
-        }
-        const dx = bcx - e.x, dy = bcy - e.y;
-        const d2 = dx * dx + dy * dy;
-        if (d2 < nearestD2) { nearestD2 = d2; nearestBuild = b; }
-      }
-      if (nearestBuild) {
-        // v1.400-fix: om enemy bytte target mid-aim → reset aim-state så sniper
-        // inte slutför lock-on på fel mål
-        const newTargetId = '__target_' + nearestBuild.id;
-        if (e._cdLastTargetId && e._cdLastTargetId !== newTargetId) {
-          e.aiming = false;
-          e.aimAt = 0;
-        }
-        e._cdLastTargetId = newTargetId;
-        target = {
-          peerId: newTargetId, _isCoreTarget: true,
-          x: nearestBuild.x + nearestBuild.w / 2,
-          y: nearestBuild.y + nearestBuild.h / 2,
-          hp: 99999, maxHp: 99999, invulnUntil: 0, r: 14,
-        };
-      } else {
-        // Inga defenses kvar → core
-        target = corePos ? {
-          peerId: '__core__', _isCoreTarget: true,
-          x: corePos.x, y: corePos.y,
-          hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
-        } : { x: 2000, y: 2000, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
+        } : { x: 2000, y: 600, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
       }
     }
     const players = [target];
@@ -3683,8 +3632,10 @@ function tickCastleDefense(sim, dt, now) {
     e.x = Math.max(20, Math.min(arena.worldW - 20, e.x));
     e.y = Math.max(20, Math.min(arena.worldH - 20, e.y));
     // Wall-collision för enemies (skippa flyers — de ignorerar walls).
+    // v2 REDESIGN: fiender blockas även av de solida slottsväggarna (cdMoveSolids) så
+    // de bara kan ta sig in genom porten. Survivors behåller bara fält-strukturer.
     if (!e._cdFlyer) {
-      resolveCtfWall(e, cdAllSolids);
+      resolveCtfWall(e, sim.survivorsActive ? cdAllSolids : cdMoveSolids);
     }
     // Core circle-collision för ALLA fiender (även flyers — annars kan de attacka
     // core från insidan). v1.398-fix: d=0 fallback för enemy också.
@@ -7664,6 +7615,18 @@ function startSim(sim, opts) {
       sim.survivorsStartT = Date.now();
     }
     sim.castledefenseBuildings = [];
+    // v2 REDESIGN: SOLIDA slottsväggar (indestruktibla — blockerar rörelse + kulor),
+    // 6 battlement-slots (torn-platser), slotts-NPC:er + tron (uppgraderas, börjar lvl 0),
+    // samt fiendernas mål-punkt (porten) som flow-fältet byggs mot.
+    sim.castledefenseCastleWalls = (arena.castleWalls || []).map(w => ({ ...w, kind: 'castle_wall' }));
+    sim.castledefenseSlots = (arena.battlementSlots || []).map(s => ({ id: s.id, x: s.x, y: s.y, towerId: null }));
+    sim.castledefenseNpcs = {
+      throne:     { level: 0, x: arena.castleNpcs.throne.x,     y: arena.castleNpcs.throne.y },
+      heal_npc:   { level: 0, x: arena.castleNpcs.heal_npc.x,   y: arena.castleNpcs.heal_npc.y },
+      repair_npc: { level: 0, x: arena.castleNpcs.repair_npc.x, y: arena.castleNpcs.repair_npc.y },
+    };
+    sim.castledefenseGoal = arena.enemyGoal ? { ...arena.enemyGoal } : { x: arena.core.x, y: arena.core.y };
+    sim._cdFlowDirty = true;
     sim.castledefenseStartedAt = Date.now();
     sim.castledefenseWave = 0;
     sim.castledefenseWaveState = 'between';
@@ -7727,20 +7690,29 @@ function startSim(sim, opts) {
         groundColor: arena.groundColor,
         plazaColor: arena.plazaColor,
         pathColor: arena.pathColor,
-        plazaRadius: arena.plazaRadius,
-        centerX: arena.centerX,
-        centerY: arena.centerY,
         startWeapon: arena.startWeapon,
         startGrenades: arena.startGrenades,
         weaponProgression: arena.weaponProgression,
       },
-      walls: [],                          // v1.397: ingen pre-built
+      // v2 REDESIGN: slott-geometri (klienten ritar slottet + solida väggar + slots/NPC)
+      castle: arena.castle,
+      castleWalls: sim.castledefenseCastleWalls.map(w => ({ x: w.x, y: w.y, w: w.w, h: w.h })),
+      battlementSlots: arena.battlementSlots,
+      castleNpcs: {
+        throne: { ...sim.castledefenseNpcs.throne },
+        heal_npc: { ...sim.castledefenseNpcs.heal_npc },
+        repair_npc: { ...sim.castledefenseNpcs.repair_npc },
+      },
+      slotBuildables: arena.slotBuildables,
+      enemyGoal: sim.castledefenseGoal,
+      walls: [],                          // inga pre-built fält-murar
       core: { ...sim.castledefenseCore },
       playerSpawns: arena.playerSpawns,
       enemySpawns: arena.enemySpawns,
       decorations: arena.decorations || [],
       buildables: arena.buildables,
       buildGridSize: arena.buildGridSize,
+      maxBuildLevel: arena.maxBuildLevel,
       startHp: arena.startHp,
       maxHp: arena.maxHp,
       startGold: sim.castledefenseGold,  // {pid: amount}
@@ -8088,7 +8060,7 @@ function applyPlayerInput(sim, peerId, input) {
   }
   // Mounted turret-spelare: position låst av server. Ignorera klient-position
   // helt så ingen kan skjuta från fel pos eller bypass turret-occupant.
-  if (ws._mountedSiegeTurretId || ws._mountedCtfTurretId) {
+  if (ws._mountedSiegeTurretId || ws._mountedCtfTurretId || ws._mountedCdTowerId) {
     if (typeof input.aim === 'number') ws.playerState.aim = input.aim;
     if (input.weaponId) ws.playerState.weaponId = input.weaponId;
     if (_inputSeq >= 0) ws.playerState._ackSeq = _inputSeq;  // AAA #6: bekräfta även bemannad
@@ -8558,20 +8530,13 @@ function applyCastleDefenseBuild(sim, peerId, msg) {
   if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
   const arena = CASTLEDEFENSE_ARENA;
   const kind = msg && msg.kind;
-  if (!kind || !arena.buildables[kind]) return;
-  const spec = arena.buildables[kind];
+  const isSlotTower = !!(arena.slotBuildables && arena.slotBuildables[kind]);
+  const spec = isSlotTower ? arena.slotBuildables[kind] : (arena.buildables && arena.buildables[kind]);
+  if (!kind || !spec) return;
   const grid = arena.buildGridSize;
-  // Grid-snap server-side (klient kan vara felaktig)
-  const x = Math.floor((+msg.x || 0) / grid) * grid;
-  const y = Math.floor((+msg.y || 0) / grid) * grid;
-  if (x < 20 || y < 20 || x + spec.w > arena.worldW - 20 || y + spec.h > arena.worldH - 20) {
-    sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'out_of_bounds', kind });
-    return;
-  }
-  // v1.416: BUILDER perk -30% cost
+  // BUILDER -30% + difficulty price-mul
   const buildPerk = sim.castledefensePerks[peerId];
   const buildCostMul = buildPerk === 'builder' ? 0.7 : 1.0;
-  // v1.422: difficulty price-mul (casual=-15%, hardcore=+15%, insane=+30%)
   const diffPriceMul = cdGetDifficultyPriceMul(sim.config.difficulty);
   const effectiveCost = Math.max(1, Math.round(spec.cost * buildCostMul * diffPriceMul));
   const playerGold = sim.castledefenseGold[peerId] || 0;
@@ -8579,112 +8544,96 @@ function applyCastleDefenseBuild(sim, peerId, msg) {
     sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'insufficient_gold', kind });
     return;
   }
-  // Overlap-check med walls
-  for (const w of sim.castledefenseWalls) {
-    if (w.hp <= 0) continue;
-    if (x < w.x + w.w && x + spec.w > w.x && y < w.y + w.h && y + spec.h > w.y) {
-      sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_wall', kind });
-      return;
+
+  let x, y, w, h, slotRef = null;
+  if (isSlotTower) {
+    // SLOT-TORN (machinegun/bomber): BARA i en av de 6 battlement-slotsen, tom slot,
+    // och spelaren måste stå nära slotten.
+    const slot = (sim.castledefenseSlots || []).find(s => s.id === (msg && msg.slot));
+    if (!slot) { sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'bad_slot', kind }); return; }
+    if (slot.towerId) { sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'slot_taken', kind }); return; }
+    const pdx = ws.playerState.x - slot.x, pdy = ws.playerState.y - slot.y;
+    if (pdx * pdx + pdy * pdy > 100 * 100) { sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'too_far', kind }); return; }
+    w = 36; h = 36;
+    x = Math.round(slot.x - w / 2); y = Math.round(slot.y - h / 2);
+    slotRef = slot;
+  } else {
+    // FÄLT-BYGGE (mur/port/spik/tjära/olja/krut-tunna): grid-snap, inom kartan, INTE
+    // på/inne i slottet, ingen överlapp.
+    x = Math.floor((+msg.x || 0) / grid) * grid;
+    y = Math.floor((+msg.y || 0) / grid) * grid;
+    w = spec.w; h = spec.h;
+    if (x < 20 || y < 20 || x + w > arena.worldW - 20 || y + h > arena.worldH - 20) {
+      sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'out_of_bounds', kind }); return;
     }
-  }
-  // Overlap-check med befintliga buildings
-  for (const b of sim.castledefenseBuildings) {
-    if (b.hp <= 0) continue;
-    if (x < b.x + b.w && x + spec.w > b.x && y < b.y + b.h && y + spec.h > b.y) {
-      sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_building', kind });
-      return;
+    const C = arena.castle;
+    if (C && x < C.x + C.w && x + w > C.x && y < C.y + C.h && y + h > C.y) {
+      sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'inside_castle', kind }); return;
     }
-  }
-  // Overlap-check med core (circle vs AABB)
-  if (sim.castledefenseCore) {
-    const core = sim.castledefenseCore;
-    const cx2 = Math.max(x, Math.min(core.x, x + spec.w));
-    const cy2 = Math.max(y, Math.min(core.y, y + spec.h));
-    const dxC = core.x - cx2, dyC = core.y - cy2;
-    if (dxC * dxC + dyC * dyC < (core.r + 5) * (core.r + 5)) {
-      sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_core', kind });
-      return;
+    for (const b of sim.castledefenseBuildings) {
+      if (b.hp <= 0) continue;
+      if (x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y) {
+        sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_building', kind }); return;
+      }
     }
-  }
-  // Overlap-check med levande spelare (man får inte bygga på spelare)
-  for (const [, ws2] of sim.room.members) {
-    if (!ws2.playerState || ws2.playerState.hp <= 0) continue;
-    const ps = ws2.playerState;
-    const r = 14;
-    const ccx = Math.max(x, Math.min(ps.x, x + spec.w));
-    const ccy = Math.max(y, Math.min(ps.y, y + spec.h));
-    const ddx = ps.x - ccx, ddy = ps.y - ccy;
-    if (ddx * ddx + ddy * ddy < r * r) {
-      sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_player', kind });
-      return;
-    }
-  }
-  // v1.398: Blocka även overlap med levande fiender (annars kan fiende fastna inuti
-  // mur som placeras runt dem — flow-field returnerar då unreachable för cellen).
-  // Bara solida buildings — traps får placeras under fiender (skadar dem).
-  if (kind !== 'spike_trap' && kind !== 'slow_trap') {
-    for (const e of sim.enemies) {
-      if (e.dead) continue;
-      const ccx2 = Math.max(x, Math.min(e.x, x + spec.w));
-      const ccy2 = Math.max(y, Math.min(e.y, y + spec.h));
-      const eddx = e.x - ccx2, eddy = e.y - ccy2;
-      if (eddx * eddx + eddy * eddy < (e.r || 12) * (e.r || 12)) {
-        sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_enemy', kind });
-        return;
+    // Solida (mur/port) får ej placeras på levande spelare/fiende (de skulle fastna).
+    // Fällor/krut-tunna får läggas under fiender (de skadar/triggas där).
+    const isSolid = (kind === 'wall' || kind === 'gate');
+    if (isSolid) {
+      for (const [, ws2] of sim.room.members) {
+        if (!ws2.playerState || ws2.playerState.hp <= 0) continue;
+        const ps = ws2.playerState, r = 14;
+        const ccx = Math.max(x, Math.min(ps.x, x + w)), ccy = Math.max(y, Math.min(ps.y, y + h));
+        const ddx = ps.x - ccx, ddy = ps.y - ccy;
+        if (ddx * ddx + ddy * ddy < r * r) { sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_player', kind }); return; }
+      }
+      for (const e of sim.enemies) {
+        if (e.dead) continue;
+        const ccx2 = Math.max(x, Math.min(e.x, x + w)), ccy2 = Math.max(y, Math.min(e.y, y + h));
+        const eddx = e.x - ccx2, eddy = e.y - ccy2;
+        if (eddx * eddx + eddy * eddy < (e.r || 12) * (e.r || 12)) { sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'overlap_enemy', kind }); return; }
       }
     }
   }
-  // OK → deducera gold + skapa building
+
+  // OK → deducera gold + skapa byggnad
   sim.castledefenseGold[peerId] = playerGold - effectiveCost;
-  sim._cdBuildIdCounter += 1;
+  sim._cdBuildIdCounter = (sim._cdBuildIdCounter || 0) + 1;
   const building = {
     id: 'build_' + sim._cdBuildIdCounter,
-    kind, x, y, w: spec.w, h: spec.h,
+    kind, x, y, w, h,
     hp: spec.hp, maxHp: spec.hp,
     ownerPid: peerId,
-    fireRate: spec.fireRate || 0,
-    range: spec.range || 0,
-    dps: spec.dps || 0,
-    dpsMul: spec.dpsMul || 0,
-    dmgOnPass: spec.dmgOnPass || 0,
-    slowMul: spec.slowMul || 1,
-    slowDurSec: spec.slowDurSec || 0,
-    healPerSec: spec.healPerSec || 0,
-    playerHealPerSec: spec.playerHealPerSec || 0,
-    radius: spec.radius || 0,
-    level: 0,                     // v1.407: level-system (0-9 = 10 nivåer)
-    _baseCost: spec.cost,         // för upgrade-cost-beräkning
-    _baseStats: {                 // för upgrade-stat-beräkning
+    fireRate: spec.fireRate || 0, range: spec.range || 0, dps: spec.dps || 0,
+    dmgOnPass: spec.dmgOnPass || 0, killCapacity: spec.killCapacity || 0,
+    slowMul: spec.slowMul || 1, slowDurSec: spec.slowDurSec || 0, radius: spec.radius || 0,
+    burnSec: spec.burnSec || 0, blastRadius: spec.blastRadius || 0, blastDmg: spec.blastDmg || 0,
+    trailDps: spec.trailDps || 0, trailSec: spec.trailSec || 0, manDpsMul: spec.manDpsMul || 0,
+    open: kind === 'gate' ? false : undefined,   // PORT börjar STÄNGD (= mur tills öppnad)
+    slotId: slotRef ? slotRef.id : null,
+    level: 0,
+    _baseCost: spec.cost,
+    _baseStats: {
       hp: spec.hp, dps: spec.dps || 0, range: spec.range || 0,
-      healPerSec: spec.healPerSec || 0, playerHealPerSec: spec.playerHealPerSec || 0,
       dmgOnPass: spec.dmgOnPass || 0, fireRate: spec.fireRate || 0,
+      slowMul: spec.slowMul || 1, radius: spec.radius || 0,
     },
-    _fireCd: 0,
-    _spikeCd: 0,
-    occupiedByPid: null,
+    _fireCd: 0, occupantId: null,
+    _totalInvested: effectiveCost,
   };
-  building._totalInvested = spec.cost; // för sell-refund
   sim.castledefenseBuildings.push(building);
-  // Solid buildings ändrar pathfinding-grid → rebuild flow field nästa tick
-  if (kind !== 'spike_trap' && kind !== 'slow_trap') sim._cdFlowDirty = true;
+  if (slotRef) slotRef.towerId = building.id;
+  // Solida fält-strukturer (mur / STÄNGD port) ändrar pathfinding → rebuild flow field.
+  if (kind === 'wall' || kind === 'gate') sim._cdFlowDirty = true;
   sim.eventQueue.push({
     type: 'cd_building_placed',
     id: building.id, kind: building.kind,
     x: building.x, y: building.y, w: building.w, h: building.h,
-    hp: building.hp, maxHp: building.maxHp,
-    ownerPid: peerId,
-    range: building.range, dpsMul: building.dpsMul,
-    // v1.407: skicka radius + healPerSec + playerHealPerSec så klient kan rita aura
-    radius: building.radius,
-    healPerSec: building.healPerSec,
-    playerHealPerSec: building.playerHealPerSec,
-    level: building.level || 0,
-    totalInvested: building._totalInvested || spec.cost, // v1.415: för repair-cost-calc
+    hp: building.hp, maxHp: building.maxHp, ownerPid: peerId,
+    range: building.range, radius: building.radius, open: building.open,
+    slotId: building.slotId, level: 0, totalInvested: building._totalInvested,
   });
-  sim.eventQueue.push({
-    type: 'cd_gold_update',
-    peerId, gold: sim.castledefenseGold[peerId], delta: -spec.cost,
-  });
+  sim.eventQueue.push({ type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: -effectiveCost });
 }
 
 function applyCastleDefenseRepair(sim, peerId, msg) {
@@ -8731,6 +8680,45 @@ function applyCastleDefenseRepair(sim, peerId, msg) {
 }
 
 // v1.407: Upgrade existing building. Increments level + scales stats + deducts gold.
+// v2 REDESIGN: spec-lookup som täcker BÅDE fält-byggen och slot-torn.
+function _cdSpecOf(kind) {
+  const A = CASTLEDEFENSE_ARENA;
+  return (A.buildables && A.buildables[kind]) || (A.slotBuildables && A.slotBuildables[kind]) || {};
+}
+// Engångs-saker (spik = kapacitet, olja = tidsbegränsad, krut-tunna = triggas) — ej uppgraderbara.
+const _CD_NO_UPGRADE = { spike_trap: 1, oil_fire: 1, powder_barrel: 1 };
+
+function _cdUpgradeCost(sim, peerId, b) {
+  const arena = CASTLEDEFENSE_ARENA;
+  const baseCost = b._baseCost || _cdSpecOf(b.kind).cost || 100;
+  const ucBase = arena.upgradeCostBase || 0.5, ucExp = arena.upgradeCostExp || 1.2;
+  const upgMul = sim.castledefensePerks[peerId] === 'builder' ? 0.7 : 1.0;
+  const diff = cdGetDifficultyPriceMul(sim.config.difficulty);
+  return Math.max(1, Math.round(baseCost * ucBase * Math.pow((b.level || 0) + 1, ucExp) * upgMul * diff));
+}
+
+function _cdApplyUpgradeStats(b, arena) {
+  const mul = arena.upgradeStatMul || {};
+  const base = b._baseStats || {};
+  const lvl = b.level;
+  const spec = _cdSpecOf(b.kind);
+  if (base.hp) {
+    const hpScale = spec.hpScalePerLvl != null ? spec.hpScalePerLvl : (mul.hp || 0.5);
+    const newMax = Math.round(base.hp * (1 + lvl * hpScale));
+    const hpPct = b.maxHp > 0 ? b.hp / b.maxHp : 1;
+    b.maxHp = newMax; b.hp = Math.round(newMax * hpPct);
+  }
+  if (base.dps) b.dps = base.dps * (1 + lvl * (mul.dps || 0.45));
+  if (base.range) b.range = Math.round(base.range * (1 + lvl * (mul.range || 0.10)));
+  if (base.dmgOnPass) b.dmgOnPass = Math.round(base.dmgOnPass * (1 + lvl * (mul.dmg || 0.40)));
+  // TJÄRGROP: större radie + starkare slow per nivå (lägre slowMul = mer slow).
+  if (b.kind === 'tar_trap') {
+    if (base.radius) b.radius = Math.round(base.radius * (1 + lvl * 0.12));
+    b.slowMul = Math.max(0.15, (base.slowMul || 0.4) - lvl * 0.02);
+  }
+}
+
+// v2 REDESIGN: uppgradera 1 nivå (msg.max=true → så många nivåer man har råd med).
 function applyCastleDefenseUpgrade(sim, peerId, msg) {
   if (!sim.castledefenseActive || sim.castledefenseEnded) return;
   const ws = sim.room.members.get(peerId);
@@ -8740,68 +8728,30 @@ function applyCastleDefenseUpgrade(sim, peerId, msg) {
   if (!id) return;
   const b = sim.castledefenseBuildings.find(x => x.id === id && x.hp > 0);
   if (!b) return;
-  if (b.kind === 'spike_trap') return; // spike-trap är disposable, ingen upgrade
-  // v1.419: STRIKT AABB — matchar klient
-  const upgPx = ws.playerState.x, upgPy = ws.playerState.y;
-  if (upgPx < b.x || upgPx > b.x + b.w || upgPy < b.y || upgPy > b.y + b.h) return;
-  const curLevel = b.level || 0;
-  const maxLevel = arena.maxBuildLevel || 9;
-  if (curLevel >= maxLevel) {
-    sim.eventQueue.push({ type: 'cd_upgrade_failed', peerId, id, reason: 'max_level' });
-    return;
-  }
-  const baseCost = b._baseCost || arena.buildables[b.kind].cost;
-  // v1.410: exponential cost-scaling: baseCost × base × (lvl+1)^exp
-  const ucBase = arena.upgradeCostBase || 0.6;
-  const ucExp = arena.upgradeCostExp || 1.3;
-  // v1.416: BUILDER perk -30% upgrade-cost
-  const upgPerk = sim.castledefensePerks[peerId];
-  const upgMul = upgPerk === 'builder' ? 0.7 : 1.0;
-  // v1.422: difficulty price-mul (casual=-15%, hardcore=+15%, insane=+30%)
-  const upgDiffPriceMul = cdGetDifficultyPriceMul(sim.config.difficulty);
-  const upgradeCost = Math.max(1, Math.round(baseCost * ucBase * Math.pow(curLevel + 1, ucExp) * upgMul * upgDiffPriceMul));
-  const playerGold = sim.castledefenseGold[peerId] || 0;
-  if (playerGold < upgradeCost) {
-    sim.eventQueue.push({ type: 'cd_upgrade_failed', peerId, id, reason: 'insufficient_gold', cost: upgradeCost });
-    return;
-  }
-  // OK — deducera + level up
-  sim.castledefenseGold[peerId] = playerGold - upgradeCost;
-  b._totalInvested = (b._totalInvested || baseCost) + upgradeCost;
-  b.level = curLevel + 1;
-  const mul = arena.upgradeStatMul || {};
-  const base = b._baseStats || {};
-  // Skala stats baserat på base × (1 + level × multiplier)
-  const lvl = b.level;
-  if (base.hp) {
-    // v1.411: per-kind override för hp-scaling (wall får +120%/lvl, andra +50%)
-    const spec = arena.buildables[b.kind] || {};
-    const hpScale = spec.hpScalePerLvl != null ? spec.hpScalePerLvl : (mul.hp || 0.5);
-    const newMax = Math.round(base.hp * (1 + lvl * hpScale));
-    const hpPct = b.hp / b.maxHp;
-    b.maxHp = newMax;
-    b.hp = Math.round(newMax * hpPct);
-  }
-  if (base.dps) b.dps = base.dps * (1 + lvl * (mul.dps || 0.25));
-  if (base.range) b.range = Math.round(base.range * (1 + lvl * (mul.range || 0.05)));
-  // v1.414: per-kind override för heal-scaling (repair_stn har 2.0 = +200%/lvl)
-  const specForHeal = arena.buildables[b.kind] || {};
-  const healScale = specForHeal.healScalePerLvl != null ? specForHeal.healScalePerLvl : (mul.heal || 0.4);
-  if (base.healPerSec) b.healPerSec = base.healPerSec * (1 + lvl * healScale);
-  if (base.playerHealPerSec) b.playerHealPerSec = base.playerHealPerSec * (1 + lvl * healScale);
-  if (base.dmgOnPass) b.dmgOnPass = Math.round(base.dmgOnPass * (1 + lvl * (mul.dmg || 0.25)));
-  sim.eventQueue.push({
-    type: 'cd_building_upgraded',
-    id: b.id, level: b.level, peerId,
-    hp: b.hp, maxHp: b.maxHp, dps: b.dps, range: b.range,
-    healPerSec: b.healPerSec, playerHealPerSec: b.playerHealPerSec,
-    dmgOnPass: b.dmgOnPass,
-    upgradeCost,
-    totalInvested: b._totalInvested,   // v1.415: updated invest för repair-cost
-  });
-  sim.eventQueue.push({
-    type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: -upgradeCost,
-  });
+  if (_CD_NO_UPGRADE[b.kind]) { sim.eventQueue.push({ type: 'cd_upgrade_failed', peerId, id, reason: 'not_upgradeable' }); return; }
+  // Närhets-check (AABB + liten tolerans så slot-torn/portar går att nå)
+  const px = ws.playerState.x, py = ws.playerState.y, tol = 26;
+  if (px < b.x - tol || px > b.x + b.w + tol || py < b.y - tol || py > b.y + b.h + tol) return;
+  const maxLevel = arena.maxBuildLevel || 10;
+  const wantMax = !!(msg && msg.max);
+  let did = 0;
+  do {
+    if ((b.level || 0) >= maxLevel) { if (did === 0) sim.eventQueue.push({ type: 'cd_upgrade_failed', peerId, id, reason: 'max_level' }); break; }
+    const cost = _cdUpgradeCost(sim, peerId, b);
+    const gold = sim.castledefenseGold[peerId] || 0;
+    if (gold < cost) { if (did === 0) sim.eventQueue.push({ type: 'cd_upgrade_failed', peerId, id, reason: 'insufficient_gold', cost }); break; }
+    sim.castledefenseGold[peerId] = gold - cost;
+    b._totalInvested = (b._totalInvested || b._baseCost || 0) + cost;
+    b.level = (b.level || 0) + 1;
+    _cdApplyUpgradeStats(b, arena);
+    did++;
+    sim.eventQueue.push({
+      type: 'cd_building_upgraded', id: b.id, level: b.level, peerId,
+      hp: b.hp, maxHp: b.maxHp, dps: b.dps, range: b.range,
+      dmgOnPass: b.dmgOnPass, radius: b.radius, upgradeCost: cost, totalInvested: b._totalInvested,
+    });
+    sim.eventQueue.push({ type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: -cost });
+  } while (wantMax);
 }
 
 // v1.411: Sälja byggnad — bara owner får sälja, refund = 50% av totalt invest
@@ -8895,4 +8845,86 @@ function applyCastleDefenseInfMoney(sim, peerId, msg) {
   });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall, pickRandomHumanHunter, transferJug, ENEMY_CAP };
+// v2 REDESIGN: PORT öppna/stäng (bara nära porten). Öppen = passerbar för ALLA
+// (fiender kan slinka in); stängd = mur. Påverkar flow-field + kollision direkt.
+function applyCastleDefenseGate(sim, peerId, msg) {
+  if (!sim.castledefenseActive || sim.castledefenseEnded) return;
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState) return;
+  const b = sim.castledefenseBuildings.find(x => x.id === (msg && msg.id) && x.kind === 'gate' && x.hp > 0);
+  if (!b) return;
+  const px = ws.playerState.x, py = ws.playerState.y, tol = 45;
+  if (px < b.x - tol || px > b.x + b.w + tol || py < b.y - tol || py > b.y + b.h + tol) return;
+  b.open = !b.open;
+  sim._cdFlowDirty = true;
+  sim.eventQueue.push({ type: 'cd_gate_toggled', id: b.id, open: b.open });
+}
+
+// v2 REDESIGN: SÄTT DIG i ett slot-torn (machinegun/bomber) → dmg-boost (manDpsMul).
+function applyCastleDefenseEnterTower(sim, peerId, msg) {
+  if (!sim.castledefenseActive || sim.castledefenseEnded) return;
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  const b = sim.castledefenseBuildings.find(x => x.id === (msg && msg.id) && (x.kind === 'machinegun' || x.kind === 'bomber') && x.hp > 0);
+  if (!b) return;
+  if (b.occupantId && b.occupantId !== peerId) return;
+  const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+  const dx = ws.playerState.x - cx, dy = ws.playerState.y - cy;
+  if (dx * dx + dy * dy > 80 * 80) return;
+  b.occupantId = peerId;
+  ws._mountedCdTowerId = b.id;
+  ws.playerState.x = cx; ws.playerState.y = cy;
+  sim.eventQueue.push({ type: 'cd_tower_entered', id: b.id, peerId, x: Math.round(cx), y: Math.round(cy) });
+}
+
+function applyCastleDefenseExitTower(sim, peerId, msg) {
+  const ws = sim.room.members.get(peerId);
+  const tid = (ws && ws._mountedCdTowerId) || (msg && msg.id);
+  if (!tid) return;
+  const b = sim.castledefenseBuildings.find(x => x.id === tid);
+  if (b && b.occupantId === peerId) b.occupantId = null;
+  if (ws) {
+    ws._mountedCdTowerId = null;
+    if (ws.playerState) ws.playerState.y += 42; // kliv ner söderut från muren
+  }
+  sim.eventQueue.push({ type: 'cd_tower_exited', id: tid, peerId });
+}
+
+// v2 REDESIGN: uppgradera slotts-spår (throne/heal_npc/repair_npc), 1 nivå el. max.
+function applyCastleDefenseNpcUpgrade(sim, peerId, msg) {
+  if (!sim.castledefenseActive || sim.castledefenseEnded) return;
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  const which = msg && msg.npc;
+  const npcs = sim.castledefenseNpcs;
+  if (!npcs || !npcs[which]) return;
+  const npc = npcs[which];
+  const cfg = CASTLEDEFENSE_ARENA.castleUpgrades[which];
+  if (!cfg) return;
+  const dx = ws.playerState.x - npc.x, dy = ws.playerState.y - npc.y;
+  if (dx * dx + dy * dy > 110 * 110) return;
+  const maxLevel = CASTLEDEFENSE_ARENA.maxBuildLevel || 10;
+  const wantMax = !!(msg && msg.max);
+  const diff = cdGetDifficultyPriceMul(sim.config.difficulty);
+  const builderMul = sim.castledefensePerks[peerId] === 'builder' ? 0.7 : 1.0;
+  let did = 0;
+  do {
+    if (npc.level >= maxLevel) { if (did === 0) sim.eventQueue.push({ type: 'cd_npc_upgrade_failed', peerId, npc: which, reason: 'max_level' }); break; }
+    const cost = Math.max(1, Math.round(cfg.baseCost * Math.pow(npc.level + 1, cfg.costExp || 1.2) * builderMul * diff));
+    const gold = sim.castledefenseGold[peerId] || 0;
+    if (gold < cost) { if (did === 0) sim.eventQueue.push({ type: 'cd_npc_upgrade_failed', peerId, npc: which, reason: 'insufficient_gold', cost }); break; }
+    sim.castledefenseGold[peerId] = gold - cost;
+    npc.level += 1;
+    did++;
+    if (which === 'throne' && sim.castledefenseCore) {
+      const core = sim.castledefenseCore, add = cfg.hpPerLvl || 1500;
+      core.maxHp += add;
+      core.hp = Math.min(core.maxHp, core.hp + add);
+      sim.eventQueue.push({ type: 'cd_core_damaged', hp: core.hp, maxHp: core.maxHp });
+    }
+    sim.eventQueue.push({ type: 'cd_npc_upgraded', npc: which, level: npc.level, peerId, cost });
+    sim.eventQueue.push({ type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: -cost });
+  } while (wantMax);
+}
+
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall, pickRandomHumanHunter, transferJug, ENEMY_CAP };

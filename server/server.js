@@ -3,7 +3,7 @@
 
 const WebSocket = require('ws');
 const http = require('http');
-const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, pickRandomHumanHunter, transferJug } = require('./sim/room-sim');
+const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, pickRandomHumanHunter, transferJug } = require('./sim/room-sim');
 const accounts = require('./accounts'); // v2 konto/vÃ¤nner (acct_* â€” additivt, no-op fÃ¶r V1)
 const matchmaker = require('./matchmaker'); // v2 matchmaking-kö (queue_*/match_* — additivt)
 const groups = require('./groups'); // v2 matchmaking grupp-lager (group_* — additivt)
@@ -1539,6 +1539,31 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     applyCastleDefensePerk(room.sim, ws.id, msg);
+    return;
+  }
+  // v2 REDESIGN: port öppna/stäng, slot-torn sätt-dig/kliv-av, slotts-NPC-uppgrade
+  if (msg.type === 'sim_cd_gate') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyCastleDefenseGate(room.sim, ws.id, msg);
+    return;
+  }
+  if (msg.type === 'sim_cd_enter_tower') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyCastleDefenseEnterTower(room.sim, ws.id, msg);
+    return;
+  }
+  if (msg.type === 'sim_cd_exit_tower') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyCastleDefenseExitTower(room.sim, ws.id, msg);
+    return;
+  }
+  if (msg.type === 'sim_cd_npc_upgrade') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyCastleDefenseNpcUpgrade(room.sim, ws.id, msg);
     return;
   }
   if (msg.type === 'sim_cd_ping') {

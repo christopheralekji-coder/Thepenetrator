@@ -903,6 +903,41 @@ function explode(sim, x, y, radius, dmg, fromPid, srcWeaponId) {
   if (sim.siegeActive && sim.siegeTurrets) explodeTurrets(sim.siegeTurrets, 'siege_turret_damaged');
 }
 
+// v2 REDESIGN (CD): KRUT-TUNNA detonerar när en vänlig kula träffar den → omedelbar
+// AoE-blast mot fiender + ett eld-spår (temporär oil_fire-byggnad med samma tick-DoT).
+function cdDetonateBarrel(sim, barrel) {
+  if (barrel._detonated) return;
+  barrel._detonated = true;
+  const cx = barrel.x + barrel.w / 2, cy = barrel.y + barrel.h / 2;
+  const R = barrel.blastRadius || 150, R2 = R * R;
+  for (const e of sim.enemies) {
+    if (e.dead) continue;
+    const dx = e.x - cx, dy = e.y - cy;
+    if (dx * dx + dy * dy > R2) continue;
+    e.hp -= barrel.blastDmg || 380;
+    e.burnUntil = Date.now() + 600;
+    if (e.hp <= 0) { e.dead = true; e.lastDamagerPid = barrel.ownerPid; e.lastDamagerWeapon = 'explosive'; }
+  }
+  barrel.hp = 0;
+  sim.eventQueue.push({ type: 'cd_building_destroyed', id: barrel.id });
+  sim.eventQueue.push({ type: 'cd_barrel_blast', x: Math.round(cx), y: Math.round(cy), r: R });
+  // eld-spår = temporär oil_fire-byggnad (återanvänder updateCastleDefenseBuildings DoT + render)
+  sim._cdBuildIdCounter = (sim._cdBuildIdCounter || 0) + 1;
+  const fire = {
+    id: 'build_' + sim._cdBuildIdCounter, kind: 'oil_fire',
+    x: barrel.x, y: barrel.y, w: barrel.w, h: barrel.h,
+    hp: 1, maxHp: 1, ownerPid: barrel.ownerPid,
+    dps: barrel.trailDps || 30, radius: 78, burnSec: barrel.trailSec || 6,
+    level: 0, _baseStats: {}, _totalInvested: 0,
+  };
+  sim.castledefenseBuildings.push(fire);
+  sim.eventQueue.push({
+    type: 'cd_building_placed', id: fire.id, kind: 'oil_fire',
+    x: fire.x, y: fire.y, w: fire.w, h: fire.h, hp: 1, maxHp: 1,
+    ownerPid: fire.ownerPid, radius: fire.radius, level: 0, totalInvested: 0,
+  });
+}
+
 // Update bullets — collision + life + special-effekter (boomerang/blackhole/pull-whip).
 // Mirror av game.js:7870-8010.
 function updateBullets(sim, dt, now) {
@@ -1086,40 +1121,24 @@ function updateBullets(sim, dt, now) {
     //   så de når fiender bakom murarna. Annars är auto-turret bakom mur värdelös
     //   och spelare kan inte skjuta från säkerhet av sin egen castle.
     if (sim.castledefenseActive) {
-      const cdLiveWalls = sim.castledefenseWalls.filter(w => w.hp > 0);
-      const cdLiveBuildings = sim.castledefenseBuildings.filter(s => s.hp > 0);
-      // v1.398 fix: matcha tickCastleDefense — ALLA non-trap är solida
-      const cdSolidBuildings = cdLiveBuildings.filter(s =>
-        s.kind !== 'spike_trap' && s.kind !== 'slow_trap');
-      // Friendly bullets: ignorera ALL castle-collision. Hostile: stoppas av allt solidt.
-      const cdAllSolids = b.hostile ? cdLiveWalls.concat(cdSolidBuildings) : [];
-      if (cdAllSolids.length > 0 && bulletHitsWall(b, cdAllSolids)) {
-        // Skada wall/building om bullet är hostile (enemy)
-        if (b.hostile && b.dmg > 0) {
-          for (const w of cdAllSolids) {
-            if (b.x + b.r >= w.x && b.x - b.r <= w.x + w.w &&
-                b.y + b.r >= w.y && b.y - b.r <= w.y + w.h) {
-              w.hp = Math.max(0, w.hp - b.dmg);
-              // Robust check: byggnader har kind != 'castle_wall'
-              const isBuild = w.kind && w.kind !== 'castle_wall';
-              sim.eventQueue.push({
-                type: isBuild ? 'cd_building_damaged' : 'cd_wall_damaged',
-                id: w.id, hp: w.hp, maxHp: w.maxHp,
-              });
-              if (w.hp <= 0) {
-                // Flow field rebuild trigger när solid struktur faller
-                if (!w.kind || (w.kind !== 'spike_trap' && w.kind !== 'slow_trap')) {
-                  sim._cdFlowDirty = true;
-                }
-                sim.eventQueue.push({
-                  type: isBuild ? 'cd_building_destroyed' : 'cd_wall_destroyed',
-                  id: w.id,
-                });
-              }
-              break;
-            }
+      // v2 REDESIGN: en VÄNLIG kula som träffar en KRUT-TUNNA detonerar den.
+      if (!b.hostile) {
+        let det = false;
+        for (const bb of sim.castledefenseBuildings) {
+          if (bb.hp <= 0 || bb.kind !== 'powder_barrel') continue;
+          if (b.x + b.r >= bb.x && b.x - b.r <= bb.x + bb.w &&
+              b.y + b.r >= bb.y && b.y - b.r <= bb.y + bb.h) {
+            cdDetonateBarrel(sim, bb);
+            det = true; break;
           }
         }
+        if (det) { bullets.splice(i, 1); continue; }
+      }
+      // BARA de SOLIDA SLOTTSVÄGGARNA stoppar kulor (man kan ej skjuta genom slottet).
+      // FÄLT-murar/portar är LÅGA → kulor + granater går ÖVER dem (de blockerar bara
+      // RÖRELSE). Gäller både vänliga och fientliga kulor (symmetriskt "skjut över muren").
+      const cdWallBlockers = sim.castledefenseCastleWalls || [];
+      if (cdWallBlockers.length > 0 && bulletHitsWall(b, cdWallBlockers)) {
         if (b.explosive && !b.hostile) {
           explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
         }

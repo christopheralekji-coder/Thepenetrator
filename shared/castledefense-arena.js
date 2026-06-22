@@ -1,124 +1,137 @@
-// CASTLE DEFENSE — co-op tower defense mode (v1.397 redesign)
+// CASTLE DEFENSE — co-op tower defense (v2 REDESIGN: directional castle siege)
 //
-// Spelare försvarar tillsammans en central BAS (ancient obelisk) mot endless vågor
-// av fiender som spawnar 360° runt utkanten. Ingen pre-built mur — spelare bygger
-// ALLA defenses från scratch. Fienden targetar bara basen.
+// OMDESIGN 2026-06-22: ett RIKTIGT SLOTT i NORR = det man skyddar (ersätter den
+// gamla centrala obelisk-kärnan). Fienderna spawnar i SÖDER och marscherar NORRUT
+// mot slottet. Spelarna bygger murar/portar/fällor i FÄLTET (mellan söder och
+// slottet) för att tratta/sinka anmarschen, och eldar från slottet.
 //
-// Karta: 4000×4000 px. Visuellt: gräs-fält + central stenplaza + spridda dekorationer
-// (träd, stenar, facklor). Stenvägar leder från varje spawn-punkt mot center.
+// Karta: 4000×4000 px. Slottet upptar norra mitten. Solida slottsväggar (blockerar
+// ALLT inkl. kulor) med en central PORT-öppning. 6 battlement-slots på sydväggen =
+// ENDA platsen för machinegun/bomber-torn. Inne i slottet: TRON (mitten, höjer
+// slott-HP), HEAL-NPC (väster, helar spelare), REPAIR-NPC (öster, reparerar slottet).
 //
 'use strict';
+
+// ── Slottets geometri (norra mitten) ─────────────────────────────────────────
+// Footprint x:[1200,2800] y:[200,1000]. Interiör-golv innanför de ~50px tjocka väggarna.
+const CASTLE = {
+  x: 1200, y: 200, w: 1600, h: 800,          // ytterkant (footprint)
+  interior: { x: 1250, y: 250, w: 1500, h: 700 }, // golv innanför väggarna
+  wallThick: 50,
+  // Central PORT-öppning i sydväggen (slottets egen entré — spelare gör utfall här,
+  // fiender trattas in här om inget byggts framför). Gap i x.
+  gate: { x: 1900, w: 200, y: 950, h: 50 },  // öppning x:[1900,2100] i sydväggen
+};
+
+// SOLIDA slottsväggar (kind:'castle_wall') — blockerar spelare, fiender OCH kulor/granater.
+// Sydväggen är delad av port-gapet (x:1900–2100). Tjocklek 50.
+const CASTLE_WALLS = [
+  { x: 1200, y: 200,  w: 1600, h: 50 },   // NORR (hela bredden)
+  { x: 1200, y: 200,  w: 50,   h: 800 },  // VÄSTER
+  { x: 2750, y: 200,  w: 50,   h: 800 },  // ÖSTER
+  { x: 1200, y: 950,  w: 700,  h: 50 },   // SÖDER-väst  (x:1200→1900)
+  { x: 2100, y: 950,  w: 700,  h: 50 },   // SÖDER-öst   (x:2100→2800)
+];
+
+// 6 BATTLEMENT-SLOTS på sydväggen (skjutpositioner, vända söderut mot anmarschen).
+// 3 väster om porten, 3 öster. ENDA platsen man får bygga machinegun/bomber.
+const BATTLEMENT_SLOTS = [
+  { id: 'slot0', x: 1380, y: 915 },
+  { id: 'slot1', x: 1620, y: 915 },
+  { id: 'slot2', x: 1850, y: 915 },
+  { id: 'slot3', x: 2150, y: 915 },
+  { id: 'slot4', x: 2380, y: 915 },
+  { id: 'slot5', x: 2620, y: 915 },
+];
 
 const CASTLEDEFENSE_ARENA = {
   worldW: 4000,
   worldH: 4000,
-  name: 'OBELISK KEEP',
-  groundColor: '#2e3e22',           // mörk-grön gräs-bas
-  plazaColor: '#5a5450',            // sten-plaza runt basen
-  pathColor: '#6a5a48',             // sten-vägar från spawnar mot center
+  name: 'NORDFÄSTET',
+  groundColor: '#2e3e22',           // mörk-grön gräs-bas (fältet)
+  plazaColor: '#5a5450',            // sten-golv (slottets interiör)
+  pathColor: '#6a5a48',             // sten-väg söder→port
 
-  // Castle-center (basen)
-  centerX: 2000,
-  centerY: 2000,
-  plazaRadius: 220,                 // visuell stenplaza-radie
+  // === SLOTTET (geometri) ===
+  castle: CASTLE,
+  castleWalls: CASTLE_WALLS,        // solida (blockerar allt inkl. kulor)
+  battlementSlots: BATTLEMENT_SLOTS,
 
-  // === CORE / BAS ===
-  // Stor stone-obelisk med glowing runes. HP-pool för game-over.
-  // Större och tydligare än v1.395 så det känns som ett mål värt att försvara.
+  // === CASTLE-HP (det man skyddar) — "core" för bakåtkompat med sim:ens lose-check.
+  // Placerad i slottets mitt; fiender skadar den när de bryter igenom sydväggen/porten
+  // och når interiören. TRON-uppgraderingen höjer maxHp (10 nivåer). Game-over vid hp<=0.
   core: {
-    x: 2000,
-    y: 2000,
-    r: 80,                          // 50→80 (större och mer prominent)
-    hp: 5000,                       // 3000→5000 (mer rum för 8s wave-pauser med skadat skal)
-    maxHp: 5000,
-    color: '#d4a04a',
-    glowColor: '#ffe080',
-    runeColor: '#5acaff',
+    x: 2000, y: 600,                // slottets mitt
+    r: 110,
+    hp: 6000,
+    maxHp: 6000,
+    color: '#cfae6a',
+    glowColor: '#ffe39a',
+    runeColor: '#7fd0ff',
   },
 
-  // === PRE-BUILT WALLS ===
-  // INGA — fas-redesign v1.397: spelare bygger ALLT från scratch.
+  // === SLOTTS-INTERIÖR: TRON + 2 NPC:er (uppgraderas inifrån, börjar lvl 0) ===
+  // Tron = mitten (höjer castle maxHp). Heal-NPC = väster (helar SPELARE i radie).
+  // Repair-NPC = öster (reparerar SLOTTETS hp). Alla 10 nivåer, lvl 0 = ingen effekt.
+  castleNpcs: {
+    throne:     { x: 2000, y: 560, r: 26 },   // mitten
+    heal_npc:   { x: 1500, y: 560, r: 22 },   // VÄSTER — helar spelare
+    repair_npc: { x: 2500, y: 560, r: 22 },   // ÖSTER  — reparerar slottet
+  },
+  // Uppgraderings-kurvor för de tre slotts-spåren (lvl 1..10; lvl 0 = bas/ingen effekt).
+  castleUpgrades: {
+    // TRON: castle maxHp = base + per-nivå. lvl0=6000 → lvl10=21000.
+    throne:     { baseCost: 700, costExp: 1.25, hpPerLvl: 1500 },
+    // HEAL-NPC: helar spelare i radie. lvl0 = 0 hp/s. +2.2 hp/s per nivå → lvl10 = 22 hp/s.
+    heal_npc:   { baseCost: 500, costExp: 1.22, healPerSecPerLvl: 2.2, radius: 230 },
+    // REPAIR-NPC: reparerar slottets hp. lvl0 = 0 hp/s. +16 hp/s per nivå → lvl10 = 160 hp/s.
+    repair_npc: { baseCost: 600, costExp: 1.22, castleHealPerSecPerLvl: 16 },
+  },
+
+  // === PRE-BUILT FÄLT-MURAR === (inga — spelaren bygger allt i fältet)
   walls: [],
 
-  // === PLAYER SPAWN-POINTS ===
-  // 4 punkter strax utanför core (35px) så de inte spawnar inne i obelisken.
+  // === PLAYER SPAWN-POINTS === (inne i slottet, nära porten för utfall)
   playerSpawns: [
-    { x: 1880, y: 1880 },
-    { x: 2120, y: 1880 },
-    { x: 1880, y: 2120 },
-    { x: 2120, y: 2120 },
+    { x: 1950, y: 880 },
+    { x: 2050, y: 880 },
+    { x: 1850, y: 820 },
+    { x: 2150, y: 820 },
   ],
 
-  // === ENEMY SPAWN-RING ===
-  // 16 punkter runt map-edges (360° spridning).
+  // === ENEMY SPAWN-RING === (SÖDRA kanten — 9 punkter; marscherar NORRUT mot slottet)
   enemySpawns: [
-    // North edge
-    { x: 600,  y: 200 }, { x: 1400, y: 200 }, { x: 2000, y: 200 }, { x: 2600, y: 200 }, { x: 3400, y: 200 },
-    // East edge
-    { x: 3800, y: 600 }, { x: 3800, y: 1400 }, { x: 3800, y: 2600 }, { x: 3800, y: 3400 },
-    // South edge
-    { x: 3400, y: 3800 }, { x: 2600, y: 3800 }, { x: 2000, y: 3800 }, { x: 1400, y: 3800 }, { x: 600, y: 3800 },
-    // West edge
-    { x: 200, y: 3400 }, { x: 200, y: 2600 }, { x: 200, y: 1400 }, { x: 200, y: 600 },
+    { x: 500,  y: 3850 }, { x: 900,  y: 3850 }, { x: 1300, y: 3850 },
+    { x: 1700, y: 3850 }, { x: 2100, y: 3850 }, { x: 2500, y: 3850 },
+    { x: 2900, y: 3850 }, { x: 3300, y: 3850 }, { x: 3700, y: 3850 },
   ],
+  // Fiendernas mål-punkt (porten i sydväggen) — flow-field byggs mot denna.
+  enemyGoal: { x: 2000, y: 1000 },
 
-  // === DECORATIONS (visual only — ingen collision) ===
-  // Stenvägar, träd, klippblock, facklor, banderoller. Server skickar inte dessa —
-  // klienten läser direkt från denna konstant så ingen bandbredd-cost.
+  // === DECORATIONS (visuella — klienten läser direkt, ingen bandbredd) ===
   decorations: [
-    // === FACKLOR runt core (4 st kardinalriktningar, brinner med flamma) ===
-    { kind: 'torch', x: 2000, y: 1820 },   // N
-    { kind: 'torch', x: 2180, y: 2000 },   // E
-    { kind: 'torch', x: 2000, y: 2180 },   // S
-    { kind: 'torch', x: 1820, y: 2000 },   // W
-    // === BANDEROLLER vid 4 diagonaler ===
-    { kind: 'banner', x: 1880, y: 1820, color: '#aa3030' },
-    { kind: 'banner', x: 2120, y: 1820, color: '#3a3aaa' },
-    { kind: 'banner', x: 1880, y: 2180, color: '#3aaa3a' },
-    { kind: 'banner', x: 2120, y: 2180, color: '#aa8a30' },
-    // === TRÄD (utanför plaza men på map) ===
-    { kind: 'tree', x:  500, y:  900, r: 28 }, { kind: 'tree', x:  800, y:  600, r: 24 },
-    { kind: 'tree', x: 1100, y:  450, r: 26 }, { kind: 'tree', x: 1600, y:  600, r: 22 },
-    { kind: 'tree', x: 2400, y:  500, r: 25 }, { kind: 'tree', x: 2900, y:  650, r: 28 },
-    { kind: 'tree', x: 3200, y:  450, r: 23 }, { kind: 'tree', x: 3500, y:  900, r: 27 },
-    { kind: 'tree', x: 3600, y: 1500, r: 24 }, { kind: 'tree', x: 3550, y: 2400, r: 26 },
-    { kind: 'tree', x: 3450, y: 2900, r: 23 }, { kind: 'tree', x: 3200, y: 3400, r: 28 },
-    { kind: 'tree', x: 2700, y: 3550, r: 25 }, { kind: 'tree', x: 2100, y: 3450, r: 26 },
-    { kind: 'tree', x: 1400, y: 3500, r: 24 }, { kind: 'tree', x:  900, y: 3300, r: 27 },
-    { kind: 'tree', x:  500, y: 2900, r: 25 }, { kind: 'tree', x:  450, y: 2300, r: 23 },
-    { kind: 'tree', x:  550, y: 1600, r: 26 }, { kind: 'tree', x:  650, y: 1200, r: 22 },
-    // Klippblock (visual rocks)
-    { kind: 'rock', x: 1200, y:  900, r: 22 }, { kind: 'rock', x: 2900, y:  800, r: 18 },
-    { kind: 'rock', x: 3300, y: 1800, r: 24 }, { kind: 'rock', x: 3100, y: 3100, r: 20 },
-    { kind: 'rock', x: 1700, y: 3300, r: 22 }, { kind: 'rock', x:  800, y: 2600, r: 24 },
-    { kind: 'rock', x:  700, y: 1800, r: 20 }, { kind: 'rock', x: 1500, y: 1200, r: 18 },
-    { kind: 'rock', x: 2500, y: 1300, r: 20 }, { kind: 'rock', x: 2700, y: 2900, r: 22 },
-    { kind: 'rock', x: 1300, y: 2700, r: 19 }, { kind: 'rock', x: 3050, y: 2200, r: 21 },
-    // Gräs-tofsar / blommor — micro-detalj
-    { kind: 'grass_tuft', x: 1100, y: 1500 }, { kind: 'grass_tuft', x: 1300, y: 1800 },
-    { kind: 'grass_tuft', x: 2700, y: 1500 }, { kind: 'grass_tuft', x: 2500, y: 2200 },
-    { kind: 'grass_tuft', x: 1500, y: 2500 }, { kind: 'grass_tuft', x: 2800, y: 2600 },
-    { kind: 'grass_tuft', x: 1100, y: 2400 }, { kind: 'grass_tuft', x: 2900, y: 1900 },
+    // Facklor på battlement-slotsens kanter + port
+    { kind: 'torch', x: 1300, y: 940 }, { kind: 'torch', x: 2700, y: 940 },
+    { kind: 'torch', x: 1880, y: 940 }, { kind: 'torch', x: 2120, y: 940 },
+    // Banér på sydväggen
+    { kind: 'banner', x: 1500, y: 980 }, { kind: 'banner', x: 2500, y: 980 },
+    // Sten-väg från söder mot porten
+    { kind: 'path', x: 1950, y: 1000, w: 100, h: 2850 },
+    // Spridda fält-stenar/träd (visuella, ingen kollision)
+    { kind: 'rock', x: 700, y: 2400 }, { kind: 'rock', x: 3300, y: 2200 },
+    { kind: 'tree', x: 1100, y: 2900 }, { kind: 'tree', x: 2950, y: 2700 },
+    { kind: 'tree', x: 600, y: 1600 },  { kind: 'tree', x: 3500, y: 1500 },
   ],
 
-  // === STENVÄGAR ===
-  // Linjer från enemy-spawnar mot center (visual cues för player vart fienden kommer från).
-  // Beräknas dynamiskt på klient från enemySpawns + centerX/Y.
-
-  // === PLAYER START-STATE ===
+  // === START-UTRUSTNING + SPELAR-STATS ===
+  startWeapon: 'pistol',
+  startGrenades: 2,
   startHp: 100,
   maxHp: 100,
-  startShield: 100,                // v1.403: shield-system (samma som PvP) — skydd mot minions
+  startShield: 100,                 // sköld-system (samma som PvP) — skydd mot minions
   maxShield: 100,
-  startWeapon: 'pistol',           // v1.523: börjar med pistol (CD-specifik ordning)
-  startGrenades: 2,                // 2 grenades vid match-start
-  shieldRegenPerWave: 50,          // shield återställs +50 per cleared wave
-
-  // === VAPENPROGRESSION (v1.523) ===
-  // 9 vapen — användardesignad CD-specifik ordning. Start = pistol.
-  // Varje boss-kill ger +1 tier. 8 boss-kills (var 5:e wave) = max på wave 40.
   weaponProgression: [
-    'pistol',      // 0 — start (Gun)
+    'pistol',      // 0 — start
     'shotgun',     // 1 — boss 1 (wave 5)
     'smg',         // 2 — boss 2 (wave 10)
     'autoshotgun', // 3 — boss 3 (wave 15)
@@ -128,70 +141,81 @@ const CASTLEDEFENSE_ARENA = {
     'minigun',     // 7 — boss 7 (wave 35)
     'rocket',      // 8 — FINAL boss 8 (wave 40)
   ],
-  // Grenades per cleared wave (v1.401)
   grenadesPerWave: 2,
 
-  // v1.416: 10 Hero perks (unique per spelare — kan inte tas av två)
+  // === 10 Hero-perks (unika per spelare) ===
+  // STRATEGIST riktar nu mot SLOT-tornen (machinegun/bomber) i st.f. gamla auto-turrets.
   heroPerks: [
     { id: 'tank',         icon: '🛡', name: 'TANK',         desc: '+50% maxHP · -20% rörelse · -25% melee-dmg' },
-    { id: 'builder',      icon: '🏗', name: 'BUILDER',      desc: '-30% bygg + uppgrade-cost · gratis första wall/wave' },
+    { id: 'builder',      icon: '🏗', name: 'BUILDER',      desc: '-30% bygg + uppgrade-cost · gratis första mur/wave' },
     { id: 'gunner',       icon: '💥', name: 'GUNNER',       desc: '+40% vapen-skada · +30% ammo-cap' },
-    { id: 'medic',        icon: '💚', name: 'MEDIC',        desc: 'Auto-regen 2hp/s · revive 2x snabbare · repair-stn +50%' },
+    { id: 'medic',        icon: '💚', name: 'MEDIC',        desc: 'Auto-regen 2hp/s · revive 2x snabbare · heal-NPC +50%' },
     { id: 'scout',        icon: '⚡', name: 'SCOUT',        desc: '+40% rörelsehastighet · +50% dash-cooldown-reduction' },
     { id: 'sharpshooter', icon: '🎯', name: 'SHARPSHOOTER', desc: '25% chans crit (2x dmg) · +50% bullet-räckvidd' },
-    { id: 'strategist',   icon: '🧠', name: 'STRATEGIST',   desc: 'Auto-turrets i 250px aura får +35% dmg + range' },
+    { id: 'strategist',   icon: '🧠', name: 'STRATEGIST',   desc: 'Slott-torn (machinegun/bomber) får +35% dmg + range' },
     { id: 'berserker',    icon: '🔥', name: 'BERSERKER',    desc: 'Vid <50% hp: +1% dmg per saknad hp (max +50%)' },
     { id: 'looter',       icon: '💰', name: 'LOOTER',       desc: '+60% gold från kills · 10% chans ammo-drop' },
     { id: 'gambler',      icon: '🎲', name: 'GAMBLER',      desc: '15% chans efter kill: 3x gold / +1 granat / shield-refill' },
   ],
 
-  // === DOWN-STATE (fas 6) ===
+  // === DOWN-STATE ===
   downBleedoutSec: 25,
   downReviveSec: 4,
   downCrawlSpeedMul: 0.5,
   downReviveRadius: 60,
 
-  // === WAVE-SCALING (v1.412: balance — wave 1 mindre brutal, paus lite längre)
-  waveBaseCount: 8,                  // 12→8 (wave 1 mindre överväldigande)
+  // === WAVE-SCALING (riktnings-belägring: lite längre paus för att bygga mur-linjer)
+  waveBaseCount: 8,
   waveScalePerWave: 4,
-  waveBetweenSec: 8,                 // 6→8 (mer build-tid)
+  waveBetweenSec: 10,                // 8→10 (mer build-tid för mur-linjer)
   bossEveryWave: 5,
 
   // === BUILD-SYSTEM ===
   buildGridSize: 30,
-  startGold: 600,                    // 400→600 (mer gold när inget är pre-built)
-  waveBonusBase: 180,                // 150→180
-  waveBonusPerWave: 35,              // 30→35
-  // v1.422: BALANCE-PASS — sänkta base-priser och flackare upgrade-curve.
-  // Tidigare: max ut ETT auto_turret kostade ~34k g (~17-34 vågor). Nu ~21k → ~10-15 vågor.
-  // Behov av spridning: spelaren ska kunna ha 3-5 maxade torn på wave 20+, inte 1.
+  startGold: 700,                    // 600→700 (mur-linjer kostar)
+  waveBonusBase: 200,
+  waveBonusPerWave: 38,
+
+  // === FÄLT-BYGGEN (radial-meny, alla 10 nivåer) ===
+  // Mur/port = solida mot SPELARE + FIENDER (men kulor/granater går ÖVER). Fällor =
+  // gå-bara (effekt vid överlappning). buildKind-flaggor styr sim-beteende i fas 2.
   buildables: {
-    wall:        { cost: 60,   hp: 250, w: 30, h: 30, hpScalePerLvl: 1.2 },        // 75→60
-    auto_turret: { cost: 550,  hp: 200, w: 30, h: 30, range: 165, dps: 20, fireRate: 2.0 }, // range 220→165 (-25%)
-    man_turret:  { cost: 950,  hp: 350, w: 30, h: 30, range: 225, dpsMul: 2.5 },   // range 300→225 (-25%)
-    spike_trap:  { cost: 160,  hp: 250, w: 30, h: 30, dmgOnPass: 60, killCapacity: 20 }, // v1.697: dmgOnPass 30→60, killCap 5→20 (var värdelös wave 10+ mot coop-skalad HP)
-    slow_trap:   { cost: 250,  hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2, radius: 140 }, // 300→250
-    repair_stn:  { cost: 400,  hp: 200, w: 30, h: 30, healPerSec: 4, radius: 140, healScalePerLvl: 2.0 }, // v1.697: healPerSec 1→4 (1hp/s = 250s/vägg, värdelöst)
-    health_stn:  { cost: 500,  hp: 150, w: 30, h: 30, playerHealPerSec: 3, radius: 140 }, // 600→500
+    // 🧱 MUR — ogenomtränglig för spelare+fiender, kulor/granater går ÖVER.
+    wall:         { cost: 60,  hp: 300, w: 30, h: 30, hpScalePerLvl: 1.2, solid: true, blocksBullets: false },
+    // 🚪 PORT — som mur men SPELAR-passerbar; öppnas/stängs manuellt (fiender slinker
+    // in medan öppen). Stängd = blockerar fiender; öppen = passerbar för alla.
+    gate:         { cost: 130, hp: 350, w: 30, h: 30, hpScalePerLvl: 1.2, solid: true, blocksBullets: false, openable: true },
+    // ⚔️ SPIKFÄLLA — dmg vid passage; SLUTAR funka efter killCapacity fiender.
+    spike_trap:   { cost: 160, hp: 250, w: 30, h: 30, dmgOnPass: 60, killCapacity: 20, trap: true },
+    // 🛢️ TJÄRGROP — saktar fiender i radie (slow-aura).
+    tar_trap:     { cost: 250, hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2, radius: 140, trap: true },
+    // 🔥 OLJEBRAND — AoE eld-DoT-zon mot fiender; TIDSBEGRÄNSAD (brinner ut).
+    oil_fire:     { cost: 300, hp: 80,  w: 30, h: 30, dps: 45, radius: 95, burnSec: 12, trap: true },
+    // 💥 KRUT-TUNNA — placeras ut; SKJUT på den → exploderar (AoE) + lämnar eld-spår.
+    powder_barrel:{ cost: 200, hp: 70,  w: 30, h: 30, blastDmg: 380, blastRadius: 150, trailDps: 30, trailSec: 6, barrel: true },
   },
-  // v1.410/v1.422: Level-system. upgradeCost = baseCost × upgradeCostBase × (lvl+1)^upgradeCostExp
-  // Sänkt från 0.6 × 1.3 (max ~10500g/turret) till 0.5 × 1.2 (max ~5800g/turret).
-  maxBuildLevel: 9,
-  upgradeCostBase: 0.5,              // 0.6→0.5
-  upgradeCostExp: 1.2,               // 1.3→1.2
-  // Stats scalar STÖRRE per level (user-feedback "större skillnad")
+
+  // === SLOT-TORN (byggs ENDAST i de 6 battlement-slotsen; hybrid auto + sätt-dig) ===
+  // Auto-skjuter mot närmaste fiende; sätter man sig får tornet manuell sikt + dmg-boost.
+  // Bomber skjuter i BÅGE över fält-murarna.
+  slotBuildables: {
+    machinegun: { cost: 550, hp: 450, range: 420, dps: 32, fireRate: 4.0, manDpsMul: 1.8 },
+    bomber:     { cost: 850, hp: 450, range: 520, dps: 60, fireRate: 0.85, blastRadius: 95, manDpsMul: 1.6, arcsOverWalls: true },
+  },
+
+  // === LEVEL-SYSTEM (10 uppgraderingsnivåer på ALLT: byggen, slot-torn, slott-spår) ===
+  maxBuildLevel: 10,                 // 9→10 (10 uppgrade-nivåer)
+  upgradeCostBase: 0.5,
+  upgradeCostExp: 1.2,
   upgradeStatMul: {
-    hp:    0.50,    // +50% hp/lvl (9 = 5.5x base)
+    hp:    0.50,    // +50% hp/lvl
     dps:   0.45,    // +45% dps/lvl
     range: 0.10,    // +10% range/lvl
     heal:  0.40,    // +40% healing/lvl
-    dmg:   0.40,    // +40% dmg/lvl
+    dmg:   0.40,    // +40% dmg/lvl (spik/oljebrand/krut-tunna)
   },
 };
 
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { CASTLEDEFENSE_ARENA };
-}
-if (typeof window !== 'undefined') {
-  window.CASTLEDEFENSE_ARENA = CASTLEDEFENSE_ARENA;
 }
