@@ -100,6 +100,10 @@ console.log('[OK] bag-use: medkit/shieldkit/adrenaline/uav effekter korrekta');
 // 8. Medkit heal-over-time via tickSim. tickBrMeta använder Date.now() för
 // tick-fönstren → tvinga fram varje tick genom att backdatera brMedkitNext.
 sim.simReadyAt = 0; // hoppa över 5s startup-countdown så tickBattleRoyale/tickBrMeta körs
+// ISOLERA medkit-mätningen: p0 står på en hus-buy-station där BR-loot (slumpad
+// placering) ibland hamnar inom pickup-radien → ett hp_small (+60) kunde plockas
+// upp under tickSim och kontaminera heal-summan (flaky 150 vs 200). Töm loot-listan.
+sim.battleroyaleLoot.length = 0;
 p0.playerState.hp = 60; p0.playerState.maxHp = 200;
 p0.playerState.brMedkitTicks = 5; p0.playerState.brMedkitNext = 0;
 const startHp = p0.playerState.hp;
