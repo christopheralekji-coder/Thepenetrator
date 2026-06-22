@@ -730,12 +730,24 @@ function respawnShieldFor(ps) {
   return ps.maxShield || 100;
 }
 
+// SPECTATE: medlemsantal EXKL. åskådare. Åskådare sitter i room.members (för world-
+// broadcasts) men bidrar ingen eldkraft → de får ALDRIG skala co-op-svårighet,
+// JUG-sköld/hunter-antal eller medic-regen. Bots räknas som förr (de strider faktiskt).
+function _realMemberCount(sim) {
+  let n = 0;
+  for (const [, m] of sim.room.members) if (!m || !m.isSpectator) n++;
+  return n;
+}
+
 function buildPlayerList(sim) {
   const stage = _stageFor(sim, sim.wave);
   const defaultX = stage ? stage.spawnPos.x : 1000;
   const defaultY = stage ? stage.spawnPos.y : 1000;
   const players = [];
   for (const [pid, ws] of sim.room.members) {
+    // SPECTATE: en spectator är aldrig en spelare → syns aldrig i players[] (ingen
+    // nod på någons skärm, ingen contact-damage-måltavla, ingen scoreboard-rad).
+    if (ws.isSpectator) continue;
     // Late-joiner: init till stage spawn-pos så de inte hamnar på (1000,1000) random plats
     if (!ws.playerState) ws.playerState = { x: defaultX, y: defaultY, hp: 100 };
     const ps = ws.playerState;
@@ -963,6 +975,7 @@ function tickCtf(sim, dt, now) {
               perPlayer: {},
             };
             for (const [p, ws2] of sim.room.members) {
+              if (ws2 && ws2.isSpectator) continue;   // SPECTATE: ingen scoreboard-rad/XP åt åskådare
               stats.perPlayer[p] = {
                 team: ws2.tdmTeam,
                 captures: sim.ctfCapturesByPid[p] || 0,
@@ -1729,6 +1742,7 @@ function endSiegeMatch(sim, winner, reason) {
   sim.siegeEnded = true;
   const stats = { red: sim.siegeScores.red, blue: sim.siegeScores.blue, perPlayer: {} };
   for (const [p, ws] of sim.room.members) {
+    if (ws && ws.isSpectator) continue;   // SPECTATE: ingen scoreboard-rad/XP åt åskådare
     stats.perPlayer[p] = {
       team: ws.tdmTeam,
       kills: sim.siegeKillsByPid[p] || 0,
@@ -1977,7 +1991,8 @@ function endKothMatch(sim, winnerId, reason) {
   sim.kothEnded = true;
   sim.kothWinner = winnerId;
   const stats = { perPlayer: {} };
-  for (const [p] of sim.room.members) {
+  for (const [p, _ws] of sim.room.members) {
+    if (_ws && _ws.isSpectator) continue;   // SPECTATE: ingen scoreboard-rad/XP åt åskådare
     stats.perPlayer[p] = {
       score: sim.kothScores[p] || 0,
       kills: sim.kothKillsByPid[p] || 0,
@@ -2072,7 +2087,7 @@ function applyJugStats(sim, ws, hpFrac) {
   // JUG-specifik max-shield (200, var 100) — sätt FÖRE shield-räkningen
   // v1.700: skala shield med hunter-count vid N>4 (JUG var för svag vid 6-8 spelare;
   // shield ist f HP så 1v2-3 inte blir ännu mer ensidigt). +25/hunter över 4, cap +150.
-  const _jugHunters = Math.max(0, sim.room.members.size - 1);
+  const _jugHunters = Math.max(0, _realMemberCount(sim) - 1);
   ws.playerState.maxShield = (JUGGERNAUT_ARENA.jugShieldMax || 200) + Math.min(150, 25 * Math.max(0, _jugHunters - 4));
   ws.playerState.shield = Math.round(ws.playerState.maxShield * frac);
   ws.playerState.isJug = true;
@@ -2423,7 +2438,8 @@ function endJuggernautMatch(sim, winnerId, reason) {
   sim.juggernautEnded = true;
   sim.juggernautWinner = winnerId;
   const stats = { perPlayer: {} };
-  for (const [p] of sim.room.members) {
+  for (const [p, _ws] of sim.room.members) {
+    if (_ws && _ws.isSpectator) continue;   // SPECTATE: ingen scoreboard-rad/XP åt åskådare
     stats.perPlayer[p] = {
       timeAsJug: Math.floor(sim.juggernautScores[p] || 0),
       kills: sim.juggernautKillsByPid[p] || 0,
@@ -3040,7 +3056,7 @@ function spawnSurvivorsMiniBoss(sim) {
   const sx = arena.centerX + Math.cos(ang) * dist;
   const sy = arena.centerY + Math.sin(ang) * dist;
   // v1.697: mini-boss-HP sublinjärt (matchar story) i st f linjärt 8× @8p
-  const coopMul = cdGetCoopMul(Math.max(1, sim.room.members.size));
+  const coopMul = cdGetCoopMul(Math.max(1, _realMemberCount(sim)));
   const boss = makeBoss(key, sx, sy, coopMul);
   if (!boss) return;
   // v1.606: Mini-bossar ska INTE vara svårare än vanliga CD-bossar.
@@ -3260,7 +3276,7 @@ function tickCastleDefense(sim, dt, now) {
       sim.castledefenseWaveState = 'active'; // håll alltid active i survivors
       const survElapsedMin = elapsedMs / 60000;
       // v1.697: svärmen växer med spelarantal (kompenserar för nu sublinjär HP + kapad dmg)
-      const batchCount = Math.max(1, Math.round((waveBase + survElapsedMin * waveScalePerMin) * cdGetCoopSpawnMul(Math.max(1, sim.room.members.size))));
+      const batchCount = Math.max(1, Math.round((waveBase + survElapsedMin * waveScalePerMin) * cdGetCoopSpawnMul(Math.max(1, _realMemberCount(sim)))));
       // Stacka på befintliga remaining så waves overlappar
       sim._cdWaveSpawnsRemaining = (sim._cdWaveSpawnsRemaining || 0) + batchCount;
       sim._cdWaveSpawnTimer = 0;
@@ -3334,7 +3350,7 @@ function tickCastleDefense(sim, dt, now) {
       const bossKey = cdPickBossKey(w);
       const sp = arena.enemySpawns[Math.floor(Math.random() * arena.enemySpawns.length)];
       // v1.697: boss-HP sublinjärt (matchar story-bossar) i st f linjärt 8× @8p
-      const coopMul = cdGetCoopMul(Math.max(1, sim.room.members.size));
+      const coopMul = cdGetCoopMul(Math.max(1, _realMemberCount(sim)));
       const boss = makeBoss(bossKey, sp.x, sp.y, coopMul);
       if (boss) {
         // v1.419: BOSS scaling = difficulty × wave-scaling × casual-relief.
@@ -3361,12 +3377,12 @@ function tickCastleDefense(sim, dt, now) {
           sub: boss.subtitle,
         });
       }
-      sim._cdWaveSpawnsRemaining = Math.max(1, Math.round((3 + Math.floor(w / 5)) * cdGetCoopSpawnMul(Math.max(1, sim.room.members.size))));
+      sim._cdWaveSpawnsRemaining = Math.max(1, Math.round((3 + Math.floor(w / 5)) * cdGetCoopSpawnMul(Math.max(1, _realMemberCount(sim)))));
     } else {
       const base = cdEnemiesForWave(arena, w);
       const countMul = cdGetThemeCountMul(theme);
       // v1.697: coop-spawn-skalning så svärmen växer med spelarantal
-      sim._cdWaveSpawnsRemaining = Math.max(1, Math.round(base * countMul * cdGetCoopSpawnMul(Math.max(1, sim.room.members.size))));
+      sim._cdWaveSpawnsRemaining = Math.max(1, Math.round(base * countMul * cdGetCoopSpawnMul(Math.max(1, _realMemberCount(sim)))));
     }
     sim._cdWaveSpawnTimer = 0;
     sim.eventQueue.push({
@@ -3406,7 +3422,7 @@ function tickCastleDefense(sim, dt, now) {
       // som svärmen INTE växte. Story-mode kapar medvetet (HP sublinjärt ~6.95× @8p,
       // dmg +15%/spelare = 2.05× @8p). Använd samma kurvor här; svärm-antalet växer
       // istället via cdGetCoopSpawnMul på wave-batch-count (se _cdWaveSpawnsRemaining).
-      const _cdMembers = Math.max(1, sim.room.members.size);
+      const _cdMembers = Math.max(1, _realMemberCount(sim));
       const cdCoopHp = cdGetCoopMul(_cdMembers);
       const cdCoopDmg = cdGetCoopDmgMul(_cdMembers);
       // v1.416: theme stat-multiplier (ELITE = +60% hp/dmg/gold)
@@ -5446,7 +5462,7 @@ function _heistApplyRole(ws, role, sim, arena) {
     ws.playerState.speedMul = 0.9;
   } else if (role === 'medic') {
     ws.playerState.maxHp = Math.round(baseMax * _diffHpMul);
-    ws._heistMedicRegenRate = sim.room.members.size <= 1 ? 8 : 6;
+    ws._heistMedicRegenRate = _realMemberCount(sim) <= 1 ? 8 : 6;
   } else if (role === 'hacker') {
     ws.playerState.maxHp = Math.round(baseMax * _diffHpMul);
     ws._heistCameraImmune = true;
@@ -5502,7 +5518,7 @@ function _heistConvertGuardsToEnemies(sim) {
 // så _heistTickPoliceEntryNav kan styra dem mot bank-entry FÖRE player.
 function _heistSpawnPoliceWave(sim, arena, nowMs) {
   if (!arena.policeSpawns || arena.policeSpawns.length === 0) return;
-  const playerCount = Math.max(1, sim.room.members.size);
+  const playerCount = Math.max(1, _realMemberCount(sim));
   const scaling = arena.scaling || {};
   const policeMul = 1 + ((playerCount - 1) * (scaling.policeMulPerPlayer || 0.25));
   const diffMul = _heistDifficultyMul(sim).policeCount;
@@ -5601,7 +5617,8 @@ function endBattleRoyaleMatch(sim, winnerId, reason) {
     }
   }
   const stats = { perPlayer: {}, winner: winnerId, reason };
-  for (const [p] of sim.room.members) {
+  for (const [p, _ws] of sim.room.members) {
+    if (_ws && _ws.isSpectator) continue;   // SPECTATE: ingen scoreboard-rad/XP åt åskådare
     stats.perPlayer[p] = {
       placement: sim.battleroyaleRanks[p] || 999,
       kills: sim.battleroyaleKillsByPid[p] || 0,
@@ -6159,7 +6176,8 @@ function endGungameMatch(sim, winnerId, reason) {
   sim.gungameEnded = true;
   sim.gungameWinner = winnerId;
   const stats = { perPlayer: {} };
-  for (const [p] of sim.room.members) {
+  for (const [p, _ws] of sim.room.members) {
+    if (_ws && _ws.isSpectator) continue;   // SPECTATE: ingen scoreboard-rad/XP åt åskådare
     stats.perPlayer[p] = {
       kills: sim.gungameKillsByPid[p] || 0,
       deaths: (sim.tdmDeathsByPid && sim.tdmDeathsByPid[p]) || 0,
@@ -6206,7 +6224,7 @@ function creditServerXp(sim, events) {
     }
     for (const r of rows) {
       const ws = sim.room.members.get(r.peerId);
-      if (!ws || ws._isBot) continue;
+      if (!ws || ws._isBot || ws.isSpectator) continue;   // SPECTATE: aldrig konto-XP åt åskådare
       const res = accounts.creditMatchEndXp(ws, mode, r.kills, r.won);
       if (res) (extra || (extra = [])).push({ type: 'acct_xp', peerId: r.peerId, axp: res.axp, alevel: res.alevel, gained: res.gained });
     }
@@ -6387,7 +6405,10 @@ function broadcastWorld(sim, now) {
       const adx = Math.abs(e.x - px), ady = Math.abs(e.y - py);
       // V2-hysteres: redan-sänd enemy hålls synlig till CULL_DIST*1.18 (mindre
       // re-spawn-churn vid oscillering runt cull-gränsen).
-      const visible = e.isBoss || e.isMiniBoss ||
+      // SPECTATE: en spectator har ingen egen position (playerState saknas → px/py
+      // defaultar (1000,1000)) → kan följa VILKEN spelare som helst → skicka HELA
+      // enemy-listan ocullad (annars ser de bara fiender nära (1000,1000)).
+      const visible = ws.isSpectator || e.isBoss || e.isMiniBoss ||
                       (adx < CULL_DIST && ady < CULL_DIST) ||
                       (isJson && lastSent[e._idx] && adx < cullHyst && ady < cullHyst);
       if (!visible) continue;
@@ -8040,6 +8061,9 @@ function _seqNewer(a, b) {
 function applyPlayerInput(sim, peerId, input) {
   const ws = sim.room.members.get(peerId);
   if (!ws) return;
+  // SPECTATE: ignorera all input från en spectator (de rör/skjuter aldrig + ska
+  // aldrig lazy-skapa en playerState här).
+  if (ws.isSpectator) return;
   if (!ws.playerState) ws.playerState = { x: 1000, y: 1000, hp: 100 };
   // AAA #6: input-sekvensnummer. Stale/omordnad input (inte nyare än senast
   // bekräftade) släpps HELT — strömmen är 40 Hz self-superseding, en färsk

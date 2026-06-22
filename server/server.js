@@ -319,6 +319,10 @@ function handleMessage(ws, msg) {
   // (klientâ†’server-meddelanden, sim_events) Ã¤r redan JSON i bÃ¥da riktningar.
   if (msg.godot) ws._jsonWorld = true;
   if (msg.bin) ws._binWorld = true;   // AAA #1: klienten begär binär world (UDP-only)
+  // SPECTATE: en spectator skickar aldrig spel-aktioner. Släpp ALLA sim_*-meddelanden
+  // (input/shoot/br/castle/turret m.fl.) defensivt så en manipulerad spectate-klient
+  // inte kan påverka matchen. join/host/leave/acct_/queue_ släpps förbi som vanligt.
+  if (ws.isSpectator && typeof msg.type === 'string' && msg.type.indexOf('sim_') === 0) return;
   // v2 konto/vÃ¤nner: EN ingÃ¥ng fÃ¶r alla acct_* (V1 skickar aldrig dessa â†’ no-op)
   if (typeof msg.type === 'string' && msg.type.startsWith('acct_')) return accounts.handle(ws, msg, acctHelpers);
   // v2 matchmaking-kö: queue_join/queue_cancel/match_accept/match_decline (additivt)
@@ -405,6 +409,16 @@ function handleMessage(ws, msg) {
     const code = (msg.code || '').toUpperCase().trim();
     const room = rooms.get(code);
     if (!room) { send(ws, { type: 'error', error: 'Rummet finns inte' }); return; }
+    // SPECTATE (additivt): klienten joinar för att TITTA på en vän-match i progress.
+    // En spectator får world-broadcasts (är i room.members) men registreras ALDRIG
+    // som spelare — ingen playerState, inga score-maps, inget team, ingen slot, inga
+    // peer_joined-notiser. Sätts ALLTID (icke-spectate-join nollar den → reset).
+    ws.isSpectator = !!msg.spectate;
+    // En åskådare kan BARA titta på en match som FAKTISKT körs (room.sim). Avvisa
+    // spectate-join mot ett rum utan aktiv sim (lobby) → det finns inget att titta
+    // på, och det garanterar att en åskådare aldrig existerar i ett ej-startat rum
+    // (stänger matchmaker-vägen där en åskådare annars kunde dras in som spelare).
+    if (ws.isSpectator && !room.sim) { send(ws, { type: 'error', error: 'Matchen har inte startat' }); return; }
     // C123: släpp ev. kvarvarande matchmaker-ticket/grupp innan vi joinar ett rum
     // direkt (samma stale-ticket-läcka som i 'host'). No-op om ej i kö/grupp.
     matchmaker.leave(ws);
@@ -449,20 +463,26 @@ function handleMessage(ws, msg) {
       }
     }
     const _joinMaxP = (room.meta && room.meta.maxPlayers) || 8;
-    if (room.members.size >= _joinMaxP) { send(ws, { type: 'error', error: 'Rummet är fullt (max ' + _joinMaxP + ')' }); return; }
+    // Spectators räknas inte mot rum-taket (de är inte spelare).
+    if (!ws.isSpectator && room.members.size >= _joinMaxP) { send(ws, { type: 'error', error: 'Rummet är fullt (max ' + _joinMaxP + ')' }); return; }
     // Tilldela stabilt slot-index: Ã¥teranvÃ¤nd lÃ¤gsta lediga slot fÃ¶rst,
     // annars ta nÃ¤sta frÃ¥n rÃ¤knaren. Slot Ã¤ndras ALDRIG fÃ¶r en peer under
     // dess session; nÃ¤r peer lÃ¤mnar returneras slottet till _freeSlots.
     if (!room._freeSlots) room._freeSlots = [];
     if (!room._nextSlot) room._nextSlot = 1;
-    let slot;
-    if (room._freeSlots.length > 0) {
-      room._freeSlots.sort((a, b) => a - b);
-      slot = room._freeSlots.shift();
+    if (ws.isSpectator) {
+      // Spectator får ingen spelar-slot (den syns aldrig i players[]).
+      ws.stableSlot = -1;
     } else {
-      slot = room._nextSlot++;
+      let slot;
+      if (room._freeSlots.length > 0) {
+        room._freeSlots.sort((a, b) => a - b);
+        slot = room._freeSlots.shift();
+      } else {
+        slot = room._nextSlot++;
+      }
+      ws.stableSlot = slot;
     }
-    ws.stableSlot = slot;
     room.members.set(ws.id, ws);
     ws.roomCode = code;
     if (msg.name) ws.playerName = String(msg.name).trim().slice(0, 14);
@@ -522,20 +542,24 @@ function handleMessage(ws, msg) {
     send(ws, { type: 'joined', peerId: ws.id, hostId: room.hostId, stableSlot: ws.stableSlot, code, members: memberList });
     // Meddela host â€” inkludera stableSlot sÃ¥ host:s klient bygger slotToPeerId
     // med det stabila slot-numret (annars rÃ¤knas colorIdx om vid varje join).
-    const host = room.members.get(room.hostId);
-    if (host) send(host, { type: 'peer_joined', peerId: ws.id, stableSlot: ws.stableSlot });
-    // K2 (forts): skicka peer_joined Ã¤ven till Ã¶vriga rumsmedlemmar â€” men BARA
-    // _jsonWorld-peers (Godot). V1-webbens peer_joined-hantering (game.js:25111)
-    // Ã¤r host-orienterad: den skickar 'welcome' + 'config' till joinern â€” om en
-    // V1-JOINER fick eventet skulle den dubblera welcome med fel roster. Godot-
-    // joiners behÃ¶ver eventet fÃ¶r pidâ†’stableSlot-mappning av senare joiners.
-    for (const [pid, m] of room.members) {
-      if (pid === ws.id || pid === room.hostId) continue;
-      if (m._jsonWorld) send(m, { type: 'peer_joined', peerId: ws.id, stableSlot: ws.stableSlot });
+    // Spectators annonseras ALDRIG som peers (ingen ska se dem i roster/minimap).
+    if (!ws.isSpectator) {
+      const host = room.members.get(room.hostId);
+      if (host) send(host, { type: 'peer_joined', peerId: ws.id, stableSlot: ws.stableSlot });
+      // K2 (forts): skicka peer_joined Ã¤ven till Ã¶vriga rumsmedlemmar â€” men BARA
+      // _jsonWorld-peers (Godot). V1-webbens peer_joined-hantering (game.js:25111)
+      // Ã¤r host-orienterad: den skickar 'welcome' + 'config' till joinern â€” om en
+      // V1-JOINER fick eventet skulle den dubblera welcome med fel roster. Godot-
+      // joiners behÃ¶ver eventet fÃ¶r pidâ†’stableSlot-mappning av senare joiners.
+      for (const [pid, m] of room.members) {
+        if (pid === ws.id || pid === room.hostId) continue;
+        if (m._jsonWorld) send(m, { type: 'peer_joined', peerId: ws.id, stableSlot: ws.stableSlot });
+      }
     }
-    console.log('[ROOM]', code, ws.id, 'joined (', room.members.size, 'members)');
+    console.log('[ROOM]', code, ws.id, (ws.isSpectator ? 'joined as SPECTATOR (' : 'joined (') + room.members.size + ' members)');
     broadcastPublicRooms();
-    accounts.presenceChanged(ws); // v2 konto: vÃ¤nner ser lobby/match + rumskod
+    // Spectator-presence speglas inte (de "spelar" inte → vänner ska inte se dem i match).
+    if (!ws.isSpectator) accounts.presenceChanged(ws); // v2 konto: vÃ¤nner ser lobby/match + rumskod
     // TDM late-joiner: tilldela team baserat pÃ¥ balans, push tdm_started-event riktat
     if (room.sim && room.sim.tdmActive) {
       let red = 0, blue = 0;
@@ -544,14 +568,18 @@ function handleMessage(ws, msg) {
         else if (m.tdmTeam === 'blue') blue++;
       }
       const team = red <= blue ? 'red' : 'blue';
-      ws.tdmTeam = team;
       const arena = room.sim.tdmArena || { worldW: 4000, worldH: 3000 };
+      // spawnX/spawnY hoistas UT ur spectator-guarden — tdm_started-payloaden nedan
+      // (skickas till BÅDE åskådare och riktiga late-joiners) läser spawnY.
       const spawnX = team === 'red' ? Math.floor(arena.worldW * 0.10) : Math.floor(arena.worldW * 0.90);
       const spawnY = Math.floor(arena.worldH * 0.50);
-      // Late-joiner fÃ¥r ocksÃ¥ shield + maxShield (annars saknar de PvP-shield helt)
-      ws.playerState = { x: spawnX, y: spawnY, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500 };
-      room.sim.tdmKillsByPid[ws.id] = 0;
-      room.sim.tdmDeathsByPid[ws.id] = 0;
+      if (!ws.isSpectator) {
+        ws.tdmTeam = team;
+        // Late-joiner fÃ¥r ocksÃ¥ shield + maxShield (annars saknar de PvP-shield helt)
+        ws.playerState = { x: spawnX, y: spawnY, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500 };
+        room.sim.tdmKillsByPid[ws.id] = 0;
+        room.sim.tdmDeathsByPid[ws.id] = 0;
+      }
       // Bygg fullstÃ¤ndig roster sÃ¥ late-joiner ser alla teams
       const teams = {};
       for (const [pid, m] of room.members) if (m.tdmTeam) teams[pid] = m.tdmTeam;
@@ -564,7 +592,7 @@ function handleMessage(ws, msg) {
         pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
         shieldMax: 100,
       }] });
-      for (const [pid, m] of room.members) {
+      if (!ws.isSpectator) for (const [pid, m] of room.members) {
         if (pid === ws.id) continue;
         send(m, { type: 'sim_events', events: [{ type: 'tdm_team_assigned', peerId: ws.id, team }] });
       }
@@ -578,13 +606,15 @@ function handleMessage(ws, msg) {
         else if (m.tdmTeam === 'blue') blue++;
       }
       const team = red <= blue ? 'red' : 'blue';
-      ws.tdmTeam = team;
-      const pts = CTF_ARENA.spawns[team];
-      const sp = pts[Math.floor(Math.random() * pts.length)];
-      ws.playerState = { x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500 };
-      room.sim.ctfKillsByPid[ws.id] = 0;
-      room.sim.ctfCapturesByPid[ws.id] = 0;
-      room.sim.tdmDeathsByPid[ws.id] = 0;
+      if (!ws.isSpectator) {
+        ws.tdmTeam = team;
+        const pts = CTF_ARENA.spawns[team];
+        const sp = pts[Math.floor(Math.random() * pts.length)];
+        ws.playerState = { x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500 };
+        room.sim.ctfKillsByPid[ws.id] = 0;
+        room.sim.ctfCapturesByPid[ws.id] = 0;
+        room.sim.tdmDeathsByPid[ws.id] = 0;
+      }
       const teams = {};
       for (const [pid, m] of room.members) if (m.tdmTeam) teams[pid] = m.tdmTeam;
       send(ws, { type: 'sim_events', events: [{
@@ -603,7 +633,7 @@ function handleMessage(ws, msg) {
         pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
         shieldMax: 100,
       }] });
-      for (const [pid, m] of room.members) {
+      if (!ws.isSpectator) for (const [pid, m] of room.members) {
         if (pid === ws.id) continue;
         send(m, { type: 'sim_events', events: [{ type: 'ctf_team_assigned', peerId: ws.id, team }] });
       }
@@ -617,12 +647,14 @@ function handleMessage(ws, msg) {
         else if (m.tdmTeam === 'blue') blue++;
       }
       const team = red <= blue ? 'red' : 'blue';
-      ws.tdmTeam = team;
-      const pts = SIEGE_ARENA.spawns[team];
-      const sp = pts[Math.floor(Math.random() * pts.length)];
-      ws.playerState = { x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500 };
-      room.sim.siegeKillsByPid[ws.id] = 0;
-      room.sim.tdmDeathsByPid[ws.id] = 0;
+      if (!ws.isSpectator) {
+        ws.tdmTeam = team;
+        const pts = SIEGE_ARENA.spawns[team];
+        const sp = pts[Math.floor(Math.random() * pts.length)];
+        ws.playerState = { x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500 };
+        room.sim.siegeKillsByPid[ws.id] = 0;
+        room.sim.tdmDeathsByPid[ws.id] = 0;
+      }
       const teams = {};
       for (const [pid, m] of room.members) if (m.tdmTeam) teams[pid] = m.tdmTeam;
       send(ws, { type: 'sim_events', events: [{
@@ -645,7 +677,7 @@ function handleMessage(ws, msg) {
         pvpPickups: (room.sim.pvpPickups || []).map(p => ({ id: p.id, x: p.x, y: p.y, type: p.type })),
         shieldMax: 100,
       }] });
-      for (const [pid, m] of room.members) {
+      if (!ws.isSpectator) for (const [pid, m] of room.members) {
         if (pid === ws.id) continue;
         send(m, { type: 'sim_events', events: [{ type: 'siege_team_assigned', peerId: ws.id, team }] });
       }
@@ -653,14 +685,16 @@ function handleMessage(ws, msg) {
     // GUNGAME late-joiner: spawna pÃ¥ roterande spawn, tier 0, FFA (inget team)
     if (room.sim && room.sim.gungameActive) {
       const { GUNGAME_ARENA, GUNGAME_WEAPONS } = require('../shared/gungame-arena');
-      const idx = (room.sim._gungameSpawnIdx || 0) % GUNGAME_ARENA.spawns.length;
-      room.sim._gungameSpawnIdx = (room.sim._gungameSpawnIdx || 0) + 1;
-      const sp = GUNGAME_ARENA.spawns[idx];
-      ws.playerState = { x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500, weaponId: GUNGAME_WEAPONS[0] };
-      ws.tdmTeam = null; // FFA
-      room.sim.gungameTiers[ws.id] = 0;
-      room.sim.gungameKillsByPid[ws.id] = 0;
-      room.sim.tdmDeathsByPid[ws.id] = 0;
+      if (!ws.isSpectator) {
+        const idx = (room.sim._gungameSpawnIdx || 0) % GUNGAME_ARENA.spawns.length;
+        room.sim._gungameSpawnIdx = (room.sim._gungameSpawnIdx || 0) + 1;
+        const sp = GUNGAME_ARENA.spawns[idx];
+        ws.playerState = { x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500, weaponId: GUNGAME_WEAPONS[0] };
+        ws.tdmTeam = null; // FFA
+        room.sim.gungameTiers[ws.id] = 0;
+        room.sim.gungameKillsByPid[ws.id] = 0;
+        room.sim.tdmDeathsByPid[ws.id] = 0;
+      }
       const lateJoinEvents = [{
         type: 'gungame_started',
         arena: { worldW: GUNGAME_ARENA.worldW, worldH: GUNGAME_ARENA.worldH, name: GUNGAME_ARENA.name },
@@ -699,15 +733,17 @@ function handleMessage(ws, msg) {
     // KOTH late-joiner: spawna pÃ¥ roterande spawn-point + skicka current scores
     if (room.sim && room.sim.kothActive) {
       const { KOTH_ARENA } = require('../shared/koth-arena');
-      const idx = (room.sim._kothSpawnIdx || 0) % KOTH_ARENA.spawns.length;
-      room.sim._kothSpawnIdx = (room.sim._kothSpawnIdx || 0) + 1;
-      const sp = KOTH_ARENA.spawns[idx];
-      ws.playerState = { x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500, weaponId: 'pistol' };
-      ws.tdmTeam = null;
-      room.sim.kothScores[ws.id] = 0;
-      room.sim.kothKillsByPid[ws.id] = 0;
-      room.sim.tdmDeathsByPid[ws.id] = 0;
-      room.sim._kothPointAccum[ws.id] = 0;
+      if (!ws.isSpectator) {
+        const idx = (room.sim._kothSpawnIdx || 0) % KOTH_ARENA.spawns.length;
+        room.sim._kothSpawnIdx = (room.sim._kothSpawnIdx || 0) + 1;
+        const sp = KOTH_ARENA.spawns[idx];
+        ws.playerState = { x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, invulnUntil: Date.now() + 1500, weaponId: 'pistol' };
+        ws.tdmTeam = null;
+        room.sim.kothScores[ws.id] = 0;
+        room.sim.kothKillsByPid[ws.id] = 0;
+        room.sim.tdmDeathsByPid[ws.id] = 0;
+        room.sim._kothPointAccum[ws.id] = 0;
+      }
       const lateKothEvents = [{
         type: 'koth_started',
         arena: { worldW: KOTH_ARENA.worldW, worldH: KOTH_ARENA.worldH, name: KOTH_ARENA.name },
@@ -758,19 +794,21 @@ function handleMessage(ws, msg) {
     // JUGGERNAUT late-joiner: spawn som hunter, roterande spawn-pos, fresh score
     if (room.sim && room.sim.juggernautActive) {
       const { JUGGERNAUT_ARENA } = require('../shared/juggernaut-arena');
-      const idx = (room.sim._juggernautSpawnIdx || 0) % JUGGERNAUT_ARENA.spawns.length;
-      room.sim._juggernautSpawnIdx = (room.sim._juggernautSpawnIdx || 0) + 1;
-      const sp = JUGGERNAUT_ARENA.spawns[idx];
-      ws.playerState = {
-        x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, maxHp: 100,
-        invulnUntil: Date.now() + 1500,
-        weaponId: JUGGERNAUT_ARENA.hunterWeapon,
-        isJug: false, scaleMul: 1.0, speedMul: 1.0, dashCdMs: null,
-      };
-      ws.tdmTeam = null;
-      room.sim.juggernautScores[ws.id] = 0;
-      room.sim.juggernautKillsByPid[ws.id] = 0;
-      room.sim.tdmDeathsByPid[ws.id] = 0;
+      if (!ws.isSpectator) {
+        const idx = (room.sim._juggernautSpawnIdx || 0) % JUGGERNAUT_ARENA.spawns.length;
+        room.sim._juggernautSpawnIdx = (room.sim._juggernautSpawnIdx || 0) + 1;
+        const sp = JUGGERNAUT_ARENA.spawns[idx];
+        ws.playerState = {
+          x: sp.x, y: sp.y, hp: 100, shield: 100, maxShield: 100, maxHp: 100,
+          invulnUntil: Date.now() + 1500,
+          weaponId: JUGGERNAUT_ARENA.hunterWeapon,
+          isJug: false, scaleMul: 1.0, speedMul: 1.0, dashCdMs: null,
+        };
+        ws.tdmTeam = null;
+        room.sim.juggernautScores[ws.id] = 0;
+        room.sim.juggernautKillsByPid[ws.id] = 0;
+        room.sim.tdmDeathsByPid[ws.id] = 0;
+      }
       const lateJugEvents = [{
         type: 'juggernaut_started',
         arena: { worldW: JUGGERNAUT_ARENA.worldW, worldH: JUGGERNAUT_ARENA.worldH, name: JUGGERNAUT_ARENA.name },
@@ -824,26 +862,28 @@ function handleMessage(ws, msg) {
     if (room.sim && room.sim.battleroyaleActive) {
       const { BATTLEROYALE_ARENA } = require('../shared/battleroyale-arena');
       // Spawnpos i mitten â€” de blir spectator omedelbart (hp=0)
-      ws.playerState = {
-        x: BATTLEROYALE_ARENA.worldW / 2,
-        y: BATTLEROYALE_ARENA.worldH / 2,
-        hp: 0, // dead = spectator frÃ¥n start
-        maxHp: BATTLEROYALE_ARENA.maxHp,
-        shield: 0,
-        maxShield: BATTLEROYALE_ARENA.maxShield,
-        invulnUntil: 0,
-        weaponId: BATTLEROYALE_ARENA.startWeapon,
-        isJug: false, scaleMul: 1.0, speedMul: 1.0, dashCdMs: null,
-      };
-      ws.tdmTeam = null;
-      ws.tdmRespawnAt = 0;
-      // Markera som already-eliminated sÃ¥ de inte rÃ¤knas i alive-count + ger placement-999
-      if (!room.sim.battleroyaleEliminated.includes(ws.id)) {
-        room.sim.battleroyaleEliminated.push(ws.id);
-        room.sim.battleroyaleRanks[ws.id] = 999; // late = ranking N/A
+      if (!ws.isSpectator) {
+        ws.playerState = {
+          x: BATTLEROYALE_ARENA.worldW / 2,
+          y: BATTLEROYALE_ARENA.worldH / 2,
+          hp: 0, // dead = spectator frÃ¥n start
+          maxHp: BATTLEROYALE_ARENA.maxHp,
+          shield: 0,
+          maxShield: BATTLEROYALE_ARENA.maxShield,
+          invulnUntil: 0,
+          weaponId: BATTLEROYALE_ARENA.startWeapon,
+          isJug: false, scaleMul: 1.0, speedMul: 1.0, dashCdMs: null,
+        };
+        ws.tdmTeam = null;
+        ws.tdmRespawnAt = 0;
+        // Markera som already-eliminated sÃ¥ de inte rÃ¤knas i alive-count + ger placement-999
+        if (!room.sim.battleroyaleEliminated.includes(ws.id)) {
+          room.sim.battleroyaleEliminated.push(ws.id);
+          room.sim.battleroyaleRanks[ws.id] = 999; // late = ranking N/A
+        }
+        room.sim.battleroyaleKillsByPid[ws.id] = 0;
+        room.sim.tdmDeathsByPid[ws.id] = 0;
       }
-      room.sim.battleroyaleKillsByPid[ws.id] = 0;
-      room.sim.tdmDeathsByPid[ws.id] = 0;
       const lateBrEvents = [{
         type: 'br_started',
         arena: { worldW: BATTLEROYALE_ARENA.worldW, worldH: BATTLEROYALE_ARENA.worldH, name: BATTLEROYALE_ARENA.name },
@@ -898,34 +938,36 @@ function handleMessage(ws, msg) {
     if (room.sim && room.sim.castledefenseActive && !room.sim.castledefenseEnded) {
       const sim = room.sim;
       const { CASTLEDEFENSE_ARENA: cdArena } = require('../shared/castledefense-arena');
-      const cdSpawnList = cdArena.playerSpawns || [{ x: cdArena.centerX, y: cdArena.centerY }];
-      const cdSp = cdSpawnList[(sim._cdLateJoinIdx || 0) % cdSpawnList.length];
-      sim._cdLateJoinIdx = (sim._cdLateJoinIdx || 0) + 1;
-      ws.playerState = {
-        x: cdSp.x, y: cdSp.y,
-        hp: cdArena.startHp, maxHp: cdArena.maxHp,
-        shield: sim.baseShield > 0 ? sim.baseShield : cdArena.startShield,
-        maxShield: Math.max(cdArena.maxShield, sim.baseShield || 0),
-        invulnUntil: Date.now() + 2000,
-        weaponId: cdArena.startWeapon,
-        isJug: false, scaleMul: 1.0, speedMul: 1.0, dashCdMs: null,
-        cdDowned: false, cdDownDead: false, cdDownStartedAt: 0,
-        cdDownReviveProgress: 0, spectating: false, aim: 0,
-      };
-      ws.tdmTeam = null; // co-op
-      ws.tdmRespawnAt = 0;
-      ws._mountedCtfTurretId = null;
-      ws._mountedSiegeTurretId = null;
-      sim.castledefenseGold = sim.castledefenseGold || {};
-      sim.castledefenseWeaponTier = sim.castledefenseWeaponTier || {};
-      sim.castledefenseScores = sim.castledefenseScores || {};
-      sim.castledefenseGold[ws.id] = sim.survivorsActive ? 100 : (cdArena.startGold || 400);
-      sim.castledefenseWeaponTier[ws.id] = 0;
-      sim.castledefenseScores[ws.id] = 0;
-      sim.tdmDeathsByPid[ws.id] = 0;
-      if (sim.survivorsActive) {
-        sim.castledefenseOwnedWeapons = sim.castledefenseOwnedWeapons || {};
-        sim.castledefenseOwnedWeapons[ws.id] = ['pistol'];
+      if (!ws.isSpectator) {
+        const cdSpawnList = cdArena.playerSpawns || [{ x: cdArena.centerX, y: cdArena.centerY }];
+        const cdSp = cdSpawnList[(sim._cdLateJoinIdx || 0) % cdSpawnList.length];
+        sim._cdLateJoinIdx = (sim._cdLateJoinIdx || 0) + 1;
+        ws.playerState = {
+          x: cdSp.x, y: cdSp.y,
+          hp: cdArena.startHp, maxHp: cdArena.maxHp,
+          shield: sim.baseShield > 0 ? sim.baseShield : cdArena.startShield,
+          maxShield: Math.max(cdArena.maxShield, sim.baseShield || 0),
+          invulnUntil: Date.now() + 2000,
+          weaponId: cdArena.startWeapon,
+          isJug: false, scaleMul: 1.0, speedMul: 1.0, dashCdMs: null,
+          cdDowned: false, cdDownDead: false, cdDownStartedAt: 0,
+          cdDownReviveProgress: 0, spectating: false, aim: 0,
+        };
+        ws.tdmTeam = null; // co-op
+        ws.tdmRespawnAt = 0;
+        ws._mountedCtfTurretId = null;
+        ws._mountedSiegeTurretId = null;
+        sim.castledefenseGold = sim.castledefenseGold || {};
+        sim.castledefenseWeaponTier = sim.castledefenseWeaponTier || {};
+        sim.castledefenseScores = sim.castledefenseScores || {};
+        sim.castledefenseGold[ws.id] = sim.survivorsActive ? 100 : (cdArena.startGold || 400);
+        sim.castledefenseWeaponTier[ws.id] = 0;
+        sim.castledefenseScores[ws.id] = 0;
+        sim.tdmDeathsByPid[ws.id] = 0;
+        if (sim.survivorsActive) {
+          sim.castledefenseOwnedWeapons = sim.castledefenseOwnedWeapons || {};
+          sim.castledefenseOwnedWeapons[ws.id] = ['pistol'];
+        }
       }
       send(ws, { type: 'sim_events', events: [{
         type: 'cd_started',
@@ -959,25 +1001,27 @@ function handleMessage(ws, msg) {
     if (room.sim && room.sim.heistActive && !room.sim.heistEnded) {
       const sim = room.sim;
       const { HEIST_ARENA: arena } = require('../shared/heist-arena');
-      const hsp = (arena.playerSpawns && arena.playerSpawns[0]) || { x: arena.worldW / 2, y: arena.worldH / 2 };
-      ws.playerState = {
-        x: hsp.x, y: hsp.y,
-        hp: arena.startHp || 100, maxHp: arena.maxHp || 100,
-        shield: arena.startShield || 0, maxShield: arena.maxShield || 100,
-        weaponId: arena.startWeapon || 'pistol',
-        invulnUntil: Date.now() + 2000, speedMul: 1.0,
-        isJug: false, scaleMul: 1.0,
-      };
-      ws.tdmTeam = null;
-      ws.tdmRespawnAt = 0;
-      ws._heistRole = ws._heistRole || 'hacker';
-      ws._heistRoleLocked = false;
-      sim.heistRoles = sim.heistRoles || {};
-      sim.heistRoles[ws.id] = ws._heistRole;
-      // v1.697b: _heistApplyRole Ã¤r INTE i join-handlerns scope (fri variabel â†’ typeof gav
-      // 'undefined' i sloppy mode â†’ rollstats applicerades aldrig). Inline-require som pick_role.
-      const { _heistApplyRole: _applyHeistRoleFn } = require('./sim/room-sim');
-      if (typeof _applyHeistRoleFn === 'function') _applyHeistRoleFn(ws, ws._heistRole, sim, arena);
+      if (!ws.isSpectator) {
+        const hsp = (arena.playerSpawns && arena.playerSpawns[0]) || { x: arena.worldW / 2, y: arena.worldH / 2 };
+        ws.playerState = {
+          x: hsp.x, y: hsp.y,
+          hp: arena.startHp || 100, maxHp: arena.maxHp || 100,
+          shield: arena.startShield || 0, maxShield: arena.maxShield || 100,
+          weaponId: arena.startWeapon || 'pistol',
+          invulnUntil: Date.now() + 2000, speedMul: 1.0,
+          isJug: false, scaleMul: 1.0,
+        };
+        ws.tdmTeam = null;
+        ws.tdmRespawnAt = 0;
+        ws._heistRole = ws._heistRole || 'hacker';
+        ws._heistRoleLocked = false;
+        sim.heistRoles = sim.heistRoles || {};
+        sim.heistRoles[ws.id] = ws._heistRole;
+        // v1.697b: _heistApplyRole Ã¤r INTE i join-handlerns scope (fri variabel â†’ typeof gav
+        // 'undefined' i sloppy mode â†’ rollstats applicerades aldrig). Inline-require som pick_role.
+        const { _heistApplyRole: _applyHeistRoleFn } = require('./sim/room-sim');
+        if (typeof _applyHeistRoleFn === 'function') _applyHeistRoleFn(ws, ws._heistRole, sim, arena);
+      }
       send(ws, { type: 'sim_events', events: [{
         type: 'heist_started',
         arena: {
@@ -1058,6 +1102,18 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room) return;
     if (room.hostId !== ws.id) return;  // bara host fÃ¥r starta
+    // SPECTATE: en ny match (rematch/läges-byte) får ALDRIG dra in en spectator som
+    // spelare i startSim-loparna. Släpp alla spectators ur rummet innan ny sim skapas
+    // — deras klient återgår till menyn på 'spectate_ended'.
+    {
+      const _specs = [];
+      for (const [pid, m] of room.members) { if (m.isSpectator) _specs.push(m); }
+      for (const m of _specs) {
+        room.members.delete(m.id);
+        try { send(m, { type: 'spectate_ended' }); } catch (e) {}
+        try { (m.close || m.terminate).call(m); } catch (e) {}
+      }
+    }
     // v2-tillÃ¤gg (additivt): custom stage-listor (Godot endless/bossrush m.fl.).
     // Saniteras hÃ¥rt â€” utan fÃ¤ltet Ã¤r beteendet EXAKT som fÃ¶rut.
     // M3 (audit 2026-06-10): saniteringen kÃ¶rs nu FÃ–RE stopSim-blocket nedan +
@@ -2075,6 +2131,13 @@ function handleDisconnect(ws) {
   if (!ws.roomCode) return;
   const room = rooms.get(ws.roomCode);
   if (!room) return;
+  // SPECTATE: en spectator var aldrig spelare → ingen reconnect-stash, ingen slot-retur,
+  // inga peer_left-notiser, ingen BR-alivecount-justering. Ta bara bort ur rummet.
+  if (ws.isSpectator) {
+    room.members.delete(ws.id);
+    broadcastPublicRooms();
+    return;
+  }
   // v1.659: stasha server-side-only-state fÃ¶r ev. reconnect (Heist-roll + hp/shield)
   // innan vi rensar. Bara under aktiv sim + om klienten har en reconnect-token.
   // Stashen lever i rummet (rensas nÃ¤r rummet stÃ¤ngs) och utgÃ¥r efter 60s vid restore.
@@ -2101,7 +2164,7 @@ function handleDisconnect(ws) {
     // host-only-kommandon sim_stop/sim_load_stage + peer_joined-notiser), sÃ¥ att
     // byta hostId mitt i match Ã¤r sÃ¤kert â€” sim:n fortsÃ¤tter oavbrutet.
     let newHost = null;
-    for (const [, m] of room.members) { if (!m._isBot) { newHost = m; break; } }
+    for (const [, m] of room.members) { if (!m._isBot && !m.isSpectator) { newHost = m; break; } }
     if (newHost) {
       room.hostId = newHost.id;
       if (room.meta) room.meta.hostName = newHost.playerName || room.meta.hostName;

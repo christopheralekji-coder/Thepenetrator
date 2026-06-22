@@ -320,7 +320,7 @@ function handle(ws, msg) {
       const party = groups.partyMembers(ws);
       if (party === 'notleader') { send(ws, { type: 'queue_error', code: 'notleader' }); return; }
       if (Array.isArray(party) && party.length > 0) {
-        members = party.filter((m) => m && m.readyState === 1);
+        members = party.filter((m) => m && m.readyState === 1 && !m.isSpectator);
       } else {
         // LOBBY = PARTY (ML-stil): köa FRÅN lobbyn → hela lobbyn (utom bots) blir EN ticket;
         // bara host:en får köa. Varken grupp eller lobby → solo.
@@ -329,7 +329,8 @@ function handle(ws, msg) {
           if (ws.id !== room.hostId) { send(ws, { type: 'queue_error', code: 'notleader' }); return; }
           if (room.meta && room.meta.started) { send(ws, { type: 'queue_error', code: 'inroom' }); return; }
           members = [];
-          for (const [, m] of room.members) if (!m._isBot && m.readyState === 1) members.push(m);
+          // SPECTATE: åskådare ska aldrig dras in i en matchmaking-ticket som spelare.
+          for (const [, m] of room.members) if (!m._isBot && !m.isSpectator && m.readyState === 1) members.push(m);
           if (!mode) mode = (room.meta && room.meta.mode) || '';
         } else {
           members = [ws];
