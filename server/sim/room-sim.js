@@ -2696,9 +2696,16 @@ function updateCastleNpcs(sim, dt, nowMs) {
   const npcs = sim.castledefenseNpcs;
   if (!npcs) return;
   const ups = CASTLEDEFENSE_ARENA.castleUpgrades;
+  // MEDIC-perk: någon LEVANDE medic → +50% på heal/repair-NPC (lag-resurs)
+  let medicMul = 1.0;
+  if (sim.castledefensePerks) {
+    for (const [mpid, mws] of sim.room.members) {
+      if (mws.playerState && mws.playerState.hp > 0 && !mws.playerState.cdDowned && sim.castledefensePerks[mpid] === 'medic') { medicMul = 1.5; break; }
+    }
+  }
   const hn = npcs.heal_npc;
   if (hn && hn.level > 0) {
-    const rate = hn.level * ups.heal_npc.healPerSecPerLvl;
+    const rate = hn.level * ups.heal_npc.healPerSecPerLvl * medicMul;
     const rad = ups.heal_npc.radius || 230, r2 = rad * rad;
     for (const [, ws] of sim.room.members) {
       const ps = ws.playerState;
@@ -2711,7 +2718,7 @@ function updateCastleNpcs(sim, dt, nowMs) {
   }
   const rn = npcs.repair_npc, core = sim.castledefenseCore;
   if (rn && rn.level > 0 && core && core.hp > 0 && core.hp < core.maxHp) {
-    const rate = rn.level * ups.repair_npc.castleHealPerSecPerLvl;
+    const rate = rn.level * ups.repair_npc.castleHealPerSecPerLvl * medicMul;
     core.hp = Math.min(core.maxHp, core.hp + rate * dt);
     if (!sim._cdCoreLastHealBroadcast || nowMs - sim._cdCoreLastHealBroadcast > 250) {
       sim._cdCoreLastHealBroadcast = nowMs;
@@ -2955,7 +2962,9 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
     }
     if (reviverPid) {
       ps.cdDownReviveProgress = (ps.cdDownReviveProgress || 0) + dt;
-      const reviveSec = arena.downReviveSec || 5;
+      // MEDIC-perk: revive 2× snabbare (gäller i BÅDE progress-broadcast & completion)
+      let reviveSec = arena.downReviveSec || 5;
+      if (sim.castledefensePerks && sim.castledefensePerks[reviverPid] === 'medic') reviveSec *= 0.5;
       // Broadcast progress event (~5Hz)
       if (!ps._cdLastReviveBroadcast || nowMs - ps._cdLastReviveBroadcast > 200) {
         ps._cdLastReviveBroadcast = nowMs;
@@ -8742,8 +8751,9 @@ function applyCastleDefenseUpgrade(sim, peerId, msg) {
   const b = sim.castledefenseBuildings.find(x => x.id === id && x.hp > 0);
   if (!b) return;
   if (_CD_NO_UPGRADE[b.kind]) { sim.eventQueue.push({ type: 'cd_upgrade_failed', peerId, id, reason: 'not_upgradeable' }); return; }
-  // Närhets-check (AABB + liten tolerans så slot-torn/portar går att nå)
-  const px = ws.playerState.x, py = ws.playerState.y, tol = 26;
+  // Närhets-check (AABB + tolerans). 34 ≥ klientens panel-marginal (30) så att en
+  // spelare som KOLLISIONS-blockeras vid murkanten fortfarande kan uppgradera.
+  const px = ws.playerState.x, py = ws.playerState.y, tol = 34;
   if (px < b.x - tol || px > b.x + b.w + tol || py < b.y - tol || py > b.y + b.h + tol) return;
   const maxLevel = arena.maxBuildLevel || 10;
   const wantMax = !!(msg && msg.max);
@@ -8783,9 +8793,10 @@ function applyCastleDefenseSell(sim, peerId, msg) {
     sim.eventQueue.push({ type: 'cd_sell_failed', peerId, id, reason: 'not_owner' });
     return;
   }
-  // v1.419: STRIKT AABB — matchar klient
-  const sellPx = ws.playerState.x, sellPy = ws.playerState.y;
-  if (sellPx < b.x || sellPx > b.x + b.w || sellPy < b.y || sellPy > b.y + b.h) {
+  // AABB + tolerans 34 (matchar uppgradering; spelaren blockeras vid murkanten av
+  // kollisionen och kan annars inte stå "inuti" muren för att sälja)
+  const sellPx = ws.playerState.x, sellPy = ws.playerState.y, sellTol = 34;
+  if (sellPx < b.x - sellTol || sellPx > b.x + b.w + sellTol || sellPy < b.y - sellTol || sellPy > b.y + b.h + sellTol) {
     sim.eventQueue.push({ type: 'cd_sell_failed', peerId, id, reason: 'not_in_range' });
     return;
   }
