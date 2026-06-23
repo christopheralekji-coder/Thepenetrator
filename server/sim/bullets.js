@@ -580,27 +580,30 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
   const stealthBonus = params.stealthBonus || 1;
   const headshotPerk = !!(params.perks && params.perks.headshot);
 
-  // BR wall-check helper: testa om punkt är inuti en SOLID wall (icke-fönster)
-  const brWalls = sim.battleroyaleActive
+  // SOLID-vägg-spawn-check (anti "skjut genom väggen via pip-offset"): om bullet-
+  // spawnen (player + pip-offset) hamnar INUTI/förbi en solid vägg → skottet skapas ej.
+  // BR: arena-väggar (icke-fönster). CD: slottets SOLIDA väggar (man kan ej skjuta
+  // genom dem). FÄLT-murar ingår INTE — de är LÅGA → kulor/granater går ÖVER dem.
+  const solidWalls = sim.battleroyaleActive
     ? BATTLEROYALE_ARENA.walls.filter(w => !w.passThroughBullets)
-    : null;
-  const isInsideBrWall = (bx, by) => {
-    if (!brWalls) return false;
-    for (let i = 0; i < brWalls.length; i++) {
-      const w = brWalls[i];
+    : (sim.castledefenseActive ? (sim.castledefenseCastleWalls || null) : null);
+  const isInsideSolidWall = (bx, by) => {
+    if (!solidWalls) return false;
+    for (let i = 0; i < solidWalls.length; i++) {
+      const w = solidWalls[i];
       if (bx >= w.x && bx <= w.x + w.w && by >= w.y && by <= w.y + w.h) return true;
     }
     return false;
   };
   // Raytrace: sampla punkter mellan player och spawn → om någon inuti wall = blocked
   const raycastBlocked = (px, py, sx, sy) => {
-    if (!brWalls) return false;
+    if (!solidWalls) return false;
     const dx = sx - px, dy = sy - py;
     const len = Math.hypot(dx, dy);
     const steps = Math.max(4, Math.ceil(len / 3));
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
-      if (isInsideBrWall(px + dx * t, py + dy * t)) return true;
+      if (isInsideSolidWall(px + dx * t, py + dy * t)) return true;
     }
     return false;
   };
@@ -616,9 +619,9 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
     // BUG-FIX: raytrace från player till bullet-start. Om någon wall är
     // mellan player och spawn → bullet skapas inte. Förhindrar
     // "skjut genom väggen via pip-offset"-exploit.
-    if (sim.battleroyaleActive) {
+    if (solidWalls) {
       if (raycastBlocked(p.x, p.y, bx, by)) continue;
-      if (isInsideBrWall(bx, by)) continue;
+      if (isInsideSolidWall(bx, by)) continue;
     }
     sim.bullets.push({
       x: bx,
