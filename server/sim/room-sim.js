@@ -3803,6 +3803,30 @@ function tickCastleDefense(sim, dt, now) {
     return;
   }
 
+  // === ALLA-SPELARE-NERE-CHECK (game over) ===
+  // Om alla RIKTIGA spelare är nere/döda finns ingen att återuppliva och slottet är
+  // oförsvarat → nederlag. Utan detta: solo-död = "spring runt 0hp utan defeat", och på
+  // boss-vågor SOFTLOCK (vågen kan ej avancera medan bossen lever → ingen respawn).
+  if (sim.castledefenseActive && !sim.survivorsActive && !sim.castledefenseEnded) {
+    let anyUp = false, anyHuman = false;
+    for (const [, ws] of sim.room.members) {
+      if (ws._isBot || !ws.playerState) continue;
+      anyHuman = true;
+      const ps = ws.playerState;
+      if (ps.hp > 0 && !ps.cdDowned && !ps.cdDownDead) { anyUp = true; break; }
+    }
+    if (anyHuman && !anyUp) {
+      sim.castledefenseEnded = true;
+      sim.eventQueue.push({
+        type: 'cd_ended',
+        reason: 'all_players_down',
+        wave: sim.castledefenseWave,
+        survivedSec: Math.round((nowMs - sim.castledefenseStartedAt) / 1000),
+      });
+      return;
+    }
+  }
+
   // v2 R10b (additivt): SHOWROOM — frusna enheter är odödliga-ish: de tar skada
   // (hit-flash + hp-bar funkar) men "död" återställs till full hp INNAN death-
   // drop-blocket nedan (inga kill-events/drops), positionen pinnas på grid-platsen
