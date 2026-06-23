@@ -77,15 +77,35 @@ const CASTLEDEFENSE_ARENA = {
     throne:     { x: 2000, y: 560, r: 26 },   // mitten
     heal_npc:   { x: 1500, y: 560, r: 22 },   // VÄSTER — helar spelare
     repair_npc: { x: 2500, y: 560, r: 22 },   // ÖSTER  — reparerar slottet
+    weapon_vendor: { x: 2000, y: 880, r: 24 }, // SÖDER (nära porten) — säljer vapen för guld
   },
   // Uppgraderings-kurvor för de tre slotts-spåren (lvl 1..10; lvl 0 = bas/ingen effekt).
+  // BALANS 2026-06-23: plattare costExp + lägre bas så lvl 5-7 är nåbart mid-game.
   castleUpgrades: {
     // TRON: castle maxHp = base + per-nivå. lvl0=6000 → lvl10=21000.
-    throne:     { baseCost: 700, costExp: 1.25, hpPerLvl: 1500 },
+    throne:     { baseCost: 700, costExp: 1.15, hpPerLvl: 1500 },
     // HEAL-NPC: helar spelare i radie. lvl0 = 0 hp/s. +2.2 hp/s per nivå → lvl10 = 22 hp/s.
-    heal_npc:   { baseCost: 500, costExp: 1.22, healPerSecPerLvl: 2.2, radius: 230 },
+    heal_npc:   { baseCost: 450, costExp: 1.14, healPerSecPerLvl: 2.2, radius: 230 },
     // REPAIR-NPC: reparerar slottets hp. lvl0 = 0 hp/s. +16 hp/s per nivå → lvl10 = 160 hp/s.
-    repair_npc: { baseCost: 600, costExp: 1.22, castleHealPerSecPerLvl: 16 },
+    repair_npc: { baseCost: 520, costExp: 1.14, castleHealPerSecPerLvl: 16 },
+  },
+  // === VAPENHANDLARE (weapon_vendor) — köp vapen för GULD (engångs-grant + auto-equip).
+  // Mycket dyrt = sen-spel-lyx; pris × difficulty-mul vid köp. sniper/rifle finns BARA här.
+  weaponVendor: {
+    knife:        { tier: 1, cost: 4000 },
+    shotgun:      { tier: 1, cost: 5000 },
+    dualpistol:   { tier: 1, cost: 5000 },
+    smg:          { tier: 1, cost: 5500 },
+    autoshotgun:  { tier: 2, cost: 8500 },
+    ak:           { tier: 2, cost: 9000 },
+    rifle:        { tier: 2, cost: 9000 },
+    dualuzi:      { tier: 2, cost: 9500 },
+    katana:       { tier: 2, cost: 10000 },
+    lmg:          { tier: 2, cost: 11000 },
+    flame:        { tier: 3, cost: 16000 },
+    sniper:       { tier: 4, cost: 24000 },
+    minigun:      { tier: 4, cost: 26000 },
+    rocket:       { tier: 4, cost: 40000 },
   },
 
   // === PRE-BUILT FÄLT-MURAR === (inga — spelaren bygger allt i fältet)
@@ -164,17 +184,20 @@ const CASTLEDEFENSE_ARENA = {
   downCrawlSpeedMul: 0.5,
   downReviveRadius: 60,
 
-  // === WAVE-SCALING (riktnings-belägring: lite längre paus för att bygga mur-linjer)
+  // === WAVE-SCALING ===
   waveBaseCount: 8,
   waveScalePerWave: 4,
-  waveBetweenSec: 10,                // 8→10 (mer build-tid för mur-linjer)
+  waveBetweenSec: 5,                 // 10→5: snabbare tempo mellan vågor (feedback)
+  waveActiveMaxSec: 14,              // nästa våg överlappar in efter 14s även om fiender lever (ej boss)
   bossEveryWave: 5,
 
   // === BUILD-SYSTEM ===
+  // BALANS 2026-06-23: mer start-guld (mur-linje+torn vid start), lägre flat wave-bonus
+  // (kills ska betyda mer tidigt — kompenseras av höjt kill-guld i enemies.js).
   buildGridSize: 30,
-  startGold: 700,                    // 600→700 (mur-linjer kostar)
-  waveBonusBase: 200,
-  waveBonusPerWave: 38,
+  startGold: 900,                    // 700→900
+  waveBonusBase: 140,                // 200→140
+  waveBonusPerWave: 34,              // 38→34
 
   // === FÄLT-BYGGEN (radial-meny, alla 10 nivåer) ===
   // Mur/port = solida mot SPELARE + FIENDER (men kulor/granater går ÖVER). Fällor =
@@ -184,29 +207,30 @@ const CASTLEDEFENSE_ARENA = {
     wall:         { cost: 60,  hp: 300, w: 30, h: 30, hpScalePerLvl: 1.2, solid: true, blocksBullets: false },
     // 🚪 PORT — som mur men SPELAR-passerbar; öppnas/stängs manuellt (fiender slinker
     // in medan öppen). Stängd = blockerar fiender; öppen = passerbar för alla.
-    gate:         { cost: 130, hp: 350, w: 30, h: 30, hpScalePerLvl: 1.2, solid: true, blocksBullets: false, openable: true },
+    gate:         { cost: 100, hp: 350, w: 30, h: 30, hpScalePerLvl: 1.2, solid: true, blocksBullets: false, openable: true },
     // ⚔️ SPIKFÄLLA — dmg vid passage; SLUTAR funka efter killCapacity fiender.
     spike_trap:   { cost: 160, hp: 250, w: 30, h: 30, dmgOnPass: 60, killCapacity: 20, trap: true },
     // 🛢️ TJÄRGROP — saktar fiender i radie (slow-aura).
     tar_trap:     { cost: 250, hp: 120, w: 30, h: 30, slowMul: 0.4, slowDurSec: 2, radius: 140, trap: true },
     // 🔥 OLJEBRAND — AoE eld-DoT-zon mot fiender; TIDSBEGRÄNSAD (brinner ut).
-    oil_fire:     { cost: 300, hp: 80,  w: 30, h: 30, dps: 45, radius: 95, burnSec: 12, trap: true },
+    oil_fire:     { cost: 240, hp: 80,  w: 30, h: 30, dps: 45, radius: 95, burnSec: 12, trap: true },
     // 💥 KRUT-TUNNA — placeras ut; SKJUT på den → exploderar (AoE) + lämnar eld-spår.
-    powder_barrel:{ cost: 200, hp: 70,  w: 30, h: 30, blastDmg: 380, blastRadius: 150, trailDps: 30, trailSec: 6, barrel: true },
+    powder_barrel:{ cost: 170, hp: 70,  w: 30, h: 30, blastDmg: 380, blastRadius: 150, trailDps: 30, trailSec: 6, barrel: true },
   },
 
   // === SLOT-TORN (byggs ENDAST i de 6 battlement-slotsen; hybrid auto + sätt-dig) ===
   // Auto-skjuter mot närmaste fiende; sätter man sig får tornet manuell sikt + dmg-boost.
   // Bomber skjuter i BÅGE över fält-murarna.
   slotBuildables: {
-    machinegun: { cost: 550, hp: 450, range: 420, dps: 32, fireRate: 4.0, manDpsMul: 1.8 },
-    bomber:     { cost: 850, hp: 450, range: 520, dps: 60, fireRate: 0.85, blastRadius: 95, manDpsMul: 1.6, arcsOverWalls: true },
+    machinegun: { cost: 520, hp: 450, range: 420, dps: 32, fireRate: 4.0, manDpsMul: 1.8 },
+    bomber:     { cost: 950, hp: 450, range: 520, dps: 60, fireRate: 0.85, blastRadius: 95, manDpsMul: 1.6, arcsOverWalls: true },
   },
 
   // === LEVEL-SYSTEM (10 uppgraderingsnivåer på ALLT: byggen, slot-torn, slott-spår) ===
   maxBuildLevel: 10,                 // 9→10 (10 uppgrade-nivåer)
-  upgradeCostBase: 0.5,
-  upgradeCostExp: 1.2,
+  // BALANS 2026-06-23: plattare exponent så lvl 5-8 är nåbart mid-game (slapp dead-zone).
+  upgradeCostBase: 0.55,             // 0.5→0.55 (lvl1-2 kostar lite mer)
+  upgradeCostExp: 1.15,              // 1.2→1.15 (maxat torn ~17.5k i st f 22.5k)
   upgradeStatMul: {
     hp:    0.50,    // +50% hp/lvl
     dps:   0.45,    // +45% dps/lvl

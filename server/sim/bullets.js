@@ -1776,7 +1776,10 @@ function updateBullets(sim, dt, now) {
     // (max enemy-r ≈ 50, max bullet-r ≈ 5 + lag-comp 8 = 63px worst-case).
     const _longRangeIds = ['sniper', 'ak', 'rifle', 'lmg', 'minigun'];
     const _isLong = b.weaponId && _longRangeIds.indexOf(b.weaponId) >= 0;
-    const queryR = (b.r || 4) + 60;
+    // queryR täcker HELA tickens kul-segment (prev→cur) så swept-träffen nedan hittar
+    // fiender längs banan även för snabba kulor (annars tunnlar de förbi).
+    const _segDist = (b._prevX !== undefined) ? Math.hypot(b.x - b._prevX, b.y - b._prevY) : 0;
+    const queryR = (b.r || 4) + 60 + _segDist;
     // v1.656: queryInto (noll-alloc, återanvänd scratch) istället för getNearby som
     // allokerade en ny array per bullet per tick — största GC-tryck-källan på servern.
     const nearby = sim.enemyGrid ? sim.enemyGrid.queryInto(b.x, b.y, queryR, _bulletQueryScratch) : sim.enemies;
@@ -1791,7 +1794,19 @@ function updateBullets(sim, dt, now) {
         const cheeseRange = 700;
         if (ddx * ddx + ddy * ddy > cheeseRange * cheeseRange) continue;
       }
-      const dx = e.x - b.x, dy = e.y - b.y;
+      // SWEPT träff: närmaste punkt på tickens kul-segment (prev→cur) mot fiende-
+      // cirkeln — så snabba kulor inte TUNNLAR förbi små/snabba fiender mellan ticks
+      // ("träffar utan att träffa"). Degenererar till punkt-test för långsamma kulor.
+      const _px = (b._prevX !== undefined) ? b._prevX : b.x;
+      const _py = (b._prevY !== undefined) ? b._prevY : b.y;
+      const _sx = b.x - _px, _sy = b.y - _py;
+      const _seg2 = _sx * _sx + _sy * _sy;
+      let _t = 0;
+      if (_seg2 > 0.0001) {
+        _t = ((e.x - _px) * _sx + (e.y - _py) * _sy) / _seg2;
+        _t = _t < 0 ? 0 : (_t > 1 ? 1 : _t);
+      }
+      const dx = e.x - (_px + _sx * _t), dy = e.y - (_py + _sy * _t);
       const rsum = e.r + b.r + 8;  // +8 lag-kompensation
       if (dx * dx + dy * dy < rsum * rsum) {
         // v2 CD: BOMBER-torn → AoE-blast vid träff (skadar fiender i _cdBlastR med falloff).

@@ -9,8 +9,8 @@
 
 // MÅSTE matcha game.js:2315-2351. Vid ändringar i game.js måste denna uppdateras.
 const ENEMY_STATS = {
-  grunt:    { r: 12, hp: 20, speed: 90,  dmg: 10, color: '#5a6a3a', accent: '#1a1a1a', gold: 5,  name: '' },
-  runner:   { r: 10, hp: 14, speed: 170, dmg: 8,  color: '#3a2a1a', accent: '#000',     gold: 8,  name: '' },
+  grunt:    { r: 12, hp: 20, speed: 90,  dmg: 10, color: '#5a6a3a', accent: '#1a1a1a', gold: 6,  name: '' },
+  runner:   { r: 10, hp: 14, speed: 170, dmg: 8,  color: '#3a2a1a', accent: '#000',     gold: 9,  name: '' },
   brute:    { r: 19, hp: 70, speed: 70,  dmg: 18, color: '#5a2828', accent: '#3a1010', gold: 14, name: '' },
   shooter:  { r: 12, hp: 22, speed: 75,  dmg: 0,  color: '#3a3a5a', accent: '#1a1a2a', gold: 12, name: '',
               shootRange: 360, shootRate: 1400, bulletSpeed: 360, bulletDmg: 9, bulletColor: '#a070ff' },
@@ -19,13 +19,13 @@ const ENEMY_STATS = {
   soldier:  { r: 12, hp: 28, speed: 90,  dmg: 0,  color: '#4a5a2a', accent: '#1a1a1a', gold: 14, name: '',
               shootRange: 280, shootRate: 1100, bulletSpeed: 480, bulletDmg: 11, bulletColor: '#ffae3a' },
   robot:    { r: 16, hp: 90, speed: 65,  dmg: 22, color: '#5a5a64', accent: '#ff3a3a', gold: 22, name: '' },
-  dog:      { r: 9,  hp: 12, speed: 230, dmg: 10, color: '#2a1810', accent: '#1a0a08', gold: 6,  name: '' },
+  dog:      { r: 9,  hp: 12, speed: 230, dmg: 10, color: '#2a1810', accent: '#1a0a08', gold: 7,  name: '' },
   healer:   { r: 11, hp: 26, speed: 80,  dmg: 0,  color: '#3a5a2a', accent: '#9aff5a', gold: 20, name: '' },
   summoner: { r: 12, hp: 32, speed: 70,  dmg: 0,  color: '#3a1a44', accent: '#aa3aff', gold: 25, name: '' },
   bomber:   { r: 10, hp: 18, speed: 200, dmg: 50, color: '#7a2a1a', accent: '#ff3a14', gold: 14, name: '' },
   sniper:   { r: 11, hp: 22, speed: 60,  dmg: 0,  color: '#1a2a18', accent: '#ff3a3a', gold: 22, name: '',
               shootRange: 700, shootRate: 2200, bulletSpeed: 900, bulletDmg: 35, bulletColor: '#ff3a3a' },
-  swarmer:  { r: 7,  hp: 6,  speed: 260, dmg: 6,  color: '#5a3a1a', accent: '#ff8a3a', gold: 3,  name: '' },
+  swarmer:  { r: 7,  hp: 6,  speed: 260, dmg: 6,  color: '#5a3a1a', accent: '#ff8a3a', gold: 4,  name: '' },
 };
 
 function makeEnemy(type, x, y) {

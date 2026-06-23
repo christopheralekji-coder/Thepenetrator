@@ -205,6 +205,7 @@ function createSim(room) {
     castledefenseScores: {},               // peerId → kills
     castledefenseGold: {},                 // peerId → per-match gold (för byggande, ej save.gold)
     castledefenseWeaponTier: {},           // peerId → vapen-tier (0 = pistol, 11 = sledge)
+    castledefensePurchasedWeapons: {},     // peerId → Set av vapen köpta hos vapenhandlaren
     castledefensePerks: {},                // peerId → perk-id (10 hero-perks, unik per spelare)
     castledefenseDownedPids: [],           // pids som är down (Phase 6)
     castledefenseRevivedCount: 0,
@@ -3391,6 +3392,9 @@ function tickCastleDefense(sim, dt, now) {
       sim._cdWaveSpawnsRemaining = Math.max(1, Math.round(base * countMul * cdGetCoopSpawnMul(Math.max(1, _realMemberCount(sim)))));
     }
     sim._cdWaveSpawnTimer = 0;
+    // timed advance: nästa våg får överlappa in efter waveActiveMaxSec även om
+    // fiender lever kvar (icke-boss). Ger snabbare tempo utan att vänta ut stragglers.
+    sim._cdWaveActiveDeadline = nowMs + (arena.waveActiveMaxSec || 14) * 1000;
     sim.eventQueue.push({
       type: 'cd_wave_started',
       wave: w,
@@ -3565,30 +3569,50 @@ function tickCastleDefense(sim, dt, now) {
         hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
       } : { x: 2000, y: 2000, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
     } else {
-      // v2 REDESIGN: MARK-fiender följer FLOW-FÄLTET mot slotts-kärnan (genom porten,
-      // runt fält-murarna). Waypoint = punkt en bit fram längs flödet → updateEnemy
-      // beelinear dit, resolveCtfWall sköter mur-kollisionen, attack-scannen nedan
-      // skadar murar/core vid kontakt. Ranged skjuter mot waypointen (≈ mot core) →
-      // skotten träffar murarna i vägen. Inget flöde (helt inmurad) → rakt mot core.
-      const _flow = cdFlowLookup(sim._cdFlowField, e.x, e.y);
-      if (_flow && (_flow.dx !== 0 || _flow.dy !== 0)) {
-        const _flen = Math.hypot(_flow.dx, _flow.dy) || 1;
-        if (e._cdLastTargetId !== '__flow__') { e.aiming = false; e.aimAt = 0; }
-        e._cdLastTargetId = '__flow__';
-        target = {
-          peerId: '__flow__', _isCoreTarget: true,
-          x: e.x + (_flow.dx / _flen) * 200,
-          y: e.y + (_flow.dy / _flen) * 200,
-          hp: 99999, maxHp: 99999, invulnUntil: 0, r: 14,
-        };
+      // v2 REDESIGN: MARK-fiender följer FLOW-FÄLTET mot slotts-kärnan (core) MEN
+      // aggrar en NÄRLIGGANDE sårbar spelare (positionering spelar roll → man kan dö).
+      // Core förblir det egentliga målet; aggro har en leash mot kiting.
+      let aggroP = null;
+      if (!isRangedType) {
+        if (e._cdAggroLeash > 0) {
+          e._cdAggroLeash -= dt;   // nyss avhängd (kiting-skydd) → ignorera aggro en stund
+        } else {
+          let aggroD2 = 240 * 240;   // engage-radie ~240px
+          for (let pi = 0; pi < cdAlivePlayers.length; pi++) {
+            const ap = cdAlivePlayers[pi];
+            if (ap._onSolid) continue;   // spelare PÅ mur = cover → lämnas ifred
+            const adx = ap.x - e.x, ady = ap.y - e.y;
+            const ad2 = adx * adx + ady * ady;
+            if (ad2 < aggroD2) { aggroD2 = ad2; aggroP = ap; }
+          }
+          if (aggroP) {
+            e._cdAggroTime = (e._cdAggroTime || 0) + dt;
+            if (e._cdAggroTime > 3.5) { aggroP = null; e._cdAggroTime = 0; e._cdAggroLeash = 2.0; }
+          } else { e._cdAggroTime = 0; }
+        }
+      }
+      if (aggroP) {
+        const _ntid = '__player_' + aggroP.peerId;
+        if (e._cdLastTargetId !== _ntid) { e.aiming = false; e.aimAt = 0; }
+        e._cdLastTargetId = _ntid;
+        target = { peerId: _ntid, _isCoreTarget: false, x: aggroP.x, y: aggroP.y, hp: 99999, maxHp: 99999, invulnUntil: 0, r: 14 };
       } else {
-        if (e._cdLastTargetId !== '__core__') { e.aiming = false; e.aimAt = 0; }
-        e._cdLastTargetId = '__core__';
-        target = corePos ? {
-          peerId: '__core__', _isCoreTarget: true,
-          x: corePos.x, y: corePos.y,
-          hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
-        } : { x: 2000, y: 600, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
+        // Kort, gradient-utjämnat flöde-steg (45px) → hugger gate-svängen och klipper
+        // INTE slottsvägg-hörnet (gamla 200px-beelinen fastnade mot castle-muren).
+        const _flow = cdFlowLookup(sim._cdFlowField, e.x, e.y);
+        if (_flow && (_flow.dx !== 0 || _flow.dy !== 0)) {
+          const _flen = Math.hypot(_flow.dx, _flow.dy) || 1;
+          let sx = _flow.dx / _flen, sy = _flow.dy / _flen;
+          const _f2 = cdFlowLookup(sim._cdFlowField, e.x + sx * 60, e.y + sy * 60);
+          if (_f2 && (_f2.dx || _f2.dy)) { const l2 = Math.hypot(_f2.dx, _f2.dy) || 1; sx += _f2.dx / l2; sy += _f2.dy / l2; const ll = Math.hypot(sx, sy) || 1; sx /= ll; sy /= ll; }
+          if (e._cdLastTargetId !== '__flow__') { e.aiming = false; e.aimAt = 0; }
+          e._cdLastTargetId = '__flow__';
+          target = { peerId: '__flow__', _isCoreTarget: true, x: e.x + sx * 45, y: e.y + sy * 45, hp: 99999, maxHp: 99999, invulnUntil: 0, r: 14 };
+        } else {
+          if (e._cdLastTargetId !== '__core__') { e.aiming = false; e.aimAt = 0; }
+          e._cdLastTargetId = '__core__';
+          target = corePos ? { peerId: '__core__', _isCoreTarget: true, x: corePos.x, y: corePos.y, hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60 } : { x: 2000, y: 600, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
+        }
       }
     }
     const players = [target];
@@ -3628,6 +3652,7 @@ function tickCastleDefense(sim, dt, now) {
             if (remaining > 0) psP.hp = Math.max(0, psP.hp - remaining);
             psP.invulnUntil = Date.now() + 500;
             e._cdPlayerContactCd = 0.7;
+            e._cdAggroTime = 0;   // landar träffar → behåll aggro (leasha ej bort en nåbar spelare)
             // v1.404: broadcast hp+shield-ändring så klient ser shield-droppen.
             // C110: peerId finns redan på alive-player-recorden (ingen reverse-lookup).
             sim.eventQueue.push({
@@ -3918,10 +3943,13 @@ function tickCastleDefense(sim, dt, now) {
   // === WAVE COMPLETE? ===
   // v1.606: SURVIVORS skippar wave-complete — vågorna är time-based och stackar.
   // Ingen "between"-fas. Ingen gold-bonus heller (survivors har inget gold).
+  // Klart när FÄLTET är rensat (snabb väg) ELLER när tidsgränsen passerats (överlapp:
+  // nästa våg får starta trots kvarvarande fiender). ALDRIG förbi en levande boss.
   if (!sim.survivorsActive &&
       sim.castledefenseWaveState === 'active' &&
       sim._cdWaveSpawnsRemaining <= 0 &&
-      sim.enemies.length === 0) {
+      (sim.enemies.length === 0 || nowMs >= (sim._cdWaveActiveDeadline || 0)) &&
+      !sim.bossAlive) {
     sim.castledefenseWaveState = 'between';
     sim.castledefenseWaveBetweenEndAt = nowMs + arena.waveBetweenSec * 1000;
     const nextWave = sim.castledefenseWave + 1;
@@ -6777,6 +6805,7 @@ function startSim(sim, opts) {
   sim.castledefenseScores = {};
   sim.castledefenseGold = {};
   sim.castledefenseWeaponTier = {};
+  sim.castledefensePurchasedWeapons = {};
   sim.castledefensePerks = {};
   sim.castledefenseDownedPids = [];
   sim.castledefenseRevivedCount = 0;
@@ -7701,7 +7730,16 @@ function startSim(sim, opts) {
       // v1.401: vapen-tier startar på 0 (pistol)
       sim.castledefenseWeaponTier = sim.castledefenseWeaponTier || {};
       sim.castledefenseWeaponTier[pid] = 0;
+      sim.castledefensePurchasedWeapons = sim.castledefensePurchasedWeapons || {};
+      sim.castledefensePurchasedWeapons[pid] = new Set();
       cdIdx++;
+    }
+    // svårighets-justerad vapenhandlar-katalog så klienten visar EXAKT serverns pris
+    // (servern debiterar spec.cost × difficulty-mul; utan detta driver pris/grå-ning).
+    const _vendorMul = cdGetDifficultyPriceMul(sim.config.difficulty);
+    const cdVendorCatalog = {};
+    for (const _wk in arena.weaponVendor) {
+      cdVendorCatalog[_wk] = { tier: arena.weaponVendor[_wk].tier, cost: Math.max(1, Math.round(arena.weaponVendor[_wk].cost * _vendorMul)) };
     }
     sim.eventQueue.push({
       type: 'cd_started',
@@ -7724,7 +7762,9 @@ function startSim(sim, opts) {
         throne: { ...sim.castledefenseNpcs.throne },
         heal_npc: { ...sim.castledefenseNpcs.heal_npc },
         repair_npc: { ...sim.castledefenseNpcs.repair_npc },
+        weapon_vendor: { ...arena.castleNpcs.weapon_vendor },
       },
+      weaponVendor: cdVendorCatalog,
       slotBuildables: arena.slotBuildables,
       enemyGoal: sim.castledefenseGoal,
       walls: [],                          // inga pre-built fält-murar
@@ -7994,6 +8034,7 @@ function stopSim(sim) {
   sim.castledefenseGold = {};
   sim.castledefenseScores = {};
   sim.castledefenseWeaponTier = {};
+  sim.castledefensePurchasedWeapons = {};
   sim.castledefensePerks = {};
   sim.castledefenseDownedPids = [];
   sim.castledefenseRevivedCount = 0;
@@ -8365,6 +8406,9 @@ function applyShoot(sim, peerId, msg) {
     const allowed = ['fists', 'knife'];
     const prog = (cdArena && cdArena.weaponProgression) || [];
     for (let i = 0; i <= tier && i < prog.length; i++) allowed.push(prog[i]);
+    // vapen köpta hos vapenhandlaren får också skjutas
+    const cdBought = sim.castledefensePurchasedWeapons && sim.castledefensePurchasedWeapons[peerId];
+    if (cdBought && cdBought.has(msg.weaponId)) allowed.push(msg.weaponId);
     if (!allowed.includes(msg.weaponId)) {
       // Cheat-försök — fallback till server-side weapon
       weaponId = ps.weaponId || prog[tier] || 'pistol';
@@ -8872,6 +8916,8 @@ function applyCdPerkEffects(ps, perkId) {
 // v1.407: DEBUG infinity-money — ger spelaren 5000 gold per call. Tas bort i prod.
 function applyCastleDefenseInfMoney(sim, peerId, msg) {
   if (!sim.castledefenseActive) return;
+  // DEV-KONTO-only (86743226) → fungerar i PROD utan ALLOW_CHEATS-env, men låst för alla andra
+  if (!isDevAccount(sim.room.members.get(peerId))) return;
   if (!sim.castledefenseGold[peerId]) sim.castledefenseGold[peerId] = 0;
   sim.castledefenseGold[peerId] += 100000;
   sim.eventQueue.push({
@@ -8961,4 +9007,33 @@ function applyCastleDefenseNpcUpgrade(sim, peerId, msg) {
   } while (wantMax);
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall, pickRandomHumanHunter, transferJug, ENEMY_CAP };
+// VAPENHANDLARE: köp ett vapen för guld (engångs → läggs i arsenalen + auto-equippas).
+// Mycket dyrt; pris × difficulty-mul. Anti-fusk-listan (applyShoot) utökas med köpet.
+function applyCastleDefenseBuyWeapon(sim, peerId, msg) {
+  if (!sim.castledefenseActive || sim.castledefenseEnded) return;
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0 || ws.playerState.cdDowned) return;
+  const arena = CASTLEDEFENSE_ARENA;
+  const vendor = arena.castleNpcs && arena.castleNpcs.weapon_vendor;
+  if (!vendor) return;
+  const dx = ws.playerState.x - vendor.x, dy = ws.playerState.y - vendor.y;
+  if (dx * dx + dy * dy > 110 * 110) { sim.eventQueue.push({ type: 'cd_buy_weapon_failed', peerId, reason: 'too_far' }); return; }
+  const wid = msg && msg.weaponId;
+  const spec = wid && arena.weaponVendor && arena.weaponVendor[wid];
+  if (!spec) { sim.eventQueue.push({ type: 'cd_buy_weapon_failed', peerId, reason: 'unknown', weaponId: wid }); return; }
+  if (!sim.castledefensePurchasedWeapons[peerId]) sim.castledefensePurchasedWeapons[peerId] = new Set();
+  if (sim.castledefensePurchasedWeapons[peerId].has(wid)) { sim.eventQueue.push({ type: 'cd_buy_weapon_failed', peerId, reason: 'owned', weaponId: wid }); return; }
+  const diff = cdGetDifficultyPriceMul(sim.config.difficulty);
+  const cost = Math.max(1, Math.round(spec.cost * diff));
+  const gold = sim.castledefenseGold[peerId] || 0;
+  if (gold < cost) { sim.eventQueue.push({ type: 'cd_buy_weapon_failed', peerId, reason: 'insufficient_gold', weaponId: wid, cost }); return; }
+  sim.castledefenseGold[peerId] = gold - cost;
+  sim.castledefensePurchasedWeapons[peerId].add(wid);
+  ws.playerState.weaponId = wid;   // auto-equip (spegel av cd_weapon_upgraded)
+  // gold-update FÖRE bought så klientens game.gold hinner uppdateras innan
+  // vapen-shoppen byggs om (annars visar shoppen gammalt guld en frame).
+  sim.eventQueue.push({ type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: -cost });
+  sim.eventQueue.push({ type: 'cd_weapon_bought', peerId, weaponId: wid, cost, tier: spec.tier || 1 });
+}
+
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall, pickRandomHumanHunter, transferJug, isDevAccount, ENEMY_CAP };

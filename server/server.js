@@ -3,7 +3,7 @@
 
 const WebSocket = require('ws');
 const http = require('http');
-const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, pickRandomHumanHunter, transferJug } = require('./sim/room-sim');
+const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, isDevAccount, pickRandomHumanHunter, transferJug } = require('./sim/room-sim');
 const accounts = require('./accounts'); // v2 konto/vÃ¤nner (acct_* â€” additivt, no-op fÃ¶r V1)
 const matchmaker = require('./matchmaker'); // v2 matchmaking-kö (queue_*/match_* — additivt)
 const groups = require('./groups'); // v2 matchmaking grupp-lager (group_* — additivt)
@@ -1566,6 +1566,12 @@ function handleMessage(ws, msg) {
     applyCastleDefenseNpcUpgrade(room.sim, ws.id, msg);
     return;
   }
+  if (msg.type === 'sim_cd_buy_weapon') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyCastleDefenseBuyWeapon(room.sim, ws.id, msg);
+    return;
+  }
   if (msg.type === 'sim_cd_ping') {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
@@ -2006,9 +2012,9 @@ function handleMessage(ws, msg) {
     return;
   }
   if (msg.type === 'sim_cd_infmoney') {
-    // C100: dev-cheat — gate:ad bakom env-flagga + host-only (mirror av sim_stresstest).
-    // Utan ALLOW_CHEATS kan ingen klient ge sig själv +100k guld i produktion.
-    if (!process.env.ALLOW_CHEATS) return;
+    // Dev-cheat: DEV-KONTO (86743226) får alltid igenom (funkar i prod utan env),
+    // annars krävs ALLOW_CHEATS-env. applyCastleDefenseInfMoney dubbel-gatar på dev-konto.
+    if (!process.env.ALLOW_CHEATS && !isDevAccount(ws)) return;
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     if (room.hostId !== ws.id) return;
