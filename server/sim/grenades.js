@@ -215,6 +215,7 @@ function tickGrenadeZones(sim, dt, now) {
       if (isPvP) {
         for (const [pid, ws] of sim.room.members) {
           if (!ws.playerState || ws.playerState.hp <= 0) continue;
+          if (ws.playerState.brAir) continue;   // BR luftburen (buss/freefall) → dras ej av gravity-zon
           if (pid === z.fromPid) continue;
           if (fromTeam && ws.tdmTeam && ws.tdmTeam === fromTeam) continue;
           const dx = z.x - ws.playerState.x, dy = z.y - ws.playerState.y;

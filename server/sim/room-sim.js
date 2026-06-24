@@ -4375,8 +4375,13 @@ function tickBrPredrop(sim, dt, nowMs) {
     const totalDurSec = sim.battleroyaleMatchDurationSec || 600;
     sim.battleroyalePhaseStartedAt = nowMs;
     sim.battleroyalePhaseEndAt = nowMs + arena.phases[0].durationFrac * totalDurSec * 1000;
+    // Rebasa ÄVEN den absoluta match-deadline:n från landning (annars äts ~drop-tiden av
+    // match-klockan → fas-sekvensen slutar efter battleroyaleEndAt + timeout-skyddet
+    // (battleroyaleEndAt+30s, rad ~4299) kan slå mitt i en legitim slutfas).
+    sim.battleroyaleStartedAt = nowMs;
+    sim.battleroyaleEndAt = nowMs + totalDurSec * 1000;
     sim.eventQueue.push({ type: 'br_predrop_state', active: false, serverNow: nowMs });
-    sim.eventQueue.push({ type: 'br_predrop_end', serverNow: nowMs });
+    sim.eventQueue.push({ type: 'br_predrop_end', serverNow: nowMs, matchEndAt: sim.battleroyaleEndAt, phaseEndAt: sim.battleroyalePhaseEndAt });
   }
 }
 
@@ -4396,8 +4401,17 @@ function landBrPlayer(sim, pid, ws, nowMs, useClientPos) {
   if (!ps || ps.brAir === 0) return;
   const arena = BATTLEROYALE_ARENA;
   if (useClientPos) {
-    ps.x = Math.max(120, Math.min(arena.worldW - 120, ps.x));
-    ps.y = Math.max(120, Math.min(arena.worldH - 120, ps.y));
+    // Aldrig styrt ut ur (off-map) buss-linjen — t.ex. AFK eller auto-eject vid bussens
+    // ändpunkt → använd den tilldelade spridda spawn:en i st.f. att hård-klampa mot
+    // kart-kanten/hörnet (annars klumpar idle-spelare ihop sig i hörnen).
+    const outOfArena = ps.x < 120 || ps.x > arena.worldW - 120 || ps.y < 120 || ps.y > arena.worldH - 120;
+    if (outOfArena && typeof ps.brLandX === 'number' && typeof ps.brLandY === 'number') {
+      ps.x = ps.brLandX;
+      ps.y = ps.brLandY;
+    } else {
+      ps.x = Math.max(120, Math.min(arena.worldW - 120, ps.x));
+      ps.y = Math.max(120, Math.min(arena.worldH - 120, ps.y));
+    }
   } else {
     if (typeof ps.brLandX === 'number') ps.x = ps.brLandX;
     if (typeof ps.brLandY === 'number') ps.y = ps.brLandY;
@@ -7051,6 +7065,12 @@ function startSim(sim, opts) {
   sim.pvpPickups = null;
   sim.bullets = [];
   sim.enemies = [];
+  // Nollställ kvarvarande granat-/hazard-zoner per match — annars kan en stale gravity-
+  // zon (2.6s livstid) från en tidigare PvP-match dra luftburna buss-riders i nästa
+  // BR-predrop (gravity-pull saknar invuln-guard, till skillnad från eld-DoT).
+  sim.grenadeZones = [];
+  sim.gasClouds = [];
+  sim.flameTrails = [];
   sim.eventQueue.length = 0;
   // v2 #62/#68 (additivt): nollställ per-match — V1 skickar aldrig fälten → 0 → no-op
   sim.countdownMs = 0;
@@ -8441,8 +8461,11 @@ function applyPlayerInput(sim, peerId, input) {
       ws._lastInputT = now;   // bussen äger positionen — flytta inte
     } else if (_brAir >= 2) {
       ws._lastInputT = now;
-      ws.playerState.x = input.x;
-      ws.playerState.y = input.y;
+      // Fri freefall-styrning (ingen fart-cap) men klampa till arenan så figuren inte
+      // kan slängas off-map på fjärr-skärmar (kosmetiskt — skada är av i luften).
+      const _brA = BATTLEROYALE_ARENA;
+      ws.playerState.x = Math.max(120, Math.min(_brA.worldW - 120, input.x));
+      ws.playerState.y = Math.max(120, Math.min(_brA.worldH - 120, input.y));
     } else if (!isSpawnResync) {
       const lastT = ws._lastInputT || now;
       const dt = Math.max(0.001, Math.min(0.25, (now - lastT) / 1000));
