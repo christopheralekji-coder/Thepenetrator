@@ -1249,6 +1249,10 @@ function handleMessage(ws, msg) {
       juggernautMatchDurationSec: msg.juggernautMatchDurationSec,
       battleroyale: msg.battleroyale,
       battleroyaleMatchDurationSec: msg.battleroyaleMatchDurationSec,
+      // BR FORTNITE PLANE-DROP: slå PÅ predrop även för host-startade BR-matcher (klienten
+      // host-startar solo → träffar denna väg, INTE matchmakern som redan har brPredrop:true).
+      // Detta var den kvarvarande orsaken till "spawnar på marken, inget flyg".
+      brPredrop: !!msg.battleroyale,
       gulagPractice: msg.gulagPractice, // DEBUG: hoppa direkt in i ett gulag-spel vs bot
 
       castledefense: msg.castledefense,
