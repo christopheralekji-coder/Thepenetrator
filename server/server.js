@@ -863,7 +863,7 @@ function handleMessage(ws, msg) {
       const { BATTLEROYALE_ARENA } = require('../shared/battleroyale-arena');
       // Spawnpos i mitten â€” de blir spectator omedelbart (hp=0)
       if (!ws.isSpectator && room.sim.brPredrop) {
-        // PRE-DROP aktiv � joinaren blir en RIKTIG levande spelare PA bussen.
+        // PRE-DROP aktiv � joinaren blir en RIKTIG levande spelare PA bussen.
         const _A = BATTLEROYALE_ARENA;
         const _bx = room.sim.brBus ? room.sim.brBus.startX : _A.worldW / 2;
         const _by = room.sim.brBus ? room.sim.brBus.startY : _A.worldH / 2;
@@ -911,9 +911,9 @@ function handleMessage(ws, msg) {
       const lateBrEvents = [{
         type: 'br_started',
         arena: { worldW: BATTLEROYALE_ARENA.worldW, worldH: BATTLEROYALE_ARENA.worldH, name: BATTLEROYALE_ARENA.name },
-        walls: BATTLEROYALE_ARENA.walls,
+        // walls + decorations utelämnade (klienten läser dem aldrig ur br_started — bygger
+        // banan lokalt). Drar ner late-join-paketet 400KB→~90KB.
         spawns: BATTLEROYALE_ARENA.spawns,
-        decorations: BATTLEROYALE_ARENA.decorations || [],
         cabins: BATTLEROYALE_ARENA.cabins || [],
         loot: (room.sim.battleroyaleLoot || []).filter(lo => lo.available).map(lo => ({
           id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: lo.unlockAt || 0,

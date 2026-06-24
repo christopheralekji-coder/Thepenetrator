@@ -7889,9 +7889,11 @@ function startSim(sim, opts) {
     sim.eventQueue.push({
       type: 'br_started',
       arena: { worldW: arena.worldW, worldH: arena.worldH, name: arena.name },
-      walls: arena.walls,
+      // walls (274KB!) + decorations (35KB) UTELÄMNADE: klienten läser dem ALDRIG ur
+      // br_started — den bygger banan lokalt (Arena.gd, res://data/arenas) + cabins nedan.
+      // Drar ner br_started 400KB→~90KB → klienten dränker inte reliable-kanalen (rel-giveup/
+      // backpressure-disconnect i predrop). Server-auktoritär på kollision oförändrat.
       spawns: arena.spawns,
-      decorations: arena.decorations || [],
       cabins: arena.cabins || [],
       buyStations: sim.brBuyStations,
       contracts: sim.brContracts.map(c => ({ id: c.id, x: c.x, y: c.y, type: c.type, available: c.available })),
