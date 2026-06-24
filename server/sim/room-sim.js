@@ -7894,7 +7894,15 @@ function startSim(sim, opts) {
       // Drar ner br_started 400KB→~90KB → klienten dränker inte reliable-kanalen (rel-giveup/
       // backpressure-disconnect i predrop). Server-auktoritär på kollision oförändrat.
       spawns: arena.spawns,
-      cabins: arena.cabins || [],
+      // KRITISKT: skicka BARA de cabin-fält klienten faktiskt RITAR (BrLayer._setup_cabins):
+      // bounds/door/windows/roof/floor/shop/_isContainer. Strippa interior(18KB)/name/id —
+      // br_started 90KB→~60KB (~55 frag). Klientens UdpSock har MAX_FRAGS=64 → ett reliable-
+      // meddelande >64 fragment (>70KB) FÖRKASTAS osett → aldrig ackat → server rel-giveup-
+      // disconnect (det som bröt BR i predrop). Håll br_started gott under 64 frag.
+      cabins: (arena.cabins || []).map(c => ({
+        bounds: c.bounds, door: c.door, windows: c.windows,
+        roof: c.roof, floor: c.floor, shop: c.shop, _isContainer: c._isContainer,
+      })),
       buyStations: sim.brBuyStations,
       contracts: sim.brContracts.map(c => ({ id: c.id, x: c.x, y: c.y, type: c.type, available: c.available })),
       startCash: sim._brStartCash,

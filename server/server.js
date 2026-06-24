@@ -914,7 +914,11 @@ function handleMessage(ws, msg) {
         // walls + decorations utelämnade (klienten läser dem aldrig ur br_started — bygger
         // banan lokalt). Drar ner late-join-paketet 400KB→~90KB.
         spawns: BATTLEROYALE_ARENA.spawns,
-        cabins: BATTLEROYALE_ARENA.cabins || [],
+        // Bara renderade cabin-fält (se room-sim.js br_started) → håll under MAX_FRAGS=64.
+        cabins: (BATTLEROYALE_ARENA.cabins || []).map(c => ({
+          bounds: c.bounds, door: c.door, windows: c.windows,
+          roof: c.roof, floor: c.floor, shop: c.shop, _isContainer: c._isContainer,
+        })),
         loot: (room.sim.battleroyaleLoot || []).filter(lo => lo.available).map(lo => ({
           id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: lo.unlockAt || 0,
         })),

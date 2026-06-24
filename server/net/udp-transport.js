@@ -45,6 +45,13 @@ const MAX_CONNS = 4096;              // max samtidiga Connections per UdpServer 
 const UNVERIFIED_TIMEOUT_MS = 4000;  // overifierad (ej return-routability-bevisad) peer reaps snabbt (C242)
 const MAX_RETRANSMIT = 12;           // C125: ge upp på en reliable-frame efter så här många sändningar → reap conn
 const MAX_UNACKED = 1024;            // C125: tak på obekräftade reliable-frames → reap conn (send-side starvation-skydd)
+// PACING (2026-06-24): ett stort reliable-meddelande (t.ex. br_started ~90KB = ~82
+// fragment) blastades tidigare som EN burst → klientens UDP-ringbuffer svämmade över
+// ("Buffer full, dropping packets") → tappade fragment → resend-spiral → rel-giveup-
+// disconnect (BR plane-drop-buggen). Nu köas fragmenten och dräneras PACE:at: SEND_IMMEDIATE
+// går direkt (små event = ingen latens), resten sprids över ticks (TICK_MS=30) à SEND_BUDGET.
+const SEND_IMMEDIATE = 8;            // skicka så här många frag direkt i send() (små msg = 0 latens)
+const SEND_BUDGET_PER_TICK = 12;     // dränera så här många köade frag per tick (~400 frag/s)
 
 function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
 
@@ -97,6 +104,7 @@ class Connection extends EventEmitter {
     this._relSeqNext = 0;
     this._msgIdNext = 0;
     this._unacked = new Map();              // relSeq -> {pkt, sentAt, sends, size}
+    this._sendQ = [];                       // PACING: köade relSeq att skicka (paced i tick)
     // reliable RECV
     this._recvExpected = 0;                 // minsta relSeq ej mottaget
     this._recvWin = new Set();              // mottagna relSeq >= recvExpected
@@ -132,8 +140,26 @@ class Connection extends EventEmitter {
       const slice = buf.subarray(i * MAX_PAYLOAD, (i + 1) * MAX_PAYLOAD);
       const relSeq = this._relSeqNext++;
       const pkt = relPkt(this.session, relSeq, msgId, i, fragCount, slice);
-      this._unacked.set(relSeq, { pkt, sentAt: now, sends: 1, size: slice.length });
-      this._sendRaw(pkt);
+      // PACING: sentAt:0 = köad-ej-sänd (sätts vid faktisk sändning i _drainSendQ så
+      // RTO-timern inte startar medan fragmentet ligger i kön).
+      this._unacked.set(relSeq, { pkt, sentAt: 0, sends: 0, size: slice.length });
+      this._sendQ.push(relSeq);
+    }
+    // Små meddelanden (≤ SEND_IMMEDIATE frag) går direkt → ingen latens. Stora (br_started)
+    // skickar SEND_IMMEDIATE nu + resten paced i tick → ingen burst-överrsvämning.
+    this._drainSendQ(now, SEND_IMMEDIATE);
+  }
+
+  // PACING: skicka upp till `budget` köade fragment; sätt sentAt vid faktisk sändning.
+  _drainSendQ(now, budget) {
+    let n = 0;
+    while (this._sendQ.length > 0 && n < budget) {
+      const relSeq = this._sendQ.shift();
+      const e = this._unacked.get(relSeq);
+      if (!e) continue;                     // redan ackad innan den hann sändas
+      e.sentAt = now; e.sends++;
+      this._sendRaw(e.pkt);
+      n++;
     }
   }
 
@@ -270,15 +296,21 @@ class Connection extends EventEmitter {
     if (this.closed) return;
     const timeoutMs = this._verified ? TIMEOUT_MS : UNVERIFIED_TIMEOUT_MS;   // C242: reap spoofad/overifierad peer snabbt
     if (now - this._lastRecvAt >= timeoutMs) { this.close('timeout'); return; }
-    for (const e of this._unacked.values()) {           // resend obekräftade frags
-      if (now - e.sentAt >= this._rto) {
+    for (const [relSeq, e] of this._unacked) {          // resend obekräftade frags (PACED)
+      if (e.sentAt > 0 && now - e.sentAt >= this._rto) {
         // C125: liveness knyts till ACK-framsteg, ej bara _lastRecvAt. En peer som håller
         // conn vid liv (inputs/pings) men vars ACKs ständigt tappas → frame når retransmit-taket → reap.
-        if (e.sends >= MAX_RETRANSMIT) { this.close('rel-giveup'); return; }
-        e.sentAt = now; e.sends++;
-        this._sendRaw(e.pkt);
+        if (e.sends >= MAX_RETRANSMIT) {
+          try { const p = e.pkt; console.log('[REL-GIVEUP] msgId=' + p.readUInt32LE(9) + ' fragIdx=' + p.readUInt16LE(13) + '/' + p.readUInt16LE(15) + ' unacked=' + this._unacked.size + ' size=' + e.size); } catch (_) {}
+          this.close('rel-giveup'); return;
+        }
+        // re-köa i st.f. att blasta ALLA på en gång (annars samma burst-spiral som orsakade
+        // klientens "Buffer full"). sentAt:0 → drain sätter sentAt + sends vid faktisk sändning.
+        e.sentAt = 0;
+        this._sendQ.push(relSeq);
       }
     }
+    this._drainSendQ(now, SEND_BUDGET_PER_TICK);
     // C242: skicka ALDRIG heartbeat till en overifierad peer → ingen reflektions-amplifiering mot spoofad IP.
     if (this._verified && now - this._lastHbAt >= HEARTBEAT_MS) {
       this._lastHbAt = now;
