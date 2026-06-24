@@ -192,6 +192,15 @@ function createSim(room) {
     _brSupplyIdCtr: 0,
     _brBountyPingAccum: 0,
     _brNextSupplyAt: 0,
+    // BR PRE-DROP / BATTLE BUS (additivt, gated på opts.brPredrop). Bussen flyger en
+    // rak linje över kartan; spelarna åker den, trycker HOPPA → freefall (joystick-
+    // styrt), fallskärm auto-deployar sent, landning → normalt spel (fas 0 LOOT).
+    // Per-spelare på ws.playerState: brAir (0=landad,1=buss,2=freefall,3=fallskärm),
+    // brJumpedAt (ms), brLandX/brLandY (fallback-spawn för bottar/forcerad landning).
+    brPredrop: false,
+    brBus: null,                 // { startX, startY, endX, endY, startAt, durMs }
+    brPredropDeadlineAt: 0,
+    _brPredropBroadcastAt: 0,
     // CASTLE DEFENSE state (co-op endless horde defense)
     castledefenseActive: false,
     castledefenseEnded: false,
@@ -4054,6 +4063,32 @@ function tickBattleRoyale(sim, dt, now) {
   // Match-end? Skip game-logic men fortsätt broadcasta för spec-mode.
   if (sim.battleroyaleEnded) return;
 
+  // === BR PRE-DROP / BATTLE BUS — flyger bussen, drar riders, deployar fallskärm,
+  // landar spelare. Medan NÅGON är i luften: HELA combat-ticken hoppas (ingen zon/
+  // storm/loot-skada/death/win) — starkaste skade-spärren. När alla landat (eller
+  // deadline) flippar tickBrPredrop sim.brPredrop=false → vi faller igenom till normal BR.
+  if (sim.brPredrop) {
+    tickBrPredrop(sim, dt, nowMs);
+    if (sim.brPredrop) {
+      // Periodisk predrop-snapshot (1Hz) för late-join / paket-tapp.
+      if (nowMs - (sim._brPredropBroadcastAt || 0) >= 1000) {
+        sim._brPredropBroadcastAt = nowMs;
+        sim.eventQueue.push({
+          type: 'br_predrop_state', active: true,
+          bus: sim.brBus ? {
+            startX: sim.brBus.startX, startY: sim.brBus.startY,
+            endX: sim.brBus.endX, endY: sim.brBus.endY,
+            startAt: sim.brBus.startAt, durMs: sim.brBus.durMs,
+          } : null,
+          deadlineAt: sim.brPredropDeadlineAt, serverNow: nowMs,
+        });
+      }
+      return;
+    }
+    // sim.brPredrop blev false denna tick (alla landat/deadline) → fall igenom till
+    // normal BR-logik så fas-0 LOOT kör direkt.
+  }
+
   // v1.655: Nollställ multi-pellet-kill-dedup-flaggan vid tick-start (ersätter
   // den tidigare per-kill 100ms-setTimeout som läckte timers).
   for (const [, ws] of sim.room.members) {
@@ -4065,6 +4100,7 @@ function tickBattleRoyale(sim, dt, now) {
   // tillbaka till kartan. Gulag-väggar enforceras klient-side.
   for (const [, ws] of sim.room.members) {
     if (ws.playerState && ws.playerState.gulagState) continue;
+    if (ws.playerState && ws.playerState.brAir) continue; // luftburen (buss/freefall) → ingen vägg-klamp
     if (ws.playerState && ws.playerState.hp > 0) {
       const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
       resolveCtfWall(ent, arena.walls);
@@ -4279,6 +4315,100 @@ function tickBattleRoyale(sim, dt, now) {
   }
 }
 
+// === BR PRE-DROP / BATTLE BUS state-maskin (server-auktoritativa bitar) ===
+// Klienten ritar buss/freefall/fallskärm; servern äger "vem är fortfarande i luften"
+// + en hård deadline, hoppar all combat (callern hoppar combat-ticken), forcerar ner
+// stragglers/disconnects, och vid sista landningen flippar sim.brPredrop=false.
+const BR_FREEFALL_MS = 3500;   // freefall innan fallskärm auto-deployar
+const BR_CHUTE_MS = 3000;      // fallskärms-glid innan landning (~6.5s luft efter hopp)
+
+function tickBrPredrop(sim, dt, nowMs) {
+  const bus = sim.brBus;
+  if (!bus) { sim.brPredrop = false; return; }
+  const arena = BATTLEROYALE_ARENA;
+  const busExitAt = bus.startAt + bus.durMs;
+  // Bussens nuvarande pos (samma formel som klienten) → dra riders med.
+  const bt = Math.max(0, Math.min(1, (nowMs - bus.startAt) / bus.durMs));
+  const busX = Math.round(bus.startX + (bus.endX - bus.startX) * bt);
+  const busY = Math.round(bus.startY + (bus.endY - bus.startY) * bt);
+  bus.x = busX; bus.y = busY;
+
+  let anyAirborneOrBus = false;
+  for (const [pid, ws] of sim.room.members) {
+    const ps = ws && ws.playerState;
+    if (!ps) continue;
+    if (ps.brAir === 1) {
+      ps.x = busX; ps.y = busY;                 // åk med bussen
+      if (!ws._isBot && ws.readyState !== 1) { landBrPlayer(sim, pid, ws, nowMs, false); continue; }
+      if (ws._isBot) {
+        if (!ps._brBotJumpAt) ps._brBotJumpAt = bus.startAt + Math.floor(bus.durMs * (0.15 + Math.random() * 0.7));
+        if (nowMs >= ps._brBotJumpAt) startBrJump(sim, pid, ws, nowMs);
+      }
+      if (ps.brAir === 1 && nowMs >= busExitAt) startBrJump(sim, pid, ws, nowMs); // bussen ute → tvångshopp
+      if (ps.brAir === 1) { anyAirborneOrBus = true; continue; }
+    }
+    if (ps.brAir >= 2) {
+      const sinceJump = nowMs - (ps.brJumpedAt || nowMs);
+      if (ps.brAir === 2 && sinceJump >= BR_FREEFALL_MS) {
+        ps.brAir = 3;                           // fallskärm ut
+        sim.eventQueue.push({ type: 'br_chute_deploy', peerId: pid });
+      }
+      if (sinceJump >= BR_FREEFALL_MS + BR_CHUTE_MS) {
+        // NORMAL landning: människa landar där DEN styrde (klient-pos), bot på spawn.
+        landBrPlayer(sim, pid, ws, nowMs, !ws._isBot);
+        continue;
+      }
+      anyAirborneOrBus = true;
+      continue;
+    }
+  }
+
+  if (!anyAirborneOrBus || nowMs >= sim.brPredropDeadlineAt) {
+    for (const [pid, ws] of sim.room.members) {
+      const ps = ws && ws.playerState;
+      if (!ps) continue;
+      if (ps.brAir === 1 || ps.brAir >= 2) landBrPlayer(sim, pid, ws, nowMs, false);
+    }
+    sim.brPredrop = false;
+    // Fas-klockan startar NU (loot-fönstret mäts från landning, ej match-start) så alla
+    // får hela fas-0-looting-fönstret.
+    const totalDurSec = sim.battleroyaleMatchDurationSec || 600;
+    sim.battleroyalePhaseStartedAt = nowMs;
+    sim.battleroyalePhaseEndAt = nowMs + arena.phases[0].durationFrac * totalDurSec * 1000;
+    sim.eventQueue.push({ type: 'br_predrop_state', active: false, serverNow: nowMs });
+    sim.eventQueue.push({ type: 'br_predrop_end', serverNow: nowMs });
+  }
+}
+
+// Spelaren trycker HOPPA (eller auto-eject): lämna bussen → freefall.
+function startBrJump(sim, pid, ws, nowMs) {
+  const ps = ws && ws.playerState;
+  if (!ps || ps.brAir !== 1) return;
+  ps.brAir = 2;
+  ps.brJumpedAt = nowMs;
+  sim.eventQueue.push({ type: 'br_jumped', peerId: pid });
+}
+
+// Landning. useClientPos=true → landa där spelaren STYRDE (klient-pos, clampad till
+// spelbara kartan); annars (bot/forcerad/disconnect) → snäpp till fallback-spawn.
+function landBrPlayer(sim, pid, ws, nowMs, useClientPos) {
+  const ps = ws && ws.playerState;
+  if (!ps || ps.brAir === 0) return;
+  const arena = BATTLEROYALE_ARENA;
+  if (useClientPos) {
+    ps.x = Math.max(120, Math.min(arena.worldW - 120, ps.x));
+    ps.y = Math.max(120, Math.min(arena.worldH - 120, ps.y));
+  } else {
+    if (typeof ps.brLandX === 'number') ps.x = ps.brLandX;
+    if (typeof ps.brLandY === 'number') ps.y = ps.brLandY;
+  }
+  ps.brAir = 0;
+  ps.brJumpedAt = 0;
+  ps._brBotJumpAt = 0;
+  ps.invulnUntil = nowMs + 1500;
+  sim.eventQueue.push({ type: 'br_landed', peerId: pid, x: Math.round(ps.x), y: Math.round(ps.y) });
+}
+
 // Phase-advance: 0→1→2→3→4 (sista fasen körs tills sista spelare dör)
 function advanceBrPhase(sim) {
   const arena = BATTLEROYALE_ARENA;
@@ -4350,6 +4480,7 @@ function advanceBrPhase(sim) {
 // Outside-zone damage: alla spelare utanför zonens current-radius tar phase-dmg/s
 function applyBrOutsideDamage(sim, dt) {
   if (!sim.battleroyaleZone) return;
+  if (sim.brPredrop) return; // ingen storm-skada under pre-drop/luftfas
   const arena = BATTLEROYALE_ARENA;
   const phaseCfg = arena.phases[sim.battleroyalePhase];
   if (!phaseCfg || phaseCfg.outsideDmg <= 0) return;
@@ -5680,6 +5811,11 @@ function endBattleRoyaleMatch(sim, winnerId, reason) {
 // v2 E6 (additivt): srcWeaponId (valfri, bara från explode) — se handleJuggernautKill.
 function handleBattleRoyaleKill(sim, killerPid, killerWs, victimPid, victimWs, weaponId, srcWeaponId) {
   if (sim.battleroyaleEnded) return;
+  // PRE-DROP: inga kills medan luftfasen är aktiv, eller om någondera är på buss/i luft
+  // (täcker en kula i farten vid predrop→LOOT-sömmen).
+  if (sim.brPredrop) return;
+  if (killerWs && killerWs.playerState && killerWs.playerState.brAir) return;
+  if (victimWs && victimWs.playerState && victimWs.playerState.brAir) return;
   if (!sim.room.members.has(killerPid)) return;
   // GUARD 1: redan eliminated (force-stop)
   if (sim.battleroyaleEliminated.includes(victimPid)) return;
@@ -6326,6 +6462,15 @@ function broadcastWorld(sim, now) {
       }
       if (_ps.cdDownDead) _out.cdDD = 1;
     }
+    // BATTLE BUS / SKYDIVE (additivt): air 1=buss/2=freefall/3=fallskärm, dz=descent
+    // 0..1 (för fjärr-render + lokal prediktions-korrigering). Utelämnas när landad.
+    if (_ps.brAir) {
+      _out.air = _ps.brAir;
+      if (_ps.brAir >= 2) {
+        const _sj = now - (_ps.brJumpedAt || now);
+        _out.dz = Math.round(Math.min(1, _sj / (BR_FREEFALL_MS + BR_CHUTE_MS)) * 100) / 100;
+      }
+    }
     return _out;
   });
   // Transport-pass (2026-06-10, JSON-vägen): egen players-payload för JSON-peers.
@@ -6344,6 +6489,8 @@ function broadcastWorld(sim, now) {
       // CD down/revive self-healing (bara på Godot/JSON-vägen, bara när nere/död).
       if (p.cdD) { jp.cdD = 1; jp.cdBR = p.cdBR; jp.cdRP = p.cdRP; }
       if (p.cdDD) jp.cdDD = 1;
+      // BATTLE BUS / SKYDIVE (air/dz).
+      if (p.air) { jp.air = p.air; if (p.dz !== undefined) jp.dz = p.dz; }
       return jp;
     });
     return _jsonPlayers;
@@ -7579,6 +7726,36 @@ function startSim(sim, opts) {
     sim.battleroyalePhaseStartedAt = Date.now();
     const totalDurSec = sim.battleroyaleMatchDurationSec;
     sim.battleroyalePhaseEndAt = Date.now() + arena.phases[0].durationFrac * totalDurSec * 1000;
+    // === BR PRE-DROP / BATTLE BUS (additivt, gated på opts.brPredrop) ===
+    // Bussen flyger en rak linje genom kartans mitt i en slumpvinkel; båda ändpunkter
+    // ligger UTANFÖR kartan så den syns flyga in och ut. Spelarna åker den (visuellt på
+    // klienten), trycker HOPPA → freefall, styr med joysticken, fallskärm deployar sent.
+    // Servern kör en state-maskin + hård deadline (så fasen aldrig hänger).
+    sim.brPredrop = !!(opts && opts.brPredrop);
+    if (sim.brPredrop) {
+      const _now = Date.now();
+      const W = arena.worldW, H = arena.worldH;
+      const ang = Math.random() * Math.PI * 2;
+      const cx = W / 2, cy = H / 2;
+      const half = Math.sqrt(W * W + H * H) / 2 + 600;   // start/slut strax utanför kartan
+      const BUS_DUR_MS = (opts && opts.brBusDurMs) || 13000;
+      // Bussen startar EFTER countdown-gaten släppt (cdMs) så tidslinjen matchar alla
+      // andra lägen (klienten är input-låst under countdown ändå).
+      sim.brBus = {
+        startX: Math.round(cx - Math.cos(ang) * half),
+        startY: Math.round(cy - Math.sin(ang) * half),
+        endX: Math.round(cx + Math.cos(ang) * half),
+        endY: Math.round(cy + Math.sin(ang) * half),
+        startAt: _now + cdMs,
+        durMs: BUS_DUR_MS,
+      };
+      // Hård deadline: countdown + buss-överfart + max-luft (freefall+fallskärm) + marginal.
+      sim.brPredropDeadlineAt = _now + cdMs + BUS_DUR_MS + BR_FREEFALL_MS + BR_CHUTE_MS + 4000;
+      sim._brPredropBroadcastAt = 0;
+    } else {
+      sim.brBus = null;
+      sim.brPredropDeadlineAt = 0;
+    }
     // Init loot från arena
     sim.battleroyaleLoot = initBrLoot(sim);
     // Init alla spelare på spridd spawn-punkt — MAX-SPREAD via pickSpreadSpawns
@@ -7589,13 +7766,30 @@ function startSim(sim, opts) {
     for (const [pid, ws] of sim.room.members) {
       ws.playerState = ws.playerState || {};
       const sp = brSpreadSpawns[i];
-      ws.playerState.x = sp.x;
-      ws.playerState.y = sp.y;
+      if (sim.brPredrop) {
+        // Åk bussen: starta vid bussens startpunkt. brLandX/Y = den spridda spawn-
+        // punkten (fallback-landning för bottar/forcerad landning; en spelare som styr
+        // i freefall landar där DEN flög, se landBrPlayer).
+        ws.playerState.x = sim.brBus.startX;
+        ws.playerState.y = sim.brBus.startY;
+        ws.playerState.brLandX = sp.x;
+        ws.playerState.brLandY = sp.y;
+        ws.playerState.brAir = 1;            // på bussen
+        ws.playerState.brJumpedAt = 0;
+        // Odödlig hela luftfasen (ingen skada i luften ändå) + landnings-grace; sätts om
+        // till +1500ms vid landning (landBrPlayer).
+        ws.playerState.invulnUntil = sim.brPredropDeadlineAt + 1500;
+      } else {
+        ws.playerState.x = sp.x;
+        ws.playerState.y = sp.y;
+        ws.playerState.brAir = 0;            // ej predrop → "redan landad"
+        ws.playerState.brJumpedAt = 0;
+        ws.playerState.invulnUntil = Date.now() + 1500;
+      }
       ws.playerState.hp = arena.startHp;
       ws.playerState.maxHp = arena.maxHp;
       ws.playerState.shield = arena.startShield;
       ws.playerState.maxShield = arena.maxShield;
-      ws.playerState.invulnUntil = Date.now() + 1500;
       ws.playerState.weaponId = arena.startWeapon;
       ws.playerState._brWeaponTier = 'starter'; // för tier-baserad pickup-jämförelse
       // v2 anti-cheat: serverns spegel av BR-inventoriet (starter-trion, speglar
@@ -7702,8 +7896,30 @@ function startSim(sim, opts) {
       maxShield: arena.maxShield,
       lootPickupRadius: arena.lootPickupRadius,
       shieldMax: arena.maxShield,
+      worldW: arena.worldW,
+      worldH: arena.worldH,
+      // BR PRE-DROP / BATTLE BUS-bana (klienten räknar buss-pos ur banan + world.st,
+      // samma klocka servern drar riders med → synkat utan extra paket). Null när av.
+      predrop: sim.brPredrop,
+      bus: sim.brBus ? {
+        startX: sim.brBus.startX, startY: sim.brBus.startY,
+        endX: sim.brBus.endX, endY: sim.brBus.endY,
+        startAt: sim.brBus.startAt, durMs: sim.brBus.durMs,
+      } : null,
+      serverNow: Date.now(),
     });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: cdMs });
+    if (sim.brPredrop) {
+      sim.eventQueue.push({
+        type: 'br_predrop_state', active: true,
+        bus: {
+          startX: sim.brBus.startX, startY: sim.brBus.startY,
+          endX: sim.brBus.endX, endY: sim.brBus.endY,
+          startAt: sim.brBus.startAt, durMs: sim.brBus.durMs,
+        },
+        deadlineAt: sim.brPredropDeadlineAt, serverNow: Date.now(),
+      });
+    }
     sim._endBattleRoyaleMatch = endBattleRoyaleMatch;
     sim._handleBattleRoyaleKill = handleBattleRoyaleKill;
     // DEBUG: gulagPractice → droppa host + bot direkt i valt gulag-spel (solo-bugfix)
@@ -8215,7 +8431,19 @@ function applyPlayerInput(sim, peerId, input) {
     const _dyRaw = input.y - ws.playerState.y;
     const _isHugeJump = (_dxRaw * _dxRaw + _dyRaw * _dyRaw) > 500 * 500;
     const isSpawnResync = isInvuln && _isHugeJump;
-    if (!isSpawnResync) {
+    // BATTLE BUS / SKYDIVE: medan luftburen får fart-capen INTE gälla — en freefall-
+    // styrning korsar 10000px-kartan på sekunder (>>1000px/s). brAir===1 (på bussen):
+    // positionen är buss-ägd (sätts i tickBrPredrop) → ignorera klient-x/y helt (anti-
+    // pre-jump-teleport). brAir>=2 (freefall/fallskärm): acceptera klient-x/y rått, ingen
+    // cap. Skada/kollision är redan av (brAir = invuln; vägg-klamp hoppar luftburna).
+    const _brAir = ws.playerState.brAir || 0;
+    if (_brAir === 1) {
+      ws._lastInputT = now;   // bussen äger positionen — flytta inte
+    } else if (_brAir >= 2) {
+      ws._lastInputT = now;
+      ws.playerState.x = input.x;
+      ws.playerState.y = input.y;
+    } else if (!isSpawnResync) {
       const lastT = ws._lastInputT || now;
       const dt = Math.max(0.001, Math.min(0.25, (now - lastT) / 1000));
       ws._lastInputT = now;
@@ -8436,6 +8664,8 @@ function applyShoot(sim, peerId, msg) {
   const ps = ws.playerState;
   // BR downed (v1.740): krypande spelare kan inte skjuta (server-enforce).
   if (ps.brDowned) return;
+  // BATTLE BUS / SKYDIVE: inget skjutande på bussen eller i luften (server-enforce).
+  if (ps.brAir) return;
   // GULAG (v1.790): no-shoot-spel (Bomb Tag/Floor is Lava) blockerar skott helt.
   if (ps.gulagState === 'fighting' && ps._gulagNoShoot) return;
   // Castle Defense down-state: bara knife tillåten (server-enforce, annars
@@ -8629,6 +8859,15 @@ function applyBrDropWeapon(sim, peerId, msg) {
     y: Math.round(lo.y),
     loot: [{ id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: 0 }],
   });
+}
+
+// BATTLE BUS: klienten trycker HOPPA → lämna bussen och börja freefall. Idempotent —
+// bara giltigt medan PÅ bussen (brAir===1) under aktiv predrop.
+function applyBrJump(sim, peerId) {
+  if (!sim.battleroyaleActive || !sim.brPredrop) return;
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState || ws.playerState.brAir !== 1) return;
+  startBrJump(sim, peerId, ws, Date.now());
 }
 
 // Ny: host kan köra "next stage" via sim_load_stage-meddelande
@@ -9095,4 +9334,4 @@ function applyCastleDefenseBuyWeapon(sim, peerId, msg) {
   sim.eventQueue.push({ type: 'cd_weapon_bought', peerId, weaponId: wid, cost, tier: spec.tier || 1 });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall, pickRandomHumanHunter, transferJug, isDevAccount, ENEMY_CAP };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrJump, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall, pickRandomHumanHunter, transferJug, isDevAccount, ENEMY_CAP };

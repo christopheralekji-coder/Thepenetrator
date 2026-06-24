@@ -34,7 +34,7 @@ const MODE_OPTS = {
   koth: { koth: true },
   gungame: { gungame: true },
   juggernaut: { juggernaut: true },
-  battleroyale: { battleroyale: true },
+  battleroyale: { battleroyale: true, brPredrop: true },
   survivors: { survivors: true, survivorsDurationSec: 600 },
   castledefense: { castledefense: true },
   heist: { heist: true },

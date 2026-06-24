@@ -23,6 +23,12 @@ const ETYPE_CUSTOM = 0xFF;
 
 const F_BOSS = 1, F_MINI = 2, F_NAME = 4, F_BK = 8, F_P = 16, F_MP = 32, F_FX = 64, F_G = 128;
 const P_GS = 1, P_DB = 2, P_PICKUPS = 4, P_HZ = 8;   // top-level presence-bitar
+// P_EXTRA (2026-06-24): per-spelar-extras (BR air/dz + CD down/revive) som en
+// APPEND-AT-END-sektion → MIXED-VERSION-SÄKER. En gammal klient läser inte denna
+// presence-bit och slutar läsa efter hz → ignorerar de extra byten (ingen misframe,
+// ingen MAGIC-bump). Indexerad mot players[]-ordningen (samma loop-ordning båda sidor).
+const P_EXTRA = 16;
+const EX_AIR = 1, EX_DZ = 2, EX_CDD = 4, EX_CDDD = 8;   // per-spelare-extras subflaggor
 
 function clampI16(v) { v = Math.round(v); return v < -32768 ? -32768 : (v > 32767 ? 32767 : v); }
 function clampU16(v) { v = Math.round(v); return v < 0 ? 0 : (v > 65535 ? 65535 : v); }
@@ -65,6 +71,14 @@ function encodeWorld(pkt) {
   if (pkt.db) presence |= P_DB;
   if (pkt.pickups) presence |= P_PICKUPS;
   if (pkt.hz) presence |= P_HZ;
+  // P_EXTRA: sätt om NÅGON spelare har BR-luft- eller CD-down-state (annars 0 byte).
+  const _pls0 = pkt.players || [];
+  let _hasExtra = false;
+  for (let _i = 0; _i < _pls0.length; _i++) {
+    const _p = _pls0[_i];
+    if (_p && (_p.air || _p.dz !== undefined || _p.cdD || _p.cdDD)) { _hasExtra = true; break; }
+  }
+  if (_hasExtra) presence |= P_EXTRA;
   w.u8(presence);
 
   // players
@@ -140,6 +154,30 @@ function encodeWorld(pkt) {
       w.u8(Math.max(0, Math.min(255, Math.round((h.lf || 0) * 255))));
     }
   }
+  // P_EXTRA — APPEND-AT-END: per-spelar-extras (BR air/dz + CD down/revive). Indexerad
+  // mot players[]-ordningen ovan. Gammal klient ignorerar (läser ej P_EXTRA → stannar
+  // efter hz). Bara spelare med någon flagga skrivs → tom i normal-spel.
+  if (presence & P_EXTRA) {
+    const idxs = [];
+    for (let i = 0; i < _pls0.length; i++) {
+      const p = _pls0[i];
+      if (p && (p.air || p.dz !== undefined || p.cdD || p.cdDD)) idxs.push(i);
+    }
+    w.u8(Math.min(255, idxs.length));
+    for (const i of idxs) {
+      const p = _pls0[i];
+      w.u8(i);
+      let sf = 0;
+      if (p.air) sf |= EX_AIR;
+      if (p.dz !== undefined) sf |= EX_DZ;
+      if (p.cdD) sf |= EX_CDD;
+      if (p.cdDD) sf |= EX_CDDD;
+      w.u8(sf);
+      if (sf & EX_AIR) w.u8(Math.max(0, Math.min(255, p.air)));
+      if (sf & EX_DZ) w.u8(Math.max(0, Math.min(255, Math.round((p.dz || 0) * 100))));
+      if (sf & EX_CDD) { w.u16(p.cdBR || 0); w.u8(Math.max(0, Math.min(255, Math.round((p.cdRP || 0) * 100)))); }
+    }
+  }
   return w.done();
 }
 
@@ -202,6 +240,18 @@ function decodeWorld(buf) {
   if (presence & P_HZ) {
     const n = r.u16(); pkt.hz = [];
     for (let k = 0; k < n; k++) pkt.hz.push({ x: r.i16(), y: r.i16(), r: r.u16(), k: r.u8(), lf: r.u8() / 255 });
+  }
+  if (presence & P_EXTRA) {
+    const n = r.u8();
+    for (let k = 0; k < n; k++) {
+      const idx = r.u8();
+      const sf = r.u8();
+      const p = pkt.players[idx];
+      if (sf & EX_AIR) { const a = r.u8(); if (p) p.air = a; }
+      if (sf & EX_DZ) { const dz = r.u8() / 100; if (p) p.dz = dz; }
+      if (sf & EX_CDD) { const br = r.u16(); const rp = r.u8() / 100; if (p) { p.cdD = 1; p.cdBR = br; p.cdRP = rp; } }
+      if (sf & EX_CDDD) { if (p) p.cdDD = 1; }
+    }
   }
   return pkt;
 }

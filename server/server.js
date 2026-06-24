@@ -3,7 +3,7 @@
 
 const WebSocket = require('ws');
 const http = require('http');
-const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, isDevAccount, pickRandomHumanHunter, transferJug } = require('./sim/room-sim');
+const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrJump, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, isDevAccount, pickRandomHumanHunter, transferJug } = require('./sim/room-sim');
 const accounts = require('./accounts'); // v2 konto/vÃ¤nner (acct_* â€” additivt, no-op fÃ¶r V1)
 const matchmaker = require('./matchmaker'); // v2 matchmaking-kö (queue_*/match_* — additivt)
 const groups = require('./groups'); // v2 matchmaking grupp-lager (group_* — additivt)
@@ -862,7 +862,31 @@ function handleMessage(ws, msg) {
     if (room.sim && room.sim.battleroyaleActive) {
       const { BATTLEROYALE_ARENA } = require('../shared/battleroyale-arena');
       // Spawnpos i mitten â€” de blir spectator omedelbart (hp=0)
-      if (!ws.isSpectator) {
+      if (!ws.isSpectator && room.sim.brPredrop) {
+        // PRE-DROP aktiv � joinaren blir en RIKTIG levande spelare PA bussen.
+        const _A = BATTLEROYALE_ARENA;
+        const _bx = room.sim.brBus ? room.sim.brBus.startX : _A.worldW / 2;
+        const _by = room.sim.brBus ? room.sim.brBus.startY : _A.worldH / 2;
+        const _spawns = (room.sim._brArena && room.sim._brArena.spawns) || _A.spawns;
+        const _ls = _spawns[Math.floor(Math.random() * _spawns.length)] || { x: _A.worldW / 2, y: _A.worldH / 2 };
+        ws.playerState = {
+          x: _bx, y: _by, hp: _A.startHp, maxHp: _A.maxHp,
+          shield: _A.startShield, maxShield: _A.maxShield,
+          invulnUntil: (room.sim.brPredropDeadlineAt || Date.now() + 30000) + 1500,
+          weaponId: _A.startWeapon, _brWeaponTier: 'starter',
+          isJug: false, scaleMul: 1.0, speedMul: 1.0, dashCdMs: null,
+          brAir: 1, brJumpedAt: 0, brLandX: _ls.x, brLandY: _ls.y,
+          brPerkLevels: {}, selfReviveKits: 0, airstrikes: 0, uavCount: 0,
+          medkits: 0, shieldkits: 0, adrenalines: 0,
+          brDowned: false, gulagState: null, spectating: false,
+        };
+        ws._brOwnedWeapons = new Set(['fists', 'knife', _A.startWeapon || 'pistol']);
+        ws.tdmTeam = null; ws.tdmRespawnAt = 0;
+        room.sim.battleroyaleKillsByPid[ws.id] = 0;
+        room.sim.tdmDeathsByPid[ws.id] = 0;
+        room.sim.brCash[ws.id] = room.sim._brStartCash;
+        room.sim.battleroyaleAliveCount = (room.sim.battleroyaleAliveCount || 0) + 1;
+      } else if (!ws.isSpectator) {
         ws.playerState = {
           x: BATTLEROYALE_ARENA.worldW / 2,
           y: BATTLEROYALE_ARENA.worldH / 2,
@@ -911,7 +935,11 @@ function handleMessage(ws, msg) {
         maxShield: BATTLEROYALE_ARENA.maxShield,
         lootPickupRadius: BATTLEROYALE_ARENA.lootPickupRadius,
         shieldMax: BATTLEROYALE_ARENA.maxShield,
-        isSpectator: true, // klient ska direkt gÃ¥ in i spec-cam
+        predrop: !!room.sim.brPredrop,
+        bus: room.sim.brBus ? { startX: room.sim.brBus.startX, startY: room.sim.brBus.startY, endX: room.sim.brBus.endX, endY: room.sim.brBus.endY, startAt: room.sim.brBus.startAt, durMs: room.sim.brBus.durMs } : null,
+        serverNow: Date.now(),
+        worldW: BATTLEROYALE_ARENA.worldW, worldH: BATTLEROYALE_ARENA.worldH,
+        isSpectator: !room.sim.brPredrop, // klient ska direkt gÃ¥ in i spec-cam
       }];
       if (room.sim._botIds && room.sim._botIds.length) {
         const memberList = [...room.members.keys()];
@@ -1469,6 +1497,12 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     applyBrDropWeapon(room.sim, ws.id, msg);
+    return;
+  }
+  if (msg.type === 'sim_br_jump') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyBrJump(room.sim, ws.id);
     return;
   }
   if (msg.type === 'sim_br_buy') {
@@ -2105,6 +2139,7 @@ function handleMessage(ws, msg) {
     // här (samma dödstillstånd som blockerar skott).
     const gps = ws.playerState;
     if (!gps || gps.hp <= 0 || gps.brDowned || gps.cdDowned || gps.spectating) return;
+    if (gps.brAir) return; // BATTLE BUS / SKYDIVE: ingen granat på bussen/i luften
     const fromX = Math.max(0, Math.min(20000, +msg.fromX || 0));
     const fromY = Math.max(0, Math.min(20000, +msg.fromY || 0));
     const toX = Math.max(0, Math.min(20000, +msg.toX || 0));
