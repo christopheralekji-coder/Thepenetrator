@@ -84,7 +84,7 @@ function slotEntry(ws, slot) { return ws._world ? (ws._world.players.find(p => p
   applyBrJump(sim, 'p0');
   // simulera att spelaren styrt dit i freefall
   p0.playerState.x = 4321; p0.playerState.y = 6543;
-  p0.playerState.brJumpedAt = Date.now() - 7000;   // > FREEFALL+CHUTE (6500)
+  p0.playerState.brJumpedAt = Date.now() - 10000;   // > FREEFALL+CHUTE (3500+6000=9500)
   step(sim);
   assert(p0.playerState.brAir === 0, 'landad (brAir=0)');
   assert(p0.playerState.x === 4321 && p0.playerState.y === 6543, 'landar på STYRD pos, fick ' + p0.playerState.x + ',' + p0.playerState.y);
@@ -101,7 +101,7 @@ function slotEntry(ws, slot) { return ws._world ? (ws._world.players.find(p => p
   b0.playerState._brBotJumpAt = Date.now() - 10;   // tvinga hopp nu
   step(sim);
   assert(b0.playerState.brAir === 2, 'bot auto-hoppade');
-  b0.playerState.brJumpedAt = Date.now() - 7000;
+  b0.playerState.brJumpedAt = Date.now() - 10000;   // > FREEFALL+CHUTE (9500)
   step(sim);
   assert(b0.playerState.brAir === 0, 'bot landade');
   assert(b0.playerState.x === landX, 'bot landar på spridd spawn (ej styrd), x=' + b0.playerState.x);

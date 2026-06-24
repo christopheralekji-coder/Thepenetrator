@@ -4320,7 +4320,7 @@ function tickBattleRoyale(sim, dt, now) {
 // + en hård deadline, hoppar all combat (callern hoppar combat-ticken), forcerar ner
 // stragglers/disconnects, och vid sista landningen flippar sim.brPredrop=false.
 const BR_FREEFALL_MS = 3500;   // freefall innan fallskärm auto-deployar
-const BR_CHUTE_MS = 3000;      // fallskärms-glid innan landning (~6.5s luft efter hopp)
+const BR_CHUTE_MS = 6000;      // fallskärms-glid innan landning (LÄNGRE: ~9.5s luft efter hopp; klientens SKYDIVE_DESCENT_SEC speglar = 9.5)
 
 function tickBrPredrop(sim, dt, nowMs) {
   const bus = sim.brBus;
@@ -7758,7 +7758,7 @@ function startSim(sim, opts) {
       const ang = Math.random() * Math.PI * 2;
       const cx = W / 2, cy = H / 2;
       const half = Math.sqrt(W * W + H * H) / 2 + 600;   // start/slut strax utanför kartan
-      const BUS_DUR_MS = (opts && opts.brBusDurMs) || 13000;
+      const BUS_DUR_MS = (opts && opts.brBusDurMs) || 20000;   // LÄNGRE fly time (var 13000); klienten läser durMs ur br_started
       // Bussen startar EFTER countdown-gaten släppt (cdMs) så tidslinjen matchar alla
       // andra lägen (klienten är input-låst under countdown ändå).
       sim.brBus = {
