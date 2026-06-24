@@ -70,7 +70,7 @@ const WEAPONS = [
   // lmg: LÄTT KULSPRUTA — rörlig eldkraft (stor mag, ingen spin-up); lägre DPS, lång omladdning.
   { id: 'lmg',     type: 'gun', dmg: 20, rate: 90, speed: 880, mag: 60,  reload: 2600, spread: 0.08, color: '#7ad0ff', botRange: 480 },
   // flame: ELDKASTARE — brännmark (lång räckvidd, DoT, brinnande mark); låg direktskada, slukar bränsle.
-  { id: 'flame',   type: 'gun', dmg: 10, rate: 45, speed: 680, mag: 100, reload: 2200, spread: 0.12, color: '#ff7a2a', burn: 7, burningGround: true, botRange: 240 },
+  { id: 'flame',   type: 'gun', dmg: 7, rate: 45, speed: 580, mag: 100, reload: 2200, spread: 0.12, color: '#ff7a2a', burn: 4, burningGround: true, botRange: 240 },
 
   // ── EXPLOSIVT (2) ──────────────────────────────────────────────────────────
   // grenade: GRANATGEVÄR — lobb (bågskott, studsar, AoE); restid/båge, låg eldhast.

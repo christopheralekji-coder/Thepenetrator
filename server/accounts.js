@@ -528,6 +528,20 @@ function notifyFriendsOf(id) {
   }
 }
 
+// Som notifyFriendsOf men UTAN throttle — för login/logout där presence ska synas DIREKT.
+// Throttle:n (1s + deferred timer, coalescing) var till för täta activity-byten men gjorde
+// att "online" kunde dröja sekunder–20s+ innan vänner såg en ny inloggning. Pushar nu direkt.
+function notifyFriendsOfNow(id) {
+  const acc = accounts.get(id);
+  if (!acc) return;
+  for (const fid of acc.friends) {
+    if (!online.has(fid)) continue;
+    const st = _updState.get(fid);
+    if (st && st.timer) { clearTimeout(st.timer); st.timer = null; }  // avbryt ev. köad throttle
+    sendFriendsUpdate(fid);
+  }
+}
+
 // ── Publika hooks (anropas från server.js) ───────────────────────────────────
 // Presence-ändring (rum-join/leave/sim_start/sim_stop). No-op för ws utan konto.
 function presenceChanged(ws) {
@@ -716,7 +730,7 @@ function bindSocketToAccount(ws, acc) {
   // OBS: _economyForce rensas INTE här (en tappad login-frame skulle annars förlora
   // override:n permanent). Den konsumeras i handleUpdate vid första acct_update efter
   // login — då har klienten bevisligen tagit emot+adopterat acct_logged_in.
-  notifyFriendsOf(acc.id); // vänner ser online:true
+  notifyFriendsOfNow(acc.id); // vänner ser online:true DIREKT (ej throttle:ad → ej 20s fördröjning)
   // AUDIT C272: pusha auktoritativt grupp-roster (eller group_left) direkt efter
   // login/reconnect så klienten snapper till rätt grupp-state utan fördröjning.
   groups.pushRosterFor(ws);

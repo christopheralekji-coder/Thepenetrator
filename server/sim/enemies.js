@@ -273,8 +273,12 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
     // v1.425: I CD är sniper aggressivare — approachar till 220px (var: 500px
     // retreat). Tidigare stannade snipers vid världs-kanten + 500px från
     // target → osynliga campers. Player ska se dem!
+    // CD-FIX: pathar vi mot kärnan (45px-waypoint framför) ska vi AVANCERA, inte retirera
+    // från waypointen (annars backade snipern ut i hörnet och fastnade som shooter/soldier).
+    const sniperPathing = !!(e._cdEnemy && p && p._isCoreTarget);
     const sniperRetreat = e._cdEnemy ? 220 : 500;
-    if (d < sniperRetreat) { e.x -= (dx / d) * e.speed * dt; e.y -= (dy / d) * e.speed * dt; }
+    if (sniperPathing) { e.x += (dx / d) * e.speed * dt; e.y += (dy / d) * e.speed * dt; }
+    else if (d < sniperRetreat) { e.x -= (dx / d) * e.speed * dt; e.y -= (dy / d) * e.speed * dt; }
     else { e.x += (dx / d) * e.speed * dt; e.y += (dy / d) * e.speed * dt; }
     if (d < e.shootRange && !e.aiming && now - e.lastShot > e.shootRate) {
       e.aiming = true; e.aimAt = now;
@@ -296,15 +300,25 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
     e.y += (dy / d) * e.speed * dt;
   } else if (e.type === 'shooter' || e.type === 'soldier') {
     // RANGED: håll avstånd, skjut, strafe (skip cover-seeking — Phase 5)
-    const hpFrac = e.hp / e.maxHp;
-    const ideal = hpFrac < 0.3 ? 420 : 280;
+    // CD-FIX: när en CD-fiende FÖLJER FLÖDET mot kärnan är målet en 45px-waypoint RAKT
+    // FRAMFÖR. Den gamla stand-off-logiken (280px) fick dem då att retirera FRÅN sin egen
+    // waypoint → de backade ut i hörnet och fastnade. När vi pathar mot core (p._isCoreTarget)
+    // ska vi AVANCERA. Stand-off gäller bara när vi kitar en riktig spelare (_isCoreTarget=false).
+    const pathingToCore = !!(e._cdEnemy && p && p._isCoreTarget);
     let mvx = 0, mvy = 0;
-    if (d > ideal + 30) { mvx = dx / d; mvy = dy / d; }
-    else if (d < ideal - 30) { mvx = -dx / d; mvy = -dy / d; }
-    // strafe
+    if (pathingToCore) {
+      mvx = dx / d; mvy = dy / d;   // gå rakt mot kärnan längs flödet
+    } else {
+      const hpFrac = e.hp / e.maxHp;
+      const ideal = hpFrac < 0.3 ? 420 : 280;
+      if (d > ideal + 30) { mvx = dx / d; mvy = dy / d; }
+      else if (d < ideal - 30) { mvx = -dx / d; mvy = -dy / d; }
+    }
+    // strafe (mindre sidled när vi pressar mot kärnan)
     const strafeT = Math.sin(now / 800 + (e.walkPhase || 0));
-    mvx += -dy / d * strafeT * 0.4;
-    mvy += dx / d * strafeT * 0.4;
+    const strafeAmt = pathingToCore ? 0.2 : 0.4;
+    mvx += -dy / d * strafeT * strafeAmt;
+    mvy += dx / d * strafeT * strafeAmt;
     e.x += mvx * e.speed * dt;
     e.y += mvy * e.speed * dt;
     if (d <= e.shootRange && now - e.lastShot >= e.shootRate) {

@@ -4601,22 +4601,11 @@ function tickBrLootPickups(sim, nowMs) {
         // V2: nya granat-typer som BR-loot. Klient bumpar rätt counter via event-kind.
         applied = true;
       } else if (lo.kind === 'weapon' && lo.weaponId) {
-        // V2: auto-equippa BARA om man fortfarande har STARTVAPNET (första vapnet).
-        // Efter det går loot-vapen till inventariet — spelaren byter själv via vapen-
-        // menyn. Annars bytte mystery-lådor (okänt innehåll) ut spelarens valda/bättre
-        // vapen ofrivilligt ("vapnet ändrades fast jag hade ett bättre").
-        const TIER_RANK = {
-          starter: 0, corpse: 0, dropped: 0,
-          common: 1, uncommon: 2, rare: 3, legendary: 4,
-        };
-        const currentTier = ws.playerState._brWeaponTier || 'starter';
-        const oldRank = TIER_RANK[currentTier] != null ? TIER_RANK[currentTier] : 0;
-        let equippedNow = false;
-        if (oldRank === 0) {
-          ws.playerState.weaponId = lo.weaponId;
-          ws.playerState._brWeaponTier = lo.tier;
-          equippedNow = true;
-        }
+        // ANVÄNDARVAL: byt ALDRIG vapen automatiskt vid walkover. Loot-vapnet AUTO-PLOCKAS
+        // till väskan (_brOwnedWeapons nedan) men spelaren BEHÅLLER sitt utrustade vapen och
+        // byter själv via vapen-menyn. (Förr: auto-equip på startvapnet → kändes som
+        // ofrivilliga vapenbyten när man gick på markvapen.)
+        const equippedNow = false;
         // Trigger event ALLTID så klient kan lägga vapnet i sitt inventory
         applied = true;
         lo._brEquippedOnPickup = equippedNow;
@@ -4629,7 +4618,8 @@ function tickBrLootPickups(sim, nowMs) {
       lo.available = false;
       // CASH: varje lootbox ger pengar (tier-baserat) — Warzone-style ekonomi (v1.739).
       const CASH_BY_TIER = { common: 50, uncommon: 100, rare: 200, legendary: 400, corpse: 75, starter: 40, dropped: 40 };
-      brAwardCash(sim, pid, CASH_BY_TIER[lo.tier] != null ? CASH_BY_TIER[lo.tier] : 50);
+      const lootCash = CASH_BY_TIER[lo.tier] != null ? CASH_BY_TIER[lo.tier] : 50;
+      brAwardCash(sim, pid, lootCash);
       sim.eventQueue.push({
         type: 'br_loot_picked',
         peerId: pid,
@@ -4637,6 +4627,7 @@ function tickBrLootPickups(sim, nowMs) {
         kind: lo.kind,
         weaponId: lo.weaponId || null,
         tier: lo.tier || null,
+        cash: lootCash,   // för loot-toast (klient visar "+X $")
         // For weapon pickups: did server auto-equip it? Client uses this för
         // att veta om state.player.weaponId ska uppdateras.
         equipped: lo._brEquippedOnPickup != null ? lo._brEquippedOnPickup : true,
