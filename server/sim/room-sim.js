@@ -5721,22 +5721,15 @@ function brAwardCash(sim, pid, amount) {
 // lila SE-hörnet. Minst 12 vanliga. Deterministiskt (ingen RNG) → samma varje match.
 function computeBrBuyStations(arena) {
   const stations = [];
-  // v1.743: shops = de 12 dedikerade shop:true-husen (addBrShopCabins). Faller tillbaka
-  // till var-3:e-stuga-heuristiken om inga shop-flaggade hus finns (bakåtkompat).
-  let shopCabins = (arena.cabins || []).filter(c => c && c.bounds && c.shop && !c._isContainer);
-  if (!shopCabins.length) {
-    const all = (arena.cabins || []).filter(c => c && c.bounds && !c._isContainer);
-    const want = Math.max(12, Math.floor(all.length * 0.35));
-    const step = Math.max(1, Math.floor(all.length / want));
-    for (let k = 0; k < all.length && shopCabins.length < want; k += step) shopCabins.push(all[k]);
-  }
-  for (const c of shopCabins) {
-    const b = c.bounds;
-    // Hus-stationer använder husets BOUNDS (man måste vara HELT inne) i st f radie.
+  // V2 (user 2026-06-24): INGA shop-HUS längre — alla hus är vanliga. Shoppar är nu
+  // 3 dedikerade NPC:er (arena.brShops): radie-baserade (man går FRAM till handlaren),
+  // markerade npc:true så klienten ritar en tydlig shopkeeper + skylt + minimap-prick.
+  for (const sh of (arena.brShops || [])) {
     stations.push({
-      x: Math.round(b.x + b.w / 2),
-      y: Math.round(b.y + b.h / 2),
-      bounds: { x: b.x, y: b.y, w: b.w, h: b.h },
+      x: Math.round(sh.x), y: Math.round(sh.y),
+      r: sh.r || 150,
+      npc: true,
+      name: sh.name || 'SHOP',
       alien: false,
     });
   }
@@ -6291,11 +6284,15 @@ function broadcastWorld(sim, now) {
   // för array-index i. Array-index skiftar när en peer lämnar → c:i pekar på
   // fel peerId hos klienten. stableSlot ändras aldrig under en peers session.
   // Fallback till array-index i (bakåtkompatibelt för test-stubs utan stableSlot).
+  // CD down/revive self-healing snapshot-konstanter (beräknade EN gång per broadcast).
+  const _cdActive = !!sim.castledefenseActive;
+  const _cdBleedMs = (CASTLEDEFENSE_ARENA.downBleedoutSec || 30) * 1000;
+  const _cdReviveSec = CASTLEDEFENSE_ARENA.downReviveSec || 5;
   const allPlayers = realPlayers.map((p, i) => {
     const _ps = (p._wsRef && p._wsRef.playerState) || {};
     const _sh = Math.round(_ps.shield || 0);
     const _hp = Math.round(p.hp);
-    return {
+    const _out = {
     c: (p._wsRef && p._wsRef.stableSlot != null) ? p._wsRef.stableSlot : i,
     x: Math.round(p.x), y: Math.round(p.y),
     hp: _hp,
@@ -6312,6 +6309,24 @@ function broadcastWorld(sim, now) {
     w: p.weaponId || 'fists',
     rT: Math.round(p.reviveTimer || 0),
   };
+    // CD DOWN/REVIVE i world-snapshot (self-healing). Down/revive var tidigare ENBART
+    // event-drivet + en-skotts → en klient som joinar/rejoinar EFTER att en lagkamrat
+    // gått ner, eller tappar cd_player_downed-paketet, såg aldrig markören/bleed-out/
+    // revive-bågen. Nu speglas den auktoritativa down-staten varje tick. Bara när CD
+    // är aktivt OCH spelaren faktiskt är nere/död → 0 extra bytes annars. Binär-encodern
+    // (V1) ignorerar okända fält precis som sh/mh.
+    if (_cdActive && (_ps.cdDowned || _ps.cdDownDead)) {
+      if (_ps.cdDowned) {
+        _out.cdD = 1;
+        // ms kvar av bleed-out räknat mot server-klockan → klienten re-ankrar mot sin
+        // egen Time.get_ticks_msec() vid mottagning (klock-oberoende, samma trick som bleedoutMs).
+        _out.cdBR = Math.max(0, Math.round(_cdBleedMs - (now - (_ps.cdDownStartedAt || now))));
+        // revive-progress 0..1 (normaliserad mot bas-reviveSec; medic-fart är en minimal visuell nyans).
+        _out.cdRP = Math.round(Math.min(1, (_ps.cdDownReviveProgress || 0) / _cdReviveSec) * 100) / 100;
+      }
+      if (_ps.cdDownDead) _out.cdDD = 1;
+    }
+    return _out;
   });
   // Transport-pass (2026-06-10, JSON-vägen): egen players-payload för JSON-peers.
   // a avrundas till 2 decimaler (0.01 rad ≈ 0.57° — osynligt, sparar ~8-14 tecken/
@@ -6326,6 +6341,9 @@ function broadcastWorld(sim, now) {
     _jsonPlayers = allPlayers.map((p) => {
       const jp = { c: p.c, x: p.x, y: p.y, hp: p.hp, sh: p.sh, a: Math.round(p.a * 100) / 100, w: p.w, mh: p.mh, msh: p.msh };
       if (p.rT) jp.rT = p.rT;
+      // CD down/revive self-healing (bara på Godot/JSON-vägen, bara när nere/död).
+      if (p.cdD) { jp.cdD = 1; jp.cdBR = p.cdBR; jp.cdRP = p.cdRP; }
+      if (p.cdDD) jp.cdDD = 1;
       return jp;
     });
     return _jsonPlayers;

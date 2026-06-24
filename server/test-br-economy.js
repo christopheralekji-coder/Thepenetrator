@@ -22,11 +22,12 @@ const p0 = room.members.get('p0');
 assert(sim.brCash.p0 === 500, 'startkapital $500');
 console.log('[OK] BR startad, $500 startkapital');
 
-// Ställ p0 HELT inne i en hus-buy-station.
-const station = sim.brBuyStations.find(s => s.bounds);
-assert(station, 'hittade hus-station');
-p0.playerState.x = station.bounds.x + station.bounds.w / 2;
-p0.playerState.y = station.bounds.y + station.bounds.h / 2;
+// V2 (2026-06-24): shoppar är nu 3 dedikerade NPC-handlare (radie-baserade), inga hus-
+// stationer. Ställ p0 PÅ en shop-NPC så närhets-checken (brStationNear) godkänner köp.
+const station = sim.brBuyStations.find(s => s.npc) || sim.brBuyStations.find(s => s.r);
+assert(station, 'hittade shop-NPC-station');
+p0.playerState.x = station.x;
+p0.playerState.y = station.y;
 p0.playerState.hp = 100;
 
 function buy(item) { sim.eventQueue.length = 0; applyBrBuy(sim, 'p0', item); return sim.eventQueue.map(e => e.type); }
@@ -100,9 +101,9 @@ console.log('[OK] bag-use: medkit/shieldkit/adrenaline/uav effekter korrekta');
 // 8. Medkit heal-over-time via tickSim. tickBrMeta använder Date.now() för
 // tick-fönstren → tvinga fram varje tick genom att backdatera brMedkitNext.
 sim.simReadyAt = 0; // hoppa över 5s startup-countdown så tickBattleRoyale/tickBrMeta körs
-// ISOLERA medkit-mätningen: p0 står på en hus-buy-station där BR-loot (slumpad
-// placering) ibland hamnar inom pickup-radien → ett hp_small (+60) kunde plockas
-// upp under tickSim och kontaminera heal-summan (flaky 150 vs 200). Töm loot-listan.
+// ISOLERA medkit-mätningen: p0 står på en shop-NPC där BR-loot (slumpad placering)
+// ibland hamnar inom pickup-radien → ett hp_small (+60) kunde plockas upp under
+// tickSim och kontaminera heal-summan (flaky 150 vs 200). Töm loot-listan.
 sim.battleroyaleLoot.length = 0;
 p0.playerState.hp = 60; p0.playerState.maxHp = 200;
 p0.playerState.brMedkitTicks = 5; p0.playerState.brMedkitNext = 0;

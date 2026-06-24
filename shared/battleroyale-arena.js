@@ -2312,6 +2312,21 @@ function addBrExtraCabins(arena) {
   console.log('[BR] addBrExtraCabins: +' + placed + ' hus (' + shopCount + ' shoppar, ' + regCount + ' vanliga)');
 }
 addBrExtraCabins(BATTLEROYALE_ARENA);
+// V2 (user 2026-06-24): inga shop-HUS längre — gör ALLA hus vanliga (strippa shop-flaggan
+// + döp om HANDELSBOD→STUGA). Shoppar är nu 3 dedikerade NPC-handlare (brShops nedan) som
+// står i öppen terräng, syns på minimapen och öppnar samma köp-panel via radie-närhet.
+for (const _c of BATTLEROYALE_ARENA.cabins) {
+  if (!_c) continue;
+  _c.shop = false;
+  if (_c.name === 'HANDELSBOD') _c.name = 'STUGA';
+}
+// 3 SHOP-NPC:er spridda över kartan (N / V / SÖ), i öppna ytor utanför exklusions-
+// zonerna (sjö/kyrka/scrap/alien). r = interaktions-/markör-radie.
+BATTLEROYALE_ARENA.brShops = [
+  { id: 'shop_n',  name: 'VAPENHANDLARE', x: 5000, y: 1150, r: 150 },
+  { id: 'shop_w',  name: 'FÄLTSHOP',      x: 1400, y: 5000, r: 150 },
+  { id: 'shop_se', name: 'SVARTA BÖRSEN', x: 6900, y: 6900, r: 150 },
+];
 preprocessCabinWalls(BATTLEROYALE_ARENA);
 
 // === POST-PROCESS: ta bort graffiti + caution_tape + auto-lägg loot i cabins ===
