@@ -2938,6 +2938,8 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
       ps.cdDowned = false;
       ps.cdDownDead = true;
       ps.hp = 0;
+      ps.cdDownReviveProgress = 0;
+      sim.castledefenseDownedPids = (sim.castledefenseDownedPids || []).filter(p => p !== pid);
       sim.eventQueue.push({
         type: 'cd_player_died_out',
         peerId: pid,
@@ -2947,18 +2949,21 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
     // Sök efter lagkamrat inom downReviveRadius för revive
     const reviveRadius = arena.downReviveRadius || 60;
     const reviveR2 = reviveRadius * reviveRadius;
+    // Full scan: föredra en MEDIC i radien (deterministiskt → ingen flicker av 2× med
+    // Map-ordning när flera står nära).
     let reviverPid = null;
-    let reviverWs = null;
+    let reviverIsMedic = false;
     for (const [pid2, ws2] of sim.room.members) {
       if (pid2 === pid) continue;
-      if (!ws2.playerState || ws2.playerState.hp <= 0) continue;
-      if (ws2.playerState.cdDowned) continue; // downade kan inte revive
+      if (!ws2.playerState || ws2.playerState.hp <= 0 || ws2.playerState.cdDowned) continue; // downade kan ej revive
       const dx = ws2.playerState.x - ps.x;
       const dy = ws2.playerState.y - ps.y;
-      if (dx * dx + dy * dy < reviveR2) {
+      if (dx * dx + dy * dy >= reviveR2) continue;
+      const isMedic = !!(sim.castledefensePerks && sim.castledefensePerks[pid2] === 'medic');
+      if (reviverPid === null || (isMedic && !reviverIsMedic)) {
         reviverPid = pid2;
-        reviverWs = ws2;
-        break;
+        reviverIsMedic = isMedic;
+        if (isMedic) break;   // medic = snabbast, sluta leta
       }
     }
     if (reviverPid) {
@@ -3003,9 +3008,18 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
         });
       }
     } else {
-      // Ingen revives → reset progress
+      // Ingen revives → progress decay + broadcast så klientens revive-båge TÖMS synligt
+      // (annars fryser bågen på sista värdet). En sista 0:a när golvet nås raderar bågen.
       if ((ps.cdDownReviveProgress || 0) > 0) {
         ps.cdDownReviveProgress = Math.max(0, ps.cdDownReviveProgress - dt * 0.5);
+        const rsec = arena.downReviveSec || 5;
+        if (!ps._cdLastReviveBroadcast || nowMs - ps._cdLastReviveBroadcast > 200 || ps.cdDownReviveProgress <= 0) {
+          ps._cdLastReviveBroadcast = nowMs;
+          sim.eventQueue.push({
+            type: 'cd_revive_progress', peerId: pid, reviverPid: null,
+            progress: Math.min(1, ps.cdDownReviveProgress / rsec),
+          });
+        }
       }
     }
   }
@@ -3017,6 +3031,8 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
       if (!ws.playerState || !ws.playerState.cdDownDead) continue;
       const ps = ws.playerState;
       ps.cdDownDead = false;
+      ps.cdDownReviveProgress = 0;
+      sim.castledefenseDownedPids = (sim.castledefenseDownedPids || []).filter(p => p !== pid);
       ps.x = sim.castledefenseCore ? sim.castledefenseCore.x : arena.centerX;
       ps.y = sim.castledefenseCore ? sim.castledefenseCore.y : arena.centerY;
       ps.weaponId = ps._cdPrevWeapon || arena.startWeapon;
@@ -7789,6 +7805,7 @@ function startSim(sim, opts) {
         weapon_vendor: { ...arena.castleNpcs.weapon_vendor },
       },
       weaponVendor: cdVendorCatalog,
+      downReviveRadius: arena.downReviveRadius || 60,
       slotBuildables: arena.slotBuildables,
       enemyGoal: sim.castledefenseGoal,
       walls: [],                          // inga pre-built fält-murar
@@ -8617,7 +8634,7 @@ function applyLoadStage(sim, peerId, msg) {
 function applyCastleDefenseBuild(sim, peerId, msg) {
   if (!sim.castledefenseActive || sim.castledefenseEnded) return;
   const ws = sim.room.members.get(peerId);
-  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0 || ws.playerState.cdDowned) return;
   const arena = CASTLEDEFENSE_ARENA;
   const kind = msg && msg.kind;
   const isSlotTower = !!(arena.slotBuildables && arena.slotBuildables[kind]);
@@ -8812,7 +8829,7 @@ function _cdApplyUpgradeStats(b, arena) {
 function applyCastleDefenseUpgrade(sim, peerId, msg) {
   if (!sim.castledefenseActive || sim.castledefenseEnded) return;
   const ws = sim.room.members.get(peerId);
-  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0 || ws.playerState.cdDowned) return;
   const arena = CASTLEDEFENSE_ARENA;
   const id = msg && msg.id;
   if (!id) return;
@@ -8968,7 +8985,7 @@ function applyCastleDefenseGate(sim, peerId, msg) {
 function applyCastleDefenseEnterTower(sim, peerId, msg) {
   if (!sim.castledefenseActive || sim.castledefenseEnded) return;
   const ws = sim.room.members.get(peerId);
-  if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
+  if (!ws || !ws.playerState || ws.playerState.hp <= 0 || ws.playerState.cdDowned) return;
   const b = sim.castledefenseBuildings.find(x => x.id === (msg && msg.id) && (x.kind === 'machinegun' || x.kind === 'bomber') && x.hp > 0);
   if (!b) return;
   if (b.occupantId && b.occupantId !== peerId) return;
