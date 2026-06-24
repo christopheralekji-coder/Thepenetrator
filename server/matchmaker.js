@@ -34,7 +34,7 @@ const MODE_OPTS = {
   koth: { koth: true },
   gungame: { gungame: true },
   juggernaut: { juggernaut: true },
-  battleroyale: { battleroyale: true },   // brPredrop AV tills plane-drop verifierats mot uppdaterad klient (gammal klient kraschade på off-map buss → backpressure-disconnect)
+  battleroyale: { battleroyale: true, brPredrop: true },   // plane-drop PÅ (kräver uppdaterad klient ≥176bb73; data-flöde + runtime verifierat)
   survivors: { survivors: true, survivorsDurationSec: 600 },
   castledefense: { castledefense: true },
   heist: { heist: true },
