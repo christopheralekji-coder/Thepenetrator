@@ -207,7 +207,8 @@ wss.on('connection', (ws, req) => {
 // Tidigare: 30s ping + 30s grace â†’ ~60s exakt timing matchade Render edge
 // idle-timeout och dÃ¶dade live anslutningar.
 const HEARTBEAT_INTERVAL_MS = 25000;
-const MAX_MISSED_PINGS = 3; // 3 Ã— 25s = ~75s helt utan svar krÃ¤vs fÃ¶r terminate
+const RECONNECT_STASH_TTL_MS = 180000; // rejoin-window (~3 min)
+const MAX_MISSED_PINGS = 7; // 3 Ã— 25s = ~75s helt utan svar krÃ¤vs fÃ¶r terminate
 setInterval(() => {
   for (const ws of wss.clients) {
     if (!ws.isAlive) {
@@ -497,7 +498,7 @@ function handleMessage(ws, msg) {
       // v1.697: rensa utgÃ¥ngna stash-entries (>60s) sÃ¥ de inte ackumuleras obegrÃ¤nsat
       // (DoS-yta: join-flood med unika tokens utan reconnect). Cappa Ã¤ven till 16 nyaste.
       if (room._reconnectStash) {
-        const _cut = Date.now() - 60000;
+        const _cut = Date.now() - RECONNECT_STASH_TTL_MS;
         for (const k of Object.keys(room._reconnectStash)) {
           if ((room._reconnectStash[k].ts || 0) < _cut) delete room._reconnectStash[k];
         }
@@ -508,7 +509,7 @@ function handleMessage(ws, msg) {
         }
       }
       const stash = room._reconnectStash && room._reconnectStash[ws._reconnectToken];
-      if (stash && Date.now() - stash.ts < 60000) {
+      if (stash && Date.now() - stash.ts < RECONNECT_STASH_TTL_MS) {
         ws._heistRole = stash.heistRole;
         ws._heistRoleLocked = stash.heistRoleLocked;
         if (!ws.playerState) ws.playerState = {};
