@@ -2596,6 +2596,7 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
     // === SLOT-TORN: MACHINEGUN / BOMBER (auto-skjut mot närmaste fiende; sätt-dig = dmg-boost) ===
     if (b.kind === 'machinegun' || b.kind === 'bomber') {
       if (b._fireCd > 0) b._fireCd -= dt;
+      if (b._manFireCd > 0) b._manFireCd -= dt;   // manuell sitt-och-skjut-rate (del B)
       let stratMul = 1.0;
       for (let si = 0; si < _cdStrategists.length; si++) {
         const sps = _cdStrategists[si];
@@ -2605,7 +2606,7 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
       // Hybrid: spelare som SITTER i tornet (b.occupantId) ger dmg-boost (manDpsMul).
       const manMul = b.occupantId ? (b.manDpsMul || 1.6) : 1.0;
       const effRange = b.range * (stratMul > 1 ? 1.2 : 1);
-      if (b._fireCd <= 0 && b.range > 0 && b.fireRate > 0) {
+      if (!b.occupantId && b._fireCd <= 0 && b.range > 0 && b.fireRate > 0) {   // bemannat torn = spelaren styr manuellt (del B)
         let best = null, bestD = effRange * effRange;
         if (sim.enemyGrid && sim.enemyGrid.size > 0) {
           sim.enemyGrid.queryInto(bcx, bcy, effRange, _cdTurretScratch);
@@ -2629,7 +2630,7 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
           const isBomber = b.kind === 'bomber';
           const SPEED = isBomber ? 520 : 760;
           const bullet = {
-            x: bcx, y: bcy,
+            x: bcx + Math.cos(ang) * 20, y: bcy + Math.sin(ang) * 20,   // skott från MYNNINGEN (del B)
             vx: Math.cos(ang) * SPEED, vy: Math.sin(ang) * SPEED,
             dmg: (b.dps / b.fireRate) * stratMul * manMul,
             life: isBomber ? 1.8 : 1.4, r: isBomber ? 6 : 3,
@@ -8732,12 +8733,38 @@ function applyShoot(sim, peerId, msg) {
   weaponId = clampWeaponToModeArsenal(sim, ws, ps, weaponId, peerId);
   let posX = typeof msg.x === 'number' ? msg.x : ps.x;
   let posY = typeof msg.y === 'number' ? msg.y : ps.y;
+  // Mounted turret: tvinga vapen + skjut från MYNNINGEN (center + 20px längs aim;
+  // shootPlayerBullet lägger till ytterligare ~14px pip → mynningsspetsen). CD: MG =
+  // CTF:s turret_mg (sitt-och-sikta själv); bomber skapar bomb-projektil direkt.
+  const _mzAng = (typeof msg.ang === 'number' && isFinite(msg.ang)) ? msg.ang : (ps.aim || 0);
+  const _MZ = 20;
   if (ws._mountedSiegeTurretId && sim.siegeTurrets) {
     const t = sim.siegeTurrets[ws._mountedSiegeTurretId];
-    if (t) { weaponId = t.weaponId || 'turret_mg'; posX = t.x; posY = t.y; }
+    if (t) { weaponId = t.weaponId || 'turret_mg'; posX = t.x + Math.cos(_mzAng) * _MZ; posY = t.y + Math.sin(_mzAng) * _MZ; }
   } else if (ws._mountedCtfTurretId && sim.ctfTurrets) {
     const t = sim.ctfTurrets[ws._mountedCtfTurretId];
-    if (t) { weaponId = t.weaponId || 'turret_mg'; posX = t.x; posY = t.y; }
+    if (t) { weaponId = t.weaponId || 'turret_mg'; posX = t.x + Math.cos(_mzAng) * _MZ; posY = t.y + Math.sin(_mzAng) * _MZ; }
+  } else if (ws._mountedCdTowerId && sim.castledefenseBuildings) {
+    const _cb = sim.castledefenseBuildings.find(x => x.id === ws._mountedCdTowerId && x.hp > 0);
+    if (_cb) {
+      const _ccx = _cb.x + _cb.w / 2, _ccy = _cb.y + _cb.h / 2;
+      if (_cb.kind === 'bomber') {
+        // manuell BOMBER: skapa bomb-projektil direkt (arc + AoE), rate-gated server-side
+        if (!(_cb._manFireCd > 0)) {
+          _cb._manFireCd = 1 / (_cb.fireRate || 0.85);
+          const _bsp = 560;
+          sim.bullets.push({
+            x: _ccx + Math.cos(_mzAng) * _MZ, y: _ccy + Math.sin(_mzAng) * _MZ,
+            vx: Math.cos(_mzAng) * _bsp, vy: Math.sin(_mzAng) * _bsp,
+            dmg: (_cb.dps / _cb.fireRate) * 1.5, life: 1.8, r: 6, color: '#ff8a3a',
+            hostile: false, ownerPid: peerId, weaponId: 'turret', _cdBlastR: _cb.blastRadius || 95,
+          });
+          sim.eventQueue.push({ type: 'cd_turret_fired', id: _cb.id, x: Math.round(_ccx), y: Math.round(_ccy), ang: _mzAng, kind: 'bomber' });
+        }
+        return;  // bomber hanteras helt här (ej via shootPlayerBullet)
+      }
+      weaponId = 'turret_mg'; posX = _ccx + Math.cos(_mzAng) * _MZ; posY = _ccy + Math.sin(_mzAng) * _MZ;
+    }
   }
   // ANTI-CHEAT (AAA): validera skott-ORIGIN mot spelarens AUKTORITATIVA positioner
   // (server-pos + rewind-historiken ps._history). Klienten skickar legitimt sin pos-
@@ -8749,7 +8776,7 @@ function applyShoot(sim, peerId, msg) {
   const _spvp = sim.tdmActive || sim.ctfActive || sim.siegeActive ||
                 sim.gungameActive || sim.kothActive ||
                 sim.juggernautActive || sim.battleroyaleActive;
-  if (_spvp && !(ws._mountedSiegeTurretId || ws._mountedCtfTurretId) &&
+  if (_spvp && !(ws._mountedSiegeTurretId || ws._mountedCtfTurretId || ws._mountedCdTowerId) &&
       ps.gulagState !== 'fighting' && typeof msg.x === 'number' && typeof msg.y === 'number') {
     const MAX_DEV2 = 400 * 400;
     let best2 = (posX - ps.x) * (posX - ps.x) + (posY - ps.y) * (posY - ps.y);
