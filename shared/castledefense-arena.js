@@ -77,7 +77,7 @@ const CASTLEDEFENSE_ARENA = {
     throne:     { x: 2000, y: 560, r: 26 },   // mitten
     heal_npc:   { x: 1500, y: 560, r: 22 },   // VÄSTER — helar spelare
     repair_npc: { x: 2500, y: 560, r: 22 },   // ÖSTER  — reparerar slottet
-    weapon_vendor: { x: 2000, y: 420, r: 24 }, // BAKOM TRONEN (norr) — säljer vapen för guld
+    weapon_vendor: { x: 2000, y: 340, r: 24 }, // BAKOM TRONEN (norr) — säljer vapen för guld
   },
   // Uppgraderings-kurvor för de tre slotts-spåren (lvl 1..10; lvl 0 = bas/ingen effekt).
   // BALANS 2026-06-23: plattare costExp + lägre bas så lvl 5-7 är nåbart mid-game.

@@ -8059,6 +8059,9 @@ function startSim(sim, opts) {
       sim.castledefenseGold = sim.castledefenseGold || {};
       // v1.607: SURVIVORS startar med 100 gold (knappt nog för billigt vapen)
       sim.castledefenseGold[pid] = opts.survivors ? 100 : (arena.startGold || 400);
+      // v3 perk-trad: 1 perk-poang att VALJA DIREKT vid start
+      sim.castledefensePerkPoints = sim.castledefensePerkPoints || {};
+      sim.castledefensePerkPoints[pid] = (sim.castledefensePerkPoints[pid] || 0) + 1;  // START
       // v1.401: vapen-tier startar på 0 (pistol)
       sim.castledefenseWeaponTier = sim.castledefenseWeaponTier || {};
       sim.castledefenseWeaponTier[pid] = 0;
@@ -8115,7 +8118,7 @@ function startSim(sim, opts) {
       bossEveryWave: arena.bossEveryWave,
       // v3 perk-träd: spec + initial poäng så klienten kan rendera träd-panelen.
       perkTrees: arena.perkTrees,
-      perkPoints: 0,
+      perkPoints: 1,   // 1 poang att valja en perk vid start
     });
     sim.eventQueue.push({ type: 'countdown_start', durationMs: cdMs });
   } else if (sim.heistActive) {
