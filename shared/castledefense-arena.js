@@ -36,12 +36,12 @@ const CASTLE_WALLS = [
 // 6 BATTLEMENT-SLOTS på sydväggen (skjutpositioner, vända söderut mot anmarschen).
 // 3 väster om porten, 3 öster. ENDA platsen man får bygga machinegun/bomber.
 const BATTLEMENT_SLOTS = [
-  { id: 'slot0', x: 1380, y: 915 },
-  { id: 'slot1', x: 1620, y: 915 },
-  { id: 'slot2', x: 1850, y: 915 },
-  { id: 'slot3', x: 2150, y: 915 },
-  { id: 'slot4', x: 2380, y: 915 },
-  { id: 'slot5', x: 2620, y: 915 },
+  { id: 'slot0', x: 1380, y: 1000 },
+  { id: 'slot1', x: 1620, y: 1000 },
+  { id: 'slot2', x: 1850, y: 1000 },
+  { id: 'slot3', x: 2150, y: 1000 },
+  { id: 'slot4', x: 2380, y: 1000 },
+  { id: 'slot5', x: 2620, y: 1000 },
 ];
 
 const CASTLEDEFENSE_ARENA = {
@@ -77,7 +77,7 @@ const CASTLEDEFENSE_ARENA = {
     throne:     { x: 2000, y: 560, r: 26 },   // mitten
     heal_npc:   { x: 1500, y: 560, r: 22 },   // VÄSTER — helar spelare
     repair_npc: { x: 2500, y: 560, r: 22 },   // ÖSTER  — reparerar slottet
-    weapon_vendor: { x: 2000, y: 880, r: 24 }, // SÖDER (nära porten) — säljer vapen för guld
+    weapon_vendor: { x: 2000, y: 420, r: 24 }, // BAKOM TRONEN (norr) — säljer vapen för guld
   },
   // Uppgraderings-kurvor för de tre slotts-spåren (lvl 1..10; lvl 0 = bas/ingen effekt).
   // BALANS 2026-06-23: plattare costExp + lägre bas så lvl 5-7 är nåbart mid-game.

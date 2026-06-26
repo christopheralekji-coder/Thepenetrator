@@ -9399,7 +9399,7 @@ function applyCastleDefenseExitTower(sim, peerId, msg) {
   if (b && b.occupantId === peerId) b.occupantId = null;
   if (ws) {
     ws._mountedCdTowerId = null;
-    if (ws.playerState) ws.playerState.y += 42; // kliv ner söderut från muren
+    if (ws.playerState) ws.playerState.y -= 60; // kliv av INÅT (norr, in i slottet) — slots ligger nu utanför muren
   }
   sim.eventQueue.push({ type: 'cd_tower_exited', id: tid, peerId });
 }
