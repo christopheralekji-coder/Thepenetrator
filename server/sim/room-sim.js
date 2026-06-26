@@ -2580,6 +2580,7 @@ function cdPickBossKey(wave) {
 // v1.661: återanvänd scratch för auto-turret target-query (noll-alloc). Säkert:
 // single-threaded + fylls/läses inom en synkron turret-iteration.
 const _cdTurretScratch = [];
+const _cdAuraScratch = []; // CD_AURA_PASS_V1: reused scratch for perk-aura queries (zero-alloc).
 // Auto-turret skjuter, traps skadar/slow:ar, repair-station regenererar walls,
 // health-station regenererar spelare.
 function updateCastleDefenseBuildings(sim, dt, nowMs) {
@@ -2594,27 +2595,47 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
     if (!ws.playerState || ws.playerState.hp <= 0) continue;
     const f = cdFlags(sim, pid);
     const boost = f.strategist || 0, fort = f.fortress || 0;
-    if (boost <= 0 && fort <= 0) continue;
-    _cdAuraPlayers.push({ ps: ws.playerState, boost, fort });
+    const salvo = f.salvo || 0, mend = f.mender || 0;   // v3: ARTILLERISALVA + FALTINGENJOR aura-rank
+    if (boost <= 0 && fort <= 0 && salvo <= 0 && mend <= 0) continue;
+    _cdAuraPlayers.push({ ps: ws.playerState, boost, fort, salvo, mend });
   }
   for (const b of sim.castledefenseBuildings) {
     if (b.hp <= 0) continue;
     const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+    // === FALTINGENJOR (mender): byggen nara en mender-agare repareras gratis (+15 hp/s/rank) ===
+    if (b.hp < b.maxHp) {
+      let mendRank = 0;
+      for (let mi = 0; mi < _cdAuraPlayers.length; mi++) {
+        const a = _cdAuraPlayers[mi];
+        if (a.mend <= 0) continue;
+        const dxm = a.ps.x - bcx, dym = a.ps.y - bcy;
+        if (dxm * dxm + dym * dym > 250 * 250) continue;
+        if (a.mend > mendRank) mendRank = a.mend;
+      }
+      if (mendRank > 0) {
+        b.hp = Math.min(b.maxHp, b.hp + 15 * mendRank * dt);
+        if (!b._mendEvtAt || nowMs - b._mendEvtAt > 250) {
+          b._mendEvtAt = nowMs;
+          sim.eventQueue.push({ type: 'cd_building_damaged', id: b.id, hp: b.hp, maxHp: b.maxHp });
+        }
+      }
+    }
     // === SLOT-TORN: MACHINEGUN / BOMBER (auto-skjut mot närmaste fiende; sätt-dig = dmg-boost) ===
     if (b.kind === 'machinegun' || b.kind === 'bomber') {
       if (b._fireCd > 0) b._fireCd -= dt;
       if (b._manFireCd > 0) b._manFireCd -= dt;   // manuell sitt-och-skjut-rate (del B)
-      let stratMul = 1.0, fortNear = false;
+      let stratMul = 1.0, fortRank = 0, salvoRank = 0;
       for (let si = 0; si < _cdAuraPlayers.length; si++) {
         const a = _cdAuraPlayers[si];
         const dxs = a.ps.x - bcx, dys = a.ps.y - bcy;
         if (dxs * dxs + dys * dys > 250 * 250) continue;   // behåll 250px-radien
         if (a.boost > 0) stratMul = Math.max(stratMul, 1 + 0.20 * a.boost);
-        if (a.fort > 0) fortNear = true;
+        if (a.fort > 0) fortRank = Math.max(fortRank, a.fort);
+        if (a.salvo > 0) salvoRank = Math.max(salvoRank, a.salvo);
       }
       // Hybrid: spelare som SITTER i tornet (b.occupantId) ger dmg-boost (manDpsMul).
       const manMul = b.occupantId ? (b.manDpsMul || 1.6) : 1.0;
-      const effRange = b.range * (fortNear ? 1.2 : 1);
+      const effRange = b.range * (1 + 0.10 * fortRank);   // FASTNING: +10% rackvidd/rank (r2 +20%)
       if (!b.occupantId && b._fireCd <= 0 && (!b._reloadUntil || nowMs >= b._reloadUntil) && b.range > 0 && b.fireRate > 0) {   // bemannat torn = spelaren styr manuellt (del B)
         let best = null, bestD = effRange * effRange;
         if (sim.enemyGrid && sim.enemyGrid.size > 0) {
@@ -2648,6 +2669,18 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
           };
           if (isBomber) bullet._cdBlastR = b.blastRadius || 90;   // AoE vid träff (bullets.js)
           sim.bullets.push(bullet);
+          if (salvoRank > 0) {   // === ARTILLERISALVA: extra splitterkula (25% skada/rank) om salvo-agare nara ===
+            const sAng = isBomber ? (ang + 0.10) : (ang + (Math.random() < 0.5 ? -0.12 : 0.12));
+            const salvoBullet = {
+              x: bullet.x, y: bullet.y,
+              vx: Math.cos(sAng) * SPEED, vy: Math.sin(sAng) * SPEED,
+              dmg: bullet.dmg * 0.25 * salvoRank,
+              life: bullet.life, r: bullet.r, color: bullet.color,
+              hostile: false, ownerPid: b.ownerPid, _autoTurret: true, weaponId: 'turret',
+            };
+            if (isBomber) salvoBullet._cdBlastR = (b.blastRadius || 90) * 0.7;
+            sim.bullets.push(salvoBullet);
+          }
           b._fireCd = 1 / b.fireRate;
           b._mag = (b._mag || 0) + 1;
           const _magSize = isBomber ? 8 : 30;
@@ -2924,6 +2957,28 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
     if (!ws.playerState) continue;
     const ps = ws.playerState;
     if (ps.hp <= 0 && !ps.cdDowned && !ps.cdDownDead) {
+      // [CD-LASTSTAND] last stand: skip down-state entirely, once per wave
+      const fL = cdFlags(sim, pid);
+      if (fL.laststand && ps._cdLastStandWave !== sim.castledefenseWave) {
+        ps._cdLastStandWave = sim.castledefenseWave;
+        const hpf = fL.laststand >= 2 ? 0.45 : 0.35;
+        ps.hp = Math.round((ps.maxHp || 100) * hpf);
+        if (fL.laststand >= 2) ps.shield = ps.maxShield || 100;
+        ps.invulnUntil = nowMs + (fL.laststand >= 2 ? 2500 : 1750);
+        sim.eventQueue.push({ type: 'cd_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield });
+        continue;
+      }
+      // [CD-LASTBET] gambler last bet: chance to cheat death (30s cooldown)
+      const fB = cdFlags(sim, pid);
+      if (fB.lastbet && nowMs - (ps._cdLastBetAt || 0) > 30000 && Math.random() < 0.16 * fB.lastbet) {
+        ps._cdLastBetAt = nowMs;
+        ps.hp = Math.round((ps.maxHp || 100) * 0.45);
+        ps.shield = ps.maxShield || 100;
+        ps.invulnUntil = nowMs + 1500;
+        sim.eventQueue.push({ type: 'cd_gambler_reward', peerId: pid, kind: 'cheatdeath' });
+        sim.eventQueue.push({ type: 'cd_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield });
+        continue;
+      }
       // Enter down-state
       ps.cdDowned = true;
       ps.cdDownStartedAt = nowMs;
@@ -2979,7 +3034,7 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
       if (!ws2.playerState || ws2.playerState.hp <= 0 || ws2.playerState.cdDowned) continue; // downade kan ej revive
       const f2 = cdFlags(sim, pid2);
       const isMedic = !!(f2.medicrev || f2.medichosp);
-      const rr = baseReviveRadius * (f2.medichosp ? 1.5 : 1);   // med_hosp: +50% radie
+      const rr = baseReviveRadius * (1 + 0.25 * (f2.medichosp || 0));   // med_hosp: +25%/rank radius
       const dx = ws2.playerState.x - ps.x;
       const dy = ws2.playerState.y - ps.y;
       if (dx * dx + dy * dy >= rr * rr) continue;
@@ -2994,7 +3049,8 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
       // v3: revive 2× snabbare med LIVRÄDDARE (med_rev) el. FÄLTSJUKHUS (med_hosp).
       let reviveSec = arena.downReviveSec || 5;
       const fr = cdFlags(sim, reviverPid);
-      if (fr.medicrev || fr.medichosp) reviveSec *= 0.5;
+      if (fr.medicrev) reviveSec *= (1 - 0.25 * fr.medicrev);
+      if (fr.medichosp) reviveSec *= 0.85;
       // Broadcast progress event (~5Hz)
       if (!ps._cdLastReviveBroadcast || nowMs - ps._cdLastReviveBroadcast > 200) {
         ps._cdLastReviveBroadcast = nowMs;
@@ -3023,6 +3079,13 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
         ps.weaponId = ps._cdPrevWeapon || arena.startWeapon;
         ps.speedMul = ps._cdPrevSpeedMul || 1.0;
         ps.invulnUntil = nowMs + 2000;
+        // [CD-MEDDEFIB] defibrillator: revived player gets more hp/shield/grace
+        if (fr.meddefib) {
+          const full = fr.meddefib >= 2;
+          ps.hp = full ? (ps.maxHp || 100) : Math.round((ps.maxHp || 100) * 0.75);
+          if (full) ps.shield = ps.maxShield || 100;
+          ps.invulnUntil = nowMs + (full ? 5000 : 3000);
+        }
         sim.castledefenseRevivedCount += 1;
         sim.castledefenseDownedPids = (sim.castledefenseDownedPids || []).filter(p => p !== pid);
         sim.eventQueue.push({
@@ -3521,6 +3584,8 @@ function tickCastleDefense(sim, dt, now) {
   if (!sim.survivorsActive) updateCastleNpcs(sim, dt, nowMs);
 
   // v3 perk-träd: passiv auto-regen — MEDIC (med_heal) +2/rank, REGEN (jug_regen) +2/rank
+  // CD_AURA_PASS_V1: BRITTLE (cryo_brittle) global slow-amp; reset each tick, max:ed per player below.
+  sim._cdSlowAmp = 1;
   for (const [pid, ws] of sim.room.members) {
     if (!ws.playerState || ws.playerState.hp <= 0 || ws.playerState.cdDowned) continue;
     const f = cdFlags(sim, pid);
@@ -3532,6 +3597,62 @@ function tickCastleDefense(sim, dt, now) {
       if (ws.playerState.hp < maxH) {
         ws.playerState.hp = Math.min(maxH, ws.playerState.hp + regenRate * dt);
       }
+    }
+    // CD_AURA_PASS_V1: FROST tree - brittle-amp + cryo aura/chill + frost nova (pulsing player).
+    if (f.cryo_brittle) sim._cdSlowAmp = Math.max(sim._cdSlowAmp, 1 + 0.15 * f.cryo_brittle);
+    const _cx = ws.playerState.x, _cy = ws.playerState.y;
+    if ((f.cryo_aura || f.cryo_chill) && sim.enemyGrid && sim.enemyGrid.size > 0) {
+      const _ca = f.cryo_aura || 0, _cc = f.cryo_chill || 0;
+      const _slowF = 1 - 0.12 * _ca;
+      sim.enemyGrid.queryInto(_cx, _cy, 140, _cdAuraScratch);
+      for (let _qi = 0; _qi < _cdAuraScratch.length; _qi++) {
+        const _en = _cdAuraScratch[_qi];
+        if (_en.dead) continue;
+        const _dx = _en.x - _cx, _dy = _en.y - _cy;
+        if (_dx * _dx + _dy * _dy > 140 * 140) continue;
+        if (_ca) {
+          _en.slowUntil = nowMs + 200;
+          _en.slowFactor = Math.max(0.4, Math.min(_en.slowFactor || 1, _slowF));
+        }
+        if (_cc) {
+          _en.hp -= 8 * _cc * dt;
+          _en.lastDamagerPid = pid;
+          if (_en.hp <= 0) _en.dead = true;
+        }
+      }
+    }
+    if (f.cryo_nova && sim.enemyGrid && sim.enemyGrid.size > 0 && nowMs - (ws._cdNovaAt || 0) > 12000) {
+      ws._cdNovaAt = nowMs;
+      sim.enemyGrid.queryInto(_cx, _cy, 220, _cdAuraScratch);
+      for (let _qi = 0; _qi < _cdAuraScratch.length; _qi++) {
+        const _en = _cdAuraScratch[_qi];
+        if (_en.dead) continue;
+        const _dx = _en.x - _cx, _dy = _en.y - _cy;
+        if (_dx * _dx + _dy * _dy > 220 * 220) continue;
+        _en.slowUntil = nowMs + 2500;
+        _en.slowFactor = 0.15;
+        _en.hp -= 30 * f.cryo_nova;
+        _en.lastDamagerPid = pid;
+        if (_en.hp <= 0) _en.dead = true;
+      }
+      sim.eventQueue.push({ type: 'cd_frost_nova', peerId: pid, x: _cx, y: _cy, r: 220 });
+    }
+  }
+  // CD_AURA_PASS_V1: MEDAURA - pulsing team-heal to nearby teammates (skip self, cap maxHp).
+  for (const [_maPid, _maWs] of sim.room.members) {
+    if (!_maWs.playerState || _maWs.playerState.hp <= 0 || _maWs.playerState.cdDowned) continue;
+    const _maRank = cdFlags(sim, _maPid).medaura;
+    if (!_maRank) continue;
+    const _maX = _maWs.playerState.x, _maY = _maWs.playerState.y;
+    const _maHeal = 2 * _maRank * dt;
+    for (const [_tgPid, _tgWs] of sim.room.members) {
+      if (_tgPid === _maPid) continue;
+      const _tp = _tgWs.playerState;
+      if (!_tp || _tp.hp <= 0 || _tp.cdDowned) continue;
+      const _ddx = _tp.x - _maX, _ddy = _tp.y - _maY;
+      if (_ddx * _ddx + _ddy * _ddy > 200 * 200) continue;
+      const _tMax = _tp.maxHp || 100;
+      if (_tp.hp < _tMax) _tp.hp = Math.min(_tMax, _tp.hp + _maHeal);
     }
   }
 
@@ -3692,6 +3813,9 @@ function tickCastleDefense(sim, dt, now) {
               remaining -= absorb;
             }
             if (remaining > 0) psP.hp = Math.max(0, psP.hp - remaining);
+            // CD-THORNS-REFLECT: thorns talent reflects contact damage onto the enemy (server-authoritative)
+            const _thRank = cdFlags(sim, ap.peerId).thorns;
+            if (_thRank) { e.hp -= 30 * _thRank; e.lastDamagerPid = ap.peerId; e.lastDamagerWeapon = 'thorns'; if (e.hp <= 0) e.dead = true; }
             psP.invulnUntil = Date.now() + 500;
             e._cdPlayerContactCd = 0.7;
             e._cdAggroTime = 0;   // landar träffar → behåll aggro (leasha ej bort en nåbar spelare)
@@ -3950,11 +4074,21 @@ function tickCastleDefense(sim, dt, now) {
         sim.castledefenseScores[e.lastDamagerPid] = (sim.castledefenseScores[e.lastDamagerPid] || 0) + 1;
         // v3 perk-träd: PLUNDRARE (for_loot) +40%/rank gold, HASARDÖR (for_jack) 15% kill-bonus
         const killerFlags = cdFlags(sim, e.lastDamagerPid);
+        // CD_AURA_PASS_V1: FRENZY (frenzy) kill-stacks -> temp buff (read in applyShoot via _cdRushUntil).
+        if (killerFlags.frenzy) {
+          const _fws = sim.room.members.get(e.lastDamagerPid);
+          const p2 = _fws && _fws.playerState;
+          if (p2) {
+            if (now > (p2._cdRushUntil || 0)) p2._cdRushStacks = 0;
+            p2._cdRushStacks = Math.min(5, (p2._cdRushStacks || 0) + 1);
+            p2._cdRushUntil = now + 3000;
+          }
+        }
         // v1.607: SURVIVORS får gold från kills igen (för shop). Drops förblir bara
         // hp/shield visuellt — gold delas direkt till killer/team utan pickup-icon.
         let goldGain = e.gold || 0;
         if (killerFlags.looter) goldGain = Math.round(goldGain * (1 + 0.40 * killerFlags.looter));
-        if (killerFlags.gambler && Math.random() < 0.15) {
+        if (killerFlags.gambler && Math.random() < 0.10 * killerFlags.gambler) {
           const r = Math.random();
           if (r < 0.34) {
             goldGain *= 3;
@@ -4006,6 +4140,20 @@ function tickCastleDefense(sim, dt, now) {
             sim.eventQueue.push({
               type: 'cd_gold_update', peerId: e.lastDamagerPid, gold: sim.castledefenseGold[e.lastDamagerPid], delta: goldGain,
             });
+            // CD_AURA_PASS_V1: WARCHEST (cap_warchest) -> killer shares 12.5%/rank gold to each OTHER living teammate.
+            if (killerFlags.cap_warchest) {
+              const _wcShare = Math.round(goldGain * 0.125 * killerFlags.cap_warchest);
+              if (_wcShare > 0) {
+                for (const [_wcPid, _wcWs] of sim.room.members) {
+                  if (_wcPid === e.lastDamagerPid) continue;
+                  if (!_wcWs.playerState || _wcWs.playerState.hp <= 0) continue;
+                  sim.castledefenseGold[_wcPid] = (sim.castledefenseGold[_wcPid] || 0) + _wcShare;
+                  sim.eventQueue.push({
+                    type: 'cd_gold_update', peerId: _wcPid, gold: sim.castledefenseGold[_wcPid], delta: _wcShare,
+                  });
+                }
+              }
+            }
           }
         }
       }
@@ -4077,9 +4225,11 @@ function tickCastleDefense(sim, dt, now) {
     }
     // v3 perk-träd: HASARDÖR (for_jack/gambler) → +250 guld vid varje våg-clear.
     for (const [pid] of sim.room.members) {
-      if (cdFlags(sim, pid).gambler) {
-        sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + 250;
-        sim.eventQueue.push({ type: 'cd_gold_update', peerId: pid, gold: sim.castledefenseGold[pid], delta: 250 });
+      const _gjGambler = cdFlags(sim, pid).gambler; // CD_AURA_PASS_V1: gambler wave gold scales with rank.
+      if (_gjGambler) {
+        const _gjGold = 150 * _gjGambler;
+        sim.castledefenseGold[pid] = (sim.castledefenseGold[pid] || 0) + _gjGold;
+        sim.eventQueue.push({ type: 'cd_gold_update', peerId: pid, gold: sim.castledefenseGold[pid], delta: _gjGold });
       }
     }
   }
@@ -8897,9 +9047,22 @@ function applyShoot(sim, peerId, msg) {
     }
     if (f.berserker) {                                             // jug_last
       const hpPct = (ps.hp || 1) / (ps.maxHp || 100);
-      if (hpPct < 0.40) params.dmgMul *= 1.4;
+      if (hpPct < 0.40) params.dmgMul *= (1 + 0.20 * f.berserker);
     }
-    if (f.overdmg) params.dmgMul *= 1.25;                          // art_over
+    if (f.overdmg) params.dmgMul *= (1 + 0.125 * f.overdmg);     // art_over
+    // v3-cd-dmg-rescale (group C): frenzy CONSUME / bloodmoney / cap_warlord / overpen (grant=D, pierce=E)
+    if (f.frenzy) {                                              // *_rush (consume; grant=D)
+      const _rushNow = Date.now();
+      const _rushSt = (ps._cdRushUntil && _rushNow < ps._cdRushUntil) ? (ps._cdRushStacks || 0) : 0;
+      params.dmgMul *= (1 + 0.06 * f.frenzy * Math.min(5, _rushSt));
+    }
+    if (f.bloodmoney) {                                          // *_bloodmoney
+      const _bmGold = sim.castledefenseGold[peerId] || 0;
+      params.dmgMul *= (1 + Math.min(0.15, _bmGold / 150000) * f.bloodmoney);
+    }
+    if (f.cap_warlord && (ps.hp || 1) / (ps.maxHp || 100) > 0.80) // cap_warlord
+      params.dmgMul *= (1 + 0.15 * f.cap_warlord);
+    if (f.overpen) params.pierceCount = f.overpen;               // *_overpen (consumed in bullets.js, group E)
   }
   // Melee i PvP-modes: direkt hit-check, ingen bullet spawnas.
   // (Story-mode melee körs lokalt på klient mot state.enemies.)
@@ -9355,7 +9518,12 @@ function applyCastleDefensePerkBuy(sim, peerId, msg) {
   const flags = sim.castledefensePerkFlags[peerId] = sim.castledefensePerkFlags[peerId] || {};
   const rank = ranks[nodeId] || 0;
   if (rank >= node.maxRank) { sim.eventQueue.push({ type: 'cd_perk_failed', peerId, reason: 'maxed', node: nodeId }); return; }
-  if (node.tier > 1) {
+  if (Array.isArray(node.requires)) {
+    // v3 cross-tree: explicit requires-list -- every id must already have rank>=1 (may span trees); skips tier prereq
+    for (let ri = 0; ri < node.requires.length; ri++) {
+      if ((ranks[node.requires[ri]] || 0) < 1) { sim.eventQueue.push({ type: 'cd_perk_failed', peerId, reason: 'locked', node: nodeId }); return; }
+    }
+  } else if (node.tier > 1) {
     const prereq = tree.nodes.find(nn => nn.tier === node.tier - 1);
     if (!prereq || (ranks[prereq.id] || 0) < 1) { sim.eventQueue.push({ type: 'cd_perk_failed', peerId, reason: 'locked', node: nodeId }); return; }
   }
@@ -9364,6 +9532,50 @@ function applyCastleDefensePerkBuy(sim, peerId, msg) {
   flags[node.flag] = rank + 1;
   applyCdTreeStats(sim, ws.playerState, peerId);
   sim.eventQueue.push({ type: 'cd_perk_tree', peerId, ranks: { ...ranks }, points: sim.castledefensePerkPoints[peerId] });
+}
+
+// v3 perk-ABILITY: warhorn war-roar -- AoE knockback + stagger + slow around the player.
+// 60s per-player cooldown (ws._cdAbilityAt). Radius scales with warhorn rank.
+function applyCastleDefenseAbility(sim, peerId) {
+  if (!sim.castledefenseActive || sim.castledefenseEnded) return;
+  const ws = sim.room.members.get(peerId);
+  if (!ws || !ws.playerState) return;
+  const warhorn = cdFlags(sim, peerId).warhorn || 0;
+  if (warhorn < 1) return;
+  const now = Date.now();
+  if (ws._cdAbilityAt && now - ws._cdAbilityAt < 60000) return;
+  ws._cdAbilityAt = now;
+  const ps = ws.playerState;
+  const radius = 220 + 40 * warhorn;
+  const r2 = radius * radius;
+  if (sim.enemyGrid && sim.enemyGrid.size > 0) {
+    sim.enemyGrid.queryInto(ps.x, ps.y, radius, _cdTurretScratch);
+    for (let qi = 0; qi < _cdTurretScratch.length; qi++) {
+      const e = _cdTurretScratch[qi];
+      if (e.dead) continue;
+      const dx = e.x - ps.x, dy = e.y - ps.y;
+      if (dx * dx + dy * dy > r2) continue;
+      const ang = Math.atan2(dy, dx);
+      e.x += Math.cos(ang) * 120;
+      e.y += Math.sin(ang) * 120;
+      e.staggerUntil = now + 400;
+      e.slowUntil = now + 3000;
+      e.slowFactor = 0.5;
+    }
+  } else {
+    for (const e of sim.enemies) {
+      if (e.dead) continue;
+      const dx = e.x - ps.x, dy = e.y - ps.y;
+      if (dx * dx + dy * dy > r2) continue;
+      const ang = Math.atan2(dy, dx);
+      e.x += Math.cos(ang) * 120;
+      e.y += Math.sin(ang) * 120;
+      e.staggerUntil = now + 400;
+      e.slowUntil = now + 3000;
+      e.slowFactor = 0.5;
+    }
+  }
+  sim.eventQueue.push({ type: 'cd_war_roar', x: Math.round(ps.x), y: Math.round(ps.y), r: radius });
 }
 
 // v1.407: DEBUG infinity-money — ger spelaren 5000 gold per call. Tas bort i prod.
@@ -9489,4 +9701,4 @@ function applyCastleDefenseBuyWeapon(sim, peerId, msg) {
   sim.eventQueue.push({ type: 'cd_weapon_bought', peerId, weaponId: wid, cost, tier: spec.tier || 1 });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrJump, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefensePerkBuy, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall, pickRandomHumanHunter, transferJug, isDevAccount, ENEMY_CAP };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrJump, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefensePerkBuy, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseAbility, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall, pickRandomHumanHunter, transferJug, isDevAccount, ENEMY_CAP };

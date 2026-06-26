@@ -653,6 +653,7 @@ function spawnPlayerBullets(sim, p, weaponId, params) {
       firespread: !!(params.perks && params.perks.firespread),
       ownerPid: p.peerId,  // kill-credit
       hitIds: null,
+      pierceLeft: (params.pierceCount && !(cheatPen || cheatUlt || w.pierce)) ? params.pierceCount : 0,  // CD overpen
     });
   }
 }
@@ -1832,7 +1833,10 @@ function updateBullets(sim, dt, now) {
           hit = true; break;
         }
         applyBulletEffects(b, e, sim);
-        damageEnemy(e, b.dmg, b.crit, b.ownerPid, b.weaponId);
+        // CD-CRYO-BRITTLE: brittle talent amplifies damage vs slowed/frozen enemies
+        let _cdDmg = b.dmg;
+        if (sim && sim._cdSlowAmp > 1 && e.slowUntil && now < e.slowUntil) _cdDmg *= sim._cdSlowAmp;
+        damageEnemy(e, _cdDmg, b.crit, b.ownerPid, b.weaponId);
         // v1.400/v1.431: emit damage-number event för auto-turret bullets så player ser
         // hur mycket turrets gör. Throttle till max 8Hz globalt (purely cosmetic;
         // för många torn-shots gav 20+ events/sek = backpressure).
@@ -1848,7 +1852,7 @@ function updateBullets(sim, dt, now) {
           }
         }
         b.hitIds.add(e);
-        if (!b.pierce) { hit = true; break; }
+        if (!b.pierce) { if (b.pierceLeft > 0) { b.pierceLeft--; } else { hit = true; break; } }
       }
     }
     if (hit) bullets.splice(i, 1);
