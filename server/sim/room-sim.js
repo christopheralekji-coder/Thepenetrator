@@ -9154,11 +9154,7 @@ function applyCastleDefenseSell(sim, peerId, msg) {
   if (!id) return;
   const b = sim.castledefenseBuildings.find(x => x.id === id && x.hp > 0);
   if (!b) return;
-  // Owner-only
-  if (b.ownerPid !== peerId) {
-    sim.eventQueue.push({ type: 'cd_sell_failed', peerId, id, reason: 'not_owner' });
-    return;
-  }
+  // Co-op: ALLA i laget får sälja (delad resurs) — owner-check borttagen (användarfeedback)
   // AABB + tolerans 34 (matchar uppgradering; spelaren blockeras vid murkanten av
   // kollisionen och kan annars inte stå "inuti" muren för att sälja)
   const sellPx = ws.playerState.x, sellPy = ws.playerState.y, sellTol = 34;

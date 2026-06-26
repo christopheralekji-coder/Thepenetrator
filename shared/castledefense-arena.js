@@ -84,8 +84,8 @@ const CASTLEDEFENSE_ARENA = {
   castleUpgrades: {
     // TRON: castle maxHp = base + per-nivå. lvl0=6000 → lvl10=21000.
     throne:     { baseCost: 700, costExp: 1.15, hpPerLvl: 1500 },
-    // HEAL-NPC: helar spelare i radie. lvl0 = 0 hp/s. +2.2 hp/s per nivå → lvl10 = 22 hp/s.
-    heal_npc:   { baseCost: 450, costExp: 1.14, healPerSecPerLvl: 2.2, radius: 230 },
+    // HEAL-NPC: helar spelare i radie. lvl0 = 0 hp/s. +4.0 hp/s per nivå → lvl10 = 40 hp/s. Större radie.
+    heal_npc:   { baseCost: 450, costExp: 1.14, healPerSecPerLvl: 4.0, radius: 300 },
     // REPAIR-NPC: reparerar slottets hp. lvl0 = 0 hp/s. +16 hp/s per nivå → lvl10 = 160 hp/s.
     repair_npc: { baseCost: 520, costExp: 1.14, castleHealPerSecPerLvl: 16 },
   },
