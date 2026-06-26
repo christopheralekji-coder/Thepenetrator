@@ -2615,7 +2615,7 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
       // Hybrid: spelare som SITTER i tornet (b.occupantId) ger dmg-boost (manDpsMul).
       const manMul = b.occupantId ? (b.manDpsMul || 1.6) : 1.0;
       const effRange = b.range * (fortNear ? 1.2 : 1);
-      if (!b.occupantId && b._fireCd <= 0 && b.range > 0 && b.fireRate > 0) {   // bemannat torn = spelaren styr manuellt (del B)
+      if (!b.occupantId && b._fireCd <= 0 && (!b._reloadUntil || nowMs >= b._reloadUntil) && b.range > 0 && b.fireRate > 0) {   // bemannat torn = spelaren styr manuellt (del B)
         let best = null, bestD = effRange * effRange;
         if (sim.enemyGrid && sim.enemyGrid.size > 0) {
           sim.enemyGrid.queryInto(bcx, bcy, effRange, _cdTurretScratch);
@@ -2649,6 +2649,14 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
           if (isBomber) bullet._cdBlastR = b.blastRadius || 90;   // AoE vid träff (bullets.js)
           sim.bullets.push(bullet);
           b._fireCd = 1 / b.fireRate;
+          b._mag = (b._mag || 0) + 1;
+          const _magSize = isBomber ? 8 : 30;
+          if (b._mag >= _magSize) {
+            const _reloadMs = isBomber ? 1400 : 800;
+            b._reloadUntil = nowMs + _reloadMs;
+            b._mag = 0;
+            sim.eventQueue.push({ type: 'cd_turret_reload', id: b.id, dur: _reloadMs });
+          }
           if (!b._lastFireEvtAt || nowMs - b._lastFireEvtAt > 333) {
             b._lastFireEvtAt = nowMs;
             sim.eventQueue.push({ type: 'cd_turret_fired', id: b.id, x: Math.round(bcx), y: Math.round(bcy), ang, kind: b.kind });
