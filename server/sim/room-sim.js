@@ -3836,11 +3836,16 @@ function tickCastleDefense(sim, dt, now) {
   // v1.526: Skippas helt i survivors-mode (ingen core att förstöra).
   if (!sim.survivorsActive && sim.castledefenseCore && sim.castledefenseCore.hp <= 0 && !sim.castledefenseEnded) {
     sim.castledefenseEnded = true;
+    const cdSb = []; // buildCdScoreboard
+    for (const [pid] of sim.room.members) {
+      cdSb.push({ peerId: pid, kills: (sim.castledefenseScores && sim.castledefenseScores[pid]) || 0, secured: (sim.castledefenseGold && sim.castledefenseGold[pid]) || 0 });
+    }
     sim.eventQueue.push({
       type: 'cd_ended',
       reason: 'core_destroyed',
       wave: sim.castledefenseWave,
       survivedSec: Math.round((nowMs - sim.castledefenseStartedAt) / 1000),
+      scoreboard: cdSb,
     });
     return;
   }
@@ -3859,11 +3864,16 @@ function tickCastleDefense(sim, dt, now) {
     }
     if (anyHuman && !anyUp) {
       sim.castledefenseEnded = true;
+      const cdSb = [];
+      for (const [pid] of sim.room.members) {
+        cdSb.push({ peerId: pid, kills: (sim.castledefenseScores && sim.castledefenseScores[pid]) || 0, secured: (sim.castledefenseGold && sim.castledefenseGold[pid]) || 0 });
+      }
       sim.eventQueue.push({
         type: 'cd_ended',
         reason: 'all_players_down',
         wave: sim.castledefenseWave,
         survivedSec: Math.round((nowMs - sim.castledefenseStartedAt) / 1000),
+        scoreboard: cdSb,
       });
       return;
     }
