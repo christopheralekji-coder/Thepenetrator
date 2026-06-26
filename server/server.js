@@ -3,7 +3,7 @@
 
 const WebSocket = require('ws');
 const http = require('http');
-const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrJump, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, isDevAccount, pickRandomHumanHunter, transferJug } = require('./sim/room-sim');
+const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrJump, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefensePerkBuy, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, isDevAccount, pickRandomHumanHunter, transferJug } = require('./sim/room-sim');
 const accounts = require('./accounts'); // v2 konto/vÃ¤nner (acct_* â€” additivt, no-op fÃ¶r V1)
 const matchmaker = require('./matchmaker'); // v2 matchmaking-kö (queue_*/match_* — additivt)
 const groups = require('./groups'); // v2 matchmaking grupp-lager (group_* — additivt)
@@ -1024,6 +1024,9 @@ function handleMessage(ws, msg) {
         startGold: sim.castledefenseGold,
         waveBetweenEndAt: sim.castledefenseWaveBetweenEndAt,
         bossEveryWave: cdArena.bossEveryWave,
+        // v3 perk-träd: spec + late-joinarens nuvarande poäng (oftast 0).
+        perkTrees: cdArena.perkTrees,
+        perkPoints: (sim.castledefensePerkPoints && sim.castledefensePerkPoints[ws.id]) || 0,
         isLateJoin: true,
       }] });
       return;
@@ -1582,6 +1585,13 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     applyCastleDefensePerk(room.sim, ws.id, msg);
+    return;
+  }
+  // v3 perk-träd: köp av en träd-nod ({ node:'jug_hp' }) → applyCastleDefensePerkBuy.
+  if (msg.type === 'sim_cd_perk_buy') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyCastleDefensePerkBuy(room.sim, ws.id, msg);
     return;
   }
   // v2 REDESIGN: port öppna/stäng, slot-torn sätt-dig/kliv-av, slotts-NPC-uppgrade

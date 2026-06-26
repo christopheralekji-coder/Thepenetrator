@@ -42,7 +42,7 @@ function ev(ws, type) { return (ws._events || []).filter(e => e && e.type === ty
   const { sim, members } = mk(2);
   const a = members.get('p0'), b = members.get('p1');
   a.playerState.x = 2000; a.playerState.y = 2000; b.playerState.x = 2010; b.playerState.y = 2000;
-  sim.castledefensePerks['p1'] = 'medic';
+  sim.castledefensePerkFlags['p1'] = { medicrev: 1 };   // v3 perk-träd: LIVRÄDDARE (2x revive)
   down(sim, a);
   a.playerState.cdDownReviveProgress = 2.49;   // just under medic reviveSec (2.5)
   step(sim);
@@ -69,7 +69,7 @@ function ev(ws, type) { return (ws._events || []).filter(e => e && e.type === ty
   a.playerState.x = 2000; a.playerState.y = 2000;
   b.playerState.x = 2010; b.playerState.y = 2000;   // non-medic, near
   c.playerState.x = 1990; c.playerState.y = 2000;   // medic, near
-  sim.castledefensePerks['p2'] = 'medic';
+  sim.castledefensePerkFlags['p2'] = { medicrev: 1 };   // v3 perk-träd: LIVRÄDDARE (2x revive)
   down(sim, a);
   a.playerState.cdDownReviveProgress = 2.49;   // only enough if the MEDIC is chosen
   step(sim);

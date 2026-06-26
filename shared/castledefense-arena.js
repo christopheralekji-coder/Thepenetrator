@@ -178,6 +178,56 @@ const CASTLEDEFENSE_ARENA = {
     { id: 'gambler',      icon: '🎲', name: 'GAMBLER',      desc: '15% chans efter kill: 3x gold / +1 granat / shield-refill' },
   ],
 
+  // === PERK-TRÄD-SYSTEM (v3) — 5 träd × 3 noder (tier 1→3, betas uppifrån-ner). ===
+  // Varje nod-köp höjer en RANK och sätter en FLAGGA (flag) = rankvärdet. Servern läser
+  // flaggorna för effekter (cdFlags). tier N kräver tier N-1 (samma träd) rank>=1.
+  // 1 perk-poäng VARANNAN clearad våg (perkPointEveryWaves). Ersätter heroPerks som
+  // effekt-källa (heroPerks behålls orörd nedan för bakåtkompat). Klienten renderar
+  // detta direkt från cd_started (perkTrees + perkPoints).
+  perkPointEveryWaves: 2,
+  perkTrees: [
+    {
+      id: 'juggernaut', name: 'JUGGERNAUT', icon: '🛡', color: '#5a9bd4',
+      nodes: [
+        { id: 'jug_hp',    tier: 1, maxRank: 3, flag: 'tank',      icon: '🛡', name: 'PANSAR',        desc: '+18% maxHP per rank' },
+        { id: 'jug_regen', tier: 2, maxRank: 2, flag: 'regen',     icon: '💚', name: 'REGENERERING',  desc: '+2 hp/s per rank (passiv)' },
+        { id: 'jug_last',  tier: 3, maxRank: 1, flag: 'berserker', icon: '🔥', name: 'BÄRSÄRK',       desc: 'Vid <40% hp: skada ×1.4' },
+      ],
+    },
+    {
+      id: 'artillerist', name: 'ARTILLERIST', icon: '💥', color: '#e08a3a',
+      nodes: [
+        { id: 'art_dmg',  tier: 1, maxRank: 3, flag: 'gunner',       icon: '💥', name: 'GROVKALIBER',  desc: '+15% vapen-skada per rank' },
+        { id: 'art_aim',  tier: 2, maxRank: 2, flag: 'sharpshooter', icon: '🎯', name: 'PRICKSKYTT',   desc: '+12% crit · +25% räckvidd per rank' },
+        { id: 'art_over', tier: 3, maxRank: 1, flag: 'overdmg',      icon: '🌋', name: 'ÖVERLADDNING', desc: 'All skada ×1.25' },
+      ],
+    },
+    {
+      id: 'arkitekt', name: 'ARKITEKT', icon: '🏗', color: '#54b59a',
+      nodes: [
+        { id: 'arch_cost',  tier: 1, maxRank: 2, flag: 'builder',    icon: '🏗', name: 'BYGGMÄSTARE', desc: '-15% bygg/uppgrade-kostnad per rank' },
+        { id: 'arch_boost', tier: 2, maxRank: 2, flag: 'strategist', icon: '🧠', name: 'STRATEG',     desc: 'Dina torn nära dig +20% skada per rank' },
+        { id: 'arch_fort',  tier: 3, maxRank: 1, flag: 'fortress',   icon: '🏰', name: 'FÄSTNING',    desc: 'Dina torn nära dig +20% räckvidd' },
+      ],
+    },
+    {
+      id: 'faltmedic', name: 'FÄLTMEDIC', icon: '💚', color: '#7bd47b',
+      nodes: [
+        { id: 'med_heal', tier: 1, maxRank: 2, flag: 'medic',     icon: '💚', name: 'FÄLTMEDIC',    desc: '+2 hp/s själv per rank · heal-NPC ×1.5' },
+        { id: 'med_rev',  tier: 2, maxRank: 2, flag: 'medicrev',  icon: '🚑', name: 'LIVRÄDDARE',   desc: 'Återuppliva 2× snabbare' },
+        { id: 'med_hosp', tier: 3, maxRank: 1, flag: 'medichosp', icon: '🏥', name: 'FÄLTSJUKHUS',  desc: 'Återupplivnings-radie +50%' },
+      ],
+    },
+    {
+      id: 'lycksokare', name: 'LYCKSÖKARE', icon: '💰', color: '#e0c24a',
+      nodes: [
+        { id: 'for_loot',  tier: 1, maxRank: 2, flag: 'looter',  icon: '💰', name: 'PLUNDRARE', desc: '+40% guld från kills per rank' },
+        { id: 'for_speed', tier: 2, maxRank: 2, flag: 'scout',   icon: '⚡', name: 'SPEJARE',   desc: '+20% rörelse per rank · dash-cd-reduktion' },
+        { id: 'for_jack',  tier: 3, maxRank: 1, flag: 'gambler', icon: '🎲', name: 'HASARDÖR',  desc: '15% kill-bonus (3× guld/granat/sköld) · våg-clear +250 guld' },
+      ],
+    },
+  ],
+
   // === DOWN-STATE ===
   downBleedoutSec: 25,
   downReviveSec: 4,
