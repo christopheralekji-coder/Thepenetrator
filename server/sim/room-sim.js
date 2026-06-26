@@ -2657,10 +2657,7 @@ function updateCastleDefenseBuildings(sim, dt, nowMs) {
             b._mag = 0;
             sim.eventQueue.push({ type: 'cd_turret_reload', id: b.id, dur: _reloadMs });
           }
-          if (!b._lastFireEvtAt || nowMs - b._lastFireEvtAt > 333) {
-            b._lastFireEvtAt = nowMs;
-            sim.eventQueue.push({ type: 'cd_turret_fired', id: b.id, x: Math.round(bcx), y: Math.round(bcy), ang, kind: b.kind });
-          }
+          sim.eventQueue.push({ type: 'cd_turret_fired', id: b.id, x: Math.round(bcx), y: Math.round(bcy), ang, kind: b.kind });
         }
       }
     }
@@ -8809,6 +8806,7 @@ function applyShoot(sim, peerId, msg) {
         return;  // bomber hanteras helt här (ej via shootPlayerBullet)
       }
       weaponId = 'turret_mg'; posX = _ccx + Math.cos(_mzAng) * _MZ; posY = _ccy + Math.sin(_mzAng) * _MZ;
+      sim.eventQueue.push({ type: 'cd_turret_fired', id: _cb.id, x: Math.round(_ccx), y: Math.round(_ccy), ang: _mzAng, kind: 'machinegun' });
     }
   }
   // ANTI-CHEAT (AAA): validera skott-ORIGIN mot spelarens AUKTORITATIVA positioner
