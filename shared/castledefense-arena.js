@@ -257,7 +257,7 @@ const CASTLEDEFENSE_ARENA = {
     wall:         { cost: 60,  hp: 300, w: 30, h: 30, hpScalePerLvl: 1.2, solid: true, blocksBullets: false },
     // 🚪 PORT — som mur men SPELAR-passerbar; öppnas/stängs manuellt (fiender slinker
     // in medan öppen). Stängd = blockerar fiender; öppen = passerbar för alla.
-    gate:         { cost: 100, hp: 350, w: 30, h: 30, hpScalePerLvl: 1.2, solid: true, blocksBullets: false, openable: true },
+    gate:         { cost: 100, hp: 500, w: 60, h: 30, hpScalePerLvl: 1.2, solid: true, blocksBullets: false, openable: true },
     // ⚔️ SPIKFÄLLA — dmg vid passage; SLUTAR funka efter killCapacity fiender.
     spike_trap:   { cost: 160, hp: 250, w: 30, h: 30, dmgOnPass: 60, killCapacity: 20, trap: true },
     // 🛢️ TJÄRGROP — saktar fiender i radie (slow-aura).

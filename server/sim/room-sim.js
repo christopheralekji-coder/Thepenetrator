@@ -9012,6 +9012,7 @@ function applyCastleDefenseBuild(sim, peerId, msg) {
     x = Math.floor((+msg.x || 0) / grid) * grid;
     y = Math.floor((+msg.y || 0) / grid) * grid;
     w = spec.w; h = spec.h;
+    if (spec.openable && (+msg.rot)) { const _tw = w; w = h; h = _tw; }   // PORT: rotera (liggande <-> stående)
     if (x < 20 || y < 20 || x + w > arena.worldW - 20 || y + h > arena.worldH - 20) {
       sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'out_of_bounds', kind }); return;
     }
