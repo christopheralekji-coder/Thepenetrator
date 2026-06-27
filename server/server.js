@@ -443,6 +443,12 @@ function handleMessage(ws, msg) {
             for (const m of ['deadBodies', 'kothScores', '_kothPointAccum', 'juggernautScores', 'juggernautKillsByPid', 'juggernautDmgToJug', 'battleroyaleKillsByPid', 'tdmKillsByPid', 'tdmDeathsByPid', 'ctfKillsByPid', 'ctfCapturesByPid', 'siegeKillsByPid', 'gungameTiers', 'gungameKillsByPid']) {
               if (_s[m] && _s[m][ghostPid] !== undefined) delete _s[m][ghostPid];
             }
+            // CD: BEHALL perks/vapen/tier/guld over reconnect -> flytta per-pid-mapparna ghost->nytt
+            // id (annars far reconnectaren tomma cdFlags + tier 0 -> vapen klampas till pistol = tappade allt).
+            for (const m of ['castledefensePerkFlags', 'castledefensePerkRanks', 'castledefensePerkPoints', 'castledefensePerks', 'castledefenseWeaponTier', 'castledefenseOwnedWeapons', 'castledefensePurchasedWeapons', 'castledefenseGold', 'castledefenseScores']) {
+              if (_s[m] && _s[m][ghostPid] !== undefined) { _s[m][ws.id] = _s[m][ghostPid]; delete _s[m][ghostPid]; }
+            }
+            if (_s.castledefenseActive) ws._cdReconnect = true;
           }
           if (ghostWs.stableSlot != null && ghostWs.stableSlot !== 0) room._freeSlots.push(ghostWs.stableSlot);
           room.members.delete(ghostPid);
@@ -522,6 +528,15 @@ function handleMessage(ws, msg) {
         if (stash.maxHp != null) ws.playerState.maxHp = stash.maxHp;
         if (stash.shield != null) ws.playerState.shield = stash.shield;
         if (stash.speedMul != null) ws.playerState.speedMul = stash.speedMul;
+        if (stash.weaponId != null) ws.playerState.weaponId = stash.weaponId;
+        // CD: terminerad-ghost-vagen -> flytta CD-mapparna fran gamla pid:t (stash.pid) -> nytt id.
+        if (room.sim && room.sim.castledefenseActive && stash.pid && stash.pid !== ws.id) {
+          const _sr = room.sim;
+          for (const m of ['castledefensePerkFlags', 'castledefensePerkRanks', 'castledefensePerkPoints', 'castledefensePerks', 'castledefenseWeaponTier', 'castledefenseOwnedWeapons', 'castledefensePurchasedWeapons', 'castledefenseGold', 'castledefenseScores']) {
+            if (_sr[m] && _sr[m][stash.pid] !== undefined && _sr[m][ws.id] === undefined) { _sr[m][ws.id] = _sr[m][stash.pid]; delete _sr[m][stash.pid]; }
+          }
+          ws._cdReconnect = true;
+        }
         if (room.sim && stash.heistRole) { room.sim.heistRoles = room.sim.heistRoles || {}; room.sim.heistRoles[ws.id] = stash.heistRole; }
         delete room._reconnectStash[ws._reconnectToken];
         console.log('[ROOM]', code, ws.id, 'reconnect-restored role=' + (stash.heistRole || '-') + ' hp=' + (stash.hp != null ? Math.round(stash.hp) : '-'));
@@ -971,7 +986,15 @@ function handleMessage(ws, msg) {
     if (room.sim && room.sim.castledefenseActive && !room.sim.castledefenseEnded) {
       const sim = room.sim;
       const { CASTLEDEFENSE_ARENA: cdArena } = require('../shared/castledefense-arena');
-      if (!ws.isSpectator) {
+      if (!ws.isSpectator && ws._cdReconnect) {
+        // RECONNECT: behall transfererad/restorerad playerState + re-keyade CD-mappar (perks/tier/guld).
+        // Bygg INTE om playerState och NOLLA INTE mapparna (det var bugg #3 = tappade allt mid-game).
+        ws.playerState = ws.playerState || {};
+        if (ws.playerState.weaponId == null) ws.playerState.weaponId = cdArena.startWeapon;
+        ws.playerState.invulnUntil = Date.now() + 2000;
+        ws.playerState.cdDowned = false; ws.playerState.cdDownDead = false; ws.playerState.spectating = false;
+        ws.tdmTeam = null; ws.tdmRespawnAt = 0;
+      } else if (!ws.isSpectator) {
         const cdSpawnList = cdArena.playerSpawns || [{ x: cdArena.centerX, y: cdArena.centerY }];
         const cdSp = cdSpawnList[(sim._cdLateJoinIdx || 0) % cdSpawnList.length];
         sim._cdLateJoinIdx = (sim._cdLateJoinIdx || 0) + 1;
@@ -1027,6 +1050,10 @@ function handleMessage(ws, msg) {
         // v3 perk-träd: spec + late-joinarens nuvarande poäng (oftast 0).
         perkTrees: cdArena.perkTrees,
         perkPoints: (sim.castledefensePerkPoints && sim.castledefensePerkPoints[ws.id]) || 0,
+        perkRanks: (sim.castledefensePerkRanks && sim.castledefensePerkRanks[ws.id]) || {},
+        weaponTier: (sim.castledefenseWeaponTier && sim.castledefenseWeaponTier[ws.id]) || 0,
+        ownedWeapons: (sim.castledefenseOwnedWeapons && sim.castledefenseOwnedWeapons[ws.id]) || null,
+        isReconnect: !!ws._cdReconnect,
         isLateJoin: true,
       }] });
       return;
@@ -2239,6 +2266,7 @@ function handleDisconnect(ws) {
     room._reconnectStash[ws._reconnectToken] = {
       heistRole: ws._heistRole, heistRoleLocked: ws._heistRoleLocked,
       hp: ps.hp, maxHp: ps.maxHp, shield: ps.shield, speedMul: ps.speedMul,
+      pid: ws.id, weaponId: ps.weaponId,   // CD: aterstall identitet + vapen vid reconnect (terminerad ghost)
       ts: Date.now(),
     };
   }
