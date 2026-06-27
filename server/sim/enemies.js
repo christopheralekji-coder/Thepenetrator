@@ -363,6 +363,7 @@ function applySeparation(e, allEnemies, grid) {
         ay += (dy / d) * push;
       }
     });
+    { const _SM = 10, _m2 = ax * ax + ay * ay; if (_m2 > _SM * _SM) { const _k = _SM / Math.sqrt(_m2); ax *= _k; ay *= _k; } }
     e.x += ax;
     e.y += ay;
     return;
@@ -380,6 +381,7 @@ function applySeparation(e, allEnemies, grid) {
       ay += (dy / d) * push;
     }
   }
+  { const _SM = 10, _m2 = ax * ax + ay * ay; if (_m2 > _SM * _SM) { const _k = _SM / Math.sqrt(_m2); ax *= _k; ay *= _k; } }
   e.x += ax;
   e.y += ay;
 }
@@ -398,7 +400,7 @@ function applyPlayerSeparation(e, players) {
     const d2 = dx * dx + dy * dy;
     if (d2 > 1e-6 && d2 < min * min) {
       const d = Math.sqrt(d2);
-      const push = min - d;
+      const push = Math.min(min - d, 10);
       e.x += (dx / d) * push;
       e.y += (dy / d) * push;
     } else if (d2 <= 1e-6) {

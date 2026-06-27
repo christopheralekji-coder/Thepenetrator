@@ -3868,7 +3868,7 @@ function tickCastleDefense(sim, dt, now) {
         const sd2 = sdx * sdx + sdy * sdy;
         if (sd2 > 1e-6 && sd2 < smin * smin) {
           const sd = Math.sqrt(sd2);
-          const sp = smin - sd;
+          const sp = Math.min(smin - sd, 10);
           e.x += (sdx / sd) * sp;
           e.y += (sdy / sd) * sp;
         } else if (sd2 <= 1e-6) {
@@ -3883,7 +3883,8 @@ function tickCastleDefense(sim, dt, now) {
     // v2 REDESIGN: fiender blockas även av de solida slottsväggarna (cdMoveSolids) så
     // de bara kan ta sig in genom porten. Survivors behåller bara fält-strukturer.
     if (!e._cdFlyer) {
-      resolveCtfWall(e, sim.survivorsActive ? cdAllSolids : cdMoveSolids);
+      const _walls = sim.survivorsActive ? cdAllSolids : cdMoveSolids;
+      for (let _p = 0; _p < 3; _p++) resolveCtfWall(e, _walls);
     }
     // Core circle-collision för ALLA fiender (även flyers — annars kan de attacka
     // core från insidan). v1.398-fix: d=0 fallback för enemy också.
@@ -3957,13 +3958,16 @@ function tickCastleDefense(sim, dt, now) {
         }
         // v2 REDESIGN: om ett SLOT-TORN förstörs medan någon sitter i det → sparka av
         // (annars fryser deras rörelse-input via _mountedCdTowerId). + frigör slotten.
-        if (!isCore && attackTarget.occupantId) {
-          const occWs = sim.room.members.get(attackTarget.occupantId);
-          if (occWs && occWs._mountedCdTowerId === attackTarget.id) occWs._mountedCdTowerId = null;
-          attackTarget.occupantId = null;
+        if (!isCore) {
+          // FRIGOR slotten ALLTID (aven obemannat torn) -> annars stale slot.towerId = slot_taken for evigt
           if (attackTarget.slotId && sim.castledefenseSlots) {
             const _sl = sim.castledefenseSlots.find(s => s.id === attackTarget.slotId);
             if (_sl && _sl.towerId === attackTarget.id) _sl.towerId = null;
+          }
+          if (attackTarget.occupantId) {
+            const occWs = sim.room.members.get(attackTarget.occupantId);
+            if (occWs && occWs._mountedCdTowerId === attackTarget.id) occWs._mountedCdTowerId = null;
+            attackTarget.occupantId = null;
           }
         }
         sim.eventQueue.push({
@@ -9231,7 +9235,11 @@ function applyCastleDefenseBuild(sim, peerId, msg) {
     // och spelaren måste stå nära slotten.
     const slot = (sim.castledefenseSlots || []).find(s => s.id === (msg && msg.slot));
     if (!slot) { sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'bad_slot', kind }); return; }
-    if (slot.towerId) { sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'slot_taken', kind }); return; }
+    if (slot.towerId) {
+      const _occ = sim.castledefenseBuildings.find(bb => bb.id === slot.towerId && bb.hp > 0);
+      if (_occ) { sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'slot_taken', kind }); return; }
+      slot.towerId = null;   // stale ref till dott torn -> rensa & tillat ombygge
+    }
     const pdx = ws.playerState.x - slot.x, pdy = ws.playerState.y - slot.y;
     if (pdx * pdx + pdy * pdy > 100 * 100) { sim.eventQueue.push({ type: 'cd_build_failed', peerId, reason: 'too_far', kind }); return; }
     w = 36; h = 36;

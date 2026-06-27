@@ -1142,7 +1142,7 @@ function updateBullets(sim, dt, now) {
       // FÄLT-murar/portar är LÅGA → kulor + granater går ÖVER dem (de blockerar bara
       // RÖRELSE). Gäller både vänliga och fientliga kulor (symmetriskt "skjut över muren").
       const cdWallBlockers = sim.castledefenseCastleWalls || [];
-      if (cdWallBlockers.length > 0 && bulletHitsWall(b, cdWallBlockers)) {
+      if (!b._autoTurret && cdWallBlockers.length > 0 && bulletHitsWall(b, cdWallBlockers)) {   // torn-skott gar genom EGEN slottsmur (boss inne)
         if (b.explosive && !b.hostile) {
           explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
         }
@@ -1325,14 +1325,14 @@ function updateBullets(sim, dt, now) {
             tw.hp = Math.max(0, tw.hp - b.dmg);
             sim.eventQueue.push({ type: 'cd_building_damaged', id: tw.id, hp: tw.hp, maxHp: tw.maxHp });
             if (tw.hp <= 0) {
+              if (tw.slotId && sim.castledefenseSlots) {   // FRIGOR slot ALLTID (aven obemannat)
+                const _sl = sim.castledefenseSlots.find(s => s.id === tw.slotId);
+                if (_sl && _sl.towerId === tw.id) _sl.towerId = null;
+              }
               if (tw.occupantId) {
                 const occWs = sim.room.members.get(tw.occupantId);
                 if (occWs && occWs._mountedCdTowerId === tw.id) occWs._mountedCdTowerId = null;
                 tw.occupantId = null;
-                if (tw.slotId && sim.castledefenseSlots) {
-                  const _sl = sim.castledefenseSlots.find(s => s.id === tw.slotId);
-                  if (_sl && _sl.towerId === tw.id) _sl.towerId = null;
-                }
               }
               sim.eventQueue.push({ type: 'cd_building_destroyed', id: tw.id });
             }
