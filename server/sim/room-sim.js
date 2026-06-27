@@ -3854,6 +3854,27 @@ function tickCastleDefense(sim, dt, now) {
         }
       }
     }
+    // v2: SOFT PLAYER-SEPARATION (CD/survivors) — melee-fiende stannar vid spelarens kant
+    // (e.r+14) ist.f. att ga in i kroppen. Efter contact-blocket (skada redan applicerad pa
+    // overlappet -> touch-skada intakt). Bara dmg>0 (melee), hoppar onSolid (cover). Yielder
+    // till wall/core-kollisionen nedan -> kan ej knuffas genom mur.
+    if (!e._cdFlyer && (e.dmg || 0) > 0) {
+      for (let pi = 0; pi < cdAlivePlayers.length; pi++) {
+        const ap = cdAlivePlayers[pi];
+        if (ap._onSolid) continue;
+        const sdx = e.x - ap.x, sdy = e.y - ap.y;
+        const smin = (e.r || 12) + 14;
+        const sd2 = sdx * sdx + sdy * sdy;
+        if (sd2 > 1e-6 && sd2 < smin * smin) {
+          const sd = Math.sqrt(sd2);
+          const sp = smin - sd;
+          e.x += (sdx / sd) * sp;
+          e.y += (sdy / sd) * sp;
+        } else if (sd2 <= 1e-6) {
+          e.x = ap.x + smin;
+        }
+      }
+    }
     // Bounds-clamp
     e.x = Math.max(20, Math.min(arena.worldW - 20, e.x));
     e.y = Math.max(20, Math.min(arena.worldH - 20, e.y));

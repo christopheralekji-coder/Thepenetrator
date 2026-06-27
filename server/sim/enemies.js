@@ -384,6 +384,29 @@ function applySeparation(e, allEnemies, grid) {
   e.y += ay;
 }
 
+// v2: SOFT PLAYER-SEPARATION — melee-fiende STANNAR vid spelarens kant (e.r+player_r)
+// istallet for att ga rakt in i kroppen. Kors EFTER applyContactDamage: AI:n penetrerar
+// spelaren i borjan av varje tick (fore damage-checken) -> kontaktskada triggar som vanligt,
+// vi resolvar bara overlappet efterat. Bara kontakt-fiender (dmg>0). Hoppar fake core/flow-mal.
+function applyPlayerSeparation(e, players) {
+  if ((e.dmg || 0) <= 0) return;
+  for (const p of players) {
+    if (!p || p._isCompanion || p._isCoreTarget) continue;
+    if (p.hp != null && p.hp <= 0) continue;
+    const min = e.r + (p.r || 14);
+    const dx = e.x - p.x, dy = e.y - p.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 > 1e-6 && d2 < min * min) {
+      const d = Math.sqrt(d2);
+      const push = min - d;
+      e.x += (dx / d) * push;
+      e.y += (dy / d) * push;
+    } else if (d2 <= 1e-6) {
+      e.x = p.x + min;
+    }
+  }
+}
+
 // Stuck-detection: om enemy inte rört sig nämnvärt på 1s, sidestepa för att gå runt obstacles.
 // Bossar undantagna — telegraph-windups (charge prep, slam) behöver hålla position
 // för att vara läsbara. Stagger initial check med per-enemy random offset så alla inte
@@ -538,6 +561,7 @@ function updateEnemy(e, dt, now, sim, players) {
   // Fysik: separation + contact damage
   applySeparation(e, sim.enemies, sim.enemyGrid);
   applyContactDamage(e, target, sim);
+  applyPlayerSeparation(e, players);   // v2: stanna vid spelarens kant (efter kontaktskada)
 }
 
 module.exports = {
