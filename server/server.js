@@ -170,17 +170,19 @@ wss.on('connection', (ws, req) => {
   ws.isAlive = true;
   ws._missedPings = 0;
   ws._connectedAt = Date.now();
+  ws._lastSeenAt = Date.now();
   // Aktivera TCP keepalive pÃ¥ underliggande socket (fix fÃ¶r Render edge-proxy
   // idle-timeout som dÃ¶dar WS efter ~60s trots app-traffic).
   if (req && req.socket) applyTcpKeepalive(req.socket);
   console.log('[CONN]', ws.id, 'connected from', req && req.headers ? (req.headers['x-forwarded-for'] || req.socket.remoteAddress) : '?');
 
   // Heartbeat: vilken meddelande/pong som helst rÃ¤knas som "alive".
-  ws.on('pong', () => { ws.isAlive = true; ws._missedPings = 0; });
+  ws.on('pong', () => { ws.isAlive = true; ws._missedPings = 0; ws._lastSeenAt = Date.now(); });
 
   ws.on('message', (raw, isBinary) => {
     ws.isAlive = true;
     ws._missedPings = 0;
+    ws._lastSeenAt = Date.now();
     if (isBinary) {
       try { handleBinaryMessage(ws, raw); } catch (e) { console.error('bin-error:', e.message); }
       return;
@@ -238,6 +240,22 @@ setInterval(() => {
     if (!room || !room.sim) continue;
     ws._lastRttPingAt = Date.now();
     try { ws.send(JSON.stringify({ type: 'srv_rtt_ping', t: ws._lastRttPingAt })); } catch (e) {}
+    // DISCONNECT-GRACE (2026-06-28): en spelare vars socket TYSTNAT (app i bakgrund / wifi-blip)
+    // far INTE dodas i gapet innan keepalive-terminaten (upp till ~75s). Klienten svarar pa
+    // srv_rtt_ping varje sekund -> >2.5s utan ETT meddelande = genuint borta, inte bara idle.
+    // Skydda kroppen genom att refresha invulnUntil (honoreras av bullets/enemies/grenades).
+    // Co-op: hela tiden (sakert). PvP: bara ~10s (tacker notis-glimt, men begransar
+    // KOTH-camp / CTF-flagg-las / BR-stall fran en avsiktligt bakgrundad osarbar kropp).
+    const _ps = ws.playerState;
+    if (_ps && _ps.hp > 0 && ws._reconnectToken) {
+      const _silentMs = Date.now() - (ws._lastSeenAt || ws._connectedAt || Date.now());
+      if (_silentMs > 2500) {
+        const _s = room.sim;
+        const _isPvP = !!(_s.tdmActive || _s.ctfActive || _s.siegeActive || _s.gungameActive ||
+                          _s.kothActive || _s.juggernautActive || _s.battleroyaleActive);
+        if (!_isPvP || _silentMs < 10000) _ps.invulnUntil = Date.now() + 1500;
+      }
+    }
   }
 }, RTT_PING_INTERVAL_MS);
 

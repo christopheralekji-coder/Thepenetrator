@@ -472,9 +472,12 @@ function buildFriendEntry(fid) {
   // (pending:1) så relationen överlever — klienten visar cachat namn och
   // entryt blir komplett när vännen loggar in en gång på servern.
   if (!a) return { id: fid, name: '', avatar: {}, level: 1, online: false, pending: 1 };
-  const entry = { id: a.id, name: a.name, avatar: a.avatar, level: a.level, online: online.has(fid) };
+  const ws = online.get(fid);
+  // online = bara en GENUINT oppen socket (readyState===1) -- en dod-men-ej-stadad
+  // socket ska inte visa vannen som online (matchar liveness-mönstret i server.js).
+  const entry = { id: a.id, name: a.name, avatar: a.avatar, level: a.level, online: !!ws && ws.readyState === 1 };
   if (entry.online) {
-    const act = activityOf(online.get(fid));
+    const act = activityOf(ws);
     entry.activity = act.activity;
     if (act.mode) entry.mode = act.mode;
     // code skickas BARA när vännen är i ett rum (GÅ MED-knappen)
