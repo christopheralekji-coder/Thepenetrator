@@ -3732,6 +3732,28 @@ function tickCastleDefense(sim, dt, now) {
         hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60,
       } : { x: 2000, y: 2000, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
     } else {
+      // CD-RANGED-TOWER-PRIORITY (tillagt): ranged-fiender (shooter/soldier/sniper) skjuter
+      // NARMASTE levande machinegun/bomber-torn forst; faller tillbaka pa flow/core nedan
+      // (if(!target)-blocket) nar inget torn ar i sikte. Melee opaverkade (isRangedType=false).
+      if (isRangedType) {
+        const sightR = (e.shootRange || 360) + 220;
+        let bestTD2 = sightR * sightR, bestTower = null;
+        for (let ti = 0; ti < cdSolidsForTarget.length; ti++) {
+          const _tb = cdSolidsForTarget[ti];
+          if (_tb.hp <= 0 || (_tb.kind !== 'machinegun' && _tb.kind !== 'bomber')) continue;
+          const bcx = _tb.x + _tb.w / 2, bcy = _tb.y + _tb.h / 2;
+          const tdx = bcx - e.x, tdy = bcy - e.y;
+          const td2 = tdx * tdx + tdy * tdy;
+          if (td2 < bestTD2) { bestTD2 = td2; bestTower = _tb; }
+        }
+        if (bestTower) {
+          const _ttid = '__tower_' + bestTower.id;
+          if (e._cdLastTargetId !== _ttid) { e.aiming = false; e.aimAt = 0; }
+          e._cdLastTargetId = _ttid;
+          target = { peerId: _ttid, _isCoreTarget: false, x: bestTower.x + bestTower.w / 2, y: bestTower.y + bestTower.h / 2, hp: 99999, maxHp: 99999, invulnUntil: 0, r: 14 };
+        }
+      }
+      if (!target) {
       // v2 REDESIGN: MARK-fiender följer FLOW-FÄLTET mot slotts-kärnan (core) MEN
       // aggrar en NÄRLIGGANDE sårbar spelare (positionering spelar roll → man kan dö).
       // Core förblir det egentliga målet; aggro har en leash mot kiting.
@@ -3776,6 +3798,7 @@ function tickCastleDefense(sim, dt, now) {
           e._cdLastTargetId = '__core__';
           target = corePos ? { peerId: '__core__', _isCoreTarget: true, x: corePos.x, y: corePos.y, hp: 99999, maxHp: 99999, invulnUntil: 0, r: corePos.r || 60 } : { x: 2000, y: 600, hp: 99999, r: 60, peerId: '__core__', invulnUntil: 0 };
         }
+      }
       }
     }
     const players = [target];

@@ -1313,6 +1313,35 @@ function updateBullets(sim, dt, now) {
           bulletConsumed = true;
         }
       }
+      // CD: hostila kulor skadar spelar-byggda torn (machinegun/bomber) sa deras hp/maxHp
+      // faktiskt betyder nat (annars inert). Speglar melee-destroy-cleanupen (occupant + slot).
+      if (!bulletConsumed && sim.castledefenseActive && sim.castledefenseBuildings) {
+        for (let ti = 0; ti < sim.castledefenseBuildings.length; ti++) {
+          const tw = sim.castledefenseBuildings[ti];
+          if (tw.hp <= 0) continue;
+          if (tw.kind !== 'machinegun' && tw.kind !== 'bomber') continue;
+          if (b.x >= tw.x - b.r && b.x <= tw.x + tw.w + b.r &&
+              b.y >= tw.y - b.r && b.y <= tw.y + tw.h + b.r) {
+            tw.hp = Math.max(0, tw.hp - b.dmg);
+            sim.eventQueue.push({ type: 'cd_building_damaged', id: tw.id, hp: tw.hp, maxHp: tw.maxHp });
+            if (tw.hp <= 0) {
+              if (tw.occupantId) {
+                const occWs = sim.room.members.get(tw.occupantId);
+                if (occWs && occWs._mountedCdTowerId === tw.id) occWs._mountedCdTowerId = null;
+                tw.occupantId = null;
+                if (tw.slotId && sim.castledefenseSlots) {
+                  const _sl = sim.castledefenseSlots.find(s => s.id === tw.slotId);
+                  if (_sl && _sl.towerId === tw.id) _sl.towerId = null;
+                }
+              }
+              sim.eventQueue.push({ type: 'cd_building_destroyed', id: tw.id });
+            }
+            bullets.splice(i, 1);
+            bulletConsumed = true;
+            break;
+          }
+        }
+      }
       if (bulletConsumed) continue;
       // M4 (audit 2026-06-10): STRESSTEST = spelaren odödlig (rent perf-showcase,
       // ingen död) — samma semantik som contact-damage-guarden i enemies.js:372.
