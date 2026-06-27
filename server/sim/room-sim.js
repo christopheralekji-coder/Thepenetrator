@@ -9342,9 +9342,10 @@ function applyCastleDefenseRepair(sim, peerId, msg) {
     }
   }
   if (!target) return;
-  // v1.419: STRIKT AABB — player kan gå PÅ tornet/muren (ingen collision för player längre)
+  // v1.419: AABB med tolerans — REPARERA-knappen öppnas nära tornet, inte exakt PÅ det.
+  const _RTOL = 34;
   const px = ws.playerState.x, py = ws.playerState.y;
-  if (px < target.x || px > target.x + target.w || py < target.y || py > target.y + target.h) return;
+  if (px < target.x - _RTOL || px > target.x + target.w + _RTOL || py < target.y - _RTOL || py > target.y + target.h + _RTOL) return;
   // v1.415: Repair-cost scaling efter dmg-pct + total invest.
   // 99% damaged → cost ≈ 0.75 × totalInvested. 1% damaged → cost ≈ 0.0075 × totalInvested.
   const dmgPct = 1 - (target.hp / target.maxHp);
