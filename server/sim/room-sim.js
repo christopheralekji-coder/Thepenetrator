@@ -3841,6 +3841,7 @@ function tickCastleDefense(sim, dt, now) {
             if (_thRank) { e.hp -= 30 * _thRank; e.lastDamagerPid = ap.peerId; e.lastDamagerWeapon = 'thorns'; if (e.hp <= 0) e.dead = true; }
             psP.invulnUntil = Date.now() + 500;
             e._cdPlayerContactCd = 0.7;
+            e._attackFxUntil = Date.now() + 220;   // attack-anim-telegraf
             e._cdAggroTime = 0;   // landar träffar → behåll aggro (leasha ej bort en nåbar spelare)
             // v1.404: broadcast hp+shield-ändring så klient ser shield-droppen.
             // C110: peerId finns redan på alive-player-recorden (ingen reverse-lookup).
@@ -3919,6 +3920,7 @@ function tickCastleDefense(sim, dt, now) {
       const dmg = e.dmg || 5;
       attackTarget.hp = Math.max(0, attackTarget.hp - dmg);
       e._cdAttackCd = 0.8; // attack-cooldown
+      e._attackFxUntil = now + 220;   // attack-anim-telegraf (klient fx-bit 256)
       sim.eventQueue.push({
         type: isCore ? 'cd_core_damaged' : (isBuild ? 'cd_building_damaged' : 'cd_wall_damaged'),
         id: isCore ? 'core' : attackTarget.id,
@@ -6853,7 +6855,8 @@ function broadcastWorld(sim, now) {
         | (e.type === 'healer' && e._healTargetIdx >= 0 ? 16 : 0)
         | (e.type === 'summoner' && (now - (e.summonAt || 0)) > 3800 ? 32 : 0)
         | (e.aiming ? 64 : 0)
-        | (e.type === 'bomber' && (e.fuse || 0) > 0 ? 128 : 0));
+        | (e.type === 'bomber' && (e.fuse || 0) > 0 ? 128 : 0)
+        | (((e._attackFxUntil && e._attackFxUntil > now) || (e.isBoss && e.lastAttack && (now - e.lastAttack) < 220)) ? 256 : 0));
       const last = lastSent[e._idx];
       const isNew = !last;
       const fxChanged = !isNew && last.fx !== _fx;

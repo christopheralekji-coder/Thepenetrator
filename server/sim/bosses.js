@@ -474,6 +474,7 @@ function updateBoss(sim, b, dt, now, players) {
       target.invulnUntil = tnow + (sim && sim.survivorsActive ? 150 : 500);
     }
     b.contactCd = 0.5;
+    b._attackFxUntil = tnow + 220;   // attack-anim-telegraf (klient fx-bit 256)
   }
 }
 

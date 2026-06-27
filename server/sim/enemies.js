@@ -98,6 +98,7 @@ function findNearestPlayer(e, players) {
 }
 
 function spawnHostileBullet(sim, e, target) {
+  e._attackFxUntil = Date.now() + 220;   // attack-anim-telegraf (klient fx-bit 256)
   const dx = target.x - e.x, dy = target.y - e.y;
   const ang = Math.atan2(dy, dx);
   sim.bullets.push({
@@ -176,6 +177,7 @@ function updateMindControlled(e, dt, now, allEnemies) {
     if (d2 < e.r + target.r + 4 && (!e.contactCd || e.contactCd <= 0)) {
       target.hp -= 25;
       e.contactCd = 0.6;
+      e._attackFxUntil = now + 220;
       if (target.hp <= 0) {
         // v2 C310: kreditera kill till spelaren som castade mind-control. _mcOwner
         // sätts i bullets.js (mindcontrol-grenen) — tills dess null = oförändrat
@@ -470,6 +472,7 @@ function applyContactDamage(e, p, sim) {
       p.invulnUntil = now + (sim && sim.survivorsActive ? 150 : 500);
     }
     e.contactCd = 0.6;
+    e._attackFxUntil = now + 220;   // attack-anim-telegraf (klient fx-bit 256)
   }
 }
 
