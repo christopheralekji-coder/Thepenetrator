@@ -3465,10 +3465,11 @@ function tickCastleDefense(sim, dt, now) {
         // Tidigare bug: boss-vågor saknade wave-scaling helt (lika svår på wave 5
         // som wave 50). cdWaveScale = 1 + (wave-1) × 0.08 ⇒ wave 5 = 1.32×, w10 = 1.72×.
         const bDiff = cdGetDiffMul(sim.config.difficulty);
-        const bWaveScale = 1 + (w - 1) * 0.08;
+        const bWaveScale = 1 + (w - 1) * 0.06;   // boss-HP mildare (var 0.08): w40 4.12x->3.34x
         const casualBossRelief = sim.config.difficulty === 'casual' ? 0.7 : 1.0;
         const totalMul = bDiff.enemyHp * bWaveScale * casualBossRelief;
-        const totalDmgMul = bDiff.enemyDmg * bWaveScale * casualBossRelief;
+        const bDmgWaveScale = 1 + (w - 1) * 0.04;   // boss-SKADA flackare an HP (var bWaveScale): w40 264->164
+        const totalDmgMul = bDiff.enemyDmg * bDmgWaveScale * casualBossRelief;
         boss.hp = Math.max(1, Math.round(boss.hp * totalMul));
         boss.maxHp = boss.hp;
         boss.dmg = Math.max(1, Math.round(boss.dmg * totalDmgMul));
@@ -3938,7 +3939,8 @@ function tickCastleDefense(sim, dt, now) {
       // Robust kind-check: walls har kind='castle_wall', byggnader har kind matching buildable-key
       const isBuild = !isCore && attackTarget.kind && attackTarget.kind !== 'castle_wall';
       // Damage per attack (grunt=5 baseline)
-      const dmg = e.dmg || 5;
+      let dmg = e.dmg || 5;
+      if (e.isBoss && isCore) dmg = Math.min(dmg, 90);   // bossar kan ej smalta core direkt (cap ~112 core-DPS)
       attackTarget.hp = Math.max(0, attackTarget.hp - dmg);
       e._cdAttackCd = 0.8; // attack-cooldown
       e._attackFxUntil = now + 220;   // attack-anim-telegraf (klient fx-bit 256)
