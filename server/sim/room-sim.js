@@ -9745,12 +9745,18 @@ function applyCastleDefenseBuyWeapon(sim, peerId, msg) {
   const spec = wid && arena.weaponVendor && arena.weaponVendor[wid];
   if (!spec) { sim.eventQueue.push({ type: 'cd_buy_weapon_failed', peerId, reason: 'unknown', weaponId: wid }); return; }
   if (!sim.castledefensePurchasedWeapons[peerId]) sim.castledefensePurchasedWeapons[peerId] = new Set();
-  if (sim.castledefensePurchasedWeapons[peerId].has(wid)) { sim.eventQueue.push({ type: 'cd_buy_weapon_failed', peerId, reason: 'owned', weaponId: wid }); return; }
+  if (!spec.grenadeKind && sim.castledefensePurchasedWeapons[peerId].has(wid)) { sim.eventQueue.push({ type: 'cd_buy_weapon_failed', peerId, reason: 'owned', weaponId: wid }); return; }
   const diff = cdGetDifficultyPriceMul(sim.config.difficulty);
   const cost = Math.max(1, Math.round(spec.cost * diff));
   const gold = sim.castledefenseGold[peerId] || 0;
   if (gold < cost) { sim.eventQueue.push({ type: 'cd_buy_weapon_failed', peerId, reason: 'insufficient_gold', weaponId: wid, cost }); return; }
   sim.castledefenseGold[peerId] = gold - cost;
+  if (spec.grenadeKind) {
+    // GRANAT: konsumerbar, obegransade omkop, inget auto-equip -> oka bara klientens raknare.
+    sim.eventQueue.push({ type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: -cost });
+    sim.eventQueue.push({ type: 'cd_grenade_bought', peerId, grenadeKind: spec.grenadeKind, amount: spec.amount || 1, cost });
+    return;
+  }
   sim.castledefensePurchasedWeapons[peerId].add(wid);
   ws.playerState.weaponId = wid;   // auto-equip (spegel av cd_weapon_upgraded)
   // gold-update FÖRE bought så klientens game.gold hinner uppdateras innan

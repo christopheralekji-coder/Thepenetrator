@@ -106,6 +106,12 @@ const CASTLEDEFENSE_ARENA = {
     sniper:       { tier: 4, cost: 24000 },
     minigun:      { tier: 4, cost: 26000 },
     rocket:       { tier: 4, cost: 40000 },
+    // GRANATER (konsumerbara, obegränsade omköp — ges som antal, ej auto-equip)
+    frag:         { tier: 1, cost: 2500, grenadeKind: "frag",      amount: 3 },
+    smoke:        { tier: 1, cost: 2500, grenadeKind: "smoke",     amount: 3 },
+    flashbang:    { tier: 2, cost: 3500, grenadeKind: "flashbang", amount: 2 },
+    molotov:      { tier: 2, cost: 4000, grenadeKind: "molotov",   amount: 2 },
+    gravity:      { tier: 2, cost: 4500, grenadeKind: "gravity",   amount: 2 },
   },
 
   // === PRE-BUILT FÄLT-MURAR === (inga — spelaren bygger allt i fältet)

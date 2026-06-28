@@ -177,12 +177,13 @@ wss.on('connection', (ws, req) => {
   console.log('[CONN]', ws.id, 'connected from', req && req.headers ? (req.headers['x-forwarded-for'] || req.socket.remoteAddress) : '?');
 
   // Heartbeat: vilken meddelande/pong som helst rÃ¤knas som "alive".
-  ws.on('pong', () => { ws.isAlive = true; ws._missedPings = 0; ws._lastSeenAt = Date.now(); });
+  ws.on('pong', () => { ws.isAlive = true; ws._missedPings = 0; ws._lastSeenAt = Date.now(); ws._isBackgrounded = false; });
 
   ws.on('message', (raw, isBinary) => {
     ws.isAlive = true;
     ws._missedPings = 0;
     ws._lastSeenAt = Date.now();
+    ws._isBackgrounded = false;   // #br-bg: ev. meddelande = appen ar i forgrund (client_bg satter den ater i handleMessage)
     if (isBinary) {
       try { handleBinaryMessage(ws, raw); } catch (e) { console.error('bin-error:', e.message); }
       return;
@@ -249,7 +250,7 @@ setInterval(() => {
     const _ps = ws.playerState;
     if (_ps && _ps.hp > 0 && ws._reconnectToken) {
       const _silentMs = Date.now() - (ws._lastSeenAt || ws._connectedAt || Date.now());
-      if (_silentMs > 2500) {
+      if (_silentMs > 2500 || ws._isBackgrounded) {   // #br-bg: skydda kroppen DIREKT vid app-bakgrund (ej vanta 2.5s)
         const _s = room.sim;
         const _isPvP = !!(_s.tdmActive || _s.ctfActive || _s.siegeActive || _s.gungameActive ||
                           _s.kothActive || _s.juggernautActive || _s.battleroyaleActive);
@@ -1191,6 +1192,22 @@ function handleMessage(ws, msg) {
     handleDisconnect(ws);
     return;
   }
+
+  if (msg.type === 'client_bg') {
+    // #br-bg: appen bakgrundades -> skydda kroppen OMEDELBART (annars hinner en snabb
+    // app-vaxling <2.5s skjuta/downa spelaren i PvP innan disconnect-grace:n vaknar).
+    const _ps = ws.playerState;
+    if (_ps && _ps.hp > 0) {
+      const _r = rooms.get(ws.roomCode);
+      const _s = _r && _r.sim ? _r.sim : null;
+      const _isPvP = _s && !!(_s.tdmActive || _s.ctfActive || _s.siegeActive || _s.gungameActive ||
+                              _s.kothActive || _s.juggernautActive || _s.battleroyaleActive);
+      _ps.invulnUntil = Date.now() + (_isPvP ? 1500 : 3000);
+      ws._isBackgrounded = true;   // RTT-loopen fortsatter refresha (PvP cappat ~10s)
+    }
+    return;
+  }
+  if (msg.type === 'client_fg') { ws._isBackgrounded = false; return; }
 
   // â”€â”€ SERVER-AUTHORITATIVE SIM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Phase 1: opt-in via 'sim_start' frÃ¥n host. Server tar Ã¶ver enemy-AI.
