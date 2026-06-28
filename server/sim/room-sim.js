@@ -179,6 +179,7 @@ function createSim(room) {
     battleroyaleEliminated: [],     // pids i ordning av elimination (för stats)
     battleroyaleRanks: {},          // pid → placering (1 = winner, N = först-eliminerad)
     _brZoneDmgTick: 0,              // ackumulator för outside-dmg-broadcasts
+    _brPendingElim: {},            // #br-30s: pid -> disconnect-ts (uppskjuten elimination 30s)
     _brBroadcastTick: 0,
     _brLootIdCounter: 0,
     // BR ekonomi/armor-meta (Warzone-style) — v1.739
@@ -4320,6 +4321,20 @@ function tickCastleDefense(sim, dt, now) {
 
 function tickBattleRoyale(sim, dt, now) {
   const nowMs = Date.now();
+  // #br-30s: uppskjuten elimination — en frankopplad BR-spelare har 30s pa sig att ateransluta
+  // innan de elimineras (annars spectator). Svep _brPendingElim varje tick.
+  if (sim._brPendingElim) {
+    for (const _pp in sim._brPendingElim) {
+      if (nowMs - sim._brPendingElim[_pp] >= 30000) {
+        if (sim.battleroyaleEliminated && !sim.battleroyaleEliminated.includes(_pp)) {
+          sim.battleroyaleRanks[_pp] = sim.battleroyaleAliveCount;
+          sim.battleroyaleEliminated.push(_pp);
+          sim.battleroyaleAliveCount = Math.max(0, (sim.battleroyaleAliveCount || 0) - 1);
+        }
+        delete sim._brPendingElim[_pp];
+      }
+    }
+  }
   const arena = BATTLEROYALE_ARENA;
 
   // Match-end? Skip game-logic men fortsätt broadcasta för spec-mode.

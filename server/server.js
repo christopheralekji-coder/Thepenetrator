@@ -254,7 +254,8 @@ setInterval(() => {
         const _s = room.sim;
         const _isPvP = !!(_s.tdmActive || _s.ctfActive || _s.siegeActive || _s.gungameActive ||
                           _s.kothActive || _s.juggernautActive || _s.battleroyaleActive);
-        if (!_isPvP || _silentMs < 10000) _ps.invulnUntil = Date.now() + 1500;
+        const _graceMs = (_s && _s.battleroyaleActive) ? 30000 : 10000;   // #br-30s: BR-kropp skyddad 30s
+        if (!_isPvP || _silentMs < _graceMs) _ps.invulnUntil = Date.now() + 1500;
       }
     }
   }
@@ -463,6 +464,15 @@ function handleMessage(ws, msg) {
           if (ghostWs._heistRole) { ws._heistRole = ghostWs._heistRole; ws._heistRoleLocked = ghostWs._heistRoleLocked; }
           if (room.sim) {
             const _s = room.sim;
+            // #br-30s: BR -> kopiera cash/kills/deaths/pending/vapen ghost->nytt id INNAN delete-loopen.
+            if (_s.battleroyaleActive) {
+              for (const _bm of ['battleroyaleKillsByPid', 'tdmDeathsByPid', 'brCash']) {
+                if (_s[_bm] && _s[_bm][ghostPid] !== undefined && _s[_bm][ws.id] === undefined) _s[_bm][ws.id] = _s[_bm][ghostPid];
+              }
+              if (_s._brPendingElim) { delete _s._brPendingElim[ghostPid]; delete _s._brPendingElim[ws.id]; }
+              if (ghostWs._brOwnedWeapons instanceof Set) ws._brOwnedWeapons = ghostWs._brOwnedWeapons;
+              if (ghostWs.playerState && (ghostWs.playerState.hp || 0) > 0) ws._brReconnect = true;
+            }
             for (const m of ['deadBodies', 'kothScores', '_kothPointAccum', 'juggernautScores', 'juggernautKillsByPid', 'juggernautDmgToJug', 'battleroyaleKillsByPid', 'tdmKillsByPid', 'tdmDeathsByPid', 'ctfKillsByPid', 'ctfCapturesByPid', 'siegeKillsByPid', 'gungameTiers', 'gungameKillsByPid']) {
               if (_s[m] && _s[m][ghostPid] !== undefined) delete _s[m][ghostPid];
             }
@@ -562,6 +572,17 @@ function handleMessage(ws, msg) {
             if (_sr[m] && _sr[m][stash.pid] !== undefined && _sr[m][ws.id] === undefined) { _sr[m][ws.id] = _sr[m][stash.pid]; delete _sr[m][stash.pid]; }
           }
           ws._cdReconnect = true;
+        }
+        // #br-30s: BR-reconnect <30s -> aterstall living run (cash/kills/vapen) + flagga sa BR-join-blocket
+        // INTE clobbrar till spectator. >30s -> faller igenom till spectator.
+        if (room.sim && room.sim.battleroyaleActive && stash.pstate && (stash.pstate.hp || 0) > 0 && (Date.now() - (stash.ts || 0)) < 30000) {
+          const _sb = room.sim;
+          if (stash.brCash != null) { _sb.brCash = _sb.brCash || {}; _sb.brCash[ws.id] = stash.brCash; }
+          if (stash.brKills != null) { _sb.battleroyaleKillsByPid = _sb.battleroyaleKillsByPid || {}; _sb.battleroyaleKillsByPid[ws.id] = stash.brKills; }
+          if (stash.brDeaths != null) { _sb.tdmDeathsByPid = _sb.tdmDeathsByPid || {}; _sb.tdmDeathsByPid[ws.id] = stash.brDeaths; }
+          if (Array.isArray(stash.brOwnedWeapons)) ws._brOwnedWeapons = new Set(stash.brOwnedWeapons);
+          if (_sb._brPendingElim) { delete _sb._brPendingElim[stash.pid]; delete _sb._brPendingElim[ws.id]; }
+          ws._brReconnect = true;
         }
         if (room.sim && stash.heistRole) { room.sim.heistRoles = room.sim.heistRoles || {}; room.sim.heistRoles[ws.id] = stash.heistRole; }
         // #wifi: atervandande HOST (stash.pid === hostId) -> ge tillbaka slot 0 + host-rollen
@@ -939,26 +960,32 @@ function handleMessage(ws, msg) {
         room.sim.brCash[ws.id] = room.sim._brStartCash;
         room.sim.battleroyaleAliveCount = (room.sim.battleroyaleAliveCount || 0) + 1;
       } else if (!ws.isSpectator) {
-        ws.playerState = {
-          x: BATTLEROYALE_ARENA.worldW / 2,
-          y: BATTLEROYALE_ARENA.worldH / 2,
-          hp: 0, // dead = spectator frÃ¥n start
-          maxHp: BATTLEROYALE_ARENA.maxHp,
-          shield: 0,
-          maxShield: BATTLEROYALE_ARENA.maxShield,
-          invulnUntil: 0,
-          weaponId: BATTLEROYALE_ARENA.startWeapon,
-          isJug: false, scaleMul: 1.0, speedMul: 1.0, dashCdMs: null,
-        };
-        ws.tdmTeam = null;
-        ws.tdmRespawnAt = 0;
-        // Markera som already-eliminated sÃ¥ de inte rÃ¤knas i alive-count + ger placement-999
-        if (!room.sim.battleroyaleEliminated.includes(ws.id)) {
-          room.sim.battleroyaleEliminated.push(ws.id);
-          room.sim.battleroyaleRanks[ws.id] = 999; // late = ranking N/A
+        if (room.sim && room.sim.battleroyaleActive && ws._brReconnect && ws.playerState && (ws.playerState.hp || 0) > 0 &&
+            (!room.sim.battleroyaleEliminated || !room.sim.battleroyaleEliminated.includes(ws.id))) {
+          // #br-30s: RECONNECT <30s -> BEHALL den restorerade levande BR-runden (cash/kills/vapen redan satta).
+          ws._brReconnect = false;
+          if (room.sim._brPendingElim && room.sim._brPendingElim[ws.id] != null) delete room.sim._brPendingElim[ws.id];
+        } else {
+          ws.playerState = {
+            x: BATTLEROYALE_ARENA.worldW / 2,
+            y: BATTLEROYALE_ARENA.worldH / 2,
+            hp: 0,
+            maxHp: BATTLEROYALE_ARENA.maxHp,
+            shield: 0,
+            maxShield: BATTLEROYALE_ARENA.maxShield,
+            invulnUntil: 0,
+            weaponId: BATTLEROYALE_ARENA.startWeapon,
+            isJug: false, scaleMul: 1.0, speedMul: 1.0, dashCdMs: null,
+          };
+          ws.tdmTeam = null;
+          ws.tdmRespawnAt = 0;
+          if (!room.sim.battleroyaleEliminated.includes(ws.id)) {
+            room.sim.battleroyaleEliminated.push(ws.id);
+            room.sim.battleroyaleRanks[ws.id] = 999;
+          }
+          room.sim.battleroyaleKillsByPid[ws.id] = 0;
+          room.sim.tdmDeathsByPid[ws.id] = 0;
         }
-        room.sim.battleroyaleKillsByPid[ws.id] = 0;
-        room.sim.tdmDeathsByPid[ws.id] = 0;
       }
       const lateBrEvents = [{
         type: 'br_started',
@@ -2351,6 +2378,10 @@ function handleDisconnect(ws) {
       pid: ws.id, weaponId: ps.weaponId,   // CD: aterstall identitet + vapen vid reconnect (terminerad ghost)
       pstate: ws.playerState,   // #wifi: HELA playerState (x/y/aim/maxShield...) sa HOST (utan ghost)
                                 // ateransluter DAR den DC:ade + behaller exakt state, ej (0,0)+startvapen
+      brCash: (room.sim.brCash && room.sim.brCash[ws.id]) || 0,
+      brKills: (room.sim.battleroyaleKillsByPid && room.sim.battleroyaleKillsByPid[ws.id]) || 0,
+      brDeaths: (room.sim.tdmDeathsByPid && room.sim.tdmDeathsByPid[ws.id]) || 0,
+      brOwnedWeapons: (ws._brOwnedWeapons instanceof Set) ? Array.from(ws._brOwnedWeapons) : null,
       ts: Date.now(),
     };
   }
@@ -2388,8 +2419,9 @@ function handleDisconnect(ws) {
         // v1.698: dekrementera aliveCount om en LEVANDE BR-spelare lÃ¤mnar â€” annars
         // triggas last_alive-win aldrig (matchen hÃ¤nger till 30s-fallbacken).
         if (_s.battleroyaleActive && _s.battleroyaleEliminated && !_s.battleroyaleEliminated.includes(_pid)) {
-          _s.battleroyaleEliminated.push(_pid);
-          if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1);
+          // #br-30s: elimera INTE direkt — ge 30s reconnect-fonster (svep i tickBattleRoyale) om token finns.
+          if (ws._reconnectToken) { _s._brPendingElim = _s._brPendingElim || {}; _s._brPendingElim[_pid] = Date.now(); }
+          else { _s.battleroyaleEliminated.push(_pid); if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1); }
         }
         // C229: Om host var JUG, transferera direkt till en levande human (ej vänta på respawn).
         if (_s.juggernautActive && _s.juggernautPid === ws.id) {
@@ -2457,8 +2489,9 @@ function handleDisconnect(ws) {
       // v1.698: dekrementera aliveCount om en LEVANDE BR-spelare lÃ¤mnar â€” annars
       // triggas last_alive-win aldrig (matchen hÃ¤nger till 30s-fallbacken).
       if (_s.battleroyaleActive && _s.battleroyaleEliminated && !_s.battleroyaleEliminated.includes(_pid)) {
-        _s.battleroyaleEliminated.push(_pid);
-        if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1);
+        // #br-30s: ge 30s reconnect-fonster fore elimination (svep i tickBattleRoyale) om token finns.
+        if (ws._reconnectToken) { _s._brPendingElim = _s._brPendingElim || {}; _s._brPendingElim[_pid] = Date.now(); }
+        else { _s.battleroyaleEliminated.push(_pid); if (typeof _s.battleroyaleAliveCount === 'number') _s.battleroyaleAliveCount = Math.max(0, _s.battleroyaleAliveCount - 1); }
       }
     }
     // C229: JUGGERNAUT — om JUG disconnectade, transferera direkt till en levande
