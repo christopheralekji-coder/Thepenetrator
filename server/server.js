@@ -538,6 +538,9 @@ function handleMessage(ws, msg) {
       }
       const stash = room._reconnectStash && room._reconnectStash[ws._reconnectToken];
       if (stash && Date.now() - stash.ts < RECONNECT_STASH_TTL_MS) {
+        // #wifi: HOST (ingen ghost-transfer) -> ta HELA stashade playerState sa position +
+        // vapen + hp aterstalls exakt (annars (0,0)-spawn uppe-vanster + startvapen + fel hp).
+        if (stash.pstate && !ws.playerState) ws.playerState = stash.pstate;
         ws._heistRole = stash.heistRole;
         ws._heistRoleLocked = stash.heistRoleLocked;
         if (!ws.playerState) ws.playerState = {};
@@ -2329,6 +2332,8 @@ function handleDisconnect(ws) {
       heistRole: ws._heistRole, heistRoleLocked: ws._heistRoleLocked,
       hp: ps.hp, maxHp: ps.maxHp, shield: ps.shield, speedMul: ps.speedMul,
       pid: ws.id, weaponId: ps.weaponId,   // CD: aterstall identitet + vapen vid reconnect (terminerad ghost)
+      pstate: ws.playerState,   // #wifi: HELA playerState (x/y/aim/maxShield...) sa HOST (utan ghost)
+                                // ateransluter DAR den DC:ade + behaller exakt state, ej (0,0)+startvapen
       ts: Date.now(),
     };
   }

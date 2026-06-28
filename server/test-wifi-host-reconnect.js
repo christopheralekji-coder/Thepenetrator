@@ -43,6 +43,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   ok('sim_started (room.sim finns nu → stash skapas vid drop)');
   await sleep(300); // några tick → playerState finns
 
+  // 2b) flytta spelaren till en TYDLIG position (co-op = klient-auktoritär pos)
+  const PX = 1234, PY = 888;
+  for (let i = 0; i < 5; i++) {
+    a.send(JSON.stringify({ type: 'sim_input', x: PX, y: PY, hp: 100, aim: 1.5, weaponId: 'rifle', seq: i }));
+    await sleep(40);
+  }
+  ok('spelaren flyttad till (' + PX + ',' + PY + ')');
+
   // 3) DROPP: stäng socketen abrupt (wifi-bortkoppling)
   a.terminate();
   log('host-socket terminerad (simulerad wifi-dropp)…');
@@ -70,10 +78,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   if (Number(jm.stableSlot) !== 0) fail('slot ej 0 vid host-rejoin: stableSlot=' + jm.stableSlot);
   ok('slot 0 återställd');
 
-  // 6) sanity: simen ska fortfarande köra (world-paket kommer)
-  const world = await onMsg(b, 'world', 4000).catch(() => null);
-  if (!world) log('  (varning) inget world-paket inom 4s — simen kan ha pausats, ej blockerande');
-  else ok('world-paket mottaget → matchen fortsätter');
+  // 6) POSITION + VAPEN: world-paketet ska visa spelaren DÄR den DC:ade, ej (0,0)
+  let world = null;
+  for (let i = 0; i < 6 && !world; i++) {
+    const w = await onMsg(b, 'world', 2000).catch(() => null);
+    if (w && Array.isArray(w.players) && w.players.some((p) => Number(p.c) === 0)) world = w;
+  }
+  if (!world) fail('inget world-paket med spelaren (slot 0) → matchen återupptas inte');
+  ok('world-paket mottaget → matchen fortsätter');
+  const me = world.players.find((p) => Number(p.c) === 0);
+  if (Math.abs(Number(me.x) - PX) > 50 || Math.abs(Number(me.y) - PY) > 50) {
+    fail('position EJ återställd: rejoin på (' + me.x + ',' + me.y + ') men DC:ade på (' + PX + ',' + PY + ')');
+  }
+  ok('position återställd (' + me.x + ',' + me.y + ') ≈ DC-position — INTE (0,0) uppe-vänster');
 
   console.log('\n═══════════════════════════════════════');
   console.log('  WIFI HOST-RECONNECT test PASSED');
