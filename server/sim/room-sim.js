@@ -231,7 +231,7 @@ function createSim(room) {
 }
 
 const CTF_FLAG_AUTORETURN_MS = 30000;
-const CTF_CARRIER_SPEED_MUL = 0.75; // -25% speed för flag-carrier
+const CTF_CARRIER_SPEED_MUL = 0.80; // -25% speed för flag-carrier
 
 function tickSim(sim) {
   const now = Date.now();
