@@ -380,6 +380,10 @@ function handleMessage(ws, msg) {
     ws.playerName = hostName;
     // Host Ã¤r alltid slot 0
     ws.stableSlot = 0;
+    // #wifi: host:en behover OCKSA en reconnect-token sa en stash skapas vid disconnect ->
+    // rummet (+ stashen) overlever sista-manniskan-droppen -> auto-rejoin hittar rummet
+    // (annars "Rummet finns inte"). Solo-spel = host -> utan detta var hela reconnecten dod.
+    if (msg.reconnectToken) ws._reconnectToken = String(msg.reconnectToken).slice(0, 40);
     send(ws, { type: 'hosted', code, peerId: ws.id });
     console.log('[ROOM]', code, 'created by', ws.id, 'name="' + hostName + '" mode=' + mode + (isPrivate ? ' [PRIVATE]' : ''));
     broadcastPublicRooms();
@@ -556,6 +560,16 @@ function handleMessage(ws, msg) {
           ws._cdReconnect = true;
         }
         if (room.sim && stash.heistRole) { room.sim.heistRoles = room.sim.heistRoles || {}; room.sim.heistRoles[ws.id] = stash.heistRole; }
+        // #wifi: atervandande HOST (stash.pid === hostId) -> ge tillbaka slot 0 + host-rollen
+        // sa room.hostId pekar pa en LEVANDE ws igen (annars stale dod hostId -> host-only-
+        // kommandon vagras + klientens kvar-true is_host stamde inte med servern).
+        if (stash.pid && stash.pid === room.hostId && ws.id !== room.hostId) {
+          if (ws.stableSlot > 0 && room._freeSlots) room._freeSlots.push(ws.stableSlot);
+          ws.stableSlot = 0;
+          room.hostId = ws.id;
+          if (room.meta) room.meta.hostName = ws.playerName || room.meta.hostName;
+          console.log('[ROOM]', code, 'host reconnected', stash.pid, '->', ws.id, '(slot 0 + host-roll aterstalld)');
+        }
         delete room._reconnectStash[ws._reconnectToken];
         console.log('[ROOM]', code, ws.id, 'reconnect-restored role=' + (stash.heistRole || '-') + ' hp=' + (stash.hp != null ? Math.round(stash.hp) : '-'));
       }
