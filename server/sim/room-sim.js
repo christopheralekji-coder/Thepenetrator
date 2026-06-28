@@ -4596,8 +4596,8 @@ function tickBattleRoyale(sim, dt, now) {
 // Klienten ritar buss/freefall/fallskärm; servern äger "vem är fortfarande i luften"
 // + en hård deadline, hoppar all combat (callern hoppar combat-ticken), forcerar ner
 // stragglers/disconnects, och vid sista landningen flippar sim.brPredrop=false.
-const BR_FREEFALL_MS = 3500;   // freefall innan fallskärm auto-deployar
-const BR_CHUTE_MS = 6000;      // fallskärms-glid innan landning (LÄNGRE: ~9.5s luft efter hopp; klientens SKYDIVE_DESCENT_SEC speglar = 9.5)
+const BR_FREEFALL_MS = 4500;   // freefall innan fallskärm auto-deployar
+const BR_CHUTE_MS = 5000;      // fallskärms-glid innan landning (LÄNGRE: ~9.5s luft efter hopp; klientens SKYDIVE_DESCENT_SEC speglar = 9.5)
 
 function tickBrPredrop(sim, dt, nowMs) {
   const bus = sim.brBus;
