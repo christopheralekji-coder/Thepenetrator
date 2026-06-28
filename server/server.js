@@ -2255,6 +2255,36 @@ function handleMessage(ws, msg) {
   }
 }
 
+// #wifi (2026-06-28): nar SISTA manniskan tappar kopplingen mid-match (t.ex. wifi-blipp)
+// slangde servern HELA rummet -> reconnect-stashen (som ligger PA rummet) slangdes med ->
+// auto-rejoin ett par sekunder senare mottes av "Rummet finns inte" -> hard menu-kick. Hall
+// istallet rummet + stashen vid liv en bounded stund sa rejoin kan aterstalla somlost.
+const HUMANLESS_ROOM_GRACE_MS = 60000;
+function roomHasLiveReconnectStash(room) {
+  if (!room || !room._reconnectStash) return false;
+  const now = Date.now();
+  for (const k in room._reconnectStash) {
+    const s = room._reconnectStash[k];
+    if (s && (now - (s.ts || 0)) < RECONNECT_STASH_TTL_MS) return true;
+  }
+  return false;
+}
+function scheduleHumanlessRoomCleanup(room) {
+  if (!room || room._humanlessTimer) return;
+  room._humanlessTimer = setTimeout(() => {
+    room._humanlessTimer = null;
+    if (!rooms.has(room.code)) return;
+    let real = 0;
+    for (const [, m] of room.members) { if (!m._isBot) real++; }
+    if (real === 0) {
+      if (room.sim) stopSim(room.sim);
+      rooms.delete(room.code);
+      broadcastPublicRooms();
+      console.log('[ROOM]', room.code, 'closed (humanless reconnect-grace expired)');
+    }
+  }, HUMANLESS_ROOM_GRACE_MS);
+}
+
 function handleDisconnect(ws) {
   // v2 konto: offline/presence-push till vÃ¤nner (no-op utan acct_login).
   // Skiljer sjÃ¤lv pÃ¥ riktig disconnect vs 'leave'/kick via ws.readyState.
@@ -2346,6 +2376,14 @@ function handleDisconnect(ws) {
       return;
     }
     // Ingen human kvar â€” stÃ¤ng rummet (befintligt beteende).
+    // #wifi: sista manniskan (host) tappade kopplingen — har den en farsk reconnect-stash,
+    // hall rummet + sim:en vid liv for grace-fonstret sa auto-rejoin kan aterstalla.
+    if (roomHasLiveReconnectStash(room)) {
+      console.log('[ROOM]', room.code, 'host-drop — haller rummet for reconnect-grace');
+      scheduleHumanlessRoomCleanup(room);
+      broadcastPublicRooms();
+      return;
+    }
     console.log('[ROOM]', room.code, 'closed (host left, no members)');
     if (room.sim) stopSim(room.sim);
     for (const m of room.members.values()) {
@@ -2408,8 +2446,13 @@ function handleDisconnect(ws) {
     let realCount = 0;
     for (const [, m] of room.members) { if (!m._isBot) realCount++; }
     if (realCount === 0) {
-      if (room.sim) stopSim(room.sim);
-      rooms.delete(room.code);
+      // #wifi: behall rummet + stashen om sista manniskan just tappade kopplingen (rejoin-grace)
+      if (roomHasLiveReconnectStash(room)) {
+        scheduleHumanlessRoomCleanup(room);
+      } else {
+        if (room.sim) stopSim(room.sim);
+        rooms.delete(room.code);
+      }
     }
   }
   broadcastPublicRooms();
