@@ -9689,6 +9689,10 @@ function applyCastleDefenseGate(sim, peerId, msg) {
   if (!b) return;
   const px = ws.playerState.x, py = ws.playerState.y, tol = 45;
   if (px < b.x - tol || px > b.x + b.w + tol || py < b.y - tol || py > b.y + b.h + tol) return;
+  // anti dubbel-fyr (iOS emul-mus / snabb dubbel-tap toggle:ar open->close = ingen effekt)
+  const _ntg = Date.now();
+  if (b._lastGateToggle && _ntg - b._lastGateToggle < 250) return;
+  b._lastGateToggle = _ntg;
   b.open = !b.open;
   sim._cdFlowDirty = true;
   sim.eventQueue.push({ type: 'cd_gate_toggled', id: b.id, open: b.open });
