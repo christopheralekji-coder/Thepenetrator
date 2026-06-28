@@ -1022,7 +1022,9 @@ function handleMessage(ws, msg) {
         bus: room.sim.brBus ? { startX: room.sim.brBus.startX, startY: room.sim.brBus.startY, endX: room.sim.brBus.endX, endY: room.sim.brBus.endY, startAt: room.sim.brBus.startAt, durMs: room.sim.brBus.durMs } : null,
         serverNow: Date.now(),
         worldW: BATTLEROYALE_ARENA.worldW, worldH: BATTLEROYALE_ARENA.worldH,
-        isSpectator: !room.sim.brPredrop, // klient ska direkt gÃ¥ in i spec-cam
+        isSpectator: !room.sim.brPredrop && !(ws.playerState && (ws.playerState.hp || 0) > 0),
+        isReconnect: !room.sim.brPredrop && !!(ws.playerState && (ws.playerState.hp || 0) > 0),
+        ownedWeapons: (!room.sim.brPredrop && (ws._brOwnedWeapons instanceof Set) && ws.playerState && (ws.playerState.hp || 0) > 0) ? Array.from(ws._brOwnedWeapons) : null, // klient ska direkt gÃ¥ in i spec-cam
       }];
       if (room.sim._botIds && room.sim._botIds.length) {
         const memberList = [...room.members.keys()];
@@ -1039,6 +1041,19 @@ function handleMessage(ws, msg) {
         }
       }
       send(ws, { type: 'sim_events', events: lateBrEvents });
+      // #br-reconnect: levande reconnect -> klientens HUD nollas av br_started. Skicka
+      // full ackumulerad state sa cash/vaska/perks/maxstat aterstalls (ej bara vapen).
+      if (!room.sim.brPredrop && ws.playerState && (ws.playerState.hp || 0) > 0) {
+        const _ps = ws.playerState;
+        const _rs = [
+          { type: 'br_cash_update', peerId: ws.id, cash: (room.sim.brCash && room.sim.brCash[ws.id]) || 0 },
+          { type: 'br_maxstat', peerId: ws.id, maxHp: _ps.maxHp || 100, maxShield: _ps.maxShield || 200, hp: _ps.hp, shield: _ps.shield || 0 },
+        ];
+        if (_ps.brPerkLevels) { for (const _pk in _ps.brPerkLevels) { if (_ps.brPerkLevels[_pk] > 0) _rs.push({ type: 'br_perk_level', peerId: ws.id, perk: _pk, level: _ps.brPerkLevels[_pk] }); } }
+        const _items = [['self_revive','selfReviveKits'],['airstrike','airstrikes'],['uav','uavCount'],['medkit','medkits'],['shieldkit','shieldkits'],['adrenaline','adrenalines']];
+        for (const _it of _items) { const _c = _ps[_it[1]] || 0; if (_c > 0) _rs.push({ type: 'br_item_count', peerId: ws.id, item: _it[0], count: _c }); }
+        send(ws, { type: 'sim_events', events: _rs });
+      }
       return;
     }
 
