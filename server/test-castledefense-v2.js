@@ -102,8 +102,10 @@ function step(sim) { sim.simReadyAt = 0; sim.lastTick = Date.now() - 50; tickSim
   applyCastleDefenseNpcUpgrade(sim, 'p0', { npc: 'throne' });
   assert(sim.castledefenseNpcs.throne.level === 1 && sim.castledefenseCore.maxHp > maxHp0, 'throne lvl1 raises castle maxHp (' + maxHp0 + '->' + sim.castledefenseCore.maxHp + ')');
   const h = A.castleNpcs.heal_npc; p0.playerState.x = h.x; p0.playerState.y = h.y;
-  applyCastleDefenseNpcUpgrade(sim, 'p0', { npc: 'heal_npc', max: true });
-  assert(sim.castledefenseNpcs.heal_npc.level === A.maxBuildLevel, 'heal_npc maxed');
+  sim.castledefenseGold['p0'] = 1e9;   // tva healvagar att maxa
+  applyCastleDefenseNpcUpgrade(sim, 'p0', { npc: 'heal_npc', path: 'hp', max: true });
+  applyCastleDefenseNpcUpgrade(sim, 'p0', { npc: 'heal_npc', path: 'shield', max: true });
+  assert(sim.castledefenseNpcs.heal_npc.levelHp === A.maxBuildLevel && sim.castledefenseNpcs.heal_npc.levelShield === A.maxBuildLevel, 'heal_npc both paths maxed');
   console.log('[OK] throne raises castle HP + heal-NPC upgrade');
 }
 

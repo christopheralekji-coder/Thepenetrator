@@ -2760,8 +2760,10 @@ function updateCastleNpcs(sim, dt, nowMs) {
     if (mws.playerState && mws.playerState.hp > 0 && !mws.playerState.cdDowned && cdFlags(sim, mpid).medic) { medicMul = 1.5; break; }
   }
   const hn = npcs.heal_npc;
-  if (hn && hn.level > 0) {
-    const rate = hn.level * ups.heal_npc.healPerSecPerLvl * medicMul;
+  // #heal-tower: TVA oberoende healvagar — levelHp helar HP, levelShield helar SHIELD.
+  // Bada healar lika mycket per level (samma healPerSecPerLvl) + kan hojas separat.
+  if (hn && (hn.levelHp || 0) > 0) {
+    const rate = hn.levelHp * ups.heal_npc.healPerSecPerLvl * medicMul;
     const rad = ups.heal_npc.radius || 230, r2 = rad * rad;
     for (const [, ws] of sim.room.members) {
       const ps = ws.playerState;
@@ -2770,6 +2772,19 @@ function updateCastleNpcs(sim, dt, nowMs) {
       const dx = ps.x - hn.x, dy = ps.y - hn.y;
       if (dx * dx + dy * dy > r2) continue;
       ps.hp = Math.min(ps.maxHp || 100, ps.hp + rate * dt);
+    }
+  }
+  if (hn && (hn.levelShield || 0) > 0) {
+    const rate = hn.levelShield * ups.heal_npc.healPerSecPerLvl * medicMul;
+    const rad = ups.heal_npc.radius || 230, r2 = rad * rad;
+    for (const [, ws] of sim.room.members) {
+      const ps = ws.playerState;
+      if (!ps || ps.hp <= 0 || ps.cdDowned) continue;
+      const _msh = ps.maxShield || 100;
+      if ((ps.shield || 0) >= _msh) continue;
+      const dx = ps.x - hn.x, dy = ps.y - hn.y;
+      if (dx * dx + dy * dy > r2) continue;
+      ps.shield = Math.min(_msh, (ps.shield || 0) + rate * dt);
     }
   }
   const rn = npcs.repair_npc, core = sim.castledefenseCore;
@@ -4073,8 +4088,9 @@ function tickCastleDefense(sim, dt, now) {
   if (sim.enemies.some(e => e.dead)) {
     for (const e of sim.enemies) {
       if (!e.dead) continue;
-      // Drop pickup (gold etc.) — använd standard pipeline
-      dropFromEnemyDeath(sim, e);
+      // Drop pickup — bara SURVIVORS droppar hp/shield-mark-pickups; CD ger guld via
+      // cd_gold_update-events (inga mark-droppar, pa anvandarens begaran).
+      if (sim.survivorsActive) dropFromEnemyDeath(sim, e);
       // v1.401: Boss-kill = weapon upgrade för ALLA levande spelare
       // v1.526: Hoppa över i survivors-mode (perk-progression sker via perk-val,
       // inte boss-kills). Iteration 3 implementerar perk-selection.
@@ -8218,7 +8234,7 @@ function startSim(sim, opts) {
     sim.castledefenseSlots = (arena.battlementSlots || []).map(s => ({ id: s.id, x: s.x, y: s.y, towerId: null }));
     sim.castledefenseNpcs = {
       throne:     { level: 0, x: arena.castleNpcs.throne.x,     y: arena.castleNpcs.throne.y },
-      heal_npc:   { level: 0, x: arena.castleNpcs.heal_npc.x,   y: arena.castleNpcs.heal_npc.y },
+      heal_npc:   { levelHp: 0, levelShield: 0, x: arena.castleNpcs.heal_npc.x,   y: arena.castleNpcs.heal_npc.y },
       repair_npc: { level: 0, x: arena.castleNpcs.repair_npc.x, y: arena.castleNpcs.repair_npc.y },
     };
     sim.castledefenseGoal = arena.enemyGoal ? { ...arena.enemyGoal } : { x: arena.core.x, y: arena.core.y };
@@ -9699,6 +9715,7 @@ function applyCastleDefenseNpcUpgrade(sim, peerId, msg) {
   const ws = sim.room.members.get(peerId);
   if (!ws || !ws.playerState || ws.playerState.hp <= 0) return;
   const which = msg && msg.npc;
+  const path = (msg && msg.path === 'shield') ? 'shield' : 'hp';   // #heal-tower (default hp)
   const npcs = sim.castledefenseNpcs;
   if (!npcs || !npcs[which]) return;
   const npc = npcs[which];
@@ -9710,14 +9727,16 @@ function applyCastleDefenseNpcUpgrade(sim, peerId, msg) {
   const wantMax = !!(msg && msg.max);
   const diff = cdGetDifficultyPriceMul(sim.config.difficulty);
   const builderMul = Math.max(0, 1 - 0.15 * (cdFlags(sim, peerId).builder || 0));   // v3: arch_cost
+  // #heal-tower: heal_npc har tva levlar (levelHp/levelShield); ovriga NPC:er en (level).
+  const lk = (which === 'heal_npc') ? (path === 'shield' ? 'levelShield' : 'levelHp') : 'level';
   let did = 0;
   do {
-    if (npc.level >= maxLevel) { if (did === 0) sim.eventQueue.push({ type: 'cd_npc_upgrade_failed', peerId, npc: which, reason: 'max_level' }); break; }
-    const cost = Math.max(1, Math.round(cfg.baseCost * Math.pow(npc.level + 1, cfg.costExp || 1.2) * builderMul * diff));
+    if ((npc[lk] || 0) >= maxLevel) { if (did === 0) sim.eventQueue.push({ type: 'cd_npc_upgrade_failed', peerId, npc: which, reason: 'max_level' }); break; }
+    const cost = Math.max(1, Math.round(cfg.baseCost * Math.pow((npc[lk] || 0) + 1, cfg.costExp || 1.2) * builderMul * diff));
     const gold = sim.castledefenseGold[peerId] || 0;
     if (gold < cost) { if (did === 0) sim.eventQueue.push({ type: 'cd_npc_upgrade_failed', peerId, npc: which, reason: 'insufficient_gold', cost }); break; }
     sim.castledefenseGold[peerId] = gold - cost;
-    npc.level += 1;
+    npc[lk] = (npc[lk] || 0) + 1;
     did++;
     if (which === 'throne' && sim.castledefenseCore) {
       const core = sim.castledefenseCore, add = cfg.hpPerLvl || 1500;
@@ -9725,7 +9744,7 @@ function applyCastleDefenseNpcUpgrade(sim, peerId, msg) {
       core.hp = Math.min(core.maxHp, core.hp + add);
       sim.eventQueue.push({ type: 'cd_core_damaged', hp: core.hp, maxHp: core.maxHp });
     }
-    sim.eventQueue.push({ type: 'cd_npc_upgraded', npc: which, level: npc.level, peerId, cost });
+    sim.eventQueue.push({ type: 'cd_npc_upgraded', npc: which, level: npc[lk], path: path, peerId, cost });
     sim.eventQueue.push({ type: 'cd_gold_update', peerId, gold: sim.castledefenseGold[peerId], delta: -cost });
   } while (wantMax);
 }
