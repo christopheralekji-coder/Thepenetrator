@@ -2506,6 +2506,30 @@ function postProcessArena(arena) {
     w.w = sf.w; w.h = sf.h;
     if (sf.round) w.round = true; else delete w.round;
   }
+  // 1g. NYA GEMINI-PROPS (gravsten/runesten/excavator): storlek + kollision.
+  //     gravsten = STÖRRE, runesten = MINDRE (båda platta top-down-slabs, kollision = foten).
+  //     excavator = full sprite (visualFill) men kollision BARA på HYTTEN (övre delen), ej armen.
+  const _RESIZE = { cemetery_gravestone: { w: 44, h: 60 }, rune_stone: { w: 36, h: 52 } };
+  for (const w of arena.walls) {
+    const rz = _RESIZE[w.kind];
+    if (!rz) continue;
+    const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
+    w.w = rz.w; w.h = rz.h;
+    w.x = Math.round(cx - rz.w / 2); w.y = Math.round(cy - rz.h / 2);
+  }
+  for (const w of arena.walls) {
+    if (w.kind !== 'excavator_wreck') continue;
+    const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
+    const VW = 100, VH = 238;
+    w.visualX = Math.round(cx - VW / 2); w.visualY = Math.round(cy - VH / 2);
+    w.visualW = VW; w.visualH = VH; w.visualFill = true;
+    // hytt-box: övre ~50% av sprajten, ~90% bredd, centrerad (armen nedanför = genomgång)
+    const cw = Math.round(VW * 0.90), ch = Math.round(VH * 0.50);
+    w.w = cw; w.h = ch;
+    w.x = Math.round(cx - cw / 2);
+    w.y = Math.round(w.visualY + VH * 0.03);
+    delete w.round;
+  }
   // 2. Lägg till loot-spawn inuti varje cabin (centrum av bounds).
   //    RANDOM tier (containers använder samma distribution som hus — ingen garanti).
   const centerLoot = arena.lootSpawns.pop();
