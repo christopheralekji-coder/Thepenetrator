@@ -2333,6 +2333,17 @@ preprocessCabinWalls(BATTLEROYALE_ARENA);
 function postProcessArena(arena) {
   if (arena._postProcessed) return;
   arena._postProcessed = true;
+  // 0. Ta bort huset VÄSTER om gravarna (cabin_central_south @ 4200,6800) + dess väggar.
+  const _rmC = (arena.cabins || []).find(c => c.id === 'cabin_central_south');
+  if (_rmC && _rmC.bounds) {
+    const b = _rmC.bounds;
+    arena.cabins = arena.cabins.filter(c => c !== _rmC);
+    arena.walls = arena.walls.filter(w => {
+      if (w.kind !== 'cabin_wall_wood' && w.kind !== 'cabin_window') return true;
+      const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
+      return !(cx > b.x - 6 && cx < b.x + b.w + 6 && cy > b.y - 6 && cy < b.y + b.h + 6);
+    });
+  }
   // 1. Ta bort graffiti + caution_tape + fallen_log + stream + DIRT_PATH
   //    (user gillar inte stigar — de gick ibland under hus)
   arena.decorations = arena.decorations.filter(d => {
@@ -2531,6 +2542,13 @@ function postProcessArena(arena) {
   });
   const _crown = w => (w.visualW != null ? w.visualW : w.w) * (TREE_SCALE[w.kind] || 3.0) * 0.42;
   const _cabB = (arena.cabins || []).map(c => c.bounds).filter(Boolean);
+  // + KYRKAN (utökad norrut) → inga träd sticker upp "som en pinne" bakom taket
+  const _ch = arena.walls.find(w => w.kind === 'church_ruin');
+  if (_ch) {
+    const vx = (_ch.visualX != null ? _ch.visualX : _ch.x), vy = (_ch.visualY != null ? _ch.visualY : _ch.y);
+    const vw = (_ch.visualW != null ? _ch.visualW : _ch.w), vh = (_ch.visualH != null ? _ch.visualH : _ch.h);
+    _cabB.push({ x: vx - 40, y: vy - 340, w: vw + 80, h: vh + 340 });
+  }
   const _keepTree = new Set();
   const _kept = [];
   for (const w of arena.walls) {
