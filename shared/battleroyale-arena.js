@@ -2572,18 +2572,37 @@ function postProcessArena(arena) {
     }
     return true;
   });
-  // 4. GALLRA + SPRID UT TRÄD (deterministiskt, samma karta varje match):
-  //    4a) hash-gallra → behåll 30% (jämnt utspritt, ingen kal fläck/klump)
-  //    4b) ta bort träd som överlappar ett HUS (cabin bounds)
-  //    4c) glesa ut greedy → inga kronor överlappar / står precis bredvid varandra
-  //    Behåller wall-ordningen (z). Klient-JSON synkas till EXAKT detta träd-set.
+  // 4. GALLRA + SPRID UT TRÄD OCH STENAR (deterministiskt, samma karta varje match):
+  //    4a) hash-gallra → träd behåller 30%, STEN behåller 80% (−20% sten, användarkrav)
+  //    4b) ta bort träd/sten som överlappar ett HUS (cabin bounds)
+  //    4c) glesa ut greedy → INGET (träd/sten/prop) överlappar något annat. Träd läggs
+  //        FÖRE sten (träd vinner vid krock → överlappande STEN tas bort, ej trädet).
+  //        Greedy-listan seedas med ALLA stora propers visuella cirklar → träd/sten
+  //        hamnar aldrig ovanpå excavator/fyr/kyrka/gravsten/UFO/brunn/tält m.fl.
+  //    Behåller wall-ordningen (z). Klient-JSON synkas till EXAKT detta set.
   const TREE_KINDS = new Set(['tree_oak', 'tree_pine', 'tree_giant_oak', 'tree_stump']);
-  const TREE_SCALE = { tree_oak: 4.5, tree_pine: 4.0, tree_giant_oak: 3.0, tree_stump: 3.5 };
+  const ROCK_KINDS = new Set(['rock_large', 'rock_small']);
+  const VISUAL_SCALE = { tree_oak: 4.5, tree_pine: 4.0, tree_giant_oak: 3.0, tree_stump: 3.5 };
+  const VISUAL_SCALE_DEF = 3.0;
   const _foot = w => ({
     x: (w.visualX != null ? w.visualX + w.visualW / 2 : w.x + w.w / 2),
     y: (w.visualY != null ? w.visualY + w.visualH / 2 : w.y + w.h / 2),
   });
-  const _crown = w => (w.visualW != null ? w.visualW : w.w) * (TREE_SCALE[w.kind] || 3.0) * 0.42;
+  // Visuell radie = EXAKT klientens render-storlek (Arena.gd _add_wall): visualFill ritas på
+  // sin visual-ruta (skala 1); annars uppskalad med VISUAL_SCALE (träd) / default 3.0 (sten/
+  // sci-fi) om visualW finns, annars rå storlek (skala 1). 0.42 ≈ knappt halva bredden.
+  const _visR = w => {
+    const hasVis = (w.visualW != null);
+    const vw = hasVis ? w.visualW : w.w, vh = hasVis ? w.visualH : w.h;
+    let sc;
+    if (w.visualFill) sc = 1.0;
+    else if (hasVis) sc = (VISUAL_SCALE[w.kind] != null ? VISUAL_SCALE[w.kind] : VISUAL_SCALE_DEF);
+    else sc = 1.0;
+    return Math.max(vw, vh) * sc * 0.42;
+  };
+  // Linjära/genomgångbara walls + cabin-väggar är inga punkt-hinder → ej i avoid-listan.
+  const _SKIP_AVOID = new Set(['cabin_wall_wood', 'cabin_window', 'wooden_fence',
+    'stone_wall', 'stone_wall_low', 'lake_water_block', 'bridge']);
   const _cabB = (arena.cabins || []).map(c => c.bounds).filter(Boolean);
   // + KYRKAN (utökad norrut) → inga träd sticker upp "som en pinne" bakom taket
   const _ch = arena.walls.find(w => w.kind === 'church_ruin');
@@ -2592,30 +2611,47 @@ function postProcessArena(arena) {
     const vw = (_ch.visualW != null ? _ch.visualW : _ch.w), vh = (_ch.visualH != null ? _ch.visualH : _ch.h);
     _cabB.push({ x: vx - 40, y: vy - 340, w: vw + 80, h: vh + 340 });
   }
-  const _keepTree = new Set();
+  // SEED greedy-listan med alla STORA propers visuella cirklar (allt utom träd/sten/linjärt).
   const _kept = [];
   for (const w of arena.walls) {
-    if (!TREE_KINDS.has(w.kind)) continue;
-    const f = _foot(w), r = _crown(w);
-    // 4a hash → 30%
-    const h = (((Math.round(f.x) * 73856093) ^ (Math.round(f.y) * 19349663)) >>> 0) % 1000;
-    if (h >= 300) continue;
-    // 4b hus-överlapp (nedre kronan/foten mot huset)
+    if (TREE_KINDS.has(w.kind) || ROCK_KINDS.has(w.kind) || _SKIP_AVOID.has(w.kind)) continue;
+    const f = _foot(w);
+    _kept.push({ x: f.x, y: f.y, r: _visR(w), rock: false });
+  }
+  // Träd FÖRST (vinner mot sten), sedan sten. Behåller relativ ordning inom varje grupp.
+  const _order = [];
+  for (const w of arena.walls) if (TREE_KINDS.has(w.kind)) _order.push(w);
+  for (const w of arena.walls) if (ROCK_KINDS.has(w.kind)) _order.push(w);
+  const _keep = new Set();
+  for (const w of _order) {
+    const isRock = ROCK_KINDS.has(w.kind);
+    const f = _foot(w), r = _visR(w);
+    // 4a hash → träd 30%, sten 80% (olika salt → gallras oberoende)
+    const salt = isRock ? 0x9e3779b1 : 0;
+    const hsh = (((Math.round(f.x) * 73856093) ^ (Math.round(f.y) * 19349663) ^ salt) >>> 0) % 1000;
+    if (!isRock && hsh >= 300) continue;
+    if (isRock && hsh >= 800) continue;
+    // 4b hus-överlapp (foten mot husets rektangel + radie-buffer)
     let bad = false;
     const hr = r * 0.7;
     for (const b of _cabB) {
       if (f.x + hr > b.x - 6 && f.x - hr < b.x + b.w + 6 && f.y + hr > b.y - 6 && f.y - hr < b.y + b.h + 6) { bad = true; break; }
     }
     if (bad) continue;
-    // 4c spacing (greedy mot redan behållna)
+    // 4c greedy spacing mot redan behållna (props + träd + sten). Träd-mot-träd = full
+    // radie (bevarar den godkända skog-tätheten). Krock där en STEN är inblandad = mjukare
+    // tolerans (träd är base-anchored, kronan reser sig ÖVER stenens fot → de får nudda lite,
+    // annars rensas alldeles för många stenar i tät skog och kartan blir sten-kal).
     for (const k of _kept) {
-      const dx = f.x - k.x, dy = f.y - k.y, md = r + k.r + 24;
+      const dx = f.x - k.x, dy = f.y - k.y;
+      const tol = (isRock || k.rock) ? 0.58 : 1.0;
+      const md = (r + k.r) * tol + 12;
       if (dx * dx + dy * dy < md * md) { bad = true; break; }
     }
     if (bad) continue;
-    _keepTree.add(w); _kept.push({ x: f.x, y: f.y, r });
+    _keep.add(w); _kept.push({ x: f.x, y: f.y, r, rock: isRock });
   }
-  arena.walls = arena.walls.filter(w => !TREE_KINDS.has(w.kind) || _keepTree.has(w));
+  arena.walls = arena.walls.filter(w => (!TREE_KINDS.has(w.kind) && !ROCK_KINDS.has(w.kind)) || _keep.has(w));
 }
 postProcessArena(BATTLEROYALE_ARENA);
 
