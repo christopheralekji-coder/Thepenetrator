@@ -2462,6 +2462,18 @@ function postProcessArena(arena) {
       w.round = true;
     }
   }
+  // 1e. KYRKAN: kollision = byggnadens fotavtryck (fasaden, nedre ~58%, 80% bredd) i stället
+  //     för hela sprajt-höjden — tornet/spiran upptill blir genomgång (man "står framför",
+  //     som trädkronor). visualFill → klienten ritar sprajten oförändrat (centrerad, skala 1).
+  for (const w of arena.walls) {
+    if (w.kind !== 'church_ruin' || w.visualW != null) continue;
+    w.visualX = w.x; w.visualY = w.y; w.visualW = w.w; w.visualH = w.h;
+    w.visualFill = true;
+    const cw = Math.round(w.w * 0.80), ch = Math.round(w.h * 0.58);
+    w.x = Math.round(w.visualX + w.visualW / 2 - cw / 2);
+    w.y = Math.round(w.visualY + w.visualH - ch);   // bottenfäst på byggnadens fot
+    w.w = cw; w.h = ch;
+  }
   // 2. Lägg till loot-spawn inuti varje cabin (centrum av bounds).
   //    RANDOM tier (containers använder samma distribution som hus — ingen garanti).
   const centerLoot = arena.lootSpawns.pop();
