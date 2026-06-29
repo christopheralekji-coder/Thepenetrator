@@ -818,7 +818,7 @@ const BATTLEROYALE_ARENA = {
     // Mystik
     { x: 1450, y: 9100, w: 50, h: 50, kind: 'standing_stone' },
     { x: 50,   y: 9100, w: 40, h: 60, kind: 'rune_stone' },
-    { x: 1400, y: 9400, w: 40, h: 70, kind: 'skull_totem' },
+    { x: 1413, y: 9402, w: 14, h: 65, kind: 'skull_totem' },
 
     // --- RIGHT EDGE TOP BOOST (NE, x:8500-10000, y:0-3000) ---
     // Mer skog i NE — INTE i alien-corner som börjar y>=7900
@@ -859,7 +859,7 @@ const BATTLEROYALE_ARENA = {
     // Mystik nere i NE (innan alien-zon!)
     { x: 9750, y: 350,  w: 40, h: 60, kind: 'rune_stone' },
     { x: 9700, y: 1700, w: 50, h: 50, kind: 'standing_stone' },
-    { x: 8600, y: 2950, w: 40, h: 70, kind: 'skull_totem' },
+    { x: 8613, y: 2952, w: 14, h: 65, kind: 'skull_totem' },
 
     // ========================================================================
     // === ALIEN-OMRÅDE (SE-hörnet, x=7900-9800, y=7900-9800) ===
@@ -885,10 +885,10 @@ const BATTLEROYALE_ARENA = {
     { x: 8200, y: 8200, w: 55, h: 85, kind: 'alien_crystal' },
     { x: 9300, y: 8200, w: 50, h: 80, kind: 'alien_crystal' },
     // SKULL-TOTEMS — gamla skogs-altare med skallar
-    { x: 8100, y: 8400, w: 40, h: 70, kind: 'skull_totem' },
-    { x: 9400, y: 8400, w: 40, h: 70, kind: 'skull_totem' },
-    { x: 8100, y: 9400, w: 40, h: 70, kind: 'skull_totem' },
-    { x: 9400, y: 9400, w: 40, h: 70, kind: 'skull_totem' },
+    { x: 8113, y: 8402, w: 14, h: 65, kind: 'skull_totem' },
+    { x: 9413, y: 8402, w: 14, h: 65, kind: 'skull_totem' },
+    { x: 8113, y: 9402, w: 14, h: 65, kind: 'skull_totem' },
+    { x: 9413, y: 9402, w: 14, h: 65, kind: 'skull_totem' },
     // EXTRA STENCIRKEL i alien-området
     { x: 8550, y: 8350, w: 50, h: 50, kind: 'standing_stone' },
     { x: 8700, y: 8320, w: 50, h: 50, kind: 'standing_stone' },
@@ -905,14 +905,14 @@ const BATTLEROYALE_ARENA = {
     { x: 1620, y: 2480, w: 50, h: 50, kind: 'standing_stone' },
     { x: 1400, y: 2300, w: 40, h: 60, kind: 'rune_stone' },
     // SW mystik (flyttad ut ur cabin_sw_mid)
-    { x: 1950, y: 6900, w: 40, h: 70, kind: 'skull_totem' },
+    { x: 1963, y: 6902, w: 14, h: 65, kind: 'skull_totem' },
     { x: 600, y: 7500, w: 40, h: 60, kind: 'rune_stone' },
     // NE mystik (mellan scrap och alien)
     { x: 9000, y: 6500, w: 50, h: 80, kind: 'alien_crystal' },
-    { x: 9300, y: 6800, w: 40, h: 70, kind: 'skull_totem' },
+    { x: 9313, y: 6802, w: 14, h: 65, kind: 'skull_totem' },
     // Inom skog
     { x: 3500, y: 5000, w: 40, h: 60, kind: 'rune_stone' },
-    { x: 6500, y: 5800, w: 40, h: 70, kind: 'skull_totem' },
+    { x: 6513, y: 5802, w: 14, h: 65, kind: 'skull_totem' },
 
     // === RING-CONTENT (mellan zonerna och outer-perimeter) ===
     // Mellan zoner: N
@@ -1118,7 +1118,7 @@ const BATTLEROYALE_ARENA = {
 
     { x: 6000, y: 2700, w: 120, h: 90, kind: 'excavator_wreck' },
 
-    { x: 7650, y: 2200, w: 70, h: 70, kind: 'hunting_tower' },
+    { x: 7660, y: 2186, w: 50, h: 98, kind: 'hunting_tower' },
 
     { x: 5700, y: 2350, w: 32, h: 32, kind: 'oil_drum' },
     { x: 5700, y: 2600, w: 32, h: 32, kind: 'oil_drum' },
@@ -1183,7 +1183,7 @@ const BATTLEROYALE_ARENA = {
     { x: 6108, y: 5400, w: 12,  h: 100, kind: 'wooden_fence' },
     { x: 6000, y: 5490, w: 120, h: 12, kind: 'wooden_fence' },
 
-    { x: 6200, y: 5700, w: 60, h: 50, kind: 'chicken_coop' },
+    { x: 6201, y: 5686, w: 58, h: 77, kind: 'chicken_coop' },
 
     { x: 4700, y: 5000, w: 65, h: 65, kind: 'tree_oak' },
     { x: 6100, y: 5000, w: 60, h: 60, kind: 'tree_oak' },
@@ -1192,7 +1192,7 @@ const BATTLEROYALE_ARENA = {
 
     { x: 5000, y: 5400, w: 70, h: 35, kind: 'picnic_table' },
 
-    { x: 6300, y: 4600, w: 60, h: 36, kind: 'dumpster_fire' },
+    { x: 6310, y: 4598, w: 41, h: 40, kind: 'dumpster_fire' },
 
     // ========================================================================
     // === EAST CAMPING (6500-8000, 4000-6500) ===
@@ -1373,7 +1373,7 @@ const BATTLEROYALE_ARENA = {
     { x: 7250, y: 1530, w: 30,  h: 30, kind: 'fire_drum' },      // motor brinner
 
     // 2. ÖDEKYRKA + DEDIKERAD KYRKOGÅRD (separerat område med JORD-bas)
-    { x: 4500, y: 6400, w: 250, h: 320, kind: 'church_ruin' },
+    { x: 4504, y: 6399, w: 241, h: 322, kind: 'church_ruin' },
     // Trä-staket runt kyrkogården — flyttat YTTERLIGARE ner (y=6970+) så det
     // finns ett rent gap mellan kyrkan (slut y=6720) och gravplatsen (start y=6970).
     { x: 4380, y: 6970, w: 90,  h: 12, kind: 'wooden_fence' },   // top-left (gap mot kyrkan i mitten)
@@ -1383,20 +1383,20 @@ const BATTLEROYALE_ARENA = {
     { x: 4868, y: 6970, w: 12,  h: 312, kind: 'wooden_fence' },  // right
     // Gravstenar i 3×4 RUTNÄT, EXPLICIT unika namn + årtal per sten
     // Row 1 (y=7020)
-    { x: 4440, y: 7020, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'BJÖRN', graveBirth: 1872, graveDeath: 1934 },
-    { x: 4540, y: 7020, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'ASTRID', graveBirth: 1885, graveDeath: 1952 },
-    { x: 4660, y: 7020, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'SVEN', graveBirth: 1860, graveDeath: 1921 },
-    { x: 4780, y: 7020, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'INGA', graveBirth: 1891, graveDeath: 1968 },
+    { x: 4446, y: 7022, w: 22, h: 32, kind: 'cemetery_gravestone', graveName: 'BJÖRN', graveBirth: 1872, graveDeath: 1934 },
+    { x: 4546, y: 7022, w: 22, h: 32, kind: 'cemetery_gravestone', graveName: 'ASTRID', graveBirth: 1885, graveDeath: 1952 },
+    { x: 4666, y: 7022, w: 22, h: 32, kind: 'cemetery_gravestone', graveName: 'SVEN', graveBirth: 1860, graveDeath: 1921 },
+    { x: 4786, y: 7022, w: 22, h: 32, kind: 'cemetery_gravestone', graveName: 'INGA', graveBirth: 1891, graveDeath: 1968 },
     // Row 2 (y=7120)
-    { x: 4440, y: 7120, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'OLAF', graveBirth: 1870, graveDeath: 1942 },
-    { x: 4540, y: 7120, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'GUDRUN', graveBirth: 1903, graveDeath: 1976 },
-    { x: 4660, y: 7120, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'ERIK', graveBirth: 1865, graveDeath: 1930 },
-    { x: 4780, y: 7120, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'HELGA', graveBirth: 1888, graveDeath: 1960 },
+    { x: 4446, y: 7122, w: 22, h: 32, kind: 'cemetery_gravestone', graveName: 'OLAF', graveBirth: 1870, graveDeath: 1942 },
+    { x: 4546, y: 7122, w: 22, h: 32, kind: 'cemetery_gravestone', graveName: 'GUDRUN', graveBirth: 1903, graveDeath: 1976 },
+    { x: 4666, y: 7122, w: 22, h: 32, kind: 'cemetery_gravestone', graveName: 'ERIK', graveBirth: 1865, graveDeath: 1930 },
+    { x: 4786, y: 7122, w: 22, h: 32, kind: 'cemetery_gravestone', graveName: 'HELGA', graveBirth: 1888, graveDeath: 1960 },
     // Row 3 (y=7220)
-    { x: 4440, y: 7220, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'LARS', graveBirth: 1876, graveDeath: 1948 },
-    { x: 4540, y: 7220, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'SIGRID', graveBirth: 1899, graveDeath: 1971 },
-    { x: 4660, y: 7220, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'MAGNUS', graveBirth: 1882, graveDeath: 1959 },
-    { x: 4780, y: 7220, w: 35, h: 35, kind: 'cemetery_gravestone', graveName: 'EBBA', graveBirth: 1894, graveDeath: 1972 },
+    { x: 4446, y: 7222, w: 22, h: 32, kind: 'cemetery_gravestone', graveName: 'LARS', graveBirth: 1876, graveDeath: 1948 },
+    { x: 4546, y: 7222, w: 22, h: 32, kind: 'cemetery_gravestone', graveName: 'SIGRID', graveBirth: 1899, graveDeath: 1971 },
+    { x: 4666, y: 7222, w: 22, h: 32, kind: 'cemetery_gravestone', graveName: 'MAGNUS', graveBirth: 1882, graveDeath: 1959 },
+    { x: 4786, y: 7222, w: 22, h: 32, kind: 'cemetery_gravestone', graveName: 'EBBA', graveBirth: 1894, graveDeath: 1972 },
 
     // 3. VATTENFALLS från klippa till sjön (decoration handled separately)
     //    Klipp-vall som omger:
@@ -1414,10 +1414,10 @@ const BATTLEROYALE_ARENA = {
     { x: 3950, y: 3080, w: 50, h: 50, kind: 'altar_stone' },  // centrum
 
     // 5. PUMP-JACK OLJERIGG (i scrap-yard, animerad pump-arm)
-    { x: 5400, y: 2200, w: 140, h: 100, kind: 'pump_jack' },
+    { x: 5400, y: 2200, w: 139, h: 99, kind: 'pump_jack' },
 
     // 6. FYRTORN PÅ KULLE (i south wild, tall landmark)
-    { x: 7800, y: 7900, w: 90, h: 90, kind: 'lighthouse' },
+    { x: 7818, y: 7878, w: 52, h: 133, kind: 'lighthouse' },
 
     // ========================================================================
     // === STUGA-UTSIDAN DETALJER (bänk + blomkruka utanför varje stuga) ===
