@@ -236,8 +236,8 @@ function resolveCtfWall(entity, walls) {
   const er = entity.r || 14;
   for (const w of walls) {
     if (w.decor) continue; // dekor-props (t.ex. tält) blockerar ej rörelse
-    if (w.visualW) {
-      // ROND kollision (BR träd/sten/kristall): cirkel-vs-cirkel push-ut runt foten i
+    if (w.round) {
+      // ROND kollision (BR sten/stubbe/topp/kristall): cirkel-vs-cirkel push-ut runt foten i
       // stället för en fyrkant — man glider mjukt RUNT objektet. radien = medel-halv-
       // dimensionen av kollisions-foten (w/h, redan VISUAL_COLL_FACTOR-krympt).
       const cx = w.x + w.w * 0.5, cy = w.y + w.h * 0.5;
@@ -281,8 +281,8 @@ function bulletHitsWall(b, walls) {
   // Snabb-väg: om bullet redan står i en wall (eller dess radie överlappar)
   for (const w of walls) {
     if (w.decor) continue; // dekor-props (t.ex. tält) stoppar ej skott
-    if (w.visualW) {
-      // ROND kollision (BR träd/sten/kristall): punkt-i-cirkel + svept segment-vs-cirkel.
+    if (w.round) {
+      // ROND kollision (BR sten/stubbe/topp/kristall): punkt-i-cirkel + svept segment-vs-cirkel.
       const cx = w.x + w.w * 0.5, cy = w.y + w.h * 0.5;
       const rad = (w.w + w.h) * 0.25 + r;
       const dx = b.x - cx, dy = b.y - cy;
@@ -299,7 +299,7 @@ function bulletHitsWall(b, walls) {
   if (hasPrev) {
     const x0 = b._prevX, y0 = b._prevY, x1 = b.x, y1 = b.y;
     for (const w of walls) {
-      if (w.decor || w.visualW) continue;
+      if (w.decor || w.round) continue;
       if (segmentIntersectsAABB(x0, y0, x1, y1, w.x - r, w.y - r, w.x + w.w + r, w.y + w.h + r)) {
         return true;
       }

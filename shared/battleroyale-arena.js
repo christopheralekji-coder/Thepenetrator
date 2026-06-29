@@ -2433,17 +2433,34 @@ function postProcessArena(arena) {
     ufo_wreck: 0.65,        // stora disken — kan luta sig mot kanten
     mountain_peak: 0.55,    // klippspets ovanpå huvud-cliff
   };
+  // EXAKT per-objekt-kollision ur br-collision-table.json (mätt på varje bakad sprite):
+  // träd = stam-rektangel (oak/pine/giant), sten/stubbe/topp = RUND som täcker kroppen,
+  // skull_totem/ufo_wreck = rektangel, kristall/ufo_debris = rund. Foten = visual-rutans
+  // mitt (= sprajtens bas, base-anchored i klienten). dx/dy = box-toppvänster rel. foten.
+  // round=true → cirkel (radie (w+h)/4). Saknad storlek → fallback: gammal centrerad krymp.
+  let BR_COLL_TABLE = {};
+  try { if (typeof require !== 'undefined') BR_COLL_TABLE = require('./br-collision-table.json'); } catch (e) {}
   for (const w of arena.walls) {
     const f = VISUAL_COLL_FACTOR[w.kind];
     if (!f) continue;
     if (w.visualW != null) continue; // redan processad
     w.visualX = w.x; w.visualY = w.y; w.visualW = w.w; w.visualH = w.h;
-    const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
-    const nw = Math.round(w.w * f), nh = Math.round(w.h * f);
-    w.x = Math.round(cx - nw / 2);
-    w.y = Math.round(cy - nh / 2);
-    w.w = nw;
-    w.h = nh;
+    const footCx = w.x + w.w / 2, footCy = w.y + w.h / 2;
+    const e = BR_COLL_TABLE[w.kind + '_' + Math.round(w.w) + 'x' + Math.round(w.h)];
+    if (e) {
+      w.x = Math.round(footCx + e.dx);
+      w.y = Math.round(footCy + e.dy);
+      w.w = e.w;
+      w.h = e.h;
+      if (e.shape === 'circle') w.round = true;   // annars rektangel (AABB)
+    } else {
+      // fallback: gamla centrerade krympningen (cirkel som förr)
+      const nw = Math.round(w.w * f), nh = Math.round(w.h * f);
+      w.x = Math.round(footCx - nw / 2);
+      w.y = Math.round(footCy - nh / 2);
+      w.w = nw; w.h = nh;
+      w.round = true;
+    }
   }
   // 2. Lägg till loot-spawn inuti varje cabin (centrum av bounds).
   //    RANDOM tier (containers använder samma distribution som hus — ingen garanti).
