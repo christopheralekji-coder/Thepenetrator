@@ -2518,6 +2518,18 @@ function postProcessArena(arena) {
     }
     return true;
   });
+  // 4. GALLRA TRÄD: ta bort ~60% av alla träd, JÄMNT UTSPRITT. Deterministiskt via positions-
+  //    hash på visualX/visualY (= original-position, stabil) → samma karta varje match, ingen
+  //    kal fläck/klump. Körs SIST (efter dedup/kollision/entry-filter) så att server och klient
+  //    gallrar exakt SAMMA slutgiltiga träd-set. HÅLL I SYNK med klient-JSON-gallringen.
+  const TREE_KINDS = new Set(['tree_oak', 'tree_pine', 'tree_giant_oak', 'tree_stump']);
+  arena.walls = arena.walls.filter(w => {
+    if (!TREE_KINDS.has(w.kind)) return true;
+    const px = Math.round(w.visualX != null ? w.visualX : w.x);
+    const py = Math.round(w.visualY != null ? w.visualY : w.y);
+    const h = (((px * 73856093) ^ (py * 19349663)) >>> 0) % 1000;
+    return h < 400; // behåll 40%, ta bort 60%
+  });
 }
 postProcessArena(BATTLEROYALE_ARENA);
 
