@@ -233,14 +233,36 @@ function pointInWall(x, y, r, wall) {
 
 // Lös wall-collision för entity (player/companion). Push ut ur närmsta wall-kant.
 function resolveCtfWall(entity, walls) {
+  const er = entity.r || 14;
   for (const w of walls) {
     if (w.decor) continue; // dekor-props (t.ex. tält) blockerar ej rörelse
-    if (!pointInWall(entity.x, entity.y, entity.r || 14, w)) continue;
+    if (w.visualW) {
+      // ROND kollision (BR träd/sten/kristall): cirkel-vs-cirkel push-ut runt foten i
+      // stället för en fyrkant — man glider mjukt RUNT objektet. radien = medel-halv-
+      // dimensionen av kollisions-foten (w/h, redan VISUAL_COLL_FACTOR-krympt).
+      const cx = w.x + w.w * 0.5, cy = w.y + w.h * 0.5;
+      const rad = (w.w + w.h) * 0.25;
+      const dx = entity.x - cx, dy = entity.y - cy;
+      const need = rad + er;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < need * need) {
+        const d = Math.sqrt(d2);
+        if (d > 0.0001) {
+          const push = (need - d) / d;
+          entity.x += dx * push;
+          entity.y += dy * push;
+        } else {
+          entity.x += need; // degenererat (exakt i mitten) → skjut åt höger
+        }
+      }
+      continue;
+    }
+    if (!pointInWall(entity.x, entity.y, er, w)) continue;
     // Räkna ut overlap per axel; push ut åt minsta riktning
-    const dxLeft = (entity.x + (entity.r || 14)) - w.x;
-    const dxRight = (w.x + w.w) - (entity.x - (entity.r || 14));
-    const dyTop = (entity.y + (entity.r || 14)) - w.y;
-    const dyBot = (w.y + w.h) - (entity.y - (entity.r || 14));
+    const dxLeft = (entity.x + er) - w.x;
+    const dxRight = (w.x + w.w) - (entity.x - er);
+    const dyTop = (entity.y + er) - w.y;
+    const dyBot = (w.y + w.h) - (entity.y - er);
     const minPush = Math.min(dxLeft, dxRight, dyTop, dyBot);
     if (minPush === dxLeft) entity.x -= dxLeft;
     else if (minPush === dxRight) entity.x += dxRight;
@@ -255,25 +277,48 @@ function resolveCtfWall(entity, walls) {
 // sätter dem). Fallback: point-in-rect + radie så åtminstone träffar registreras.
 function bulletHitsWall(b, walls) {
   const r = (b.r || 4);
+  const hasPrev = (typeof b._prevX === 'number' && typeof b._prevY === 'number');
   // Snabb-väg: om bullet redan står i en wall (eller dess radie överlappar)
   for (const w of walls) {
     if (w.decor) continue; // dekor-props (t.ex. tält) stoppar ej skott
+    if (w.visualW) {
+      // ROND kollision (BR träd/sten/kristall): punkt-i-cirkel + svept segment-vs-cirkel.
+      const cx = w.x + w.w * 0.5, cy = w.y + w.h * 0.5;
+      const rad = (w.w + w.h) * 0.25 + r;
+      const dx = b.x - cx, dy = b.y - cy;
+      if (dx * dx + dy * dy <= rad * rad) return true;
+      if (hasPrev && segmentHitsCircle(b._prevX, b._prevY, b.x, b.y, cx, cy, rad)) return true;
+      continue;
+    }
     if (b.x + r >= w.x && b.x - r <= w.x + w.w &&
         b.y + r >= w.y && b.y - r <= w.y + w.h) {
       return true;
     }
   }
-  // Swept-test: linje från förra pos till nuvarande pos
-  if (typeof b._prevX === 'number' && typeof b._prevY === 'number') {
+  // Swept-test: linje från förra pos till nuvarande pos (bara AABB-walls; runda klarade ovan)
+  if (hasPrev) {
     const x0 = b._prevX, y0 = b._prevY, x1 = b.x, y1 = b.y;
     for (const w of walls) {
-      if (w.decor) continue;
+      if (w.decor || w.visualW) continue;
       if (segmentIntersectsAABB(x0, y0, x1, y1, w.x - r, w.y - r, w.x + w.w + r, w.y + w.h + r)) {
         return true;
       }
     }
   }
   return false;
+}
+// Segment-vs-cirkel: true om sträckan (x0,y0)->(x1,y1) kommer inom rad av (cx,cy).
+// Närmsta punkt på segmentet till cirkelns mitt, t klampad till [0,1].
+function segmentHitsCircle(x0, y0, x1, y1, cx, cy, rad) {
+  const dx = x1 - x0, dy = y1 - y0;
+  const len2 = dx * dx + dy * dy;
+  let t = 0;
+  if (len2 > 0.0001) {
+    t = ((cx - x0) * dx + (cy - y0) * dy) / len2;
+    if (t < 0) t = 0; else if (t > 1) t = 1;
+  }
+  const px = x0 + dx * t - cx, py = y0 + dy * t - cy;
+  return px * px + py * py <= rad * rad;
 }
 // Liang-Barsky line-vs-AABB clip — returnerar true om segmentet träffar boxen.
 function segmentIntersectsAABB(x0, y0, x1, y1, minX, minY, maxX, maxY) {
