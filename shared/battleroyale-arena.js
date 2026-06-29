@@ -2516,6 +2516,8 @@ function postProcessArena(arena) {
     cemetery_gravestone: { vw: 44, vh: 60, dx: 17, dy: 16, cw: 24, ch: 42 },
     rune_stone:          { vw: 36, vh: 52, dx: 14, dy: 13, cw: 21, ch: 37 },
     excavator_wreck:     { vw: 100, vh: 238, dx: 38, dy: 57, cw: 59, ch: 77 },
+    woodpile:            { vw: 90, vh: 96, dx: 16, dy: 33, cw: 71, ch: 61 },   // #4 större + ej kapad
+    lighthouse:          { vw: 120, vh: 200, dx: 53, dy: 33, cw: 57, ch: 163 }, // #8 stor + hög, lite smalare
   };
   for (const w of arena.walls) {
     const p = _PROP[w.kind];
