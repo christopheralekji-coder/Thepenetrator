@@ -2518,18 +2518,43 @@ function postProcessArena(arena) {
     }
     return true;
   });
-  // 4. GALLRA TRÄD: ta bort ~60% av alla träd, JÄMNT UTSPRITT. Deterministiskt via positions-
-  //    hash på visualX/visualY (= original-position, stabil) → samma karta varje match, ingen
-  //    kal fläck/klump. Körs SIST (efter dedup/kollision/entry-filter) så att server och klient
-  //    gallrar exakt SAMMA slutgiltiga träd-set. HÅLL I SYNK med klient-JSON-gallringen.
+  // 4. GALLRA + SPRID UT TRÄD (deterministiskt, samma karta varje match):
+  //    4a) hash-gallra → behåll 30% (jämnt utspritt, ingen kal fläck/klump)
+  //    4b) ta bort träd som överlappar ett HUS (cabin bounds)
+  //    4c) glesa ut greedy → inga kronor överlappar / står precis bredvid varandra
+  //    Behåller wall-ordningen (z). Klient-JSON synkas till EXAKT detta träd-set.
   const TREE_KINDS = new Set(['tree_oak', 'tree_pine', 'tree_giant_oak', 'tree_stump']);
-  arena.walls = arena.walls.filter(w => {
-    if (!TREE_KINDS.has(w.kind)) return true;
-    const px = Math.round(w.visualX != null ? w.visualX : w.x);
-    const py = Math.round(w.visualY != null ? w.visualY : w.y);
-    const h = (((px * 73856093) ^ (py * 19349663)) >>> 0) % 1000;
-    return h < 400; // behåll 40%, ta bort 60%
+  const TREE_SCALE = { tree_oak: 4.5, tree_pine: 4.0, tree_giant_oak: 3.0, tree_stump: 3.5 };
+  const _foot = w => ({
+    x: (w.visualX != null ? w.visualX + w.visualW / 2 : w.x + w.w / 2),
+    y: (w.visualY != null ? w.visualY + w.visualH / 2 : w.y + w.h / 2),
   });
+  const _crown = w => (w.visualW != null ? w.visualW : w.w) * (TREE_SCALE[w.kind] || 3.0) * 0.42;
+  const _cabB = (arena.cabins || []).map(c => c.bounds).filter(Boolean);
+  const _keepTree = new Set();
+  const _kept = [];
+  for (const w of arena.walls) {
+    if (!TREE_KINDS.has(w.kind)) continue;
+    const f = _foot(w), r = _crown(w);
+    // 4a hash → 30%
+    const h = (((Math.round(f.x) * 73856093) ^ (Math.round(f.y) * 19349663)) >>> 0) % 1000;
+    if (h >= 300) continue;
+    // 4b hus-överlapp (nedre kronan/foten mot huset)
+    let bad = false;
+    const hr = r * 0.7;
+    for (const b of _cabB) {
+      if (f.x + hr > b.x - 6 && f.x - hr < b.x + b.w + 6 && f.y + hr > b.y - 6 && f.y - hr < b.y + b.h + 6) { bad = true; break; }
+    }
+    if (bad) continue;
+    // 4c spacing (greedy mot redan behållna)
+    for (const k of _kept) {
+      const dx = f.x - k.x, dy = f.y - k.y, md = r + k.r + 24;
+      if (dx * dx + dy * dy < md * md) { bad = true; break; }
+    }
+    if (bad) continue;
+    _keepTree.add(w); _kept.push({ x: f.x, y: f.y, r });
+  }
+  arena.walls = arena.walls.filter(w => !TREE_KINDS.has(w.kind) || _keepTree.has(w));
 }
 postProcessArena(BATTLEROYALE_ARENA);
 
