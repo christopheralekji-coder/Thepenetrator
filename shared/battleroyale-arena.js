@@ -1414,7 +1414,7 @@ const BATTLEROYALE_ARENA = {
     { x: 3950, y: 3080, w: 50, h: 50, kind: 'altar_stone' },  // centrum
 
     // 5. PUMP-JACK OLJERIGG (i scrap-yard, animerad pump-arm)
-    { x: 5400, y: 2200, w: 139, h: 99, kind: 'pump_jack' },
+    { x: 5408, y: 2216, w: 122, h: 66, kind: 'pump_jack' },
 
     // 6. FYRTORN PÅ KULLE (i south wild, tall landmark)
     { x: 7818, y: 7878, w: 52, h: 133, kind: 'lighthouse' },
