@@ -2485,6 +2485,27 @@ function postProcessArena(arena) {
     w.y = Math.round(w.visualY + w.visualH - ch);   // bottenfäst på byggnadens fot
     w.w = cw; w.h = ch;
   }
+  // 1f. SCI-FI (kristall + UFO): försona storlek + SOLID kollision. Servern genererade smått
+  //     (crystal 14, ufo 93) men klienten/sprajtarna är stora → kollisionen blev pyttig och man
+  //     gick rakt igenom. Hård-sätt visual (UFO HALVERAD → 80) + en rejäl box vid foten.
+  //     Klient-JSON re-exporteras härur så server/klient matchar exakt.
+  const _SCIFI = {
+    alien_crystal: { vw: 50, vh: 80, round: true,  dx: -13, dy: -85,  w: 84,  h: 84 },
+    ufo_wreck:     { vw: 80, vh: 80, round: false, dx: -108, dy: -148, w: 215, h: 148 },
+  };
+  for (const w of arena.walls) {
+    const sf = _SCIFI[w.kind];
+    if (!sf) continue;
+    const footCx = (w.visualX != null ? w.visualX + w.visualW / 2 : w.x + w.w / 2);
+    const footCy = (w.visualY != null ? w.visualY + w.visualH / 2 : w.y + w.h / 2);
+    w.visualW = sf.vw; w.visualH = sf.vh;
+    w.visualX = Math.round(footCx - sf.vw / 2);
+    w.visualY = Math.round(footCy - sf.vh / 2);
+    w.x = Math.round(footCx + sf.dx);
+    w.y = Math.round(footCy + sf.dy);
+    w.w = sf.w; w.h = sf.h;
+    if (sf.round) w.round = true; else delete w.round;
+  }
   // 2. Lägg till loot-spawn inuti varje cabin (centrum av bounds).
   //    RANDOM tier (containers använder samma distribution som hus — ingen garanti).
   const centerLoot = arena.lootSpawns.pop();
