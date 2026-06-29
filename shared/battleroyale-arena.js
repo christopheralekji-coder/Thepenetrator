@@ -867,23 +867,23 @@ const BATTLEROYALE_ARENA = {
     // ========================================================================
     // CENTRAL: KRASCHAT UFO — mindre (160x160 = lätt att gå runt)
     // + crash-debris (fragmenterade metallbitar) spridda runt vraket
-    { x: 8720, y: 8770, w: 160, h: 160, kind: 'ufo_wreck' },
+    { x: 8754, y: 8820, w: 93, h: 61, kind: 'ufo_wreck' },
     // Crash-debris (mindre metallbitar spridda runt UFO:t)
-    { x: 8600, y: 8700, w: 40, h: 30, kind: 'ufo_debris' },
-    { x: 8900, y: 8700, w: 35, h: 28, kind: 'ufo_debris' },
-    { x: 8550, y: 8900, w: 38, h: 30, kind: 'ufo_debris' },
-    { x: 8950, y: 8950, w: 42, h: 32, kind: 'ufo_debris' },
-    { x: 8680, y: 8980, w: 36, h: 28, kind: 'ufo_debris' },
-    { x: 8820, y: 8640, w: 40, h: 30, kind: 'ufo_debris' },
+    { x: 8614, y: 8706, w: 11, h: 19, kind: 'ufo_debris' },
+    { x: 8912, y: 8704, w: 11, h: 19, kind: 'ufo_debris' },
+    { x: 8564, y: 8906, w: 11, h: 19, kind: 'ufo_debris' },
+    { x: 8966, y: 8956, w: 11, h: 19, kind: 'ufo_debris' },
+    { x: 8692, y: 8984, w: 11, h: 19, kind: 'ufo_debris' },
+    { x: 8834, y: 8646, w: 11, h: 19, kind: 'ufo_debris' },
     // CRYSTAL-FORMATIONER spridda runt UFO:t (lila glödande)
-    { x: 8400, y: 8500, w: 50, h: 80, kind: 'alien_crystal' },
-    { x: 9000, y: 8500, w: 60, h: 90, kind: 'alien_crystal' },
-    { x: 8300, y: 8900, w: 50, h: 80, kind: 'alien_crystal' },
-    { x: 9100, y: 8900, w: 55, h: 85, kind: 'alien_crystal' },
-    { x: 8500, y: 9200, w: 60, h: 90, kind: 'alien_crystal' },
-    { x: 8900, y: 9300, w: 50, h: 80, kind: 'alien_crystal' },
-    { x: 8200, y: 8200, w: 55, h: 85, kind: 'alien_crystal' },
-    { x: 9300, y: 8200, w: 50, h: 80, kind: 'alien_crystal' },
+    { x: 8418, y: 8532, w: 14, h: 17, kind: 'alien_crystal' },
+    { x: 9023, y: 8536, w: 14, h: 17, kind: 'alien_crystal' },
+    { x: 8318, y: 8932, w: 14, h: 17, kind: 'alien_crystal' },
+    { x: 9120, y: 8934, w: 14, h: 17, kind: 'alien_crystal' },
+    { x: 8523, y: 9236, w: 14, h: 17, kind: 'alien_crystal' },
+    { x: 8918, y: 9332, w: 14, h: 17, kind: 'alien_crystal' },
+    { x: 8220, y: 8234, w: 14, h: 17, kind: 'alien_crystal' },
+    { x: 9318, y: 8232, w: 14, h: 17, kind: 'alien_crystal' },
     // SKULL-TOTEMS — gamla skogs-altare med skallar
     { x: 8113, y: 8402, w: 14, h: 65, kind: 'skull_totem' },
     { x: 9413, y: 8402, w: 14, h: 65, kind: 'skull_totem' },
@@ -908,7 +908,7 @@ const BATTLEROYALE_ARENA = {
     { x: 1963, y: 6902, w: 14, h: 65, kind: 'skull_totem' },
     { x: 600, y: 7500, w: 40, h: 60, kind: 'rune_stone' },
     // NE mystik (mellan scrap och alien)
-    { x: 9000, y: 6500, w: 50, h: 80, kind: 'alien_crystal' },
+    { x: 9018, y: 6532, w: 14, h: 17, kind: 'alien_crystal' },
     { x: 9313, y: 6802, w: 14, h: 65, kind: 'skull_totem' },
     // Inom skog
     { x: 3500, y: 5000, w: 40, h: 60, kind: 'rune_stone' },
@@ -1365,10 +1365,10 @@ const BATTLEROYALE_ARENA = {
 
     // 1. KRASCHAT PASSAGERARFLYGPLAN (i NE scrap-yard, gigantiskt vrak)
     //    Bestående av: fuselage (huvuddelen), vingar (sub-walls), motor (eld), stjärt
-    { x: 6800, y: 1500, w: 400, h: 90, kind: 'plane_fuselage' }, // huvuddel
-    { x: 6750, y: 1350, w: 260, h: 50, kind: 'plane_wing' },     // vänster vinge
-    { x: 7100, y: 1620, w: 260, h: 50, kind: 'plane_wing' },     // höger vinge
-    { x: 7150, y: 1480, w: 60,  h: 50, kind: 'plane_tail' },     // stjärt
+    { x: 6806, y: 1412, w: 389, h: 266, kind: 'plane_fuselage' }, // huvuddel
+    { x: 6770, y: 1330, w: 221, h: 90, kind: 'plane_wing' },     // vänster vinge
+    { x: 7120, y: 1600, w: 221, h: 90, kind: 'plane_wing' },     // höger vinge
+    { x: 7164, y: 1468, w: 32,  h: 74, kind: 'plane_tail' },     // stjärt
     { x: 6700, y: 1530, w: 30,  h: 30, kind: 'fire_drum' },      // motor brinner
     { x: 7250, y: 1530, w: 30,  h: 30, kind: 'fire_drum' },      // motor brinner
 
