@@ -2996,6 +2996,7 @@ function updateCastleDefenseDownState(sim, dt, nowMs) {
         continue;
       }
       // Enter down-state
+      cdForceDismount(sim, pid, ws); // satt i ett torn? kliv av → annars spök-torn som skjuter
       ps.cdDowned = true;
       ps.cdDownStartedAt = nowMs;
       ps.cdDownReviveProgress = 0;
@@ -3442,14 +3443,22 @@ function tickCastleDefense(sim, dt, now) {
       }
       if (sim.castledefenseCore && sim.castledefenseCore.hp > 0 && !sim.survivorsActive) {
         const core = sim.castledefenseCore;
-        const dx = ent.x - core.x, dy = ent.y - core.y;
-        const d = Math.sqrt(dx * dx + dy * dy);
-        const minD = core.r + ent.r;
-        if (d < minD && d > 0.01) {
-          ent.x = core.x + (dx / d) * minD;
-          ent.y = core.y + (dy / d) * minD;
-        } else if (d < 0.01) {
-          ent.x = core.x + minD;
+        const cc = core.chairColl;
+        if (cc) {                       // FYRKANT-kollision = bara tron-stolen
+          const er = ent.r || 14;
+          if (ent.x + er > cc.x && ent.x - er < cc.x + cc.w && ent.y + er > cc.y && ent.y - er < cc.y + cc.h) {
+            const dxL = (ent.x + er) - cc.x, dxR = (cc.x + cc.w) - (ent.x - er);
+            const dyT = (ent.y + er) - cc.y, dyB = (cc.y + cc.h) - (ent.y - er);
+            const m = Math.min(dxL, dxR, dyT, dyB);
+            if (m === dxL) ent.x -= dxL; else if (m === dxR) ent.x += dxR;
+            else if (m === dyT) ent.y -= dyT; else ent.y += dyB;
+          }
+        } else {                        // fallback: gamla r-cirkeln
+          const dx = ent.x - core.x, dy = ent.y - core.y;
+          const d = Math.sqrt(dx * dx + dy * dy);
+          const minD = core.r + ent.r;
+          if (d < minD && d > 0.01) { ent.x = core.x + (dx / d) * minD; ent.y = core.y + (dy / d) * minD; }
+          else if (d < 0.01) { ent.x = core.x + minD; }
         }
       }
       ent.x = Math.max(20, Math.min(arena.worldW - 20, ent.x));
@@ -3907,6 +3916,17 @@ function tickCastleDefense(sim, dt, now) {
     // v1.547: I stress-test + survivors är core bara dekoration — disable enemy-collision
     if (sim.castledefenseCore && sim.castledefenseCore.hp > 0 && !sim.survivorsActive && !sim.stresstestActive) {
       const core = sim.castledefenseCore;
+      const cc = core.chairColl;
+      if (cc) {                         // FYRKANT-kollision = bara tron-stolen
+        const er = e.r || 14;
+        if (e.x + er > cc.x && e.x - er < cc.x + cc.w && e.y + er > cc.y && e.y - er < cc.y + cc.h) {
+          const dxL = (e.x + er) - cc.x, dxR = (cc.x + cc.w) - (e.x - er);
+          const dyT = (e.y + er) - cc.y, dyB = (cc.y + cc.h) - (e.y - er);
+          const m = Math.min(dxL, dxR, dyT, dyB);
+          if (m === dxL) e.x -= dxL; else if (m === dxR) e.x += dxR;
+          else if (m === dyT) e.y -= dyT; else e.y += dyB;
+        }
+      } else {
       const dxe = e.x - core.x, dye = e.y - core.y;
       const de = Math.sqrt(dxe * dxe + dye * dye);
       const minDe = core.r + e.r;
@@ -3916,6 +3936,7 @@ function tickCastleDefense(sim, dt, now) {
       } else if (de <= 0.01) {
         // Exakt på center — pusha åt höger
         e.x = core.x + minDe;
+      }
       }
     }
     // Attack-timer
@@ -8295,6 +8316,7 @@ function startSim(sim, opts) {
       // Cleara mounted-turret-state från ev. PvP-match
       ws._mountedCtfTurretId = null;
       ws._mountedSiegeTurretId = null;
+      ws._mountedCdTowerId = null;
       ws.tdmRespawnAt = 0;
       ws.tdmTeam = null; // Co-op (alla är "allies")
       sim.castledefenseScores[pid] = 0;
@@ -8552,6 +8574,7 @@ function stopSim(sim) {
       ws.playerState.invulnUntil = 0;
       ws._mountedCtfTurretId = null;
       ws._mountedSiegeTurretId = null;
+      ws._mountedCdTowerId = null;
       ws._eventSkips = 0;
       // v1.657: rensa TDM/PvP-respawn-state. tdmRespawnAt läckte → om en spelare
       // dog i sista sekunden av en match var timern kvar → "respawn" triggades i
@@ -9726,6 +9749,19 @@ function applyCastleDefenseExitTower(sim, peerId, msg) {
     if (ws.playerState) ws.playerState.y -= 60; // kliv av INÅT (norr, in i slottet) — slots ligger nu utanför muren
   }
   sim.eventQueue.push({ type: 'cd_tower_exited', id: tid, peerId });
+}
+
+// [CD-MOUNT] Tvinga AV ett spelare ur ett bemannat torn (down/dö/revive/respawn/reset).
+// Rensar BÅDA flaggorna (b.occupantId + ws._mountedCdTowerId) och säger till klienten att ta
+// bort gun-overlayen. Annars blir ett "spök-torn" kvar som fortsätter skjuta från muzzlen
+// (skotten force-routas via _mountedCdTowerId, auto-eld suppras via occupantId, rörelse låst).
+function cdForceDismount(sim, pid, ws) {
+  if (!ws || !ws._mountedCdTowerId) return;
+  const tid = ws._mountedCdTowerId;
+  const b = sim.castledefenseBuildings && sim.castledefenseBuildings.find(x => x.id === tid);
+  if (b && b.occupantId === pid) b.occupantId = null;
+  ws._mountedCdTowerId = null;
+  sim.eventQueue.push({ type: 'cd_tower_exited', id: tid, peerId: pid });
 }
 
 // v2 REDESIGN: uppgradera slotts-spår (throne/heal_npc/repair_npc), 1 nivå el. max.

@@ -61,8 +61,12 @@ const CASTLEDEFENSE_ARENA = {
   // Placerad i slottets mitt; fiender skadar den när de bryter igenom sydväggen/porten
   // och når interiören. TRON-uppgraderingen höjer maxHp (10 nivåer). Game-over vid hp<=0.
   core: {
-    x: 2000, y: 600,                // slottets mitt
-    r: 60,                          // kollisions-/vägg-radie (var 110 = "kan knappt nå tronen") -> 60 matchar tron-footprint
+    x: 2000, y: 600,                // slottets mitt (HP/attack/pathing/respawn)
+    r: 60,                          // attack-/pathing-radie (BFS + respawn). KOLLISION via chairColl nedan.
+    // KOLLISION = bara STOLEN (en FYRKANT runt själva tron-stolen, EJ den runda dais:en).
+    // Mätt mot throne.png (stolens bbox, exkl. grå sten-dais). Spelare/fiender knuffas ur
+    // denna AABB i stället för r-cirkeln (som låg ~40px under stolen, nere på dais-golvet).
+    chairColl: { x: 1952, y: 388, w: 88, h: 145 },
     hp: 6000,
     maxHp: 6000,
     color: '#cfae6a',
