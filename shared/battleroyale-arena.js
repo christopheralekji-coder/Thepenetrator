@@ -2509,25 +2509,21 @@ function postProcessArena(arena) {
   // 1g. NYA GEMINI-PROPS (gravsten/runesten/excavator): storlek + kollision.
   //     gravsten = STÖRRE, runesten = MINDRE (båda platta top-down-slabs, kollision = foten).
   //     excavator = full sprite (visualFill) men kollision BARA på HYTTEN (övre delen), ej armen.
-  const _RESIZE = { cemetery_gravestone: { w: 44, h: 60 }, rune_stone: { w: 36, h: 52 } };
+  //     Alla 3 = visualFill-render (hela sprajten) + kollision på BARA den OPAKA kroppen
+  //     (mätt alpha>200, EJ mjuka skuggan). dx/dy/cw/ch = solid-box rel. visual-rutans
+  //     toppvänster. excavator-kollisionen = bara HYTTEN (armen nedanför = genomgång).
+  const _PROP = {
+    cemetery_gravestone: { vw: 44, vh: 60, dx: 17, dy: 16, cw: 24, ch: 42 },
+    rune_stone:          { vw: 36, vh: 52, dx: 14, dy: 13, cw: 21, ch: 37 },
+    excavator_wreck:     { vw: 100, vh: 238, dx: 38, dy: 57, cw: 59, ch: 77 },
+  };
   for (const w of arena.walls) {
-    const rz = _RESIZE[w.kind];
-    if (!rz) continue;
+    const p = _PROP[w.kind];
+    if (!p) continue;
     const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
-    w.w = rz.w; w.h = rz.h;
-    w.x = Math.round(cx - rz.w / 2); w.y = Math.round(cy - rz.h / 2);
-  }
-  for (const w of arena.walls) {
-    if (w.kind !== 'excavator_wreck') continue;
-    const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
-    const VW = 100, VH = 238;
-    w.visualX = Math.round(cx - VW / 2); w.visualY = Math.round(cy - VH / 2);
-    w.visualW = VW; w.visualH = VH; w.visualFill = true;
-    // hytt-box: övre ~50% av sprajten, ~90% bredd, centrerad (armen nedanför = genomgång)
-    const cw = Math.round(VW * 0.90), ch = Math.round(VH * 0.50);
-    w.w = cw; w.h = ch;
-    w.x = Math.round(cx - cw / 2);
-    w.y = Math.round(w.visualY + VH * 0.03);
+    w.visualX = Math.round(cx - p.vw / 2); w.visualY = Math.round(cy - p.vh / 2);
+    w.visualW = p.vw; w.visualH = p.vh; w.visualFill = true;
+    w.x = w.visualX + p.dx; w.y = w.visualY + p.dy; w.w = p.cw; w.h = p.ch;
     delete w.round;
   }
   // 2. Lägg till loot-spawn inuti varje cabin (centrum av bounds).
