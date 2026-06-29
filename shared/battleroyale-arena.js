@@ -1365,7 +1365,7 @@ const BATTLEROYALE_ARENA = {
 
     // 1. KRASCHAT PASSAGERARFLYGPLAN (i NE scrap-yard, gigantiskt vrak)
     //    Bestående av: fuselage (huvuddelen), vingar (sub-walls), motor (eld), stjärt
-    { x: 6806, y: 1412, w: 389, h: 266, kind: 'plane_fuselage' }, // huvuddel
+    { x: 6820, y: 1498, w: 360, h: 93, kind: 'plane_fuselage' }, // huvuddel
     { x: 6770, y: 1330, w: 221, h: 90, kind: 'plane_wing' },     // vänster vinge
     { x: 7120, y: 1600, w: 221, h: 90, kind: 'plane_wing' },     // höger vinge
     { x: 7164, y: 1468, w: 32,  h: 74, kind: 'plane_tail' },     // stjärt
