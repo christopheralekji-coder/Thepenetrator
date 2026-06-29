@@ -62,7 +62,7 @@ const CASTLEDEFENSE_ARENA = {
   // och når interiören. TRON-uppgraderingen höjer maxHp (10 nivåer). Game-over vid hp<=0.
   core: {
     x: 2000, y: 600,                // slottets mitt
-    r: 110,
+    r: 60,                          // kollisions-/vägg-radie (var 110 = "kan knappt nå tronen") -> 60 matchar tron-footprint
     hp: 6000,
     maxHp: 6000,
     color: '#cfae6a',
