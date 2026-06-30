@@ -9397,7 +9397,10 @@ function applyCastleDefenseRepair(sim, peerId, msg) {
   }
   if (!target) return;
   // v1.419: AABB med tolerans — REPARERA-knappen öppnas nära tornet, inte exakt PÅ det.
-  const _RTOL = 34;
+  // Slot-torn (machinegun/bomber) sitter PÅ sydmuren (ytterkant) → spelaren står ofta
+  // INNE i slottet (bakom 50px-muren) när de vill laga. Större tolerans så man når
+  // reparationen inifrån utan att behöva springa ut framför muren (användarkrav).
+  const _RTOL = (target.kind === 'machinegun' || target.kind === 'bomber') ? 95 : 34;
   const px = ws.playerState.x, py = ws.playerState.y;
   if (px < target.x - _RTOL || px > target.x + target.w + _RTOL || py < target.y - _RTOL || py > target.y + target.h + _RTOL) return;
   // v1.415: Repair-cost scaling efter dmg-pct + total invest.
