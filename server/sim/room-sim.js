@@ -6224,6 +6224,20 @@ const BR_BAG = {
   adrenaline: { cost: 300, max: 5, field: 'adrenalines' },
   airstrike:  { cost: 500, max: 5, field: 'airstrikes' },
 };
+// ALIEN-SHOP (UFO, EME HIC-fliken) — ENGÅNGSKÖP (flagga på ps.brAlien[item]). Köps BARA vid
+// alien-stationen (station.alien). Klient-applicerade: al_speed/al_dash_dist/al_dash_cd/al_zoom/
+// al_skin/al_bighead (klienten reagerar på br_alien_bought). Server-applicerade: al_reveal
+// (permanenta minimap-blips via UAV-loopen) + al_regen (passiv HP+shield i tickBrMeta).
+const BR_ALIEN = {
+  al_speed:     { cost: 750 },  // GRAVITAS NVLLA  — +15% move speed
+  al_dash_dist: { cost: 500 },  // SALTVS LONGVS   — +25% dash distance
+  al_dash_cd:   { cost: 550 },  // SALTVS CELER    — -1s dash cooldown
+  al_reveal:    { cost: 700 },  // OCVLVS CAELI    — enemies near you on minimap
+  al_zoom:      { cost: 500 },  // VISVS AMPLIOR   — zoom out ~25% (max med AWP, ej stack)
+  al_regen:     { cost: 850 },  // SANATIO         — passiv HP+shield regen
+  al_skin:      { cost: 300 },  // FIO ALIENIGENA  — alien-skin (kosmetiskt, matchen)
+  al_bighead:   { cost: 300 },  // CAPVT MAGNVM    — stort alien-huvud (kosmetiskt)
+};
 
 // Inkommande-skada-reduktion från dmg_redux-perken (-5%/nivå, tak -50%). Läses
 // LIVE av bullets.js (PvP) + _brAirstrikeDamage. Ersätter gamla armorLevel.
@@ -6283,6 +6297,23 @@ function applyBrBuy(sim, pid, itemKind) {
     ps[def.field] = cur + 1;
     brAwardCash(sim, pid, -def.cost);
     sim.eventQueue.push({ type: 'br_item_count', peerId: pid, item: itemKind, count: ps[def.field] });
+    sim.eventQueue.push({ type: 'br_buy_ok', peerId: pid, item: itemKind });
+    return;
+  }
+  // ── ALIEN-SHOP (engångsköp, BARA vid alien-stationen / UFO:t) ──
+  if (BR_ALIEN[itemKind]) {
+    if (!station.alien) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'wrong_shop' }); return; }
+    if (!ps.brAlien) ps.brAlien = {};
+    if (ps.brAlien[itemKind]) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'owned' }); return; }
+    const acost = BR_ALIEN[itemKind].cost;
+    if (cash < acost) { sim.eventQueue.push({ type: 'br_buy_fail', peerId: pid, reason: 'no_cash' }); return; }
+    ps.brAlien[itemKind] = true;
+    if (itemKind === 'al_regen') ps.passiveRegenActive = true;
+    if (itemKind === 'al_reveal') ps.enemyRevealActive = true;
+    if (itemKind === 'al_skin') ps.alienSkinActive = true;
+    if (itemKind === 'al_bighead') ps.bigHeadActive = true;
+    brAwardCash(sim, pid, -acost);
+    sim.eventQueue.push({ type: 'br_alien_bought', peerId: pid, item: itemKind });
     sim.eventQueue.push({ type: 'br_buy_ok', peerId: pid, item: itemKind });
     return;
   }
@@ -6584,6 +6615,20 @@ function tickBrMeta(sim, nowMs) {
     if (ps.hp !== before) sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield || 0 });
     if (ps.hp >= (ps.maxHp || 100)) ps.brMedkitTicks = 0; // full → klart
   }
+  // 1c. SANATIO (alien-shop): passiv HP+shield-regen var ~700ms, BARA utanför strid (>5s
+  //     sedan man tog skada) och vid liv. Liten takt → meningsfull men ej OP.
+  for (const [pid, ws] of sim.room.members) {
+    const ps = ws.playerState;
+    if (!ps || !ps.passiveRegenActive) continue;
+    if (ps.hp <= 0 || ps.brDowned) continue;
+    if (nowMs < (ps.brRegenNext || 0)) continue;
+    if (nowMs - (ps._brLastAttackerAt || 0) < 5000) continue;
+    ps.brRegenNext = nowMs + 700;
+    const _bh = ps.hp, _bs = ps.shield || 0;
+    ps.hp = Math.min(ps.maxHp || 100, ps.hp + 6);
+    ps.shield = Math.min(ps.maxShield || 100, (ps.shield || 0) + 4);
+    if (ps.hp !== _bh || ps.shield !== _bs) sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: pid, hp: ps.hp, shield: ps.shield });
+  }
   // 2. Airstrike-impacts: när impactAt nås → blast-VFX-events + skada.
   if (sim._brAirstrikes && sim._brAirstrikes.length) {
     for (const s of sim._brAirstrikes) {
@@ -6609,7 +6654,8 @@ function tickBrMeta(sim, nowMs) {
   if (sim._brUavTick >= 1500) {
     sim._brUavTick = 0;
     for (const [pid, ws] of sim.room.members) {
-      if (!ws.playerState || nowMs >= (ws.playerState.brUavUntil || 0)) continue;
+      // UAV (tidsbegränsad) ELLER OCVLVS CAELI (alien, permanent) → få fiende-blips.
+      if (!ws.playerState || (nowMs >= (ws.playerState.brUavUntil || 0) && !ws.playerState.enemyRevealActive)) continue;
       const blips = [];
       for (const [opid, ows] of sim.room.members) {
         if (opid === pid) continue;
@@ -6777,6 +6823,9 @@ function broadcastWorld(sim, now) {
         _out.dz = Math.round(Math.min(1, _sj / (BR_FREEFALL_MS + BR_CHUTE_MS)) * 100) / 100;
       }
     }
+    // ALIEN-kosmetik (alien-shop): andra spelare ser alien-skin / stort huvud hela matchen.
+    if (_ps.alienSkinActive) _out.aln = 1;
+    if (_ps.bigHeadActive) _out.bh = 1;
     return _out;
   });
   // Transport-pass (2026-06-10, JSON-vägen): egen players-payload för JSON-peers.
@@ -6797,6 +6846,8 @@ function broadcastWorld(sim, now) {
       if (p.cdDD) jp.cdDD = 1;
       // BATTLE BUS / SKYDIVE (air/dz).
       if (p.air) { jp.air = p.air; if (p.dz !== undefined) jp.dz = p.dz; }
+      if (p.aln) jp.aln = 1;
+      if (p.bh) jp.bh = 1;
       return jp;
     });
     return _jsonPlayers;
