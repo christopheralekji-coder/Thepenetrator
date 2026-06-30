@@ -4982,8 +4982,8 @@ function initBrLoot(sim) {
     const sp = brFindFreeSpot(origSp.x, origSp.y, arena.walls, arena.worldW, arena.worldH);
     if (sp.x !== origSp.x || sp.y !== origSp.y) movedCount++;
     let tier;
-    if (i === centerIdx) {
-      tier = 'legendary';
+    if (i === centerIdx || origSp.forceTier === 'legendary') {
+      tier = 'legendary';   // center-spawn + grottan = garanterad legendary
     } else {
       const r = Math.random();
       const t = arena.lootTiers;

@@ -1279,17 +1279,34 @@ const BATTLEROYALE_ARENA = {
     { x: 2985, y: 6720, w: 50, h: 35, kind: 'rock_small' },
     { x: 3045, y: 6705, w: 55, h: 38, kind: 'rock_small' },
 
-    // === LAKE_WATER_BLOCK — 9 små block (~200×200) som approximerar sjö-polygon.
-    // GAPS för bron: horisontell vid y=6935 (28px), vertikal vid x=2935 (28px).
-    // Top-row (y=6700-6900) — UNDER vattenfallet, kort så water-block hindrar inte falling
-    { x: 2680, y: 6700, w: 220, h: 230, kind: 'lake_water_block', passThroughBullets: true }, // top-west
-    { x: 2960, y: 6700, w: 220, h: 230, kind: 'lake_water_block', passThroughBullets: true }, // top-east (gap för vertikal-bro)
-    // Mid-row (y=6970-7100) — efter horisontal-bron
-    { x: 2660, y: 6970, w: 220, h: 130, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 2960, y: 6970, w: 220, h: 130, kind: 'lake_water_block', passThroughBullets: true },
-    // Bottom-row (y=7100-7220)
-    { x: 2690, y: 7100, w: 220, h: 120, kind: 'lake_water_block', passThroughBullets: true },
-    { x: 2960, y: 7100, w: 220, h: 120, kind: 'lake_water_block', passThroughBullets: true },
+    // === LAKE_WATER_BLOCK — fyller (forstorade) sjo-polygonen MINUS +-bro-korridoren
+    // (genererad: octagon-strips, matchar visuellt + bron gangbar). passThroughBullets.
+    { x: 2650, y: 6467, w: 193, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 6467, w: 104, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2630, y: 6509, w: 213, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 6509, w: 173, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2611, y: 6551, w: 232, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 6551, w: 241, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2591, y: 6593, w: 252, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 6593, w: 283, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2571, y: 6635, w: 271, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 6635, w: 297, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2552, y: 6677, w: 291, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 6677, w: 311, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2531, y: 6929, w: 312, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 6929, w: 308, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2547, y: 6971, w: 296, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 6971, w: 286, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2563, y: 7013, w: 280, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 7013, w: 258, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2579, y: 7055, w: 263, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 7055, w: 230, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2637, y: 7097, w: 206, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 7097, w: 202, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2700, y: 7139, w: 143, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 7139, w: 133, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 2777, y: 7181, w: 66, h: 42, kind: 'lake_water_block', passThroughBullets: true },
+    { x: 3025, y: 7181, w: 16, h: 42, kind: 'lake_water_block', passThroughBullets: true },
 
     { x: 2300, y: 5200, w: 60, h: 60, kind: 'tree_oak' },
     { x: 2700, y: 5100, w: 55, h: 55, kind: 'tree_pine' },
@@ -1473,9 +1490,9 @@ const BATTLEROYALE_ARENA = {
     // === SJÖN — krympt YTTERLIGARE till ~500×500, rund form ===
     // Center (2950, 6950). Klipp + vattenfall NORR om sjön smelter ihop.
     { kind: 'lake_water_polygon', points: [
-      [2750, 6700], [2900, 6680], [3050, 6700], [3180, 6780],
-      [3220, 6900], [3200, 7050], [3120, 7170], [2980, 7220],
-      [2820, 7210], [2700, 7130], [2650, 7000], [2680, 6850]
+      [2656, 6455], [2881, 6425], [3106, 6455], [3301, 6575],
+      [3361, 6755], [3331, 6980], [3211, 7160], [3001, 7235],
+      [2761, 7220], [2581, 7100], [2506, 6905], [2551, 6680]
     ] },
     { kind: 'stream',     x: 3900, y: 6250, x2: 4400, y2: 6000, w: 22 },
     { kind: 'stream',     x: 4400, y: 6000, x2: 5000, y2: 5700, w: 22 },
@@ -2568,6 +2585,8 @@ function postProcessArena(arena) {
     // hus-vapen-lådan (initBrLoot, centrum+36) hamnar BREDVID, ej ovanpå.
     arena.lootSpawns.push({ x: b.x + b.w / 2 - 36, y: b.y + b.h / 2 });
   }
+  // GROTTAN bakom vattenfallet (mellan stenarna): ALLTID en legendary (som husen).
+  arena.lootSpawns.push({ x: 2917, y: 6320, forceTier: 'legendary' });
   arena.lootSpawns.push(centerLoot);
   // 3. Audit: ta bort walls som ligger ENTRY-blockerande precis utanför cabin-dörrar.
   // För varje cabin, kolla en buffer-zon 40px ut från dörröppningen — om någon
