@@ -6485,6 +6485,9 @@ function tickBrContracts(sim, nowMs) {
       if (!d.landed) continue;
       for (const [pid, ws] of sim.room.members) {
         if (!ws.playerState || ws.playerState.hp <= 0 || ws.playerState.brDowned) continue;
+        // En KONTRAKT-låda (dropbox) får BARA öppnas av ägaren — annars stjäl någon annan
+        // looten OCH ägarens kontrakt fastnar (ingen deadline). Vanliga lådor: vem som helst.
+        if (d.fromContract && d.fromContract !== pid) continue;
         const dx = ws.playerState.x - d.x, dy = ws.playerState.y - d.y;
         if (dx * dx + dy * dy > BR_SUPPLY_PICK_R * BR_SUPPLY_PICK_R) continue;
         d.opened = true;
