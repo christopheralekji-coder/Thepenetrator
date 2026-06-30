@@ -2344,6 +2344,38 @@ function postProcessArena(arena) {
       return !(cx > b.x - 6 && cx < b.x + b.w + 6 && cy > b.y - 6 && cy < b.y + b.h + 6);
     });
   }
+  // 0b. PUNKT-STÄDNING (BR-feedback via koordinat-overlay):
+  //   - picknickbord @~5000,5400 (såg ut som en lös "fyrkant") → BORT
+  //   - "lång pinne bakom kyrkan" = stone_wall_low @~4500,6489 → BORT
+  //   - stencirkeln @~3975,3105: gör RUND + ta bort "trä-boxen" (altar_stone) i mitten
+  const _rmNear = (kind, px, py, rad) => {
+    arena.walls = arena.walls.filter(w => {
+      if (w.kind !== kind) return true;
+      const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
+      return Math.hypot(cx - px, cy - py) > rad;
+    });
+  };
+  _rmNear('picnic_table', 5035, 5418, 90);
+  _rmNear('stone_wall_low', 4500, 6489, 90);
+  _rmNear('altar_stone', 3975, 3105, 140);
+  // Runda stencirkeln: jämnt fördelade standing_stones runt sitt eget centrum.
+  {
+    const cz = arena.walls.filter(w => w.kind === 'standing_stone'
+      && Math.hypot(w.x + w.w / 2 - 3975, w.y + w.h / 2 - 3105) < 250);
+    if (cz.length >= 4) {
+      let cx = 0, cy = 0;
+      for (const s of cz) { cx += s.x + s.w / 2; cy += s.y + s.h / 2; }
+      cx /= cz.length; cy /= cz.length;
+      let rr = 0;
+      for (const s of cz) rr += Math.hypot(s.x + s.w / 2 - cx, s.y + s.h / 2 - cy);
+      rr = Math.max(135, rr / cz.length);
+      cz.forEach((s, i) => {
+        const ang = (i / cz.length) * Math.PI * 2 - Math.PI / 2;
+        s.x = Math.round(cx + Math.cos(ang) * rr - s.w / 2);
+        s.y = Math.round(cy + Math.sin(ang) * rr - s.h / 2);
+      });
+    }
+  }
   // 1. Ta bort graffiti + caution_tape + fallen_log + stream + DIRT_PATH
   //    (user gillar inte stigar — de gick ibland under hus)
   arena.decorations = arena.decorations.filter(d => {
@@ -2631,11 +2663,16 @@ function postProcessArena(arena) {
     const hsh = (((Math.round(f.x) * 73856093) ^ (Math.round(f.y) * 19349663) ^ salt) >>> 0) % 1000;
     if (!isRock && hsh >= 300) continue;
     if (isRock && hsh >= 800) continue;
-    // 4b hus-överlapp (foten mot husets rektangel + radie-buffer)
+    // 4b hus-överlapp. TRÄD är base-anchored → sprajten reser sig UPPÅT från foten, så ett
+    // träd vars fot står strax SÖDER om ett hus får kronan att gå IN i huset (användar-fynd
+    // @2842,3736 + @3294,4125). Använd trädets uppåt-räckvidd (≈ full sprajthöjd) mot huset,
+    // ej en symmetrisk fot-box. Sten reser sig ej → symmetrisk.
     let bad = false;
-    const hr = r * 0.7;
+    const hr = r;                        // FULL krona-radie horisontellt (matchar synlig krona)
+    const upR = isRock ? hr : r * 2.2;   // träd: hela sprajthöjden uppåt
+    const dnR = isRock ? hr : r * 0.4;
     for (const b of _cabB) {
-      if (f.x + hr > b.x - 6 && f.x - hr < b.x + b.w + 6 && f.y + hr > b.y - 6 && f.y - hr < b.y + b.h + 6) { bad = true; break; }
+      if (f.x + hr > b.x - 6 && f.x - hr < b.x + b.w + 6 && (f.y - upR) < (b.y + b.h + 6) && (f.y + dnR) > (b.y - 6)) { bad = true; break; }
     }
     if (bad) continue;
     // 4c greedy spacing mot redan behållna (props + träd + sten). Träd-mot-träd = full

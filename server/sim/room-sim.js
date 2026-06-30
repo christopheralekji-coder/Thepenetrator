@@ -6354,7 +6354,7 @@ const BR_CONTRACT_SPOTS = [
   { x: 5000, y: 5000 }, { x: 8200, y: 5200 }, { x: 3800, y: 8400 },
 ];
 const BR_CONTRACT_TYPES = ['bounty', 'dropbox', 'supply_run'];
-const BR_SUPPLY_FALL_MS = 6000, BR_SUPPLY_INTERVAL_MS = 90000, BR_SUPPLY_PICK_R = 44;
+const BR_SUPPLY_FALL_MS = 6000, BR_SUPPLY_INTERVAL_MS = 90000, BR_SUPPLY_PICK_R = 78; // 44→78: lådan är stor, plocka när man står FRAMFÖR den (ej exakt på mitten)
 
 function computeBrContracts(sim, arena) {
   const out = [];
