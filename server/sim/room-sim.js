@@ -6514,7 +6514,7 @@ function tickBrContracts(sim, nowMs) {
 
 // AIR STRIKE (v1.740): förbruka en laddning, schemalägg fördröjt nedslag (telegraf 3s)
 // med flera blast i en radie. Servern äger skada-appliceringen.
-const BR_AIRSTRIKE = { delayMs: 3000, radius: 240, dmg: 400, blasts: 6, spreadMs: 1400 };
+const BR_AIRSTRIKE = { delayMs: 1500, radius: 240, dmg: 400, blasts: 6, spreadMs: 1400 }; // 3000→1500: spräng efter 1.5s — chans att fly men svårt (klienten läser impactAt)
 function applyBrAirstrike(sim, pid, x, y) {
   if (!sim.battleroyaleActive || sim.battleroyaleEnded) return;
   const ws = sim.room.members.get(pid);
