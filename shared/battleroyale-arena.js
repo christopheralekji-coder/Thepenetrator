@@ -2200,7 +2200,7 @@ function addBrShopCabins(arena) {
     // v1.8xx S8: spot 1 5380→5240 (överlappade cont_n_1) + spot 6 620→560 (cont_w_2)
     { x: 820, y: 760 }, { x: 5240, y: 700 }, { x: 8650, y: 1150 },
     { x: 1520, y: 3380 }, { x: 6720, y: 3260 }, { x: 9080, y: 4250 },
-    { x: 560, y: 6180 }, { x: 3320, y: 6620 }, { x: 5820, y: 5560 },
+    { x: 560, y: 6180 }, { x: 3320, y: 6620, skip: true }, { x: 5820, y: 5560 },
     { x: 8720, y: 6420 }, { x: 2420, y: 8620 }, { x: 5220, y: 8780 },
   ];
   const roofs = [
@@ -2211,6 +2211,7 @@ function addBrShopCabins(arena) {
   const W = 190, H = 160;
   for (let i = 0; i < spots.length; i++) {
     const s = spots[i];
+    if (s.skip) continue;   // borttaget hus (vid sjön, högerkant) — index bevaras för övriga
     arena.cabins.push({
       id: 'shop_cabin_' + i, name: 'HANDELSBOD', shop: true,
       bounds: { x: s.x, y: s.y, w: W, h: H },
