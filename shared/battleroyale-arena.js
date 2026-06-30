@@ -709,7 +709,7 @@ const BATTLEROYALE_ARENA = {
     { x: 900,  y: 8000, w: 30, h: 30, kind: 'tree_stump' },
     { x: 1400, y: 8800, w: 30, h: 30, kind: 'tree_stump' },
     // Övergiven brunn i SW
-    { x: 850,  y: 8500, w: 50, h: 50, kind: 'well' },
+    { x: 825, y: 8475, w: 100, h: 100, kind: 'well' },
 
     // SE HÖRN (8000-10000, 7500-10000)
     { x: 8200, y: 7600, w: 70, h: 70, kind: 'tree_oak' },
@@ -778,7 +778,7 @@ const BATTLEROYALE_ARENA = {
     { x: 80,   y: 2900, w: 32, h: 32, kind: 'oil_drum' },
     { x: 400,  y: 1300, w: 32, h: 32, kind: 'oil_drum' },
     // Övergiven brunn nord-väst
-    { x: 1450, y: 1400, w: 50, h: 50, kind: 'well' },
+    { x: 1425, y: 1375, w: 100, h: 100, kind: 'well' },
     // Standing-stone-mystik
     { x: 200,  y: 350,  w: 50, h: 50, kind: 'standing_stone' },
     { x: 1550, y: 2920, w: 40, h: 60, kind: 'rune_stone' },
@@ -814,7 +814,7 @@ const BATTLEROYALE_ARENA = {
     // Övergiven car-wreck nere i SW
     { x: 1000, y: 9500, w: 110, h: 55, kind: 'car_wreck' },
     // Brunn i SW
-    { x: 1200, y: 8000, w: 50, h: 50, kind: 'well' },
+    { x: 1175, y: 7975, w: 100, h: 100, kind: 'well' },
     // Mystik
     { x: 1450, y: 9100, w: 50, h: 50, kind: 'standing_stone' },
     { x: 50,   y: 9100, w: 40, h: 60, kind: 'rune_stone' },
@@ -855,7 +855,7 @@ const BATTLEROYALE_ARENA = {
     // NE car-wreck
     { x: 8700, y: 2900, w: 110, h: 55, kind: 'car_wreck' },
     // NE brunn
-    { x: 9500, y: 2600, w: 50, h: 50, kind: 'well' },
+    { x: 9475, y: 2575, w: 100, h: 100, kind: 'well' },
     // Mystik nere i NE (innan alien-zon!)
     { x: 9750, y: 350,  w: 40, h: 60, kind: 'rune_stone' },
     { x: 9700, y: 1700, w: 50, h: 50, kind: 'standing_stone' },
@@ -1162,7 +1162,7 @@ const BATTLEROYALE_ARENA = {
     { x: 5200, y: 5700, w: 12,  h: 220, kind: 'cabin_wall_wood' },
     { x: 5468, y: 5700, w: 12,  h: 220, kind: 'cabin_wall_wood' },
 
-    { x: 5380, y: 5180, w: 50, h: 50, kind: 'well' },
+    { x: 5355, y: 5155, w: 100, h: 100, kind: 'well' },
 
     { x: 5550, y: 5400, w: 80, h: 80, kind: 'haystack' },
     { x: 5650, y: 5500, w: 60, h: 60, kind: 'haystack' },
