@@ -1254,17 +1254,17 @@ const BATTLEROYALE_ARENA = {
     //
     // VÄNSTER bergmassiv (huvudblock + topp-rocks)
     // Topp-rocks som bryter upp övre kanten (ser ut som klippspetsar)
-    { x: 2400, y: 6420, w: 75, h: 60, kind: 'mountain_peak' },
-    { x: 2510, y: 6405, w: 85, h: 70, kind: 'mountain_peak' },
-    { x: 2620, y: 6415, w: 80, h: 65, kind: 'mountain_peak' },
-    { x: 2720, y: 6435, w: 75, h: 60, kind: 'mountain_peak' },
-    { x: 2800, y: 6450, w: 70, h: 55, kind: 'mountain_peak' },
+    { x: 2383, y: 6420, w: 75, h: 60, kind: 'mountain_peak' },
+    { x: 2493, y: 6405, w: 85, h: 70, kind: 'mountain_peak' },
+    { x: 2603, y: 6415, w: 80, h: 65, kind: 'mountain_peak' },
+    { x: 2703, y: 6435, w: 75, h: 60, kind: 'mountain_peak' },
+    { x: 2783, y: 6450, w: 70, h: 55, kind: 'mountain_peak' },
     // HÖGER bergmassiv
-    { x: 3020, y: 6450, w: 75, h: 55, kind: 'mountain_peak' },
-    { x: 3110, y: 6420, w: 85, h: 70, kind: 'mountain_peak' },
-    { x: 3210, y: 6405, w: 80, h: 65, kind: 'mountain_peak' },
-    { x: 3310, y: 6415, w: 75, h: 60, kind: 'mountain_peak' },
-    { x: 3400, y: 6430, w: 80, h: 65, kind: 'mountain_peak' },
+    { x: 3003, y: 6450, w: 75, h: 55, kind: 'mountain_peak' },
+    { x: 3093, y: 6420, w: 85, h: 70, kind: 'mountain_peak' },
+    { x: 3193, y: 6405, w: 80, h: 65, kind: 'mountain_peak' },
+    { x: 3293, y: 6415, w: 75, h: 60, kind: 'mountain_peak' },
+    { x: 3383, y: 6430, w: 80, h: 65, kind: 'mountain_peak' },
     // Detalj-stenar längs vattenfalls-kanalens kanter (där vattnet rinner mellan dem)
     { x: 2820, y: 6450, w: 45, h: 35, kind: 'rock_small' },
     { x: 2830, y: 6540, w: 40, h: 30, kind: 'rock_small' },
