@@ -6172,10 +6172,10 @@ function computeBrBuyStations(arena) {
       alien: false,
     });
   }
-  // ALIEN-SHOP i lila SE-hörnet (öppen yta → radie). Mitten av alien_floor-zonen ~8800,8800.
-  // ALIEN-SHOP vid UFO:t. Stationen i ÖPPEN mark söder om UFO-vraket (UFO-kollisionen slutar
-  // ~y8851) + stor radie så man säkert kommer "nära nog" för att menyn ska upp (#UFO-shop-bug).
-  stations.push({ x: 8801, y: 8980, r: 290, alien: true, name: 'ALIEN' });
+  // ALIEN-SHOP = SJÄLVA UFO:t (användarkrav: "UFOT ska vara shoppen", ingen grön markör).
+  // Stationen centrerad på UFO-vraket (collision { x:8754,y:8820,w:93,h:61 } → mitt 8800,8850)
+  // + stor radie så man säkert kommer "nära nog" för att menyn ska upp (#UFO-shop-bug).
+  stations.push({ x: 8800, y: 8850, r: 290, alien: true, name: 'ALIEN' });
   return stations;
 }
 
