@@ -1253,7 +1253,6 @@ const BATTLEROYALE_ARENA = {
     // Vattenfallet faller i 130px-bred kanal (x=2870..3000) mellan klipporna.
     //
     // VÄNSTER bergmassiv (huvudblock + topp-rocks)
-    { x: 2380, y: 6340, w: 490, h: 380, kind: 'cliff_edge' },  // huvud-cliff vänster
     // Topp-rocks som bryter upp övre kanten (ser ut som klippspetsar)
     { x: 2400, y: 6300, w: 75, h: 60, kind: 'mountain_peak' },
     { x: 2510, y: 6285, w: 85, h: 70, kind: 'mountain_peak' },
@@ -1261,7 +1260,6 @@ const BATTLEROYALE_ARENA = {
     { x: 2720, y: 6315, w: 75, h: 60, kind: 'mountain_peak' },
     { x: 2800, y: 6330, w: 70, h: 55, kind: 'mountain_peak' },
     // HÖGER bergmassiv
-    { x: 3000, y: 6340, w: 490, h: 380, kind: 'cliff_edge' },  // huvud-cliff höger
     { x: 3020, y: 6330, w: 75, h: 55, kind: 'mountain_peak' },
     { x: 3110, y: 6300, w: 85, h: 70, kind: 'mountain_peak' },
     { x: 3210, y: 6285, w: 80, h: 65, kind: 'mountain_peak' },
