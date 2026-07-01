@@ -2594,9 +2594,10 @@ function postProcessArena(arena) {
     arena.lootSpawns.push({ x: b.x + b.w / 2 - 36, y: b.y + b.h / 2 });
   }
   // GROTTAN bakom vattenfallet (mellan stenarna): ALLTID en legendary (som husen).
-  // INUTI grott-rummet (interiör mitt ~2932,6144 — större grotta) — man måste gå in i
-  // grottan (uppför vattenfalls-kanalen, bakom fallet) för att ta den.
-  arena.lootSpawns.push({ x: 2932, y: 6144, forceTier: 'legendary' });
+  // INUTI grott-rummet, centralt i den mörka mynningen (inmätt: y6185 ligger mitt i
+  // öppningen där spelaren står, ovanför vattenfallet) — man måste gå in i grottan
+  // (uppför vattenfalls-kanalen, bakom fallet) för att ta den.
+  arena.lootSpawns.push({ x: 2932, y: 6185, forceTier: 'legendary' });
   arena.lootSpawns.push(centerLoot);
   // 3. Audit: ta bort walls som ligger ENTRY-blockerande precis utanför cabin-dörrar.
   // För varje cabin, kolla en buffer-zon 40px ut från dörröppningen — om någon
