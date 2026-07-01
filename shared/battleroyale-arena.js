@@ -2547,7 +2547,7 @@ function postProcessArena(arena) {
   //     Klient-JSON re-exporteras härur så server/klient matchar exakt.
   const _SCIFI = {
     alien_crystal: { vw: 50, vh: 80, round: true,  dx: -13, dy: -85,  w: 84,  h: 84 },
-    ufo_wreck:     { vw: 80, vh: 80, round: false, dx: -108, dy: -148, w: 215, h: 148 },
+    ufo_wreck:     { vw: 80, vh: 80, round: true,  dx: -100, dy: -174, w: 200, h: 200 },
   };
   for (const w of arena.walls) {
     const sf = _SCIFI[w.kind];
