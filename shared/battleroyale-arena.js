@@ -1858,7 +1858,7 @@ const BATTLEROYALE_ARENA = {
     { x: 7700, y: 5900 },
     // WEST LAKE (10)
     { x: 2200, y: 5300 }, { x: 2600, y: 5500 }, { x: 3500, y: 5500 },
-    { x: 4000, y: 5700 }, { x: 2800, y: 6000 }, { x: 3500, y: 6150 },
+    { x: 4000, y: 5700 }, { x: 2450, y: 5820 }, { x: 3500, y: 6150 },
     { x: 4200, y: 6200 }, { x: 2400, y: 7000 }, { x: 3100, y: 7400 },
     { x: 4200, y: 7400 },
     // SOUTH WILD (8)
@@ -2591,13 +2591,17 @@ function postProcessArena(arena) {
   for (const w of arena.walls) {
     if (w.kind !== 'standing_stone' || w.visualW != null) continue;
     const s = w.w;
-    const cx = w.x + s / 2, cy = w.y + s / 2;
+    // Sprajtens OPAKA sten-content ligger HÖGER om boxens mitt (inmätt ur .png:erna) →
+    // kollisionen måste centreras på content-mitten, inte box-mitten (annars för långt vänster).
+    const CR = (s >= 60) ? { dx: 28, dy: -34, cw: 54, ch: 127 } : { dx: 23, dy: -34, cw: 50, ch: 117 };
+    const ccx = w.x + CR.dx + CR.cw / 2;   // content-mitt world-x
+    const ccy = w.y + CR.dy + CR.ch / 2;   // content-mitt world-y
     w.visualX = w.x; w.visualY = w.y; w.visualW = s; w.visualH = s; w.visualFill = true;
-    const cw = Math.round(s * 0.84);
-    const ch = Math.round((s + 68) * 0.86);
-    w.x = Math.round(cx - cw / 2);
-    w.y = Math.round(cy - ch / 2);
-    w.w = cw; w.h = ch;
+    const nw = Math.round(CR.cw * 0.82);
+    const nh = Math.round(CR.ch * 0.86);
+    w.x = Math.round(ccx - nw / 2);
+    w.y = Math.round(ccy - nh / 2);
+    w.w = nw; w.h = nh;
     delete w.round;
   }
   // 2. Lägg till loot-spawn inuti varje cabin (centrum av bounds).
