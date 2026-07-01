@@ -1257,11 +1257,11 @@ const BATTLEROYALE_ARENA = {
     { x: 2383, y: 6420, w: 75, h: 60, kind: 'mountain_peak' },
     { x: 2493, y: 6405, w: 85, h: 70, kind: 'mountain_peak' },
     { x: 2603, y: 6415, w: 80, h: 65, kind: 'mountain_peak' },
-    { x: 2703, y: 6435, w: 75, h: 60, kind: 'mountain_peak' },
-    { x: 2783, y: 6450, w: 70, h: 55, kind: 'mountain_peak' },
+    { x: 2703, y: 6435, w: 75, h: 60, kind: 'mountain_peak' , decor: true },
+    { x: 2783, y: 6450, w: 70, h: 55, kind: 'mountain_peak' , decor: true },
     // HÖGER bergmassiv
-    { x: 3003, y: 6450, w: 75, h: 55, kind: 'mountain_peak' },
-    { x: 3093, y: 6420, w: 85, h: 70, kind: 'mountain_peak' },
+    { x: 3003, y: 6450, w: 75, h: 55, kind: 'mountain_peak' , decor: true },
+    { x: 3093, y: 6420, w: 85, h: 70, kind: 'mountain_peak' , decor: true },
     { x: 3193, y: 6405, w: 80, h: 65, kind: 'mountain_peak' },
     { x: 3293, y: 6415, w: 75, h: 60, kind: 'mountain_peak' },
     { x: 3383, y: 6430, w: 80, h: 65, kind: 'mountain_peak' },
@@ -1270,9 +1270,32 @@ const BATTLEROYALE_ARENA = {
     // (topp + vänster + höger) täcker bergmassivet runt mynningen; interiör x[2858,3006]
     // y[6122,...] öppen nedåt. Inmätt mot grott-sprajten (WaterFx). cave_wall passerar
     // postProcess oförändrad → server/klient-kollision identisk.
-    { x: 2580, y: 5895, w: 685, h: 148, kind: 'cave_wall' },
-    { x: 2580, y: 6043, w: 233, h: 302, kind: 'cave_wall' },
-    { x: 3050, y: 6043, w: 215, h: 302, kind: 'cave_wall' },
+    { x: 2798, y: 5852, w: 289, h: 45, kind: 'cave_wall' },
+    { x: 2733, y: 5897, w: 433, h: 45, kind: 'cave_wall' },
+    { x: 2695, y: 5942, w: 495, h: 45, kind: 'cave_wall' },
+    { x: 2659, y: 5987, w: 558, h: 45, kind: 'cave_wall' },
+    { x: 2623, y: 6032, w: 177, h: 45, kind: 'cave_wall' },
+    { x: 3070, y: 6032, w: 184, h: 45, kind: 'cave_wall' },
+    { x: 2613, y: 6077, w: 187, h: 45, kind: 'cave_wall' },
+    { x: 3070, y: 6077, w: 202, h: 45, kind: 'cave_wall' },
+    { x: 2607, y: 6122, w: 193, h: 45, kind: 'cave_wall' },
+    { x: 3070, y: 6122, w: 213, h: 45, kind: 'cave_wall' },
+    { x: 2590, y: 6167, w: 210, h: 45, kind: 'cave_wall' },
+    { x: 3070, y: 6167, w: 214, h: 45, kind: 'cave_wall' },
+    { x: 2580, y: 6212, w: 220, h: 45, kind: 'cave_wall' },
+    { x: 3070, y: 6212, w: 214, h: 45, kind: 'cave_wall' },
+    { x: 2574, y: 6257, w: 226, h: 45, kind: 'cave_wall' },
+    { x: 3070, y: 6257, w: 214, h: 45, kind: 'cave_wall' },
+    { x: 2586, y: 6302, w: 214, h: 45, kind: 'cave_wall' },
+    { x: 3070, y: 6302, w: 215, h: 45, kind: 'cave_wall' },
+    { x: 2616, y: 6347, w: 184, h: 45, kind: 'cave_wall' },
+    { x: 3070, y: 6347, w: 196, h: 45, kind: 'cave_wall' },
+    { x: 2675, y: 6392, w: 125, h: 45, kind: 'cave_wall' },
+    { x: 3070, y: 6392, w: 145, h: 45, kind: 'cave_wall' },
+    { x: 2686, y: 6437, w: 114, h: 45, kind: 'cave_wall' },
+    { x: 3070, y: 6437, w: 136, h: 45, kind: 'cave_wall' },
+    { x: 2686, y: 6482, w: 114, h: 45, kind: 'cave_wall' },
+    { x: 3070, y: 6482, w: 136, h: 45, kind: 'cave_wall' },
     // Detalj-stenar längs vattenfalls-kanalens kanter (där vattnet rinner mellan dem)
     { x: 2820, y: 6450, w: 45, h: 35, kind: 'rock_small' },
     { x: 2830, y: 6540, w: 40, h: 30, kind: 'rock_small' },
@@ -1331,8 +1354,6 @@ const BATTLEROYALE_ARENA = {
 
     { x: 3000, y: 7400, w: 30, h: 30, kind: 'tree_stump' },
     { x: 3800, y: 7500, w: 30, h: 30, kind: 'tree_stump' },
-
-    { x: 3000, y: 5870, w: 70, h: 30, kind: 'woodpile' },
 
     { x: 2100, y: 6400, w: 80, h: 80, kind: 'cabin_wall_wood' },
 
@@ -2547,7 +2568,7 @@ function postProcessArena(arena) {
   //     Klient-JSON re-exporteras härur så server/klient matchar exakt.
   const _SCIFI = {
     alien_crystal: { vw: 50, vh: 80, round: true,  dx: -13, dy: -85,  w: 84,  h: 84 },
-    ufo_wreck:     { vw: 80, vh: 80, round: true,  dx: -100, dy: -174, w: 200, h: 200 },
+    ufo_wreck:     { vw: 80, vh: 80, round: true,  dx: -70, dy: -161, w: 140, h: 140 },   // cirkel r70 centrerad på diskens mitt (var r100 = för stor)
   };
   for (const w of arena.walls) {
     const sf = _SCIFI[w.kind];
