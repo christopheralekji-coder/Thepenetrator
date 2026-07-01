@@ -1270,9 +1270,9 @@ const BATTLEROYALE_ARENA = {
     // (topp + vänster + höger) täcker bergmassivet runt mynningen; interiör x[2858,3006]
     // y[6122,...] öppen nedåt. Inmätt mot grott-sprajten (WaterFx). cave_wall passerar
     // postProcess oförändrad → server/klient-kollision identisk.
-    { x: 2735, y: 6010, w: 410, h: 112, kind: 'cave_wall' },
-    { x: 2735, y: 6122, w: 123, h: 150, kind: 'cave_wall' },
-    { x: 3006, y: 6122, w: 139, h: 150, kind: 'cave_wall' },
+    { x: 2580, y: 5895, w: 685, h: 148, kind: 'cave_wall' },
+    { x: 2580, y: 6043, w: 233, h: 302, kind: 'cave_wall' },
+    { x: 3050, y: 6043, w: 215, h: 302, kind: 'cave_wall' },
     // Detalj-stenar längs vattenfalls-kanalens kanter (där vattnet rinner mellan dem)
     { x: 2820, y: 6450, w: 45, h: 35, kind: 'rock_small' },
     { x: 2830, y: 6540, w: 40, h: 30, kind: 'rock_small' },
@@ -2594,9 +2594,9 @@ function postProcessArena(arena) {
     arena.lootSpawns.push({ x: b.x + b.w / 2 - 36, y: b.y + b.h / 2 });
   }
   // GROTTAN bakom vattenfallet (mellan stenarna): ALLTID en legendary (som husen).
-  // INUTI grott-rummet (interiör x[2858,3006] y[6122,6272], mitt ~2932,6175) — man måste
-  // gå in i grottan (uppför vattenfalls-kanalen, bakom fallet) för att ta den.
-  arena.lootSpawns.push({ x: 2932, y: 6175, forceTier: 'legendary' });
+  // INUTI grott-rummet (interiör mitt ~2932,6144 — större grotta) — man måste gå in i
+  // grottan (uppför vattenfalls-kanalen, bakom fallet) för att ta den.
+  arena.lootSpawns.push({ x: 2932, y: 6144, forceTier: 'legendary' });
   arena.lootSpawns.push(centerLoot);
   // 3. Audit: ta bort walls som ligger ENTRY-blockerande precis utanför cabin-dörrar.
   // För varje cabin, kolla en buffer-zon 40px ut från dörröppningen — om någon
