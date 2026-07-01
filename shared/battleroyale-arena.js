@@ -2584,6 +2584,22 @@ function postProcessArena(arena) {
     w.x = w.visualX + p.dx; w.y = w.visualY + p.dy; w.w = p.cw; w.h = p.ch;
     delete w.round;
   }
+  // 1h. STANDING_STONE (rest sten / stencirkel): sprajten är en HÖG smal menhir (~s x s+68px,
+  //     ritad CENTRERAD på boxen) men kollisionen var en liten s x s-ruta i MITTEN → man gick
+  //     igenom övre/nedre delen av stenen. Fix: lås sprajten med visualFill (oförändrad) + sätt
+  //     en HÖG smal kollision centrerad på stenen som täcker den resta stenens kropp.
+  for (const w of arena.walls) {
+    if (w.kind !== 'standing_stone' || w.visualW != null) continue;
+    const s = w.w;
+    const cx = w.x + s / 2, cy = w.y + s / 2;
+    w.visualX = w.x; w.visualY = w.y; w.visualW = s; w.visualH = s; w.visualFill = true;
+    const cw = Math.round(s * 0.84);
+    const ch = Math.round((s + 68) * 0.86);
+    w.x = Math.round(cx - cw / 2);
+    w.y = Math.round(cy - ch / 2);
+    w.w = cw; w.h = ch;
+    delete w.round;
+  }
   // 2. Lägg till loot-spawn inuti varje cabin (centrum av bounds).
   //    RANDOM tier (containers använder samma distribution som hus — ingen garanti).
   const centerLoot = arena.lootSpawns.pop();
