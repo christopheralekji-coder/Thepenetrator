@@ -11,7 +11,7 @@
 
 const { W_BY_ID } = require('../../shared/weapons-data');
 const { findNearestPlayer } = require('./enemies');
-const { CTF_ARENA, bulletHitsWall } = require('../../shared/ctf-arena');
+const { CTF_ARENA, bulletHitsWall, buildWallGrid, wallsInRect } = require('../../shared/ctf-arena');
 const { TDM_ARENA } = require('../../shared/tdm-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
 const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS, GUNGAME_DEMOTE_FLOOR } = require('../../shared/gungame-arena');
@@ -946,6 +946,13 @@ function cdDetonateBarrel(sim, barrel) {
 // Mirror av game.js:7870-8010.
 function updateBullets(sim, dt, now) {
   const bullets = sim.bullets;
+  // PERF-TAK (BR): under en stampede/minigun-storm kunde sim.bullets svälla obundet →
+  // bulletHitsWall (O(bullets × ~1500 walls, ingen spatial-index) fick tick:en att spika
+  // 400-500ms för HELA rummet (delad event-loop → alla laggar + dör). Tak 500: släpp de
+  // ÄLDSTA (längst hunna, snart döda ändå). Bara BR (stort arena/många walls); rör ej co-op.
+  if (sim.battleroyaleActive && bullets.length > 500) {
+    bullets.splice(0, bullets.length - 500);
+  }
   // Hitta ägare-spelare för boomerang-return
   function findOwnerPos(ownerPid) {
     if (!ownerPid) return null;
@@ -1109,8 +1116,15 @@ function updateBullets(sim, dt, now) {
     if (sim.battleroyaleActive) {
       // Skippa fönster-walls (passThroughBullets=true) så bullets passerar
       const brSolidWalls = sim._brSolidWalls || (sim._brSolidWalls = BATTLEROYALE_ARENA.walls.filter(w => !w.passThroughBullets));
-      if (bulletHitsWall(b, brSolidWalls)) {
-        if (ricochetOff(b, brSolidWalls)) continue;
+      // PERF: broadphase-grid → testa BARA väggar i det svepta segmentets celler (superset →
+      // bulletHitsWall/ricochetOff ger identiskt resultat men O(candidates) ist. O(~1500)).
+      const _bg = sim._brBulletGrid || (sim._brBulletGrid = buildWallGrid(brSolidWalls));
+      const _br = (b.r || 4);
+      const _bpx = (typeof b._prevX === 'number') ? b._prevX : b.x;
+      const _bpy = (typeof b._prevY === 'number') ? b._prevY : b.y;
+      const _bcand = wallsInRect(_bg, Math.min(_bpx, b.x) - _br - 2, Math.min(_bpy, b.y) - _br - 2, Math.max(_bpx, b.x) + _br + 2, Math.max(_bpy, b.y) + _br + 2);
+      if (_bcand.length && bulletHitsWall(b, _bcand)) {
+        if (ricochetOff(b, _bcand)) continue;
         if (b.explosive && !b.hostile) {
           explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
         }

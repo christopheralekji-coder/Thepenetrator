@@ -14,7 +14,7 @@ const { KOTH_ARENA } = require('../../shared/koth-arena');
 const { BATTLEROYALE_ARENA } = require('../../shared/battleroyale-arena');
 // v1.666: vägg-medveten styrning — bots fastnade på väggar (ingen pathfinding) och
 // strafe:ade "upp och ner i basen". Behöver mode-väggar + en punkt-blockerad-test.
-const { CTF_ARENA, bulletHitsWall } = require('../../shared/ctf-arena');
+const { CTF_ARENA, bulletHitsWall, buildWallGrid, wallsInRect } = require('../../shared/ctf-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
 const { GUNGAME_ARENA } = require('../../shared/gungame-arena');
 const { TDM_ARENA } = require('../../shared/tdm-arena');
@@ -67,8 +67,15 @@ function getWorldDims(sim) {
 // FÖRE målet. Används för att (a) inte skjuta genom väggar, (b) tvinga boten runt
 // väggar för att nå sitt kill-mål. Liang-Barsky segment-vs-AABB per vägg.
 function losBlocked(sim, x0, y0, x1, y1) {
-  const walls = getActiveWalls(sim);
+  let walls = getActiveWalls(sim);
   if (!walls || !walls.length) return false;
+  // PERF (BR): broadphase-grid → iterera bara väggar i LoS-segmentets celler (superset →
+  // samma Liang-Barsky-resultat, men O(candidates) ist. O(~1500) × bots × 6 LoS = [SLOW-TICK]).
+  if (sim.battleroyaleActive) {
+    const grid = sim._brLosGrid || (sim._brLosGrid = buildWallGrid(walls));
+    walls = wallsInRect(grid, x0 < x1 ? x0 : x1, y0 < y1 ? y0 : y1, x0 < x1 ? x1 : x0, y0 < y1 ? y1 : y0);
+    if (!walls.length) return false;
+  }
   const dx = x1 - x0, dy = y1 - y0;
   // PERF: bounding-box-broadphase. En LoS-linje är kort (≤720px); de allra flesta väggar
   // ligger helt utanför segmentets bbox och kan slängas med 4 jämförelser INNAN den dyra

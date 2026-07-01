@@ -13,7 +13,7 @@ const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onW
 const { getDiffMul: cdGetDiffMul, getCoopMultiplier: cdGetCoopMul, getCoopDmgMultiplier: cdGetCoopDmgMul, getCoopSpawnMultiplier: cdGetCoopSpawnMul } = require('../../shared/stages-data');
 const { updatePickups, dropFromEnemyDeath } = require('./pickups');
 const { getStage } = require('../../shared/stages-data');
-const { CTF_ARENA, resolveCtfWall, bulletHitsWall } = require('../../shared/ctf-arena');
+const { CTF_ARENA, resolveCtfWall, bulletHitsWall, buildWallGrid, wallsInRect } = require('../../shared/ctf-arena');
 const { TDM_ARENA } = require('../../shared/tdm-arena');
 const { SIEGE_ARENA } = require('../../shared/siege-arena');
 const { GUNGAME_ARENA, GUNGAME_WEAPONS, GUNGAME_MELEE_DEMOTERS } = require('../../shared/gungame-arena');
@@ -4401,7 +4401,14 @@ function tickBattleRoyale(sim, dt, now) {
     if (ws.playerState && ws.playerState.brAir) continue; // luftburen (buss/freefall) → ingen vägg-klamp
     if (ws.playerState && ws.playerState.hp > 0) {
       const ent = { x: ws.playerState.x, y: ws.playerState.y, r: 14 };
-      resolveCtfWall(ent, arena.walls);
+      // PERF (BR): broadphase-grid → resolva bara mot väggar i spelarens celler (superset →
+      // identisk push men O(candidates) ist. O(~1500 väggar) × alla members varje tick).
+      if (sim.battleroyaleActive) {
+        const _rg = sim._brResolveGrid || (sim._brResolveGrid = buildWallGrid(arena.walls));
+        resolveCtfWall(ent, wallsInRect(_rg, ent.x - 62, ent.y - 62, ent.x + 62, ent.y + 62));
+      } else {
+        resolveCtfWall(ent, arena.walls);
+      }
       // Klamp till arena-bounds
       ent.x = Math.max(20, Math.min(arena.worldW - 20, ent.x));
       ent.y = Math.max(20, Math.min(arena.worldH - 20, ent.y));
@@ -4546,8 +4553,14 @@ function tickBattleRoyale(sim, dt, now) {
     }
   }
 
-  // Win-check: 1 levande kvar (men bara om matchen startade med >=2 deltagare)
-  if (sim.battleroyaleStartCount >= 2 && sim.battleroyaleAliveCount <= 1) {
+  // Win-check: 1 levande kvar (men bara om matchen startade med >=2 deltagare).
+  // GULAG-GUARD: avsluta INTE matchen medan någon fortfarande är i gulag-kön eller en pågående
+  // duell — annars kunde en batch-död (som drar aliveCount<=1) avsluta matchen + voidAllGulag,
+  // så nyss-köade spelare aldrig fick sin duell ("dog utan chans att köra Gulag"). Gulag-vinnaren
+  // redeployar → aliveCount stiger igen → win-check faller ut korrekt när kön är tom.
+  var _gulagPending = ((sim.gulagQueue && sim.gulagQueue.length) || 0) > 0
+    || ((sim.gulagMatches && sim.gulagMatches.length) || 0) > 0;
+  if (sim.battleroyaleStartCount >= 2 && sim.battleroyaleAliveCount <= 1 && !_gulagPending) {
     // Hitta sista levande (om någon). Downed räknas EJ som vinnare (v1.748).
     let winner = null;
     for (const [pid, ws] of sim.room.members) {
@@ -8911,7 +8924,10 @@ function applyPlayerInput(sim, peerId, input) {
     ws.playerState._cliMaxShield = Math.max(0, Math.min(2000, input.maxShield));
   }
   if (typeof input.aim === 'number') ws.playerState.aim = input.aim;
-  if (input.weaponId) {
+  // GULAG: servern äger vapnet under en duell (loadout/frenzy). Sena/stale klient-echo av
+  // det GAMLA BR-vapnet (skickas medan man är downed/köad innan menu_locked hinner sättas)
+  // klobbade annars ps.weaponId → fjärrspelare/spectators såg FEL vapen hela duellen.
+  if (input.weaponId && ws.playerState.gulagState !== 'fighting') {
     ws.playerState.weaponId = input.weaponId;
     // BR: när klient SKICKAR vapen-byte (via radial/menu) skicka ALSO weaponTier
     // så servern vet vilken tier nu equipped (för auto-equip-jämförelse vid nästa pickup).

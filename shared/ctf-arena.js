@@ -349,12 +349,57 @@ function segmentIntersectsAABB(x0, y0, x1, y1, minX, minY, maxX, maxY) {
   return true;
 }
 
+// ── STATISK BROADPHASE-GRID för wall-kollision (BR-perf) ────────────────────────────
+// Rotorsak till 400-500ms-spikarna: bulletHitsWall/resolveCtfWall/losBlocked itererade ALLA
+// ~1500 väggar × (bullets + members + bots×6 LoS) varje tick, utan spatial-index. buildWallGrid
+// bucketar varje väggs AABB i alla CELL-celler den överlappar (byggs EN gång per statiskt
+// wall-set). wallsInRect ger ALLA väggar i frågeregionens celler = en SUPERSET → de exakta
+// geometri-testerna i funktionerna ovan är OFÖRÄNDRADE (identiskt resultat, O(candidates)).
+// Bara för STATISKA wall-set (BR-arenan); CD:s dynamiska väggar rör vi ej.
+function buildWallGrid(walls, cell) {
+  cell = cell || 256;
+  const cols = new Map();
+  for (let i = 0; i < walls.length; i++) {
+    const w = walls[i];
+    if (w.decor) continue; // dekor kolliderar aldrig → håll rutnätet magert
+    const cx0 = Math.floor(w.x / cell), cy0 = Math.floor(w.y / cell);
+    const cx1 = Math.floor((w.x + (w.w || 0)) / cell), cy1 = Math.floor((w.y + (w.h || 0)) / cell);
+    for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++) {
+      const k = cx + ':' + cy;
+      let a = cols.get(k); if (!a) { a = []; cols.set(k, a); }
+      a.push(w);
+    }
+  }
+  return { cell, cols };
+}
+// Väggar vars cell överlappar rektangeln (minx,miny)-(maxx,maxy), deduplicerade (en vägg kan
+// ligga i flera celler → annars pushar resolveCtfWall ut dubbelt).
+function wallsInRect(grid, minx, miny, maxx, maxy) {
+  const cell = grid.cell, cols = grid.cols, out = [];
+  const cx0 = Math.floor(minx / cell), cy0 = Math.floor(miny / cell);
+  const cx1 = Math.floor(maxx / cell), cy1 = Math.floor(maxy / cell);
+  let seen = null;
+  for (let cx = cx0; cx <= cx1; cx++) for (let cy = cy0; cy <= cy1; cy++) {
+    const a = cols.get(cx + ':' + cy);
+    if (!a) continue;
+    if (seen === null && (cx1 > cx0 || cy1 > cy0)) seen = new Set(); // dedup bara vid >1 cell
+    for (let i = 0; i < a.length; i++) {
+      const w = a[i];
+      if (seen) { if (seen.has(w)) continue; seen.add(w); }
+      out.push(w);
+    }
+  }
+  return out;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { CTF_ARENA, pointInWall, resolveCtfWall, bulletHitsWall };
+  module.exports = { CTF_ARENA, pointInWall, resolveCtfWall, bulletHitsWall, buildWallGrid, wallsInRect };
 }
 if (typeof window !== 'undefined') {
   window.CTF_ARENA = CTF_ARENA;
   window.pointInWall = pointInWall;
   window.resolveCtfWall = resolveCtfWall;
   window.bulletHitsWall = bulletHitsWall;
+  window.buildWallGrid = buildWallGrid;
+  window.wallsInRect = wallsInRect;
 }
