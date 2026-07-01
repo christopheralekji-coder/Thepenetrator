@@ -507,6 +507,17 @@ function sendFriendsUpdate(id) {
   H.send(ws, { type: 'acct_friends_update', friends: buildFriendsList(acc) });
 }
 
+// Klient-RE-PULL av presens (acct_friends_sync). Presens var tidigare PUSH-ONLY → en enda
+// missad push (reconnect-blip, app-bakgrund, ELLER server-deploy som tömmer online-mappen)
+// lämnade en vän visad offline för alltid. Klienten pollar nu detta var ~15s + vid meny/fokus
+// → self-healing. Skickar DIREKT till den frågande socketen (robust mot stale online-map).
+function handleFriendsSync(ws) {
+  if (!ws.accountId) return;
+  const acc = accounts.get(ws.accountId);
+  if (!acc) return;
+  H.send(ws, { type: 'acct_friends_update', friends: buildFriendsList(acc) });
+}
+
 // Throttle:ad push (max 1/s per mottagare). Alltid deferred (setTimeout) så
 // rums-state hunnit uppdateras när listan byggs (onDisconnect körs FÖRE
 // members.delete i handleDisconnect).
@@ -1616,6 +1627,7 @@ function handle(ws, msg, helpers) {
   if (!H) return;
   switch (msg.type) {
     case 'acct_login': handleLogin(ws, msg); return;
+    case 'acct_friends_sync': handleFriendsSync(ws); return;   // klient-re-pull av presens (self-heal)
     case 'acct_update': handleUpdate(ws, msg); return;
     case 'acct_search': handleSearch(ws, msg); return;
     case 'acct_get_profile': handleGetProfile(ws, msg); return;
