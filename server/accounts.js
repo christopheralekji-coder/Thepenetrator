@@ -515,7 +515,12 @@ function handleFriendsSync(ws) {
   if (!ws.accountId) return;
   const acc = accounts.get(ws.accountId);
   if (!acc) return;
-  H.send(ws, { type: 'acct_friends_update', friends: buildFriendsList(acc) });
+  // Inkludera INKOMMANDE vän-förfrågningar (acc.reqIn) — acct_request_in-pushen kan missas
+  // (mottagaren i bakgrund/stale socket) → förfrågan syntes ej förrän full re-login. Re-pull:en
+  // tar nu med dem så de dyker upp inom ~15s (self-heal, precis som presensen).
+  const requests = [];
+  for (const rid of acc.reqIn) { const r = accounts.get(rid); if (r) requests.push({ id: r.id, name: r.name, avatar: r.avatar }); }
+  H.send(ws, { type: 'acct_friends_update', friends: buildFriendsList(acc), requests, sentRequests: acc.reqOut.slice() });
 }
 
 // Throttle:ad push (max 1/s per mottagare). Alltid deferred (setTimeout) så
