@@ -168,6 +168,7 @@ function startGulagMatch(sim, pidA, pidB, now) {
   const geo = game.build(origin.x, origin.y);
   const matchId = 'g' + (++sim._gulagMatchCounter);
   const lo = game.loadout;
+  const PREP_MS = 3000; // 3s förberedelse-frys: hazards, tider OCH rörelse (klient input_locked) startar först efter
 
   [pidA, pidB].forEach((pid, idx) => {
     const ps = sim.room.members.get(pid).playerState;
@@ -181,7 +182,7 @@ function startGulagMatch(sim, pidA, pidB, now) {
     ps.hp = lo.hp; ps.maxHp = lo.hp; ps.shield = lo.shield || 0; ps.maxShield = 100; // v1.796: maxHp = loadout (frenzy 140) → heal-cap rätt
     ps.weaponId = lo.weaponId;
     ps.speedMul = 1;
-    ps.invulnUntil = now + 800; // spawn-grace + skydd mot in-flight-position-desync
+    ps.invulnUntil = now + PREP_MS + 800; // osårbar HELA prep:en + spawn-grace
     ps.brDowned = false; ps.spectating = false;
     ps._gulagSpeedUntil = 0; ps._gulagGunUntil = 0;
     ps._gulagWeapons = [lo.weaponId]; ps._gulagDmgUntil = 0; ps._gulagFrozenUntil = 0; // v1.800: frenzy/freeze/berserk-state fräsch
@@ -190,20 +191,20 @@ function startGulagMatch(sim, pidA, pidB, now) {
 
   const match = {
     id: matchId, slot, gameId, origin, geo, a: pidA, b: pidB,
-    startedAt: now, lastTickEmit: 0, ended: false,
+    startedAt: now + PREP_MS, prepMs: PREP_MS, lastTickEmit: 0, ended: false, // startedAt = SPELETS start (efter prep) → shrink/maxMs/timeLeft räknar därifrån
     platformR: geo.platformR || 0,
     ringR: geo.ringR || 0,
     fallenTiles: [],
     warningTiles: [],
     tileStandSince: {},
-    nextTileFallAt: game.fallStartMs ? now + game.fallStartMs : 0,
+    nextTileFallAt: game.fallStartMs ? now + PREP_MS + game.fallStartMs : 0,
     bombHolder: null, bombEndsAt: 0, bombPassReadyAt: 0,
-    powerups: [], nextPowerupAt: game.powerupEverMs ? now + 1800 : 0, puCounter: 0,
+    powerups: [], nextPowerupAt: game.powerupEverMs ? now + PREP_MS + 1800 : 0, puCounter: 0,
   };
   if (gameId === 'bombtag') {
     match.bombHolder = Math.random() < 0.5 ? pidA : pidB;
-    match.bombEndsAt = now + game.bombMs;
-    match.bombPassReadyAt = now + 1300;
+    match.bombEndsAt = now + PREP_MS + game.bombMs;
+    match.bombPassReadyAt = now + PREP_MS + 1300;
   }
   // v1.805: FRENZY — förplacera ~10 powerups DIREKT vid start (man ska ej behöva vänta)
   // + börja spamma snabbt. Blandar spawn-punkterna så de sprids.
@@ -214,7 +215,7 @@ function startGulagMatch(sim, pidA, pidB, now) {
     for (let s = 0; s < n; s++) {
       match.powerups.push({ id: 'pu' + (++match.puCounter), x: spots[s].x, y: spots[s].y, kind: FRENZY_POOL[Math.floor(Math.random() * FRENZY_POOL.length)] });
     }
-    match.nextPowerupAt = now + 600; // spamma snabbt direkt
+    match.nextPowerupAt = now + PREP_MS + 600; // spamma snabbt direkt (efter prep)
   }
   sim.gulagMatches.push(match);
 
@@ -226,6 +227,7 @@ function startGulagMatch(sim, pidA, pidB, now) {
     spawnA: { x: Math.round(geo.spawns[0].x), y: Math.round(geo.spawns[0].y), facing: geo.spawns[0].facing },
     spawnB: { x: Math.round(geo.spawns[1].x), y: Math.round(geo.spawns[1].y), facing: geo.spawns[1].facing },
     bombHolder: match.bombHolder, bombMs: game.bombMs || 0,
+    prepMs: PREP_MS, // klienten fryser input + visar 3..2..1-nedräkning innan spelet börjar
   });
 }
 
@@ -414,6 +416,9 @@ function tickGulag(sim, dt, now) {
     if (!wsA || !wsA.playerState) { resolveGulag(sim, m, m.b, m.a, now); continue; }
     if (!wsB || !wsB.playerState) { resolveGulag(sim, m, m.a, m.b, now); continue; }
     const psA = wsA.playerState, psB = wsB.playerState;
+    // 3s FÖRBEREDELSE: fram till m.startedAt (= now+PREP) körs INGA hazards/skada/elimination
+    // /tick-emit. Spelarna står frusna (klient input_locked) vid spawn och kan orientera sig.
+    if (now < m.startedAt) continue;
     let winner = null, loser = null;
 
     // server-side knockback-integration för BOTS (riktiga spelare applicerar knuffen
