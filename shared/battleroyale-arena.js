@@ -1265,13 +1265,14 @@ const BATTLEROYALE_ARENA = {
     { x: 3193, y: 6405, w: 80, h: 65, kind: 'mountain_peak' },
     { x: 3293, y: 6415, w: 75, h: 60, kind: 'mountain_peak' },
     { x: 3383, y: 6430, w: 80, h: 65, kind: 'mountain_peak' },
-    // GROTT-RUM bakom vattenfallet (användarkrav "grottan till ett hus"): 3 osynliga
-    // kollisionsväggar (bak + vänster + höger) ramar grott-mynningen → ett rum man går IN i
-    // nerifrån (genom vattenfalls-kanalen, bakom fallet z=10). Legendary-kistan står inuti.
-    // cave_wall passerar postProcess oförändrad → server/klient-kollision identisk.
-    { x: 2828, y: 6052, w: 204, h: 36, kind: 'cave_wall' },
-    { x: 2828, y: 6086, w: 34, h: 132, kind: 'cave_wall' },
-    { x: 2998, y: 6086, w: 34, h: 132, kind: 'cave_wall' },
+    // GROTT-RUM = HUS (användarkrav): grott-berget är SOLID sten (går ej igenom), bara
+    // mynningen + botten-ingången (under vattenfallet) är gångbar. 3 osynliga cave_wall-band
+    // (topp + vänster + höger) täcker bergmassivet runt mynningen; interiör x[2858,3006]
+    // y[6122,...] öppen nedåt. Inmätt mot grott-sprajten (WaterFx). cave_wall passerar
+    // postProcess oförändrad → server/klient-kollision identisk.
+    { x: 2735, y: 6010, w: 410, h: 112, kind: 'cave_wall' },
+    { x: 2735, y: 6122, w: 123, h: 150, kind: 'cave_wall' },
+    { x: 3006, y: 6122, w: 139, h: 150, kind: 'cave_wall' },
     // Detalj-stenar längs vattenfalls-kanalens kanter (där vattnet rinner mellan dem)
     { x: 2820, y: 6450, w: 45, h: 35, kind: 'rock_small' },
     { x: 2830, y: 6540, w: 40, h: 30, kind: 'rock_small' },
@@ -2593,8 +2594,9 @@ function postProcessArena(arena) {
     arena.lootSpawns.push({ x: b.x + b.w / 2 - 36, y: b.y + b.h / 2 });
   }
   // GROTTAN bakom vattenfallet (mellan stenarna): ALLTID en legendary (som husen).
-  // INUTI grott-rummet (cave_wall-boxen ovan, mitt ~2930,6150) — man måste gå in i grottan.
-  arena.lootSpawns.push({ x: 2930, y: 6150, forceTier: 'legendary' });
+  // INUTI grott-rummet (interiör x[2858,3006] y[6122,6272], mitt ~2932,6175) — man måste
+  // gå in i grottan (uppför vattenfalls-kanalen, bakom fallet) för att ta den.
+  arena.lootSpawns.push({ x: 2932, y: 6175, forceTier: 'legendary' });
   arena.lootSpawns.push(centerLoot);
   // 3. Audit: ta bort walls som ligger ENTRY-blockerande precis utanför cabin-dörrar.
   // För varje cabin, kolla en buffer-zon 40px ut från dörröppningen — om någon
