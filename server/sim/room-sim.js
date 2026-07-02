@@ -6496,8 +6496,8 @@ function applyBrAbandonContract(sim, pid) {
 // spelare närmar sig, olika fart); wolf/bear = fientliga (jagar + attackerar). Samma vägg-kollision
 // som spelare (resolveCtfWall via BR-broadphase-grid → O(local)).
 const BR_CRITTER_SPECIES = [
-  { type: 'rabbit', r: 13, speed: 205, wander: 72, flee: 520, hostile: false, hp: 1, count: 20 },
-  { type: 'deer',   r: 20, speed: 150, wander: 62, flee: 430, hostile: false, hp: 1, count: 16 },
+  { type: 'rabbit', r: 13, speed: 205, wander: 72, flee: 360, hostile: false, hp: 1, count: 20 },
+  { type: 'deer',   r: 20, speed: 150, wander: 62, flee: 320, hostile: false, hp: 1, count: 16 },
   { type: 'boar',   r: 22, speed: 92,  wander: 50, flee: 250, hostile: false, hp: 1, count: 11 },
   { type: 'wolf',   r: 20, speed: 150, wander: 74, flee: 0, hostile: true,  hp: 2, count: 9, detect: 560, atkR: 48, atkDmg: 10, atkCd: 800 },
   { type: 'bear',   r: 31, speed: 112, wander: 46, flee: 0, hostile: true,  hp: 3, count: 4, detect: 480, atkR: 62, atkDmg: 24, atkCd: 1100 },
@@ -6528,9 +6528,9 @@ function brOnCritterKilled(sim, pid) {
   ac.got = (ac.got || 0) + 1;
   sim.eventQueue.push({ type: 'br_contract_progress', peerId: pid, got: ac.got, need: ac.need });
   if (ac.got >= (ac.need || 5)) {
-    brAwardCash(sim, pid, 900);
+    brAwardCash(sim, pid, 700);
     sim.eventQueue.push({ type: 'br_grenades', peerId: pid, frag: 2 });
-    brFinishContract(sim, pid, true, '+$900 + granater');
+    brFinishContract(sim, pid, true, '+$700 + granater');
   }
 }
 // Varg/björn närkontakt-skada (shield→hp, som storm; död oaccrediterad = miljö).
@@ -6569,7 +6569,7 @@ function tickBrCritters(sim, dt, nowMs) {
         np = aw.playerState; npid = c._aggroPid; nd2 = (np.x - c.x) * (np.x - c.x) + (np.y - c.y) * (np.y - c.y);
       }
     }
-    let mvx = 0, mvy = 0;
+    let mvx = 0, mvy = 0, drifting = false;
     const chasing = spec.hostile && np && (nd2 < spec.detect * spec.detect || ((c._aggroUntil || 0) > nowMs && npid === c._aggroPid));
     const fleeing = !spec.hostile && np && nd2 < spec.flee * spec.flee;
     if (chasing) {
@@ -6578,14 +6578,20 @@ function tickBrCritters(sim, dt, nowMs) {
     } else if (fleeing) {
       const d = Math.sqrt(nd2) || 1; mvx = (c.x - np.x) / d; mvy = (c.y - np.y) / d;
     } else {
+      const _z = sim.battleroyaleZone;
+      if (_z && ((c.x - _z.x) * (c.x - _z.x) + (c.y - _z.y) * (c.y - _z.y)) > (_z.r * 0.9) * (_z.r * 0.9)) {
+        drifting = true;
+        const zdx = _z.x - c.x, zdy = _z.y - c.y, zd = Math.sqrt(zdx * zdx + zdy * zdy) || 1; mvx = zdx / zd; mvy = zdy / zd;
+      } else {
       if (nowMs >= (c._repathAt || 0) || ((c.tx - c.x) * (c.tx - c.x) + (c.ty - c.y) * (c.ty - c.y)) < 1600) {
         const ang = Math.random() * Math.PI * 2, dist = 200 + Math.random() * 600;
         const tp = brFindFreeSpot(Math.max(240, Math.min(arena.worldW - 240, c.x + Math.cos(ang) * dist)), Math.max(240, Math.min(arena.worldH - 240, c.y + Math.sin(ang) * dist)), arena.walls, arena.worldW, arena.worldH);
         c.tx = tp.x; c.ty = tp.y; c._repathAt = nowMs + 1500 + Math.random() * 2500;
       }
       const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.sqrt(dx * dx + dy * dy) || 1; mvx = dx / d; mvy = dy / d;
+      }
     }
-    const spd = (chasing || fleeing) ? spec.speed : spec.wander;
+    const spd = (chasing || fleeing || drifting) ? spec.speed : spec.wander;
     if (mvx !== 0 || mvy !== 0) {
       if (mvx > 0.05) c._face = 1; else if (mvx < -0.05) c._face = -1;
       const ent = { x: c.x + mvx * spd * dt, y: c.y + mvy * spd * dt, r: spec.r };
@@ -6595,7 +6601,7 @@ function tickBrCritters(sim, dt, nowMs) {
       c._moving = true;
     } else { c._moving = false; }
   }
-  if (anyDead && arr.length > 60) sim.brCritters = arr.filter(c => !c.dead);
+  if (anyDead && arr.length > 20) sim.brCritters = arr.filter(c => !c.dead);
 }
 
 // Tick: bounty-pings, supply-run-deadline/mål, supply-drops spawn+land+pickup. (v1.746)
