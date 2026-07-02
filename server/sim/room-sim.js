@@ -6508,16 +6508,22 @@ function _brCritterSpec(type) {
 }
 function spawnBrCritters(sim, arena) {
   sim.brCritters = [];
-  for (const spec of BR_CRITTER_SPECIES) {
-    for (let k = 0; k < spec.count; k++) {
-      const rx = 240 + Math.random() * (arena.worldW - 480);
-      const ry = 240 + Math.random() * (arena.worldH - 480);
-      const sp = brFindFreeSpot(rx, ry, arena.walls, arena.worldW, arena.worldH);
-      sim._brCritterIdCtr = (sim._brCritterIdCtr || 0) + 1;
-      sim.brCritters.push({ id: 'brcr_' + sim._brCritterIdCtr, type: spec.type, x: sp.x, y: sp.y,
-        dead: false, hp: spec.hp, tx: sp.x, ty: sp.y, _repathAt: 0, _atkAt: 0, _aggroPid: null, _aggroUntil: 0, _face: 1, _moving: false, _r: spec.r });
-    }
-  }
+  const randPt = () => ({ x: 240 + Math.random() * (arena.worldW - 480), y: 240 + Math.random() * (arena.worldH - 480) });
+  const addCritter = (type, x, y) => {
+    const spec = _brCritterSpec(type);
+    const sp = brFindFreeSpot(Math.max(240, Math.min(arena.worldW - 240, x)), Math.max(240, Math.min(arena.worldH - 240, y)), arena.walls, arena.worldW, arena.worldH);
+    sim._brCritterIdCtr = (sim._brCritterIdCtr || 0) + 1;
+    sim.brCritters.push({ id: 'brcr_' + sim._brCritterIdCtr, type, x: sp.x, y: sp.y,
+      dead: false, hp: spec.hp, tx: sp.x, ty: sp.y, _repathAt: 0, _atkAt: 0, _aggroPid: null, _aggroUntil: 0, _face: 1, _moving: false, _r: spec.r });
+  };
+  // FLOCK/PACK-spawn: en kärna + medlemmar spridda nära (läses som ekosystem, ej jämna prickar)
+  const group = (type, count, spread) => { const c = randPt(); for (let i = 0; i < count; i++) addCritter(type, c.x + (Math.random() - 0.5) * spread, c.y + (Math.random() - 0.5) * spread); };
+  for (let i = 0; i < 4; i++) group('deer', 4, 380);    // 4 hjort-flockar = 16
+  for (let i = 0; i < 3; i++) group('wolf', 3, 300);    // 3 varg-pack = 9
+  for (let i = 0; i < 5; i++) group('boar', 2, 240);    // 5 vildsvins-par = 10
+  addCritter('boar', randPt().x, randPt().y);           // +1 ensam = 11
+  for (let i = 0; i < 4; i++) { const p = randPt(); addCritter('bear', p.x, p.y); }  // 4 ensamma björnar
+  for (let i = 0; i < 5; i++) group('rabbit', 4, 220);  // 5 kanin-kullar = 20
 }
 // Hunt-kontrakt-kredit: öka got, emit progress, slutför vid need.
 function brOnCritterKilled(sim, pid) {
@@ -6539,7 +6545,7 @@ function _brCritterAttack(sim, c, ps, vpid) {
   const spec = _brCritterSpec(c.type);
   let remaining = spec.atkDmg;
   if ((ps.shield || 0) > 0) { const ab = Math.min(ps.shield, remaining); ps.shield -= ab; remaining -= ab; }
-  if (remaining > 0) ps.hp = Math.max(0, ps.hp - remaining);
+  if (remaining > 0) ps.hp = Math.max(1, ps.hp - remaining);   // ICKE-DÖDLIG: rovdjur chunkar dig till 1 hp (extremt farligt) men stjäl ej ditt gulag-liv
   if (vpid != null) {
     sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: vpid, hp: ps.hp, shield: ps.shield || 0, critterDmg: true });
     sim.eventQueue.push({ type: 'br_critter_attack', id: c.id, x: Math.round(c.x), y: Math.round(c.y), victim: vpid });
