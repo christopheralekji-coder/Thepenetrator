@@ -6476,6 +6476,14 @@ function brFinishContract(sim, pid, ok, msg) {
   else sim.eventQueue.push({ type: 'br_contract_fail', peerId: pid, reason: 'expired' });
 }
 
+// Avbryt aktivt kontrakt (spelar-initierat). Frigor spelaren; billboard aterstalls ej.
+function applyBrAbandonContract(sim, pid) {
+  const ws = sim.room.members.get(pid);
+  if (!ws || !ws.playerState || !ws.playerState.brContract) return;
+  ws.playerState.brContract = null;
+  sim.eventQueue.push({ type: 'br_contract_fail', peerId: pid, reason: 'abandoned' });
+}
+
 // Tick: bounty-pings, supply-run-deadline/mål, supply-drops spawn+land+pickup. (v1.746)
 function brSupplyLegendaryWeapon() {
   const arr = (BATTLEROYALE_ARENA.lootByTier && BATTLEROYALE_ARENA.lootByTier.legendary) || [];
@@ -9914,4 +9922,4 @@ function applyCastleDefenseBuyWeapon(sim, peerId, msg) {
   sim.eventQueue.push({ type: 'cd_weapon_bought', peerId, weaponId: wid, cost, tier: spec.tier || 1 });
 }
 
-module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrJump, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefensePerkBuy, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseAbility, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall, pickRandomHumanHunter, transferJug, isDevAccount, ENEMY_CAP };
+module.exports = { createSim, startSim, stopSim, tickSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrJump, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, applyBrAbandonContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefensePerkBuy, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseAbility, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, applyStresstestShowcase, _heistApplyRole, _heistLineBlockedByWall, pickRandomHumanHunter, transferJug, isDevAccount, ENEMY_CAP };

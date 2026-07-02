@@ -3,7 +3,7 @@
 
 const WebSocket = require('ws');
 const http = require('http');
-const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrJump, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefensePerkBuy, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseAbility, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, isDevAccount, pickRandomHumanHunter, transferJug } = require('./sim/room-sim');
+const { createSim, startSim, stopSim, applyPlayerInput, applyShoot, applyLoadStage, applyBrDropWeapon, applyBrJump, applyBrBuy, applyBrInfCash, applyBrAirstrike, applyBrUseUav, applyBrUseItem, applyBrAcceptContract, applyBrAbandonContract, tryEnterTurret, exitTurret, tryEnterSiegeTurret, exitSiegeTurret, applyCastleDefenseBuild, applyCastleDefenseRepair, applyCastleDefenseUpgrade, applyCastleDefenseSell, applyCastleDefensePerk, applyCastleDefensePerkBuy, applyCastleDefenseInfMoney, applyCastleDefenseGate, applyCastleDefenseAbility, applyCastleDefenseEnterTower, applyCastleDefenseExitTower, applyCastleDefenseNpcUpgrade, applyCastleDefenseBuyWeapon, isDevAccount, pickRandomHumanHunter, transferJug } = require('./sim/room-sim');
 const accounts = require('./accounts'); // v2 konto/vÃ¤nner (acct_* â€” additivt, no-op fÃ¶r V1)
 const matchmaker = require('./matchmaker'); // v2 matchmaking-kö (queue_*/match_* — additivt)
 const groups = require('./groups'); // v2 matchmaking grupp-lager (group_* — additivt)
@@ -1001,6 +1001,7 @@ function handleMessage(ws, msg) {
         loot: (room.sim.battleroyaleLoot || []).filter(lo => lo.available).map(lo => ({
           id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: lo.unlockAt || 0,
         })),
+        contracts: (room.sim.brContracts || []).map(c => ({ id: c.id, x: c.x, y: c.y, type: c.type, available: c.available })),
         phases: BATTLEROYALE_ARENA.phases,
         matchDurationSec: room.sim.battleroyaleMatchDurationSec,
         matchEndAt: room.sim.battleroyaleEndAt,
@@ -1052,6 +1053,7 @@ function handleMessage(ws, msg) {
         if (_ps.brPerkLevels) { for (const _pk in _ps.brPerkLevels) { if (_ps.brPerkLevels[_pk] > 0) _rs.push({ type: 'br_perk_level', peerId: ws.id, perk: _pk, level: _ps.brPerkLevels[_pk] }); } }
         const _items = [['self_revive','selfReviveKits'],['airstrike','airstrikes'],['uav','uavCount'],['medkit','medkits'],['shieldkit','shieldkits'],['adrenaline','adrenalines']];
         for (const _it of _items) { const _c = _ps[_it[1]] || 0; if (_c > 0) _rs.push({ type: 'br_item_count', peerId: ws.id, item: _it[0], count: _c }); }
+        if (_ps.brContract) { _rs.push({ type: 'br_contract_active', peerId: ws.id, contract: _ps.brContract }); }
         send(ws, { type: 'sim_events', events: _rs });
       }
       return;
@@ -1676,6 +1678,12 @@ function handleMessage(ws, msg) {
     const room = rooms.get(ws.roomCode);
     if (!room || !room.sim) return;
     applyBrAcceptContract(room.sim, ws.id, msg.id);
+    return;
+  }
+  if (msg.type === 'sim_br_abandon_contract') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || !room.sim) return;
+    applyBrAbandonContract(room.sim, ws.id);
     return;
   }
   if (msg.type === 'sim_cd_build') {
