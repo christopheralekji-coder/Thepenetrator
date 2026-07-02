@@ -6496,11 +6496,11 @@ function applyBrAbandonContract(sim, pid) {
 // spelare närmar sig, olika fart); wolf/bear = fientliga (jagar + attackerar). Samma vägg-kollision
 // som spelare (resolveCtfWall via BR-broadphase-grid → O(local)).
 const BR_CRITTER_SPECIES = [
-  { type: 'rabbit', r: 13, speed: 205, wander: 72, flee: 520, hostile: false, hp: 1, count: 13 },
-  { type: 'deer',   r: 20, speed: 150, wander: 62, flee: 430, hostile: false, hp: 1, count: 10 },
-  { type: 'boar',   r: 22, speed: 92,  wander: 50, flee: 250, hostile: false, hp: 1, count: 7 },
-  { type: 'wolf',   r: 20, speed: 150, wander: 74, flee: 0, hostile: true,  hp: 2, count: 6, detect: 560, atkR: 48, atkDmg: 10, atkCd: 800 },
-  { type: 'bear',   r: 31, speed: 112, wander: 46, flee: 0, hostile: true,  hp: 3, count: 3, detect: 480, atkR: 62, atkDmg: 24, atkCd: 1100 },
+  { type: 'rabbit', r: 13, speed: 205, wander: 72, flee: 520, hostile: false, hp: 1, count: 20 },
+  { type: 'deer',   r: 20, speed: 150, wander: 62, flee: 430, hostile: false, hp: 1, count: 16 },
+  { type: 'boar',   r: 22, speed: 92,  wander: 50, flee: 250, hostile: false, hp: 1, count: 11 },
+  { type: 'wolf',   r: 20, speed: 150, wander: 74, flee: 0, hostile: true,  hp: 2, count: 9, detect: 560, atkR: 48, atkDmg: 10, atkCd: 800 },
+  { type: 'bear',   r: 31, speed: 112, wander: 46, flee: 0, hostile: true,  hp: 3, count: 4, detect: 480, atkR: 62, atkDmg: 24, atkCd: 1100 },
 ];
 function _brCritterSpec(type) {
   for (const s of BR_CRITTER_SPECIES) if (s.type === type) return s;
