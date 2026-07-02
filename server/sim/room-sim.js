@@ -7018,6 +7018,7 @@ function broadcastWorld(sim, now) {
     }
     return _jsonCritters;
   };
+  let _critterMsg = null;   // memoiserad br_critters-JSON (byggs en gang per broadcast)
 
   // Drain event-queue. Batch ALLA events i ett enda 'sim_events'-meddelande per
   // peer per tick — sparar 1 JSON.stringify + 1 ws.send per event per client.
@@ -7082,6 +7083,12 @@ function broadcastWorld(sim, now) {
     // world-paket → skippa hela per-peer-encoden (sparar full world-encode/bot/tick) +
     // håller bot-ids ur lastSentEnemyByPeer/seqByPeer/_peerFullAt.
     if (ws._isBot) continue;
+    // CRITTERS (vilt): eget OTILLFORLITLIGT JSON-msg (~20Hz). Kan EJ rida world-paketet
+    // da bin-peers far BINAR world (encodeWorld kanner ej faltet) -> critters droppades.
+    if (sim.battleroyaleActive && ws.readyState === 1 && (sim._worldCastNo % 3) === 0) {
+      if (_critterMsg === null) { const _cr = getJsonCritters(); _critterMsg = _cr.length ? JSON.stringify({ type: 'br_critters', st: now, critters: _cr }) : ''; }
+      if (_critterMsg) { try { (ws.sendUnreliable ? ws.sendUnreliable(_critterMsg) : ws.send(_critterMsg)); } catch (e) {} }
+    }
     // Godot/V2-klienter: world-snapshot som JSON-text, alltid full lista (trivial
     // klient-rendering — ersätt hela listan) men bara var JSON_WORLD_EVERY:e
     // broadcast (20Hz) — se M5-kommentaren vid konstanten.
@@ -7324,10 +7331,7 @@ function broadcastWorld(sim, now) {
     } else if (fullBroadcast) {
       pkt.pickups = [];
     }
-    if (sim.battleroyaleActive) {
-      const _crs = getJsonCritters();
-      if (_crs.length || fullBroadcast) pkt.critters = _crs;
-    }
+    // (critters skickas som eget br_critters-msg ovan; pkt.critters funkade ej for bin-peers)
     // Godot/V2: skicka world som JSON-text. gs varje tick (klient håller annars
     // gammalt wave/zone tills nästa full-broadcast).
     if (isJson) {
