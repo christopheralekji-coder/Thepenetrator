@@ -7084,8 +7084,9 @@ function broadcastWorld(sim, now) {
     // enemy-listor → world-paketet är litet (players+hb ≈ 0.3-1KB) → ge JSON-
     // peers FULL 60Hz där (halverar klientens interp-fönster-bas 33→16.7ms).
     // Co-op/survivors/BR behåller 30Hz (full enemy-lista per paket = dyrt).
-    const jsonEvery = (sim.tdmActive || sim.ctfActive || sim.siegeActive ||
-      sim.kothActive || sim.gungameActive || sim.juggernautActive) ? 1 : JSON_WORLD_EVERY;
+    const jsonEvery = ((sim.tdmActive || sim.ctfActive || sim.siegeActive ||
+      sim.kothActive || sim.gungameActive || sim.juggernautActive) ||
+      (ws.playerState && ws.playerState.gulagState === 'fighting')) ? 1 : JSON_WORLD_EVERY;   // GULAG-duell → 60Hz opponent-sync
     if (isJson && (sim._worldCastNo % jsonEvery) !== 0) continue;
     let lastSent = sim.lastSentEnemyByPeer.get(peerId);
     // v1.701: stagga enemy-full-broadcasten PER PEER. Förr synkad per-sim (sim.lastFullAt)

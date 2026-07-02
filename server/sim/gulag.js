@@ -647,7 +647,7 @@ function tickGulag(sim, dt, now) {
     if (winner) { resolveGulag(sim, m, winner, loser, now); continue; }
 
     // DYNAMISK state-broadcast (~8Hz)
-    if (now - m.lastTickEmit > 120) {
+    if (now - m.lastTickEmit > 33) {   // ~30Hz (var 120ms/~8Hz) → mjukare ring/plattform/telegraf
       m.lastTickEmit = now;
       sim.eventQueue.push({
         type: 'gulag_tick', matchId: m.id, a: m.a, b: m.b,
