@@ -1446,6 +1446,15 @@ function handleMessage(ws, msg) {
   // v2 #60 (additivt): host kan sparka spelare/bot ur rummet. V1-webben skickar
   // aldrig kick_peer â†’ handlern Ã¤r dÃ¶d kod fÃ¶r V1. Bot â†’ bort ur rum+sim;
   // mÃ¤nniska â†’ {type:'kicked'} + ws-close + samma stÃ¤dning som disconnect.
+  if (msg.type === 'request_team_change') {
+    const room = rooms.get(ws.roomCode);
+    if (!room || room.sim) return;                     // bara i lobbyn (fore match)
+    const team = (msg.team === 'red' || msg.team === 'blue') ? msg.team : null;
+    if (!team) return;
+    ws.tdmTeam = team;                                 // server-auktoritativt lagbyte
+    broadcast(room, { type: 'team_changed', peerId: ws.id, team });
+    return;
+  }
   if (msg.type === 'kick_peer') {
     const room = rooms.get(ws.roomCode);
     if (!room) return;
