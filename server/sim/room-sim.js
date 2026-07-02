@@ -189,6 +189,8 @@ function createSim(room) {
     // BR contracts + supply drops (v1.746)
     brContracts: [],               // [{ id, x, y, type, available, takenBy, target, goalX, goalY, deadline }]
     brSupplyDrops: [],             // [{ id, x, y, landAt, landed, opened, fromContract }]
+    brCritters: [],                // vilt (jakt): [{ id, type, x, y, dead, tx, ty, _repathAt, _atkAt, _face, _moving, _r }]
+    _brCritterIdCtr: 0,
     _brContractIdCtr: 0,
     _brSupplyIdCtr: 0,
     _brBountyPingAccum: 0,
@@ -4456,6 +4458,9 @@ function tickBattleRoyale(sim, dt, now) {
   // Bullets
   updateBullets(sim, dt, now);
 
+  // Vilt (critters): ströva/fly/jaga + attack + väggkoll
+  tickBrCritters(sim, dt, nowMs);
+
   // BR-meta: self-revive-channel, airstrike-impacts, UAV-pings (v1.740)
   tickBrMeta(sim, nowMs);
   tickBrContracts(sim, nowMs);
@@ -6399,7 +6404,7 @@ const BR_CONTRACT_SPOTS = [
   { x: 2000, y: 2000 }, { x: 7800, y: 2200 }, { x: 1800, y: 7400 },
   { x: 5000, y: 5000 }, { x: 8200, y: 5200 }, { x: 3800, y: 8400 },
 ];
-const BR_CONTRACT_TYPES = ['bounty', 'dropbox', 'supply_run'];
+const BR_CONTRACT_TYPES = ['bounty', 'dropbox', 'supply_run', 'hunt'];
 const BR_SUPPLY_FALL_MS = 6000, BR_SUPPLY_INTERVAL_MS = 90000, BR_SUPPLY_PICK_R = 78; // 44→78: lådan är stor, plocka när man står FRAMFÖR den (ej exakt på mitten)
 
 function computeBrContracts(sim, arena) {
@@ -6460,6 +6465,8 @@ function applyBrAcceptContract(sim, pid, contractId) {
     const drop = brSpawnSupply(sim, c.x + 200, c.y + 120, pid);
     active.dropId = drop.id;
     active.goalX = drop.x; active.goalY = drop.y;
+  } else if (c.type === 'hunt') {
+    active.need = 5; active.got = 0;
   }
   ps.brContract = active;
   sim.eventQueue.push({ type: 'br_contract_active', peerId: pid, contract: active });
@@ -6482,6 +6489,113 @@ function applyBrAbandonContract(sim, pid) {
   if (!ws || !ws.playerState || !ws.playerState.brContract) return;
   ws.playerState.brContract = null;
   sim.eventQueue.push({ type: 'br_contract_fail', peerId: pid, reason: 'abandoned' });
+}
+
+// === BR CRITTERS (vilt) — jakt-kontrakt-mål + ambient liv ===
+// 5 arter, ONE-SHOT (vilket spelar-skott som helst dödar). rabbit/deer/boar = passiva (flyr när
+// spelare närmar sig, olika fart); wolf/bear = fientliga (jagar + attackerar). Samma vägg-kollision
+// som spelare (resolveCtfWall via BR-broadphase-grid → O(local)).
+const BR_CRITTER_SPECIES = [
+  { type: 'rabbit', r: 13, speed: 205, wander: 72, flee: 520, hostile: false, hp: 1, count: 13 },
+  { type: 'deer',   r: 20, speed: 150, wander: 62, flee: 430, hostile: false, hp: 1, count: 10 },
+  { type: 'boar',   r: 22, speed: 92,  wander: 50, flee: 250, hostile: false, hp: 1, count: 7 },
+  { type: 'wolf',   r: 20, speed: 150, wander: 74, flee: 0, hostile: true,  hp: 2, count: 6, detect: 560, atkR: 48, atkDmg: 10, atkCd: 800 },
+  { type: 'bear',   r: 31, speed: 112, wander: 46, flee: 0, hostile: true,  hp: 3, count: 3, detect: 480, atkR: 62, atkDmg: 24, atkCd: 1100 },
+];
+function _brCritterSpec(type) {
+  for (const s of BR_CRITTER_SPECIES) if (s.type === type) return s;
+  return BR_CRITTER_SPECIES[0];
+}
+function spawnBrCritters(sim, arena) {
+  sim.brCritters = [];
+  for (const spec of BR_CRITTER_SPECIES) {
+    for (let k = 0; k < spec.count; k++) {
+      const rx = 240 + Math.random() * (arena.worldW - 480);
+      const ry = 240 + Math.random() * (arena.worldH - 480);
+      const sp = brFindFreeSpot(rx, ry, arena.walls, arena.worldW, arena.worldH);
+      sim._brCritterIdCtr = (sim._brCritterIdCtr || 0) + 1;
+      sim.brCritters.push({ id: 'brcr_' + sim._brCritterIdCtr, type: spec.type, x: sp.x, y: sp.y,
+        dead: false, hp: spec.hp, tx: sp.x, ty: sp.y, _repathAt: 0, _atkAt: 0, _aggroPid: null, _aggroUntil: 0, _face: 1, _moving: false, _r: spec.r });
+    }
+  }
+}
+// Hunt-kontrakt-kredit: öka got, emit progress, slutför vid need.
+function brOnCritterKilled(sim, pid) {
+  const ws = sim.room.members.get(pid);
+  if (!ws || !ws.playerState) return;
+  const ac = ws.playerState.brContract;
+  if (!ac || ac.type !== 'hunt') return;
+  ac.got = (ac.got || 0) + 1;
+  sim.eventQueue.push({ type: 'br_contract_progress', peerId: pid, got: ac.got, need: ac.need });
+  if (ac.got >= (ac.need || 5)) {
+    brAwardCash(sim, pid, 900);
+    sim.eventQueue.push({ type: 'br_grenades', peerId: pid, frag: 2 });
+    brFinishContract(sim, pid, true, '+$900 + granater');
+  }
+}
+// Varg/björn närkontakt-skada (shield→hp, som storm; död oaccrediterad = miljö).
+function _brCritterAttack(sim, c, ps, vpid) {
+  if (Date.now() < (ps.invulnUntil || 0)) return;
+  const spec = _brCritterSpec(c.type);
+  let remaining = spec.atkDmg;
+  if ((ps.shield || 0) > 0) { const ab = Math.min(ps.shield, remaining); ps.shield -= ab; remaining -= ab; }
+  if (remaining > 0) ps.hp = Math.max(0, ps.hp - remaining);
+  if (vpid != null) {
+    sim.eventQueue.push({ type: 'pvp_hp_changed', peerId: vpid, hp: ps.hp, shield: ps.shield || 0, critterDmg: true });
+    sim.eventQueue.push({ type: 'br_critter_attack', id: c.id, x: Math.round(c.x), y: Math.round(c.y), victim: vpid });
+  }
+}
+// Per-tick AI. Kallas efter updateBullets i tickBattleRoyale.
+function tickBrCritters(sim, dt, nowMs) {
+  const arr = sim.brCritters;
+  if (!arr || !arr.length) return;
+  const arena = BATTLEROYALE_ARENA;
+  const _rg = sim._brResolveGrid || (sim._brResolveGrid = buildWallGrid(arena.walls));
+  let anyDead = false;
+  for (const c of arr) {
+    if (c.dead) { anyDead = true; continue; }
+    const spec = _brCritterSpec(c.type);
+    let np = null, npid = null, nd2 = Infinity;
+    for (const [pid, ws] of sim.room.members) {
+      const ps = ws.playerState;
+      if (!ps || ps.hp <= 0 || ps.brDowned || ps.gulagState || ps.brAir) continue;
+      const dx = ps.x - c.x, dy = ps.y - c.y, d2 = dx * dx + dy * dy;
+      if (d2 < nd2) { nd2 = d2; np = ps; npid = pid; }
+    }
+    // sårad varg/björn jagar skytten (aggro) oavsett avstånd en stund
+    if (spec.hostile && (c._aggroUntil || 0) > nowMs) {
+      const aw = sim.room.members.get(c._aggroPid);
+      if (aw && aw.playerState && aw.playerState.hp > 0 && !aw.playerState.brDowned && !aw.playerState.gulagState && !aw.playerState.brAir) {
+        np = aw.playerState; npid = c._aggroPid; nd2 = (np.x - c.x) * (np.x - c.x) + (np.y - c.y) * (np.y - c.y);
+      }
+    }
+    let mvx = 0, mvy = 0;
+    const chasing = spec.hostile && np && (nd2 < spec.detect * spec.detect || ((c._aggroUntil || 0) > nowMs && npid === c._aggroPid));
+    const fleeing = !spec.hostile && np && nd2 < spec.flee * spec.flee;
+    if (chasing) {
+      const d = Math.sqrt(nd2) || 1; mvx = (np.x - c.x) / d; mvy = (np.y - c.y) / d;
+      if (nd2 < spec.atkR * spec.atkR && nowMs - (c._atkAt || 0) >= spec.atkCd) { c._atkAt = nowMs; _brCritterAttack(sim, c, np, npid); }
+    } else if (fleeing) {
+      const d = Math.sqrt(nd2) || 1; mvx = (c.x - np.x) / d; mvy = (c.y - np.y) / d;
+    } else {
+      if (nowMs >= (c._repathAt || 0) || ((c.tx - c.x) * (c.tx - c.x) + (c.ty - c.y) * (c.ty - c.y)) < 1600) {
+        const ang = Math.random() * Math.PI * 2, dist = 200 + Math.random() * 600;
+        const tp = brFindFreeSpot(Math.max(240, Math.min(arena.worldW - 240, c.x + Math.cos(ang) * dist)), Math.max(240, Math.min(arena.worldH - 240, c.y + Math.sin(ang) * dist)), arena.walls, arena.worldW, arena.worldH);
+        c.tx = tp.x; c.ty = tp.y; c._repathAt = nowMs + 1500 + Math.random() * 2500;
+      }
+      const dx = c.tx - c.x, dy = c.ty - c.y, d = Math.sqrt(dx * dx + dy * dy) || 1; mvx = dx / d; mvy = dy / d;
+    }
+    const spd = (chasing || fleeing) ? spec.speed : spec.wander;
+    if (mvx !== 0 || mvy !== 0) {
+      if (mvx > 0.05) c._face = 1; else if (mvx < -0.05) c._face = -1;
+      const ent = { x: c.x + mvx * spd * dt, y: c.y + mvy * spd * dt, r: spec.r };
+      resolveCtfWall(ent, wallsInRect(_rg, ent.x - (spec.r + 40), ent.y - (spec.r + 40), ent.x + (spec.r + 40), ent.y + (spec.r + 40)));
+      c.x = Math.max(30, Math.min(arena.worldW - 30, ent.x));
+      c.y = Math.max(30, Math.min(arena.worldH - 30, ent.y));
+      c._moving = true;
+    } else { c._moving = false; }
+  }
+  if (anyDead && arr.length > 60) sim.brCritters = arr.filter(c => !c.dead);
 }
 
 // Tick: bounty-pings, supply-run-deadline/mål, supply-drops spawn+land+pickup. (v1.746)
@@ -6883,6 +6997,15 @@ function broadcastWorld(sim, now) {
     _jsonPickups = sim.pickups.map(p => ({ x: Math.round(p.x), y: Math.round(p.y), t: p.type }));
     return _jsonPickups;
   };
+  let _jsonCritters = null;
+  const getJsonCritters = () => {
+    if (_jsonCritters) return _jsonCritters;
+    _jsonCritters = [];
+    if (sim.battleroyaleActive && sim.brCritters) {
+      for (const c of sim.brCritters) if (!c.dead) _jsonCritters.push({ id: c.id, t: c.type, x: Math.round(c.x), y: Math.round(c.y), f: c._face || 1, m: c._moving ? 1 : 0 });
+    }
+    return _jsonCritters;
+  };
 
   // Drain event-queue. Batch ALLA events i ett enda 'sim_events'-meddelande per
   // peer per tick — sparar 1 JSON.stringify + 1 ws.send per event per client.
@@ -7188,6 +7311,10 @@ function broadcastWorld(sim, now) {
     } else if (fullBroadcast) {
       pkt.pickups = [];
     }
+    if (sim.battleroyaleActive) {
+      const _crs = getJsonCritters();
+      if (_crs.length || fullBroadcast) pkt.critters = _crs;
+    }
     // Godot/V2: skicka world som JSON-text. gs varje tick (klient håller annars
     // gammalt wave/zone tills nästa full-broadcast).
     if (isJson) {
@@ -7370,6 +7497,8 @@ function startSim(sim, opts) {
   sim.brBuyStations = [];
   sim.brContracts = [];
   sim.brSupplyDrops = [];
+  sim.brCritters = [];
+  sim._brCritterIdCtr = 0;
   sim._brAirstrikes = [];
   sim._brContractIdCtr = 0;
   sim._brSupplyIdCtr = 0;
@@ -8244,6 +8373,7 @@ function startSim(sim, opts) {
     sim.brBuyStations = computeBrBuyStations(arena);
     // CONTRACTS (v1.746): placera kontrakt på billboards spridda över kartan.
     sim.brContracts = computeBrContracts(sim, arena);
+    spawnBrCritters(sim, arena);
     sim._brNextSupplyAt = Date.now() + 75000; // första supply-drop efter ~75s
     // v1.655: Antal deltagare vid start. Win-checken (<=1 levande) får INTE
     // trigga om matchen startade med en ensam spelare (0 bots) → annars
@@ -8322,6 +8452,7 @@ function startSim(sim, opts) {
     }
     sim._endBattleRoyaleMatch = endBattleRoyaleMatch;
     sim._handleBattleRoyaleKill = handleBattleRoyaleKill;
+    sim._brOnCritterKilled = brOnCritterKilled;
     // DEBUG: gulagPractice → droppa host + bot direkt i valt gulag-spel (solo-bugfix)
     if (opts && opts.gulagPractice) {
       startGulagPractice(sim, opts.gulagPractice, Date.now());

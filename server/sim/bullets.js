@@ -1619,6 +1619,27 @@ function updateBullets(sim, dt, now) {
     // alla andra spelare (inkl bots). Kill → handleBattleRoyaleKill.
     if (sim.battleroyaleActive) {
       if (sim.battleroyaleEnded) continue;
+      // Critters (vilt): hp-baserad — kanin/hjort/vildsvin=1 skott, varg=2, björn=3. Sårat rovdjur aggro:ar skytten.
+      if (!b.hostile && sim.brCritters && sim.brCritters.length) {
+        let critHit = false;
+        for (const cr of sim.brCritters) {
+          if (cr.dead) continue;
+          const cdx = cr.x - b.x, cdy = cr.y - b.y, crs = (cr._r || 22) + b.r + 6;
+          if (cdx * cdx + cdy * cdy < crs * crs) {
+            cr.hp = (cr.hp || 1) - 1;
+            if (cr.hp <= 0) {
+              cr.dead = true;
+              sim.eventQueue.push({ type: 'br_critter_killed', id: cr.id, x: Math.round(cr.x), y: Math.round(cr.y), by: b.ownerPid, ctype: cr.type });
+              if (b.ownerPid && sim._brOnCritterKilled) sim._brOnCritterKilled(sim, b.ownerPid);
+            } else {
+              sim.eventQueue.push({ type: 'br_critter_hit', id: cr.id, x: Math.round(cr.x), y: Math.round(cr.y) });
+              cr._aggroPid = b.ownerPid; cr._aggroUntil = Date.now() + 8000;
+            }
+            critHit = true; break;
+          }
+        }
+        if (critHit) { bullets.splice(i, 1); continue; }
+      }
       let pvpHit = false;
       const ownerWs = sim.room.members.get(b.ownerPid);
       if (!ownerWs) continue;
