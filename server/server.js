@@ -1002,6 +1002,7 @@ function handleMessage(ws, msg) {
           id: lo.id, x: lo.x, y: lo.y, kind: lo.kind, weaponId: lo.weaponId, tier: lo.tier, unlockAt: lo.unlockAt || 0,
         })),
         contracts: (room.sim.brContracts || []).map(c => ({ id: c.id, x: c.x, y: c.y, type: c.type, available: c.available })),
+        buyStations: room.sim.brBuyStations,
         phases: BATTLEROYALE_ARENA.phases,
         matchDurationSec: room.sim.battleroyaleMatchDurationSec,
         matchEndAt: room.sim.battleroyaleEndAt,
