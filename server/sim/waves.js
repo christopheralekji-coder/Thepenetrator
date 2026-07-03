@@ -37,7 +37,35 @@ function handleServerStageEvent(sim, stage, eventType) {
       e._idx = sim.nextEnemyIdx++;
       sim.enemies.push(e);
     }
+  } else if (eventType === 'barracks_open') {
+    // ossarius: de döda reser sig — svärm + brutes sprids över kartan
+    const spots = [[0.25, 0.4], [0.75, 0.4], [0.5, 0.6], [0.3, 0.72], [0.7, 0.72]];
+    for (let i = 0; i < spots.length; i++) {
+      const e = makeEnemy(i % 3 === 0 ? 'brute' : 'swarmer', stage.worldW * spots[i][0], stage.worldH * spots[i][1]);
+      e._idx = sim.nextEnemyIdx++; sim.enemies.push(e);
+    }
+    for (let i = 0; i < 3; i++) { const e = makeEnemy('swarmer', stage.worldW * 0.5 + (i - 1) * 90, stage.worldH * 0.5); e._idx = sim.nextEnemyIdx++; sim.enemies.push(e); }
+  } else if (eventType === 'crane_drop') {
+    // tunga fiender släpps ned uppifrån
+    for (let i = 0; i < 4; i++) { const e = makeEnemy('brute', 260 + Math.random() * (stage.worldW - 520), 260 + Math.random() * (stage.worldH * 0.5)); e._idx = sim.nextEnemyIdx++; sim.enemies.push(e); }
+  } else if (eventType === 'barrel_chain') {
+    // kedjeexplosion drar in en surge nära målet
+    for (let i = 0; i < 5; i++) { const e = makeEnemy(i % 2 ? 'shooter' : 'brute', stage.goalPos.x + (i - 2) * 90, stage.goalPos.y + 260); e._idx = sim.nextEnemyIdx++; sim.enemies.push(e); }
+  } else if (eventType === 'lights_flicker') {
+    // mörker-bakhåll: svärm RUNT en levande spelare
+    const p = _anyPlayerPos(sim, stage);
+    for (let i = 0; i < 8; i++) { const a = i / 8 * Math.PI * 2; const e = makeEnemy(i % 3 === 0 ? 'ninja' : 'swarmer', p.x + Math.cos(a) * 270, p.y + Math.sin(a) * 270); e._idx = sim.nextEnemyIdx++; sim.enemies.push(e); }
+  } else if (eventType === 'core_pulse') {
+    // reaktorpuls: robotar strömmar in mot målet
+    for (let i = 0; i < 5; i++) { const e = makeEnemy('robot', stage.goalPos.x + (i - 2) * 100, stage.goalPos.y + 220); e._idx = sim.nextEnemyIdx++; sim.enemies.push(e); }
   }
+}
+
+function _anyPlayerPos(sim, stage) {
+  for (const [, ws] of sim.room.members) {
+    if (ws.playerState && ws.playerState.hp > 0 && !ws.playerState.brAir) return { x: ws.playerState.x, y: ws.playerState.y };
+  }
+  return { x: stage.worldW * 0.5, y: stage.worldH * 0.5 };
 }
 
 function startZone(sim, stage, zoneIdx) {
@@ -64,6 +92,10 @@ function spawnBoss(sim, stage) {
   const coopMul = getCoopMultiplier(sim.room.members.size);
   const boss = makeBoss(stage.bossKey, stage.goalPos.x, stage.goalPos.y, coopMul);
   if (boss) {
+    // story-redesign: mild stage-baserad HP-eskalering sa svarigheten stiger 1->10
+    const _sm = 0.74 + Math.max(1, sim.wave || 1) * 0.052;
+    boss.hp = Math.round(boss.hp * _sm);
+    if (boss.maxHp) boss.maxHp = Math.round(boss.maxHp * _sm);
     boss._idx = sim.nextEnemyIdx++;
     sim.enemies.push(boss);
     sim.bossAlive = true;
