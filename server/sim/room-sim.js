@@ -4370,6 +4370,10 @@ function tickBattleRoyale(sim, dt, now) {
   if (sim.brPredrop) {
     tickBrPredrop(sim, dt, nowMs);
     if (sim.brPredrop) {
+      // Vilt rör sig ÄVEN under drop-fasen så luftburna spelare ser djuren röra sig.
+      // OFARLIGT för skade-spärren: critter-targeting hoppar över brAir-spelare (ps.brAir)
+      // → inga attacker/skador införs medan någon är i luften.
+      tickBrCritters(sim, dt, nowMs);
       // Periodisk predrop-snapshot (1Hz) för late-join / paket-tapp.
       if (nowMs - (sim._brPredropBroadcastAt || 0) >= 1000) {
         sim._brPredropBroadcastAt = nowMs;
@@ -6437,7 +6441,7 @@ function applyBrAcceptContract(sim, pid, contractId) {
   const c = sim.brContracts.find(k => k.id === contractId);
   if (!c || !c.available) { sim.eventQueue.push({ type: 'br_contract_fail', peerId: pid, reason: 'gone' }); return; }
   const dx = ps.x - c.x, dy = ps.y - c.y;
-  if (dx * dx + dy * dy > 150 * 150) { sim.eventQueue.push({ type: 'br_contract_fail', peerId: pid, reason: 'far' }); return; }
+  if (dx * dx + dy * dy > 220 * 220) { sim.eventQueue.push({ type: 'br_contract_fail', peerId: pid, reason: 'far' }); return; }
   c.available = false; c.takenBy = pid;
   const active = { id: c.id, type: c.type };
   if (c.type === 'bounty') {
@@ -6575,6 +6579,9 @@ function tickBrCritters(sim, dt, nowMs) {
         np = aw.playerState; npid = c._aggroPid; nd2 = (np.x - c.x) * (np.x - c.x) + (np.y - c.y) * (np.y - c.y);
       }
     }
+    // Under BR drop-fasen: bara stroeva (ingen jakt/flykt/attack) saa inga skador infoers
+    // medan combat aer fryst — men djuren roer sig saa luftburna spelare ser dem.
+    if (sim.brPredrop) { np = null; npid = null; nd2 = Infinity; }
     let mvx = 0, mvy = 0, drifting = false;
     const chasing = spec.hostile && np && (nd2 < spec.detect * spec.detect || ((c._aggroUntil || 0) > nowMs && npid === c._aggroPid));
     const fleeing = !spec.hostile && np && nd2 < spec.flee * spec.flee;
