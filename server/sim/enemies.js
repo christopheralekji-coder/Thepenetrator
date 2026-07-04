@@ -46,6 +46,16 @@ const ENEMY_STATS = {
   desert_tarspitter:{ r: 13, hp: 34, speed: 70,  dmg: 0,  color: '#5a4a1a', accent: '#2a1a0a', gold: 17, name: '', behavior: 'lob_aoe',  shootRange: 260, shootRate: 2600, bulletSpeed: 300, aoeRadius: 55, aoeDmg: 14, bulletColor: '#7a6a2a' },
   desert_warden:    { r: 16, hp: 78, speed: 70,  dmg: 18, color: '#aa8a2a', accent: '#6a5a0a', gold: 24, name: '', behavior: 'root_hook', shootRange: 320, shootRate: 4000, bulletSpeed: 420, bulletDmg: 10, rootMs: 900, rootMul: 0.40, bulletColor: '#d4af37' },
   desert_huskling:  { r: 8,  hp: 13, speed: 150, dmg: 6,  color: '#c0a060', accent: '#805030', gold: 2,  name: '', behavior: 'melee' },
+  // v2 OSSUARY BIOME (stage 4) — data-driven behavior system
+  ossuary_shambler:    { r: 12, hp: 18, speed: 95,  dmg: 9,  color: '#9a8a7a', accent: '#5a4a3a', gold: 6,  name: '', behavior: 'melee' },
+  ossuary_colossus:    { r: 18, hp: 88, speed: 62,  dmg: 20, color: '#7a6a5a', accent: '#3a2a1a', gold: 24, name: '', behavior: 'melee' },
+  ossuary_spitter:     { r: 12, hp: 24, speed: 78,  dmg: 0,  color: '#b8b48a', accent: '#7a7050', gold: 15, name: '', behavior: 'spread',    shootRange: 300, shootRate: 1600, bulletSpeed: 300, bulletDmg: 7,  pellets: 4, spreadDeg: 40, bulletColor: '#dfe8c8' },
+  ossuary_wisp:        { r: 10, hp: 20, speed: 110, dmg: 0,  color: '#7affd0', accent: '#3ab888', gold: 16, name: '', behavior: 'homing',    shootRange: 340, shootRate: 1800, bulletSpeed: 240, bulletDmg: 8,  homingStrength: 0.09, bulletColor: '#7affd0' },
+  ossuary_lancer:      { r: 14, hp: 40, speed: 120, dmg: 14, color: '#8a8a9a', accent: '#4a4a5a', gold: 18, name: '', behavior: 'charger',   dashInterval: 3000, dashSpeed: 520, dashDmg: 26, telegraphMs: 600 },
+  ossuary_bulwark:     { r: 15, hp: 60, speed: 70,  dmg: 12, color: '#8a8070', accent: '#4a4030', gold: 20, name: '', behavior: 'shielder',  dmgReduce: 60 },
+  ossuary_hook_wraith: { r: 11, hp: 26, speed: 85,  dmg: 6,  color: '#c9b48a', accent: '#8a7050', gold: 17, name: '', behavior: 'root_hook', shootRange: 360, shootRate: 3500, bulletSpeed: 420, bulletDmg: 6,  rootMs: 900, rootMul: 0.40, bulletColor: '#c9b48a' },
+  ossuary_splitter:    { r: 13, hp: 30, speed: 100, dmg: 12, color: '#8a7a6a', accent: '#5a4a3a', gold: 12, name: '', behavior: 'split',     splitType: 'ossuary_crawler', splitCount: 2 },
+  ossuary_crawler:     { r: 8,  hp: 8,  speed: 150, dmg: 7,  color: '#b8a890', accent: '#7a6850', gold: 2,  name: '', behavior: 'melee' },
 };
 
 function makeEnemy(type, x, y) {
@@ -110,6 +120,8 @@ function makeEnemy(type, x, y) {
     submergeMs:     base.submergeMs    || 1200,
     underSpeed:     base.underSpeed    || 230,
     resurfaceDmg:   base.resurfaceDmg  || 15,
+    // v2 ossuary shielder behavior — 0 = no reduction (all other enemies)
+    dmgReduce:      base.dmgReduce     || 0,
   };
   return e;
 }
@@ -447,8 +459,10 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
   const dx = dxRaw, dy = dyRaw, d = dRaw;
 
   // v2 forest/biome behavior dispatch — ranged+special behaviors return early;
-  // 'melee'/'slow_melee'/'split' fall through to the melee branch below.
-  if (e.behavior && e.behavior !== 'melee' && e.behavior !== 'slow_melee' && e.behavior !== 'split') {
+  // 'melee'/'slow_melee'/'split'/'shielder' fall through to the melee branch below.
+  // 'shielder' (ossuary_bulwark) uses melee movement; its special trait is dmgReduce
+  // applied inside damageEnemy (bullets.js), not here.
+  if (e.behavior && e.behavior !== 'melee' && e.behavior !== 'slow_melee' && e.behavior !== 'split' && e.behavior !== 'shielder') {
     switch (e.behavior) {
       case 'spread':    _behaviorSpread(e, dt, now, sim, p, dx, dy, d);    break;
       case 'homing':    _behaviorHoming(e, dt, now, sim, p, dx, dy, d);    break;

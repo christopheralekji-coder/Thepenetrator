@@ -119,6 +119,12 @@ function damageEnemy(e, dmg, isCrit, fromPid, weaponId) {
     if (weaponId) e.lastDamagerWeapon = weaponId;
     return false;   // dör ALDRIG
   }
+  // v2 ossuary shielder: dmgReduce (%) gives proportional damage reduction.
+  // Applies to ALL damage paths that route through damageEnemy: player bullets,
+  // PvE melee (applyMelee), auto-turret bullets, explosions (explode()), chain.
+  // Burn DoT (updateStatus) and barrel blasts (cdDetonateBarrel) bypass damageEnemy
+  // and are NOT reduced — those are edge-case sources not in the design spec.
+  if (e.dmgReduce > 0) dmg = dmg * (1 - e.dmgReduce / 100);
   e.hp -= dmg;
   e.flashUntil = (Date.now() + 80);
   if (fromPid) e.lastDamagerPid = fromPid;

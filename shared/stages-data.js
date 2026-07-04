@@ -91,8 +91,8 @@ const STAGES = [
       { type: 'shooter', name: 'TWITCHING REGIMENT', power: 'avatar',        hpMul: 16, dmgMul: 2.3, scale: 1.5, gold: 340 },
     ],
     zones: [
-      { count: 9,  pool: ['grunt', 'soldier', 'swarmer'] },
-      { count: 12, pool: ['brute', 'soldier', 'swarmer', 'ninja'], event: 'barracks_open' },
+      { count: 8,  pool: ['ossuary_shambler', 'ossuary_colossus', 'ossuary_spitter', 'ossuary_splitter'] },
+      { count: 11, pool: ['ossuary_wisp', 'ossuary_lancer', 'ossuary_bulwark', 'ossuary_hook_wraith', 'ossuary_splitter'], event: 'barracks_open' },
     ],
   },
   { id: 5, name: 'GIFTTRÄSKET', kind: 'swamp', worldW: 2000, worldH: 2600,
