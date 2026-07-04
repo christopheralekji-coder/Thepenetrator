@@ -104,8 +104,8 @@ const STAGES = [
       { type: 'shooter', name: 'VENOM ARCHITECT',  power: 'caster',     hpMul: 16, dmgMul: 2.4, scale: 1.5, gold: 440 },
     ],
     zones: [
-      { count: 10, pool: ['soldier', 'shooter'] },
-      { count: 12, pool: ['ninja', 'brute', 'shooter', 'summoner'], event: 'crane_drop' },
+      { count: 10, pool: ['swamp_oozeling', 'swamp_leech', 'swamp_drowned', 'swamp_spitter'] },
+      { count: 12, pool: ['swamp_wisp', 'swamp_bloat', 'swamp_angler', 'swamp_bulwark', 'swamp_oozeling'], event: 'crane_drop' },
     ],
   },
   { id: 6, name: 'VULKANEN', kind: 'volcano', worldW: 2200, worldH: 2600,

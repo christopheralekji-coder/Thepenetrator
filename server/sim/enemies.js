@@ -46,6 +46,16 @@ const ENEMY_STATS = {
   desert_tarspitter:{ r: 13, hp: 34, speed: 70,  dmg: 0,  color: '#5a4a1a', accent: '#2a1a0a', gold: 17, name: '', behavior: 'lob_aoe',  shootRange: 260, shootRate: 2600, bulletSpeed: 300, aoeRadius: 55, aoeDmg: 14, bulletColor: '#7a6a2a' },
   desert_warden:    { r: 16, hp: 78, speed: 70,  dmg: 18, color: '#aa8a2a', accent: '#6a5a0a', gold: 24, name: '', behavior: 'root_hook', shootRange: 320, shootRate: 4000, bulletSpeed: 420, bulletDmg: 10, rootMs: 900, rootMul: 0.40, bulletColor: '#d4af37' },
   desert_huskling:  { r: 8,  hp: 13, speed: 150, dmg: 6,  color: '#c0a060', accent: '#805030', gold: 2,  name: '', behavior: 'melee' },
+  // v2 SWAMP BIOME (stage 5) — data-driven behavior system
+  swamp_oozeling:  { r: 14, hp: 26, speed: 90,  dmg: 9,  color: '#3a5a2a', accent: '#1a3a1a', gold: 8,  name: '', behavior: 'split',     splitType: 'swamp_ooze_mini', splitCount: 2 },
+  swamp_leech:     { r: 9,  hp: 16, speed: 175, dmg: 8,  color: '#1a3a1a', accent: '#4a7a2a', gold: 8,  name: '', behavior: 'lifesteal', lifestealPct: 100 },
+  swamp_drowned:   { r: 12, hp: 30, speed: 110, dmg: 16, color: '#2a4a4a', accent: '#1a2a2a', gold: 13, name: '', behavior: 'burrow',    burrowInterval: 4200, submergeMs: 1200, underSpeed: 230, resurfaceDmg: 16 },
+  swamp_spitter:   { r: 12, hp: 24, speed: 70,  dmg: 0,  color: '#4a7a3a', accent: '#8aff3a', gold: 13, name: '', behavior: 'spread',    shootRange: 300, shootRate: 1500, bulletSpeed: 340, bulletDmg: 8, pellets: 4, spreadDeg: 34, bulletColor: '#8aff3a' },
+  swamp_wisp:      { r: 10, hp: 20, speed: 120, dmg: 0,  color: '#5a8a3a', accent: '#b6ff5a', gold: 14, name: '', behavior: 'homing',    shootRange: 340, shootRate: 1600, bulletSpeed: 240, bulletDmg: 9, homingStrength: 0.09, bulletColor: '#b6ff5a' },
+  swamp_bloat:     { r: 12, hp: 24, speed: 150, dmg: 10, color: '#5a6a2a', accent: '#8aff3a', gold: 12, name: '', behavior: 'exploder',  fuseMs: 700, aoeRadius: 90, aoeDmg: 32 },
+  swamp_angler:    { r: 13, hp: 34, speed: 65,  dmg: 12, color: '#3a5a4a', accent: '#9a8a5a', gold: 16, name: '', behavior: 'root_hook', shootRange: 260, shootRate: 3600, bulletSpeed: 420, bulletDmg: 6, rootMs: 900, rootMul: 0.40, bulletColor: '#9a8a5a' },
+  swamp_bulwark:   { r: 18, hp: 95, speed: 62,  dmg: 20, color: '#3a5a2a', accent: '#1a3a1a', gold: 26, name: '', behavior: 'shielder',  dmgReduce: 70 },
+  swamp_ooze_mini: { r: 8,  hp: 10, speed: 120, dmg: 6,  color: '#4a6a2a', accent: '#2a4a1a', gold: 2,  name: '', behavior: 'melee' },
   // v2 OSSUARY BIOME (stage 4) — data-driven behavior system
   ossuary_shambler:    { r: 12, hp: 18, speed: 95,  dmg: 9,  color: '#9a8a7a', accent: '#5a4a3a', gold: 6,  name: '', behavior: 'melee' },
   ossuary_colossus:    { r: 18, hp: 88, speed: 62,  dmg: 20, color: '#7a6a5a', accent: '#3a2a1a', gold: 24, name: '', behavior: 'melee' },
@@ -122,6 +132,10 @@ function makeEnemy(type, x, y) {
     resurfaceDmg:   base.resurfaceDmg  || 15,
     // v2 ossuary shielder behavior — 0 = no reduction (all other enemies)
     dmgReduce:      base.dmgReduce     || 0,
+    // v2 swamp lifesteal behavior — 0 = no lifesteal (all other enemies)
+    lifestealPct:   base.lifestealPct  || 0,
+    // v2 swamp exploder behavior — fuse timer trigger (ms); fuse counter lives on e.fuse
+    fuseMs:         base.fuseMs        || 700,
   };
   return e;
 }
@@ -450,6 +464,40 @@ function _behaviorBurrow(e, dt, now, sim, p, dx, dy, d) {
   e.x += (dx / d) * e.speed * dt;
   e.y += (dy / d) * e.speed * dt;
 }
+// 'exploder' — swamp_bloat: charges straight at the player; when within ~60px starts
+// fusing (e.fuse accumulates dt seconds); when e.fuse*1000 >= fuseMs, runs the same
+// AoE-vs-all-players loop as 'bomber' but parameterized by aoeRadius/aoeDmg, then
+// sets e.dead = true. Mirrors the bomber block in updateEnemyAI exactly (early-return
+// so it exits the dispatch before the melee branch runs).
+function _behaviorExploder(e, dt, now, sim, p, dx, dy, d) {
+  e.x += (dx / d) * e.speed * dt;
+  e.y += (dy / d) * e.speed * dt;
+  if (d < 60) e.fuse = (e.fuse || 0) + dt;
+  const fuseMs = e.fuseMs || 700;
+  if (e.fuse * 1000 >= fuseMs) {
+    const blastR  = e.aoeRadius || 90;
+    const blastDmg = e.aoeDmg  || 32;
+    if (sim && sim.room && sim.room.members) {
+      for (const [, ws] of sim.room.members) {
+        if (!ws.playerState || ws.playerState.hp <= 0) continue;
+        if (now < (ws.playerState.invulnUntil || 0)) continue;
+        const bdx = ws.playerState.x - e.x, bdy = ws.playerState.y - e.y;
+        const bd2 = bdx * bdx + bdy * bdy;
+        if (bd2 >= blastR * blastR) continue;
+        const falloff = 1 - Math.sqrt(bd2) / blastR;
+        let remaining = blastDmg * (0.4 + falloff * 0.6);
+        if ((ws.playerState.shield || 0) > 0) {
+          const absorb = Math.min(ws.playerState.shield, remaining);
+          ws.playerState.shield -= absorb;
+          remaining -= absorb;
+        }
+        if (remaining > 0) ws.playerState.hp = Math.max(0, ws.playerState.hp - remaining);
+        ws.playerState._tookDamageFrom = e;
+      }
+    }
+    e.dead = true;
+  }
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Per-typ AI — speglar game.js:7316-7458
@@ -459,10 +507,10 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
   const dx = dxRaw, dy = dyRaw, d = dRaw;
 
   // v2 forest/biome behavior dispatch — ranged+special behaviors return early;
-  // 'melee'/'slow_melee'/'split'/'shielder' fall through to the melee branch below.
-  // 'shielder' (ossuary_bulwark) uses melee movement; its special trait is dmgReduce
-  // applied inside damageEnemy (bullets.js), not here.
-  if (e.behavior && e.behavior !== 'melee' && e.behavior !== 'slow_melee' && e.behavior !== 'split' && e.behavior !== 'shielder') {
+  // 'melee'/'slow_melee'/'split'/'shielder'/'lifesteal' fall through to the melee branch.
+  // 'shielder' uses melee movement; dmgReduce applied in damageEnemy (bullets.js).
+  // 'lifesteal' uses melee movement; lifesteal heal applied in applyContactDamage.
+  if (e.behavior && e.behavior !== 'melee' && e.behavior !== 'slow_melee' && e.behavior !== 'split' && e.behavior !== 'shielder' && e.behavior !== 'lifesteal') {
     switch (e.behavior) {
       case 'spread':    _behaviorSpread(e, dt, now, sim, p, dx, dy, d);    break;
       case 'homing':    _behaviorHoming(e, dt, now, sim, p, dx, dy, d);    break;
@@ -470,6 +518,7 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
       case 'root_hook': _behaviorRootHook(e, dt, now, sim, p, dx, dy, d); break;
       case 'charger':   _behaviorCharger(e, dt, now, sim, p, dx, dy, d);  break;
       case 'burrow':    _behaviorBurrow(e, dt, now, sim, p, dx, dy, d);   break;
+      case 'exploder':  _behaviorExploder(e, dt, now, sim, p, dx, dy, d); break;
       default:          /* unknown: simple advance */ e.x += (dx / d) * e.speed * dt; e.y += (dy / d) * e.speed * dt; break;
     }
     return;
@@ -777,6 +826,13 @@ function applyContactDamage(e, p, sim) {
         if (typeof p._baseSpeedMul !== 'number') p._baseSpeedMul = (p.speedMul || 1.0);
         p.speedMul  = e.slowMul || 0.55;
         p._slowUntil = now + (e.slowMs || 2500);
+      }
+      // v2 swamp lifesteal: after dealing contact damage to player, heal enemy by
+      // e.dmg * (lifestealPct/100), capped at maxHp. Uses e.dmg (total intended damage:
+      // shield+hp combined) as the heal base — simpler and avoids a separate
+      // "total dealt" tracker. Only applies when hitting a real player (not companion/core).
+      if (e.behavior === 'lifesteal' && e.lifestealPct > 0 && !p._isCompanion && !p._isCoreTarget) {
+        e.hp = Math.min(e.maxHp, e.hp + e.dmg * (e.lifestealPct / 100));
       }
     }
     e.contactCd = 0.6;
