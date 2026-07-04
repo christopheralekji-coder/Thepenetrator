@@ -36,6 +36,16 @@ const ENEMY_STATS = {
   forest_rotbloom:    { r: 13, hp: 30, speed: 100, dmg: 11, color: '#5a4a2a', accent: '#8a6a1a', gold: 12, name: '', behavior: 'split',     splitType: 'forest_sporeling', splitCount: 2 },
   forest_sporemother: { r: 17, hp: 78, speed: 66,  dmg: 14, color: '#4a7a2a', accent: '#9aff5a', gold: 26, name: '', behavior: 'lob_aoe',  shootRange: 320, shootRate: 3500, bulletSpeed: 300, aoeRadius: 70, aoeDmg: 18, bulletColor: '#9aff5a' },
   forest_sporeling:   { r: 8,  hp: 8,  speed: 200, dmg: 6,  color: '#6a8a3a', accent: '#a0c050', gold: 2,  name: '', behavior: 'melee' },
+  // v2 DESERT BIOME (stage 2) — data-driven behavior system
+  desert_jackal:    { r: 9,  hp: 14, speed: 235, dmg: 9,  color: '#b8934a', accent: '#7a5a2a', gold: 8,  name: '', behavior: 'melee' },
+  desert_husk:      { r: 13, hp: 26, speed: 85,  dmg: 11, color: '#c8a96a', accent: '#8a6a3a', gold: 9,  name: '', behavior: 'split',     splitType: 'desert_huskling', splitCount: 2 },
+  desert_reaver:    { r: 12, hp: 24, speed: 80,  dmg: 0,  color: '#b05a2a', accent: '#6a2a0a', gold: 14, name: '', behavior: 'spread',    shootRange: 300, shootRate: 1500, bulletSpeed: 420, bulletDmg: 7, pellets: 4, spreadDeg: 34, bulletColor: '#ffb24a' },
+  desert_mirage:    { r: 10, hp: 20, speed: 120, dmg: 0,  color: '#6a8a9a', accent: '#2a4a5a', gold: 15, name: '', behavior: 'homing',    shootRange: 340, shootRate: 1700, bulletSpeed: 300, bulletDmg: 8, homingStrength: 0.09, bulletColor: '#7fe0ff' },
+  desert_sandram:   { r: 17, hp: 60, speed: 95,  dmg: 16, color: '#9a5a2a', accent: '#5a2a0a', gold: 20, name: '', behavior: 'charger',   dashInterval: 3000, dashSpeed: 520, dashDmg: 26, telegraphMs: 260 },
+  desert_lurker:    { r: 12, hp: 30, speed: 150, dmg: 15, color: '#6a5a3a', accent: '#3a2a1a', gold: 16, name: '', behavior: 'burrow',    burrowInterval: 5000, submergeMs: 1200, underSpeed: 230, resurfaceDmg: 15 },
+  desert_tarspitter:{ r: 13, hp: 34, speed: 70,  dmg: 0,  color: '#5a4a1a', accent: '#2a1a0a', gold: 17, name: '', behavior: 'lob_aoe',  shootRange: 260, shootRate: 2600, bulletSpeed: 300, aoeRadius: 55, aoeDmg: 14, bulletColor: '#7a6a2a' },
+  desert_warden:    { r: 16, hp: 78, speed: 70,  dmg: 18, color: '#aa8a2a', accent: '#6a5a0a', gold: 24, name: '', behavior: 'root_hook', shootRange: 320, shootRate: 4000, bulletSpeed: 420, bulletDmg: 10, rootMs: 900, rootMul: 0.40, bulletColor: '#d4af37' },
+  desert_huskling:  { r: 8,  hp: 13, speed: 150, dmg: 6,  color: '#c0a060', accent: '#805030', gold: 2,  name: '', behavior: 'melee' },
 };
 
 function makeEnemy(type, x, y) {
@@ -90,6 +100,16 @@ function makeEnemy(type, x, y) {
     slowMs:         base.slowMs        || 2500,
     splitType:      base.splitType     || null,
     splitCount:     base.splitCount    || 0,
+    // v2 desert charger behavior
+    dashInterval:   base.dashInterval  || 3000,
+    dashSpeed:      base.dashSpeed     || 520,
+    dashDmg:        base.dashDmg      || 26,
+    telegraphMs:    base.telegraphMs   || 260,
+    // v2 desert burrow behavior
+    burrowInterval: base.burrowInterval || 5000,
+    submergeMs:     base.submergeMs    || 1200,
+    underSpeed:     base.underSpeed    || 230,
+    resurfaceDmg:   base.resurfaceDmg  || 15,
   };
   return e;
 }
@@ -317,6 +337,107 @@ function _behaviorRootHook(e, dt, now, sim, p, dx, dy, d) {
     });
   }
 }
+// 'charger' — desert_sandram: jagar normalt; var dashInterval ms telegraferas + dashas i
+// låst riktning. Telegraf: håll stilla + sätt _attackFxUntil (klient-lunge-fx). Dash: fast
+// rak rörelse i låst riktning med förhöjt dmg (dashDmg). Dodgeable: riktning låses vid
+// telegraftstart, inte vid dashstart. Per-enemy state: _nextDash/_dashUntil/_dashDx/_dashDy/_dashDmgActive.
+function _behaviorCharger(e, dt, now, sim, p, dx, dy, d) {
+  if (e._nextDash === undefined) e._nextDash = now + (e.dashInterval || 3000);
+  if (e._baseDmg  === undefined) e._baseDmg  = e.dmg;
+
+  // ── ACTIVE DASH ──
+  if (e._dashUntil && now < e._dashUntil) {
+    e.x += e._dashDx * (e.dashSpeed || 520) * dt;
+    e.y += e._dashDy * (e.dashSpeed || 520) * dt;
+    if (!e._dashDmgActive) { e.dmg = e.dashDmg || 26; e._dashDmgActive = true; }
+    return;
+  }
+  if (e._dashDmgActive) {    // dash just ended — restore dmg + re-schedule
+    e.dmg = e._baseDmg;
+    e._dashDmgActive = false;
+    e._dashUntil     = 0;
+    e._nextDash      = now + (e.dashInterval || 3000);
+    return;
+  }
+
+  // ── TELEGRAPH (windup before dash) ──
+  if (e._telegraphUntil) {
+    if (now < e._telegraphUntil) return;   // stand still during windup
+    // Telegraph expired → launch dash immediately
+    e._dashUntil      = now + 450;
+    e._telegraphUntil = 0;
+    return;
+  }
+
+  // ── NORMAL CHASE — trigger next dash when interval expires ──
+  if (now >= e._nextDash) {
+    const telegMs = e.telegraphMs || 260;
+    e._nextDash       = now + 1e9;   // consumed; will be reset when dash finishes
+    e._telegraphUntil = now + telegMs;
+    e._attackFxUntil  = now + telegMs;
+    e._dashDx = dx / d;   // lock direction at telegraph start (dodgeable)
+    e._dashDy = dy / d;
+    return;   // stand still first frame of telegraph
+  }
+  e.x += (dx / d) * e.speed * dt;
+  e.y += (dy / d) * e.speed * dt;
+}
+
+// 'burrow' — desert_lurker: jagar normalt; var burrowInterval ms dyker ner underSpeed mot
+// spelarens LIVE-position (snabb reposition); vid submergeMs-slut dyker upp + ger resurfaceDmg
+// en gång om spelaren är nära. applyContactDamage supprimeras under dyk (e.dmg=0 varje tick).
+// Varken osynlig eller odödlig — rör inte netcode-format.
+// Per-enemy state: _nextBurrow / _diveUntil / _lurkerBaseDmg.
+function _behaviorBurrow(e, dt, now, sim, p, dx, dy, d) {
+  if (e._nextBurrow    === undefined) e._nextBurrow    = now + (e.burrowInterval || 5000);
+  if (e._lurkerBaseDmg === undefined) e._lurkerBaseDmg = e.dmg;   // fångar basens dmg:15
+
+  // ── ACTIVE DIVE (submerged) ──
+  if (e._diveUntil) {
+    if (now < e._diveUntil) {
+      // Följ spelarens live-position snabbt under jord
+      e.x += (dx / d) * (e.underSpeed || 230) * dt;
+      e.y += (dy / d) * (e.underSpeed || 230) * dt;
+      e.dmg = 0;   // supprimera applyContactDamage varje tick
+      return;
+    }
+    // ── RESURFACE ──
+    e._diveUntil = 0;
+    e.dmg = e._lurkerBaseDmg;
+    e._attackFxUntil = now + 220;
+    // Tillämpa resurface-slag om spelaren är nära (speglar applyContactDamage-mönstret)
+    const rsum = (p.r || 14) + e.r + 20;
+    if (dx * dx + dy * dy < rsum * rsum && !p._isCompanion && !p._isCoreTarget) {
+      const invulnOk = !p.invulnUntil || now >= p.invulnUntil;
+      if (invulnOk) {
+        let rem = e.resurfaceDmg || 15;
+        if ((p.shield || 0) > 0) {
+          const absorb = Math.min(p.shield, rem);
+          p.shield -= absorb; rem -= absorb;
+        }
+        if (rem > 0) p.hp = Math.max(0, p.hp - rem);
+        p._tookDamageFrom  = e;
+        p._lastDamageAt    = now;
+        p.invulnUntil      = now + 500;
+        e.contactCd        = 0.6;   // hindra applyContactDamage samma tick
+      }
+    }
+    e._nextBurrow = now + (e.burrowInterval || 5000);
+    return;
+  }
+
+  // ── NORMAL CHASE ──
+  if (now >= e._nextBurrow) {
+    // Börja dyk
+    e._diveUntil = now + (e.submergeMs || 1200);
+    e.dmg = 0;   // omedelbar supprimering
+    e.x += (dx / d) * (e.underSpeed || 230) * dt;
+    e.y += (dy / d) * (e.underSpeed || 230) * dt;
+    return;
+  }
+  e.x += (dx / d) * e.speed * dt;
+  e.y += (dy / d) * e.speed * dt;
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Per-typ AI — speglar game.js:7316-7458
@@ -333,6 +454,8 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
       case 'homing':    _behaviorHoming(e, dt, now, sim, p, dx, dy, d);    break;
       case 'lob_aoe':   _behaviorLobAoe(e, dt, now, sim, p, dx, dy, d);   break;
       case 'root_hook': _behaviorRootHook(e, dt, now, sim, p, dx, dy, d); break;
+      case 'charger':   _behaviorCharger(e, dt, now, sim, p, dx, dy, d);  break;
+      case 'burrow':    _behaviorBurrow(e, dt, now, sim, p, dx, dy, d);   break;
       default:          /* unknown: simple advance */ e.x += (dx / d) * e.speed * dt; e.y += (dy / d) * e.speed * dt; break;
     }
     return;

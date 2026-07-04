@@ -65,8 +65,8 @@ const STAGES = [
       { type: 'shooter', name: 'SUN PROPHET',  power: 'caster',        hpMul: 15, dmgMul: 2.2, scale: 1.5, gold: 290 },
     ],
     zones: [
-      { count: 9,  pool: ['grunt', 'soldier', 'runner'] },
-      { count: 12, pool: ['soldier', 'shooter', 'brute'], event: 'alarm' },
+      { count: 9,  pool: ['desert_jackal', 'desert_husk', 'desert_reaver', 'desert_sandram'] },
+      { count: 12, pool: ['desert_mirage', 'desert_lurker', 'desert_tarspitter', 'desert_warden', 'desert_husk'], event: 'alarm' },
     ],
   },
   { id: 3, name: 'JÄRNPERIMETERN', kind: 'military', worldW: 2200, worldH: 2400,
