@@ -249,4 +249,4 @@ function tickPlayerBurn(sim, now) {
   }
 }
 
-module.exports = { applyFlashbang, applyMolotov, applyGravity, spawnFlamePatch, tickGrenadeZones, tickPlayerBurn };
+module.exports = { applyFlashbang, applyMolotov, applyGravity, spawnFlamePatch, tickGrenadeZones, tickPlayerBurn, pvpActive };

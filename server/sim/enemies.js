@@ -66,6 +66,16 @@ const ENEMY_STATS = {
   ossuary_hook_wraith: { r: 11, hp: 26, speed: 85,  dmg: 6,  color: '#c9b48a', accent: '#8a7050', gold: 17, name: '', behavior: 'root_hook', shootRange: 360, shootRate: 3500, bulletSpeed: 420, bulletDmg: 6,  rootMs: 900, rootMul: 0.40, bulletColor: '#c9b48a' },
   ossuary_splitter:    { r: 13, hp: 30, speed: 100, dmg: 12, color: '#8a7a6a', accent: '#5a4a3a', gold: 12, name: '', behavior: 'split',     splitType: 'ossuary_crawler', splitCount: 2 },
   ossuary_crawler:     { r: 8,  hp: 8,  speed: 150, dmg: 7,  color: '#b8a890', accent: '#7a6850', gold: 2,  name: '', behavior: 'melee' },
+  // v2 VOLCANO BIOME (stage 6) — data-driven behavior system
+  volcano_cinderling:    { r: 9,  hp: 13, speed: 195, dmg: 7,  color: '#ff6a1a', accent: '#ff3a00', gold: 8,  name: '', behavior: 'burn_melee', pBurnMs: 2500, pBurnDps: 6 },
+  volcano_magma_hound:   { r: 10, hp: 16, speed: 235, dmg: 9,  color: '#c03000', accent: '#802000', gold: 9,  name: '', behavior: 'melee' },
+  volcano_slag_behemoth: { r: 18, hp: 88, speed: 62,  dmg: 20, color: '#7a3a1a', accent: '#3a1a0a', gold: 24, name: '', behavior: 'melee' },
+  volcano_pyre_zealot:   { r: 12, hp: 26, speed: 78,  dmg: 0,  color: '#ff6a00', accent: '#c03000', gold: 14, name: '', behavior: 'spread',    shootRange: 340, shootRate: 1600, bulletSpeed: 340, bulletDmg: 8,  pellets: 4, spreadDeg: 34, bulletColor: '#ff6a1a' },
+  volcano_ember_seer:    { r: 11, hp: 24, speed: 70,  dmg: 0,  color: '#ff9a3a', accent: '#c06010', gold: 18, name: '', behavior: 'homing',    shootRange: 400, shootRate: 1900, bulletSpeed: 250, bulletDmg: 10, homingStrength: 0.09, bulletColor: '#ffb03a' },
+  volcano_obsidian_ram:  { r: 15, hp: 54, speed: 95,  dmg: 14, color: '#2a2a2a', accent: '#1a1a1a', gold: 20, name: '', behavior: 'charger',   dashInterval: 3000, dashSpeed: 520, dashDmg: 26, telegraphMs: 500 },
+  volcano_molten_spawn:  { r: 13, hp: 40, speed: 110, dmg: 12, color: '#e05000', accent: '#a03000', gold: 16, name: '', behavior: 'split',     splitType: 'volcano_moltenling', splitCount: 2 },
+  volcano_lava_warden:   { r: 13, hp: 46, speed: 74,  dmg: 0,  color: '#d04010', accent: '#901a00', gold: 22, name: '', behavior: 'lob_aoe',  shootRange: 300, shootRate: 2500, bulletSpeed: 300, aoeRadius: 55, aoeDmg: 16, bulletColor: '#ff5a1a' },
+  volcano_moltenling:    { r: 8,  hp: 10, speed: 160, dmg: 8,  color: '#ff7a2a', accent: '#c04a00', gold: 2,  name: '', behavior: 'melee' },
 };
 
 function makeEnemy(type, x, y) {
@@ -136,6 +146,10 @@ function makeEnemy(type, x, y) {
     lifestealPct:   base.lifestealPct  || 0,
     // v2 swamp exploder behavior — fuse timer trigger (ms); fuse counter lives on e.fuse
     fuseMs:         base.fuseMs        || 700,
+    // v2 volcano burn_melee behavior — player-burn params (pBurnMs/pBurnDps to avoid colliding
+    // with the enemy's own burnUntil/burnDps status fields which track the ENEMY's own burn state)
+    pBurnMs:        base.pBurnMs       || 0,
+    pBurnDps:       base.pBurnDps      || 0,
   };
   return e;
 }
@@ -510,7 +524,7 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
   // 'melee'/'slow_melee'/'split'/'shielder'/'lifesteal' fall through to the melee branch.
   // 'shielder' uses melee movement; dmgReduce applied in damageEnemy (bullets.js).
   // 'lifesteal' uses melee movement; lifesteal heal applied in applyContactDamage.
-  if (e.behavior && e.behavior !== 'melee' && e.behavior !== 'slow_melee' && e.behavior !== 'split' && e.behavior !== 'shielder' && e.behavior !== 'lifesteal') {
+  if (e.behavior && e.behavior !== 'melee' && e.behavior !== 'slow_melee' && e.behavior !== 'split' && e.behavior !== 'shielder' && e.behavior !== 'lifesteal' && e.behavior !== 'burn_melee') {
     switch (e.behavior) {
       case 'spread':    _behaviorSpread(e, dt, now, sim, p, dx, dy, d);    break;
       case 'homing':    _behaviorHoming(e, dt, now, sim, p, dx, dy, d);    break;
@@ -833,6 +847,14 @@ function applyContactDamage(e, p, sim) {
       // "total dealt" tracker. Only applies when hitting a real player (not companion/core).
       if (e.behavior === 'lifesteal' && e.lifestealPct > 0 && !p._isCompanion && !p._isCoreTarget) {
         e.hp = Math.min(e.maxHp, e.hp + e.dmg * (e.lifestealPct / 100));
+      }
+      // v2 volcano burn_melee: after contact, ignite the player with a burn DoT.
+      // The DoT is ticked in the per-member sweep in tickSim (PvE/story) or tickPlayerBurn (PvP).
+      // Uses pBurnMs/pBurnDps (enemy-param names) to avoid colliding with e.burnUntil/e.burnDps
+      // (the enemy's own burn-status fields set by player fire weapons).
+      if (e.behavior === 'burn_melee' && e.pBurnMs > 0 && !p._isCompanion && !p._isCoreTarget) {
+        p.burnUntil = now + e.pBurnMs;
+        p.burnDps   = e.pBurnDps;
       }
     }
     e.contactCd = 0.6;

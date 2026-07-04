@@ -7,7 +7,7 @@ const { makeBoss } = require('./bosses');
 const { spawnPlayerBullets, applyMelee, updateBullets, damageEnemy, explode, pveWalls } = require('./bullets');
 const { enterGulag, gulagMatchmake, tickGulag, voidAllGulag, startGulagPractice } = require('./gulag');
 const { addBot, tickBots, removeAllBots, resetBotAiState } = require('./bots');
-const { tickGrenadeZones, tickPlayerBurn } = require('./grenades');
+const { tickGrenadeZones, tickPlayerBurn, pvpActive } = require('./grenades');
 const { updateBoss } = require('./bosses');
 const { loadStage, updateZoneProgression, spawnEnemyAtEdge, isStageComplete, onWaveComplete, checkBossDeath } = require('./waves');
 const { getDiffMul: cdGetDiffMul, getCoopMultiplier: cdGetCoopMul, getCoopDmgMultiplier: cdGetCoopDmgMul, getCoopSpawnMultiplier: cdGetCoopSpawnMul } = require('../../shared/stages-data');
@@ -285,13 +285,29 @@ function tickSim(sim) {
   // omedelbar (server.js). Skadefritt no-op om inga zoner.
   tickGrenadeZones(sim, dt, now);
   tickPlayerBurn(sim, now);   // lingrande brand-DoT (3s efter eldkastar-träff, PvP)
-  // v2 forest: löp ut transient player-slows (slow_melee + root_hook bullet) satta av forest-enemies
+  // v2 forest+volcano: per-member transient status sweep (slow expiry + PvE burn DoT)
   for (const [, _sw] of sim.room.members) {
     const _ps = _sw && _sw.playerState;
-    if (!_ps || !_ps._slowUntil) continue;
-    if (now >= _ps._slowUntil) {
+    if (!_ps) continue;
+    // expire player slow (slow_melee + root_hook bullet)
+    if (_ps._slowUntil && now >= _ps._slowUntil) {
       _ps.speedMul   = _ps._baseSpeedMul || 1.0;
       _ps._slowUntil = 0;
+    }
+    // v2 volcano burn_melee: tick player burn-DoT in PvE/story modes.
+    // tickPlayerBurn (grenades.js) handles PvP — skip here when PvP is active to
+    // avoid double-ticking. In PvE, burnUntil/burnDps on the playerState is set by
+    // applyContactDamage (burn_melee) and ticked continuously (dt-based) here.
+    // Respects invulnUntil (spawn protection) and drains shield before HP, mirroring
+    // the PvP path. No event emitted — HP change is broadcast via world snapshot.
+    if (!pvpActive(sim) && _ps.burnUntil > now && _ps.hp > 0) {
+      if (now >= (_ps.invulnUntil || 0)) {
+        let _brem = (_ps.burnDps || 0) * dt;
+        if (_brem > 0) {
+          if ((_ps.shield || 0) > 0) { const _ab = Math.min(_ps.shield, _brem); _ps.shield -= _ab; _brem -= _ab; }
+          if (_brem > 0) _ps.hp = Math.max(0, _ps.hp - _brem);
+        }
+      }
     }
   }
 

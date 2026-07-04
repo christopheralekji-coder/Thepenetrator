@@ -117,8 +117,8 @@ const STAGES = [
       { type: 'ninja',   name: 'WICK & EMBER',  power: 'avatar', hpMul: 17, dmgMul: 2.4, scale: 1.5, gold: 460 },
     ],
     zones: [
-      { count: 10, pool: ['soldier', 'shooter', 'brute'] },
-      { count: 13, pool: ['brute', 'ninja', 'shooter', 'summoner', 'healer'], event: 'barrel_chain' },
+      { count: 10, pool: ['volcano_cinderling', 'volcano_magma_hound', 'volcano_slag_behemoth', 'volcano_molten_spawn'] },
+      { count: 13, pool: ['volcano_pyre_zealot', 'volcano_ember_seer', 'volcano_obsidian_ram', 'volcano_lava_warden', 'volcano_molten_spawn'], event: 'barrel_chain' },
     ],
   },
   { id: 7, name: 'FRUSNA ARKTIS', kind: 'arctic', worldW: 2200, worldH: 2600,
