@@ -96,6 +96,16 @@ const ENEMY_STATS = {
   crystal_cave_facet_guardian:    { r: 18, hp: 85, speed: 68,  dmg: 20, color: '#b0c0d8', accent: '#6a7a9a', gold: 24, name: '', behavior: 'reflect_shield', reflectArc: 140, reflectSpeedMul: 0.8, reflectDmg: 9 },
   crystal_cave_resonant_cantor:   { r: 12, hp: 34, speed: 78,  dmg: 0,  color: '#9a7acc', accent: '#5a3a8a', gold: 20, name: '', behavior: 'buff_aura',     auraRange: 220, speedBuffPct: 30, buffInterval: 1500 },
   crystal_cave_shard_mote:        { r: 6,  hp: 6,  speed: 200, dmg: 5,  color: '#8a9ab8', accent: '#4a5a7a', gold: 1,  name: '', behavior: 'melee' },
+  // v2 OMEGA BIOME (stage 9) — data-driven behavior system (chrome/cyan palette)
+  omega_chrome_husk:     { r: 12, hp: 22,  speed: 95,  dmg: 11, color: '#8a90a0', accent: '#26ffe6', gold: 7,  name: '', behavior: 'melee' },
+  omega_volt_wisp:       { r: 8,  hp: 12,  speed: 240, dmg: 9,  color: '#26ffe6', accent: '#eaffff', gold: 9,  name: '', behavior: 'melee' },
+  omega_core_juggernaut: { r: 19, hp: 100, speed: 62,  dmg: 24, color: '#7a8090', accent: '#26ffe6', gold: 24, name: '', behavior: 'melee' },
+  omega_seeker_drone:    { r: 11, hp: 24,  speed: 110, dmg: 0,  color: '#26ffe6', accent: '#eaffff', gold: 15, name: '', behavior: 'homing',        shootRange: 340, shootRate: 1500, bulletSpeed: 300, bulletDmg: 10, homingStrength: 0.09, bulletColor: '#26ffe6' },
+  omega_arc_lance:       { r: 13, hp: 34,  speed: 120, dmg: 14, color: '#5a6a7a', accent: '#26ffe6', gold: 16, name: '', behavior: 'charger',       dashInterval: 2600, dashSpeed: 640, dashDmg: 26, telegraphMs: 400 },
+  omega_overload_cell:   { r: 10, hp: 18,  speed: 190, dmg: 8,  color: '#2a3a4a', accent: '#26ffe6', gold: 13, name: '', behavior: 'exploder',      fuseMs: 600, aoeRadius: 100, aoeDmg: 36 },
+  omega_nanite_mass:     { r: 14, hp: 40,  speed: 105, dmg: 12, color: '#6a7a8a', accent: '#26ffe6', gold: 18, name: '', behavior: 'split',         splitType: 'omega_nanite_shard', splitCount: 2 },
+  omega_aegis_dish:      { r: 15, hp: 55,  speed: 70,  dmg: 0,  color: '#8090a0', accent: '#26ffe6', gold: 22, name: '', behavior: 'reflect_shield', reflectArc: 140, reflectSpeedMul: 0.8, reflectDmg: 9 },
+  omega_nanite_shard:    { r: 7,  hp: 8,   speed: 205, dmg: 6,  color: '#4a5a6a', accent: '#26ffe6', gold: 2,  name: '', behavior: 'melee' },
 };
 
 function makeEnemy(type, x, y) {

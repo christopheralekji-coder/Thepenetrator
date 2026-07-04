@@ -156,8 +156,8 @@ const STAGES = [
       { type: 'sniper',  name: 'VOID JUDGE',      power: 'gas_sniper', hpMul: 20, dmgMul: 2.7, scale: 1.6, gold: 620 },
     ],
     zones: [
-      { count: 10, pool: ['soldier', 'ninja', 'robot'] },
-      { count: 12, pool: ['robot', 'brute', 'ninja', 'sniper'], event: 'core_pulse' },
+      { count: 10, pool: ['omega_chrome_husk', 'omega_volt_wisp', 'omega_core_juggernaut', 'omega_overload_cell'] },
+      { count: 12, pool: ['omega_seeker_drone', 'omega_arc_lance', 'omega_nanite_mass', 'omega_aegis_dish', 'omega_chrome_husk'], event: 'core_pulse' },
     ],
   },
   { id: 10, name: 'VÄKTARENS FÄSTNING', kind: 'fortress', worldW: 2200, worldH: 2800,
