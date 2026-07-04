@@ -76,6 +76,16 @@ const ENEMY_STATS = {
   volcano_molten_spawn:  { r: 13, hp: 40, speed: 110, dmg: 12, color: '#e05000', accent: '#a03000', gold: 16, name: '', behavior: 'split',     splitType: 'volcano_moltenling', splitCount: 2 },
   volcano_lava_warden:   { r: 13, hp: 46, speed: 74,  dmg: 0,  color: '#d04010', accent: '#901a00', gold: 22, name: '', behavior: 'lob_aoe',  shootRange: 300, shootRate: 2500, bulletSpeed: 300, aoeRadius: 55, aoeDmg: 16, bulletColor: '#ff5a1a' },
   volcano_moltenling:    { r: 8,  hp: 10, speed: 160, dmg: 8,  color: '#ff7a2a', accent: '#c04a00', gold: 2,  name: '', behavior: 'melee' },
+  // v2 ARCTIC BIOME (stage 7) — data-driven behavior system
+  arctic_rimeguard:       { r: 12, hp: 22,  speed: 95,  dmg: 10, color: '#6a8aaa', accent: '#1a2a4a', gold: 7,  name: '', behavior: 'melee' },
+  arctic_behemoth:        { r: 19, hp: 100, speed: 62,  dmg: 24, color: '#4a5a7a', accent: '#1a2a3a', gold: 26, name: '', behavior: 'melee' },
+  arctic_shardcaster:     { r: 12, hp: 24,  speed: 78,  dmg: 0,  color: '#8ab8d8', accent: '#4a7a9a', gold: 14, name: '', behavior: 'spread',         shootRange: 340, shootRate: 1500, bulletSpeed: 340, bulletDmg: 7,  pellets: 5, spreadDeg: 44, bulletColor: '#bfe8ff' },
+  arctic_frostseer:       { r: 11, hp: 26,  speed: 70,  dmg: 0,  color: '#aadaff', accent: '#5a9ac0', gold: 16, name: '', behavior: 'homing',         shootRange: 400, shootRate: 1700, bulletSpeed: 300, bulletDmg: 9,  homingStrength: 0.09, bulletColor: '#7fd4ff' },
+  arctic_permacrawler:    { r: 13, hp: 30,  speed: 105, dmg: 9,  color: '#6a7a8a', accent: '#2a3a4a', gold: 12, name: '', behavior: 'slow_melee',     slowMul: 0.55, slowMs: 1800 },
+  arctic_brittlerevenant: { r: 14, hp: 34,  speed: 88,  dmg: 12, color: '#c8d8e8', accent: '#8a9aaa', gold: 15, name: '', behavior: 'split',          splitType: 'arctic_shardling', splitCount: 2 },
+  arctic_avalanche:       { r: 16, hp: 60,  speed: 90,  dmg: 14, color: '#5a6a7a', accent: '#2a3a4a', gold: 20, name: '', behavior: 'charger',        dashInterval: 2600, dashSpeed: 430, dashDmg: 26, telegraphMs: 400 },
+  arctic_mirrorsentinel:  { r: 15, hp: 55,  speed: 68,  dmg: 12, color: '#c0c8d8', accent: '#7a8898', gold: 24, name: '', behavior: 'reflect_shield', reflectArc: 120, reflectSpeedMul: 0.8, reflectDmg: 9 },
+  arctic_shardling:       { r: 8,  hp: 10,  speed: 165, dmg: 6,  color: '#d0e8ff', accent: '#90b0d0', gold: 2,  name: '', behavior: 'melee' },
 };
 
 function makeEnemy(type, x, y) {
@@ -150,6 +160,10 @@ function makeEnemy(type, x, y) {
     // with the enemy's own burnUntil/burnDps status fields which track the ENEMY's own burn state)
     pBurnMs:        base.pBurnMs       || 0,
     pBurnDps:       base.pBurnDps      || 0,
+    // v2 arctic reflect_shield behavior — 0 = no reflect (all other enemies unaffected)
+    reflectArc:      base.reflectArc      || 0,
+    reflectSpeedMul: base.reflectSpeedMul || 0.8,
+    reflectDmg:      base.reflectDmg      || 0,
   };
   return e;
 }
@@ -524,7 +538,7 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
   // 'melee'/'slow_melee'/'split'/'shielder'/'lifesteal' fall through to the melee branch.
   // 'shielder' uses melee movement; dmgReduce applied in damageEnemy (bullets.js).
   // 'lifesteal' uses melee movement; lifesteal heal applied in applyContactDamage.
-  if (e.behavior && e.behavior !== 'melee' && e.behavior !== 'slow_melee' && e.behavior !== 'split' && e.behavior !== 'shielder' && e.behavior !== 'lifesteal' && e.behavior !== 'burn_melee') {
+  if (e.behavior && e.behavior !== 'melee' && e.behavior !== 'slow_melee' && e.behavior !== 'split' && e.behavior !== 'shielder' && e.behavior !== 'lifesteal' && e.behavior !== 'burn_melee' && e.behavior !== 'reflect_shield') {
     switch (e.behavior) {
       case 'spread':    _behaviorSpread(e, dt, now, sim, p, dx, dy, d);    break;
       case 'homing':    _behaviorHoming(e, dt, now, sim, p, dx, dy, d);    break;

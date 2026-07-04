@@ -130,8 +130,8 @@ const STAGES = [
       { type: 'shooter', name: 'HOLLOW DANCER', power: 'plasma',  hpMul: 17, dmgMul: 2.5, scale: 1.5, gold: 500 },
     ],
     zones: [
-      { count: 10, pool: ['grunt', 'soldier', 'ninja'] },
-      { count: 13, pool: ['ninja', 'soldier', 'swarmer', 'sniper'], event: 'open_doors' },
+      { count: 10, pool: ['arctic_rimeguard', 'arctic_behemoth', 'arctic_shardcaster', 'arctic_brittlerevenant'] },
+      { count: 13, pool: ['arctic_frostseer', 'arctic_permacrawler', 'arctic_avalanche', 'arctic_mirrorsentinel', 'arctic_brittlerevenant'], event: 'open_doors' },
     ],
   },
   { id: 8, name: 'KRISTALLGROTTORNA', kind: 'crystal_cave', worldW: 1800, worldH: 2800,

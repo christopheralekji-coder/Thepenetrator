@@ -1971,6 +1971,41 @@ function updateBullets(sim, dt, now) {
           explode(sim, b.x, b.y, b.explosive, b.dmg, b.ownerPid, b.weaponId);
           hit = true; break;
         }
+        // arctic reflect_shield: frontal player bullets deflect back; flanked bullets damage normally.
+        // Guard: e.reflectArc===0 for ALL non-sentinel enemies → zero-cost no-op on every other path.
+        if (!b.hostile && e.reflectArc > 0) {
+          // Sentinel 'front' = direction toward nearest living player (sentinel faces its aggro target)
+          let _rfX = 0, _rfY = 0, _rfD2 = Infinity;
+          for (const [, _rws] of sim.room.members) {
+            const _rps = _rws && _rws.playerState;
+            if (!_rps || _rps.hp <= 0) continue;
+            const _rdx = _rps.x - e.x, _rdy = _rps.y - e.y;
+            const _rd2 = _rdx * _rdx + _rdy * _rdy;
+            if (_rd2 < _rfD2) { _rfD2 = _rd2; _rfX = _rdx; _rfY = _rdy; }
+          }
+          if (_rfD2 < Infinity) {
+            const _rfLen = Math.sqrt(_rfD2) || 1;
+            const _fntX = _rfX / _rfLen, _fntY = _rfY / _rfLen; // sentinel front unit-vec
+            // hitFrom = normalize(bulletPos - enemyPos) — which side the bullet struck from
+            const _hbX = b.x - e.x, _hbY = b.y - e.y;
+            const _hbLen = Math.sqrt(_hbX * _hbX + _hbY * _hbY) || 1;
+            const _hfX = _hbX / _hbLen, _hfY = _hbY / _hbLen;
+            const _dotFH = _fntX * _hfX + _fntY * _hfY;
+            if (_dotFH > Math.cos((e.reflectArc / 2) * Math.PI / 180)) {
+              // FRONTAL hit — deflect bullet back toward shooter; sentinel takes 0 damage
+              const _rSpd = Math.hypot(b.vx, b.vy);
+              sim.bullets.push({
+                x: e.x, y: e.y,
+                vx: _hfX * _rSpd * (e.reflectSpeedMul || 0.8),
+                vy: _hfY * _rSpd * (e.reflectSpeedMul || 0.8),
+                dmg: e.reflectDmg || 9, r: 4, life: 2,
+                color: '#bfe8ff', hostile: true,
+              });
+              hit = true; break; // remove player bullet; bypass applyBulletEffects/damageEnemy
+            }
+            // NOT frontal (flanked) — fall through to normal damage below
+          }
+        }
         applyBulletEffects(b, e, sim);
         // CD-CRYO-BRITTLE: brittle talent amplifies damage vs slowed/frozen enemies
         let _cdDmg = b.dmg;
