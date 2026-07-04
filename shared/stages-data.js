@@ -143,8 +143,8 @@ const STAGES = [
       { type: 'shooter',   name: 'SUBSONIC PROPHET',  power: 'plasma',        hpMul: 18, dmgMul: 2.6, scale: 1.6, gold: 540 },
     ],
     zones: [
-      { count: 11, pool: ['soldier', 'ninja', 'swarmer'] },
-      { count: 14, pool: ['swordsman', 'robot', 'ninja', 'swarmer', 'sniper'], event: 'lights_flicker' },
+      { count: 11, pool: ['crystal_cave_crawler', 'crystal_cave_shard_skitter', 'crystal_cave_prism_stalker', 'crystal_cave_refraction_lurker'] },
+      { count: 14, pool: ['crystal_cave_lumen_wisp', 'crystal_cave_prism_lance', 'crystal_cave_facet_guardian', 'crystal_cave_resonant_cantor', 'crystal_cave_crawler'], event: 'lights_flicker' },
     ],
   },
   { id: 9, name: 'OMEGA-KÄRNAN', kind: 'omega', worldW: 2000, worldH: 2400,

@@ -86,6 +86,16 @@ const ENEMY_STATS = {
   arctic_avalanche:       { r: 16, hp: 60,  speed: 90,  dmg: 14, color: '#5a6a7a', accent: '#2a3a4a', gold: 20, name: '', behavior: 'charger',        dashInterval: 2600, dashSpeed: 430, dashDmg: 26, telegraphMs: 400 },
   arctic_mirrorsentinel:  { r: 15, hp: 55,  speed: 68,  dmg: 12, color: '#c0c8d8', accent: '#7a8898', gold: 24, name: '', behavior: 'reflect_shield', reflectArc: 120, reflectSpeedMul: 0.8, reflectDmg: 9 },
   arctic_shardling:       { r: 8,  hp: 10,  speed: 165, dmg: 6,  color: '#d0e8ff', accent: '#90b0d0', gold: 2,  name: '', behavior: 'melee' },
+  // v2 CRYSTAL CAVE BIOME (stage 8) — data-driven behavior system
+  crystal_cave_crawler:           { r: 12, hp: 22, speed: 95,  dmg: 10, color: '#6a7aaa', accent: '#2a3a6a', gold: 7,  name: '', behavior: 'melee' },
+  crystal_cave_shard_skitter:     { r: 9,  hp: 14, speed: 150, dmg: 7,  color: '#9aaabb', accent: '#4a5a8a', gold: 8,  name: '', behavior: 'split',          splitType: 'crystal_cave_shard_mote', splitCount: 2 },
+  crystal_cave_prism_stalker:     { r: 10, hp: 18, speed: 215, dmg: 11, color: '#aabbcc', accent: '#5a6a8a', gold: 11, name: '', behavior: 'melee' },
+  crystal_cave_lumen_wisp:        { r: 10, hp: 22, speed: 85,  dmg: 0,  color: '#2a8aaa', accent: '#0a5a7a', gold: 13, name: '', behavior: 'homing',         shootRange: 320, shootRate: 1300, bulletSpeed: 240, bulletDmg: 8,  homingStrength: 0.09, bulletColor: '#66f0ff' },
+  crystal_cave_prism_lance:       { r: 12, hp: 24, speed: 60,  dmg: 0,  color: '#ddeeff', accent: '#aaccdd', gold: 22, name: '', behavior: 'sniper',         shootRange: 680, shootRate: 2400, telegraphMs: 800, bulletSpeed: 950, bulletDmg: 38, bulletColor: '#eaffff' },
+  crystal_cave_refraction_lurker: { r: 11, hp: 30, speed: 120, dmg: 16, color: '#5a7aaa', accent: '#2a4a7a', gold: 16, name: '', behavior: 'cloaker',        blinkInterval: 3500, blinkRange: 60 },
+  crystal_cave_facet_guardian:    { r: 18, hp: 85, speed: 68,  dmg: 20, color: '#b0c0d8', accent: '#6a7a9a', gold: 24, name: '', behavior: 'reflect_shield', reflectArc: 140, reflectSpeedMul: 0.8, reflectDmg: 9 },
+  crystal_cave_resonant_cantor:   { r: 12, hp: 34, speed: 78,  dmg: 0,  color: '#9a7acc', accent: '#5a3a8a', gold: 20, name: '', behavior: 'buff_aura',     auraRange: 220, speedBuffPct: 30, buffInterval: 1500 },
+  crystal_cave_shard_mote:        { r: 6,  hp: 6,  speed: 200, dmg: 5,  color: '#8a9ab8', accent: '#4a5a7a', gold: 1,  name: '', behavior: 'melee' },
 };
 
 function makeEnemy(type, x, y) {
@@ -164,6 +174,13 @@ function makeEnemy(type, x, y) {
     reflectArc:      base.reflectArc      || 0,
     reflectSpeedMul: base.reflectSpeedMul || 0.8,
     reflectDmg:      base.reflectDmg      || 0,
+    // v2 crystal cave cloaker behavior — blink-teleport to near-player every blinkInterval ms
+    blinkInterval:   base.blinkInterval   || 3500,
+    blinkRange:      base.blinkRange      || 60,
+    // v2 crystal cave buff_aura behavior — hasten nearby non-boss allies every buffInterval ms
+    auraRange:       base.auraRange       || 0,
+    speedBuffPct:    base.speedBuffPct    || 0,
+    buffInterval:    base.buffInterval    || 1500,
   };
   return e;
 }
@@ -249,11 +266,19 @@ function updateStatus(e, dt, now, allEnemies) {
   if (e.slowUntil && now < e.slowUntil) {
     speedMul = e.slowFactor || 0.6;
   } else { e.slowUntil = 0; e.slowFactor = 1; }
+  // v2 crystal cave buff_aura: speed buff composes multiplicatively WITH slow.
+  // _speedBuffUntil//_speedBuff are undefined on all non-buffed enemies → no-op.
+  // Composition: speed = _origSpeed * slowMul * buffMul — a buffed+slowed enemy
+  // is STILL slower than unbuffed (buff cannot overcome slow).
+  let buffMul = 1;
+  if (e._speedBuffUntil && now < e._speedBuffUntil) {
+    buffMul = e._speedBuff || 1;
+  } else if (e._speedBuffUntil) { e._speedBuffUntil = 0; e._speedBuff = 1; }
   // mind-control upphör
   if (e.mindControlled && now >= e.mindControlUntil) e.mindControlled = false;
-  // tillämpa speed
+  // tillämpa speed (slow × buff multiplicative — all three are 1 when inactive)
   if (e._origSpeed === undefined) e._origSpeed = e.speed;
-  e.speed = e._origSpeed * speedMul;
+  e.speed = e._origSpeed * speedMul * buffMul;
   return true;
 }
 
@@ -526,6 +551,104 @@ function _behaviorExploder(e, dt, now, sim, p, dx, dy, d) {
     e.dead = true;
   }
 }
+// 'sniper' BEHAVIOR (crystal_cave_prism_lance): mirrors the existing 'sniper' TYPE AI
+// but parameterized via ENEMY_STATS (shootRange/shootRate/telegraphMs/bulletSpeed/bulletDmg).
+// Movement: maintain long range (retreat when player within shootRange*0.4, advance when too far).
+// Shoot cycle: set e.aiming + e.aimAt when in range + cooldown ready; after telegraphMs fire
+// a big hostile bullet (r:5, life:1.5) and reset. EARLY-RETURN so it never falls through
+// to the melee branch. e.aiming/e.aimAt/e.lastShot already live on every enemy (makeEnemy).
+function _behaviorSniper(e, dt, now, sim, p, dx, dy, d) {
+  const range = e.shootRange || 680;
+  const retreatDist = range * 0.4;   // back away when player gets this close
+
+  // Movement: hold engagement distance
+  if (d < retreatDist) {
+    e.x -= (dx / d) * e.speed * dt;
+    e.y -= (dy / d) * e.speed * dt;
+  } else if (d > range) {
+    e.x += (dx / d) * e.speed * dt;
+    e.y += (dy / d) * e.speed * dt;
+  }
+  // Telegraph (aim windup)
+  if (!e.aiming && d < range && now - e.lastShot >= (e.shootRate || 2400)) {
+    e.aiming = true;
+    e.aimAt  = now;
+    e._attackFxUntil = now + (e.telegraphMs || 800);
+  }
+  // Fire when telegraph expires
+  if (e.aiming && now - e.aimAt >= (e.telegraphMs || 800)) {
+    e.aiming    = false;
+    e.lastShot  = now;
+    e._attackFxUntil = now + 220;
+    const ang = Math.atan2(p.y - e.y, p.x - e.x);
+    const spd = e.bulletSpeed || 950;
+    sim.bullets.push({
+      x: e.x, y: e.y,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
+      dmg: e.bulletDmg || 38, life: 1.5, r: 5,
+      color: e.bulletColor || '#eaffff', hostile: true,
+    });
+  }
+}
+
+// 'cloaker' BEHAVIOR (crystal_cave_refraction_lurker): chases player normally; every
+// blinkInterval ms BLINKS — teleports to a point blinkRange px from the player at a random
+// angle, triggering _attackFxUntil so the client sees the strike windup. Stays visible and
+// damageable at all times (no netcode changes). Contact damage via normal applyContactDamage
+// after the blink closes the gap. Per-enemy state: e._nextBlink.
+function _behaviorCloaker(e, dt, now, sim, p, dx, dy, d) {
+  if (e._nextBlink === undefined) e._nextBlink = now + (e.blinkInterval || 3500);
+
+  // Normal chase
+  e.x += (dx / d) * e.speed * dt;
+  e.y += (dy / d) * e.speed * dt;
+
+  // Blink — teleport to near-player position
+  if (now >= e._nextBlink) {
+    e._nextBlink = now + (e.blinkInterval || 3500);
+    const ang = Math.random() * Math.PI * 2;
+    const br  = e.blinkRange || 60;
+    e.x = p.x + Math.cos(ang) * br;
+    e.y = p.y + Math.sin(ang) * br;
+    e._attackFxUntil = now + 220;   // strike-windup fx (klient fx-bit 256)
+  }
+}
+
+// 'buff_aura' BEHAVIOR (crystal_cave_resonant_cantor): avoids the player (backs away when
+// within auraRange); every buffInterval ms hastens ALL living non-boss allies within auraRange
+// by speedBuffPct% for buffInterval*1.5 ms. Speed buff composes with SLOW via the
+// _speedBuff/_speedBuffUntil fields that updateStatus multiplies in after slowMul:
+//   e.speed = e._origSpeed * slowMul * buffMul
+// This guarantees a buffed+slowed enemy is still correctly slowed (buff cannot overcome slow).
+// The cantor itself deals no contact damage (dmg:0 in ENEMY_STATS).
+function _behaviorBuffAura(e, dt, now, sim, p, dx, dy, d) {
+  if (e._nextBuff === undefined) e._nextBuff = now + (e.buffInterval || 1500);
+  const auraRange = e.auraRange || 220;
+
+  // Avoid the player
+  if (d < auraRange) {
+    e.x -= (dx / d) * e.speed * dt;
+    e.y -= (dy / d) * e.speed * dt;
+  }
+
+  // Buff nearby allies every buffInterval ms
+  if (now >= e._nextBuff) {
+    e._nextBuff = now + (e.buffInterval || 1500);
+    const buffDur = (e.buffInterval || 1500) * 1.5;  // hasten window outlasts the interval
+    const buffMul = 1 + (e.speedBuffPct || 30) / 100;
+    const auraR2  = auraRange * auraRange;
+    for (const ally of sim.enemies) {
+      if (ally === e || ally.dead || ally.isBoss) continue;
+      const adx = ally.x - e.x, ady = ally.y - e.y;
+      if (adx * adx + ady * ady > auraR2) continue;
+      // updateStatus reads _speedBuff/_speedBuffUntil and multiplies into e.speed
+      ally._speedBuffUntil = now + buffDur;
+      ally._speedBuff      = buffMul;
+    }
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Per-typ AI — speglar game.js:7316-7458
@@ -547,6 +670,10 @@ function updateEnemyAI(e, dt, now, sim, p, allEnemies) {
       case 'charger':   _behaviorCharger(e, dt, now, sim, p, dx, dy, d);  break;
       case 'burrow':    _behaviorBurrow(e, dt, now, sim, p, dx, dy, d);   break;
       case 'exploder':  _behaviorExploder(e, dt, now, sim, p, dx, dy, d); break;
+      // v2 crystal cave behaviors
+      case 'sniper':    _behaviorSniper(e, dt, now, sim, p, dx, dy, d);    break;
+      case 'cloaker':   _behaviorCloaker(e, dt, now, sim, p, dx, dy, d);   break;
+      case 'buff_aura': _behaviorBuffAura(e, dt, now, sim, p, dx, dy, d);  break;
       default:          /* unknown: simple advance */ e.x += (dx / d) * e.speed * dt; e.y += (dy / d) * e.speed * dt; break;
     }
     return;
