@@ -169,8 +169,8 @@ const STAGES = [
       { type: 'shooter',   name: "WARDEN'S HERALD",  power: 'avatar',       hpMul: 21, dmgMul: 2.8, scale: 1.6, gold: 760 },
     ],
     zones: [
-      { count: 12, pool: ['soldier', 'shooter', 'brute'] },
-      { count: 15, pool: ['swordsman', 'robot', 'brute', 'sniper', 'summoner'], event: 'alarm' },
+      { count: 12, pool: ['fortress_ironguard', 'fortress_colossus', 'fortress_crossbow', 'fortress_tower_shield'] },
+      { count: 15, pool: ['fortress_ballista', 'fortress_lancer', 'fortress_herald', 'fortress_hook', 'fortress_ironguard'], event: 'alarm' },
     ],
   },
 ];

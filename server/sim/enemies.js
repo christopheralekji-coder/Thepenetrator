@@ -106,6 +106,15 @@ const ENEMY_STATS = {
   omega_nanite_mass:     { r: 14, hp: 40,  speed: 105, dmg: 12, color: '#6a7a8a', accent: '#26ffe6', gold: 18, name: '', behavior: 'split',         splitType: 'omega_nanite_shard', splitCount: 2 },
   omega_aegis_dish:      { r: 15, hp: 55,  speed: 70,  dmg: 0,  color: '#8090a0', accent: '#26ffe6', gold: 22, name: '', behavior: 'reflect_shield', reflectArc: 140, reflectSpeedMul: 0.8, reflectDmg: 9 },
   omega_nanite_shard:    { r: 7,  hp: 8,   speed: 205, dmg: 6,  color: '#4a5a6a', accent: '#26ffe6', gold: 2,  name: '', behavior: 'melee' },
+  // v2 FORTRESS BIOME (stage 10) — data-driven behavior system (steel-gray / gold / crimson palette)
+  fortress_ironguard:   { r: 12, hp: 24,  speed: 100, dmg: 12, color: '#606870', accent: '#9a1020', gold: 8,  name: '', behavior: 'melee' },
+  fortress_colossus:    { r: 18, hp: 105, speed: 60,  dmg: 26, color: '#4a5060', accent: '#c8a832', gold: 26, name: '', behavior: 'melee' },
+  fortress_crossbow:    { r: 12, hp: 26,  speed: 80,  dmg: 0,  color: '#707880', accent: '#c8a832', gold: 15, name: '', behavior: 'spread',    shootRange: 320, shootRate: 1500, bulletSpeed: 420, bulletDmg: 8,  pellets: 4, spreadDeg: 28, bulletColor: '#e8d27a' },
+  fortress_ballista:    { r: 11, hp: 24,  speed: 60,  dmg: 0,  color: '#5a6070', accent: '#ffd24a', gold: 22, name: '', behavior: 'sniper',    shootRange: 720, shootRate: 2400, telegraphMs: 800, bulletSpeed: 950, bulletDmg: 40, bulletColor: '#ffd24a' },
+  fortress_tower_shield:{ r: 15, hp: 80,  speed: 75,  dmg: 16, color: '#7a8090', accent: '#9a1020', gold: 22, name: '', behavior: 'shielder',  dmgReduce: 70 },
+  fortress_lancer:      { r: 14, hp: 55,  speed: 130, dmg: 16, color: '#606870', accent: '#c8a832', gold: 20, name: '', behavior: 'charger',   dashInterval: 3000, dashSpeed: 430, dashDmg: 32, telegraphMs: 300 },
+  fortress_herald:      { r: 12, hp: 34,  speed: 80,  dmg: 0,  color: '#8a7030', accent: '#ffd24a', gold: 24, name: '', behavior: 'buff_aura', auraRange: 180, speedBuffPct: 35, buffInterval: 1000 },
+  fortress_hook:        { r: 13, hp: 30,  speed: 85,  dmg: 8,  color: '#707880', accent: '#c0a020', gold: 18, name: '', behavior: 'root_hook', shootRange: 300, shootRate: 3500, bulletSpeed: 500, bulletDmg: 6,  rootMs: 900, rootMul: 0.40, bulletColor: '#c0a020' },
 };
 
 function makeEnemy(type, x, y) {
